@@ -12,11 +12,11 @@ using System;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -62,11 +62,11 @@ public enum SDL_BlendMode : uint32
  */
 public enum SDL_BlendOperation : int32
 {
-    SDL_BLENDOPERATION_ADD              = 0x1,  /**< dst + src: supported by all renderers */
-    SDL_BLENDOPERATION_SUBTRACT         = 0x2,  /**< src - dst : supported by D3D, OpenGL, OpenGLES, and Vulkan */
-    SDL_BLENDOPERATION_REV_SUBTRACT     = 0x3,  /**< dst - src : supported by D3D, OpenGL, OpenGLES, and Vulkan */
-    SDL_BLENDOPERATION_MINIMUM          = 0x4,  /**< min(dst, src) : supported by D3D, OpenGL, OpenGLES, and Vulkan */
-    SDL_BLENDOPERATION_MAXIMUM          = 0x5   /**< max(dst, src) : supported by D3D, OpenGL, OpenGLES, and Vulkan */
+	SDL_BLENDOPERATION_ADD              = 0x1, /**< dst + src: supported by all renderers */
+	SDL_BLENDOPERATION_SUBTRACT         = 0x2, /**< src - dst : supported by D3D, OpenGL, OpenGLES, and Vulkan */
+	SDL_BLENDOPERATION_REV_SUBTRACT     = 0x3, /**< dst - src : supported by D3D, OpenGL, OpenGLES, and Vulkan */
+	SDL_BLENDOPERATION_MINIMUM          = 0x4, /**< min(dst, src) : supported by D3D, OpenGL, OpenGLES, and Vulkan */
+	SDL_BLENDOPERATION_MAXIMUM          = 0x5 /**< max(dst, src) : supported by D3D, OpenGL, OpenGLES, and Vulkan */
 }
 
 /**
@@ -81,16 +81,16 @@ public enum SDL_BlendOperation : int32
  */
 public enum SDL_BlendFactor : int32
 {
-    SDL_BLENDFACTOR_ZERO                = 0x1,  /**< 0, 0, 0, 0 */
-    SDL_BLENDFACTOR_ONE                 = 0x2,  /**< 1, 1, 1, 1 */
-    SDL_BLENDFACTOR_SRC_COLOR           = 0x3,  /**< srcR, srcG, srcB, srcA */
-    SDL_BLENDFACTOR_ONE_MINUS_SRC_COLOR = 0x4,  /**< 1-srcR, 1-srcG, 1-srcB, 1-srcA */
-    SDL_BLENDFACTOR_SRC_ALPHA           = 0x5,  /**< srcA, srcA, srcA, srcA */
-    SDL_BLENDFACTOR_ONE_MINUS_SRC_ALPHA = 0x6,  /**< 1-srcA, 1-srcA, 1-srcA, 1-srcA */
-    SDL_BLENDFACTOR_DST_COLOR           = 0x7,  /**< dstR, dstG, dstB, dstA */
-    SDL_BLENDFACTOR_ONE_MINUS_DST_COLOR = 0x8,  /**< 1-dstR, 1-dstG, 1-dstB, 1-dstA */
-    SDL_BLENDFACTOR_DST_ALPHA           = 0x9,  /**< dstA, dstA, dstA, dstA */
-    SDL_BLENDFACTOR_ONE_MINUS_DST_ALPHA = 0xA   /**< 1-dstA, 1-dstA, 1-dstA, 1-dstA */
+	SDL_BLENDFACTOR_ZERO                = 0x1, /**< 0, 0, 0, 0 */
+	SDL_BLENDFACTOR_ONE                 = 0x2, /**< 1, 1, 1, 1 */
+	SDL_BLENDFACTOR_SRC_COLOR           = 0x3, /**< srcR, srcG, srcB, srcA */
+	SDL_BLENDFACTOR_ONE_MINUS_SRC_COLOR = 0x4, /**< 1-srcR, 1-srcG, 1-srcB, 1-srcA */
+	SDL_BLENDFACTOR_SRC_ALPHA           = 0x5, /**< srcA, srcA, srcA, srcA */
+	SDL_BLENDFACTOR_ONE_MINUS_SRC_ALPHA = 0x6, /**< 1-srcA, 1-srcA, 1-srcA, 1-srcA */
+	SDL_BLENDFACTOR_DST_COLOR           = 0x7, /**< dstR, dstG, dstB, dstA */
+	SDL_BLENDFACTOR_ONE_MINUS_DST_COLOR = 0x8, /**< 1-dstR, 1-dstG, 1-dstB, 1-dstA */
+	SDL_BLENDFACTOR_DST_ALPHA           = 0x9, /**< dstA, dstA, dstA, dstA */
+	SDL_BLENDFACTOR_ONE_MINUS_DST_ALPHA = 0xA /**< 1-dstA, 1-dstA, 1-dstA, 1-dstA */
 }
 
 public static //extension SDL3
@@ -182,10 +182,10 @@ public static //extension SDL3
  * \sa SDL_SetTextureBlendMode
  * \sa SDL_GetTextureBlendMode
  */
-[CLink] public static extern SDL_BlendMode SDL_ComposeCustomBlendMode(SDL_BlendFactor srcColorFactor,
-                                                                 SDL_BlendFactor dstColorFactor,
-                                                                 SDL_BlendOperation colorOperation,
-                                                                 SDL_BlendFactor srcAlphaFactor,
-                                                                 SDL_BlendFactor dstAlphaFactor,
-                                                                 SDL_BlendOperation alphaOperation);
+	[CLink] public static extern SDL_BlendMode SDL_ComposeCustomBlendMode(SDL_BlendFactor srcColorFactor,
+		SDL_BlendFactor dstColorFactor,
+		SDL_BlendOperation colorOperation,
+		SDL_BlendFactor srcAlphaFactor,
+		SDL_BlendFactor dstAlphaFactor,
+		SDL_BlendOperation alphaOperation);
 }

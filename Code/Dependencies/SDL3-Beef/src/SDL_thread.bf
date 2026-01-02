@@ -12,11 +12,11 @@ using System;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -93,10 +93,10 @@ public typealias SDL_TLSID = SDL_AtomicInt;
  */
 public enum SDL_ThreadPriority : int32
 {
-    SDL_THREAD_PRIORITY_LOW,
-    SDL_THREAD_PRIORITY_NORMAL,
-    SDL_THREAD_PRIORITY_HIGH,
-    SDL_THREAD_PRIORITY_TIME_CRITICAL
+	SDL_THREAD_PRIORITY_LOW,
+	SDL_THREAD_PRIORITY_NORMAL,
+	SDL_THREAD_PRIORITY_HIGH,
+	SDL_THREAD_PRIORITY_TIME_CRITICAL
 }
 
 /**
@@ -110,10 +110,10 @@ public enum SDL_ThreadPriority : int32
  */
 public enum SDL_ThreadState : int32
 {
-    SDL_THREAD_UNKNOWN,     /**< The thread is not valid */
-    SDL_THREAD_ALIVE,       /**< The thread is currently running */
-    SDL_THREAD_DETACHED,    /**< The thread is detached and can't be waited on */
-    SDL_THREAD_COMPLETE     /**< The thread has finished and should be cleaned up with SDL_WaitThread() */
+	SDL_THREAD_UNKNOWN, /**< The thread is not valid */
+	SDL_THREAD_ALIVE, /**< The thread is currently running */
+	SDL_THREAD_DETACHED, /**< The thread is detached and can't be waited on */
+	SDL_THREAD_COMPLETE /**< The thread has finished and should be cleaned up with SDL_WaitThread() */
 }
 
 
@@ -198,7 +198,7 @@ public static //extension SDL3
  * \sa SDL_CreateThreadWithProperties
  * \sa SDL_WaitThread
  */
-[CLink] public static extern SDL_Thread* SDL_CreateThread(SDL_ThreadFunction fn, char8* name, void *data);
+	[CLink] public static extern SDL_Thread* SDL_CreateThread(SDL_ThreadFunction fn, char8* name, void* data);
 
 /**
  * Create a new thread with with the specified properties.
@@ -264,12 +264,12 @@ public static //extension SDL3
  * \sa SDL_CreateThread
  * \sa SDL_WaitThread
  */
-[CLink] public static extern SDL_Thread* SDL_CreateThreadWithProperties(SDL_PropertiesID props);
+	[CLink] public static extern SDL_Thread* SDL_CreateThreadWithProperties(SDL_PropertiesID props);
 
-public const char8* SDL_PROP_THREAD_CREATE_ENTRY_FUNCTION_POINTER                  = "SDL.thread.create.entry_function";
-public const char8* SDL_PROP_THREAD_CREATE_NAME_STRING                             = "SDL.thread.create.name";
-public const char8* SDL_PROP_THREAD_CREATE_USERDATA_POINTER                        = "SDL.thread.create.userdata";
-public const char8* SDL_PROP_THREAD_CREATE_STACKSIZE_NUMBER                        = "SDL.thread.create.stacksize";
+	public const char8* SDL_PROP_THREAD_CREATE_ENTRY_FUNCTION_POINTER                  = "SDL.thread.create.entry_function";
+	public const char8* SDL_PROP_THREAD_CREATE_NAME_STRING                             = "SDL.thread.create.name";
+	public const char8* SDL_PROP_THREAD_CREATE_USERDATA_POINTER                        = "SDL.thread.create.userdata";
+	public const char8* SDL_PROP_THREAD_CREATE_STACKSIZE_NUMBER                        = "SDL.thread.create.stacksize";
 
 /* end wiki documentation for macros that are meant to look like functions. */
 
@@ -289,7 +289,7 @@ public const char8* SDL_PROP_THREAD_CREATE_STACKSIZE_NUMBER                     
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_Thread* SDL_CreateThreadRuntime(SDL_ThreadFunction fn, char8* name, void *data, SDL_FunctionPointer pfnBeginThread, SDL_FunctionPointer pfnEndThread);
+	[CLink] public static extern SDL_Thread* SDL_CreateThreadRuntime(SDL_ThreadFunction fn, char8* name, void* data, SDL_FunctionPointer pfnBeginThread, SDL_FunctionPointer pfnEndThread);
 
 /**
  * The actual entry point for SDL_CreateThreadWithProperties.
@@ -303,7 +303,7 @@ public const char8* SDL_PROP_THREAD_CREATE_STACKSIZE_NUMBER                     
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_Thread* SDL_CreateThreadWithPropertiesRuntime(SDL_PropertiesID props, SDL_FunctionPointer pfnBeginThread, SDL_FunctionPointer pfnEndThread);
+	[CLink] public static extern SDL_Thread* SDL_CreateThreadWithPropertiesRuntime(SDL_PropertiesID props, SDL_FunctionPointer pfnBeginThread, SDL_FunctionPointer pfnEndThread);
 
 //#define SDL_CreateThread(fn, name, data) SDL_CreateThreadRuntime((fn), (name), (data), (SDL_FunctionPointer) (SDL_BeginThreadFunction), (SDL_FunctionPointer) (SDL_EndThreadFunction))
 //#define SDL_CreateThreadWithProperties(props) SDL_CreateThreadWithPropertiesRuntime((props), (SDL_FunctionPointer) (SDL_BeginThreadFunction), (SDL_FunctionPointer) (SDL_EndThreadFunction))
@@ -323,7 +323,7 @@ public const char8* SDL_PROP_THREAD_CREATE_STACKSIZE_NUMBER                     
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern char8* SDL_GetThreadName(SDL_Thread *thread);
+	[CLink] public static extern char8* SDL_GetThreadName(SDL_Thread* thread);
 
 /**
  * Get the thread identifier for the current thread.
@@ -341,7 +341,7 @@ public const char8* SDL_PROP_THREAD_CREATE_STACKSIZE_NUMBER                     
  *
  * \sa SDL_GetThreadID
  */
-[CLink] public static extern SDL_ThreadID SDL_GetCurrentThreadID();
+	[CLink] public static extern SDL_ThreadID SDL_GetCurrentThreadID();
 
 /**
  * Get the thread identifier for the specified thread.
@@ -358,7 +358,7 @@ public const char8* SDL_PROP_THREAD_CREATE_STACKSIZE_NUMBER                     
  *
  * \sa SDL_GetCurrentThreadID
  */
-[CLink] public static extern SDL_ThreadID SDL_GetThreadID(SDL_Thread *thread);
+	[CLink] public static extern SDL_ThreadID SDL_GetThreadID(SDL_Thread* thread);
 
 /**
  * Set the priority for the current thread.
@@ -373,7 +373,7 @@ public const char8* SDL_PROP_THREAD_CREATE_STACKSIZE_NUMBER                     
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_SetCurrentThreadPriority(SDL_ThreadPriority priority);
+	[CLink] public static extern bool SDL_SetCurrentThreadPriority(SDL_ThreadPriority priority);
 
 /**
  * Wait for a thread to finish.
@@ -408,7 +408,7 @@ public const char8* SDL_PROP_THREAD_CREATE_STACKSIZE_NUMBER                     
  * \sa SDL_CreateThread
  * \sa SDL_DetachThread
  */
-[CLink] public static extern void SDL_WaitThread(SDL_Thread *thread, int32 *status);
+	[CLink] public static extern void SDL_WaitThread(SDL_Thread* thread, int32* status);
 
 /**
  * Get the current state of a thread.
@@ -421,7 +421,7 @@ public const char8* SDL_PROP_THREAD_CREATE_STACKSIZE_NUMBER                     
  *
  * \sa SDL_ThreadState
  */
-[CLink] public static extern SDL_ThreadState SDL_GetThreadState(SDL_Thread *thread);
+	[CLink] public static extern SDL_ThreadState SDL_GetThreadState(SDL_Thread* thread);
 
 /**
  * Let a thread clean up on exit without intervention.
@@ -457,7 +457,7 @@ public const char8* SDL_PROP_THREAD_CREATE_STACKSIZE_NUMBER                     
  * \sa SDL_CreateThread
  * \sa SDL_WaitThread
  */
-[CLink] public static extern void SDL_DetachThread(SDL_Thread *thread);
+	[CLink] public static extern void SDL_DetachThread(SDL_Thread* thread);
 
 /**
  * Get the current thread's value associated with a thread local storage ID.
@@ -472,7 +472,7 @@ public const char8* SDL_PROP_THREAD_CREATE_STACKSIZE_NUMBER                     
  *
  * \sa SDL_SetTLS
  */
-[CLink] public static extern void* SDL_GetTLS(SDL_TLSID *id);
+	[CLink] public static extern void* SDL_GetTLS(SDL_TLSID* id);
 }
 
 /**
@@ -486,7 +486,7 @@ public const char8* SDL_PROP_THREAD_CREATE_STACKSIZE_NUMBER                     
  *
  * \sa SDL_SetTLS
  */
-public typealias SDL_TLSDestructorCallback = function void(void *value);
+public typealias SDL_TLSDestructorCallback = function void(void* value);
 
 public static //extension SDL3
 {
@@ -516,7 +516,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetTLS
  */
-[CLink] public static extern bool SDL_SetTLS(SDL_TLSID *id, void* value, SDL_TLSDestructorCallback destructor);
+	[CLink] public static extern bool SDL_SetTLS(SDL_TLSID* id, void* value, SDL_TLSDestructorCallback destructor);
 
 /**
  * Cleanup all TLS data for this thread.
@@ -529,5 +529,5 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern void SDL_CleanupTLS();
+	[CLink] public static extern void SDL_CleanupTLS();
 }

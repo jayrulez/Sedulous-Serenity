@@ -12,11 +12,11 @@ using System;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -215,34 +215,34 @@ public static //extension SDL3
 [AllowDuplicates]
 public enum SDL_AudioFormat : int32
 {
-    SDL_AUDIO_UNKNOWN   = 0x0000u,  /**< Unspecified audio format */
-    SDL_AUDIO_U8        = 0x0008u,  /**< Unsigned 8-bit samples */
-        /* SDL_DEFINE_AUDIO_FORMAT(0, 0, 0, 8), */
-    SDL_AUDIO_S8        = 0x8008u,  /**< Signed 8-bit samples */
-        /* SDL_DEFINE_AUDIO_FORMAT(1, 0, 0, 8), */
-    SDL_AUDIO_S16LE     = 0x8010u,  /**< Signed 16-bit samples */
-        /* SDL_DEFINE_AUDIO_FORMAT(1, 0, 0, 16), */
-    SDL_AUDIO_S16BE     = 0x9010u,  /**< As above, but big-endian byte order */
-        /* SDL_DEFINE_AUDIO_FORMAT(1, 1, 0, 16), */
-    SDL_AUDIO_S32LE     = 0x8020u,  /**< 32-bit integer samples */
-        /* SDL_DEFINE_AUDIO_FORMAT(1, 0, 0, 32), */
-    SDL_AUDIO_S32BE     = 0x9020u,  /**< As above, but big-endian byte order */
-        /* SDL_DEFINE_AUDIO_FORMAT(1, 1, 0, 32), */
-    SDL_AUDIO_F32LE     = 0x8120u,  /**< 32-bit floating point samples */
-        /* SDL_DEFINE_AUDIO_FORMAT(1, 0, 1, 32), */
-    SDL_AUDIO_F32BE     = 0x9120u,  /**< As above, but big-endian byte order */
-        /* SDL_DEFINE_AUDIO_FORMAT(1, 1, 1, 32), */
+	SDL_AUDIO_UNKNOWN   = 0x0000u, /**< Unspecified audio format */
+	SDL_AUDIO_U8        = 0x0008u, /**< Unsigned 8-bit samples */
+		/* SDL_DEFINE_AUDIO_FORMAT(0, 0, 0, 8), */
+	SDL_AUDIO_S8        = 0x8008u, /**< Signed 8-bit samples */
+		/* SDL_DEFINE_AUDIO_FORMAT(1, 0, 0, 8), */
+	SDL_AUDIO_S16LE     = 0x8010u, /**< Signed 16-bit samples */
+		/* SDL_DEFINE_AUDIO_FORMAT(1, 0, 0, 16), */
+	SDL_AUDIO_S16BE     = 0x9010u, /**< As above, but big-endian byte order */
+		/* SDL_DEFINE_AUDIO_FORMAT(1, 1, 0, 16), */
+	SDL_AUDIO_S32LE     = 0x8020u, /**< 32-bit integer samples */
+		/* SDL_DEFINE_AUDIO_FORMAT(1, 0, 0, 32), */
+	SDL_AUDIO_S32BE     = 0x9020u, /**< As above, but big-endian byte order */
+		/* SDL_DEFINE_AUDIO_FORMAT(1, 1, 0, 32), */
+	SDL_AUDIO_F32LE     = 0x8120u, /**< 32-bit floating point samples */
+		/* SDL_DEFINE_AUDIO_FORMAT(1, 0, 1, 32), */
+	SDL_AUDIO_F32BE     = 0x9120u, /**< As above, but big-endian byte order */
+		/* SDL_DEFINE_AUDIO_FORMAT(1, 1, 1, 32), */
 
-    /* These represent the current system's byteorder. */
+	/* These represent the current system's byteorder. */
 	#if !BIGENDIAN //SDL_BYTEORDER == SDL_LIL_ENDIAN
-    SDL_AUDIO_S16 = SDL_AUDIO_S16LE,
-    SDL_AUDIO_S32 = SDL_AUDIO_S32LE,
-    SDL_AUDIO_F32 = SDL_AUDIO_F32LE
-    #else
-    SDL_AUDIO_S16 = SDL_AUDIO_S16BE,
-    SDL_AUDIO_S32 = SDL_AUDIO_S32BE,
-    SDL_AUDIO_F32 = SDL_AUDIO_F32BE
-    #endif
+	SDL_AUDIO_S16 = SDL_AUDIO_S16LE,
+	SDL_AUDIO_S32 = SDL_AUDIO_S32LE,
+	SDL_AUDIO_F32 = SDL_AUDIO_F32LE
+	#else
+	SDL_AUDIO_S16 = SDL_AUDIO_S16BE,
+	SDL_AUDIO_S32 = SDL_AUDIO_S32BE,
+	SDL_AUDIO_F32 = SDL_AUDIO_F32BE
+	#endif
 }
 
 public static //extension SDL3
@@ -427,9 +427,9 @@ public static //extension SDL3
  */
 [CRepr] public struct SDL_AudioSpec
 {
-    public SDL_AudioFormat format;     /**< Audio data format */
-    public int32 channels;               /**< Number of channels: 1 mono, 2 stereo, etc */
-    public int32 freq;                   /**< sample rate: sample frames per second */
+	public SDL_AudioFormat format; /**< Audio data format */
+	public int32 channels; /**< Number of channels: 1 mono, 2 stereo, etc */
+	public int32 freq; /**< sample rate: sample frames per second */
 }
 
 public static //extension SDL3
@@ -505,7 +505,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetAudioDriver
  */
-[CLink] public static extern int32 SDL_GetNumAudioDrivers();
+	[CLink] public static extern int32 SDL_GetNumAudioDrivers();
 
 /**
  * Use this function to get the name of a built in audio driver.
@@ -529,7 +529,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetNumAudioDrivers
  */
-[CLink] public static extern char8* SDL_GetAudioDriver(int32 index);
+	[CLink] public static extern char8* SDL_GetAudioDriver(int32 index);
 
 /**
  * Get the name of the current audio driver.
@@ -545,7 +545,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern char8* SDL_GetCurrentAudioDriver();
+	[CLink] public static extern char8* SDL_GetCurrentAudioDriver();
 
 /**
  * Get a list of currently-connected audio playback devices.
@@ -574,7 +574,7 @@ public static //extension SDL3
  * \sa SDL_OpenAudioDevice
  * \sa SDL_GetAudioRecordingDevices
  */
-[CLink] public static extern SDL_AudioDeviceID* SDL_GetAudioPlaybackDevices(int32 *count);
+	[CLink] public static extern SDL_AudioDeviceID* SDL_GetAudioPlaybackDevices(int32* count);
 
 /**
  * Get a list of currently-connected audio recording devices.
@@ -603,7 +603,7 @@ public static //extension SDL3
  * \sa SDL_OpenAudioDevice
  * \sa SDL_GetAudioPlaybackDevices
  */
-[CLink] public static extern SDL_AudioDeviceID* SDL_GetAudioRecordingDevices(int32 *count);
+	[CLink] public static extern SDL_AudioDeviceID* SDL_GetAudioRecordingDevices(int32* count);
 
 /**
  * Get the human-readable name of a specific audio device.
@@ -628,7 +628,7 @@ public static //extension SDL3
  * \sa SDL_GetAudioPlaybackDevices
  * \sa SDL_GetAudioRecordingDevices
  */
-[CLink] public static extern char8* SDL_GetAudioDeviceName(SDL_AudioDeviceID devid);
+	[CLink] public static extern char8* SDL_GetAudioDeviceName(SDL_AudioDeviceID devid);
 
 /**
  * Get the current audio format of a specific audio device.
@@ -663,7 +663,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_GetAudioDeviceFormat(SDL_AudioDeviceID devid, SDL_AudioSpec *spec, int32 *sample_frames);
+	[CLink] public static extern bool SDL_GetAudioDeviceFormat(SDL_AudioDeviceID devid, SDL_AudioSpec* spec, int32* sample_frames);
 
 /**
  * Get the current channel map of an audio device.
@@ -686,7 +686,7 @@ public static //extension SDL3
  *
  * \sa SDL_SetAudioStreamInputChannelMap
  */
-[CLink] public static extern int32* SDL_GetAudioDeviceChannelMap(SDL_AudioDeviceID devid, int32 *count);
+	[CLink] public static extern int32* SDL_GetAudioDeviceChannelMap(SDL_AudioDeviceID devid, int32* count);
 
 /**
  * Open a specific audio device.
@@ -762,7 +762,7 @@ public static //extension SDL3
  * \sa SDL_CloseAudioDevice
  * \sa SDL_GetAudioDeviceFormat
  */
-[CLink] public static extern SDL_AudioDeviceID SDL_OpenAudioDevice(SDL_AudioDeviceID devid, SDL_AudioSpec *spec);
+	[CLink] public static extern SDL_AudioDeviceID SDL_OpenAudioDevice(SDL_AudioDeviceID devid, SDL_AudioSpec* spec);
 
 /**
  * Determine if an audio device is physical (instead of logical).
@@ -787,7 +787,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_IsAudioDevicePhysical(SDL_AudioDeviceID devid);
+	[CLink] public static extern bool SDL_IsAudioDevicePhysical(SDL_AudioDeviceID devid);
 
 /**
  * Determine if an audio device is a playback device (instead of recording).
@@ -801,7 +801,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_IsAudioDevicePlayback(SDL_AudioDeviceID devid);
+	[CLink] public static extern bool SDL_IsAudioDevicePlayback(SDL_AudioDeviceID devid);
 
 /**
  * Use this function to pause audio playback on a specified device.
@@ -832,7 +832,7 @@ public static //extension SDL3
  * \sa SDL_ResumeAudioDevice
  * \sa SDL_AudioDevicePaused
  */
-[CLink] public static extern bool SDL_PauseAudioDevice(SDL_AudioDeviceID devid);
+	[CLink] public static extern bool SDL_PauseAudioDevice(SDL_AudioDeviceID devid);
 
 /**
  * Use this function to unpause audio playback on a specified device.
@@ -860,7 +860,7 @@ public static //extension SDL3
  * \sa SDL_AudioDevicePaused
  * \sa SDL_PauseAudioDevice
  */
-[CLink] public static extern bool SDL_ResumeAudioDevice(SDL_AudioDeviceID devid);
+	[CLink] public static extern bool SDL_ResumeAudioDevice(SDL_AudioDeviceID devid);
 
 /**
  * Use this function to query if an audio device is paused.
@@ -882,7 +882,7 @@ public static //extension SDL3
  * \sa SDL_PauseAudioDevice
  * \sa SDL_ResumeAudioDevice
  */
-[CLink] public static extern bool SDL_AudioDevicePaused(SDL_AudioDeviceID devid);
+	[CLink] public static extern bool SDL_AudioDevicePaused(SDL_AudioDeviceID devid);
 
 /**
  * Get the gain of an audio device.
@@ -905,7 +905,7 @@ public static //extension SDL3
  *
  * \sa SDL_SetAudioDeviceGain
  */
-[CLink] public static extern float SDL_GetAudioDeviceGain(SDL_AudioDeviceID devid);
+	[CLink] public static extern float SDL_GetAudioDeviceGain(SDL_AudioDeviceID devid);
 
 /**
  * Change the gain of an audio device.
@@ -940,7 +940,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetAudioDeviceGain
  */
-[CLink] public static extern bool SDL_SetAudioDeviceGain(SDL_AudioDeviceID devid, float gain);
+	[CLink] public static extern bool SDL_SetAudioDeviceGain(SDL_AudioDeviceID devid, float gain);
 
 /**
  * Close a previously-opened audio device.
@@ -961,7 +961,7 @@ public static //extension SDL3
  *
  * \sa SDL_OpenAudioDevice
  */
-[CLink] public static extern void SDL_CloseAudioDevice(SDL_AudioDeviceID devid);
+	[CLink] public static extern void SDL_CloseAudioDevice(SDL_AudioDeviceID devid);
 
 /**
  * Bind a list of audio streams to an audio device.
@@ -1001,7 +1001,7 @@ public static //extension SDL3
  * \sa SDL_UnbindAudioStream
  * \sa SDL_GetAudioStreamDevice
  */
-[CLink] public static extern bool SDL_BindAudioStreams(SDL_AudioDeviceID devid, SDL_AudioStream **streams, int32 num_streams);
+	[CLink] public static extern bool SDL_BindAudioStreams(SDL_AudioDeviceID devid, SDL_AudioStream** streams, int32 num_streams);
 
 /**
  * Bind a single audio stream to an audio device.
@@ -1022,7 +1022,7 @@ public static //extension SDL3
  * \sa SDL_UnbindAudioStream
  * \sa SDL_GetAudioStreamDevice
  */
-[CLink] public static extern bool SDL_BindAudioStream(SDL_AudioDeviceID devid, SDL_AudioStream *stream);
+	[CLink] public static extern bool SDL_BindAudioStream(SDL_AudioDeviceID devid, SDL_AudioStream* stream);
 
 /**
  * Unbind a list of audio streams from their audio devices.
@@ -1043,7 +1043,7 @@ public static //extension SDL3
  *
  * \sa SDL_BindAudioStreams
  */
-[CLink] public static extern void SDL_UnbindAudioStreams(SDL_AudioStream ** streams, int32 num_streams);
+	[CLink] public static extern void SDL_UnbindAudioStreams(SDL_AudioStream** streams, int32 num_streams);
 
 /**
  * Unbind a single audio stream from its audio device.
@@ -1059,7 +1059,7 @@ public static //extension SDL3
  *
  * \sa SDL_BindAudioStream
  */
-[CLink] public static extern void SDL_UnbindAudioStream(SDL_AudioStream *stream);
+	[CLink] public static extern void SDL_UnbindAudioStream(SDL_AudioStream* stream);
 
 /**
  * Query an audio stream for its currently-bound device.
@@ -1080,7 +1080,7 @@ public static //extension SDL3
  * \sa SDL_BindAudioStream
  * \sa SDL_BindAudioStreams
  */
-[CLink] public static extern SDL_AudioDeviceID SDL_GetAudioStreamDevice(SDL_AudioStream *stream);
+	[CLink] public static extern SDL_AudioDeviceID SDL_GetAudioStreamDevice(SDL_AudioStream* stream);
 
 /**
  * Create a new audio stream.
@@ -1102,7 +1102,7 @@ public static //extension SDL3
  * \sa SDL_SetAudioStreamFormat
  * \sa SDL_DestroyAudioStream
  */
-[CLink] public static extern SDL_AudioStream* SDL_CreateAudioStream(SDL_AudioSpec* src_spec, SDL_AudioSpec* dst_spec);
+	[CLink] public static extern SDL_AudioStream* SDL_CreateAudioStream(SDL_AudioSpec* src_spec, SDL_AudioSpec* dst_spec);
 
 /**
  * Get the properties associated with an audio stream.
@@ -1126,9 +1126,9 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_PropertiesID SDL_GetAudioStreamProperties(SDL_AudioStream *stream);
+	[CLink] public static extern SDL_PropertiesID SDL_GetAudioStreamProperties(SDL_AudioStream* stream);
 
-public const char8* SDL_PROP_AUDIOSTREAM_AUTO_CLEANUP_BOOLEAN = "SDL.audiostream.auto_cleanup";
+	public const char8* SDL_PROP_AUDIOSTREAM_AUTO_CLEANUP_BOOLEAN = "SDL.audiostream.auto_cleanup";
 
 /**
  * Query the current format of an audio stream.
@@ -1146,7 +1146,7 @@ public const char8* SDL_PROP_AUDIOSTREAM_AUTO_CLEANUP_BOOLEAN = "SDL.audiostream
  *
  * \sa SDL_SetAudioStreamFormat
  */
-[CLink] public static extern bool SDL_GetAudioStreamFormat(SDL_AudioStream *stream, SDL_AudioSpec *src_spec, SDL_AudioSpec *dst_spec);
+	[CLink] public static extern bool SDL_GetAudioStreamFormat(SDL_AudioStream* stream, SDL_AudioSpec* src_spec, SDL_AudioSpec* dst_spec);
 
 /**
  * Change the input and output formats of an audio stream.
@@ -1183,7 +1183,7 @@ public const char8* SDL_PROP_AUDIOSTREAM_AUTO_CLEANUP_BOOLEAN = "SDL.audiostream
  * \sa SDL_GetAudioStreamFormat
  * \sa SDL_SetAudioStreamFrequencyRatio
  */
-[CLink] public static extern bool SDL_SetAudioStreamFormat(SDL_AudioStream *stream, SDL_AudioSpec* src_spec, SDL_AudioSpec* dst_spec);
+	[CLink] public static extern bool SDL_SetAudioStreamFormat(SDL_AudioStream* stream, SDL_AudioSpec* src_spec, SDL_AudioSpec* dst_spec);
 
 /**
  * Get the frequency ratio of an audio stream.
@@ -1199,7 +1199,7 @@ public const char8* SDL_PROP_AUDIOSTREAM_AUTO_CLEANUP_BOOLEAN = "SDL.audiostream
  *
  * \sa SDL_SetAudioStreamFrequencyRatio
  */
-[CLink] public static extern float SDL_GetAudioStreamFrequencyRatio(SDL_AudioStream *stream);
+	[CLink] public static extern float SDL_GetAudioStreamFrequencyRatio(SDL_AudioStream* stream);
 
 /**
  * Change the frequency ratio of an audio stream.
@@ -1227,7 +1227,7 @@ public const char8* SDL_PROP_AUDIOSTREAM_AUTO_CLEANUP_BOOLEAN = "SDL.audiostream
  * \sa SDL_GetAudioStreamFrequencyRatio
  * \sa SDL_SetAudioStreamFormat
  */
-[CLink] public static extern bool SDL_SetAudioStreamFrequencyRatio(SDL_AudioStream *stream, float ratio);
+	[CLink] public static extern bool SDL_SetAudioStreamFrequencyRatio(SDL_AudioStream* stream, float ratio);
 
 /**
  * Get the gain of an audio stream.
@@ -1248,7 +1248,7 @@ public const char8* SDL_PROP_AUDIOSTREAM_AUTO_CLEANUP_BOOLEAN = "SDL.audiostream
  *
  * \sa SDL_SetAudioStreamGain
  */
-[CLink] public static extern float SDL_GetAudioStreamGain(SDL_AudioStream *stream);
+	[CLink] public static extern float SDL_GetAudioStreamGain(SDL_AudioStream* stream);
 
 /**
  * Change the gain of an audio stream.
@@ -1273,7 +1273,7 @@ public const char8* SDL_PROP_AUDIOSTREAM_AUTO_CLEANUP_BOOLEAN = "SDL.audiostream
  *
  * \sa SDL_GetAudioStreamGain
  */
-[CLink] public static extern bool SDL_SetAudioStreamGain(SDL_AudioStream *stream, float gain);
+	[CLink] public static extern bool SDL_SetAudioStreamGain(SDL_AudioStream* stream, float gain);
 
 /**
  * Get the current input channel map of an audio stream.
@@ -1297,7 +1297,7 @@ public const char8* SDL_PROP_AUDIOSTREAM_AUTO_CLEANUP_BOOLEAN = "SDL.audiostream
  *
  * \sa SDL_SetAudioStreamInputChannelMap
  */
-[CLink] public static extern int32* SDL_GetAudioStreamInputChannelMap(SDL_AudioStream *stream, int32 *count);
+	[CLink] public static extern int32* SDL_GetAudioStreamInputChannelMap(SDL_AudioStream* stream, int32* count);
 
 /**
  * Get the current output channel map of an audio stream.
@@ -1321,7 +1321,7 @@ public const char8* SDL_PROP_AUDIOSTREAM_AUTO_CLEANUP_BOOLEAN = "SDL.audiostream
  *
  * \sa SDL_SetAudioStreamInputChannelMap
  */
-[CLink] public static extern int32* SDL_GetAudioStreamOutputChannelMap(SDL_AudioStream *stream, int32 *count);
+	[CLink] public static extern int32* SDL_GetAudioStreamOutputChannelMap(SDL_AudioStream* stream, int32* count);
 
 /**
  * Set the current input channel map of an audio stream.
@@ -1381,7 +1381,7 @@ public const char8* SDL_PROP_AUDIOSTREAM_AUTO_CLEANUP_BOOLEAN = "SDL.audiostream
  *
  * \sa SDL_SetAudioStreamInputChannelMap
  */
-[CLink] public static extern bool SDL_SetAudioStreamInputChannelMap(SDL_AudioStream *stream, int32* chmap, int32 count);
+	[CLink] public static extern bool SDL_SetAudioStreamInputChannelMap(SDL_AudioStream* stream, int32* chmap, int32 count);
 
 /**
  * Set the current output channel map of an audio stream.
@@ -1439,7 +1439,7 @@ public const char8* SDL_PROP_AUDIOSTREAM_AUTO_CLEANUP_BOOLEAN = "SDL.audiostream
  *
  * \sa SDL_SetAudioStreamInputChannelMap
  */
-[CLink] public static extern bool SDL_SetAudioStreamOutputChannelMap(SDL_AudioStream *stream, int32* chmap, int32 count);
+	[CLink] public static extern bool SDL_SetAudioStreamOutputChannelMap(SDL_AudioStream* stream, int32* chmap, int32 count);
 
 /**
  * Add data to the stream.
@@ -1469,7 +1469,7 @@ public const char8* SDL_PROP_AUDIOSTREAM_AUTO_CLEANUP_BOOLEAN = "SDL.audiostream
  * \sa SDL_GetAudioStreamData
  * \sa SDL_GetAudioStreamQueued
  */
-[CLink] public static extern bool SDL_PutAudioStreamData(SDL_AudioStream *stream, void* buf, int32 len);
+	[CLink] public static extern bool SDL_PutAudioStreamData(SDL_AudioStream* stream, void* buf, int32 len);
 
 /**
  * A callback that fires for completed SDL_PutAudioStreamDataNoCopy() data.
@@ -1499,7 +1499,7 @@ public const char8* SDL_PROP_AUDIOSTREAM_AUTO_CLEANUP_BOOLEAN = "SDL.audiostream
  * \sa SDL_SetAudioStreamGetCallback
  * \sa SDL_SetAudioStreamPutCallback
  */
-public typealias SDL_AudioStreamDataCompleteCallback = function void(void *userdata, void* buf, int32 buflen);
+	public typealias SDL_AudioStreamDataCompleteCallback = function void(void* userdata, void* buf, int32 buflen);
 
 /**
  * Add external data to an audio stream without copying it.
@@ -1546,7 +1546,7 @@ public typealias SDL_AudioStreamDataCompleteCallback = function void(void *userd
  * \sa SDL_GetAudioStreamData
  * \sa SDL_GetAudioStreamQueued
  */
-[CLink] public static extern bool SDL_PutAudioStreamDataNoCopy(SDL_AudioStream *stream, void* buf, int32 len, SDL_AudioStreamDataCompleteCallback callback, void *userdata);
+	[CLink] public static extern bool SDL_PutAudioStreamDataNoCopy(SDL_AudioStream* stream, void* buf, int32 len, SDL_AudioStreamDataCompleteCallback callback, void* userdata);
 
 /**
  * Add data to the stream with each channel in a separate array.
@@ -1599,7 +1599,7 @@ public typealias SDL_AudioStreamDataCompleteCallback = function void(void *userd
  * \sa SDL_GetAudioStreamData
  * \sa SDL_GetAudioStreamQueued
  */
-[CLink] public static extern bool SDL_PutAudioStreamPlanarData(SDL_AudioStream *stream, void ** channel_buffers, int32 num_channels, int32 num_samples);
+	[CLink] public static extern bool SDL_PutAudioStreamPlanarData(SDL_AudioStream* stream, void** channel_buffers, int32 num_channels, int32 num_samples);
 
 /**
  * Get converted/resampled data from the stream.
@@ -1629,7 +1629,7 @@ public typealias SDL_AudioStreamDataCompleteCallback = function void(void *userd
  * \sa SDL_GetAudioStreamAvailable
  * \sa SDL_PutAudioStreamData
  */
-[CLink] public static extern int32 SDL_GetAudioStreamData(SDL_AudioStream *stream, void *buf, int32 len);
+	[CLink] public static extern int32 SDL_GetAudioStreamData(SDL_AudioStream* stream, void* buf, int32 len);
 
 /**
  * Get the number of converted/resampled bytes available.
@@ -1655,7 +1655,7 @@ public typealias SDL_AudioStreamDataCompleteCallback = function void(void *userd
  * \sa SDL_GetAudioStreamData
  * \sa SDL_PutAudioStreamData
  */
-[CLink] public static extern int32 SDL_GetAudioStreamAvailable(SDL_AudioStream *stream);
+	[CLink] public static extern int32 SDL_GetAudioStreamAvailable(SDL_AudioStream* stream);
 
 /**
  * Get the number of bytes currently queued.
@@ -1693,7 +1693,7 @@ public typealias SDL_AudioStreamDataCompleteCallback = function void(void *userd
  * \sa SDL_PutAudioStreamData
  * \sa SDL_ClearAudioStream
  */
-[CLink] public static extern int32 SDL_GetAudioStreamQueued(SDL_AudioStream *stream);
+	[CLink] public static extern int32 SDL_GetAudioStreamQueued(SDL_AudioStream* stream);
 
 /**
  * Tell the stream that you're done sending data, and anything being buffered
@@ -1713,7 +1713,7 @@ public typealias SDL_AudioStreamDataCompleteCallback = function void(void *userd
  *
  * \sa SDL_PutAudioStreamData
  */
-[CLink] public static extern bool SDL_FlushAudioStream(SDL_AudioStream *stream);
+	[CLink] public static extern bool SDL_FlushAudioStream(SDL_AudioStream* stream);
 
 /**
  * Clear any pending data in the stream.
@@ -1734,7 +1734,7 @@ public typealias SDL_AudioStreamDataCompleteCallback = function void(void *userd
  * \sa SDL_GetAudioStreamQueued
  * \sa SDL_PutAudioStreamData
  */
-[CLink] public static extern bool SDL_ClearAudioStream(SDL_AudioStream *stream);
+	[CLink] public static extern bool SDL_ClearAudioStream(SDL_AudioStream* stream);
 
 /**
  * Use this function to pause audio playback on the audio device associated
@@ -1758,7 +1758,7 @@ public typealias SDL_AudioStreamDataCompleteCallback = function void(void *userd
  *
  * \sa SDL_ResumeAudioStreamDevice
  */
-[CLink] public static extern bool SDL_PauseAudioStreamDevice(SDL_AudioStream *stream);
+	[CLink] public static extern bool SDL_PauseAudioStreamDevice(SDL_AudioStream* stream);
 
 /**
  * Use this function to unpause audio playback on the audio device associated
@@ -1781,7 +1781,7 @@ public typealias SDL_AudioStreamDataCompleteCallback = function void(void *userd
  *
  * \sa SDL_PauseAudioStreamDevice
  */
-[CLink] public static extern bool SDL_ResumeAudioStreamDevice(SDL_AudioStream *stream);
+	[CLink] public static extern bool SDL_ResumeAudioStreamDevice(SDL_AudioStream* stream);
 
 /**
  * Use this function to query if an audio device associated with a stream is
@@ -1800,7 +1800,7 @@ public typealias SDL_AudioStreamDataCompleteCallback = function void(void *userd
  * \sa SDL_PauseAudioStreamDevice
  * \sa SDL_ResumeAudioStreamDevice
  */
-[CLink] public static extern bool SDL_AudioStreamDevicePaused(SDL_AudioStream *stream);
+	[CLink] public static extern bool SDL_AudioStreamDevicePaused(SDL_AudioStream* stream);
 
 /**
  * Lock an audio stream for serialized access.
@@ -1828,7 +1828,7 @@ public typealias SDL_AudioStreamDataCompleteCallback = function void(void *userd
  *
  * \sa SDL_UnlockAudioStream
  */
-[CLink] public static extern bool SDL_LockAudioStream(SDL_AudioStream *stream);
+	[CLink] public static extern bool SDL_LockAudioStream(SDL_AudioStream* stream);
 
 /**
  * Unlock an audio stream for serialized access.
@@ -1846,7 +1846,7 @@ public typealias SDL_AudioStreamDataCompleteCallback = function void(void *userd
  *
  * \sa SDL_LockAudioStream
  */
-[CLink] public static extern bool SDL_UnlockAudioStream(SDL_AudioStream *stream);
+	[CLink] public static extern bool SDL_UnlockAudioStream(SDL_AudioStream* stream);
 }
 
 /**
@@ -1889,7 +1889,7 @@ public typealias SDL_AudioStreamDataCompleteCallback = function void(void *userd
  * \sa SDL_SetAudioStreamGetCallback
  * \sa SDL_SetAudioStreamPutCallback
  */
-public typealias SDL_AudioStreamCallback = function void(void *userdata, SDL_AudioStream *stream, int32 additional_amount, int32 total_amount);
+public typealias SDL_AudioStreamCallback = function void(void* userdata, SDL_AudioStream* stream, int32 additional_amount, int32 total_amount);
 
 public static //extension SDL3
 {
@@ -1937,7 +1937,7 @@ public static //extension SDL3
  *
  * \sa SDL_SetAudioStreamPutCallback
  */
-[CLink] public static extern bool SDL_SetAudioStreamGetCallback(SDL_AudioStream *stream, SDL_AudioStreamCallback callback, void *userdata);
+	[CLink] public static extern bool SDL_SetAudioStreamGetCallback(SDL_AudioStream* stream, SDL_AudioStreamCallback callback, void* userdata);
 
 /**
  * Set a callback that runs when data is added to an audio stream.
@@ -1986,7 +1986,7 @@ public static //extension SDL3
  *
  * \sa SDL_SetAudioStreamGetCallback
  */
-[CLink] public static extern bool SDL_SetAudioStreamPutCallback(SDL_AudioStream *stream, SDL_AudioStreamCallback callback, void *userdata);
+	[CLink] public static extern bool SDL_SetAudioStreamPutCallback(SDL_AudioStream* stream, SDL_AudioStreamCallback callback, void* userdata);
 
 /**
  * Free an audio stream.
@@ -2007,7 +2007,7 @@ public static //extension SDL3
  *
  * \sa SDL_CreateAudioStream
  */
-[CLink] public static extern void SDL_DestroyAudioStream(SDL_AudioStream *stream);
+	[CLink] public static extern void SDL_DestroyAudioStream(SDL_AudioStream* stream);
 
 /**
  * Convenience function for straightforward audio init for the common case.
@@ -2069,7 +2069,7 @@ public static //extension SDL3
  * \sa SDL_GetAudioStreamDevice
  * \sa SDL_ResumeAudioStreamDevice
  */
-[CLink] public static extern SDL_AudioStream* SDL_OpenAudioDeviceStream(SDL_AudioDeviceID devid, SDL_AudioSpec* spec, SDL_AudioStreamCallback callback, void *userdata);
+	[CLink] public static extern SDL_AudioStream* SDL_OpenAudioDeviceStream(SDL_AudioDeviceID devid, SDL_AudioSpec* spec, SDL_AudioStreamCallback callback, void* userdata);
 }
 
 /**
@@ -2107,7 +2107,7 @@ public static //extension SDL3
  *
  * \sa SDL_SetAudioPostmixCallback
  */
-public typealias SDL_AudioPostmixCallback = function void(void *userdata, SDL_AudioSpec* spec, float *buffer, int32 buflen);
+public typealias SDL_AudioPostmixCallback = function void(void* userdata, SDL_AudioSpec* spec, float* buffer, int32 buflen);
 
 public static //extension SDL3
 {
@@ -2163,7 +2163,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_SetAudioPostmixCallback(SDL_AudioDeviceID devid, SDL_AudioPostmixCallback callback, void *userdata);
+	[CLink] public static extern bool SDL_SetAudioPostmixCallback(SDL_AudioDeviceID devid, SDL_AudioPostmixCallback callback, void* userdata);
 
 /**
  * Load the audio data of a WAVE file into memory.
@@ -2243,7 +2243,7 @@ public static //extension SDL3
  * \sa SDL_free
  * \sa SDL_LoadWAV
  */
-[CLink] public static extern bool SDL_LoadWAV_IO(SDL_IOStream *src, bool closeio, SDL_AudioSpec *spec, uint8 **audio_buf, uint32 *audio_len);
+	[CLink] public static extern bool SDL_LoadWAV_IO(SDL_IOStream* src, bool closeio, SDL_AudioSpec* spec, uint8** audio_buf, uint32* audio_len);
 
 /**
  * Loads a WAV from a file path.
@@ -2279,7 +2279,7 @@ public static //extension SDL3
  * \sa SDL_free
  * \sa SDL_LoadWAV_IO
  */
-[CLink] public static extern bool SDL_LoadWAV(char8* path, SDL_AudioSpec *spec, uint8 **audio_buf, uint32 *audio_len);
+	[CLink] public static extern bool SDL_LoadWAV(char8* path, SDL_AudioSpec* spec, uint8** audio_buf, uint32* audio_len);
 
 /**
  * Mix audio data in a specified format.
@@ -2315,7 +2315,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_MixAudio(uint8 *dst, uint8* src, SDL_AudioFormat format, uint32 len, float volume);
+	[CLink] public static extern bool SDL_MixAudio(uint8* dst, uint8* src, SDL_AudioFormat format, uint32 len, float volume);
 
 /**
  * Convert some audio data of one format to another format.
@@ -2345,7 +2345,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_ConvertAudioSamples(SDL_AudioSpec* src_spec, uint8* src_data, int32 src_len, SDL_AudioSpec* dst_spec, uint8 **dst_data, int32 *dst_len);
+	[CLink] public static extern bool SDL_ConvertAudioSamples(SDL_AudioSpec* src_spec, uint8* src_data, int32 src_len, SDL_AudioSpec* dst_spec, uint8** dst_data, int32* dst_len);
 
 /**
  * Get the human readable name of an audio format.
@@ -2358,7 +2358,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern char8* SDL_GetAudioFormatName(SDL_AudioFormat format);
+	[CLink] public static extern char8* SDL_GetAudioFormatName(SDL_AudioFormat format);
 
 /**
  * Get the appropriate memset value for silencing an audio format.
@@ -2374,5 +2374,5 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern int32 SDL_GetSilenceValueForFormat(SDL_AudioFormat format);
+	[CLink] public static extern int32 SDL_GetSilenceValueForFormat(SDL_AudioFormat format);
 }

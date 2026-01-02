@@ -16,11 +16,11 @@ static
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -70,7 +70,7 @@ static
  * \sa SDL_ELF_NOTE_DLOPEN_PRIORITY_RECOMMENDED
  * \sa SDL_ELF_NOTE_DLOPEN_PRIORITY_REQUIRED
  */
-public const char8* SDL_ELF_NOTE_DLOPEN_PRIORITY_SUGGESTED   = "suggested";
+	public const char8* SDL_ELF_NOTE_DLOPEN_PRIORITY_SUGGESTED   = "suggested";
 
 /**
  * Use this macro with SDL_ELF_NOTE_DLOPEN() to note that a dynamic shared
@@ -85,7 +85,7 @@ public const char8* SDL_ELF_NOTE_DLOPEN_PRIORITY_SUGGESTED   = "suggested";
  * \sa SDL_ELF_NOTE_DLOPEN_PRIORITY_SUGGESTED
  * \sa SDL_ELF_NOTE_DLOPEN_PRIORITY_REQUIRED
  */
-public const char8* SDL_ELF_NOTE_DLOPEN_PRIORITY_RECOMMENDED = "recommended";
+	public const char8* SDL_ELF_NOTE_DLOPEN_PRIORITY_RECOMMENDED = "recommended";
 
 /**
  * Use this macro with SDL_ELF_NOTE_DLOPEN() to note that a dynamic shared
@@ -100,10 +100,10 @@ public const char8* SDL_ELF_NOTE_DLOPEN_PRIORITY_RECOMMENDED = "recommended";
  * \sa SDL_ELF_NOTE_DLOPEN_PRIORITY_SUGGESTED
  * \sa SDL_ELF_NOTE_DLOPEN_PRIORITY_RECOMMENDED
  */
-public const char8* SDL_ELF_NOTE_DLOPEN_PRIORITY_REQUIRED    = "required";
+	public const char8* SDL_ELF_NOTE_DLOPEN_PRIORITY_REQUIRED    = "required";
 
 
-public const char8* SDL_ELF_NOTE_DLOPEN_VENDOR = "FDO";
+	public const char8* SDL_ELF_NOTE_DLOPEN_VENDOR = "FDO";
 	public const uint32 SDL_ELF_NOTE_DLOPEN_TYPE = 0x407c0c0aU;
 
-    }
+}

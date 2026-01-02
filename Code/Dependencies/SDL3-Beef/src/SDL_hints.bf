@@ -12,11 +12,11 @@ using System;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -56,7 +56,7 @@ public static //extension SDL3
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_ALLOW_ALT_TAB_WHILE_GRABBED = "SDL_ALLOW_ALT_TAB_WHILE_GRABBED";
+	public const char8* SDL_HINT_ALLOW_ALT_TAB_WHILE_GRABBED = "SDL_ALLOW_ALT_TAB_WHILE_GRABBED";
 
 /**
  * A variable to control whether the SDL activity is allowed to be re-created.
@@ -76,7 +76,7 @@ public const char8* SDL_HINT_ALLOW_ALT_TAB_WHILE_GRABBED = "SDL_ALLOW_ALT_TAB_WH
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_ANDROID_ALLOW_RECREATE_ACTIVITY = "SDL_ANDROID_ALLOW_RECREATE_ACTIVITY";
+	public const char8* SDL_HINT_ANDROID_ALLOW_RECREATE_ACTIVITY = "SDL_ANDROID_ALLOW_RECREATE_ACTIVITY";
 
 /**
  * A variable to control whether the event loop will block itself when the app
@@ -91,7 +91,7 @@ public const char8* SDL_HINT_ANDROID_ALLOW_RECREATE_ACTIVITY = "SDL_ANDROID_ALLO
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_ANDROID_BLOCK_ON_PAUSE = "SDL_ANDROID_BLOCK_ON_PAUSE";
+	public const char8* SDL_HINT_ANDROID_BLOCK_ON_PAUSE = "SDL_ANDROID_BLOCK_ON_PAUSE";
 
 /**
  * A variable to control whether low latency audio should be enabled.
@@ -108,7 +108,7 @@ public const char8* SDL_HINT_ANDROID_BLOCK_ON_PAUSE = "SDL_ANDROID_BLOCK_ON_PAUS
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_ANDROID_LOW_LATENCY_AUDIO = "SDL_ANDROID_LOW_LATENCY_AUDIO";
+	public const char8* SDL_HINT_ANDROID_LOW_LATENCY_AUDIO = "SDL_ANDROID_LOW_LATENCY_AUDIO";
 
 /**
  * A variable to control whether we trap the Android back button to handle it
@@ -131,7 +131,7 @@ public const char8* SDL_HINT_ANDROID_LOW_LATENCY_AUDIO = "SDL_ANDROID_LOW_LATENC
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_ANDROID_TRAP_BACK_BUTTON = "SDL_ANDROID_TRAP_BACK_BUTTON";
+	public const char8* SDL_HINT_ANDROID_TRAP_BACK_BUTTON = "SDL_ANDROID_TRAP_BACK_BUTTON";
 
 /**
  * A variable setting the app ID string.
@@ -147,7 +147,7 @@ public const char8* SDL_HINT_ANDROID_TRAP_BACK_BUTTON = "SDL_ANDROID_TRAP_BACK_B
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_APP_ID = "SDL_APP_ID";
+	public const char8* SDL_HINT_APP_ID = "SDL_APP_ID";
 
 /**
  * A variable setting the application name.
@@ -165,7 +165,7 @@ public const char8* SDL_HINT_APP_ID = "SDL_APP_ID";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_APP_NAME = "SDL_APP_NAME";
+	public const char8* SDL_HINT_APP_NAME = "SDL_APP_NAME";
 
 /**
  * A variable controlling whether controllers used with the Apple TV generate
@@ -188,7 +188,7 @@ public const char8* SDL_HINT_APP_NAME = "SDL_APP_NAME";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_APPLE_TV_CONTROLLER_UI_EVENTS = "SDL_APPLE_TV_CONTROLLER_UI_EVENTS";
+	public const char8* SDL_HINT_APPLE_TV_CONTROLLER_UI_EVENTS = "SDL_APPLE_TV_CONTROLLER_UI_EVENTS";
 
 /**
  * A variable controlling whether the Apple TV remote's joystick axes will
@@ -203,7 +203,7 @@ public const char8* SDL_HINT_APPLE_TV_CONTROLLER_UI_EVENTS = "SDL_APPLE_TV_CONTR
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_APPLE_TV_REMOTE_ALLOW_ROTATION = "SDL_APPLE_TV_REMOTE_ALLOW_ROTATION";
+	public const char8* SDL_HINT_APPLE_TV_REMOTE_ALLOW_ROTATION = "SDL_APPLE_TV_REMOTE_ALLOW_ROTATION";
 
 /**
  * Specify the default ALSA audio device name.
@@ -223,7 +223,7 @@ public const char8* SDL_HINT_APPLE_TV_REMOTE_ALLOW_ROTATION = "SDL_APPLE_TV_REMO
  * \sa SDL_HINT_AUDIO_ALSA_DEFAULT_PLAYBACK_DEVICE
  * \sa SDL_HINT_AUDIO_ALSA_DEFAULT_RECORDING_DEVICE
  */
-public const char8* SDL_HINT_AUDIO_ALSA_DEFAULT_DEVICE = "SDL_AUDIO_ALSA_DEFAULT_DEVICE";
+	public const char8* SDL_HINT_AUDIO_ALSA_DEFAULT_DEVICE = "SDL_AUDIO_ALSA_DEFAULT_DEVICE";
 
 /**
  * Specify the default ALSA audio playback device name.
@@ -241,7 +241,7 @@ public const char8* SDL_HINT_AUDIO_ALSA_DEFAULT_DEVICE = "SDL_AUDIO_ALSA_DEFAULT
  * \sa SDL_HINT_AUDIO_ALSA_DEFAULT_RECORDING_DEVICE
  * \sa SDL_HINT_AUDIO_ALSA_DEFAULT_DEVICE
  */
-public const char8* SDL_HINT_AUDIO_ALSA_DEFAULT_PLAYBACK_DEVICE = "SDL_AUDIO_ALSA_DEFAULT_PLAYBACK_DEVICE";
+	public const char8* SDL_HINT_AUDIO_ALSA_DEFAULT_PLAYBACK_DEVICE = "SDL_AUDIO_ALSA_DEFAULT_PLAYBACK_DEVICE";
 
 /**
  * Specify the default ALSA audio recording device name.
@@ -259,7 +259,7 @@ public const char8* SDL_HINT_AUDIO_ALSA_DEFAULT_PLAYBACK_DEVICE = "SDL_AUDIO_ALS
  * \sa SDL_HINT_AUDIO_ALSA_DEFAULT_PLAYBACK_DEVICE
  * \sa SDL_HINT_AUDIO_ALSA_DEFAULT_DEVICE
  */
-public const char8* SDL_HINT_AUDIO_ALSA_DEFAULT_RECORDING_DEVICE = "SDL_AUDIO_ALSA_DEFAULT_RECORDING_DEVICE";
+	public const char8* SDL_HINT_AUDIO_ALSA_DEFAULT_RECORDING_DEVICE = "SDL_AUDIO_ALSA_DEFAULT_RECORDING_DEVICE";
 
 /**
  * A variable controlling the audio category on iOS and macOS.
@@ -277,7 +277,7 @@ public const char8* SDL_HINT_AUDIO_ALSA_DEFAULT_RECORDING_DEVICE = "SDL_AUDIO_AL
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_AUDIO_CATEGORY = "SDL_AUDIO_CATEGORY";
+	public const char8* SDL_HINT_AUDIO_CATEGORY = "SDL_AUDIO_CATEGORY";
 
 /**
  * A variable controlling the default audio channel count.
@@ -290,7 +290,7 @@ public const char8* SDL_HINT_AUDIO_CATEGORY = "SDL_AUDIO_CATEGORY";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_AUDIO_CHANNELS = "SDL_AUDIO_CHANNELS";
+	public const char8* SDL_HINT_AUDIO_CHANNELS = "SDL_AUDIO_CHANNELS";
 
 /**
  * Specify an application icon name for an audio device.
@@ -313,7 +313,7 @@ public const char8* SDL_HINT_AUDIO_CHANNELS = "SDL_AUDIO_CHANNELS";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_AUDIO_DEVICE_APP_ICON_NAME = "SDL_AUDIO_DEVICE_APP_ICON_NAME";
+	public const char8* SDL_HINT_AUDIO_DEVICE_APP_ICON_NAME = "SDL_AUDIO_DEVICE_APP_ICON_NAME";
 
 /**
  * A variable controlling device buffer size.
@@ -335,7 +335,7 @@ public const char8* SDL_HINT_AUDIO_DEVICE_APP_ICON_NAME = "SDL_AUDIO_DEVICE_APP_
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_AUDIO_DEVICE_SAMPLE_FRAMES = "SDL_AUDIO_DEVICE_SAMPLE_FRAMES";
+	public const char8* SDL_HINT_AUDIO_DEVICE_SAMPLE_FRAMES = "SDL_AUDIO_DEVICE_SAMPLE_FRAMES";
 
 /**
  * Specify an audio stream name for an audio device.
@@ -362,7 +362,7 @@ public const char8* SDL_HINT_AUDIO_DEVICE_SAMPLE_FRAMES = "SDL_AUDIO_DEVICE_SAMP
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_AUDIO_DEVICE_STREAM_NAME = "SDL_AUDIO_DEVICE_STREAM_NAME";
+	public const char8* SDL_HINT_AUDIO_DEVICE_STREAM_NAME = "SDL_AUDIO_DEVICE_STREAM_NAME";
 
 /**
  * Specify an application role for an audio device.
@@ -402,7 +402,7 @@ public const char8* SDL_HINT_AUDIO_DEVICE_STREAM_NAME = "SDL_AUDIO_DEVICE_STREAM
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_AUDIO_DEVICE_STREAM_ROLE = "SDL_AUDIO_DEVICE_STREAM_ROLE";
+	public const char8* SDL_HINT_AUDIO_DEVICE_STREAM_ROLE = "SDL_AUDIO_DEVICE_STREAM_ROLE";
 
 /**
  * Specify whether this audio device should do audio processing.
@@ -422,7 +422,7 @@ public const char8* SDL_HINT_AUDIO_DEVICE_STREAM_ROLE = "SDL_AUDIO_DEVICE_STREAM
  *
  * \since This hint is available since SDL 3.4.0.
  */
-public const char8* SDL_HINT_AUDIO_DEVICE_RAW_STREAM = "SDL_AUDIO_DEVICE_RAW_STREAM";
+	public const char8* SDL_HINT_AUDIO_DEVICE_RAW_STREAM = "SDL_AUDIO_DEVICE_RAW_STREAM";
 
 /**
  * Specify the input file when recording audio using the disk audio driver.
@@ -433,7 +433,7 @@ public const char8* SDL_HINT_AUDIO_DEVICE_RAW_STREAM = "SDL_AUDIO_DEVICE_RAW_STR
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_AUDIO_DISK_INPUT_FILE = "SDL_AUDIO_DISK_INPUT_FILE";
+	public const char8* SDL_HINT_AUDIO_DISK_INPUT_FILE = "SDL_AUDIO_DISK_INPUT_FILE";
 
 /**
  * Specify the output file when playing audio using the disk audio driver.
@@ -444,7 +444,7 @@ public const char8* SDL_HINT_AUDIO_DISK_INPUT_FILE = "SDL_AUDIO_DISK_INPUT_FILE"
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_AUDIO_DISK_OUTPUT_FILE = "SDL_AUDIO_DISK_OUTPUT_FILE";
+	public const char8* SDL_HINT_AUDIO_DISK_OUTPUT_FILE = "SDL_AUDIO_DISK_OUTPUT_FILE";
 
 /**
  * A variable controlling the audio rate when using the disk audio driver.
@@ -457,7 +457,7 @@ public const char8* SDL_HINT_AUDIO_DISK_OUTPUT_FILE = "SDL_AUDIO_DISK_OUTPUT_FIL
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_AUDIO_DISK_TIMESCALE = "SDL_AUDIO_DISK_TIMESCALE";
+	public const char8* SDL_HINT_AUDIO_DISK_TIMESCALE = "SDL_AUDIO_DISK_TIMESCALE";
 
 /**
  * A variable that specifies an audio backend to use.
@@ -471,7 +471,7 @@ public const char8* SDL_HINT_AUDIO_DISK_TIMESCALE = "SDL_AUDIO_DISK_TIMESCALE";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_AUDIO_DRIVER = "SDL_AUDIO_DRIVER";
+	public const char8* SDL_HINT_AUDIO_DRIVER = "SDL_AUDIO_DRIVER";
 
 /**
  * A variable controlling the audio rate when using the dummy audio driver.
@@ -484,7 +484,7 @@ public const char8* SDL_HINT_AUDIO_DRIVER = "SDL_AUDIO_DRIVER";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_AUDIO_DUMMY_TIMESCALE = "SDL_AUDIO_DUMMY_TIMESCALE";
+	public const char8* SDL_HINT_AUDIO_DUMMY_TIMESCALE = "SDL_AUDIO_DUMMY_TIMESCALE";
 
 /**
  * A variable controlling the default audio format.
@@ -511,7 +511,7 @@ public const char8* SDL_HINT_AUDIO_DUMMY_TIMESCALE = "SDL_AUDIO_DUMMY_TIMESCALE"
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_AUDIO_FORMAT = "SDL_AUDIO_FORMAT";
+	public const char8* SDL_HINT_AUDIO_FORMAT = "SDL_AUDIO_FORMAT";
 
 /**
  * A variable controlling the default audio frequency.
@@ -524,7 +524,7 @@ public const char8* SDL_HINT_AUDIO_FORMAT = "SDL_AUDIO_FORMAT";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_AUDIO_FREQUENCY = "SDL_AUDIO_FREQUENCY";
+	public const char8* SDL_HINT_AUDIO_FREQUENCY = "SDL_AUDIO_FREQUENCY";
 
 /**
  * A variable that causes SDL to not ignore audio "monitors".
@@ -547,7 +547,7 @@ public const char8* SDL_HINT_AUDIO_FREQUENCY = "SDL_AUDIO_FREQUENCY";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_AUDIO_INCLUDE_MONITORS = "SDL_AUDIO_INCLUDE_MONITORS";
+	public const char8* SDL_HINT_AUDIO_INCLUDE_MONITORS = "SDL_AUDIO_INCLUDE_MONITORS";
 
 /**
  * A variable controlling whether SDL updates joystick state when getting
@@ -562,7 +562,7 @@ public const char8* SDL_HINT_AUDIO_INCLUDE_MONITORS = "SDL_AUDIO_INCLUDE_MONITOR
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_AUTO_UPDATE_JOYSTICKS = "SDL_AUTO_UPDATE_JOYSTICKS";
+	public const char8* SDL_HINT_AUTO_UPDATE_JOYSTICKS = "SDL_AUTO_UPDATE_JOYSTICKS";
 
 /**
  * A variable controlling whether SDL updates sensor state when getting input
@@ -577,7 +577,7 @@ public const char8* SDL_HINT_AUTO_UPDATE_JOYSTICKS = "SDL_AUTO_UPDATE_JOYSTICKS"
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_AUTO_UPDATE_SENSORS = "SDL_AUTO_UPDATE_SENSORS";
+	public const char8* SDL_HINT_AUTO_UPDATE_SENSORS = "SDL_AUTO_UPDATE_SENSORS";
 
 /**
  * Prevent SDL from using version 4 of the bitmap header when saving BMPs.
@@ -600,7 +600,7 @@ public const char8* SDL_HINT_AUTO_UPDATE_SENSORS = "SDL_AUTO_UPDATE_SENSORS";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_BMP_SAVE_LEGACY_FORMAT = "SDL_BMP_SAVE_LEGACY_FORMAT";
+	public const char8* SDL_HINT_BMP_SAVE_LEGACY_FORMAT = "SDL_BMP_SAVE_LEGACY_FORMAT";
 
 /**
  * A variable that decides what camera backend to use.
@@ -616,7 +616,7 @@ public const char8* SDL_HINT_BMP_SAVE_LEGACY_FORMAT = "SDL_BMP_SAVE_LEGACY_FORMA
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_CAMERA_DRIVER = "SDL_CAMERA_DRIVER";
+	public const char8* SDL_HINT_CAMERA_DRIVER = "SDL_CAMERA_DRIVER";
 
 /**
  * A variable that limits what CPU features are available.
@@ -649,7 +649,7 @@ public const char8* SDL_HINT_CAMERA_DRIVER = "SDL_CAMERA_DRIVER";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_CPU_FEATURE_MASK = "SDL_CPU_FEATURE_MASK";
+	public const char8* SDL_HINT_CPU_FEATURE_MASK = "SDL_CPU_FEATURE_MASK";
 
 /**
  * A variable controlling whether DirectInput should be used for controllers.
@@ -663,7 +663,7 @@ public const char8* SDL_HINT_CPU_FEATURE_MASK = "SDL_CPU_FEATURE_MASK";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_DIRECTINPUT = "SDL_JOYSTICK_DIRECTINPUT";
+	public const char8* SDL_HINT_JOYSTICK_DIRECTINPUT = "SDL_JOYSTICK_DIRECTINPUT";
 
 /**
  * A variable that specifies a dialog backend to use.
@@ -692,7 +692,7 @@ public const char8* SDL_HINT_JOYSTICK_DIRECTINPUT = "SDL_JOYSTICK_DIRECTINPUT";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_FILE_DIALOG_DRIVER = "SDL_FILE_DIALOG_DRIVER";
+	public const char8* SDL_HINT_FILE_DIALOG_DRIVER = "SDL_FILE_DIALOG_DRIVER";
 
 /**
  * Override for SDL_GetDisplayUsableBounds().
@@ -710,7 +710,7 @@ public const char8* SDL_HINT_FILE_DIALOG_DRIVER = "SDL_FILE_DIALOG_DRIVER";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_DISPLAY_USABLE_BOUNDS = "SDL_DISPLAY_USABLE_BOUNDS";
+	public const char8* SDL_HINT_DISPLAY_USABLE_BOUNDS = "SDL_DISPLAY_USABLE_BOUNDS";
 
 /**
  * Set the level of checking for invalid parameters passed to SDL functions.
@@ -725,7 +725,7 @@ public const char8* SDL_HINT_DISPLAY_USABLE_BOUNDS = "SDL_DISPLAY_USABLE_BOUNDS"
  *
  * \since This hint is available since SDL 3.4.0.
  */
-public const char8* SDL_HINT_INVALID_PARAM_CHECKS = "SDL_INVALID_PARAM_CHECKS";
+	public const char8* SDL_HINT_INVALID_PARAM_CHECKS = "SDL_INVALID_PARAM_CHECKS";
 
 /**
  * Disable giving back control to the browser automatically when running with
@@ -746,7 +746,7 @@ public const char8* SDL_HINT_INVALID_PARAM_CHECKS = "SDL_INVALID_PARAM_CHECKS";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_EMSCRIPTEN_ASYNCIFY = "SDL_EMSCRIPTEN_ASYNCIFY";
+	public const char8* SDL_HINT_EMSCRIPTEN_ASYNCIFY = "SDL_EMSCRIPTEN_ASYNCIFY";
 
 /**
  * Specify the CSS selector used for the "default" window/canvas.
@@ -757,7 +757,7 @@ public const char8* SDL_HINT_EMSCRIPTEN_ASYNCIFY = "SDL_EMSCRIPTEN_ASYNCIFY";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_EMSCRIPTEN_CANVAS_SELECTOR = "SDL_EMSCRIPTEN_CANVAS_SELECTOR";
+	public const char8* SDL_HINT_EMSCRIPTEN_CANVAS_SELECTOR = "SDL_EMSCRIPTEN_CANVAS_SELECTOR";
 
 /**
  * Override the binding element for keyboard inputs for Emscripten builds.
@@ -778,7 +778,7 @@ public const char8* SDL_HINT_EMSCRIPTEN_CANVAS_SELECTOR = "SDL_EMSCRIPTEN_CANVAS
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_EMSCRIPTEN_KEYBOARD_ELEMENT = "SDL_EMSCRIPTEN_KEYBOARD_ELEMENT";
+	public const char8* SDL_HINT_EMSCRIPTEN_KEYBOARD_ELEMENT = "SDL_EMSCRIPTEN_KEYBOARD_ELEMENT";
 
 /**
  * A variable that controls whether the on-screen keyboard should be shown
@@ -795,7 +795,7 @@ public const char8* SDL_HINT_EMSCRIPTEN_KEYBOARD_ELEMENT = "SDL_EMSCRIPTEN_KEYBO
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_ENABLE_SCREEN_KEYBOARD = "SDL_ENABLE_SCREEN_KEYBOARD";
+	public const char8* SDL_HINT_ENABLE_SCREEN_KEYBOARD = "SDL_ENABLE_SCREEN_KEYBOARD";
 
 /**
  * A variable containing a list of evdev devices to use if udev is not
@@ -812,7 +812,7 @@ public const char8* SDL_HINT_ENABLE_SCREEN_KEYBOARD = "SDL_ENABLE_SCREEN_KEYBOAR
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_EVDEV_DEVICES = "SDL_EVDEV_DEVICES";
+	public const char8* SDL_HINT_EVDEV_DEVICES = "SDL_EVDEV_DEVICES";
 
 /**
  * A variable controlling verbosity of the logging of SDL events pushed onto
@@ -836,7 +836,7 @@ public const char8* SDL_HINT_EVDEV_DEVICES = "SDL_EVDEV_DEVICES";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_EVENT_LOGGING = "SDL_EVENT_LOGGING";
+	public const char8* SDL_HINT_EVENT_LOGGING = "SDL_EVENT_LOGGING";
 
 /**
  * A variable controlling whether raising the window should be done more
@@ -856,7 +856,7 @@ public const char8* SDL_HINT_EVENT_LOGGING = "SDL_EVENT_LOGGING";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_FORCE_RAISEWINDOW = "SDL_FORCE_RAISEWINDOW";
+	public const char8* SDL_HINT_FORCE_RAISEWINDOW = "SDL_FORCE_RAISEWINDOW";
 
 /**
  * A variable controlling how 3D acceleration is used to accelerate the SDL
@@ -877,7 +877,7 @@ public const char8* SDL_HINT_FORCE_RAISEWINDOW = "SDL_FORCE_RAISEWINDOW";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_FRAMEBUFFER_ACCELERATION = "SDL_FRAMEBUFFER_ACCELERATION";
+	public const char8* SDL_HINT_FRAMEBUFFER_ACCELERATION = "SDL_FRAMEBUFFER_ACCELERATION";
 
 /**
  * A variable that lets you manually hint extra gamecontroller db entries.
@@ -892,7 +892,7 @@ public const char8* SDL_HINT_FRAMEBUFFER_ACCELERATION = "SDL_FRAMEBUFFER_ACCELER
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_GAMECONTROLLERCONFIG = "SDL_GAMECONTROLLERCONFIG";
+	public const char8* SDL_HINT_GAMECONTROLLERCONFIG = "SDL_GAMECONTROLLERCONFIG";
 
 /**
  * A variable that lets you provide a file with extra gamecontroller db
@@ -908,7 +908,7 @@ public const char8* SDL_HINT_GAMECONTROLLERCONFIG = "SDL_GAMECONTROLLERCONFIG";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_GAMECONTROLLERCONFIG_FILE = "SDL_GAMECONTROLLERCONFIG_FILE";
+	public const char8* SDL_HINT_GAMECONTROLLERCONFIG_FILE = "SDL_GAMECONTROLLERCONFIG_FILE";
 
 /**
  * A variable that overrides the automatic controller type detection.
@@ -932,7 +932,7 @@ public const char8* SDL_HINT_GAMECONTROLLERCONFIG_FILE = "SDL_GAMECONTROLLERCONF
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_GAMECONTROLLERTYPE = "SDL_GAMECONTROLLERTYPE";
+	public const char8* SDL_HINT_GAMECONTROLLERTYPE = "SDL_GAMECONTROLLERTYPE";
 
 /**
  * A variable containing a list of devices to skip when scanning for game
@@ -950,7 +950,7 @@ public const char8* SDL_HINT_GAMECONTROLLERTYPE = "SDL_GAMECONTROLLERTYPE";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_GAMECONTROLLER_IGNORE_DEVICES = "SDL_GAMECONTROLLER_IGNORE_DEVICES";
+	public const char8* SDL_HINT_GAMECONTROLLER_IGNORE_DEVICES = "SDL_GAMECONTROLLER_IGNORE_DEVICES";
 
 /**
  * If set, all devices will be skipped when scanning for game controllers
@@ -968,7 +968,7 @@ public const char8* SDL_HINT_GAMECONTROLLER_IGNORE_DEVICES = "SDL_GAMECONTROLLER
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT = "SDL_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT";
+	public const char8* SDL_HINT_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT = "SDL_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT";
 
 /**
  * A variable that controls whether the device's built-in accelerometer and
@@ -991,7 +991,7 @@ public const char8* SDL_HINT_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT = "SDL_GAMECON
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_GAMECONTROLLER_SENSOR_FUSION = "SDL_GAMECONTROLLER_SENSOR_FUSION";
+	public const char8* SDL_HINT_GAMECONTROLLER_SENSOR_FUSION = "SDL_GAMECONTROLLER_SENSOR_FUSION";
 
 /**
  * This variable sets the default text of the TextInput window on GDK
@@ -1003,7 +1003,7 @@ public const char8* SDL_HINT_GAMECONTROLLER_SENSOR_FUSION = "SDL_GAMECONTROLLER_
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_GDK_TEXTINPUT_DEFAULT_TEXT = "SDL_GDK_TEXTINPUT_DEFAULT_TEXT";
+	public const char8* SDL_HINT_GDK_TEXTINPUT_DEFAULT_TEXT = "SDL_GDK_TEXTINPUT_DEFAULT_TEXT";
 
 /**
  * This variable sets the description of the TextInput window on GDK
@@ -1015,7 +1015,7 @@ public const char8* SDL_HINT_GDK_TEXTINPUT_DEFAULT_TEXT = "SDL_GDK_TEXTINPUT_DEF
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_GDK_TEXTINPUT_DESCRIPTION = "SDL_GDK_TEXTINPUT_DESCRIPTION";
+	public const char8* SDL_HINT_GDK_TEXTINPUT_DESCRIPTION = "SDL_GDK_TEXTINPUT_DESCRIPTION";
 
 /**
  * This variable sets the maximum input length of the TextInput window on GDK
@@ -1030,7 +1030,7 @@ public const char8* SDL_HINT_GDK_TEXTINPUT_DESCRIPTION = "SDL_GDK_TEXTINPUT_DESC
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_GDK_TEXTINPUT_MAX_LENGTH = "SDL_GDK_TEXTINPUT_MAX_LENGTH";
+	public const char8* SDL_HINT_GDK_TEXTINPUT_MAX_LENGTH = "SDL_GDK_TEXTINPUT_MAX_LENGTH";
 
 /**
  * This variable sets the input scope of the TextInput window on GDK
@@ -1046,7 +1046,7 @@ public const char8* SDL_HINT_GDK_TEXTINPUT_MAX_LENGTH = "SDL_GDK_TEXTINPUT_MAX_L
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_GDK_TEXTINPUT_SCOPE = "SDL_GDK_TEXTINPUT_SCOPE";
+	public const char8* SDL_HINT_GDK_TEXTINPUT_SCOPE = "SDL_GDK_TEXTINPUT_SCOPE";
 
 /**
  * This variable sets the title of the TextInput window on GDK platforms.
@@ -1057,7 +1057,7 @@ public const char8* SDL_HINT_GDK_TEXTINPUT_SCOPE = "SDL_GDK_TEXTINPUT_SCOPE";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_GDK_TEXTINPUT_TITLE = "SDL_GDK_TEXTINPUT_TITLE";
+	public const char8* SDL_HINT_GDK_TEXTINPUT_TITLE = "SDL_GDK_TEXTINPUT_TITLE";
 
 /**
  * A variable to control whether HIDAPI uses libusb for device access.
@@ -1075,7 +1075,7 @@ public const char8* SDL_HINT_GDK_TEXTINPUT_TITLE = "SDL_GDK_TEXTINPUT_TITLE";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_HIDAPI_LIBUSB = "SDL_HIDAPI_LIBUSB";
+	public const char8* SDL_HINT_HIDAPI_LIBUSB = "SDL_HIDAPI_LIBUSB";
 
 
 /**
@@ -1090,7 +1090,7 @@ public const char8* SDL_HINT_HIDAPI_LIBUSB = "SDL_HIDAPI_LIBUSB";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_HIDAPI_LIBUSB_GAMECUBE = "SDL_HIDAPI_LIBUSB_GAMECUBE";
+	public const char8* SDL_HINT_HIDAPI_LIBUSB_GAMECUBE = "SDL_HIDAPI_LIBUSB_GAMECUBE";
 
 /**
  * A variable to control whether HIDAPI uses libusb only for whitelisted
@@ -1108,7 +1108,7 @@ public const char8* SDL_HINT_HIDAPI_LIBUSB_GAMECUBE = "SDL_HIDAPI_LIBUSB_GAMECUB
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_HIDAPI_LIBUSB_WHITELIST = "SDL_HIDAPI_LIBUSB_WHITELIST";
+	public const char8* SDL_HINT_HIDAPI_LIBUSB_WHITELIST = "SDL_HIDAPI_LIBUSB_WHITELIST";
 
 /**
  * A variable to control whether HIDAPI uses udev for device detection.
@@ -1122,7 +1122,7 @@ public const char8* SDL_HINT_HIDAPI_LIBUSB_WHITELIST = "SDL_HIDAPI_LIBUSB_WHITEL
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_HIDAPI_UDEV = "SDL_HIDAPI_UDEV";
+	public const char8* SDL_HINT_HIDAPI_UDEV = "SDL_HIDAPI_UDEV";
 
 /**
  * A variable that specifies a GPU backend to use.
@@ -1136,7 +1136,7 @@ public const char8* SDL_HINT_HIDAPI_UDEV = "SDL_HIDAPI_UDEV";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_GPU_DRIVER = "SDL_GPU_DRIVER";
+	public const char8* SDL_HINT_GPU_DRIVER = "SDL_GPU_DRIVER";
 
 /**
  * A variable to control whether SDL_hid_enumerate() enumerates all HID
@@ -1155,7 +1155,7 @@ public const char8* SDL_HINT_GPU_DRIVER = "SDL_GPU_DRIVER";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_HIDAPI_ENUMERATE_ONLY_CONTROLLERS = "SDL_HIDAPI_ENUMERATE_ONLY_CONTROLLERS";
+	public const char8* SDL_HINT_HIDAPI_ENUMERATE_ONLY_CONTROLLERS = "SDL_HIDAPI_ENUMERATE_ONLY_CONTROLLERS";
 
 /**
  * A variable containing a list of devices to ignore in SDL_hid_enumerate().
@@ -1172,7 +1172,7 @@ public const char8* SDL_HINT_HIDAPI_ENUMERATE_ONLY_CONTROLLERS = "SDL_HIDAPI_ENU
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_HIDAPI_IGNORE_DEVICES = "SDL_HIDAPI_IGNORE_DEVICES";
+	public const char8* SDL_HINT_HIDAPI_IGNORE_DEVICES = "SDL_HIDAPI_IGNORE_DEVICES";
 
 /**
  * A variable describing what IME UI elements the application can display.
@@ -1195,7 +1195,7 @@ public const char8* SDL_HINT_HIDAPI_IGNORE_DEVICES = "SDL_HIDAPI_IGNORE_DEVICES"
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_IME_IMPLEMENTED_UI = "SDL_IME_IMPLEMENTED_UI";
+	public const char8* SDL_HINT_IME_IMPLEMENTED_UI = "SDL_IME_IMPLEMENTED_UI";
 
 /**
  * A variable controlling whether the home indicator bar on iPhone X and later
@@ -1214,7 +1214,7 @@ public const char8* SDL_HINT_IME_IMPLEMENTED_UI = "SDL_IME_IMPLEMENTED_UI";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_IOS_HIDE_HOME_INDICATOR = "SDL_IOS_HIDE_HOME_INDICATOR";
+	public const char8* SDL_HINT_IOS_HIDE_HOME_INDICATOR = "SDL_IOS_HIDE_HOME_INDICATOR";
 
 /**
  * A variable that lets you enable joystick (and gamecontroller) events even
@@ -1231,7 +1231,7 @@ public const char8* SDL_HINT_IOS_HIDE_HOME_INDICATOR = "SDL_IOS_HIDE_HOME_INDICA
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS = "SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS";
+	public const char8* SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS = "SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS";
 
 /**
  * A variable containing a list of arcade stick style controllers.
@@ -1248,7 +1248,7 @@ public const char8* SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS = "SDL_JOYSTICK_AL
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_ARCADESTICK_DEVICES = "SDL_JOYSTICK_ARCADESTICK_DEVICES";
+	public const char8* SDL_HINT_JOYSTICK_ARCADESTICK_DEVICES = "SDL_JOYSTICK_ARCADESTICK_DEVICES";
 
 /**
  * A variable containing a list of devices that are not arcade stick style
@@ -1269,7 +1269,7 @@ public const char8* SDL_HINT_JOYSTICK_ARCADESTICK_DEVICES = "SDL_JOYSTICK_ARCADE
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_ARCADESTICK_DEVICES_EXCLUDED = "SDL_JOYSTICK_ARCADESTICK_DEVICES_EXCLUDED";
+	public const char8* SDL_HINT_JOYSTICK_ARCADESTICK_DEVICES_EXCLUDED = "SDL_JOYSTICK_ARCADESTICK_DEVICES_EXCLUDED";
 
 /**
  * A variable containing a list of devices that should not be considered
@@ -1287,7 +1287,7 @@ public const char8* SDL_HINT_JOYSTICK_ARCADESTICK_DEVICES_EXCLUDED = "SDL_JOYSTI
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_BLACKLIST_DEVICES = "SDL_JOYSTICK_BLACKLIST_DEVICES";
+	public const char8* SDL_HINT_JOYSTICK_BLACKLIST_DEVICES = "SDL_JOYSTICK_BLACKLIST_DEVICES";
 
 /**
  * A variable containing a list of devices that should be considered
@@ -1308,7 +1308,7 @@ public const char8* SDL_HINT_JOYSTICK_BLACKLIST_DEVICES = "SDL_JOYSTICK_BLACKLIS
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_BLACKLIST_DEVICES_EXCLUDED = "SDL_JOYSTICK_BLACKLIST_DEVICES_EXCLUDED";
+	public const char8* SDL_HINT_JOYSTICK_BLACKLIST_DEVICES_EXCLUDED = "SDL_JOYSTICK_BLACKLIST_DEVICES_EXCLUDED";
 
 /**
  * A variable containing a comma separated list of devices to open as
@@ -1318,7 +1318,7 @@ public const char8* SDL_HINT_JOYSTICK_BLACKLIST_DEVICES_EXCLUDED = "SDL_JOYSTICK
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_DEVICE = "SDL_JOYSTICK_DEVICE";
+	public const char8* SDL_HINT_JOYSTICK_DEVICE = "SDL_JOYSTICK_DEVICE";
 
 /**
  * A variable controlling whether enhanced reports should be used for
@@ -1343,7 +1343,7 @@ public const char8* SDL_HINT_JOYSTICK_DEVICE = "SDL_JOYSTICK_DEVICE";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_ENHANCED_REPORTS = "SDL_JOYSTICK_ENHANCED_REPORTS";
+	public const char8* SDL_HINT_JOYSTICK_ENHANCED_REPORTS = "SDL_JOYSTICK_ENHANCED_REPORTS";
 
 /**
  * A variable containing a list of flightstick style controllers.
@@ -1360,7 +1360,7 @@ public const char8* SDL_HINT_JOYSTICK_ENHANCED_REPORTS = "SDL_JOYSTICK_ENHANCED_
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_FLIGHTSTICK_DEVICES = "SDL_JOYSTICK_FLIGHTSTICK_DEVICES";
+	public const char8* SDL_HINT_JOYSTICK_FLIGHTSTICK_DEVICES = "SDL_JOYSTICK_FLIGHTSTICK_DEVICES";
 
 /**
  * A variable containing a list of devices that are not flightstick style
@@ -1381,7 +1381,7 @@ public const char8* SDL_HINT_JOYSTICK_FLIGHTSTICK_DEVICES = "SDL_JOYSTICK_FLIGHT
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_FLIGHTSTICK_DEVICES_EXCLUDED = "SDL_JOYSTICK_FLIGHTSTICK_DEVICES_EXCLUDED";
+	public const char8* SDL_HINT_JOYSTICK_FLIGHTSTICK_DEVICES_EXCLUDED = "SDL_JOYSTICK_FLIGHTSTICK_DEVICES_EXCLUDED";
 
 /**
  * A variable controlling whether GameInput should be used for controller
@@ -1398,7 +1398,7 @@ public const char8* SDL_HINT_JOYSTICK_FLIGHTSTICK_DEVICES_EXCLUDED = "SDL_JOYSTI
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_GAMEINPUT = "SDL_JOYSTICK_GAMEINPUT";
+	public const char8* SDL_HINT_JOYSTICK_GAMEINPUT = "SDL_JOYSTICK_GAMEINPUT";
 
 /**
  * A variable containing a list of devices known to have a GameCube form
@@ -1416,7 +1416,7 @@ public const char8* SDL_HINT_JOYSTICK_GAMEINPUT = "SDL_JOYSTICK_GAMEINPUT";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_GAMECUBE_DEVICES = "SDL_JOYSTICK_GAMECUBE_DEVICES";
+	public const char8* SDL_HINT_JOYSTICK_GAMECUBE_DEVICES = "SDL_JOYSTICK_GAMECUBE_DEVICES";
 
 /**
  * A variable containing a list of devices known not to have a GameCube form
@@ -1437,7 +1437,7 @@ public const char8* SDL_HINT_JOYSTICK_GAMECUBE_DEVICES = "SDL_JOYSTICK_GAMECUBE_
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_GAMECUBE_DEVICES_EXCLUDED = "SDL_JOYSTICK_GAMECUBE_DEVICES_EXCLUDED";
+	public const char8* SDL_HINT_JOYSTICK_GAMECUBE_DEVICES_EXCLUDED = "SDL_JOYSTICK_GAMECUBE_DEVICES_EXCLUDED";
 
 /**
  * A variable controlling whether the HIDAPI joystick drivers should be used.
@@ -1454,7 +1454,7 @@ public const char8* SDL_HINT_JOYSTICK_GAMECUBE_DEVICES_EXCLUDED = "SDL_JOYSTICK_
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI = "SDL_JOYSTICK_HIDAPI";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI = "SDL_JOYSTICK_HIDAPI";
 
 /**
  * A variable controlling whether Nintendo Switch Joy-Con controllers will be
@@ -1471,7 +1471,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI = "SDL_JOYSTICK_HIDAPI";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_COMBINE_JOY_CONS = "SDL_JOYSTICK_HIDAPI_COMBINE_JOY_CONS";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_COMBINE_JOY_CONS = "SDL_JOYSTICK_HIDAPI_COMBINE_JOY_CONS";
 
 /**
  * A variable controlling whether the HIDAPI driver for Nintendo GameCube
@@ -1488,7 +1488,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_COMBINE_JOY_CONS = "SDL_JOYSTICK_HI
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_GAMECUBE = "SDL_JOYSTICK_HIDAPI_GAMECUBE";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_GAMECUBE = "SDL_JOYSTICK_HIDAPI_GAMECUBE";
 
 /**
  * A variable controlling whether rumble is used to implement the GameCube
@@ -1509,7 +1509,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_GAMECUBE = "SDL_JOYSTICK_HIDAPI_GAM
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_GAMECUBE_RUMBLE_BRAKE = "SDL_JOYSTICK_HIDAPI_GAMECUBE_RUMBLE_BRAKE";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_GAMECUBE_RUMBLE_BRAKE = "SDL_JOYSTICK_HIDAPI_GAMECUBE_RUMBLE_BRAKE";
 
 /**
  * A variable controlling whether the HIDAPI driver for Nintendo Switch
@@ -1526,7 +1526,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_GAMECUBE_RUMBLE_BRAKE = "SDL_JOYSTI
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_JOY_CONS = "SDL_JOYSTICK_HIDAPI_JOY_CONS";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_JOY_CONS = "SDL_JOYSTICK_HIDAPI_JOY_CONS";
 
 /**
  * A variable controlling whether the Home button LED should be turned on when
@@ -1545,7 +1545,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_JOY_CONS = "SDL_JOYSTICK_HIDAPI_JOY
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_JOYCON_HOME_LED = "SDL_JOYSTICK_HIDAPI_JOYCON_HOME_LED";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_JOYCON_HOME_LED = "SDL_JOYSTICK_HIDAPI_JOYCON_HOME_LED";
 
 /**
  * A variable controlling whether the HIDAPI driver for Amazon Luna
@@ -1562,7 +1562,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_JOYCON_HOME_LED = "SDL_JOYSTICK_HID
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_LUNA = "SDL_JOYSTICK_HIDAPI_LUNA";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_LUNA = "SDL_JOYSTICK_HIDAPI_LUNA";
 
 /**
  * A variable controlling whether the HIDAPI driver for Nintendo Online
@@ -1579,7 +1579,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_LUNA = "SDL_JOYSTICK_HIDAPI_LUNA";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_NINTENDO_CLASSIC = "SDL_JOYSTICK_HIDAPI_NINTENDO_CLASSIC";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_NINTENDO_CLASSIC = "SDL_JOYSTICK_HIDAPI_NINTENDO_CLASSIC";
 
 /**
  * A variable controlling whether the HIDAPI driver for PS3 controllers should
@@ -1601,7 +1601,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_NINTENDO_CLASSIC = "SDL_JOYSTICK_HI
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_PS3 = "SDL_JOYSTICK_HIDAPI_PS3";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_PS3 = "SDL_JOYSTICK_HIDAPI_PS3";
 
 /**
  * A variable controlling whether the Sony driver (sixaxis.sys) for PS3
@@ -1618,7 +1618,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_PS3 = "SDL_JOYSTICK_HIDAPI_PS3";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_PS3_SIXAXIS_DRIVER = "SDL_JOYSTICK_HIDAPI_PS3_SIXAXIS_DRIVER";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_PS3_SIXAXIS_DRIVER = "SDL_JOYSTICK_HIDAPI_PS3_SIXAXIS_DRIVER";
 
 /**
  * A variable controlling whether the HIDAPI driver for PS4 controllers should
@@ -1635,7 +1635,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_PS3_SIXAXIS_DRIVER = "SDL_JOYSTICK_
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_PS4 = "SDL_JOYSTICK_HIDAPI_PS4";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_PS4 = "SDL_JOYSTICK_HIDAPI_PS4";
 
 /**
  * A variable controlling the update rate of the PS4 controller over Bluetooth
@@ -1650,7 +1650,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_PS4 = "SDL_JOYSTICK_HIDAPI_PS4";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_PS4_REPORT_INTERVAL = "SDL_JOYSTICK_HIDAPI_PS4_REPORT_INTERVAL";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_PS4_REPORT_INTERVAL = "SDL_JOYSTICK_HIDAPI_PS4_REPORT_INTERVAL";
 
 /**
  * A variable controlling whether the HIDAPI driver for PS5 controllers should
@@ -1667,7 +1667,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_PS4_REPORT_INTERVAL = "SDL_JOYSTICK
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_PS5 = "SDL_JOYSTICK_HIDAPI_PS5";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_PS5 = "SDL_JOYSTICK_HIDAPI_PS5";
 
 /**
  * A variable controlling whether the player LEDs should be lit to indicate
@@ -1680,7 +1680,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_PS5 = "SDL_JOYSTICK_HIDAPI_PS5";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_PS5_PLAYER_LED = "SDL_JOYSTICK_HIDAPI_PS5_PLAYER_LED";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_PS5_PLAYER_LED = "SDL_JOYSTICK_HIDAPI_PS5_PLAYER_LED";
 
 /**
  * A variable controlling whether the HIDAPI driver for NVIDIA SHIELD
@@ -1697,7 +1697,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_PS5_PLAYER_LED = "SDL_JOYSTICK_HIDA
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_SHIELD = "SDL_JOYSTICK_HIDAPI_SHIELD";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_SHIELD = "SDL_JOYSTICK_HIDAPI_SHIELD";
 
 /**
  * A variable controlling whether the HIDAPI driver for Google Stadia
@@ -1712,7 +1712,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_SHIELD = "SDL_JOYSTICK_HIDAPI_SHIEL
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_STADIA = "SDL_JOYSTICK_HIDAPI_STADIA";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_STADIA = "SDL_JOYSTICK_HIDAPI_STADIA";
 
 /**
  * A variable controlling whether the HIDAPI driver for Bluetooth Steam
@@ -1729,7 +1729,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_STADIA = "SDL_JOYSTICK_HIDAPI_STADI
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_STEAM = "SDL_JOYSTICK_HIDAPI_STEAM";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_STEAM = "SDL_JOYSTICK_HIDAPI_STEAM";
 
 /**
  * A variable controlling whether the Steam button LED should be turned on
@@ -1748,7 +1748,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_STEAM = "SDL_JOYSTICK_HIDAPI_STEAM"
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_STEAM_HOME_LED = "SDL_JOYSTICK_HIDAPI_STEAM_HOME_LED";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_STEAM_HOME_LED = "SDL_JOYSTICK_HIDAPI_STEAM_HOME_LED";
 
 /**
  * A variable controlling whether the HIDAPI driver for the Steam Deck builtin
@@ -1765,7 +1765,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_STEAM_HOME_LED = "SDL_JOYSTICK_HIDA
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_STEAMDECK = "SDL_JOYSTICK_HIDAPI_STEAMDECK";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_STEAMDECK = "SDL_JOYSTICK_HIDAPI_STEAMDECK";
 
 /**
  * A variable controlling whether the HIDAPI driver for HORI licensed Steam
@@ -1776,7 +1776,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_STEAMDECK = "SDL_JOYSTICK_HIDAPI_ST
  *
  * The default is the value of SDL_HINT_JOYSTICK_HIDAPI
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_STEAM_HORI = "SDL_JOYSTICK_HIDAPI_STEAM_HORI";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_STEAM_HORI = "SDL_JOYSTICK_HIDAPI_STEAM_HORI";
 
 /**
  * A variable controlling whether the HIDAPI driver for some Logitech wheels
@@ -1789,7 +1789,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_STEAM_HORI = "SDL_JOYSTICK_HIDAPI_S
  *
  * The default is the value of SDL_HINT_JOYSTICK_HIDAPI
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_LG4FF = "SDL_JOYSTICK_HIDAPI_LG4FF";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_LG4FF = "SDL_JOYSTICK_HIDAPI_LG4FF";
 
 /**
  * A variable controlling whether the HIDAPI driver for 8BitDo controllers
@@ -1801,7 +1801,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_LG4FF = "SDL_JOYSTICK_HIDAPI_LG4FF"
  *
  * The default is the value of SDL_HINT_JOYSTICK_HIDAPI
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_8BITDO = "SDL_JOYSTICK_HIDAPI_8BITDO";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_8BITDO = "SDL_JOYSTICK_HIDAPI_8BITDO";
 
 /**
  * A variable controlling whether the HIDAPI driver for SInput controllers
@@ -1815,7 +1815,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_8BITDO = "SDL_JOYSTICK_HIDAPI_8BITD
  *
  * The default is the value of SDL_HINT_JOYSTICK_HIDAPI
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_SINPUT = "SDL_JOYSTICK_HIDAPI_SINPUT";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_SINPUT = "SDL_JOYSTICK_HIDAPI_SINPUT";
 
 /**
  * A variable controlling whether the HIDAPI driver for ZUIKI controllers
@@ -1827,7 +1827,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_SINPUT = "SDL_JOYSTICK_HIDAPI_SINPU
  *
  * The default is the value of SDL_HINT_JOYSTICK_HIDAPI
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_ZUIKI = "SDL_JOYSTICK_HIDAPI_ZUIKI";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_ZUIKI = "SDL_JOYSTICK_HIDAPI_ZUIKI";
 
 /**
  * A variable controlling whether the HIDAPI driver for Flydigi controllers
@@ -1839,7 +1839,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_ZUIKI = "SDL_JOYSTICK_HIDAPI_ZUIKI"
  *
  * The default is the value of SDL_HINT_JOYSTICK_HIDAPI
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_FLYDIGI = "SDL_JOYSTICK_HIDAPI_FLYDIGI";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_FLYDIGI = "SDL_JOYSTICK_HIDAPI_FLYDIGI";
 
 /**
  * A variable controlling whether the HIDAPI driver for Nintendo Switch
@@ -1856,7 +1856,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_FLYDIGI = "SDL_JOYSTICK_HIDAPI_FLYD
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_SWITCH = "SDL_JOYSTICK_HIDAPI_SWITCH";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_SWITCH = "SDL_JOYSTICK_HIDAPI_SWITCH";
 
 /**
  * A variable controlling whether the Home button LED should be turned on when
@@ -1875,7 +1875,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_SWITCH = "SDL_JOYSTICK_HIDAPI_SWITC
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_SWITCH_HOME_LED = "SDL_JOYSTICK_HIDAPI_SWITCH_HOME_LED";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_SWITCH_HOME_LED = "SDL_JOYSTICK_HIDAPI_SWITCH_HOME_LED";
 
 /**
  * A variable controlling whether the player LEDs should be lit to indicate
@@ -1890,7 +1890,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_SWITCH_HOME_LED = "SDL_JOYSTICK_HID
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_SWITCH_PLAYER_LED = "SDL_JOYSTICK_HIDAPI_SWITCH_PLAYER_LED";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_SWITCH_PLAYER_LED = "SDL_JOYSTICK_HIDAPI_SWITCH_PLAYER_LED";
 
 /**
  * A variable controlling whether the HIDAPI driver for Nintendo Switch 2
@@ -1907,7 +1907,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_SWITCH_PLAYER_LED = "SDL_JOYSTICK_H
  *
  * \since This hint is available since SDL 3.4.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_SWITCH2 = "SDL_JOYSTICK_HIDAPI_SWITCH2";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_SWITCH2 = "SDL_JOYSTICK_HIDAPI_SWITCH2";
 
 /**
  * A variable controlling whether Nintendo Switch Joy-Con controllers will be
@@ -1923,7 +1923,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_SWITCH2 = "SDL_JOYSTICK_HIDAPI_SWIT
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_VERTICAL_JOY_CONS = "SDL_JOYSTICK_HIDAPI_VERTICAL_JOY_CONS";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_VERTICAL_JOY_CONS = "SDL_JOYSTICK_HIDAPI_VERTICAL_JOY_CONS";
 
 /**
  * A variable controlling whether the HIDAPI driver for Nintendo Wii and Wii U
@@ -1941,7 +1941,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_VERTICAL_JOY_CONS = "SDL_JOYSTICK_H
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_WII = "SDL_JOYSTICK_HIDAPI_WII";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_WII = "SDL_JOYSTICK_HIDAPI_WII";
 
 /**
  * A variable controlling whether the player LEDs should be lit to indicate
@@ -1956,7 +1956,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_WII = "SDL_JOYSTICK_HIDAPI_WII";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_WII_PLAYER_LED = "SDL_JOYSTICK_HIDAPI_WII_PLAYER_LED";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_WII_PLAYER_LED = "SDL_JOYSTICK_HIDAPI_WII_PLAYER_LED";
 
 /**
  * A variable controlling whether the HIDAPI driver for XBox controllers
@@ -1974,7 +1974,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_WII_PLAYER_LED = "SDL_JOYSTICK_HIDA
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_XBOX = "SDL_JOYSTICK_HIDAPI_XBOX";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_XBOX = "SDL_JOYSTICK_HIDAPI_XBOX";
 
 /**
  * A variable controlling whether the HIDAPI driver for XBox 360 controllers
@@ -1991,7 +1991,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_XBOX = "SDL_JOYSTICK_HIDAPI_XBOX";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_XBOX_360 = "SDL_JOYSTICK_HIDAPI_XBOX_360";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_XBOX_360 = "SDL_JOYSTICK_HIDAPI_XBOX_360";
 
 /**
  * A variable controlling whether the player LEDs should be lit to indicate
@@ -2006,7 +2006,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_XBOX_360 = "SDL_JOYSTICK_HIDAPI_XBO
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_XBOX_360_PLAYER_LED = "SDL_JOYSTICK_HIDAPI_XBOX_360_PLAYER_LED";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_XBOX_360_PLAYER_LED = "SDL_JOYSTICK_HIDAPI_XBOX_360_PLAYER_LED";
 
 /**
  * A variable controlling whether the HIDAPI driver for XBox 360 wireless
@@ -2023,7 +2023,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_XBOX_360_PLAYER_LED = "SDL_JOYSTICK
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_XBOX_360_WIRELESS = "SDL_JOYSTICK_HIDAPI_XBOX_360_WIRELESS";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_XBOX_360_WIRELESS = "SDL_JOYSTICK_HIDAPI_XBOX_360_WIRELESS";
 
 /**
  * A variable controlling whether the HIDAPI driver for XBox One controllers
@@ -2040,7 +2040,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_XBOX_360_WIRELESS = "SDL_JOYSTICK_H
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_XBOX_ONE = "SDL_JOYSTICK_HIDAPI_XBOX_ONE";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_XBOX_ONE = "SDL_JOYSTICK_HIDAPI_XBOX_ONE";
 
 /**
  * A variable controlling whether the Home button LED should be turned on when
@@ -2059,7 +2059,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_XBOX_ONE = "SDL_JOYSTICK_HIDAPI_XBO
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_XBOX_ONE_HOME_LED = "SDL_JOYSTICK_HIDAPI_XBOX_ONE_HOME_LED";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_XBOX_ONE_HOME_LED = "SDL_JOYSTICK_HIDAPI_XBOX_ONE_HOME_LED";
 
 /**
  * A variable controlling whether the new HIDAPI driver for wired Xbox One
@@ -2076,7 +2076,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_XBOX_ONE_HOME_LED = "SDL_JOYSTICK_H
  *
  * \since This hint is available since SDL 3.4.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_GIP = "SDL_JOYSTICK_HIDAPI_GIP";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_GIP = "SDL_JOYSTICK_HIDAPI_GIP";
 
 /**
  * A variable controlling whether the new HIDAPI driver for wired Xbox One
@@ -2094,7 +2094,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_GIP = "SDL_JOYSTICK_HIDAPI_GIP";
  *
  * \since This hint is available since SDL 3.4.0.
  */
-public const char8* SDL_HINT_JOYSTICK_HIDAPI_GIP_RESET_FOR_METADATA = "SDL_JOYSTICK_HIDAPI_GIP_RESET_FOR_METADATA";
+	public const char8* SDL_HINT_JOYSTICK_HIDAPI_GIP_RESET_FOR_METADATA = "SDL_JOYSTICK_HIDAPI_GIP_RESET_FOR_METADATA";
 
 /**
  * A variable controlling whether IOKit should be used for controller
@@ -2109,7 +2109,7 @@ public const char8* SDL_HINT_JOYSTICK_HIDAPI_GIP_RESET_FOR_METADATA = "SDL_JOYST
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_IOKIT = "SDL_JOYSTICK_IOKIT";
+	public const char8* SDL_HINT_JOYSTICK_IOKIT = "SDL_JOYSTICK_IOKIT";
 
 /**
  * A variable controlling whether to use the classic /dev/input/js* joystick
@@ -2124,7 +2124,7 @@ public const char8* SDL_HINT_JOYSTICK_IOKIT = "SDL_JOYSTICK_IOKIT";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_LINUX_CLASSIC = "SDL_JOYSTICK_LINUX_CLASSIC";
+	public const char8* SDL_HINT_JOYSTICK_LINUX_CLASSIC = "SDL_JOYSTICK_LINUX_CLASSIC";
 
 /**
  * A variable controlling whether joysticks on Linux adhere to their
@@ -2139,7 +2139,7 @@ public const char8* SDL_HINT_JOYSTICK_LINUX_CLASSIC = "SDL_JOYSTICK_LINUX_CLASSI
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_LINUX_DEADZONES = "SDL_JOYSTICK_LINUX_DEADZONES";
+	public const char8* SDL_HINT_JOYSTICK_LINUX_DEADZONES = "SDL_JOYSTICK_LINUX_DEADZONES";
 
 /**
  * A variable controlling whether joysticks on Linux will always treat 'hat'
@@ -2157,7 +2157,7 @@ public const char8* SDL_HINT_JOYSTICK_LINUX_DEADZONES = "SDL_JOYSTICK_LINUX_DEAD
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_LINUX_DIGITAL_HATS = "SDL_JOYSTICK_LINUX_DIGITAL_HATS";
+	public const char8* SDL_HINT_JOYSTICK_LINUX_DIGITAL_HATS = "SDL_JOYSTICK_LINUX_DIGITAL_HATS";
 
 /**
  * A variable controlling whether digital hats on Linux will apply deadzones
@@ -2173,7 +2173,7 @@ public const char8* SDL_HINT_JOYSTICK_LINUX_DIGITAL_HATS = "SDL_JOYSTICK_LINUX_D
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_LINUX_HAT_DEADZONES = "SDL_JOYSTICK_LINUX_HAT_DEADZONES";
+	public const char8* SDL_HINT_JOYSTICK_LINUX_HAT_DEADZONES = "SDL_JOYSTICK_LINUX_HAT_DEADZONES";
 
 /**
  * A variable controlling whether GCController should be used for controller
@@ -2188,7 +2188,7 @@ public const char8* SDL_HINT_JOYSTICK_LINUX_HAT_DEADZONES = "SDL_JOYSTICK_LINUX_
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_MFI = "SDL_JOYSTICK_MFI";
+	public const char8* SDL_HINT_JOYSTICK_MFI = "SDL_JOYSTICK_MFI";
 
 /**
  * A variable controlling whether the RAWINPUT joystick drivers should be used
@@ -2203,7 +2203,7 @@ public const char8* SDL_HINT_JOYSTICK_MFI = "SDL_JOYSTICK_MFI";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_RAWINPUT = "SDL_JOYSTICK_RAWINPUT";
+	public const char8* SDL_HINT_JOYSTICK_RAWINPUT = "SDL_JOYSTICK_RAWINPUT";
 
 /**
  * A variable controlling whether the RAWINPUT driver should pull correlated
@@ -2220,7 +2220,7 @@ public const char8* SDL_HINT_JOYSTICK_RAWINPUT = "SDL_JOYSTICK_RAWINPUT";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_RAWINPUT_CORRELATE_XINPUT = "SDL_JOYSTICK_RAWINPUT_CORRELATE_XINPUT";
+	public const char8* SDL_HINT_JOYSTICK_RAWINPUT_CORRELATE_XINPUT = "SDL_JOYSTICK_RAWINPUT_CORRELATE_XINPUT";
 
 /**
  * A variable controlling whether the ROG Chakram mice should show up as
@@ -2235,7 +2235,7 @@ public const char8* SDL_HINT_JOYSTICK_RAWINPUT_CORRELATE_XINPUT = "SDL_JOYSTICK_
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_ROG_CHAKRAM = "SDL_JOYSTICK_ROG_CHAKRAM";
+	public const char8* SDL_HINT_JOYSTICK_ROG_CHAKRAM = "SDL_JOYSTICK_ROG_CHAKRAM";
 
 /**
  * A variable controlling whether a separate thread should be used for
@@ -2250,7 +2250,7 @@ public const char8* SDL_HINT_JOYSTICK_ROG_CHAKRAM = "SDL_JOYSTICK_ROG_CHAKRAM";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_THREAD = "SDL_JOYSTICK_THREAD";
+	public const char8* SDL_HINT_JOYSTICK_THREAD = "SDL_JOYSTICK_THREAD";
 
 /**
  * A variable containing a list of throttle style controllers.
@@ -2267,7 +2267,7 @@ public const char8* SDL_HINT_JOYSTICK_THREAD = "SDL_JOYSTICK_THREAD";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_THROTTLE_DEVICES = "SDL_JOYSTICK_THROTTLE_DEVICES";
+	public const char8* SDL_HINT_JOYSTICK_THROTTLE_DEVICES = "SDL_JOYSTICK_THROTTLE_DEVICES";
 
 /**
  * A variable containing a list of devices that are not throttle style
@@ -2288,7 +2288,7 @@ public const char8* SDL_HINT_JOYSTICK_THROTTLE_DEVICES = "SDL_JOYSTICK_THROTTLE_
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_THROTTLE_DEVICES_EXCLUDED = "SDL_JOYSTICK_THROTTLE_DEVICES_EXCLUDED";
+	public const char8* SDL_HINT_JOYSTICK_THROTTLE_DEVICES_EXCLUDED = "SDL_JOYSTICK_THROTTLE_DEVICES_EXCLUDED";
 
 /**
  * A variable controlling whether Windows.Gaming.Input should be used for
@@ -2303,7 +2303,7 @@ public const char8* SDL_HINT_JOYSTICK_THROTTLE_DEVICES_EXCLUDED = "SDL_JOYSTICK_
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_WGI = "SDL_JOYSTICK_WGI";
+	public const char8* SDL_HINT_JOYSTICK_WGI = "SDL_JOYSTICK_WGI";
 
 /**
  * A variable containing a list of wheel style controllers.
@@ -2320,7 +2320,7 @@ public const char8* SDL_HINT_JOYSTICK_WGI = "SDL_JOYSTICK_WGI";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_WHEEL_DEVICES = "SDL_JOYSTICK_WHEEL_DEVICES";
+	public const char8* SDL_HINT_JOYSTICK_WHEEL_DEVICES = "SDL_JOYSTICK_WHEEL_DEVICES";
 
 /**
  * A variable containing a list of devices that are not wheel style
@@ -2341,7 +2341,7 @@ public const char8* SDL_HINT_JOYSTICK_WHEEL_DEVICES = "SDL_JOYSTICK_WHEEL_DEVICE
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_WHEEL_DEVICES_EXCLUDED = "SDL_JOYSTICK_WHEEL_DEVICES_EXCLUDED";
+	public const char8* SDL_HINT_JOYSTICK_WHEEL_DEVICES_EXCLUDED = "SDL_JOYSTICK_WHEEL_DEVICES_EXCLUDED";
 
 /**
  * A variable containing a list of devices known to have all axes centered at
@@ -2359,7 +2359,7 @@ public const char8* SDL_HINT_JOYSTICK_WHEEL_DEVICES_EXCLUDED = "SDL_JOYSTICK_WHE
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_JOYSTICK_ZERO_CENTERED_DEVICES = "SDL_JOYSTICK_ZERO_CENTERED_DEVICES";
+	public const char8* SDL_HINT_JOYSTICK_ZERO_CENTERED_DEVICES = "SDL_JOYSTICK_ZERO_CENTERED_DEVICES";
 
 /**
  * A variable containing a list of devices and their desired number of haptic
@@ -2381,7 +2381,7 @@ public const char8* SDL_HINT_JOYSTICK_ZERO_CENTERED_DEVICES = "SDL_JOYSTICK_ZERO
  *
  * \since This hint is available since SDL 3.2.5.
  */
-public const char8* SDL_HINT_JOYSTICK_HAPTIC_AXES = "SDL_JOYSTICK_HAPTIC_AXES";
+	public const char8* SDL_HINT_JOYSTICK_HAPTIC_AXES = "SDL_JOYSTICK_HAPTIC_AXES";
 
 /**
  * A variable that controls keycode representation in keyboard events.
@@ -2415,7 +2415,7 @@ public const char8* SDL_HINT_JOYSTICK_HAPTIC_AXES = "SDL_JOYSTICK_HAPTIC_AXES";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_KEYCODE_OPTIONS = "SDL_KEYCODE_OPTIONS";
+	public const char8* SDL_HINT_KEYCODE_OPTIONS = "SDL_KEYCODE_OPTIONS";
 
 /**
  * A variable that controls what KMSDRM device to use.
@@ -2429,7 +2429,7 @@ public const char8* SDL_HINT_KEYCODE_OPTIONS = "SDL_KEYCODE_OPTIONS";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_KMSDRM_DEVICE_INDEX = "SDL_KMSDRM_DEVICE_INDEX";
+	public const char8* SDL_HINT_KMSDRM_DEVICE_INDEX = "SDL_KMSDRM_DEVICE_INDEX";
 
 /**
  * A variable that controls whether SDL requires DRM master access in order to
@@ -2457,7 +2457,7 @@ public const char8* SDL_HINT_KMSDRM_DEVICE_INDEX = "SDL_KMSDRM_DEVICE_INDEX";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_KMSDRM_REQUIRE_DRM_MASTER = "SDL_KMSDRM_REQUIRE_DRM_MASTER";
+	public const char8* SDL_HINT_KMSDRM_REQUIRE_DRM_MASTER = "SDL_KMSDRM_REQUIRE_DRM_MASTER";
 
 /**
  * A variable that controls whether KMSDRM will use "atomic" functionality.
@@ -2478,7 +2478,7 @@ public const char8* SDL_HINT_KMSDRM_REQUIRE_DRM_MASTER = "SDL_KMSDRM_REQUIRE_DRM
  *
  * \since This hint is available since SDL 3.4.0.
  */
-public const char8* SDL_HINT_KMSDRM_ATOMIC = "SDL_KMSDRM_ATOMIC";
+	public const char8* SDL_HINT_KMSDRM_ATOMIC = "SDL_KMSDRM_ATOMIC";
 
 /**
  * A variable controlling the default SDL log levels.
@@ -2509,7 +2509,7 @@ public const char8* SDL_HINT_KMSDRM_ATOMIC = "SDL_KMSDRM_ATOMIC";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_LOGGING = "SDL_LOGGING";
+	public const char8* SDL_HINT_LOGGING = "SDL_LOGGING";
 
 /**
  * A variable controlling whether to force the application to become the
@@ -2525,7 +2525,7 @@ public const char8* SDL_HINT_LOGGING = "SDL_LOGGING";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_MAC_BACKGROUND_APP = "SDL_MAC_BACKGROUND_APP";
+	public const char8* SDL_HINT_MAC_BACKGROUND_APP = "SDL_MAC_BACKGROUND_APP";
 
 /**
  * A variable that determines whether Ctrl+Click should generate a right-click
@@ -2541,7 +2541,7 @@ public const char8* SDL_HINT_MAC_BACKGROUND_APP = "SDL_MAC_BACKGROUND_APP";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_MAC_CTRL_CLICK_EMULATE_RIGHT_CLICK = "SDL_MAC_CTRL_CLICK_EMULATE_RIGHT_CLICK";
+	public const char8* SDL_HINT_MAC_CTRL_CLICK_EMULATE_RIGHT_CLICK = "SDL_MAC_CTRL_CLICK_EMULATE_RIGHT_CLICK";
 
 /**
  * A variable controlling whether dispatching OpenGL context updates should
@@ -2564,7 +2564,7 @@ public const char8* SDL_HINT_MAC_CTRL_CLICK_EMULATE_RIGHT_CLICK = "SDL_MAC_CTRL_
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_MAC_OPENGL_ASYNC_DISPATCH = "SDL_MAC_OPENGL_ASYNC_DISPATCH";
+	public const char8* SDL_HINT_MAC_OPENGL_ASYNC_DISPATCH = "SDL_MAC_OPENGL_ASYNC_DISPATCH";
 
 /**
  * A variable controlling whether the Option key on macOS should be remapped
@@ -2589,7 +2589,7 @@ public const char8* SDL_HINT_MAC_OPENGL_ASYNC_DISPATCH = "SDL_MAC_OPENGL_ASYNC_D
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_MAC_OPTION_AS_ALT = "SDL_MAC_OPTION_AS_ALT";
+	public const char8* SDL_HINT_MAC_OPTION_AS_ALT = "SDL_MAC_OPTION_AS_ALT";
 
 /**
  * A variable controlling whether SDL_EVENT_MOUSE_WHEEL event values will have
@@ -2604,7 +2604,7 @@ public const char8* SDL_HINT_MAC_OPTION_AS_ALT = "SDL_MAC_OPTION_AS_ALT";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_MAC_SCROLL_MOMENTUM = "SDL_MAC_SCROLL_MOMENTUM";
+	public const char8* SDL_HINT_MAC_SCROLL_MOMENTUM = "SDL_MAC_SCROLL_MOMENTUM";
 
 /**
  * A variable controlling whether holding down a key will repeat the pressed
@@ -2619,7 +2619,7 @@ public const char8* SDL_HINT_MAC_SCROLL_MOMENTUM = "SDL_MAC_SCROLL_MOMENTUM";
  *
  * \since This hint is available since SDL 3.4.0.
  */
-public const char8* SDL_HINT_MAC_PRESS_AND_HOLD = "SDL_MAC_PRESS_AND_HOLD";
+	public const char8* SDL_HINT_MAC_PRESS_AND_HOLD = "SDL_MAC_PRESS_AND_HOLD";
 
 /**
  * Request SDL_AppIterate() be called at a specific rate.
@@ -2649,7 +2649,7 @@ public const char8* SDL_HINT_MAC_PRESS_AND_HOLD = "SDL_MAC_PRESS_AND_HOLD";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_MAIN_CALLBACK_RATE = "SDL_MAIN_CALLBACK_RATE";
+	public const char8* SDL_HINT_MAIN_CALLBACK_RATE = "SDL_MAIN_CALLBACK_RATE";
 
 /**
  * A variable controlling whether the mouse is captured while mouse buttons
@@ -2668,7 +2668,7 @@ public const char8* SDL_HINT_MAIN_CALLBACK_RATE = "SDL_MAIN_CALLBACK_RATE";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_MOUSE_AUTO_CAPTURE = "SDL_MOUSE_AUTO_CAPTURE";
+	public const char8* SDL_HINT_MOUSE_AUTO_CAPTURE = "SDL_MOUSE_AUTO_CAPTURE";
 
 /**
  * A variable setting the double click radius, in pixels.
@@ -2677,7 +2677,7 @@ public const char8* SDL_HINT_MOUSE_AUTO_CAPTURE = "SDL_MOUSE_AUTO_CAPTURE";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_MOUSE_DOUBLE_CLICK_RADIUS = "SDL_MOUSE_DOUBLE_CLICK_RADIUS";
+	public const char8* SDL_HINT_MOUSE_DOUBLE_CLICK_RADIUS = "SDL_MOUSE_DOUBLE_CLICK_RADIUS";
 
 /**
  * A variable setting the double click time, in milliseconds.
@@ -2686,7 +2686,7 @@ public const char8* SDL_HINT_MOUSE_DOUBLE_CLICK_RADIUS = "SDL_MOUSE_DOUBLE_CLICK
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_MOUSE_DOUBLE_CLICK_TIME = "SDL_MOUSE_DOUBLE_CLICK_TIME";
+	public const char8* SDL_HINT_MOUSE_DOUBLE_CLICK_TIME = "SDL_MOUSE_DOUBLE_CLICK_TIME";
 
 /**
  * A variable setting which system cursor to use as the default cursor.
@@ -2698,7 +2698,7 @@ public const char8* SDL_HINT_MOUSE_DOUBLE_CLICK_TIME = "SDL_MOUSE_DOUBLE_CLICK_T
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_MOUSE_DEFAULT_SYSTEM_CURSOR = "SDL_MOUSE_DEFAULT_SYSTEM_CURSOR";
+	public const char8* SDL_HINT_MOUSE_DEFAULT_SYSTEM_CURSOR = "SDL_MOUSE_DEFAULT_SYSTEM_CURSOR";
 
 /**
  * A variable setting whether we should scale cursors by the current display
@@ -2716,7 +2716,7 @@ public const char8* SDL_HINT_MOUSE_DEFAULT_SYSTEM_CURSOR = "SDL_MOUSE_DEFAULT_SY
  *
  * \since This hint is available since SDL 3.4.0.
  */
-public const char8* SDL_HINT_MOUSE_DPI_SCALE_CURSORS = "SDL_MOUSE_DPI_SCALE_CURSORS";
+	public const char8* SDL_HINT_MOUSE_DPI_SCALE_CURSORS = "SDL_MOUSE_DPI_SCALE_CURSORS";
 
 /**
  * A variable controlling whether warping a hidden mouse cursor will activate
@@ -2748,7 +2748,7 @@ public const char8* SDL_HINT_MOUSE_DPI_SCALE_CURSORS = "SDL_MOUSE_DPI_SCALE_CURS
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_MOUSE_EMULATE_WARP_WITH_RELATIVE = "SDL_MOUSE_EMULATE_WARP_WITH_RELATIVE";
+	public const char8* SDL_HINT_MOUSE_EMULATE_WARP_WITH_RELATIVE = "SDL_MOUSE_EMULATE_WARP_WITH_RELATIVE";
 
 /**
  * Allow mouse click events when clicking to focus an SDL window.
@@ -2762,7 +2762,7 @@ public const char8* SDL_HINT_MOUSE_EMULATE_WARP_WITH_RELATIVE = "SDL_MOUSE_EMULA
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH = "SDL_MOUSE_FOCUS_CLICKTHROUGH";
+	public const char8* SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH = "SDL_MOUSE_FOCUS_CLICKTHROUGH";
 
 /**
  * A variable setting the speed scale for mouse motion, in floating point,
@@ -2772,7 +2772,7 @@ public const char8* SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH = "SDL_MOUSE_FOCUS_CLICKTH
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_MOUSE_NORMAL_SPEED_SCALE = "SDL_MOUSE_NORMAL_SPEED_SCALE";
+	public const char8* SDL_HINT_MOUSE_NORMAL_SPEED_SCALE = "SDL_MOUSE_NORMAL_SPEED_SCALE";
 
 /**
  * A variable controlling whether relative mouse mode constrains the mouse to
@@ -2793,7 +2793,7 @@ public const char8* SDL_HINT_MOUSE_NORMAL_SPEED_SCALE = "SDL_MOUSE_NORMAL_SPEED_
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_MOUSE_RELATIVE_MODE_CENTER = "SDL_MOUSE_RELATIVE_MODE_CENTER";
+	public const char8* SDL_HINT_MOUSE_RELATIVE_MODE_CENTER = "SDL_MOUSE_RELATIVE_MODE_CENTER";
 
 /**
  * A variable setting the scale for mouse motion, in floating point, when the
@@ -2803,7 +2803,7 @@ public const char8* SDL_HINT_MOUSE_RELATIVE_MODE_CENTER = "SDL_MOUSE_RELATIVE_MO
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_MOUSE_RELATIVE_SPEED_SCALE = "SDL_MOUSE_RELATIVE_SPEED_SCALE";
+	public const char8* SDL_HINT_MOUSE_RELATIVE_SPEED_SCALE = "SDL_MOUSE_RELATIVE_SPEED_SCALE";
 
 /**
  * A variable controlling whether the system mouse acceleration curve is used
@@ -2822,7 +2822,7 @@ public const char8* SDL_HINT_MOUSE_RELATIVE_SPEED_SCALE = "SDL_MOUSE_RELATIVE_SP
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_MOUSE_RELATIVE_SYSTEM_SCALE = "SDL_MOUSE_RELATIVE_SYSTEM_SCALE";
+	public const char8* SDL_HINT_MOUSE_RELATIVE_SYSTEM_SCALE = "SDL_MOUSE_RELATIVE_SYSTEM_SCALE";
 
 /**
  * A variable controlling whether a motion event should be generated for mouse
@@ -2841,7 +2841,7 @@ public const char8* SDL_HINT_MOUSE_RELATIVE_SYSTEM_SCALE = "SDL_MOUSE_RELATIVE_S
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_MOUSE_RELATIVE_WARP_MOTION = "SDL_MOUSE_RELATIVE_WARP_MOTION";
+	public const char8* SDL_HINT_MOUSE_RELATIVE_WARP_MOTION = "SDL_MOUSE_RELATIVE_WARP_MOTION";
 
 /**
  * A variable controlling whether the hardware cursor stays visible when
@@ -2860,7 +2860,7 @@ public const char8* SDL_HINT_MOUSE_RELATIVE_WARP_MOTION = "SDL_MOUSE_RELATIVE_WA
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_MOUSE_RELATIVE_CURSOR_VISIBLE = "SDL_MOUSE_RELATIVE_CURSOR_VISIBLE";
+	public const char8* SDL_HINT_MOUSE_RELATIVE_CURSOR_VISIBLE = "SDL_MOUSE_RELATIVE_CURSOR_VISIBLE";
 
 /**
  * A variable controlling whether mouse events should generate synthetic touch
@@ -2877,7 +2877,7 @@ public const char8* SDL_HINT_MOUSE_RELATIVE_CURSOR_VISIBLE = "SDL_MOUSE_RELATIVE
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_MOUSE_TOUCH_EVENTS = "SDL_MOUSE_TOUCH_EVENTS";
+	public const char8* SDL_HINT_MOUSE_TOUCH_EVENTS = "SDL_MOUSE_TOUCH_EVENTS";
 
 /**
  * A variable controlling whether the keyboard should be muted on the console.
@@ -2895,7 +2895,7 @@ public const char8* SDL_HINT_MOUSE_TOUCH_EVENTS = "SDL_MOUSE_TOUCH_EVENTS";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_MUTE_CONSOLE_KEYBOARD = "SDL_MUTE_CONSOLE_KEYBOARD";
+	public const char8* SDL_HINT_MUTE_CONSOLE_KEYBOARD = "SDL_MUTE_CONSOLE_KEYBOARD";
 
 /**
  * Tell SDL not to catch the SIGINT or SIGTERM signals on POSIX platforms.
@@ -2910,7 +2910,7 @@ public const char8* SDL_HINT_MUTE_CONSOLE_KEYBOARD = "SDL_MUTE_CONSOLE_KEYBOARD"
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_NO_SIGNAL_HANDLERS = "SDL_NO_SIGNAL_HANDLERS";
+	public const char8* SDL_HINT_NO_SIGNAL_HANDLERS = "SDL_NO_SIGNAL_HANDLERS";
 
 /**
  * Specify the OpenGL library to load.
@@ -2921,7 +2921,7 @@ public const char8* SDL_HINT_NO_SIGNAL_HANDLERS = "SDL_NO_SIGNAL_HANDLERS";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_OPENGL_LIBRARY = "SDL_OPENGL_LIBRARY";
+	public const char8* SDL_HINT_OPENGL_LIBRARY = "SDL_OPENGL_LIBRARY";
 
 /**
  * Specify the EGL library to load.
@@ -2933,7 +2933,7 @@ public const char8* SDL_HINT_OPENGL_LIBRARY = "SDL_OPENGL_LIBRARY";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_EGL_LIBRARY = "SDL_EGL_LIBRARY";
+	public const char8* SDL_HINT_EGL_LIBRARY = "SDL_EGL_LIBRARY";
 
 /**
  * A variable controlling what driver to use for OpenGL ES contexts.
@@ -2967,7 +2967,7 @@ public const char8* SDL_HINT_EGL_LIBRARY = "SDL_EGL_LIBRARY";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_OPENGL_ES_DRIVER = "SDL_OPENGL_ES_DRIVER";
+	public const char8* SDL_HINT_OPENGL_ES_DRIVER = "SDL_OPENGL_ES_DRIVER";
 
 /**
  * Mechanism to specify openvr_api library location
@@ -2979,7 +2979,7 @@ public const char8* SDL_HINT_OPENGL_ES_DRIVER = "SDL_OPENGL_ES_DRIVER";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_OPENVR_LIBRARY              = "SDL_OPENVR_LIBRARY";
+	public const char8* SDL_HINT_OPENVR_LIBRARY              = "SDL_OPENVR_LIBRARY";
 
 /**
  * A variable controlling which orientations are allowed on iOS/Android.
@@ -2998,7 +2998,7 @@ public const char8* SDL_HINT_OPENVR_LIBRARY              = "SDL_OPENVR_LIBRARY";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_ORIENTATIONS = "SDL_ORIENTATIONS";
+	public const char8* SDL_HINT_ORIENTATIONS = "SDL_ORIENTATIONS";
 
 /**
  * A variable controlling the use of a sentinel event when polling the event
@@ -3018,7 +3018,7 @@ public const char8* SDL_HINT_ORIENTATIONS = "SDL_ORIENTATIONS";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_POLL_SENTINEL = "SDL_POLL_SENTINEL";
+	public const char8* SDL_HINT_POLL_SENTINEL = "SDL_POLL_SENTINEL";
 
 /**
  * Override for SDL_GetPreferredLocales().
@@ -3036,7 +3036,7 @@ public const char8* SDL_HINT_POLL_SENTINEL = "SDL_POLL_SENTINEL";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_PREFERRED_LOCALES = "SDL_PREFERRED_LOCALES";
+	public const char8* SDL_HINT_PREFERRED_LOCALES = "SDL_PREFERRED_LOCALES";
 
 /**
  * A variable that decides whether to send SDL_EVENT_QUIT when closing the
@@ -3059,7 +3059,7 @@ public const char8* SDL_HINT_PREFERRED_LOCALES = "SDL_PREFERRED_LOCALES";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_QUIT_ON_LAST_WINDOW_CLOSE = "SDL_QUIT_ON_LAST_WINDOW_CLOSE";
+	public const char8* SDL_HINT_QUIT_ON_LAST_WINDOW_CLOSE = "SDL_QUIT_ON_LAST_WINDOW_CLOSE";
 
 /**
  * A variable controlling whether the Direct3D device is initialized for
@@ -3074,7 +3074,7 @@ public const char8* SDL_HINT_QUIT_ON_LAST_WINDOW_CLOSE = "SDL_QUIT_ON_LAST_WINDO
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_RENDER_DIRECT3D_THREADSAFE = "SDL_RENDER_DIRECT3D_THREADSAFE";
+	public const char8* SDL_HINT_RENDER_DIRECT3D_THREADSAFE = "SDL_RENDER_DIRECT3D_THREADSAFE";
 
 /**
  * A variable controlling whether to enable Direct3D 11+'s Debug Layer.
@@ -3090,7 +3090,7 @@ public const char8* SDL_HINT_RENDER_DIRECT3D_THREADSAFE = "SDL_RENDER_DIRECT3D_T
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_RENDER_DIRECT3D11_DEBUG = "SDL_RENDER_DIRECT3D11_DEBUG";
+	public const char8* SDL_HINT_RENDER_DIRECT3D11_DEBUG = "SDL_RENDER_DIRECT3D11_DEBUG";
 
 /**
  * A variable controlling whether to use the Direct3D 11 WARP software
@@ -3108,7 +3108,7 @@ public const char8* SDL_HINT_RENDER_DIRECT3D11_DEBUG = "SDL_RENDER_DIRECT3D11_DE
  *
  * \since This hint is available since SDL 3.4.0.
  */
-public const char8* SDL_HINT_RENDER_DIRECT3D11_WARP = "SDL_RENDER_DIRECT3D11_WARP";
+	public const char8* SDL_HINT_RENDER_DIRECT3D11_WARP = "SDL_RENDER_DIRECT3D11_WARP";
 
 /**
  * A variable controlling whether to enable Vulkan Validation Layers.
@@ -3122,7 +3122,7 @@ public const char8* SDL_HINT_RENDER_DIRECT3D11_WARP = "SDL_RENDER_DIRECT3D11_WAR
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_RENDER_VULKAN_DEBUG = "SDL_RENDER_VULKAN_DEBUG";
+	public const char8* SDL_HINT_RENDER_VULKAN_DEBUG = "SDL_RENDER_VULKAN_DEBUG";
 
 /**
  * A variable controlling whether to create the GPU device in debug mode.
@@ -3136,7 +3136,7 @@ public const char8* SDL_HINT_RENDER_VULKAN_DEBUG = "SDL_RENDER_VULKAN_DEBUG";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_RENDER_GPU_DEBUG = "SDL_RENDER_GPU_DEBUG";
+	public const char8* SDL_HINT_RENDER_GPU_DEBUG = "SDL_RENDER_GPU_DEBUG";
 
 /**
  * A variable controlling whether to prefer a low-power GPU on multi-GPU
@@ -3151,7 +3151,7 @@ public const char8* SDL_HINT_RENDER_GPU_DEBUG = "SDL_RENDER_GPU_DEBUG";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_RENDER_GPU_LOW_POWER = "SDL_RENDER_GPU_LOW_POWER";
+	public const char8* SDL_HINT_RENDER_GPU_LOW_POWER = "SDL_RENDER_GPU_LOW_POWER";
 
 /**
  * A variable specifying which render driver to use.
@@ -3184,7 +3184,7 @@ public const char8* SDL_HINT_RENDER_GPU_LOW_POWER = "SDL_RENDER_GPU_LOW_POWER";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_RENDER_DRIVER = "SDL_RENDER_DRIVER";
+	public const char8* SDL_HINT_RENDER_DRIVER = "SDL_RENDER_DRIVER";
 
 /**
  * A variable controlling how the 2D render API renders lines.
@@ -3202,7 +3202,7 @@ public const char8* SDL_HINT_RENDER_DRIVER = "SDL_RENDER_DRIVER";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_RENDER_LINE_METHOD = "SDL_RENDER_LINE_METHOD";
+	public const char8* SDL_HINT_RENDER_LINE_METHOD = "SDL_RENDER_LINE_METHOD";
 
 /**
  * A variable controlling whether the Metal render driver select low power
@@ -3217,7 +3217,7 @@ public const char8* SDL_HINT_RENDER_LINE_METHOD = "SDL_RENDER_LINE_METHOD";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_RENDER_METAL_PREFER_LOW_POWER_DEVICE = "SDL_RENDER_METAL_PREFER_LOW_POWER_DEVICE";
+	public const char8* SDL_HINT_RENDER_METAL_PREFER_LOW_POWER_DEVICE = "SDL_RENDER_METAL_PREFER_LOW_POWER_DEVICE";
 
 /**
  * A variable controlling whether updates to the SDL screen surface should be
@@ -3234,7 +3234,7 @@ public const char8* SDL_HINT_RENDER_METAL_PREFER_LOW_POWER_DEVICE = "SDL_RENDER_
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_RENDER_VSYNC = "SDL_RENDER_VSYNC";
+	public const char8* SDL_HINT_RENDER_VSYNC = "SDL_RENDER_VSYNC";
 
 /**
  * A variable to control whether the return key on the soft keyboard should
@@ -3251,7 +3251,7 @@ public const char8* SDL_HINT_RENDER_VSYNC = "SDL_RENDER_VSYNC";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_RETURN_KEY_HIDES_IME = "SDL_RETURN_KEY_HIDES_IME";
+	public const char8* SDL_HINT_RETURN_KEY_HIDES_IME = "SDL_RETURN_KEY_HIDES_IME";
 
 /**
  * A variable containing a list of ROG gamepad capable mice.
@@ -3270,7 +3270,7 @@ public const char8* SDL_HINT_RETURN_KEY_HIDES_IME = "SDL_RETURN_KEY_HIDES_IME";
  *
  * \sa SDL_HINT_ROG_GAMEPAD_MICE_EXCLUDED
  */
-public const char8* SDL_HINT_ROG_GAMEPAD_MICE = "SDL_ROG_GAMEPAD_MICE";
+	public const char8* SDL_HINT_ROG_GAMEPAD_MICE = "SDL_ROG_GAMEPAD_MICE";
 
 /**
  * A variable containing a list of devices that are not ROG gamepad capable
@@ -3290,21 +3290,21 @@ public const char8* SDL_HINT_ROG_GAMEPAD_MICE = "SDL_ROG_GAMEPAD_MICE";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_ROG_GAMEPAD_MICE_EXCLUDED = "SDL_ROG_GAMEPAD_MICE_EXCLUDED";
+	public const char8* SDL_HINT_ROG_GAMEPAD_MICE_EXCLUDED = "SDL_ROG_GAMEPAD_MICE_EXCLUDED";
 
 /**
  * Variable controlling the width of the PS2's framebuffer in pixels
  *
  * By default, this variable is "640"
  */
-public const char8* SDL_HINT_PS2_GS_WIDTH    = "SDL_PS2_GS_WIDTH";
+	public const char8* SDL_HINT_PS2_GS_WIDTH    = "SDL_PS2_GS_WIDTH";
 
 /**
  * Variable controlling the height of the PS2's framebuffer in pixels
  *
  * By default, this variable is "448"
  */
-public const char8* SDL_HINT_PS2_GS_HEIGHT    = "SDL_PS2_GS_HEIGHT";
+	public const char8* SDL_HINT_PS2_GS_HEIGHT    = "SDL_PS2_GS_HEIGHT";
 
 /**
  * Variable controlling whether the signal is interlaced or progressive
@@ -3312,7 +3312,7 @@ public const char8* SDL_HINT_PS2_GS_HEIGHT    = "SDL_PS2_GS_HEIGHT";
  * - "0": Image is interlaced. (default)
  * - "1": Image is progressive
  */
-public const char8* SDL_HINT_PS2_GS_PROGRESSIVE    = "SDL_PS2_GS_PROGRESSIVE";
+	public const char8* SDL_HINT_PS2_GS_PROGRESSIVE    = "SDL_PS2_GS_PROGRESSIVE";
 
 /**
  * Variable controlling the video mode of the console
@@ -3321,7 +3321,7 @@ public const char8* SDL_HINT_PS2_GS_PROGRESSIVE    = "SDL_PS2_GS_PROGRESSIVE";
  * - "NTSC": 60hz region
  * - "PAL": 50hz region
  */
-public const char8* SDL_HINT_PS2_GS_MODE    = "SDL_PS2_GS_MODE";
+	public const char8* SDL_HINT_PS2_GS_MODE    = "SDL_PS2_GS_MODE";
 
 /**
  * A variable controlling which Dispmanx layer to use on a Raspberry PI.
@@ -3333,7 +3333,7 @@ public const char8* SDL_HINT_PS2_GS_MODE    = "SDL_PS2_GS_MODE";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_RPI_VIDEO_LAYER = "SDL_RPI_VIDEO_LAYER";
+	public const char8* SDL_HINT_RPI_VIDEO_LAYER = "SDL_RPI_VIDEO_LAYER";
 
 /**
  * Specify an "activity name" for screensaver inhibition.
@@ -3355,7 +3355,7 @@ public const char8* SDL_HINT_RPI_VIDEO_LAYER = "SDL_RPI_VIDEO_LAYER";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_SCREENSAVER_INHIBIT_ACTIVITY_NAME = "SDL_SCREENSAVER_INHIBIT_ACTIVITY_NAME";
+	public const char8* SDL_HINT_SCREENSAVER_INHIBIT_ACTIVITY_NAME = "SDL_SCREENSAVER_INHIBIT_ACTIVITY_NAME";
 
 /**
  * A variable controlling whether SDL calls dbus_shutdown() on quit.
@@ -3374,7 +3374,7 @@ public const char8* SDL_HINT_SCREENSAVER_INHIBIT_ACTIVITY_NAME = "SDL_SCREENSAVE
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_SHUTDOWN_DBUS_ON_QUIT = "SDL_SHUTDOWN_DBUS_ON_QUIT";
+	public const char8* SDL_HINT_SHUTDOWN_DBUS_ON_QUIT = "SDL_SHUTDOWN_DBUS_ON_QUIT";
 
 /**
  * A variable that specifies a backend to use for title storage.
@@ -3388,7 +3388,7 @@ public const char8* SDL_HINT_SHUTDOWN_DBUS_ON_QUIT = "SDL_SHUTDOWN_DBUS_ON_QUIT"
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_STORAGE_TITLE_DRIVER = "SDL_STORAGE_TITLE_DRIVER";
+	public const char8* SDL_HINT_STORAGE_TITLE_DRIVER = "SDL_STORAGE_TITLE_DRIVER";
 
 /**
  * A variable that specifies a backend to use for user storage.
@@ -3402,7 +3402,7 @@ public const char8* SDL_HINT_STORAGE_TITLE_DRIVER = "SDL_STORAGE_TITLE_DRIVER";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_STORAGE_USER_DRIVER = "SDL_STORAGE_USER_DRIVER";
+	public const char8* SDL_HINT_STORAGE_USER_DRIVER = "SDL_STORAGE_USER_DRIVER";
 
 /**
  * Specifies whether SDL_THREAD_PRIORITY_TIME_CRITICAL should be treated as
@@ -3431,7 +3431,7 @@ public const char8* SDL_HINT_STORAGE_USER_DRIVER = "SDL_STORAGE_USER_DRIVER";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_THREAD_FORCE_REALTIME_TIME_CRITICAL = "SDL_THREAD_FORCE_REALTIME_TIME_CRITICAL";
+	public const char8* SDL_HINT_THREAD_FORCE_REALTIME_TIME_CRITICAL = "SDL_THREAD_FORCE_REALTIME_TIME_CRITICAL";
 
 /**
  * A string specifying additional information to use with
@@ -3454,7 +3454,7 @@ public const char8* SDL_HINT_THREAD_FORCE_REALTIME_TIME_CRITICAL = "SDL_THREAD_F
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_THREAD_PRIORITY_POLICY = "SDL_THREAD_PRIORITY_POLICY";
+	public const char8* SDL_HINT_THREAD_PRIORITY_POLICY = "SDL_THREAD_PRIORITY_POLICY";
 
 /**
  * A variable that controls the timer resolution, in milliseconds.
@@ -3474,7 +3474,7 @@ public const char8* SDL_HINT_THREAD_PRIORITY_POLICY = "SDL_THREAD_PRIORITY_POLIC
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_TIMER_RESOLUTION = "SDL_TIMER_RESOLUTION";
+	public const char8* SDL_HINT_TIMER_RESOLUTION = "SDL_TIMER_RESOLUTION";
 
 /**
  * A variable controlling whether touch events should generate synthetic mouse
@@ -3489,7 +3489,7 @@ public const char8* SDL_HINT_TIMER_RESOLUTION = "SDL_TIMER_RESOLUTION";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_TOUCH_MOUSE_EVENTS = "SDL_TOUCH_MOUSE_EVENTS";
+	public const char8* SDL_HINT_TOUCH_MOUSE_EVENTS = "SDL_TOUCH_MOUSE_EVENTS";
 
 /**
  * A variable controlling whether trackpads should be treated as touch
@@ -3510,7 +3510,7 @@ public const char8* SDL_HINT_TOUCH_MOUSE_EVENTS = "SDL_TOUCH_MOUSE_EVENTS";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_TRACKPAD_IS_TOUCH_ONLY = "SDL_TRACKPAD_IS_TOUCH_ONLY";
+	public const char8* SDL_HINT_TRACKPAD_IS_TOUCH_ONLY = "SDL_TRACKPAD_IS_TOUCH_ONLY";
 
 /**
  * A variable controlling whether the Android / tvOS remotes should be listed
@@ -3525,7 +3525,7 @@ public const char8* SDL_HINT_TRACKPAD_IS_TOUCH_ONLY = "SDL_TRACKPAD_IS_TOUCH_ONL
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_TV_REMOTE_AS_JOYSTICK = "SDL_TV_REMOTE_AS_JOYSTICK";
+	public const char8* SDL_HINT_TV_REMOTE_AS_JOYSTICK = "SDL_TV_REMOTE_AS_JOYSTICK";
 
 /**
  * A variable controlling whether the screensaver is enabled.
@@ -3539,7 +3539,7 @@ public const char8* SDL_HINT_TV_REMOTE_AS_JOYSTICK = "SDL_TV_REMOTE_AS_JOYSTICK"
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VIDEO_ALLOW_SCREENSAVER = "SDL_VIDEO_ALLOW_SCREENSAVER";
+	public const char8* SDL_HINT_VIDEO_ALLOW_SCREENSAVER = "SDL_VIDEO_ALLOW_SCREENSAVER";
 
 /**
  * A comma separated list containing the names of the displays that SDL should
@@ -3566,7 +3566,7 @@ public const char8* SDL_HINT_VIDEO_ALLOW_SCREENSAVER = "SDL_VIDEO_ALLOW_SCREENSA
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VIDEO_DISPLAY_PRIORITY = "SDL_VIDEO_DISPLAY_PRIORITY";
+	public const char8* SDL_HINT_VIDEO_DISPLAY_PRIORITY = "SDL_VIDEO_DISPLAY_PRIORITY";
 
 /**
  * Tell the video driver that we only want a double buffer.
@@ -3589,7 +3589,7 @@ public const char8* SDL_HINT_VIDEO_DISPLAY_PRIORITY = "SDL_VIDEO_DISPLAY_PRIORIT
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VIDEO_DOUBLE_BUFFER = "SDL_VIDEO_DOUBLE_BUFFER";
+	public const char8* SDL_HINT_VIDEO_DOUBLE_BUFFER = "SDL_VIDEO_DOUBLE_BUFFER";
 
 /**
  * A variable that specifies a video backend to use.
@@ -3607,7 +3607,7 @@ public const char8* SDL_HINT_VIDEO_DOUBLE_BUFFER = "SDL_VIDEO_DOUBLE_BUFFER";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VIDEO_DRIVER = "SDL_VIDEO_DRIVER";
+	public const char8* SDL_HINT_VIDEO_DRIVER = "SDL_VIDEO_DRIVER";
 
 /**
  * A variable controlling whether the dummy video driver saves output frames.
@@ -3620,7 +3620,7 @@ public const char8* SDL_HINT_VIDEO_DRIVER = "SDL_VIDEO_DRIVER";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VIDEO_DUMMY_SAVE_FRAMES = "SDL_VIDEO_DUMMY_SAVE_FRAMES";
+	public const char8* SDL_HINT_VIDEO_DUMMY_SAVE_FRAMES = "SDL_VIDEO_DUMMY_SAVE_FRAMES";
 
 /**
  * If eglGetPlatformDisplay fails, fall back to calling eglGetDisplay.
@@ -3634,7 +3634,7 @@ public const char8* SDL_HINT_VIDEO_DUMMY_SAVE_FRAMES = "SDL_VIDEO_DUMMY_SAVE_FRA
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VIDEO_EGL_ALLOW_GETDISPLAY_FALLBACK = "SDL_VIDEO_EGL_ALLOW_GETDISPLAY_FALLBACK";
+	public const char8* SDL_HINT_VIDEO_EGL_ALLOW_GETDISPLAY_FALLBACK = "SDL_VIDEO_EGL_ALLOW_GETDISPLAY_FALLBACK";
 
 /**
  * A variable controlling whether the OpenGL context should be created with
@@ -3650,7 +3650,7 @@ public const char8* SDL_HINT_VIDEO_EGL_ALLOW_GETDISPLAY_FALLBACK = "SDL_VIDEO_EG
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VIDEO_FORCE_EGL = "SDL_VIDEO_FORCE_EGL";
+	public const char8* SDL_HINT_VIDEO_FORCE_EGL = "SDL_VIDEO_FORCE_EGL";
 
 /**
  * A variable that specifies the policy for fullscreen Spaces on macOS.
@@ -3668,7 +3668,7 @@ public const char8* SDL_HINT_VIDEO_FORCE_EGL = "SDL_VIDEO_FORCE_EGL";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VIDEO_MAC_FULLSCREEN_SPACES = "SDL_VIDEO_MAC_FULLSCREEN_SPACES";
+	public const char8* SDL_HINT_VIDEO_MAC_FULLSCREEN_SPACES = "SDL_VIDEO_MAC_FULLSCREEN_SPACES";
 
 /**
  * A variable that specifies the menu visibility when a window is fullscreen
@@ -3689,7 +3689,7 @@ public const char8* SDL_HINT_VIDEO_MAC_FULLSCREEN_SPACES = "SDL_VIDEO_MAC_FULLSC
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VIDEO_MAC_FULLSCREEN_MENU_VISIBILITY = "SDL_VIDEO_MAC_FULLSCREEN_MENU_VISIBILITY";
+	public const char8* SDL_HINT_VIDEO_MAC_FULLSCREEN_MENU_VISIBILITY = "SDL_VIDEO_MAC_FULLSCREEN_MENU_VISIBILITY";
 
 /**
  * A variable indicating whether the metal layer drawable size should be
@@ -3706,7 +3706,7 @@ public const char8* SDL_HINT_VIDEO_MAC_FULLSCREEN_MENU_VISIBILITY = "SDL_VIDEO_M
  *
  * \since This hint is available since SDL 3.4.0.
  */
-public const char8* SDL_HINT_VIDEO_METAL_AUTO_RESIZE_DRAWABLE = "SDL_VIDEO_METAL_AUTO_RESIZE_DRAWABLE";
+	public const char8* SDL_HINT_VIDEO_METAL_AUTO_RESIZE_DRAWABLE = "SDL_VIDEO_METAL_AUTO_RESIZE_DRAWABLE";
 
 /**
  * A variable controlling whether SDL will attempt to automatically set the
@@ -3726,7 +3726,7 @@ public const char8* SDL_HINT_VIDEO_METAL_AUTO_RESIZE_DRAWABLE = "SDL_VIDEO_METAL
  *
  * \since This hint is available since SDL 3.4.0.
  */
-public const char8* SDL_HINT_VIDEO_MATCH_EXCLUSIVE_MODE_ON_MOVE = "SDL_VIDEO_MATCH_EXCLUSIVE_MODE_ON_MOVE";
+	public const char8* SDL_HINT_VIDEO_MATCH_EXCLUSIVE_MODE_ON_MOVE = "SDL_VIDEO_MATCH_EXCLUSIVE_MODE_ON_MOVE";
 
 /**
  * A variable controlling whether fullscreen windows are minimized when they
@@ -3744,7 +3744,7 @@ public const char8* SDL_HINT_VIDEO_MATCH_EXCLUSIVE_MODE_ON_MOVE = "SDL_VIDEO_MAT
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS = "SDL_VIDEO_MINIMIZE_ON_FOCUS_LOSS";
+	public const char8* SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS = "SDL_VIDEO_MINIMIZE_ON_FOCUS_LOSS";
 
 /**
  * A variable controlling whether the offscreen video driver saves output
@@ -3761,7 +3761,7 @@ public const char8* SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS = "SDL_VIDEO_MINIMIZE_
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VIDEO_OFFSCREEN_SAVE_FRAMES = "SDL_VIDEO_OFFSCREEN_SAVE_FRAMES";
+	public const char8* SDL_HINT_VIDEO_OFFSCREEN_SAVE_FRAMES = "SDL_VIDEO_OFFSCREEN_SAVE_FRAMES";
 
 /**
  * A variable controlling whether all window operations will block until
@@ -3787,7 +3787,7 @@ public const char8* SDL_HINT_VIDEO_OFFSCREEN_SAVE_FRAMES = "SDL_VIDEO_OFFSCREEN_
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VIDEO_SYNC_WINDOW_OPERATIONS = "SDL_VIDEO_SYNC_WINDOW_OPERATIONS";
+	public const char8* SDL_HINT_VIDEO_SYNC_WINDOW_OPERATIONS = "SDL_VIDEO_SYNC_WINDOW_OPERATIONS";
 
 /**
  * A variable controlling whether the libdecor Wayland backend is allowed to
@@ -3805,7 +3805,7 @@ public const char8* SDL_HINT_VIDEO_SYNC_WINDOW_OPERATIONS = "SDL_VIDEO_SYNC_WIND
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VIDEO_WAYLAND_ALLOW_LIBDECOR = "SDL_VIDEO_WAYLAND_ALLOW_LIBDECOR";
+	public const char8* SDL_HINT_VIDEO_WAYLAND_ALLOW_LIBDECOR = "SDL_VIDEO_WAYLAND_ALLOW_LIBDECOR";
 
 /**
  * A variable controlling whether video mode emulation is enabled under
@@ -3825,7 +3825,7 @@ public const char8* SDL_HINT_VIDEO_WAYLAND_ALLOW_LIBDECOR = "SDL_VIDEO_WAYLAND_A
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VIDEO_WAYLAND_MODE_EMULATION = "SDL_VIDEO_WAYLAND_MODE_EMULATION";
+	public const char8* SDL_HINT_VIDEO_WAYLAND_MODE_EMULATION = "SDL_VIDEO_WAYLAND_MODE_EMULATION";
 
 /**
  * A variable controlling how modes with a non-native aspect ratio are
@@ -3847,7 +3847,7 @@ public const char8* SDL_HINT_VIDEO_WAYLAND_MODE_EMULATION = "SDL_VIDEO_WAYLAND_M
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VIDEO_WAYLAND_MODE_SCALING = "SDL_VIDEO_WAYLAND_MODE_SCALING";
+	public const char8* SDL_HINT_VIDEO_WAYLAND_MODE_SCALING = "SDL_VIDEO_WAYLAND_MODE_SCALING";
 
 /**
  * A variable controlling whether the libdecor Wayland backend is preferred
@@ -3867,7 +3867,7 @@ public const char8* SDL_HINT_VIDEO_WAYLAND_MODE_SCALING = "SDL_VIDEO_WAYLAND_MOD
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VIDEO_WAYLAND_PREFER_LIBDECOR = "SDL_VIDEO_WAYLAND_PREFER_LIBDECOR";
+	public const char8* SDL_HINT_VIDEO_WAYLAND_PREFER_LIBDECOR = "SDL_VIDEO_WAYLAND_PREFER_LIBDECOR";
 
 /**
  * A variable forcing non-DPI-aware Wayland windows to output at 1:1 scaling.
@@ -3906,7 +3906,7 @@ public const char8* SDL_HINT_VIDEO_WAYLAND_PREFER_LIBDECOR = "SDL_VIDEO_WAYLAND_
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VIDEO_WAYLAND_SCALE_TO_DISPLAY = "SDL_VIDEO_WAYLAND_SCALE_TO_DISPLAY";
+	public const char8* SDL_HINT_VIDEO_WAYLAND_SCALE_TO_DISPLAY = "SDL_VIDEO_WAYLAND_SCALE_TO_DISPLAY";
 
 /**
  * A variable specifying which shader compiler to preload when using the
@@ -3928,7 +3928,7 @@ public const char8* SDL_HINT_VIDEO_WAYLAND_SCALE_TO_DISPLAY = "SDL_VIDEO_WAYLAND
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VIDEO_WIN_D3DCOMPILER = "SDL_VIDEO_WIN_D3DCOMPILER";
+	public const char8* SDL_HINT_VIDEO_WIN_D3DCOMPILER = "SDL_VIDEO_WIN_D3DCOMPILER";
 
 /**
  * A variable controlling whether SDL should call XSelectInput() to enable
@@ -3944,7 +3944,7 @@ public const char8* SDL_HINT_VIDEO_WIN_D3DCOMPILER = "SDL_VIDEO_WIN_D3DCOMPILER"
  *
  * \since This hint is available since SDL 3.2.10.
  */
-public const char8* SDL_HINT_VIDEO_X11_EXTERNAL_WINDOW_INPUT = "SDL_VIDEO_X11_EXTERNAL_WINDOW_INPUT";
+	public const char8* SDL_HINT_VIDEO_X11_EXTERNAL_WINDOW_INPUT = "SDL_VIDEO_X11_EXTERNAL_WINDOW_INPUT";
 
 /**
  * A variable controlling whether the X11 _NET_WM_BYPASS_COMPOSITOR hint
@@ -3959,7 +3959,7 @@ public const char8* SDL_HINT_VIDEO_X11_EXTERNAL_WINDOW_INPUT = "SDL_VIDEO_X11_EX
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR = "SDL_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR";
+	public const char8* SDL_HINT_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR = "SDL_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR";
 
 /**
  * A variable controlling whether the X11 _NET_WM_PING protocol should be
@@ -3978,7 +3978,7 @@ public const char8* SDL_HINT_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR = "SDL_VIDEO_X11
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VIDEO_X11_NET_WM_PING = "SDL_VIDEO_X11_NET_WM_PING";
+	public const char8* SDL_HINT_VIDEO_X11_NET_WM_PING = "SDL_VIDEO_X11_NET_WM_PING";
 
 /**
  * A variable controlling whether SDL uses DirectColor visuals.
@@ -3992,7 +3992,7 @@ public const char8* SDL_HINT_VIDEO_X11_NET_WM_PING = "SDL_VIDEO_X11_NET_WM_PING"
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VIDEO_X11_NODIRECTCOLOR = "SDL_VIDEO_X11_NODIRECTCOLOR";
+	public const char8* SDL_HINT_VIDEO_X11_NODIRECTCOLOR = "SDL_VIDEO_X11_NODIRECTCOLOR";
 
 /**
  * A variable forcing the content scaling factor for X11 displays.
@@ -4003,7 +4003,7 @@ public const char8* SDL_HINT_VIDEO_X11_NODIRECTCOLOR = "SDL_VIDEO_X11_NODIRECTCO
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VIDEO_X11_SCALING_FACTOR = "SDL_VIDEO_X11_SCALING_FACTOR";
+	public const char8* SDL_HINT_VIDEO_X11_SCALING_FACTOR = "SDL_VIDEO_X11_SCALING_FACTOR";
 
 /**
  * A variable forcing the visual ID used for X11 display modes.
@@ -4012,7 +4012,7 @@ public const char8* SDL_HINT_VIDEO_X11_SCALING_FACTOR = "SDL_VIDEO_X11_SCALING_F
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VIDEO_X11_VISUALID = "SDL_VIDEO_X11_VISUALID";
+	public const char8* SDL_HINT_VIDEO_X11_VISUALID = "SDL_VIDEO_X11_VISUALID";
 
 /**
  * A variable forcing the visual ID chosen for new X11 windows.
@@ -4021,7 +4021,7 @@ public const char8* SDL_HINT_VIDEO_X11_VISUALID = "SDL_VIDEO_X11_VISUALID";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VIDEO_X11_WINDOW_VISUALID = "SDL_VIDEO_X11_WINDOW_VISUALID";
+	public const char8* SDL_HINT_VIDEO_X11_WINDOW_VISUALID = "SDL_VIDEO_X11_WINDOW_VISUALID";
 
 /**
  * A variable controlling whether the X11 XRandR extension should be used.
@@ -4035,7 +4035,7 @@ public const char8* SDL_HINT_VIDEO_X11_WINDOW_VISUALID = "SDL_VIDEO_X11_WINDOW_V
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VIDEO_X11_XRANDR = "SDL_VIDEO_X11_XRANDR";
+	public const char8* SDL_HINT_VIDEO_X11_XRANDR = "SDL_VIDEO_X11_XRANDR";
 
 /**
  * A variable controlling whether touch should be enabled on the back panel of
@@ -4050,7 +4050,7 @@ public const char8* SDL_HINT_VIDEO_X11_XRANDR = "SDL_VIDEO_X11_XRANDR";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VITA_ENABLE_BACK_TOUCH = "SDL_VITA_ENABLE_BACK_TOUCH";
+	public const char8* SDL_HINT_VITA_ENABLE_BACK_TOUCH = "SDL_VITA_ENABLE_BACK_TOUCH";
 
 /**
  * A variable controlling whether touch should be enabled on the front panel
@@ -4065,7 +4065,7 @@ public const char8* SDL_HINT_VITA_ENABLE_BACK_TOUCH = "SDL_VITA_ENABLE_BACK_TOUC
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VITA_ENABLE_FRONT_TOUCH = "SDL_VITA_ENABLE_FRONT_TOUCH";
+	public const char8* SDL_HINT_VITA_ENABLE_FRONT_TOUCH = "SDL_VITA_ENABLE_FRONT_TOUCH";
 
 /**
  * A variable controlling the module path on the PlayStation Vita.
@@ -4076,7 +4076,7 @@ public const char8* SDL_HINT_VITA_ENABLE_FRONT_TOUCH = "SDL_VITA_ENABLE_FRONT_TO
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VITA_MODULE_PATH = "SDL_VITA_MODULE_PATH";
+	public const char8* SDL_HINT_VITA_MODULE_PATH = "SDL_VITA_MODULE_PATH";
 
 /**
  * A variable controlling whether to perform PVR initialization on the
@@ -4089,7 +4089,7 @@ public const char8* SDL_HINT_VITA_MODULE_PATH = "SDL_VITA_MODULE_PATH";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VITA_PVR_INIT = "SDL_VITA_PVR_INIT";
+	public const char8* SDL_HINT_VITA_PVR_INIT = "SDL_VITA_PVR_INIT";
 
 /**
  * A variable overriding the resolution reported on the PlayStation Vita.
@@ -4104,7 +4104,7 @@ public const char8* SDL_HINT_VITA_PVR_INIT = "SDL_VITA_PVR_INIT";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VITA_RESOLUTION = "SDL_VITA_RESOLUTION";
+	public const char8* SDL_HINT_VITA_RESOLUTION = "SDL_VITA_RESOLUTION";
 
 /**
  * A variable controlling whether OpenGL should be used instead of OpenGL ES
@@ -4119,7 +4119,7 @@ public const char8* SDL_HINT_VITA_RESOLUTION = "SDL_VITA_RESOLUTION";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VITA_PVR_OPENGL = "SDL_VITA_PVR_OPENGL";
+	public const char8* SDL_HINT_VITA_PVR_OPENGL = "SDL_VITA_PVR_OPENGL";
 
 /**
  * A variable controlling which touchpad should generate synthetic mouse
@@ -4135,7 +4135,7 @@ public const char8* SDL_HINT_VITA_PVR_OPENGL = "SDL_VITA_PVR_OPENGL";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VITA_TOUCH_MOUSE_DEVICE = "SDL_VITA_TOUCH_MOUSE_DEVICE";
+	public const char8* SDL_HINT_VITA_TOUCH_MOUSE_DEVICE = "SDL_VITA_TOUCH_MOUSE_DEVICE";
 
 /**
  * A variable overriding the display index used in SDL_Vulkan_CreateSurface()
@@ -4146,7 +4146,7 @@ public const char8* SDL_HINT_VITA_TOUCH_MOUSE_DEVICE = "SDL_VITA_TOUCH_MOUSE_DEV
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VULKAN_DISPLAY = "SDL_VULKAN_DISPLAY";
+	public const char8* SDL_HINT_VULKAN_DISPLAY = "SDL_VULKAN_DISPLAY";
 
 /**
  * Specify the Vulkan library to load.
@@ -4156,7 +4156,7 @@ public const char8* SDL_HINT_VULKAN_DISPLAY = "SDL_VULKAN_DISPLAY";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_VULKAN_LIBRARY = "SDL_VULKAN_LIBRARY";
+	public const char8* SDL_HINT_VULKAN_LIBRARY = "SDL_VULKAN_LIBRARY";
 
 /**
  * A variable controlling how the fact chunk affects the loading of a WAVE
@@ -4188,7 +4188,7 @@ public const char8* SDL_HINT_VULKAN_LIBRARY = "SDL_VULKAN_LIBRARY";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_WAVE_FACT_CHUNK = "SDL_WAVE_FACT_CHUNK";
+	public const char8* SDL_HINT_WAVE_FACT_CHUNK = "SDL_WAVE_FACT_CHUNK";
 
 /**
  * A variable controlling the maximum number of chunks in a WAVE file.
@@ -4200,7 +4200,7 @@ public const char8* SDL_HINT_WAVE_FACT_CHUNK = "SDL_WAVE_FACT_CHUNK";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_WAVE_CHUNK_LIMIT = "SDL_WAVE_CHUNK_LIMIT";
+	public const char8* SDL_HINT_WAVE_CHUNK_LIMIT = "SDL_WAVE_CHUNK_LIMIT";
 
 /**
  * A variable controlling how the size of the RIFF chunk affects the loading
@@ -4228,7 +4228,7 @@ public const char8* SDL_HINT_WAVE_CHUNK_LIMIT = "SDL_WAVE_CHUNK_LIMIT";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_WAVE_RIFF_CHUNK_SIZE = "SDL_WAVE_RIFF_CHUNK_SIZE";
+	public const char8* SDL_HINT_WAVE_RIFF_CHUNK_SIZE = "SDL_WAVE_RIFF_CHUNK_SIZE";
 
 /**
  * A variable controlling how a truncated WAVE file is handled.
@@ -4248,7 +4248,7 @@ public const char8* SDL_HINT_WAVE_RIFF_CHUNK_SIZE = "SDL_WAVE_RIFF_CHUNK_SIZE";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_WAVE_TRUNCATION = "SDL_WAVE_TRUNCATION";
+	public const char8* SDL_HINT_WAVE_TRUNCATION = "SDL_WAVE_TRUNCATION";
 
 /**
  * A variable controlling whether the window is activated when the
@@ -4265,7 +4265,7 @@ public const char8* SDL_HINT_WAVE_TRUNCATION = "SDL_WAVE_TRUNCATION";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_WINDOW_ACTIVATE_WHEN_RAISED = "SDL_WINDOW_ACTIVATE_WHEN_RAISED";
+	public const char8* SDL_HINT_WINDOW_ACTIVATE_WHEN_RAISED = "SDL_WINDOW_ACTIVATE_WHEN_RAISED";
 
 /**
  * A variable controlling whether the window is activated when the
@@ -4282,7 +4282,7 @@ public const char8* SDL_HINT_WINDOW_ACTIVATE_WHEN_RAISED = "SDL_WINDOW_ACTIVATE_
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_WINDOW_ACTIVATE_WHEN_SHOWN = "SDL_WINDOW_ACTIVATE_WHEN_SHOWN";
+	public const char8* SDL_HINT_WINDOW_ACTIVATE_WHEN_SHOWN = "SDL_WINDOW_ACTIVATE_WHEN_SHOWN";
 
 /**
  * If set to "0" then never set the top-most flag on an SDL Window even if the
@@ -4300,7 +4300,7 @@ public const char8* SDL_HINT_WINDOW_ACTIVATE_WHEN_SHOWN = "SDL_WINDOW_ACTIVATE_W
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_WINDOW_ALLOW_TOPMOST = "SDL_WINDOW_ALLOW_TOPMOST";
+	public const char8* SDL_HINT_WINDOW_ALLOW_TOPMOST = "SDL_WINDOW_ALLOW_TOPMOST";
 
 /**
  * A variable controlling whether the window frame and title bar are
@@ -4316,7 +4316,7 @@ public const char8* SDL_HINT_WINDOW_ALLOW_TOPMOST = "SDL_WINDOW_ALLOW_TOPMOST";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_WINDOW_FRAME_USABLE_WHILE_CURSOR_HIDDEN = "SDL_WINDOW_FRAME_USABLE_WHILE_CURSOR_HIDDEN";
+	public const char8* SDL_HINT_WINDOW_FRAME_USABLE_WHILE_CURSOR_HIDDEN = "SDL_WINDOW_FRAME_USABLE_WHILE_CURSOR_HIDDEN";
 
 /**
  * A variable controlling whether SDL generates window-close events for Alt+F4
@@ -4332,7 +4332,7 @@ public const char8* SDL_HINT_WINDOW_FRAME_USABLE_WHILE_CURSOR_HIDDEN = "SDL_WIND
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_WINDOWS_CLOSE_ON_ALT_F4 = "SDL_WINDOWS_CLOSE_ON_ALT_F4";
+	public const char8* SDL_HINT_WINDOWS_CLOSE_ON_ALT_F4 = "SDL_WINDOWS_CLOSE_ON_ALT_F4";
 
 /**
  * A variable controlling whether menus can be opened with their keyboard
@@ -4361,7 +4361,7 @@ public const char8* SDL_HINT_WINDOWS_CLOSE_ON_ALT_F4 = "SDL_WINDOWS_CLOSE_ON_ALT
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_WINDOWS_ENABLE_MENU_MNEMONICS = "SDL_WINDOWS_ENABLE_MENU_MNEMONICS";
+	public const char8* SDL_HINT_WINDOWS_ENABLE_MENU_MNEMONICS = "SDL_WINDOWS_ENABLE_MENU_MNEMONICS";
 
 /**
  * A variable controlling whether the windows message loop is processed by
@@ -4376,7 +4376,7 @@ public const char8* SDL_HINT_WINDOWS_ENABLE_MENU_MNEMONICS = "SDL_WINDOWS_ENABLE
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_WINDOWS_ENABLE_MESSAGELOOP = "SDL_WINDOWS_ENABLE_MESSAGELOOP";
+	public const char8* SDL_HINT_WINDOWS_ENABLE_MESSAGELOOP = "SDL_WINDOWS_ENABLE_MESSAGELOOP";
 
 /**
  * A variable controlling whether GameInput is used for raw keyboard and mouse
@@ -4391,7 +4391,7 @@ public const char8* SDL_HINT_WINDOWS_ENABLE_MESSAGELOOP = "SDL_WINDOWS_ENABLE_ME
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_WINDOWS_GAMEINPUT = "SDL_WINDOWS_GAMEINPUT";
+	public const char8* SDL_HINT_WINDOWS_GAMEINPUT = "SDL_WINDOWS_GAMEINPUT";
 
 /**
  * A variable controlling whether raw keyboard events are used on Windows.
@@ -4405,7 +4405,7 @@ public const char8* SDL_HINT_WINDOWS_GAMEINPUT = "SDL_WINDOWS_GAMEINPUT";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_WINDOWS_RAW_KEYBOARD = "SDL_WINDOWS_RAW_KEYBOARD";
+	public const char8* SDL_HINT_WINDOWS_RAW_KEYBOARD = "SDL_WINDOWS_RAW_KEYBOARD";
 
 /**
  * A variable controlling whether or not the RIDEV_NOHOTKEYS flag is set when
@@ -4427,7 +4427,7 @@ public const char8* SDL_HINT_WINDOWS_RAW_KEYBOARD = "SDL_WINDOWS_RAW_KEYBOARD";
  *
  * \since This hint is available since SDL 3.4.0.
  */
-public const char8* SDL_HINT_WINDOWS_RAW_KEYBOARD_EXCLUDE_HOTKEYS = "SDL_WINDOWS_RAW_KEYBOARD_EXCLUDE_HOTKEYS";
+	public const char8* SDL_HINT_WINDOWS_RAW_KEYBOARD_EXCLUDE_HOTKEYS = "SDL_WINDOWS_RAW_KEYBOARD_EXCLUDE_HOTKEYS";
 
 /**
  * A variable controlling whether SDL uses Kernel Semaphores on Windows.
@@ -4448,7 +4448,7 @@ public const char8* SDL_HINT_WINDOWS_RAW_KEYBOARD_EXCLUDE_HOTKEYS = "SDL_WINDOWS
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_WINDOWS_FORCE_SEMAPHORE_KERNEL = "SDL_WINDOWS_FORCE_SEMAPHORE_KERNEL";
+	public const char8* SDL_HINT_WINDOWS_FORCE_SEMAPHORE_KERNEL = "SDL_WINDOWS_FORCE_SEMAPHORE_KERNEL";
 
 /**
  * A variable to specify custom icon resource id from RC file on Windows
@@ -4458,7 +4458,7 @@ public const char8* SDL_HINT_WINDOWS_FORCE_SEMAPHORE_KERNEL = "SDL_WINDOWS_FORCE
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_WINDOWS_INTRESOURCE_ICON = "SDL_WINDOWS_INTRESOURCE_ICON";
+	public const char8* SDL_HINT_WINDOWS_INTRESOURCE_ICON = "SDL_WINDOWS_INTRESOURCE_ICON";
 
 /**
  * A variable to specify custom icon resource id from RC file on Windows
@@ -4468,7 +4468,7 @@ public const char8* SDL_HINT_WINDOWS_INTRESOURCE_ICON = "SDL_WINDOWS_INTRESOURCE
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_WINDOWS_INTRESOURCE_ICON_SMALL = "SDL_WINDOWS_INTRESOURCE_ICON_SMALL";
+	public const char8* SDL_HINT_WINDOWS_INTRESOURCE_ICON_SMALL = "SDL_WINDOWS_INTRESOURCE_ICON_SMALL";
 
 /**
  * A variable controlling whether SDL uses the D3D9Ex API introduced in
@@ -4494,7 +4494,7 @@ public const char8* SDL_HINT_WINDOWS_INTRESOURCE_ICON_SMALL = "SDL_WINDOWS_INTRE
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_WINDOWS_USE_D3D9EX = "SDL_WINDOWS_USE_D3D9EX";
+	public const char8* SDL_HINT_WINDOWS_USE_D3D9EX = "SDL_WINDOWS_USE_D3D9EX";
 
 /**
  * A variable controlling whether SDL will clear the window contents when the
@@ -4511,7 +4511,7 @@ public const char8* SDL_HINT_WINDOWS_USE_D3D9EX = "SDL_WINDOWS_USE_D3D9EX";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_WINDOWS_ERASE_BACKGROUND_MODE = "SDL_WINDOWS_ERASE_BACKGROUND_MODE";
+	public const char8* SDL_HINT_WINDOWS_ERASE_BACKGROUND_MODE = "SDL_WINDOWS_ERASE_BACKGROUND_MODE";
 
 /**
  * A variable controlling whether X11 windows are marked as override-redirect.
@@ -4532,7 +4532,7 @@ public const char8* SDL_HINT_WINDOWS_ERASE_BACKGROUND_MODE = "SDL_WINDOWS_ERASE_
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_X11_FORCE_OVERRIDE_REDIRECT = "SDL_X11_FORCE_OVERRIDE_REDIRECT";
+	public const char8* SDL_HINT_X11_FORCE_OVERRIDE_REDIRECT = "SDL_X11_FORCE_OVERRIDE_REDIRECT";
 
 /**
  * A variable specifying the type of an X11 window.
@@ -4549,7 +4549,7 @@ public const char8* SDL_HINT_X11_FORCE_OVERRIDE_REDIRECT = "SDL_X11_FORCE_OVERRI
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_X11_WINDOW_TYPE = "SDL_X11_WINDOW_TYPE";
+	public const char8* SDL_HINT_X11_WINDOW_TYPE = "SDL_X11_WINDOW_TYPE";
 
 /**
  * Specify the XCB library to load for the X11 driver.
@@ -4560,7 +4560,7 @@ public const char8* SDL_HINT_X11_WINDOW_TYPE = "SDL_X11_WINDOW_TYPE";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_X11_XCB_LIBRARY = "SDL_X11_XCB_LIBRARY";
+	public const char8* SDL_HINT_X11_XCB_LIBRARY = "SDL_X11_XCB_LIBRARY";
 
 /**
  * A variable controlling whether XInput should be used for controller
@@ -4575,7 +4575,7 @@ public const char8* SDL_HINT_X11_XCB_LIBRARY = "SDL_X11_XCB_LIBRARY";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_XINPUT_ENABLED = "SDL_XINPUT_ENABLED";
+	public const char8* SDL_HINT_XINPUT_ENABLED = "SDL_XINPUT_ENABLED";
 
 /**
  * A variable controlling response to SDL_assert failures.
@@ -4599,7 +4599,7 @@ public const char8* SDL_HINT_XINPUT_ENABLED = "SDL_XINPUT_ENABLED";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_ASSERT = "SDL_ASSERT";
+	public const char8* SDL_HINT_ASSERT = "SDL_ASSERT";
 
 /**
  * A variable controlling whether pen events should generate synthetic mouse
@@ -4614,7 +4614,7 @@ public const char8* SDL_HINT_ASSERT = "SDL_ASSERT";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_PEN_MOUSE_EVENTS = "SDL_PEN_MOUSE_EVENTS";
+	public const char8* SDL_HINT_PEN_MOUSE_EVENTS = "SDL_PEN_MOUSE_EVENTS";
 
 /**
  * A variable controlling whether pen events should generate synthetic touch
@@ -4629,152 +4629,152 @@ public const char8* SDL_HINT_PEN_MOUSE_EVENTS = "SDL_PEN_MOUSE_EVENTS";
  *
  * \since This hint is available since SDL 3.2.0.
  */
-public const char8* SDL_HINT_PEN_TOUCH_EVENTS = "SDL_PEN_TOUCH_EVENTS";
+	public const char8* SDL_HINT_PEN_TOUCH_EVENTS = "SDL_PEN_TOUCH_EVENTS";
 
 /**
  * An enumeration of hint priorities.
  *
  * \since This enum is available since SDL 3.2.0.
  */
-public enum SDL_HintPriority : int32
-{
-    SDL_HINT_DEFAULT,
-    SDL_HINT_NORMAL,
-    SDL_HINT_OVERRIDE
-}
+	public enum SDL_HintPriority : int32
+	{
+		SDL_HINT_DEFAULT,
+		SDL_HINT_NORMAL,
+		SDL_HINT_OVERRIDE
+	}
 
-/**
- * Set a hint with a specific priority.
- *
- * The priority controls the behavior when setting a hint that already has a
- * value. Hints will replace existing hints of their priority and lower.
- * Environment variables are considered to have override priority.
- *
- * \param name the hint to set.
- * \param value the value of the hint variable.
- * \param priority the SDL_HintPriority level for the hint.
- * \returns true on success or false on failure; call SDL_GetError() for more
- *          information.
- *
- * \threadsafety It is safe to call this function from any thread.
- *
- * \since This function is available since SDL 3.2.0.
- *
- * \sa SDL_GetHint
- * \sa SDL_ResetHint
- * \sa SDL_SetHint
- */
-[CLink] public static extern bool SDL_SetHintWithPriority(char8* name, char8* value, SDL_HintPriority priority);
+	/**
+	 * Set a hint with a specific priority.
+	 *
+	 * The priority controls the behavior when setting a hint that already has a
+	 * value. Hints will replace existing hints of their priority and lower.
+	 * Environment variables are considered to have override priority.
+	 *
+	 * \param name the hint to set.
+	 * \param value the value of the hint variable.
+	 * \param priority the SDL_HintPriority level for the hint.
+	 * \returns true on success or false on failure; call SDL_GetError() for more
+	 *          information.
+	 *
+	 * \threadsafety It is safe to call this function from any thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 *
+	 * \sa SDL_GetHint
+	 * \sa SDL_ResetHint
+	 * \sa SDL_SetHint
+	 */
+	[CLink] public static extern bool SDL_SetHintWithPriority(char8* name, char8* value, SDL_HintPriority priority);
 
-/**
- * Set a hint with normal priority.
- *
- * Hints will not be set if there is an existing override hint or environment
- * variable that takes precedence. You can use SDL_SetHintWithPriority() to
- * set the hint with override priority instead.
- *
- * \param name the hint to set.
- * \param value the value of the hint variable.
- * \returns true on success or false on failure; call SDL_GetError() for more
- *          information.
- *
- * \threadsafety It is safe to call this function from any thread.
- *
- * \since This function is available since SDL 3.2.0.
- *
- * \sa SDL_GetHint
- * \sa SDL_ResetHint
- * \sa SDL_SetHintWithPriority
- */
-[CLink] public static extern bool SDL_SetHint(char8* name, char8* value);
+	/**
+	 * Set a hint with normal priority.
+	 *
+	 * Hints will not be set if there is an existing override hint or environment
+	 * variable that takes precedence. You can use SDL_SetHintWithPriority() to
+	 * set the hint with override priority instead.
+	 *
+	 * \param name the hint to set.
+	 * \param value the value of the hint variable.
+	 * \returns true on success or false on failure; call SDL_GetError() for more
+	 *          information.
+	 *
+	 * \threadsafety It is safe to call this function from any thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 *
+	 * \sa SDL_GetHint
+	 * \sa SDL_ResetHint
+	 * \sa SDL_SetHintWithPriority
+	 */
+	[CLink] public static extern bool SDL_SetHint(char8* name, char8* value);
 
-/**
- * Reset a hint to the default value.
- *
- * This will reset a hint to the value of the environment variable, or NULL if
- * the environment isn't set. Callbacks will be called normally with this
- * change.
- *
- * \param name the hint to set.
- * \returns true on success or false on failure; call SDL_GetError() for more
- *          information.
- *
- * \threadsafety It is safe to call this function from any thread.
- *
- * \since This function is available since SDL 3.2.0.
- *
- * \sa SDL_SetHint
- * \sa SDL_ResetHints
- */
-[CLink] public static extern bool SDL_ResetHint(char8* name);
+	/**
+	 * Reset a hint to the default value.
+	 *
+	 * This will reset a hint to the value of the environment variable, or NULL if
+	 * the environment isn't set. Callbacks will be called normally with this
+	 * change.
+	 *
+	 * \param name the hint to set.
+	 * \returns true on success or false on failure; call SDL_GetError() for more
+	 *          information.
+	 *
+	 * \threadsafety It is safe to call this function from any thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 *
+	 * \sa SDL_SetHint
+	 * \sa SDL_ResetHints
+	 */
+	[CLink] public static extern bool SDL_ResetHint(char8* name);
 
-/**
- * Reset all hints to the default values.
- *
- * This will reset all hints to the value of the associated environment
- * variable, or NULL if the environment isn't set. Callbacks will be called
- * normally with this change.
- *
- * \threadsafety It is safe to call this function from any thread.
- *
- * \since This function is available since SDL 3.2.0.
- *
- * \sa SDL_ResetHint
- */
-[CLink] public static extern void SDL_ResetHints();
+	/**
+	 * Reset all hints to the default values.
+	 *
+	 * This will reset all hints to the value of the associated environment
+	 * variable, or NULL if the environment isn't set. Callbacks will be called
+	 * normally with this change.
+	 *
+	 * \threadsafety It is safe to call this function from any thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 *
+	 * \sa SDL_ResetHint
+	 */
+	[CLink] public static extern void SDL_ResetHints();
 
-/**
- * Get the value of a hint.
- *
- * \param name the hint to query.
- * \returns the string value of a hint or NULL if the hint isn't set.
- *
- * \threadsafety It is safe to call this function from any thread.
- *
- * \since This function is available since SDL 3.2.0.
- *
- * \sa SDL_SetHint
- * \sa SDL_SetHintWithPriority
- */
+	/**
+	 * Get the value of a hint.
+	 *
+	 * \param name the hint to query.
+	 * \returns the string value of a hint or NULL if the hint isn't set.
+	 *
+	 * \threadsafety It is safe to call this function from any thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 *
+	 * \sa SDL_SetHint
+	 * \sa SDL_SetHintWithPriority
+	 */
 	[CLink] public static extern char8*  SDL_GetHint(char8* name);
 
-/**
- * Get the boolean value of a hint variable.
- *
- * \param name the name of the hint to get the boolean value from.
- * \param default_value the value to return if the hint does not exist.
- * \returns the boolean value of a hint or the provided default value if the
- *          hint does not exist.
- *
- * \threadsafety It is safe to call this function from any thread.
- *
- * \since This function is available since SDL 3.2.0.
- *
- * \sa SDL_GetHint
- * \sa SDL_SetHint
- */
-[CLink] public static extern bool SDL_GetHintBoolean(char8* name, bool default_value);
+	/**
+	 * Get the boolean value of a hint variable.
+	 *
+	 * \param name the name of the hint to get the boolean value from.
+	 * \param default_value the value to return if the hint does not exist.
+	 * \returns the boolean value of a hint or the provided default value if the
+	 *          hint does not exist.
+	 *
+	 * \threadsafety It is safe to call this function from any thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 *
+	 * \sa SDL_GetHint
+	 * \sa SDL_SetHint
+	 */
+	[CLink] public static extern bool SDL_GetHintBoolean(char8* name, bool default_value);
 }
 
-/**
- * A callback used to send notifications of hint value changes.
- *
- * This is called an initial time during SDL_AddHintCallback with the hint's
- * current value, and then again each time the hint's value changes.
- *
- * \param userdata what was passed as `userdata` to SDL_AddHintCallback().
- * \param name what was passed as `name` to SDL_AddHintCallback().
- * \param oldValue the previous hint value.
- * \param newValue the new value hint is to be set to.
- *
- * \threadsafety This callback is fired from whatever thread is setting a new
- *               hint value. SDL holds a lock on the hint subsystem when
- *               calling this callback.
- *
- * \since This datatype is available since SDL 3.2.0.
- *
- * \sa SDL_AddHintCallback
- */
+	/**
+	 * A callback used to send notifications of hint value changes.
+	 *
+	 * This is called an initial time during SDL_AddHintCallback with the hint's
+	 * current value, and then again each time the hint's value changes.
+	 *
+	 * \param userdata what was passed as `userdata` to SDL_AddHintCallback().
+	 * \param name what was passed as `name` to SDL_AddHintCallback().
+	 * \param oldValue the previous hint value.
+	 * \param newValue the new value hint is to be set to.
+	 *
+	 * \threadsafety This callback is fired from whatever thread is setting a new
+	 *               hint value. SDL holds a lock on the hint subsystem when
+	 *               calling this callback.
+	 *
+	 * \since This datatype is available since SDL 3.2.0.
+	 *
+	 * \sa SDL_AddHintCallback
+	 */
 public typealias SDL_HintCallback = function void(void* userdata, char8* name, char8* oldValue, char8* newValue);
 
 public static //extension SDL3
@@ -4799,7 +4799,7 @@ public static //extension SDL3
  *
  * \sa SDL_RemoveHintCallback
  */
-[CLink] public static extern bool SDL_AddHintCallback(char8* name, SDL_HintCallback callback, void *userdata);
+	[CLink] public static extern bool SDL_AddHintCallback(char8* name, SDL_HintCallback callback, void* userdata);
 
 /**
  * Remove a function watching a particular hint.
@@ -4815,7 +4815,7 @@ public static //extension SDL3
  *
  * \sa SDL_AddHintCallback
  */
-[CLink] public static extern void SDL_RemoveHintCallback(char8* name,
-                                                        SDL_HintCallback callback,
-                                                        void *userdata);
+	[CLink] public static extern void SDL_RemoveHintCallback(char8* name,
+		SDL_HintCallback callback,
+		void* userdata);
 }

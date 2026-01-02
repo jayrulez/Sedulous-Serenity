@@ -12,11 +12,11 @@ using System;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -46,12 +46,12 @@ namespace SDL3;
  */
 public enum SDL_PowerState : int32
 {
-    SDL_POWERSTATE_ERROR = -1,   /**< error determining power status */
-    SDL_POWERSTATE_UNKNOWN,      /**< cannot determine power status */
-    SDL_POWERSTATE_ON_BATTERY,   /**< Not plugged in, running on the battery */
-    SDL_POWERSTATE_NO_BATTERY,   /**< Plugged in, no battery available */
-    SDL_POWERSTATE_CHARGING,     /**< Plugged in, charging battery */
-    SDL_POWERSTATE_CHARGED       /**< Plugged in, battery charged */
+	SDL_POWERSTATE_ERROR = -1, /**< error determining power status */
+	SDL_POWERSTATE_UNKNOWN, /**< cannot determine power status */
+	SDL_POWERSTATE_ON_BATTERY, /**< Not plugged in, running on the battery */
+	SDL_POWERSTATE_NO_BATTERY, /**< Plugged in, no battery available */
+	SDL_POWERSTATE_CHARGING, /**< Plugged in, charging battery */
+	SDL_POWERSTATE_CHARGED /**< Plugged in, battery charged */
 }
 
 public static //extension SDL3
@@ -89,5 +89,5 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_PowerState SDL_GetPowerInfo(int32 *seconds, int32 *percent);
+	[CLink] public static extern SDL_PowerState SDL_GetPowerInfo(int32* seconds, int32* percent);
 }

@@ -13,11 +13,11 @@ using System.Interop;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -82,8 +82,8 @@ public static //extension SDL3
  * \since This macro is available since SDL 3.2.0.
  */
 	//typedef int8_t Sint8;
-	public const int8 SDL_MAX_SINT8   = int8.MaxValue;//((Sint8)0x7F)           /* 127 */
-	public const int8 SDL_MIN_SINT8   = int8.MinValue;//((Sint8)(~0x7F))        /* -128 */
+	public const int8 SDL_MAX_SINT8   = int8.MaxValue; //((Sint8)0x7F)           /* 127 */
+	public const int8 SDL_MIN_SINT8   = int8.MinValue; //((Sint8)(~0x7F))        /* -128 */
 
 /**
  * An unsigned 8-bit integer type.
@@ -91,8 +91,8 @@ public static //extension SDL3
  * \since This macro is available since SDL 3.2.0.
  */
 	//typedef uint8_t Uint8;
-	public const uint8 SDL_MAX_UINT8   = uint8.MaxValue;//((Uint8)0xFF)           /* 255 */
-	public const uint8 SDL_MIN_UINT8   = uint8.MinValue;//((Uint8)0x00)           /* 0 */
+	public const uint8 SDL_MAX_UINT8   = uint8.MaxValue; //((Uint8)0xFF)           /* 255 */
+	public const uint8 SDL_MIN_UINT8   = uint8.MinValue; //((Uint8)0x00)           /* 0 */
 
 /**
  * A signed 16-bit integer type.
@@ -100,8 +100,8 @@ public static //extension SDL3
  * \since This macro is available since SDL 3.2.0.
  */
 	//typedef int16_t Sint16;
-	public const int16 SDL_MAX_SINT16  = int16.MaxValue;//((Sint16)0x7FFF)        /* 32767 */
-	public const int16 SDL_MIN_SINT16  = int16.MinValue;//((Sint16)(~0x7FFF))     /* -32768 */
+	public const int16 SDL_MAX_SINT16  = int16.MaxValue; //((Sint16)0x7FFF)        /* 32767 */
+	public const int16 SDL_MIN_SINT16  = int16.MinValue; //((Sint16)(~0x7FFF))     /* -32768 */
 
 /**
  * An unsigned 16-bit integer type.
@@ -109,8 +109,8 @@ public static //extension SDL3
  * \since This macro is available since SDL 3.2.0.
  */
 	//typedef uint16_t Uint16;
-	public const uint16 SDL_MAX_UINT16  = uint16.MaxValue;//((Uint16)0xFFFF)        /* 65535 */
-	public const uint16 SDL_MIN_UINT16  = uint16.MinValue;//((Uint16)0x0000)        /* 0 */
+	public const uint16 SDL_MAX_UINT16  = uint16.MaxValue; //((Uint16)0xFFFF)        /* 65535 */
+	public const uint16 SDL_MIN_UINT16  = uint16.MinValue; //((Uint16)0x0000)        /* 0 */
 
 /**
  * A signed 32-bit integer type.
@@ -118,8 +118,8 @@ public static //extension SDL3
  * \since This macro is available since SDL 3.2.0.
  */
 	//typedef int32_t Sint32;
-	public const int32 SDL_MAX_SINT32  = int32.MaxValue;//((Sint32)0x7FFFFFFF)    /* 2147483647 */
-	public const int32 SDL_MIN_SINT32  = int32.MinValue;//((Sint32)(~0x7FFFFFFF)) /* -2147483648 */
+	public const int32 SDL_MAX_SINT32  = int32.MaxValue; //((Sint32)0x7FFFFFFF)    /* 2147483647 */
+	public const int32 SDL_MIN_SINT32  = int32.MinValue; //((Sint32)(~0x7FFFFFFF)) /* -2147483648 */
 
 /**
  * An unsigned 32-bit integer type.
@@ -127,8 +127,8 @@ public static //extension SDL3
  * \since This macro is available since SDL 3.2.0.
  */
 	//typedef uint32_t Uint32;
-	public const uint32 SDL_MAX_UINT32  = uint32.MaxValue;//((Uint32)0xFFFFFFFFu)   /* 4294967295 */
-	public const uint32 SDL_MIN_UINT32  = uint32.MinValue;//((Uint32)0x00000000)    /* 0 */
+	public const uint32 SDL_MAX_UINT32  = uint32.MaxValue; //((Uint32)0xFFFFFFFFu)   /* 4294967295 */
+	public const uint32 SDL_MIN_UINT32  = uint32.MinValue; //((Uint32)0x00000000)    /* 0 */
 
 /**
  * A signed 64-bit integer type.
@@ -138,8 +138,8 @@ public static //extension SDL3
  * \sa SDL_SINT64_C
  */
 	//typedef int64_t Sint64;
-	public const int64 SDL_MAX_SINT64  = int64.MaxValue;//SDL_SINT64_C(0x7FFFFFFFFFFFFFFF)   /* 9223372036854775807 */
-	public const int64 SDL_MIN_SINT64  = int64.MinValue;//~SDL_SINT64_C(0x7FFFFFFFFFFFFFFF)  /* -9223372036854775808 */
+	public const int64 SDL_MAX_SINT64  = int64.MaxValue; //SDL_SINT64_C(0x7FFFFFFFFFFFFFFF)   /* 9223372036854775807 */
+	public const int64 SDL_MIN_SINT64  = int64.MinValue; //~SDL_SINT64_C(0x7FFFFFFFFFFFFFFF)  /* -9223372036854775808 */
 
 /**
  * An unsigned 64-bit integer type.
@@ -149,8 +149,8 @@ public static //extension SDL3
  * \sa SDL_UINT64_C
  */
 	//typedef uint64_t Uint64;
-	public const uint64 SDL_MAX_UINT64  = uint64.MaxValue;//SDL_UINT64_C(0xFFFFFFFFFFFFFFFF)   /* 18446744073709551615 */
-	public const uint64 SDL_MIN_UINT64  = uint64.MinValue;//SDL_UINT64_C(0x0000000000000000)   /* 0 */
+	public const uint64 SDL_MAX_UINT64  = uint64.MaxValue; //SDL_UINT64_C(0xFFFFFFFFFFFFFFFF)   /* 18446744073709551615 */
+	public const uint64 SDL_MIN_UINT64  = uint64.MinValue; //SDL_UINT64_C(0x0000000000000000)   /* 0 */
 }
 
 /**
@@ -172,7 +172,7 @@ public static //extension SDL3
 	public const SDL_Time SDL_MAX_TIME = SDL_Time.MaxValue;
 	public const SDL_Time SDL_MIN_TIME = SDL_Time.MinValue;
 
-/* @} *//* Basic data types */
+/* @} */ /* Basic data types */
 
 /**
  *  \name Floating-point constants
@@ -293,7 +293,7 @@ public static //extension SDL3
  * \sa SDL_calloc
  * \sa SDL_realloc
  */
-[CLink] public static extern void SDL_free(void *mem);
+	[CLink] public static extern void SDL_free(void* mem);
 }
 
 /**
@@ -373,7 +373,7 @@ public typealias SDL_realloc_func = function void*(void* mem, uint size);
  * \sa SDL_GetMemoryFunctions
  * \sa SDL_SetMemoryFunctions
  */
-public typealias SDL_free_func = function void(void *mem);
+public typealias SDL_free_func = function void(void* mem);
 
 public static //extension SDL3
 {
@@ -394,10 +394,10 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern void SDL_GetOriginalMemoryFunctions(SDL_malloc_func *malloc_func,
-                                                            SDL_calloc_func *calloc_func,
-                                                            SDL_realloc_func *realloc_func,
-                                                            SDL_free_func *free_func);
+	[CLink] public static extern void SDL_GetOriginalMemoryFunctions(SDL_malloc_func* malloc_func,
+		SDL_calloc_func* calloc_func,
+		SDL_realloc_func* realloc_func,
+		SDL_free_func* free_func);
 
 /**
  * Get the current set of SDL memory functions.
@@ -416,10 +416,10 @@ public static //extension SDL3
  * \sa SDL_SetMemoryFunctions
  * \sa SDL_GetOriginalMemoryFunctions
  */
-[CLink] public static extern void SDL_GetMemoryFunctions(SDL_malloc_func *malloc_func,
-                                                    SDL_calloc_func *calloc_func,
-                                                    SDL_realloc_func *realloc_func,
-                                                    SDL_free_func *free_func);
+	[CLink] public static extern void SDL_GetMemoryFunctions(SDL_malloc_func* malloc_func,
+		SDL_calloc_func* calloc_func,
+		SDL_realloc_func* realloc_func,
+		SDL_free_func* free_func);
 
 /**
  * Replace SDL's memory allocation functions with a custom set.
@@ -447,10 +447,10 @@ public static //extension SDL3
  * \sa SDL_GetMemoryFunctions
  * \sa SDL_GetOriginalMemoryFunctions
  */
-[CLink] public static extern bool SDL_SetMemoryFunctions(SDL_malloc_func malloc_func,
-                                                            SDL_calloc_func calloc_func,
-                                                            SDL_realloc_func realloc_func,
-                                                            SDL_free_func free_func);
+	[CLink] public static extern bool SDL_SetMemoryFunctions(SDL_malloc_func malloc_func,
+		SDL_calloc_func calloc_func,
+		SDL_realloc_func realloc_func,
+		SDL_free_func free_func);
 
 /**
  * Allocate memory aligned to a specific alignment.
@@ -492,7 +492,7 @@ public static //extension SDL3
  *
  * \sa SDL_aligned_alloc
  */
-[CLink] public static extern void SDL_aligned_free(void *mem);
+	[CLink] public static extern void SDL_aligned_free(void* mem);
 
 /**
  * Get the number of outstanding (unfreed) allocations.
@@ -504,7 +504,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern int32 SDL_GetNumAllocations();
+	[CLink] public static extern int32 SDL_GetNumAllocations();
 
 }
 
@@ -546,7 +546,7 @@ public static //extension SDL3
  * \sa SDL_SetEnvironmentVariable
  * \sa SDL_UnsetEnvironmentVariable
  */
-[CLink] public static extern SDL_Environment* SDL_GetEnvironment();
+	[CLink] public static extern SDL_Environment* SDL_GetEnvironment();
 
 /**
  * Create a set of environment variables
@@ -568,7 +568,7 @@ public static //extension SDL3
  * \sa SDL_UnsetEnvironmentVariable
  * \sa SDL_DestroyEnvironment
  */
-[CLink] public static extern SDL_Environment* SDL_CreateEnvironment(bool populated);
+	[CLink] public static extern SDL_Environment* SDL_CreateEnvironment(bool populated);
 
 /**
  * Get the value of a variable in the environment.
@@ -588,7 +588,7 @@ public static //extension SDL3
  * \sa SDL_SetEnvironmentVariable
  * \sa SDL_UnsetEnvironmentVariable
  */
-[CLink] public static extern char8* SDL_GetEnvironmentVariable(SDL_Environment *env, char8* name);
+	[CLink] public static extern char8* SDL_GetEnvironmentVariable(SDL_Environment* env, char8* name);
 
 /**
  * Get all variables in the environment.
@@ -609,7 +609,7 @@ public static //extension SDL3
  * \sa SDL_SetEnvironmentVariable
  * \sa SDL_UnsetEnvironmentVariable
  */
-[CLink] public static extern char8**SDL_GetEnvironmentVariables(SDL_Environment *env);
+	[CLink] public static extern char8** SDL_GetEnvironmentVariables(SDL_Environment* env);
 
 /**
  * Set the value of a variable in the environment.
@@ -633,7 +633,7 @@ public static //extension SDL3
  * \sa SDL_GetEnvironmentVariables
  * \sa SDL_UnsetEnvironmentVariable
  */
-[CLink] public static extern bool SDL_SetEnvironmentVariable(SDL_Environment *env, char8* name, char8* value, bool overwrite);
+	[CLink] public static extern bool SDL_SetEnvironmentVariable(SDL_Environment* env, char8* name, char8* value, bool overwrite);
 
 /**
  * Clear a variable from the environment.
@@ -654,7 +654,7 @@ public static //extension SDL3
  * \sa SDL_SetEnvironmentVariable
  * \sa SDL_UnsetEnvironmentVariable
  */
-[CLink] public static extern bool SDL_UnsetEnvironmentVariable(SDL_Environment *env, char8* name);
+	[CLink] public static extern bool SDL_UnsetEnvironmentVariable(SDL_Environment* env, char8* name);
 
 /**
  * Destroy a set of environment variables.
@@ -668,7 +668,7 @@ public static //extension SDL3
  *
  * \sa SDL_CreateEnvironment
  */
-[CLink] public static extern void SDL_DestroyEnvironment(SDL_Environment *env);
+	[CLink] public static extern void SDL_DestroyEnvironment(SDL_Environment* env);
 
 /**
  * Get the value of a variable in the environment.
@@ -683,7 +683,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern char8* SDL_getenv(char8* name);
+	[CLink] public static extern char8* SDL_getenv(char8* name);
 
 /**
  * Get the value of a variable in the environment.
@@ -702,7 +702,7 @@ public static //extension SDL3
  *
  * \sa SDL_getenv
  */
-[CLink] public static extern char8* SDL_getenv_unsafe(char8* name);
+	[CLink] public static extern char8* SDL_getenv_unsafe(char8* name);
 
 /**
  * Set the value of a variable in the environment.
@@ -720,7 +720,7 @@ public static //extension SDL3
  *
  * \sa SDL_SetEnvironmentVariable
  */
-[CLink] public static extern int32 SDL_setenv_unsafe(char8* name, char8* value, int32 overwrite);
+	[CLink] public static extern int32 SDL_setenv_unsafe(char8* name, char8* value, int32 overwrite);
 
 /**
  * Clear a variable from the environment.
@@ -735,7 +735,7 @@ public static //extension SDL3
  *
  * \sa SDL_UnsetEnvironmentVariable
  */
-[CLink] public static extern int32 SDL_unsetenv_unsafe(char8* name);
+	[CLink] public static extern int32 SDL_unsetenv_unsafe(char8* name);
 }
 
 /**
@@ -868,7 +868,7 @@ public static //extension SDL3
  * \sa SDL_qsort_r
  * \sa SDL_bsearch_r
  */
-public typealias SDL_CompareCallback_r = function int32(void *userdata, void* a, void* b);
+public typealias SDL_CompareCallback_r = function int32(void* userdata, void* a, void* b);
 
 public static //extension SDL3
 {
@@ -994,7 +994,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern int32 SDL_abs(int32 x);
+	[CLink] public static extern int32 SDL_abs(int32 x);
 
 /**
  * Return the lesser of two values.
@@ -1069,7 +1069,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern int32 SDL_isalpha(int32 x);
+	[CLink] public static extern int32 SDL_isalpha(int32 x);
 
 /**
  * Query if a character is alphabetic (a letter) or a number.
@@ -1084,7 +1084,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern int32 SDL_isalnum(int32 x);
+	[CLink] public static extern int32 SDL_isalnum(int32 x);
 
 /**
  * Report if a character is blank (a space or tab).
@@ -1099,7 +1099,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern int32 SDL_isblank(int32 x);
+	[CLink] public static extern int32 SDL_isblank(int32 x);
 
 /**
  * Report if a character is a control character.
@@ -1114,7 +1114,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern int32 SDL_iscntrl(int32 x);
+	[CLink] public static extern int32 SDL_iscntrl(int32 x);
 
 /**
  * Report if a character is a numeric digit.
@@ -1129,7 +1129,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern int32 SDL_isdigit(int32 x);
+	[CLink] public static extern int32 SDL_isdigit(int32 x);
 
 /**
  * Report if a character is a hexadecimal digit.
@@ -1144,7 +1144,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern int32 SDL_isxdigit(int32 x);
+	[CLink] public static extern int32 SDL_isxdigit(int32 x);
 
 /**
  * Report if a character is a punctuation mark.
@@ -1162,7 +1162,7 @@ public static //extension SDL3
  * \sa SDL_isgraph
  * \sa SDL_isalnum
  */
-[CLink] public static extern int32 SDL_ispunct(int32 x);
+	[CLink] public static extern int32 SDL_ispunct(int32 x);
 
 /**
  * Report if a character is whitespace.
@@ -1184,7 +1184,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern int32 SDL_isspace(int32 x);
+	[CLink] public static extern int32 SDL_isspace(int32 x);
 
 /**
  * Report if a character is upper case.
@@ -1199,7 +1199,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern int32 SDL_isupper(int32 x);
+	[CLink] public static extern int32 SDL_isupper(int32 x);
 
 /**
  * Report if a character is lower case.
@@ -1214,7 +1214,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern int32 SDL_islower(int32 x);
+	[CLink] public static extern int32 SDL_islower(int32 x);
 
 /**
  * Report if a character is "printable".
@@ -1233,7 +1233,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern int32 SDL_isprint(int32 x);
+	[CLink] public static extern int32 SDL_isprint(int32 x);
 
 /**
  * Report if a character is any "printable" except space.
@@ -1254,7 +1254,7 @@ public static //extension SDL3
  *
  * \sa SDL_isprint
  */
-[CLink] public static extern int32 SDL_isgraph(int32 x);
+	[CLink] public static extern int32 SDL_isgraph(int32 x);
 
 /**
  * Convert low-ASCII English letters to uppercase.
@@ -1272,7 +1272,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern int32 SDL_toupper(int32 x);
+	[CLink] public static extern int32 SDL_toupper(int32 x);
 
 /**
  * Convert low-ASCII English letters to lowercase.
@@ -1290,7 +1290,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern int32 SDL_tolower(int32 x);
+	[CLink] public static extern int32 SDL_tolower(int32 x);
 
 /**
  * Calculate a CRC-16 value.
@@ -1311,7 +1311,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern uint16 SDL_crc16(uint16 crc, void* data, uint len);
+	[CLink] public static extern uint16 SDL_crc16(uint16 crc, void* data, uint len);
 
 /**
  * Calculate a CRC-32 value.
@@ -1332,7 +1332,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern uint32 SDL_crc32(uint32 crc, void* data, uint len);
+	[CLink] public static extern uint32 SDL_crc32(uint32 crc, void* data, uint len);
 
 /**
  * Calculate a 32-bit MurmurHash3 value for a block of data.
@@ -1358,7 +1358,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern uint32 SDL_murmur3_32(void* data, uint len, uint32 seed);
+	[CLink] public static extern uint32 SDL_murmur3_32(void* data, uint len, uint32 seed);
 
 /**
  * Copy non-overlapping memory.
@@ -1437,7 +1437,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern void* SDL_memset4(void *dst, uint32 val, uint dwords);
+	[CLink] public static extern void* SDL_memset4(void* dst, uint32 val, uint dwords);
 
 /**
  * Clear an object's memory to zero.
@@ -1511,7 +1511,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern int32 SDL_memcmp(void* s1, void* s2, uint len);
+	[CLink] public static extern int32 SDL_memcmp(void* s1, void* s2, uint len);
 
 /**
  * This works exactly like wcslen() but doesn't require access to a C runtime.
@@ -1857,7 +1857,7 @@ public static //extension SDL3
  * \sa SDL_utf8strlen
  * \sa SDL_utf8strnlen
  */
-[CLink] public static extern uint SDL_strlen(char8* str);
+	[CLink] public static extern uint SDL_strlen(char8* str);
 
 /**
  * This works exactly like strnlen() but doesn't require access to a C
@@ -1881,7 +1881,7 @@ public static //extension SDL3
  * \sa SDL_utf8strlen
  * \sa SDL_utf8strnlen
  */
-[CLink] public static extern uint SDL_strnlen(char8* str, uint maxlen);
+	[CLink] public static extern uint SDL_strnlen(char8* str, uint maxlen);
 
 /**
  * Copy a string.
@@ -2030,7 +2030,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern char8*SDL_strrev(char8* str);
+	[CLink] public static extern char8* SDL_strrev(char8* str);
 
 /**
  * Convert a string to uppercase.
@@ -2051,7 +2051,7 @@ public static //extension SDL3
  *
  * \sa SDL_strlwr
  */
-[CLink] public static extern char8*SDL_strupr(char8* str);
+	[CLink] public static extern char8* SDL_strupr(char8* str);
 
 /**
  * Convert a string to lowercase.
@@ -2072,7 +2072,7 @@ public static //extension SDL3
  *
  * \sa SDL_strupr
  */
-[CLink] public static extern char8*SDL_strlwr(char8* str);
+	[CLink] public static extern char8* SDL_strlwr(char8* str);
 
 /**
  * Search a string for the first instance of a specific byte.
@@ -2092,7 +2092,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern char8*SDL_strchr(char8* str, int32 c);
+	[CLink] public static extern char8* SDL_strchr(char8* str, int32 c);
 
 /**
  * Search a string for the last instance of a specific byte.
@@ -2111,7 +2111,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern char8*SDL_strrchr(char8* str, int32 c);
+	[CLink] public static extern char8* SDL_strrchr(char8* str, int32 c);
 
 /**
  * Search a string for the first instance of a specific substring.
@@ -2131,7 +2131,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern char8*SDL_strstr(char8* haystack, char8* needle);
+	[CLink] public static extern char8* SDL_strstr(char8* haystack, char8* needle);
 
 /**
  * Search a string, up to n bytes, for the first instance of a specific
@@ -2154,7 +2154,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern char8*SDL_strnstr(char8* haystack, char8* needle, uint maxlen);
+	[CLink] public static extern char8* SDL_strnstr(char8* haystack, char8* needle, uint maxlen);
 
 /**
  * Search a UTF-8 string for the first instance of a specific substring,
@@ -2182,7 +2182,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern char8*SDL_strcasestr(char8* haystack, char8* needle);
+	[CLink] public static extern char8* SDL_strcasestr(char8* haystack, char8* needle);
 
 /**
  * This works exactly like strtok_r() but doesn't require access to a C
@@ -2211,7 +2211,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern char8*SDL_strtok_r(char8* str, char8* delim, char8** saveptr);
+	[CLink] public static extern char8* SDL_strtok_r(char8* str, char8* delim, char8** saveptr);
 
 /**
  * Count the number of codepoints in a UTF-8 string.
@@ -2239,7 +2239,7 @@ public static //extension SDL3
  * \sa SDL_utf8strnlen
  * \sa SDL_strlen
  */
-[CLink] public static extern uint SDL_utf8strlen(char8* str);
+	[CLink] public static extern uint SDL_utf8strlen(char8* str);
 
 /**
  * Count the number of codepoints in a UTF-8 string, up to n bytes.
@@ -2272,7 +2272,7 @@ public static //extension SDL3
  * \sa SDL_utf8strlen
  * \sa SDL_strnlen
  */
-[CLink] public static extern uint SDL_utf8strnlen(char8* str, uint bytes);
+	[CLink] public static extern uint SDL_utf8strnlen(char8* str, uint bytes);
 
 /**
  * Convert an integer into a string.
@@ -2300,7 +2300,7 @@ public static //extension SDL3
  * \sa SDL_ltoa
  * \sa SDL_lltoa
  */
-[CLink] public static extern char8*SDL_itoa(int32 value, char8* str, int32 radix);
+	[CLink] public static extern char8* SDL_itoa(int32 value, char8* str, int32 radix);
 
 /**
  * Convert an unsigned integer into a string.
@@ -2466,7 +2466,7 @@ public static //extension SDL3
  * \sa SDL_strtod
  * \sa SDL_itoa
  */
-[CLink] public static extern int32 SDL_atoi(char8* str);
+	[CLink] public static extern int32 SDL_atoi(char8* str);
 
 /**
  * Parse a `double` from a string.
@@ -2488,7 +2488,7 @@ public static //extension SDL3
  * \sa SDL_strtoull
  * \sa SDL_strtod
  */
-[CLink] public static extern double SDL_atof(char8* str);
+	[CLink] public static extern double SDL_atof(char8* str);
 
 /**
  * Parse a `long` from a string.
@@ -2654,7 +2654,7 @@ public static //extension SDL3
  * \sa SDL_strtoul
  * \sa SDL_strtoull
  */
-[CLink] public static extern double SDL_strtod(char8* str, char8** endp);
+	[CLink] public static extern double SDL_strtod(char8* str, char8** endp);
 
 /**
  * Compare two null-terminated UTF-8 strings.
@@ -2674,7 +2674,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern int32 SDL_strcmp(char8* str1, char8* str2);
+	[CLink] public static extern int32 SDL_strcmp(char8* str1, char8* str2);
 
 /**
  * Compare two UTF-8 strings up to a number of bytes.
@@ -2704,7 +2704,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern int32 SDL_strncmp(char8* str1, char8* str2, uint maxlen);
+	[CLink] public static extern int32 SDL_strncmp(char8* str1, char8* str2, uint maxlen);
 
 /**
  * Compare two null-terminated UTF-8 strings, case-insensitively.
@@ -2732,7 +2732,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern int32 SDL_strcasecmp(char8* str1, char8* str2);
+	[CLink] public static extern int32 SDL_strcasecmp(char8* str1, char8* str2);
 
 
 /**
@@ -2772,7 +2772,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern int32 SDL_strncasecmp(char8* str1, char8* str2, uint maxlen);
+	[CLink] public static extern int32 SDL_strncasecmp(char8* str1, char8* str2, uint maxlen);
 
 /**
  * Searches a string for the first occurrence of any character contained in a
@@ -2790,7 +2790,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern char8*SDL_strpbrk(char8* str, char8* breakset);
+	[CLink] public static extern char8* SDL_strpbrk(char8* str, char8* breakset);
 
 /**
  * The Unicode REPLACEMENT CHARACTER codepoint.
@@ -2850,7 +2850,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern uint32 SDL_StepUTF8(char8* *pstr, uint *pslen);
+	[CLink] public static extern uint32 SDL_StepUTF8(char8** pstr, uint* pslen);
 
 /**
  * Decode a UTF-8 string in reverse, one Unicode codepoint at a time.
@@ -2881,7 +2881,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern uint32 SDL_StepBackUTF8(char8* start, char8* *pstr);
+	[CLink] public static extern uint32 SDL_StepBackUTF8(char8* start, char8** pstr);
 
 /**
  * Convert a single Unicode codepoint to UTF-8.
@@ -2910,7 +2910,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern char8*SDL_UCS4ToUTF8(uint32 codepoint, char8* dst);
+	[CLink] public static extern char8* SDL_UCS4ToUTF8(uint32 codepoint, char8* dst);
 
 /**
  * This works exactly like sscanf() but doesn't require access to a C runtime.
@@ -3122,7 +3122,7 @@ public static //extension SDL3
  * \sa SDL_rand_bits
  * \sa SDL_randf
  */
-[CLink] public static extern void SDL_srand(uint64 seed);
+	[CLink] public static extern void SDL_srand(uint64 seed);
 
 /**
  * Generate a pseudo-random number less than n for positive n
@@ -3156,7 +3156,7 @@ public static //extension SDL3
  * \sa SDL_srand
  * \sa SDL_randf
  */
-[CLink] public static extern int32 SDL_rand(int32 n);
+	[CLink] public static extern int32 SDL_rand(int32 n);
 
 /**
  * Generate a uniform pseudo-random floating point number less than 1.0
@@ -3179,7 +3179,7 @@ public static //extension SDL3
  * \sa SDL_srand
  * \sa SDL_rand
  */
-[CLink] public static extern float SDL_randf();
+	[CLink] public static extern float SDL_randf();
 
 /**
  * Generate 32 pseudo-random bits.
@@ -3202,7 +3202,7 @@ public static //extension SDL3
  * \sa SDL_randf
  * \sa SDL_srand
  */
-[CLink] public static extern uint32 SDL_rand_bits();
+	[CLink] public static extern uint32 SDL_rand_bits();
 
 /**
  * Generate a pseudo-random number less than n for positive n
@@ -3237,7 +3237,7 @@ public static //extension SDL3
  * \sa SDL_rand_bits_r
  * \sa SDL_randf_r
  */
-[CLink] public static extern int32 SDL_rand_r(uint64 *state, int32 n);
+	[CLink] public static extern int32 SDL_rand_r(uint64* state, int32 n);
 
 /**
  * Generate a uniform pseudo-random floating point number less than 1.0
@@ -3264,7 +3264,7 @@ public static //extension SDL3
  * \sa SDL_rand_r
  * \sa SDL_randf
  */
-[CLink] public static extern float SDL_randf_r(uint64 *state);
+	[CLink] public static extern float SDL_randf_r(uint64* state);
 
 /**
  * Generate 32 pseudo-random bits.
@@ -3289,7 +3289,7 @@ public static //extension SDL3
  * \sa SDL_rand_r
  * \sa SDL_randf_r
  */
-[CLink] public static extern uint32 SDL_rand_bits_r(uint64 *state);
+	[CLink] public static extern uint32 SDL_rand_bits_r(uint64* state);
 
 /**
  * The value of Pi, as a double-precision floating point literal.
@@ -3338,7 +3338,7 @@ public static //extension SDL3
  * \sa SDL_asin
  * \sa SDL_cos
  */
-[CLink] public static extern double SDL_acos(double x);
+	[CLink] public static extern double SDL_acos(double x);
 
 /**
  * Compute the arc cosine of `x`.
@@ -3368,7 +3368,7 @@ public static //extension SDL3
  * \sa SDL_asinf
  * \sa SDL_cosf
  */
-[CLink] public static extern float SDL_acosf(float x);
+	[CLink] public static extern float SDL_acosf(float x);
 
 /**
  * Compute the arc sine of `x`.
@@ -3398,7 +3398,7 @@ public static //extension SDL3
  * \sa SDL_acos
  * \sa SDL_sin
  */
-[CLink] public static extern double SDL_asin(double x);
+	[CLink] public static extern double SDL_asin(double x);
 
 /**
  * Compute the arc sine of `x`.
@@ -3428,7 +3428,7 @@ public static //extension SDL3
  * \sa SDL_acosf
  * \sa SDL_sinf
  */
-[CLink] public static extern float SDL_asinf(float x);
+	[CLink] public static extern float SDL_asinf(float x);
 
 /**
  * Compute the arc tangent of `x`.
@@ -3460,7 +3460,7 @@ public static //extension SDL3
  * \sa SDL_atan2
  * \sa SDL_tan
  */
-[CLink] public static extern double SDL_atan(double x);
+	[CLink] public static extern double SDL_atan(double x);
 
 /**
  * Compute the arc tangent of `x`.
@@ -3492,7 +3492,7 @@ public static //extension SDL3
  * \sa SDL_atan2f
  * \sa SDL_tanf
  */
-[CLink] public static extern float SDL_atanf(float x);
+	[CLink] public static extern float SDL_atanf(float x);
 
 /**
  * Compute the arc tangent of `y / x`, using the signs of x and y to adjust
@@ -3528,7 +3528,7 @@ public static //extension SDL3
  * \sa SDL_atan
  * \sa SDL_tan
  */
-[CLink] public static extern double SDL_atan2(double y, double x);
+	[CLink] public static extern double SDL_atan2(double y, double x);
 
 /**
  * Compute the arc tangent of `y / x`, using the signs of x and y to adjust
@@ -3564,7 +3564,7 @@ public static //extension SDL3
  * \sa SDL_atan
  * \sa SDL_tan
  */
-[CLink] public static extern float SDL_atan2f(float y, float x);
+	[CLink] public static extern float SDL_atan2f(float y, float x);
 
 /**
  * Compute the ceiling of `x`.
@@ -3592,7 +3592,7 @@ public static //extension SDL3
  * \sa SDL_round
  * \sa SDL_lround
  */
-[CLink] public static extern double SDL_ceil(double x);
+	[CLink] public static extern double SDL_ceil(double x);
 
 /**
  * Compute the ceiling of `x`.
@@ -3620,7 +3620,7 @@ public static //extension SDL3
  * \sa SDL_roundf
  * \sa SDL_lroundf
  */
-[CLink] public static extern float SDL_ceilf(float x);
+	[CLink] public static extern float SDL_ceilf(float x);
 
 /**
  * Copy the sign of one floating-point value to another.
@@ -3646,7 +3646,7 @@ public static //extension SDL3
  * \sa SDL_copysignf
  * \sa SDL_fabs
  */
-[CLink] public static extern double SDL_copysign(double x, double y);
+	[CLink] public static extern double SDL_copysign(double x, double y);
 
 /**
  * Copy the sign of one floating-point value to another.
@@ -3672,7 +3672,7 @@ public static //extension SDL3
  * \sa SDL_copysign
  * \sa SDL_fabsf
  */
-[CLink] public static extern float SDL_copysignf(float x, float y);
+	[CLink] public static extern float SDL_copysignf(float x, float y);
 
 /**
  * Compute the cosine of `x`.
@@ -3700,7 +3700,7 @@ public static //extension SDL3
  * \sa SDL_acos
  * \sa SDL_sin
  */
-[CLink] public static extern double SDL_cos(double x);
+	[CLink] public static extern double SDL_cos(double x);
 
 /**
  * Compute the cosine of `x`.
@@ -3728,7 +3728,7 @@ public static //extension SDL3
  * \sa SDL_acosf
  * \sa SDL_sinf
  */
-[CLink] public static extern float SDL_cosf(float x);
+	[CLink] public static extern float SDL_cosf(float x);
 
 /**
  * Compute the exponential of `x`.
@@ -3760,7 +3760,7 @@ public static //extension SDL3
  * \sa SDL_expf
  * \sa SDL_log
  */
-[CLink] public static extern double SDL_exp(double x);
+	[CLink] public static extern double SDL_exp(double x);
 
 /**
  * Compute the exponential of `x`.
@@ -3792,7 +3792,7 @@ public static //extension SDL3
  * \sa SDL_exp
  * \sa SDL_logf
  */
-[CLink] public static extern float SDL_expf(float x);
+	[CLink] public static extern float SDL_expf(float x);
 
 /**
  * Compute the absolute value of `x`
@@ -3813,7 +3813,7 @@ public static //extension SDL3
  *
  * \sa SDL_fabsf
  */
-[CLink] public static extern double SDL_fabs(double x);
+	[CLink] public static extern double SDL_fabs(double x);
 
 /**
  * Compute the absolute value of `x`
@@ -3834,7 +3834,7 @@ public static //extension SDL3
  *
  * \sa SDL_fabs
  */
-[CLink] public static extern float SDL_fabsf(float x);
+	[CLink] public static extern float SDL_fabsf(float x);
 
 /**
  * Compute the floor of `x`.
@@ -3862,7 +3862,7 @@ public static //extension SDL3
  * \sa SDL_round
  * \sa SDL_lround
  */
-[CLink] public static extern double SDL_floor(double x);
+	[CLink] public static extern double SDL_floor(double x);
 
 /**
  * Compute the floor of `x`.
@@ -3890,7 +3890,7 @@ public static //extension SDL3
  * \sa SDL_roundf
  * \sa SDL_lroundf
  */
-[CLink] public static extern float SDL_floorf(float x);
+	[CLink] public static extern float SDL_floorf(float x);
 
 /**
  * Truncate `x` to an integer.
@@ -3919,7 +3919,7 @@ public static //extension SDL3
  * \sa SDL_round
  * \sa SDL_lround
  */
-[CLink] public static extern double SDL_trunc(double x);
+	[CLink] public static extern double SDL_trunc(double x);
 
 /**
  * Truncate `x` to an integer.
@@ -3948,7 +3948,7 @@ public static //extension SDL3
  * \sa SDL_roundf
  * \sa SDL_lroundf
  */
-[CLink] public static extern float SDL_truncf(float x);
+	[CLink] public static extern float SDL_truncf(float x);
 
 /**
  * Return the floating-point remainder of `x / y`
@@ -3978,7 +3978,7 @@ public static //extension SDL3
  * \sa SDL_round
  * \sa SDL_lround
  */
-[CLink] public static extern double SDL_fmod(double x, double y);
+	[CLink] public static extern double SDL_fmod(double x, double y);
 
 /**
  * Return the floating-point remainder of `x / y`
@@ -4008,7 +4008,7 @@ public static //extension SDL3
  * \sa SDL_roundf
  * \sa SDL_lroundf
  */
-[CLink] public static extern float SDL_fmodf(float x, float y);
+	[CLink] public static extern float SDL_fmodf(float x, float y);
 
 /**
  * Return whether the value is infinity.
@@ -4022,7 +4022,7 @@ public static //extension SDL3
  *
  * \sa SDL_isinff
  */
-[CLink] public static extern int32 SDL_isinf(double x);
+	[CLink] public static extern int32 SDL_isinf(double x);
 
 /**
  * Return whether the value is infinity.
@@ -4036,7 +4036,7 @@ public static //extension SDL3
  *
  * \sa SDL_isinf
  */
-[CLink] public static extern int32 SDL_isinff(float x);
+	[CLink] public static extern int32 SDL_isinff(float x);
 
 /**
  * Return whether the value is NaN.
@@ -4050,7 +4050,7 @@ public static //extension SDL3
  *
  * \sa SDL_isnanf
  */
-[CLink] public static extern int32 SDL_isnan(double x);
+	[CLink] public static extern int32 SDL_isnan(double x);
 
 /**
  * Return whether the value is NaN.
@@ -4064,7 +4064,7 @@ public static //extension SDL3
  *
  * \sa SDL_isnan
  */
-[CLink] public static extern int32 SDL_isnanf(float x);
+	[CLink] public static extern int32 SDL_isnanf(float x);
 
 /**
  * Compute the natural logarithm of `x`.
@@ -4094,7 +4094,7 @@ public static //extension SDL3
  * \sa SDL_log10
  * \sa SDL_exp
  */
-[CLink] public static extern double SDL_log(double x);
+	[CLink] public static extern double SDL_log(double x);
 
 /**
  * Compute the natural logarithm of `x`.
@@ -4123,7 +4123,7 @@ public static //extension SDL3
  * \sa SDL_log
  * \sa SDL_expf
  */
-[CLink] public static extern float SDL_logf(float x);
+	[CLink] public static extern float SDL_logf(float x);
 
 /**
  * Compute the base-10 logarithm of `x`.
@@ -4153,7 +4153,7 @@ public static //extension SDL3
  * \sa SDL_log
  * \sa SDL_pow
  */
-[CLink] public static extern double SDL_log10(double x);
+	[CLink] public static extern double SDL_log10(double x);
 
 /**
  * Compute the base-10 logarithm of `x`.
@@ -4183,7 +4183,7 @@ public static //extension SDL3
  * \sa SDL_logf
  * \sa SDL_powf
  */
-[CLink] public static extern float SDL_log10f(float x);
+	[CLink] public static extern float SDL_log10f(float x);
 
 /**
  * Split `x` into integer and fractional parts
@@ -4203,7 +4203,7 @@ public static //extension SDL3
  * \sa SDL_trunc
  * \sa SDL_fmod
  */
-[CLink] public static extern double SDL_modf(double x, double *y);
+	[CLink] public static extern double SDL_modf(double x, double* y);
 
 /**
  * Split `x` into integer and fractional parts
@@ -4223,7 +4223,7 @@ public static //extension SDL3
  * \sa SDL_truncf
  * \sa SDL_fmodf
  */
-[CLink] public static extern float SDL_modff(float x, float *y);
+	[CLink] public static extern float SDL_modff(float x, float* y);
 
 /**
  * Raise `x` to the power `y`
@@ -4255,7 +4255,7 @@ public static //extension SDL3
  * \sa SDL_exp
  * \sa SDL_log
  */
-[CLink] public static extern double SDL_pow(double x, double y);
+	[CLink] public static extern double SDL_pow(double x, double y);
 
 /**
  * Raise `x` to the power `y`
@@ -4287,7 +4287,7 @@ public static //extension SDL3
  * \sa SDL_expf
  * \sa SDL_logf
  */
-[CLink] public static extern float SDL_powf(float x, float y);
+	[CLink] public static extern float SDL_powf(float x, float y);
 
 /**
  * Round `x` to the nearest integer.
@@ -4316,7 +4316,7 @@ public static //extension SDL3
  * \sa SDL_ceil
  * \sa SDL_trunc
  */
-[CLink] public static extern double SDL_round(double x);
+	[CLink] public static extern double SDL_round(double x);
 
 /**
  * Round `x` to the nearest integer.
@@ -4345,7 +4345,7 @@ public static //extension SDL3
  * \sa SDL_ceilf
  * \sa SDL_truncf
  */
-[CLink] public static extern float SDL_roundf(float x);
+	[CLink] public static extern float SDL_roundf(float x);
 
 /**
  * Round `x` to the nearest integer representable as a long
@@ -4428,7 +4428,7 @@ public static //extension SDL3
  * \sa SDL_scalbnf
  * \sa SDL_pow
  */
-[CLink] public static extern double SDL_scalbn(double x, int32 n);
+	[CLink] public static extern double SDL_scalbn(double x, int32 n);
 
 /**
  * Scale `x` by an integer power of two.
@@ -4453,7 +4453,7 @@ public static //extension SDL3
  * \sa SDL_scalbn
  * \sa SDL_powf
  */
-[CLink] public static extern float SDL_scalbnf(float x, int32 n);
+	[CLink] public static extern float SDL_scalbnf(float x, int32 n);
 
 /**
  * Compute the sine of `x`.
@@ -4481,7 +4481,7 @@ public static //extension SDL3
  * \sa SDL_asin
  * \sa SDL_cos
  */
-[CLink] public static extern double SDL_sin(double x);
+	[CLink] public static extern double SDL_sin(double x);
 
 /**
  * Compute the sine of `x`.
@@ -4509,7 +4509,7 @@ public static //extension SDL3
  * \sa SDL_asinf
  * \sa SDL_cosf
  */
-[CLink] public static extern float SDL_sinf(float x);
+	[CLink] public static extern float SDL_sinf(float x);
 
 /**
  * Compute the square root of `x`.
@@ -4535,7 +4535,7 @@ public static //extension SDL3
  *
  * \sa SDL_sqrtf
  */
-[CLink] public static extern double SDL_sqrt(double x);
+	[CLink] public static extern double SDL_sqrt(double x);
 
 /**
  * Compute the square root of `x`.
@@ -4561,7 +4561,7 @@ public static //extension SDL3
  *
  * \sa SDL_sqrt
  */
-[CLink] public static extern float SDL_sqrtf(float x);
+	[CLink] public static extern float SDL_sqrtf(float x);
 
 /**
  * Compute the tangent of `x`.
@@ -4591,7 +4591,7 @@ public static //extension SDL3
  * \sa SDL_atan
  * \sa SDL_atan2
  */
-[CLink] public static extern double SDL_tan(double x);
+	[CLink] public static extern double SDL_tan(double x);
 
 /**
  * Compute the tangent of `x`.
@@ -4621,7 +4621,7 @@ public static //extension SDL3
  * \sa SDL_atanf
  * \sa SDL_atan2f
  */
-[CLink] public static extern float SDL_tanf(float x);
+	[CLink] public static extern float SDL_tanf(float x);
 }
 
 /**
@@ -4651,8 +4651,8 @@ public static // extension SDL3
  * \sa SDL_iconv_close
  * \sa SDL_iconv_string
  */
-[CLink] public static extern SDL_iconv_t SDL_iconv_open(char8* tocode,
-                                                   char8* fromcode);
+	[CLink] public static extern SDL_iconv_t SDL_iconv_open(char8* tocode,
+		char8* fromcode);
 
 /**
  * This function frees a context used for character set conversion.
@@ -4666,7 +4666,7 @@ public static // extension SDL3
  * \sa SDL_iconv_open
  * \sa SDL_iconv_string
  */
-[CLink] public static extern int32 SDL_iconv_close(SDL_iconv_t cd);
+	[CLink] public static extern int32 SDL_iconv_close(SDL_iconv_t cd);
 
 /**
  * This function converts text between encodings, reading from and writing to
@@ -4704,9 +4704,9 @@ public static // extension SDL3
  * \sa SDL_iconv_close
  * \sa SDL_iconv_string
  */
-[CLink] public static extern uint SDL_iconv(SDL_iconv_t cd, char8* *inbuf,
-                                         uint *inbytesleft, char8** outbuf,
-                                         uint *outbytesleft);
+	[CLink] public static extern uint SDL_iconv(SDL_iconv_t cd, char8** inbuf,
+		uint* inbytesleft, char8** outbuf,
+		uint* outbytesleft);
 
 	public const uint SDL_ICONV_ERROR     = (uint) - 1; /**< Generic error. Check SDL_GetError()? */
 	public const uint SDL_ICONV_E2BIG     = (uint) - 2; /**< Output buffer was too small. */
@@ -4739,10 +4739,10 @@ public static // extension SDL3
  * \sa SDL_iconv_close
  * \sa SDL_iconv
  */
-[CLink] public static extern char8*SDL_iconv_string(char8* tocode,
-                                               char8* fromcode,
-                                               char8* inbuf,
-                                               uint inbytesleft);
+	[CLink] public static extern char8* SDL_iconv_string(char8* tocode,
+		char8* fromcode,
+		char8* inbuf,
+		uint inbytesleft);
 
 /* Some helper macros for common SDL_iconv_string cases... */
 
@@ -4822,12 +4822,12 @@ public static // extension SDL3
 	[Inline] public static bool SDL_size_mul_check_overflow(uint a, uint b, uint* ret)
 	{
 		if (a != 0 && b > SDL_SIZE_MAX / a)
-{
-        return false;
-    }
-    *ret = a * b;
-    return true;
-}
+		{
+			return false;
+		}
+		*ret = a * b;
+		return true;
+	}
 
 /**
  * Add two integers, checking for overflow.
@@ -4849,12 +4849,12 @@ public static // extension SDL3
 	[Inline] public static bool SDL_size_add_check_overflow(uint a, uint b, uint* ret)
 	{
 		if (b > SDL_SIZE_MAX - a)
-{
-        return false;
-    }
-    *ret = a + b;
+		{
+			return false;
+		}
+		*ret = a + b;
 		return true;
-}
+	}
 }
 
 public typealias SDL_FunctionPointer = function void();

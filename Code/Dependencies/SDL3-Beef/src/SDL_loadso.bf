@@ -12,11 +12,11 @@ using System;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -83,7 +83,7 @@ public static //extension SDL3
  * \sa SDL_LoadFunction
  * \sa SDL_UnloadObject
  */
-[CLink] public static extern SDL_SharedObject* SDL_LoadObject(char8* sofile);
+	[CLink] public static extern SDL_SharedObject* SDL_LoadObject(char8* sofile);
 
 /**
  * Look up the address of the named function in a shared object.
@@ -111,7 +111,7 @@ public static //extension SDL3
  *
  * \sa SDL_LoadObject
  */
-[CLink] public static extern SDL_FunctionPointer SDL_LoadFunction(SDL_SharedObject *handle, char8* name);
+	[CLink] public static extern SDL_FunctionPointer SDL_LoadFunction(SDL_SharedObject* handle, char8* name);
 
 /**
  * Unload a shared object from memory.
@@ -127,6 +127,6 @@ public static //extension SDL3
  *
  * \sa SDL_LoadObject
  */
-[CLink] public static extern void SDL_UnloadObject(SDL_SharedObject *handle);
+	[CLink] public static extern void SDL_UnloadObject(SDL_SharedObject* handle);
 
 }

@@ -12,11 +12,11 @@ using System;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -91,7 +91,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetPrefPath
  */
-[CLink] public static extern char8* SDL_GetBasePath();
+	[CLink] public static extern char8* SDL_GetBasePath();
 
 /**
  * Get the user-and-app-specific path where files can be written.
@@ -154,7 +154,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetBasePath
  */
-[CLink] public static extern char8* SDL_GetPrefPath(char8* org, char8* app);
+	[CLink] public static extern char8* SDL_GetPrefPath(char8* org, char8* app);
 
 /**
  * The type of the OS-provided default folder for a specific purpose.
@@ -185,69 +185,69 @@ public static //extension SDL3
  *
  * \sa SDL_GetUserFolder
  */
-public enum SDL_Folder : int32
-{
-    SDL_FOLDER_HOME,        /**< The folder which contains all of the current user's data, preferences, and documents. It usually contains most of the other folders. If a requested folder does not exist, the home folder can be considered a safe fallback to store a user's documents. */
-    SDL_FOLDER_DESKTOP,     /**< The folder of files that are displayed on the desktop. Note that the existence of a desktop folder does not guarantee that the system does show icons on its desktop; certain GNU/Linux distros with a graphical environment may not have desktop icons. */
-    SDL_FOLDER_DOCUMENTS,   /**< User document files, possibly application-specific. This is a good place to save a user's projects. */
-    SDL_FOLDER_DOWNLOADS,   /**< Standard folder for user files downloaded from the internet. */
-    SDL_FOLDER_MUSIC,       /**< Music files that can be played using a standard music player (mp3, ogg...). */
-    SDL_FOLDER_PICTURES,    /**< Image files that can be displayed using a standard viewer (png, jpg...). */
-    SDL_FOLDER_PUBLICSHARE, /**< Files that are meant to be shared with other users on the same computer. */
-    SDL_FOLDER_SAVEDGAMES,  /**< Save files for games. */
-    SDL_FOLDER_SCREENSHOTS, /**< Application screenshots. */
-    SDL_FOLDER_TEMPLATES,   /**< Template files to be used when the user requests the desktop environment to create a new file in a certain folder, such as "New Text File.txt".  Any file in the Templates folder can be used as a starting point for a new file. */
-    SDL_FOLDER_VIDEOS,      /**< Video files that can be played using a standard video player (mp4, webm...). */
-    SDL_FOLDER_COUNT        /**< Total number of types in this enum, not a folder type by itself. */
+	public enum SDL_Folder : int32
+	{
+		SDL_FOLDER_HOME, /**< The folder which contains all of the current user's data, preferences, and documents. It usually contains most of the other folders. If a requested folder does not exist, the home folder can be considered a safe fallback to store a user's documents. */
+		SDL_FOLDER_DESKTOP, /**< The folder of files that are displayed on the desktop. Note that the existence of a desktop folder does not guarantee that the system does show icons on its desktop; certain GNU/Linux distros with a graphical environment may not have desktop icons. */
+		SDL_FOLDER_DOCUMENTS, /**< User document files, possibly application-specific. This is a good place to save a user's projects. */
+		SDL_FOLDER_DOWNLOADS, /**< Standard folder for user files downloaded from the internet. */
+		SDL_FOLDER_MUSIC, /**< Music files that can be played using a standard music player (mp3, ogg...). */
+		SDL_FOLDER_PICTURES, /**< Image files that can be displayed using a standard viewer (png, jpg...). */
+		SDL_FOLDER_PUBLICSHARE, /**< Files that are meant to be shared with other users on the same computer. */
+		SDL_FOLDER_SAVEDGAMES, /**< Save files for games. */
+		SDL_FOLDER_SCREENSHOTS, /**< Application screenshots. */
+		SDL_FOLDER_TEMPLATES, /**< Template files to be used when the user requests the desktop environment to create a new file in a certain folder, such as "New Text File.txt".  Any file in the Templates folder can be used as a starting point for a new file. */
+		SDL_FOLDER_VIDEOS, /**< Video files that can be played using a standard video player (mp4, webm...). */
+		SDL_FOLDER_COUNT /**< Total number of types in this enum, not a folder type by itself. */
 	}
 
-/**
- * Finds the most suitable user folder for a specific purpose.
- *
- * Many OSes provide certain standard folders for certain purposes, such as
- * storing pictures, music or videos for a certain user. This function gives
- * the path for many of those special locations.
- *
- * This function is specifically for _user_ folders, which are meant for the
- * user to access and manage. For application-specific folders, meant to hold
- * data for the application to manage, see SDL_GetBasePath() and
- * SDL_GetPrefPath().
- *
- * The returned path is guaranteed to end with a path separator ('\\' on
- * Windows, '/' on most other platforms).
- *
- * If NULL is returned, the error may be obtained with SDL_GetError().
- *
- * \param folder the type of folder to find.
- * \returns either a null-terminated C string containing the full path to the
- *          folder, or NULL if an error happened.
- *
- * \threadsafety It is safe to call this function from any thread.
- *
- * \since This function is available since SDL 3.2.0.
- */
-[CLink] public static extern char8* SDL_GetUserFolder(SDL_Folder folder);
+	/**
+	 * Finds the most suitable user folder for a specific purpose.
+	 *
+	 * Many OSes provide certain standard folders for certain purposes, such as
+	 * storing pictures, music or videos for a certain user. This function gives
+	 * the path for many of those special locations.
+	 *
+	 * This function is specifically for _user_ folders, which are meant for the
+	 * user to access and manage. For application-specific folders, meant to hold
+	 * data for the application to manage, see SDL_GetBasePath() and
+	 * SDL_GetPrefPath().
+	 *
+	 * The returned path is guaranteed to end with a path separator ('\\' on
+	 * Windows, '/' on most other platforms).
+	 *
+	 * If NULL is returned, the error may be obtained with SDL_GetError().
+	 *
+	 * \param folder the type of folder to find.
+	 * \returns either a null-terminated C string containing the full path to the
+	 *          folder, or NULL if an error happened.
+	 *
+	 * \threadsafety It is safe to call this function from any thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 */
+	[CLink] public static extern char8* SDL_GetUserFolder(SDL_Folder folder);
 }
 
-/* Abstract filesystem interface */
+	/* Abstract filesystem interface */
 
-/**
- * Types of filesystem entries.
- *
- * Note that there may be other sorts of items on a filesystem: devices,
- * symlinks, named pipes, etc. They are currently reported as
- * SDL_PATHTYPE_OTHER.
- *
- * \since This enum is available since SDL 3.2.0.
- *
- * \sa SDL_PathInfo
- */
+	/**
+	 * Types of filesystem entries.
+	 *
+	 * Note that there may be other sorts of items on a filesystem: devices,
+	 * symlinks, named pipes, etc. They are currently reported as
+	 * SDL_PATHTYPE_OTHER.
+	 *
+	 * \since This enum is available since SDL 3.2.0.
+	 *
+	 * \sa SDL_PathInfo
+	 */
 public enum SDL_PathType : int32
 {
-    SDL_PATHTYPE_NONE,      /**< path does not exist */
-    SDL_PATHTYPE_FILE,      /**< a normal file */
-    SDL_PATHTYPE_DIRECTORY, /**< a directory */
-    SDL_PATHTYPE_OTHER      /**< something completely different like a device node (not a symlink, those are always followed) */
+	SDL_PATHTYPE_NONE, /**< path does not exist */
+	SDL_PATHTYPE_FILE, /**< a normal file */
+	SDL_PATHTYPE_DIRECTORY, /**< a directory */
+	SDL_PATHTYPE_OTHER /**< something completely different like a device node (not a symlink, those are always followed) */
 }
 
 /**
@@ -260,11 +260,11 @@ public enum SDL_PathType : int32
  */
 [CRepr] public struct SDL_PathInfo
 {
-    public SDL_PathType type;      /**< the path type */
-    public uint64 size;            /**< the file size in bytes */
-    public SDL_Time create_time;   /**< the time when the path was created */
-    public SDL_Time modify_time;   /**< the last time the path was modified */
-    public SDL_Time access_time;   /**< the last time the path was read */
+	public SDL_PathType type; /**< the path type */
+	public uint64 size; /**< the file size in bytes */
+	public SDL_Time create_time; /**< the time when the path was created */
+	public SDL_Time modify_time; /**< the last time the path was modified */
+	public SDL_Time access_time; /**< the last time the path was read */
 }
 
 /**
@@ -297,7 +297,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_CreateDirectory(char8* path);
+	[CLink] public static extern bool SDL_CreateDirectory(char8* path);
 }
 
 /**
@@ -309,9 +309,9 @@ public static //extension SDL3
  */
 public enum SDL_EnumerationResult : int32
 {
-    SDL_ENUM_CONTINUE,   /**< Value that requests that enumeration continue. */
-    SDL_ENUM_SUCCESS,    /**< Value that requests that enumeration stop, successfully. */
-    SDL_ENUM_FAILURE     /**< Value that requests that enumeration stop, as a failure. */
+	SDL_ENUM_CONTINUE, /**< Value that requests that enumeration continue. */
+	SDL_ENUM_SUCCESS, /**< Value that requests that enumeration stop, successfully. */
+	SDL_ENUM_FAILURE /**< Value that requests that enumeration stop, as a failure. */
 }
 
 
@@ -339,7 +339,7 @@ public enum SDL_EnumerationResult : int32
  *
  * \sa SDL_EnumerateDirectory
  */
-public typealias SDL_EnumerateDirectoryCallback = function SDL_EnumerationResult(void *userdata, char8* dirname, char8* fname);
+public typealias SDL_EnumerateDirectoryCallback = function SDL_EnumerationResult(void* userdata, char8* dirname, char8* fname);
 
 
 public static //extension SDL3
@@ -368,7 +368,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_EnumerateDirectory(char8* path, SDL_EnumerateDirectoryCallback callback, void *userdata);
+	[CLink] public static extern bool SDL_EnumerateDirectory(char8* path, SDL_EnumerateDirectoryCallback callback, void* userdata);
 
 /**
  * Remove a file or an empty directory.
@@ -384,7 +384,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_RemovePath(char8* path);
+	[CLink] public static extern bool SDL_RemovePath(char8* path);
 
 /**
  * Rename a file or directory.
@@ -409,7 +409,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_RenamePath(char8* oldpath, char8* newpath);
+	[CLink] public static extern bool SDL_RenamePath(char8* oldpath, char8* newpath);
 
 /**
  * Copy a file.
@@ -453,7 +453,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_CopyFile(char8* oldpath, char8* newpath);
+	[CLink] public static extern bool SDL_CopyFile(char8* oldpath, char8* newpath);
 
 /**
  * Get information about a filesystem path.
@@ -468,7 +468,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_GetPathInfo(char8* path, SDL_PathInfo *info);
+	[CLink] public static extern bool SDL_GetPathInfo(char8* path, SDL_PathInfo* info);
 
 /**
  * Enumerate a directory tree, filtered by pattern, and return a list.
@@ -501,7 +501,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern char8**  SDL_GlobDirectory(char8* path, char8* pattern, SDL_GlobFlags flags, int32 *count);
+	[CLink] public static extern char8**  SDL_GlobDirectory(char8* path, char8* pattern, SDL_GlobFlags flags, int32* count);
 
 /**
  * Get what the system believes is the "current working directory."
@@ -524,5 +524,5 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern char8*  SDL_GetCurrentDirectory();
+	[CLink] public static extern char8*  SDL_GetCurrentDirectory();
 }

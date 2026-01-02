@@ -12,11 +12,11 @@ using System;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -302,7 +302,7 @@ public static //extension SDL3
  *
  * \sa SDL_Init
  */
-[CLink] public static extern void SDL_SetMainReady();
+	[CLink] public static extern void SDL_SetMainReady();
 
 /**
  * Initializes and launches an SDL application, by doing platform-specific
@@ -392,7 +392,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_RegisterApp(char8* name, uint32 style, void *hInst);
+	[CLink] public static extern bool SDL_RegisterApp(char8* name, uint32 style, void* hInst);
 
 /**
  * Deregister the win32 window class from an SDL_RegisterApp call.
@@ -409,9 +409,9 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern void SDL_UnregisterApp();
+	[CLink] public static extern void SDL_UnregisterApp();
 
-#endif /* defined(SDL_PLATFORM_WINDOWS) */
+#endif /* defined(SDL_PLATFORM_WINDOWS) */ 
 
 /**
  * Callback from the application to let the suspend continue.

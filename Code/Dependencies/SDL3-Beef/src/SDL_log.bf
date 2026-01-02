@@ -12,11 +12,11 @@ using System;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -81,37 +81,37 @@ namespace SDL3;
  */
 public enum SDL_LogCategory : int32
 {
-    SDL_LOG_CATEGORY_APPLICATION,
-    SDL_LOG_CATEGORY_ERROR,
-    SDL_LOG_CATEGORY_ASSERT,
-    SDL_LOG_CATEGORY_SYSTEM,
-    SDL_LOG_CATEGORY_AUDIO,
-    SDL_LOG_CATEGORY_VIDEO,
-    SDL_LOG_CATEGORY_RENDER,
-    SDL_LOG_CATEGORY_INPUT,
-    SDL_LOG_CATEGORY_TEST,
-    SDL_LOG_CATEGORY_GPU,
+	SDL_LOG_CATEGORY_APPLICATION,
+	SDL_LOG_CATEGORY_ERROR,
+	SDL_LOG_CATEGORY_ASSERT,
+	SDL_LOG_CATEGORY_SYSTEM,
+	SDL_LOG_CATEGORY_AUDIO,
+	SDL_LOG_CATEGORY_VIDEO,
+	SDL_LOG_CATEGORY_RENDER,
+	SDL_LOG_CATEGORY_INPUT,
+	SDL_LOG_CATEGORY_TEST,
+	SDL_LOG_CATEGORY_GPU,
 
-    /* Reserved for future SDL library use */
-    SDL_LOG_CATEGORY_RESERVED2,
-    SDL_LOG_CATEGORY_RESERVED3,
-    SDL_LOG_CATEGORY_RESERVED4,
-    SDL_LOG_CATEGORY_RESERVED5,
-    SDL_LOG_CATEGORY_RESERVED6,
-    SDL_LOG_CATEGORY_RESERVED7,
-    SDL_LOG_CATEGORY_RESERVED8,
-    SDL_LOG_CATEGORY_RESERVED9,
-    SDL_LOG_CATEGORY_RESERVED10,
+	/* Reserved for future SDL library use */
+	SDL_LOG_CATEGORY_RESERVED2,
+	SDL_LOG_CATEGORY_RESERVED3,
+	SDL_LOG_CATEGORY_RESERVED4,
+	SDL_LOG_CATEGORY_RESERVED5,
+	SDL_LOG_CATEGORY_RESERVED6,
+	SDL_LOG_CATEGORY_RESERVED7,
+	SDL_LOG_CATEGORY_RESERVED8,
+	SDL_LOG_CATEGORY_RESERVED9,
+	SDL_LOG_CATEGORY_RESERVED10,
 
-    /* Beyond this point is reserved for application use, e.g.
-       enum {
-           MYAPP_CATEGORY_AWESOME1 = SDL_LOG_CATEGORY_CUSTOM,
-           MYAPP_CATEGORY_AWESOME2,
-           MYAPP_CATEGORY_AWESOME3,
-           ...
-       };
-     */
-    SDL_LOG_CATEGORY_CUSTOM
+	/* Beyond this point is reserved for application use, e.g.
+	   enum {
+		   MYAPP_CATEGORY_AWESOME1 = SDL_LOG_CATEGORY_CUSTOM,
+		   MYAPP_CATEGORY_AWESOME2,
+		   MYAPP_CATEGORY_AWESOME3,
+		   ...
+	   };
+	 */
+	SDL_LOG_CATEGORY_CUSTOM
 }
 
 /**
@@ -121,15 +121,15 @@ public enum SDL_LogCategory : int32
  */
 public enum SDL_LogPriority : int32
 {
-    SDL_LOG_PRIORITY_INVALID,
-    SDL_LOG_PRIORITY_TRACE,
-    SDL_LOG_PRIORITY_VERBOSE,
-    SDL_LOG_PRIORITY_DEBUG,
-    SDL_LOG_PRIORITY_INFO,
-    SDL_LOG_PRIORITY_WARN,
-    SDL_LOG_PRIORITY_ERROR,
-    SDL_LOG_PRIORITY_CRITICAL,
-    SDL_LOG_PRIORITY_COUNT
+	SDL_LOG_PRIORITY_INVALID,
+	SDL_LOG_PRIORITY_TRACE,
+	SDL_LOG_PRIORITY_VERBOSE,
+	SDL_LOG_PRIORITY_DEBUG,
+	SDL_LOG_PRIORITY_INFO,
+	SDL_LOG_PRIORITY_WARN,
+	SDL_LOG_PRIORITY_ERROR,
+	SDL_LOG_PRIORITY_CRITICAL,
+	SDL_LOG_PRIORITY_COUNT
 }
 
 public static //extension SDL3
@@ -147,7 +147,7 @@ public static //extension SDL3
  * \sa SDL_ResetLogPriorities
  * \sa SDL_SetLogPriority
  */
-[CLink] public static extern void SDL_SetLogPriorities(SDL_LogPriority priority);
+	[CLink] public static extern void SDL_SetLogPriorities(SDL_LogPriority priority);
 
 /**
  * Set the priority of a particular log category.
@@ -163,7 +163,7 @@ public static //extension SDL3
  * \sa SDL_ResetLogPriorities
  * \sa SDL_SetLogPriorities
  */
-[CLink] public static extern void SDL_SetLogPriority(int32 category, SDL_LogPriority priority);
+	[CLink] public static extern void SDL_SetLogPriority(int32 category, SDL_LogPriority priority);
 
 /**
  * Get the priority of a particular log category.
@@ -177,7 +177,7 @@ public static //extension SDL3
  *
  * \sa SDL_SetLogPriority
  */
-[CLink] public static extern SDL_LogPriority SDL_GetLogPriority(int32 category);
+	[CLink] public static extern SDL_LogPriority SDL_GetLogPriority(int32 category);
 
 /**
  * Reset all priorities to default.
@@ -191,7 +191,7 @@ public static //extension SDL3
  * \sa SDL_SetLogPriorities
  * \sa SDL_SetLogPriority
  */
-[CLink] public static extern void SDL_ResetLogPriorities();
+	[CLink] public static extern void SDL_ResetLogPriorities();
 
 /**
  * Set the text prepended to log messages of a given priority.
@@ -216,7 +216,7 @@ public static //extension SDL3
  * \sa SDL_SetLogPriorities
  * \sa SDL_SetLogPriority
  */
-[CLink] public static extern bool SDL_SetLogPriorityPrefix(SDL_LogPriority priority, char8* prefix);
+	[CLink] public static extern bool SDL_SetLogPriorityPrefix(SDL_LogPriority priority, char8* prefix);
 
 /**
  * Log a message with SDL_LOG_CATEGORY_APPLICATION and SDL_LOG_PRIORITY_INFO.
@@ -431,8 +431,8 @@ public static //extension SDL3
  * \sa SDL_LogVerbose
  * \sa SDL_LogWarn
  */
-[CLink] public static extern void SDL_LogMessage(int32 category,
-                                            SDL_LogPriority priority,
+	[CLink] public static extern void SDL_LogMessage(int32 category,
+		SDL_LogPriority priority,
 		char8* fmt, ...);
 
 /**
@@ -457,8 +457,8 @@ public static //extension SDL3
  * \sa SDL_LogVerbose
  * \sa SDL_LogWarn
  */
-[CLink] public static extern void SDL_LogMessageV(int32 category,
-                                             SDL_LogPriority priority,
+	[CLink] public static extern void SDL_LogMessageV(int32 category,
+		SDL_LogPriority priority,
 		char8* fmt, VarArgs ap);
 }
 
@@ -477,7 +477,7 @@ public static //extension SDL3
  *
  * \since This datatype is available since SDL 3.2.0.
  */
-public typealias SDL_LogOutputFunction = function void(void *userdata, int32 category, SDL_LogPriority priority, char8* message);
+public typealias SDL_LogOutputFunction = function void(void* userdata, int32 category, SDL_LogPriority priority, char8* message);
 
 public static //extension SDL3
 {
@@ -494,7 +494,7 @@ public static //extension SDL3
  * \sa SDL_SetLogOutputFunction
  * \sa SDL_GetLogOutputFunction
  */
-[CLink] public static extern SDL_LogOutputFunction SDL_GetDefaultLogOutputFunction();
+	[CLink] public static extern SDL_LogOutputFunction SDL_GetDefaultLogOutputFunction();
 
 /**
  * Get the current log output function.
@@ -511,7 +511,7 @@ public static //extension SDL3
  * \sa SDL_GetDefaultLogOutputFunction
  * \sa SDL_SetLogOutputFunction
  */
-[CLink] public static extern void SDL_GetLogOutputFunction(SDL_LogOutputFunction *callback, void **userdata);
+	[CLink] public static extern void SDL_GetLogOutputFunction(SDL_LogOutputFunction* callback, void** userdata);
 
 /**
  * Replace the default log output function with one of your own.
@@ -526,5 +526,5 @@ public static //extension SDL3
  * \sa SDL_GetDefaultLogOutputFunction
  * \sa SDL_GetLogOutputFunction
  */
-[CLink] public static extern void SDL_SetLogOutputFunction(SDL_LogOutputFunction callback, void *userdata);
+	[CLink] public static extern void SDL_SetLogOutputFunction(SDL_LogOutputFunction callback, void* userdata);
 }

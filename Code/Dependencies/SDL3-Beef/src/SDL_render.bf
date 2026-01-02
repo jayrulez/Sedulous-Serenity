@@ -12,11 +12,11 @@ using System;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -58,14 +58,14 @@ public static //extension SDL3
  *
  * \since This macro is available since SDL 3.2.0.
  */
-public const char8* SDL_SOFTWARE_RENDERER   = "software";
+	public const char8* SDL_SOFTWARE_RENDERER   = "software";
 
 /**
  * The name of the GPU renderer.
  *
  * \since This macro is available since SDL 3.4.0.
  */
-public const char8* SDL_GPU_RENDERER        = "gpu";
+	public const char8* SDL_GPU_RENDERER        = "gpu";
 }
 
 /**
@@ -75,9 +75,9 @@ public const char8* SDL_GPU_RENDERER        = "gpu";
  */
 [CRepr] public struct SDL_Vertex
 {
-    public SDL_FPoint position;        /**< Vertex position, in SDL_Renderer coordinates  */
-    public SDL_FColor color;           /**< Vertex color */
-    public SDL_FPoint tex_coord;       /**< Normalized texture coordinates, if needed */
+	public SDL_FPoint position; /**< Vertex position, in SDL_Renderer coordinates  */
+	public SDL_FColor color; /**< Vertex color */
+	public SDL_FPoint tex_coord; /**< Normalized texture coordinates, if needed */
 }
 
 /**
@@ -87,9 +87,9 @@ public const char8* SDL_GPU_RENDERER        = "gpu";
  */
 public enum SDL_TextureAccess : int32
 {
-    SDL_TEXTUREACCESS_STATIC,    /**< Changes rarely, not lockable */
-    SDL_TEXTUREACCESS_STREAMING, /**< Changes frequently, lockable */
-    SDL_TEXTUREACCESS_TARGET     /**< Texture can be used as a render target */
+	SDL_TEXTUREACCESS_STATIC, /**< Changes rarely, not lockable */
+	SDL_TEXTUREACCESS_STREAMING, /**< Changes frequently, lockable */
+	SDL_TEXTUREACCESS_TARGET /**< Texture can be used as a render target */
 }
 
 /**
@@ -105,10 +105,10 @@ public enum SDL_TextureAccess : int32
  */
 public enum SDL_TextureAddressMode : int32
 {
-    SDL_TEXTURE_ADDRESS_INVALID = -1,
-    SDL_TEXTURE_ADDRESS_AUTO,   /**< Wrapping is enabled if texture coordinates are outside [0, 1], this is the default */
-    SDL_TEXTURE_ADDRESS_CLAMP,  /**< Texture coordinates are clamped to the [0, 1] range */
-    SDL_TEXTURE_ADDRESS_WRAP    /**< The texture is repeated (tiled) */
+	SDL_TEXTURE_ADDRESS_INVALID = -1,
+	SDL_TEXTURE_ADDRESS_AUTO, /**< Wrapping is enabled if texture coordinates are outside [0, 1], this is the default */
+	SDL_TEXTURE_ADDRESS_CLAMP, /**< Texture coordinates are clamped to the [0, 1] range */
+	SDL_TEXTURE_ADDRESS_WRAP /**< The texture is repeated (tiled) */
 }
 
 /**
@@ -118,11 +118,11 @@ public enum SDL_TextureAddressMode : int32
  */
 public enum SDL_RendererLogicalPresentation : int32
 {
-    SDL_LOGICAL_PRESENTATION_DISABLED,  /**< There is no logical size in effect */
-    SDL_LOGICAL_PRESENTATION_STRETCH,   /**< The rendered content is stretched to the output resolution */
-    SDL_LOGICAL_PRESENTATION_LETTERBOX, /**< The rendered content is fit to the largest dimension and the other dimension is letterboxed with the clear color */
-    SDL_LOGICAL_PRESENTATION_OVERSCAN,  /**< The rendered content is fit to the smallest dimension and the other dimension extends beyond the output bounds */
-    SDL_LOGICAL_PRESENTATION_INTEGER_SCALE   /**< The rendered content is scaled up by integer multiples to fit the output resolution */
+	SDL_LOGICAL_PRESENTATION_DISABLED, /**< There is no logical size in effect */
+	SDL_LOGICAL_PRESENTATION_STRETCH, /**< The rendered content is stretched to the output resolution */
+	SDL_LOGICAL_PRESENTATION_LETTERBOX, /**< The rendered content is fit to the largest dimension and the other dimension is letterboxed with the clear color */
+	SDL_LOGICAL_PRESENTATION_OVERSCAN, /**< The rendered content is fit to the smallest dimension and the other dimension extends beyond the output bounds */
+	SDL_LOGICAL_PRESENTATION_INTEGER_SCALE /**< The rendered content is scaled up by integer multiples to fit the output resolution */
 }
 
 /**
@@ -144,11 +144,11 @@ public enum SDL_RendererLogicalPresentation : int32
  */
 [CRepr] public struct SDL_Texture
 {
-    public SDL_PixelFormat format;     /**< The format of the texture, read-only */
-    public int32 w;                      /**< The width of the texture, read-only. */
-    public int32 h;                      /**< The height of the texture, read-only. */
+	public SDL_PixelFormat format; /**< The format of the texture, read-only */
+	public int32 w; /**< The width of the texture, read-only. */
+	public int32 h; /**< The height of the texture, read-only. */
 
-    public int32 refcount;               /**< Application reference count, used when freeing texture */
+	public int32 refcount; /**< Application reference count, used when freeing texture */
 }
 
 public static //extension SDL3
@@ -173,7 +173,7 @@ public static //extension SDL3
  * \sa SDL_CreateRenderer
  * \sa SDL_GetRenderDriver
  */
-[CLink] public static extern int32 SDL_GetNumRenderDrivers();
+	[CLink] public static extern int32 SDL_GetNumRenderDrivers();
 
 /**
  * Use this function to get the name of a built in 2D rendering driver.
@@ -197,7 +197,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetNumRenderDrivers
  */
-[CLink] public static extern char8* SDL_GetRenderDriver(int32 index);
+	[CLink] public static extern char8* SDL_GetRenderDriver(int32 index);
 
 /**
  * Create a window and default renderer.
@@ -219,7 +219,7 @@ public static //extension SDL3
  * \sa SDL_CreateRenderer
  * \sa SDL_CreateWindow
  */
-[CLink] public static extern bool SDL_CreateWindowAndRenderer(char8* title, int32 width, int32 height, SDL_WindowFlags window_flags, SDL_Window **window, SDL_Renderer **renderer);
+	[CLink] public static extern bool SDL_CreateWindowAndRenderer(char8* title, int32 width, int32 height, SDL_WindowFlags window_flags, SDL_Window** window, SDL_Renderer** renderer);
 
 /**
  * Create a 2D rendering context for a window.
@@ -254,7 +254,7 @@ public static //extension SDL3
  * \sa SDL_GetRenderDriver
  * \sa SDL_GetRendererName
  */
-[CLink] public static extern SDL_Renderer* SDL_CreateRenderer(SDL_Window *window, char8* name);
+	[CLink] public static extern SDL_Renderer* SDL_CreateRenderer(SDL_Window* window, char8* name);
 
 /**
  * Create a 2D rendering context for a window, with the specified properties.
@@ -318,23 +318,23 @@ public static //extension SDL3
  * \sa SDL_DestroyRenderer
  * \sa SDL_GetRendererName
  */
-[CLink] public static extern SDL_Renderer* SDL_CreateRendererWithProperties(SDL_PropertiesID props);
+	[CLink] public static extern SDL_Renderer* SDL_CreateRendererWithProperties(SDL_PropertiesID props);
 
-public const char8* SDL_PROP_RENDERER_CREATE_NAME_STRING                                = "SDL.renderer.create.name";
-public const char8* SDL_PROP_RENDERER_CREATE_WINDOW_POINTER                             = "SDL.renderer.create.window";
-public const char8* SDL_PROP_RENDERER_CREATE_SURFACE_POINTER                            = "SDL.renderer.create.surface";
-public const char8* SDL_PROP_RENDERER_CREATE_OUTPUT_COLORSPACE_NUMBER                   = "SDL.renderer.create.output_colorspace";
-public const char8* SDL_PROP_RENDERER_CREATE_PRESENT_VSYNC_NUMBER                       = "SDL.renderer.create.present_vsync";
-public const char8* SDL_PROP_RENDERER_CREATE_GPU_DEVICE_POINTER                         = "SDL.renderer.create.gpu.device";
-public const char8* SDL_PROP_RENDERER_CREATE_GPU_SHADERS_SPIRV_BOOLEAN                  = "SDL.renderer.create.gpu.shaders_spirv";
-public const char8* SDL_PROP_RENDERER_CREATE_GPU_SHADERS_DXIL_BOOLEAN                   = "SDL.renderer.create.gpu.shaders_dxil";
-public const char8* SDL_PROP_RENDERER_CREATE_GPU_SHADERS_MSL_BOOLEAN                    = "SDL.renderer.create.gpu.shaders_msl";
-public const char8* SDL_PROP_RENDERER_CREATE_VULKAN_INSTANCE_POINTER                    = "SDL.renderer.create.vulkan.instance";
-public const char8* SDL_PROP_RENDERER_CREATE_VULKAN_SURFACE_NUMBER                      = "SDL.renderer.create.vulkan.surface";
-public const char8* SDL_PROP_RENDERER_CREATE_VULKAN_PHYSICAL_DEVICE_POINTER             = "SDL.renderer.create.vulkan.physical_device";
-public const char8* SDL_PROP_RENDERER_CREATE_VULKAN_DEVICE_POINTER                      = "SDL.renderer.create.vulkan.device";
-public const char8* SDL_PROP_RENDERER_CREATE_VULKAN_GRAPHICS_QUEUE_FAMILY_INDEX_NUMBER  = "SDL.renderer.create.vulkan.graphics_queue_family_index";
-public const char8* SDL_PROP_RENDERER_CREATE_VULKAN_PRESENT_QUEUE_FAMILY_INDEX_NUMBER   = "SDL.renderer.create.vulkan.present_queue_family_index";
+	public const char8* SDL_PROP_RENDERER_CREATE_NAME_STRING                                = "SDL.renderer.create.name";
+	public const char8* SDL_PROP_RENDERER_CREATE_WINDOW_POINTER                             = "SDL.renderer.create.window";
+	public const char8* SDL_PROP_RENDERER_CREATE_SURFACE_POINTER                            = "SDL.renderer.create.surface";
+	public const char8* SDL_PROP_RENDERER_CREATE_OUTPUT_COLORSPACE_NUMBER                   = "SDL.renderer.create.output_colorspace";
+	public const char8* SDL_PROP_RENDERER_CREATE_PRESENT_VSYNC_NUMBER                       = "SDL.renderer.create.present_vsync";
+	public const char8* SDL_PROP_RENDERER_CREATE_GPU_DEVICE_POINTER                         = "SDL.renderer.create.gpu.device";
+	public const char8* SDL_PROP_RENDERER_CREATE_GPU_SHADERS_SPIRV_BOOLEAN                  = "SDL.renderer.create.gpu.shaders_spirv";
+	public const char8* SDL_PROP_RENDERER_CREATE_GPU_SHADERS_DXIL_BOOLEAN                   = "SDL.renderer.create.gpu.shaders_dxil";
+	public const char8* SDL_PROP_RENDERER_CREATE_GPU_SHADERS_MSL_BOOLEAN                    = "SDL.renderer.create.gpu.shaders_msl";
+	public const char8* SDL_PROP_RENDERER_CREATE_VULKAN_INSTANCE_POINTER                    = "SDL.renderer.create.vulkan.instance";
+	public const char8* SDL_PROP_RENDERER_CREATE_VULKAN_SURFACE_NUMBER                      = "SDL.renderer.create.vulkan.surface";
+	public const char8* SDL_PROP_RENDERER_CREATE_VULKAN_PHYSICAL_DEVICE_POINTER             = "SDL.renderer.create.vulkan.physical_device";
+	public const char8* SDL_PROP_RENDERER_CREATE_VULKAN_DEVICE_POINTER                      = "SDL.renderer.create.vulkan.device";
+	public const char8* SDL_PROP_RENDERER_CREATE_VULKAN_GRAPHICS_QUEUE_FAMILY_INDEX_NUMBER  = "SDL.renderer.create.vulkan.graphics_queue_family_index";
+	public const char8* SDL_PROP_RENDERER_CREATE_VULKAN_PRESENT_QUEUE_FAMILY_INDEX_NUMBER   = "SDL.renderer.create.vulkan.present_queue_family_index";
 
 /**
  * Create a 2D GPU rendering context.
@@ -368,7 +368,7 @@ public const char8* SDL_PROP_RENDERER_CREATE_VULKAN_PRESENT_QUEUE_FAMILY_INDEX_N
  * \sa SDL_CreateGPURenderState
  * \sa SDL_SetGPURenderState
  */
-[CLink] public static extern SDL_Renderer* SDL_CreateGPURenderer(SDL_GPUDevice *device, SDL_Window *window);
+	[CLink] public static extern SDL_Renderer* SDL_CreateGPURenderer(SDL_GPUDevice* device, SDL_Window* window);
 
 /**
  * Return the GPU device used by a renderer.
@@ -381,7 +381,7 @@ public const char8* SDL_PROP_RENDERER_CREATE_VULKAN_PRESENT_QUEUE_FAMILY_INDEX_N
  *
  * \since This function is available since SDL 3.4.0.
  */
-[CLink] public static extern SDL_GPUDevice* SDL_GetGPURendererDevice(SDL_Renderer *renderer);
+	[CLink] public static extern SDL_GPUDevice* SDL_GetGPURendererDevice(SDL_Renderer* renderer);
 
 /**
  * Create a 2D software rendering context for a surface.
@@ -402,7 +402,7 @@ public const char8* SDL_PROP_RENDERER_CREATE_VULKAN_PRESENT_QUEUE_FAMILY_INDEX_N
  *
  * \sa SDL_DestroyRenderer
  */
-[CLink] public static extern SDL_Renderer* SDL_CreateSoftwareRenderer(SDL_Surface *surface);
+	[CLink] public static extern SDL_Renderer* SDL_CreateSoftwareRenderer(SDL_Surface* surface);
 
 /**
  * Get the renderer associated with a window.
@@ -415,7 +415,7 @@ public const char8* SDL_PROP_RENDERER_CREATE_VULKAN_PRESENT_QUEUE_FAMILY_INDEX_N
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_Renderer* SDL_GetRenderer(SDL_Window *window);
+	[CLink] public static extern SDL_Renderer* SDL_GetRenderer(SDL_Window* window);
 
 /**
  * Get the window associated with a renderer.
@@ -428,7 +428,7 @@ public const char8* SDL_PROP_RENDERER_CREATE_VULKAN_PRESENT_QUEUE_FAMILY_INDEX_N
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_Window* SDL_GetRenderWindow(SDL_Renderer *renderer);
+	[CLink] public static extern SDL_Window* SDL_GetRenderWindow(SDL_Renderer* renderer);
 
 /**
  * Get the name of a renderer.
@@ -444,7 +444,7 @@ public const char8* SDL_PROP_RENDERER_CREATE_VULKAN_PRESENT_QUEUE_FAMILY_INDEX_N
  * \sa SDL_CreateRenderer
  * \sa SDL_CreateRendererWithProperties
  */
-[CLink] public static extern char8* SDL_GetRendererName(SDL_Renderer *renderer);
+	[CLink] public static extern char8* SDL_GetRendererName(SDL_Renderer* renderer);
 
 /**
  * Get the properties associated with a renderer.
@@ -532,33 +532,33 @@ public const char8* SDL_PROP_RENDERER_CREATE_VULKAN_PRESENT_QUEUE_FAMILY_INDEX_N
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_PropertiesID SDL_GetRendererProperties(SDL_Renderer *renderer);
+	[CLink] public static extern SDL_PropertiesID SDL_GetRendererProperties(SDL_Renderer* renderer);
 
-public const char8* SDL_PROP_RENDERER_NAME_STRING                               = "SDL.renderer.name";
-public const char8* SDL_PROP_RENDERER_WINDOW_POINTER                            = "SDL.renderer.window";
-public const char8* SDL_PROP_RENDERER_SURFACE_POINTER                           = "SDL.renderer.surface";
-public const char8* SDL_PROP_RENDERER_VSYNC_NUMBER                              = "SDL.renderer.vsync";
-public const char8* SDL_PROP_RENDERER_MAX_TEXTURE_SIZE_NUMBER                   = "SDL.renderer.max_texture_size";
-public const char8* SDL_PROP_RENDERER_TEXTURE_FORMATS_POINTER                   = "SDL.renderer.texture_formats";
-public const char8* SDL_PROP_RENDERER_TEXTURE_WRAPPING_BOOLEAN                  = "SDL.renderer.texture_wrapping";
-public const char8* SDL_PROP_RENDERER_OUTPUT_COLORSPACE_NUMBER                  = "SDL.renderer.output_colorspace";
-public const char8* SDL_PROP_RENDERER_HDR_ENABLED_BOOLEAN                       = "SDL.renderer.HDR_enabled";
-public const char8* SDL_PROP_RENDERER_SDR_WHITE_POINT_FLOAT                     = "SDL.renderer.SDR_white_point";
-public const char8* SDL_PROP_RENDERER_HDR_HEADROOM_FLOAT                        = "SDL.renderer.HDR_headroom";
-public const char8* SDL_PROP_RENDERER_D3D9_DEVICE_POINTER                       = "SDL.renderer.d3d9.device";
-public const char8* SDL_PROP_RENDERER_D3D11_DEVICE_POINTER                      = "SDL.renderer.d3d11.device";
-public const char8* SDL_PROP_RENDERER_D3D11_SWAPCHAIN_POINTER                   = "SDL.renderer.d3d11.swap_chain";
-public const char8* SDL_PROP_RENDERER_D3D12_DEVICE_POINTER                      = "SDL.renderer.d3d12.device";
-public const char8* SDL_PROP_RENDERER_D3D12_SWAPCHAIN_POINTER                   = "SDL.renderer.d3d12.swap_chain";
-public const char8* SDL_PROP_RENDERER_D3D12_COMMAND_QUEUE_POINTER               = "SDL.renderer.d3d12.command_queue";
-public const char8* SDL_PROP_RENDERER_VULKAN_INSTANCE_POINTER                   = "SDL.renderer.vulkan.instance";
-public const char8* SDL_PROP_RENDERER_VULKAN_SURFACE_NUMBER                     = "SDL.renderer.vulkan.surface";
-public const char8* SDL_PROP_RENDERER_VULKAN_PHYSICAL_DEVICE_POINTER            = "SDL.renderer.vulkan.physical_device";
-public const char8* SDL_PROP_RENDERER_VULKAN_DEVICE_POINTER                     = "SDL.renderer.vulkan.device";
-public const char8* SDL_PROP_RENDERER_VULKAN_GRAPHICS_QUEUE_FAMILY_INDEX_NUMBER = "SDL.renderer.vulkan.graphics_queue_family_index";
-public const char8* SDL_PROP_RENDERER_VULKAN_PRESENT_QUEUE_FAMILY_INDEX_NUMBER  = "SDL.renderer.vulkan.present_queue_family_index";
-public const char8* SDL_PROP_RENDERER_VULKAN_SWAPCHAIN_IMAGE_COUNT_NUMBER       = "SDL.renderer.vulkan.swapchain_image_count";
-public const char8* SDL_PROP_RENDERER_GPU_DEVICE_POINTER                        = "SDL.renderer.gpu.device";
+	public const char8* SDL_PROP_RENDERER_NAME_STRING                               = "SDL.renderer.name";
+	public const char8* SDL_PROP_RENDERER_WINDOW_POINTER                            = "SDL.renderer.window";
+	public const char8* SDL_PROP_RENDERER_SURFACE_POINTER                           = "SDL.renderer.surface";
+	public const char8* SDL_PROP_RENDERER_VSYNC_NUMBER                              = "SDL.renderer.vsync";
+	public const char8* SDL_PROP_RENDERER_MAX_TEXTURE_SIZE_NUMBER                   = "SDL.renderer.max_texture_size";
+	public const char8* SDL_PROP_RENDERER_TEXTURE_FORMATS_POINTER                   = "SDL.renderer.texture_formats";
+	public const char8* SDL_PROP_RENDERER_TEXTURE_WRAPPING_BOOLEAN                  = "SDL.renderer.texture_wrapping";
+	public const char8* SDL_PROP_RENDERER_OUTPUT_COLORSPACE_NUMBER                  = "SDL.renderer.output_colorspace";
+	public const char8* SDL_PROP_RENDERER_HDR_ENABLED_BOOLEAN                       = "SDL.renderer.HDR_enabled";
+	public const char8* SDL_PROP_RENDERER_SDR_WHITE_POINT_FLOAT                     = "SDL.renderer.SDR_white_point";
+	public const char8* SDL_PROP_RENDERER_HDR_HEADROOM_FLOAT                        = "SDL.renderer.HDR_headroom";
+	public const char8* SDL_PROP_RENDERER_D3D9_DEVICE_POINTER                       = "SDL.renderer.d3d9.device";
+	public const char8* SDL_PROP_RENDERER_D3D11_DEVICE_POINTER                      = "SDL.renderer.d3d11.device";
+	public const char8* SDL_PROP_RENDERER_D3D11_SWAPCHAIN_POINTER                   = "SDL.renderer.d3d11.swap_chain";
+	public const char8* SDL_PROP_RENDERER_D3D12_DEVICE_POINTER                      = "SDL.renderer.d3d12.device";
+	public const char8* SDL_PROP_RENDERER_D3D12_SWAPCHAIN_POINTER                   = "SDL.renderer.d3d12.swap_chain";
+	public const char8* SDL_PROP_RENDERER_D3D12_COMMAND_QUEUE_POINTER               = "SDL.renderer.d3d12.command_queue";
+	public const char8* SDL_PROP_RENDERER_VULKAN_INSTANCE_POINTER                   = "SDL.renderer.vulkan.instance";
+	public const char8* SDL_PROP_RENDERER_VULKAN_SURFACE_NUMBER                     = "SDL.renderer.vulkan.surface";
+	public const char8* SDL_PROP_RENDERER_VULKAN_PHYSICAL_DEVICE_POINTER            = "SDL.renderer.vulkan.physical_device";
+	public const char8* SDL_PROP_RENDERER_VULKAN_DEVICE_POINTER                     = "SDL.renderer.vulkan.device";
+	public const char8* SDL_PROP_RENDERER_VULKAN_GRAPHICS_QUEUE_FAMILY_INDEX_NUMBER = "SDL.renderer.vulkan.graphics_queue_family_index";
+	public const char8* SDL_PROP_RENDERER_VULKAN_PRESENT_QUEUE_FAMILY_INDEX_NUMBER  = "SDL.renderer.vulkan.present_queue_family_index";
+	public const char8* SDL_PROP_RENDERER_VULKAN_SWAPCHAIN_IMAGE_COUNT_NUMBER       = "SDL.renderer.vulkan.swapchain_image_count";
+	public const char8* SDL_PROP_RENDERER_GPU_DEVICE_POINTER                        = "SDL.renderer.gpu.device";
 
 /**
  * Get the output size in pixels of a rendering context.
@@ -581,7 +581,7 @@ public const char8* SDL_PROP_RENDERER_GPU_DEVICE_POINTER                        
  *
  * \sa SDL_GetCurrentRenderOutputSize
  */
-[CLink] public static extern bool SDL_GetRenderOutputSize(SDL_Renderer *renderer, int32 *w, int32 *h);
+	[CLink] public static extern bool SDL_GetRenderOutputSize(SDL_Renderer* renderer, int32* w, int32* h);
 
 /**
  * Get the current output size in pixels of a rendering context.
@@ -604,7 +604,7 @@ public const char8* SDL_PROP_RENDERER_GPU_DEVICE_POINTER                        
  *
  * \sa SDL_GetRenderOutputSize
  */
-[CLink] public static extern bool SDL_GetCurrentRenderOutputSize(SDL_Renderer *renderer, int32 *w, int32 *h);
+	[CLink] public static extern bool SDL_GetCurrentRenderOutputSize(SDL_Renderer* renderer, int32* w, int32* h);
 
 /**
  * Create a texture for a rendering context.
@@ -629,7 +629,7 @@ public const char8* SDL_PROP_RENDERER_GPU_DEVICE_POINTER                        
  * \sa SDL_GetTextureSize
  * \sa SDL_UpdateTexture
  */
-[CLink] public static extern SDL_Texture* SDL_CreateTexture(SDL_Renderer *renderer, SDL_PixelFormat format, SDL_TextureAccess access, int32 w, int32 h);
+	[CLink] public static extern SDL_Texture* SDL_CreateTexture(SDL_Renderer* renderer, SDL_PixelFormat format, SDL_TextureAccess access, int32 w, int32 h);
 
 /**
  * Create a texture from an existing surface.
@@ -657,7 +657,7 @@ public const char8* SDL_PROP_RENDERER_GPU_DEVICE_POINTER                        
  * \sa SDL_CreateTextureWithProperties
  * \sa SDL_DestroyTexture
  */
-[CLink] public static extern SDL_Texture* SDL_CreateTextureFromSurface(SDL_Renderer *renderer, SDL_Surface *surface);
+	[CLink] public static extern SDL_Texture* SDL_CreateTextureFromSurface(SDL_Renderer* renderer, SDL_Surface* surface);
 
 /**
  * Create a texture for a rendering context with the specified properties.
@@ -787,37 +787,37 @@ public const char8* SDL_PROP_RENDERER_GPU_DEVICE_POINTER                        
  * \sa SDL_GetTextureSize
  * \sa SDL_UpdateTexture
  */
-[CLink] public static extern SDL_Texture* SDL_CreateTextureWithProperties(SDL_Renderer *renderer, SDL_PropertiesID props);
+	[CLink] public static extern SDL_Texture* SDL_CreateTextureWithProperties(SDL_Renderer* renderer, SDL_PropertiesID props);
 
-public const char8* SDL_PROP_TEXTURE_CREATE_COLORSPACE_NUMBER               = "SDL.texture.create.colorspace";
-public const char8* SDL_PROP_TEXTURE_CREATE_FORMAT_NUMBER                   = "SDL.texture.create.format";
-public const char8* SDL_PROP_TEXTURE_CREATE_ACCESS_NUMBER                   = "SDL.texture.create.access";
-public const char8* SDL_PROP_TEXTURE_CREATE_WIDTH_NUMBER                    = "SDL.texture.create.width";
-public const char8* SDL_PROP_TEXTURE_CREATE_HEIGHT_NUMBER                   = "SDL.texture.create.height";
-public const char8* SDL_PROP_TEXTURE_CREATE_PALETTE_POINTER                 = "SDL.texture.create.palette";
-public const char8* SDL_PROP_TEXTURE_CREATE_SDR_WHITE_POINT_FLOAT           = "SDL.texture.create.SDR_white_point";
-public const char8* SDL_PROP_TEXTURE_CREATE_HDR_HEADROOM_FLOAT              = "SDL.texture.create.HDR_headroom";
-public const char8* SDL_PROP_TEXTURE_CREATE_D3D11_TEXTURE_POINTER           = "SDL.texture.create.d3d11.texture";
-public const char8* SDL_PROP_TEXTURE_CREATE_D3D11_TEXTURE_U_POINTER         = "SDL.texture.create.d3d11.texture_u";
-public const char8* SDL_PROP_TEXTURE_CREATE_D3D11_TEXTURE_V_POINTER         = "SDL.texture.create.d3d11.texture_v";
-public const char8* SDL_PROP_TEXTURE_CREATE_D3D12_TEXTURE_POINTER           = "SDL.texture.create.d3d12.texture";
-public const char8* SDL_PROP_TEXTURE_CREATE_D3D12_TEXTURE_U_POINTER         = "SDL.texture.create.d3d12.texture_u";
-public const char8* SDL_PROP_TEXTURE_CREATE_D3D12_TEXTURE_V_POINTER         = "SDL.texture.create.d3d12.texture_v";
-public const char8* SDL_PROP_TEXTURE_CREATE_METAL_PIXELBUFFER_POINTER       = "SDL.texture.create.metal.pixelbuffer";
-public const char8* SDL_PROP_TEXTURE_CREATE_OPENGL_TEXTURE_NUMBER           = "SDL.texture.create.opengl.texture";
-public const char8* SDL_PROP_TEXTURE_CREATE_OPENGL_TEXTURE_UV_NUMBER        = "SDL.texture.create.opengl.texture_uv";
-public const char8* SDL_PROP_TEXTURE_CREATE_OPENGL_TEXTURE_U_NUMBER         = "SDL.texture.create.opengl.texture_u";
-public const char8* SDL_PROP_TEXTURE_CREATE_OPENGL_TEXTURE_V_NUMBER         = "SDL.texture.create.opengl.texture_v";
-public const char8* SDL_PROP_TEXTURE_CREATE_OPENGLES2_TEXTURE_NUMBER        = "SDL.texture.create.opengles2.texture";
-public const char8* SDL_PROP_TEXTURE_CREATE_OPENGLES2_TEXTURE_UV_NUMBER     = "SDL.texture.create.opengles2.texture_uv";
-public const char8* SDL_PROP_TEXTURE_CREATE_OPENGLES2_TEXTURE_U_NUMBER      = "SDL.texture.create.opengles2.texture_u";
-public const char8* SDL_PROP_TEXTURE_CREATE_OPENGLES2_TEXTURE_V_NUMBER      = "SDL.texture.create.opengles2.texture_v";
-public const char8* SDL_PROP_TEXTURE_CREATE_VULKAN_TEXTURE_NUMBER           = "SDL.texture.create.vulkan.texture";
-public const char8* SDL_PROP_TEXTURE_CREATE_VULKAN_LAYOUT_NUMBER            = "SDL.texture.create.vulkan.layout";
-public const char8* SDL_PROP_TEXTURE_CREATE_GPU_TEXTURE_POINTER             = "SDL.texture.create.gpu.texture";
-public const char8* SDL_PROP_TEXTURE_CREATE_GPU_TEXTURE_UV_POINTER          = "SDL.texture.create.gpu.texture_uv";
-public const char8* SDL_PROP_TEXTURE_CREATE_GPU_TEXTURE_U_POINTER           = "SDL.texture.create.gpu.texture_u";
-public const char8* SDL_PROP_TEXTURE_CREATE_GPU_TEXTURE_V_POINTER           = "SDL.texture.create.gpu.texture_v";
+	public const char8* SDL_PROP_TEXTURE_CREATE_COLORSPACE_NUMBER               = "SDL.texture.create.colorspace";
+	public const char8* SDL_PROP_TEXTURE_CREATE_FORMAT_NUMBER                   = "SDL.texture.create.format";
+	public const char8* SDL_PROP_TEXTURE_CREATE_ACCESS_NUMBER                   = "SDL.texture.create.access";
+	public const char8* SDL_PROP_TEXTURE_CREATE_WIDTH_NUMBER                    = "SDL.texture.create.width";
+	public const char8* SDL_PROP_TEXTURE_CREATE_HEIGHT_NUMBER                   = "SDL.texture.create.height";
+	public const char8* SDL_PROP_TEXTURE_CREATE_PALETTE_POINTER                 = "SDL.texture.create.palette";
+	public const char8* SDL_PROP_TEXTURE_CREATE_SDR_WHITE_POINT_FLOAT           = "SDL.texture.create.SDR_white_point";
+	public const char8* SDL_PROP_TEXTURE_CREATE_HDR_HEADROOM_FLOAT              = "SDL.texture.create.HDR_headroom";
+	public const char8* SDL_PROP_TEXTURE_CREATE_D3D11_TEXTURE_POINTER           = "SDL.texture.create.d3d11.texture";
+	public const char8* SDL_PROP_TEXTURE_CREATE_D3D11_TEXTURE_U_POINTER         = "SDL.texture.create.d3d11.texture_u";
+	public const char8* SDL_PROP_TEXTURE_CREATE_D3D11_TEXTURE_V_POINTER         = "SDL.texture.create.d3d11.texture_v";
+	public const char8* SDL_PROP_TEXTURE_CREATE_D3D12_TEXTURE_POINTER           = "SDL.texture.create.d3d12.texture";
+	public const char8* SDL_PROP_TEXTURE_CREATE_D3D12_TEXTURE_U_POINTER         = "SDL.texture.create.d3d12.texture_u";
+	public const char8* SDL_PROP_TEXTURE_CREATE_D3D12_TEXTURE_V_POINTER         = "SDL.texture.create.d3d12.texture_v";
+	public const char8* SDL_PROP_TEXTURE_CREATE_METAL_PIXELBUFFER_POINTER       = "SDL.texture.create.metal.pixelbuffer";
+	public const char8* SDL_PROP_TEXTURE_CREATE_OPENGL_TEXTURE_NUMBER           = "SDL.texture.create.opengl.texture";
+	public const char8* SDL_PROP_TEXTURE_CREATE_OPENGL_TEXTURE_UV_NUMBER        = "SDL.texture.create.opengl.texture_uv";
+	public const char8* SDL_PROP_TEXTURE_CREATE_OPENGL_TEXTURE_U_NUMBER         = "SDL.texture.create.opengl.texture_u";
+	public const char8* SDL_PROP_TEXTURE_CREATE_OPENGL_TEXTURE_V_NUMBER         = "SDL.texture.create.opengl.texture_v";
+	public const char8* SDL_PROP_TEXTURE_CREATE_OPENGLES2_TEXTURE_NUMBER        = "SDL.texture.create.opengles2.texture";
+	public const char8* SDL_PROP_TEXTURE_CREATE_OPENGLES2_TEXTURE_UV_NUMBER     = "SDL.texture.create.opengles2.texture_uv";
+	public const char8* SDL_PROP_TEXTURE_CREATE_OPENGLES2_TEXTURE_U_NUMBER      = "SDL.texture.create.opengles2.texture_u";
+	public const char8* SDL_PROP_TEXTURE_CREATE_OPENGLES2_TEXTURE_V_NUMBER      = "SDL.texture.create.opengles2.texture_v";
+	public const char8* SDL_PROP_TEXTURE_CREATE_VULKAN_TEXTURE_NUMBER           = "SDL.texture.create.vulkan.texture";
+	public const char8* SDL_PROP_TEXTURE_CREATE_VULKAN_LAYOUT_NUMBER            = "SDL.texture.create.vulkan.layout";
+	public const char8* SDL_PROP_TEXTURE_CREATE_GPU_TEXTURE_POINTER             = "SDL.texture.create.gpu.texture";
+	public const char8* SDL_PROP_TEXTURE_CREATE_GPU_TEXTURE_UV_POINTER          = "SDL.texture.create.gpu.texture_uv";
+	public const char8* SDL_PROP_TEXTURE_CREATE_GPU_TEXTURE_U_POINTER           = "SDL.texture.create.gpu.texture_u";
+	public const char8* SDL_PROP_TEXTURE_CREATE_GPU_TEXTURE_V_POINTER           = "SDL.texture.create.gpu.texture_v";
 
 /**
  * Get the properties associated with a texture.
@@ -916,38 +916,38 @@ public const char8* SDL_PROP_TEXTURE_CREATE_GPU_TEXTURE_V_POINTER           = "S
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_PropertiesID SDL_GetTextureProperties(SDL_Texture *texture);
+	[CLink] public static extern SDL_PropertiesID SDL_GetTextureProperties(SDL_Texture* texture);
 
-public const char8* SDL_PROP_TEXTURE_COLORSPACE_NUMBER                  = "SDL.texture.colorspace";
-public const char8* SDL_PROP_TEXTURE_FORMAT_NUMBER                      = "SDL.texture.format";
-public const char8* SDL_PROP_TEXTURE_ACCESS_NUMBER                      = "SDL.texture.access";
-public const char8* SDL_PROP_TEXTURE_WIDTH_NUMBER                       = "SDL.texture.width";
-public const char8* SDL_PROP_TEXTURE_HEIGHT_NUMBER                      = "SDL.texture.height";
-public const char8* SDL_PROP_TEXTURE_SDR_WHITE_POINT_FLOAT              = "SDL.texture.SDR_white_point";
-public const char8* SDL_PROP_TEXTURE_HDR_HEADROOM_FLOAT                 = "SDL.texture.HDR_headroom";
-public const char8* SDL_PROP_TEXTURE_D3D11_TEXTURE_POINTER              = "SDL.texture.d3d11.texture";
-public const char8* SDL_PROP_TEXTURE_D3D11_TEXTURE_U_POINTER            = "SDL.texture.d3d11.texture_u";
-public const char8* SDL_PROP_TEXTURE_D3D11_TEXTURE_V_POINTER            = "SDL.texture.d3d11.texture_v";
-public const char8* SDL_PROP_TEXTURE_D3D12_TEXTURE_POINTER              = "SDL.texture.d3d12.texture";
-public const char8* SDL_PROP_TEXTURE_D3D12_TEXTURE_U_POINTER            = "SDL.texture.d3d12.texture_u";
-public const char8* SDL_PROP_TEXTURE_D3D12_TEXTURE_V_POINTER            = "SDL.texture.d3d12.texture_v";
-public const char8* SDL_PROP_TEXTURE_OPENGL_TEXTURE_NUMBER              = "SDL.texture.opengl.texture";
-public const char8* SDL_PROP_TEXTURE_OPENGL_TEXTURE_UV_NUMBER           = "SDL.texture.opengl.texture_uv";
-public const char8* SDL_PROP_TEXTURE_OPENGL_TEXTURE_U_NUMBER            = "SDL.texture.opengl.texture_u";
-public const char8* SDL_PROP_TEXTURE_OPENGL_TEXTURE_V_NUMBER            = "SDL.texture.opengl.texture_v";
-public const char8* SDL_PROP_TEXTURE_OPENGL_TEXTURE_TARGET_NUMBER       = "SDL.texture.opengl.target";
-public const char8* SDL_PROP_TEXTURE_OPENGL_TEX_W_FLOAT                 = "SDL.texture.opengl.tex_w";
-public const char8* SDL_PROP_TEXTURE_OPENGL_TEX_H_FLOAT                 = "SDL.texture.opengl.tex_h";
-public const char8* SDL_PROP_TEXTURE_OPENGLES2_TEXTURE_NUMBER           = "SDL.texture.opengles2.texture";
-public const char8* SDL_PROP_TEXTURE_OPENGLES2_TEXTURE_UV_NUMBER        = "SDL.texture.opengles2.texture_uv";
-public const char8* SDL_PROP_TEXTURE_OPENGLES2_TEXTURE_U_NUMBER         = "SDL.texture.opengles2.texture_u";
-public const char8* SDL_PROP_TEXTURE_OPENGLES2_TEXTURE_V_NUMBER         = "SDL.texture.opengles2.texture_v";
-public const char8* SDL_PROP_TEXTURE_OPENGLES2_TEXTURE_TARGET_NUMBER    = "SDL.texture.opengles2.target";
-public const char8* SDL_PROP_TEXTURE_VULKAN_TEXTURE_NUMBER              = "SDL.texture.vulkan.texture";
-public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_POINTER                = "SDL.texture.gpu.texture";
-public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_UV_POINTER             = "SDL.texture.gpu.texture_uv";
-public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_U_POINTER              = "SDL.texture.gpu.texture_u";
-public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.texture.gpu.texture_v";
+	public const char8* SDL_PROP_TEXTURE_COLORSPACE_NUMBER                  = "SDL.texture.colorspace";
+	public const char8* SDL_PROP_TEXTURE_FORMAT_NUMBER                      = "SDL.texture.format";
+	public const char8* SDL_PROP_TEXTURE_ACCESS_NUMBER                      = "SDL.texture.access";
+	public const char8* SDL_PROP_TEXTURE_WIDTH_NUMBER                       = "SDL.texture.width";
+	public const char8* SDL_PROP_TEXTURE_HEIGHT_NUMBER                      = "SDL.texture.height";
+	public const char8* SDL_PROP_TEXTURE_SDR_WHITE_POINT_FLOAT              = "SDL.texture.SDR_white_point";
+	public const char8* SDL_PROP_TEXTURE_HDR_HEADROOM_FLOAT                 = "SDL.texture.HDR_headroom";
+	public const char8* SDL_PROP_TEXTURE_D3D11_TEXTURE_POINTER              = "SDL.texture.d3d11.texture";
+	public const char8* SDL_PROP_TEXTURE_D3D11_TEXTURE_U_POINTER            = "SDL.texture.d3d11.texture_u";
+	public const char8* SDL_PROP_TEXTURE_D3D11_TEXTURE_V_POINTER            = "SDL.texture.d3d11.texture_v";
+	public const char8* SDL_PROP_TEXTURE_D3D12_TEXTURE_POINTER              = "SDL.texture.d3d12.texture";
+	public const char8* SDL_PROP_TEXTURE_D3D12_TEXTURE_U_POINTER            = "SDL.texture.d3d12.texture_u";
+	public const char8* SDL_PROP_TEXTURE_D3D12_TEXTURE_V_POINTER            = "SDL.texture.d3d12.texture_v";
+	public const char8* SDL_PROP_TEXTURE_OPENGL_TEXTURE_NUMBER              = "SDL.texture.opengl.texture";
+	public const char8* SDL_PROP_TEXTURE_OPENGL_TEXTURE_UV_NUMBER           = "SDL.texture.opengl.texture_uv";
+	public const char8* SDL_PROP_TEXTURE_OPENGL_TEXTURE_U_NUMBER            = "SDL.texture.opengl.texture_u";
+	public const char8* SDL_PROP_TEXTURE_OPENGL_TEXTURE_V_NUMBER            = "SDL.texture.opengl.texture_v";
+	public const char8* SDL_PROP_TEXTURE_OPENGL_TEXTURE_TARGET_NUMBER       = "SDL.texture.opengl.target";
+	public const char8* SDL_PROP_TEXTURE_OPENGL_TEX_W_FLOAT                 = "SDL.texture.opengl.tex_w";
+	public const char8* SDL_PROP_TEXTURE_OPENGL_TEX_H_FLOAT                 = "SDL.texture.opengl.tex_h";
+	public const char8* SDL_PROP_TEXTURE_OPENGLES2_TEXTURE_NUMBER           = "SDL.texture.opengles2.texture";
+	public const char8* SDL_PROP_TEXTURE_OPENGLES2_TEXTURE_UV_NUMBER        = "SDL.texture.opengles2.texture_uv";
+	public const char8* SDL_PROP_TEXTURE_OPENGLES2_TEXTURE_U_NUMBER         = "SDL.texture.opengles2.texture_u";
+	public const char8* SDL_PROP_TEXTURE_OPENGLES2_TEXTURE_V_NUMBER         = "SDL.texture.opengles2.texture_v";
+	public const char8* SDL_PROP_TEXTURE_OPENGLES2_TEXTURE_TARGET_NUMBER    = "SDL.texture.opengles2.target";
+	public const char8* SDL_PROP_TEXTURE_VULKAN_TEXTURE_NUMBER              = "SDL.texture.vulkan.texture";
+	public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_POINTER                = "SDL.texture.gpu.texture";
+	public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_UV_POINTER             = "SDL.texture.gpu.texture_uv";
+	public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_U_POINTER              = "SDL.texture.gpu.texture_u";
+	public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.texture.gpu.texture_v";
 
 /**
  * Get the renderer that created an SDL_Texture.
@@ -960,7 +960,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_Renderer* SDL_GetRendererFromTexture(SDL_Texture *texture);
+	[CLink] public static extern SDL_Renderer* SDL_GetRendererFromTexture(SDL_Texture* texture);
 
 /**
  * Get the size of a texture, as floating point values.
@@ -977,7 +977,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_GetTextureSize(SDL_Texture *texture, float *w, float *h);
+	[CLink] public static extern bool SDL_GetTextureSize(SDL_Texture* texture, float* w, float* h);
 
 /**
  * Set the palette used by a texture.
@@ -999,7 +999,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_CreatePalette
  * \sa SDL_GetTexturePalette
  */
-[CLink] public static extern bool SDL_SetTexturePalette(SDL_Texture *texture, SDL_Palette *palette);
+	[CLink] public static extern bool SDL_SetTexturePalette(SDL_Texture* texture, SDL_Palette* palette);
 
 /**
  * Get the palette used by a texture.
@@ -1014,7 +1014,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_SetTexturePalette
  */
-[CLink] public static extern SDL_Palette* SDL_GetTexturePalette(SDL_Texture *texture);
+	[CLink] public static extern SDL_Palette* SDL_GetTexturePalette(SDL_Texture* texture);
 
 /**
  * Set an additional color value multiplied into render copy operations.
@@ -1043,7 +1043,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_SetTextureAlphaMod
  * \sa SDL_SetTextureColorModFloat
  */
-[CLink] public static extern bool SDL_SetTextureColorMod(SDL_Texture *texture, uint8 r, uint8 g, uint8 b);
+	[CLink] public static extern bool SDL_SetTextureColorMod(SDL_Texture* texture, uint8 r, uint8 g, uint8 b);
 
 /**
  * Set an additional color value multiplied into render copy operations.
@@ -1072,7 +1072,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_SetTextureAlphaModFloat
  * \sa SDL_SetTextureColorMod
  */
-[CLink] public static extern bool SDL_SetTextureColorModFloat(SDL_Texture *texture, float r, float g, float b);
+	[CLink] public static extern bool SDL_SetTextureColorModFloat(SDL_Texture* texture, float r, float g, float b);
 
 
 /**
@@ -1093,7 +1093,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_GetTextureColorModFloat
  * \sa SDL_SetTextureColorMod
  */
-[CLink] public static extern bool SDL_GetTextureColorMod(SDL_Texture *texture, uint8 *r, uint8 *g, uint8 *b);
+	[CLink] public static extern bool SDL_GetTextureColorMod(SDL_Texture* texture, uint8* r, uint8* g, uint8* b);
 
 /**
  * Get the additional color value multiplied into render copy operations.
@@ -1113,7 +1113,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_GetTextureColorMod
  * \sa SDL_SetTextureColorModFloat
  */
-[CLink] public static extern bool SDL_GetTextureColorModFloat(SDL_Texture *texture, float *r, float *g, float *b);
+	[CLink] public static extern bool SDL_GetTextureColorModFloat(SDL_Texture* texture, float* r, float* g, float* b);
 
 /**
  * Set an additional alpha value multiplied into render copy operations.
@@ -1139,7 +1139,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_SetTextureAlphaModFloat
  * \sa SDL_SetTextureColorMod
  */
-[CLink] public static extern bool SDL_SetTextureAlphaMod(SDL_Texture *texture, uint8 alpha);
+	[CLink] public static extern bool SDL_SetTextureAlphaMod(SDL_Texture* texture, uint8 alpha);
 
 /**
  * Set an additional alpha value multiplied into render copy operations.
@@ -1165,7 +1165,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_SetTextureAlphaMod
  * \sa SDL_SetTextureColorModFloat
  */
-[CLink] public static extern bool SDL_SetTextureAlphaModFloat(SDL_Texture *texture, float alpha);
+	[CLink] public static extern bool SDL_SetTextureAlphaModFloat(SDL_Texture* texture, float alpha);
 
 /**
  * Get the additional alpha value multiplied into render copy operations.
@@ -1183,7 +1183,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_GetTextureColorMod
  * \sa SDL_SetTextureAlphaMod
  */
-[CLink] public static extern bool SDL_GetTextureAlphaMod(SDL_Texture *texture, uint8 *alpha);
+	[CLink] public static extern bool SDL_GetTextureAlphaMod(SDL_Texture* texture, uint8* alpha);
 
 /**
  * Get the additional alpha value multiplied into render copy operations.
@@ -1201,7 +1201,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_GetTextureColorModFloat
  * \sa SDL_SetTextureAlphaModFloat
  */
-[CLink] public static extern bool SDL_GetTextureAlphaModFloat(SDL_Texture *texture, float *alpha);
+	[CLink] public static extern bool SDL_GetTextureAlphaModFloat(SDL_Texture* texture, float* alpha);
 
 /**
  * Set the blend mode for a texture, used by SDL_RenderTexture().
@@ -1220,7 +1220,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_GetTextureBlendMode
  */
-[CLink] public static extern bool SDL_SetTextureBlendMode(SDL_Texture *texture, SDL_BlendMode blendMode);
+	[CLink] public static extern bool SDL_SetTextureBlendMode(SDL_Texture* texture, SDL_BlendMode blendMode);
 
 /**
  * Get the blend mode used for texture copy operations.
@@ -1236,7 +1236,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_SetTextureBlendMode
  */
-[CLink] public static extern bool SDL_GetTextureBlendMode(SDL_Texture *texture, SDL_BlendMode *blendMode);
+	[CLink] public static extern bool SDL_GetTextureBlendMode(SDL_Texture* texture, SDL_BlendMode* blendMode);
 
 /**
  * Set the scale mode used for texture scale operations.
@@ -1256,7 +1256,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_GetTextureScaleMode
  */
-[CLink] public static extern bool SDL_SetTextureScaleMode(SDL_Texture *texture, SDL_ScaleMode scaleMode);
+	[CLink] public static extern bool SDL_SetTextureScaleMode(SDL_Texture* texture, SDL_ScaleMode scaleMode);
 
 /**
  * Get the scale mode used for texture scale operations.
@@ -1272,7 +1272,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_SetTextureScaleMode
  */
-[CLink] public static extern bool SDL_GetTextureScaleMode(SDL_Texture *texture, SDL_ScaleMode *scaleMode);
+	[CLink] public static extern bool SDL_GetTextureScaleMode(SDL_Texture* texture, SDL_ScaleMode* scaleMode);
 
 /**
  * Update the given texture rectangle with new pixel data.
@@ -1306,7 +1306,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_UpdateNVTexture
  * \sa SDL_UpdateYUVTexture
  */
-[CLink] public static extern bool SDL_UpdateTexture(SDL_Texture *texture, SDL_Rect* rect, void* pixels, int32 pitch);
+	[CLink] public static extern bool SDL_UpdateTexture(SDL_Texture* texture, SDL_Rect* rect, void* pixels, int32 pitch);
 
 /**
  * Update a rectangle within a planar YV12 or IYUV texture with new pixel
@@ -1338,11 +1338,11 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_UpdateNVTexture
  * \sa SDL_UpdateTexture
  */
-[CLink] public static extern bool SDL_UpdateYUVTexture(SDL_Texture *texture,
-                                                 SDL_Rect* rect,
-                                                 uint8* Yplane, int32 Ypitch,
-                                                 uint8* Uplane, int32 Upitch,
-                                                 uint8* Vplane, int32 Vpitch);
+	[CLink] public static extern bool SDL_UpdateYUVTexture(SDL_Texture* texture,
+		SDL_Rect* rect,
+		uint8* Yplane, int32 Ypitch,
+		uint8* Uplane, int32 Upitch,
+		uint8* Vplane, int32 Vpitch);
 
 /**
  * Update a rectangle within a planar NV12 or NV21 texture with new pixels.
@@ -1370,10 +1370,10 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_UpdateTexture
  * \sa SDL_UpdateYUVTexture
  */
-[CLink] public static extern bool SDL_UpdateNVTexture(SDL_Texture *texture,
-                                                 SDL_Rect* rect,
-                                                 uint8* Yplane, int32 Ypitch,
-                                                 uint8* UVplane, int32 UVpitch);
+	[CLink] public static extern bool SDL_UpdateNVTexture(SDL_Texture* texture,
+		SDL_Rect* rect,
+		uint8* Yplane, int32 Ypitch,
+		uint8* UVplane, int32 UVpitch);
 
 /**
  * Lock a portion of the texture for **write-only** pixel access.
@@ -1405,9 +1405,9 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_LockTextureToSurface
  * \sa SDL_UnlockTexture
  */
-[CLink] public static extern bool SDL_LockTexture(SDL_Texture *texture,
-                                            SDL_Rect* rect,
-                                            void **pixels, int32 *pitch);
+	[CLink] public static extern bool SDL_LockTexture(SDL_Texture* texture,
+		SDL_Rect* rect,
+		void** pixels, int32* pitch);
 
 /**
  * Lock a portion of the texture for **write-only** pixel access, and expose
@@ -1443,7 +1443,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_LockTexture
  * \sa SDL_UnlockTexture
  */
-[CLink] public static extern bool SDL_LockTextureToSurface(SDL_Texture *texture, SDL_Rect* rect, SDL_Surface **surface);
+	[CLink] public static extern bool SDL_LockTextureToSurface(SDL_Texture* texture, SDL_Rect* rect, SDL_Surface** surface);
 
 /**
  * Unlock a texture, uploading the changes to video memory, if needed.
@@ -1464,7 +1464,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_LockTexture
  */
-[CLink] public static extern void SDL_UnlockTexture(SDL_Texture *texture);
+	[CLink] public static extern void SDL_UnlockTexture(SDL_Texture* texture);
 
 /**
  * Set a texture as the current rendering target.
@@ -1491,7 +1491,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_GetRenderTarget
  */
-[CLink] public static extern bool SDL_SetRenderTarget(SDL_Renderer *renderer, SDL_Texture *texture);
+	[CLink] public static extern bool SDL_SetRenderTarget(SDL_Renderer* renderer, SDL_Texture* texture);
 
 /**
  * Get the current render target.
@@ -1508,7 +1508,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_SetRenderTarget
  */
-[CLink] public static extern SDL_Texture* SDL_GetRenderTarget(SDL_Renderer *renderer);
+	[CLink] public static extern SDL_Texture* SDL_GetRenderTarget(SDL_Renderer* renderer);
 
 /**
  * Set a device-independent resolution and presentation mode for rendering.
@@ -1555,7 +1555,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_GetRenderLogicalPresentation
  * \sa SDL_GetRenderLogicalPresentationRect
  */
-[CLink] public static extern bool SDL_SetRenderLogicalPresentation(SDL_Renderer *renderer, int32 w, int32 h, SDL_RendererLogicalPresentation mode);
+	[CLink] public static extern bool SDL_SetRenderLogicalPresentation(SDL_Renderer* renderer, int32 w, int32 h, SDL_RendererLogicalPresentation mode);
 
 /**
  * Get device independent resolution and presentation mode for rendering.
@@ -1580,7 +1580,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_SetRenderLogicalPresentation
  */
-[CLink] public static extern bool SDL_GetRenderLogicalPresentation(SDL_Renderer *renderer, int32 *w, int32 *h, SDL_RendererLogicalPresentation *mode);
+	[CLink] public static extern bool SDL_GetRenderLogicalPresentation(SDL_Renderer* renderer, int32* w, int32* h, SDL_RendererLogicalPresentation* mode);
 
 /**
  * Get the final presentation rectangle for rendering.
@@ -1605,7 +1605,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_SetRenderLogicalPresentation
  */
-[CLink] public static extern bool SDL_GetRenderLogicalPresentationRect(SDL_Renderer *renderer, SDL_FRect *rect);
+	[CLink] public static extern bool SDL_GetRenderLogicalPresentationRect(SDL_Renderer* renderer, SDL_FRect* rect);
 
 /**
  * Get a point in render coordinates when given a point in window coordinates.
@@ -1632,7 +1632,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_SetRenderLogicalPresentation
  * \sa SDL_SetRenderScale
  */
-[CLink] public static extern bool SDL_RenderCoordinatesFromWindow(SDL_Renderer *renderer, float window_x, float window_y, float *x, float *y);
+	[CLink] public static extern bool SDL_RenderCoordinatesFromWindow(SDL_Renderer* renderer, float window_x, float window_y, float* x, float* y);
 
 /**
  * Get a point in window coordinates when given a point in render coordinates.
@@ -1662,7 +1662,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_SetRenderScale
  * \sa SDL_SetRenderViewport
  */
-[CLink] public static extern bool SDL_RenderCoordinatesToWindow(SDL_Renderer *renderer, float x, float y, float *window_x, float *window_y);
+	[CLink] public static extern bool SDL_RenderCoordinatesToWindow(SDL_Renderer* renderer, float x, float y, float* window_x, float* window_y);
 
 /**
  * Convert the coordinates in an event to render coordinates.
@@ -1698,7 +1698,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_RenderCoordinatesFromWindow
  */
-[CLink] public static extern bool SDL_ConvertEventToRenderCoordinates(SDL_Renderer *renderer, SDL_Event *event);
+	[CLink] public static extern bool SDL_ConvertEventToRenderCoordinates(SDL_Renderer* renderer, SDL_Event* event);
 
 /**
  * Set the drawing area for rendering on the current target.
@@ -1725,7 +1725,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_GetRenderViewport
  * \sa SDL_RenderViewportSet
  */
-[CLink] public static extern bool SDL_SetRenderViewport(SDL_Renderer *renderer, SDL_Rect* rect);
+	[CLink] public static extern bool SDL_SetRenderViewport(SDL_Renderer* renderer, SDL_Rect* rect);
 
 /**
  * Get the drawing area for the current target.
@@ -1745,7 +1745,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_RenderViewportSet
  * \sa SDL_SetRenderViewport
  */
-[CLink] public static extern bool SDL_GetRenderViewport(SDL_Renderer *renderer, SDL_Rect *rect);
+	[CLink] public static extern bool SDL_GetRenderViewport(SDL_Renderer* renderer, SDL_Rect* rect);
 
 /**
  * Return whether an explicit rectangle was set as the viewport.
@@ -1767,7 +1767,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_GetRenderViewport
  * \sa SDL_SetRenderViewport
  */
-[CLink] public static extern bool SDL_RenderViewportSet(SDL_Renderer *renderer);
+	[CLink] public static extern bool SDL_RenderViewportSet(SDL_Renderer* renderer);
 
 /**
  * Get the safe area for rendering within the current viewport.
@@ -1789,7 +1789,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_GetRenderSafeArea(SDL_Renderer *renderer, SDL_Rect *rect);
+	[CLink] public static extern bool SDL_GetRenderSafeArea(SDL_Renderer* renderer, SDL_Rect* rect);
 
 /**
  * Set the clip rectangle for rendering on the specified target.
@@ -1810,7 +1810,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_GetRenderClipRect
  * \sa SDL_RenderClipEnabled
  */
-[CLink] public static extern bool SDL_SetRenderClipRect(SDL_Renderer *renderer, SDL_Rect* rect);
+	[CLink] public static extern bool SDL_SetRenderClipRect(SDL_Renderer* renderer, SDL_Rect* rect);
 
 /**
  * Get the clip rectangle for the current target.
@@ -1831,7 +1831,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_RenderClipEnabled
  * \sa SDL_SetRenderClipRect
  */
-[CLink] public static extern bool SDL_GetRenderClipRect(SDL_Renderer *renderer, SDL_Rect *rect);
+	[CLink] public static extern bool SDL_GetRenderClipRect(SDL_Renderer* renderer, SDL_Rect* rect);
 
 /**
  * Get whether clipping is enabled on the given render target.
@@ -1850,7 +1850,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_GetRenderClipRect
  * \sa SDL_SetRenderClipRect
  */
-[CLink] public static extern bool SDL_RenderClipEnabled(SDL_Renderer *renderer);
+	[CLink] public static extern bool SDL_RenderClipEnabled(SDL_Renderer* renderer);
 
 /**
  * Set the drawing scale for rendering on the current target.
@@ -1878,7 +1878,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_GetRenderScale
  */
-[CLink] public static extern bool SDL_SetRenderScale(SDL_Renderer *renderer, float scaleX, float scaleY);
+	[CLink] public static extern bool SDL_SetRenderScale(SDL_Renderer* renderer, float scaleX, float scaleY);
 
 /**
  * Get the drawing scale for the current target.
@@ -1898,7 +1898,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_SetRenderScale
  */
-[CLink] public static extern bool SDL_GetRenderScale(SDL_Renderer *renderer, float *scaleX, float *scaleY);
+	[CLink] public static extern bool SDL_GetRenderScale(SDL_Renderer* renderer, float* scaleX, float* scaleY);
 
 /**
  * Set the color used for drawing operations.
@@ -1923,7 +1923,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_GetRenderDrawColor
  * \sa SDL_SetRenderDrawColorFloat
  */
-[CLink] public static extern bool SDL_SetRenderDrawColor(SDL_Renderer *renderer, uint8 r, uint8 g, uint8 b, uint8 a);
+	[CLink] public static extern bool SDL_SetRenderDrawColor(SDL_Renderer* renderer, uint8 r, uint8 g, uint8 b, uint8 a);
 
 /**
  * Set the color used for drawing operations (Rect, Line and Clear).
@@ -1948,7 +1948,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_GetRenderDrawColorFloat
  * \sa SDL_SetRenderDrawColor
  */
-[CLink] public static extern bool SDL_SetRenderDrawColorFloat(SDL_Renderer *renderer, float r, float g, float b, float a);
+	[CLink] public static extern bool SDL_SetRenderDrawColorFloat(SDL_Renderer* renderer, float r, float g, float b, float a);
 
 /**
  * Get the color used for drawing operations (Rect, Line and Clear).
@@ -1972,7 +1972,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_GetRenderDrawColorFloat
  * \sa SDL_SetRenderDrawColor
  */
-[CLink] public static extern bool SDL_GetRenderDrawColor(SDL_Renderer *renderer, uint8 *r, uint8 *g, uint8 *b, uint8 *a);
+	[CLink] public static extern bool SDL_GetRenderDrawColor(SDL_Renderer* renderer, uint8* r, uint8* g, uint8* b, uint8* a);
 
 /**
  * Get the color used for drawing operations (Rect, Line and Clear).
@@ -1996,7 +1996,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_SetRenderDrawColorFloat
  * \sa SDL_GetRenderDrawColor
  */
-[CLink] public static extern bool SDL_GetRenderDrawColorFloat(SDL_Renderer *renderer, float *r, float *g, float *b, float *a);
+	[CLink] public static extern bool SDL_GetRenderDrawColorFloat(SDL_Renderer* renderer, float* r, float* g, float* b, float* a);
 
 /**
  * Set the color scale used for render operations.
@@ -2020,7 +2020,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_GetRenderColorScale
  */
-[CLink] public static extern bool SDL_SetRenderColorScale(SDL_Renderer *renderer, float scale);
+	[CLink] public static extern bool SDL_SetRenderColorScale(SDL_Renderer* renderer, float scale);
 
 /**
  * Get the color scale used for render operations.
@@ -2036,7 +2036,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_SetRenderColorScale
  */
-[CLink] public static extern bool SDL_GetRenderColorScale(SDL_Renderer *renderer, float *scale);
+	[CLink] public static extern bool SDL_GetRenderColorScale(SDL_Renderer* renderer, float* scale);
 
 /**
  * Set the blend mode used for drawing operations (Fill and Line).
@@ -2054,7 +2054,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_GetRenderDrawBlendMode
  */
-[CLink] public static extern bool SDL_SetRenderDrawBlendMode(SDL_Renderer *renderer, SDL_BlendMode blendMode);
+	[CLink] public static extern bool SDL_SetRenderDrawBlendMode(SDL_Renderer* renderer, SDL_BlendMode blendMode);
 
 /**
  * Get the blend mode used for drawing operations.
@@ -2070,7 +2070,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_SetRenderDrawBlendMode
  */
-[CLink] public static extern bool SDL_GetRenderDrawBlendMode(SDL_Renderer *renderer, SDL_BlendMode *blendMode);
+	[CLink] public static extern bool SDL_GetRenderDrawBlendMode(SDL_Renderer* renderer, SDL_BlendMode* blendMode);
 
 /**
  * Clear the current rendering target with the drawing color.
@@ -2090,7 +2090,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_SetRenderDrawColor
  */
-[CLink] public static extern bool SDL_RenderClear(SDL_Renderer *renderer);
+	[CLink] public static extern bool SDL_RenderClear(SDL_Renderer* renderer);
 
 /**
  * Draw a point on the current rendering target at subpixel precision.
@@ -2107,7 +2107,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_RenderPoints
  */
-[CLink] public static extern bool SDL_RenderPoint(SDL_Renderer *renderer, float x, float y);
+	[CLink] public static extern bool SDL_RenderPoint(SDL_Renderer* renderer, float x, float y);
 
 /**
  * Draw multiple points on the current rendering target at subpixel precision.
@@ -2124,7 +2124,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_RenderPoint
  */
-[CLink] public static extern bool SDL_RenderPoints(SDL_Renderer *renderer, SDL_FPoint* points, int32 count);
+	[CLink] public static extern bool SDL_RenderPoints(SDL_Renderer* renderer, SDL_FPoint* points, int32 count);
 
 /**
  * Draw a line on the current rendering target at subpixel precision.
@@ -2143,7 +2143,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_RenderLines
  */
-[CLink] public static extern bool SDL_RenderLine(SDL_Renderer *renderer, float x1, float y1, float x2, float y2);
+	[CLink] public static extern bool SDL_RenderLine(SDL_Renderer* renderer, float x1, float y1, float x2, float y2);
 
 /**
  * Draw a series of connected lines on the current rendering target at
@@ -2161,7 +2161,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_RenderLine
  */
-[CLink] public static extern bool SDL_RenderLines(SDL_Renderer *renderer, SDL_FPoint* points, int32 count);
+	[CLink] public static extern bool SDL_RenderLines(SDL_Renderer* renderer, SDL_FPoint* points, int32 count);
 
 /**
  * Draw a rectangle on the current rendering target at subpixel precision.
@@ -2178,7 +2178,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_RenderRects
  */
-[CLink] public static extern bool SDL_RenderRect(SDL_Renderer *renderer, SDL_FRect* rect);
+	[CLink] public static extern bool SDL_RenderRect(SDL_Renderer* renderer, SDL_FRect* rect);
 
 /**
  * Draw some number of rectangles on the current rendering target at subpixel
@@ -2196,7 +2196,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_RenderRect
  */
-[CLink] public static extern bool SDL_RenderRects(SDL_Renderer *renderer, SDL_FRect* rects, int32 count);
+	[CLink] public static extern bool SDL_RenderRects(SDL_Renderer* renderer, SDL_FRect* rects, int32 count);
 
 /**
  * Fill a rectangle on the current rendering target with the drawing color at
@@ -2214,7 +2214,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_RenderFillRects
  */
-[CLink] public static extern bool SDL_RenderFillRect(SDL_Renderer *renderer, SDL_FRect* rect);
+	[CLink] public static extern bool SDL_RenderFillRect(SDL_Renderer* renderer, SDL_FRect* rect);
 
 /**
  * Fill some number of rectangles on the current rendering target with the
@@ -2232,7 +2232,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_RenderFillRect
  */
-[CLink] public static extern bool SDL_RenderFillRects(SDL_Renderer *renderer, SDL_FRect* rects, int32 count);
+	[CLink] public static extern bool SDL_RenderFillRects(SDL_Renderer* renderer, SDL_FRect* rects, int32 count);
 
 /**
  * Copy a portion of the texture to the current rendering target at subpixel
@@ -2254,7 +2254,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_RenderTextureRotated
  * \sa SDL_RenderTextureTiled
  */
-[CLink] public static extern bool SDL_RenderTexture(SDL_Renderer *renderer, SDL_Texture *texture, SDL_FRect* srcrect, SDL_FRect* dstrect);
+	[CLink] public static extern bool SDL_RenderTexture(SDL_Renderer* renderer, SDL_Texture* texture, SDL_FRect* srcrect, SDL_FRect* dstrect);
 
 /**
  * Copy a portion of the source texture to the current rendering target, with
@@ -2282,10 +2282,10 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_RenderTexture
  */
-[CLink] public static extern bool SDL_RenderTextureRotated(SDL_Renderer *renderer, SDL_Texture *texture,
-                                                     SDL_FRect* srcrect, SDL_FRect* dstrect,
-                                                     double angle, SDL_FPoint* center,
-                                                     SDL_FlipMode flip);
+	[CLink] public static extern bool SDL_RenderTextureRotated(SDL_Renderer* renderer, SDL_Texture* texture,
+		SDL_FRect* srcrect, SDL_FRect* dstrect,
+		double angle, SDL_FPoint* center,
+		SDL_FlipMode flip);
 
 /**
  * Copy a portion of the source texture to the current rendering target, with
@@ -2313,9 +2313,9 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_RenderTexture
  */
-[CLink] public static extern bool SDL_RenderTextureAffine(SDL_Renderer *renderer, SDL_Texture *texture,
-                                                     SDL_FRect* srcrect, SDL_FPoint* origin,
-                                                     SDL_FPoint* right, SDL_FPoint* down);
+	[CLink] public static extern bool SDL_RenderTextureAffine(SDL_Renderer* renderer, SDL_Texture* texture,
+		SDL_FRect* srcrect, SDL_FPoint* origin,
+		SDL_FPoint* right, SDL_FPoint* down);
 
 /**
  * Tile a portion of the texture to the current rendering target at subpixel
@@ -2342,7 +2342,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_RenderTexture
  */
-[CLink] public static extern bool SDL_RenderTextureTiled(SDL_Renderer *renderer, SDL_Texture *texture, SDL_FRect* srcrect, float scale, SDL_FRect* dstrect);
+	[CLink] public static extern bool SDL_RenderTextureTiled(SDL_Renderer* renderer, SDL_Texture* texture, SDL_FRect* srcrect, float scale, SDL_FRect* dstrect);
 
 /**
  * Perform a scaled copy using the 9-grid algorithm to the current rendering
@@ -2377,7 +2377,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_RenderTexture
  * \sa SDL_RenderTexture9GridTiled
  */
-[CLink] public static extern bool SDL_RenderTexture9Grid(SDL_Renderer *renderer, SDL_Texture *texture, SDL_FRect* srcrect, float left_width, float right_width, float top_height, float bottom_height, float scale, SDL_FRect* dstrect);
+	[CLink] public static extern bool SDL_RenderTexture9Grid(SDL_Renderer* renderer, SDL_Texture* texture, SDL_FRect* srcrect, float left_width, float right_width, float top_height, float bottom_height, float scale, SDL_FRect* dstrect);
 
 /**
  * Perform a scaled copy using the 9-grid algorithm to the current rendering
@@ -2415,7 +2415,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_RenderTexture
  * \sa SDL_RenderTexture9Grid
  */
-[CLink] public static extern bool SDL_RenderTexture9GridTiled(SDL_Renderer *renderer, SDL_Texture *texture, SDL_FRect* srcrect, float left_width, float right_width, float top_height, float bottom_height, float scale, SDL_FRect* dstrect, float tileScale);
+	[CLink] public static extern bool SDL_RenderTexture9GridTiled(SDL_Renderer* renderer, SDL_Texture* texture, SDL_FRect* srcrect, float left_width, float right_width, float top_height, float bottom_height, float scale, SDL_FRect* dstrect, float tileScale);
 
 /**
  * Render a list of triangles, optionally using a texture and indices into the
@@ -2440,10 +2440,10 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_RenderGeometryRaw
  * \sa SDL_SetRenderTextureAddressMode
  */
-[CLink] public static extern bool SDL_RenderGeometry(SDL_Renderer *renderer,
-                                               SDL_Texture *texture,
-                                               SDL_Vertex* vertices, int32 num_vertices,
-                                               int32* indices, int32 num_indices);
+	[CLink] public static extern bool SDL_RenderGeometry(SDL_Renderer* renderer,
+		SDL_Texture* texture,
+		SDL_Vertex* vertices, int32 num_vertices,
+		int32* indices, int32 num_indices);
 
 /**
  * Render a list of triangles, optionally using a texture and indices into the
@@ -2473,13 +2473,13 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_RenderGeometry
  * \sa SDL_SetRenderTextureAddressMode
  */
-[CLink] public static extern bool SDL_RenderGeometryRaw(SDL_Renderer *renderer,
-                                               SDL_Texture *texture,
-                                               float* xy, int32 xy_stride,
-                                               SDL_FColor* color, int32 color_stride,
-                                               float* uv, int32 uv_stride,
-                                               int32 num_vertices,
-                                               void* indices, int32 num_indices, int32 size_indices);
+	[CLink] public static extern bool SDL_RenderGeometryRaw(SDL_Renderer* renderer,
+		SDL_Texture* texture,
+		float* xy, int32 xy_stride,
+		SDL_FColor* color, int32 color_stride,
+		float* uv, int32 uv_stride,
+		int32 num_vertices,
+		void* indices, int32 num_indices, int32 size_indices);
 
 /**
  * Set the texture addressing mode used in SDL_RenderGeometry().
@@ -2498,7 +2498,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_RenderGeometryRaw
  * \sa SDL_GetRenderTextureAddressMode
  */
-[CLink] public static extern bool SDL_SetRenderTextureAddressMode(SDL_Renderer *renderer, SDL_TextureAddressMode u_mode, SDL_TextureAddressMode v_mode);
+	[CLink] public static extern bool SDL_SetRenderTextureAddressMode(SDL_Renderer* renderer, SDL_TextureAddressMode u_mode, SDL_TextureAddressMode v_mode);
 
 /**
  * Get the texture addressing mode used in SDL_RenderGeometry().
@@ -2517,7 +2517,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_SetRenderTextureAddressMode
  */
-[CLink] public static extern bool SDL_GetRenderTextureAddressMode(SDL_Renderer *renderer, SDL_TextureAddressMode *u_mode, SDL_TextureAddressMode *v_mode);
+	[CLink] public static extern bool SDL_GetRenderTextureAddressMode(SDL_Renderer* renderer, SDL_TextureAddressMode* u_mode, SDL_TextureAddressMode* v_mode);
 
 /**
  * Read pixels from the current rendering target.
@@ -2544,7 +2544,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_Surface* SDL_RenderReadPixels(SDL_Renderer *renderer, SDL_Rect* rect);
+	[CLink] public static extern SDL_Surface* SDL_RenderReadPixels(SDL_Renderer* renderer, SDL_Rect* rect);
 
 /**
  * Update the screen with any rendering performed since the previous call.
@@ -2593,7 +2593,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_SetRenderDrawBlendMode
  * \sa SDL_SetRenderDrawColor
  */
-[CLink] public static extern bool SDL_RenderPresent(SDL_Renderer *renderer);
+	[CLink] public static extern bool SDL_RenderPresent(SDL_Renderer* renderer);
 
 /**
  * Destroy the specified texture.
@@ -2610,7 +2610,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_CreateTexture
  * \sa SDL_CreateTextureFromSurface
  */
-[CLink] public static extern void SDL_DestroyTexture(SDL_Texture *texture);
+	[CLink] public static extern void SDL_DestroyTexture(SDL_Texture* texture);
 
 /**
  * Destroy the rendering context for a window and free all associated
@@ -2626,7 +2626,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_CreateRenderer
  */
-[CLink] public static extern void SDL_DestroyRenderer(SDL_Renderer *renderer);
+	[CLink] public static extern void SDL_DestroyRenderer(SDL_Renderer* renderer);
 
 /**
  * Force the rendering context to flush any pending commands and state.
@@ -2659,7 +2659,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_FlushRenderer(SDL_Renderer *renderer);
+	[CLink] public static extern bool SDL_FlushRenderer(SDL_Renderer* renderer);
 
 /**
  * Get the CAMetalLayer associated with the given Metal renderer.
@@ -2677,7 +2677,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_GetRenderMetalCommandEncoder
  */
-[CLink] public static extern void* SDL_GetRenderMetalLayer(SDL_Renderer *renderer);
+	[CLink] public static extern void* SDL_GetRenderMetalLayer(SDL_Renderer* renderer);
 
 /**
  * Get the Metal command encoder for the current frame.
@@ -2700,7 +2700,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_GetRenderMetalLayer
  */
-[CLink] public static extern void* SDL_GetRenderMetalCommandEncoder(SDL_Renderer *renderer);
+	[CLink] public static extern void* SDL_GetRenderMetalCommandEncoder(SDL_Renderer* renderer);
 
 
 /**
@@ -2731,7 +2731,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_AddVulkanRenderSemaphores(SDL_Renderer *renderer, uint32 wait_stage_mask, int64 wait_semaphore, int64 signal_semaphore);
+	[CLink] public static extern bool SDL_AddVulkanRenderSemaphores(SDL_Renderer* renderer, uint32 wait_stage_mask, int64 wait_semaphore, int64 signal_semaphore);
 
 /**
  * Toggle VSync of the given renderer.
@@ -2756,7 +2756,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_GetRenderVSync
  */
-[CLink] public static extern bool SDL_SetRenderVSync(SDL_Renderer *renderer, int32 vsync);
+	[CLink] public static extern bool SDL_SetRenderVSync(SDL_Renderer* renderer, int32 vsync);
 
 	public const uint32 SDL_RENDERER_VSYNC_DISABLED = 0;
 	public const uint32 SDL_RENDERER_VSYNC_ADAPTIVE = uint32(-1);
@@ -2776,7 +2776,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_SetRenderVSync
  */
-[CLink] public static extern bool SDL_GetRenderVSync(SDL_Renderer *renderer, int32 *vsync);
+	[CLink] public static extern bool SDL_GetRenderVSync(SDL_Renderer* renderer, int32* vsync);
 
 /**
  * The size, in pixels, of a single SDL_RenderDebugText() character.
@@ -2828,7 +2828,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_RenderDebugTextFormat
  * \sa SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE
  */
-[CLink] public static extern bool SDL_RenderDebugText(SDL_Renderer *renderer, float x, float y, char8* str);
+	[CLink] public static extern bool SDL_RenderDebugText(SDL_Renderer* renderer, float x, float y, char8* str);
 
 /**
  * Draw debug text to an SDL_Renderer.
@@ -2856,7 +2856,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  * \sa SDL_RenderDebugText
  * \sa SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE
  */
-[CLink] public static extern bool SDL_RenderDebugTextFormat(SDL_Renderer *renderer, float x, float y, char8* fmt, ...);
+	[CLink] public static extern bool SDL_RenderDebugTextFormat(SDL_Renderer* renderer, float x, float y, char8* fmt, ...);
 
 /**
  * Set default scale mode for new textures for given renderer.
@@ -2874,7 +2874,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_GetDefaultTextureScaleMode
  */
-[CLink] public static extern bool SDL_SetDefaultTextureScaleMode(SDL_Renderer *renderer, SDL_ScaleMode scale_mode);
+	[CLink] public static extern bool SDL_SetDefaultTextureScaleMode(SDL_Renderer* renderer, SDL_ScaleMode scale_mode);
 
 /**
  * Get default texture scale mode of the given renderer.
@@ -2892,7 +2892,7 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_SetDefaultTextureScaleMode
  */
-[CLink] public static extern bool SDL_GetDefaultTextureScaleMode(SDL_Renderer *renderer, SDL_ScaleMode *scale_mode);
+	[CLink] public static extern bool SDL_GetDefaultTextureScaleMode(SDL_Renderer* renderer, SDL_ScaleMode* scale_mode);
 
 /**
  * A structure specifying the parameters of a GPU render state.
@@ -2901,103 +2901,103 @@ public const char8* SDL_PROP_TEXTURE_GPU_TEXTURE_V_POINTER              = "SDL.t
  *
  * \sa SDL_CreateGPURenderState
  */
-[CRepr] public struct SDL_GPURenderStateCreateInfo
-{
-    public SDL_GPUShader* fragment_shader; /**< The fragment shader to use when this render state is active */
+	[CRepr] public struct SDL_GPURenderStateCreateInfo
+	{
+		public SDL_GPUShader* fragment_shader; /**< The fragment shader to use when this render state is active */
 
-    public int32 num_sampler_bindings;    /**< The number of additional fragment samplers to bind when this render state is active */
-    public SDL_GPUTextureSamplerBinding* sampler_bindings;   /**< Additional fragment samplers to bind when this render state is active */
+		public int32 num_sampler_bindings; /**< The number of additional fragment samplers to bind when this render state is active */
+		public SDL_GPUTextureSamplerBinding* sampler_bindings; /**< Additional fragment samplers to bind when this render state is active */
 
-    public int32 num_storage_textures;    /**< The number of storage textures to bind when this render state is active */
-    public SDL_GPUTexture **storage_textures;    /**< Storage textures to bind when this render state is active */
+		public int32 num_storage_textures; /**< The number of storage textures to bind when this render state is active */
+		public SDL_GPUTexture** storage_textures; /**< Storage textures to bind when this render state is active */
 
-    public int32 num_storage_buffers;     /**< The number of storage buffers to bind when this render state is active */
-    public SDL_GPUBuffer **storage_buffers;      /**< Storage buffers to bind when this render state is active */
+		public int32 num_storage_buffers; /**< The number of storage buffers to bind when this render state is active */
+		public SDL_GPUBuffer** storage_buffers; /**< Storage buffers to bind when this render state is active */
 
-    public SDL_PropertiesID props;         /**< A properties ID for extensions. Should be 0 if no extensions are needed. */
-}
+		public SDL_PropertiesID props; /**< A properties ID for extensions. Should be 0 if no extensions are needed. */
+	}
 
-/**
- * A custom GPU render state.
- *
- * \since This struct is available since SDL 3.4.0.
- *
- * \sa SDL_CreateGPURenderState
- * \sa SDL_SetGPURenderStateFragmentUniforms
- * \sa SDL_SetGPURenderState
- * \sa SDL_DestroyGPURenderState
- */
-[CRepr] public struct SDL_GPURenderState;
+	/**
+	 * A custom GPU render state.
+	 *
+	 * \since This struct is available since SDL 3.4.0.
+	 *
+	 * \sa SDL_CreateGPURenderState
+	 * \sa SDL_SetGPURenderStateFragmentUniforms
+	 * \sa SDL_SetGPURenderState
+	 * \sa SDL_DestroyGPURenderState
+	 */
+	[CRepr] public struct SDL_GPURenderState;
 
-/**
- * Create custom GPU render state.
- *
- * \param renderer the renderer to use.
- * \param createinfo a struct describing the GPU render state to create.
- * \returns a custom GPU render state or NULL on failure; call SDL_GetError()
- *          for more information.
- *
- * \threadsafety This function should be called on the thread that created the
- *               renderer.
- *
- * \since This function is available since SDL 3.4.0.
- *
- * \sa SDL_SetGPURenderStateFragmentUniforms
- * \sa SDL_SetGPURenderState
- * \sa SDL_DestroyGPURenderState
- */
-[CLink] public static extern SDL_GPURenderState* SDL_CreateGPURenderState(SDL_Renderer *renderer, SDL_GPURenderStateCreateInfo *createinfo);
+	/**
+	 * Create custom GPU render state.
+	 *
+	 * \param renderer the renderer to use.
+	 * \param createinfo a struct describing the GPU render state to create.
+	 * \returns a custom GPU render state or NULL on failure; call SDL_GetError()
+	 *          for more information.
+	 *
+	 * \threadsafety This function should be called on the thread that created the
+	 *               renderer.
+	 *
+	 * \since This function is available since SDL 3.4.0.
+	 *
+	 * \sa SDL_SetGPURenderStateFragmentUniforms
+	 * \sa SDL_SetGPURenderState
+	 * \sa SDL_DestroyGPURenderState
+	 */
+	[CLink] public static extern SDL_GPURenderState* SDL_CreateGPURenderState(SDL_Renderer* renderer, SDL_GPURenderStateCreateInfo* createinfo);
 
-/**
- * Set fragment shader uniform variables in a custom GPU render state.
- *
- * The data is copied and will be pushed using
- * SDL_PushGPUFragmentUniformData() during draw call execution.
- *
- * \param state the state to modify.
- * \param slot_index the fragment uniform slot to push data to.
- * \param data client data to write.
- * \param length the length of the data to write.
- * \returns true on success or false on failure; call SDL_GetError() for more
- *          information.
- *
- * \threadsafety This function should be called on the thread that created the
- *               renderer.
- *
- * \since This function is available since SDL 3.4.0.
- */
-[CLink] public static extern bool SDL_SetGPURenderStateFragmentUniforms(SDL_GPURenderState *state, uint32 slot_index, void* data, uint32 length);
+	/**
+	 * Set fragment shader uniform variables in a custom GPU render state.
+	 *
+	 * The data is copied and will be pushed using
+	 * SDL_PushGPUFragmentUniformData() during draw call execution.
+	 *
+	 * \param state the state to modify.
+	 * \param slot_index the fragment uniform slot to push data to.
+	 * \param data client data to write.
+	 * \param length the length of the data to write.
+	 * \returns true on success or false on failure; call SDL_GetError() for more
+	 *          information.
+	 *
+	 * \threadsafety This function should be called on the thread that created the
+	 *               renderer.
+	 *
+	 * \since This function is available since SDL 3.4.0.
+	 */
+	[CLink] public static extern bool SDL_SetGPURenderStateFragmentUniforms(SDL_GPURenderState* state, uint32 slot_index, void* data, uint32 length);
 
-/**
- * Set custom GPU render state.
- *
- * This function sets custom GPU render state for subsequent draw calls. This
- * allows using custom shaders with the GPU renderer.
- *
- * \param renderer the renderer to use.
- * \param state the state to to use, or NULL to clear custom GPU render state.
- * \returns true on success or false on failure; call SDL_GetError() for more
- *          information.
- *
- * \threadsafety This function should be called on the thread that created the
- *               renderer.
- *
- * \since This function is available since SDL 3.4.0.
- */
-[CLink] public static extern bool SDL_SetGPURenderState(SDL_Renderer *renderer, SDL_GPURenderState *state);
+	/**
+	 * Set custom GPU render state.
+	 *
+	 * This function sets custom GPU render state for subsequent draw calls. This
+	 * allows using custom shaders with the GPU renderer.
+	 *
+	 * \param renderer the renderer to use.
+	 * \param state the state to to use, or NULL to clear custom GPU render state.
+	 * \returns true on success or false on failure; call SDL_GetError() for more
+	 *          information.
+	 *
+	 * \threadsafety This function should be called on the thread that created the
+	 *               renderer.
+	 *
+	 * \since This function is available since SDL 3.4.0.
+	 */
+	[CLink] public static extern bool SDL_SetGPURenderState(SDL_Renderer* renderer, SDL_GPURenderState* state);
 
-/**
- * Destroy custom GPU render state.
- *
- * \param state the state to destroy.
- *
- * \threadsafety This function should be called on the thread that created the
- *               renderer.
- *
- * \since This function is available since SDL 3.4.0.
- *
- * \sa SDL_CreateGPURenderState
- */
-[CLink] public static extern void SDL_DestroyGPURenderState(SDL_GPURenderState *state);
+	/**
+	 * Destroy custom GPU render state.
+	 *
+	 * \param state the state to destroy.
+	 *
+	 * \threadsafety This function should be called on the thread that created the
+	 *               renderer.
+	 *
+	 * \since This function is available since SDL 3.4.0.
+	 *
+	 * \sa SDL_CreateGPURenderState
+	 */
+	[CLink] public static extern void SDL_DestroyGPURenderState(SDL_GPURenderState* state);
 
 }

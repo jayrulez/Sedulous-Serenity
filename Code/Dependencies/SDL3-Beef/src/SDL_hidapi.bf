@@ -13,11 +13,11 @@ using System.Interop;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -68,30 +68,30 @@ namespace SDL3;
  */
 public enum SDL_hid_bus_type : int32
 {
-    /** Unknown bus type */
-    SDL_HID_API_BUS_UNKNOWN = 0x00,
+	/** Unknown bus type */
+	SDL_HID_API_BUS_UNKNOWN = 0x00,
 
-    /** USB bus
-       Specifications:
-       https://usb.org/hid */
-    SDL_HID_API_BUS_USB = 0x01,
+	/** USB bus
+	   Specifications:
+	   https://usb.org/hid */
+	SDL_HID_API_BUS_USB = 0x01,
 
-    /** Bluetooth or Bluetooth LE bus
-       Specifications:
-       https://www.bluetooth.com/specifications/specs/human-interface-device-profile-1-1-1/
-       https://www.bluetooth.com/specifications/specs/hid-service-1-0/
-       https://www.bluetooth.com/specifications/specs/hid-over-gatt-profile-1-0/ */
-    SDL_HID_API_BUS_BLUETOOTH = 0x02,
+	/** Bluetooth or Bluetooth LE bus
+	   Specifications:
+	   https://www.bluetooth.com/specifications/specs/human-interface-device-profile-1-1-1/
+	   https://www.bluetooth.com/specifications/specs/hid-service-1-0/
+	   https://www.bluetooth.com/specifications/specs/hid-over-gatt-profile-1-0/ */
+	SDL_HID_API_BUS_BLUETOOTH = 0x02,
 
-    /** I2C bus
-       Specifications:
-       https://docs.microsoft.com/previous-versions/windows/hardware/design/dn642101(v=vs.85) */
-    SDL_HID_API_BUS_I2C = 0x03,
+	/** I2C bus
+	   Specifications:
+	   https://docs.microsoft.com/previous-versions/windows/hardware/design/dn642101(v=vs.85) */
+	SDL_HID_API_BUS_I2C = 0x03,
 
-    /** SPI bus
-       Specifications:
-       https://www.microsoft.com/download/details.aspx?id=103325 */
-    SDL_HID_API_BUS_SPI = 0x04
+	/** SPI bus
+	   Specifications:
+	   https://www.microsoft.com/download/details.aspx?id=103325 */
+	SDL_HID_API_BUS_SPI = 0x04
 
 }
 
@@ -104,45 +104,45 @@ public enum SDL_hid_bus_type : int32
  */
 [CRepr] public struct SDL_hid_device_info
 {
-    /** Platform-specific device path */
-    public char8* path;
-    /** Device Vendor ID */
+	/** Platform-specific device path */
+	public char8* path;
+	/** Device Vendor ID */
 	public uint16 vendor_id;
-    /** Device Product ID */
+	/** Device Product ID */
 	public uint16 product_id;
-    /** Serial Number */
+	/** Serial Number */
 	public char16* serial_number;
-    /** Device Release Number in binary-coded decimal,
-        also known as Device Version Number */
+	/** Device Release Number in binary-coded decimal,
+		also known as Device Version Number */
 	public uint16 release_number;
-    /** Manufacturer String */
+	/** Manufacturer String */
 	public char16* manufacturer_string;
-    /** Product string */
+	/** Product string */
 	public char16* product_string;
-    /** Usage Page for this Device/Interface
-        (Windows/Mac/hidraw only) */
+	/** Usage Page for this Device/Interface
+		(Windows/Mac/hidraw only) */
 	public uint16 usage_page;
-    /** Usage for this Device/Interface
-        (Windows/Mac/hidraw only) */
+	/** Usage for this Device/Interface
+		(Windows/Mac/hidraw only) */
 	public uint16 usage;
-    /** The USB interface which this logical device
-        represents.
+	/** The USB interface which this logical device
+		represents.
 
-        Valid only if the device is a USB HID device.
-        Set to -1 in all other cases.
-    */
-    public int32 interface_number;
+		Valid only if the device is a USB HID device.
+		Set to -1 in all other cases.
+	*/
+	public int32 interface_number;
 
-    /** Additional information about the USB interface.
-        Valid on libusb and Android implementations. */
-    public int32 interface_class;
-    public int32 interface_subclass;
-    public int32 interface_protocol;
+	/** Additional information about the USB interface.
+		Valid on libusb and Android implementations. */
+	public int32 interface_class;
+	public int32 interface_subclass;
+	public int32 interface_protocol;
 
-    /** Underlying bus type */
-    public SDL_hid_bus_type bus_type;
+	/** Underlying bus type */
+	public SDL_hid_bus_type bus_type;
 
-    /** Pointer to the next device */
+	/** Pointer to the next device */
 	public SDL_hid_device_info* next;
 
 }
@@ -168,7 +168,7 @@ public static //extension SDL3
  *
  * \sa SDL_hid_exit
  */
-[CLink] public static extern int32 SDL_hid_init();
+	[CLink] public static extern int32 SDL_hid_init();
 
 /**
  * Finalize the HIDAPI library.
@@ -183,7 +183,7 @@ public static //extension SDL3
  *
  * \sa SDL_hid_init
  */
-[CLink] public static extern int32 SDL_hid_exit();
+	[CLink] public static extern int32 SDL_hid_exit();
 
 /**
  * Check to see if devices may have been added or removed.
@@ -204,7 +204,7 @@ public static //extension SDL3
  *
  * \sa SDL_hid_enumerate
  */
-[CLink] public static extern uint32 SDL_hid_device_change_count();
+	[CLink] public static extern uint32 SDL_hid_device_change_count();
 
 /**
  * Enumerate the HID Devices.
@@ -244,7 +244,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern void SDL_hid_free_enumeration(SDL_hid_device_info *devs);
+	[CLink] public static extern void SDL_hid_free_enumeration(SDL_hid_device_info* devs);
 
 /**
  * Open a HID device using a Vendor ID (VID), Product ID (PID) and optionally
@@ -276,7 +276,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_hid_device* SDL_hid_open_path(char8* path);
+	[CLink] public static extern SDL_hid_device* SDL_hid_open_path(char8* path);
 
 /**
  * Get the properties associated with an SDL_hid_device.
@@ -292,9 +292,9 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.4.0.
  */
-[CLink] public static extern SDL_PropertiesID SDL_hid_get_properties(SDL_hid_device *dev);
+	[CLink] public static extern SDL_PropertiesID SDL_hid_get_properties(SDL_hid_device* dev);
 
-public const char8* SDL_PROP_HIDAPI_LIBUSB_DEVICE_HANDLE_POINTER   = "SDL.hidapi.libusb.device.handle";
+	public const char8* SDL_PROP_HIDAPI_LIBUSB_DEVICE_HANDLE_POINTER   = "SDL.hidapi.libusb.device.handle";
 
 /**
  * Write an Output report to a HID device.
@@ -382,7 +382,7 @@ public const char8* SDL_PROP_HIDAPI_LIBUSB_DEVICE_HANDLE_POINTER   = "SDL.hidapi
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern int32 SDL_hid_set_nonblocking(SDL_hid_device *dev, int32 nonblock);
+	[CLink] public static extern int32 SDL_hid_set_nonblocking(SDL_hid_device* dev, int32 nonblock);
 
 /**
  * Send a Feature report to the device.
@@ -464,7 +464,7 @@ public const char8* SDL_PROP_HIDAPI_LIBUSB_DEVICE_HANDLE_POINTER   = "SDL.hidapi
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern int32 SDL_hid_close(SDL_hid_device *dev);
+	[CLink] public static extern int32 SDL_hid_close(SDL_hid_device* dev);
 
 /**
  * Get The Manufacturer String from a HID device.
@@ -529,7 +529,7 @@ public const char8* SDL_PROP_HIDAPI_LIBUSB_DEVICE_HANDLE_POINTER   = "SDL.hidapi
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_hid_device_info* SDL_hid_get_device_info(SDL_hid_device *dev);
+	[CLink] public static extern SDL_hid_device_info* SDL_hid_get_device_info(SDL_hid_device* dev);
 
 /**
  * Get a report descriptor from a HID device.
@@ -554,6 +554,6 @@ public const char8* SDL_PROP_HIDAPI_LIBUSB_DEVICE_HANDLE_POINTER   = "SDL.hidapi
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern void SDL_hid_ble_scan(bool active);
+	[CLink] public static extern void SDL_hid_ble_scan(bool active);
 
 }

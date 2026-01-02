@@ -12,11 +12,11 @@ using System;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -100,9 +100,9 @@ public enum SDL_InitFlags : uint32
  */
 public enum SDL_AppResult : int32
 {
-    SDL_APP_CONTINUE,   /**< Value that requests that the app continue from the main callbacks. */
-    SDL_APP_SUCCESS,    /**< Value that requests termination with success from the main callbacks. */
-    SDL_APP_FAILURE     /**< Value that requests termination with error from the main callbacks. */
+	SDL_APP_CONTINUE, /**< Value that requests that the app continue from the main callbacks. */
+	SDL_APP_SUCCESS, /**< Value that requests termination with success from the main callbacks. */
+	SDL_APP_FAILURE /**< Value that requests termination with error from the main callbacks. */
 }
 
 /**
@@ -122,7 +122,7 @@ public enum SDL_AppResult : int32
  *
  * \since This datatype is available since SDL 3.2.0.
  */
-public typealias SDL_AppInit_func = function SDL_AppResult(void **appstate, int32 argc, char8*[] argv);
+public typealias SDL_AppInit_func = function SDL_AppResult(void** appstate, int32 argc, char8*[] argv);
 
 /**
  * Function pointer typedef for SDL_AppIterate.
@@ -137,7 +137,7 @@ public typealias SDL_AppInit_func = function SDL_AppResult(void **appstate, int3
  *
  * \since This datatype is available since SDL 3.2.0.
  */
-public typealias SDL_AppIterate_func = function SDL_AppResult(void *appstate);
+public typealias SDL_AppIterate_func = function SDL_AppResult(void* appstate);
 
 /**
  * Function pointer typedef for SDL_AppEvent.
@@ -153,7 +153,7 @@ public typealias SDL_AppIterate_func = function SDL_AppResult(void *appstate);
  *
  * \since This datatype is available since SDL 3.2.0.
  */
-public typealias SDL_AppEvent_func = function SDL_AppResult(void *appstate, SDL_Event *event);
+public typealias SDL_AppEvent_func = function SDL_AppResult(void* appstate, SDL_Event* event);
 
 /**
  * Function pointer typedef for SDL_AppQuit.
@@ -167,7 +167,7 @@ public typealias SDL_AppEvent_func = function SDL_AppResult(void *appstate, SDL_
  *
  * \since This datatype is available since SDL 3.2.0.
  */
-public typealias SDL_AppQuit_func = function void(void *appstate, SDL_AppResult result);
+public typealias SDL_AppQuit_func = function void(void* appstate, SDL_AppResult result);
 
 public static //extension SDL3
 {
@@ -226,7 +226,7 @@ public static //extension SDL3
  * \sa SDL_SetMainReady
  * \sa SDL_WasInit
  */
-[CLink] public static extern bool SDL_Init(SDL_InitFlags flags);
+	[CLink] public static extern bool SDL_Init(SDL_InitFlags flags);
 
 /**
  * Compatibility function to initialize the SDL library.
@@ -243,7 +243,7 @@ public static //extension SDL3
  * \sa SDL_Quit
  * \sa SDL_QuitSubSystem
  */
-[CLink] public static extern bool SDL_InitSubSystem(SDL_InitFlags flags);
+	[CLink] public static extern bool SDL_InitSubSystem(SDL_InitFlags flags);
 
 /**
  * Shut down specific SDL subsystems.
@@ -258,7 +258,7 @@ public static //extension SDL3
  * \sa SDL_InitSubSystem
  * \sa SDL_Quit
  */
-[CLink] public static extern void SDL_QuitSubSystem(SDL_InitFlags flags);
+	[CLink] public static extern void SDL_QuitSubSystem(SDL_InitFlags flags);
 
 /**
  * Get a mask of the specified subsystems which are currently initialized.
@@ -272,7 +272,7 @@ public static //extension SDL3
  * \sa SDL_Init
  * \sa SDL_InitSubSystem
  */
-[CLink] public static extern SDL_InitFlags SDL_WasInit(SDL_InitFlags flags);
+	[CLink] public static extern SDL_InitFlags SDL_WasInit(SDL_InitFlags flags);
 
 /**
  * Clean up all initialized subsystems.
@@ -290,7 +290,7 @@ public static //extension SDL3
  * \sa SDL_Init
  * \sa SDL_QuitSubSystem
  */
-[CLink] public static extern void SDL_Quit();
+	[CLink] public static extern void SDL_Quit();
 
 /**
  * Return whether this is the main thread.
@@ -310,7 +310,7 @@ public static //extension SDL3
  *
  * \sa SDL_RunOnMainThread
  */
-[CLink] public static extern bool SDL_IsMainThread();
+	[CLink] public static extern bool SDL_IsMainThread();
 }
 
 /**
@@ -322,7 +322,7 @@ public static //extension SDL3
  *
  * \sa SDL_RunOnMainThread
  */
-public typealias SDL_MainThreadCallback = function void(void *userdata);
+public typealias SDL_MainThreadCallback = function void(void* userdata);
 
 public static //extension SDL3
 {
@@ -351,7 +351,7 @@ public static //extension SDL3
  *
  * \sa SDL_IsMainThread
  */
-[CLink] public static extern bool SDL_RunOnMainThread(SDL_MainThreadCallback callback, void *userdata, bool wait_complete);
+	[CLink] public static extern bool SDL_RunOnMainThread(SDL_MainThreadCallback callback, void* userdata, bool wait_complete);
 
 /**
  * Specify basic metadata about your app.
@@ -389,7 +389,7 @@ public static //extension SDL3
  *
  * \sa SDL_SetAppMetadataProperty
  */
-[CLink] public static extern bool SDL_SetAppMetadata(char8* appname, char8* appversion, char8* appidentifier);
+	[CLink] public static extern bool SDL_SetAppMetadata(char8* appname, char8* appversion, char8* appidentifier);
 
 /**
  * Specify metadata about your app through a set of properties.
@@ -452,15 +452,15 @@ public static //extension SDL3
  * \sa SDL_GetAppMetadataProperty
  * \sa SDL_SetAppMetadata
  */
-[CLink] public static extern bool SDL_SetAppMetadataProperty(char8* name, char8* value);
+	[CLink] public static extern bool SDL_SetAppMetadataProperty(char8* name, char8* value);
 
-public const char8* SDL_PROP_APP_METADATA_NAME_STRING         = "SDL.app.metadata.name";
-public const char8* SDL_PROP_APP_METADATA_VERSION_STRING      = "SDL.app.metadata.version";
-public const char8* SDL_PROP_APP_METADATA_IDENTIFIER_STRING   = "SDL.app.metadata.identifier";
-public const char8* SDL_PROP_APP_METADATA_CREATOR_STRING      = "SDL.app.metadata.creator";
-public const char8* SDL_PROP_APP_METADATA_COPYRIGHT_STRING    = "SDL.app.metadata.copyright";
-public const char8* SDL_PROP_APP_METADATA_URL_STRING          = "SDL.app.metadata.url";
-public const char8* SDL_PROP_APP_METADATA_TYPE_STRING         = "SDL.app.metadata.type";
+	public const char8* SDL_PROP_APP_METADATA_NAME_STRING         = "SDL.app.metadata.name";
+	public const char8* SDL_PROP_APP_METADATA_VERSION_STRING      = "SDL.app.metadata.version";
+	public const char8* SDL_PROP_APP_METADATA_IDENTIFIER_STRING   = "SDL.app.metadata.identifier";
+	public const char8* SDL_PROP_APP_METADATA_CREATOR_STRING      = "SDL.app.metadata.creator";
+	public const char8* SDL_PROP_APP_METADATA_COPYRIGHT_STRING    = "SDL.app.metadata.copyright";
+	public const char8* SDL_PROP_APP_METADATA_URL_STRING          = "SDL.app.metadata.url";
+	public const char8* SDL_PROP_APP_METADATA_TYPE_STRING         = "SDL.app.metadata.type";
 
 /**
  * Get metadata about your app.
@@ -483,5 +483,5 @@ public const char8* SDL_PROP_APP_METADATA_TYPE_STRING         = "SDL.app.metadat
  * \sa SDL_SetAppMetadata
  * \sa SDL_SetAppMetadataProperty
  */
-[CLink] public static extern char8* SDL_GetAppMetadataProperty(char8* name);
+	[CLink] public static extern char8* SDL_GetAppMetadataProperty(char8* name);
 }

@@ -12,11 +12,11 @@ using System;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -83,7 +83,7 @@ public static //extension SDL3
  * \sa SDL_TryLockMutex
  * \sa SDL_UnlockMutex
  */
-[CLink] public static extern SDL_Mutex* SDL_CreateMutex();
+	[CLink] public static extern SDL_Mutex* SDL_CreateMutex();
 
 /**
  * Lock the mutex.
@@ -164,9 +164,9 @@ public static //extension SDL3
  *
  * \sa SDL_CreateMutex
  */
-[CLink] public static extern void SDL_DestroyMutex(SDL_Mutex *mutex);
+	[CLink] public static extern void SDL_DestroyMutex(SDL_Mutex* mutex);
 
-/* @} *//* Mutex functions */
+/* @} */ /* Mutex functions */
 
 }
 
@@ -237,7 +237,7 @@ public static //extension SDL3
  * \sa SDL_TryLockRWLockForWriting
  * \sa SDL_UnlockRWLock
  */
-[CLink] public static extern SDL_RWLock* SDL_CreateRWLock();
+	[CLink] public static extern SDL_RWLock* SDL_CreateRWLock();
 
 /**
  * Lock the read/write lock for _read only_ operations.
@@ -402,9 +402,9 @@ public static //extension SDL3
  *
  * \sa SDL_CreateRWLock
  */
-[CLink] public static extern void SDL_DestroyRWLock(SDL_RWLock *rwlock);
+	[CLink] public static extern void SDL_DestroyRWLock(SDL_RWLock* rwlock);
 
-/* @} *//* Read/write lock functions */
+/* @} */ /* Read/write lock functions */
 }
 
 /**
@@ -452,7 +452,7 @@ public static //extension SDL3
  * \sa SDL_WaitSemaphore
  * \sa SDL_WaitSemaphoreTimeout
  */
-[CLink] public static extern SDL_Semaphore* SDL_CreateSemaphore(uint32 initial_value);
+	[CLink] public static extern SDL_Semaphore* SDL_CreateSemaphore(uint32 initial_value);
 
 /**
  * Destroy a semaphore.
@@ -466,7 +466,7 @@ public static //extension SDL3
  *
  * \sa SDL_CreateSemaphore
  */
-[CLink] public static extern void SDL_DestroySemaphore(SDL_Semaphore *sem);
+	[CLink] public static extern void SDL_DestroySemaphore(SDL_Semaphore* sem);
 
 /**
  * Wait until a semaphore has a positive value and then decrements it.
@@ -486,7 +486,7 @@ public static //extension SDL3
  * \sa SDL_TryWaitSemaphore
  * \sa SDL_WaitSemaphoreTimeout
  */
-[CLink] public static extern void SDL_WaitSemaphore(SDL_Semaphore *sem);
+	[CLink] public static extern void SDL_WaitSemaphore(SDL_Semaphore* sem);
 
 /**
  * See if a semaphore has a positive value and decrement it if it does.
@@ -505,7 +505,7 @@ public static //extension SDL3
  * \sa SDL_WaitSemaphore
  * \sa SDL_WaitSemaphoreTimeout
  */
-[CLink] public static extern bool SDL_TryWaitSemaphore(SDL_Semaphore *sem);
+	[CLink] public static extern bool SDL_TryWaitSemaphore(SDL_Semaphore* sem);
 
 /**
  * Wait until a semaphore has a positive value and then decrements it.
@@ -525,7 +525,7 @@ public static //extension SDL3
  * \sa SDL_TryWaitSemaphore
  * \sa SDL_WaitSemaphore
  */
-[CLink] public static extern bool SDL_WaitSemaphoreTimeout(SDL_Semaphore *sem, int32 timeoutMS);
+	[CLink] public static extern bool SDL_WaitSemaphoreTimeout(SDL_Semaphore* sem, int32 timeoutMS);
 
 /**
  * Atomically increment a semaphore's value and wake waiting threads.
@@ -538,7 +538,7 @@ public static //extension SDL3
  * \sa SDL_WaitSemaphore
  * \sa SDL_WaitSemaphoreTimeout
  */
-[CLink] public static extern void SDL_SignalSemaphore(SDL_Semaphore *sem);
+	[CLink] public static extern void SDL_SignalSemaphore(SDL_Semaphore* sem);
 
 /**
  * Get the current value of a semaphore.
@@ -548,9 +548,9 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern uint32 SDL_GetSemaphoreValue(SDL_Semaphore *sem);
+	[CLink] public static extern uint32 SDL_GetSemaphoreValue(SDL_Semaphore* sem);
 
-/* @} *//* Semaphore functions */
+/* @} */ /* Semaphore functions */
 }
 
 /**
@@ -589,7 +589,7 @@ public static //extension SDL3
  * \sa SDL_WaitConditionTimeout
  * \sa SDL_DestroyCondition
  */
-[CLink] public static extern SDL_Condition* SDL_CreateCondition();
+	[CLink] public static extern SDL_Condition* SDL_CreateCondition();
 
 /**
  * Destroy a condition variable.
@@ -600,7 +600,7 @@ public static //extension SDL3
  *
  * \sa SDL_CreateCondition
  */
-[CLink] public static extern void SDL_DestroyCondition(SDL_Condition *cond);
+	[CLink] public static extern void SDL_DestroyCondition(SDL_Condition* cond);
 
 /**
  * Restart one of the threads that are waiting on the condition variable.
@@ -615,7 +615,7 @@ public static //extension SDL3
  * \sa SDL_WaitCondition
  * \sa SDL_WaitConditionTimeout
  */
-[CLink] public static extern void SDL_SignalCondition(SDL_Condition *cond);
+	[CLink] public static extern void SDL_SignalCondition(SDL_Condition* cond);
 
 /**
  * Restart all threads that are waiting on the condition variable.
@@ -630,7 +630,7 @@ public static //extension SDL3
  * \sa SDL_WaitCondition
  * \sa SDL_WaitConditionTimeout
  */
-[CLink] public static extern void SDL_BroadcastCondition(SDL_Condition *cond);
+	[CLink] public static extern void SDL_BroadcastCondition(SDL_Condition* cond);
 
 /**
  * Wait until a condition variable is signaled.
@@ -658,7 +658,7 @@ public static //extension SDL3
  * \sa SDL_SignalCondition
  * \sa SDL_WaitConditionTimeout
  */
-[CLink] public static extern void SDL_WaitCondition(SDL_Condition *cond, SDL_Mutex *mutex);
+	[CLink] public static extern void SDL_WaitCondition(SDL_Condition* cond, SDL_Mutex* mutex);
 
 /**
  * Wait until a condition variable is signaled or a certain time has passed.
@@ -688,10 +688,10 @@ public static //extension SDL3
  * \sa SDL_SignalCondition
  * \sa SDL_WaitCondition
  */
-[CLink] public static extern bool SDL_WaitConditionTimeout(SDL_Condition *cond,
-                                                SDL_Mutex *mutex, int32 timeoutMS);
+	[CLink] public static extern bool SDL_WaitConditionTimeout(SDL_Condition* cond,
+		SDL_Mutex* mutex, int32 timeoutMS);
 
-/* @} *//* Condition variable functions */
+/* @} */ /* Condition variable functions */
 }
 
 /**
@@ -706,10 +706,10 @@ public static //extension SDL3
  */
 public enum SDL_InitStatus : int32
 {
-    SDL_INIT_STATUS_UNINITIALIZED,
-    SDL_INIT_STATUS_INITIALIZING,
-    SDL_INIT_STATUS_INITIALIZED,
-    SDL_INIT_STATUS_UNINITIALIZING
+	SDL_INIT_STATUS_UNINITIALIZED,
+	SDL_INIT_STATUS_INITIALIZING,
+	SDL_INIT_STATUS_INITIALIZED,
+	SDL_INIT_STATUS_UNINITIALIZING
 }
 
 /**
@@ -770,9 +770,9 @@ public enum SDL_InitStatus : int32
  */
 [CRepr] public struct SDL_InitState
 {
-    public SDL_AtomicInt status;
-    public SDL_ThreadID thread;
-    public void* reserved;
+	public SDL_AtomicInt status;
+	public SDL_ThreadID thread;
+	public void* reserved;
 }
 
 public static //extension SDL3
@@ -799,7 +799,7 @@ public static //extension SDL3
  * \sa SDL_SetInitialized
  * \sa SDL_ShouldQuit
  */
-[CLink] public static extern bool SDL_ShouldInit(SDL_InitState *state);
+	[CLink] public static extern bool SDL_ShouldInit(SDL_InitState* state);
 
 /**
  * Return whether cleanup should be done.
@@ -820,7 +820,7 @@ public static //extension SDL3
  * \sa SDL_SetInitialized
  * \sa SDL_ShouldInit
  */
-[CLink] public static extern bool SDL_ShouldQuit(SDL_InitState *state);
+	[CLink] public static extern bool SDL_ShouldQuit(SDL_InitState* state);
 
 /**
  * Finish an initialization state transition.
@@ -839,7 +839,7 @@ public static //extension SDL3
  * \sa SDL_ShouldInit
  * \sa SDL_ShouldQuit
  */
-[CLink] public static extern void SDL_SetInitialized(SDL_InitState *state, bool initialized);
+	[CLink] public static extern void SDL_SetInitialized(SDL_InitState* state, bool initialized);
 
-/* @} *//* Thread-safe initialization state functions */
+/* @} */ /* Thread-safe initialization state functions */
 }

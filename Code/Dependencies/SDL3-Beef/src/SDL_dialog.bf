@@ -12,11 +12,11 @@ using System;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -58,8 +58,8 @@ namespace SDL3;
  */
 [CRepr] public struct SDL_DialogFileFilter
 {
-    public char8* name;
-    public char8* pattern;
+	public char8* name;
+	public char8* pattern;
 }
 
 /**
@@ -99,7 +99,7 @@ namespace SDL3;
  * \sa SDL_ShowOpenFolderDialog
  * \sa SDL_ShowFileDialogWithProperties
  */
-public typealias SDL_DialogFileCallback = function void(void *userdata, char8** filelist, int32 filter);
+public typealias SDL_DialogFileCallback = function void(void* userdata, char8** filelist, int32 filter);
 
 public static //extension SDL3
 {
@@ -155,7 +155,7 @@ public static //extension SDL3
  * \sa SDL_ShowOpenFolderDialog
  * \sa SDL_ShowFileDialogWithProperties
  */
-[CLink] public static extern void SDL_ShowOpenFileDialog(SDL_DialogFileCallback callback, void *userdata, SDL_Window *window, SDL_DialogFileFilter* filters, int32 nfilters, char8* default_location, bool allow_many);
+	[CLink] public static extern void SDL_ShowOpenFileDialog(SDL_DialogFileCallback callback, void* userdata, SDL_Window* window, SDL_DialogFileFilter* filters, int32 nfilters, char8* default_location, bool allow_many);
 
 /**
  * Displays a dialog that lets the user choose a new or existing file on their
@@ -204,7 +204,7 @@ public static //extension SDL3
  * \sa SDL_ShowOpenFolderDialog
  * \sa SDL_ShowFileDialogWithProperties
  */
-[CLink] public static extern void SDL_ShowSaveFileDialog(SDL_DialogFileCallback callback, void *userdata, SDL_Window *window, SDL_DialogFileFilter* filters, int32 nfilters, char8* default_location);
+	[CLink] public static extern void SDL_ShowSaveFileDialog(SDL_DialogFileCallback callback, void* userdata, SDL_Window* window, SDL_DialogFileFilter* filters, int32 nfilters, char8* default_location);
 
 /**
  * Displays a dialog that lets the user select a folder on their filesystem.
@@ -249,7 +249,7 @@ public static //extension SDL3
  * \sa SDL_ShowSaveFileDialog
  * \sa SDL_ShowFileDialogWithProperties
  */
-[CLink] public static extern void SDL_ShowOpenFolderDialog(SDL_DialogFileCallback callback, void *userdata, SDL_Window *window, char8* default_location, bool allow_many);
+	[CLink] public static extern void SDL_ShowOpenFolderDialog(SDL_DialogFileCallback callback, void* userdata, SDL_Window* window, char8* default_location, bool allow_many);
 }
 
 /**
@@ -264,9 +264,9 @@ public static //extension SDL3
  */
 public enum SDL_FileDialogType : int32
 {
-    SDL_FILEDIALOG_OPENFILE,
-    SDL_FILEDIALOG_SAVEFILE,
-    SDL_FILEDIALOG_OPENFOLDER
+	SDL_FILEDIALOG_OPENFILE,
+	SDL_FILEDIALOG_SAVEFILE,
+	SDL_FILEDIALOG_OPENFOLDER
 }
 
 public static //extension SDL3
@@ -319,14 +319,14 @@ public static //extension SDL3
  * \sa SDL_ShowSaveFileDialog
  * \sa SDL_ShowOpenFolderDialog
  */
-[CLink] public static extern void SDL_ShowFileDialogWithProperties(SDL_FileDialogType type, SDL_DialogFileCallback callback, void *userdata, SDL_PropertiesID props);
+	[CLink] public static extern void SDL_ShowFileDialogWithProperties(SDL_FileDialogType type, SDL_DialogFileCallback callback, void* userdata, SDL_PropertiesID props);
 
-public const char8* SDL_PROP_FILE_DIALOG_FILTERS_POINTER     = "SDL.filedialog.filters";
-public const char8* SDL_PROP_FILE_DIALOG_NFILTERS_NUMBER     = "SDL.filedialog.nfilters";
-public const char8* SDL_PROP_FILE_DIALOG_WINDOW_POINTER      = "SDL.filedialog.window";
-public const char8* SDL_PROP_FILE_DIALOG_LOCATION_STRING     = "SDL.filedialog.location";
-public const char8* SDL_PROP_FILE_DIALOG_MANY_BOOLEAN        = "SDL.filedialog.many";
-public const char8* SDL_PROP_FILE_DIALOG_TITLE_STRING        = "SDL.filedialog.title";
-public const char8* SDL_PROP_FILE_DIALOG_ACCEPT_STRING       = "SDL.filedialog.accept";
-public const char8* SDL_PROP_FILE_DIALOG_CANCEL_STRING       = "SDL.filedialog.cancel";
+	public const char8* SDL_PROP_FILE_DIALOG_FILTERS_POINTER     = "SDL.filedialog.filters";
+	public const char8* SDL_PROP_FILE_DIALOG_NFILTERS_NUMBER     = "SDL.filedialog.nfilters";
+	public const char8* SDL_PROP_FILE_DIALOG_WINDOW_POINTER      = "SDL.filedialog.window";
+	public const char8* SDL_PROP_FILE_DIALOG_LOCATION_STRING     = "SDL.filedialog.location";
+	public const char8* SDL_PROP_FILE_DIALOG_MANY_BOOLEAN        = "SDL.filedialog.many";
+	public const char8* SDL_PROP_FILE_DIALOG_TITLE_STRING        = "SDL.filedialog.title";
+	public const char8* SDL_PROP_FILE_DIALOG_ACCEPT_STRING       = "SDL.filedialog.accept";
+	public const char8* SDL_PROP_FILE_DIALOG_CANCEL_STRING       = "SDL.filedialog.cancel";
 }

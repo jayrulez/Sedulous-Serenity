@@ -12,11 +12,11 @@ using System;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -63,12 +63,12 @@ public typealias SDL_PropertiesID = uint32;
  */
 public enum SDL_PropertyType : int32
 {
-    SDL_PROPERTY_TYPE_INVALID,
-    SDL_PROPERTY_TYPE_POINTER,
-    SDL_PROPERTY_TYPE_STRING,
-    SDL_PROPERTY_TYPE_NUMBER,
-    SDL_PROPERTY_TYPE_FLOAT,
-    SDL_PROPERTY_TYPE_BOOLEAN
+	SDL_PROPERTY_TYPE_INVALID,
+	SDL_PROPERTY_TYPE_POINTER,
+	SDL_PROPERTY_TYPE_STRING,
+	SDL_PROPERTY_TYPE_NUMBER,
+	SDL_PROPERTY_TYPE_FLOAT,
+	SDL_PROPERTY_TYPE_BOOLEAN
 }
 public static //extension SDL3
 {
@@ -96,7 +96,7 @@ public static //extension SDL3
  *
  * \since This macro is available since SDL 3.4.0.
  */
-public const char8* SDL_PROP_NAME_STRING = "SDL.name";
+	public const char8* SDL_PROP_NAME_STRING = "SDL.name";
 
 /**
  * Get the global SDL properties.
@@ -106,7 +106,7 @@ public const char8* SDL_PROP_NAME_STRING = "SDL.name";
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_PropertiesID SDL_GetGlobalProperties();
+	[CLink] public static extern SDL_PropertiesID SDL_GetGlobalProperties();
 
 /**
  * Create a group of properties.
@@ -122,7 +122,7 @@ public const char8* SDL_PROP_NAME_STRING = "SDL.name";
  *
  * \sa SDL_DestroyProperties
  */
-[CLink] public static extern SDL_PropertiesID SDL_CreateProperties();
+	[CLink] public static extern SDL_PropertiesID SDL_CreateProperties();
 
 /**
  * Copy a group of properties.
@@ -143,7 +143,7 @@ public const char8* SDL_PROP_NAME_STRING = "SDL.name";
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_CopyProperties(SDL_PropertiesID src, SDL_PropertiesID dst);
+	[CLink] public static extern bool SDL_CopyProperties(SDL_PropertiesID src, SDL_PropertiesID dst);
 
 /**
  * Lock a group of properties.
@@ -167,7 +167,7 @@ public const char8* SDL_PROP_NAME_STRING = "SDL.name";
  *
  * \sa SDL_UnlockProperties
  */
-[CLink] public static extern bool SDL_LockProperties(SDL_PropertiesID props);
+	[CLink] public static extern bool SDL_LockProperties(SDL_PropertiesID props);
 
 /**
  * Unlock a group of properties.
@@ -180,7 +180,7 @@ public const char8* SDL_PROP_NAME_STRING = "SDL.name";
  *
  * \sa SDL_LockProperties
  */
-[CLink] public static extern void SDL_UnlockProperties(SDL_PropertiesID props);
+	[CLink] public static extern void SDL_UnlockProperties(SDL_PropertiesID props);
 }
 
 /**
@@ -205,7 +205,7 @@ public const char8* SDL_PROP_NAME_STRING = "SDL.name";
  *
  * \sa SDL_SetPointerPropertyWithCleanup
  */
-public typealias SDL_CleanupPropertyCallback = function void(void *userdata, void *value);
+public typealias SDL_CleanupPropertyCallback = function void(void* userdata, void* value);
 
 public static //extension SDL3
 {
@@ -238,7 +238,7 @@ public static //extension SDL3
  * \sa SDL_SetPointerProperty
  * \sa SDL_CleanupPropertyCallback
  */
-[CLink] public static extern bool SDL_SetPointerPropertyWithCleanup(SDL_PropertiesID props, char8* name, void *value, SDL_CleanupPropertyCallback cleanup, void *userdata);
+	[CLink] public static extern bool SDL_SetPointerPropertyWithCleanup(SDL_PropertiesID props, char8* name, void* value, SDL_CleanupPropertyCallback cleanup, void* userdata);
 
 /**
  * Set a pointer property in a group of properties.
@@ -261,7 +261,7 @@ public static //extension SDL3
  * \sa SDL_SetPointerPropertyWithCleanup
  * \sa SDL_SetStringProperty
  */
-[CLink] public static extern bool SDL_SetPointerProperty(SDL_PropertiesID props, char8* name, void *value);
+	[CLink] public static extern bool SDL_SetPointerProperty(SDL_PropertiesID props, char8* name, void* value);
 
 /**
  * Set a string property in a group of properties.
@@ -281,7 +281,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetStringProperty
  */
-[CLink] public static extern bool SDL_SetStringProperty(SDL_PropertiesID props, char8* name, char8* value);
+	[CLink] public static extern bool SDL_SetStringProperty(SDL_PropertiesID props, char8* name, char8* value);
 
 /**
  * Set an integer property in a group of properties.
@@ -298,7 +298,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetNumberProperty
  */
-[CLink] public static extern bool SDL_SetNumberProperty(SDL_PropertiesID props, char8* name, int64 value);
+	[CLink] public static extern bool SDL_SetNumberProperty(SDL_PropertiesID props, char8* name, int64 value);
 
 /**
  * Set a floating point property in a group of properties.
@@ -315,7 +315,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetFloatProperty
  */
-[CLink] public static extern bool SDL_SetFloatProperty(SDL_PropertiesID props, char8* name, float value);
+	[CLink] public static extern bool SDL_SetFloatProperty(SDL_PropertiesID props, char8* name, float value);
 
 /**
  * Set a boolean property in a group of properties.
@@ -332,7 +332,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetBooleanProperty
  */
-[CLink] public static extern bool SDL_SetBooleanProperty(SDL_PropertiesID props, char8* name, bool value);
+	[CLink] public static extern bool SDL_SetBooleanProperty(SDL_PropertiesID props, char8* name, bool value);
 
 /**
  * Return whether a property exists in a group of properties.
@@ -347,7 +347,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetPropertyType
  */
-[CLink] public static extern bool SDL_HasProperty(SDL_PropertiesID props, char8* name);
+	[CLink] public static extern bool SDL_HasProperty(SDL_PropertiesID props, char8* name);
 
 /**
  * Get the type of a property in a group of properties.
@@ -363,7 +363,7 @@ public static //extension SDL3
  *
  * \sa SDL_HasProperty
  */
-[CLink] public static extern SDL_PropertyType SDL_GetPropertyType(SDL_PropertiesID props, char8* name);
+	[CLink] public static extern SDL_PropertyType SDL_GetPropertyType(SDL_PropertiesID props, char8* name);
 
 /**
  * Get a pointer property from a group of properties.
@@ -396,7 +396,7 @@ public static //extension SDL3
  * \sa SDL_HasProperty
  * \sa SDL_SetPointerProperty
  */
-[CLink] public static extern void* SDL_GetPointerProperty(SDL_PropertiesID props, char8* name, void *default_value);
+	[CLink] public static extern void* SDL_GetPointerProperty(SDL_PropertiesID props, char8* name, void* default_value);
 
 /**
  * Get a string property from a group of properties.
@@ -420,7 +420,7 @@ public static //extension SDL3
  * \sa SDL_HasProperty
  * \sa SDL_SetStringProperty
  */
-[CLink] public static extern char8* SDL_GetStringProperty(SDL_PropertiesID props, char8* name, char8* default_value);
+	[CLink] public static extern char8* SDL_GetStringProperty(SDL_PropertiesID props, char8* name, char8* default_value);
 
 /**
  * Get a number property from a group of properties.
@@ -442,7 +442,7 @@ public static //extension SDL3
  * \sa SDL_HasProperty
  * \sa SDL_SetNumberProperty
  */
-[CLink] public static extern int64 SDL_GetNumberProperty(SDL_PropertiesID props, char8* name, int64 default_value);
+	[CLink] public static extern int64 SDL_GetNumberProperty(SDL_PropertiesID props, char8* name, int64 default_value);
 
 /**
  * Get a floating point property from a group of properties.
@@ -464,7 +464,7 @@ public static //extension SDL3
  * \sa SDL_HasProperty
  * \sa SDL_SetFloatProperty
  */
-[CLink] public static extern float SDL_GetFloatProperty(SDL_PropertiesID props, char8* name, float default_value);
+	[CLink] public static extern float SDL_GetFloatProperty(SDL_PropertiesID props, char8* name, float default_value);
 
 /**
  * Get a boolean property from a group of properties.
@@ -486,7 +486,7 @@ public static //extension SDL3
  * \sa SDL_HasProperty
  * \sa SDL_SetBooleanProperty
  */
-[CLink] public static extern bool SDL_GetBooleanProperty(SDL_PropertiesID props, char8* name, bool default_value);
+	[CLink] public static extern bool SDL_GetBooleanProperty(SDL_PropertiesID props, char8* name, bool default_value);
 
 /**
  * Clear a property from a group of properties.
@@ -500,7 +500,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_ClearProperty(SDL_PropertiesID props, char8* name);
+	[CLink] public static extern bool SDL_ClearProperty(SDL_PropertiesID props, char8* name);
 }
 
 /**
@@ -520,7 +520,7 @@ public static //extension SDL3
  *
  * \sa SDL_EnumerateProperties
  */
-public typealias SDL_EnumeratePropertiesCallback = function void(void *userdata, SDL_PropertiesID props, char8* name);
+public typealias SDL_EnumeratePropertiesCallback = function void(void* userdata, SDL_PropertiesID props, char8* name);
 
 public static //extension SDL3
 {
@@ -540,7 +540,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_EnumerateProperties(SDL_PropertiesID props, SDL_EnumeratePropertiesCallback callback, void *userdata);
+	[CLink] public static extern bool SDL_EnumerateProperties(SDL_PropertiesID props, SDL_EnumeratePropertiesCallback callback, void* userdata);
 
 /**
  * Destroy a group of properties.
@@ -558,5 +558,5 @@ public static //extension SDL3
  *
  * \sa SDL_CreateProperties
  */
-[CLink] public static extern void SDL_DestroyProperties(SDL_PropertiesID props);
+	[CLink] public static extern void SDL_DestroyProperties(SDL_PropertiesID props);
 }

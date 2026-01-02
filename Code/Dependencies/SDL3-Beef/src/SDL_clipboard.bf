@@ -12,11 +12,11 @@ using System;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -94,7 +94,7 @@ public static //extension SDL3
  * \sa SDL_GetClipboardText
  * \sa SDL_HasClipboardText
  */
-[CLink] public static extern bool SDL_SetClipboardText(char8* text);
+	[CLink] public static extern bool SDL_SetClipboardText(char8* text);
 
 /**
  * Get UTF-8 text from the clipboard.
@@ -127,7 +127,7 @@ public static //extension SDL3
  * \sa SDL_GetClipboardText
  * \sa SDL_SetClipboardText
  */
-[CLink] public static extern bool SDL_HasClipboardText();
+	[CLink] public static extern bool SDL_HasClipboardText();
 
 /**
  * Put UTF-8 text into the primary selection.
@@ -143,7 +143,7 @@ public static //extension SDL3
  * \sa SDL_GetPrimarySelectionText
  * \sa SDL_HasPrimarySelectionText
  */
-[CLink] public static extern bool SDL_SetPrimarySelectionText(char8* text);
+	[CLink] public static extern bool SDL_SetPrimarySelectionText(char8* text);
 
 /**
  * Get UTF-8 text from the primary selection.
@@ -177,7 +177,7 @@ public static //extension SDL3
  * \sa SDL_GetPrimarySelectionText
  * \sa SDL_SetPrimarySelectionText
  */
-[CLink] public static extern bool SDL_HasPrimarySelectionText();
+	[CLink] public static extern bool SDL_HasPrimarySelectionText();
 }
 
 /**
@@ -201,7 +201,7 @@ public static //extension SDL3
  *
  * \sa SDL_SetClipboardData
  */
-public typealias SDL_ClipboardDataCallback = function void*(void *userdata, char8* mime_type, uint *size);
+public typealias SDL_ClipboardDataCallback = function void*(void* userdata, char8* mime_type, uint* size);
 
 /**
  * Callback function that will be called when the clipboard is cleared, or
@@ -213,7 +213,7 @@ public typealias SDL_ClipboardDataCallback = function void*(void *userdata, char
  *
  * \sa SDL_SetClipboardData
  */
-public typealias SDL_ClipboardCleanupCallback = function void(void *userdata);
+public typealias SDL_ClipboardCleanupCallback = function void(void* userdata);
 
 public static //extension SDL3
 {
@@ -249,7 +249,7 @@ public static //extension SDL3
  * \sa SDL_GetClipboardData
  * \sa SDL_HasClipboardData
  */
-[CLink] public static extern bool SDL_SetClipboardData(SDL_ClipboardDataCallback callback, SDL_ClipboardCleanupCallback cleanup, void *userdata, char8* *mime_types, uint num_mime_types);
+	[CLink] public static extern bool SDL_SetClipboardData(SDL_ClipboardDataCallback callback, SDL_ClipboardCleanupCallback cleanup, void* userdata, char8** mime_types, uint num_mime_types);
 
 /**
  * Clear the clipboard data.
@@ -263,7 +263,7 @@ public static //extension SDL3
  *
  * \sa SDL_SetClipboardData
  */
-[CLink] public static extern bool SDL_ClearClipboardData();
+	[CLink] public static extern bool SDL_ClearClipboardData();
 
 /**
  * Get the data from the clipboard for a given mime type.
@@ -284,7 +284,7 @@ public static //extension SDL3
  * \sa SDL_HasClipboardData
  * \sa SDL_SetClipboardData
  */
-[CLink] public static extern void* SDL_GetClipboardData(char8* mime_type, uint *size);
+	[CLink] public static extern void* SDL_GetClipboardData(char8* mime_type, uint* size);
 
 /**
  * Query whether there is data in the clipboard for the provided mime type.
@@ -300,7 +300,7 @@ public static //extension SDL3
  * \sa SDL_SetClipboardData
  * \sa SDL_GetClipboardData
  */
-[CLink] public static extern bool SDL_HasClipboardData(char8* mime_type);
+	[CLink] public static extern bool SDL_HasClipboardData(char8* mime_type);
 
 /**
  * Retrieve the list of mime types available in the clipboard.
@@ -317,5 +317,5 @@ public static //extension SDL3
  *
  * \sa SDL_SetClipboardData
  */
-[CLink] public static extern char8** SDL_GetClipboardMimeTypes(uint *num_mime_types);
+	[CLink] public static extern char8** SDL_GetClipboardMimeTypes(uint* num_mime_types);
 }

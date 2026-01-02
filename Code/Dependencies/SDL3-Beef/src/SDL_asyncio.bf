@@ -12,11 +12,11 @@ using System;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -122,9 +122,9 @@ namespace SDL3;
  */
 public enum SDL_AsyncIOTaskType : int32
 {
-    SDL_ASYNCIO_TASK_READ,   /**< A read operation. */
-    SDL_ASYNCIO_TASK_WRITE,  /**< A write operation. */
-    SDL_ASYNCIO_TASK_CLOSE   /**< A close operation. */
+	SDL_ASYNCIO_TASK_READ, /**< A read operation. */
+	SDL_ASYNCIO_TASK_WRITE, /**< A write operation. */
+	SDL_ASYNCIO_TASK_CLOSE /**< A close operation. */
 }
 
 /**
@@ -134,9 +134,9 @@ public enum SDL_AsyncIOTaskType : int32
  */
 public enum SDL_AsyncIOResult : int32
 {
-    SDL_ASYNCIO_COMPLETE,  /**< request was completed without error */
-    SDL_ASYNCIO_FAILURE,   /**< request failed for some reason; check SDL_GetError()! */
-    SDL_ASYNCIO_CANCELED   /**< request was canceled before completing. */
+	SDL_ASYNCIO_COMPLETE, /**< request was completed without error */
+	SDL_ASYNCIO_FAILURE, /**< request failed for some reason; check SDL_GetError()! */
+	SDL_ASYNCIO_CANCELED /**< request was canceled before completing. */
 }
 
 /**
@@ -146,14 +146,14 @@ public enum SDL_AsyncIOResult : int32
  */
 [CRepr] public struct SDL_AsyncIOOutcome
 {
-    public SDL_AsyncIO *asyncio;   /**< what generated this task. This pointer will be invalid if it was closed! */
-    public SDL_AsyncIOTaskType type;  /**< What sort of task was this? Read, write, etc? */
-    public SDL_AsyncIOResult result;  /**< the result of the work (success, failure, cancellation). */
-    public void *buffer;  /**< buffer where data was read/written. */
-    public uint64 offset;  /**< offset in the SDL_AsyncIO where data was read/written. */
-    public uint64 bytes_requested;  /**< number of bytes the task was to read/write. */
-    public uint64 bytes_transferred;  /**< actual number of bytes that were read/written. */
-    public void *userdata;    /**< pointer provided by the app when starting the task */
+	public SDL_AsyncIO* asyncio; /**< what generated this task. This pointer will be invalid if it was closed! */
+	public SDL_AsyncIOTaskType type; /**< What sort of task was this? Read, write, etc? */
+	public SDL_AsyncIOResult result; /**< the result of the work (success, failure, cancellation). */
+	public void* buffer; /**< buffer where data was read/written. */
+	public uint64 offset; /**< offset in the SDL_AsyncIO where data was read/written. */
+	public uint64 bytes_requested; /**< number of bytes the task was to read/write. */
+	public uint64 bytes_transferred; /**< actual number of bytes that were read/written. */
+	public void* userdata; /**< pointer provided by the app when starting the task */
 }
 
 /**
@@ -213,7 +213,7 @@ public static //extension SDL3
  * \sa SDL_ReadAsyncIO
  * \sa SDL_WriteAsyncIO
  */
-[CLink] public static extern SDL_AsyncIO* SDL_AsyncIOFromFile(char8* file, char8* mode);
+	[CLink] public static extern SDL_AsyncIO* SDL_AsyncIOFromFile(char8* file, char8* mode);
 
 /**
  * Use this function to get the size of the data stream in an SDL_AsyncIO.
@@ -230,7 +230,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern int64 SDL_GetAsyncIOSize(SDL_AsyncIO *asyncio);
+	[CLink] public static extern int64 SDL_GetAsyncIOSize(SDL_AsyncIO* asyncio);
 
 /**
  * Start an async read.
@@ -268,7 +268,7 @@ public static //extension SDL3
  * \sa SDL_WriteAsyncIO
  * \sa SDL_CreateAsyncIOQueue
  */
-[CLink] public static extern bool SDL_ReadAsyncIO(SDL_AsyncIO *asyncio, void *ptr, uint64 offset, uint64 size, SDL_AsyncIOQueue *queue, void *userdata);
+	[CLink] public static extern bool SDL_ReadAsyncIO(SDL_AsyncIO* asyncio, void* ptr, uint64 offset, uint64 size, SDL_AsyncIOQueue* queue, void* userdata);
 
 /**
  * Start an async write.
@@ -305,7 +305,7 @@ public static //extension SDL3
  * \sa SDL_ReadAsyncIO
  * \sa SDL_CreateAsyncIOQueue
  */
-[CLink] public static extern bool SDL_WriteAsyncIO(SDL_AsyncIO *asyncio, void *ptr, uint64 offset, uint64 size, SDL_AsyncIOQueue *queue, void *userdata);
+	[CLink] public static extern bool SDL_WriteAsyncIO(SDL_AsyncIO* asyncio, void* ptr, uint64 offset, uint64 size, SDL_AsyncIOQueue* queue, void* userdata);
 
 /**
  * Close and free any allocated resources for an async I/O object.
@@ -354,7 +354,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_CloseAsyncIO(SDL_AsyncIO *asyncio, bool flush, SDL_AsyncIOQueue *queue, void *userdata);
+	[CLink] public static extern bool SDL_CloseAsyncIO(SDL_AsyncIO* asyncio, bool flush, SDL_AsyncIOQueue* queue, void* userdata);
 
 /**
  * Create a task queue for tracking multiple I/O operations.
@@ -373,7 +373,7 @@ public static //extension SDL3
  * \sa SDL_GetAsyncIOResult
  * \sa SDL_WaitAsyncIOResult
  */
-[CLink] public static extern SDL_AsyncIOQueue* SDL_CreateAsyncIOQueue();
+	[CLink] public static extern SDL_AsyncIOQueue* SDL_CreateAsyncIOQueue();
 
 /**
  * Destroy a previously-created async I/O task queue.
@@ -403,7 +403,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern void SDL_DestroyAsyncIOQueue(SDL_AsyncIOQueue *queue);
+	[CLink] public static extern void SDL_DestroyAsyncIOQueue(SDL_AsyncIOQueue* queue);
 
 /**
  * Query an async I/O task queue for completed tasks.
@@ -429,7 +429,7 @@ public static //extension SDL3
  *
  * \sa SDL_WaitAsyncIOResult
  */
-[CLink] public static extern bool SDL_GetAsyncIOResult(SDL_AsyncIOQueue *queue, SDL_AsyncIOOutcome *outcome);
+	[CLink] public static extern bool SDL_GetAsyncIOResult(SDL_AsyncIOQueue* queue, SDL_AsyncIOOutcome* outcome);
 
 /**
  * Block until an async I/O task queue has a completed task.
@@ -473,7 +473,7 @@ public static //extension SDL3
  *
  * \sa SDL_SignalAsyncIOQueue
  */
-[CLink] public static extern bool SDL_WaitAsyncIOResult(SDL_AsyncIOQueue *queue, SDL_AsyncIOOutcome *outcome, int32 timeoutMS);
+	[CLink] public static extern bool SDL_WaitAsyncIOResult(SDL_AsyncIOQueue* queue, SDL_AsyncIOOutcome* outcome, int32 timeoutMS);
 
 /**
  * Wake up any threads that are blocking in SDL_WaitAsyncIOResult().
@@ -497,7 +497,7 @@ public static //extension SDL3
  *
  * \sa SDL_WaitAsyncIOResult
  */
-[CLink] public static extern void SDL_SignalAsyncIOQueue(SDL_AsyncIOQueue *queue);
+	[CLink] public static extern void SDL_SignalAsyncIOQueue(SDL_AsyncIOQueue* queue);
 
 /**
  * Load all the data from a file path, asynchronously.
@@ -529,6 +529,6 @@ public static //extension SDL3
  *
  * \sa SDL_LoadFile_IO
  */
-[CLink] public static extern bool SDL_LoadFileAsync(char8* file, SDL_AsyncIOQueue *queue, void *userdata);
+	[CLink] public static extern bool SDL_LoadFileAsync(char8* file, SDL_AsyncIOQueue* queue, void* userdata);
 
 }

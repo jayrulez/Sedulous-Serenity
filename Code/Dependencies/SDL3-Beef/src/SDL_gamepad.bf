@@ -12,11 +12,11 @@ using System;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -95,19 +95,19 @@ namespace SDL3;
  */
 public enum SDL_GamepadType : int32
 {
-    SDL_GAMEPAD_TYPE_UNKNOWN = 0,
-    SDL_GAMEPAD_TYPE_STANDARD,
-    SDL_GAMEPAD_TYPE_XBOX360,
-    SDL_GAMEPAD_TYPE_XBOXONE,
-    SDL_GAMEPAD_TYPE_PS3,
-    SDL_GAMEPAD_TYPE_PS4,
-    SDL_GAMEPAD_TYPE_PS5,
-    SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_PRO,
-    SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_LEFT,
-    SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT,
-    SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_PAIR,
-    SDL_GAMEPAD_TYPE_GAMECUBE,
-    SDL_GAMEPAD_TYPE_COUNT
+	SDL_GAMEPAD_TYPE_UNKNOWN = 0,
+	SDL_GAMEPAD_TYPE_STANDARD,
+	SDL_GAMEPAD_TYPE_XBOX360,
+	SDL_GAMEPAD_TYPE_XBOXONE,
+	SDL_GAMEPAD_TYPE_PS3,
+	SDL_GAMEPAD_TYPE_PS4,
+	SDL_GAMEPAD_TYPE_PS5,
+	SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_PRO,
+	SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_LEFT,
+	SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT,
+	SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_PAIR,
+	SDL_GAMEPAD_TYPE_GAMECUBE,
+	SDL_GAMEPAD_TYPE_COUNT
 }
 
 /**
@@ -136,34 +136,34 @@ public enum SDL_GamepadType : int32
  */
 public enum SDL_GamepadButton : int32
 {
-    SDL_GAMEPAD_BUTTON_INVALID = -1,
-    SDL_GAMEPAD_BUTTON_SOUTH,           /**< Bottom face button (e.g. Xbox A button) */
-    SDL_GAMEPAD_BUTTON_EAST,            /**< Right face button (e.g. Xbox B button) */
-    SDL_GAMEPAD_BUTTON_WEST,            /**< Left face button (e.g. Xbox X button) */
-    SDL_GAMEPAD_BUTTON_NORTH,           /**< Top face button (e.g. Xbox Y button) */
-    SDL_GAMEPAD_BUTTON_BACK,
-    SDL_GAMEPAD_BUTTON_GUIDE,
-    SDL_GAMEPAD_BUTTON_START,
-    SDL_GAMEPAD_BUTTON_LEFT_STICK,
-    SDL_GAMEPAD_BUTTON_RIGHT_STICK,
-    SDL_GAMEPAD_BUTTON_LEFT_SHOULDER,
-    SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER,
-    SDL_GAMEPAD_BUTTON_DPAD_UP,
-    SDL_GAMEPAD_BUTTON_DPAD_DOWN,
-    SDL_GAMEPAD_BUTTON_DPAD_LEFT,
-    SDL_GAMEPAD_BUTTON_DPAD_RIGHT,
-    SDL_GAMEPAD_BUTTON_MISC1,           /**< Additional button (e.g. Xbox Series X share button, PS5 microphone button, Nintendo Switch Pro capture button, Amazon Luna microphone button, Google Stadia capture button) */
-    SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1,   /**< Upper or primary paddle, under your right hand (e.g. Xbox Elite paddle P1, DualSense Edge RB button, Right Joy-Con SR button) */
-    SDL_GAMEPAD_BUTTON_LEFT_PADDLE1,    /**< Upper or primary paddle, under your left hand (e.g. Xbox Elite paddle P3, DualSense Edge LB button, Left Joy-Con SL button) */
-    SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2,   /**< Lower or secondary paddle, under your right hand (e.g. Xbox Elite paddle P2, DualSense Edge right Fn button, Right Joy-Con SL button) */
-    SDL_GAMEPAD_BUTTON_LEFT_PADDLE2,    /**< Lower or secondary paddle, under your left hand (e.g. Xbox Elite paddle P4, DualSense Edge left Fn button, Left Joy-Con SR button) */
-    SDL_GAMEPAD_BUTTON_TOUCHPAD,        /**< PS4/PS5 touchpad button */
-    SDL_GAMEPAD_BUTTON_MISC2,           /**< Additional button */
-    SDL_GAMEPAD_BUTTON_MISC3,           /**< Additional button (e.g. Nintendo GameCube left trigger click) */
-    SDL_GAMEPAD_BUTTON_MISC4,           /**< Additional button (e.g. Nintendo GameCube right trigger click) */
-    SDL_GAMEPAD_BUTTON_MISC5,           /**< Additional button */
-    SDL_GAMEPAD_BUTTON_MISC6,           /**< Additional button */
-    SDL_GAMEPAD_BUTTON_COUNT
+	SDL_GAMEPAD_BUTTON_INVALID = -1,
+	SDL_GAMEPAD_BUTTON_SOUTH, /**< Bottom face button (e.g. Xbox A button) */
+	SDL_GAMEPAD_BUTTON_EAST, /**< Right face button (e.g. Xbox B button) */
+	SDL_GAMEPAD_BUTTON_WEST, /**< Left face button (e.g. Xbox X button) */
+	SDL_GAMEPAD_BUTTON_NORTH, /**< Top face button (e.g. Xbox Y button) */
+	SDL_GAMEPAD_BUTTON_BACK,
+	SDL_GAMEPAD_BUTTON_GUIDE,
+	SDL_GAMEPAD_BUTTON_START,
+	SDL_GAMEPAD_BUTTON_LEFT_STICK,
+	SDL_GAMEPAD_BUTTON_RIGHT_STICK,
+	SDL_GAMEPAD_BUTTON_LEFT_SHOULDER,
+	SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER,
+	SDL_GAMEPAD_BUTTON_DPAD_UP,
+	SDL_GAMEPAD_BUTTON_DPAD_DOWN,
+	SDL_GAMEPAD_BUTTON_DPAD_LEFT,
+	SDL_GAMEPAD_BUTTON_DPAD_RIGHT,
+	SDL_GAMEPAD_BUTTON_MISC1, /**< Additional button (e.g. Xbox Series X share button, PS5 microphone button, Nintendo Switch Pro capture button, Amazon Luna microphone button, Google Stadia capture button) */
+	SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1, /**< Upper or primary paddle, under your right hand (e.g. Xbox Elite paddle P1, DualSense Edge RB button, Right Joy-Con SR button) */
+	SDL_GAMEPAD_BUTTON_LEFT_PADDLE1, /**< Upper or primary paddle, under your left hand (e.g. Xbox Elite paddle P3, DualSense Edge LB button, Left Joy-Con SL button) */
+	SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2, /**< Lower or secondary paddle, under your right hand (e.g. Xbox Elite paddle P2, DualSense Edge right Fn button, Right Joy-Con SL button) */
+	SDL_GAMEPAD_BUTTON_LEFT_PADDLE2, /**< Lower or secondary paddle, under your left hand (e.g. Xbox Elite paddle P4, DualSense Edge left Fn button, Left Joy-Con SR button) */
+	SDL_GAMEPAD_BUTTON_TOUCHPAD, /**< PS4/PS5 touchpad button */
+	SDL_GAMEPAD_BUTTON_MISC2, /**< Additional button */
+	SDL_GAMEPAD_BUTTON_MISC3, /**< Additional button (e.g. Nintendo GameCube left trigger click) */
+	SDL_GAMEPAD_BUTTON_MISC4, /**< Additional button (e.g. Nintendo GameCube right trigger click) */
+	SDL_GAMEPAD_BUTTON_MISC5, /**< Additional button */
+	SDL_GAMEPAD_BUTTON_MISC6, /**< Additional button */
+	SDL_GAMEPAD_BUTTON_COUNT
 }
 
 /**
@@ -179,15 +179,15 @@ public enum SDL_GamepadButton : int32
  */
 public enum SDL_GamepadButtonLabel : int32
 {
-    SDL_GAMEPAD_BUTTON_LABEL_UNKNOWN,
-    SDL_GAMEPAD_BUTTON_LABEL_A,
-    SDL_GAMEPAD_BUTTON_LABEL_B,
-    SDL_GAMEPAD_BUTTON_LABEL_X,
-    SDL_GAMEPAD_BUTTON_LABEL_Y,
-    SDL_GAMEPAD_BUTTON_LABEL_CROSS,
-    SDL_GAMEPAD_BUTTON_LABEL_CIRCLE,
-    SDL_GAMEPAD_BUTTON_LABEL_SQUARE,
-    SDL_GAMEPAD_BUTTON_LABEL_TRIANGLE
+	SDL_GAMEPAD_BUTTON_LABEL_UNKNOWN,
+	SDL_GAMEPAD_BUTTON_LABEL_A,
+	SDL_GAMEPAD_BUTTON_LABEL_B,
+	SDL_GAMEPAD_BUTTON_LABEL_X,
+	SDL_GAMEPAD_BUTTON_LABEL_Y,
+	SDL_GAMEPAD_BUTTON_LABEL_CROSS,
+	SDL_GAMEPAD_BUTTON_LABEL_CIRCLE,
+	SDL_GAMEPAD_BUTTON_LABEL_SQUARE,
+	SDL_GAMEPAD_BUTTON_LABEL_TRIANGLE
 }
 
 /**
@@ -206,14 +206,14 @@ public enum SDL_GamepadButtonLabel : int32
  */
 public enum SDL_GamepadAxis : int32
 {
-    SDL_GAMEPAD_AXIS_INVALID = -1,
-    SDL_GAMEPAD_AXIS_LEFTX,
-    SDL_GAMEPAD_AXIS_LEFTY,
-    SDL_GAMEPAD_AXIS_RIGHTX,
-    SDL_GAMEPAD_AXIS_RIGHTY,
-    SDL_GAMEPAD_AXIS_LEFT_TRIGGER,
-    SDL_GAMEPAD_AXIS_RIGHT_TRIGGER,
-    SDL_GAMEPAD_AXIS_COUNT
+	SDL_GAMEPAD_AXIS_INVALID = -1,
+	SDL_GAMEPAD_AXIS_LEFTX,
+	SDL_GAMEPAD_AXIS_LEFTY,
+	SDL_GAMEPAD_AXIS_RIGHTX,
+	SDL_GAMEPAD_AXIS_RIGHTY,
+	SDL_GAMEPAD_AXIS_LEFT_TRIGGER,
+	SDL_GAMEPAD_AXIS_RIGHT_TRIGGER,
+	SDL_GAMEPAD_AXIS_COUNT
 }
 
 /**
@@ -228,10 +228,10 @@ public enum SDL_GamepadAxis : int32
  */
 public enum SDL_GamepadBindingType : int32
 {
-    SDL_GAMEPAD_BINDTYPE_NONE = 0,
-    SDL_GAMEPAD_BINDTYPE_BUTTON,
-    SDL_GAMEPAD_BINDTYPE_AXIS,
-    SDL_GAMEPAD_BINDTYPE_HAT
+	SDL_GAMEPAD_BINDTYPE_NONE = 0,
+	SDL_GAMEPAD_BINDTYPE_BUTTON,
+	SDL_GAMEPAD_BINDTYPE_AXIS,
+	SDL_GAMEPAD_BINDTYPE_HAT
 }
 
 /**
@@ -251,39 +251,39 @@ public enum SDL_GamepadBindingType : int32
  */
 [CRepr] public struct SDL_GamepadBinding
 {
-    public SDL_GamepadBindingType input_type;
-    [CRepr, Union]public using struct
-    {
-        int32 button;
+	public SDL_GamepadBindingType input_type;
+	[CRepr, Union] public using struct
+	{
+		int32 button;
 
-        [CRepr] public using struct
-        {
-            public int32 axis;
-            public int32 axis_min;
-            public int32 axis_max;
-        } axis;
+		[CRepr] public using struct
+		{
+			public int32 axis;
+			public int32 axis_min;
+			public int32 axis_max;
+		} axis;
 
-        [CRepr] public using struct
-        {
-            public int32 hat;
-            public int32 hat_mask;
-        } hat;
+		[CRepr] public using struct
+		{
+			public int32 hat;
+			public int32 hat_mask;
+		} hat;
 
-    } input;
+	} input;
 
-    public SDL_GamepadBindingType output_type;
-    [CRepr, Union]public using struct
-    {
-        public SDL_GamepadButton button;
+	public SDL_GamepadBindingType output_type;
+	[CRepr, Union] public using struct
+	{
+		public SDL_GamepadButton button;
 
-        [CRepr] public using struct
-        {
-            public SDL_GamepadAxis axis;
-            public int32 axis_min;
-            public int32 axis_max;
-        } axis;
+		[CRepr] public using struct
+		{
+			public SDL_GamepadAxis axis;
+			public int32 axis_min;
+			public int32 axis_max;
+		} axis;
 
-    } output;
+	} output;
 }
 
 public static //extension SDL3
@@ -329,7 +329,7 @@ public static //extension SDL3
  * \sa SDL_HINT_GAMECONTROLLERCONFIG_FILE
  * \sa SDL_EVENT_GAMEPAD_ADDED
  */
-[CLink] public static extern int32 SDL_AddGamepadMapping(char8* mapping);
+	[CLink] public static extern int32 SDL_AddGamepadMapping(char8* mapping);
 
 /**
  * Load a set of gamepad mappings from an SDL_IOStream.
@@ -369,7 +369,7 @@ public static //extension SDL3
  * \sa SDL_HINT_GAMECONTROLLERCONFIG_FILE
  * \sa SDL_EVENT_GAMEPAD_ADDED
  */
-[CLink] public static extern int32 SDL_AddGamepadMappingsFromIO(SDL_IOStream *src, bool closeio);
+	[CLink] public static extern int32 SDL_AddGamepadMappingsFromIO(SDL_IOStream* src, bool closeio);
 
 /**
  * Load a set of gamepad mappings from a file.
@@ -403,7 +403,7 @@ public static //extension SDL3
  * \sa SDL_HINT_GAMECONTROLLERCONFIG_FILE
  * \sa SDL_EVENT_GAMEPAD_ADDED
  */
-[CLink] public static extern int32 SDL_AddGamepadMappingsFromFile(char8* file);
+	[CLink] public static extern int32 SDL_AddGamepadMappingsFromFile(char8* file);
 
 /**
  * Reinitialize the SDL mapping database to its initial state.
@@ -417,7 +417,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_ReloadGamepadMappings();
+	[CLink] public static extern bool SDL_ReloadGamepadMappings();
 
 /**
  * Get the current gamepad mappings.
@@ -433,7 +433,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern char8** SDL_GetGamepadMappings(int32 *count);
+	[CLink] public static extern char8** SDL_GetGamepadMappings(int32* count);
 
 /**
  * Get the gamepad mapping string for a given GUID.
@@ -450,7 +450,7 @@ public static //extension SDL3
  * \sa SDL_GetJoystickGUIDForID
  * \sa SDL_GetJoystickGUID
  */
-[CLink] public static extern char8*SDL_GetGamepadMappingForGUID(SDL_GUID guid);
+	[CLink] public static extern char8* SDL_GetGamepadMappingForGUID(SDL_GUID guid);
 
 /**
  * Get the current mapping of a gamepad.
@@ -471,7 +471,7 @@ public static //extension SDL3
  * \sa SDL_GetGamepadMappingForGUID
  * \sa SDL_SetGamepadMapping
  */
-[CLink] public static extern char8*SDL_GetGamepadMapping(SDL_Gamepad *gamepad);
+	[CLink] public static extern char8* SDL_GetGamepadMapping(SDL_Gamepad* gamepad);
 
 /**
  * Set the current mapping of a joystick or gamepad.
@@ -491,7 +491,7 @@ public static //extension SDL3
  * \sa SDL_AddGamepadMapping
  * \sa SDL_GetGamepadMapping
  */
-[CLink] public static extern bool SDL_SetGamepadMapping(SDL_JoystickID instance_id, char8* mapping);
+	[CLink] public static extern bool SDL_SetGamepadMapping(SDL_JoystickID instance_id, char8* mapping);
 
 /**
  * Return whether a gamepad is currently connected.
@@ -504,7 +504,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetGamepads
  */
-[CLink] public static extern bool SDL_HasGamepad();
+	[CLink] public static extern bool SDL_HasGamepad();
 
 /**
  * Get a list of currently connected gamepads.
@@ -522,7 +522,7 @@ public static //extension SDL3
  * \sa SDL_HasGamepad
  * \sa SDL_OpenGamepad
  */
-[CLink] public static extern SDL_JoystickID* SDL_GetGamepads(int32 *count);
+	[CLink] public static extern SDL_JoystickID* SDL_GetGamepads(int32* count);
 
 /**
  * Check if the given joystick is supported by the gamepad interface.
@@ -538,7 +538,7 @@ public static //extension SDL3
  * \sa SDL_GetJoysticks
  * \sa SDL_OpenGamepad
  */
-[CLink] public static extern bool SDL_IsGamepad(SDL_JoystickID instance_id);
+	[CLink] public static extern bool SDL_IsGamepad(SDL_JoystickID instance_id);
 
 /**
  * Get the implementation dependent name of a gamepad.
@@ -556,7 +556,7 @@ public static //extension SDL3
  * \sa SDL_GetGamepadName
  * \sa SDL_GetGamepads
  */
-[CLink] public static extern char8* SDL_GetGamepadNameForID(SDL_JoystickID instance_id);
+	[CLink] public static extern char8* SDL_GetGamepadNameForID(SDL_JoystickID instance_id);
 
 /**
  * Get the implementation dependent path of a gamepad.
@@ -574,7 +574,7 @@ public static //extension SDL3
  * \sa SDL_GetGamepadPath
  * \sa SDL_GetGamepads
  */
-[CLink] public static extern char8* SDL_GetGamepadPathForID(SDL_JoystickID instance_id);
+	[CLink] public static extern char8* SDL_GetGamepadPathForID(SDL_JoystickID instance_id);
 
 /**
  * Get the player index of a gamepad.
@@ -591,7 +591,7 @@ public static //extension SDL3
  * \sa SDL_GetGamepadPlayerIndex
  * \sa SDL_GetGamepads
  */
-[CLink] public static extern int32 SDL_GetGamepadPlayerIndexForID(SDL_JoystickID instance_id);
+	[CLink] public static extern int32 SDL_GetGamepadPlayerIndexForID(SDL_JoystickID instance_id);
 
 /**
  * Get the implementation-dependent GUID of a gamepad.
@@ -609,7 +609,7 @@ public static //extension SDL3
  * \sa SDL_GUIDToString
  * \sa SDL_GetGamepads
  */
-[CLink] public static extern SDL_GUID SDL_GetGamepadGUIDForID(SDL_JoystickID instance_id);
+	[CLink] public static extern SDL_GUID SDL_GetGamepadGUIDForID(SDL_JoystickID instance_id);
 
 /**
  * Get the USB vendor ID of a gamepad, if available.
@@ -628,7 +628,7 @@ public static //extension SDL3
  * \sa SDL_GetGamepadVendor
  * \sa SDL_GetGamepads
  */
-[CLink] public static extern uint16 SDL_GetGamepadVendorForID(SDL_JoystickID instance_id);
+	[CLink] public static extern uint16 SDL_GetGamepadVendorForID(SDL_JoystickID instance_id);
 
 /**
  * Get the USB product ID of a gamepad, if available.
@@ -647,7 +647,7 @@ public static //extension SDL3
  * \sa SDL_GetGamepadProduct
  * \sa SDL_GetGamepads
  */
-[CLink] public static extern uint16 SDL_GetGamepadProductForID(SDL_JoystickID instance_id);
+	[CLink] public static extern uint16 SDL_GetGamepadProductForID(SDL_JoystickID instance_id);
 
 /**
  * Get the product version of a gamepad, if available.
@@ -666,7 +666,7 @@ public static //extension SDL3
  * \sa SDL_GetGamepadProductVersion
  * \sa SDL_GetGamepads
  */
-[CLink] public static extern uint16 SDL_GetGamepadProductVersionForID(SDL_JoystickID instance_id);
+	[CLink] public static extern uint16 SDL_GetGamepadProductVersionForID(SDL_JoystickID instance_id);
 
 /**
  * Get the type of a gamepad.
@@ -684,7 +684,7 @@ public static //extension SDL3
  * \sa SDL_GetGamepads
  * \sa SDL_GetRealGamepadTypeForID
  */
-[CLink] public static extern SDL_GamepadType SDL_GetGamepadTypeForID(SDL_JoystickID instance_id);
+	[CLink] public static extern SDL_GamepadType SDL_GetGamepadTypeForID(SDL_JoystickID instance_id);
 
 /**
  * Get the type of a gamepad, ignoring any mapping override.
@@ -702,7 +702,7 @@ public static //extension SDL3
  * \sa SDL_GetGamepads
  * \sa SDL_GetRealGamepadType
  */
-[CLink] public static extern SDL_GamepadType SDL_GetRealGamepadTypeForID(SDL_JoystickID instance_id);
+	[CLink] public static extern SDL_GamepadType SDL_GetRealGamepadTypeForID(SDL_JoystickID instance_id);
 
 /**
  * Get the mapping of a gamepad.
@@ -720,7 +720,7 @@ public static //extension SDL3
  * \sa SDL_GetGamepads
  * \sa SDL_GetGamepadMapping
  */
-[CLink] public static extern char8*SDL_GetGamepadMappingForID(SDL_JoystickID instance_id);
+	[CLink] public static extern char8* SDL_GetGamepadMappingForID(SDL_JoystickID instance_id);
 
 /**
  * Open a gamepad for use.
@@ -736,7 +736,7 @@ public static //extension SDL3
  * \sa SDL_CloseGamepad
  * \sa SDL_IsGamepad
  */
-[CLink] public static extern SDL_Gamepad* SDL_OpenGamepad(SDL_JoystickID instance_id);
+	[CLink] public static extern SDL_Gamepad* SDL_OpenGamepad(SDL_JoystickID instance_id);
 
 /**
  * Get the SDL_Gamepad associated with a joystick instance ID, if it has been
@@ -750,7 +750,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_Gamepad* SDL_GetGamepadFromID(SDL_JoystickID instance_id);
+	[CLink] public static extern SDL_Gamepad* SDL_GetGamepadFromID(SDL_JoystickID instance_id);
 
 /**
  * Get the SDL_Gamepad associated with a player index.
@@ -765,7 +765,7 @@ public static //extension SDL3
  * \sa SDL_GetGamepadPlayerIndex
  * \sa SDL_SetGamepadPlayerIndex
  */
-[CLink] public static extern SDL_Gamepad* SDL_GetGamepadFromPlayerIndex(int32 player_index);
+	[CLink] public static extern SDL_Gamepad* SDL_GetGamepadFromPlayerIndex(int32 player_index);
 
 /**
  * Get the properties associated with an opened gamepad.
@@ -794,7 +794,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_PropertiesID SDL_GetGamepadProperties(SDL_Gamepad *gamepad);
+	[CLink] public static extern SDL_PropertiesID SDL_GetGamepadProperties(SDL_Gamepad* gamepad);
 
 	public const char8* SDL_PROP_GAMEPAD_CAP_MONO_LED_BOOLEAN       = SDL_PROP_JOYSTICK_CAP_MONO_LED_BOOLEAN;
 	public const char8* SDL_PROP_GAMEPAD_CAP_RGB_LED_BOOLEAN        = SDL_PROP_JOYSTICK_CAP_RGB_LED_BOOLEAN;
@@ -814,7 +814,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_JoystickID SDL_GetGamepadID(SDL_Gamepad *gamepad);
+	[CLink] public static extern SDL_JoystickID SDL_GetGamepadID(SDL_Gamepad* gamepad);
 
 /**
  * Get the implementation-dependent name for an opened gamepad.
@@ -830,7 +830,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetGamepadNameForID
  */
-[CLink] public static extern char8* SDL_GetGamepadName(SDL_Gamepad *gamepad);
+	[CLink] public static extern char8* SDL_GetGamepadName(SDL_Gamepad* gamepad);
 
 /**
  * Get the implementation-dependent path for an opened gamepad.
@@ -846,7 +846,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetGamepadPathForID
  */
-[CLink] public static extern char8* SDL_GetGamepadPath(SDL_Gamepad *gamepad);
+	[CLink] public static extern char8* SDL_GetGamepadPath(SDL_Gamepad* gamepad);
 
 /**
  * Get the type of an opened gamepad.
@@ -861,7 +861,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetGamepadTypeForID
  */
-[CLink] public static extern SDL_GamepadType SDL_GetGamepadType(SDL_Gamepad *gamepad);
+	[CLink] public static extern SDL_GamepadType SDL_GetGamepadType(SDL_Gamepad* gamepad);
 
 /**
  * Get the type of an opened gamepad, ignoring any mapping override.
@@ -876,7 +876,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetRealGamepadTypeForID
  */
-[CLink] public static extern SDL_GamepadType SDL_GetRealGamepadType(SDL_Gamepad *gamepad);
+	[CLink] public static extern SDL_GamepadType SDL_GetRealGamepadType(SDL_Gamepad* gamepad);
 
 /**
  * Get the player index of an opened gamepad.
@@ -892,7 +892,7 @@ public static //extension SDL3
  *
  * \sa SDL_SetGamepadPlayerIndex
  */
-[CLink] public static extern int32 SDL_GetGamepadPlayerIndex(SDL_Gamepad *gamepad);
+	[CLink] public static extern int32 SDL_GetGamepadPlayerIndex(SDL_Gamepad* gamepad);
 
 /**
  * Set the player index of an opened gamepad.
@@ -909,7 +909,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetGamepadPlayerIndex
  */
-[CLink] public static extern bool SDL_SetGamepadPlayerIndex(SDL_Gamepad *gamepad, int32 player_index);
+	[CLink] public static extern bool SDL_SetGamepadPlayerIndex(SDL_Gamepad* gamepad, int32 player_index);
 
 /**
  * Get the USB vendor ID of an opened gamepad, if available.
@@ -925,7 +925,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetGamepadVendorForID
  */
-[CLink] public static extern uint16 SDL_GetGamepadVendor(SDL_Gamepad *gamepad);
+	[CLink] public static extern uint16 SDL_GetGamepadVendor(SDL_Gamepad* gamepad);
 
 /**
  * Get the USB product ID of an opened gamepad, if available.
@@ -941,7 +941,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetGamepadProductForID
  */
-[CLink] public static extern uint16 SDL_GetGamepadProduct(SDL_Gamepad *gamepad);
+	[CLink] public static extern uint16 SDL_GetGamepadProduct(SDL_Gamepad* gamepad);
 
 /**
  * Get the product version of an opened gamepad, if available.
@@ -957,7 +957,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetGamepadProductVersionForID
  */
-[CLink] public static extern uint16 SDL_GetGamepadProductVersion(SDL_Gamepad *gamepad);
+	[CLink] public static extern uint16 SDL_GetGamepadProductVersion(SDL_Gamepad* gamepad);
 
 /**
  * Get the firmware version of an opened gamepad, if available.
@@ -971,7 +971,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern uint16 SDL_GetGamepadFirmwareVersion(SDL_Gamepad *gamepad);
+	[CLink] public static extern uint16 SDL_GetGamepadFirmwareVersion(SDL_Gamepad* gamepad);
 
 /**
  * Get the serial number of an opened gamepad, if available.
@@ -985,7 +985,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern char8* SDL_GetGamepadSerial(SDL_Gamepad *gamepad);
+	[CLink] public static extern char8* SDL_GetGamepadSerial(SDL_Gamepad* gamepad);
 
 /**
  * Get the Steam Input handle of an opened gamepad, if available.
@@ -1000,7 +1000,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern uint64 SDL_GetGamepadSteamHandle(SDL_Gamepad *gamepad);
+	[CLink] public static extern uint64 SDL_GetGamepadSteamHandle(SDL_Gamepad* gamepad);
 
 /**
  * Get the connection state of a gamepad.
@@ -1014,7 +1014,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_JoystickConnectionState SDL_GetGamepadConnectionState(SDL_Gamepad *gamepad);
+	[CLink] public static extern SDL_JoystickConnectionState SDL_GetGamepadConnectionState(SDL_Gamepad* gamepad);
 
 /**
  * Get the battery state of a gamepad.
@@ -1036,7 +1036,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_PowerState SDL_GetGamepadPowerInfo(SDL_Gamepad *gamepad, int32 *percent);
+	[CLink] public static extern SDL_PowerState SDL_GetGamepadPowerInfo(SDL_Gamepad* gamepad, int32* percent);
 
 /**
  * Check if a gamepad has been opened and is currently connected.
@@ -1050,7 +1050,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_GamepadConnected(SDL_Gamepad *gamepad);
+	[CLink] public static extern bool SDL_GamepadConnected(SDL_Gamepad* gamepad);
 
 /**
  * Get the underlying joystick from a gamepad.
@@ -1072,7 +1072,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_Joystick* SDL_GetGamepadJoystick(SDL_Gamepad *gamepad);
+	[CLink] public static extern SDL_Joystick* SDL_GetGamepadJoystick(SDL_Gamepad* gamepad);
 
 /**
  * Set the state of gamepad event processing.
@@ -1089,7 +1089,7 @@ public static //extension SDL3
  * \sa SDL_GamepadEventsEnabled
  * \sa SDL_UpdateGamepads
  */
-[CLink] public static extern void SDL_SetGamepadEventsEnabled(bool enabled);
+	[CLink] public static extern void SDL_SetGamepadEventsEnabled(bool enabled);
 
 /**
  * Query the state of gamepad event processing.
@@ -1105,7 +1105,7 @@ public static //extension SDL3
  *
  * \sa SDL_SetGamepadEventsEnabled
  */
-[CLink] public static extern bool SDL_GamepadEventsEnabled();
+	[CLink] public static extern bool SDL_GamepadEventsEnabled();
 
 /**
  * Get the SDL joystick layer bindings for a gamepad.
@@ -1121,7 +1121,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_GamepadBinding ** SDL_GetGamepadBindings(SDL_Gamepad *gamepad, int32 *count);
+	[CLink] public static extern SDL_GamepadBinding** SDL_GetGamepadBindings(SDL_Gamepad* gamepad, int32* count);
 
 /**
  * Manually pump gamepad updates if not using the loop.
@@ -1134,7 +1134,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern void SDL_UpdateGamepads();
+	[CLink] public static extern void SDL_UpdateGamepads();
 
 /**
  * Convert a string into SDL_GamepadType enum.
@@ -1154,7 +1154,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetGamepadStringForType
  */
-[CLink] public static extern SDL_GamepadType SDL_GetGamepadTypeFromString(char8* str);
+	[CLink] public static extern SDL_GamepadType SDL_GetGamepadTypeFromString(char8* str);
 
 /**
  * Convert from an SDL_GamepadType enum to a string.
@@ -1170,7 +1170,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetGamepadTypeFromString
  */
-[CLink] public static extern char8* SDL_GetGamepadStringForType(SDL_GamepadType type);
+	[CLink] public static extern char8* SDL_GetGamepadStringForType(SDL_GamepadType type);
 
 /**
  * Convert a string into SDL_GamepadAxis enum.
@@ -1194,7 +1194,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetGamepadStringForAxis
  */
-[CLink] public static extern SDL_GamepadAxis SDL_GetGamepadAxisFromString(char8* str);
+	[CLink] public static extern SDL_GamepadAxis SDL_GetGamepadAxisFromString(char8* str);
 
 /**
  * Convert from an SDL_GamepadAxis enum to a string.
@@ -1210,7 +1210,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetGamepadAxisFromString
  */
-[CLink] public static extern char8* SDL_GetGamepadStringForAxis(SDL_GamepadAxis axis);
+	[CLink] public static extern char8* SDL_GetGamepadStringForAxis(SDL_GamepadAxis axis);
 
 /**
  * Query whether a gamepad has a given axis.
@@ -1229,7 +1229,7 @@ public static //extension SDL3
  * \sa SDL_GamepadHasButton
  * \sa SDL_GetGamepadAxis
  */
-[CLink] public static extern bool SDL_GamepadHasAxis(SDL_Gamepad *gamepad, SDL_GamepadAxis axis);
+	[CLink] public static extern bool SDL_GamepadHasAxis(SDL_Gamepad* gamepad, SDL_GamepadAxis axis);
 
 /**
  * Get the current state of an axis control on a gamepad.
@@ -1257,7 +1257,7 @@ public static //extension SDL3
  * \sa SDL_GamepadHasAxis
  * \sa SDL_GetGamepadButton
  */
-[CLink] public static extern int16 SDL_GetGamepadAxis(SDL_Gamepad *gamepad, SDL_GamepadAxis axis);
+	[CLink] public static extern int16 SDL_GetGamepadAxis(SDL_Gamepad* gamepad, SDL_GamepadAxis axis);
 
 /**
  * Convert a string into an SDL_GamepadButton enum.
@@ -1277,7 +1277,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetGamepadStringForButton
  */
-[CLink] public static extern SDL_GamepadButton SDL_GetGamepadButtonFromString(char8* str);
+	[CLink] public static extern SDL_GamepadButton SDL_GetGamepadButtonFromString(char8* str);
 
 /**
  * Convert from an SDL_GamepadButton enum to a string.
@@ -1293,7 +1293,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetGamepadButtonFromString
  */
-[CLink] public static extern char8* SDL_GetGamepadStringForButton(SDL_GamepadButton button);
+	[CLink] public static extern char8* SDL_GetGamepadStringForButton(SDL_GamepadButton button);
 
 /**
  * Query whether a gamepad has a given button.
@@ -1311,7 +1311,7 @@ public static //extension SDL3
  *
  * \sa SDL_GamepadHasAxis
  */
-[CLink] public static extern bool SDL_GamepadHasButton(SDL_Gamepad *gamepad, SDL_GamepadButton button);
+	[CLink] public static extern bool SDL_GamepadHasButton(SDL_Gamepad* gamepad, SDL_GamepadButton button);
 
 /**
  * Get the current state of a button on a gamepad.
@@ -1327,7 +1327,7 @@ public static //extension SDL3
  * \sa SDL_GamepadHasButton
  * \sa SDL_GetGamepadAxis
  */
-[CLink] public static extern bool SDL_GetGamepadButton(SDL_Gamepad *gamepad, SDL_GamepadButton button);
+	[CLink] public static extern bool SDL_GetGamepadButton(SDL_Gamepad* gamepad, SDL_GamepadButton button);
 
 /**
  * Get the label of a button on a gamepad.
@@ -1342,7 +1342,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetGamepadButtonLabel
  */
-[CLink] public static extern SDL_GamepadButtonLabel SDL_GetGamepadButtonLabelForType(SDL_GamepadType type, SDL_GamepadButton button);
+	[CLink] public static extern SDL_GamepadButtonLabel SDL_GetGamepadButtonLabelForType(SDL_GamepadType type, SDL_GamepadButton button);
 
 /**
  * Get the label of a button on a gamepad.
@@ -1357,7 +1357,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetGamepadButtonLabelForType
  */
-[CLink] public static extern SDL_GamepadButtonLabel SDL_GetGamepadButtonLabel(SDL_Gamepad *gamepad, SDL_GamepadButton button);
+	[CLink] public static extern SDL_GamepadButtonLabel SDL_GetGamepadButtonLabel(SDL_Gamepad* gamepad, SDL_GamepadButton button);
 
 /**
  * Get the number of touchpads on a gamepad.
@@ -1371,7 +1371,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetNumGamepadTouchpadFingers
  */
-[CLink] public static extern int32 SDL_GetNumGamepadTouchpads(SDL_Gamepad *gamepad);
+	[CLink] public static extern int32 SDL_GetNumGamepadTouchpads(SDL_Gamepad* gamepad);
 
 /**
  * Get the number of supported simultaneous fingers on a touchpad on a game
@@ -1388,7 +1388,7 @@ public static //extension SDL3
  * \sa SDL_GetGamepadTouchpadFinger
  * \sa SDL_GetNumGamepadTouchpads
  */
-[CLink] public static extern int32 SDL_GetNumGamepadTouchpadFingers(SDL_Gamepad *gamepad, int32 touchpad);
+	[CLink] public static extern int32 SDL_GetNumGamepadTouchpadFingers(SDL_Gamepad* gamepad, int32 touchpad);
 
 /**
  * Get the current state of a finger on a touchpad on a gamepad.
@@ -1412,7 +1412,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetNumGamepadTouchpadFingers
  */
-[CLink] public static extern bool SDL_GetGamepadTouchpadFinger(SDL_Gamepad *gamepad, int32 touchpad, int32 finger, bool *down, float *x, float *y, float *pressure);
+	[CLink] public static extern bool SDL_GetGamepadTouchpadFinger(SDL_Gamepad* gamepad, int32 touchpad, int32 finger, bool* down, float* x, float* y, float* pressure);
 
 /**
  * Return whether a gamepad has a particular sensor.
@@ -1429,7 +1429,7 @@ public static //extension SDL3
  * \sa SDL_GetGamepadSensorDataRate
  * \sa SDL_SetGamepadSensorEnabled
  */
-[CLink] public static extern bool SDL_GamepadHasSensor(SDL_Gamepad *gamepad, SDL_SensorType type);
+	[CLink] public static extern bool SDL_GamepadHasSensor(SDL_Gamepad* gamepad, SDL_SensorType type);
 
 /**
  * Set whether data reporting for a gamepad sensor is enabled.
@@ -1447,7 +1447,7 @@ public static //extension SDL3
  * \sa SDL_GamepadHasSensor
  * \sa SDL_GamepadSensorEnabled
  */
-[CLink] public static extern bool SDL_SetGamepadSensorEnabled(SDL_Gamepad *gamepad, SDL_SensorType type, bool enabled);
+	[CLink] public static extern bool SDL_SetGamepadSensorEnabled(SDL_Gamepad* gamepad, SDL_SensorType type, bool enabled);
 
 /**
  * Query whether sensor data reporting is enabled for a gamepad.
@@ -1462,7 +1462,7 @@ public static //extension SDL3
  *
  * \sa SDL_SetGamepadSensorEnabled
  */
-[CLink] public static extern bool SDL_GamepadSensorEnabled(SDL_Gamepad *gamepad, SDL_SensorType type);
+	[CLink] public static extern bool SDL_GamepadSensorEnabled(SDL_Gamepad* gamepad, SDL_SensorType type);
 
 /**
  * Get the data rate (number of events per second) of a gamepad sensor.
@@ -1475,7 +1475,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern float SDL_GetGamepadSensorDataRate(SDL_Gamepad *gamepad, SDL_SensorType type);
+	[CLink] public static extern float SDL_GetGamepadSensorDataRate(SDL_Gamepad* gamepad, SDL_SensorType type);
 
 /**
  * Get the current state of a gamepad sensor.
@@ -1494,7 +1494,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_GetGamepadSensorData(SDL_Gamepad *gamepad, SDL_SensorType type, float *data, int32 num_values);
+	[CLink] public static extern bool SDL_GetGamepadSensorData(SDL_Gamepad* gamepad, SDL_SensorType type, float* data, int32 num_values);
 
 /**
  * Start a rumble effect on a gamepad.
@@ -1518,7 +1518,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_RumbleGamepad(SDL_Gamepad *gamepad, uint16 low_frequency_rumble, uint16 high_frequency_rumble, uint32 duration_ms);
+	[CLink] public static extern bool SDL_RumbleGamepad(SDL_Gamepad* gamepad, uint16 low_frequency_rumble, uint16 high_frequency_rumble, uint32 duration_ms);
 
 /**
  * Start a rumble effect in the gamepad's triggers.
@@ -1548,7 +1548,7 @@ public static //extension SDL3
  *
  * \sa SDL_RumbleGamepad
  */
-[CLink] public static extern bool SDL_RumbleGamepadTriggers(SDL_Gamepad *gamepad, uint16 left_rumble, uint16 right_rumble, uint32 duration_ms);
+	[CLink] public static extern bool SDL_RumbleGamepadTriggers(SDL_Gamepad* gamepad, uint16 left_rumble, uint16 right_rumble, uint32 duration_ms);
 
 /**
  * Update a gamepad's LED color.
@@ -1570,7 +1570,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_SetGamepadLED(SDL_Gamepad *gamepad, uint8 red, uint8 green, uint8 blue);
+	[CLink] public static extern bool SDL_SetGamepadLED(SDL_Gamepad* gamepad, uint8 red, uint8 green, uint8 blue);
 
 /**
  * Send a gamepad specific effect packet.
@@ -1585,7 +1585,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_SendGamepadEffect(SDL_Gamepad *gamepad, void* data, int32 size);
+	[CLink] public static extern bool SDL_SendGamepadEffect(SDL_Gamepad* gamepad, void* data, int32 size);
 
 /**
  * Close a gamepad previously opened with SDL_OpenGamepad().
@@ -1599,7 +1599,7 @@ public static //extension SDL3
  *
  * \sa SDL_OpenGamepad
  */
-[CLink] public static extern void SDL_CloseGamepad(SDL_Gamepad *gamepad);
+	[CLink] public static extern void SDL_CloseGamepad(SDL_Gamepad* gamepad);
 
 /**
  * Return the sfSymbolsName for a given button on a gamepad on Apple
@@ -1615,7 +1615,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetGamepadAppleSFSymbolsNameForAxis
  */
-[CLink] public static extern char8* SDL_GetGamepadAppleSFSymbolsNameForButton(SDL_Gamepad *gamepad, SDL_GamepadButton button);
+	[CLink] public static extern char8* SDL_GetGamepadAppleSFSymbolsNameForButton(SDL_Gamepad* gamepad, SDL_GamepadButton button);
 
 /**
  * Return the sfSymbolsName for a given axis on a gamepad on Apple platforms.
@@ -1630,5 +1630,5 @@ public static //extension SDL3
  *
  * \sa SDL_GetGamepadAppleSFSymbolsNameForButton
  */
-[CLink] public static extern char8* SDL_GetGamepadAppleSFSymbolsNameForAxis(SDL_Gamepad *gamepad, SDL_GamepadAxis axis);
+	[CLink] public static extern char8* SDL_GetGamepadAppleSFSymbolsNameForAxis(SDL_Gamepad* gamepad, SDL_GamepadAxis axis);
 }

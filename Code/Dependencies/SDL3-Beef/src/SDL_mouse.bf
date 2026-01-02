@@ -12,11 +12,11 @@ using System;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -85,27 +85,27 @@ public typealias SDL_MouseID = uint32;
  */
 public enum SDL_SystemCursor : int32
 {
-    SDL_SYSTEM_CURSOR_DEFAULT,      /**< Default cursor. Usually an arrow. */
-    SDL_SYSTEM_CURSOR_TEXT,         /**< Text selection. Usually an I-beam. */
-    SDL_SYSTEM_CURSOR_WAIT,         /**< Wait. Usually an hourglass or watch or spinning ball. */
-    SDL_SYSTEM_CURSOR_CROSSHAIR,    /**< Crosshair. */
-    SDL_SYSTEM_CURSOR_PROGRESS,     /**< Program is busy but still interactive. Usually it's WAIT with an arrow. */
-    SDL_SYSTEM_CURSOR_NWSE_RESIZE,  /**< Double arrow pointing northwest and southeast. */
-    SDL_SYSTEM_CURSOR_NESW_RESIZE,  /**< Double arrow pointing northeast and southwest. */
-    SDL_SYSTEM_CURSOR_EW_RESIZE,    /**< Double arrow pointing west and east. */
-    SDL_SYSTEM_CURSOR_NS_RESIZE,    /**< Double arrow pointing north and south. */
-    SDL_SYSTEM_CURSOR_MOVE,         /**< Four pointed arrow pointing north, south, east, and west. */
-    SDL_SYSTEM_CURSOR_NOT_ALLOWED,  /**< Not permitted. Usually a slashed circle or crossbones. */
-    SDL_SYSTEM_CURSOR_POINTER,      /**< Pointer that indicates a link. Usually a pointing hand. */
-    SDL_SYSTEM_CURSOR_NW_RESIZE,    /**< Window resize top-left. This may be a single arrow or a double arrow like NWSE_RESIZE. */
-    SDL_SYSTEM_CURSOR_N_RESIZE,     /**< Window resize top. May be NS_RESIZE. */
-    SDL_SYSTEM_CURSOR_NE_RESIZE,    /**< Window resize top-right. May be NESW_RESIZE. */
-    SDL_SYSTEM_CURSOR_E_RESIZE,     /**< Window resize right. May be EW_RESIZE. */
-    SDL_SYSTEM_CURSOR_SE_RESIZE,    /**< Window resize bottom-right. May be NWSE_RESIZE. */
-    SDL_SYSTEM_CURSOR_S_RESIZE,     /**< Window resize bottom. May be NS_RESIZE. */
-    SDL_SYSTEM_CURSOR_SW_RESIZE,    /**< Window resize bottom-left. May be NESW_RESIZE. */
-    SDL_SYSTEM_CURSOR_W_RESIZE,     /**< Window resize left. May be EW_RESIZE. */
-    SDL_SYSTEM_CURSOR_COUNT
+	SDL_SYSTEM_CURSOR_DEFAULT, /**< Default cursor. Usually an arrow. */
+	SDL_SYSTEM_CURSOR_TEXT, /**< Text selection. Usually an I-beam. */
+	SDL_SYSTEM_CURSOR_WAIT, /**< Wait. Usually an hourglass or watch or spinning ball. */
+	SDL_SYSTEM_CURSOR_CROSSHAIR, /**< Crosshair. */
+	SDL_SYSTEM_CURSOR_PROGRESS, /**< Program is busy but still interactive. Usually it's WAIT with an arrow. */
+	SDL_SYSTEM_CURSOR_NWSE_RESIZE, /**< Double arrow pointing northwest and southeast. */
+	SDL_SYSTEM_CURSOR_NESW_RESIZE, /**< Double arrow pointing northeast and southwest. */
+	SDL_SYSTEM_CURSOR_EW_RESIZE, /**< Double arrow pointing west and east. */
+	SDL_SYSTEM_CURSOR_NS_RESIZE, /**< Double arrow pointing north and south. */
+	SDL_SYSTEM_CURSOR_MOVE, /**< Four pointed arrow pointing north, south, east, and west. */
+	SDL_SYSTEM_CURSOR_NOT_ALLOWED, /**< Not permitted. Usually a slashed circle or crossbones. */
+	SDL_SYSTEM_CURSOR_POINTER, /**< Pointer that indicates a link. Usually a pointing hand. */
+	SDL_SYSTEM_CURSOR_NW_RESIZE, /**< Window resize top-left. This may be a single arrow or a double arrow like NWSE_RESIZE. */
+	SDL_SYSTEM_CURSOR_N_RESIZE, /**< Window resize top. May be NS_RESIZE. */
+	SDL_SYSTEM_CURSOR_NE_RESIZE, /**< Window resize top-right. May be NESW_RESIZE. */
+	SDL_SYSTEM_CURSOR_E_RESIZE, /**< Window resize right. May be EW_RESIZE. */
+	SDL_SYSTEM_CURSOR_SE_RESIZE, /**< Window resize bottom-right. May be NWSE_RESIZE. */
+	SDL_SYSTEM_CURSOR_S_RESIZE, /**< Window resize bottom. May be NS_RESIZE. */
+	SDL_SYSTEM_CURSOR_SW_RESIZE, /**< Window resize bottom-left. May be NESW_RESIZE. */
+	SDL_SYSTEM_CURSOR_W_RESIZE, /**< Window resize left. May be EW_RESIZE. */
+	SDL_SYSTEM_CURSOR_COUNT
 }
 
 /**
@@ -115,8 +115,8 @@ public enum SDL_SystemCursor : int32
  */
 public enum SDL_MouseWheelDirection : int32
 {
-    SDL_MOUSEWHEEL_NORMAL,    /**< The scroll direction is normal */
-    SDL_MOUSEWHEEL_FLIPPED    /**< The scroll direction is flipped / natural */
+	SDL_MOUSEWHEEL_NORMAL, /**< The scroll direction is normal */
+	SDL_MOUSEWHEEL_FLIPPED /**< The scroll direction is flipped / natural */
 }
 
 /**
@@ -126,8 +126,8 @@ public enum SDL_MouseWheelDirection : int32
  */
 [CRepr] public struct SDL_CursorFrameInfo
 {
-    public SDL_Surface* surface; /**< The surface data for this frame */
-    public uint32 duration;      /**< The frame duration in milliseconds (a duration of 0 is infinite) */
+	public SDL_Surface* surface; /**< The surface data for this frame */
+	public uint32 duration; /**< The frame duration in milliseconds (a duration of 0 is infinite) */
 }
 
 /**
@@ -196,13 +196,13 @@ public static //extension SDL3
  *
  * \sa SDL_SetRelativeMouseTransform
  */
-public typealias SDL_MouseMotionTransformCallback = function void(
-    void *userdata,
-    uint64 timestamp,
-    SDL_Window *window,
-    SDL_MouseID mouseID,
-    float *x, float *y
-);
+	public typealias SDL_MouseMotionTransformCallback = function void(
+		void* userdata,
+		uint64 timestamp,
+		SDL_Window* window,
+		SDL_MouseID mouseID,
+		float* x, float* y
+		);
 
 /* Function prototypes */
 
@@ -217,7 +217,7 @@ public typealias SDL_MouseMotionTransformCallback = function void(
  *
  * \sa SDL_GetMice
  */
-[CLink] public static extern bool SDL_HasMouse();
+	[CLink] public static extern bool SDL_HasMouse();
 
 /**
  * Get a list of currently connected mice.
@@ -240,7 +240,7 @@ public typealias SDL_MouseMotionTransformCallback = function void(
  * \sa SDL_GetMouseNameForID
  * \sa SDL_HasMouse
  */
-[CLink] public static extern SDL_MouseID* SDL_GetMice(int32 *count);
+	[CLink] public static extern SDL_MouseID* SDL_GetMice(int32* count);
 
 /**
  * Get the name of a mouse.
@@ -257,7 +257,7 @@ public typealias SDL_MouseMotionTransformCallback = function void(
  *
  * \sa SDL_GetMice
  */
-[CLink] public static extern char8* SDL_GetMouseNameForID(SDL_MouseID instance_id);
+	[CLink] public static extern char8* SDL_GetMouseNameForID(SDL_MouseID instance_id);
 
 /**
  * Get the window which currently has mouse focus.
@@ -268,7 +268,7 @@ public typealias SDL_MouseMotionTransformCallback = function void(
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_Window* SDL_GetMouseFocus();
+	[CLink] public static extern SDL_Window* SDL_GetMouseFocus();
 
 /**
  * Query SDL's cache for the synchronous mouse button state and the
@@ -301,7 +301,7 @@ public typealias SDL_MouseMotionTransformCallback = function void(
  * \sa SDL_GetGlobalMouseState
  * \sa SDL_GetRelativeMouseState
  */
-[CLink] public static extern SDL_MouseButtonFlags SDL_GetMouseState(float *x, float *y);
+	[CLink] public static extern SDL_MouseButtonFlags SDL_GetMouseState(float* x, float* y);
 
 /**
  * Query the platform for the asynchronous mouse button state and the
@@ -338,7 +338,7 @@ public typealias SDL_MouseMotionTransformCallback = function void(
  * \sa SDL_GetMouseState
  * \sa SDL_GetGlobalMouseState
  */
-[CLink] public static extern SDL_MouseButtonFlags SDL_GetGlobalMouseState(float *x, float *y);
+	[CLink] public static extern SDL_MouseButtonFlags SDL_GetGlobalMouseState(float* x, float* y);
 
 /**
  * Query SDL's cache for the synchronous mouse button state and accumulated
@@ -373,7 +373,7 @@ public typealias SDL_MouseMotionTransformCallback = function void(
  * \sa SDL_GetMouseState
  * \sa SDL_GetGlobalMouseState
  */
-[CLink] public static extern SDL_MouseButtonFlags SDL_GetRelativeMouseState(float *x, float *y);
+	[CLink] public static extern SDL_MouseButtonFlags SDL_GetRelativeMouseState(float* x, float* y);
 
 /**
  * Move the mouse cursor to the given position within the window.
@@ -396,8 +396,8 @@ public typealias SDL_MouseMotionTransformCallback = function void(
  *
  * \sa SDL_WarpMouseGlobal
  */
-[CLink] public static extern void SDL_WarpMouseInWindow(SDL_Window *window,
-                                                   float x, float y);
+	[CLink] public static extern void SDL_WarpMouseInWindow(SDL_Window* window,
+		float x, float y);
 
 /**
  * Move the mouse to the given position in global screen space.
@@ -421,7 +421,7 @@ public typealias SDL_MouseMotionTransformCallback = function void(
  *
  * \sa SDL_WarpMouseInWindow
  */
-[CLink] public static extern bool SDL_WarpMouseGlobal(float x, float y);
+	[CLink] public static extern bool SDL_WarpMouseGlobal(float x, float y);
 
 /**
  * Set a user-defined function by which to transform relative mouse inputs.
@@ -439,7 +439,7 @@ public typealias SDL_MouseMotionTransformCallback = function void(
  *
  * \since This function is available since SDL 3.4.0.
  */
-[CLink] public static extern bool SDL_SetRelativeMouseTransform(SDL_MouseMotionTransformCallback callback, void *userdata);
+	[CLink] public static extern bool SDL_SetRelativeMouseTransform(SDL_MouseMotionTransformCallback callback, void* userdata);
 
 /**
  * Set relative mouse mode for a window.
@@ -467,7 +467,7 @@ public typealias SDL_MouseMotionTransformCallback = function void(
  *
  * \sa SDL_GetWindowRelativeMouseMode
  */
-[CLink] public static extern bool SDL_SetWindowRelativeMouseMode(SDL_Window *window, bool enabled);
+	[CLink] public static extern bool SDL_SetWindowRelativeMouseMode(SDL_Window* window, bool enabled);
 
 /**
  * Query whether relative mouse mode is enabled for a window.
@@ -481,7 +481,7 @@ public typealias SDL_MouseMotionTransformCallback = function void(
  *
  * \sa SDL_SetWindowRelativeMouseMode
  */
-[CLink] public static extern bool SDL_GetWindowRelativeMouseMode(SDL_Window *window);
+	[CLink] public static extern bool SDL_GetWindowRelativeMouseMode(SDL_Window* window);
 
 /**
  * Capture the mouse and to track input outside an SDL window.
@@ -529,7 +529,7 @@ public typealias SDL_MouseMotionTransformCallback = function void(
  *
  * \sa SDL_GetGlobalMouseState
  */
-[CLink] public static extern bool SDL_CaptureMouse(bool enabled);
+	[CLink] public static extern bool SDL_CaptureMouse(bool enabled);
 
 /**
  * Create a cursor using the specified bitmap data and mask (in MSB format).
@@ -576,10 +576,10 @@ public typealias SDL_MouseMotionTransformCallback = function void(
  * \sa SDL_DestroyCursor
  * \sa SDL_SetCursor
  */
-[CLink] public static extern SDL_Cursor* SDL_CreateCursor(uint8* data,
-                                                     uint8* mask,
-                                                     int32 w, int32 h, int32 hot_x,
-                                                     int32 hot_y);
+	[CLink] public static extern SDL_Cursor* SDL_CreateCursor(uint8* data,
+		uint8* mask,
+		int32 w, int32 h, int32 hot_x,
+		int32 hot_y);
 
 /**
  * Create a color cursor.
@@ -613,9 +613,9 @@ public typealias SDL_MouseMotionTransformCallback = function void(
  * \sa SDL_DestroyCursor
  * \sa SDL_SetCursor
  */
-[CLink] public static extern SDL_Cursor* SDL_CreateColorCursor(SDL_Surface *surface,
-                                                          int32 hot_x,
-                                                          int32 hot_y);
+	[CLink] public static extern SDL_Cursor* SDL_CreateColorCursor(SDL_Surface* surface,
+		int32 hot_x,
+		int32 hot_y);
 
 /**
  * Create an animated color cursor.
@@ -663,10 +663,10 @@ public typealias SDL_MouseMotionTransformCallback = function void(
  * \sa SDL_DestroyCursor
  * \sa SDL_SetCursor
  */
-[CLink] public static extern SDL_Cursor * SDL_CreateAnimatedCursor(SDL_CursorFrameInfo *frames,
-                                                                 int32 frame_count,
-                                                                 int32 hot_x,
-                                                                 int32 hot_y);
+	[CLink] public static extern SDL_Cursor* SDL_CreateAnimatedCursor(SDL_CursorFrameInfo* frames,
+		int32 frame_count,
+		int32 hot_x,
+		int32 hot_y);
 
 /**
  * Create a system cursor.
@@ -681,7 +681,7 @@ public typealias SDL_MouseMotionTransformCallback = function void(
  *
  * \sa SDL_DestroyCursor
  */
-[CLink] public static extern SDL_Cursor* SDL_CreateSystemCursor(SDL_SystemCursor id);
+	[CLink] public static extern SDL_Cursor* SDL_CreateSystemCursor(SDL_SystemCursor id);
 
 /**
  * Set the active cursor.
@@ -701,7 +701,7 @@ public typealias SDL_MouseMotionTransformCallback = function void(
  *
  * \sa SDL_GetCursor
  */
-[CLink] public static extern bool SDL_SetCursor(SDL_Cursor *cursor);
+	[CLink] public static extern bool SDL_SetCursor(SDL_Cursor* cursor);
 
 /**
  * Get the active cursor.
@@ -717,7 +717,7 @@ public typealias SDL_MouseMotionTransformCallback = function void(
  *
  * \sa SDL_SetCursor
  */
-[CLink] public static extern SDL_Cursor* SDL_GetCursor();
+	[CLink] public static extern SDL_Cursor* SDL_GetCursor();
 
 /**
  * Get the default cursor.
@@ -732,7 +732,7 @@ public typealias SDL_MouseMotionTransformCallback = function void(
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_Cursor* SDL_GetDefaultCursor();
+	[CLink] public static extern SDL_Cursor* SDL_GetDefaultCursor();
 
 /**
  * Free a previously-created cursor.
@@ -751,7 +751,7 @@ public typealias SDL_MouseMotionTransformCallback = function void(
  * \sa SDL_CreateCursor
  * \sa SDL_CreateSystemCursor
  */
-[CLink] public static extern void SDL_DestroyCursor(SDL_Cursor *cursor);
+	[CLink] public static extern void SDL_DestroyCursor(SDL_Cursor* cursor);
 
 /**
  * Show the cursor.
@@ -766,7 +766,7 @@ public typealias SDL_MouseMotionTransformCallback = function void(
  * \sa SDL_CursorVisible
  * \sa SDL_HideCursor
  */
-[CLink] public static extern bool SDL_ShowCursor();
+	[CLink] public static extern bool SDL_ShowCursor();
 
 /**
  * Hide the cursor.
@@ -781,7 +781,7 @@ public typealias SDL_MouseMotionTransformCallback = function void(
  * \sa SDL_CursorVisible
  * \sa SDL_ShowCursor
  */
-[CLink] public static extern bool SDL_HideCursor();
+	[CLink] public static extern bool SDL_HideCursor();
 
 /**
  * Return whether the cursor is currently being shown.
@@ -796,5 +796,5 @@ public typealias SDL_MouseMotionTransformCallback = function void(
  * \sa SDL_HideCursor
  * \sa SDL_ShowCursor
  */
-[CLink] public static extern bool SDL_CursorVisible();
+	[CLink] public static extern bool SDL_CursorVisible();
 }

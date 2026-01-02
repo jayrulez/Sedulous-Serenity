@@ -12,11 +12,11 @@ using System;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -191,7 +191,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetTicksNS
  */
-[CLink] public static extern uint64 SDL_GetTicks();
+	[CLink] public static extern uint64 SDL_GetTicks();
 
 /**
  * Get the number of nanoseconds since SDL library initialization.
@@ -203,7 +203,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern uint64 SDL_GetTicksNS();
+	[CLink] public static extern uint64 SDL_GetTicksNS();
 
 /**
  * Get the current value of the high resolution counter.
@@ -222,7 +222,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetPerformanceFrequency
  */
-[CLink] public static extern uint64 SDL_GetPerformanceCounter();
+	[CLink] public static extern uint64 SDL_GetPerformanceCounter();
 
 /**
  * Get the count per second of the high resolution counter.
@@ -235,7 +235,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetPerformanceCounter
  */
-[CLink] public static extern uint64 SDL_GetPerformanceFrequency();
+	[CLink] public static extern uint64 SDL_GetPerformanceFrequency();
 
 /**
  * Wait a specified number of milliseconds before returning.
@@ -253,7 +253,7 @@ public static //extension SDL3
  * \sa SDL_DelayNS
  * \sa SDL_DelayPrecise
  */
-[CLink] public static extern void SDL_Delay(uint32 ms);
+	[CLink] public static extern void SDL_Delay(uint32 ms);
 
 /**
  * Wait a specified number of nanoseconds before returning.
@@ -271,7 +271,7 @@ public static //extension SDL3
  * \sa SDL_Delay
  * \sa SDL_DelayPrecise
  */
-[CLink] public static extern void SDL_DelayNS(uint64 ns);
+	[CLink] public static extern void SDL_DelayNS(uint64 ns);
 
 /**
  * Wait a specified number of nanoseconds before returning.
@@ -289,7 +289,7 @@ public static //extension SDL3
  * \sa SDL_Delay
  * \sa SDL_DelayNS
  */
-[CLink] public static extern void SDL_DelayPrecise(uint64 ns);
+	[CLink] public static extern void SDL_DelayPrecise(uint64 ns);
 }
 
 /**
@@ -323,7 +323,7 @@ public typealias SDL_TimerID = uint32;
  *
  * \sa SDL_AddTimer
  */
-public typealias SDL_TimerCallback = function uint32(void *userdata, SDL_TimerID timerID, uint32 interval);
+public typealias SDL_TimerCallback = function uint32(void* userdata, SDL_TimerID timerID, uint32 interval);
 
 public static //extension SDL3
 {
@@ -362,7 +362,7 @@ public static //extension SDL3
  * \sa SDL_AddTimerNS
  * \sa SDL_RemoveTimer
  */
-[CLink] public static extern SDL_TimerID SDL_AddTimer(uint32 interval, SDL_TimerCallback callback, void *userdata);
+	[CLink] public static extern SDL_TimerID SDL_AddTimer(uint32 interval, SDL_TimerCallback callback, void* userdata);
 }
 /**
  * Function prototype for the nanosecond timer callback function.
@@ -388,7 +388,7 @@ public static //extension SDL3
  *
  * \sa SDL_AddTimerNS
  */
-public typealias SDL_NSTimerCallback = function uint64(void *userdata, SDL_TimerID timerID, uint64 interval);
+public typealias SDL_NSTimerCallback = function uint64(void* userdata, SDL_TimerID timerID, uint64 interval);
 
 public static //extension SDL3
 {
@@ -427,7 +427,7 @@ public static //extension SDL3
  * \sa SDL_AddTimer
  * \sa SDL_RemoveTimer
  */
-[CLink] public static extern SDL_TimerID SDL_AddTimerNS(uint64 interval, SDL_NSTimerCallback callback, void *userdata);
+	[CLink] public static extern SDL_TimerID SDL_AddTimerNS(uint64 interval, SDL_NSTimerCallback callback, void* userdata);
 
 /**
  * Remove a timer created with SDL_AddTimer().
@@ -442,5 +442,5 @@ public static //extension SDL3
  *
  * \sa SDL_AddTimer
  */
-[CLink] public static extern bool SDL_RemoveTimer(SDL_TimerID id);
+	[CLink] public static extern bool SDL_RemoveTimer(SDL_TimerID id);
 }

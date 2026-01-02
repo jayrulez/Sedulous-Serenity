@@ -12,11 +12,11 @@ using System;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -90,7 +90,7 @@ public static //extension SDL3
  * \sa SDL_LockSpinlock
  * \sa SDL_UnlockSpinlock
  */
-[CLink] public static extern bool SDL_TryLockSpinlock(SDL_SpinLock *lock);
+	[CLink] public static extern bool SDL_TryLockSpinlock(SDL_SpinLock* lock);
 
 /**
  * Lock a spin lock by setting it to a non-zero value.
@@ -107,7 +107,7 @@ public static //extension SDL3
  * \sa SDL_TryLockSpinlock
  * \sa SDL_UnlockSpinlock
  */
-[CLink] public static extern void SDL_LockSpinlock(SDL_SpinLock *lock);
+	[CLink] public static extern void SDL_LockSpinlock(SDL_SpinLock* lock);
 
 /**
  * Unlock a spin lock by setting it to 0.
@@ -126,7 +126,7 @@ public static //extension SDL3
  * \sa SDL_LockSpinlock
  * \sa SDL_TryLockSpinlock
  */
-[CLink] public static extern void SDL_UnlockSpinlock(SDL_SpinLock *lock);
+	[CLink] public static extern void SDL_UnlockSpinlock(SDL_SpinLock* lock);
 
 /**
  * Insert a memory release barrier (function version).
@@ -146,7 +146,7 @@ public static //extension SDL3
  *
  * \sa SDL_MemoryBarrierRelease
  */
-[CLink] public static extern void SDL_MemoryBarrierReleaseFunction();
+	[CLink] public static extern void SDL_MemoryBarrierReleaseFunction();
 
 /**
  * Insert a memory acquire barrier (function version).
@@ -166,7 +166,7 @@ public static //extension SDL3
  *
  * \sa SDL_MemoryBarrierAcquire
  */
-[CLink] public static extern void SDL_MemoryBarrierAcquireFunction();
+	[CLink] public static extern void SDL_MemoryBarrierAcquireFunction();
 
 /**
  * A type representing an atomic integer value.
@@ -195,7 +195,7 @@ public static //extension SDL3
  * \sa SDL_SetAtomicInt
  * \sa SDL_AddAtomicInt
  */
-[CRepr] public struct SDL_AtomicInt { public int32 value; }
+	[CRepr] public struct SDL_AtomicInt { public int32 value; }
 
 /**
  * Set an atomic variable to a new value if it is currently an old value.
@@ -215,7 +215,7 @@ public static //extension SDL3
  * \sa SDL_GetAtomicInt
  * \sa SDL_SetAtomicInt
  */
-[CLink] public static extern bool SDL_CompareAndSwapAtomicInt(SDL_AtomicInt *a, int32 oldval, int32 newval);
+	[CLink] public static extern bool SDL_CompareAndSwapAtomicInt(SDL_AtomicInt* a, int32 oldval, int32 newval);
 
 /**
  * Set an atomic variable to a value.
@@ -235,7 +235,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetAtomicInt
  */
-[CLink] public static extern int32 SDL_SetAtomicInt(SDL_AtomicInt *a, int32 v);
+	[CLink] public static extern int32 SDL_SetAtomicInt(SDL_AtomicInt* a, int32 v);
 
 /**
  * Get the value of an atomic variable.
@@ -252,7 +252,7 @@ public static //extension SDL3
  *
  * \sa SDL_SetAtomicInt
  */
-[CLink] public static extern int32 SDL_GetAtomicInt(SDL_AtomicInt *a);
+	[CLink] public static extern int32 SDL_GetAtomicInt(SDL_AtomicInt* a);
 
 /**
  * Add to an atomic variable.
@@ -273,7 +273,7 @@ public static //extension SDL3
  * \sa SDL_AtomicDecRef
  * \sa SDL_AtomicIncRef
  */
-[CLink] public static extern int32 SDL_AddAtomicInt(SDL_AtomicInt *a, int32 v);
+	[CLink] public static extern int32 SDL_AddAtomicInt(SDL_AtomicInt* a, int32 v);
 
 /**
  * Increment an atomic variable used as a reference count.
@@ -354,7 +354,7 @@ public static //extension SDL3
  * \sa SDL_GetAtomicU32
  * \sa SDL_SetAtomicU32
  */
-[CLink] public static extern bool SDL_CompareAndSwapAtomicU32(SDL_AtomicU32 *a, uint32 oldval, uint32 newval);
+	[CLink] public static extern bool SDL_CompareAndSwapAtomicU32(SDL_AtomicU32* a, uint32 oldval, uint32 newval);
 
 /**
  * Set an atomic variable to a value.
@@ -374,7 +374,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetAtomicU32
  */
-[CLink] public static extern uint32 SDL_SetAtomicU32(SDL_AtomicU32 *a, uint32 v);
+	[CLink] public static extern uint32 SDL_SetAtomicU32(SDL_AtomicU32* a, uint32 v);
 
 /**
  * Get the value of an atomic variable.
@@ -391,7 +391,7 @@ public static //extension SDL3
  *
  * \sa SDL_SetAtomicU32
  */
-[CLink] public static extern uint32 SDL_GetAtomicU32(SDL_AtomicU32 *a);
+	[CLink] public static extern uint32 SDL_GetAtomicU32(SDL_AtomicU32* a);
 
 /**
  * Add to an atomic variable.
@@ -409,7 +409,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.4.0.
  */
-[CLink] public static extern uint32 SDL_AddAtomicU32(SDL_AtomicU32 *a, int32 v);
+	[CLink] public static extern uint32 SDL_AddAtomicU32(SDL_AtomicU32* a, int32 v);
 
 /**
  * Set a pointer to a new value if it is currently an old value.
@@ -430,7 +430,7 @@ public static //extension SDL3
  * \sa SDL_GetAtomicPointer
  * \sa SDL_SetAtomicPointer
  */
-[CLink] public static extern bool SDL_CompareAndSwapAtomicPointer(void **a, void *oldval, void *newval);
+	[CLink] public static extern bool SDL_CompareAndSwapAtomicPointer(void** a, void* oldval, void* newval);
 
 /**
  * Set a pointer to a value atomically.
@@ -449,7 +449,7 @@ public static //extension SDL3
  * \sa SDL_CompareAndSwapAtomicPointer
  * \sa SDL_GetAtomicPointer
  */
-[CLink] public static extern void* SDL_SetAtomicPointer(void **a, void *v);
+	[CLink] public static extern void* SDL_SetAtomicPointer(void** a, void* v);
 
 /**
  * Get the value of a pointer atomically.
@@ -467,6 +467,6 @@ public static //extension SDL3
  * \sa SDL_CompareAndSwapAtomicPointer
  * \sa SDL_SetAtomicPointer
  */
-[CLink] public static extern void* SDL_GetAtomicPointer(void **a);
+	[CLink] public static extern void* SDL_GetAtomicPointer(void** a);
 
 }

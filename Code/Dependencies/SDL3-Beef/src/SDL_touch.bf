@@ -12,11 +12,11 @@ using System;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -72,10 +72,10 @@ public typealias SDL_FingerID = uint64;
  */
 public enum SDL_TouchDeviceType : int32
 {
-    SDL_TOUCH_DEVICE_INVALID = -1,
-    SDL_TOUCH_DEVICE_DIRECT,            /**< touch screen with window-relative coordinates */
-    SDL_TOUCH_DEVICE_INDIRECT_ABSOLUTE, /**< trackpad with absolute device coordinates */
-    SDL_TOUCH_DEVICE_INDIRECT_RELATIVE  /**< trackpad with screen cursor-relative coordinates */
+	SDL_TOUCH_DEVICE_INVALID = -1,
+	SDL_TOUCH_DEVICE_DIRECT, /**< touch screen with window-relative coordinates */
+	SDL_TOUCH_DEVICE_INDIRECT_ABSOLUTE, /**< trackpad with absolute device coordinates */
+	SDL_TOUCH_DEVICE_INDIRECT_RELATIVE /**< trackpad with screen cursor-relative coordinates */
 }
 
 /**
@@ -91,10 +91,10 @@ public enum SDL_TouchDeviceType : int32
  */
 [CRepr] public struct SDL_Finger
 {
-    public SDL_FingerID id;  /**< the finger ID */
-    public float x;  /**< the x-axis location of the touch event, normalized (0...1) */
-    public float y;  /**< the y-axis location of the touch event, normalized (0...1) */
-    public float pressure; /**< the quantity of pressure applied, normalized (0...1) */
+	public SDL_FingerID id; /**< the finger ID */
+	public float x; /**< the x-axis location of the touch event, normalized (0...1) */
+	public float y; /**< the y-axis location of the touch event, normalized (0...1) */
+	public float pressure; /**< the quantity of pressure applied, normalized (0...1) */
 }
 
 public static //extension SDL3
@@ -129,7 +129,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_TouchID* SDL_GetTouchDevices(int32 *count);
+	[CLink] public static extern SDL_TouchID* SDL_GetTouchDevices(int32* count);
 
 /**
  * Get the touch device name as reported from the driver.
@@ -140,7 +140,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern char8* SDL_GetTouchDeviceName(SDL_TouchID touchID);
+	[CLink] public static extern char8* SDL_GetTouchDeviceName(SDL_TouchID touchID);
 
 /**
  * Get the type of the given touch device.
@@ -150,7 +150,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_TouchDeviceType SDL_GetTouchDeviceType(SDL_TouchID touchID);
+	[CLink] public static extern SDL_TouchDeviceType SDL_GetTouchDeviceType(SDL_TouchID touchID);
 
 /**
  * Get a list of active fingers for a given touch device.
@@ -165,5 +165,5 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_Finger ** SDL_GetTouchFingers(SDL_TouchID touchID, int32 *count);
+	[CLink] public static extern SDL_Finger** SDL_GetTouchFingers(SDL_TouchID touchID, int32* count);
 }

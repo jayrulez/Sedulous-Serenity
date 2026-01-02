@@ -12,11 +12,11 @@ using System;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -79,10 +79,10 @@ public static //extension SDL3
  */
 public enum SDL_ScaleMode : int32
 {
-    SDL_SCALEMODE_INVALID = -1,
-    SDL_SCALEMODE_NEAREST,  /**< nearest pixel sampling */
-    SDL_SCALEMODE_LINEAR,   /**< linear filtering */
-    SDL_SCALEMODE_PIXELART  /**< nearest pixel sampling with improved scaling for pixel art, available since SDL 3.4.0 */
+	SDL_SCALEMODE_INVALID = -1,
+	SDL_SCALEMODE_NEAREST, /**< nearest pixel sampling */
+	SDL_SCALEMODE_LINEAR, /**< linear filtering */
+	SDL_SCALEMODE_PIXELART /**< nearest pixel sampling with improved scaling for pixel art, available since SDL 3.4.0 */
 }
 
 /**
@@ -92,10 +92,10 @@ public enum SDL_ScaleMode : int32
  */
 public enum SDL_FlipMode : int32
 {
-    SDL_FLIP_NONE,                                                                  /**< Do not flip */
-    SDL_FLIP_HORIZONTAL,                                                            /**< flip horizontally */
-    SDL_FLIP_VERTICAL,                                                              /**< flip vertically */
-    SDL_FLIP_HORIZONTAL_AND_VERTICAL = (SDL_FLIP_HORIZONTAL | SDL_FLIP_VERTICAL)    /**< flip horizontally and vertically (not a diagonal flip) */
+	SDL_FLIP_NONE, /**< Do not flip */
+	SDL_FLIP_HORIZONTAL, /**< flip horizontally */
+	SDL_FLIP_VERTICAL, /**< flip vertically */
+	SDL_FLIP_HORIZONTAL_AND_VERTICAL = (SDL_FLIP_HORIZONTAL | SDL_FLIP_VERTICAL) /**< flip horizontally and vertically (not a diagonal flip) */
 }
 
 /**
@@ -126,18 +126,18 @@ public enum SDL_FlipMode : int32
  * \sa SDL_CreateSurface
  * \sa SDL_DestroySurface
  */
-[CRepr]struct SDL_Surface
+[CRepr] struct SDL_Surface
 {
-    public SDL_SurfaceFlags flags;     /**< The flags of the surface, read-only */
-    public SDL_PixelFormat format;     /**< The format of the surface, read-only */
-    public int32 w;                      /**< The width of the surface, read-only. */
-    public int32 h;                      /**< The height of the surface, read-only. */
-    public int32 pitch;                  /**< The distance in bytes between rows of pixels, read-only */
-    public void* pixels;               /**< A pointer to the pixels of the surface, the pixels are writeable if non-NULL */
+	public SDL_SurfaceFlags flags; /**< The flags of the surface, read-only */
+	public SDL_PixelFormat format; /**< The format of the surface, read-only */
+	public int32 w; /**< The width of the surface, read-only. */
+	public int32 h; /**< The height of the surface, read-only. */
+	public int32 pitch; /**< The distance in bytes between rows of pixels, read-only */
+	public void* pixels; /**< A pointer to the pixels of the surface, the pixels are writeable if non-NULL */
 
-    public int32 refcount;               /**< Application reference count, used when freeing surface */
+	public int32 refcount; /**< Application reference count, used when freeing surface */
 
-    public void* reserved;             /**< Reserved for internal use */
+	public void* reserved; /**< Reserved for internal use */
 }
 
 public static //extension SDL3
@@ -161,7 +161,7 @@ public static //extension SDL3
  * \sa SDL_CreateSurfaceFrom
  * \sa SDL_DestroySurface
  */
-[CLink] public static extern SDL_Surface* SDL_CreateSurface(int32 width, int32 height, SDL_PixelFormat format);
+	[CLink] public static extern SDL_Surface* SDL_CreateSurface(int32 width, int32 height, SDL_PixelFormat format);
 
 /**
  * Allocate a new surface with a specific pixel format and existing pixel
@@ -191,7 +191,7 @@ public static //extension SDL3
  * \sa SDL_CreateSurface
  * \sa SDL_DestroySurface
  */
-[CLink] public static extern SDL_Surface* SDL_CreateSurfaceFrom(int32 width, int32 height, SDL_PixelFormat format, void *pixels, int32 pitch);
+	[CLink] public static extern SDL_Surface* SDL_CreateSurfaceFrom(int32 width, int32 height, SDL_PixelFormat format, void* pixels, int32 pitch);
 
 /**
  * Free a surface.
@@ -207,7 +207,7 @@ public static //extension SDL3
  * \sa SDL_CreateSurface
  * \sa SDL_CreateSurfaceFrom
  */
-[CLink] public static extern void SDL_DestroySurface(SDL_Surface *surface);
+	[CLink] public static extern void SDL_DestroySurface(SDL_Surface* surface);
 
 /**
  * Get the properties associated with a surface.
@@ -247,14 +247,14 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_PropertiesID SDL_GetSurfaceProperties(SDL_Surface *surface);
+	[CLink] public static extern SDL_PropertiesID SDL_GetSurfaceProperties(SDL_Surface* surface);
 
-public const char8* SDL_PROP_SURFACE_SDR_WHITE_POINT_FLOAT              = "SDL.surface.SDR_white_point";
-public const char8* SDL_PROP_SURFACE_HDR_HEADROOM_FLOAT                 = "SDL.surface.HDR_headroom";
-public const char8* SDL_PROP_SURFACE_TONEMAP_OPERATOR_STRING            = "SDL.surface.tonemap";
-public const char8* SDL_PROP_SURFACE_HOTSPOT_X_NUMBER                   = "SDL.surface.hotspot.x";
-public const char8* SDL_PROP_SURFACE_HOTSPOT_Y_NUMBER                   = "SDL.surface.hotspot.y";
-public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.surface.rotation";
+	public const char8* SDL_PROP_SURFACE_SDR_WHITE_POINT_FLOAT              = "SDL.surface.SDR_white_point";
+	public const char8* SDL_PROP_SURFACE_HDR_HEADROOM_FLOAT                 = "SDL.surface.HDR_headroom";
+	public const char8* SDL_PROP_SURFACE_TONEMAP_OPERATOR_STRING            = "SDL.surface.tonemap";
+	public const char8* SDL_PROP_SURFACE_HOTSPOT_X_NUMBER                   = "SDL.surface.hotspot.x";
+	public const char8* SDL_PROP_SURFACE_HOTSPOT_Y_NUMBER                   = "SDL.surface.hotspot.y";
+	public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.surface.rotation";
 
 /**
  * Set the colorspace used by a surface.
@@ -275,7 +275,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \sa SDL_GetSurfaceColorspace
  */
-[CLink] public static extern bool SDL_SetSurfaceColorspace(SDL_Surface *surface, SDL_Colorspace colorspace);
+	[CLink] public static extern bool SDL_SetSurfaceColorspace(SDL_Surface* surface, SDL_Colorspace colorspace);
 
 /**
  * Get the colorspace used by a surface.
@@ -295,7 +295,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \sa SDL_SetSurfaceColorspace
  */
-[CLink] public static extern SDL_Colorspace SDL_GetSurfaceColorspace(SDL_Surface *surface);
+	[CLink] public static extern SDL_Colorspace SDL_GetSurfaceColorspace(SDL_Surface* surface);
 
 /**
  * Create a palette and associate it with a surface.
@@ -326,7 +326,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \sa SDL_SetPaletteColors
  */
-[CLink] public static extern SDL_Palette* SDL_CreateSurfacePalette(SDL_Surface *surface);
+	[CLink] public static extern SDL_Palette* SDL_CreateSurfacePalette(SDL_Surface* surface);
 
 /**
  * Set the palette used by a surface.
@@ -349,7 +349,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  * \sa SDL_CreatePalette
  * \sa SDL_GetSurfacePalette
  */
-[CLink] public static extern bool SDL_SetSurfacePalette(SDL_Surface *surface, SDL_Palette *palette);
+	[CLink] public static extern bool SDL_SetSurfacePalette(SDL_Surface* surface, SDL_Palette* palette);
 
 /**
  * Get the palette used by a surface.
@@ -364,7 +364,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \sa SDL_SetSurfacePalette
  */
-[CLink] public static extern SDL_Palette* SDL_GetSurfacePalette(SDL_Surface *surface);
+	[CLink] public static extern SDL_Palette* SDL_GetSurfacePalette(SDL_Surface* surface);
 
 /**
  * Add an alternate version of a surface.
@@ -392,7 +392,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  * \sa SDL_GetSurfaceImages
  * \sa SDL_SurfaceHasAlternateImages
  */
-[CLink] public static extern bool SDL_AddSurfaceAlternateImage(SDL_Surface *surface, SDL_Surface *image);
+	[CLink] public static extern bool SDL_AddSurfaceAlternateImage(SDL_Surface* surface, SDL_Surface* image);
 
 /**
  * Return whether a surface has alternate versions available.
@@ -408,7 +408,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  * \sa SDL_RemoveSurfaceAlternateImages
  * \sa SDL_GetSurfaceImages
  */
-[CLink] public static extern bool SDL_SurfaceHasAlternateImages(SDL_Surface *surface);
+	[CLink] public static extern bool SDL_SurfaceHasAlternateImages(SDL_Surface* surface);
 
 /**
  * Get an array including all versions of a surface.
@@ -436,7 +436,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  * \sa SDL_RemoveSurfaceAlternateImages
  * \sa SDL_SurfaceHasAlternateImages
  */
-[CLink] public static extern SDL_Surface ** SDL_GetSurfaceImages(SDL_Surface *surface, int32 *count);
+	[CLink] public static extern SDL_Surface** SDL_GetSurfaceImages(SDL_Surface* surface, int32* count);
 
 /**
  * Remove all alternate versions of a surface.
@@ -455,7 +455,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  * \sa SDL_GetSurfaceImages
  * \sa SDL_SurfaceHasAlternateImages
  */
-[CLink] public static extern void SDL_RemoveSurfaceAlternateImages(SDL_Surface *surface);
+	[CLink] public static extern void SDL_RemoveSurfaceAlternateImages(SDL_Surface* surface);
 
 /**
  * Set up a surface for directly accessing the pixels.
@@ -483,7 +483,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  * \sa SDL_MUSTLOCK
  * \sa SDL_UnlockSurface
  */
-[CLink] public static extern bool SDL_LockSurface(SDL_Surface *surface);
+	[CLink] public static extern bool SDL_LockSurface(SDL_Surface* surface);
 
 /**
  * Release a surface after directly accessing the pixels.
@@ -498,7 +498,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \sa SDL_LockSurface
  */
-[CLink] public static extern void SDL_UnlockSurface(SDL_Surface *surface);
+	[CLink] public static extern void SDL_UnlockSurface(SDL_Surface* surface);
 
 /**
  * Load a BMP or PNG image from a seekable SDL data stream.
@@ -519,7 +519,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  * \sa SDL_DestroySurface
  * \sa SDL_LoadSurface
  */
-[CLink] public static extern SDL_Surface* SDL_LoadSurface_IO(SDL_IOStream *src, bool closeio);
+	[CLink] public static extern SDL_Surface* SDL_LoadSurface_IO(SDL_IOStream* src, bool closeio);
 
 /**
  * Load a BMP or PNG image from a file.
@@ -538,7 +538,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  * \sa SDL_DestroySurface
  * \sa SDL_LoadSurface_IO
  */
-[CLink] public static extern SDL_Surface* SDL_LoadSurface(char8* file);
+	[CLink] public static extern SDL_Surface* SDL_LoadSurface(char8* file);
 
 /**
  * Load a BMP image from a seekable SDL data stream.
@@ -560,7 +560,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  * \sa SDL_LoadBMP
  * \sa SDL_SaveBMP_IO
  */
-[CLink] public static extern SDL_Surface* SDL_LoadBMP_IO(SDL_IOStream *src, bool closeio);
+	[CLink] public static extern SDL_Surface* SDL_LoadBMP_IO(SDL_IOStream* src, bool closeio);
 
 /**
  * Load a BMP image from a file.
@@ -580,7 +580,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  * \sa SDL_LoadBMP_IO
  * \sa SDL_SaveBMP
  */
-[CLink] public static extern SDL_Surface* SDL_LoadBMP(char8* file);
+	[CLink] public static extern SDL_Surface* SDL_LoadBMP(char8* file);
 
 /**
  * Save a surface to a seekable SDL data stream in BMP format.
@@ -606,7 +606,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  * \sa SDL_LoadBMP_IO
  * \sa SDL_SaveBMP
  */
-[CLink] public static extern bool SDL_SaveBMP_IO(SDL_Surface *surface, SDL_IOStream *dst, bool closeio);
+	[CLink] public static extern bool SDL_SaveBMP_IO(SDL_Surface* surface, SDL_IOStream* dst, bool closeio);
 
 /**
  * Save a surface to a file in BMP format.
@@ -630,7 +630,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  * \sa SDL_LoadBMP
  * \sa SDL_SaveBMP_IO
  */
-[CLink] public static extern bool SDL_SaveBMP(SDL_Surface *surface, char8* file);
+	[CLink] public static extern bool SDL_SaveBMP(SDL_Surface* surface, char8* file);
 
 /**
  * Load a PNG image from a seekable SDL data stream.
@@ -656,7 +656,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  * \sa SDL_LoadPNG
  * \sa SDL_SavePNG_IO
  */
-[CLink] public static extern SDL_Surface* SDL_LoadPNG_IO(SDL_IOStream *src, bool closeio);
+	[CLink] public static extern SDL_Surface* SDL_LoadPNG_IO(SDL_IOStream* src, bool closeio);
 
 /**
  * Load a PNG image from a file.
@@ -680,7 +680,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  * \sa SDL_LoadPNG_IO
  * \sa SDL_SavePNG
  */
-[CLink] public static extern SDL_Surface* SDL_LoadPNG(char8* file);
+	[CLink] public static extern SDL_Surface* SDL_LoadPNG(char8* file);
 
 /**
  * Save a surface to a seekable SDL data stream in PNG format.
@@ -700,7 +700,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  * \sa SDL_LoadPNG_IO
  * \sa SDL_SavePNG
  */
-[CLink] public static extern bool SDL_SavePNG_IO(SDL_Surface *surface, SDL_IOStream *dst, bool closeio);
+	[CLink] public static extern bool SDL_SavePNG_IO(SDL_Surface* surface, SDL_IOStream* dst, bool closeio);
 
 /**
  * Save a surface to a file in PNG format.
@@ -718,7 +718,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  * \sa SDL_LoadPNG
  * \sa SDL_SavePNG_IO
  */
-[CLink] public static extern bool SDL_SavePNG(SDL_Surface *surface, char8* file);
+	[CLink] public static extern bool SDL_SavePNG(SDL_Surface* surface, char8* file);
 
 /**
  * Set the RLE acceleration hint for a surface.
@@ -740,7 +740,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  * \sa SDL_LockSurface
  * \sa SDL_UnlockSurface
  */
-[CLink] public static extern bool SDL_SetSurfaceRLE(SDL_Surface *surface, bool enabled);
+	[CLink] public static extern bool SDL_SetSurfaceRLE(SDL_Surface* surface, bool enabled);
 
 /**
  * Returns whether the surface is RLE enabled.
@@ -756,7 +756,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \sa SDL_SetSurfaceRLE
  */
-[CLink] public static extern bool SDL_SurfaceHasRLE(SDL_Surface *surface);
+	[CLink] public static extern bool SDL_SurfaceHasRLE(SDL_Surface* surface);
 
 /**
  * Set the color key (transparent pixel) in a surface.
@@ -783,7 +783,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  * \sa SDL_SetSurfaceRLE
  * \sa SDL_SurfaceHasColorKey
  */
-[CLink] public static extern bool SDL_SetSurfaceColorKey(SDL_Surface *surface, bool enabled, uint32 key);
+	[CLink] public static extern bool SDL_SetSurfaceColorKey(SDL_Surface* surface, bool enabled, uint32 key);
 
 /**
  * Returns whether the surface has a color key.
@@ -800,7 +800,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  * \sa SDL_SetSurfaceColorKey
  * \sa SDL_GetSurfaceColorKey
  */
-[CLink] public static extern bool SDL_SurfaceHasColorKey(SDL_Surface *surface);
+	[CLink] public static extern bool SDL_SurfaceHasColorKey(SDL_Surface* surface);
 
 /**
  * Get the color key (transparent pixel) for a surface.
@@ -822,7 +822,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  * \sa SDL_SetSurfaceColorKey
  * \sa SDL_SurfaceHasColorKey
  */
-[CLink] public static extern bool SDL_GetSurfaceColorKey(SDL_Surface *surface, uint32 *key);
+	[CLink] public static extern bool SDL_GetSurfaceColorKey(SDL_Surface* surface, uint32* key);
 
 /**
  * Set an additional color value multiplied into blit operations.
@@ -848,7 +848,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  * \sa SDL_GetSurfaceColorMod
  * \sa SDL_SetSurfaceAlphaMod
  */
-[CLink] public static extern bool SDL_SetSurfaceColorMod(SDL_Surface *surface, uint8 r, uint8 g, uint8 b);
+	[CLink] public static extern bool SDL_SetSurfaceColorMod(SDL_Surface* surface, uint8 r, uint8 g, uint8 b);
 
 
 /**
@@ -869,7 +869,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  * \sa SDL_GetSurfaceAlphaMod
  * \sa SDL_SetSurfaceColorMod
  */
-[CLink] public static extern bool SDL_GetSurfaceColorMod(SDL_Surface *surface, uint8 *r, uint8 *g, uint8 *b);
+	[CLink] public static extern bool SDL_GetSurfaceColorMod(SDL_Surface* surface, uint8* r, uint8* g, uint8* b);
 
 /**
  * Set an additional alpha value used in blit operations.
@@ -892,7 +892,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  * \sa SDL_GetSurfaceAlphaMod
  * \sa SDL_SetSurfaceColorMod
  */
-[CLink] public static extern bool SDL_SetSurfaceAlphaMod(SDL_Surface *surface, uint8 alpha);
+	[CLink] public static extern bool SDL_SetSurfaceAlphaMod(SDL_Surface* surface, uint8 alpha);
 
 /**
  * Get the additional alpha value used in blit operations.
@@ -909,7 +909,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  * \sa SDL_GetSurfaceColorMod
  * \sa SDL_SetSurfaceAlphaMod
  */
-[CLink] public static extern bool SDL_GetSurfaceAlphaMod(SDL_Surface *surface, uint8 *alpha);
+	[CLink] public static extern bool SDL_GetSurfaceAlphaMod(SDL_Surface* surface, uint8* alpha);
 
 /**
  * Set the blend mode used for blit operations.
@@ -930,7 +930,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \sa SDL_GetSurfaceBlendMode
  */
-[CLink] public static extern bool SDL_SetSurfaceBlendMode(SDL_Surface *surface, SDL_BlendMode blendMode);
+	[CLink] public static extern bool SDL_SetSurfaceBlendMode(SDL_Surface* surface, SDL_BlendMode blendMode);
 
 /**
  * Get the blend mode used for blit operations.
@@ -946,7 +946,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \sa SDL_SetSurfaceBlendMode
  */
-[CLink] public static extern bool SDL_GetSurfaceBlendMode(SDL_Surface *surface, SDL_BlendMode *blendMode);
+	[CLink] public static extern bool SDL_GetSurfaceBlendMode(SDL_Surface* surface, SDL_BlendMode* blendMode);
 
 /**
  * Set the clipping rectangle for a surface.
@@ -970,7 +970,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \sa SDL_GetSurfaceClipRect
  */
-[CLink] public static extern bool SDL_SetSurfaceClipRect(SDL_Surface *surface, SDL_Rect* rect);
+	[CLink] public static extern bool SDL_SetSurfaceClipRect(SDL_Surface* surface, SDL_Rect* rect);
 
 /**
  * Get the clipping rectangle for a surface.
@@ -992,7 +992,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \sa SDL_SetSurfaceClipRect
  */
-[CLink] public static extern bool SDL_GetSurfaceClipRect(SDL_Surface *surface, SDL_Rect *rect);
+	[CLink] public static extern bool SDL_GetSurfaceClipRect(SDL_Surface* surface, SDL_Rect* rect);
 
 /**
  * Flip a surface vertically or horizontally.
@@ -1007,7 +1007,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_FlipSurface(SDL_Surface *surface, SDL_FlipMode flip);
+	[CLink] public static extern bool SDL_FlipSurface(SDL_Surface* surface, SDL_FlipMode flip);
 
 /**
  * Return a copy of a surface rotated clockwise a number of degrees.
@@ -1036,7 +1036,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \since This function is available since SDL 3.4.0.
  */
-[CLink] public static extern SDL_Surface* SDL_RotateSurface(SDL_Surface *surface, float angle);
+	[CLink] public static extern SDL_Surface* SDL_RotateSurface(SDL_Surface* surface, float angle);
 
 /**
  * Creates a new surface identical to the existing surface.
@@ -1057,7 +1057,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \sa SDL_DestroySurface
  */
-[CLink] public static extern SDL_Surface* SDL_DuplicateSurface(SDL_Surface *surface);
+	[CLink] public static extern SDL_Surface* SDL_DuplicateSurface(SDL_Surface* surface);
 
 /**
  * Creates a new surface identical to the existing surface, scaled to the
@@ -1079,7 +1079,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \sa SDL_DestroySurface
  */
-[CLink] public static extern SDL_Surface* SDL_ScaleSurface(SDL_Surface *surface, int32 width, int32 height, SDL_ScaleMode scaleMode);
+	[CLink] public static extern SDL_Surface* SDL_ScaleSurface(SDL_Surface* surface, int32 width, int32 height, SDL_ScaleMode scaleMode);
 
 /**
  * Copy an existing surface to a new surface of the specified format.
@@ -1108,7 +1108,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  * \sa SDL_ConvertSurfaceAndColorspace
  * \sa SDL_DestroySurface
  */
-[CLink] public static extern SDL_Surface* SDL_ConvertSurface(SDL_Surface *surface, SDL_PixelFormat format);
+	[CLink] public static extern SDL_Surface* SDL_ConvertSurface(SDL_Surface* surface, SDL_PixelFormat format);
 
 /**
  * Copy an existing surface to a new surface of the specified format and
@@ -1137,7 +1137,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  * \sa SDL_ConvertSurface
  * \sa SDL_DestroySurface
  */
-[CLink] public static extern SDL_Surface* SDL_ConvertSurfaceAndColorspace(SDL_Surface *surface, SDL_PixelFormat format, SDL_Palette *palette, SDL_Colorspace colorspace, SDL_PropertiesID props);
+	[CLink] public static extern SDL_Surface* SDL_ConvertSurfaceAndColorspace(SDL_Surface* surface, SDL_PixelFormat format, SDL_Palette* palette, SDL_Colorspace colorspace, SDL_PropertiesID props);
 
 /**
  * Copy a block of pixels of one format to another format.
@@ -1161,7 +1161,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \sa SDL_ConvertPixelsAndColorspace
  */
-[CLink] public static extern bool SDL_ConvertPixels(int32 width, int32 height, SDL_PixelFormat src_format, void* src, int32 src_pitch, SDL_PixelFormat dst_format, void *dst, int32 dst_pitch);
+	[CLink] public static extern bool SDL_ConvertPixels(int32 width, int32 height, SDL_PixelFormat src_format, void* src, int32 src_pitch, SDL_PixelFormat dst_format, void* dst, int32 dst_pitch);
 
 /**
  * Copy a block of pixels of one format and colorspace to another format and
@@ -1194,7 +1194,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \sa SDL_ConvertPixels
  */
-[CLink] public static extern bool SDL_ConvertPixelsAndColorspace(int32 width, int32 height, SDL_PixelFormat src_format, SDL_Colorspace src_colorspace, SDL_PropertiesID src_properties, void* src, int32 src_pitch, SDL_PixelFormat dst_format, SDL_Colorspace dst_colorspace, SDL_PropertiesID dst_properties, void *dst, int32 dst_pitch);
+	[CLink] public static extern bool SDL_ConvertPixelsAndColorspace(int32 width, int32 height, SDL_PixelFormat src_format, SDL_Colorspace src_colorspace, SDL_PropertiesID src_properties, void* src, int32 src_pitch, SDL_PixelFormat dst_format, SDL_Colorspace dst_colorspace, SDL_PropertiesID dst_properties, void* dst, int32 dst_pitch);
 
 /**
  * Premultiply the alpha on a block of pixels.
@@ -1220,7 +1220,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_PremultiplyAlpha(int32 width, int32 height, SDL_PixelFormat src_format, void* src, int32 src_pitch, SDL_PixelFormat dst_format, void *dst, int32 dst_pitch, bool linear);
+	[CLink] public static extern bool SDL_PremultiplyAlpha(int32 width, int32 height, SDL_PixelFormat src_format, void* src, int32 src_pitch, SDL_PixelFormat dst_format, void* dst, int32 dst_pitch, bool linear);
 
 /**
  * Premultiply the alpha in a surface.
@@ -1238,7 +1238,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_PremultiplySurfaceAlpha(SDL_Surface *surface, bool linear);
+	[CLink] public static extern bool SDL_PremultiplySurfaceAlpha(SDL_Surface* surface, bool linear);
 
 /**
  * Clear a surface with a specific color, with floating point precision.
@@ -1261,7 +1261,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_ClearSurface(SDL_Surface *surface, float r, float g, float b, float a);
+	[CLink] public static extern bool SDL_ClearSurface(SDL_Surface* surface, float r, float g, float b, float a);
 
 /**
  * Perform a fast fill of a rectangle with a specific color.
@@ -1289,7 +1289,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \sa SDL_FillSurfaceRects
  */
-[CLink] public static extern bool SDL_FillSurfaceRect(SDL_Surface *dst, SDL_Rect* rect, uint32 color);
+	[CLink] public static extern bool SDL_FillSurfaceRect(SDL_Surface* dst, SDL_Rect* rect, uint32 color);
 
 /**
  * Perform a fast fill of a set of rectangles with a specific color.
@@ -1317,7 +1317,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \sa SDL_FillSurfaceRect
  */
-[CLink] public static extern bool SDL_FillSurfaceRects(SDL_Surface *dst, SDL_Rect* rects, int32 count, uint32 color);
+	[CLink] public static extern bool SDL_FillSurfaceRects(SDL_Surface* dst, SDL_Rect* rects, int32 count, uint32 color);
 
 /**
  * Performs a fast blit from the source surface to the destination surface
@@ -1390,7 +1390,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \sa SDL_BlitSurfaceScaled
  */
-[CLink] public static extern bool SDL_BlitSurface(SDL_Surface *src, SDL_Rect* srcrect, SDL_Surface *dst, SDL_Rect* dstrect);
+	[CLink] public static extern bool SDL_BlitSurface(SDL_Surface* src, SDL_Rect* srcrect, SDL_Surface* dst, SDL_Rect* dstrect);
 
 /**
  * Perform low-level surface blitting only.
@@ -1414,7 +1414,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \sa SDL_BlitSurface
  */
-[CLink] public static extern bool SDL_BlitSurfaceUnchecked(SDL_Surface *src, SDL_Rect* srcrect, SDL_Surface *dst, SDL_Rect* dstrect);
+	[CLink] public static extern bool SDL_BlitSurfaceUnchecked(SDL_Surface* src, SDL_Rect* srcrect, SDL_Surface* dst, SDL_Rect* dstrect);
 
 /**
  * Perform a scaled blit to a destination surface, which may be of a different
@@ -1438,7 +1438,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \sa SDL_BlitSurface
  */
-[CLink] public static extern bool SDL_BlitSurfaceScaled(SDL_Surface *src, SDL_Rect* srcrect, SDL_Surface *dst, SDL_Rect* dstrect, SDL_ScaleMode scaleMode);
+	[CLink] public static extern bool SDL_BlitSurfaceScaled(SDL_Surface* src, SDL_Rect* srcrect, SDL_Surface* dst, SDL_Rect* dstrect, SDL_ScaleMode scaleMode);
 
 /**
  * Perform low-level surface scaled blitting only.
@@ -1463,7 +1463,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \sa SDL_BlitSurfaceScaled
  */
-[CLink] public static extern bool SDL_BlitSurfaceUncheckedScaled(SDL_Surface *src, SDL_Rect* srcrect, SDL_Surface *dst, SDL_Rect* dstrect, SDL_ScaleMode scaleMode);
+	[CLink] public static extern bool SDL_BlitSurfaceUncheckedScaled(SDL_Surface* src, SDL_Rect* srcrect, SDL_Surface* dst, SDL_Rect* dstrect, SDL_ScaleMode scaleMode);
 
 /**
  * Perform a stretched pixel copy from one surface to another.
@@ -1486,7 +1486,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \sa SDL_BlitSurfaceScaled
  */
-[CLink] public static extern bool SDL_StretchSurface(SDL_Surface *src, SDL_Rect* srcrect, SDL_Surface *dst, SDL_Rect* dstrect, SDL_ScaleMode scaleMode);
+	[CLink] public static extern bool SDL_StretchSurface(SDL_Surface* src, SDL_Rect* srcrect, SDL_Surface* dst, SDL_Rect* dstrect, SDL_ScaleMode scaleMode);
 
 /**
  * Perform a tiled blit to a destination surface, which may be of a different
@@ -1511,7 +1511,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \sa SDL_BlitSurface
  */
-[CLink] public static extern bool SDL_BlitSurfaceTiled(SDL_Surface *src, SDL_Rect* srcrect, SDL_Surface *dst, SDL_Rect* dstrect);
+	[CLink] public static extern bool SDL_BlitSurfaceTiled(SDL_Surface* src, SDL_Rect* srcrect, SDL_Surface* dst, SDL_Rect* dstrect);
 
 /**
  * Perform a scaled and tiled blit to a destination surface, which may be of a
@@ -1540,7 +1540,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \sa SDL_BlitSurface
  */
-[CLink] public static extern bool SDL_BlitSurfaceTiledWithScale(SDL_Surface *src, SDL_Rect* srcrect, float scale, SDL_ScaleMode scaleMode, SDL_Surface *dst, SDL_Rect* dstrect);
+	[CLink] public static extern bool SDL_BlitSurfaceTiledWithScale(SDL_Surface* src, SDL_Rect* srcrect, float scale, SDL_ScaleMode scaleMode, SDL_Surface* dst, SDL_Rect* dstrect);
 
 /**
  * Perform a scaled blit using the 9-grid algorithm to a destination surface,
@@ -1576,7 +1576,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \sa SDL_BlitSurface
  */
-[CLink] public static extern bool SDL_BlitSurface9Grid(SDL_Surface *src, SDL_Rect* srcrect, int32 left_width, int32 right_width, int32 top_height, int32 bottom_height, float scale, SDL_ScaleMode scaleMode, SDL_Surface *dst, SDL_Rect* dstrect);
+	[CLink] public static extern bool SDL_BlitSurface9Grid(SDL_Surface* src, SDL_Rect* srcrect, int32 left_width, int32 right_width, int32 top_height, int32 bottom_height, float scale, SDL_ScaleMode scaleMode, SDL_Surface* dst, SDL_Rect* dstrect);
 
 /**
  * Map an RGB triple to an opaque pixel value for a surface.
@@ -1609,7 +1609,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \sa SDL_MapSurfaceRGBA
  */
-[CLink] public static extern uint32 SDL_MapSurfaceRGB(SDL_Surface *surface, uint8 r, uint8 g, uint8 b);
+	[CLink] public static extern uint32 SDL_MapSurfaceRGB(SDL_Surface* surface, uint8 r, uint8 g, uint8 b);
 
 /**
  * Map an RGBA quadruple to a pixel value for a surface.
@@ -1643,7 +1643,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \sa SDL_MapSurfaceRGB
  */
-[CLink] public static extern uint32 SDL_MapSurfaceRGBA(SDL_Surface *surface, uint8 r, uint8 g, uint8 b, uint8 a);
+	[CLink] public static extern uint32 SDL_MapSurfaceRGBA(SDL_Surface* surface, uint8 r, uint8 g, uint8 b, uint8 a);
 
 /**
  * Retrieves a single pixel from a surface.
@@ -1673,7 +1673,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_ReadSurfacePixel(SDL_Surface *surface, int32 x, int32 y, uint8 *r, uint8 *g, uint8 *b, uint8 *a);
+	[CLink] public static extern bool SDL_ReadSurfacePixel(SDL_Surface* surface, int32 x, int32 y, uint8* r, uint8* g, uint8* b, uint8* a);
 
 /**
  * Retrieves a single pixel from a surface.
@@ -1700,7 +1700,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_ReadSurfacePixelFloat(SDL_Surface *surface, int32 x, int32 y, float *r, float *g, float *b, float *a);
+	[CLink] public static extern bool SDL_ReadSurfacePixelFloat(SDL_Surface* surface, int32 x, int32 y, float* r, float* g, float* b, float* a);
 
 /**
  * Writes a single pixel to a surface.
@@ -1726,7 +1726,7 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_WriteSurfacePixel(SDL_Surface *surface, int32 x, int32 y, uint8 r, uint8 g, uint8 b, uint8 a);
+	[CLink] public static extern bool SDL_WriteSurfacePixel(SDL_Surface* surface, int32 x, int32 y, uint8 r, uint8 g, uint8 b, uint8 a);
 
 /**
  * Writes a single pixel to a surface.
@@ -1749,5 +1749,5 @@ public const char8* SDL_PROP_SURFACE_ROTATION_FLOAT                     = "SDL.s
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_WriteSurfacePixelFloat(SDL_Surface *surface, int32 x, int32 y, float r, float g, float b, float a);
+	[CLink] public static extern bool SDL_WriteSurfacePixelFloat(SDL_Surface* surface, int32 x, int32 y, float r, float g, float b, float a);
 }

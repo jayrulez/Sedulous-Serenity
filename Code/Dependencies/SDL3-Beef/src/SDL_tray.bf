@@ -12,11 +12,11 @@ using System;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -86,7 +86,7 @@ public enum SDL_TrayEntryFlags : uint32
  *
  * \sa SDL_SetTrayEntryCallback
  */
-public typealias SDL_TrayCallback = function void(void *userdata, SDL_TrayEntry *entry);
+public typealias SDL_TrayCallback = function void(void* userdata, SDL_TrayEntry* entry);
 
 public static //extension SDL3
 {
@@ -112,7 +112,7 @@ public static //extension SDL3
  * \sa SDL_GetTrayMenu
  * \sa SDL_DestroyTray
  */
-[CLink] public static extern SDL_Tray* SDL_CreateTray(SDL_Surface *icon, char8* tooltip);
+	[CLink] public static extern SDL_Tray* SDL_CreateTray(SDL_Surface* icon, char8* tooltip);
 
 /**
  * Updates the system tray icon's icon.
@@ -127,7 +127,7 @@ public static //extension SDL3
  *
  * \sa SDL_CreateTray
  */
-[CLink] public static extern void SDL_SetTrayIcon(SDL_Tray *tray, SDL_Surface *icon);
+	[CLink] public static extern void SDL_SetTrayIcon(SDL_Tray* tray, SDL_Surface* icon);
 
 /**
  * Updates the system tray icon's tooltip.
@@ -142,7 +142,7 @@ public static //extension SDL3
  *
  * \sa SDL_CreateTray
  */
-[CLink] public static extern void SDL_SetTrayTooltip(SDL_Tray *tray, char8* tooltip);
+	[CLink] public static extern void SDL_SetTrayTooltip(SDL_Tray* tray, char8* tooltip);
 
 /**
  * Create a menu for a system tray.
@@ -166,7 +166,7 @@ public static //extension SDL3
  * \sa SDL_GetTrayMenu
  * \sa SDL_GetTrayMenuParentTray
  */
-[CLink] public static extern SDL_TrayMenu* SDL_CreateTrayMenu(SDL_Tray *tray);
+	[CLink] public static extern SDL_TrayMenu* SDL_CreateTrayMenu(SDL_Tray* tray);
 
 /**
  * Create a submenu for a system tray entry.
@@ -190,7 +190,7 @@ public static //extension SDL3
  * \sa SDL_GetTraySubmenu
  * \sa SDL_GetTrayMenuParentEntry
  */
-[CLink] public static extern SDL_TrayMenu* SDL_CreateTraySubmenu(SDL_TrayEntry *entry);
+	[CLink] public static extern SDL_TrayMenu* SDL_CreateTraySubmenu(SDL_TrayEntry* entry);
 
 /**
  * Gets a previously created tray menu.
@@ -214,7 +214,7 @@ public static //extension SDL3
  * \sa SDL_CreateTray
  * \sa SDL_CreateTrayMenu
  */
-[CLink] public static extern SDL_TrayMenu* SDL_GetTrayMenu(SDL_Tray *tray);
+	[CLink] public static extern SDL_TrayMenu* SDL_GetTrayMenu(SDL_Tray* tray);
 
 /**
  * Gets a previously created tray entry submenu.
@@ -238,7 +238,7 @@ public static //extension SDL3
  * \sa SDL_InsertTrayEntryAt
  * \sa SDL_CreateTraySubmenu
  */
-[CLink] public static extern SDL_TrayMenu* SDL_GetTraySubmenu(SDL_TrayEntry *entry);
+	[CLink] public static extern SDL_TrayMenu* SDL_GetTraySubmenu(SDL_TrayEntry* entry);
 
 /**
  * Returns a list of entries in the menu, in order.
@@ -258,7 +258,7 @@ public static //extension SDL3
  * \sa SDL_RemoveTrayEntry
  * \sa SDL_InsertTrayEntryAt
  */
-[CLink] public static extern SDL_TrayEntry ** SDL_GetTrayEntries(SDL_TrayMenu *menu, int32 *count);
+	[CLink] public static extern SDL_TrayEntry** SDL_GetTrayEntries(SDL_TrayMenu* menu, int32* count);
 
 /**
  * Removes a tray entry.
@@ -273,7 +273,7 @@ public static //extension SDL3
  * \sa SDL_GetTrayEntries
  * \sa SDL_InsertTrayEntryAt
  */
-[CLink] public static extern void SDL_RemoveTrayEntry(SDL_TrayEntry *entry);
+	[CLink] public static extern void SDL_RemoveTrayEntry(SDL_TrayEntry* entry);
 
 /**
  * Insert a tray entry at a given position.
@@ -301,7 +301,7 @@ public static //extension SDL3
  * \sa SDL_RemoveTrayEntry
  * \sa SDL_GetTrayEntryParent
  */
-[CLink] public static extern SDL_TrayEntry* SDL_InsertTrayEntryAt(SDL_TrayMenu *menu, int32 pos, char8* label, SDL_TrayEntryFlags flags);
+	[CLink] public static extern SDL_TrayEntry* SDL_InsertTrayEntryAt(SDL_TrayMenu* menu, int32 pos, char8* label, SDL_TrayEntryFlags flags);
 
 /**
  * Sets the label of an entry.
@@ -323,7 +323,7 @@ public static //extension SDL3
  * \sa SDL_InsertTrayEntryAt
  * \sa SDL_GetTrayEntryLabel
  */
-[CLink] public static extern void SDL_SetTrayEntryLabel(SDL_TrayEntry *entry, char8* label);
+	[CLink] public static extern void SDL_SetTrayEntryLabel(SDL_TrayEntry* entry, char8* label);
 
 /**
  * Gets the label of an entry.
@@ -342,7 +342,7 @@ public static //extension SDL3
  * \sa SDL_InsertTrayEntryAt
  * \sa SDL_SetTrayEntryLabel
  */
-[CLink] public static extern char8* SDL_GetTrayEntryLabel(SDL_TrayEntry *entry);
+	[CLink] public static extern char8* SDL_GetTrayEntryLabel(SDL_TrayEntry* entry);
 
 /**
  * Sets whether or not an entry is checked.
@@ -361,7 +361,7 @@ public static //extension SDL3
  * \sa SDL_InsertTrayEntryAt
  * \sa SDL_GetTrayEntryChecked
  */
-[CLink] public static extern void SDL_SetTrayEntryChecked(SDL_TrayEntry *entry, bool @checked);
+	[CLink] public static extern void SDL_SetTrayEntryChecked(SDL_TrayEntry* entry, bool @checked);
 
 /**
  * Gets whether or not an entry is checked.
@@ -380,7 +380,7 @@ public static //extension SDL3
  * \sa SDL_InsertTrayEntryAt
  * \sa SDL_SetTrayEntryChecked
  */
-[CLink] public static extern bool SDL_GetTrayEntryChecked(SDL_TrayEntry *entry);
+	[CLink] public static extern bool SDL_GetTrayEntryChecked(SDL_TrayEntry* entry);
 
 /**
  * Sets whether or not an entry is enabled.
@@ -397,7 +397,7 @@ public static //extension SDL3
  * \sa SDL_InsertTrayEntryAt
  * \sa SDL_GetTrayEntryEnabled
  */
-[CLink] public static extern void SDL_SetTrayEntryEnabled(SDL_TrayEntry *entry, bool enabled);
+	[CLink] public static extern void SDL_SetTrayEntryEnabled(SDL_TrayEntry* entry, bool enabled);
 
 /**
  * Gets whether or not an entry is enabled.
@@ -414,7 +414,7 @@ public static //extension SDL3
  * \sa SDL_InsertTrayEntryAt
  * \sa SDL_SetTrayEntryEnabled
  */
-[CLink] public static extern bool SDL_GetTrayEntryEnabled(SDL_TrayEntry *entry);
+	[CLink] public static extern bool SDL_GetTrayEntryEnabled(SDL_TrayEntry* entry);
 
 /**
  * Sets a callback to be invoked when the entry is selected.
@@ -432,7 +432,7 @@ public static //extension SDL3
  * \sa SDL_GetTrayEntries
  * \sa SDL_InsertTrayEntryAt
  */
-[CLink] public static extern void SDL_SetTrayEntryCallback(SDL_TrayEntry *entry, SDL_TrayCallback callback, void *userdata);
+	[CLink] public static extern void SDL_SetTrayEntryCallback(SDL_TrayEntry* entry, SDL_TrayCallback callback, void* userdata);
 
 /**
  * Simulate a click on a tray entry.
@@ -444,7 +444,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern void SDL_ClickTrayEntry(SDL_TrayEntry *entry);
+	[CLink] public static extern void SDL_ClickTrayEntry(SDL_TrayEntry* entry);
 
 /**
  * Destroys a tray object.
@@ -460,7 +460,7 @@ public static //extension SDL3
  *
  * \sa SDL_CreateTray
  */
-[CLink] public static extern void SDL_DestroyTray(SDL_Tray *tray);
+	[CLink] public static extern void SDL_DestroyTray(SDL_Tray* tray);
 
 /**
  * Gets the menu containing a certain tray entry.
@@ -475,7 +475,7 @@ public static //extension SDL3
  *
  * \sa SDL_InsertTrayEntryAt
  */
-[CLink] public static extern SDL_TrayMenu* SDL_GetTrayEntryParent(SDL_TrayEntry *entry);
+	[CLink] public static extern SDL_TrayMenu* SDL_GetTrayEntryParent(SDL_TrayEntry* entry);
 
 /**
  * Gets the entry for which the menu is a submenu, if the current menu is a
@@ -495,7 +495,7 @@ public static //extension SDL3
  * \sa SDL_CreateTraySubmenu
  * \sa SDL_GetTrayMenuParentTray
  */
-[CLink] public static extern SDL_TrayEntry* SDL_GetTrayMenuParentEntry(SDL_TrayMenu *menu);
+	[CLink] public static extern SDL_TrayEntry* SDL_GetTrayMenuParentEntry(SDL_TrayMenu* menu);
 
 /**
  * Gets the tray for which this menu is the first-level menu, if the current
@@ -515,7 +515,7 @@ public static //extension SDL3
  * \sa SDL_CreateTrayMenu
  * \sa SDL_GetTrayMenuParentEntry
  */
-[CLink] public static extern SDL_Tray* SDL_GetTrayMenuParentTray(SDL_TrayMenu *menu);
+	[CLink] public static extern SDL_Tray* SDL_GetTrayMenuParentTray(SDL_TrayMenu* menu);
 
 /**
  * Update the trays.
@@ -527,5 +527,5 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern void SDL_UpdateTrays();
+	[CLink] public static extern void SDL_UpdateTrays();
 }

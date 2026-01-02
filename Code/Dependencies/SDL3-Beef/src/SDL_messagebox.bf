@@ -12,11 +12,11 @@ using System;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -72,9 +72,9 @@ public enum SDL_MessageBoxButtonFlags : uint32 //public typealias SDL_MessageBox
  */
 [CRepr] public struct SDL_MessageBoxButtonData
 {
-    public SDL_MessageBoxButtonFlags flags;
-    public int32 buttonID;       /**< User defined button id (value returned via SDL_ShowMessageBox) */
-    public char8* text;   /**< The UTF-8 button text */
+	public SDL_MessageBoxButtonFlags flags;
+	public int32 buttonID; /**< User defined button id (value returned via SDL_ShowMessageBox) */
+	public char8* text; /**< The UTF-8 button text */
 }
 
 /**
@@ -84,7 +84,7 @@ public enum SDL_MessageBoxButtonFlags : uint32 //public typealias SDL_MessageBox
  */
 [CRepr] public struct SDL_MessageBoxColor
 {
-    uint8 r, g, b;
+	uint8 r, g, b;
 }
 
 /**
@@ -93,12 +93,12 @@ public enum SDL_MessageBoxButtonFlags : uint32 //public typealias SDL_MessageBox
  */
 public enum SDL_MessageBoxColorType : int32
 {
-    SDL_MESSAGEBOX_COLOR_BACKGROUND,
-    SDL_MESSAGEBOX_COLOR_TEXT,
-    SDL_MESSAGEBOX_COLOR_BUTTON_BORDER,
-    SDL_MESSAGEBOX_COLOR_BUTTON_BACKGROUND,
-    SDL_MESSAGEBOX_COLOR_BUTTON_SELECTED,
-    SDL_MESSAGEBOX_COLOR_COUNT                    /**< Size of the colors array of SDL_MessageBoxColorScheme. */
+	SDL_MESSAGEBOX_COLOR_BACKGROUND,
+	SDL_MESSAGEBOX_COLOR_TEXT,
+	SDL_MESSAGEBOX_COLOR_BUTTON_BORDER,
+	SDL_MESSAGEBOX_COLOR_BUTTON_BACKGROUND,
+	SDL_MESSAGEBOX_COLOR_BUTTON_SELECTED,
+	SDL_MESSAGEBOX_COLOR_COUNT /**< Size of the colors array of SDL_MessageBoxColorScheme. */
 }
 
 /**
@@ -118,12 +118,12 @@ public enum SDL_MessageBoxColorType : int32
  */
 [CRepr] public struct SDL_MessageBoxData
 {
-    public SDL_MessageBoxFlags flags;
-    public SDL_Window* window;                 /**< Parent window, can be NULL */
-    public char8* title;                  /**< UTF-8 title */
-    public char8* message;                /**< UTF-8 message text */
+	public SDL_MessageBoxFlags flags;
+	public SDL_Window* window; /**< Parent window, can be NULL */
+	public char8* title; /**< UTF-8 title */
+	public char8* message; /**< UTF-8 message text */
 
-    public int32 numbuttons;
+	public int32 numbuttons;
 	public SDL_MessageBoxButtonData* buttons;
 
 	public SDL_MessageBoxColorScheme* colorScheme; /**< SDL_MessageBoxColorScheme, can be NULL to use system settings */
@@ -166,7 +166,7 @@ public static //extension SDL3
  *
  * \sa SDL_ShowSimpleMessageBox
  */
-[CLink] public static extern bool SDL_ShowMessageBox(SDL_MessageBoxData* messageboxdata, int32 *buttonid);
+	[CLink] public static extern bool SDL_ShowMessageBox(SDL_MessageBoxData* messageboxdata, int32* buttonid);
 
 /**
  * Display a simple modal message box.
@@ -208,5 +208,5 @@ public static //extension SDL3
  *
  * \sa SDL_ShowMessageBox
  */
-[CLink] public static extern bool SDL_ShowSimpleMessageBox(SDL_MessageBoxFlags flags, char8* title, char8* message, SDL_Window *window);
+	[CLink] public static extern bool SDL_ShowSimpleMessageBox(SDL_MessageBoxFlags flags, char8* title, char8* message, SDL_Window* window);
 }

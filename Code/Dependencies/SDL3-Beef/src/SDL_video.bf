@@ -12,11 +12,11 @@ using System;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -89,19 +89,19 @@ public typealias SDL_WindowID = uint32;
  */
 public static //extension SDL3
 {
-public const char8* SDL_PROP_GLOBAL_VIDEO_WAYLAND_WL_DISPLAY_POINTER = "SDL.video.wayland.wl_display";
+	public const char8* SDL_PROP_GLOBAL_VIDEO_WAYLAND_WL_DISPLAY_POINTER = "SDL.video.wayland.wl_display";
 }
 
-/**
- * System theme.
- *
- * \since This enum is available since SDL 3.2.0.
- */
+	/**
+	 * System theme.
+	 *
+	 * \since This enum is available since SDL 3.2.0.
+	 */
 public enum SDL_SystemTheme : int32
 {
-    SDL_SYSTEM_THEME_UNKNOWN,   /**< Unknown system theme */
-    SDL_SYSTEM_THEME_LIGHT,     /**< Light colored system theme */
-    SDL_SYSTEM_THEME_DARK       /**< Dark colored system theme */
+	SDL_SYSTEM_THEME_UNKNOWN, /**< Unknown system theme */
+	SDL_SYSTEM_THEME_LIGHT, /**< Light colored system theme */
+	SDL_SYSTEM_THEME_DARK /**< Dark colored system theme */
 }
 
 /**
@@ -128,16 +128,16 @@ public enum SDL_SystemTheme : int32
  */
 [CRepr] public struct SDL_DisplayMode
 {
-    public SDL_DisplayID displayID;        /**< the display this mode is associated with */
-    public SDL_PixelFormat format;         /**< pixel format */
-    public int32 w;                          /**< width */
-    public int32 h;                          /**< height */
-    public float pixel_density;            /**< scale converting size to pixels (e.g. a 1920x1080 mode with 2.0 scale would have 3840x2160 pixels) */
-    public float refresh_rate;             /**< refresh rate (or 0.0f for unspecified) */
-    public int32 refresh_rate_numerator;     /**< precise refresh rate numerator (or 0 for unspecified) */
-    public int32 refresh_rate_denominator;   /**< precise refresh rate denominator */
+	public SDL_DisplayID displayID; /**< the display this mode is associated with */
+	public SDL_PixelFormat format; /**< pixel format */
+	public int32 w; /**< width */
+	public int32 h; /**< height */
+	public float pixel_density; /**< scale converting size to pixels (e.g. a 1920x1080 mode with 2.0 scale would have 3840x2160 pixels) */
+	public float refresh_rate; /**< refresh rate (or 0.0f for unspecified) */
+	public int32 refresh_rate_numerator; /**< precise refresh rate numerator (or 0 for unspecified) */
+	public int32 refresh_rate_denominator; /**< precise refresh rate denominator */
 
-    public SDL_DisplayModeData* @internal;  /**< Private */
+	public SDL_DisplayModeData* @internal; /**< Private */
 
 }
 
@@ -148,11 +148,11 @@ public enum SDL_SystemTheme : int32
  */
 public enum SDL_DisplayOrientation : int32
 {
-    SDL_ORIENTATION_UNKNOWN,            /**< The display orientation can't be determined */
-    SDL_ORIENTATION_LANDSCAPE,          /**< The display is in landscape mode, with the right side up, relative to portrait mode */
-    SDL_ORIENTATION_LANDSCAPE_FLIPPED,  /**< The display is in landscape mode, with the left side up, relative to portrait mode */
-    SDL_ORIENTATION_PORTRAIT,           /**< The display is in portrait mode */
-    SDL_ORIENTATION_PORTRAIT_FLIPPED    /**< The display is in portrait mode, upside down */
+	SDL_ORIENTATION_UNKNOWN, /**< The display orientation can't be determined */
+	SDL_ORIENTATION_LANDSCAPE, /**< The display is in landscape mode, with the right side up, relative to portrait mode */
+	SDL_ORIENTATION_LANDSCAPE_FLIPPED, /**< The display is in landscape mode, with the left side up, relative to portrait mode */
+	SDL_ORIENTATION_PORTRAIT, /**< The display is in portrait mode */
+	SDL_ORIENTATION_PORTRAIT_FLIPPED /**< The display is in portrait mode, upside down */
 }
 
 /**
@@ -186,32 +186,32 @@ public enum SDL_DisplayOrientation : int32
 
 public enum SDL_WindowFlags : uint64
 {
-	SDL_WINDOW_FULLSCREEN           = 0x0000000000000001,    /**< window is in fullscreen mode */
-	SDL_WINDOW_OPENGL               = 0x0000000000000002,    /**< window usable with OpenGL context */
-	SDL_WINDOW_OCCLUDED             = 0x0000000000000004,    /**< window is occluded */
-	SDL_WINDOW_HIDDEN               = 0x0000000000000008,    /**< window is neither mapped onto the desktop nor shown in the taskbar/dock/window list; SDL_ShowWindow() is required for it to become visible */
-	SDL_WINDOW_BORDERLESS           = 0x0000000000000010,    /**< no window decoration */
-	SDL_WINDOW_RESIZABLE            = 0x0000000000000020,    /**< window can be resized */
-	SDL_WINDOW_MINIMIZED            = 0x0000000000000040,    /**< window is minimized */
-	SDL_WINDOW_MAXIMIZED            = 0x0000000000000080,    /**< window is maximized */
-	SDL_WINDOW_MOUSE_GRABBED        = 0x0000000000000100,    /**< window has grabbed mouse input */
-	SDL_WINDOW_INPUT_FOCUS          = 0x0000000000000200,    /**< window has input focus */
-	SDL_WINDOW_MOUSE_FOCUS          = 0x0000000000000400,    /**< window has mouse focus */
-	SDL_WINDOW_EXTERNAL             = 0x0000000000000800,    /**< window not created by SDL */
-	SDL_WINDOW_MODAL                = 0x0000000000001000,    /**< window is modal */
-	SDL_WINDOW_HIGH_PIXEL_DENSITY   = 0x0000000000002000,    /**< window uses high pixel density back buffer if possible */
-	SDL_WINDOW_MOUSE_CAPTURE        = 0x0000000000004000,    /**< window has mouse captured (unrelated to MOUSE_GRABBED) */
-	SDL_WINDOW_MOUSE_RELATIVE_MODE  = 0x0000000000008000,    /**< window has relative mode enabled */
-	SDL_WINDOW_ALWAYS_ON_TOP        = 0x0000000000010000,    /**< window should always be above others */
-	SDL_WINDOW_UTILITY              = 0x0000000000020000,    /**< window should be treated as a utility window, not showing in the task bar and window list */
-	SDL_WINDOW_TOOLTIP              = 0x0000000000040000,    /**< window should be treated as a tooltip and does not get mouse or keyboard focus, requires a parent window */
-	SDL_WINDOW_POPUP_MENU           = 0x0000000000080000,    /**< window should be treated as a popup menu, requires a parent window */
-	SDL_WINDOW_KEYBOARD_GRABBED     = 0x0000000000100000,    /**< window has grabbed keyboard input */
-	SDL_WINDOW_FILL_DOCUMENT        = 0x0000000000200000,    /**< window is in fill-document mode (Emscripten only, since SDL 3.4.0 */
-	SDL_WINDOW_VULKAN               = 0x0000000010000000,    /**< window usable for Vulkan surface */
-	SDL_WINDOW_METAL                = 0x0000000020000000,    /**< window usable for Metal view */
-	SDL_WINDOW_TRANSPARENT          = 0x0000000040000000,    /**< window with transparent buffer */
-	SDL_WINDOW_NOT_FOCUSABLE        = 0x0000000080000000,    /**< window should not be focusable */
+	SDL_WINDOW_FULLSCREEN           = 0x0000000000000001, /**< window is in fullscreen mode */
+	SDL_WINDOW_OPENGL               = 0x0000000000000002, /**< window usable with OpenGL context */
+	SDL_WINDOW_OCCLUDED             = 0x0000000000000004, /**< window is occluded */
+	SDL_WINDOW_HIDDEN               = 0x0000000000000008, /**< window is neither mapped onto the desktop nor shown in the taskbar/dock/window list; SDL_ShowWindow() is required for it to become visible */
+	SDL_WINDOW_BORDERLESS           = 0x0000000000000010, /**< no window decoration */
+	SDL_WINDOW_RESIZABLE            = 0x0000000000000020, /**< window can be resized */
+	SDL_WINDOW_MINIMIZED            = 0x0000000000000040, /**< window is minimized */
+	SDL_WINDOW_MAXIMIZED            = 0x0000000000000080, /**< window is maximized */
+	SDL_WINDOW_MOUSE_GRABBED        = 0x0000000000000100, /**< window has grabbed mouse input */
+	SDL_WINDOW_INPUT_FOCUS          = 0x0000000000000200, /**< window has input focus */
+	SDL_WINDOW_MOUSE_FOCUS          = 0x0000000000000400, /**< window has mouse focus */
+	SDL_WINDOW_EXTERNAL             = 0x0000000000000800, /**< window not created by SDL */
+	SDL_WINDOW_MODAL                = 0x0000000000001000, /**< window is modal */
+	SDL_WINDOW_HIGH_PIXEL_DENSITY   = 0x0000000000002000, /**< window uses high pixel density back buffer if possible */
+	SDL_WINDOW_MOUSE_CAPTURE        = 0x0000000000004000, /**< window has mouse captured (unrelated to MOUSE_GRABBED) */
+	SDL_WINDOW_MOUSE_RELATIVE_MODE  = 0x0000000000008000, /**< window has relative mode enabled */
+	SDL_WINDOW_ALWAYS_ON_TOP        = 0x0000000000010000, /**< window should always be above others */
+	SDL_WINDOW_UTILITY              = 0x0000000000020000, /**< window should be treated as a utility window, not showing in the task bar and window list */
+	SDL_WINDOW_TOOLTIP              = 0x0000000000040000, /**< window should be treated as a tooltip and does not get mouse or keyboard focus, requires a parent window */
+	SDL_WINDOW_POPUP_MENU           = 0x0000000000080000, /**< window should be treated as a popup menu, requires a parent window */
+	SDL_WINDOW_KEYBOARD_GRABBED     = 0x0000000000100000, /**< window has grabbed keyboard input */
+	SDL_WINDOW_FILL_DOCUMENT        = 0x0000000000200000, /**< window is in fill-document mode (Emscripten only, since SDL 3.4.0 */
+	SDL_WINDOW_VULKAN               = 0x0000000010000000, /**< window usable for Vulkan surface */
+	SDL_WINDOW_METAL                = 0x0000000020000000, /**< window usable for Metal view */
+	SDL_WINDOW_TRANSPARENT          = 0x0000000040000000, /**< window with transparent buffer */
+	SDL_WINDOW_NOT_FOCUSABLE        = 0x0000000080000000, /**< window should not be focusable */
 }
 
 
@@ -340,9 +340,9 @@ public static //extension SDL3
  */
 public enum SDL_FlashOperation : int32
 {
-    SDL_FLASH_CANCEL,                   /**< Cancel any window flash state */
-    SDL_FLASH_BRIEFLY,                  /**< Flash the window briefly to get attention */
-    SDL_FLASH_UNTIL_FOCUSED             /**< Flash the window until it gets focus */
+	SDL_FLASH_CANCEL, /**< Cancel any window flash state */
+	SDL_FLASH_BRIEFLY, /**< Flash the window briefly to get attention */
+	SDL_FLASH_UNTIL_FOCUSED /**< Flash the window until it gets focus */
 }
 
 /**
@@ -352,12 +352,12 @@ public enum SDL_FlashOperation : int32
  */
 public enum SDL_ProgressState : int32
 {
-    SDL_PROGRESS_STATE_INVALID = -1,    /**< An invalid progress state indicating an error; check SDL_GetError() */
-    SDL_PROGRESS_STATE_NONE,            /**< No progress bar is shown */
-    SDL_PROGRESS_STATE_INDETERMINATE,   /**< The progress bar is shown in a indeterminate state */
-    SDL_PROGRESS_STATE_NORMAL,          /**< The progress bar is shown in a normal state */
-    SDL_PROGRESS_STATE_PAUSED,          /**< The progress bar is shown in a paused state */
-    SDL_PROGRESS_STATE_ERROR            /**< The progress bar is shown in a state indicating the application had an error */
+	SDL_PROGRESS_STATE_INVALID = -1, /**< An invalid progress state indicating an error; check SDL_GetError() */
+	SDL_PROGRESS_STATE_NONE, /**< No progress bar is shown */
+	SDL_PROGRESS_STATE_INDETERMINATE, /**< The progress bar is shown in a indeterminate state */
+	SDL_PROGRESS_STATE_NORMAL, /**< The progress bar is shown in a normal state */
+	SDL_PROGRESS_STATE_PAUSED, /**< The progress bar is shown in a paused state */
+	SDL_PROGRESS_STATE_ERROR /**< The progress bar is shown in a state indicating the application had an error */
 }
 
 /**
@@ -483,34 +483,34 @@ public typealias SDL_EGLIntArrayCallback = function SDL_EGLint*(void* userdata, 
  */
 public enum SDL_GLAttr : int32
 {
-    SDL_GL_RED_SIZE,                    /**< the minimum number of bits for the red channel of the color buffer; defaults to 8. */
-    SDL_GL_GREEN_SIZE,                  /**< the minimum number of bits for the green channel of the color buffer; defaults to 8. */
-    SDL_GL_BLUE_SIZE,                   /**< the minimum number of bits for the blue channel of the color buffer; defaults to 8. */
-    SDL_GL_ALPHA_SIZE,                  /**< the minimum number of bits for the alpha channel of the color buffer; defaults to 8. */
-    SDL_GL_BUFFER_SIZE,                 /**< the minimum number of bits for frame buffer size; defaults to 0. */
-    SDL_GL_DOUBLEBUFFER,                /**< whether the output is single or double buffered; defaults to double buffering on. */
-    SDL_GL_DEPTH_SIZE,                  /**< the minimum number of bits in the depth buffer; defaults to 16. */
-    SDL_GL_STENCIL_SIZE,                /**< the minimum number of bits in the stencil buffer; defaults to 0. */
-    SDL_GL_ACCUM_RED_SIZE,              /**< the minimum number of bits for the red channel of the accumulation buffer; defaults to 0. */
-    SDL_GL_ACCUM_GREEN_SIZE,            /**< the minimum number of bits for the green channel of the accumulation buffer; defaults to 0. */
-    SDL_GL_ACCUM_BLUE_SIZE,             /**< the minimum number of bits for the blue channel of the accumulation buffer; defaults to 0. */
-    SDL_GL_ACCUM_ALPHA_SIZE,            /**< the minimum number of bits for the alpha channel of the accumulation buffer; defaults to 0. */
-    SDL_GL_STEREO,                      /**< whether the output is stereo 3D; defaults to off. */
-    SDL_GL_MULTISAMPLEBUFFERS,          /**< the number of buffers used for multisample anti-aliasing; defaults to 0. */
-    SDL_GL_MULTISAMPLESAMPLES,          /**< the number of samples used around the current pixel used for multisample anti-aliasing. */
-    SDL_GL_ACCELERATED_VISUAL,          /**< set to 1 to require hardware acceleration, set to 0 to force software rendering; defaults to allow either. */
-    SDL_GL_RETAINED_BACKING,            /**< not used (deprecated). */
-    SDL_GL_CONTEXT_MAJOR_VERSION,       /**< OpenGL context major version. */
-    SDL_GL_CONTEXT_MINOR_VERSION,       /**< OpenGL context minor version. */
-    SDL_GL_CONTEXT_FLAGS,               /**< some combination of 0 or more of elements of the SDL_GLContextFlag enumeration; defaults to 0. */
-    SDL_GL_CONTEXT_PROFILE_MASK,        /**< type of GL context (Core, Compatibility, ES). See SDL_GLProfile; default value depends on platform. */
-    SDL_GL_SHARE_WITH_CURRENT_CONTEXT,  /**< OpenGL context sharing; defaults to 0. */
-    SDL_GL_FRAMEBUFFER_SRGB_CAPABLE,    /**< requests sRGB-capable visual if 1. Defaults to -1 ("don't care"). This is a request; GL drivers might not comply! */
-    SDL_GL_CONTEXT_RELEASE_BEHAVIOR,    /**< sets context the release behavior. See SDL_GLContextReleaseFlag; defaults to FLUSH. */
-    SDL_GL_CONTEXT_RESET_NOTIFICATION,  /**< set context reset notification. See SDL_GLContextResetNotification; defaults to NO_NOTIFICATION. */
-    SDL_GL_CONTEXT_NO_ERROR,
-    SDL_GL_FLOATBUFFERS,
-    SDL_GL_EGL_PLATFORM
+	SDL_GL_RED_SIZE, /**< the minimum number of bits for the red channel of the color buffer; defaults to 8. */
+	SDL_GL_GREEN_SIZE, /**< the minimum number of bits for the green channel of the color buffer; defaults to 8. */
+	SDL_GL_BLUE_SIZE, /**< the minimum number of bits for the blue channel of the color buffer; defaults to 8. */
+	SDL_GL_ALPHA_SIZE, /**< the minimum number of bits for the alpha channel of the color buffer; defaults to 8. */
+	SDL_GL_BUFFER_SIZE, /**< the minimum number of bits for frame buffer size; defaults to 0. */
+	SDL_GL_DOUBLEBUFFER, /**< whether the output is single or double buffered; defaults to double buffering on. */
+	SDL_GL_DEPTH_SIZE, /**< the minimum number of bits in the depth buffer; defaults to 16. */
+	SDL_GL_STENCIL_SIZE, /**< the minimum number of bits in the stencil buffer; defaults to 0. */
+	SDL_GL_ACCUM_RED_SIZE, /**< the minimum number of bits for the red channel of the accumulation buffer; defaults to 0. */
+	SDL_GL_ACCUM_GREEN_SIZE, /**< the minimum number of bits for the green channel of the accumulation buffer; defaults to 0. */
+	SDL_GL_ACCUM_BLUE_SIZE, /**< the minimum number of bits for the blue channel of the accumulation buffer; defaults to 0. */
+	SDL_GL_ACCUM_ALPHA_SIZE, /**< the minimum number of bits for the alpha channel of the accumulation buffer; defaults to 0. */
+	SDL_GL_STEREO, /**< whether the output is stereo 3D; defaults to off. */
+	SDL_GL_MULTISAMPLEBUFFERS, /**< the number of buffers used for multisample anti-aliasing; defaults to 0. */
+	SDL_GL_MULTISAMPLESAMPLES, /**< the number of samples used around the current pixel used for multisample anti-aliasing. */
+	SDL_GL_ACCELERATED_VISUAL, /**< set to 1 to require hardware acceleration, set to 0 to force software rendering; defaults to allow either. */
+	SDL_GL_RETAINED_BACKING, /**< not used (deprecated). */
+	SDL_GL_CONTEXT_MAJOR_VERSION, /**< OpenGL context major version. */
+	SDL_GL_CONTEXT_MINOR_VERSION, /**< OpenGL context minor version. */
+	SDL_GL_CONTEXT_FLAGS, /**< some combination of 0 or more of elements of the SDL_GLContextFlag enumeration; defaults to 0. */
+	SDL_GL_CONTEXT_PROFILE_MASK, /**< type of GL context (Core, Compatibility, ES). See SDL_GLProfile; default value depends on platform. */
+	SDL_GL_SHARE_WITH_CURRENT_CONTEXT, /**< OpenGL context sharing; defaults to 0. */
+	SDL_GL_FRAMEBUFFER_SRGB_CAPABLE, /**< requests sRGB-capable visual if 1. Defaults to -1 ("don't care"). This is a request; GL drivers might not comply! */
+	SDL_GL_CONTEXT_RELEASE_BEHAVIOR, /**< sets context the release behavior. See SDL_GLContextReleaseFlag; defaults to FLUSH. */
+	SDL_GL_CONTEXT_RESET_NOTIFICATION, /**< set context reset notification. See SDL_GLContextResetNotification; defaults to NO_NOTIFICATION. */
+	SDL_GL_CONTEXT_NO_ERROR,
+	SDL_GL_FLOATBUFFERS,
+	SDL_GL_EGL_PLATFORM
 }
 
 /**
@@ -577,7 +577,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetVideoDriver
  */
-[CLink] public static extern int32 SDL_GetNumVideoDrivers();
+	[CLink] public static extern int32 SDL_GetNumVideoDrivers();
 
 /**
  * Get the name of a built in video driver.
@@ -599,7 +599,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetNumVideoDrivers
  */
-[CLink] public static extern char8* SDL_GetVideoDriver(int32 index);
+	[CLink] public static extern char8* SDL_GetVideoDriver(int32 index);
 
 /**
  * Get the name of the currently initialized video driver.
@@ -618,7 +618,7 @@ public static //extension SDL3
  * \sa SDL_GetNumVideoDrivers
  * \sa SDL_GetVideoDriver
  */
-[CLink] public static extern char8* SDL_GetCurrentVideoDriver();
+	[CLink] public static extern char8* SDL_GetCurrentVideoDriver();
 
 /**
  * Get the current system theme.
@@ -629,7 +629,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_SystemTheme SDL_GetSystemTheme();
+	[CLink] public static extern SDL_SystemTheme SDL_GetSystemTheme();
 
 /**
  * Get a list of currently connected displays.
@@ -644,7 +644,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_DisplayID* SDL_GetDisplays(int32 *count);
+	[CLink] public static extern SDL_DisplayID* SDL_GetDisplays(int32* count);
 
 /**
  * Return the primary display.
@@ -658,7 +658,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetDisplays
  */
-[CLink] public static extern SDL_DisplayID SDL_GetPrimaryDisplay();
+	[CLink] public static extern SDL_DisplayID SDL_GetPrimaryDisplay();
 
 /**
  * Get the properties associated with a display.
@@ -696,12 +696,12 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_PropertiesID SDL_GetDisplayProperties(SDL_DisplayID displayID);
+	[CLink] public static extern SDL_PropertiesID SDL_GetDisplayProperties(SDL_DisplayID displayID);
 
-public const char8* SDL_PROP_DISPLAY_HDR_ENABLED_BOOLEAN             = "SDL.display.HDR_enabled";
-public const char8* SDL_PROP_DISPLAY_KMSDRM_PANEL_ORIENTATION_NUMBER = "SDL.display.KMSDRM.panel_orientation";
-public const char8* SDL_PROP_DISPLAY_WAYLAND_WL_OUTPUT_POINTER       = "SDL.display.wayland.wl_output";
-public const char8* SDL_PROP_DISPLAY_WINDOWS_HMONITOR_POINTER        = "SDL.display.windows.hmonitor";
+	public const char8* SDL_PROP_DISPLAY_HDR_ENABLED_BOOLEAN             = "SDL.display.HDR_enabled";
+	public const char8* SDL_PROP_DISPLAY_KMSDRM_PANEL_ORIENTATION_NUMBER = "SDL.display.KMSDRM.panel_orientation";
+	public const char8* SDL_PROP_DISPLAY_WAYLAND_WL_OUTPUT_POINTER       = "SDL.display.wayland.wl_output";
+	public const char8* SDL_PROP_DISPLAY_WINDOWS_HMONITOR_POINTER        = "SDL.display.windows.hmonitor";
 
 /**
  * Get the name of a display in UTF-8 encoding.
@@ -716,7 +716,7 @@ public const char8* SDL_PROP_DISPLAY_WINDOWS_HMONITOR_POINTER        = "SDL.disp
  *
  * \sa SDL_GetDisplays
  */
-[CLink] public static extern char8* SDL_GetDisplayName(SDL_DisplayID displayID);
+	[CLink] public static extern char8* SDL_GetDisplayName(SDL_DisplayID displayID);
 
 /**
  * Get the desktop area represented by a display.
@@ -736,7 +736,7 @@ public const char8* SDL_PROP_DISPLAY_WINDOWS_HMONITOR_POINTER        = "SDL.disp
  * \sa SDL_GetDisplayUsableBounds
  * \sa SDL_GetDisplays
  */
-[CLink] public static extern bool SDL_GetDisplayBounds(SDL_DisplayID displayID, SDL_Rect *rect);
+	[CLink] public static extern bool SDL_GetDisplayBounds(SDL_DisplayID displayID, SDL_Rect* rect);
 
 /**
  * Get the usable desktop area represented by a display, in screen
@@ -762,7 +762,7 @@ public const char8* SDL_PROP_DISPLAY_WINDOWS_HMONITOR_POINTER        = "SDL.disp
  * \sa SDL_GetDisplayBounds
  * \sa SDL_GetDisplays
  */
-[CLink] public static extern bool SDL_GetDisplayUsableBounds(SDL_DisplayID displayID, SDL_Rect *rect);
+	[CLink] public static extern bool SDL_GetDisplayUsableBounds(SDL_DisplayID displayID, SDL_Rect* rect);
 
 /**
  * Get the orientation of a display when it is unrotated.
@@ -777,7 +777,7 @@ public const char8* SDL_PROP_DISPLAY_WINDOWS_HMONITOR_POINTER        = "SDL.disp
  *
  * \sa SDL_GetDisplays
  */
-[CLink] public static extern SDL_DisplayOrientation SDL_GetNaturalDisplayOrientation(SDL_DisplayID displayID);
+	[CLink] public static extern SDL_DisplayOrientation SDL_GetNaturalDisplayOrientation(SDL_DisplayID displayID);
 
 /**
  * Get the orientation of a display.
@@ -792,7 +792,7 @@ public const char8* SDL_PROP_DISPLAY_WINDOWS_HMONITOR_POINTER        = "SDL.disp
  *
  * \sa SDL_GetDisplays
  */
-[CLink] public static extern SDL_DisplayOrientation SDL_GetCurrentDisplayOrientation(SDL_DisplayID displayID);
+	[CLink] public static extern SDL_DisplayOrientation SDL_GetCurrentDisplayOrientation(SDL_DisplayID displayID);
 
 /**
  * Get the content scale of a display.
@@ -819,7 +819,7 @@ public const char8* SDL_PROP_DISPLAY_WINDOWS_HMONITOR_POINTER        = "SDL.disp
  * \sa SDL_GetWindowDisplayScale
  * \sa SDL_GetDisplays
  */
-[CLink] public static extern float SDL_GetDisplayContentScale(SDL_DisplayID displayID);
+	[CLink] public static extern float SDL_GetDisplayContentScale(SDL_DisplayID displayID);
 
 /**
  * Get a list of fullscreen display modes available on a display.
@@ -878,7 +878,7 @@ public const char8* SDL_PROP_DISPLAY_WINDOWS_HMONITOR_POINTER        = "SDL.disp
  * \sa SDL_GetDisplays
  * \sa SDL_GetFullscreenDisplayModes
  */
-[CLink] public static extern bool SDL_GetClosestFullscreenDisplayMode(SDL_DisplayID displayID, int32 w, int32 h, float refresh_rate, bool include_high_density_modes, SDL_DisplayMode *closest);
+	[CLink] public static extern bool SDL_GetClosestFullscreenDisplayMode(SDL_DisplayID displayID, int32 w, int32 h, float refresh_rate, bool include_high_density_modes, SDL_DisplayMode* closest);
 
 /**
  * Get information about the desktop's display mode.
@@ -899,7 +899,7 @@ public const char8* SDL_PROP_DISPLAY_WINDOWS_HMONITOR_POINTER        = "SDL.disp
  * \sa SDL_GetCurrentDisplayMode
  * \sa SDL_GetDisplays
  */
-[CLink] public static extern SDL_DisplayMode * SDL_GetDesktopDisplayMode(SDL_DisplayID displayID);
+	[CLink] public static extern SDL_DisplayMode* SDL_GetDesktopDisplayMode(SDL_DisplayID displayID);
 
 /**
  * Get information about the current display mode.
@@ -920,7 +920,7 @@ public const char8* SDL_PROP_DISPLAY_WINDOWS_HMONITOR_POINTER        = "SDL.disp
  * \sa SDL_GetDesktopDisplayMode
  * \sa SDL_GetDisplays
  */
-[CLink] public static extern SDL_DisplayMode * SDL_GetCurrentDisplayMode(SDL_DisplayID displayID);
+	[CLink] public static extern SDL_DisplayMode* SDL_GetCurrentDisplayMode(SDL_DisplayID displayID);
 
 /**
  * Get the display containing a point.
@@ -936,7 +936,7 @@ public const char8* SDL_PROP_DISPLAY_WINDOWS_HMONITOR_POINTER        = "SDL.disp
  * \sa SDL_GetDisplayBounds
  * \sa SDL_GetDisplays
  */
-[CLink] public static extern SDL_DisplayID SDL_GetDisplayForPoint(SDL_Point* point);
+	[CLink] public static extern SDL_DisplayID SDL_GetDisplayForPoint(SDL_Point* point);
 
 /**
  * Get the display primarily containing a rect.
@@ -953,7 +953,7 @@ public const char8* SDL_PROP_DISPLAY_WINDOWS_HMONITOR_POINTER        = "SDL.disp
  * \sa SDL_GetDisplayBounds
  * \sa SDL_GetDisplays
  */
-[CLink] public static extern SDL_DisplayID SDL_GetDisplayForRect(SDL_Rect* rect);
+	[CLink] public static extern SDL_DisplayID SDL_GetDisplayForRect(SDL_Rect* rect);
 
 /**
  * Get the display associated with a window.
@@ -970,7 +970,7 @@ public const char8* SDL_PROP_DISPLAY_WINDOWS_HMONITOR_POINTER        = "SDL.disp
  * \sa SDL_GetDisplayBounds
  * \sa SDL_GetDisplays
  */
-[CLink] public static extern SDL_DisplayID SDL_GetDisplayForWindow(SDL_Window *window);
+	[CLink] public static extern SDL_DisplayID SDL_GetDisplayForWindow(SDL_Window* window);
 
 /**
  * Get the pixel density of a window.
@@ -989,7 +989,7 @@ public const char8* SDL_PROP_DISPLAY_WINDOWS_HMONITOR_POINTER        = "SDL.disp
  *
  * \sa SDL_GetWindowDisplayScale
  */
-[CLink] public static extern float SDL_GetWindowPixelDensity(SDL_Window *window);
+	[CLink] public static extern float SDL_GetWindowPixelDensity(SDL_Window* window);
 
 /**
  * Get the content display scale relative to a window's pixel size.
@@ -1013,7 +1013,7 @@ public const char8* SDL_PROP_DISPLAY_WINDOWS_HMONITOR_POINTER        = "SDL.disp
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern float SDL_GetWindowDisplayScale(SDL_Window *window);
+	[CLink] public static extern float SDL_GetWindowDisplayScale(SDL_Window* window);
 
 /**
  * Set the display mode to use when a window is visible and fullscreen.
@@ -1048,7 +1048,7 @@ public const char8* SDL_PROP_DISPLAY_WINDOWS_HMONITOR_POINTER        = "SDL.disp
  * \sa SDL_SetWindowFullscreen
  * \sa SDL_SyncWindow
  */
-[CLink] public static extern bool SDL_SetWindowFullscreenMode(SDL_Window *window, SDL_DisplayMode* mode);
+	[CLink] public static extern bool SDL_SetWindowFullscreenMode(SDL_Window* window, SDL_DisplayMode* mode);
 
 /**
  * Query the display mode to use when a window is visible at fullscreen.
@@ -1064,7 +1064,7 @@ public const char8* SDL_PROP_DISPLAY_WINDOWS_HMONITOR_POINTER        = "SDL.disp
  * \sa SDL_SetWindowFullscreenMode
  * \sa SDL_SetWindowFullscreen
  */
-[CLink] public static extern SDL_DisplayMode * SDL_GetWindowFullscreenMode(SDL_Window *window);
+	[CLink] public static extern SDL_DisplayMode* SDL_GetWindowFullscreenMode(SDL_Window* window);
 
 /**
  * Get the raw ICC profile data for the screen the window is currently on.
@@ -1079,7 +1079,7 @@ public const char8* SDL_PROP_DISPLAY_WINDOWS_HMONITOR_POINTER        = "SDL.disp
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern void* SDL_GetWindowICCProfile(SDL_Window *window, uint *size);
+	[CLink] public static extern void* SDL_GetWindowICCProfile(SDL_Window* window, uint* size);
 
 /**
  * Get the pixel format associated with the window.
@@ -1093,7 +1093,7 @@ public const char8* SDL_PROP_DISPLAY_WINDOWS_HMONITOR_POINTER        = "SDL.disp
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_PixelFormat SDL_GetWindowPixelFormat(SDL_Window *window);
+	[CLink] public static extern SDL_PixelFormat SDL_GetWindowPixelFormat(SDL_Window* window);
 
 /**
  * Get a list of valid windows.
@@ -1109,7 +1109,7 @@ public const char8* SDL_PROP_DISPLAY_WINDOWS_HMONITOR_POINTER        = "SDL.disp
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_Window ** SDL_GetWindows(int32 *count);
+	[CLink] public static extern SDL_Window** SDL_GetWindows(int32* count);
 
 /**
  * Create a window with the specified dimensions and flags.
@@ -1198,7 +1198,7 @@ public const char8* SDL_PROP_DISPLAY_WINDOWS_HMONITOR_POINTER        = "SDL.disp
  * \sa SDL_CreateWindowWithProperties
  * \sa SDL_DestroyWindow
  */
-[CLink] public static extern SDL_Window* SDL_CreateWindow(char8* title, int32 w, int32 h, SDL_WindowFlags flags);
+	[CLink] public static extern SDL_Window* SDL_CreateWindow(char8* title, int32 w, int32 h, SDL_WindowFlags flags);
 
 /**
  * Create a child popup window of the specified parent window.
@@ -1274,7 +1274,7 @@ public const char8* SDL_PROP_DISPLAY_WINDOWS_HMONITOR_POINTER        = "SDL.disp
  * \sa SDL_DestroyWindow
  * \sa SDL_GetWindowParent
  */
-[CLink] public static extern SDL_Window* SDL_CreatePopupWindow(SDL_Window *parent, int32 offset_x, int32 offset_y, int32 w, int32 h, SDL_WindowFlags flags);
+	[CLink] public static extern SDL_Window* SDL_CreatePopupWindow(SDL_Window* parent, int32 offset_x, int32 offset_y, int32 w, int32 h, SDL_WindowFlags flags);
 
 /**
  * Create a window with the specified properties.
@@ -1423,46 +1423,46 @@ public const char8* SDL_PROP_DISPLAY_WINDOWS_HMONITOR_POINTER        = "SDL.disp
  * \sa SDL_CreateWindow
  * \sa SDL_DestroyWindow
  */
-[CLink] public static extern SDL_Window* SDL_CreateWindowWithProperties(SDL_PropertiesID props);
+	[CLink] public static extern SDL_Window* SDL_CreateWindowWithProperties(SDL_PropertiesID props);
 
-public const char8* SDL_PROP_WINDOW_CREATE_ALWAYS_ON_TOP_BOOLEAN               = "SDL.window.create.always_on_top";
-public const char8* SDL_PROP_WINDOW_CREATE_BORDERLESS_BOOLEAN                  = "SDL.window.create.borderless";
-public const char8* SDL_PROP_WINDOW_CREATE_CONSTRAIN_POPUP_BOOLEAN             = "SDL.window.create.constrain_popup";
-public const char8* SDL_PROP_WINDOW_CREATE_FOCUSABLE_BOOLEAN                   = "SDL.window.create.focusable";
-public const char8* SDL_PROP_WINDOW_CREATE_EXTERNAL_GRAPHICS_CONTEXT_BOOLEAN   = "SDL.window.create.external_graphics_context";
-public const char8* SDL_PROP_WINDOW_CREATE_FLAGS_NUMBER                        = "SDL.window.create.flags";
-public const char8* SDL_PROP_WINDOW_CREATE_FULLSCREEN_BOOLEAN                  = "SDL.window.create.fullscreen";
-public const char8* SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER                       = "SDL.window.create.height";
-public const char8* SDL_PROP_WINDOW_CREATE_HIDDEN_BOOLEAN                      = "SDL.window.create.hidden";
-public const char8* SDL_PROP_WINDOW_CREATE_HIGH_PIXEL_DENSITY_BOOLEAN          = "SDL.window.create.high_pixel_density";
-public const char8* SDL_PROP_WINDOW_CREATE_MAXIMIZED_BOOLEAN                   = "SDL.window.create.maximized";
-public const char8* SDL_PROP_WINDOW_CREATE_MENU_BOOLEAN                        = "SDL.window.create.menu";
-public const char8* SDL_PROP_WINDOW_CREATE_METAL_BOOLEAN                       = "SDL.window.create.metal";
-public const char8* SDL_PROP_WINDOW_CREATE_MINIMIZED_BOOLEAN                   = "SDL.window.create.minimized";
-public const char8* SDL_PROP_WINDOW_CREATE_MODAL_BOOLEAN                       = "SDL.window.create.modal";
-public const char8* SDL_PROP_WINDOW_CREATE_MOUSE_GRABBED_BOOLEAN               = "SDL.window.create.mouse_grabbed";
-public const char8* SDL_PROP_WINDOW_CREATE_OPENGL_BOOLEAN                      = "SDL.window.create.opengl";
-public const char8* SDL_PROP_WINDOW_CREATE_PARENT_POINTER                      = "SDL.window.create.parent";
-public const char8* SDL_PROP_WINDOW_CREATE_RESIZABLE_BOOLEAN                   = "SDL.window.create.resizable";
-public const char8* SDL_PROP_WINDOW_CREATE_TITLE_STRING                        = "SDL.window.create.title";
-public const char8* SDL_PROP_WINDOW_CREATE_TRANSPARENT_BOOLEAN                 = "SDL.window.create.transparent";
-public const char8* SDL_PROP_WINDOW_CREATE_TOOLTIP_BOOLEAN                     = "SDL.window.create.tooltip";
-public const char8* SDL_PROP_WINDOW_CREATE_UTILITY_BOOLEAN                     = "SDL.window.create.utility";
-public const char8* SDL_PROP_WINDOW_CREATE_VULKAN_BOOLEAN                      = "SDL.window.create.vulkan";
-public const char8* SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER                        = "SDL.window.create.width";
-public const char8* SDL_PROP_WINDOW_CREATE_X_NUMBER                            = "SDL.window.create.x";
-public const char8* SDL_PROP_WINDOW_CREATE_Y_NUMBER                            = "SDL.window.create.y";
-public const char8* SDL_PROP_WINDOW_CREATE_COCOA_WINDOW_POINTER                = "SDL.window.create.cocoa.window";
-public const char8* SDL_PROP_WINDOW_CREATE_COCOA_VIEW_POINTER                  = "SDL.window.create.cocoa.view";
-public const char8* SDL_PROP_WINDOW_CREATE_WINDOWSCENE_POINTER                 = "SDL.window.create.uikit.windowscene";
-public const char8* SDL_PROP_WINDOW_CREATE_WAYLAND_SURFACE_ROLE_CUSTOM_BOOLEAN = "SDL.window.create.wayland.surface_role_custom";
-public const char8* SDL_PROP_WINDOW_CREATE_WAYLAND_CREATE_EGL_WINDOW_BOOLEAN   = "SDL.window.create.wayland.create_egl_window";
-public const char8* SDL_PROP_WINDOW_CREATE_WAYLAND_WL_SURFACE_POINTER          = "SDL.window.create.wayland.wl_surface";
-public const char8* SDL_PROP_WINDOW_CREATE_WIN32_HWND_POINTER                  = "SDL.window.create.win32.hwnd";
-public const char8* SDL_PROP_WINDOW_CREATE_WIN32_PIXEL_FORMAT_HWND_POINTER     = "SDL.window.create.win32.pixel_format_hwnd";
-public const char8* SDL_PROP_WINDOW_CREATE_X11_WINDOW_NUMBER                   = "SDL.window.create.x11.window";
-public const char8* SDL_PROP_WINDOW_CREATE_EMSCRIPTEN_CANVAS_ID_STRING         = "SDL.window.create.emscripten.canvas_id";
-public const char8* SDL_PROP_WINDOW_CREATE_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING  = "SDL.window.create.emscripten.keyboard_element";
+	public const char8* SDL_PROP_WINDOW_CREATE_ALWAYS_ON_TOP_BOOLEAN               = "SDL.window.create.always_on_top";
+	public const char8* SDL_PROP_WINDOW_CREATE_BORDERLESS_BOOLEAN                  = "SDL.window.create.borderless";
+	public const char8* SDL_PROP_WINDOW_CREATE_CONSTRAIN_POPUP_BOOLEAN             = "SDL.window.create.constrain_popup";
+	public const char8* SDL_PROP_WINDOW_CREATE_FOCUSABLE_BOOLEAN                   = "SDL.window.create.focusable";
+	public const char8* SDL_PROP_WINDOW_CREATE_EXTERNAL_GRAPHICS_CONTEXT_BOOLEAN   = "SDL.window.create.external_graphics_context";
+	public const char8* SDL_PROP_WINDOW_CREATE_FLAGS_NUMBER                        = "SDL.window.create.flags";
+	public const char8* SDL_PROP_WINDOW_CREATE_FULLSCREEN_BOOLEAN                  = "SDL.window.create.fullscreen";
+	public const char8* SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER                       = "SDL.window.create.height";
+	public const char8* SDL_PROP_WINDOW_CREATE_HIDDEN_BOOLEAN                      = "SDL.window.create.hidden";
+	public const char8* SDL_PROP_WINDOW_CREATE_HIGH_PIXEL_DENSITY_BOOLEAN          = "SDL.window.create.high_pixel_density";
+	public const char8* SDL_PROP_WINDOW_CREATE_MAXIMIZED_BOOLEAN                   = "SDL.window.create.maximized";
+	public const char8* SDL_PROP_WINDOW_CREATE_MENU_BOOLEAN                        = "SDL.window.create.menu";
+	public const char8* SDL_PROP_WINDOW_CREATE_METAL_BOOLEAN                       = "SDL.window.create.metal";
+	public const char8* SDL_PROP_WINDOW_CREATE_MINIMIZED_BOOLEAN                   = "SDL.window.create.minimized";
+	public const char8* SDL_PROP_WINDOW_CREATE_MODAL_BOOLEAN                       = "SDL.window.create.modal";
+	public const char8* SDL_PROP_WINDOW_CREATE_MOUSE_GRABBED_BOOLEAN               = "SDL.window.create.mouse_grabbed";
+	public const char8* SDL_PROP_WINDOW_CREATE_OPENGL_BOOLEAN                      = "SDL.window.create.opengl";
+	public const char8* SDL_PROP_WINDOW_CREATE_PARENT_POINTER                      = "SDL.window.create.parent";
+	public const char8* SDL_PROP_WINDOW_CREATE_RESIZABLE_BOOLEAN                   = "SDL.window.create.resizable";
+	public const char8* SDL_PROP_WINDOW_CREATE_TITLE_STRING                        = "SDL.window.create.title";
+	public const char8* SDL_PROP_WINDOW_CREATE_TRANSPARENT_BOOLEAN                 = "SDL.window.create.transparent";
+	public const char8* SDL_PROP_WINDOW_CREATE_TOOLTIP_BOOLEAN                     = "SDL.window.create.tooltip";
+	public const char8* SDL_PROP_WINDOW_CREATE_UTILITY_BOOLEAN                     = "SDL.window.create.utility";
+	public const char8* SDL_PROP_WINDOW_CREATE_VULKAN_BOOLEAN                      = "SDL.window.create.vulkan";
+	public const char8* SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER                        = "SDL.window.create.width";
+	public const char8* SDL_PROP_WINDOW_CREATE_X_NUMBER                            = "SDL.window.create.x";
+	public const char8* SDL_PROP_WINDOW_CREATE_Y_NUMBER                            = "SDL.window.create.y";
+	public const char8* SDL_PROP_WINDOW_CREATE_COCOA_WINDOW_POINTER                = "SDL.window.create.cocoa.window";
+	public const char8* SDL_PROP_WINDOW_CREATE_COCOA_VIEW_POINTER                  = "SDL.window.create.cocoa.view";
+	public const char8* SDL_PROP_WINDOW_CREATE_WINDOWSCENE_POINTER                 = "SDL.window.create.uikit.windowscene";
+	public const char8* SDL_PROP_WINDOW_CREATE_WAYLAND_SURFACE_ROLE_CUSTOM_BOOLEAN = "SDL.window.create.wayland.surface_role_custom";
+	public const char8* SDL_PROP_WINDOW_CREATE_WAYLAND_CREATE_EGL_WINDOW_BOOLEAN   = "SDL.window.create.wayland.create_egl_window";
+	public const char8* SDL_PROP_WINDOW_CREATE_WAYLAND_WL_SURFACE_POINTER          = "SDL.window.create.wayland.wl_surface";
+	public const char8* SDL_PROP_WINDOW_CREATE_WIN32_HWND_POINTER                  = "SDL.window.create.win32.hwnd";
+	public const char8* SDL_PROP_WINDOW_CREATE_WIN32_PIXEL_FORMAT_HWND_POINTER     = "SDL.window.create.win32.pixel_format_hwnd";
+	public const char8* SDL_PROP_WINDOW_CREATE_X11_WINDOW_NUMBER                   = "SDL.window.create.x11.window";
+	public const char8* SDL_PROP_WINDOW_CREATE_EMSCRIPTEN_CANVAS_ID_STRING         = "SDL.window.create.emscripten.canvas_id";
+	public const char8* SDL_PROP_WINDOW_CREATE_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING  = "SDL.window.create.emscripten.keyboard_element";
 
 /**
  * Get the numeric ID of a window.
@@ -1480,7 +1480,7 @@ public const char8* SDL_PROP_WINDOW_CREATE_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING  =
  *
  * \sa SDL_GetWindowFromID
  */
-[CLink] public static extern SDL_WindowID SDL_GetWindowID(SDL_Window *window);
+	[CLink] public static extern SDL_WindowID SDL_GetWindowID(SDL_Window* window);
 
 /**
  * Get a window from a stored ID.
@@ -1498,7 +1498,7 @@ public const char8* SDL_PROP_WINDOW_CREATE_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING  =
  *
  * \sa SDL_GetWindowID
  */
-[CLink] public static extern SDL_Window* SDL_GetWindowFromID(SDL_WindowID id);
+	[CLink] public static extern SDL_Window* SDL_GetWindowFromID(SDL_WindowID id);
 
 /**
  * Get parent of a window.
@@ -1513,7 +1513,7 @@ public const char8* SDL_PROP_WINDOW_CREATE_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING  =
  *
  * \sa SDL_CreatePopupWindow
  */
-[CLink] public static extern SDL_Window* SDL_GetWindowParent(SDL_Window *window);
+	[CLink] public static extern SDL_Window* SDL_GetWindowParent(SDL_Window* window);
 
 /**
  * Get the properties associated with a window.
@@ -1642,45 +1642,45 @@ public const char8* SDL_PROP_WINDOW_CREATE_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING  =
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_PropertiesID SDL_GetWindowProperties(SDL_Window *window);
+	[CLink] public static extern SDL_PropertiesID SDL_GetWindowProperties(SDL_Window* window);
 
-public const char8* SDL_PROP_WINDOW_SHAPE_POINTER                               = "SDL.window.shape";
-public const char8* SDL_PROP_WINDOW_HDR_ENABLED_BOOLEAN                         = "SDL.window.HDR_enabled";
-public const char8* SDL_PROP_WINDOW_SDR_WHITE_LEVEL_FLOAT                       = "SDL.window.SDR_white_level";
-public const char8* SDL_PROP_WINDOW_HDR_HEADROOM_FLOAT                          = "SDL.window.HDR_headroom";
-public const char8* SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER                      = "SDL.window.android.window";
-public const char8* SDL_PROP_WINDOW_ANDROID_SURFACE_POINTER                     = "SDL.window.android.surface";
-public const char8* SDL_PROP_WINDOW_UIKIT_WINDOW_POINTER                        = "SDL.window.uikit.window";
-public const char8* SDL_PROP_WINDOW_UIKIT_METAL_VIEW_TAG_NUMBER                 = "SDL.window.uikit.metal_view_tag";
-public const char8* SDL_PROP_WINDOW_UIKIT_OPENGL_FRAMEBUFFER_NUMBER             = "SDL.window.uikit.opengl.framebuffer";
-public const char8* SDL_PROP_WINDOW_UIKIT_OPENGL_RENDERBUFFER_NUMBER            = "SDL.window.uikit.opengl.renderbuffer";
-public const char8* SDL_PROP_WINDOW_UIKIT_OPENGL_RESOLVE_FRAMEBUFFER_NUMBER     = "SDL.window.uikit.opengl.resolve_framebuffer";
-public const char8* SDL_PROP_WINDOW_KMSDRM_DEVICE_INDEX_NUMBER                  = "SDL.window.kmsdrm.dev_index";
-public const char8* SDL_PROP_WINDOW_KMSDRM_DRM_FD_NUMBER                        = "SDL.window.kmsdrm.drm_fd";
-public const char8* SDL_PROP_WINDOW_KMSDRM_GBM_DEVICE_POINTER                   = "SDL.window.kmsdrm.gbm_dev";
-public const char8* SDL_PROP_WINDOW_COCOA_WINDOW_POINTER                        = "SDL.window.cocoa.window";
-public const char8* SDL_PROP_WINDOW_COCOA_METAL_VIEW_TAG_NUMBER                 = "SDL.window.cocoa.metal_view_tag";
-public const char8* SDL_PROP_WINDOW_OPENVR_OVERLAY_ID_NUMBER                    = "SDL.window.openvr.overlay_id";
-public const char8* SDL_PROP_WINDOW_VIVANTE_DISPLAY_POINTER                     = "SDL.window.vivante.display";
-public const char8* SDL_PROP_WINDOW_VIVANTE_WINDOW_POINTER                      = "SDL.window.vivante.window";
-public const char8* SDL_PROP_WINDOW_VIVANTE_SURFACE_POINTER                     = "SDL.window.vivante.surface";
-public const char8* SDL_PROP_WINDOW_WIN32_HWND_POINTER                          = "SDL.window.win32.hwnd";
-public const char8* SDL_PROP_WINDOW_WIN32_HDC_POINTER                           = "SDL.window.win32.hdc";
-public const char8* SDL_PROP_WINDOW_WIN32_INSTANCE_POINTER                      = "SDL.window.win32.instance";
-public const char8* SDL_PROP_WINDOW_WAYLAND_DISPLAY_POINTER                     = "SDL.window.wayland.display";
-public const char8* SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER                     = "SDL.window.wayland.surface";
-public const char8* SDL_PROP_WINDOW_WAYLAND_VIEWPORT_POINTER                    = "SDL.window.wayland.viewport";
-public const char8* SDL_PROP_WINDOW_WAYLAND_EGL_WINDOW_POINTER                  = "SDL.window.wayland.egl_window";
-public const char8* SDL_PROP_WINDOW_WAYLAND_XDG_SURFACE_POINTER                 = "SDL.window.wayland.xdg_surface";
-public const char8* SDL_PROP_WINDOW_WAYLAND_XDG_TOPLEVEL_POINTER                = "SDL.window.wayland.xdg_toplevel";
-public const char8* SDL_PROP_WINDOW_WAYLAND_XDG_TOPLEVEL_EXPORT_HANDLE_STRING   = "SDL.window.wayland.xdg_toplevel_export_handle";
-public const char8* SDL_PROP_WINDOW_WAYLAND_XDG_POPUP_POINTER                   = "SDL.window.wayland.xdg_popup";
-public const char8* SDL_PROP_WINDOW_WAYLAND_XDG_POSITIONER_POINTER              = "SDL.window.wayland.xdg_positioner";
-public const char8* SDL_PROP_WINDOW_X11_DISPLAY_POINTER                         = "SDL.window.x11.display";
-public const char8* SDL_PROP_WINDOW_X11_SCREEN_NUMBER                           = "SDL.window.x11.screen";
-public const char8* SDL_PROP_WINDOW_X11_WINDOW_NUMBER                           = "SDL.window.x11.window";
-public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_CANVAS_ID_STRING                 = "SDL.window.emscripten.canvas_id";
-public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          = "SDL.window.emscripten.keyboard_element";
+	public const char8* SDL_PROP_WINDOW_SHAPE_POINTER                               = "SDL.window.shape";
+	public const char8* SDL_PROP_WINDOW_HDR_ENABLED_BOOLEAN                         = "SDL.window.HDR_enabled";
+	public const char8* SDL_PROP_WINDOW_SDR_WHITE_LEVEL_FLOAT                       = "SDL.window.SDR_white_level";
+	public const char8* SDL_PROP_WINDOW_HDR_HEADROOM_FLOAT                          = "SDL.window.HDR_headroom";
+	public const char8* SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER                      = "SDL.window.android.window";
+	public const char8* SDL_PROP_WINDOW_ANDROID_SURFACE_POINTER                     = "SDL.window.android.surface";
+	public const char8* SDL_PROP_WINDOW_UIKIT_WINDOW_POINTER                        = "SDL.window.uikit.window";
+	public const char8* SDL_PROP_WINDOW_UIKIT_METAL_VIEW_TAG_NUMBER                 = "SDL.window.uikit.metal_view_tag";
+	public const char8* SDL_PROP_WINDOW_UIKIT_OPENGL_FRAMEBUFFER_NUMBER             = "SDL.window.uikit.opengl.framebuffer";
+	public const char8* SDL_PROP_WINDOW_UIKIT_OPENGL_RENDERBUFFER_NUMBER            = "SDL.window.uikit.opengl.renderbuffer";
+	public const char8* SDL_PROP_WINDOW_UIKIT_OPENGL_RESOLVE_FRAMEBUFFER_NUMBER     = "SDL.window.uikit.opengl.resolve_framebuffer";
+	public const char8* SDL_PROP_WINDOW_KMSDRM_DEVICE_INDEX_NUMBER                  = "SDL.window.kmsdrm.dev_index";
+	public const char8* SDL_PROP_WINDOW_KMSDRM_DRM_FD_NUMBER                        = "SDL.window.kmsdrm.drm_fd";
+	public const char8* SDL_PROP_WINDOW_KMSDRM_GBM_DEVICE_POINTER                   = "SDL.window.kmsdrm.gbm_dev";
+	public const char8* SDL_PROP_WINDOW_COCOA_WINDOW_POINTER                        = "SDL.window.cocoa.window";
+	public const char8* SDL_PROP_WINDOW_COCOA_METAL_VIEW_TAG_NUMBER                 = "SDL.window.cocoa.metal_view_tag";
+	public const char8* SDL_PROP_WINDOW_OPENVR_OVERLAY_ID_NUMBER                    = "SDL.window.openvr.overlay_id";
+	public const char8* SDL_PROP_WINDOW_VIVANTE_DISPLAY_POINTER                     = "SDL.window.vivante.display";
+	public const char8* SDL_PROP_WINDOW_VIVANTE_WINDOW_POINTER                      = "SDL.window.vivante.window";
+	public const char8* SDL_PROP_WINDOW_VIVANTE_SURFACE_POINTER                     = "SDL.window.vivante.surface";
+	public const char8* SDL_PROP_WINDOW_WIN32_HWND_POINTER                          = "SDL.window.win32.hwnd";
+	public const char8* SDL_PROP_WINDOW_WIN32_HDC_POINTER                           = "SDL.window.win32.hdc";
+	public const char8* SDL_PROP_WINDOW_WIN32_INSTANCE_POINTER                      = "SDL.window.win32.instance";
+	public const char8* SDL_PROP_WINDOW_WAYLAND_DISPLAY_POINTER                     = "SDL.window.wayland.display";
+	public const char8* SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER                     = "SDL.window.wayland.surface";
+	public const char8* SDL_PROP_WINDOW_WAYLAND_VIEWPORT_POINTER                    = "SDL.window.wayland.viewport";
+	public const char8* SDL_PROP_WINDOW_WAYLAND_EGL_WINDOW_POINTER                  = "SDL.window.wayland.egl_window";
+	public const char8* SDL_PROP_WINDOW_WAYLAND_XDG_SURFACE_POINTER                 = "SDL.window.wayland.xdg_surface";
+	public const char8* SDL_PROP_WINDOW_WAYLAND_XDG_TOPLEVEL_POINTER                = "SDL.window.wayland.xdg_toplevel";
+	public const char8* SDL_PROP_WINDOW_WAYLAND_XDG_TOPLEVEL_EXPORT_HANDLE_STRING   = "SDL.window.wayland.xdg_toplevel_export_handle";
+	public const char8* SDL_PROP_WINDOW_WAYLAND_XDG_POPUP_POINTER                   = "SDL.window.wayland.xdg_popup";
+	public const char8* SDL_PROP_WINDOW_WAYLAND_XDG_POSITIONER_POINTER              = "SDL.window.wayland.xdg_positioner";
+	public const char8* SDL_PROP_WINDOW_X11_DISPLAY_POINTER                         = "SDL.window.x11.display";
+	public const char8* SDL_PROP_WINDOW_X11_SCREEN_NUMBER                           = "SDL.window.x11.screen";
+	public const char8* SDL_PROP_WINDOW_X11_WINDOW_NUMBER                           = "SDL.window.x11.window";
+	public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_CANVAS_ID_STRING                 = "SDL.window.emscripten.canvas_id";
+	public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          = "SDL.window.emscripten.keyboard_element";
 
 /**
  * Get the window flags.
@@ -1701,7 +1701,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  * \sa SDL_SetWindowFillDocument
  * \sa SDL_ShowWindow
  */
-[CLink] public static extern SDL_WindowFlags SDL_GetWindowFlags(SDL_Window *window);
+	[CLink] public static extern SDL_WindowFlags SDL_GetWindowFlags(SDL_Window* window);
 
 /**
  * Set the title of a window.
@@ -1719,7 +1719,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  *
  * \sa SDL_GetWindowTitle
  */
-[CLink] public static extern bool SDL_SetWindowTitle(SDL_Window *window, char8* title);
+	[CLink] public static extern bool SDL_SetWindowTitle(SDL_Window* window, char8* title);
 
 /**
  * Get the title of a window.
@@ -1734,7 +1734,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  *
  * \sa SDL_SetWindowTitle
  */
-[CLink] public static extern char8* SDL_GetWindowTitle(SDL_Window *window);
+	[CLink] public static extern char8* SDL_GetWindowTitle(SDL_Window* window);
 
 /**
  * Set the icon for a window.
@@ -1761,7 +1761,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  *
  * \sa SDL_AddSurfaceAlternateImage
  */
-[CLink] public static extern bool SDL_SetWindowIcon(SDL_Window *window, SDL_Surface *icon);
+	[CLink] public static extern bool SDL_SetWindowIcon(SDL_Window* window, SDL_Surface* icon);
 
 /**
  * Request that the window's position be set.
@@ -1802,7 +1802,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  * \sa SDL_GetWindowPosition
  * \sa SDL_SyncWindow
  */
-[CLink] public static extern bool SDL_SetWindowPosition(SDL_Window *window, int32 x, int32 y);
+	[CLink] public static extern bool SDL_SetWindowPosition(SDL_Window* window, int32 x, int32 y);
 
 /**
  * Get the position of a window.
@@ -1827,7 +1827,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  *
  * \sa SDL_SetWindowPosition
  */
-[CLink] public static extern bool SDL_GetWindowPosition(SDL_Window *window, int32 *x, int32 *y);
+	[CLink] public static extern bool SDL_GetWindowPosition(SDL_Window* window, int32* x, int32* y);
 
 /**
  * Request that the size of a window's client area be set.
@@ -1864,7 +1864,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  * \sa SDL_SetWindowFullscreenMode
  * \sa SDL_SyncWindow
  */
-[CLink] public static extern bool SDL_SetWindowSize(SDL_Window *window, int32 w, int32 h);
+	[CLink] public static extern bool SDL_SetWindowSize(SDL_Window* window, int32 w, int32 h);
 
 /**
  * Get the size of a window's client area.
@@ -1888,7 +1888,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  * \sa SDL_SetWindowSize
  * \sa SDL_EVENT_WINDOW_RESIZED
  */
-[CLink] public static extern bool SDL_GetWindowSize(SDL_Window *window, int32 *w, int32 *h);
+	[CLink] public static extern bool SDL_GetWindowSize(SDL_Window* window, int32* w, int32* h);
 
 /**
  * Get the safe area for this window.
@@ -1910,7 +1910,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_GetWindowSafeArea(SDL_Window *window, SDL_Rect *rect);
+	[CLink] public static extern bool SDL_GetWindowSafeArea(SDL_Window* window, SDL_Rect* rect);
 
 /**
  * Request that the aspect ratio of a window's client area be set.
@@ -1951,7 +1951,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  * \sa SDL_GetWindowAspectRatio
  * \sa SDL_SyncWindow
  */
-[CLink] public static extern bool SDL_SetWindowAspectRatio(SDL_Window *window, float min_aspect, float max_aspect);
+	[CLink] public static extern bool SDL_SetWindowAspectRatio(SDL_Window* window, float min_aspect, float max_aspect);
 
 /**
  * Get the aspect ratio of a window's client area.
@@ -1970,7 +1970,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  *
  * \sa SDL_SetWindowAspectRatio
  */
-[CLink] public static extern bool SDL_GetWindowAspectRatio(SDL_Window *window, float *min_aspect, float *max_aspect);
+	[CLink] public static extern bool SDL_GetWindowAspectRatio(SDL_Window* window, float* min_aspect, float* max_aspect);
 
 /**
  * Get the size of a window's borders (decorations) around the client area.
@@ -2007,7 +2007,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  *
  * \sa SDL_GetWindowSize
  */
-[CLink] public static extern bool SDL_GetWindowBordersSize(SDL_Window *window, int32 *top, int32 *left, int32 *bottom, int32 *right);
+	[CLink] public static extern bool SDL_GetWindowBordersSize(SDL_Window* window, int32* top, int32* left, int32* bottom, int32* right);
 
 /**
  * Get the size of a window's client area, in pixels.
@@ -2027,7 +2027,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  * \sa SDL_CreateWindow
  * \sa SDL_GetWindowSize
  */
-[CLink] public static extern bool SDL_GetWindowSizeInPixels(SDL_Window *window, int32 *w, int32 *h);
+	[CLink] public static extern bool SDL_GetWindowSizeInPixels(SDL_Window* window, int32* w, int32* h);
 
 /**
  * Set the minimum size of a window's client area.
@@ -2045,7 +2045,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  * \sa SDL_GetWindowMinimumSize
  * \sa SDL_SetWindowMaximumSize
  */
-[CLink] public static extern bool SDL_SetWindowMinimumSize(SDL_Window *window, int32 min_w, int32 min_h);
+	[CLink] public static extern bool SDL_SetWindowMinimumSize(SDL_Window* window, int32 min_w, int32 min_h);
 
 /**
  * Get the minimum size of a window's client area.
@@ -2065,7 +2065,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  * \sa SDL_GetWindowMaximumSize
  * \sa SDL_SetWindowMinimumSize
  */
-[CLink] public static extern bool SDL_GetWindowMinimumSize(SDL_Window *window, int32 *w, int32 *h);
+	[CLink] public static extern bool SDL_GetWindowMinimumSize(SDL_Window* window, int32* w, int32* h);
 
 /**
  * Set the maximum size of a window's client area.
@@ -2083,7 +2083,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  * \sa SDL_GetWindowMaximumSize
  * \sa SDL_SetWindowMinimumSize
  */
-[CLink] public static extern bool SDL_SetWindowMaximumSize(SDL_Window *window, int32 max_w, int32 max_h);
+	[CLink] public static extern bool SDL_SetWindowMaximumSize(SDL_Window* window, int32 max_w, int32 max_h);
 
 /**
  * Get the maximum size of a window's client area.
@@ -2103,7 +2103,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  * \sa SDL_GetWindowMinimumSize
  * \sa SDL_SetWindowMaximumSize
  */
-[CLink] public static extern bool SDL_GetWindowMaximumSize(SDL_Window *window, int32 *w, int32 *h);
+	[CLink] public static extern bool SDL_GetWindowMaximumSize(SDL_Window* window, int32* w, int32* h);
 
 /**
  * Set the border state of a window.
@@ -2125,7 +2125,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  *
  * \sa SDL_GetWindowFlags
  */
-[CLink] public static extern bool SDL_SetWindowBordered(SDL_Window *window, bool bordered);
+	[CLink] public static extern bool SDL_SetWindowBordered(SDL_Window* window, bool bordered);
 
 /**
  * Set the user-resizable state of a window.
@@ -2147,7 +2147,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  *
  * \sa SDL_GetWindowFlags
  */
-[CLink] public static extern bool SDL_SetWindowResizable(SDL_Window *window, bool resizable);
+	[CLink] public static extern bool SDL_SetWindowResizable(SDL_Window* window, bool resizable);
 
 /**
  * Set the window to always be above the others.
@@ -2166,7 +2166,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  *
  * \sa SDL_GetWindowFlags
  */
-[CLink] public static extern bool SDL_SetWindowAlwaysOnTop(SDL_Window *window, bool on_top);
+	[CLink] public static extern bool SDL_SetWindowAlwaysOnTop(SDL_Window* window, bool on_top);
 
 /**
  * Set the window to fill the current document space (Emscripten only).
@@ -2197,7 +2197,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  *
  * \sa SDL_GetWindowFlags
  */
-[CLink] public static extern bool SDL_SetWindowFillDocument(SDL_Window *window, bool fill);
+	[CLink] public static extern bool SDL_SetWindowFillDocument(SDL_Window* window, bool fill);
 
 /**
  * Show a window.
@@ -2213,7 +2213,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  * \sa SDL_HideWindow
  * \sa SDL_RaiseWindow
  */
-[CLink] public static extern bool SDL_ShowWindow(SDL_Window *window);
+	[CLink] public static extern bool SDL_ShowWindow(SDL_Window* window);
 
 /**
  * Hide a window.
@@ -2229,7 +2229,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  * \sa SDL_ShowWindow
  * \sa SDL_WINDOW_HIDDEN
  */
-[CLink] public static extern bool SDL_HideWindow(SDL_Window *window);
+	[CLink] public static extern bool SDL_HideWindow(SDL_Window* window);
 
 /**
  * Request that a window be raised above other windows and gain the input
@@ -2249,7 +2249,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_RaiseWindow(SDL_Window *window);
+	[CLink] public static extern bool SDL_RaiseWindow(SDL_Window* window);
 
 /**
  * Request that the window be made as large as possible.
@@ -2283,7 +2283,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  * \sa SDL_RestoreWindow
  * \sa SDL_SyncWindow
  */
-[CLink] public static extern bool SDL_MaximizeWindow(SDL_Window *window);
+	[CLink] public static extern bool SDL_MaximizeWindow(SDL_Window* window);
 
 /**
  * Request that the window be minimized to an iconic representation.
@@ -2312,7 +2312,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  * \sa SDL_RestoreWindow
  * \sa SDL_SyncWindow
  */
-[CLink] public static extern bool SDL_MinimizeWindow(SDL_Window *window);
+	[CLink] public static extern bool SDL_MinimizeWindow(SDL_Window* window);
 
 /**
  * Request that the size and position of a minimized or maximized window be
@@ -2342,7 +2342,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  * \sa SDL_MinimizeWindow
  * \sa SDL_SyncWindow
  */
-[CLink] public static extern bool SDL_RestoreWindow(SDL_Window *window);
+	[CLink] public static extern bool SDL_RestoreWindow(SDL_Window* window);
 
 /**
  * Request that the window's fullscreen state be changed.
@@ -2374,7 +2374,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  * \sa SDL_SyncWindow
  * \sa SDL_WINDOW_FULLSCREEN
  */
-[CLink] public static extern bool SDL_SetWindowFullscreen(SDL_Window *window, bool fullscreen);
+	[CLink] public static extern bool SDL_SetWindowFullscreen(SDL_Window* window, bool fullscreen);
 
 /**
  * Block until any pending window state is finalized.
@@ -2405,7 +2405,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  * \sa SDL_RestoreWindow
  * \sa SDL_HINT_VIDEO_SYNC_WINDOW_OPERATIONS
  */
-[CLink] public static extern bool SDL_SyncWindow(SDL_Window *window);
+	[CLink] public static extern bool SDL_SyncWindow(SDL_Window* window);
 
 /**
  * Return whether the window has a surface associated with it.
@@ -2420,7 +2420,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  *
  * \sa SDL_GetWindowSurface
  */
-[CLink] public static extern bool SDL_WindowHasSurface(SDL_Window *window);
+	[CLink] public static extern bool SDL_WindowHasSurface(SDL_Window* window);
 
 /**
  * Get the SDL surface associated with the window.
@@ -2449,7 +2449,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  * \sa SDL_UpdateWindowSurface
  * \sa SDL_UpdateWindowSurfaceRects
  */
-[CLink] public static extern SDL_Surface* SDL_GetWindowSurface(SDL_Window *window);
+	[CLink] public static extern SDL_Surface* SDL_GetWindowSurface(SDL_Window* window);
 
 /**
  * Toggle VSync for the window surface.
@@ -2475,7 +2475,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  *
  * \sa SDL_GetWindowSurfaceVSync
  */
-[CLink] public static extern bool SDL_SetWindowSurfaceVSync(SDL_Window *window, int32 vsync);
+	[CLink] public static extern bool SDL_SetWindowSurfaceVSync(SDL_Window* window, int32 vsync);
 
 	public const uint32 SDL_WINDOW_SURFACE_VSYNC_DISABLED = 0;
 	public const uint32 SDL_WINDOW_SURFACE_VSYNC_ADAPTIVE  = uint32(-1);
@@ -2495,7 +2495,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  *
  * \sa SDL_SetWindowSurfaceVSync
  */
-[CLink] public static extern bool SDL_GetWindowSurfaceVSync(SDL_Window *window, int32 *vsync);
+	[CLink] public static extern bool SDL_GetWindowSurfaceVSync(SDL_Window* window, int32* vsync);
 
 /**
  * Copy the window surface to the screen.
@@ -2516,7 +2516,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  * \sa SDL_GetWindowSurface
  * \sa SDL_UpdateWindowSurfaceRects
  */
-[CLink] public static extern bool SDL_UpdateWindowSurface(SDL_Window *window);
+	[CLink] public static extern bool SDL_UpdateWindowSurface(SDL_Window* window);
 
 /**
  * Copy areas of the window surface to the screen.
@@ -2545,7 +2545,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  * \sa SDL_GetWindowSurface
  * \sa SDL_UpdateWindowSurface
  */
-[CLink] public static extern bool SDL_UpdateWindowSurfaceRects(SDL_Window *window, SDL_Rect* rects, int32 numrects);
+	[CLink] public static extern bool SDL_UpdateWindowSurfaceRects(SDL_Window* window, SDL_Rect* rects, int32 numrects);
 
 /**
  * Destroy the surface associated with the window.
@@ -2561,7 +2561,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  * \sa SDL_GetWindowSurface
  * \sa SDL_WindowHasSurface
  */
-[CLink] public static extern bool SDL_DestroyWindowSurface(SDL_Window *window);
+	[CLink] public static extern bool SDL_DestroyWindowSurface(SDL_Window* window);
 
 /**
  * Set a window's keyboard grab mode.
@@ -2594,7 +2594,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  * \sa SDL_GetWindowKeyboardGrab
  * \sa SDL_SetWindowMouseGrab
  */
-[CLink] public static extern bool SDL_SetWindowKeyboardGrab(SDL_Window *window, bool grabbed);
+	[CLink] public static extern bool SDL_SetWindowKeyboardGrab(SDL_Window* window, bool grabbed);
 
 /**
  * Set a window's mouse grab mode.
@@ -2614,7 +2614,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  * \sa SDL_SetWindowMouseRect
  * \sa SDL_SetWindowKeyboardGrab
  */
-[CLink] public static extern bool SDL_SetWindowMouseGrab(SDL_Window *window, bool grabbed);
+	[CLink] public static extern bool SDL_SetWindowMouseGrab(SDL_Window* window, bool grabbed);
 
 /**
  * Get a window's keyboard grab mode.
@@ -2628,7 +2628,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  *
  * \sa SDL_SetWindowKeyboardGrab
  */
-[CLink] public static extern bool SDL_GetWindowKeyboardGrab(SDL_Window *window);
+	[CLink] public static extern bool SDL_GetWindowKeyboardGrab(SDL_Window* window);
 
 /**
  * Get a window's mouse grab mode.
@@ -2645,7 +2645,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  * \sa SDL_SetWindowMouseGrab
  * \sa SDL_SetWindowKeyboardGrab
  */
-[CLink] public static extern bool SDL_GetWindowMouseGrab(SDL_Window *window);
+	[CLink] public static extern bool SDL_GetWindowMouseGrab(SDL_Window* window);
 
 /**
  * Get the window that currently has an input grab enabled.
@@ -2659,7 +2659,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  * \sa SDL_SetWindowMouseGrab
  * \sa SDL_SetWindowKeyboardGrab
  */
-[CLink] public static extern SDL_Window* SDL_GetGrabbedWindow();
+	[CLink] public static extern SDL_Window* SDL_GetGrabbedWindow();
 
 /**
  * Confines the cursor to the specified area of a window.
@@ -2681,7 +2681,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  * \sa SDL_GetWindowMouseGrab
  * \sa SDL_SetWindowMouseGrab
  */
-[CLink] public static extern bool SDL_SetWindowMouseRect(SDL_Window *window, SDL_Rect* rect);
+	[CLink] public static extern bool SDL_SetWindowMouseRect(SDL_Window* window, SDL_Rect* rect);
 
 /**
  * Get the mouse confinement rectangle of a window.
@@ -2698,7 +2698,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  * \sa SDL_GetWindowMouseGrab
  * \sa SDL_SetWindowMouseGrab
  */
-[CLink] public static extern SDL_Rect * SDL_GetWindowMouseRect(SDL_Window *window);
+	[CLink] public static extern SDL_Rect* SDL_GetWindowMouseRect(SDL_Window* window);
 
 /**
  * Set the opacity for a window.
@@ -2719,7 +2719,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  *
  * \sa SDL_GetWindowOpacity
  */
-[CLink] public static extern bool SDL_SetWindowOpacity(SDL_Window *window, float opacity);
+	[CLink] public static extern bool SDL_SetWindowOpacity(SDL_Window* window, float opacity);
 
 /**
  * Get the opacity of a window.
@@ -2737,7 +2737,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  *
  * \sa SDL_SetWindowOpacity
  */
-[CLink] public static extern float SDL_GetWindowOpacity(SDL_Window *window);
+	[CLink] public static extern float SDL_GetWindowOpacity(SDL_Window* window);
 
 /**
  * Set the window as a child of a parent window.
@@ -2771,7 +2771,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  *
  * \sa SDL_SetWindowModal
  */
-[CLink] public static extern bool SDL_SetWindowParent(SDL_Window *window, SDL_Window *parent);
+	[CLink] public static extern bool SDL_SetWindowParent(SDL_Window* window, SDL_Window* parent);
 
 /**
  * Toggle the state of the window as modal.
@@ -2791,7 +2791,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  * \sa SDL_SetWindowParent
  * \sa SDL_WINDOW_MODAL
  */
-[CLink] public static extern bool SDL_SetWindowModal(SDL_Window *window, bool modal);
+	[CLink] public static extern bool SDL_SetWindowModal(SDL_Window* window, bool modal);
 
 /**
  * Set whether the window may have input focus.
@@ -2805,7 +2805,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_SetWindowFocusable(SDL_Window *window, bool focusable);
+	[CLink] public static extern bool SDL_SetWindowFocusable(SDL_Window* window, bool focusable);
 
 
 /**
@@ -2831,7 +2831,7 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_ShowWindowSystemMenu(SDL_Window *window, int32 x, int32 y);
+	[CLink] public static extern bool SDL_ShowWindowSystemMenu(SDL_Window* window, int32 x, int32 y);
 
 /**
  * Possible return values from the SDL_HitTest callback.
@@ -2842,664 +2842,664 @@ public const char8* SDL_PROP_WINDOW_EMSCRIPTEN_KEYBOARD_ELEMENT_STRING          
  *
  * \sa SDL_HitTest
  */
-public enum SDL_HitTestResult : int32
-{
-    SDL_HITTEST_NORMAL,             /**< Region is normal. No special properties. */
-    SDL_HITTEST_DRAGGABLE,          /**< Region can drag entire window. */
-    SDL_HITTEST_RESIZE_TOPLEFT,     /**< Region is the resizable top-left corner border. */
-    SDL_HITTEST_RESIZE_TOP,         /**< Region is the resizable top border. */
-    SDL_HITTEST_RESIZE_TOPRIGHT,    /**< Region is the resizable top-right corner border. */
-    SDL_HITTEST_RESIZE_RIGHT,       /**< Region is the resizable right border. */
-    SDL_HITTEST_RESIZE_BOTTOMRIGHT, /**< Region is the resizable bottom-right corner border. */
-    SDL_HITTEST_RESIZE_BOTTOM,      /**< Region is the resizable bottom border. */
-    SDL_HITTEST_RESIZE_BOTTOMLEFT,  /**< Region is the resizable bottom-left corner border. */
-    SDL_HITTEST_RESIZE_LEFT         /**< Region is the resizable left border. */
-}
+	public enum SDL_HitTestResult : int32
+	{
+		SDL_HITTEST_NORMAL, /**< Region is normal. No special properties. */
+		SDL_HITTEST_DRAGGABLE, /**< Region can drag entire window. */
+		SDL_HITTEST_RESIZE_TOPLEFT, /**< Region is the resizable top-left corner border. */
+		SDL_HITTEST_RESIZE_TOP, /**< Region is the resizable top border. */
+		SDL_HITTEST_RESIZE_TOPRIGHT, /**< Region is the resizable top-right corner border. */
+		SDL_HITTEST_RESIZE_RIGHT, /**< Region is the resizable right border. */
+		SDL_HITTEST_RESIZE_BOTTOMRIGHT, /**< Region is the resizable bottom-right corner border. */
+		SDL_HITTEST_RESIZE_BOTTOM, /**< Region is the resizable bottom border. */
+		SDL_HITTEST_RESIZE_BOTTOMLEFT, /**< Region is the resizable bottom-left corner border. */
+		SDL_HITTEST_RESIZE_LEFT /**< Region is the resizable left border. */
+	}
 
-/**
- * Callback used for hit-testing.
- *
- * \param win the SDL_Window where hit-testing was set on.
- * \param area an SDL_Point which should be hit-tested.
- * \param data what was passed as `callback_data` to SDL_SetWindowHitTest().
- * \returns an SDL_HitTestResult value.
- *
- * \sa SDL_SetWindowHitTest
- */
+	/**
+	 * Callback used for hit-testing.
+	 *
+	 * \param win the SDL_Window where hit-testing was set on.
+	 * \param area an SDL_Point which should be hit-tested.
+	 * \param data what was passed as `callback_data` to SDL_SetWindowHitTest().
+	 * \returns an SDL_HitTestResult value.
+	 *
+	 * \sa SDL_SetWindowHitTest
+	 */
 	public typealias SDL_HitTest = function SDL_HitTestResult(SDL_Window* win, SDL_Point* area, void* data);
 
-/**
- * Provide a callback that decides if a window region has special properties.
- *
- * Normally windows are dragged and resized by decorations provided by the
- * system window manager (a title bar, borders, etc), but for some apps, it
- * makes sense to drag them from somewhere else inside the window itself; for
- * example, one might have a borderless window that wants to be draggable from
- * any part, or simulate its own title bar, etc.
- *
- * This function lets the app provide a callback that designates pieces of a
- * given window as special. This callback is run during event processing if we
- * need to tell the OS to treat a region of the window specially; the use of
- * this callback is known as "hit testing."
- *
- * Mouse input may not be delivered to your application if it is within a
- * special area; the OS will often apply that input to moving the window or
- * resizing the window and not deliver it to the application.
- *
- * Specifying NULL for a callback disables hit-testing. Hit-testing is
- * disabled by default.
- *
- * Platforms that don't support this functionality will return false
- * unconditionally, even if you're attempting to disable hit-testing.
- *
- * Your callback may fire at any time, and its firing does not indicate any
- * specific behavior (for example, on Windows, this certainly might fire when
- * the OS is deciding whether to drag your window, but it fires for lots of
- * other reasons, too, some unrelated to anything you probably care about _and
- * when the mouse isn't actually at the location it is testing_). Since this
- * can fire at any time, you should try to keep your callback efficient,
- * devoid of allocations, etc.
- *
- * \param window the window to set hit-testing on.
- * \param callback the function to call when doing a hit-test.
- * \param callback_data an app-defined void pointer passed to **callback**.
- * \returns true on success or false on failure; call SDL_GetError() for more
- *          information.
- *
- * \threadsafety This function should only be called on the main thread.
- *
- * \since This function is available since SDL 3.2.0.
- */
-[CLink] public static extern bool SDL_SetWindowHitTest(SDL_Window *window, SDL_HitTest callback, void *callback_data);
+	/**
+	 * Provide a callback that decides if a window region has special properties.
+	 *
+	 * Normally windows are dragged and resized by decorations provided by the
+	 * system window manager (a title bar, borders, etc), but for some apps, it
+	 * makes sense to drag them from somewhere else inside the window itself; for
+	 * example, one might have a borderless window that wants to be draggable from
+	 * any part, or simulate its own title bar, etc.
+	 *
+	 * This function lets the app provide a callback that designates pieces of a
+	 * given window as special. This callback is run during event processing if we
+	 * need to tell the OS to treat a region of the window specially; the use of
+	 * this callback is known as "hit testing."
+	 *
+	 * Mouse input may not be delivered to your application if it is within a
+	 * special area; the OS will often apply that input to moving the window or
+	 * resizing the window and not deliver it to the application.
+	 *
+	 * Specifying NULL for a callback disables hit-testing. Hit-testing is
+	 * disabled by default.
+	 *
+	 * Platforms that don't support this functionality will return false
+	 * unconditionally, even if you're attempting to disable hit-testing.
+	 *
+	 * Your callback may fire at any time, and its firing does not indicate any
+	 * specific behavior (for example, on Windows, this certainly might fire when
+	 * the OS is deciding whether to drag your window, but it fires for lots of
+	 * other reasons, too, some unrelated to anything you probably care about _and
+	 * when the mouse isn't actually at the location it is testing_). Since this
+	 * can fire at any time, you should try to keep your callback efficient,
+	 * devoid of allocations, etc.
+	 *
+	 * \param window the window to set hit-testing on.
+	 * \param callback the function to call when doing a hit-test.
+	 * \param callback_data an app-defined void pointer passed to **callback**.
+	 * \returns true on success or false on failure; call SDL_GetError() for more
+	 *          information.
+	 *
+	 * \threadsafety This function should only be called on the main thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 */
+	[CLink] public static extern bool SDL_SetWindowHitTest(SDL_Window* window, SDL_HitTest callback, void* callback_data);
 
-/**
- * Set the shape of a transparent window.
- *
- * This sets the alpha channel of a transparent window and any fully
- * transparent areas are also transparent to mouse clicks. If you are using
- * something besides the SDL render API, then you are responsible for drawing
- * the alpha channel of the window to match the shape alpha channel to get
- * consistent cross-platform results.
- *
- * The shape is copied inside this function, so you can free it afterwards. If
- * your shape surface changes, you should call SDL_SetWindowShape() again to
- * update the window. This is an expensive operation, so should be done
- * sparingly.
- *
- * The window must have been created with the SDL_WINDOW_TRANSPARENT flag.
- *
- * \param window the window.
- * \param shape the surface representing the shape of the window, or NULL to
- *              remove any current shape.
- * \returns true on success or false on failure; call SDL_GetError() for more
- *          information.
- *
- * \threadsafety This function should only be called on the main thread.
- *
- * \since This function is available since SDL 3.2.0.
- */
-[CLink] public static extern bool SDL_SetWindowShape(SDL_Window *window, SDL_Surface *shape);
+	/**
+	 * Set the shape of a transparent window.
+	 *
+	 * This sets the alpha channel of a transparent window and any fully
+	 * transparent areas are also transparent to mouse clicks. If you are using
+	 * something besides the SDL render API, then you are responsible for drawing
+	 * the alpha channel of the window to match the shape alpha channel to get
+	 * consistent cross-platform results.
+	 *
+	 * The shape is copied inside this function, so you can free it afterwards. If
+	 * your shape surface changes, you should call SDL_SetWindowShape() again to
+	 * update the window. This is an expensive operation, so should be done
+	 * sparingly.
+	 *
+	 * The window must have been created with the SDL_WINDOW_TRANSPARENT flag.
+	 *
+	 * \param window the window.
+	 * \param shape the surface representing the shape of the window, or NULL to
+	 *              remove any current shape.
+	 * \returns true on success or false on failure; call SDL_GetError() for more
+	 *          information.
+	 *
+	 * \threadsafety This function should only be called on the main thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 */
+	[CLink] public static extern bool SDL_SetWindowShape(SDL_Window* window, SDL_Surface* shape);
 
-/**
- * Request a window to demand attention from the user.
- *
- * \param window the window to be flashed.
- * \param operation the operation to perform.
- * \returns true on success or false on failure; call SDL_GetError() for more
- *          information.
- *
- * \threadsafety This function should only be called on the main thread.
- *
- * \since This function is available since SDL 3.2.0.
- */
-[CLink] public static extern bool SDL_FlashWindow(SDL_Window *window, SDL_FlashOperation operation);
+	/**
+	 * Request a window to demand attention from the user.
+	 *
+	 * \param window the window to be flashed.
+	 * \param operation the operation to perform.
+	 * \returns true on success or false on failure; call SDL_GetError() for more
+	 *          information.
+	 *
+	 * \threadsafety This function should only be called on the main thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 */
+	[CLink] public static extern bool SDL_FlashWindow(SDL_Window* window, SDL_FlashOperation operation);
 
-/**
- * Sets the state of the progress bar for the given window’s taskbar icon.
- *
- * \param window the window whose progress state is to be modified.
- * \param state the progress state. `SDL_PROGRESS_STATE_NONE` stops displaying
- *              the progress bar.
- * \returns true on success or false on failure; call SDL_GetError() for more
- *          information.
- *
- * \threadsafety This function should only be called on the main thread.
- *
- * \since This function is available since SDL 3.4.0.
- */
-[CLink] public static extern bool SDL_SetWindowProgressState(SDL_Window *window, SDL_ProgressState state);
+	/**
+	 * Sets the state of the progress bar for the given window’s taskbar icon.
+	 *
+	 * \param window the window whose progress state is to be modified.
+	 * \param state the progress state. `SDL_PROGRESS_STATE_NONE` stops displaying
+	 *              the progress bar.
+	 * \returns true on success or false on failure; call SDL_GetError() for more
+	 *          information.
+	 *
+	 * \threadsafety This function should only be called on the main thread.
+	 *
+	 * \since This function is available since SDL 3.4.0.
+	 */
+	[CLink] public static extern bool SDL_SetWindowProgressState(SDL_Window* window, SDL_ProgressState state);
 
-/**
- * Get the state of the progress bar for the given window’s taskbar icon.
- *
- * \param window the window to get the current progress state from.
- * \returns the progress state, or `SDL_PROGRESS_STATE_INVALID` on failure;
- *          call SDL_GetError() for more information.
- *
- * \threadsafety This function should only be called on the main thread.
- *
- * \since This function is available since SDL 3.4.0.
- */
-[CLink] public static extern SDL_ProgressState SDL_GetWindowProgressState(SDL_Window *window);
+	/**
+	 * Get the state of the progress bar for the given window’s taskbar icon.
+	 *
+	 * \param window the window to get the current progress state from.
+	 * \returns the progress state, or `SDL_PROGRESS_STATE_INVALID` on failure;
+	 *          call SDL_GetError() for more information.
+	 *
+	 * \threadsafety This function should only be called on the main thread.
+	 *
+	 * \since This function is available since SDL 3.4.0.
+	 */
+	[CLink] public static extern SDL_ProgressState SDL_GetWindowProgressState(SDL_Window* window);
 
-/**
- * Sets the value of the progress bar for the given window’s taskbar icon.
- *
- * \param window the window whose progress value is to be modified.
- * \param value the progress value in the range of [0.0f - 1.0f]. If the value
- *              is outside the valid range, it gets clamped.
- * \returns true on success or false on failure; call SDL_GetError() for more
- *          information.
- *
- * \threadsafety This function should only be called on the main thread.
- *
- * \since This function is available since SDL 3.4.0.
- */
-[CLink] public static extern bool SDL_SetWindowProgressValue(SDL_Window *window, float value);
+	/**
+	 * Sets the value of the progress bar for the given window’s taskbar icon.
+	 *
+	 * \param window the window whose progress value is to be modified.
+	 * \param value the progress value in the range of [0.0f - 1.0f]. If the value
+	 *              is outside the valid range, it gets clamped.
+	 * \returns true on success or false on failure; call SDL_GetError() for more
+	 *          information.
+	 *
+	 * \threadsafety This function should only be called on the main thread.
+	 *
+	 * \since This function is available since SDL 3.4.0.
+	 */
+	[CLink] public static extern bool SDL_SetWindowProgressValue(SDL_Window* window, float value);
 
-/**
- * Get the value of the progress bar for the given window’s taskbar icon.
- *
- * \param window the window to get the current progress value from.
- * \returns the progress value in the range of [0.0f - 1.0f], or -1.0f on
- *          failure; call SDL_GetError() for more information.
- *
- * \threadsafety This function should only be called on the main thread.
- *
- * \since This function is available since SDL 3.4.0.
- */
-[CLink] public static extern float SDL_GetWindowProgressValue(SDL_Window *window);
+	/**
+	 * Get the value of the progress bar for the given window’s taskbar icon.
+	 *
+	 * \param window the window to get the current progress value from.
+	 * \returns the progress value in the range of [0.0f - 1.0f], or -1.0f on
+	 *          failure; call SDL_GetError() for more information.
+	 *
+	 * \threadsafety This function should only be called on the main thread.
+	 *
+	 * \since This function is available since SDL 3.4.0.
+	 */
+	[CLink] public static extern float SDL_GetWindowProgressValue(SDL_Window* window);
 
-/**
- * Destroy a window.
- *
- * Any child windows owned by the window will be recursively destroyed as
- * well.
- *
- * Note that on some platforms, the visible window may not actually be removed
- * from the screen until the SDL event loop is pumped again, even though the
- * SDL_Window is no longer valid after this call.
- *
- * \param window the window to destroy.
- *
- * \threadsafety This function should only be called on the main thread.
- *
- * \since This function is available since SDL 3.2.0.
- *
- * \sa SDL_CreatePopupWindow
- * \sa SDL_CreateWindow
- * \sa SDL_CreateWindowWithProperties
- */
-[CLink] public static extern void SDL_DestroyWindow(SDL_Window *window);
-
-
-/**
- * Check whether the screensaver is currently enabled.
- *
- * The screensaver is disabled by default.
- *
- * The default can also be changed using `SDL_HINT_VIDEO_ALLOW_SCREENSAVER`.
- *
- * \returns true if the screensaver is enabled, false if it is disabled.
- *
- * \threadsafety This function should only be called on the main thread.
- *
- * \since This function is available since SDL 3.2.0.
- *
- * \sa SDL_DisableScreenSaver
- * \sa SDL_EnableScreenSaver
- */
-[CLink] public static extern bool SDL_ScreenSaverEnabled();
-
-/**
- * Allow the screen to be blanked by a screen saver.
- *
- * \returns true on success or false on failure; call SDL_GetError() for more
- *          information.
- *
- * \threadsafety This function should only be called on the main thread.
- *
- * \since This function is available since SDL 3.2.0.
- *
- * \sa SDL_DisableScreenSaver
- * \sa SDL_ScreenSaverEnabled
- */
-[CLink] public static extern bool SDL_EnableScreenSaver();
-
-/**
- * Prevent the screen from being blanked by a screen saver.
- *
- * If you disable the screensaver, it is automatically re-enabled when SDL
- * quits.
- *
- * The screensaver is disabled by default, but this may by changed by
- * SDL_HINT_VIDEO_ALLOW_SCREENSAVER.
- *
- * \returns true on success or false on failure; call SDL_GetError() for more
- *          information.
- *
- * \threadsafety This function should only be called on the main thread.
- *
- * \since This function is available since SDL 3.2.0.
- *
- * \sa SDL_EnableScreenSaver
- * \sa SDL_ScreenSaverEnabled
- */
-[CLink] public static extern bool SDL_DisableScreenSaver();
+	/**
+	 * Destroy a window.
+	 *
+	 * Any child windows owned by the window will be recursively destroyed as
+	 * well.
+	 *
+	 * Note that on some platforms, the visible window may not actually be removed
+	 * from the screen until the SDL event loop is pumped again, even though the
+	 * SDL_Window is no longer valid after this call.
+	 *
+	 * \param window the window to destroy.
+	 *
+	 * \threadsafety This function should only be called on the main thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 *
+	 * \sa SDL_CreatePopupWindow
+	 * \sa SDL_CreateWindow
+	 * \sa SDL_CreateWindowWithProperties
+	 */
+	[CLink] public static extern void SDL_DestroyWindow(SDL_Window* window);
 
 
-/**
- *  \name OpenGL support functions
- */
-/* @{ */
+	/**
+	 * Check whether the screensaver is currently enabled.
+	 *
+	 * The screensaver is disabled by default.
+	 *
+	 * The default can also be changed using `SDL_HINT_VIDEO_ALLOW_SCREENSAVER`.
+	 *
+	 * \returns true if the screensaver is enabled, false if it is disabled.
+	 *
+	 * \threadsafety This function should only be called on the main thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 *
+	 * \sa SDL_DisableScreenSaver
+	 * \sa SDL_EnableScreenSaver
+	 */
+	[CLink] public static extern bool SDL_ScreenSaverEnabled();
 
-/**
- * Dynamically load an OpenGL library.
- *
- * This should be done after initializing the video driver, but before
- * creating any OpenGL windows. If no OpenGL library is loaded, the default
- * library will be loaded upon creation of the first OpenGL window.
- *
- * If you do this, you need to retrieve all of the GL functions used in your
- * program from the dynamic library using SDL_GL_GetProcAddress().
- *
- * \param path the platform dependent OpenGL library name, or NULL to open the
- *             default OpenGL library.
- * \returns true on success or false on failure; call SDL_GetError() for more
- *          information.
- *
- * \threadsafety This function should only be called on the main thread.
- *
- * \since This function is available since SDL 3.2.0.
- *
- * \sa SDL_GL_GetProcAddress
- * \sa SDL_GL_UnloadLibrary
- */
-[CLink] public static extern bool SDL_GL_LoadLibrary(char8* path);
+	/**
+	 * Allow the screen to be blanked by a screen saver.
+	 *
+	 * \returns true on success or false on failure; call SDL_GetError() for more
+	 *          information.
+	 *
+	 * \threadsafety This function should only be called on the main thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 *
+	 * \sa SDL_DisableScreenSaver
+	 * \sa SDL_ScreenSaverEnabled
+	 */
+	[CLink] public static extern bool SDL_EnableScreenSaver();
 
-/**
- * Get an OpenGL function by name.
- *
- * If the GL library is loaded at runtime with SDL_GL_LoadLibrary(), then all
- * GL functions must be retrieved this way. Usually this is used to retrieve
- * function pointers to OpenGL extensions.
- *
- * There are some quirks to looking up OpenGL functions that require some
- * extra care from the application. If you code carefully, you can handle
- * these quirks without any platform-specific code, though:
- *
- * - On Windows, function pointers are specific to the current GL context;
- *   this means you need to have created a GL context and made it current
- *   before calling SDL_GL_GetProcAddress(). If you recreate your context or
- *   create a second context, you should assume that any existing function
- *   pointers aren't valid to use with it. This is (currently) a
- *   Windows-specific limitation, and in practice lots of drivers don't suffer
- *   this limitation, but it is still the way the wgl API is documented to
- *   work and you should expect crashes if you don't respect it. Store a copy
- *   of the function pointers that comes and goes with context lifespan.
- * - On X11, function pointers returned by this function are valid for any
- *   context, and can even be looked up before a context is created at all.
- *   This means that, for at least some common OpenGL implementations, if you
- *   look up a function that doesn't exist, you'll get a non-NULL result that
- *   is _NOT_ safe to call. You must always make sure the function is actually
- *   available for a given GL context before calling it, by checking for the
- *   existence of the appropriate extension with SDL_GL_ExtensionSupported(),
- *   or verifying that the version of OpenGL you're using offers the function
- *   as core functionality.
- * - Some OpenGL drivers, on all platforms, *will* return NULL if a function
- *   isn't supported, but you can't count on this behavior. Check for
- *   extensions you use, and if you get a NULL anyway, act as if that
- *   extension wasn't available. This is probably a bug in the driver, but you
- *   can code defensively for this scenario anyhow.
- * - Just because you're on Linux/Unix, don't assume you'll be using X11.
- *   Next-gen display servers are waiting to replace it, and may or may not
- *   make the same promises about function pointers.
- * - OpenGL function pointers must be declared `APIENTRY` as in the example
- *   code. This will ensure the proper calling convention is followed on
- *   platforms where this matters (Win32) thereby avoiding stack corruption.
- *
- * \param proc the name of an OpenGL function.
- * \returns a pointer to the named OpenGL function. The returned pointer
- *          should be cast to the appropriate function signature.
- *
- * \threadsafety This function should only be called on the main thread.
- *
- * \since This function is available since SDL 3.2.0.
- *
- * \sa SDL_GL_ExtensionSupported
- * \sa SDL_GL_LoadLibrary
- * \sa SDL_GL_UnloadLibrary
- */
-[CLink] public static extern SDL_FunctionPointer SDL_GL_GetProcAddress(char8* proc);
+	/**
+	 * Prevent the screen from being blanked by a screen saver.
+	 *
+	 * If you disable the screensaver, it is automatically re-enabled when SDL
+	 * quits.
+	 *
+	 * The screensaver is disabled by default, but this may by changed by
+	 * SDL_HINT_VIDEO_ALLOW_SCREENSAVER.
+	 *
+	 * \returns true on success or false on failure; call SDL_GetError() for more
+	 *          information.
+	 *
+	 * \threadsafety This function should only be called on the main thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 *
+	 * \sa SDL_EnableScreenSaver
+	 * \sa SDL_ScreenSaverEnabled
+	 */
+	[CLink] public static extern bool SDL_DisableScreenSaver();
 
-/**
- * Get an EGL library function by name.
- *
- * If an EGL library is loaded, this function allows applications to get entry
- * points for EGL functions. This is useful to provide to an EGL API and
- * extension loader.
- *
- * \param proc the name of an EGL function.
- * \returns a pointer to the named EGL function. The returned pointer should
- *          be cast to the appropriate function signature.
- *
- * \threadsafety This function should only be called on the main thread.
- *
- * \since This function is available since SDL 3.2.0.
- *
- * \sa SDL_EGL_GetCurrentDisplay
- */
-[CLink] public static extern SDL_FunctionPointer SDL_EGL_GetProcAddress(char8* proc);
 
-/**
- * Unload the OpenGL library previously loaded by SDL_GL_LoadLibrary().
- *
- * \threadsafety This function should only be called on the main thread.
- *
- * \since This function is available since SDL 3.2.0.
- *
- * \sa SDL_GL_LoadLibrary
- */
-[CLink] public static extern void SDL_GL_UnloadLibrary();
+	/**
+	 *  \name OpenGL support functions
+	 */
+	/* @{ */
 
-/**
- * Check if an OpenGL extension is supported for the current context.
- *
- * This function operates on the current GL context; you must have created a
- * context and it must be current before calling this function. Do not assume
- * that all contexts you create will have the same set of extensions
- * available, or that recreating an existing context will offer the same
- * extensions again.
- *
- * While it's probably not a massive overhead, this function is not an O(1)
- * operation. Check the extensions you care about after creating the GL
- * context and save that information somewhere instead of calling the function
- * every time you need to know.
- *
- * \param extension the name of the extension to check.
- * \returns true if the extension is supported, false otherwise.
- *
- * \threadsafety This function should only be called on the main thread.
- *
- * \since This function is available since SDL 3.2.0.
- */
-[CLink] public static extern bool SDL_GL_ExtensionSupported(char8* @extension);
+	/**
+	 * Dynamically load an OpenGL library.
+	 *
+	 * This should be done after initializing the video driver, but before
+	 * creating any OpenGL windows. If no OpenGL library is loaded, the default
+	 * library will be loaded upon creation of the first OpenGL window.
+	 *
+	 * If you do this, you need to retrieve all of the GL functions used in your
+	 * program from the dynamic library using SDL_GL_GetProcAddress().
+	 *
+	 * \param path the platform dependent OpenGL library name, or NULL to open the
+	 *             default OpenGL library.
+	 * \returns true on success or false on failure; call SDL_GetError() for more
+	 *          information.
+	 *
+	 * \threadsafety This function should only be called on the main thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 *
+	 * \sa SDL_GL_GetProcAddress
+	 * \sa SDL_GL_UnloadLibrary
+	 */
+	[CLink] public static extern bool SDL_GL_LoadLibrary(char8* path);
 
-/**
- * Reset all previously set OpenGL context attributes to their default values.
- *
- * \threadsafety This function should only be called on the main thread.
- *
- * \since This function is available since SDL 3.2.0.
- *
- * \sa SDL_GL_GetAttribute
- * \sa SDL_GL_SetAttribute
- */
-[CLink] public static extern void SDL_GL_ResetAttributes();
+	/**
+	 * Get an OpenGL function by name.
+	 *
+	 * If the GL library is loaded at runtime with SDL_GL_LoadLibrary(), then all
+	 * GL functions must be retrieved this way. Usually this is used to retrieve
+	 * function pointers to OpenGL extensions.
+	 *
+	 * There are some quirks to looking up OpenGL functions that require some
+	 * extra care from the application. If you code carefully, you can handle
+	 * these quirks without any platform-specific code, though:
+	 *
+	 * - On Windows, function pointers are specific to the current GL context;
+	 *   this means you need to have created a GL context and made it current
+	 *   before calling SDL_GL_GetProcAddress(). If you recreate your context or
+	 *   create a second context, you should assume that any existing function
+	 *   pointers aren't valid to use with it. This is (currently) a
+	 *   Windows-specific limitation, and in practice lots of drivers don't suffer
+	 *   this limitation, but it is still the way the wgl API is documented to
+	 *   work and you should expect crashes if you don't respect it. Store a copy
+	 *   of the function pointers that comes and goes with context lifespan.
+	 * - On X11, function pointers returned by this function are valid for any
+	 *   context, and can even be looked up before a context is created at all.
+	 *   This means that, for at least some common OpenGL implementations, if you
+	 *   look up a function that doesn't exist, you'll get a non-NULL result that
+	 *   is _NOT_ safe to call. You must always make sure the function is actually
+	 *   available for a given GL context before calling it, by checking for the
+	 *   existence of the appropriate extension with SDL_GL_ExtensionSupported(),
+	 *   or verifying that the version of OpenGL you're using offers the function
+	 *   as core functionality.
+	 * - Some OpenGL drivers, on all platforms, *will* return NULL if a function
+	 *   isn't supported, but you can't count on this behavior. Check for
+	 *   extensions you use, and if you get a NULL anyway, act as if that
+	 *   extension wasn't available. This is probably a bug in the driver, but you
+	 *   can code defensively for this scenario anyhow.
+	 * - Just because you're on Linux/Unix, don't assume you'll be using X11.
+	 *   Next-gen display servers are waiting to replace it, and may or may not
+	 *   make the same promises about function pointers.
+	 * - OpenGL function pointers must be declared `APIENTRY` as in the example
+	 *   code. This will ensure the proper calling convention is followed on
+	 *   platforms where this matters (Win32) thereby avoiding stack corruption.
+	 *
+	 * \param proc the name of an OpenGL function.
+	 * \returns a pointer to the named OpenGL function. The returned pointer
+	 *          should be cast to the appropriate function signature.
+	 *
+	 * \threadsafety This function should only be called on the main thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 *
+	 * \sa SDL_GL_ExtensionSupported
+	 * \sa SDL_GL_LoadLibrary
+	 * \sa SDL_GL_UnloadLibrary
+	 */
+	[CLink] public static extern SDL_FunctionPointer SDL_GL_GetProcAddress(char8* proc);
 
-/**
- * Set an OpenGL window attribute before window creation.
- *
- * This function sets the OpenGL attribute `attr` to `value`. The requested
- * attributes should be set before creating an OpenGL window. You should use
- * SDL_GL_GetAttribute() to check the values after creating the OpenGL
- * context, since the values obtained can differ from the requested ones.
- *
- * \param attr an enum value specifying the OpenGL attribute to set.
- * \param value the desired value for the attribute.
- * \returns true on success or false on failure; call SDL_GetError() for more
- *          information.
- *
- * \threadsafety This function should only be called on the main thread.
- *
- * \since This function is available since SDL 3.2.0.
- *
- * \sa SDL_GL_CreateContext
- * \sa SDL_GL_GetAttribute
- * \sa SDL_GL_ResetAttributes
- */
-[CLink] public static extern bool SDL_GL_SetAttribute(SDL_GLAttr attr, int32 value);
+	/**
+	 * Get an EGL library function by name.
+	 *
+	 * If an EGL library is loaded, this function allows applications to get entry
+	 * points for EGL functions. This is useful to provide to an EGL API and
+	 * extension loader.
+	 *
+	 * \param proc the name of an EGL function.
+	 * \returns a pointer to the named EGL function. The returned pointer should
+	 *          be cast to the appropriate function signature.
+	 *
+	 * \threadsafety This function should only be called on the main thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 *
+	 * \sa SDL_EGL_GetCurrentDisplay
+	 */
+	[CLink] public static extern SDL_FunctionPointer SDL_EGL_GetProcAddress(char8* proc);
 
-/**
- * Get the actual value for an attribute from the current context.
- *
- * \param attr an SDL_GLAttr enum value specifying the OpenGL attribute to
- *             get.
- * \param value a pointer filled in with the current value of `attr`.
- * \returns true on success or false on failure; call SDL_GetError() for more
- *          information.
- *
- * \threadsafety This function should only be called on the main thread.
- *
- * \since This function is available since SDL 3.2.0.
- *
- * \sa SDL_GL_ResetAttributes
- * \sa SDL_GL_SetAttribute
- */
-[CLink] public static extern bool SDL_GL_GetAttribute(SDL_GLAttr attr, int32 *value);
+	/**
+	 * Unload the OpenGL library previously loaded by SDL_GL_LoadLibrary().
+	 *
+	 * \threadsafety This function should only be called on the main thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 *
+	 * \sa SDL_GL_LoadLibrary
+	 */
+	[CLink] public static extern void SDL_GL_UnloadLibrary();
 
-/**
- * Create an OpenGL context for an OpenGL window, and make it current.
- *
- * The OpenGL context will be created with the current states set through
- * SDL_GL_SetAttribute().
- *
- * The SDL_Window specified must have been created with the SDL_WINDOW_OPENGL
- * flag, or context creation will fail.
- *
- * Windows users new to OpenGL should note that, for historical reasons, GL
- * functions added after OpenGL version 1.1 are not available by default.
- * Those functions must be loaded at run-time, either with an OpenGL
- * extension-handling library or with SDL_GL_GetProcAddress() and its related
- * functions.
- *
- * SDL_GLContext is opaque to the application.
- *
- * \param window the window to associate with the context.
- * \returns the OpenGL context associated with `window` or NULL on failure;
- *          call SDL_GetError() for more information.
- *
- * \threadsafety This function should only be called on the main thread.
- *
- * \since This function is available since SDL 3.2.0.
- *
- * \sa SDL_GL_DestroyContext
- * \sa SDL_GL_MakeCurrent
- */
-[CLink] public static extern SDL_GLContext SDL_GL_CreateContext(SDL_Window *window);
+	/**
+	 * Check if an OpenGL extension is supported for the current context.
+	 *
+	 * This function operates on the current GL context; you must have created a
+	 * context and it must be current before calling this function. Do not assume
+	 * that all contexts you create will have the same set of extensions
+	 * available, or that recreating an existing context will offer the same
+	 * extensions again.
+	 *
+	 * While it's probably not a massive overhead, this function is not an O(1)
+	 * operation. Check the extensions you care about after creating the GL
+	 * context and save that information somewhere instead of calling the function
+	 * every time you need to know.
+	 *
+	 * \param extension the name of the extension to check.
+	 * \returns true if the extension is supported, false otherwise.
+	 *
+	 * \threadsafety This function should only be called on the main thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 */
+	[CLink] public static extern bool SDL_GL_ExtensionSupported(char8* @extension);
 
-/**
- * Set up an OpenGL context for rendering into an OpenGL window.
- *
- * The context must have been created with a compatible window.
- *
- * \param window the window to associate with the context.
- * \param context the OpenGL context to associate with the window.
- * \returns true on success or false on failure; call SDL_GetError() for more
- *          information.
- *
- * \threadsafety This function should only be called on the main thread.
- *
- * \since This function is available since SDL 3.2.0.
- *
- * \sa SDL_GL_CreateContext
- */
-[CLink] public static extern bool SDL_GL_MakeCurrent(SDL_Window *window, SDL_GLContext context);
+	/**
+	 * Reset all previously set OpenGL context attributes to their default values.
+	 *
+	 * \threadsafety This function should only be called on the main thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 *
+	 * \sa SDL_GL_GetAttribute
+	 * \sa SDL_GL_SetAttribute
+	 */
+	[CLink] public static extern void SDL_GL_ResetAttributes();
 
-/**
- * Get the currently active OpenGL window.
- *
- * \returns the currently active OpenGL window on success or NULL on failure;
- *          call SDL_GetError() for more information.
- *
- * \threadsafety This function should only be called on the main thread.
- *
- * \since This function is available since SDL 3.2.0.
- */
-[CLink] public static extern SDL_Window* SDL_GL_GetCurrentWindow();
+	/**
+	 * Set an OpenGL window attribute before window creation.
+	 *
+	 * This function sets the OpenGL attribute `attr` to `value`. The requested
+	 * attributes should be set before creating an OpenGL window. You should use
+	 * SDL_GL_GetAttribute() to check the values after creating the OpenGL
+	 * context, since the values obtained can differ from the requested ones.
+	 *
+	 * \param attr an enum value specifying the OpenGL attribute to set.
+	 * \param value the desired value for the attribute.
+	 * \returns true on success or false on failure; call SDL_GetError() for more
+	 *          information.
+	 *
+	 * \threadsafety This function should only be called on the main thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 *
+	 * \sa SDL_GL_CreateContext
+	 * \sa SDL_GL_GetAttribute
+	 * \sa SDL_GL_ResetAttributes
+	 */
+	[CLink] public static extern bool SDL_GL_SetAttribute(SDL_GLAttr attr, int32 value);
 
-/**
- * Get the currently active OpenGL context.
- *
- * \returns the currently active OpenGL context or NULL on failure; call
- *          SDL_GetError() for more information.
- *
- * \threadsafety This function should only be called on the main thread.
- *
- * \since This function is available since SDL 3.2.0.
- *
- * \sa SDL_GL_MakeCurrent
- */
-[CLink] public static extern SDL_GLContext SDL_GL_GetCurrentContext();
+	/**
+	 * Get the actual value for an attribute from the current context.
+	 *
+	 * \param attr an SDL_GLAttr enum value specifying the OpenGL attribute to
+	 *             get.
+	 * \param value a pointer filled in with the current value of `attr`.
+	 * \returns true on success or false on failure; call SDL_GetError() for more
+	 *          information.
+	 *
+	 * \threadsafety This function should only be called on the main thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 *
+	 * \sa SDL_GL_ResetAttributes
+	 * \sa SDL_GL_SetAttribute
+	 */
+	[CLink] public static extern bool SDL_GL_GetAttribute(SDL_GLAttr attr, int32* value);
 
-/**
- * Get the currently active EGL display.
- *
- * \returns the currently active EGL display or NULL on failure; call
- *          SDL_GetError() for more information.
- *
- * \threadsafety This function should only be called on the main thread.
- *
- * \since This function is available since SDL 3.2.0.
- */
-[CLink] public static extern SDL_EGLDisplay SDL_EGL_GetCurrentDisplay();
+	/**
+	 * Create an OpenGL context for an OpenGL window, and make it current.
+	 *
+	 * The OpenGL context will be created with the current states set through
+	 * SDL_GL_SetAttribute().
+	 *
+	 * The SDL_Window specified must have been created with the SDL_WINDOW_OPENGL
+	 * flag, or context creation will fail.
+	 *
+	 * Windows users new to OpenGL should note that, for historical reasons, GL
+	 * functions added after OpenGL version 1.1 are not available by default.
+	 * Those functions must be loaded at run-time, either with an OpenGL
+	 * extension-handling library or with SDL_GL_GetProcAddress() and its related
+	 * functions.
+	 *
+	 * SDL_GLContext is opaque to the application.
+	 *
+	 * \param window the window to associate with the context.
+	 * \returns the OpenGL context associated with `window` or NULL on failure;
+	 *          call SDL_GetError() for more information.
+	 *
+	 * \threadsafety This function should only be called on the main thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 *
+	 * \sa SDL_GL_DestroyContext
+	 * \sa SDL_GL_MakeCurrent
+	 */
+	[CLink] public static extern SDL_GLContext SDL_GL_CreateContext(SDL_Window* window);
 
-/**
- * Get the currently active EGL config.
- *
- * \returns the currently active EGL config or NULL on failure; call
- *          SDL_GetError() for more information.
- *
- * \threadsafety This function should only be called on the main thread.
- *
- * \since This function is available since SDL 3.2.0.
- */
-[CLink] public static extern SDL_EGLConfig SDL_EGL_GetCurrentConfig();
+	/**
+	 * Set up an OpenGL context for rendering into an OpenGL window.
+	 *
+	 * The context must have been created with a compatible window.
+	 *
+	 * \param window the window to associate with the context.
+	 * \param context the OpenGL context to associate with the window.
+	 * \returns true on success or false on failure; call SDL_GetError() for more
+	 *          information.
+	 *
+	 * \threadsafety This function should only be called on the main thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 *
+	 * \sa SDL_GL_CreateContext
+	 */
+	[CLink] public static extern bool SDL_GL_MakeCurrent(SDL_Window* window, SDL_GLContext context);
 
-/**
- * Get the EGL surface associated with the window.
- *
- * \param window the window to query.
- * \returns the EGLSurface pointer associated with the window, or NULL on
- *          failure.
- *
- * \threadsafety This function should only be called on the main thread.
- *
- * \since This function is available since SDL 3.2.0.
- */
-[CLink] public static extern SDL_EGLSurface SDL_EGL_GetWindowSurface(SDL_Window *window);
+	/**
+	 * Get the currently active OpenGL window.
+	 *
+	 * \returns the currently active OpenGL window on success or NULL on failure;
+	 *          call SDL_GetError() for more information.
+	 *
+	 * \threadsafety This function should only be called on the main thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 */
+	[CLink] public static extern SDL_Window* SDL_GL_GetCurrentWindow();
 
-/**
- * Sets the callbacks for defining custom EGLAttrib arrays for EGL
- * initialization.
- *
- * Callbacks that aren't needed can be set to NULL.
- *
- * NOTE: These callback pointers will be reset after SDL_GL_ResetAttributes.
- *
- * \param platformAttribCallback callback for attributes to pass to
- *                               eglGetPlatformDisplay. May be NULL.
- * \param surfaceAttribCallback callback for attributes to pass to
- *                              eglCreateSurface. May be NULL.
- * \param contextAttribCallback callback for attributes to pass to
- *                              eglCreateContext. May be NULL.
- * \param userdata a pointer that is passed to the callbacks.
- *
- * \threadsafety This function should only be called on the main thread.
- *
- * \since This function is available since SDL 3.2.0.
- */
-[CLink] public static extern void SDL_EGL_SetAttributeCallbacks(SDL_EGLAttribArrayCallback platformAttribCallback,
-                                                               SDL_EGLIntArrayCallback surfaceAttribCallback,
-                                                               SDL_EGLIntArrayCallback contextAttribCallback, void *userdata);
+	/**
+	 * Get the currently active OpenGL context.
+	 *
+	 * \returns the currently active OpenGL context or NULL on failure; call
+	 *          SDL_GetError() for more information.
+	 *
+	 * \threadsafety This function should only be called on the main thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 *
+	 * \sa SDL_GL_MakeCurrent
+	 */
+	[CLink] public static extern SDL_GLContext SDL_GL_GetCurrentContext();
 
-/**
- * Set the swap interval for the current OpenGL context.
- *
- * Some systems allow specifying -1 for the interval, to enable adaptive
- * vsync. Adaptive vsync works the same as vsync, but if you've already missed
- * the vertical retrace for a given frame, it swaps buffers immediately, which
- * might be less jarring for the user during occasional framerate drops. If an
- * application requests adaptive vsync and the system does not support it,
- * this function will fail and return false. In such a case, you should
- * probably retry the call with 1 for the interval.
- *
- * Adaptive vsync is implemented for some glX drivers with
- * GLX_EXT_swap_control_tear, and for some Windows drivers with
- * WGL_EXT_swap_control_tear.
- *
- * Read more on the Khronos wiki:
- * https://www.khronos.org/opengl/wiki/Swap_Interval#Adaptive_Vsync
- *
- * \param interval 0 for immediate updates, 1 for updates synchronized with
- *                 the vertical retrace, -1 for adaptive vsync.
- * \returns true on success or false on failure; call SDL_GetError() for more
- *          information.
- *
- * \threadsafety This function should only be called on the main thread.
- *
- * \since This function is available since SDL 3.2.0.
- *
- * \sa SDL_GL_GetSwapInterval
- */
-[CLink] public static extern bool SDL_GL_SetSwapInterval(int32 interval);
+	/**
+	 * Get the currently active EGL display.
+	 *
+	 * \returns the currently active EGL display or NULL on failure; call
+	 *          SDL_GetError() for more information.
+	 *
+	 * \threadsafety This function should only be called on the main thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 */
+	[CLink] public static extern SDL_EGLDisplay SDL_EGL_GetCurrentDisplay();
 
-/**
- * Get the swap interval for the current OpenGL context.
- *
- * If the system can't determine the swap interval, or there isn't a valid
- * current context, this function will set *interval to 0 as a safe default.
- *
- * \param interval output interval value. 0 if there is no vertical retrace
- *                 synchronization, 1 if the buffer swap is synchronized with
- *                 the vertical retrace, and -1 if late swaps happen
- *                 immediately instead of waiting for the next retrace.
- * \returns true on success or false on failure; call SDL_GetError() for more
- *          information.
- *
- * \threadsafety This function should only be called on the main thread.
- *
- * \since This function is available since SDL 3.2.0.
- *
- * \sa SDL_GL_SetSwapInterval
- */
-[CLink] public static extern bool SDL_GL_GetSwapInterval(int32 *interval);
+	/**
+	 * Get the currently active EGL config.
+	 *
+	 * \returns the currently active EGL config or NULL on failure; call
+	 *          SDL_GetError() for more information.
+	 *
+	 * \threadsafety This function should only be called on the main thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 */
+	[CLink] public static extern SDL_EGLConfig SDL_EGL_GetCurrentConfig();
 
-/**
- * Update a window with OpenGL rendering.
- *
- * This is used with double-buffered OpenGL contexts, which are the default.
- *
- * On macOS, make sure you bind 0 to the draw framebuffer before swapping the
- * window, otherwise nothing will happen. If you aren't using
- * glBindFramebuffer(), this is the default and you won't have to do anything
- * extra.
- *
- * \param window the window to change.
- * \returns true on success or false on failure; call SDL_GetError() for more
- *          information.
- *
- * \threadsafety This function should only be called on the main thread.
- *
- * \since This function is available since SDL 3.2.0.
- */
-[CLink] public static extern bool SDL_GL_SwapWindow(SDL_Window *window);
+	/**
+	 * Get the EGL surface associated with the window.
+	 *
+	 * \param window the window to query.
+	 * \returns the EGLSurface pointer associated with the window, or NULL on
+	 *          failure.
+	 *
+	 * \threadsafety This function should only be called on the main thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 */
+	[CLink] public static extern SDL_EGLSurface SDL_EGL_GetWindowSurface(SDL_Window* window);
 
-/**
- * Delete an OpenGL context.
- *
- * \param context the OpenGL context to be deleted.
- * \returns true on success or false on failure; call SDL_GetError() for more
- *          information.
- *
- * \threadsafety This function should only be called on the main thread.
- *
- * \since This function is available since SDL 3.2.0.
- *
- * \sa SDL_GL_CreateContext
- */
-[CLink] public static extern bool SDL_GL_DestroyContext(SDL_GLContext context);
+	/**
+	 * Sets the callbacks for defining custom EGLAttrib arrays for EGL
+	 * initialization.
+	 *
+	 * Callbacks that aren't needed can be set to NULL.
+	 *
+	 * NOTE: These callback pointers will be reset after SDL_GL_ResetAttributes.
+	 *
+	 * \param platformAttribCallback callback for attributes to pass to
+	 *                               eglGetPlatformDisplay. May be NULL.
+	 * \param surfaceAttribCallback callback for attributes to pass to
+	 *                              eglCreateSurface. May be NULL.
+	 * \param contextAttribCallback callback for attributes to pass to
+	 *                              eglCreateContext. May be NULL.
+	 * \param userdata a pointer that is passed to the callbacks.
+	 *
+	 * \threadsafety This function should only be called on the main thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 */
+	[CLink] public static extern void SDL_EGL_SetAttributeCallbacks(SDL_EGLAttribArrayCallback platformAttribCallback,
+		SDL_EGLIntArrayCallback surfaceAttribCallback,
+		SDL_EGLIntArrayCallback contextAttribCallback, void* userdata);
 
-/* @} *//* OpenGL support functions */
+	/**
+	 * Set the swap interval for the current OpenGL context.
+	 *
+	 * Some systems allow specifying -1 for the interval, to enable adaptive
+	 * vsync. Adaptive vsync works the same as vsync, but if you've already missed
+	 * the vertical retrace for a given frame, it swaps buffers immediately, which
+	 * might be less jarring for the user during occasional framerate drops. If an
+	 * application requests adaptive vsync and the system does not support it,
+	 * this function will fail and return false. In such a case, you should
+	 * probably retry the call with 1 for the interval.
+	 *
+	 * Adaptive vsync is implemented for some glX drivers with
+	 * GLX_EXT_swap_control_tear, and for some Windows drivers with
+	 * WGL_EXT_swap_control_tear.
+	 *
+	 * Read more on the Khronos wiki:
+	 * https://www.khronos.org/opengl/wiki/Swap_Interval#Adaptive_Vsync
+	 *
+	 * \param interval 0 for immediate updates, 1 for updates synchronized with
+	 *                 the vertical retrace, -1 for adaptive vsync.
+	 * \returns true on success or false on failure; call SDL_GetError() for more
+	 *          information.
+	 *
+	 * \threadsafety This function should only be called on the main thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 *
+	 * \sa SDL_GL_GetSwapInterval
+	 */
+	[CLink] public static extern bool SDL_GL_SetSwapInterval(int32 interval);
+
+	/**
+	 * Get the swap interval for the current OpenGL context.
+	 *
+	 * If the system can't determine the swap interval, or there isn't a valid
+	 * current context, this function will set *interval to 0 as a safe default.
+	 *
+	 * \param interval output interval value. 0 if there is no vertical retrace
+	 *                 synchronization, 1 if the buffer swap is synchronized with
+	 *                 the vertical retrace, and -1 if late swaps happen
+	 *                 immediately instead of waiting for the next retrace.
+	 * \returns true on success or false on failure; call SDL_GetError() for more
+	 *          information.
+	 *
+	 * \threadsafety This function should only be called on the main thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 *
+	 * \sa SDL_GL_SetSwapInterval
+	 */
+	[CLink] public static extern bool SDL_GL_GetSwapInterval(int32* interval);
+
+	/**
+	 * Update a window with OpenGL rendering.
+	 *
+	 * This is used with double-buffered OpenGL contexts, which are the default.
+	 *
+	 * On macOS, make sure you bind 0 to the draw framebuffer before swapping the
+	 * window, otherwise nothing will happen. If you aren't using
+	 * glBindFramebuffer(), this is the default and you won't have to do anything
+	 * extra.
+	 *
+	 * \param window the window to change.
+	 * \returns true on success or false on failure; call SDL_GetError() for more
+	 *          information.
+	 *
+	 * \threadsafety This function should only be called on the main thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 */
+	[CLink] public static extern bool SDL_GL_SwapWindow(SDL_Window* window);
+
+	/**
+	 * Delete an OpenGL context.
+	 *
+	 * \param context the OpenGL context to be deleted.
+	 * \returns true on success or false on failure; call SDL_GetError() for more
+	 *          information.
+	 *
+	 * \threadsafety This function should only be called on the main thread.
+	 *
+	 * \since This function is available since SDL 3.2.0.
+	 *
+	 * \sa SDL_GL_CreateContext
+	 */
+	[CLink] public static extern bool SDL_GL_DestroyContext(SDL_GLContext context);
+
+	/* @} */ /* OpenGL support functions */
 
 }

@@ -12,11 +12,11 @@ using System;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -65,7 +65,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern int32 SDL_GetNumLogicalCPUCores();
+	[CLink] public static extern int32 SDL_GetNumLogicalCPUCores();
 
 /**
  * Determine the L1 cache line size of the CPU.
@@ -79,7 +79,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern int32 SDL_GetCPUCacheLineSize();
+	[CLink] public static extern int32 SDL_GetCPUCacheLineSize();
 
 /**
  * Determine whether the CPU has AltiVec features.
@@ -93,7 +93,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_HasAltiVec();
+	[CLink] public static extern bool SDL_HasAltiVec();
 
 /**
  * Determine whether the CPU has MMX features.
@@ -106,7 +106,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_HasMMX();
+	[CLink] public static extern bool SDL_HasMMX();
 
 /**
  * Determine whether the CPU has SSE features.
@@ -124,7 +124,7 @@ public static //extension SDL3
  * \sa SDL_HasSSE41
  * \sa SDL_HasSSE42
  */
-[CLink] public static extern bool SDL_HasSSE();
+	[CLink] public static extern bool SDL_HasSSE();
 
 /**
  * Determine whether the CPU has SSE2 features.
@@ -142,7 +142,7 @@ public static //extension SDL3
  * \sa SDL_HasSSE41
  * \sa SDL_HasSSE42
  */
-[CLink] public static extern bool SDL_HasSSE2();
+	[CLink] public static extern bool SDL_HasSSE2();
 
 /**
  * Determine whether the CPU has SSE3 features.
@@ -160,7 +160,7 @@ public static //extension SDL3
  * \sa SDL_HasSSE41
  * \sa SDL_HasSSE42
  */
-[CLink] public static extern bool SDL_HasSSE3();
+	[CLink] public static extern bool SDL_HasSSE3();
 
 /**
  * Determine whether the CPU has SSE4.1 features.
@@ -178,7 +178,7 @@ public static //extension SDL3
  * \sa SDL_HasSSE3
  * \sa SDL_HasSSE42
  */
-[CLink] public static extern bool SDL_HasSSE41();
+	[CLink] public static extern bool SDL_HasSSE41();
 
 /**
  * Determine whether the CPU has SSE4.2 features.
@@ -196,7 +196,7 @@ public static //extension SDL3
  * \sa SDL_HasSSE3
  * \sa SDL_HasSSE41
  */
-[CLink] public static extern bool SDL_HasSSE42();
+	[CLink] public static extern bool SDL_HasSSE42();
 
 /**
  * Determine whether the CPU has AVX features.
@@ -212,7 +212,7 @@ public static //extension SDL3
  * \sa SDL_HasAVX2
  * \sa SDL_HasAVX512F
  */
-[CLink] public static extern bool SDL_HasAVX();
+	[CLink] public static extern bool SDL_HasAVX();
 
 /**
  * Determine whether the CPU has AVX2 features.
@@ -228,7 +228,7 @@ public static //extension SDL3
  * \sa SDL_HasAVX
  * \sa SDL_HasAVX512F
  */
-[CLink] public static extern bool SDL_HasAVX2();
+	[CLink] public static extern bool SDL_HasAVX2();
 
 /**
  * Determine whether the CPU has AVX-512F (foundation) features.
@@ -244,7 +244,7 @@ public static //extension SDL3
  * \sa SDL_HasAVX
  * \sa SDL_HasAVX2
  */
-[CLink] public static extern bool SDL_HasAVX512F();
+	[CLink] public static extern bool SDL_HasAVX512F();
 
 /**
  * Determine whether the CPU has ARM SIMD (ARMv6) features.
@@ -261,7 +261,7 @@ public static //extension SDL3
  *
  * \sa SDL_HasNEON
  */
-[CLink] public static extern bool SDL_HasARMSIMD();
+	[CLink] public static extern bool SDL_HasARMSIMD();
 
 /**
  * Determine whether the CPU has NEON (ARM SIMD) features.
@@ -274,7 +274,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_HasNEON();
+	[CLink] public static extern bool SDL_HasNEON();
 
 /**
  * Determine whether the CPU has LSX (LOONGARCH SIMD) features.
@@ -288,7 +288,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_HasLSX();
+	[CLink] public static extern bool SDL_HasLSX();
 
 /**
  * Determine whether the CPU has LASX (LOONGARCH SIMD) features.
@@ -302,7 +302,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_HasLASX();
+	[CLink] public static extern bool SDL_HasLASX();
 
 /**
  * Get the amount of RAM configured in the system.
@@ -313,7 +313,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern int32 SDL_GetSystemRAM();
+	[CLink] public static extern int32 SDL_GetSystemRAM();
 
 /**
  * Report the alignment this system needs for SIMD allocations.
@@ -337,7 +337,7 @@ public static //extension SDL3
  * \sa SDL_aligned_alloc
  * \sa SDL_aligned_free
  */
-[CLink] public static extern uint SDL_GetSIMDAlignment();
+	[CLink] public static extern uint SDL_GetSIMDAlignment();
 
 /**
  * Report the size of a page of memory.
@@ -358,6 +358,6 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.4.0.
  */
-[CLink] public static extern int32 SDL_GetSystemPageSize();
+	[CLink] public static extern int32 SDL_GetSystemPageSize();
 
 }

@@ -13,11 +13,11 @@ using System;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -43,12 +43,12 @@ namespace SDL3;
  */
 public enum SDL_IOStatus : int32
 {
-    SDL_IO_STATUS_READY,     /**< Everything is ready (no errors and not EOF). */
-    SDL_IO_STATUS_ERROR,     /**< Read or write I/O error */
-    SDL_IO_STATUS_EOF,       /**< End of file */
-    SDL_IO_STATUS_NOT_READY, /**< Non blocking I/O, not ready */
-    SDL_IO_STATUS_READONLY,  /**< Tried to write a read-only buffer */
-    SDL_IO_STATUS_WRITEONLY  /**< Tried to read a write-only buffer */
+	SDL_IO_STATUS_READY, /**< Everything is ready (no errors and not EOF). */
+	SDL_IO_STATUS_ERROR, /**< Read or write I/O error */
+	SDL_IO_STATUS_EOF, /**< End of file */
+	SDL_IO_STATUS_NOT_READY, /**< Non blocking I/O, not ready */
+	SDL_IO_STATUS_READONLY, /**< Tried to write a read-only buffer */
+	SDL_IO_STATUS_WRITEONLY /**< Tried to read a write-only buffer */
 }
 
 /**
@@ -61,9 +61,9 @@ public enum SDL_IOStatus : int32
  */
 public enum SDL_IOWhence : int32
 {
-    SDL_IO_SEEK_SET,  /**< Seek from the beginning of data */
-    SDL_IO_SEEK_CUR,  /**< Seek relative to current read point */
-    SDL_IO_SEEK_END   /**< Seek relative to the end of data */
+	SDL_IO_SEEK_SET, /**< Seek from the beginning of data */
+	SDL_IO_SEEK_CUR, /**< Seek relative to current read point */
+	SDL_IO_SEEK_END /**< Seek relative to the end of data */
 }
 
 /**
@@ -82,70 +82,70 @@ public enum SDL_IOWhence : int32
  */
 [CRepr] public struct SDL_IOStreamInterface
 {
-    /* The version of this interface */
-    public uint32 version;
+	/* The version of this interface */
+	public uint32 version;
 
-    /**
-     *  Return the number of bytes in this SDL_IOStream
-     *
-     *  \return the total size of the data stream, or -1 on error.
-     */
+	/**
+	 *  Return the number of bytes in this SDL_IOStream
+	 *
+	 *  \return the total size of the data stream, or -1 on error.
+	 */
 	public function int64(void* userdata) size;
 
-    /**
-     *  Seek to `offset` relative to `whence`, one of stdio's whence values:
-     *  SDL_IO_SEEK_SET, SDL_IO_SEEK_CUR, SDL_IO_SEEK_END
-     *
-     *  \return the final offset in the data stream, or -1 on error.
-     */
+	/**
+	 *  Seek to `offset` relative to `whence`, one of stdio's whence values:
+	 *  SDL_IO_SEEK_SET, SDL_IO_SEEK_CUR, SDL_IO_SEEK_END
+	 *
+	 *  \return the final offset in the data stream, or -1 on error.
+	 */
 	public function int64(void* userdata, int64 offset, SDL_IOWhence whence) seek;
 
-    /**
-     *  Read up to `size` bytes from the data stream to the area pointed
-     *  at by `ptr`. `size` will always be > 0.
-     *
-     *  On an incomplete read, you should set `*status` to a value from the
-     *  SDL_IOStatus enum. You do not have to explicitly set this on
-     *  a complete, successful read.
-     *
-     *  \return the number of bytes read
-     */
+	/**
+	 *  Read up to `size` bytes from the data stream to the area pointed
+	 *  at by `ptr`. `size` will always be > 0.
+	 *
+	 *  On an incomplete read, you should set `*status` to a value from the
+	 *  SDL_IOStatus enum. You do not have to explicitly set this on
+	 *  a complete, successful read.
+	 *
+	 *  \return the number of bytes read
+	 */
 	public function uint(void* userdata, void* ptr, uint size, SDL_IOStatus* status) read;
 
-    /**
-     *  Write exactly `size` bytes from the area pointed at by `ptr`
-     *  to data stream. `size` will always be > 0.
-     *
-     *  On an incomplete write, you should set `*status` to a value from the
-     *  SDL_IOStatus enum. You do not have to explicitly set this on
-     *  a complete, successful write.
-     *
-     *  \return the number of bytes written
-     */
+	/**
+	 *  Write exactly `size` bytes from the area pointed at by `ptr`
+	 *  to data stream. `size` will always be > 0.
+	 *
+	 *  On an incomplete write, you should set `*status` to a value from the
+	 *  SDL_IOStatus enum. You do not have to explicitly set this on
+	 *  a complete, successful write.
+	 *
+	 *  \return the number of bytes written
+	 */
 	public function uint(void* userdata, void* ptr, uint size, SDL_IOStatus* status) write;
 
-    /**
-     *  If the stream is buffering, make sure the data is written out.
-     *
-     *  On failure, you should set `*status` to a value from the
-     *  SDL_IOStatus enum. You do not have to explicitly set this on
-     *  a successful flush.
-     *
-     *  \return true if successful or false on write error when flushing data.
-     */
+	/**
+	 *  If the stream is buffering, make sure the data is written out.
+	 *
+	 *  On failure, you should set `*status` to a value from the
+	 *  SDL_IOStatus enum. You do not have to explicitly set this on
+	 *  a successful flush.
+	 *
+	 *  \return true if successful or false on write error when flushing data.
+	 */
 	public function bool(void* userdata, SDL_IOStatus* status) flush;
 
-    /**
-     *  Close and free any allocated resources.
-     *
-     *  This does not guarantee file writes will sync to physical media; they
-     *  can be in the system's file cache, waiting to go to disk.
-     *
-     *  The SDL_IOStream is still destroyed even if this fails, so clean up anything
-     *  even if flushing buffers, etc, returns an error.
-     *
-     *  \return true if successful or false on write error when flushing data.
-     */
+	/**
+	 *  Close and free any allocated resources.
+	 *
+	 *  This does not guarantee file writes will sync to physical media; they
+	 *  can be in the system's file cache, waiting to go to disk.
+	 *
+	 *  The SDL_IOStream is still destroyed even if this fails, so clean up anything
+	 *  even if flushing buffers, etc, returns an error.
+	 *
+	 *  \return true if successful or false on write error when flushing data.
+	 */
 	public function bool(void* userdata) close;
 
 }
@@ -161,7 +161,7 @@ public static //extension SDL3
 	private static void Assert_SDL_IOStreamInterface_SIZE()
 	{
 		Compiler.Assert((sizeof(void*) == 4 && sizeof(SDL_IOStreamInterface) == 28) ||
-    (sizeof(void *) == 8 && sizeof(SDL_IOStreamInterface) == 56));
+			(sizeof(void*) == 8 && sizeof(SDL_IOStreamInterface) == 56));
 	}
 
 /**
@@ -270,12 +270,12 @@ public static //extension SDL3
  * \sa SDL_TellIO
  * \sa SDL_WriteIO
  */
-[CLink] public static extern SDL_IOStream* SDL_IOFromFile(char8* file, char8* mode);
+	[CLink] public static extern SDL_IOStream* SDL_IOFromFile(char8* file, char8* mode);
 
-public const char8* SDL_PROP_IOSTREAM_WINDOWS_HANDLE_POINTER    = "SDL.iostream.windows.handle";
-public const char8* SDL_PROP_IOSTREAM_STDIO_FILE_POINTER        = "SDL.iostream.stdio.file";
-public const char8* SDL_PROP_IOSTREAM_FILE_DESCRIPTOR_NUMBER    = "SDL.iostream.file_descriptor";
-public const char8* SDL_PROP_IOSTREAM_ANDROID_AASSET_POINTER    = "SDL.iostream.android.aasset";
+	public const char8* SDL_PROP_IOSTREAM_WINDOWS_HANDLE_POINTER    = "SDL.iostream.windows.handle";
+	public const char8* SDL_PROP_IOSTREAM_STDIO_FILE_POINTER        = "SDL.iostream.stdio.file";
+	public const char8* SDL_PROP_IOSTREAM_FILE_DESCRIPTOR_NUMBER    = "SDL.iostream.file_descriptor";
+	public const char8* SDL_PROP_IOSTREAM_ANDROID_AASSET_POINTER    = "SDL.iostream.android.aasset";
 
 /**
  * Use this function to prepare a read-write memory buffer for use with
@@ -322,11 +322,11 @@ public const char8* SDL_PROP_IOSTREAM_ANDROID_AASSET_POINTER    = "SDL.iostream.
  * \sa SDL_TellIO
  * \sa SDL_WriteIO
  */
-[CLink] public static extern SDL_IOStream* SDL_IOFromMem(void *mem, uint size);
+	[CLink] public static extern SDL_IOStream* SDL_IOFromMem(void* mem, uint size);
 
-public const char8* SDL_PROP_IOSTREAM_MEMORY_POINTER = "SDL.iostream.memory.base";
-public const char8* SDL_PROP_IOSTREAM_MEMORY_SIZE_NUMBER  = "SDL.iostream.memory.size";
-public const char8* SDL_PROP_IOSTREAM_MEMORY_FREE_FUNC_POINTER = "SDL.iostream.memory.free";
+	public const char8* SDL_PROP_IOSTREAM_MEMORY_POINTER = "SDL.iostream.memory.base";
+	public const char8* SDL_PROP_IOSTREAM_MEMORY_SIZE_NUMBER  = "SDL.iostream.memory.size";
+	public const char8* SDL_PROP_IOSTREAM_MEMORY_FREE_FUNC_POINTER = "SDL.iostream.memory.free";
 
 /**
  * Use this function to prepare a read-only memory buffer for use with
@@ -373,7 +373,7 @@ public const char8* SDL_PROP_IOSTREAM_MEMORY_FREE_FUNC_POINTER = "SDL.iostream.m
  * \sa SDL_SeekIO
  * \sa SDL_TellIO
  */
-[CLink] public static extern SDL_IOStream* SDL_IOFromConstMem(void* mem, uint size);
+	[CLink] public static extern SDL_IOStream* SDL_IOFromConstMem(void* mem, uint size);
 
 /**
  * Use this function to create an SDL_IOStream that is backed by dynamically
@@ -403,12 +403,12 @@ public const char8* SDL_PROP_IOSTREAM_MEMORY_FREE_FUNC_POINTER = "SDL.iostream.m
  * \sa SDL_TellIO
  * \sa SDL_WriteIO
  */
-[CLink] public static extern SDL_IOStream* SDL_IOFromDynamicMem();
+	[CLink] public static extern SDL_IOStream* SDL_IOFromDynamicMem();
 
-public const char8* SDL_PROP_IOSTREAM_DYNAMIC_MEMORY_POINTER    = "SDL.iostream.dynamic.memory";
-public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.dynamic.chunksize";
+	public const char8* SDL_PROP_IOSTREAM_DYNAMIC_MEMORY_POINTER    = "SDL.iostream.dynamic.memory";
+	public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.dynamic.chunksize";
 
-/* @} *//* IOFrom functions */
+/* @} */ /* IOFrom functions */
 
 
 /**
@@ -438,7 +438,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  * \sa SDL_IOFromFile
  * \sa SDL_IOFromMem
  */
-[CLink] public static extern SDL_IOStream* SDL_OpenIO(SDL_IOStreamInterface* iface, void *userdata);
+	[CLink] public static extern SDL_IOStream* SDL_OpenIO(SDL_IOStreamInterface* iface, void* userdata);
 
 /**
  * Close and free an allocated SDL_IOStream structure.
@@ -470,7 +470,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  *
  * \sa SDL_OpenIO
  */
-[CLink] public static extern bool SDL_CloseIO(SDL_IOStream *context);
+	[CLink] public static extern bool SDL_CloseIO(SDL_IOStream* context);
 
 /**
  * Get the properties associated with an SDL_IOStream.
@@ -483,7 +483,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_PropertiesID SDL_GetIOProperties(SDL_IOStream *context);
+	[CLink] public static extern SDL_PropertiesID SDL_GetIOProperties(SDL_IOStream* context);
 
 /**
  * Query the stream status of an SDL_IOStream.
@@ -503,7 +503,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_IOStatus SDL_GetIOStatus(SDL_IOStream *context);
+	[CLink] public static extern SDL_IOStatus SDL_GetIOStatus(SDL_IOStream* context);
 
 /**
  * Use this function to get the size of the data stream in an SDL_IOStream.
@@ -517,7 +517,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern int64 SDL_GetIOSize(SDL_IOStream *context);
+	[CLink] public static extern int64 SDL_GetIOSize(SDL_IOStream* context);
 
 /**
  * Seek within an SDL_IOStream data stream.
@@ -546,7 +546,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  *
  * \sa SDL_TellIO
  */
-[CLink] public static extern int64 SDL_SeekIO(SDL_IOStream *context, int64 offset, SDL_IOWhence whence);
+	[CLink] public static extern int64 SDL_SeekIO(SDL_IOStream* context, int64 offset, SDL_IOWhence whence);
 
 /**
  * Determine the current read/write offset in an SDL_IOStream data stream.
@@ -566,7 +566,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  *
  * \sa SDL_SeekIO
  */
-[CLink] public static extern int64 SDL_TellIO(SDL_IOStream *context);
+	[CLink] public static extern int64 SDL_TellIO(SDL_IOStream* context);
 
 /**
  * Read from a data source.
@@ -596,7 +596,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  * \sa SDL_WriteIO
  * \sa SDL_GetIOStatus
  */
-[CLink] public static extern uint SDL_ReadIO(SDL_IOStream *context, void *ptr, uint size);
+	[CLink] public static extern uint SDL_ReadIO(SDL_IOStream* context, void* ptr, uint size);
 
 /**
  * Write to an SDL_IOStream data stream.
@@ -632,7 +632,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  * \sa SDL_FlushIO
  * \sa SDL_GetIOStatus
  */
-[CLink] public static extern uint SDL_WriteIO(SDL_IOStream *context, void* ptr, uint size);
+	[CLink] public static extern uint SDL_WriteIO(SDL_IOStream* context, void* ptr, uint size);
 
 /**
  * Print to an SDL_IOStream data stream.
@@ -693,7 +693,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  * \sa SDL_OpenIO
  * \sa SDL_WriteIO
  */
-[CLink] public static extern bool SDL_FlushIO(SDL_IOStream *context);
+	[CLink] public static extern bool SDL_FlushIO(SDL_IOStream* context);
 
 /**
  * Load all the data from an SDL data stream.
@@ -719,7 +719,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  * \sa SDL_LoadFile
  * \sa SDL_SaveFile_IO
  */
-[CLink] public static extern void* SDL_LoadFile_IO(SDL_IOStream *src, uint *datasize, bool closeio);
+	[CLink] public static extern void* SDL_LoadFile_IO(SDL_IOStream* src, uint* datasize, bool closeio);
 
 /**
  * Load all the data from a file path.
@@ -742,7 +742,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  * \sa SDL_LoadFile_IO
  * \sa SDL_SaveFile
  */
-[CLink] public static extern void* SDL_LoadFile(char8* file, uint *datasize);
+	[CLink] public static extern void* SDL_LoadFile(char8* file, uint* datasize);
 
 /**
  * Save all the data into an SDL data stream.
@@ -763,7 +763,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  * \sa SDL_SaveFile
  * \sa SDL_LoadFile_IO
  */
-[CLink] public static extern bool SDL_SaveFile_IO(SDL_IOStream *src, void* data, uint datasize, bool closeio);
+	[CLink] public static extern bool SDL_SaveFile_IO(SDL_IOStream* src, void* data, uint datasize, bool closeio);
 
 /**
  * Save all the data into a file path.
@@ -782,7 +782,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  * \sa SDL_SaveFile_IO
  * \sa SDL_LoadFile
  */
-[CLink] public static extern bool SDL_SaveFile(char8* file, void* data, uint datasize);
+	[CLink] public static extern bool SDL_SaveFile(char8* file, void* data, uint datasize);
 
 /**
  *  \name Read endian functions
@@ -808,7 +808,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_ReadU8(SDL_IOStream *src, uint8 *value);
+	[CLink] public static extern bool SDL_ReadU8(SDL_IOStream* src, uint8* value);
 
 /**
  * Use this function to read a signed byte from an SDL_IOStream.
@@ -850,7 +850,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_ReadU16LE(SDL_IOStream *src, uint16 *value);
+	[CLink] public static extern bool SDL_ReadU16LE(SDL_IOStream* src, uint16* value);
 
 /**
  * Use this function to read 16 bits of little-endian data from an
@@ -873,7 +873,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_ReadS16LE(SDL_IOStream *src, int16 *value);
+	[CLink] public static extern bool SDL_ReadS16LE(SDL_IOStream* src, int16* value);
 
 /**
  * Use this function to read 16 bits of big-endian data from an SDL_IOStream
@@ -896,7 +896,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_ReadU16BE(SDL_IOStream *src, uint16 *value);
+	[CLink] public static extern bool SDL_ReadU16BE(SDL_IOStream* src, uint16* value);
 
 /**
  * Use this function to read 16 bits of big-endian data from an SDL_IOStream
@@ -919,7 +919,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_ReadS16BE(SDL_IOStream *src, int16 *value);
+	[CLink] public static extern bool SDL_ReadS16BE(SDL_IOStream* src, int16* value);
 
 /**
  * Use this function to read 32 bits of little-endian data from an
@@ -942,7 +942,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_ReadU32LE(SDL_IOStream *src, uint32 *value);
+	[CLink] public static extern bool SDL_ReadU32LE(SDL_IOStream* src, uint32* value);
 
 /**
  * Use this function to read 32 bits of little-endian data from an
@@ -965,7 +965,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_ReadS32LE(SDL_IOStream *src, int32 *value);
+	[CLink] public static extern bool SDL_ReadS32LE(SDL_IOStream* src, int32* value);
 
 /**
  * Use this function to read 32 bits of big-endian data from an SDL_IOStream
@@ -988,7 +988,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_ReadU32BE(SDL_IOStream *src, uint32 *value);
+	[CLink] public static extern bool SDL_ReadU32BE(SDL_IOStream* src, uint32* value);
 
 /**
  * Use this function to read 32 bits of big-endian data from an SDL_IOStream
@@ -1011,7 +1011,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_ReadS32BE(SDL_IOStream *src, int32 *value);
+	[CLink] public static extern bool SDL_ReadS32BE(SDL_IOStream* src, int32* value);
 
 /**
  * Use this function to read 64 bits of little-endian data from an
@@ -1034,7 +1034,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_ReadU64LE(SDL_IOStream *src, uint64 *value);
+	[CLink] public static extern bool SDL_ReadU64LE(SDL_IOStream* src, uint64* value);
 
 /**
  * Use this function to read 64 bits of little-endian data from an
@@ -1057,7 +1057,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_ReadS64LE(SDL_IOStream *src, int64 *value);
+	[CLink] public static extern bool SDL_ReadS64LE(SDL_IOStream* src, int64* value);
 
 /**
  * Use this function to read 64 bits of big-endian data from an SDL_IOStream
@@ -1080,7 +1080,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_ReadU64BE(SDL_IOStream *src, uint64 *value);
+	[CLink] public static extern bool SDL_ReadU64BE(SDL_IOStream* src, uint64* value);
 
 /**
  * Use this function to read 64 bits of big-endian data from an SDL_IOStream
@@ -1103,8 +1103,8 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_ReadS64BE(SDL_IOStream *src, int64 *value);
-/* @} *//* Read endian functions */
+	[CLink] public static extern bool SDL_ReadS64BE(SDL_IOStream* src, int64* value);
+/* @} */ /* Read endian functions */
 
 /**
  *  \name Write endian functions
@@ -1125,7 +1125,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_WriteU8(SDL_IOStream *dst, uint8 value);
+	[CLink] public static extern bool SDL_WriteU8(SDL_IOStream* dst, uint8 value);
 
 /**
  * Use this function to write a signed byte to an SDL_IOStream.
@@ -1158,7 +1158,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_WriteU16LE(SDL_IOStream *dst, uint16 value);
+	[CLink] public static extern bool SDL_WriteU16LE(SDL_IOStream* dst, uint16 value);
 
 /**
  * Use this function to write 16 bits in native format to an SDL_IOStream as
@@ -1177,7 +1177,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_WriteS16LE(SDL_IOStream *dst, int16 value);
+	[CLink] public static extern bool SDL_WriteS16LE(SDL_IOStream* dst, int16 value);
 
 /**
  * Use this function to write 16 bits in native format to an SDL_IOStream as
@@ -1195,7 +1195,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_WriteU16BE(SDL_IOStream *dst, uint16 value);
+	[CLink] public static extern bool SDL_WriteU16BE(SDL_IOStream* dst, uint16 value);
 
 /**
  * Use this function to write 16 bits in native format to an SDL_IOStream as
@@ -1213,7 +1213,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_WriteS16BE(SDL_IOStream *dst, int16 value);
+	[CLink] public static extern bool SDL_WriteS16BE(SDL_IOStream* dst, int16 value);
 
 /**
  * Use this function to write 32 bits in native format to an SDL_IOStream as
@@ -1232,7 +1232,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_WriteU32LE(SDL_IOStream *dst, uint32 value);
+	[CLink] public static extern bool SDL_WriteU32LE(SDL_IOStream* dst, uint32 value);
 
 /**
  * Use this function to write 32 bits in native format to an SDL_IOStream as
@@ -1251,7 +1251,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_WriteS32LE(SDL_IOStream *dst, int32 value);
+	[CLink] public static extern bool SDL_WriteS32LE(SDL_IOStream* dst, int32 value);
 
 /**
  * Use this function to write 32 bits in native format to an SDL_IOStream as
@@ -1269,7 +1269,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_WriteU32BE(SDL_IOStream *dst, uint32 value);
+	[CLink] public static extern bool SDL_WriteU32BE(SDL_IOStream* dst, uint32 value);
 
 /**
  * Use this function to write 32 bits in native format to an SDL_IOStream as
@@ -1287,7 +1287,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_WriteS32BE(SDL_IOStream *dst, int32 value);
+	[CLink] public static extern bool SDL_WriteS32BE(SDL_IOStream* dst, int32 value);
 
 /**
  * Use this function to write 64 bits in native format to an SDL_IOStream as
@@ -1306,7 +1306,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_WriteU64LE(SDL_IOStream *dst, uint64 value);
+	[CLink] public static extern bool SDL_WriteU64LE(SDL_IOStream* dst, uint64 value);
 
 /**
  * Use this function to write 64 bits in native format to an SDL_IOStream as
@@ -1325,7 +1325,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_WriteS64LE(SDL_IOStream *dst, int64 value);
+	[CLink] public static extern bool SDL_WriteS64LE(SDL_IOStream* dst, int64 value);
 
 /**
  * Use this function to write 64 bits in native format to an SDL_IOStream as
@@ -1343,7 +1343,7 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_WriteU64BE(SDL_IOStream *dst, uint64 value);
+	[CLink] public static extern bool SDL_WriteU64BE(SDL_IOStream* dst, uint64 value);
 
 /**
  * Use this function to write 64 bits in native format to an SDL_IOStream as
@@ -1361,8 +1361,8 @@ public const char8* SDL_PROP_IOSTREAM_DYNAMIC_CHUNKSIZE_NUMBER  = "SDL.iostream.
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_WriteS64BE(SDL_IOStream *dst, int64 value);
+	[CLink] public static extern bool SDL_WriteS64BE(SDL_IOStream* dst, int64 value);
 
-/* @} *//* Write endian functions */
+/* @} */ /* Write endian functions */
 
 }

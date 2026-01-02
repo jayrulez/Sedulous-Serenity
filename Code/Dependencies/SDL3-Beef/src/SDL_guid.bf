@@ -12,11 +12,11 @@ using System;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -52,7 +52,7 @@ namespace SDL3;
  */
 [CRepr] public struct SDL_GUID
 {
-    public uint8[16] data;
+	public uint8[16] data;
 }
 
 public static //extension SDL3
@@ -72,7 +72,7 @@ public static //extension SDL3
  *
  * \sa SDL_StringToGUID
  */
-[CLink] public static extern void SDL_GUIDToString(SDL_GUID guid, char8* pszGUID, int32 cbGUID);
+	[CLink] public static extern void SDL_GUIDToString(SDL_GUID guid, char8* pszGUID, int32 cbGUID);
 
 /**
  * Convert a GUID string into a SDL_GUID structure.
@@ -90,5 +90,5 @@ public static //extension SDL3
  *
  * \sa SDL_GUIDToString
  */
-[CLink] public static extern SDL_GUID SDL_StringToGUID(char8* pchGUID);
+	[CLink] public static extern SDL_GUID SDL_StringToGUID(char8* pchGUID);
 }

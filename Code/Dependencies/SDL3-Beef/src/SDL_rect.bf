@@ -12,11 +12,11 @@ using System;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -39,8 +39,8 @@ namespace SDL3;
  */
 [CRepr] public struct SDL_Point
 {
-    public int32 x;
-    public int32 y;
+	public int32 x;
+	public int32 y;
 }
 
 /**
@@ -53,8 +53,8 @@ namespace SDL3;
  */
 [CRepr] public struct SDL_FPoint
 {
-    public float x;
-    public float y;
+	public float x;
+	public float y;
 }
 
 
@@ -99,10 +99,10 @@ namespace SDL3;
  */
 [CRepr] public struct SDL_FRect
 {
-    public float x;
-    public float y;
-    public float w;
-    public float h;
+	public float x;
+	public float y;
+	public float w;
+	public float h;
 }
 
 
@@ -120,12 +120,12 @@ public static //extension SDL3
  * \since This function is available since SDL 3.2.0.
  */
 	[Inline] public static void SDL_RectToFRect(SDL_Rect* rect, SDL_FRect* frect)
-{
+	{
 		frect.x = (float)rect.x;
 		frect.y = (float)rect.y;
 		frect.w = (float)rect.w;
 		frect.h = (float)rect.h;
-}
+	}
 
 /**
  * Determine whether a point resides inside a rectangle.
@@ -149,10 +149,10 @@ public static //extension SDL3
  * \since This function is available since SDL 3.2.0.
  */
 	[Inline] public static bool SDL_PointInRect(SDL_Point* p, SDL_Rect* r)
-{
+	{
 		return (p != null && r != null && (p.x >= r.x) && (p.x < (r.x + r.w)) &&
 			(p.y >= r.y) && (p.y < (r.y + r.h))) ? true : false;
-}
+	}
 
 /**
  * Determine whether a rectangle has no area.
@@ -173,9 +173,9 @@ public static //extension SDL3
  * \since This function is available since SDL 3.2.0.
  */
 	[Inline] public static bool SDL_RectEmpty(SDL_Rect* r)
-{
+	{
 		return ((r == null) || (r.w <= 0) || (r.h <= 0)) ? true : false;
-}
+	}
 
 /**
  * Determine whether two rectangles are equal.
@@ -197,10 +197,10 @@ public static //extension SDL3
  * \since This function is available since SDL 3.2.0.
  */
 	[Inline] public static bool SDL_RectsEqual(SDL_Rect* a, SDL_Rect* b)
-{
+	{
 		return (a != null && b != null && (a.x == b.x) && (a.y == b.y) &&
 			(a.w == b.w) && (a.h == b.h)) ? true : false;
-}
+	}
 
 /**
  * Determine whether two rectangles intersect.
@@ -217,7 +217,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetRectIntersection
  */
-[CLink] public static extern bool SDL_HasRectIntersection(SDL_Rect* A, SDL_Rect* B);
+	[CLink] public static extern bool SDL_HasRectIntersection(SDL_Rect* A, SDL_Rect* B);
 
 /**
  * Calculate the intersection of two rectangles.
@@ -234,7 +234,7 @@ public static //extension SDL3
  *
  * \sa SDL_HasRectIntersection
  */
-[CLink] public static extern bool SDL_GetRectIntersection(SDL_Rect* A, SDL_Rect* B, SDL_Rect *result);
+	[CLink] public static extern bool SDL_GetRectIntersection(SDL_Rect* A, SDL_Rect* B, SDL_Rect* result);
 
 /**
  * Calculate the union of two rectangles.
@@ -248,7 +248,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_GetRectUnion(SDL_Rect* A, SDL_Rect* B, SDL_Rect *result);
+	[CLink] public static extern bool SDL_GetRectUnion(SDL_Rect* A, SDL_Rect* B, SDL_Rect* result);
 
 /**
  * Calculate a minimal rectangle enclosing a set of points.
@@ -267,7 +267,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_GetRectEnclosingPoints(SDL_Point* points, int32 count, SDL_Rect* clip, SDL_Rect *result);
+	[CLink] public static extern bool SDL_GetRectEnclosingPoints(SDL_Point* points, int32 count, SDL_Rect* clip, SDL_Rect* result);
 
 /**
  * Calculate the intersection of a rectangle and line segment.
@@ -287,7 +287,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_GetRectAndLineIntersection(SDL_Rect* rect, int32 *X1, int32 *Y1, int32 *X2, int32 *Y2);
+	[CLink] public static extern bool SDL_GetRectAndLineIntersection(SDL_Rect* rect, int32* X1, int32* Y1, int32* X2, int32* Y2);
 
 
 /* SDL_FRect versions... */
@@ -314,10 +314,10 @@ public static //extension SDL3
  * \since This function is available since SDL 3.2.0.
  */
 	[Inline] public static bool SDL_PointInRectFloat(SDL_FPoint* p, SDL_FRect* r)
-{
+	{
 		return (p != null && r != null && (p.x >= r.x) && (p.x <= (r.x + r.w)) &&
 			(p.y >= r.y) && (p.y <= (r.y + r.h))) ? true : false;
-}
+	}
 
 /**
  * Determine whether a floating point rectangle takes no space.
@@ -338,9 +338,9 @@ public static //extension SDL3
  * \since This function is available since SDL 3.2.0.
  */
 	[Inline] public static bool SDL_RectEmptyFloat(SDL_FRect* r)
-{
+	{
 		return ((r == null) || (r.w < 0.0f) || (r.h < 0.0f)) ? true : false;
-}
+	}
 
 /**
  * Determine whether two floating point rectangles are equal, within some
@@ -368,14 +368,14 @@ public static //extension SDL3
  * \sa SDL_RectsEqualFloat
  */
 	[Inline] public static bool SDL_RectsEqualEpsilon(SDL_FRect* a, SDL_FRect* b, float epsilon)
-{
+	{
 		return (a != null && b != null && ((a == b) ||
 			((SDL_fabsf(a.x - b.x) <= epsilon) &&
 			(SDL_fabsf(a.y - b.y) <= epsilon) &&
 			(SDL_fabsf(a.w - b.w) <= epsilon) &&
 			(SDL_fabsf(a.h - b.h) <= epsilon))))
-            ? true : false;
-}
+			? true : false;
+	}
 
 /**
  * Determine whether two floating point rectangles are equal, within a default
@@ -403,9 +403,9 @@ public static //extension SDL3
  * \sa SDL_RectsEqualEpsilon
  */
 	[Inline] public static bool SDL_RectsEqualFloat(SDL_FRect* a, SDL_FRect* b)
-{
-    return SDL_RectsEqualEpsilon(a, b, SDL_FLT_EPSILON);
-}
+	{
+		return SDL_RectsEqualEpsilon(a, b, SDL_FLT_EPSILON);
+	}
 
 /**
  * Determine whether two rectangles intersect with float precision.
@@ -420,7 +420,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetRectIntersection
  */
-[CLink] public static extern bool SDL_HasRectIntersectionFloat(SDL_FRect* A, SDL_FRect* B);
+	[CLink] public static extern bool SDL_HasRectIntersectionFloat(SDL_FRect* A, SDL_FRect* B);
 
 /**
  * Calculate the intersection of two rectangles with float precision.
@@ -437,7 +437,7 @@ public static //extension SDL3
  *
  * \sa SDL_HasRectIntersectionFloat
  */
-[CLink] public static extern bool SDL_GetRectIntersectionFloat(SDL_FRect* A, SDL_FRect* B, SDL_FRect *result);
+	[CLink] public static extern bool SDL_GetRectIntersectionFloat(SDL_FRect* A, SDL_FRect* B, SDL_FRect* result);
 
 /**
  * Calculate the union of two rectangles with float precision.
@@ -451,7 +451,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_GetRectUnionFloat(SDL_FRect* A, SDL_FRect* B, SDL_FRect *result);
+	[CLink] public static extern bool SDL_GetRectUnionFloat(SDL_FRect* A, SDL_FRect* B, SDL_FRect* result);
 
 /**
  * Calculate a minimal rectangle enclosing a set of points with float
@@ -471,7 +471,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_GetRectEnclosingPointsFloat(SDL_FPoint* points, int32 count, SDL_FRect* clip, SDL_FRect *result);
+	[CLink] public static extern bool SDL_GetRectEnclosingPointsFloat(SDL_FPoint* points, int32 count, SDL_FRect* clip, SDL_FRect* result);
 
 /**
  * Calculate the intersection of a rectangle and line segment with float
@@ -492,5 +492,5 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_GetRectAndLineIntersectionFloat(SDL_FRect* rect, float *X1, float *Y1, float *X2, float *Y2);
+	[CLink] public static extern bool SDL_GetRectAndLineIntersectionFloat(SDL_FRect* rect, float* X1, float* Y1, float* X2, float* Y2);
 }

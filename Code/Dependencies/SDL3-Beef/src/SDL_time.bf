@@ -44,15 +44,15 @@ namespace SDL3;
  */
 [CRepr] public struct SDL_DateTime
 {
-    public int32 year;                  /**< Year */
-    public int32 month;                 /**< Month [01-12] */
-    public int32 day;                   /**< Day of the month [01-31] */
-    public int32 hour;                  /**< Hour [0-23] */
-    public int32 minute;                /**< Minute [0-59] */
-    public int32 second;                /**< Seconds [0-60] */
-    public int32 nanosecond;            /**< Nanoseconds [0-999999999] */
-    public int32 day_of_week;           /**< Day of the week [0-6] (0 being Sunday) */
-    public int32 utc_offset;            /**< Seconds east of UTC */
+	public int32 year; /**< Year */
+	public int32 month; /**< Month [01-12] */
+	public int32 day; /**< Day of the month [01-31] */
+	public int32 hour; /**< Hour [0-23] */
+	public int32 minute; /**< Minute [0-59] */
+	public int32 second; /**< Seconds [0-60] */
+	public int32 nanosecond; /**< Nanoseconds [0-999999999] */
+	public int32 day_of_week; /**< Day of the week [0-6] (0 being Sunday) */
+	public int32 utc_offset; /**< Seconds east of UTC */
 }
 
 /**
@@ -64,9 +64,9 @@ namespace SDL3;
  */
 public enum SDL_DateFormat : int32
 {
-    SDL_DATE_FORMAT_YYYYMMDD = 0, /**< Year/Month/Day */
-    SDL_DATE_FORMAT_DDMMYYYY = 1, /**< Day/Month/Year */
-    SDL_DATE_FORMAT_MMDDYYYY = 2  /**< Month/Day/Year */
+	SDL_DATE_FORMAT_YYYYMMDD = 0, /**< Year/Month/Day */
+	SDL_DATE_FORMAT_DDMMYYYY = 1, /**< Day/Month/Year */
+	SDL_DATE_FORMAT_MMDDYYYY = 2 /**< Month/Day/Year */
 }
 
 /**
@@ -78,8 +78,8 @@ public enum SDL_DateFormat : int32
  */
 public enum SDL_TimeFormat : int32
 {
-    SDL_TIME_FORMAT_24HR = 0, /**< 24 hour time */
-    SDL_TIME_FORMAT_12HR = 1  /**< 12 hour time */
+	SDL_TIME_FORMAT_24HR = 0, /**< 24 hour time */
+	SDL_TIME_FORMAT_12HR = 1 /**< 12 hour time */
 }
 
 public static //extension SDL3
@@ -101,7 +101,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_GetDateTimeLocalePreferences(SDL_DateFormat *dateFormat, SDL_TimeFormat *timeFormat);
+	[CLink] public static extern bool SDL_GetDateTimeLocalePreferences(SDL_DateFormat* dateFormat, SDL_TimeFormat* timeFormat);
 
 /**
  * Gets the current value of the system realtime clock in nanoseconds since
@@ -113,7 +113,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_GetCurrentTime(SDL_Time *ticks);
+	[CLink] public static extern bool SDL_GetCurrentTime(SDL_Time* ticks);
 
 /**
  * Converts an SDL_Time in nanoseconds since the epoch to a calendar time in
@@ -129,7 +129,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_TimeToDateTime(SDL_Time ticks, SDL_DateTime *dt, bool localTime);
+	[CLink] public static extern bool SDL_TimeToDateTime(SDL_Time ticks, SDL_DateTime* dt, bool localTime);
 
 /**
  * Converts a calendar time to an SDL_Time in nanoseconds since the epoch.
@@ -144,7 +144,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_DateTimeToTime(SDL_DateTime* dt, SDL_Time *ticks);
+	[CLink] public static extern bool SDL_DateTimeToTime(SDL_DateTime* dt, SDL_Time* ticks);
 
 /**
  * Converts an SDL time into a Windows FILETIME (100-nanosecond intervals
@@ -160,7 +160,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern void SDL_TimeToWindows(SDL_Time ticks, uint32 *dwLowDateTime, uint32 *dwHighDateTime);
+	[CLink] public static extern void SDL_TimeToWindows(SDL_Time ticks, uint32* dwLowDateTime, uint32* dwHighDateTime);
 
 /**
  * Converts a Windows FILETIME (100-nanosecond intervals since January 1,
@@ -175,7 +175,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_Time SDL_TimeFromWindows(uint32 dwLowDateTime, uint32 dwHighDateTime);
+	[CLink] public static extern SDL_Time SDL_TimeFromWindows(uint32 dwLowDateTime, uint32 dwHighDateTime);
 
 /**
  * Get the number of days in a month for a given year.
@@ -187,7 +187,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern int32 SDL_GetDaysInMonth(int32 year, int32 month);
+	[CLink] public static extern int32 SDL_GetDaysInMonth(int32 year, int32 month);
 
 /**
  * Get the day of year for a calendar date.
@@ -200,7 +200,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern int32 SDL_GetDayOfYear(int32 year, int32 month, int32 day);
+	[CLink] public static extern int32 SDL_GetDayOfYear(int32 year, int32 month, int32 day);
 
 /**
  * Get the day of week for a calendar date.
@@ -213,5 +213,5 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern int32 SDL_GetDayOfWeek(int32 year, int32 month, int32 day);
+	[CLink] public static extern int32 SDL_GetDayOfWeek(int32 year, int32 month, int32 day);
 }

@@ -12,11 +12,11 @@ using System;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -102,12 +102,12 @@ public typealias SDL_CameraID = uint32;
  */
 [CRepr] public struct SDL_CameraSpec
 {
-    public SDL_PixelFormat format;     /**< Frame format */
-    public SDL_Colorspace colorspace;  /**< Frame colorspace */
-    public int32 width;                  /**< Frame width */
-    public int32 height;                 /**< Frame height */
-    public int32 framerate_numerator;     /**< Frame rate numerator ((num / denom) == FPS, (denom / num) == duration in seconds) */
-    public int32 framerate_denominator;   /**< Frame rate denominator ((num / denom) == FPS, (denom / num) == duration in seconds) */
+	public SDL_PixelFormat format; /**< Frame format */
+	public SDL_Colorspace colorspace; /**< Frame colorspace */
+	public int32 width; /**< Frame width */
+	public int32 height; /**< Frame height */
+	public int32 framerate_numerator; /**< Frame rate numerator ((num / denom) == FPS, (denom / num) == duration in seconds) */
+	public int32 framerate_denominator; /**< Frame rate denominator ((num / denom) == FPS, (denom / num) == duration in seconds) */
 }
 
 /**
@@ -119,9 +119,9 @@ public typealias SDL_CameraID = uint32;
  */
 public enum SDL_CameraPosition : int32
 {
-    SDL_CAMERA_POSITION_UNKNOWN,
-    SDL_CAMERA_POSITION_FRONT_FACING,
-    SDL_CAMERA_POSITION_BACK_FACING
+	SDL_CAMERA_POSITION_UNKNOWN,
+	SDL_CAMERA_POSITION_FRONT_FACING,
+	SDL_CAMERA_POSITION_BACK_FACING
 }
 
 /**
@@ -133,9 +133,9 @@ public enum SDL_CameraPosition : int32
  */
 public enum SDL_CameraPermissionState : int32
 {
-    SDL_CAMERA_PERMISSION_STATE_DENIED = -1,
-    SDL_CAMERA_PERMISSION_STATE_PENDING,
-    SDL_CAMERA_PERMISSION_STATE_APPROVED,
+	SDL_CAMERA_PERMISSION_STATE_DENIED = -1,
+	SDL_CAMERA_PERMISSION_STATE_PENDING,
+	SDL_CAMERA_PERMISSION_STATE_APPROVED,
 }
 
 public static //extension SDL3
@@ -163,7 +163,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetCameraDriver
  */
-[CLink] public static extern int32 SDL_GetNumCameraDrivers();
+	[CLink] public static extern int32 SDL_GetNumCameraDrivers();
 
 /**
  * Use this function to get the name of a built in camera driver.
@@ -187,7 +187,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetNumCameraDrivers
  */
-[CLink] public static extern char8* SDL_GetCameraDriver(int32 index);
+	[CLink] public static extern char8* SDL_GetCameraDriver(int32 index);
 
 /**
  * Get the name of the current camera driver.
@@ -203,7 +203,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern char8* SDL_GetCurrentCameraDriver();
+	[CLink] public static extern char8* SDL_GetCurrentCameraDriver();
 
 /**
  * Get a list of currently connected camera devices.
@@ -220,7 +220,7 @@ public static //extension SDL3
  *
  * \sa SDL_OpenCamera
  */
-[CLink] public static extern SDL_CameraID* SDL_GetCameras(int32 *count);
+	[CLink] public static extern SDL_CameraID* SDL_GetCameras(int32* count);
 
 /**
  * Get the list of native formats/sizes a camera supports.
@@ -259,7 +259,7 @@ public static //extension SDL3
  * \sa SDL_GetCameras
  * \sa SDL_OpenCamera
  */
-[CLink] public static extern SDL_CameraSpec ** SDL_GetCameraSupportedFormats(SDL_CameraID instance_id, int32 *count);
+	[CLink] public static extern SDL_CameraSpec** SDL_GetCameraSupportedFormats(SDL_CameraID instance_id, int32* count);
 
 /**
  * Get the human-readable device name for a camera.
@@ -274,7 +274,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetCameras
  */
-[CLink] public static extern char8* SDL_GetCameraName(SDL_CameraID instance_id);
+	[CLink] public static extern char8* SDL_GetCameraName(SDL_CameraID instance_id);
 
 /**
  * Get the position of the camera in relation to the system.
@@ -293,7 +293,7 @@ public static //extension SDL3
  *
  * \sa SDL_GetCameras
  */
-[CLink] public static extern SDL_CameraPosition SDL_GetCameraPosition(SDL_CameraID instance_id);
+	[CLink] public static extern SDL_CameraPosition SDL_GetCameraPosition(SDL_CameraID instance_id);
 
 /**
  * Open a video recording device (a "camera").
@@ -340,7 +340,7 @@ public static //extension SDL3
  * \sa SDL_GetCameras
  * \sa SDL_GetCameraFormat
  */
-[CLink] public static extern SDL_Camera* SDL_OpenCamera(SDL_CameraID instance_id, SDL_CameraSpec* spec);
+	[CLink] public static extern SDL_Camera* SDL_OpenCamera(SDL_CameraID instance_id, SDL_CameraSpec* spec);
 
 /**
  * Query if camera access has been approved by the user.
@@ -375,7 +375,7 @@ public static //extension SDL3
  * \sa SDL_OpenCamera
  * \sa SDL_CloseCamera
  */
-[CLink] public static extern SDL_CameraPermissionState SDL_GetCameraPermissionState(SDL_Camera *camera);
+	[CLink] public static extern SDL_CameraPermissionState SDL_GetCameraPermissionState(SDL_Camera* camera);
 
 /**
  * Get the instance ID of an opened camera.
@@ -390,7 +390,7 @@ public static //extension SDL3
  *
  * \sa SDL_OpenCamera
  */
-[CLink] public static extern SDL_CameraID SDL_GetCameraID(SDL_Camera *camera);
+	[CLink] public static extern SDL_CameraID SDL_GetCameraID(SDL_Camera* camera);
 
 /**
  * Get the properties associated with an opened camera.
@@ -403,7 +403,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern SDL_PropertiesID SDL_GetCameraProperties(SDL_Camera *camera);
+	[CLink] public static extern SDL_PropertiesID SDL_GetCameraProperties(SDL_Camera* camera);
 
 /**
  * Get the spec that a camera is using when generating images.
@@ -429,7 +429,7 @@ public static //extension SDL3
  *
  * \sa SDL_OpenCamera
  */
-[CLink] public static extern bool SDL_GetCameraFormat(SDL_Camera *camera, SDL_CameraSpec *spec);
+	[CLink] public static extern bool SDL_GetCameraFormat(SDL_Camera* camera, SDL_CameraSpec* spec);
 
 /**
  * Acquire a frame.
@@ -472,7 +472,7 @@ public static //extension SDL3
  *
  * \sa SDL_ReleaseCameraFrame
  */
-[CLink] public static extern SDL_Surface* SDL_AcquireCameraFrame(SDL_Camera *camera, uint64 *timestampNS);
+	[CLink] public static extern SDL_Surface* SDL_AcquireCameraFrame(SDL_Camera* camera, uint64* timestampNS);
 
 /**
  * Release a frame of video acquired from a camera.
@@ -500,7 +500,7 @@ public static //extension SDL3
  *
  * \sa SDL_AcquireCameraFrame
  */
-[CLink] public static extern void SDL_ReleaseCameraFrame(SDL_Camera *camera, SDL_Surface *frame);
+	[CLink] public static extern void SDL_ReleaseCameraFrame(SDL_Camera* camera, SDL_Surface* frame);
 
 /**
  * Use this function to shut down camera processing and close the camera
@@ -515,5 +515,5 @@ public static //extension SDL3
  *
  * \sa SDL_OpenCamera
  */
-[CLink] public static extern void SDL_CloseCamera(SDL_Camera *camera);
+	[CLink] public static extern void SDL_CloseCamera(SDL_Camera* camera);
 }

@@ -12,11 +12,11 @@ using System;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -79,7 +79,7 @@ public static //extension SDL3
  * \sa SDL_GetError
  * \sa SDL_SetErrorV
  */
-[CLink] public static extern bool SDL_SetError(char8* fmt, ...);
+	[CLink] public static extern bool SDL_SetError(char8* fmt, ...);
 
 /**
  * Set the SDL error message for the current thread.
@@ -98,7 +98,7 @@ public static //extension SDL3
  * \sa SDL_GetError
  * \sa SDL_SetError
  */
-[CLink] public static extern bool SDL_SetErrorV(char8* fmt, VarArgs ap);
+	[CLink] public static extern bool SDL_SetErrorV(char8* fmt, VarArgs ap);
 
 /**
  * Set an error indicating that memory allocation failed.
@@ -111,7 +111,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_OutOfMemory();
+	[CLink] public static extern bool SDL_OutOfMemory();
 
 /**
  * Retrieve a message about the last error that occurred on the current
@@ -148,7 +148,7 @@ public static //extension SDL3
  * \sa SDL_ClearError
  * \sa SDL_SetError
  */
-[CLink] public static extern char8* SDL_GetError();
+	[CLink] public static extern char8* SDL_GetError();
 
 /**
  * Clear any previous error message for this thread.
@@ -162,7 +162,7 @@ public static //extension SDL3
  * \sa SDL_GetError
  * \sa SDL_SetError
  */
-[CLink] public static extern bool SDL_ClearError();
+	[CLink] public static extern bool SDL_ClearError();
 
 /**
  *  \name Internal error functions

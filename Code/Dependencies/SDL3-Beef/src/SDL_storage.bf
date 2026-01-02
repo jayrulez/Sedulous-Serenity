@@ -12,11 +12,11 @@ using System;
   freely, subject to the following restrictions:
 
   1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
+	 claim that you wrote the original software. If you use this software
+	 in a product, an acknowledgment in the product documentation would be
+	 appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
+	 misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 */
 
@@ -261,40 +261,40 @@ namespace SDL3;
  */
 [CRepr] public struct SDL_StorageInterface
 {
-    /* The version of this interface */
-    public uint32 version;
+	/* The version of this interface */
+	public uint32 version;
 
-    /* Called when the storage is closed */
+	/* Called when the storage is closed */
 	public function bool(void* userdata) close;
 
-    /* Optional, returns whether the storage is currently ready for access */
+	/* Optional, returns whether the storage is currently ready for access */
 	public function bool(void* userdata) ready;
 
-    /* Enumerate a directory, optional for write-only storage */
+	/* Enumerate a directory, optional for write-only storage */
 	public function bool(void* userdata, char8* path, SDL_EnumerateDirectoryCallback callback, void* callback_userdata) enumerate;
 
-    /* Get path information, optional for write-only storage */
+	/* Get path information, optional for write-only storage */
 	public function bool(void* userdata, char8* path, SDL_PathInfo* info) info;
 
-    /* Read a file from storage, optional for write-only storage */
+	/* Read a file from storage, optional for write-only storage */
 	public function bool(void* userdata, char8* path, void* destination, uint64 length) read_file;
 
-    /* Write a file to storage, optional for read-only storage */
+	/* Write a file to storage, optional for read-only storage */
 	public function bool(void* userdata, char8* path, void* source, uint64 length) write_file;
 
-    /* Create a directory, optional for read-only storage */
+	/* Create a directory, optional for read-only storage */
 	public function bool(void* userdata, char8* path) mkdir;
 
-    /* Remove a file or empty directory, optional for read-only storage */
+	/* Remove a file or empty directory, optional for read-only storage */
 	public function bool(void* userdata, char8* path) remove;
 
-    /* Rename a path, optional for read-only storage */
+	/* Rename a path, optional for read-only storage */
 	public function bool(void* userdata, char8* oldpath, char8* newpath) rename;
 
-    /* Copy a file, optional for read-only storage */
+	/* Copy a file, optional for read-only storage */
 	public function bool(void* userdata, char8* oldpath, char8* newpath) copy;
 
-    /* Get the space remaining, optional for read-only storage */
+	/* Get the space remaining, optional for read-only storage */
 	public function uint64(void* userdata) space_remaining;
 }
 
@@ -309,7 +309,7 @@ public static //extension SDL3
 	public static void Assert_SDL_StorageInterface_SIZE()
 	{
 		Compiler.Assert((sizeof(void*) == 4 && sizeof(SDL_StorageInterface) == 48) ||
-    (sizeof(void *) == 8 && sizeof(SDL_StorageInterface) == 96));
+			(sizeof(void*) == 8 && sizeof(SDL_StorageInterface) == 96));
 	}
 
 }
@@ -372,7 +372,7 @@ public static //extension SDL3
  * \sa SDL_StorageReady
  * \sa SDL_WriteStorageFile
  */
-[CLink] public static extern SDL_Storage* SDL_OpenUserStorage(char8* org, char8* app, SDL_PropertiesID props);
+	[CLink] public static extern SDL_Storage* SDL_OpenUserStorage(char8* org, char8* app, SDL_PropertiesID props);
 
 /**
  * Opens up a container for local filesystem storage.
@@ -396,7 +396,7 @@ public static //extension SDL3
  * \sa SDL_ReadStorageFile
  * \sa SDL_WriteStorageFile
  */
-[CLink] public static extern SDL_Storage* SDL_OpenFileStorage(char8* path);
+	[CLink] public static extern SDL_Storage* SDL_OpenFileStorage(char8* path);
 
 /**
  * Opens up a container using a client-provided storage interface.
@@ -425,7 +425,7 @@ public static //extension SDL3
  * \sa SDL_StorageReady
  * \sa SDL_WriteStorageFile
  */
-[CLink] public static extern SDL_Storage* SDL_OpenStorage(SDL_StorageInterface* iface, void *userdata);
+	[CLink] public static extern SDL_Storage* SDL_OpenStorage(SDL_StorageInterface* iface, void* userdata);
 
 /**
  * Closes and frees a storage container.
@@ -443,7 +443,7 @@ public static //extension SDL3
  * \sa SDL_OpenTitleStorage
  * \sa SDL_OpenUserStorage
  */
-[CLink] public static extern bool SDL_CloseStorage(SDL_Storage *storage);
+	[CLink] public static extern bool SDL_CloseStorage(SDL_Storage* storage);
 
 /**
  * Checks if the storage container is ready to use.
@@ -458,7 +458,7 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern bool SDL_StorageReady(SDL_Storage *storage);
+	[CLink] public static extern bool SDL_StorageReady(SDL_Storage* storage);
 
 /**
  * Query the size of a file within a storage container.
@@ -474,7 +474,7 @@ public static //extension SDL3
  * \sa SDL_ReadStorageFile
  * \sa SDL_StorageReady
  */
-[CLink] public static extern bool SDL_GetStorageFileSize(SDL_Storage *storage, char8* path, uint64 *length);
+	[CLink] public static extern bool SDL_GetStorageFileSize(SDL_Storage* storage, char8* path, uint64* length);
 
 /**
  * Synchronously read a file from a storage container into a client-provided
@@ -497,7 +497,7 @@ public static //extension SDL3
  * \sa SDL_StorageReady
  * \sa SDL_WriteStorageFile
  */
-[CLink] public static extern bool SDL_ReadStorageFile(SDL_Storage *storage, char8* path, void *destination, uint64 length);
+	[CLink] public static extern bool SDL_ReadStorageFile(SDL_Storage* storage, char8* path, void* destination, uint64 length);
 
 /**
  * Synchronously write a file from client memory into a storage container.
@@ -515,7 +515,7 @@ public static //extension SDL3
  * \sa SDL_ReadStorageFile
  * \sa SDL_StorageReady
  */
-[CLink] public static extern bool SDL_WriteStorageFile(SDL_Storage *storage, char8* path, void* source, uint64 length);
+	[CLink] public static extern bool SDL_WriteStorageFile(SDL_Storage* storage, char8* path, void* source, uint64 length);
 
 /**
  * Create a directory in a writable storage container.
@@ -529,7 +529,7 @@ public static //extension SDL3
  *
  * \sa SDL_StorageReady
  */
-[CLink] public static extern bool SDL_CreateStorageDirectory(SDL_Storage *storage, char8* path);
+	[CLink] public static extern bool SDL_CreateStorageDirectory(SDL_Storage* storage, char8* path);
 
 /**
  * Enumerate a directory in a storage container through a callback function.
@@ -558,7 +558,7 @@ public static //extension SDL3
  *
  * \sa SDL_StorageReady
  */
-[CLink] public static extern bool SDL_EnumerateStorageDirectory(SDL_Storage *storage, char8* path, SDL_EnumerateDirectoryCallback callback, void *userdata);
+	[CLink] public static extern bool SDL_EnumerateStorageDirectory(SDL_Storage* storage, char8* path, SDL_EnumerateDirectoryCallback callback, void* userdata);
 
 /**
  * Remove a file or an empty directory in a writable storage container.
@@ -572,7 +572,7 @@ public static //extension SDL3
  *
  * \sa SDL_StorageReady
  */
-[CLink] public static extern bool SDL_RemoveStoragePath(SDL_Storage *storage, char8* path);
+	[CLink] public static extern bool SDL_RemoveStoragePath(SDL_Storage* storage, char8* path);
 
 /**
  * Rename a file or directory in a writable storage container.
@@ -587,7 +587,7 @@ public static //extension SDL3
  *
  * \sa SDL_StorageReady
  */
-[CLink] public static extern bool SDL_RenameStoragePath(SDL_Storage *storage, char8* oldpath, char8* newpath);
+	[CLink] public static extern bool SDL_RenameStoragePath(SDL_Storage* storage, char8* oldpath, char8* newpath);
 
 /**
  * Copy a file in a writable storage container.
@@ -602,7 +602,7 @@ public static //extension SDL3
  *
  * \sa SDL_StorageReady
  */
-[CLink] public static extern bool SDL_CopyStorageFile(SDL_Storage *storage, char8* oldpath, char8* newpath);
+	[CLink] public static extern bool SDL_CopyStorageFile(SDL_Storage* storage, char8* oldpath, char8* newpath);
 
 /**
  * Get information about a filesystem path in a storage container.
@@ -618,7 +618,7 @@ public static //extension SDL3
  *
  * \sa SDL_StorageReady
  */
-[CLink] public static extern bool SDL_GetStoragePathInfo(SDL_Storage *storage, char8* path, SDL_PathInfo *info);
+	[CLink] public static extern bool SDL_GetStoragePathInfo(SDL_Storage* storage, char8* path, SDL_PathInfo* info);
 
 /**
  * Queries the remaining space in a storage container.
@@ -631,7 +631,7 @@ public static //extension SDL3
  * \sa SDL_StorageReady
  * \sa SDL_WriteStorageFile
  */
-[CLink] public static extern uint64 SDL_GetStorageSpaceRemaining(SDL_Storage *storage);
+	[CLink] public static extern uint64 SDL_GetStorageSpaceRemaining(SDL_Storage* storage);
 
 /**
  * Enumerate a directory tree, filtered by pattern, and return a list.
@@ -671,5 +671,5 @@ public static //extension SDL3
  *
  * \since This function is available since SDL 3.2.0.
  */
-[CLink] public static extern char8**SDL_GlobStorageDirectory(SDL_Storage *storage, char8* path, char8* pattern, SDL_GlobFlags flags, int32 *count);
+	[CLink] public static extern char8** SDL_GlobStorageDirectory(SDL_Storage* storage, char8* path, char8* pattern, SDL_GlobFlags flags, int32* count);
 }
