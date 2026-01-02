@@ -1,0 +1,11 @@
+FileVersion = 1
+
+[Project]
+Name = "Sedulous.Models.GLTF"
+TargetType = "BeefLib"
+
+[Dependencies]
+corlib = "*"
+"Sedulous.Mathematics" = "*"
+"Sedulous.Models" = "*"
+"cgltf-Beef" = "*"
