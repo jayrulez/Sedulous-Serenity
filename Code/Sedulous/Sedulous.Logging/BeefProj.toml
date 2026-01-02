@@ -1,0 +1,6 @@
+FileVersion = 1
+
+[Project]
+Name = "Sedulous.Logging"
+TargetType = "BeefLib"
+StartupObject = "Sedulous.Logging.Program"
