@@ -1,0 +1,5 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.Foundation" = "*", "Sedulous.Mathematics" = "*", "Sedulous.Resources" = "*"}
+
+[Project]
+Name = "Sedulous.Framework.Audio"
