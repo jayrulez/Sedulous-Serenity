@@ -1,0 +1,6 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.Framework.Audio" = "*", "Sedulous.Framework.Audio.SDL3" = "*", "Sedulous.Mathematics" = "*", SDL3 = "*"}
+
+[Project]
+Name = "AudioSample"
+StartupObject = "AudioSample.Program"
