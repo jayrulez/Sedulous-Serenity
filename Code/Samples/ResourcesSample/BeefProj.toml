@@ -1,0 +1,15 @@
+FileVersion = 1
+
+[Project]
+Name = "ResourcesSample"
+TargetType = "BeefConsoleApplication"
+StartupObject = "ResourcesSample.Program"
+
+[Dependencies]
+corlib = "*"
+"Sedulous.Jobs" = "*"
+"Sedulous.Mathematics" = "*"
+"Sedulous.OpenDDL" = "*"
+"Sedulous.Resources" = "*"
+"Sedulous.Serialization" = "*"
+"Sedulous.Serialization.OpenDDL" = "*"
