@@ -1,0 +1,15 @@
+# Beef
+build/
+recovery/
+support/
+BeefSpace_User.toml
+
+.claude/
+.vscode/
+nul
+
+OpenDDL/
+ReferenceSedulous/
+sedulous-instructions.md
+agents.md
+claude.md

@@ -1,0 +1,96 @@
+.\" This manpage content is licensed under Creative Commons
+.\"  Attribution 4.0 International (CC BY 4.0)
+.\"   https://creativecommons.org/licenses/by/4.0/
+.\" This manpage was generated from SDL_mixer's wiki page for MIX_CreateMixerDevice:
+.\"   https://wiki.libsdl.org/SDL3_mixer/MIX_CreateMixerDevice
+.\" Generated with SDL/build-scripts/wikiheaders.pl
+.\"  revision 8c516fc
+.\" Please report issues in this manpage's content at:
+.\"   https://github.com/libsdl-org/sdlwiki/issues/new
+.\" Please report issues in the generation of this manpage from the wiki at:
+.\"   https://github.com/libsdl-org/SDL/issues/new?title=Misgenerated%20manpage%20for%20MIX_CreateMixerDevice
+.\" SDL_mixer can be found at https://libsdl.org/projects/SDL_mixer/
+.de URL
+\$2 \(laURL: \$1 \(ra\$3
+..
+.if \n[.g] .mso www.tmac
+.TH MIX_CreateMixerDevice 3 "SDL_mixer 3.1.0" "SDL_mixer" "SDL_mixer3 FUNCTIONS"
+.SH NAME
+MIX_CreateMixerDevice \- Create a mixer that plays sound directly to an audio device\[char46]
+.SH HEADER FILE
+Defined in SDL3_mixer/SDL_mixer\[char46]h
+
+.SH SYNOPSIS
+.nf
+.B #include \(dqSDL3_mixer/SDL_mixer.h\(dq
+.PP
+.BI "MIX_Mixer * MIX_CreateMixerDevice(SDL_AudioDeviceID devid, const SDL_AudioSpec *spec);
+.fi
+.SH DESCRIPTION
+This is usually the function you want, vs
+
+.BR MIX_CreateMixer
+()\[char46]
+
+You can choose a specific device ID to open, following SDL's usual rules,
+but often the correct choice is to specify
+SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK and let SDL figure out what device to use
+(and seamlessly transition you to new hardware if the default changes)\[char46]
+
+Only playback devices make sense here\[char46] Attempting to open a recording
+device will fail\[char46]
+
+This will call SDL_Init(SDL_INIT_AUDIO) internally; it's safe to call
+SDL_Init() before this call, too, if you intend to enumerate audio devices
+to choose one to open here\[char46]
+
+An audio format can be requested, and the system will try to set the
+hardware to those specifications, or as close as possible, but this is just
+a hint\[char46] SDL_mixer will handle all data conversion behind the scenes in any
+case, and specifying a NULL spec is a reasonable choice\[char46] The best reason to
+specify a format is because you know all your data is in that format and it
+might save some unnecessary CPU time on conversion\[char46]
+
+The actual device format chosen is available through
+
+.BR MIX_GetMixerFormat
+()\[char46]
+
+Once a mixer is created, next steps are usually to load audio (through
+
+.BR MIX_LoadAudio
+() and friends), create a track
+(
+.BR MIX_CreateTrack
+()), and play that audio through that
+track\[char46]
+
+When done with the mixer, it can be destroyed with
+
+.BR MIX_DestroyMixer
+()\[char46]
+
+.SH FUNCTION PARAMETERS
+.TP
+.I devid
+the device to open for playback, or SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK for the default\[char46]
+.TP
+.I spec
+the audio format request from the device\[char46] May be NULL\[char46]
+.SH RETURN VALUE
+(
+.BR MIX_Mixer
+ *) Returns a mixer that can be used to play audio,
+or NULL on failure; call SDL_GetError() for more information\[char46]
+
+.SH THREAD SAFETY
+It is safe to call this function from any thread\[char46]
+
+.SH AVAILABILITY
+This function is available since SDL_mixer 3\[char46]0\[char46]0\[char46]
+
+.SH SEE ALSO
+.BR \(bu (3),
+.BR MIX_CreateMixer (3),
+.BR \(bu (3),
+.BR MIX_DestroyMixer (3)

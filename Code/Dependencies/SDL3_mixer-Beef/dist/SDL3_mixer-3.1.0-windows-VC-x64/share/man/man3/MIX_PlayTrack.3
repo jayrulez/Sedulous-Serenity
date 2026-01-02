@@ -1,0 +1,218 @@
+.\" This manpage content is licensed under Creative Commons
+.\"  Attribution 4.0 International (CC BY 4.0)
+.\"   https://creativecommons.org/licenses/by/4.0/
+.\" This manpage was generated from SDL_mixer's wiki page for MIX_PlayTrack:
+.\"   https://wiki.libsdl.org/SDL3_mixer/MIX_PlayTrack
+.\" Generated with SDL/build-scripts/wikiheaders.pl
+.\"  revision 8c516fc
+.\" Please report issues in this manpage's content at:
+.\"   https://github.com/libsdl-org/sdlwiki/issues/new
+.\" Please report issues in the generation of this manpage from the wiki at:
+.\"   https://github.com/libsdl-org/SDL/issues/new?title=Misgenerated%20manpage%20for%20MIX_PlayTrack
+.\" SDL_mixer can be found at https://libsdl.org/projects/SDL_mixer/
+.de URL
+\$2 \(laURL: \$1 \(ra\$3
+..
+.if \n[.g] .mso www.tmac
+.TH MIX_PlayTrack 3 "SDL_mixer 3.1.0" "SDL_mixer" "SDL_mixer3 FUNCTIONS"
+.SH NAME
+MIX_PlayTrack \- Start (or restart) mixing a track for playback\[char46]
+.SH HEADER FILE
+Defined in SDL3_mixer/SDL_mixer\[char46]h
+
+.SH SYNOPSIS
+.nf
+.B #include \(dqSDL3_mixer/SDL_mixer.h\(dq
+.PP
+.BI "bool MIX_PlayTrack(MIX_Track *track, SDL_PropertiesID options);
+.BI "
+.BI "
+.BI "#define MIX_PROP_PLAY_LOOPS_NUMBER "SDL_mixer.play.loops"
+.BI "#define MIX_PROP_PLAY_MAX_FRAME_NUMBER "SDL_mixer.play.max_frame"
+.BI "#define MIX_PROP_PLAY_MAX_MILLISECONDS_NUMBER "SDL_mixer.play.max_milliseconds"
+.BI "#define MIX_PROP_PLAY_START_FRAME_NUMBER "SDL_mixer.play.start_frame"
+.BI "#define MIX_PROP_PLAY_START_MILLISECOND_NUMBER "SDL_mixer.play.start_millisecond"
+.BI "#define MIX_PROP_PLAY_LOOP_START_FRAME_NUMBER "SDL_mixer.play.loop_start_frame"
+.BI "#define MIX_PROP_PLAY_LOOP_START_MILLISECOND_NUMBER "SDL_mixer.play.loop_start_millisecond"
+.BI "#define MIX_PROP_PLAY_FADE_IN_FRAMES_NUMBER "SDL_mixer.play.fade_in_frames"
+.BI "#define MIX_PROP_PLAY_FADE_IN_MILLISECONDS_NUMBER "SDL_mixer.play.fade_in_milliseconds"
+.BI "#define MIX_PROP_PLAY_APPEND_SILENCE_FRAMES_NUMBER "SDL_mixer.play.append_silence_frames"
+.BI "#define MIX_PROP_PLAY_APPEND_SILENCE_MILLISECONDS_NUMBER "SDL_mixer.play.append_silence_milliseconds"
+.fi
+.SH DESCRIPTION
+The track will use whatever input was last assigned to it when playing; an
+input must be assigned to this track or this function will fail\[char46] Inputs are
+assigned with calls to 
+.BR MIX_SetTrackAudio
+(),
+
+.BR MIX_SetTrackAudioStream
+(), or
+
+.BR MIX_SetTrackIOStream
+()\[char46]
+
+If the track is already playing, or paused, this will restart the track
+with the newly-specified parameters\[char46]
+
+As there are several parameters, and more may be added in the future, they
+are specified with an SDL_PropertiesID\[char46] The parameters have reasonable
+defaults, and specifying a 0 for
+.BR options
+will choose defaults for
+everything\[char46]
+
+These are the supported properties:
+
+
+\(bu 
+.BR
+.BR MIX_PROP_PLAY_LOOPS_NUMBER
+: The number of
+  times to loop the track when it reaches the end\[char46] A value of 1 will loop
+  to the start one time\[char46] Zero will not loop at all\[char46] A value of -1 requests
+  infinite loops\[char46] If the input is not seekable and this value isn't zero,
+  this function will report success but the track will stop at the point it
+  should loop\[char46] Default 0\[char46]
+
+\(bu 
+.BR
+.BR MIX_PROP_PLAY_MAX_FRAME_NUMBER
+: Mix
+  at most to this sample frame position in the track\[char46] This will be treated
+  as if the input reach EOF at this point in the audio file\[char46] If -1, mix all
+  available audio without a limit\[char46] Default -1\[char46]
+
+\(bu 
+.BR
+.BR MIX_PROP_PLAY_MAX_MILLISECONDS_NUMBER
+:
+  The same as using the
+  
+.BR MIX_PROP_PLAY_MAX_FRAME_NUMBER
+
+  property, but the value is specified in milliseconds instead of sample
+  frames\[char46] If both properties are specified, the sample frames value is
+  favored\[char46] Default -1\[char46]
+
+\(bu 
+.BR
+.BR MIX_PROP_PLAY_START_FRAME_NUMBER
+:
+  Start mixing from this sample frame position in the track's input\[char46] A
+  value <= 0 will begin from the start of the track's input\[char46] If the input
+  is not seekable and this value is > 0, this function will report failure\[char46]
+  Default 0\[char46]
+
+\(bu 
+.BR
+.BR MIX_PROP_PLAY_START_MILLISECOND_NUMBER
+:
+  The same as using the
+  
+.BR MIX_PROP_PLAY_START_FRAME_NUMBER
+
+  property, but the value is specified in milliseconds instead of sample
+  frames\[char46] If both properties are specified, the sample frames value is
+  favored\[char46] Default 0\[char46]
+
+\(bu 
+.BR
+.BR MIX_PROP_PLAY_LOOP_START_FRAME_NUMBER
+:
+  If the track is looping, this is the sample frame position that the track
+  will loop back to; this lets one play an intro at the start of a track on
+  the first iteration, but have a loop point somewhere in the middle
+  thereafter\[char46] A value <= 0 will begin the loop from the start of the
+  track's input\[char46] Default 0\[char46]
+
+\(bu 
+.BR
+.BR MIX_PROP_PLAY_LOOP_START_MILLISECOND_NUMBER
+:
+  The same as using the
+  
+.BR MIX_PROP_PLAY_LOOP_START_FRAME_NUMBER
+
+  property, but the value is specified in milliseconds instead of sample
+  frames\[char46] If both properties are specified, the sample frames value is
+  favored\[char46] Default 0\[char46]
+
+\(bu 
+.BR
+.BR MIX_PROP_PLAY_FADE_IN_FRAMES_NUMBER
+:
+  The number of sample frames over which to fade in the newly-started
+  track\[char46] The track will begin mixing silence and reach full volume smoothly
+  over this many sample frames\[char46] If the track loops before the fade-in is
+  complete, it will continue to fade correctly from the loop point\[char46] A value
+  <= 0 will disable fade-in, so the track starts mixing at full volume\[char46]
+  Default 0\[char46]
+
+\(bu 
+.BR
+.BR MIX_PROP_PLAY_FADE_IN_MILLISECONDS_NUMBER
+:
+  The same as using the
+  
+.BR MIX_PROP_PLAY_FADE_IN_FRAMES_NUMBER
+
+  property, but the value is specified in milliseconds instead of sample
+  frames\[char46] If both properties are specified, the sample frames value is
+  favored\[char46] Default 0\[char46]
+
+\(bu 
+.BR
+.BR MIX_PROP_PLAY_APPEND_SILENCE_FRAMES_NUMBER
+:
+  At the end of mixing this track, after all loops are complete, append
+  this many sample frames of silence as if it were part of the audio file\[char46]
+  This allows for apps to implement effects in callbacks, like reverb, that
+  need to generate samples past the end of the stream's audio, or perhaps
+  introduce a delay before starting a new sound on the track without having
+  to manage it directly\[char46] A value <= 0 generates no silence before stopping
+  the track\[char46] Default 0\[char46]
+
+\(bu 
+.BR
+.BR MIX_PROP_PLAY_APPEND_SILENCE_MILLISECONDS_NUMBER
+:
+  The same as using the
+  
+.BR MIX_PROP_PLAY_APPEND_SILENCE_FRAMES_NUMBER
+
+  property, but the value is specified in milliseconds instead of sample
+  frames\[char46] If both properties are specified, the sample frames value is
+  favored\[char46] Default 0\[char46]
+
+If this function fails, mixing of this track will not start (or restart, if
+it was already started)\[char46]
+
+.SH FUNCTION PARAMETERS
+.TP
+.I track
+the track to start (or restart) mixing\[char46]
+.TP
+.I options
+a set of properties that control playback\[char46] May be zero\[char46]
+.SH RETURN VALUE
+Returns true on success, false on error; call SDL_GetError() for
+details\[char46]
+
+.SH THREAD SAFETY
+It is safe to call this function from any thread\[char46]
+
+.SH AVAILABILITY
+This function is available since SDL_mixer 3\[char46]0\[char46]0\[char46]
+
+.SH SEE ALSO
+.BR \(bu (3),
+.BR MIX_PlayTag (3),
+.BR \(bu (3),
+.BR MIX_PlayAudio (3),
+.BR \(bu (3),
+.BR MIX_StopTrack (3),
+.BR \(bu (3),
+.BR MIX_PauseTrack (3),
+.BR \(bu (3),
+.BR MIX_TrackPlaying (3)

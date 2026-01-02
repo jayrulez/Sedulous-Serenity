@@ -1,0 +1,132 @@
+.\" This manpage content is licensed under Creative Commons
+.\"  Attribution 4.0 International (CC BY 4.0)
+.\"   https://creativecommons.org/licenses/by/4.0/
+.\" This manpage was generated from SDL_mixer's wiki page for MIX_LoadAudio_IO:
+.\"   https://wiki.libsdl.org/SDL3_mixer/MIX_LoadAudio_IO
+.\" Generated with SDL/build-scripts/wikiheaders.pl
+.\"  revision 8c516fc
+.\" Please report issues in this manpage's content at:
+.\"   https://github.com/libsdl-org/sdlwiki/issues/new
+.\" Please report issues in the generation of this manpage from the wiki at:
+.\"   https://github.com/libsdl-org/SDL/issues/new?title=Misgenerated%20manpage%20for%20MIX_LoadAudio_IO
+.\" SDL_mixer can be found at https://libsdl.org/projects/SDL_mixer/
+.de URL
+\$2 \(laURL: \$1 \(ra\$3
+..
+.if \n[.g] .mso www.tmac
+.TH MIX_LoadAudio_IO 3 "SDL_mixer 3.1.0" "SDL_mixer" "SDL_mixer3 FUNCTIONS"
+.SH NAME
+MIX_LoadAudio_IO \- Load audio for playback from an SDL_IOStream\[char46]
+.SH HEADER FILE
+Defined in SDL3_mixer/SDL_mixer\[char46]h
+
+.SH SYNOPSIS
+.nf
+.B #include \(dqSDL3_mixer/SDL_mixer.h\(dq
+.PP
+.BI "MIX_Audio * MIX_LoadAudio_IO(MIX_Mixer *mixer, SDL_IOStream *io, bool predecode, bool closeio);
+.fi
+.SH DESCRIPTION
+In normal usage, apps should load audio once, maybe at startup, then play
+it multiple times\[char46]
+
+When loading audio, it will be cached fully in RAM in its original data
+format\[char46] Each time it plays, the data will be decoded\[char46] For example, an MP3
+will be stored in memory in MP3 format and be decompressed on the fly
+during playback\[char46] This is a tradeoff between i/o overhead and memory usage\[char46]
+
+If
+.BR predecode
+is true, the data will be decompressed during load and
+stored as raw PCM data\[char46] This might dramatically increase loading time and
+memory usage, but there will be no need to decompress data during playback\[char46]
+
+(One could also use 
+.BR MIX_SetTrackIOStream
+() to
+bypass loading the data into RAM upfront at all, but this offers still
+different tradeoffs\[char46] The correct approach depends on the app's needs and
+employing different approaches in different situations can make sense\[char46])
+
+
+.BR MIX_Audio
+ objects can be shared between mixers\[char46] This function
+takes a 
+.BR MIX_Mixer
+, to imply this is the most likely place it
+will be used and loading should try to match its audio format, but the
+resulting audio can be used elsewhere\[char46] If
+.BR mixer
+is NULL, SDL_mixer will
+set reasonable defaults\[char46]
+
+Once a 
+.BR MIX_Audio
+ is created, it can be assigned to a
+
+.BR MIX_Track
+ with 
+.BR MIX_SetTrackAudio
+(), or
+played without any management with 
+.BR MIX_PlayAudio
+()\[char46]
+
+When done with a 
+.BR MIX_Audio
+, it can be freed with
+
+.BR MIX_DestroyAudio
+()\[char46]
+
+This function loads data from an SDL_IOStream\[char46] There is also a version that
+loads from a path on the filesystem (
+.BR MIX_LoadAudio
+()), and
+one that accepts properties for ultimate control
+(
+.BR MIX_LoadAudioWithProperties
+())\[char46]
+
+The SDL_IOStream provided must be able to seek, or loading will fail\[char46] If
+the stream can't seek (data is coming from an HTTP connection, etc),
+consider caching the data to memory or disk first and creating a new stream
+to read from there\[char46]
+
+.SH FUNCTION PARAMETERS
+.TP
+.I mixer
+a mixer this audio is intended to be used with\[char46] May be NULL\[char46]
+.TP
+.I io
+the SDL_IOStream to load data from\[char46]
+.TP
+.I predecode
+if true, data will be fully uncompressed before returning\[char46]
+.TP
+.I closeio
+true if SDL_mixer should close
+.BR io
+before returning (success or failure)\[char46]
+.SH RETURN VALUE
+(
+.BR MIX_Audio
+ *) Returns an audio object that can be used to make
+sound on a mixer, or NULL on failure; call SDL_GetError() for more
+information\[char46]
+
+.SH THREAD SAFETY
+It is safe to call this function from any thread\[char46]
+
+.SH AVAILABILITY
+This function is available since SDL_mixer 3\[char46]0\[char46]0\[char46]
+
+.SH SEE ALSO
+.BR \(bu (3),
+.BR MIX_DestroyAudio (3),
+.BR \(bu (3),
+.BR MIX_SetTrackAudio (3),
+.BR \(bu (3),
+.BR MIX_LoadAudio (3),
+.BR \(bu (3),
+.BR MIX_LoadAudioWithProperties (3)

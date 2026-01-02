@@ -1,0 +1,70 @@
+.\" This manpage content is licensed under Creative Commons
+.\"  Attribution 4.0 International (CC BY 4.0)
+.\"   https://creativecommons.org/licenses/by/4.0/
+.\" This manpage was generated from SDL_mixer's wiki page for MIX_GetMixerFormat:
+.\"   https://wiki.libsdl.org/SDL3_mixer/MIX_GetMixerFormat
+.\" Generated with SDL/build-scripts/wikiheaders.pl
+.\"  revision 8c516fc
+.\" Please report issues in this manpage's content at:
+.\"   https://github.com/libsdl-org/sdlwiki/issues/new
+.\" Please report issues in the generation of this manpage from the wiki at:
+.\"   https://github.com/libsdl-org/SDL/issues/new?title=Misgenerated%20manpage%20for%20MIX_GetMixerFormat
+.\" SDL_mixer can be found at https://libsdl.org/projects/SDL_mixer/
+.de URL
+\$2 \(laURL: \$1 \(ra\$3
+..
+.if \n[.g] .mso www.tmac
+.TH MIX_GetMixerFormat 3 "SDL_mixer 3.1.0" "SDL_mixer" "SDL_mixer3 FUNCTIONS"
+.SH NAME
+MIX_GetMixerFormat \- Get the audio format a mixer is generating\[char46]
+.SH HEADER FILE
+Defined in SDL3_mixer/SDL_mixer\[char46]h
+
+.SH SYNOPSIS
+.nf
+.B #include \(dqSDL3_mixer/SDL_mixer.h\(dq
+.PP
+.BI "bool MIX_GetMixerFormat(MIX_Mixer *mixer, SDL_AudioSpec *spec);
+.fi
+.SH DESCRIPTION
+Generally you don't need this information, as SDL_mixer will convert data
+as necessary between inputs you provide and its output format, but it might
+be useful if trying to match your inputs to reduce conversion and
+resampling costs\[char46]
+
+For mixers created with 
+.BR MIX_CreateMixerDevice
+(),
+this is the format of the audio device (and may change later if the device
+itself changes; SDL_mixer will seamlessly handle this change internally,
+though)\[char46]
+
+For mixers created with 
+.BR MIX_CreateMixer
+(), this is the
+format that 
+.BR MIX_Generate
+() will produce, as requested at
+create time, and does not change\[char46]
+
+Note that internally, SDL_mixer will work in SDL_AUDIO_F32 format before
+outputting the format specified here, so it would be more efficient to
+match input data to that, not the final output format\[char46]
+
+.SH FUNCTION PARAMETERS
+.TP
+.I mixer
+the mixer to query\[char46]
+.TP
+.I spec
+where to store the mixer audio format\[char46]
+.SH RETURN VALUE
+Returns true on success or false on failure; call SDL_GetError() for
+more information\[char46]
+
+.SH THREAD SAFETY
+It is safe to call this function from any thread\[char46]
+
+.SH AVAILABILITY
+This function is available since SDL_mixer 3\[char46]0\[char46]0\[char46]
+

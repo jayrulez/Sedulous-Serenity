@@ -1,0 +1,71 @@
+.\" This manpage content is licensed under Creative Commons
+.\"  Attribution 4.0 International (CC BY 4.0)
+.\"   https://creativecommons.org/licenses/by/4.0/
+.\" This manpage was generated from SDL_mixer's wiki page for MIX_SetTrackRawCallback:
+.\"   https://wiki.libsdl.org/SDL3_mixer/MIX_SetTrackRawCallback
+.\" Generated with SDL/build-scripts/wikiheaders.pl
+.\"  revision 8c516fc
+.\" Please report issues in this manpage's content at:
+.\"   https://github.com/libsdl-org/sdlwiki/issues/new
+.\" Please report issues in the generation of this manpage from the wiki at:
+.\"   https://github.com/libsdl-org/SDL/issues/new?title=Misgenerated%20manpage%20for%20MIX_SetTrackRawCallback
+.\" SDL_mixer can be found at https://libsdl.org/projects/SDL_mixer/
+.de URL
+\$2 \(laURL: \$1 \(ra\$3
+..
+.if \n[.g] .mso www.tmac
+.TH MIX_SetTrackRawCallback 3 "SDL_mixer 3.1.0" "SDL_mixer" "SDL_mixer3 FUNCTIONS"
+.SH NAME
+MIX_SetTrackRawCallback \- Set a callback that fires when a 
+.BR MIX_Track
+ has initial decoded audio\[char46]
+.SH HEADER FILE
+Defined in SDL3_mixer/SDL_mixer\[char46]h
+
+.SH SYNOPSIS
+.nf
+.B #include \(dqSDL3_mixer/SDL_mixer.h\(dq
+.PP
+.BI "bool MIX_SetTrackRawCallback(MIX_Track *track, MIX_TrackMixCallback cb, void *userdata);
+.fi
+.SH DESCRIPTION
+As a track needs to mix more data, it pulls from its input (a
+
+.BR MIX_Audio
+, an SDL_AudioStream, etc)\[char46] This input might be a
+compressed file format, like MP3, so a little more data is uncompressed
+from it\[char46]
+
+Once the track has PCM data to start operating on, it can fire a callback
+before _any_ changes to the raw PCM input have happened\[char46] This lets an app
+view the data before it has gone through transformations such as gain, 3D
+positioning, fading, etc\[char46] It can also change the data in any way it pleases
+during this callback, and the mixer will continue as if this data came
+directly from the input\[char46]
+
+Each track has its own unique raw callback\[char46]
+
+Passing a NULL callback here is legal; it disables this track's callback\[char46]
+
+.SH FUNCTION PARAMETERS
+.TP
+.I track
+the track to assign this callback to\[char46]
+.TP
+.I cb
+the function to call when the track mixes\[char46] May be NULL\[char46]
+.TP
+.I userdata
+an opaque pointer provided to the callback for its own personal use\[char46]
+.SH RETURN VALUE
+Returns true on success or false on failure; call SDL_GetError() for
+more information\[char46]
+
+.SH AVAILABILITY
+This function is available since SDL_mixer 3\[char46]0\[char46]0\[char46]
+
+.SH SEE ALSO
+.BR \(bu (3),
+.BR MIX_TrackMixCallback (3type),
+.BR \(bu (3),
+.BR MIX_SetTrackCookedCallback (3)

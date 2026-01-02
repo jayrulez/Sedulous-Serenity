@@ -1,0 +1,62 @@
+.\" This manpage content is licensed under Creative Commons
+.\"  Attribution 4.0 International (CC BY 4.0)
+.\"   https://creativecommons.org/licenses/by/4.0/
+.\" This manpage was generated from SDL_mixer's wiki page for MIX_PauseTrack:
+.\"   https://wiki.libsdl.org/SDL3_mixer/MIX_PauseTrack
+.\" Generated with SDL/build-scripts/wikiheaders.pl
+.\"  revision 8c516fc
+.\" Please report issues in this manpage's content at:
+.\"   https://github.com/libsdl-org/sdlwiki/issues/new
+.\" Please report issues in the generation of this manpage from the wiki at:
+.\"   https://github.com/libsdl-org/SDL/issues/new?title=Misgenerated%20manpage%20for%20MIX_PauseTrack
+.\" SDL_mixer can be found at https://libsdl.org/projects/SDL_mixer/
+.de URL
+\$2 \(laURL: \$1 \(ra\$3
+..
+.if \n[.g] .mso www.tmac
+.TH MIX_PauseTrack 3 "SDL_mixer 3.1.0" "SDL_mixer" "SDL_mixer3 FUNCTIONS"
+.SH NAME
+MIX_PauseTrack \- Pause a currently-playing track\[char46]
+.SH HEADER FILE
+Defined in SDL3_mixer/SDL_mixer\[char46]h
+
+.SH SYNOPSIS
+.nf
+.B #include \(dqSDL3_mixer/SDL_mixer.h\(dq
+.PP
+.BI "bool MIX_PauseTrack(MIX_Track *track);
+.fi
+.SH DESCRIPTION
+A paused track is not considered "stopped," so its
+
+.BR MIX_TrackStoppedCallback
+ will not fire if
+paused, but it won't change state by default, generate audio, or generally
+make progress, until it is resumed\[char46]
+
+It is legal to pause a track that's in any state (playing, already paused,
+or stopped)\[char46] Unless the track is currently playing, pausing does nothing,
+and returns true\[char46] A false return is only used to signal errors here (such
+as 
+.BR MIX_Init
+ not being called or
+.BR track
+being NULL)\[char46]
+
+.SH FUNCTION PARAMETERS
+.TP
+.I track
+the track to pause\[char46]
+.SH RETURN VALUE
+Returns true if the track has paused, false on error; call
+SDL_GetError() for details\[char46]
+
+.SH THREAD SAFETY
+It is safe to call this function from any thread\[char46]
+
+.SH AVAILABILITY
+This function is available since SDL_mixer 3\[char46]0\[char46]0\[char46]
+
+.SH SEE ALSO
+.BR \(bu (3),
+.BR MIX_ResumeTrack (3)

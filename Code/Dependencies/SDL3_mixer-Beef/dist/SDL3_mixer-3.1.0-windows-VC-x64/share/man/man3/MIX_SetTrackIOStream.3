@@ -1,0 +1,101 @@
+.\" This manpage content is licensed under Creative Commons
+.\"  Attribution 4.0 International (CC BY 4.0)
+.\"   https://creativecommons.org/licenses/by/4.0/
+.\" This manpage was generated from SDL_mixer's wiki page for MIX_SetTrackIOStream:
+.\"   https://wiki.libsdl.org/SDL3_mixer/MIX_SetTrackIOStream
+.\" Generated with SDL/build-scripts/wikiheaders.pl
+.\"  revision 8c516fc
+.\" Please report issues in this manpage's content at:
+.\"   https://github.com/libsdl-org/sdlwiki/issues/new
+.\" Please report issues in the generation of this manpage from the wiki at:
+.\"   https://github.com/libsdl-org/SDL/issues/new?title=Misgenerated%20manpage%20for%20MIX_SetTrackIOStream
+.\" SDL_mixer can be found at https://libsdl.org/projects/SDL_mixer/
+.de URL
+\$2 \(laURL: \$1 \(ra\$3
+..
+.if \n[.g] .mso www.tmac
+.TH MIX_SetTrackIOStream 3 "SDL_mixer 3.1.0" "SDL_mixer" "SDL_mixer3 FUNCTIONS"
+.SH NAME
+MIX_SetTrackIOStream \- Set a 
+.BR MIX_Track
+'s input to an SDL_IOStream\[char46]
+.SH HEADER FILE
+Defined in SDL3_mixer/SDL_mixer\[char46]h
+
+.SH SYNOPSIS
+.nf
+.B #include \(dqSDL3_mixer/SDL_mixer.h\(dq
+.PP
+.BI "bool MIX_SetTrackIOStream(MIX_Track *track, SDL_IOStream *io, bool closeio);
+.fi
+.SH DESCRIPTION
+This is not the recommended way to set a track's input, but this can be
+useful for a very specific scenario: a large file, to be played once, that
+must be read from disk in small chunks as needed\[char46] In most cases, however,
+it is preferable to create a 
+.BR MIX_Audio
+ ahead of time and use
+
+.BR MIX_SetTrackAudio
+() instead\[char46]
+
+The stream supplied here should provide an audio file in a supported
+format\[char46] SDL_mixer will parse it during this call to make sure it's valid,
+and then will read file data from the stream as it needs to decode more
+during mixing\[char46]
+
+The stream must be able to seek through the complete set of data, or this
+function will fail\[char46]
+
+A given IOStream may only be assigned to a single track at a time;
+duplicate assignments won't return an error, but assigning a stream to
+multiple tracks will cause each track to read from the stream arbitrarily,
+causing confusion, incorrect mixing, or failure to decode\[char46]
+
+Once a track has a valid input, it can start mixing sound by calling
+
+.BR MIX_PlayTrack
+(), or possibly 
+.BR MIX_PlayTag
+()\[char46]
+
+Calling this function with a NULL stream is legal, and removes any input
+from the track\[char46] If the track was currently playing, the next time the mixer
+runs, it'll notice this and mark the track as stopped, calling any assigned
+
+.BR MIX_TrackStoppedCallback
+\[char46]
+
+It is legal to change the input of a track while it's playing, however some
+states, like loop points, may cease to make sense with the new audio\[char46] In
+such a case, one can call 
+.BR MIX_PlayTrack
+ again to adjust
+parameters\[char46]
+
+The provided stream must remain valid until the track no longer needs it
+(either by changing the track's input or destroying the track)\[char46]
+
+.SH FUNCTION PARAMETERS
+.TP
+.I track
+the track on which to set a new audio input\[char46]
+.TP
+.I io
+the new i/o stream to use as the track's input\[char46]
+.TP
+.I closeio
+if true, close the stream when done with it\[char46]
+.SH RETURN VALUE
+Returns true on success, false on error; call SDL_GetError() for
+details\[char46]
+
+.SH THREAD SAFETY
+It is safe to call this function from any thread\[char46]
+
+.SH AVAILABILITY
+This function is available since SDL_mixer 3\[char46]0\[char46]0\[char46]
+
+.SH SEE ALSO
+.BR \(bu (3),
+.BR MIX_SetTrackRawIOStream (3)

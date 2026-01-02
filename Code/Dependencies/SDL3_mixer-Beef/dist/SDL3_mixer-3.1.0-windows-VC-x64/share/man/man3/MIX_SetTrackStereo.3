@@ -1,0 +1,76 @@
+.\" This manpage content is licensed under Creative Commons
+.\"  Attribution 4.0 International (CC BY 4.0)
+.\"   https://creativecommons.org/licenses/by/4.0/
+.\" This manpage was generated from SDL_mixer's wiki page for MIX_SetTrackStereo:
+.\"   https://wiki.libsdl.org/SDL3_mixer/MIX_SetTrackStereo
+.\" Generated with SDL/build-scripts/wikiheaders.pl
+.\"  revision 8c516fc
+.\" Please report issues in this manpage's content at:
+.\"   https://github.com/libsdl-org/sdlwiki/issues/new
+.\" Please report issues in the generation of this manpage from the wiki at:
+.\"   https://github.com/libsdl-org/SDL/issues/new?title=Misgenerated%20manpage%20for%20MIX_SetTrackStereo
+.\" SDL_mixer can be found at https://libsdl.org/projects/SDL_mixer/
+.de URL
+\$2 \(laURL: \$1 \(ra\$3
+..
+.if \n[.g] .mso www.tmac
+.TH MIX_SetTrackStereo 3 "SDL_mixer 3.1.0" "SDL_mixer" "SDL_mixer3 FUNCTIONS"
+.SH NAME
+MIX_SetTrackStereo \- Force a track to stereo output, with optionally left/right panning\[char46]
+.SH HEADER FILE
+Defined in SDL3_mixer/SDL_mixer\[char46]h
+
+.SH SYNOPSIS
+.nf
+.B #include \(dqSDL3_mixer/SDL_mixer.h\(dq
+.PP
+.BI "bool MIX_SetTrackStereo(MIX_Track *track, const MIX_StereoGains *gains);
+.fi
+.SH DESCRIPTION
+This will cause the output of the track to convert to stereo, and then mix
+it only onto the Front Left and Front Right speakers, regardless of the
+speaker configuration\[char46] The left and right channels are modulated by
+.BR gains
+, which can be used to produce panning effects\[char46] This function may be
+called to adjust the gains at any time\[char46]
+
+If
+.BR gains
+is not NULL, this track will be switched into forced-stereo
+mode\[char46] If
+.BR gains
+is NULL, this will disable spatialization (both the
+forced-stereo mode of this function and full 3D spatialization of
+
+.BR MIX_SetTrack3DPosition
+())\[char46]
+
+Negative gains are clamped to zero; there is no clamp for maximum, so one
+could set the value > 1\[char46]0f to make a channel louder\[char46]
+
+The track's 3D position, reported by
+
+.BR MIX_GetTrack3DPosition
+(), will be reset to (0, 0,
+0)\[char46]
+
+.SH FUNCTION PARAMETERS
+.TP
+.I track
+the track to adjust\[char46]
+.TP
+.I gains
+the per-channel gains, or NULL to disable spatialization\[char46]
+.SH RETURN VALUE
+Returns true on success or false on failure; call SDL_GetError() for
+more information\[char46]
+
+.SH THREAD SAFETY
+It is safe to call this function from any thread\[char46]
+
+.SH AVAILABILITY
+This function is available since SDL_mixer 3\[char46]0\[char46]0\[char46]
+
+.SH SEE ALSO
+.BR \(bu (3),
+.BR MIX_SetTrack3DPosition (3)

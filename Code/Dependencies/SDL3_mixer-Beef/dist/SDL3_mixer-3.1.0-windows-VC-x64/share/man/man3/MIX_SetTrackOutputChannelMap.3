@@ -1,0 +1,77 @@
+.\" This manpage content is licensed under Creative Commons
+.\"  Attribution 4.0 International (CC BY 4.0)
+.\"   https://creativecommons.org/licenses/by/4.0/
+.\" This manpage was generated from SDL_mixer's wiki page for MIX_SetTrackOutputChannelMap:
+.\"   https://wiki.libsdl.org/SDL3_mixer/MIX_SetTrackOutputChannelMap
+.\" Generated with SDL/build-scripts/wikiheaders.pl
+.\"  revision 8c516fc
+.\" Please report issues in this manpage's content at:
+.\"   https://github.com/libsdl-org/sdlwiki/issues/new
+.\" Please report issues in the generation of this manpage from the wiki at:
+.\"   https://github.com/libsdl-org/SDL/issues/new?title=Misgenerated%20manpage%20for%20MIX_SetTrackOutputChannelMap
+.\" SDL_mixer can be found at https://libsdl.org/projects/SDL_mixer/
+.de URL
+\$2 \(laURL: \$1 \(ra\$3
+..
+.if \n[.g] .mso www.tmac
+.TH MIX_SetTrackOutputChannelMap 3 "SDL_mixer 3.1.0" "SDL_mixer" "SDL_mixer3 FUNCTIONS"
+.SH NAME
+MIX_SetTrackOutputChannelMap \- Set the current output channel map of a track\[char46]
+.SH HEADER FILE
+Defined in SDL3_mixer/SDL_mixer\[char46]h
+
+.SH SYNOPSIS
+.nf
+.B #include \(dqSDL3_mixer/SDL_mixer.h\(dq
+.PP
+.BI "bool MIX_SetTrackOutputChannelMap(MIX_Track *track, const int *chmap, int count);
+.fi
+.SH DESCRIPTION
+Channel maps are optional; most things do not need them, instead passing
+data in the order that SDL expects\[char46]
+
+The output channel map reorders track data after transformations and before
+it is mixed into a mixer group\[char46] This can be useful for reversing stereo
+channels, for example\[char46]
+
+Each item in the array represents an input channel, and its value is the
+channel that it should be remapped to\[char46] To reverse a stereo signal's left
+and right values, you'd have an array of
+.BR { 1, 0 }
+\[char46] It is legal to remap
+multiple channels to the same thing, so
+.BR { 1, 1 }
+would duplicate the
+right channel to both channels of a stereo signal\[char46] An element in the
+channel map set to -1 instead of a valid channel will mute that channel,
+setting it to a silence value\[char46]
+
+You cannot change the number of channels through a channel map, just
+reorder/mute them\[char46]
+
+Tracks default to no remapping applied\[char46] Passing a NULL channel map is
+legal, and turns off remapping\[char46]
+
+SDL_mixer will copy the channel map; the caller does not have to save this
+array after this call\[char46]
+
+.SH FUNCTION PARAMETERS
+.TP
+.I track
+the track to change\[char46]
+.TP
+.I chmap
+the new channel map, NULL to reset to default\[char46]
+.TP
+.I count
+The number of channels in the map\[char46]
+.SH RETURN VALUE
+Returns true on success or false on failure; call SDL_GetError() for
+more information\[char46]
+
+.SH THREAD SAFETY
+It is safe to call this function from any thread\[char46]
+
+.SH AVAILABILITY
+This function is available since SDL_mixer 3\[char46]0\[char46]0\[char46]
+

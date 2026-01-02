@@ -1,0 +1,66 @@
+.\" This manpage content is licensed under Creative Commons
+.\"  Attribution 4.0 International (CC BY 4.0)
+.\"   https://creativecommons.org/licenses/by/4.0/
+.\" This manpage was generated from SDL_mixer's wiki page for MIX_DecodeAudio:
+.\"   https://wiki.libsdl.org/SDL3_mixer/MIX_DecodeAudio
+.\" Generated with SDL/build-scripts/wikiheaders.pl
+.\"  revision 8c516fc
+.\" Please report issues in this manpage's content at:
+.\"   https://github.com/libsdl-org/sdlwiki/issues/new
+.\" Please report issues in the generation of this manpage from the wiki at:
+.\"   https://github.com/libsdl-org/SDL/issues/new?title=Misgenerated%20manpage%20for%20MIX_DecodeAudio
+.\" SDL_mixer can be found at https://libsdl.org/projects/SDL_mixer/
+.de URL
+\$2 \(laURL: \$1 \(ra\$3
+..
+.if \n[.g] .mso www.tmac
+.TH MIX_DecodeAudio 3 "SDL_mixer 3.1.0" "SDL_mixer" "SDL_mixer3 FUNCTIONS"
+.SH NAME
+MIX_DecodeAudio \- Decode more audio from a 
+.BR MIX_AudioDecoder
+\[char46]
+.SH HEADER FILE
+Defined in SDL3_mixer/SDL_mixer\[char46]h
+
+.SH SYNOPSIS
+.nf
+.B #include \(dqSDL3_mixer/SDL_mixer.h\(dq
+.PP
+.BI "int MIX_DecodeAudio(MIX_AudioDecoder *audiodecoder, void *buffer, int buflen, const SDL_AudioSpec *spec);
+.fi
+.SH DESCRIPTION
+Data is decoded on demand in whatever format is requested\[char46] The format is
+permitted to change between calls\[char46]
+
+This function will return the number of bytes decoded, which may be less
+than requested if there was an error or end-of-file\[char46] A return value of zero
+means the entire file was decoded, -1 means an unrecoverable error
+happened\[char46]
+
+.SH FUNCTION PARAMETERS
+.TP
+.I audiodecoder
+the decoder from which to retrieve more data\[char46]
+.TP
+.I buffer
+the memory buffer to store decoded audio\[char46]
+.TP
+.I buflen
+the maximum number of bytes to store to
+.BR buffer
+\[char46]
+.TP
+.I spec
+the format that audio data will be stored to
+.BR buffer
+\[char46]
+.SH RETURN VALUE
+Returns number of bytes decoded, or -1 on error; call SDL_GetError()
+for more information\[char46]
+
+.SH THREAD SAFETY
+It is safe to call this function from any thread\[char46]
+
+.SH AVAILABILITY
+This function is available since SDL_mixer 3\[char46]0\[char46]0\[char46]
+

@@ -1,0 +1,68 @@
+.\" This manpage content is licensed under Creative Commons
+.\"  Attribution 4.0 International (CC BY 4.0)
+.\"   https://creativecommons.org/licenses/by/4.0/
+.\" This manpage was generated from SDL_mixer's wiki page for MIX_PauseTag:
+.\"   https://wiki.libsdl.org/SDL3_mixer/MIX_PauseTag
+.\" Generated with SDL/build-scripts/wikiheaders.pl
+.\"  revision 8c516fc
+.\" Please report issues in this manpage's content at:
+.\"   https://github.com/libsdl-org/sdlwiki/issues/new
+.\" Please report issues in the generation of this manpage from the wiki at:
+.\"   https://github.com/libsdl-org/SDL/issues/new?title=Misgenerated%20manpage%20for%20MIX_PauseTag
+.\" SDL_mixer can be found at https://libsdl.org/projects/SDL_mixer/
+.de URL
+\$2 \(laURL: \$1 \(ra\$3
+..
+.if \n[.g] .mso www.tmac
+.TH MIX_PauseTag 3 "SDL_mixer 3.1.0" "SDL_mixer" "SDL_mixer3 FUNCTIONS"
+.SH NAME
+MIX_PauseTag \- Pause all tracks with a specific tag\[char46]
+.SH HEADER FILE
+Defined in SDL3_mixer/SDL_mixer\[char46]h
+
+.SH SYNOPSIS
+.nf
+.B #include \(dqSDL3_mixer/SDL_mixer.h\(dq
+.PP
+.BI "bool MIX_PauseTag(MIX_Mixer *mixer, const char *tag);
+.fi
+.SH DESCRIPTION
+A paused track is not considered "stopped," so its
+
+.BR MIX_TrackStoppedCallback
+ will not fire if
+paused, but it won't change state by default, generate audio, or generally
+make progress, until it is resumed\[char46]
+
+This function makes all currently-playing tracks on the specified mixer,
+with a specific tag, move to a paused state\[char46] They can later be resumed\[char46]
+
+Tracks that match the specified tag that aren't currently playing are
+ignored\[char46]
+
+.SH FUNCTION PARAMETERS
+.TP
+.I mixer
+the mixer on which to pause tracks\[char46]
+.TP
+.I tag
+the tag to use when searching for tracks\[char46]
+.SH RETURN VALUE
+Returns true on success, false on error; call SDL_GetError() for
+details\[char46]
+
+.SH THREAD SAFETY
+It is safe to call this function from any thread\[char46]
+
+.SH AVAILABILITY
+This function is available since SDL_mixer 3\[char46]0\[char46]0\[char46]
+
+.SH SEE ALSO
+.BR \(bu (3),
+.BR MIX_PauseTrack (3),
+.BR \(bu (3),
+.BR MIX_ResumeTrack (3),
+.BR \(bu (3),
+.BR MIX_ResumeTag (3),
+.BR \(bu (3),
+.BR MIX_TagTrack (3)

@@ -1,0 +1,105 @@
+.\" This manpage content is licensed under Creative Commons
+.\"  Attribution 4.0 International (CC BY 4.0)
+.\"   https://creativecommons.org/licenses/by/4.0/
+.\" This manpage was generated from SDL_mixer's wiki page for MIX_LoadRawAudioNoCopy:
+.\"   https://wiki.libsdl.org/SDL3_mixer/MIX_LoadRawAudioNoCopy
+.\" Generated with SDL/build-scripts/wikiheaders.pl
+.\"  revision 8c516fc
+.\" Please report issues in this manpage's content at:
+.\"   https://github.com/libsdl-org/sdlwiki/issues/new
+.\" Please report issues in the generation of this manpage from the wiki at:
+.\"   https://github.com/libsdl-org/SDL/issues/new?title=Misgenerated%20manpage%20for%20MIX_LoadRawAudioNoCopy
+.\" SDL_mixer can be found at https://libsdl.org/projects/SDL_mixer/
+.de URL
+\$2 \(laURL: \$1 \(ra\$3
+..
+.if \n[.g] .mso www.tmac
+.TH MIX_LoadRawAudioNoCopy 3 "SDL_mixer 3.1.0" "SDL_mixer" "SDL_mixer3 FUNCTIONS"
+.SH NAME
+MIX_LoadRawAudioNoCopy \- Load raw PCM data from a memory buffer without making a copy\[char46]
+.SH HEADER FILE
+Defined in SDL3_mixer/SDL_mixer\[char46]h
+
+.SH SYNOPSIS
+.nf
+.B #include \(dqSDL3_mixer/SDL_mixer.h\(dq
+.PP
+.BI "MIX_Audio * MIX_LoadRawAudioNoCopy(MIX_Mixer *mixer, const void *data, size_t datalen, const SDL_AudioSpec *spec, bool free_when_done);
+.fi
+.SH DESCRIPTION
+This buffer must live for the entire time the returned
+
+.BR MIX_Audio
+ lives, as it will access it whenever it needs to mix
+more data\[char46]
+
+This function is meant to maximize efficiency: if the data is already in
+memory and can remain there, don't copy it\[char46] But it can also lead to some
+interesting tricks, like changing the buffer's contents to alter multiple
+playing tracks at once\[char46] (But, of course, be careful when being too clever\[char46])
+
+
+.BR MIX_Audio
+ objects can be shared between multiple mixers\[char46] The
+.BR mixer
+parameter just suggests the most likely mixer to use this audio, in
+case some optimization might be applied, but this is not required, and a
+NULL mixer may be specified\[char46]
+
+If
+.BR free_when_done
+is true, SDL_mixer will call
+.BR SDL_free(data)
+when the
+returned 
+.BR MIX_Audio
+ is eventually destroyed\[char46] This can be useful
+when the data is not static, but rather composed dynamically for this
+specific 
+.BR MIX_Audio
+ and simply wants to avoid the extra copy\[char46]
+
+.SH FUNCTION PARAMETERS
+.TP
+.I mixer
+a mixer this audio is intended to be used with\[char46] May be NULL\[char46]
+.TP
+.I data
+the buffer where the raw PCM data lives\[char46]
+.TP
+.I datalen
+the size, in bytes, of the buffer\[char46]
+.TP
+.I spec
+what format the raw data is in\[char46]
+.TP
+.I free_when_done
+if true,
+.BR data
+will be given to SDL_free() when the 
+.BR MIX_Audio
+ is destroyed\[char46]
+.SH RETURN VALUE
+(
+.BR MIX_Audio
+ *) Returns an audio object that can be used to make
+sound on a mixer, or NULL on failure; call SDL_GetError() for more
+information\[char46]
+
+.SH THREAD SAFETY
+It is safe to call this function from any thread\[char46]
+
+.SH AVAILABILITY
+This function is available since SDL_mixer 3\[char46]0\[char46]0\[char46]
+
+.SH SEE ALSO
+.BR \(bu (3),
+.BR MIX_DestroyAudio (3),
+.BR \(bu (3),
+.BR MIX_SetTrackAudio (3),
+.BR \(bu (3),
+.BR MIX_LoadRawAudio (3),
+.BR \(bu (3),
+.BR MIX_LoadRawAudio_IO (3),
+.BR \(bu (3),
+.BR MIX_LoadAudio_IO (3)

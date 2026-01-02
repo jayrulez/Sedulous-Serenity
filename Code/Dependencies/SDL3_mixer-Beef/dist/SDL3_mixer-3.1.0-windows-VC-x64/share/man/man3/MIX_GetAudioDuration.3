@@ -1,0 +1,84 @@
+.\" This manpage content is licensed under Creative Commons
+.\"  Attribution 4.0 International (CC BY 4.0)
+.\"   https://creativecommons.org/licenses/by/4.0/
+.\" This manpage was generated from SDL_mixer's wiki page for MIX_GetAudioDuration:
+.\"   https://wiki.libsdl.org/SDL3_mixer/MIX_GetAudioDuration
+.\" Generated with SDL/build-scripts/wikiheaders.pl
+.\"  revision 8c516fc
+.\" Please report issues in this manpage's content at:
+.\"   https://github.com/libsdl-org/sdlwiki/issues/new
+.\" Please report issues in the generation of this manpage from the wiki at:
+.\"   https://github.com/libsdl-org/SDL/issues/new?title=Misgenerated%20manpage%20for%20MIX_GetAudioDuration
+.\" SDL_mixer can be found at https://libsdl.org/projects/SDL_mixer/
+.de URL
+\$2 \(laURL: \$1 \(ra\$3
+..
+.if \n[.g] .mso www.tmac
+.TH MIX_GetAudioDuration 3 "SDL_mixer 3.1.0" "SDL_mixer" "SDL_mixer3 FUNCTIONS"
+.SH NAME
+MIX_GetAudioDuration \- Get the length of a 
+.BR MIX_Audio
+'s playback in sample frames\[char46]
+.SH HEADER FILE
+Defined in SDL3_mixer/SDL_mixer\[char46]h
+
+.SH SYNOPSIS
+.nf
+.B #include \(dqSDL3_mixer/SDL_mixer.h\(dq
+.PP
+.BI "Sint64 MIX_GetAudioDuration(MIX_Audio *audio);
+.BI "
+.BI "
+.BI "#define MIX_DURATION_UNKNOWN -1
+.BI "#define MIX_DURATION_INFINITE -2
+.fi
+.SH DESCRIPTION
+This information is also available via the
+
+.BR MIX_PROP_METADATA_DURATION_FRAMES_NUMBER
+
+property, but it's common enough to provide a simple accessor function\[char46]
+
+This reports the length of the data in _sample frames_, so sample-perfect
+mixing can be possible\[char46] Sample frames are only meaningful as a measure of
+time if the sample rate (frequency) is also known\[char46] To convert from sample
+frames to milliseconds, use 
+.BR MIX_AudioFramesToMS
+()\[char46]
+
+Not all audio file formats can report the complete length of the data they
+will produce through decoding: some can't calculate it, some might produce
+infinite audio\[char46]
+
+Also, some file formats can only report duration as a unit of time, which
+means SDL_mixer might have to estimate sample frames from that information\[char46]
+With less precision, the reported duration might be off by a few sample
+frames in either direction\[char46]
+
+This will return a value >= 0 if a duration is known\[char46] It might also return
+
+.BR MIX_DURATION_UNKNOWN
+ or
+
+.BR MIX_DURATION_INFINITE
+\[char46]
+
+.SH FUNCTION PARAMETERS
+.TP
+.I audio
+the audio to query\[char46]
+.SH RETURN VALUE
+Returns the length of the audio in sample frames, or
+
+.BR MIX_DURATION_UNKNOWN
+ or
+
+.BR MIX_DURATION_INFINITE
+\[char46]
+
+.SH THREAD SAFETY
+It is safe to call this function from any thread\[char46]
+
+.SH AVAILABILITY
+This function is available since SDL_mixer 3\[char46]0\[char46]0\[char46]
+

@@ -1,0 +1,79 @@
+.\" This manpage content is licensed under Creative Commons
+.\"  Attribution 4.0 International (CC BY 4.0)
+.\"   https://creativecommons.org/licenses/by/4.0/
+.\" This manpage was generated from SDL_mixer's wiki page for MIX_CreateAudioDecoder:
+.\"   https://wiki.libsdl.org/SDL3_mixer/MIX_CreateAudioDecoder
+.\" Generated with SDL/build-scripts/wikiheaders.pl
+.\"  revision 8c516fc
+.\" Please report issues in this manpage's content at:
+.\"   https://github.com/libsdl-org/sdlwiki/issues/new
+.\" Please report issues in the generation of this manpage from the wiki at:
+.\"   https://github.com/libsdl-org/SDL/issues/new?title=Misgenerated%20manpage%20for%20MIX_CreateAudioDecoder
+.\" SDL_mixer can be found at https://libsdl.org/projects/SDL_mixer/
+.de URL
+\$2 \(laURL: \$1 \(ra\$3
+..
+.if \n[.g] .mso www.tmac
+.TH MIX_CreateAudioDecoder 3 "SDL_mixer 3.1.0" "SDL_mixer" "SDL_mixer3 FUNCTIONS"
+.SH NAME
+MIX_CreateAudioDecoder \- Create a 
+.BR MIX_AudioDecoder
+ from a path on the filesystem\[char46]
+.SH HEADER FILE
+Defined in SDL3_mixer/SDL_mixer\[char46]h
+
+.SH SYNOPSIS
+.nf
+.B #include \(dqSDL3_mixer/SDL_mixer.h\(dq
+.PP
+.BI "MIX_AudioDecoder * MIX_CreateAudioDecoder(const char *path, SDL_PropertiesID props);
+.fi
+.SH DESCRIPTION
+Most apps won't need this, as SDL_mixer's usual interfaces will decode
+audio as needed\[char46] However, if one wants to decode an audio file into a
+memory buffer without playing it, this interface offers that\[char46]
+
+This function allows properties to be specified\[char46] This is intended to supply
+file-specific settings, such as where to find SoundFonts for a MIDI file,
+etc\[char46] In most cases, the caller should pass a zero to specify no extra
+properties\[char46]
+
+When done with the audio decoder, it can be destroyed with
+
+.BR MIX_DestroyAudioDecoder
+()\[char46]
+
+This function requires SDL_mixer to have been initialized with a successful
+call to 
+.BR MIX_Init
+(), but does not need an actual
+
+.BR MIX_Mixer
+ to have been created\[char46]
+
+.SH FUNCTION PARAMETERS
+.TP
+.I path
+the path on the filesystem from which to load data\[char46]
+.TP
+.I props
+decoder-specific properties\[char46] May be zero\[char46]
+.SH RETURN VALUE
+(
+.BR MIX_AudioDecoder
+ *) Returns an audio decoder, ready to
+decode\[char46]
+
+.SH THREAD SAFETY
+It is safe to call this function from any thread\[char46]
+
+.SH AVAILABILITY
+This function is available since SDL_mixer 3\[char46]0\[char46]0\[char46]
+
+.SH SEE ALSO
+.BR \(bu (3),
+.BR MIX_CreateAudioDecoder_IO (3),
+.BR \(bu (3),
+.BR MIX_DecodeAudio (3),
+.BR \(bu (3),
+.BR MIX_DestroyAudioDecoder (3)

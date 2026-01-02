@@ -1,0 +1,134 @@
+.\" This manpage content is licensed under Creative Commons
+.\"  Attribution 4.0 International (CC BY 4.0)
+.\"   https://creativecommons.org/licenses/by/4.0/
+.\" This manpage was generated from SDL_mixer's wiki page for MIX_GetAudioProperties:
+.\"   https://wiki.libsdl.org/SDL3_mixer/MIX_GetAudioProperties
+.\" Generated with SDL/build-scripts/wikiheaders.pl
+.\"  revision 8c516fc
+.\" Please report issues in this manpage's content at:
+.\"   https://github.com/libsdl-org/sdlwiki/issues/new
+.\" Please report issues in the generation of this manpage from the wiki at:
+.\"   https://github.com/libsdl-org/SDL/issues/new?title=Misgenerated%20manpage%20for%20MIX_GetAudioProperties
+.\" SDL_mixer can be found at https://libsdl.org/projects/SDL_mixer/
+.de URL
+\$2 \(laURL: \$1 \(ra\$3
+..
+.if \n[.g] .mso www.tmac
+.TH MIX_GetAudioProperties 3 "SDL_mixer 3.1.0" "SDL_mixer" "SDL_mixer3 FUNCTIONS"
+.SH NAME
+MIX_GetAudioProperties \- Get the properties associated with a 
+.BR MIX_Audio
+\[char46]
+.SH HEADER FILE
+Defined in SDL3_mixer/SDL_mixer\[char46]h
+
+.SH SYNOPSIS
+.nf
+.B #include \(dqSDL3_mixer/SDL_mixer.h\(dq
+.PP
+.BI "SDL_PropertiesID MIX_GetAudioProperties(MIX_Audio *audio);
+.BI "
+.BI "
+.BI "#define MIX_PROP_METADATA_TITLE_STRING "SDL_mixer.metadata.title"
+.BI "#define MIX_PROP_METADATA_ARTIST_STRING "SDL_mixer.metadata.artist"
+.BI "#define MIX_PROP_METADATA_ALBUM_STRING "SDL_mixer.metadata.album"
+.BI "#define MIX_PROP_METADATA_COPYRIGHT_STRING "SDL_mixer.metadata.copyright"
+.BI "#define MIX_PROP_METADATA_TRACK_NUMBER "SDL_mixer.metadata.track"
+.BI "#define MIX_PROP_METADATA_TOTAL_TRACKS_NUMBER "SDL_mixer.metadata.total_tracks"
+.BI "#define MIX_PROP_METADATA_YEAR_NUMBER "SDL_mixer.metadata.year"
+.BI "#define MIX_PROP_METADATA_DURATION_FRAMES_NUMBER "SDL_mixer.metadata.duration_frames"
+.BI "#define MIX_PROP_METADATA_DURATION_INFINITE_BOOLEAN "SDL_mixer.metadata.duration_infinite"
+.fi
+.SH DESCRIPTION
+SDL_mixer offers some properties of its own, but this can also be a
+convenient place to store app-specific data\[char46]
+
+A SDL_PropertiesID is created the first time this function is called for a
+given 
+.BR MIX_Audio
+, if necessary\[char46]
+
+The following read-only properties are provided by SDL_mixer:
+
+
+\(bu 
+.BR
+.BR MIX_PROP_METADATA_TITLE_STRING
+: the
+  audio's title ("Smells Like Teen Spirit")\[char46]
+
+\(bu 
+.BR
+.BR MIX_PROP_METADATA_ARTIST_STRING
+: the
+  audio's artist name ("Nirvana")\[char46]
+
+\(bu 
+.BR
+.BR MIX_PROP_METADATA_ALBUM_STRING
+: the
+  audio's album name ("Nevermind")\[char46]
+
+\(bu 
+.BR
+.BR MIX_PROP_METADATA_COPYRIGHT_STRING
+:
+  the audio's copyright info ("Copyright (c) 1991")
+
+\(bu 
+.BR
+.BR MIX_PROP_METADATA_TRACK_NUMBER
+: the
+  audio's track number on the album (1)
+
+\(bu 
+.BR
+.BR MIX_PROP_METADATA_TOTAL_TRACKS_NUMBER
+:
+  the total tracks on the album (13)
+
+\(bu 
+.BR
+.BR MIX_PROP_METADATA_YEAR_NUMBER
+: the
+  year the audio was released (1991)
+
+\(bu 
+.BR
+.BR MIX_PROP_METADATA_DURATION_FRAMES_NUMBER
+:
+  The sample frames worth of PCM data that comprise this audio\[char46] It might be
+  off by a little if the decoder only knows the duration as a unit of time\[char46]
+
+\(bu 
+.BR
+.BR MIX_PROP_METADATA_DURATION_INFINITE_BOOLEAN
+:
+  if true, audio never runs out of sound to generate\[char46] This isn't
+  necessarily always known to SDL_mixer, though\[char46]
+
+Other properties, documented with
+
+.BR MIX_LoadAudioWithProperties
+(), may also be
+present\[char46]
+
+Note that the metadata properties are whatever SDL_mixer finds in things
+like ID3 tags, and they often have very little standardized formatting, may
+be missing, and can be completely wrong if the original data is
+untrustworthy (like an MP3 from a P2P file sharing service)\[char46]
+
+.SH FUNCTION PARAMETERS
+.TP
+.I audio
+the audio to query\[char46]
+.SH RETURN VALUE
+Returns a valid property ID on success or 0 on failure;
+call SDL_GetError() for more information\[char46]
+
+.SH THREAD SAFETY
+It is safe to call this function from any thread\[char46]
+
+.SH AVAILABILITY
+This function is available since SDL_mixer 3\[char46]0\[char46]0\[char46]
+

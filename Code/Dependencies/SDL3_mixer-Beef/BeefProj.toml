@@ -1,0 +1,15 @@
+FileVersion = 1
+Dependencies = {corlib = "*", SDL3 = "*"}
+
+[Project]
+Name = "SDL3_mixer"
+TargetType = "BeefLib"
+StartupObject = "SDL3_mixer.Program"
+
+[Configs.Debug.Win64]
+LibPaths = ["$(ProjectDir)/dist/SDL3_mixer-3.1.0-windows-VC-x64/lib/SDL3_mixer.lib"]
+PostBuildCmds = ["CopyToDependents(\"$(ProjectDir)/dist/SDL3_mixer-3.1.0-windows-VC-x64/bin/*.dll\")"]
+
+[Configs.Release.Win64]
+LibPaths = ["$(ProjectDir)/dist/SDL3_mixer-3.1.0-windows-VC-x64/lib/SDL3_mixer.lib"]
+PostBuildCmds = ["CopyToDependents(\"$(ProjectDir)/dist/SDL3_mixer-3.1.0-windows-VC-x64/bin/*.dll\")"]

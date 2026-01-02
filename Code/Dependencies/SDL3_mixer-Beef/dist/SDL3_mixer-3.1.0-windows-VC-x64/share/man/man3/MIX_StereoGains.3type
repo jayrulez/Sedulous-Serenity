@@ -1,0 +1,55 @@
+.\" This manpage content is licensed under Creative Commons
+.\"  Attribution 4.0 International (CC BY 4.0)
+.\"   https://creativecommons.org/licenses/by/4.0/
+.\" This manpage was generated from SDL_mixer's wiki page for MIX_StereoGains:
+.\"   https://wiki.libsdl.org/SDL3_mixer/MIX_StereoGains
+.\" Generated with SDL/build-scripts/wikiheaders.pl
+.\"  revision 8c516fc
+.\" Please report issues in this manpage's content at:
+.\"   https://github.com/libsdl-org/sdlwiki/issues/new
+.\" Please report issues in the generation of this manpage from the wiki at:
+.\"   https://github.com/libsdl-org/SDL/issues/new?title=Misgenerated%20manpage%20for%20MIX_StereoGains
+.\" SDL_mixer can be found at https://libsdl.org/projects/SDL_mixer/
+.de URL
+\$2 \(laURL: \$1 \(ra\$3
+..
+.if \n[.g] .mso www.tmac
+.TH MIX_StereoGains 3type "SDL_mixer 3.1.0" "SDL_mixer" "SDL_mixer3 DATATYPES"
+.SH NAME
+MIX_StereoGains \- A set of per-channel gains for tracks using 
+.BR MIX_SetTrackStereo
+()\[char46]
+.SH HEADER FILE
+Defined in SDL3_mixer/SDL_mixer\[char46]h
+
+.SH SYNOPSIS
+.nf
+.B #include \(dqSDL3_mixer/SDL_mixer.h\(dq
+.PP
+.BI "typedef struct MIX_StereoGains
+.BI "{
+.BI "    float left;   /**< left channel gain */
+.BI "    float right;  /**< right channel gain */
+.BI "} MIX_StereoGains;
+.fi
+.SH DESCRIPTION
+When forcing a track to stereo, the app can specify a per-channel gain, to
+further adjust the left or right outputs\[char46]
+
+When mixing audio that has been forced to stereo, each channel is modulated
+by these values\[char46] A value of 1\[char46]0f produces no change, 0\[char46]0f produces silence\[char46]
+
+A simple panning effect would be to set
+.BR left
+to the desired value and
+.BR right
+to
+.BR 1\[char46]0f - left
+\[char46]
+
+.SH AVAILABILITY
+This struct is available since SDL_mixer 3\[char46]0\[char46]0\[char46]
+
+.SH SEE ALSO
+.BR \(bu (3),
+.BR MIX_SetTrackStereo (3)

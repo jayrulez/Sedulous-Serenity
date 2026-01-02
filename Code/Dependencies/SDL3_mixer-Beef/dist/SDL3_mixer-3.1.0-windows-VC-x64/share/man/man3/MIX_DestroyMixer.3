@@ -1,0 +1,64 @@
+.\" This manpage content is licensed under Creative Commons
+.\"  Attribution 4.0 International (CC BY 4.0)
+.\"   https://creativecommons.org/licenses/by/4.0/
+.\" This manpage was generated from SDL_mixer's wiki page for MIX_DestroyMixer:
+.\"   https://wiki.libsdl.org/SDL3_mixer/MIX_DestroyMixer
+.\" Generated with SDL/build-scripts/wikiheaders.pl
+.\"  revision 8c516fc
+.\" Please report issues in this manpage's content at:
+.\"   https://github.com/libsdl-org/sdlwiki/issues/new
+.\" Please report issues in the generation of this manpage from the wiki at:
+.\"   https://github.com/libsdl-org/SDL/issues/new?title=Misgenerated%20manpage%20for%20MIX_DestroyMixer
+.\" SDL_mixer can be found at https://libsdl.org/projects/SDL_mixer/
+.de URL
+\$2 \(laURL: \$1 \(ra\$3
+..
+.if \n[.g] .mso www.tmac
+.TH MIX_DestroyMixer 3 "SDL_mixer 3.1.0" "SDL_mixer" "SDL_mixer3 FUNCTIONS"
+.SH NAME
+MIX_DestroyMixer \- Free a mixer\[char46]
+.SH HEADER FILE
+Defined in SDL3_mixer/SDL_mixer\[char46]h
+
+.SH SYNOPSIS
+.nf
+.B #include \(dqSDL3_mixer/SDL_mixer.h\(dq
+.PP
+.BI "void MIX_DestroyMixer(MIX_Mixer *mixer);
+.fi
+.SH DESCRIPTION
+If this mixer was created with
+
+.BR MIX_CreateMixerDevice
+(), this function will also
+close the audio device and call SDL_QuitSubSystem(SDL_INIT_AUDIO)\[char46]
+
+Any 
+.BR MIX_Group
+ or 
+.BR MIX_Track
+ created for this mixer
+will also be destroyed\[char46] Do not access them again or attempt to destroy them
+after the device is destroyed\[char46] 
+.BR MIX_Audio
+ objects will not be
+destroyed, since they can be shared between mixers (but those will all be
+destroyed during 
+.BR MIX_Quit
+())\[char46]
+
+.SH FUNCTION PARAMETERS
+.TP
+.I mixer
+the mixer to destroy\[char46]
+.SH THREAD SAFETY
+It is safe to call this function from any thread\[char46]
+
+.SH AVAILABILITY
+This function is available since SDL_mixer 3\[char46]0\[char46]0\[char46]
+
+.SH SEE ALSO
+.BR \(bu (3),
+.BR MIX_CreateMixerDevice (3),
+.BR \(bu (3),
+.BR MIX_CreateMixer (3)

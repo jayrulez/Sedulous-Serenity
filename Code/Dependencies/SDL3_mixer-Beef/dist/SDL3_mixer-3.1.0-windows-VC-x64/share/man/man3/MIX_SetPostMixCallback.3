@@ -1,0 +1,59 @@
+.\" This manpage content is licensed under Creative Commons
+.\"  Attribution 4.0 International (CC BY 4.0)
+.\"   https://creativecommons.org/licenses/by/4.0/
+.\" This manpage was generated from SDL_mixer's wiki page for MIX_SetPostMixCallback:
+.\"   https://wiki.libsdl.org/SDL3_mixer/MIX_SetPostMixCallback
+.\" Generated with SDL/build-scripts/wikiheaders.pl
+.\"  revision 8c516fc
+.\" Please report issues in this manpage's content at:
+.\"   https://github.com/libsdl-org/sdlwiki/issues/new
+.\" Please report issues in the generation of this manpage from the wiki at:
+.\"   https://github.com/libsdl-org/SDL/issues/new?title=Misgenerated%20manpage%20for%20MIX_SetPostMixCallback
+.\" SDL_mixer can be found at https://libsdl.org/projects/SDL_mixer/
+.de URL
+\$2 \(laURL: \$1 \(ra\$3
+..
+.if \n[.g] .mso www.tmac
+.TH MIX_SetPostMixCallback 3 "SDL_mixer 3.1.0" "SDL_mixer" "SDL_mixer3 FUNCTIONS"
+.SH NAME
+MIX_SetPostMixCallback \- Set a callback that fires when all mixing has completed\[char46]
+.SH HEADER FILE
+Defined in SDL3_mixer/SDL_mixer\[char46]h
+
+.SH SYNOPSIS
+.nf
+.B #include \(dqSDL3_mixer/SDL_mixer.h\(dq
+.PP
+.BI "bool MIX_SetPostMixCallback(MIX_Mixer *mixer, MIX_PostMixCallback cb, void *userdata);
+.fi
+.SH DESCRIPTION
+After all mixer groups have processed, their buffers are mixed together
+into a single buffer for the final output, at which point a callback can be
+fired\[char46] This lets an app view the data at the last moment before mixing
+completes\[char46] It can also change the data in any way it pleases during this
+callback, and the mixer will continue as if this data is the final output\[char46]
+
+Each mixer has its own unique callback\[char46]
+
+Passing a NULL callback here is legal; it disables this mixer's callback\[char46]
+
+.SH FUNCTION PARAMETERS
+.TP
+.I mixer
+the mixer to assign this callback to\[char46]
+.TP
+.I cb
+the function to call when the mixer mixes\[char46] May be NULL\[char46]
+.TP
+.I userdata
+an opaque pointer provided to the callback for its own personal use\[char46]
+.SH RETURN VALUE
+Returns true on success or false on failure; call SDL_GetError() for
+more information\[char46]
+
+.SH AVAILABILITY
+This function is available since SDL_mixer 3\[char46]0\[char46]0\[char46]
+
+.SH SEE ALSO
+.BR \(bu (3),
+.BR MIX_PostMixCallback (3type)

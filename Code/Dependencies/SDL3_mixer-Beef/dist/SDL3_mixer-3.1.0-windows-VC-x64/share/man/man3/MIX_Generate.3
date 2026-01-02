@@ -1,0 +1,96 @@
+.\" This manpage content is licensed under Creative Commons
+.\"  Attribution 4.0 International (CC BY 4.0)
+.\"   https://creativecommons.org/licenses/by/4.0/
+.\" This manpage was generated from SDL_mixer's wiki page for MIX_Generate:
+.\"   https://wiki.libsdl.org/SDL3_mixer/MIX_Generate
+.\" Generated with SDL/build-scripts/wikiheaders.pl
+.\"  revision 8c516fc
+.\" Please report issues in this manpage's content at:
+.\"   https://github.com/libsdl-org/sdlwiki/issues/new
+.\" Please report issues in the generation of this manpage from the wiki at:
+.\"   https://github.com/libsdl-org/SDL/issues/new?title=Misgenerated%20manpage%20for%20MIX_Generate
+.\" SDL_mixer can be found at https://libsdl.org/projects/SDL_mixer/
+.de URL
+\$2 \(laURL: \$1 \(ra\$3
+..
+.if \n[.g] .mso www.tmac
+.TH MIX_Generate 3 "SDL_mixer 3.1.0" "SDL_mixer" "SDL_mixer3 FUNCTIONS"
+.SH NAME
+MIX_Generate \- Generate mixer output when not driving an audio device\[char46]
+.SH HEADER FILE
+Defined in SDL3_mixer/SDL_mixer\[char46]h
+
+.SH SYNOPSIS
+.nf
+.B #include \(dqSDL3_mixer/SDL_mixer.h\(dq
+.PP
+.BI "bool MIX_Generate(MIX_Mixer *mixer, void *buffer, int buflen);
+.fi
+.SH DESCRIPTION
+SDL_mixer allows the creation of 
+.BR MIX_Mixer
+ objects that are
+not connected to an audio device, by calling
+
+.BR MIX_CreateMixer
+() instead of
+
+.BR MIX_CreateMixerDevice
+()\[char46] Such mixers will not
+generate output until explicitly requested through this function\[char46]
+
+The caller may request as much audio as desired, so long as
+.BR buflen
+is a
+multiple of the sample frame size specified when creating the mixer (for
+example, if requesting stereo Sint16 audio, buflen must be a multiple of 4:
+2 bytes-per-channel times 2 channels)\[char46]
+
+The mixer will mix as quickly as possible; since it works in sample frames
+instead of time, it can potentially generate enormous amounts of audio in a
+small amount of time\[char46]
+
+On success, this always fills
+.BR buffer
+with
+.BR buflen
+bytes of audio; if all
+playing tracks finish mixing, it will fill the remaining buffer with
+silence\[char46]
+
+Each call to this function will pick up where it left off, playing tracks
+will continue to mix from the point the previous call completed, etc\[char46] The
+mixer state can be changed between each call in any way desired: tracks can
+be added, played, stopped, changed, removed, etc\[char46] Effectively this function
+does the same thing SDL_mixer does internally when the audio device needs
+more audio to play\[char46]
+
+This function can not be used with mixers from
+
+.BR MIX_CreateMixerDevice
+(); those generate audio as
+needed internally\[char46]
+
+.SH FUNCTION PARAMETERS
+.TP
+.I mixer
+the mixer for which to generate more audio\[char46]
+.TP
+.I buffer
+a pointer to a buffer to store audio in\[char46]
+.TP
+.I buflen
+the number of bytes to store in buffer\[char46]
+.SH RETURN VALUE
+Returns true on success or false on failure; call SDL_GetError() for
+more information\[char46]
+
+.SH THREAD SAFETY
+It is safe to call this function from any thread\[char46]
+
+.SH AVAILABILITY
+This function is available since SDL_mixer 3\[char46]0\[char46]0\[char46]
+
+.SH SEE ALSO
+.BR \(bu (3),
+.BR MIX_CreateMixer (3)
