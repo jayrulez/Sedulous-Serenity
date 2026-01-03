@@ -5,7 +5,7 @@ using Sedulous.Shell;
 using Sedulous.Shell.SDL3;
 using Sedulous.Mathematics;
 using Sedulous.RHI;
-using Sedulous.RHI.Vulkan;  // Only needed for backend instantiation
+using Sedulous.RHI.Vulkan; // Only needed for backend instantiation
 using Sedulous.RHI.HLSLShaderCompiler;
 
 namespace RHITriangle;
@@ -22,6 +22,10 @@ class Program
 	private static IShaderModule sVertShader;
 	private static IShaderModule sFragShader;
 	private static IPipelineLayout sPipelineLayout;
+
+	// Per-frame command buffers - deleted after fence wait ensures GPU is done
+	private const int MAX_FRAMES_IN_FLIGHT = 2;
+	private static ICommandBuffer[MAX_FRAMES_IN_FLIGHT] sCommandBuffers;
 
 	public static int Main(String[] args)
 	{
@@ -60,7 +64,7 @@ class Program
 		}
 
 		// Create Vulkan backend
-		sBackend = new VulkanBackend(false);
+		sBackend = new VulkanBackend(true);
 		defer delete sBackend;
 
 		if (!sBackend.IsInitialized)
@@ -70,15 +74,12 @@ class Program
 		}
 
 		// Create surface from window
-		if (sBackend.CreateSurface(sWindow.NativeHandle) case .Ok(let surface))
-		{
-			sSurface = surface;
-		}
-		else
+		if (sBackend.CreateSurface(sWindow.NativeHandle) not case .Ok(let surface))
 		{
 			Console.WriteLine("Failed to create surface");
 			return 1;
 		}
+		sSurface = surface;
 		defer delete sSurface;
 
 		// Get an adapter
@@ -94,15 +95,12 @@ class Program
 		Console.WriteLine(scope $"Using adapter: {adapters[0].Info.Name}");
 
 		// Create device
-		if (adapters[0].CreateDevice() case .Ok(let device))
-		{
-			sDevice = device;
-		}
-		else
+		if (adapters[0].CreateDevice() not case .Ok(let device))
 		{
 			Console.WriteLine("Failed to create device");
 			return 1;
 		}
+		sDevice = device;
 		defer delete sDevice;
 
 		// Create swap chain
@@ -115,15 +113,12 @@ class Program
 				PresentMode = .Fifo
 			};
 
-		if (sDevice.CreateSwapChain(sSurface, &swapChainDesc) case .Ok(let swapChain))
-		{
-			sSwapChain = swapChain;
-		}
-		else
+		if (sDevice.CreateSwapChain(sSurface, &swapChainDesc) not case .Ok(let swapChain))
 		{
 			Console.WriteLine("Failed to create swap chain");
 			return 1;
 		}
+		sSwapChain = swapChain;
 		defer delete sSwapChain;
 
 		Console.WriteLine(scope $"Swap chain created: {sSwapChain.Width}x{sSwapChain.Height}");
@@ -138,15 +133,12 @@ class Program
 
 		// Create pipeline layout (no bindings for simple triangle)
 		PipelineLayoutDescriptor layoutDesc = .();
-		if (sDevice.CreatePipelineLayout(&layoutDesc) case .Ok(let layout))
-		{
-			sPipelineLayout = layout;
-		}
-		else
+		if (sDevice.CreatePipelineLayout(&layoutDesc) not case .Ok(let layout))
 		{
 			Console.WriteLine("Failed to create pipeline layout");
 			return 1;
 		}
+		sPipelineLayout = layout;
 		defer delete sPipelineLayout;
 
 		// Create render pipeline
@@ -175,6 +167,17 @@ class Program
 		}
 
 		sDevice.WaitIdle();
+
+		// Clean up per-frame command buffers
+		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			if (sCommandBuffers[i] != null)
+			{
+				delete sCommandBuffers[i];
+				sCommandBuffers[i] = null;
+			}
+		}
+
 		Console.WriteLine("RHI Triangle finished.");
 		return 0;
 	}
@@ -196,7 +199,7 @@ class Program
 
 		// Load and compile vertex shader
 		String vertSource = scope .();
-		if (!ReadTextFile(scope $"{shaderDir}/triangle.vert.hlsl", vertSource))
+		if (!ReadTextFile(scope $"{shaderDir}/triangle.vert.hlsl" , vertSource))
 		{
 			Console.WriteLine("Failed to read vertex shader source");
 			return false;
@@ -226,7 +229,7 @@ class Program
 
 		// Load and compile fragment shader
 		String fragSource = scope .();
-		if (!ReadTextFile(scope $"{shaderDir}/triangle.frag.hlsl", fragSource))
+		if (!ReadTextFile(scope $"{shaderDir}/triangle.frag.hlsl" , fragSource))
 		{
 			Console.WriteLine("Failed to read fragment shader source");
 			delete sVertShader;
@@ -333,12 +336,21 @@ class Program
 
 	private static void RenderFrame()
 	{
-		// Acquire next swap chain image
+		// Acquire next swap chain image - this waits on the fence for this frame slot
 		if (sSwapChain.AcquireNextImage() case .Err)
 		{
 			// Need to recreate swap chain
 			HandleResize();
 			return;
+		}
+
+		// After AcquireNextImage, the fence was waited on, so we can safely delete
+		// the old command buffer for this frame slot (GPU is done with it)
+		let frameIndex = sSwapChain.CurrentFrameIndex;
+		if (sCommandBuffers[frameIndex] != null)
+		{
+			delete sCommandBuffers[frameIndex];
+			sCommandBuffers[frameIndex] = null;
 		}
 
 		// Get current texture view
@@ -380,7 +392,9 @@ class Program
 		let commandBuffer = encoder.Finish();
 		if (commandBuffer == null)
 			return;
-		defer delete commandBuffer;
+
+		// Store command buffer for later deletion (after fence wait in next frame cycle)
+		sCommandBuffers[frameIndex] = commandBuffer;
 
 		// Submit commands with swap chain synchronization
 		sDevice.Queue.Submit(commandBuffer, sSwapChain);
@@ -395,6 +409,16 @@ class Program
 	private static void HandleResize()
 	{
 		sDevice.WaitIdle();
+
+		// Clean up per-frame command buffers (GPU is idle now)
+		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			if (sCommandBuffers[i] != null)
+			{
+				delete sCommandBuffers[i];
+				sCommandBuffers[i] = null;
+			}
+		}
 
 		// Recreate swap chain
 		if (sSwapChain.Resize((uint32)sWindow.Width, (uint32)sWindow.Height) case .Err)

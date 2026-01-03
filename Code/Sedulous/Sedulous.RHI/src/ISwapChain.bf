@@ -20,6 +20,14 @@ interface ISwapChain : IDisposable
 	/// Gets a view of the current back buffer texture.
 	ITextureView CurrentTextureView { get; }
 
+	/// Gets the current frame index for frame-in-flight resource management.
+	/// This cycles from 0 to FrameCount-1.
+	uint32 CurrentFrameIndex { get; }
+
+	/// Gets the number of frames in flight.
+	/// Use this to size per-frame resource arrays.
+	uint32 FrameCount { get; }
+
 	/// Acquires the next image from the swap chain.
 	Result<void> AcquireNextImage();
 

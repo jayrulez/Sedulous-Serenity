@@ -122,7 +122,8 @@ class VulkanQueue : IQueue
 				pSignalSemaphores = &signalSemaphores
 			};
 
-		VulkanNative.vkQueueSubmit(mQueue, 1, &submitInfo, default);
+		// Signal the in-flight fence so we know when this frame's GPU work is done
+		VulkanNative.vkQueueSubmit(mQueue, 1, &submitInfo, vkSwapChain.InFlightFence);
 	}
 
 	public void Submit(ICommandBuffer commandBuffer, ISwapChain swapChain)

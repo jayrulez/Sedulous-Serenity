@@ -21,6 +21,7 @@ class VulkanTexture : ITexture
 	private uint32 mSampleCount;
 	private TextureUsage mUsage;
 	private bool mOwnsImage;
+	private bool mIsSwapChainTexture;
 
 	/// Creates a texture from a descriptor.
 	public this(VulkanDevice device, TextureDescriptor* descriptor)
@@ -40,7 +41,7 @@ class VulkanTexture : ITexture
 	}
 
 	/// Creates a texture wrapper around an existing VkImage (e.g., from swap chain).
-	public this(VulkanDevice device, VkImage image, TextureFormat format, uint32 width, uint32 height, TextureUsage usage)
+	public this(VulkanDevice device, VkImage image, TextureFormat format, uint32 width, uint32 height, TextureUsage usage, bool isSwapChainTexture = false)
 	{
 		mDevice = device;
 		mImage = image;
@@ -54,6 +55,7 @@ class VulkanTexture : ITexture
 		mSampleCount = 1;
 		mUsage = usage;
 		mOwnsImage = false;  // Don't destroy, swap chain owns it
+		mIsSwapChainTexture = isSwapChainTexture;
 	}
 
 	public ~this()
@@ -97,6 +99,9 @@ class VulkanTexture : ITexture
 
 	/// Gets the Vulkan memory handle.
 	public VkDeviceMemory Memory => mMemory;
+
+	/// Returns true if this is a swap chain texture that needs PRESENT_SRC_KHR layout.
+	public bool IsSwapChainTexture => mIsSwapChainTexture;
 
 	private void CreateImage(TextureDescriptor* descriptor)
 	{

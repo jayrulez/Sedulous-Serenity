@@ -264,7 +264,17 @@ class VulkanCommandEncoder : ICommandEncoder
 		mIsRecording = false;
 		mFinished = true;
 
-		return new VulkanCommandBuffer(mDevice, mPool, mCommandBuffer);
+		let cmdBuffer = new VulkanCommandBuffer(mDevice, mPool, mCommandBuffer);
+
+		// Transfer ownership of render passes and framebuffers to the command buffer
+		// They must stay alive until GPU is done executing the command buffer
+		cmdBuffer.TakeOwnership(mCreatedRenderPasses, mCreatedFramebuffers);
+
+		// Clear our lists so we don't double-delete in Cleanup()
+		mCreatedRenderPasses.Clear();
+		mCreatedFramebuffers.Clear();
+
+		return cmdBuffer;
 	}
 
 	private bool CreateRenderPass(RenderPassDescriptor* descriptor, out VkRenderPass renderPass)
@@ -286,6 +296,14 @@ class VulkanCommandEncoder : ICommandEncoder
 			if (vkView == null)
 				continue;
 
+			// Determine final layout - swap chain textures need PRESENT_SRC_KHR
+			VkImageLayout finalLayout = .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+			if (let vkTexture = vkView.Texture as VulkanTexture)
+			{
+				if (vkTexture.IsSwapChainTexture)
+					finalLayout = .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+			}
+
 			uint32 index = (uint32)attachments.Count;
 			attachments.Add(.()
 				{
@@ -296,7 +314,7 @@ class VulkanCommandEncoder : ICommandEncoder
 					stencilLoadOp = .VK_ATTACHMENT_LOAD_OP_DONT_CARE,
 					stencilStoreOp = .VK_ATTACHMENT_STORE_OP_DONT_CARE,
 					initialLayout = colorAttachment.LoadOp == .Load ? .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : .VK_IMAGE_LAYOUT_UNDEFINED,
-					finalLayout = .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+					finalLayout = finalLayout
 				});
 
 			colorRefs.Add(.()

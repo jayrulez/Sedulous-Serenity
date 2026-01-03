@@ -23,8 +23,20 @@ class VulkanSwapChain : ISwapChain
 	private List<VulkanTextureView> mTextureViews = new .() ~ DeleteContainerAndItems!(_);
 
 	private uint32 mCurrentImageIndex = 0;
-	private VkSemaphore mImageAvailableSemaphore;
-	private VkSemaphore mRenderFinishedSemaphore;
+	private uint32 mCurrentFrameIndex = 0;
+
+	// Per-frame fences for CPU/GPU synchronization
+	private const int MAX_FRAMES_IN_FLIGHT = 2;
+	private VkFence[MAX_FRAMES_IN_FLIGHT] mInFlightFences;
+
+	// Per-swapchain-image semaphores (sized dynamically based on image count)
+	// Indexed by image index to ensure each image has its own semaphores
+	private List<VkSemaphore> mImageAvailableSemaphores = new .() ~ delete _;
+	private List<VkSemaphore> mRenderFinishedSemaphores = new .() ~ delete _;
+
+	// Rolling index for acquire semaphores - we don't know which image we'll get
+	// until after vkAcquireNextImageKHR, so we cycle through semaphores
+	private uint32 mAcquireSemaphoreIndex = 0;
 
 	public this(VulkanDevice device, VulkanSurface surface, SwapChainDescriptor* descriptor)
 	{
@@ -50,17 +62,34 @@ class VulkanSwapChain : ISwapChain
 		mDevice.WaitIdle();
 
 		CleanupSwapChain();
+		CleanupSyncObjects();
+	}
 
-		if (mImageAvailableSemaphore != default)
+	private void CleanupSyncObjects()
+	{
+		// Clean up per-image semaphores
+		for (let sem in mImageAvailableSemaphores)
 		{
-			VulkanNative.vkDestroySemaphore(mDevice.Device, mImageAvailableSemaphore, null);
-			mImageAvailableSemaphore = default;
+			if (sem != default)
+				VulkanNative.vkDestroySemaphore(mDevice.Device, sem, null);
 		}
+		mImageAvailableSemaphores.Clear();
 
-		if (mRenderFinishedSemaphore != default)
+		for (let sem in mRenderFinishedSemaphores)
 		{
-			VulkanNative.vkDestroySemaphore(mDevice.Device, mRenderFinishedSemaphore, null);
-			mRenderFinishedSemaphore = default;
+			if (sem != default)
+				VulkanNative.vkDestroySemaphore(mDevice.Device, sem, null);
+		}
+		mRenderFinishedSemaphores.Clear();
+
+		// Clean up per-frame fences
+		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			if (mInFlightFences[i] != default)
+			{
+				VulkanNative.vkDestroyFence(mDevice.Device, mInFlightFences[i], null);
+				mInFlightFences[i] = default;
+			}
 		}
 	}
 
@@ -74,22 +103,40 @@ class VulkanSwapChain : ISwapChain
 	/// Gets the Vulkan swapchain handle.
 	public VkSwapchainKHR SwapChain => mSwapChain;
 
-	/// Gets the image available semaphore for synchronization.
-	public VkSemaphore ImageAvailableSemaphore => mImageAvailableSemaphore;
+	/// Gets the image available semaphore (the one used for the last acquire).
+	public VkSemaphore ImageAvailableSemaphore => mImageAvailableSemaphores[mAcquireSemaphoreIndex];
 
-	/// Gets the render finished semaphore for synchronization.
-	public VkSemaphore RenderFinishedSemaphore => mRenderFinishedSemaphore;
+	/// Gets the render finished semaphore for the current image.
+	public VkSemaphore RenderFinishedSemaphore => mRenderFinishedSemaphores[mCurrentImageIndex];
+
+	/// Gets the in-flight fence for the current frame.
+	public VkFence InFlightFence => mInFlightFences[mCurrentFrameIndex];
 
 	/// Gets the current image index.
 	public uint32 CurrentImageIndex => mCurrentImageIndex;
 
+	/// Gets the current frame index (for frame-in-flight tracking).
+	public uint32 CurrentFrameIndex => mCurrentFrameIndex;
+
+	/// Gets the number of frames in flight.
+	public uint32 FrameCount => MAX_FRAMES_IN_FLIGHT;
+
 	public Result<void> AcquireNextImage()
 	{
+		// Wait for the current frame's fence to ensure we can reuse its resources
+		var fence = mInFlightFences[mCurrentFrameIndex];
+		VulkanNative.vkWaitForFences(mDevice.Device, 1, &fence, VkBool32.True, uint64.MaxValue);
+		VulkanNative.vkResetFences(mDevice.Device, 1, &fence);
+
+		// Use the next acquire semaphore in the ring buffer
+		// We increment BEFORE acquire so the property returns the right semaphore
+		mAcquireSemaphoreIndex = (mAcquireSemaphoreIndex + 1) % (uint32)mImageAvailableSemaphores.Count;
+
 		var result = VulkanNative.vkAcquireNextImageKHR(
 			mDevice.Device,
 			mSwapChain,
 			uint64.MaxValue,
-			mImageAvailableSemaphore,
+			mImageAvailableSemaphores[mAcquireSemaphoreIndex],
 			default,
 			&mCurrentImageIndex
 		);
@@ -109,7 +156,8 @@ class VulkanSwapChain : ISwapChain
 
 	public Result<void> Present()
 	{
-		VkSemaphore[1] waitSemaphores = .(mRenderFinishedSemaphore);
+		// Use the current image's render finished semaphore
+		VkSemaphore[1] waitSemaphores = .(mRenderFinishedSemaphores[mCurrentImageIndex]);
 		VkSwapchainKHR[1] swapChains = .(mSwapChain);
 		uint32[1] imageIndices = .(mCurrentImageIndex);
 
@@ -129,6 +177,9 @@ class VulkanSwapChain : ISwapChain
 			return .Err;
 
 		var result = VulkanNative.vkQueuePresentKHR(vkQueue.Queue, &presentInfo);
+
+		// Advance to next frame
+		mCurrentFrameIndex = (mCurrentFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
 
 		if (result == .VK_ERROR_OUT_OF_DATE_KHR || result == .VK_SUBOPTIMAL_KHR)
 		{
@@ -153,8 +204,43 @@ class VulkanSwapChain : ISwapChain
 		mDevice.WaitIdle();
 		CleanupSwapChain();
 
+		// Clean up semaphores since image count might change
+		for (let sem in mImageAvailableSemaphores)
+		{
+			if (sem != default)
+				VulkanNative.vkDestroySemaphore(mDevice.Device, sem, null);
+		}
+		mImageAvailableSemaphores.Clear();
+
+		for (let sem in mRenderFinishedSemaphores)
+		{
+			if (sem != default)
+				VulkanNative.vkDestroySemaphore(mDevice.Device, sem, null);
+		}
+		mRenderFinishedSemaphores.Clear();
+
 		if (!CreateSwapChain())
 			return .Err;
+
+		// Recreate semaphores for new image count
+		VkSemaphoreCreateInfo semaphoreInfo = .()
+			{
+				sType = .VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
+			};
+
+		let imageCount = mImages.Count;
+		for (int i = 0; i < imageCount; i++)
+		{
+			VkSemaphore imageAvailable = default;
+			VkSemaphore renderFinished = default;
+			VulkanNative.vkCreateSemaphore(mDevice.Device, &semaphoreInfo, null, &imageAvailable);
+			VulkanNative.vkCreateSemaphore(mDevice.Device, &semaphoreInfo, null, &renderFinished);
+			mImageAvailableSemaphores.Add(imageAvailable);
+			mRenderFinishedSemaphores.Add(renderFinished);
+		}
+
+		mAcquireSemaphoreIndex = (uint32)(imageCount - 1);
+		mCurrentFrameIndex = 0;
 
 		return .Ok;
 	}
@@ -222,8 +308,8 @@ class VulkanSwapChain : ISwapChain
 		// Create texture wrappers and views
 		for (let image in mImages)
 		{
-			// Create texture wrapper (doesn't own the image)
-			let texture = new VulkanTexture(mDevice, image, mFormat, mWidth, mHeight, .RenderTarget);
+			// Create texture wrapper (doesn't own the image, is a swap chain texture)
+			let texture = new VulkanTexture(mDevice, image, mFormat, mWidth, mHeight, .RenderTarget, true);
 			mTextures.Add(texture);
 
 			// Create texture view
@@ -275,8 +361,32 @@ class VulkanSwapChain : ISwapChain
 				sType = .VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
 			};
 
-		VulkanNative.vkCreateSemaphore(mDevice.Device, &semaphoreInfo, null, &mImageAvailableSemaphore);
-		VulkanNative.vkCreateSemaphore(mDevice.Device, &semaphoreInfo, null, &mRenderFinishedSemaphore);
+		VkFenceCreateInfo fenceInfo = .()
+			{
+				sType = .VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+				flags = .VK_FENCE_CREATE_SIGNALED_BIT  // Start signaled so first wait doesn't block forever
+			};
+
+		// Create per-frame fences
+		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			VulkanNative.vkCreateFence(mDevice.Device, &fenceInfo, null, &mInFlightFences[i]);
+		}
+
+		// Create per-image semaphores (one for each swapchain image)
+		let imageCount = mImages.Count;
+		for (int i = 0; i < imageCount; i++)
+		{
+			VkSemaphore imageAvailable = default;
+			VkSemaphore renderFinished = default;
+			VulkanNative.vkCreateSemaphore(mDevice.Device, &semaphoreInfo, null, &imageAvailable);
+			VulkanNative.vkCreateSemaphore(mDevice.Device, &semaphoreInfo, null, &renderFinished);
+			mImageAvailableSemaphores.Add(imageAvailable);
+			mRenderFinishedSemaphores.Add(renderFinished);
+		}
+
+		// Initialize acquire semaphore index to point to last entry so first increment wraps to 0
+		mAcquireSemaphoreIndex = (uint32)(imageCount - 1);
 	}
 
 	private VkSurfaceFormatKHR ChooseSurfaceFormat()
