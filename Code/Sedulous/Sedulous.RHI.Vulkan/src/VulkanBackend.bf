@@ -11,6 +11,7 @@ class VulkanBackend : IBackend
 	private VkInstance mInstance;
 	private VkDebugUtilsMessengerEXT mDebugMessenger;
 	private bool mValidationEnabled;
+	private bool mDebugUtilsEnabled;
 	private List<VulkanAdapter> mAdapters = new .() ~ DeleteContainerAndItems!(_);
 
 	private static char8*[?] sValidationLayers = .("VK_LAYER_KHRONOS_validation");
@@ -23,17 +24,6 @@ class VulkanBackend : IBackend
 		void* pUserData);
 
 	private static DebugCallbackDelegate sDebugCallbackDelegate = => DebugCallback;
-
-	private static char8*[?] sInstanceExtensions = .(
-		"VK_KHR_surface",
-#if BF_PLATFORM_WINDOWS
-		"VK_KHR_win32_surface",
-#endif
-#if BF_PLATFORM_LINUX
-		"VK_KHR_xlib_surface",
-#endif
-		"VK_EXT_debug_utils"
-	);
 
 	/// Creates a new Vulkan backend.
 	public this(bool enableValidation = true)
@@ -55,7 +45,7 @@ class VulkanBackend : IBackend
 		mAdapters.Clear();
 
 		// Destroy debug messenger
-		if (mDebugMessenger != default && mValidationEnabled)
+		if (mDebugMessenger != default && mDebugUtilsEnabled)
 		{
 			VulkanNative.vkDestroyDebugUtilsMessengerEXT(mInstance, mDebugMessenger, null);
 			mDebugMessenger = default;
@@ -142,15 +132,39 @@ class VulkanBackend : IBackend
 				apiVersion = VK_MAKE_VERSION!(1, 2, 0)
 			};
 
+		// Build required extensions list
+		List<char8*> extensions = scope .();
+		extensions.Add("VK_KHR_surface");
+#if BF_PLATFORM_WINDOWS
+		extensions.Add("VK_KHR_win32_surface");
+#endif
+#if BF_PLATFORM_LINUX
+		extensions.Add("VK_KHR_xlib_surface");
+#endif
+
+		// Check if validation layers are available
+		bool validationAvailable = mValidationEnabled && CheckValidationLayerSupport();
+
+		// Add debug extension only if validation is enabled and the extension is available
+		bool debugUtilsAvailable = false;
+		if (validationAvailable)
+		{
+			debugUtilsAvailable = CheckExtensionSupport("VK_EXT_debug_utils");
+			if (debugUtilsAvailable)
+			{
+				extensions.Add("VK_EXT_debug_utils");
+			}
+		}
+
 		// Create instance
 		VkInstanceCreateInfo createInfo = .();
 		createInfo.sType = .VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 		createInfo.pApplicationInfo = &appInfo;
-		createInfo.enabledExtensionCount = (uint32)sInstanceExtensions.Count;
-		createInfo.ppEnabledExtensionNames = &sInstanceExtensions;
+		createInfo.enabledExtensionCount = (uint32)extensions.Count;
+		createInfo.ppEnabledExtensionNames = extensions.Ptr;
 
-		// Enable validation layers in debug
-		if (mValidationEnabled && CheckValidationLayerSupport())
+		// Enable validation layers
+		if (validationAvailable)
 		{
 			createInfo.enabledLayerCount = (uint32)sValidationLayers.Count;
 			createInfo.ppEnabledLayerNames = &sValidationLayers;
@@ -176,15 +190,27 @@ class VulkanBackend : IBackend
 		flags |= .Xlib;
 #endif
 
-		VulkanNative.LoadInstanceFunctions(mInstance, flags, null, scope (func) =>
+		// Add debug utils functions if the extension is enabled
+		List<String> additionalFunctions = null;
+		if (debugUtilsAvailable)
+		{
+			additionalFunctions = scope:: List<String>();
+			additionalFunctions.Add("vkCreateDebugUtilsMessengerEXT");
+			additionalFunctions.Add("vkDestroyDebugUtilsMessengerEXT");
+			additionalFunctions.Add("vkSubmitDebugUtilsMessageEXT");
+			additionalFunctions.Add("vkSetDebugUtilsObjectNameEXT");
+		}
+
+		VulkanNative.LoadInstanceFunctions(mInstance, flags, additionalFunctions, scope (func) =>
 			{
 				// Failed to load function
 			}).IgnoreError();
 
 		VulkanNative.LoadPostInstanceFunctions();
 
-		// Setup debug messenger
-		if (mValidationEnabled)
+		// Setup debug messenger only if debug utils extension was loaded
+		mDebugUtilsEnabled = debugUtilsAvailable;
+		if (mValidationEnabled && mDebugUtilsEnabled)
 		{
 			SetupDebugMessenger();
 		}
@@ -217,6 +243,26 @@ class VulkanBackend : IBackend
 		}
 
 		return true;
+	}
+
+	private bool CheckExtensionSupport(StringView extensionName)
+	{
+		uint32 extensionCount = 0;
+		VulkanNative.vkEnumerateInstanceExtensionProperties(null, &extensionCount, null);
+
+		if (extensionCount == 0)
+			return false;
+
+		VkExtensionProperties* availableExtensions = scope VkExtensionProperties[(int)extensionCount]*;
+		VulkanNative.vkEnumerateInstanceExtensionProperties(null, &extensionCount, availableExtensions);
+
+		for (uint32 i = 0; i < extensionCount; i++)
+		{
+			if (extensionName == StringView(&availableExtensions[i].extensionName))
+				return true;
+		}
+
+		return false;
 	}
 
 	private void SetupDebugMessenger()
