@@ -8,6 +8,7 @@ using Sedulous.Shell.SDL3;
 using Sedulous.Mathematics;
 using Sedulous.RHI;
 using Sedulous.RHI.Vulkan;
+using Sedulous.Shell.Input;
 
 /// Configuration for an RHI sample application.
 struct SampleConfig
@@ -94,6 +95,14 @@ abstract class RHISampleApp
 				continue;
 			}
 
+			// Check for key presses and call OnKeyDown
+			for (int key = 0; key < (int)KeyCode.Count; key++)
+			{
+				let keyCode = (KeyCode)key;
+				if (mShell.InputManager.Keyboard.IsKeyPressed(keyCode))
+					OnKeyDown(keyCode);
+			}
+
 			// Let sample handle input
 			OnInput();
 
@@ -132,6 +141,17 @@ abstract class RHISampleApp
 
 	/// Called to record render commands.
 	protected abstract void OnRender(IRenderPassEncoder renderPass);
+
+	/// Called for custom rendering when you need full control over the command encoder.
+	/// If this returns true, the default render pass is skipped.
+	/// Use this for advanced scenarios like queries that need to wrap render passes.
+	protected virtual bool OnRenderCustom(ICommandEncoder encoder) => false;
+
+	/// Called at the end of each frame after present.
+	protected virtual void OnFrameEnd() { }
+
+	/// Called when a key is pressed.
+	protected virtual void OnKeyDown(KeyCode key) { }
 
 	/// Called when the window is resized.
 	protected virtual void OnResize(uint32 width, uint32 height) { }
@@ -329,48 +349,54 @@ abstract class RHISampleApp
 		}
 		defer delete encoder;
 
-		// Begin render pass
-		RenderPassColorAttachment[1] colorAttachments = .(.()
-		{
-			View = textureView,
-			ResolveTarget = null,
-			LoadOp = .Clear,
-			StoreOp = .Store,
-			ClearValue = mConfig.ClearColor
-		});
+		// Check if sample wants custom rendering control
+		bool customRendering = OnRenderCustom(encoder);
 
-		RenderPassDescriptor renderPassDesc = .(colorAttachments);
-		RenderPassDepthStencilAttachment depthAttachment = default;
-		if (mConfig.EnableDepth && mDepthTextureView != null)
+		if (!customRendering)
 		{
-			depthAttachment = .()
+			// Begin render pass
+			RenderPassColorAttachment[1] colorAttachments = .(.()
 			{
-				View = mDepthTextureView,
-				DepthLoadOp = .Clear,
-				DepthStoreOp = .Store,
-				DepthClearValue = 1.0f,
-				StencilLoadOp = .Clear,
-				StencilStoreOp = .Discard,
-				StencilClearValue = 0
-			};
-			renderPassDesc.DepthStencilAttachment = depthAttachment;
+				View = textureView,
+				ResolveTarget = null,
+				LoadOp = .Clear,
+				StoreOp = .Store,
+				ClearValue = mConfig.ClearColor
+			});
+
+			RenderPassDescriptor renderPassDesc = .(colorAttachments);
+			RenderPassDepthStencilAttachment depthAttachment = default;
+			if (mConfig.EnableDepth && mDepthTextureView != null)
+			{
+				depthAttachment = .()
+				{
+					View = mDepthTextureView,
+					DepthLoadOp = .Clear,
+					DepthStoreOp = .Store,
+					DepthClearValue = 1.0f,
+					StencilLoadOp = .Clear,
+					StencilStoreOp = .Discard,
+					StencilClearValue = 0
+				};
+				renderPassDesc.DepthStencilAttachment = depthAttachment;
+			}
+
+			let renderPass = encoder.BeginRenderPass(&renderPassDesc);
+			if (renderPass == null)
+			{
+				return false;
+			}
+			defer delete renderPass;
+
+			// Set viewport and scissor to full screen
+			renderPass.SetViewport(0, 0, mSwapChain.Width, mSwapChain.Height, 0, 1);
+			renderPass.SetScissorRect(0, 0, mSwapChain.Width, mSwapChain.Height);
+
+			// Let derived class record commands
+			OnRender(renderPass);
+
+			renderPass.End();
 		}
-
-		let renderPass = encoder.BeginRenderPass(&renderPassDesc);
-		if (renderPass == null)
-		{
-			return false;
-		}
-		defer delete renderPass;
-
-		// Set viewport and scissor to full screen
-		renderPass.SetViewport(0, 0, mSwapChain.Width, mSwapChain.Height, 0, 1);
-		renderPass.SetScissorRect(0, 0, mSwapChain.Width, mSwapChain.Height);
-
-		// Let derived class record commands
-		OnRender(renderPass);
-
-		renderPass.End();
 
 		// Finish recording
 		let commandBuffer = encoder.Finish();
@@ -390,6 +416,9 @@ abstract class RHISampleApp
 		{
 			HandleResize();
 		}
+
+		// Notify sample that frame is complete
+		OnFrameEnd();
 
 		return true;
 	}

@@ -1,5 +1,26 @@
 namespace Sedulous.RHI;
 
+/// Texture layout for pipeline barriers.
+enum TextureLayout
+{
+	/// Undefined - contents may be discarded.
+	Undefined,
+	/// General layout - can be used for any operation but not optimal.
+	General,
+	/// Optimal for use as a color attachment in a render pass.
+	ColorAttachment,
+	/// Optimal for use as a depth/stencil attachment.
+	DepthStencilAttachment,
+	/// Optimal for reading in a shader (sampled image).
+	ShaderReadOnly,
+	/// Optimal for use as transfer source.
+	TransferSrc,
+	/// Optimal for use as transfer destination.
+	TransferDst,
+	/// Optimal for presentation.
+	Present
+}
+
 /// Encodes commands to be submitted to the GPU.
 interface ICommandEncoder
 {
@@ -20,6 +41,39 @@ interface ICommandEncoder
 
 	/// Copies data from one texture to another.
 	void CopyTextureToTexture(ITexture source, ITexture destination, TextureCopyInfo* copyInfo);
+
+	/// Inserts a texture barrier to transition the texture layout.
+	/// This should be called between passes when a texture's usage changes
+	/// (e.g., from render target to shader input).
+	void TextureBarrier(ITexture texture, TextureLayout oldLayout, TextureLayout newLayout);
+
+	/// Generates mipmaps for a texture by successively downsampling from mip level 0.
+	/// The texture must have been created with CopySrc and CopyDst usage flags,
+	/// and must have more than 1 mip level.
+	/// After this call, all mip levels will contain downsampled versions of level 0.
+	void GenerateMipmaps(ITexture texture);
+
+	// ===== Queries =====
+
+	/// Resets a range of queries in a query set.
+	/// Must be called before writing new query results.
+	void ResetQuerySet(IQuerySet querySet, uint32 firstQuery, uint32 queryCount);
+
+	/// Writes a timestamp to the query set at the specified index.
+	/// Only valid for timestamp query sets.
+	void WriteTimestamp(IQuerySet querySet, uint32 queryIndex);
+
+	/// Begins an occlusion or pipeline statistics query.
+	/// Must be paired with EndQuery. Not valid for timestamp queries.
+	void BeginQuery(IQuerySet querySet, uint32 queryIndex);
+
+	/// Ends an occlusion or pipeline statistics query.
+	/// Must be paired with BeginQuery. Not valid for timestamp queries.
+	void EndQuery(IQuerySet querySet, uint32 queryIndex);
+
+	/// Resolves query results to a buffer for readback.
+	/// This copies query results from GPU memory to a buffer that can be mapped.
+	void ResolveQuerySet(IQuerySet querySet, uint32 firstQuery, uint32 queryCount, IBuffer destination, uint64 destinationOffset);
 
 	/// Finishes recording and returns an immutable command buffer.
 	ICommandBuffer Finish();

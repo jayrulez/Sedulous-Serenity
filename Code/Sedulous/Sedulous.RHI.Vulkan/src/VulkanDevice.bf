@@ -216,6 +216,19 @@ class VulkanDevice : IDevice
 		return encoder;
 	}
 
+	// ===== Queries =====
+
+	public Result<IQuerySet> CreateQuerySet(QuerySetDescriptor* descriptor)
+	{
+		let querySet = new VulkanQuerySet(this, descriptor);
+		if (!querySet.IsValid)
+		{
+			delete querySet;
+			return .Err;
+		}
+		return .Ok(querySet);
+	}
+
 	// ===== Presentation =====
 
 	public Result<ISwapChain> CreateSwapChain(ISurface surface, SwapChainDescriptor* descriptor)

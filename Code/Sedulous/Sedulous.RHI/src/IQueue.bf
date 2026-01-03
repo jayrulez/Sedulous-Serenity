@@ -24,4 +24,18 @@ interface IQueue
 
 	/// Writes data to a texture (convenience method, may be slower than staging).
 	void WriteTexture(ITexture texture, Span<uint8> data, TextureDataLayout* dataLayout, Extent3D* writeSize, uint32 mipLevel = 0, uint32 arrayLayer = 0);
+
+	/// Reads data from a buffer back to CPU memory.
+	/// This is a synchronous operation that waits for the GPU to complete.
+	/// For better performance, use a staging buffer with MemoryAccess.Readback and Map/Unmap.
+	void ReadBuffer(IBuffer buffer, uint64 offset, Span<uint8> data);
+
+	/// Reads data from a texture back to CPU memory.
+	/// This is a synchronous operation that waits for the GPU to complete.
+	/// For better performance, use a staging buffer with MemoryAccess.Readback and Map/Unmap.
+	void ReadTexture(ITexture texture, Span<uint8> data, TextureDataLayout* dataLayout, Extent3D* readSize, uint32 mipLevel = 0, uint32 arrayLayer = 0);
+
+	/// Gets the timestamp period in nanoseconds.
+	/// Multiply GPU timestamp values by this to convert to nanoseconds.
+	float GetTimestampPeriod();
 }

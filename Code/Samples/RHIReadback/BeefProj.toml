@@ -1,0 +1,6 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.Mathematics" = "*", "Sedulous.RHI" = "*", "RHI.SampleFramework" = "*"}
+
+[Project]
+Name = "RHIReadback"
+StartupObject = "RHIReadback.Program"

@@ -253,6 +253,368 @@ class VulkanCommandEncoder : ICommandEncoder
 		VulkanNative.vkCmdCopyImage(mCommandBuffer, srcTexture.Image, .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dstTexture.Image, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 	}
 
+	public void TextureBarrier(ITexture texture, TextureLayout oldLayout, TextureLayout newLayout)
+	{
+		if (!mIsRecording || mFinished)
+			return;
+
+		let vkTexture = texture as VulkanTexture;
+		if (vkTexture == null)
+			return;
+
+		VkImageLayout vkOldLayout = ToVkImageLayout(oldLayout);
+		VkImageLayout vkNewLayout = ToVkImageLayout(newLayout);
+
+		// Determine access masks and pipeline stages based on layouts
+		VkAccessFlags srcAccess = default;
+		VkAccessFlags dstAccess = default;
+		VkPipelineStageFlags srcStage = default;
+		VkPipelineStageFlags dstStage = default;
+
+		// Source layout access
+		switch (oldLayout)
+		{
+		case .Undefined:
+			srcAccess = 0;
+			srcStage = .VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+		case .ColorAttachment:
+			srcAccess = .VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+			srcStage = .VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		case .DepthStencilAttachment:
+			srcAccess = .VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+			srcStage = .VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+		case .ShaderReadOnly:
+			srcAccess = .VK_ACCESS_SHADER_READ_BIT;
+			srcStage = .VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		case .TransferSrc:
+			srcAccess = .VK_ACCESS_TRANSFER_READ_BIT;
+			srcStage = .VK_PIPELINE_STAGE_TRANSFER_BIT;
+		case .TransferDst:
+			srcAccess = .VK_ACCESS_TRANSFER_WRITE_BIT;
+			srcStage = .VK_PIPELINE_STAGE_TRANSFER_BIT;
+		case .Present:
+			srcAccess = 0;
+			srcStage = .VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+		case .General:
+			srcAccess = .VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT;
+			srcStage = .VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+		}
+
+		// Destination layout access
+		switch (newLayout)
+		{
+		case .Undefined:
+			dstAccess = 0;
+			dstStage = .VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+		case .ColorAttachment:
+			dstAccess = .VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | .VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+			dstStage = .VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		case .DepthStencilAttachment:
+			dstAccess = .VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | .VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+			dstStage = .VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+		case .ShaderReadOnly:
+			dstAccess = .VK_ACCESS_SHADER_READ_BIT;
+			dstStage = .VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		case .TransferSrc:
+			dstAccess = .VK_ACCESS_TRANSFER_READ_BIT;
+			dstStage = .VK_PIPELINE_STAGE_TRANSFER_BIT;
+		case .TransferDst:
+			dstAccess = .VK_ACCESS_TRANSFER_WRITE_BIT;
+			dstStage = .VK_PIPELINE_STAGE_TRANSFER_BIT;
+		case .Present:
+			dstAccess = 0;
+			dstStage = .VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+		case .General:
+			dstAccess = .VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT;
+			dstStage = .VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+		}
+
+		VkImageMemoryBarrier barrier = .()
+		{
+			sType = .VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+			oldLayout = vkOldLayout,
+			newLayout = vkNewLayout,
+			srcQueueFamilyIndex = VulkanNative.VK_QUEUE_FAMILY_IGNORED,
+			dstQueueFamilyIndex = VulkanNative.VK_QUEUE_FAMILY_IGNORED,
+			image = vkTexture.Image,
+			subresourceRange = .()
+			{
+				aspectMask = VulkanConversions.GetAspectFlags(vkTexture.Format),
+				baseMipLevel = 0,
+				levelCount = vkTexture.MipLevelCount,
+				baseArrayLayer = 0,
+				layerCount = 1
+			},
+			srcAccessMask = srcAccess,
+			dstAccessMask = dstAccess
+		};
+
+		VulkanNative.vkCmdPipelineBarrier(
+			mCommandBuffer,
+			srcStage,
+			dstStage,
+			0,
+			0, null,
+			0, null,
+			1, &barrier
+		);
+	}
+
+	private static VkImageLayout ToVkImageLayout(TextureLayout layout)
+	{
+		switch (layout)
+		{
+		case .Undefined: return .VK_IMAGE_LAYOUT_UNDEFINED;
+		case .General: return .VK_IMAGE_LAYOUT_GENERAL;
+		case .ColorAttachment: return .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		case .DepthStencilAttachment: return .VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		case .ShaderReadOnly: return .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		case .TransferSrc: return .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		case .TransferDst: return .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		case .Present: return .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		}
+	}
+
+	public void GenerateMipmaps(ITexture texture)
+	{
+		if (!mIsRecording || mFinished)
+			return;
+
+		let vkTexture = texture as VulkanTexture;
+		if (vkTexture == null)
+			return;
+
+		let mipLevels = vkTexture.MipLevelCount;
+		if (mipLevels <= 1)
+			return; // Nothing to generate
+
+		int32 mipWidth = (int32)vkTexture.Width;
+		int32 mipHeight = (int32)vkTexture.Height;
+		let aspectMask = VulkanConversions.GetAspectFlags(vkTexture.Format);
+
+		// Transition mip level 0 to transfer_src
+		// Use UNDEFINED as old layout to handle any previous state (WriteTexture leaves it in SHADER_READ_ONLY)
+		VkImageMemoryBarrier barrier = .()
+		{
+			sType = .VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+			srcQueueFamilyIndex = VulkanNative.VK_QUEUE_FAMILY_IGNORED,
+			dstQueueFamilyIndex = VulkanNative.VK_QUEUE_FAMILY_IGNORED,
+			image = vkTexture.Image,
+			subresourceRange = .()
+			{
+				aspectMask = aspectMask,
+				baseMipLevel = 0,
+				levelCount = 1,
+				baseArrayLayer = 0,
+				layerCount = 1
+			},
+			oldLayout = .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, // WriteTexture leaves it in this state
+			newLayout = .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+			srcAccessMask = .VK_ACCESS_SHADER_READ_BIT,
+			dstAccessMask = .VK_ACCESS_TRANSFER_READ_BIT
+		};
+
+		VulkanNative.vkCmdPipelineBarrier(
+			mCommandBuffer,
+			.VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+			.VK_PIPELINE_STAGE_TRANSFER_BIT,
+			0,
+			0, null,
+			0, null,
+			1, &barrier
+		);
+
+		// Generate each mip level by blitting from the previous level
+		for (uint32 i = 1; i < mipLevels; i++)
+		{
+			// Transition current mip level to transfer dst
+			barrier.subresourceRange.baseMipLevel = i;
+			barrier.oldLayout = .VK_IMAGE_LAYOUT_UNDEFINED;
+			barrier.newLayout = .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+			barrier.srcAccessMask = 0;
+			barrier.dstAccessMask = .VK_ACCESS_TRANSFER_WRITE_BIT;
+
+			VulkanNative.vkCmdPipelineBarrier(
+				mCommandBuffer,
+				.VK_PIPELINE_STAGE_TRANSFER_BIT,
+				.VK_PIPELINE_STAGE_TRANSFER_BIT,
+				0,
+				0, null,
+				0, null,
+				1, &barrier
+			);
+
+			// Calculate destination dimensions
+			int32 dstWidth = mipWidth > 1 ? mipWidth / 2 : 1;
+			int32 dstHeight = mipHeight > 1 ? mipHeight / 2 : 1;
+
+			// Blit from previous level to current level
+			VkImageBlit blit = .()
+			{
+				srcSubresource = .()
+				{
+					aspectMask = aspectMask,
+					mipLevel = i - 1,
+					baseArrayLayer = 0,
+					layerCount = 1
+				},
+				srcOffsets = .(
+					.() { x = 0, y = 0, z = 0 },
+					.() { x = mipWidth, y = mipHeight, z = 1 }
+				),
+				dstSubresource = .()
+				{
+					aspectMask = aspectMask,
+					mipLevel = i,
+					baseArrayLayer = 0,
+					layerCount = 1
+				},
+				dstOffsets = .(
+					.() { x = 0, y = 0, z = 0 },
+					.() { x = dstWidth, y = dstHeight, z = 1 }
+				)
+			};
+
+			VulkanNative.vkCmdBlitImage(
+				mCommandBuffer,
+				vkTexture.Image, .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+				vkTexture.Image, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+				1, &blit,
+				.VK_FILTER_LINEAR
+			);
+
+			// Transition current mip level to transfer src for the next iteration
+			barrier.oldLayout = .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+			barrier.newLayout = .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+			barrier.srcAccessMask = .VK_ACCESS_TRANSFER_WRITE_BIT;
+			barrier.dstAccessMask = .VK_ACCESS_TRANSFER_READ_BIT;
+
+			VulkanNative.vkCmdPipelineBarrier(
+				mCommandBuffer,
+				.VK_PIPELINE_STAGE_TRANSFER_BIT,
+				.VK_PIPELINE_STAGE_TRANSFER_BIT,
+				0,
+				0, null,
+				0, null,
+				1, &barrier
+			);
+
+			// Update dimensions for next iteration
+			mipWidth = dstWidth;
+			mipHeight = dstHeight;
+		}
+
+		// Transition all mip levels to shader read optimal
+		barrier.subresourceRange.baseMipLevel = 0;
+		barrier.subresourceRange.levelCount = mipLevels;
+		barrier.oldLayout = .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		barrier.newLayout = .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		barrier.srcAccessMask = .VK_ACCESS_TRANSFER_READ_BIT;
+		barrier.dstAccessMask = .VK_ACCESS_SHADER_READ_BIT;
+
+		VulkanNative.vkCmdPipelineBarrier(
+			mCommandBuffer,
+			.VK_PIPELINE_STAGE_TRANSFER_BIT,
+			.VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+			0,
+			0, null,
+			0, null,
+			1, &barrier
+		);
+	}
+
+	public void ResetQuerySet(IQuerySet querySet, uint32 firstQuery, uint32 queryCount)
+	{
+		if (!mIsRecording || mFinished)
+			return;
+
+		let vkQuerySet = querySet as VulkanQuerySet;
+		if (vkQuerySet == null)
+			return;
+
+		VulkanNative.vkCmdResetQueryPool(mCommandBuffer, vkQuerySet.QueryPool, firstQuery, queryCount);
+	}
+
+	public void WriteTimestamp(IQuerySet querySet, uint32 queryIndex)
+	{
+		if (!mIsRecording || mFinished)
+			return;
+
+		let vkQuerySet = querySet as VulkanQuerySet;
+		if (vkQuerySet == null || vkQuerySet.Type != .Timestamp)
+			return;
+
+		// Write timestamp at the bottom of the pipeline (after all previous commands complete)
+		VulkanNative.vkCmdWriteTimestamp(mCommandBuffer, .VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, vkQuerySet.QueryPool, queryIndex);
+	}
+
+	public void BeginQuery(IQuerySet querySet, uint32 queryIndex)
+	{
+		if (!mIsRecording || mFinished)
+			return;
+
+		let vkQuerySet = querySet as VulkanQuerySet;
+		if (vkQuerySet == null)
+			return;
+
+		// Timestamp queries use WriteTimestamp, not Begin/End
+		if (vkQuerySet.Type == .Timestamp)
+			return;
+
+		// Note: VK_QUERY_CONTROL_PRECISE_BIT requires the occlusionQueryPrecise device feature
+		// We use default (non-precise) for broader compatibility
+		VulkanNative.vkCmdBeginQuery(mCommandBuffer, vkQuerySet.QueryPool, queryIndex, 0);
+	}
+
+	public void EndQuery(IQuerySet querySet, uint32 queryIndex)
+	{
+		if (!mIsRecording || mFinished)
+			return;
+
+		let vkQuerySet = querySet as VulkanQuerySet;
+		if (vkQuerySet == null)
+			return;
+
+		// Timestamp queries use WriteTimestamp, not Begin/End
+		if (vkQuerySet.Type == .Timestamp)
+			return;
+
+		VulkanNative.vkCmdEndQuery(mCommandBuffer, vkQuerySet.QueryPool, queryIndex);
+	}
+
+	public void ResolveQuerySet(IQuerySet querySet, uint32 firstQuery, uint32 queryCount, IBuffer destination, uint64 destinationOffset)
+	{
+		if (!mIsRecording || mFinished)
+			return;
+
+		let vkQuerySet = querySet as VulkanQuerySet;
+		let vkBuffer = destination as VulkanBuffer;
+		if (vkQuerySet == null || vkBuffer == null)
+			return;
+
+		VkQueryResultFlags flags = .VK_QUERY_RESULT_64_BIT | .VK_QUERY_RESULT_WAIT_BIT;
+
+		uint64 stride;
+		switch (vkQuerySet.Type)
+		{
+		case .Timestamp, .Occlusion:
+			stride = sizeof(uint64);
+		case .PipelineStatistics:
+			stride = (uint64)sizeof(PipelineStatistics);
+		}
+
+		VulkanNative.vkCmdCopyQueryPoolResults(
+			mCommandBuffer,
+			vkQuerySet.QueryPool,
+			firstQuery,
+			queryCount,
+			vkBuffer.Buffer,
+			destinationOffset,
+			stride,
+			flags
+		);
+	}
+
 	public ICommandBuffer Finish()
 	{
 		if (!mIsRecording || mFinished)

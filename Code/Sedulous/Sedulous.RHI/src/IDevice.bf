@@ -53,6 +53,11 @@ interface IDevice : IDisposable
 	/// Creates a command encoder for recording commands.
 	ICommandEncoder CreateCommandEncoder();
 
+	// ===== Queries =====
+
+	/// Creates a query set for GPU timing, occlusion, or pipeline statistics.
+	Result<IQuerySet> CreateQuerySet(QuerySetDescriptor* descriptor);
+
 	// ===== Presentation =====
 
 	/// Creates a swap chain for presenting to a surface.
