@@ -272,6 +272,23 @@ static class VulkanConversions
 		}
 	}
 
+	/// Converts RHI BindingType to VkDescriptorType with dynamic offset support.
+	public static VkDescriptorType ToVkDescriptorType(BindingType type, bool hasDynamicOffset)
+	{
+		switch (type)
+		{
+		case .UniformBuffer:
+			return hasDynamicOffset ? .VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC : .VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		case .StorageBuffer, .StorageBufferReadWrite:
+			return hasDynamicOffset ? .VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC : .VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		case .SampledTexture: return .VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+		case .StorageTexture, .StorageTextureReadWrite: return .VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+		case .Sampler: return .VK_DESCRIPTOR_TYPE_SAMPLER;
+		case .ComparisonSampler: return .VK_DESCRIPTOR_TYPE_SAMPLER;
+		default: return .VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		}
+	}
+
 	/// Converts RHI ShaderStage to VkShaderStageFlags.
 	public static VkShaderStageFlags ToVkShaderStage(ShaderStage stage)
 	{

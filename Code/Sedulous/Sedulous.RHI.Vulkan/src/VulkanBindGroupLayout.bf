@@ -12,6 +12,7 @@ class VulkanBindGroupLayout : IBindGroupLayout
 	private VulkanDevice mDevice;
 	private VkDescriptorSetLayout mDescriptorSetLayout;
 	private List<BindGroupLayoutEntry> mEntries = new .() ~ delete _;
+	private uint32 mDynamicOffsetCount;
 
 	public this(VulkanDevice device, BindGroupLayoutDescriptor* descriptor)
 	{
@@ -46,6 +47,9 @@ class VulkanBindGroupLayout : IBindGroupLayout
 	/// Gets the layout entries.
 	public Span<BindGroupLayoutEntry> Entries => mEntries;
 
+	/// Gets the number of dynamic offsets required for this layout.
+	public uint32 DynamicOffsetCount => mDynamicOffsetCount;
+
 	private void CreateDescriptorSetLayout(BindGroupLayoutDescriptor* descriptor)
 	{
 		if (descriptor.Entries.Length == 0)
@@ -70,16 +74,23 @@ class VulkanBindGroupLayout : IBindGroupLayout
 		// This matches the shifts applied during shader compilation via DXC's -fvk-*-shift flags
 		VkDescriptorSetLayoutBinding* bindings = scope VkDescriptorSetLayoutBinding[descriptor.Entries.Length]*;
 
+		// Count dynamic offsets for later use when binding
+		mDynamicOffsetCount = 0;
+
 		for (int i = 0; i < descriptor.Entries.Length; i++)
 		{
 			let entry = descriptor.Entries[i];
 			// Apply the binding shift based on resource type to match shader compilation
 			uint32 shiftedBinding = entry.Binding + VulkanBindingShifts.GetShift(entry.Type);
 
+			// Count dynamic offset entries
+			if (entry.HasDynamicOffset)
+				mDynamicOffsetCount++;
+
 			bindings[i] = .()
 				{
 					binding = shiftedBinding,
-					descriptorType = VulkanConversions.ToVkDescriptorType(entry.Type),
+					descriptorType = VulkanConversions.ToVkDescriptorType(entry.Type, entry.HasDynamicOffset),
 					descriptorCount = 1,
 					stageFlags = VulkanConversions.ToVkShaderStage(entry.Visibility),
 					pImmutableSamplers = null

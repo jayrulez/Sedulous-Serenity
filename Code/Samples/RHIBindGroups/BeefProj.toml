@@ -1,0 +1,6 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.Mathematics" = "*", "Sedulous.RHI" = "*", "Sedulous.RHI.HLSLShaderCompiler" = "*", "RHI.SampleFramework" = "*"}
+
+[Project]
+Name = "RHIBindGroups"
+StartupObject = "RHIBindGroups.Program"

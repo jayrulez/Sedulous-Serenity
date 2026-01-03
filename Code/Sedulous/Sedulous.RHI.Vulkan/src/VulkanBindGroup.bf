@@ -121,7 +121,7 @@ class VulkanBindGroup : IBindGroup
 					dstBinding = shiftedBinding,
 					dstArrayElement = 0,
 					descriptorCount = 1,
-					descriptorType = VulkanConversions.ToVkDescriptorType(layoutEntry.Type)
+					descriptorType = VulkanConversions.ToVkDescriptorType(layoutEntry.Type, layoutEntry.HasDynamicOffset)
 				};
 
 			switch (layoutEntry.Type)
