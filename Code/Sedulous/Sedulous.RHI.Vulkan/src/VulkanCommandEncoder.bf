@@ -101,7 +101,12 @@ class VulkanCommandEncoder : ICommandEncoder
 		for (let colorAttachment in descriptor.ColorAttachments)
 		{
 			VkClearValue clearValue = .();
-			clearValue.color = .() { float32 = .(colorAttachment.ClearValue.R, colorAttachment.ClearValue.G, colorAttachment.ClearValue.B, colorAttachment.ClearValue.A) };
+			// Convert uint8 (0-255) to float (0.0-1.0)
+			clearValue.color = .() { float32 = .(
+				colorAttachment.ClearValue.R / 255.0f,
+				colorAttachment.ClearValue.G / 255.0f,
+				colorAttachment.ClearValue.B / 255.0f,
+				colorAttachment.ClearValue.A / 255.0f) };
 			clearValues.Add(clearValue);
 		}
 
