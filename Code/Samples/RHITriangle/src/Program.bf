@@ -10,6 +10,20 @@ using Sedulous.RHI.HLSLShaderCompiler;
 
 namespace RHITriangle;
 
+/// Vertex structure matching the shader input layout
+[CRepr]
+struct Vertex
+{
+	public float[2] Position;
+	public float[3] Color;
+
+	public this(float x, float y, float r, float g, float b)
+	{
+		Position = .(x, y);
+		Color = .(r, g, b);
+	}
+}
+
 class Program
 {
 	private static SDL3Shell sShell;
@@ -22,6 +36,7 @@ class Program
 	private static IShaderModule sVertShader;
 	private static IShaderModule sFragShader;
 	private static IPipelineLayout sPipelineLayout;
+	private static IBuffer sVertexBuffer;
 
 	// Per-frame command buffers - deleted after fence wait ensures GPU is done
 	private const int MAX_FRAMES_IN_FLIGHT = 2;
@@ -122,6 +137,14 @@ class Program
 		defer delete sSwapChain;
 
 		Console.WriteLine(scope $"Swap chain created: {sSwapChain.Width}x{sSwapChain.Height}");
+
+		// Create vertex buffer with triangle data
+		if (!CreateVertexBuffer())
+		{
+			Console.WriteLine("Failed to create vertex buffer");
+			return 1;
+		}
+		defer delete sVertexBuffer;
 
 		// Load shaders
 		if (!LoadShaders())
@@ -276,9 +299,50 @@ class Program
 		return true;
 	}
 
+	private static bool CreateVertexBuffer()
+	{
+		// Define triangle vertices (position + color)
+		Vertex[3] vertices = .(
+			.(0.0f, -0.5f, 1.0f, 0.0f, 0.0f),   // Top - Red
+			.(0.5f, 0.5f, 0.0f, 1.0f, 0.0f),    // Bottom right - Green
+			.(-0.5f, 0.5f, 0.0f, 0.0f, 1.0f)    // Bottom left - Blue
+		);
+
+		// Create vertex buffer
+		BufferDescriptor bufferDesc = .()
+			{
+				Size = (uint64)(sizeof(Vertex) * vertices.Count),
+				Usage = .Vertex,
+				MemoryAccess = .Upload  // CPU-accessible for simplicity
+			};
+
+		if (sDevice.CreateBuffer(&bufferDesc) not case .Ok(let buffer))
+			return false;
+
+		sVertexBuffer = buffer;
+
+		// Upload vertex data
+		Span<uint8> vertexData = .((uint8*)&vertices, (int)bufferDesc.Size);
+		sDevice.Queue.WriteBuffer(sVertexBuffer, 0, vertexData);
+
+		Console.WriteLine("Vertex buffer created");
+		return true;
+	}
+
 	private static bool CreatePipeline()
 	{
-		// Vertex data is hardcoded in the shader, no vertex input needed
+		// Define vertex attributes
+		// Position: location 0, offset 0, Float2
+		// Color: location 1, offset 8 (2 floats * 4 bytes), Float3
+		VertexAttribute[2] vertexAttributes = .(
+			.(VertexFormat.Float2, 0, 0),         // Position at location 0
+			.(VertexFormat.Float3, 8, 1)          // Color at location 1
+		);
+
+		// Define vertex buffer layout
+		VertexBufferLayout[1] vertexBuffers = .(
+			.((uint64)sizeof(Vertex), vertexAttributes)
+		);
 
 		// Color target state
 		ColorTargetState[1] colorTargets = .(.(sSwapChain.Format));
@@ -300,11 +364,11 @@ class Program
 				CullMode = .None
 			};
 
-		// Vertex state (no vertex buffers)
+		// Vertex state with buffer layout
 		VertexState vertex = .()
 			{
 				Shader = .(sVertShader, "main"),
-				Buffers = default
+				Buffers = vertexBuffers
 			};
 
 		// Fragment state
@@ -383,6 +447,7 @@ class Program
 
 		// Draw triangle
 		renderPass.SetPipeline(sPipeline);
+		renderPass.SetVertexBuffer(0, sVertexBuffer, 0);
 		renderPass.SetViewport(0, 0, sSwapChain.Width, sSwapChain.Height, 0, 1);
 		renderPass.SetScissorRect(0, 0, sSwapChain.Width, sSwapChain.Height);
 		renderPass.Draw(3, 1, 0, 0);
