@@ -1,41 +1,38 @@
-namespace RHITexturedQuad;
+namespace RHIDepthBuffer;
 
 using System;
 using Sedulous.Mathematics;
-using Sedulous.Imaging;
 using Sedulous.RHI;
 using RHI.SampleFramework;
 
-/// Vertex structure with position and texture coordinates
+/// Vertex with 3D position and color
 [CRepr]
 struct Vertex
 {
-	public float[2] Position;
-	public float[2] TexCoord;
+	public float[3] Position;
+	public float[3] Color;
 
-	public this(float x, float y, float u, float v)
+	public this(float x, float y, float z, float r, float g, float b)
 	{
-		Position = .(x, y);
-		TexCoord = .(u, v);
+		Position = .(x, y, z);
+		Color = .(r, g, b);
 	}
+
 }
 
-/// Uniform buffer data for the transform matrix
+/// Uniform data with MVP matrix
 [CRepr]
 struct Uniforms
 {
-	public Matrix4x4 Transform;
+	public Matrix4x4 MVP;
 }
 
-/// Rotating textured quad sample using the RHI sample framework.
-class TexturedQuadSample : RHISampleApp
+/// Demonstrates depth buffer functionality by rendering overlapping quads.
+class DepthBufferSample : RHISampleApp
 {
 	private IBuffer mVertexBuffer;
 	private IBuffer mIndexBuffer;
 	private IBuffer mUniformBuffer;
-	private ITexture mTexture;
-	private ITextureView mTextureView;
-	private ISampler mSampler;
 	private IShaderModule mVertShader;
 	private IShaderModule mFragShader;
 	private IBindGroupLayout mBindGroupLayout;
@@ -45,10 +42,11 @@ class TexturedQuadSample : RHISampleApp
 
 	public this() : base(.()
 		{
-			Title = "RHI Textured Quad",
+			Title = "RHI Depth Buffer Test",
 			Width = 800,
 			Height = 600,
-			ClearColor = .(0.1f, 0.1f, 0.1f, 1.0f)
+			EnableDepth = true,
+			ClearColor = .(0.1f, 0.1f, 0.15f, 1.0f)
 		})
 	{
 	}
@@ -56,9 +54,6 @@ class TexturedQuadSample : RHISampleApp
 	protected override bool OnInitialize()
 	{
 		if (!CreateBuffers())
-			return false;
-
-		if (!CreateTexture())
 			return false;
 
 		if (!CreateBindings())
@@ -72,14 +67,32 @@ class TexturedQuadSample : RHISampleApp
 
 	private bool CreateBuffers()
 	{
-		// Define quad vertices (position + UV)
-		Vertex[4] vertices = .(
-			.(-0.5f, -0.5f, 0.0f, 1.0f),  // Bottom-left
-			.( 0.5f, -0.5f, 1.0f, 1.0f),  // Bottom-right
-			.( 0.5f,  0.5f, 1.0f, 0.0f),  // Top-right
-			.(-0.5f,  0.5f, 0.0f, 0.0f)   // Top-left
+		// Create two overlapping quads at different depths
+		// Red quad in front (z = 0.0), Blue quad in back (z = 0.5)
+		// They overlap in the center to demonstrate depth testing
+		Vertex[8] vertices = .(
+			// Red quad (front, z = 0.0) - positioned to the right and up
+			.(-0.5f, -0.5f, 0.0f, 1.0f, 0.2f, 0.2f),  // Bottom-left
+			.( 0.5f, -0.5f, 0.0f, 1.0f, 0.2f, 0.2f),  // Bottom-right
+			.( 0.5f,  0.5f, 0.0f, 1.0f, 0.2f, 0.2f),  // Top-right
+			.(-0.5f,  0.5f, 0.0f, 1.0f, 0.2f, 0.2f),  // Top-left
+
+			// Blue quad (back, z = 0.5) - positioned to the left and down
+			.(-0.3f, -0.3f, 0.5f, 0.2f, 0.2f, 1.0f),  // Bottom-left
+			.( 0.7f, -0.3f, 0.5f, 0.2f, 0.2f, 1.0f),  // Bottom-right
+			.( 0.7f,  0.7f, 0.5f, 0.2f, 0.2f, 1.0f),  // Top-right
+			.(-0.3f,  0.7f, 0.5f, 0.2f, 0.2f, 1.0f)   // Top-left
 		);
 
+		// Index buffer for two quads (6 indices each)
+		uint16[12] indices = .(
+			// Red quad (front)
+			0, 1, 2,  0, 2, 3,
+			// Blue quad (back)
+			4, 5, 6,  4, 6, 7
+		);
+
+		// Create vertex buffer
 		BufferDescriptor vertexDesc = .()
 		{
 			Size = (uint64)(sizeof(Vertex) * vertices.Count),
@@ -95,11 +108,6 @@ class TexturedQuadSample : RHISampleApp
 		Device.Queue.WriteBuffer(mVertexBuffer, 0, vertexData);
 
 		// Create index buffer
-		uint16[6] indices = .(
-			0, 1, 2,  // First triangle
-			0, 2, 3   // Second triangle
-		);
-
 		BufferDescriptor indexDesc = .()
 		{
 			Size = (uint64)(sizeof(uint16) * indices.Count),
@@ -130,69 +138,19 @@ class TexturedQuadSample : RHISampleApp
 		return true;
 	}
 
-	private bool CreateTexture()
-	{
-		// Generate checkerboard image using Sedulous.Imaging
-		let image = Image.CreateCheckerboard(256, Color.White, Color(0.2f, 0.2f, 0.8f, 1.0f), 32, .RGBA8);
-		defer delete image;
-
-		Console.WriteLine(scope $"Created checkerboard image: {image.Width}x{image.Height}");
-
-		// Create texture
-		TextureDescriptor textureDesc = TextureDescriptor.Texture2D(
-			image.Width,
-			image.Height,
-			.RGBA8Unorm,
-			.Sampled | .CopyDst
-		);
-
-		if (Device.CreateTexture(&textureDesc) not case .Ok(let texture))
-			return false;
-		mTexture = texture;
-
-		// Upload texture data
-		TextureDataLayout dataLayout = .()
-		{
-			Offset = 0,
-			BytesPerRow = image.Width * 4,
-			RowsPerImage = image.Height
-		};
-
-		Extent3D writeSize = .(image.Width, image.Height, 1);
-		Device.Queue.WriteTexture(mTexture, image.Data, &dataLayout, &writeSize);
-
-		// Create texture view
-		TextureViewDescriptor viewDesc = .();
-		if (Device.CreateTextureView(mTexture, &viewDesc) not case .Ok(let textureView))
-			return false;
-		mTextureView = textureView;
-
-		// Create sampler
-		SamplerDescriptor samplerDesc = SamplerDescriptor.LinearRepeat();
-		if (Device.CreateSampler(&samplerDesc) not case .Ok(let sampler))
-			return false;
-		mSampler = sampler;
-
-		Console.WriteLine("Texture created");
-		return true;
-	}
-
 	private bool CreateBindings()
 	{
-		// Load shaders with binding shifts for texture and sampler
-		BindingShifts fragShifts = .() { Texture = 1, Sampler = 2 };
-		let shaderResult = ShaderUtils.LoadShaderPair(Device, "shaders/quad", .(), fragShifts);
+		// Load shaders
+		let shaderResult = ShaderUtils.LoadShaderPair(Device, "shaders/depth");
 		if (shaderResult case .Err)
 			return false;
 
 		(mVertShader, mFragShader) = shaderResult.Get();
 		Console.WriteLine("Shaders compiled");
 
-		// Create bind group layout (uniform buffer + texture + sampler)
-		BindGroupLayoutEntry[3] layoutEntries = .(
-			BindGroupLayoutEntry.UniformBuffer(0, .Vertex),
-			BindGroupLayoutEntry.SampledTexture(1, .Fragment),
-			BindGroupLayoutEntry.Sampler(2, .Fragment)
+		// Create bind group layout
+		BindGroupLayoutEntry[1] layoutEntries = .(
+			BindGroupLayoutEntry.UniformBuffer(0, .Vertex)
 		);
 		BindGroupLayoutDescriptor bindGroupLayoutDesc = .(layoutEntries);
 		if (Device.CreateBindGroupLayout(&bindGroupLayoutDesc) not case .Ok(let layout))
@@ -200,10 +158,8 @@ class TexturedQuadSample : RHISampleApp
 		mBindGroupLayout = layout;
 
 		// Create bind group
-		BindGroupEntry[3] bindGroupEntries = .(
-			BindGroupEntry.Buffer(0, mUniformBuffer),
-			BindGroupEntry.Texture(1, mTextureView),
-			BindGroupEntry.Sampler(2, mSampler)
+		BindGroupEntry[1] bindGroupEntries = .(
+			BindGroupEntry.Buffer(0, mUniformBuffer)
 		);
 		BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
 		if (Device.CreateBindGroup(&bindGroupDesc) not case .Ok(let group))
@@ -225,8 +181,8 @@ class TexturedQuadSample : RHISampleApp
 	{
 		// Vertex attributes - must be in same scope as pipeline creation
 		VertexAttribute[2] vertexAttributes = .(
-			.(VertexFormat.Float2, 0, 0),   // Position at location 0
-			.(VertexFormat.Float2, 8, 1)    // TexCoord at location 1
+			.(VertexFormat.Float3, 0, 0),   // Position at location 0
+			.(VertexFormat.Float3, 12, 1)   // Color at location 1
 		);
 		VertexBufferLayout[1] vertexBuffers = .(
 			.((uint64)sizeof(Vertex), vertexAttributes)
@@ -234,6 +190,18 @@ class TexturedQuadSample : RHISampleApp
 
 		// Color target
 		ColorTargetState[1] colorTargets = .(.(SwapChain.Format));
+
+		// Depth stencil state - enable depth testing
+		DepthStencilState depthStencil = .()
+		{
+			Format = .Depth24PlusStencil8,
+			DepthWriteEnabled = true,
+			DepthCompare = .Less,
+			StencilFront = .(),
+			StencilBack = .(),
+			StencilReadMask = 0xFF,
+			StencilWriteMask = 0xFF
+		};
 
 		// Pipeline descriptor
 		RenderPipelineDescriptor pipelineDesc = .()
@@ -255,7 +223,7 @@ class TexturedQuadSample : RHISampleApp
 				FrontFace = .CCW,
 				CullMode = .None
 			},
-			DepthStencil = null,
+			DepthStencil = depthStencil,
 			Multisample = .()
 			{
 				Count = 1,
@@ -274,9 +242,30 @@ class TexturedQuadSample : RHISampleApp
 
 	protected override void OnUpdate(float deltaTime, float totalTime)
 	{
-		// Create rotation matrix around Z axis
-		float rotationAngle = totalTime * 0.5f;  // Slower rotation
-		Uniforms uniforms = .() { Transform = Matrix4x4.CreateRotationZ(rotationAngle) };
+		// Create rotation around Y axis
+		float angle = totalTime * 0.5f;
+
+		// Create MVP matrix - order is projection * view * model for column-major shaders
+		let model = Matrix4x4.CreateRotationY(angle);
+
+		// Simple perspective projection
+		float aspect = (float)SwapChain.Width / (float)SwapChain.Height;
+		let projection = Matrix4x4.CreatePerspective(
+			Math.PI_f / 4.0f,  // 45 degree FOV
+			aspect,
+			0.1f,              // Near plane
+			100.0f             // Far plane
+		);
+
+		// Camera looking at origin from z = 3
+		let view = Matrix4x4.CreateLookAt(
+			.(0.0f, 0.0f, 3.0f),   // Eye position
+			.(0.0f, 0.0f, 0.0f),   // Look at
+			.(0.0f, 1.0f, 0.0f)    // Up vector
+		);
+
+		// Column-major: MVP = projection * view * model
+		Uniforms uniforms = .() { MVP = projection * view * model };
 		Span<uint8> uniformData = .((uint8*)&uniforms, sizeof(Uniforms));
 		Device.Queue.WriteBuffer(mUniformBuffer, 0, uniformData);
 	}
@@ -287,7 +276,7 @@ class TexturedQuadSample : RHISampleApp
 		renderPass.SetBindGroup(0, mBindGroup);
 		renderPass.SetVertexBuffer(0, mVertexBuffer, 0);
 		renderPass.SetIndexBuffer(mIndexBuffer, .UInt16, 0);
-		renderPass.DrawIndexed(6, 1, 0, 0, 0);
+		renderPass.DrawIndexed(12, 1, 0, 0, 0);  // 12 indices for 2 quads
 	}
 
 	protected override void OnCleanup()
@@ -298,9 +287,6 @@ class TexturedQuadSample : RHISampleApp
 		if (mBindGroupLayout != null) delete mBindGroupLayout;
 		if (mFragShader != null) delete mFragShader;
 		if (mVertShader != null) delete mVertShader;
-		if (mSampler != null) delete mSampler;
-		if (mTextureView != null) delete mTextureView;
-		if (mTexture != null) delete mTexture;
 		if (mUniformBuffer != null) delete mUniformBuffer;
 		if (mIndexBuffer != null) delete mIndexBuffer;
 		if (mVertexBuffer != null) delete mVertexBuffer;
@@ -311,7 +297,7 @@ class Program
 {
 	public static int Main(String[] args)
 	{
-		let app = scope TexturedQuadSample();
+		let app = scope DepthBufferSample();
 		return app.Run();
 	}
 }

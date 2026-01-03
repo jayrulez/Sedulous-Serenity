@@ -124,24 +124,53 @@ class VulkanSwapChain : ISwapChain
 	public Result<void> AcquireNextImage()
 	{
 		// Wait for the current frame's fence to ensure we can reuse its resources
+		// Use a timeout to prevent deadlock if previous frame failed to signal the fence
 		var fence = mInFlightFences[mCurrentFrameIndex];
-		VulkanNative.vkWaitForFences(mDevice.Device, 1, &fence, VkBool32.True, uint64.MaxValue);
-		VulkanNative.vkResetFences(mDevice.Device, 1, &fence);
+		let waitResult = VulkanNative.vkWaitForFences(mDevice.Device, 1, &fence, VkBool32.True, 1000000000); // 1 second timeout in nanoseconds
+
+		if (waitResult == .VK_TIMEOUT)
+		{
+			// Fence was never signaled - previous frame likely failed
+			// Don't call WaitIdle here as it can block indefinitely
+			// Just log and continue - the error counter will handle repeated failures
+			Console.WriteLine("[Warning] Frame fence timeout - previous frame may have failed");
+			// Reset all fences to try to recover
+			for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+			{
+				var f = mInFlightFences[i];
+				VulkanNative.vkResetFences(mDevice.Device, 1, &f);
+			}
+		}
+		else if (waitResult != .VK_SUCCESS)
+		{
+			return .Err;
+		}
+		else
+		{
+			// Only reset if wait succeeded (fence was signaled)
+			VulkanNative.vkResetFences(mDevice.Device, 1, &fence);
+		}
 
 		// Use the next acquire semaphore in the ring buffer
 		// We increment BEFORE acquire so the property returns the right semaphore
 		mAcquireSemaphoreIndex = (mAcquireSemaphoreIndex + 1) % (uint32)mImageAvailableSemaphores.Count;
 
+		// Use a timeout for acquire to prevent lockup if swap chain is in bad state
 		var result = VulkanNative.vkAcquireNextImageKHR(
 			mDevice.Device,
 			mSwapChain,
-			uint64.MaxValue,
+			1000000000, // 1 second timeout
 			mImageAvailableSemaphores[mAcquireSemaphoreIndex],
 			default,
 			&mCurrentImageIndex
 		);
 
-		if (result == .VK_ERROR_OUT_OF_DATE_KHR)
+		if (result == .VK_TIMEOUT)
+		{
+			Console.WriteLine("[Warning] Swap chain acquire timeout");
+			return .Err;
+		}
+		else if (result == .VK_ERROR_OUT_OF_DATE_KHR)
 		{
 			// Swap chain needs to be recreated
 			return .Err;

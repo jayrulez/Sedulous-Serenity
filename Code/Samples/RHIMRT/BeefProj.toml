@@ -2,5 +2,5 @@ FileVersion = 1
 Dependencies = {corlib = "*", "Sedulous.Mathematics" = "*", "Sedulous.RHI" = "*", "RHI.SampleFramework" = "*"}
 
 [Project]
-Name = "RHITriangle"
-StartupObject = "RHITriangle.Program"
+Name = "RHIMRT"
+StartupObject = "RHIMRT.Program"

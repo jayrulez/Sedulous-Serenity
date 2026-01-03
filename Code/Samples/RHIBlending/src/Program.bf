@@ -1,49 +1,41 @@
-namespace RHITriangle;
+namespace RHIBlending;
 
 using System;
 using Sedulous.Mathematics;
 using Sedulous.RHI;
 using RHI.SampleFramework;
 
-/// Vertex structure with position and color
+/// Vertex with 2D position and RGBA color
 [CRepr]
 struct Vertex
 {
 	public float[2] Position;
-	public float[3] Color;
+	public float[4] Color;  // RGBA with alpha
 
-	public this(float x, float y, float r, float g, float b)
+	public this(float x, float y, float r, float g, float b, float a)
 	{
 		Position = .(x, y);
-		Color = .(r, g, b);
+		Color = .(r, g, b, a);
 	}
+
 }
 
-/// Uniform buffer data for the transform matrix
-[CRepr]
-struct Uniforms
-{
-	public Matrix4x4 Transform;
-}
-
-/// Rotating triangle sample using the RHI sample framework.
-class TriangleSample : RHISampleApp
+/// Demonstrates alpha blending with overlapping transparent quads.
+class BlendingSample : RHISampleApp
 {
 	private IBuffer mVertexBuffer;
-	private IBuffer mUniformBuffer;
+	private IBuffer mIndexBuffer;
 	private IShaderModule mVertShader;
 	private IShaderModule mFragShader;
-	private IBindGroupLayout mBindGroupLayout;
-	private IBindGroup mBindGroup;
 	private IPipelineLayout mPipelineLayout;
 	private IRenderPipeline mPipeline;
 
 	public this() : base(.()
 		{
-			Title = "RHI Triangle",
+			Title = "RHI Alpha Blending Test",
 			Width = 800,
 			Height = 600,
-			ClearColor = .(0.0f, 0.2f, 0.4f, 1.0f)
+			ClearColor = .(0.2f, 0.2f, 0.2f, 1.0f)
 		})
 	{
 	}
@@ -51,9 +43,6 @@ class TriangleSample : RHISampleApp
 	protected override bool OnInitialize()
 	{
 		if (!CreateBuffers())
-			return false;
-
-		if (!CreateBindings())
 			return false;
 
 		if (!CreatePipeline())
@@ -64,11 +53,36 @@ class TriangleSample : RHISampleApp
 
 	private bool CreateBuffers()
 	{
-		// Define triangle vertices (position + color)
-		Vertex[3] vertices = .(
-			.(0.0f, -0.5f, 1.0f, 0.0f, 0.0f),   // Top - Red
-			.(0.5f, 0.5f, 0.0f, 1.0f, 0.0f),    // Bottom right - Green
-			.(-0.5f, 0.5f, 0.0f, 0.0f, 1.0f)    // Bottom left - Blue
+		// Create overlapping quads with varying transparency
+		// Drawn back to front for correct blending
+		Vertex[12] vertices = .(
+			// Red quad (back-left) - 70% opaque
+			.(-0.8f, -0.6f, 1.0f, 0.2f, 0.2f, 0.7f),
+			.( 0.0f, -0.6f, 1.0f, 0.2f, 0.2f, 0.7f),
+			.( 0.0f,  0.4f, 1.0f, 0.2f, 0.2f, 0.7f),
+			.(-0.8f,  0.4f, 1.0f, 0.2f, 0.2f, 0.7f),
+
+			// Green quad (middle) - 50% opaque
+			.(-0.4f, -0.4f, 0.2f, 1.0f, 0.2f, 0.5f),
+			.( 0.4f, -0.4f, 0.2f, 1.0f, 0.2f, 0.5f),
+			.( 0.4f,  0.6f, 0.2f, 1.0f, 0.2f, 0.5f),
+			.(-0.4f,  0.6f, 0.2f, 1.0f, 0.2f, 0.5f),
+
+			// Blue quad (front-right) - 60% opaque
+			.( 0.0f, -0.5f, 0.2f, 0.2f, 1.0f, 0.6f),
+			.( 0.8f, -0.5f, 0.2f, 0.2f, 1.0f, 0.6f),
+			.( 0.8f,  0.5f, 0.2f, 0.2f, 1.0f, 0.6f),
+			.( 0.0f,  0.5f, 0.2f, 0.2f, 1.0f, 0.6f)
+		);
+
+		// Index buffer for three quads
+		uint16[18] indices = .(
+			// Red quad
+			0, 1, 2,  0, 2, 3,
+			// Green quad
+			4, 5, 6,  4, 6, 7,
+			// Blue quad
+			8, 9, 10,  8, 10, 11
 		);
 
 		// Create vertex buffer
@@ -86,74 +100,53 @@ class TriangleSample : RHISampleApp
 		Span<uint8> vertexData = .((uint8*)&vertices, (int)vertexDesc.Size);
 		Device.Queue.WriteBuffer(mVertexBuffer, 0, vertexData);
 
-		// Create uniform buffer
-		BufferDescriptor uniformDesc = .()
+		// Create index buffer
+		BufferDescriptor indexDesc = .()
 		{
-			Size = (uint64)sizeof(Uniforms),
-			Usage = .Uniform,
+			Size = (uint64)(sizeof(uint16) * indices.Count),
+			Usage = .Index,
 			MemoryAccess = .Upload
 		};
 
-		if (Device.CreateBuffer(&uniformDesc) not case .Ok(let ub))
+		if (Device.CreateBuffer(&indexDesc) not case .Ok(let ib))
 			return false;
-		mUniformBuffer = ub;
+		mIndexBuffer = ib;
+
+		Span<uint8> indexData = .((uint8*)&indices, (int)indexDesc.Size);
+		Device.Queue.WriteBuffer(mIndexBuffer, 0, indexData);
 
 		Console.WriteLine("Buffers created");
 		return true;
 	}
 
-	private bool CreateBindings()
+	private bool CreatePipeline()
 	{
 		// Load shaders
-		let shaderResult = ShaderUtils.LoadShaderPair(Device, "shaders/triangle");
+		let shaderResult = ShaderUtils.LoadShaderPair(Device, "shaders/blend");
 		if (shaderResult case .Err)
 			return false;
 
 		(mVertShader, mFragShader) = shaderResult.Get();
 		Console.WriteLine("Shaders compiled");
 
-		// Create bind group layout
-		BindGroupLayoutEntry[1] layoutEntries = .(
-			BindGroupLayoutEntry.UniformBuffer(0, .Vertex)
-		);
-		BindGroupLayoutDescriptor bindGroupLayoutDesc = .(layoutEntries);
-		if (Device.CreateBindGroupLayout(&bindGroupLayoutDesc) not case .Ok(let layout))
-			return false;
-		mBindGroupLayout = layout;
-
-		// Create bind group
-		BindGroupEntry[1] bindGroupEntries = .(
-			BindGroupEntry.Buffer(0, mUniformBuffer)
-		);
-		BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
-		if (Device.CreateBindGroup(&bindGroupDesc) not case .Ok(let group))
-			return false;
-		mBindGroup = group;
-
-		// Create pipeline layout
-		IBindGroupLayout[1] layouts = .(mBindGroupLayout);
-		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
+		// Create empty pipeline layout (no bindings)
+		PipelineLayoutDescriptor pipelineLayoutDesc = .();
 		if (Device.CreatePipelineLayout(&pipelineLayoutDesc) not case .Ok(let pipelineLayout))
 			return false;
 		mPipelineLayout = pipelineLayout;
 
-		Console.WriteLine("Bindings created");
-		return true;
-	}
-
-	private bool CreatePipeline()
-	{
 		// Vertex attributes - must be in same scope as pipeline creation
 		VertexAttribute[2] vertexAttributes = .(
 			.(VertexFormat.Float2, 0, 0),   // Position at location 0
-			.(VertexFormat.Float3, 8, 1)    // Color at location 1
+			.(VertexFormat.Float4, 8, 1)    // Color at location 1
 		);
 		VertexBufferLayout[1] vertexBuffers = .(
 			.((uint64)sizeof(Vertex), vertexAttributes)
 		);
 
-		// Color target
-		ColorTargetState[1] colorTargets = .(.(SwapChain.Format));
+		// Color target with alpha blending enabled
+		// Standard alpha blending: result = src.rgb * src.a + dst.rgb * (1 - src.a)
+		ColorTargetState[1] colorTargets = .(.(SwapChain.Format, .AlphaBlend));
 
 		// Pipeline descriptor
 		RenderPipelineDescriptor pipelineDesc = .()
@@ -188,36 +181,26 @@ class TriangleSample : RHISampleApp
 			return false;
 		mPipeline = pipeline;
 
-		Console.WriteLine("Pipeline created");
+		Console.WriteLine("Pipeline created with alpha blending");
 		return true;
-	}
-
-	protected override void OnUpdate(float deltaTime, float totalTime)
-	{
-		// Create rotation matrix around Z axis
-		float rotationAngle = totalTime * 1.0f;  // 1 radian per second
-		Uniforms uniforms = .() { Transform = Matrix4x4.CreateRotationZ(rotationAngle) };
-		Span<uint8> uniformData = .((uint8*)&uniforms, sizeof(Uniforms));
-		Device.Queue.WriteBuffer(mUniformBuffer, 0, uniformData);
 	}
 
 	protected override void OnRender(IRenderPassEncoder renderPass)
 	{
 		renderPass.SetPipeline(mPipeline);
-		renderPass.SetBindGroup(0, mBindGroup);
 		renderPass.SetVertexBuffer(0, mVertexBuffer, 0);
-		renderPass.Draw(3, 1, 0, 0);
+		renderPass.SetIndexBuffer(mIndexBuffer, .UInt16, 0);
+		// Draw all three quads (18 indices total)
+		renderPass.DrawIndexed(18, 1, 0, 0, 0);
 	}
 
 	protected override void OnCleanup()
 	{
 		if (mPipeline != null) delete mPipeline;
 		if (mPipelineLayout != null) delete mPipelineLayout;
-		if (mBindGroup != null) delete mBindGroup;
-		if (mBindGroupLayout != null) delete mBindGroupLayout;
 		if (mFragShader != null) delete mFragShader;
 		if (mVertShader != null) delete mVertShader;
-		if (mUniformBuffer != null) delete mUniformBuffer;
+		if (mIndexBuffer != null) delete mIndexBuffer;
 		if (mVertexBuffer != null) delete mVertexBuffer;
 	}
 }
@@ -226,7 +209,7 @@ class Program
 {
 	public static int Main(String[] args)
 	{
-		let app = scope TriangleSample();
+		let app = scope BlendingSample();
 		return app.Run();
 	}
 }

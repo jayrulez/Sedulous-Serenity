@@ -65,6 +65,28 @@ struct BindGroupLayoutEntry
 		entry.Type = .Sampler;
 		return entry;
 	}
+
+	/// Creates a storage buffer binding entry (read-only).
+	public static Self StorageBuffer(uint32 binding, ShaderStage visibility, bool dynamicOffset = false)
+	{
+		Self entry = .();
+		entry.Binding = binding;
+		entry.Visibility = visibility;
+		entry.Type = .StorageBuffer;
+		entry.HasDynamicOffset = dynamicOffset;
+		return entry;
+	}
+
+	/// Creates a storage buffer binding entry (read-write).
+	public static Self StorageBufferReadWrite(uint32 binding, ShaderStage visibility, bool dynamicOffset = false)
+	{
+		Self entry = .();
+		entry.Binding = binding;
+		entry.Visibility = visibility;
+		entry.Type = .StorageBufferReadWrite;
+		entry.HasDynamicOffset = dynamicOffset;
+		return entry;
+	}
 }
 
 /// Describes a bind group layout.

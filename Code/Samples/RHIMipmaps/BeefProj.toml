@@ -2,5 +2,5 @@ FileVersion = 1
 Dependencies = {corlib = "*", "Sedulous.Mathematics" = "*", "Sedulous.Imaging" = "*", "Sedulous.RHI" = "*", "RHI.SampleFramework" = "*"}
 
 [Project]
-Name = "RHITexturedQuad"
-StartupObject = "RHITexturedQuad.Program"
+Name = "RHIMipmaps"
+StartupObject = "RHIMipmaps.Program"
