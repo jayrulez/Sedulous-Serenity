@@ -15,6 +15,7 @@ class VulkanPipelineLayout : IPipelineLayout
 	public this(VulkanDevice device, PipelineLayoutDescriptor* descriptor)
 	{
 		mDevice = device;
+		mPipelineLayout = default;  // Explicitly initialize before Vulkan call
 		CreatePipelineLayout(descriptor);
 	}
 
@@ -50,17 +51,19 @@ class VulkanPipelineLayout : IPipelineLayout
 
 		if (layoutCount > 0)
 		{
-			setLayouts = scope VkDescriptorSetLayout[layoutCount]*;
+			// Use scope :: to extend allocation lifetime to function scope
+			setLayouts = scope :: VkDescriptorSetLayout[layoutCount]*;
 			for (int i = 0; i < layoutCount; i++)
 			{
 				if (let vkLayout = descriptor.BindGroupLayouts[i] as VulkanBindGroupLayout)
 				{
+					if (!vkLayout.IsValid)
+						return;
 					setLayouts[i] = vkLayout.DescriptorSetLayout;
 					mBindGroupLayouts.Add(vkLayout);
 				}
 				else
 				{
-					// Invalid layout type
 					return;
 				}
 			}
@@ -75,6 +78,10 @@ class VulkanPipelineLayout : IPipelineLayout
 				pPushConstantRanges = null
 			};
 
-		VulkanNative.vkCreatePipelineLayout(mDevice.Device, &pipelineLayoutInfo, null, &mPipelineLayout);
+		let result = VulkanNative.vkCreatePipelineLayout(mDevice.Device, &pipelineLayoutInfo, null, &mPipelineLayout);
+		if (result != .VK_SUCCESS)
+		{
+			mPipelineLayout = default;
+		}
 	}
 }

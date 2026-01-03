@@ -4,23 +4,24 @@ using System.Collections;
 using Sedulous.Shell;
 using Sedulous.Shell.SDL3;
 using Sedulous.Mathematics;
+using Sedulous.Imaging;
 using Sedulous.RHI;
-using Sedulous.RHI.Vulkan; // Only needed for backend instantiation
+using Sedulous.RHI.Vulkan;
 using Sedulous.RHI.HLSLShaderCompiler;
 
-namespace RHITriangle;
+namespace RHITexturedQuad;
 
-/// Vertex structure matching the shader input layout
+/// Vertex structure with position and texture coordinates
 [CRepr]
 struct Vertex
 {
 	public float[2] Position;
-	public float[3] Color;
+	public float[2] TexCoord;
 
-	public this(float x, float y, float r, float g, float b)
+	public this(float x, float y, float u, float v)
 	{
 		Position = .(x, y);
-		Color = .(r, g, b);
+		TexCoord = .(u, v);
 	}
 }
 
@@ -44,11 +45,15 @@ class Program
 	private static IShaderModule sFragShader;
 	private static IPipelineLayout sPipelineLayout;
 	private static IBuffer sVertexBuffer;
+	private static IBuffer sIndexBuffer;
 	private static IBuffer sUniformBuffer;
+	private static ITexture sTexture;
+	private static ITextureView sTextureView;
+	private static ISampler sSampler;
 	private static IBindGroupLayout sBindGroupLayout;
 	private static IBindGroup sBindGroup;
 
-	// Per-frame command buffers - deleted after fence wait ensures GPU is done
+	// Per-frame command buffers
 	private const int MAX_FRAMES_IN_FLIGHT = 2;
 	private static ICommandBuffer[MAX_FRAMES_IN_FLIGHT] sCommandBuffers;
 
@@ -69,7 +74,7 @@ class Program
 
 		let windowSettings = WindowSettings()
 			{
-				Title = "RHI Triangle",
+				Title = "RHI Textured Quad",
 				Width = 800,
 				Height = 600,
 				Resizable = true,
@@ -82,14 +87,7 @@ class Program
 			return 1;
 		}
 
-		// Get the window
 		sWindow = window;
-
-		if (sWindow == null)
-		{
-			Console.WriteLine("No window available");
-			return 1;
-		}
 
 		// Create Vulkan backend
 		sBackend = new VulkanBackend(true);
@@ -151,13 +149,21 @@ class Program
 
 		Console.WriteLine(scope $"Swap chain created: {sSwapChain.Width}x{sSwapChain.Height}");
 
-		// Create vertex buffer with triangle data
+		// Create vertex buffer with quad data
 		if (!CreateVertexBuffer())
 		{
 			Console.WriteLine("Failed to create vertex buffer");
 			return 1;
 		}
 		defer delete sVertexBuffer;
+
+		// Create index buffer
+		if (!CreateIndexBuffer())
+		{
+			Console.WriteLine("Failed to create index buffer");
+			return 1;
+		}
+		defer delete sIndexBuffer;
 
 		// Create uniform buffer for rotation transform
 		if (!CreateUniformBuffer())
@@ -167,9 +173,27 @@ class Program
 		}
 		defer delete sUniformBuffer;
 
-		// Create bind group layout
-		BindGroupLayoutEntry[1] layoutEntries = .(
-			BindGroupLayoutEntry.UniformBuffer(0, .Vertex)
+		// Create checkerboard texture
+		if (!CreateTexture())
+		{
+			Console.WriteLine("Failed to create texture");
+			return 1;
+		}
+		defer { delete sTextureView; delete sTexture; }
+
+		// Create sampler
+		if (!CreateSampler())
+		{
+			Console.WriteLine("Failed to create sampler");
+			return 1;
+		}
+		defer delete sSampler;
+
+		// Create bind group layout (uniform buffer + texture + sampler)
+		BindGroupLayoutEntry[3] layoutEntries = .(
+			BindGroupLayoutEntry.UniformBuffer(0, .Vertex),
+			BindGroupLayoutEntry.SampledTexture(1, .Fragment),
+			BindGroupLayoutEntry.Sampler(2, .Fragment)
 		);
 		BindGroupLayoutDescriptor bindGroupLayoutDesc = .(layoutEntries);
 		if (sDevice.CreateBindGroupLayout(&bindGroupLayoutDesc) not case .Ok(let bindGroupLayout))
@@ -181,8 +205,10 @@ class Program
 		defer delete sBindGroupLayout;
 
 		// Create bind group
-		BindGroupEntry[1] bindGroupEntries = .(
-			BindGroupEntry.Buffer(0, sUniformBuffer)
+		BindGroupEntry[3] bindGroupEntries = .(
+			BindGroupEntry.Buffer(0, sUniformBuffer),
+			BindGroupEntry.Texture(1, sTextureView),
+			BindGroupEntry.Sampler(2, sSampler)
 		);
 		BindGroupDescriptor bindGroupDesc = .(sBindGroupLayout, bindGroupEntries);
 		if (sDevice.CreateBindGroup(&bindGroupDesc) not case .Ok(let bindGroup))
@@ -201,7 +227,7 @@ class Program
 		}
 		defer { delete sVertShader; delete sFragShader; }
 
-		// Create pipeline layout with bind group layout for uniforms
+		// Create pipeline layout
 		IBindGroupLayout[1] bindGroupLayouts = .(sBindGroupLayout);
 		PipelineLayoutDescriptor layoutDesc = .(bindGroupLayouts);
 		if (sDevice.CreatePipelineLayout(&layoutDesc) not case .Ok(let layout))
@@ -220,7 +246,7 @@ class Program
 		}
 		defer delete sPipeline;
 
-		Console.WriteLine("RHI Rotating Triangle running. Press Escape to exit.");
+		Console.WriteLine("RHI Textured Quad running. Press Escape to exit.");
 
 		// Start timing for rotation
 		sStopwatch.Start();
@@ -236,7 +262,6 @@ class Program
 				continue;
 			}
 
-			// Render frame
 			RenderFrame();
 		}
 
@@ -252,13 +277,12 @@ class Program
 			}
 		}
 
-		Console.WriteLine("RHI Triangle finished.");
+		Console.WriteLine("RHI Textured Quad finished.");
 		return 0;
 	}
 
 	private static bool LoadShaders()
 	{
-		// Create shader compiler
 		let compiler = scope HLSLCompiler();
 		if (!compiler.IsInitialized)
 		{
@@ -266,20 +290,27 @@ class Program
 			return false;
 		}
 
-		// Shader directory is in the project folder (working directory when running from IDE)
 		StringView shaderDir = "shaders";
-
 		Console.WriteLine(scope $"Compiling shaders from: {shaderDir}");
+
+		// Configure binding shifts for SPIRV:
+		// - ConstantBufferShift = 0 (b0 → binding 0)
+		// - TextureShift = 1 (t0 → binding 1)
+		// - SamplerShift = 2 (s0 → binding 2)
+		// This matches our bind group layout order: uniform, texture, sampler
 
 		// Load and compile vertex shader
 		String vertSource = scope .();
-		if (!ReadTextFile(scope $"{shaderDir}/triangle.vert.hlsl" , vertSource))
+		if (!ReadTextFile(scope $"{shaderDir}/quad.vert.hlsl", vertSource))
 		{
 			Console.WriteLine("Failed to read vertex shader source");
 			return false;
 		}
 
-		let vertResult = compiler.Compile(vertSource, "main", .Vertex, .SPIRV);
+		ShaderCompileOptions vertOptions = .Vertex("main", .SPIRV);
+		// No shifts needed for vertex shader (only uses b0 → binding 0)
+
+		let vertResult = compiler.Compile(vertSource, vertOptions);
 		defer delete vertResult;
 		if (!vertResult.Success)
 		{
@@ -289,7 +320,6 @@ class Program
 
 		Console.WriteLine("Vertex shader compiled successfully");
 
-		// Create vertex shader module
 		ShaderModuleDescriptor vertDesc = .(vertResult.Bytecode);
 		if (sDevice.CreateShaderModule(&vertDesc) case .Ok(let vertShader))
 		{
@@ -303,14 +333,18 @@ class Program
 
 		// Load and compile fragment shader
 		String fragSource = scope .();
-		if (!ReadTextFile(scope $"{shaderDir}/triangle.frag.hlsl" , fragSource))
+		if (!ReadTextFile(scope $"{shaderDir}/quad.frag.hlsl", fragSource))
 		{
 			Console.WriteLine("Failed to read fragment shader source");
 			delete sVertShader;
 			return false;
 		}
 
-		let fragResult = compiler.Compile(fragSource, "main", .Fragment, .SPIRV);
+		ShaderCompileOptions fragOptions = .Fragment("main", .SPIRV);
+		fragOptions.TextureShift = 1;   // t0 → binding 1
+		fragOptions.SamplerShift = 2;   // s0 → binding 2
+
+		let fragResult = compiler.Compile(fragSource, fragOptions);
 		defer delete fragResult;
 		if (!fragResult.Success)
 		{
@@ -321,7 +355,6 @@ class Program
 
 		Console.WriteLine("Fragment shader compiled successfully");
 
-		// Create fragment shader module
 		ShaderModuleDescriptor fragDesc = .(fragResult.Bytecode);
 		if (sDevice.CreateShaderModule(&fragDesc) case .Ok(let fragShader))
 		{
@@ -352,19 +385,20 @@ class Program
 
 	private static bool CreateVertexBuffer()
 	{
-		// Define triangle vertices (position + color)
-		Vertex[3] vertices = .(
-			.(0.0f, -0.5f, 1.0f, 0.0f, 0.0f),   // Top - Red
-			.(0.5f, 0.5f, 0.0f, 1.0f, 0.0f),    // Bottom right - Green
-			.(-0.5f, 0.5f, 0.0f, 0.0f, 1.0f)    // Bottom left - Blue
+		// Define quad vertices (position + UV)
+		// Counter-clockwise winding
+		Vertex[4] vertices = .(
+			.(-0.5f, -0.5f, 0.0f, 1.0f),  // Bottom-left
+			.( 0.5f, -0.5f, 1.0f, 1.0f),  // Bottom-right
+			.( 0.5f,  0.5f, 1.0f, 0.0f),  // Top-right
+			.(-0.5f,  0.5f, 0.0f, 0.0f)   // Top-left
 		);
 
-		// Create vertex buffer
 		BufferDescriptor bufferDesc = .()
 			{
 				Size = (uint64)(sizeof(Vertex) * vertices.Count),
 				Usage = .Vertex,
-				MemoryAccess = .Upload  // CPU-accessible for simplicity
+				MemoryAccess = .Upload
 			};
 
 		if (sDevice.CreateBuffer(&bufferDesc) not case .Ok(let buffer))
@@ -372,7 +406,6 @@ class Program
 
 		sVertexBuffer = buffer;
 
-		// Upload vertex data
 		Span<uint8> vertexData = .((uint8*)&vertices, (int)bufferDesc.Size);
 		sDevice.Queue.WriteBuffer(sVertexBuffer, 0, vertexData);
 
@@ -380,14 +413,40 @@ class Program
 		return true;
 	}
 
+	private static bool CreateIndexBuffer()
+	{
+		// Two triangles forming a quad
+		uint16[6] indices = .(
+			0, 1, 2,  // First triangle
+			0, 2, 3   // Second triangle
+		);
+
+		BufferDescriptor bufferDesc = .()
+			{
+				Size = (uint64)(sizeof(uint16) * indices.Count),
+				Usage = .Index,
+				MemoryAccess = .Upload
+			};
+
+		if (sDevice.CreateBuffer(&bufferDesc) not case .Ok(let buffer))
+			return false;
+
+		sIndexBuffer = buffer;
+
+		Span<uint8> indexData = .((uint8*)&indices, (int)bufferDesc.Size);
+		sDevice.Queue.WriteBuffer(sIndexBuffer, 0, indexData);
+
+		Console.WriteLine("Index buffer created");
+		return true;
+	}
+
 	private static bool CreateUniformBuffer()
 	{
-		// Create uniform buffer
 		BufferDescriptor bufferDesc = .()
 			{
 				Size = (uint64)sizeof(Uniforms),
 				Usage = .Uniform,
-				MemoryAccess = .Upload  // CPU-accessible for per-frame updates
+				MemoryAccess = .Upload
 			};
 
 		if (sDevice.CreateBuffer(&bufferDesc) not case .Ok(let buffer))
@@ -404,14 +463,76 @@ class Program
 		return true;
 	}
 
+	private static bool CreateTexture()
+	{
+		// Generate checkerboard image using Sedulous.Imaging
+		let image = Image.CreateCheckerboard(256, Color.White, Color(0.2f, 0.2f, 0.8f, 1.0f), 32, .RGBA8);
+		defer delete image;
+
+		Console.WriteLine(scope $"Created checkerboard image: {image.Width}x{image.Height}");
+
+		// Create texture
+		TextureDescriptor textureDesc = TextureDescriptor.Texture2D(
+			image.Width,
+			image.Height,
+			.RGBA8Unorm,
+			.Sampled | .CopyDst
+		);
+
+		if (sDevice.CreateTexture(&textureDesc) not case .Ok(let texture))
+		{
+			Console.WriteLine("Failed to create texture");
+			return false;
+		}
+		sTexture = texture;
+
+		// Upload texture data
+		TextureDataLayout dataLayout = .()
+			{
+				Offset = 0,
+				BytesPerRow = image.Width * 4,  // 4 bytes per RGBA pixel
+				RowsPerImage = image.Height
+			};
+
+		Extent3D writeSize = .(image.Width, image.Height, 1);
+		sDevice.Queue.WriteTexture(sTexture, image.Data, &dataLayout, &writeSize);
+
+		Console.WriteLine("Texture data uploaded");
+
+		// Create texture view
+		TextureViewDescriptor viewDesc = .();
+		if (sDevice.CreateTextureView(sTexture, &viewDesc) not case .Ok(let textureView))
+		{
+			Console.WriteLine("Failed to create texture view");
+			return false;
+		}
+		sTextureView = textureView;
+
+		Console.WriteLine("Texture created successfully");
+		return true;
+	}
+
+	private static bool CreateSampler()
+	{
+		// Use linear filtering with repeat wrapping
+		SamplerDescriptor samplerDesc = SamplerDescriptor.LinearRepeat();
+
+		if (sDevice.CreateSampler(&samplerDesc) not case .Ok(let sampler))
+			return false;
+
+		sSampler = sampler;
+		Console.WriteLine("Sampler created");
+		return true;
+	}
+
 	private static bool CreatePipeline()
 	{
 		// Define vertex attributes
 		// Position: location 0, offset 0, Float2
-		// Color: location 1, offset 8 (2 floats * 4 bytes), Float3
+		// TexCoord: location 1, offset 8 (2 floats * 4 bytes), Float2
 		VertexAttribute[2] vertexAttributes = .(
-			.(VertexFormat.Float2, 0, 0),         // Position at location 0
-			.(VertexFormat.Float3, 8, 1)          // Color at location 1
+			.(VertexFormat.Float2, 0, 0),    // Position at location 0
+			.(VertexFormat.Float2, 8, 1)     // TexCoord at location 1
 		);
 
 		// Define vertex buffer layout
@@ -475,16 +596,14 @@ class Program
 
 	private static void RenderFrame()
 	{
-		// Acquire next swap chain image - this waits on the fence for this frame slot
+		// Acquire next swap chain image
 		if (sSwapChain.AcquireNextImage() case .Err)
 		{
-			// Need to recreate swap chain
 			HandleResize();
 			return;
 		}
 
-		// After AcquireNextImage, the fence was waited on, so we can safely delete
-		// the old command buffer for this frame slot (GPU is done with it)
+		// Clean up previous command buffer for this frame slot
 		let frameIndex = sSwapChain.CurrentFrameIndex;
 		if (sCommandBuffers[frameIndex] != null)
 		{
@@ -494,7 +613,7 @@ class Program
 
 		// Update rotation based on elapsed time
 		float elapsedSeconds = (float)sStopwatch.Elapsed.TotalSeconds;
-		float rotationAngle = elapsedSeconds * 1.0f;  // 1 radian per second
+		float rotationAngle = elapsedSeconds * 0.5f;  // Slower rotation
 
 		// Create rotation matrix around Z axis
 		Uniforms uniforms = .() { Transform = Matrix4x4.CreateRotationZ(rotationAngle) };
@@ -519,7 +638,7 @@ class Program
 				ResolveTarget = null,
 				LoadOp = .Clear,
 				StoreOp = .Store,
-				ClearValue = .(0.0f, 0.2f, 0.4f, 1.0f)
+				ClearValue = .(0.1f, 0.1f, 0.1f, 1.0f)  // Dark gray background
 			});
 
 		RenderPassDescriptor renderPassDesc = .(colorAttachments);
@@ -529,13 +648,14 @@ class Program
 			return;
 		defer delete renderPass;
 
-		// Draw triangle
+		// Draw textured quad
 		renderPass.SetPipeline(sPipeline);
 		renderPass.SetBindGroup(0, sBindGroup);
 		renderPass.SetVertexBuffer(0, sVertexBuffer, 0);
+		renderPass.SetIndexBuffer(sIndexBuffer, .UInt16, 0);
 		renderPass.SetViewport(0, 0, sSwapChain.Width, sSwapChain.Height, 0, 1);
 		renderPass.SetScissorRect(0, 0, sSwapChain.Width, sSwapChain.Height);
-		renderPass.Draw(3, 1, 0, 0);
+		renderPass.DrawIndexed(6, 1, 0, 0, 0);  // 6 indices, 1 instance
 		renderPass.End();
 
 		// Finish recording
@@ -543,7 +663,7 @@ class Program
 		if (commandBuffer == null)
 			return;
 
-		// Store command buffer for later deletion (after fence wait in next frame cycle)
+		// Store command buffer for later deletion
 		sCommandBuffers[frameIndex] = commandBuffer;
 
 		// Submit commands with swap chain synchronization
@@ -560,7 +680,7 @@ class Program
 	{
 		sDevice.WaitIdle();
 
-		// Clean up per-frame command buffers (GPU is idle now)
+		// Clean up per-frame command buffers
 		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
 			if (sCommandBuffers[i] != null)

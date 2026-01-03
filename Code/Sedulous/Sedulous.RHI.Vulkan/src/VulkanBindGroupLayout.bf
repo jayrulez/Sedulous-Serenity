@@ -16,6 +16,7 @@ class VulkanBindGroupLayout : IBindGroupLayout
 	public this(VulkanDevice device, BindGroupLayoutDescriptor* descriptor)
 	{
 		mDevice = device;
+		mDescriptorSetLayout = default;  // Explicitly initialize before Vulkan call
 		// Copy entries for later use when creating bind groups
 		for (let entry in descriptor.Entries)
 			mEntries.Add(entry);
@@ -57,7 +58,11 @@ class VulkanBindGroupLayout : IBindGroupLayout
 					pBindings = null
 				};
 
-			VulkanNative.vkCreateDescriptorSetLayout(mDevice.Device, &layoutInfo, null, &mDescriptorSetLayout);
+			let result = VulkanNative.vkCreateDescriptorSetLayout(mDevice.Device, &layoutInfo, null, &mDescriptorSetLayout);
+			if (result != .VK_SUCCESS)
+			{
+				mDescriptorSetLayout = default;
+			}
 			return;
 		}
 
@@ -84,6 +89,10 @@ class VulkanBindGroupLayout : IBindGroupLayout
 				pBindings = bindings
 			};
 
-		VulkanNative.vkCreateDescriptorSetLayout(mDevice.Device, &layoutInfo, null, &mDescriptorSetLayout);
+		let result = VulkanNative.vkCreateDescriptorSetLayout(mDevice.Device, &layoutInfo, null, &mDescriptorSetLayout);
+		if (result != .VK_SUCCESS)
+		{
+			mDescriptorSetLayout = default;
+		}
 	}
 }
