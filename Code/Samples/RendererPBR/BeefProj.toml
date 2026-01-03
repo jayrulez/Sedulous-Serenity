@@ -1,0 +1,7 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "RHI.SampleFramework" = "*", "Sedulous.Framework.Renderer" = "*", "Sedulous.Geometry" = "*", "Sedulous.Imaging" = "*"}
+
+[Project]
+Name = "RendererPBR"
+TargetType = "BeefConsoleApplication"
+StartupObject = "RendererPBR.Program"
