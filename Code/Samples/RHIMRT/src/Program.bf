@@ -357,9 +357,9 @@ class MRTSample : RHISampleApp
 
 	private bool CreateCompositePipeline()
 	{
-		// Load composite shaders
-		BindingShifts fragShifts = .() { Texture = 1, Sampler = 4 };  // t0-t2 -> 1-3, s0 -> 4
-		let shaderResult = ShaderUtils.LoadShaderPair(Device, "shaders/composite", .(), fragShifts);
+		// Load composite shaders - automatic binding shifts are applied by default
+		// b0 -> binding 0, t0-t2 -> bindings 1000-1002, s0 -> binding 3000
+		let shaderResult = ShaderUtils.LoadShaderPair(Device, "shaders/composite");
 		if (shaderResult case .Err)
 			return false;
 		(mCompositeVertShader, mCompositeFragShader) = shaderResult.Get();
@@ -371,25 +371,26 @@ class MRTSample : RHISampleApp
 		mSampler = sampler;
 
 		// Bind group layout (3 textures + 1 sampler + 1 uniform)
+		// Use binding 0 for first of each type, RHI applies shifts based on resource type
 		BindGroupLayoutEntry[5] layoutEntries = .(
-			BindGroupLayoutEntry.UniformBuffer(0, .Fragment),
-			BindGroupLayoutEntry.SampledTexture(1, .Fragment),
-			BindGroupLayoutEntry.SampledTexture(2, .Fragment),
-			BindGroupLayoutEntry.SampledTexture(3, .Fragment),
-			BindGroupLayoutEntry.Sampler(4, .Fragment)
+			BindGroupLayoutEntry.UniformBuffer(0, .Fragment),    // b0 -> Vulkan binding 0
+			BindGroupLayoutEntry.SampledTexture(0, .Fragment),   // t0 -> Vulkan binding 1000
+			BindGroupLayoutEntry.SampledTexture(1, .Fragment),   // t1 -> Vulkan binding 1001
+			BindGroupLayoutEntry.SampledTexture(2, .Fragment),   // t2 -> Vulkan binding 1002
+			BindGroupLayoutEntry.Sampler(0, .Fragment)           // s0 -> Vulkan binding 3000
 		);
 		BindGroupLayoutDescriptor bindGroupLayoutDesc = .(layoutEntries);
 		if (Device.CreateBindGroupLayout(&bindGroupLayoutDesc) not case .Ok(let layout))
 			return false;
 		mCompositeBindGroupLayout = layout;
 
-		// Bind group
+		// Bind group - use sequential bindings within each resource type
 		BindGroupEntry[5] bindGroupEntries = .(
 			BindGroupEntry.Buffer(0, mLightParamsBuffer),
-			BindGroupEntry.Texture(1, mAlbedoView),
-			BindGroupEntry.Texture(2, mNormalView),
-			BindGroupEntry.Texture(3, mPositionView),
-			BindGroupEntry.Sampler(4, mSampler)
+			BindGroupEntry.Texture(0, mAlbedoView),
+			BindGroupEntry.Texture(1, mNormalView),
+			BindGroupEntry.Texture(2, mPositionView),
+			BindGroupEntry.Sampler(0, mSampler)
 		);
 		BindGroupDescriptor bindGroupDesc = .(mCompositeBindGroupLayout, bindGroupEntries);
 		if (Device.CreateBindGroup(&bindGroupDesc) not case .Ok(let group))

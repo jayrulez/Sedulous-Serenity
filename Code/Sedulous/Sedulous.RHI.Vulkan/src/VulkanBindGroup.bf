@@ -44,6 +44,20 @@ class VulkanBindGroup : IBindGroup
 	/// Gets the Vulkan descriptor set handle.
 	public VkDescriptorSet DescriptorSet => mDescriptorSet;
 
+	/// Checks if a layout entry type is compatible with a bind group entry.
+	private static bool IsCompatibleType(BindingType layoutType, BindGroupEntry entry)
+	{
+		switch (layoutType)
+		{
+		case .UniformBuffer, .StorageBuffer, .StorageBufferReadWrite:
+			return entry.Buffer != null;
+		case .SampledTexture, .StorageTexture, .StorageTextureReadWrite:
+			return entry.TextureView != null;
+		case .Sampler, .ComparisonSampler:
+			return entry.Sampler != null;
+		}
+	}
+
 	private void CreateDescriptorSet(BindGroupDescriptor* descriptor)
 	{
 		if (mLayout == null || !mLayout.IsValid)
@@ -67,15 +81,27 @@ class VulkanBindGroup : IBindGroup
 		bufferInfos.Reserve(descriptor.Entries.Length);
 		imageInfos.Reserve(descriptor.Entries.Length);
 
+		// Track which layout entries have been matched to avoid double-matching
+		bool* matchedLayouts = scope bool[mLayout.Entries.Length]*;
+		for (int i = 0; i < mLayout.Entries.Length; i++)
+			matchedLayouts[i] = false;
+
 		for (let entry in descriptor.Entries)
 		{
-			// Find matching layout entry
+			// Find matching layout entry by binding AND resource type
+			// Skip already-matched entries to handle multiple buffers with same binding but different types
 			BindGroupLayoutEntry* layoutEntry = null;
-			for (var le in ref mLayout.Entries)
+			int matchedIndex = -1;
+			for (int i = 0; i < mLayout.Entries.Length; i++)
 			{
-				if (le.Binding == entry.Binding)
+				if (matchedLayouts[i])
+					continue;
+
+				var le = ref mLayout.Entries[i];
+				if (le.Binding == entry.Binding && IsCompatibleType(le.Type, entry))
 				{
 					layoutEntry = &le;
+					matchedIndex = i;
 					break;
 				}
 			}
@@ -83,11 +109,16 @@ class VulkanBindGroup : IBindGroup
 			if (layoutEntry == null)
 				continue;
 
+			matchedLayouts[matchedIndex] = true;
+
+			// Apply the binding shift to match the layout's shifted bindings
+			uint32 shiftedBinding = entry.Binding + VulkanBindingShifts.GetShift(layoutEntry.Type);
+
 			VkWriteDescriptorSet write = .()
 				{
 					sType = .VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 					dstSet = mDescriptorSet,
-					dstBinding = entry.Binding,
+					dstBinding = shiftedBinding,
 					dstArrayElement = 0,
 					descriptorCount = 1,
 					descriptorType = VulkanConversions.ToVkDescriptorType(layoutEntry.Type)

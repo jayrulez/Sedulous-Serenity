@@ -119,7 +119,7 @@ class ComputeSample : RHISampleApp
 		BufferDescriptor particleDesc = .()
 		{
 			Size = (uint64)(sizeof(Particle) * PARTICLE_COUNT),
-			Usage = .Storage | .Vertex,  // Used by compute and as vertex input
+			Usage = .Storage | .Vertex | .CopyDst,  // Used by compute, as vertex input, and receives initial data
 			MemoryAccess = .GpuOnly
 		};
 
@@ -191,9 +191,9 @@ class ComputeSample : RHISampleApp
 
 	private bool CreateComputePipeline()
 	{
-		// Load compute shader
-		BindingShifts shifts = .() { UAV = 1 };  // u0 -> binding 1
-		if (ShaderUtils.LoadShader(Device, "shaders/particles.comp.hlsl", "main", .Compute, shifts) case .Ok(let shader))
+		// Load compute shader - automatic binding shifts are applied by default
+		// b0 -> binding 0, u0 -> binding 2000
+		if (ShaderUtils.LoadShader(Device, "shaders/particles.comp.hlsl", "main", .Compute) case .Ok(let shader))
 			mComputeShader = shader;
 		else
 			return false;
@@ -201,21 +201,20 @@ class ComputeSample : RHISampleApp
 		Console.WriteLine("Compute shader compiled");
 
 		// Create bind group layout for compute
-		// binding 0: uniform buffer (sim params)
-		// binding 1: storage buffer RW (particles)
+		// Use binding 0 for all - the RHI applies shifts based on resource type
 		BindGroupLayoutEntry[2] layoutEntries = .(
-			BindGroupLayoutEntry.UniformBuffer(0, .Compute),
-			BindGroupLayoutEntry.StorageBufferReadWrite(1, .Compute)
+			BindGroupLayoutEntry.UniformBuffer(0, .Compute),           // b0 -> Vulkan binding 0
+			BindGroupLayoutEntry.StorageBufferReadWrite(0, .Compute)   // u0 -> Vulkan binding 2000
 		);
 		BindGroupLayoutDescriptor bindGroupLayoutDesc = .(layoutEntries);
 		if (Device.CreateBindGroupLayout(&bindGroupLayoutDesc) not case .Ok(let layout))
 			return false;
 		mComputeBindGroupLayout = layout;
 
-		// Create bind group
+		// Create bind group - use binding 0 for all resource types
 		BindGroupEntry[2] bindGroupEntries = .(
 			BindGroupEntry.Buffer(0, mSimParamsBuffer),
-			BindGroupEntry.Buffer(1, mParticleBuffer)
+			BindGroupEntry.Buffer(0, mParticleBuffer)
 		);
 		BindGroupDescriptor bindGroupDesc = .(mComputeBindGroupLayout, bindGroupEntries);
 		if (Device.CreateBindGroup(&bindGroupDesc) not case .Ok(let group))
@@ -241,10 +240,9 @@ class ComputeSample : RHISampleApp
 
 	private bool CreateRenderPipeline()
 	{
-		// Load render shaders
-		// Vertex shader reads from storage buffer (t0 -> binding 0)
-		BindingShifts vertShifts = .();  // t0 -> binding 0
-		if (ShaderUtils.LoadShader(Device, "shaders/particle_render.vert.hlsl", "main", .Vertex, vertShifts) case .Ok(let vs))
+		// Load render shaders - automatic binding shifts are applied by default
+		// t0 -> binding 1000
+		if (ShaderUtils.LoadShader(Device, "shaders/particle_render.vert.hlsl", "main", .Vertex) case .Ok(let vs))
 			mVertShader = vs;
 		else
 			return false;
@@ -257,9 +255,9 @@ class ComputeSample : RHISampleApp
 		Console.WriteLine("Render shaders compiled");
 
 		// Create bind group layout for rendering
-		// binding 0: storage buffer (read-only, particles)
+		// Use binding 0 - the RHI applies shifts based on resource type
 		BindGroupLayoutEntry[1] layoutEntries = .(
-			BindGroupLayoutEntry.StorageBuffer(0, .Vertex)
+			BindGroupLayoutEntry.StorageBuffer(0, .Vertex)  // t0 -> Vulkan binding 1000
 		);
 		BindGroupLayoutDescriptor bindGroupLayoutDesc = .(layoutEntries);
 		if (Device.CreateBindGroupLayout(&bindGroupLayoutDesc) not case .Ok(let layout))

@@ -66,15 +66,19 @@ class VulkanBindGroupLayout : IBindGroupLayout
 			return;
 		}
 
-		// Convert to Vulkan bindings
+		// Convert to Vulkan bindings with automatic shift based on resource type
+		// This matches the shifts applied during shader compilation via DXC's -fvk-*-shift flags
 		VkDescriptorSetLayoutBinding* bindings = scope VkDescriptorSetLayoutBinding[descriptor.Entries.Length]*;
 
 		for (int i = 0; i < descriptor.Entries.Length; i++)
 		{
 			let entry = descriptor.Entries[i];
+			// Apply the binding shift based on resource type to match shader compilation
+			uint32 shiftedBinding = entry.Binding + VulkanBindingShifts.GetShift(entry.Type);
+
 			bindings[i] = .()
 				{
-					binding = entry.Binding,
+					binding = shiftedBinding,
 					descriptorType = VulkanConversions.ToVkDescriptorType(entry.Type),
 					descriptorCount = 1,
 					stageFlags = VulkanConversions.ToVkShaderStage(entry.Visibility),

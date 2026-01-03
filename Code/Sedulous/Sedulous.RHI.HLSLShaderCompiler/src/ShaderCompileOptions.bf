@@ -19,16 +19,19 @@ struct ShaderCompileOptions
 	public uint32 DescriptorSet;
 
 	/// Shift for constant buffer (b) registers to Vulkan bindings.
-	/// For example, if this is 0, HLSL register(b0) maps to Vulkan binding 0.
+	/// Default uses VulkanBindingShifts.SHIFT_B for automatic separation.
 	public uint32 ConstantBufferShift;
 
 	/// Shift for texture (t) registers to Vulkan bindings.
+	/// Default uses VulkanBindingShifts.SHIFT_T for automatic separation.
 	public uint32 TextureShift;
 
 	/// Shift for sampler (s) registers to Vulkan bindings.
+	/// Default uses VulkanBindingShifts.SHIFT_S for automatic separation.
 	public uint32 SamplerShift;
 
 	/// Shift for UAV (u) registers to Vulkan bindings.
+	/// Default uses VulkanBindingShifts.SHIFT_U for automatic separation.
 	public uint32 UAVShift;
 
 	/// Enable debug information.
@@ -43,10 +46,11 @@ struct ShaderCompileOptions
 		Stage = .Vertex;
 		Target = .SPIRV;
 		DescriptorSet = 0;
-		ConstantBufferShift = 0;
-		TextureShift = 0;
-		SamplerShift = 0;
-		UAVShift = 0;
+		// Apply default Vulkan binding shifts so resource types don't conflict
+		ConstantBufferShift = VulkanBindingShifts.SHIFT_B;
+		TextureShift = VulkanBindingShifts.SHIFT_T;
+		SamplerShift = VulkanBindingShifts.SHIFT_S;
+		UAVShift = VulkanBindingShifts.SHIFT_U;
 		Debug = false;
 		OptimizationLevel = 3;
 	}

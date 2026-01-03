@@ -6,19 +6,20 @@ using Sedulous.RHI;
 using Sedulous.RHI.HLSLShaderCompiler;
 
 /// Binding shift configuration for SPIRV compilation.
+/// Default values use VulkanBindingShifts constants for automatic separation.
 struct BindingShifts
 {
-	public uint32 ConstantBuffer = 0;
-	public uint32 Texture = 0;
-	public uint32 Sampler = 0;
-	public uint32 UAV = 0;
+	public uint32 ConstantBuffer = VulkanBindingShifts.SHIFT_B;
+	public uint32 Texture = VulkanBindingShifts.SHIFT_T;
+	public uint32 Sampler = VulkanBindingShifts.SHIFT_S;
+	public uint32 UAV = VulkanBindingShifts.SHIFT_U;
 
 	/// No shifts - each register type starts at binding 0.
-	public static Self None => .();
+	/// Only use this if you're manually managing bindings.
+	public static Self None => .() { ConstantBuffer = 0, Texture = 0, Sampler = 0, UAV = 0 };
 
-	/// Standard shifts: b at 0, t at 1, s at 2, u at 3.
-	/// Useful for simple shaders with one of each type.
-	public static Self Standard => .() { Texture = 1, Sampler = 2, UAV = 3 };
+	/// Default Vulkan shifts for automatic separation of resource types.
+	public static Self Vulkan => .();
 }
 
 /// Helper class for shader compilation.

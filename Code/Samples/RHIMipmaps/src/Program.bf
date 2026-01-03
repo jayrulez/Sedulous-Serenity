@@ -313,11 +313,11 @@ class MipmapSample : RHISampleApp
 			return;
 		}
 
-		// Recreate bind group with new texture
+		// Recreate bind group with new texture - use binding 0 for all resource types
 		BindGroupEntry[3] bindGroupEntries = .(
 			BindGroupEntry.Buffer(0, mUniformBuffer),
-			BindGroupEntry.Texture(1, mTextureView),
-			BindGroupEntry.Sampler(2, mSampler)
+			BindGroupEntry.Texture(0, mTextureView),
+			BindGroupEntry.Sampler(0, mSampler)
 		);
 		BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
 		if (Device.CreateBindGroup(&bindGroupDesc) case .Ok(let group))
@@ -326,31 +326,31 @@ class MipmapSample : RHISampleApp
 
 	private bool CreateBindings()
 	{
-		// Load shaders
-		BindingShifts fragShifts = .() { Texture = 1, Sampler = 2 };
-		let shaderResult = ShaderUtils.LoadShaderPair(Device, "shaders/mipmap", .(), fragShifts);
+		// Load shaders - automatic binding shifts are applied by default
+		// b0 -> binding 0, t0 -> binding 1000, s0 -> binding 3000
+		let shaderResult = ShaderUtils.LoadShaderPair(Device, "shaders/mipmap");
 		if (shaderResult case .Err)
 			return false;
 
 		(mVertShader, mFragShader) = shaderResult.Get();
 		Console.WriteLine("Shaders compiled");
 
-		// Create bind group layout
+		// Create bind group layout - use binding 0 for all resource types
 		BindGroupLayoutEntry[3] layoutEntries = .(
-			BindGroupLayoutEntry.UniformBuffer(0, .Vertex),
-			BindGroupLayoutEntry.SampledTexture(1, .Fragment),
-			BindGroupLayoutEntry.Sampler(2, .Fragment)
+			BindGroupLayoutEntry.UniformBuffer(0, .Vertex),     // b0 -> Vulkan binding 0
+			BindGroupLayoutEntry.SampledTexture(0, .Fragment),  // t0 -> Vulkan binding 1000
+			BindGroupLayoutEntry.Sampler(0, .Fragment)          // s0 -> Vulkan binding 3000
 		);
 		BindGroupLayoutDescriptor bindGroupLayoutDesc = .(layoutEntries);
 		if (Device.CreateBindGroupLayout(&bindGroupLayoutDesc) not case .Ok(let layout))
 			return false;
 		mBindGroupLayout = layout;
 
-		// Create bind group
+		// Create bind group - use binding 0 for all resource types
 		BindGroupEntry[3] bindGroupEntries = .(
 			BindGroupEntry.Buffer(0, mUniformBuffer),
-			BindGroupEntry.Texture(1, mTextureView),
-			BindGroupEntry.Sampler(2, mSampler)
+			BindGroupEntry.Texture(0, mTextureView),
+			BindGroupEntry.Sampler(0, mSampler)
 		);
 		BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
 		if (Device.CreateBindGroup(&bindGroupDesc) not case .Ok(let group))
