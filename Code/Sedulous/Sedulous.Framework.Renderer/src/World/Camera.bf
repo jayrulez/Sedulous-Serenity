@@ -68,18 +68,24 @@ struct Camera
 	}
 
 	/// Gets the projection matrix (standard or reverse-Z).
+	/// Note: Includes Vulkan Y-flip (negates M22) since Vulkan clip space Y points down.
 	public Matrix4x4 ProjectionMatrix
 	{
 		get
 		{
+			Matrix4x4 proj;
 			if (UseReverseZ)
 			{
-				return CreateReverseZPerspective(FieldOfView, AspectRatio, NearPlane, FarPlane);
+				proj = CreateReverseZPerspective(FieldOfView, AspectRatio, NearPlane, FarPlane);
 			}
 			else
 			{
-				return Matrix4x4.CreatePerspective(FieldOfView, AspectRatio, NearPlane, FarPlane);
+				proj = Matrix4x4.CreatePerspective(FieldOfView, AspectRatio, NearPlane, FarPlane);
 			}
+
+			// Vulkan Y-flip: negate M22 to flip Y axis in clip space
+			proj.M22 = -proj.M22;
+			return proj;
 		}
 	}
 
