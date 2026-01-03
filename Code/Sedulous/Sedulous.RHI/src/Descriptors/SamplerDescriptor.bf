@@ -24,6 +24,8 @@ struct SamplerDescriptor
 	public CompareFunction Compare;
 	/// Maximum anisotropy level (1 = no anisotropic filtering).
 	public uint16 MaxAnisotropy;
+	/// Border color used when address mode is ClampToBorder.
+	public SamplerBorderColor BorderColor;
 	/// Optional label for debugging.
 	public StringView Label;
 
@@ -39,6 +41,7 @@ struct SamplerDescriptor
 		LodMaxClamp = 1000.0f;
 		Compare = .Always;
 		MaxAnisotropy = 1;
+		BorderColor = .TransparentBlack;
 		Label = default;
 	}
 

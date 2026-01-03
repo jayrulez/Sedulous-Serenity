@@ -75,6 +75,16 @@ interface ICommandEncoder
 	/// This copies query results from GPU memory to a buffer that can be mapped.
 	void ResolveQuerySet(IQuerySet querySet, uint32 firstQuery, uint32 queryCount, IBuffer destination, uint64 destinationOffset);
 
+	/// Resolves a multisampled texture to a non-multisampled texture.
+	/// Both textures must have compatible formats. The source must be multisampled,
+	/// and the destination must be single-sampled.
+	void ResolveTexture(ITexture source, ITexture destination);
+
+	/// Blits (copies with potential format conversion and scaling) from one texture to another.
+	/// Unlike CopyTextureToTexture, this supports format conversion and filtering for scaling.
+	/// Uses linear filtering when the source and destination sizes differ.
+	void Blit(ITexture source, ITexture destination);
+
 	/// Finishes recording and returns an immutable command buffer.
 	ICommandBuffer Finish();
 }

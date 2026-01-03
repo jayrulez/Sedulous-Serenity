@@ -55,7 +55,7 @@ class VulkanSampler : ISampler
 				compareOp = VulkanConversions.ToVkCompareOp(descriptor.Compare),
 				minLod = descriptor.LodMinClamp,
 				maxLod = descriptor.LodMaxClamp,
-				borderColor = .VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK,
+				borderColor = VulkanConversions.ToVkBorderColor(descriptor.BorderColor),
 				unnormalizedCoordinates = VkBool32.False
 			};
 

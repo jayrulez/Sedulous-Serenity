@@ -26,7 +26,9 @@ struct DepthStencilState
 {
 	/// Depth/stencil texture format.
 	public TextureFormat Format;
-	/// Enable depth testing.
+	/// Enable depth testing (comparison against depth buffer).
+	public bool DepthTestEnabled;
+	/// Enable depth writing (updating the depth buffer).
 	public bool DepthWriteEnabled;
 	/// Depth comparison function.
 	public CompareFunction DepthCompare;
@@ -48,6 +50,7 @@ struct DepthStencilState
 	public this()
 	{
 		Format = .Depth24PlusStencil8;
+		DepthTestEnabled = true;
 		DepthWriteEnabled = true;
 		DepthCompare = .Less;
 		StencilFront = .();
@@ -61,6 +64,9 @@ struct DepthStencilState
 
 	/// Default depth test (less-than, write enabled).
 	public static Self Default => .();
+
+	/// No depth testing or writing.
+	public static Self None => .() { DepthTestEnabled = false, DepthWriteEnabled = false };
 
 	/// Depth test without writing.
 	public static Self ReadOnly => .() { DepthWriteEnabled = false };

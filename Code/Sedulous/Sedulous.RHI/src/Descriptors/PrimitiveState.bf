@@ -11,6 +11,8 @@ struct PrimitiveState
 	public FrontFace FrontFace;
 	/// Face culling mode.
 	public CullMode CullMode;
+	/// Polygon fill mode (solid or wireframe).
+	public FillMode FillMode;
 	/// Enable depth clipping (if false, fragments outside depth range are clamped).
 	public bool DepthClipEnabled;
 
@@ -20,6 +22,7 @@ struct PrimitiveState
 		StripIndexFormat = .UInt32;
 		FrontFace = .CCW;
 		CullMode = .Back;
+		FillMode = .Solid;
 		DepthClipEnabled = true;
 	}
 
@@ -28,4 +31,7 @@ struct PrimitiveState
 
 	/// No culling.
 	public static Self NoCull => .() { CullMode = .None };
+
+	/// Wireframe rendering.
+	public static Self Wireframe => .() { FillMode = .Wireframe, CullMode = .None };
 }

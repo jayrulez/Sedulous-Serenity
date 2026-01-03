@@ -168,7 +168,7 @@ class VulkanRenderPipeline : IRenderPipeline
 				sType = .VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
 				depthClampEnable = !descriptor.Primitive.DepthClipEnabled ? VkBool32.True : VkBool32.False,
 				rasterizerDiscardEnable = VkBool32.False,
-				polygonMode = .VK_POLYGON_MODE_FILL,
+				polygonMode = VulkanConversions.ToVkPolygonMode(descriptor.Primitive.FillMode),
 				cullMode = VulkanConversions.ToVkCullMode(descriptor.Primitive.CullMode),
 				frontFace = VulkanConversions.ToVkFrontFace(descriptor.Primitive.FrontFace),
 				depthBiasEnable = VkBool32.False,
@@ -211,7 +211,7 @@ class VulkanRenderPipeline : IRenderPipeline
 		if (descriptor.DepthStencil.HasValue)
 		{
 			let ds = descriptor.DepthStencil.Value;
-			depthStencil.depthTestEnable = VkBool32.True;
+			depthStencil.depthTestEnable = ds.DepthTestEnabled ? VkBool32.True : VkBool32.False;
 			depthStencil.depthWriteEnable = ds.DepthWriteEnabled ? VkBool32.True : VkBool32.False;
 			depthStencil.depthCompareOp = VulkanConversions.ToVkCompareOp(ds.DepthCompare);
 			depthStencil.depthBoundsTestEnable = VkBool32.False;

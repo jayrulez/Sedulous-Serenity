@@ -301,6 +301,7 @@ class VulkanDevice : IDevice
 
 		// Device features
 		VkPhysicalDeviceFeatures deviceFeatures = .();
+		deviceFeatures.fillModeNonSolid = VkBool32.True;  // Enable wireframe rendering
 
 		// Create device
 		VkDeviceCreateInfo createInfo = .();

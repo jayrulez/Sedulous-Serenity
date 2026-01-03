@@ -339,6 +339,17 @@ static class VulkanConversions
 		}
 	}
 
+	/// Converts RHI FillMode to VkPolygonMode.
+	public static VkPolygonMode ToVkPolygonMode(FillMode mode)
+	{
+		switch (mode)
+		{
+		case .Solid: return .VK_POLYGON_MODE_FILL;
+		case .Wireframe: return .VK_POLYGON_MODE_LINE;
+		default: return .VK_POLYGON_MODE_FILL;
+		}
+	}
+
 	/// Converts RHI BlendFactor to VkBlendFactor.
 	public static VkBlendFactor ToVkBlendFactor(BlendFactor factor)
 	{
@@ -549,6 +560,18 @@ static class VulkanConversions
 
 		// Default to BGRA8 (common swap chain format)
 		default: return .BGRA8Unorm;
+		}
+	}
+
+	/// Converts RHI SamplerBorderColor to VkBorderColor.
+	public static VkBorderColor ToVkBorderColor(SamplerBorderColor color)
+	{
+		switch (color)
+		{
+		case .TransparentBlack: return .VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+		case .OpaqueBlack: return .VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+		case .OpaqueWhite: return .VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+		default: return .VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
 		}
 	}
 }

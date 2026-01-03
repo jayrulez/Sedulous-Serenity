@@ -620,6 +620,246 @@ class VulkanCommandEncoder : ICommandEncoder
 		);
 	}
 
+	public void ResolveTexture(ITexture source, ITexture destination)
+	{
+		if (!mIsRecording || mFinished)
+			return;
+
+		let vkSrc = source as VulkanTexture;
+		let vkDst = destination as VulkanTexture;
+		if (vkSrc == null || vkDst == null)
+			return;
+
+		let aspectMask = VulkanConversions.GetAspectFlags(vkSrc.Format);
+
+		// Transition source to TRANSFER_SRC
+		VkImageMemoryBarrier srcBarrier = .()
+		{
+			sType = .VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+			srcQueueFamilyIndex = VulkanNative.VK_QUEUE_FAMILY_IGNORED,
+			dstQueueFamilyIndex = VulkanNative.VK_QUEUE_FAMILY_IGNORED,
+			image = vkSrc.Image,
+			subresourceRange = .()
+			{
+				aspectMask = aspectMask,
+				baseMipLevel = 0,
+				levelCount = 1,
+				baseArrayLayer = 0,
+				layerCount = 1
+			},
+			oldLayout = .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+			newLayout = .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+			srcAccessMask = .VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+			dstAccessMask = .VK_ACCESS_TRANSFER_READ_BIT
+		};
+
+		// Transition destination to TRANSFER_DST
+		VkImageMemoryBarrier dstBarrier = .()
+		{
+			sType = .VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+			srcQueueFamilyIndex = VulkanNative.VK_QUEUE_FAMILY_IGNORED,
+			dstQueueFamilyIndex = VulkanNative.VK_QUEUE_FAMILY_IGNORED,
+			image = vkDst.Image,
+			subresourceRange = .()
+			{
+				aspectMask = aspectMask,
+				baseMipLevel = 0,
+				levelCount = 1,
+				baseArrayLayer = 0,
+				layerCount = 1
+			},
+			oldLayout = .VK_IMAGE_LAYOUT_UNDEFINED,
+			newLayout = .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			srcAccessMask = 0,
+			dstAccessMask = .VK_ACCESS_TRANSFER_WRITE_BIT
+		};
+
+		VkImageMemoryBarrier[2] barriers = .(srcBarrier, dstBarrier);
+		VulkanNative.vkCmdPipelineBarrier(
+			mCommandBuffer,
+			.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+			.VK_PIPELINE_STAGE_TRANSFER_BIT,
+			0,
+			0, null,
+			0, null,
+			2, &barriers
+		);
+
+		// Perform the resolve
+		VkImageResolve region = .()
+		{
+			srcSubresource = .()
+			{
+				aspectMask = aspectMask,
+				mipLevel = 0,
+				baseArrayLayer = 0,
+				layerCount = 1
+			},
+			srcOffset = .() { x = 0, y = 0, z = 0 },
+			dstSubresource = .()
+			{
+				aspectMask = aspectMask,
+				mipLevel = 0,
+				baseArrayLayer = 0,
+				layerCount = 1
+			},
+			dstOffset = .() { x = 0, y = 0, z = 0 },
+			extent = .()
+			{
+				width = Math.Min(vkSrc.Width, vkDst.Width),
+				height = Math.Min(vkSrc.Height, vkDst.Height),
+				depth = 1
+			}
+		};
+
+		VulkanNative.vkCmdResolveImage(
+			mCommandBuffer,
+			vkSrc.Image, .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+			vkDst.Image, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			1, &region
+		);
+
+		// Transition destination to shader read
+		dstBarrier.oldLayout = .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		dstBarrier.newLayout = .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		dstBarrier.srcAccessMask = .VK_ACCESS_TRANSFER_WRITE_BIT;
+		dstBarrier.dstAccessMask = .VK_ACCESS_SHADER_READ_BIT;
+
+		VulkanNative.vkCmdPipelineBarrier(
+			mCommandBuffer,
+			.VK_PIPELINE_STAGE_TRANSFER_BIT,
+			.VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+			0,
+			0, null,
+			0, null,
+			1, &dstBarrier
+		);
+	}
+
+	public void Blit(ITexture source, ITexture destination)
+	{
+		if (!mIsRecording || mFinished)
+			return;
+
+		let vkSrc = source as VulkanTexture;
+		let vkDst = destination as VulkanTexture;
+		if (vkSrc == null || vkDst == null)
+			return;
+
+		let srcAspect = VulkanConversions.GetAspectFlags(vkSrc.Format);
+		let dstAspect = VulkanConversions.GetAspectFlags(vkDst.Format);
+
+		// Transition source to TRANSFER_SRC (from COLOR_ATTACHMENT since it's typically a render target)
+		VkImageMemoryBarrier srcBarrier = .()
+		{
+			sType = .VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+			srcQueueFamilyIndex = VulkanNative.VK_QUEUE_FAMILY_IGNORED,
+			dstQueueFamilyIndex = VulkanNative.VK_QUEUE_FAMILY_IGNORED,
+			image = vkSrc.Image,
+			subresourceRange = .()
+			{
+				aspectMask = srcAspect,
+				baseMipLevel = 0,
+				levelCount = 1,
+				baseArrayLayer = 0,
+				layerCount = 1
+			},
+			oldLayout = .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+			newLayout = .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+			srcAccessMask = .VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+			dstAccessMask = .VK_ACCESS_TRANSFER_READ_BIT
+		};
+
+		// Transition destination to TRANSFER_DST
+		VkImageMemoryBarrier dstBarrier = .()
+		{
+			sType = .VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+			srcQueueFamilyIndex = VulkanNative.VK_QUEUE_FAMILY_IGNORED,
+			dstQueueFamilyIndex = VulkanNative.VK_QUEUE_FAMILY_IGNORED,
+			image = vkDst.Image,
+			subresourceRange = .()
+			{
+				aspectMask = dstAspect,
+				baseMipLevel = 0,
+				levelCount = 1,
+				baseArrayLayer = 0,
+				layerCount = 1
+			},
+			oldLayout = .VK_IMAGE_LAYOUT_UNDEFINED,
+			newLayout = .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			srcAccessMask = 0,
+			dstAccessMask = .VK_ACCESS_TRANSFER_WRITE_BIT
+		};
+
+		VkImageMemoryBarrier[2] barriers = .(srcBarrier, dstBarrier);
+		VulkanNative.vkCmdPipelineBarrier(
+			mCommandBuffer,
+			.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+			.VK_PIPELINE_STAGE_TRANSFER_BIT,
+			0,
+			0, null,
+			0, null,
+			2, &barriers
+		);
+
+		// Perform the blit
+		VkImageBlit blit = .()
+		{
+			srcSubresource = .()
+			{
+				aspectMask = srcAspect,
+				mipLevel = 0,
+				baseArrayLayer = 0,
+				layerCount = 1
+			},
+			srcOffsets = .(
+				.() { x = 0, y = 0, z = 0 },
+				.() { x = (int32)vkSrc.Width, y = (int32)vkSrc.Height, z = 1 }
+			),
+			dstSubresource = .()
+			{
+				aspectMask = dstAspect,
+				mipLevel = 0,
+				baseArrayLayer = 0,
+				layerCount = 1
+			},
+			dstOffsets = .(
+				.() { x = 0, y = 0, z = 0 },
+				.() { x = (int32)vkDst.Width, y = (int32)vkDst.Height, z = 1 }
+			)
+		};
+
+		VulkanNative.vkCmdBlitImage(
+			mCommandBuffer,
+			vkSrc.Image, .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+			vkDst.Image, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			1, &blit,
+			.VK_FILTER_LINEAR
+		);
+
+		// Transition both textures to shader read so they can be sampled
+		srcBarrier.oldLayout = .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		srcBarrier.newLayout = .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		srcBarrier.srcAccessMask = .VK_ACCESS_TRANSFER_READ_BIT;
+		srcBarrier.dstAccessMask = .VK_ACCESS_SHADER_READ_BIT;
+
+		dstBarrier.oldLayout = .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		dstBarrier.newLayout = .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		dstBarrier.srcAccessMask = .VK_ACCESS_TRANSFER_WRITE_BIT;
+		dstBarrier.dstAccessMask = .VK_ACCESS_SHADER_READ_BIT;
+
+		VkImageMemoryBarrier[2] postBarriers = .(srcBarrier, dstBarrier);
+		VulkanNative.vkCmdPipelineBarrier(
+			mCommandBuffer,
+			.VK_PIPELINE_STAGE_TRANSFER_BIT,
+			.VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+			0,
+			0, null,
+			0, null,
+			2, &postBarriers
+		);
+	}
+
 	public ICommandBuffer Finish()
 	{
 		if (!mIsRecording || mFinished)
@@ -650,8 +890,10 @@ class VulkanCommandEncoder : ICommandEncoder
 
 		List<VkAttachmentDescription> attachments = scope .();
 		List<VkAttachmentReference> colorRefs = scope .();
+		List<VkAttachmentReference> resolveRefs = scope .();
 		VkAttachmentReference depthRef = .();
 		bool hasDepth = false;
+		bool hasResolve = false;
 
 		// Color attachments
 		for (let colorAttachment in descriptor.ColorAttachments)
@@ -663,21 +905,34 @@ class VulkanCommandEncoder : ICommandEncoder
 			if (vkView == null)
 				continue;
 
-			// Determine final layout - swap chain textures need PRESENT_SRC_KHR
+			let vkTexture = vkView.Texture as VulkanTexture;
+			if (vkTexture == null)
+				continue;
+
+			// Get sample count from texture
+			VkSampleCountFlags sampleCount = VulkanConversions.ToVkSampleCount(vkTexture.SampleCount);
+
+			// Determine final layout
 			VkImageLayout finalLayout = .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-			if (let vkTexture = vkView.Texture as VulkanTexture)
+			VkAttachmentStoreOp storeOp = ToVkStoreOp(colorAttachment.StoreOp);
+
+			// If we have a resolve target, the MSAA attachment doesn't need to be stored
+			if (colorAttachment.ResolveTarget != null)
 			{
-				if (vkTexture.IsSwapChainTexture)
-					finalLayout = .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+				storeOp = .VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			}
+			else if (vkTexture.IsSwapChainTexture)
+			{
+				finalLayout = .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 			}
 
-			uint32 index = (uint32)attachments.Count;
+			uint32 colorIndex = (uint32)attachments.Count;
 			attachments.Add(.()
 				{
 					format = VulkanConversions.ToVkFormat(vkView.Format),
-					samples = .VK_SAMPLE_COUNT_1_BIT,
+					samples = sampleCount,
 					loadOp = ToVkLoadOp(colorAttachment.LoadOp),
-					storeOp = ToVkStoreOp(colorAttachment.StoreOp),
+					storeOp = storeOp,
 					stencilLoadOp = .VK_ATTACHMENT_LOAD_OP_DONT_CARE,
 					stencilStoreOp = .VK_ATTACHMENT_STORE_OP_DONT_CARE,
 					initialLayout = colorAttachment.LoadOp == .Load ? .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : .VK_IMAGE_LAYOUT_UNDEFINED,
@@ -686,9 +941,50 @@ class VulkanCommandEncoder : ICommandEncoder
 
 			colorRefs.Add(.()
 				{
-					attachment = index,
+					attachment = colorIndex,
 					layout = .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
 				});
+
+			// Handle resolve target
+			if (colorAttachment.ResolveTarget != null)
+			{
+				let resolveView = colorAttachment.ResolveTarget as VulkanTextureView;
+				if (resolveView != null)
+				{
+					let resolveTexture = resolveView.Texture as VulkanTexture;
+					VkImageLayout resolveLayout = .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+					if (resolveTexture != null && resolveTexture.IsSwapChainTexture)
+						resolveLayout = .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+					uint32 resolveIndex = (uint32)attachments.Count;
+					attachments.Add(.()
+						{
+							format = VulkanConversions.ToVkFormat(resolveView.Format),
+							samples = .VK_SAMPLE_COUNT_1_BIT,
+							loadOp = .VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+							storeOp = .VK_ATTACHMENT_STORE_OP_STORE,
+							stencilLoadOp = .VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+							stencilStoreOp = .VK_ATTACHMENT_STORE_OP_DONT_CARE,
+							initialLayout = .VK_IMAGE_LAYOUT_UNDEFINED,
+							finalLayout = resolveLayout
+						});
+
+					resolveRefs.Add(.()
+						{
+							attachment = resolveIndex,
+							layout = .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+						});
+					hasResolve = true;
+				}
+				else
+				{
+					resolveRefs.Add(.() { attachment = VulkanNative.VK_ATTACHMENT_UNUSED, layout = .VK_IMAGE_LAYOUT_UNDEFINED });
+				}
+			}
+			else
+			{
+				resolveRefs.Add(.() { attachment = VulkanNative.VK_ATTACHMENT_UNUSED, layout = .VK_IMAGE_LAYOUT_UNDEFINED });
+			}
 		}
 
 		// Depth attachment
@@ -733,6 +1029,7 @@ class VulkanCommandEncoder : ICommandEncoder
 				pipelineBindPoint = .VK_PIPELINE_BIND_POINT_GRAPHICS,
 				colorAttachmentCount = (uint32)colorRefs.Count,
 				pColorAttachments = colorRefs.Ptr,
+				pResolveAttachments = hasResolve ? resolveRefs.Ptr : null,
 				pDepthStencilAttachment = hasDepth ? &depthRef : null
 			};
 
@@ -767,8 +1064,9 @@ class VulkanCommandEncoder : ICommandEncoder
 		height = 0;
 
 		List<VkImageView> attachmentViews = scope .();
+		List<VkImageView> resolveViews = scope .();
 
-		// Collect image views and determine dimensions
+		// Collect color attachment views and determine dimensions
 		for (let colorAttachment in descriptor.ColorAttachments)
 		{
 			if (colorAttachment.View == null)
@@ -785,8 +1083,21 @@ class VulkanCommandEncoder : ICommandEncoder
 				width = vkTexture.Width;
 				height = vkTexture.Height;
 			}
+
+			// Collect resolve views (must be added after ALL color attachments in render pass order)
+			if (colorAttachment.ResolveTarget != null)
+			{
+				let resolveView = colorAttachment.ResolveTarget as VulkanTextureView;
+				if (resolveView != null)
+					resolveViews.Add(resolveView.ImageView);
+			}
 		}
 
+		// Add resolve attachment views (after all color attachments, matching render pass order)
+		for (let resolveView in resolveViews)
+			attachmentViews.Add(resolveView);
+
+		// Add depth attachment view
 		if (descriptor.DepthStencilAttachment.HasValue)
 		{
 			let ds = descriptor.DepthStencilAttachment.Value;
