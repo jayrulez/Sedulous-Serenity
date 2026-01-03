@@ -221,16 +221,17 @@ class PipelineCache
 
 	private Result<IBindGroupLayout> CreateDefaultBindGroupLayout()
 	{
-		// Default layout:
-		// Binding 0: Camera uniform buffer (vertex)
-		// Binding 1: Material uniform buffer (fragment)
-		// Binding 2+: Textures (fragment)
-		// Binding 10+: Samplers (fragment)
+		// Default layout using HLSL register numbers:
+		// RHI internally shifts: buffers=N, textures=N+1000, samplers=N+3000
+		// b0: Camera uniform buffer (vertex + fragment)
+		// b1: Material uniform buffer (fragment)
+		// t0: Albedo texture (fragment)
+		// s0: Material sampler (fragment)
 		BindGroupLayoutEntry[4] entries = .(
-			BindGroupLayoutEntry.UniformBuffer(0, .Vertex),           // Camera
-			BindGroupLayoutEntry.UniformBuffer(1, .Fragment),         // Material
-			BindGroupLayoutEntry.SampledTexture(2, .Fragment),        // Albedo texture
-			BindGroupLayoutEntry.Sampler(3, .Fragment)                // Material sampler
+			BindGroupLayoutEntry.UniformBuffer(0, .Vertex | .Fragment), // b0 - Camera
+			BindGroupLayoutEntry.UniformBuffer(1, .Fragment),           // b1 - Material
+			BindGroupLayoutEntry.SampledTexture(0, .Fragment),          // t0 - Albedo texture
+			BindGroupLayoutEntry.Sampler(0, .Fragment)                  // s0 - Material sampler
 		);
 
 		BindGroupLayoutDescriptor desc = .(entries);

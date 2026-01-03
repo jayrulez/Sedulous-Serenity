@@ -23,6 +23,11 @@ class GPUResourceManager
 	private List<uint32> mTextureGenerations = new .() ~ delete _;
 	private List<uint32> mFreeTextureSlots = new .() ~ delete _;
 
+	// Skinned mesh storage
+	private List<GPUSkinnedMesh> mSkinnedMeshes = new .() ~ DeleteContainerAndItems!(_);
+	private List<uint32> mSkinnedMeshGenerations = new .() ~ delete _;
+	private List<uint32> mFreeSkinnedMeshSlots = new .() ~ delete _;
+
 	public this(IDevice device)
 	{
 		mDevice = device;
@@ -289,6 +294,100 @@ class GPUResourceManager
 			texture.AddRef();
 	}
 
+	// ===== Skinned Mesh Management =====
+
+	/// Creates a GPU skinned mesh from a CPU skinned mesh.
+	/// Returns a handle to the GPU skinned mesh, or Invalid on failure.
+	public GPUSkinnedMeshHandle CreateSkinnedMesh(SkinnedMesh cpuMesh)
+	{
+		if (cpuMesh == null || cpuMesh.VertexCount == 0)
+			return .Invalid;
+
+		let gpuMesh = new GPUSkinnedMesh();
+
+		// Create vertex buffer
+		let vertexDataSize = (uint64)(cpuMesh.VertexCount * cpuMesh.VertexSize);
+		if (vertexDataSize > 0)
+		{
+			BufferDescriptor vertexDesc = .(vertexDataSize, .Vertex, .Upload);
+			if (mDevice.CreateBuffer(&vertexDesc) case .Ok(let vb))
+			{
+				gpuMesh.VertexBuffer = vb;
+
+				// Upload vertex data
+				let vertexData = cpuMesh.GetVertexData();
+				if (vertexData != null)
+				{
+					Span<uint8> data = .(vertexData, (int)vertexDataSize);
+					mDevice.Queue.WriteBuffer(vb, 0, data);
+				}
+			}
+			else
+			{
+				delete gpuMesh;
+				return .Invalid;
+			}
+		}
+
+		// Create index buffer if mesh has indices
+		if (cpuMesh.IndexCount > 0)
+		{
+			let indexDataSize = (uint64)(cpuMesh.IndexCount * 4); // UInt32 indices
+			BufferDescriptor indexDesc = .(indexDataSize, .Index, .Upload);
+			if (mDevice.CreateBuffer(&indexDesc) case .Ok(let ib))
+			{
+				gpuMesh.IndexBuffer = ib;
+
+				// Upload index data
+				let indexData = cpuMesh.GetIndexData();
+				if (indexData != null)
+				{
+					Span<uint8> data = .(indexData, (int)indexDataSize);
+					mDevice.Queue.WriteBuffer(ib, 0, data);
+				}
+
+				gpuMesh.IndexCount = (uint32)cpuMesh.IndexCount;
+				gpuMesh.IndexFormat = .UInt32;
+			}
+		}
+
+		gpuMesh.VertexStride = (uint32)cpuMesh.VertexSize;
+		gpuMesh.VertexCount = (uint32)cpuMesh.VertexCount;
+		gpuMesh.Bounds = cpuMesh.Bounds;
+
+		return AllocateSkinnedMeshSlot(gpuMesh);
+	}
+
+	/// Gets the GPU skinned mesh for a handle. Returns null if invalid.
+	public GPUSkinnedMesh GetSkinnedMesh(GPUSkinnedMeshHandle handle)
+	{
+		if (!handle.IsValid || handle.Index >= mSkinnedMeshes.Count)
+			return null;
+
+		if (mSkinnedMeshGenerations[(int)handle.Index] != handle.Generation)
+			return null;
+
+		return mSkinnedMeshes[(int)handle.Index];
+	}
+
+	/// Releases a skinned mesh handle. Frees the GPU mesh if reference count reaches zero.
+	public void ReleaseSkinnedMesh(GPUSkinnedMeshHandle handle)
+	{
+		let mesh = GetSkinnedMesh(handle);
+		if (mesh != null && mesh.Release())
+		{
+			FreeSkinnedMeshSlot(handle.Index);
+		}
+	}
+
+	/// Adds a reference to a skinned mesh.
+	public void AddSkinnedMeshRef(GPUSkinnedMeshHandle handle)
+	{
+		let mesh = GetSkinnedMesh(handle);
+		if (mesh != null)
+			mesh.AddRef();
+	}
+
 	// ===== Helper Methods =====
 
 	private GPUMeshHandle AllocateMeshSlot(GPUMesh mesh)
@@ -354,6 +453,39 @@ class GPUResourceManager
 			mTextures[(int)index] = null;
 			mTextureGenerations[(int)index]++;
 			mFreeTextureSlots.Add(index);
+		}
+	}
+
+	private GPUSkinnedMeshHandle AllocateSkinnedMeshSlot(GPUSkinnedMesh mesh)
+	{
+		uint32 index;
+		uint32 generation;
+
+		if (mFreeSkinnedMeshSlots.Count > 0)
+		{
+			index = mFreeSkinnedMeshSlots.PopBack();
+			generation = mSkinnedMeshGenerations[(int)index];
+			mSkinnedMeshes[(int)index] = mesh;
+		}
+		else
+		{
+			index = (uint32)mSkinnedMeshes.Count;
+			generation = 0;
+			mSkinnedMeshes.Add(mesh);
+			mSkinnedMeshGenerations.Add(generation);
+		}
+
+		return .(index, generation);
+	}
+
+	private void FreeSkinnedMeshSlot(uint32 index)
+	{
+		if (index < mSkinnedMeshes.Count)
+		{
+			delete mSkinnedMeshes[(int)index];
+			mSkinnedMeshes[(int)index] = null;
+			mSkinnedMeshGenerations[(int)index]++;
+			mFreeSkinnedMeshSlots.Add(index);
 		}
 	}
 
