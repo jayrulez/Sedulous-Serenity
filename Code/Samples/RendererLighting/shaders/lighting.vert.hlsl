@@ -23,6 +23,7 @@ struct VSOutput
     float3 worldNormal : TEXCOORD1;
     float2 uv : TEXCOORD2;
     float2 material : TEXCOORD3;  // x=metallic, y=roughness
+    float viewZ : TEXCOORD4;      // View-space Z for shadow cascade selection
 };
 
 // Camera uniform buffer
@@ -61,6 +62,10 @@ VSOutput main(VSInput input)
 
     // Pass material parameters to fragment shader
     output.material = input.instanceMaterial.xy;
+
+    // Compute view-space Z for shadow cascade selection
+    float4 viewPos = mul(view, worldPos);
+    output.viewZ = viewPos.z;
 
     // Transform to clip space
     output.position = mul(viewProjection, worldPos);

@@ -15,6 +15,7 @@ struct PSInput
     float3 worldNormal : TEXCOORD1;
     float2 uv : TEXCOORD2;
     float2 material : TEXCOORD3;  // x=metallic, y=roughness (from instance data)
+    float viewZ : TEXCOORD4;      // View-space Z for shadow cascade selection
 };
 
 // Camera uniform buffer
@@ -53,6 +54,106 @@ struct ClusteredLight
 
 // Light buffer
 StructuredBuffer<ClusteredLight> g_Lights : register(t0);
+
+// ==================== Shadow Resources ====================
+
+// Shadow constants
+static const uint SHADOW_CASCADE_COUNT = 4;
+static const uint SHADOW_MAX_TILES = 64;
+
+// Shadow cascade data
+struct CascadeData
+{
+    column_major float4x4 ViewProjection;
+    float4 SplitDepths;  // x=near, y=far
+};
+
+// Shadow tile data
+struct ShadowTileData
+{
+    column_major float4x4 ViewProjection;
+    float4 UVOffsetScale;
+    int LightIndex;
+    int FaceIndex;
+    int _pad0;
+    int _pad1;
+};
+
+// Shadow uniform buffer
+cbuffer ShadowUniforms : register(b3)
+{
+    CascadeData g_Cascades[SHADOW_CASCADE_COUNT];
+    ShadowTileData g_ShadowTiles[SHADOW_MAX_TILES];
+    uint g_ActiveTileCount;
+    float g_AtlasTexelSize;
+    float g_CascadeTexelSize;
+    uint g_DirectionalShadowEnabled;
+};
+
+// Shadow textures and sampler
+Texture2DArray<float> g_CascadeShadowMap : register(t1);
+Texture2D<float> g_ShadowAtlas : register(t2);
+SamplerComparisonState g_ShadowSampler : register(s0);
+
+// PCF shadow sampling for cascades
+float SampleCascadeShadowPCF(float2 shadowUV, float shadowDepth, int cascadeIndex)
+{
+    float shadow = 0.0;
+    float texelSize = g_CascadeTexelSize;
+
+    [unroll]
+    for (int y = -1; y <= 1; y++)
+    {
+        [unroll]
+        for (int x = -1; x <= 1; x++)
+        {
+            float2 offset = float2(x, y) * texelSize;
+            shadow += g_CascadeShadowMap.SampleCmpLevelZero(
+                g_ShadowSampler,
+                float3(shadowUV + offset, cascadeIndex),
+                shadowDepth
+            );
+        }
+    }
+
+    return shadow / 9.0;
+}
+
+// Select cascade based on view-space depth
+int SelectCascade(float viewZ)
+{
+    float absViewZ = abs(viewZ);
+
+    for (int i = 0; i < SHADOW_CASCADE_COUNT; i++)
+    {
+        if (absViewZ < g_Cascades[i].SplitDepths.y)
+            return i;
+    }
+
+    return SHADOW_CASCADE_COUNT - 1;
+}
+
+// Sample directional light shadow
+float SampleDirectionalShadow(float3 worldPos, float viewZ)
+{
+    if (g_DirectionalShadowEnabled == 0)
+        return 1.0;
+
+    int cascadeIndex = SelectCascade(viewZ);
+
+    float4 shadowPos = mul(g_Cascades[cascadeIndex].ViewProjection, float4(worldPos, 1.0));
+    shadowPos.xyz /= shadowPos.w;
+
+    float2 shadowUV = shadowPos.xy * 0.5 + 0.5;
+    shadowUV.y = 1.0 - shadowUV.y;
+
+    if (any(shadowUV < 0.0) || any(shadowUV > 1.0))
+        return 1.0;
+
+    float shadowDepth = saturate(shadowPos.z);
+
+    return SampleCascadeShadowPCF(shadowUV, shadowDepth, cascadeIndex);
+}
 
 // Distance attenuation for point/spot lights
 float ComputeDistanceAttenuation(float distance, float range)
@@ -192,7 +293,7 @@ float4 main(PSInput input) : SV_Target
 
     float3 totalLight = float3(0, 0, 0);
 
-    // Add directional light
+    // Add directional light with shadow
     if (g_DirectionalDir.w > 0.0)
     {
         ClusteredLight dirLight;
@@ -201,7 +302,11 @@ float4 main(PSInput input) : SV_Target
         dirLight.ColorIntensity = float4(g_DirectionalColor.rgb * g_DirectionalDir.w, g_DirectionalDir.w);
         dirLight.SpotShadowFlags = float4(0, 0, -1, 0);
 
-        totalLight += ComputeLightContribution(dirLight, input.worldPos, N, V, albedo, metal, rough, F0);
+        float3 dirContribution = ComputeLightContribution(dirLight, input.worldPos, N, V, albedo, metal, rough, F0);
+
+        // Apply directional shadow
+        float shadow = SampleDirectionalShadow(input.worldPos, input.viewZ);
+        totalLight += dirContribution * shadow;
     }
 
     // Process all point/spot lights

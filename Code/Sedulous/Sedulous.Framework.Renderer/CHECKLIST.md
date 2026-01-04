@@ -42,10 +42,12 @@
 - [x] LightingSystem wrapper class
 - [x] Clustered lighting shader include (clustered_lighting.hlsli)
 - [x] PBR shader variant for dynamic lights (pbr_clustered.frag.hlsl)
-- [ ] Cascaded shadow maps (4 cascades) - placeholder created
-- [ ] Shadow atlas (point/spot tiles) - placeholder created
-- [ ] PCF shadow filtering
-- [ ] Sample: `RendererLighting` - in progress
+- [x] Cascaded shadow maps (4 cascades) - frustum fitting, texel snapping, cascade views
+- [x] Shadow atlas (point/spot tiles) - VP matrices, tile allocation, 6-face point lights
+- [x] PCF shadow filtering (3x3 kernel) in clustered_lighting.hlsli
+- [x] Shadow depth shaders (shadow_depth.vert.hlsl, instanced/skinned variants)
+- [x] Shadow uniform buffer and comparison sampler in LightingSystem
+- [x] Sample: `RendererLighting` - clustered lighting with cascaded shadow maps
 
 ## Phase 6: Post-Processing
 - [ ] HDR render target (RGBA16F)

@@ -415,7 +415,7 @@ struct Matrix4x4 : IEquatable<Matrix4x4>, IHashable
 		return CreateScale(scale.X, scale.Y, scale.Z);
 	}
 
-	/// Creates a perspective projection matrix.
+	/// Creates a perspective projection matrix (OpenGL style, Z maps to [-1, 1]).
 	public static Matrix4x4 CreatePerspective(float fovY, float aspectRatio, float nearPlane, float farPlane)
 	{
 		let tanHalfFov = Math.Tan(fovY * 0.5f);
@@ -425,6 +425,20 @@ struct Matrix4x4 : IEquatable<Matrix4x4>, IHashable
 			1.0f / (aspectRatio * tanHalfFov), 0, 0, 0,
 			0, 1.0f / tanHalfFov, 0, 0,
 			0, 0, -(farPlane + nearPlane) / range, -2.0f * farPlane * nearPlane / range,
+			0, 0, -1, 0
+		);
+	}
+
+	/// Creates a perspective projection matrix for Vulkan (Z maps to [0, 1]).
+	public static Matrix4x4 CreatePerspectiveVulkan(float fovY, float aspectRatio, float nearPlane, float farPlane)
+	{
+		let tanHalfFov = Math.Tan(fovY * 0.5f);
+		let range = farPlane - nearPlane;
+
+		return .(
+			1.0f / (aspectRatio * tanHalfFov), 0, 0, 0,
+			0, 1.0f / tanHalfFov, 0, 0,
+			0, 0, -farPlane / range, -(farPlane * nearPlane) / range,
 			0, 0, -1, 0
 		);
 	}
@@ -442,7 +456,7 @@ struct Matrix4x4 : IEquatable<Matrix4x4>, IHashable
 		);
 	}
 
-	/// Creates an orthographic off-center projection matrix.
+	/// Creates an orthographic off-center projection matrix (OpenGL style, Z maps to [-1, 1]).
 	public static Matrix4x4 CreateOrthographicOffCenter(float left, float right, float bottom, float top, float nearPlane, float farPlane)
 	{
 		let width = right - left;
@@ -453,6 +467,21 @@ struct Matrix4x4 : IEquatable<Matrix4x4>, IHashable
 			2.0f / width, 0, 0, -(right + left) / width,
 			0, 2.0f / height, 0, -(top + bottom) / height,
 			0, 0, -2.0f / depth, -(farPlane + nearPlane) / depth,
+			0, 0, 0, 1
+		);
+	}
+
+	/// Creates an orthographic off-center projection matrix for Vulkan (Z maps to [0, 1]).
+	public static Matrix4x4 CreateOrthographicOffCenterVulkan(float left, float right, float bottom, float top, float nearPlane, float farPlane)
+	{
+		let width = right - left;
+		let height = top - bottom;
+		let depth = farPlane - nearPlane;
+
+		return .(
+			2.0f / width, 0, 0, -(right + left) / width,
+			0, 2.0f / height, 0, -(top + bottom) / height,
+			0, 0, -1.0f / depth, -nearPlane / depth,
 			0, 0, 0, 1
 		);
 	}
