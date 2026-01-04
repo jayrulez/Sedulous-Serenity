@@ -22,6 +22,11 @@ struct Bone
 	/// Final skinning matrix = WorldTransform * InverseBindMatrix.
 	public Matrix4x4 SkinningMatrix;
 
+	/// Bind pose TRS (for animation defaults).
+	public Vector3 BindTranslation;
+	public Quaternion BindRotation;
+	public Vector3 BindScale;
+
 	public this()
 	{
 		ParentIndex = -1;
@@ -29,6 +34,9 @@ struct Bone
 		InverseBindMatrix = .Identity;
 		WorldTransform = .Identity;
 		SkinningMatrix = .Identity;
+		BindTranslation = .Zero;
+		BindRotation = .Identity;
+		BindScale = .(1, 1, 1);
 	}
 }
 
@@ -72,6 +80,44 @@ class Skeleton
 		mBones[index].InverseBindMatrix = inverseBindMatrix;
 	}
 
+	/// Sets bone data with TRS values (stores bind pose for animation defaults).
+	public void SetBone(int32 index, StringView name, int32 parentIndex, Vector3 translation, Quaternion rotation, Vector3 scale, Matrix4x4 inverseBindMatrix)
+	{
+		if (index < 0 || index >= mBones.Count)
+			return;
+
+		mBoneNames[index].Set(name);
+		mBones[index].ParentIndex = parentIndex;
+		mBones[index].InverseBindMatrix = inverseBindMatrix;
+
+		// Store bind pose TRS
+		mBones[index].BindTranslation = translation;
+		mBones[index].BindRotation = rotation;
+		mBones[index].BindScale = scale;
+
+		// Compute local transform from TRS: T * R * S (column-vector convention)
+		let t = Matrix4x4.CreateTranslation(translation);
+		let r = Matrix4x4.CreateFromQuaternion(rotation);
+		let s = Matrix4x4.CreateScale(scale);
+		mBones[index].LocalTransform = t * r * s;
+	}
+
+	/// Gets bind pose TRS for a bone.
+	public void GetBindPose(int32 index, out Vector3 translation, out Quaternion rotation, out Vector3 scale)
+	{
+		if (index < 0 || index >= mBones.Count)
+		{
+			translation = .Zero;
+			rotation = .Identity;
+			scale = .(1, 1, 1);
+			return;
+		}
+
+		translation = mBones[index].BindTranslation;
+		rotation = mBones[index].BindRotation;
+		scale = mBones[index].BindScale;
+	}
+
 	/// Finds a bone index by name. Returns -1 if not found.
 	public int32 FindBone(StringView name)
 	{
@@ -81,6 +127,31 @@ class Skeleton
 				return i;
 		}
 		return -1;
+	}
+
+	/// Gets the name of a bone.
+	public StringView GetBoneName(int32 index)
+	{
+		if (index < 0 || index >= mBoneNames.Count)
+			return "";
+		return mBoneNames[index];
+	}
+
+	/// Gets bone data (parentIndex, localTransform, inverseBindMatrix).
+	public bool GetBoneData(int32 index, out int32 parentIndex, out Matrix4x4 localTransform, out Matrix4x4 inverseBindMatrix)
+	{
+		if (index < 0 || index >= mBones.Count)
+		{
+			parentIndex = -1;
+			localTransform = .Identity;
+			inverseBindMatrix = .Identity;
+			return false;
+		}
+
+		parentIndex = mBones[index].ParentIndex;
+		localTransform = mBones[index].LocalTransform;
+		inverseBindMatrix = mBones[index].InverseBindMatrix;
+		return true;
 	}
 
 	/// Updates world transforms and skinning matrices from current local transforms.
@@ -94,7 +165,7 @@ class Skeleton
 
 			if (bone.ParentIndex >= 0 && bone.ParentIndex < mBones.Count)
 			{
-				// Child bone: world = parent.world * local
+				// Child bone: world = parent.world * local (column-vector convention)
 				bone.WorldTransform = mBones[bone.ParentIndex].WorldTransform * bone.LocalTransform;
 			}
 			else
@@ -103,7 +174,7 @@ class Skeleton
 				bone.WorldTransform = bone.LocalTransform;
 			}
 
-			// Compute final skinning matrix
+			// Compute final skinning matrix: WorldTransform * InverseBindMatrix (column-vector convention)
 			bone.SkinningMatrix = bone.WorldTransform * bone.InverseBindMatrix;
 		}
 	}
@@ -118,7 +189,7 @@ class Skeleton
 		let r = Matrix4x4.CreateFromQuaternion(rotation);
 		let s = Matrix4x4.CreateScale(scale);
 
-		// TRS order: Scale -> Rotate -> Translate
+		// TRS order: T * R * S (column-vector convention)
 		mBones[index].LocalTransform = t * r * s;
 	}
 

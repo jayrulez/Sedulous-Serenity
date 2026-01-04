@@ -3,16 +3,16 @@
 
 cbuffer CameraBuffer : register(b0)
 {
-    float4x4 viewProjection;
-    float4x4 view;
-    float4x4 projection;
+    column_major float4x4 viewProjection;
+    column_major float4x4 view;
+    column_major float4x4 projection;
     float3 cameraPosition;
     float _pad0;
 };
 
 cbuffer ObjectBuffer : register(b1)
 {
-    float4x4 model;
+    column_major float4x4 model;
     float4 baseColor;
 };
 
