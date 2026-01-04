@@ -70,6 +70,7 @@ class VulkanDevice : IDevice
 
 	public IAdapter Adapter => mAdapter;
 	public IQueue Queue => mQueue;
+	public bool FlipProjectionRequired => true;
 
 	/// Gets the Vulkan logical device handle.
 	public VkDevice Device => mDevice;

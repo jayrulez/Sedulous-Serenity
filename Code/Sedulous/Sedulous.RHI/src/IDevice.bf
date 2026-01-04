@@ -12,6 +12,10 @@ interface IDevice : IDisposable
 	/// The main command queue.
 	IQueue Queue { get; }
 
+	/// Whether projection matrices need Y-axis flipping for this backend.
+	/// True for Vulkan (Y points down in NDC), false for OpenGL/DirectX (Y points up).
+	bool FlipProjectionRequired { get; }
+
 	// ===== Resource Creation =====
 
 	/// Creates a buffer.
