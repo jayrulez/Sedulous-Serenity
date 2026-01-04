@@ -136,7 +136,7 @@ class SDL3AudioSource : IAudioSource
 		let localPos = listener.WorldToLocal(mPosition);
 
 		// Calculate distance for attenuation
-		let distance = localPos.Length;
+		let distance = localPos.Length();
 
 		// Apply distance-based gain (linear attenuation between min and max distance)
 		float distanceGain = 1.0f;

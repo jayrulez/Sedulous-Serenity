@@ -94,7 +94,7 @@ class TransformTests
 		var transform = Transform.Identity;
 		transform.SetPosition(.(5, 0, 0));
 
-		let parentWorld = Matrix4x4.CreateTranslation(.(10, 0, 0));
+		let parentWorld = Matrix.CreateTranslation(.(10, 0, 0));
 		transform.UpdateWorldMatrix(parentWorld);
 
 		// World position should combine local and parent

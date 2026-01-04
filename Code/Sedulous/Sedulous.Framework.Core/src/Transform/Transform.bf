@@ -17,10 +17,10 @@ struct Transform
 	public Vector3 Scale = .(1, 1, 1);
 
 	/// Cached local matrix (needs recalculation when TRS changes).
-	private Matrix4x4 mLocalMatrix = .Identity;
+	private Matrix mLocalMatrix = .Identity;
 
 	/// Cached world matrix (needs recalculation when local or parent changes).
-	private Matrix4x4 mWorldMatrix = .Identity;
+	private Matrix mWorldMatrix = .Identity;
 
 	/// Dirty flags for lazy matrix computation.
 	private bool mLocalDirty = true;
@@ -30,15 +30,15 @@ struct Transform
 	public static Transform Identity => .();
 
 	/// Gets the local transformation matrix (Scale * Rotation * Translation).
-	public Matrix4x4 LocalMatrix
+	public Matrix LocalMatrix
 	{
 		get mut
 		{
 			if (mLocalDirty)
 			{
-				let s = Matrix4x4.CreateScale(Scale);
-				let r = Matrix4x4.CreateFromQuaternion(Rotation);
-				let t = Matrix4x4.CreateTranslation(Position);
+				let s = Matrix.CreateScale(Scale);
+				let r = Matrix.CreateFromQuaternion(Rotation);
+				let t = Matrix.CreateTranslation(Position);
 				mLocalMatrix = s * r * t;
 				mLocalDirty = false;
 			}
@@ -47,19 +47,19 @@ struct Transform
 	}
 
 	/// Gets the cached world matrix.
-	public Matrix4x4 WorldMatrix => mWorldMatrix;
+	public Matrix WorldMatrix => mWorldMatrix;
 
 	/// Gets the world position from the world matrix.
 	public Vector3 WorldPosition => mWorldMatrix.Translation;
 
 	/// Forward direction in local space.
-	public Vector3 Forward => Vector3(0, 0, -1).Transform(Matrix4x4.CreateFromQuaternion(Rotation));
+	public Vector3 Forward => Vector3.Transform(.(0, 0, -1), Matrix.CreateFromQuaternion(Rotation));
 
 	/// Right direction in local space.
-	public Vector3 Right => Vector3(1, 0, 0).Transform(Matrix4x4.CreateFromQuaternion(Rotation));
+	public Vector3 Right => Vector3.Transform(.(1, 0, 0), Matrix.CreateFromQuaternion(Rotation));
 
 	/// Up direction in local space.
-	public Vector3 Up => Vector3(0, 1, 0).Transform(Matrix4x4.CreateFromQuaternion(Rotation));
+	public Vector3 Up => Vector3.Transform(.(0, 1, 0), Matrix.CreateFromQuaternion(Rotation));
 
 	/// Marks the local matrix as needing recalculation.
 	public void SetLocalDirty() mut
@@ -69,7 +69,7 @@ struct Transform
 	}
 
 	/// Computes the world matrix given a parent's world matrix.
-	public void UpdateWorldMatrix(Matrix4x4 parentWorld) mut
+	public void UpdateWorldMatrix(Matrix parentWorld) mut
 	{
 		if (mLocalDirty || mWorldDirty)
 		{
