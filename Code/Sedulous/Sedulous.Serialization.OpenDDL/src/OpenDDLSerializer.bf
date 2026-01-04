@@ -6,6 +6,21 @@ using static Sedulous.OpenDDL.OpenDDLWriterExtensions;
 
 namespace Sedulous.Serialization.OpenDDL;
 
+/// DataDescription that recognizes the structure types used by OpenDDLSerializer.
+/// This prevents the parser from deleting "Obj_" and "Arr_" structures as unknown.
+class SerializerDataDescription : DataDescription
+{
+	public override Structure CreateStructure(StringView identifier)
+	{
+		// Recognize the structure types used by OpenDDLSerializer
+		if (identifier == "Obj_")
+			return new Structure(StructureTypes.MakeFourCC("Obj_"));
+		if (identifier == "Arr_")
+			return new Structure(StructureTypes.MakeFourCC("Arr_"));
+		return base.CreateStructure(identifier);
+	}
+}
+
 /// OpenDDL-based serializer implementation.
 /// Serializes data to and from the OpenDDL format.
 class OpenDDLSerializer : Serializer
@@ -61,6 +76,11 @@ class OpenDDLSerializer : Serializer
 		if (mCurrentStructure == null)
 			return null;
 
+		// Try the local name map first (fast O(1) lookup)
+		if (let child = mCurrentStructure.FindLocalChild(name))
+			return child;
+
+		// Fall back to iteration for structures that might not be in the map
 		for (let child in mCurrentStructure.Children)
 		{
 			if (child.StructureName == name)
@@ -76,7 +96,7 @@ class OpenDDLSerializer : Serializer
 		if (IsWriting)
 		{
 			let structure = new BoolStructure(.Bool);
-			structure.SetName(name, true);
+			structure.SetName(name, false);
 			structure.AddData(value);
 			mCurrentWriteStructure.AppendChild(structure);
 			return .Ok;
@@ -101,7 +121,7 @@ class OpenDDLSerializer : Serializer
 		if (IsWriting)
 		{
 			let structure = new Int8Structure(.Int8);
-			structure.SetName(name, true);
+			structure.SetName(name, false);
 			structure.AddData(value);
 			mCurrentWriteStructure.AppendChild(structure);
 			return .Ok;
@@ -126,7 +146,7 @@ class OpenDDLSerializer : Serializer
 		if (IsWriting)
 		{
 			let structure = new Int16Structure(.Int16);
-			structure.SetName(name, true);
+			structure.SetName(name, false);
 			structure.AddData(value);
 			mCurrentWriteStructure.AppendChild(structure);
 			return .Ok;
@@ -151,7 +171,7 @@ class OpenDDLSerializer : Serializer
 		if (IsWriting)
 		{
 			let structure = new Int32Structure(.Int32);
-			structure.SetName(name, true);
+			structure.SetName(name, false);
 			structure.AddData(value);
 			mCurrentWriteStructure.AppendChild(structure);
 			return .Ok;
@@ -176,7 +196,7 @@ class OpenDDLSerializer : Serializer
 		if (IsWriting)
 		{
 			let structure = new Int64Structure(.Int64);
-			structure.SetName(name, true);
+			structure.SetName(name, false);
 			structure.AddData(value);
 			mCurrentWriteStructure.AppendChild(structure);
 			return .Ok;
@@ -201,7 +221,7 @@ class OpenDDLSerializer : Serializer
 		if (IsWriting)
 		{
 			let structure = new UInt8Structure(.UInt8);
-			structure.SetName(name, true);
+			structure.SetName(name, false);
 			structure.AddData(value);
 			mCurrentWriteStructure.AppendChild(structure);
 			return .Ok;
@@ -226,7 +246,7 @@ class OpenDDLSerializer : Serializer
 		if (IsWriting)
 		{
 			let structure = new UInt16Structure(.UInt16);
-			structure.SetName(name, true);
+			structure.SetName(name, false);
 			structure.AddData(value);
 			mCurrentWriteStructure.AppendChild(structure);
 			return .Ok;
@@ -251,7 +271,7 @@ class OpenDDLSerializer : Serializer
 		if (IsWriting)
 		{
 			let structure = new UInt32Structure(.UInt32);
-			structure.SetName(name, true);
+			structure.SetName(name, false);
 			structure.AddData(value);
 			mCurrentWriteStructure.AppendChild(structure);
 			return .Ok;
@@ -276,7 +296,7 @@ class OpenDDLSerializer : Serializer
 		if (IsWriting)
 		{
 			let structure = new UInt64Structure(.UInt64);
-			structure.SetName(name, true);
+			structure.SetName(name, false);
 			structure.AddData(value);
 			mCurrentWriteStructure.AppendChild(structure);
 			return .Ok;
@@ -301,7 +321,7 @@ class OpenDDLSerializer : Serializer
 		if (IsWriting)
 		{
 			let structure = new FloatStructure(.Float);
-			structure.SetName(name, true);
+			structure.SetName(name, false);
 			structure.AddData(value);
 			mCurrentWriteStructure.AppendChild(structure);
 			return .Ok;
@@ -326,7 +346,7 @@ class OpenDDLSerializer : Serializer
 		if (IsWriting)
 		{
 			let structure = new DoubleStructure(.Double);
-			structure.SetName(name, true);
+			structure.SetName(name, false);
 			structure.AddData(value);
 			mCurrentWriteStructure.AppendChild(structure);
 			return .Ok;
@@ -351,7 +371,7 @@ class OpenDDLSerializer : Serializer
 		if (IsWriting)
 		{
 			let structure = new StringStructure();
-			structure.SetName(name, true);
+			structure.SetName(name, false);
 			structure.AddData(value);
 			mCurrentWriteStructure.AppendChild(structure);
 			return .Ok;
@@ -379,7 +399,7 @@ class OpenDDLSerializer : Serializer
 		if (IsWriting)
 		{
 			let structure = new FloatStructure(.Float, (uint32)count);
-			structure.SetName(name, true);
+			structure.SetName(name, false);
 			for (int32 i = 0; i < count; i++)
 				structure.AddData(data[i]);
 			mCurrentWriteStructure.AppendChild(structure);
@@ -410,7 +430,7 @@ class OpenDDLSerializer : Serializer
 		if (IsWriting)
 		{
 			let structure = new Int32Structure(.Int32, (uint32)count);
-			structure.SetName(name, true);
+			structure.SetName(name, false);
 			for (int32 i = 0; i < count; i++)
 				structure.AddData(data[i]);
 			mCurrentWriteStructure.AppendChild(structure);
@@ -443,7 +463,7 @@ class OpenDDLSerializer : Serializer
 		if (IsWriting)
 		{
 			let structure = new Int32Structure(.Int32);
-			structure.SetName(name, true);
+			structure.SetName(name, false);
 			for (let val in values)
 				structure.AddData(val);
 			mCurrentWriteStructure.AppendChild(structure);
@@ -472,7 +492,7 @@ class OpenDDLSerializer : Serializer
 		if (IsWriting)
 		{
 			let structure = new FloatStructure(.Float);
-			structure.SetName(name, true);
+			structure.SetName(name, false);
 			for (let val in values)
 				structure.AddData(val);
 			mCurrentWriteStructure.AppendChild(structure);
@@ -501,7 +521,7 @@ class OpenDDLSerializer : Serializer
 		if (IsWriting)
 		{
 			let structure = new StringStructure();
-			structure.SetName(name, true);
+			structure.SetName(name, false);
 			for (let val in values)
 				structure.AddData(val);
 			mCurrentWriteStructure.AppendChild(structure);
@@ -537,7 +557,7 @@ class OpenDDLSerializer : Serializer
 		{
 			// Use "Obj_" as the 4-char structure type for objects
 			let structure = new Structure(StructureTypes.MakeFourCC("Obj_"));
-			structure.SetName(name, true);
+			structure.SetName(name, false);
 			mCurrentWriteStructure.AppendChild(structure);
 
 			// Push current state
@@ -593,7 +613,7 @@ class OpenDDLSerializer : Serializer
 		{
 			// Use "Arr_" as the 4-char structure type for arrays
 			let structure = new Structure(StructureTypes.MakeFourCC("Arr_"));
-			structure.SetName(name, true);
+			structure.SetName(name, false);
 			mCurrentWriteStructure.AppendChild(structure);
 
 			// Push current state
@@ -602,7 +622,7 @@ class OpenDDLSerializer : Serializer
 
 			// Write the count
 			let countStructure = new Int32Structure(.Int32);
-			countStructure.SetName("_count", true);
+			countStructure.SetName("_count", false);
 			countStructure.AddData(count);
 			mCurrentWriteStructure.AppendChild(countStructure);
 			return .Ok;
