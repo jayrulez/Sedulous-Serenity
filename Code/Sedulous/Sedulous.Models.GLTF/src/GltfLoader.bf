@@ -463,12 +463,13 @@ public class GltfLoader
 			// Matrix
 			if (node.has_matrix != 0)
 			{
-				// Column-major matrix
+				// GLTF stores column-major for column-vector convention.
+				// Transpose to row-vector convention by reading flat array directly into row-major storage.
 				bone.LocalTransform = .(
-					node.matrix[0], node.matrix[4], node.matrix[8], node.matrix[12],
-					node.matrix[1], node.matrix[5], node.matrix[9], node.matrix[13],
-					node.matrix[2], node.matrix[6], node.matrix[10], node.matrix[14],
-					node.matrix[3], node.matrix[7], node.matrix[11], node.matrix[15]
+					node.matrix[0], node.matrix[1], node.matrix[2], node.matrix[3],
+					node.matrix[4], node.matrix[5], node.matrix[6], node.matrix[7],
+					node.matrix[8], node.matrix[9], node.matrix[10], node.matrix[11],
+					node.matrix[12], node.matrix[13], node.matrix[14], node.matrix[15]
 				);
 			}
 			else
@@ -514,17 +515,18 @@ public class GltfLoader
 				let jointNode = skinData.joints[j];
 				int32 jointIndex = (int32)cgltf_node_index(mData, jointNode);
 
-				Matrix4x4 ibm = .Identity;
+				Matrix ibm = .Identity;
 				if (skinData.inverse_bind_matrices != null)
 				{
 					float[16] mat = .();
 					cgltf_accessor_read_float(skinData.inverse_bind_matrices, (.)j, &mat, 16);
-					// Column-major matrix
+					// GLTF stores column-major for column-vector convention.
+					// Transpose to row-vector convention by reading flat array directly into row-major storage.
 					ibm = .(
-						mat[0], mat[4], mat[8], mat[12],
-						mat[1], mat[5], mat[9], mat[13],
-						mat[2], mat[6], mat[10], mat[14],
-						mat[3], mat[7], mat[11], mat[15]
+						mat[0], mat[1], mat[2], mat[3],
+						mat[4], mat[5], mat[6], mat[7],
+						mat[8], mat[9], mat[10], mat[11],
+						mat[12], mat[13], mat[14], mat[15]
 					);
 				}
 

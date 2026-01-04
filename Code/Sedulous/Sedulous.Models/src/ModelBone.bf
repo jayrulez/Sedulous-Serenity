@@ -17,10 +17,10 @@ public class ModelBone
 	public int32 ParentIndex = -1;
 
 	/// Local transform relative to parent
-	public Matrix4x4 LocalTransform = Matrix4x4.Identity;
+	public Matrix LocalTransform = Matrix.Identity;
 
 	/// Inverse bind matrix for skinning (transforms from mesh space to bone space)
-	public Matrix4x4 InverseBindMatrix = Matrix4x4.Identity;
+	public Matrix InverseBindMatrix = Matrix.Identity;
 
 	/// Translation component of local transform
 	public Vector3 Translation = .Zero;
@@ -60,9 +60,9 @@ public class ModelBone
 	/// Update local transform from TRS components
 	public void UpdateLocalTransform()
 	{
-		let t = Matrix4x4.CreateTranslation(Translation);
-		let r = Matrix4x4.CreateFromQuaternion(Rotation);
-		let s = Matrix4x4.CreateScale(Scale);
+		let t = Matrix.CreateTranslation(Translation);
+		let r = Matrix.CreateFromQuaternion(Rotation);
+		let s = Matrix.CreateScale(Scale);
 
 		// TRS order: Scale -> Rotate -> Translate
 		LocalTransform = s * r * t;
