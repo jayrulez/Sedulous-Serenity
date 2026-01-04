@@ -11,6 +11,8 @@ enum ResourceLoadError
 	InvalidFormat,
 	/// Failed to read resource data.
 	ReadError,
+	/// Operation not supported by this manager.
+	NotSupported,
 	/// Unknown error.
 	Unknown
 }
