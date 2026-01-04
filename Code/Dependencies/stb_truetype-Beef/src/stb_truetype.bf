@@ -1095,6 +1095,7 @@ enum STBTT_MAC_EID : int32
 	STBTT_MAC_EID_KOREAN       = 3,   STBTT_MAC_EID_RUSSIAN      = 7
 }
 
+[AllowDuplicates]
 enum STBTT_MS_LANG : int32
 { // languageID for STBTT_PLATFORM_ID_MICROSOFT; same as LCID...
 			   // problematic because there are e.g. 16 english LCIDs and 16 arabic LCIDs

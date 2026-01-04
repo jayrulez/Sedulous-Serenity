@@ -230,6 +230,7 @@ static
 	 */
 	public static bool SDL_MIXER_VERSION_ATLEAST(uint32 major, uint32 minor, uint32 micro)
 	{
+#unwarn
 		return (SDL_MIXER_MAJOR_VERSION >= major) &&
 			(SDL_MIXER_MAJOR_VERSION > major || SDL_MIXER_MINOR_VERSION >= minor) &&
 			(SDL_MIXER_MAJOR_VERSION > major || SDL_MIXER_MINOR_VERSION > minor || SDL_MIXER_MICRO_VERSION >= micro);
