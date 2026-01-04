@@ -348,7 +348,7 @@ class VulkanCommandEncoder : ICommandEncoder
 				baseMipLevel = 0,
 				levelCount = vkTexture.MipLevelCount,
 				baseArrayLayer = 0,
-				layerCount = 1
+				layerCount = vkTexture.ArrayLayerCount  // Transition all array layers
 			},
 			srcAccessMask = srcAccess,
 			dstAccessMask = dstAccess
