@@ -68,15 +68,13 @@ class SDLImageLoader : ImageLoader
 		}
 		defer SDL_DestroySurface(surface);
 
-		// Convert surface to RGBA32 to ensure consistent format
-		// This handles indexed/palette formats, odd formats, etc.
+		// Always convert to RGBA32 for consistent format
+		// This handles indexed/palette formats, RGB24, BGR24, and other odd formats
 		SDL_Surface* convertedSurface = surface;
 		bool needsDestroy = false;
 
 		if (surface.format != .SDL_PIXELFORMAT_RGBA32 &&
-			surface.format != .SDL_PIXELFORMAT_RGBA8888 &&
-			surface.format != .SDL_PIXELFORMAT_RGB24 &&
-			surface.format != .SDL_PIXELFORMAT_BGR24)
+			surface.format != .SDL_PIXELFORMAT_RGBA8888)
 		{
 			convertedSurface = SDL_ConvertSurface(surface, .SDL_PIXELFORMAT_RGBA32);
 			if (convertedSurface == null)
@@ -93,7 +91,7 @@ class SDLImageLoader : ImageLoader
 			{
 				Width = (uint32)convertedSurface.w,
 				Height = (uint32)convertedSurface.h,
-				Format = SDLSurfaceFormatToPixelFormat(convertedSurface.format),
+				Format = .RGBA8, // Always RGBA8 after conversion
 				Data = pixelData
 			};
 
@@ -113,15 +111,13 @@ class SDLImageLoader : ImageLoader
 		}
 		defer SDL_DestroySurface(surface);
 
-		// Convert surface to RGBA32 to ensure consistent format
-		// This handles indexed/palette formats, odd formats, etc.
+		// Always convert to RGBA32 for consistent format
+		// This handles indexed/palette formats, RGB24, BGR24, and other odd formats
 		SDL_Surface* convertedSurface = surface;
 		bool needsDestroy = false;
 
 		if (surface.format != .SDL_PIXELFORMAT_RGBA32 &&
-			surface.format != .SDL_PIXELFORMAT_RGBA8888 &&
-			surface.format != .SDL_PIXELFORMAT_RGB24 &&
-			surface.format != .SDL_PIXELFORMAT_BGR24)
+			surface.format != .SDL_PIXELFORMAT_RGBA8888)
 		{
 			convertedSurface = SDL_ConvertSurface(surface, .SDL_PIXELFORMAT_RGBA32);
 			if (convertedSurface == null)
@@ -138,7 +134,7 @@ class SDLImageLoader : ImageLoader
 			{
 				Width = (uint32)convertedSurface.w,
 				Height = (uint32)convertedSurface.h,
-				Format = SDLSurfaceFormatToPixelFormat(convertedSurface.format),
+				Format = .RGBA8, // Always RGBA8 after conversion
 				Data = pixelData
 			};
 
