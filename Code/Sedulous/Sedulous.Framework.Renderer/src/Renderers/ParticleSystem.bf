@@ -178,12 +178,8 @@ class ParticleSystem
 			p.Position += p.Velocity * deltaTime;
 			p.Rotation += p.RotationSpeed * deltaTime;
 
-			// Size over lifetime
-			float lifeRatio = p.LifeRatio;
-			float sizeMultiplier = Math.Lerp(mConfig.SizeOverLife, 1.0f, lifeRatio);
-			// Note: We store original size, apply multiplier during upload
-
 			// Color over lifetime
+			float lifeRatio = p.LifeRatio;
 			p.Color = Color.Lerp(mConfig.EndColor, mConfig.StartColor, lifeRatio);
 		}
 

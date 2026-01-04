@@ -3,5 +3,4 @@ Dependencies = {corlib = "*", "RHI.SampleFramework" = "*", "Sedulous.Framework.R
 
 [Project]
 Name = "RendererGeometry"
-TargetType = "BeefConsoleApplication"
 StartupObject = "RendererGeometry.Program"
