@@ -24,7 +24,7 @@ struct Vertex
 [CRepr]
 struct Uniforms
 {
-	public Matrix4x4 Transform;
+	public Matrix Transform;
 }
 
 /// Rotating textured quad sample using the RHI sample framework.
@@ -277,7 +277,7 @@ class TexturedQuadSample : RHISampleApp
 	{
 		// Create rotation matrix around Z axis
 		float rotationAngle = totalTime * 0.5f;  // Slower rotation
-		Uniforms uniforms = .() { Transform = Matrix4x4.CreateRotationZ(rotationAngle) };
+		Uniforms uniforms = .() { Transform = Matrix.CreateRotationZ(rotationAngle) };
 		Span<uint8> uniformData = .((uint8*)&uniforms, sizeof(Uniforms));
 		Device.Queue.WriteBuffer(mUniformBuffer, 0, uniformData);
 	}

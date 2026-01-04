@@ -25,8 +25,8 @@ struct Vertex
 [CRepr]
 struct GBufferUniforms
 {
-	public Matrix4x4 MVP;
-	public Matrix4x4 Model;
+	public Matrix MVP;
+	public Matrix Model;
 }
 
 /// Composite pass uniforms
@@ -456,15 +456,20 @@ class MRTSample : RHISampleApp
 	{
 		// Update G-buffer uniforms
 		float angle = totalTime * 0.5f;
-		let model = Matrix4x4.CreateRotationY(angle) * Matrix4x4.CreateRotationX(angle * 0.3f);
+		let model = Matrix.CreateRotationY(angle) * Matrix.CreateRotationX(angle * 0.3f);
 
 		float aspect = (float)SwapChain.Width / (float)SwapChain.Height;
-		let projection = Matrix4x4.CreatePerspective(Math.PI_f / 4.0f, aspect, 0.1f, 100.0f);
-		let view = Matrix4x4.CreateLookAt(.(0, 0, 3), .(0, 0, 0), .(0, 1, 0));
+		var projection = Matrix.CreatePerspectiveFieldOfView(Math.PI_f / 4.0f, aspect, 0.1f, 100.0f);
+		let view = Matrix.CreateLookAt(.(0, 0, 3), .(0, 0, 0), .(0, 1, 0));
 
+		// Flip Y for Vulkan's coordinate system
+		if (Device.FlipProjectionRequired)
+			projection.M22 = -projection.M22;
+
+		// Row-major: MVP = model * view * projection
 		GBufferUniforms gbufferUniforms = .()
 		{
-			MVP = projection * view * model,
+			MVP = model * view * projection,
 			Model = model
 		};
 		Device.Queue.WriteBuffer(mGBufferUniformBuffer, 0, .((uint8*)&gbufferUniforms, sizeof(GBufferUniforms)));

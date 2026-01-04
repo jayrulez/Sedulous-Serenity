@@ -1272,7 +1272,7 @@ class RendererGeometrySample : RHISampleApp
 			// Skeleton is now ordered by skin joint index, so no remapping needed
 			if (mBoneBuffer != null)
 			{
-				Span<uint8> boneData = .((uint8*)mFoxAnimPlayer.BoneMatrices.Ptr, 128 * sizeof(Matrix4x4));
+				Span<uint8> boneData = .((uint8*)mFoxAnimPlayer.BoneMatrices.Ptr, 128 * sizeof(Matrix));
 				Device.Queue.WriteBuffer(mBoneBuffer, 0, boneData);
 			}
 		}
@@ -1303,19 +1303,27 @@ class RendererGeometrySample : RHISampleApp
 
 		mSpriteRenderer.End();
 
+		// Get camera matrices
+		var projection = mCamera.ProjectionMatrix;
+		let view = mCamera.ViewMatrix;
+
+		// Flip Y for Vulkan's coordinate system
+		if (Device.FlipProjectionRequired)
+			projection.M22 = -projection.M22;
+
 		// Update camera uniforms
 		CameraUniforms cameraData = .();
-		cameraData.ViewProjection = mCamera.ViewProjectionMatrix;
-		cameraData.View = mCamera.ViewMatrix;
-		cameraData.Projection = mCamera.ProjectionMatrix;
+		cameraData.ViewProjection = view * projection;
+		cameraData.View = view;
+		cameraData.Projection = projection;
 		cameraData.CameraPosition = mCamera.Position;
 
 		Span<uint8> camData = .((uint8*)&cameraData, sizeof(CameraUniforms));
 		Device.Queue.WriteBuffer(mCameraUniformBuffer, 0, camData);
 
 		// Update object uniforms for red cube (right)
-		// Translation * Rotation = rotate in place, then translate
-		let redCubeModel = Matrix4x4.CreateTranslation(2.0f, 0.5f, 0) * Matrix4x4.CreateRotationY(mCubeRotation);
+		// Row-vector order: R * T = rotate in place, then translate
+		let redCubeModel = Matrix.CreateRotationY(mCubeRotation) * Matrix.CreateTranslation(2.0f, 0.5f, 0);
 		ObjectUniforms redCubeData = .();
 		redCubeData.Model = redCubeModel;
 		redCubeData.ObjectColor = .(1f, 0f, 0f, 1.0f);  // Red color
@@ -1324,7 +1332,7 @@ class RendererGeometrySample : RHISampleApp
 		Device.Queue.WriteBuffer(mObjectUniformBuffer, 0, redObjData);
 
 		// Update object uniforms for blue cube (left)
-		let blueCubeModel = Matrix4x4.CreateTranslation(-2.0f, 0.5f, 0) * Matrix4x4.CreateRotationY(-mCubeRotation);
+		let blueCubeModel = Matrix.CreateRotationY(-mCubeRotation) * Matrix.CreateTranslation(-2.0f, 0.5f, 0);
 		ObjectUniforms blueCubeData = .();
 		blueCubeData.Model = blueCubeModel;
 		blueCubeData.ObjectColor = .(0f, 0.3f, 1f, 1.0f);  // Blue color
@@ -1336,8 +1344,8 @@ class RendererGeometrySample : RHISampleApp
 		if (mGltfObjectBuffer != null)
 		{
 			// Duck model is quite large, scale it down and position it in center
-			let duckScale = Matrix4x4.CreateScale(0.012f);
-			let duckTranslation = Matrix4x4.CreateTranslation(0, 0, 0); // Center
+			let duckScale = Matrix.CreateScale(0.012f);
+			let duckTranslation = Matrix.CreateTranslation(0, 0, 0); // Center
 			let duckModel = duckScale * duckTranslation;
 
 			ObjectUniforms duckData = .();
@@ -1352,9 +1360,10 @@ class RendererGeometrySample : RHISampleApp
 		if (mSkinnedObjectBuffer != null)
 		{
 			// Fox model - scale it down and position to the right
-			let foxScale = Matrix4x4.CreateScale(0.02f);
-			let foxTranslation = Matrix4x4.CreateTranslation(3.5f, 0, 0);
-			let foxModel = foxTranslation * foxScale;
+			// Row-vector order: scale first, then translate (S * T)
+			let foxScale = Matrix.CreateScale(0.02f);
+			let foxTranslation = Matrix.CreateTranslation(3.5f, 0, 0);
+			let foxModel = foxScale * foxTranslation;
 
 			ObjectUniforms foxData = .();
 			foxData.Model = foxModel;
@@ -1585,7 +1594,7 @@ class RendererGeometrySample : RHISampleApp
 				// Create GPU mesh from loaded resource
 				mFoxGPUMesh = mResourceManager.CreateSkinnedMesh(mFoxResource.Mesh);
 
-				ResourceSerializer.SaveSkinnedMeshBundle(mFoxResource, scope $"{cachedPath}2");
+				//ResourceSerializer.SaveSkinnedMeshBundle(mFoxResource, scope $"{cachedPath}2");
 			}
 			else
 			{
@@ -1721,9 +1730,9 @@ class RendererGeometrySample : RHISampleApp
 [CRepr]
 struct CameraUniforms
 {
-	public Matrix4x4 ViewProjection;
-	public Matrix4x4 View;
-	public Matrix4x4 Projection;
+	public Matrix ViewProjection;
+	public Matrix View;
+	public Matrix Projection;
 	public Vector3 CameraPosition;
 	public float _pad0;
 }
@@ -1731,7 +1740,7 @@ struct CameraUniforms
 [CRepr]
 struct ObjectUniforms
 {
-	public Matrix4x4 Model;
+	public Matrix Model;
 	public Vector4 ObjectColor;
 }
 

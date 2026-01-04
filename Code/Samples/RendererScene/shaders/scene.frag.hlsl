@@ -1,4 +1,7 @@
 // Scene fragment shader
+// Uses row-major matrices with row-vector math: mul(vector, matrix)
+
+#pragma pack_matrix(row_major)
 
 struct PSInput
 {
@@ -11,7 +14,7 @@ struct PSInput
 
 cbuffer CameraUniforms : register(b0)
 {
-    column_major float4x4 viewProjection;
+    float4x4 viewProjection;
     float3 cameraPosition;
     float _pad0;
 };

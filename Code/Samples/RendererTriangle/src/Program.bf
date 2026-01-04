@@ -24,7 +24,7 @@ struct Vertex
 [CRepr]
 struct Uniforms
 {
-	public Matrix4x4 Transform;
+	public Matrix Transform;
 }
 
 /// Triangle sample using the Render Graph.
@@ -207,7 +207,7 @@ class RendererTriangleSample : RHISampleApp
 	{
 		// Update rotation
 		float rotationAngle = totalTime * 1.0f;
-		Uniforms uniforms = .() { Transform = Matrix4x4.CreateRotationZ(rotationAngle) };
+		Uniforms uniforms = .() { Transform = Matrix.CreateRotationZ(rotationAngle) };
 		Span<uint8> uniformData = .((uint8*)&uniforms, sizeof(Uniforms));
 		Device.Queue.WriteBuffer(mUniformBuffer, 0, uniformData);
 	}

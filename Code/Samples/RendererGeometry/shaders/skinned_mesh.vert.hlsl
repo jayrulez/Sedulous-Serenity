@@ -3,24 +3,23 @@
 
 cbuffer CameraBuffer : register(b0)
 {
-    column_major float4x4 viewProjection;
-    column_major float4x4 view;
-    column_major float4x4 projection;
+    float4x4 viewProjection;
+    float4x4 view;
+    float4x4 projection;
     float3 cameraPosition;
     float _pad0;
 };
 
 cbuffer ObjectBuffer : register(b1)
 {
-    column_major float4x4 model;
+    float4x4 model;
     float4 baseColor;
 };
 
 // Bone transforms - up to 128 bones
-// Use column_major to match our Matrix4x4 storage format
 cbuffer BoneBuffer : register(b2)
 {
-    column_major float4x4 boneMatrices[128];
+    float4x4 boneMatrices[128];
 };
 
 struct VSInput

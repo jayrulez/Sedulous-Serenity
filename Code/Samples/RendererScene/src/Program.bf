@@ -194,7 +194,7 @@ class RendererSceneSample : RHISampleApp
 					float posY = layer * spacing;
 					float posZ = startOffset + z * spacing;
 
-					let transform = Matrix4x4.CreateTranslation(.(posX, posY, posZ));
+					let transform = Matrix.CreateTranslation(.(posX, posY, posZ));
 
 					let handle = mRenderWorld.CreateMeshProxy(mCubeMesh, transform, cubeBounds);
 					mCubeProxies.Add(handle);
@@ -442,8 +442,15 @@ class RendererSceneSample : RHISampleApp
 		}
 
 		// Update camera uniforms
+		var projection = mCamera.ProjectionMatrix;
+		let view = mCamera.ViewMatrix;
+
+		// Apply Y-flip for Vulkan if needed
+		if (Device.FlipProjectionRequired)
+			projection.M22 = -projection.M22;
+
 		CameraUniforms cameraData = .();
-		cameraData.ViewProjection = mCamera.ViewProjectionMatrix;
+		cameraData.ViewProjection = view * projection;
 		cameraData.CameraPosition = mCamera.Position;
 
 		Span<uint8> camData = .((uint8*)&cameraData, sizeof(CameraUniforms));
@@ -522,19 +529,19 @@ class RendererSceneSample : RHISampleApp
 [CRepr]
 struct SceneInstanceData
 {
-	public Vector4 Col0;  // Transform matrix column 0
-	public Vector4 Col1;  // Transform matrix column 1
-	public Vector4 Col2;  // Transform matrix column 2
-	public Vector4 Col3;  // Transform matrix column 3 (translation in XYZ)
+	public Vector4 Row0;  // Transform matrix row 0
+	public Vector4 Row1;  // Transform matrix row 1
+	public Vector4 Row2;  // Transform matrix row 2
+	public Vector4 Row3;  // Transform matrix row 3 (translation in XYZ for row-vector)
 	public Vector4 Color; // Instance color
 
-	public this(Matrix4x4 transform, Vector4 color)
+	public this(Matrix transform, Vector4 color)
 	{
-		// Extract columns from column-major matrix
-		Col0 = .(transform.M11, transform.M21, transform.M31, transform.M41);
-		Col1 = .(transform.M12, transform.M22, transform.M32, transform.M42);
-		Col2 = .(transform.M13, transform.M23, transform.M33, transform.M43);
-		Col3 = .(transform.M14, transform.M24, transform.M34, transform.M44);
+		// Extract rows from row-major matrix
+		Row0 = .(transform.M11, transform.M12, transform.M13, transform.M14);
+		Row1 = .(transform.M21, transform.M22, transform.M23, transform.M24);
+		Row2 = .(transform.M31, transform.M32, transform.M33, transform.M34);
+		Row3 = .(transform.M41, transform.M42, transform.M43, transform.M44);
 		Color = color;
 	}
 }
@@ -543,7 +550,7 @@ struct SceneInstanceData
 [CRepr]
 struct CameraUniforms
 {
-	public Matrix4x4 ViewProjection;
+	public Matrix ViewProjection;
 	public Vector3 CameraPosition;
 	public float _pad0;
 }

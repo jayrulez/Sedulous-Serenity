@@ -24,7 +24,7 @@ struct Vertex
 [CRepr]
 struct Uniforms
 {
-	public Matrix4x4 Transform;
+	public Matrix Transform;
 }
 
 /// MSAA sample - demonstrates multisampled rendering and ResolveTexture.
@@ -374,7 +374,7 @@ class MSAASample : RHISampleApp
 	protected override void OnUpdate(float deltaTime, float totalTime)
 	{
 		float rotation = totalTime * 1.0f;
-		Uniforms uniforms = .() { Transform = Matrix4x4.CreateRotationZ(rotation) };
+		Uniforms uniforms = .() { Transform = Matrix.CreateRotationZ(rotation) };
 		Device.Queue.WriteBuffer(mUniformBuffer, 0, .((uint8*)&uniforms, sizeof(Uniforms)));
 	}
 

@@ -192,7 +192,7 @@ class Program
 
 	static bool VerifyMatchFloat(StringView name, float original, float loaded)
 	{
-		if (MathUtil.Approximately(original, loaded))
+		if (MathUtil.AreApproximatelyEqual(original, loaded))
 		{
 			Console.WriteLine($"  [OK] {name}");
 			return true;

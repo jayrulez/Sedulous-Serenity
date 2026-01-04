@@ -18,7 +18,7 @@ struct LightingInstanceData
 	public Vector4 Row3;      // Transform row 3 (M41, M42, M43, M44)
 	public Vector4 Material;  // x=metallic, y=roughness, z=unused, w=unused
 
-	public this(Matrix4x4 transform, float metallic, float roughness)
+	public this(Matrix transform, float metallic, float roughness)
 	{
 		// Pass matrix rows - HLSL float4x4(v0,v1,v2,v3) treats each vector as a row
 		Row0 = .(transform.M11, transform.M12, transform.M13, transform.M14);
@@ -33,9 +33,9 @@ struct LightingInstanceData
 [CRepr]
 struct CameraData
 {
-	public Matrix4x4 ViewProjection;
-	public Matrix4x4 View;
-	public Matrix4x4 Projection;
+	public Matrix ViewProjection;
+	public Matrix View;
+	public Matrix Projection;
 	public Vector3 CameraPosition;
 	public float _pad0;
 }
@@ -44,7 +44,7 @@ struct CameraData
 [CRepr]
 struct ShadowPassUniforms
 {
-	public Matrix4x4 LightViewProjection;
+	public Matrix LightViewProjection;
 	public Vector4 DepthBias;  // x=constant bias, y=slope bias
 }
 
@@ -84,7 +84,7 @@ class RendererLightingSample : RHISampleApp
 	private float mCameraLookSpeed = 0.003f;
 
 	// Scene objects - CPU side
-	private List<Matrix4x4> mObjectTransforms = new .() ~ delete _;
+	private List<Matrix> mObjectTransforms = new .() ~ delete _;
 	private List<Vector2> mObjectMaterials = new .() ~ delete _;  // x=metallic, y=roughness
 	private LightingInstanceData[] mInstanceData ~ delete _;
 	private int32 mInstanceCount = 0;
@@ -304,9 +304,10 @@ class RendererLightingSample : RHISampleApp
 	{
 		// Add a large floor plane to receive shadows
 		// Scale: 40x0.2x40, positioned so top surface is at y=0
-		var floorScale = Matrix4x4.CreateScale(.(40.0f, 0.2f, 40.0f));
-		var floorTranslate = Matrix4x4.CreateTranslation(.(0, -0.1f, 0));
-		var floorTransform = floorTranslate * floorScale;  // First scale, then translate
+		// Row-vector order: Scale * Translate (first scale, then translate)
+		var floorScale = Matrix.CreateScale(.(40.0f, 0.2f, 40.0f));
+		var floorTranslate = Matrix.CreateTranslation(.(0, -0.1f, 0));
+		var floorTransform = floorScale * floorTranslate;
 		mObjectTransforms.Add(floorTransform);
 		mObjectMaterials.Add(.(0.0f, 0.8f));  // Non-metallic, rough floor
 
@@ -322,7 +323,7 @@ class RendererLightingSample : RHISampleApp
 				float zPos = z * spacing;
 
 				// Objects sitting on floor (y=0.5 so bottom is at y=0)
-				var transform = Matrix4x4.CreateTranslation(.(xPos, 0.5f, zPos));
+				var transform = Matrix.CreateTranslation(.(xPos, 0.5f, zPos));
 				mObjectTransforms.Add(transform);
 
 				// Vary materials across the grid
@@ -343,7 +344,7 @@ class RendererLightingSample : RHISampleApp
 			// Stack cubes to make taller pillars
 			for (int y = 0; y < 4; y++)
 			{
-				var transform = Matrix4x4.CreateTranslation(.(px, y * 1.0f + 0.5f, pz));
+				var transform = Matrix.CreateTranslation(.(px, y * 1.0f + 0.5f, pz));
 				mObjectTransforms.Add(transform);
 				mObjectMaterials.Add(.(0.0f, 0.3f));  // Non-metallic, smoother
 			}
@@ -736,12 +737,16 @@ class RendererLightingSample : RHISampleApp
 			Device.Queue.WriteBuffer(mInstanceBuffer, 0, data);
 		}
 
-		// Update camera buffer
+		// Update camera buffer with Y-flip for Vulkan
+		var projection = mCameraProxy.ProjectionMatrix;
+		if (Device.FlipProjectionRequired)
+			projection.M22 = -projection.M22;
+
 		var camData = CameraData()
 		{
-			ViewProjection = mCameraProxy.ViewProjectionMatrix,
+			ViewProjection = mCameraProxy.ViewMatrix * projection,
 			View = mCameraProxy.ViewMatrix,
-			Projection = mCameraProxy.ProjectionMatrix,
+			Projection = projection,
 			CameraPosition = mCamera.Position,
 			_pad0 = 0
 		};

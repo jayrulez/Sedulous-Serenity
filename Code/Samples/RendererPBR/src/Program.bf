@@ -6,6 +6,7 @@ using Sedulous.RHI;
 using Sedulous.Geometry;
 using Sedulous.Imaging;
 using Sedulous.Framework.Renderer;
+using Sedulous.Shell.Input;
 using RHI.SampleFramework;
 
 /// PBR sphere sample using the Material System.
@@ -42,6 +43,13 @@ class RendererPBRSample : RHISampleApp
 	// Camera
 	private Camera mCamera;
 
+	// Camera control
+	private float mCameraYaw = 0.0f;
+	private float mCameraPitch = 0.0f;
+	private bool mMouseCaptured = false;
+	private float mCameraMoveSpeed = 5.0f;
+	private float mCameraLookSpeed = 0.003f;
+
 	// Animation state
 	private float mRotationY = 0.0f;
 
@@ -58,9 +66,13 @@ class RendererPBRSample : RHISampleApp
 		// Setup camera - use standard depth (not reverse-Z) since sample framework clears to 1.0
 		mCamera = .();
 		mCamera.Position = .(0, 0, 4);
-		mCamera.Forward = .(0, 0, -1);
 		mCamera.UseReverseZ = false;
 		mCamera.SetAspectRatio(SwapChain.Width, SwapChain.Height);
+
+		// Initialize yaw/pitch from a forward direction looking at origin
+		mCameraYaw = Math.PI_f;  // Looking toward -Z
+		mCameraPitch = 0.0f;
+		UpdateCameraDirection();
 
 		if (!CreateMesh())
 			return false;
@@ -75,7 +87,85 @@ class RendererPBRSample : RHISampleApp
 			return false;
 
 		Console.WriteLine("RendererPBR sample initialized");
+		Console.WriteLine("Controls: WASD=Move, QE=Up/Down, Right-click+Drag=Look, Tab=Toggle mouse capture");
 		return true;
+	}
+
+	private void UpdateCameraDirection()
+	{
+		// Calculate forward direction from yaw and pitch
+		float cosP = Math.Cos(mCameraPitch);
+		mCamera.Forward = Vector3.Normalize(.(
+			Math.Sin(mCameraYaw) * cosP,
+			Math.Sin(mCameraPitch),
+			Math.Cos(mCameraYaw) * cosP
+		));
+	}
+
+	protected override void OnInput()
+	{
+		let keyboard = Shell.InputManager.Keyboard;
+		let mouse = Shell.InputManager.Mouse;
+
+		// Toggle mouse capture with Tab
+		if (keyboard.IsKeyPressed(.Tab))
+		{
+			mMouseCaptured = !mMouseCaptured;
+			mouse.RelativeMode = mMouseCaptured;
+			mouse.Visible = !mMouseCaptured;
+		}
+
+		// Mouse look (when captured or right-click held)
+		if (mMouseCaptured || mouse.IsButtonDown(.Right))
+		{
+			mCameraYaw -= mouse.DeltaX * mCameraLookSpeed;
+			mCameraPitch -= mouse.DeltaY * mCameraLookSpeed;
+
+			// Clamp pitch to avoid gimbal lock
+			mCameraPitch = Math.Clamp(mCameraPitch, -Math.PI_f * 0.49f, Math.PI_f * 0.49f);
+
+			UpdateCameraDirection();
+		}
+
+		// Calculate movement vectors
+		let forward = mCamera.Forward;
+		let right = mCamera.Right;
+		let up = Vector3(0, 1, 0);
+
+		float speed = mCameraMoveSpeed * DeltaTime;
+
+		// WASD movement
+		if (keyboard.IsKeyDown(.W))
+			mCamera.Position = mCamera.Position + forward * speed;
+		if (keyboard.IsKeyDown(.S))
+			mCamera.Position = mCamera.Position - forward * speed;
+		if (keyboard.IsKeyDown(.A))
+			mCamera.Position = mCamera.Position - right * speed;
+		if (keyboard.IsKeyDown(.D))
+			mCamera.Position = mCamera.Position + right * speed;
+
+		// QE for up/down
+		if (keyboard.IsKeyDown(.Q))
+			mCamera.Position = mCamera.Position - up * speed;
+		if (keyboard.IsKeyDown(.E))
+			mCamera.Position = mCamera.Position + up * speed;
+
+		// Shift to move faster
+		if (keyboard.IsKeyDown(.LeftShift) || keyboard.IsKeyDown(.RightShift))
+		{
+			if (keyboard.IsKeyDown(.W))
+				mCamera.Position = mCamera.Position + forward * speed;
+			if (keyboard.IsKeyDown(.S))
+				mCamera.Position = mCamera.Position - forward * speed;
+			if (keyboard.IsKeyDown(.A))
+				mCamera.Position = mCamera.Position - right * speed;
+			if (keyboard.IsKeyDown(.D))
+				mCamera.Position = mCamera.Position + right * speed;
+			if (keyboard.IsKeyDown(.Q))
+				mCamera.Position = mCamera.Position - up * speed;
+			if (keyboard.IsKeyDown(.E))
+				mCamera.Position = mCamera.Position + up * speed;
+		}
 	}
 
 	private bool CreateMesh()
@@ -295,18 +385,26 @@ class RendererPBRSample : RHISampleApp
 		// Rotate the sphere
 		mRotationY += deltaTime * 0.5f;
 
+		// Get camera matrices
+		var projection = mCamera.ProjectionMatrix;
+		let view = mCamera.ViewMatrix;
+
+		// Flip Y for Vulkan's coordinate system
+		if (Device.FlipProjectionRequired)
+			projection.M22 = -projection.M22;
+
 		// Update camera uniforms
 		CameraUniforms cameraData = .();
-		cameraData.ViewProjection = mCamera.ViewProjectionMatrix;
-		cameraData.View = mCamera.ViewMatrix;
-		cameraData.Projection = mCamera.ProjectionMatrix;
+		cameraData.ViewProjection = view * projection;
+		cameraData.View = view;
+		cameraData.Projection = projection;
 		cameraData.CameraPosition = mCamera.Position;
 
 		Span<uint8> camData = .((uint8*)&cameraData, sizeof(CameraUniforms));
 		Device.Queue.WriteBuffer(mCameraUniformBuffer, 0, camData);
 
 		// Update object uniforms
-		let model = Matrix4x4.CreateRotationY(mRotationY);
+		let model = Matrix.CreateRotationY(mRotationY);
 		ObjectUniforms objectData = .();
 		objectData.Model = model;
 		objectData.NormalMatrix = model; // Simplified, should be inverse transpose
@@ -378,9 +476,9 @@ class RendererPBRSample : RHISampleApp
 [CRepr]
 struct CameraUniforms
 {
-	public Matrix4x4 ViewProjection;
-	public Matrix4x4 View;
-	public Matrix4x4 Projection;
+	public Matrix ViewProjection;
+	public Matrix View;
+	public Matrix Projection;
 	public Vector3 CameraPosition;
 	public float _pad0;
 }
@@ -388,8 +486,8 @@ struct CameraUniforms
 [CRepr]
 struct ObjectUniforms
 {
-	public Matrix4x4 Model;
-	public Matrix4x4 NormalMatrix;
+	public Matrix Model;
+	public Matrix NormalMatrix;
 }
 
 [CRepr]

@@ -24,7 +24,7 @@ struct Vertex
 [CRepr]
 struct Uniforms
 {
-	public Matrix4x4 MVP;
+	public Matrix MVP;
 	public float MipBias;
 	public float[3] Padding;
 }
@@ -452,25 +452,30 @@ class MipmapSample : RHISampleApp
 	protected override void OnUpdate(float deltaTime, float totalTime)
 	{
 		// Create MVP matrix
-		let model = Matrix4x4.CreateRotationX(-Math.PI_f * 0.3f);  // Tilt the quad
+		let model = Matrix.CreateRotationX(-Math.PI_f * 0.3f);  // Tilt the quad
 
 		float aspect = (float)SwapChain.Width / (float)SwapChain.Height;
-		let projection = Matrix4x4.CreatePerspective(
+		var projection = Matrix.CreatePerspectiveFieldOfView(
 			Math.PI_f / 4.0f,
 			aspect,
 			0.1f,
 			100.0f
 		);
 
-		let view = Matrix4x4.CreateLookAt(
+		let view = Matrix.CreateLookAt(
 			.(0.0f, 0.0f, mDistance),
 			.(0.0f, 0.0f, 0.0f),
 			.(0.0f, 1.0f, 0.0f)
 		);
 
+		// Flip Y for Vulkan's coordinate system
+		if (Device.FlipProjectionRequired)
+			projection.M22 = -projection.M22;
+
+		// Row-major: MVP = model * view * projection
 		Uniforms uniforms = .()
 		{
-			MVP = projection * view * model,
+			MVP = model * view * projection,
 			MipBias = 0.0f,
 			Padding = default
 		};

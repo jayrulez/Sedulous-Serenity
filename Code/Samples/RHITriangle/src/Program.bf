@@ -23,7 +23,7 @@ struct Vertex
 [CRepr]
 struct Uniforms
 {
-	public Matrix4x4 Transform;
+	public Matrix Transform;
 }
 
 /// Rotating triangle sample using the RHI sample framework.
@@ -196,7 +196,7 @@ class TriangleSample : RHISampleApp
 	{
 		// Create rotation matrix around Z axis
 		float rotationAngle = totalTime * 1.0f;  // 1 radian per second
-		Uniforms uniforms = .() { Transform = Matrix4x4.CreateRotationZ(rotationAngle) };
+		Uniforms uniforms = .() { Transform = Matrix.CreateRotationZ(rotationAngle) };
 		Span<uint8> uniformData = .((uint8*)&uniforms, sizeof(Uniforms));
 		Device.Queue.WriteBuffer(mUniformBuffer, 0, uniformData);
 	}

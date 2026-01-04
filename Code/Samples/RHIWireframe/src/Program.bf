@@ -24,7 +24,7 @@ struct Vertex
 [CRepr]
 struct Uniforms
 {
-	public Matrix4x4 Transform;
+	public Matrix Transform;
 }
 
 /// Wireframe rendering sample - demonstrates FillMode.Wireframe
@@ -249,13 +249,17 @@ class WireframeSample : RHISampleApp
 		float rotY = totalTime * 0.7f;
 		float rotX = totalTime * 0.5f;
 
-		Matrix4x4 model = Matrix4x4.CreateRotationY(rotY) * Matrix4x4.CreateRotationX(rotX);
-		Matrix4x4 view = Matrix4x4.CreateLookAt(.(0, 0, 3), .(0, 0, 0), .(0, 1, 0));
+		Matrix model = Matrix.CreateRotationY(rotY) * Matrix.CreateRotationX(rotX);
+		Matrix view = Matrix.CreateLookAt(.(0, 0, 3), .(0, 0, 0), .(0, 1, 0));
 		float aspect = (float)SwapChain.Width / (float)SwapChain.Height;
-		Matrix4x4 proj = Matrix4x4.CreatePerspective(Math.PI_f / 4.0f, aspect, 0.1f, 100.0f);
+		Matrix proj = Matrix.CreatePerspectiveFieldOfView(Math.PI_f / 4.0f, aspect, 0.1f, 100.0f);
 
-		// Column-major: MVP = projection * view * model
-		Uniforms uniforms = .() { Transform = proj * view * model };
+		// Flip Y for Vulkan's coordinate system
+		if (Device.FlipProjectionRequired)
+			proj.M22 = -proj.M22;
+
+		// Row-major: MVP = model * view * projection
+		Uniforms uniforms = .() { Transform = model * view * proj };
 		Span<uint8> uniformData = .((uint8*)&uniforms, sizeof(Uniforms));
 		Device.Queue.WriteBuffer(mUniformBuffer, 0, uniformData);
 	}

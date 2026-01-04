@@ -345,8 +345,8 @@ class BlitSample : RHISampleApp
 	{
 		// Update pattern transform
 		float rotation = TotalTime * 2.0f;
-		Matrix4x4 transform = Matrix4x4.CreateRotationZ(rotation);
-		Device.Queue.WriteBuffer(mPatternUniformBuffer, 0, .((uint8*)&transform, sizeof(Matrix4x4)));
+		Matrix transform = Matrix.CreateRotationZ(rotation);
+		Device.Queue.WriteBuffer(mPatternUniformBuffer, 0, .((uint8*)&transform, sizeof(Matrix)));
 
 		// Render pattern to small texture
 		RenderPassColorAttachment[1] patternAttachments = .(.(mSmallTextureView)

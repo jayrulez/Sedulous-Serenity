@@ -31,7 +31,7 @@ struct GlobalUniforms
 [CRepr]
 struct ObjectUniforms
 {
-	public Matrix4x4 Transform;  // 64 bytes
+	public Matrix Transform;  // 64 bytes
 	public float[4] Color;       // 16 bytes
 	public uint8[176] _padding;  // Pad to 256 bytes total
 }
@@ -339,7 +339,7 @@ class BindGroupsSample : RHISampleApp
 			float rotation = totalTime * (1.0f + (float)i * 0.2f);
 
 			// Create transform matrix
-			Matrix4x4 transform = Matrix4x4.CreateRotationZ(rotation) * Matrix4x4.CreateTranslation(px, py, 0);
+			Matrix transform = Matrix.CreateRotationZ(rotation) * Matrix.CreateTranslation(px, py, 0);
 
 			// Color based on position
 			float r = (float)x / (gridSize - 1);

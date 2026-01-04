@@ -1,4 +1,7 @@
 // Scene vertex shader with instancing
+// Uses row-major matrices with row-vector math: mul(vector, matrix)
+
+#pragma pack_matrix(row_major)
 
 struct VSInput
 {
@@ -7,11 +10,11 @@ struct VSInput
     float3 normal : NORMAL;
     float2 uv : TEXCOORD0;
 
-    // Per-instance data (columns from column-major matrix)
-    float4 instanceCol0 : TEXCOORD3;  // Transform matrix column 0
-    float4 instanceCol1 : TEXCOORD4;  // Transform matrix column 1
-    float4 instanceCol2 : TEXCOORD5;  // Transform matrix column 2
-    float4 instanceCol3 : TEXCOORD6;  // Transform matrix column 3 (translation)
+    // Per-instance data (rows from row-major matrix)
+    float4 instanceRow0 : TEXCOORD3;  // Transform matrix row 0
+    float4 instanceRow1 : TEXCOORD4;  // Transform matrix row 1
+    float4 instanceRow2 : TEXCOORD5;  // Transform matrix row 2
+    float4 instanceRow3 : TEXCOORD6;  // Transform matrix row 3 (translation)
     float4 instanceColor : TEXCOORD7; // Instance color
 };
 
@@ -26,7 +29,7 @@ struct VSOutput
 
 cbuffer CameraUniforms : register(b0)
 {
-    column_major float4x4 viewProjection;
+    float4x4 viewProjection;
     float3 cameraPosition;
     float _pad0;
 };
@@ -35,20 +38,19 @@ VSOutput main(VSInput input)
 {
     VSOutput output;
 
-    // Reconstruct world matrix from instance columns
-    // float4x4(a,b,c,d) creates rows from parameters, so we transpose
-    // to convert our columns back to proper column-major layout
-    float4x4 world = transpose(float4x4(
-        input.instanceCol0,
-        input.instanceCol1,
-        input.instanceCol2,
-        input.instanceCol3
-    ));
+    // Reconstruct world matrix from instance rows
+    float4x4 world = float4x4(
+        input.instanceRow0,
+        input.instanceRow1,
+        input.instanceRow2,
+        input.instanceRow3
+    );
 
-    float4 worldPos = mul(world, float4(input.position, 1.0));
-    output.position = mul(viewProjection, worldPos);
+    // Row-vector transforms: pos * matrix
+    float4 worldPos = mul(float4(input.position, 1.0), world);
+    output.position = mul(worldPos, viewProjection);
     output.worldPos = worldPos.xyz;
-    output.worldNormal = mul((float3x3)world, input.normal);
+    output.worldNormal = mul(input.normal, (float3x3)world);
     output.uv = input.uv;
     output.color = input.instanceColor;
 

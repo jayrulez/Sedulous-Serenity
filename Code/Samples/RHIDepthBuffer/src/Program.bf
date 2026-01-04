@@ -24,7 +24,7 @@ struct Vertex
 [CRepr]
 struct Uniforms
 {
-	public Matrix4x4 MVP;
+	public Matrix MVP;
 }
 
 /// Demonstrates depth buffer functionality by rendering overlapping quads.
@@ -245,12 +245,11 @@ class DepthBufferSample : RHISampleApp
 		// Create rotation around Y axis
 		float angle = totalTime * 0.5f;
 
-		// Create MVP matrix - order is projection * view * model for column-major shaders
-		let model = Matrix4x4.CreateRotationY(angle);
+		let model = Matrix.CreateRotationY(angle);
 
 		// Simple perspective projection
 		float aspect = (float)SwapChain.Width / (float)SwapChain.Height;
-		let projection = Matrix4x4.CreatePerspective(
+		var projection = Matrix.CreatePerspectiveFieldOfView(
 			Math.PI_f / 4.0f,  // 45 degree FOV
 			aspect,
 			0.1f,              // Near plane
@@ -258,14 +257,18 @@ class DepthBufferSample : RHISampleApp
 		);
 
 		// Camera looking at origin from z = 3
-		let view = Matrix4x4.CreateLookAt(
+		let view = Matrix.CreateLookAt(
 			.(0.0f, 0.0f, 3.0f),   // Eye position
 			.(0.0f, 0.0f, 0.0f),   // Look at
 			.(0.0f, 1.0f, 0.0f)    // Up vector
 		);
 
-		// Column-major: MVP = projection * view * model
-		Uniforms uniforms = .() { MVP = projection * view * model };
+		// Flip Y for Vulkan's coordinate system
+		if (Device.FlipProjectionRequired)
+			projection.M22 = -projection.M22;
+
+		// Row-major: MVP = model * view * projection
+		Uniforms uniforms = .() { MVP = model * view * projection };
 		Span<uint8> uniformData = .((uint8*)&uniforms, sizeof(Uniforms));
 		Device.Queue.WriteBuffer(mUniformBuffer, 0, uniformData);
 	}

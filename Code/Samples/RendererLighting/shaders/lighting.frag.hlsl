@@ -1,5 +1,8 @@
 // Lighting Sample - Fragment Shader
 // Demonstrates clustered forward lighting with multiple dynamic lights
+// Uses row-major matrices with row-vector math: mul(vector, matrix)
+
+#pragma pack_matrix(row_major)
 
 static const float PI = 3.14159265359;
 
@@ -21,9 +24,9 @@ struct PSInput
 // Camera uniform buffer
 cbuffer CameraUniforms : register(b0)
 {
-    column_major float4x4 viewProjection;
-    column_major float4x4 view;
-    column_major float4x4 projection;
+    float4x4 viewProjection;
+    float4x4 view;
+    float4x4 projection;
     float3 cameraPosition;
     float _pad0;
 };
@@ -31,8 +34,8 @@ cbuffer CameraUniforms : register(b0)
 // Lighting uniform buffer
 cbuffer LightingUniforms : register(b2)
 {
-    column_major float4x4 g_ViewMatrix;
-    column_major float4x4 g_InverseProjection;
+    float4x4 g_ViewMatrix;
+    float4x4 g_InverseProjection;
     float4 g_ScreenParams;    // xy=screen size, zw=tile size
     float4 g_ClusterParams;   // x=near, y=far, z=depthScale, w=depthBias
     float4 g_DirectionalDir;  // xyz=direction, w=intensity
@@ -64,14 +67,14 @@ static const uint SHADOW_MAX_TILES = 64;
 // Shadow cascade data
 struct CascadeData
 {
-    column_major float4x4 ViewProjection;
+    float4x4 ViewProjection;
     float4 SplitDepths;  // x=near, y=far
 };
 
 // Shadow tile data
 struct ShadowTileData
 {
-    column_major float4x4 ViewProjection;
+    float4x4 ViewProjection;
     float4 UVOffsetScale;
     int LightIndex;
     int FaceIndex;
@@ -141,7 +144,8 @@ float SampleDirectionalShadow(float3 worldPos, float viewZ)
 
     int cascadeIndex = SelectCascade(viewZ);
 
-    float4 shadowPos = mul(g_Cascades[cascadeIndex].ViewProjection, float4(worldPos, 1.0));
+    // Row-vector transform: pos * matrix
+    float4 shadowPos = mul(float4(worldPos, 1.0), g_Cascades[cascadeIndex].ViewProjection);
     shadowPos.xyz /= shadowPos.w;
 
     float2 shadowUV = shadowPos.xy * 0.5 + 0.5;
