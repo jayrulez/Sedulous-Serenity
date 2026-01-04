@@ -162,7 +162,7 @@ class SkyboxRenderer
 				else
 					t = (float)y / (float)(resolution - 1);
 
-				Color c = Color.Lerp(bottomColor, topColor, t);
+				Color c = bottomColor.Interpolate(topColor, t);
 
 				for (int32 x = 0; x < resolution; x++)
 				{

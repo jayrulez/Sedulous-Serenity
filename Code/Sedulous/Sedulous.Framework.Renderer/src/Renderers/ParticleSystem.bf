@@ -180,7 +180,7 @@ class ParticleSystem
 
 			// Color over lifetime
 			float lifeRatio = p.LifeRatio;
-			p.Color = Color.Lerp(mConfig.EndColor, mConfig.StartColor, lifeRatio);
+			p.Color = mConfig.EndColor.Interpolate(mConfig.StartColor, lifeRatio);
 		}
 
 		// Emit new particles

@@ -396,23 +396,23 @@ class CascadedShadowMaps
 
 	private void GetFrustumCornersWorldSpace(CameraProxy* camera, float nearZ, float farZ, ref Vector3[8] corners)
 	{
-		// Build projection for this slice (OpenGL-style, Z maps to [-1, 1])
-		Matrix4x4 proj = Matrix4x4.CreatePerspective(
+		// Build projection for this slice
+		Matrix proj = Matrix.CreatePerspectiveFieldOfView(
 			camera.FieldOfView, camera.AspectRatio, nearZ, farZ
 		);
-		Matrix4x4 viewProj = proj * camera.ViewMatrix;
-		Matrix4x4 invViewProj = viewProj;
-		invViewProj.Invert();
+		// Row-vector order: View * Projection
+		Matrix viewProj = camera.ViewMatrix * proj;
+		Matrix invViewProj = Matrix.Invert(viewProj);
 
-		// NDC corners (OpenGL: Z is -1 to 1 to match CreatePerspective output)
+		// NDC corners (Z is 0 to 1 for this projection)
 		Vector4[8] ndcCorners = .(
-			.(-1, -1, -1, 1), .(1, -1, -1, 1), .(1, 1, -1, 1), .(-1, 1, -1, 1),  // Near (Z = -1)
-			.(-1, -1, 1, 1), .(1, -1, 1, 1), .(1, 1, 1, 1), .(-1, 1, 1, 1)       // Far (Z = 1)
+			.(-1, -1, 0, 1), .(1, -1, 0, 1), .(1, 1, 0, 1), .(-1, 1, 0, 1),  // Near (Z = 0)
+			.(-1, -1, 1, 1), .(1, -1, 1, 1), .(1, 1, 1, 1), .(-1, 1, 1, 1)   // Far (Z = 1)
 		);
 
 		for (int32 i = 0; i < 8; i++)
 		{
-			Vector4 world = invViewProj * ndcCorners[i];
+			Vector4 world = Vector4.Transform(ndcCorners[i], invViewProj);
 			corners[i] = .(world.X / world.W, world.Y / world.W, world.Z / world.W);
 		}
 	}
@@ -427,7 +427,7 @@ class CascadedShadowMaps
 
 		// Light view matrix (looking along light direction)
 		Vector3 up = Math.Abs(lightDir.Y) < 0.99f ? Vector3.Up : Vector3.Forward;
-		Matrix4x4 lightView = Matrix4x4.CreateLookAt(center - lightDir * 50.0f, center, up);
+		Matrix lightView = Matrix.CreateLookAt(center - lightDir * 50.0f, center, up);
 
 		// Transform corners to light space and find bounds
 		float minX = float.MaxValue, maxX = float.MinValue;
@@ -436,7 +436,7 @@ class CascadedShadowMaps
 
 		for (let corner in frustumCorners)
 		{
-			Vector4 lightSpace = lightView * Vector4(corner, 1.0f);
+			Vector4 lightSpace = Vector4.Transform(Vector4(corner, 1.0f), lightView);
 			minX = Math.Min(minX, lightSpace.X);
 			maxX = Math.Max(maxX, lightSpace.X);
 			minY = Math.Min(minY, lightSpace.Y);
@@ -455,16 +455,34 @@ class CascadedShadowMaps
 		minY = Math.Floor(minY / worldUnitsPerTexel) * worldUnitsPerTexel;
 		maxY = Math.Floor(maxY / worldUnitsPerTexel) * worldUnitsPerTexel;
 
-		// Orthographic projection for directional light (Vulkan-style, Z maps to [0, 1])
-		Matrix4x4 lightProj = Matrix4x4.CreateOrthographicOffCenterVulkan(
+		// Orthographic projection for directional light with [0,1] depth range
+		Matrix lightProj = CreateOrthographicOffCenterVulkan(
 			minX, maxX, minY, maxY, minZ, maxZ
 		);
 
 		return .()
 		{
-			ViewProjection = lightProj * lightView,
+			// Row-vector order: View * Projection
+			ViewProjection = lightView * lightProj,
 			SplitDepths = .(0, 0, 0, 0)
 		};
+	}
+
+	/// Creates orthographic projection with Vulkan's [0,1] depth range.
+	private static Matrix CreateOrthographicOffCenterVulkan(float left, float right, float bottom, float top, float near, float far)
+	{
+		Matrix result = default;
+
+		result.M11 = 2.0f / (right - left);
+		result.M22 = 2.0f / (top - bottom);
+		result.M33 = 1.0f / (far - near);  // [0,1] depth range
+
+		result.M41 = (left + right) / (left - right);
+		result.M42 = (top + bottom) / (bottom - top);
+		result.M43 = -near / (far - near);  // Maps near to 0
+		result.M44 = 1.0f;
+
+		return result;
 	}
 
 	/// Gets the texture view for rendering to a specific cascade.
@@ -587,42 +605,44 @@ class ShadowAtlas
 		return slot;
 	}
 
-	private Matrix4x4 ComputeLightViewProjection(LightProxy* light, int32 faceIndex)
+	private Matrix ComputeLightViewProjection(LightProxy* light, int32 faceIndex)
 	{
 		if (light.Type == .Spot)
 		{
-			// Spot light perspective projection (Vulkan-style, Z maps to [0, 1])
-			Matrix4x4 view = Matrix4x4.CreateLookAt(
+			// Spot light perspective projection
+			Matrix view = Matrix.CreateLookAt(
 				light.Position,
 				light.Position + light.Direction,
 				Vector3.Up
 			);
-			Matrix4x4 proj = Matrix4x4.CreatePerspectiveVulkan(
+			Matrix proj = Matrix.CreatePerspectiveFieldOfView(
 				light.OuterConeAngle * 2.0f,  // Full cone angle
 				1.0f,  // Aspect ratio 1:1 for square tiles
 				0.1f,
 				light.Range
 			);
-			return proj * view;
+			// Row-vector order: View * Projection
+			return view * proj;
 		}
 		else if (light.Type == .Point)
 		{
-			// Point light - 6 faces (cube map style) (Vulkan-style, Z maps to [0, 1])
+			// Point light - 6 faces (cube map style)
 			Vector3 direction = sCubeDirections[faceIndex];
 			Vector3 up = sCubeUps[faceIndex];
 
-			Matrix4x4 view = Matrix4x4.CreateLookAt(
+			Matrix view = Matrix.CreateLookAt(
 				light.Position,
 				light.Position + direction,
 				up
 			);
-			Matrix4x4 proj = Matrix4x4.CreatePerspectiveVulkan(
+			Matrix proj = Matrix.CreatePerspectiveFieldOfView(
 				Math.PI_f / 2.0f,  // 90 degree FOV
 				1.0f,
 				0.1f,
 				light.Range
 			);
-			return proj * view;
+			// Row-vector order: View * Projection
+			return view * proj;
 		}
 
 		return .Identity;

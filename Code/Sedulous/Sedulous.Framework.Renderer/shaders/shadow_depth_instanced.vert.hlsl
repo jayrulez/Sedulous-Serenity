@@ -1,5 +1,8 @@
 // Shadow Depth Vertex Shader - Instanced Variant
 // Renders depth only for shadow map generation with GPU instancing
+// Uses row-major matrices with row-vector math: mul(vector, matrix)
+
+#pragma pack_matrix(row_major)
 
 struct VSInput
 {
@@ -23,7 +26,7 @@ struct VSOutput
 // Shadow pass uniforms
 cbuffer ShadowPassUniforms : register(b0)
 {
-    column_major float4x4 g_LightViewProjection;
+    float4x4 g_LightViewProjection;
     float4 g_DepthBias;
 };
 
@@ -39,8 +42,9 @@ VSOutput main(VSInput input)
         input.instanceRow3
     );
 
-    float4 worldPos = mul(instanceTransform, float4(input.position, 1.0));
-    output.position = mul(g_LightViewProjection, worldPos);
+    // Row-vector transform: pos * model * lightVP
+    float4 worldPos = mul(float4(input.position, 1.0), instanceTransform);
+    output.position = mul(worldPos, g_LightViewProjection);
 
     return output;
 }

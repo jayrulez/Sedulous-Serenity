@@ -317,7 +317,7 @@ class ClusterGrid
 	private Vector3 TransformToViewSpace(CameraProxy* camera, Vector3 worldPos)
 	{
 		Vector4 pos4 = .(worldPos.X, worldPos.Y, worldPos.Z, 1.0f);
-		Vector4 viewPos = camera.ViewMatrix * pos4;
+		Vector4 viewPos = Vector4.Transform(pos4, camera.ViewMatrix);
 		return .(viewPos.X, viewPos.Y, viewPos.Z);
 	}
 
@@ -329,8 +329,8 @@ class ClusterGrid
 
 		// Sphere-AABB intersection for point/spot lights
 		float range = light.Range;
-		let center = clusterBounds.Center;
-		let extents = clusterBounds.Extents;
+		let center = (clusterBounds.Min + clusterBounds.Max) * 0.5f;
+		let extents = (clusterBounds.Max - clusterBounds.Min) * 0.5f;
 
 		// Find closest point on AABB to sphere center
 		float dx = Math.Max(0.0f, Math.Abs(lightPosView.X - center.X) - extents.X);

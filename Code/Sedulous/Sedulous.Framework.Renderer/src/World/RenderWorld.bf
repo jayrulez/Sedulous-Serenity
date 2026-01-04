@@ -57,7 +57,7 @@ class RenderWorld
 	// ==================== Mesh Proxy Management ====================
 
 	/// Creates a new mesh proxy.
-	public ProxyHandle CreateMeshProxy(GPUMeshHandle mesh, Matrix4x4 transform, BoundingBox localBounds)
+	public ProxyHandle CreateMeshProxy(GPUMeshHandle mesh, Matrix transform, BoundingBox localBounds)
 	{
 		uint32 index;
 		uint32 generation;
@@ -98,7 +98,7 @@ class RenderWorld
 	}
 
 	/// Updates a mesh proxy's transform.
-	public void SetMeshTransform(ProxyHandle handle, Matrix4x4 transform)
+	public void SetMeshTransform(ProxyHandle handle, Matrix transform)
 	{
 		if (let proxy = GetMeshProxy(handle))
 		{

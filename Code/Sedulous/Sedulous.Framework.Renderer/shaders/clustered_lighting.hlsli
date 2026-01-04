@@ -1,8 +1,11 @@
 // Clustered Forward Lighting - Shader Include
 // 16x9x24 cluster grid with logarithmic depth slicing
+// Uses row-major matrices with row-vector math: mul(vector, matrix)
 
 #ifndef CLUSTERED_LIGHTING_HLSLI
 #define CLUSTERED_LIGHTING_HLSLI
+
+#pragma pack_matrix(row_major)
 
 static const float PI = 3.14159265359;
 
@@ -382,8 +385,8 @@ float SampleDirectionalShadow(float3 worldPos, float viewZ)
     // Select cascade based on view-space depth
     int cascadeIndex = SelectCascade(viewZ);
 
-    // Transform to shadow space
-    float4 shadowPos = mul(g_Cascades[cascadeIndex].ViewProjection, float4(worldPos, 1.0));
+    // Transform to shadow space (row-vector: pos * matrix)
+    float4 shadowPos = mul(float4(worldPos, 1.0), g_Cascades[cascadeIndex].ViewProjection);
     shadowPos.xyz /= shadowPos.w;
 
     // Convert from NDC [-1,1] to UV [0,1]
@@ -408,8 +411,8 @@ float SampleLocalLightShadow(float3 worldPos, int shadowIndex, uint lightType)
 
     ShadowTileData tile = g_ShadowTiles[shadowIndex];
 
-    // Transform to shadow space
-    float4 shadowPos = mul(tile.ViewProjection, float4(worldPos, 1.0));
+    // Transform to shadow space (row-vector: pos * matrix)
+    float4 shadowPos = mul(float4(worldPos, 1.0), tile.ViewProjection);
     shadowPos.xyz /= shadowPos.w;
 
     // Convert to UV in tile local space [0,1]

@@ -1,5 +1,8 @@
 // PBR Fragment Shader with Clustered Lighting
 // Cook-Torrance BRDF with GGX distribution + dynamic lights
+// Uses row-major matrices with row-vector math: mul(vector, matrix)
+
+#pragma pack_matrix(row_major)
 
 #include "clustered_lighting.hlsli"
 
@@ -15,9 +18,9 @@ struct PSInput
 // Camera uniform buffer (binding 0)
 cbuffer CameraUniforms : register(b0)
 {
-    column_major float4x4 viewProjection;
-    column_major float4x4 view;
-    column_major float4x4 projection;
+    float4x4 viewProjection;
+    float4x4 view;
+    float4x4 projection;
     float3 cameraPosition;
     float _pad0;
 };
@@ -94,8 +97,8 @@ float4 main(PSInput input) : SV_Target
 
     float3 V = normalize(cameraPosition - input.worldPos);
 
-    // Compute view-space Z for cluster lookup
-    float4 viewPos = mul(view, float4(input.worldPos, 1.0));
+    // Compute view-space Z for cluster lookup (row-vector: pos * matrix)
+    float4 viewPos = mul(float4(input.worldPos, 1.0), view);
     float viewZ = -viewPos.z; // View space Z is negative, we want positive depth
 
     // Compute screen position for cluster lookup

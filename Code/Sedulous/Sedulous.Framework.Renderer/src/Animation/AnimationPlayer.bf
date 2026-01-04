@@ -23,7 +23,7 @@ class AnimationPlayer
 	private bool mLooping = true;
 
 	/// Bone matrices for GPU upload (skinning matrices).
-	public Matrix4x4[] BoneMatrices ~ delete _;
+	public Matrix[] BoneMatrices ~ delete _;
 
 	/// The skeleton being animated.
 	public Skeleton Skeleton => mSkeleton;
@@ -54,7 +54,7 @@ class AnimationPlayer
 	public this(Skeleton skeleton)
 	{
 		mSkeleton = skeleton;
-		BoneMatrices = new Matrix4x4[Sedulous.Framework.Renderer.Skeleton.MAX_BONES];
+		BoneMatrices = new Matrix[Sedulous.Framework.Renderer.Skeleton.MAX_BONES];
 
 		// Initialize to identity
 		for (int i = 0; i < BoneMatrices.Count; i++)

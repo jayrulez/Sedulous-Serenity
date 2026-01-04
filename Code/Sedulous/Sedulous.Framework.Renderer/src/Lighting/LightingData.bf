@@ -89,9 +89,9 @@ struct LightGridEntry
 struct LightingUniforms
 {
 	/// View matrix for cluster generation.
-	public Matrix4x4 ViewMatrix;
+	public Matrix ViewMatrix;
 	/// Inverse projection for cluster bounds.
-	public Matrix4x4 InverseProjection;
+	public Matrix InverseProjection;
 	/// Screen dimensions (xy) and tile size (zw).
 	public Vector4 ScreenParams;
 	/// Near/far (xy), cluster depth params (zw).
@@ -127,7 +127,7 @@ struct LightingUniforms
 struct CascadeData
 {
 	/// View-projection matrix for this cascade.
-	public Matrix4x4 ViewProjection;
+	public Matrix ViewProjection;
 	/// Split depth (near, far, _, _).
 	public Vector4 SplitDepths;
 }
@@ -170,7 +170,7 @@ static class ShadowConstants
 struct GPUShadowTileData
 {
 	/// View-projection matrix for this shadow tile.
-	public Matrix4x4 ViewProjection;
+	public Matrix ViewProjection;
 	/// UV offset (xy) and scale (zw) in atlas.
 	public Vector4 UVOffsetScale;
 	/// Light index this tile belongs to.

@@ -10,10 +10,10 @@ using Sedulous.RHI;
 struct InstanceData
 {
 	/// World transform (model matrix).
-	public Matrix4x4 WorldMatrix;
+	public Matrix WorldMatrix;
 
 	/// Previous frame's world matrix (for motion vectors).
-	public Matrix4x4 PreviousWorldMatrix;
+	public Matrix PreviousWorldMatrix;
 
 	/// Material instance ID.
 	public uint32 MaterialId;

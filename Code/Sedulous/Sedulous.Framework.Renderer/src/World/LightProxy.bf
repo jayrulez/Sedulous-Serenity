@@ -180,8 +180,8 @@ struct LightProxy
 			return true;
 
 		// Sphere-AABB test
-		let center = bounds.Center;
-		let extents = bounds.Extents;
+		let center = (bounds.Min + bounds.Max) * 0.5f;
+		let extents = (bounds.Max - bounds.Min) * 0.5f;
 
 		// Find closest point on AABB to sphere center
 		float dx = Math.Max(0.0f, Math.Abs(Position.X - center.X) - extents.X);

@@ -7,6 +7,9 @@ using Sedulous.Mathematics;
 /// Performs frustum culling to determine visible objects.
 class FrustumCuller
 {
+	/// Small tolerance to avoid precision issues at frustum edges.
+	private const float FRUSTUM_TOLERANCE = 0.5f;
+
 	/// Cached frustum planes from camera.
 	private Plane[6] mFrustumPlanes;
 
@@ -21,12 +24,8 @@ class FrustumCuller
 	/// Uses a small tolerance to avoid precision issues at frustum edges.
 	public bool IsVisible(BoundingBox bounds)
 	{
-		let center = bounds.Center;
-		let extents = bounds.Extents;
-
-		// Tolerance to avoid culling objects at frustum edge
-		// Large tolerance to account for scene scale and edge cases
-		const float FRUSTUM_TOLERANCE = 15.0f;
+		let center = (bounds.Min + bounds.Max) * 0.5f;
+		let extents = (bounds.Max - bounds.Min) * 0.5f;
 
 		for (int i = 0; i < 6; i++)
 		{
@@ -53,8 +52,6 @@ class FrustumCuller
 	/// Tests if a bounding sphere is visible in the frustum.
 	public bool IsVisible(BoundingSphere sphere)
 	{
-		const float FRUSTUM_TOLERANCE = 15.0f;
-
 		for (int i = 0; i < 6; i++)
 		{
 			let plane = mFrustumPlanes[i];
@@ -72,8 +69,8 @@ class FrustumCuller
 	/// Tests visibility and returns intersection type.
 	public FrustumIntersection TestIntersection(BoundingBox bounds)
 	{
-		let center = bounds.Center;
-		let extents = bounds.Extents;
+		let center = (bounds.Min + bounds.Max) * 0.5f;
+		let extents = (bounds.Max - bounds.Min) * 0.5f;
 		bool intersecting = false;
 
 		for (int i = 0; i < 6; i++)
@@ -111,12 +108,12 @@ class FrustumCuller
 		{
 			if (!proxy.IsVisible)
 				continue;
-			outVisible.Add(proxy);
+
 			let (visible, cullingPlane) = IsVisibleDebug(proxy.WorldBounds);
 			if (visible)
 			{
 				// Calculate distance to camera for sorting/LOD
-				let center = proxy.WorldBounds.Center;
+				let center = (proxy.WorldBounds.Min + proxy.WorldBounds.Max) * 0.5f;
 				proxy.DistanceToCamera = Vector3.Distance(center, cameraPos);
 				outVisible.Add(proxy);
 			}
@@ -131,9 +128,8 @@ class FrustumCuller
 	/// Debug version that returns which plane caused culling
 	private (bool visible, int32 cullingPlane) IsVisibleDebug(BoundingBox bounds)
 	{
-		let center = bounds.Center;
-		let extents = bounds.Extents;
-		const float FRUSTUM_TOLERANCE = 5.0f;
+		let center = (bounds.Min + bounds.Max) * 0.5f;
+		let extents = (bounds.Max - bounds.Min) * 0.5f;
 
 		for (int i = 0; i < 6; i++)
 		{

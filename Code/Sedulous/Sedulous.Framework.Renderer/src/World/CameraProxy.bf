@@ -47,25 +47,25 @@ struct CameraProxy
 	public Vector2 JitterOffset;
 
 	/// Cached view matrix.
-	public Matrix4x4 ViewMatrix;
+	public Matrix ViewMatrix;
 
 	/// Cached projection matrix.
-	public Matrix4x4 ProjectionMatrix;
+	public Matrix ProjectionMatrix;
 
 	/// Previous frame's view-projection (for motion vectors).
-	public Matrix4x4 PreviousViewProjection;
+	public Matrix PreviousViewProjection;
 
 	/// Cached view-projection matrix.
-	public Matrix4x4 ViewProjectionMatrix;
+	public Matrix ViewProjectionMatrix;
 
 	/// Jittered view-projection (for TAA).
-	public Matrix4x4 JitteredViewProjectionMatrix;
+	public Matrix JitteredViewProjectionMatrix;
 
 	/// Inverse view matrix.
-	public Matrix4x4 InverseViewMatrix;
+	public Matrix InverseViewMatrix;
 
 	/// Inverse projection matrix.
-	public Matrix4x4 InverseProjectionMatrix;
+	public Matrix InverseProjectionMatrix;
 
 	/// Frustum planes for culling (left, right, bottom, top, near, far).
 	public Plane[6] FrustumPlanes;
@@ -139,43 +139,35 @@ struct CameraProxy
 		PreviousViewProjection = ViewProjectionMatrix;
 
 		// Compute view matrix
-		ViewMatrix = Matrix4x4.CreateLookAt(Position, Position + Forward, Up);
+		ViewMatrix = Matrix.CreateLookAt(Position, Position + Forward, Up);
 
-		// Compute projection matrix (without Y-flip for frustum extraction)
-		Matrix4x4 projNoFlip;
+		// Compute projection matrix
+		// Note: Y-flip for Vulkan should be applied by the caller using Device.FlipProjectionRequired
 		if (UseReverseZ)
-			projNoFlip = CreateReverseZPerspective(FieldOfView, AspectRatio, NearPlane, FarPlane);
+			ProjectionMatrix = CreateReverseZPerspective(FieldOfView, AspectRatio, NearPlane, FarPlane);
 		else
-			projNoFlip = Matrix4x4.CreatePerspective(FieldOfView, AspectRatio, NearPlane, FarPlane);
-
-		// Vulkan Y-flip for GPU projection
-		ProjectionMatrix = projNoFlip;
-		ProjectionMatrix.M22 = -ProjectionMatrix.M22;
+			ProjectionMatrix = Matrix.CreatePerspectiveFieldOfView(FieldOfView, AspectRatio, NearPlane, FarPlane);
 
 		// Compute combined matrices (with Y-flip for GPU)
-		ViewProjectionMatrix = ProjectionMatrix * ViewMatrix;
+		// Row-vector order: View * Projection
+		ViewProjectionMatrix = ViewMatrix * ProjectionMatrix;
 
 		// Jittered VP for TAA
 		var jitteredProj = ProjectionMatrix;
 		jitteredProj.M31 += JitterOffset.X;
 		jitteredProj.M32 += JitterOffset.Y;
-		JitteredViewProjectionMatrix = jitteredProj * ViewMatrix;
+		JitteredViewProjectionMatrix = ViewMatrix * jitteredProj;
 
 		// Compute inverse matrices
-		var invView = ViewMatrix;
-		invView.Invert();
-		InverseViewMatrix = invView;
-
-		var invProj = ProjectionMatrix;
-		invProj.Invert();
-		InverseProjectionMatrix = invProj;
+		InverseViewMatrix = Matrix.Invert(ViewMatrix);
+		InverseProjectionMatrix = Matrix.Invert(ProjectionMatrix);
 
 		// Compute frustum planes directly from camera geometry
 		ComputeFrustumPlanesFromCamera();
 	}
 
 	/// Updates position and direction from transform matrix.
-	public void SetTransform(Matrix4x4 transform) mut
+	public void SetTransform(Matrix transform) mut
 	{
 		Position = transform.Translation;
 		Forward = -Vector3.Normalize(.(transform.M31, transform.M32, transform.M33));
@@ -202,8 +194,8 @@ struct CameraProxy
 	/// Tests if a bounding box is inside the frustum.
 	public bool IsInFrustum(BoundingBox bounds)
 	{
-		let center = bounds.Center;
-		let extents = bounds.Extents;
+		let center = (bounds.Min + bounds.Max) * 0.5f;
+		let extents = (bounds.Max - bounds.Min) * 0.5f;
 
 		for (int i = 0; i < 6; i++)
 		{
@@ -297,11 +289,11 @@ struct CameraProxy
 	}
 
 	/// Creates reverse-Z perspective projection.
-	private static Matrix4x4 CreateReverseZPerspective(float fov, float aspect, float near, float far)
+	private static Matrix CreateReverseZPerspective(float fov, float aspect, float near, float far)
 	{
 		float tanHalfFov = Math.Tan(fov * 0.5f);
 
-		Matrix4x4 result = .Zero;
+		Matrix result = default;
 		result.M11 = 1.0f / (aspect * tanHalfFov);
 		result.M22 = 1.0f / tanHalfFov;
 		result.M33 = near / (far - near);
@@ -337,12 +329,12 @@ struct CameraProxy
 [Packed]
 struct GPUCameraData
 {
-	public Matrix4x4 ViewMatrix;
-	public Matrix4x4 ProjectionMatrix;
-	public Matrix4x4 ViewProjectionMatrix;
-	public Matrix4x4 InverseViewMatrix;
-	public Matrix4x4 InverseProjectionMatrix;
-	public Matrix4x4 PreviousViewProjection;
+	public Matrix ViewMatrix;
+	public Matrix ProjectionMatrix;
+	public Matrix ViewProjectionMatrix;
+	public Matrix InverseViewMatrix;
+	public Matrix InverseProjectionMatrix;
+	public Matrix PreviousViewProjection;
 	public Vector4 CameraPosition; // xyz = position, w = unused
 	public Vector4 CameraParams;   // x = near, y = far, z = fov, w = aspect
 	public Vector4 ScreenParams;   // x = width, y = height, z = 1/width, w = 1/height

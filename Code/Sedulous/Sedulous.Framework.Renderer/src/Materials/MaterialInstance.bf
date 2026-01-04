@@ -116,13 +116,13 @@ class MaterialInstance
 	}
 
 	/// Sets a matrix parameter.
-	public void SetMatrix(StringView name, Matrix4x4 value)
+	public void SetMatrix(StringView name, Matrix value)
 	{
 		let param = FindParam(name);
 		if (param != null && param.Type == .Matrix4x4 && mUniformData != null)
 		{
 			var val = value;
-			Internal.MemCpy(&mUniformData[param.Offset], &val, sizeof(Matrix4x4));
+			Internal.MemCpy(&mUniformData[param.Offset], &val, sizeof(Matrix));
 			mDirty = true;
 		}
 	}

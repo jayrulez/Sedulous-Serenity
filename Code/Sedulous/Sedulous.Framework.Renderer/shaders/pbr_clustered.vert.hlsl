@@ -1,5 +1,8 @@
 // PBR Vertex Shader with Clustered Lighting Support
 // Supports optional: SKINNED, INSTANCED variants
+// Uses row-major matrices with row-vector math: mul(vector, matrix)
+
+#pragma pack_matrix(row_major)
 
 struct VSInput
 {
@@ -24,9 +27,9 @@ struct VSOutput
 // Camera uniform buffer (binding 0)
 cbuffer CameraUniforms : register(b0)
 {
-    column_major float4x4 viewProjection;
-    column_major float4x4 view;
-    column_major float4x4 projection;
+    float4x4 viewProjection;
+    float4x4 view;
+    float4x4 projection;
     float3 cameraPosition;
     float _pad0;
 };
@@ -34,15 +37,15 @@ cbuffer CameraUniforms : register(b0)
 // Object uniform buffer (binding 3 - per-draw, b2 is lighting)
 cbuffer ObjectUniforms : register(b3)
 {
-    column_major float4x4 model;
-    column_major float4x4 normalMatrix;
+    float4x4 model;
+    float4x4 normalMatrix;
 };
 
 #ifdef SKINNED
 // Bone matrices (binding 4)
 cbuffer BoneUniforms : register(b4)
 {
-    column_major float4x4 bones[256];
+    float4x4 bones[256];
 };
 #endif
 
@@ -58,25 +61,25 @@ VSOutput main(VSInput input
     float3 localNormal = input.normal;
 
 #ifdef SKINNED
-    // Vertex skinning
+    // Vertex skinning (row-vector: pos * bone)
     float4x4 skinMatrix =
         input.boneWeights.x * bones[input.boneIndices.x] +
         input.boneWeights.y * bones[input.boneIndices.y] +
         input.boneWeights.z * bones[input.boneIndices.z] +
         input.boneWeights.w * bones[input.boneIndices.w];
 
-    localPos = mul(skinMatrix, localPos);
-    localNormal = mul((float3x3)skinMatrix, localNormal);
+    localPos = mul(localPos, skinMatrix);
+    localNormal = mul(localNormal, (float3x3)skinMatrix);
 #endif
 
-    // Transform to world space
-    float4 worldPos = mul(model, localPos);
+    // Transform to world space (row-vector: pos * matrix)
+    float4 worldPos = mul(localPos, model);
     output.worldPos = worldPos.xyz;
-    output.worldNormal = normalize(mul((float3x3)normalMatrix, localNormal));
+    output.worldNormal = normalize(mul(localNormal, (float3x3)normalMatrix));
     output.uv = input.uv;
 
-    // Transform to clip space
-    output.position = mul(viewProjection, worldPos);
+    // Transform to clip space (row-vector: pos * matrix)
+    output.position = mul(worldPos, viewProjection);
     output.clipPos = output.position;
 
     return output;

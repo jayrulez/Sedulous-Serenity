@@ -59,38 +59,35 @@ struct Camera
 	}
 
 	/// Gets the view matrix.
-	public Matrix4x4 ViewMatrix
+	public Matrix ViewMatrix
 	{
 		get
 		{
-			return Matrix4x4.CreateLookAt(Position, Position + Forward, Up);
+			return Matrix.CreateLookAt(Position, Position + Forward, Up);
 		}
 	}
 
 	/// Gets the projection matrix (standard or reverse-Z).
-	/// Note: Includes Vulkan Y-flip (negates M22) since Vulkan clip space Y points down.
-	public Matrix4x4 ProjectionMatrix
+	public Matrix ProjectionMatrix
 	{
 		get
 		{
-			Matrix4x4 proj;
+			Matrix proj;
 			if (UseReverseZ)
 			{
 				proj = CreateReverseZPerspective(FieldOfView, AspectRatio, NearPlane, FarPlane);
 			}
 			else
 			{
-				proj = Matrix4x4.CreatePerspective(FieldOfView, AspectRatio, NearPlane, FarPlane);
+				proj = Matrix.CreatePerspectiveFieldOfView(FieldOfView, AspectRatio, NearPlane, FarPlane);
 			}
 
-			// Vulkan Y-flip: negate M22 to flip Y axis in clip space
-			proj.M22 = -proj.M22;
 			return proj;
 		}
 	}
 
 	/// Gets the jittered projection matrix for TAA.
-	public Matrix4x4 JitteredProjectionMatrix
+	public Matrix JitteredProjectionMatrix
 	{
 		get
 		{
@@ -103,11 +100,11 @@ struct Camera
 	}
 
 	/// Gets the combined view-projection matrix.
-	public Matrix4x4 ViewProjectionMatrix
+	public Matrix ViewProjectionMatrix
 	{
 		get
 		{
-			return ProjectionMatrix * ViewMatrix;
+			return ViewMatrix * ProjectionMatrix;
 		}
 	}
 
@@ -123,11 +120,11 @@ struct Camera
 	/// Creates a reverse-Z perspective projection matrix.
 	/// In reverse-Z, near plane maps to 1 and far plane maps to 0.
 	/// This provides better depth precision at distance.
-	private static Matrix4x4 CreateReverseZPerspective(float fov, float aspect, float near, float far)
+	private static Matrix CreateReverseZPerspective(float fov, float aspect, float near, float far)
 	{
 		float tanHalfFov = Math.Tan(fov * 0.5f);
 
-		Matrix4x4 result = .Zero;
+		Matrix result = default;
 		result.M11 = 1.0f / (aspect * tanHalfFov);
 		result.M22 = 1.0f / tanHalfFov;
 		// Reverse-Z: swap near and far in the projection

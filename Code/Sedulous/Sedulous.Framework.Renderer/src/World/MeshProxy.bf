@@ -12,10 +12,10 @@ struct MeshProxy
 	public uint32 Id;
 
 	/// World transform matrix.
-	public Matrix4x4 Transform;
+	public Matrix Transform;
 
 	/// Previous frame's transform (for motion vectors).
-	public Matrix4x4 PreviousTransform;
+	public Matrix PreviousTransform;
 
 	/// World-space bounding box (transformed).
 	public BoundingBox WorldBounds;
@@ -76,14 +76,14 @@ struct MeshProxy
 	}
 
 	/// Creates a mesh proxy with the given parameters.
-	public this(uint32 id, GPUMeshHandle mesh, Matrix4x4 transform, BoundingBox localBounds)
+	public this(uint32 id, GPUMeshHandle mesh, Matrix transform, BoundingBox localBounds)
 	{
 		Id = id;
 		MeshHandle = mesh;
 		Transform = transform;
 		PreviousTransform = transform;
 		LocalBounds = localBounds;
-		WorldBounds = localBounds.Transform(transform);
+		WorldBounds = TransformBounds(localBounds, transform);
 		MaterialIds = .();
 		MaterialCount = 0;
 		LODLevel = 0;
@@ -97,7 +97,39 @@ struct MeshProxy
 	/// Updates the world bounds from transform and local bounds.
 	public void UpdateWorldBounds() mut
 	{
-		WorldBounds = LocalBounds.Transform(Transform);
+		WorldBounds = TransformBounds(LocalBounds, Transform);
+	}
+
+	/// Transforms a bounding box by a matrix, creating a new AABB that encloses the result.
+	private static BoundingBox TransformBounds(BoundingBox bounds, Matrix transform)
+	{
+		// Transform all 8 corners and find new min/max
+		Vector3[8] corners = .(
+			.(bounds.Min.X, bounds.Min.Y, bounds.Min.Z),
+			.(bounds.Max.X, bounds.Min.Y, bounds.Min.Z),
+			.(bounds.Min.X, bounds.Max.Y, bounds.Min.Z),
+			.(bounds.Max.X, bounds.Max.Y, bounds.Min.Z),
+			.(bounds.Min.X, bounds.Min.Y, bounds.Max.Z),
+			.(bounds.Max.X, bounds.Min.Y, bounds.Max.Z),
+			.(bounds.Min.X, bounds.Max.Y, bounds.Max.Z),
+			.(bounds.Max.X, bounds.Max.Y, bounds.Max.Z)
+		);
+
+		Vector3 newMin = .(float.MaxValue, float.MaxValue, float.MaxValue);
+		Vector3 newMax = .(float.MinValue, float.MinValue, float.MinValue);
+
+		for (let corner in corners)
+		{
+			let transformed = Vector3.Transform(corner, transform);
+			newMin.X = Math.Min(newMin.X, transformed.X);
+			newMin.Y = Math.Min(newMin.Y, transformed.Y);
+			newMin.Z = Math.Min(newMin.Z, transformed.Z);
+			newMax.X = Math.Max(newMax.X, transformed.X);
+			newMax.Y = Math.Max(newMax.Y, transformed.Y);
+			newMax.Z = Math.Max(newMax.Z, transformed.Z);
+		}
+
+		return .(newMin, newMax);
 	}
 
 	/// Saves current transform as previous (call at end of frame).
