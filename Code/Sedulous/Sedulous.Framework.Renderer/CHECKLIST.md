@@ -29,12 +29,12 @@
 
 ## Phase 4: Visibility & Scene
 - [x] RenderWorld and proxy system (MeshProxy, LightProxy, CameraProxy)
-- [x] FrustumCuller (geometric approach, needs refinement)
+- [x] FrustumCuller (geometric plane computation, working correctly)
 - [x] VisibilityResolver with draw sorting
 - [x] LOD selection (distance-based)
 - [x] Instancing support (instance buffer, DrawIndexedInstanced)
 - [ ] Depth pre-pass
-- [x] Sample: `RendererScene` - 1200 instanced cubes with camera controls
+- [x] Sample: `RendererScene` - 1200 instanced cubes with frustum culling and camera controls
 
 ## Phase 5: Lighting & Shadows
 - [x] ClusterGrid (16x9x24 clusters) - CPU implementation
@@ -70,5 +70,5 @@
 - [ ] Sample: `RendererIntegrated`
 
 ## Known Issues / TODO
-- FrustumCuller: Geometric plane computation works but culling is currently bypassed; needs refinement
 - Decal rendering not yet implemented
+- Shadow mapping needs testing with updated matrix conventions
