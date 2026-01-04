@@ -98,7 +98,7 @@ class ResourceSample
 			Test.Assert(loaded.ScreenWidth == original.ScreenWidth);
 			Test.Assert(loaded.ScreenHeight == original.ScreenHeight);
 			Test.Assert(loaded.Fullscreen == original.Fullscreen);
-			Test.Assert(MathUtil.Approximately(loaded.MasterVolume, original.MasterVolume));
+			Test.Assert(MathUtil.AreApproximatelyEqual(loaded.MasterVolume, original.MasterVolume));
 		}
 	}
 
