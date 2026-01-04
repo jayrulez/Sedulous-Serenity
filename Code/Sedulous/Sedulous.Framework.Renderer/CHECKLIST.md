@@ -19,40 +19,42 @@
 
 ## Phase 3: Geometry Types
 - [x] Static mesh rendering
-- [ ] Skinned mesh rendering (bone transforms, vertex skinning)
+- [x] Skinned mesh rendering (bone transforms, vertex skinning)
 - [x] Sprite rendering (billboards, instancing)
 - [x] Particle system
 - [ ] Decal rendering
 - [x] Skybox rendering
 - [x] GLTF model loading
-- [ ] Sample: `RendererGeometry` complete (missing: skinned mesh, decals)
+- [ ] Sample: `RendererGeometry` complete (missing: decals)
 
 ## Phase 4: Visibility & Scene
-- [ ] RenderWorld and proxy system
-- [ ] FrustumCuller
-- [ ] Draw sorting
-- [ ] LOD selection
-- [ ] Instancing support
+- [x] RenderWorld and proxy system (MeshProxy, LightProxy, CameraProxy)
+- [x] FrustumCuller (geometric approach, needs refinement)
+- [x] VisibilityResolver with draw sorting
+- [x] LOD selection (distance-based)
+- [x] Instancing support (instance buffer, DrawIndexedInstanced)
 - [ ] Depth pre-pass
-- [ ] Sample: `RendererScene`
+- [x] Sample: `RendererScene` - 1200 instanced cubes with camera controls
 
 ## Phase 5: Lighting & Shadows
-- [ ] ClusterGrid
-- [ ] Light types (directional, point, spot)
-- [ ] Cascaded shadow maps
-- [ ] Shadow atlas
+- [x] ClusterGrid (16x9x24 clusters) - CPU implementation
+- [x] Light types (directional, point, spot) with attenuation
+- [x] LightingSystem wrapper class
+- [x] Clustered lighting shader include (clustered_lighting.hlsli)
+- [x] PBR shader variant for dynamic lights (pbr_clustered.frag.hlsl)
+- [ ] Cascaded shadow maps (4 cascades) - placeholder created
+- [ ] Shadow atlas (point/spot tiles) - placeholder created
 - [ ] PCF shadow filtering
-- [ ] Light culling
-- [ ] Sample: `RendererLighting`
+- [ ] Sample: `RendererLighting` - in progress
 
 ## Phase 6: Post-Processing
-- [ ] HDR render target
+- [ ] HDR render target (RGBA16F)
 - [ ] Exposure control
-- [ ] Bloom
-- [ ] Tonemapping
-- [ ] TAA
+- [ ] Bloom (downsample + blur + composite)
+- [ ] Tonemapping (ACES)
+- [ ] TAA (jitter + velocity + history)
 - [ ] FXAA fallback
-- [ ] Color grading
+- [ ] Color grading (3D LUT)
 - [ ] Sample: `RendererPostFX`
 
 ## Phase 7: Polish & Integration
@@ -64,3 +66,7 @@
 - [ ] RenderSceneComponent
 - [ ] Documentation
 - [ ] Sample: `RendererIntegrated`
+
+## Known Issues / TODO
+- FrustumCuller: Geometric plane computation works but culling is currently bypassed; needs refinement
+- Decal rendering not yet implemented
