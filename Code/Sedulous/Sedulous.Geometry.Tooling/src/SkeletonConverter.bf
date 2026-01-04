@@ -48,7 +48,7 @@ static class SkeletonConverter
 			// Use inverse bind matrix from skin (more reliable than bone's copy)
 			let ibm = (skinJointIdx < skin.InverseBindMatrices.Count)
 				? skin.InverseBindMatrices[skinJointIdx]
-				: Matrix4x4.Identity;
+				: Matrix.Identity;
 
 			skeleton.SetBone(
 				skinJointIdx,

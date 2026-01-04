@@ -198,12 +198,12 @@ public class Mesh
 			var tangent = GetTangent(i);
 			var normal = GetNormal(i);
 
-			if (tangent.LengthSquared > 0.0001f)
+			if (tangent.LengthSquared() > 0.0001f)
 			{
 				// Gram-Schmidt orthogonalization
 				tangent = tangent - normal * Vector3.Dot(normal, tangent);
 
-				if (tangent.LengthSquared > 0.0001f)
+				if (tangent.LengthSquared() > 0.0001f)
 				{
 					SetTangent(i, Vector3.Normalize(tangent));
 				}
@@ -269,7 +269,7 @@ public class Mesh
 			defaultTangent = Vector3.Cross(normal, Vector3.Right);
 		}
 
-		if (defaultTangent.LengthSquared > 0.0001f)
+		if (defaultTangent.LengthSquared() > 0.0001f)
 		{
 			SetTangent(vertexIndex, Vector3.Normalize(defaultTangent));
 		}

@@ -11,16 +11,16 @@ struct Bone
 	public int32 ParentIndex;
 
 	/// Local transform relative to parent.
-	public Matrix4x4 LocalTransform;
+	public Matrix LocalTransform;
 
 	/// Inverse bind matrix (transforms from mesh space to bone local space).
-	public Matrix4x4 InverseBindMatrix;
+	public Matrix InverseBindMatrix;
 
 	/// Current world transform (computed during animation update).
-	public Matrix4x4 WorldTransform;
+	public Matrix WorldTransform;
 
 	/// Final skinning matrix = WorldTransform * InverseBindMatrix.
-	public Matrix4x4 SkinningMatrix;
+	public Matrix SkinningMatrix;
 
 	/// Bind pose TRS (for animation defaults).
 	public Vector3 BindTranslation;
@@ -69,7 +69,7 @@ class Skeleton
 	}
 
 	/// Sets bone data.
-	public void SetBone(int32 index, StringView name, int32 parentIndex, Matrix4x4 localTransform, Matrix4x4 inverseBindMatrix)
+	public void SetBone(int32 index, StringView name, int32 parentIndex, Matrix localTransform, Matrix inverseBindMatrix)
 	{
 		if (index < 0 || index >= mBones.Count)
 			return;
@@ -81,7 +81,7 @@ class Skeleton
 	}
 
 	/// Sets bone data with TRS values (stores bind pose for animation defaults).
-	public void SetBone(int32 index, StringView name, int32 parentIndex, Vector3 translation, Quaternion rotation, Vector3 scale, Matrix4x4 inverseBindMatrix)
+	public void SetBone(int32 index, StringView name, int32 parentIndex, Vector3 translation, Quaternion rotation, Vector3 scale, Matrix inverseBindMatrix)
 	{
 		if (index < 0 || index >= mBones.Count)
 			return;
@@ -95,11 +95,11 @@ class Skeleton
 		mBones[index].BindRotation = rotation;
 		mBones[index].BindScale = scale;
 
-		// Compute local transform from TRS: T * R * S (column-vector convention)
-		let t = Matrix4x4.CreateTranslation(translation);
-		let r = Matrix4x4.CreateFromQuaternion(rotation);
-		let s = Matrix4x4.CreateScale(scale);
-		mBones[index].LocalTransform = t * r * s;
+		// Compute local transform from TRS: S * R * T (row-vector convention, matching math library)
+		let t = Matrix.CreateTranslation(translation);
+		let r = Matrix.CreateFromQuaternion(rotation);
+		let s = Matrix.CreateScale(scale);
+		mBones[index].LocalTransform = s * r * t;
 	}
 
 	/// Gets bind pose TRS for a bone.
@@ -138,7 +138,7 @@ class Skeleton
 	}
 
 	/// Gets bone data (parentIndex, localTransform, inverseBindMatrix).
-	public bool GetBoneData(int32 index, out int32 parentIndex, out Matrix4x4 localTransform, out Matrix4x4 inverseBindMatrix)
+	public bool GetBoneData(int32 index, out int32 parentIndex, out Matrix localTransform, out Matrix inverseBindMatrix)
 	{
 		if (index < 0 || index >= mBones.Count)
 		{
@@ -165,8 +165,8 @@ class Skeleton
 
 			if (bone.ParentIndex >= 0 && bone.ParentIndex < mBones.Count)
 			{
-				// Child bone: world = parent.world * local (column-vector convention)
-				bone.WorldTransform = mBones[bone.ParentIndex].WorldTransform * bone.LocalTransform;
+				// Child bone: world = local * parent.world (row-vector convention)
+				bone.WorldTransform = bone.LocalTransform * mBones[bone.ParentIndex].WorldTransform;
 			}
 			else
 			{
@@ -174,8 +174,11 @@ class Skeleton
 				bone.WorldTransform = bone.LocalTransform;
 			}
 
-			// Compute final skinning matrix: WorldTransform * InverseBindMatrix (column-vector convention)
-			bone.SkinningMatrix = bone.WorldTransform * bone.InverseBindMatrix;
+			// Compute final skinning matrix
+			// The InverseBindMatrix from GLTF is column-vector convention, but stored transposed
+			// in our row-major format. Combined with shader's mul(matrix, vector) interpretation,
+			// this order produces correct skinning.
+			bone.SkinningMatrix = bone.InverseBindMatrix * bone.WorldTransform;
 		}
 	}
 
@@ -185,17 +188,17 @@ class Skeleton
 		if (index < 0 || index >= mBones.Count)
 			return;
 
-		let t = Matrix4x4.CreateTranslation(translation);
-		let r = Matrix4x4.CreateFromQuaternion(rotation);
-		let s = Matrix4x4.CreateScale(scale);
+		let t = Matrix.CreateTranslation(translation);
+		let r = Matrix.CreateFromQuaternion(rotation);
+		let s = Matrix.CreateScale(scale);
 
-		// TRS order: T * R * S (column-vector convention)
-		mBones[index].LocalTransform = t * r * s;
+		// TRS order: S * R * T (row-vector convention, matching math library)
+		mBones[index].LocalTransform = s * r * t;
 	}
 
 	/// Gets the skinning matrices for upload to GPU.
 	/// Returns a span of Matrix4x4 that can be uploaded to a uniform/storage buffer.
-	public Span<Matrix4x4> GetSkinningMatrices()
+	public Span<Matrix> GetSkinningMatrices()
 	{
 		if (mBones == null || mBones.Count == 0)
 			return default;
@@ -206,7 +209,7 @@ class Skeleton
 	}
 
 	/// Copies skinning matrices to a destination buffer.
-	public void CopySkinningMatrices(Matrix4x4* dest, int32 maxCount)
+	public void CopySkinningMatrices(Matrix* dest, int32 maxCount)
 	{
 		int32 count = Math.Min((int32)mBones.Count, maxCount);
 		for (int32 i = 0; i < count; i++)

@@ -32,16 +32,9 @@ static class MathSerializerExtensions
 		return s.FixedFloatArray(name, &value.X, 4);
 	}
 
-	/// Serializes a Matrix3x3.
-	/// The matrix is serialized in column-major order (9 floats).
-	public static SerializationResult Matrix3x3(this Serializer s, StringView name, ref Matrix3x3 value)
-	{
-		return s.FixedFloatArray(name, &value.M11, 9);
-	}
-
-	/// Serializes a Matrix4x4.
+	/// Serializes a Matrix (4x4).
 	/// The matrix is serialized in column-major order (16 floats).
-	public static SerializationResult Matrix4x4(this Serializer s, StringView name, ref Matrix4x4 value)
+	public static SerializationResult Matrix4x4(this Serializer s, StringView name, ref Matrix value)
 	{
 		return s.FixedFloatArray(name, &value.M11, 16);
 	}

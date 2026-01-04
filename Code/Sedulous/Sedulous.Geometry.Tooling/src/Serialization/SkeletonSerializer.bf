@@ -31,8 +31,8 @@ static class SkeletonSerializer
 				for (int32 i = 0; i < boneCount; i++)
 				{
 					int32 parentIndex = 0;
-					Matrix4x4 localTransform = .Identity;
-					Matrix4x4 inverseBindMatrix = .Identity;
+					Matrix localTransform = .Identity;
+					Matrix inverseBindMatrix = .Identity;
 					skeleton.GetBoneData(i, out parentIndex, out localTransform, out inverseBindMatrix);
 
 					Vector3 bindTranslation = .Zero;
@@ -94,7 +94,7 @@ static class SkeletonSerializer
 				int32 parentIdx = -1;
 				s.Int32("parentIndex", ref parentIdx);
 
-				Matrix4x4 inverseBindMatrix = .Identity;
+				Matrix inverseBindMatrix = .Identity;
 				s.Matrix4x4("inverseBindMatrix", ref inverseBindMatrix);
 
 				// Read bind pose TRS (critical for animation)
