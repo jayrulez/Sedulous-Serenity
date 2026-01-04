@@ -98,6 +98,18 @@ class Structure
 		mStructureName.Clear();
 	}
 
+	/// <summary>
+	/// Updates the parent's local name map after the name has been set.
+	/// Call this when SetName is called after the structure is already a child.
+	/// </summary>
+	public void UpdateParentLocalNameMap()
+	{
+		if (mParent != null && HasName && !IsGlobalName)
+		{
+			mParent.mLocalNameMap[mStructureName] = this;
+		}
+	}
+
 	// ---- Tree Navigation ----
 
 	/// <summary>

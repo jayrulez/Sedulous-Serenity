@@ -343,7 +343,11 @@ class DataDescription
 					}
 					mGlobalNameMap[structure.StructureName] = structure;
 				}
-				// Local names are added automatically by AppendChild
+				else
+				{
+					// Local names need to be added after SetName since AppendChild was called earlier
+					structure.UpdateParentLocalNameMap();
+				}
 
 				text = text.Substring(nameLen);
 				let ws6 = Lexer.GetWhitespaceLength(text);
