@@ -33,7 +33,7 @@ abstract class RHISampleApp
 	protected SDL3Shell mShell;
 	protected IWindow mWindow;
 	protected IBackend mBackend;
-	protected IDevice mDevice;
+	protected IDevice mDevice = null;
 	protected ISurface mSurface;
 	protected ISwapChain mSwapChain;
 
@@ -106,10 +106,7 @@ abstract class RHISampleApp
 			// Let sample handle input
 			OnInput();
 
-			// Update
-			OnUpdate(mDeltaTime, mTotalTime);
-
-			// Render
+			// Render (OnUpdate is called inside RenderFrame, after fence wait)
 			if (RenderFrame())
 			{
 				mConsecutiveErrors = 0;
@@ -318,12 +315,17 @@ abstract class RHISampleApp
 
 	private bool RenderFrame()
 	{
-		// Acquire next swap chain image
+		// Acquire next swap chain image - this waits for the in-flight fence,
+		// ensuring the GPU is done with this frame slot's resources
 		if (mSwapChain.AcquireNextImage() case .Err)
 		{
 			HandleResize();
 			return true; // Resize is not an error
 		}
+
+		// Now that we've waited for the fence, it's safe to write to per-frame buffers.
+		// OnUpdate is called here (after fence wait) to avoid GPU/CPU synchronization issues.
+		OnUpdate(mDeltaTime, mTotalTime);
 
 		// Clean up previous command buffer for this frame slot
 		let frameIndex = mSwapChain.CurrentFrameIndex;

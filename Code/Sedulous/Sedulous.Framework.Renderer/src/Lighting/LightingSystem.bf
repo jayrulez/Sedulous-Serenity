@@ -4,6 +4,7 @@ using System;
 using System.Collections;
 using Sedulous.Mathematics;
 using Sedulous.RHI;
+using System.Diagnostics;
 
 /// Manages the clustered lighting system.
 /// Orchestrates cluster grid, light culling, and shadow rendering.
@@ -12,6 +13,7 @@ class LightingSystem
 	// Forward shadow constants for external access
 	public const int32 CASCADE_COUNT = ShadowConstants.CASCADE_COUNT;
 	public const int32 SHADOW_MAP_SIZE = ShadowConstants.CASCADE_MAP_SIZE;
+	public const int32 MAX_FRAMES_IN_FLIGHT = 2;
 
 	private IDevice mDevice;
 	private ClusterGrid mClusterGrid ~ delete _;
@@ -19,9 +21,11 @@ class LightingSystem
 	// Shadow systems
 	private CascadedShadowMaps mCascadedShadows ~ delete _;
 	private ShadowAtlas mShadowAtlas ~ delete _;
-	private IBuffer mShadowUniformBuffer ~ delete _;
 	private ISampler mShadowSampler ~ delete _;
 	private ShadowUniforms mShadowUniforms;
+
+	// Per-frame shadow uniform buffers (to avoid GPU/CPU synchronization issues)
+	private IBuffer[MAX_FRAMES_IN_FLIGHT] mShadowUniformBuffers ~ { for (let b in _) delete b; };
 
 	// Directional light (only one for now)
 	private LightProxy* mDirectionalLight = null;
@@ -45,12 +49,17 @@ class LightingSystem
 
 	private void CreateShadowResources()
 	{
-		// Shadow uniform buffer
+		// Create per-frame shadow uniform buffers
 		BufferDescriptor uniformDesc = .((uint64)sizeof(ShadowUniforms), .Uniform, .Upload);
-		if (mDevice.CreateBuffer(&uniformDesc) case .Ok(let buf))
-			mShadowUniformBuffer = buf;
+		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			if (mDevice.CreateBuffer(&uniformDesc) case .Ok(let buf))
+				mShadowUniformBuffers[i] = buf;
+		}
 
 		// Shadow comparison sampler for PCF
+		// Comparison is: reference op stored_value
+		// LessEqual: returns 1.0 when fragmentDepth <= storedDepth (lit)
 		SamplerDescriptor samplerDesc = .()
 		{
 			MinFilter = .Linear,
@@ -59,7 +68,7 @@ class LightingSystem
 			AddressModeU = .ClampToEdge,
 			AddressModeV = .ClampToEdge,
 			AddressModeW = .ClampToEdge,
-			Compare = .Less,  // Comparison sampler for shadow testing
+			Compare = .LessEqual,  // 1.0 when fragmentDepth <= storedDepth (lit)
 			LodMinClamp = 0,
 			LodMaxClamp = 0,
 			MaxAnisotropy = 1,
@@ -70,7 +79,8 @@ class LightingSystem
 	}
 
 	/// Updates the lighting system for a new frame.
-	public void Update(CameraProxy* camera, List<LightProxy*> lights)
+	/// frameIndex should be SwapChain.CurrentFrameIndex for proper buffer synchronization.
+	public void Update(CameraProxy* camera, List<LightProxy*> lights, int32 frameIndex)
 	{
 		if (camera == null)
 			return;
@@ -100,11 +110,11 @@ class LightingSystem
 			}
 		}
 
-		// Cull lights to clusters
-		mClusterGrid.CullLights(mActiveLights, camera);
+		// Cull lights to clusters (per-frame buffer)
+		mClusterGrid.CullLights(mActiveLights, camera, frameIndex);
 
-		// Update uniform buffer with directional light info
-		mClusterGrid.UpdateUniforms(camera, mDirectionalLight);
+		// Update uniform buffer with directional light info (per-frame buffer)
+		mClusterGrid.UpdateUniforms(camera, mDirectionalLight, frameIndex);
 
 		// Update stats
 		mVisibleLightCount = (int32)mActiveLights.Count;
@@ -179,30 +189,30 @@ class LightingSystem
 		mShadowUniforms.ActiveTileCount = (uint32)mShadowAtlas.ActiveTileCount;
 	}
 
-	/// Uploads shadow uniform data to GPU.
-	public void UploadShadowUniforms()
+	/// Uploads shadow uniform data to GPU for the specified frame.
+	public void UploadShadowUniforms(int32 frameIndex)
 	{
-		if (mShadowUniformBuffer != null)
+		if (frameIndex >= 0 && frameIndex < MAX_FRAMES_IN_FLIGHT && mShadowUniformBuffers[frameIndex] != null && mDevice?.Queue != null)
 		{
 			Span<uint8> data = .((uint8*)&mShadowUniforms, sizeof(ShadowUniforms));
-			mDevice.Queue.WriteBuffer(mShadowUniformBuffer, 0, data);
+			mDevice.Queue.WriteBuffer(mShadowUniformBuffers[frameIndex], 0, data);
 		}
 	}
 
 	/// Gets the cluster grid for shader binding.
 	public ClusterGrid ClusterGrid => mClusterGrid;
 
-	/// Gets the lighting uniform buffer for shader binding.
-	public IBuffer LightingUniformBuffer => mClusterGrid.LightingUniformBuffer;
+	/// Gets the lighting uniform buffer for shader binding for the specified frame.
+	public IBuffer GetLightingUniformBuffer(int32 frameIndex) => mClusterGrid.GetLightingUniformBuffer(frameIndex);
 
-	/// Gets the light buffer for shader binding.
-	public IBuffer LightBuffer => mClusterGrid.LightBuffer;
+	/// Gets the light buffer for shader binding for the specified frame.
+	public IBuffer GetLightBuffer(int32 frameIndex) => mClusterGrid.GetLightBuffer(frameIndex);
 
-	/// Gets the light grid buffer for shader binding.
-	public IBuffer LightGridBuffer => mClusterGrid.LightGridBuffer;
+	/// Gets the light grid buffer for shader binding for the specified frame.
+	public IBuffer GetLightGridBuffer(int32 frameIndex) => mClusterGrid.GetLightGridBuffer(frameIndex);
 
-	/// Gets the light index buffer for shader binding.
-	public IBuffer LightIndexBuffer => mClusterGrid.LightIndexBuffer;
+	/// Gets the light index buffer for shader binding for the specified frame.
+	public IBuffer GetLightIndexBuffer(int32 frameIndex) => mClusterGrid.GetLightIndexBuffer(frameIndex);
 
 	/// Gets the directional light (if any).
 	public LightProxy* DirectionalLight => mDirectionalLight;
@@ -216,16 +226,16 @@ class LightingSystem
 	/// Gets the number of point/spot lights (excluding directional).
 	public int32 LocalLightCount => (int32)mActiveLights.Count;
 
-	/// Creates bind group entries for lighting resources.
-	public void GetBindGroupEntries(List<BindGroupEntry> entries, uint32 baseBinding)
+	/// Creates bind group entries for lighting resources for the specified frame.
+	public void GetBindGroupEntries(List<BindGroupEntry> entries, uint32 baseBinding, int32 frameIndex)
 	{
 		// Lighting uniforms at baseBinding
-		entries.Add(.() { Binding = baseBinding, Buffer = mClusterGrid.LightingUniformBuffer });
+		entries.Add(.() { Binding = baseBinding, Buffer = mClusterGrid.GetLightingUniformBuffer(frameIndex) });
 
 		// Structured buffers for lights
-		entries.Add(.() { Binding = baseBinding + 1, Buffer = mClusterGrid.LightBuffer });
-		entries.Add(.() { Binding = baseBinding + 2, Buffer = mClusterGrid.LightGridBuffer });
-		entries.Add(.() { Binding = baseBinding + 3, Buffer = mClusterGrid.LightIndexBuffer });
+		entries.Add(.() { Binding = baseBinding + 1, Buffer = mClusterGrid.GetLightBuffer(frameIndex) });
+		entries.Add(.() { Binding = baseBinding + 2, Buffer = mClusterGrid.GetLightGridBuffer(frameIndex) });
+		entries.Add(.() { Binding = baseBinding + 3, Buffer = mClusterGrid.GetLightIndexBuffer(frameIndex) });
 	}
 
 	// ==================== Shadow Resources ====================
@@ -236,23 +246,28 @@ class LightingSystem
 	/// Gets the shadow atlas system.
 	public ShadowAtlas ShadowAtlas => mShadowAtlas;
 
-	/// Gets the shadow uniform buffer for shader binding.
-	public IBuffer ShadowUniformBuffer => mShadowUniformBuffer;
+	/// Gets the shadow uniform buffer for shader binding for the specified frame.
+	public IBuffer GetShadowUniformBuffer(int32 frameIndex)
+	{
+		if (frameIndex >= 0 && frameIndex < MAX_FRAMES_IN_FLIGHT)
+			return mShadowUniformBuffers[frameIndex];
+		return null;
+	}
 
 	/// Gets the shadow comparison sampler.
 	public ISampler ShadowSampler => mShadowSampler;
 
-	/// Gets the cascade shadow map array view for shader binding.
-	public ITextureView CascadeShadowMapView => mCascadedShadows?.ArrayView;
+	/// Gets the cascade shadow map array view for shader binding for a specific frame.
+	public ITextureView GetCascadeShadowMapView(int32 frameIndex) => mCascadedShadows?.GetArrayView(frameIndex);
 
-	/// Gets the cascade shadow map texture for barrier transitions.
-	public ITexture CascadeShadowMapTexture => mCascadedShadows?.ShadowMapArray;
+	/// Gets the cascade shadow map texture for barrier transitions for a specific frame.
+	public ITexture GetCascadeShadowMapTexture(int32 frameIndex) => mCascadedShadows?.GetShadowMapArray(frameIndex);
 
 	/// Gets the shadow atlas view for shader binding.
 	public ITextureView ShadowAtlasView => mShadowAtlas?.AtlasView;
 
-	/// Gets a specific cascade view for rendering to that cascade.
-	public ITextureView GetCascadeRenderView(int32 cascadeIndex) => mCascadedShadows?.GetCascadeView(cascadeIndex);
+	/// Gets a specific cascade view for rendering to that cascade for a specific frame.
+	public ITextureView GetCascadeRenderView(int32 frameIndex, int32 cascadeIndex) => mCascadedShadows?.GetCascadeView(frameIndex, cascadeIndex);
 
 	/// Gets the shadow atlas texture view for rendering.
 	public ITextureView ShadowAtlasRenderView => mShadowAtlas?.AtlasView;
@@ -282,21 +297,25 @@ class CascadedShadowMaps
 {
 	public const int32 CASCADE_COUNT = ShadowConstants.CASCADE_COUNT;
 	public const int32 SHADOW_MAP_SIZE = ShadowConstants.CASCADE_MAP_SIZE;
+	public const int32 MAX_FRAMES_IN_FLIGHT = ShadowConstants.MAX_FRAMES_IN_FLIGHT;
 
 	private IDevice mDevice;
-	private ITexture mShadowMapArray ~ delete _;
-	private ITextureView mArrayView ~ delete _;
-	private ITextureView[CASCADE_COUNT] mCascadeViews ~ { for (let v in _) delete v; };
+	private ITexture[MAX_FRAMES_IN_FLIGHT] mShadowMapArrays ~ { for (let t in _) delete t; };
+	private ITextureView[MAX_FRAMES_IN_FLIGHT] mArrayViews ~ { for (let v in _) delete v; };
+	private ITextureView[MAX_FRAMES_IN_FLIGHT * CASCADE_COUNT] mCascadeViews ~ { for (let v in _) delete v; };
 	private CascadeData[CASCADE_COUNT] mCascadeData;
 
 	public this(IDevice device)
 	{
 		mDevice = device;
-		CreateShadowMapArray();
-		CreateCascadeViews();
+		for (int32 frame = 0; frame < MAX_FRAMES_IN_FLIGHT; frame++)
+		{
+			CreateShadowMapArray(frame);
+			CreateCascadeViews(frame);
+		}
 	}
 
-	private void CreateShadowMapArray()
+	private void CreateShadowMapArray(int32 frameIndex)
 	{
 		TextureDescriptor desc = .()
 		{
@@ -309,15 +328,15 @@ class CascadedShadowMaps
 			SampleCount = 1,
 			Format = .Depth32Float,
 			Usage = .DepthStencil | .Sampled,
-			Label = "CascadedShadowMaps"
+			Label = scope $"CascadedShadowMaps_Frame{frameIndex}"
 		};
 		if (mDevice.CreateTexture(&desc) case .Ok(let tex))
-			mShadowMapArray = tex;
+			mShadowMapArrays[frameIndex] = tex;
 	}
 
-	private void CreateCascadeViews()
+	private void CreateCascadeViews(int32 frameIndex)
 	{
-		if (mShadowMapArray == null)
+		if (mShadowMapArrays[frameIndex] == null)
 			return;
 
 		// Create a view for each cascade layer (for rendering)
@@ -331,10 +350,11 @@ class CascadedShadowMaps
 				MipLevelCount = 1,
 				BaseArrayLayer = (uint32)i,
 				ArrayLayerCount = 1,
-				Label = scope :: $"CascadeView{i}"
+				Label = scope :: $"CascadeView_F{frameIndex}_C{i}"
 			};
-			if (mDevice.CreateTextureView(mShadowMapArray, &viewDesc) case .Ok(let view))
-				mCascadeViews[i] = view;
+			var x = mShadowMapArrays[frameIndex];// beef bug for direct access in method call
+			if (mDevice.CreateTextureView(x, &viewDesc) case .Ok(let view))
+				mCascadeViews[frameIndex * CASCADE_COUNT + i] = view;
 		}
 
 		// Create array view for sampling all cascades
@@ -346,10 +366,10 @@ class CascadedShadowMaps
 			MipLevelCount = 1,
 			BaseArrayLayer = 0,
 			ArrayLayerCount = CASCADE_COUNT,
-			Label = "CascadeShadowMapArray"
+			Label = scope :: $"CascadeShadowMapArray_Frame{frameIndex}"
 		};
-		if (mDevice.CreateTextureView(mShadowMapArray, &arrayViewDesc) case .Ok(let view))
-			mArrayView = view;
+		if (mDevice.CreateTextureView(mShadowMapArrays[frameIndex], &arrayViewDesc) case .Ok(let view))
+			mArrayViews[frameIndex] = view;
 	}
 
 	/// Updates cascade split distances and view-projection matrices.
@@ -361,6 +381,8 @@ class CascadedShadowMaps
 		// Calculate cascade split distances using practical split scheme
 		float[CASCADE_COUNT + 1] splitDistances = .();
 		CalculateSplitDistances(camera, ref splitDistances);
+
+		// Debug.WriteLine($"[Cascade] Split distances: {splitDistances[0]}, {splitDistances[1]}, {splitDistances[2]}, {splitDistances[3]}, {splitDistances[4]}");
 
 		// For each cascade, compute tight frustum bounds
 		for (int32 i = 0; i < CASCADE_COUNT; i++)
@@ -375,6 +397,9 @@ class CascadedShadowMaps
 			// Calculate view-projection matrix with texel snapping
 			mCascadeData[i] = ComputeCascadeMatrix(frustumCorners, lightDirection);
 			mCascadeData[i].SplitDepths = .(nearSplit, farSplit, 0, 0);
+
+			// Debug.WriteLine($"[Cascade {i}] nearSplit={nearSplit}, farSplit={farSplit}");
+			// Debug.WriteLine($"[Cascade {i}] VP[0,0]={mCascadeData[i].ViewProjection.M11}, VP[3,3]={mCascadeData[i].ViewProjection.M44}");
 		}
 	}
 
@@ -419,45 +444,96 @@ class CascadedShadowMaps
 
 	private CascadeData ComputeCascadeMatrix(Vector3[8] frustumCorners, Vector3 lightDir)
 	{
-		// Find frustum center
-		Vector3 center = .Zero;
-		for (let corner in frustumCorners)
-			center = center + corner;
-		center = center / 8.0f;
+		// TODO: Frustum-fitted bounds (USE_FIXED_BOUNDS=false) produce offset shadows.
+		// The light-space bounds calculation or near/far Z logic needs investigation.
+		// Fixed bounds work correctly but don't adapt to camera position/orientation.
+		// For scenes with known extents, fixed bounds are a valid simplification.
+		const bool USE_FIXED_BOUNDS = true;
 
-		// Light view matrix (looking along light direction)
-		Vector3 up = Math.Abs(lightDir.Y) < 0.99f ? Vector3.Up : Vector3.Forward;
-		Matrix lightView = Matrix.CreateLookAt(center - lightDir * 50.0f, center, up);
+		Vector3 center;
+		float halfSize;
 
-		// Transform corners to light space and find bounds
-		float minX = float.MaxValue, maxX = float.MinValue;
-		float minY = float.MaxValue, maxY = float.MinValue;
-		float minZ = float.MaxValue, maxZ = float.MinValue;
-
-		for (let corner in frustumCorners)
+		if (USE_FIXED_BOUNDS)
 		{
-			Vector4 lightSpace = Vector4.Transform(Vector4(corner, 1.0f), lightView);
-			minX = Math.Min(minX, lightSpace.X);
-			maxX = Math.Max(maxX, lightSpace.X);
-			minY = Math.Min(minY, lightSpace.Y);
-			maxY = Math.Max(maxY, lightSpace.Y);
-			minZ = Math.Min(minZ, lightSpace.Z);
-			maxZ = Math.Max(maxZ, lightSpace.Z);
+			// Fixed bounds centered on scene origin - covers a 30x30 unit area
+			center = Vector3(0, 0, 0);
+			halfSize = 15.0f;
+		}
+		else
+		{
+			// Find frustum center
+			center = .Zero;
+			for (let corner in frustumCorners)
+				center = center + corner;
+			center = center / 8.0f;
+			halfSize = 50.0f;
 		}
 
-		// Extend Z for objects behind camera that might cast shadows
-		minZ -= 50.0f;
+		// Light view matrix (looking along light direction toward scene center)
+		// Compute stable up vector using orthonormal basis to avoid discontinuities
+		Vector3 lightPos = center - lightDir * 50.0f;
 
-		// Snap to texel boundaries for stable shadows (reduces shimmering)
-		float worldUnitsPerTexel = (maxX - minX) / SHADOW_MAP_SIZE;
-		minX = Math.Floor(minX / worldUnitsPerTexel) * worldUnitsPerTexel;
-		maxX = Math.Floor(maxX / worldUnitsPerTexel) * worldUnitsPerTexel;
-		minY = Math.Floor(minY / worldUnitsPerTexel) * worldUnitsPerTexel;
-		maxY = Math.Floor(maxY / worldUnitsPerTexel) * worldUnitsPerTexel;
+		// Choose a reference vector that's not parallel to lightDir
+		Vector3 refVec = Math.Abs(lightDir.Y) < 0.9f ? Vector3.Up : Vector3.Right;
 
-		// Orthographic projection for directional light with [0,1] depth range
-		Matrix lightProj = CreateOrthographicOffCenterVulkan(
-			minX, maxX, minY, maxY, minZ, maxZ
+		// Build orthonormal basis: right = refVec x lightDir, up = lightDir x right
+		Vector3 lightRight = Vector3.Normalize(Vector3.Cross(refVec, lightDir));
+		Vector3 lightUp = Vector3.Cross(lightDir, lightRight);
+
+		Matrix lightView = Matrix.CreateLookAt(lightPos, center, lightUp);
+
+		// Debug.WriteLine($"[Shadow] Light pos: {lightPos}, center: {center}, dir: {lightDir}");
+
+		float minX, maxX, minY, maxY, nearZ, farZ;
+
+		if (USE_FIXED_BOUNDS)
+		{
+			// Simple symmetric ortho bounds
+			minX = -halfSize;
+			maxX = halfSize;
+			minY = -halfSize;
+			maxY = halfSize;
+			nearZ = 0.1f;
+			farZ = 100.0f;
+		}
+		else
+		{
+			// Transform corners to light space and find bounds
+			float minXf = float.MaxValue, maxXf = float.MinValue;
+			float minYf = float.MaxValue, maxYf = float.MinValue;
+			float minZf = float.MaxValue, maxZf = float.MinValue;
+
+			for (let corner in frustumCorners)
+			{
+				Vector4 lightSpace = Vector4.Transform(Vector4(corner, 1.0f), lightView);
+				minXf = Math.Min(minXf, lightSpace.X);
+				maxXf = Math.Max(maxXf, lightSpace.X);
+				minYf = Math.Min(minYf, lightSpace.Y);
+				maxYf = Math.Max(maxYf, lightSpace.Y);
+				minZf = Math.Min(minZf, lightSpace.Z);
+				maxZf = Math.Max(maxZf, lightSpace.Z);
+			}
+
+			// Extend Z for objects behind camera
+			minZf -= 50.0f;
+
+			// Snap to texel boundaries
+			float worldUnitsPerTexel = (maxXf - minXf) / SHADOW_MAP_SIZE;
+			minX = Math.Floor(minXf / worldUnitsPerTexel) * worldUnitsPerTexel;
+			maxX = Math.Floor(maxXf / worldUnitsPerTexel) * worldUnitsPerTexel;
+			minY = Math.Floor(minYf / worldUnitsPerTexel) * worldUnitsPerTexel;
+			maxY = Math.Floor(maxYf / worldUnitsPerTexel) * worldUnitsPerTexel;
+
+			nearZ = Math.Max(-maxZf, 0.1f);
+			farZ = -minZf;
+		}
+
+		// Debug.WriteLine($"[Shadow] Bounds: X=[{minX}, {maxX}], Y=[{minY}, {maxY}]");
+		// Debug.WriteLine($"[Shadow] nearZ: {nearZ}, farZ: {farZ}");
+
+		// Orthographic projection for directional light
+		Matrix lightProj = Matrix.CreateOrthographicOffCenter(
+			minX, maxX, minY, maxY, nearZ, farZ
 		);
 
 		return .()
@@ -468,31 +544,14 @@ class CascadedShadowMaps
 		};
 	}
 
-	/// Creates orthographic projection with Vulkan's [0,1] depth range.
-	private static Matrix CreateOrthographicOffCenterVulkan(float left, float right, float bottom, float top, float near, float far)
-	{
-		Matrix result = default;
+	/// Gets the texture view for rendering to a specific cascade for a specific frame.
+	public ITextureView GetCascadeView(int32 frameIndex, int32 cascadeIndex) => mCascadeViews[frameIndex * CASCADE_COUNT + cascadeIndex];
 
-		result.M11 = 2.0f / (right - left);
-		result.M22 = 2.0f / (top - bottom);
-		result.M33 = 1.0f / (far - near);  // [0,1] depth range
+	/// Gets the array view for sampling all cascades for a specific frame.
+	public ITextureView GetArrayView(int32 frameIndex) => mArrayViews[frameIndex];
 
-		result.M41 = (left + right) / (left - right);
-		result.M42 = (top + bottom) / (bottom - top);
-		result.M43 = -near / (far - near);  // Maps near to 0
-		result.M44 = 1.0f;
-
-		return result;
-	}
-
-	/// Gets the texture view for rendering to a specific cascade.
-	public ITextureView GetCascadeView(int32 index) => mCascadeViews[index];
-
-	/// Gets the array view for sampling all cascades.
-	public ITextureView ArrayView => mArrayView;
-
-	/// Gets the shadow map texture.
-	public ITexture ShadowMapArray => mShadowMapArray;
+	/// Gets the shadow map texture for a specific frame.
+	public ITexture GetShadowMapArray(int32 frameIndex) => mShadowMapArrays[frameIndex];
 
 	/// Gets cascade data for uniform upload.
 	public CascadeData[CASCADE_COUNT] CascadeData => mCascadeData;

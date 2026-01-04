@@ -101,6 +101,16 @@ SamplerComparisonState g_ShadowSampler : register(s0);
 // PCF shadow sampling for cascades
 float SampleCascadeShadowPCF(float2 shadowUV, float shadowDepth, int cascadeIndex)
 {
+    // Use PCF for soft shadow edges
+    #define USE_SINGLE_SAMPLE 0
+
+    #if USE_SINGLE_SAMPLE
+    return g_CascadeShadowMap.SampleCmpLevelZero(
+        g_ShadowSampler,
+        float3(shadowUV, cascadeIndex),
+        shadowDepth
+    );
+    #else
     float shadow = 0.0;
     float texelSize = g_CascadeTexelSize;
 
@@ -120,6 +130,7 @@ float SampleCascadeShadowPCF(float2 shadowUV, float shadowDepth, int cascadeInde
     }
 
     return shadow / 9.0;
+    #endif
 }
 
 // Select cascade based on view-space depth
@@ -139,6 +150,13 @@ int SelectCascade(float viewZ)
 // Sample directional light shadow
 float SampleDirectionalShadow(float3 worldPos, float viewZ)
 {
+    // DEBUG: Disable shadow sampling entirely to test if artifact is shadow-related
+    #define DISABLE_SHADOWS_FOR_TEST 0
+
+    #if DISABLE_SHADOWS_FOR_TEST
+    return 1.0;  // Always lit
+    #endif
+
     if (g_DirectionalShadowEnabled == 0)
         return 1.0;
 
@@ -148,12 +166,14 @@ float SampleDirectionalShadow(float3 worldPos, float viewZ)
     float4 shadowPos = mul(float4(worldPos, 1.0), g_Cascades[cascadeIndex].ViewProjection);
     shadowPos.xyz /= shadowPos.w;
 
+    // NDC to UV: [-1,1] -> [0,1]
+    // Note: No Y flip needed - Vulkan NDC and texture coordinates both have Y increasing downward
     float2 shadowUV = shadowPos.xy * 0.5 + 0.5;
-    shadowUV.y = 1.0 - shadowUV.y;
 
     if (any(shadowUV < 0.0) || any(shadowUV > 1.0))
         return 1.0;
 
+    // No shader-side bias - rely on hardware depth bias only
     float shadowDepth = saturate(shadowPos.z);
 
     return SampleCascadeShadowPCF(shadowUV, shadowDepth, cascadeIndex);
@@ -282,6 +302,10 @@ float3 ComputeLightContribution(
     return (kD * albedo / PI + specular) * lightColor * attenuation * NdotL;
 }
 
+// Debug: set to 1 to visualize cascade index, 2 to visualize shadow value,
+//        3 to visualize shadow depth, 4 to visualize shadow UV, 0 for normal
+#define SHADOW_DEBUG_MODE 0
+
 float4 main(PSInput input) : SV_Target
 {
     float3 N = normalize(input.worldNormal);
@@ -298,6 +322,8 @@ float4 main(PSInput input) : SV_Target
     float3 totalLight = float3(0, 0, 0);
 
     // Add directional light with shadow
+    float shadow = 1.0;
+    int cascadeIndex = 0;
     if (g_DirectionalDir.w > 0.0)
     {
         ClusteredLight dirLight;
@@ -309,7 +335,8 @@ float4 main(PSInput input) : SV_Target
         float3 dirContribution = ComputeLightContribution(dirLight, input.worldPos, N, V, albedo, metal, rough, F0);
 
         // Apply directional shadow
-        float shadow = SampleDirectionalShadow(input.worldPos, input.viewZ);
+        cascadeIndex = SelectCascade(input.viewZ);
+        shadow = SampleDirectionalShadow(input.worldPos, input.viewZ);
         totalLight += dirContribution * shadow;
     }
 
@@ -329,5 +356,45 @@ float4 main(PSInput input) : SV_Target
     color = color / (color + 1.0);
     color = pow(color, 1.0 / 2.2);
 
+#if SHADOW_DEBUG_MODE == 1
+    // Debug: visualize cascade index (red=0, green=1, blue=2, yellow=3)
+    float3 cascadeColors[4] = {
+        float3(1, 0, 0),   // Cascade 0: Red
+        float3(0, 1, 0),   // Cascade 1: Green
+        float3(0, 0, 1),   // Cascade 2: Blue
+        float3(1, 1, 0)    // Cascade 3: Yellow
+    };
+    return float4(cascadeColors[cascadeIndex] * shadow, 1.0);
+#elif SHADOW_DEBUG_MODE == 2
+    // Debug: visualize raw shadow value as grayscale
+    return float4(shadow, shadow, shadow, 1.0);
+#elif SHADOW_DEBUG_MODE == 3
+    // Debug: visualize shadow depth and UV validity
+    // Compute shadow position for current cascade
+    float4 shadowPos = mul(float4(input.worldPos, 1.0), g_Cascades[cascadeIndex].ViewProjection);
+    shadowPos.xyz /= shadowPos.w;
+    float2 shadowUV = shadowPos.xy * 0.5 + 0.5;
+    float shadowDepth = shadowPos.z;
+
+    // Check if depth is negative (would indicate projection issue)
+    // Red = positive depth (0-1 range)
+    // Green = negative depth indicator (bright green = depth is negative!)
+    // Blue = depth > 1 indicator
+    float posDepth = (shadowDepth >= 0.0 && shadowDepth <= 1.0) ? shadowDepth : 0.0;
+    float negDepth = (shadowDepth < 0.0) ? 1.0 : 0.0;
+    float overDepth = (shadowDepth > 1.0) ? 1.0 : 0.0;
+    return float4(posDepth, negDepth, overDepth, 1.0);
+#elif SHADOW_DEBUG_MODE == 4
+    // Debug: visualize shadow UV as color
+    // Red = U coordinate, Green = V coordinate
+    // Should see smooth gradient across the scene if projection is correct
+    float4 shadowPos = mul(float4(input.worldPos, 1.0), g_Cascades[cascadeIndex].ViewProjection);
+    shadowPos.xyz /= shadowPos.w;
+    float2 shadowUV = shadowPos.xy * 0.5 + 0.5;
+    // Clamp to show out-of-bounds as blue
+    float outOfBounds = (any(shadowUV < 0.0) || any(shadowUV > 1.0)) ? 1.0 : 0.0;
+    return float4(saturate(shadowUV.x), saturate(shadowUV.y), outOfBounds, 1.0);
+#else
     return float4(color, 1.0);
+#endif
 }

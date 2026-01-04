@@ -22,7 +22,7 @@ static class ClusterConstants
 
 /// GPU-packed light data for shader consumption.
 /// Matches the layout expected by lighting shaders.
-[Packed, Ordered]
+[CRepr]
 struct GPUClusteredLight
 {
 	/// Position (xyz) and type (w: 0=dir, 1=point, 2=spot)
@@ -63,7 +63,7 @@ struct GPUClusteredLight
 }
 
 /// Cluster AABB bounds for a single cluster.
-[Packed, Ordered]
+[CRepr]
 struct ClusterAABB
 {
 	/// Minimum point in view space.
@@ -73,7 +73,7 @@ struct ClusterAABB
 }
 
 /// Light grid entry - stores offset and count into light index list.
-[Packed, Ordered]
+[CRepr]
 struct LightGridEntry
 {
 	/// Offset into light index buffer.
@@ -85,7 +85,7 @@ struct LightGridEntry
 }
 
 /// Lighting uniform buffer data.
-[Packed, Ordered]
+[CRepr]
 struct LightingUniforms
 {
 	/// View matrix for cluster generation.
@@ -123,7 +123,7 @@ struct LightingUniforms
 }
 
 /// Shadow cascade data for directional light.
-[Packed, Ordered]
+[CRepr]
 struct CascadeData
 {
 	/// View-projection matrix for this cascade.
@@ -148,6 +148,8 @@ struct ShadowAtlasSlot
 /// Constants for shadow mapping.
 static class ShadowConstants
 {
+	/// Maximum frames in flight for GPU/CPU synchronization.
+	public const int32 MAX_FRAMES_IN_FLIGHT = 2;
 	/// Number of shadow cascades for directional light.
 	public const int32 CASCADE_COUNT = 4;
 	/// Resolution of each cascade shadow map.
@@ -166,7 +168,7 @@ static class ShadowConstants
 
 /// GPU-packed shadow tile data for shader consumption.
 /// Used for point/spot light shadows in the atlas.
-[Packed, Ordered]
+[CRepr]
 struct GPUShadowTileData
 {
 	/// View-projection matrix for this shadow tile.
@@ -183,7 +185,7 @@ struct GPUShadowTileData
 
 /// Shadow uniform buffer data for GPU.
 /// Contains cascade and atlas shadow information.
-[Packed, Ordered]
+[CRepr]
 struct ShadowUniforms
 {
 	/// Cascade view-projection matrices and split depths (4 cascades).

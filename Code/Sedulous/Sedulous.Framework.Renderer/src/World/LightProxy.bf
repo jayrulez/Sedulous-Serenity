@@ -205,7 +205,7 @@ struct LightProxy
 }
 
 /// GPU-packed light data for shader upload.
-[Packed]
+[CRepr]
 struct GPULightData
 {
 	/// Position (xyz) + type (w as float bits).

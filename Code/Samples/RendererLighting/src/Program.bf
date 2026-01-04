@@ -56,10 +56,10 @@ class RendererLightingSample : RHISampleApp
 	private IRenderPipeline mPipeline;
 	private IBuffer mVertexBuffer;
 	private IBuffer mIndexBuffer;
-	private IBuffer mCameraBuffer;
-	private IBuffer mInstanceBuffer;
+	private IBuffer[MAX_FRAMES_IN_FLIGHT] mCameraBuffers;
+	private IBuffer[MAX_FRAMES_IN_FLIGHT] mInstanceBuffers;
 	private IBindGroupLayout mBindGroupLayout;
-	private IBindGroup mBindGroup;
+	private IBindGroup[MAX_FRAMES_IN_FLIGHT] mBindGroups;
 	private IPipelineLayout mPipelineLayout;
 
 	// Shadow rendering resources
@@ -439,19 +439,23 @@ class RendererLightingSample : RHISampleApp
 
 	private bool CreateBuffers()
 	{
-		// Camera buffer
-		BufferDescriptor camDesc = .((uint64)sizeof(CameraData), .Uniform, .Upload);
-		if (Device.CreateBuffer(&camDesc) case .Ok(let camBuf))
-			mCameraBuffer = camBuf;
-		else
-			return false;
+		// Create per-frame buffers for camera and instance data
+		for (int32 i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			// Camera buffer
+			BufferDescriptor camDesc = .((uint64)sizeof(CameraData), .Uniform, .Upload);
+			if (Device.CreateBuffer(&camDesc) case .Ok(let camBuf))
+				mCameraBuffers[i] = camBuf;
+			else
+				return false;
 
-		// Instance buffer
-		BufferDescriptor instDesc = .((uint64)(sizeof(LightingInstanceData) * MAX_INSTANCES), .Vertex, .Upload);
-		if (Device.CreateBuffer(&instDesc) case .Ok(let instBuf))
-			mInstanceBuffer = instBuf;
-		else
-			return false;
+			// Instance buffer
+			BufferDescriptor instDesc = .((uint64)(sizeof(LightingInstanceData) * MAX_INSTANCES), .Vertex, .Upload);
+			if (Device.CreateBuffer(&instDesc) case .Ok(let instBuf))
+				mInstanceBuffers[i] = instBuf;
+			else
+				return false;
+		}
 
 		// Shadow pass uniform buffer (per-cascade light VP matrix)
 		BufferDescriptor shadowUniformDesc = .((uint64)sizeof(ShadowPassUniforms), .Uniform, .Upload);
@@ -568,22 +572,25 @@ class RendererLightingSample : RHISampleApp
 		else
 			return false;
 
-		// Create bind group with all resources
-		BindGroupEntry[7] bindGroupEntries = .(
-			BindGroupEntry.Buffer(0, mCameraBuffer),                              // b0: Camera
-			BindGroupEntry.Buffer(2, mLightingSystem.LightingUniformBuffer),      // b2: Lighting uniforms
-			BindGroupEntry.Buffer(0, mLightingSystem.LightBuffer),                // t0: g_Lights (storage buffer)
-			BindGroupEntry.Buffer(3, mLightingSystem.ShadowUniformBuffer),        // b3: Shadow uniforms
-			BindGroupEntry.Texture(1, mLightingSystem.CascadeShadowMapView),      // t1: Cascade shadow map
-			BindGroupEntry.Texture(2, mLightingSystem.ShadowAtlasView),           // t2: Shadow atlas
-			BindGroupEntry.Sampler(0, mLightingSystem.ShadowSampler)              // s0: Shadow comparison sampler
-		);
+		// Create per-frame bind groups with per-frame buffers
+		for (int32 i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			BindGroupEntry[7] bindGroupEntries = .(
+				BindGroupEntry.Buffer(0, mCameraBuffers[i]),                              // b0: Camera
+				BindGroupEntry.Buffer(2, mLightingSystem.GetLightingUniformBuffer(i)),    // b2: Lighting uniforms
+				BindGroupEntry.Buffer(0, mLightingSystem.GetLightBuffer(i)),              // t0: g_Lights (storage buffer)
+				BindGroupEntry.Buffer(3, mLightingSystem.GetShadowUniformBuffer(i)),      // b3: Shadow uniforms
+				BindGroupEntry.Texture(1, mLightingSystem.GetCascadeShadowMapView(i)),    // t1: Cascade shadow map (per-frame)
+				BindGroupEntry.Texture(2, mLightingSystem.ShadowAtlasView),               // t2: Shadow atlas
+				BindGroupEntry.Sampler(0, mLightingSystem.ShadowSampler)                  // s0: Shadow comparison sampler
+			);
 
-		BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
-		if (Device.CreateBindGroup(&bindGroupDesc) case .Ok(let group))
-			mBindGroup = group;
-		else
-			return false;
+			BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
+			if (Device.CreateBindGroup(&bindGroupDesc) case .Ok(let group))
+				mBindGroups[i] = group;
+			else
+				return false;
+		}
 
 		// Create shadow pipeline
 		if (!CreateShadowPipeline())
@@ -702,6 +709,7 @@ class RendererLightingSample : RHISampleApp
 	protected override void OnUpdate(float deltaTime, float totalTime)
 	{
 		mTime = totalTime;
+		let frameIndex = (int32)SwapChain.CurrentFrameIndex;
 
 		// Update camera proxy from current camera state
 		mCameraProxy = CameraProxy.FromCamera(0, mCamera, SwapChain.Width, SwapChain.Height);
@@ -716,12 +724,12 @@ class RendererLightingSample : RHISampleApp
 				lightProxies.Add(proxy);
 		}
 
-		// Update lighting system
-		mLightingSystem.Update(&mCameraProxy, lightProxies);
+		// Update lighting system with per-frame buffer index
+		mLightingSystem.Update(&mCameraProxy, lightProxies, frameIndex);
 
 		// Prepare shadows (compute cascade matrices, allocate shadow tiles)
 		mLightingSystem.PrepareShadows(&mCameraProxy);
-		mLightingSystem.UploadShadowUniforms();
+		mLightingSystem.UploadShadowUniforms(frameIndex);
 
 		// Build instance data
 		for (int i = 0; i < mInstanceCount; i++)
@@ -729,12 +737,12 @@ class RendererLightingSample : RHISampleApp
 			mInstanceData[i] = LightingInstanceData(mObjectTransforms[i], mObjectMaterials[i].X, mObjectMaterials[i].Y);
 		}
 
-		// Upload instance data to GPU
+		// Upload instance data to per-frame GPU buffer
 		if (mInstanceCount > 0)
 		{
 			uint64 dataSize = (uint64)(sizeof(LightingInstanceData) * mInstanceCount);
 			Span<uint8> data = .((uint8*)mInstanceData.Ptr, (int)dataSize);
-			Device.Queue.WriteBuffer(mInstanceBuffer, 0, data);
+			Device.Queue.WriteBuffer(mInstanceBuffers[frameIndex], 0, data);
 		}
 
 		// Update camera buffer with Y-flip for Vulkan
@@ -752,7 +760,7 @@ class RendererLightingSample : RHISampleApp
 		};
 
 		Span<uint8> camSpan = .((uint8*)&camData, sizeof(CameraData));
-		Device.Queue.WriteBuffer(mCameraBuffer, 0, camSpan);
+		Device.Queue.WriteBuffer(mCameraBuffers[frameIndex], 0, camSpan);
 	}
 
 	protected override bool OnRenderCustom(ICommandEncoder encoder)
@@ -763,25 +771,27 @@ class RendererLightingSample : RHISampleApp
 			return false;
 		}
 
-		// Render shadow cascades
-		RenderShadowCascades(encoder);
+		let frameIndex = (int32)SwapChain.CurrentFrameIndex;
 
-		// Transition shadow map from depth attachment to shader read for sampling
-		if (let shadowMapTexture = mLightingSystem.CascadeShadowMapTexture)
+		// Render shadow cascades
+		RenderShadowCascades(encoder, frameIndex);
+
+		// Transition shadow map from depth attachment to shader read for sampling (use per-frame shadow map)
+		if (let shadowMapTexture = mLightingSystem.GetCascadeShadowMapTexture(frameIndex))
 			encoder.TextureBarrier(shadowMapTexture, .DepthStencilAttachment, .ShaderReadOnly);
 
 		// Now render the main scene
-		RenderMainPass(encoder);
+		RenderMainPass(encoder, frameIndex);
 
 		return true;  // We handled rendering ourselves
 	}
 
-	private void RenderShadowCascades(ICommandEncoder encoder)
+	private void RenderShadowCascades(ICommandEncoder encoder, int32 frameIndex)
 	{
-		// Render each cascade
+		// Render each cascade (use per-frame shadow map)
 		for (int32 cascade = 0; cascade < LightingSystem.CASCADE_COUNT; cascade++)
 		{
-			let cascadeView = mLightingSystem.GetCascadeRenderView(cascade);
+			let cascadeView = mLightingSystem.GetCascadeRenderView(frameIndex, cascade);
 			if (cascadeView == null)
 				continue;
 
@@ -822,7 +832,7 @@ class RendererLightingSample : RHISampleApp
 			shadowPass.SetPipeline(mShadowPipeline);
 			shadowPass.SetBindGroup(0, mShadowBindGroup);
 			shadowPass.SetVertexBuffer(0, mVertexBuffer, 0);
-			shadowPass.SetVertexBuffer(1, mInstanceBuffer, 0);
+			shadowPass.SetVertexBuffer(1, mInstanceBuffers[frameIndex], 0);
 			shadowPass.SetIndexBuffer(mIndexBuffer, .UInt16, 0);
 
 			// Draw all instances to shadow map
@@ -833,7 +843,7 @@ class RendererLightingSample : RHISampleApp
 		}
 	}
 
-	private void RenderMainPass(ICommandEncoder encoder)
+	private void RenderMainPass(ICommandEncoder encoder, int32 frameIndex)
 	{
 		// Get swapchain texture
 		let textureView = SwapChain.CurrentTextureView;
@@ -870,11 +880,11 @@ class RendererLightingSample : RHISampleApp
 		renderPass.SetViewport(0, 0, SwapChain.Width, SwapChain.Height, 0, 1);
 		renderPass.SetScissorRect(0, 0, SwapChain.Width, SwapChain.Height);
 
-		// Set pipeline and bind group
+		// Set pipeline and per-frame bind group
 		renderPass.SetPipeline(mPipeline);
-		renderPass.SetBindGroup(0, mBindGroup);
+		renderPass.SetBindGroup(0, mBindGroups[frameIndex]);
 		renderPass.SetVertexBuffer(0, mVertexBuffer, 0);
-		renderPass.SetVertexBuffer(1, mInstanceBuffer, 0);
+		renderPass.SetVertexBuffer(1, mInstanceBuffers[frameIndex], 0);
 		renderPass.SetIndexBuffer(mIndexBuffer, .UInt16, 0);
 
 		// Draw all instances
@@ -889,14 +899,16 @@ class RendererLightingSample : RHISampleApp
 		if (mInstanceCount == 0)
 			return;
 
+		let frameIndex = (int32)SwapChain.CurrentFrameIndex;
+
 		renderPass.SetViewport(0, 0, SwapChain.Width, SwapChain.Height, 0, 1);
 		renderPass.SetScissorRect(0, 0, SwapChain.Width, SwapChain.Height);
 
-		// Set pipeline and bind group
+		// Set pipeline and per-frame bind group
 		renderPass.SetPipeline(mPipeline);
-		renderPass.SetBindGroup(0, mBindGroup);
+		renderPass.SetBindGroup(0, mBindGroups[frameIndex]);
 		renderPass.SetVertexBuffer(0, mVertexBuffer, 0);
-		renderPass.SetVertexBuffer(1, mInstanceBuffer, 0);
+		renderPass.SetVertexBuffer(1, mInstanceBuffers[frameIndex], 0);
 		renderPass.SetIndexBuffer(mIndexBuffer, .UInt16, 0);
 
 		// Draw all instances
@@ -914,13 +926,18 @@ class RendererLightingSample : RHISampleApp
 		if (mShadowBindGroupLayout != null) delete mShadowBindGroupLayout;
 		if (mShadowUniformBuffer != null) delete mShadowUniformBuffer;
 
+		// Per-frame resources
+		for (int32 i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			if (mBindGroups[i] != null) delete mBindGroups[i];
+			if (mCameraBuffers[i] != null) delete mCameraBuffers[i];
+			if (mInstanceBuffers[i] != null) delete mInstanceBuffers[i];
+		}
+
 		// Main resources
-		if (mBindGroup != null) delete mBindGroup;
 		if (mBindGroupLayout != null) delete mBindGroupLayout;
 		if (mPipelineLayout != null) delete mPipelineLayout;
 		if (mPipeline != null) delete mPipeline;
-		if (mInstanceBuffer != null) delete mInstanceBuffer;
-		if (mCameraBuffer != null) delete mCameraBuffer;
 		if (mIndexBuffer != null) delete mIndexBuffer;
 		if (mVertexBuffer != null) delete mVertexBuffer;
 		if (mLightingSystem != null) delete mLightingSystem;

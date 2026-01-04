@@ -389,9 +389,9 @@ float SampleDirectionalShadow(float3 worldPos, float viewZ)
     float4 shadowPos = mul(float4(worldPos, 1.0), g_Cascades[cascadeIndex].ViewProjection);
     shadowPos.xyz /= shadowPos.w;
 
-    // Convert from NDC [-1,1] to UV [0,1]
+    // NDC to UV: [-1,1] -> [0,1]
+    // Note: No Y flip needed - Vulkan NDC and texture coordinates both have Y increasing downward
     float2 shadowUV = shadowPos.xy * 0.5 + 0.5;
-    shadowUV.y = 1.0 - shadowUV.y;  // Flip Y for texture coordinates
 
     // Check bounds - outside shadow map means lit
     if (any(shadowUV < 0.0) || any(shadowUV > 1.0))
@@ -416,8 +416,8 @@ float SampleLocalLightShadow(float3 worldPos, int shadowIndex, uint lightType)
     shadowPos.xyz /= shadowPos.w;
 
     // Convert to UV in tile local space [0,1]
+    // Note: No Y flip needed - Vulkan NDC and texture coordinates both have Y increasing downward
     float2 localUV = shadowPos.xy * 0.5 + 0.5;
-    localUV.y = 1.0 - localUV.y;
 
     // Check bounds
     if (any(localUV < 0.0) || any(localUV > 1.0))

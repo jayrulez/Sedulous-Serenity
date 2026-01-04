@@ -9,14 +9,18 @@ using Sedulous.RHI;
 /// Subdivides the view frustum into 16x9x24 clusters for efficient light culling.
 class ClusterGrid
 {
+	public const int32 MAX_FRAMES_IN_FLIGHT = 2;
+
 	private IDevice mDevice;
 
-	// GPU buffers
+	// Static GPU buffers (not updated per-frame)
 	private IBuffer mClusterAABBBuffer ~ delete _;     // ClusterAABB[CLUSTER_COUNT]
-	private IBuffer mLightGridBuffer ~ delete _;       // LightGridEntry[CLUSTER_COUNT]
-	private IBuffer mLightIndexBuffer ~ delete _;      // uint32[CLUSTER_COUNT * MAX_LIGHTS_PER_CLUSTER]
-	private IBuffer mLightBuffer ~ delete _;           // GPUClusteredLight[MAX_LIGHTS]
-	private IBuffer mLightingUniformBuffer ~ delete _; // LightingUniforms
+
+	// Per-frame GPU buffers (to avoid GPU/CPU synchronization issues)
+	private IBuffer[MAX_FRAMES_IN_FLIGHT] mLightGridBuffers ~ { for (let b in _) delete b; };
+	private IBuffer[MAX_FRAMES_IN_FLIGHT] mLightIndexBuffers ~ { for (let b in _) delete b; };
+	private IBuffer[MAX_FRAMES_IN_FLIGHT] mLightBuffers ~ { for (let b in _) delete b; };
+	private IBuffer[MAX_FRAMES_IN_FLIGHT] mLightingUniformBuffers ~ { for (let b in _) delete b; };
 
 	// CPU-side data for uploading
 	private GPUClusteredLight[] mCpuLights ~ delete _;
@@ -50,30 +54,34 @@ class ClusterGrid
 
 	private void CreateGpuBuffers()
 	{
-		// Cluster AABB buffer - read by shaders to test light-cluster intersection
+		// Cluster AABB buffer - static, only updated when camera parameters change significantly
 		BufferDescriptor clusterAABBDesc = .((uint64)(sizeof(ClusterAABB) * ClusterConstants.CLUSTER_COUNT), .Storage, .Upload);
 		if (mDevice.CreateBuffer(&clusterAABBDesc) case .Ok(let aabbBuf))
 			mClusterAABBBuffer = aabbBuf;
 
-		// Light grid buffer - stores offset/count per cluster
-		BufferDescriptor lightGridDesc = .((uint64)(sizeof(LightGridEntry) * ClusterConstants.CLUSTER_COUNT), .Storage, .Upload);
-		if (mDevice.CreateBuffer(&lightGridDesc) case .Ok(let gridBuf))
-			mLightGridBuffer = gridBuf;
+		// Create per-frame buffers for data that changes every frame
+		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			// Light grid buffer - stores offset/count per cluster
+			BufferDescriptor lightGridDesc = .((uint64)(sizeof(LightGridEntry) * ClusterConstants.CLUSTER_COUNT), .Storage, .Upload);
+			if (mDevice.CreateBuffer(&lightGridDesc) case .Ok(let gridBuf))
+				mLightGridBuffers[i] = gridBuf;
 
-		// Light index buffer - stores light indices per cluster
-		BufferDescriptor lightIndexDesc = .((uint64)(sizeof(uint32) * ClusterConstants.CLUSTER_COUNT * ClusterConstants.MAX_LIGHTS_PER_CLUSTER), .Storage, .Upload);
-		if (mDevice.CreateBuffer(&lightIndexDesc) case .Ok(let indexBuf))
-			mLightIndexBuffer = indexBuf;
+			// Light index buffer - stores light indices per cluster
+			BufferDescriptor lightIndexDesc = .((uint64)(sizeof(uint32) * ClusterConstants.CLUSTER_COUNT * ClusterConstants.MAX_LIGHTS_PER_CLUSTER), .Storage, .Upload);
+			if (mDevice.CreateBuffer(&lightIndexDesc) case .Ok(let indexBuf))
+				mLightIndexBuffers[i] = indexBuf;
 
-		// Light buffer - stores all light data
-		BufferDescriptor lightDesc = .((uint64)(sizeof(GPUClusteredLight) * ClusterConstants.MAX_LIGHTS), .Storage, .Upload);
-		if (mDevice.CreateBuffer(&lightDesc) case .Ok(let lightBuf))
-			mLightBuffer = lightBuf;
+			// Light buffer - stores all light data
+			BufferDescriptor lightDesc = .((uint64)(sizeof(GPUClusteredLight) * ClusterConstants.MAX_LIGHTS), .Storage, .Upload);
+			if (mDevice.CreateBuffer(&lightDesc) case .Ok(let lightBuf))
+				mLightBuffers[i] = lightBuf;
 
-		// Lighting uniforms buffer
-		BufferDescriptor uniformDesc = .((uint64)sizeof(LightingUniforms), .Uniform, .Upload);
-		if (mDevice.CreateBuffer(&uniformDesc) case .Ok(let uniformBuf))
-			mLightingUniformBuffer = uniformBuf;
+			// Lighting uniforms buffer
+			BufferDescriptor uniformDesc = .((uint64)sizeof(LightingUniforms), .Uniform, .Upload);
+			if (mDevice.CreateBuffer(&uniformDesc) case .Ok(let uniformBuf))
+				mLightingUniformBuffers[i] = uniformBuf;
+		}
 	}
 
 	/// Updates the cluster grid for a new camera.
@@ -94,10 +102,10 @@ class ClusterGrid
 		UploadClusterAABBs();
 	}
 
-	/// Assigns lights to clusters.
-	public void CullLights(List<LightProxy*> lights, CameraProxy* camera)
+	/// Assigns lights to clusters for the specified frame.
+	public void CullLights(List<LightProxy*> lights, CameraProxy* camera, int32 frameIndex)
 	{
-		if (camera == null)
+		if (camera == null || frameIndex < 0 || frameIndex >= MAX_FRAMES_IN_FLIGHT)
 			return;
 
 		// Reset light grid
@@ -121,12 +129,15 @@ class ClusterGrid
 		AssignLightsToClusters(lights, camera);
 
 		// Upload to GPU
-		UploadLightData();
+		UploadLightData(frameIndex);
 	}
 
-	/// Updates the lighting uniform buffer.
-	public void UpdateUniforms(CameraProxy* camera, LightProxy* directionalLight)
+	/// Updates the lighting uniform buffer for the specified frame.
+	public void UpdateUniforms(CameraProxy* camera, LightProxy* directionalLight, int32 frameIndex)
 	{
+		if (frameIndex < 0 || frameIndex >= MAX_FRAMES_IN_FLIGHT)
+			return;
+
 		var uniforms = LightingUniforms.Default;
 
 		if (camera != null)
@@ -158,24 +169,48 @@ class ClusterGrid
 
 		uniforms.LightCount = (uint32)mLightCount;
 
-		// Upload to GPU
-		if (mLightingUniformBuffer != null)
+		// Upload to per-frame buffer
+		if (mLightingUniformBuffers[frameIndex] != null)
 		{
 			Span<uint8> data = .((uint8*)&uniforms, sizeof(LightingUniforms));
-			mDevice.Queue.WriteBuffer(mLightingUniformBuffer, 0, data);
+			mDevice.Queue.WriteBuffer(mLightingUniformBuffers[frameIndex], 0, data);
 		}
 	}
 
 	/// Gets the cluster AABB buffer for binding.
 	public IBuffer ClusterAABBBuffer => mClusterAABBBuffer;
-	/// Gets the light grid buffer for binding.
-	public IBuffer LightGridBuffer => mLightGridBuffer;
-	/// Gets the light index buffer for binding.
-	public IBuffer LightIndexBuffer => mLightIndexBuffer;
-	/// Gets the light buffer for binding.
-	public IBuffer LightBuffer => mLightBuffer;
-	/// Gets the lighting uniform buffer for binding.
-	public IBuffer LightingUniformBuffer => mLightingUniformBuffer;
+
+	/// Gets the light grid buffer for binding for the specified frame.
+	public IBuffer GetLightGridBuffer(int32 frameIndex)
+	{
+		if (frameIndex >= 0 && frameIndex < MAX_FRAMES_IN_FLIGHT)
+			return mLightGridBuffers[frameIndex];
+		return null;
+	}
+
+	/// Gets the light index buffer for binding for the specified frame.
+	public IBuffer GetLightIndexBuffer(int32 frameIndex)
+	{
+		if (frameIndex >= 0 && frameIndex < MAX_FRAMES_IN_FLIGHT)
+			return mLightIndexBuffers[frameIndex];
+		return null;
+	}
+
+	/// Gets the light buffer for binding for the specified frame.
+	public IBuffer GetLightBuffer(int32 frameIndex)
+	{
+		if (frameIndex >= 0 && frameIndex < MAX_FRAMES_IN_FLIGHT)
+			return mLightBuffers[frameIndex];
+		return null;
+	}
+
+	/// Gets the lighting uniform buffer for binding for the specified frame.
+	public IBuffer GetLightingUniformBuffer(int32 frameIndex)
+	{
+		if (frameIndex >= 0 && frameIndex < MAX_FRAMES_IN_FLIGHT)
+			return mLightingUniformBuffers[frameIndex];
+		return null;
+	}
 
 	/// Gets the current light count.
 	public int32 LightCount => mLightCount;
@@ -364,20 +399,23 @@ class ClusterGrid
 		}
 	}
 
-	private void UploadLightData()
+	private void UploadLightData(int32 frameIndex)
 	{
+		if (frameIndex < 0 || frameIndex >= MAX_FRAMES_IN_FLIGHT)
+			return;
+
 		// Upload lights
-		if (mLightBuffer != null && mLightCount > 0)
+		if (mLightBuffers[frameIndex] != null && mLightCount > 0)
 		{
 			Span<uint8> data = .((uint8*)mCpuLights.Ptr, sizeof(GPUClusteredLight) * mLightCount);
-			mDevice.Queue.WriteBuffer(mLightBuffer, 0, data);
+			mDevice.Queue.WriteBuffer(mLightBuffers[frameIndex], 0, data);
 		}
 
 		// Upload light grid
-		if (mLightGridBuffer != null)
+		if (mLightGridBuffers[frameIndex] != null)
 		{
 			Span<uint8> data = .((uint8*)mCpuLightGrid.Ptr, sizeof(LightGridEntry) * ClusterConstants.CLUSTER_COUNT);
-			mDevice.Queue.WriteBuffer(mLightGridBuffer, 0, data);
+			mDevice.Queue.WriteBuffer(mLightGridBuffers[frameIndex], 0, data);
 		}
 
 		// Upload light indices (only used portion)
@@ -385,10 +423,10 @@ class ClusterGrid
 		for (int i = 0; i < ClusterConstants.CLUSTER_COUNT; i++)
 			totalIndices += mCpuLightGrid[i].Count;
 
-		if (mLightIndexBuffer != null && totalIndices > 0)
+		if (mLightIndexBuffers[frameIndex] != null && totalIndices > 0)
 		{
 			Span<uint8> data = .((uint8*)mCpuLightIndices.Ptr, (int)(sizeof(uint32) * totalIndices));
-			mDevice.Queue.WriteBuffer(mLightIndexBuffer, 0, data);
+			mDevice.Queue.WriteBuffer(mLightIndexBuffers[frameIndex], 0, data);
 		}
 	}
 }

@@ -168,7 +168,7 @@ class VulkanQueue : IQueue
 	public void WriteBuffer(IBuffer buffer, uint64 offset, Span<uint8> data)
 	{
 		let vkBuffer = buffer as VulkanBuffer;
-		if (vkBuffer == null || data.Length == 0)
+		if (vkBuffer == null || !vkBuffer.IsValid || data.Length == 0)
 			return;
 
 		// Try mapping directly (works for host-visible buffers)

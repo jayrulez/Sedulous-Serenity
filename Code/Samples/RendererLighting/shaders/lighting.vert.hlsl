@@ -12,11 +12,11 @@ struct VSInput
     float2 uv : TEXCOORD0;
 
     // Per-instance data (location 3-7)
-    float4 instanceRow0 : TEXCOORD1;     // Model matrix row 0
-    float4 instanceRow1 : TEXCOORD2;     // Model matrix row 1
-    float4 instanceRow2 : TEXCOORD3;     // Model matrix row 2
-    float4 instanceRow3 : TEXCOORD4;     // Model matrix row 3
-    float4 instanceMaterial : TEXCOORD5; // x=metallic, y=roughness
+    float4 instanceRow0 : TEXCOORD3;     // Model matrix row 0
+    float4 instanceRow1 : TEXCOORD4;     // Model matrix row 1
+    float4 instanceRow2 : TEXCOORD5;     // Model matrix row 2
+    float4 instanceRow3 : TEXCOORD6;     // Model matrix row 3
+    float4 instanceMaterial : TEXCOORD7; // x=metallic, y=roughness
 };
 
 struct VSOutput

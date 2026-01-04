@@ -11,7 +11,7 @@ class VulkanDevice : IDevice
 {
 	private VulkanAdapter mAdapter;
 	private VkDevice mDevice;
-	private VulkanQueue mQueue;
+	private VulkanQueue mQueue = null;
 	private QueueFamilyIndices mQueueFamilyIndices;
 	private VulkanDescriptorPool mDescriptorPool;
 	private VulkanCommandPool mCommandPool;

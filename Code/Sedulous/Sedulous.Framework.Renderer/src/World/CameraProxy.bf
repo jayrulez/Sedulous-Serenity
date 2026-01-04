@@ -326,7 +326,7 @@ struct CameraProxy
 }
 
 /// GPU-packed camera data for shader upload.
-[Packed]
+[CRepr]
 struct GPUCameraData
 {
 	public Matrix ViewMatrix;
