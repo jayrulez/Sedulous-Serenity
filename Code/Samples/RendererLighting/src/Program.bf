@@ -77,6 +77,7 @@ class RendererLightingSample : RHISampleApp
 	// Camera
 	private Camera mCamera;
 	private CameraProxy mCameraProxy;
+	private List<LightProxy*> mLightProxies = new .() ~ delete _;
 	private float mCameraYaw = 0.0f;
 	private float mCameraPitch = 0.0f;
 	private bool mMouseCaptured = false;
@@ -706,10 +707,10 @@ class RendererLightingSample : RHISampleApp
 		return true;
 	}
 
+	/// Game logic update - no GPU buffer writes here (use OnPrepareFrame for that)
 	protected override void OnUpdate(float deltaTime, float totalTime)
 	{
 		mTime = totalTime;
-		let frameIndex = (int32)SwapChain.CurrentFrameIndex;
 
 		// Update camera proxy from current camera state
 		mCameraProxy = CameraProxy.FromCamera(0, mCamera, SwapChain.Width, SwapChain.Height);
@@ -717,15 +718,19 @@ class RendererLightingSample : RHISampleApp
 		mCameraProxy.Enabled = true;
 
 		// Gather light proxies for the lighting system
-		List<LightProxy*> lightProxies = scope .();
+		mLightProxies.Clear();
 		for (let handle in mLightHandles)
 		{
 			if (let proxy = mRenderWorld.GetLightProxy(handle))
-				lightProxies.Add(proxy);
+				mLightProxies.Add(proxy);
 		}
+	}
 
+	/// Called after fence wait - safe to write to per-frame GPU buffers here
+	protected override void OnPrepareFrame(int32 frameIndex)
+	{
 		// Update lighting system with per-frame buffer index
-		mLightingSystem.Update(&mCameraProxy, lightProxies, frameIndex);
+		mLightingSystem.Update(&mCameraProxy, mLightProxies, frameIndex);
 
 		// Prepare shadows (compute cascade matrices, allocate shadow tiles)
 		mLightingSystem.PrepareShadows(&mCameraProxy);
@@ -763,15 +768,13 @@ class RendererLightingSample : RHISampleApp
 		Device.Queue.WriteBuffer(mCameraBuffers[frameIndex], 0, camSpan);
 	}
 
-	protected override bool OnRenderCustom(ICommandEncoder encoder)
+	protected override bool OnRenderFrame(ICommandEncoder encoder, int32 frameIndex)
 	{
 		if (mInstanceCount == 0 || !mLightingSystem.HasDirectionalShadows)
 		{
 			// No shadows to render, use default render path
 			return false;
 		}
-
-		let frameIndex = (int32)SwapChain.CurrentFrameIndex;
 
 		// Render shadow cascades
 		RenderShadowCascades(encoder, frameIndex);

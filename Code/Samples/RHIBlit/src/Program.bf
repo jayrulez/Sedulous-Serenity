@@ -341,7 +341,7 @@ class BlitSample : RHISampleApp
 		return true;
 	}
 
-	protected override bool OnRenderCustom(ICommandEncoder encoder)
+	protected override bool OnRenderFrame(ICommandEncoder encoder, int32 frameIndex)
 	{
 		// Update pattern transform
 		float rotation = TotalTime * 2.0f;

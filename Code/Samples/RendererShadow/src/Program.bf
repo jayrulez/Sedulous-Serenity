@@ -135,6 +135,7 @@ class RendererShadowSample : RHISampleApp
 	// Camera
 	private Camera mCamera;
 	private CameraProxy mCameraProxy;
+	private List<LightProxy*> mLightProxies = new .() ~ delete _;
 	private float mCameraYaw = 0.0f;
 	private float mCameraPitch = 0.0f;
 	private bool mMouseCaptured = false;
@@ -791,34 +792,30 @@ class RendererShadowSample : RHISampleApp
 
 		mDebugLines.Add(LineVertex(lightEnd, .(1, 0.5f, 0, 1)));
 		mDebugLines.Add(LineVertex(lightEnd - lightDir * arrowSize - up * arrowSize * 0.5f, .(1, 0.5f, 0, 1)));
-
-		// Upload debug lines to per-frame buffer
-		if (mDebugLines.Count > 0)
-		{
-			let frameIndex = (int32)SwapChain.CurrentFrameIndex;
-			let dataSize = (uint64)(mDebugLines.Count * sizeof(LineVertex));
-			Span<uint8> data = .((uint8*)mDebugLines.Ptr, (int)dataSize);
-			Device.Queue.WriteBuffer(mFrameResources[frameIndex].LineVertexBuffer, 0, data);
-		}
 	}
 
+	/// Game logic update - no GPU buffer writes here (use OnPrepareFrame for that)
 	protected override void OnUpdate(float deltaTime, float totalTime)
 	{
-		// Get current frame index for per-frame resource access
-		let frameIndex = (int32)SwapChain.CurrentFrameIndex;
-
 		// Update camera proxy
 		mCameraProxy = CameraProxy.FromCamera(0, mCamera, SwapChain.Width, SwapChain.Height);
 		mCameraProxy.IsMain = true;
 		mCameraProxy.Enabled = true;
 
 		// Gather light proxies
-		List<LightProxy*> lightProxies = scope .();
+		mLightProxies.Clear();
 		if (let proxy = mRenderWorld.GetLightProxy(mDirLightHandle))
-			lightProxies.Add(proxy);
+			mLightProxies.Add(proxy);
 
+		// Update debug visualization (builds line data, no GPU writes)
+		UpdateDebugLines();
+	}
+
+	/// Called after fence wait - safe to write to per-frame GPU buffers here
+	protected override void OnPrepareFrame(int32 frameIndex)
+	{
 		// Update lighting system with per-frame buffer support
-		mLightingSystem.Update(&mCameraProxy, lightProxies, frameIndex);
+		mLightingSystem.Update(&mCameraProxy, mLightProxies, frameIndex);
 		mLightingSystem.PrepareShadows(&mCameraProxy);
 		mLightingSystem.UploadShadowUniforms(frameIndex);
 
@@ -850,20 +847,18 @@ class RendererShadowSample : RHISampleApp
 		Span<uint8> camSpan = .((uint8*)&camData, sizeof(CameraData));
 		Device.Queue.WriteBuffer(mFrameResources[frameIndex].CameraBuffer, 0, camSpan);
 
-		// Update debug visualization
-		UpdateDebugLines();
+		// Upload debug lines to per-frame buffer
+		if (mDebugLines.Count > 0)
+		{
+			let dataSize = (uint64)(mDebugLines.Count * sizeof(LineVertex));
+			Span<uint8> data = .((uint8*)mDebugLines.Ptr, (int)dataSize);
+			Device.Queue.WriteBuffer(mFrameResources[frameIndex].LineVertexBuffer, 0, data);
+		}
 	}
 
-	protected override bool OnRenderCustom(ICommandEncoder encoder)
+	protected override bool OnRenderFrame(ICommandEncoder encoder, int32 frameIndex)
 	{
 		if (mInstanceCount == 0 || !mLightingSystem.HasDirectionalShadows)
-			return false;
-
-		// Get current frame index for per-frame resource access
-		let frameIndex = (int32)SwapChain.CurrentFrameIndex;
-
-		// Validate frame index is in bounds
-		if (frameIndex < 0 || frameIndex >= MAX_FRAMES_IN_FLIGHT)
 			return false;
 
 		// Render shadow cascades (each cascade has its own buffer/bind group to avoid overwrite)

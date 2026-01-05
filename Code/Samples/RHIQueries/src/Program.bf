@@ -308,7 +308,7 @@ class QueriesSample : RHISampleApp
 		}
 	}
 
-	protected override bool OnRenderCustom(ICommandEncoder encoder)
+	protected override bool OnRenderFrame(ICommandEncoder encoder, int32 frameIndex)
 	{
 		// Reset queries before recording
 		encoder.ResetQuerySet(mTimestampQuerySet, 0, 2);

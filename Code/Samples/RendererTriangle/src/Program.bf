@@ -203,16 +203,16 @@ class RendererTriangleSample : RHISampleApp
 		return true;
 	}
 
-	protected override void OnUpdate(float deltaTime, float totalTime)
+	protected override void OnPrepareFrame(int32 frameIndex)
 	{
 		// Update rotation
-		float rotationAngle = totalTime * 1.0f;
+		float rotationAngle = TotalTime * 1.0f;
 		Uniforms uniforms = .() { Transform = Matrix.CreateRotationZ(rotationAngle) };
 		Span<uint8> uniformData = .((uint8*)&uniforms, sizeof(Uniforms));
 		Device.Queue.WriteBuffer(mUniformBuffer, 0, uniformData);
 	}
 
-	protected override bool OnRenderCustom(ICommandEncoder encoder)
+	protected override bool OnRenderFrame(ICommandEncoder encoder, int32 frameIndex)
 	{
 		// Begin frame for render graph
 		mRenderGraph.BeginFrame(mFrameIndex, DeltaTime, TotalTime);

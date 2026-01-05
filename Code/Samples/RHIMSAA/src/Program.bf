@@ -371,14 +371,14 @@ class MSAASample : RHISampleApp
 		}
 	}
 
-	protected override void OnUpdate(float deltaTime, float totalTime)
+	protected override void OnPrepareFrame(int32 frameIndex)
 	{
-		float rotation = totalTime * 1.0f;
+		float rotation = TotalTime * 1.0f;
 		Uniforms uniforms = .() { Transform = Matrix.CreateRotationZ(rotation) };
 		Device.Queue.WriteBuffer(mUniformBuffer, 0, .((uint8*)&uniforms, sizeof(Uniforms)));
 	}
 
-	protected override bool OnRenderCustom(ICommandEncoder encoder)
+	protected override bool OnRenderFrame(ICommandEncoder encoder, int32 frameIndex)
 	{
 		if (mUseMSAA)
 		{

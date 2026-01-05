@@ -446,7 +446,7 @@ class RendererGeometrySample : RHISampleApp
 				texPath.Append("models/Duck/glTF/");
 				texPath.Append(uri);
 
-				Console.WriteLine(scope $"Loading texture: {texPath}");
+				Console.WriteLine(scope $"Loading texture: {Directory.GetCurrentDirectory(.. scope .())}/{texPath}");
 
 				// Load image using SDLImageLoader
 				let imageLoader = scope SDLImageLoader();
@@ -1022,64 +1022,94 @@ class RendererGeometrySample : RHISampleApp
 		return true;
 	}
 
-	private bool LoadFoxModel_REPLACE_MARKER()
+	private bool LoadFoxModel()
 	{
-		// Load Fox model
-		mFoxModel = new Model();
-		let loader = scope GltfLoader();
+		let cachedPath = "models/Fox/Fox.skinnedmesh";
 
-		let result = loader.Load("models/Fox/glTF/Fox.gltf", mFoxModel);
-		if (result != .Ok)
+		// Try to load from cached resource first
+		if (File.Exists(cachedPath))
 		{
-			Console.WriteLine(scope $"Failed to load Fox model: {result}");
-			delete mFoxModel;
-			mFoxModel = null;
-			return true; // Continue without model
-		}
-
-		Console.WriteLine(scope $"Fox model loaded: {mFoxModel.Meshes.Count} meshes, {mFoxModel.Bones.Count} bones, {mFoxModel.Animations.Count} animations");
-
-		// Get skin - required for conversion
-		if (mFoxModel.Skins.Count == 0 || mFoxModel.Meshes.Count == 0)
-		{
-			Console.WriteLine("Fox model has no skin or mesh data");
-			return true;
-		}
-		let skin = mFoxModel.Skins[0];
-		let modelMesh = mFoxModel.Meshes[0];
-		Console.WriteLine(scope $"Fox skin: {skin.Joints.Count} joints");
-
-		// Use converters from Sedulous.Geometry.Tooling to create SkinnedMeshResource
-		if (ModelMeshConverter.ConvertToSkinnedMesh(modelMesh, skin) case .Ok(var conversionResult))
-		{
-			defer conversionResult.Dispose();
-
-			// Create skeleton using the converter
-			let skeleton = SkeletonConverter.CreateFromSkin(mFoxModel, skin);
-			if (skeleton == null)
+			Console.WriteLine("Loading Fox from cached resource...");
+			if (ResourceSerializer.LoadSkinnedMeshBundle(cachedPath) case .Ok(let resource))
 			{
-				Console.WriteLine("Failed to create skeleton");
-				delete conversionResult.Mesh;
-				return true;
+				mFoxResource = resource;
+				Console.WriteLine(scope $"Fox resource loaded from cache: {mFoxResource.Mesh.VertexCount} vertices, {mFoxResource.Skeleton?.BoneCount ?? 0} bones, {mFoxResource.AnimationCount} animations");
+
+				// Create GPU mesh from loaded resource
+				mFoxGPUMesh = mResourceManager.CreateSkinnedMesh(mFoxResource.Mesh);
+			}
+			else
+			{
+				Console.WriteLine("Failed to load cached Fox resource, falling back to GLTF import...");
+			}
+		}
+
+		// If not loaded from cache, import from GLTF
+		if (mFoxResource == null)
+		{
+			mFoxModel = new Model();
+			let loader = scope GltfLoader();
+
+			let result = loader.Load("models/Fox/glTF/Fox.gltf", mFoxModel);
+			if (result != .Ok)
+			{
+				Console.WriteLine(scope $"Failed to load Fox model: {result}");
+				delete mFoxModel;
+				mFoxModel = null;
+				return true; // Continue without model
 			}
 
-			// Convert animations using the node-to-bone mapping
-			let animations = AnimationConverter.ConvertAll(mFoxModel, conversionResult.NodeToBoneMapping);
+			Console.WriteLine(scope $"Fox model loaded: {mFoxModel.Meshes.Count} meshes, {mFoxModel.Bones.Count} bones, {mFoxModel.Animations.Count} animations");
 
-			// Create the SkinnedMeshResource with all the data
-			mFoxResource = new SkinnedMeshResource(conversionResult.Mesh, true);
-			mFoxResource.SetSkeleton(skeleton, true);
-			mFoxResource.SetAnimations(animations, true);
+			// Get skin - required for conversion
+			if (mFoxModel.Skins.Count == 0 || mFoxModel.Meshes.Count == 0)
+			{
+				Console.WriteLine("Fox model has no skin or mesh data");
+				return true;
+			}
+			let skin = mFoxModel.Skins[0];
+			let modelMesh = mFoxModel.Meshes[0];
+			Console.WriteLine(scope $"Fox skin: {skin.Joints.Count} joints");
 
-			Console.WriteLine(scope $"Fox resource created: {mFoxResource.Mesh.VertexCount} vertices, {mFoxResource.Skeleton.BoneCount} bones, {mFoxResource.AnimationCount} animations");
+			// Use converters from Sedulous.Geometry.Tooling to create SkinnedMeshResource
+			if (ModelMeshConverter.ConvertToSkinnedMesh(modelMesh, skin) case .Ok(var conversionResult))
+			{
+				defer conversionResult.Dispose();
 
-			// Create GPU mesh
-			mFoxGPUMesh = mResourceManager.CreateSkinnedMesh(mFoxResource.Mesh);
-		}
-		else
-		{
-			Console.WriteLine("Failed to convert Fox mesh");
-			return true;
+				// Create skeleton using the converter
+				let skeleton = SkeletonConverter.CreateFromSkin(mFoxModel, skin);
+				if (skeleton == null)
+				{
+					Console.WriteLine("Failed to create skeleton");
+					delete conversionResult.Mesh;
+					return true;
+				}
+
+				// Convert animations using the node-to-bone mapping
+				let animations = AnimationConverter.ConvertAll(mFoxModel, conversionResult.NodeToBoneMapping);
+
+				// Create the SkinnedMeshResource with all the data
+				mFoxResource = new SkinnedMeshResource(conversionResult.Mesh, true);
+				mFoxResource.Name.Set("Fox");
+				mFoxResource.SetSkeleton(skeleton, true);
+				mFoxResource.SetAnimations(animations, true);
+
+				Console.WriteLine(scope $"Fox resource created: {mFoxResource.Mesh.VertexCount} vertices, {mFoxResource.Skeleton.BoneCount} bones, {mFoxResource.AnimationCount} animations");
+
+				// Save to cache for next time
+				if (ResourceSerializer.SaveSkinnedMeshBundle(mFoxResource, cachedPath) case .Ok)
+					Console.WriteLine(scope $"Fox resource saved to: {cachedPath}");
+				else
+					Console.WriteLine("Warning: Failed to save Fox resource to cache");
+
+				// Create GPU mesh
+				mFoxGPUMesh = mResourceManager.CreateSkinnedMesh(mFoxResource.Mesh);
+			}
+			else
+			{
+				Console.WriteLine("Failed to convert Fox mesh");
+				return true;
+			}
 		}
 
 		// Create AnimationPlayer and start playing
@@ -1090,7 +1120,7 @@ class RendererGeometrySample : RHISampleApp
 			Console.WriteLine(scope $"Fox animation player started: {mFoxResource.Animations[0].Name}");
 		}
 
-		// Load texture
+		// Load texture (still needed - not part of cached resource)
 		let texPath = "models/Fox/glTF/Texture.png";
 		let imageLoader = scope SDLImageLoader();
 		if (imageLoader.LoadFromFile(texPath) case .Ok(var loadInfo))
@@ -1135,7 +1165,6 @@ class RendererGeometrySample : RHISampleApp
 
 		return true;
 	}
-
 	private bool CreateSkinnedPipeline()
 	{
 		if (mFoxGPUMesh.Index == uint32.MaxValue)
@@ -1576,152 +1605,6 @@ class RendererGeometrySample : RHISampleApp
 			mResourceManager.ReleaseSkinnedMesh(mFoxGPUMesh);
 			delete mResourceManager;
 		}
-	}
-
-	private bool LoadFoxModel()
-	{
-		let cachedPath = "models/Fox/Fox.skinnedmesh";
-
-		// Try to load from cached resource first
-		if (File.Exists(cachedPath))
-		{
-			Console.WriteLine("Loading Fox from cached resource...");
-			if (ResourceSerializer.LoadSkinnedMeshBundle(cachedPath) case .Ok(let resource))
-			{
-				mFoxResource = resource;
-				Console.WriteLine(scope $"Fox resource loaded from cache: {mFoxResource.Mesh.VertexCount} vertices, {mFoxResource.Skeleton?.BoneCount ?? 0} bones, {mFoxResource.AnimationCount} animations");
-
-				// Create GPU mesh from loaded resource
-				mFoxGPUMesh = mResourceManager.CreateSkinnedMesh(mFoxResource.Mesh);
-
-				//ResourceSerializer.SaveSkinnedMeshBundle(mFoxResource, scope $"{cachedPath}2");
-			}
-			else
-			{
-				Console.WriteLine("Failed to load cached Fox resource, falling back to GLTF import...");
-			}
-		}
-
-		// If not loaded from cache, import from GLTF
-		if (mFoxResource == null)
-		{
-			mFoxModel = new Model();
-			let loader = scope GltfLoader();
-
-			let result = loader.Load("models/Fox/glTF/Fox.gltf", mFoxModel);
-			if (result != .Ok)
-			{
-				Console.WriteLine(scope $"Failed to load Fox model: {result}");
-				delete mFoxModel;
-				mFoxModel = null;
-				return true; // Continue without model
-			}
-
-			Console.WriteLine(scope $"Fox model loaded: {mFoxModel.Meshes.Count} meshes, {mFoxModel.Bones.Count} bones, {mFoxModel.Animations.Count} animations");
-
-			// Get skin - required for conversion
-			if (mFoxModel.Skins.Count == 0 || mFoxModel.Meshes.Count == 0)
-			{
-				Console.WriteLine("Fox model has no skin or mesh data");
-				return true;
-			}
-			let skin = mFoxModel.Skins[0];
-			let modelMesh = mFoxModel.Meshes[0];
-			Console.WriteLine(scope $"Fox skin: {skin.Joints.Count} joints");
-
-			// Use converters from Sedulous.Geometry.Tooling to create SkinnedMeshResource
-			if (ModelMeshConverter.ConvertToSkinnedMesh(modelMesh, skin) case .Ok(var conversionResult))
-			{
-				defer conversionResult.Dispose();
-
-				// Create skeleton using the converter
-				let skeleton = SkeletonConverter.CreateFromSkin(mFoxModel, skin);
-				if (skeleton == null)
-				{
-					Console.WriteLine("Failed to create skeleton");
-					delete conversionResult.Mesh;
-					return true;
-				}
-
-				// Convert animations using the node-to-bone mapping
-				let animations = AnimationConverter.ConvertAll(mFoxModel, conversionResult.NodeToBoneMapping);
-
-				// Create the SkinnedMeshResource with all the data
-				mFoxResource = new SkinnedMeshResource(conversionResult.Mesh, true);
-				mFoxResource.Name.Set("Fox");
-				mFoxResource.SetSkeleton(skeleton, true);
-				mFoxResource.SetAnimations(animations, true);
-
-				Console.WriteLine(scope $"Fox resource created: {mFoxResource.Mesh.VertexCount} vertices, {mFoxResource.Skeleton.BoneCount} bones, {mFoxResource.AnimationCount} animations");
-
-				// Save to cache for next time
-				if (ResourceSerializer.SaveSkinnedMeshBundle(mFoxResource, cachedPath) case .Ok)
-					Console.WriteLine(scope $"Fox resource saved to: {cachedPath}");
-				else
-					Console.WriteLine("Warning: Failed to save Fox resource to cache");
-
-				// Create GPU mesh
-				mFoxGPUMesh = mResourceManager.CreateSkinnedMesh(mFoxResource.Mesh);
-			}
-			else
-			{
-				Console.WriteLine("Failed to convert Fox mesh");
-				return true;
-			}
-		}
-
-		// Create AnimationPlayer and start playing
-		if (mFoxResource?.Skeleton != null && mFoxResource.AnimationCount > 0)
-		{
-			mFoxAnimPlayer = mFoxResource.CreatePlayer();
-			mFoxAnimPlayer.Play(mFoxResource.Animations[0]);
-			Console.WriteLine(scope $"Fox animation player started: {mFoxResource.Animations[0].Name}");
-		}
-
-		// Load texture (still needed - not part of cached resource)
-		let texPath = "models/Fox/glTF/Texture.png";
-		let imageLoader = scope SDLImageLoader();
-		if (imageLoader.LoadFromFile(texPath) case .Ok(var loadInfo))
-		{
-			defer loadInfo.Dispose();
-			Console.WriteLine(scope $"Fox texture: {loadInfo.Width}x{loadInfo.Height}, data size={loadInfo.Data.Count}, expected={loadInfo.Width * loadInfo.Height * 4}");
-
-			TextureDescriptor texDesc = .Texture2D(loadInfo.Width, loadInfo.Height, .RGBA8Unorm, .Sampled | .CopyDst);
-			if (Device.CreateTexture(&texDesc) case .Ok(let texture))
-			{
-				mFoxTexture = texture;
-
-				TextureDataLayout layout = .() { Offset = 0, BytesPerRow = loadInfo.Width * 4, RowsPerImage = loadInfo.Height };
-				Extent3D size = .(loadInfo.Width, loadInfo.Height, 1);
-				Span<uint8> data = .(loadInfo.Data.Ptr, loadInfo.Data.Count);
-				Device.Queue.WriteTexture(mFoxTexture, data, &layout, &size, 0, 0);
-
-				TextureViewDescriptor viewDesc = .() { Format = .RGBA8Unorm, Dimension = .Texture2D, MipLevelCount = 1, ArrayLayerCount = 1 };
-				if (Device.CreateTextureView(mFoxTexture, &viewDesc) case .Ok(let view))
-					mFoxTextureView = view;
-			}
-		}
-
-		// Create fallback white texture if needed
-		if (mFoxTextureView == null)
-		{
-			TextureDescriptor texDesc = .Texture2D(1, 1, .RGBA8Unorm, .Sampled | .CopyDst);
-			if (Device.CreateTexture(&texDesc) case .Ok(let texture))
-			{
-				mFoxTexture = texture;
-				uint8[4] white = .(255, 255, 255, 255);
-				TextureDataLayout layout = .() { Offset = 0, BytesPerRow = 4, RowsPerImage = 1 };
-				Extent3D size = .(1, 1, 1);
-				Span<uint8> data = .(&white, 4);
-				Device.Queue.WriteTexture(mFoxTexture, data, &layout, &size, 0, 0);
-
-				TextureViewDescriptor viewDesc = .() { Format = .RGBA8Unorm, Dimension = .Texture2D, MipLevelCount = 1, ArrayLayerCount = 1 };
-				if (Device.CreateTextureView(mFoxTexture, &viewDesc) case .Ok(let view))
-					mFoxTextureView = view;
-			}
-		}
-
-		return true;
 	}
 
 }

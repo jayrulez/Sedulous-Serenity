@@ -27,6 +27,29 @@ struct SampleConfig
 
 /// Base class for RHI sample applications.
 /// Handles common setup, main loop, and cleanup.
+///
+/// ## Frame Lifecycle
+///
+/// The frame lifecycle is designed to ensure proper GPU/CPU synchronization:
+///
+/// ```
+/// Main Loop:
+///     ProcessEvents()
+///     OnInput()                      // Handle input (no GPU resources)
+///     OnUpdate(deltaTime, totalTime) // Game logic (no GPU resources)
+///
+///     Frame():
+///         AcquireNextImage()              // Wait for fence - GPU done with this frame's resources
+///         OnPrepareFrame(frameIndex)      // Safe to write per-frame buffers
+///         OnRenderFrame(encoder, frameIndex) // Record render commands
+///         Submit()
+///         Present()
+///         OnFrameEnd()
+/// ```
+///
+/// **Important**: Do NOT write to per-frame GPU buffers in OnUpdate().
+/// Use OnPrepareFrame() for all buffer writes, as it's called after the fence wait.
+///
 abstract class RHISampleApp
 {
 	// Core objects
@@ -103,11 +126,14 @@ abstract class RHISampleApp
 					OnKeyDown(keyCode);
 			}
 
-			// Let sample handle input
+			// Input handling - no GPU resource access
 			OnInput();
 
-			// Render (OnUpdate is called inside RenderFrame, after fence wait)
-			if (RenderFrame())
+			// Game logic update - no GPU resource access (use OnPrepareFrame for buffer writes)
+			OnUpdate(mDeltaTime, mTotalTime);
+
+			// Frame rendering (includes fence wait, prepare, render, submit, present)
+			if (Frame())
 			{
 				mConsecutiveErrors = 0;
 			}
@@ -126,23 +152,36 @@ abstract class RHISampleApp
 		return 0;
 	}
 
-	/// Initializes the sample. Called after RHI setup completes.
-	/// Override to create resources.
+	//==========================================================================
+	// Lifecycle Methods - Override these in derived classes
+	//==========================================================================
+
+	/// Called after RHI setup completes. Override to create resources.
 	protected virtual bool OnInitialize() => true;
 
 	/// Called each frame for input handling.
+	/// Do NOT access per-frame GPU resources here.
 	protected virtual void OnInput() { }
 
-	/// Called each frame for updates.
+	/// Called each frame for game logic updates (physics, AI, animation, etc.).
+	/// Do NOT write to per-frame GPU buffers here - use OnPrepareFrame() instead.
 	protected virtual void OnUpdate(float deltaTime, float totalTime) { }
 
-	/// Called to record render commands.
-	protected abstract void OnRender(IRenderPassEncoder renderPass);
+	/// Called after fence wait to prepare per-frame GPU resources.
+	/// This is the ONLY place where it's safe to write to per-frame buffers.
+	/// @param frameIndex The current frame index (0 to MAX_FRAMES_IN_FLIGHT-1)
+	protected virtual void OnPrepareFrame(int32 frameIndex) { }
 
-	/// Called for custom rendering when you need full control over the command encoder.
+	/// Called to record render commands with full control over the command encoder.
 	/// If this returns true, the default render pass is skipped.
-	/// Use this for advanced scenarios like queries that need to wrap render passes.
-	protected virtual bool OnRenderCustom(ICommandEncoder encoder) => false;
+	/// @param encoder The command encoder for recording commands
+	/// @param frameIndex The current frame index (0 to MAX_FRAMES_IN_FLIGHT-1)
+	/// @return true if custom rendering was performed, false to use default render pass
+	protected virtual bool OnRenderFrame(ICommandEncoder encoder, int32 frameIndex) => false;
+
+	/// Called to record render commands in the default render pass.
+	/// Only called if OnRenderFrame() returns false.
+	protected virtual void OnRender(IRenderPassEncoder renderPass) { }
 
 	/// Called at the end of each frame after present.
 	protected virtual void OnFrameEnd() { }
@@ -156,7 +195,10 @@ abstract class RHISampleApp
 	/// Called during cleanup. Override to destroy sample resources.
 	protected virtual void OnCleanup() { }
 
-	// Accessors for derived classes
+	//==========================================================================
+	// Accessors
+	//==========================================================================
+
 	public IDevice Device => mDevice;
 	public ISwapChain SwapChain => mSwapChain;
 	public IWindow Window => mWindow;
@@ -166,6 +208,10 @@ abstract class RHISampleApp
 
 	/// Returns the current depth texture view, or null if depth is disabled.
 	public ITextureView DepthTextureView => mDepthTextureView;
+
+	//==========================================================================
+	// Private Implementation
+	//==========================================================================
 
 	private bool Initialize()
 	{
@@ -313,7 +359,8 @@ abstract class RHISampleApp
 		}
 	}
 
-	private bool RenderFrame()
+	/// Executes one frame: acquire, prepare, render, submit, present.
+	private bool Frame()
 	{
 		// Acquire next swap chain image - this waits for the in-flight fence,
 		// ensuring the GPU is done with this frame slot's resources
@@ -323,17 +370,18 @@ abstract class RHISampleApp
 			return true; // Resize is not an error
 		}
 
-		// Now that we've waited for the fence, it's safe to write to per-frame buffers.
-		// OnUpdate is called here (after fence wait) to avoid GPU/CPU synchronization issues.
-		OnUpdate(mDeltaTime, mTotalTime);
+		let frameIndex = (int32)mSwapChain.CurrentFrameIndex;
 
 		// Clean up previous command buffer for this frame slot
-		let frameIndex = mSwapChain.CurrentFrameIndex;
 		if (mCommandBuffers[frameIndex] != null)
 		{
 			delete mCommandBuffers[frameIndex];
 			mCommandBuffers[frameIndex] = null;
 		}
+
+		// === PREPARE PHASE ===
+		// Now that we've waited for the fence, it's safe to write to per-frame buffers
+		OnPrepareFrame(frameIndex);
 
 		// Get current texture view
 		let textureView = mSwapChain.CurrentTextureView;
@@ -351,12 +399,13 @@ abstract class RHISampleApp
 		}
 		defer delete encoder;
 
+		// === RENDER PHASE ===
 		// Check if sample wants custom rendering control
-		bool customRendering = OnRenderCustom(encoder);
+		bool customRendering = OnRenderFrame(encoder, frameIndex);
 
 		if (!customRendering)
 		{
-			// Begin render pass
+			// Default render pass for simple samples
 			RenderPassColorAttachment[1] colorAttachments = .(.()
 			{
 				View = textureView,
@@ -410,10 +459,9 @@ abstract class RHISampleApp
 		// Store command buffer for later deletion
 		mCommandBuffers[frameIndex] = commandBuffer;
 
-		// Submit with swap chain synchronization
+		// === SUBMIT & PRESENT ===
 		mDevice.Queue.Submit(commandBuffer, mSwapChain);
 
-		// Present
 		if (mSwapChain.Present() case .Err)
 		{
 			HandleResize();
