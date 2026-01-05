@@ -342,7 +342,7 @@ class RendererStaticMeshSample : RHISampleApp
 
 	private bool CreateSkyboxPipeline()
 	{
-		let shaderResult = ShaderUtils.LoadShaderPair(Device, "shaders/skybox");
+		let shaderResult = ShaderUtils.LoadShaderPair(Device, "../../Sedulous/Sedulous.Framework.Renderer/shaders/skybox");
 		if (shaderResult case .Err)
 		{
 			Console.WriteLine("Failed to load skybox shaders");

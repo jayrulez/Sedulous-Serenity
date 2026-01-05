@@ -3,6 +3,7 @@ namespace Sedulous.Framework.Renderer;
 using System;
 using System.Collections;
 using Sedulous.Framework.Core;
+using Sedulous.Geometry;
 using Sedulous.Mathematics;
 using Sedulous.RHI;
 using Sedulous.Serialization;
@@ -15,12 +16,21 @@ class SkinnedMeshRendererComponent : IEntityComponent
 	private BoundingBox mLocalBounds = .(.Zero, .Zero);
 
 	// Animation data
-	private Skeleton mSkeleton ~ delete _;
+	private Skeleton mSkeleton;
+	private bool mOwnsSkeleton = false;
 	private AnimationPlayer mAnimationPlayer ~ delete _;
-	private List<AnimationClip> mAnimationClips = new .() ~ DeleteContainerAndItems!(_);
+	private List<AnimationClip> mAnimationClips = new .() ~ delete _;  // Don't delete items - we don't own them
+	private bool mOwnsAnimationClips = false;
 
 	// GPU bone matrix buffer
 	private IBuffer mBoneMatrixBuffer ~ delete _;
+
+	// Texture for this skinned mesh
+	private ITexture mTexture ~ delete _;
+	private ITextureView mTextureView ~ delete _;
+
+	// Cached bind group for this skinned mesh
+	private IBindGroup mBindGroup ~ delete _;
 
 	// Entity and scene references
 	private Entity mEntity;
@@ -51,8 +61,8 @@ class SkinnedMeshRendererComponent : IEntityComponent
 	/// Gets the animation player.
 	public AnimationPlayer AnimationPlayer => mAnimationPlayer;
 
-	/// Gets the bone matrix buffer for shader binding.
-	internal IBuffer BoneMatrixBuffer => mBoneMatrixBuffer;
+	/// Gets the bone matrix buffer for shader binding (framework use).
+	public IBuffer BoneMatrixBuffer => mBoneMatrixBuffer;
 
 	/// Gets the list of available animation clips.
 	public List<AnimationClip> AnimationClips => mAnimationClips;
@@ -60,22 +70,59 @@ class SkinnedMeshRendererComponent : IEntityComponent
 	/// Gets whether an animation is currently playing.
 	public bool IsPlaying => mAnimationPlayer != null && mAnimationPlayer.State == .Playing;
 
+	/// Gets the GPU mesh handle (framework use).
+	public GPUSkinnedMeshHandle GPUMeshHandle => mGPUMesh;
+
+	/// Gets or sets the cached bind group for rendering (framework use).
+	public IBindGroup BindGroup
+	{
+		get => mBindGroup;
+		set
+		{
+			if (mBindGroup != null)
+				delete mBindGroup;
+			mBindGroup = value;
+		}
+	}
+
+	/// Gets the entity this component is attached to (framework use).
+	public Entity Entity => mEntity;
+
+	/// Gets the texture view for this skinned mesh, or null if none set.
+	public ITextureView TextureView => mTextureView;
+
 	/// Creates a new SkinnedMeshRendererComponent.
 	public this()
 	{
 	}
 
+	public ~this()
+	{
+		// Only delete skeleton if we own it
+		if (mOwnsSkeleton && mSkeleton != null)
+			delete mSkeleton;
+
+		// Only delete animation clips if we own them
+		if (mOwnsAnimationClips)
+			DeleteContainerAndItems!(mAnimationClips);
+	}
+
 	/// Sets the skeleton for this skinned mesh.
 	/// Must be called before SetMesh.
-	public void SetSkeleton(Skeleton skeleton)
+	/// If ownsSkeleton is false, the skeleton is shared and won't be deleted.
+	public void SetSkeleton(Skeleton skeleton, bool ownsSkeleton = false)
 	{
-		// Delete old skeleton and player
-		if (mSkeleton != null)
+		// Delete old skeleton and player if we own it
+		if (mOwnsSkeleton && mSkeleton != null)
 			delete mSkeleton;
 		if (mAnimationPlayer != null)
+		{
 			delete mAnimationPlayer;
+			mAnimationPlayer = null;
+		}
 
 		mSkeleton = skeleton;
+		mOwnsSkeleton = ownsSkeleton;
 
 		if (skeleton != null)
 		{
@@ -83,6 +130,27 @@ class SkinnedMeshRendererComponent : IEntityComponent
 
 			// Create/resize bone matrix buffer if renderer service is available
 			CreateBoneMatrixBuffer();
+		}
+	}
+
+	/// Sets the texture for this skinned mesh.
+	/// Takes ownership of the texture and view.
+	public void SetTexture(ITexture texture, ITextureView textureView)
+	{
+		// Delete old texture resources
+		if (mTextureView != null)
+			delete mTextureView;
+		if (mTexture != null)
+			delete mTexture;
+
+		mTexture = texture;
+		mTextureView = textureView;
+
+		// Invalidate bind group so it gets recreated with new texture
+		if (mBindGroup != null)
+		{
+			delete mBindGroup;
+			mBindGroup = null;
 		}
 	}
 
@@ -169,11 +237,44 @@ class SkinnedMeshRendererComponent : IEntityComponent
 		}
 	}
 
+	/// Sets the skinned mesh to render from CPU mesh data.
+	/// Automatically uploads to GPU via the RendererService.
+	public void SetMesh(SkinnedMesh mesh)
+	{
+		if (mesh == null)
+			return;
+
+		if (mRenderScene?.RendererService?.ResourceManager == null)
+		{
+			// Store for later when attached
+			mLocalBounds = mesh.Bounds;
+			return;
+		}
+
+		// Upload to GPU
+		let resourceManager = mRenderScene.RendererService.ResourceManager;
+		mGPUMesh = resourceManager.CreateSkinnedMesh(mesh);
+		mLocalBounds = mesh.Bounds;
+
+		// Register with render scene for rendering
+		mRenderScene.RegisterSkinnedMesh(this);
+
+		// Create proxy for visibility culling
+		if (mEntity != null && mGPUMesh.IsValid)
+		{
+			CreateOrUpdateProxy();
+		}
+	}
+
 	/// Sets the GPU skinned mesh to render (low-level API).
 	internal void SetMesh(GPUSkinnedMeshHandle mesh, BoundingBox bounds)
 	{
 		mGPUMesh = mesh;
 		mLocalBounds = bounds;
+
+		// Register with render scene for rendering
+		if (mRenderScene != null)
+			mRenderScene.RegisterSkinnedMesh(this);
 
 		// Update proxy if attached
 		if (mEntity != null && mRenderScene != null && mesh.IsValid)
@@ -208,6 +309,7 @@ class SkinnedMeshRendererComponent : IEntityComponent
 	/// Called when the component is detached from an entity.
 	public void OnDetach()
 	{
+		mRenderScene?.UnregisterSkinnedMesh(this);
 		RemoveProxy();
 		mEntity = null;
 		mRenderScene = null;

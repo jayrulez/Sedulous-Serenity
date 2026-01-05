@@ -1,4 +1,5 @@
 // Sprite/Billboard Fragment Shader
+// Simple colored sprite (no texture)
 
 struct PSInput
 {
@@ -7,18 +8,8 @@ struct PSInput
     float4 color : COLOR;
 };
 
-// Sprite texture
-Texture2D spriteTexture : register(t0);
-SamplerState spriteSampler : register(s0);
-
 float4 main(PSInput input) : SV_Target
 {
-    float4 texColor = spriteTexture.Sample(spriteSampler, input.uv);
-    float4 finalColor = texColor * input.color;
-
-    // Alpha test - discard nearly transparent pixels
-    if (finalColor.a < 0.01)
-        discard;
-
-    return finalColor;
+    // Simple colored sprite (no texture for now)
+    return input.color;
 }

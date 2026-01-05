@@ -45,6 +45,14 @@ class RenderSceneComponent : ISceneComponent
 	private List<MeshProxy*> mVisibleMeshes = new .() ~ delete _;
 	private List<LightProxy*> mActiveLights = new .() ~ delete _;
 
+	// Particle emitters and sprites
+	private List<ParticleEmitterComponent> mParticleEmitters = new .() ~ delete _;
+	private List<SpriteComponent> mSprites = new .() ~ delete _;
+	private SpriteRenderer mSpriteRenderer ~ delete _;
+
+	// Skinned meshes
+	private List<SkinnedMeshRendererComponent> mSkinnedMeshes = new .() ~ delete _;
+
 	// Main camera handle
 	private ProxyHandle mMainCamera = .Invalid;
 
@@ -58,6 +66,23 @@ class RenderSceneComponent : ISceneComponent
 	private IBindGroupLayout mBindGroupLayout ~ delete _;
 	private IPipelineLayout mPipelineLayout ~ delete _;
 	private IRenderPipeline mPipeline ~ delete _;
+
+	// Billboard pipeline resources (particles, sprites)
+	private IBuffer[MAX_FRAMES_IN_FLIGHT] mBillboardCameraBuffers = .();
+	private IBindGroupLayout mBillboardBindGroupLayout ~ delete _;
+	private IPipelineLayout mBillboardPipelineLayout ~ delete _;
+	private IBindGroup[MAX_FRAMES_IN_FLIGHT] mBillboardBindGroups = .();
+	private IRenderPipeline mParticlePipeline ~ delete _;
+	private IRenderPipeline mSpritePipeline ~ delete _;
+
+	// Skinned mesh pipeline resources
+	private IBindGroupLayout mSkinnedBindGroupLayout ~ delete _;
+	private IPipelineLayout mSkinnedPipelineLayout ~ delete _;
+	private IRenderPipeline mSkinnedPipeline ~ delete _;
+	private IBuffer mSkinnedObjectBuffer ~ delete _;
+	private ISampler mDefaultSampler ~ delete _;
+	private ITexture mWhiteTexture ~ delete _;
+	private ITextureView mWhiteTextureView ~ delete _;
 
 	// CPU-side instance data (built in OnUpdate, uploaded in PrepareGPU)
 	private RenderSceneInstanceData[] mInstanceData ~ delete _;
@@ -250,6 +275,22 @@ class RenderSceneComponent : ISceneComponent
 		if (CreatePipeline() case .Err)
 			return .Err;
 
+		// Create billboard camera buffers and pipelines for particles/sprites
+		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			BufferDescriptor billboardCamDesc = .((uint64)sizeof(BillboardCameraUniforms), .Uniform, .Upload);
+			if (device.CreateBuffer(&billboardCamDesc) case .Ok(let buf))
+				mBillboardCameraBuffers[i] = buf;
+			else
+				return .Err;
+		}
+
+		if (CreateBillboardPipelines() case .Err)
+			return .Err;
+
+		// Create sprite renderer
+		mSpriteRenderer = new SpriteRenderer(device);
+
 		mRenderingInitialized = true;
 		return .Ok;
 	}
@@ -361,6 +402,324 @@ class RenderSceneComponent : ISceneComponent
 		return .Ok;
 	}
 
+	private Result<void> CreateBillboardPipelines()
+	{
+		let device = mRendererService.Device;
+
+		// Billboard bind group layout (shared between particle and sprite pipelines)
+		BindGroupLayoutEntry[1] billboardLayoutEntries = .(
+			BindGroupLayoutEntry.UniformBuffer(0, .Vertex)
+		);
+		BindGroupLayoutDescriptor billboardLayoutDesc = .(billboardLayoutEntries);
+		if (device.CreateBindGroupLayout(&billboardLayoutDesc) not case .Ok(let layout))
+			return .Err;
+		mBillboardBindGroupLayout = layout;
+
+		// Billboard pipeline layout
+		IBindGroupLayout[1] billboardLayouts = .(mBillboardBindGroupLayout);
+		PipelineLayoutDescriptor billboardPipelineLayoutDesc = .(billboardLayouts);
+		if (device.CreatePipelineLayout(&billboardPipelineLayoutDesc) not case .Ok(let pipelineLayout))
+			return .Err;
+		mBillboardPipelineLayout = pipelineLayout;
+
+		// Create per-frame billboard bind groups
+		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			BindGroupEntry[1] entries = .(
+				BindGroupEntry.Buffer(0, mBillboardCameraBuffers[i])
+			);
+			BindGroupDescriptor bindGroupDesc = .(mBillboardBindGroupLayout, entries);
+			if (device.CreateBindGroup(&bindGroupDesc) not case .Ok(let group))
+				return .Err;
+			mBillboardBindGroups[i] = group;
+		}
+
+		// Create particle pipeline
+		if (CreateParticlePipeline() case .Err)
+			return .Err;
+
+		// Create sprite pipeline
+		if (CreateSpritePipeline() case .Err)
+			return .Err;
+
+		// Create skinned mesh pipeline resources
+		if (CreateSkinnedPipeline() case .Err)
+			return .Err;
+
+		return .Ok;
+	}
+
+	private Result<void> CreateParticlePipeline()
+	{
+		let device = mRendererService.Device;
+		let shaderLibrary = mRendererService.ShaderLibrary;
+
+		// Load particle shaders
+		let vertResult = shaderLibrary.GetShader("particle", .Vertex);
+		if (vertResult case .Err)
+			return .Err;
+		let vertShader = vertResult.Get();
+
+		let fragResult = shaderLibrary.GetShader("particle", .Fragment);
+		if (fragResult case .Err)
+			return .Err;
+		let fragShader = fragResult.Get();
+
+		// ParticleVertex: Position(12) + Size(8) + Color(4) + Rotation(4) = 28 bytes
+		Sedulous.RHI.VertexAttribute[4] vertexAttrs = .(
+			.(VertexFormat.Float3, 0, 0),          // Position
+			.(VertexFormat.Float2, 12, 1),         // Size
+			.(VertexFormat.UByte4Normalized, 20, 2), // Color
+			.(VertexFormat.Float, 24, 3)           // Rotation
+		);
+		VertexBufferLayout[1] vertexBuffers = .(
+			VertexBufferLayout(28, vertexAttrs, .Instance)
+		);
+
+		ColorTargetState[1] colorTargets = .(
+			ColorTargetState(mColorFormat, .AlphaBlend)
+		);
+
+		DepthStencilState depthState = .();
+		depthState.DepthTestEnabled = true;
+		depthState.DepthWriteEnabled = false;  // Particles don't write to depth
+		depthState.DepthCompare = .Less;
+		depthState.Format = mDepthFormat;
+
+		RenderPipelineDescriptor pipelineDesc = .()
+		{
+			Layout = mBillboardPipelineLayout,
+			Vertex = .()
+			{
+				Shader = .(vertShader.Module, "main"),
+				Buffers = vertexBuffers
+			},
+			Fragment = .()
+			{
+				Shader = .(fragShader.Module, "main"),
+				Targets = colorTargets
+			},
+			Primitive = .()
+			{
+				Topology = .TriangleList,
+				FrontFace = .CCW,
+				CullMode = .None
+			},
+			DepthStencil = depthState,
+			Multisample = .()
+			{
+				Count = 1,
+				Mask = uint32.MaxValue
+			}
+		};
+
+		if (device.CreateRenderPipeline(&pipelineDesc) not case .Ok(let pipeline))
+			return .Err;
+		mParticlePipeline = pipeline;
+
+		return .Ok;
+	}
+
+	private Result<void> CreateSpritePipeline()
+	{
+		let device = mRendererService.Device;
+		let shaderLibrary = mRendererService.ShaderLibrary;
+
+		// Load sprite shaders
+		let vertResult = shaderLibrary.GetShader("sprite", .Vertex);
+		if (vertResult case .Err)
+			return .Err;
+		let vertShader = vertResult.Get();
+
+		let fragResult = shaderLibrary.GetShader("sprite", .Fragment);
+		if (fragResult case .Err)
+			return .Err;
+		let fragShader = fragResult.Get();
+
+		// SpriteInstance: Position(12) + Size(8) + UVRect(16) + Color(4) = 40 bytes
+		Sedulous.RHI.VertexAttribute[4] vertexAttrs = .(
+			.(VertexFormat.Float3, 0, 0),          // Position
+			.(VertexFormat.Float2, 12, 1),         // Size
+			.(VertexFormat.Float4, 20, 2),         // UVRect
+			.(VertexFormat.UByte4Normalized, 36, 3) // Color
+		);
+		VertexBufferLayout[1] vertexBuffers = .(
+			VertexBufferLayout(40, vertexAttrs, .Instance)
+		);
+
+		ColorTargetState[1] colorTargets = .(
+			ColorTargetState(mColorFormat, .AlphaBlend)
+		);
+
+		DepthStencilState depthState = .();
+		depthState.DepthTestEnabled = true;
+		depthState.DepthWriteEnabled = false;  // Sprites don't write to depth
+		depthState.DepthCompare = .Less;
+		depthState.Format = mDepthFormat;
+
+		RenderPipelineDescriptor pipelineDesc = .()
+		{
+			Layout = mBillboardPipelineLayout,
+			Vertex = .()
+			{
+				Shader = .(vertShader.Module, "main"),
+				Buffers = vertexBuffers
+			},
+			Fragment = .()
+			{
+				Shader = .(fragShader.Module, "main"),
+				Targets = colorTargets
+			},
+			Primitive = .()
+			{
+				Topology = .TriangleList,
+				FrontFace = .CCW,
+				CullMode = .None
+			},
+			DepthStencil = depthState,
+			Multisample = .()
+			{
+				Count = 1,
+				Mask = uint32.MaxValue
+			}
+		};
+
+		if (device.CreateRenderPipeline(&pipelineDesc) not case .Ok(let pipeline))
+			return .Err;
+		mSpritePipeline = pipeline;
+
+		return .Ok;
+	}
+
+	private Result<void> CreateSkinnedPipeline()
+	{
+		let device = mRendererService.Device;
+		let shaderLibrary = mRendererService.ShaderLibrary;
+
+		// Load skinned mesh shaders
+		let vertResult = shaderLibrary.GetShader("skinned", .Vertex);
+		if (vertResult case .Err)
+			return .Err;
+		let vertShader = vertResult.Get();
+
+		let fragResult = shaderLibrary.GetShader("skinned", .Fragment);
+		if (fragResult case .Err)
+			return .Err;
+		let fragShader = fragResult.Get();
+
+		// Bind group layout: b0=camera, b1=object, b2=bones, t0=texture, s0=sampler
+		BindGroupLayoutEntry[5] layoutEntries = .(
+			BindGroupLayoutEntry.UniformBuffer(0, .Vertex | .Fragment),  // Camera
+			BindGroupLayoutEntry.UniformBuffer(1, .Vertex | .Fragment),  // Object
+			BindGroupLayoutEntry.UniformBuffer(2, .Vertex),              // Bones
+			BindGroupLayoutEntry.SampledTexture(0, .Fragment, .Texture2D),
+			BindGroupLayoutEntry.Sampler(0, .Fragment)
+		);
+		BindGroupLayoutDescriptor bindLayoutDesc = .(layoutEntries);
+		if (device.CreateBindGroupLayout(&bindLayoutDesc) not case .Ok(let layout))
+			return .Err;
+		mSkinnedBindGroupLayout = layout;
+
+		// Pipeline layout
+		IBindGroupLayout[1] layouts = .(mSkinnedBindGroupLayout);
+		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
+		if (device.CreatePipelineLayout(&pipelineLayoutDesc) not case .Ok(let pipelineLayout))
+			return .Err;
+		mSkinnedPipelineLayout = pipelineLayout;
+
+		// Create object uniform buffer
+		BufferDescriptor objectDesc = .(128, .Uniform, .Upload);
+		if (device.CreateBuffer(&objectDesc) case .Ok(let buf))
+			mSkinnedObjectBuffer = buf;
+		else
+			return .Err;
+
+		// Create default sampler
+		SamplerDescriptor samplerDesc = .();
+		samplerDesc.MinFilter = .Linear;
+		samplerDesc.MagFilter = .Linear;
+		samplerDesc.MipmapFilter = .Linear;
+		samplerDesc.AddressModeU = .ClampToEdge;
+		samplerDesc.AddressModeV = .ClampToEdge;
+		if (device.CreateSampler(&samplerDesc) case .Ok(let sampler))
+			mDefaultSampler = sampler;
+		else
+			return .Err;
+
+		// Create 1x1 white texture fallback
+		TextureDescriptor texDesc = .Texture2D(1, 1, .RGBA8Unorm, .Sampled | .CopyDst);
+		if (device.CreateTexture(&texDesc) case .Ok(let tex))
+		{
+			mWhiteTexture = tex;
+			uint8[4] white = .(255, 255, 255, 255);
+			TextureDataLayout texLayout = .() { Offset = 0, BytesPerRow = 4, RowsPerImage = 1 };
+			Extent3D size = .(1, 1, 1);
+			Span<uint8> data = .(&white, 4);
+			device.Queue.WriteTexture(mWhiteTexture, data, &texLayout, &size, 0, 0);
+
+			TextureViewDescriptor viewDesc = .() { Format = .RGBA8Unorm, Dimension = .Texture2D, MipLevelCount = 1, ArrayLayerCount = 1 };
+			if (device.CreateTextureView(mWhiteTexture, &viewDesc) case .Ok(let view))
+				mWhiteTextureView = view;
+			else
+				return .Err;
+		}
+		else
+			return .Err;
+
+		// SkinnedVertex layout: Position(12) + Normal(12) + UV(8) + Color(4) + Tangent(12) + Joints(8) + Weights(16) = 72 bytes
+		Sedulous.RHI.VertexAttribute[7] vertexAttrs = .(
+			.(VertexFormat.Float3, 0, 0),              // Position
+			.(VertexFormat.Float3, 12, 1),             // Normal
+			.(VertexFormat.Float2, 24, 2),             // TexCoord
+			.(VertexFormat.UByte4Normalized, 32, 3),   // Color
+			.(VertexFormat.Float3, 36, 4),             // Tangent
+			.(VertexFormat.UShort4, 48, 5),            // Joints
+			.(VertexFormat.Float4, 56, 6)              // Weights
+		);
+		VertexBufferLayout[1] vertexBuffers = .(.(72, vertexAttrs));
+
+		ColorTargetState[1] colorTargets = .(.(mColorFormat));
+
+		DepthStencilState depthState = .();
+		depthState.DepthTestEnabled = true;
+		depthState.DepthWriteEnabled = true;
+		depthState.DepthCompare = .Less;
+		depthState.Format = mDepthFormat;
+
+		RenderPipelineDescriptor pipelineDesc = .()
+		{
+			Layout = mSkinnedPipelineLayout,
+			Vertex = .()
+			{
+				Shader = .(vertShader.Module, "main"),
+				Buffers = vertexBuffers
+			},
+			Fragment = .()
+			{
+				Shader = .(fragShader.Module, "main"),
+				Targets = colorTargets
+			},
+			Primitive = .()
+			{
+				Topology = .TriangleList,
+				FrontFace = .CCW,
+				CullMode = .Back
+			},
+			DepthStencil = depthState,
+			Multisample = .()
+			{
+				Count = 1,
+				Mask = uint32.MaxValue
+			}
+		};
+
+		if (device.CreateRenderPipeline(&pipelineDesc) not case .Ok(let pipeline))
+			return .Err;
+		mSkinnedPipeline = pipeline;
+
+		return .Ok;
+	}
+
 	private void CleanupRendering()
 	{
 		if (!mRenderingInitialized)
@@ -368,7 +727,15 @@ class RenderSceneComponent : ISceneComponent
 
 		// Delete per-frame resources
 		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
 			mFrameResources[i].Dispose();
+
+			// Billboard resources
+			delete mBillboardCameraBuffers[i];
+			mBillboardCameraBuffers[i] = null;
+			delete mBillboardBindGroups[i];
+			mBillboardBindGroups[i] = null;
+		}
 
 		mRenderingInitialized = false;
 	}
@@ -438,6 +805,7 @@ class RenderSceneComponent : ISceneComponent
 			if (mFlipProjection)
 				projection.M22 = -projection.M22;
 
+			// Scene camera uniforms (for mesh rendering)
 			SceneCameraUniforms cameraData = .();
 			cameraData.ViewProjection = view * projection;
 			cameraData.CameraPosition = cameraProxy.Position;
@@ -454,6 +822,36 @@ class RenderSceneComponent : ISceneComponent
 
 			Span<uint8> camData = .((uint8*)&cameraData, sizeof(SceneCameraUniforms));
 			device.Queue.WriteBuffer(frame.CameraBuffer, 0, camData);
+
+			// Billboard camera uniforms (for particles/sprites)
+			BillboardCameraUniforms billboardCamData = .();
+			billboardCamData.ViewProjection = view * projection;
+			billboardCamData.View = view;
+			billboardCamData.Projection = projection;
+			billboardCamData.CameraPosition = cameraProxy.Position;
+
+			Span<uint8> billboardCam = .((uint8*)&billboardCamData, sizeof(BillboardCameraUniforms));
+			var buf = mBillboardCameraBuffers[frameIndex];// beef bug to access in function call
+			device.Queue.WriteBuffer(buf, 0, billboardCam);
+		}
+
+		// Upload particle data
+		for (let emitter in mParticleEmitters)
+		{
+			if (emitter.Visible && emitter.ParticleSystem != null)
+				emitter.ParticleSystem.Upload();
+		}
+
+		// Build and upload sprite data
+		if (mSpriteRenderer != null && mSprites.Count > 0)
+		{
+			mSpriteRenderer.Begin();
+			for (let sprite in mSprites)
+			{
+				if (sprite.Visible)
+					mSpriteRenderer.AddSprite(sprite.GetSpriteInstance());
+			}
+			mSpriteRenderer.End();
 		}
 	}
 
@@ -461,7 +859,7 @@ class RenderSceneComponent : ISceneComponent
 	/// Call this in OnRender.
 	public void Render(IRenderPassEncoder renderPass, uint32 viewportWidth, uint32 viewportHeight)
 	{
-		if (!mRenderingInitialized || mInstanceCount == 0)
+		if (!mRenderingInitialized)
 			return;
 
 		renderPass.SetViewport(0, 0, viewportWidth, viewportHeight, 0, 1);
@@ -469,41 +867,82 @@ class RenderSceneComponent : ISceneComponent
 
 		ref SceneFrameResources frame = ref mFrameResources[mCurrentFrameIndex];
 
-		renderPass.SetPipeline(mPipeline);
-		renderPass.SetBindGroup(0, frame.BindGroup);
-
-		// Draw each visible mesh
-		// For now, we batch by mesh handle - all instances with same mesh drawn together
-		// TODO: Implement proper batching by mesh handle
-
-		let resourceManager = mRendererService.ResourceManager;
-		if (resourceManager == null)
-			return;
-
-		// Simple approach: draw all visible meshes using their GPU mesh
-		int32 instanceOffset = 0;
-		GPUMeshHandle lastMesh = .Invalid;
-
-		for (int32 i = 0; i < mInstanceCount; i++)
+		// Render meshes
+		if (mInstanceCount > 0)
 		{
-			let proxy = mVisibleMeshes[i];
-			let meshHandle = proxy.MeshHandle;
+			renderPass.SetPipeline(mPipeline);
+			renderPass.SetBindGroup(0, frame.BindGroup);
 
-			// When mesh changes, draw the batch
-			if (i > 0 && !meshHandle.Equals(lastMesh))
+			let resourceManager = mRendererService.ResourceManager;
+			if (resourceManager != null)
 			{
-				DrawMeshBatch(renderPass, resourceManager, lastMesh, frame.InstanceBuffer, instanceOffset, i - instanceOffset);
-				instanceOffset = i;
+				// Simple approach: draw all visible meshes using their GPU mesh
+				int32 instanceOffset = 0;
+				GPUMeshHandle lastMesh = .Invalid;
+
+				for (int32 i = 0; i < mInstanceCount; i++)
+				{
+					let proxy = mVisibleMeshes[i];
+					let meshHandle = proxy.MeshHandle;
+
+					// When mesh changes, draw the batch
+					if (i > 0 && !meshHandle.Equals(lastMesh))
+					{
+						DrawMeshBatch(renderPass, resourceManager, lastMesh, frame.InstanceBuffer, instanceOffset, i - instanceOffset);
+						instanceOffset = i;
+					}
+
+					lastMesh = meshHandle;
+				}
+
+				// Draw final batch
+				if (mInstanceCount > instanceOffset)
+				{
+					DrawMeshBatch(renderPass, resourceManager, lastMesh, frame.InstanceBuffer, instanceOffset, mInstanceCount - instanceOffset);
+				}
 			}
-
-			lastMesh = meshHandle;
 		}
 
-		// Draw final batch
-		if (mInstanceCount > instanceOffset)
+		// Render particles
+		if (mParticlePipeline != null && mBillboardBindGroups[mCurrentFrameIndex] != null)
 		{
-			DrawMeshBatch(renderPass, resourceManager, lastMesh, frame.InstanceBuffer, instanceOffset, mInstanceCount - instanceOffset);
+			renderPass.SetPipeline(mParticlePipeline);
+			renderPass.SetBindGroup(0, mBillboardBindGroups[mCurrentFrameIndex]);
+
+			for (let emitter in mParticleEmitters)
+			{
+				if (!emitter.Visible)
+					continue;
+
+				let particleSystem = emitter.ParticleSystem;
+				if (particleSystem == null)
+					continue;
+
+				let particleCount = particleSystem.ParticleCount;
+				if (particleCount > 0)
+				{
+					renderPass.SetVertexBuffer(0, particleSystem.VertexBuffer, 0);
+					renderPass.SetIndexBuffer(particleSystem.IndexBuffer, .UInt16, 0);
+					renderPass.DrawIndexed(6, (uint32)particleCount, 0, 0, 0);
+				}
+			}
 		}
+
+		// Render sprites
+		if (mSpritePipeline != null && mSpriteRenderer != null && mBillboardBindGroups[mCurrentFrameIndex] != null)
+		{
+			let spriteCount = mSpriteRenderer.SpriteCount;
+			if (spriteCount > 0)
+			{
+				renderPass.SetPipeline(mSpritePipeline);
+				renderPass.SetBindGroup(0, mBillboardBindGroups[mCurrentFrameIndex]);
+				renderPass.SetVertexBuffer(0, mSpriteRenderer.InstanceBuffer, 0);
+				renderPass.Draw(6, (uint32)spriteCount, 0, 0);
+			}
+		}
+
+		// Render skinned meshes
+		RenderSkinnedMeshes(renderPass);
 
 		// End frame on render world
 		mRenderWorld.EndFrame();
@@ -527,6 +966,85 @@ class RenderSceneComponent : ISceneComponent
 		else
 		{
 			renderPass.Draw(gpuMesh.VertexCount, (uint32)instanceCount, 0, 0);
+		}
+	}
+
+	private void RenderSkinnedMeshes(IRenderPassEncoder renderPass)
+	{
+		if (mSkinnedPipeline == null || mSkinnedMeshes.Count == 0)
+			return;
+
+		let device = mRendererService.Device;
+		let resourceManager = mRendererService.ResourceManager;
+		if (device == null || resourceManager == null)
+			return;
+
+		renderPass.SetPipeline(mSkinnedPipeline);
+
+		for (let skinnedComp in mSkinnedMeshes)
+		{
+			if (!skinnedComp.Visible)
+				continue;
+
+			let meshHandle = skinnedComp.GPUMeshHandle;
+			if (!meshHandle.IsValid)
+				continue;
+
+			let gpuMesh = resourceManager.GetSkinnedMesh(meshHandle);
+			if (gpuMesh == null)
+				continue;
+
+			let boneBuffer = skinnedComp.BoneMatrixBuffer;
+			if (boneBuffer == null)
+				continue;
+
+			// Create or update bind group for this skinned mesh
+			if (skinnedComp.BindGroup == null)
+			{
+				let cameraBuffer = mFrameResources[mCurrentFrameIndex].CameraBuffer;
+				ITextureView textureView = skinnedComp.TextureView;
+				if (textureView == null)
+					textureView = mWhiteTextureView;
+
+				BindGroupEntry[5] entries = .(
+					BindGroupEntry.Buffer(0, cameraBuffer),
+					BindGroupEntry.Buffer(1, mSkinnedObjectBuffer),
+					BindGroupEntry.Buffer(2, boneBuffer),
+					BindGroupEntry.Texture(0, textureView),
+					BindGroupEntry.Sampler(0, mDefaultSampler)
+				);
+				BindGroupDescriptor bindGroupDesc = .(mSkinnedBindGroupLayout, entries);
+				if (device.CreateBindGroup(&bindGroupDesc) case .Ok(let group))
+					skinnedComp.BindGroup = group;
+				else
+					continue;
+			}
+
+			// Update object buffer with this mesh's transform
+			Matrix modelMatrix = .Identity;
+			if (skinnedComp.Entity != null)
+				modelMatrix = skinnedComp.Entity.Transform.WorldMatrix;
+			Vector4 baseColor = .(1, 1, 1, 1);
+
+			// ObjectUniforms: Model (64 bytes) + BaseColor (16 bytes) = 80 bytes
+			uint8[80] objectData = .();
+			Internal.MemCpy(&objectData[0], &modelMatrix, sizeof(Matrix));
+			Internal.MemCpy(&objectData[64], &baseColor, sizeof(Vector4));
+			Span<uint8> objSpan = .(&objectData, 80);
+			device.Queue.WriteBuffer(mSkinnedObjectBuffer, 0, objSpan);
+
+			renderPass.SetBindGroup(0, skinnedComp.BindGroup);
+			renderPass.SetVertexBuffer(0, gpuMesh.VertexBuffer, 0);
+
+			if (gpuMesh.IndexBuffer != null)
+			{
+				renderPass.SetIndexBuffer(gpuMesh.IndexBuffer, gpuMesh.IndexFormat, 0);
+				renderPass.DrawIndexed(gpuMesh.IndexCount, 1, 0, 0, 0);
+			}
+			else
+			{
+				renderPass.Draw(gpuMesh.VertexCount, 1, 0, 0);
+			}
 		}
 	}
 
@@ -656,6 +1174,59 @@ class RenderSceneComponent : ISceneComponent
 			return handle;
 		return .Invalid;
 	}
+
+	// ==================== Particle & Sprite Management ====================
+
+	/// Registers a particle emitter component.
+	public void RegisterParticleEmitter(ParticleEmitterComponent emitter)
+	{
+		if (!mParticleEmitters.Contains(emitter))
+			mParticleEmitters.Add(emitter);
+	}
+
+	/// Unregisters a particle emitter component.
+	public void UnregisterParticleEmitter(ParticleEmitterComponent emitter)
+	{
+		mParticleEmitters.Remove(emitter);
+	}
+
+	/// Registers a sprite component.
+	public void RegisterSprite(SpriteComponent sprite)
+	{
+		if (!mSprites.Contains(sprite))
+			mSprites.Add(sprite);
+	}
+
+	/// Unregisters a sprite component.
+	public void UnregisterSprite(SpriteComponent sprite)
+	{
+		mSprites.Remove(sprite);
+	}
+
+	/// Gets the list of registered particle emitters.
+	public List<ParticleEmitterComponent> ParticleEmitters => mParticleEmitters;
+
+	/// Gets the list of registered sprites.
+	public List<SpriteComponent> Sprites => mSprites;
+
+	/// Registers a skinned mesh component.
+	public void RegisterSkinnedMesh(SkinnedMeshRendererComponent skinnedMesh)
+	{
+		if (!mSkinnedMeshes.Contains(skinnedMesh))
+			mSkinnedMeshes.Add(skinnedMesh);
+	}
+
+	/// Unregisters a skinned mesh component.
+	public void UnregisterSkinnedMesh(SkinnedMeshRendererComponent skinnedMesh)
+	{
+		mSkinnedMeshes.Remove(skinnedMesh);
+	}
+
+	/// Gets the list of registered skinned meshes.
+	public List<SkinnedMeshRendererComponent> SkinnedMeshes => mSkinnedMeshes;
+
+	/// Gets the sprite renderer.
+	public SpriteRenderer SpriteRenderer => mSpriteRenderer;
 
 	// ==================== Frame Sync ====================
 

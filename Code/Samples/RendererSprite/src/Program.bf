@@ -175,7 +175,7 @@ class RendererSpriteSample : RHISampleApp
 
 	private bool CreateSkyboxPipeline()
 	{
-		let shaderResult = ShaderUtils.LoadShaderPair(Device, "shaders/skybox");
+		let shaderResult = ShaderUtils.LoadShaderPair(Device, "../../Sedulous/Sedulous.Framework.Renderer/shaders/skybox");
 		if (shaderResult case .Err)
 		{
 			Console.WriteLine("Failed to load skybox shaders");
@@ -324,13 +324,13 @@ class RendererSpriteSample : RHISampleApp
 		if (Device.FlipProjectionRequired)
 			projection.M22 = -projection.M22;
 
-		CameraUniforms cameraData = .();
+		BillboardCameraUniforms cameraData = .();
 		cameraData.ViewProjection = view * projection;
 		cameraData.View = view;
 		cameraData.Projection = projection;
 		cameraData.CameraPosition = mCamera.Position;
 
-		Span<uint8> camData = .((uint8*)&cameraData, sizeof(CameraUniforms));
+		Span<uint8> camData = .((uint8*)&cameraData, sizeof(BillboardCameraUniforms));
 		Device.Queue.WriteBuffer(mCameraUniformBuffer, 0, camData);
 
 		// Update sprites - animated circle of floating sprites
@@ -419,16 +419,6 @@ class RendererSpriteSample : RHISampleApp
 		if (mSpriteRenderer != null) delete mSpriteRenderer;
 		if (mSkyboxRenderer != null) delete mSkyboxRenderer;
 	}
-}
-
-[CRepr]
-struct CameraUniforms
-{
-	public Matrix ViewProjection;
-	public Matrix View;
-	public Matrix Projection;
-	public Vector3 CameraPosition;
-	public float _pad0;
 }
 
 class Program

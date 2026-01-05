@@ -1,5 +1,5 @@
 // Skybox Vertex Shader
-// Renders a fullscreen quad and samples cubemap based on view direction
+// Fullscreen triangle that samples cubemap based on view direction
 
 struct VSInput
 {
@@ -12,7 +12,6 @@ struct VSOutput
     float3 texCoord : TEXCOORD0;
 };
 
-// Camera uniform buffer (binding 0)
 cbuffer CameraUniforms : register(b0)
 {
     float4x4 viewProjection;
@@ -35,26 +34,27 @@ VSOutput main(VSInput input)
 
     float2 pos = positions[input.vertexId];
 
-    // Output position at far plane (z = 0 for reverse-Z, z = 1 for standard)
-    output.position = float4(pos, 0.0, 1.0);
+    // Output position at far plane (z = 1 for standard depth)
+    output.position = float4(pos, 1.0, 1.0);
 
     // Compute view direction from clip space position
-    // Remove translation from view matrix to get rotation-only view
-    float4x4 viewRotation = view;
-    viewRotation[3] = float4(0, 0, 0, 1);
-    viewRotation[0][3] = 0;
-    viewRotation[1][3] = 0;
-    viewRotation[2][3] = 0;
+    // For row-major view matrix, extract the 3x3 rotation part
+    // Row 0 = right, Row 1 = up, Row 2 = forward
+    float3 right = float3(view[0][0], view[0][1], view[0][2]);
+    float3 up = float3(view[1][0], view[1][1], view[1][2]);
+    float3 forward = float3(view[2][0], view[2][1], view[2][2]);
 
-    // Inverse projection to get view-space direction
-    float4x4 invProj = projection;
-    // Approximate inverse for perspective projection
-    float4 clipPos = float4(pos, 1.0, 1.0);
+    // Unproject from clip space to view direction
+    // projection[0][0] = 1/(aspect*tan(fov/2)), projection[1][1] = 1/tan(fov/2)
+    float3 viewDir = normalize(float3(
+        pos.x / projection[0][0],
+        pos.y / projection[1][1],
+        -1.0
+    ));
 
-    // Transform to view space then to world space
-    float4x4 invViewRotation = transpose(viewRotation); // Rotation inverse = transpose
-    float4 viewDir = float4(pos.x / projection[0][0], pos.y / projection[1][1], -1.0, 0.0);
-    output.texCoord = mul(invViewRotation, viewDir).xyz;
+    // Transform from view space to world space using inverse view rotation
+    // Inverse of rotation matrix = transpose, so world = viewDir.x*right + viewDir.y*up + viewDir.z*forward
+    output.texCoord = viewDir.x * right + viewDir.y * up + viewDir.z * forward;
 
     return output;
 }

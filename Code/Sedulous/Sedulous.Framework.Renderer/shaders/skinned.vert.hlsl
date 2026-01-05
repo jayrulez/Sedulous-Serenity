@@ -1,26 +1,7 @@
-// Skinned Vertex Shader - Skeletal animation with up to 4 bone influences
+// Skinned Mesh Vertex Shader
+// Applies skeletal animation bone transforms to vertices
 
-#define MAX_BONES 128
-
-struct VSInput
-{
-    float3 position : POSITION;
-    float3 normal : NORMAL;
-    float2 uv : TEXCOORD0;
-    uint4 joints : BLENDINDICES;  // Bone indices (packed as uint16x4)
-    float4 weights : BLENDWEIGHT; // Bone weights
-};
-
-struct VSOutput
-{
-    float4 position : SV_Position;
-    float3 worldPos : TEXCOORD0;
-    float3 worldNormal : TEXCOORD1;
-    float2 uv : TEXCOORD2;
-};
-
-// Camera uniform buffer (binding 0)
-cbuffer CameraUniforms : register(b0)
+cbuffer CameraBuffer : register(b0)
 {
     float4x4 viewProjection;
     float4x4 view;
@@ -29,39 +10,70 @@ cbuffer CameraUniforms : register(b0)
     float _pad0;
 };
 
-// Object uniform buffer (binding 2)
-cbuffer ObjectUniforms : register(b2)
+cbuffer ObjectBuffer : register(b1)
 {
     float4x4 model;
-    float4x4 normalMatrix;
+    float4 baseColor;
 };
 
-// Bone matrices buffer (binding 3)
-cbuffer BoneMatrices : register(b3)
+// Bone transforms - up to 128 bones
+cbuffer BoneBuffer : register(b2)
 {
-    float4x4 bones[MAX_BONES];
+    float4x4 boneMatrices[128];
 };
 
-VSOutput main(VSInput input)
+struct VSInput
 {
-    VSOutput output;
+    float3 position : POSITION;
+    float3 normal : NORMAL;
+    float2 texCoord : TEXCOORD0;
+    uint color : COLOR;
+    float3 tangent : TANGENT;
+    uint4 joints : BLENDINDICES;
+    float4 weights : BLENDWEIGHT;
+};
+
+struct PSInput
+{
+    float4 position : SV_Position;
+    float3 worldNormal : NORMAL;
+    float2 texCoord : TEXCOORD0;
+    float3 worldPos : TEXCOORD1;
+};
+
+PSInput main(VSInput input)
+{
+    PSInput output;
 
     // Compute skinned position and normal
-    float4x4 skinMatrix =
-        bones[input.joints.x] * input.weights.x +
-        bones[input.joints.y] * input.weights.y +
-        bones[input.joints.z] * input.weights.z +
-        bones[input.joints.w] * input.weights.w;
+    float4 skinnedPos = float4(0, 0, 0, 0);
+    float3 skinnedNormal = float3(0, 0, 0);
 
-    float4 skinnedPos = mul(skinMatrix, float4(input.position, 1.0));
-    float3 skinnedNormal = mul((float3x3)skinMatrix, input.normal);
+    // Apply bone transforms weighted by blend weights
+    [unroll]
+    for (int i = 0; i < 4; i++)
+    {
+        float weight = input.weights[i];
+        if (weight > 0.0)
+        {
+            uint boneIndex = input.joints[i];
+            float4x4 bone = boneMatrices[boneIndex];
 
-    // Apply model transform
+            skinnedPos += weight * mul(bone, float4(input.position, 1.0));
+            skinnedNormal += weight * mul((float3x3)bone, input.normal);
+        }
+    }
+
+    // Transform to world space
     float4 worldPos = mul(model, skinnedPos);
     output.position = mul(viewProjection, worldPos);
     output.worldPos = worldPos.xyz;
-    output.worldNormal = mul((float3x3)normalMatrix, skinnedNormal);
-    output.uv = input.uv;
+
+    // Transform normal to world space
+    float3x3 normalMatrix = (float3x3)model;
+    output.worldNormal = normalize(mul(normalMatrix, skinnedNormal));
+
+    output.texCoord = input.texCoord;
 
     return output;
 }

@@ -2,6 +2,7 @@ namespace RendererIntegrated;
 
 using System;
 using System.Collections;
+using System.IO;
 using Sedulous.Mathematics;
 using Sedulous.RHI;
 using Sedulous.Geometry;
@@ -9,8 +10,11 @@ using Sedulous.Framework.Core;
 using Sedulous.Framework.Renderer;
 using Sedulous.Logging.Abstractions;
 using Sedulous.Logging.Console;
+using Sedulous.Models;
+using Sedulous.Imaging;
 using SampleFramework;
 using Sedulous.Logging.Debug;
+using Sedulous.Geometry.Tooling;
 
 /// Demonstrates Framework.Core integration with Framework.Renderer.
 /// Uses entities with MeshRendererComponent, LightComponent, and CameraComponent.
@@ -41,6 +45,10 @@ class RendererIntegratedSample : RHISampleApp
 
 	// Current frame index for rendering
 	private int32 mCurrentFrameIndex = 0;
+
+	// Fox (skinned mesh) resources
+	private SkinnedMeshResource mFoxResource ~ delete _;
+	private Entity mFoxEntity;
 
 	public this() : base(.()
 	{
@@ -90,6 +98,7 @@ class RendererIntegratedSample : RHISampleApp
 
 		Console.WriteLine("Framework.Core + Renderer integration sample initialized");
 		Console.WriteLine($"Created {GRID_SIZE * GRID_SIZE} cube entities with MeshRendererComponent");
+		Console.WriteLine($"Created 4 particle emitters and 10 sprite entities");
 		Console.WriteLine("Controls: WASD=Move, QE=Up/Down, Tab=Toggle mouse capture, Shift=Fast");
 
 		// Debug: initial state
@@ -184,6 +193,161 @@ class RendererIntegratedSample : RHISampleApp
 			cameraComp.UseReverseZ = false;  // Match RendererShadow sample
 			cameraComp.SetViewport(SwapChain.Width, SwapChain.Height);
 			mCameraEntity.AddComponent(cameraComp);
+		}
+
+		// Create 4 particle emitters at corners of ground
+		{
+			// Corner positions (ground is 50x50, so corners at ±20)
+			Vector3[4] corners = .(
+				.(-20, 0.5f, -20),
+				.(20, 0.5f, -20),
+				.(-20, 0.5f, 20),
+				.(20, 0.5f, 20)
+			);
+
+			// Different color schemes for each corner
+			Color[4] startColors = .(
+				.(255, 100, 100, 255),  // Red
+				.(100, 255, 100, 255),  // Green
+				.(100, 100, 255, 255),  // Blue
+				.(255, 255, 100, 255)   // Yellow
+			);
+			Color[4] endColors = .(
+				.(255, 200, 50, 0),     // Red -> Orange
+				.(50, 255, 200, 0),     // Green -> Cyan
+				.(200, 50, 255, 0),     // Blue -> Purple
+				.(255, 100, 200, 0)     // Yellow -> Pink
+			);
+
+			for (int i = 0; i < 4; i++)
+			{
+				let particleEntity = mScene.CreateEntity(scope $"ParticleFountain_{i}");
+				particleEntity.Transform.SetPosition(corners[i]);
+
+				var config = ParticleEmitterConfig.Default;
+				config.EmissionRate = 100;
+				config.MinVelocity = .(-1.5f, 6, -1.5f);
+				config.MaxVelocity = .(1.5f, 10, 1.5f);
+				config.MinLife = 1.5f;
+				config.MaxLife = 2.5f;
+				config.MinSize = 0.1f;
+				config.MaxSize = 0.2f;
+				config.StartColor = startColors[i];
+				config.EndColor = endColors[i];
+				config.Gravity = .(0, -12.0f, 0);
+
+				let emitter = new ParticleEmitterComponent(config);
+				particleEntity.AddComponent(emitter);
+			}
+		}
+
+		// Create some sprite entities
+		for (int i = 0; i < 10; i++)
+		{
+			float angle = (float)i / 10.0f * Math.PI_f * 2.0f;
+			float radius = 8.0f;
+
+			let spriteEntity = mScene.CreateEntity(scope $"Sprite_{i}");
+			spriteEntity.Transform.SetPosition(.(
+				Math.Cos(angle) * radius,
+				2.0f + (float)i * 0.3f,
+				Math.Sin(angle) * radius
+			));
+
+			let sprite = new SpriteComponent(.(1.0f, 1.0f));
+			// Vary colors
+			sprite.Color = .((uint8)(128 + i * 12), (uint8)(200 - i * 10), (uint8)(100 + i * 15), 255);
+			spriteEntity.AddComponent(sprite);
+		}
+
+		// Create fox entity (skinned mesh)
+		CreateFoxEntity();
+	}
+
+	private void CreateFoxEntity()
+	{
+		// Load fox from cached resource
+		let cachedPath = "models/Fox/Fox.skinnedmesh";
+
+		if (File.Exists(cachedPath))
+		{
+			Console.WriteLine("Loading Fox from cached resource...");
+			if (ResourceSerializer.LoadSkinnedMeshBundle(cachedPath) case .Ok(let resource))
+			{
+				mFoxResource = resource;
+				Console.WriteLine($"Fox loaded: {mFoxResource.Mesh.VertexCount} vertices, {mFoxResource.Skeleton?.BoneCount ?? 0} bones, {mFoxResource.AnimationCount} animations");
+			}
+			else
+			{
+				Console.WriteLine("Failed to load Fox resource");
+				return;
+			}
+		}
+		else
+		{
+			Console.WriteLine($"Fox model not found: {cachedPath}");
+			Console.WriteLine("Run RendererSkinned sample first to create the cached Fox model.");
+			return;
+		}
+
+		// Create fox entity - position outside the cube grid
+		mFoxEntity = mScene.CreateEntity("Fox");
+		mFoxEntity.Transform.SetPosition(.(15, 0, 0));  // Outside cube grid (cubes span -12 to +9)
+		mFoxEntity.Transform.SetScale(Vector3(0.05f));
+
+		// Create skinned mesh renderer component
+		let skinnedRenderer = new SkinnedMeshRendererComponent();
+		mFoxEntity.AddComponent(skinnedRenderer);
+
+		// Use the resource's skeleton directly (shared, not owned)
+		if (mFoxResource.Skeleton != null)
+			skinnedRenderer.SetSkeleton(mFoxResource.Skeleton);
+
+		// Add animation clips from resource (shared references)
+		for (let clip in mFoxResource.Animations)
+			skinnedRenderer.AddAnimationClip(clip);
+
+		// Set the mesh (triggers GPU upload)
+		skinnedRenderer.SetMesh(mFoxResource.Mesh);
+
+		// Load fox texture
+		let texPath = "models/Fox/glTF/Texture.png";
+		let imageLoader = scope SDLImageLoader();
+		if (imageLoader.LoadFromFile(texPath) case .Ok(var loadInfo))
+		{
+			defer loadInfo.Dispose();
+			Console.WriteLine($"Fox texture: {loadInfo.Width}x{loadInfo.Height}");
+
+			TextureDescriptor texDesc = .Texture2D(loadInfo.Width, loadInfo.Height, .RGBA8Unorm, .Sampled | .CopyDst);
+			if (Device.CreateTexture(&texDesc) case .Ok(let texture))
+			{
+				TextureDataLayout layout = .() { Offset = 0, BytesPerRow = loadInfo.Width * 4, RowsPerImage = loadInfo.Height };
+				Extent3D size = .(loadInfo.Width, loadInfo.Height, 1);
+				Span<uint8> data = .(loadInfo.Data.Ptr, loadInfo.Data.Count);
+				Device.Queue.WriteTexture(texture, data, &layout, &size, 0, 0);
+
+				TextureViewDescriptor viewDesc = .() { Format = .RGBA8Unorm, Dimension = .Texture2D, MipLevelCount = 1, ArrayLayerCount = 1 };
+				if (Device.CreateTextureView(texture, &viewDesc) case .Ok(let view))
+				{
+					skinnedRenderer.SetTexture(texture, view);
+					Console.WriteLine("Fox texture loaded");
+				}
+				else
+				{
+					delete texture;
+				}
+			}
+		}
+		else
+		{
+			Console.WriteLine($"Failed to load fox texture: {texPath}");
+		}
+
+		// Start playing first animation
+		if (skinnedRenderer.AnimationClips.Count > 0)
+		{
+			skinnedRenderer.PlayAnimation(0, true);
+			Console.WriteLine($"Fox animation playing: {skinnedRenderer.AnimationClips[0].Name}");
 		}
 	}
 

@@ -364,7 +364,7 @@ class RendererSkinnedSample : RHISampleApp
 
 	private bool CreateSkyboxPipeline()
 	{
-		let shaderResult = ShaderUtils.LoadShaderPair(Device, "shaders/skybox");
+		let shaderResult = ShaderUtils.LoadShaderPair(Device, "../../Sedulous/Sedulous.Framework.Renderer/shaders/skybox");
 		if (shaderResult case .Err)
 		{
 			Console.WriteLine("Failed to load skybox shaders");
@@ -434,7 +434,7 @@ class RendererSkinnedSample : RHISampleApp
 		if (mFoxGPUMesh.Index == uint32.MaxValue)
 			return false;
 
-		let shaderResult = ShaderUtils.LoadShaderPair(Device, "shaders/skinned_mesh");
+		let shaderResult = ShaderUtils.LoadShaderPair(Device, "../../Sedulous/Sedulous.Framework.Renderer/shaders/skinned");
 		if (shaderResult case .Err)
 		{
 			Console.WriteLine("Failed to load skinned mesh shaders");

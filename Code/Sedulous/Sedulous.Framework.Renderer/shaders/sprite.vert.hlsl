@@ -39,9 +39,10 @@ VSOutput main(VSInput input)
         float2( 0.5,  0.5)   // Top-right
     };
 
-    // Get camera right and up vectors from view matrix
-    float3 right = float3(view[0][0], view[1][0], view[2][0]);
-    float3 up = float3(view[0][1], view[1][1], view[2][1]);
+    // Get camera right and up vectors from view matrix (row-major layout)
+    // Row 0 = right, Row 1 = up, Row 2 = forward
+    float3 right = float3(view[0][0], view[0][1], view[0][2]);
+    float3 up = float3(view[1][0], view[1][1], view[1][2]);
 
     // Compute corner position
     uint cornerIndex = input.vertexId % 4;

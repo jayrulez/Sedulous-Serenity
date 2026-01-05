@@ -1,4 +1,5 @@
 // Particle Fragment Shader
+// Procedural circular particle with soft edge
 
 struct PSInput
 {
@@ -7,17 +8,22 @@ struct PSInput
     float4 color : COLOR;
 };
 
-// Particle texture
-Texture2D particleTexture : register(t0);
-SamplerState particleSampler : register(s0);
-
 float4 main(PSInput input) : SV_Target
 {
-    float4 texColor = particleTexture.Sample(particleSampler, input.uv);
-    float4 finalColor = texColor * input.color;
+    // Create a circular particle with solid center and soft edge
+    float2 center = input.uv - 0.5;
+    float dist = length(center) * 2.0;
 
-    // Premultiplied alpha for additive/soft blending
-    // finalColor.rgb *= finalColor.a;
+    // Sharper falloff - solid center with soft edge
+    float alpha = saturate(1.0 - dist);
+    alpha = smoothstep(0.0, 0.5, alpha);
+
+    float4 finalColor = input.color;
+    finalColor.a *= alpha;
+
+    // Discard nearly transparent pixels
+    if (finalColor.a < 0.02)
+        discard;
 
     return finalColor;
 }

@@ -154,6 +154,7 @@ Third-party bindings used by the framework:
 #### Known Issues / TODO
 - Decal rendering not yet implemented
 - Frustum-fitted cascade bounds produce offset shadows (using fixed bounds workaround)
+- Particle and sprite shaders use procedural rendering; add texture support in the future
 
 ---
 
