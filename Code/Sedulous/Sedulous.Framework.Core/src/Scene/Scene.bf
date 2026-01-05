@@ -126,12 +126,16 @@ class Scene : ISerializable
 		if (mState != .Active)
 			return;
 
-		// Update scene components
+		// Update entity transforms first so scene components have valid world matrices
+		mEntityManager.UpdateTransforms();
+
+		// Update scene components (e.g., RenderSceneComponent syncs entity transforms to proxies)
 		for (let component in mSceneComponents)
 			component.OnUpdate(deltaTime);
 
-		// Update entity manager (transforms and entity components)
-		mEntityManager.Update(deltaTime);
+		// Update entity components (after transforms are synced to rendering)
+		for (let entity in mEntityManager)
+			entity.Update(deltaTime);
 	}
 
 	// ISerializable implementation

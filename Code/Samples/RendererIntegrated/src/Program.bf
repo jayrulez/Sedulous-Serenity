@@ -164,8 +164,8 @@ class RendererIntegratedSample : RHISampleApp
 			lightEntity.AddComponent(lightComp);
 		}
 
-		// Create point lights
-		Random rng = scope .();
+		// Create point lights (fixed seed for consistent placement between runs)
+		Random rng = scope .(12345);
 		for (int i = 0; i < 8; i++)
 		{
 			float px = ((float)rng.NextDouble() - 0.5f) * 30.0f;
@@ -184,6 +184,7 @@ class RendererIntegratedSample : RHISampleApp
 			let lightComp = LightComponent.CreatePoint(color, 5.0f, 15.0f);
 			lightEntity.AddComponent(lightComp);
 		}
+		
 
 		// Create camera entity with CameraComponent
 		{
