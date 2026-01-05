@@ -114,13 +114,14 @@ struct Transform
 	}
 
 	/// Looks at a target position.
-	/// Note: Uses approximation via yaw/pitch from forward direction.
+	/// Note: Uses yaw/pitch from forward direction with -Z forward convention.
 	public void LookAt(Vector3 target, Vector3 up = .(0, 1, 0)) mut
 	{
 		let direction = Vector3.Normalize(target - Position);
 		// Compute yaw and pitch from direction
-		let yaw = Math.Atan2(direction.X, direction.Z);
-		let pitch = Math.Asin(-direction.Y);
+		// Negate X and Z because Forward uses -Z as base direction
+		let yaw = Math.Atan2(-direction.X, -direction.Z);
+		let pitch = Math.Asin(direction.Y);  // Negative Y = looking down = negative pitch
 		Rotation = Quaternion.CreateFromYawPitchRoll(yaw, pitch, 0);
 		SetLocalDirty();
 	}

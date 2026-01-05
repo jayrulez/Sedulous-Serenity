@@ -730,13 +730,10 @@ class RenderSceneComponent : ISceneComponent
 			{
 				if (let proxy = mRenderWorld.GetCameraProxy(cameraHandle))
 				{
-					// Use Transform properties directly
-					// Note: Transform.Forward uses -Z convention but LookAt produces inverted result
-					// so we negate to get the actual look direction
 					proxy.Position = entity.Transform.WorldPosition;
-					proxy.Forward = -entity.Transform.Forward;  // Negate to fix LookAt convention
+					proxy.Forward = entity.Transform.Forward;
 					proxy.Up = entity.Transform.Up;
-					proxy.Right = -entity.Transform.Right;  // Also negate to keep consistent handedness
+					proxy.Right = entity.Transform.Right;
 					proxy.UpdateMatrices();
 				}
 			}

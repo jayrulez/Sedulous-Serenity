@@ -13,8 +13,10 @@ using SampleFramework;
 using Sedulous.Logging.Debug;
 
 /// Demonstrates Framework.Core integration with Framework.Renderer.
-/// Uses entities with MeshRendererComponent and LightComponent.
-/// Camera is controlled directly (like RendererShadow) to verify math is correct.
+/// Uses entities with MeshRendererComponent, LightComponent, and CameraComponent.
+///
+/// This sample shows the high-level API where you only work with ECS components
+/// and the renderer handles all GPU details internally.
 class RendererIntegratedSample : RHISampleApp
 {
 	// Grid size
@@ -29,11 +31,9 @@ class RendererIntegratedSample : RHISampleApp
 	private RendererService mRendererService;
 	private RenderSceneComponent mRenderSceneComponent;
 
-	// Direct camera control (like RendererShadow sample)
-	// We bypass CameraComponent to test the raw camera math
-	private Camera mCamera;
-	private ProxyHandle mCameraProxyHandle = .Invalid;
-	private float mCameraYaw = Math.PI_f;
+	// Camera entity and control
+	private Entity mCameraEntity;
+	private float mCameraYaw = Math.PI_f;  // Start looking toward -Z (toward origin)
 	private float mCameraPitch = -0.3f;
 	private bool mMouseCaptured = false;
 	private float mCameraMoveSpeed = 15.0f;
@@ -174,40 +174,33 @@ class RendererIntegratedSample : RHISampleApp
 			lightEntity.AddComponent(lightComp);
 		}
 
-		// Initialize camera directly (bypassing CameraComponent to test raw math)
-		// This is the same approach used in RendererShadow sample
-		mCamera = .();
-		mCamera.Position = .(0, 10, 30);
-		mCamera.Up = .(0, 1, 0);
-		mCamera.FieldOfView = Math.PI_f / 4.0f;
-		mCamera.NearPlane = 0.1f;
-		mCamera.FarPlane = 1000.0f;
-		mCamera.UseReverseZ = false;
-		mCamera.SetAspectRatio(SwapChain.Width, SwapChain.Height);
-		UpdateCameraDirection();
+		// Create camera entity with CameraComponent
+		{
+			mCameraEntity = mScene.CreateEntity("MainCamera");
+			mCameraEntity.Transform.SetPosition(.(0, 10, 30));
+			UpdateCameraDirection();
 
-		// Create camera proxy directly on RenderWorld
-		mCameraProxyHandle = mRenderSceneComponent.RenderWorld.CreateCamera(
-			mCamera, SwapChain.Width, SwapChain.Height, isMain: true);
+			let cameraComp = new CameraComponent(Math.PI_f / 4.0f, 0.1f, 1000.0f, true);
+			cameraComp.UseReverseZ = false;  // Match RendererShadow sample
+			cameraComp.SetViewport(SwapChain.Width, SwapChain.Height);
+			mCameraEntity.AddComponent(cameraComp);
+		}
 	}
 
 	protected override void OnResize(uint32 width, uint32 height)
 	{
-		// Update camera aspect ratio
-		mCamera.SetAspectRatio(width, height);
-
-		// Update the camera proxy viewport
-		if (let proxy = mRenderSceneComponent.RenderWorld.GetCameraProxy(mCameraProxyHandle))
+		// Update camera viewport through component
+		if (let cameraComp = mCameraEntity?.GetComponent<CameraComponent>())
 		{
-			proxy.ViewportWidth = width;
-			proxy.ViewportHeight = height;
-			proxy.AspectRatio = mCamera.AspectRatio;
-			proxy.UpdateMatrices();
+			cameraComp.SetViewport(width, height);
 		}
 	}
 
 	protected override void OnInput()
 	{
+		if (mCameraEntity == null)
+			return;
+
 		let keyboard = Shell.InputManager.Keyboard;
 		let mouse = Shell.InputManager.Mouse;
 
@@ -228,47 +221,45 @@ class RendererIntegratedSample : RHISampleApp
 			UpdateCameraDirection();
 		}
 
-		// WASD movement - use Camera.Forward/Right directly (like RendererShadow)
-		let forward = mCamera.Forward;
-		let right = mCamera.Right;
+		// WASD movement using entity Transform
+		let forward = mCameraEntity.Transform.Forward;
+		let right = mCameraEntity.Transform.Right;
 		let up = Vector3(0, 1, 0);
 		float speed = mCameraMoveSpeed * DeltaTime;
 
 		if (keyboard.IsKeyDown(.LeftShift) || keyboard.IsKeyDown(.RightShift))
 			speed *= 2.0f;
 
-		if (keyboard.IsKeyDown(.W)) mCamera.Position = mCamera.Position + forward * speed;
-		if (keyboard.IsKeyDown(.S)) mCamera.Position = mCamera.Position - forward * speed;
-		if (keyboard.IsKeyDown(.A)) mCamera.Position = mCamera.Position - right * speed;
-		if (keyboard.IsKeyDown(.D)) mCamera.Position = mCamera.Position + right * speed;
-		if (keyboard.IsKeyDown(.Q)) mCamera.Position = mCamera.Position - up * speed;
-		if (keyboard.IsKeyDown(.E)) mCamera.Position = mCamera.Position + up * speed;
+		var pos = mCameraEntity.Transform.Position;
+		if (keyboard.IsKeyDown(.W)) pos = pos + forward * speed;
+		if (keyboard.IsKeyDown(.S)) pos = pos - forward * speed;
+		if (keyboard.IsKeyDown(.A)) pos = pos - right * speed;
+		if (keyboard.IsKeyDown(.D)) pos = pos + right * speed;
+		if (keyboard.IsKeyDown(.Q)) pos = pos - up * speed;
+		if (keyboard.IsKeyDown(.E)) pos = pos + up * speed;
+		mCameraEntity.Transform.SetPosition(pos);
 	}
 
 	private void UpdateCameraDirection()
 	{
-		// Compute forward from yaw/pitch (same as RendererShadow)
+		if (mCameraEntity == null)
+			return;
+
+		// Compute forward from yaw/pitch and use LookAt to set rotation
 		float cosP = Math.Cos(mCameraPitch);
-		mCamera.Forward = Vector3.Normalize(.(
+		let forward = Vector3.Normalize(.(
 			Math.Sin(mCameraYaw) * cosP,
 			Math.Sin(mCameraPitch),
 			Math.Cos(mCameraYaw) * cosP
 		));
+
+		let target = mCameraEntity.Transform.Position + forward;
+		mCameraEntity.Transform.LookAt(target);
 	}
 
 	protected override void OnUpdate(float deltaTime, float totalTime)
 	{
-		// Sync Camera struct to camera proxy (same as RendererShadow pattern)
-		if (let proxy = mRenderSceneComponent.RenderWorld.GetCameraProxy(mCameraProxyHandle))
-		{
-			proxy.Position = mCamera.Position;
-			proxy.Forward = mCamera.Forward;
-			proxy.Up = mCamera.Up;
-			proxy.Right = Vector3.Normalize(Vector3.Cross(mCamera.Forward, mCamera.Up));
-			proxy.UpdateMatrices();
-		}
-
-		// Update the context for entity/mesh proxy sync
+		// Update the context - handles entity transforms, proxy sync, visibility culling
 		mContext.Update(deltaTime);
 	}
 
