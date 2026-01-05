@@ -49,6 +49,7 @@ class RendererIntegratedSample : RHISampleApp
 	// Fox (skinned mesh) resources
 	private SkinnedMeshResource mFoxResource ~ delete _;
 	private Entity mFoxEntity;
+	private int32 mCurrentAnimIndex = 0;
 
 	public this() : base(.()
 	{
@@ -100,6 +101,7 @@ class RendererIntegratedSample : RHISampleApp
 		Console.WriteLine($"Created {GRID_SIZE * GRID_SIZE} cube entities with MeshRendererComponent");
 		Console.WriteLine($"Created 4 particle emitters and 10 sprite entities");
 		Console.WriteLine("Controls: WASD=Move, QE=Up/Down, Tab=Toggle mouse capture, Shift=Fast");
+		Console.WriteLine("          Left/Right or ,/. = Cycle Fox animations");
 
 		// Debug: initial state
 		Console.WriteLine($"[INIT DEBUG] MeshCount={mRenderSceneComponent.MeshCount}, HasCamera={mRenderSceneComponent.GetMainCameraProxy() != null}");
@@ -402,6 +404,30 @@ class RendererIntegratedSample : RHISampleApp
 		if (keyboard.IsKeyDown(.Q)) pos = pos - up * speed;
 		if (keyboard.IsKeyDown(.E)) pos = pos + up * speed;
 		mCameraEntity.Transform.SetPosition(pos);
+
+		// Cycle through Fox animations
+		if (mFoxEntity != null)
+		{
+			if (let skinnedRenderer = mFoxEntity.GetComponent<SkinnedMeshRendererComponent>())
+			{
+				let animCount = (int32)skinnedRenderer.AnimationClips.Count;
+				if (animCount > 0)
+				{
+					if (keyboard.IsKeyPressed(.Right) || keyboard.IsKeyPressed(.Period))
+					{
+						mCurrentAnimIndex = (mCurrentAnimIndex + 1) % animCount;
+						skinnedRenderer.PlayAnimation(mCurrentAnimIndex, true);
+						Console.WriteLine($"Playing animation: {skinnedRenderer.AnimationClips[mCurrentAnimIndex].Name}");
+					}
+					if (keyboard.IsKeyPressed(.Left) || keyboard.IsKeyPressed(.Comma))
+					{
+						mCurrentAnimIndex = (mCurrentAnimIndex - 1 + animCount) % animCount;
+						skinnedRenderer.PlayAnimation(mCurrentAnimIndex, true);
+						Console.WriteLine($"Playing animation: {skinnedRenderer.AnimationClips[mCurrentAnimIndex].Name}");
+					}
+				}
+			}
+		}
 	}
 
 	private void UpdateCameraDirection()

@@ -69,10 +69,10 @@ class TransformTests
 		transform.SetPosition(.(10, 20, 30));
 		let matrix = transform.LocalMatrix;
 
-		// Translation should be in M14, M24, M34 (column 4)
-		Test.Assert(Math.Abs(matrix.M14 - 10) < 0.0001f);
-		Test.Assert(Math.Abs(matrix.M24 - 20) < 0.0001f);
-		Test.Assert(Math.Abs(matrix.M34 - 30) < 0.0001f);
+		// Translation is in M41, M42, M43 (row 4) - row-vector convention
+		Test.Assert(Math.Abs(matrix.M41 - 10) < 0.0001f);
+		Test.Assert(Math.Abs(matrix.M42 - 20) < 0.0001f);
+		Test.Assert(Math.Abs(matrix.M43 - 30) < 0.0001f);
 	}
 
 	[Test]

@@ -274,6 +274,7 @@ class ModelImporter
 				if (ModelMeshConverter.ConvertToSkinnedMesh(modelMesh, skin) case .Ok(var conversionResult))
 				{
 					nodeToBoneMapping = conversionResult.NodeToBoneMapping;
+					delete conversionResult.Mesh;  // Not needed here, only using the mapping
 					defer { conversionResult.Dispose(); }
 
 					// Convert each animation to a resource

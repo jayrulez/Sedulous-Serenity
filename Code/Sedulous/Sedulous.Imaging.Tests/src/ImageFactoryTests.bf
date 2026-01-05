@@ -29,7 +29,7 @@ class ImageFactoryTests
 	[Test]
 	static void TestCreateSolidColorWithFormat()
 	{
-		let image = Image.CreateSolidColor(16, 16, Color.Green, .RGB8);
+		let image = Image.CreateSolidColor(16, 16, Color.Lime, .RGB8);
 		defer delete image;
 
 		Test.Assert(image.Format == .RGB8);

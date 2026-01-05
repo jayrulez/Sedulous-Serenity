@@ -45,7 +45,7 @@ class ImageTests
 		let original = new Image(4, 4, .RGBA8);
 		defer delete original;
 		original.SetPixel(0, 0, Color.Red);
-		original.SetPixel(1, 1, Color.Green);
+		original.SetPixel(1, 1, Color.Lime);
 
 		let copy = new Image(original);
 		defer delete copy;
@@ -69,7 +69,7 @@ class ImageTests
 
 		// Test setting and getting various colors
 		image.SetPixel(0, 0, Color.Red);
-		image.SetPixel(1, 0, Color.Green);
+		image.SetPixel(1, 0, Color.Lime);
 		image.SetPixel(2, 0, Color.Blue);
 		image.SetPixel(3, 0, Color.White);
 		image.SetPixel(4, 0, Color.Black);
@@ -115,7 +115,7 @@ class ImageTests
 		image.SetPixel(100, 100, Color.Red);
 
 		// Verify no corruption of valid pixels
-		image.SetPixel(0, 0, Color.Green);
+		image.SetPixel(0, 0, Color.Lime);
 		let pixel = image.GetPixel(0, 0);
 		Test.Assert(pixel.R == 0 && pixel.G == 255 && pixel.B == 0);
 	}
