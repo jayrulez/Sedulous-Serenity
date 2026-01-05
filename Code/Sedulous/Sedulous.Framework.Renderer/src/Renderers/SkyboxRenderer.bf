@@ -115,8 +115,27 @@ class SkyboxRenderer
 		return true;
 	}
 
-	/// Creates a procedural gradient sky cubemap.
-	public bool CreateGradientSky(Color topColor, Color bottomColor, int32 resolution = 64)
+	/// Creates a procedural gradient sky cubemap with separate ground color.
+	/// topColor: Color at zenith (straight up)
+	/// horizonColor: Color at the horizon
+	/// groundColor: Color when looking down (optional, defaults to darker horizon)
+	public bool CreateGradientSky(Color topColor, Color horizonColor, int32 resolution = 64)
+	{
+		// Use a darker version of horizon for ground by default
+		Color groundColor = Color(
+			(uint8)(horizonColor.R / 3),
+			(uint8)(horizonColor.G / 3),
+			(uint8)(horizonColor.B / 3),
+			255
+		);
+		return CreateGradientSkyWithGround(topColor, horizonColor, groundColor, resolution);
+	}
+
+	/// Creates a procedural gradient sky cubemap with explicit ground color.
+	/// topColor: Color at zenith (straight up)
+	/// horizonColor: Color at the horizon
+	/// groundColor: Color when looking down
+	public bool CreateGradientSkyWithGround(Color topColor, Color horizonColor, Color groundColor, int32 resolution = 64)
 	{
 		if (mOwnsCubemap)
 		{
@@ -147,22 +166,41 @@ class SkyboxRenderer
 
 		Extent3D size = .((uint32)resolution, (uint32)resolution, 1);
 
+		// Cubemap face order: +X, -X, +Y, -Y, +Z, -Z
 		for (int32 face = 0; face < 6; face++)
 		{
 			// Generate gradient for this face
 			for (int32 y = 0; y < resolution; y++)
 			{
-				// For top/bottom faces, use solid color
-				// For side faces, use gradient
-				float t;
-				if (face == 2) // +Y (top)
-					t = 1.0f;
-				else if (face == 3) // -Y (bottom)
-					t = 0.0f;
-				else
-					t = (float)y / (float)(resolution - 1);
+				Color c;
 
-				Color c = bottomColor.Interpolate(topColor, t);
+				if (face == 2) // +Y (top/zenith)
+				{
+					c = topColor;
+				}
+				else if (face == 3) // -Y (bottom/ground)
+				{
+					c = groundColor;
+				}
+				else
+				{
+					// Side faces: gradient from ground -> horizon -> top
+					// y=0 is top of texture, y=resolution-1 is bottom
+					float t = (float)y / (float)(resolution - 1);
+
+					if (t < 0.5f)
+					{
+						// Upper half: top to horizon
+						float u = t * 2.0f;  // 0 to 1 for upper half
+						c = topColor.Interpolate(horizonColor, u);
+					}
+					else
+					{
+						// Lower half: horizon to ground
+						float u = (t - 0.5f) * 2.0f;  // 0 to 1 for lower half
+						c = horizonColor.Interpolate(groundColor, u);
+					}
+				}
 
 				for (int32 x = 0; x < resolution; x++)
 				{

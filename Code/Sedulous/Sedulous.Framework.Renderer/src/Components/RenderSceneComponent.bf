@@ -121,6 +121,14 @@ class RenderSceneComponent : ISceneComponent
 	private ITexture mWhiteTexture ~ delete _;
 	private ITextureView mWhiteTextureView ~ delete _;
 
+	// Skybox resources
+	private SkyboxRenderer mSkyboxRenderer ~ delete _;
+	private IBindGroupLayout mSkyboxBindGroupLayout ~ delete _;
+	private IPipelineLayout mSkyboxPipelineLayout ~ delete _;
+	private IRenderPipeline mSkyboxPipeline ~ delete _;
+	private IBindGroup[MAX_FRAMES_IN_FLIGHT] mSkyboxBindGroups = .() ~ { for (var bg in _) delete bg; };
+	private bool mSkyboxEnabled = true;
+
 	// CPU-side instance data (built in OnUpdate, uploaded in PrepareGPU)
 	private RenderSceneInstanceData[] mInstanceData ~ delete _;
 	private int32 mInstanceCount = 0;
@@ -190,6 +198,16 @@ class RenderSceneComponent : ISceneComponent
 
 	/// Gets whether the lighting system has directional shadows this frame.
 	public bool HasDirectionalShadows => mLightingSystem?.HasDirectionalShadows ?? false;
+
+	/// Gets the skybox renderer.
+	public SkyboxRenderer SkyboxRenderer => mSkyboxRenderer;
+
+	/// Gets or sets whether skybox rendering is enabled.
+	public bool SkyboxEnabled
+	{
+		get => mSkyboxEnabled;
+		set => mSkyboxEnabled = value;
+	}
 
 	// ==================== Constructor ====================
 
@@ -357,6 +375,17 @@ class RenderSceneComponent : ISceneComponent
 
 		// Create skinned shadow pipeline
 		if (CreateSkinnedShadowPipeline() case .Err)
+			return .Err;
+
+		// Create default skybox (gradient sky)
+		mSkyboxRenderer = new SkyboxRenderer(device);
+		let topColor = Color(70, 130, 200, 255);     // Sky blue
+		let bottomColor = Color(180, 210, 240, 255); // Horizon light blue
+		if (!mSkyboxRenderer.CreateGradientSky(topColor, bottomColor, 32))
+			return .Err;
+
+		// Create skybox pipeline
+		if (CreateSkyboxPipeline() case .Err)
 			return .Err;
 
 		// Create sprite renderer
@@ -799,6 +828,98 @@ class RenderSceneComponent : ISceneComponent
 		if (device.CreateRenderPipeline(&pipelineDesc) not case .Ok(let pipeline))
 			return .Err;
 		mSkinnedPipeline = pipeline;
+
+		return .Ok;
+	}
+
+	private Result<void> CreateSkyboxPipeline()
+	{
+		let device = mRendererService.Device;
+		let shaderLibrary = mRendererService.ShaderLibrary;
+
+		// Load skybox shaders
+		let vertResult = shaderLibrary.GetShader("skybox", .Vertex);
+		if (vertResult case .Err)
+			return .Err;
+		let vertShader = vertResult.Get();
+
+		let fragResult = shaderLibrary.GetShader("skybox", .Fragment);
+		if (fragResult case .Err)
+			return .Err;
+		let fragShader = fragResult.Get();
+
+		// Bind group layout: b0=camera, t0=cubemap, s0=sampler
+		BindGroupLayoutEntry[3] layoutEntries = .(
+			BindGroupLayoutEntry.UniformBuffer(0, .Vertex),
+			BindGroupLayoutEntry.SampledTexture(0, .Fragment, .TextureCube),
+			BindGroupLayoutEntry.Sampler(0, .Fragment)
+		);
+		BindGroupLayoutDescriptor bindLayoutDesc = .(layoutEntries);
+		if (device.CreateBindGroupLayout(&bindLayoutDesc) not case .Ok(let layout))
+			return .Err;
+		mSkyboxBindGroupLayout = layout;
+
+		// Pipeline layout
+		IBindGroupLayout[1] layouts = .(mSkyboxBindGroupLayout);
+		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
+		if (device.CreatePipelineLayout(&pipelineLayoutDesc) not case .Ok(let pipelineLayout))
+			return .Err;
+		mSkyboxPipelineLayout = pipelineLayout;
+
+		// Create per-frame bind groups
+		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			BindGroupEntry[3] entries = .(
+				BindGroupEntry.Buffer(0, mFrameResources[i].CameraBuffer),
+				BindGroupEntry.Texture(0, mSkyboxRenderer.CubemapView),
+				BindGroupEntry.Sampler(0, mSkyboxRenderer.Sampler)
+			);
+			BindGroupDescriptor bindGroupDesc = .(mSkyboxBindGroupLayout, entries);
+			if (device.CreateBindGroup(&bindGroupDesc) not case .Ok(let group))
+				return .Err;
+			mSkyboxBindGroups[i] = group;
+		}
+
+		// No vertex buffers - uses fullscreen triangle with SV_VertexID
+		ColorTargetState[1] colorTargets = .(.(mColorFormat));
+
+		// Depth test enabled but no write - skybox is always at far plane
+		DepthStencilState depthState = .();
+		depthState.DepthTestEnabled = true;
+		depthState.DepthWriteEnabled = false;
+		depthState.DepthCompare = .LessEqual;
+		depthState.Format = mDepthFormat;
+
+		RenderPipelineDescriptor pipelineDesc = .()
+		{
+			Layout = mSkyboxPipelineLayout,
+			Vertex = .()
+			{
+				Shader = .(vertShader.Module, "main"),
+				Buffers = .()  // No vertex buffers
+			},
+			Fragment = .()
+			{
+				Shader = .(fragShader.Module, "main"),
+				Targets = colorTargets
+			},
+			Primitive = .()
+			{
+				Topology = .TriangleList,
+				FrontFace = .CCW,
+				CullMode = .None
+			},
+			DepthStencil = depthState,
+			Multisample = .()
+			{
+				Count = 1,
+				Mask = uint32.MaxValue
+			}
+		};
+
+		if (device.CreateRenderPipeline(&pipelineDesc) not case .Ok(let pipeline))
+			return .Err;
+		mSkyboxPipeline = pipeline;
 
 		return .Ok;
 	}
@@ -1333,6 +1454,14 @@ class RenderSceneComponent : ISceneComponent
 		renderPass.SetScissorRect(0, 0, viewportWidth, viewportHeight);
 
 		ref SceneFrameResources frame = ref mFrameResources[mCurrentFrameIndex];
+
+		// Render skybox first (behind all geometry)
+		if (mSkyboxEnabled && mSkyboxPipeline != null && mSkyboxRenderer != null && mSkyboxRenderer.IsValid)
+		{
+			renderPass.SetPipeline(mSkyboxPipeline);
+			renderPass.SetBindGroup(0, mSkyboxBindGroups[mCurrentFrameIndex]);
+			renderPass.Draw(3, 1, 0, 0);  // Fullscreen triangle
+		}
 
 		// Render meshes
 		if (mInstanceCount > 0)
