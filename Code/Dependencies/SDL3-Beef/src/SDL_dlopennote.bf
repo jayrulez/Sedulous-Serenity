@@ -104,6 +104,6 @@ static
 
 
 	public const char8* SDL_ELF_NOTE_DLOPEN_VENDOR = "FDO";
-	public const uint32 SDL_ELF_NOTE_DLOPEN_TYPE = 0x407c0c0aU;
+	public const uint32 SDL_ELF_NOTE_DLOPEN_TYPE = 0x407c0c0a;
 
 }
