@@ -41,6 +41,18 @@ public struct TextureSampler
 	}
 }
 
+/// Pixel format for decoded texture data
+public enum TexturePixelFormat
+{
+	Unknown,
+	R8,           // 1 byte per pixel (grayscale)
+	RG8,          // 2 bytes per pixel
+	RGB8,         // 3 bytes per pixel
+	RGBA8,        // 4 bytes per pixel
+	BGR8,         // 3 bytes per pixel (BGR order)
+	BGRA8,        // 4 bytes per pixel (BGRA order)
+}
+
 /// A texture reference in a model
 public class ModelTexture
 {
@@ -59,6 +71,9 @@ public class ModelTexture
 
 	/// Height in pixels (0 if not yet loaded)
 	public int32 Height;
+
+	/// Pixel format of decoded data
+	public TexturePixelFormat PixelFormat = .Unknown;
 
 	public StringView Name => mName;
 	public StringView Uri => mUri;

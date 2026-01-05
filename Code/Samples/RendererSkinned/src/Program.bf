@@ -232,9 +232,10 @@ class RendererSkinnedSample : RHISampleApp
 	private bool LoadFoxModel()
 	{
 		let cachedPath = "models/Fox/Fox.skinnedmesh";
+		let outputDir = "models/Fox/imported";
 
 		// Try to load from cached resource first
-		if (File.Exists(cachedPath))
+		/*if (File.Exists(cachedPath))
 		{
 			Console.WriteLine("Loading Fox from cached resource...");
 			if (ResourceSerializer.LoadSkinnedMeshBundle(cachedPath) case .Ok(let resource))
@@ -247,9 +248,9 @@ class RendererSkinnedSample : RHISampleApp
 			{
 				Console.WriteLine("Failed to load cached Fox resource, falling back to GLTF import...");
 			}
-		}
+		}*/
 
-		// If not loaded from cache, import from GLTF
+		// If not loaded from cache, import from GLTF using ModelImporter
 		if (mFoxResource == null)
 		{
 			mFoxModel = new Model();
@@ -264,46 +265,69 @@ class RendererSkinnedSample : RHISampleApp
 				return false;
 			}
 
-			Console.WriteLine(scope $"Fox model loaded: {mFoxModel.Meshes.Count} meshes, {mFoxModel.Bones.Count} bones, {mFoxModel.Animations.Count} animations");
+			Console.WriteLine(scope $"Fox model loaded: {mFoxModel.Meshes.Count} meshes, {mFoxModel.Bones.Count} bones, {mFoxModel.Animations.Count} animations, {mFoxModel.Textures.Count} textures, {mFoxModel.Materials.Count} materials");
 
-			if (mFoxModel.Skins.Count == 0 || mFoxModel.Meshes.Count == 0)
+			// Use ModelImporter to convert all resources
+			let importOptions = new ModelImportOptions();
+			importOptions.Flags = .SkinnedMeshes | .Skeletons | .Animations | .Textures | .Materials;
+			importOptions.BasePath.Set("models/Fox/glTF");
+
+			let imageLoader = scope SDLImageLoader();
+			let importer = scope ModelImporter(importOptions, imageLoader);
+			let importResult = importer.Import(mFoxModel);
+			defer delete importResult;
+
+			if (!importResult.Success)
 			{
-				Console.WriteLine("Fox model has no skin or mesh data");
+				Console.WriteLine("Import errors:");
+				for (let err in importResult.Errors)
+					Console.WriteLine(scope $"  - {err}");
 				return false;
 			}
-			let skin = mFoxModel.Skins[0];
-			let modelMesh = mFoxModel.Meshes[0];
-			Console.WriteLine(scope $"Fox skin: {skin.Joints.Count} joints");
 
-			if (ModelMeshConverter.ConvertToSkinnedMesh(modelMesh, skin) case .Ok(var conversionResult))
+			for (let warn in importResult.Warnings)
+				Console.WriteLine(scope $"Import warning: {warn}");
+
+			Console.WriteLine(scope $"Import result: {importResult.SkinnedMeshes.Count} skinned meshes, {importResult.Skeletons.Count} skeletons, {importResult.Textures.Count} textures, {importResult.Materials.Count} materials");
+
+			// Save all imported resources to the output directory
+			Console.WriteLine(scope $"Saving import result to: {outputDir}");
+			if (ResourceSerializer.SaveImportResult(importResult, outputDir) case .Ok)
 			{
-				defer conversionResult.Dispose();
+				Console.WriteLine("Import result saved successfully!");
 
-				let skeleton = SkeletonConverter.CreateFromSkin(mFoxModel, skin);
-				if (skeleton == null)
+				// List the saved files
+				if (Directory.Exists(outputDir))
 				{
-					Console.WriteLine("Failed to create skeleton");
-					delete conversionResult.Mesh;
-					return false;
+					Console.WriteLine("Saved files:");
+					for (let entry in Directory.EnumerateFiles(outputDir))
+					{
+						let fileName = scope String();
+						entry.GetFileName(fileName);
+						Console.WriteLine(scope $"  - {fileName}");
+					}
 				}
+			}
+			else
+			{
+				Console.WriteLine("Failed to save import result");
+			}
 
-				let animations = AnimationConverter.ConvertAll(mFoxModel, conversionResult.NodeToBoneMapping);
+			// Take ownership of the first skinned mesh for rendering
+			if (importResult.SkinnedMeshes.Count > 0)
+			{
+				mFoxResource = importResult.TakeSkinnedMesh(0);
+				Console.WriteLine(scope $"Fox resource: {mFoxResource.Mesh.VertexCount} vertices, {mFoxResource.Skeleton?.BoneCount ?? 0} bones, {mFoxResource.AnimationCount} animations");
 
-				mFoxResource = new SkinnedMeshResource(conversionResult.Mesh, true);
-				mFoxResource.Name.Set("Fox");
-				mFoxResource.SetSkeleton(skeleton, true);
-				mFoxResource.SetAnimations(animations, true);
-
-				Console.WriteLine(scope $"Fox resource created: {mFoxResource.Mesh.VertexCount} vertices, {mFoxResource.Skeleton.BoneCount} bones, {mFoxResource.AnimationCount} animations");
-
+				// Also save as bundle for faster loading next time
 				if (ResourceSerializer.SaveSkinnedMeshBundle(mFoxResource, cachedPath) case .Ok)
-					Console.WriteLine(scope $"Fox resource saved to: {cachedPath}");
+					Console.WriteLine(scope $"Fox bundle saved to: {cachedPath}");
 
 				mFoxGPUMesh = mResourceManager.CreateSkinnedMesh(mFoxResource.Mesh);
 			}
 			else
 			{
-				Console.WriteLine("Failed to convert Fox mesh");
+				Console.WriteLine("No skinned meshes in import result");
 				return false;
 			}
 		}
@@ -316,27 +340,68 @@ class RendererSkinnedSample : RHISampleApp
 			Console.WriteLine(scope $"Fox animation player started: {mFoxResource.Animations[0].Name}");
 		}
 
-		// Load texture
-		let texPath = "models/Fox/glTF/Texture.png";
-		let imageLoader = scope SDLImageLoader();
-		if (imageLoader.LoadFromFile(texPath) case .Ok(var loadInfo))
+		// Load texture - try model's embedded data first (if loaded from GLTF)
+		bool textureLoaded = false;
+		if (mFoxModel != null && mFoxModel.Textures.Count > 0)
 		{
-			defer loadInfo.Dispose();
-			Console.WriteLine(scope $"Fox texture: {loadInfo.Width}x{loadInfo.Height}");
-
-			TextureDescriptor texDesc = .Texture2D(loadInfo.Width, loadInfo.Height, .RGBA8Unorm, .Sampled | .CopyDst);
-			if (Device.CreateTexture(&texDesc) case .Ok(let texture))
+			let tex = mFoxModel.Textures[0];
+			if (tex.HasEmbeddedData && tex.Width > 0 && tex.Height > 0)
 			{
-				mFoxTexture = texture;
+				Console.WriteLine(scope $"Using embedded texture: {tex.Width}x{tex.Height}, format={tex.PixelFormat}");
 
-				TextureDataLayout layout = .() { Offset = 0, BytesPerRow = loadInfo.Width * 4, RowsPerImage = loadInfo.Height };
-				Extent3D size = .(loadInfo.Width, loadInfo.Height, 1);
-				Span<uint8> data = .(loadInfo.Data.Ptr, loadInfo.Data.Count);
-				Device.Queue.WriteTexture(mFoxTexture, data, &layout, &size, 0, 0);
+				TextureFormat texFormat = .RGBA8Unorm;
+				uint32 bytesPerPixel = 4;
+				switch (tex.PixelFormat)
+				{
+				case .RGBA8: texFormat = .RGBA8Unorm; bytesPerPixel = 4;
+				case .BGRA8: texFormat = .BGRA8Unorm; bytesPerPixel = 4;
+				default: texFormat = .RGBA8Unorm; bytesPerPixel = 4;
+				}
 
-				TextureViewDescriptor viewDesc = .() { Format = .RGBA8Unorm, Dimension = .Texture2D, MipLevelCount = 1, ArrayLayerCount = 1 };
-				if (Device.CreateTextureView(mFoxTexture, &viewDesc) case .Ok(let view))
-					mFoxTextureView = view;
+				TextureDescriptor texDesc = .Texture2D((uint32)tex.Width, (uint32)tex.Height, texFormat, .Sampled | .CopyDst);
+				if (Device.CreateTexture(&texDesc) case .Ok(let texture))
+				{
+					mFoxTexture = texture;
+
+					TextureDataLayout layout = .() { Offset = 0, BytesPerRow = (uint32)tex.Width * bytesPerPixel, RowsPerImage = (uint32)tex.Height };
+					Extent3D size = .((uint32)tex.Width, (uint32)tex.Height, 1);
+					Span<uint8> data = .(tex.GetData(), tex.GetDataSize());
+					Device.Queue.WriteTexture(mFoxTexture, data, &layout, &size, 0, 0);
+
+					TextureViewDescriptor viewDesc = .() { Format = texFormat, Dimension = .Texture2D, MipLevelCount = 1, ArrayLayerCount = 1 };
+					if (Device.CreateTextureView(mFoxTexture, &viewDesc) case .Ok(let view))
+					{
+						mFoxTextureView = view;
+						textureLoaded = true;
+					}
+				}
+			}
+		}
+
+		// Fall back to loading from file if not loaded from model
+		if (!textureLoaded)
+		{
+			let texPath = "models/Fox/glTF/Texture.png";
+			let imageLoader = scope SDLImageLoader();
+			if (imageLoader.LoadFromFile(texPath) case .Ok(var loadInfo))
+			{
+				defer loadInfo.Dispose();
+				Console.WriteLine(scope $"Fox texture: {loadInfo.Width}x{loadInfo.Height}");
+
+				TextureDescriptor texDesc = .Texture2D(loadInfo.Width, loadInfo.Height, .RGBA8Unorm, .Sampled | .CopyDst);
+				if (Device.CreateTexture(&texDesc) case .Ok(let texture))
+				{
+					mFoxTexture = texture;
+
+					TextureDataLayout layout = .() { Offset = 0, BytesPerRow = loadInfo.Width * 4, RowsPerImage = loadInfo.Height };
+					Extent3D size = .(loadInfo.Width, loadInfo.Height, 1);
+					Span<uint8> data = .(loadInfo.Data.Ptr, loadInfo.Data.Count);
+					Device.Queue.WriteTexture(mFoxTexture, data, &layout, &size, 0, 0);
+
+					TextureViewDescriptor viewDesc = .() { Format = .RGBA8Unorm, Dimension = .Texture2D, MipLevelCount = 1, ArrayLayerCount = 1 };
+					if (Device.CreateTextureView(mFoxTexture, &viewDesc) case .Ok(let view))
+						mFoxTextureView = view;
+				}
 			}
 		}
 

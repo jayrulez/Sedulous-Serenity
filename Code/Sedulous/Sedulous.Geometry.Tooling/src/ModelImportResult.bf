@@ -20,8 +20,11 @@ class ModelImportResult : IDisposable
 	/// Imported textures.
 	public List<TextureResource> Textures = new .() ~ DeleteContainerAndItems!(_);
 
-	/// Imported material definitions.
-	public List<MaterialDefinition> Materials = new .() ~ DeleteContainerAndItems!(_);
+	/// Imported materials.
+	public List<MaterialResource> Materials = new .() ~ DeleteContainerAndItems!(_);
+
+	/// Imported animation clips.
+	public List<AnimationClipResource> Animations = new .() ~ DeleteContainerAndItems!(_);
 
 	/// Errors encountered during import.
 	public List<String> Errors = new .() ~ DeleteContainerAndItems!(_);
@@ -35,7 +38,7 @@ class ModelImportResult : IDisposable
 	/// Total number of resources imported.
 	public int TotalResourceCount =>
 		Meshes.Count + SkinnedMeshes.Count + Skeletons.Count +
-		Textures.Count + Materials.Count;
+		Textures.Count + Materials.Count + Animations.Count;
 
 	public void Dispose()
 	{
@@ -129,36 +132,23 @@ class ModelImportResult : IDisposable
 				return texture;
 		return null;
 	}
-}
 
-/// Material property definition (CPU-side, for serialization).
-class MaterialDefinition
-{
-	public String Name = new .() ~ delete _;
+	/// Take ownership of an animation resource (removes from this result).
+	public AnimationClipResource TakeAnimation(int index)
+	{
+		if (index < 0 || index >= Animations.Count)
+			return null;
+		let anim = Animations[index];
+		Animations.RemoveAt(index);
+		return anim;
+	}
 
-	// PBR properties
-	public float[4] BaseColor = .(1, 1, 1, 1);
-	public float Metallic = 0.0f;
-	public float Roughness = 0.5f;
-	public float[3] EmissiveFactor = .(0, 0, 0);
-
-	// Texture references (names/paths)
-	public String BaseColorTexture = new .() ~ delete _;
-	public String NormalTexture = new .() ~ delete _;
-	public String MetallicRoughnessTexture = new .() ~ delete _;
-	public String OcclusionTexture = new .() ~ delete _;
-	public String EmissiveTexture = new .() ~ delete _;
-
-	// Rendering properties
-	public bool DoubleSided = false;
-	public AlphaMode AlphaMode = .Opaque;
-	public float AlphaCutoff = 0.5f;
-}
-
-/// Alpha blending mode for materials.
-enum AlphaMode
-{
-	Opaque,
-	Mask,
-	Blend
+	/// Find an animation by name.
+	public AnimationClipResource FindAnimation(StringView name)
+	{
+		for (let anim in Animations)
+			if (anim.Name == name)
+				return anim;
+		return null;
+	}
 }

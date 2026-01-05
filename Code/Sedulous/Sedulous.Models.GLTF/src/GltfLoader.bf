@@ -3,6 +3,7 @@ using System.IO;
 using System.Collections;
 using Sedulous.Mathematics;
 using Sedulous.Models;
+using Sedulous.Imaging;
 using cgltf_Beef;
 
 namespace Sedulous.Models.GLTF;
@@ -22,9 +23,11 @@ public enum GltfResult
 public class GltfLoader
 {
 	private cgltf_data* mData;
+	private String mBasePath ~ delete _;
 
 	public this()
 	{
+		mBasePath = new String();
 	}
 
 	public ~this()
@@ -45,6 +48,10 @@ public class GltfLoader
 			cgltf_free(mData);
 			mData = null;
 		}
+
+		// Extract base path for loading external resources
+		mBasePath.Clear();
+		Path.GetDirectoryPath(path, mBasePath);
 
 		// Parse the file
 		cgltf_options options = .();
@@ -175,24 +182,53 @@ public class GltfLoader
 
 			if (tex.image != null)
 			{
-				let image = tex.image;
+				let gltfImage = tex.image;
 
-				if (image.uri != null)
-					texture.SetUri(StringView(image.uri));
+				if (gltfImage.mime_type != null)
+					texture.MimeType.Set(StringView(gltfImage.mime_type));
 
-				if (image.mime_type != null)
-					texture.MimeType.Set(StringView(image.mime_type));
-
-				// Embedded image data
-				if (image.buffer_view != null)
+				if (gltfImage.uri != null)
 				{
-					let viewData = cgltf_buffer_view_data(image.buffer_view);
-					if (viewData != null)
+					let uri = StringView(gltfImage.uri);
+					texture.SetUri(uri);
+
+					if (uri.StartsWith("data:"))
 					{
-						let size = (int)image.buffer_view.size;
-						let data = new uint8[size];
-						Internal.MemCpy(&data[0], viewData, size);
-						texture.SetData(data);
+						// Base64 encoded data URI (e.g., "data:image/png;base64,iVBORw0...")
+						if (LoadImageFromDataUri(uri) case .Ok(let image))
+						{
+							StoreImageData(image, texture);
+							delete image;
+						}
+					}
+					else
+					{
+						// External image file
+						let imagePath = scope String();
+						Path.InternalCombine(imagePath, mBasePath, uri);
+
+						if (ImageLoaderFactory.LoadImage(imagePath) case .Ok(let image))
+						{
+							StoreImageData(image, texture);
+							delete image;
+						}
+					}
+				}
+				else if (gltfImage.buffer_view != null)
+				{
+					// Embedded image data in buffer
+					let bufferData = cgltf_buffer_view_data(gltfImage.buffer_view);
+					let size = (int)gltfImage.buffer_view.size;
+					if (bufferData != null && size > 0)
+					{
+						let span = Span<uint8>(bufferData, size);
+						let formatHint = GetFormatHintFromMimeType(gltfImage.mime_type);
+
+						if (ImageLoaderFactory.LoadImageFromMemory(span, formatHint) case .Ok(let image))
+						{
+							StoreImageData(image, texture);
+							delete image;
+						}
 					}
 				}
 			}
@@ -211,6 +247,83 @@ public class GltfLoader
 
 			model.AddSampler(sampler);
 		}
+	}
+
+	private void StoreImageData(Image image, ModelTexture texture)
+	{
+		texture.Width = (int32)image.Width;
+		texture.Height = (int32)image.Height;
+		texture.PixelFormat = ConvertPixelFormat(image.Format);
+
+		// Copy pixel data
+		let data = image.Data;
+		let dataArray = new uint8[data.Length];
+		data.CopyTo(dataArray);
+		texture.SetData(dataArray);
+	}
+
+	private TexturePixelFormat ConvertPixelFormat(Image.PixelFormat format)
+	{
+		switch (format)
+		{
+		case .R8: return .R8;
+		case .RG8: return .RG8;
+		case .RGB8: return .RGB8;
+		case .RGBA8: return .RGBA8;
+		case .BGR8: return .BGR8;
+		case .BGRA8: return .BGRA8;
+		default: return .Unknown;
+		}
+	}
+
+	private StringView GetFormatHintFromMimeType(char8* mimeType)
+	{
+		if (mimeType == null)
+			return "";
+
+		let mime = StringView(mimeType);
+		if (mime == "image/png")
+			return ".png";
+		if (mime == "image/jpeg")
+			return ".jpg";
+		return "";
+	}
+
+	private Result<Image> LoadImageFromDataUri(StringView dataUri)
+	{
+		// Format: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...
+		let commaPos = dataUri.IndexOf(',');
+		if (commaPos == -1)
+			return .Err;
+
+		let header = dataUri.Substring(5, commaPos - 5); // Skip "data:"
+		let base64Data = dataUri.Substring(commaPos + 1);
+
+		// Parse MIME type from header (e.g., "image/png;base64")
+		StringView formatHint = "";
+		if (header.Contains("image/png"))
+			formatHint = ".png";
+		else if (header.Contains("image/jpeg") || header.Contains("image/jpg"))
+			formatHint = ".jpg";
+
+		// Use cgltf's base64 decoder
+		// Estimate decoded size: base64 uses 4 chars per 3 bytes
+		let estimatedSize = (base64Data.Length * 3) / 4;
+		void* decodedData = null;
+		cgltf_options options = .();
+
+		let base64Str = scope String(base64Data);
+		if (cgltf_load_buffer_base64(&options, (.)estimatedSize, base64Str.CStr(), &decodedData) != .cgltf_result_success)
+			return .Err;
+
+		defer Internal.StdFree(decodedData);
+
+		let span = Span<uint8>((uint8*)decodedData, estimatedSize);
+
+		if (ImageLoaderFactory.LoadImageFromMemory(span, formatHint) case .Ok(let image))
+			return .Ok(image);
+
+		return .Err;
 	}
 
 	private TextureWrap WrapModeFromCgltf(cgltf_wrap_mode mode)

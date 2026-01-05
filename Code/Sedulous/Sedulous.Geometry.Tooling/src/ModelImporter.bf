@@ -64,6 +64,12 @@ class ModelImporter
 			ImportMaterials(model, result);
 		}
 
+		// Import standalone animations
+		if (mOptions.Flags.HasFlag(.Animations))
+		{
+			ImportAnimations(model, result);
+		}
+
 		return result;
 	}
 
@@ -178,19 +184,11 @@ class ModelImporter
 					let skinnedMeshRes = new SkinnedMeshResource(conversionResult.Mesh, true);
 					skinnedMeshRes.Name.Set(modelMesh.Name);
 
-					// Link to skeleton if available
-					if (skinIdx < result.Skeletons.Count)
+					// Create skeleton for this skinned mesh (each owns its own copy to avoid ref count issues)
+					let skeleton = SkeletonConverter.CreateFromSkin(model, skin);
+					if (skeleton != null)
 					{
-						skinnedMeshRes.SetSkeletonResource(result.Skeletons[skinIdx]);
-					}
-					else
-					{
-						// Create skeleton inline
-						let skeleton = SkeletonConverter.CreateFromSkin(model, skin);
-						if (skeleton != null)
-						{
-							skinnedMeshRes.SetSkeleton(skeleton, true);
-						}
+						skinnedMeshRes.SetSkeleton(skeleton, true);
 					}
 
 					// Import animations if requested
@@ -216,38 +214,14 @@ class ModelImporter
 		{
 			let modelTex = model.Textures[texIdx];
 
-			Image image = null;
+			// Use TextureConverter which handles decoded pixel data
+			let textureRes = TextureConverter.Convert(modelTex, mImageLoader, mOptions.BasePath);
 
-			// Try loading from embedded data first
-			if (modelTex.HasEmbeddedData)
-			{
-				let data = Span<uint8>(modelTex.GetData(), modelTex.GetDataSize());
-				image = LoadImageFromMemory(data);
-			}
-			// Otherwise try loading from file
-			else if (!modelTex.Uri.IsEmpty && mImageLoader != null)
-			{
-				let fullPath = scope String();
-				if (!mOptions.BasePath.IsEmpty)
-				{
-					fullPath.Append(mOptions.BasePath);
-					if (!fullPath.EndsWith('/') && !fullPath.EndsWith('\\'))
-						fullPath.Append('/');
-				}
-				fullPath.Append(modelTex.Uri);
-
-				image = LoadImageFromFile(fullPath);
-			}
-
-			if (image == null)
+			if (textureRes == null)
 			{
 				result.AddWarning(scope $"Failed to load texture '{modelTex.Name}' (uri: {modelTex.Uri})");
 				continue;
 			}
-
-			let textureRes = new TextureResource(image, true);
-			textureRes.Name.Set(modelTex.Name.IsEmpty ? modelTex.Uri : modelTex.Name);
-			textureRes.SetupFor3D();  // Default to 3D texture settings
 
 			result.Textures.Add(textureRes);
 		}
@@ -259,55 +233,65 @@ class ModelImporter
 		{
 			let modelMat = model.Materials[matIdx];
 
-			let matDef = new MaterialDefinition();
-			matDef.Name.Set(modelMat.Name);
+			// Use MaterialConverter to create MaterialResource
+			let matRes = MaterialConverter.Convert(modelMat, model);
 
-			// Copy properties
-			matDef.BaseColor = .(modelMat.BaseColorFactor.X, modelMat.BaseColorFactor.Y,
-				modelMat.BaseColorFactor.Z, modelMat.BaseColorFactor.W);
-			matDef.Metallic = modelMat.MetallicFactor;
-			matDef.Roughness = modelMat.RoughnessFactor;
-			matDef.EmissiveFactor = .(modelMat.EmissiveFactor.X, modelMat.EmissiveFactor.Y,
-				modelMat.EmissiveFactor.Z);
-			matDef.DoubleSided = modelMat.DoubleSided;
-			matDef.AlphaCutoff = modelMat.AlphaCutoff;
-
-			// Map alpha mode
-			matDef.AlphaMode = modelMat.AlphaMode == .Opaque ? .Opaque :
-				(modelMat.AlphaMode == .Mask ? .Mask : .Blend);
-
-			// Set texture references (by name if available)
-			if (modelMat.BaseColorTextureIndex >= 0 && modelMat.BaseColorTextureIndex < model.Textures.Count)
+			if (matRes == null)
 			{
-				let tex = model.Textures[modelMat.BaseColorTextureIndex];
-				matDef.BaseColorTexture.Set(tex.Name.IsEmpty ? tex.Uri : tex.Name);
+				result.AddWarning(scope $"Failed to convert material '{modelMat.Name}'");
+				continue;
 			}
 
-			if (modelMat.NormalTextureIndex >= 0 && modelMat.NormalTextureIndex < model.Textures.Count)
+			result.Materials.Add(matRes);
+		}
+	}
+
+	private void ImportAnimations(Model model, ModelImportResult result)
+	{
+		if (model.Animations.Count == 0 || model.Skins.Count == 0)
+			return;
+
+		// Use the first skin to get node-to-bone mapping
+		let skin = model.Skins[0];
+		let modelMesh = model.Meshes.Count > 0 ? model.Meshes[0] : null;
+
+		// We need to find a mesh with skinning data to get the node-to-bone mapping
+		int32[] nodeToBoneMapping = null;
+		if (modelMesh != null)
+		{
+			bool hasSkinning = false;
+			for (let element in modelMesh.VertexElements)
 			{
-				let tex = model.Textures[modelMat.NormalTextureIndex];
-				matDef.NormalTexture.Set(tex.Name.IsEmpty ? tex.Uri : tex.Name);
+				if (element.Semantic == .Joints)
+				{
+					hasSkinning = true;
+					break;
+				}
 			}
 
-			if (modelMat.MetallicRoughnessTextureIndex >= 0 && modelMat.MetallicRoughnessTextureIndex < model.Textures.Count)
+			if (hasSkinning)
 			{
-				let tex = model.Textures[modelMat.MetallicRoughnessTextureIndex];
-				matDef.MetallicRoughnessTexture.Set(tex.Name.IsEmpty ? tex.Uri : tex.Name);
-			}
+				if (ModelMeshConverter.ConvertToSkinnedMesh(modelMesh, skin) case .Ok(var conversionResult))
+				{
+					nodeToBoneMapping = conversionResult.NodeToBoneMapping;
+					defer { conversionResult.Dispose(); }
 
-			if (modelMat.OcclusionTextureIndex >= 0 && modelMat.OcclusionTextureIndex < model.Textures.Count)
-			{
-				let tex = model.Textures[modelMat.OcclusionTextureIndex];
-				matDef.OcclusionTexture.Set(tex.Name.IsEmpty ? tex.Uri : tex.Name);
+					// Convert each animation to a resource
+					for (let modelAnim in model.Animations)
+					{
+						let clip = AnimationConverter.Convert(modelAnim, nodeToBoneMapping);
+						if (clip != null)
+						{
+							let animRes = new AnimationClipResource(clip, true);
+							result.Animations.Add(animRes);
+						}
+						else
+						{
+							result.AddWarning(scope $"Failed to convert animation '{modelAnim.Name}'");
+						}
+					}
+				}
 			}
-
-			if (modelMat.EmissiveTextureIndex >= 0 && modelMat.EmissiveTextureIndex < model.Textures.Count)
-			{
-				let tex = model.Textures[modelMat.EmissiveTextureIndex];
-				matDef.EmissiveTexture.Set(tex.Name.IsEmpty ? tex.Uri : tex.Name);
-			}
-
-			result.Materials.Add(matDef);
 		}
 	}
 

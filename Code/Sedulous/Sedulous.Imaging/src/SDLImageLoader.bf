@@ -61,7 +61,7 @@ class SDLImageLoader : ImageLoader
 
 	public override Result<LoadInfo, LoadResult> LoadFromFile(StringView filePath)
 	{
-		SDL_Surface* surface = SDL3_image.IMG_Load(filePath.Ptr);
+		SDL_Surface* surface = SDL3_image.IMG_Load(scope String(filePath).CStr());
 		if (surface == null)
 		{
 			return .Err(.FileNotFound);

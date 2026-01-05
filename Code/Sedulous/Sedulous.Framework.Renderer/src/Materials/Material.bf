@@ -89,7 +89,7 @@ class Material
 	public DepthMode DepthMode = .ReadWrite;
 
 	/// Whether this material uses reverse-Z depth.
-	public bool UseReverseZ = true;
+	public bool UseReverseZ = false;
 
 	/// Whether this material casts shadows.
 	public bool CastShadows = true;

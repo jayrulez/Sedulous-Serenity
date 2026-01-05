@@ -5,7 +5,6 @@ using System.IO;
 using Sedulous.Mathematics;
 using Sedulous.RHI;
 using Sedulous.Geometry;
-using Sedulous.Imaging;
 using Sedulous.Models;
 using Sedulous.Models.GLTF;
 using Sedulous.Framework.Renderer;
@@ -260,55 +259,54 @@ class RendererStaticMeshSample : RHISampleApp
 			Console.WriteLine(scope $"Duck mesh: {mesh.VertexCount} vertices, {mesh.IndexCount} indices, stride={mesh.VertexStride}");
 		}
 
-		// Load texture
+		// Load texture from model's embedded data (decoded by GLTF loader)
 		if (mDuckModel.Textures.Count > 0)
 		{
 			let tex = mDuckModel.Textures[0];
-			let uri = tex.Uri;
 
-			if (!uri.IsEmpty)
+			if (tex.HasEmbeddedData && tex.Width > 0 && tex.Height > 0)
 			{
-				let texPath = scope String();
-				texPath.Append("models/Duck/glTF/");
-				texPath.Append(uri);
+				Console.WriteLine(scope $"Using embedded texture: {tex.Width}x{tex.Height}, format={tex.PixelFormat}");
 
-				Console.WriteLine(scope $"Loading texture: {texPath}");
-
-				let imageLoader = scope SDLImageLoader();
-				if (imageLoader.LoadFromFile(texPath) case .Ok(var loadInfo))
+				// Convert pixel format to texture format
+				TextureFormat texFormat = .RGBA8Unorm;
+				uint32 bytesPerPixel = 4;
+				switch (tex.PixelFormat)
 				{
-					defer loadInfo.Dispose();
-					Console.WriteLine(scope $"Texture loaded: {loadInfo.Width}x{loadInfo.Height}");
+				case .RGBA8: texFormat = .RGBA8Unorm; bytesPerPixel = 4;
+				case .RGB8: texFormat = .RGBA8Unorm; bytesPerPixel = 4; // Note: data should be RGBA from decoder
+				case .BGRA8: texFormat = .BGRA8Unorm; bytesPerPixel = 4;
+				default: texFormat = .RGBA8Unorm; bytesPerPixel = 4;
+				}
 
-					TextureDescriptor texDesc = .Texture2D(loadInfo.Width, loadInfo.Height, .RGBA8Unorm, .Sampled | .CopyDst);
-					if (Device.CreateTexture(&texDesc) case .Ok(let texture))
+				TextureDescriptor texDesc = .Texture2D((uint32)tex.Width, (uint32)tex.Height, texFormat, .Sampled | .CopyDst);
+				if (Device.CreateTexture(&texDesc) case .Ok(let texture))
+				{
+					mDuckTexture = texture;
+
+					TextureDataLayout layout = .()
 					{
-						mDuckTexture = texture;
+						Offset = 0,
+						BytesPerRow = (uint32)tex.Width * bytesPerPixel,
+						RowsPerImage = (uint32)tex.Height
+					};
+					Extent3D size = .((uint32)tex.Width, (uint32)tex.Height, 1);
+					Span<uint8> data = .(tex.GetData(), tex.GetDataSize());
+					Device.Queue.WriteTexture(mDuckTexture, data, &layout, &size, 0, 0);
 
-						TextureDataLayout layout = .()
-						{
-							Offset = 0,
-							BytesPerRow = loadInfo.Width * 4,
-							RowsPerImage = loadInfo.Height
-						};
-						Extent3D size = .(loadInfo.Width, loadInfo.Height, 1);
-						Span<uint8> data = .(loadInfo.Data.Ptr, loadInfo.Data.Count);
-						Device.Queue.WriteTexture(mDuckTexture, data, &layout, &size, 0, 0);
+					TextureViewDescriptor viewDesc = .();
+					viewDesc.Format = texFormat;
+					viewDesc.Dimension = .Texture2D;
+					viewDesc.MipLevelCount = 1;
+					viewDesc.ArrayLayerCount = 1;
 
-						TextureViewDescriptor viewDesc = .();
-						viewDesc.Format = .RGBA8Unorm;
-						viewDesc.Dimension = .Texture2D;
-						viewDesc.MipLevelCount = 1;
-						viewDesc.ArrayLayerCount = 1;
-
-						if (Device.CreateTextureView(mDuckTexture, &viewDesc) case .Ok(let view))
-							mDuckTextureView = view;
-					}
+					if (Device.CreateTextureView(mDuckTexture, &viewDesc) case .Ok(let view))
+						mDuckTextureView = view;
 				}
-				else
-				{
-					Console.WriteLine(scope $"Failed to load texture: {texPath}");
-				}
+			}
+			else
+			{
+				Console.WriteLine("No embedded texture data, texture loading skipped");
 			}
 		}
 

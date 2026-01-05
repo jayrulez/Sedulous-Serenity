@@ -1,8 +1,11 @@
 using System;
+using System.IO;
 using System.Collections;
 using Sedulous.Resources;
 using Sedulous.Mathematics;
 using Sedulous.Serialization;
+using Sedulous.Serialization.OpenDDL;
+using Sedulous.OpenDDL;
 
 namespace Sedulous.Framework.Renderer;
 
@@ -87,6 +90,9 @@ struct MaterialParameter
 /// Can be used to create Material and MaterialInstance at runtime.
 class MaterialResource : Resource
 {
+	public const int32 FileVersion = 1;
+	public const int32 FileType = 6; // ResourceFileType.Material
+
 	/// Material type (PBR, Unlit, etc.)
 	public MaterialType Type = .PBR;
 
@@ -128,13 +134,12 @@ class MaterialResource : Resource
 		switch (Type)
 		{
 		case .PBR:
+			// Parameter names match Material.CreatePBR() exactly
 			SetFloat4("baseColor", .(1, 1, 1, 1));
 			SetFloat("metallic", 0.0f);
 			SetFloat("roughness", 0.5f);
-			SetFloat3("emissiveFactor", .(0, 0, 0));
-			SetFloat("emissiveStrength", 1.0f);
-			SetFloat("normalScale", 1.0f);
-			SetFloat("occlusionStrength", 1.0f);
+			SetFloat("ao", 1.0f);
+			SetFloat4("emissive", .(0, 0, 0, 1));
 
 		case .Unlit:
 			SetFloat4("color", .(1, 1, 1, 1));
@@ -275,10 +280,27 @@ class MaterialResource : Resource
 		set => SetFloat("roughness", value);
 	}
 
+	public float AO
+	{
+		get => GetFloat("ao", 1.0f);
+		set => SetFloat("ao", value);
+	}
+
+	public Vector4 Emissive
+	{
+		get => GetFloat4("emissive", .(0, 0, 0, 1));
+		set => SetFloat4("emissive", value);
+	}
+
+	/// Convenience setter for emissive from RGB color.
 	public Vector3 EmissiveFactor
 	{
-		get => GetFloat3("emissiveFactor", .Zero);
-		set => SetFloat3("emissiveFactor", value);
+		get
+		{
+			let v = GetFloat4("emissive", .Zero);
+			return .(v.X, v.Y, v.Z);
+		}
+		set => SetFloat4("emissive", .(value.X, value.Y, value.Z, 1.0f));
 	}
 
 	// ---- Unlit convenience accessor ----
@@ -348,8 +370,8 @@ class MaterialResource : Resource
 		mat.BaseColor = .(0, 0, 0, 1);
 		mat.Metallic = 0.0f;
 		mat.Roughness = 0.5f;
-		mat.EmissiveFactor = emissiveColor;
-		mat.SetFloat("emissiveStrength", strength);
+		// Bake strength into emissive color
+		mat.Emissive = .(emissiveColor.X * strength, emissiveColor.Y * strength, emissiveColor.Z * strength, 1.0f);
 		return mat;
 	}
 
@@ -541,5 +563,55 @@ class MaterialResource : Resource
 		mat.RenderQueue = RenderQueue;
 
 		return mat;
+	}
+
+	/// Save this material resource to a file.
+	public Result<void> SaveToFile(StringView path)
+	{
+		let writer = OpenDDLSerializer.CreateWriter();
+		defer delete writer;
+
+		int32 version = FileVersion;
+		writer.Int32("version", ref version);
+
+		int32 fileType = FileType;
+		writer.Int32("type", ref fileType);
+
+		Serialize(writer);
+
+		let output = scope String();
+		writer.GetOutput(output);
+
+		return File.WriteAllText(path, output);
+	}
+
+	/// Load a material resource from a file.
+	public static Result<MaterialResource> LoadFromFile(StringView path)
+	{
+		let text = scope String();
+		if (File.ReadAllText(path, text) case .Err)
+			return .Err;
+
+		let doc = scope SerializerDataDescription();
+		if (doc.ParseText(text) != .Ok)
+			return .Err;
+
+		let reader = OpenDDLSerializer.CreateReader(doc);
+		defer delete reader;
+
+		int32 version = 0;
+		reader.Int32("version", ref version);
+		if (version > FileVersion)
+			return .Err;
+
+		int32 fileType = 0;
+		reader.Int32("type", ref fileType);
+		if (fileType != FileType)
+			return .Err;
+
+		let resource = new MaterialResource();
+		resource.Serialize(reader);
+
+		return .Ok(resource);
 	}
 }
