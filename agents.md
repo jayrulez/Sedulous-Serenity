@@ -145,10 +145,11 @@ Third-party bindings used by the framework:
 - [ ] GPU profiling markers
 - [ ] Debug visualization modes
 - [ ] Shader hot-reload
-- [ ] Framework.Core integration
-- [ ] RenderSceneComponent
+- [x] Framework.Core integration (RendererService, entity components)
+- [x] RenderSceneComponent (proxy sync, visibility, GPU upload)
+- [x] MeshRendererComponent, LightComponent, CameraComponent
 - [ ] Documentation
-- [ ] Sample: `RendererIntegrated`
+- [x] Sample: `RendererIntegrated` - 64 cubes + ground + lights using ECS
 
 #### Known Issues / TODO
 - Decal rendering not yet implemented
