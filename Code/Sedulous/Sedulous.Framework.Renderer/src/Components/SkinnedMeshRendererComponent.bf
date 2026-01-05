@@ -22,15 +22,16 @@ class SkinnedMeshRendererComponent : IEntityComponent
 	private List<AnimationClip> mAnimationClips = new .() ~ delete _;  // Don't delete items - we don't own them
 	private bool mOwnsAnimationClips = false;
 
-	// GPU bone matrix buffer
-	private IBuffer mBoneMatrixBuffer ~ delete _;
+	// GPU bone matrix buffers (per-frame to avoid GPU/CPU sync issues)
+	private const int32 MAX_FRAMES_IN_FLIGHT = 2;
+	private IBuffer[MAX_FRAMES_IN_FLIGHT] mBoneMatrixBuffers = .() ~ { for (var buf in _) delete buf; };
 
 	// Texture for this skinned mesh
 	private ITexture mTexture ~ delete _;
 	private ITextureView mTextureView ~ delete _;
 
-	// Cached bind group for this skinned mesh
-	private IBindGroup mBindGroup ~ delete _;
+	// Cached bind groups for this skinned mesh (per-frame)
+	private IBindGroup[MAX_FRAMES_IN_FLIGHT] mBindGroups = .() ~ { for (var bg in _) delete bg; };
 
 	// Entity and scene references
 	private Entity mEntity;
@@ -61,8 +62,8 @@ class SkinnedMeshRendererComponent : IEntityComponent
 	/// Gets the animation player.
 	public AnimationPlayer AnimationPlayer => mAnimationPlayer;
 
-	/// Gets the bone matrix buffer for shader binding (framework use).
-	public IBuffer BoneMatrixBuffer => mBoneMatrixBuffer;
+	/// Gets the bone matrix buffer for shader binding by frame index (framework use).
+	public IBuffer GetBoneMatrixBuffer(int32 frameIndex) => mBoneMatrixBuffers[frameIndex];
 
 	/// Gets the list of available animation clips.
 	public List<AnimationClip> AnimationClips => mAnimationClips;
@@ -73,16 +74,15 @@ class SkinnedMeshRendererComponent : IEntityComponent
 	/// Gets the GPU mesh handle (framework use).
 	public GPUSkinnedMeshHandle GPUMeshHandle => mGPUMesh;
 
-	/// Gets or sets the cached bind group for rendering (framework use).
-	public IBindGroup BindGroup
+	/// Gets the cached bind group for rendering by frame index (framework use).
+	public IBindGroup GetBindGroup(int32 frameIndex) => mBindGroups[frameIndex];
+
+	/// Sets the cached bind group for a specific frame (framework use).
+	public void SetBindGroup(int32 frameIndex, IBindGroup bindGroup)
 	{
-		get => mBindGroup;
-		set
-		{
-			if (mBindGroup != null)
-				delete mBindGroup;
-			mBindGroup = value;
-		}
+		if (mBindGroups[frameIndex] != null)
+			delete mBindGroups[frameIndex];
+		mBindGroups[frameIndex] = bindGroup;
 	}
 
 	/// Gets the entity this component is attached to (framework use).
@@ -146,11 +146,14 @@ class SkinnedMeshRendererComponent : IEntityComponent
 		mTexture = texture;
 		mTextureView = textureView;
 
-		// Invalidate bind group so it gets recreated with new texture
-		if (mBindGroup != null)
+		// Invalidate all per-frame bind groups so they get recreated with new texture
+		for (int32 i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
-			delete mBindGroup;
-			mBindGroup = null;
+			if (mBindGroups[i] != null)
+			{
+				delete mBindGroups[i];
+				mBindGroups[i] = null;
+			}
 		}
 	}
 
@@ -318,14 +321,10 @@ class SkinnedMeshRendererComponent : IEntityComponent
 	/// Called each frame to update the component.
 	public void OnUpdate(float deltaTime)
 	{
-		// Update animation
+		// Update animation (bone matrix upload happens in PrepareGPU with correct frame index)
 		if (mAnimationPlayer != null && mAnimationPlayer.State == .Playing)
 		{
-			// Update animation time and compute bone matrices
 			mAnimationPlayer.Update(deltaTime);
-
-			// Upload bone matrices to GPU
-			UploadBoneMatrices();
 		}
 
 		// Update visibility flag on proxy if changed
@@ -394,47 +393,53 @@ class SkinnedMeshRendererComponent : IEntityComponent
 	{
 		if (mRenderScene?.RendererService?.Device == null)
 			return;
-		if (mBoneMatrixBuffer != null)
+		if (mBoneMatrixBuffers[0] != null)
 			return; // Already created
 
 		let device = mRenderScene.RendererService.Device;
 
-		// Create buffer for MAX_BONES matrices
+		// Create buffer for MAX_BONES matrices for each frame
 		const int32 maxBones = Sedulous.Framework.Renderer.Skeleton.MAX_BONES;
 		uint64 bufferSize = (uint64)(maxBones * sizeof(Matrix));
-		BufferDescriptor desc = .(bufferSize, .Uniform | .Storage, .Upload);
-		desc.Label = "BoneMatrices";
 
-		if (device.CreateBuffer(&desc) case .Ok(let buffer))
+		// Initialize identity matrices
+		Matrix[maxBones] identity = .();
+		for (int i = 0; i < maxBones; i++)
+			identity[i] = .Identity;
+		Span<uint8> data = .((uint8*)&identity[0], (int)bufferSize);
+
+		for (int32 frame = 0; frame < MAX_FRAMES_IN_FLIGHT; frame++)
 		{
-			mBoneMatrixBuffer = buffer;
+			BufferDescriptor desc = .(bufferSize, .Uniform | .Storage, .Upload);
+			desc.Label = "BoneMatrices";
 
-			// Initialize to identity matrices
-			Matrix[maxBones] identity = .();
-			for (int i = 0; i < maxBones; i++)
-				identity[i] = .Identity;
-
-			Span<uint8> data = .((uint8*)&identity[0], (int)bufferSize);
-			device.Queue.WriteBuffer(buffer, 0, data);
+			if (device.CreateBuffer(&desc) case .Ok(let buffer))
+			{
+				mBoneMatrixBuffers[frame] = buffer;
+				device.Queue.WriteBuffer(buffer, 0, data);
+			}
 		}
 	}
 
-	private void UploadBoneMatrices()
+	/// Uploads bone matrices to the GPU for the specified frame (framework use).
+	/// Called by RenderSceneComponent during PrepareGPU.
+	public void UploadBoneMatrices(int32 frameIndex)
 	{
 		if (mRenderScene?.RendererService?.Device == null)
 			return;
-		if (mBoneMatrixBuffer == null)
+		if (mBoneMatrixBuffers[frameIndex] == null)
 			return;
 		if (mAnimationPlayer?.BoneMatrices == null)
 			return;
 
 		let device = mRenderScene.RendererService.Device;
 
-		// Upload bone matrices from animation player
+		// Upload bone matrices from animation player to the frame's buffer
 		const int32 maxBones = Sedulous.Framework.Renderer.Skeleton.MAX_BONES;
 		uint64 dataSize = (uint64)(maxBones * sizeof(Matrix));
 		Span<uint8> data = .((uint8*)mAnimationPlayer.BoneMatrices.Ptr, (int)dataSize);
-		device.Queue.WriteBuffer(mBoneMatrixBuffer, 0, data);
+		var buf = mBoneMatrixBuffers[frameIndex];// beef bug
+		device.Queue.WriteBuffer(buf, 0, data);
 	}
 
 	private void CreateOrUpdateProxy()

@@ -100,7 +100,7 @@ class RenderSceneComponent : ISceneComponent
 	private IBindGroupLayout mSkinnedShadowBindGroupLayout ~ delete _;
 	private IPipelineLayout mSkinnedShadowPipelineLayout ~ delete _;
 	private IRenderPipeline mSkinnedShadowPipeline ~ delete _;
-	private IBuffer mSkinnedShadowObjectBuffer ~ delete _;
+	private IBuffer[MAX_FRAMES_IN_FLIGHT] mSkinnedShadowObjectBuffers = .() ~ { for (var buf in _) delete buf; };
 	// Per-frame temporary bind groups (cleaned up when that frame's fence is signaled)
 	private List<IBindGroup>[MAX_FRAMES_IN_FLIGHT] mTempShadowBindGroups = .(new .(), new .()) ~ { for (var list in _) DeleteContainerAndItems!(list); };
 
@@ -116,7 +116,7 @@ class RenderSceneComponent : ISceneComponent
 	private IBindGroupLayout mSkinnedBindGroupLayout ~ delete _;
 	private IPipelineLayout mSkinnedPipelineLayout ~ delete _;
 	private IRenderPipeline mSkinnedPipeline ~ delete _;
-	private IBuffer mSkinnedObjectBuffer ~ delete _;
+	private IBuffer[MAX_FRAMES_IN_FLIGHT] mSkinnedObjectBuffers = .() ~ { for (var buf in _) delete buf; };
 	private ISampler mDefaultSampler ~ delete _;
 	private ITexture mWhiteTexture ~ delete _;
 	private ITextureView mWhiteTextureView ~ delete _;
@@ -739,12 +739,15 @@ class RenderSceneComponent : ISceneComponent
 			return .Err;
 		mSkinnedPipelineLayout = pipelineLayout;
 
-		// Create object uniform buffer
-		BufferDescriptor objectDesc = .(128, .Uniform, .Upload);
-		if (device.CreateBuffer(&objectDesc) case .Ok(let buf))
-			mSkinnedObjectBuffer = buf;
-		else
-			return .Err;
+		// Create per-frame object uniform buffers
+		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			BufferDescriptor objectDesc = .(128, .Uniform, .Upload);
+			if (device.CreateBuffer(&objectDesc) case .Ok(let buf))
+				mSkinnedObjectBuffers[i] = buf;
+			else
+				return .Err;
+		}
 
 		// Create default sampler
 		SamplerDescriptor samplerDesc = .();
@@ -1057,12 +1060,15 @@ class RenderSceneComponent : ISceneComponent
 			return .Err;
 		mSkinnedShadowPipelineLayout = pipelineLayout;
 
-		// Create object uniform buffer (64 bytes for Model matrix)
+		// Create per-frame object uniform buffers (64 bytes for Model matrix)
 		BufferDescriptor objectDesc = .(64, .Uniform, .Upload);
-		if (device.CreateBuffer(&objectDesc) case .Ok(let buf))
-			mSkinnedShadowObjectBuffer = buf;
-		else
-			return .Err;
+		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			if (device.CreateBuffer(&objectDesc) case .Ok(let buf))
+				mSkinnedShadowObjectBuffers[i] = buf;
+			else
+				return .Err;
+		}
 
 		// Skinned vertex layout - only attributes needed by shadow shader
 		// Shader expects: POSITION(0), NORMAL(1), TEXCOORD0(2), BLENDWEIGHT(3), BLENDINDICES(4)
@@ -1218,16 +1224,6 @@ class RenderSceneComponent : ISceneComponent
 			cameraData.Projection = projection;
 			cameraData.CameraPosition = cameraProxy.Position;
 
-			// DEBUG: Print camera info on first few frames
-			static int32 debugCount = 0;
-			if (debugCount < 3)
-			{
-				debugCount++;
-				Console.WriteLine($"[CAM DEBUG] Pos=({cameraProxy.Position.X:F2},{cameraProxy.Position.Y:F2},{cameraProxy.Position.Z:F2}) Fwd=({cameraProxy.Forward.X:F2},{cameraProxy.Forward.Y:F2},{cameraProxy.Forward.Z:F2})");
-				Console.WriteLine($"  View M11={view.M11:F4} M22={view.M22:F4} M33={view.M33:F4} M43={view.M43:F4}");
-				Console.WriteLine($"  Proj M11={projection.M11:F4} M22={projection.M22:F4}");
-			}
-
 			Span<uint8> camData = .((uint8*)&cameraData, sizeof(SceneCameraUniforms));
 			device.Queue.WriteBuffer(frame.CameraBuffer, 0, camData);
 
@@ -1260,6 +1256,13 @@ class RenderSceneComponent : ISceneComponent
 					mSpriteRenderer.AddSprite(sprite.GetSpriteInstance());
 			}
 			mSpriteRenderer.End();
+		}
+
+		// Upload bone matrices for all skinned meshes (per-frame to avoid GPU/CPU sync issues)
+		for (let skinnedComp in mSkinnedMeshes)
+		{
+			if (skinnedComp.Visible)
+				skinnedComp.UploadBoneMatrices(frameIndex);
 		}
 	}
 
@@ -1371,7 +1374,7 @@ class RenderSceneComponent : ISceneComponent
 					if (gpuMesh == null)
 						continue;
 
-					let boneBuffer = skinnedComp.BoneMatrixBuffer;
+					let boneBuffer = skinnedComp.GetBoneMatrixBuffer(frameIndex);
 					if (boneBuffer == null)
 						continue;
 
@@ -1381,12 +1384,12 @@ class RenderSceneComponent : ISceneComponent
 						modelMatrix = skinnedComp.Entity.Transform.WorldMatrix;
 
 					Span<uint8> modelSpan = .((uint8*)&modelMatrix, sizeof(Matrix));
-					device.Queue.WriteBuffer(mSkinnedShadowObjectBuffer, 0, modelSpan);
+					device.Queue.WriteBuffer(mSkinnedShadowObjectBuffers[frameIndex], 0, modelSpan);
 
 					// Create bind group for this skinned mesh shadow render
 					BindGroupEntry[3] bindEntries = .(
 						BindGroupEntry.Buffer(0, shadowBuffer),         // Shadow uniforms (b0)
-						BindGroupEntry.Buffer(1, mSkinnedShadowObjectBuffer), // Object transform (b1)
+						BindGroupEntry.Buffer(1, mSkinnedShadowObjectBuffers[frameIndex]), // Object transform (b1)
 						BindGroupEntry.Buffer(2, boneBuffer)            // Bone matrices (b2)
 					);
 					BindGroupDescriptor bindGroupDesc = .(mSkinnedShadowBindGroupLayout, bindEntries);
@@ -1590,12 +1593,12 @@ class RenderSceneComponent : ISceneComponent
 			if (gpuMesh == null)
 				continue;
 
-			let boneBuffer = skinnedComp.BoneMatrixBuffer;
+			let boneBuffer = skinnedComp.GetBoneMatrixBuffer(mCurrentFrameIndex);
 			if (boneBuffer == null)
 				continue;
 
-			// Create or update bind group for this skinned mesh
-			if (skinnedComp.BindGroup == null)
+			// Create or update bind group for this skinned mesh (per-frame)
+			if (skinnedComp.GetBindGroup(mCurrentFrameIndex) == null)
 			{
 				let cameraBuffer = mFrameResources[mCurrentFrameIndex].CameraBuffer;
 				ITextureView textureView = skinnedComp.TextureView;
@@ -1604,14 +1607,14 @@ class RenderSceneComponent : ISceneComponent
 
 				BindGroupEntry[5] entries = .(
 					BindGroupEntry.Buffer(0, cameraBuffer),
-					BindGroupEntry.Buffer(1, mSkinnedObjectBuffer),
+					BindGroupEntry.Buffer(1, mSkinnedObjectBuffers[mCurrentFrameIndex]),
 					BindGroupEntry.Buffer(2, boneBuffer),
 					BindGroupEntry.Texture(0, textureView),
 					BindGroupEntry.Sampler(0, mDefaultSampler)
 				);
 				BindGroupDescriptor bindGroupDesc = .(mSkinnedBindGroupLayout, entries);
 				if (device.CreateBindGroup(&bindGroupDesc) case .Ok(let group))
-					skinnedComp.BindGroup = group;
+					skinnedComp.SetBindGroup(mCurrentFrameIndex, group);
 				else
 					continue;
 			}
@@ -1627,9 +1630,9 @@ class RenderSceneComponent : ISceneComponent
 			Internal.MemCpy(&objectData[0], &modelMatrix, sizeof(Matrix));
 			Internal.MemCpy(&objectData[64], &baseColor, sizeof(Vector4));
 			Span<uint8> objSpan = .(&objectData, 80);
-			device.Queue.WriteBuffer(mSkinnedObjectBuffer, 0, objSpan);
+			device.Queue.WriteBuffer(mSkinnedObjectBuffers[mCurrentFrameIndex], 0, objSpan);
 
-			renderPass.SetBindGroup(0, skinnedComp.BindGroup);
+			renderPass.SetBindGroup(0, skinnedComp.GetBindGroup(mCurrentFrameIndex));
 			renderPass.SetVertexBuffer(0, gpuMesh.VertexBuffer, 0);
 
 			if (gpuMesh.IndexBuffer != null)
