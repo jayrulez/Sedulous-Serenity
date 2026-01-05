@@ -3,7 +3,7 @@ namespace RHIReadback;
 using System;
 using Sedulous.Mathematics;
 using Sedulous.RHI;
-using RHI.SampleFramework;
+using SampleFramework;
 using Sedulous.Shell.Input;
 
 /// Vertex structure with position and color

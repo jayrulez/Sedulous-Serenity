@@ -1,0 +1,6 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "SampleFramework" = "*", "Sedulous.Framework.Renderer" = "*"}
+
+[Project]
+Name = "RendererParticles"
+StartupObject = "RendererParticles.Program"

@@ -3,7 +3,7 @@ namespace RHIInstancing;
 using System;
 using Sedulous.Mathematics;
 using Sedulous.RHI;
-using RHI.SampleFramework;
+using SampleFramework;
 
 /// Per-vertex data (triangle shape)
 [CRepr]

@@ -6,7 +6,7 @@ using Sedulous.Mathematics;
 using Sedulous.RHI;
 using Sedulous.Geometry;
 using Sedulous.Framework.Renderer;
-using RHI.SampleFramework;
+using SampleFramework;
 
 /// Scene sample demonstrating:
 /// - RenderWorld with proxy system

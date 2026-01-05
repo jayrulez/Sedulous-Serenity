@@ -7,7 +7,7 @@ using Sedulous.Geometry;
 using Sedulous.Imaging;
 using Sedulous.Framework.Renderer;
 using Sedulous.Shell.Input;
-using RHI.SampleFramework;
+using SampleFramework;
 
 /// PBR sphere sample using the Material System.
 /// Demonstrates:

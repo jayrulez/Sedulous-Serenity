@@ -3,7 +3,7 @@ namespace RHICompute;
 using System;
 using Sedulous.Mathematics;
 using Sedulous.RHI;
-using RHI.SampleFramework;
+using SampleFramework;
 
 /// Particle data structure (must match shader)
 [CRepr]

@@ -3,7 +3,7 @@ namespace RHIDepthBuffer;
 using System;
 using Sedulous.Mathematics;
 using Sedulous.RHI;
-using RHI.SampleFramework;
+using SampleFramework;
 
 /// Vertex with 3D position and color
 [CRepr]

@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "RHI.SampleFramework" = "*", "Sedulous.Framework.Renderer" = "*", "Sedulous.Geometry" = "*", "Sedulous.Geometry.Tooling" = "*", "Sedulous.Imaging" = "*", "Sedulous.Models" = "*", "Sedulous.Models.GLTF" = "*", "Sedulous.Resources" = "*"}
+Dependencies = {corlib = "*", "SampleFramework" = "*", "Sedulous.Framework.Renderer" = "*", "Sedulous.Geometry" = "*"}
 
 [Project]
 Name = "RendererGeometry"

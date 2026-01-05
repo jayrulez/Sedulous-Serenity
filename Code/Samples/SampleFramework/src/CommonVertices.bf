@@ -1,4 +1,4 @@
-namespace RHI.SampleFramework;
+namespace SampleFramework;
 
 using System;
 using Sedulous.RHI;

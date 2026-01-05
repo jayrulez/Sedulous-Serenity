@@ -4,7 +4,7 @@ using System;
 using Sedulous.Mathematics;
 using Sedulous.RHI;
 using Sedulous.RHI.HLSLShaderCompiler;
-using RHI.SampleFramework;
+using SampleFramework;
 
 /// Vertex structure
 [CRepr]

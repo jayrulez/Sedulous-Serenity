@@ -105,7 +105,8 @@ Third-party bindings used by the framework:
 - [ ] Decal rendering
 - [x] Skybox rendering
 - [x] GLTF model loading
-- [ ] Sample: `RendererGeometry` complete (missing: decals)
+- [x] Samples: `RendererGeometry` (cubes), `RendererStaticMesh` (Duck), `RendererSkinned` (Fox), `RendererSprite`, `RendererParticles`
+- [ ] Sample: Add decals to a geometry sample
 
 #### Phase 4: Visibility & Scene
 - [x] RenderWorld and proxy system (MeshProxy, LightProxy, CameraProxy)

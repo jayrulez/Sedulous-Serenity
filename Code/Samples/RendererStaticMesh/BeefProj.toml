@@ -1,0 +1,6 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "SampleFramework" = "*", "Sedulous.Framework.Renderer" = "*", "Sedulous.Geometry" = "*", "Sedulous.Imaging" = "*", "Sedulous.Models" = "*", "Sedulous.Models.GLTF" = "*"}
+
+[Project]
+Name = "RendererStaticMesh"
+StartupObject = "RendererStaticMesh.Program"

@@ -2,5 +2,5 @@ FileVersion = 1
 Dependencies = {corlib = "*", "Sedulous.Shell" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Mathematics" = "*", "Sedulous.Imaging" = "*", "Sedulous.RHI" = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.RHI.HLSLShaderCompiler" = "*"}
 
 [Project]
-Name = "RHI.SampleFramework"
+Name = "SampleFramework"
 TargetType = "BeefLib"

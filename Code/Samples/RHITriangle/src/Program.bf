@@ -3,7 +3,7 @@ namespace RHITriangle;
 using System;
 using Sedulous.Mathematics;
 using Sedulous.RHI;
-using RHI.SampleFramework;
+using SampleFramework;
 
 /// Vertex structure with position and color
 [CRepr]

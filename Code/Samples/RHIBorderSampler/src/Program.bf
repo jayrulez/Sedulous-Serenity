@@ -4,7 +4,7 @@ using System;
 using Sedulous.Mathematics;
 using Sedulous.RHI;
 using Sedulous.Shell.Input;
-using RHI.SampleFramework;
+using SampleFramework;
 
 /// Border sampler sample - demonstrates SamplerBorderColor with ClampToBorder.
 /// Shows a checkerboard texture with extended UV coordinates.

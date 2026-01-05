@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "RHI.SampleFramework" = "*", "Sedulous.Shell" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Mathematics" = "*", "Sedulous.RHI" = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.RHI.HLSLShaderCompiler" = "*"}
+Dependencies = {corlib = "*", "SampleFramework" = "*", "Sedulous.Shell" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Mathematics" = "*", "Sedulous.RHI" = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.RHI.HLSLShaderCompiler" = "*"}
 
 [Project]
 Name = "RHIBlending"

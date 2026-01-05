@@ -4,7 +4,7 @@ using System;
 using Sedulous.Mathematics;
 using Sedulous.RHI;
 using Sedulous.Shell.Input;
-using RHI.SampleFramework;
+using SampleFramework;
 
 /// Vertex structure with position and color
 [CRepr]

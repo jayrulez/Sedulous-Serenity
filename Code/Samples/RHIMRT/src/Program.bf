@@ -3,7 +3,7 @@ namespace RHIMRT;
 using System;
 using Sedulous.Mathematics;
 using Sedulous.RHI;
-using RHI.SampleFramework;
+using SampleFramework;
 
 /// Vertex with position, normal, and color
 [CRepr]

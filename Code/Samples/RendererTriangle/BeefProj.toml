@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Mathematics" = "*", "Sedulous.RHI" = "*", "Sedulous.Framework.Renderer" = "*", "RHI.SampleFramework" = "*"}
+Dependencies = {corlib = "*", "Sedulous.Mathematics" = "*", "Sedulous.RHI" = "*", "Sedulous.Framework.Renderer" = "*", "SampleFramework" = "*"}
 
 [Project]
 Name = "RendererTriangle"

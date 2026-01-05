@@ -6,7 +6,7 @@ using Sedulous.RHI;
 using Sedulous.Mathematics;
 using Sedulous.Framework.Renderer;
 using Sedulous.Shell.Input;
-using RHI.SampleFramework;
+using SampleFramework;
 
 /// Per-instance data for GPU (80 bytes) - transform matrix + material
 [CRepr]
