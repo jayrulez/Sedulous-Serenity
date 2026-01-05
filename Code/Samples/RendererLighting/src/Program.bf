@@ -747,7 +747,8 @@ class RendererLightingSample : RHISampleApp
 		{
 			uint64 dataSize = (uint64)(sizeof(LightingInstanceData) * mInstanceCount);
 			Span<uint8> data = .((uint8*)mInstanceData.Ptr, (int)dataSize);
-			Device.Queue.WriteBuffer(mInstanceBuffers[frameIndex], 0, data);
+			var buf = mInstanceBuffers[frameIndex]; // beef bug
+			Device.Queue.WriteBuffer(buf, 0, data);
 		}
 
 		// Update camera buffer with Y-flip for Vulkan

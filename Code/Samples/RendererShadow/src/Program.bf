@@ -8,7 +8,7 @@ using Sedulous.Framework.Renderer;
 using Sedulous.Shell.Input;
 using SampleFramework;
 
-/// Per-instance data for GPU (80 bytes) - transform matrix + material
+/// Per-instance data for GPU (80 bytes) - transform matrix + color
 [CRepr]
 struct ShadowInstanceData
 {
@@ -16,15 +16,15 @@ struct ShadowInstanceData
 	public Vector4 Row1;
 	public Vector4 Row2;
 	public Vector4 Row3;
-	public Vector4 Material;  // x=metallic, y=roughness
+	public Vector4 Color;  // rgba color
 
-	public this(Matrix transform, float metallic, float roughness)
+	public this(Matrix transform, Vector4 color)
 	{
 		Row0 = .(transform.M11, transform.M12, transform.M13, transform.M14);
 		Row1 = .(transform.M21, transform.M22, transform.M23, transform.M24);
 		Row2 = .(transform.M31, transform.M32, transform.M33, transform.M34);
 		Row3 = .(transform.M41, transform.M42, transform.M43, transform.M44);
-		Material = .(metallic, roughness, 0, 0);
+		Color = color;
 	}
 }
 
@@ -144,7 +144,7 @@ class RendererShadowSample : RHISampleApp
 
 	// Scene objects
 	private List<Matrix> mObjectTransforms = new .() ~ delete _;
-	private List<Vector2> mObjectMaterials = new .() ~ delete _;
+	private List<Vector4> mObjectColors = new .() ~ delete _;
 	private ShadowInstanceData[] mInstanceData ~ delete _;
 	private int32 mInstanceCount = 0;
 	private int32 mIndexCount = 0;
@@ -360,21 +360,21 @@ class RendererShadowSample : RHISampleApp
 
 	private void CreateScene()
 	{
-		// Ground plane (large flat cube)
+		// Ground plane (large flat cube) - gray
 		var planeScale = Matrix.CreateScale(.(20.0f, 0.2f, 20.0f));
 		var planeTranslate = Matrix.CreateTranslation(.(0, -0.1f, 0));
 		mObjectTransforms.Add(planeScale * planeTranslate);
-		mObjectMaterials.Add(.(0.0f, 0.8f));
+		mObjectColors.Add(.(0.5f, 0.5f, 0.5f, 1.0f));
 
-		// Cube 1 - left
+		// Cube 1 - left - red
 		var cube1 = Matrix.CreateTranslation(.(-2.0f, 0.5f, 0.0f));
 		mObjectTransforms.Add(cube1);
-		mObjectMaterials.Add(.(0.0f, 0.3f));
+		mObjectColors.Add(.(0.8f, 0.3f, 0.3f, 1.0f));
 
-		// Cube 2 - right
+		// Cube 2 - right - blue
 		var cube2 = Matrix.CreateTranslation(.(2.0f, 0.5f, 0.0f));
 		mObjectTransforms.Add(cube2);
-		mObjectMaterials.Add(.(0.0f, 0.3f));
+		mObjectColors.Add(.(0.3f, 0.3f, 0.8f, 1.0f));
 
 		mInstanceCount = (int32)mObjectTransforms.Count;
 	}
@@ -434,8 +434,8 @@ class RendererShadowSample : RHISampleApp
 
 	private bool CreatePipeline()
 	{
-		// Use the same shaders as RendererLighting
-		let shaderResult = ShaderUtils.LoadShaderPair(Device, "../RendererLighting/shaders/lighting");
+		// Use the scene_lit shaders from Framework.Renderer
+		let shaderResult = ShaderUtils.LoadShaderPair(Device, "../../Sedulous/Sedulous.Framework.Renderer/shaders/scene_lit");
 		if (shaderResult case .Err)
 		{
 			Console.WriteLine("Failed to load shaders");
@@ -821,7 +821,7 @@ class RendererShadowSample : RHISampleApp
 
 		// Update instance data to per-frame buffer
 		for (int i = 0; i < mInstanceCount; i++)
-			mInstanceData[i] = ShadowInstanceData(mObjectTransforms[i], mObjectMaterials[i].X, mObjectMaterials[i].Y);
+			mInstanceData[i] = ShadowInstanceData(mObjectTransforms[i], mObjectColors[i]);
 
 		if (mInstanceCount > 0)
 		{
@@ -845,7 +845,8 @@ class RendererShadowSample : RHISampleApp
 		};
 
 		Span<uint8> camSpan = .((uint8*)&camData, sizeof(CameraData));
-		Device.Queue.WriteBuffer(mFrameResources[frameIndex].CameraBuffer, 0, camSpan);
+		var res = mFrameResources[frameIndex];// beef bug
+		Device.Queue.WriteBuffer(res.CameraBuffer, 0, camSpan);
 
 		// Upload debug lines to per-frame buffer
 		if (mDebugLines.Count > 0)

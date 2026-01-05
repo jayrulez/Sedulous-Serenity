@@ -155,12 +155,12 @@ class RendererIntegratedSample : RHISampleApp
 			}
 		}
 
-		// Create directional light entity
+		// Create directional light entity with shadows
 		{
 			let lightEntity = mScene.CreateEntity("SunLight");
 			lightEntity.Transform.LookAt(.(-0.5f, -1.0f, -0.3f));
 
-			let lightComp = LightComponent.CreateDirectional(.(1.0f, 0.95f, 0.8f), 1.0f);
+			let lightComp = LightComponent.CreateDirectional(.(1.0f, 0.95f, 0.8f), 1.0f, true);  // Enable shadows
 			lightEntity.AddComponent(lightComp);
 		}
 
@@ -468,10 +468,54 @@ class RendererIntegratedSample : RHISampleApp
 		mRenderSceneComponent.PrepareGPU(frameIndex);
 	}
 
-	protected override void OnRender(IRenderPassEncoder renderPass)
+	protected override bool OnRenderFrame(ICommandEncoder encoder, int32 frameIndex)
 	{
+		// Render shadow passes first (before main render pass)
+		mRenderSceneComponent.RenderShadows(encoder, frameIndex);
+
+		// Create main render pass
+		let textureView = SwapChain.CurrentTextureView;
+		if (textureView == null) return true;
+
+		RenderPassColorAttachment[1] colorAttachments = .(.()
+		{
+			View = textureView,
+			ResolveTarget = null,
+			LoadOp = .Clear,
+			StoreOp = .Store,
+			ClearValue = .(0.1f, 0.1f, 0.15f, 1.0f)
+		});
+
+		RenderPassDescriptor renderPassDesc = .(colorAttachments);
+		RenderPassDepthStencilAttachment depthAttachment = .()
+		{
+			View = DepthTextureView,
+			DepthLoadOp = .Clear,
+			DepthStoreOp = .Store,
+			DepthClearValue = 1.0f,
+			StencilLoadOp = .Clear,
+			StencilStoreOp = .Discard,
+			StencilClearValue = 0
+		};
+		renderPassDesc.DepthStencilAttachment = depthAttachment;
+
+		let renderPass = encoder.BeginRenderPass(&renderPassDesc);
+		if (renderPass == null) return true;
+		defer delete renderPass;
+
+		renderPass.SetViewport(0, 0, SwapChain.Width, SwapChain.Height, 0, 1);
+		renderPass.SetScissorRect(0, 0, SwapChain.Width, SwapChain.Height);
+
 		// Render the scene - all GPU details handled by RenderSceneComponent
 		mRenderSceneComponent.Render(renderPass, SwapChain.Width, SwapChain.Height);
+
+		renderPass.End();
+		return true;  // We handled rendering
+	}
+
+	protected override void OnRender(IRenderPassEncoder renderPass)
+	{
+		// Not used - we use OnRenderFrame for shadow support
 	}
 
 	protected override void OnCleanup()

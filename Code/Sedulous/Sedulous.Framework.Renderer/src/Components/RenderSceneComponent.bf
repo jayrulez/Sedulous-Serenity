@@ -7,18 +7,37 @@ using Sedulous.Mathematics;
 using Sedulous.RHI;
 using Sedulous.Serialization;
 
+/// Shadow pass uniform data (internal to RenderSceneComponent)
+[CRepr]
+struct SceneShadowUniforms
+{
+	public Matrix LightViewProjection;
+	public Vector4 DepthBias;
+}
+
 /// Per-frame GPU resources to avoid GPU/CPU synchronization issues.
 struct SceneFrameResources
 {
+	public const int32 CASCADE_COUNT = 4;
+
 	public IBuffer CameraBuffer;
 	public IBuffer InstanceBuffer;
 	public IBindGroup BindGroup;
+
+	// Shadow pass resources (one per cascade to avoid buffer overwrite during recording)
+	public IBuffer[CASCADE_COUNT] ShadowUniformBuffers;
+	public IBindGroup[CASCADE_COUNT] ShadowBindGroups;
 
 	public void Dispose() mut
 	{
 		delete CameraBuffer;
 		delete InstanceBuffer;
 		delete BindGroup;
+		for (int i = 0; i < CASCADE_COUNT; i++)
+		{
+			delete ShadowUniformBuffers[i];
+			delete ShadowBindGroups[i];
+		}
 		this = default;
 	}
 }
@@ -30,6 +49,7 @@ class RenderSceneComponent : ISceneComponent
 {
 	private const int32 MAX_FRAMES_IN_FLIGHT = 2;
 	private const int32 MAX_INSTANCES = 4096;
+	private const int32 SHADOW_MAP_SIZE = 2048;
 
 	private RendererService mRendererService;
 	private Scene mScene;
@@ -58,6 +78,10 @@ class RenderSceneComponent : ISceneComponent
 
 	// ==================== GPU Rendering Infrastructure ====================
 
+	// Lighting system for shadows and clustered lighting
+	private LightingSystem mLightingSystem ~ delete _;
+	private bool mShadowsEnabled = true;
+
 	// Per-frame resources
 	private SceneFrameResources[MAX_FRAMES_IN_FLIGHT] mFrameResources = .();
 	private int32 mCurrentFrameIndex = 0;
@@ -66,6 +90,19 @@ class RenderSceneComponent : ISceneComponent
 	private IBindGroupLayout mBindGroupLayout ~ delete _;
 	private IPipelineLayout mPipelineLayout ~ delete _;
 	private IRenderPipeline mPipeline ~ delete _;
+
+	// Shadow pipeline resources
+	private IBindGroupLayout mShadowBindGroupLayout ~ delete _;
+	private IPipelineLayout mShadowPipelineLayout ~ delete _;
+	private IRenderPipeline mShadowPipeline ~ delete _;
+
+	// Skinned shadow pipeline resources
+	private IBindGroupLayout mSkinnedShadowBindGroupLayout ~ delete _;
+	private IPipelineLayout mSkinnedShadowPipelineLayout ~ delete _;
+	private IRenderPipeline mSkinnedShadowPipeline ~ delete _;
+	private IBuffer mSkinnedShadowObjectBuffer ~ delete _;
+	// Per-frame temporary bind groups (cleaned up when that frame's fence is signaled)
+	private List<IBindGroup>[MAX_FRAMES_IN_FLIGHT] mTempShadowBindGroups = .(new .(), new .()) ~ { for (var list in _) DeleteContainerAndItems!(list); };
 
 	// Billboard pipeline resources (particles, sprites)
 	private IBuffer[MAX_FRAMES_IN_FLIGHT] mBillboardCameraBuffers = .();
@@ -140,6 +177,19 @@ class RenderSceneComponent : ISceneComponent
 
 	/// Gets visible instance count for statistics.
 	public int32 VisibleInstanceCount => mInstanceCount;
+
+	/// Gets the lighting system (for shadow rendering).
+	public LightingSystem LightingSystem => mLightingSystem;
+
+	/// Gets or sets whether shadows are enabled.
+	public bool ShadowsEnabled
+	{
+		get => mShadowsEnabled;
+		set => mShadowsEnabled = value;
+	}
+
+	/// Gets whether the lighting system has directional shadows this frame.
+	public bool HasDirectionalShadows => mLightingSystem?.HasDirectionalShadows ?? false;
 
 	// ==================== Constructor ====================
 
@@ -252,6 +302,9 @@ class RenderSceneComponent : ISceneComponent
 
 		let device = mRendererService.Device;
 
+		// Create lighting system
+		mLightingSystem = new LightingSystem(device);
+
 		// Create per-frame buffers
 		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
@@ -269,6 +322,16 @@ class RenderSceneComponent : ISceneComponent
 				mFrameResources[i].InstanceBuffer = instBuf;
 			else
 				return .Err;
+
+			// Shadow uniform buffers (one per cascade)
+			BufferDescriptor shadowDesc = .((uint64)sizeof(SceneShadowUniforms), .Uniform, .Upload);
+			for (int32 c = 0; c < SceneFrameResources.CASCADE_COUNT; c++)
+			{
+				if (device.CreateBuffer(&shadowDesc) case .Ok(let shadowBuf))
+					mFrameResources[i].ShadowUniformBuffers[c] = shadowBuf;
+				else
+					return .Err;
+			}
 		}
 
 		// Create pipeline
@@ -288,6 +351,14 @@ class RenderSceneComponent : ISceneComponent
 		if (CreateBillboardPipelines() case .Err)
 			return .Err;
 
+		// Create shadow pipeline
+		if (CreateShadowPipeline() case .Err)
+			return .Err;
+
+		// Create skinned shadow pipeline
+		if (CreateSkinnedShadowPipeline() case .Err)
+			return .Err;
+
 		// Create sprite renderer
 		mSpriteRenderer = new SpriteRenderer(device);
 
@@ -300,20 +371,26 @@ class RenderSceneComponent : ISceneComponent
 		let device = mRendererService.Device;
 		let shaderLibrary = mRendererService.ShaderLibrary;
 
-		// Load shaders from Framework.Renderer shaders folder
-		let vertResult = shaderLibrary.GetShader("scene_instanced", .Vertex);
+		// Load lit shaders with lighting and shadow support
+		let vertResult = shaderLibrary.GetShader("scene_lit", .Vertex);
 		if (vertResult case .Err)
 			return .Err;
 		let vertShader = vertResult.Get();
 
-		let fragResult = shaderLibrary.GetShader("scene_instanced", .Fragment);
+		let fragResult = shaderLibrary.GetShader("scene_lit", .Fragment);
 		if (fragResult case .Err)
 			return .Err;
 		let fragShader = fragResult.Get();
 
-		// Bind group layout
-		BindGroupLayoutEntry[1] layoutEntries = .(
-			BindGroupLayoutEntry.UniformBuffer(0, .Vertex | .Fragment)
+		// Bind group layout with lighting and shadow resources
+		BindGroupLayoutEntry[7] layoutEntries = .(
+			BindGroupLayoutEntry.UniformBuffer(0, .Vertex | .Fragment),    // Camera uniforms (b0)
+			BindGroupLayoutEntry.UniformBuffer(2, .Fragment),               // Lighting uniforms (b2)
+			BindGroupLayoutEntry.StorageBuffer(0, .Fragment),               // Light buffer (t0)
+			BindGroupLayoutEntry.UniformBuffer(3, .Fragment),               // Shadow uniforms (b3)
+			BindGroupLayoutEntry.SampledTexture(1, .Fragment, .Texture2DArray),  // Cascade shadow map (t1)
+			BindGroupLayoutEntry.SampledTexture(2, .Fragment, .Texture2D),       // Shadow atlas (t2)
+			BindGroupLayoutEntry.Sampler(0, .Fragment)                           // Shadow sampler (s0)
 		);
 		BindGroupLayoutDescriptor bindLayoutDesc = .(layoutEntries);
 		if (device.CreateBindGroupLayout(&bindLayoutDesc) not case .Ok(let layout))
@@ -327,11 +404,17 @@ class RenderSceneComponent : ISceneComponent
 			return .Err;
 		mPipelineLayout = pipelineLayout;
 
-		// Create per-frame bind groups
+		// Create per-frame bind groups with lighting resources
 		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
-			BindGroupEntry[1] entries = .(
-				BindGroupEntry.Buffer(0, mFrameResources[i].CameraBuffer)
+			BindGroupEntry[7] entries = .(
+				BindGroupEntry.Buffer(0, mFrameResources[i].CameraBuffer),
+				BindGroupEntry.Buffer(2, mLightingSystem.GetLightingUniformBuffer((int32)i)),
+				BindGroupEntry.Buffer(0, mLightingSystem.GetLightBuffer((int32)i)),
+				BindGroupEntry.Buffer(3, mLightingSystem.GetShadowUniformBuffer((int32)i)),
+				BindGroupEntry.Texture(1, mLightingSystem.CascadeShadowMapView),
+				BindGroupEntry.Texture(2, mLightingSystem.ShadowAtlasView),
+				BindGroupEntry.Sampler(0, mLightingSystem.ShadowSampler)
 			);
 			BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, entries);
 			if (device.CreateBindGroup(&bindGroupDesc) not case .Ok(let group))
@@ -720,6 +803,197 @@ class RenderSceneComponent : ISceneComponent
 		return .Ok;
 	}
 
+	private Result<void> CreateShadowPipeline()
+	{
+		let device = mRendererService.Device;
+		let shaderLibrary = mRendererService.ShaderLibrary;
+
+		// Load shadow depth shader
+		let vertResult = shaderLibrary.GetShader("shadow_depth_instanced", .Vertex);
+		if (vertResult case .Err)
+			return .Err;
+		let shadowVertShader = vertResult.Get();
+
+		// Shadow bind group layout - just the shadow uniform buffer
+		BindGroupLayoutEntry[1] shadowLayoutEntries = .(
+			BindGroupLayoutEntry.UniformBuffer(0, .Vertex)
+		);
+
+		BindGroupLayoutDescriptor shadowLayoutDesc = .(shadowLayoutEntries);
+		if (device.CreateBindGroupLayout(&shadowLayoutDesc) not case .Ok(let bindLayout))
+			return .Err;
+		mShadowBindGroupLayout = bindLayout;
+
+		// Shadow pipeline layout
+		IBindGroupLayout[1] shadowBindGroupLayouts = .(mShadowBindGroupLayout);
+		PipelineLayoutDescriptor shadowPipelineLayoutDesc = .(shadowBindGroupLayouts);
+		if (device.CreatePipelineLayout(&shadowPipelineLayoutDesc) not case .Ok(let pipLayout))
+			return .Err;
+		mShadowPipelineLayout = pipLayout;
+
+		// Vertex layouts - same as main mesh pipeline
+		Sedulous.RHI.VertexAttribute[3] meshAttrs = .(
+			.(VertexFormat.Float3, 0, 0),   // Position
+			.(VertexFormat.Float3, 12, 1),  // Normal
+			.(VertexFormat.Float2, 24, 2)   // UV
+		);
+
+		Sedulous.RHI.VertexAttribute[5] instanceAttrs = .(
+			.(VertexFormat.Float4, 0, 3),   // Row0
+			.(VertexFormat.Float4, 16, 4),  // Row1
+			.(VertexFormat.Float4, 32, 5),  // Row2
+			.(VertexFormat.Float4, 48, 6),  // Row3
+			.(VertexFormat.Float4, 64, 7)   // Color/Material
+		);
+
+		VertexBufferLayout[2] shadowVertexBuffers = .(
+			.(48, meshAttrs, .Vertex),
+			.(80, instanceAttrs, .Instance)
+		);
+
+		// Shadow depth state with depth bias to reduce shadow acne
+		DepthStencilState shadowDepthState = .();
+		shadowDepthState.DepthTestEnabled = true;
+		shadowDepthState.DepthWriteEnabled = true;
+		shadowDepthState.DepthCompare = .Less;
+		shadowDepthState.Format = .Depth32Float;
+		shadowDepthState.DepthBias = 2;
+		shadowDepthState.DepthBiasSlopeScale = 2.0f;
+
+		RenderPipelineDescriptor shadowPipelineDesc = .()
+		{
+			Layout = mShadowPipelineLayout,
+			Vertex = .()
+			{
+				Shader = .(shadowVertShader.Module, "main"),
+				Buffers = shadowVertexBuffers
+			},
+			Fragment = null,  // Depth-only pass
+			Primitive = .()
+			{
+				Topology = .TriangleList,
+				FrontFace = .CCW,
+				CullMode = .Front  // Front-face culling reduces shadow acne
+			},
+			DepthStencil = shadowDepthState,
+			Multisample = .()
+			{
+				Count = 1,
+				Mask = uint32.MaxValue
+			}
+		};
+
+		if (device.CreateRenderPipeline(&shadowPipelineDesc) not case .Ok(let pipeline))
+			return .Err;
+		mShadowPipeline = pipeline;
+
+		// Create per-frame, per-cascade shadow bind groups
+		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			for (int32 c = 0; c < SceneFrameResources.CASCADE_COUNT; c++)
+			{
+				let buffer = mFrameResources[i].ShadowUniformBuffers[c];
+				BindGroupEntry[1] shadowBindGroupEntries = .(
+					BindGroupEntry.Buffer(0, buffer)
+				);
+				BindGroupDescriptor shadowBindGroupDesc = .(mShadowBindGroupLayout, shadowBindGroupEntries);
+				if (device.CreateBindGroup(&shadowBindGroupDesc) case .Ok(let group))
+					mFrameResources[i].ShadowBindGroups[c] = group;
+				else
+					return .Err;
+			}
+		}
+
+		return .Ok;
+	}
+
+	private Result<void> CreateSkinnedShadowPipeline()
+	{
+		let device = mRendererService.Device;
+		let shaderLibrary = mRendererService.ShaderLibrary;
+
+		// Load skinned shadow shader
+		let vertResult = shaderLibrary.GetShader("shadow_depth_skinned", .Vertex);
+		if (vertResult case .Err)
+			return .Err;
+		let vertShader = vertResult.Get();
+
+		// Bind group layout: b0=shadow uniforms, b1=object, b2=bones
+		BindGroupLayoutEntry[3] layoutEntries = .(
+			BindGroupLayoutEntry.UniformBuffer(0, .Vertex),  // Shadow pass uniforms
+			BindGroupLayoutEntry.UniformBuffer(1, .Vertex),  // Object transform
+			BindGroupLayoutEntry.UniformBuffer(2, .Vertex)   // Bone matrices
+		);
+		BindGroupLayoutDescriptor bindLayoutDesc = .(layoutEntries);
+		if (device.CreateBindGroupLayout(&bindLayoutDesc) not case .Ok(let layout))
+			return .Err;
+		mSkinnedShadowBindGroupLayout = layout;
+
+		// Pipeline layout
+		IBindGroupLayout[1] layouts = .(mSkinnedShadowBindGroupLayout);
+		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
+		if (device.CreatePipelineLayout(&pipelineLayoutDesc) not case .Ok(let pipelineLayout))
+			return .Err;
+		mSkinnedShadowPipelineLayout = pipelineLayout;
+
+		// Create object uniform buffer (64 bytes for Model matrix)
+		BufferDescriptor objectDesc = .(64, .Uniform, .Upload);
+		if (device.CreateBuffer(&objectDesc) case .Ok(let buf))
+			mSkinnedShadowObjectBuffer = buf;
+		else
+			return .Err;
+
+		// Skinned vertex layout - only attributes needed by shadow shader
+		// Shader expects: POSITION(0), NORMAL(1), TEXCOORD0(2), BLENDWEIGHT(3), BLENDINDICES(4)
+		// SkinnedVertex layout: Position(0), Normal(12), UV(24), Color(32), Tangent(36), Joints(48), Weights(56)
+		Sedulous.RHI.VertexAttribute[5] vertexAttrs = .(
+			.(VertexFormat.Float3, 0, 0),     // Position - location 0
+			.(VertexFormat.Float3, 12, 1),    // Normal - location 1
+			.(VertexFormat.Float2, 24, 2),    // TexCoord - location 2
+			.(VertexFormat.Float4, 56, 3),    // Weights (boneWeights) - location 3
+			.(VertexFormat.UShort4, 48, 4)    // Joints (boneIndices) - location 4
+		);
+		VertexBufferLayout[1] vertexBuffers = .(.(72, vertexAttrs));
+
+		// Shadow depth state with bias
+		DepthStencilState depthState = .();
+		depthState.DepthTestEnabled = true;
+		depthState.DepthWriteEnabled = true;
+		depthState.DepthCompare = .Less;
+		depthState.Format = .Depth32Float;
+		depthState.DepthBias = 2;
+		depthState.DepthBiasSlopeScale = 2.0f;
+
+		RenderPipelineDescriptor pipelineDesc = .()
+		{
+			Layout = mSkinnedShadowPipelineLayout,
+			Vertex = .()
+			{
+				Shader = .(vertShader.Module, "main"),
+				Buffers = vertexBuffers
+			},
+			Fragment = null,  // Depth-only
+			Primitive = .()
+			{
+				Topology = .TriangleList,
+				FrontFace = .CCW,
+				CullMode = .Front  // Front-face culling for shadow pass
+			},
+			DepthStencil = depthState,
+			Multisample = .()
+			{
+				Count = 1,
+				Mask = uint32.MaxValue
+			}
+		};
+
+		if (device.CreateRenderPipeline(&pipelineDesc) not case .Ok(let pipeline))
+			return .Err;
+		mSkinnedShadowPipeline = pipeline;
+
+		return .Ok;
+	}
+
 	private void CleanupRendering()
 	{
 		if (!mRenderingInitialized)
@@ -796,6 +1070,17 @@ class RenderSceneComponent : ISceneComponent
 			device.Queue.WriteBuffer(frame.InstanceBuffer, 0, data);
 		}
 
+		// Update lighting system with camera and lights
+		if (mLightingSystem != null && mShadowsEnabled)
+		{
+			if (let cameraProxy = mRenderWorld.MainCamera)
+			{
+				mLightingSystem.Update(cameraProxy, mActiveLights, frameIndex);
+				mLightingSystem.PrepareShadows(cameraProxy);
+				mLightingSystem.UploadShadowUniforms(frameIndex);
+			}
+		}
+
 		// Upload camera uniforms
 		if (let cameraProxy = mRenderWorld.MainCamera)
 		{
@@ -808,6 +1093,8 @@ class RenderSceneComponent : ISceneComponent
 			// Scene camera uniforms (for mesh rendering)
 			SceneCameraUniforms cameraData = .();
 			cameraData.ViewProjection = view * projection;
+			cameraData.View = view;
+			cameraData.Projection = projection;
 			cameraData.CameraPosition = cameraProxy.Position;
 
 			// DEBUG: Print camera info on first few frames
@@ -852,6 +1139,186 @@ class RenderSceneComponent : ISceneComponent
 					mSpriteRenderer.AddSprite(sprite.GetSpriteInstance());
 			}
 			mSpriteRenderer.End();
+		}
+	}
+
+	/// Renders shadow passes for all cascades.
+	/// Call this BEFORE beginning the main render pass (requires ICommandEncoder, not IRenderPassEncoder).
+	/// Returns true if shadows were rendered and a texture barrier is needed.
+	public bool RenderShadows(ICommandEncoder encoder, int32 frameIndex)
+	{
+		if (!mRenderingInitialized || !mShadowsEnabled || mLightingSystem == null)
+			return false;
+
+		if (!mLightingSystem.HasDirectionalShadows)
+			return false;
+
+		// Need at least some meshes to render shadows for
+		if (mInstanceCount == 0 && mSkinnedMeshes.Count == 0)
+			return false;
+
+		let device = mRendererService.Device;
+		let resourceManager = mRendererService.ResourceManager;
+		if (device == null || resourceManager == null)
+			return false;
+
+		// Clean up temporary bind groups from this frame index (previous use of this frame slot)
+		ClearAndDeleteItems!(mTempShadowBindGroups[frameIndex]);
+
+		ref SceneFrameResources frame = ref mFrameResources[frameIndex];
+
+		// Render each cascade
+		for (int32 cascade = 0; cascade < SceneFrameResources.CASCADE_COUNT; cascade++)
+		{
+			let cascadeView = mLightingSystem.GetCascadeRenderView(cascade);
+			if (cascadeView == null) continue;
+
+			let cascadeData = mLightingSystem.GetCascadeData(cascade);
+
+			// Upload shadow uniforms for this cascade
+			var shadowUniforms = SceneShadowUniforms();
+			shadowUniforms.LightViewProjection = cascadeData.ViewProjection;
+			shadowUniforms.DepthBias = .(0.001f, 0.002f, 0, 0);
+			Span<uint8> shadowSpan = .((uint8*)&shadowUniforms, sizeof(SceneShadowUniforms));
+
+			let shadowBuffer = frame.ShadowUniformBuffers[cascade];
+			if (shadowBuffer != null && device.Queue != null)
+				device.Queue.WriteBuffer(shadowBuffer, 0, shadowSpan);
+
+			// Begin shadow render pass for this cascade
+			RenderPassDepthStencilAttachment depthAttachment = .()
+			{
+				View = cascadeView,
+				DepthLoadOp = .Clear,
+				DepthStoreOp = .Store,
+				DepthClearValue = 1.0f,
+				StencilLoadOp = .Clear,
+				StencilStoreOp = .Discard,
+				StencilClearValue = 0
+			};
+
+			RenderPassDescriptor passDesc = .();
+			passDesc.DepthStencilAttachment = depthAttachment;
+
+			let shadowPass = encoder.BeginRenderPass(&passDesc);
+			if (shadowPass == null) continue;
+
+			shadowPass.SetViewport(0, 0, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE, 0, 1);
+			shadowPass.SetScissorRect(0, 0, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
+			shadowPass.SetPipeline(mShadowPipeline);
+			shadowPass.SetBindGroup(0, frame.ShadowBindGroups[cascade]);
+
+			// Draw all visible meshes to shadow map
+			int32 instanceOffset = 0;
+			GPUMeshHandle lastMesh = .Invalid;
+
+			for (int32 i = 0; i < mInstanceCount; i++)
+			{
+				let proxy = mVisibleMeshes[i];
+				let meshHandle = proxy.MeshHandle;
+
+				if (i > 0 && !meshHandle.Equals(lastMesh))
+				{
+					DrawShadowMeshBatch(shadowPass, resourceManager, lastMesh, frame.InstanceBuffer, instanceOffset, i - instanceOffset);
+					instanceOffset = i;
+				}
+
+				lastMesh = meshHandle;
+			}
+
+			// Draw final batch
+			if (mInstanceCount > instanceOffset)
+			{
+				DrawShadowMeshBatch(shadowPass, resourceManager, lastMesh, frame.InstanceBuffer, instanceOffset, mInstanceCount - instanceOffset);
+			}
+
+			// Render skinned meshes to shadow map
+			if (mSkinnedShadowPipeline != null && mSkinnedMeshes.Count > 0)
+			{
+				shadowPass.SetPipeline(mSkinnedShadowPipeline);
+
+				for (let skinnedComp in mSkinnedMeshes)
+				{
+					if (!skinnedComp.Visible)
+						continue;
+
+					let meshHandle = skinnedComp.GPUMeshHandle;
+					if (!meshHandle.IsValid)
+						continue;
+
+					let gpuMesh = resourceManager.GetSkinnedMesh(meshHandle);
+					if (gpuMesh == null)
+						continue;
+
+					let boneBuffer = skinnedComp.BoneMatrixBuffer;
+					if (boneBuffer == null)
+						continue;
+
+					// Upload model matrix to skinned shadow object buffer
+					Matrix modelMatrix = .Identity;
+					if (skinnedComp.Entity != null)
+						modelMatrix = skinnedComp.Entity.Transform.WorldMatrix;
+
+					Span<uint8> modelSpan = .((uint8*)&modelMatrix, sizeof(Matrix));
+					device.Queue.WriteBuffer(mSkinnedShadowObjectBuffer, 0, modelSpan);
+
+					// Create bind group for this skinned mesh shadow render
+					BindGroupEntry[3] bindEntries = .(
+						BindGroupEntry.Buffer(0, shadowBuffer),         // Shadow uniforms (b0)
+						BindGroupEntry.Buffer(1, mSkinnedShadowObjectBuffer), // Object transform (b1)
+						BindGroupEntry.Buffer(2, boneBuffer)            // Bone matrices (b2)
+					);
+					BindGroupDescriptor bindGroupDesc = .(mSkinnedShadowBindGroupLayout, bindEntries);
+					if (device.CreateBindGroup(&bindGroupDesc) case .Ok(let bindGroup))
+					{
+						// Store for later cleanup (must stay valid until command buffer is submitted)
+						mTempShadowBindGroups[frameIndex].Add(bindGroup);
+
+						shadowPass.SetBindGroup(0, bindGroup);
+						shadowPass.SetVertexBuffer(0, gpuMesh.VertexBuffer, 0);
+
+						if (gpuMesh.IndexBuffer != null)
+						{
+							shadowPass.SetIndexBuffer(gpuMesh.IndexBuffer, gpuMesh.IndexFormat, 0);
+							shadowPass.DrawIndexed(gpuMesh.IndexCount, 1, 0, 0, 0);
+						}
+						else
+						{
+							shadowPass.Draw(gpuMesh.VertexCount, 1, 0, 0);
+						}
+					}
+				}
+			}
+
+			shadowPass.End();
+			delete shadowPass;
+		}
+
+		// Transition shadow map from depth attachment to shader read
+		if (let shadowMapTexture = mLightingSystem.CascadeShadowMapTexture)
+			encoder.TextureBarrier(shadowMapTexture, .DepthStencilAttachment, .ShaderReadOnly);
+
+		return true;
+	}
+
+	private void DrawShadowMeshBatch(IRenderPassEncoder shadowPass, GPUResourceManager resourceManager,
+		GPUMeshHandle meshHandle, IBuffer instanceBuffer, int32 instanceOffset, int32 instanceCount)
+	{
+		let gpuMesh = resourceManager.GetMesh(meshHandle);
+		if (gpuMesh == null)
+			return;
+
+		shadowPass.SetVertexBuffer(0, gpuMesh.VertexBuffer, 0);
+		shadowPass.SetVertexBuffer(1, instanceBuffer, (uint64)(instanceOffset * sizeof(RenderSceneInstanceData)));
+
+		if (gpuMesh.IndexBuffer != null)
+		{
+			shadowPass.SetIndexBuffer(gpuMesh.IndexBuffer, gpuMesh.IndexFormat, 0);
+			shadowPass.DrawIndexed(gpuMesh.IndexCount, (uint32)instanceCount, 0, 0, 0);
+		}
+		else
+		{
+			shadowPass.Draw(gpuMesh.VertexCount, (uint32)instanceCount, 0, 0);
 		}
 	}
 
