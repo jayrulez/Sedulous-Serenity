@@ -1,0 +1,7 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "SampleFramework" = "*", "Sedulous.Framework.Core" = "*", "Sedulous.Framework.Renderer" = "*", "Sedulous.Geometry" = "*", "Sedulous.Logging" = "*"}
+
+[Project]
+Name = "RendererIntegrated"
+TargetType = "BeefConsoleApplication"
+StartupObject = "RendererIntegrated.Program"

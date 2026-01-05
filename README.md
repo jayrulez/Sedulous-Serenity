@@ -66,6 +66,7 @@ Sedulous-Serenity/
 | [RendererParticles](Code/Samples/RendererParticles/) | GPU particle system with fountain effect |
 | [RendererScene](Code/Samples/RendererScene/) | 1200 instanced cubes with frustum culling |
 | [RendererLighting](Code/Samples/RendererLighting/) | Clustered lighting with cascaded shadow maps |
+| [RendererIntegrated](Code/Samples/RendererIntegrated/) | Framework.Core + Renderer entity integration |
 
 ### Sample Controls
 

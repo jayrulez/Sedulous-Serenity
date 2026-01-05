@@ -89,7 +89,7 @@ abstract class RHISampleApp
 
 	public ~this()
 	{
-		Cleanup();
+		//Cleanup();
 	}
 
 	/// Runs the sample application.
@@ -149,6 +149,8 @@ abstract class RHISampleApp
 		}
 
 		mDevice.WaitIdle();
+
+		Cleanup();
 		return 0;
 	}
 

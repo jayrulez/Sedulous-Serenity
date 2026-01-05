@@ -13,7 +13,7 @@ enum LightType : uint8
 	/// Spot light (cone-shaped from a position).
 	Spot,
 	/// Area light (rectangle or disk).
-	Area
+	//Area
 }
 
 /// Render proxy for a light in the scene.
