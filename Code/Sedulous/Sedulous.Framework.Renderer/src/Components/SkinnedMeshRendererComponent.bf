@@ -8,7 +8,6 @@ using Sedulous.RHI;
 using Sedulous.Serialization;
 
 /// Entity component that renders a skinned mesh with skeletal animation.
-/// Bridges an entity to a MeshProxy in the RenderSceneComponent.
 class SkinnedMeshRendererComponent : IEntityComponent
 {
 	// GPU mesh handle
@@ -43,14 +42,8 @@ class SkinnedMeshRendererComponent : IEntityComponent
 	/// Whether the mesh is visible.
 	public bool Visible = true;
 
-	/// Gets the GPU skinned mesh handle.
-	public GPUSkinnedMeshHandle GPUMesh => mGPUMesh;
-
 	/// Gets the local bounding box.
 	public BoundingBox LocalBounds => mLocalBounds;
-
-	/// Gets the proxy handle for this mesh.
-	public ProxyHandle ProxyHandle => mProxyHandle;
 
 	/// Gets the skeleton.
 	public Skeleton Skeleton => mSkeleton;
@@ -59,7 +52,7 @@ class SkinnedMeshRendererComponent : IEntityComponent
 	public AnimationPlayer AnimationPlayer => mAnimationPlayer;
 
 	/// Gets the bone matrix buffer for shader binding.
-	public IBuffer BoneMatrixBuffer => mBoneMatrixBuffer;
+	internal IBuffer BoneMatrixBuffer => mBoneMatrixBuffer;
 
 	/// Gets the list of available animation clips.
 	public List<AnimationClip> AnimationClips => mAnimationClips;
@@ -176,9 +169,8 @@ class SkinnedMeshRendererComponent : IEntityComponent
 		}
 	}
 
-	/// Sets the GPU skinned mesh to render.
-	/// Call SetSkeleton first.
-	public void SetMesh(GPUSkinnedMeshHandle mesh, BoundingBox bounds)
+	/// Sets the GPU skinned mesh to render (low-level API).
+	internal void SetMesh(GPUSkinnedMeshHandle mesh, BoundingBox bounds)
 	{
 		mGPUMesh = mesh;
 		mLocalBounds = bounds;

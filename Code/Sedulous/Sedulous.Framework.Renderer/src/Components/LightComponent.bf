@@ -6,7 +6,6 @@ using Sedulous.Mathematics;
 using Sedulous.Serialization;
 
 /// Entity component that adds a light source.
-/// Bridges an entity to a LightProxy in the RenderSceneComponent.
 class LightComponent : IEntityComponent
 {
 	// Entity and scene references
@@ -37,9 +36,6 @@ class LightComponent : IEntityComponent
 
 	/// Whether this light is enabled.
 	public bool Enabled = true;
-
-	/// Gets the proxy handle for this light.
-	public ProxyHandle ProxyHandle => mProxyHandle;
 
 	/// Creates a new LightComponent.
 	public this()
@@ -250,7 +246,7 @@ class LightComponent : IEntityComponent
 	}
 
 	/// Recreates the proxy (e.g., if light type changes at runtime).
-	public void RecreateProxy()
+	internal void RecreateProxy()
 	{
 		RemoveProxy();
 		CreateProxy();

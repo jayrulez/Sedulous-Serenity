@@ -7,7 +7,6 @@ using Sedulous.Mathematics;
 using Sedulous.Serialization;
 
 /// Entity component that renders a static mesh.
-/// Bridges an entity to a MeshProxy in the RenderSceneComponent.
 class MeshRendererComponent : IEntityComponent
 {
 	// GPU mesh handle
@@ -37,17 +36,13 @@ class MeshRendererComponent : IEntityComponent
 	/// Gets the local bounding box.
 	public BoundingBox LocalBounds => mLocalBounds;
 
-	/// Gets the proxy handle for this mesh.
-	public ProxyHandle ProxyHandle => mProxyHandle;
-
 	/// Creates a new MeshRendererComponent.
 	public this()
 	{
 	}
 
-	/// Sets the GPU mesh to render.
-	/// This will create/update the mesh proxy.
-	public void SetMesh(GPUMeshHandle mesh, BoundingBox bounds)
+	/// Sets the GPU mesh to render (low-level API).
+	internal void SetMesh(GPUMeshHandle mesh, BoundingBox bounds)
 	{
 		mGPUMesh = mesh;
 		mLocalBounds = bounds;
@@ -59,10 +54,8 @@ class MeshRendererComponent : IEntityComponent
 		}
 	}
 
-	/// Sets the mesh from CPU geometry.
-	/// Automatically uploads to GPU via RendererService.
-	/// This is the preferred high-level API.
-	/// Note: Call this AFTER adding the component to an entity.
+	/// Sets the mesh to render.
+	/// Automatically uploads geometry to GPU.
 	public void SetMesh(Mesh mesh)
 	{
 		if (mesh == null)

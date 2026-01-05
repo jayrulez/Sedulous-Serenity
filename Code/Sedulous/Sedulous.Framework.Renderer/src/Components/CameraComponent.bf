@@ -6,7 +6,6 @@ using Sedulous.Mathematics;
 using Sedulous.Serialization;
 
 /// Entity component that adds a camera.
-/// Bridges an entity to a CameraProxy in the RenderSceneComponent.
 class CameraComponent : IEntityComponent
 {
 	// Entity and scene references
@@ -41,9 +40,6 @@ class CameraComponent : IEntityComponent
 
 	/// Whether the camera is enabled.
 	public bool Enabled = true;
-
-	/// Gets the proxy handle for this camera.
-	public ProxyHandle ProxyHandle => mProxyHandle;
 
 	/// Gets the viewport width.
 	public uint32 ViewportWidth => mViewportWidth;
@@ -106,7 +102,7 @@ class CameraComponent : IEntityComponent
 	}
 
 	/// Gets the camera proxy if attached.
-	public CameraProxy* GetCameraProxy()
+	internal CameraProxy* GetCameraProxy()
 	{
 		if (mRenderScene != null && mProxyHandle.IsValid)
 			return mRenderScene.RenderWorld.GetCameraProxy(mProxyHandle);
