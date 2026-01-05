@@ -22,24 +22,6 @@ struct Particle
 	public float LifeRatio => MaxLife > 0 ? Life / MaxLife : 0;
 }
 
-/// GPU-uploadable particle vertex data.
-[CRepr]
-struct ParticleVertex
-{
-	public Vector3 Position;
-	public Vector2 Size;
-	public Color Color;
-	public float Rotation;
-
-	public this(Particle p)
-	{
-		Position = p.Position;
-		Size = p.Size;
-		Color = p.Color;
-		Rotation = p.Rotation;
-	}
-}
-
 /// Particle emitter configuration.
 struct ParticleEmitterConfig
 {
