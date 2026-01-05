@@ -581,7 +581,7 @@ class RendererLightingSample : RHISampleApp
 				BindGroupEntry.Buffer(2, mLightingSystem.GetLightingUniformBuffer(i)),    // b2: Lighting uniforms
 				BindGroupEntry.Buffer(0, mLightingSystem.GetLightBuffer(i)),              // t0: g_Lights (storage buffer)
 				BindGroupEntry.Buffer(3, mLightingSystem.GetShadowUniformBuffer(i)),      // b3: Shadow uniforms
-				BindGroupEntry.Texture(1, mLightingSystem.GetCascadeShadowMapView(i)),    // t1: Cascade shadow map (per-frame)
+				BindGroupEntry.Texture(1, mLightingSystem.CascadeShadowMapView),          // t1: Cascade shadow map
 				BindGroupEntry.Texture(2, mLightingSystem.ShadowAtlasView),               // t2: Shadow atlas
 				BindGroupEntry.Sampler(0, mLightingSystem.ShadowSampler)                  // s0: Shadow comparison sampler
 			);
@@ -779,8 +779,8 @@ class RendererLightingSample : RHISampleApp
 		// Render shadow cascades
 		RenderShadowCascades(encoder, frameIndex);
 
-		// Transition shadow map from depth attachment to shader read for sampling (use per-frame shadow map)
-		if (let shadowMapTexture = mLightingSystem.GetCascadeShadowMapTexture(frameIndex))
+		// Transition shadow map from depth attachment to shader read for sampling
+		if (let shadowMapTexture = mLightingSystem.CascadeShadowMapTexture)
 			encoder.TextureBarrier(shadowMapTexture, .DepthStencilAttachment, .ShaderReadOnly);
 
 		// Now render the main scene
@@ -791,10 +791,10 @@ class RendererLightingSample : RHISampleApp
 
 	private void RenderShadowCascades(ICommandEncoder encoder, int32 frameIndex)
 	{
-		// Render each cascade (use per-frame shadow map)
+		// Render each cascade
 		for (int32 cascade = 0; cascade < LightingSystem.CASCADE_COUNT; cascade++)
 		{
-			let cascadeView = mLightingSystem.GetCascadeRenderView(frameIndex, cascade);
+			let cascadeView = mLightingSystem.GetCascadeRenderView(cascade);
 			if (cascadeView == null)
 				continue;
 

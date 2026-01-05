@@ -519,7 +519,7 @@ class RendererShadowSample : RHISampleApp
 				BindGroupEntry.Buffer(2, mLightingSystem.GetLightingUniformBuffer((int32)i)),
 				BindGroupEntry.Buffer(0, mLightingSystem.GetLightBuffer((int32)i)),
 				BindGroupEntry.Buffer(3, mLightingSystem.GetShadowUniformBuffer((int32)i)),
-				BindGroupEntry.Texture(1, mLightingSystem.GetCascadeShadowMapView((int32)i)),
+				BindGroupEntry.Texture(1, mLightingSystem.CascadeShadowMapView),
 				BindGroupEntry.Texture(2, mLightingSystem.ShadowAtlasView),
 				BindGroupEntry.Sampler(0, mLightingSystem.ShadowSampler)
 			);
@@ -864,7 +864,7 @@ class RendererShadowSample : RHISampleApp
 		// Render shadow cascades (each cascade has its own buffer/bind group to avoid overwrite)
 		for (int32 cascade = 0; cascade < LightingSystem.CASCADE_COUNT; cascade++)
 		{
-			let cascadeView = mLightingSystem.GetCascadeRenderView(frameIndex, cascade);
+			let cascadeView = mLightingSystem.GetCascadeRenderView(cascade);
 			if (cascadeView == null) continue;
 
 			let cascadeData = mLightingSystem.GetCascadeData(cascade);
@@ -907,8 +907,8 @@ class RendererShadowSample : RHISampleApp
 			defer :: delete shadowPass;
 		}
 
-		// Transition shadow map (use per-frame shadow map)
-		if (let shadowMapTexture = mLightingSystem.GetCascadeShadowMapTexture(frameIndex))
+		// Transition shadow map from depth attachment to shader read
+		if (let shadowMapTexture = mLightingSystem.CascadeShadowMapTexture)
 			encoder.TextureBarrier(shadowMapTexture, .DepthStencilAttachment, .ShaderReadOnly);
 
 		// Main render pass

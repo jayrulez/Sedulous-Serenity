@@ -257,17 +257,17 @@ class LightingSystem
 	/// Gets the shadow comparison sampler.
 	public ISampler ShadowSampler => mShadowSampler;
 
-	/// Gets the cascade shadow map array view for shader binding for a specific frame.
-	public ITextureView GetCascadeShadowMapView(int32 frameIndex) => mCascadedShadows?.GetArrayView(frameIndex);
+	/// Gets the cascade shadow map array view for shader binding.
+	public ITextureView CascadeShadowMapView => mCascadedShadows?.ArrayView;
 
-	/// Gets the cascade shadow map texture for barrier transitions for a specific frame.
-	public ITexture GetCascadeShadowMapTexture(int32 frameIndex) => mCascadedShadows?.GetShadowMapArray(frameIndex);
+	/// Gets the cascade shadow map texture for barrier transitions.
+	public ITexture CascadeShadowMapTexture => mCascadedShadows?.ShadowMapArray;
 
 	/// Gets the shadow atlas view for shader binding.
 	public ITextureView ShadowAtlasView => mShadowAtlas?.AtlasView;
 
-	/// Gets a specific cascade view for rendering to that cascade for a specific frame.
-	public ITextureView GetCascadeRenderView(int32 frameIndex, int32 cascadeIndex) => mCascadedShadows?.GetCascadeView(frameIndex, cascadeIndex);
+	/// Gets a specific cascade view for rendering to that cascade.
+	public ITextureView GetCascadeRenderView(int32 cascadeIndex) => mCascadedShadows?.GetCascadeView(cascadeIndex);
 
 	/// Gets the shadow atlas texture view for rendering.
 	public ITextureView ShadowAtlasRenderView => mShadowAtlas?.AtlasView;
@@ -297,25 +297,21 @@ class CascadedShadowMaps
 {
 	public const int32 CASCADE_COUNT = ShadowConstants.CASCADE_COUNT;
 	public const int32 SHADOW_MAP_SIZE = ShadowConstants.CASCADE_MAP_SIZE;
-	public const int32 MAX_FRAMES_IN_FLIGHT = ShadowConstants.MAX_FRAMES_IN_FLIGHT;
 
 	private IDevice mDevice;
-	private ITexture[MAX_FRAMES_IN_FLIGHT] mShadowMapArrays ~ { for (let t in _) delete t; };
-	private ITextureView[MAX_FRAMES_IN_FLIGHT] mArrayViews ~ { for (let v in _) delete v; };
-	private ITextureView[MAX_FRAMES_IN_FLIGHT * CASCADE_COUNT] mCascadeViews ~ { for (let v in _) delete v; };
+	private ITexture mShadowMapArray ~ delete _;
+	private ITextureView mArrayView ~ delete _;
+	private ITextureView[CASCADE_COUNT] mCascadeViews ~ { for (let v in _) delete v; };
 	private CascadeData[CASCADE_COUNT] mCascadeData;
 
 	public this(IDevice device)
 	{
 		mDevice = device;
-		for (int32 frame = 0; frame < MAX_FRAMES_IN_FLIGHT; frame++)
-		{
-			CreateShadowMapArray(frame);
-			CreateCascadeViews(frame);
-		}
+		CreateShadowMapArray();
+		CreateCascadeViews();
 	}
 
-	private void CreateShadowMapArray(int32 frameIndex)
+	private void CreateShadowMapArray()
 	{
 		TextureDescriptor desc = .()
 		{
@@ -328,15 +324,15 @@ class CascadedShadowMaps
 			SampleCount = 1,
 			Format = .Depth32Float,
 			Usage = .DepthStencil | .Sampled,
-			Label = scope $"CascadedShadowMaps_Frame{frameIndex}"
+			Label = "CascadedShadowMaps"
 		};
 		if (mDevice.CreateTexture(&desc) case .Ok(let tex))
-			mShadowMapArrays[frameIndex] = tex;
+			mShadowMapArray = tex;
 	}
 
-	private void CreateCascadeViews(int32 frameIndex)
+	private void CreateCascadeViews()
 	{
-		if (mShadowMapArrays[frameIndex] == null)
+		if (mShadowMapArray == null)
 			return;
 
 		// Create a view for each cascade layer (for rendering)
@@ -350,11 +346,10 @@ class CascadedShadowMaps
 				MipLevelCount = 1,
 				BaseArrayLayer = (uint32)i,
 				ArrayLayerCount = 1,
-				Label = scope :: $"CascadeView_F{frameIndex}_C{i}"
+				Label = scope :: $"CascadeView{i}"
 			};
-			var x = mShadowMapArrays[frameIndex];// beef bug for direct access in method call
-			if (mDevice.CreateTextureView(x, &viewDesc) case .Ok(let view))
-				mCascadeViews[frameIndex * CASCADE_COUNT + i] = view;
+			if (mDevice.CreateTextureView(mShadowMapArray, &viewDesc) case .Ok(let view))
+				mCascadeViews[i] = view;
 		}
 
 		// Create array view for sampling all cascades
@@ -366,10 +361,10 @@ class CascadedShadowMaps
 			MipLevelCount = 1,
 			BaseArrayLayer = 0,
 			ArrayLayerCount = CASCADE_COUNT,
-			Label = scope :: $"CascadeShadowMapArray_Frame{frameIndex}"
+			Label = "CascadeShadowMapArray"
 		};
-		if (mDevice.CreateTextureView(mShadowMapArrays[frameIndex], &arrayViewDesc) case .Ok(let view))
-			mArrayViews[frameIndex] = view;
+		if (mDevice.CreateTextureView(mShadowMapArray, &arrayViewDesc) case .Ok(let view))
+			mArrayView = view;
 	}
 
 	/// Updates cascade split distances and view-projection matrices.
@@ -544,14 +539,14 @@ class CascadedShadowMaps
 		};
 	}
 
-	/// Gets the texture view for rendering to a specific cascade for a specific frame.
-	public ITextureView GetCascadeView(int32 frameIndex, int32 cascadeIndex) => mCascadeViews[frameIndex * CASCADE_COUNT + cascadeIndex];
+	/// Gets the texture view for rendering to a specific cascade.
+	public ITextureView GetCascadeView(int32 cascadeIndex) => mCascadeViews[cascadeIndex];
 
-	/// Gets the array view for sampling all cascades for a specific frame.
-	public ITextureView GetArrayView(int32 frameIndex) => mArrayViews[frameIndex];
+	/// Gets the array view for sampling all cascades.
+	public ITextureView ArrayView => mArrayView;
 
-	/// Gets the shadow map texture for a specific frame.
-	public ITexture GetShadowMapArray(int32 frameIndex) => mShadowMapArrays[frameIndex];
+	/// Gets the shadow map texture.
+	public ITexture ShadowMapArray => mShadowMapArray;
 
 	/// Gets cascade data for uniform upload.
 	public CascadeData[CASCADE_COUNT] CascadeData => mCascadeData;
