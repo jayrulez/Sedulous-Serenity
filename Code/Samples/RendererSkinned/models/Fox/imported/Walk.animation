@@ -1,7 +1,7 @@
 int32 %version {1}
 int32 %type {4}
 int32 %_version {1}
-string %id {"d5492edd-074d-48b6-9300-5b3cd18d15e3"}
+string %id {"c4ee3c70-9706-49b1-b1ac-c0cbbb61303d"}
 string %name {"Walk"}
 string %clipName {"Walk"}
 float %duration {0.708333313}

@@ -1,7 +1,7 @@
 int32 %version {1}
 int32 %type {6}
 int32 %_version {1}
-string %id {"83ff9a3f-82e2-4803-bff6-ec951f852c73"}
+string %id {"b9133ecf-b5e9-4cee-ac81-c467c215009c"}
 string %name {"fox_material"}
 int32 %type {1}
 string %shaderName {""}

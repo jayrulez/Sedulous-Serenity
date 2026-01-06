@@ -2,9 +2,14 @@ namespace RendererMaterials;
 
 using System;
 using System.Collections;
+using System.IO;
 using Sedulous.Mathematics;
 using Sedulous.RHI;
 using Sedulous.Geometry;
+using Sedulous.Geometry.Tooling;
+using Sedulous.Imaging;
+using Sedulous.Models;
+using Sedulous.Models.GLTF;
 using Sedulous.Framework.Core;
 using Sedulous.Framework.Renderer;
 using Sedulous.Logging.Abstractions;
@@ -44,6 +49,13 @@ class RendererMaterialsSample : RHISampleApp
 	// Material handles
 	private MaterialHandle mPBRMaterial = .Invalid;
 	private List<MaterialInstanceHandle> mMaterialInstances = new .() ~ delete _;
+
+	// Fox (skinned mesh) resources
+	private Model mFoxModel ~ delete _;
+	private SkinnedMeshResource mFoxResource ~ delete _;
+	private Entity mFoxEntity;
+	private MaterialInstanceHandle mFoxMaterialInstance = .Invalid;
+	private GPUTextureHandle mFoxTexture = .Invalid;
 
 	// Camera entity and control
 	private Entity mCameraEntity;
@@ -110,6 +122,12 @@ class RendererMaterialsSample : RHISampleApp
 			return false;
 		}
 
+		// Load Fox model
+		if (!LoadFox())
+		{
+			Console.WriteLine("Warning: Failed to load Fox model, continuing without it");
+		}
+
 		// Create materials and entities
 		CreateMaterials();
 		CreateEntities();
@@ -129,6 +147,77 @@ class RendererMaterialsSample : RHISampleApp
 		Console.WriteLine($"Created {GRID_SIZE * GRID_SIZE} spheres with varying metallic/roughness");
 		Console.WriteLine("Controls: WASD=Move, QE=Up/Down, Tab=Toggle mouse capture, Shift=Fast");
 		Console.WriteLine("          Arrow keys=Adjust light direction");
+
+		return true;
+	}
+
+	private bool LoadFox()
+	{
+		mFoxModel = new Model();
+		let loader = scope GltfLoader();
+
+		let result = loader.Load("models/Fox/glTF/Fox.gltf", mFoxModel);
+		if (result != .Ok)
+		{
+			Console.WriteLine(scope $"Failed to load Fox model: {result}");
+			delete mFoxModel;
+			mFoxModel = null;
+			return false;
+		}
+
+		Console.WriteLine(scope $"Fox model loaded: {mFoxModel.Meshes.Count} meshes, {mFoxModel.Bones.Count} bones, {mFoxModel.Animations.Count} animations");
+
+		// Use ModelImporter to convert all resources
+		let importOptions = new ModelImportOptions();
+		importOptions.Flags = .SkinnedMeshes | .Skeletons | .Animations | .Textures | .Materials;
+		importOptions.BasePath.Set("models/Fox/glTF");
+
+		let imageLoader = scope SDLImageLoader();
+		let importer = scope ModelImporter(importOptions, imageLoader);
+		let importResult = importer.Import(mFoxModel);
+		defer delete importResult;
+
+		if (!importResult.Success)
+		{
+			Console.WriteLine("Fox import errors:");
+			for (let err in importResult.Errors)
+				Console.WriteLine(scope $"  - {err}");
+			return false;
+		}
+
+		Console.WriteLine(scope $"Fox import result: {importResult.SkinnedMeshes.Count} skinned meshes, {importResult.Skeletons.Count} skeletons");
+
+		// Take ownership of the first skinned mesh
+		if (importResult.SkinnedMeshes.Count > 0)
+		{
+			mFoxResource = importResult.TakeSkinnedMesh(0);
+			Console.WriteLine(scope $"Fox resource: {mFoxResource.Mesh.VertexCount} vertices, {mFoxResource.Skeleton?.BoneCount ?? 0} bones, {mFoxResource.AnimationCount} animations");
+		}
+		else
+		{
+			Console.WriteLine("No skinned meshes in Fox import result");
+			return false;
+		}
+
+		// Load Fox texture via ResourceManager
+		let texPath = "models/Fox/glTF/Texture.png";
+		let texImageLoader = scope SDLImageLoader();
+		if (texImageLoader.LoadFromFile(texPath) case .Ok(var loadInfo))
+		{
+			defer loadInfo.Dispose();
+			Console.WriteLine(scope $"Fox texture: {loadInfo.Width}x{loadInfo.Height}");
+
+			// Create GPU texture via ResourceManager
+			mFoxTexture = mRendererService.ResourceManager.CreateTextureFromData(
+				loadInfo.Width, loadInfo.Height, .RGBA8Unorm, .(loadInfo.Data.Ptr, loadInfo.Data.Count));
+
+			if (mFoxTexture.IsValid)
+				Console.WriteLine("Fox texture uploaded to GPU");
+		}
+		else
+		{
+			Console.WriteLine("Warning: Failed to load Fox texture");
+		}
 
 		return true;
 	}
@@ -190,6 +279,35 @@ class RendererMaterialsSample : RHISampleApp
 		}
 
 		Console.WriteLine($"Created {mMaterialInstances.Count} material instances");
+
+		// Create material instance for the Fox with texture
+		if (mFoxResource != null)
+		{
+			mFoxMaterialInstance = materialSystem.CreateInstance(mPBRMaterial);
+			if (mFoxMaterialInstance.IsValid)
+			{
+				let foxInstance = materialSystem.GetInstance(mFoxMaterialInstance);
+				if (foxInstance != null)
+				{
+					// White base color to show texture correctly
+					foxInstance.SetFloat4("baseColor", .(1.0f, 1.0f, 1.0f, 1.0f));
+					foxInstance.SetFloat("metallic", 0.0f);   // Non-metallic (fur)
+					foxInstance.SetFloat("roughness", 0.7f);  // Rough (fur-like)
+					foxInstance.SetFloat("ao", 1.0f);
+					foxInstance.SetFloat4("emissive", .(0, 0, 0, 1));
+
+					// Set the albedo texture
+					if (mFoxTexture.IsValid)
+					{
+						foxInstance.SetTexture("albedoMap", mFoxTexture);
+						Console.WriteLine("Set Fox albedo texture on material");
+					}
+
+					materialSystem.UploadInstance(mFoxMaterialInstance);
+					Console.WriteLine("Created Fox PBR material instance");
+				}
+			}
+		}
 	}
 
 	private void CreateEntities()
@@ -277,6 +395,38 @@ class RendererMaterialsSample : RHISampleApp
 			light2.AddComponent(LightComponent.CreatePoint(.(0.6f, 0.8f, 1.0f), 8.0f, 15.0f));
 		}
 
+		// Create Fox skinned mesh with PBR material
+		if (mFoxResource != null)
+		{
+			mFoxEntity = mScene.CreateEntity("Fox");
+			// Position the fox to the right of the sphere grid, scale it down (it's big in native units)
+			mFoxEntity.Transform.SetPosition(.(6.0f, -0.9f, 0.0f));
+			mFoxEntity.Transform.SetScale(.(0.03f, 0.03f, 0.03f));  // Scale down from ~100 units to ~3 units
+
+			let skinnedMeshComp = new SkinnedMeshRendererComponent();
+			mFoxEntity.AddComponent(skinnedMeshComp);
+
+			// Set skeleton first (required before SetMesh)
+			skinnedMeshComp.SetSkeleton(mFoxResource.Skeleton, false);  // Don't take ownership
+
+			// Add animation clips
+			for (let clip in mFoxResource.Animations)
+				skinnedMeshComp.AddAnimationClip(clip);
+
+			// Set the mesh (uploads to GPU)
+			skinnedMeshComp.SetMesh(mFoxResource.Mesh);
+
+			// Set PBR material
+			if (mFoxMaterialInstance.IsValid)
+				skinnedMeshComp.SetMaterial(mFoxMaterialInstance);
+
+			// Start playing the first animation (if any)
+			if (mFoxResource.AnimationCount > 0)
+				skinnedMeshComp.PlayAnimation(0, true);
+
+			Console.WriteLine("Fox entity created with PBR material");
+		}
+
 		// Create camera
 		{
 			mCameraEntity = mScene.CreateEntity("MainCamera");
@@ -289,7 +439,10 @@ class RendererMaterialsSample : RHISampleApp
 			mCameraEntity.AddComponent(cameraComp);
 		}
 
-		Console.WriteLine($"Created {GRID_SIZE * GRID_SIZE} PBR spheres + 5 legacy spheres");
+		if (mFoxResource != null)
+			Console.WriteLine($"Created {GRID_SIZE * GRID_SIZE} PBR spheres + 5 legacy spheres + Fox");
+		else
+			Console.WriteLine($"Created {GRID_SIZE * GRID_SIZE} PBR spheres + 5 legacy spheres");
 	}
 
 	protected override void OnResize(uint32 width, uint32 height)
@@ -684,9 +837,16 @@ class RendererMaterialsSample : RHISampleApp
 			for (let handle in mMaterialInstances)
 				mRendererService.MaterialSystem.ReleaseInstance(handle);
 
+			if (mFoxMaterialInstance.IsValid)
+				mRendererService.MaterialSystem.ReleaseInstance(mFoxMaterialInstance);
+
 			if (mPBRMaterial.IsValid)
 				mRendererService.MaterialSystem.ReleaseMaterial(mPBRMaterial);
 		}
+
+		// Release Fox texture
+		if (mFoxTexture.IsValid && mRendererService?.ResourceManager != null)
+			mRendererService.ResourceManager.ReleaseTexture(mFoxTexture);
 
 		// Clean up debug line rendering resources (must be before device is destroyed)
 		for (int32 i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)

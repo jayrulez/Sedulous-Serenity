@@ -32,6 +32,9 @@ class SkinnedMeshRendererComponent : IEntityComponent
 	// Cached bind group for this skinned mesh
 	private IBindGroup mBindGroup ~ delete _;
 
+	// Material instance (for PBR rendering)
+	private MaterialInstanceHandle mMaterialInstance = .Invalid;
+
 	// Entity and scene references
 	private Entity mEntity;
 	private RenderSceneComponent mRenderScene;
@@ -90,6 +93,29 @@ class SkinnedMeshRendererComponent : IEntityComponent
 
 	/// Gets the texture view for this skinned mesh, or null if none set.
 	public ITextureView TextureView => mTextureView;
+
+	/// Gets or sets the material instance handle for PBR rendering.
+	public MaterialInstanceHandle MaterialInstance
+	{
+		get => mMaterialInstance;
+		set
+		{
+			mMaterialInstance = value;
+			// Invalidate bind group so it gets recreated
+			if (mBindGroup != null)
+			{
+				delete mBindGroup;
+				mBindGroup = null;
+			}
+		}
+	}
+
+	/// Sets the material for this skinned mesh.
+	/// The material instance must be valid and registered with the MaterialSystem.
+	public void SetMaterial(MaterialInstanceHandle material)
+	{
+		MaterialInstance = material;
+	}
 
 	/// Creates a new SkinnedMeshRendererComponent.
 	public this()

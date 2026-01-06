@@ -1,7 +1,7 @@
 int32 %version {1}
 int32 %type {7}
 int32 %_version {1}
-string %id {"c3dfab61-7da7-4473-acce-7372d25c2dfc"}
+string %id {"e7386d63-29c7-4aa3-aa3b-9ad1e97ea2df"}
 string %name {"fox1"}
 Obj_ %mesh {
 	int32 %vertexCount {1728}

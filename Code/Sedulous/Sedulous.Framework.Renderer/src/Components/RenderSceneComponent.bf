@@ -83,6 +83,11 @@ class RenderSceneComponent : ISceneComponent
 	private LightingSystem mLightingSystem ~ delete _;
 	private bool mShadowsEnabled = true;
 
+	// Dedicated renderers
+	private StaticMeshRenderer mStaticMeshRenderer ~ delete _;
+	private ShadowRenderer mShadowRenderer ~ delete _;
+	private SkinnedMeshRenderer mSkinnedMeshRenderer ~ delete _;
+
 	// Per-frame resources
 	private SceneFrameResources[MAX_FRAMES_IN_FLIGHT] mFrameResources = .();
 	private int32 mCurrentFrameIndex = 0;
@@ -273,8 +278,15 @@ class RenderSceneComponent : ISceneComponent
 			mVisibleMeshes.AddRange(mVisibilityResolver.OpaqueMeshes);
 			mVisibleMeshes.AddRange(mVisibilityResolver.TransparentMeshes);
 
-			// Build CPU-side instance data from visible meshes
-			BuildInstanceData();
+			// Build batches using the new static mesh renderer
+			if (mStaticMeshRenderer != null)
+				mStaticMeshRenderer.BuildBatches(mVisibleMeshes);
+			else
+				BuildInstanceData();  // Fallback to legacy
+
+			// Build skinned mesh batches
+			if (mSkinnedMeshRenderer != null)
+				mSkinnedMeshRenderer.BuildBatches();
 		}
 
 		// Gather active lights
@@ -385,12 +397,30 @@ class RenderSceneComponent : ISceneComponent
 		if (CreateBillboardPipelines() case .Err)
 			return .Err;
 
-		// Create shadow pipeline
+		// Create shadow pipeline (legacy - will be replaced by ShadowRenderer)
 		if (CreateShadowPipeline() case .Err)
 			return .Err;
 
-		// Create skinned shadow pipeline
+		// Create skinned shadow pipeline (legacy - will be replaced by ShadowRenderer)
 		if (CreateSkinnedShadowPipeline() case .Err)
+			return .Err;
+
+		// Initialize new dedicated renderers
+		mStaticMeshRenderer = new StaticMeshRenderer();
+		if (mStaticMeshRenderer.Initialize(device, mRendererService.ShaderLibrary,
+			mRendererService.ResourceManager, mRendererService.MaterialSystem, mRendererService.PipelineCache,
+			mBindGroupLayout, colorFormat, depthFormat) case .Err)
+			return .Err;
+
+		mShadowRenderer = new ShadowRenderer();
+		if (mShadowRenderer.Initialize(device, mRendererService.ShaderLibrary,
+			mLightingSystem, mRendererService.ResourceManager) case .Err)
+			return .Err;
+
+		mSkinnedMeshRenderer = new SkinnedMeshRenderer();
+		if (mSkinnedMeshRenderer.Initialize(device, mRendererService.ShaderLibrary,
+			mRendererService.MaterialSystem, mRendererService.ResourceManager, mRendererService.PipelineCache,
+			mBindGroupLayout, colorFormat, depthFormat) case .Err)
 			return .Err;
 
 		// Create default skybox (gradient sky)
@@ -1273,21 +1303,29 @@ class RenderSceneComponent : ISceneComponent
 		ref SceneFrameResources frame = ref mFrameResources[frameIndex];
 		let device = mRendererService.Device;
 
-		// Upload legacy instance data
-		if (mInstanceCount > 0)
+		// Upload instance data using new static mesh renderer
+		if (mStaticMeshRenderer != null)
 		{
-			uint64 dataSize = (uint64)(sizeof(RenderSceneInstanceData) * mInstanceCount);
-			Span<uint8> data = .((uint8*)mInstanceData.Ptr, (int)dataSize);
-			device.Queue.WriteBuffer(frame.InstanceBuffer, 0, data);
+			mStaticMeshRenderer.PrepareGPU(frameIndex);
 		}
-
-		// Upload material instance data
-		if (mMaterialInstanceCount > 0)
+		else
 		{
-			uint64 dataSize = (uint64)(sizeof(MaterialInstanceData) * mMaterialInstanceCount);
-			Span<uint8> data = .((uint8*)mMaterialInstanceData.Ptr, (int)dataSize);
-			var mib = mMaterialInstanceBuffers[frameIndex];// beef bug where index access in function call is crashing
-			device.Queue.WriteBuffer(mib, 0, data);
+			// Fallback to legacy instance data upload
+			if (mInstanceCount > 0)
+			{
+				uint64 dataSize = (uint64)(sizeof(RenderSceneInstanceData) * mInstanceCount);
+				Span<uint8> data = .((uint8*)mInstanceData.Ptr, (int)dataSize);
+				device.Queue.WriteBuffer(frame.InstanceBuffer, 0, data);
+			}
+
+			// Upload material instance data
+			if (mMaterialInstanceCount > 0)
+			{
+				uint64 dataSize = (uint64)(sizeof(MaterialInstanceData) * mMaterialInstanceCount);
+				Span<uint8> data = .((uint8*)mMaterialInstanceData.Ptr, (int)dataSize);
+				var mib = mMaterialInstanceBuffers[frameIndex];// beef bug where index access in function call is crashing
+				device.Queue.WriteBuffer(mib, 0, data);
+			}
 		}
 
 		// Update lighting system with camera and lights
@@ -1370,6 +1408,13 @@ class RenderSceneComponent : ISceneComponent
 		if (!mRenderingInitialized || !mShadowsEnabled || mLightingSystem == null)
 			return false;
 
+		// Use new ShadowRenderer if available
+		if (mShadowRenderer != null && mStaticMeshRenderer != null && mSkinnedMeshRenderer != null)
+		{
+			return mShadowRenderer.RenderShadows(encoder, frameIndex, mStaticMeshRenderer, mSkinnedMeshRenderer);
+		}
+
+		// Legacy path follows...
 		if (!mLightingSystem.HasDirectionalShadows)
 			return false;
 
@@ -1569,41 +1614,53 @@ class RenderSceneComponent : ISceneComponent
 			renderPass.Draw(3, 1, 0, 0);  // Fullscreen triangle
 		}
 
-		// Render meshes with materials (PBR/custom materials)
-		RenderMaterialMeshes(renderPass);
-
-		// Render legacy meshes (without MaterialInstance)
-		if (mInstanceCount > 0)
+		// Render static meshes using new renderer
+		if (mStaticMeshRenderer != null)
 		{
-			renderPass.SetPipeline(mPipeline);
-			renderPass.SetBindGroup(0, frame.BindGroup);
+			// Render meshes with materials (PBR/custom materials)
+			mStaticMeshRenderer.RenderMaterials(renderPass, frame.BindGroup, mCurrentFrameIndex);
 
-			let resourceManager = mRendererService.ResourceManager;
-			if (resourceManager != null)
+			// Render legacy meshes (without MaterialInstance)
+			mStaticMeshRenderer.RenderLegacy(renderPass, frame.BindGroup, mCurrentFrameIndex);
+		}
+		else
+		{
+			// Legacy path
+			RenderMaterialMeshes(renderPass);
+
+			// Render legacy meshes (without MaterialInstance)
+			if (mInstanceCount > 0)
 			{
-				// Draw all legacy visible meshes using their GPU mesh
-				int32 instanceOffset = 0;
-				GPUMeshHandle lastMesh = .Invalid;
+				renderPass.SetPipeline(mPipeline);
+				renderPass.SetBindGroup(0, frame.BindGroup);
 
-				for (int32 i = 0; i < mInstanceCount; i++)
+				let resourceManager = mRendererService.ResourceManager;
+				if (resourceManager != null)
 				{
-					let proxy = mLegacyVisibleMeshes[i];
-					let meshHandle = proxy.MeshHandle;
+					// Draw all legacy visible meshes using their GPU mesh
+					int32 instanceOffset = 0;
+					GPUMeshHandle lastMesh = .Invalid;
 
-					// When mesh changes, draw the batch
-					if (i > 0 && !meshHandle.Equals(lastMesh))
+					for (int32 i = 0; i < mInstanceCount; i++)
 					{
-						DrawMeshBatch(renderPass, resourceManager, lastMesh, frame.InstanceBuffer, instanceOffset, i - instanceOffset);
-						instanceOffset = i;
+						let proxy = mLegacyVisibleMeshes[i];
+						let meshHandle = proxy.MeshHandle;
+
+						// When mesh changes, draw the batch
+						if (i > 0 && !meshHandle.Equals(lastMesh))
+						{
+							DrawMeshBatch(renderPass, resourceManager, lastMesh, frame.InstanceBuffer, instanceOffset, i - instanceOffset);
+							instanceOffset = i;
+						}
+
+						lastMesh = meshHandle;
 					}
 
-					lastMesh = meshHandle;
-				}
-
-				// Draw final batch
-				if (mInstanceCount > instanceOffset)
-				{
-					DrawMeshBatch(renderPass, resourceManager, lastMesh, frame.InstanceBuffer, instanceOffset, mInstanceCount - instanceOffset);
+					// Draw final batch
+					if (mInstanceCount > instanceOffset)
+					{
+						DrawMeshBatch(renderPass, resourceManager, lastMesh, frame.InstanceBuffer, instanceOffset, mInstanceCount - instanceOffset);
+					}
 				}
 			}
 		}
@@ -1647,7 +1704,14 @@ class RenderSceneComponent : ISceneComponent
 		}
 
 		// Render skinned meshes
-		RenderSkinnedMeshes(renderPass);
+		if (mSkinnedMeshRenderer != null)
+		{
+			mSkinnedMeshRenderer.Render(renderPass, frame.CameraBuffer, frame.BindGroup, mCurrentFrameIndex);
+		}
+		else
+		{
+			RenderSkinnedMeshes(renderPass);
+		}
 
 		// End frame on render world
 		mRenderWorld.EndFrame();
@@ -2020,12 +2084,20 @@ class RenderSceneComponent : ISceneComponent
 	{
 		if (!mSkinnedMeshes.Contains(skinnedMesh))
 			mSkinnedMeshes.Add(skinnedMesh);
+
+		// Also register with the new SkinnedMeshRenderer
+		if (mSkinnedMeshRenderer != null)
+			mSkinnedMeshRenderer.Register(skinnedMesh);
 	}
 
 	/// Unregisters a skinned mesh component.
 	public void UnregisterSkinnedMesh(SkinnedMeshRendererComponent skinnedMesh)
 	{
 		mSkinnedMeshes.Remove(skinnedMesh);
+
+		// Also unregister from the new SkinnedMeshRenderer
+		if (mSkinnedMeshRenderer != null)
+			mSkinnedMeshRenderer.Unregister(skinnedMesh);
 	}
 
 	/// Gets the list of registered skinned meshes.

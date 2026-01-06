@@ -1,7 +1,7 @@
 int32 %version {1}
 int32 %type {3}
 int32 %_version {1}
-string %id {"958fbab2-2c73-434e-98d2-c1dcd0835925"}
+string %id {"4ce8b263-1dcc-4963-bb03-1bfbac39c44a"}
 string %name {"_rootJoint_skeleton"}
 int32 %boneCount {24}
 Obj_ %bones {
