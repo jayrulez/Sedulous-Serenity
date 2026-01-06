@@ -18,7 +18,11 @@ class MeshRendererComponent : IEntityComponent
 	private RenderSceneComponent mRenderScene;
 	private ProxyHandle mProxyHandle = .Invalid;
 
-	/// Material IDs for each sub-mesh (up to 8).
+	/// Material instance handles for each sub-mesh (up to 8).
+	public MaterialInstanceHandle[8] MaterialInstances = .(.Invalid, .Invalid, .Invalid, .Invalid, .Invalid, .Invalid, .Invalid, .Invalid);
+
+	/// Legacy material IDs for each sub-mesh (up to 8).
+	/// Used when MaterialInstances[i].IsValid == false.
 	public uint32[8] MaterialIds;
 
 	/// Number of materials used.
@@ -36,9 +40,41 @@ class MeshRendererComponent : IEntityComponent
 	/// Gets the local bounding box.
 	public BoundingBox LocalBounds => mLocalBounds;
 
+	/// Gets the GPU mesh handle (framework use).
+	public GPUMeshHandle GPUMeshHandle => mGPUMesh;
+
+	/// Checks if this component uses material instances (vs legacy material IDs).
+	public bool UsesMaterialInstances => MaterialInstances[0].IsValid;
+
 	/// Creates a new MeshRendererComponent.
 	public this()
 	{
+	}
+
+	/// Sets a material instance for a sub-mesh.
+	public void SetMaterialInstance(int32 slot, MaterialInstanceHandle instance)
+	{
+		if (slot >= 0 && slot < 8)
+		{
+			MaterialInstances[slot] = instance;
+			if (slot >= MaterialCount)
+				MaterialCount = (uint8)(slot + 1);
+
+			// Sync to proxy
+			if (mProxyHandle.IsValid && mRenderScene != null)
+			{
+				if (let proxy = mRenderScene.RenderWorld.GetMeshProxy(mProxyHandle))
+					proxy.SetMaterialInstance(slot, instance);
+			}
+		}
+	}
+
+	/// Gets the material instance for a sub-mesh.
+	public MaterialInstanceHandle GetMaterialInstance(int32 slot)
+	{
+		if (slot >= 0 && slot < 8)
+			return MaterialInstances[slot];
+		return .Invalid;
 	}
 
 	/// Sets the GPU mesh to render (low-level API).
@@ -189,14 +225,17 @@ class MeshRendererComponent : IEntityComponent
 			mLocalBounds
 		);
 
-		// Copy material IDs and count to the proxy
+		// Copy material data to the proxy
 		if (mProxyHandle.IsValid)
 		{
 			if (let proxy = mRenderScene.RenderWorld.GetMeshProxy(mProxyHandle))
 			{
 				proxy.MaterialCount = MaterialCount;
 				for (int i = 0; i < 8; i++)
+				{
+					proxy.MaterialInstances[i] = MaterialInstances[i];
 					proxy.MaterialIds[i] = MaterialIds[i];
+				}
 			}
 		}
 	}

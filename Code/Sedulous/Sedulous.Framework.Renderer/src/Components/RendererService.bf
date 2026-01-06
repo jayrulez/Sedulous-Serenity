@@ -14,6 +14,7 @@ class RendererService : IContextService, IDisposable
 	private ShaderLibrary mShaderLibrary ~ delete _;
 	private LightingSystem mLightingSystem ~ delete _;
 	private PipelineCache mPipelineCache ~ delete _;
+	private MaterialSystem mMaterialSystem ~ delete _;
 	private bool mInitialized = false;
 
 	/// Gets the graphics device.
@@ -31,6 +32,9 @@ class RendererService : IContextService, IDisposable
 	/// Gets the pipeline cache for render pipelines.
 	public PipelineCache PipelineCache => mPipelineCache;
 
+	/// Gets the material system for materials and material instances.
+	public MaterialSystem MaterialSystem => mMaterialSystem;
+
 	/// Gets whether the service has been initialized.
 	public bool IsInitialized => mInitialized;
 
@@ -46,6 +50,7 @@ class RendererService : IContextService, IDisposable
 		mShaderLibrary = new ShaderLibrary(device, shaderBasePath);
 		mLightingSystem = new LightingSystem(device);
 		mPipelineCache = new PipelineCache(device, mShaderLibrary);
+		mMaterialSystem = new MaterialSystem(device, mShaderLibrary, mResourceManager);
 		mInitialized = true;
 
 		return .Ok;

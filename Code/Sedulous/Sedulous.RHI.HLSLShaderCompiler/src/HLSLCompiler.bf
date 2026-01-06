@@ -89,49 +89,55 @@ class HLSLCompiler : IShaderCompiler
 			args.Add("-spirv");
 			args.Add("-fspv-target-env=vulkan1.2");
 
-			// Binding shifts for Vulkan
+			// Binding shifts for Vulkan - apply to all descriptor sets (0-3)
 			// -fvk-b-shift <shift> <set> - shifts constant buffer registers
 			// -fvk-t-shift <shift> <set> - shifts texture registers
 			// -fvk-s-shift <shift> <set> - shifts sampler registers
 			// -fvk-u-shift <shift> <set> - shifts UAV registers
+			//
+			// We apply the same shifts to sets 0, 1, 2, 3 to support multi-bind-group shaders
+			// that use space0, space1, etc. in HLSL.
 
-			String setStr = scope .();
-			setStr.AppendF("{}", options.DescriptorSet);
-
-			if (options.ConstantBufferShift > 0)
+			for (int32 setIndex = 0; setIndex < 4; setIndex++)
 			{
-				args.Add("-fvk-b-shift");
-				String shiftStr = scope:: .();
-				shiftStr.AppendF("{}", options.ConstantBufferShift);
-				args.Add(shiftStr);
-				args.Add(setStr);
-			}
+				String setStr = scope:: .();
+				setStr.AppendF("{}", setIndex);
 
-			if (options.TextureShift > 0)
-			{
-				args.Add("-fvk-t-shift");
-				String shiftStr = scope:: .();
-				shiftStr.AppendF("{}", options.TextureShift);
-				args.Add(shiftStr);
-				args.Add(setStr);
-			}
+				if (options.ConstantBufferShift > 0)
+				{
+					args.Add("-fvk-b-shift");
+					String shiftStr = scope:: .();
+					shiftStr.AppendF("{}", options.ConstantBufferShift);
+					args.Add(shiftStr);
+					args.Add(setStr);
+				}
 
-			if (options.SamplerShift > 0)
-			{
-				args.Add("-fvk-s-shift");
-				String shiftStr = scope:: .();
-				shiftStr.AppendF("{}", options.SamplerShift);
-				args.Add(shiftStr);
-				args.Add(setStr);
-			}
+				if (options.TextureShift > 0)
+				{
+					args.Add("-fvk-t-shift");
+					String shiftStr = scope:: .();
+					shiftStr.AppendF("{}", options.TextureShift);
+					args.Add(shiftStr);
+					args.Add(setStr);
+				}
 
-			if (options.UAVShift > 0)
-			{
-				args.Add("-fvk-u-shift");
-				String shiftStr = scope:: .();
-				shiftStr.AppendF("{}", options.UAVShift);
-				args.Add(shiftStr);
-				args.Add(setStr);
+				if (options.SamplerShift > 0)
+				{
+					args.Add("-fvk-s-shift");
+					String shiftStr = scope:: .();
+					shiftStr.AppendF("{}", options.SamplerShift);
+					args.Add(shiftStr);
+					args.Add(setStr);
+				}
+
+				if (options.UAVShift > 0)
+				{
+					args.Add("-fvk-u-shift");
+					String shiftStr = scope:: .();
+					shiftStr.AppendF("{}", options.UAVShift);
+					args.Add(shiftStr);
+					args.Add(setStr);
+				}
 			}
 		}
 

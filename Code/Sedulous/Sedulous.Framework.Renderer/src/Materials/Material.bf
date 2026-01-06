@@ -258,3 +258,33 @@ class Material
 		return mat;
 	}
 }
+
+/// Handle to a material resource.
+struct MaterialHandle : IEquatable<MaterialHandle>, IHashable
+{
+	private uint32 mIndex;
+	private uint32 mGeneration;
+
+	public static readonly Self Invalid = .((uint32)-1, 0);
+
+	public uint32 Index => mIndex;
+	public uint32 Generation => mGeneration;
+	public bool IsValid => mIndex != (uint32)-1;
+
+	public this(uint32 index, uint32 generation)
+	{
+		mIndex = index;
+		mGeneration = generation;
+	}
+
+	public bool Equals(MaterialHandle other)
+	{
+		return mIndex == other.mIndex && mGeneration == other.mGeneration;
+	}
+
+	public int GetHashCode()
+	{
+		return (int)(mIndex ^ (mGeneration << 16));
+	}
+}
+

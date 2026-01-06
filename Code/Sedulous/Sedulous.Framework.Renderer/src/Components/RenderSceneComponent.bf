@@ -63,6 +63,7 @@ class RenderSceneComponent : ISceneComponent
 
 	// Cached lists for iteration
 	private List<MeshProxy*> mVisibleMeshes = new .() ~ delete _;
+	private List<MeshProxy*> mLegacyVisibleMeshes = new .() ~ delete _;  // Meshes without MaterialInstance
 	private List<LightProxy*> mActiveLights = new .() ~ delete _;
 
 	// Particle emitters and sprites
@@ -132,6 +133,12 @@ class RenderSceneComponent : ISceneComponent
 	// CPU-side instance data (built in OnUpdate, uploaded in PrepareGPU)
 	private RenderSceneInstanceData[] mInstanceData ~ delete _;
 	private int32 mInstanceCount = 0;
+
+	// Material rendering - batches and instance data for meshes with MaterialInstanceHandle
+	private List<DrawBatch> mMaterialBatches = new .() ~ delete _;
+	private MaterialInstanceData[] mMaterialInstanceData ~ delete _;
+	private IBuffer[MAX_FRAMES_IN_FLIGHT] mMaterialInstanceBuffers = .() ~ { for (var buf in _) delete buf; };
+	private int32 mMaterialInstanceCount = 0;
 
 	// Rendering state
 	private bool mRenderingInitialized = false;
@@ -219,6 +226,7 @@ class RenderSceneComponent : ISceneComponent
 		mRenderWorld = new RenderWorld();
 		mVisibilityResolver = new VisibilityResolver();
 		mInstanceData = new RenderSceneInstanceData[MAX_INSTANCES];
+		mMaterialInstanceData = new MaterialInstanceData[MAX_INSTANCES];
 	}
 
 	// ==================== ISceneComponent Implementation ====================
@@ -333,11 +341,19 @@ class RenderSceneComponent : ISceneComponent
 			else
 				return .Err;
 
-			// Instance buffer
+			// Instance buffer (legacy path)
 			uint64 instanceBufferSize = (uint64)(sizeof(RenderSceneInstanceData) * MAX_INSTANCES);
 			BufferDescriptor instanceDesc = .(instanceBufferSize, .Vertex, .Upload);
 			if (device.CreateBuffer(&instanceDesc) case .Ok(let instBuf))
 				mFrameResources[i].InstanceBuffer = instBuf;
+			else
+				return .Err;
+
+			// Material instance buffer (material rendering path)
+			uint64 materialInstanceBufferSize = (uint64)(sizeof(MaterialInstanceData) * MAX_INSTANCES);
+			BufferDescriptor materialInstanceDesc = .(materialInstanceBufferSize, .Vertex, .Upload);
+			if (device.CreateBuffer(&materialInstanceDesc) case .Ok(let matInstBuf))
+				mMaterialInstanceBuffers[i] = matInstBuf;
 			else
 				return .Err;
 
@@ -1142,16 +1158,90 @@ class RenderSceneComponent : ISceneComponent
 	private void BuildInstanceData()
 	{
 		mInstanceCount = 0;
+		mMaterialInstanceCount = 0;
+		mMaterialBatches.Clear();
+		mLegacyVisibleMeshes.Clear();
+
+		// First pass: separate material meshes from legacy meshes
+		List<MeshProxy*> materialMeshes = scope .();
 
 		for (let proxy in mVisibleMeshes)
+		{
+			if (proxy.UsesMaterialInstances)
+				materialMeshes.Add(proxy);
+			else
+				mLegacyVisibleMeshes.Add(proxy);
+		}
+
+		// Build legacy instance data
+		for (let proxy in mLegacyVisibleMeshes)
 		{
 			if (mInstanceCount >= MAX_INSTANCES)
 				break;
 
-			// Get color based on material ID (simple palette for now)
 			let color = GetColorForMaterial(proxy.GetMaterial(0));
 			mInstanceData[mInstanceCount] = .(proxy.Transform, color);
 			mInstanceCount++;
+		}
+
+		// Build material batches
+		if (materialMeshes.Count > 0)
+		{
+			BuildMaterialBatches(materialMeshes);
+		}
+	}
+
+	/// Builds draw batches from material meshes, sorted by (mesh, material).
+	private void BuildMaterialBatches(List<MeshProxy*> meshes)
+	{
+		if (meshes.Count == 0)
+			return;
+
+		// Sort by mesh handle then material handle for batching efficiency
+		meshes.Sort(scope (a, b) =>
+		{
+			// First compare mesh handles
+			let meshCmp = (int32)a.MeshHandle.Index - (int32)b.MeshHandle.Index;
+			if (meshCmp != 0)
+				return meshCmp;
+			// Then compare material handles
+			return (int32)a.MaterialInstances[0].Index - (int32)b.MaterialInstances[0].Index;
+		});
+
+		// Build batches
+		GPUMeshHandle currentMesh = .Invalid;
+		MaterialInstanceHandle currentMaterial = .Invalid;
+		int32 batchStart = 0;
+
+		for (int32 i = 0; i < meshes.Count; i++)
+		{
+			if (mMaterialInstanceCount >= MAX_INSTANCES)
+				break;
+
+			let proxy = meshes[i];
+			let meshHandle = proxy.MeshHandle;
+			let materialHandle = proxy.MaterialInstances[0];
+
+			// Check if we need to start a new batch
+			if (i > 0 && (!meshHandle.Equals(currentMesh) || !materialHandle.Equals(currentMaterial)))
+			{
+				// Finish previous batch
+				mMaterialBatches.Add(.(currentMesh, currentMaterial, batchStart, mMaterialInstanceCount - batchStart));
+				batchStart = mMaterialInstanceCount;
+			}
+
+			// Add instance data
+			mMaterialInstanceData[mMaterialInstanceCount] = .(proxy.Transform, .(1, 1, 1));  // Default white tint
+			mMaterialInstanceCount++;
+
+			currentMesh = meshHandle;
+			currentMaterial = materialHandle;
+		}
+
+		// Finish final batch
+		if (mMaterialInstanceCount > batchStart)
+		{
+			mMaterialBatches.Add(.(currentMesh, currentMaterial, batchStart, mMaterialInstanceCount - batchStart));
 		}
 	}
 
@@ -1183,12 +1273,21 @@ class RenderSceneComponent : ISceneComponent
 		ref SceneFrameResources frame = ref mFrameResources[frameIndex];
 		let device = mRendererService.Device;
 
-		// Upload instance data
+		// Upload legacy instance data
 		if (mInstanceCount > 0)
 		{
 			uint64 dataSize = (uint64)(sizeof(RenderSceneInstanceData) * mInstanceCount);
 			Span<uint8> data = .((uint8*)mInstanceData.Ptr, (int)dataSize);
 			device.Queue.WriteBuffer(frame.InstanceBuffer, 0, data);
+		}
+
+		// Upload material instance data
+		if (mMaterialInstanceCount > 0)
+		{
+			uint64 dataSize = (uint64)(sizeof(MaterialInstanceData) * mMaterialInstanceCount);
+			Span<uint8> data = .((uint8*)mMaterialInstanceData.Ptr, (int)dataSize);
+			var mib = mMaterialInstanceBuffers[frameIndex];// beef bug where index access in function call is crashing
+			device.Queue.WriteBuffer(mib, 0, data);
 		}
 
 		// Update lighting system with camera and lights
@@ -1275,7 +1374,7 @@ class RenderSceneComponent : ISceneComponent
 			return false;
 
 		// Need at least some meshes to render shadows for
-		if (mInstanceCount == 0 && mSkinnedMeshes.Count == 0)
+		if (mInstanceCount == 0 && mMaterialBatches.Count == 0 && mSkinnedMeshes.Count == 0)
 			return false;
 
 		let device = mRendererService.Device;
@@ -1329,13 +1428,13 @@ class RenderSceneComponent : ISceneComponent
 			shadowPass.SetPipeline(mShadowPipeline);
 			shadowPass.SetBindGroup(0, frame.ShadowBindGroups[cascade]);
 
-			// Draw all visible meshes to shadow map
+			// Draw legacy visible meshes to shadow map (meshes without MaterialInstance)
 			int32 instanceOffset = 0;
 			GPUMeshHandle lastMesh = .Invalid;
 
 			for (int32 i = 0; i < mInstanceCount; i++)
 			{
-				let proxy = mVisibleMeshes[i];
+				let proxy = mLegacyVisibleMeshes[i];
 				let meshHandle = proxy.MeshHandle;
 
 				if (i > 0 && !meshHandle.Equals(lastMesh))
@@ -1347,10 +1446,17 @@ class RenderSceneComponent : ISceneComponent
 				lastMesh = meshHandle;
 			}
 
-			// Draw final batch
+			// Draw final legacy batch
 			if (mInstanceCount > instanceOffset)
 			{
 				DrawShadowMeshBatch(shadowPass, resourceManager, lastMesh, frame.InstanceBuffer, instanceOffset, mInstanceCount - instanceOffset);
+			}
+
+			// Draw material meshes to shadow map (PBR and other material-based meshes)
+			for (let batch in mMaterialBatches)
+			{
+				DrawShadowMeshBatch(shadowPass, resourceManager, batch.Mesh, mMaterialInstanceBuffers[frameIndex],
+					batch.InstanceOffset, batch.InstanceCount);
 			}
 
 			// Render skinned meshes to shadow map
@@ -1463,7 +1569,10 @@ class RenderSceneComponent : ISceneComponent
 			renderPass.Draw(3, 1, 0, 0);  // Fullscreen triangle
 		}
 
-		// Render meshes
+		// Render meshes with materials (PBR/custom materials)
+		RenderMaterialMeshes(renderPass);
+
+		// Render legacy meshes (without MaterialInstance)
 		if (mInstanceCount > 0)
 		{
 			renderPass.SetPipeline(mPipeline);
@@ -1472,13 +1581,13 @@ class RenderSceneComponent : ISceneComponent
 			let resourceManager = mRendererService.ResourceManager;
 			if (resourceManager != null)
 			{
-				// Simple approach: draw all visible meshes using their GPU mesh
+				// Draw all legacy visible meshes using their GPU mesh
 				int32 instanceOffset = 0;
 				GPUMeshHandle lastMesh = .Invalid;
 
 				for (int32 i = 0; i < mInstanceCount; i++)
 				{
-					let proxy = mVisibleMeshes[i];
+					let proxy = mLegacyVisibleMeshes[i];
 					let meshHandle = proxy.MeshHandle;
 
 					// When mesh changes, draw the batch
@@ -1562,6 +1671,107 @@ class RenderSceneComponent : ISceneComponent
 		else
 		{
 			renderPass.Draw(gpuMesh.VertexCount, (uint32)instanceCount, 0, 0);
+		}
+	}
+
+	/// Renders meshes with MaterialInstanceHandles using PBR/material pipelines.
+	private void RenderMaterialMeshes(IRenderPassEncoder renderPass)
+	{
+		if (mMaterialBatches.Count == 0)
+			return;
+
+		let pipelineCache = mRendererService.PipelineCache;
+		let materialSystem = mRendererService.MaterialSystem;
+		let resourceManager = mRendererService.ResourceManager;
+
+		if (pipelineCache == null || materialSystem == null || resourceManager == null)
+			return;
+
+		ref SceneFrameResources frame = ref mFrameResources[mCurrentFrameIndex];
+
+		IRenderPipeline lastPipeline = null;
+		MaterialInstanceHandle lastMaterial = .Invalid;
+
+		for (let batch in mMaterialBatches)
+		{
+			let instance = materialSystem.GetInstance(batch.Material);
+			if (instance == null)
+				continue;
+
+			let material = instance.BaseMaterial;
+			if (material == null)
+				continue;
+
+			// Get the material's bind group layout
+			let materialLayout = materialSystem.GetOrCreateBindGroupLayout(material);
+			if (materialLayout == null)
+				continue;
+
+			// Build vertex buffer layouts for pipeline creation
+			Sedulous.RHI.VertexAttribute[3] meshAttrs = .(
+				.(VertexFormat.Float3, 0, 0),   // Position
+				.(VertexFormat.Float3, 12, 1),  // Normal
+				.(VertexFormat.Float2, 24, 2)   // UV
+			);
+			Sedulous.RHI.VertexAttribute[5] instanceAttrs = .(
+				.(VertexFormat.Float4, 0, 3),   // Row0
+				.(VertexFormat.Float4, 16, 4),  // Row1
+				.(VertexFormat.Float4, 32, 5),  // Row2
+				.(VertexFormat.Float4, 48, 6),  // Row3
+				.(VertexFormat.Float4, 64, 7)   // TintAndFlags
+			);
+			VertexBufferLayout[2] vertexBuffers = .(
+				.(48, meshAttrs, .Vertex),
+				.(80, instanceAttrs, .Instance)
+			);
+
+			// Get pipeline from cache (creates if needed)
+			let pipelineKey = PipelineKey(material, VertexLayoutHelper.ComputeHash(vertexBuffers), mColorFormat, mDepthFormat, 1);
+			if (pipelineCache.GetMaterialPipeline(pipelineKey, vertexBuffers, mBindGroupLayout, materialLayout) case .Ok(let cached))
+			{
+				// Switch pipeline if shader changed
+				if (cached.Pipeline != lastPipeline)
+				{
+					renderPass.SetPipeline(cached.Pipeline);
+					renderPass.SetBindGroup(0, frame.BindGroup);  // Scene resources (shared)
+					lastPipeline = cached.Pipeline;
+				}
+
+				// Switch material bind group if material changed
+				if (!batch.Material.Equals(lastMaterial))
+				{
+					// Ensure bind group is created/updated
+					if (instance.BindGroup == null)
+					{
+						materialSystem.UploadInstance(batch.Material);
+					}
+
+					if (instance.BindGroup != null)
+					{
+						renderPass.SetBindGroup(1, instance.BindGroup);  // Material resources
+					}
+					lastMaterial = batch.Material;
+				}
+
+				// Draw batch
+				let gpuMesh = resourceManager.GetMesh(batch.Mesh);
+				if (gpuMesh != null)
+				{
+					renderPass.SetVertexBuffer(0, gpuMesh.VertexBuffer, 0);
+					renderPass.SetVertexBuffer(1, mMaterialInstanceBuffers[mCurrentFrameIndex],
+						(uint64)(batch.InstanceOffset * sizeof(MaterialInstanceData)));
+
+					if (gpuMesh.IndexBuffer != null)
+					{
+						renderPass.SetIndexBuffer(gpuMesh.IndexBuffer, gpuMesh.IndexFormat, 0);
+						renderPass.DrawIndexed(gpuMesh.IndexCount, (uint32)batch.InstanceCount, 0, 0, 0);
+					}
+					else
+					{
+						renderPass.Draw(gpuMesh.VertexCount, (uint32)batch.InstanceCount, 0, 0);
+					}
+				}
+			}
 		}
 	}
 

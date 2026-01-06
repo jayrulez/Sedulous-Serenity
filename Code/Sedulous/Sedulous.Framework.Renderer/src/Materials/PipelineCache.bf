@@ -87,7 +87,7 @@ class PipelineCache
 		mShaderLibrary = shaderLibrary;
 	}
 
-	/// Gets or creates a pipeline for the given configuration.
+	/// Gets or creates a pipeline for the given configuration (legacy single bind group).
 	public Result<CachedPipeline> GetPipeline(PipelineKey key, Span<VertexBufferLayout> vertexBuffers)
 	{
 		let hash = key.GetHashCode();
@@ -98,6 +98,32 @@ class PipelineCache
 
 		// Create new pipeline
 		if (CreatePipeline(key, vertexBuffers) case .Ok(let pipeline))
+		{
+			mCache[hash] = pipeline;
+			return .Ok(pipeline);
+		}
+
+		return .Err;
+	}
+
+	/// Gets or creates a pipeline for material rendering (scene + material bind groups).
+	public Result<CachedPipeline> GetMaterialPipeline(
+		PipelineKey key,
+		Span<VertexBufferLayout> vertexBuffers,
+		IBindGroupLayout sceneLayout,
+		IBindGroupLayout materialLayout)
+	{
+		// Include layout pointers in hash for material pipelines
+		int hash = key.GetHashCode();
+		hash = hash * 31 + (int)(void*)Internal.UnsafeCastToPtr(sceneLayout);
+		hash = hash * 31 + (int)(void*)Internal.UnsafeCastToPtr(materialLayout);
+
+		// Check cache
+		if (mCache.TryGetValue(hash, let cached))
+			return .Ok(cached);
+
+		// Create new pipeline
+		if (CreateMaterialPipeline(key, vertexBuffers, sceneLayout, materialLayout) case .Ok(let pipeline))
 		{
 			mCache[hash] = pipeline;
 			return .Ok(pipeline);
@@ -238,6 +264,94 @@ class PipelineCache
 		if (mDevice.CreateBindGroupLayout(&desc) case .Ok(let layout))
 			return .Ok(layout);
 
+		return .Err;
+	}
+
+	private Result<CachedPipeline> CreateMaterialPipeline(
+		PipelineKey key,
+		Span<VertexBufferLayout> vertexBuffers,
+		IBindGroupLayout sceneLayout,
+		IBindGroupLayout materialLayout)
+	{
+		let material = key.Material;
+		if (material == null)
+			return .Err;
+
+		// Get shaders
+		let shaderResult = mShaderLibrary.GetShaderPair(material.ShaderName, material.ShaderFlags);
+		if (shaderResult case .Err)
+		{
+			Console.WriteLine(scope $"[PipelineCache] Failed to get shaders for: {material.ShaderName}");
+			return .Err;
+		}
+
+		let (vertShader, fragShader) = shaderResult.Value;
+
+		// Create pipeline layout with two bind groups: scene (0) + material (1)
+		IPipelineLayout pipelineLayout = null;
+		IBindGroupLayout[2] layouts = .(sceneLayout, materialLayout);
+		PipelineLayoutDescriptor layoutDesc = .(layouts);
+
+		if (mDevice.CreatePipelineLayout(&layoutDesc) case .Ok(let pl))
+		{
+			pipelineLayout = pl;
+		}
+		else
+		{
+			Console.WriteLine("[PipelineCache] Failed to create pipeline layout");
+			return .Err;
+		}
+
+		// Color target state
+		ColorTargetState[1] colorTargets;
+		if (let blend = material.GetBlendState())
+		{
+			colorTargets = .(.(key.ColorFormat, blend));
+		}
+		else
+		{
+			colorTargets = .(.(key.ColorFormat));
+		}
+
+		// Depth stencil state
+		DepthStencilState? depthStencil = null;
+		if (key.DepthFormat != .RGBA8Unorm) // Using RGBA8Unorm as "no depth" indicator
+		{
+			depthStencil = material.GetDepthStencilState();
+		}
+
+		// Build pipeline descriptor
+		RenderPipelineDescriptor pipelineDesc = .()
+		{
+			Layout = pipelineLayout,
+			Vertex = .()
+			{
+				Shader = .(vertShader.Module, "main"),
+				Buffers = vertexBuffers
+			},
+			Fragment = .()
+			{
+				Shader = .(fragShader.Module, "main"),
+				Targets = colorTargets
+			},
+			Primitive = material.GetPrimitiveState(),
+			DepthStencil = depthStencil,
+			Multisample = .()
+			{
+				Count = key.SampleCount,
+				Mask = uint32.MaxValue,
+				AlphaToCoverageEnabled = false
+			}
+		};
+
+		if (mDevice.CreateRenderPipeline(&pipelineDesc) case .Ok(let pipeline))
+		{
+			// Note: We don't store bind group layouts here since they're owned externally
+			return .Ok(new CachedPipeline(pipeline, pipelineLayout, null));
+		}
+
+		// Cleanup on failure
+		delete pipelineLayout;
 		return .Err;
 	}
 }

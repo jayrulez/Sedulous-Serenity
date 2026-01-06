@@ -28,6 +28,10 @@ struct MeshProxy
 
 	/// Material instance handles for each sub-mesh.
 	/// Index corresponds to SubMesh index.
+	public MaterialInstanceHandle[8] MaterialInstances;
+
+	/// Legacy material IDs for backward compatibility.
+	/// Used when MaterialInstances[i].IsValid == false.
 	public uint32[8] MaterialIds;
 
 	/// Number of materials.
@@ -63,6 +67,7 @@ struct MeshProxy
 			p.WorldBounds = .(.Zero, .Zero);
 			p.LocalBounds = .(.Zero, .Zero);
 			p.MeshHandle = .Invalid;
+			p.MaterialInstances = .(.Invalid, .Invalid, .Invalid, .Invalid, .Invalid, .Invalid, .Invalid, .Invalid);
 			p.MaterialIds = .();
 			p.MaterialCount = 0;
 			p.LODLevel = 0;
@@ -84,6 +89,7 @@ struct MeshProxy
 		PreviousTransform = transform;
 		LocalBounds = localBounds;
 		WorldBounds = TransformBounds(localBounds, transform);
+		MaterialInstances = .(.Invalid, .Invalid, .Invalid, .Invalid, .Invalid, .Invalid, .Invalid, .Invalid);
 		MaterialIds = .();
 		MaterialCount = 0;
 		LODLevel = 0;
@@ -138,7 +144,26 @@ struct MeshProxy
 		PreviousTransform = Transform;
 	}
 
-	/// Sets a material for a sub-mesh.
+	/// Sets a material instance for a sub-mesh.
+	public void SetMaterialInstance(int32 subMeshIndex, MaterialInstanceHandle instance) mut
+	{
+		if (subMeshIndex >= 0 && subMeshIndex < 8)
+		{
+			MaterialInstances[subMeshIndex] = instance;
+			if (subMeshIndex >= MaterialCount)
+				MaterialCount = (uint8)(subMeshIndex + 1);
+		}
+	}
+
+	/// Gets the material instance for a sub-mesh.
+	public MaterialInstanceHandle GetMaterialInstance(int32 subMeshIndex)
+	{
+		if (subMeshIndex >= 0 && subMeshIndex < 8)
+			return MaterialInstances[subMeshIndex];
+		return .Invalid;
+	}
+
+	/// Sets a legacy material ID for a sub-mesh (backward compatibility).
 	public void SetMaterial(int32 subMeshIndex, uint32 materialId) mut
 	{
 		if (subMeshIndex >= 0 && subMeshIndex < 8)
@@ -149,13 +174,16 @@ struct MeshProxy
 		}
 	}
 
-	/// Gets the material for a sub-mesh.
+	/// Gets the legacy material ID for a sub-mesh (backward compatibility).
 	public uint32 GetMaterial(int32 subMeshIndex)
 	{
 		if (subMeshIndex >= 0 && subMeshIndex < MaterialCount)
 			return MaterialIds[subMeshIndex];
 		return 0;
 	}
+
+	/// Checks if this proxy uses material instances (vs legacy material IDs).
+	public bool UsesMaterialInstances => MaterialInstances[0].IsValid;
 
 	/// Checks if this proxy is valid.
 	public bool IsValid => Id != uint32.MaxValue && MeshHandle.IsValid;
