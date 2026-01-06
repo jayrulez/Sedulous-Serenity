@@ -36,11 +36,11 @@ class Program
 		else
 		{
 			// Default path - look for test.wav in the executable directory
-			Environment.GetExecutableFilePath(wavPath);
+			//Environment.GetExecutableFilePath(wavPath);
 			let lastSlash = Math.Max(wavPath.LastIndexOf('/'), wavPath.LastIndexOf('\\'));
 			if (lastSlash >= 0)
 				wavPath.RemoveToEnd(lastSlash + 1);
-			wavPath.Append("test.wav");
+			wavPath.Append("come_get_it.wav");
 		}
 
 		Console.WriteLine(scope $"Loading WAV file: {wavPath}");
