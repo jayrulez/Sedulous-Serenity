@@ -195,8 +195,8 @@ class RenderSceneComponent : ISceneComponent
 	/// Gets camera count for statistics.
 	public uint32 CameraCount => mRenderWorld.CameraCount;
 
-	/// Gets visible instance count for statistics.
-	public int32 VisibleInstanceCount => mInstanceCount;
+	/// Gets visible instance count for statistics (static + skinned meshes).
+	public int32 VisibleInstanceCount => (mStaticMeshRenderer?.VisibleMeshCount ?? 0) + (mSkinnedMeshRenderer?.VisibleMeshCount ?? 0);
 
 	/// Gets the lighting system (for shadow rendering).
 	public LightingSystem LightingSystem => mLightingSystem;
@@ -380,8 +380,8 @@ class RenderSceneComponent : ISceneComponent
 			}
 		}
 
-		// Create pipeline
-		if (CreatePipeline() case .Err)
+		// Create scene bind groups (used by material renderers)
+		if (CreateSceneBindGroups() case .Err)
 			return .Err;
 
 		// Create billboard camera buffers and pipelines for particles/sprites
@@ -441,21 +441,11 @@ class RenderSceneComponent : ISceneComponent
 		return .Ok;
 	}
 
-	private Result<void> CreatePipeline()
+	/// Creates the scene bind group layout and per-frame bind groups.
+	/// These are shared by all material-based renderers (StaticMeshRenderer, etc).
+	private Result<void> CreateSceneBindGroups()
 	{
 		let device = mRendererService.Device;
-		let shaderLibrary = mRendererService.ShaderLibrary;
-
-		// Load lit shaders with lighting and shadow support
-		let vertResult = shaderLibrary.GetShader("scene_lit", .Vertex);
-		if (vertResult case .Err)
-			return .Err;
-		let vertShader = vertResult.Get();
-
-		let fragResult = shaderLibrary.GetShader("scene_lit", .Fragment);
-		if (fragResult case .Err)
-			return .Err;
-		let fragShader = fragResult.Get();
 
 		// Bind group layout with lighting and shadow resources
 		BindGroupLayoutEntry[7] layoutEntries = .(
@@ -471,13 +461,6 @@ class RenderSceneComponent : ISceneComponent
 		if (device.CreateBindGroupLayout(&bindLayoutDesc) not case .Ok(let layout))
 			return .Err;
 		mBindGroupLayout = layout;
-
-		// Pipeline layout
-		IBindGroupLayout[1] layouts = .(mBindGroupLayout);
-		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
-		if (device.CreatePipelineLayout(&pipelineLayoutDesc) not case .Ok(let pipelineLayout))
-			return .Err;
-		mPipelineLayout = pipelineLayout;
 
 		// Create per-frame bind groups with lighting resources
 		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
@@ -496,66 +479,6 @@ class RenderSceneComponent : ISceneComponent
 				return .Err;
 			mFrameResources[i].BindGroup = group;
 		}
-
-		// Vertex layouts - mesh attributes
-		Sedulous.RHI.VertexAttribute[3] meshAttrs = .(
-			.(VertexFormat.Float3, 0, 0),   // Position
-			.(VertexFormat.Float3, 12, 1),  // Normal
-			.(VertexFormat.Float2, 24, 2)   // UV
-		);
-
-		// Instance attributes
-		Sedulous.RHI.VertexAttribute[5] instanceAttrs = .(
-			.(VertexFormat.Float4, 0, 3),   // Row0
-			.(VertexFormat.Float4, 16, 4),  // Row1
-			.(VertexFormat.Float4, 32, 5),  // Row2
-			.(VertexFormat.Float4, 48, 6),  // Row3
-			.(VertexFormat.Float4, 64, 7)   // Color
-		);
-
-		VertexBufferLayout[2] vertexBuffers = .(
-			.(48, meshAttrs, .Vertex),
-			.(80, instanceAttrs, .Instance)
-		);
-
-		ColorTargetState[1] colorTargets = .(.(mColorFormat));
-
-		DepthStencilState depthState = .();
-		depthState.DepthTestEnabled = true;
-		depthState.DepthWriteEnabled = true;
-		depthState.DepthCompare = .Less;
-		depthState.Format = mDepthFormat;
-
-		RenderPipelineDescriptor pipelineDesc = .()
-		{
-			Layout = mPipelineLayout,
-			Vertex = .()
-			{
-				Shader = .(vertShader.Module, "main"),
-				Buffers = vertexBuffers
-			},
-			Fragment = .()
-			{
-				Shader = .(fragShader.Module, "main"),
-				Targets = colorTargets
-			},
-			Primitive = .()
-			{
-				Topology = .TriangleList,
-				FrontFace = .CCW,
-				CullMode = .Back
-			},
-			DepthStencil = depthState,
-			Multisample = .()
-			{
-				Count = 1,
-				Mask = uint32.MaxValue
-			}
-		};
-
-		if (device.CreateRenderPipeline(&pipelineDesc) not case .Ok(let pipeline))
-			return .Err;
-		mPipeline = pipeline;
 
 		return .Ok;
 	}
@@ -1614,55 +1537,10 @@ class RenderSceneComponent : ISceneComponent
 			renderPass.Draw(3, 1, 0, 0);  // Fullscreen triangle
 		}
 
-		// Render static meshes using new renderer
+		// Render static meshes using material renderer
 		if (mStaticMeshRenderer != null)
 		{
-			// Render meshes with materials (PBR/custom materials)
 			mStaticMeshRenderer.RenderMaterials(renderPass, frame.BindGroup, mCurrentFrameIndex);
-
-			// Render legacy meshes (without MaterialInstance)
-			mStaticMeshRenderer.RenderLegacy(renderPass, frame.BindGroup, mCurrentFrameIndex);
-		}
-		else
-		{
-			// Legacy path
-			RenderMaterialMeshes(renderPass);
-
-			// Render legacy meshes (without MaterialInstance)
-			if (mInstanceCount > 0)
-			{
-				renderPass.SetPipeline(mPipeline);
-				renderPass.SetBindGroup(0, frame.BindGroup);
-
-				let resourceManager = mRendererService.ResourceManager;
-				if (resourceManager != null)
-				{
-					// Draw all legacy visible meshes using their GPU mesh
-					int32 instanceOffset = 0;
-					GPUMeshHandle lastMesh = .Invalid;
-
-					for (int32 i = 0; i < mInstanceCount; i++)
-					{
-						let proxy = mLegacyVisibleMeshes[i];
-						let meshHandle = proxy.MeshHandle;
-
-						// When mesh changes, draw the batch
-						if (i > 0 && !meshHandle.Equals(lastMesh))
-						{
-							DrawMeshBatch(renderPass, resourceManager, lastMesh, frame.InstanceBuffer, instanceOffset, i - instanceOffset);
-							instanceOffset = i;
-						}
-
-						lastMesh = meshHandle;
-					}
-
-					// Draw final batch
-					if (mInstanceCount > instanceOffset)
-					{
-						DrawMeshBatch(renderPass, resourceManager, lastMesh, frame.InstanceBuffer, instanceOffset, mInstanceCount - instanceOffset);
-					}
-				}
-			}
 		}
 
 		// Render particles

@@ -10,7 +10,7 @@ using Sedulous.Mathematics;
 struct SkinnedObjectUniforms
 {
 	public Matrix Model;
-	public Vector4 BaseColor;  // Only used by legacy shader
+	public Vector4 Reserved;  // Padding for 128-byte alignment
 }
 
 /// Draw batch for skinned meshes grouped by material.
@@ -28,8 +28,7 @@ struct SkinnedDrawBatch
 	}
 }
 
-/// Handles rendering of skinned meshes with skeletal animation.
-/// Supports both legacy rendering (no materials) and PBR material rendering.
+/// Handles rendering of skinned meshes with skeletal animation and PBR materials.
 class SkinnedMeshRenderer
 {
 	private const int32 MAX_FRAMES = 2;
@@ -43,14 +42,10 @@ class SkinnedMeshRenderer
 	// Scene bind group layout (reference, not owned - shared with static meshes)
 	private IBindGroupLayout mSceneBindGroupLayout;
 
-	// Legacy pipeline (for skinned meshes without materials)
-	private IRenderPipeline mLegacyPipeline ~ delete _;
-	private IBindGroupLayout mLegacyBindGroupLayout ~ delete _;
-	private IPipelineLayout mLegacyPipelineLayout ~ delete _;
-	private IBuffer mLegacyObjectBuffer ~ delete _;
-	private ISampler mDefaultSampler ~ delete _;
-	private ITexture mWhiteTexture ~ delete _;
-	private ITextureView mWhiteTextureView ~ delete _;
+	// Default material for skinned meshes without an assigned material
+	private MaterialHandle mDefaultMaterialHandle = .Invalid;
+	private MaterialInstanceHandle mDefaultMaterial = .Invalid;
+	private bool mDefaultMaterialCreated = false;
 
 	// Material pipeline (for skinned meshes with PBR materials)
 	private IRenderPipeline mMaterialPipeline ~ delete _;
@@ -63,14 +58,8 @@ class SkinnedMeshRenderer
 	private List<SkinnedMeshRendererComponent> mSkinnedMeshes = new .() ~ delete _;
 
 	// Batching
-	private List<SkinnedMeshRendererComponent> mLegacyMeshes = new .() ~ delete _;
-	private List<SkinnedMeshRendererComponent> mMaterialMeshes = new .() ~ delete _;
+	private List<SkinnedMeshRendererComponent> mVisibleMeshes = new .() ~ delete _;
 	private List<SkinnedDrawBatch> mMaterialBatches = new .() ~ delete _;
-
-	// Per-frame temporary bind groups (for legacy pipeline)
-	private List<IBindGroup>[MAX_FRAMES] mTempBindGroups = .(new .(), new .()) ~ {
-		for (var list in _) DeleteContainerAndItems!(list);
-	};
 
 	// Per-frame temporary object bind groups (for material pipeline)
 	private List<IBindGroup>[MAX_FRAMES] mTempObjectBindGroups = .(new .(), new .()) ~ {
@@ -83,6 +72,9 @@ class SkinnedMeshRenderer
 
 	/// Gets the number of registered skinned meshes.
 	public int32 SkinnedMeshCount => (int32)mSkinnedMeshes.Count;
+
+	/// Gets the number of visible skinned meshes (after BuildBatches).
+	public int32 VisibleMeshCount => (int32)mVisibleMeshes.Count;
 
 	/// Gets the list of registered skinned meshes (for shadow rendering).
 	public List<SkinnedMeshRendererComponent> SkinnedMeshes => mSkinnedMeshes;
@@ -104,142 +96,50 @@ class SkinnedMeshRenderer
 		mColorFormat = colorFormat;
 		mDepthFormat = depthFormat;
 
-		// Create legacy pipeline
-		if (CreateLegacyPipeline() case .Err)
-			return .Err;
-
-		// Try to create material pipeline (may fail if shaders not found - that's ok)
-		// Will be created lazily when needed
+		// Material pipeline will be created lazily when needed
 		mMaterialPipelineCreated = false;
 
 		return .Ok;
 	}
 
-	/// Creates the legacy skinned mesh pipeline.
-	private Result<void> CreateLegacyPipeline()
+	/// Creates the default gray PBR material for skinned meshes without an assigned material.
+	private void EnsureDefaultMaterial()
 	{
-		// Load skinned mesh shaders
-		let vertResult = mShaderLibrary.GetShader("skinned", .Vertex);
-		if (vertResult case .Err)
-			return .Err;
-		let vertShader = vertResult.Get();
+		if (mDefaultMaterialCreated || mMaterialSystem == null)
+			return;
 
-		let fragResult = mShaderLibrary.GetShader("skinned", .Fragment);
-		if (fragResult case .Err)
-			return .Err;
-		let fragShader = fragResult.Get();
+		mDefaultMaterialCreated = true;
 
-		// Bind group layout: b0=camera, b1=object, b2=bones, t0=texture, s0=sampler
-		BindGroupLayoutEntry[5] layoutEntries = .(
-			BindGroupLayoutEntry.UniformBuffer(0, .Vertex | .Fragment),  // Camera
-			BindGroupLayoutEntry.UniformBuffer(1, .Vertex | .Fragment),  // Object
-			BindGroupLayoutEntry.UniformBuffer(2, .Vertex),              // Bones
-			BindGroupLayoutEntry.SampledTexture(0, .Fragment, .Texture2D),
-			BindGroupLayoutEntry.Sampler(0, .Fragment)
-		);
-		BindGroupLayoutDescriptor bindLayoutDesc = .(layoutEntries);
-		if (mDevice.CreateBindGroupLayout(&bindLayoutDesc) not case .Ok(let layout))
-			return .Err;
-		mLegacyBindGroupLayout = layout;
+		// Create and register a standard PBR material
+		let pbrMaterial = Material.CreatePBR("DefaultSkinnedPBR");
+		mDefaultMaterialHandle = mMaterialSystem.RegisterMaterial(pbrMaterial);
+		if (!mDefaultMaterialHandle.IsValid)
+			return;
 
-		// Pipeline layout
-		IBindGroupLayout[1] layouts = .(mLegacyBindGroupLayout);
-		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
-		if (mDevice.CreatePipelineLayout(&pipelineLayoutDesc) not case .Ok(let pipelineLayout))
-			return .Err;
-		mLegacyPipelineLayout = pipelineLayout;
+		// Create a gray instance
+		mDefaultMaterial = mMaterialSystem.CreateInstance(mDefaultMaterialHandle);
+		if (!mDefaultMaterial.IsValid)
+			return;
 
-		// Create object uniform buffer
-		BufferDescriptor objectDesc = .(128, .Uniform, .Upload);
-		if (mDevice.CreateBuffer(&objectDesc) case .Ok(let buf))
-			mLegacyObjectBuffer = buf;
-		else
-			return .Err;
-
-		// Create default sampler
-		SamplerDescriptor samplerDesc = .();
-		samplerDesc.MinFilter = .Linear;
-		samplerDesc.MagFilter = .Linear;
-		samplerDesc.MipmapFilter = .Linear;
-		samplerDesc.AddressModeU = .ClampToEdge;
-		samplerDesc.AddressModeV = .ClampToEdge;
-		if (mDevice.CreateSampler(&samplerDesc) case .Ok(let sampler))
-			mDefaultSampler = sampler;
-		else
-			return .Err;
-
-		// Create 1x1 white texture fallback
-		TextureDescriptor texDesc = .Texture2D(1, 1, .RGBA8Unorm, .Sampled | .CopyDst);
-		if (mDevice.CreateTexture(&texDesc) case .Ok(let tex))
+		// Configure as a neutral gray material
+		let instance = mMaterialSystem.GetInstance(mDefaultMaterial);
+		if (instance != null)
 		{
-			mWhiteTexture = tex;
-			uint8[4] white = .(255, 255, 255, 255);
-			TextureDataLayout texLayout = .() { Offset = 0, BytesPerRow = 4, RowsPerImage = 1 };
-			Extent3D size = .(1, 1, 1);
-			Span<uint8> data = .(&white, 4);
-			mDevice.Queue.WriteTexture(mWhiteTexture, data, &texLayout, &size, 0, 0);
-
-			TextureViewDescriptor viewDesc = .() { Format = .RGBA8Unorm, Dimension = .Texture2D, MipLevelCount = 1, ArrayLayerCount = 1 };
-			if (mDevice.CreateTextureView(mWhiteTexture, &viewDesc) case .Ok(let view))
-				mWhiteTextureView = view;
-			else
-				return .Err;
+			instance.SetFloat4("baseColor", .(0.5f, 0.5f, 0.5f, 1.0f));  // Medium gray
+			instance.SetFloat("metallic", 0.0f);
+			instance.SetFloat("roughness", 0.7f);
+			instance.SetFloat("ao", 1.0f);
+			instance.SetFloat4("emissive", .(0, 0, 0, 1));
+			mMaterialSystem.UploadInstance(mDefaultMaterial);
 		}
-		else
-			return .Err;
+	}
 
-		// SkinnedVertex layout: Position(12) + Normal(12) + UV(8) + Color(4) + Tangent(12) + Joints(8) + Weights(16) = 72 bytes
-		Sedulous.RHI.VertexAttribute[7] vertexAttrs = .(
-			.(VertexFormat.Float3, 0, 0),              // Position
-			.(VertexFormat.Float3, 12, 1),             // Normal
-			.(VertexFormat.Float2, 24, 2),             // TexCoord
-			.(VertexFormat.UByte4Normalized, 32, 3),   // Color
-			.(VertexFormat.Float3, 36, 4),             // Tangent
-			.(VertexFormat.UShort4, 48, 5),            // Joints
-			.(VertexFormat.Float4, 56, 6)              // Weights
-		);
-		VertexBufferLayout[1] vertexBuffers = .(.(72, vertexAttrs));
-
-		ColorTargetState[1] colorTargets = .(.(mColorFormat));
-
-		DepthStencilState depthState = .();
-		depthState.DepthTestEnabled = true;
-		depthState.DepthWriteEnabled = true;
-		depthState.DepthCompare = .Less;
-		depthState.Format = mDepthFormat;
-
-		RenderPipelineDescriptor pipelineDesc = .()
-		{
-			Layout = mLegacyPipelineLayout,
-			Vertex = .()
-			{
-				Shader = .(vertShader.Module, "main"),
-				Buffers = vertexBuffers
-			},
-			Fragment = .()
-			{
-				Shader = .(fragShader.Module, "main"),
-				Targets = colorTargets
-			},
-			Primitive = .()
-			{
-				Topology = .TriangleList,
-				FrontFace = .CCW,
-				CullMode = .Back
-			},
-			DepthStencil = depthState,
-			Multisample = .()
-			{
-				Count = 1,
-				Mask = uint32.MaxValue
-			}
-		};
-
-		if (mDevice.CreateRenderPipeline(&pipelineDesc) not case .Ok(let pipeline))
-			return .Err;
-		mLegacyPipeline = pipeline;
-
-		return .Ok;
+	/// Gets the effective material for a skinned mesh (uses default if none assigned).
+	private MaterialInstanceHandle GetEffectiveMaterial(SkinnedMeshRendererComponent mesh)
+	{
+		if (mesh.MaterialInstance.IsValid)
+			return mesh.MaterialInstance;
+		return mDefaultMaterial;
 	}
 
 	/// Creates the material-based skinned mesh pipeline.
@@ -375,37 +275,42 @@ class SkinnedMeshRenderer
 	/// Called during OnUpdate after animation updates.
 	public void BuildBatches()
 	{
-		mLegacyMeshes.Clear();
-		mMaterialMeshes.Clear();
+		mVisibleMeshes.Clear();
 		mMaterialBatches.Clear();
 
-		// Separate meshes by material status
+		// Ensure default material exists for meshes without assigned materials
+		EnsureDefaultMaterial();
+
+		// Collect visible meshes (with or without valid materials)
 		for (let mesh in mSkinnedMeshes)
 		{
 			if (!mesh.Visible || !mesh.GPUMeshHandle.IsValid)
 				continue;
 
-			if (mesh.MaterialInstance.IsValid)
-				mMaterialMeshes.Add(mesh);
-			else
-				mLegacyMeshes.Add(mesh);
+			// Include mesh if it has a valid material OR we have a default material
+			if (mesh.MaterialInstance.IsValid || mDefaultMaterial.IsValid)
+				mVisibleMeshes.Add(mesh);
 		}
 
 		// Build material batches (sort by material for efficient rendering)
-		if (mMaterialMeshes.Count > 0)
+		if (mVisibleMeshes.Count > 0)
 		{
-			// Sort by material
-			mMaterialMeshes.Sort(scope (a, b) =>
-				(int32)a.MaterialInstance.Index - (int32)b.MaterialInstance.Index);
+			// Sort by effective material
+			mVisibleMeshes.Sort(scope (a, b) =>
+			{
+				let matA = GetEffectiveMaterial(a);
+				let matB = GetEffectiveMaterial(b);
+				return (int32)matA.Index - (int32)matB.Index;
+			});
 
 			// Build batches
 			MaterialInstanceHandle currentMaterial = .Invalid;
 			int32 batchStart = 0;
 
-			for (int32 i = 0; i < mMaterialMeshes.Count; i++)
+			for (int32 i = 0; i < mVisibleMeshes.Count; i++)
 			{
-				let mesh = mMaterialMeshes[i];
-				let material = mesh.MaterialInstance;
+				let mesh = mVisibleMeshes[i];
+				let material = GetEffectiveMaterial(mesh);
 
 				if (i > 0 && !material.Equals(currentMaterial))
 				{
@@ -417,9 +322,9 @@ class SkinnedMeshRenderer
 			}
 
 			// Final batch
-			if (mMaterialMeshes.Count > batchStart)
+			if (mVisibleMeshes.Count > batchStart)
 			{
-				mMaterialBatches.Add(.(currentMaterial, batchStart, (int32)mMaterialMeshes.Count - batchStart));
+				mMaterialBatches.Add(.(currentMaterial, batchStart, (int32)mVisibleMeshes.Count - batchStart));
 			}
 		}
 	}
@@ -427,77 +332,11 @@ class SkinnedMeshRenderer
 	/// Renders all skinned meshes.
 	public void Render(IRenderPassEncoder renderPass, IBuffer cameraBuffer, IBindGroup sceneBindGroup, int32 frameIndex)
 	{
-		// Clean up temporary bind groups from previous frame
-		ClearAndDeleteItems!(mTempBindGroups[frameIndex]);
+		// Clean up temporary object bind groups from previous frame
 		ClearAndDeleteItems!(mTempObjectBindGroups[frameIndex]);
-
-		// Render legacy meshes (without materials)
-		RenderLegacy(renderPass, cameraBuffer, frameIndex);
 
 		// Render material meshes (with PBR materials)
 		RenderMaterials(renderPass, sceneBindGroup, frameIndex);
-	}
-
-	/// Renders skinned meshes without materials using the legacy pipeline.
-	private void RenderLegacy(IRenderPassEncoder renderPass, IBuffer cameraBuffer, int32 frameIndex)
-	{
-		if (mLegacyPipeline == null || mLegacyMeshes.Count == 0)
-			return;
-
-		renderPass.SetPipeline(mLegacyPipeline);
-
-		for (let skinnedComp in mLegacyMeshes)
-		{
-			let meshHandle = skinnedComp.GPUMeshHandle;
-			let gpuMesh = mResourceManager.GetSkinnedMesh(meshHandle);
-			if (gpuMesh == null)
-				continue;
-
-			let boneBuffer = skinnedComp.BoneMatrixBuffer;
-			if (boneBuffer == null)
-				continue;
-
-			// Create bind group for this mesh
-			ITextureView textureView = skinnedComp.TextureView;
-			if (textureView == null)
-				textureView = mWhiteTextureView;
-
-			BindGroupEntry[5] entries = .(
-				BindGroupEntry.Buffer(0, cameraBuffer),
-				BindGroupEntry.Buffer(1, mLegacyObjectBuffer),
-				BindGroupEntry.Buffer(2, boneBuffer),
-				BindGroupEntry.Texture(0, textureView),
-				BindGroupEntry.Sampler(0, mDefaultSampler)
-			);
-			BindGroupDescriptor bindGroupDesc = .(mLegacyBindGroupLayout, entries);
-			if (mDevice.CreateBindGroup(&bindGroupDesc) case .Ok(let group))
-			{
-				mTempBindGroups[frameIndex].Add(group);
-
-				// Update object buffer with this mesh's transform
-				Matrix modelMatrix = .Identity;
-				if (skinnedComp.Entity != null)
-					modelMatrix = skinnedComp.Entity.Transform.WorldMatrix;
-				Vector4 baseColor = .(1, 1, 1, 1);
-
-				SkinnedObjectUniforms objectData = .() { Model = modelMatrix, BaseColor = baseColor };
-				Span<uint8> objSpan = .((uint8*)&objectData, sizeof(SkinnedObjectUniforms));
-				mDevice.Queue.WriteBuffer(mLegacyObjectBuffer, 0, objSpan);
-
-				renderPass.SetBindGroup(0, group);
-				renderPass.SetVertexBuffer(0, gpuMesh.VertexBuffer, 0);
-
-				if (gpuMesh.IndexBuffer != null)
-				{
-					renderPass.SetIndexBuffer(gpuMesh.IndexBuffer, gpuMesh.IndexFormat, 0);
-					renderPass.DrawIndexed(gpuMesh.IndexCount, 1, 0, 0, 0);
-				}
-				else
-				{
-					renderPass.Draw(gpuMesh.VertexCount, 1, 0, 0);
-				}
-			}
-		}
 	}
 
 	/// Renders skinned meshes with PBR materials.
@@ -537,7 +376,7 @@ class SkinnedMeshRenderer
 			// Render all meshes in this batch
 			for (int32 i = batch.StartIndex; i < batch.StartIndex + batch.Count; i++)
 			{
-				let skinnedComp = mMaterialMeshes[i];
+				let skinnedComp = mVisibleMeshes[i];
 				let meshHandle = skinnedComp.GPUMeshHandle;
 				let gpuMesh = mResourceManager.GetSkinnedMesh(meshHandle);
 				if (gpuMesh == null)
@@ -562,7 +401,7 @@ class SkinnedMeshRenderer
 					if (skinnedComp.Entity != null)
 						modelMatrix = skinnedComp.Entity.Transform.WorldMatrix;
 
-					SkinnedObjectUniforms objectData = .() { Model = modelMatrix, BaseColor = .(1, 1, 1, 1) };
+					SkinnedObjectUniforms objectData = .() { Model = modelMatrix, Reserved = .(0, 0, 0, 0) };
 					Span<uint8> objSpan = .((uint8*)&objectData, sizeof(SkinnedObjectUniforms));
 					mDevice.Queue.WriteBuffer(mMaterialObjectBuffer, 0, objSpan);
 

@@ -49,6 +49,7 @@ class RendererMaterialsSample : RHISampleApp
 	// Material handles
 	private MaterialHandle mPBRMaterial = .Invalid;
 	private List<MaterialInstanceHandle> mMaterialInstances = new .() ~ delete _;
+	private MaterialInstanceHandle mGroundMaterial = .Invalid;
 
 	// Fox (skinned mesh) resources
 	private Model mFoxModel ~ delete _;
@@ -308,6 +309,24 @@ class RendererMaterialsSample : RHISampleApp
 				}
 			}
 		}
+
+		// Create material instance for the ground plane
+		mGroundMaterial = materialSystem.CreateInstance(mPBRMaterial);
+		if (mGroundMaterial.IsValid)
+		{
+			let groundInstance = materialSystem.GetInstance(mGroundMaterial);
+			if (groundInstance != null)
+			{
+				// Gray concrete-like ground
+				groundInstance.SetFloat4("baseColor", .(0.4f, 0.4f, 0.4f, 1.0f));
+				groundInstance.SetFloat("metallic", 0.0f);
+				groundInstance.SetFloat("roughness", 0.9f);  // Very rough
+				groundInstance.SetFloat("ao", 1.0f);
+				groundInstance.SetFloat4("emissive", .(0, 0, 0, 1));
+				materialSystem.UploadInstance(mGroundMaterial);
+				Console.WriteLine("Created ground PBR material instance");
+			}
+		}
 	}
 
 	private void CreateEntities()
@@ -326,7 +345,7 @@ class RendererMaterialsSample : RHISampleApp
 			groundEntity.Transform.SetScale(.(30.0f, 0.2f, 30.0f));
 
 			let meshRenderer = new MeshRendererComponent();
-			meshRenderer.MaterialIds[0] = 7;  // Gray color for legacy path
+			meshRenderer.SetMaterialInstance(0, mGroundMaterial);
 			meshRenderer.MaterialCount = 1;
 			groundEntity.AddComponent(meshRenderer);
 			meshRenderer.SetMesh(groundMesh);
@@ -360,19 +379,6 @@ class RendererMaterialsSample : RHISampleApp
 
 				instanceIndex++;
 			}
-		}
-
-		// Create some comparison spheres without materials (legacy path)
-		for (int i = 0; i < 5; i++)
-		{
-			let entity = mScene.CreateEntity(scope $"LegacySphere_{i}");
-			entity.Transform.SetPosition(.(-5.0f, 0.5f, startZ + i * spacing));
-
-			let meshRenderer = new MeshRendererComponent();
-			meshRenderer.MaterialIds[0] = (uint32)i;  // Vary colors
-			meshRenderer.MaterialCount = 1;
-			entity.AddComponent(meshRenderer);
-			meshRenderer.SetMesh(sphereMesh);
 		}
 
 		// Create directional light
@@ -440,9 +446,9 @@ class RendererMaterialsSample : RHISampleApp
 		}
 
 		if (mFoxResource != null)
-			Console.WriteLine($"Created {GRID_SIZE * GRID_SIZE} PBR spheres + 5 legacy spheres + Fox");
+			Console.WriteLine($"Created {GRID_SIZE * GRID_SIZE} PBR spheres + ground + Fox");
 		else
-			Console.WriteLine($"Created {GRID_SIZE * GRID_SIZE} PBR spheres + 5 legacy spheres");
+			Console.WriteLine($"Created {GRID_SIZE * GRID_SIZE} PBR spheres + ground");
 	}
 
 	protected override void OnResize(uint32 width, uint32 height)
@@ -839,6 +845,9 @@ class RendererMaterialsSample : RHISampleApp
 
 			if (mFoxMaterialInstance.IsValid)
 				mRendererService.MaterialSystem.ReleaseInstance(mFoxMaterialInstance);
+
+			if (mGroundMaterial.IsValid)
+				mRendererService.MaterialSystem.ReleaseInstance(mGroundMaterial);
 
 			if (mPBRMaterial.IsValid)
 				mRendererService.MaterialSystem.ReleaseMaterial(mPBRMaterial);

@@ -35,6 +35,13 @@ class RendererIntegratedSample : RHISampleApp
 	private RendererService mRendererService;
 	private RenderSceneComponent mRenderSceneComponent;
 
+	// Material handles
+	private MaterialHandle mPBRMaterial = .Invalid;
+	private MaterialInstanceHandle mGroundMaterial = .Invalid;
+	private MaterialInstanceHandle[8] mCubeMaterials;  // 8 different colors
+	private MaterialInstanceHandle mFoxMaterial = .Invalid;
+	private GPUTextureHandle mFoxTexture = .Invalid;
+
 	// Camera entity and control
 	private Entity mCameraEntity;
 	private float mCameraYaw = Math.PI_f;  // Start looking toward -Z (toward origin)
@@ -90,6 +97,9 @@ class RendererIntegratedSample : RHISampleApp
 			return false;
 		}
 
+		// Create materials
+		CreateMaterials();
+
 		// Create all entities (cubes, lights, camera)
 		CreateEntities();
 
@@ -109,6 +119,89 @@ class RendererIntegratedSample : RHISampleApp
 		return true;
 	}
 
+	private void CreateMaterials()
+	{
+		let materialSystem = mRendererService.MaterialSystem;
+		if (materialSystem == null)
+		{
+			Console.WriteLine("MaterialSystem not available!");
+			return;
+		}
+
+		// Create PBR material
+		let pbrMaterial = Material.CreatePBR("PBRMaterial");
+		mPBRMaterial = materialSystem.RegisterMaterial(pbrMaterial);
+
+		if (!mPBRMaterial.IsValid)
+		{
+			Console.WriteLine("Failed to register PBR material");
+			return;
+		}
+
+		// Create ground material (gray)
+		mGroundMaterial = materialSystem.CreateInstance(mPBRMaterial);
+		if (mGroundMaterial.IsValid)
+		{
+			let instance = materialSystem.GetInstance(mGroundMaterial);
+			if (instance != null)
+			{
+				instance.SetFloat4("baseColor", .(0.4f, 0.4f, 0.4f, 1.0f));
+				instance.SetFloat("metallic", 0.0f);
+				instance.SetFloat("roughness", 0.9f);
+				instance.SetFloat("ao", 1.0f);
+				instance.SetFloat4("emissive", .(0, 0, 0, 1));
+				materialSystem.UploadInstance(mGroundMaterial);
+			}
+		}
+
+		// Create 8 cube materials with different colors
+		Vector4[8] cubeColors = .(
+			.(1.0f, 0.3f, 0.3f, 1.0f),  // Red
+			.(0.3f, 1.0f, 0.3f, 1.0f),  // Green
+			.(0.3f, 0.3f, 1.0f, 1.0f),  // Blue
+			.(1.0f, 1.0f, 0.3f, 1.0f),  // Yellow
+			.(1.0f, 0.3f, 1.0f, 1.0f),  // Magenta
+			.(0.3f, 1.0f, 1.0f, 1.0f),  // Cyan
+			.(1.0f, 0.6f, 0.3f, 1.0f),  // Orange
+			.(0.6f, 0.3f, 1.0f, 1.0f)   // Purple
+		);
+
+		for (int32 i = 0; i < 8; i++)
+		{
+			mCubeMaterials[i] = materialSystem.CreateInstance(mPBRMaterial);
+			if (mCubeMaterials[i].IsValid)
+			{
+				let instance = materialSystem.GetInstance(mCubeMaterials[i]);
+				if (instance != null)
+				{
+					instance.SetFloat4("baseColor", cubeColors[i]);
+					instance.SetFloat("metallic", 0.2f);
+					instance.SetFloat("roughness", 0.5f);
+					instance.SetFloat("ao", 1.0f);
+					instance.SetFloat4("emissive", .(0, 0, 0, 1));
+					materialSystem.UploadInstance(mCubeMaterials[i]);
+				}
+			}
+		}
+
+		// Create Fox material (will set texture later in CreateFoxEntity)
+		mFoxMaterial = materialSystem.CreateInstance(mPBRMaterial);
+		if (mFoxMaterial.IsValid)
+		{
+			let instance = materialSystem.GetInstance(mFoxMaterial);
+			if (instance != null)
+			{
+				instance.SetFloat4("baseColor", .(1.0f, 1.0f, 1.0f, 1.0f));  // White to show texture
+				instance.SetFloat("metallic", 0.0f);
+				instance.SetFloat("roughness", 0.6f);
+				instance.SetFloat("ao", 1.0f);
+				instance.SetFloat4("emissive", .(0, 0, 0, 1));
+			}
+		}
+
+		Console.WriteLine("Created PBR materials for ground, cubes, and Fox");
+	}
+
 	private void CreateEntities()
 	{
 		// Create shared CPU mesh - uploaded to GPU automatically by MeshRendererComponent
@@ -122,10 +215,9 @@ class RendererIntegratedSample : RHISampleApp
 			groundEntity.Transform.SetScale(.(50.0f, 1.0f, 50.0f));
 
 			let meshRenderer = new MeshRendererComponent();
-			meshRenderer.MaterialIds[0] = 7;  // Use a neutral color
-			meshRenderer.MaterialCount = 1;
 			groundEntity.AddComponent(meshRenderer);
 			meshRenderer.SetMesh(cubeMesh);
+			meshRenderer.SetMaterialInstance(0, mGroundMaterial);
 		}
 
 		float spacing = 3.0f;
@@ -146,12 +238,11 @@ class RendererIntegratedSample : RHISampleApp
 				// Add MeshRendererComponent first, then set mesh
 				// (SetMesh needs access to RendererService via entity's scene)
 				let meshRenderer = new MeshRendererComponent();
-				meshRenderer.MaterialIds[0] = (uint32)((x + z) % 8);  // Vary colors
-				meshRenderer.MaterialCount = 1;
 				entity.AddComponent(meshRenderer);
 
 				// Now set the mesh - GPU upload happens automatically
 				meshRenderer.SetMesh(cubeMesh);
+				meshRenderer.SetMaterialInstance(0, mCubeMaterials[(x + z) % 8]);
 			}
 		}
 
@@ -313,38 +404,47 @@ class RendererIntegratedSample : RHISampleApp
 		// Set the mesh (triggers GPU upload)
 		skinnedRenderer.SetMesh(mFoxResource.Mesh);
 
-		// Load fox texture
+		// Load fox texture and set on material
 		let texPath = "models/Fox/glTF/Texture.png";
-		let imageLoader = scope SDLImageLoader();
-		if (imageLoader.LoadFromFile(texPath) case .Ok(var loadInfo))
+		let resourceManager = mRendererService.ResourceManager;
+		let materialSystem = mRendererService.MaterialSystem;
+
+		if (resourceManager != null && materialSystem != null)
 		{
-			defer loadInfo.Dispose();
-			Console.WriteLine($"Fox texture: {loadInfo.Width}x{loadInfo.Height}");
-
-			TextureDescriptor texDesc = .Texture2D(loadInfo.Width, loadInfo.Height, .RGBA8Unorm, .Sampled | .CopyDst);
-			if (Device.CreateTexture(&texDesc) case .Ok(let texture))
+			let imageLoader = scope SDLImageLoader();
+			if (imageLoader.LoadFromFile(texPath) case .Ok(var loadInfo))
 			{
-				TextureDataLayout layout = .() { Offset = 0, BytesPerRow = loadInfo.Width * 4, RowsPerImage = loadInfo.Height };
-				Extent3D size = .(loadInfo.Width, loadInfo.Height, 1);
-				Span<uint8> data = .(loadInfo.Data.Ptr, loadInfo.Data.Count);
-				Device.Queue.WriteTexture(texture, data, &layout, &size, 0, 0);
+				defer loadInfo.Dispose();
+				Console.WriteLine($"Fox texture: {loadInfo.Width}x{loadInfo.Height}");
 
-				TextureViewDescriptor viewDesc = .() { Format = .RGBA8Unorm, Dimension = .Texture2D, MipLevelCount = 1, ArrayLayerCount = 1 };
-				if (Device.CreateTextureView(texture, &viewDesc) case .Ok(let view))
+				// Upload texture via ResourceManager
+				mFoxTexture = resourceManager.CreateTextureFromData(
+					loadInfo.Width, loadInfo.Height, .RGBA8Unorm, .(loadInfo.Data.Ptr, loadInfo.Data.Count));
+
+				if (mFoxTexture.IsValid)
 				{
-					skinnedRenderer.SetTexture(texture, view);
-					Console.WriteLine("Fox texture loaded");
-				}
-				else
-				{
-					delete texture;
+					// Set texture on Fox material instance
+					if (mFoxMaterial.IsValid)
+					{
+						let foxInstance = materialSystem.GetInstance(mFoxMaterial);
+						if (foxInstance != null)
+						{
+							foxInstance.SetTexture("albedoMap", mFoxTexture);
+							materialSystem.UploadInstance(mFoxMaterial);
+							Console.WriteLine("Fox texture set on material");
+						}
+					}
 				}
 			}
+			else
+			{
+				Console.WriteLine($"Failed to load fox texture: {texPath}");
+			}
 		}
-		else
-		{
-			Console.WriteLine($"Failed to load fox texture: {texPath}");
-		}
+
+		// Set PBR material on skinned mesh
+		if (mFoxMaterial.IsValid)
+			skinnedRenderer.SetMaterial(mFoxMaterial);
 
 		// Start playing first animation
 		if (skinnedRenderer.AnimationClips.Count > 0)
@@ -522,6 +622,35 @@ class RendererIntegratedSample : RHISampleApp
 	protected override void OnCleanup()
 	{
 		mContext?.Shutdown();
+
+		// Wait for GPU to finish before cleanup
+		Device.WaitIdle();
+
+		// Clean up materials
+		if (mRendererService?.MaterialSystem != null)
+		{
+			let materialSystem = mRendererService.MaterialSystem;
+
+			if (mFoxMaterial.IsValid)
+				materialSystem.ReleaseInstance(mFoxMaterial);
+
+			for (let cubeMat in mCubeMaterials)
+			{
+				if (cubeMat.IsValid)
+					materialSystem.ReleaseInstance(cubeMat);
+			}
+
+			if (mGroundMaterial.IsValid)
+				materialSystem.ReleaseInstance(mGroundMaterial);
+
+			if (mPBRMaterial.IsValid)
+				materialSystem.ReleaseMaterial(mPBRMaterial);
+		}
+
+		// Clean up fox texture
+		if (mFoxTexture.IsValid && mRendererService?.ResourceManager != null)
+			mRendererService.ResourceManager.ReleaseTexture(mFoxTexture);
+
 		delete mRendererService;
 	}
 }

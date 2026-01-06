@@ -280,8 +280,7 @@ class ShadowRenderer
 			return false;
 
 		// Check if we have any meshes to render
-		let hasStaticMeshes = staticRenderer != null &&
-			(staticRenderer.LegacyInstanceCount > 0 || staticRenderer.MaterialBatches.Count > 0);
+		let hasStaticMeshes = staticRenderer != null && staticRenderer.MaterialBatches.Count > 0;
 		let hasSkinnedMeshes = skinnedRenderer != null && skinnedRenderer.SkinnedMeshCount > 0;
 
 		if (!hasStaticMeshes && !hasSkinnedMeshes)
@@ -359,39 +358,12 @@ class ShadowRenderer
 		shadowPass.SetPipeline(mStaticShadowPipeline);
 		shadowPass.SetBindGroup(0, mStaticShadowBindGroups[frameIndex][cascade]);
 
-		let legacyInstanceBuffer = staticRenderer.GetLegacyInstanceBuffer(frameIndex);
-		let materialInstanceBuffer = staticRenderer.GetMaterialInstanceBuffer(frameIndex);
-
-		// Draw legacy visible meshes to shadow map
-		int32 instanceOffset = 0;
-		GPUMeshHandle lastMesh = .Invalid;
-		let legacyMeshes = staticRenderer.LegacyMeshes;
-		let legacyCount = staticRenderer.LegacyInstanceCount;
-
-		for (int32 i = 0; i < legacyCount; i++)
-		{
-			let proxy = legacyMeshes[i];
-			let meshHandle = proxy.MeshHandle;
-
-			if (i > 0 && !meshHandle.Equals(lastMesh))
-			{
-				DrawStaticShadowBatch(shadowPass, lastMesh, legacyInstanceBuffer, instanceOffset, i - instanceOffset);
-				instanceOffset = i;
-			}
-
-			lastMesh = meshHandle;
-		}
-
-		// Draw final legacy batch
-		if (legacyCount > instanceOffset)
-		{
-			DrawStaticShadowBatch(shadowPass, lastMesh, legacyInstanceBuffer, instanceOffset, legacyCount - instanceOffset);
-		}
+		let instanceBuffer = staticRenderer.GetMaterialInstanceBuffer(frameIndex);
 
 		// Draw material meshes to shadow map
 		for (let batch in staticRenderer.MaterialBatches)
 		{
-			DrawStaticShadowBatch(shadowPass, batch.Mesh, materialInstanceBuffer, batch.InstanceOffset, batch.InstanceCount);
+			DrawStaticShadowBatch(shadowPass, batch.Mesh, instanceBuffer, batch.InstanceOffset, batch.InstanceCount);
 		}
 	}
 
@@ -404,7 +376,7 @@ class ShadowRenderer
 			return;
 
 		shadowPass.SetVertexBuffer(0, gpuMesh.VertexBuffer, 0);
-		shadowPass.SetVertexBuffer(1, instanceBuffer, (uint64)(instanceOffset * sizeof(RenderSceneInstanceData)));
+		shadowPass.SetVertexBuffer(1, instanceBuffer, (uint64)(instanceOffset * sizeof(MaterialInstanceData)));
 
 		if (gpuMesh.IndexBuffer != null)
 		{
