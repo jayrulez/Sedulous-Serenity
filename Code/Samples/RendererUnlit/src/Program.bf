@@ -382,7 +382,7 @@ class RendererUnlitSample : RHISampleApp
 	private void CreateEntities()
 	{
 		// Create cube mesh
-		let cubeMesh = Mesh.CreateCube(1.0f);
+		let cubeMesh = StaticMesh.CreateCube(1.0f);
 		defer delete cubeMesh;
 
 		// Create ground plane
@@ -391,10 +391,10 @@ class RendererUnlitSample : RHISampleApp
 			groundEntity.Transform.SetPosition(.(0, -1.5f, 0));
 			groundEntity.Transform.SetScale(.(30.0f, 0.2f, 30.0f));
 
-			let meshRenderer = new MeshRendererComponent();
-			groundEntity.AddComponent(meshRenderer);
-			meshRenderer.SetMesh(cubeMesh);
-			meshRenderer.SetMaterialInstance(0, mGroundMaterial);
+			let meshComponent = new StaticMeshComponent();
+			groundEntity.AddComponent(meshComponent);
+			meshComponent.SetMesh(cubeMesh);
+			meshComponent.SetMaterialInstance(0, mGroundMaterial);
 		}
 
 		float spacing = 2.0f;
@@ -408,10 +408,10 @@ class RendererUnlitSample : RHISampleApp
 			let entity = mScene.CreateEntity(scope $"UnlitCube_{i}");
 			entity.Transform.SetPosition(.(posX, 1.5f, -2.0f));
 
-			let meshRenderer = new MeshRendererComponent();
-			entity.AddComponent(meshRenderer);
-			meshRenderer.SetMesh(cubeMesh);
-			meshRenderer.SetMaterialInstance(0, mUnlitInstances[i]);
+			let meshComponent = new StaticMeshComponent();
+			entity.AddComponent(meshComponent);
+			meshComponent.SetMesh(cubeMesh);
+			meshComponent.SetMaterialInstance(0, mUnlitInstances[i]);
 		}
 
 		// Create bottom row: PBR cubes (Y = 1.5, Z offset)
@@ -422,10 +422,10 @@ class RendererUnlitSample : RHISampleApp
 			let entity = mScene.CreateEntity(scope $"PBRCube_{i}");
 			entity.Transform.SetPosition(.(posX, 1.5f, 2.0f));
 
-			let meshRenderer = new MeshRendererComponent();
-			entity.AddComponent(meshRenderer);
-			meshRenderer.SetMesh(cubeMesh);
-			meshRenderer.SetMaterialInstance(0, mPBRInstances[i]);
+			let meshComponent = new StaticMeshComponent();
+			entity.AddComponent(meshComponent);
+			meshComponent.SetMesh(cubeMesh);
+			meshComponent.SetMaterialInstance(0, mPBRInstances[i]);
 		}
 
 		// Create directional light
@@ -462,20 +462,20 @@ class RendererUnlitSample : RHISampleApp
 				foxEntity.Transform.SetScale(Vector3(0.04f));
 				foxEntity.Transform.SetRotation(Quaternion.CreateFromYawPitchRoll(Math.PI_f * 0.25f, 0, 0));
 
-				let skinnedRenderer = new SkinnedMeshRendererComponent();
-				foxEntity.AddComponent(skinnedRenderer);
+				let meshComponent = new SkinnedMeshComponent();
+				foxEntity.AddComponent(meshComponent);
 
 				if (mFoxResource.Skeleton != null)
-					skinnedRenderer.SetSkeleton(mFoxResource.Skeleton, false);
+					meshComponent.SetSkeleton(mFoxResource.Skeleton, false);
 
 				for (let clip in mFoxResource.Animations)
-					skinnedRenderer.AddAnimationClip(clip);
+					meshComponent.AddAnimationClip(clip);
 
-				skinnedRenderer.SetMesh(mFoxResource.Mesh);
-				skinnedRenderer.SetMaterial(mFoxPBRMaterial);
+				meshComponent.SetMesh(mFoxResource.Mesh);
+				meshComponent.SetMaterial(mFoxPBRMaterial);
 
-				if (skinnedRenderer.AnimationClips.Count > 0)
-					skinnedRenderer.PlayAnimation(0, true);
+				if (meshComponent.AnimationClips.Count > 0)
+					meshComponent.PlayAnimation(0, true);
 
 				Console.WriteLine("Fox 1: PBR material (left) - affected by lighting");
 			}
@@ -487,7 +487,7 @@ class RendererUnlitSample : RHISampleApp
 				foxEntity.Transform.SetScale(Vector3(0.04f));
 				foxEntity.Transform.SetRotation(Quaternion.CreateFromYawPitchRoll(Math.PI_f, 0, 0));
 
-				let skinnedRenderer = new SkinnedMeshRendererComponent();
+				let skinnedRenderer = new SkinnedMeshComponent();
 				foxEntity.AddComponent(skinnedRenderer);
 
 				if (mFoxResource.Skeleton != null)
@@ -514,7 +514,7 @@ class RendererUnlitSample : RHISampleApp
 				foxEntity.Transform.SetScale(Vector3(0.04f));
 				foxEntity.Transform.SetRotation(Quaternion.CreateFromYawPitchRoll(-Math.PI_f * 0.25f, 0, 0));
 
-				let skinnedRenderer = new SkinnedMeshRendererComponent();
+				let skinnedRenderer = new SkinnedMeshComponent();
 				foxEntity.AddComponent(skinnedRenderer);
 
 				if (mFoxResource.Skeleton != null)

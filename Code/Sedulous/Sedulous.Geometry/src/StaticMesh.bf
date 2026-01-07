@@ -5,7 +5,7 @@ using Sedulous.Mathematics;
 namespace Sedulous.Geometry;
 
 /// A mesh with vertex and index data
-public class Mesh
+public class StaticMesh
 {
 	private VertexBuffer mVertexBuffer ~ delete _;
 	private IndexBuffer mIndexBuffer ~ delete _;
@@ -283,9 +283,9 @@ public class Mesh
 	// Factory methods for primitive shapes
 
 	/// Create a simple triangle mesh
-	public static Mesh CreateTriangle()
+	public static StaticMesh CreateTriangle()
 	{
-		let mesh = new Mesh();
+		let mesh = new StaticMesh();
 		mesh.SetupCommonVertexFormat();
 
 		mesh.Vertices.Resize(3);
@@ -325,9 +325,9 @@ public class Mesh
 	}
 
 	// Create a quad mesh
-	public static Mesh CreateQuad(float width = 1.0f, float height = 1.0f)
+	public static StaticMesh CreateQuad(float width = 1.0f, float height = 1.0f)
 	{
-		let mesh = new Mesh();
+		let mesh = new StaticMesh();
 		mesh.SetupCommonVertexFormat();
 
 		mesh.Vertices.Resize(4);
@@ -370,9 +370,9 @@ public class Mesh
 	}
 
 	// Create a cube mesh
-	public static Mesh CreateCube(float size = 1.0f)
+	public static StaticMesh CreateCube(float size = 1.0f)
 	{
-		let mesh = new Mesh();
+		let mesh = new StaticMesh();
 		mesh.SetupCommonVertexFormat();
 
 		// 24 vertices (4 per face, no sharing due to different normals)
@@ -450,9 +450,9 @@ public class Mesh
 	}
 
 	// Create a sphere mesh
-	public static Mesh CreateSphere(float radius = 0.5f, int32 segments = 32, int32 rings = 16)
+	public static StaticMesh CreateSphere(float radius = 0.5f, int32 segments = 32, int32 rings = 16)
 	{
-		let mesh = new Mesh();
+		let mesh = new StaticMesh();
 		mesh.SetupCommonVertexFormat();
 
 		int32 vertexCount = (rings + 1) * (segments + 1);
@@ -518,9 +518,9 @@ public class Mesh
 	}
 
 	// Create a cylinder mesh
-	public static Mesh CreateCylinder(float radius = 0.5f, float height = 1.0f, int32 segments = 32)
+	public static StaticMesh CreateCylinder(float radius = 0.5f, float height = 1.0f, int32 segments = 32)
 	{
-	    let mesh = new Mesh();
+	    let mesh = new StaticMesh();
 	    mesh.SetupCommonVertexFormat();
 	    
 	    // Vertices: top center + top ring + bottom center + bottom ring + side vertices
@@ -650,9 +650,9 @@ public class Mesh
 	}
 
 	// Create a cone mesh
-	public static Mesh CreateCone(float radius = 0.5f, float height = 1.0f, int32 segments = 32)
+	public static StaticMesh CreateCone(float radius = 0.5f, float height = 1.0f, int32 segments = 32)
 	{
-		let mesh = new Mesh();
+		let mesh = new StaticMesh();
 		mesh.SetupCommonVertexFormat();
 		
 		int32 vertexCount = 1 + segments * 2 + 1; // tip + base ring + base center
@@ -741,9 +741,9 @@ public class Mesh
 	}
 
 	// Create a torus mesh
-	public static Mesh CreateTorus(float radius = 1.0f, float tubeRadius = 0.3f, int32 segments = 32, int32 tubeSegments = 16)
+	public static StaticMesh CreateTorus(float radius = 1.0f, float tubeRadius = 0.3f, int32 segments = 32, int32 tubeSegments = 16)
 	{
-	    let mesh = new Mesh();
+	    let mesh = new StaticMesh();
 	    mesh.SetupCommonVertexFormat();
 	    int32 vertexCount = (segments + 1) * (tubeSegments + 1);
 	    int32 indexCount = segments * tubeSegments * 6;
@@ -812,9 +812,9 @@ public class Mesh
 	}
 
 	// Create a plane mesh with subdivisions
-	public static Mesh CreatePlane(float width = 10.0f, float depth = 10.0f, int32 widthSegments = 10, int32 depthSegments = 10)
+	public static StaticMesh CreatePlane(float width = 10.0f, float depth = 10.0f, int32 widthSegments = 10, int32 depthSegments = 10)
 	{
-		let mesh = new Mesh();
+		let mesh = new StaticMesh();
 		mesh.SetupCommonVertexFormat();
 
 		int32 vertexCount = (widthSegments + 1) * (depthSegments + 1);
@@ -876,9 +876,9 @@ public class Mesh
 	}
 
 	// Example: Create mesh with custom vertex format
-	public static Mesh CreateCustomFormatExample()
+	public static StaticMesh CreateCustomFormatExample()
 	{
-		let mesh = new Mesh();
+		let mesh = new StaticMesh();
 
 		// Custom format: Position (Vec3) + UV (Vec2) + Tangent (Vec3) + Bitangent (Vec3)
 		int32 vertexSize = sizeof(Vector3) + sizeof(Vector2) + sizeof(Vector3) + sizeof(Vector3);

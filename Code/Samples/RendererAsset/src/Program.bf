@@ -23,7 +23,8 @@ using SampleFramework;
 class RendererAssetSample : RHISampleApp
 {
 	// Asset paths (relative to AssetDirectory)
-	private const StringView CACHE_REL_PATH = "cache/Fox.skinnedmesh";
+	private const StringView CACHE_REL_DIR = "cache";
+	private const StringView CACHE_REL_PATH = "cache/fox1.skinnedmesh";
 	private const StringView GLTF_REL_PATH = "samples/models/Fox/glTF/Fox.gltf";
 	private const StringView GLTF_BASE_REL_PATH = "samples/models/Fox/glTF";
 	private const StringView TEXTURE_REL_PATH = "samples/models/Fox/glTF/Texture.png";
@@ -129,6 +130,7 @@ class RendererAssetSample : RHISampleApp
 	private bool LoadFoxWithCache()
 	{
 		// Build asset paths
+		let cacheDir = GetAssetPath(CACHE_REL_DIR, .. scope .());
 		let cachePath = GetAssetPath(CACHE_REL_PATH, .. scope .());
 		let gltfPath = GetAssetPath(GLTF_REL_PATH, .. scope .());
 		let gltfBasePath = GetAssetPath(GLTF_BASE_REL_PATH, .. scope .());
@@ -193,20 +195,20 @@ class RendererAssetSample : RHISampleApp
 			Console.WriteLine("  No skinned meshes in import result");
 			return false;
 		}
-
-		// Take ownership of the first skinned mesh
-		mFoxResource = importResult.TakeSkinnedMesh(0);
-		Console.WriteLine($"  Imported: {mFoxResource.Mesh.VertexCount} vertices, {mFoxResource.Skeleton?.BoneCount ?? 0} bones, {mFoxResource.AnimationCount} animations");
-
+		
 		// Save to cache for next time
 		Console.WriteLine("Saving to cache...");
 		if (EnsureCacheDirectory(cachePath))
 		{
-			if (ResourceSerializer.SaveSkinnedMeshBundle(mFoxResource, cachePath) case .Ok)
-				Console.WriteLine($"  Saved to: {cachePath}");
+			if (ResourceSerializer.SaveImportResult(importResult, cacheDir) case .Ok)
+				Console.WriteLine($"  Saved to: {cacheDir}");
 			else
 				Console.WriteLine("  Failed to save cache file");
 		}
+
+		// Take ownership of the first skinned mesh
+		mFoxResource = importResult.TakeSkinnedMesh(0);
+		Console.WriteLine($"  Imported: {mFoxResource.Mesh.VertexCount} vertices, {mFoxResource.Skeleton?.BoneCount ?? 0} bones, {mFoxResource.AnimationCount} animations");
 
 		mLoadedFromCache = false;
 		return true;
@@ -297,7 +299,7 @@ class RendererAssetSample : RHISampleApp
 	private void CreateEntities()
 	{
 		// Create cube mesh for ground
-		let cubeMesh = Mesh.CreateCube(1.0f);
+		let cubeMesh = StaticMesh.CreateCube(1.0f);
 		defer delete cubeMesh;
 
 		// Create ground plane

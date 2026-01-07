@@ -384,15 +384,15 @@ class RendererMaterialsCustomSample : RHISampleApp
 	private void CreateEntities()
 	{
 		// Create sphere mesh for main objects
-		let sphereMesh = Mesh.CreateSphere(0.8f, 32, 16);
+		let sphereMesh = StaticMesh.CreateSphere(0.8f, 32, 16);
 		defer delete sphereMesh;
 
 		// Create cube mesh for variety
-		let cubeMesh = Mesh.CreateCube(1.2f);
+		let cubeMesh = StaticMesh.CreateCube(1.2f);
 		defer delete cubeMesh;
 
 		// Create ground plane
-		let groundMesh = Mesh.CreateCube(1.0f);
+		let groundMesh = StaticMesh.CreateCube(1.0f);
 		defer delete groundMesh;
 
 		// Ground
@@ -401,11 +401,11 @@ class RendererMaterialsCustomSample : RHISampleApp
 			groundEntity.Transform.SetPosition(.(0, -1.5f, 0));
 			groundEntity.Transform.SetScale(.(25.0f, 0.2f, 25.0f));
 
-			let meshRenderer = new MeshRendererComponent();
-			meshRenderer.SetMaterialInstance(0, mGroundMaterial);
-			meshRenderer.MaterialCount = 1;
-			groundEntity.AddComponent(meshRenderer);
-			meshRenderer.SetMesh(groundMesh);
+			let meshComponent = new StaticMeshComponent();
+			meshComponent.SetMaterialInstance(0, mGroundMaterial);
+			meshComponent.MaterialCount = 1;
+			groundEntity.AddComponent(meshComponent);
+			meshComponent.SetMesh(groundMesh);
 		}
 
 		// Create objects with different toon materials
@@ -421,11 +421,11 @@ class RendererMaterialsCustomSample : RHISampleApp
 				let entity = mScene.CreateEntity(scope $"ToonSphere_{i}");
 				entity.Transform.SetPosition(.(posX, 0.5f, 0));
 
-				let meshRenderer = new MeshRendererComponent();
-				meshRenderer.SetMaterialInstance(0, mMaterialInstances[i]);
-				meshRenderer.MaterialCount = 1;
-				entity.AddComponent(meshRenderer);
-				meshRenderer.SetMesh(sphereMesh);
+				let meshComponent = new StaticMeshComponent();
+				meshComponent.SetMaterialInstance(0, mMaterialInstances[i]);
+				meshComponent.MaterialCount = 1;
+				entity.AddComponent(meshComponent);
+				meshComponent.SetMesh(sphereMesh);
 			}
 
 			// Small cube behind
@@ -434,11 +434,11 @@ class RendererMaterialsCustomSample : RHISampleApp
 				entity.Transform.SetPosition(.(posX, 0.3f, -2.5f));
 				entity.Transform.SetScale(.(0.6f, 0.6f, 0.6f));
 
-				let meshRenderer = new MeshRendererComponent();
-				meshRenderer.SetMaterialInstance(0, mMaterialInstances[i]);
-				meshRenderer.MaterialCount = 1;
-				entity.AddComponent(meshRenderer);
-				meshRenderer.SetMesh(cubeMesh);
+				let meshComponent = new StaticMeshComponent();
+				meshComponent.SetMaterialInstance(0, mMaterialInstances[i]);
+				meshComponent.MaterialCount = 1;
+				entity.AddComponent(meshComponent);
+				meshComponent.SetMesh(cubeMesh);
 			}
 		}
 
@@ -466,7 +466,7 @@ class RendererMaterialsCustomSample : RHISampleApp
 			mFoxEntity.Transform.SetPosition(.(8.0f, -1.4f, 0.0f));
 			mFoxEntity.Transform.SetScale(.(0.03f, 0.03f, 0.03f));  // Scale down from ~100 units to ~3 units
 
-			let skinnedMeshComp = new SkinnedMeshRendererComponent();
+			let skinnedMeshComp = new SkinnedMeshComponent();
 			mFoxEntity.AddComponent(skinnedMeshComp);
 
 			// Set skeleton first (required before SetMesh)

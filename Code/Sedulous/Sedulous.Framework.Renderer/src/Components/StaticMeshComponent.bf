@@ -92,7 +92,7 @@ class StaticMeshComponent : IEntityComponent
 
 	/// Sets the mesh to render.
 	/// Automatically uploads geometry to GPU.
-	public void SetMesh(Mesh mesh)
+	public void SetMesh(StaticMesh mesh)
 	{
 		if (mesh == null)
 		{

@@ -7,7 +7,7 @@ namespace Sedulous.Framework.Renderer;
 
 /// Resource manager for MeshResource.
 /// Note: Direct file loading is not implemented - use ModelLoader and converters instead.
-class MeshResourceManager : ResourceManager<StaticMeshResource>
+class StaticMeshResourceManager : ResourceManager<StaticMeshResource>
 {
 	protected override Result<StaticMeshResource, ResourceLoadError> LoadFromFile(StringView path)
 	{

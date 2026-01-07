@@ -184,7 +184,7 @@ class RendererGeometrySample : RHISampleApp
 
 	private bool CreateMesh()
 	{
-		let cpuMesh = Mesh.CreateCube(1.0f);
+		let cpuMesh = StaticMesh.CreateCube(1.0f);
 		defer delete cpuMesh;
 
 		mCubeMesh = mResourceManager.CreateMesh(cpuMesh);

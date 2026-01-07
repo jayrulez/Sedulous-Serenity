@@ -716,21 +716,21 @@ class RenderSceneComponent : ISceneComponent
 	///   with VisibilityResolver efficiently handles culling and batch building
 	/// - Skinned meshes are rendered individually with unique bone transforms and
 	///   per-component GPU resources (bone buffers, object uniform buffers)
-	public void RegisterSkinnedMesh(SkinnedMeshRendererComponent skinnedMesh)
+	public void RegisterSkinnedMesh(SkinnedMeshComponent skinnedMesh)
 	{
 		if (mSkinnedMeshRenderer != null)
 			mSkinnedMeshRenderer.Register(skinnedMesh);
 	}
 
 	/// Unregisters a skinned mesh component.
-	public void UnregisterSkinnedMesh(SkinnedMeshRendererComponent skinnedMesh)
+	public void UnregisterSkinnedMesh(SkinnedMeshComponent skinnedMesh)
 	{
 		if (mSkinnedMeshRenderer != null)
 			mSkinnedMeshRenderer.Unregister(skinnedMesh);
 	}
 
 	/// Gets the list of registered skinned meshes.
-	public List<SkinnedMeshRendererComponent> SkinnedMeshes => mSkinnedMeshRenderer?.SkinnedMeshes;
+	public List<SkinnedMeshComponent> SkinnedMeshes => mSkinnedMeshRenderer?.SkinnedMeshes;
 
 	/// Gets the sprite renderer.
 	public SpriteRenderer SpriteRenderer => mSpriteRenderer;

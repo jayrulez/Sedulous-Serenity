@@ -11,16 +11,16 @@ using Sedulous.Mathematics;
 namespace Sedulous.Framework.Renderer;
 
 /// CPU-side mesh resource wrapping a Mesh.
-class MeshResource : Resource
+class StaticMeshResource : Resource
 {
 	public const int32 FileVersion = 1;
 	public const int32 FileType = 1; // ResourceFileType.Mesh
 
-	private Mesh mMesh;
+	private StaticMesh mMesh;
 	private bool mOwnsMesh;
 
 	/// The underlying mesh data.
-	public Mesh Mesh => mMesh;
+	public StaticMesh Mesh => mMesh;
 
 	public this()
 	{
@@ -28,7 +28,7 @@ class MeshResource : Resource
 		mOwnsMesh = false;
 	}
 
-	public this(Mesh mesh, bool ownsMesh = false)
+	public this(StaticMesh mesh, bool ownsMesh = false)
 	{
 		mMesh = mesh;
 		mOwnsMesh = ownsMesh;
@@ -41,7 +41,7 @@ class MeshResource : Resource
 	}
 
 	/// Sets the mesh. Takes ownership if ownsMesh is true.
-	public void SetMesh(Mesh mesh, bool ownsMesh = false)
+	public void SetMesh(StaticMesh mesh, bool ownsMesh = false)
 	{
 		if (mOwnsMesh && mMesh != null)
 			delete mMesh;
@@ -141,7 +141,7 @@ class MeshResource : Resource
 		else
 		{
 			// Reading
-			let mesh = new Mesh();
+			let mesh = new StaticMesh();
 			mesh.SetupCommonVertexFormat();
 
 			int32 vertexCount = 0;
@@ -249,7 +249,7 @@ class MeshResource : Resource
 	}
 
 	/// Load a mesh resource from a file.
-	public static Result<MeshResource> LoadFromFile(StringView path)
+	public static Result<StaticMeshResource> LoadFromFile(StringView path)
 	{
 		let text = scope String();
 		if (File.ReadAllText(path, text) case .Err)
@@ -272,37 +272,37 @@ class MeshResource : Resource
 		if (fileType != FileType)
 			return .Err;
 
-		let resource = new MeshResource();
+		let resource = new StaticMeshResource();
 		resource.Serialize(reader);
 
 		return .Ok(resource);
 	}
 
 	/// Creates a cube mesh resource.
-	public static MeshResource CreateCube(float size = 1.0f)
+	public static StaticMeshResource CreateCube(float size = 1.0f)
 	{
-		let mesh = Mesh.CreateCube(size);
-		return new MeshResource(mesh, true);
+		let mesh = StaticMesh.CreateCube(size);
+		return new StaticMeshResource(mesh, true);
 	}
 
 	/// Creates a sphere mesh resource.
-	public static MeshResource CreateSphere(float radius = 0.5f, int32 segments = 32, int32 rings = 16)
+	public static StaticMeshResource CreateSphere(float radius = 0.5f, int32 segments = 32, int32 rings = 16)
 	{
-		let mesh = Mesh.CreateSphere(radius, segments, rings);
-		return new MeshResource(mesh, true);
+		let mesh = StaticMesh.CreateSphere(radius, segments, rings);
+		return new StaticMeshResource(mesh, true);
 	}
 
 	/// Creates a plane mesh resource.
-	public static MeshResource CreatePlane(float width = 1.0f, float height = 1.0f, int32 segmentsX = 1, int32 segmentsZ = 1)
+	public static StaticMeshResource CreatePlane(float width = 1.0f, float height = 1.0f, int32 segmentsX = 1, int32 segmentsZ = 1)
 	{
-		let mesh = Mesh.CreatePlane(width, height, segmentsX, segmentsZ);
-		return new MeshResource(mesh, true);
+		let mesh = StaticMesh.CreatePlane(width, height, segmentsX, segmentsZ);
+		return new StaticMeshResource(mesh, true);
 	}
 
 	/// Creates a cylinder mesh resource.
-	public static MeshResource CreateCylinder(float radius = 0.5f, float height = 1.0f, int32 segments = 32)
+	public static StaticMeshResource CreateCylinder(float radius = 0.5f, float height = 1.0f, int32 segments = 32)
 	{
-		let mesh = Mesh.CreateCylinder(radius, height, segments);
-		return new MeshResource(mesh, true);
+		let mesh = StaticMesh.CreateCylinder(radius, height, segments);
+		return new StaticMeshResource(mesh, true);
 	}
 }

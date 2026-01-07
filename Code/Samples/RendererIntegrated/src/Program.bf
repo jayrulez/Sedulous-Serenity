@@ -245,7 +245,7 @@ class RendererIntegratedSample : RHISampleApp
 	private void CreateEntities()
 	{
 		// Create shared CPU mesh - uploaded to GPU automatically by MeshRendererComponent
-		let cubeMesh = Mesh.CreateCube(1.0f);
+		let cubeMesh = StaticMesh.CreateCube(1.0f);
 		defer delete cubeMesh;
 
 		// Create ground plane (large flat cube)
@@ -254,10 +254,10 @@ class RendererIntegratedSample : RHISampleApp
 			groundEntity.Transform.SetPosition(.(0, -0.5f, 0));
 			groundEntity.Transform.SetScale(.(50.0f, 1.0f, 50.0f));
 
-			let meshRenderer = new MeshRendererComponent();
-			groundEntity.AddComponent(meshRenderer);
-			meshRenderer.SetMesh(cubeMesh);
-			meshRenderer.SetMaterialInstance(0, mGroundMaterial);
+			let meshComponent = new StaticMeshComponent();
+			groundEntity.AddComponent(meshComponent);
+			meshComponent.SetMesh(cubeMesh);
+			meshComponent.SetMaterialInstance(0, mGroundMaterial);
 		}
 
 		float spacing = 3.0f;
@@ -277,12 +277,12 @@ class RendererIntegratedSample : RHISampleApp
 
 				// Add MeshRendererComponent first, then set mesh
 				// (SetMesh needs access to RendererService via entity's scene)
-				let meshRenderer = new MeshRendererComponent();
-				entity.AddComponent(meshRenderer);
+				let meshComponent = new StaticMeshComponent();
+				entity.AddComponent(meshComponent);
 
 				// Now set the mesh - GPU upload happens automatically
-				meshRenderer.SetMesh(cubeMesh);
-				meshRenderer.SetMaterialInstance(0, mCubeMaterials[(x + z) % 8]);
+				meshComponent.SetMesh(cubeMesh);
+				meshComponent.SetMaterialInstance(0, mCubeMaterials[(x + z) % 8]);
 			}
 		}
 
@@ -477,19 +477,19 @@ class RendererIntegratedSample : RHISampleApp
 		mFoxEntity.Transform.SetScale(Vector3(0.05f));
 
 		// Create skinned mesh renderer component
-		let skinnedRenderer = new SkinnedMeshRendererComponent();
-		mFoxEntity.AddComponent(skinnedRenderer);
+		let meshComponent = new SkinnedMeshComponent();
+		mFoxEntity.AddComponent(meshComponent);
 
 		// Use the resource's skeleton directly (shared, not owned)
 		if (mFoxResource.Skeleton != null)
-			skinnedRenderer.SetSkeleton(mFoxResource.Skeleton);
+			meshComponent.SetSkeleton(mFoxResource.Skeleton);
 
 		// Add animation clips from resource (shared references)
 		for (let clip in mFoxResource.Animations)
-			skinnedRenderer.AddAnimationClip(clip);
+			meshComponent.AddAnimationClip(clip);
 
 		// Set the mesh (triggers GPU upload)
-		skinnedRenderer.SetMesh(mFoxResource.Mesh);
+		meshComponent.SetMesh(mFoxResource.Mesh);
 
 		// Load fox texture and set on material
 		let texPath = GetAssetPath("samples/models/Fox/glTF/Texture.png", .. scope .());
@@ -531,13 +531,13 @@ class RendererIntegratedSample : RHISampleApp
 
 		// Set PBR material on skinned mesh
 		if (mFoxMaterial.IsValid)
-			skinnedRenderer.SetMaterial(mFoxMaterial);
+			meshComponent.SetMaterial(mFoxMaterial);
 
 		// Start playing first animation
-		if (skinnedRenderer.AnimationClips.Count > 0)
+		if (meshComponent.AnimationClips.Count > 0)
 		{
-			skinnedRenderer.PlayAnimation(0, true);
-			Console.WriteLine($"Fox animation playing: {skinnedRenderer.AnimationClips[0].Name}");
+			meshComponent.PlayAnimation(0, true);
+			Console.WriteLine($"Fox animation playing: {meshComponent.AnimationClips[0].Name}");
 		}
 	}
 
@@ -596,14 +596,14 @@ class RendererIntegratedSample : RHISampleApp
 		// Cycle through Fox animations with Space
 		if (mFoxEntity != null && keyboard.IsKeyPressed(.Space))
 		{
-			if (let skinnedRenderer = mFoxEntity.GetComponent<SkinnedMeshRendererComponent>())
+			if (let meshComponent = mFoxEntity.GetComponent<SkinnedMeshComponent>())
 			{
-				let animCount = (int32)skinnedRenderer.AnimationClips.Count;
+				let animCount = (int32)meshComponent.AnimationClips.Count;
 				if (animCount > 0)
 				{
 					mCurrentAnimIndex = (mCurrentAnimIndex + 1) % animCount;
-					skinnedRenderer.PlayAnimation(mCurrentAnimIndex, true);
-					Console.WriteLine($"Playing animation: {skinnedRenderer.AnimationClips[mCurrentAnimIndex].Name}");
+					meshComponent.PlayAnimation(mCurrentAnimIndex, true);
+					Console.WriteLine($"Playing animation: {meshComponent.AnimationClips[mCurrentAnimIndex].Name}");
 				}
 			}
 		}

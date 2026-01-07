@@ -335,11 +335,11 @@ class RendererMaterialsSample : RHISampleApp
 	private void CreateEntities()
 	{
 		// Create sphere mesh
-		let sphereMesh = Mesh.CreateSphere(0.45f, 32, 16);
+		let sphereMesh = StaticMesh.CreateSphere(0.45f, 32, 16);
 		defer delete sphereMesh;
 
 		// Create ground plane
-		let groundMesh = Mesh.CreateCube(1.0f);
+		let groundMesh = StaticMesh.CreateCube(1.0f);
 		defer delete groundMesh;
 
 		{
@@ -347,11 +347,11 @@ class RendererMaterialsSample : RHISampleApp
 			groundEntity.Transform.SetPosition(.(0, -1.0f, 0));
 			groundEntity.Transform.SetScale(.(30.0f, 0.2f, 30.0f));
 
-			let meshRenderer = new MeshRendererComponent();
-			meshRenderer.SetMaterialInstance(0, mGroundMaterial);
-			meshRenderer.MaterialCount = 1;
-			groundEntity.AddComponent(meshRenderer);
-			meshRenderer.SetMesh(groundMesh);
+			let meshComponent = new StaticMeshComponent();
+			meshComponent.SetMaterialInstance(0, mGroundMaterial);
+			meshComponent.MaterialCount = 1;
+			groundEntity.AddComponent(meshComponent);
+			meshComponent.SetMesh(groundMesh);
 		}
 
 		// Create grid of PBR spheres
@@ -373,12 +373,12 @@ class RendererMaterialsSample : RHISampleApp
 				let entity = mScene.CreateEntity(scope $"Sphere_{row}_{col}");
 				entity.Transform.SetPosition(.(posX, 0.5f, posZ));
 
-				let meshRenderer = new MeshRendererComponent();
+				let meshComponent = new StaticMeshComponent();
 				// Set the material instance
-				meshRenderer.SetMaterialInstance(0, mMaterialInstances[instanceIndex]);
-				meshRenderer.MaterialCount = 1;
-				entity.AddComponent(meshRenderer);
-				meshRenderer.SetMesh(sphereMesh);
+				meshComponent.SetMaterialInstance(0, mMaterialInstances[instanceIndex]);
+				meshComponent.MaterialCount = 1;
+				entity.AddComponent(meshComponent);
+				meshComponent.SetMesh(sphereMesh);
 
 				instanceIndex++;
 			}
@@ -412,7 +412,7 @@ class RendererMaterialsSample : RHISampleApp
 			mFoxEntity.Transform.SetPosition(.(6.0f, -0.9f, 0.0f));
 			mFoxEntity.Transform.SetScale(.(0.03f, 0.03f, 0.03f));  // Scale down from ~100 units to ~3 units
 
-			let skinnedMeshComp = new SkinnedMeshRendererComponent();
+			let skinnedMeshComp = new SkinnedMeshComponent();
 			mFoxEntity.AddComponent(skinnedMeshComp);
 
 			// Set skeleton first (required before SetMesh)
