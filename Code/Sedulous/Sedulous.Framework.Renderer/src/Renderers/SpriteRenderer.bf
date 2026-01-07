@@ -6,18 +6,35 @@ using Sedulous.RHI;
 using Sedulous.Mathematics;
 
 /// Batched sprite renderer for efficient billboard rendering.
+/// Owns the sprite pipeline and handles rendering.
 class SpriteRenderer
 {
-	private IDevice mDevice;
-	private IBuffer mInstanceBuffer;
-	private IBuffer mIndexBuffer;
-	private IRenderPipeline mPipeline;
-	private IBindGroupLayout mBindGroupLayout;
-	private IPipelineLayout mPipelineLayout;
+	private const int32 MAX_FRAMES = 2;
 
+	private IDevice mDevice;
+	private ShaderLibrary mShaderLibrary;
+
+	// Buffers
+	private IBuffer mInstanceBuffer;
+
+	// Pipeline resources
+	private IBindGroupLayout mBindGroupLayout ~ delete _;
+	private IPipelineLayout mPipelineLayout ~ delete _;
+	private IRenderPipeline mPipeline ~ delete _;
+	private IBindGroup[MAX_FRAMES] mBindGroups ~ { for (var bg in _) delete bg; };
+
+	// Per-frame camera buffers (references, not owned)
+	private IBuffer[MAX_FRAMES] mCameraBuffers;
+
+	// Sprite data
 	private List<SpriteInstance> mSprites = new .() ~ delete _;
 	private int32 mMaxSprites;
 	private bool mDirty = false;
+
+	// Configuration
+	private TextureFormat mColorFormat = .BGRA8UnormSrgb;
+	private TextureFormat mDepthFormat = .Depth24PlusStencil8;
+	private bool mInitialized = false;
 
 	/// Maximum number of sprites that can be rendered in one batch.
 	public const int32 DEFAULT_MAX_SPRITES = 10000;
@@ -33,47 +50,145 @@ class SpriteRenderer
 	public ~this()
 	{
 		if (mInstanceBuffer != null) delete mInstanceBuffer;
-		if (mIndexBuffer != null) delete mIndexBuffer;
-		if (mPipeline != null) delete mPipeline;
-		if (mBindGroupLayout != null) delete mBindGroupLayout;
-		if (mPipelineLayout != null) delete mPipelineLayout;
+	}
+
+	/// Initializes the sprite renderer with pipeline resources.
+	public Result<void> Initialize(ShaderLibrary shaderLibrary,
+		IBuffer[MAX_FRAMES] cameraBuffers, TextureFormat colorFormat, TextureFormat depthFormat)
+	{
+		if (mDevice == null)
+			return .Err;
+
+		mShaderLibrary = shaderLibrary;
+		mCameraBuffers = cameraBuffers;
+		mColorFormat = colorFormat;
+		mDepthFormat = depthFormat;
+
+		if (CreatePipeline() case .Err)
+			return .Err;
+
+		mInitialized = true;
+		return .Ok;
 	}
 
 	private void CreateBuffers()
 	{
-		// Instance buffer (one SpriteInstance per sprite, 4 vertices use same instance data)
+		// Instance buffer (one SpriteInstance per sprite)
 		let instanceSize = (uint64)(sizeof(SpriteInstance) * mMaxSprites);
 		BufferDescriptor instanceDesc = .(instanceSize, .Vertex, .Upload);
 		if (mDevice.CreateBuffer(&instanceDesc) case .Ok(let instBuf))
 			mInstanceBuffer = instBuf;
+	}
 
-		// Index buffer for quads (6 indices per sprite)
-		let indexCount = mMaxSprites * 6;
-		let indexSize = (uint64)(sizeof(uint16) * indexCount);
-		BufferDescriptor indexDesc = .(indexSize, .Index, .Upload);
-		if (mDevice.CreateBuffer(&indexDesc) case .Ok(let idxBuf))
+	private Result<void> CreatePipeline()
+	{
+		// Load sprite shaders
+		let vertResult = mShaderLibrary.GetShader("sprite", .Vertex);
+		if (vertResult case .Err)
+			return .Err;
+		let vertShader = vertResult.Get();
+
+		let fragResult = mShaderLibrary.GetShader("sprite", .Fragment);
+		if (fragResult case .Err)
+			return .Err;
+		let fragShader = fragResult.Get();
+
+		// Bind group layout: b0=camera uniforms
+		BindGroupLayoutEntry[1] layoutEntries = .(
+			BindGroupLayoutEntry.UniformBuffer(0, .Vertex)
+		);
+		BindGroupLayoutDescriptor bindLayoutDesc = .(layoutEntries);
+		if (mDevice.CreateBindGroupLayout(&bindLayoutDesc) not case .Ok(let layout))
+			return .Err;
+		mBindGroupLayout = layout;
+
+		// Pipeline layout
+		IBindGroupLayout[1] layouts = .(mBindGroupLayout);
+		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
+		if (mDevice.CreatePipelineLayout(&pipelineLayoutDesc) not case .Ok(let pipelineLayout))
+			return .Err;
+		mPipelineLayout = pipelineLayout;
+
+		// Create per-frame bind groups
+		for (int i = 0; i < MAX_FRAMES; i++)
 		{
-			mIndexBuffer = idxBuf;
-
-			// Fill index buffer with quad indices
-			uint16[] indices = new uint16[indexCount];
-			defer delete indices;
-
-			for (int32 i = 0; i < mMaxSprites; i++)
-			{
-				int32 baseVertex = i * 4;
-				int32 baseIndex = i * 6;
-				indices[baseIndex + 0] = (uint16)(baseVertex + 0);
-				indices[baseIndex + 1] = (uint16)(baseVertex + 1);
-				indices[baseIndex + 2] = (uint16)(baseVertex + 2);
-				indices[baseIndex + 3] = (uint16)(baseVertex + 2);
-				indices[baseIndex + 4] = (uint16)(baseVertex + 1);
-				indices[baseIndex + 5] = (uint16)(baseVertex + 3);
-			}
-
-			Span<uint8> data = .((uint8*)indices.Ptr, (int)indexSize);
-			mDevice.Queue.WriteBuffer(mIndexBuffer, 0, data);
+			BindGroupEntry[1] entries = .(
+				BindGroupEntry.Buffer(0, mCameraBuffers[i])
+			);
+			BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, entries);
+			if (mDevice.CreateBindGroup(&bindGroupDesc) not case .Ok(let group))
+				return .Err;
+			mBindGroups[i] = group;
 		}
+
+		// SpriteInstance layout: Position(12) + Size(8) + UVRect(16) + Color(4) = 40 bytes
+		Sedulous.RHI.VertexAttribute[4] vertexAttrs = .(
+			.(VertexFormat.Float3, 0, 0),              // Position
+			.(VertexFormat.Float2, 12, 1),             // Size
+			.(VertexFormat.Float4, 20, 2),             // UVRect
+			.(VertexFormat.UByte4Normalized, 36, 3)    // Color
+		);
+		VertexBufferLayout[1] vertexBuffers = .(
+			VertexBufferLayout(40, vertexAttrs, .Instance)
+		);
+
+		ColorTargetState[1] colorTargets = .(
+			ColorTargetState(mColorFormat, .AlphaBlend)
+		);
+
+		DepthStencilState depthState = .();
+		depthState.DepthTestEnabled = true;
+		depthState.DepthWriteEnabled = false;
+		depthState.DepthCompare = .Less;
+		depthState.Format = mDepthFormat;
+
+		RenderPipelineDescriptor pipelineDesc = .()
+		{
+			Layout = mPipelineLayout,
+			Vertex = .()
+			{
+				Shader = .(vertShader.Module, "main"),
+				Buffers = vertexBuffers
+			},
+			Fragment = .()
+			{
+				Shader = .(fragShader.Module, "main"),
+				Targets = colorTargets
+			},
+			Primitive = .()
+			{
+				Topology = .TriangleList,
+				FrontFace = .CCW,
+				CullMode = .None
+			},
+			DepthStencil = depthState,
+			Multisample = .()
+			{
+				Count = 1,
+				Mask = uint32.MaxValue
+			}
+		};
+
+		if (mDevice.CreateRenderPipeline(&pipelineDesc) not case .Ok(let pipeline))
+			return .Err;
+		mPipeline = pipeline;
+
+		return .Ok;
+	}
+
+	/// Renders all sprites in the current batch.
+	public void Render(IRenderPassEncoder renderPass, int32 frameIndex)
+	{
+		if (!mInitialized || mPipeline == null || mSprites.Count == 0)
+			return;
+
+		if (frameIndex < 0 || frameIndex >= MAX_FRAMES)
+			return;
+
+		renderPass.SetPipeline(mPipeline);
+		renderPass.SetBindGroup(0, mBindGroups[frameIndex]);
+		renderPass.SetVertexBuffer(0, mInstanceBuffer, 0);
+		renderPass.Draw(6, (uint32)mSprites.Count, 0, 0);
 	}
 
 	/// Clears all sprites for a new frame.
@@ -119,9 +234,6 @@ class SpriteRenderer
 	/// Gets the instance buffer for rendering.
 	public IBuffer InstanceBuffer => mInstanceBuffer;
 
-	/// Gets the index buffer for rendering.
-	public IBuffer IndexBuffer => mIndexBuffer;
-
-	/// Gets the number of indices to draw.
-	public uint32 IndexCount => (uint32)(mSprites.Count * 6);
+	/// Returns true if the renderer is fully initialized with pipeline.
+	public bool IsInitialized => mInitialized && mPipeline != null;
 }

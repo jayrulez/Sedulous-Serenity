@@ -9,7 +9,7 @@ class MeshTests
 	[Test]
 	public static void TestMeshCreation()
 	{
-		let mesh = new Mesh();
+		let mesh = new StaticMesh();
 		defer delete mesh;
 
 		mesh.SetupCommonVertexFormat();
@@ -23,7 +23,7 @@ class MeshTests
 	[Test]
 	public static void TestMeshVertexData()
 	{
-		let mesh = new Mesh();
+		let mesh = new StaticMesh();
 		defer delete mesh;
 
 		mesh.SetupCommonVertexFormat();
@@ -50,7 +50,7 @@ class MeshTests
 	[Test]
 	public static void TestCreateTriangle()
 	{
-		let mesh = Mesh.CreateTriangle();
+		let mesh = StaticMesh.CreateTriangle();
 		defer delete mesh;
 
 		Test.Assert(mesh.Vertices.VertexCount == 3);
@@ -61,7 +61,7 @@ class MeshTests
 	[Test]
 	public static void TestCreateQuad()
 	{
-		let mesh = Mesh.CreateQuad(2.0f, 2.0f);
+		let mesh = StaticMesh.CreateQuad(2.0f, 2.0f);
 		defer delete mesh;
 
 		Test.Assert(mesh.Vertices.VertexCount == 4);
@@ -71,7 +71,7 @@ class MeshTests
 	[Test]
 	public static void TestCreateCube()
 	{
-		let mesh = Mesh.CreateCube(1.0f);
+		let mesh = StaticMesh.CreateCube(1.0f);
 		defer delete mesh;
 
 		Test.Assert(mesh.Vertices.VertexCount == 24);
@@ -81,7 +81,7 @@ class MeshTests
 	[Test]
 	public static void TestCreateSphere()
 	{
-		let mesh = Mesh.CreateSphere(0.5f, 16, 8);
+		let mesh = StaticMesh.CreateSphere(0.5f, 16, 8);
 		defer delete mesh;
 
 		Test.Assert(mesh.Vertices.VertexCount > 0);
@@ -91,7 +91,7 @@ class MeshTests
 	[Test]
 	public static void TestCreatePlane()
 	{
-		let mesh = Mesh.CreatePlane(10.0f, 10.0f, 2, 2);
+		let mesh = StaticMesh.CreatePlane(10.0f, 10.0f, 2, 2);
 		defer delete mesh;
 
 		Test.Assert(mesh.Vertices.VertexCount == 9); // (2+1) * (2+1)
@@ -101,7 +101,7 @@ class MeshTests
 	[Test]
 	public static void TestMeshBounds()
 	{
-		let mesh = Mesh.CreateCube(2.0f);
+		let mesh = StaticMesh.CreateCube(2.0f);
 		defer delete mesh;
 
 		let bounds = mesh.GetBounds();

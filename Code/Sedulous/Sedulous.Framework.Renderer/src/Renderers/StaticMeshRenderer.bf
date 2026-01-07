@@ -5,7 +5,7 @@ using System.Collections;
 using Sedulous.RHI;
 using Sedulous.Mathematics;
 
-/// Handles rendering of static meshes (both legacy and material-based paths).
+/// Handles rendering of static meshes using the material system.
 /// Manages instance buffers and batch building for efficient draw call batching.
 class StaticMeshRenderer
 {
@@ -18,23 +18,24 @@ class StaticMeshRenderer
 	private MaterialSystem mMaterialSystem;
 	private PipelineCache mPipelineCache;
 
-	// Legacy pipeline (scene_lit shader for meshes without materials)
-	private IRenderPipeline mLegacyPipeline ~ delete _;
 	private IBindGroupLayout mSceneBindGroupLayout;  // Reference, not owned
-	private IPipelineLayout mLegacyPipelineLayout ~ delete _;
+
+	// Default material for meshes without an assigned material
+	private MaterialHandle mDefaultMaterialHandle = .Invalid;
+	private MaterialInstanceHandle mDefaultMaterial = .Invalid;
+	private bool mDefaultMaterialCreated = false;
 
 	// Per-frame instance buffers
-	private IBuffer[MAX_FRAMES] mLegacyInstanceBuffers ~ { for (var buf in _) delete buf; };
 	private IBuffer[MAX_FRAMES] mMaterialInstanceBuffers ~ { for (var buf in _) delete buf; };
 
 	// CPU-side instance data
-	private RenderSceneInstanceData[] mLegacyInstanceData ~ delete _;
 	private MaterialInstanceData[] mMaterialInstanceData ~ delete _;
-	private int32 mLegacyInstanceCount = 0;
 	private int32 mMaterialInstanceCount = 0;
 
-	// Visible mesh lists (built by RenderSceneComponent, used here)
-	private List<MeshProxy*> mLegacyMeshes = new .() ~ delete _;
+	// Visible mesh count (set during BuildBatches)
+	private int32 mVisibleMeshCount = 0;
+
+	// Draw batches (built from visible meshes)
 	private List<DrawBatch> mMaterialBatches = new .() ~ delete _;
 
 	// Pipeline configuration
@@ -44,20 +45,14 @@ class StaticMeshRenderer
 	// Initialization flag
 	private bool mInitialized = false;
 
-	/// Gets the legacy instance count (for shadow rendering).
-	public int32 LegacyInstanceCount => mLegacyInstanceCount;
-
 	/// Gets the material instance count (for shadow rendering).
 	public int32 MaterialInstanceCount => mMaterialInstanceCount;
 
-	/// Gets the legacy mesh list (for shadow rendering).
-	public List<MeshProxy*> LegacyMeshes => mLegacyMeshes;
+	/// Gets the number of visible meshes (after BuildBatches).
+	public int32 VisibleMeshCount => mVisibleMeshCount;
 
 	/// Gets the material batches (for shadow rendering and stats).
 	public List<DrawBatch> MaterialBatches => mMaterialBatches;
-
-	/// Gets the legacy instance buffer for a frame (for shadow rendering).
-	public IBuffer GetLegacyInstanceBuffer(int32 frameIndex) => mLegacyInstanceBuffers[frameIndex];
 
 	/// Gets the material instance buffer for a frame (for shadow rendering).
 	public IBuffer GetMaterialInstanceBuffer(int32 frameIndex) => mMaterialInstanceBuffers[frameIndex];
@@ -76,174 +71,122 @@ class StaticMeshRenderer
 		mColorFormat = colorFormat;
 		mDepthFormat = depthFormat;
 
-		// Allocate instance data arrays
-		mLegacyInstanceData = new RenderSceneInstanceData[MAX_INSTANCES];
+		// Allocate instance data array
 		mMaterialInstanceData = new MaterialInstanceData[MAX_INSTANCES];
 
-		// Create per-frame buffers
+		// Create per-frame instance buffers
 		for (int i = 0; i < MAX_FRAMES; i++)
 		{
-			// Legacy instance buffer
-			uint64 legacyBufferSize = (uint64)(sizeof(RenderSceneInstanceData) * MAX_INSTANCES);
-			BufferDescriptor legacyDesc = .(legacyBufferSize, .Vertex, .Upload);
-			if (device.CreateBuffer(&legacyDesc) case .Ok(let legacyBuf))
-				mLegacyInstanceBuffers[i] = legacyBuf;
-			else
-				return .Err;
-
-			// Material instance buffer
-			uint64 materialBufferSize = (uint64)(sizeof(MaterialInstanceData) * MAX_INSTANCES);
-			BufferDescriptor materialDesc = .(materialBufferSize, .Vertex, .Upload);
-			if (device.CreateBuffer(&materialDesc) case .Ok(let materialBuf))
-				mMaterialInstanceBuffers[i] = materialBuf;
+			uint64 bufferSize = (uint64)(sizeof(MaterialInstanceData) * MAX_INSTANCES);
+			BufferDescriptor bufferDesc = .(bufferSize, .Vertex, .Upload);
+			if (device.CreateBuffer(&bufferDesc) case .Ok(let buffer))
+				mMaterialInstanceBuffers[i] = buffer;
 			else
 				return .Err;
 		}
 
-		// Create legacy pipeline
-		if (CreateLegacyPipeline() case .Err)
-			return .Err;
-
 		return .Ok;
 	}
 
-	/// Creates the legacy pipeline (scene_lit shader).
-	private Result<void> CreateLegacyPipeline()
+	/// Creates the default gray PBR material for meshes without an assigned material.
+	private void EnsureDefaultMaterial()
 	{
-		// Load lit shaders with lighting and shadow support
-		let vertResult = mShaderLibrary.GetShader("scene_lit", .Vertex);
-		if (vertResult case .Err)
-			return .Err;
-		let vertShader = vertResult.Get();
+		if (mDefaultMaterialCreated || mMaterialSystem == null)
+			return;
 
-		let fragResult = mShaderLibrary.GetShader("scene_lit", .Fragment);
-		if (fragResult case .Err)
-			return .Err;
-		let fragShader = fragResult.Get();
+		mDefaultMaterialCreated = true;
 
-		// Pipeline layout with scene bind group only
-		IBindGroupLayout[1] layouts = .(mSceneBindGroupLayout);
-		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
-		if (mDevice.CreatePipelineLayout(&pipelineLayoutDesc) not case .Ok(let pipelineLayout))
-			return .Err;
-		mLegacyPipelineLayout = pipelineLayout;
+		// Create and register a standard PBR material
+		let pbrMaterial = Material.CreatePBR("DefaultPBR");
+		mDefaultMaterialHandle = mMaterialSystem.RegisterMaterial(pbrMaterial);
+		if (!mDefaultMaterialHandle.IsValid)
+			return;
 
-		// Vertex layouts - mesh attributes
-		Sedulous.RHI.VertexAttribute[3] meshAttrs = .(
-			.(VertexFormat.Float3, 0, 0),   // Position
-			.(VertexFormat.Float3, 12, 1),  // Normal
-			.(VertexFormat.Float2, 24, 2)   // UV
-		);
+		// Create a gray instance
+		mDefaultMaterial = mMaterialSystem.CreateInstance(mDefaultMaterialHandle);
+		if (!mDefaultMaterial.IsValid)
+			return;
 
-		// Instance attributes
-		Sedulous.RHI.VertexAttribute[5] instanceAttrs = .(
-			.(VertexFormat.Float4, 0, 3),   // Row0
-			.(VertexFormat.Float4, 16, 4),  // Row1
-			.(VertexFormat.Float4, 32, 5),  // Row2
-			.(VertexFormat.Float4, 48, 6),  // Row3
-			.(VertexFormat.Float4, 64, 7)   // Color
-		);
-
-		VertexBufferLayout[2] vertexBuffers = .(
-			.(48, meshAttrs, .Vertex),
-			.(80, instanceAttrs, .Instance)
-		);
-
-		ColorTargetState[1] colorTargets = .(.(mColorFormat));
-
-		DepthStencilState depthState = .();
-		depthState.DepthTestEnabled = true;
-		depthState.DepthWriteEnabled = true;
-		depthState.DepthCompare = .Less;
-		depthState.Format = mDepthFormat;
-
-		RenderPipelineDescriptor pipelineDesc = .()
+		// Configure as a neutral gray material
+		let instance = mMaterialSystem.GetInstance(mDefaultMaterial);
+		if (instance != null)
 		{
-			Layout = mLegacyPipelineLayout,
-			Vertex = .()
-			{
-				Shader = .(vertShader.Module, "main"),
-				Buffers = vertexBuffers
-			},
-			Fragment = .()
-			{
-				Shader = .(fragShader.Module, "main"),
-				Targets = colorTargets
-			},
-			Primitive = .()
-			{
-				Topology = .TriangleList,
-				FrontFace = .CCW,
-				CullMode = .Back
-			},
-			DepthStencil = depthState,
-			Multisample = .()
-			{
-				Count = 1,
-				Mask = uint32.MaxValue
-			}
-		};
-
-		if (mDevice.CreateRenderPipeline(&pipelineDesc) not case .Ok(let pipeline))
-			return .Err;
-		mLegacyPipeline = pipeline;
-
-		return .Ok;
+			instance.SetFloat4("baseColor", .(0.5f, 0.5f, 0.5f, 1.0f));  // Medium gray
+			instance.SetFloat("metallic", 0.0f);
+			instance.SetFloat("roughness", 0.7f);
+			instance.SetFloat("ao", 1.0f);
+			instance.SetFloat4("emissive", .(0, 0, 0, 1));
+			mMaterialSystem.UploadInstance(mDefaultMaterial);
+		}
 	}
 
 	/// Builds instance data and batches from visible meshes.
 	/// Called during OnUpdate after visibility determination.
 	public void BuildBatches(List<MeshProxy*> visibleMeshes)
 	{
-		mLegacyInstanceCount = 0;
 		mMaterialInstanceCount = 0;
 		mMaterialBatches.Clear();
-		mLegacyMeshes.Clear();
+		mVisibleMeshCount = (int32)visibleMeshes.Count;
 
-		// First pass: separate material meshes from legacy meshes
-		List<MeshProxy*> materialMeshes = scope .();
+		// Ensure default material exists for meshes without assigned materials
+		EnsureDefaultMaterial();
 
-		for (let proxy in visibleMeshes)
+		// Build material batches from all visible meshes
+		if (visibleMeshes.Count > 0)
 		{
-			if (proxy.UsesMaterialInstances)
-				materialMeshes.Add(proxy);
-			else
-				mLegacyMeshes.Add(proxy);
-		}
-
-		// Build legacy instance data
-		for (let proxy in mLegacyMeshes)
-		{
-			if (mLegacyInstanceCount >= MAX_INSTANCES)
-				break;
-
-			let color = GetColorForMaterial(proxy.GetMaterial(0));
-			mLegacyInstanceData[mLegacyInstanceCount] = .(proxy.Transform, color);
-			mLegacyInstanceCount++;
-		}
-
-		// Build material batches
-		if (materialMeshes.Count > 0)
-		{
-			BuildMaterialBatches(materialMeshes);
+			BuildMaterialBatches(visibleMeshes);
 		}
 	}
 
-	/// Builds draw batches from material meshes, sorted by (mesh, material).
+	/// Gets the effective material for a mesh proxy (uses default if none assigned).
+	private MaterialInstanceHandle GetEffectiveMaterial(MeshProxy* proxy)
+	{
+		if (proxy.UsesMaterialInstances && proxy.MaterialInstances[0].IsValid)
+			return proxy.MaterialInstances[0];
+		return mDefaultMaterial;
+	}
+
+	/// Builds draw batches from meshes, sorted by (mesh, material).
+	/// Uses default material for meshes without an assigned material.
 	private void BuildMaterialBatches(List<MeshProxy*> meshes)
 	{
 		if (meshes.Count == 0)
 			return;
 
+		// Create working list (may filter if no default material)
+		List<MeshProxy*> workingMeshes = scope .();
+
+		// Skip if no default material available (shouldn't render meshes without materials)
+		if (!mDefaultMaterial.IsValid)
+		{
+			// Filter to only meshes with valid materials
+			for (let proxy in meshes)
+			{
+				if (proxy.UsesMaterialInstances && proxy.MaterialInstances[0].IsValid)
+					workingMeshes.Add(proxy);
+			}
+		}
+		else
+		{
+			// Use all meshes (default material fills in for missing materials)
+			for (let proxy in meshes)
+				workingMeshes.Add(proxy);
+		}
+
+		if (workingMeshes.Count == 0)
+			return;
+
 		// Sort by mesh handle then material handle for batching efficiency
-		meshes.Sort(scope (a, b) =>
+		workingMeshes.Sort(scope (a, b) =>
 		{
 			// First compare mesh handles
 			let meshCmp = (int32)a.MeshHandle.Index - (int32)b.MeshHandle.Index;
 			if (meshCmp != 0)
 				return meshCmp;
-			// Then compare material handles
-			return (int32)a.MaterialInstances[0].Index - (int32)b.MaterialInstances[0].Index;
+			// Then compare material handles (using effective material)
+			let matA = GetEffectiveMaterial(a);
+			let matB = GetEffectiveMaterial(b);
+			return (int32)matA.Index - (int32)matB.Index;
 		});
 
 		// Build batches
@@ -251,14 +194,14 @@ class StaticMeshRenderer
 		MaterialInstanceHandle currentMaterial = .Invalid;
 		int32 batchStart = 0;
 
-		for (int32 i = 0; i < meshes.Count; i++)
+		for (int32 i = 0; i < workingMeshes.Count; i++)
 		{
 			if (mMaterialInstanceCount >= MAX_INSTANCES)
 				break;
 
-			let proxy = meshes[i];
+			let proxy = workingMeshes[i];
 			let meshHandle = proxy.MeshHandle;
-			let materialHandle = proxy.MaterialInstances[0];
+			let materialHandle = GetEffectiveMaterial(proxy);
 
 			// Check if we need to start a new batch
 			if (i > 0 && (!meshHandle.Equals(currentMesh) || !materialHandle.Equals(currentMaterial)))
@@ -283,39 +226,12 @@ class StaticMeshRenderer
 		}
 	}
 
-	/// Helper to get a color for legacy material rendering.
-	private Vector4 GetColorForMaterial(uint32 materialId)
-	{
-		// Simple color palette based on material ID
-		switch (materialId % 8)
-		{
-		case 0: return .(0.9f, 0.3f, 0.3f, 1.0f);  // Red
-		case 1: return .(0.3f, 0.9f, 0.3f, 1.0f);  // Green
-		case 2: return .(0.3f, 0.3f, 0.9f, 1.0f);  // Blue
-		case 3: return .(0.9f, 0.9f, 0.3f, 1.0f);  // Yellow
-		case 4: return .(0.9f, 0.3f, 0.9f, 1.0f);  // Magenta
-		case 5: return .(0.3f, 0.9f, 0.9f, 1.0f);  // Cyan
-		case 6: return .(0.9f, 0.6f, 0.3f, 1.0f);  // Orange
-		case 7: return .(0.7f, 0.7f, 0.7f, 1.0f);  // Gray
-		default: return .(1.0f, 1.0f, 1.0f, 1.0f);
-		}
-	}
-
 	/// Uploads instance data to GPU buffers.
 	/// Called during PrepareGPU after the fence wait.
 	public void PrepareGPU(int32 frameIndex)
 	{
 		if (mDevice?.Queue == null || frameIndex < 0 || frameIndex >= MAX_FRAMES)
 			return;
-
-		// Upload legacy instance data
-		if (mLegacyInstanceCount > 0 && mLegacyInstanceBuffers[frameIndex] != null)
-		{
-			uint64 dataSize = (uint64)(sizeof(RenderSceneInstanceData) * mLegacyInstanceCount);
-			Span<uint8> data = .((uint8*)mLegacyInstanceData.Ptr, (int)dataSize);
-			var buf = mLegacyInstanceBuffers[frameIndex];// beef bug
-			mDevice.Queue.WriteBuffer(buf, 0, data);
-		}
 
 		// Upload material instance data
 		if (mMaterialInstanceCount > 0 && mMaterialInstanceBuffers[frameIndex] != null)
@@ -324,42 +240,6 @@ class StaticMeshRenderer
 			Span<uint8> data = .((uint8*)mMaterialInstanceData.Ptr, (int)dataSize);
 			var buf = mMaterialInstanceBuffers[frameIndex];// beef bug
 			mDevice.Queue.WriteBuffer(buf, 0, data);
-		}
-	}
-
-	/// Renders legacy meshes (without MaterialInstance).
-	public void RenderLegacy(IRenderPassEncoder renderPass, IBindGroup sceneBindGroup, int32 frameIndex)
-	{
-		if (mLegacyInstanceCount == 0)
-			return;
-
-		renderPass.SetPipeline(mLegacyPipeline);
-		renderPass.SetBindGroup(0, sceneBindGroup);
-
-		// Draw all legacy visible meshes using their GPU mesh
-		int32 instanceOffset = 0;
-		GPUMeshHandle lastMesh = .Invalid;
-		let instanceBuffer = mLegacyInstanceBuffers[frameIndex];
-
-		for (int32 i = 0; i < mLegacyInstanceCount; i++)
-		{
-			let proxy = mLegacyMeshes[i];
-			let meshHandle = proxy.MeshHandle;
-
-			// When mesh changes, draw the batch
-			if (i > 0 && !meshHandle.Equals(lastMesh))
-			{
-				DrawMeshBatch(renderPass, lastMesh, instanceBuffer, instanceOffset, i - instanceOffset);
-				instanceOffset = i;
-			}
-
-			lastMesh = meshHandle;
-		}
-
-		// Draw final batch
-		if (mLegacyInstanceCount > instanceOffset)
-		{
-			DrawMeshBatch(renderPass, lastMesh, instanceBuffer, instanceOffset, mLegacyInstanceCount - instanceOffset);
 		}
 	}
 
@@ -457,28 +337,6 @@ class StaticMeshRenderer
 					}
 				}
 			}
-		}
-	}
-
-	/// Draws a batch of mesh instances.
-	private void DrawMeshBatch(IRenderPassEncoder renderPass, GPUMeshHandle meshHandle,
-		IBuffer instanceBuffer, int32 instanceOffset, int32 instanceCount)
-	{
-		let gpuMesh = mResourceManager.GetMesh(meshHandle);
-		if (gpuMesh == null)
-			return;
-
-		renderPass.SetVertexBuffer(0, gpuMesh.VertexBuffer, 0);
-		renderPass.SetVertexBuffer(1, instanceBuffer, (uint64)(instanceOffset * sizeof(RenderSceneInstanceData)));
-
-		if (gpuMesh.IndexBuffer != null)
-		{
-			renderPass.SetIndexBuffer(gpuMesh.IndexBuffer, gpuMesh.IndexFormat, 0);
-			renderPass.DrawIndexed(gpuMesh.IndexCount, (uint32)instanceCount, 0, 0, 0);
-		}
-		else
-		{
-			renderPass.Draw(gpuMesh.VertexCount, (uint32)instanceCount, 0, 0);
 		}
 	}
 }

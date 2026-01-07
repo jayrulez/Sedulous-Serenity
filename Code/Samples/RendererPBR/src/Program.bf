@@ -171,7 +171,7 @@ class RendererPBRSample : RHISampleApp
 	private bool CreateMesh()
 	{
 		// Create a sphere mesh
-		let cpuMesh = Mesh.CreateSphere(0.8f, 48, 24);
+		let cpuMesh = StaticMesh.CreateSphere(0.8f, 48, 24);
 		defer delete cpuMesh;
 
 		mSphereMesh = mResourceManager.CreateMesh(cpuMesh);

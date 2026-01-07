@@ -206,7 +206,8 @@ class RendererStaticMeshSample : RHISampleApp
 		mDuckModel = new Model();
 		let loader = scope GltfLoader();
 
-		let result = loader.Load("models/Duck/glTF/Duck.gltf", mDuckModel);
+		let modelPath = GetAssetPath("samples/models/Duck/glTF/Duck.gltf", .. scope .());
+		let result = loader.Load(modelPath, mDuckModel);
 		if (result != .Ok)
 		{
 			Console.WriteLine(scope $"Failed to load Duck model: {result}");
@@ -340,7 +341,8 @@ class RendererStaticMeshSample : RHISampleApp
 
 	private bool CreateSkyboxPipeline()
 	{
-		let shaderResult = ShaderUtils.LoadShaderPair(Device, "../../Sedulous/Sedulous.Framework.Renderer/shaders/skybox");
+		let shaderPath = GetAssetPath("framework/shaders/skybox", .. scope .());
+		let shaderResult = ShaderUtils.LoadShaderPair(Device, shaderPath);
 		if (shaderResult case .Err)
 		{
 			Console.WriteLine("Failed to load skybox shaders");

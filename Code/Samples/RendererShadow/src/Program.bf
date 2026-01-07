@@ -435,7 +435,8 @@ class RendererShadowSample : RHISampleApp
 	private bool CreatePipeline()
 	{
 		// Use the scene_lit shaders from Framework.Renderer
-		let shaderResult = ShaderUtils.LoadShaderPair(Device, "../../Sedulous/Sedulous.Framework.Renderer/shaders/scene_lit");
+		let shaderPath = GetAssetPath("framework/shaders/scene_lit", .. scope .());
+		let shaderResult = ShaderUtils.LoadShaderPair(Device, shaderPath);
 		if (shaderResult case .Err)
 		{
 			Console.WriteLine("Failed to load shaders");
@@ -539,7 +540,7 @@ class RendererShadowSample : RHISampleApp
 
 	private bool CreateShadowPipeline()
 	{
-		let shaderPath = "../../Sedulous/Sedulous.Framework.Renderer/shaders/shadow_depth_instanced.vert.hlsl";
+		let shaderPath = GetAssetPath("framework/shaders/shadow_depth_instanced.vert.hlsl", .. scope .());
 		let shaderResult = ShaderUtils.LoadShader(Device, shaderPath, "main", .Vertex);
 		if (shaderResult case .Err)
 		{

@@ -603,8 +603,7 @@ class RendererLightingSample : RHISampleApp
 	private bool CreateShadowPipeline()
 	{
 		// Load shadow depth shader (instanced variant since we use instancing)
-		// Path relative to renderer module where shadow shaders are defined
-		let shaderPath = "../../Sedulous/Sedulous.Framework.Renderer/shaders/shadow_depth_instanced.vert.hlsl";
+		let shaderPath = GetAssetPath("framework/shaders/shadow_depth_instanced.vert.hlsl", .. scope .());
 		let shaderResult = ShaderUtils.LoadShader(Device, shaderPath, "main", .Vertex);
 		if (shaderResult case .Err)
 		{

@@ -37,7 +37,7 @@ class GPUResourceManager
 
 	/// Creates a GPU mesh from a CPU mesh.
 	/// Returns a handle to the GPU mesh, or Invalid on failure.
-	public GPUMeshHandle CreateMesh(Mesh cpuMesh)
+	public GPUMeshHandle CreateMesh(StaticMesh cpuMesh)
 	{
 		if (cpuMesh == null || cpuMesh.Vertices == null)
 			return .Invalid;

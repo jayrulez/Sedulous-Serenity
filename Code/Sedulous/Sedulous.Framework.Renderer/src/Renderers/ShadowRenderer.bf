@@ -35,7 +35,7 @@ class ShadowRenderer
 	private IRenderPipeline mSkinnedShadowPipeline ~ delete _;
 	private IBindGroupLayout mSkinnedShadowBindGroupLayout ~ delete _;
 	private IPipelineLayout mSkinnedShadowPipelineLayout ~ delete _;
-	private IBuffer mSkinnedShadowObjectBuffer ~ delete _;
+	// Note: Object buffers are now per-component (SkinnedMeshRendererComponent.ObjectUniformBuffer)
 
 	// Per-frame, per-cascade resources
 	private IBuffer[MAX_FRAMES][CASCADE_COUNT] mShadowUniformBuffers ~ {
@@ -215,12 +215,7 @@ class ShadowRenderer
 			return .Err;
 		mSkinnedShadowPipelineLayout = pipelineLayout;
 
-		// Create object uniform buffer (64 bytes for Model matrix)
-		BufferDescriptor objectDesc = .(64, .Uniform, .Upload);
-		if (mDevice.CreateBuffer(&objectDesc) case .Ok(let buf))
-			mSkinnedShadowObjectBuffer = buf;
-		else
-			return .Err;
+		// Note: Object uniform buffers are per-component (SkinnedMeshRendererComponent.ObjectUniformBuffer)
 
 		// Skinned vertex layout - only attributes needed by shadow shader
 		Sedulous.RHI.VertexAttribute[5] vertexAttrs = .(
@@ -280,8 +275,7 @@ class ShadowRenderer
 			return false;
 
 		// Check if we have any meshes to render
-		let hasStaticMeshes = staticRenderer != null &&
-			(staticRenderer.LegacyInstanceCount > 0 || staticRenderer.MaterialBatches.Count > 0);
+		let hasStaticMeshes = staticRenderer != null && staticRenderer.MaterialBatches.Count > 0;
 		let hasSkinnedMeshes = skinnedRenderer != null && skinnedRenderer.SkinnedMeshCount > 0;
 
 		if (!hasStaticMeshes && !hasSkinnedMeshes)
@@ -359,39 +353,12 @@ class ShadowRenderer
 		shadowPass.SetPipeline(mStaticShadowPipeline);
 		shadowPass.SetBindGroup(0, mStaticShadowBindGroups[frameIndex][cascade]);
 
-		let legacyInstanceBuffer = staticRenderer.GetLegacyInstanceBuffer(frameIndex);
-		let materialInstanceBuffer = staticRenderer.GetMaterialInstanceBuffer(frameIndex);
-
-		// Draw legacy visible meshes to shadow map
-		int32 instanceOffset = 0;
-		GPUMeshHandle lastMesh = .Invalid;
-		let legacyMeshes = staticRenderer.LegacyMeshes;
-		let legacyCount = staticRenderer.LegacyInstanceCount;
-
-		for (int32 i = 0; i < legacyCount; i++)
-		{
-			let proxy = legacyMeshes[i];
-			let meshHandle = proxy.MeshHandle;
-
-			if (i > 0 && !meshHandle.Equals(lastMesh))
-			{
-				DrawStaticShadowBatch(shadowPass, lastMesh, legacyInstanceBuffer, instanceOffset, i - instanceOffset);
-				instanceOffset = i;
-			}
-
-			lastMesh = meshHandle;
-		}
-
-		// Draw final legacy batch
-		if (legacyCount > instanceOffset)
-		{
-			DrawStaticShadowBatch(shadowPass, lastMesh, legacyInstanceBuffer, instanceOffset, legacyCount - instanceOffset);
-		}
+		let instanceBuffer = staticRenderer.GetMaterialInstanceBuffer(frameIndex);
 
 		// Draw material meshes to shadow map
 		for (let batch in staticRenderer.MaterialBatches)
 		{
-			DrawStaticShadowBatch(shadowPass, batch.Mesh, materialInstanceBuffer, batch.InstanceOffset, batch.InstanceCount);
+			DrawStaticShadowBatch(shadowPass, batch.Mesh, instanceBuffer, batch.InstanceOffset, batch.InstanceCount);
 		}
 	}
 
@@ -404,7 +371,7 @@ class ShadowRenderer
 			return;
 
 		shadowPass.SetVertexBuffer(0, gpuMesh.VertexBuffer, 0);
-		shadowPass.SetVertexBuffer(1, instanceBuffer, (uint64)(instanceOffset * sizeof(RenderSceneInstanceData)));
+		shadowPass.SetVertexBuffer(1, instanceBuffer, (uint64)(instanceOffset * sizeof(MaterialInstanceData)));
 
 		if (gpuMesh.IndexBuffer != null)
 		{
@@ -440,19 +407,26 @@ class ShadowRenderer
 			if (boneBuffer == null)
 				continue;
 
-			// Upload model matrix to skinned shadow object buffer
+			// Use per-component object buffer (same as main render pass)
+			let objectBuffer = skinnedComp.ObjectUniformBuffer;
+			if (objectBuffer == null)
+				continue;
+
+			// Note: Object buffer is already updated in the main render pass with the correct transform.
+			// We can reuse it here since the transform hasn't changed between passes.
+			// If the shadow pass runs before the main pass, we need to update it here.
 			Matrix modelMatrix = .Identity;
 			if (skinnedComp.Entity != null)
 				modelMatrix = skinnedComp.Entity.Transform.WorldMatrix;
 
 			Span<uint8> modelSpan = .((uint8*)&modelMatrix, sizeof(Matrix));
-			mDevice.Queue.WriteBuffer(mSkinnedShadowObjectBuffer, 0, modelSpan);
+			mDevice.Queue.WriteBuffer(objectBuffer, 0, modelSpan);  // Write to per-component buffer
 
 			// Create bind group for this skinned mesh shadow render
 			BindGroupEntry[3] bindEntries = .(
-				BindGroupEntry.Buffer(0, shadowBuffer),              // Shadow uniforms (b0)
-				BindGroupEntry.Buffer(1, mSkinnedShadowObjectBuffer), // Object transform (b1)
-				BindGroupEntry.Buffer(2, boneBuffer)                  // Bone matrices (b2)
+				BindGroupEntry.Buffer(0, shadowBuffer),   // Shadow uniforms (b0)
+				BindGroupEntry.Buffer(1, objectBuffer),   // Per-component object transform (b1)
+				BindGroupEntry.Buffer(2, boneBuffer)      // Bone matrices (b2)
 			);
 			BindGroupDescriptor bindGroupDesc = .(mSkinnedShadowBindGroupLayout, bindEntries);
 			if (mDevice.CreateBindGroup(&bindGroupDesc) case .Ok(let bindGroup))

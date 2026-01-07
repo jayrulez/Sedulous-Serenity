@@ -124,7 +124,7 @@ class ModelImporter
 			if (hasSkinning)
 				continue;
 
-			let mesh = ModelMeshConverter.ConvertToMesh(modelMesh);
+			let mesh = ModelMeshConverter.ConvertToStaticMesh(modelMesh);
 			if (mesh == null)
 			{
 				result.AddWarning(scope $"Failed to convert mesh '{modelMesh.Name}'");
@@ -137,10 +137,10 @@ class ModelImporter
 				ApplyScale(mesh, mOptions.Scale);
 			}
 
-			let meshRes = new MeshResource(mesh, true);
+			let meshRes = new StaticMeshResource(mesh, true);
 			meshRes.Name.Set(modelMesh.Name);
 
-			result.Meshes.Add(meshRes);
+			result.StaticMeshes.Add(meshRes);
 		}
 	}
 
@@ -324,7 +324,7 @@ class ModelImporter
 		return null;
 	}
 
-	private void ApplyScale(Mesh mesh, float scale)
+	private void ApplyScale(StaticMesh mesh, float scale)
 	{
 		if (mesh.Vertices == null)
 			return;

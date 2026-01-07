@@ -132,6 +132,35 @@ class PipelineCache
 		return .Err;
 	}
 
+	/// Gets or creates a pipeline for skinned mesh rendering (scene + object/bones + material bind groups).
+	public Result<CachedPipeline> GetSkinnedMeshPipeline(
+		PipelineKey key,
+		Span<VertexBufferLayout> vertexBuffers,
+		IBindGroupLayout sceneLayout,
+		IBindGroupLayout objectLayout,
+		IBindGroupLayout materialLayout)
+	{
+		// Include layout pointers in hash
+		int hash = key.GetHashCode();
+		hash = hash * 31 + (int)(void*)Internal.UnsafeCastToPtr(sceneLayout);
+		hash = hash * 31 + (int)(void*)Internal.UnsafeCastToPtr(objectLayout);
+		hash = hash * 31 + (int)(void*)Internal.UnsafeCastToPtr(materialLayout);
+		hash = hash * 31 + 0x534B494E; // "SKIN" marker to differentiate from static mesh pipelines
+
+		// Check cache
+		if (mCache.TryGetValue(hash, let cached))
+			return .Ok(cached);
+
+		// Create new pipeline
+		if (CreateSkinnedMeshPipeline(key, vertexBuffers, sceneLayout, objectLayout, materialLayout) case .Ok(let pipeline))
+		{
+			mCache[hash] = pipeline;
+			return .Ok(pipeline);
+		}
+
+		return .Err;
+	}
+
 	/// Clears the pipeline cache.
 	public void Clear()
 	{
@@ -347,6 +376,95 @@ class PipelineCache
 		if (mDevice.CreateRenderPipeline(&pipelineDesc) case .Ok(let pipeline))
 		{
 			// Note: We don't store bind group layouts here since they're owned externally
+			return .Ok(new CachedPipeline(pipeline, pipelineLayout, null));
+		}
+
+		// Cleanup on failure
+		delete pipelineLayout;
+		return .Err;
+	}
+
+	private Result<CachedPipeline> CreateSkinnedMeshPipeline(
+		PipelineKey key,
+		Span<VertexBufferLayout> vertexBuffers,
+		IBindGroupLayout sceneLayout,
+		IBindGroupLayout objectLayout,
+		IBindGroupLayout materialLayout)
+	{
+		let material = key.Material;
+		if (material == null)
+			return .Err;
+
+		// Get skinned shaders (prefixed with "skinned_")
+		String skinnedShaderName = scope $"skinned_{material.ShaderName}";
+		let shaderResult = mShaderLibrary.GetShaderPair(skinnedShaderName, material.ShaderFlags);
+		if (shaderResult case .Err)
+		{
+			Console.WriteLine(scope $"[PipelineCache] Failed to get skinned shaders for: {skinnedShaderName}");
+			return .Err;
+		}
+
+		let (vertShader, fragShader) = shaderResult.Value;
+
+		// Create pipeline layout with three bind groups: scene (0) + object/bones (1) + material (2)
+		IPipelineLayout pipelineLayout = null;
+		IBindGroupLayout[3] layouts = .(sceneLayout, objectLayout, materialLayout);
+		PipelineLayoutDescriptor layoutDesc = .(layouts);
+
+		if (mDevice.CreatePipelineLayout(&layoutDesc) case .Ok(let pl))
+		{
+			pipelineLayout = pl;
+		}
+		else
+		{
+			Console.WriteLine("[PipelineCache] Failed to create skinned mesh pipeline layout");
+			return .Err;
+		}
+
+		// Color target state
+		ColorTargetState[1] colorTargets;
+		if (let blend = material.GetBlendState())
+		{
+			colorTargets = .(.(key.ColorFormat, blend));
+		}
+		else
+		{
+			colorTargets = .(.(key.ColorFormat));
+		}
+
+		// Depth stencil state
+		DepthStencilState? depthStencil = null;
+		if (key.DepthFormat != .RGBA8Unorm)
+		{
+			depthStencil = material.GetDepthStencilState();
+		}
+
+		// Build pipeline descriptor
+		RenderPipelineDescriptor pipelineDesc = .()
+		{
+			Layout = pipelineLayout,
+			Vertex = .()
+			{
+				Shader = .(vertShader.Module, "main"),
+				Buffers = vertexBuffers
+			},
+			Fragment = .()
+			{
+				Shader = .(fragShader.Module, "main"),
+				Targets = colorTargets
+			},
+			Primitive = material.GetPrimitiveState(),
+			DepthStencil = depthStencil,
+			Multisample = .()
+			{
+				Count = key.SampleCount,
+				Mask = uint32.MaxValue,
+				AlphaToCoverageEnabled = false
+			}
+		};
+
+		if (mDevice.CreateRenderPipeline(&pipelineDesc) case .Ok(let pipeline))
+		{
 			return .Ok(new CachedPipeline(pipeline, pipelineLayout, null));
 		}
 

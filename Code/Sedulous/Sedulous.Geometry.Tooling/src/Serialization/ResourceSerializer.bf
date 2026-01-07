@@ -36,15 +36,15 @@ static class ResourceSerializer
 	// ===== Compatibility wrappers that delegate to resource methods =====
 
 	/// Save a MeshResource to a file. Delegates to MeshResource.SaveToFile.
-	public static Result<void> SaveMesh(MeshResource resource, StringView path)
+	public static Result<void> SaveStaticMesh(StaticMeshResource resource, StringView path)
 	{
 		return resource?.SaveToFile(path) ?? .Err;
 	}
 
 	/// Load a MeshResource from a file. Delegates to MeshResource.LoadFromFile.
-	public static Result<MeshResource> LoadMesh(StringView path)
+	public static Result<StaticMeshResource> LoadStaticMesh(StringView path)
 	{
-		return MeshResource.LoadFromFile(path);
+		return StaticMeshResource.LoadFromFile(path);
 	}
 
 	/// Save a SkinnedMeshResource bundle to a file. Delegates to SkinnedMeshResource.SaveToFile.
@@ -120,12 +120,12 @@ static class ResourceSerializer
 		}
 
 		// Save meshes
-		for (let mesh in result.Meshes)
+		for (let mesh in result.StaticMeshes)
 		{
 			let path = scope String();
 			path.AppendF("{}/{}.mesh", outputDir, mesh.Name);
 			SanitizePath(path);
-			SaveMesh(mesh, path);
+			SaveStaticMesh(mesh, path);
 		}
 
 		// Save skinned meshes (as bundles)
@@ -179,13 +179,13 @@ static class ResourceSerializer
 	private static void SanitizePath(String path)
 	{
 		// Replace invalid filename characters
-		for (int i = 0; i < path.Length; i++)
+		/*for (int i = 0; i < path.Length; i++)
 		{
 			char8 c = path[i];
 			if (c == '<' || c == '>' || c == ':' || c == '"' || c == '|' || c == '?' || c == '*')
 			{
 				path[i] = '_';
 			}
-		}
+		}*/
 	}
 }

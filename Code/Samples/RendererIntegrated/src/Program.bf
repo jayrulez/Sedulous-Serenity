@@ -11,10 +11,25 @@ using Sedulous.Framework.Renderer;
 using Sedulous.Logging.Abstractions;
 using Sedulous.Logging.Console;
 using Sedulous.Models;
+using Sedulous.Models.GLTF;
 using Sedulous.Imaging;
 using SampleFramework;
 using Sedulous.Logging.Debug;
 using Sedulous.Geometry.Tooling;
+
+/// Debug line vertex
+[CRepr]
+struct LineVertex
+{
+	public Vector3 Position;
+	public Vector4 Color;
+
+	public this(Vector3 pos, Vector4 col)
+	{
+		Position = pos;
+		Color = col;
+	}
+}
 
 /// Demonstrates Framework.Core integration with Framework.Renderer.
 /// Uses entities with MeshRendererComponent, LightComponent, and CameraComponent.
@@ -35,6 +50,13 @@ class RendererIntegratedSample : RHISampleApp
 	private RendererService mRendererService;
 	private RenderSceneComponent mRenderSceneComponent;
 
+	// Material handles
+	private MaterialHandle mPBRMaterial = .Invalid;
+	private MaterialInstanceHandle mGroundMaterial = .Invalid;
+	private MaterialInstanceHandle[8] mCubeMaterials;  // 8 different colors
+	private MaterialInstanceHandle mFoxMaterial = .Invalid;
+	private GPUTextureHandle mFoxTexture = .Invalid;
+
 	// Camera entity and control
 	private Entity mCameraEntity;
 	private float mCameraYaw = Math.PI_f;  // Start looking toward -Z (toward origin)
@@ -50,6 +72,22 @@ class RendererIntegratedSample : RHISampleApp
 	private SkinnedMeshResource mFoxResource ~ delete _;
 	private Entity mFoxEntity;
 	private int32 mCurrentAnimIndex = 0;
+
+	// Light direction control (spherical coordinates)
+	private Entity mSunLightEntity;
+	private float mLightYaw = 0.5f;
+	private float mLightPitch = -0.7f;
+	private float mLightIntensity = 1.0f;
+
+	// Debug line rendering
+	private const int32 MAX_DEBUG_LINES = 100;
+	private IRenderPipeline mLinePipeline;
+	private IBindGroupLayout mLineBindGroupLayout;
+	private IPipelineLayout mLinePipelineLayout;
+	private IBuffer[MAX_FRAMES_IN_FLIGHT] mLineVertexBuffers;
+	private IBuffer[MAX_FRAMES_IN_FLIGHT] mLineUniformBuffers;
+	private IBindGroup[MAX_FRAMES_IN_FLIGHT] mLineBindGroups;
+	private List<LineVertex> mDebugLines = new .() ~ delete _;
 
 	public this() : base(.()
 	{
@@ -72,7 +110,8 @@ class RendererIntegratedSample : RHISampleApp
 
 		// Create and register RendererService
 		mRendererService = new RendererService();
-		if (mRendererService.Initialize(Device, "../../Sedulous/Sedulous.Framework.Renderer/shaders") case .Err)
+		let shaderPath = GetAssetPath("framework/shaders", .. scope .());
+		if (mRendererService.Initialize(Device, shaderPath) case .Err)
 		{
 			Console.WriteLine("Failed to initialize RendererService");
 			return false;
@@ -90,6 +129,9 @@ class RendererIntegratedSample : RHISampleApp
 			return false;
 		}
 
+		// Create materials
+		CreateMaterials();
+
 		// Create all entities (cubes, lights, camera)
 		CreateEntities();
 
@@ -97,11 +139,19 @@ class RendererIntegratedSample : RHISampleApp
 		mContext.SceneManager.SetActiveScene(mScene);
 		mContext.Startup();
 
+		// Create debug line pipeline
+		if (!CreateLinePipeline())
+		{
+			Console.WriteLine("Failed to create line pipeline");
+			return false;
+		}
+
 		Console.WriteLine("Framework.Core + Renderer integration sample initialized");
 		Console.WriteLine($"Created {GRID_SIZE * GRID_SIZE} cube entities with MeshRendererComponent");
 		Console.WriteLine($"Created 4 particle emitters and 10 sprite entities");
 		Console.WriteLine("Controls: WASD=Move, QE=Up/Down, Tab=Toggle mouse capture, Shift=Fast");
-		Console.WriteLine("          Left/Right or ,/. = Cycle Fox animations");
+		Console.WriteLine("          Space=Cycle Fox animations, Arrow keys=Light direction");
+		Console.WriteLine("          Z/X=Light intensity");
 
 		// Debug: initial state
 		Console.WriteLine($"[INIT DEBUG] MeshCount={mRenderSceneComponent.MeshCount}, HasCamera={mRenderSceneComponent.GetMainCameraProxy() != null}");
@@ -109,10 +159,93 @@ class RendererIntegratedSample : RHISampleApp
 		return true;
 	}
 
+	private void CreateMaterials()
+	{
+		let materialSystem = mRendererService.MaterialSystem;
+		if (materialSystem == null)
+		{
+			Console.WriteLine("MaterialSystem not available!");
+			return;
+		}
+
+		// Create PBR material
+		let pbrMaterial = Material.CreatePBR("PBRMaterial");
+		mPBRMaterial = materialSystem.RegisterMaterial(pbrMaterial);
+
+		if (!mPBRMaterial.IsValid)
+		{
+			Console.WriteLine("Failed to register PBR material");
+			return;
+		}
+
+		// Create ground material (gray)
+		mGroundMaterial = materialSystem.CreateInstance(mPBRMaterial);
+		if (mGroundMaterial.IsValid)
+		{
+			let instance = materialSystem.GetInstance(mGroundMaterial);
+			if (instance != null)
+			{
+				instance.SetFloat4("baseColor", .(0.4f, 0.4f, 0.4f, 1.0f));
+				instance.SetFloat("metallic", 0.0f);
+				instance.SetFloat("roughness", 0.9f);
+				instance.SetFloat("ao", 1.0f);
+				instance.SetFloat4("emissive", .(0, 0, 0, 1));
+				materialSystem.UploadInstance(mGroundMaterial);
+			}
+		}
+
+		// Create 8 cube materials with different colors
+		Vector4[8] cubeColors = .(
+			.(1.0f, 0.3f, 0.3f, 1.0f),  // Red
+			.(0.3f, 1.0f, 0.3f, 1.0f),  // Green
+			.(0.3f, 0.3f, 1.0f, 1.0f),  // Blue
+			.(1.0f, 1.0f, 0.3f, 1.0f),  // Yellow
+			.(1.0f, 0.3f, 1.0f, 1.0f),  // Magenta
+			.(0.3f, 1.0f, 1.0f, 1.0f),  // Cyan
+			.(1.0f, 0.6f, 0.3f, 1.0f),  // Orange
+			.(0.6f, 0.3f, 1.0f, 1.0f)   // Purple
+		);
+
+		for (int32 i = 0; i < 8; i++)
+		{
+			mCubeMaterials[i] = materialSystem.CreateInstance(mPBRMaterial);
+			if (mCubeMaterials[i].IsValid)
+			{
+				let instance = materialSystem.GetInstance(mCubeMaterials[i]);
+				if (instance != null)
+				{
+					instance.SetFloat4("baseColor", cubeColors[i]);
+					instance.SetFloat("metallic", 0.2f);
+					instance.SetFloat("roughness", 0.5f);
+					instance.SetFloat("ao", 1.0f);
+					instance.SetFloat4("emissive", .(0, 0, 0, 1));
+					materialSystem.UploadInstance(mCubeMaterials[i]);
+				}
+			}
+		}
+
+		// Create Fox material (will set texture later in CreateFoxEntity)
+		mFoxMaterial = materialSystem.CreateInstance(mPBRMaterial);
+		if (mFoxMaterial.IsValid)
+		{
+			let instance = materialSystem.GetInstance(mFoxMaterial);
+			if (instance != null)
+			{
+				instance.SetFloat4("baseColor", .(1.0f, 1.0f, 1.0f, 1.0f));  // White to show texture
+				instance.SetFloat("metallic", 0.0f);
+				instance.SetFloat("roughness", 0.6f);
+				instance.SetFloat("ao", 1.0f);
+				instance.SetFloat4("emissive", .(0, 0, 0, 1));
+			}
+		}
+
+		Console.WriteLine("Created PBR materials for ground, cubes, and Fox");
+	}
+
 	private void CreateEntities()
 	{
 		// Create shared CPU mesh - uploaded to GPU automatically by MeshRendererComponent
-		let cubeMesh = Mesh.CreateCube(1.0f);
+		let cubeMesh = StaticMesh.CreateCube(1.0f);
 		defer delete cubeMesh;
 
 		// Create ground plane (large flat cube)
@@ -121,11 +254,10 @@ class RendererIntegratedSample : RHISampleApp
 			groundEntity.Transform.SetPosition(.(0, -0.5f, 0));
 			groundEntity.Transform.SetScale(.(50.0f, 1.0f, 50.0f));
 
-			let meshRenderer = new MeshRendererComponent();
-			meshRenderer.MaterialIds[0] = 7;  // Use a neutral color
-			meshRenderer.MaterialCount = 1;
-			groundEntity.AddComponent(meshRenderer);
-			meshRenderer.SetMesh(cubeMesh);
+			let meshComponent = new StaticMeshComponent();
+			groundEntity.AddComponent(meshComponent);
+			meshComponent.SetMesh(cubeMesh);
+			meshComponent.SetMaterialInstance(0, mGroundMaterial);
 		}
 
 		float spacing = 3.0f;
@@ -145,23 +277,22 @@ class RendererIntegratedSample : RHISampleApp
 
 				// Add MeshRendererComponent first, then set mesh
 				// (SetMesh needs access to RendererService via entity's scene)
-				let meshRenderer = new MeshRendererComponent();
-				meshRenderer.MaterialIds[0] = (uint32)((x + z) % 8);  // Vary colors
-				meshRenderer.MaterialCount = 1;
-				entity.AddComponent(meshRenderer);
+				let meshComponent = new StaticMeshComponent();
+				entity.AddComponent(meshComponent);
 
 				// Now set the mesh - GPU upload happens automatically
-				meshRenderer.SetMesh(cubeMesh);
+				meshComponent.SetMesh(cubeMesh);
+				meshComponent.SetMaterialInstance(0, mCubeMaterials[(x + z) % 8]);
 			}
 		}
 
 		// Create directional light entity with shadows
 		{
-			let lightEntity = mScene.CreateEntity("SunLight");
-			lightEntity.Transform.LookAt(.(-0.5f, -1.0f, -0.3f));
+			mSunLightEntity = mScene.CreateEntity("SunLight");
+			mSunLightEntity.Transform.LookAt(GetLightDirection());
 
-			let lightComp = LightComponent.CreateDirectional(.(1.0f, 0.95f, 0.8f), 1.0f, true);  // Enable shadows
-			lightEntity.AddComponent(lightComp);
+			let lightComp = LightComponent.CreateDirectional(.(1.0f, 0.95f, 0.8f), mLightIntensity, true);  // Enable shadows
+			mSunLightEntity.AddComponent(lightComp);
 		}
 
 		// Create point lights (fixed seed for consistent placement between runs)
@@ -269,29 +400,76 @@ class RendererIntegratedSample : RHISampleApp
 
 	private void CreateFoxEntity()
 	{
-		// Load fox from cached resource
-		let cachedPath = "models/Fox/Fox.skinnedmesh";
+		// Asset paths (relative to AssetDirectory)
+		let cachedPath = GetAssetPath("cache/Fox.skinnedmesh", .. scope .());
+		let gltfPath = GetAssetPath("samples/models/Fox/glTF/Fox.gltf", .. scope .());
+		let gltfBasePath = GetAssetPath("samples/models/Fox/glTF", .. scope .());
 
+		// Try to load from cache first
 		if (File.Exists(cachedPath))
 		{
-			Console.WriteLine("Loading Fox from cached resource...");
+			Console.WriteLine("Loading Fox from cache...");
 			if (ResourceSerializer.LoadSkinnedMeshBundle(cachedPath) case .Ok(let resource))
 			{
 				mFoxResource = resource;
-				Console.WriteLine($"Fox loaded: {mFoxResource.Mesh.VertexCount} vertices, {mFoxResource.Skeleton?.BoneCount ?? 0} bones, {mFoxResource.AnimationCount} animations");
+				Console.WriteLine($"  Loaded: {mFoxResource.Mesh.VertexCount} vertices, {mFoxResource.Skeleton?.BoneCount ?? 0} bones, {mFoxResource.AnimationCount} animations");
 			}
 			else
 			{
-				Console.WriteLine("Failed to load Fox resource");
-				return;
+				Console.WriteLine("  Cache file exists but failed to load, falling back to GLTF import...");
 			}
 		}
-		else
+
+		// Import from GLTF if not loaded from cache
+		if (mFoxResource == null)
 		{
-			Console.WriteLine($"Fox model not found: {cachedPath}");
-			Console.WriteLine("Run RendererSkinned sample first to create the cached Fox model.");
-			return;
+			Console.WriteLine("Importing Fox from GLTF...");
+			let foxModel = scope Model();
+			let loader = scope GltfLoader();
+
+			let result = loader.Load(gltfPath, foxModel);
+			if (result != .Ok)
+			{
+				Console.WriteLine($"  Failed to load Fox model: {result}");
+				return;
+			}
+
+			Console.WriteLine($"  GLTF parsed: {foxModel.Meshes.Count} meshes, {foxModel.Bones.Count} bones, {foxModel.Animations.Count} animations");
+
+			// Use ModelImporter to convert all resources
+			let importOptions = new ModelImportOptions();
+			importOptions.Flags = .SkinnedMeshes | .Skeletons | .Animations | .Textures | .Materials;
+			importOptions.BasePath.Set(gltfBasePath);
+
+			let imageLoader = scope SDLImageLoader();
+			let importer = scope ModelImporter(importOptions, imageLoader);
+			let importResult = importer.Import(foxModel);
+			defer delete importResult;
+
+			if (!importResult.Success || importResult.SkinnedMeshes.Count == 0)
+			{
+				Console.WriteLine("  Import failed or no skinned meshes found");
+				for (let err in importResult.Errors)
+					Console.WriteLine($"    Error: {err}");
+				return;
+			}
+
+			// Take ownership of the first skinned mesh
+			mFoxResource = importResult.TakeSkinnedMesh(0);
+			Console.WriteLine($"  Imported: {mFoxResource.Mesh.VertexCount} vertices, {mFoxResource.Skeleton?.BoneCount ?? 0} bones, {mFoxResource.AnimationCount} animations");
+
+			// Save to cache for next time
+			let cacheDir = Path.GetDirectoryPath(cachedPath, .. scope .());
+			if (!Directory.Exists(cacheDir))
+				Directory.CreateDirectory(cacheDir);
+
+			if (ResourceSerializer.SaveSkinnedMeshBundle(mFoxResource, cachedPath) case .Ok)
+				Console.WriteLine($"  Saved to cache: {cachedPath}");
 		}
+
+		// Exit if we failed to load the fox
+		if (mFoxResource == null)
+			return;
 
 		// Create fox entity - position outside the cube grid
 		mFoxEntity = mScene.CreateEntity("Fox");
@@ -299,58 +477,67 @@ class RendererIntegratedSample : RHISampleApp
 		mFoxEntity.Transform.SetScale(Vector3(0.05f));
 
 		// Create skinned mesh renderer component
-		let skinnedRenderer = new SkinnedMeshRendererComponent();
-		mFoxEntity.AddComponent(skinnedRenderer);
+		let meshComponent = new SkinnedMeshComponent();
+		mFoxEntity.AddComponent(meshComponent);
 
 		// Use the resource's skeleton directly (shared, not owned)
 		if (mFoxResource.Skeleton != null)
-			skinnedRenderer.SetSkeleton(mFoxResource.Skeleton);
+			meshComponent.SetSkeleton(mFoxResource.Skeleton);
 
 		// Add animation clips from resource (shared references)
 		for (let clip in mFoxResource.Animations)
-			skinnedRenderer.AddAnimationClip(clip);
+			meshComponent.AddAnimationClip(clip);
 
 		// Set the mesh (triggers GPU upload)
-		skinnedRenderer.SetMesh(mFoxResource.Mesh);
+		meshComponent.SetMesh(mFoxResource.Mesh);
 
-		// Load fox texture
-		let texPath = "models/Fox/glTF/Texture.png";
-		let imageLoader = scope SDLImageLoader();
-		if (imageLoader.LoadFromFile(texPath) case .Ok(var loadInfo))
+		// Load fox texture and set on material
+		let texPath = GetAssetPath("samples/models/Fox/glTF/Texture.png", .. scope .());
+		let resourceManager = mRendererService.ResourceManager;
+		let materialSystem = mRendererService.MaterialSystem;
+
+		if (resourceManager != null && materialSystem != null)
 		{
-			defer loadInfo.Dispose();
-			Console.WriteLine($"Fox texture: {loadInfo.Width}x{loadInfo.Height}");
-
-			TextureDescriptor texDesc = .Texture2D(loadInfo.Width, loadInfo.Height, .RGBA8Unorm, .Sampled | .CopyDst);
-			if (Device.CreateTexture(&texDesc) case .Ok(let texture))
+			let imageLoader = scope SDLImageLoader();
+			if (imageLoader.LoadFromFile(texPath) case .Ok(var loadInfo))
 			{
-				TextureDataLayout layout = .() { Offset = 0, BytesPerRow = loadInfo.Width * 4, RowsPerImage = loadInfo.Height };
-				Extent3D size = .(loadInfo.Width, loadInfo.Height, 1);
-				Span<uint8> data = .(loadInfo.Data.Ptr, loadInfo.Data.Count);
-				Device.Queue.WriteTexture(texture, data, &layout, &size, 0, 0);
+				defer loadInfo.Dispose();
+				Console.WriteLine($"Fox texture: {loadInfo.Width}x{loadInfo.Height}");
 
-				TextureViewDescriptor viewDesc = .() { Format = .RGBA8Unorm, Dimension = .Texture2D, MipLevelCount = 1, ArrayLayerCount = 1 };
-				if (Device.CreateTextureView(texture, &viewDesc) case .Ok(let view))
+				// Upload texture via ResourceManager
+				mFoxTexture = resourceManager.CreateTextureFromData(
+					loadInfo.Width, loadInfo.Height, .RGBA8Unorm, .(loadInfo.Data.Ptr, loadInfo.Data.Count));
+
+				if (mFoxTexture.IsValid)
 				{
-					skinnedRenderer.SetTexture(texture, view);
-					Console.WriteLine("Fox texture loaded");
-				}
-				else
-				{
-					delete texture;
+					// Set texture on Fox material instance
+					if (mFoxMaterial.IsValid)
+					{
+						let foxInstance = materialSystem.GetInstance(mFoxMaterial);
+						if (foxInstance != null)
+						{
+							foxInstance.SetTexture("albedoMap", mFoxTexture);
+							materialSystem.UploadInstance(mFoxMaterial);
+							Console.WriteLine("Fox texture set on material");
+						}
+					}
 				}
 			}
-		}
-		else
-		{
-			Console.WriteLine($"Failed to load fox texture: {texPath}");
+			else
+			{
+				Console.WriteLine($"Failed to load fox texture: {texPath}");
+			}
 		}
 
+		// Set PBR material on skinned mesh
+		if (mFoxMaterial.IsValid)
+			meshComponent.SetMaterial(mFoxMaterial);
+
 		// Start playing first animation
-		if (skinnedRenderer.AnimationClips.Count > 0)
+		if (meshComponent.AnimationClips.Count > 0)
 		{
-			skinnedRenderer.PlayAnimation(0, true);
-			Console.WriteLine($"Fox animation playing: {skinnedRenderer.AnimationClips[0].Name}");
+			meshComponent.PlayAnimation(0, true);
+			Console.WriteLine($"Fox animation playing: {meshComponent.AnimationClips[0].Name}");
 		}
 	}
 
@@ -406,29 +593,45 @@ class RendererIntegratedSample : RHISampleApp
 		if (keyboard.IsKeyDown(.E)) pos = pos + up * speed;
 		mCameraEntity.Transform.SetPosition(pos);
 
-		// Cycle through Fox animations
-		if (mFoxEntity != null)
+		// Cycle through Fox animations with Space
+		if (mFoxEntity != null && keyboard.IsKeyPressed(.Space))
 		{
-			if (let skinnedRenderer = mFoxEntity.GetComponent<SkinnedMeshRendererComponent>())
+			if (let meshComponent = mFoxEntity.GetComponent<SkinnedMeshComponent>())
 			{
-				let animCount = (int32)skinnedRenderer.AnimationClips.Count;
+				let animCount = (int32)meshComponent.AnimationClips.Count;
 				if (animCount > 0)
 				{
-					if (keyboard.IsKeyPressed(.Right) || keyboard.IsKeyPressed(.Period))
-					{
-						mCurrentAnimIndex = (mCurrentAnimIndex + 1) % animCount;
-						skinnedRenderer.PlayAnimation(mCurrentAnimIndex, true);
-						Console.WriteLine($"Playing animation: {skinnedRenderer.AnimationClips[mCurrentAnimIndex].Name}");
-					}
-					if (keyboard.IsKeyPressed(.Left) || keyboard.IsKeyPressed(.Comma))
-					{
-						mCurrentAnimIndex = (mCurrentAnimIndex - 1 + animCount) % animCount;
-						skinnedRenderer.PlayAnimation(mCurrentAnimIndex, true);
-						Console.WriteLine($"Playing animation: {skinnedRenderer.AnimationClips[mCurrentAnimIndex].Name}");
-					}
+					mCurrentAnimIndex = (mCurrentAnimIndex + 1) % animCount;
+					meshComponent.PlayAnimation(mCurrentAnimIndex, true);
+					Console.WriteLine($"Playing animation: {meshComponent.AnimationClips[mCurrentAnimIndex].Name}");
 				}
 			}
 		}
+
+		// Light direction control with arrow keys
+		float lightSpeed = 1.0f * DeltaTime;
+		bool lightChanged = false;
+
+		if (keyboard.IsKeyDown(.Left))  { mLightYaw -= lightSpeed; lightChanged = true; }
+		if (keyboard.IsKeyDown(.Right)) { mLightYaw += lightSpeed; lightChanged = true; }
+		if (keyboard.IsKeyDown(.Up))    { mLightPitch -= lightSpeed; lightChanged = true; }
+		if (keyboard.IsKeyDown(.Down))  { mLightPitch += lightSpeed; lightChanged = true; }
+
+		// Clamp pitch to avoid light pointing up
+		mLightPitch = Math.Clamp(mLightPitch, -Math.PI_f * 0.45f, -0.1f);
+
+		if (lightChanged)
+			UpdateLightDirection();
+
+		// Light intensity control with Z/X
+		float intensitySpeed = 1.0f * DeltaTime;
+		bool intensityChanged = false;
+
+		if (keyboard.IsKeyDown(.Z)) { mLightIntensity = Math.Max(0.1f, mLightIntensity - intensitySpeed); intensityChanged = true; }
+		if (keyboard.IsKeyDown(.X)) { mLightIntensity = Math.Min(5.0f, mLightIntensity + intensitySpeed); intensityChanged = true; }
+
+		if (intensityChanged)
+			UpdateLightIntensity();
 	}
 
 	private void UpdateCameraDirection()
@@ -446,6 +649,214 @@ class RendererIntegratedSample : RHISampleApp
 
 		let target = mCameraEntity.Transform.Position + forward;
 		mCameraEntity.Transform.LookAt(target);
+	}
+
+	private Vector3 GetLightDirection()
+	{
+		// Convert spherical coordinates to direction vector
+		float cosP = Math.Cos(mLightPitch);
+		return Vector3.Normalize(.(
+			Math.Sin(mLightYaw) * cosP,
+			Math.Sin(mLightPitch),
+			Math.Cos(mLightYaw) * cosP
+		));
+	}
+
+	private void UpdateLightDirection()
+	{
+		if (mSunLightEntity == null)
+			return;
+
+		mSunLightEntity.Transform.LookAt(GetLightDirection());
+	}
+
+	private void UpdateLightIntensity()
+	{
+		if (mSunLightEntity == null)
+			return;
+
+		if (let lightComp = mSunLightEntity.GetComponent<LightComponent>())
+		{
+			lightComp.Intensity = mLightIntensity;
+		}
+	}
+
+	private bool CreateLinePipeline()
+	{
+		// Simple line shader - compile inline
+		let vertCode = """
+			#pragma pack_matrix(row_major)
+
+			cbuffer Camera : register(b0) {
+				float4x4 viewProjection;
+			};
+
+			struct VSInput {
+				float3 position : POSITION;
+				float4 color : COLOR;
+			};
+
+			struct VSOutput {
+				float4 position : SV_Position;
+				float4 color : COLOR;
+			};
+
+			VSOutput main(VSInput input) {
+				VSOutput output;
+				output.position = mul(float4(input.position, 1.0), viewProjection);
+				output.color = input.color;
+				return output;
+			}
+			""";
+
+		let fragCode = """
+			struct PSInput {
+				float4 position : SV_Position;
+				float4 color : COLOR;
+			};
+
+			float4 main(PSInput input) : SV_Target {
+				return input.color;
+			}
+			""";
+
+		let vertResult = ShaderUtils.CompileShader(Device, vertCode, "main", .Vertex);
+		if (vertResult case .Err)
+		{
+			Console.WriteLine("Failed to compile line vertex shader");
+			return false;
+		}
+		let lineVertShader = vertResult.Get();
+		defer delete lineVertShader;
+
+		let fragResult = ShaderUtils.CompileShader(Device, fragCode, "main", .Fragment);
+		if (fragResult case .Err)
+		{
+			Console.WriteLine("Failed to compile line fragment shader");
+			return false;
+		}
+		let lineFragShader = fragResult.Get();
+		defer delete lineFragShader;
+
+		// Line bind group layout - just camera buffer
+		BindGroupLayoutEntry[1] lineLayoutEntries = .(
+			BindGroupLayoutEntry.UniformBuffer(0, .Vertex)
+		);
+
+		BindGroupLayoutDescriptor lineLayoutDesc = .(lineLayoutEntries);
+		if (Device.CreateBindGroupLayout(&lineLayoutDesc) case .Ok(let bindLayout))
+			mLineBindGroupLayout = bindLayout;
+		else return false;
+
+		IBindGroupLayout[1] lineBindGroupLayouts = .(mLineBindGroupLayout);
+		PipelineLayoutDescriptor linePipelineLayoutDesc = .(lineBindGroupLayouts);
+		if (Device.CreatePipelineLayout(&linePipelineLayoutDesc) case .Ok(let pipLayout))
+			mLinePipelineLayout = pipLayout;
+		else return false;
+
+		// Line vertex format
+		Sedulous.RHI.VertexAttribute[2] lineAttrs = .(
+			.(VertexFormat.Float3, 0, 0),   // Position
+			.(VertexFormat.Float4, 12, 1)   // Color
+		);
+
+		VertexBufferLayout[1] lineVertexBuffers = .(
+			.(28, lineAttrs, .Vertex)
+		);
+
+		DepthStencilState lineDepthState = .();
+		lineDepthState.DepthTestEnabled = true;
+		lineDepthState.DepthWriteEnabled = false;
+		lineDepthState.DepthCompare = .Less;
+		lineDepthState.Format = .Depth24PlusStencil8;
+
+		ColorTargetState[1] lineColorTargets = .(.(SwapChain.Format));
+		RenderPipelineDescriptor linePipelineDesc = .()
+		{
+			Layout = mLinePipelineLayout,
+			Vertex = .() { Shader = .(lineVertShader, "main"), Buffers = lineVertexBuffers },
+			Fragment = .() { Shader = .(lineFragShader, "main"), Targets = lineColorTargets },
+			Primitive = .() { Topology = .LineList, FrontFace = .CCW, CullMode = .None },
+			DepthStencil = lineDepthState,
+			Multisample = .() { Count = 1, Mask = uint32.MaxValue }
+		};
+
+		if (Device.CreateRenderPipeline(&linePipelineDesc) case .Ok(let pipeline))
+			mLinePipeline = pipeline;
+		else return false;
+
+		// Create per-frame line buffers and bind groups
+		for (int32 i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			// Uniform buffer for camera VP
+			BufferDescriptor uniformDesc = .((uint64)sizeof(Matrix), .Uniform, .Upload);
+			if (Device.CreateBuffer(&uniformDesc) case .Ok(let uniformBuf))
+				mLineUniformBuffers[i] = uniformBuf;
+			else return false;
+
+			// Vertex buffer for line vertices
+			BufferDescriptor vertexDesc = .((uint64)(sizeof(LineVertex) * MAX_DEBUG_LINES * 2), .Vertex, .Upload);
+			if (Device.CreateBuffer(&vertexDesc) case .Ok(let vertexBuf))
+				mLineVertexBuffers[i] = vertexBuf;
+			else return false;
+
+			// Bind group
+			BindGroupEntry[1] lineBindGroupEntries = .(
+				BindGroupEntry.Buffer(0, mLineUniformBuffers[i])
+			);
+			BindGroupDescriptor lineBindGroupDesc = .(mLineBindGroupLayout, lineBindGroupEntries);
+			if (Device.CreateBindGroup(&lineBindGroupDesc) case .Ok(let group))
+				mLineBindGroups[i] = group;
+			else return false;
+		}
+
+		return true;
+	}
+
+	private void UpdateDebugLines()
+	{
+		mDebugLines.Clear();
+
+		// Draw light direction as a line from above origin
+		let lightDir = GetLightDirection();
+		let lightStart = Vector3(0, 5, 0);  // Start above ground
+
+		// Draw XYZ axis at the light arrow start for reference
+		let axisLength = 1.5f;
+
+		// X axis - Red
+		mDebugLines.Add(LineVertex(lightStart, .(1, 0, 0, 1)));
+		mDebugLines.Add(LineVertex(lightStart + Vector3(axisLength, 0, 0), .(1, 0, 0, 1)));
+
+		// Y axis - Green
+		mDebugLines.Add(LineVertex(lightStart, .(0, 1, 0, 1)));
+		mDebugLines.Add(LineVertex(lightStart + Vector3(0, axisLength, 0), .(0, 1, 0, 1)));
+
+		// Z axis - Blue
+		mDebugLines.Add(LineVertex(lightStart, .(0, 0, 1, 1)));
+		mDebugLines.Add(LineVertex(lightStart + Vector3(0, 0, axisLength), .(0, 0, 1, 1)));
+
+		// Yellow line for light direction
+		let lightEnd = lightStart + lightDir * 5.0f;
+		mDebugLines.Add(LineVertex(lightStart, .(1, 1, 0, 1)));
+		mDebugLines.Add(LineVertex(lightEnd, .(1, 0.5f, 0, 1)));
+
+		// Add arrow head
+		let right = Vector3.Normalize(Vector3.Cross(lightDir, Vector3.Up));
+		let up = Vector3.Normalize(Vector3.Cross(right, lightDir));
+		let arrowSize = 0.3f;
+
+		mDebugLines.Add(LineVertex(lightEnd, .(1, 0.5f, 0, 1)));
+		mDebugLines.Add(LineVertex(lightEnd - lightDir * arrowSize + right * arrowSize * 0.5f, .(1, 0.5f, 0, 1)));
+
+		mDebugLines.Add(LineVertex(lightEnd, .(1, 0.5f, 0, 1)));
+		mDebugLines.Add(LineVertex(lightEnd - lightDir * arrowSize - right * arrowSize * 0.5f, .(1, 0.5f, 0, 1)));
+
+		mDebugLines.Add(LineVertex(lightEnd, .(1, 0.5f, 0, 1)));
+		mDebugLines.Add(LineVertex(lightEnd - lightDir * arrowSize + up * arrowSize * 0.5f, .(1, 0.5f, 0, 1)));
+
+		mDebugLines.Add(LineVertex(lightEnd, .(1, 0.5f, 0, 1)));
+		mDebugLines.Add(LineVertex(lightEnd - lightDir * arrowSize - up * arrowSize * 0.5f, .(1, 0.5f, 0, 1)));
 	}
 
 	protected override void OnUpdate(float deltaTime, float totalTime)
@@ -467,6 +878,43 @@ class RendererIntegratedSample : RHISampleApp
 		// Upload GPU data - this is called after fence wait, safe to write buffers
 		mCurrentFrameIndex = frameIndex;
 		mRenderSceneComponent.PrepareGPU(frameIndex);
+
+		// Update debug lines
+		UpdateDebugLines();
+
+		// Upload debug line vertices
+		if (mDebugLines.Count > 0 && mLineVertexBuffers[frameIndex] != null)
+		{
+			let dataSize = (uint64)(mDebugLines.Count * sizeof(LineVertex));
+			Span<uint8> data = .((uint8*)mDebugLines.Ptr, (int)dataSize);
+			var buf = mLineVertexBuffers[frameIndex];// beef bug
+			Device.Queue.WriteBuffer(buf, 0, data);
+		}
+
+		// Upload camera VP for debug lines
+		if (mCameraEntity != null && mLineUniformBuffers[frameIndex] != null)
+		{
+			if (let cameraComp = mCameraEntity.GetComponent<CameraComponent>())
+			{
+				// Build view matrix from entity transform
+				let camPos = mCameraEntity.Transform.WorldPosition;
+				let camFwd = mCameraEntity.Transform.Forward;
+				let camUp = mCameraEntity.Transform.Up;
+				let viewMatrix = Matrix.CreateLookAt(camPos, camPos + camFwd, camUp);
+
+				// Build projection matrix
+				float aspectRatio = (float)cameraComp.ViewportWidth / (float)cameraComp.ViewportHeight;
+				var projection = Matrix.CreatePerspectiveFieldOfView(cameraComp.FieldOfView, aspectRatio, cameraComp.NearPlane, cameraComp.FarPlane);
+
+				if (Device.FlipProjectionRequired)
+					projection.M22 = -projection.M22;
+
+				var vp = viewMatrix * projection;
+				Span<uint8> vpSpan = .((uint8*)&vp, sizeof(Matrix));
+				var buf = mLineUniformBuffers[frameIndex];// beef bug
+				Device.Queue.WriteBuffer(buf, 0, vpSpan);
+			}
+		}
 	}
 
 	protected override bool OnRenderFrame(ICommandEncoder encoder, int32 frameIndex)
@@ -510,6 +958,15 @@ class RendererIntegratedSample : RHISampleApp
 		// Render the scene - all GPU details handled by RenderSceneComponent
 		mRenderSceneComponent.Render(renderPass, SwapChain.Width, SwapChain.Height);
 
+		// Draw debug lines (light direction gizmo)
+		if (mDebugLines.Count > 0 && mLinePipeline != null)
+		{
+			renderPass.SetPipeline(mLinePipeline);
+			renderPass.SetBindGroup(0, mLineBindGroups[frameIndex]);
+			renderPass.SetVertexBuffer(0, mLineVertexBuffers[frameIndex], 0);
+			renderPass.Draw((uint32)mDebugLines.Count, 1, 0, 0);
+		}
+
 		renderPass.End();
 		return true;  // We handled rendering
 	}
@@ -522,6 +979,46 @@ class RendererIntegratedSample : RHISampleApp
 	protected override void OnCleanup()
 	{
 		mContext?.Shutdown();
+
+		// Wait for GPU to finish before cleanup
+		Device.WaitIdle();
+
+		// Clean up debug line rendering resources (must be before device is destroyed)
+		for (int32 i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			delete mLineBindGroups[i];
+			delete mLineVertexBuffers[i];
+			delete mLineUniformBuffers[i];
+		}
+		delete mLinePipeline;
+		delete mLinePipelineLayout;
+		delete mLineBindGroupLayout;
+
+		// Clean up materials
+		if (mRendererService?.MaterialSystem != null)
+		{
+			let materialSystem = mRendererService.MaterialSystem;
+
+			if (mFoxMaterial.IsValid)
+				materialSystem.ReleaseInstance(mFoxMaterial);
+
+			for (let cubeMat in mCubeMaterials)
+			{
+				if (cubeMat.IsValid)
+					materialSystem.ReleaseInstance(cubeMat);
+			}
+
+			if (mGroundMaterial.IsValid)
+				materialSystem.ReleaseInstance(mGroundMaterial);
+
+			if (mPBRMaterial.IsValid)
+				materialSystem.ReleaseMaterial(mPBRMaterial);
+		}
+
+		// Clean up fox texture
+		if (mFoxTexture.IsValid && mRendererService?.ResourceManager != null)
+			mRendererService.ResourceManager.ReleaseTexture(mFoxTexture);
+
 		delete mRendererService;
 	}
 }

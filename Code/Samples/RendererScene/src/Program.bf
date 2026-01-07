@@ -156,7 +156,7 @@ class RendererSceneSample : RHISampleApp
 	private bool CreateMesh()
 	{
 		// Create a cube mesh using factory method
-		let cubeMesh = Mesh.CreateCube(1.0f);
+		let cubeMesh = StaticMesh.CreateCube(1.0f);
 		defer delete cubeMesh;
 
 		mCubeMesh = mResourceManager.CreateMesh(cubeMesh);

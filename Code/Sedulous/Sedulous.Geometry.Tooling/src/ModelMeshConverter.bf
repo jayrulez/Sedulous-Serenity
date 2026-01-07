@@ -32,12 +32,12 @@ struct SkinnedMeshConversionResult : IDisposable
 static class ModelMeshConverter
 {
 	/// Converts a ModelMesh to a basic Mesh (non-skinned).
-	public static Mesh ConvertToMesh(ModelMesh modelMesh)
+	public static StaticMesh ConvertToStaticMesh(ModelMesh modelMesh)
 	{
 		if (modelMesh == null)
 			return null;
 
-		let mesh = new Mesh();
+		let mesh = new StaticMesh();
 		mesh.SetupCommonVertexFormat();
 
 		// Find vertex element offsets
