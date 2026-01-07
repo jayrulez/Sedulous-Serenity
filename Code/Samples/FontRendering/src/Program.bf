@@ -842,7 +842,7 @@ class Program
 {
 	public static int Main(String[] args)
 	{
-		let app = new FontRenderingSample();
+		let app = scope FontRenderingSample();
 		return app.Run();
 	}
 }

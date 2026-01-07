@@ -1,0 +1,6 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.Mathematics" = "*", "Sedulous.Imaging" = "*", "Sedulous.RHI" = "*", "SampleFramework" = "*", "Sedulous.Drawing" = "*"}
+
+[Project]
+Name = "DrawingSandbox"
+StartupObject = "DrawingSandbox.Program"

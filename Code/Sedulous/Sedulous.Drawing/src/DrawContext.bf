@@ -1,0 +1,671 @@
+using System;
+using System.Collections;
+using Sedulous.Mathematics;
+
+namespace Sedulous.Drawing;
+
+/// Main 2D drawing API that produces batched geometry for rendering.
+public class DrawContext
+{
+	// Output batch
+	private DrawBatch mBatch = new .() ~ delete _;
+	private ShapeRasterizer mRasterizer = new .() ~ delete _;
+
+	// State stack
+	private List<DrawState> mStateStack = new .() ~ delete _;
+	private DrawState mCurrentState;
+
+	// Current command tracking
+	private int32 mCurrentTextureIndex = -1;
+	private BlendMode mCurrentBlendMode = .Normal;
+	private int32 mCommandStartIndex = 0;
+
+	/// UV coordinates for solid color drawing (set to white pixel in your atlas)
+	public Vector2 WhitePixelUV
+	{
+		get => mRasterizer.WhitePixelUV;
+		set => mRasterizer.WhitePixelUV = value;
+	}
+
+	public this()
+	{
+		mCurrentState = .();
+		mStateStack.Reserve(16);
+	}
+
+	// === Output ===
+
+	/// Get the current batch for rendering
+	public DrawBatch GetBatch()
+	{
+		FlushCurrentCommand();
+		return mBatch;
+	}
+
+	/// Clear all content and reset state
+	public void Clear()
+	{
+		mBatch.Clear();
+		mStateStack.Clear();
+		mCurrentState = .();
+		mCurrentTextureIndex = -1;
+		mCurrentBlendMode = .Normal;
+		mCommandStartIndex = 0;
+	}
+
+	// === State Management ===
+
+	/// Push current state onto the stack
+	public void PushState()
+	{
+		mStateStack.Add(mCurrentState);
+	}
+
+	/// Pop state from the stack
+	public void PopState()
+	{
+		if (mStateStack.Count > 0)
+		{
+			mCurrentState = mStateStack.PopBack();
+		}
+	}
+
+	// === Transform ===
+
+	/// Set the current transform matrix
+	public void SetTransform(Matrix transform)
+	{
+		mCurrentState.Transform = transform;
+	}
+
+	/// Get the current transform matrix
+	public Matrix GetTransform()
+	{
+		return mCurrentState.Transform;
+	}
+
+	/// Apply translation to current transform
+	public void Translate(float x, float y)
+	{
+		mCurrentState.Transform = Matrix.CreateTranslation(x, y, 0) * mCurrentState.Transform;
+	}
+
+	/// Apply rotation to current transform (in radians)
+	public void Rotate(float radians)
+	{
+		mCurrentState.Transform = Matrix.CreateRotationZ(radians) * mCurrentState.Transform;
+	}
+
+	/// Apply scale to current transform
+	public void Scale(float sx, float sy)
+	{
+		mCurrentState.Transform = Matrix.CreateScale(sx, sy, 1) * mCurrentState.Transform;
+	}
+
+	/// Reset transform to identity
+	public void ResetTransform()
+	{
+		mCurrentState.Transform = Matrix.Identity;
+	}
+
+	// === Clipping ===
+
+	/// Push a scissor clip rectangle
+	public void PushClipRect(RectangleF rect)
+	{
+		// Transform clip rect if needed
+		let transformedRect = TransformRect(rect);
+
+		if (mCurrentState.ClipRect.Width > 0 && mCurrentState.ClipRect.Height > 0)
+		{
+			// Intersect with existing clip
+			mCurrentState.ClipRect = RectangleF.Intersect(mCurrentState.ClipRect, transformedRect);
+		}
+		else
+		{
+			mCurrentState.ClipRect = transformedRect;
+		}
+		mCurrentState.ClipMode = .Scissor;
+	}
+
+	/// Pop the current clip
+	public void PopClip()
+	{
+		// For now, just reset clip (proper stack would need clip rect stack)
+		mCurrentState.ClipRect = default;
+		mCurrentState.ClipMode = .None;
+	}
+
+	// === Blend Mode ===
+
+	/// Set the blend mode for subsequent draws
+	public void SetBlendMode(BlendMode mode)
+	{
+		if (mode != mCurrentBlendMode)
+		{
+			FlushCurrentCommand();
+			mCurrentBlendMode = mode;
+		}
+	}
+
+	// === Filled Shapes ===
+
+	/// Fill a rectangle
+	public void FillRect(RectangleF rect, IBrush brush)
+	{
+		SetupForSolidDraw();
+		let transformed = TransformRect(rect);
+		let startVertex = mBatch.Vertices.Count;
+
+		mRasterizer.RasterizeRect(transformed, mBatch.Vertices, mBatch.Indices, brush.BaseColor);
+
+		if (brush.RequiresInterpolation)
+			ApplyBrushToVertices(brush, rect, startVertex);
+	}
+
+	/// Fill a rectangle with a solid color
+	public void FillRect(RectangleF rect, Color color)
+	{
+		SetupForSolidDraw();
+		let transformed = TransformRect(rect);
+		mRasterizer.RasterizeRect(transformed, mBatch.Vertices, mBatch.Indices, color);
+	}
+
+	/// Fill a rounded rectangle
+	public void FillRoundedRect(RectangleF rect, float radius, IBrush brush)
+	{
+		SetupForSolidDraw();
+		let transformed = TransformRect(rect);
+		let startVertex = mBatch.Vertices.Count;
+
+		mRasterizer.RasterizeRoundedRect(transformed, radius, mBatch.Vertices, mBatch.Indices, brush.BaseColor);
+
+		if (brush.RequiresInterpolation)
+			ApplyBrushToVertices(brush, rect, startVertex);
+	}
+
+	/// Fill a rounded rectangle with a solid color
+	public void FillRoundedRect(RectangleF rect, float radius, Color color)
+	{
+		SetupForSolidDraw();
+		let transformed = TransformRect(rect);
+		mRasterizer.RasterizeRoundedRect(transformed, radius, mBatch.Vertices, mBatch.Indices, color);
+	}
+
+	/// Fill a circle
+	public void FillCircle(Vector2 center, float radius, IBrush brush)
+	{
+		SetupForSolidDraw();
+		let transformed = TransformPoint(center);
+		let startVertex = mBatch.Vertices.Count;
+		let bounds = RectangleF(center.X - radius, center.Y - radius, radius * 2, radius * 2);
+
+		mRasterizer.RasterizeCircle(transformed, radius, mBatch.Vertices, mBatch.Indices, brush.BaseColor);
+
+		if (brush.RequiresInterpolation)
+			ApplyBrushToVertices(brush, bounds, startVertex);
+	}
+
+	/// Fill a circle with a solid color
+	public void FillCircle(Vector2 center, float radius, Color color)
+	{
+		SetupForSolidDraw();
+		let transformed = TransformPoint(center);
+		mRasterizer.RasterizeCircle(transformed, radius, mBatch.Vertices, mBatch.Indices, color);
+	}
+
+	/// Fill an ellipse
+	public void FillEllipse(Vector2 center, float rx, float ry, IBrush brush)
+	{
+		SetupForSolidDraw();
+		let transformed = TransformPoint(center);
+		let startVertex = mBatch.Vertices.Count;
+		let bounds = RectangleF(center.X - rx, center.Y - ry, rx * 2, ry * 2);
+
+		mRasterizer.RasterizeEllipse(transformed, rx, ry, mBatch.Vertices, mBatch.Indices, brush.BaseColor);
+
+		if (brush.RequiresInterpolation)
+			ApplyBrushToVertices(brush, bounds, startVertex);
+	}
+
+	/// Fill an ellipse with a solid color
+	public void FillEllipse(Vector2 center, float rx, float ry, Color color)
+	{
+		SetupForSolidDraw();
+		let transformed = TransformPoint(center);
+		mRasterizer.RasterizeEllipse(transformed, rx, ry, mBatch.Vertices, mBatch.Indices, color);
+	}
+
+	/// Fill an arc (pie slice)
+	public void FillArc(Vector2 center, float radius, float startAngle, float sweepAngle, IBrush brush)
+	{
+		SetupForSolidDraw();
+		let transformed = TransformPoint(center);
+		let startVertex = mBatch.Vertices.Count;
+		let bounds = RectangleF(center.X - radius, center.Y - radius, radius * 2, radius * 2);
+
+		mRasterizer.RasterizeArc(transformed, radius, startAngle, sweepAngle, mBatch.Vertices, mBatch.Indices, brush.BaseColor);
+
+		if (brush.RequiresInterpolation)
+			ApplyBrushToVertices(brush, bounds, startVertex);
+	}
+
+	/// Fill an arc with a solid color
+	public void FillArc(Vector2 center, float radius, float startAngle, float sweepAngle, Color color)
+	{
+		SetupForSolidDraw();
+		let transformed = TransformPoint(center);
+		mRasterizer.RasterizeArc(transformed, radius, startAngle, sweepAngle, mBatch.Vertices, mBatch.Indices, color);
+	}
+
+	// === Stroked Shapes ===
+
+	/// Draw a line
+	public void DrawLine(Vector2 start, Vector2 end, Pen pen)
+	{
+		SetupForSolidDraw();
+		let p0 = TransformPoint(start);
+		let p1 = TransformPoint(end);
+		mRasterizer.RasterizeLine(p0, p1, pen.Thickness, mBatch.Vertices, mBatch.Indices, pen.Color, pen.LineCap);
+	}
+
+	/// Draw a line with color and thickness
+	public void DrawLine(Vector2 start, Vector2 end, Color color, float thickness = 1.0f)
+	{
+		SetupForSolidDraw();
+		let p0 = TransformPoint(start);
+		let p1 = TransformPoint(end);
+		mRasterizer.RasterizeLine(p0, p1, thickness, mBatch.Vertices, mBatch.Indices, color, .Butt);
+	}
+
+	/// Draw a rectangle outline
+	public void DrawRect(RectangleF rect, Pen pen)
+	{
+		SetupForSolidDraw();
+		let transformed = TransformRect(rect);
+		mRasterizer.RasterizeStrokeRect(transformed, pen.Thickness, mBatch.Vertices, mBatch.Indices, pen.Color);
+	}
+
+	/// Draw a rectangle outline with color and thickness
+	public void DrawRect(RectangleF rect, Color color, float thickness = 1.0f)
+	{
+		SetupForSolidDraw();
+		let transformed = TransformRect(rect);
+		mRasterizer.RasterizeStrokeRect(transformed, thickness, mBatch.Vertices, mBatch.Indices, color);
+	}
+
+	/// Draw a circle outline
+	public void DrawCircle(Vector2 center, float radius, Pen pen)
+	{
+		SetupForSolidDraw();
+		let transformed = TransformPoint(center);
+		mRasterizer.RasterizeStrokeCircle(transformed, radius, pen.Thickness, mBatch.Vertices, mBatch.Indices, pen.Color);
+	}
+
+	/// Draw a circle outline with color and thickness
+	public void DrawCircle(Vector2 center, float radius, Color color, float thickness = 1.0f)
+	{
+		SetupForSolidDraw();
+		let transformed = TransformPoint(center);
+		mRasterizer.RasterizeStrokeCircle(transformed, radius, thickness, mBatch.Vertices, mBatch.Indices, color);
+	}
+
+	/// Draw an ellipse outline
+	public void DrawEllipse(Vector2 center, float rx, float ry, Pen pen)
+	{
+		SetupForSolidDraw();
+		let transformed = TransformPoint(center);
+		mRasterizer.RasterizeStrokeEllipse(transformed, rx, ry, pen.Thickness, mBatch.Vertices, mBatch.Indices, pen.Color);
+	}
+
+	/// Draw an ellipse outline with color and thickness
+	public void DrawEllipse(Vector2 center, float rx, float ry, Color color, float thickness = 1.0f)
+	{
+		SetupForSolidDraw();
+		let transformed = TransformPoint(center);
+		mRasterizer.RasterizeStrokeEllipse(transformed, rx, ry, thickness, mBatch.Vertices, mBatch.Indices, color);
+	}
+
+	// === Polygons and Polylines ===
+
+	/// Fill a polygon
+	public void FillPolygon(Span<Vector2> points, IBrush brush)
+	{
+		if (points.Length < 3)
+			return;
+
+		SetupForSolidDraw();
+		let startVertex = mBatch.Vertices.Count;
+
+		// Calculate bounds for gradient
+		var minX = points[0].X;
+		var minY = points[0].Y;
+		var maxX = points[0].X;
+		var maxY = points[0].Y;
+		for (let p in points)
+		{
+			minX = Math.Min(minX, p.X);
+			minY = Math.Min(minY, p.Y);
+			maxX = Math.Max(maxX, p.X);
+			maxY = Math.Max(maxY, p.Y);
+		}
+		let bounds = RectangleF(minX, minY, maxX - minX, maxY - minY);
+
+		// Transform all points
+		Vector2[] transformed = scope Vector2[points.Length];
+		for (int32 i = 0; i < points.Length; i++)
+		{
+			transformed[i] = TransformPoint(points[i]);
+		}
+
+		mRasterizer.RasterizePolygon(transformed, mBatch.Vertices, mBatch.Indices, brush.BaseColor);
+
+		if (brush.RequiresInterpolation)
+			ApplyBrushToVertices(brush, bounds, startVertex);
+	}
+
+	/// Fill a polygon with a solid color
+	public void FillPolygon(Span<Vector2> points, Color color)
+	{
+		if (points.Length < 3)
+			return;
+
+		SetupForSolidDraw();
+
+		// Transform all points
+		Vector2[] transformed = scope Vector2[points.Length];
+		for (int32 i = 0; i < points.Length; i++)
+		{
+			transformed[i] = TransformPoint(points[i]);
+		}
+
+		mRasterizer.RasterizePolygon(transformed, mBatch.Vertices, mBatch.Indices, color);
+	}
+
+	/// Draw a polyline (open path)
+	public void DrawPolyline(Span<Vector2> points, Pen pen)
+	{
+		if (points.Length < 2)
+			return;
+
+		SetupForSolidDraw();
+
+		// Transform all points
+		Vector2[] transformed = scope Vector2[points.Length];
+		for (int32 i = 0; i < points.Length; i++)
+		{
+			transformed[i] = TransformPoint(points[i]);
+		}
+
+		mRasterizer.RasterizePolyline(transformed, pen.Thickness, mBatch.Vertices, mBatch.Indices, pen.Color, pen.LineCap, pen.LineJoin);
+	}
+
+	/// Draw a polyline with color and thickness
+	public void DrawPolyline(Span<Vector2> points, Color color, float thickness = 1.0f)
+	{
+		if (points.Length < 2)
+			return;
+
+		SetupForSolidDraw();
+
+		// Transform all points
+		Vector2[] transformed = scope Vector2[points.Length];
+		for (int32 i = 0; i < points.Length; i++)
+		{
+			transformed[i] = TransformPoint(points[i]);
+		}
+
+		mRasterizer.RasterizePolyline(transformed, thickness, mBatch.Vertices, mBatch.Indices, color, .Butt, .Miter);
+	}
+
+	/// Draw a polygon outline (closed path)
+	public void DrawPolygon(Span<Vector2> points, Pen pen)
+	{
+		if (points.Length < 3)
+			return;
+
+		SetupForSolidDraw();
+
+		// Transform all points
+		Vector2[] transformed = scope Vector2[points.Length];
+		for (int32 i = 0; i < points.Length; i++)
+		{
+			transformed[i] = TransformPoint(points[i]);
+		}
+
+		mRasterizer.RasterizeStrokePolygon(transformed, pen.Thickness, mBatch.Vertices, mBatch.Indices, pen.Color, pen.LineJoin);
+	}
+
+	/// Draw a polygon outline with color and thickness
+	public void DrawPolygon(Span<Vector2> points, Color color, float thickness = 1.0f)
+	{
+		if (points.Length < 3)
+			return;
+
+		SetupForSolidDraw();
+
+		// Transform all points
+		Vector2[] transformed = scope Vector2[points.Length];
+		for (int32 i = 0; i < points.Length; i++)
+		{
+			transformed[i] = TransformPoint(points[i]);
+		}
+
+		mRasterizer.RasterizeStrokePolygon(transformed, thickness, mBatch.Vertices, mBatch.Indices, color, .Miter);
+	}
+
+	// === Images ===
+
+	/// Draw an image at a position
+	public void DrawImage(ITexture texture, Vector2 position)
+	{
+		DrawImage(texture, .(position.X, position.Y, texture.Width, texture.Height), .(0, 0, texture.Width, texture.Height), Color.White);
+	}
+
+	/// Draw an image at a position with tint
+	public void DrawImage(ITexture texture, Vector2 position, Color tint)
+	{
+		DrawImage(texture, .(position.X, position.Y, texture.Width, texture.Height), .(0, 0, texture.Width, texture.Height), tint);
+	}
+
+	/// Draw an image stretched to a destination rectangle
+	public void DrawImage(ITexture texture, RectangleF destRect)
+	{
+		DrawImage(texture, destRect, .(0, 0, texture.Width, texture.Height), Color.White);
+	}
+
+	/// Draw an image stretched to a destination rectangle with source rect and tint
+	public void DrawImage(ITexture texture, RectangleF destRect, RectangleF srcRect, Color tint)
+	{
+		let textureIndex = GetOrAddTexture(texture);
+		SetupForTextureDraw(textureIndex);
+
+		let transformed = TransformRect(destRect);
+		mRasterizer.RasterizeTexturedQuad(transformed, srcRect, texture.Width, texture.Height, mBatch.Vertices, mBatch.Indices, tint);
+	}
+
+	/// Draw a 9-slice image
+	public void DrawNineSlice(ITexture texture, RectangleF destRect, RectangleF srcRect, NineSlice slices, Color tint)
+	{
+		let textureIndex = GetOrAddTexture(texture);
+		SetupForTextureDraw(textureIndex);
+
+		let transformed = TransformRect(destRect);
+		mRasterizer.RasterizeNineSlice(transformed, srcRect, slices, texture.Width, texture.Height, mBatch.Vertices, mBatch.Indices, tint);
+	}
+
+	// === Sprites ===
+
+	/// Draw a sprite at a position
+	public void DrawSprite(Sprite sprite, Vector2 position)
+	{
+		DrawSprite(sprite, position, 0, .(1, 1), .None, Color.White);
+	}
+
+	/// Draw a sprite with tint
+	public void DrawSprite(Sprite sprite, Vector2 position, Color tint)
+	{
+		DrawSprite(sprite, position, 0, .(1, 1), .None, tint);
+	}
+
+	/// Draw a sprite with rotation and scale
+	public void DrawSprite(Sprite sprite, Vector2 position, float rotation, Vector2 scale, Color tint)
+	{
+		DrawSprite(sprite, position, rotation, scale, .None, tint);
+	}
+
+	/// Draw a sprite with full transform options
+	public void DrawSprite(Sprite sprite, Vector2 position, float rotation, Vector2 scale, SpriteFlip flip, Color tint)
+	{
+		if (sprite.Texture == null)
+			return;
+
+		let textureIndex = GetOrAddTexture(sprite.Texture);
+		SetupForTextureDraw(textureIndex);
+
+		// Calculate flipped UVs
+		var srcRect = sprite.SourceRect;
+		if ((flip & .Horizontal) != 0)
+		{
+			srcRect.X = sprite.SourceRect.X + sprite.SourceRect.Width;
+			srcRect.Width = -sprite.SourceRect.Width;
+		}
+		if ((flip & .Vertical) != 0)
+		{
+			srcRect.Y = sprite.SourceRect.Y + sprite.SourceRect.Height;
+			srcRect.Height = -sprite.SourceRect.Height;
+		}
+
+		// Calculate the destination quad with origin offset
+		let originOffset = sprite.GetOriginOffset();
+		let scaledWidth = sprite.Width * scale.X;
+		let scaledHeight = sprite.Height * scale.Y;
+		let originX = originOffset.X * scale.X;
+		let originY = originOffset.Y * scale.Y;
+
+		// Push current transform
+		let savedTransform = mCurrentState.Transform;
+
+		// Apply sprite transform: translate to position, rotate, then offset by origin
+		mCurrentState.Transform = Matrix.CreateTranslation(-originX, -originY, 0) *
+								  Matrix.CreateRotationZ(rotation) *
+								  Matrix.CreateTranslation(position.X, position.Y, 0) *
+								  savedTransform;
+
+		let destRect = RectangleF(0, 0, scaledWidth, scaledHeight);
+		let transformed = TransformRect(destRect);
+
+		mRasterizer.RasterizeTexturedQuad(transformed, srcRect, sprite.TextureWidth, sprite.TextureHeight, mBatch.Vertices, mBatch.Indices, tint);
+
+		// Restore transform
+		mCurrentState.Transform = savedTransform;
+	}
+
+	/// Draw a sprite from an animation player
+	public void DrawSprite(SpriteAnimation animation, AnimationPlayer player, Vector2 position)
+	{
+		DrawSprite(player.GetCurrentSprite(animation), position);
+	}
+
+	/// Draw a sprite from an animation player with transform
+	public void DrawSprite(SpriteAnimation animation, AnimationPlayer player, Vector2 position, float rotation, Vector2 scale, SpriteFlip flip, Color tint)
+	{
+		DrawSprite(player.GetCurrentSprite(animation), position, rotation, scale, flip, tint);
+	}
+
+	// === Internal Helpers ===
+
+	private void SetupForSolidDraw()
+	{
+		if (mCurrentTextureIndex != -1)
+		{
+			FlushCurrentCommand();
+			mCurrentTextureIndex = -1;
+		}
+	}
+
+	private void SetupForTextureDraw(int32 textureIndex)
+	{
+		if (mCurrentTextureIndex != textureIndex)
+		{
+			FlushCurrentCommand();
+			mCurrentTextureIndex = textureIndex;
+		}
+	}
+
+	private int32 GetOrAddTexture(ITexture texture)
+	{
+		for (int32 i = 0; i < mBatch.Textures.Count; i++)
+		{
+			if (mBatch.Textures[i] == texture)
+				return i;
+		}
+
+		let index = (int32)mBatch.Textures.Count;
+		mBatch.Textures.Add(texture);
+		return index;
+	}
+
+	private void FlushCurrentCommand()
+	{
+		let indexCount = (int32)mBatch.Indices.Count - mCommandStartIndex;
+		if (indexCount > 0)
+		{
+			var cmd = DrawCommand();
+			cmd.TextureIndex = mCurrentTextureIndex;
+			cmd.StartIndex = mCommandStartIndex;
+			cmd.IndexCount = indexCount;
+			cmd.ClipRect = mCurrentState.ClipRect;
+			cmd.BlendMode = mCurrentBlendMode;
+			cmd.ClipMode = mCurrentState.ClipMode;
+			cmd.StencilRef = mCurrentState.StencilRef;
+
+			mBatch.Commands.Add(cmd);
+			mCommandStartIndex = (int32)mBatch.Indices.Count;
+		}
+	}
+
+	private Vector2 TransformPoint(Vector2 point)
+	{
+		if (mCurrentState.Transform == Matrix.Identity)
+			return point;
+
+		let transformed = Vector2.Transform(point, mCurrentState.Transform);
+		return transformed;
+	}
+
+	/// Apply brush colors to vertices that were just added
+	private void ApplyBrushToVertices(IBrush brush, RectangleF bounds, int startVertex)
+	{
+		for (int i = startVertex; i < mBatch.Vertices.Count; i++)
+		{
+			var vertex = ref mBatch.Vertices[i];
+			// Use original (non-transformed) position for gradient calculation
+			// We need to inverse transform here, but for simplicity we use the vertex position
+			let color = brush.GetColorAt(.(vertex.Position.X, vertex.Position.Y), bounds);
+			vertex.Color = color;
+		}
+	}
+
+	private RectangleF TransformRect(RectangleF rect)
+	{
+		if (mCurrentState.Transform == Matrix.Identity)
+			return rect;
+
+		// For axis-aligned rectangles with simple transforms, just transform corners
+		// Note: This doesn't handle rotation properly - would need to emit rotated quad
+		let topLeft = TransformPoint(.(rect.X, rect.Y));
+		let bottomRight = TransformPoint(.(rect.X + rect.Width, rect.Y + rect.Height));
+
+		return .(topLeft.X, topLeft.Y, bottomRight.X - topLeft.X, bottomRight.Y - topLeft.Y);
+	}
+}
+
+/// Internal state for DrawContext
+struct DrawState
+{
+	public Matrix Transform = Matrix.Identity;
+	public RectangleF ClipRect = default;
+	public ClipMode ClipMode = .None;
+	public int32 StencilRef = 0;
+}

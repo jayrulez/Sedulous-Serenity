@@ -1,0 +1,11 @@
+FileVersion = 1
+
+[Project]
+Name = "Sedulous.Drawing.Tests"
+TargetType = "BeefTest"
+
+[Dependencies]
+corlib = "*"
+"Sedulous.Foundation" = "*"
+"Sedulous.Mathematics" = "*"
+"Sedulous.Drawing" = "*"
