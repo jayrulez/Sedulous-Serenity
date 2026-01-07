@@ -1,0 +1,6 @@
+FileVersion = 1
+Dependencies = {corlib = "*", SampleFramework = "*", "Sedulous.Framework.Core" = "*", "Sedulous.Framework.Renderer" = "*", "Sedulous.Geometry" = "*", "Sedulous.Geometry.Tooling" = "*", "Sedulous.Imaging" = "*", "Sedulous.Logging" = "*", "Sedulous.Models" = "*", "Sedulous.Models.GLTF" = "*"}
+
+[Project]
+Name = "RendererMaterialsCustom"
+StartupObject = "RendererMaterialsCustom.Program"
