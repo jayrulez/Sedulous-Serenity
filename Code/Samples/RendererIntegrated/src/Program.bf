@@ -16,6 +16,20 @@ using SampleFramework;
 using Sedulous.Logging.Debug;
 using Sedulous.Geometry.Tooling;
 
+/// Debug line vertex
+[CRepr]
+struct LineVertex
+{
+	public Vector3 Position;
+	public Vector4 Color;
+
+	public this(Vector3 pos, Vector4 col)
+	{
+		Position = pos;
+		Color = col;
+	}
+}
+
 /// Demonstrates Framework.Core integration with Framework.Renderer.
 /// Uses entities with MeshRendererComponent, LightComponent, and CameraComponent.
 ///
@@ -57,6 +71,22 @@ class RendererIntegratedSample : RHISampleApp
 	private SkinnedMeshResource mFoxResource ~ delete _;
 	private Entity mFoxEntity;
 	private int32 mCurrentAnimIndex = 0;
+
+	// Light direction control (spherical coordinates)
+	private Entity mSunLightEntity;
+	private float mLightYaw = 0.5f;
+	private float mLightPitch = -0.7f;
+	private float mLightIntensity = 1.0f;
+
+	// Debug line rendering
+	private const int32 MAX_DEBUG_LINES = 100;
+	private IRenderPipeline mLinePipeline;
+	private IBindGroupLayout mLineBindGroupLayout;
+	private IPipelineLayout mLinePipelineLayout;
+	private IBuffer[MAX_FRAMES_IN_FLIGHT] mLineVertexBuffers;
+	private IBuffer[MAX_FRAMES_IN_FLIGHT] mLineUniformBuffers;
+	private IBindGroup[MAX_FRAMES_IN_FLIGHT] mLineBindGroups;
+	private List<LineVertex> mDebugLines = new .() ~ delete _;
 
 	public this() : base(.()
 	{
@@ -107,11 +137,19 @@ class RendererIntegratedSample : RHISampleApp
 		mContext.SceneManager.SetActiveScene(mScene);
 		mContext.Startup();
 
+		// Create debug line pipeline
+		if (!CreateLinePipeline())
+		{
+			Console.WriteLine("Failed to create line pipeline");
+			return false;
+		}
+
 		Console.WriteLine("Framework.Core + Renderer integration sample initialized");
 		Console.WriteLine($"Created {GRID_SIZE * GRID_SIZE} cube entities with MeshRendererComponent");
 		Console.WriteLine($"Created 4 particle emitters and 10 sprite entities");
 		Console.WriteLine("Controls: WASD=Move, QE=Up/Down, Tab=Toggle mouse capture, Shift=Fast");
-		Console.WriteLine("          Left/Right or ,/. = Cycle Fox animations");
+		Console.WriteLine("          Space=Cycle Fox animations, Arrow keys=Light direction");
+		Console.WriteLine("          Z/X=Light intensity");
 
 		// Debug: initial state
 		Console.WriteLine($"[INIT DEBUG] MeshCount={mRenderSceneComponent.MeshCount}, HasCamera={mRenderSceneComponent.GetMainCameraProxy() != null}");
@@ -248,11 +286,11 @@ class RendererIntegratedSample : RHISampleApp
 
 		// Create directional light entity with shadows
 		{
-			let lightEntity = mScene.CreateEntity("SunLight");
-			lightEntity.Transform.LookAt(.(-0.5f, -1.0f, -0.3f));
+			mSunLightEntity = mScene.CreateEntity("SunLight");
+			mSunLightEntity.Transform.LookAt(GetLightDirection());
 
-			let lightComp = LightComponent.CreateDirectional(.(1.0f, 0.95f, 0.8f), 1.0f, true);  // Enable shadows
-			lightEntity.AddComponent(lightComp);
+			let lightComp = LightComponent.CreateDirectional(.(1.0f, 0.95f, 0.8f), mLightIntensity, true);  // Enable shadows
+			mSunLightEntity.AddComponent(lightComp);
 		}
 
 		// Create point lights (fixed seed for consistent placement between runs)
@@ -506,29 +544,45 @@ class RendererIntegratedSample : RHISampleApp
 		if (keyboard.IsKeyDown(.E)) pos = pos + up * speed;
 		mCameraEntity.Transform.SetPosition(pos);
 
-		// Cycle through Fox animations
-		if (mFoxEntity != null)
+		// Cycle through Fox animations with Space
+		if (mFoxEntity != null && keyboard.IsKeyPressed(.Space))
 		{
 			if (let skinnedRenderer = mFoxEntity.GetComponent<SkinnedMeshRendererComponent>())
 			{
 				let animCount = (int32)skinnedRenderer.AnimationClips.Count;
 				if (animCount > 0)
 				{
-					if (keyboard.IsKeyPressed(.Right) || keyboard.IsKeyPressed(.Period))
-					{
-						mCurrentAnimIndex = (mCurrentAnimIndex + 1) % animCount;
-						skinnedRenderer.PlayAnimation(mCurrentAnimIndex, true);
-						Console.WriteLine($"Playing animation: {skinnedRenderer.AnimationClips[mCurrentAnimIndex].Name}");
-					}
-					if (keyboard.IsKeyPressed(.Left) || keyboard.IsKeyPressed(.Comma))
-					{
-						mCurrentAnimIndex = (mCurrentAnimIndex - 1 + animCount) % animCount;
-						skinnedRenderer.PlayAnimation(mCurrentAnimIndex, true);
-						Console.WriteLine($"Playing animation: {skinnedRenderer.AnimationClips[mCurrentAnimIndex].Name}");
-					}
+					mCurrentAnimIndex = (mCurrentAnimIndex + 1) % animCount;
+					skinnedRenderer.PlayAnimation(mCurrentAnimIndex, true);
+					Console.WriteLine($"Playing animation: {skinnedRenderer.AnimationClips[mCurrentAnimIndex].Name}");
 				}
 			}
 		}
+
+		// Light direction control with arrow keys
+		float lightSpeed = 1.0f * DeltaTime;
+		bool lightChanged = false;
+
+		if (keyboard.IsKeyDown(.Left))  { mLightYaw -= lightSpeed; lightChanged = true; }
+		if (keyboard.IsKeyDown(.Right)) { mLightYaw += lightSpeed; lightChanged = true; }
+		if (keyboard.IsKeyDown(.Up))    { mLightPitch -= lightSpeed; lightChanged = true; }
+		if (keyboard.IsKeyDown(.Down))  { mLightPitch += lightSpeed; lightChanged = true; }
+
+		// Clamp pitch to avoid light pointing up
+		mLightPitch = Math.Clamp(mLightPitch, -Math.PI_f * 0.45f, -0.1f);
+
+		if (lightChanged)
+			UpdateLightDirection();
+
+		// Light intensity control with Z/X
+		float intensitySpeed = 1.0f * DeltaTime;
+		bool intensityChanged = false;
+
+		if (keyboard.IsKeyDown(.Z)) { mLightIntensity = Math.Max(0.1f, mLightIntensity - intensitySpeed); intensityChanged = true; }
+		if (keyboard.IsKeyDown(.X)) { mLightIntensity = Math.Min(5.0f, mLightIntensity + intensitySpeed); intensityChanged = true; }
+
+		if (intensityChanged)
+			UpdateLightIntensity();
 	}
 
 	private void UpdateCameraDirection()
@@ -546,6 +600,214 @@ class RendererIntegratedSample : RHISampleApp
 
 		let target = mCameraEntity.Transform.Position + forward;
 		mCameraEntity.Transform.LookAt(target);
+	}
+
+	private Vector3 GetLightDirection()
+	{
+		// Convert spherical coordinates to direction vector
+		float cosP = Math.Cos(mLightPitch);
+		return Vector3.Normalize(.(
+			Math.Sin(mLightYaw) * cosP,
+			Math.Sin(mLightPitch),
+			Math.Cos(mLightYaw) * cosP
+		));
+	}
+
+	private void UpdateLightDirection()
+	{
+		if (mSunLightEntity == null)
+			return;
+
+		mSunLightEntity.Transform.LookAt(GetLightDirection());
+	}
+
+	private void UpdateLightIntensity()
+	{
+		if (mSunLightEntity == null)
+			return;
+
+		if (let lightComp = mSunLightEntity.GetComponent<LightComponent>())
+		{
+			lightComp.Intensity = mLightIntensity;
+		}
+	}
+
+	private bool CreateLinePipeline()
+	{
+		// Simple line shader - compile inline
+		let vertCode = """
+			#pragma pack_matrix(row_major)
+
+			cbuffer Camera : register(b0) {
+				float4x4 viewProjection;
+			};
+
+			struct VSInput {
+				float3 position : POSITION;
+				float4 color : COLOR;
+			};
+
+			struct VSOutput {
+				float4 position : SV_Position;
+				float4 color : COLOR;
+			};
+
+			VSOutput main(VSInput input) {
+				VSOutput output;
+				output.position = mul(float4(input.position, 1.0), viewProjection);
+				output.color = input.color;
+				return output;
+			}
+			""";
+
+		let fragCode = """
+			struct PSInput {
+				float4 position : SV_Position;
+				float4 color : COLOR;
+			};
+
+			float4 main(PSInput input) : SV_Target {
+				return input.color;
+			}
+			""";
+
+		let vertResult = ShaderUtils.CompileShader(Device, vertCode, "main", .Vertex);
+		if (vertResult case .Err)
+		{
+			Console.WriteLine("Failed to compile line vertex shader");
+			return false;
+		}
+		let lineVertShader = vertResult.Get();
+		defer delete lineVertShader;
+
+		let fragResult = ShaderUtils.CompileShader(Device, fragCode, "main", .Fragment);
+		if (fragResult case .Err)
+		{
+			Console.WriteLine("Failed to compile line fragment shader");
+			return false;
+		}
+		let lineFragShader = fragResult.Get();
+		defer delete lineFragShader;
+
+		// Line bind group layout - just camera buffer
+		BindGroupLayoutEntry[1] lineLayoutEntries = .(
+			BindGroupLayoutEntry.UniformBuffer(0, .Vertex)
+		);
+
+		BindGroupLayoutDescriptor lineLayoutDesc = .(lineLayoutEntries);
+		if (Device.CreateBindGroupLayout(&lineLayoutDesc) case .Ok(let bindLayout))
+			mLineBindGroupLayout = bindLayout;
+		else return false;
+
+		IBindGroupLayout[1] lineBindGroupLayouts = .(mLineBindGroupLayout);
+		PipelineLayoutDescriptor linePipelineLayoutDesc = .(lineBindGroupLayouts);
+		if (Device.CreatePipelineLayout(&linePipelineLayoutDesc) case .Ok(let pipLayout))
+			mLinePipelineLayout = pipLayout;
+		else return false;
+
+		// Line vertex format
+		Sedulous.RHI.VertexAttribute[2] lineAttrs = .(
+			.(VertexFormat.Float3, 0, 0),   // Position
+			.(VertexFormat.Float4, 12, 1)   // Color
+		);
+
+		VertexBufferLayout[1] lineVertexBuffers = .(
+			.(28, lineAttrs, .Vertex)
+		);
+
+		DepthStencilState lineDepthState = .();
+		lineDepthState.DepthTestEnabled = true;
+		lineDepthState.DepthWriteEnabled = false;
+		lineDepthState.DepthCompare = .Less;
+		lineDepthState.Format = .Depth24PlusStencil8;
+
+		ColorTargetState[1] lineColorTargets = .(.(SwapChain.Format));
+		RenderPipelineDescriptor linePipelineDesc = .()
+		{
+			Layout = mLinePipelineLayout,
+			Vertex = .() { Shader = .(lineVertShader, "main"), Buffers = lineVertexBuffers },
+			Fragment = .() { Shader = .(lineFragShader, "main"), Targets = lineColorTargets },
+			Primitive = .() { Topology = .LineList, FrontFace = .CCW, CullMode = .None },
+			DepthStencil = lineDepthState,
+			Multisample = .() { Count = 1, Mask = uint32.MaxValue }
+		};
+
+		if (Device.CreateRenderPipeline(&linePipelineDesc) case .Ok(let pipeline))
+			mLinePipeline = pipeline;
+		else return false;
+
+		// Create per-frame line buffers and bind groups
+		for (int32 i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			// Uniform buffer for camera VP
+			BufferDescriptor uniformDesc = .((uint64)sizeof(Matrix), .Uniform, .Upload);
+			if (Device.CreateBuffer(&uniformDesc) case .Ok(let uniformBuf))
+				mLineUniformBuffers[i] = uniformBuf;
+			else return false;
+
+			// Vertex buffer for line vertices
+			BufferDescriptor vertexDesc = .((uint64)(sizeof(LineVertex) * MAX_DEBUG_LINES * 2), .Vertex, .Upload);
+			if (Device.CreateBuffer(&vertexDesc) case .Ok(let vertexBuf))
+				mLineVertexBuffers[i] = vertexBuf;
+			else return false;
+
+			// Bind group
+			BindGroupEntry[1] lineBindGroupEntries = .(
+				BindGroupEntry.Buffer(0, mLineUniformBuffers[i])
+			);
+			BindGroupDescriptor lineBindGroupDesc = .(mLineBindGroupLayout, lineBindGroupEntries);
+			if (Device.CreateBindGroup(&lineBindGroupDesc) case .Ok(let group))
+				mLineBindGroups[i] = group;
+			else return false;
+		}
+
+		return true;
+	}
+
+	private void UpdateDebugLines()
+	{
+		mDebugLines.Clear();
+
+		// Draw light direction as a line from above origin
+		let lightDir = GetLightDirection();
+		let lightStart = Vector3(0, 5, 0);  // Start above ground
+
+		// Draw XYZ axis at the light arrow start for reference
+		let axisLength = 1.5f;
+
+		// X axis - Red
+		mDebugLines.Add(LineVertex(lightStart, .(1, 0, 0, 1)));
+		mDebugLines.Add(LineVertex(lightStart + Vector3(axisLength, 0, 0), .(1, 0, 0, 1)));
+
+		// Y axis - Green
+		mDebugLines.Add(LineVertex(lightStart, .(0, 1, 0, 1)));
+		mDebugLines.Add(LineVertex(lightStart + Vector3(0, axisLength, 0), .(0, 1, 0, 1)));
+
+		// Z axis - Blue
+		mDebugLines.Add(LineVertex(lightStart, .(0, 0, 1, 1)));
+		mDebugLines.Add(LineVertex(lightStart + Vector3(0, 0, axisLength), .(0, 0, 1, 1)));
+
+		// Yellow line for light direction
+		let lightEnd = lightStart + lightDir * 5.0f;
+		mDebugLines.Add(LineVertex(lightStart, .(1, 1, 0, 1)));
+		mDebugLines.Add(LineVertex(lightEnd, .(1, 0.5f, 0, 1)));
+
+		// Add arrow head
+		let right = Vector3.Normalize(Vector3.Cross(lightDir, Vector3.Up));
+		let up = Vector3.Normalize(Vector3.Cross(right, lightDir));
+		let arrowSize = 0.3f;
+
+		mDebugLines.Add(LineVertex(lightEnd, .(1, 0.5f, 0, 1)));
+		mDebugLines.Add(LineVertex(lightEnd - lightDir * arrowSize + right * arrowSize * 0.5f, .(1, 0.5f, 0, 1)));
+
+		mDebugLines.Add(LineVertex(lightEnd, .(1, 0.5f, 0, 1)));
+		mDebugLines.Add(LineVertex(lightEnd - lightDir * arrowSize - right * arrowSize * 0.5f, .(1, 0.5f, 0, 1)));
+
+		mDebugLines.Add(LineVertex(lightEnd, .(1, 0.5f, 0, 1)));
+		mDebugLines.Add(LineVertex(lightEnd - lightDir * arrowSize + up * arrowSize * 0.5f, .(1, 0.5f, 0, 1)));
+
+		mDebugLines.Add(LineVertex(lightEnd, .(1, 0.5f, 0, 1)));
+		mDebugLines.Add(LineVertex(lightEnd - lightDir * arrowSize - up * arrowSize * 0.5f, .(1, 0.5f, 0, 1)));
 	}
 
 	protected override void OnUpdate(float deltaTime, float totalTime)
@@ -567,6 +829,43 @@ class RendererIntegratedSample : RHISampleApp
 		// Upload GPU data - this is called after fence wait, safe to write buffers
 		mCurrentFrameIndex = frameIndex;
 		mRenderSceneComponent.PrepareGPU(frameIndex);
+
+		// Update debug lines
+		UpdateDebugLines();
+
+		// Upload debug line vertices
+		if (mDebugLines.Count > 0 && mLineVertexBuffers[frameIndex] != null)
+		{
+			let dataSize = (uint64)(mDebugLines.Count * sizeof(LineVertex));
+			Span<uint8> data = .((uint8*)mDebugLines.Ptr, (int)dataSize);
+			var buf = mLineVertexBuffers[frameIndex];// beef bug
+			Device.Queue.WriteBuffer(buf, 0, data);
+		}
+
+		// Upload camera VP for debug lines
+		if (mCameraEntity != null && mLineUniformBuffers[frameIndex] != null)
+		{
+			if (let cameraComp = mCameraEntity.GetComponent<CameraComponent>())
+			{
+				// Build view matrix from entity transform
+				let camPos = mCameraEntity.Transform.WorldPosition;
+				let camFwd = mCameraEntity.Transform.Forward;
+				let camUp = mCameraEntity.Transform.Up;
+				let viewMatrix = Matrix.CreateLookAt(camPos, camPos + camFwd, camUp);
+
+				// Build projection matrix
+				float aspectRatio = (float)cameraComp.ViewportWidth / (float)cameraComp.ViewportHeight;
+				var projection = Matrix.CreatePerspectiveFieldOfView(cameraComp.FieldOfView, aspectRatio, cameraComp.NearPlane, cameraComp.FarPlane);
+
+				if (Device.FlipProjectionRequired)
+					projection.M22 = -projection.M22;
+
+				var vp = viewMatrix * projection;
+				Span<uint8> vpSpan = .((uint8*)&vp, sizeof(Matrix));
+				var buf = mLineUniformBuffers[frameIndex];// beef bug
+				Device.Queue.WriteBuffer(buf, 0, vpSpan);
+			}
+		}
 	}
 
 	protected override bool OnRenderFrame(ICommandEncoder encoder, int32 frameIndex)
@@ -610,6 +909,15 @@ class RendererIntegratedSample : RHISampleApp
 		// Render the scene - all GPU details handled by RenderSceneComponent
 		mRenderSceneComponent.Render(renderPass, SwapChain.Width, SwapChain.Height);
 
+		// Draw debug lines (light direction gizmo)
+		if (mDebugLines.Count > 0 && mLinePipeline != null)
+		{
+			renderPass.SetPipeline(mLinePipeline);
+			renderPass.SetBindGroup(0, mLineBindGroups[frameIndex]);
+			renderPass.SetVertexBuffer(0, mLineVertexBuffers[frameIndex], 0);
+			renderPass.Draw((uint32)mDebugLines.Count, 1, 0, 0);
+		}
+
 		renderPass.End();
 		return true;  // We handled rendering
 	}
@@ -625,6 +933,17 @@ class RendererIntegratedSample : RHISampleApp
 
 		// Wait for GPU to finish before cleanup
 		Device.WaitIdle();
+
+		// Clean up debug line rendering resources (must be before device is destroyed)
+		for (int32 i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			delete mLineBindGroups[i];
+			delete mLineVertexBuffers[i];
+			delete mLineUniformBuffers[i];
+		}
+		delete mLinePipeline;
+		delete mLinePipelineLayout;
+		delete mLineBindGroupLayout;
 
 		// Clean up materials
 		if (mRendererService?.MaterialSystem != null)

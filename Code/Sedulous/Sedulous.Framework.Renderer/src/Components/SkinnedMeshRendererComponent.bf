@@ -25,6 +25,9 @@ class SkinnedMeshRendererComponent : IEntityComponent
 	// GPU bone matrix buffer
 	private IBuffer mBoneMatrixBuffer ~ delete _;
 
+	// GPU object uniform buffer (model matrix) - per-component to avoid sharing issues
+	private IBuffer mObjectUniformBuffer ~ delete _;
+
 	// Texture for this skinned mesh
 	private ITexture mTexture ~ delete _;
 	private ITextureView mTextureView ~ delete _;
@@ -66,6 +69,9 @@ class SkinnedMeshRendererComponent : IEntityComponent
 
 	/// Gets the bone matrix buffer for shader binding (framework use).
 	public IBuffer BoneMatrixBuffer => mBoneMatrixBuffer;
+
+	/// Gets the object uniform buffer for shader binding (framework use).
+	public IBuffer ObjectUniformBuffer => mObjectUniformBuffer;
 
 	/// Gets the list of available animation clips.
 	public List<AnimationClip> AnimationClips => mAnimationClips;
@@ -420,28 +426,42 @@ class SkinnedMeshRendererComponent : IEntityComponent
 	{
 		if (mRenderScene?.RendererService?.Device == null)
 			return;
-		if (mBoneMatrixBuffer != null)
-			return; // Already created
 
 		let device = mRenderScene.RendererService.Device;
 
-		// Create buffer for MAX_BONES matrices
-		const int32 maxBones = Sedulous.Framework.Renderer.Skeleton.MAX_BONES;
-		uint64 bufferSize = (uint64)(maxBones * sizeof(Matrix));
-		BufferDescriptor desc = .(bufferSize, .Uniform | .Storage, .Upload);
-		desc.Label = "BoneMatrices";
-
-		if (device.CreateBuffer(&desc) case .Ok(let buffer))
+		// Create bone matrix buffer if not already created
+		if (mBoneMatrixBuffer == null)
 		{
-			mBoneMatrixBuffer = buffer;
+			// Create buffer for MAX_BONES matrices
+			const int32 maxBones = Sedulous.Framework.Renderer.Skeleton.MAX_BONES;
+			uint64 bufferSize = (uint64)(maxBones * sizeof(Matrix));
+			BufferDescriptor desc = .(bufferSize, .Uniform | .Storage, .Upload);
+			desc.Label = "BoneMatrices";
 
-			// Initialize to identity matrices
-			Matrix[maxBones] identity = .();
-			for (int i = 0; i < maxBones; i++)
-				identity[i] = .Identity;
+			if (device.CreateBuffer(&desc) case .Ok(let buffer))
+			{
+				mBoneMatrixBuffer = buffer;
 
-			Span<uint8> data = .((uint8*)&identity[0], (int)bufferSize);
-			device.Queue.WriteBuffer(buffer, 0, data);
+				// Initialize to identity matrices
+				Matrix[maxBones] identity = .();
+				for (int i = 0; i < maxBones; i++)
+					identity[i] = .Identity;
+
+				Span<uint8> data = .((uint8*)&identity[0], (int)bufferSize);
+				device.Queue.WriteBuffer(buffer, 0, data);
+			}
+		}
+
+		// Create object uniform buffer if not already created (128 bytes for SkinnedObjectUniforms)
+		if (mObjectUniformBuffer == null)
+		{
+			BufferDescriptor objDesc = .(128, .Uniform, .Upload);
+			objDesc.Label = "SkinnedObjectUniforms";
+
+			if (device.CreateBuffer(&objDesc) case .Ok(let objBuffer))
+			{
+				mObjectUniformBuffer = objBuffer;
+			}
 		}
 	}
 

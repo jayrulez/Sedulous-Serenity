@@ -51,7 +51,7 @@ class SkinnedMeshRenderer
 	private IRenderPipeline mMaterialPipeline ~ delete _;
 	private IBindGroupLayout mObjectBindGroupLayout ~ delete _;  // Group 1: object + bones
 	private IPipelineLayout mMaterialPipelineLayout ~ delete _;
-	private IBuffer mMaterialObjectBuffer ~ delete _;
+	// Note: Object uniform buffers are now per-component (SkinnedMeshRendererComponent.ObjectUniformBuffer)
 	private bool mMaterialPipelineCreated = false;
 
 	// Registered skinned meshes
@@ -161,21 +161,15 @@ class SkinnedMeshRenderer
 		let fragShader = fragResult.Get();
 
 		// Object bind group layout (Group 1): b1=object, b2=bones
+		// Note: Object uniform buffers are per-component to support multiple skinned meshes
 		BindGroupLayoutEntry[2] objectLayoutEntries = .(
-			BindGroupLayoutEntry.UniformBuffer(1, .Vertex | .Fragment),  // Object uniforms
-			BindGroupLayoutEntry.UniformBuffer(2, .Vertex)               // Bone matrices
+			BindGroupLayoutEntry.UniformBuffer(1, .Vertex | .Fragment),  // Object uniforms (per-component)
+			BindGroupLayoutEntry.UniformBuffer(2, .Vertex)               // Bone matrices (per-component)
 		);
 		BindGroupLayoutDescriptor objectLayoutDesc = .(objectLayoutEntries);
 		if (mDevice.CreateBindGroupLayout(&objectLayoutDesc) not case .Ok(let layout))
 			return .Err;
 		mObjectBindGroupLayout = layout;
-
-		// Create object uniform buffer for material pipeline
-		BufferDescriptor objectDesc = .(128, .Uniform, .Upload);
-		if (mDevice.CreateBuffer(&objectDesc) case .Ok(let buf))
-			mMaterialObjectBuffer = buf;
-		else
-			return .Err;
 
 		// Create a default material bind group layout for the standard PBR material
 		// This matches the layout expected by skinned_pbr shaders and MaterialSystem
@@ -386,9 +380,14 @@ class SkinnedMeshRenderer
 				if (boneBuffer == null)
 					continue;
 
-				// Create object bind group (group 1)
+				// Use per-component object buffer to avoid shared buffer issues
+				let objectBuffer = skinnedComp.ObjectUniformBuffer;
+				if (objectBuffer == null)
+					continue;
+
+				// Create object bind group (group 1) using per-component buffer
 				BindGroupEntry[2] objectEntries = .(
-					BindGroupEntry.Buffer(1, mMaterialObjectBuffer),
+					BindGroupEntry.Buffer(1, objectBuffer),  // Per-component object buffer
 					BindGroupEntry.Buffer(2, boneBuffer)
 				);
 				BindGroupDescriptor objectBindGroupDesc = .(mObjectBindGroupLayout, objectEntries);
@@ -396,14 +395,14 @@ class SkinnedMeshRenderer
 				{
 					mTempObjectBindGroups[frameIndex].Add(objectGroup);
 
-					// Update object buffer
+					// Update per-component object buffer with this mesh's transform
 					Matrix modelMatrix = .Identity;
 					if (skinnedComp.Entity != null)
 						modelMatrix = skinnedComp.Entity.Transform.WorldMatrix;
 
 					SkinnedObjectUniforms objectData = .() { Model = modelMatrix, Reserved = .(0, 0, 0, 0) };
 					Span<uint8> objSpan = .((uint8*)&objectData, sizeof(SkinnedObjectUniforms));
-					mDevice.Queue.WriteBuffer(mMaterialObjectBuffer, 0, objSpan);
+					mDevice.Queue.WriteBuffer(objectBuffer, 0, objSpan);  // Write to per-component buffer
 
 					renderPass.SetBindGroup(1, objectGroup);  // Object + Bones (group 1)
 					renderPass.SetVertexBuffer(0, gpuMesh.VertexBuffer, 0);
