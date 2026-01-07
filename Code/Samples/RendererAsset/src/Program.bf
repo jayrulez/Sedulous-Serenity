@@ -47,6 +47,7 @@ class RendererAssetSample : RHISampleApp
 	// Fox resources
 	private Model mFoxModel ~ delete _;
 	private SkinnedMeshResource mFoxResource ~ delete _;
+	private MaterialResource mFoxMaterialResource ~ delete _;
 	private GPUTextureHandle mFoxTexture = .Invalid;
 
 	// Camera entity and control
@@ -210,6 +211,18 @@ class RendererAssetSample : RHISampleApp
 		mFoxResource = importResult.TakeSkinnedMesh(0);
 		Console.WriteLine($"  Imported: {mFoxResource.Mesh.VertexCount} vertices, {mFoxResource.Skeleton?.BoneCount ?? 0} bones, {mFoxResource.AnimationCount} animations");
 
+		// Take ownership of the first material (if any)
+		if (importResult.Materials.Count > 0)
+		{
+			mFoxMaterialResource = importResult.Materials[0];
+			importResult.Materials.RemoveAt(0);
+			Console.WriteLine($"  Material: {mFoxMaterialResource.Name} (type={mFoxMaterialResource.Type})");
+
+			// Log texture references from the imported material
+			for (let kv in mFoxMaterialResource.Textures)
+				Console.WriteLine($"    Texture slot '{kv.key}': {kv.value}");
+		}
+
 		mLoadedFromCache = false;
 		return true;
 	}
@@ -238,7 +251,7 @@ class RendererAssetSample : RHISampleApp
 			return;
 		}
 
-		// Create PBR material
+		// Create PBR material template
 		let pbrMaterial = Material.CreatePBR("PBRMaterial");
 		mPBRMaterial = materialSystem.RegisterMaterial(pbrMaterial);
 		if (!mPBRMaterial.IsValid)
@@ -247,34 +260,101 @@ class RendererAssetSample : RHISampleApp
 			return;
 		}
 
-		// Load fox texture
-		let resourceManager = mRendererService.ResourceManager;
-		if (resourceManager != null)
-		{
-			let texturePath = GetAssetPath(TEXTURE_REL_PATH, .. scope .());
-			let imageLoader = scope SDLImageLoader();
-			if (imageLoader.LoadFromFile(texturePath) case .Ok(var loadInfo))
-			{
-				defer loadInfo.Dispose();
-				mFoxTexture = resourceManager.CreateTextureFromData(
-					loadInfo.Width, loadInfo.Height, .RGBA8Unorm, .(loadInfo.Data.Ptr, loadInfo.Data.Count));
-			}
-		}
-
-		// Create fox material instance
+		// Create fox material instance from imported material
 		mFoxMaterial = materialSystem.CreateInstance(mPBRMaterial);
 		if (mFoxMaterial.IsValid)
 		{
 			let inst = materialSystem.GetInstance(mFoxMaterial);
 			if (inst != null)
 			{
-				inst.SetFloat4("baseColor", .(1.0f, 1.0f, 1.0f, 1.0f));
-				inst.SetFloat("metallic", 0.0f);
-				inst.SetFloat("roughness", 0.6f);
-				inst.SetFloat("ao", 1.0f);
-				inst.SetFloat4("emissive", .(0, 0, 0, 1));
-				if (mFoxTexture.IsValid)
-					inst.SetTexture("albedoMap", mFoxTexture);
+				// Use imported material values if available, otherwise use defaults
+				if (mFoxMaterialResource != null)
+				{
+					inst.SetFloat4("baseColor", mFoxMaterialResource.BaseColor);
+					inst.SetFloat("metallic", mFoxMaterialResource.Metallic);
+					inst.SetFloat("roughness", mFoxMaterialResource.Roughness);
+					inst.SetFloat("ao", mFoxMaterialResource.AO);
+					inst.SetFloat4("emissive", mFoxMaterialResource.Emissive);
+
+					Console.WriteLine($"Using imported material values: baseColor={mFoxMaterialResource.BaseColor}, metallic={mFoxMaterialResource.Metallic}, roughness={mFoxMaterialResource.Roughness}");
+
+					// Load texture - check cache first, then fall back to original file
+					if (mFoxMaterialResource.HasTexture("albedoMap"))
+					{
+						let textureName = mFoxMaterialResource.GetTexture("albedoMap");
+						let cachedTexturePath = GetAssetPath(scope $"{CACHE_REL_DIR}/{textureName}.texture", .. scope .());
+						let originalTexturePath = GetAssetPath(scope $"{GLTF_BASE_REL_PATH}/{textureName}", .. scope .());
+
+						// Try cached texture first
+						if (File.Exists(cachedTexturePath))
+						{
+							if (ResourceSerializer.LoadTexture(cachedTexturePath) case .Ok(let texResource))
+							{
+								Console.WriteLine($"Loaded texture from cache: {cachedTexturePath}");
+								let img = texResource.Image;
+								mFoxTexture = mRendererService.ResourceManager.CreateTextureFromData(
+									img.Width, img.Height, .RGBA8Unorm, img.Data);
+								delete texResource;
+								if (mFoxTexture.IsValid)
+									inst.SetTexture("albedoMap", mFoxTexture);
+							}
+						}
+						else
+						{
+							// Load from original file
+							Console.WriteLine($"Loading texture from: {originalTexturePath}");
+							let imageLoader = scope SDLImageLoader();
+							if (imageLoader.LoadFromFile(originalTexturePath) case .Ok(var loadInfo))
+							{
+								defer loadInfo.Dispose();
+								mFoxTexture = mRendererService.ResourceManager.CreateTextureFromData(
+									loadInfo.Width, loadInfo.Height, .RGBA8Unorm, .(loadInfo.Data.Ptr, loadInfo.Data.Count));
+								if (mFoxTexture.IsValid)
+									inst.SetTexture("albedoMap", mFoxTexture);
+							}
+						}
+					}
+				}
+				else
+				{
+					// Fallback to default values (e.g., when loaded from cache without material)
+					inst.SetFloat4("baseColor", .(1.0f, 1.0f, 1.0f, 1.0f));
+					inst.SetFloat("metallic", 0.0f);
+					inst.SetFloat("roughness", 0.6f);
+					inst.SetFloat("ao", 1.0f);
+					inst.SetFloat4("emissive", .(0, 0, 0, 1));
+
+					// Try cached texture first, then original
+					let cachedTexturePath = GetAssetPath(scope $"{CACHE_REL_DIR}/Texture.png.texture", .. scope .());
+					let originalTexturePath = GetAssetPath(TEXTURE_REL_PATH, .. scope .());
+
+					if (File.Exists(cachedTexturePath))
+					{
+						if (ResourceSerializer.LoadTexture(cachedTexturePath) case .Ok(let texResource))
+						{
+							Console.WriteLine($"Loaded texture from cache: {cachedTexturePath}");
+							let img = texResource.Image;
+							mFoxTexture = mRendererService.ResourceManager.CreateTextureFromData(
+								img.Width, img.Height, .RGBA8Unorm, img.Data);
+							delete texResource;
+							if (mFoxTexture.IsValid)
+								inst.SetTexture("albedoMap", mFoxTexture);
+						}
+					}
+					else
+					{
+						Console.WriteLine($"Loading texture from: {originalTexturePath}");
+						let imageLoader = scope SDLImageLoader();
+						if (imageLoader.LoadFromFile(originalTexturePath) case .Ok(var loadInfo))
+						{
+							defer loadInfo.Dispose();
+							mFoxTexture = mRendererService.ResourceManager.CreateTextureFromData(
+								loadInfo.Width, loadInfo.Height, .RGBA8Unorm, .(loadInfo.Data.Ptr, loadInfo.Data.Count));
+							if (mFoxTexture.IsValid)
+								inst.SetTexture("albedoMap", mFoxTexture);
+						}
+					}
+				}
 				materialSystem.UploadInstance(mFoxMaterial);
 			}
 		}
