@@ -175,7 +175,8 @@ class RendererSpriteSample : RHISampleApp
 
 	private bool CreateSkyboxPipeline()
 	{
-		let shaderResult = ShaderUtils.LoadShaderPair(Device, "../../Sedulous/Sedulous.Framework.Renderer/shaders/skybox");
+		let shaderPath = GetAssetPath("framework/shaders/skybox", .. scope .());
+		let shaderResult = ShaderUtils.LoadShaderPair(Device, shaderPath);
 		if (shaderResult case .Err)
 		{
 			Console.WriteLine("Failed to load skybox shaders");

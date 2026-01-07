@@ -231,8 +231,8 @@ class RendererSkinnedSample : RHISampleApp
 
 	private bool LoadFoxModel()
 	{
-		let cachedPath = "models/Fox/Fox.skinnedmesh";
-		let outputDir = "models/Fox/imported";
+		//let cachedPath = "models/Fox/Fox.skinnedmesh";
+		//let outputDir = "models/Fox/imported";
 
 		// Try to load from cached resource first
 		/*if (File.Exists(cachedPath))
@@ -256,7 +256,8 @@ class RendererSkinnedSample : RHISampleApp
 			mFoxModel = new Model();
 			let loader = scope GltfLoader();
 
-			let result = loader.Load("models/Fox/glTF/Fox.gltf", mFoxModel);
+			let gltfPath = GetAssetPath("samples/models/Fox/glTF/Fox.gltf", .. scope .());
+			let result = loader.Load(gltfPath, mFoxModel);
 			if (result != .Ok)
 			{
 				Console.WriteLine(scope $"Failed to load Fox model: {result}");
@@ -270,7 +271,8 @@ class RendererSkinnedSample : RHISampleApp
 			// Use ModelImporter to convert all resources
 			let importOptions = new ModelImportOptions();
 			importOptions.Flags = .SkinnedMeshes | .Skeletons | .Animations | .Textures | .Materials;
-			importOptions.BasePath.Set("models/Fox/glTF");
+			let gltfBasePath = GetAssetPath("samples/models/Fox/glTF", .. scope .());
+			importOptions.BasePath.Set(gltfBasePath);
 
 			let imageLoader = scope SDLImageLoader();
 			let importer = scope ModelImporter(importOptions, imageLoader);
@@ -291,7 +293,7 @@ class RendererSkinnedSample : RHISampleApp
 			Console.WriteLine(scope $"Import result: {importResult.SkinnedMeshes.Count} skinned meshes, {importResult.Skeletons.Count} skeletons, {importResult.Textures.Count} textures, {importResult.Materials.Count} materials");
 
 			// Save all imported resources to the output directory
-			Console.WriteLine(scope $"Saving import result to: {outputDir}");
+			/*Console.WriteLine(scope $"Saving import result to: {outputDir}");
 			if (ResourceSerializer.SaveImportResult(importResult, outputDir) case .Ok)
 			{
 				Console.WriteLine("Import result saved successfully!");
@@ -311,7 +313,7 @@ class RendererSkinnedSample : RHISampleApp
 			else
 			{
 				Console.WriteLine("Failed to save import result");
-			}
+			}*/
 
 			// Take ownership of the first skinned mesh for rendering
 			if (importResult.SkinnedMeshes.Count > 0)
@@ -320,8 +322,8 @@ class RendererSkinnedSample : RHISampleApp
 				Console.WriteLine(scope $"Fox resource: {mFoxResource.Mesh.VertexCount} vertices, {mFoxResource.Skeleton?.BoneCount ?? 0} bones, {mFoxResource.AnimationCount} animations");
 
 				// Also save as bundle for faster loading next time
-				if (ResourceSerializer.SaveSkinnedMeshBundle(mFoxResource, cachedPath) case .Ok)
-					Console.WriteLine(scope $"Fox bundle saved to: {cachedPath}");
+				//if (ResourceSerializer.SaveSkinnedMeshBundle(mFoxResource, cachedPath) case .Ok)
+				//	Console.WriteLine(scope $"Fox bundle saved to: {cachedPath}");
 
 				mFoxGPUMesh = mResourceManager.CreateSkinnedMesh(mFoxResource.Mesh);
 			}
@@ -381,7 +383,7 @@ class RendererSkinnedSample : RHISampleApp
 		// Fall back to loading from file if not loaded from model
 		if (!textureLoaded)
 		{
-			let texPath = "models/Fox/glTF/Texture.png";
+			let texPath = GetAssetPath("samples/models/Fox/glTF/Texture.png", .. scope .());
 			let imageLoader = scope SDLImageLoader();
 			if (imageLoader.LoadFromFile(texPath) case .Ok(var loadInfo))
 			{
@@ -429,7 +431,8 @@ class RendererSkinnedSample : RHISampleApp
 
 	private bool CreateSkyboxPipeline()
 	{
-		let shaderResult = ShaderUtils.LoadShaderPair(Device, "../../Sedulous/Sedulous.Framework.Renderer/shaders/skybox");
+		let shaderPath = GetAssetPath("framework/shaders/skybox", .. scope .());
+		let shaderResult = ShaderUtils.LoadShaderPair(Device, shaderPath);
 		if (shaderResult case .Err)
 		{
 			Console.WriteLine("Failed to load skybox shaders");
@@ -499,7 +502,8 @@ class RendererSkinnedSample : RHISampleApp
 		if (mFoxGPUMesh.Index == uint32.MaxValue)
 			return false;
 
-		let shaderResult = ShaderUtils.LoadShaderPair(Device, "../../Sedulous/Sedulous.Framework.Renderer/shaders/skinned");
+		let shaderPath = GetAssetPath("framework/shaders/skinned", .. scope .());
+		let shaderResult = ShaderUtils.LoadShaderPair(Device, shaderPath);
 		if (shaderResult case .Err)
 		{
 			Console.WriteLine("Failed to load skinned mesh shaders");

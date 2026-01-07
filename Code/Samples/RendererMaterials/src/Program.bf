@@ -105,7 +105,8 @@ class RendererMaterialsSample : RHISampleApp
 
 		// Create and register RendererService
 		mRendererService = new RendererService();
-		if (mRendererService.Initialize(Device, "../../Sedulous/Sedulous.Framework.Renderer/shaders") case .Err)
+		let shaderPath = GetAssetPath("framework/shaders", .. scope .());
+		if (mRendererService.Initialize(Device, shaderPath) case .Err)
 		{
 			Console.WriteLine("Failed to initialize RendererService");
 			return false;
@@ -157,7 +158,8 @@ class RendererMaterialsSample : RHISampleApp
 		mFoxModel = new Model();
 		let loader = scope GltfLoader();
 
-		let result = loader.Load("models/Fox/glTF/Fox.gltf", mFoxModel);
+		let gltfPath = GetAssetPath("samples/models/Fox/glTF/Fox.gltf", .. scope .());
+		let result = loader.Load(gltfPath, mFoxModel);
 		if (result != .Ok)
 		{
 			Console.WriteLine(scope $"Failed to load Fox model: {result}");
@@ -171,7 +173,8 @@ class RendererMaterialsSample : RHISampleApp
 		// Use ModelImporter to convert all resources
 		let importOptions = new ModelImportOptions();
 		importOptions.Flags = .SkinnedMeshes | .Skeletons | .Animations | .Textures | .Materials;
-		importOptions.BasePath.Set("models/Fox/glTF");
+		let gltfBasePath = GetAssetPath("samples/models/Fox/glTF", .. scope .());
+		importOptions.BasePath.Set(gltfBasePath);
 
 		let imageLoader = scope SDLImageLoader();
 		let importer = scope ModelImporter(importOptions, imageLoader);
@@ -201,7 +204,7 @@ class RendererMaterialsSample : RHISampleApp
 		}
 
 		// Load Fox texture via ResourceManager
-		let texPath = "models/Fox/glTF/Texture.png";
+		let texPath = GetAssetPath("samples/models/Fox/glTF/Texture.png", .. scope .());
 		let texImageLoader = scope SDLImageLoader();
 		if (texImageLoader.LoadFromFile(texPath) case .Ok(var loadInfo))
 		{

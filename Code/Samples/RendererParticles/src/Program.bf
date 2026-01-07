@@ -194,7 +194,8 @@ class RendererParticlesSample : RHISampleApp
 
 	private bool CreateSkyboxPipeline()
 	{
-		let shaderResult = ShaderUtils.LoadShaderPair(Device, "../../Sedulous/Sedulous.Framework.Renderer/shaders/skybox");
+		let shaderPath = GetAssetPath("framework/shaders/skybox", .. scope .());
+		let shaderResult = ShaderUtils.LoadShaderPair(Device, shaderPath);
 		if (shaderResult case .Err)
 		{
 			Console.WriteLine("Failed to load skybox shaders");
@@ -261,7 +262,8 @@ class RendererParticlesSample : RHISampleApp
 
 	private bool CreateParticlePipeline()
 	{
-		let shaderResult = ShaderUtils.LoadShaderPair(Device, "../../Sedulous/Sedulous.Framework.Renderer/shaders/particle");
+		let shaderPath = GetAssetPath("framework/shaders/particle", .. scope .());
+		let shaderResult = ShaderUtils.LoadShaderPair(Device, shaderPath);
 		if (shaderResult case .Err)
 		{
 			Console.WriteLine("Failed to load particle shaders");

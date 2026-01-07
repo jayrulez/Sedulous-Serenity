@@ -105,7 +105,8 @@ class RendererUnlitSample : RHISampleApp
 
 		// Create and register RendererService
 		mRendererService = new RendererService();
-		if (mRendererService.Initialize(Device, "../../Sedulous/Sedulous.Framework.Renderer/shaders") case .Err)
+		let shaderPath = GetAssetPath("framework/shaders", .. scope .());
+		if (mRendererService.Initialize(Device, shaderPath) case .Err)
 		{
 			Console.WriteLine("Failed to initialize RendererService");
 			return false;
@@ -152,32 +153,75 @@ class RendererUnlitSample : RHISampleApp
 
 	private void LoadFox()
 	{
-		// Load from cached resource
-		let cachedPath = "models/Fox/Fox.skinnedmesh";
+		// Asset paths (relative to AssetDirectory)
+		let cachedPath = GetAssetPath("cache/Fox.skinnedmesh", .. scope .());
+		let gltfPath = GetAssetPath("samples/models/Fox/glTF/Fox.gltf", .. scope .());
+		let gltfBasePath = GetAssetPath("samples/models/Fox/glTF", .. scope .());
 
+		// Try to load from cache first
 		if (File.Exists(cachedPath))
 		{
-			Console.WriteLine("Loading Fox from cached resource...");
+			Console.WriteLine("Loading Fox from cache...");
 			if (ResourceSerializer.LoadSkinnedMeshBundle(cachedPath) case .Ok(let resource))
 			{
 				mFoxResource = resource;
-				Console.WriteLine($"Fox loaded: {mFoxResource.Mesh.VertexCount} vertices, {mFoxResource.Skeleton?.BoneCount ?? 0} bones, {mFoxResource.AnimationCount} animations");
+				Console.WriteLine($"  Loaded: {mFoxResource.Mesh.VertexCount} vertices, {mFoxResource.Skeleton?.BoneCount ?? 0} bones, {mFoxResource.AnimationCount} animations");
 			}
 			else
 			{
-				Console.WriteLine("Failed to load Fox resource");
-				return;
+				Console.WriteLine("  Cache file exists but failed to load, falling back to GLTF import...");
 			}
 		}
-		else
+
+		// Import from GLTF if not loaded from cache
+		if (mFoxResource == null)
 		{
-			Console.WriteLine($"Fox model not found: {cachedPath}");
-			Console.WriteLine("Run RendererSkinned sample first to create the cached Fox model.");
-			return;
+			Console.WriteLine("Importing Fox from GLTF...");
+			let foxModel = scope Model();
+			let loader = scope GltfLoader();
+
+			let result = loader.Load(gltfPath, foxModel);
+			if (result != .Ok)
+			{
+				Console.WriteLine($"  Failed to load Fox model: {result}");
+				return;
+			}
+
+			Console.WriteLine($"  GLTF parsed: {foxModel.Meshes.Count} meshes, {foxModel.Bones.Count} bones, {foxModel.Animations.Count} animations");
+
+			// Use ModelImporter to convert all resources
+			let importOptions = new ModelImportOptions();
+			importOptions.Flags = .SkinnedMeshes | .Skeletons | .Animations | .Textures | .Materials;
+			importOptions.BasePath.Set(gltfBasePath);
+
+			let imageLoader = scope SDLImageLoader();
+			let importer = scope ModelImporter(importOptions, imageLoader);
+			let importResult = importer.Import(foxModel);
+			defer delete importResult;
+
+			if (!importResult.Success || importResult.SkinnedMeshes.Count == 0)
+			{
+				Console.WriteLine("  Import failed or no skinned meshes found");
+				for (let err in importResult.Errors)
+					Console.WriteLine($"    Error: {err}");
+				return;
+			}
+
+			// Take ownership of the first skinned mesh
+			mFoxResource = importResult.TakeSkinnedMesh(0);
+			Console.WriteLine($"  Imported: {mFoxResource.Mesh.VertexCount} vertices, {mFoxResource.Skeleton?.BoneCount ?? 0} bones, {mFoxResource.AnimationCount} animations");
+
+			// Save to cache for next time
+			let cacheDir = Path.GetDirectoryPath(cachedPath, .. scope .());
+			if (!Directory.Exists(cacheDir))
+				Directory.CreateDirectory(cacheDir);
+
+			if (ResourceSerializer.SaveSkinnedMeshBundle(mFoxResource, cachedPath) case .Ok)
+				Console.WriteLine($"  Saved to cache: {cachedPath}");
 		}
 
 		// Load fox texture
-		let texPath = "models/Fox/glTF/Texture.png";
+		let texPath = GetAssetPath("samples/models/Fox/glTF/Texture.png", .. scope .());
 		let resourceManager = mRendererService.ResourceManager;
 
 		if (resourceManager != null)

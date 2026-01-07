@@ -3,6 +3,7 @@ namespace SampleFramework;
 using System;
 using System.Collections;
 using System.Diagnostics;
+using System.IO;
 using Sedulous.Shell;
 using Sedulous.Shell.SDL3;
 using Sedulous.Mathematics;
@@ -81,10 +82,56 @@ abstract class RHISampleApp
 	// Configuration
 	protected SampleConfig mConfig;
 
+	// Asset directory path (discovered at construction time)
+	private String mAssetDirectory = new .() ~ delete _;
+
 	/// Creates a new sample application with the given configuration.
 	public this(SampleConfig config)
 	{
 		mConfig = config;
+		DiscoverAssetDirectory();
+	}
+
+	/// Discovers the Assets directory by searching from the current directory upward.
+	/// The Assets directory is identified by containing a `.assets` marker file.
+	private void DiscoverAssetDirectory()
+	{
+		// Start from current working directory
+		let currentDir = Directory.GetCurrentDirectory(.. scope .());
+
+		// Navigate upward looking for Assets folder with .assets marker
+		String searchDir = scope .(currentDir);
+
+		while (true)
+		{
+			// Check if Assets folder exists in this directory
+			let assetsPath = scope String();
+			Path.InternalCombine(assetsPath, searchDir, "Assets");
+
+			if (Directory.Exists(assetsPath))
+			{
+				// Check for .assets marker file
+				let markerPath = scope String();
+				Path.InternalCombine(markerPath, assetsPath, ".assets");
+
+				if (File.Exists(markerPath))
+				{
+					mAssetDirectory.Set(assetsPath);
+					return;
+				}
+			}
+
+			// Get parent directory
+			let parentDir = Path.GetDirectoryPath(searchDir, .. scope .());
+
+			// Check if we've reached the root (parent == current)
+			if (parentDir.IsEmpty || parentDir == searchDir)
+			{
+				Runtime.FatalError("Could not find Assets directory with .assets marker file. Searched from current directory upward to root.");
+			}
+
+			searchDir.Set(parentDir);
+		}
 	}
 
 	public ~this()
@@ -210,6 +257,18 @@ abstract class RHISampleApp
 
 	/// Returns the current depth texture view, or null if depth is disabled.
 	public ITextureView DepthTextureView => mDepthTextureView;
+
+	/// Returns the discovered Assets directory path.
+	/// This is an absolute path to the Assets folder containing the .assets marker file.
+	public StringView AssetDirectory => mAssetDirectory;
+
+	/// Returns a path relative to the Assets directory.
+	/// Example: GetAssetPath("framework/shaders") returns "D:/path/to/Assets/framework/shaders"
+	public void GetAssetPath(StringView relativePath, String outPath)
+	{
+		outPath.Clear();
+		Path.InternalCombine(outPath, mAssetDirectory, relativePath);
+	}
 
 	//==========================================================================
 	// Private Implementation
