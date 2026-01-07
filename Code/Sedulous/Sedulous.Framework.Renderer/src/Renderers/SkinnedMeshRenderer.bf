@@ -52,10 +52,10 @@ class SkinnedMeshRenderer
 	private bool mObjectLayoutCreated = false;
 
 	// Registered skinned meshes
-	private List<SkinnedMeshRendererComponent> mSkinnedMeshes = new .() ~ delete _;
+	private List<SkinnedMeshComponent> mSkinnedMeshes = new .() ~ delete _;
 
 	// Batching
-	private List<SkinnedMeshRendererComponent> mVisibleMeshes = new .() ~ delete _;
+	private List<SkinnedMeshComponent> mVisibleMeshes = new .() ~ delete _;
 	private List<SkinnedDrawBatch> mMaterialBatches = new .() ~ delete _;
 
 	// Per-frame temporary object bind groups (for material pipeline)
@@ -74,7 +74,7 @@ class SkinnedMeshRenderer
 	public int32 VisibleMeshCount => (int32)mVisibleMeshes.Count;
 
 	/// Gets the list of registered skinned meshes (for shadow rendering).
-	public List<SkinnedMeshRendererComponent> SkinnedMeshes => mSkinnedMeshes;
+	public List<SkinnedMeshComponent> SkinnedMeshes => mSkinnedMeshes;
 
 	/// Gets the material batches (for stats).
 	public List<SkinnedDrawBatch> MaterialBatches => mMaterialBatches;
@@ -132,7 +132,7 @@ class SkinnedMeshRenderer
 	}
 
 	/// Gets the effective material for a skinned mesh (uses default if none assigned).
-	private MaterialInstanceHandle GetEffectiveMaterial(SkinnedMeshRendererComponent mesh)
+	private MaterialInstanceHandle GetEffectiveMaterial(SkinnedMeshComponent mesh)
 	{
 		if (mesh.MaterialInstance.IsValid)
 			return mesh.MaterialInstance;
@@ -162,14 +162,14 @@ class SkinnedMeshRenderer
 	}
 
 	/// Registers a skinned mesh component.
-	public void Register(SkinnedMeshRendererComponent mesh)
+	public void Register(SkinnedMeshComponent mesh)
 	{
 		if (!mSkinnedMeshes.Contains(mesh))
 			mSkinnedMeshes.Add(mesh);
 	}
 
 	/// Unregisters a skinned mesh component.
-	public void Unregister(SkinnedMeshRendererComponent mesh)
+	public void Unregister(SkinnedMeshComponent mesh)
 	{
 		mSkinnedMeshes.Remove(mesh);
 	}

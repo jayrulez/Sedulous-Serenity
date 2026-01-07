@@ -306,10 +306,10 @@ class RendererAssetSample : RHISampleApp
 			groundEntity.Transform.SetPosition(.(0, -1.5f, 0));
 			groundEntity.Transform.SetScale(.(30.0f, 0.2f, 30.0f));
 
-			let meshRenderer = new MeshRendererComponent();
-			groundEntity.AddComponent(meshRenderer);
-			meshRenderer.SetMesh(cubeMesh);
-			meshRenderer.SetMaterialInstance(0, mGroundMaterial);
+			let staticMeshComponent = new StaticMeshComponent();
+			groundEntity.AddComponent(staticMeshComponent);
+			staticMeshComponent.SetMesh(cubeMesh);
+			staticMeshComponent.SetMaterialInstance(0, mGroundMaterial);
 		}
 
 		// Create directional light
@@ -341,21 +341,21 @@ class RendererAssetSample : RHISampleApp
 			foxEntity.Transform.SetScale(Vector3(0.04f));
 			foxEntity.Transform.SetRotation(Quaternion.CreateFromYawPitchRoll(Math.PI_f, 0, 0));
 
-			let skinnedRenderer = new SkinnedMeshRendererComponent();
-			foxEntity.AddComponent(skinnedRenderer);
+			let skinnedMeshComponent = new SkinnedMeshComponent();
+			foxEntity.AddComponent(skinnedMeshComponent);
 
 			if (mFoxResource.Skeleton != null)
-				skinnedRenderer.SetSkeleton(mFoxResource.Skeleton, false);
+				skinnedMeshComponent.SetSkeleton(mFoxResource.Skeleton, false);
 
 			for (let clip in mFoxResource.Animations)
-				skinnedRenderer.AddAnimationClip(clip);
+				skinnedMeshComponent.AddAnimationClip(clip);
 
-			skinnedRenderer.SetMesh(mFoxResource.Mesh);
-			skinnedRenderer.SetMaterial(mFoxMaterial);
+			skinnedMeshComponent.SetMesh(mFoxResource.Mesh);
+			skinnedMeshComponent.SetMaterial(mFoxMaterial);
 
 			// Start playing animation
-			if (skinnedRenderer.AnimationClips.Count > 0)
-				skinnedRenderer.PlayAnimation(0, true);
+			if (skinnedMeshComponent.AnimationClips.Count > 0)
+				skinnedMeshComponent.PlayAnimation(0, true);
 		}
 	}
 

@@ -7,7 +7,7 @@ using Sedulous.Mathematics;
 using Sedulous.Serialization;
 
 /// Entity component that renders a static mesh.
-class MeshRendererComponent : IEntityComponent
+class StaticMeshComponent : IEntityComponent
 {
 	// GPU mesh handle
 	private GPUMeshHandle mGPUMesh = .Invalid;

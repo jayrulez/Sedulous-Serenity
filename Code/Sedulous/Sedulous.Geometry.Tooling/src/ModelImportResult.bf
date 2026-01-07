@@ -9,7 +9,7 @@ namespace Sedulous.Geometry.Tooling;
 class ModelImportResult : IDisposable
 {
 	/// Imported static meshes.
-	public List<MeshResource> Meshes = new .() ~ DeleteContainerAndItems!(_);
+	public List<StaticMeshResource> StaticMeshes = new .() ~ DeleteContainerAndItems!(_);
 
 	/// Imported skinned meshes.
 	public List<SkinnedMeshResource> SkinnedMeshes = new .() ~ DeleteContainerAndItems!(_);
@@ -37,7 +37,7 @@ class ModelImportResult : IDisposable
 
 	/// Total number of resources imported.
 	public int TotalResourceCount =>
-		Meshes.Count + SkinnedMeshes.Count + Skeletons.Count +
+		StaticMeshes.Count + SkinnedMeshes.Count + Skeletons.Count +
 		Textures.Count + Materials.Count + Animations.Count;
 
 	public void Dispose()
@@ -58,12 +58,12 @@ class ModelImportResult : IDisposable
 	}
 
 	/// Take ownership of a mesh resource (removes from this result).
-	public MeshResource TakeMesh(int index)
+	public StaticMeshResource TakeStaticMesh(int index)
 	{
-		if (index < 0 || index >= Meshes.Count)
+		if (index < 0 || index >= StaticMeshes.Count)
 			return null;
-		let mesh = Meshes[index];
-		Meshes.RemoveAt(index);
+		let mesh = StaticMeshes[index];
+		StaticMeshes.RemoveAt(index);
 		return mesh;
 	}
 
@@ -98,9 +98,9 @@ class ModelImportResult : IDisposable
 	}
 
 	/// Find a mesh by name.
-	public MeshResource FindMesh(StringView name)
+	public StaticMeshResource FindStaticMesh(StringView name)
 	{
-		for (let mesh in Meshes)
+		for (let mesh in StaticMeshes)
 			if (mesh.Name == name)
 				return mesh;
 		return null;

@@ -9,7 +9,7 @@ using Sedulous.RHI;
 using Sedulous.Serialization;
 
 /// Entity component that renders a skinned mesh with skeletal animation.
-class SkinnedMeshRendererComponent : IEntityComponent
+class SkinnedMeshComponent : IEntityComponent
 {
 	// GPU mesh handle
 	private GPUSkinnedMeshHandle mGPUMesh = .Invalid;
