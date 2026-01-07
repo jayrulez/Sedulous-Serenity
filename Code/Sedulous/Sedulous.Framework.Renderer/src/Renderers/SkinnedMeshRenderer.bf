@@ -47,12 +47,9 @@ class SkinnedMeshRenderer
 	private MaterialInstanceHandle mDefaultMaterial = .Invalid;
 	private bool mDefaultMaterialCreated = false;
 
-	// Material pipeline (for skinned meshes with PBR materials)
-	private IRenderPipeline mMaterialPipeline ~ delete _;
-	private IBindGroupLayout mObjectBindGroupLayout ~ delete _;  // Group 1: object + bones
-	private IPipelineLayout mMaterialPipelineLayout ~ delete _;
-	// Note: Object uniform buffers are now per-component (SkinnedMeshRendererComponent.ObjectUniformBuffer)
-	private bool mMaterialPipelineCreated = false;
+	// Object bind group layout (Group 1: object + bones) - shared across all skinned pipelines
+	private IBindGroupLayout mObjectBindGroupLayout ~ delete _;
+	private bool mObjectLayoutCreated = false;
 
 	// Registered skinned meshes
 	private List<SkinnedMeshRendererComponent> mSkinnedMeshes = new .() ~ delete _;
@@ -96,8 +93,8 @@ class SkinnedMeshRenderer
 		mColorFormat = colorFormat;
 		mDepthFormat = depthFormat;
 
-		// Material pipeline will be created lazily when needed
-		mMaterialPipelineCreated = false;
+		// Object bind group layout will be created lazily when needed
+		mObjectLayoutCreated = false;
 
 		return .Ok;
 	}
@@ -142,23 +139,12 @@ class SkinnedMeshRenderer
 		return mDefaultMaterial;
 	}
 
-	/// Creates the material-based skinned mesh pipeline.
-	/// Uses 3 bind groups: Scene (0), Object+Bones (1), Material (2).
-	private Result<void> CreateMaterialPipeline()
+	/// Creates the object bind group layout (shared across all skinned pipelines).
+	/// Group 1: b1=object uniforms, b2=bone matrices
+	private Result<void> EnsureObjectBindGroupLayout()
 	{
-		if (mMaterialPipelineCreated)
+		if (mObjectLayoutCreated)
 			return .Ok;
-
-		// Load skinned PBR shaders
-		let vertResult = mShaderLibrary.GetShader("skinned_pbr", .Vertex);
-		if (vertResult case .Err)
-			return .Err;
-		let vertShader = vertResult.Get();
-
-		let fragResult = mShaderLibrary.GetShader("skinned_pbr", .Fragment);
-		if (fragResult case .Err)
-			return .Err;
-		let fragShader = fragResult.Get();
 
 		// Object bind group layout (Group 1): b1=object, b2=bones
 		// Note: Object uniform buffers are per-component to support multiple skinned meshes
@@ -171,84 +157,7 @@ class SkinnedMeshRenderer
 			return .Err;
 		mObjectBindGroupLayout = layout;
 
-		// Create a default material bind group layout for the standard PBR material
-		// This matches the layout expected by skinned_pbr shaders and MaterialSystem
-		BindGroupLayoutEntry[7] materialLayoutEntries = .(
-			BindGroupLayoutEntry.UniformBuffer(1, .Fragment),           // Material uniforms
-			BindGroupLayoutEntry.SampledTexture(0, .Fragment, .Texture2D), // Albedo
-			BindGroupLayoutEntry.SampledTexture(1, .Fragment, .Texture2D), // Normal
-			BindGroupLayoutEntry.SampledTexture(2, .Fragment, .Texture2D), // MetallicRoughness
-			BindGroupLayoutEntry.SampledTexture(3, .Fragment, .Texture2D), // AO
-			BindGroupLayoutEntry.SampledTexture(4, .Fragment, .Texture2D), // Emissive
-			BindGroupLayoutEntry.Sampler(0, .Fragment)                   // Sampler
-		);
-		BindGroupLayoutDescriptor materialLayoutDesc = .(materialLayoutEntries);
-		IBindGroupLayout materialBindGroupLayout = null;
-		if (mDevice.CreateBindGroupLayout(&materialLayoutDesc) case .Ok(let matLayout))
-			materialBindGroupLayout = matLayout;
-		else
-			return .Err;
-		defer delete materialBindGroupLayout;
-
-		// Create pipeline layout with all 3 bind groups
-		IBindGroupLayout[3] layouts = .(mSceneBindGroupLayout, mObjectBindGroupLayout, materialBindGroupLayout);
-		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
-		if (mDevice.CreatePipelineLayout(&pipelineLayoutDesc) not case .Ok(let pipelineLayout))
-			return .Err;
-		mMaterialPipelineLayout = pipelineLayout;
-
-		// SkinnedVertex layout: Position(12) + Normal(12) + UV(8) + Color(4) + Tangent(12) + Joints(8) + Weights(16) = 72 bytes
-		Sedulous.RHI.VertexAttribute[7] vertexAttrs = .(
-			.(VertexFormat.Float3, 0, 0),              // Position
-			.(VertexFormat.Float3, 12, 1),             // Normal
-			.(VertexFormat.Float2, 24, 2),             // TexCoord
-			.(VertexFormat.UByte4Normalized, 32, 3),   // Color
-			.(VertexFormat.Float3, 36, 4),             // Tangent
-			.(VertexFormat.UShort4, 48, 5),            // Joints
-			.(VertexFormat.Float4, 56, 6)              // Weights
-		);
-		VertexBufferLayout[1] vertexBuffers = .(.(72, vertexAttrs));
-
-		ColorTargetState[1] colorTargets = .(.(mColorFormat));
-
-		DepthStencilState depthState = .();
-		depthState.DepthTestEnabled = true;
-		depthState.DepthWriteEnabled = true;
-		depthState.DepthCompare = .Less;
-		depthState.Format = mDepthFormat;
-
-		RenderPipelineDescriptor pipelineDesc = .()
-		{
-			Layout = mMaterialPipelineLayout,
-			Vertex = .()
-			{
-				Shader = .(vertShader.Module, "main"),
-				Buffers = vertexBuffers
-			},
-			Fragment = .()
-			{
-				Shader = .(fragShader.Module, "main"),
-				Targets = colorTargets
-			},
-			Primitive = .()
-			{
-				Topology = .TriangleList,
-				FrontFace = .CCW,
-				CullMode = .Back
-			},
-			DepthStencil = depthState,
-			Multisample = .()
-			{
-				Count = 1,
-				Mask = uint32.MaxValue
-			}
-		};
-
-		if (mDevice.CreateRenderPipeline(&pipelineDesc) not case .Ok(let pipeline))
-			return .Err;
-		mMaterialPipeline = pipeline;
-
-		mMaterialPipelineCreated = true;
+		mObjectLayoutCreated = true;
 		return .Ok;
 	}
 
@@ -333,88 +242,124 @@ class SkinnedMeshRenderer
 		RenderMaterials(renderPass, sceneBindGroup, frameIndex);
 	}
 
-	/// Renders skinned meshes with PBR materials.
+	/// Renders skinned meshes with materials (PBR, Unlit, etc.).
+	/// Pipelines are created/cached based on each material's bind group layout.
 	private void RenderMaterials(IRenderPassEncoder renderPass, IBindGroup sceneBindGroup, int32 frameIndex)
 	{
 		if (mMaterialBatches.Count == 0)
 			return;
 
-		// Ensure material pipeline is created
-		if (!mMaterialPipelineCreated)
+		// Ensure object bind group layout is created
+		if (!mObjectLayoutCreated)
 		{
-			if (CreateMaterialPipeline() case .Err)
+			if (EnsureObjectBindGroupLayout() case .Err)
 				return;
 		}
 
-		if (mMaterialPipeline == null || mObjectBindGroupLayout == null)
+		if (mObjectBindGroupLayout == null || mPipelineCache == null)
 			return;
 
-		renderPass.SetPipeline(mMaterialPipeline);
-		renderPass.SetBindGroup(0, sceneBindGroup);  // Scene resources
+		// SkinnedVertex layout: Position(12) + Normal(12) + UV(8) + Color(4) + Tangent(12) + Joints(8) + Weights(16) = 72 bytes
+		Sedulous.RHI.VertexAttribute[7] vertexAttrs = .(
+			.(VertexFormat.Float3, 0, 0),              // Position
+			.(VertexFormat.Float3, 12, 1),             // Normal
+			.(VertexFormat.Float2, 24, 2),             // TexCoord
+			.(VertexFormat.UByte4Normalized, 32, 3),   // Color
+			.(VertexFormat.Float3, 36, 4),             // Tangent
+			.(VertexFormat.UShort4, 48, 5),            // Joints
+			.(VertexFormat.Float4, 56, 6)              // Weights
+		);
+		VertexBufferLayout[1] vertexBuffers = .(.(72, vertexAttrs));
 
+		IRenderPipeline lastPipeline = null;
 		MaterialInstanceHandle lastMaterial = .Invalid;
 
 		for (let batch in mMaterialBatches)
 		{
-			// Switch material bind group if material changed
-			if (!batch.Material.Equals(lastMaterial))
+			let instance = mMaterialSystem.GetInstance(batch.Material);
+			if (instance == null)
+				continue;
+
+			let material = instance.BaseMaterial;
+			if (material == null)
+				continue;
+
+			// Get the material's bind group layout (derived from material parameters)
+			let materialLayout = mMaterialSystem.GetOrCreateBindGroupLayout(material);
+			if (materialLayout == null)
+				continue;
+
+			// Get pipeline from cache (creates if needed based on material type)
+			let pipelineKey = PipelineKey(material, VertexLayoutHelper.ComputeHash(vertexBuffers), mColorFormat, mDepthFormat, 1);
+			if (mPipelineCache.GetSkinnedMeshPipeline(pipelineKey, vertexBuffers, mSceneBindGroupLayout, mObjectBindGroupLayout, materialLayout) case .Ok(let cached))
 			{
-				let instance = mMaterialSystem.GetInstance(batch.Material);
-				if (instance != null && instance.BindGroup != null)
+				// Switch pipeline if material type changed (different shader/layout)
+				if (cached.Pipeline != lastPipeline)
 				{
-					renderPass.SetBindGroup(2, instance.BindGroup);  // Material resources (group 2)
+					renderPass.SetPipeline(cached.Pipeline);
+					renderPass.SetBindGroup(0, sceneBindGroup);  // Scene resources
+					lastPipeline = cached.Pipeline;
 				}
-				lastMaterial = batch.Material;
-			}
 
-			// Render all meshes in this batch
-			for (int32 i = batch.StartIndex; i < batch.StartIndex + batch.Count; i++)
-			{
-				let skinnedComp = mVisibleMeshes[i];
-				let meshHandle = skinnedComp.GPUMeshHandle;
-				let gpuMesh = mResourceManager.GetSkinnedMesh(meshHandle);
-				if (gpuMesh == null)
-					continue;
-
-				let boneBuffer = skinnedComp.BoneMatrixBuffer;
-				if (boneBuffer == null)
-					continue;
-
-				// Use per-component object buffer to avoid shared buffer issues
-				let objectBuffer = skinnedComp.ObjectUniformBuffer;
-				if (objectBuffer == null)
-					continue;
-
-				// Create object bind group (group 1) using per-component buffer
-				BindGroupEntry[2] objectEntries = .(
-					BindGroupEntry.Buffer(1, objectBuffer),  // Per-component object buffer
-					BindGroupEntry.Buffer(2, boneBuffer)
-				);
-				BindGroupDescriptor objectBindGroupDesc = .(mObjectBindGroupLayout, objectEntries);
-				if (mDevice.CreateBindGroup(&objectBindGroupDesc) case .Ok(let objectGroup))
+				// Switch material bind group if material instance changed
+				if (!batch.Material.Equals(lastMaterial))
 				{
-					mTempObjectBindGroups[frameIndex].Add(objectGroup);
-
-					// Update per-component object buffer with this mesh's transform
-					Matrix modelMatrix = .Identity;
-					if (skinnedComp.Entity != null)
-						modelMatrix = skinnedComp.Entity.Transform.WorldMatrix;
-
-					SkinnedObjectUniforms objectData = .() { Model = modelMatrix, Reserved = .(0, 0, 0, 0) };
-					Span<uint8> objSpan = .((uint8*)&objectData, sizeof(SkinnedObjectUniforms));
-					mDevice.Queue.WriteBuffer(objectBuffer, 0, objSpan);  // Write to per-component buffer
-
-					renderPass.SetBindGroup(1, objectGroup);  // Object + Bones (group 1)
-					renderPass.SetVertexBuffer(0, gpuMesh.VertexBuffer, 0);
-
-					if (gpuMesh.IndexBuffer != null)
+					if (instance.BindGroup != null)
 					{
-						renderPass.SetIndexBuffer(gpuMesh.IndexBuffer, gpuMesh.IndexFormat, 0);
-						renderPass.DrawIndexed(gpuMesh.IndexCount, 1, 0, 0, 0);
+						renderPass.SetBindGroup(2, instance.BindGroup);  // Material resources (group 2)
 					}
-					else
+					lastMaterial = batch.Material;
+				}
+
+				// Render all meshes in this batch
+				for (int32 i = batch.StartIndex; i < batch.StartIndex + batch.Count; i++)
+				{
+					let skinnedComp = mVisibleMeshes[i];
+					let meshHandle = skinnedComp.GPUMeshHandle;
+					let gpuMesh = mResourceManager.GetSkinnedMesh(meshHandle);
+					if (gpuMesh == null)
+						continue;
+
+					let boneBuffer = skinnedComp.BoneMatrixBuffer;
+					if (boneBuffer == null)
+						continue;
+
+					// Use per-component object buffer to avoid shared buffer issues
+					let objectBuffer = skinnedComp.ObjectUniformBuffer;
+					if (objectBuffer == null)
+						continue;
+
+					// Create object bind group (group 1) using per-component buffer
+					BindGroupEntry[2] objectEntries = .(
+						BindGroupEntry.Buffer(1, objectBuffer),  // Per-component object buffer
+						BindGroupEntry.Buffer(2, boneBuffer)
+					);
+					BindGroupDescriptor objectBindGroupDesc = .(mObjectBindGroupLayout, objectEntries);
+					if (mDevice.CreateBindGroup(&objectBindGroupDesc) case .Ok(let objectGroup))
 					{
-						renderPass.Draw(gpuMesh.VertexCount, 1, 0, 0);
+						mTempObjectBindGroups[frameIndex].Add(objectGroup);
+
+						// Update per-component object buffer with this mesh's transform
+						Matrix modelMatrix = .Identity;
+						if (skinnedComp.Entity != null)
+							modelMatrix = skinnedComp.Entity.Transform.WorldMatrix;
+
+						SkinnedObjectUniforms objectData = .() { Model = modelMatrix, Reserved = .(0, 0, 0, 0) };
+						Span<uint8> objSpan = .((uint8*)&objectData, sizeof(SkinnedObjectUniforms));
+						mDevice.Queue.WriteBuffer(objectBuffer, 0, objSpan);  // Write to per-component buffer
+
+						renderPass.SetBindGroup(1, objectGroup);  // Object + Bones (group 1)
+						renderPass.SetVertexBuffer(0, gpuMesh.VertexBuffer, 0);
+
+						if (gpuMesh.IndexBuffer != null)
+						{
+							renderPass.SetIndexBuffer(gpuMesh.IndexBuffer, gpuMesh.IndexFormat, 0);
+							renderPass.DrawIndexed(gpuMesh.IndexCount, 1, 0, 0, 0);
+						}
+						else
+						{
+							renderPass.Draw(gpuMesh.VertexCount, 1, 0, 0);
+						}
 					}
 				}
 			}
