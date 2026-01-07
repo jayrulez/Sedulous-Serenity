@@ -136,4 +136,168 @@ public class TrueTypeTextShaper : ITextShaper
 		totalHeight = y + lineHeight;
 		return .Ok;
 	}
+
+	// === UI Support Methods ===
+
+	public HitTestResult HitTest(IFont font, Span<GlyphPosition> positions, float x, float y)
+	{
+		if (positions.Length == 0)
+			return HitTestResult(0, false, false);
+
+		// Check if click is before first character
+		if (x < positions[0].X)
+			return HitTestResult(0, false, false);
+
+		// Linear search through positions
+		for (int32 i = 0; i < positions.Length; i++)
+		{
+			let pos = positions[i];
+			let charRight = pos.X + pos.Advance;
+
+			if (x >= pos.X && x < charRight)
+			{
+				// Found the character - determine leading/trailing edge
+				let midpoint = pos.X + pos.Advance * 0.5f;
+				let trailing = x >= midpoint;
+				return HitTestResult(i, trailing, true);
+			}
+		}
+
+		// Click is after last character
+		return HitTestResult((int32)(positions.Length - 1), true, false);
+	}
+
+	public HitTestResult HitTestWrapped(IFont font, Span<GlyphPosition> positions, float x, float y, float lineHeight)
+	{
+		if (positions.Length == 0)
+			return HitTestResult(0, false, false);
+
+		// Determine which line was clicked
+		int32 targetLine = (int32)(y / lineHeight);
+		if (targetLine < 0) targetLine = 0;
+
+		// Find character range on target line
+		int32 lineStart = -1;
+		int32 lineEnd = -1;
+		float currentLineY = positions[0].Y;
+		int32 currentLine = 0;
+
+		for (int32 i = 0; i < positions.Length; i++)
+		{
+			let pos = positions[i];
+
+			// Detect line change (Y increased significantly)
+			if (i > 0 && pos.Y > currentLineY + lineHeight * 0.5f)
+			{
+				currentLine++;
+				currentLineY = pos.Y;
+			}
+
+			if (currentLine == targetLine)
+			{
+				if (lineStart < 0) lineStart = i;
+				lineEnd = i;
+			}
+			else if (currentLine > targetLine)
+			{
+				break;
+			}
+		}
+
+		// If no characters on target line, return end of text
+		if (lineStart < 0)
+			return HitTestResult((int32)(positions.Length - 1), true, false, targetLine);
+
+		// Hit test within the line
+		for (int32 i = lineStart; i <= lineEnd; i++)
+		{
+			let pos = positions[i];
+			let charRight = pos.X + pos.Advance;
+
+			if (x >= pos.X && x < charRight)
+			{
+				let midpoint = pos.X + pos.Advance * 0.5f;
+				let trailing = x >= midpoint;
+				return HitTestResult(i, trailing, true, targetLine);
+			}
+		}
+
+		// Click before or after line content
+		if (x < positions[lineStart].X)
+			return HitTestResult(lineStart, false, false, targetLine);
+		else
+			return HitTestResult(lineEnd, true, false, targetLine);
+	}
+
+	public float GetCursorPosition(IFont font, Span<GlyphPosition> positions, int32 characterIndex)
+	{
+		if (positions.Length == 0)
+			return 0;
+
+		// Cursor before first character
+		if (characterIndex <= 0)
+			return positions[0].X;
+
+		// Cursor after last character
+		if (characterIndex >= positions.Length)
+		{
+			let lastPos = positions[positions.Length - 1];
+			return lastPos.X + lastPos.Advance;
+		}
+
+		// Cursor before character at index
+		return positions[characterIndex].X;
+	}
+
+	public void GetSelectionRects(IFont font, Span<GlyphPosition> positions, SelectionRange selection, float lineHeight, List<Rect> outRects)
+	{
+		outRects.Clear();
+
+		if (positions.Length == 0 || selection.IsEmpty)
+			return;
+
+		int32 startIdx = Math.Max(0, selection.Start);
+		int32 endIdx = Math.Min((int32)positions.Length, selection.End);
+
+		if (startIdx >= endIdx)
+			return;
+
+		float ascent = font.Metrics.Ascent;
+		float descent = font.Metrics.Descent;
+		float rectHeight = ascent - descent;
+
+		// Track current line rectangle
+		float currentLineY = positions[startIdx].Y;
+		float rectStartX = positions[startIdx].X;
+		float rectEndX = rectStartX;
+
+		for (int32 i = startIdx; i < endIdx; i++)
+		{
+			let pos = positions[i];
+
+			// Check for line break (Y changed significantly)
+			if (Math.Abs(pos.Y - currentLineY) > lineHeight * 0.5f)
+			{
+				// Emit rectangle for completed line
+				if (rectEndX > rectStartX)
+				{
+					let rect = Rect(rectStartX, currentLineY - ascent, rectEndX - rectStartX, rectHeight);
+					outRects.Add(rect);
+				}
+
+				// Start new line rectangle
+				currentLineY = pos.Y;
+				rectStartX = pos.X;
+			}
+
+			rectEndX = pos.X + pos.Advance;
+		}
+
+		// Emit final rectangle
+		if (rectEndX > rectStartX)
+		{
+			let rect = Rect(rectStartX, currentLineY - ascent, rectEndX - rectStartX, rectHeight);
+			outRects.Add(rect);
+		}
+	}
 }

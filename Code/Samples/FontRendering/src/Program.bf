@@ -478,8 +478,21 @@ class FontRenderingSample : RHISampleApp
 		rainbowY += lineHeight;
 		DrawTextRainbow("Rainbow animated text!", margin, rainbowY, mAnimationTime);
 
+		// --- Text Decorations Section ---
+		float decorY = rainbowY + lineHeight * 1.5f;
+		DrawText("Text Decorations:", margin, decorY, Color(0.9f, 0.9f, 0.5f, 1.0f));
+
+		decorY += lineHeight;
+		DrawTextWithUnderline("Underlined text", margin, decorY, Color(0.8f, 0.9f, 0.8f, 1.0f));
+
+		decorY += lineHeight;
+		DrawTextWithStrikethrough("Strikethrough text", margin, decorY, Color(0.9f, 0.8f, 0.8f, 1.0f));
+
+		decorY += lineHeight;
+		DrawTextWithBothDecorations("Both decorations", margin, decorY, Color(0.8f, 0.8f, 0.9f, 1.0f));
+
 		// --- Kerning Demo ---
-		float kernY = rainbowY + lineHeight * 1.5f;
+		float kernY = decorY + lineHeight * 1.5f;
 		DrawText("Kerning Pairs:", margin, kernY, Color(0.9f, 0.9f, 0.5f, 1.0f));
 		kernY += lineHeight;
 		DrawText("AV  To  WA  Ty  VA", margin, kernY, Color(0.8f, 0.8f, 0.9f, 1.0f));
@@ -652,6 +665,77 @@ class FontRenderingSample : RHISampleApp
 		}
 	}
 
+	/// Draw text with underline decoration
+	private void DrawTextWithUnderline(StringView text, float x, float y, Color color)
+	{
+		DrawText(text, x, y, color);
+
+		// Draw underline using font decoration metrics
+		let decorations = mFont.Metrics.Decorations;
+		float textWidth = mFont.MeasureString(text);
+		float baseline = y + mFont.Metrics.Ascent;
+		float underlineY = baseline + decorations.UnderlinePosition;
+
+		DrawHorizontalLine(x, underlineY, textWidth, decorations.UnderlineThickness, color);
+	}
+
+	/// Draw text with strikethrough decoration
+	private void DrawTextWithStrikethrough(StringView text, float x, float y, Color color)
+	{
+		DrawText(text, x, y, color);
+
+		// Draw strikethrough using font decoration metrics
+		let decorations = mFont.Metrics.Decorations;
+		float textWidth = mFont.MeasureString(text);
+		float baseline = y + mFont.Metrics.Ascent;
+		float strikeY = baseline + decorations.StrikethroughPosition;
+
+		DrawHorizontalLine(x, strikeY, textWidth, decorations.StrikethroughThickness, color);
+	}
+
+	/// Draw text with both underline and strikethrough decorations
+	private void DrawTextWithBothDecorations(StringView text, float x, float y, Color color)
+	{
+		DrawText(text, x, y, color);
+
+		let decorations = mFont.Metrics.Decorations;
+		float textWidth = mFont.MeasureString(text);
+		float baseline = y + mFont.Metrics.Ascent;
+
+		// Draw underline
+		float underlineY = baseline + decorations.UnderlinePosition;
+		DrawHorizontalLine(x, underlineY, textWidth, decorations.UnderlineThickness, color);
+
+		// Draw strikethrough
+		float strikeY = baseline + decorations.StrikethroughPosition;
+		DrawHorizontalLine(x, strikeY, textWidth, decorations.StrikethroughThickness, color);
+	}
+
+	/// Draw a horizontal line (used for underline/strikethrough)
+	private void DrawHorizontalLine(float x, float y, float width, float thickness, Color color)
+	{
+		uint16 baseIndex = (uint16)mVertices.Count;
+
+		float halfThickness = thickness * 0.5f;
+		float y0 = y - halfThickness;
+		float y1 = y + halfThickness;
+
+		// Use the white pixel UV from the atlas for solid color drawing
+		let (u, v) = mFontAtlas.WhitePixelUV;
+
+		mVertices.Add(.(x, y0, u, v, color));
+		mVertices.Add(.(x + width, y0, u, v, color));
+		mVertices.Add(.(x + width, y1, u, v, color));
+		mVertices.Add(.(x, y1, u, v, color));
+
+		mIndices.Add(baseIndex + 0);
+		mIndices.Add(baseIndex + 1);
+		mIndices.Add(baseIndex + 2);
+		mIndices.Add(baseIndex + 0);
+		mIndices.Add(baseIndex + 2);
+		mIndices.Add(baseIndex + 3);
+	}
+
 	/// Draw text using shaped positions (for custom shaping)
 	private void DrawTextShaped(float baseX, float baseY, Color color)
 	{
@@ -758,7 +842,7 @@ class Program
 {
 	public static int Main(String[] args)
 	{
-		let app = scope FontRenderingSample();
+		let app = new FontRenderingSample();
 		return app.Run();
 	}
 }

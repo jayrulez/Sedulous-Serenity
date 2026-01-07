@@ -16,10 +16,13 @@ public class TrueTypeFontAtlas : IFontAtlas
 	private int32 mFirstCodepoint;
 	private int32 mLastCodepoint;
 	private int32 mNumChars;
+	private float mWhitePixelU;
+	private float mWhitePixelV;
 
 	public uint32 Width => mWidth;
 	public uint32 Height => mHeight;
 	public Span<uint8> PixelData => mPixelData;
+	public (float U, float V) WhitePixelUV => (mWhitePixelU, mWhitePixelV);
 
 	public this() { }
 
@@ -55,6 +58,20 @@ public class TrueTypeFontAtlas : IFontAtlas
 		}
 
 		stbtt_PackEnd(&packContext);
+
+		// Add a solid white pixel in the bottom-right corner for drawing lines/rects
+		// Place it 1 pixel from edge to avoid filtering artifacts
+		uint32 whiteX = mWidth - 2;
+		uint32 whiteY = mHeight - 2;
+		mPixelData[whiteY * mWidth + whiteX] = 255;
+		// Also set neighboring pixels to avoid bilinear filtering artifacts
+		mPixelData[whiteY * mWidth + whiteX + 1] = 255;
+		mPixelData[(whiteY + 1) * mWidth + whiteX] = 255;
+		mPixelData[(whiteY + 1) * mWidth + whiteX + 1] = 255;
+
+		// Store UV coordinates (center of the 2x2 white area)
+		mWhitePixelU = (whiteX + 0.5f) / (float)mWidth;
+		mWhitePixelV = (whiteY + 0.5f) / (float)mHeight;
 
 		return .Ok;
 	}

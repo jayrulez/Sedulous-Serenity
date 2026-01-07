@@ -15,6 +15,8 @@ public struct FontMetrics
 	public float PixelHeight;
 	/// Scale factor from font units to pixels
 	public float Scale;
+	/// Metrics for text decorations (underline, strikethrough)
+	public TextDecorationMetrics Decorations;
 
 	public this(float ascent, float descent, float lineGap, float pixelHeight, float scale)
 	{
@@ -24,6 +26,18 @@ public struct FontMetrics
 		LineHeight = ascent - descent + lineGap;
 		PixelHeight = pixelHeight;
 		Scale = scale;
+		Decorations = TextDecorationMetrics.FromFontMetrics(ascent, pixelHeight);
+	}
+
+	public this(float ascent, float descent, float lineGap, float pixelHeight, float scale, TextDecorationMetrics decorations)
+	{
+		Ascent = ascent;
+		Descent = descent;
+		LineGap = lineGap;
+		LineHeight = ascent - descent + lineGap;
+		PixelHeight = pixelHeight;
+		Scale = scale;
+		Decorations = decorations;
 	}
 
 	public static FontMetrics Default => .(0, 0, 0, 0, 1.0f);

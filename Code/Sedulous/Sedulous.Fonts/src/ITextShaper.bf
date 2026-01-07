@@ -15,6 +15,25 @@ public interface ITextShaper
 
 	/// Shape multi-line text with word wrapping
 	Result<void> ShapeTextWrapped(IFont font, StringView text, float maxWidth, List<GlyphPosition> outPositions, out float totalHeight);
+
+	// === UI Support Methods ===
+
+	/// Hit test: given a pixel position relative to text origin, find the character index
+	/// For single-line text (Y is ignored)
+	HitTestResult HitTest(IFont font, Span<GlyphPosition> positions, float x, float y);
+
+	/// Hit test for wrapped/multi-line text
+	/// Uses lineHeight to determine which line was clicked
+	HitTestResult HitTestWrapped(IFont font, Span<GlyphPosition> positions, float x, float y, float lineHeight);
+
+	/// Get the X position for a cursor at the given character index
+	/// Index 0 returns position before first character
+	/// Index N returns position after last character
+	float GetCursorPosition(IFont font, Span<GlyphPosition> positions, int32 characterIndex);
+
+	/// Get rectangles for rendering text selection highlight
+	/// Returns one rectangle per line for multi-line selections
+	void GetSelectionRects(IFont font, Span<GlyphPosition> positions, SelectionRange selection, float lineHeight, List<Rect> outRects);
 }
 
 /// Horizontal text alignment options

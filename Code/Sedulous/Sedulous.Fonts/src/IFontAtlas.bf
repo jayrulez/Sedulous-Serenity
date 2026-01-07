@@ -28,4 +28,8 @@ public interface IFontAtlas
 
 	/// Convert atlas to an Image for GPU upload
 	Image ToImage();
+
+	/// Get UV coordinates for a solid white pixel (for drawing lines, rects, etc.)
+	/// Returns (u, v) normalized texture coordinates
+	(float U, float V) WhitePixelUV { get; }
 }
