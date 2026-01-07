@@ -1,0 +1,764 @@
+namespace FontRendering;
+
+using System;
+using System.Collections;
+using System.IO;
+using Sedulous.Mathematics;
+using Sedulous.Imaging;
+using Sedulous.RHI;
+using SampleFramework;
+using Sedulous.Fonts;
+using Sedulous.Fonts.TTF;
+
+/// Vertex structure for text rendering with position, UV, and color.
+[CRepr]
+struct TextVertex
+{
+	public float[2] Position;
+	public float[2] TexCoord;
+	public float[4] Color;
+
+	public this(float x, float y, float u, float v, Color color)
+	{
+		Position = .(x, y);
+		TexCoord = .(u, v);
+		// Normalize uint8 color components (0-255) to float (0-1)
+		Color = .(color.R / 255.0f, color.G / 255.0f, color.B / 255.0f, color.A / 255.0f);
+	}
+}
+
+/// Uniform buffer data for the projection matrix.
+[CRepr]
+struct Uniforms
+{
+	public Matrix Projection;
+}
+
+/// Font rendering sample demonstrating text rendering using font atlases.
+class FontRenderingSample : RHISampleApp
+{
+	// Font resources
+	private IFont mFont;
+	private IFontAtlas mFontAtlas;
+	private TrueTypeTextShaper mTextShaper;
+	private List<GlyphPosition> mShapedPositions = new .() ~ delete _;
+
+	// GPU resources
+	private IBuffer mVertexBuffer;
+	private IBuffer mIndexBuffer;
+	private IBuffer mUniformBuffer;
+	private ITexture mFontTexture;
+	private ITextureView mFontTextureView;
+	private ISampler mFontSampler;
+	private IShaderModule mVertShader;
+	private IShaderModule mFragShader;
+	private IBindGroupLayout mBindGroupLayout;
+	private IBindGroup mBindGroup;
+	private IPipelineLayout mPipelineLayout;
+	private IRenderPipeline mPipeline;
+
+	// Dynamic vertex/index data
+	private List<TextVertex> mVertices = new .() ~ delete _;
+	private List<uint16> mIndices = new .() ~ delete _;
+	private int mMaxQuads = 1024;
+	private bool mVertexBufferDirty = true;
+
+	// Animation state
+	private float mAnimationTime = 0;
+
+	// FPS tracking
+	private int mFrameCount = 0;
+	private float mFpsTimer = 0;
+	private int mCurrentFps = 0;
+
+	public this() : base(.()
+		{
+			Title = "Font Rendering",
+			Width = 1024,
+			Height = 768,
+			ClearColor = .(0.1f, 0.1f, 0.15f, 1.0f)
+		})
+	{
+	}
+
+	protected override bool OnInitialize()
+	{
+		if (!InitializeFont())
+			return false;
+
+		if (!CreateFontTexture())
+			return false;
+
+		if (!CreateBuffers())
+			return false;
+
+		if (!CreateBindings())
+			return false;
+
+		if (!CreatePipeline())
+			return false;
+
+		return true;
+	}
+
+	private bool InitializeFont()
+	{
+		// Use Roboto font from assets
+		String fontPath = scope .();
+		GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", fontPath);
+
+		if (!File.Exists(fontPath))
+		{
+			Console.WriteLine(scope $"Font not found: {fontPath}");
+			return false;
+		}
+
+		Console.WriteLine(scope $"Loading font: {fontPath}");
+
+		// Initialize TrueType font support
+		TrueTypeFonts.Initialize();
+
+		// Load font with default size 32
+		FontLoadOptions options = .Default;
+		options.PixelHeight = 32;
+		options.AtlasWidth = 512;
+		options.AtlasHeight = 512;
+
+		if (FontLoaderFactory.LoadFont(fontPath, options) case .Ok(let font))
+		{
+			mFont = font;
+		}
+		else
+		{
+			Console.WriteLine("Failed to load font");
+			return false;
+		}
+
+		// Create font atlas
+		if (FontLoaderFactory.CreateAtlas(mFont, options) case .Ok(let atlas))
+		{
+			mFontAtlas = atlas;
+			Console.WriteLine(scope $"Font atlas created: {mFontAtlas.Width}x{mFontAtlas.Height}");
+		}
+		else
+		{
+			Console.WriteLine("Failed to create font atlas");
+			return false;
+		}
+
+		// Create text shaper
+		mTextShaper = new TrueTypeTextShaper();
+
+		return true;
+	}
+
+	private bool CreateFontTexture()
+	{
+		// Create texture from atlas data
+		TextureDescriptor textureDesc = TextureDescriptor.Texture2D(
+			mFontAtlas.Width,
+			mFontAtlas.Height,
+			.R8Unorm,
+			.Sampled | .CopyDst
+		);
+
+		if (Device.CreateTexture(&textureDesc) not case .Ok(let texture))
+		{
+			Console.WriteLine("Failed to create font texture");
+			return false;
+		}
+		mFontTexture = texture;
+
+		// Upload atlas data
+		TextureDataLayout dataLayout = .()
+		{
+			Offset = 0,
+			BytesPerRow = mFontAtlas.Width,
+			RowsPerImage = mFontAtlas.Height
+		};
+
+		Extent3D writeSize = .(mFontAtlas.Width, mFontAtlas.Height, 1);
+		Device.Queue.WriteTexture(mFontTexture, mFontAtlas.PixelData, &dataLayout, &writeSize);
+
+		// Create texture view - must match texture format (R8Unorm)
+		TextureViewDescriptor viewDesc = .()
+		{
+			Format = .R8Unorm
+		};
+		if (Device.CreateTextureView(mFontTexture, &viewDesc) not case .Ok(let view))
+		{
+			Console.WriteLine("Failed to create font texture view");
+			return false;
+		}
+		mFontTextureView = view;
+
+		// Create sampler with linear filtering for smooth text
+		SamplerDescriptor samplerDesc = .()
+		{
+			AddressModeU = .ClampToEdge,
+			AddressModeV = .ClampToEdge,
+			AddressModeW = .ClampToEdge,
+			MagFilter = .Linear,
+			MinFilter = .Linear,
+			MipmapFilter = .Linear
+		};
+		if (Device.CreateSampler(&samplerDesc) not case .Ok(let sampler))
+		{
+			Console.WriteLine("Failed to create sampler");
+			return false;
+		}
+		mFontSampler = sampler;
+
+		Console.WriteLine("Font texture created");
+		return true;
+	}
+
+	private bool CreateBuffers()
+	{
+		// Vertex buffer (dynamic)
+		uint64 vertexBufferSize = (uint64)(sizeof(TextVertex) * mMaxQuads * 4);
+		BufferDescriptor vertexDesc = .()
+		{
+			Size = vertexBufferSize,
+			Usage = .Vertex,
+			MemoryAccess = .Upload
+		};
+
+		if (Device.CreateBuffer(&vertexDesc) not case .Ok(let vb))
+		{
+			Console.WriteLine("Failed to create vertex buffer");
+			return false;
+		}
+		mVertexBuffer = vb;
+
+		// Index buffer (dynamic)
+		uint64 indexBufferSize = (uint64)(sizeof(uint16) * mMaxQuads * 6);
+		BufferDescriptor indexDesc = .()
+		{
+			Size = indexBufferSize,
+			Usage = .Index,
+			MemoryAccess = .Upload
+		};
+
+		if (Device.CreateBuffer(&indexDesc) not case .Ok(let ib))
+		{
+			Console.WriteLine("Failed to create index buffer");
+			return false;
+		}
+		mIndexBuffer = ib;
+
+		// Uniform buffer
+		BufferDescriptor uniformDesc = .()
+		{
+			Size = (uint64)sizeof(Uniforms),
+			Usage = .Uniform,
+			MemoryAccess = .Upload
+		};
+
+		if (Device.CreateBuffer(&uniformDesc) not case .Ok(let ub))
+		{
+			Console.WriteLine("Failed to create uniform buffer");
+			return false;
+		}
+		mUniformBuffer = ub;
+
+		Console.WriteLine("Buffers created");
+		return true;
+	}
+
+	private bool CreateBindings()
+	{
+		// Load text shaders
+		let shaderResult = ShaderUtils.LoadShaderPair(Device, GetAssetPath("samples/FontRendering/shaders/text", .. scope .()));
+		if (shaderResult case .Err)
+		{
+			Console.WriteLine("Failed to load text shaders");
+			return false;
+		}
+
+		(mVertShader, mFragShader) = shaderResult.Get();
+		Console.WriteLine("Shaders compiled");
+
+		// Create bind group layout (uniform buffer + texture + sampler)
+		BindGroupLayoutEntry[3] layoutEntries = .(
+			BindGroupLayoutEntry.UniformBuffer(0, .Vertex),
+			BindGroupLayoutEntry.SampledTexture(0, .Fragment),
+			BindGroupLayoutEntry.Sampler(0, .Fragment)
+		);
+		BindGroupLayoutDescriptor bindGroupLayoutDesc = .(layoutEntries);
+		if (Device.CreateBindGroupLayout(&bindGroupLayoutDesc) not case .Ok(let layout))
+		{
+			Console.WriteLine("Failed to create bind group layout");
+			return false;
+		}
+		mBindGroupLayout = layout;
+
+		// Create bind group
+		BindGroupEntry[3] bindGroupEntries = .(
+			BindGroupEntry.Buffer(0, mUniformBuffer),
+			BindGroupEntry.Texture(0, mFontTextureView),
+			BindGroupEntry.Sampler(0, mFontSampler)
+		);
+		BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
+		if (Device.CreateBindGroup(&bindGroupDesc) not case .Ok(let group))
+		{
+			Console.WriteLine("Failed to create bind group");
+			return false;
+		}
+		mBindGroup = group;
+
+		// Create pipeline layout
+		IBindGroupLayout[1] layouts = .(mBindGroupLayout);
+		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
+		if (Device.CreatePipelineLayout(&pipelineLayoutDesc) not case .Ok(let pipelineLayout))
+		{
+			Console.WriteLine("Failed to create pipeline layout");
+			return false;
+		}
+		mPipelineLayout = pipelineLayout;
+
+		Console.WriteLine("Bindings created");
+		return true;
+	}
+
+	private bool CreatePipeline()
+	{
+		// Vertex attributes
+		VertexAttribute[3] vertexAttributes = .(
+			.(VertexFormat.Float2, 0, 0),  // Position at location 0
+			.(VertexFormat.Float2, 8, 1),  // TexCoord at location 1
+			.(VertexFormat.Float4, 16, 2)  // Color at location 2
+		);
+		VertexBufferLayout[1] vertexBuffers = .(
+			.((uint64)sizeof(TextVertex), vertexAttributes)
+		);
+
+		// Color target with alpha blending
+		ColorTargetState[1] colorTargets = .(.(SwapChain.Format, .AlphaBlend));
+
+		// Pipeline descriptor
+		RenderPipelineDescriptor pipelineDesc = .()
+		{
+			Layout = mPipelineLayout,
+			Vertex = .()
+			{
+				Shader = .(mVertShader, "main"),
+				Buffers = vertexBuffers
+			},
+			Fragment = .()
+			{
+				Shader = .(mFragShader, "main"),
+				Targets = colorTargets
+			},
+			Primitive = .()
+			{
+				Topology = .TriangleList,
+				FrontFace = .CCW,
+				CullMode = .None
+			},
+			DepthStencil = null,
+			Multisample = .()
+			{
+				Count = 1,
+				Mask = uint32.MaxValue,
+				AlphaToCoverageEnabled = false
+			}
+		};
+
+		if (Device.CreateRenderPipeline(&pipelineDesc) not case .Ok(let pipeline))
+		{
+			Console.WriteLine("Failed to create pipeline");
+			return false;
+		}
+		mPipeline = pipeline;
+
+		Console.WriteLine("Pipeline created");
+		return true;
+	}
+
+	protected override void OnUpdate(float deltaTime, float totalTime)
+	{
+		mAnimationTime = totalTime;
+
+		// FPS calculation
+		mFrameCount++;
+		mFpsTimer += deltaTime;
+		if (mFpsTimer >= 1.0f)
+		{
+			mCurrentFps = mFrameCount;
+			mFrameCount = 0;
+			mFpsTimer -= 1.0f;
+		}
+
+		// Update projection matrix
+		UpdateProjection();
+
+		// Build text quads
+		BuildTextQuads();
+	}
+
+	private void UpdateProjection()
+	{
+		// Orthographic projection for 2D text rendering (origin top-left)
+		float width = (float)SwapChain.Width;
+		float height = (float)SwapChain.Height;
+
+		// For Vulkan (FlipProjectionRequired), Y clip space is inverted
+		// so we swap bottom/top to get screen coordinates with origin at top-left
+		Matrix projection;
+		if (Device.FlipProjectionRequired)
+			projection = Matrix.CreateOrthographicOffCenter(0, width, 0, height, -1, 1);
+		else
+			projection = Matrix.CreateOrthographicOffCenter(0, width, height, 0, -1, 1);
+
+		Uniforms uniforms = .()
+		{
+			Projection = projection
+		};
+
+		Span<uint8> uniformData = .((uint8*)&uniforms, sizeof(Uniforms));
+		Device.Queue.WriteBuffer(mUniformBuffer, 0, uniformData);
+	}
+
+	private void BuildTextQuads()
+	{
+		mVertices.Clear();
+		mIndices.Clear();
+
+		float screenWidth = (float)SwapChain.Width;
+		float screenHeight = (float)SwapChain.Height;
+		float lineHeight = mFont.Metrics.LineHeight;
+		float margin = 20;
+		float columnWidth = screenWidth / 2 - margin * 2;
+
+		// ============ LEFT COLUMN ============
+
+		// Title and subtitle
+		DrawText("Font Rendering Sample", margin, 0, Color.White);
+		DrawText("Sedulous.Fonts + stb_truetype", margin, lineHeight, Color(0.6f, 0.6f, 0.6f, 1.0f));
+
+		// --- Text Alignment Section ---
+		float alignY = lineHeight * 2.5f;
+		DrawText("Text Alignment:", margin, alignY, Color(0.9f, 0.9f, 0.5f, 1.0f));
+
+		alignY += lineHeight;
+		DrawText("Left aligned text", margin, alignY, Color(0.8f, 0.8f, 0.9f, 1.0f));
+
+		alignY += lineHeight;
+		DrawTextAligned("Center aligned text", margin, alignY, columnWidth, .Center, Color(0.8f, 0.9f, 0.8f, 1.0f));
+
+		alignY += lineHeight;
+		DrawTextAligned("Right aligned text", margin, alignY, columnWidth, .Right, Color(0.9f, 0.8f, 0.8f, 1.0f));
+
+		// --- Colors Section ---
+		float colorY = alignY + lineHeight * 1.5f;
+		DrawText("Colors:", margin, colorY, Color(0.9f, 0.9f, 0.5f, 1.0f));
+
+		colorY += lineHeight;
+		float colorX = margin;
+		DrawText("Red", colorX, colorY, Color.Red);
+		colorX += mFont.MeasureString("Red") + 20;
+		DrawText("Green", colorX, colorY, Color.Green);
+		colorX += mFont.MeasureString("Green") + 20;
+		DrawText("Blue", colorX, colorY, Color.Blue);
+		colorX += mFont.MeasureString("Blue") + 20;
+		DrawText("Yellow", colorX, colorY, Color.Yellow);
+
+		colorY += lineHeight;
+		colorX = margin;
+		DrawText("Cyan", colorX, colorY, Color.Cyan);
+		colorX += mFont.MeasureString("Cyan") + 20;
+		DrawText("Magenta", colorX, colorY, Color.Magenta);
+		colorX += mFont.MeasureString("Magenta") + 20;
+		DrawText("Orange", colorX, colorY, Color(1.0f, 0.5f, 0.0f, 1.0f));
+
+		// --- Rainbow Text (animated) ---
+		float rainbowY = colorY + lineHeight * 1.5f;
+		DrawText("Animation:", margin, rainbowY, Color(0.9f, 0.9f, 0.5f, 1.0f));
+		rainbowY += lineHeight;
+		DrawTextRainbow("Rainbow animated text!", margin, rainbowY, mAnimationTime);
+
+		// --- Kerning Demo ---
+		float kernY = rainbowY + lineHeight * 1.5f;
+		DrawText("Kerning Pairs:", margin, kernY, Color(0.9f, 0.9f, 0.5f, 1.0f));
+		kernY += lineHeight;
+		DrawText("AV  To  WA  Ty  VA", margin, kernY, Color(0.8f, 0.8f, 0.9f, 1.0f));
+
+		// ============ RIGHT COLUMN ============
+		float rightX = screenWidth / 2 + margin;
+
+		// --- Word Wrapping Section ---
+		float wrapY = lineHeight * 2.5f;
+		DrawText("Word Wrapping:", rightX, wrapY, Color(0.9f, 0.9f, 0.5f, 1.0f));
+
+		wrapY += lineHeight;
+		StringView wrappedText = "The text shaper handles word wrapping automatically. Long sentences will be broken at word boundaries to fit within the specified maximum width.";
+		DrawTextWrapped(wrappedText, rightX, wrapY, columnWidth, Color(0.8f, 0.8f, 0.9f, 1.0f));
+
+		// --- Font Metrics Section ---
+		float metricsY = wrapY + lineHeight * 5;
+		DrawText("Font Metrics:", rightX, metricsY, Color(0.9f, 0.9f, 0.5f, 1.0f));
+
+		metricsY += lineHeight;
+		String metricsText = scope $"Pixel Height: {mFont.PixelHeight:0.0}";
+		DrawText(metricsText, rightX, metricsY, Color(0.7f, 0.7f, 0.8f, 1.0f));
+
+		metricsY += lineHeight;
+		metricsText.Set(scope $"Ascent: {mFont.Metrics.Ascent:0.0}");
+		DrawText(metricsText, rightX, metricsY, Color(0.7f, 0.7f, 0.8f, 1.0f));
+
+		metricsY += lineHeight;
+		metricsText.Set(scope $"Descent: {mFont.Metrics.Descent:0.0}");
+		DrawText(metricsText, rightX, metricsY, Color(0.7f, 0.7f, 0.8f, 1.0f));
+
+		metricsY += lineHeight;
+		metricsText.Set(scope $"Line Height: {mFont.Metrics.LineHeight:0.0}");
+		DrawText(metricsText, rightX, metricsY, Color(0.7f, 0.7f, 0.8f, 1.0f));
+
+		// --- String Measurement ---
+		float measureY = metricsY + lineHeight * 1.5f;
+		DrawText("MeasureString:", rightX, measureY, Color(0.9f, 0.9f, 0.5f, 1.0f));
+
+		measureY += lineHeight;
+		StringView sampleText = "Sample Text";
+		float measuredWidth = mFont.MeasureString(sampleText);
+		String measureInfo = scope $"\"{sampleText}\" = {measuredWidth:0.0}px";
+		DrawText(measureInfo, rightX, measureY, Color(0.7f, 0.7f, 0.8f, 1.0f));
+
+		// ============ BOTTOM SECTION ============
+
+		// Character sets
+		float charY = screenHeight - lineHeight * 4;
+		DrawTextAligned("ABCDEFGHIJKLMNOPQRSTUVWXYZ", margin, charY, screenWidth - margin * 2, .Center, Color(0.5f, 0.5f, 0.7f, 1.0f));
+		charY += lineHeight;
+		DrawTextAligned("abcdefghijklmnopqrstuvwxyz  0123456789", margin, charY, screenWidth - margin * 2, .Center, Color(0.5f, 0.5f, 0.7f, 1.0f));
+		charY += lineHeight;
+		DrawTextAligned("!@#$%^&*()_+-=[]{}|;':\",./<>?", margin, charY, screenWidth - margin * 2, .Center, Color(0.5f, 0.5f, 0.7f, 1.0f));
+
+		// FPS counter (top right)
+		String fpsText = scope $"FPS: {mCurrentFps}";
+		DrawTextAligned(fpsText, 0, 0, screenWidth - margin, .Right, Color(0.0f, 1.0f, 0.0f, 1.0f));
+
+		// Instructions at bottom
+		DrawTextAligned("Press Escape to exit", margin, screenHeight - lineHeight, screenWidth - margin * 2, .Center, Color(0.4f, 0.4f, 0.4f, 1.0f));
+
+		// Upload vertex data
+		if (mVertices.Count > 0)
+		{
+			let vertexData = Span<uint8>((uint8*)mVertices.Ptr, mVertices.Count * sizeof(TextVertex));
+			Device.Queue.WriteBuffer(mVertexBuffer, 0, vertexData);
+
+			let indexData = Span<uint8>((uint8*)mIndices.Ptr, mIndices.Count * sizeof(uint16));
+			Device.Queue.WriteBuffer(mIndexBuffer, 0, indexData);
+		}
+	}
+
+	private void DrawText(StringView text, float x, float y, Color color)
+	{
+		float cursorX = x;
+		// Offset Y by ascent so that y=0 means top of text, not baseline
+		float cursorY = y + mFont.Metrics.Ascent;
+
+		for (let char in text.DecodedChars)
+		{
+			int32 codepoint = (int32)char;
+
+			// Skip non-printable characters
+			if (codepoint < 32 || codepoint > 126)
+				continue;
+
+			// Get glyph quad from atlas
+			GlyphQuad quad = .();
+			if (mFontAtlas.GetGlyphQuad(codepoint, ref cursorX, cursorY, out quad))
+			{
+				AddQuad(quad, color);
+			}
+		}
+	}
+
+	/// Draw text with horizontal alignment within a given width
+	private void DrawTextAligned(StringView text, float x, float y, float width, TextAlignment alignment, Color color)
+	{
+		float textWidth = mFont.MeasureString(text);
+
+		float offsetX = 0;
+		switch (alignment)
+		{
+		case .Left:
+			offsetX = 0;
+		case .Center:
+			offsetX = (width - textWidth) / 2;
+		case .Right:
+			offsetX = width - textWidth;
+		}
+
+		DrawText(text, x + offsetX, y, color);
+	}
+
+	/// Draw text with per-character rainbow colors (animated)
+	private void DrawTextRainbow(StringView text, float x, float y, float time)
+	{
+		float cursorX = x;
+		float cursorY = y + mFont.Metrics.Ascent;
+		int charIndex = 0;
+
+		for (let char in text.DecodedChars)
+		{
+			int32 codepoint = (int32)char;
+
+			if (codepoint < 32 || codepoint > 126)
+				continue;
+
+			// Calculate rainbow color based on character position and time
+			float hue = ((float)charIndex * 0.1f + time * 0.5f) % 1.0f;
+			Color color = HsvToRgb(hue, 0.8f, 1.0f);
+
+			GlyphQuad quad = .();
+			if (mFontAtlas.GetGlyphQuad(codepoint, ref cursorX, cursorY, out quad))
+			{
+				AddQuad(quad, color);
+			}
+
+			charIndex++;
+		}
+	}
+
+	/// Draw text using the text shaper with word wrapping
+	private void DrawTextWrapped(StringView text, float x, float y, float maxWidth, Color color)
+	{
+		float totalHeight;
+		if (mTextShaper.ShapeTextWrapped(mFont, text, maxWidth, mShapedPositions, out totalHeight) case .Err)
+			return;
+
+		// Offset Y by ascent so that y=0 means top of text, not baseline
+		float yOffset = y + mFont.Metrics.Ascent;
+
+		for (let pos in mShapedPositions)
+		{
+			// Skip spaces (they have no visible glyph)
+			if (pos.Codepoint == (int32)' ')
+				continue;
+
+			// Calculate cursor position from shaped position
+			float cursorX = x + pos.X;
+			float cursorY = yOffset + pos.Y;
+
+			// Get glyph quad from atlas
+			GlyphQuad quad = .();
+			if (mFontAtlas.GetGlyphQuad(pos.Codepoint, ref cursorX, cursorY, out quad))
+			{
+				AddQuad(quad, color);
+			}
+		}
+	}
+
+	/// Draw text using shaped positions (for custom shaping)
+	private void DrawTextShaped(float baseX, float baseY, Color color)
+	{
+		// Offset Y by ascent so that y=0 means top of text, not baseline
+		float yOffset = baseY + mFont.Metrics.Ascent;
+
+		for (let pos in mShapedPositions)
+		{
+			// Skip spaces
+			if (pos.Codepoint == (int32)' ')
+				continue;
+
+			float cursorX = baseX + pos.X;
+			float cursorY = yOffset + pos.Y;
+
+			GlyphQuad quad = .();
+			if (mFontAtlas.GetGlyphQuad(pos.Codepoint, ref cursorX, cursorY, out quad))
+			{
+				AddQuad(quad, color);
+			}
+		}
+	}
+
+	private void AddQuad(GlyphQuad quad, Color color)
+	{
+		uint16 baseIndex = (uint16)mVertices.Count;
+
+		// Add vertices (4 per quad)
+		mVertices.Add(.(quad.X0, quad.Y0, quad.U0, quad.V0, color));  // Top-left
+		mVertices.Add(.(quad.X1, quad.Y0, quad.U1, quad.V0, color));  // Top-right
+		mVertices.Add(.(quad.X1, quad.Y1, quad.U1, quad.V1, color));  // Bottom-right
+		mVertices.Add(.(quad.X0, quad.Y1, quad.U0, quad.V1, color));  // Bottom-left
+
+		// Add indices (6 per quad, 2 triangles)
+		mIndices.Add(baseIndex + 0);
+		mIndices.Add(baseIndex + 1);
+		mIndices.Add(baseIndex + 2);
+		mIndices.Add(baseIndex + 0);
+		mIndices.Add(baseIndex + 2);
+		mIndices.Add(baseIndex + 3);
+	}
+
+	private Color HsvToRgb(float h, float s, float v)
+	{
+		if (s <= 0)
+			return Color(v, v, v, 1.0f);
+
+		float hue = h * 6.0f;
+		int i = (int)hue;
+		float f = hue - (float)i;
+		float p = v * (1.0f - s);
+		float q = v * (1.0f - s * f);
+		float t = v * (1.0f - s * (1.0f - f));
+
+		switch (i % 6)
+		{
+		case 0: return Color(v, t, p, 1.0f);
+		case 1: return Color(q, v, p, 1.0f);
+		case 2: return Color(p, v, t, 1.0f);
+		case 3: return Color(p, q, v, 1.0f);
+		case 4: return Color(t, p, v, 1.0f);
+		case 5: return Color(v, p, q, 1.0f);
+		default: return Color(v, v, v, 1.0f);
+		}
+	}
+
+	protected override void OnRender(IRenderPassEncoder renderPass)
+	{
+		if (mIndices.Count == 0)
+			return;
+
+		renderPass.SetPipeline(mPipeline);
+		renderPass.SetBindGroup(0, mBindGroup);
+		renderPass.SetVertexBuffer(0, mVertexBuffer, 0);
+		renderPass.SetIndexBuffer(mIndexBuffer, .UInt16, 0);
+		renderPass.DrawIndexed((uint32)mIndices.Count, 1, 0, 0, 0);
+	}
+
+	protected override void OnCleanup()
+	{
+		if (mPipeline != null) delete mPipeline;
+		if (mPipelineLayout != null) delete mPipelineLayout;
+		if (mBindGroup != null) delete mBindGroup;
+		if (mBindGroupLayout != null) delete mBindGroupLayout;
+		if (mFragShader != null) delete mFragShader;
+		if (mVertShader != null) delete mVertShader;
+		if (mFontSampler != null) delete mFontSampler;
+		if (mFontTextureView != null) delete mFontTextureView;
+		if (mFontTexture != null) delete mFontTexture;
+		if (mUniformBuffer != null) delete mUniformBuffer;
+		if (mIndexBuffer != null) delete mIndexBuffer;
+		if (mVertexBuffer != null) delete mVertexBuffer;
+
+		// Clean up font resources
+		if (mTextShaper != null) delete mTextShaper;
+		if (mFontAtlas != null) delete (Object)mFontAtlas;
+		if (mFont != null) delete (Object)mFont;
+
+		TrueTypeFonts.Shutdown();
+	}
+}
+
+class Program
+{
+	public static int Main(String[] args)
+	{
+		let app = scope FontRenderingSample();
+		return app.Run();
+	}
+}

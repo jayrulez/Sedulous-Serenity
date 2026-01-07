@@ -1,0 +1,6 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.Mathematics" = "*", "Sedulous.Imaging" = "*", "Sedulous.RHI" = "*", "SampleFramework" = "*", "Sedulous.Fonts" = "*", "Sedulous.Fonts.TTF" = "*"}
+
+[Project]
+Name = "FontRendering"
+StartupObject = "FontRendering.Program"
