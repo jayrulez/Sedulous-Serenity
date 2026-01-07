@@ -5,17 +5,14 @@ using System.Collections;
 using Sedulous.RHI;
 using Sedulous.Mathematics;
 
-/// Batched sprite renderer for efficient billboard rendering.
-/// Owns the sprite pipeline and handles rendering.
-class SpriteRenderer
+/// Renderer for particle systems.
+/// Owns the particle pipeline and handles rendering from ParticleSystem instances.
+class ParticleRenderer
 {
 	private const int32 MAX_FRAMES = 2;
 
 	private IDevice mDevice;
 	private ShaderLibrary mShaderLibrary;
-
-	// Buffers
-	private IBuffer mInstanceBuffer;
 
 	// Pipeline resources
 	private IBindGroupLayout mBindGroupLayout ~ delete _;
@@ -26,33 +23,17 @@ class SpriteRenderer
 	// Per-frame camera buffers (references, not owned)
 	private IBuffer[MAX_FRAMES] mCameraBuffers;
 
-	// Sprite data
-	private List<SpriteInstance> mSprites = new .() ~ delete _;
-	private int32 mMaxSprites;
-	private bool mDirty = false;
-
 	// Configuration
 	private TextureFormat mColorFormat = .BGRA8UnormSrgb;
 	private TextureFormat mDepthFormat = .Depth24PlusStencil8;
 	private bool mInitialized = false;
 
-	/// Maximum number of sprites that can be rendered in one batch.
-	public const int32 DEFAULT_MAX_SPRITES = 10000;
-
-	public this(IDevice device, int32 maxSprites = DEFAULT_MAX_SPRITES)
+	public this(IDevice device)
 	{
 		mDevice = device;
-		mMaxSprites = maxSprites;
-
-		CreateBuffers();
 	}
 
-	public ~this()
-	{
-		if (mInstanceBuffer != null) delete mInstanceBuffer;
-	}
-
-	/// Initializes the sprite renderer with pipeline resources.
+	/// Initializes the particle renderer with pipeline resources.
 	public Result<void> Initialize(ShaderLibrary shaderLibrary,
 		IBuffer[MAX_FRAMES] cameraBuffers, TextureFormat colorFormat, TextureFormat depthFormat)
 	{
@@ -71,24 +52,15 @@ class SpriteRenderer
 		return .Ok;
 	}
 
-	private void CreateBuffers()
-	{
-		// Instance buffer (one SpriteInstance per sprite)
-		let instanceSize = (uint64)(sizeof(SpriteInstance) * mMaxSprites);
-		BufferDescriptor instanceDesc = .(instanceSize, .Vertex, .Upload);
-		if (mDevice.CreateBuffer(&instanceDesc) case .Ok(let instBuf))
-			mInstanceBuffer = instBuf;
-	}
-
 	private Result<void> CreatePipeline()
 	{
-		// Load sprite shaders
-		let vertResult = mShaderLibrary.GetShader("sprite", .Vertex);
+		// Load particle shaders
+		let vertResult = mShaderLibrary.GetShader("particle", .Vertex);
 		if (vertResult case .Err)
 			return .Err;
 		let vertShader = vertResult.Get();
 
-		let fragResult = mShaderLibrary.GetShader("sprite", .Fragment);
+		let fragResult = mShaderLibrary.GetShader("particle", .Fragment);
 		if (fragResult case .Err)
 			return .Err;
 		let fragShader = fragResult.Get();
@@ -121,15 +93,15 @@ class SpriteRenderer
 			mBindGroups[i] = group;
 		}
 
-		// SpriteInstance layout: Position(12) + Size(8) + UVRect(16) + Color(4) = 40 bytes
+		// ParticleVertex: Position(12) + Size(8) + Color(4) + Rotation(4) = 28 bytes
 		Sedulous.RHI.VertexAttribute[4] vertexAttrs = .(
 			.(VertexFormat.Float3, 0, 0),              // Position
 			.(VertexFormat.Float2, 12, 1),             // Size
-			.(VertexFormat.Float4, 20, 2),             // UVRect
-			.(VertexFormat.UByte4Normalized, 36, 3)    // Color
+			.(VertexFormat.UByte4Normalized, 20, 2),   // Color
+			.(VertexFormat.Float, 24, 3)               // Rotation
 		);
 		VertexBufferLayout[1] vertexBuffers = .(
-			VertexBufferLayout(40, vertexAttrs, .Instance)
+			VertexBufferLayout(28, vertexAttrs, .Instance)
 		);
 
 		ColorTargetState[1] colorTargets = .(
@@ -138,7 +110,7 @@ class SpriteRenderer
 
 		DepthStencilState depthState = .();
 		depthState.DepthTestEnabled = true;
-		depthState.DepthWriteEnabled = false;
+		depthState.DepthWriteEnabled = false;  // Particles don't write to depth
 		depthState.DepthCompare = .Less;
 		depthState.Format = mDepthFormat;
 
@@ -176,63 +148,58 @@ class SpriteRenderer
 		return .Ok;
 	}
 
-	/// Renders all sprites in the current batch.
-	public void Render(IRenderPassEncoder renderPass, int32 frameIndex)
+	/// Renders particles from a single particle system.
+	public void Render(IRenderPassEncoder renderPass, int32 frameIndex, ParticleSystem particleSystem)
 	{
-		if (!mInitialized || mPipeline == null || mSprites.Count == 0)
+		if (!mInitialized || mPipeline == null || particleSystem == null)
 			return;
 
 		if (frameIndex < 0 || frameIndex >= MAX_FRAMES)
 			return;
 
-		renderPass.SetPipeline(mPipeline);
-		renderPass.SetBindGroup(0, mBindGroups[frameIndex]);
-		renderPass.SetVertexBuffer(0, mInstanceBuffer, 0);
-		renderPass.Draw(6, (uint32)mSprites.Count, 0, 0);
-	}
-
-	/// Clears all sprites for a new frame.
-	public void Begin()
-	{
-		mSprites.Clear();
-		mDirty = true;
-	}
-
-	/// Adds a sprite to the batch.
-	public void AddSprite(SpriteInstance sprite)
-	{
-		if (mSprites.Count < mMaxSprites)
-		{
-			mSprites.Add(sprite);
-			mDirty = true;
-		}
-	}
-
-	/// Adds a sprite with common parameters.
-	public void AddSprite(Vector3 position, Vector2 size, Color color = .White)
-	{
-		AddSprite(.(position, size, color));
-	}
-
-	/// Uploads sprite data to GPU and prepares for rendering.
-	public void End()
-	{
-		if (!mDirty || mSprites.Count == 0)
+		let particleCount = particleSystem.ParticleCount;
+		if (particleCount == 0)
 			return;
 
-		// Upload instance data
-		let dataSize = (uint64)(sizeof(SpriteInstance) * mSprites.Count);
-		Span<uint8> data = .((uint8*)mSprites.Ptr, (int)dataSize);
-		mDevice.Queue.WriteBuffer(mInstanceBuffer, 0, data);
-
-		mDirty = false;
+		renderPass.SetPipeline(mPipeline);
+		renderPass.SetBindGroup(0, mBindGroups[frameIndex]);
+		renderPass.SetVertexBuffer(0, particleSystem.VertexBuffer, 0);
+		renderPass.SetIndexBuffer(particleSystem.IndexBuffer, .UInt16, 0);
+		renderPass.DrawIndexed(6, (uint32)particleCount, 0, 0, 0);
 	}
 
-	/// Returns the number of sprites in the current batch.
-	public int32 SpriteCount => (int32)mSprites.Count;
+	/// Renders particles from multiple particle emitters.
+	public void RenderEmitters(IRenderPassEncoder renderPass, int32 frameIndex, List<ParticleEmitterComponent> emitters)
+	{
+		if (!mInitialized || mPipeline == null || emitters == null || emitters.Count == 0)
+			return;
 
-	/// Gets the instance buffer for rendering.
-	public IBuffer InstanceBuffer => mInstanceBuffer;
+		if (frameIndex < 0 || frameIndex >= MAX_FRAMES)
+			return;
+
+		// Set pipeline and bind group once
+		renderPass.SetPipeline(mPipeline);
+		renderPass.SetBindGroup(0, mBindGroups[frameIndex]);
+
+		// Render each emitter's particles
+		for (let emitter in emitters)
+		{
+			if (!emitter.Visible)
+				continue;
+
+			let particleSystem = emitter.ParticleSystem;
+			if (particleSystem == null)
+				continue;
+
+			let particleCount = particleSystem.ParticleCount;
+			if (particleCount > 0)
+			{
+				renderPass.SetVertexBuffer(0, particleSystem.VertexBuffer, 0);
+				renderPass.SetIndexBuffer(particleSystem.IndexBuffer, .UInt16, 0);
+				renderPass.DrawIndexed(6, (uint32)particleCount, 0, 0, 0);
+			}
+		}
+	}
 
 	/// Returns true if the renderer is fully initialized with pipeline.
 	public bool IsInitialized => mInitialized && mPipeline != null;

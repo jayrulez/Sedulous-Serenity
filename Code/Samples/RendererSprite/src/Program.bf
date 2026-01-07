@@ -243,7 +243,8 @@ class RendererSpriteSample : RHISampleApp
 
 	private bool CreateSpritePipeline()
 	{
-		let shaderResult = ShaderUtils.LoadShaderPair(Device, "shaders/sprite");
+		let shaderPath = GetAssetPath("samples/RendererSprite/shaders/sprite", .. scope .());
+		let shaderResult = ShaderUtils.LoadShaderPair(Device, shaderPath);
 		if (shaderResult case .Err)
 		{
 			Console.WriteLine("Failed to load sprite shaders");

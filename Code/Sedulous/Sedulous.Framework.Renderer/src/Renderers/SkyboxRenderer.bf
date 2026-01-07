@@ -5,13 +5,33 @@ using Sedulous.RHI;
 using Sedulous.Mathematics;
 
 /// Renders a skybox using a cubemap texture.
+/// Owns the cubemap resources, pipeline, and handles rendering.
 class SkyboxRenderer
 {
+	private const int32 MAX_FRAMES = 2;
+
 	private IDevice mDevice;
+	private ShaderLibrary mShaderLibrary;
+
+	// Cubemap resources
 	private ITexture mCubemap;
 	private ITextureView mCubemapView;
 	private ISampler mSampler;
 	private bool mOwnsCubemap = false;
+
+	// Pipeline resources
+	private IBindGroupLayout mBindGroupLayout ~ delete _;
+	private IPipelineLayout mPipelineLayout ~ delete _;
+	private IRenderPipeline mPipeline ~ delete _;
+	private IBindGroup[MAX_FRAMES] mBindGroups ~ { for (var bg in _) delete bg; };
+
+	// Per-frame camera buffers (references, not owned)
+	private IBuffer[MAX_FRAMES] mCameraBuffers;
+
+	// Configuration
+	private TextureFormat mColorFormat = .BGRA8UnormSrgb;
+	private TextureFormat mDepthFormat = .Depth24PlusStencil8;
+	private bool mInitialized = false;
 
 	public ITextureView CubemapView => mCubemapView;
 	public ISampler Sampler => mSampler;
@@ -30,6 +50,130 @@ class SkyboxRenderer
 			if (mCubemapView != null) delete mCubemapView;
 			if (mCubemap != null) delete mCubemap;
 		}
+	}
+
+	/// Initializes the skybox renderer with pipeline resources.
+	/// Must be called after creating the cubemap (CreateGradientSky, etc.).
+	public Result<void> Initialize(ShaderLibrary shaderLibrary,
+		IBuffer[MAX_FRAMES] cameraBuffers, TextureFormat colorFormat, TextureFormat depthFormat)
+	{
+		if (mDevice == null || !IsValid)
+			return .Err;
+
+		mShaderLibrary = shaderLibrary;
+		mCameraBuffers = cameraBuffers;
+		mColorFormat = colorFormat;
+		mDepthFormat = depthFormat;
+
+		if (CreatePipeline() case .Err)
+			return .Err;
+
+		mInitialized = true;
+		return .Ok;
+	}
+
+	private Result<void> CreatePipeline()
+	{
+		// Load skybox shaders
+		let vertResult = mShaderLibrary.GetShader("skybox", .Vertex);
+		if (vertResult case .Err)
+			return .Err;
+		let vertShader = vertResult.Get();
+
+		let fragResult = mShaderLibrary.GetShader("skybox", .Fragment);
+		if (fragResult case .Err)
+			return .Err;
+		let fragShader = fragResult.Get();
+
+		// Bind group layout: b0=camera, t0=cubemap, s0=sampler
+		BindGroupLayoutEntry[3] layoutEntries = .(
+			BindGroupLayoutEntry.UniformBuffer(0, .Vertex),
+			BindGroupLayoutEntry.SampledTexture(0, .Fragment, .TextureCube),
+			BindGroupLayoutEntry.Sampler(0, .Fragment)
+		);
+		BindGroupLayoutDescriptor bindLayoutDesc = .(layoutEntries);
+		if (mDevice.CreateBindGroupLayout(&bindLayoutDesc) not case .Ok(let layout))
+			return .Err;
+		mBindGroupLayout = layout;
+
+		// Pipeline layout
+		IBindGroupLayout[1] layouts = .(mBindGroupLayout);
+		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
+		if (mDevice.CreatePipelineLayout(&pipelineLayoutDesc) not case .Ok(let pipelineLayout))
+			return .Err;
+		mPipelineLayout = pipelineLayout;
+
+		// Create per-frame bind groups
+		for (int i = 0; i < MAX_FRAMES; i++)
+		{
+			BindGroupEntry[3] entries = .(
+				BindGroupEntry.Buffer(0, mCameraBuffers[i]),
+				BindGroupEntry.Texture(0, mCubemapView),
+				BindGroupEntry.Sampler(0, mSampler)
+			);
+			BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, entries);
+			if (mDevice.CreateBindGroup(&bindGroupDesc) not case .Ok(let group))
+				return .Err;
+			mBindGroups[i] = group;
+		}
+
+		// No vertex buffers - uses fullscreen triangle with SV_VertexID
+		ColorTargetState[1] colorTargets = .(.(mColorFormat));
+
+		// Depth test enabled but no write - skybox is always at far plane
+		DepthStencilState depthState = .();
+		depthState.DepthTestEnabled = true;
+		depthState.DepthWriteEnabled = false;
+		depthState.DepthCompare = .LessEqual;
+		depthState.Format = mDepthFormat;
+
+		RenderPipelineDescriptor pipelineDesc = .()
+		{
+			Layout = mPipelineLayout,
+			Vertex = .()
+			{
+				Shader = .(vertShader.Module, "main"),
+				Buffers = .()  // No vertex buffers
+			},
+			Fragment = .()
+			{
+				Shader = .(fragShader.Module, "main"),
+				Targets = colorTargets
+			},
+			Primitive = .()
+			{
+				Topology = .TriangleList,
+				FrontFace = .CCW,
+				CullMode = .None
+			},
+			DepthStencil = depthState,
+			Multisample = .()
+			{
+				Count = 1,
+				Mask = uint32.MaxValue
+			}
+		};
+
+		if (mDevice.CreateRenderPipeline(&pipelineDesc) not case .Ok(let pipeline))
+			return .Err;
+		mPipeline = pipeline;
+
+		return .Ok;
+	}
+
+	/// Renders the skybox.
+	/// Should be called first in the render pass (before geometry).
+	public void Render(IRenderPassEncoder renderPass, int32 frameIndex)
+	{
+		if (!mInitialized || mPipeline == null || !IsValid)
+			return;
+
+		if (frameIndex < 0 || frameIndex >= MAX_FRAMES)
+			return;
+
+		renderPass.SetPipeline(mPipeline);
+		renderPass.SetBindGroup(0, mBindGroups[frameIndex]);
+		renderPass.Draw(3, 1, 0, 0);  // Fullscreen triangle
 	}
 
 	private void CreateSampler()
@@ -236,4 +380,7 @@ class SkyboxRenderer
 
 	/// Returns true if the skybox has a valid cubemap.
 	public bool IsValid => mCubemapView != null;
+
+	/// Returns true if the skybox renderer is fully initialized with pipeline.
+	public bool IsInitialized => mInitialized && mPipeline != null;
 }
