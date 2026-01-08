@@ -33,6 +33,9 @@ public abstract class UIElement
 	// Visual properties
 	private Visibility mVisibility = .Visible;
 	private float mOpacity = 1.0f;
+	private Matrix mRenderTransform = Matrix.Identity;
+	private Vector2 mRenderTransformOrigin = .(0.5f, 0.5f); // Center by default
+	private bool mHasRenderTransform = false;
 
 	// State
 	private bool mIsEnabled = true;
@@ -170,6 +173,26 @@ public abstract class UIElement
 	{
 		get => mOpacity;
 		set { mOpacity = Math.Clamp(value, 0.0f, 1.0f); InvalidateVisual(); }
+	}
+
+	/// Transform matrix applied during rendering (does not affect layout).
+	public Matrix RenderTransform
+	{
+		get => mRenderTransform;
+		set
+		{
+			mRenderTransform = value;
+			mHasRenderTransform = (value != Matrix.Identity);
+			InvalidateVisual();
+		}
+	}
+
+	/// Origin point for render transform as relative coordinates (0-1).
+	/// Default is (0.5, 0.5) for center of element.
+	public Vector2 RenderTransformOrigin
+	{
+		get => mRenderTransformOrigin;
+		set { mRenderTransformOrigin = value; InvalidateVisual(); }
 	}
 
 	// === State Properties ===
@@ -486,6 +509,26 @@ public abstract class UIElement
 		if (needsOpacity)
 			drawContext.PushOpacity(mOpacity);
 
+		// Apply render transform if set
+		Matrix savedTransform = .Identity;
+		if (mHasRenderTransform)
+		{
+			savedTransform = drawContext.GetTransform();
+
+			// Calculate origin in absolute coordinates
+			let originX = mBounds.X + mBounds.Width * mRenderTransformOrigin.X;
+			let originY = mBounds.Y + mBounds.Height * mRenderTransformOrigin.Y;
+
+			// Apply transform around the origin:
+			// 1. Translate to origin
+			// 2. Apply the render transform
+			// 3. Translate back
+			let toOrigin = Matrix.CreateTranslation(-originX, -originY, 0);
+			let fromOrigin = Matrix.CreateTranslation(originX, originY, 0);
+			let combinedTransform = toOrigin * mRenderTransform * fromOrigin * savedTransform;
+			drawContext.SetTransform(combinedTransform);
+		}
+
 		// Render this element's content
 		OnRender(drawContext);
 
@@ -494,6 +537,10 @@ public abstract class UIElement
 		{
 			child.Render(drawContext);
 		}
+
+		// Restore transform
+		if (mHasRenderTransform)
+			drawContext.SetTransform(savedTransform);
 
 		if (needsOpacity)
 			drawContext.PopOpacity();
@@ -514,14 +561,39 @@ public abstract class UIElement
 		if (mVisibility != .Visible)
 			return null;
 
+		// Transform hit point if this element has a render transform
+		var hitX = x;
+		var hitY = y;
+
+		if (mHasRenderTransform)
+		{
+			// Calculate the inverse transform to map screen point to local space
+			let originX = mBounds.X + mBounds.Width * mRenderTransformOrigin.X;
+			let originY = mBounds.Y + mBounds.Height * mRenderTransformOrigin.Y;
+
+			let toOrigin = Matrix.CreateTranslation(-originX, -originY, 0);
+			let fromOrigin = Matrix.CreateTranslation(originX, originY, 0);
+			let fullTransform = toOrigin * mRenderTransform * fromOrigin;
+
+			// Try to invert the transform
+			Matrix inverseTransform;
+			if (Matrix.TryInvert(fullTransform, out inverseTransform))
+			{
+				let transformed = Vector2.Transform(.(x, y), inverseTransform);
+				hitX = transformed.X;
+				hitY = transformed.Y;
+			}
+		}
+
 		// Check if point is within bounds
-		if (!mBounds.Contains(x, y))
+		if (!mBounds.Contains(hitX, hitY))
 			return null;
 
 		// Check children in reverse order (front to back)
+		// Children use the transformed coordinates relative to this element
 		for (int i = mChildren.Count - 1; i >= 0; i--)
 		{
-			let result = mChildren[i].HitTest(x, y);
+			let result = mChildren[i].HitTest(hitX, hitY);
 			if (result != null)
 				return result;
 		}

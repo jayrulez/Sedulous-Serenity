@@ -284,16 +284,29 @@ public class ScrollViewer : UIElement
 		}
 	}
 
-	protected override void OnMouseWheel(float deltaX, float deltaY)
+	protected override void OnMouseWheelRouted(MouseWheelEventArgs args)
 	{
 		// Scroll by wheel delta (typically 40 pixels per notch)
 		let scrollAmount = 40.0f;
-		if (CanScrollVertically)
-			ScrollBy(0, -deltaY * scrollAmount);
-		else if (CanScrollHorizontally)
-			ScrollBy(-deltaY * scrollAmount, 0);
+		bool scrolled = false;
 
-		base.OnMouseWheel(deltaX, deltaY);
+		if (CanScrollVertically && args.DeltaY != 0)
+		{
+			ScrollBy(0, -args.DeltaY * scrollAmount);
+			scrolled = true;
+		}
+		else if (CanScrollHorizontally && (args.DeltaX != 0 || args.DeltaY != 0))
+		{
+			// Use horizontal delta if available, otherwise use vertical for horizontal scroll
+			let delta = args.DeltaX != 0 ? args.DeltaX : args.DeltaY;
+			ScrollBy(-delta * scrollAmount, 0);
+			scrolled = true;
+		}
+
+		if (scrolled)
+			args.Handled = true;
+
+		base.OnMouseWheelRouted(args);
 	}
 
 	protected override void OnMouseDownRouted(MouseButtonEventArgs args)

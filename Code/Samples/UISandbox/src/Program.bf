@@ -496,7 +496,7 @@ class UISandboxSample : RHISampleApp
 		let scrollViewer = new ScrollViewer();
 		scrollViewer.Padding = Thickness(20);
 
-		// Two-column layout
+		// Three-column layout
 		let columns = new StackPanel();
 		columns.Orientation = .Horizontal;
 		columns.Spacing = 40;
@@ -506,7 +506,12 @@ class UISandboxSample : RHISampleApp
 		leftColumn.Orientation = .Vertical;
 		leftColumn.Spacing = 20;
 
-		// Right column - Layout demos
+		// Middle column - Layout demos
+		let middleColumn = new StackPanel();
+		middleColumn.Orientation = .Vertical;
+		middleColumn.Spacing = 20;
+
+		// Right column - Transform demos
 		let rightColumn = new StackPanel();
 		rightColumn.Orientation = .Vertical;
 		rightColumn.Spacing = 20;
@@ -595,8 +600,8 @@ class UISandboxSample : RHISampleApp
 			panel.AddChild(slider);
 		});
 
-		// Section: Layout Demos (right column)
-		AddSection(rightColumn, "Layout Demos", scope (panel) => {
+		// Section: Layout Demos (middle column)
+		AddSection(middleColumn, "Layout Demos", scope (panel) => {
 			// === Grid Demo ===
 			let gridLabel = new TextBlock();
 			gridLabel.Text = "Grid (3x3 with Star/Auto sizing):";
@@ -873,8 +878,8 @@ class UISandboxSample : RHISampleApp
 			panel.AddChild(dockPanel);
 		});
 
-		// Section: Animations (right column)
-		AddSection(rightColumn, "Animations", scope (panel) => {
+		// Section: Animations (middle column)
+		AddSection(middleColumn, "Animations", scope (panel) => {
 			// First row of animation buttons
 			let hstack1 = new StackPanel();
 			hstack1.Orientation = .Horizontal;
@@ -1107,8 +1112,155 @@ class UISandboxSample : RHISampleApp
 			panel.AddChild(startBtn);
 		});
 
+		// Section: Transforms (right column)
+		AddSection(rightColumn, "Transforms", scope (panel) => {
+			let desc = new TextBlock();
+			desc.Text = "RenderTransform applied to elements:";
+			desc.Foreground = Color(150, 150, 150);
+			panel.AddChild(desc);
+
+			// Container for transformed elements with extra spacing
+			let transformContainer = new StackPanel();
+			transformContainer.Spacing = 25;
+			transformContainer.Margin = Thickness(0, 10, 0, 0);
+
+			// === Rotated Button ===
+			let rotateLabel = new TextBlock();
+			rotateLabel.Text = "Rotation (15°):";
+			rotateLabel.Foreground = Color(180, 180, 180);
+			transformContainer.AddChild(rotateLabel);
+
+			let rotatedBtn = new Button();
+			rotatedBtn.ContentText = "Rotated";
+			rotatedBtn.Padding = Thickness(20, 10, 20, 10);
+			rotatedBtn.RenderTransform = Matrix.CreateRotationZ(15.0f * (Math.PI_f / 180.0f));
+			rotatedBtn.Margin = Thickness(20, 0, 0, 0);
+			transformContainer.AddChild(rotatedBtn);
+
+			// === Scaled Checkbox ===
+			let scaleLabel = new TextBlock();
+			scaleLabel.Text = "Scale (1.5x):";
+			scaleLabel.Foreground = Color(180, 180, 180);
+			transformContainer.AddChild(scaleLabel);
+
+			let scaledCb = new CheckBox();
+			scaledCb.ContentText = "Scaled Up";
+			scaledCb.IsChecked = true;
+			scaledCb.RenderTransform = Matrix.CreateScale(1.5f, 1.5f, 1.0f);
+			scaledCb.RenderTransformOrigin = .(0, 0.5f); // Left-center origin
+			scaledCb.Margin = Thickness(10, 0, 0, 0);
+			transformContainer.AddChild(scaledCb);
+
+			// === Skewed Border ===
+			let skewLabel = new TextBlock();
+			skewLabel.Text = "Skew (shear X):";
+			skewLabel.Foreground = Color(180, 180, 180);
+			transformContainer.AddChild(skewLabel);
+
+			let skewedBorder = new Border();
+			skewedBorder.Width = 120;
+			skewedBorder.Height = 40;
+			skewedBorder.Background = Color(100, 60, 140);
+			skewedBorder.CornerRadius = 4;
+			// Skew matrix: shear X by 0.3
+			var skewMatrix = Matrix.Identity;
+			skewMatrix.M21 = 0.3f;
+			skewedBorder.RenderTransform = skewMatrix;
+			skewedBorder.Margin = Thickness(20, 0, 0, 0);
+			let skewText = new TextBlock();
+			skewText.Text = "Skewed";
+			skewText.Foreground = Color.White;
+			skewText.HorizontalAlignment = .Center;
+			skewText.VerticalAlignment = .Center;
+			skewedBorder.AddChild(skewText);
+			transformContainer.AddChild(skewedBorder);
+
+			// === Flipped (mirrored) ===
+			let flipLabel = new TextBlock();
+			flipLabel.Text = "Flip (mirror X):";
+			flipLabel.Foreground = Color(180, 180, 180);
+			transformContainer.AddChild(flipLabel);
+
+			let flippedBtn = new Button();
+			flippedBtn.ContentText = "Flipped";
+			flippedBtn.Padding = Thickness(20, 10, 20, 10);
+			flippedBtn.RenderTransform = Matrix.CreateScale(-1.0f, 1.0f, 1.0f);
+			flippedBtn.Margin = Thickness(100, 0, 0, 0); // Offset since it flips around center
+			transformContainer.AddChild(flippedBtn);
+
+			// === Combined Transform ===
+			let combinedLabel = new TextBlock();
+			combinedLabel.Text = "Combined (rotate + scale):";
+			combinedLabel.Foreground = Color(180, 180, 180);
+			transformContainer.AddChild(combinedLabel);
+
+			let combinedBorder = new Border();
+			combinedBorder.Width = 80;
+			combinedBorder.Height = 50;
+			combinedBorder.Background = Color(60, 120, 100);
+			combinedBorder.CornerRadius = 6;
+			// Combine rotation and scale
+			let rotateMatrix = Matrix.CreateRotationZ(-10.0f * (Math.PI_f / 180.0f));
+			let scaleMatrix = Matrix.CreateScale(1.3f, 1.3f, 1.0f);
+			combinedBorder.RenderTransform = rotateMatrix * scaleMatrix;
+			combinedBorder.Margin = Thickness(30, 0, 0, 0);
+			let combinedText = new TextBlock();
+			combinedText.Text = "Both";
+			combinedText.Foreground = Color.White;
+			combinedText.HorizontalAlignment = .Center;
+			combinedText.VerticalAlignment = .Center;
+			combinedBorder.AddChild(combinedText);
+			transformContainer.AddChild(combinedBorder);
+
+			// === Animated rotation ===
+			let animLabel = new TextBlock();
+			animLabel.Text = "Animated rotation:";
+			animLabel.Foreground = Color(180, 180, 180);
+			transformContainer.AddChild(animLabel);
+
+			let animRow = new StackPanel();
+			animRow.Orientation = .Horizontal;
+			animRow.Spacing = 15;
+
+			let spinBox = new Border();
+			spinBox.Width = 50;
+			spinBox.Height = 50;
+			spinBox.Background = Color(200, 100, 50);
+			spinBox.CornerRadius = 8;
+			let spinText = new TextBlock();
+			spinText.Text = "Spin";
+			spinText.Foreground = Color.White;
+			spinText.HorizontalAlignment = .Center;
+			spinText.VerticalAlignment = .Center;
+			spinBox.AddChild(spinText);
+			spinBox.Margin = Thickness(30, 0, 0, 0);
+
+			let spinBtn = new Button();
+			spinBtn.ContentText = "Spin 360°";
+			spinBtn.Padding = Thickness(12, 6, 12, 6);
+			spinBtn.Click.Subscribe(new (sender) => {
+				let spinAnim = new FloatAnimation(0, 360);
+				spinAnim.Duration = 1.0f;
+				spinAnim.Easing = .QuadraticInOut;
+				spinAnim.OnValueChanged = new (value) => {
+					spinBox.RenderTransform = Matrix.CreateRotationZ(value * (Math.PI_f / 180.0f));
+				};
+				spinAnim.Completed.Subscribe(new (anim) => {
+					spinBox.RenderTransform = Matrix.Identity; // Reset
+				});
+				mUIContext.Animations.Add(spinAnim);
+			});
+
+			animRow.AddChild(spinBtn);
+			animRow.AddChild(spinBox);
+			transformContainer.AddChild(animRow);
+
+			panel.AddChild(transformContainer);
+		});
+
 		// Assemble columns
 		columns.AddChild(leftColumn);
+		columns.AddChild(middleColumn);
 		columns.AddChild(rightColumn);
 		scrollViewer.Content = columns;
 		root.AddChild(scrollViewer);
@@ -1354,6 +1506,7 @@ class UISandboxSample : RHISampleApp
 			mUIContext.DebugSettings.ShowMargins = mUIContext.DebugSettings.ShowLayoutBounds;
 			mUIContext.DebugSettings.ShowPadding = mUIContext.DebugSettings.ShowLayoutBounds;
 			mUIContext.DebugSettings.ShowFocused = mUIContext.DebugSettings.ShowLayoutBounds;
+			mUIContext.DebugSettings.TransformDebugOverlay = mUIContext.DebugSettings.ShowLayoutBounds;
 		}
 	}
 

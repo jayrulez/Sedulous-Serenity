@@ -18,6 +18,8 @@ public struct UIDebugSettings
 	public bool ShowFocused;
 	/// Show hit test regions.
 	public bool ShowHitTestBounds;
+	/// Apply RenderTransform to debug overlays (shows visual bounds vs layout bounds).
+	public bool TransformDebugOverlay;
 
 	/// Default settings with all debug options disabled.
 	public static UIDebugSettings Default => .();
@@ -326,6 +328,23 @@ public class UIContext
 			return;
 
 		let bounds = element.Bounds;
+		let hasTransform = element.RenderTransform != Matrix.Identity;
+
+		// Apply transform for debug overlay if enabled
+		Matrix savedTransform = .Identity;
+		if (mDebugSettings.TransformDebugOverlay && hasTransform)
+		{
+			savedTransform = drawContext.GetTransform();
+
+			let origin = element.RenderTransformOrigin;
+			let originX = bounds.X + bounds.Width * origin.X;
+			let originY = bounds.Y + bounds.Height * origin.Y;
+
+			let toOrigin = Matrix.CreateTranslation(-originX, -originY, 0);
+			let fromOrigin = Matrix.CreateTranslation(originX, originY, 0);
+			let combinedTransform = toOrigin * element.RenderTransform * fromOrigin * savedTransform;
+			drawContext.SetTransform(combinedTransform);
+		}
 
 		// Layout bounds (blue)
 		if (mDebugSettings.ShowLayoutBounds)
@@ -386,6 +405,10 @@ public class UIContext
 		{
 			drawContext.DrawRect(bounds, Color(255, 0, 255, 150), 1.0f);
 		}
+
+		// Restore transform before recursing to children
+		if (mDebugSettings.TransformDebugOverlay && hasTransform)
+			drawContext.SetTransform(savedTransform);
 
 		// Recurse to children
 		for (let child in element.Children)
