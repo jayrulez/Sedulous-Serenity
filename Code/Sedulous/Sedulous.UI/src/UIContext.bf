@@ -64,7 +64,10 @@ public class UIContext
 	private IClipboard mClipboard;
 	private ISystemServices mSystemServices;
 
-	// Theme (will be expanded in Stage 3)
+	// Generic service registry
+	private Dictionary<Type, Object> mServices = new .() ~ delete _;
+
+	// Theme (accessed via service registry)
 	private Object mTheme;
 
 	// Timing
@@ -163,6 +166,29 @@ public class UIContext
 	public void RegisterSystemServices(ISystemServices services)
 	{
 		mSystemServices = services;
+	}
+
+	/// Registers a service of type T.
+	public void RegisterService<T>(T service) where T : class
+	{
+		mServices[typeof(T)] = service;
+	}
+
+	/// Gets a service of type T.
+	public Result<T> GetService<T>() where T : class
+	{
+		if (mServices.TryGetValue(typeof(T), let obj))
+		{
+			if (let service = obj as T)
+				return .Ok(service);
+		}
+		return .Err;
+	}
+
+	/// Checks if a service is registered.
+	public bool HasService<T>() where T : class
+	{
+		return mServices.ContainsKey(typeof(T));
 	}
 
 	/// Sets the viewport size for layout.
