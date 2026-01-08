@@ -153,6 +153,9 @@ class UISandboxSample : RHISampleApp
 	private float mFpsTimer = 0;
 	private int mCurrentFps = 0;
 
+	// Cursor tracking
+	private Sedulous.UI.CursorType mLastUICursor = .Default;
+
 	public this() : base(.()
 		{
 			Title = "UI Sandbox",
@@ -1315,6 +1318,9 @@ class UISandboxSample : RHISampleApp
 		// Mouse position
 		mUIContext.ProcessMouseMove(input.Mouse.X, input.Mouse.Y);
 
+		// Update cursor based on hovered element
+		UpdateCursor(input.Mouse);
+
 		// Mouse buttons
 		if (input.Mouse.IsButtonPressed(.Left))
 			mUIContext.ProcessMouseDown(.Left, input.Mouse.X, input.Mouse.Y);
@@ -1338,6 +1344,37 @@ class UISandboxSample : RHISampleApp
 				mUIContext.ProcessKeyDown(MapKey(shellKey), 0, GetModifiers(input.Keyboard));
 			if (input.Keyboard.IsKeyReleased(shellKey))
 				mUIContext.ProcessKeyUp(MapKey(shellKey), 0, GetModifiers(input.Keyboard));
+		}
+	}
+
+	/// Updates the mouse cursor based on the hovered UI element.
+	private void UpdateCursor(Sedulous.Shell.Input.IMouse mouse)
+	{
+		let uiCursor = mUIContext.CurrentCursor;
+		if (uiCursor != mLastUICursor)
+		{
+			mLastUICursor = uiCursor;
+			mouse.Cursor = MapCursor(uiCursor);
+		}
+	}
+
+	/// Maps UI CursorType to Shell CursorType.
+	private static Sedulous.Shell.Input.CursorType MapCursor(Sedulous.UI.CursorType uiCursor)
+	{
+		switch (uiCursor)
+		{
+		case .Default:    return .Default;
+		case .Text:       return .Text;
+		case .Wait:       return .Wait;
+		case .Crosshair:  return .Crosshair;
+		case .Progress:   return .Progress;
+		case .Move:       return .Move;
+		case .NotAllowed: return .NotAllowed;
+		case .Pointer:    return .Pointer;
+		case .ResizeEW:   return .ResizeEW;
+		case .ResizeNS:   return .ResizeNS;
+		case .ResizeNWSE: return .ResizeNWSE;
+		case .ResizeNESW: return .ResizeNESW;
 		}
 	}
 
