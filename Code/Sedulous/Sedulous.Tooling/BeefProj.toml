@@ -1,0 +1,13 @@
+FileVersion = 1
+
+[Project]
+Name = "Sedulous.Tooling"
+TargetType = "BeefLib"
+
+[Dependencies]
+corlib = "*"
+"Sedulous.Foundation" = "*"
+"Sedulous.Mathematics" = "*"
+"Sedulous.RHI" = "*"
+"Sedulous.UI" = "*"
+"Sedulous.UI.FontRenderer" = "*"

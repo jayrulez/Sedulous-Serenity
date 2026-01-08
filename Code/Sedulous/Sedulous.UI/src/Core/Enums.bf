@@ -255,3 +255,131 @@ enum CursorType
 	/// Not allowed cursor.
 	NotAllowed
 }
+
+/// Grid length unit type.
+enum GridUnitType
+{
+	/// Size is in pixels.
+	Pixel,
+	/// Size is determined by content.
+	Auto,
+	/// Size is proportional (star sizing).
+	Star
+}
+
+/// Represents a length value for grid rows/columns.
+struct GridLength
+{
+	/// The value.
+	public float Value;
+	/// The unit type.
+	public GridUnitType UnitType;
+
+	/// Creates a pixel-sized length.
+	public this(float pixels)
+	{
+		Value = pixels;
+		UnitType = .Pixel;
+	}
+
+	/// Creates a length with specified unit.
+	public this(float value, GridUnitType unitType)
+	{
+		Value = value;
+		UnitType = unitType;
+	}
+
+	/// Auto-sized length.
+	public static GridLength Auto => GridLength(1, .Auto);
+
+	/// Star-sized length (1*).
+	public static GridLength Star => GridLength(1, .Star);
+
+	/// Creates a star-sized length with weight.
+	public static GridLength Stars(float weight) => GridLength(weight, .Star);
+
+	/// Creates a pixel-sized length.
+	public static GridLength Pixels(float pixels) => GridLength(pixels, .Pixel);
+
+	/// Whether this is auto-sized.
+	public bool IsAuto => UnitType == .Auto;
+
+	/// Whether this is star-sized.
+	public bool IsStar => UnitType == .Star;
+
+	/// Whether this is pixel-sized.
+	public bool IsAbsolute => UnitType == .Pixel;
+}
+
+/// FlexBox direction.
+enum FlexDirection
+{
+	/// Items flow left to right.
+	Row,
+	/// Items flow right to left.
+	RowReverse,
+	/// Items flow top to bottom.
+	Column,
+	/// Items flow bottom to top.
+	ColumnReverse
+}
+
+/// FlexBox wrap behavior.
+enum FlexWrap
+{
+	/// Items stay on one line.
+	NoWrap,
+	/// Items wrap to next line.
+	Wrap,
+	/// Items wrap to previous line.
+	WrapReverse
+}
+
+/// FlexBox main axis alignment.
+enum JustifyContent
+{
+	/// Items packed to start.
+	FlexStart,
+	/// Items packed to end.
+	FlexEnd,
+	/// Items centered.
+	Center,
+	/// Items evenly distributed, first/last at edges.
+	SpaceBetween,
+	/// Items evenly distributed with equal space around.
+	SpaceAround,
+	/// Items evenly distributed with equal space between.
+	SpaceEvenly
+}
+
+/// FlexBox cross axis alignment.
+enum AlignItems
+{
+	/// Items stretched to fill.
+	Stretch,
+	/// Items aligned to start.
+	FlexStart,
+	/// Items aligned to end.
+	FlexEnd,
+	/// Items centered.
+	Center,
+	/// Items aligned to baseline.
+	Baseline
+}
+
+/// FlexBox line alignment for wrapped content.
+enum AlignContent
+{
+	/// Lines stretched to fill.
+	Stretch,
+	/// Lines packed to start.
+	FlexStart,
+	/// Lines packed to end.
+	FlexEnd,
+	/// Lines centered.
+	Center,
+	/// Lines evenly distributed.
+	SpaceBetween,
+	/// Lines evenly distributed with space around.
+	SpaceAround
+}
