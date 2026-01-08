@@ -28,6 +28,7 @@ public class DarkTheme : Theme
 		SetColor("Background", .(30, 30, 30));
 		SetColor("BackgroundAlt", .(45, 45, 45));
 		SetColor("BackgroundDark", .(20, 20, 20));
+		SetColor("Surface", .(45, 45, 50)); // Popup/menu surface
 
 		// Foreground colors (light text on dark)
 		SetColor("Foreground", .(240, 240, 240));
@@ -42,6 +43,7 @@ public class DarkTheme : Theme
 
 		// State colors
 		SetColor("Hover", .(55, 55, 55));
+		SetColor("PrimaryHover", .(60, 80, 120)); // Menu item hover
 		SetColor("Pressed", .(65, 65, 65));
 		SetColor("Selected", .(0, 90, 158));
 		SetColor("Disabled", .(40, 40, 40));
