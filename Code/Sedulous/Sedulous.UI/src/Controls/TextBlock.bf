@@ -149,7 +149,8 @@ public class TextBlock : Control
 		if (mText == null || mText.Length == 0)
 			return;
 
-		let foreground = Foreground ?? Color.Black;
+		let theme = GetTheme();
+		let foreground = Foreground ?? theme?.GetColor("Foreground") ?? Color.Black;
 		let bounds = ContentBounds;
 
 		// Try to render with actual font
