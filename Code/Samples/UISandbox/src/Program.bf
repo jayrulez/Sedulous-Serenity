@@ -11,30 +11,33 @@ using Sedulous.Fonts;
 using Sedulous.Fonts.TTF;
 using Sedulous.UI;
 using Sedulous.Shell.Input;
+using Sedulous.Shell.SDL3;
 
 // Type aliases to resolve ambiguity
 typealias RHITexture = Sedulous.RHI.ITexture;
 typealias DrawingTexture = Sedulous.Drawing.ITexture;
 
-/// Dummy clipboard implementation using static storage.
-/// Since Sedulous.Shell doesn't have clipboard support yet.
-class DummyClipboard : IClipboard
+/// Clipboard adapter that wraps Shell clipboard for UI use.
+class UIClipboardAdapter : Sedulous.UI.IClipboard
 {
-	private static String sClipboardText = new .() ~ delete _;
+	private Sedulous.Shell.IClipboard mShellClipboard ~ delete _;
+
+	public this()
+	{
+		mShellClipboard = new SDL3Clipboard();
+	}
 
 	public Result<void> GetText(String outText)
 	{
-		outText.Set(sClipboardText);
-		return .Ok;
+		return mShellClipboard.GetText(outText);
 	}
 
 	public Result<void> SetText(StringView text)
 	{
-		sClipboardText.Set(text);
-		return .Ok;
+		return mShellClipboard.SetText(text);
 	}
 
-	public bool HasText => !sClipboardText.IsEmpty;
+	public bool HasText => mShellClipboard.HasText;
 }
 
 /// Font service that provides access to loaded fonts.
@@ -113,7 +116,7 @@ class UISandboxSample : RHISampleApp
 {
 	// UI System
 	private UIContext mUIContext ~ delete _;
-	private DummyClipboard mClipboard ~ delete _;
+	private UIClipboardAdapter mClipboard ~ delete _;
 	private UISandboxFontService mFontService ~ delete _;
 	private delegate void(StringView) mTextInputDelegate ~ delete _;
 
@@ -440,8 +443,8 @@ class UISandboxSample : RHISampleApp
 		mUIContext.DebugSettings.ShowPadding = mUIContext.DebugSettings.ShowLayoutBounds;
 		mUIContext.DebugSettings.ShowFocused = mUIContext.DebugSettings.ShowLayoutBounds;
 
-		// Register clipboard
-		mClipboard = new DummyClipboard();
+		// Register clipboard (using SDL3 system clipboard)
+		mClipboard = new UIClipboardAdapter();
 		mUIContext.RegisterClipboard(mClipboard);
 
 		// Register font service
@@ -1337,13 +1340,25 @@ class UISandboxSample : RHISampleApp
 			mUIContext.ProcessMouseWheel(input.Mouse.ScrollX, input.Mouse.ScrollY, input.Mouse.X, input.Mouse.Y);
 
 		// Keyboard - check each key
+		let mods = GetModifiers(input.Keyboard);
 		for (int key = 0; key < (int)Sedulous.Shell.Input.KeyCode.Count; key++)
 		{
 			let shellKey = (Sedulous.Shell.Input.KeyCode)key;
 			if (input.Keyboard.IsKeyPressed(shellKey))
-				mUIContext.ProcessKeyDown(MapKey(shellKey), 0, GetModifiers(input.Keyboard));
+			{
+				mUIContext.ProcessKeyDown(MapKey(shellKey), 0, mods);
+
+				// Generate text input for printable keys (fallback since SDL_StartTextInput not called)
+				// Skip when Ctrl or Alt are held - those are shortcuts, not text input
+				if (!mods.HasFlag(.Ctrl) && !mods.HasFlag(.Alt))
+				{
+					let c = KeyToChar(shellKey, mods.HasFlag(.Shift));
+					if (c != '\0')
+						mUIContext.ProcessTextInput(c);
+				}
+			}
 			if (input.Keyboard.IsKeyReleased(shellKey))
-				mUIContext.ProcessKeyUp(MapKey(shellKey), 0, GetModifiers(input.Keyboard));
+				mUIContext.ProcessKeyUp(MapKey(shellKey), 0, mods);
 		}
 	}
 
@@ -1375,6 +1390,70 @@ class UISandboxSample : RHISampleApp
 		case .ResizeNS:   return .ResizeNS;
 		case .ResizeNWSE: return .ResizeNWSE;
 		case .ResizeNESW: return .ResizeNESW;
+		}
+	}
+
+	/// Converts a key code to a character (fallback for when SDL text input isn't active).
+	/// Returns '\0' if the key doesn't produce a printable character.
+	private static char32 KeyToChar(Sedulous.Shell.Input.KeyCode key, bool shift)
+	{
+		// Letters A-Z
+		if (key >= .A && key <= .Z)
+		{
+			let baseChar = 'a' + (int)(key - .A);
+			return shift ? (char32)((int)'A' + (int)(key - .A)) : (char32)baseChar;
+		}
+
+		// Common punctuation and numbers (US keyboard layout)
+		switch (key)
+		{
+		// Top row numbers (keys are in 1-9,0 order)
+		case .Num1: return shift ? '!' : '1';
+		case .Num2: return shift ? '@' : '2';
+		case .Num3: return shift ? '#' : '3';
+		case .Num4: return shift ? '$' : '4';
+		case .Num5: return shift ? '%' : '5';
+		case .Num6: return shift ? '^' : '6';
+		case .Num7: return shift ? '&' : '7';
+		case .Num8: return shift ? '*' : '8';
+		case .Num9: return shift ? '(' : '9';
+		case .Num0: return shift ? ')' : '0';
+
+		// Keypad numbers
+		case .Keypad0: return '0';
+		case .Keypad1: return '1';
+		case .Keypad2: return '2';
+		case .Keypad3: return '3';
+		case .Keypad4: return '4';
+		case .Keypad5: return '5';
+		case .Keypad6: return '6';
+		case .Keypad7: return '7';
+		case .Keypad8: return '8';
+		case .Keypad9: return '9';
+
+		// Keypad operators
+		case .KeypadDivide:   return '/';
+		case .KeypadMultiply: return '*';
+		case .KeypadMinus:    return '-';
+		case .KeypadPlus:     return '+';
+		case .KeypadPeriod:   return '.';
+
+		// Punctuation
+		case .Space:        return ' ';
+		case .Tab:          return '\t';
+		case .Minus:        return shift ? '_' : '-';
+		case .Equals:       return shift ? '+' : '=';
+		case .LeftBracket:  return shift ? '{' : '[';
+		case .RightBracket: return shift ? '}' : ']';
+		case .Backslash:    return shift ? '|' : '\\';
+		case .Semicolon:    return shift ? ':' : ';';
+		case .Apostrophe:   return shift ? '"' : '\'';
+		case .Grave:        return shift ? '~' : '`';
+		case .Comma:        return shift ? '<' : ',';
+		case .Period:       return shift ? '>' : '.';
+		case .Slash:        return shift ? '?' : '/';
+
+		default:            return '\0';
 		}
 	}
 
