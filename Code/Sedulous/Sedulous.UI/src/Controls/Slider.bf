@@ -253,29 +253,29 @@ public class Slider : Control
 		// Arrow keys
 		if (mOrientation == .Horizontal)
 		{
-			if (args.KeyCode == 37) // Left
+			if (args.Key == .Left)
 				{ Value -= mSmallChange; handled = true; }
-			else if (args.KeyCode == 39) // Right
+			else if (args.Key == .Right)
 				{ Value += mSmallChange; handled = true; }
 		}
 		else
 		{
-			if (args.KeyCode == 38) // Up
+			if (args.Key == .Up)
 				{ Value += mSmallChange; handled = true; }
-			else if (args.KeyCode == 40) // Down
+			else if (args.Key == .Down)
 				{ Value -= mSmallChange; handled = true; }
 		}
 
 		// Page up/down
-		if (args.KeyCode == 33) // Page Up
+		if (args.Key == .PageUp)
 			{ Value += mLargeChange; handled = true; }
-		else if (args.KeyCode == 34) // Page Down
+		else if (args.Key == .PageDown)
 			{ Value -= mLargeChange; handled = true; }
 
 		// Home/End
-		if (args.KeyCode == 36) // Home
+		if (args.Key == .Home)
 			{ Value = mMinimum; handled = true; }
-		else if (args.KeyCode == 35) // End
+		else if (args.Key == .End)
 			{ Value = mMaximum; handled = true; }
 
 		if (handled)

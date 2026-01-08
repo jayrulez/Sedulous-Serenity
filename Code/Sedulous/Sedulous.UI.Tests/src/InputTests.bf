@@ -175,7 +175,7 @@ class InputEventArgsTests
 	public static void KeyEventArgsModifiers()
 	{
 		let args = scope KeyEventArgs();
-		args.KeyCode = 65; // 'A'
+		args.Key = .A;
 		args.Modifiers = (KeyModifiers)((int32)KeyModifiers.Ctrl | (int32)KeyModifiers.Shift);
 
 		Test.Assert(args.HasModifier(.Ctrl));
@@ -428,12 +428,12 @@ class KeyboardEventTests
 
 		context.SetFocus(element);
 
-		context.ProcessKeyDown(65); // 'A'
+		context.ProcessKeyDown(.A);
 		Test.Assert(element.HasEvent("KeyDown"));
 		Test.Assert(element.LastKeyDownArgs != null);
-		Test.Assert(element.LastKeyDownArgs.KeyCode == 65);
+		Test.Assert(element.LastKeyDownArgs.Key == .A);
 
-		context.ProcessKeyUp(65);
+		context.ProcessKeyUp(.A);
 		Test.Assert(element.HasEvent("KeyUp"));
 	}
 
@@ -452,7 +452,7 @@ class KeyboardEventTests
 		context.Update(0, 0);
 
 		// No focus set
-		context.ProcessKeyDown(65);
+		context.ProcessKeyDown(.A);
 		Test.Assert(!element.HasEvent("KeyDown"));
 	}
 

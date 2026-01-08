@@ -55,8 +55,8 @@ public abstract class UIElement
 	private EventAccessor<delegate void(UIElement, int, float, float)> mOnMouseDownEvent = new .() ~ delete _;
 	private EventAccessor<delegate void(UIElement, int, float, float)> mOnMouseUpEvent = new .() ~ delete _;
 	private EventAccessor<delegate void(UIElement, float, float)> mOnMouseWheelEvent = new .() ~ delete _;
-	private EventAccessor<delegate void(UIElement, int32, int32)> mOnKeyDownEvent = new .() ~ delete _;
-	private EventAccessor<delegate void(UIElement, int32, int32)> mOnKeyUpEvent = new .() ~ delete _;
+	private EventAccessor<delegate void(UIElement, KeyCode, KeyModifiers)> mOnKeyDownEvent = new .() ~ delete _;
+	private EventAccessor<delegate void(UIElement, KeyCode, KeyModifiers)> mOnKeyUpEvent = new .() ~ delete _;
 	private EventAccessor<delegate void(UIElement, char32)> mOnTextInputEvent = new .() ~ delete _;
 	private EventAccessor<delegate void(UIElement)> mOnClickEvent = new .() ~ delete _;
 
@@ -243,10 +243,10 @@ public abstract class UIElement
 	public EventAccessor<delegate void(UIElement, float, float)> OnMouseWheelEvent => mOnMouseWheelEvent;
 
 	/// Fired when a key is pressed.
-	public EventAccessor<delegate void(UIElement, int32, int32)> OnKeyDownEvent => mOnKeyDownEvent;
+	public EventAccessor<delegate void(UIElement, KeyCode, KeyModifiers)> OnKeyDownEvent => mOnKeyDownEvent;
 
 	/// Fired when a key is released.
-	public EventAccessor<delegate void(UIElement, int32, int32)> OnKeyUpEvent => mOnKeyUpEvent;
+	public EventAccessor<delegate void(UIElement, KeyCode, KeyModifiers)> OnKeyUpEvent => mOnKeyUpEvent;
 
 	/// Fired when text is input.
 	public EventAccessor<delegate void(UIElement, char32)> OnTextInputEvent => mOnTextInputEvent;
@@ -476,7 +476,7 @@ public abstract class UIElement
 	// === Rendering ===
 
 	/// Renders the element and its children.
-	public void Render(DrawContext drawContext)
+	public virtual void Render(DrawContext drawContext)
 	{
 		if (mVisibility != .Visible || mOpacity <= 0)
 			return;
@@ -595,14 +595,14 @@ public abstract class UIElement
 		mOnMouseWheelEvent.[Friend]Invoke(this, deltaX, deltaY);
 	}
 
-	protected virtual void OnKeyDown(int32 keyCode, int32 modifiers)
+	protected virtual void OnKeyDown(KeyCode key, KeyModifiers modifiers)
 	{
-		mOnKeyDownEvent.[Friend]Invoke(this, keyCode, modifiers);
+		mOnKeyDownEvent.[Friend]Invoke(this, key, modifiers);
 	}
 
-	protected virtual void OnKeyUp(int32 keyCode, int32 modifiers)
+	protected virtual void OnKeyUp(KeyCode key, KeyModifiers modifiers)
 	{
-		mOnKeyUpEvent.[Friend]Invoke(this, keyCode, modifiers);
+		mOnKeyUpEvent.[Friend]Invoke(this, key, modifiers);
 	}
 
 	protected virtual void OnTextInput(char32 character)
@@ -646,13 +646,13 @@ public abstract class UIElement
 	/// Called when a key is pressed (routed event).
 	protected virtual void OnKeyDownRouted(KeyEventArgs args)
 	{
-		mOnKeyDownEvent.[Friend]Invoke(this, args.KeyCode, (int32)args.Modifiers);
+		mOnKeyDownEvent.[Friend]Invoke(this, args.Key, args.Modifiers);
 	}
 
 	/// Called when a key is released (routed event).
 	protected virtual void OnKeyUpRouted(KeyEventArgs args)
 	{
-		mOnKeyUpEvent.[Friend]Invoke(this, args.KeyCode, (int32)args.Modifiers);
+		mOnKeyUpEvent.[Friend]Invoke(this, args.Key, args.Modifiers);
 	}
 
 	/// Called when text is input (routed event).

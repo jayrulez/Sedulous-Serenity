@@ -30,6 +30,12 @@ public class ScrollViewer : UIElement
 
 	private float mScrollBarWidth = 12;
 
+	// Scrollbar dragging state
+	private enum DragMode { None, VerticalThumb, HorizontalThumb, VerticalTrack, HorizontalTrack }
+	private DragMode mDragMode = .None;
+	private float mDragStartOffset = 0;  // Scroll offset when drag started
+	private float mDragStartMouse = 0;   // Mouse position when drag started
+
 	/// The content element to scroll.
 	public UIElement Content
 	{
@@ -208,30 +214,46 @@ public class ScrollViewer : UIElement
 
 	protected override void OnRender(DrawContext drawContext)
 	{
-		let bounds = Bounds;
+		let contentBounds = ContentBounds;
 
-		// Set up clipping for viewport
-		drawContext.PushClipRect(.(bounds.X, bounds.Y, mViewportSize.X, mViewportSize.Y));
+		// Set up clipping for viewport (content area only)
+		drawContext.PushClipRect(.(contentBounds.X, contentBounds.Y, mViewportSize.X, mViewportSize.Y));
 
-		// Content is rendered via the normal child rendering
+		// Content is rendered via the normal child rendering in base class
+	}
 
-		// Render scrollbars
-		RenderScrollBars(drawContext);
+	public override void Render(DrawContext drawContext)
+	{
+		if (Visibility != .Visible || Opacity <= 0)
+			return;
 
+		// Render this element (sets up clip rect)
+		OnRender(drawContext);
+
+		// Render children (content) inside clip rect
+		for (let child in Children)
+		{
+			child.Render(drawContext);
+		}
+
+		// Pop clip rect before rendering scrollbars
 		drawContext.PopClip();
+
+		// Render scrollbars outside the clip rect
+		RenderScrollBars(drawContext);
 	}
 
 	private void RenderScrollBars(DrawContext drawContext)
 	{
-		let bounds = Bounds;
+		let contentBounds = ContentBounds;
 		let scrollBarColor = Color(128, 128, 128, 200);
 		let thumbColor = Color(80, 80, 80, 255);
 
 		// Vertical scrollbar
 		if (CanScrollVertically && mVerticalScrollBarVisibility != .Hidden)
 		{
-			let barX = bounds.X + mViewportSize.X;
-			let barY = bounds.Y;
+			let barX = contentBounds.X + mViewportSize.X;
+			let barY = contentBounds.Y;
 			let barHeight = mViewportSize.Y;
 
 			// Background track
@@ -247,8 +269,8 @@ public class ScrollViewer : UIElement
 		// Horizontal scrollbar
 		if (CanScrollHorizontally && mHorizontalScrollBarVisibility != .Hidden)
 		{
-			let barX = bounds.X;
-			let barY = bounds.Y + mViewportSize.Y;
+			let barX = contentBounds.X;
+			let barY = contentBounds.Y + mViewportSize.Y;
 			let barWidth = mViewportSize.X;
 
 			// Background track
@@ -272,5 +294,173 @@ public class ScrollViewer : UIElement
 			ScrollBy(-deltaY * scrollAmount, 0);
 
 		base.OnMouseWheel(deltaX, deltaY);
+	}
+
+	protected override void OnMouseDownRouted(MouseButtonEventArgs args)
+	{
+		if (args.Button != .Left)
+		{
+			base.OnMouseDownRouted(args);
+			return;
+		}
+
+		let contentBounds = ContentBounds;
+		let localX = args.ScreenX - contentBounds.X;
+		let localY = args.ScreenY - contentBounds.Y;
+
+		// Check scrollbars FIRST (they're visually on top and should intercept clicks)
+
+		// Check vertical scrollbar
+		if (CanScrollVertically && mVerticalScrollBarVisibility != .Hidden)
+		{
+			let barX = mViewportSize.X;
+			if (localX >= barX && localX < barX + mScrollBarWidth && localY >= 0 && localY < mViewportSize.Y)
+			{
+				// Hit vertical scrollbar
+				let (thumbY, thumbHeight) = GetVerticalThumbBounds();
+				let relativeThumbY = thumbY - contentBounds.Y;
+
+				if (localY >= relativeThumbY && localY < relativeThumbY + thumbHeight)
+				{
+					// Hit thumb - start dragging
+					mDragMode = .VerticalThumb;
+					mDragStartOffset = mScrollOffset.Y;
+					mDragStartMouse = args.ScreenY;
+				}
+				else
+				{
+					// Hit track - page scroll
+					if (localY < relativeThumbY)
+						ScrollBy(0, -mViewportSize.Y * 0.9f);
+					else
+						ScrollBy(0, mViewportSize.Y * 0.9f);
+				}
+
+				Context?.CaptureMouse(this);
+				args.Handled = true;
+				return;
+			}
+		}
+
+		// Check horizontal scrollbar
+		if (CanScrollHorizontally && mHorizontalScrollBarVisibility != .Hidden)
+		{
+			let barY = mViewportSize.Y;
+			if (localY >= barY && localY < barY + mScrollBarWidth && localX >= 0 && localX < mViewportSize.X)
+			{
+				// Hit horizontal scrollbar
+				let (thumbX, thumbWidth) = GetHorizontalThumbBounds();
+				let relativeThumbX = thumbX - contentBounds.X;
+
+				if (localX >= relativeThumbX && localX < relativeThumbX + thumbWidth)
+				{
+					// Hit thumb - start dragging
+					mDragMode = .HorizontalThumb;
+					mDragStartOffset = mScrollOffset.X;
+					mDragStartMouse = args.ScreenX;
+				}
+				else
+				{
+					// Hit track - page scroll
+					if (localX < relativeThumbX)
+						ScrollBy(-mViewportSize.X * 0.9f, 0);
+					else
+						ScrollBy(mViewportSize.X * 0.9f, 0);
+				}
+
+				Context?.CaptureMouse(this);
+				args.Handled = true;
+				return;
+			}
+		}
+
+		// Not in scrollbar area, let base handle it
+		base.OnMouseDownRouted(args);
+	}
+
+	protected override void OnMouseMoveRouted(MouseEventArgs args)
+	{
+		base.OnMouseMoveRouted(args);
+
+		if (mDragMode == .VerticalThumb)
+		{
+			// Calculate scroll from mouse delta
+			let mouseDelta = args.ScreenY - mDragStartMouse;
+			let trackHeight = mViewportSize.Y;
+			let thumbRatio = mViewportSize.Y / mExtentSize.Y;
+			let thumbHeight = Math.Max(20, trackHeight * thumbRatio);
+			let scrollableTrack = trackHeight - thumbHeight;
+
+			if (scrollableTrack > 0)
+			{
+				let scrollRange = mExtentSize.Y - mViewportSize.Y;
+				let scrollDelta = (mouseDelta / scrollableTrack) * scrollRange;
+				ScrollTo(mScrollOffset.X, mDragStartOffset + scrollDelta);
+			}
+			args.Handled = true;
+		}
+		else if (mDragMode == .HorizontalThumb)
+		{
+			// Calculate scroll from mouse delta
+			let mouseDelta = args.ScreenX - mDragStartMouse;
+			let trackWidth = mViewportSize.X;
+			let thumbRatio = mViewportSize.X / mExtentSize.X;
+			let thumbWidth = Math.Max(20, trackWidth * thumbRatio);
+			let scrollableTrack = trackWidth - thumbWidth;
+
+			if (scrollableTrack > 0)
+			{
+				let scrollRange = mExtentSize.X - mViewportSize.X;
+				let scrollDelta = (mouseDelta / scrollableTrack) * scrollRange;
+				ScrollTo(mDragStartOffset + scrollDelta, mScrollOffset.Y);
+			}
+			args.Handled = true;
+		}
+	}
+
+	protected override void OnMouseUpRouted(MouseButtonEventArgs args)
+	{
+		base.OnMouseUpRouted(args);
+
+		if (args.Button == .Left && mDragMode != .None)
+		{
+			mDragMode = .None;
+			Context?.ReleaseMouseCapture();
+			args.Handled = true;
+		}
+	}
+
+	/// Gets the vertical thumb position and height in absolute coordinates.
+	private (float thumbY, float thumbHeight) GetVerticalThumbBounds()
+	{
+		let contentBounds = ContentBounds;
+		let barY = contentBounds.Y;
+		let barHeight = mViewportSize.Y;
+
+		let thumbRatio = mViewportSize.Y / mExtentSize.Y;
+		let thumbHeight = Math.Max(20, barHeight * thumbRatio);
+		let scrollRange = mExtentSize.Y - mViewportSize.Y;
+		let thumbY = scrollRange > 0
+			? barY + (barHeight - thumbHeight) * (mScrollOffset.Y / scrollRange)
+			: barY;
+
+		return (thumbY, thumbHeight);
+	}
+
+	/// Gets the horizontal thumb position and width in absolute coordinates.
+	private (float thumbX, float thumbWidth) GetHorizontalThumbBounds()
+	{
+		let contentBounds = ContentBounds;
+		let barX = contentBounds.X;
+		let barWidth = mViewportSize.X;
+
+		let thumbRatio = mViewportSize.X / mExtentSize.X;
+		let thumbWidth = Math.Max(20, barWidth * thumbRatio);
+		let scrollRange = mExtentSize.X - mViewportSize.X;
+		let thumbX = scrollRange > 0
+			? barX + (barWidth - thumbWidth) * (mScrollOffset.X / scrollRange)
+			: barX;
+
+		return (thumbX, thumbWidth);
 	}
 }

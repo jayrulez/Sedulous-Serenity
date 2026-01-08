@@ -16,6 +16,9 @@ public class DrawContext
 	private List<DrawState> mStateStack = new .() ~ delete _;
 	private DrawState mCurrentState;
 
+	// Clip rect stack (separate from state stack for independent push/pop)
+	private List<RectangleF> mClipStack = new .() ~ delete _;
+
 	// Current command tracking
 	private int32 mCurrentTextureIndex = -1;
 	private BlendMode mCurrentBlendMode = .Normal;
@@ -48,6 +51,7 @@ public class DrawContext
 	{
 		mBatch.Clear();
 		mStateStack.Clear();
+		mClipStack.Clear();
 		mCurrentState = .();
 		mCurrentTextureIndex = -1;
 		mCurrentBlendMode = .Normal;
@@ -114,6 +118,12 @@ public class DrawContext
 	/// Push a scissor clip rectangle
 	public void PushClipRect(RectangleF rect)
 	{
+		// Flush current command before changing clip state
+		FlushCurrentCommand();
+
+		// Save current clip rect to stack
+		mClipStack.Add(mCurrentState.ClipRect);
+
 		// Transform clip rect if needed
 		let transformedRect = TransformRect(rect);
 
@@ -132,9 +142,19 @@ public class DrawContext
 	/// Pop the current clip
 	public void PopClip()
 	{
-		// For now, just reset clip (proper stack would need clip rect stack)
-		mCurrentState.ClipRect = default;
-		mCurrentState.ClipMode = .None;
+		// Flush current command before changing clip state
+		FlushCurrentCommand();
+
+		if (mClipStack.Count > 0)
+		{
+			mCurrentState.ClipRect = mClipStack.PopBack();
+			mCurrentState.ClipMode = (mCurrentState.ClipRect.Width > 0 && mCurrentState.ClipRect.Height > 0) ? .Scissor : .None;
+		}
+		else
+		{
+			mCurrentState.ClipRect = default;
+			mCurrentState.ClipMode = .None;
+		}
 	}
 
 	// === Blend Mode ===

@@ -439,15 +439,15 @@ public class UIContext
 	}
 
 	/// Process key down.
-	public void ProcessKeyDown(int32 keyCode, int32 scanCode = 0, KeyModifiers modifiers = .None, bool isRepeat = false)
+	public void ProcessKeyDown(KeyCode key, int32 scanCode = 0, KeyModifiers modifiers = .None, bool isRepeat = false)
 	{
-		mInputManager.ProcessKeyDown(keyCode, scanCode, modifiers, isRepeat);
+		mInputManager.ProcessKeyDown(key, scanCode, modifiers, isRepeat);
 	}
 
 	/// Process key up.
-	public void ProcessKeyUp(int32 keyCode, int32 scanCode = 0, KeyModifiers modifiers = .None)
+	public void ProcessKeyUp(KeyCode key, int32 scanCode = 0, KeyModifiers modifiers = .None)
 	{
-		mInputManager.ProcessKeyUp(keyCode, scanCode, modifiers);
+		mInputManager.ProcessKeyUp(key, scanCode, modifiers);
 	}
 
 	/// Process text input.

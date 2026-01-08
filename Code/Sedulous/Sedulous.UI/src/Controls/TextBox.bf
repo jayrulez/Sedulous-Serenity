@@ -275,31 +275,31 @@ public class TextBox : Control
 		let shift = args.HasModifier(.Shift);
 		var handled = false;
 
-		switch (args.KeyCode)
+		switch (args.Key)
 		{
-		case 37: // Left
+		case .Left:
 			if (ctrl)
 				MoveToPreviousWord(shift);
 			else
 				MoveCaretLeft(shift);
 			handled = true;
 
-		case 39: // Right
+		case .Right:
 			if (ctrl)
 				MoveToNextWord(shift);
 			else
 				MoveCaretRight(shift);
 			handled = true;
 
-		case 36: // Home
+		case .Home:
 			MoveToStart(shift);
 			handled = true;
 
-		case 35: // End
+		case .End:
 			MoveToEnd(shift);
 			handled = true;
 
-		case 8: // Backspace
+		case .Backspace:
 			if (!mIsReadOnly)
 			{
 				if (mSelectionLength > 0)
@@ -313,7 +313,7 @@ public class TextBox : Control
 				handled = true;
 			}
 
-		case 46: // Delete
+		case .Delete:
 			if (!mIsReadOnly)
 			{
 				if (mSelectionLength > 0)
@@ -326,7 +326,7 @@ public class TextBox : Control
 				handled = true;
 			}
 
-		case 65: // A (Ctrl+A = Select All)
+		case .A:
 			if (ctrl && mText != null)
 			{
 				mSelectionStart = 0;
@@ -335,14 +335,14 @@ public class TextBox : Control
 				handled = true;
 			}
 
-		case 67: // C (Ctrl+C = Copy)
+		case .C:
 			if (ctrl && mSelectionLength > 0)
 			{
 				CopyToClipboard();
 				handled = true;
 			}
 
-		case 88: // X (Ctrl+X = Cut)
+		case .X:
 			if (ctrl && mSelectionLength > 0 && !mIsReadOnly)
 			{
 				CopyToClipboard();
@@ -350,12 +350,14 @@ public class TextBox : Control
 				handled = true;
 			}
 
-		case 86: // V (Ctrl+V = Paste)
+		case .V:
 			if (ctrl && !mIsReadOnly)
 			{
 				PasteFromClipboard();
 				handled = true;
 			}
+
+		default:
 		}
 
 		if (handled)

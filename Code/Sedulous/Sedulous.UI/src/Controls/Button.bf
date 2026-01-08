@@ -91,7 +91,7 @@ public class Button : ContentControl
 		base.OnKeyDownRouted(args);
 
 		// Space or Enter activates button
-		if (IsEnabled && (args.KeyCode == 32 || args.KeyCode == 13)) // Space or Enter
+		if (IsEnabled && (args.Key == .Space || args.Key == .Return))
 		{
 			mIsPressed = true;
 			UpdateControlState();
@@ -103,7 +103,7 @@ public class Button : ContentControl
 	{
 		base.OnKeyUpRouted(args);
 
-		if (mIsPressed && (args.KeyCode == 32 || args.KeyCode == 13))
+		if (mIsPressed && (args.Key == .Space || args.Key == .Return))
 		{
 			mIsPressed = false;
 			UpdateControlState();

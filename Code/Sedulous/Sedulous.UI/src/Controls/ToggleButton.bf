@@ -164,4 +164,43 @@ public class CheckBox : ToggleButton
 			Content.Arrange(offsetBounds);
 		}
 	}
+
+	protected override void RenderContent(DrawContext drawContext)
+	{
+		if (Content != null)
+		{
+			// Content renders itself via the tree
+			return;
+		}
+
+		// Render text content to the right of the checkbox with left alignment
+		if (ContentText.Length > 0)
+		{
+			let foreground = Foreground ?? Color.Black;
+			let contentBounds = ContentBounds;
+
+			// Calculate the text area (offset by checkbox)
+			let textBounds = RectangleF(
+				contentBounds.X + CheckBoxSize + CheckBoxSpacing,
+				contentBounds.Y,
+				contentBounds.Width - CheckBoxSize - CheckBoxSpacing,
+				contentBounds.Height
+			);
+
+			let fontService = GetFontService();
+			let cachedFont = GetCachedFont();
+
+			if (fontService != null && cachedFont != null)
+			{
+				let font = cachedFont.Font;
+				let atlas = cachedFont.Atlas;
+				let atlasTexture = fontService.GetAtlasTexture(cachedFont);
+
+				if (atlas != null && atlasTexture != null)
+				{
+					drawContext.DrawText(ContentText, font, atlas, atlasTexture, textBounds, .Left, .Middle, foreground);
+				}
+			}
+		}
+	}
 }

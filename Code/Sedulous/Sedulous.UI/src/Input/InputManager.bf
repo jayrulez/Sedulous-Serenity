@@ -162,13 +162,13 @@ public class InputManager
 	}
 
 	/// Process key down event.
-	public void ProcessKeyDown(int32 keyCode, int32 scanCode, KeyModifiers modifiers, bool isRepeat = false)
+	public void ProcessKeyDown(KeyCode key, int32 scanCode = 0, KeyModifiers modifiers = .None, bool isRepeat = false)
 	{
 		let target = mContext.FocusedElement;
 		if (target != null)
 		{
 			mKeyArgs.Reset();
-			mKeyArgs.KeyCode = keyCode;
+			mKeyArgs.Key = key;
 			mKeyArgs.ScanCode = scanCode;
 			mKeyArgs.Modifiers = modifiers;
 			mKeyArgs.IsRepeat = isRepeat;
@@ -180,13 +180,13 @@ public class InputManager
 	}
 
 	/// Process key up event.
-	public void ProcessKeyUp(int32 keyCode, int32 scanCode, KeyModifiers modifiers)
+	public void ProcessKeyUp(KeyCode key, int32 scanCode = 0, KeyModifiers modifiers = .None)
 	{
 		let target = mContext.FocusedElement;
 		if (target != null)
 		{
 			mKeyArgs.Reset();
-			mKeyArgs.KeyCode = keyCode;
+			mKeyArgs.Key = key;
 			mKeyArgs.ScanCode = scanCode;
 			mKeyArgs.Modifiers = modifiers;
 			mKeyArgs.IsRepeat = false;

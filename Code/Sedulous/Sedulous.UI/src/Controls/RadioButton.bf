@@ -38,7 +38,17 @@ public class RadioButton : ToggleButton
 					list.Remove(this);
 					if (list.Count == 0)
 					{
-						sGroups.Remove(oldGroup);
+						// Find and delete the key, then remove from dictionary
+						for (let pair in sGroups)
+						{
+							if (pair.value == list)
+							{
+								let keyToDelete = pair.key;
+								sGroups.Remove(keyToDelete);
+								delete keyToDelete;
+								break;
+							}
+						}
 						delete list;
 					}
 				}
@@ -99,13 +109,14 @@ public class RadioButton : ToggleButton
 				list.Remove(this);
 				if (list.Count == 0)
 				{
-					// Find and remove the key
+					// Find the key, remove from dictionary, then delete
 					for (let pair in sGroups)
 					{
 						if (pair.value == list)
 						{
-							delete pair.key;
-							sGroups.Remove(pair.key);
+							let keyToDelete = pair.key;
+							sGroups.Remove(keyToDelete);
+							delete keyToDelete;
 							break;
 						}
 					}
@@ -212,6 +223,45 @@ public class RadioButton : ToggleButton
 		if (Content != null)
 		{
 			Content.Arrange(offsetBounds);
+		}
+	}
+
+	protected override void RenderContent(DrawContext drawContext)
+	{
+		if (Content != null)
+		{
+			// Content renders itself via the tree
+			return;
+		}
+
+		// Render text content to the right of the radio with left alignment
+		if (ContentText.Length > 0)
+		{
+			let foreground = Foreground ?? Color.Black;
+			let contentBounds = ContentBounds;
+
+			// Calculate the text area (offset by radio circle)
+			let textBounds = RectangleF(
+				contentBounds.X + RadioSize + RadioSpacing,
+				contentBounds.Y,
+				contentBounds.Width - RadioSize - RadioSpacing,
+				contentBounds.Height
+			);
+
+			let fontService = GetFontService();
+			let cachedFont = GetCachedFont();
+
+			if (fontService != null && cachedFont != null)
+			{
+				let font = cachedFont.Font;
+				let atlas = cachedFont.Atlas;
+				let atlasTexture = fontService.GetAtlasTexture(cachedFont);
+
+				if (atlas != null && atlasTexture != null)
+				{
+					drawContext.DrawText(ContentText, font, atlas, atlasTexture, textBounds, .Left, .Middle, foreground);
+				}
+			}
 		}
 	}
 }

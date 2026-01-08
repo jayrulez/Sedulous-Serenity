@@ -123,7 +123,11 @@ class VulkanQueue : IQueue
 			};
 
 		// Signal the in-flight fence so we know when this frame's GPU work is done
-		VulkanNative.vkQueueSubmit(mQueue, 1, &submitInfo, vkSwapChain.InFlightFence);
+		let result = VulkanNative.vkQueueSubmit(mQueue, 1, &submitInfo, vkSwapChain.InFlightFence);
+		if (result != .VK_SUCCESS)
+		{
+			Console.WriteLine(scope $"[Error] vkQueueSubmit failed with: {result}");
+		}
 	}
 
 	public void Submit(ICommandBuffer commandBuffer, ISwapChain swapChain)

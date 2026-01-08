@@ -136,9 +136,9 @@ public class MouseWheelEventArgs : MouseEventArgs
 public class KeyEventArgs : InputEventArgs
 {
 	/// The key code of the key.
-	public int32 KeyCode;
+	public KeyCode Key;
 
-	/// The scan code of the key.
+	/// The scan code of the key (platform-specific).
 	public int32 ScanCode;
 
 	/// Keyboard modifiers active during the event.
@@ -157,7 +157,7 @@ public class KeyEventArgs : InputEventArgs
 	public override void Reset()
 	{
 		base.Reset();
-		KeyCode = 0;
+		Key = .Unknown;
 		ScanCode = 0;
 		Modifiers = .None;
 		IsRepeat = false;
