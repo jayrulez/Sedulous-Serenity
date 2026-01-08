@@ -121,7 +121,8 @@ public class ContentControl : Control
 		// Render text content if no element
 		if (mContentText != null && mContentText.Length > 0)
 		{
-			let foreground = Foreground ?? Color.Black;
+			let theme = GetTheme();
+			let foreground = Foreground ?? theme?.GetColor("Foreground") ?? Color.Black;
 			let bounds = ContentBounds;
 
 			// Try to render with actual font

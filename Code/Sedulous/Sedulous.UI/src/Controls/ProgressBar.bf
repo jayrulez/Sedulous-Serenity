@@ -121,10 +121,11 @@ public class ProgressBar : Control
 	protected override void RenderContent(DrawContext drawContext)
 	{
 		let bounds = ContentBounds;
+		let theme = GetTheme();
 
-		// Get colors from theme or defaults
-		let trackColor = mTrackColor ?? Color(220, 220, 220);
-		let progressColor = mProgressColor ?? Color(0, 120, 215);
+		// Get colors from explicit values, theme, or defaults
+		let trackColor = mTrackColor ?? theme?.GetColor("BackgroundDark") ?? Color(220, 220, 220);
+		let progressColor = mProgressColor ?? theme?.GetColor("Primary") ?? Color(0, 120, 215);
 
 		// Draw track
 		drawContext.FillRect(bounds, trackColor);

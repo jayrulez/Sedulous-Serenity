@@ -140,19 +140,20 @@ public class Slider : Control
 	protected override void RenderContent(DrawContext drawContext)
 	{
 		let bounds = ContentBounds;
+		let theme = GetTheme();
 
-		// Get colors
-		let trackColor = mTrackColor ?? Color(200, 200, 200);
-		let fillColor = mFillColor ?? Color(0, 120, 215);
-		var thumbColor = mThumbColor ?? Color(0, 120, 215);
+		// Get colors from explicit values or theme
+		let trackColor = mTrackColor ?? theme?.GetColor("Border") ?? Color(200, 200, 200);
+		let fillColor = mFillColor ?? theme?.GetColor("Primary") ?? Color(0, 120, 215);
+		var thumbColor = mThumbColor ?? theme?.GetColor("Primary") ?? Color(0, 120, 215);
 
 		// Modify thumb color based on state
 		if (!IsEnabled)
-			thumbColor = Color(180, 180, 180);
+			thumbColor = theme?.GetColor("ForegroundDisabled") ?? Color(180, 180, 180);
 		else if (mIsDragging)
-			thumbColor = Color(0, 90, 180);
+			thumbColor = theme?.GetColor("PrimaryDark") ?? Color(0, 90, 180);
 		else if (IsMouseOver)
-			thumbColor = Color(30, 140, 235);
+			thumbColor = theme?.GetColor("PrimaryLight") ?? Color(30, 140, 235);
 
 		let ratio = GetRatio();
 

@@ -109,6 +109,7 @@ public class CheckBox : ToggleButton
 	protected override void OnRender(DrawContext drawContext)
 	{
 		let bounds = Bounds;
+		let theme = GetTheme();
 
 		// Draw the check box
 		let boxX = bounds.X + BorderThickness.Left;
@@ -116,17 +117,27 @@ public class CheckBox : ToggleButton
 		let boxRect = RectangleF(boxX, boxY, CheckBoxSize, CheckBoxSize);
 
 		// Box background
-		let bgColor = IsEnabled ? Color.White : Color(240, 240, 240);
+		let bgColor = IsEnabled ?
+			(theme?.GetColor("Background") ?? Color.White) :
+			(theme?.GetColor("Disabled") ?? Color(240, 240, 240));
 		drawContext.FillRect(boxRect, bgColor);
 
 		// Box border
-		let borderColor = IsEnabled ? (IsFocused ? Color(0, 120, 215) : Color.Gray) : Color(180, 180, 180);
+		Color borderColor;
+		if (!IsEnabled)
+			borderColor = theme?.GetColor("ForegroundDisabled") ?? Color(180, 180, 180);
+		else if (IsFocused)
+			borderColor = theme?.GetColor("Primary") ?? Color(0, 120, 215);
+		else
+			borderColor = theme?.GetColor("Border") ?? Color.Gray;
 		drawContext.DrawRect(boxRect, borderColor, 1.0f);
 
 		// Draw check mark if checked
 		if (IsChecked == true)
 		{
-			let checkColor = IsEnabled ? Color(0, 120, 215) : Color(150, 150, 150);
+			let checkColor = IsEnabled ?
+				(theme?.GetColor("Primary") ?? Color(0, 120, 215)) :
+				(theme?.GetColor("ForegroundDisabled") ?? Color(150, 150, 150));
 			// Draw a simple checkmark using lines
 			let cx = boxX + CheckBoxSize / 2;
 			let cy = boxY + CheckBoxSize / 2;
@@ -139,7 +150,9 @@ public class CheckBox : ToggleButton
 		else if (IsChecked == null)
 		{
 			// Indeterminate state - draw a dash
-			let dashColor = IsEnabled ? Color(0, 120, 215) : Color(150, 150, 150);
+			let dashColor = IsEnabled ?
+				(theme?.GetColor("Primary") ?? Color(0, 120, 215)) :
+				(theme?.GetColor("ForegroundDisabled") ?? Color(150, 150, 150));
 			let dashY = boxY + CheckBoxSize / 2 - 1;
 			drawContext.FillRect(.(boxX + 3, dashY, CheckBoxSize - 6, 3), dashColor);
 		}
@@ -176,7 +189,8 @@ public class CheckBox : ToggleButton
 		// Render text content to the right of the checkbox with left alignment
 		if (ContentText.Length > 0)
 		{
-			let foreground = Foreground ?? Color.Black;
+			let theme = GetTheme();
+			let foreground = Foreground ?? theme?.GetColor("Foreground") ?? Color.Black;
 			let contentBounds = ContentBounds;
 
 			// Calculate the text area (offset by checkbox)

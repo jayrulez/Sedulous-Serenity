@@ -172,14 +172,15 @@ public class Button : ContentControl
 	private Color? GetStateColor()
 	{
 		let state = ControlState;
+		let theme = GetTheme();
 
 		if (((int)state & (int)Sedulous.UI.ControlState.Disabled) != 0)
-			return Color(200, 200, 200, 255);
+			return theme?.GetColor("Disabled") ?? Color(200, 200, 200, 255);
 		if (((int)state & (int)Sedulous.UI.ControlState.Pressed) != 0)
-			return Color(180, 180, 180, 255);
+			return theme?.GetColor("Pressed") ?? Color(180, 180, 180, 255);
 		if (((int)state & (int)Sedulous.UI.ControlState.Hovered) != 0)
-			return Color(225, 225, 225, 255);
+			return theme?.GetColor("Hover") ?? Color(225, 225, 225, 255);
 
-		return Color(240, 240, 240, 255);
+		return theme?.GetColor("BackgroundAlt") ?? Color(240, 240, 240, 255);
 	}
 }

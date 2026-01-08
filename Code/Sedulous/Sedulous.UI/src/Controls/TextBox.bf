@@ -14,9 +14,13 @@ public class TextBox : Control
 	private int mCaretPosition = 0;
 	private int mSelectionStart = -1;
 	private int mSelectionLength = 0;
+	private int mSelectionAnchor = -1; // Fixed anchor point for mouse drag selection
 	private float mScrollOffset = 0;
 	private bool mIsReadOnly = false;
 	private int mMaxLength = int.MaxValue;
+	private double mCaretBlinkResetTime = 0; // Time when caret was last reset (typing/navigation)
+
+	private const double CaretBlinkRate = 0.53; // Seconds per blink phase (on or off)
 
 	// Text changed event
 	private EventAccessor<delegate void(TextBox, StringView)> mTextChangedEvent = new .() ~ delete _;
@@ -118,10 +122,15 @@ public class TextBox : Control
 	public this()
 	{
 		Focusable = true;
-		Background = Color.White;
-		BorderBrush = Color.Gray;
+		// Background and BorderBrush come from theme
 		BorderThickness = .(1);
 		Cursor = .Text;
+	}
+
+	protected override void OnGotFocus()
+	{
+		base.OnGotFocus();
+		ResetCaretBlink();
 	}
 
 	protected override DesiredSize MeasureContent(SizeConstraints constraints)
@@ -142,7 +151,8 @@ public class TextBox : Control
 	protected override void RenderContent(DrawContext drawContext)
 	{
 		let bounds = ContentBounds;
-		let foreground = Foreground ?? Color.Black;
+		let theme = GetTheme();
+		let foreground = Foreground ?? theme?.GetColor("Foreground") ?? Color.Black;
 		let hasText = mText != null && mText.Length > 0;
 
 		// Try to render with actual font
@@ -172,7 +182,9 @@ public class TextBox : Control
 						let selWidth = font.MeasureString(textSelected);
 
 						let selRect = RectangleF(startX, bounds.Y, selWidth, bounds.Height);
-						drawContext.FillRect(selRect, Color(0, 120, 215, 128));
+						let baseSelColor = theme?.GetColor("Selected") ?? Color(0, 120, 215);
+						let selColor = Color(baseSelColor.R, baseSelColor.G, baseSelColor.B, 128);
+						drawContext.FillRect(selRect, selColor);
 					}
 				}
 
@@ -185,7 +197,7 @@ public class TextBox : Control
 				}
 				else if (mPlaceholder != null && mPlaceholder.Length > 0)
 				{
-					let placeholderColor = Color(128, 128, 128);
+					let placeholderColor = theme?.GetColor("ForegroundSecondary") ?? Color(128, 128, 128);
 					drawContext.DrawText(mPlaceholder, font, atlas, atlasTexture, bounds, .Left, .Middle, placeholderColor);
 				}
 
@@ -196,9 +208,20 @@ public class TextBox : Control
 						StringView(mText, 0, Math.Min(mCaretPosition, mText.Length)) : "";
 					let caretX = bounds.X - mScrollOffset + font.MeasureString(textBeforeCaret);
 
-					// Blink the caret (simple version - always visible when focused)
-					let caretRect = RectangleF(caretX, bounds.Y + 2, 1, bounds.Height - 4);
-					drawContext.FillRect(caretRect, foreground);
+					// Blink the caret based on time
+					let currentTime = Context?.TotalTime ?? 0;
+					let timeSinceReset = currentTime - mCaretBlinkResetTime;
+					let blinkPhase = (int)(timeSinceReset / CaretBlinkRate);
+					let caretVisible = (blinkPhase % 2) == 0;
+
+					if (caretVisible)
+					{
+						let caretRect = RectangleF(caretX, bounds.Y + 2, 1, bounds.Height - 4);
+						drawContext.FillRect(caretRect, foreground);
+					}
+
+					// Keep invalidating to animate the blink
+					InvalidateVisual();
 				}
 
 				return;
@@ -224,7 +247,8 @@ public class TextBox : Control
 			mCaretPosition = GetCharIndexAtPosition(args.LocalX);
 			ClearSelection();
 			Context?.CaptureMouse(this);
-			mSelectionStart = mCaretPosition;
+			mSelectionAnchor = mCaretPosition; // Set anchor for drag selection
+			ResetCaretBlink();
 			InvalidateVisual();
 			args.Handled = true;
 		}
@@ -235,18 +259,22 @@ public class TextBox : Control
 		base.OnMouseMoveRouted(args);
 
 		// Extend selection while dragging
-		if (Context?.CapturedElement == this && mSelectionStart >= 0)
+		if (Context?.CapturedElement == this && mSelectionAnchor >= 0)
 		{
 			let newPos = GetCharIndexAtPosition(args.LocalX);
 			if (newPos != mCaretPosition)
 			{
 				mCaretPosition = newPos;
-				if (mCaretPosition > mSelectionStart)
-					mSelectionLength = mCaretPosition - mSelectionStart;
+				// Selection always spans from anchor to caret
+				if (mCaretPosition >= mSelectionAnchor)
+				{
+					mSelectionStart = mSelectionAnchor;
+					mSelectionLength = mCaretPosition - mSelectionAnchor;
+				}
 				else
 				{
-					mSelectionLength = mSelectionStart - mCaretPosition;
 					mSelectionStart = mCaretPosition;
+					mSelectionLength = mSelectionAnchor - mCaretPosition;
 				}
 				InvalidateVisual();
 			}
@@ -260,6 +288,7 @@ public class TextBox : Control
 		if (args.Button == .Left)
 		{
 			Context?.ReleaseMouseCapture();
+			mSelectionAnchor = -1; // Clear anchor
 			if (mSelectionLength == 0)
 				ClearSelection();
 		}
@@ -409,8 +438,8 @@ public class TextBox : Control
 		}
 		else if (mCaretPosition > 0)
 		{
-			if (extend && mSelectionStart < 0)
-				mSelectionStart = mCaretPosition;
+			if (extend && mSelectionAnchor < 0)
+				mSelectionAnchor = mCaretPosition;
 
 			mCaretPosition--;
 
@@ -432,8 +461,8 @@ public class TextBox : Control
 		}
 		else if (mCaretPosition < textLen)
 		{
-			if (extend && mSelectionStart < 0)
-				mSelectionStart = mCaretPosition;
+			if (extend && mSelectionAnchor < 0)
+				mSelectionAnchor = mCaretPosition;
 
 			mCaretPosition++;
 
@@ -447,8 +476,8 @@ public class TextBox : Control
 
 	private void MoveToStart(bool extend)
 	{
-		if (extend && mSelectionStart < 0)
-			mSelectionStart = mCaretPosition;
+		if (extend && mSelectionAnchor < 0)
+			mSelectionAnchor = mCaretPosition;
 
 		mCaretPosition = 0;
 
@@ -462,8 +491,8 @@ public class TextBox : Control
 
 	private void MoveToEnd(bool extend)
 	{
-		if (extend && mSelectionStart < 0)
-			mSelectionStart = mCaretPosition;
+		if (extend && mSelectionAnchor < 0)
+			mSelectionAnchor = mCaretPosition;
 
 		mCaretPosition = mText?.Length ?? 0;
 
@@ -480,8 +509,8 @@ public class TextBox : Control
 		if (mText == null || mCaretPosition == 0)
 			return;
 
-		if (extend && mSelectionStart < 0)
-			mSelectionStart = mCaretPosition;
+		if (extend && mSelectionAnchor < 0)
+			mSelectionAnchor = mCaretPosition;
 
 		// Skip whitespace, then skip word characters
 		var pos = mCaretPosition - 1;
@@ -505,8 +534,8 @@ public class TextBox : Control
 		if (mText == null || mCaretPosition >= mText.Length)
 			return;
 
-		if (extend && mSelectionStart < 0)
-			mSelectionStart = mCaretPosition;
+		if (extend && mSelectionAnchor < 0)
+			mSelectionAnchor = mCaretPosition;
 
 		// Skip word characters, then skip whitespace
 		var pos = mCaretPosition;
@@ -527,17 +556,19 @@ public class TextBox : Control
 
 	private void UpdateSelectionFromCaret()
 	{
-		if (mSelectionStart < 0)
+		if (mSelectionAnchor < 0)
 			return;
 
-		if (mCaretPosition >= mSelectionStart)
+		// Selection always spans from anchor to caret
+		if (mCaretPosition >= mSelectionAnchor)
 		{
-			mSelectionLength = mCaretPosition - mSelectionStart;
+			mSelectionStart = mSelectionAnchor;
+			mSelectionLength = mCaretPosition - mSelectionAnchor;
 		}
 		else
 		{
-			mSelectionLength = mSelectionStart - mCaretPosition;
 			mSelectionStart = mCaretPosition;
+			mSelectionLength = mSelectionAnchor - mCaretPosition;
 		}
 	}
 
@@ -545,6 +576,7 @@ public class TextBox : Control
 	{
 		mSelectionStart = -1;
 		mSelectionLength = 0;
+		mSelectionAnchor = -1;
 	}
 
 	private void DeleteSelection()
@@ -662,6 +694,9 @@ public class TextBox : Control
 			mScrollOffset = caretX - bounds.Width + 2;
 
 		mScrollOffset = Math.Max(0, mScrollOffset);
+
+		// Reset caret blink so it's immediately visible after navigation
+		ResetCaretBlink();
 	}
 
 	/// Gets the font service from the context.
@@ -690,5 +725,12 @@ public class TextBox : Control
 	{
 		mTextChangedEvent.[Friend]Invoke(this, Text);
 		InvalidateMeasure();
+		ResetCaretBlink();
+	}
+
+	/// Resets the caret blink timer so the caret is immediately visible.
+	private void ResetCaretBlink()
+	{
+		mCaretBlinkResetTime = Context?.TotalTime ?? 0;
 	}
 }
