@@ -423,6 +423,7 @@ abstract class RHISampleApp
 	/// Executes one frame: acquire, prepare, render, submit, present.
 	private bool Frame()
 	{
+		//mDevice.WaitIdle(); // uncomment to debug sync issues
 		// Acquire next swap chain image - this waits for the in-flight fence,
 		// ensuring the GPU is done with this frame slot's resources
 		if (mSwapChain.AcquireNextImage() case .Err)

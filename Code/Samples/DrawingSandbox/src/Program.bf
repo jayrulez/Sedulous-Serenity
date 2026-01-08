@@ -48,24 +48,21 @@ class DrawingSandboxSample : RHISampleApp
 	private IFontAtlas mFontAtlas;
 	private TextureRef mFontTextureRef ~ delete _;
 
-	// GPU resources - double buffered to avoid write-while-read flickering
-	private IBuffer[2] mVertexBuffers;
-	private IBuffer[2] mIndexBuffers;
-	private IBuffer mUniformBuffer;
+	// GPU resources - double buffered using framework's frameIndex (uses inherited MAX_FRAMES_IN_FLIGHT)
+	private IBuffer[MAX_FRAMES_IN_FLIGHT] mVertexBuffers;
+	private IBuffer[MAX_FRAMES_IN_FLIGHT] mIndexBuffers;
+	private IBuffer[MAX_FRAMES_IN_FLIGHT] mUniformBuffers;
 	private RHITexture mAtlasTexture;
 	private ITextureView mAtlasTextureView;
 	private ISampler mSampler;
 	private IShaderModule mVertShader;
 	private IShaderModule mFragShader;
 	private IBindGroupLayout mBindGroupLayout;
-	private IBindGroup mBindGroup;
 	private IPipelineLayout mPipelineLayout;
 	private IRenderPipeline mPipeline;
+	private IBindGroup[MAX_FRAMES_IN_FLIGHT] mBindGroups;
 
-	// Double buffer index
-	private int mBufferIndex = 0;
-
-	// Dynamic vertex/index data
+	// Per-frame vertex/index data (indexed by frameIndex)
 	private List<RenderVertex> mVertices = new .() ~ delete _;
 	private List<uint16> mIndices = new .() ~ delete _;
 	private int mMaxQuads = 4096;
@@ -242,11 +239,11 @@ class DrawingSandboxSample : RHISampleApp
 
 	private bool CreateBuffers()
 	{
-		// Create double-buffered vertex and index buffers to avoid flickering
+		// Create per-frame buffers indexed by frameIndex from the framework
 		uint64 vertexBufferSize = (uint64)(sizeof(RenderVertex) * mMaxQuads * 4);
 		uint64 indexBufferSize = (uint64)(sizeof(uint16) * mMaxQuads * 6);
 
-		for (int i = 0; i < 2; i++)
+		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
 			// Vertex buffer (dynamic)
 			BufferDescriptor vertexDesc = .()
@@ -277,24 +274,24 @@ class DrawingSandboxSample : RHISampleApp
 				return false;
 			}
 			mIndexBuffers[i] = ib;
+
+			// Uniform buffer (per-frame to avoid conflicts)
+			BufferDescriptor uniformDesc = .()
+			{
+				Size = (uint64)sizeof(Uniforms),
+				Usage = .Uniform,
+				MemoryAccess = .Upload
+			};
+
+			if (Device.CreateBuffer(&uniformDesc) not case .Ok(let ub))
+			{
+				Console.WriteLine("Failed to create uniform buffer");
+				return false;
+			}
+			mUniformBuffers[i] = ub;
 		}
 
-		// Uniform buffer
-		BufferDescriptor uniformDesc = .()
-		{
-			Size = (uint64)sizeof(Uniforms),
-			Usage = .Uniform,
-			MemoryAccess = .Upload
-		};
-
-		if (Device.CreateBuffer(&uniformDesc) not case .Ok(let ub))
-		{
-			Console.WriteLine("Failed to create uniform buffer");
-			return false;
-		}
-		mUniformBuffer = ub;
-
-		Console.WriteLine("Buffers created (double-buffered)");
+		Console.WriteLine("Buffers created (per-frame double-buffered)");
 		return true;
 	}
 
@@ -325,19 +322,22 @@ class DrawingSandboxSample : RHISampleApp
 		}
 		mBindGroupLayout = layout;
 
-		// Create bind group
-		BindGroupEntry[3] bindGroupEntries = .(
-			BindGroupEntry.Buffer(0, mUniformBuffer),
-			BindGroupEntry.Texture(0, mAtlasTextureView),
-			BindGroupEntry.Sampler(0, mSampler)
-		);
-		BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
-		if (Device.CreateBindGroup(&bindGroupDesc) not case .Ok(let group))
+		// Create per-frame bind groups (each with its own uniform buffer)
+		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
-			Console.WriteLine("Failed to create bind group");
-			return false;
+			BindGroupEntry[3] bindGroupEntries = .(
+				BindGroupEntry.Buffer(0, mUniformBuffers[i]),
+				BindGroupEntry.Texture(0, mAtlasTextureView),
+				BindGroupEntry.Sampler(0, mSampler)
+			);
+			BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
+			if (Device.CreateBindGroup(&bindGroupDesc) not case .Ok(let group))
+			{
+				Console.WriteLine("Failed to create bind group");
+				return false;
+			}
+			mBindGroups[i] = group;
 		}
-		mBindGroup = group;
 
 		// Create pipeline layout
 		IBindGroupLayout[1] layouts = .(mBindGroupLayout);
@@ -421,15 +421,22 @@ class DrawingSandboxSample : RHISampleApp
 			mFrameCount = 0;
 			mFpsTimer -= 1.0f;
 		}
+	}
 
-		// Update projection
-		UpdateProjection();
+	/// Called before render with the current frame index - safe to write per-frame buffers here
+	protected override void OnPrepareFrame(int32 frameIndex)
+	{
+		// Update projection for this frame's uniform buffer
+		UpdateProjection(frameIndex);
 
 		// Build drawing commands
 		BuildDrawCommands();
+
+		// Convert and upload to this frame's buffers
+		ConvertBatchToRenderData(frameIndex);
 	}
 
-	private void UpdateProjection()
+	private void UpdateProjection(int32 frameIndex)
 	{
 		float width = (float)SwapChain.Width;
 		float height = (float)SwapChain.Height;
@@ -446,7 +453,8 @@ class DrawingSandboxSample : RHISampleApp
 		};
 
 		Span<uint8> uniformData = .((uint8*)&uniforms, sizeof(Uniforms));
-		Device.Queue.WriteBuffer(mUniformBuffer, 0, uniformData);
+		var buf = mUniformBuffers[frameIndex];// beef bug
+		Device.Queue.WriteBuffer(buf, 0, uniformData);
 	}
 
 	private void BuildDrawCommands()
@@ -645,9 +653,6 @@ class DrawingSandboxSample : RHISampleApp
 
 		// === Instructions ===
 		DrawLabel("Press Escape to exit", screenWidth / 2 - 80, screenHeight - 30, Color.Gray);
-
-		// Convert DrawBatch to render vertices
-		ConvertBatchToRenderData();
 	}
 
 	/// Draw text using Sedulous.Fonts
@@ -659,7 +664,7 @@ class DrawingSandboxSample : RHISampleApp
 		mDrawContext.DrawText(text, mFontAtlas, mFontTextureRef, .(x, adjustedY), color);
 	}
 
-	private void ConvertBatchToRenderData()
+	private void ConvertBatchToRenderData(int32 frameIndex)
 	{
 		let batch = mDrawContext.GetBatch();
 
@@ -678,47 +683,73 @@ class DrawingSandboxSample : RHISampleApp
 			mIndices.Add(i);
 		}
 
-		// Swap to next buffer set (write to buffer not currently being rendered)
-		mBufferIndex = (mBufferIndex + 1) % 2;
-
-		// Upload to GPU using the current buffer set
+		// Upload to this frame's buffers (safe because this frame isn't being rendered yet)
 		if (mVertices.Count > 0)
 		{
 			let vertexData = Span<uint8>((uint8*)mVertices.Ptr, mVertices.Count * sizeof(RenderVertex));
-			Device.Queue.WriteBuffer(mVertexBuffers[mBufferIndex], 0, vertexData);
+			var buf = mVertexBuffers[frameIndex];// beef bug
+			Device.Queue.WriteBuffer(buf, 0, vertexData);
 
 			let indexData = Span<uint8>((uint8*)mIndices.Ptr, mIndices.Count * sizeof(uint16));
-			Device.Queue.WriteBuffer(mIndexBuffers[mBufferIndex], 0, indexData);
+			var ibuf = mIndexBuffers[frameIndex];// beef bug
+			Device.Queue.WriteBuffer(ibuf, 0, indexData);
 		}
+	}
+
+	/// Custom render frame - use this instead of OnRender to get proper frame synchronization
+	protected override bool OnRenderFrame(ICommandEncoder encoder, int32 frameIndex)
+	{
+		if (mIndices.Count == 0)
+			return true;
+
+		// Create render pass targeting swap chain
+		let swapTextureView = SwapChain.CurrentTextureView;
+		RenderPassColorAttachment[1] colorAttachments = .(.(swapTextureView)
+			{
+				LoadOp = .Clear,
+				StoreOp = .Store,
+				ClearValue = .(0.1f, 0.1f, 0.15f, 1.0f)
+			});
+		RenderPassDescriptor passDesc = .(colorAttachments);
+
+		let renderPass = encoder.BeginRenderPass(&passDesc);
+		if (renderPass != null)
+		{
+			renderPass.SetViewport(0, 0, SwapChain.Width, SwapChain.Height, 0, 1);
+			renderPass.SetScissorRect(0, 0, SwapChain.Width, SwapChain.Height);
+			renderPass.SetPipeline(mPipeline);
+			renderPass.SetBindGroup(0, mBindGroups[frameIndex]);
+			renderPass.SetVertexBuffer(0, mVertexBuffers[frameIndex], 0);
+			renderPass.SetIndexBuffer(mIndexBuffers[frameIndex], .UInt16, 0);
+			renderPass.DrawIndexed((uint32)mIndices.Count, 1, 0, 0, 0);
+			renderPass.End();
+			delete renderPass;
+		}
+
+		return true; // Skip default render pass
 	}
 
 	protected override void OnRender(IRenderPassEncoder renderPass)
 	{
-		if (mIndices.Count == 0)
-			return;
-
-		renderPass.SetPipeline(mPipeline);
-		renderPass.SetBindGroup(0, mBindGroup);
-		renderPass.SetVertexBuffer(0, mVertexBuffers[mBufferIndex], 0);
-		renderPass.SetIndexBuffer(mIndexBuffers[mBufferIndex], .UInt16, 0);
-		renderPass.DrawIndexed((uint32)mIndices.Count, 1, 0, 0, 0);
+		// Not used - we use OnRenderFrame for proper frame synchronization
 	}
 
 	protected override void OnCleanup()
 	{
 		if (mPipeline != null) delete mPipeline;
 		if (mPipelineLayout != null) delete mPipelineLayout;
-		if (mBindGroup != null) delete mBindGroup;
 		if (mBindGroupLayout != null) delete mBindGroupLayout;
 		if (mFragShader != null) delete mFragShader;
 		if (mVertShader != null) delete mVertShader;
 		if (mSampler != null) delete mSampler;
 		if (mAtlasTextureView != null) delete mAtlasTextureView;
 		if (mAtlasTexture != null) delete mAtlasTexture;
-		if (mUniformBuffer != null) delete mUniformBuffer;
-		// Delete double-buffered resources
-		for (int i = 0; i < 2; i++)
+
+		// Delete per-frame resources
+		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
+			if (mBindGroups[i] != null) delete mBindGroups[i];
+			if (mUniformBuffers[i] != null) delete mUniformBuffers[i];
 			if (mIndexBuffers[i] != null) delete mIndexBuffers[i];
 			if (mVertexBuffers[i] != null) delete mVertexBuffers[i];
 		}
