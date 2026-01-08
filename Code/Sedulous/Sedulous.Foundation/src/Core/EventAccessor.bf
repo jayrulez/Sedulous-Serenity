@@ -31,7 +31,8 @@ class EventAccessor<T> where T : Delegate
 		return mEvent.Remove(handler, deleteDelegate);
 	}
 
-	internal rettype(T) Invoke(params T p)
+	/// Invokes all subscribed handlers with the given parameters.
+	private rettype(T) Invoke(params T p)
 	{
 		return mEvent.Invoke(params p);
 	}
