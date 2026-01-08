@@ -402,6 +402,111 @@ See `Code/Samples/DrawingSandbox` for a complete example demonstrating:
 - Text rendering with Sedulous.Fonts
 - Sprite rendering
 
+## UI Framework Integration
+
+Sedulous.Drawing serves as the rendering backend for Sedulous.UI. The UI framework uses DrawContext for all rendering operations.
+
+### UIContext and DrawContext
+
+```beef
+// In your render loop
+let drawContext = scope DrawContext();
+drawContext.WhitePixelUV = .(u, v);
+
+// Update and render UI
+uiContext.Update(deltaTime, totalTime);
+uiContext.Render(drawContext);
+
+// Get batch for GPU rendering
+let batch = drawContext.GetBatch();
+```
+
+### Custom Control Rendering
+
+UI controls override `OnRender()` to draw themselves:
+
+```beef
+class MyButton : Control
+{
+    protected override void OnRender(DrawContext drawContext)
+    {
+        let bounds = Bounds;
+
+        // Background based on state
+        if (IsPressed)
+            drawContext.FillRect(bounds, Color(180, 180, 180));
+        else if (IsMouseOver)
+            drawContext.FillRect(bounds, Color(225, 225, 225));
+        else
+            drawContext.FillRect(bounds, Color(240, 240, 240));
+
+        // Border
+        drawContext.DrawRect(bounds, Color.Gray, 1.0f);
+
+        // Content (text, icon, etc.)
+        RenderContent(drawContext);
+    }
+}
+```
+
+### Transform Support
+
+UI elements can have render transforms that don't affect layout:
+
+```beef
+// UIElement applies transforms before calling OnRender
+if (mHasRenderTransform)
+{
+    savedTransform = drawContext.GetTransform();
+
+    // Transform around origin point
+    let originX = mBounds.X + mBounds.Width * mRenderTransformOrigin.X;
+    let originY = mBounds.Y + mBounds.Height * mRenderTransformOrigin.Y;
+
+    let toOrigin = Matrix.CreateTranslation(-originX, -originY, 0);
+    let fromOrigin = Matrix.CreateTranslation(originX, originY, 0);
+    let combined = toOrigin * mRenderTransform * fromOrigin * savedTransform;
+    drawContext.SetTransform(combined);
+}
+
+OnRender(drawContext);
+
+if (mHasRenderTransform)
+    drawContext.SetTransform(savedTransform);
+```
+
+### Opacity Stacking
+
+The UI framework uses opacity for fade effects:
+
+```beef
+if (mOpacity < 1.0f)
+    drawContext.PushOpacity(mOpacity);
+
+OnRender(drawContext);
+
+if (mOpacity < 1.0f)
+    drawContext.PopOpacity();
+```
+
+### Debug Visualization
+
+UIContext can render debug overlays using DrawContext:
+
+```beef
+// Layout bounds (blue outline)
+if (showLayoutBounds)
+    drawContext.DrawRect(element.Bounds, Color(0, 120, 215, 200), 1.0f);
+
+// Margins (orange fill)
+if (showMargins && margin.Top > 0)
+    drawContext.FillRect(marginRect, Color(255, 165, 0, 80));
+
+// Focus indicator (yellow outline)
+if (showFocused && element == focusedElement)
+    drawContext.DrawRect(bounds, Color(255, 255, 0, 255), 2.0f);
+```
+
 ## Future Improvements
 
 ### Anti-Aliasing
