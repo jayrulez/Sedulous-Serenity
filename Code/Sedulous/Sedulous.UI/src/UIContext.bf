@@ -301,7 +301,8 @@ public class UIContext
 
 		// Debug visualization
 		if (mDebugSettings.ShowLayoutBounds || mDebugSettings.ShowMargins ||
-			mDebugSettings.ShowPadding || mDebugSettings.ShowFocused)
+			mDebugSettings.ShowPadding || mDebugSettings.ShowFocused ||
+			mDebugSettings.ShowHitTestBounds)
 		{
 			RenderDebugOverlay(drawContext);
 		}
@@ -378,6 +379,12 @@ public class UIContext
 		if (mDebugSettings.ShowFocused && element == mFocusedElement)
 		{
 			drawContext.DrawRect(bounds, Color(255, 255, 0, 255), 2.0f);
+		}
+
+		// Hit test bounds (magenta) - shows where element accepts input
+		if (mDebugSettings.ShowHitTestBounds)
+		{
+			drawContext.DrawRect(bounds, Color(255, 0, 255, 150), 1.0f);
 		}
 
 		// Recurse to children
