@@ -2,13 +2,17 @@ namespace DrawingSandbox;
 
 using System;
 using System.Collections;
+using System.IO;
 using Sedulous.Mathematics;
 using Sedulous.RHI;
 using SampleFramework;
 using Sedulous.Drawing;
+using Sedulous.Fonts;
+using Sedulous.Fonts.TTF;
 
 // Type aliases to resolve ambiguity between Sedulous.RHI.ITexture and Sedulous.Drawing.ITexture
 typealias RHITexture = Sedulous.RHI.ITexture;
+typealias DrawingTexture = Sedulous.Drawing.ITexture;
 
 /// Vertex structure matching DrawVertex layout for GPU rendering.
 [CRepr]
@@ -39,12 +43,17 @@ class DrawingSandboxSample : RHISampleApp
 	// Drawing context
 	private DrawContext mDrawContext = new .() ~ delete _;
 
+	// Font resources
+	private IFont mFont;
+	private IFontAtlas mFontAtlas;
+	private TextureRef mFontTextureRef ~ delete _;
+
 	// GPU resources - double buffered to avoid write-while-read flickering
 	private IBuffer[2] mVertexBuffers;
 	private IBuffer[2] mIndexBuffers;
 	private IBuffer mUniformBuffer;
-	private RHITexture mWhiteTexture;
-	private ITextureView mWhiteTextureView;
+	private RHITexture mAtlasTexture;
+	private ITextureView mAtlasTextureView;
 	private ISampler mSampler;
 	private IShaderModule mVertShader;
 	private IShaderModule mFragShader;
@@ -81,7 +90,10 @@ class DrawingSandboxSample : RHISampleApp
 
 	protected override bool OnInitialize()
 	{
-		if (!CreateWhiteTexture())
+		if (!InitializeFont())
+			return false;
+
+		if (!CreateAtlasTexture())
 			return false;
 
 		if (!CreateBuffers())
@@ -93,52 +105,121 @@ class DrawingSandboxSample : RHISampleApp
 		if (!CreatePipeline())
 			return false;
 
-		// Set white pixel UV to center of 1x1 white texture
-		mDrawContext.WhitePixelUV = .(0.5f, 0.5f);
+		// Set white pixel UV from the font atlas
+		let (u, v) = mFontAtlas.WhitePixelUV;
+		mDrawContext.WhitePixelUV = .(u, v);
 
 		return true;
 	}
 
-	private bool CreateWhiteTexture()
+	private bool InitializeFont()
 	{
-		// Create a 1x1 white texture for solid color drawing
+		// Use Roboto font from assets
+		String fontPath = scope .();
+		GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", fontPath);
+
+		if (!File.Exists(fontPath))
+		{
+			Console.WriteLine(scope $"Font not found: {fontPath}");
+			return false;
+		}
+
+		Console.WriteLine(scope $"Loading font: {fontPath}");
+
+		// Initialize TrueType font support
+		TrueTypeFonts.Initialize();
+
+		// Load font with size 20, extended Latin for diacritics (Å, Ô, é, etc.)
+		FontLoadOptions options = .ExtendedLatin;
+		options.PixelHeight = 20;
+
+		if (FontLoaderFactory.LoadFont(fontPath, options) case .Ok(let font))
+		{
+			mFont = font;
+		}
+		else
+		{
+			Console.WriteLine("Failed to load font");
+			return false;
+		}
+
+		// Create font atlas
+		if (FontLoaderFactory.CreateAtlas(mFont, options) case .Ok(let atlas))
+		{
+			mFontAtlas = atlas;
+			Console.WriteLine(scope $"Font atlas created: {mFontAtlas.Width}x{mFontAtlas.Height}");
+		}
+		else
+		{
+			Console.WriteLine("Failed to create font atlas");
+			return false;
+		}
+
+		return true;
+	}
+
+	private bool CreateAtlasTexture()
+	{
+		// Convert R8 font atlas to RGBA8 for the shader
+		// The font atlas stores alpha values in R channel
+		let atlasWidth = mFontAtlas.Width;
+		let atlasHeight = mFontAtlas.Height;
+		let r8Data = mFontAtlas.PixelData;
+
+		// Convert to RGBA8 (white color with alpha from R channel)
+		uint8[] rgba8Data = new uint8[atlasWidth * atlasHeight * 4];
+		defer delete rgba8Data;
+
+		for (uint32 i = 0; i < atlasWidth * atlasHeight; i++)
+		{
+			let alpha = r8Data[i];
+			rgba8Data[i * 4 + 0] = 255;    // R
+			rgba8Data[i * 4 + 1] = 255;    // G
+			rgba8Data[i * 4 + 2] = 255;    // B
+			rgba8Data[i * 4 + 3] = alpha;  // A (from font atlas)
+		}
+
+		// Create texture from atlas data
 		TextureDescriptor textureDesc = TextureDescriptor.Texture2D(
-			1, 1,
+			atlasWidth,
+			atlasHeight,
 			.RGBA8Unorm,
 			.Sampled | .CopyDst
 		);
 
 		if (Device.CreateTexture(&textureDesc) not case .Ok(let texture))
 		{
-			Console.WriteLine("Failed to create white texture");
+			Console.WriteLine("Failed to create atlas texture");
 			return false;
 		}
-		mWhiteTexture = texture;
+		mAtlasTexture = texture;
 
-		// Upload white pixel
-		uint8[4] whitePixel = .(255, 255, 255, 255);
+		// Upload RGBA data
 		TextureDataLayout dataLayout = .()
 		{
 			Offset = 0,
-			BytesPerRow = 4,
-			RowsPerImage = 1
+			BytesPerRow = atlasWidth * 4,
+			RowsPerImage = atlasHeight
 		};
-		Extent3D writeSize = .(1, 1, 1);
-		Device.Queue.WriteTexture(mWhiteTexture, Span<uint8>(&whitePixel[0], 4), &dataLayout, &writeSize);
+		Extent3D writeSize = .(atlasWidth, atlasHeight, 1);
+		Device.Queue.WriteTexture(mAtlasTexture, Span<uint8>(rgba8Data.Ptr, rgba8Data.Count), &dataLayout, &writeSize);
 
 		// Create texture view
 		TextureViewDescriptor viewDesc = .()
 		{
 			Format = .RGBA8Unorm
 		};
-		if (Device.CreateTextureView(mWhiteTexture, &viewDesc) not case .Ok(let view))
+		if (Device.CreateTextureView(mAtlasTexture, &viewDesc) not case .Ok(let view))
 		{
-			Console.WriteLine("Failed to create texture view");
+			Console.WriteLine("Failed to create atlas texture view");
 			return false;
 		}
-		mWhiteTextureView = view;
+		mAtlasTextureView = view;
 
-		// Create sampler
+		// Create TextureRef for DrawContext
+		mFontTextureRef = new TextureRef(mAtlasTexture, atlasWidth, atlasHeight);
+
+		// Create sampler with linear filtering for smooth text
 		SamplerDescriptor samplerDesc = .()
 		{
 			AddressModeU = .ClampToEdge,
@@ -155,7 +236,7 @@ class DrawingSandboxSample : RHISampleApp
 		}
 		mSampler = sampler;
 
-		Console.WriteLine("White texture created");
+		Console.WriteLine(scope $"Atlas texture created: {atlasWidth}x{atlasHeight}");
 		return true;
 	}
 
@@ -247,7 +328,7 @@ class DrawingSandboxSample : RHISampleApp
 		// Create bind group
 		BindGroupEntry[3] bindGroupEntries = .(
 			BindGroupEntry.Buffer(0, mUniformBuffer),
-			BindGroupEntry.Texture(0, mWhiteTextureView),
+			BindGroupEntry.Texture(0, mAtlasTextureView),
 			BindGroupEntry.Sampler(0, mSampler)
 		);
 		BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
@@ -495,10 +576,10 @@ class DrawingSandboxSample : RHISampleApp
 
 		// Radial Gradient
 		DrawLabel("Radial Gradient", col3X, y, Color.White);
-		y += 20;
-		let radialBrush = scope RadialGradientBrush(.(col3X + 50, y + 40), 50, Color.White, Color.DarkBlue);
-		mDrawContext.FillCircle(.(col3X + 50, y + 40), 50, radialBrush);
-		y += 110;
+		y += 25;
+		let radialBrush = scope RadialGradientBrush(.(col3X + 50, y + 50), 50, Color.White, Color.DarkBlue);
+		mDrawContext.FillCircle(.(col3X + 50, y + 50), 50, radialBrush);
+		y += 115;
 
 		// Transform demo (rotating squares)
 		DrawLabel("Transforms (rotating)", col3X, y, Color.White);
@@ -534,9 +615,33 @@ class DrawingSandboxSample : RHISampleApp
 		mDrawContext.Scale(scale, scale);
 		mDrawContext.FillCircle(.(0, 0), 30, Color.Gold);
 		mDrawContext.PopState();
+		y += 80;
 
-		// === FPS Counter ===
-		DrawLabel(scope $"FPS: {mCurrentFps}", screenWidth - 100, 10, Color.Lime);
+		// Transformed Text demo
+		DrawLabel("Transformed Text", col3X, y, Color.White);
+		y += 25;
+
+		// Rotating text
+		mDrawContext.PushState();
+		mDrawContext.Translate(col3X + 60, y + 20);
+		mDrawContext.Rotate(mAnimationTime * 0.5f);
+		DrawLabel("Spinning!", -30, -10, Color.Cyan);
+		mDrawContext.PopState();
+
+		// Scaled text
+		mDrawContext.PushState();
+		mDrawContext.Translate(col3X + 160, y + 20);
+		let textScale = 0.8f + Math.Sin(mAnimationTime * 2) * 0.4f;
+		mDrawContext.Scale(textScale, textScale);
+		DrawLabel("Pulsing", -25, -10, Color.Magenta);
+		mDrawContext.PopState();
+
+		// === Corner test - text at 0,0 to check clipping ===
+		// Using characters that reach full ascent height
+		DrawLabel("Ålign Ôrigin", 0, 0, Color.Red);
+
+		// === FPS Counter (moved down from window chrome) ===
+		DrawLabel(scope $"FPS: {mCurrentFps}", screenWidth - 100, 30, Color.Lime);
 
 		// === Instructions ===
 		DrawLabel("Press Escape to exit", screenWidth / 2 - 80, screenHeight - 30, Color.Gray);
@@ -545,14 +650,13 @@ class DrawingSandboxSample : RHISampleApp
 		ConvertBatchToRenderData();
 	}
 
-	/// Simple label drawing using filled rectangles as a placeholder
-	/// (In a real app, you'd use Sedulous.Fonts for text)
+	/// Draw text using Sedulous.Fonts
+	/// Position is top-left of text (y is offset by ascent internally)
 	private void DrawLabel(StringView text, float x, float y, Color color)
 	{
-		// Draw a small colored rectangle as text placeholder
-		// The text parameter is just for documentation purposes
-		float width = text.Length * 6.0f;
-		mDrawContext.FillRect(.(x, y, Math.Min(width, 150), 12), Color(color.R, color.G, color.B, 100));
+		// Offset Y by ascent so that y=0 means top of text, not baseline
+		let adjustedY = y + mFont.Metrics.Ascent;
+		mDrawContext.DrawText(text, mFontAtlas, mFontTextureRef, .(x, adjustedY), color);
 	}
 
 	private void ConvertBatchToRenderData()
@@ -609,8 +713,8 @@ class DrawingSandboxSample : RHISampleApp
 		if (mFragShader != null) delete mFragShader;
 		if (mVertShader != null) delete mVertShader;
 		if (mSampler != null) delete mSampler;
-		if (mWhiteTextureView != null) delete mWhiteTextureView;
-		if (mWhiteTexture != null) delete mWhiteTexture;
+		if (mAtlasTextureView != null) delete mAtlasTextureView;
+		if (mAtlasTexture != null) delete mAtlasTexture;
 		if (mUniformBuffer != null) delete mUniformBuffer;
 		// Delete double-buffered resources
 		for (int i = 0; i < 2; i++)
@@ -618,6 +722,12 @@ class DrawingSandboxSample : RHISampleApp
 			if (mIndexBuffers[i] != null) delete mIndexBuffers[i];
 			if (mVertexBuffers[i] != null) delete mVertexBuffers[i];
 		}
+
+		// Clean up font resources
+		if (mFontAtlas != null) delete (Object)mFontAtlas;
+		if (mFont != null) delete (Object)mFont;
+
+		TrueTypeFonts.Shutdown();
 	}
 }
 

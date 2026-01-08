@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using Sedulous.Mathematics;
+using Sedulous.Fonts;
 
 namespace Sedulous.Drawing;
 
@@ -622,6 +623,29 @@ public class ShapeRasterizer
 		vertices.Add(.(p2.X, p2.Y, WhitePixelUV.X, WhitePixelUV.Y, color));
 		vertices.Add(.(p3.X, p3.Y, WhitePixelUV.X, WhitePixelUV.Y, color));
 
+		indices.Add(baseIndex + 0);
+		indices.Add(baseIndex + 1);
+		indices.Add(baseIndex + 2);
+		indices.Add(baseIndex + 0);
+		indices.Add(baseIndex + 2);
+		indices.Add(baseIndex + 3);
+	}
+
+	// === Text Rendering ===
+
+	/// Rasterize a glyph quad (for text rendering)
+	/// GlyphQuad contains screen-space coordinates and UVs from the font atlas
+	public void RasterizeGlyphQuad(GlyphQuad quad, List<DrawVertex> vertices, List<uint16> indices, Color color)
+	{
+		let baseIndex = (uint16)vertices.Count;
+
+		// Add 4 vertices using the quad's screen coords and UVs
+		vertices.Add(.(quad.X0, quad.Y0, quad.U0, quad.V0, color));  // Top-left
+		vertices.Add(.(quad.X1, quad.Y0, quad.U1, quad.V0, color));  // Top-right
+		vertices.Add(.(quad.X1, quad.Y1, quad.U1, quad.V1, color));  // Bottom-right
+		vertices.Add(.(quad.X0, quad.Y1, quad.U0, quad.V1, color));  // Bottom-left
+
+		// 2 triangles
 		indices.Add(baseIndex + 0);
 		indices.Add(baseIndex + 1);
 		indices.Add(baseIndex + 2);

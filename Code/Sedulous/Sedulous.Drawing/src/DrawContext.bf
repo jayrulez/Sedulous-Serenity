@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using Sedulous.Mathematics;
+using Sedulous.Fonts;
 
 namespace Sedulous.Drawing;
 
@@ -604,6 +605,131 @@ public class DrawContext
 	public void DrawSprite(SpriteAnimation animation, AnimationPlayer player, Vector2 position, float rotation, Vector2 scale, SpriteFlip flip, Color tint)
 	{
 		DrawSprite(player.GetCurrentSprite(animation), position, rotation, scale, flip, tint);
+	}
+
+	// === Text Rendering ===
+
+	/// Draw text at a position using a font atlas
+	/// Position is at the top-left of the text bounds
+	public void DrawText(StringView text, IFontAtlas atlas, ITexture atlasTexture, Vector2 position, Color color)
+	{
+		if (text.IsEmpty)
+			return;
+
+		let textureIndex = GetOrAddTexture(atlasTexture);
+		SetupForTextureDraw(textureIndex);
+
+		let startVertex = mBatch.Vertices.Count;
+		var cursorX = position.X;
+		let cursorY = position.Y;
+
+		for (let char in text.DecodedChars)
+		{
+			GlyphQuad quad = ?;
+			if (atlas.GetGlyphQuad((int32)char, ref cursorX, cursorY, out quad))
+			{
+				mRasterizer.RasterizeGlyphQuad(quad, mBatch.Vertices, mBatch.Indices, color);
+			}
+		}
+
+		TransformVertices(startVertex);
+	}
+
+	/// Draw text at a position using a font atlas with brush for coloring
+	public void DrawText(StringView text, IFontAtlas atlas, ITexture atlasTexture, Vector2 position, IBrush brush)
+	{
+		if (text.IsEmpty)
+			return;
+
+		let textureIndex = GetOrAddTexture(atlasTexture);
+		SetupForTextureDraw(textureIndex);
+
+		let startVertex = mBatch.Vertices.Count;
+		var cursorX = position.X;
+		let cursorY = position.Y;
+
+		// First pass: render all glyphs with base color
+		for (let char in text.DecodedChars)
+		{
+			GlyphQuad quad = ?;
+			if (atlas.GetGlyphQuad((int32)char, ref cursorX, cursorY, out quad))
+			{
+				mRasterizer.RasterizeGlyphQuad(quad, mBatch.Vertices, mBatch.Indices, brush.BaseColor);
+			}
+		}
+
+		// Calculate bounds for gradient
+		let endX = cursorX;
+		let bounds = RectangleF(position.X, position.Y, endX - position.X, 32); // Approximate height
+
+		// Apply brush colors if needed
+		if (brush.RequiresInterpolation)
+			ApplyBrushToVertices(brush, bounds, startVertex);
+
+		TransformVertices(startVertex);
+	}
+
+	/// Draw text with horizontal alignment within bounds
+	public void DrawText(StringView text, IFont font, IFontAtlas atlas, ITexture atlasTexture, RectangleF bounds, TextAlignment align, Color color)
+	{
+		if (text.IsEmpty)
+			return;
+
+		// Measure text to determine alignment offset
+		let textWidth = font.MeasureString(text);
+		var offsetX = bounds.X;
+
+		switch (align)
+		{
+		case .Left:
+			offsetX = bounds.X;
+		case .Center:
+			offsetX = bounds.X + (bounds.Width - textWidth) * 0.5f;
+		case .Right:
+			offsetX = bounds.X + bounds.Width - textWidth;
+		}
+
+		// Draw at calculated position (vertically centered)
+		let offsetY = bounds.Y + (bounds.Height - font.Metrics.LineHeight) * 0.5f + font.Metrics.Ascent;
+		DrawText(text, atlas, atlasTexture, .(offsetX, offsetY), color);
+	}
+
+	/// Draw text with horizontal and vertical alignment within bounds
+	public void DrawText(StringView text, IFont font, IFontAtlas atlas, ITexture atlasTexture, RectangleF bounds, TextAlignment hAlign, VerticalAlignment vAlign, Color color)
+	{
+		if (text.IsEmpty)
+			return;
+
+		// Measure text to determine alignment offset
+		let textWidth = font.MeasureString(text);
+		var offsetX = bounds.X;
+		var offsetY = bounds.Y;
+
+		// Horizontal alignment
+		switch (hAlign)
+		{
+		case .Left:
+			offsetX = bounds.X;
+		case .Center:
+			offsetX = bounds.X + (bounds.Width - textWidth) * 0.5f;
+		case .Right:
+			offsetX = bounds.X + bounds.Width - textWidth;
+		}
+
+		// Vertical alignment
+		switch (vAlign)
+		{
+		case .Top:
+			offsetY = bounds.Y + font.Metrics.Ascent;
+		case .Middle:
+			offsetY = bounds.Y + (bounds.Height - font.Metrics.LineHeight) * 0.5f + font.Metrics.Ascent;
+		case .Bottom:
+			offsetY = bounds.Y + bounds.Height - font.Metrics.Descent;
+		case .Baseline:
+			offsetY = bounds.Y + bounds.Height * 0.5f; // Assume baseline at middle
+		}
+
+		DrawText(text, atlas, atlasTexture, .(offsetX, offsetY), color);
 	}
 
 	// === Internal Helpers ===
