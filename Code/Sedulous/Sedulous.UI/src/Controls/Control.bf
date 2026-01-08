@@ -166,7 +166,7 @@ public class Control : UIElement
 	}
 
 	/// Updates the control state based on current conditions.
-	protected void UpdateControlState()
+	protected virtual void UpdateControlState()
 	{
 		var state = Sedulous.UI.ControlState.Normal;
 
