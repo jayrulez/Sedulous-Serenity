@@ -32,6 +32,25 @@ public class ShapeRasterizer
 		indices.Add(baseIndex + 3);
 	}
 
+	/// Rasterize a quad from 4 pre-transformed corner points (for rotation support)
+	public void RasterizeQuad(Vector2 topLeft, Vector2 topRight, Vector2 bottomRight, Vector2 bottomLeft, List<DrawVertex> vertices, List<uint16> indices, Color color)
+	{
+		let baseIndex = (uint16)vertices.Count;
+
+		vertices.Add(.(topLeft.X, topLeft.Y, WhitePixelUV.X, WhitePixelUV.Y, color));
+		vertices.Add(.(topRight.X, topRight.Y, WhitePixelUV.X, WhitePixelUV.Y, color));
+		vertices.Add(.(bottomRight.X, bottomRight.Y, WhitePixelUV.X, WhitePixelUV.Y, color));
+		vertices.Add(.(bottomLeft.X, bottomLeft.Y, WhitePixelUV.X, WhitePixelUV.Y, color));
+
+		// 2 triangles
+		indices.Add(baseIndex + 0);
+		indices.Add(baseIndex + 1);
+		indices.Add(baseIndex + 2);
+		indices.Add(baseIndex + 0);
+		indices.Add(baseIndex + 2);
+		indices.Add(baseIndex + 3);
+	}
+
 	/// Rasterize a filled circle using triangle fan
 	public void RasterizeCircle(Vector2 center, float radius, List<DrawVertex> vertices, List<uint16> indices, Color color)
 	{
@@ -282,21 +301,25 @@ public class ShapeRasterizer
 			let cos = Math.Cos(angle);
 			let sin = Math.Sin(angle);
 
-			// Normal direction at this point
+			// Calculate point on ellipse
+			let px = cos * rx;
+			let py = sin * ry;
+
+			// Normal direction at this point on ellipse (gradient of ellipse equation)
 			let nx = cos / rx;
 			let ny = sin / ry;
 			let nlen = Math.Sqrt(nx * nx + ny * ny);
-			let normalX = nx / nlen;
-			let normalY = ny / nlen;
+			let normalX = (float)(nx / nlen);
+			let normalY = (float)(ny / nlen);
 
-			// Outer vertex
-			let outerX = center.X + cos * (rx + halfThick * normalX * rx);
-			let outerY = center.Y + sin * (ry + halfThick * normalY * ry);
+			// Outer vertex - offset outward along normal
+			let outerX = center.X + px + normalX * halfThick;
+			let outerY = center.Y + py + normalY * halfThick;
 			vertices.Add(.(outerX, outerY, WhitePixelUV.X, WhitePixelUV.Y, color));
 
-			// Inner vertex
-			let innerX = center.X + cos * (rx - halfThick * normalX * rx);
-			let innerY = center.Y + sin * (ry - halfThick * normalY * ry);
+			// Inner vertex - offset inward along normal
+			let innerX = center.X + px - normalX * halfThick;
+			let innerY = center.Y + py - normalY * halfThick;
 			vertices.Add(.(innerX, innerY, WhitePixelUV.X, WhitePixelUV.Y, color));
 		}
 

@@ -154,10 +154,15 @@ public class DrawContext
 	public void FillRect(RectangleF rect, IBrush brush)
 	{
 		SetupForSolidDraw();
-		let transformed = TransformRect(rect);
 		let startVertex = mBatch.Vertices.Count;
 
-		mRasterizer.RasterizeRect(transformed, mBatch.Vertices, mBatch.Indices, brush.BaseColor);
+		// Transform all 4 corners for proper rotation support
+		let tl = TransformPoint(.(rect.X, rect.Y));
+		let tr = TransformPoint(.(rect.X + rect.Width, rect.Y));
+		let br = TransformPoint(.(rect.X + rect.Width, rect.Y + rect.Height));
+		let bl = TransformPoint(.(rect.X, rect.Y + rect.Height));
+
+		mRasterizer.RasterizeQuad(tl, tr, br, bl, mBatch.Vertices, mBatch.Indices, brush.BaseColor);
 
 		if (brush.RequiresInterpolation)
 			ApplyBrushToVertices(brush, rect, startVertex);
@@ -167,18 +172,25 @@ public class DrawContext
 	public void FillRect(RectangleF rect, Color color)
 	{
 		SetupForSolidDraw();
-		let transformed = TransformRect(rect);
-		mRasterizer.RasterizeRect(transformed, mBatch.Vertices, mBatch.Indices, color);
+
+		// Transform all 4 corners for proper rotation support
+		let tl = TransformPoint(.(rect.X, rect.Y));
+		let tr = TransformPoint(.(rect.X + rect.Width, rect.Y));
+		let br = TransformPoint(.(rect.X + rect.Width, rect.Y + rect.Height));
+		let bl = TransformPoint(.(rect.X, rect.Y + rect.Height));
+
+		mRasterizer.RasterizeQuad(tl, tr, br, bl, mBatch.Vertices, mBatch.Indices, color);
 	}
 
 	/// Fill a rounded rectangle
 	public void FillRoundedRect(RectangleF rect, float radius, IBrush brush)
 	{
 		SetupForSolidDraw();
-		let transformed = TransformRect(rect);
 		let startVertex = mBatch.Vertices.Count;
 
-		mRasterizer.RasterizeRoundedRect(transformed, radius, mBatch.Vertices, mBatch.Indices, brush.BaseColor);
+		// Rasterize at original position, then transform vertices
+		mRasterizer.RasterizeRoundedRect(rect, radius, mBatch.Vertices, mBatch.Indices, brush.BaseColor);
+		TransformVertices(startVertex);
 
 		if (brush.RequiresInterpolation)
 			ApplyBrushToVertices(brush, rect, startVertex);
@@ -188,19 +200,23 @@ public class DrawContext
 	public void FillRoundedRect(RectangleF rect, float radius, Color color)
 	{
 		SetupForSolidDraw();
-		let transformed = TransformRect(rect);
-		mRasterizer.RasterizeRoundedRect(transformed, radius, mBatch.Vertices, mBatch.Indices, color);
+		let startVertex = mBatch.Vertices.Count;
+
+		// Rasterize at original position, then transform vertices
+		mRasterizer.RasterizeRoundedRect(rect, radius, mBatch.Vertices, mBatch.Indices, color);
+		TransformVertices(startVertex);
 	}
 
 	/// Fill a circle
 	public void FillCircle(Vector2 center, float radius, IBrush brush)
 	{
 		SetupForSolidDraw();
-		let transformed = TransformPoint(center);
 		let startVertex = mBatch.Vertices.Count;
 		let bounds = RectangleF(center.X - radius, center.Y - radius, radius * 2, radius * 2);
 
-		mRasterizer.RasterizeCircle(transformed, radius, mBatch.Vertices, mBatch.Indices, brush.BaseColor);
+		// Rasterize at original position, then transform vertices
+		mRasterizer.RasterizeCircle(center, radius, mBatch.Vertices, mBatch.Indices, brush.BaseColor);
+		TransformVertices(startVertex);
 
 		if (brush.RequiresInterpolation)
 			ApplyBrushToVertices(brush, bounds, startVertex);
@@ -210,19 +226,23 @@ public class DrawContext
 	public void FillCircle(Vector2 center, float radius, Color color)
 	{
 		SetupForSolidDraw();
-		let transformed = TransformPoint(center);
-		mRasterizer.RasterizeCircle(transformed, radius, mBatch.Vertices, mBatch.Indices, color);
+		let startVertex = mBatch.Vertices.Count;
+
+		// Rasterize at original position, then transform vertices
+		mRasterizer.RasterizeCircle(center, radius, mBatch.Vertices, mBatch.Indices, color);
+		TransformVertices(startVertex);
 	}
 
 	/// Fill an ellipse
 	public void FillEllipse(Vector2 center, float rx, float ry, IBrush brush)
 	{
 		SetupForSolidDraw();
-		let transformed = TransformPoint(center);
 		let startVertex = mBatch.Vertices.Count;
 		let bounds = RectangleF(center.X - rx, center.Y - ry, rx * 2, ry * 2);
 
-		mRasterizer.RasterizeEllipse(transformed, rx, ry, mBatch.Vertices, mBatch.Indices, brush.BaseColor);
+		// Rasterize at original position, then transform vertices
+		mRasterizer.RasterizeEllipse(center, rx, ry, mBatch.Vertices, mBatch.Indices, brush.BaseColor);
+		TransformVertices(startVertex);
 
 		if (brush.RequiresInterpolation)
 			ApplyBrushToVertices(brush, bounds, startVertex);
@@ -232,19 +252,23 @@ public class DrawContext
 	public void FillEllipse(Vector2 center, float rx, float ry, Color color)
 	{
 		SetupForSolidDraw();
-		let transformed = TransformPoint(center);
-		mRasterizer.RasterizeEllipse(transformed, rx, ry, mBatch.Vertices, mBatch.Indices, color);
+		let startVertex = mBatch.Vertices.Count;
+
+		// Rasterize at original position, then transform vertices
+		mRasterizer.RasterizeEllipse(center, rx, ry, mBatch.Vertices, mBatch.Indices, color);
+		TransformVertices(startVertex);
 	}
 
 	/// Fill an arc (pie slice)
 	public void FillArc(Vector2 center, float radius, float startAngle, float sweepAngle, IBrush brush)
 	{
 		SetupForSolidDraw();
-		let transformed = TransformPoint(center);
 		let startVertex = mBatch.Vertices.Count;
 		let bounds = RectangleF(center.X - radius, center.Y - radius, radius * 2, radius * 2);
 
-		mRasterizer.RasterizeArc(transformed, radius, startAngle, sweepAngle, mBatch.Vertices, mBatch.Indices, brush.BaseColor);
+		// Rasterize at original position, then transform vertices
+		mRasterizer.RasterizeArc(center, radius, startAngle, sweepAngle, mBatch.Vertices, mBatch.Indices, brush.BaseColor);
+		TransformVertices(startVertex);
 
 		if (brush.RequiresInterpolation)
 			ApplyBrushToVertices(brush, bounds, startVertex);
@@ -254,8 +278,11 @@ public class DrawContext
 	public void FillArc(Vector2 center, float radius, float startAngle, float sweepAngle, Color color)
 	{
 		SetupForSolidDraw();
-		let transformed = TransformPoint(center);
-		mRasterizer.RasterizeArc(transformed, radius, startAngle, sweepAngle, mBatch.Vertices, mBatch.Indices, color);
+		let startVertex = mBatch.Vertices.Count;
+
+		// Rasterize at original position, then transform vertices
+		mRasterizer.RasterizeArc(center, radius, startAngle, sweepAngle, mBatch.Vertices, mBatch.Indices, color);
+		TransformVertices(startVertex);
 	}
 
 	// === Stroked Shapes ===
@@ -264,66 +291,88 @@ public class DrawContext
 	public void DrawLine(Vector2 start, Vector2 end, Pen pen)
 	{
 		SetupForSolidDraw();
-		let p0 = TransformPoint(start);
-		let p1 = TransformPoint(end);
-		mRasterizer.RasterizeLine(p0, p1, pen.Thickness, mBatch.Vertices, mBatch.Indices, pen.Color, pen.LineCap);
+		let startVertex = mBatch.Vertices.Count;
+
+		// Rasterize at original position, then transform vertices
+		mRasterizer.RasterizeLine(start, end, pen.Thickness, mBatch.Vertices, mBatch.Indices, pen.Color, pen.LineCap);
+		TransformVertices(startVertex);
 	}
 
 	/// Draw a line with color and thickness
 	public void DrawLine(Vector2 start, Vector2 end, Color color, float thickness = 1.0f)
 	{
 		SetupForSolidDraw();
-		let p0 = TransformPoint(start);
-		let p1 = TransformPoint(end);
-		mRasterizer.RasterizeLine(p0, p1, thickness, mBatch.Vertices, mBatch.Indices, color, .Butt);
+		let startVertex = mBatch.Vertices.Count;
+
+		// Rasterize at original position, then transform vertices
+		mRasterizer.RasterizeLine(start, end, thickness, mBatch.Vertices, mBatch.Indices, color, .Butt);
+		TransformVertices(startVertex);
 	}
 
 	/// Draw a rectangle outline
 	public void DrawRect(RectangleF rect, Pen pen)
 	{
 		SetupForSolidDraw();
-		let transformed = TransformRect(rect);
-		mRasterizer.RasterizeStrokeRect(transformed, pen.Thickness, mBatch.Vertices, mBatch.Indices, pen.Color);
+		let startVertex = mBatch.Vertices.Count;
+
+		// Rasterize at original position, then transform vertices
+		mRasterizer.RasterizeStrokeRect(rect, pen.Thickness, mBatch.Vertices, mBatch.Indices, pen.Color);
+		TransformVertices(startVertex);
 	}
 
 	/// Draw a rectangle outline with color and thickness
 	public void DrawRect(RectangleF rect, Color color, float thickness = 1.0f)
 	{
 		SetupForSolidDraw();
-		let transformed = TransformRect(rect);
-		mRasterizer.RasterizeStrokeRect(transformed, thickness, mBatch.Vertices, mBatch.Indices, color);
+		let startVertex = mBatch.Vertices.Count;
+
+		// Rasterize at original position, then transform vertices
+		mRasterizer.RasterizeStrokeRect(rect, thickness, mBatch.Vertices, mBatch.Indices, color);
+		TransformVertices(startVertex);
 	}
 
 	/// Draw a circle outline
 	public void DrawCircle(Vector2 center, float radius, Pen pen)
 	{
 		SetupForSolidDraw();
-		let transformed = TransformPoint(center);
-		mRasterizer.RasterizeStrokeCircle(transformed, radius, pen.Thickness, mBatch.Vertices, mBatch.Indices, pen.Color);
+		let startVertex = mBatch.Vertices.Count;
+
+		// Rasterize at original position, then transform vertices
+		mRasterizer.RasterizeStrokeCircle(center, radius, pen.Thickness, mBatch.Vertices, mBatch.Indices, pen.Color);
+		TransformVertices(startVertex);
 	}
 
 	/// Draw a circle outline with color and thickness
 	public void DrawCircle(Vector2 center, float radius, Color color, float thickness = 1.0f)
 	{
 		SetupForSolidDraw();
-		let transformed = TransformPoint(center);
-		mRasterizer.RasterizeStrokeCircle(transformed, radius, thickness, mBatch.Vertices, mBatch.Indices, color);
+		let startVertex = mBatch.Vertices.Count;
+
+		// Rasterize at original position, then transform vertices
+		mRasterizer.RasterizeStrokeCircle(center, radius, thickness, mBatch.Vertices, mBatch.Indices, color);
+		TransformVertices(startVertex);
 	}
 
 	/// Draw an ellipse outline
 	public void DrawEllipse(Vector2 center, float rx, float ry, Pen pen)
 	{
 		SetupForSolidDraw();
-		let transformed = TransformPoint(center);
-		mRasterizer.RasterizeStrokeEllipse(transformed, rx, ry, pen.Thickness, mBatch.Vertices, mBatch.Indices, pen.Color);
+		let startVertex = mBatch.Vertices.Count;
+
+		// Rasterize at original position, then transform vertices
+		mRasterizer.RasterizeStrokeEllipse(center, rx, ry, pen.Thickness, mBatch.Vertices, mBatch.Indices, pen.Color);
+		TransformVertices(startVertex);
 	}
 
 	/// Draw an ellipse outline with color and thickness
 	public void DrawEllipse(Vector2 center, float rx, float ry, Color color, float thickness = 1.0f)
 	{
 		SetupForSolidDraw();
-		let transformed = TransformPoint(center);
-		mRasterizer.RasterizeStrokeEllipse(transformed, rx, ry, thickness, mBatch.Vertices, mBatch.Indices, color);
+		let startVertex = mBatch.Vertices.Count;
+
+		// Rasterize at original position, then transform vertices
+		mRasterizer.RasterizeStrokeEllipse(center, rx, ry, thickness, mBatch.Vertices, mBatch.Indices, color);
+		TransformVertices(startVertex);
 	}
 
 	// === Polygons and Polylines ===
@@ -389,15 +438,11 @@ public class DrawContext
 			return;
 
 		SetupForSolidDraw();
+		let startVertex = mBatch.Vertices.Count;
 
-		// Transform all points
-		Vector2[] transformed = scope Vector2[points.Length];
-		for (int32 i = 0; i < points.Length; i++)
-		{
-			transformed[i] = TransformPoint(points[i]);
-		}
-
-		mRasterizer.RasterizePolyline(transformed, pen.Thickness, mBatch.Vertices, mBatch.Indices, pen.Color, pen.LineCap, pen.LineJoin);
+		// Rasterize at original position, then transform vertices
+		mRasterizer.RasterizePolyline(points, pen.Thickness, mBatch.Vertices, mBatch.Indices, pen.Color, pen.LineCap, pen.LineJoin);
+		TransformVertices(startVertex);
 	}
 
 	/// Draw a polyline with color and thickness
@@ -407,15 +452,11 @@ public class DrawContext
 			return;
 
 		SetupForSolidDraw();
+		let startVertex = mBatch.Vertices.Count;
 
-		// Transform all points
-		Vector2[] transformed = scope Vector2[points.Length];
-		for (int32 i = 0; i < points.Length; i++)
-		{
-			transformed[i] = TransformPoint(points[i]);
-		}
-
-		mRasterizer.RasterizePolyline(transformed, thickness, mBatch.Vertices, mBatch.Indices, color, .Butt, .Miter);
+		// Rasterize at original position, then transform vertices
+		mRasterizer.RasterizePolyline(points, thickness, mBatch.Vertices, mBatch.Indices, color, .Butt, .Miter);
+		TransformVertices(startVertex);
 	}
 
 	/// Draw a polygon outline (closed path)
@@ -425,15 +466,11 @@ public class DrawContext
 			return;
 
 		SetupForSolidDraw();
+		let startVertex = mBatch.Vertices.Count;
 
-		// Transform all points
-		Vector2[] transformed = scope Vector2[points.Length];
-		for (int32 i = 0; i < points.Length; i++)
-		{
-			transformed[i] = TransformPoint(points[i]);
-		}
-
-		mRasterizer.RasterizeStrokePolygon(transformed, pen.Thickness, mBatch.Vertices, mBatch.Indices, pen.Color, pen.LineJoin);
+		// Rasterize at original position, then transform vertices
+		mRasterizer.RasterizeStrokePolygon(points, pen.Thickness, mBatch.Vertices, mBatch.Indices, pen.Color, pen.LineJoin);
+		TransformVertices(startVertex);
 	}
 
 	/// Draw a polygon outline with color and thickness
@@ -443,15 +480,11 @@ public class DrawContext
 			return;
 
 		SetupForSolidDraw();
+		let startVertex = mBatch.Vertices.Count;
 
-		// Transform all points
-		Vector2[] transformed = scope Vector2[points.Length];
-		for (int32 i = 0; i < points.Length; i++)
-		{
-			transformed[i] = TransformPoint(points[i]);
-		}
-
-		mRasterizer.RasterizeStrokePolygon(transformed, thickness, mBatch.Vertices, mBatch.Indices, color, .Miter);
+		// Rasterize at original position, then transform vertices
+		mRasterizer.RasterizeStrokePolygon(points, thickness, mBatch.Vertices, mBatch.Indices, color, .Miter);
+		TransformVertices(startVertex);
 	}
 
 	// === Images ===
@@ -632,6 +665,20 @@ public class DrawContext
 
 		let transformed = Vector2.Transform(point, mCurrentState.Transform);
 		return transformed;
+	}
+
+	/// Transform all vertices from startVertex to end of list
+	private void TransformVertices(int startVertex)
+	{
+		if (mCurrentState.Transform == Matrix.Identity)
+			return;
+
+		for (int i = startVertex; i < mBatch.Vertices.Count; i++)
+		{
+			var vertex = ref mBatch.Vertices[i];
+			let transformed = Vector2.Transform(vertex.Position, mCurrentState.Transform);
+			vertex.Position = transformed;
+		}
 	}
 
 	/// Apply brush colors to vertices that were just added

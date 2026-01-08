@@ -39,9 +39,9 @@ class DrawingSandboxSample : RHISampleApp
 	// Drawing context
 	private DrawContext mDrawContext = new .() ~ delete _;
 
-	// GPU resources
-	private IBuffer mVertexBuffer;
-	private IBuffer mIndexBuffer;
+	// GPU resources - double buffered to avoid write-while-read flickering
+	private IBuffer[2] mVertexBuffers;
+	private IBuffer[2] mIndexBuffers;
 	private IBuffer mUniformBuffer;
 	private RHITexture mWhiteTexture;
 	private ITextureView mWhiteTextureView;
@@ -52,6 +52,9 @@ class DrawingSandboxSample : RHISampleApp
 	private IBindGroup mBindGroup;
 	private IPipelineLayout mPipelineLayout;
 	private IRenderPipeline mPipeline;
+
+	// Double buffer index
+	private int mBufferIndex = 0;
 
 	// Dynamic vertex/index data
 	private List<RenderVertex> mVertices = new .() ~ delete _;
@@ -158,37 +161,42 @@ class DrawingSandboxSample : RHISampleApp
 
 	private bool CreateBuffers()
 	{
-		// Vertex buffer (dynamic)
+		// Create double-buffered vertex and index buffers to avoid flickering
 		uint64 vertexBufferSize = (uint64)(sizeof(RenderVertex) * mMaxQuads * 4);
-		BufferDescriptor vertexDesc = .()
-		{
-			Size = vertexBufferSize,
-			Usage = .Vertex,
-			MemoryAccess = .Upload
-		};
-
-		if (Device.CreateBuffer(&vertexDesc) not case .Ok(let vb))
-		{
-			Console.WriteLine("Failed to create vertex buffer");
-			return false;
-		}
-		mVertexBuffer = vb;
-
-		// Index buffer (dynamic)
 		uint64 indexBufferSize = (uint64)(sizeof(uint16) * mMaxQuads * 6);
-		BufferDescriptor indexDesc = .()
-		{
-			Size = indexBufferSize,
-			Usage = .Index,
-			MemoryAccess = .Upload
-		};
 
-		if (Device.CreateBuffer(&indexDesc) not case .Ok(let ib))
+		for (int i = 0; i < 2; i++)
 		{
-			Console.WriteLine("Failed to create index buffer");
-			return false;
+			// Vertex buffer (dynamic)
+			BufferDescriptor vertexDesc = .()
+			{
+				Size = vertexBufferSize,
+				Usage = .Vertex,
+				MemoryAccess = .Upload
+			};
+
+			if (Device.CreateBuffer(&vertexDesc) not case .Ok(let vb))
+			{
+				Console.WriteLine("Failed to create vertex buffer");
+				return false;
+			}
+			mVertexBuffers[i] = vb;
+
+			// Index buffer (dynamic)
+			BufferDescriptor indexDesc = .()
+			{
+				Size = indexBufferSize,
+				Usage = .Index,
+				MemoryAccess = .Upload
+			};
+
+			if (Device.CreateBuffer(&indexDesc) not case .Ok(let ib))
+			{
+				Console.WriteLine("Failed to create index buffer");
+				return false;
+			}
+			mIndexBuffers[i] = ib;
 		}
-		mIndexBuffer = ib;
 
 		// Uniform buffer
 		BufferDescriptor uniformDesc = .()
@@ -205,7 +213,7 @@ class DrawingSandboxSample : RHISampleApp
 		}
 		mUniformBuffer = ub;
 
-		Console.WriteLine("Buffers created");
+		Console.WriteLine("Buffers created (double-buffered)");
 		return true;
 	}
 
@@ -566,14 +574,17 @@ class DrawingSandboxSample : RHISampleApp
 			mIndices.Add(i);
 		}
 
-		// Upload to GPU
+		// Swap to next buffer set (write to buffer not currently being rendered)
+		mBufferIndex = (mBufferIndex + 1) % 2;
+
+		// Upload to GPU using the current buffer set
 		if (mVertices.Count > 0)
 		{
 			let vertexData = Span<uint8>((uint8*)mVertices.Ptr, mVertices.Count * sizeof(RenderVertex));
-			Device.Queue.WriteBuffer(mVertexBuffer, 0, vertexData);
+			Device.Queue.WriteBuffer(mVertexBuffers[mBufferIndex], 0, vertexData);
 
 			let indexData = Span<uint8>((uint8*)mIndices.Ptr, mIndices.Count * sizeof(uint16));
-			Device.Queue.WriteBuffer(mIndexBuffer, 0, indexData);
+			Device.Queue.WriteBuffer(mIndexBuffers[mBufferIndex], 0, indexData);
 		}
 	}
 
@@ -584,8 +595,8 @@ class DrawingSandboxSample : RHISampleApp
 
 		renderPass.SetPipeline(mPipeline);
 		renderPass.SetBindGroup(0, mBindGroup);
-		renderPass.SetVertexBuffer(0, mVertexBuffer, 0);
-		renderPass.SetIndexBuffer(mIndexBuffer, .UInt16, 0);
+		renderPass.SetVertexBuffer(0, mVertexBuffers[mBufferIndex], 0);
+		renderPass.SetIndexBuffer(mIndexBuffers[mBufferIndex], .UInt16, 0);
 		renderPass.DrawIndexed((uint32)mIndices.Count, 1, 0, 0, 0);
 	}
 
@@ -601,8 +612,12 @@ class DrawingSandboxSample : RHISampleApp
 		if (mWhiteTextureView != null) delete mWhiteTextureView;
 		if (mWhiteTexture != null) delete mWhiteTexture;
 		if (mUniformBuffer != null) delete mUniformBuffer;
-		if (mIndexBuffer != null) delete mIndexBuffer;
-		if (mVertexBuffer != null) delete mVertexBuffer;
+		// Delete double-buffered resources
+		for (int i = 0; i < 2; i++)
+		{
+			if (mIndexBuffers[i] != null) delete mIndexBuffers[i];
+			if (mVertexBuffers[i] != null) delete mVertexBuffers[i];
+		}
 	}
 }
 
