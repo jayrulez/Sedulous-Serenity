@@ -22,6 +22,11 @@ class SDL3Mouse : IMouse
 	private EventAccessor<MouseButtonDelegate> mOnButton = new .() ~ delete _;
 	private EventAccessor<MouseScrollDelegate> mOnScroll = new .() ~ delete _;
 
+	// Cursor management
+	private CursorType mCurrentCursor = .Default;
+	private SDL_Cursor*[(int)SDL_SystemCursor.SDL_SYSTEM_CURSOR_COUNT] mCursors;
+	private bool mCursorsInitialized = false;
+
 	public float X => mX;
 	public float Y => mY;
 	public float DeltaX => mDeltaX;
@@ -52,6 +57,21 @@ class SDL3Mouse : IMouse
 				SDL_ShowCursor();
 			else
 				SDL_HideCursor();
+		}
+	}
+
+	public CursorType Cursor
+	{
+		get => mCurrentCursor;
+		set
+		{
+			if (mCurrentCursor == value)
+				return;
+
+			mCurrentCursor = value;
+			let sdlCursor = GetOrCreateCursor(CursorTypeToSDL(value));
+			if (sdlCursor != null)
+				SDL_SetCursor(sdlCursor);
 		}
 	}
 
@@ -135,6 +155,60 @@ class SDL3Mouse : IMouse
 		case 4: return .X1;
 		case 5: return .X2;
 		default: return .Left;
+		}
+	}
+
+	/// Converts CursorType to SDL_SystemCursor.
+	private static SDL_SystemCursor CursorTypeToSDL(CursorType cursor)
+	{
+		switch (cursor)
+		{
+		case .Default:    return .SDL_SYSTEM_CURSOR_DEFAULT;
+		case .Text:       return .SDL_SYSTEM_CURSOR_TEXT;
+		case .Wait:       return .SDL_SYSTEM_CURSOR_WAIT;
+		case .Crosshair:  return .SDL_SYSTEM_CURSOR_CROSSHAIR;
+		case .Progress:   return .SDL_SYSTEM_CURSOR_PROGRESS;
+		case .ResizeNWSE: return .SDL_SYSTEM_CURSOR_NWSE_RESIZE;
+		case .ResizeNESW: return .SDL_SYSTEM_CURSOR_NESW_RESIZE;
+		case .ResizeEW:   return .SDL_SYSTEM_CURSOR_EW_RESIZE;
+		case .ResizeNS:   return .SDL_SYSTEM_CURSOR_NS_RESIZE;
+		case .Move:       return .SDL_SYSTEM_CURSOR_MOVE;
+		case .NotAllowed: return .SDL_SYSTEM_CURSOR_NOT_ALLOWED;
+		case .Pointer:    return .SDL_SYSTEM_CURSOR_POINTER;
+		case .ResizeNW:   return .SDL_SYSTEM_CURSOR_NW_RESIZE;
+		case .ResizeN:    return .SDL_SYSTEM_CURSOR_N_RESIZE;
+		case .ResizeNE:   return .SDL_SYSTEM_CURSOR_NE_RESIZE;
+		case .ResizeE:    return .SDL_SYSTEM_CURSOR_E_RESIZE;
+		case .ResizeSE:   return .SDL_SYSTEM_CURSOR_SE_RESIZE;
+		case .ResizeS:    return .SDL_SYSTEM_CURSOR_S_RESIZE;
+		case .ResizeSW:   return .SDL_SYSTEM_CURSOR_SW_RESIZE;
+		case .ResizeW:    return .SDL_SYSTEM_CURSOR_W_RESIZE;
+		}
+	}
+
+	/// Gets or creates a cached SDL cursor.
+	private SDL_Cursor* GetOrCreateCursor(SDL_SystemCursor type)
+	{
+		let index = (int)type;
+		if (index < 0 || index >= mCursors.Count)
+			return null;
+
+		if (mCursors[index] == null)
+			mCursors[index] = SDL_CreateSystemCursor(type);
+
+		return mCursors[index];
+	}
+
+	/// Destroys all cached cursors.
+	public void Dispose()
+	{
+		for (var cursor in ref mCursors)
+		{
+			if (cursor != null)
+			{
+				SDL_DestroyCursor(cursor);
+				cursor = null;
+			}
 		}
 	}
 }

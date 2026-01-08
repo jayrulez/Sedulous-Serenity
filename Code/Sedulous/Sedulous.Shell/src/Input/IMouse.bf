@@ -40,6 +40,9 @@ public interface IMouse
 	/// Gets or sets whether the cursor is visible.
 	bool Visible { get; set; }
 
+	/// Gets or sets the current cursor type.
+	CursorType Cursor { get; set; }
+
 	/// Called when the mouse moves.
 	EventAccessor<MouseMoveDelegate> OnMove { get; }
 
