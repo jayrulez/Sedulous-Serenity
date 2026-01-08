@@ -111,6 +111,201 @@ struct Uniforms
 	public Matrix Projection;
 }
 
+/// Custom control that shows a context menu on right-click.
+class ContextMenuArea : Border
+{
+	private UIContext mUIContext;
+	private ContextMenu mContextMenu;
+
+	public this(UIContext context)
+	{
+		mUIContext = context;
+
+		// Create the context menu
+		mContextMenu = new ContextMenu();
+		mContextMenu.AddItem("Cut", "Ctrl+X", new (item) => {
+			Console.WriteLine("Cut clicked");
+		});
+		mContextMenu.AddItem("Copy", "Ctrl+C", new (item) => {
+			Console.WriteLine("Copy clicked");
+		});
+		mContextMenu.AddItem("Paste", "Ctrl+V", new (item) => {
+			Console.WriteLine("Paste clicked");
+		});
+		mContextMenu.AddSeparator();
+		mContextMenu.AddItem("Delete", "Del", new (item) => {
+			Console.WriteLine("Delete clicked");
+		});
+
+		// Add to tree so popup can find Context
+		AddChild(mContextMenu);
+	}
+
+	protected override void OnMouseUpRouted(MouseButtonEventArgs args)
+	{
+		if (args.Button == .Right)
+		{
+			// Open context menu at mouse position
+			mContextMenu.OpenAt(args.ScreenX, args.ScreenY);
+			args.Handled = true;
+		}
+		base.OnMouseUpRouted(args);
+	}
+}
+
+/// Wrapper class for Color to allow storing in DragData.
+class ColorBox
+{
+	public Color Value;
+	public this(Color color) { Value = color; }
+}
+
+/// Draggable box that can be dragged to drop targets.
+class DraggableBox : Border, IDragSource
+{
+	private UIContext mUIContext;
+	private String mLabel ~ delete _;
+	private Color mColor;
+	private bool mDragging = false;
+	private ColorBox mColorBox ~ delete _; // Owned for DragData lifetime
+
+	public this(UIContext context, StringView label, Color color)
+	{
+		mUIContext = context;
+		mLabel = new String(label);
+		mColor = color;
+		mColorBox = new ColorBox(color);
+		Background = color;
+		CornerRadius = 4;
+
+		// Add label
+		let text = new TextBlock();
+		text.Text = label;
+		text.Foreground = Color.White;
+		text.HorizontalAlignment = .Center;
+		text.VerticalAlignment = .Center;
+		AddChild(text);
+	}
+
+	public DragData OnDragStart(float x, float y)
+	{
+		let data = new DragData();
+		data.SetData("color", mColorBox);
+		data.SetData("label", mLabel);
+		return data;
+	}
+
+	public DragDropEffects GetAllowedEffects()
+	{
+		return .Copy | .Move;
+	}
+
+	public void OnDragComplete(DragDropEffects effect)
+	{
+		mDragging = false;
+		Console.WriteLine(scope $"Drag completed: {mLabel} with effect {effect}");
+	}
+
+	public void OnDragCancelled()
+	{
+		mDragging = false;
+		Console.WriteLine(scope $"Drag cancelled: {mLabel}");
+	}
+
+	protected override void OnMouseDownRouted(MouseButtonEventArgs args)
+	{
+		if (args.Button == .Left)
+		{
+			// Start drag operation
+			mDragging = true;
+			mUIContext.DragDrop.StartDrag(this, args.ScreenX, args.ScreenY);
+			args.Handled = true;
+		}
+		base.OnMouseDownRouted(args);
+	}
+}
+
+/// Drop target that accepts dragged items.
+class DropTargetBox : Border, IDropTarget
+{
+	private String mDroppedLabel ~ delete _;
+	private Color mDroppedColor = Color(60, 60, 70);
+	private bool mIsHighlighted = false;
+	private TextBlock mLabel;
+
+	public this()
+	{
+		Background = Color(60, 60, 70);
+		BorderBrush = Color(100, 100, 110);
+		BorderThickness = Thickness(2);
+		CornerRadius = 4;
+		mDroppedLabel = new String("Drop items here");
+
+		mLabel = new TextBlock();
+		mLabel.Text = mDroppedLabel;
+		mLabel.Foreground = Color(150, 150, 150);
+		mLabel.HorizontalAlignment = .Center;
+		mLabel.VerticalAlignment = .Center;
+		AddChild(mLabel);
+	}
+
+	public void OnDragEnter(DragEventArgs args)
+	{
+		// Check if we accept this data
+		if (args.Data.HasData("color"))
+		{
+			args.Effect = .Copy;
+			mIsHighlighted = true;
+			BorderBrush = Color(100, 200, 100);
+			InvalidateVisual();
+		}
+	}
+
+	public void OnDragOver(DragEventArgs args)
+	{
+		if (args.Data.HasData("color"))
+		{
+			args.Effect = .Copy;
+		}
+	}
+
+	public void OnDragLeave(DragEventArgs args)
+	{
+		mIsHighlighted = false;
+		BorderBrush = Color(100, 100, 110);
+		InvalidateVisual();
+	}
+
+	public void OnDrop(DragEventArgs args)
+	{
+		mIsHighlighted = false;
+		BorderBrush = Color(100, 100, 110);
+
+		if (args.Data.HasData("label"))
+		{
+			let label = args.Data.GetData("label") as String;
+			if (label != null)
+			{
+				mDroppedLabel.Set(scope $"Dropped: {label}");
+				mLabel.Text = mDroppedLabel;
+			}
+		}
+
+		if (args.Data.HasData("color"))
+		{
+			let colorBox = args.Data.GetData("color") as ColorBox;
+			if (colorBox != null)
+			{
+				Background = colorBox.Value;
+			}
+		}
+
+		args.Effect = .Copy;
+		args.Handled = true;
+		InvalidateVisual();
+	}
+}
+
 /// UI Sandbox sample demonstrating the Sedulous.UI framework.
 class UISandboxSample : RHISampleApp
 {
@@ -932,6 +1127,66 @@ class UISandboxSample : RHISampleApp
 			slider.Width = 300;
 			slider.Value = 0.5f;
 			panel.AddChild(slider);
+		});
+
+		// Section: Context Menu
+		AddSection(content, "Context Menu", scope (panel) => {
+			let desc = new TextBlock();
+			desc.Text = "Right-click the area below:";
+			desc.Foreground = Color(150, 150, 150);
+			panel.AddChild(desc);
+
+			let contextArea = new ContextMenuArea(mUIContext);
+			contextArea.Width = 300;
+			contextArea.Height = 60;
+			contextArea.Background = Color(50, 60, 70);
+			contextArea.CornerRadius = 4;
+
+			let areaLabel = new TextBlock();
+			areaLabel.Text = "Right-click here";
+			areaLabel.Foreground = Color(200, 200, 200);
+			areaLabel.HorizontalAlignment = .Center;
+			areaLabel.VerticalAlignment = .Center;
+			contextArea.AddChild(areaLabel);
+
+			panel.AddChild(contextArea);
+		});
+
+		// Section: Drag and Drop
+		AddSection(content, "Drag and Drop", scope (panel) => {
+			let desc = new TextBlock();
+			desc.Text = "Drag colored boxes to the drop area:";
+			desc.Foreground = Color(150, 150, 150);
+			panel.AddChild(desc);
+
+			// Drag sources row
+			let dragRow = new StackPanel();
+			dragRow.Orientation = .Horizontal;
+			dragRow.Spacing = 10;
+
+			let redDrag = new DraggableBox(mUIContext, "Red", Color(180, 60, 60));
+			redDrag.Width = 60;
+			redDrag.Height = 40;
+			dragRow.AddChild(redDrag);
+
+			let greenDrag = new DraggableBox(mUIContext, "Green", Color(60, 180, 60));
+			greenDrag.Width = 60;
+			greenDrag.Height = 40;
+			dragRow.AddChild(greenDrag);
+
+			let blueDrag = new DraggableBox(mUIContext, "Blue", Color(60, 60, 180));
+			blueDrag.Width = 60;
+			blueDrag.Height = 40;
+			dragRow.AddChild(blueDrag);
+
+			panel.AddChild(dragRow);
+
+			// Drop target
+			let dropTarget = new DropTargetBox();
+			dropTarget.Width = 300;
+			dropTarget.Height = 60;
+			dropTarget.Margin = Thickness(0, 10, 0, 0);
+			panel.AddChild(dropTarget);
 		});
 
 		// Section: Layout Demos (middle column)

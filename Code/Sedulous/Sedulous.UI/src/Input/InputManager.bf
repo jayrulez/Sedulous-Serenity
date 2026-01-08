@@ -217,13 +217,10 @@ public class InputManager
 	}
 
 	/// Performs hit testing in logical coordinates (already scaled).
-	/// This bypasses UIContext.HitTest which expects physical coordinates.
+	/// Uses UIContext.HitTestLogical which checks popups first.
 	private UIElement HitTestLogical(float x, float y)
 	{
-		let root = mContext.RootElement;
-		if (root == null)
-			return null;
-		return root.HitTest(x, y);
+		return mContext.HitTestLogical(x, y);
 	}
 
 	/// Updates the hovered element and fires enter/leave events.

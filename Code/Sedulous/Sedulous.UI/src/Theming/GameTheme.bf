@@ -29,6 +29,7 @@ public class GameTheme : Theme
 		SetColor("Background", .(15, 18, 25));
 		SetColor("BackgroundAlt", .(25, 30, 40));
 		SetColor("BackgroundDark", .(8, 10, 15));
+		SetColor("Surface", .(25, 30, 40)); // Popup/menu surface
 
 		// Foreground colors
 		SetColor("Foreground", .(220, 230, 240));
@@ -43,6 +44,7 @@ public class GameTheme : Theme
 
 		// State colors
 		SetColor("Hover", .(35, 45, 60));
+		SetColor("PrimaryHover", .(0, 100, 120)); // Menu item hover (cyan tinted)
 		SetColor("Pressed", .(45, 60, 80));
 		SetColor("Selected", .(0, 120, 140));
 		SetColor("Disabled", .(20, 25, 35));

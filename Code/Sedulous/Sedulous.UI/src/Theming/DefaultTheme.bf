@@ -28,6 +28,7 @@ public class DefaultTheme : Theme
 		SetColor("Background", Color.White);
 		SetColor("BackgroundAlt", .(243, 243, 243));
 		SetColor("BackgroundDark", .(230, 230, 230));
+		SetColor("Surface", .(250, 250, 250)); // Popup/menu surface
 
 		// Foreground colors
 		SetColor("Foreground", Color.Black);
@@ -42,6 +43,7 @@ public class DefaultTheme : Theme
 
 		// State colors
 		SetColor("Hover", .(229, 241, 251));
+		SetColor("PrimaryHover", .(0, 120, 215, 80)); // Menu item hover
 		SetColor("Pressed", .(204, 228, 247));
 		SetColor("Selected", .(204, 228, 247));
 		SetColor("Disabled", .(243, 243, 243));

@@ -72,6 +72,9 @@ public class UIContext
 	// Animation manager
 	private AnimationManager mAnimationManager ~ delete _;
 
+	// Drag-drop manager
+	private DragDropManager mDragDropManager ~ delete _;
+
 	// Generic service registry
 	private Dictionary<Type, Object> mServices = new .() ~ delete _;
 
@@ -95,6 +98,12 @@ public class UIContext
 
 	// UI scale factor (1.0 = 100%, 2.0 = 200% for HiDPI)
 	private float mScale = 1.0f;
+
+	// Popup management
+	private List<Popup> mActivePopups = new .() ~ delete _;
+	private Popup mModalPopup; // Currently active modal popup (blocks input to lower layers)
+	private float mLastMouseX;
+	private float mLastMouseY;
 
 	/// The root element of the UI tree.
 	public UIElement RootElement
@@ -183,6 +192,7 @@ public class UIContext
 		mDebugSettings = .Default;
 		mInputManager = new InputManager(this);
 		mAnimationManager = new AnimationManager();
+		mDragDropManager = new DragDropManager(this);
 	}
 
 	/// The input manager for this context.
@@ -190,6 +200,21 @@ public class UIContext
 
 	/// The animation manager for this context.
 	public AnimationManager Animations => mAnimationManager;
+
+	/// The drag-drop manager for this context.
+	public DragDropManager DragDrop => mDragDropManager;
+
+	/// Active popups (read-only view).
+	public Span<Popup> ActivePopups => mActivePopups;
+
+	/// Whether any popup is currently open.
+	public bool HasOpenPopups => mActivePopups.Count > 0;
+
+	/// Whether a modal popup is blocking input.
+	public bool IsModalActive => mModalPopup != null;
+
+	/// Last known mouse position (logical coordinates).
+	public (float X, float Y) LastMousePosition => (mLastMouseX, mLastMouseY);
 
 	public ~this()
 	{
@@ -318,6 +343,100 @@ public class UIContext
 		mCapturedElement = null;
 	}
 
+	// === Popup Management ===
+
+	/// Opens a popup and adds it to the active popup list.
+	/// Called internally by Popup.Open().
+	public void OpenPopup(Popup popup)
+	{
+		if (popup == null || mActivePopups.Contains(popup))
+			return;
+
+		// Set context on popup
+		popup.[Friend]mContext = this;
+
+		mActivePopups.Add(popup);
+
+		// Track modal state
+		if (popup.IsModal)
+			mModalPopup = popup;
+
+		InvalidateLayout();
+	}
+
+	/// Closes a popup and removes it from the active popup list.
+	/// Called internally by Popup.Close().
+	public void ClosePopup(Popup popup)
+	{
+		if (popup == null)
+			return;
+
+		mActivePopups.Remove(popup);
+
+		// Clear context
+		popup.[Friend]mContext = null;
+
+		// Update modal state
+		if (mModalPopup == popup)
+		{
+			// Find next modal popup if any
+			mModalPopup = null;
+			for (let p in mActivePopups)
+			{
+				if (p.IsModal)
+				{
+					mModalPopup = p;
+					break;
+				}
+			}
+		}
+
+		InvalidateVisual();
+	}
+
+	/// Closes all open popups.
+	public void CloseAllPopups()
+	{
+		// Close in reverse order (newest first)
+		while (mActivePopups.Count > 0)
+		{
+			let popup = mActivePopups[mActivePopups.Count - 1];
+			popup.Close();
+		}
+	}
+
+	/// Closes popups that should close when clicking outside.
+	/// Returns true if any popup was closed.
+	internal bool HandleClickOutsidePopups(float x, float y)
+	{
+		var closedAny = false;
+
+		// Check popups in reverse order (topmost first)
+		for (int i = mActivePopups.Count - 1; i >= 0; i--)
+		{
+			let popup = mActivePopups[i];
+			if (popup.ShouldCloseOnClickOutside(x, y))
+			{
+				popup.Close();
+				closedAny = true;
+			}
+		}
+
+		return closedAny;
+	}
+
+	/// Shows a context menu at the specified position.
+	public void ShowContextMenu(ContextMenu menu, float x, float y)
+	{
+		menu.OpenAt(x, y);
+	}
+
+	/// Shows a context menu anchored to an element.
+	public void ShowContextMenu(ContextMenu menu, UIElement anchor, PopupPlacement placement = .Bottom)
+	{
+		menu.OpenAt(anchor, placement);
+	}
+
 	/// Updates the UI state. Call this each frame.
 	public void Update(float deltaTime, double totalTime)
 	{
@@ -338,28 +457,41 @@ public class UIContext
 	/// Performs the layout pass on the element tree.
 	private void PerformLayout()
 	{
-		if (mRootElement == null)
-			return;
-
 		// Use logical size for layout (physical size / scale)
 		let logicalWidth = mViewportWidth / mScale;
 		let logicalHeight = mViewportHeight / mScale;
 
-		// Measure pass
-		let availableSize = SizeConstraints.FromMaximum(logicalWidth, logicalHeight);
-		mRootElement.Measure(availableSize);
+		// Layout main UI
+		if (mRootElement != null)
+		{
+			// Measure pass
+			let availableSize = SizeConstraints.FromMaximum(logicalWidth, logicalHeight);
+			mRootElement.Measure(availableSize);
 
-		// Arrange pass
-		let finalRect = RectangleF(0, 0, logicalWidth, logicalHeight);
-		mRootElement.Arrange(finalRect);
+			// Arrange pass
+			let finalRect = RectangleF(0, 0, logicalWidth, logicalHeight);
+			mRootElement.Arrange(finalRect);
+		}
+
+		// Layout popups
+		for (let popup in mActivePopups)
+		{
+			// Measure popup
+			let popupConstraints = SizeConstraints.FromMaximum(logicalWidth, logicalHeight);
+			popup.Measure(popupConstraints);
+
+			// Calculate popup position
+			let position = popup.CalculatePosition(logicalWidth, logicalHeight);
+
+			// Arrange popup at calculated position
+			let popupRect = RectangleF(position.X, position.Y, popup.DesiredSize.Width, popup.DesiredSize.Height);
+			popup.Arrange(popupRect);
+		}
 	}
 
 	/// Renders the UI to the provided draw context.
 	public void Render(DrawContext drawContext)
 	{
-		if (mRootElement == null)
-			return;
-
 		// Apply scale transform for resolution independence
 		if (mScale != 1.0f)
 		{
@@ -367,7 +499,31 @@ public class UIContext
 			drawContext.Scale(mScale, mScale);
 		}
 
-		mRootElement.Render(drawContext);
+		// Render main UI
+		if (mRootElement != null)
+		{
+			mRootElement.Render(drawContext);
+		}
+
+		// Render modal dimming overlay if modal popup is active
+		if (mModalPopup != null && mModalPopup.Behavior.HasFlag(.DimBackground))
+		{
+			let logicalWidth = mViewportWidth / mScale;
+			let logicalHeight = mViewportHeight / mScale;
+			drawContext.FillRect(.(0, 0, logicalWidth, logicalHeight), Color(0, 0, 0, 128));
+		}
+
+		// Render popups (in order, so later popups appear on top)
+		for (let popup in mActivePopups)
+		{
+			popup.Render(drawContext);
+		}
+
+		// Render drag-drop visual if active
+		if (mDragDropManager.IsDragging)
+		{
+			mDragDropManager.RenderDragVisual(drawContext);
+		}
 
 		// Debug visualization
 		if (mDebugSettings.ShowLayoutBounds || mDebugSettings.ShowMargins ||
@@ -493,12 +649,54 @@ public class UIContext
 
 	/// Performs hit testing to find the element at the specified point.
 	/// Coordinates are in physical pixels and will be converted to logical coordinates.
+	/// Checks popups first (in reverse order), then main UI.
 	public UIElement HitTest(float x, float y)
 	{
-		if (mRootElement == null)
+		let logicalX = x / mScale;
+		let logicalY = y / mScale;
+
+		// Check popups first (in reverse order - topmost first)
+		for (int i = mActivePopups.Count - 1; i >= 0; i--)
+		{
+			let popup = mActivePopups[i];
+			let hit = popup.HitTest(logicalX, logicalY);
+			if (hit != null)
+				return hit;
+		}
+
+		// If modal popup is active, block hits to main UI
+		if (mModalPopup != null)
 			return null;
 
-		return mRootElement.HitTest(x / mScale, y / mScale);
+		// Check main UI
+		if (mRootElement != null)
+			return mRootElement.HitTest(logicalX, logicalY);
+
+		return null;
+	}
+
+	/// Performs hit testing in logical coordinates (already scaled).
+	/// Checks popups first (in reverse order), then main UI.
+	public UIElement HitTestLogical(float x, float y)
+	{
+		// Check popups first (in reverse order - topmost first)
+		for (int i = mActivePopups.Count - 1; i >= 0; i--)
+		{
+			let popup = mActivePopups[i];
+			let hit = popup.HitTest(x, y);
+			if (hit != null)
+				return hit;
+		}
+
+		// If modal popup is active, block hits to main UI
+		if (mModalPopup != null)
+			return null;
+
+		// Check main UI
+		if (mRootElement != null)
+			return mRootElement.HitTest(x, y);
+
+		return null;
 	}
 
 	/// Finds an element by its ID.
@@ -516,21 +714,54 @@ public class UIContext
 	/// Coordinates are in physical pixels and will be converted to logical coordinates.
 	public void ProcessMouseMove(float x, float y, KeyModifiers modifiers = .None)
 	{
-		mInputManager.ProcessMouseMove(x / mScale, y / mScale, modifiers);
+		let logicalX = x / mScale;
+		let logicalY = y / mScale;
+		mLastMouseX = logicalX;
+		mLastMouseY = logicalY;
+
+		// Update drag-drop if active
+		if (mDragDropManager.IsDragging)
+		{
+			mDragDropManager.UpdateDrag(logicalX, logicalY, modifiers);
+		}
+
+		mInputManager.ProcessMouseMove(logicalX, logicalY, modifiers);
 	}
 
 	/// Process mouse button press (simple API).
 	/// Coordinates are in physical pixels and will be converted to logical coordinates.
 	public void ProcessMouseDown(MouseButton button, float x, float y, KeyModifiers modifiers = .None)
 	{
-		mInputManager.ProcessMouseDown(button, x / mScale, y / mScale, modifiers);
+		let logicalX = x / mScale;
+		let logicalY = y / mScale;
+		mLastMouseX = logicalX;
+		mLastMouseY = logicalY;
+
+		// Check if we should close any popups (click outside)
+		if (button == .Left)
+		{
+			HandleClickOutsidePopups(logicalX, logicalY);
+		}
+
+		mInputManager.ProcessMouseDown(button, logicalX, logicalY, modifiers);
 	}
 
 	/// Process mouse button release (simple API).
 	/// Coordinates are in physical pixels and will be converted to logical coordinates.
 	public void ProcessMouseUp(MouseButton button, float x, float y, KeyModifiers modifiers = .None)
 	{
-		mInputManager.ProcessMouseUp(button, x / mScale, y / mScale, modifiers);
+		let logicalX = x / mScale;
+		let logicalY = y / mScale;
+		mLastMouseX = logicalX;
+		mLastMouseY = logicalY;
+
+		// End drag-drop if active
+		if (mDragDropManager.IsDragging && button == .Left)
+		{
+			mDragDropManager.EndDrag(logicalX, logicalY, modifiers);
+		}
+
+		mInputManager.ProcessMouseUp(button, logicalX, logicalY, modifiers);
 	}
 
 	/// Process mouse wheel.
