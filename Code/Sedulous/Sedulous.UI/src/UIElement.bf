@@ -615,4 +615,49 @@ public abstract class UIElement
 	{
 		mOnClickEvent.[Friend]Invoke(this);
 	}
+
+	// === Routed Input Handlers (called by InputManager with event args) ===
+
+	/// Called when the mouse moves over this element (routed event).
+	protected virtual void OnMouseMoveRouted(MouseEventArgs args)
+	{
+		// Default implementation invokes the event
+		mOnMouseMoveEvent.[Friend]Invoke(this, args.LocalX, args.LocalY);
+	}
+
+	/// Called when a mouse button is pressed (routed event).
+	protected virtual void OnMouseDownRouted(MouseButtonEventArgs args)
+	{
+		mOnMouseDownEvent.[Friend]Invoke(this, (int)args.Button, args.LocalX, args.LocalY);
+	}
+
+	/// Called when a mouse button is released (routed event).
+	protected virtual void OnMouseUpRouted(MouseButtonEventArgs args)
+	{
+		mOnMouseUpEvent.[Friend]Invoke(this, (int)args.Button, args.LocalX, args.LocalY);
+	}
+
+	/// Called when the mouse wheel is scrolled (routed event).
+	protected virtual void OnMouseWheelRouted(MouseWheelEventArgs args)
+	{
+		mOnMouseWheelEvent.[Friend]Invoke(this, args.DeltaX, args.DeltaY);
+	}
+
+	/// Called when a key is pressed (routed event).
+	protected virtual void OnKeyDownRouted(KeyEventArgs args)
+	{
+		mOnKeyDownEvent.[Friend]Invoke(this, args.KeyCode, (int32)args.Modifiers);
+	}
+
+	/// Called when a key is released (routed event).
+	protected virtual void OnKeyUpRouted(KeyEventArgs args)
+	{
+		mOnKeyUpEvent.[Friend]Invoke(this, args.KeyCode, (int32)args.Modifiers);
+	}
+
+	/// Called when text is input (routed event).
+	protected virtual void OnTextInputRouted(TextInputEventArgs args)
+	{
+		mOnTextInputEvent.[Friend]Invoke(this, args.Character);
+	}
 }

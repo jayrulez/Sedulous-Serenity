@@ -64,6 +64,9 @@ public class UIContext
 	private IClipboard mClipboard;
 	private ISystemServices mSystemServices;
 
+	// Input manager
+	private InputManager mInputManager ~ delete _;
+
 	// Generic service registry
 	private Dictionary<Type, Object> mServices = new .() ~ delete _;
 
@@ -145,7 +148,11 @@ public class UIContext
 	public this()
 	{
 		mDebugSettings = .Default;
+		mInputManager = new InputManager(this);
 	}
+
+	/// The input manager for this context.
+	public InputManager InputManager => mInputManager;
 
 	public ~this()
 	{
@@ -390,76 +397,47 @@ public class UIContext
 		return mRootElement.FindElementById(id);
 	}
 
-	// === Input Processing (expanded in Stage 4) ===
+	// === Input Processing ===
 
-	/// Process mouse movement.
-	internal void ProcessMouseMove(float x, float y)
+	/// Process mouse movement (simple API).
+	public void ProcessMouseMove(float x, float y, KeyModifiers modifiers = .None)
 	{
-		let target = mCapturedElement ?? HitTest(x, y);
-
-		// Handle mouse enter/leave
-		if (target != mHoveredElement)
-		{
-			if (mHoveredElement != null)
-				mHoveredElement.[Friend]OnMouseLeave();
-
-			mHoveredElement = target;
-
-			if (mHoveredElement != null)
-				mHoveredElement.[Friend]OnMouseEnter();
-		}
-
-		if (target != null)
-			target.[Friend]OnMouseMove(x - target.Bounds.X, y - target.Bounds.Y);
+		mInputManager.ProcessMouseMove(x, y, modifiers);
 	}
 
-	/// Process mouse button press/release.
-	internal void ProcessMouseButton(int button, bool pressed, float x, float y)
+	/// Process mouse button press (simple API).
+	public void ProcessMouseDown(MouseButton button, float x, float y, KeyModifiers modifiers = .None)
 	{
-		let target = mCapturedElement ?? HitTest(x, y);
-		if (target == null)
-			return;
+		mInputManager.ProcessMouseDown(button, x, y, modifiers);
+	}
 
-		let localX = x - target.Bounds.X;
-		let localY = y - target.Bounds.Y;
-
-		if (pressed)
-		{
-			target.[Friend]OnMouseDown(button, localX, localY);
-			// Set focus on click
-			if (target.Focusable)
-				SetFocus(target);
-		}
-		else
-		{
-			target.[Friend]OnMouseUp(button, localX, localY);
-		}
+	/// Process mouse button release (simple API).
+	public void ProcessMouseUp(MouseButton button, float x, float y, KeyModifiers modifiers = .None)
+	{
+		mInputManager.ProcessMouseUp(button, x, y, modifiers);
 	}
 
 	/// Process mouse wheel.
-	internal void ProcessMouseWheel(float deltaX, float deltaY, float x, float y)
+	public void ProcessMouseWheel(float deltaX, float deltaY, float x, float y, KeyModifiers modifiers = .None)
 	{
-		let target = HitTest(x, y);
-		if (target != null)
-			target.[Friend]OnMouseWheel(deltaX, deltaY);
+		mInputManager.ProcessMouseWheel(deltaX, deltaY, x, y, modifiers);
 	}
 
-	/// Process key press/release.
-	internal void ProcessKeyEvent(int32 keyCode, bool pressed, int32 modifiers)
+	/// Process key down.
+	public void ProcessKeyDown(int32 keyCode, int32 scanCode = 0, KeyModifiers modifiers = .None, bool isRepeat = false)
 	{
-		if (mFocusedElement != null)
-		{
-			if (pressed)
-				mFocusedElement.[Friend]OnKeyDown(keyCode, modifiers);
-			else
-				mFocusedElement.[Friend]OnKeyUp(keyCode, modifiers);
-		}
+		mInputManager.ProcessKeyDown(keyCode, scanCode, modifiers, isRepeat);
+	}
+
+	/// Process key up.
+	public void ProcessKeyUp(int32 keyCode, int32 scanCode = 0, KeyModifiers modifiers = .None)
+	{
+		mInputManager.ProcessKeyUp(keyCode, scanCode, modifiers);
 	}
 
 	/// Process text input.
-	internal void ProcessTextInput(char32 character)
+	public void ProcessTextInput(char32 character)
 	{
-		if (mFocusedElement != null)
-			mFocusedElement.[Friend]OnTextInput(character);
+		mInputManager.ProcessTextInput(character);
 	}
 }
