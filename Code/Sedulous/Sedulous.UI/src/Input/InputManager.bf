@@ -50,12 +50,13 @@ public class InputManager
 	}
 
 	/// Process mouse movement.
+	/// Note: Coordinates should already be in logical space (scaled by UIContext).
 	public void ProcessMouseMove(float x, float y, KeyModifiers modifiers = .None)
 	{
 		mLastMouseX = x;
 		mLastMouseY = y;
 
-		let target = mContext.CapturedElement ?? mContext.HitTest(x, y);
+		let target = mContext.CapturedElement ?? HitTestLogical(x, y);
 
 		// Handle mouse enter/leave
 		UpdateHoveredElement(target);
@@ -77,6 +78,7 @@ public class InputManager
 	}
 
 	/// Process mouse button press.
+	/// Note: Coordinates should already be in logical space (scaled by UIContext).
 	public void ProcessMouseDown(MouseButton button, float x, float y, KeyModifiers modifiers = .None)
 	{
 		let idx = (int)button;
@@ -86,7 +88,7 @@ public class InputManager
 		mLastMouseX = x;
 		mLastMouseY = y;
 
-		let target = mContext.CapturedElement ?? mContext.HitTest(x, y);
+		let target = mContext.CapturedElement ?? HitTestLogical(x, y);
 
 		// Handle click counting for double-click detection
 		let clickCount = CalculateClickCount(button, x, y);
@@ -113,6 +115,7 @@ public class InputManager
 	}
 
 	/// Process mouse button release.
+	/// Note: Coordinates should already be in logical space (scaled by UIContext).
 	public void ProcessMouseUp(MouseButton button, float x, float y, KeyModifiers modifiers = .None)
 	{
 		let idx = (int)button;
@@ -122,7 +125,7 @@ public class InputManager
 		mLastMouseX = x;
 		mLastMouseY = y;
 
-		let target = mContext.CapturedElement ?? mContext.HitTest(x, y);
+		let target = mContext.CapturedElement ?? HitTestLogical(x, y);
 		if (target != null)
 		{
 			mMouseButtonArgs.Reset();
@@ -141,9 +144,10 @@ public class InputManager
 	}
 
 	/// Process mouse wheel scroll.
+	/// Note: Coordinates should already be in logical space (scaled by UIContext).
 	public void ProcessMouseWheel(float deltaX, float deltaY, float x, float y, KeyModifiers modifiers = .None)
 	{
-		let target = mContext.HitTest(x, y);
+		let target = HitTestLogical(x, y);
 		if (target != null)
 		{
 			mMouseWheelArgs.Reset();
@@ -210,6 +214,16 @@ public class InputManager
 
 			RouteEvent(target, mTextInputArgs, .OnTextInput);
 		}
+	}
+
+	/// Performs hit testing in logical coordinates (already scaled).
+	/// This bypasses UIContext.HitTest which expects physical coordinates.
+	private UIElement HitTestLogical(float x, float y)
+	{
+		let root = mContext.RootElement;
+		if (root == null)
+			return null;
+		return root.HitTest(x, y);
 	}
 
 	/// Updates the hovered element and fires enter/leave events.

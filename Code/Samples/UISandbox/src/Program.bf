@@ -537,6 +537,47 @@ class UISandboxSample : RHISampleApp
 		});
 		header.AddChild(gameRadio);
 
+		// Scale selector spacer
+		let scaleSpacer = new Border();
+		scaleSpacer.Width = 40;
+		header.AddChild(scaleSpacer);
+
+		// Scale selector label
+		let scaleLabel = new TextBlock();
+		scaleLabel.Text = "Scale:";
+		scaleLabel.Foreground = Color(180, 180, 180);
+		scaleLabel.VerticalAlignment = .Center;
+		scaleLabel.Margin = Thickness(0, 0, 10, 0);
+		header.AddChild(scaleLabel);
+
+		// Scale radio buttons
+		let scale08Radio = new RadioButton("0.8x", "scale");
+		scale08Radio.Foreground = Color.White;
+		scale08Radio.VerticalAlignment = .Center;
+		scale08Radio.Margin = Thickness(0, 0, 15, 0);
+		scale08Radio.Click.Subscribe(new (sender) => {
+			mUIContext.Scale = 0.8f;
+		});
+		header.AddChild(scale08Radio);
+
+		let scale10Radio = new RadioButton("1.0x", "scale");
+		scale10Radio.Foreground = Color.White;
+		scale10Radio.IsChecked = true;
+		scale10Radio.VerticalAlignment = .Center;
+		scale10Radio.Margin = Thickness(0, 0, 15, 0);
+		scale10Radio.Click.Subscribe(new (sender) => {
+			mUIContext.Scale = 1.0f;
+		});
+		header.AddChild(scale10Radio);
+
+		let scale15Radio = new RadioButton("1.5x", "scale");
+		scale15Radio.Foreground = Color.White;
+		scale15Radio.VerticalAlignment = .Center;
+		scale15Radio.Click.Subscribe(new (sender) => {
+			mUIContext.Scale = 1.5f;
+		});
+		header.AddChild(scale15Radio);
+
 		root.AddChild(header);
 
 		// Main content area with scroll

@@ -89,9 +89,12 @@ public class UIContext
 	// Debug settings
 	private UIDebugSettings mDebugSettings;
 
-	// Viewport size
+	// Viewport size (physical pixels)
 	private float mViewportWidth;
 	private float mViewportHeight;
+
+	// UI scale factor (1.0 = 100%, 2.0 = 200% for HiDPI)
+	private float mScale = 1.0f;
 
 	/// The root element of the UI tree.
 	public UIElement RootElement
@@ -141,11 +144,33 @@ public class UIContext
 	/// Time elapsed since the last update.
 	public float DeltaTime => mDeltaTime;
 
-	/// Current viewport width.
+	/// Current viewport width (physical pixels).
 	public float ViewportWidth => mViewportWidth;
 
-	/// Current viewport height.
+	/// Current viewport height (physical pixels).
 	public float ViewportHeight => mViewportHeight;
+
+	/// Logical viewport width (ViewportWidth / Scale).
+	public float LogicalWidth => mViewportWidth / mScale;
+
+	/// Logical viewport height (ViewportHeight / Scale).
+	public float LogicalHeight => mViewportHeight / mScale;
+
+	/// The UI scale factor. Default is 1.0.
+	/// Values > 1.0 make UI elements larger (e.g., 2.0 for HiDPI/Retina displays).
+	public float Scale
+	{
+		get => mScale;
+		set
+		{
+			let newScale = Math.Max(0.1f, value); // Clamp to reasonable minimum
+			if (mScale != newScale)
+			{
+				mScale = newScale;
+				InvalidateLayout();
+			}
+		}
+	}
 
 	/// Whether layout needs to be recalculated.
 	public bool IsLayoutDirty => mLayoutDirty;
@@ -316,12 +341,16 @@ public class UIContext
 		if (mRootElement == null)
 			return;
 
+		// Use logical size for layout (physical size / scale)
+		let logicalWidth = mViewportWidth / mScale;
+		let logicalHeight = mViewportHeight / mScale;
+
 		// Measure pass
-		let availableSize = SizeConstraints.FromMaximum(mViewportWidth, mViewportHeight);
+		let availableSize = SizeConstraints.FromMaximum(logicalWidth, logicalHeight);
 		mRootElement.Measure(availableSize);
 
 		// Arrange pass
-		let finalRect = RectangleF(0, 0, mViewportWidth, mViewportHeight);
+		let finalRect = RectangleF(0, 0, logicalWidth, logicalHeight);
 		mRootElement.Arrange(finalRect);
 	}
 
@@ -331,6 +360,13 @@ public class UIContext
 		if (mRootElement == null)
 			return;
 
+		// Apply scale transform for resolution independence
+		if (mScale != 1.0f)
+		{
+			drawContext.PushState();
+			drawContext.Scale(mScale, mScale);
+		}
+
 		mRootElement.Render(drawContext);
 
 		// Debug visualization
@@ -339,6 +375,12 @@ public class UIContext
 			mDebugSettings.ShowHitTestBounds)
 		{
 			RenderDebugOverlay(drawContext);
+		}
+
+		// Restore transform
+		if (mScale != 1.0f)
+		{
+			drawContext.PopState();
 		}
 
 		mVisualDirty = false;
@@ -450,12 +492,13 @@ public class UIContext
 	}
 
 	/// Performs hit testing to find the element at the specified point.
+	/// Coordinates are in physical pixels and will be converted to logical coordinates.
 	public UIElement HitTest(float x, float y)
 	{
 		if (mRootElement == null)
 			return null;
 
-		return mRootElement.HitTest(x, y);
+		return mRootElement.HitTest(x / mScale, y / mScale);
 	}
 
 	/// Finds an element by its ID.
@@ -470,27 +513,31 @@ public class UIContext
 	// === Input Processing ===
 
 	/// Process mouse movement (simple API).
+	/// Coordinates are in physical pixels and will be converted to logical coordinates.
 	public void ProcessMouseMove(float x, float y, KeyModifiers modifiers = .None)
 	{
-		mInputManager.ProcessMouseMove(x, y, modifiers);
+		mInputManager.ProcessMouseMove(x / mScale, y / mScale, modifiers);
 	}
 
 	/// Process mouse button press (simple API).
+	/// Coordinates are in physical pixels and will be converted to logical coordinates.
 	public void ProcessMouseDown(MouseButton button, float x, float y, KeyModifiers modifiers = .None)
 	{
-		mInputManager.ProcessMouseDown(button, x, y, modifiers);
+		mInputManager.ProcessMouseDown(button, x / mScale, y / mScale, modifiers);
 	}
 
 	/// Process mouse button release (simple API).
+	/// Coordinates are in physical pixels and will be converted to logical coordinates.
 	public void ProcessMouseUp(MouseButton button, float x, float y, KeyModifiers modifiers = .None)
 	{
-		mInputManager.ProcessMouseUp(button, x, y, modifiers);
+		mInputManager.ProcessMouseUp(button, x / mScale, y / mScale, modifiers);
 	}
 
 	/// Process mouse wheel.
+	/// Coordinates are in physical pixels and will be converted to logical coordinates.
 	public void ProcessMouseWheel(float deltaX, float deltaY, float x, float y, KeyModifiers modifiers = .None)
 	{
-		mInputManager.ProcessMouseWheel(deltaX, deltaY, x, y, modifiers);
+		mInputManager.ProcessMouseWheel(deltaX, deltaY, x / mScale, y / mScale, modifiers);
 	}
 
 	/// Process key down.
