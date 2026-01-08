@@ -148,6 +148,25 @@ class UISandboxSample : RHISampleApp
 	private List<DrawCommand> mDrawCommands = new .() ~ delete _;
 	private int mMaxQuads = 8192;
 
+	// MSAA resources
+	private const uint32 MSAA_SAMPLES = 4;
+	private bool mUseMSAA = true;
+	private RHITexture mMsaaTexture;
+	private ITextureView mMsaaTextureView;
+	private RHITexture mResolveTexture;
+	private ITextureView mResolveTextureView;
+	private IRenderPipeline mMsaaPipeline;
+
+	// Full-screen quad for displaying MSAA result
+	private IBuffer mQuadVertexBuffer;
+	private IShaderModule mQuadVertShader;
+	private IShaderModule mQuadFragShader;
+	private IBindGroupLayout mQuadBindGroupLayout;
+	private IBindGroup mQuadBindGroup;
+	private IPipelineLayout mQuadPipelineLayout;
+	private IRenderPipeline mQuadPipeline;
+	private ISampler mQuadSampler;
+
 	// Animation state
 	private float mAnimationTime = 0;
 
@@ -186,6 +205,12 @@ class UISandboxSample : RHISampleApp
 		if (!CreatePipeline())
 			return false;
 
+		if (!CreateMsaaTargets())
+			return false;
+
+		if (!CreateQuadResources())
+			return false;
+
 		// Set white pixel UV from the font atlas
 		let (u, v) = mFontAtlas.WhitePixelUV;
 		mDrawContext.WhitePixelUV = .(u, v);
@@ -194,6 +219,7 @@ class UISandboxSample : RHISampleApp
 		if (!InitializeUI())
 			return false;
 
+		Console.WriteLine("Press F10 to toggle MSAA (currently ON)");
 		return true;
 	}
 
@@ -430,6 +456,226 @@ class UISandboxSample : RHISampleApp
 		if (Device.CreateRenderPipeline(&pipelineDesc) not case .Ok(let pipeline))
 			return false;
 		mPipeline = pipeline;
+
+		// Also create MSAA pipeline variant
+		pipelineDesc.Multisample.Count = MSAA_SAMPLES;
+		if (Device.CreateRenderPipeline(&pipelineDesc) not case .Ok(let msaaPipeline))
+			return false;
+		mMsaaPipeline = msaaPipeline;
+
+		return true;
+	}
+
+	private bool CreateMsaaTargets()
+	{
+		// Create 4x MSAA render target
+		TextureDescriptor msaaDesc = TextureDescriptor.Texture2D(
+			SwapChain.Width, SwapChain.Height,
+			SwapChain.Format, .RenderTarget | .CopySrc
+		);
+		msaaDesc.SampleCount = MSAA_SAMPLES;
+
+		if (Device.CreateTexture(&msaaDesc) not case .Ok(let msaaTex))
+		{
+			Console.WriteLine("Failed to create MSAA texture");
+			return false;
+		}
+		mMsaaTexture = msaaTex;
+
+		TextureViewDescriptor viewDesc = .()
+		{
+			Format = SwapChain.Format,
+			Dimension = .Texture2D,
+			BaseMipLevel = 0,
+			MipLevelCount = 1,
+			BaseArrayLayer = 0,
+			ArrayLayerCount = 1
+		};
+		if (Device.CreateTextureView(mMsaaTexture, &viewDesc) not case .Ok(let msaaView))
+		{
+			Console.WriteLine("Failed to create MSAA texture view");
+			return false;
+		}
+		mMsaaTextureView = msaaView;
+
+		// Create single-sample resolve target
+		TextureDescriptor resolveDesc = TextureDescriptor.Texture2D(
+			SwapChain.Width, SwapChain.Height,
+			SwapChain.Format, .RenderTarget | .Sampled | .CopyDst
+		);
+
+		if (Device.CreateTexture(&resolveDesc) not case .Ok(let resolveTex))
+		{
+			Console.WriteLine("Failed to create resolve texture");
+			return false;
+		}
+		mResolveTexture = resolveTex;
+
+		if (Device.CreateTextureView(mResolveTexture, &viewDesc) not case .Ok(let resolveView))
+		{
+			Console.WriteLine("Failed to create resolve texture view");
+			return false;
+		}
+		mResolveTextureView = resolveView;
+
+		Console.WriteLine(scope $"MSAA targets created: {SwapChain.Width}x{SwapChain.Height}, {MSAA_SAMPLES}x samples");
+		return true;
+	}
+
+	private void DestroyMsaaTargets()
+	{
+		if (mQuadBindGroup != null) { delete mQuadBindGroup; mQuadBindGroup = null; }
+		if (mResolveTextureView != null) { delete mResolveTextureView; mResolveTextureView = null; }
+		if (mResolveTexture != null) { delete mResolveTexture; mResolveTexture = null; }
+		if (mMsaaTextureView != null) { delete mMsaaTextureView; mMsaaTextureView = null; }
+		if (mMsaaTexture != null) { delete mMsaaTexture; mMsaaTexture = null; }
+	}
+
+	private bool RecreateMsaaTargets()
+	{
+		DestroyMsaaTargets();
+
+		if (!CreateMsaaTargets())
+			return false;
+
+		// Recreate quad bind group with new resolve texture
+		BindGroupEntry[2] quadBindEntries = .(
+			BindGroupEntry.Texture(0, mResolveTextureView),
+			BindGroupEntry.Sampler(0, mQuadSampler)
+		);
+		BindGroupDescriptor quadBindDesc = .(mQuadBindGroupLayout, quadBindEntries);
+		if (Device.CreateBindGroup(&quadBindDesc) not case .Ok(let quadGroup))
+			return false;
+		mQuadBindGroup = quadGroup;
+
+		return true;
+	}
+
+	private bool CreateQuadResources()
+	{
+		// Full-screen quad vertices (position + uv)
+		// UV is flipped vertically to account for texture coordinate system
+		float[24] quadVerts = .(
+			-1.0f, -1.0f, 0.0f, 0.0f, // Bottom-left
+			 1.0f, -1.0f, 1.0f, 0.0f, // Bottom-right
+			 1.0f,  1.0f, 1.0f, 1.0f, // Top-right
+			-1.0f, -1.0f, 0.0f, 0.0f, // Bottom-left
+			 1.0f,  1.0f, 1.0f, 1.0f, // Top-right
+			-1.0f,  1.0f, 0.0f, 1.0f  // Top-left
+		);
+
+		BufferDescriptor quadDesc = .()
+		{
+			Size = (uint64)(sizeof(float) * quadVerts.Count),
+			Usage = .Vertex,
+			MemoryAccess = .Upload
+		};
+
+		if (Device.CreateBuffer(&quadDesc) not case .Ok(let qvb))
+			return false;
+		mQuadVertexBuffer = qvb;
+		Device.Queue.WriteBuffer(mQuadVertexBuffer, 0, .((uint8*)&quadVerts, (int)quadDesc.Size));
+
+		// Quad shaders
+		String quadVertSrc = """
+			struct VSOutput {
+			    float4 position : SV_Position;
+			    float2 uv : TEXCOORD0;
+			};
+			VSOutput main(float2 pos : POSITION, float2 uv : TEXCOORD0) {
+			    VSOutput output;
+			    output.position = float4(pos, 0.0, 1.0);
+			    output.uv = uv;
+			    return output;
+			}
+			""";
+
+		String quadFragSrc = """
+			Texture2D tex : register(t0);
+			SamplerState samp : register(s0);
+			float4 main(float4 pos : SV_Position, float2 uv : TEXCOORD0) : SV_Target {
+			    return tex.Sample(samp, uv);
+			}
+			""";
+
+		if (ShaderUtils.CompileShader(Device, quadVertSrc, "main", .Vertex) not case .Ok(let qvs))
+		{
+			Console.WriteLine("Failed to compile quad vertex shader");
+			return false;
+		}
+		mQuadVertShader = qvs;
+
+		if (ShaderUtils.CompileShader(Device, quadFragSrc, "main", .Fragment) not case .Ok(let qfs))
+		{
+			Console.WriteLine("Failed to compile quad fragment shader");
+			return false;
+		}
+		mQuadFragShader = qfs;
+
+		// Sampler
+		SamplerDescriptor samplerDesc = .();
+		if (Device.CreateSampler(&samplerDesc) not case .Ok(let sampler))
+			return false;
+		mQuadSampler = sampler;
+
+		// Bind group layout for texture+sampler
+		BindGroupLayoutEntry[2] quadLayoutEntries = .(
+			BindGroupLayoutEntry.SampledTexture(0, .Fragment),
+			BindGroupLayoutEntry.Sampler(0, .Fragment)
+		);
+		BindGroupLayoutDescriptor quadLayoutDesc = .(quadLayoutEntries);
+		if (Device.CreateBindGroupLayout(&quadLayoutDesc) not case .Ok(let quadLayout))
+			return false;
+		mQuadBindGroupLayout = quadLayout;
+
+		// Bind group
+		BindGroupEntry[2] quadBindEntries = .(
+			BindGroupEntry.Texture(0, mResolveTextureView),
+			BindGroupEntry.Sampler(0, mQuadSampler)
+		);
+		BindGroupDescriptor quadBindDesc = .(mQuadBindGroupLayout, quadBindEntries);
+		if (Device.CreateBindGroup(&quadBindDesc) not case .Ok(let quadGroup))
+			return false;
+		mQuadBindGroup = quadGroup;
+
+		// Pipeline layout
+		IBindGroupLayout[1] quadLayouts = .(mQuadBindGroupLayout);
+		PipelineLayoutDescriptor quadPipelineLayoutDesc = .(quadLayouts);
+		if (Device.CreatePipelineLayout(&quadPipelineLayoutDesc) not case .Ok(let quadPipelineLayout))
+			return false;
+		mQuadPipelineLayout = quadPipelineLayout;
+
+		// Vertex layout
+		VertexAttribute[2] quadAttributes = .(
+			.(VertexFormat.Float2, 0, 0),
+			.(VertexFormat.Float2, 8, 1)
+		);
+		VertexBufferLayout[1] quadVertexBuffers = .(
+			.((uint64)(sizeof(float) * 4), quadAttributes)
+		);
+
+		// Quad pipeline
+		ColorTargetState[1] quadColorTargets = .(.(SwapChain.Format));
+		RenderPipelineDescriptor quadPipelineDesc = .()
+		{
+			Layout = mQuadPipelineLayout,
+			Vertex = .()
+			{
+				Shader = .(mQuadVertShader, "main"),
+				Buffers = quadVertexBuffers
+			},
+			Fragment = .()
+			{
+				Shader = .(mQuadFragShader, "main"),
+				Targets = quadColorTargets
+			},
+			Primitive = .() { Topology = .TriangleList, CullMode = .None },
+			Multisample = .() { Count = 1, Mask = uint32.MaxValue }
+		};
+
+		if (Device.CreateRenderPipeline(&quadPipelineDesc) not case .Ok(let quadPipeline))
+			return false;
+		mQuadPipeline = quadPipeline;
 
 		return true;
 	}
@@ -1640,54 +1886,115 @@ class UISandboxSample : RHISampleApp
 		if (mIndices.Count == 0 || mDrawCommands.Count == 0)
 			return true;
 
-		let swapTextureView = SwapChain.CurrentTextureView;
-		RenderPassColorAttachment[1] colorAttachments = .(.(swapTextureView)
-			{
-				LoadOp = .Clear,
-				StoreOp = .Store,
-				ClearValue = .(0.15f, 0.15f, 0.2f, 1.0f)
-			});
-		RenderPassDescriptor passDesc = .(colorAttachments);
-
-		let renderPass = encoder.BeginRenderPass(&passDesc);
-		if (renderPass != null)
+		if (mUseMSAA)
 		{
-			renderPass.SetViewport(0, 0, SwapChain.Width, SwapChain.Height, 0, 1);
-			renderPass.SetPipeline(mPipeline);
-			renderPass.SetBindGroup(0, mBindGroups[frameIndex]);
-			renderPass.SetVertexBuffer(0, mVertexBuffers[frameIndex], 0);
-			renderPass.SetIndexBuffer(mIndexBuffers[frameIndex], .UInt16, 0);
+			// Render to MSAA target
+			RenderPassColorAttachment[1] msaaAttachments = .(.(mMsaaTextureView)
+				{
+					LoadOp = .Clear,
+					StoreOp = .Store,
+					ClearValue = .(0.15f, 0.15f, 0.2f, 1.0f)
+				});
+			RenderPassDescriptor msaaPassDesc = .(msaaAttachments);
 
-			// Process each draw command with its own scissor rect
-			for (let cmd in mDrawCommands)
+			let msaaPass = encoder.BeginRenderPass(&msaaPassDesc);
+			if (msaaPass != null)
 			{
-				if (cmd.IndexCount == 0)
-					continue;
+				msaaPass.SetViewport(0, 0, SwapChain.Width, SwapChain.Height, 0, 1);
+				msaaPass.SetPipeline(mMsaaPipeline);
+				msaaPass.SetBindGroup(0, mBindGroups[frameIndex]);
+				msaaPass.SetVertexBuffer(0, mVertexBuffers[frameIndex], 0);
+				msaaPass.SetIndexBuffer(mIndexBuffers[frameIndex], .UInt16, 0);
 
-				// Set scissor rect based on clip mode
-				if (cmd.ClipMode == .Scissor && cmd.ClipRect.Width > 0 && cmd.ClipRect.Height > 0)
-				{
-					// Clamp scissor to screen bounds
-					let x = (int32)Math.Max(0, cmd.ClipRect.X);
-					let y = (int32)Math.Max(0, cmd.ClipRect.Y);
-					let w = (uint32)Math.Max(0, Math.Min(cmd.ClipRect.Width, (int32)SwapChain.Width - x));
-					let h = (uint32)Math.Max(0, Math.Min(cmd.ClipRect.Height, (int32)SwapChain.Height - y));
-					renderPass.SetScissorRect(x, y, w, h);
-				}
-				else
-				{
-					// No clipping - use full screen
-					renderPass.SetScissorRect(0, 0, SwapChain.Width, SwapChain.Height);
-				}
+				RenderDrawCommands(msaaPass);
 
-				renderPass.DrawIndexed((uint32)cmd.IndexCount, 1, (uint32)cmd.StartIndex, 0, 0);
+				msaaPass.End();
+				delete msaaPass;
 			}
 
-			renderPass.End();
-			delete renderPass;
+			// Resolve MSAA to single-sample texture
+			encoder.ResolveTexture(mMsaaTexture, mResolveTexture);
+
+			// Draw resolved texture to swap chain
+			let swapTextureView = SwapChain.CurrentTextureView;
+			RenderPassColorAttachment[1] finalAttachments = .(.(swapTextureView)
+				{
+					LoadOp = .Clear,
+					StoreOp = .Store,
+					ClearValue = .(0.0f, 0.0f, 0.0f, 1.0f)
+				});
+			RenderPassDescriptor finalPassDesc = .(finalAttachments);
+
+			let finalPass = encoder.BeginRenderPass(&finalPassDesc);
+			if (finalPass != null)
+			{
+				finalPass.SetViewport(0, 0, SwapChain.Width, SwapChain.Height, 0, 1);
+				finalPass.SetScissorRect(0, 0, SwapChain.Width, SwapChain.Height);
+				finalPass.SetPipeline(mQuadPipeline);
+				finalPass.SetBindGroup(0, mQuadBindGroup);
+				finalPass.SetVertexBuffer(0, mQuadVertexBuffer, 0);
+				finalPass.Draw(6, 1, 0, 0);
+				finalPass.End();
+				delete finalPass;
+			}
+		}
+		else
+		{
+			// Render directly to swap chain (no MSAA)
+			let swapTextureView = SwapChain.CurrentTextureView;
+			RenderPassColorAttachment[1] colorAttachments = .(.(swapTextureView)
+				{
+					LoadOp = .Clear,
+					StoreOp = .Store,
+					ClearValue = .(0.15f, 0.15f, 0.2f, 1.0f)
+				});
+			RenderPassDescriptor passDesc = .(colorAttachments);
+
+			let renderPass = encoder.BeginRenderPass(&passDesc);
+			if (renderPass != null)
+			{
+				renderPass.SetViewport(0, 0, SwapChain.Width, SwapChain.Height, 0, 1);
+				renderPass.SetPipeline(mPipeline);
+				renderPass.SetBindGroup(0, mBindGroups[frameIndex]);
+				renderPass.SetVertexBuffer(0, mVertexBuffers[frameIndex], 0);
+				renderPass.SetIndexBuffer(mIndexBuffers[frameIndex], .UInt16, 0);
+
+				RenderDrawCommands(renderPass);
+
+				renderPass.End();
+				delete renderPass;
+			}
 		}
 
 		return true;
+	}
+
+	private void RenderDrawCommands(IRenderPassEncoder renderPass)
+	{
+		// Process each draw command with its own scissor rect
+		for (let cmd in mDrawCommands)
+		{
+			if (cmd.IndexCount == 0)
+				continue;
+
+			// Set scissor rect based on clip mode
+			if (cmd.ClipMode == .Scissor && cmd.ClipRect.Width > 0 && cmd.ClipRect.Height > 0)
+			{
+				// Clamp scissor to screen bounds
+				let x = (int32)Math.Max(0, cmd.ClipRect.X);
+				let y = (int32)Math.Max(0, cmd.ClipRect.Y);
+				let w = (uint32)Math.Max(0, Math.Min(cmd.ClipRect.Width, (int32)SwapChain.Width - x));
+				let h = (uint32)Math.Max(0, Math.Min(cmd.ClipRect.Height, (int32)SwapChain.Height - y));
+				renderPass.SetScissorRect(x, y, w, h);
+			}
+			else
+			{
+				// No clipping - use full screen
+				renderPass.SetScissorRect(0, 0, SwapChain.Width, SwapChain.Height);
+			}
+
+			renderPass.DrawIndexed((uint32)cmd.IndexCount, 1, (uint32)cmd.StartIndex, 0, 0);
+		}
 	}
 
 	protected override void OnRender(IRenderPassEncoder renderPass)
@@ -1697,6 +2004,13 @@ class UISandboxSample : RHISampleApp
 
 	protected override void OnKeyDown(Sedulous.Shell.Input.KeyCode key)
 	{
+		// Toggle MSAA with F10
+		if (key == .F10)
+		{
+			mUseMSAA = !mUseMSAA;
+			Console.WriteLine(scope $"MSAA: {mUseMSAA ? "ON (4x samples)" : "OFF"}");
+		}
+
 		// Toggle debug visualization with F11
 		if (key == .F11)
 		{
@@ -1711,6 +2025,9 @@ class UISandboxSample : RHISampleApp
 	protected override void OnResize(uint32 width, uint32 height)
 	{
 		mUIContext.SetViewportSize((float)width, (float)height);
+
+		// Recreate MSAA targets at new size
+		RecreateMsaaTargets();
 	}
 
 	protected override void OnCleanup()
@@ -1723,6 +2040,22 @@ class UISandboxSample : RHISampleApp
 		if (mUIContext.GetService<ITheme>() case .Ok(let theme))
 			delete theme;
 
+		// Clean up MSAA resources
+		if (mQuadPipeline != null) delete mQuadPipeline;
+		if (mQuadPipelineLayout != null) delete mQuadPipelineLayout;
+		if (mQuadBindGroup != null) delete mQuadBindGroup;
+		if (mQuadBindGroupLayout != null) delete mQuadBindGroupLayout;
+		if (mQuadFragShader != null) delete mQuadFragShader;
+		if (mQuadVertShader != null) delete mQuadVertShader;
+		if (mQuadVertexBuffer != null) delete mQuadVertexBuffer;
+		if (mQuadSampler != null) delete mQuadSampler;
+		if (mMsaaPipeline != null) delete mMsaaPipeline;
+		if (mResolveTextureView != null) delete mResolveTextureView;
+		if (mResolveTexture != null) delete mResolveTexture;
+		if (mMsaaTextureView != null) delete mMsaaTextureView;
+		if (mMsaaTexture != null) delete mMsaaTexture;
+
+		// Clean up main pipeline resources
 		if (mPipeline != null) delete mPipeline;
 		if (mPipelineLayout != null) delete mPipelineLayout;
 		if (mBindGroupLayout != null) delete mBindGroupLayout;
