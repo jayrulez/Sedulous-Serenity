@@ -1,11 +1,14 @@
 using System;
 using Sedulous.Mathematics;
 
-namespace Sedulous.Framework.Audio;
+namespace Sedulous.Audio;
 
 /// Main audio system interface providing clip loading, source management, and 3D audio.
 interface IAudioSystem : IDisposable
 {
+	/// Returns true if the audio system initialized successfully.
+	bool IsInitialized { get; }
+
 	/// Gets the 3D audio listener.
 	IAudioListener Listener { get; }
 
@@ -24,11 +27,20 @@ interface IAudioSystem : IDisposable
 	/// Plays an audio clip at a 3D position with fire-and-forget semantics.
 	void PlayOneShot3D(IAudioClip clip, Vector3 position, float volume = 1.0f);
 
-	/// Loads an audio clip from raw audio file data.
-	/// The data format is auto-detected (WAV, OGG, MP3, FLAC, etc.).
+	/// Loads an audio clip from raw audio file data (WAV format).
 	Result<IAudioClip> LoadClip(Span<uint8> data);
 
-	/// Updates the audio system, processing 3D spatialization.
+	/// Opens an audio stream from a file path for streaming playback.
+	/// Use this for music and long audio files that shouldn't be loaded entirely into memory.
+	Result<IAudioStream> OpenStream(StringView filePath);
+
+	/// Pauses all audio playback.
+	void PauseAll();
+
+	/// Resumes all audio playback.
+	void ResumeAll();
+
+	/// Updates the audio system, processing 3D spatialization and cleaning up finished one-shots.
 	/// Should be called once per frame.
 	void Update();
 }

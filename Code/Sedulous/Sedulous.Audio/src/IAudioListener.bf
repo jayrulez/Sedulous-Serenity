@@ -1,6 +1,6 @@
 using Sedulous.Mathematics;
 
-namespace Sedulous.Framework.Audio;
+namespace Sedulous.Audio;
 
 /// Interface for the 3D audio listener that determines how sounds are heard.
 /// Typically attached to the camera or player position.

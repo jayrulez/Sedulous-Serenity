@@ -1,4 +1,4 @@
-namespace Sedulous.Framework.Audio;
+namespace Sedulous.Audio;
 
 /// Represents the playback state of an audio source.
 enum AudioSourceState

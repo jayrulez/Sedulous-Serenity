@@ -1,4 +1,4 @@
-namespace Sedulous.Framework.Audio;
+namespace Sedulous.Audio;
 
 /// Interface for loaded audio data that can be played through an audio source.
 interface IAudioClip

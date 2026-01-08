@@ -1,7 +1,8 @@
+using Sedulous.Audio;
 using Sedulous.Resources;
 using Sedulous.Serialization;
 
-namespace Sedulous.Framework.Audio;
+namespace Sedulous.Audio.Resources;
 
 /// Resource wrapper for audio clips, enabling integration with the ResourceSystem.
 class AudioClipResource : Resource

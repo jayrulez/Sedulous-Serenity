@@ -1,7 +1,8 @@
 using System;
-using Sedulous.Framework.Audio;
+using Sedulous.Audio;
+using Sedulous.Audio.Resources;
 
-namespace Sedulous.Framework.Audio.Tests;
+namespace Sedulous.Audio.Tests;
 
 class AudioClipResourceTests
 {

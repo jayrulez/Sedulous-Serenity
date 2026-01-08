@@ -1,8 +1,8 @@
 using System;
 using System.Collections;
 using System.IO;
-using Sedulous.Framework.Audio;
-using Sedulous.Framework.Audio.SDL3;
+using Sedulous.Audio;
+using Sedulous.Audio.SDL3;
 using Sedulous.Mathematics;
 using SDL3;
 
@@ -107,9 +107,9 @@ class Program
 
 		Console.WriteLine(scope $"Source state after Play(): {source.State}");
 
-		// Wait for playback or user input
+		// Wait for playback
 		float elapsed = 0;
-		while (source.State == .Playing && elapsed < 10.0f)
+		while (source.State == .Playing && elapsed < 5.0f)
 		{
 			audioSystem.Update();
 			System.Threading.Thread.Sleep(100);
@@ -122,12 +122,155 @@ class Program
 		Console.WriteLine(scope $"Final source state: {source.State}");
 		Console.WriteLine();
 
+		// Test pitch control
+		Console.WriteLine("Testing pitch control (1.5x speed)...");
+		source.Pitch = 1.5f;
+		source.Play(clip);
+
+		elapsed = 0;
+		while (source.State == .Playing && elapsed < 3.0f)
+		{
+			audioSystem.Update();
+			System.Threading.Thread.Sleep(100);
+			elapsed += 0.1f;
+		}
+		Console.WriteLine("Pitch test complete.");
+		Console.WriteLine();
+
+		// Test master volume
+		Console.WriteLine("Testing master volume (50%)...");
+		source.Pitch = 1.0f;
+		audioSystem.MasterVolume = 0.5f;
+		source.Play(clip);
+
+		elapsed = 0;
+		while (source.State == .Playing && elapsed < 2.0f)
+		{
+			audioSystem.Update();
+			System.Threading.Thread.Sleep(100);
+			elapsed += 0.1f;
+		}
+		source.Stop();
+		audioSystem.MasterVolume = 1.0f;
+		Console.WriteLine("Master volume test complete.");
+		Console.WriteLine();
+
+		// Test PauseAll/ResumeAll
+		Console.WriteLine("Testing PauseAll/ResumeAll...");
+		source.Play(clip);
+		System.Threading.Thread.Sleep(500);
+		Console.WriteLine("  Pausing all audio...");
+		audioSystem.PauseAll();
+		System.Threading.Thread.Sleep(1000);
+		Console.WriteLine("  Resuming all audio...");
+		audioSystem.ResumeAll();
+		System.Threading.Thread.Sleep(1000);
+		source.Stop();
+		Console.WriteLine("PauseAll/ResumeAll test complete.");
+		Console.WriteLine();
+
 		// Test PlayOneShot
 		Console.WriteLine("Testing PlayOneShot...");
 		audioSystem.PlayOneShot(clip, 1.0f);
-		System.Threading.Thread.Sleep(2000);
 
+		// Need to call Update() for one-shot cleanup
+		elapsed = 0;
+		while (elapsed < 2.0f)
+		{
+			audioSystem.Update();
+			System.Threading.Thread.Sleep(100);
+			elapsed += 0.1f;
+		}
+		Console.WriteLine("PlayOneShot test complete.");
 		Console.WriteLine();
+
+		// Test PlayOneShot3D
+		Console.WriteLine("Testing PlayOneShot3D...");
+		// Set listener at origin looking down negative Z
+		audioSystem.Listener.Position = Vector3.Zero;
+		audioSystem.Listener.Forward = .(0, 0, -1);
+		audioSystem.Listener.Up = .(0, 1, 0);
+
+		// Play sound 10 units in front
+		audioSystem.PlayOneShot3D(clip, .(0, 0, -10), 1.0f);
+
+		elapsed = 0;
+		while (elapsed < 2.0f)
+		{
+			audioSystem.Update();
+			System.Threading.Thread.Sleep(100);
+			elapsed += 0.1f;
+		}
+		Console.WriteLine("PlayOneShot3D test complete.");
+		Console.WriteLine();
+
+		// Test 3D stereo panning - moving source
+		Console.WriteLine("Testing 3D stereo panning (moving source)...");
+		Console.WriteLine("  Sound will pan from left to right");
+
+		let movingSource = audioSystem.CreateSource();
+		movingSource.Loop = true;
+		movingSource.Position = .(-10, 0, 0);  // Start on left
+		movingSource.Play(clip);
+
+		// Move source from left to right over 3 seconds
+		elapsed = 0;
+		while (elapsed < 3.0f)
+		{
+			// Pan from -10 to +10 over 3 seconds
+			let xPos = -10.0f + (elapsed / 3.0f) * 20.0f;
+			movingSource.Position = .(xPos, 0, 0);
+
+			audioSystem.Update();
+			System.Threading.Thread.Sleep(50);
+			elapsed += 0.05f;
+		}
+		movingSource.Stop();
+		audioSystem.DestroySource(movingSource);
+		Console.WriteLine("3D stereo panning test complete.");
+		Console.WriteLine();
+
+		// Test audio streaming (if a music file exists)
+		Console.WriteLine("Testing audio streaming...");
+		String musicPath = scope .();
+		musicPath.Set(wavPath);  // Try to use same wav file for streaming test
+
+		switch (audioSystem.OpenStream(musicPath))
+		{
+		case .Ok(let musicStream):
+			Console.WriteLine(scope $"  Stream opened: {musicStream.Duration:F2}s, {musicStream.SampleRate}Hz, {musicStream.Channels}ch");
+			musicStream.Volume = 0.5f;
+			musicStream.Play();
+
+			// Play for 2 seconds
+			elapsed = 0;
+			while (musicStream.State == .Playing && elapsed < 2.0f)
+			{
+				audioSystem.Update();
+				System.Threading.Thread.Sleep(100);
+				elapsed += 0.1f;
+			}
+
+			// Test seek
+			Console.WriteLine("  Testing seek to 0.5s...");
+			musicStream.Seek(0.5f);
+
+			elapsed = 0;
+			while (musicStream.State == .Playing && elapsed < 1.0f)
+			{
+				audioSystem.Update();
+				System.Threading.Thread.Sleep(100);
+				elapsed += 0.1f;
+			}
+
+			musicStream.Stop();
+			Console.WriteLine("Audio streaming test complete.");
+		case .Err:
+			Console.WriteLine("  Could not open stream (file may not exist)");
+			Console.WriteLine("  Streaming test skipped.");
+		}
+		Console.WriteLine();
+
 		Console.WriteLine("=== Audio Sample Complete ===");
 
 		return 0;

@@ -1,9 +1,10 @@
 using System;
 using System.IO;
 using System.Collections;
+using Sedulous.Audio;
 using Sedulous.Resources;
 
-namespace Sedulous.Framework.Audio;
+namespace Sedulous.Audio.Resources;
 
 /// Resource manager for loading audio clips through the ResourceSystem.
 /// Requires an IAudioSystem to create backend-specific audio clips.

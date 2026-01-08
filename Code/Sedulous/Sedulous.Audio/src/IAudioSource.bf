@@ -1,6 +1,6 @@
 using Sedulous.Mathematics;
 
-namespace Sedulous.Framework.Audio;
+namespace Sedulous.Audio;
 
 /// Interface for an audio playback source with volume, pitch, and 3D positioning controls.
 interface IAudioSource

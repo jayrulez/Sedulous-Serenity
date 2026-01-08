@@ -1,10 +1,10 @@
 using Sedulous.Mathematics;
-using Sedulous.Framework.Audio;
+using Sedulous.Audio;
 
-namespace Sedulous.Framework.Audio.SDL3;
+namespace Sedulous.Audio.SDL3;
 
-/// SDL3_mixer implementation of IAudioListener.
-/// Handles 3D listener positioning and coordinate transformation.
+/// SDL3 implementation of IAudioListener.
+/// Handles 3D listener positioning for distance-based attenuation.
 class SDL3AudioListener : IAudioListener
 {
 	private Vector3 mPosition = .Zero;
@@ -30,7 +30,7 @@ class SDL3AudioListener : IAudioListener
 	}
 
 	/// Transforms a world position to listener-local coordinates.
-	/// SDL_mixer expects positions relative to listener at origin, with:
+	/// Returns position relative to listener with:
 	/// - Positive X = right
 	/// - Positive Y = up
 	/// - Positive Z = backward (away from listener's forward)
@@ -43,8 +43,6 @@ class SDL3AudioListener : IAudioListener
 		let right = Vector3.Normalize(Vector3.Cross(mForward, mUp));
 
 		// Transform to listener-local space using dot products
-		// Note: SDL_mixer's Z is positive backward, but our forward is negative Z,
-		// so we negate the Z component
 		return .(
 			Vector3.Dot(relativePos, right),
 			Vector3.Dot(relativePos, mUp),
