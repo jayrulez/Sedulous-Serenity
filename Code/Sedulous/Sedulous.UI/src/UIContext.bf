@@ -123,6 +123,9 @@ public class UIContext
 	/// The element currently under the mouse, or null.
 	public UIElement HoveredElement => mHoveredElement;
 
+	/// The cursor that should be displayed based on the hovered element.
+	public CursorType CurrentCursor => mHoveredElement?.EffectiveCursor ?? .Default;
+
 	/// The registered clipboard service.
 	public IClipboard Clipboard => mClipboard;
 

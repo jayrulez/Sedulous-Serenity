@@ -121,6 +121,7 @@ public class TextBox : Control
 		Background = Color.White;
 		BorderBrush = Color.Gray;
 		BorderThickness = .(1);
+		Cursor = .Text;
 	}
 
 	protected override DesiredSize MeasureContent(SizeConstraints constraints)

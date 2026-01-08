@@ -36,6 +36,7 @@ public abstract class UIElement
 	private Matrix mRenderTransform = Matrix.Identity;
 	private Vector2 mRenderTransformOrigin = .(0.5f, 0.5f); // Center by default
 	private bool mHasRenderTransform = false;
+	private CursorType? mCursor = null; // null = inherit from parent
 
 	// State
 	private bool mIsEnabled = true;
@@ -193,6 +194,27 @@ public abstract class UIElement
 	{
 		get => mRenderTransformOrigin;
 		set { mRenderTransformOrigin = value; InvalidateVisual(); }
+	}
+
+	/// Cursor to display when mouse is over this element.
+	/// null means inherit from parent (default).
+	public CursorType? Cursor
+	{
+		get => mCursor;
+		set => mCursor = value;
+	}
+
+	/// Gets the effective cursor for this element (resolves inheritance).
+	public CursorType EffectiveCursor
+	{
+		get
+		{
+			if (mCursor.HasValue)
+				return mCursor.Value;
+			if (mParent != null)
+				return mParent.EffectiveCursor;
+			return .Default;
+		}
 	}
 
 	// === State Properties ===

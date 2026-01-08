@@ -126,6 +126,7 @@ public class Slider : Control
 	public this()
 	{
 		Focusable = true;
+		Cursor = .Pointer;
 	}
 
 	protected override DesiredSize MeasureContent(SizeConstraints constraints)

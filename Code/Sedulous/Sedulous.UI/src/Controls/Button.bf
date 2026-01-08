@@ -39,6 +39,7 @@ public class Button : ContentControl
 	{
 		// Buttons are focusable
 		Focusable = true;
+		Cursor = .Pointer;
 	}
 
 	public this(StringView text) : this()
