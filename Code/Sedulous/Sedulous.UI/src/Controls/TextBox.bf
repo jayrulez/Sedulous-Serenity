@@ -122,8 +122,7 @@ public class TextBox : Control
 	public this()
 	{
 		Focusable = true;
-		Background = Color.White;
-		BorderBrush = Color.Gray;
+		// Background and BorderBrush come from theme
 		BorderThickness = .(1);
 		Cursor = .Text;
 	}
@@ -152,7 +151,8 @@ public class TextBox : Control
 	protected override void RenderContent(DrawContext drawContext)
 	{
 		let bounds = ContentBounds;
-		let foreground = Foreground ?? Color.Black;
+		let theme = GetTheme();
+		let foreground = Foreground ?? theme?.GetColor("Foreground") ?? Color.Black;
 		let hasText = mText != null && mText.Length > 0;
 
 		// Try to render with actual font
@@ -182,7 +182,9 @@ public class TextBox : Control
 						let selWidth = font.MeasureString(textSelected);
 
 						let selRect = RectangleF(startX, bounds.Y, selWidth, bounds.Height);
-						drawContext.FillRect(selRect, Color(0, 120, 215, 128));
+						let baseSelColor = theme?.GetColor("Selected") ?? Color(0, 120, 215);
+						let selColor = Color(baseSelColor.R, baseSelColor.G, baseSelColor.B, 128);
+						drawContext.FillRect(selRect, selColor);
 					}
 				}
 
@@ -195,7 +197,7 @@ public class TextBox : Control
 				}
 				else if (mPlaceholder != null && mPlaceholder.Length > 0)
 				{
-					let placeholderColor = Color(128, 128, 128);
+					let placeholderColor = theme?.GetColor("ForegroundSecondary") ?? Color(128, 128, 128);
 					drawContext.DrawText(mPlaceholder, font, atlas, atlasTexture, bounds, .Left, .Middle, placeholderColor);
 				}
 

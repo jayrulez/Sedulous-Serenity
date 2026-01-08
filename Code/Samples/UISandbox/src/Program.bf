@@ -496,6 +496,47 @@ class UISandboxSample : RHISampleApp
 		title.VerticalAlignment = .Center;
 		header.AddChild(title);
 
+		// Spacer
+		let spacer = new Border();
+		spacer.Width = 40;
+		header.AddChild(spacer);
+
+		// Theme selector label
+		let themeLabel = new TextBlock();
+		themeLabel.Text = "Theme:";
+		themeLabel.Foreground = Color(180, 180, 180);
+		themeLabel.VerticalAlignment = .Center;
+		themeLabel.Margin = Thickness(0, 0, 10, 0);
+		header.AddChild(themeLabel);
+
+		// Theme radio buttons
+		let lightRadio = new RadioButton("Light", "theme");
+		lightRadio.Foreground = Color.White;
+		lightRadio.IsChecked = true;
+		lightRadio.VerticalAlignment = .Center;
+		lightRadio.Margin = Thickness(0, 0, 15, 0);
+		lightRadio.Click.Subscribe(new (sender) => {
+			mUIContext.SetTheme(new DefaultTheme());
+		});
+		header.AddChild(lightRadio);
+
+		let darkRadio = new RadioButton("Dark", "theme");
+		darkRadio.Foreground = Color.White;
+		darkRadio.VerticalAlignment = .Center;
+		darkRadio.Margin = Thickness(0, 0, 15, 0);
+		darkRadio.Click.Subscribe(new (sender) => {
+			mUIContext.SetTheme(new DarkTheme());
+		});
+		header.AddChild(darkRadio);
+
+		let gameRadio = new RadioButton("Game", "theme");
+		gameRadio.Foreground = Color.White;
+		gameRadio.VerticalAlignment = .Center;
+		gameRadio.Click.Subscribe(new (sender) => {
+			mUIContext.SetTheme(new GameTheme());
+		});
+		header.AddChild(gameRadio);
+
 		root.AddChild(header);
 
 		// Main content area with scroll

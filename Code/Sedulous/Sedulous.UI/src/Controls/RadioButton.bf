@@ -184,6 +184,7 @@ public class RadioButton : ToggleButton
 	protected override void OnRender(DrawContext drawContext)
 	{
 		let bounds = Bounds;
+		let theme = GetTheme();
 
 		// Draw the radio circle
 		let circleX = bounds.X + BorderThickness.Left + RadioSize / 2;
@@ -191,17 +192,27 @@ public class RadioButton : ToggleButton
 		let radius = RadioSize / 2;
 
 		// Circle background
-		let bgColor = IsEnabled ? Color.White : Color(240, 240, 240);
+		let bgColor = IsEnabled ?
+			(theme?.GetColor("Background") ?? Color.White) :
+			(theme?.GetColor("Disabled") ?? Color(240, 240, 240));
 		drawContext.FillCircle(.(circleX, circleY), radius, bgColor);
 
 		// Circle border
-		let borderColor = IsEnabled ? (IsFocused ? Color(0, 120, 215) : Color.Gray) : Color(180, 180, 180);
+		Color borderColor;
+		if (!IsEnabled)
+			borderColor = theme?.GetColor("ForegroundDisabled") ?? Color(180, 180, 180);
+		else if (IsFocused)
+			borderColor = theme?.GetColor("Primary") ?? Color(0, 120, 215);
+		else
+			borderColor = theme?.GetColor("Border") ?? Color.Gray;
 		drawContext.DrawCircle(.(circleX, circleY), radius, borderColor, 1.0f);
 
 		// Draw inner dot if checked
 		if (IsChecked == true)
 		{
-			let dotColor = IsEnabled ? Color(0, 120, 215) : Color(150, 150, 150);
+			let dotColor = IsEnabled ?
+				(theme?.GetColor("Primary") ?? Color(0, 120, 215)) :
+				(theme?.GetColor("ForegroundDisabled") ?? Color(150, 150, 150));
 			let dotRadius = radius * 0.5f;
 			drawContext.FillCircle(.(circleX, circleY), dotRadius, dotColor);
 		}
@@ -237,7 +248,8 @@ public class RadioButton : ToggleButton
 		// Render text content to the right of the radio with left alignment
 		if (ContentText.Length > 0)
 		{
-			let foreground = Foreground ?? Color.Black;
+			let theme = GetTheme();
+			let foreground = Foreground ?? theme?.GetColor("Foreground") ?? Color.Black;
 			let contentBounds = ContentBounds;
 
 			// Calculate the text area (offset by radio circle)

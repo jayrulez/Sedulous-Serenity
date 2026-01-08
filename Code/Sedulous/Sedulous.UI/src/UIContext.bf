@@ -210,6 +210,35 @@ public class UIContext
 		return mServices.ContainsKey(typeof(T));
 	}
 
+	/// Sets the current theme, replacing any existing theme.
+	/// The old theme is deleted and all visuals are invalidated.
+	public void SetTheme(ITheme newTheme)
+	{
+		// Delete old theme if exists
+		if (mServices.TryGetValue(typeof(ITheme), let oldObj))
+		{
+			if (let oldTheme = oldObj as ITheme)
+				delete oldTheme;
+		}
+
+		// Register new theme
+		mServices[typeof(ITheme)] = newTheme;
+
+		// Invalidate all visuals so controls repaint with new theme colors
+		InvalidateLayout();
+	}
+
+	/// Gets the current theme, if any.
+	public ITheme CurrentTheme
+	{
+		get
+		{
+			if (GetService<ITheme>() case .Ok(let theme))
+				return theme;
+			return null;
+		}
+	}
+
 	/// Sets the viewport size for layout.
 	public void SetViewportSize(float width, float height)
 	{
