@@ -33,12 +33,43 @@ public class ContextMenu : Popup
 	{
 		Behavior = .Default;
 		Padding = Thickness(2);
+		Focusable = true; // Enable keyboard navigation
 
 		// Create items panel
 		mItemsPanel = new StackPanel();
 		mItemsPanel.Orientation = .Vertical;
 		mItemsPanel.Spacing = 0;
 		Content = mItemsPanel;
+	}
+
+	/// Opens the context menu and gives it keyboard focus.
+	public new void Open()
+	{
+		base.Open();
+		RequestFocusForKeyboard();
+	}
+
+	/// Opens the context menu at the specified screen position.
+	public new void OpenAt(float x, float y)
+	{
+		base.OpenAt(x, y);
+		RequestFocusForKeyboard();
+	}
+
+	/// Opens the context menu anchored to an element.
+	public new void OpenAt(UIElement anchor, PopupPlacement placement = .Bottom)
+	{
+		base.OpenAt(anchor, placement);
+		RequestFocusForKeyboard();
+	}
+
+	/// Requests keyboard focus for navigation.
+	private void RequestFocusForKeyboard()
+	{
+		Context?.SetFocus(this);
+		// Select first item if none selected
+		if (mSelectedIndex < 0 && Items.Count > 0)
+			SelectNext();
 	}
 
 	/// Adds a menu item to this context menu.

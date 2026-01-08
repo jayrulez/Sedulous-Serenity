@@ -60,6 +60,24 @@ public class MenuItem : Control
 	/// Whether this item has a submenu.
 	public bool HasSubmenu => mSubmenu != null;
 
+	/// Whether this item is currently selected via keyboard navigation.
+	public bool IsKeyboardSelected
+	{
+		get
+		{
+			// Check if parent menu has this item selected
+			if (Parent != null && Parent.Parent != null)
+			{
+				if (let menu = Parent.Parent as ContextMenu)
+				{
+					let idx = menu.Items.IndexOf(this);
+					return idx >= 0 && idx == menu.SelectedIndex;
+				}
+			}
+			return false;
+		}
+	}
+
 	/// Fired when the menu item is clicked.
 	public EventAccessor<delegate void(MenuItem)> Click => mClickEvent;
 
@@ -122,8 +140,8 @@ public class MenuItem : Control
 			return;
 		}
 
-		// Background on hover
-		if (IsMouseOver && IsEnabled)
+		// Background on selection (unified mouse/keyboard tracking via SelectedIndex)
+		if (IsKeyboardSelected && IsEnabled)
 		{
 			let hoverBg = theme?.GetColor("PrimaryHover") ?? Color(60, 60, 80);
 			drawContext.FillRect(bounds, hoverBg);
@@ -205,6 +223,17 @@ public class MenuItem : Control
 	protected override void OnMouseEnter()
 	{
 		base.OnMouseEnter();
+
+		// Update parent menu's selected index to sync with mouse
+		if (!mIsSeparator && Parent != null && Parent.Parent != null)
+		{
+			if (let menu = Parent.Parent as ContextMenu)
+			{
+				let idx = menu.Items.IndexOf(this);
+				if (idx >= 0)
+					menu.SelectedIndex = idx;
+			}
+		}
 
 		// Open submenu on hover after a short delay
 		if (HasSubmenu && !mIsSubmenuOpen)
