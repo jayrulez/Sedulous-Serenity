@@ -1,0 +1,5 @@
+namespace UISandbox;
+
+class Program
+{
+}
