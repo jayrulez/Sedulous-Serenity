@@ -67,6 +67,9 @@ public class UIContext
 	// Input manager
 	private InputManager mInputManager ~ delete _;
 
+	// Animation manager
+	private AnimationManager mAnimationManager ~ delete _;
+
 	// Generic service registry
 	private Dictionary<Type, Object> mServices = new .() ~ delete _;
 
@@ -149,10 +152,14 @@ public class UIContext
 	{
 		mDebugSettings = .Default;
 		mInputManager = new InputManager(this);
+		mAnimationManager = new AnimationManager();
 	}
 
 	/// The input manager for this context.
 	public InputManager InputManager => mInputManager;
+
+	/// The animation manager for this context.
+	public AnimationManager Animations => mAnimationManager;
 
 	public ~this()
 	{
@@ -258,14 +265,15 @@ public class UIContext
 		mDeltaTime = deltaTime;
 		mTotalTime = totalTime;
 
+		// Update animations
+		mAnimationManager.Update(deltaTime);
+
 		// Update layout if needed
 		if (mLayoutDirty && mRootElement != null)
 		{
 			PerformLayout();
 			mLayoutDirty = false;
 		}
-
-		// TODO: Update animations (Stage 6)
 	}
 
 	/// Performs the layout pass on the element tree.
