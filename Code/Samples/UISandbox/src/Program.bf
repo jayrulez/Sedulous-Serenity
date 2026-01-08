@@ -156,8 +156,8 @@ class UISandboxSample : RHISampleApp
 	public this() : base(.()
 		{
 			Title = "UI Sandbox",
-			Width = 1280,
-			Height = 720,
+			Width = 1366,
+			Height = 768,
 			ClearColor = .(0.15f, 0.15f, 0.2f, 1.0f)
 		})
 	{
@@ -496,9 +496,23 @@ class UISandboxSample : RHISampleApp
 		let scrollViewer = new ScrollViewer();
 		scrollViewer.Padding = Thickness(20);
 
-		let content = new StackPanel();
-		content.Orientation = .Vertical;
-		content.Spacing = 20;
+		// Two-column layout
+		let columns = new StackPanel();
+		columns.Orientation = .Horizontal;
+		columns.Spacing = 40;
+
+		// Left column - Controls
+		let leftColumn = new StackPanel();
+		leftColumn.Orientation = .Vertical;
+		leftColumn.Spacing = 20;
+
+		// Right column - Layout demos
+		let rightColumn = new StackPanel();
+		rightColumn.Orientation = .Vertical;
+		rightColumn.Spacing = 20;
+
+		// Use leftColumn for basic controls
+		let content = leftColumn;
 
 		// Section: Buttons
 		AddSection(content, "Buttons", scope (panel) => {
@@ -581,7 +595,522 @@ class UISandboxSample : RHISampleApp
 			panel.AddChild(slider);
 		});
 
-		scrollViewer.Content = content;
+		// Section: Layout Demos (right column)
+		AddSection(rightColumn, "Layout Demos", scope (panel) => {
+			// === Grid Demo ===
+			let gridLabel = new TextBlock();
+			gridLabel.Text = "Grid (3x3 with Star/Auto sizing):";
+			gridLabel.Foreground = Color(150, 150, 150);
+			panel.AddChild(gridLabel);
+
+			let grid = new Grid();
+			grid.Width = 300;
+			grid.Height = 120;
+			grid.Background = Color(40, 40, 50);
+
+			// Define rows: Auto, Star(1), Star(2)
+			let row0 = new RowDefinition();
+			row0.Height = .Auto;
+			grid.RowDefinitions.Add(row0);
+			let row1 = new RowDefinition();
+			row1.Height = .Star;
+			grid.RowDefinitions.Add(row1);
+			let row2 = new RowDefinition();
+			row2.Height = GridLength.StarWeight(2);
+			grid.RowDefinitions.Add(row2);
+
+			// Define columns: Fixed(80), Star(1), Star(1)
+			let col0 = new ColumnDefinition();
+			col0.Width = GridLength.Pixel(80);
+			grid.ColumnDefinitions.Add(col0);
+			let col1 = new ColumnDefinition();
+			col1.Width = .Star;
+			grid.ColumnDefinitions.Add(col1);
+			let col2 = new ColumnDefinition();
+			col2.Width = .Star;
+			grid.ColumnDefinitions.Add(col2);
+
+			// Add cells with different colors
+			let cell00 = new Border();
+			cell00.Background = Color(100, 60, 60);
+			cell00.Margin = Thickness(2);
+			let label00 = new TextBlock();
+			label00.Text = "R0,C0";
+			label00.Foreground = Color.White;
+			label00.HorizontalAlignment = .Center;
+			label00.VerticalAlignment = .Center;
+			cell00.AddChild(label00);
+			grid.SetRow(cell00, 0);
+			grid.SetColumn(cell00, 0);
+			grid.AddChild(cell00);
+
+			let cell01 = new Border();
+			cell01.Background = Color(60, 100, 60);
+			cell01.Margin = Thickness(2);
+			let label01 = new TextBlock();
+			label01.Text = "R0,C1";
+			label01.Foreground = Color.White;
+			label01.HorizontalAlignment = .Center;
+			label01.VerticalAlignment = .Center;
+			cell01.AddChild(label01);
+			grid.SetRow(cell01, 0);
+			grid.SetColumn(cell01, 1);
+			grid.AddChild(cell01);
+
+			let cell02 = new Border();
+			cell02.Background = Color(60, 60, 100);
+			cell02.Margin = Thickness(2);
+			let label02 = new TextBlock();
+			label02.Text = "R0,C2";
+			label02.Foreground = Color.White;
+			label02.HorizontalAlignment = .Center;
+			label02.VerticalAlignment = .Center;
+			cell02.AddChild(label02);
+			grid.SetRow(cell02, 0);
+			grid.SetColumn(cell02, 2);
+			grid.AddChild(cell02);
+
+			// Row 1 - spans all columns
+			let cell10 = new Border();
+			cell10.Background = Color(100, 80, 60);
+			cell10.Margin = Thickness(2);
+			let label10 = new TextBlock();
+			label10.Text = "Row 1 (ColSpan=3)";
+			label10.Foreground = Color.White;
+			label10.HorizontalAlignment = .Center;
+			label10.VerticalAlignment = .Center;
+			cell10.AddChild(label10);
+			grid.SetRow(cell10, 1);
+			grid.SetColumn(cell10, 0);
+			grid.SetColumnSpan(cell10, 3);
+			grid.AddChild(cell10);
+
+			// Row 2
+			let cell20 = new Border();
+			cell20.Background = Color(80, 60, 100);
+			cell20.Margin = Thickness(2);
+			let label20 = new TextBlock();
+			label20.Text = "R2,C0";
+			label20.Foreground = Color.White;
+			label20.HorizontalAlignment = .Center;
+			label20.VerticalAlignment = .Center;
+			cell20.AddChild(label20);
+			grid.SetRow(cell20, 2);
+			grid.SetColumn(cell20, 0);
+			grid.AddChild(cell20);
+
+			let cell21 = new Border();
+			cell21.Background = Color(60, 100, 100);
+			cell21.Margin = Thickness(2);
+			let label21 = new TextBlock();
+			label21.Text = "R2,C1-2 (ColSpan=2)";
+			label21.Foreground = Color.White;
+			label21.HorizontalAlignment = .Center;
+			label21.VerticalAlignment = .Center;
+			cell21.AddChild(label21);
+			grid.SetRow(cell21, 2);
+			grid.SetColumn(cell21, 1);
+			grid.SetColumnSpan(cell21, 2);
+			grid.AddChild(cell21);
+
+			panel.AddChild(grid);
+
+			// === Canvas Demo ===
+			let canvasLabel = new TextBlock();
+			canvasLabel.Text = "Canvas (Absolute positioning):";
+			canvasLabel.Foreground = Color(150, 150, 150);
+			canvasLabel.Margin = Thickness(0, 15, 0, 0);
+			panel.AddChild(canvasLabel);
+
+			let canvas = new Canvas();
+			canvas.Width = 300;
+			canvas.Height = 100;
+			canvas.Background = Color(40, 40, 50);
+
+			// Add positioned elements
+			let box1 = new Border();
+			box1.Width = 50;
+			box1.Height = 30;
+			box1.Background = Color(200, 80, 80);
+			box1.CornerRadius = 4;
+			canvas.SetLeft(box1, 10);
+			canvas.SetTop(box1, 10);
+			canvas.AddChild(box1);
+
+			let box2 = new Border();
+			box2.Width = 60;
+			box2.Height = 40;
+			box2.Background = Color(80, 200, 80);
+			box2.CornerRadius = 4;
+			canvas.SetLeft(box2, 80);
+			canvas.SetTop(box2, 30);
+			canvas.AddChild(box2);
+
+			let box3 = new Border();
+			box3.Width = 70;
+			box3.Height = 35;
+			box3.Background = Color(80, 80, 200);
+			box3.CornerRadius = 4;
+			canvas.SetLeft(box3, 160);
+			canvas.SetTop(box3, 15);
+			canvas.AddChild(box3);
+
+			let box4 = new Border();
+			box4.Width = 40;
+			box4.Height = 50;
+			box4.Background = Color(200, 200, 80);
+			box4.CornerRadius = 4;
+			canvas.SetRight(box4, 10);
+			canvas.SetBottom(box4, 10);
+			canvas.AddChild(box4);
+
+			panel.AddChild(canvas);
+
+			// === WrapPanel Demo ===
+			let wrapLabel = new TextBlock();
+			wrapLabel.Text = "WrapPanel (Items wrap to next line):";
+			wrapLabel.Foreground = Color(150, 150, 150);
+			wrapLabel.Margin = Thickness(0, 15, 0, 0);
+			panel.AddChild(wrapLabel);
+
+			let wrapPanel = new WrapPanel();
+			wrapPanel.Width = 300;
+			wrapPanel.Background = Color(40, 40, 50);
+			wrapPanel.Padding = Thickness(5);
+
+			// Add multiple items that will wrap
+			Color[?] colors = .(
+				Color(180, 80, 80), Color(80, 180, 80), Color(80, 80, 180),
+				Color(180, 180, 80), Color(180, 80, 180), Color(80, 180, 180),
+				Color(140, 100, 80), Color(80, 140, 100), Color(100, 80, 140),
+				Color(160, 120, 80), Color(80, 160, 120)
+			);
+
+			for (int i = 0; i < colors.Count; i++)
+			{
+				let item = new Border();
+				item.Width = 50 + (i % 3) * 10; // Varying widths
+				item.Height = 25;
+				item.Background = colors[i];
+				item.Margin = Thickness(3);
+				item.CornerRadius = 3;
+				wrapPanel.AddChild(item);
+			}
+
+			panel.AddChild(wrapPanel);
+
+			// === DockPanel Demo ===
+			let dockLabel = new TextBlock();
+			dockLabel.Text = "DockPanel (Dock to edges):";
+			dockLabel.Foreground = Color(150, 150, 150);
+			dockLabel.Margin = Thickness(0, 15, 0, 0);
+			panel.AddChild(dockLabel);
+
+			let dockPanel = new DockPanel();
+			dockPanel.Width = 300;
+			dockPanel.Height = 120;
+			dockPanel.Background = Color(40, 40, 50);
+
+			let topDock = new Border();
+			topDock.Height = 25;
+			topDock.Background = Color(180, 80, 80);
+			let topLabel = new TextBlock();
+			topLabel.Text = "Top";
+			topLabel.Foreground = Color.White;
+			topLabel.HorizontalAlignment = .Center;
+			topLabel.VerticalAlignment = .Center;
+			topDock.AddChild(topLabel);
+			dockPanel.SetDock(topDock, .Top);
+			dockPanel.AddChild(topDock);
+
+			let bottomDock = new Border();
+			bottomDock.Height = 25;
+			bottomDock.Background = Color(80, 80, 180);
+			let bottomLabel = new TextBlock();
+			bottomLabel.Text = "Bottom";
+			bottomLabel.Foreground = Color.White;
+			bottomLabel.HorizontalAlignment = .Center;
+			bottomLabel.VerticalAlignment = .Center;
+			bottomDock.AddChild(bottomLabel);
+			dockPanel.SetDock(bottomDock, .Bottom);
+			dockPanel.AddChild(bottomDock);
+
+			let leftDock = new Border();
+			leftDock.Width = 50;
+			leftDock.Background = Color(80, 180, 80);
+			let leftLabel = new TextBlock();
+			leftLabel.Text = "Left";
+			leftLabel.Foreground = Color.White;
+			leftLabel.HorizontalAlignment = .Center;
+			leftLabel.VerticalAlignment = .Center;
+			leftDock.AddChild(leftLabel);
+			dockPanel.SetDock(leftDock, .Left);
+			dockPanel.AddChild(leftDock);
+
+			let rightDock = new Border();
+			rightDock.Width = 50;
+			rightDock.Background = Color(180, 180, 80);
+			let rightLabel = new TextBlock();
+			rightLabel.Text = "Right";
+			rightLabel.Foreground = Color.White;
+			rightLabel.HorizontalAlignment = .Center;
+			rightLabel.VerticalAlignment = .Center;
+			rightDock.AddChild(rightLabel);
+			dockPanel.SetDock(rightDock, .Right);
+			dockPanel.AddChild(rightDock);
+
+			// Center (fills remaining space)
+			let centerDock = new Border();
+			centerDock.Background = Color(120, 120, 120);
+			let centerLabel = new TextBlock();
+			centerLabel.Text = "Fill";
+			centerLabel.Foreground = Color.White;
+			centerLabel.HorizontalAlignment = .Center;
+			centerLabel.VerticalAlignment = .Center;
+			centerDock.AddChild(centerLabel);
+			dockPanel.AddChild(centerDock);
+
+			panel.AddChild(dockPanel);
+		});
+
+		// Section: Animations (right column)
+		AddSection(rightColumn, "Animations", scope (panel) => {
+			// First row of animation buttons
+			let hstack1 = new StackPanel();
+			hstack1.Orientation = .Horizontal;
+			hstack1.Spacing = 10;
+
+			// Animated box that will be the target
+			let animBox = new Border();
+			animBox.Width = 80;
+			animBox.Height = 40;
+			animBox.Background = Color(0, 120, 215);
+			animBox.CornerRadius = 4;
+
+			// Fade button - animates opacity
+			let fadeBtn = new Button();
+			fadeBtn.ContentText = "Fade";
+			fadeBtn.Padding = Thickness(12, 6, 12, 6);
+			fadeBtn.Click.Subscribe(new (sender) => {
+				let fadeOut = UIElementAnimations.FadeOpacity(animBox, 1.0f, 0.0f, 0.5f, .QuadraticOut);
+				fadeOut.Completed.Subscribe(new (anim) => {
+					let fadeIn = UIElementAnimations.FadeOpacity(animBox, 0.0f, 1.0f, 0.5f, .QuadraticIn);
+					mUIContext.Animations.Add(fadeIn);
+				});
+				mUIContext.Animations.Add(fadeOut);
+			});
+			hstack1.AddChild(fadeBtn);
+
+			// Slide button - horizontal slide animation
+			let slideBtn = new Button();
+			slideBtn.ContentText = "Slide";
+			slideBtn.Padding = Thickness(12, 6, 12, 6);
+			slideBtn.Click.Subscribe(new (sender) => {
+				let currentMargin = animBox.Margin;
+				let slideOut = UIElementAnimations.AnimateMargin(
+					animBox, currentMargin,
+					Thickness(currentMargin.Left + 60, currentMargin.Top, currentMargin.Right, currentMargin.Bottom),
+					0.3f, .QuadraticOut
+				);
+				slideOut.Completed.Subscribe(new (anim) => {
+					let slideBack = UIElementAnimations.AnimateMargin(
+						animBox,
+						Thickness(currentMargin.Left + 60, currentMargin.Top, currentMargin.Right, currentMargin.Bottom),
+						currentMargin,
+						0.3f, .QuadraticIn
+					);
+					mUIContext.Animations.Add(slideBack);
+				});
+				mUIContext.Animations.Add(slideOut);
+			});
+			hstack1.AddChild(slideBtn);
+
+			// Pulse button (width animation)
+			let pulseBtn = new Button();
+			pulseBtn.ContentText = "Pulse";
+			pulseBtn.Padding = Thickness(12, 6, 12, 6);
+			pulseBtn.Click.Subscribe(new (sender) => {
+				let grow = UIElementAnimations.AnimateWidth(animBox, 80, 120, 0.2f, .QuadraticOut);
+				grow.Completed.Subscribe(new (anim) => {
+					let shrink = UIElementAnimations.AnimateWidth(animBox, 120, 80, 0.2f, .QuadraticIn);
+					mUIContext.Animations.Add(shrink);
+				});
+				mUIContext.Animations.Add(grow);
+			});
+			hstack1.AddChild(pulseBtn);
+
+			// Bounce button (using bounce easing)
+			let bounceBtn = new Button();
+			bounceBtn.ContentText = "Bounce";
+			bounceBtn.Padding = Thickness(12, 6, 12, 6);
+			bounceBtn.Click.Subscribe(new (sender) => {
+				let currentMargin = animBox.Margin;
+				animBox.Margin = Thickness(currentMargin.Left, currentMargin.Top - 30, currentMargin.Right, currentMargin.Bottom);
+				let bounceAnim = UIElementAnimations.AnimateMargin(
+					animBox,
+					Thickness(currentMargin.Left, currentMargin.Top - 30, currentMargin.Right, currentMargin.Bottom),
+					currentMargin,
+					0.8f,
+					.BounceOut
+				);
+				mUIContext.Animations.Add(bounceAnim);
+			});
+			hstack1.AddChild(bounceBtn);
+
+			hstack1.AddChild(animBox);
+			panel.AddChild(hstack1);
+
+			// Second row of animation buttons
+			let hstack2 = new StackPanel();
+			hstack2.Orientation = .Horizontal;
+			hstack2.Spacing = 10;
+			hstack2.Margin = Thickness(0, 5, 0, 0);
+
+			// Scale button - grow both width and height
+			let scaleBtn = new Button();
+			scaleBtn.ContentText = "Scale";
+			scaleBtn.Padding = Thickness(12, 6, 12, 6);
+			scaleBtn.Click.Subscribe(new (sender) => {
+				// Grow width and height simultaneously
+				let growW = UIElementAnimations.AnimateWidth(animBox, 80, 130, 0.3f, .BackOut);
+				let growH = UIElementAnimations.AnimateHeight(animBox, 40, 65, 0.3f, .BackOut);
+				growW.Completed.Subscribe(new (anim) => {
+					let shrinkW = UIElementAnimations.AnimateWidth(animBox, 130, 80, 0.3f, .BackIn);
+					let shrinkH = UIElementAnimations.AnimateHeight(animBox, 65, 40, 0.3f, .BackIn);
+					mUIContext.Animations.Add(shrinkW);
+					mUIContext.Animations.Add(shrinkH);
+				});
+				mUIContext.Animations.Add(growW);
+				mUIContext.Animations.Add(growH);
+			});
+			hstack2.AddChild(scaleBtn);
+
+			// Shake button - rapid horizontal movement
+			let shakeBtn = new Button();
+			shakeBtn.ContentText = "Shake";
+			shakeBtn.Padding = Thickness(12, 6, 12, 6);
+			shakeBtn.Click.Subscribe(new (sender) => {
+				let currentMargin = animBox.Margin;
+				// Quick shake left
+				let shake1 = UIElementAnimations.AnimateMargin(animBox, currentMargin,
+					Thickness(currentMargin.Left - 10, currentMargin.Top, currentMargin.Right, currentMargin.Bottom),
+					0.05f, .Linear);
+				shake1.Completed.Subscribe(new (anim) => {
+					// Shake right
+					let shake2 = UIElementAnimations.AnimateMargin(animBox,
+						Thickness(currentMargin.Left - 10, currentMargin.Top, currentMargin.Right, currentMargin.Bottom),
+						Thickness(currentMargin.Left + 10, currentMargin.Top, currentMargin.Right, currentMargin.Bottom),
+						0.1f, .Linear);
+					shake2.Completed.Subscribe(new (anim2) => {
+						// Shake left again
+						let shake3 = UIElementAnimations.AnimateMargin(animBox,
+							Thickness(currentMargin.Left + 10, currentMargin.Top, currentMargin.Right, currentMargin.Bottom),
+							Thickness(currentMargin.Left - 8, currentMargin.Top, currentMargin.Right, currentMargin.Bottom),
+							0.1f, .Linear);
+						shake3.Completed.Subscribe(new (anim3) => {
+							// Shake right smaller
+							let shake4 = UIElementAnimations.AnimateMargin(animBox,
+								Thickness(currentMargin.Left - 8, currentMargin.Top, currentMargin.Right, currentMargin.Bottom),
+								Thickness(currentMargin.Left + 5, currentMargin.Top, currentMargin.Right, currentMargin.Bottom),
+								0.08f, .Linear);
+							shake4.Completed.Subscribe(new (anim4) => {
+								// Return to center
+								let shake5 = UIElementAnimations.AnimateMargin(animBox,
+									Thickness(currentMargin.Left + 5, currentMargin.Top, currentMargin.Right, currentMargin.Bottom),
+									currentMargin, 0.07f, .Linear);
+								mUIContext.Animations.Add(shake5);
+							});
+							mUIContext.Animations.Add(shake4);
+						});
+						mUIContext.Animations.Add(shake3);
+					});
+					mUIContext.Animations.Add(shake2);
+				});
+				mUIContext.Animations.Add(shake1);
+			});
+			hstack2.AddChild(shakeBtn);
+
+			// Elastic button - elastic overshoot effect
+			let elasticBtn = new Button();
+			elasticBtn.ContentText = "Elastic";
+			elasticBtn.Padding = Thickness(12, 6, 12, 6);
+			elasticBtn.Click.Subscribe(new (sender) => {
+				let currentMargin = animBox.Margin;
+				animBox.Margin = Thickness(currentMargin.Left, currentMargin.Top - 40, currentMargin.Right, currentMargin.Bottom);
+				let elasticAnim = UIElementAnimations.AnimateMargin(
+					animBox,
+					Thickness(currentMargin.Left, currentMargin.Top - 40, currentMargin.Right, currentMargin.Bottom),
+					currentMargin,
+					1.0f,
+					.ElasticOut
+				);
+				mUIContext.Animations.Add(elasticAnim);
+			});
+			hstack2.AddChild(elasticBtn);
+
+			// Wobble button - combined scale + fade
+			let wobbleBtn = new Button();
+			wobbleBtn.ContentText = "Wobble";
+			wobbleBtn.Padding = Thickness(12, 6, 12, 6);
+			wobbleBtn.Click.Subscribe(new (sender) => {
+				// Squish horizontally while stretching vertically
+				let squishW = UIElementAnimations.AnimateWidth(animBox, 80, 60, 0.15f, .QuadraticOut);
+				let stretchH = UIElementAnimations.AnimateHeight(animBox, 40, 55, 0.15f, .QuadraticOut);
+				squishW.Completed.Subscribe(new (anim) => {
+					// Stretch horizontally while squishing vertically
+					let stretchW = UIElementAnimations.AnimateWidth(animBox, 60, 100, 0.15f, .QuadraticOut);
+					let squishH = UIElementAnimations.AnimateHeight(animBox, 55, 32, 0.15f, .QuadraticOut);
+					stretchW.Completed.Subscribe(new (anim2) => {
+						// Return to normal
+						let normalW = UIElementAnimations.AnimateWidth(animBox, 100, 80, 0.2f, .QuadraticInOut);
+						let normalH = UIElementAnimations.AnimateHeight(animBox, 32, 40, 0.2f, .QuadraticInOut);
+						mUIContext.Animations.Add(normalW);
+						mUIContext.Animations.Add(normalH);
+					});
+					mUIContext.Animations.Add(stretchW);
+					mUIContext.Animations.Add(squishH);
+				});
+				mUIContext.Animations.Add(squishW);
+				mUIContext.Animations.Add(stretchH);
+			});
+			hstack2.AddChild(wobbleBtn);
+
+			panel.AddChild(hstack2);
+
+			// Animated progress bar
+			let progressLabel = new TextBlock();
+			progressLabel.Text = "Animated Progress:";
+			progressLabel.Foreground = Color(180, 180, 180);
+			progressLabel.Margin = Thickness(0, 10, 0, 5);
+			panel.AddChild(progressLabel);
+
+			let animProgress = new ProgressBar();
+			animProgress.Width = 300;
+			animProgress.Height = 20;
+			animProgress.Value = 0;
+
+			// Start button for progress animation
+			let startBtn = new Button();
+			startBtn.ContentText = "Animate Progress";
+			startBtn.Padding = Thickness(12, 6, 12, 6);
+			startBtn.Margin = Thickness(0, 5, 0, 0);
+			startBtn.Click.Subscribe(new (sender) => {
+				animProgress.Value = 0; // Reset first
+				let progressAnim = new FloatAnimation(0, 100);
+				progressAnim.Duration = 2.0f;
+				progressAnim.Easing = .QuadraticInOut;
+				progressAnim.OnValueChanged = new (value) => { animProgress.Value = value; };
+				mUIContext.Animations.Add(progressAnim);
+			});
+
+			panel.AddChild(animProgress);
+			panel.AddChild(startBtn);
+		});
+
+		// Assemble columns
+		columns.AddChild(leftColumn);
+		columns.AddChild(rightColumn);
+		scrollViewer.Content = columns;
 		root.AddChild(scrollViewer);
 
 		mUIContext.RootElement = root;

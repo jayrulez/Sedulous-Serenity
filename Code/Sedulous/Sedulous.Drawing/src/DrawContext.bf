@@ -19,6 +19,9 @@ public class DrawContext
 	// Clip rect stack (separate from state stack for independent push/pop)
 	private List<RectangleF> mClipStack = new .() ~ delete _;
 
+	// Opacity stack (separate from state stack for independent push/pop)
+	private List<float> mOpacityStack = new .() ~ delete _;
+
 	// Current command tracking
 	private int32 mCurrentTextureIndex = -1;
 	private BlendMode mCurrentBlendMode = .Normal;
@@ -52,6 +55,7 @@ public class DrawContext
 		mBatch.Clear();
 		mStateStack.Clear();
 		mClipStack.Clear();
+		mOpacityStack.Clear();
 		mCurrentState = .();
 		mCurrentTextureIndex = -1;
 		mCurrentBlendMode = .Normal;
@@ -157,6 +161,27 @@ public class DrawContext
 		}
 	}
 
+	// === Opacity ===
+
+	/// Push an opacity value (multiplies with current opacity)
+	public void PushOpacity(float opacity)
+	{
+		mOpacityStack.Add(mCurrentState.Opacity);
+		mCurrentState.Opacity *= Math.Clamp(opacity, 0, 1);
+	}
+
+	/// Pop the current opacity
+	public void PopOpacity()
+	{
+		if (mOpacityStack.Count > 0)
+			mCurrentState.Opacity = mOpacityStack.PopBack();
+		else
+			mCurrentState.Opacity = 1.0f;
+	}
+
+	/// Get the current opacity
+	public float Opacity => mCurrentState.Opacity;
+
 	// === Blend Mode ===
 
 	/// Set the blend mode for subsequent draws
@@ -183,7 +208,7 @@ public class DrawContext
 		let br = TransformPoint(.(rect.X + rect.Width, rect.Y + rect.Height));
 		let bl = TransformPoint(.(rect.X, rect.Y + rect.Height));
 
-		mRasterizer.RasterizeQuad(tl, tr, br, bl, mBatch.Vertices, mBatch.Indices, brush.BaseColor);
+		mRasterizer.RasterizeQuad(tl, tr, br, bl, mBatch.Vertices, mBatch.Indices, ApplyOpacity(brush.BaseColor));
 
 		if (brush.RequiresInterpolation)
 			ApplyBrushToVertices(brush, rect, startVertex);
@@ -200,7 +225,7 @@ public class DrawContext
 		let br = TransformPoint(.(rect.X + rect.Width, rect.Y + rect.Height));
 		let bl = TransformPoint(.(rect.X, rect.Y + rect.Height));
 
-		mRasterizer.RasterizeQuad(tl, tr, br, bl, mBatch.Vertices, mBatch.Indices, color);
+		mRasterizer.RasterizeQuad(tl, tr, br, bl, mBatch.Vertices, mBatch.Indices, ApplyOpacity(color));
 	}
 
 	/// Fill a rounded rectangle
@@ -210,7 +235,7 @@ public class DrawContext
 		let startVertex = mBatch.Vertices.Count;
 
 		// Rasterize at original position, then transform vertices
-		mRasterizer.RasterizeRoundedRect(rect, radius, mBatch.Vertices, mBatch.Indices, brush.BaseColor);
+		mRasterizer.RasterizeRoundedRect(rect, radius, mBatch.Vertices, mBatch.Indices, ApplyOpacity(brush.BaseColor));
 		TransformVertices(startVertex);
 
 		if (brush.RequiresInterpolation)
@@ -224,7 +249,7 @@ public class DrawContext
 		let startVertex = mBatch.Vertices.Count;
 
 		// Rasterize at original position, then transform vertices
-		mRasterizer.RasterizeRoundedRect(rect, radius, mBatch.Vertices, mBatch.Indices, color);
+		mRasterizer.RasterizeRoundedRect(rect, radius, mBatch.Vertices, mBatch.Indices, ApplyOpacity(color));
 		TransformVertices(startVertex);
 	}
 
@@ -236,7 +261,7 @@ public class DrawContext
 		let bounds = RectangleF(center.X - radius, center.Y - radius, radius * 2, radius * 2);
 
 		// Rasterize at original position, then transform vertices
-		mRasterizer.RasterizeCircle(center, radius, mBatch.Vertices, mBatch.Indices, brush.BaseColor);
+		mRasterizer.RasterizeCircle(center, radius, mBatch.Vertices, mBatch.Indices, ApplyOpacity(brush.BaseColor));
 		TransformVertices(startVertex);
 
 		if (brush.RequiresInterpolation)
@@ -250,7 +275,7 @@ public class DrawContext
 		let startVertex = mBatch.Vertices.Count;
 
 		// Rasterize at original position, then transform vertices
-		mRasterizer.RasterizeCircle(center, radius, mBatch.Vertices, mBatch.Indices, color);
+		mRasterizer.RasterizeCircle(center, radius, mBatch.Vertices, mBatch.Indices, ApplyOpacity(color));
 		TransformVertices(startVertex);
 	}
 
@@ -262,7 +287,7 @@ public class DrawContext
 		let bounds = RectangleF(center.X - rx, center.Y - ry, rx * 2, ry * 2);
 
 		// Rasterize at original position, then transform vertices
-		mRasterizer.RasterizeEllipse(center, rx, ry, mBatch.Vertices, mBatch.Indices, brush.BaseColor);
+		mRasterizer.RasterizeEllipse(center, rx, ry, mBatch.Vertices, mBatch.Indices, ApplyOpacity(brush.BaseColor));
 		TransformVertices(startVertex);
 
 		if (brush.RequiresInterpolation)
@@ -276,7 +301,7 @@ public class DrawContext
 		let startVertex = mBatch.Vertices.Count;
 
 		// Rasterize at original position, then transform vertices
-		mRasterizer.RasterizeEllipse(center, rx, ry, mBatch.Vertices, mBatch.Indices, color);
+		mRasterizer.RasterizeEllipse(center, rx, ry, mBatch.Vertices, mBatch.Indices, ApplyOpacity(color));
 		TransformVertices(startVertex);
 	}
 
@@ -288,7 +313,7 @@ public class DrawContext
 		let bounds = RectangleF(center.X - radius, center.Y - radius, radius * 2, radius * 2);
 
 		// Rasterize at original position, then transform vertices
-		mRasterizer.RasterizeArc(center, radius, startAngle, sweepAngle, mBatch.Vertices, mBatch.Indices, brush.BaseColor);
+		mRasterizer.RasterizeArc(center, radius, startAngle, sweepAngle, mBatch.Vertices, mBatch.Indices, ApplyOpacity(brush.BaseColor));
 		TransformVertices(startVertex);
 
 		if (brush.RequiresInterpolation)
@@ -302,7 +327,7 @@ public class DrawContext
 		let startVertex = mBatch.Vertices.Count;
 
 		// Rasterize at original position, then transform vertices
-		mRasterizer.RasterizeArc(center, radius, startAngle, sweepAngle, mBatch.Vertices, mBatch.Indices, color);
+		mRasterizer.RasterizeArc(center, radius, startAngle, sweepAngle, mBatch.Vertices, mBatch.Indices, ApplyOpacity(color));
 		TransformVertices(startVertex);
 	}
 
@@ -315,7 +340,7 @@ public class DrawContext
 		let startVertex = mBatch.Vertices.Count;
 
 		// Rasterize at original position, then transform vertices
-		mRasterizer.RasterizeLine(start, end, pen.Thickness, mBatch.Vertices, mBatch.Indices, pen.Color, pen.LineCap);
+		mRasterizer.RasterizeLine(start, end, pen.Thickness, mBatch.Vertices, mBatch.Indices, ApplyOpacity(pen.Color), pen.LineCap);
 		TransformVertices(startVertex);
 	}
 
@@ -326,7 +351,7 @@ public class DrawContext
 		let startVertex = mBatch.Vertices.Count;
 
 		// Rasterize at original position, then transform vertices
-		mRasterizer.RasterizeLine(start, end, thickness, mBatch.Vertices, mBatch.Indices, color, .Butt);
+		mRasterizer.RasterizeLine(start, end, thickness, mBatch.Vertices, mBatch.Indices, ApplyOpacity(color), .Butt);
 		TransformVertices(startVertex);
 	}
 
@@ -337,7 +362,7 @@ public class DrawContext
 		let startVertex = mBatch.Vertices.Count;
 
 		// Rasterize at original position, then transform vertices
-		mRasterizer.RasterizeStrokeRect(rect, pen.Thickness, mBatch.Vertices, mBatch.Indices, pen.Color);
+		mRasterizer.RasterizeStrokeRect(rect, pen.Thickness, mBatch.Vertices, mBatch.Indices, ApplyOpacity(pen.Color));
 		TransformVertices(startVertex);
 	}
 
@@ -348,7 +373,7 @@ public class DrawContext
 		let startVertex = mBatch.Vertices.Count;
 
 		// Rasterize at original position, then transform vertices
-		mRasterizer.RasterizeStrokeRect(rect, thickness, mBatch.Vertices, mBatch.Indices, color);
+		mRasterizer.RasterizeStrokeRect(rect, thickness, mBatch.Vertices, mBatch.Indices, ApplyOpacity(color));
 		TransformVertices(startVertex);
 	}
 
@@ -359,7 +384,7 @@ public class DrawContext
 		let startVertex = mBatch.Vertices.Count;
 
 		// Rasterize at original position, then transform vertices
-		mRasterizer.RasterizeStrokeCircle(center, radius, pen.Thickness, mBatch.Vertices, mBatch.Indices, pen.Color);
+		mRasterizer.RasterizeStrokeCircle(center, radius, pen.Thickness, mBatch.Vertices, mBatch.Indices, ApplyOpacity(pen.Color));
 		TransformVertices(startVertex);
 	}
 
@@ -370,7 +395,7 @@ public class DrawContext
 		let startVertex = mBatch.Vertices.Count;
 
 		// Rasterize at original position, then transform vertices
-		mRasterizer.RasterizeStrokeCircle(center, radius, thickness, mBatch.Vertices, mBatch.Indices, color);
+		mRasterizer.RasterizeStrokeCircle(center, radius, thickness, mBatch.Vertices, mBatch.Indices, ApplyOpacity(color));
 		TransformVertices(startVertex);
 	}
 
@@ -381,7 +406,7 @@ public class DrawContext
 		let startVertex = mBatch.Vertices.Count;
 
 		// Rasterize at original position, then transform vertices
-		mRasterizer.RasterizeStrokeEllipse(center, rx, ry, pen.Thickness, mBatch.Vertices, mBatch.Indices, pen.Color);
+		mRasterizer.RasterizeStrokeEllipse(center, rx, ry, pen.Thickness, mBatch.Vertices, mBatch.Indices, ApplyOpacity(pen.Color));
 		TransformVertices(startVertex);
 	}
 
@@ -392,7 +417,7 @@ public class DrawContext
 		let startVertex = mBatch.Vertices.Count;
 
 		// Rasterize at original position, then transform vertices
-		mRasterizer.RasterizeStrokeEllipse(center, rx, ry, thickness, mBatch.Vertices, mBatch.Indices, color);
+		mRasterizer.RasterizeStrokeEllipse(center, rx, ry, thickness, mBatch.Vertices, mBatch.Indices, ApplyOpacity(color));
 		TransformVertices(startVertex);
 	}
 
@@ -428,7 +453,7 @@ public class DrawContext
 			transformed[i] = TransformPoint(points[i]);
 		}
 
-		mRasterizer.RasterizePolygon(transformed, mBatch.Vertices, mBatch.Indices, brush.BaseColor);
+		mRasterizer.RasterizePolygon(transformed, mBatch.Vertices, mBatch.Indices, ApplyOpacity(brush.BaseColor));
 
 		if (brush.RequiresInterpolation)
 			ApplyBrushToVertices(brush, bounds, startVertex);
@@ -449,7 +474,7 @@ public class DrawContext
 			transformed[i] = TransformPoint(points[i]);
 		}
 
-		mRasterizer.RasterizePolygon(transformed, mBatch.Vertices, mBatch.Indices, color);
+		mRasterizer.RasterizePolygon(transformed, mBatch.Vertices, mBatch.Indices, ApplyOpacity(color));
 	}
 
 	/// Draw a polyline (open path)
@@ -462,7 +487,7 @@ public class DrawContext
 		let startVertex = mBatch.Vertices.Count;
 
 		// Rasterize at original position, then transform vertices
-		mRasterizer.RasterizePolyline(points, pen.Thickness, mBatch.Vertices, mBatch.Indices, pen.Color, pen.LineCap, pen.LineJoin);
+		mRasterizer.RasterizePolyline(points, pen.Thickness, mBatch.Vertices, mBatch.Indices, ApplyOpacity(pen.Color), pen.LineCap, pen.LineJoin);
 		TransformVertices(startVertex);
 	}
 
@@ -476,7 +501,7 @@ public class DrawContext
 		let startVertex = mBatch.Vertices.Count;
 
 		// Rasterize at original position, then transform vertices
-		mRasterizer.RasterizePolyline(points, thickness, mBatch.Vertices, mBatch.Indices, color, .Butt, .Miter);
+		mRasterizer.RasterizePolyline(points, thickness, mBatch.Vertices, mBatch.Indices, ApplyOpacity(color), .Butt, .Miter);
 		TransformVertices(startVertex);
 	}
 
@@ -490,7 +515,7 @@ public class DrawContext
 		let startVertex = mBatch.Vertices.Count;
 
 		// Rasterize at original position, then transform vertices
-		mRasterizer.RasterizeStrokePolygon(points, pen.Thickness, mBatch.Vertices, mBatch.Indices, pen.Color, pen.LineJoin);
+		mRasterizer.RasterizeStrokePolygon(points, pen.Thickness, mBatch.Vertices, mBatch.Indices, ApplyOpacity(pen.Color), pen.LineJoin);
 		TransformVertices(startVertex);
 	}
 
@@ -504,7 +529,7 @@ public class DrawContext
 		let startVertex = mBatch.Vertices.Count;
 
 		// Rasterize at original position, then transform vertices
-		mRasterizer.RasterizeStrokePolygon(points, thickness, mBatch.Vertices, mBatch.Indices, color, .Miter);
+		mRasterizer.RasterizeStrokePolygon(points, thickness, mBatch.Vertices, mBatch.Indices, ApplyOpacity(color), .Miter);
 		TransformVertices(startVertex);
 	}
 
@@ -643,12 +668,13 @@ public class DrawContext
 		var cursorX = position.X;
 		let cursorY = position.Y;
 
+		let opacityColor = ApplyOpacity(color);
 		for (let char in text.DecodedChars)
 		{
 			GlyphQuad quad = ?;
 			if (atlas.GetGlyphQuad((int32)char, ref cursorX, cursorY, out quad))
 			{
-				mRasterizer.RasterizeGlyphQuad(quad, mBatch.Vertices, mBatch.Indices, color);
+				mRasterizer.RasterizeGlyphQuad(quad, mBatch.Vertices, mBatch.Indices, opacityColor);
 			}
 		}
 
@@ -669,12 +695,13 @@ public class DrawContext
 		let cursorY = position.Y;
 
 		// First pass: render all glyphs with base color
+		let opacityColor = ApplyOpacity(brush.BaseColor);
 		for (let char in text.DecodedChars)
 		{
 			GlyphQuad quad = ?;
 			if (atlas.GetGlyphQuad((int32)char, ref cursorX, cursorY, out quad))
 			{
-				mRasterizer.RasterizeGlyphQuad(quad, mBatch.Vertices, mBatch.Indices, brush.BaseColor);
+				mRasterizer.RasterizeGlyphQuad(quad, mBatch.Vertices, mBatch.Indices, opacityColor);
 			}
 		}
 
@@ -827,16 +854,26 @@ public class DrawContext
 		}
 	}
 
+	/// Apply current opacity to a color
+	private Color ApplyOpacity(Color color)
+	{
+		if (mCurrentState.Opacity >= 1.0f)
+			return color;
+		return Color(color.R, color.G, color.B, (uint8)(color.A * mCurrentState.Opacity));
+	}
+
 	/// Apply brush colors to vertices that were just added
 	private void ApplyBrushToVertices(IBrush brush, RectangleF bounds, int startVertex)
 	{
 		for (int i = startVertex; i < mBatch.Vertices.Count; i++)
 		{
 			var vertex = ref mBatch.Vertices[i];
-			// Use original (non-transformed) position for gradient calculation
-			// We need to inverse transform here, but for simplicity we use the vertex position
+			// NOTE: For correct gradient calculation with transforms, we should use the original
+			// (non-transformed) position. Currently using transformed position which works fine
+			// for identity transforms (the common case). Gradient brushes with rotation/scale
+			// transforms may have slightly incorrect color mapping - acceptable for UI use.
 			let color = brush.GetColorAt(.(vertex.Position.X, vertex.Position.Y), bounds);
-			vertex.Color = color;
+			vertex.Color = ApplyOpacity(color);
 		}
 	}
 
@@ -861,4 +898,5 @@ struct DrawState
 	public RectangleF ClipRect = default;
 	public ClipMode ClipMode = .None;
 	public int32 StencilRef = 0;
+	public float Opacity = 1.0f;
 }

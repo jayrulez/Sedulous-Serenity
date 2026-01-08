@@ -481,8 +481,10 @@ public abstract class UIElement
 		if (mVisibility != .Visible || mOpacity <= 0)
 			return;
 
-		// Apply opacity (would need DrawContext support for proper opacity)
-		// For now, render directly
+		// Apply opacity to this element and all children
+		let needsOpacity = mOpacity < 1.0f;
+		if (needsOpacity)
+			drawContext.PushOpacity(mOpacity);
 
 		// Render this element's content
 		OnRender(drawContext);
@@ -492,6 +494,9 @@ public abstract class UIElement
 		{
 			child.Render(drawContext);
 		}
+
+		if (needsOpacity)
+			drawContext.PopOpacity();
 	}
 
 	/// Override to render element content.

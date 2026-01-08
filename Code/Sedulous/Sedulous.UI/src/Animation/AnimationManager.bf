@@ -61,7 +61,9 @@ public class AnimationManager
 			if (!anim.Update(deltaTime))
 			{
 				// Animation completed, remove it
+				var animation = mAnimations[i];
 				mAnimations.RemoveAt(i);
+				delete animation;
 			}
 		}
 
