@@ -16,3 +16,7 @@ renderer.md
 Assets/cache/
 new_ui.md
 ui_status.md
+ui.md
+fonts.md
+fonts-implementation-plan.md
+drawing.md

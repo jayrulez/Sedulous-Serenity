@@ -49,7 +49,7 @@ Sedulous-Serenity/
 │   │   ├── Sedulous.Mathematics/
 │   │   ├── Sedulous.RHI/
 │   │   ├── Sedulous.RHI.Vulkan/
-│   │   ├── Sedulous.Framework.Renderer/
+│   │   ├── Sedulous.Engine.Renderer/
 │   │   └── ...
 │   └── Samples/                # Example applications
 └── agents.md                   # Development documentation
