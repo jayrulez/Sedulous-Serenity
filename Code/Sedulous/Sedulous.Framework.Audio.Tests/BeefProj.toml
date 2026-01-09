@@ -1,6 +1,0 @@
-FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Framework.Audio" = "*", "Sedulous.Mathematics" = "*"}
-
-[Project]
-Name = "Sedulous.Framework.Audio.Tests"
-TargetType = "BeefTest"

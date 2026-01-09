@@ -1,0 +1,6 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.Audio" = "*", "Sedulous.Audio.Resources" = "*", "Sedulous.Audio.SDL3" = "*", "Sedulous.Mathematics" = "*", SDL3 = "*"}
+
+[Project]
+Name = "Sedulous.Audio.Tests"
+TargetType = "BeefTest"
