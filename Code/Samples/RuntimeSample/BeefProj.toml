@@ -1,0 +1,12 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.Mathematics" = "*", "Sedulous.RHI" = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Framework.Runtime" = "*", "Sedulous.Shell.SDL3" = "*", "SampleFramework" = "*"}
+
+[Project]
+Name = "RuntimeSample"
+StartupObject = "RuntimeSample.Program"
+
+[Configs.Debug.Win64]
+PostBuildCmds = ["xcopy /s /y /d \"$(ProjectDir)\\shaders\" \"$(TargetDir)\\shaders\\\""]
+
+[Configs.Release.Win64]
+PostBuildCmds = ["xcopy /s /y /d \"$(ProjectDir)\\shaders\" \"$(TargetDir)\\shaders\\\""]
