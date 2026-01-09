@@ -32,6 +32,6 @@ Large scene sample demonstrating RenderWorld proxy system and frustum culling.
 
 ## Dependencies
 
-- Sedulous.Framework.Renderer
+- Sedulous.Engine.Renderer
 - Sedulous.Geometry
 - RHI.SampleFramework

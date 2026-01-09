@@ -30,5 +30,5 @@ Shadow mapping development sample with debug visualization.
 
 ## Dependencies
 
-- Sedulous.Framework.Renderer
+- Sedulous.Engine.Renderer
 - RHI.SampleFramework

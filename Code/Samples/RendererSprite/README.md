@@ -36,5 +36,5 @@ Billboard sprite rendering sample demonstrating instanced 2D sprites in 3D space
 
 ## Dependencies
 
-- Sedulous.Framework.Renderer
+- Sedulous.Engine.Renderer
 - SampleFramework

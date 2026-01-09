@@ -39,5 +39,5 @@ Clustered forward lighting sample with cascaded shadow maps.
 
 ## Dependencies
 
-- Sedulous.Framework.Renderer
+- Sedulous.Engine.Renderer
 - RHI.SampleFramework

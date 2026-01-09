@@ -5,7 +5,7 @@ using System.Collections;
 using Sedulous.Mathematics;
 using Sedulous.RHI;
 using Sedulous.Geometry;
-using Sedulous.Framework.Renderer;
+using Sedulous.Engine.Renderer;
 using SampleFramework;
 
 /// Scene sample demonstrating:

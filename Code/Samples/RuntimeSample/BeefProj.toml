@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Mathematics" = "*", "Sedulous.RHI" = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Framework.Runtime" = "*", "Sedulous.Shell.SDL3" = "*", "SampleFramework" = "*"}
+Dependencies = {corlib = "*", "Sedulous.Mathematics" = "*", "Sedulous.RHI" = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Engine.Runtime" = "*", "Sedulous.Shell.SDL3" = "*", "SampleFramework" = "*"}
 
 [Project]
 Name = "RuntimeSample"

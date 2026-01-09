@@ -29,7 +29,7 @@ Physically-based rendering sample with material system.
 
 ## Dependencies
 
-- Sedulous.Framework.Renderer
+- Sedulous.Engine.Renderer
 - Sedulous.Geometry
 - Sedulous.Imaging
 - RHI.SampleFramework

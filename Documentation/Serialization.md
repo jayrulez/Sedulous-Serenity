@@ -7,7 +7,7 @@ A unified serialization framework supporting both reading and writing with a sin
 ```
 Sedulous.Serialization           - Core interfaces and abstract base
 Sedulous.Serialization.OpenDDL   - OpenDDL format implementation
-Sedulous.Framework.Serialization - Math type extensions (Vector3, Matrix, etc.)
+Sedulous.Mathematics.Serialization - Math type extensions (Vector3, Matrix, etc.)
 ```
 
 ## Core Types
@@ -316,10 +316,10 @@ s.EndArray();
 
 ## Math Type Extensions
 
-The `Sedulous.Framework.Serialization` library provides extension methods:
+The `Sedulous.Mathematics.Serialization` library provides extension methods:
 
 ```beef
-using Sedulous.Framework.Serialization;
+using Sedulous.Mathematics.Serialization;
 
 // Vector types
 s.Vector2("position2d", ref position2d);
@@ -501,6 +501,6 @@ Code/Sedulous/Sedulous.Serialization.OpenDDL/src/
 ├── OpenDDLSerializer.bf           - OpenDDL implementation
 └── SerializableDataDescription.bf - Custom parser
 
-Code/Sedulous/Sedulous.Framework.Serialization/src/
+Code/Sedulous/Sedulous.Mathematics.Serialization/src/
 └── MathSerializerExtensions.bf    - Vector/Matrix extensions
 ```

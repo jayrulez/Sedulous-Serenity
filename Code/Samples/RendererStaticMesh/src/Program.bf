@@ -7,7 +7,7 @@ using Sedulous.RHI;
 using Sedulous.Geometry;
 using Sedulous.Models;
 using Sedulous.Models.GLTF;
-using Sedulous.Framework.Renderer;
+using Sedulous.Engine.Renderer;
 using Sedulous.Shell.Input;
 using SampleFramework;
 

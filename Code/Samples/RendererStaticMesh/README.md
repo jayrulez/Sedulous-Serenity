@@ -37,7 +37,7 @@ Duck model from [glTF-Sample-Models](https://github.com/KhronosGroup/glTF-Sample
 
 ## Dependencies
 
-- Sedulous.Framework.Renderer
+- Sedulous.Engine.Renderer
 - Sedulous.Geometry
 - Sedulous.Imaging
 - Sedulous.Models

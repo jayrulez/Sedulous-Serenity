@@ -9,7 +9,7 @@ using Sedulous.Geometry.Tooling;
 using Sedulous.Imaging;
 using Sedulous.Models;
 using Sedulous.Models.GLTF;
-using Sedulous.Framework.Renderer;
+using Sedulous.Engine.Renderer;
 using Sedulous.Shell.Input;
 using SampleFramework;
 

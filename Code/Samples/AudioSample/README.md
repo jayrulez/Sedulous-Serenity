@@ -29,6 +29,6 @@ AudioSample.exe
 
 ## Dependencies
 
-- Sedulous.Framework.Audio
-- Sedulous.Framework.Audio.SDL3
+- Sedulous.Engine.Audio
+- Sedulous.Engine.Audio.SDL3
 - Sedulous.Mathematics

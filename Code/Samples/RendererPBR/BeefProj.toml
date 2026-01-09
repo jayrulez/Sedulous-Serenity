@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "SampleFramework" = "*", "Sedulous.Framework.Renderer" = "*", "Sedulous.Geometry" = "*", "Sedulous.Imaging" = "*"}
+Dependencies = {corlib = "*", "SampleFramework" = "*", "Sedulous.Engine.Renderer" = "*", "Sedulous.Geometry" = "*", "Sedulous.Imaging" = "*"}
 
 [Project]
 Name = "RendererPBR"

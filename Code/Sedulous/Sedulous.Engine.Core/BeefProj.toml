@@ -1,0 +1,7 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.Foundation" = "*", "Sedulous.Mathematics" = "*", "Sedulous.Serialization" = "*", "Sedulous.Mathematics.Serialization" = "*", "Sedulous.Jobs" = "*", "Sedulous.Resources" = "*", "Sedulous.Logging" = "*", "Sedulous.Serialization.OpenDDL" = "*"}
+
+[Project]
+Name = "Sedulous.Engine.Core"
+TargetType = "BeefLib"
+StartupObject = "Sedulous.Engine.Core.Program"

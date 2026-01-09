@@ -3,7 +3,7 @@ namespace RendererTriangle;
 using System;
 using Sedulous.Mathematics;
 using Sedulous.RHI;
-using Sedulous.Framework.Renderer;
+using Sedulous.Engine.Renderer;
 using SampleFramework;
 
 /// Vertex structure with position and color

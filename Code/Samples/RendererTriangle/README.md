@@ -18,5 +18,5 @@ Basic Framework.Renderer sample demonstrating the RenderGraph system.
 
 ## Dependencies
 
-- Sedulous.Framework.Renderer
+- Sedulous.Engine.Renderer
 - RHI.SampleFramework

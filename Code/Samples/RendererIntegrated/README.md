@@ -51,6 +51,6 @@ Context
 
 ## Dependencies
 
-- Sedulous.Framework.Core
-- Sedulous.Framework.Renderer
+- Sedulous.Engine.Core
+- Sedulous.Engine.Renderer
 - SampleFramework

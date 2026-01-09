@@ -7,7 +7,7 @@ using Sedulous.RHI;
 using Sedulous.RHI.Vulkan;
 using Sedulous.Shell;
 using Sedulous.Shell.SDL3;
-using Sedulous.Framework.Runtime;
+using Sedulous.Engine.Runtime;
 using SampleFramework;
 
 /// Vertex structure with position and color
@@ -31,7 +31,7 @@ struct Uniforms
 	public Matrix Transform;
 }
 
-/// Triangle sample using the Sedulous.Framework.Runtime application framework.
+/// Triangle sample using the Sedulous.Engine.Runtime application framework.
 class TriangleApp : Application
 {
 	private IBuffer mVertexBuffer;

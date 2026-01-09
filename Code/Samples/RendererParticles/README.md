@@ -52,5 +52,5 @@ config.Gravity = .(0, -8.0f, 0);
 
 ## Dependencies
 
-- Sedulous.Framework.Renderer
+- Sedulous.Engine.Renderer
 - SampleFramework

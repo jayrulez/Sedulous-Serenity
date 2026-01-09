@@ -1,0 +1,6 @@
+FileVersion = 1
+
+[Project]
+Name = "Sedulous.Engine.Input"
+TargetType = "BeefLib"
+StartupObject = "Sedulous.Engine.Input.Program"

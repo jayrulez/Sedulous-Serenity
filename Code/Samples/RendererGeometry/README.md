@@ -32,6 +32,6 @@ Basic geometry rendering sample demonstrating procedural mesh creation with the 
 
 ## Dependencies
 
-- Sedulous.Framework.Renderer
+- Sedulous.Engine.Renderer
 - Sedulous.Geometry
 - SampleFramework

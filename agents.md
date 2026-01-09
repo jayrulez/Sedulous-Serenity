@@ -57,7 +57,7 @@ Third-party bindings used by the framework:
 | | Sedulous.OpenDDL | Complete | OpenDDL parser and writer |
 | **Serialization** | Sedulous.Serialization | Complete | Abstract serialization framework |
 | | Sedulous.Serialization.OpenDDL | Complete | OpenDDL serializer implementation |
-| | Sedulous.Framework.Serialization | Complete | Math type serialization extensions |
+| | Sedulous.Mathematics.Serialization | Complete | Math type serialization extensions |
 | **Assets** | Sedulous.Imaging | Complete | Image loading/manipulation |
 | | Sedulous.Geometry | Complete | Mesh creation, VertexBuffer, IndexBuffer, SkinnedMesh |
 | | Sedulous.Models | Complete | Model representation with bones, materials, animations |
@@ -66,16 +66,16 @@ Third-party bindings used by the framework:
 | | Sedulous.Resources | Complete | Async resource loading with caching |
 | | Sedulous.Shell | Complete | Window management, input abstraction |
 | | Sedulous.Shell.SDL3 | Complete | SDL3 implementation |
-| **Framework** | Sedulous.Framework.Core | Complete | Context, ECS, Scene management |
-| | Sedulous.Framework.Audio | Complete | Audio system interfaces |
-| | Sedulous.Framework.Audio.SDL3 | Complete | SDL3_mixer implementation |
-| | Sedulous.Framework.Input | Not Started | High-level input processing |
-| | Sedulous.Framework.Renderer | **In Progress** | High-level rendering (Phases 1-5 complete) |
+| **Framework** | Sedulous.Engine.Core | Complete | Context, ECS, Scene management |
+| | Sedulous.Engine.Audio | Complete | Audio system interfaces |
+| | Sedulous.Engine.Audio.SDL3 | Complete | SDL3_mixer implementation |
+| | Sedulous.Engine.Input | Not Started | High-level input processing |
+| | Sedulous.Engine.Renderer | **In Progress** | High-level rendering (Phases 1-5 complete) |
 | **RHI** | Sedulous.RHI | Complete | Graphics API abstraction |
 | | Sedulous.RHI.Vulkan | Complete | Vulkan backend |
 | | Sedulous.RHI.DX12 | Not Started | DirectX 12 backend |
 | | Sedulous.RHI.HLSLShaderCompiler | Complete | HLSL compilation via DXC |
-| **Integration** | Sedulous.Framework.Runtime | Not Started | Application framework |
+| **Integration** | Sedulous.Engine.Runtime | Not Started | Application framework |
 
 ### Renderer Implementation Progress
 
@@ -329,7 +329,7 @@ System Layer:
   Sedulous.Jobs, Resources, Shell
       ↓
 Framework Layer:
-  Sedulous.Framework.Core, Audio, Renderer
+  Sedulous.Engine.Core, Audio, Renderer
       ↓
 RHI Layer:
   Sedulous.RHI, RHI.Vulkan
@@ -337,7 +337,7 @@ RHI Layer:
 
 ### Key Types Reference
 
-#### Sedulous.Framework.Core
+#### Sedulous.Engine.Core
 
 | Type | Purpose |
 |------|---------|
@@ -358,7 +358,7 @@ RHI Layer:
 - `ComponentRegistry` - Type registry for component serialization
 - Type-keyed service registration via `IContextService`
 
-#### Sedulous.Framework.Audio
+#### Sedulous.Engine.Audio
 
 | Type | Purpose |
 |------|---------|
@@ -487,7 +487,7 @@ class MySample : RHISampleApp
 
 ## Renderer Architecture
 
-**Project:** `Sedulous.Framework.Renderer`
+**Project:** `Sedulous.Engine.Renderer`
 
 **Dependencies:** corlib, Sedulous.Foundation, Sedulous.Mathematics, Sedulous.Logging, Sedulous.RHI, Sedulous.Resources, Sedulous.Geometry, Sedulous.Imaging
 
@@ -642,7 +642,7 @@ class RenderSceneComponent : ISceneComponent
 ### File Structure
 
 ```
-Sedulous.Framework.Renderer/src/
+Sedulous.Engine.Renderer/src/
 ├── RenderSystem.bf              # IContextService, main orchestrator
 ├── FrameContext.bf              # Per-frame GPU state
 ├── World/                       # MeshProxy, LightProxy, CameraProxy
@@ -663,8 +663,8 @@ Sedulous.Framework.Renderer/src/
 - `Sedulous.Geometry/src/VertexBuffer.bf` - Vertex data layout
 - `Sedulous.Imaging/src/Image.bf` - CPU image/texture data
 - `Sedulous.Resources/src/ResourceManager.bf` - Resource loading pattern
-- `Sedulous.Framework.Core/src/Context/Context.bf` - IContextService pattern (for Phase 7)
-- `Sedulous.Framework.Core/src/Entity/IEntityComponent.bf` - Component pattern (for Phase 7)
+- `Sedulous.Engine.Core/src/Context/Context.bf` - IContextService pattern (for Phase 7)
+- `Sedulous.Engine.Core/src/Entity/IEntityComponent.bf` - Component pattern (for Phase 7)
 - `RHI.SampleFramework/src/RHISampleApp.bf` - Frame loop reference
 
 ---
@@ -798,7 +798,7 @@ for (let childId in childrenToDestroy)
 
 Priority order for remaining work:
 
-1. **Sedulous.Framework.Renderer** - Complete Phase 6 (Post-Processing) and Phase 7 (Polish & Integration)
-2. **Sedulous.Framework.Input** - Input action mapping, gesture detection
-3. **Sedulous.Framework.Runtime** - Application lifecycle, main loop integration
+1. **Sedulous.Engine.Renderer** - Complete Phase 6 (Post-Processing) and Phase 7 (Polish & Integration)
+2. **Sedulous.Engine.Input** - Input action mapping, gesture detection
+3. **Sedulous.Engine.Runtime** - Application lifecycle, main loop integration
 4. **Sedulous.RHI.DX12** - DirectX 12 backend (optional, Vulkan backend is complete)

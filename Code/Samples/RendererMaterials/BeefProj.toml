@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", SampleFramework = "*", "Sedulous.Framework.Core" = "*", "Sedulous.Framework.Renderer" = "*", "Sedulous.Geometry" = "*", "Sedulous.Geometry.Tooling" = "*", "Sedulous.Imaging" = "*", "Sedulous.Logging" = "*", "Sedulous.Models" = "*", "Sedulous.Models.GLTF" = "*"}
+Dependencies = {corlib = "*", SampleFramework = "*", "Sedulous.Engine.Core" = "*", "Sedulous.Engine.Renderer" = "*", "Sedulous.Geometry" = "*", "Sedulous.Geometry.Tooling" = "*", "Sedulous.Imaging" = "*", "Sedulous.Logging" = "*", "Sedulous.Models" = "*", "Sedulous.Models.GLTF" = "*"}
 
 [Project]
 Name = "RendererMaterials"
