@@ -21,10 +21,10 @@ public class DockManager : Control
 	private Splitter mTopSplitter;
 	private Splitter mBottomSplitter;
 
-	private float mLeftWidth = 200;
-	private float mRightWidth = 200;
-	private float mTopHeight = 150;
-	private float mBottomHeight = 150;
+	private float mLeftWidth = 100;
+	private float mRightWidth = 100;
+	private float mTopHeight = 80;
+	private float mBottomHeight = 80;
 
 	private DockZone mDragPreviewZone = .None;
 	private DockablePanel mDraggingPanel;
@@ -66,9 +66,9 @@ public class DockManager : Control
 	public List<DockablePanel> FloatingPanels => mFloatingPanels;
 
 	/// Minimum size for the center content area.
-	private const float MinCenterSize = 100;
+	private const float MinCenterSize = 50;
 	/// Minimum size for docked panels.
-	private const float MinPanelSize = 100;
+	private const float MinPanelSize = 50;
 	/// Splitter thickness for calculations.
 	private const float SplitterSize = 6;
 
@@ -203,10 +203,14 @@ public class DockManager : Control
 		if (panel == null)
 			return;
 
+		// Capture panel's requested size before resetting (if it was explicitly set)
+		float requestedWidth = panel.Width.IsFixed ? panel.Width.Value : 0;
+		float requestedHeight = panel.Height.IsFixed ? panel.Height.Value : 0;
+
 		// Remove panel from its current location
 		UndockPanel(panel);
 
-		// Reset size constraints so panel fills dock zone (may have been set when floating)
+		// Reset size constraints so panel fills dock zone
 		panel.Width = .Auto;
 		panel.Height = .Auto;
 		panel.Margin = Thickness(0);
@@ -219,15 +223,24 @@ public class DockManager : Control
 		case .Left:
 			if (mLeftPanel != null && mLeftPanel != panel)
 				UndockPanel(mLeftPanel);
+			// Use panel's requested width if set
+			if (requestedWidth > 0)
+				mLeftWidth = requestedWidth;
 		case .Right:
 			if (mRightPanel != null && mRightPanel != panel)
 				UndockPanel(mRightPanel);
+			if (requestedWidth > 0)
+				mRightWidth = requestedWidth;
 		case .Top:
 			if (mTopPanel != null && mTopPanel != panel)
 				UndockPanel(mTopPanel);
+			if (requestedHeight > 0)
+				mTopHeight = requestedHeight;
 		case .Bottom:
 			if (mBottomPanel != null && mBottomPanel != panel)
 				UndockPanel(mBottomPanel);
+			if (requestedHeight > 0)
+				mBottomHeight = requestedHeight;
 		default:
 		}
 

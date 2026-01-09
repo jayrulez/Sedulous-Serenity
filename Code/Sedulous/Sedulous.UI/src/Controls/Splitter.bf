@@ -9,7 +9,7 @@ namespace Sedulous.UI;
 public class Splitter : Control
 {
 	private bool mIsDragging;
-	private float mDragOffset; // Offset of mouse click within the splitter
+	private float mLastMousePos; // Last mouse position during drag
 	private float mSplitterThickness = 6;
 	private Orientation mOrientation = .Horizontal;
 
@@ -146,11 +146,8 @@ public class Splitter : Control
 		if (args.Button == .Left && IsEnabled)
 		{
 			mIsDragging = true;
-			// Store the offset of the click within the splitter
-			// This is the distance from the splitter's position to the mouse
-			let splitterPos = mOrientation == .Horizontal ? Bounds.X : Bounds.Y;
-			let mousePos = mOrientation == .Horizontal ? args.ScreenX : args.ScreenY;
-			mDragOffset = mousePos - splitterPos;
+			// Store the starting mouse position
+			mLastMousePos = mOrientation == .Horizontal ? args.ScreenX : args.ScreenY;
 			Context?.CaptureMouse(this);
 			InvalidateVisual();
 			args.Handled = true;
@@ -176,17 +173,16 @@ public class Splitter : Control
 
 		if (mIsDragging)
 		{
-			// Calculate where the splitter should be to keep the mouse at the same offset
+			// Calculate delta from mouse movement
 			let mousePos = mOrientation == .Horizontal ? args.ScreenX : args.ScreenY;
-			let targetPos = mousePos - mDragOffset;
-
-			// The delta is the difference between target and current position
-			let currentPos = mOrientation == .Horizontal ? Bounds.X : Bounds.Y;
-			let delta = targetPos - currentPos;
+			let delta = mousePos - mLastMousePos;
 
 			if (Math.Abs(delta) > 0.5f)
 			{
 				mSplitterMovedEvent.[Friend]Invoke(this, delta);
+				// Update last position to current mouse position
+				// This ensures smooth tracking even when movement is constrained
+				mLastMousePos = mousePos;
 			}
 
 			args.Handled = true;
