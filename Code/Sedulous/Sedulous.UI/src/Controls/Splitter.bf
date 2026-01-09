@@ -56,6 +56,7 @@ public class Splitter : Control
 	public this()
 	{
 		Focusable = false;
+		ClipToBounds = true;
 		UpdateCursor();
 	}
 

@@ -2505,12 +2505,16 @@ class UISandboxSample : RHISampleApp
 			// Set scissor rect based on clip mode
 			if (cmd.ClipMode == .Scissor && cmd.ClipRect.Width > 0 && cmd.ClipRect.Height > 0)
 			{
-				// Clamp scissor to screen bounds
-				let x = (int32)Math.Max(0, cmd.ClipRect.X);
-				let y = (int32)Math.Max(0, cmd.ClipRect.Y);
-				let w = (uint32)Math.Max(0, Math.Min(cmd.ClipRect.Width, (int32)SwapChain.Width - x));
-				let h = (uint32)Math.Max(0, Math.Min(cmd.ClipRect.Height, (int32)SwapChain.Height - y));
-				renderPass.SetScissorRect(x, y, w, h);
+				// Conservative scissor rect calculation:
+				// - Round start positions UP (ceil) to not include pixels before clip start
+				// - Round end positions DOWN (floor) to not include pixels after clip end
+				let startX = (int32)Math.Ceiling(Math.Max(0f, cmd.ClipRect.X));
+				let startY = (int32)Math.Ceiling(Math.Max(0f, cmd.ClipRect.Y));
+				let endX = (int32)Math.Floor(Math.Min(cmd.ClipRect.X + cmd.ClipRect.Width, (float)SwapChain.Width));
+				let endY = (int32)Math.Floor(Math.Min(cmd.ClipRect.Y + cmd.ClipRect.Height, (float)SwapChain.Height));
+				let w = (uint32)Math.Max(0, endX - startX);
+				let h = (uint32)Math.Max(0, endY - startY);
+				renderPass.SetScissorRect(startX, startY, w, h);
 			}
 			else
 			{
