@@ -36,6 +36,7 @@ public abstract class UIElement
 	private Matrix mRenderTransform = Matrix.Identity;
 	private Vector2 mRenderTransformOrigin = .(0.5f, 0.5f); // Center by default
 	private bool mHasRenderTransform = false;
+	private bool mClipToBounds = false;
 	private CursorType? mCursor = null; // null = inherit from parent
 
 	// State
@@ -194,6 +195,13 @@ public abstract class UIElement
 	{
 		get => mRenderTransformOrigin;
 		set { mRenderTransformOrigin = value; InvalidateVisual(); }
+	}
+
+	/// Whether to clip child content to this element's bounds.
+	public bool ClipToBounds
+	{
+		get => mClipToBounds;
+		set { mClipToBounds = value; InvalidateVisual(); }
 	}
 
 	/// Cursor to display when mouse is over this element.
@@ -551,6 +559,10 @@ public abstract class UIElement
 			drawContext.SetTransform(combinedTransform);
 		}
 
+		// Apply clipping if enabled
+		if (mClipToBounds)
+			drawContext.PushClipRect(mBounds);
+
 		// Render this element's content
 		OnRender(drawContext);
 
@@ -559,6 +571,10 @@ public abstract class UIElement
 		{
 			child.Render(drawContext);
 		}
+
+		// Pop clipping
+		if (mClipToBounds)
+			drawContext.PopClip();
 
 		// Restore transform
 		if (mHasRenderTransform)

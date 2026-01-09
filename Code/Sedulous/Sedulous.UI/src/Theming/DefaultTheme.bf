@@ -53,6 +53,28 @@ public class DefaultTheme : Theme
 		SetColor("Warning", .(255, 185, 0));
 		SetColor("Error", .(232, 17, 35));
 		SetColor("Info", .(0, 120, 215));
+
+		// Splitter colors
+		SetColor("SplitterBackground", .(220, 220, 220));
+		SetColor("SplitterHover", .(180, 180, 180));
+		SetColor("SplitterDragging", .(0, 120, 215));
+
+		// ListBox colors
+		SetColor("ListItemHover", .(229, 241, 251));
+		SetColor("ListItemSelected", .(204, 228, 247));
+
+		// Tooltip colors
+		SetColor("TooltipBackground", .(255, 255, 225));
+		SetColor("TooltipBorder", .(100, 100, 100));
+		SetColor("TooltipForeground", .(0, 0, 0));
+
+		// Dialog colors
+		SetColor("DialogTitleBar", .(0, 120, 215));
+		SetColor("DialogTitleText", .(255, 255, 255));
+
+		// Dockable panel colors
+		SetColor("DockPanelHeader", .(240, 240, 240));
+		SetColor("DockZonePreview", .(0, 120, 215, 80));
 	}
 
 	private void InitializeStyles()

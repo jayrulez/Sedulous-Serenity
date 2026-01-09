@@ -134,22 +134,34 @@ public class ScrollViewer : UIElement
 		if (element == null || mContent == null)
 			return;
 
-		// Calculate element's position relative to content
+		// Convert element bounds from screen coordinates to content-relative coordinates
+		// Content is arranged at (contentBounds - scrollOffset), so:
+		// contentRelativePos = screenPos - (contentBounds - scrollOffset) = screenPos - contentBounds + scrollOffset
+		let contentBounds = ContentBounds;
 		let elementBounds = element.Bounds;
+		let contentRelativeX = elementBounds.X - contentBounds.X + mScrollOffset.X;
+		let contentRelativeY = elementBounds.Y - contentBounds.Y + mScrollOffset.Y;
+
 		var targetX = mScrollOffset.X;
 		var targetY = mScrollOffset.Y;
 
-		// Adjust horizontal scroll
-		if (elementBounds.X < mScrollOffset.X)
-			targetX = elementBounds.X;
-		else if (elementBounds.X + elementBounds.Width > mScrollOffset.X + mViewportSize.X)
-			targetX = elementBounds.X + elementBounds.Width - mViewportSize.X;
+		// Adjust horizontal scroll (only if horizontal scrolling is enabled)
+		if (mHorizontalScrollBarVisibility != .Disabled)
+		{
+			if (contentRelativeX < mScrollOffset.X)
+				targetX = contentRelativeX;
+			else if (contentRelativeX + elementBounds.Width > mScrollOffset.X + mViewportSize.X)
+				targetX = contentRelativeX + elementBounds.Width - mViewportSize.X;
+		}
 
-		// Adjust vertical scroll
-		if (elementBounds.Y < mScrollOffset.Y)
-			targetY = elementBounds.Y;
-		else if (elementBounds.Y + elementBounds.Height > mScrollOffset.Y + mViewportSize.Y)
-			targetY = elementBounds.Y + elementBounds.Height - mViewportSize.Y;
+		// Adjust vertical scroll (only if vertical scrolling is enabled)
+		if (mVerticalScrollBarVisibility != .Disabled)
+		{
+			if (contentRelativeY < mScrollOffset.Y)
+				targetY = contentRelativeY;
+			else if (contentRelativeY + elementBounds.Height > mScrollOffset.Y + mViewportSize.Y)
+				targetY = contentRelativeY + elementBounds.Height - mViewportSize.Y;
+		}
 
 		ScrollTo(targetX, targetY);
 	}

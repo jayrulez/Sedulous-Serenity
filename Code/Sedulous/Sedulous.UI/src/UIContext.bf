@@ -105,6 +105,10 @@ public class UIContext
 	private float mLastMouseX;
 	private float mLastMouseY;
 
+	// Deferred deletion queue - elements added here are deleted at end of Update()
+	// This prevents use-after-free when an element deletes itself during event handling
+	private List<UIElement> mDeferredDeletions = new .() ~ delete _;
+
 	/// The root element of the UI tree.
 	public UIElement RootElement
 	{
@@ -405,6 +409,68 @@ public class UIContext
 		}
 	}
 
+	/// Queues an element for deletion at the end of the current frame.
+	/// Use this instead of `delete` when an element needs to delete itself
+	/// during event handling (e.g., a dialog closing when a button is clicked).
+	/// This prevents use-after-free crashes when the call stack still references the element.
+	public void DeferDelete(UIElement element)
+	{
+		if (element != null && !mDeferredDeletions.Contains(element))
+			mDeferredDeletions.Add(element);
+	}
+
+	/// Processes all pending deferred deletions.
+	/// Called automatically at the end of Update().
+	private void ProcessDeferredDeletions()
+	{
+		if (mDeferredDeletions.Count == 0)
+			return;
+
+		// Get tooltip service for cleanup notifications
+		ITooltipService tooltipService = null;
+		if (GetService<ITooltipService>() case .Ok(let svc))
+			tooltipService = svc;
+
+		for (let element in mDeferredDeletions)
+		{
+			// Notify tooltip service about this element and all its descendants
+			if (tooltipService != null)
+				NotifyTooltipServiceRecursive(tooltipService, element);
+
+			// Clear any references this context might have to the element or its descendants
+			if (mFocusedElement != null && IsDescendantOf(mFocusedElement, element))
+				mFocusedElement = null;
+			if (mCapturedElement != null && IsDescendantOf(mCapturedElement, element))
+				mCapturedElement = null;
+			if (mHoveredElement != null && IsDescendantOf(mHoveredElement, element))
+				mHoveredElement = null;
+
+			delete element;
+		}
+		mDeferredDeletions.Clear();
+	}
+
+	/// Checks if 'element' is the same as 'ancestor' or a descendant of it.
+	private static bool IsDescendantOf(UIElement element, UIElement ancestor)
+	{
+		var current = element;
+		while (current != null)
+		{
+			if (current == ancestor)
+				return true;
+			current = current.Parent;
+		}
+		return false;
+	}
+
+	/// Recursively notifies tooltip service about an element and its children being deleted.
+	private void NotifyTooltipServiceRecursive(ITooltipService tooltipService, UIElement element)
+	{
+		tooltipService.OnElementDeleted(element);
+		for (let child in element.Children)
+			NotifyTooltipServiceRecursive(tooltipService, child);
+	}
+
 	/// Closes popups that should close when clicking outside.
 	/// Returns true if any popup was closed.
 	internal bool HandleClickOutsidePopups(float x, float y)
@@ -452,6 +518,9 @@ public class UIContext
 			PerformLayout();
 			mLayoutDirty = false;
 		}
+
+		// Process any deferred deletions (must be last!)
+		ProcessDeferredDeletions();
 	}
 
 	/// Performs the layout pass on the element tree.

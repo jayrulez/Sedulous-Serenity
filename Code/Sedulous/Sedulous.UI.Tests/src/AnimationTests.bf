@@ -249,15 +249,13 @@ class AnimationManagerTests
 		let anim = new FloatAnimation(0, 1);
 		anim.Duration = 0.5f;
 
-		manager.Add(anim);
+		manager.Add(anim); // takes ownership
 		Test.Assert(manager.Count == 1);
 
 		manager.Update(0.6f); // Past duration
 
 		// Animation should be removed after completion
 		Test.Assert(manager.Count == 0);
-
-		delete anim;
 	}
 
 	[Test]

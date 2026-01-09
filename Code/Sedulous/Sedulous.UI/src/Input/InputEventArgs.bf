@@ -79,6 +79,9 @@ public class MouseEventArgs : InputEventArgs
 	/// Gets the local position as a Vector2.
 	public Vector2 LocalPosition => .(LocalX, LocalY);
 
+	/// Checks if a modifier key is pressed.
+	public bool HasModifier(KeyModifiers mod) => ((int32)Modifiers & (int32)mod) != 0;
+
 	public override void Reset()
 	{
 		base.Reset();

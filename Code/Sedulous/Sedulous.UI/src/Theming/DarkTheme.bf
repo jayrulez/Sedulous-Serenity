@@ -53,6 +53,28 @@ public class DarkTheme : Theme
 		SetColor("Warning", .(255, 185, 0));
 		SetColor("Error", .(248, 81, 73));
 		SetColor("Info", .(88, 166, 255));
+
+		// Splitter colors
+		SetColor("SplitterBackground", .(60, 60, 60));
+		SetColor("SplitterHover", .(80, 80, 80));
+		SetColor("SplitterDragging", .(0, 120, 215));
+
+		// ListBox colors
+		SetColor("ListItemHover", .(55, 55, 55));
+		SetColor("ListItemSelected", .(0, 90, 158));
+
+		// Tooltip colors
+		SetColor("TooltipBackground", .(60, 60, 65));
+		SetColor("TooltipBorder", .(100, 100, 100));
+		SetColor("TooltipForeground", .(240, 240, 240));
+
+		// Dialog colors
+		SetColor("DialogTitleBar", .(50, 50, 55));
+		SetColor("DialogTitleText", .(240, 240, 240));
+
+		// Dockable panel colors
+		SetColor("DockPanelHeader", .(50, 50, 55));
+		SetColor("DockZonePreview", .(0, 120, 215, 80));
 	}
 
 	private void InitializeStyles()

@@ -313,6 +313,7 @@ class UISandboxSample : RHISampleApp
 	private UIContext mUIContext ~ delete _;
 	private UIClipboardAdapter mClipboard ~ delete _;
 	private UISandboxFontService mFontService ~ delete _;
+	private TooltipService mTooltipService ~ delete _;
 	private delegate void(StringView) mTextInputDelegate ~ delete _;
 
 	// Drawing context
@@ -896,6 +897,10 @@ class UISandboxSample : RHISampleApp
 		let theme = new DefaultTheme();
 		mUIContext.RegisterService<ITheme>(theme);
 
+		// Register tooltip service
+		mTooltipService = new TooltipService();
+		mUIContext.RegisterService<ITooltipService>(mTooltipService);
+
 		// Set viewport
 		mUIContext.SetViewportSize((float)SwapChain.Width, (float)SwapChain.Height);
 
@@ -1189,6 +1194,122 @@ class UISandboxSample : RHISampleApp
 			panel.AddChild(dropTarget);
 		});
 
+		// Section: ListBox
+		AddSection(content, "ListBox", scope (panel) => {
+			let desc = new TextBlock();
+			desc.Text = "Select items (supports multi-select with Ctrl/Shift):";
+			desc.Foreground = Color(150, 150, 150);
+			panel.AddChild(desc);
+
+			let listBox = new ListBox();
+			listBox.Width = 300;
+			listBox.Height = 120;
+			listBox.SelectionMode = .Extended;
+			listBox.AddItem("Item 1 - Apple");
+			listBox.AddItem("Item 2 - Banana");
+			listBox.AddItem("Item 3 - Cherry");
+			listBox.AddItem("Item 4 - Date");
+			listBox.AddItem("Item 5 - Elderberry");
+			listBox.AddItem("Item 6 - Fig");
+			listBox.AddItem("Item 7 - Grape");
+			listBox.SelectedIndex = 0;
+			listBox.SelectionChanged.Subscribe(new (lb, oldIdx, newIdx) => {
+				Console.WriteLine(scope $"ListBox selection: {oldIdx} -> {newIdx}");
+			});
+			panel.AddChild(listBox);
+		});
+
+		// Section: ComboBox
+		AddSection(content, "ComboBox", scope (panel) => {
+			let desc = new TextBlock();
+			desc.Text = "Dropdown selection:";
+			desc.Foreground = Color(150, 150, 150);
+			panel.AddChild(desc);
+
+			let combo = new ComboBox();
+			combo.Width = 200;
+			combo.PlaceholderText = "Select a fruit...";
+			combo.AddItem("Apple");
+			combo.AddItem("Banana");
+			combo.AddItem("Cherry");
+			combo.AddItem("Date");
+			combo.AddItem("Elderberry");
+			combo.SelectionChanged.Subscribe(new (cb, oldIdx, newIdx) => {
+				Console.WriteLine(scope $"ComboBox selection: {cb.SelectedItem}");
+			});
+			panel.AddChild(combo);
+		});
+
+		// Section: Tooltip
+		AddSection(content, "Tooltip", scope (panel) => {
+			let desc = new TextBlock();
+			desc.Text = "Hover over buttons for tooltips:";
+			desc.Foreground = Color(150, 150, 150);
+			panel.AddChild(desc);
+
+			let hstack = new StackPanel();
+			hstack.Orientation = .Horizontal;
+			hstack.Spacing = 10;
+
+			let btn1 = new Button();
+			btn1.ContentText = "Save";
+			btn1.Padding = Thickness(15, 8, 15, 8);
+			mTooltipService.SetTooltip(btn1, "Save the current document (Ctrl+S)");
+			hstack.AddChild(btn1);
+
+			let btn2 = new Button();
+			btn2.ContentText = "Open";
+			btn2.Padding = Thickness(15, 8, 15, 8);
+			mTooltipService.SetTooltip(btn2, "Open an existing document (Ctrl+O)");
+			hstack.AddChild(btn2);
+
+			let btn3 = new Button();
+			btn3.ContentText = "Help";
+			btn3.Padding = Thickness(15, 8, 15, 8);
+			mTooltipService.SetTooltip(btn3, "Show help and documentation (F1)");
+			hstack.AddChild(btn3);
+
+			panel.AddChild(hstack);
+		});
+
+		// Section: MessageBox/Dialog
+		AddSection(content, "Dialog & MessageBox", scope (panel) => {
+			let desc = new TextBlock();
+			desc.Text = "Click buttons to show dialogs:";
+			desc.Foreground = Color(150, 150, 150);
+			panel.AddChild(desc);
+
+			let hstack = new StackPanel();
+			hstack.Orientation = .Horizontal;
+			hstack.Spacing = 10;
+
+			let infoBtn = new Button();
+			infoBtn.ContentText = "Info";
+			infoBtn.Padding = Thickness(15, 8, 15, 8);
+			infoBtn.Click.Subscribe(new [&](sender) => {
+				MessageBox.Show(mUIContext, "This is an informational message.", "Information", .OK);
+			});
+			hstack.AddChild(infoBtn);
+
+			let questionBtn = new Button();
+			questionBtn.ContentText = "Question";
+			questionBtn.Padding = Thickness(15, 8, 15, 8);
+			questionBtn.Click.Subscribe(new [&](sender) => {
+				MessageBox.ShowQuestion(mUIContext, "Do you want to proceed with this action?");
+			});
+			hstack.AddChild(questionBtn);
+
+			let errorBtn = new Button();
+			errorBtn.ContentText = "Error";
+			errorBtn.Padding = Thickness(15, 8, 15, 8);
+			errorBtn.Click.Subscribe(new [&](sender) => {
+				MessageBox.ShowError(mUIContext, "An error has occurred while processing your request.");
+			});
+			hstack.AddChild(errorBtn);
+
+			panel.AddChild(hstack);
+		});
+
 		// Section: Layout Demos (middle column)
 		AddSection(middleColumn, "Layout Demos", scope (panel) => {
 			// === Grid Demo ===
@@ -1467,6 +1588,78 @@ class UISandboxSample : RHISampleApp
 			panel.AddChild(dockPanel);
 		});
 
+		// Section: SplitPanel (middle column)
+		AddSection(middleColumn, "SplitPanel", scope (panel) => {
+			let desc = new TextBlock();
+			desc.Text = "Drag the splitter to resize panels:";
+			desc.Foreground = Color(150, 150, 150);
+			panel.AddChild(desc);
+
+			// Horizontal split
+			let hSplit = new SplitPanel();
+			hSplit.Width = 300;
+			hSplit.Height = 80;
+			hSplit.Orientation = .Horizontal;
+			hSplit.SplitterPosition = 120;
+
+			let leftPane = new Border();
+			leftPane.Background = Color(80, 60, 100);
+			let leftLabel = new TextBlock();
+			leftLabel.Text = "Left";
+			leftLabel.Foreground = Color.White;
+			leftLabel.HorizontalAlignment = .Center;
+			leftLabel.VerticalAlignment = .Center;
+			leftPane.AddChild(leftLabel);
+			hSplit.Panel1 = leftPane;
+
+			let rightPane = new Border();
+			rightPane.Background = Color(60, 100, 80);
+			let rightLabel = new TextBlock();
+			rightLabel.Text = "Right";
+			rightLabel.Foreground = Color.White;
+			rightLabel.HorizontalAlignment = .Center;
+			rightLabel.VerticalAlignment = .Center;
+			rightPane.AddChild(rightLabel);
+			hSplit.Panel2 = rightPane;
+
+			panel.AddChild(hSplit);
+
+			// Vertical split
+			let vDesc = new TextBlock();
+			vDesc.Text = "Vertical split:";
+			vDesc.Foreground = Color(150, 150, 150);
+			vDesc.Margin = Thickness(0, 10, 0, 0);
+			panel.AddChild(vDesc);
+
+			let vSplit = new SplitPanel();
+			vSplit.Width = 300;
+			vSplit.Height = 100;
+			vSplit.Orientation = .Vertical;
+			vSplit.SplitterPosition = 40;
+
+			let topPane = new Border();
+			topPane.Background = Color(100, 80, 60);
+			let topLabel = new TextBlock();
+			topLabel.Text = "Top";
+			topLabel.Foreground = Color.White;
+			topLabel.HorizontalAlignment = .Center;
+			topLabel.VerticalAlignment = .Center;
+			topPane.AddChild(topLabel);
+			vSplit.Panel1 = topPane;
+
+			let bottomPane = new Border();
+			bottomPane.Background = Color(60, 80, 100);
+			let bottomLabel = new TextBlock();
+			bottomLabel.Text = "Bottom";
+			bottomLabel.Foreground = Color.White;
+			bottomLabel.HorizontalAlignment = .Center;
+			bottomLabel.VerticalAlignment = .Center;
+			bottomPane.AddChild(bottomLabel);
+			vSplit.Panel2 = bottomPane;
+
+			panel.AddChild(vSplit);
+		});
+
 		// Section: Animations (middle column)
 		AddSection(middleColumn, "Animations", scope (panel) => {
 			// First row of animation buttons
@@ -1701,6 +1894,78 @@ class UISandboxSample : RHISampleApp
 			panel.AddChild(startBtn);
 		});
 
+		// Section: Dockable Panels (right column)
+		AddSection(rightColumn, "Dockable Panels", scope (panel) => {
+			let desc = new TextBlock();
+			desc.Text = "DockManager with dockable panels:";
+			desc.Foreground = Color(150, 150, 150);
+			panel.AddChild(desc);
+
+			// Create a mini dock manager demo
+			let dockManager = new DockManager();
+			dockManager.Width = 350;
+			dockManager.Height = 200;
+
+			// Center content
+			let centerContent = new Border();
+			centerContent.Background = Color(50, 50, 60);
+			let centerLabel = new TextBlock();
+			centerLabel.Text = "Main Content Area";
+			centerLabel.Foreground = Color.White;
+			centerLabel.HorizontalAlignment = .Center;
+			centerLabel.VerticalAlignment = .Center;
+			centerContent.AddChild(centerLabel);
+			dockManager.CenterContent = centerContent;
+
+			// Left docked panel
+			let leftPanel = new DockablePanel();
+			leftPanel.Title = "Explorer";
+			leftPanel.Width = .Fixed(100);
+			let leftContent = new TextBlock();
+			leftContent.Text = "Files";
+			leftContent.Foreground = Color(180, 180, 180);
+			leftContent.HorizontalAlignment = .Center;
+			leftContent.VerticalAlignment = .Center;
+			leftPanel.PanelContent = leftContent;
+			dockManager.Dock(leftPanel, .Left);
+
+			// Bottom docked panel
+			let bottomPanel = new DockablePanel();
+			bottomPanel.Title = "Output";
+			bottomPanel.Height = .Fixed(50);
+			let bottomContent = new TextBlock();
+			bottomContent.Text = "Console output...";
+			bottomContent.Foreground = Color(180, 180, 180);
+			bottomContent.Padding = Thickness(5);
+			bottomPanel.PanelContent = bottomContent;
+			dockManager.Dock(bottomPanel, .Bottom);
+
+			panel.AddChild(dockManager);
+
+			// Float button
+			let floatBtn = new Button();
+			floatBtn.ContentText = "Float Left Panel";
+			floatBtn.Padding = Thickness(10, 5, 10, 5);
+			floatBtn.Margin = Thickness(0, 10, 0, 0);
+			floatBtn.Click.Subscribe(new [=](sender) => {
+				if (leftPanel.IsDocked)
+				{
+					// Set size for floating panel
+					leftPanel.Width = .Fixed(120);
+					leftPanel.Height = .Fixed(100);
+					dockManager.Float(leftPanel, 120, 50);
+				}
+				else
+				{
+					// Reset size for docked panel
+					leftPanel.Width = .Fixed(100);
+					leftPanel.Height = .Auto;
+					dockManager.Dock(leftPanel, .Left);
+				}
+			});
+			panel.AddChild(floatBtn);
+		});
+
 		// Section: Transforms (right column)
 		AddSection(rightColumn, "Transforms", scope (panel) => {
 			let desc = new TextBlock();
@@ -1895,35 +2160,40 @@ class UISandboxSample : RHISampleApp
 
 		// Update UI
 		mUIContext.Update(deltaTime, (double)totalTime);
+
+		// Update tooltip system
+		mTooltipService.Update(mUIContext, deltaTime);
 	}
 
 	private void RouteInput()
 	{
 		let input = Shell.InputManager;
 
+		// Get keyboard modifiers for mouse events
+		let mods = GetModifiers(input.Keyboard);
+
 		// Mouse position
-		mUIContext.ProcessMouseMove(input.Mouse.X, input.Mouse.Y);
+		mUIContext.ProcessMouseMove(input.Mouse.X, input.Mouse.Y, mods);
 
 		// Update cursor based on hovered element
 		UpdateCursor(input.Mouse);
 
-		// Mouse buttons
+		// Mouse buttons - pass modifiers for Ctrl/Shift+Click support
 		if (input.Mouse.IsButtonPressed(.Left))
-			mUIContext.ProcessMouseDown(.Left, input.Mouse.X, input.Mouse.Y);
+			mUIContext.ProcessMouseDown(.Left, input.Mouse.X, input.Mouse.Y, mods);
 		if (input.Mouse.IsButtonReleased(.Left))
-			mUIContext.ProcessMouseUp(.Left, input.Mouse.X, input.Mouse.Y);
+			mUIContext.ProcessMouseUp(.Left, input.Mouse.X, input.Mouse.Y, mods);
 
 		if (input.Mouse.IsButtonPressed(.Right))
-			mUIContext.ProcessMouseDown(.Right, input.Mouse.X, input.Mouse.Y);
+			mUIContext.ProcessMouseDown(.Right, input.Mouse.X, input.Mouse.Y, mods);
 		if (input.Mouse.IsButtonReleased(.Right))
-			mUIContext.ProcessMouseUp(.Right, input.Mouse.X, input.Mouse.Y);
+			mUIContext.ProcessMouseUp(.Right, input.Mouse.X, input.Mouse.Y, mods);
 
 		// Mouse wheel
 		if (input.Mouse.ScrollY != 0)
-			mUIContext.ProcessMouseWheel(input.Mouse.ScrollX, input.Mouse.ScrollY, input.Mouse.X, input.Mouse.Y);
+			mUIContext.ProcessMouseWheel(input.Mouse.ScrollX, input.Mouse.ScrollY, input.Mouse.X, input.Mouse.Y, mods);
 
 		// Keyboard - check each key
-		let mods = GetModifiers(input.Keyboard);
 		for (int key = 0; key < (int)Sedulous.Shell.Input.KeyCode.Count; key++)
 		{
 			let shellKey = (Sedulous.Shell.Input.KeyCode)key;

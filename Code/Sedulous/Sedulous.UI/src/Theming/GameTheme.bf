@@ -54,6 +54,28 @@ public class GameTheme : Theme
 		SetColor("Warning", .(255, 200, 0));
 		SetColor("Error", .(255, 60, 80));
 		SetColor("Info", .(0, 200, 220));
+
+		// Splitter colors
+		SetColor("SplitterBackground", .(40, 50, 65));
+		SetColor("SplitterHover", .(60, 80, 100));
+		SetColor("SplitterDragging", .(0, 200, 220));
+
+		// ListBox colors
+		SetColor("ListItemHover", .(35, 45, 60));
+		SetColor("ListItemSelected", .(0, 120, 140));
+
+		// Tooltip colors
+		SetColor("TooltipBackground", .(35, 40, 50));
+		SetColor("TooltipBorder", .(0, 200, 220));
+		SetColor("TooltipForeground", .(220, 230, 240));
+
+		// Dialog colors
+		SetColor("DialogTitleBar", .(0, 150, 170));
+		SetColor("DialogTitleText", .(220, 230, 240));
+
+		// Dockable panel colors
+		SetColor("DockPanelHeader", .(30, 38, 50));
+		SetColor("DockZonePreview", .(0, 200, 220, 80));
 	}
 
 	private void InitializeStyles()
