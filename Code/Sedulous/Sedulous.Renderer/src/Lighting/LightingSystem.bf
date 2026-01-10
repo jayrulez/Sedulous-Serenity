@@ -122,6 +122,50 @@ class LightingSystem
 			mVisibleLightCount++;
 	}
 
+	/// Updates the lighting system for a new frame using a render view.
+	/// frameIndex should be SwapChain.CurrentFrameIndex for proper buffer synchronization.
+	public void UpdateFromView(RenderView* view, List<LightProxy*> lights, int32 frameIndex)
+	{
+		if (view == null)
+			return;
+
+		// Update cluster grid for view
+		mClusterGrid.UpdateClustersFromView(view);
+
+		// Find directional light and gather active point/spot lights
+		mDirectionalLight = null;
+		mActiveLights.Clear();
+
+		for (let light in lights)
+		{
+			if (!light.Enabled)
+				continue;
+
+			if (light.Type == .Directional)
+			{
+				// Use first directional light
+				if (mDirectionalLight == null)
+					mDirectionalLight = light;
+			}
+			else
+			{
+				// Point/spot lights go into cluster culling
+				mActiveLights.Add(light);
+			}
+		}
+
+		// Cull lights to clusters (per-frame buffer)
+		mClusterGrid.CullLightsFromView(mActiveLights, view, frameIndex);
+
+		// Update uniform buffer with directional light info (per-frame buffer)
+		mClusterGrid.UpdateUniformsFromView(view, mDirectionalLight, frameIndex);
+
+		// Update stats
+		mVisibleLightCount = (int32)mActiveLights.Count;
+		if (mDirectionalLight != null)
+			mVisibleLightCount++;
+	}
+
 	/// Prepares shadow data for the frame (call after Update, before rendering shadows).
 	/// This updates cascade matrices and allocates atlas tiles, but doesn't render.
 	public void PrepareShadows(CameraProxy* camera)
@@ -146,7 +190,39 @@ class LightingSystem
 			mShadowCasterCount++;
 		}
 
-		// Allocate shadow atlas tiles for point/spot lights
+		PrepareShadowAtlasTiles();
+	}
+
+	/// Prepares shadow data for the frame using a render view.
+	/// This updates cascade matrices and allocates atlas tiles, but doesn't render.
+	public void PrepareShadowsFromView(RenderView* view)
+	{
+		mShadowCasterCount = 0;
+		mShadowAtlas.Reset();
+
+		// Reset shadow uniforms
+		mShadowUniforms = ShadowUniforms.Default;
+
+		// Update cascaded shadow maps for directional light
+		if (mDirectionalLight != null && mDirectionalLight.CastsShadows)
+		{
+			mCascadedShadows.UpdateCascadesFromView(view, mDirectionalLight.Direction);
+
+			// Copy cascade data to uniforms
+			for (int32 i = 0; i < ShadowConstants.CASCADE_COUNT; i++)
+				mShadowUniforms.Cascades[i] = mCascadedShadows.CascadeData[i];
+
+			mShadowUniforms.DirectionalShadowEnabled = 1;
+			mDirectionalLight.ShadowMapIndex = 0;  // Cascades use index 0 convention
+			mShadowCasterCount++;
+		}
+
+		PrepareShadowAtlasTiles();
+	}
+
+	/// Allocates shadow atlas tiles for point/spot lights.
+	private void PrepareShadowAtlasTiles()
+	{
 		int32 tileIndex = 0;
 		for (let light in mActiveLights)
 		{
@@ -373,11 +449,27 @@ class CascadedShadowMaps
 		if (camera == null)
 			return;
 
+		UpdateCascadesInternal(camera.NearPlane, camera.FarPlane, camera.FieldOfView,
+			camera.AspectRatio, camera.ViewMatrix, lightDirection);
+	}
+
+	/// Updates cascade split distances and view-projection matrices using a render view.
+	public void UpdateCascadesFromView(RenderView* view, Vector3 lightDirection)
+	{
+		if (view == null)
+			return;
+
+		UpdateCascadesInternal(view.NearPlane, view.FarPlane, view.FieldOfView,
+			view.AspectRatio, view.ViewMatrix, lightDirection);
+	}
+
+	/// Internal implementation for updating cascades.
+	private void UpdateCascadesInternal(float nearPlane, float farPlane, float fieldOfView,
+		float aspectRatio, Matrix viewMatrix, Vector3 lightDirection)
+	{
 		// Calculate cascade split distances using practical split scheme
 		float[CASCADE_COUNT + 1] splitDistances = .();
-		CalculateSplitDistances(camera, ref splitDistances);
-
-		// Debug.WriteLine($"[Cascade] Split distances: {splitDistances[0]}, {splitDistances[1]}, {splitDistances[2]}, {splitDistances[3]}, {splitDistances[4]}");
+		CalculateSplitDistancesInternal(nearPlane, farPlane, ref splitDistances);
 
 		// For each cascade, compute tight frustum bounds
 		for (int32 i = 0; i < CASCADE_COUNT; i++)
@@ -387,21 +479,19 @@ class CascadedShadowMaps
 
 			// Get frustum corners for this cascade slice
 			Vector3[8] frustumCorners = .();
-			GetFrustumCornersWorldSpace(camera, nearSplit, farSplit, ref frustumCorners);
+			GetFrustumCornersWorldSpaceInternal(fieldOfView, aspectRatio, viewMatrix,
+				nearSplit, farSplit, ref frustumCorners);
 
 			// Calculate view-projection matrix with texel snapping
 			mCascadeData[i] = ComputeCascadeMatrix(frustumCorners, lightDirection);
 			mCascadeData[i].SplitDepths = .(nearSplit, farSplit, 0, 0);
-
-			// Debug.WriteLine($"[Cascade {i}] nearSplit={nearSplit}, farSplit={farSplit}");
-			// Debug.WriteLine($"[Cascade {i}] VP[0,0]={mCascadeData[i].ViewProjection.M11}, VP[3,3]={mCascadeData[i].ViewProjection.M44}");
 		}
 	}
 
-	private void CalculateSplitDistances(CameraProxy* camera, ref float[CASCADE_COUNT + 1] splits)
+	private void CalculateSplitDistancesInternal(float nearPlane, float farPlane, ref float[CASCADE_COUNT + 1] splits)
 	{
-		float near = camera.NearPlane;
-		float far = Math.Min(camera.FarPlane, 100.0f); // Limit shadow range for better quality
+		float near = nearPlane;
+		float far = Math.Min(farPlane, 100.0f); // Limit shadow range for better quality
 		float lambda = 0.75f; // Blend factor between log and uniform
 
 		splits[0] = near;
@@ -414,14 +504,13 @@ class CascadedShadowMaps
 		}
 	}
 
-	private void GetFrustumCornersWorldSpace(CameraProxy* camera, float nearZ, float farZ, ref Vector3[8] corners)
+	private void GetFrustumCornersWorldSpaceInternal(float fieldOfView, float aspectRatio, Matrix viewMatrix,
+		float nearZ, float farZ, ref Vector3[8] corners)
 	{
 		// Build projection for this slice
-		Matrix proj = Matrix.CreatePerspectiveFieldOfView(
-			camera.FieldOfView, camera.AspectRatio, nearZ, farZ
-		);
+		Matrix proj = Matrix.CreatePerspectiveFieldOfView(fieldOfView, aspectRatio, nearZ, farZ);
 		// Row-vector order: View * Projection
-		Matrix viewProj = camera.ViewMatrix * proj;
+		Matrix viewProj = viewMatrix * proj;
 		Matrix invViewProj = Matrix.Invert(viewProj);
 
 		// NDC corners (Z is 0 to 1 for this projection)

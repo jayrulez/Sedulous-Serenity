@@ -96,7 +96,25 @@ class ClusterGrid
 		mFarPlane = camera.FarPlane;
 
 		// Build cluster AABBs on CPU (could be moved to compute shader)
-		BuildClusterAABBs(camera);
+		BuildClusterAABBs(camera.FieldOfView, camera.AspectRatio);
+
+		// Upload to GPU
+		UploadClusterAABBs();
+	}
+
+	/// Updates the cluster grid for a render view.
+	public void UpdateClustersFromView(RenderView* view)
+	{
+		if (view == null)
+			return;
+
+		mScreenWidth = view.ViewportWidth;
+		mScreenHeight = view.ViewportHeight;
+		mNearPlane = view.NearPlane;
+		mFarPlane = view.FarPlane;
+
+		// Build cluster AABBs on CPU (could be moved to compute shader)
+		BuildClusterAABBs(view.FieldOfView, view.AspectRatio);
 
 		// Upload to GPU
 		UploadClusterAABBs();
@@ -108,6 +126,21 @@ class ClusterGrid
 		if (camera == null || frameIndex < 0 || frameIndex >= MAX_FRAMES_IN_FLIGHT)
 			return;
 
+		CullLightsInternal(lights, camera.ViewMatrix, frameIndex);
+	}
+
+	/// Assigns lights to clusters for the specified frame using a render view.
+	public void CullLightsFromView(List<LightProxy*> lights, RenderView* view, int32 frameIndex)
+	{
+		if (view == null || frameIndex < 0 || frameIndex >= MAX_FRAMES_IN_FLIGHT)
+			return;
+
+		CullLightsInternal(lights, view.ViewMatrix, frameIndex);
+	}
+
+	/// Internal implementation for light culling.
+	private void CullLightsInternal(List<LightProxy*> lights, Matrix viewMatrix, int32 frameIndex)
+	{
 		// Reset light grid
 		for (int i = 0; i < ClusterConstants.CLUSTER_COUNT; i++)
 		{
@@ -126,7 +159,7 @@ class ClusterGrid
 		}
 
 		// Assign lights to clusters (CPU implementation)
-		AssignLightsToClusters(lights, camera);
+		AssignLightsToClustersInternal(lights, viewMatrix);
 
 		// Upload to GPU
 		UploadLightData(frameIndex);
@@ -138,18 +171,46 @@ class ClusterGrid
 		if (frameIndex < 0 || frameIndex >= MAX_FRAMES_IN_FLIGHT)
 			return;
 
-		var uniforms = LightingUniforms.Default;
-
 		if (camera != null)
 		{
-			uniforms.ViewMatrix = camera.ViewMatrix;
-			uniforms.InverseProjection = camera.InverseProjectionMatrix;
-			uniforms.ScreenParams = .((float)mScreenWidth, (float)mScreenHeight,
-				(float)(mScreenWidth / ClusterConstants.CLUSTER_TILES_X),
-				(float)(mScreenHeight / ClusterConstants.CLUSTER_TILES_Y));
-			uniforms.ClusterParams = .(mNearPlane, mFarPlane,
-				ComputeClusterDepthScale(), ComputeClusterDepthBias());
+			Matrix inverseProj = Matrix.Invert(camera.ProjectionMatrix);
+			UpdateUniformsInternal(camera.ViewMatrix, inverseProj, directionalLight, frameIndex);
 		}
+		else
+		{
+			UpdateUniformsInternal(.Identity, .Identity, directionalLight, frameIndex);
+		}
+	}
+
+	/// Updates the lighting uniform buffer for the specified frame using a render view.
+	public void UpdateUniformsFromView(RenderView* view, LightProxy* directionalLight, int32 frameIndex)
+	{
+		if (frameIndex < 0 || frameIndex >= MAX_FRAMES_IN_FLIGHT)
+			return;
+
+		if (view != null)
+		{
+			Matrix inverseProj = Matrix.Invert(view.ProjectionMatrix);
+			UpdateUniformsInternal(view.ViewMatrix, inverseProj, directionalLight, frameIndex);
+		}
+		else
+		{
+			UpdateUniformsInternal(.Identity, .Identity, directionalLight, frameIndex);
+		}
+	}
+
+	/// Internal implementation for updating uniforms.
+	private void UpdateUniformsInternal(Matrix viewMatrix, Matrix inverseProjection, LightProxy* directionalLight, int32 frameIndex)
+	{
+		var uniforms = LightingUniforms.Default;
+
+		uniforms.ViewMatrix = viewMatrix;
+		uniforms.InverseProjection = inverseProjection;
+		uniforms.ScreenParams = .((float)mScreenWidth, (float)mScreenHeight,
+			(float)(mScreenWidth / ClusterConstants.CLUSTER_TILES_X),
+			(float)(mScreenHeight / ClusterConstants.CLUSTER_TILES_Y));
+		uniforms.ClusterParams = .(mNearPlane, mFarPlane,
+			ComputeClusterDepthScale(), ComputeClusterDepthBias());
 
 		if (directionalLight != null && directionalLight.Type == .Directional)
 		{
@@ -218,7 +279,7 @@ class ClusterGrid
 	// ==================== Internal Implementation ====================
 
 	/// Builds cluster AABBs in view space.
-	private void BuildClusterAABBs(CameraProxy* camera)
+	private void BuildClusterAABBs(float fieldOfView, float aspectRatio)
 	{
 		float tileWidth = (float)mScreenWidth / ClusterConstants.CLUSTER_TILES_X;
 		float tileHeight = (float)mScreenHeight / ClusterConstants.CLUSTER_TILES_Y;
@@ -252,7 +313,7 @@ class ClusterGrid
 					float ndcMaxY = (maxY / mScreenHeight) * 2.0f - 1.0f;
 
 					// Compute frustum corners in view space
-					var aabb = ComputeClusterAABB(camera, ndcMinX, ndcMaxX, ndcMinY, ndcMaxY, nearSlice, farSlice);
+					var aabb = ComputeClusterAABB(fieldOfView, aspectRatio, ndcMinX, ndcMaxX, ndcMinY, ndcMaxY, nearSlice, farSlice);
 					mCpuClusterAABBs[clusterIndex] = aabb;
 				}
 			}
@@ -260,23 +321,23 @@ class ClusterGrid
 	}
 
 	/// Computes AABB for a single cluster in view space.
-	private ClusterAABB ComputeClusterAABB(CameraProxy* camera, float ndcMinX, float ndcMaxX,
+	private ClusterAABB ComputeClusterAABB(float fieldOfView, float aspectRatio, float ndcMinX, float ndcMaxX,
 		float ndcMinY, float ndcMaxY, float nearZ, float farZ)
 	{
 		// Compute the 8 corners of the cluster frustum in view space
 		Vector3[8] corners = .();
 
 		// Near plane corners (in view space, Z is negative)
-		corners[0] = ScreenToViewSpace(camera, ndcMinX, ndcMinY, nearZ);
-		corners[1] = ScreenToViewSpace(camera, ndcMaxX, ndcMinY, nearZ);
-		corners[2] = ScreenToViewSpace(camera, ndcMinX, ndcMaxY, nearZ);
-		corners[3] = ScreenToViewSpace(camera, ndcMaxX, ndcMaxY, nearZ);
+		corners[0] = ScreenToViewSpace(fieldOfView, aspectRatio, ndcMinX, ndcMinY, nearZ);
+		corners[1] = ScreenToViewSpace(fieldOfView, aspectRatio, ndcMaxX, ndcMinY, nearZ);
+		corners[2] = ScreenToViewSpace(fieldOfView, aspectRatio, ndcMinX, ndcMaxY, nearZ);
+		corners[3] = ScreenToViewSpace(fieldOfView, aspectRatio, ndcMaxX, ndcMaxY, nearZ);
 
 		// Far plane corners
-		corners[4] = ScreenToViewSpace(camera, ndcMinX, ndcMinY, farZ);
-		corners[5] = ScreenToViewSpace(camera, ndcMaxX, ndcMinY, farZ);
-		corners[6] = ScreenToViewSpace(camera, ndcMinX, ndcMaxY, farZ);
-		corners[7] = ScreenToViewSpace(camera, ndcMaxX, ndcMaxY, farZ);
+		corners[4] = ScreenToViewSpace(fieldOfView, aspectRatio, ndcMinX, ndcMinY, farZ);
+		corners[5] = ScreenToViewSpace(fieldOfView, aspectRatio, ndcMaxX, ndcMinY, farZ);
+		corners[6] = ScreenToViewSpace(fieldOfView, aspectRatio, ndcMinX, ndcMaxY, farZ);
+		corners[7] = ScreenToViewSpace(fieldOfView, aspectRatio, ndcMaxX, ndcMaxY, farZ);
 
 		// Find AABB
 		Vector3 minPoint = corners[0];
@@ -296,21 +357,20 @@ class ClusterGrid
 	}
 
 	/// Converts NDC coordinates to view space at a given depth.
-	private Vector3 ScreenToViewSpace(CameraProxy* camera, float ndcX, float ndcY, float viewZ)
+	private Vector3 ScreenToViewSpace(float fieldOfView, float aspectRatio, float ndcX, float ndcY, float viewZ)
 	{
 		// Using perspective projection properties
-		float tanHalfFov = Math.Tan(camera.FieldOfView * 0.5f);
-		float aspect = camera.AspectRatio;
+		float tanHalfFov = Math.Tan(fieldOfView * 0.5f);
 
 		// At depth viewZ in view space
-		float x = ndcX * viewZ * tanHalfFov * aspect;
+		float x = ndcX * viewZ * tanHalfFov * aspectRatio;
 		float y = ndcY * viewZ * tanHalfFov;
 
 		return .(x, y, -viewZ); // View space Z is negative
 	}
 
 	/// Assigns lights to clusters using AABB intersection tests.
-	private void AssignLightsToClusters(List<LightProxy*> lights, CameraProxy* camera)
+	private void AssignLightsToClustersInternal(List<LightProxy*> lights, Matrix viewMatrix)
 	{
 		// Use a simple approach: for each light, find all clusters it affects
 		// This is O(lights * clusters) but works well for moderate counts
@@ -334,7 +394,7 @@ class ClusterGrid
 				let light = lights[lightIdx];
 
 				// Transform light to view space for intersection test
-				Vector3 lightPosView = TransformToViewSpace(camera, light.Position);
+				Vector3 lightPosView = TransformToViewSpace(viewMatrix, light.Position);
 
 				if (LightIntersectsCluster(light, lightPosView, clusterBounds))
 				{
@@ -349,10 +409,10 @@ class ClusterGrid
 	}
 
 	/// Transforms a world-space position to view space.
-	private Vector3 TransformToViewSpace(CameraProxy* camera, Vector3 worldPos)
+	private Vector3 TransformToViewSpace(Matrix viewMatrix, Vector3 worldPos)
 	{
 		Vector4 pos4 = .(worldPos.X, worldPos.Y, worldPos.Z, 1.0f);
-		Vector4 viewPos = Vector4.Transform(pos4, camera.ViewMatrix);
+		Vector4 viewPos = Vector4.Transform(pos4, viewMatrix);
 		return .(viewPos.X, viewPos.Y, viewPos.Z);
 	}
 

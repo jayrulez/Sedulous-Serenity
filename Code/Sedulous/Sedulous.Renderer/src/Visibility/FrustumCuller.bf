@@ -13,11 +13,42 @@ class FrustumCuller
 	/// Cached frustum planes from camera.
 	private Plane[6] mFrustumPlanes;
 
+	/// Layer mask for filtering objects (only objects with matching bits are visible).
+	private uint32 mLayerMask = 0xFFFFFFFF;
+
 	/// Updates the frustum planes from a camera proxy.
 	public void SetCamera(CameraProxy* camera)
 	{
 		if (camera != null)
+		{
 			mFrustumPlanes = camera.FrustumPlanes;
+			mLayerMask = camera.LayerMask;
+		}
+	}
+
+	/// Sets the layer mask for culling.
+	public void SetLayerMask(uint32 layerMask)
+	{
+		mLayerMask = layerMask;
+	}
+
+	/// Gets the current layer mask.
+	public uint32 LayerMask => mLayerMask;
+
+	/// Sets the culler from a render view.
+	public void SetView(RenderView* view)
+	{
+		if (view != null)
+		{
+			mFrustumPlanes = view.FrustumPlanes;
+			mLayerMask = view.LayerMask;
+		}
+	}
+
+	/// Tests if an object's layer mask is visible to the current view.
+	public bool IsLayerVisible(uint32 objectLayerMask)
+	{
+		return (objectLayerMask & mLayerMask) != 0;
 	}
 
 	/// Tests if an AABB is visible in the frustum.
@@ -109,6 +140,13 @@ class FrustumCuller
 			if (!proxy.IsVisible)
 				continue;
 
+			// Layer mask check
+			if ((proxy.LayerMask & mLayerMask) == 0)
+			{
+				proxy.Flags |= .Culled;
+				continue;
+			}
+
 			let (visible, cullingPlane) = IsVisibleDebug(proxy.WorldBounds);
 			if (visible)
 			{
@@ -158,7 +196,11 @@ class FrustumCuller
 			if (!light.Enabled)
 				continue;
 
-			// Directional lights always visible
+			// Layer mask check
+			if ((light.LayerMask & mLayerMask) == 0)
+				continue;
+
+			// Directional lights always visible (no frustum test)
 			if (light.Type == .Directional)
 			{
 				outVisible.Add(light);

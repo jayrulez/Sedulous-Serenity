@@ -3,6 +3,7 @@ namespace Sedulous.Renderer;
 using System;
 using System.Collections;
 using Sedulous.Mathematics;
+using Sedulous.RHI;
 
 /// Handle to a proxy in RenderWorld.
 struct ProxyHandle : IEquatable<ProxyHandle>, IHashable
@@ -67,6 +68,10 @@ class RenderWorld
 	private bool mLightsDirty = true;
 	private bool mCamerasDirty = true;
 	private bool mParticleEmittersDirty = true;
+
+	// Per-frame render views
+	private List<RenderView> mRenderViews = new .() ~ delete _;
+	private uint32 mNextViewId = 0;
 
 	// ==================== Mesh Proxy Management ====================
 
@@ -496,6 +501,186 @@ class RenderWorld
 	/// Number of active particle emitter proxies.
 	public uint32 ParticleEmitterCount => mParticleEmitterCount;
 
+	// ==================== Render View Management ====================
+
+	/// Clears all render views and resets the view ID counter.
+	/// Call at the start of each frame before adding views.
+	public void ClearRenderViews()
+	{
+		mRenderViews.Clear();
+		mNextViewId = 0;
+	}
+
+	/// Adds a render view and returns its index in the view list.
+	public int32 AddRenderView(RenderView view)
+	{
+		var v = view;
+		v.Id = mNextViewId++;
+		let index = (int32)mRenderViews.Count;
+		mRenderViews.Add(v);
+		return index;
+	}
+
+	/// Adds a main camera view from the current main camera proxy.
+	/// Returns the view index, or -1 if no main camera is set.
+	public int32 AddMainCameraView(ITextureView* colorTarget, ITextureView* depthTarget)
+	{
+		if (let camera = MainCamera)
+		{
+			let view = RenderView.FromCameraProxy(mNextViewId, camera, colorTarget, depthTarget, true);
+			return AddRenderView(view);
+		}
+		return -1;
+	}
+
+	/// Adds a camera view from a camera proxy handle.
+	/// Returns the view index, or -1 if the handle is invalid.
+	public int32 AddCameraView(ProxyHandle cameraHandle, ITextureView* colorTarget, ITextureView* depthTarget, bool isMain = false)
+	{
+		if (let camera = GetCameraProxy(cameraHandle))
+		{
+			let view = RenderView.FromCameraProxy(mNextViewId, camera, colorTarget, depthTarget, isMain);
+			return AddRenderView(view);
+		}
+		return -1;
+	}
+
+	/// Gets the list of render views for iteration.
+	public List<RenderView> RenderViews => mRenderViews;
+
+	/// Gets the number of render views.
+	public int32 RenderViewCount => (int32)mRenderViews.Count;
+
+	/// Gets a render view by index.
+	public RenderView* GetRenderView(int32 index)
+	{
+		if (index >= 0 && index < mRenderViews.Count)
+			return &mRenderViews[index];
+		return null;
+	}
+
+	/// Gets all views of a specific type.
+	public void GetViewsByType(RenderViewType type, List<RenderView*> outViews)
+	{
+		outViews.Clear();
+		for (var i < mRenderViews.Count)
+		{
+			if (mRenderViews[i].Type == type)
+				outViews.Add(&mRenderViews[i]);
+		}
+	}
+
+	/// Gets all views sorted by priority (lower priority renders first).
+	public void GetSortedViews(List<RenderView*> outViews)
+	{
+		outViews.Clear();
+		for (var i < mRenderViews.Count)
+			outViews.Add(&mRenderViews[i]);
+
+		// Sort by priority (ascending)
+		outViews.Sort(scope (a, b) => (int32)a.Priority - (int32)b.Priority);
+	}
+
+	/// Gets all enabled views sorted by priority.
+	public void GetEnabledSortedViews(List<RenderView*> outViews)
+	{
+		outViews.Clear();
+		for (var i < mRenderViews.Count)
+		{
+			if (mRenderViews[i].IsEnabled)
+				outViews.Add(&mRenderViews[i]);
+		}
+
+		outViews.Sort(scope (a, b) => (int32)a.Priority - (int32)b.Priority);
+	}
+
+	/// Adds shadow cascade views from cascade data.
+	/// Returns the number of views added.
+	public int32 AddShadowCascadeViews(
+		Span<CascadeData> cascadeData,
+		Span<ITextureView*> depthTargets,
+		uint32 shadowMapSize,
+		ProxyHandle lightHandle,
+		uint32 layerMask = 0xFFFFFFFF)
+	{
+		int32 count = 0;
+		int32 cascadeCount = Math.Min((int32)cascadeData.Length, (int32)depthTargets.Length);
+
+		for (int32 i = 0; i < cascadeCount; i++)
+		{
+			if (depthTargets[i] == null)
+				continue;
+
+			let view = RenderView.ForShadowCascade(
+				mNextViewId,
+				i,
+				cascadeData[i].ViewProjection,
+				depthTargets[i],
+				shadowMapSize,
+				0, 0,  // No atlas offset for cascades
+				lightHandle,
+				layerMask
+			);
+			AddRenderView(view);
+			count++;
+		}
+
+		return count;
+	}
+
+	/// Adds a single shadow cascade view.
+	public int32 AddShadowCascadeView(
+		int32 cascadeIndex,
+		Matrix viewProjection,
+		ITextureView* depthTarget,
+		uint32 shadowMapSize,
+		ProxyHandle lightHandle,
+		uint32 layerMask = 0xFFFFFFFF)
+	{
+		if (depthTarget == null)
+			return -1;
+
+		let view = RenderView.ForShadowCascade(
+			mNextViewId,
+			cascadeIndex,
+			viewProjection,
+			depthTarget,
+			shadowMapSize,
+			0, 0,
+			lightHandle,
+			layerMask
+		);
+		return AddRenderView(view);
+	}
+
+	/// Adds a local shadow view (point/spot light).
+	public int32 AddLocalShadowView(
+		int32 atlasSlot,
+		Matrix viewProjection,
+		ITextureView* depthTarget,
+		int32 viewportX,
+		int32 viewportY,
+		uint32 tileSize,
+		ProxyHandle lightHandle,
+		uint32 layerMask = 0xFFFFFFFF)
+	{
+		if (depthTarget == null)
+			return -1;
+
+		let view = RenderView.ForLocalShadow(
+			mNextViewId,
+			atlasSlot,
+			viewProjection,
+			depthTarget,
+			viewportX,
+			viewportY,
+			tileSize,
+			lightHandle,
+			layerMask
+		);
+		return AddRenderView(view);
+	}
+
 	// ==================== Frame Updates ====================
 
 	/// Called at the start of a frame to prepare proxies.
@@ -577,6 +762,9 @@ class RenderWorld
 		mParticleEmitterCount = 0;
 
 		mMainCamera = .Invalid;
+
+		mRenderViews.Clear();
+		mNextViewId = 0;
 
 		mMeshesDirty = true;
 		mSkinnedMeshesDirty = true;

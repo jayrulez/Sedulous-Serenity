@@ -82,6 +82,85 @@ class VisibilityResolver
 		SortTransparentBackToFront();
 	}
 
+	/// Resolves visibility for a render world using a RenderView.
+	/// This enables per-view layer mask filtering and custom frustum planes.
+	public void ResolveForView(RenderWorld world, RenderView* view)
+	{
+		if (view == null)
+		{
+			ClearAll();
+			return;
+		}
+
+		mCuller.SetView(view);
+
+		// Gather all proxies
+		world.GetValidStaticMeshProxies(mAllMeshes);
+		world.GetValidLightProxies(mAllLights);
+
+		// Cull meshes
+		mCuller.CullMeshes(mAllMeshes, mVisibleMeshes, view.Position);
+
+		// Cull lights
+		mCuller.CullLights(mAllLights, mVisibleLights);
+
+		// Separate opaque and transparent
+		mOpaqueMeshes.Clear();
+		mTransparentMeshes.Clear();
+		mShadowCasters.Clear();
+
+		for (let mesh in mVisibleMeshes)
+		{
+			// Select LOD based on distance
+			SelectLOD(mesh, view.Position);
+
+			// Generate sort key
+			GenerateSortKey(mesh);
+
+			if (mesh.IsTransparent)
+				mTransparentMeshes.Add(mesh);
+			else
+				mOpaqueMeshes.Add(mesh);
+
+			if (mesh.CastsShadows)
+				mShadowCasters.Add(mesh);
+		}
+
+		// Sort opaque front-to-back (minimize overdraw)
+		SortOpaqueFrontToBack();
+
+		// Sort transparent back-to-front (correct blending)
+		SortTransparentBackToFront();
+	}
+
+	/// Resolves visibility for shadow casters only (depth-only pass).
+	/// Only populates ShadowCasters list, skips opaque/transparent sorting.
+	public void ResolveForShadowView(RenderWorld world, RenderView* view)
+	{
+		if (view == null)
+		{
+			mShadowCasters.Clear();
+			return;
+		}
+
+		mCuller.SetView(view);
+
+		// Gather all mesh proxies
+		world.GetValidStaticMeshProxies(mAllMeshes);
+
+		// Cull meshes
+		mCuller.CullMeshes(mAllMeshes, mVisibleMeshes, view.Position);
+
+		// Only collect shadow casters
+		mShadowCasters.Clear();
+
+		for (let mesh in mVisibleMeshes)
+		{
+			if (mesh.CastsShadows)
+				mShadowCasters.Add(mesh);
+		}
+	}
+
 	/// Clears all visibility data.
 	public void ClearAll()
 	{
