@@ -42,7 +42,7 @@ class RenderSceneComponent : ISceneComponent
 	private Dictionary<EntityId, ProxyHandle> mCameraProxies = new .() ~ delete _;
 
 	// Cached lists for iteration
-	private List<MeshProxy*> mVisibleMeshes = new .() ~ delete _;
+	private List<StaticMeshProxy*> mVisibleMeshes = new .() ~ delete _;
 	private List<LightProxy*> mActiveLights = new .() ~ delete _;
 	private List<SkinnedMeshProxy*> mVisibleSkinnedMeshes = new .() ~ delete _;
 	private List<ParticleEmitterProxy*> mVisibleParticleEmitters = new .() ~ delete _;
@@ -114,7 +114,7 @@ class RenderSceneComponent : ISceneComponent
 	public Scene Scene => mScene;
 
 	/// Gets the list of visible meshes after culling.
-	public List<MeshProxy*> VisibleMeshes => mVisibleMeshes;
+	public List<StaticMeshProxy*> VisibleMeshes => mVisibleMeshes;
 
 	/// Gets the list of active lights.
 	public List<LightProxy*> ActiveLights => mActiveLights;
@@ -123,7 +123,7 @@ class RenderSceneComponent : ISceneComponent
 	public CameraProxy* GetMainCameraProxy() => mRenderWorld.MainCamera;
 
 	/// Gets mesh count for statistics.
-	public uint32 MeshCount => mRenderWorld.MeshCount;
+	public uint32 MeshCount => mRenderWorld.StaticMeshCount;
 
 	/// Gets light count for statistics.
 	public uint32 LightCount => mRenderWorld.LightCount;
@@ -568,11 +568,11 @@ class RenderSceneComponent : ISceneComponent
 		// Remove existing proxy if any
 		if (mMeshProxies.TryGetValue(entityId, let existing))
 		{
-			mRenderWorld.DestroyMeshProxy(existing);
+			mRenderWorld.DestroyStaticMeshProxy(existing);
 			mMeshProxies.Remove(entityId);
 		}
 
-		let handle = mRenderWorld.CreateMeshProxy(mesh, transform, bounds);
+		let handle = mRenderWorld.CreateStaticMeshProxy(mesh, transform, bounds);
 		if (handle.IsValid)
 			mMeshProxies[entityId] = handle;
 
@@ -629,7 +629,7 @@ class RenderSceneComponent : ISceneComponent
 	{
 		if (mMeshProxies.TryGetValue(entityId, let handle))
 		{
-			mRenderWorld.DestroyMeshProxy(handle);
+			mRenderWorld.DestroyStaticMeshProxy(handle);
 			mMeshProxies.Remove(entityId);
 		}
 	}
@@ -766,7 +766,7 @@ class RenderSceneComponent : ISceneComponent
 			// Sync mesh proxies
 			if (mMeshProxies.TryGetValue(entityId, let meshHandle))
 			{
-				if (let proxy = mRenderWorld.GetMeshProxy(meshHandle))
+				if (let proxy = mRenderWorld.GetStaticMeshProxy(meshHandle))
 				{
 					proxy.Transform = worldMatrix;
 					proxy.UpdateWorldBounds();

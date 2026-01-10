@@ -64,7 +64,7 @@ class StaticMeshComponent : IEntityComponent
 			// Sync to proxy
 			if (mProxyHandle.IsValid && mRenderScene != null)
 			{
-				if (let proxy = mRenderScene.RenderWorld.GetMeshProxy(mProxyHandle))
+				if (let proxy = mRenderScene.RenderWorld.GetStaticMeshProxy(mProxyHandle))
 					proxy.SetMaterialInstance(slot, instance);
 			}
 		}
@@ -155,7 +155,7 @@ class StaticMeshComponent : IEntityComponent
 		// Update visibility flag on proxy if changed
 		if (mRenderScene != null && mProxyHandle.IsValid)
 		{
-			if (let proxy = mRenderScene.RenderWorld.GetMeshProxy(mProxyHandle))
+			if (let proxy = mRenderScene.RenderWorld.GetStaticMeshProxy(mProxyHandle))
 			{
 				if (Visible)
 					proxy.Flags |= .Visible;
@@ -229,7 +229,7 @@ class StaticMeshComponent : IEntityComponent
 		// Copy material data to the proxy
 		if (mProxyHandle.IsValid)
 		{
-			if (let proxy = mRenderScene.RenderWorld.GetMeshProxy(mProxyHandle))
+			if (let proxy = mRenderScene.RenderWorld.GetStaticMeshProxy(mProxyHandle))
 			{
 				proxy.MaterialCount = MaterialCount;
 				for (int i = 0; i < 8; i++)

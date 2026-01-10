@@ -10,24 +10,24 @@ class VisibilityResolver
 	private FrustumCuller mCuller = new .() ~ delete _;
 
 	// Temporary lists for visibility processing
-	private List<MeshProxy*> mAllMeshes = new .() ~ delete _;
-	private List<MeshProxy*> mVisibleMeshes = new .() ~ delete _;
+	private List<StaticMeshProxy*> mAllMeshes = new .() ~ delete _;
+	private List<StaticMeshProxy*> mVisibleMeshes = new .() ~ delete _;
 	private List<LightProxy*> mAllLights = new .() ~ delete _;
 	private List<LightProxy*> mVisibleLights = new .() ~ delete _;
 
 	// Output lists
-	private List<MeshProxy*> mOpaqueMeshes = new .() ~ delete _;
-	private List<MeshProxy*> mTransparentMeshes = new .() ~ delete _;
-	private List<MeshProxy*> mShadowCasters = new .() ~ delete _;
+	private List<StaticMeshProxy*> mOpaqueMeshes = new .() ~ delete _;
+	private List<StaticMeshProxy*> mTransparentMeshes = new .() ~ delete _;
+	private List<StaticMeshProxy*> mShadowCasters = new .() ~ delete _;
 
 	/// Gets opaque meshes (front-to-back sorted).
-	public List<MeshProxy*> OpaqueMeshes => mOpaqueMeshes;
+	public List<StaticMeshProxy*> OpaqueMeshes => mOpaqueMeshes;
 
 	/// Gets transparent meshes (back-to-front sorted).
-	public List<MeshProxy*> TransparentMeshes => mTransparentMeshes;
+	public List<StaticMeshProxy*> TransparentMeshes => mTransparentMeshes;
 
 	/// Gets shadow-casting meshes.
-	public List<MeshProxy*> ShadowCasters => mShadowCasters;
+	public List<StaticMeshProxy*> ShadowCasters => mShadowCasters;
 
 	/// Gets visible lights.
 	public List<LightProxy*> VisibleLights => mVisibleLights;
@@ -44,7 +44,7 @@ class VisibilityResolver
 		mCuller.SetCamera(camera);
 
 		// Gather all proxies
-		world.GetValidMeshProxies(mAllMeshes);
+		world.GetValidStaticMeshProxies(mAllMeshes);
 		world.GetValidLightProxies(mAllLights);
 
 		// Cull meshes
@@ -95,7 +95,7 @@ class VisibilityResolver
 	}
 
 	/// Selects LOD level based on distance.
-	private void SelectLOD(MeshProxy* mesh, Vector3 cameraPos)
+	private void SelectLOD(StaticMeshProxy* mesh, Vector3 cameraPos)
 	{
 		if (mesh.MaxLOD == 0)
 		{
@@ -121,7 +121,7 @@ class VisibilityResolver
 
 	/// Generates a sort key for efficient state-based sorting.
 	/// Key format: [material(16)] [mesh(16)] [depth(32)]
-	private void GenerateSortKey(MeshProxy* mesh)
+	private void GenerateSortKey(StaticMeshProxy* mesh)
 	{
 		// For opaque: sort by material, then mesh (minimize state changes)
 		// For transparent: sort by depth only (back to front)

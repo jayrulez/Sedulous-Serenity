@@ -6,7 +6,7 @@ using Sedulous.Mathematics;
 /// Render proxy for a mesh instance in the scene.
 /// Decoupled from gameplay entities - stores only render-relevant data.
 [Reflect]
-struct MeshProxy
+struct StaticMeshProxy
 {
 	/// Unique ID for this proxy.
 	public uint32 Id;

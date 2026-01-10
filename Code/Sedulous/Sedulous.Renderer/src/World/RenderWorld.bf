@@ -29,10 +29,10 @@ struct ProxyHandle : IEquatable<ProxyHandle>, IHashable
 class RenderWorld
 {
 	// Mesh proxies
-	private List<MeshProxy> mMeshProxies = new .() ~ delete _;
-	private List<uint32> mMeshGenerations = new .() ~ delete _;
-	private List<uint32> mFreeMeshSlots = new .() ~ delete _;
-	private uint32 mMeshCount = 0;
+	private List<StaticMeshProxy> mStaticMeshProxies = new .() ~ delete _;
+	private List<uint32> mStaticMeshGenerations = new .() ~ delete _;
+	private List<uint32> mFreeStaticMeshSlots = new .() ~ delete _;
+	private uint32 mStaticMeshCount = 0;
 
 	// Skinned mesh proxies
 	private List<SkinnedMeshProxy> mSkinnedMeshProxies = new .() ~ delete _;
@@ -71,50 +71,50 @@ class RenderWorld
 	// ==================== Mesh Proxy Management ====================
 
 	/// Creates a new mesh proxy.
-	public ProxyHandle CreateMeshProxy(GPUMeshHandle mesh, Matrix transform, BoundingBox localBounds)
+	public ProxyHandle CreateStaticMeshProxy(GPUMeshHandle mesh, Matrix transform, BoundingBox localBounds)
 	{
 		uint32 index;
 		uint32 generation;
 
-		if (mFreeMeshSlots.Count > 0)
+		if (mFreeStaticMeshSlots.Count > 0)
 		{
-			index = mFreeMeshSlots.PopBack();
-			generation = mMeshGenerations[(int)index] + 1;
-			mMeshGenerations[(int)index] = generation;
+			index = mFreeStaticMeshSlots.PopBack();
+			generation = mStaticMeshGenerations[(int)index] + 1;
+			mStaticMeshGenerations[(int)index] = generation;
 		}
 		else
 		{
-			index = (uint32)mMeshProxies.Count;
+			index = (uint32)mStaticMeshProxies.Count;
 			generation = 1;
-			mMeshProxies.Add(.Invalid);
-			mMeshGenerations.Add(generation);
+			mStaticMeshProxies.Add(.Invalid);
+			mStaticMeshGenerations.Add(generation);
 		}
 
-		let proxy = MeshProxy(index, mesh, transform, localBounds);
-		mMeshProxies[(int)index] = proxy;
-		mMeshCount++;
+		let proxy = StaticMeshProxy(index, mesh, transform, localBounds);
+		mStaticMeshProxies[(int)index] = proxy;
+		mStaticMeshCount++;
 		mMeshesDirty = true;
 
 		return .(index, generation);
 	}
 
 	/// Gets a mesh proxy by handle.
-	public MeshProxy* GetMeshProxy(ProxyHandle handle)
+	public StaticMeshProxy* GetStaticMeshProxy(ProxyHandle handle)
 	{
 		if (!handle.IsValid)
 			return null;
-		if (handle.Index >= (uint32)mMeshProxies.Count)
+		if (handle.Index >= (uint32)mStaticMeshProxies.Count)
 			return null;
-		if (mMeshGenerations[(int)handle.Index] != handle.Generation)
+		if (mStaticMeshGenerations[(int)handle.Index] != handle.Generation)
 			return null;
 
-		return &mMeshProxies[(int)handle.Index];
+		return &mStaticMeshProxies[(int)handle.Index];
 	}
 
 	/// Updates a mesh proxy's transform.
-	public void SetMeshTransform(ProxyHandle handle, Matrix transform)
+	public void SetStaticMeshTransform(ProxyHandle handle, Matrix transform)
 	{
-		if (let proxy = GetMeshProxy(handle))
+		if (let proxy = GetStaticMeshProxy(handle))
 		{
 			proxy.Transform = transform;
 			proxy.UpdateWorldBounds();
@@ -124,34 +124,34 @@ class RenderWorld
 	}
 
 	/// Destroys a mesh proxy.
-	public void DestroyMeshProxy(ProxyHandle handle)
+	public void DestroyStaticMeshProxy(ProxyHandle handle)
 	{
 		if (!handle.IsValid)
 			return;
-		if (handle.Index >= (uint32)mMeshProxies.Count)
+		if (handle.Index >= (uint32)mStaticMeshProxies.Count)
 			return;
-		if (mMeshGenerations[(int)handle.Index] != handle.Generation)
+		if (mStaticMeshGenerations[(int)handle.Index] != handle.Generation)
 			return;
 
-		mMeshProxies[(int)handle.Index] = .Invalid;
-		mFreeMeshSlots.Add(handle.Index);
-		mMeshCount--;
+		mStaticMeshProxies[(int)handle.Index] = .Invalid;
+		mFreeStaticMeshSlots.Add(handle.Index);
+		mStaticMeshCount--;
 		mMeshesDirty = true;
 	}
 
 	/// Gets all valid mesh proxies.
-	public void GetValidMeshProxies(List<MeshProxy*> outProxies)
+	public void GetValidStaticMeshProxies(List<StaticMeshProxy*> outProxies)
 	{
 		outProxies.Clear();
-		for (var i < mMeshProxies.Count)
+		for (var i < mStaticMeshProxies.Count)
 		{
-			if (mMeshProxies[i].IsValid)
-				outProxies.Add(&mMeshProxies[i]);
+			if (mStaticMeshProxies[i].IsValid)
+				outProxies.Add(&mStaticMeshProxies[i]);
 		}
 	}
 
 	/// Number of active mesh proxies.
-	public uint32 MeshCount => mMeshCount;
+	public uint32 StaticMeshCount => mStaticMeshCount;
 
 	// ==================== Skinned Mesh Proxy Management ====================
 
@@ -513,13 +513,13 @@ class RenderWorld
 	public void EndFrame()
 	{
 		// Save previous transforms for motion vectors
-		for (var i < mMeshProxies.Count)
+		for (var i < mStaticMeshProxies.Count)
 		{
-			if (mMeshProxies[i].IsValid)
+			if (mStaticMeshProxies[i].IsValid)
 			{
-				mMeshProxies[i].SavePreviousTransform();
-				mMeshProxies[i].Flags &= ~.Dirty;
-				mMeshProxies[i].Flags &= ~.Culled;
+				mStaticMeshProxies[i].SavePreviousTransform();
+				mStaticMeshProxies[i].Flags &= ~.Dirty;
+				mStaticMeshProxies[i].Flags &= ~.Culled;
 			}
 		}
 
@@ -551,10 +551,10 @@ class RenderWorld
 	/// Clears all proxies.
 	public void Clear()
 	{
-		mMeshProxies.Clear();
-		mMeshGenerations.Clear();
-		mFreeMeshSlots.Clear();
-		mMeshCount = 0;
+		mStaticMeshProxies.Clear();
+		mStaticMeshGenerations.Clear();
+		mFreeStaticMeshSlots.Clear();
+		mStaticMeshCount = 0;
 
 		mSkinnedMeshProxies.Clear();
 		mSkinnedMeshGenerations.Clear();
@@ -591,11 +591,11 @@ class RenderWorld
 	public void GetMeshesInBounds(BoundingBox bounds, List<ProxyHandle> outHandles)
 	{
 		outHandles.Clear();
-		for (var i < mMeshProxies.Count)
+		for (var i < mStaticMeshProxies.Count)
 		{
-			let proxy = mMeshProxies[i];
+			let proxy = mStaticMeshProxies[i];
 			if (proxy.IsValid && proxy.WorldBounds.Intersects(bounds))
-				outHandles.Add(.(proxy.Id, mMeshGenerations[i]));
+				outHandles.Add(.(proxy.Id, mStaticMeshGenerations[i]));
 		}
 	}
 

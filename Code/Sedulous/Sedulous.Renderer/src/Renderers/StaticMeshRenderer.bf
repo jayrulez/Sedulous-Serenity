@@ -122,7 +122,7 @@ class StaticMeshRenderer
 
 	/// Builds instance data and batches from visible meshes.
 	/// Called during OnUpdate after visibility determination.
-	public void BuildBatches(List<MeshProxy*> visibleMeshes)
+	public void BuildBatches(List<StaticMeshProxy*> visibleMeshes)
 	{
 		mMaterialInstanceCount = 0;
 		mMaterialBatches.Clear();
@@ -139,7 +139,7 @@ class StaticMeshRenderer
 	}
 
 	/// Gets the effective material for a mesh proxy (uses default if none assigned).
-	private MaterialInstanceHandle GetEffectiveMaterial(MeshProxy* proxy)
+	private MaterialInstanceHandle GetEffectiveMaterial(StaticMeshProxy* proxy)
 	{
 		if (proxy.UsesMaterialInstances && proxy.MaterialInstances[0].IsValid)
 			return proxy.MaterialInstances[0];
@@ -148,13 +148,13 @@ class StaticMeshRenderer
 
 	/// Builds draw batches from meshes, sorted by (mesh, material).
 	/// Uses default material for meshes without an assigned material.
-	private void BuildMaterialBatches(List<MeshProxy*> meshes)
+	private void BuildMaterialBatches(List<StaticMeshProxy*> meshes)
 	{
 		if (meshes.Count == 0)
 			return;
 
 		// Create working list (may filter if no default material)
-		List<MeshProxy*> workingMeshes = scope .();
+		List<StaticMeshProxy*> workingMeshes = scope .();
 
 		// Skip if no default material available (shouldn't render meshes without materials)
 		if (!mDefaultMaterial.IsValid)

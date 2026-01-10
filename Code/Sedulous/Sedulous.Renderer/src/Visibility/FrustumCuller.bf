@@ -99,7 +99,7 @@ class FrustumCuller
 	public int32 LastCullingPlane = -1;
 
 	/// Culls mesh proxies and returns visible ones.
-	public void CullMeshes(List<MeshProxy*> proxies, List<MeshProxy*> outVisible, Vector3 cameraPos)
+	public void CullMeshes(List<StaticMeshProxy*> proxies, List<StaticMeshProxy*> outVisible, Vector3 cameraPos)
 	{
 		outVisible.Clear();
 		LastCullingPlane = -1;

@@ -197,11 +197,11 @@ class RendererSceneSample : RHISampleApp
 
 					let transform = Matrix.CreateTranslation(.(posX, posY, posZ));
 
-					let handle = mRenderWorld.CreateMeshProxy(mCubeMesh, transform, cubeBounds);
+					let handle = mRenderWorld.CreateStaticMeshProxy(mCubeMesh, transform, cubeBounds);
 					mCubeProxies.Add(handle);
 
 					// Set material ID based on position for visual variety
-					if (let proxy = mRenderWorld.GetMeshProxy(handle))
+					if (let proxy = mRenderWorld.GetStaticMeshProxy(handle))
 					{
 						let materialId = (uint32)((x + z + layer) % 5);
 						proxy.SetMaterial(0, materialId);

@@ -128,7 +128,7 @@ class InstanceBatcher
 	}
 
 	/// Adds mesh proxies to batching.
-	public void AddMeshes(List<MeshProxy*> meshes)
+	public void AddMeshes(List<StaticMeshProxy*> meshes)
 	{
 		for (let mesh in meshes)
 		{
@@ -173,7 +173,7 @@ class InstanceBatcher
 	}
 
 	/// Adds a single instance (for skinned meshes or unbatchable objects).
-	private void AddSingleInstance(MeshProxy* mesh)
+	private void AddSingleInstance(StaticMeshProxy* mesh)
 	{
 		BatchKey key;
 		key.MeshHandle = mesh.MeshHandle;
