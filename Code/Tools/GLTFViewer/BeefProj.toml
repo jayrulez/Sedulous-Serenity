@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.AppFramework" = "*", "Sedulous.Models" = "*", "Sedulous.Models.GLTF" = "*"}
+Dependencies = {corlib = "*", "Sedulous.AppFramework" = "*", "Sedulous.Models" = "*", "Sedulous.Models.GLTF" = "*", "Sedulous.RHI" = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.RHI.HLSLShaderCompiler" = "*", "Sedulous.Mathematics" = "*", "Sedulous.Drawing" = "*"}
 
 [Project]
 Name = "GLTFViewer"

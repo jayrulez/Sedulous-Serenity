@@ -227,6 +227,16 @@ public class UIContext
 			mRootElement.[Friend]mContext = null;
 			delete mRootElement;
 		}
+
+		// Clean up registered services
+		for (let obj in mServices.Values)
+		{
+			delete obj;
+		}
+
+		// Clean up clipboard
+		if (mClipboard != null)
+			delete mClipboard;
 	}
 
 	/// Registers the clipboard service.

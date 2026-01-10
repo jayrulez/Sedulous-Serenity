@@ -368,7 +368,7 @@ public abstract class Application
 		TrueTypeFonts.Initialize();
 
 		// Load default font
-		let fontPath = GetAssetPath("fonts/Roboto-Regular.ttf", .. scope .());
+		let fontPath = GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", .. scope .());
 
 		FontLoadOptions options = .ExtendedLatin;
 		options.PixelHeight = 16;

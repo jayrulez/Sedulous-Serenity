@@ -32,8 +32,8 @@ class VulkanBindGroup : IBindGroup
 		if (mDescriptorSet != default && mPool != null)
 		{
 			mPool.FreeDescriptorSet(mDescriptorSet);
-			mDescriptorSet = default;
 		}
+		mDescriptorSet = default;
 	}
 
 	/// Returns true if the bind group was created successfully.

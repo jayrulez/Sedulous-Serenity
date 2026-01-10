@@ -310,7 +310,8 @@ class UISandboxSample : RHISampleApp
 	private TextureRef mFontTextureRef ~ delete _;
 
 	// UI Renderer (replaces manual GPU resources)
-	private UIRenderer mUIRenderer ~ { _.Dispose(); delete _; };
+	// NOTE: Must be cleaned up in OnCleanup(), not destructor, because Device is destroyed in Application.Cleanup()
+	private UIRenderer mUIRenderer;
 
 	// GPU resources for font atlas
 	private RHITexture mAtlasTexture;
@@ -2310,7 +2311,15 @@ class UISandboxSample : RHISampleApp
 		if (mMsaaTextureView != null) delete mMsaaTextureView;
 		if (mMsaaTexture != null) delete mMsaaTexture;
 
-		// Clean up atlas texture (UIRenderer is cleaned via destructor)
+		// Clean up UI Renderer (must be done before Device is destroyed in Application.Cleanup())
+		if (mUIRenderer != null)
+		{
+			mUIRenderer.Dispose();
+			delete mUIRenderer;
+			mUIRenderer = null;
+		}
+
+		// Clean up atlas texture
 		if (mAtlasTextureView != null) delete mAtlasTextureView;
 		if (mAtlasTexture != null) delete mAtlasTexture;
 
