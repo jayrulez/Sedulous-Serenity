@@ -1,0 +1,6 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.AppFramework" = "*", "Sedulous.Models" = "*", "Sedulous.Models.GLTF" = "*"}
+
+[Project]
+Name = "GLTFViewer"
+StartupObject = "GLTFViewer.Program"

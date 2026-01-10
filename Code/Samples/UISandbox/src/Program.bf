@@ -10,6 +10,7 @@ using Sedulous.Drawing;
 using Sedulous.Fonts;
 using Sedulous.Fonts.TTF;
 using Sedulous.UI;
+using Sedulous.UI.Renderer;
 using Sedulous.Shell.Input;
 using Sedulous.Shell.SDL3;
 
@@ -88,23 +89,7 @@ class UISandboxFontService : IFontService
 	}
 }
 
-/// Vertex structure matching DrawVertex layout for GPU rendering.
-[CRepr]
-struct RenderVertex
-{
-	public float[2] Position;
-	public float[2] TexCoord;
-	public float[4] Color;
-
-	public this(DrawVertex v)
-	{
-		Position = .(v.Position.X, v.Position.Y);
-		TexCoord = .(v.TexCoord.X, v.TexCoord.Y);
-		Color = .(v.Color.R / 255.0f, v.Color.G / 255.0f, v.Color.B / 255.0f, v.Color.A / 255.0f);
-	}
-}
-
-/// Uniform buffer data for the projection matrix.
+/// Uniform buffer data for the projection matrix (used by quad shader).
 [CRepr]
 struct Uniforms
 {
@@ -324,25 +309,12 @@ class UISandboxSample : RHISampleApp
 	private IFontAtlas mFontAtlas;
 	private TextureRef mFontTextureRef ~ delete _;
 
-	// GPU resources - double buffered
-	private IBuffer[MAX_FRAMES_IN_FLIGHT] mVertexBuffers;
-	private IBuffer[MAX_FRAMES_IN_FLIGHT] mIndexBuffers;
-	private IBuffer[MAX_FRAMES_IN_FLIGHT] mUniformBuffers;
+	// UI Renderer (replaces manual GPU resources)
+	private UIRenderer mUIRenderer ~ { _.Dispose(); delete _; };
+
+	// GPU resources for font atlas
 	private RHITexture mAtlasTexture;
 	private ITextureView mAtlasTextureView;
-	private ISampler mSampler;
-	private IShaderModule mVertShader;
-	private IShaderModule mFragShader;
-	private IBindGroupLayout mBindGroupLayout;
-	private IPipelineLayout mPipelineLayout;
-	private IRenderPipeline mPipeline;
-	private IBindGroup[MAX_FRAMES_IN_FLIGHT] mBindGroups;
-
-	// Per-frame vertex/index data
-	private List<RenderVertex> mVertices = new .() ~ delete _;
-	private List<uint16> mIndices = new .() ~ delete _;
-	private List<DrawCommand> mDrawCommands = new .() ~ delete _;
-	private int mMaxQuads = 8192;
 
 	// MSAA resources
 	private const uint32 MSAA_SAMPLES = 4;
@@ -351,7 +323,6 @@ class UISandboxSample : RHISampleApp
 	private ITextureView mMsaaTextureView;
 	private RHITexture mResolveTexture;
 	private ITextureView mResolveTextureView;
-	private IRenderPipeline mMsaaPipeline;
 
 	// Full-screen quad for displaying MSAA result
 	private IBuffer mQuadVertexBuffer;
@@ -392,14 +363,14 @@ class UISandboxSample : RHISampleApp
 		if (!CreateAtlasTexture())
 			return false;
 
-		if (!CreateBuffers())
+		// Initialize UI Renderer
+		mUIRenderer = new UIRenderer();
+		if (mUIRenderer.Initialize(Device, SwapChain.Format, MAX_FRAMES_IN_FLIGHT) case .Err)
+		{
+			Console.WriteLine("Failed to initialize UI renderer");
 			return false;
-
-		if (!CreateBindings())
-			return false;
-
-		if (!CreatePipeline())
-			return false;
+		}
+		mUIRenderer.SetTexture(mAtlasTextureView);
 
 		if (!CreateMsaaTargets())
 			return false;
@@ -505,159 +476,6 @@ class UISandboxSample : RHISampleApp
 		mAtlasTextureView = view;
 
 		mFontTextureRef = new TextureRef(mAtlasTexture, atlasWidth, atlasHeight);
-
-		SamplerDescriptor samplerDesc = .()
-		{
-			AddressModeU = .ClampToEdge,
-			AddressModeV = .ClampToEdge,
-			AddressModeW = .ClampToEdge,
-			MagFilter = .Linear,
-			MinFilter = .Linear,
-			MipmapFilter = .Linear
-		};
-		if (Device.CreateSampler(&samplerDesc) not case .Ok(let sampler))
-		{
-			Console.WriteLine("Failed to create sampler");
-			return false;
-		}
-		mSampler = sampler;
-
-		return true;
-	}
-
-	private bool CreateBuffers()
-	{
-		uint64 vertexBufferSize = (uint64)(sizeof(RenderVertex) * mMaxQuads * 4);
-		uint64 indexBufferSize = (uint64)(sizeof(uint16) * mMaxQuads * 6);
-
-		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-		{
-			BufferDescriptor vertexDesc = .()
-			{
-				Size = vertexBufferSize,
-				Usage = .Vertex,
-				MemoryAccess = .Upload
-			};
-			if (Device.CreateBuffer(&vertexDesc) not case .Ok(let vb))
-				return false;
-			mVertexBuffers[i] = vb;
-
-			BufferDescriptor indexDesc = .()
-			{
-				Size = indexBufferSize,
-				Usage = .Index,
-				MemoryAccess = .Upload
-			};
-			if (Device.CreateBuffer(&indexDesc) not case .Ok(let ib))
-				return false;
-			mIndexBuffers[i] = ib;
-
-			BufferDescriptor uniformDesc = .()
-			{
-				Size = (uint64)sizeof(Uniforms),
-				Usage = .Uniform,
-				MemoryAccess = .Upload
-			};
-			if (Device.CreateBuffer(&uniformDesc) not case .Ok(let ub))
-				return false;
-			mUniformBuffers[i] = ub;
-		}
-
-		return true;
-	}
-
-	private bool CreateBindings()
-	{
-		let shaderResult = ShaderUtils.LoadShaderPair(Device, GetAssetPath("samples/DrawingSandbox/shaders/draw", .. scope .()));
-		if (shaderResult case .Err)
-		{
-			Console.WriteLine("Failed to load shaders");
-			return false;
-		}
-		(mVertShader, mFragShader) = shaderResult.Get();
-
-		BindGroupLayoutEntry[3] layoutEntries = .(
-			BindGroupLayoutEntry.UniformBuffer(0, .Vertex),
-			BindGroupLayoutEntry.SampledTexture(0, .Fragment),
-			BindGroupLayoutEntry.Sampler(0, .Fragment)
-		);
-		BindGroupLayoutDescriptor bindGroupLayoutDesc = .(layoutEntries);
-		if (Device.CreateBindGroupLayout(&bindGroupLayoutDesc) not case .Ok(let layout))
-			return false;
-		mBindGroupLayout = layout;
-
-		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-		{
-			BindGroupEntry[3] bindGroupEntries = .(
-				BindGroupEntry.Buffer(0, mUniformBuffers[i]),
-				BindGroupEntry.Texture(0, mAtlasTextureView),
-				BindGroupEntry.Sampler(0, mSampler)
-			);
-			BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
-			if (Device.CreateBindGroup(&bindGroupDesc) not case .Ok(let group))
-				return false;
-			mBindGroups[i] = group;
-		}
-
-		IBindGroupLayout[1] layouts = .(mBindGroupLayout);
-		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
-		if (Device.CreatePipelineLayout(&pipelineLayoutDesc) not case .Ok(let pipelineLayout))
-			return false;
-		mPipelineLayout = pipelineLayout;
-
-		return true;
-	}
-
-	private bool CreatePipeline()
-	{
-		VertexAttribute[3] vertexAttributes = .(
-			.(VertexFormat.Float2, 0, 0),
-			.(VertexFormat.Float2, 8, 1),
-			.(VertexFormat.Float4, 16, 2)
-		);
-		VertexBufferLayout[1] vertexBuffers = .(
-			.((uint64)sizeof(RenderVertex), vertexAttributes)
-		);
-
-		ColorTargetState[1] colorTargets = .(.(SwapChain.Format, .AlphaBlend));
-
-		RenderPipelineDescriptor pipelineDesc = .()
-		{
-			Layout = mPipelineLayout,
-			Vertex = .()
-			{
-				Shader = .(mVertShader, "main"),
-				Buffers = vertexBuffers
-			},
-			Fragment = .()
-			{
-				Shader = .(mFragShader, "main"),
-				Targets = colorTargets
-			},
-			Primitive = .()
-			{
-				Topology = .TriangleList,
-				FrontFace = .CCW,
-				CullMode = .None
-			},
-			DepthStencil = null,
-			Multisample = .()
-			{
-				Count = 1,
-				Mask = uint32.MaxValue,
-				AlphaToCoverageEnabled = false
-			}
-		};
-
-		if (Device.CreateRenderPipeline(&pipelineDesc) not case .Ok(let pipeline))
-			return false;
-		mPipeline = pipeline;
-
-		// Also create MSAA pipeline variant
-		pipelineDesc.Multisample.Count = MSAA_SAMPLES;
-		if (Device.CreateRenderPipeline(&pipelineDesc) not case .Ok(let msaaPipeline))
-			return false;
-		mMsaaPipeline = msaaPipeline;
 
 		return true;
 	}
@@ -2334,26 +2152,11 @@ class UISandboxSample : RHISampleApp
 
 	protected override void OnPrepareFrame(int32 frameIndex)
 	{
-		UpdateProjection(frameIndex);
 		BuildDrawCommands();
-		ConvertBatchToRenderData(frameIndex);
-	}
 
-	private void UpdateProjection(int32 frameIndex)
-	{
-		float width = (float)SwapChain.Width;
-		float height = (float)SwapChain.Height;
-
-		Matrix projection;
-		if (Device.FlipProjectionRequired)
-			projection = Matrix.CreateOrthographicOffCenter(0, width, 0, height, -1, 1);
-		else
-			projection = Matrix.CreateOrthographicOffCenter(0, width, height, 0, -1, 1);
-
-		Uniforms uniforms = .() { Projection = projection };
-		Span<uint8> uniformData = .((uint8*)&uniforms, sizeof(Uniforms));
-		var buf = mUniformBuffers[frameIndex];
-		Device.Queue.WriteBuffer(buf, 0, uniformData);
+		// Update UIRenderer with current frame data
+		mUIRenderer.UpdateProjection(SwapChain.Width, SwapChain.Height, frameIndex);
+		mUIRenderer.Prepare(mDrawContext.GetBatch(), frameIndex);
 	}
 
 	private void BuildDrawCommands()
@@ -2377,43 +2180,11 @@ class UISandboxSample : RHISampleApp
 			mDrawContext.DrawText("F11: Debug OFF", mFontAtlas, mFontTextureRef, .(10, debugTextY), Color.Gray);
 	}
 
-	private void ConvertBatchToRenderData(int32 frameIndex)
-	{
-		let batch = mDrawContext.GetBatch();
-
-		mVertices.Clear();
-		mIndices.Clear();
-		mDrawCommands.Clear();
-
-		for (let v in batch.Vertices)
-			mVertices.Add(.(v));
-
-		for (let i in batch.Indices)
-			mIndices.Add(i);
-
-		for (let cmd in batch.Commands)
-			mDrawCommands.Add(cmd);
-
-		if (mVertices.Count > 0)
-		{
-			let vertexData = Span<uint8>((uint8*)mVertices.Ptr, mVertices.Count * sizeof(RenderVertex));
-			var vbuf = mVertexBuffers[frameIndex];
-			Device.Queue.WriteBuffer(vbuf, 0, vertexData);
-
-			let indexData = Span<uint8>((uint8*)mIndices.Ptr, mIndices.Count * sizeof(uint16));
-			var ibuf = mIndexBuffers[frameIndex];
-			Device.Queue.WriteBuffer(ibuf, 0, indexData);
-		}
-	}
-
 	protected override bool OnRenderFrame(ICommandEncoder encoder, int32 frameIndex)
 	{
-		if (mIndices.Count == 0 || mDrawCommands.Count == 0)
-			return true;
-
 		if (mUseMSAA)
 		{
-			// Render to MSAA target
+			// Render to MSAA target using UIRenderer
 			RenderPassColorAttachment[1] msaaAttachments = .(.(mMsaaTextureView)
 				{
 					LoadOp = .Clear,
@@ -2425,14 +2196,7 @@ class UISandboxSample : RHISampleApp
 			let msaaPass = encoder.BeginRenderPass(&msaaPassDesc);
 			if (msaaPass != null)
 			{
-				msaaPass.SetViewport(0, 0, SwapChain.Width, SwapChain.Height, 0, 1);
-				msaaPass.SetPipeline(mMsaaPipeline);
-				msaaPass.SetBindGroup(0, mBindGroups[frameIndex]);
-				msaaPass.SetVertexBuffer(0, mVertexBuffers[frameIndex], 0);
-				msaaPass.SetIndexBuffer(mIndexBuffers[frameIndex], .UInt16, 0);
-
-				RenderDrawCommands(msaaPass);
-
+				mUIRenderer.Render(msaaPass, SwapChain.Width, SwapChain.Height, frameIndex, useMsaa: true);
 				msaaPass.End();
 				delete msaaPass;
 			}
@@ -2478,52 +2242,13 @@ class UISandboxSample : RHISampleApp
 			let renderPass = encoder.BeginRenderPass(&passDesc);
 			if (renderPass != null)
 			{
-				renderPass.SetViewport(0, 0, SwapChain.Width, SwapChain.Height, 0, 1);
-				renderPass.SetPipeline(mPipeline);
-				renderPass.SetBindGroup(0, mBindGroups[frameIndex]);
-				renderPass.SetVertexBuffer(0, mVertexBuffers[frameIndex], 0);
-				renderPass.SetIndexBuffer(mIndexBuffers[frameIndex], .UInt16, 0);
-
-				RenderDrawCommands(renderPass);
-
+				mUIRenderer.Render(renderPass, SwapChain.Width, SwapChain.Height, frameIndex, useMsaa: false);
 				renderPass.End();
 				delete renderPass;
 			}
 		}
 
 		return true;
-	}
-
-	private void RenderDrawCommands(IRenderPassEncoder renderPass)
-	{
-		// Process each draw command with its own scissor rect
-		for (let cmd in mDrawCommands)
-		{
-			if (cmd.IndexCount == 0)
-				continue;
-
-			// Set scissor rect based on clip mode
-			if (cmd.ClipMode == .Scissor && cmd.ClipRect.Width > 0 && cmd.ClipRect.Height > 0)
-			{
-				// Conservative scissor rect calculation:
-				// - Round start positions UP (ceil) to not include pixels before clip start
-				// - Round end positions DOWN (floor) to not include pixels after clip end
-				let startX = (int32)Math.Ceiling(Math.Max(0f, cmd.ClipRect.X));
-				let startY = (int32)Math.Ceiling(Math.Max(0f, cmd.ClipRect.Y));
-				let endX = (int32)Math.Floor(Math.Min(cmd.ClipRect.X + cmd.ClipRect.Width, (float)SwapChain.Width));
-				let endY = (int32)Math.Floor(Math.Min(cmd.ClipRect.Y + cmd.ClipRect.Height, (float)SwapChain.Height));
-				let w = (uint32)Math.Max(0, endX - startX);
-				let h = (uint32)Math.Max(0, endY - startY);
-				renderPass.SetScissorRect(startX, startY, w, h);
-			}
-			else
-			{
-				// No clipping - use full screen
-				renderPass.SetScissorRect(0, 0, SwapChain.Width, SwapChain.Height);
-			}
-
-			renderPass.DrawIndexed((uint32)cmd.IndexCount, 1, (uint32)cmd.StartIndex, 0, 0);
-		}
 	}
 
 	protected override void OnRender(IRenderPassEncoder renderPass)
@@ -2569,7 +2294,7 @@ class UISandboxSample : RHISampleApp
 		if (mUIContext.GetService<ITheme>() case .Ok(let theme))
 			delete theme;
 
-		// Clean up MSAA resources
+		// Clean up MSAA quad resources
 		if (mQuadPipeline != null) delete mQuadPipeline;
 		if (mQuadPipelineLayout != null) delete mQuadPipelineLayout;
 		if (mQuadBindGroup != null) delete mQuadBindGroup;
@@ -2578,32 +2303,18 @@ class UISandboxSample : RHISampleApp
 		if (mQuadVertShader != null) delete mQuadVertShader;
 		if (mQuadVertexBuffer != null) delete mQuadVertexBuffer;
 		if (mQuadSampler != null) delete mQuadSampler;
-		if (mMsaaPipeline != null) delete mMsaaPipeline;
+
+		// Clean up MSAA targets
 		if (mResolveTextureView != null) delete mResolveTextureView;
 		if (mResolveTexture != null) delete mResolveTexture;
 		if (mMsaaTextureView != null) delete mMsaaTextureView;
 		if (mMsaaTexture != null) delete mMsaaTexture;
 
-		// Clean up main pipeline resources
-		if (mPipeline != null) delete mPipeline;
-		if (mPipelineLayout != null) delete mPipelineLayout;
-		if (mBindGroupLayout != null) delete mBindGroupLayout;
-		if (mFragShader != null) delete mFragShader;
-		if (mVertShader != null) delete mVertShader;
-		if (mSampler != null) delete mSampler;
+		// Clean up atlas texture (UIRenderer is cleaned via destructor)
 		if (mAtlasTextureView != null) delete mAtlasTextureView;
 		if (mAtlasTexture != null) delete mAtlasTexture;
 
-		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-		{
-			if (mBindGroups[i] != null) delete mBindGroups[i];
-			if (mUniformBuffers[i] != null) delete mUniformBuffers[i];
-			if (mIndexBuffers[i] != null) delete mIndexBuffers[i];
-			if (mVertexBuffers[i] != null) delete mVertexBuffers[i];
-		}
-
-		//if (mFontAtlas != null) delete (Object)mFontAtlas;
-		//if (mFont != null) delete (Object)mFont;
+		// Note: mFont and mFontAtlas are owned by CachedFont (via UISandboxFontService via UIContext)
 
 		TrueTypeFonts.Shutdown();
 	}

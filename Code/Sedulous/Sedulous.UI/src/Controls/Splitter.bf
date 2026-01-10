@@ -9,7 +9,7 @@ namespace Sedulous.UI;
 public class Splitter : Control
 {
 	private bool mIsDragging;
-	private float mLastMousePos; // Last mouse position during drag
+	private float mDragStartLocalPos; // Local position within splitter at drag start
 	private float mSplitterThickness = 6;
 	private Orientation mOrientation = .Horizontal;
 
@@ -147,8 +147,9 @@ public class Splitter : Control
 		if (args.Button == .Left && IsEnabled)
 		{
 			mIsDragging = true;
-			// Store the starting mouse position
-			mLastMousePos = mOrientation == .Horizontal ? args.ScreenX : args.ScreenY;
+			// Store local position within splitter at drag start
+			// LocalX/Y are relative to this element's bounds
+			mDragStartLocalPos = mOrientation == .Horizontal ? args.LocalX : args.LocalY;
 			Context?.CaptureMouse(this);
 			InvalidateVisual();
 			args.Handled = true;
@@ -174,16 +175,15 @@ public class Splitter : Control
 
 		if (mIsDragging)
 		{
-			// Calculate delta from mouse movement
-			let mousePos = mOrientation == .Horizontal ? args.ScreenX : args.ScreenY;
-			let delta = mousePos - mLastMousePos;
+			// Use local coordinates - they're relative to this element's bounds
+			// If the splitter moves with the mouse, LocalX stays constant
+			// If constrained, LocalX changes and the delta shows how much to catch up
+			let currentLocalPos = mOrientation == .Horizontal ? args.LocalX : args.LocalY;
+			let delta = currentLocalPos - mDragStartLocalPos;
 
 			if (Math.Abs(delta) > 0.5f)
 			{
 				mSplitterMovedEvent.[Friend]Invoke(this, delta);
-				// Update last position to current mouse position
-				// This ensures smooth tracking even when movement is constrained
-				mLastMousePos = mousePos;
 			}
 
 			args.Handled = true;
