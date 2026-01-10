@@ -78,7 +78,7 @@ class ParticleEmitterComponent : IEntityComponent
 	public void OnDetach()
 	{
 		mRenderScene?.UnregisterParticleEmitter(this);
-		RemoveProxy();
+		DestroyProxy();
 		delete mParticleSystem;
 		mParticleSystem = null;
 		mEntity = null;
@@ -147,40 +147,43 @@ class ParticleEmitterComponent : IEntityComponent
 
 	private void CreateOrUpdateProxy()
 	{
-		if (mRenderScene == null || mEntity == null || mRenderScene.RenderWorld == null)
+		if (mRenderScene == null || mEntity == null)
 			return;
 
-		// Create proxy if needed
+		// Create proxy if needed (via RenderSceneComponent for consistent pattern)
 		if (!mProxyHandle.IsValid && mParticleSystem != null)
 		{
-			mProxyHandle = mRenderScene.RenderWorld.CreateParticleEmitterProxy(
-				mParticleSystem, mEntity.Transform.WorldPosition);
+			mProxyHandle = mRenderScene.CreateParticleEmitterProxy(
+				mEntity.Id, mParticleSystem, mEntity.Transform.WorldPosition);
 		}
 
 		// Update proxy state
-		if (let proxy = mRenderScene.RenderWorld.GetParticleEmitterProxy(mProxyHandle))
+		if (mRenderScene.RenderWorld != null)
 		{
-			proxy.SetPosition(mEntity.Transform.WorldPosition);
-			proxy.System = mParticleSystem;
+			if (let proxy = mRenderScene.RenderWorld.GetParticleEmitterProxy(mProxyHandle))
+			{
+				proxy.SetPosition(mEntity.Transform.WorldPosition);
+				proxy.System = mParticleSystem;
 
-			// Update flags
-			if (Visible)
-				proxy.Flags |= .Visible;
-			else
-				proxy.Flags &= ~.Visible;
+				// Update flags
+				if (Visible)
+					proxy.Flags |= .Visible;
+				else
+					proxy.Flags &= ~.Visible;
 
-			if (Emitting)
-				proxy.Flags |= .Emitting;
-			else
-				proxy.Flags &= ~.Emitting;
+				if (Emitting)
+					proxy.Flags |= .Emitting;
+				else
+					proxy.Flags &= ~.Emitting;
+			}
 		}
 	}
 
-	private void RemoveProxy()
+	private void DestroyProxy()
 	{
-		if (mRenderScene != null && mRenderScene.RenderWorld != null && mProxyHandle.IsValid)
+		if (mRenderScene != null && mEntity != null)
 		{
-			mRenderScene.RenderWorld.DestroyParticleEmitterProxy(mProxyHandle);
+			mRenderScene.DestroyParticleEmitterProxy(mEntity.Id);
 		}
 		mProxyHandle = .Invalid;
 	}

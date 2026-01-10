@@ -289,14 +289,11 @@ class SkinnedMeshComponent : IEntityComponent
 		mGPUMesh = resourceManager.CreateSkinnedMesh(mesh);
 		mLocalBounds = mesh.Bounds;
 
-		// Create proxy FIRST (before registration needs it)
+		// Create proxy (registration handled internally by RenderSceneComponent)
 		if (mEntity != null && mGPUMesh.IsValid)
 		{
 			CreateOrUpdateProxy();
 		}
-
-		// Register with render scene for rendering (proxy must exist)
-		mRenderScene.RegisterSkinnedMesh(this);
 	}
 
 	/// Sets the GPU skinned mesh to render (low-level API).
@@ -305,15 +302,11 @@ class SkinnedMeshComponent : IEntityComponent
 		mGPUMesh = mesh;
 		mLocalBounds = bounds;
 
-		// Create proxy FIRST (before registration needs it)
+		// Create proxy (registration handled internally by RenderSceneComponent)
 		if (mEntity != null && mRenderScene != null && mesh.IsValid)
 		{
 			CreateOrUpdateProxy();
 		}
-
-		// Register with render scene for rendering (proxy must exist)
-		if (mRenderScene != null)
-			mRenderScene.RegisterSkinnedMesh(this);
 	}
 
 	// ==================== IEntityComponent Implementation ====================
@@ -333,9 +326,8 @@ class SkinnedMeshComponent : IEntityComponent
 
 				if (mGPUMesh.IsValid)
 				{
-					// Create proxy first, then register (proxy must exist for registration)
+					// Create proxy (registration handled internally by RenderSceneComponent)
 					CreateOrUpdateProxy();
-					mRenderScene.RegisterSkinnedMesh(this);
 				}
 			}
 		}
@@ -344,7 +336,6 @@ class SkinnedMeshComponent : IEntityComponent
 	/// Called when the component is detached from an entity.
 	public void OnDetach()
 	{
-		mRenderScene?.UnregisterSkinnedMesh(this);
 		RemoveProxy();
 		mEntity = null;
 		mRenderScene = null;
@@ -499,53 +490,50 @@ class SkinnedMeshComponent : IEntityComponent
 
 	private void CreateOrUpdateProxy()
 	{
-		if (mRenderScene == null || mEntity == null || mRenderScene.RenderWorld == null)
+		if (mRenderScene == null || mEntity == null)
 			return;
 
-		// Create skinned mesh proxy in RenderWorld
-		if (!mProxyHandle.IsValid)
+		// Create skinned mesh proxy through RenderSceneComponent (consistent with StaticMeshComponent)
+		mProxyHandle = mRenderScene.CreateSkinnedMeshProxy(
+			mEntity.Id,
+			mGPUMesh,
+			mEntity.Transform.WorldMatrix,
+			mLocalBounds
+		);
+
+		// Update proxy with additional state
+		if (mRenderScene.RenderWorld != null)
 		{
-			mProxyHandle = mRenderScene.RenderWorld.CreateSkinnedMeshProxy(
-				mGPUMesh,
-				mEntity.Transform.WorldMatrix,
-				mLocalBounds
-			);
-		}
+			if (let proxy = mRenderScene.RenderWorld.GetSkinnedMeshProxy(mProxyHandle))
+			{
+				proxy.MaterialInstance = mMaterialInstance;
+				proxy.BoneMatrixBuffer = mBoneMatrixBuffer;
+				proxy.ObjectUniformBuffer = mObjectUniformBuffer;
 
-		// Update proxy with current state
-		if (let proxy = mRenderScene.RenderWorld.GetSkinnedMeshProxy(mProxyHandle))
-		{
-			proxy.Transform = mEntity.Transform.WorldMatrix;
-			proxy.MeshHandle = mGPUMesh;
-			proxy.MaterialInstance = mMaterialInstance;
-			proxy.BoneMatrixBuffer = mBoneMatrixBuffer;
-			proxy.ObjectUniformBuffer = mObjectUniformBuffer;
-			proxy.LocalBounds = mLocalBounds;
-			proxy.UpdateWorldBounds();
+				// Update flags
+				if (Visible)
+					proxy.Flags |= .Visible;
+				else
+					proxy.Flags &= ~.Visible;
 
-			// Update flags
-			if (Visible)
-				proxy.Flags |= .Visible;
-			else
-				proxy.Flags &= ~.Visible;
+				if (CastShadows)
+					proxy.Flags |= .CastShadows;
+				else
+					proxy.Flags &= ~.CastShadows;
 
-			if (CastShadows)
-				proxy.Flags |= .CastShadows;
-			else
-				proxy.Flags &= ~.CastShadows;
-
-			if (ReceiveShadows)
-				proxy.Flags |= .ReceiveShadows;
-			else
-				proxy.Flags &= ~.ReceiveShadows;
+				if (ReceiveShadows)
+					proxy.Flags |= .ReceiveShadows;
+				else
+					proxy.Flags &= ~.ReceiveShadows;
+			}
 		}
 	}
 
 	private void RemoveProxy()
 	{
-		if (mRenderScene != null && mRenderScene.RenderWorld != null && mProxyHandle.IsValid)
+		if (mRenderScene != null && mEntity != null)
 		{
-			mRenderScene.RenderWorld.DestroySkinnedMeshProxy(mProxyHandle);
+			mRenderScene.DestroySkinnedMeshProxy(mEntity.Id);
 		}
 		mProxyHandle = .Invalid;
 	}

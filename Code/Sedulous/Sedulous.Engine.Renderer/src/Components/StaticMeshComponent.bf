@@ -219,7 +219,7 @@ class StaticMeshComponent : IEntityComponent
 		if (mRenderScene == null || mEntity == null)
 			return;
 
-		mProxyHandle = mRenderScene.CreateMeshProxy(
+		mProxyHandle = mRenderScene.CreateStaticMeshProxy(
 			mEntity.Id,
 			mGPUMesh,
 			mEntity.Transform.WorldMatrix,
@@ -245,7 +245,7 @@ class StaticMeshComponent : IEntityComponent
 	{
 		if (mRenderScene != null && mEntity != null)
 		{
-			mRenderScene.DestroyMeshProxy(mEntity.Id);
+			mRenderScene.DestroyStaticMeshProxy(mEntity.Id);
 		}
 		mProxyHandle = .Invalid;
 	}

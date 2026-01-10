@@ -260,7 +260,7 @@ class CameraComponent : IEntityComponent
 	{
 		if (mRenderScene != null && mEntity != null)
 		{
-			mRenderScene.RemoveCameraProxy(mEntity.Id);
+			mRenderScene.DestroyCameraProxy(mEntity.Id);
 		}
 		mProxyHandle = .Invalid;
 	}

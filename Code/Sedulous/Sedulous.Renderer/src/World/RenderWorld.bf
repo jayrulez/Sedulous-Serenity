@@ -59,6 +59,12 @@ class RenderWorld
 	private List<uint32> mFreeParticleEmitterSlots = new .() ~ delete _;
 	private uint32 mParticleEmitterCount = 0;
 
+	// Sprite proxies
+	private List<SpriteProxy> mSpriteProxies = new .() ~ delete _;
+	private List<uint32> mSpriteGenerations = new .() ~ delete _;
+	private List<uint32> mFreeSpriteSlots = new .() ~ delete _;
+	private uint32 mSpriteCount = 0;
+
 	// Main camera handle
 	private ProxyHandle mMainCamera = .Invalid;
 
@@ -68,6 +74,7 @@ class RenderWorld
 	private bool mLightsDirty = true;
 	private bool mCamerasDirty = true;
 	private bool mParticleEmittersDirty = true;
+	private bool mSpritesDirty = true;
 
 	// Per-frame render views
 	private List<RenderView> mRenderViews = new .() ~ delete _;
@@ -501,6 +508,147 @@ class RenderWorld
 	/// Number of active particle emitter proxies.
 	public uint32 ParticleEmitterCount => mParticleEmitterCount;
 
+	// ==================== Sprite Proxy Management ====================
+
+	/// Creates a sprite proxy.
+	public ProxyHandle CreateSpriteProxy(Vector3 position, Vector2 size, Color color = .White)
+	{
+		uint32 index;
+		uint32 generation;
+
+		if (mFreeSpriteSlots.Count > 0)
+		{
+			index = mFreeSpriteSlots.PopBack();
+			generation = mSpriteGenerations[(int)index] + 1;
+			mSpriteGenerations[(int)index] = generation;
+		}
+		else
+		{
+			index = (uint32)mSpriteProxies.Count;
+			generation = 1;
+			mSpriteProxies.Add(.Invalid);
+			mSpriteGenerations.Add(generation);
+		}
+
+		let proxy = SpriteProxy(index, position, size, color);
+		mSpriteProxies[(int)index] = proxy;
+		mSpriteCount++;
+		mSpritesDirty = true;
+
+		return .(index, generation);
+	}
+
+	/// Creates a sprite proxy with UV rect.
+	public ProxyHandle CreateSpriteProxy(Vector3 position, Vector2 size, Vector4 uvRect, Color color)
+	{
+		uint32 index;
+		uint32 generation;
+
+		if (mFreeSpriteSlots.Count > 0)
+		{
+			index = mFreeSpriteSlots.PopBack();
+			generation = mSpriteGenerations[(int)index] + 1;
+			mSpriteGenerations[(int)index] = generation;
+		}
+		else
+		{
+			index = (uint32)mSpriteProxies.Count;
+			generation = 1;
+			mSpriteProxies.Add(.Invalid);
+			mSpriteGenerations.Add(generation);
+		}
+
+		let proxy = SpriteProxy(index, position, size, uvRect, color);
+		mSpriteProxies[(int)index] = proxy;
+		mSpriteCount++;
+		mSpritesDirty = true;
+
+		return .(index, generation);
+	}
+
+	/// Gets a sprite proxy by handle.
+	public SpriteProxy* GetSpriteProxy(ProxyHandle handle)
+	{
+		if (!handle.IsValid)
+			return null;
+		if (handle.Index >= (uint32)mSpriteProxies.Count)
+			return null;
+		if (mSpriteGenerations[(int)handle.Index] != handle.Generation)
+			return null;
+
+		return &mSpriteProxies[(int)handle.Index];
+	}
+
+	/// Updates a sprite proxy's position.
+	public void SetSpritePosition(ProxyHandle handle, Vector3 position)
+	{
+		if (let proxy = GetSpriteProxy(handle))
+		{
+			proxy.SetPosition(position);
+			mSpritesDirty = true;
+		}
+	}
+
+	/// Updates a sprite proxy's size.
+	public void SetSpriteSize(ProxyHandle handle, Vector2 size)
+	{
+		if (let proxy = GetSpriteProxy(handle))
+		{
+			proxy.SetSize(size);
+			mSpritesDirty = true;
+		}
+	}
+
+	/// Updates a sprite proxy's color.
+	public void SetSpriteColor(ProxyHandle handle, Color color)
+	{
+		if (let proxy = GetSpriteProxy(handle))
+		{
+			proxy.Color = color;
+			mSpritesDirty = true;
+		}
+	}
+
+	/// Updates a sprite proxy's UV rect.
+	public void SetSpriteUVRect(ProxyHandle handle, Vector4 uvRect)
+	{
+		if (let proxy = GetSpriteProxy(handle))
+		{
+			proxy.UVRect = uvRect;
+			mSpritesDirty = true;
+		}
+	}
+
+	/// Destroys a sprite proxy.
+	public void DestroySpriteProxy(ProxyHandle handle)
+	{
+		if (!handle.IsValid)
+			return;
+		if (handle.Index >= (uint32)mSpriteProxies.Count)
+			return;
+		if (mSpriteGenerations[(int)handle.Index] != handle.Generation)
+			return;
+
+		mSpriteProxies[(int)handle.Index] = .Invalid;
+		mFreeSpriteSlots.Add(handle.Index);
+		mSpriteCount--;
+		mSpritesDirty = true;
+	}
+
+	/// Gets all valid sprite proxies.
+	public void GetValidSpriteProxies(List<SpriteProxy*> outProxies)
+	{
+		outProxies.Clear();
+		for (var i < mSpriteProxies.Count)
+		{
+			if (mSpriteProxies[i].IsValid && mSpriteProxies[i].IsVisible)
+				outProxies.Add(&mSpriteProxies[i]);
+		}
+	}
+
+	/// Number of active sprite proxies.
+	public uint32 SpriteCount => mSpriteCount;
+
 	// ==================== Render View Management ====================
 
 	/// Clears all render views and resets the view ID counter.
@@ -726,11 +874,20 @@ class RenderWorld
 			}
 		}
 
+		for (var i < mSpriteProxies.Count)
+		{
+			if (mSpriteProxies[i].IsValid)
+			{
+				mSpriteProxies[i].Flags &= ~.Culled;
+			}
+		}
+
 		mMeshesDirty = false;
 		mSkinnedMeshesDirty = false;
 		mLightsDirty = false;
 		mCamerasDirty = false;
 		mParticleEmittersDirty = false;
+		mSpritesDirty = false;
 	}
 
 	/// Clears all proxies.
@@ -761,6 +918,11 @@ class RenderWorld
 		mFreeParticleEmitterSlots.Clear();
 		mParticleEmitterCount = 0;
 
+		mSpriteProxies.Clear();
+		mSpriteGenerations.Clear();
+		mFreeSpriteSlots.Clear();
+		mSpriteCount = 0;
+
 		mMainCamera = .Invalid;
 
 		mRenderViews.Clear();
@@ -771,6 +933,7 @@ class RenderWorld
 		mLightsDirty = true;
 		mCamerasDirty = true;
 		mParticleEmittersDirty = true;
+		mSpritesDirty = true;
 	}
 
 	// ==================== Queries ====================
@@ -816,4 +979,5 @@ class RenderWorld
 	public bool LightsDirty => mLightsDirty;
 	public bool CamerasDirty => mCamerasDirty;
 	public bool ParticleEmittersDirty => mParticleEmittersDirty;
+	public bool SpritesDirty => mSpritesDirty;
 }

@@ -1,0 +1,6 @@
+FileVersion = 1
+Dependencies = {corlib = "*", SampleFramework = "*", "Sedulous.Engine.Core" = "*", "Sedulous.Engine.Renderer" = "*", "Sedulous.Geometry" = "*", "Sedulous.Logging" = "*"}
+
+[Project]
+Name = "RendererMultiView"
+StartupObject = "RendererMultiView.Program"

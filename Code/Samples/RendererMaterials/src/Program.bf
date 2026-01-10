@@ -107,6 +107,8 @@ class RendererMaterialsSample : RHISampleApp
 
 		// Create and register RendererService
 		mRendererService = new RendererService();
+		// Set formats to match swap chain BEFORE initializing
+		mRendererService.SetFormats(SwapChain.Format, .Depth24PlusStencil8);
 		let shaderPath = GetAssetPath("framework/shaders", .. scope .());
 		if (mRendererService.Initialize(Device, shaderPath) case .Err)
 		{
@@ -120,7 +122,7 @@ class RendererMaterialsSample : RHISampleApp
 		mRenderSceneComponent = mScene.AddSceneComponent(new RenderSceneComponent(mRendererService));
 
 		// Initialize rendering
-		if (mRenderSceneComponent.InitializeRendering(SwapChain.Format, .Depth24PlusStencil8, Device.FlipProjectionRequired) case .Err)
+		if (mRenderSceneComponent.InitializeRendering(SwapChain.Format, .Depth24PlusStencil8) case .Err)
 		{
 			Console.WriteLine("Failed to initialize scene rendering");
 			return false;

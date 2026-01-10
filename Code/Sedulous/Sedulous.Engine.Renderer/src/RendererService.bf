@@ -7,16 +7,27 @@ using Sedulous.Renderer;
 
 /// Context service that owns shared GPU resources across all scenes.
 /// Register this service with the Context to enable entity-based rendering.
+///
+/// Owns:
+/// - GPUResourceManager (meshes, textures)
+/// - ShaderLibrary (shader loading/caching)
+/// - MaterialSystem (materials, material instances)
+/// - PipelineCache (render pipeline caching)
+/// - RenderPipeline (shared rendering orchestrator)
+///
+/// Note: LightingSystem is per-scene and owned by RenderContext, not here.
 class RendererService : IContextService, IDisposable
 {
 	private Context mContext;
 	private IDevice mDevice;
 	private GPUResourceManager mResourceManager ~ delete _;
 	private ShaderLibrary mShaderLibrary ~ delete _;
-	private LightingSystem mLightingSystem ~ delete _;
 	private PipelineCache mPipelineCache ~ delete _;
 	private MaterialSystem mMaterialSystem ~ delete _;
+	private RenderPipeline mPipeline ~ delete _;
 	private bool mInitialized = false;
+	private TextureFormat mColorFormat = .BGRA8Unorm;
+	private TextureFormat mDepthFormat = .Depth32FloatStencil8;
 
 	/// Gets the graphics device.
 	public IDevice Device => mDevice;
@@ -27,14 +38,14 @@ class RendererService : IContextService, IDisposable
 	/// Gets the shader library for loading and caching shaders.
 	public ShaderLibrary ShaderLibrary => mShaderLibrary;
 
-	/// Gets the lighting system for clustered lighting and shadows.
-	public LightingSystem LightingSystem => mLightingSystem;
-
 	/// Gets the pipeline cache for render pipelines.
 	public PipelineCache PipelineCache => mPipelineCache;
 
 	/// Gets the material system for materials and material instances.
 	public MaterialSystem MaterialSystem => mMaterialSystem;
+
+	/// Gets the shared render pipeline.
+	public RenderPipeline Pipeline => mPipeline;
 
 	/// Gets whether the service has been initialized.
 	public bool IsInitialized => mInitialized;
@@ -49,12 +60,25 @@ class RendererService : IContextService, IDisposable
 		mDevice = device;
 		mResourceManager = new GPUResourceManager(device);
 		mShaderLibrary = new ShaderLibrary(device, shaderBasePath);
-		mLightingSystem = new LightingSystem(device);
 		mPipelineCache = new PipelineCache(device, mShaderLibrary);
 		mMaterialSystem = new MaterialSystem(device, mShaderLibrary, mResourceManager);
-		mInitialized = true;
 
+		// Create the shared render pipeline
+		mPipeline = new RenderPipeline();
+		if (mPipeline.Initialize(device, mShaderLibrary, mMaterialSystem, mResourceManager,
+			mPipelineCache, mColorFormat, mDepthFormat) case .Err)
+			return .Err;
+
+		mInitialized = true;
 		return .Ok;
+	}
+
+	/// Sets the color and depth format for rendering.
+	/// Must be called before Initialize() if using non-default formats.
+	public void SetFormats(TextureFormat colorFormat, TextureFormat depthFormat)
+	{
+		mColorFormat = colorFormat;
+		mDepthFormat = depthFormat;
 	}
 
 	/// Sets the shader base path for loading shaders.

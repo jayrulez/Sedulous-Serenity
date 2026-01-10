@@ -926,6 +926,17 @@ class VulkanCommandEncoder : ICommandEncoder
 				finalLayout = .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 			}
 
+			// Determine initial layout based on LoadOp and texture type
+			// For swap chain textures with LoadOp=Load, we expect the image to be in PRESENT_SRC_KHR
+			// from the previous render pass's final layout
+			VkImageLayout initialLayout = .VK_IMAGE_LAYOUT_UNDEFINED;
+			if (colorAttachment.LoadOp == .Load)
+			{
+				initialLayout = vkTexture.IsSwapChainTexture
+					? .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+					: .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+			}
+
 			uint32 colorIndex = (uint32)attachments.Count;
 			attachments.Add(.()
 				{
@@ -935,7 +946,7 @@ class VulkanCommandEncoder : ICommandEncoder
 					storeOp = storeOp,
 					stencilLoadOp = .VK_ATTACHMENT_LOAD_OP_DONT_CARE,
 					stencilStoreOp = .VK_ATTACHMENT_STORE_OP_DONT_CARE,
-					initialLayout = colorAttachment.LoadOp == .Load ? .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : .VK_IMAGE_LAYOUT_UNDEFINED,
+					initialLayout = initialLayout,
 					finalLayout = finalLayout
 				});
 

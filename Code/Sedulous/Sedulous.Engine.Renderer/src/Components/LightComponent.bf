@@ -241,7 +241,7 @@ class LightComponent : IEntityComponent
 	{
 		if (mRenderScene != null && mEntity != null)
 		{
-			mRenderScene.RemoveLightProxy(mEntity.Id);
+			mRenderScene.DestroyLightProxy(mEntity.Id);
 		}
 		mProxyHandle = .Invalid;
 	}

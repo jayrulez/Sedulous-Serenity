@@ -12,6 +12,7 @@ class SpriteComponent : IEntityComponent
 {
 	private Entity mEntity;
 	private RenderSceneComponent mRenderScene;
+	private ProxyHandle mProxyHandle = .Invalid;
 
 	/// Sprite size in world units.
 	public Vector2 Size = .(1, 1);
@@ -24,6 +25,9 @@ class SpriteComponent : IEntityComponent
 
 	/// Whether the sprite is visible.
 	public bool Visible = true;
+
+	/// Gets the proxy handle for this sprite.
+	public ProxyHandle ProxyHandle => mProxyHandle;
 
 	/// Creates a new SpriteComponent.
 	public this()
@@ -43,13 +47,6 @@ class SpriteComponent : IEntityComponent
 		Color = color;
 	}
 
-	/// Gets the sprite instance data for rendering.
-	public SpriteInstance GetSpriteInstance()
-	{
-		var position = mEntity?.Transform.WorldPosition ?? .Zero;
-		return .(position, Size, UVRect, Color);
-	}
-
 	// ==================== IEntityComponent Implementation ====================
 
 	public void OnAttach(Entity entity)
@@ -59,20 +56,79 @@ class SpriteComponent : IEntityComponent
 		if (entity.Scene != null)
 		{
 			mRenderScene = entity.Scene.GetSceneComponent<RenderSceneComponent>();
-			mRenderScene?.RegisterSprite(this);
+			CreateProxy();
 		}
 	}
 
 	public void OnDetach()
 	{
-		mRenderScene?.UnregisterSprite(this);
+		DestroyProxy();
 		mEntity = null;
 		mRenderScene = null;
 	}
 
 	public void OnUpdate(float deltaTime)
 	{
-		// Sprite position is updated from entity transform during render collection
+		// Update proxy properties if changed
+		UpdateProxy();
+	}
+
+	/// Creates the render proxy for this sprite.
+	private void CreateProxy()
+	{
+		if (mRenderScene == null || mEntity == null)
+			return;
+
+		let position = mEntity.Transform.WorldPosition;
+		mProxyHandle = mRenderScene.CreateSpriteProxy(mEntity.Id, position, Size, UVRect, Color);
+
+		// Set visibility flag
+		if (mProxyHandle.IsValid && mRenderScene.RenderWorld != null)
+		{
+			if (let proxy = mRenderScene.RenderWorld.GetSpriteProxy(mProxyHandle))
+			{
+				if (Visible)
+					proxy.Flags |= .Visible;
+				else
+					proxy.Flags &= ~.Visible;
+			}
+		}
+	}
+
+	/// Destroys the render proxy for this sprite.
+	private void DestroyProxy()
+	{
+		if (mRenderScene != null && mEntity != null)
+			mRenderScene.DestroySpriteProxy(mEntity.Id);
+		mProxyHandle = .Invalid;
+	}
+
+	/// Updates the proxy with current sprite properties.
+	private void UpdateProxy()
+	{
+		if (!mProxyHandle.IsValid || mRenderScene?.RenderWorld == null)
+			return;
+
+		if (let proxy = mRenderScene.RenderWorld.GetSpriteProxy(mProxyHandle))
+		{
+			// Update size if changed
+			if (proxy.Size != Size)
+				proxy.SetSize(Size);
+
+			// Update UV rect if changed
+			if (proxy.UVRect != UVRect)
+				proxy.UVRect = UVRect;
+
+			// Update color if changed
+			if (proxy.Color != Color)
+				proxy.Color = Color;
+
+			// Update visibility
+			if (Visible && !proxy.Flags.HasFlag(.Visible))
+				proxy.Flags |= .Visible;
+			else if (!Visible && proxy.Flags.HasFlag(.Visible))
+				proxy.Flags &= ~.Visible;
+		}
 	}
 
 	// ==================== ISerializable Implementation ====================

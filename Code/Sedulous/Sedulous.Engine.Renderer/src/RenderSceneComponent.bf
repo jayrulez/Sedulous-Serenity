@@ -9,53 +9,50 @@ using Sedulous.Serialization;
 using Sedulous.Renderer;
 
 /// Scene component that manages rendering for a scene.
-/// Owns the RenderWorld (proxy pool) and coordinates entity-to-proxy synchronization.
-/// Delegates actual rendering to RenderSystem.
+/// Owns the RenderContext (which contains RenderWorld + LightingSystem).
+/// Coordinates entity-to-proxy synchronization.
+/// Delegates actual rendering to the shared RenderPipeline.
 class RenderSceneComponent : ISceneComponent
 {
-	private const int32 MAX_FRAMES_IN_FLIGHT = 2;
-
 	private RendererService mRendererService;
 	private Scene mScene;
-	private RenderWorld mRenderWorld ~ delete _;
-	private RenderSystem mRenderSystem ~ delete _;
+	private RenderContext mContext ~ delete _;
 
 	// Entity → Proxy mapping for each proxy type
 	private Dictionary<EntityId, ProxyHandle> mMeshProxies = new .() ~ delete _;
+	private Dictionary<EntityId, ProxyHandle> mSkinnedMeshProxies = new .() ~ delete _;
 	private Dictionary<EntityId, ProxyHandle> mLightProxies = new .() ~ delete _;
 	private Dictionary<EntityId, ProxyHandle> mCameraProxies = new .() ~ delete _;
+	private Dictionary<EntityId, ProxyHandle> mSpriteProxies = new .() ~ delete _;
+	private Dictionary<EntityId, ProxyHandle> mParticleEmitterProxies = new .() ~ delete _;
 
-	// Cached lists for iteration
-	private List<StaticMeshProxy*> mVisibleMeshes = new .() ~ delete _;
-	private List<LightProxy*> mActiveLights = new .() ~ delete _;
-	private List<SkinnedMeshProxy*> mVisibleSkinnedMeshes = new .() ~ delete _;
-
-	// Particle emitters and sprites (component lists for updates)
+	// Particle emitter component list (for per-frame updates like Upload)
 	private List<ParticleEmitterComponent> mParticleEmitters = new .() ~ delete _;
-	private List<SpriteComponent> mSprites = new .() ~ delete _;
 
 	// Main camera handle
 	private ProxyHandle mMainCamera = .Invalid;
 
 	// Rendering state
 	private bool mRenderingInitialized = false;
-	private int32 mCurrentFrameIndex = 0;
-	private bool mFlipProjection = false;
-	private RenderView mMainView;
+	private ITextureView* mColorTarget;
+	private ITextureView* mDepthTarget;
 
 	// ==================== Properties ====================
 
 	/// Gets the renderer service.
 	public RendererService RendererService => mRendererService;
 
-	/// Gets the render world for proxy management.
-	public RenderWorld RenderWorld => mRenderWorld;
+	/// Gets the render context for this scene.
+	public RenderContext Context => mContext;
 
-	/// Gets the render system.
-	public RenderSystem RenderSystem => mRenderSystem;
+	/// Gets the render world for proxy management.
+	public RenderWorld RenderWorld => mContext?.World;
+
+	/// Gets the render pipeline (shared across all scenes).
+	public RenderPipeline Pipeline => mRendererService?.Pipeline;
 
 	/// Gets the visibility resolver.
-	public VisibilityResolver VisibilityResolver => mRenderSystem?.Visibility;
+	public VisibilityResolver VisibilityResolver => mContext?.Visibility;
 
 	/// Gets or sets the main camera proxy handle.
 	public ProxyHandle MainCamera
@@ -64,8 +61,8 @@ class RenderSceneComponent : ISceneComponent
 		set
 		{
 			mMainCamera = value;
-			if (mRenderWorld != null)
-				mRenderWorld.SetMainCamera(value);
+			if (mContext?.World != null)
+				mContext.World.SetMainCamera(value);
 		}
 	}
 
@@ -73,48 +70,48 @@ class RenderSceneComponent : ISceneComponent
 	public Scene Scene => mScene;
 
 	/// Gets the list of visible meshes after culling.
-	public List<StaticMeshProxy*> VisibleMeshes => mVisibleMeshes;
+	public List<StaticMeshProxy*> VisibleMeshes => mContext?.VisibleMeshes;
 
 	/// Gets the list of active lights.
-	public List<LightProxy*> ActiveLights => mActiveLights;
+	public List<LightProxy*> ActiveLights => mContext?.ActiveLights;
 
 	/// Gets the main camera proxy.
-	public CameraProxy* GetMainCameraProxy() => mRenderWorld.MainCamera;
+	public CameraProxy* GetMainCameraProxy() => mContext?.World?.MainCamera;
 
 	/// Gets mesh count for statistics.
-	public uint32 MeshCount => mRenderWorld.StaticMeshCount;
+	public uint32 MeshCount => mContext?.World?.StaticMeshCount ?? 0;
 
 	/// Gets light count for statistics.
-	public uint32 LightCount => mRenderWorld.LightCount;
+	public uint32 LightCount => mContext?.World?.LightCount ?? 0;
 
 	/// Gets camera count for statistics.
-	public uint32 CameraCount => mRenderWorld.CameraCount;
+	public uint32 CameraCount => mContext?.World?.CameraCount ?? 0;
 
-	/// Gets visible instance count for statistics (static + skinned meshes).
-	public int32 VisibleInstanceCount => (mRenderSystem?.StaticMeshRenderer?.VisibleMeshCount ?? 0) + (mRenderSystem?.SkinnedMeshRenderer?.VisibleMeshCount ?? 0);
+	/// Gets visible instance count for statistics.
+	public int32 VisibleInstanceCount =>
+		(Pipeline?.StaticMeshRenderer?.VisibleMeshCount ?? 0) +
+		(Pipeline?.SkinnedMeshRenderer?.VisibleMeshCount ?? 0);
 
-	/// Gets the lighting system (for shadow rendering).
-	public LightingSystem LightingSystem => mRenderSystem?.LightingSystem;
-
-	/// Gets or sets whether shadows are enabled.
-	public bool ShadowsEnabled
-	{
-		get => mRenderSystem?.ShadowsEnabled ?? false;
-		set { if (mRenderSystem != null) mRenderSystem.ShadowsEnabled = value; }
-	}
+	/// Gets the lighting system.
+	public LightingSystem LightingSystem => mContext?.Lighting;
 
 	/// Gets whether the lighting system has directional shadows this frame.
-	public bool HasDirectionalShadows => mRenderSystem?.LightingSystem?.HasDirectionalShadows ?? false;
+	public bool HasDirectionalShadows => mContext?.Lighting?.HasDirectionalShadows ?? false;
 
 	/// Gets the skybox renderer.
-	public SkyboxRenderer SkyboxRenderer => mRenderSystem?.SkyboxRenderer;
+	public SkyboxRenderer SkyboxRenderer => Pipeline?.SkyboxRenderer;
 
-	/// Gets or sets whether skybox rendering is enabled.
-	public bool SkyboxEnabled
-	{
-		get => mRenderSystem?.SkyboxEnabled ?? false;
-		set { if (mRenderSystem != null) mRenderSystem.SkyboxEnabled = value; }
-	}
+	/// Gets the sprite renderer.
+	public SpriteRenderer SpriteRenderer => Pipeline?.SpriteRenderer;
+
+	/// Gets the list of registered skinned mesh proxies.
+	public List<SkinnedMeshProxy*> SkinnedMeshProxies => Pipeline?.SkinnedMeshRenderer?.SkinnedMeshes;
+
+	/// Gets the list of registered particle emitters.
+	public List<ParticleEmitterComponent> ParticleEmitters => mParticleEmitters;
+
+	/// Gets sprite count for statistics.
+	public uint32 SpriteCount => mContext?.World?.SpriteCount ?? 0;
 
 	// ==================== Constructor ====================
 
@@ -123,8 +120,6 @@ class RenderSceneComponent : ISceneComponent
 	public this(RendererService rendererService)
 	{
 		mRendererService = rendererService;
-		mRenderWorld = new RenderWorld();
-		mRenderSystem = new RenderSystem();
 	}
 
 	// ==================== ISceneComponent Implementation ====================
@@ -139,35 +134,25 @@ class RenderSceneComponent : ISceneComponent
 	public void OnDetach()
 	{
 		CleanupRendering();
-		mRenderWorld.Clear();
+		mContext?.World?.Clear();
 		mMeshProxies.Clear();
+		mSkinnedMeshProxies.Clear();
 		mLightProxies.Clear();
 		mCameraProxies.Clear();
+		mSpriteProxies.Clear();
+		mParticleEmitterProxies.Clear();
 		mScene = null;
 	}
 
 	/// Called each frame to update the component.
-	/// Syncs entity transforms to proxies, performs visibility culling,
-	/// and builds CPU-side instance data.
+	/// Syncs entity transforms to proxies.
 	public void OnUpdate(float deltaTime)
 	{
-		if (mScene == null || mRenderSystem == null)
+		if (mScene == null || mContext == null)
 			return;
 
 		// Sync entity transforms to proxies
 		SyncProxies();
-
-		// Prepare render world for this frame
-		mRenderWorld.BeginFrame();
-
-		// Create RenderView from main camera (frame index will be set in PrepareGPU)
-		if (let camera = mRenderWorld.MainCamera)
-		{
-			mMainView = RenderView.FromCameraProxy(0, camera, null, null, true);
-		}
-
-		// Gather active lights
-		mRenderWorld.GetValidLightProxies(mActiveLights);
 	}
 
 	/// Called when the scene state changes.
@@ -176,10 +161,13 @@ class RenderSceneComponent : ISceneComponent
 		if (newState == .Unloaded)
 		{
 			CleanupRendering();
-			mRenderWorld.Clear();
+			mContext?.World?.Clear();
 			mMeshProxies.Clear();
+			mSkinnedMeshProxies.Clear();
 			mLightProxies.Clear();
 			mCameraProxies.Clear();
+			mSpriteProxies.Clear();
+			mParticleEmitterProxies.Clear();
 		}
 	}
 
@@ -203,38 +191,41 @@ class RenderSceneComponent : ISceneComponent
 
 	/// Initializes GPU rendering resources.
 	/// Call this after the swap chain is created to set up pipelines and buffers.
-	public Result<void> InitializeRendering(TextureFormat colorFormat, TextureFormat depthFormat, bool flipProjection = false)
+	public Result<void> InitializeRendering(TextureFormat colorFormat, TextureFormat depthFormat)
 	{
 		if (mRenderingInitialized)
 			return .Ok;
 
-		if (mRendererService?.Device == null || mRenderSystem == null)
+		if (mRendererService?.Device == null || mRendererService.Pipeline == null)
 			return .Err;
-
-		mFlipProjection = flipProjection;
 
 		let device = mRendererService.Device;
+		let pipeline = mRendererService.Pipeline;
 
-		// Create lighting system (RenderSystem needs it during initialization)
-		let lightingSystem = new LightingSystem(device);
-
-		// Initialize RenderSystem with all dependencies
-		if (mRenderSystem.Initialize(
-			device,
-			mRendererService.ShaderLibrary,
-			mRendererService.MaterialSystem,
-			mRendererService.ResourceManager,
-			mRendererService.PipelineCache,
-			lightingSystem,
-			colorFormat,
-			depthFormat) case .Err)
-		{
-			delete lightingSystem;
+		// Create render context (owns RenderWorld + LightingSystem + VisibilityResolver)
+		if (RenderContext.Create(device) case .Ok(let context))
+			mContext = context;
+		else
 			return .Err;
+
+		// Initialize pipeline's sub-renderers with this context's lighting system
+		// (only needed once per pipeline - check if StaticMeshRenderer exists)
+		if (pipeline.StaticMeshRenderer == null)
+		{
+			if (pipeline.InitializeRenderers(mContext.Lighting) case .Err)
+				return .Err;
 		}
 
 		mRenderingInitialized = true;
 		return .Ok;
+	}
+
+	/// Sets the render targets for this scene.
+	/// Call this when swap chain is resized or targets change.
+	public void SetRenderTargets(ITextureView* colorTarget, ITextureView* depthTarget)
+	{
+		mColorTarget = colorTarget;
+		mDepthTarget = depthTarget;
 	}
 
 	private void CleanupRendering()
@@ -248,93 +239,101 @@ class RenderSceneComponent : ISceneComponent
 	/// Call this in OnPrepareFrame after the fence wait.
 	public void PrepareGPU(int32 frameIndex)
 	{
-		if (!mRenderingInitialized || mRenderSystem == null)
+		if (!mRenderingInitialized || mContext == null)
 			return;
 
-		mCurrentFrameIndex = frameIndex;
+		let pipeline = mRendererService.Pipeline;
+		if (pipeline == null)
+			return;
 
-		// Begin frame with correct frame index and perform visibility
-		mRenderSystem.BeginFrame(frameIndex, mMainView);
-		mRenderSystem.PrepareVisibility(mRenderWorld);
+		// Begin frame with context
+		mContext.BeginFrame(frameIndex);
 
-		// Get visible meshes for local reference
-		mVisibleMeshes.Clear();
-		if (mRenderSystem.OpaqueMeshes != null)
-			mVisibleMeshes.AddRange(mRenderSystem.OpaqueMeshes);
-		if (mRenderSystem.TransparentMeshes != null)
-			mVisibleMeshes.AddRange(mRenderSystem.TransparentMeshes);
+		// Add main camera view
+		if (let camera = mContext.World.MainCamera)
+		{
+			let mainView = RenderView.FromCameraProxy(0, camera, mColorTarget, mDepthTarget, true);
+			mContext.AddView(mainView);
+			mContext.SetMainView(0);
+		}
 
-		// Delegate to RenderSystem for GPU preparation
-		mRenderSystem.PrepareGPU(mRenderWorld, mFlipProjection);
+		// Add shadow cascade views
+		mContext.AddShadowCascadeViews();
 
-		// Upload component-specific data (particles, sprites)
+		// Prepare visibility and GPU resources
+		pipeline.PrepareVisibility(mContext);
+		pipeline.PrepareGPU(mContext);
+
+		// Upload component-specific data (particles)
 		for (let emitter in mParticleEmitters)
 		{
 			if (emitter.Visible && emitter.ParticleSystem != null)
 				emitter.ParticleSystem.Upload();
 		}
 
-		// Build and upload sprite data
-		if (mRenderSystem.SpriteRenderer != null && mSprites.Count > 0)
+		// Build and upload sprite data from proxies
+		if (pipeline.SpriteRenderer != null && mContext.World.SpriteCount > 0)
 		{
-			mRenderSystem.SpriteRenderer.Begin();
-			for (let sprite in mSprites)
+			pipeline.SpriteRenderer.Begin();
+			// Collect sprites from proxies
+			List<SpriteProxy*> sprites = scope .();
+			mContext.World.GetValidSpriteProxies(sprites);
+			for (let spriteProxy in sprites)
 			{
-				if (sprite.Visible)
-					mRenderSystem.SpriteRenderer.AddSprite(sprite.GetSpriteInstance());
+				pipeline.SpriteRenderer.AddSprite(spriteProxy.ToSpriteInstance());
 			}
-			mRenderSystem.SpriteRenderer.End();
+			pipeline.SpriteRenderer.End();
 		}
 	}
 
 	/// Renders shadow passes for all cascades.
-	/// Call this BEFORE beginning the main render pass (requires ICommandEncoder, not IRenderPassEncoder).
+	/// Call this BEFORE beginning the main render pass.
 	/// Returns true if shadows were rendered and a texture barrier is needed.
 	public bool RenderShadows(ICommandEncoder encoder, int32 frameIndex)
 	{
-		if (!mRenderingInitialized || mRenderSystem == null)
+		if (!mRenderingInitialized || mContext == null)
 			return false;
 
-		return mRenderSystem.RenderShadows(encoder, mRenderWorld);
+		return mRendererService.Pipeline?.RenderShadows(mContext, encoder) ?? false;
 	}
 
 	/// Renders the scene to the given render pass.
 	/// Call this in OnRender.
 	public void Render(IRenderPassEncoder renderPass, uint32 viewportWidth, uint32 viewportHeight)
 	{
-		if (!mRenderingInitialized || mRenderSystem == null)
+		if (!mRenderingInitialized || mContext == null)
 			return;
 
-		// Delegate to RenderSystem for rendering
-		mRenderSystem.Render(renderPass, mRenderWorld);
-		mRenderSystem.EndFrame(mRenderWorld);
+		// Render all views
+		mRendererService.Pipeline?.RenderViews(mContext, renderPass);
+
+		// End frame
+		mContext.EndFrame();
 	}
 
 	/// Ends the current frame.
-	/// Call this after rendering is complete (called automatically by Render).
+	/// Note: Called automatically by Render, only call explicitly if skipping Render.
 	public void EndFrame()
 	{
-		mRenderWorld.EndFrame();
+		mContext?.EndFrame();
 	}
 
 	// ==================== Proxy Management ====================
 
 	/// Creates a mesh proxy for an entity.
-	///
-	/// Note: Static meshes use the proxy system (RenderWorld + VisibilityResolver) which
-	/// efficiently handles frustum culling, LOD selection, and batching by (mesh, material).
-	/// The StaticMeshRenderer receives visible meshes each frame via BuildBatches().
-	/// See RegisterSkinnedMesh() for why skinned meshes use a different pattern.
-	public ProxyHandle CreateMeshProxy(EntityId entityId, GPUMeshHandle mesh, Matrix transform, BoundingBox bounds)
+	public ProxyHandle CreateStaticMeshProxy(EntityId entityId, GPUMeshHandle mesh, Matrix transform, BoundingBox bounds)
 	{
+		if (mContext?.World == null)
+			return .Invalid;
+
 		// Remove existing proxy if any
 		if (mMeshProxies.TryGetValue(entityId, let existing))
 		{
-			mRenderWorld.DestroyStaticMeshProxy(existing);
+			mContext.World.DestroyStaticMeshProxy(existing);
 			mMeshProxies.Remove(entityId);
 		}
 
-		let handle = mRenderWorld.CreateStaticMeshProxy(mesh, transform, bounds);
+		let handle = mContext.World.CreateStaticMeshProxy(mesh, transform, bounds);
 		if (handle.IsValid)
 			mMeshProxies[entityId] = handle;
 
@@ -344,8 +343,11 @@ class RenderSceneComponent : ISceneComponent
 	/// Creates a directional light proxy for an entity.
 	public ProxyHandle CreateDirectionalLight(EntityId entityId, Vector3 direction, Vector3 color, float intensity)
 	{
-		RemoveLightProxy(entityId);
-		let handle = mRenderWorld.CreateDirectionalLight(direction, color, intensity);
+		if (mContext?.World == null)
+			return .Invalid;
+
+		DestroyLightProxy(entityId);
+		let handle = mContext.World.CreateDirectionalLight(direction, color, intensity);
 		if (handle.IsValid)
 			mLightProxies[entityId] = handle;
 		return handle;
@@ -354,8 +356,11 @@ class RenderSceneComponent : ISceneComponent
 	/// Creates a point light proxy for an entity.
 	public ProxyHandle CreatePointLight(EntityId entityId, Vector3 position, Vector3 color, float intensity, float range)
 	{
-		RemoveLightProxy(entityId);
-		let handle = mRenderWorld.CreatePointLight(position, color, intensity, range);
+		if (mContext?.World == null)
+			return .Invalid;
+
+		DestroyLightProxy(entityId);
+		let handle = mContext.World.CreatePointLight(position, color, intensity, range);
 		if (handle.IsValid)
 			mLightProxies[entityId] = handle;
 		return handle;
@@ -365,8 +370,11 @@ class RenderSceneComponent : ISceneComponent
 	public ProxyHandle CreateSpotLight(EntityId entityId, Vector3 position, Vector3 direction, Vector3 color,
 		float intensity, float range, float innerAngle, float outerAngle)
 	{
-		RemoveLightProxy(entityId);
-		let handle = mRenderWorld.CreateSpotLight(position, direction, color, intensity, range, innerAngle, outerAngle);
+		if (mContext?.World == null)
+			return .Invalid;
+
+		DestroyLightProxy(entityId);
+		let handle = mContext.World.CreateSpotLight(position, direction, color, intensity, range, innerAngle, outerAngle);
 		if (handle.IsValid)
 			mLightProxies[entityId] = handle;
 		return handle;
@@ -375,8 +383,11 @@ class RenderSceneComponent : ISceneComponent
 	/// Creates a camera proxy for an entity.
 	public ProxyHandle CreateCameraProxy(EntityId entityId, Camera camera, uint32 viewportWidth, uint32 viewportHeight, bool isMain = false)
 	{
-		RemoveCameraProxy(entityId);
-		let handle = mRenderWorld.CreateCamera(camera, viewportWidth, viewportHeight, isMain);
+		if (mContext?.World == null)
+			return .Invalid;
+
+		DestroyCameraProxy(entityId);
+		let handle = mContext.World.CreateCamera(camera, viewportWidth, viewportHeight, isMain);
 		if (handle.IsValid)
 		{
 			mCameraProxies[entityId] = handle;
@@ -387,33 +398,33 @@ class RenderSceneComponent : ISceneComponent
 	}
 
 	/// Destroys a mesh proxy for an entity.
-	public void DestroyMeshProxy(EntityId entityId)
+	public void DestroyStaticMeshProxy(EntityId entityId)
 	{
 		if (mMeshProxies.TryGetValue(entityId, let handle))
 		{
-			mRenderWorld.DestroyStaticMeshProxy(handle);
+			mContext?.World?.DestroyStaticMeshProxy(handle);
 			mMeshProxies.Remove(entityId);
 		}
 	}
 
 	/// Destroys a light proxy for an entity.
-	public void RemoveLightProxy(EntityId entityId)
+	public void DestroyLightProxy(EntityId entityId)
 	{
 		if (mLightProxies.TryGetValue(entityId, let handle))
 		{
-			mRenderWorld.DestroyLightProxy(handle);
+			mContext?.World?.DestroyLightProxy(handle);
 			mLightProxies.Remove(entityId);
 		}
 	}
 
 	/// Destroys a camera proxy for an entity.
-	public void RemoveCameraProxy(EntityId entityId)
+	public void DestroyCameraProxy(EntityId entityId)
 	{
 		if (mCameraProxies.TryGetValue(entityId, let handle))
 		{
 			if (mMainCamera.Equals(handle))
 				mMainCamera = .Invalid;
-			mRenderWorld.DestroyCameraProxy(handle);
+			mContext?.World?.DestroyCameraProxy(handle);
 			mCameraProxies.Remove(entityId);
 		}
 	}
@@ -457,58 +468,142 @@ class RenderSceneComponent : ISceneComponent
 		mParticleEmitters.Remove(emitter);
 	}
 
-	/// Registers a sprite component.
-	public void RegisterSprite(SpriteComponent sprite)
+	/// Creates a sprite proxy for an entity.
+	public ProxyHandle CreateSpriteProxy(EntityId entityId, Vector3 position, Vector2 size, Color color = .White)
 	{
-		if (!mSprites.Contains(sprite))
-			mSprites.Add(sprite);
+		if (mContext?.World == null)
+			return .Invalid;
+
+		DestroySpriteProxy(entityId);
+		let handle = mContext.World.CreateSpriteProxy(position, size, color);
+		if (handle.IsValid)
+			mSpriteProxies[entityId] = handle;
+		return handle;
 	}
 
-	/// Unregisters a sprite component.
-	public void UnregisterSprite(SpriteComponent sprite)
+	/// Creates a sprite proxy with UV rect.
+	public ProxyHandle CreateSpriteProxy(EntityId entityId, Vector3 position, Vector2 size, Vector4 uvRect, Color color)
 	{
-		mSprites.Remove(sprite);
+		if (mContext?.World == null)
+			return .Invalid;
+
+		DestroySpriteProxy(entityId);
+		let handle = mContext.World.CreateSpriteProxy(position, size, uvRect, color);
+		if (handle.IsValid)
+			mSpriteProxies[entityId] = handle;
+		return handle;
 	}
 
-	/// Gets the list of registered particle emitters.
-	public List<ParticleEmitterComponent> ParticleEmitters => mParticleEmitters;
-
-	/// Gets the list of registered sprites.
-	public List<SpriteComponent> Sprites => mSprites;
-
-	/// Registers a skinned mesh component.
-	///
-	/// Note: Skinned meshes use direct component registration (via SkinnedMeshRenderer)
-	/// rather than the proxy system used by static meshes. This is because:
-	/// - Static meshes are instanced and batched by (mesh, material) - the proxy system
-	///   with VisibilityResolver efficiently handles culling and batch building
-	/// - Skinned meshes are rendered individually with unique bone transforms and
-	///   per-component GPU resources (bone buffers, object uniform buffers)
-	public void RegisterSkinnedMesh(SkinnedMeshComponent skinnedMesh)
+	/// Destroys a sprite proxy for an entity.
+	public void DestroySpriteProxy(EntityId entityId)
 	{
-		if (mRenderSystem?.SkinnedMeshRenderer != null && mRenderWorld != null)
+		if (mSpriteProxies.TryGetValue(entityId, let handle))
 		{
-			// Get the proxy from the component and register with renderer
-			if (let proxy = mRenderWorld.GetSkinnedMeshProxy(skinnedMesh.ProxyHandle))
-				mRenderSystem.SkinnedMeshRenderer.Register(proxy);
+			mContext?.World?.DestroySpriteProxy(handle);
+			mSpriteProxies.Remove(entityId);
 		}
 	}
 
-	/// Unregisters a skinned mesh component.
-	public void UnregisterSkinnedMesh(SkinnedMeshComponent skinnedMesh)
+	/// Gets the sprite proxy handle for an entity.
+	public ProxyHandle GetSpriteProxy(EntityId entityId)
 	{
-		if (mRenderSystem?.SkinnedMeshRenderer != null && mRenderWorld != null)
+		if (mSpriteProxies.TryGetValue(entityId, let handle))
+			return handle;
+		return .Invalid;
+	}
+
+	/// Creates a particle emitter proxy for an entity.
+	public ProxyHandle CreateParticleEmitterProxy(EntityId entityId, ParticleSystem system, Vector3 position)
+	{
+		if (mContext?.World == null)
+			return .Invalid;
+
+		// Remove existing proxy if any
+		DestroyParticleEmitterProxy(entityId);
+
+		let handle = mContext.World.CreateParticleEmitterProxy(system, position);
+		if (handle.IsValid)
+			mParticleEmitterProxies[entityId] = handle;
+
+		return handle;
+	}
+
+	/// Destroys a particle emitter proxy for an entity.
+	public void DestroyParticleEmitterProxy(EntityId entityId)
+	{
+		if (mParticleEmitterProxies.TryGetValue(entityId, let handle))
 		{
-			if (let proxy = mRenderWorld.GetSkinnedMeshProxy(skinnedMesh.ProxyHandle))
-				mRenderSystem.SkinnedMeshRenderer.Unregister(proxy);
+			mContext?.World?.DestroyParticleEmitterProxy(handle);
+			mParticleEmitterProxies.Remove(entityId);
 		}
 	}
 
-	/// Gets the list of registered skinned mesh proxies.
-	public List<SkinnedMeshProxy*> SkinnedMeshProxies => mRenderSystem?.SkinnedMeshRenderer?.SkinnedMeshes;
+	/// Gets the particle emitter proxy handle for an entity.
+	public ProxyHandle GetParticleEmitterProxy(EntityId entityId)
+	{
+		if (mParticleEmitterProxies.TryGetValue(entityId, let handle))
+			return handle;
+		return .Invalid;
+	}
 
-	/// Gets the sprite renderer.
-	public SpriteRenderer SpriteRenderer => mRenderSystem?.SpriteRenderer;
+	/// Creates a skinned mesh proxy for an entity.
+	public ProxyHandle CreateSkinnedMeshProxy(EntityId entityId, GPUSkinnedMeshHandle mesh, Matrix transform, BoundingBox bounds)
+	{
+		if (mContext?.World == null)
+			return .Invalid;
+
+		// Remove existing proxy if any
+		if (mSkinnedMeshProxies.TryGetValue(entityId, let existing))
+		{
+			// Unregister from renderer
+			if (Pipeline?.SkinnedMeshRenderer != null)
+			{
+				if (let proxy = mContext.World.GetSkinnedMeshProxy(existing))
+					Pipeline.SkinnedMeshRenderer.Unregister(proxy);
+			}
+			mContext.World.DestroySkinnedMeshProxy(existing);
+			mSkinnedMeshProxies.Remove(entityId);
+		}
+
+		let handle = mContext.World.CreateSkinnedMeshProxy(mesh, transform, bounds);
+		if (handle.IsValid)
+		{
+			mSkinnedMeshProxies[entityId] = handle;
+
+			// Register with renderer
+			if (Pipeline?.SkinnedMeshRenderer != null)
+			{
+				if (let proxy = mContext.World.GetSkinnedMeshProxy(handle))
+					Pipeline.SkinnedMeshRenderer.Register(proxy);
+			}
+		}
+
+		return handle;
+	}
+
+	/// Destroys a skinned mesh proxy for an entity.
+	public void DestroySkinnedMeshProxy(EntityId entityId)
+	{
+		if (mSkinnedMeshProxies.TryGetValue(entityId, let handle))
+		{
+			// Unregister from renderer
+			if (Pipeline?.SkinnedMeshRenderer != null && mContext?.World != null)
+			{
+				if (let proxy = mContext.World.GetSkinnedMeshProxy(handle))
+					Pipeline.SkinnedMeshRenderer.Unregister(proxy);
+			}
+			mContext?.World?.DestroySkinnedMeshProxy(handle);
+			mSkinnedMeshProxies.Remove(entityId);
+		}
+	}
+
+	/// Gets the skinned mesh proxy handle for an entity.
+	public ProxyHandle GetSkinnedMeshProxyHandle(EntityId entityId)
+	{
+		if (mSkinnedMeshProxies.TryGetValue(entityId, let handle))
+			return handle;
+		return .Invalid;
+	}
 
 	// ==================== Frame Sync ====================
 
@@ -516,8 +611,10 @@ class RenderSceneComponent : ISceneComponent
 	/// Called each frame during OnUpdate.
 	private void SyncProxies()
 	{
-		if (mScene == null)
+		if (mScene == null || mContext?.World == null)
 			return;
+
+		let world = mContext.World;
 
 		// Iterate all entities and sync transforms
 		for (let entity in mScene.EntityManager)
@@ -528,7 +625,7 @@ class RenderSceneComponent : ISceneComponent
 			// Sync mesh proxies
 			if (mMeshProxies.TryGetValue(entityId, let meshHandle))
 			{
-				if (let proxy = mRenderWorld.GetStaticMeshProxy(meshHandle))
+				if (let proxy = world.GetStaticMeshProxy(meshHandle))
 				{
 					proxy.Transform = worldMatrix;
 					proxy.UpdateWorldBounds();
@@ -539,10 +636,9 @@ class RenderSceneComponent : ISceneComponent
 			// Sync light proxies
 			if (mLightProxies.TryGetValue(entityId, let lightHandle))
 			{
-				if (let proxy = mRenderWorld.GetLightProxy(lightHandle))
+				if (let proxy = world.GetLightProxy(lightHandle))
 				{
 					proxy.Position = entity.Transform.WorldPosition;
-					// For directional/spot lights, update direction from forward vector
 					if (proxy.Type == .Directional || proxy.Type == .Spot)
 						proxy.Direction = entity.Transform.Forward;
 				}
@@ -551,13 +647,22 @@ class RenderSceneComponent : ISceneComponent
 			// Sync camera proxies
 			if (mCameraProxies.TryGetValue(entityId, let cameraHandle))
 			{
-				if (let proxy = mRenderWorld.GetCameraProxy(cameraHandle))
+				if (let proxy = world.GetCameraProxy(cameraHandle))
 				{
 					proxy.Position = entity.Transform.WorldPosition;
 					proxy.Forward = entity.Transform.Forward;
 					proxy.Up = entity.Transform.Up;
 					proxy.Right = entity.Transform.Right;
 					proxy.UpdateMatrices();
+				}
+			}
+
+			// Sync sprite proxies
+			if (mSpriteProxies.TryGetValue(entityId, let spriteHandle))
+			{
+				if (let proxy = world.GetSpriteProxy(spriteHandle))
+				{
+					proxy.SetPosition(entity.Transform.WorldPosition);
 				}
 			}
 		}

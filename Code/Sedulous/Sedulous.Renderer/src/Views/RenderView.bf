@@ -498,6 +498,90 @@ struct RenderView
 		ViewProjectionMatrix = ViewMatrix * ProjectionMatrix;
 	}
 
+	/// Sets the viewport and scissor rect together.
+	/// Useful for split-screen or picture-in-picture setups.
+	public void SetViewport(int32 x, int32 y, uint32 width, uint32 height) mut
+	{
+		ViewportX = x;
+		ViewportY = y;
+		ViewportWidth = width;
+		ViewportHeight = height;
+		ScissorX = x;
+		ScissorY = y;
+		ScissorWidth = width;
+		ScissorHeight = height;
+	}
+
+	/// Sets viewport as a fraction of a target size.
+	/// Useful for split-screen (e.g., left half = 0.0, 0.0, 0.5, 1.0).
+	public void SetViewportFraction(
+		float xFrac, float yFrac, float widthFrac, float heightFrac,
+		uint32 targetWidth, uint32 targetHeight) mut
+	{
+		ViewportX = (int32)(xFrac * targetWidth);
+		ViewportY = (int32)(yFrac * targetHeight);
+		ViewportWidth = (uint32)(widthFrac * targetWidth);
+		ViewportHeight = (uint32)(heightFrac * targetHeight);
+		ScissorX = ViewportX;
+		ScissorY = ViewportY;
+		ScissorWidth = ViewportWidth;
+		ScissorHeight = ViewportHeight;
+
+		// Update aspect ratio
+		if (ViewportHeight > 0)
+			AspectRatio = (float)ViewportWidth / (float)ViewportHeight;
+	}
+
+	/// Creates a split-screen camera view from a camera proxy.
+	/// splitIndex: 0=left/top, 1=right/bottom (for 2-player)
+	/// horizontal: true for side-by-side, false for top-bottom
+	public static Self ForSplitScreen(
+		uint32 id,
+		CameraProxy* camera,
+		ITextureView* colorTarget,
+		ITextureView* depthTarget,
+		uint32 targetWidth,
+		uint32 targetHeight,
+		int32 splitIndex,
+		bool horizontal = true)
+	{
+		var view = FromCameraProxy(id, camera, colorTarget, depthTarget, splitIndex == 0);
+
+		if (horizontal)
+		{
+			// Side-by-side: each player gets half width
+			uint32 halfWidth = targetWidth / 2;
+			view.ViewportX = splitIndex * (int32)halfWidth;
+			view.ViewportY = 0;
+			view.ViewportWidth = halfWidth;
+			view.ViewportHeight = targetHeight;
+		}
+		else
+		{
+			// Top-bottom: each player gets half height
+			uint32 halfHeight = targetHeight / 2;
+			view.ViewportX = 0;
+			view.ViewportY = splitIndex * (int32)halfHeight;
+			view.ViewportWidth = targetWidth;
+			view.ViewportHeight = halfHeight;
+		}
+
+		view.ScissorX = view.ViewportX;
+		view.ScissorY = view.ViewportY;
+		view.ScissorWidth = view.ViewportWidth;
+		view.ScissorHeight = view.ViewportHeight;
+
+		// Update aspect ratio based on new viewport
+		if (view.ViewportHeight > 0)
+			view.AspectRatio = (float)view.ViewportWidth / (float)view.ViewportHeight;
+
+		// Secondary views have higher priority
+		view.Priority = splitIndex > 0 ? (int16)100 : (int16)0;
+		view.Type = splitIndex == 0 ? .MainCamera : .SecondaryCamera;
+
+		return view;
+	}
+
 	/// Extracts frustum planes from a view-projection matrix.
 	/// Planes point inward (positive half-space is inside frustum).
 	public static void ExtractFrustumPlanesFromMatrix(Matrix vp, ref Plane[6] planes)
