@@ -5,6 +5,7 @@ using Sedulous.Engine.Core;
 using Sedulous.Geometry;
 using Sedulous.Mathematics;
 using Sedulous.Serialization;
+using Sedulous.Renderer;
 
 /// Entity component that renders a static mesh.
 class StaticMeshComponent : IEntityComponent

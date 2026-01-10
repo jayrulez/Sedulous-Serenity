@@ -3,6 +3,7 @@ namespace Sedulous.Engine.Renderer;
 using System;
 using Sedulous.RHI;
 using Sedulous.Engine.Core;
+using Sedulous.Renderer;
 
 /// Context service that owns shared GPU resources across all scenes.
 /// Register this service with the Context to enable entity-based rendering.

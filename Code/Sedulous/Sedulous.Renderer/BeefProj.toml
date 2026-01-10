@@ -1,0 +1,7 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.Foundation" = "*", "Sedulous.Geometry" = "*", "Sedulous.Mathematics" = "*", "Sedulous.Imaging" = "*", "Sedulous.RHI" = "*", "Sedulous.RHI.HLSLShaderCompiler" = "*"}
+
+[Project]
+Name = "Sedulous.Renderer"
+TargetType = "BeefLib"
+StartupObject = "Sedulous.Renderer.Program"

@@ -11,9 +11,11 @@ using Sedulous.Models;
 using Sedulous.Models.GLTF;
 using Sedulous.Engine.Core;
 using Sedulous.Engine.Renderer;
+using Sedulous.Renderer;
 using Sedulous.Logging.Abstractions;
 using Sedulous.Logging.Debug;
 using SampleFramework;
+using Sedulous.Renderer.Resources;
 
 /// Demonstrates creating a custom Toon/Cel-Shading material.
 /// Shows how to define material parameters that map to custom shaders.

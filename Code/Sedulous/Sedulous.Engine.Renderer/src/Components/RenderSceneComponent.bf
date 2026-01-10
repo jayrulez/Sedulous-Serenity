@@ -6,6 +6,7 @@ using Sedulous.Engine.Core;
 using Sedulous.Mathematics;
 using Sedulous.RHI;
 using Sedulous.Serialization;
+using Sedulous.Renderer;
 
 /// Per-frame GPU resources to avoid GPU/CPU synchronization issues.
 struct SceneFrameResources
@@ -43,8 +44,10 @@ class RenderSceneComponent : ISceneComponent
 	// Cached lists for iteration
 	private List<MeshProxy*> mVisibleMeshes = new .() ~ delete _;
 	private List<LightProxy*> mActiveLights = new .() ~ delete _;
+	private List<SkinnedMeshProxy*> mVisibleSkinnedMeshes = new .() ~ delete _;
+	private List<ParticleEmitterProxy*> mVisibleParticleEmitters = new .() ~ delete _;
 
-	// Particle emitters and sprites
+	// Particle emitters and sprites (component lists for updates)
 	private List<ParticleEmitterComponent> mParticleEmitters = new .() ~ delete _;
 	private List<SpriteComponent> mSprites = new .() ~ delete _;
 	private SpriteRenderer mSpriteRenderer ~ delete _;
@@ -526,9 +529,12 @@ class RenderSceneComponent : ISceneComponent
 			mStaticMeshRenderer.RenderMaterials(renderPass, frame.BindGroup, mCurrentFrameIndex);
 		}
 
-		// Render particles
+		// Render particles (collect proxies from RenderWorld)
 		if (mParticleRenderer != null && mParticleRenderer.IsInitialized)
-			mParticleRenderer.RenderEmitters(renderPass, mCurrentFrameIndex, mParticleEmitters);
+		{
+			mRenderWorld.GetValidParticleEmitterProxies(mVisibleParticleEmitters);
+			mParticleRenderer.RenderEmitters(renderPass, mCurrentFrameIndex, mVisibleParticleEmitters);
+		}
 
 		// Render sprites
 		if (mSpriteRenderer != null && mSpriteRenderer.IsInitialized)
@@ -718,19 +724,26 @@ class RenderSceneComponent : ISceneComponent
 	///   per-component GPU resources (bone buffers, object uniform buffers)
 	public void RegisterSkinnedMesh(SkinnedMeshComponent skinnedMesh)
 	{
-		if (mSkinnedMeshRenderer != null)
-			mSkinnedMeshRenderer.Register(skinnedMesh);
+		if (mSkinnedMeshRenderer != null && mRenderWorld != null)
+		{
+			// Get the proxy from the component and register with renderer
+			if (let proxy = mRenderWorld.GetSkinnedMeshProxy(skinnedMesh.ProxyHandle))
+				mSkinnedMeshRenderer.Register(proxy);
+		}
 	}
 
 	/// Unregisters a skinned mesh component.
 	public void UnregisterSkinnedMesh(SkinnedMeshComponent skinnedMesh)
 	{
-		if (mSkinnedMeshRenderer != null)
-			mSkinnedMeshRenderer.Unregister(skinnedMesh);
+		if (mSkinnedMeshRenderer != null && mRenderWorld != null)
+		{
+			if (let proxy = mRenderWorld.GetSkinnedMeshProxy(skinnedMesh.ProxyHandle))
+				mSkinnedMeshRenderer.Unregister(proxy);
+		}
 	}
 
-	/// Gets the list of registered skinned meshes.
-	public List<SkinnedMeshComponent> SkinnedMeshes => mSkinnedMeshRenderer?.SkinnedMeshes;
+	/// Gets the list of registered skinned mesh proxies.
+	public List<SkinnedMeshProxy*> SkinnedMeshProxies => mSkinnedMeshRenderer?.SkinnedMeshes;
 
 	/// Gets the sprite renderer.
 	public SpriteRenderer SpriteRenderer => mSpriteRenderer;

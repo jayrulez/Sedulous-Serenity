@@ -1,6 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Mathematics" = "*", "Sedulous.Geometry" = "*", "Sedulous.Models" = "*", "Sedulous.Engine.Renderer" = "*", "Sedulous.Imaging" = "*", "Sedulous.Serialization" = "*", "Sedulous.Serialization.OpenDDL" = "*", "Sedulous.Mathematics.Serialization" = "*"}
+Dependencies = {corlib = "*", "Sedulous.Mathematics" = "*", "Sedulous.Geometry" = "*", "Sedulous.Models" = "*", "Sedulous.Imaging" = "*", "Sedulous.Serialization" = "*", "Sedulous.Serialization.OpenDDL" = "*", "Sedulous.Mathematics.Serialization" = "*", "Sedulous.Renderer" = "*", "Sedulous.Renderer.Resources" = "*"}
 
 [Project]
 Name = "Sedulous.Geometry.Tooling"
-TargetType = "BeefLib"

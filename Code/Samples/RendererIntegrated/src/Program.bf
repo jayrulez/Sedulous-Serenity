@@ -8,6 +8,7 @@ using Sedulous.RHI;
 using Sedulous.Geometry;
 using Sedulous.Engine.Core;
 using Sedulous.Engine.Renderer;
+using Sedulous.Renderer;
 using Sedulous.Logging.Abstractions;
 using Sedulous.Logging.Console;
 using Sedulous.Models;
@@ -16,6 +17,7 @@ using Sedulous.Imaging;
 using SampleFramework;
 using Sedulous.Logging.Debug;
 using Sedulous.Geometry.Tooling;
+using Sedulous.Renderer.Resources;
 
 /// Debug line vertex
 [CRepr]

@@ -4,6 +4,7 @@ using System;
 using Sedulous.Engine.Core;
 using Sedulous.Mathematics;
 using Sedulous.Serialization;
+using Sedulous.Renderer;
 
 /// Entity component that adds a camera.
 class CameraComponent : IEntityComponent

@@ -1,6 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Foundation" = "*", "Sedulous.Mathematics" = "*", "Sedulous.Logging" = "*", "Sedulous.RHI" = "*", "Sedulous.RHI.HLSLShaderCompiler" = "*", "Sedulous.Resources" = "*", "Sedulous.Geometry" = "*", "Sedulous.Imaging" = "*", "Sedulous.Engine.Core" = "*"}
+Dependencies = {corlib = "*", "Sedulous.Foundation" = "*", "Sedulous.Mathematics" = "*", "Sedulous.Logging" = "*", "Sedulous.RHI" = "*", "Sedulous.RHI.HLSLShaderCompiler" = "*", "Sedulous.Resources" = "*", "Sedulous.Geometry" = "*", "Sedulous.Imaging" = "*", "Sedulous.Engine.Core" = "*", "Sedulous.Renderer" = "*", "Sedulous.Renderer.Resources" = "*"}
 
 [Project]
 Name = "Sedulous.Engine.Renderer"
-TargetType = "BeefLib"

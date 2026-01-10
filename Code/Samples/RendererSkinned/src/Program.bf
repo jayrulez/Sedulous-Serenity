@@ -10,8 +10,10 @@ using Sedulous.Imaging;
 using Sedulous.Models;
 using Sedulous.Models.GLTF;
 using Sedulous.Engine.Renderer;
+using Sedulous.Renderer;
 using Sedulous.Shell.Input;
 using SampleFramework;
+using Sedulous.Renderer.Resources;
 
 /// Skinned mesh sample demonstrating:
 /// - GLTF skeletal mesh loading (Fox)

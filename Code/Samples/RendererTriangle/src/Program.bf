@@ -4,6 +4,7 @@ using System;
 using Sedulous.Mathematics;
 using Sedulous.RHI;
 using Sedulous.Engine.Renderer;
+using Sedulous.Renderer;
 using SampleFramework;
 
 /// Vertex structure with position and color

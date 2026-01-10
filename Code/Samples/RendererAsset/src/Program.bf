@@ -12,9 +12,11 @@ using Sedulous.Models;
 using Sedulous.Models.GLTF;
 using Sedulous.Engine.Core;
 using Sedulous.Engine.Renderer;
+using Sedulous.Renderer;
 using Sedulous.Logging.Abstractions;
 using Sedulous.Logging.Debug;
 using SampleFramework;
+using Sedulous.Renderer.Resources;
 
 /// Demonstrates the asset cache system.
 /// - Checks for cached assets on startup

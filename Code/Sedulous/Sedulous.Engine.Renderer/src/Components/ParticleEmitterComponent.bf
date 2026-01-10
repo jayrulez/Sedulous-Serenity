@@ -5,6 +5,7 @@ using Sedulous.Engine.Core;
 using Sedulous.Mathematics;
 using Sedulous.RHI;
 using Sedulous.Serialization;
+using Sedulous.Renderer;
 
 /// Entity component that emits particles.
 class ParticleEmitterComponent : IEntityComponent
@@ -12,6 +13,7 @@ class ParticleEmitterComponent : IEntityComponent
 	private Entity mEntity;
 	private RenderSceneComponent mRenderScene;
 	private ParticleSystem mParticleSystem ~ delete _;
+	private ProxyHandle mProxyHandle = .Invalid;
 
 	/// Emitter configuration.
 	public ParticleEmitterConfig Config = .Default;
@@ -27,6 +29,9 @@ class ParticleEmitterComponent : IEntityComponent
 
 	/// Gets the underlying particle system.
 	public ParticleSystem ParticleSystem => mParticleSystem;
+
+	/// Gets the proxy handle for this emitter.
+	public ProxyHandle ProxyHandle => mProxyHandle;
 
 	/// Creates a new ParticleEmitterComponent.
 	public this()
@@ -64,6 +69,7 @@ class ParticleEmitterComponent : IEntityComponent
 			{
 				mParticleSystem = new ParticleSystem(mRenderScene.RendererService.Device);
 				mParticleSystem.Config = Config;
+				CreateOrUpdateProxy();
 				mRenderScene.RegisterParticleEmitter(this);
 			}
 		}
@@ -72,6 +78,7 @@ class ParticleEmitterComponent : IEntityComponent
 	public void OnDetach()
 	{
 		mRenderScene?.UnregisterParticleEmitter(this);
+		RemoveProxy();
 		delete mParticleSystem;
 		mParticleSystem = null;
 		mEntity = null;
@@ -80,7 +87,7 @@ class ParticleEmitterComponent : IEntityComponent
 
 	public void OnUpdate(float deltaTime)
 	{
-		if (mParticleSystem == null || !Visible)
+		if (mParticleSystem == null)
 			return;
 
 		// Sync config
@@ -93,6 +100,9 @@ class ParticleEmitterComponent : IEntityComponent
 
 		// Update particles
 		mParticleSystem.Update(deltaTime);
+
+		// Update proxy state
+		CreateOrUpdateProxy();
 	}
 
 	// ==================== ISerializable Implementation ====================
@@ -131,5 +141,47 @@ class ParticleEmitterComponent : IEntityComponent
 		if (result != .Ok) return result;
 
 		return .Ok;
+	}
+
+	// ==================== Internal ====================
+
+	private void CreateOrUpdateProxy()
+	{
+		if (mRenderScene == null || mEntity == null || mRenderScene.RenderWorld == null)
+			return;
+
+		// Create proxy if needed
+		if (!mProxyHandle.IsValid && mParticleSystem != null)
+		{
+			mProxyHandle = mRenderScene.RenderWorld.CreateParticleEmitterProxy(
+				mParticleSystem, mEntity.Transform.WorldPosition);
+		}
+
+		// Update proxy state
+		if (let proxy = mRenderScene.RenderWorld.GetParticleEmitterProxy(mProxyHandle))
+		{
+			proxy.SetPosition(mEntity.Transform.WorldPosition);
+			proxy.System = mParticleSystem;
+
+			// Update flags
+			if (Visible)
+				proxy.Flags |= .Visible;
+			else
+				proxy.Flags &= ~.Visible;
+
+			if (Emitting)
+				proxy.Flags |= .Emitting;
+			else
+				proxy.Flags &= ~.Emitting;
+		}
+	}
+
+	private void RemoveProxy()
+	{
+		if (mRenderScene != null && mRenderScene.RenderWorld != null && mProxyHandle.IsValid)
+		{
+			mRenderScene.RenderWorld.DestroyParticleEmitterProxy(mProxyHandle);
+		}
+		mProxyHandle = .Invalid;
 	}
 }

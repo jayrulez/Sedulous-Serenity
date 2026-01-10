@@ -6,6 +6,7 @@ using Sedulous.Mathematics;
 using Sedulous.RHI;
 using Sedulous.Geometry;
 using Sedulous.Engine.Renderer;
+using Sedulous.Renderer;
 using SampleFramework;
 
 /// Scene sample demonstrating:

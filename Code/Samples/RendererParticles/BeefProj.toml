@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "SampleFramework" = "*", "Sedulous.Engine.Renderer" = "*"}
+Dependencies = {corlib = "*", SampleFramework = "*", "Sedulous.Renderer" = "*"}
 
 [Project]
 Name = "RendererParticles"

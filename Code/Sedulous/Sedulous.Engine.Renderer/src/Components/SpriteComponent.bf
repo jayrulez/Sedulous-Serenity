@@ -5,6 +5,7 @@ using Sedulous.Engine.Core;
 using Sedulous.Mathematics;
 using Sedulous.RHI;
 using Sedulous.Serialization;
+using Sedulous.Renderer;
 
 /// Entity component that renders a billboard sprite.
 class SpriteComponent : IEntityComponent

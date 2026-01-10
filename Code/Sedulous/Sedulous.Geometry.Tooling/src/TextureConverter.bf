@@ -1,9 +1,10 @@
 using System;
 using Sedulous.Models;
 using Sedulous.Imaging;
-using Sedulous.Engine.Renderer;
+using Sedulous.Renderer;
 using System.IO;
 using System.IO;
+using Sedulous.Renderer.Resources;
 
 namespace Sedulous.Geometry.Tooling;
 

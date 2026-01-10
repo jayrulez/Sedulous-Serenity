@@ -6,6 +6,7 @@ using Sedulous.RHI;
 using Sedulous.Geometry;
 using Sedulous.Imaging;
 using Sedulous.Engine.Renderer;
+using Sedulous.Renderer;
 using Sedulous.Shell.Input;
 using SampleFramework;
 

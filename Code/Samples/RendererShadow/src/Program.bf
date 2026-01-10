@@ -5,6 +5,7 @@ using System.Collections;
 using Sedulous.RHI;
 using Sedulous.Mathematics;
 using Sedulous.Engine.Renderer;
+using Sedulous.Renderer;
 using Sedulous.Shell.Input;
 using SampleFramework;
 

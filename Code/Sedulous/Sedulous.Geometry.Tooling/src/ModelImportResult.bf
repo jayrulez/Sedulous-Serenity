@@ -1,6 +1,6 @@
 using System;
 using System.Collections;
-using Sedulous.Engine.Renderer;
+using Sedulous.Renderer.Resources;
 
 namespace Sedulous.Geometry.Tooling;
 

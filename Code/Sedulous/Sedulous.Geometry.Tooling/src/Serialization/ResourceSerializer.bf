@@ -7,7 +7,8 @@ using Sedulous.OpenDDL;
 using Sedulous.Mathematics;
 using Sedulous.Geometry;
 using Sedulous.Imaging;
-using Sedulous.Engine.Renderer;
+using Sedulous.Renderer;
+using Sedulous.Renderer.Resources;
 
 namespace Sedulous.Geometry.Tooling;
 

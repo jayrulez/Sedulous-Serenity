@@ -7,6 +7,7 @@ using Sedulous.Geometry;
 using Sedulous.Mathematics;
 using Sedulous.RHI;
 using Sedulous.Serialization;
+using Sedulous.Renderer;
 
 /// Entity component that renders a skinned mesh with skeletal animation.
 class SkinnedMeshComponent : IEntityComponent
@@ -288,14 +289,14 @@ class SkinnedMeshComponent : IEntityComponent
 		mGPUMesh = resourceManager.CreateSkinnedMesh(mesh);
 		mLocalBounds = mesh.Bounds;
 
-		// Register with render scene for rendering
-		mRenderScene.RegisterSkinnedMesh(this);
-
-		// Create proxy for visibility culling
+		// Create proxy FIRST (before registration needs it)
 		if (mEntity != null && mGPUMesh.IsValid)
 		{
 			CreateOrUpdateProxy();
 		}
+
+		// Register with render scene for rendering (proxy must exist)
+		mRenderScene.RegisterSkinnedMesh(this);
 	}
 
 	/// Sets the GPU skinned mesh to render (low-level API).
@@ -304,15 +305,15 @@ class SkinnedMeshComponent : IEntityComponent
 		mGPUMesh = mesh;
 		mLocalBounds = bounds;
 
-		// Register with render scene for rendering
-		if (mRenderScene != null)
-			mRenderScene.RegisterSkinnedMesh(this);
-
-		// Update proxy if attached
+		// Create proxy FIRST (before registration needs it)
 		if (mEntity != null && mRenderScene != null && mesh.IsValid)
 		{
 			CreateOrUpdateProxy();
 		}
+
+		// Register with render scene for rendering (proxy must exist)
+		if (mRenderScene != null)
+			mRenderScene.RegisterSkinnedMesh(this);
 	}
 
 	// ==================== IEntityComponent Implementation ====================
@@ -332,7 +333,9 @@ class SkinnedMeshComponent : IEntityComponent
 
 				if (mGPUMesh.IsValid)
 				{
+					// Create proxy first, then register (proxy must exist for registration)
 					CreateOrUpdateProxy();
+					mRenderScene.RegisterSkinnedMesh(this);
 				}
 			}
 		}
@@ -360,11 +363,22 @@ class SkinnedMeshComponent : IEntityComponent
 			UploadBoneMatrices();
 		}
 
-		// Update visibility flag on proxy if changed
+		// Update proxy with current transform, material, and visibility
 		if (mRenderScene != null && mProxyHandle.IsValid)
 		{
-			if (let proxy = mRenderScene.RenderWorld.GetMeshProxy(mProxyHandle))
+			if (let proxy = mRenderScene.RenderWorld.GetSkinnedMeshProxy(mProxyHandle))
 			{
+				// Update transform
+				if (mEntity != null)
+				{
+					proxy.Transform = mEntity.Transform.WorldMatrix;
+					proxy.UpdateWorldBounds();
+				}
+
+				// Update material (may have been set after SetMesh)
+				proxy.MaterialInstance = mMaterialInstance;
+
+				// Update visibility
 				if (Visible)
 					proxy.Flags |= .Visible;
 				else
@@ -433,7 +447,7 @@ class SkinnedMeshComponent : IEntityComponent
 		if (mBoneMatrixBuffer == null)
 		{
 			// Create buffer for MAX_BONES matrices
-			const int32 maxBones = Sedulous.Engine.Renderer.Skeleton.MAX_BONES;
+			const int32 maxBones = Sedulous.Renderer.Skeleton.MAX_BONES;
 			uint64 bufferSize = (uint64)(maxBones * sizeof(Matrix));
 			BufferDescriptor desc = .(bufferSize, .Uniform | .Storage, .Upload);
 			desc.Label = "BoneMatrices";
@@ -477,7 +491,7 @@ class SkinnedMeshComponent : IEntityComponent
 		let device = mRenderScene.RendererService.Device;
 
 		// Upload bone matrices from animation player
-		const int32 maxBones = Sedulous.Engine.Renderer.Skeleton.MAX_BONES;
+		const int32 maxBones = Sedulous.Renderer.Skeleton.MAX_BONES;
 		uint64 dataSize = (uint64)(maxBones * sizeof(Matrix));
 		Span<uint8> data = .((uint8*)mAnimationPlayer.BoneMatrices.Ptr, (int)dataSize);
 		device.Queue.WriteBuffer(mBoneMatrixBuffer, 0, data);
@@ -485,29 +499,57 @@ class SkinnedMeshComponent : IEntityComponent
 
 	private void CreateOrUpdateProxy()
 	{
-		if (mRenderScene == null || mEntity == null)
+		if (mRenderScene == null || mEntity == null || mRenderScene.RenderWorld == null)
 			return;
 
-		// For skinned meshes, we still create a regular mesh proxy for visibility/culling
-		// The actual mesh handle will need to be converted from GPUSkinnedMeshHandle
-		// For now, use a simple placeholder - in a full implementation you'd have
-		// a separate skinned mesh proxy type or store the skinned handle differently
+		// Create skinned mesh proxy in RenderWorld
+		if (!mProxyHandle.IsValid)
+		{
+			mProxyHandle = mRenderScene.RenderWorld.CreateSkinnedMeshProxy(
+				mGPUMesh,
+				mEntity.Transform.WorldMatrix,
+				mLocalBounds
+			);
+		}
 
-		// Create as regular mesh proxy with invalid mesh handle (skeleton-based rendering)
-		mProxyHandle = mRenderScene.CreateMeshProxy(
-			mEntity.Id,
-			.Invalid, // We use bone matrix buffer directly for skinned rendering
-			mEntity.Transform.WorldMatrix,
-			mLocalBounds
-		);
+		// Update proxy with current state
+		if (let proxy = mRenderScene.RenderWorld.GetSkinnedMeshProxy(mProxyHandle))
+		{
+			proxy.Transform = mEntity.Transform.WorldMatrix;
+			proxy.MeshHandle = mGPUMesh;
+			proxy.MaterialInstance = mMaterialInstance;
+			proxy.BoneMatrixBuffer = mBoneMatrixBuffer;
+			proxy.ObjectUniformBuffer = mObjectUniformBuffer;
+			proxy.LocalBounds = mLocalBounds;
+			proxy.UpdateWorldBounds();
+
+			// Update flags
+			if (Visible)
+				proxy.Flags |= .Visible;
+			else
+				proxy.Flags &= ~.Visible;
+
+			if (CastShadows)
+				proxy.Flags |= .CastShadows;
+			else
+				proxy.Flags &= ~.CastShadows;
+
+			if (ReceiveShadows)
+				proxy.Flags |= .ReceiveShadows;
+			else
+				proxy.Flags &= ~.ReceiveShadows;
+		}
 	}
 
 	private void RemoveProxy()
 	{
-		if (mRenderScene != null && mEntity != null)
+		if (mRenderScene != null && mRenderScene.RenderWorld != null && mProxyHandle.IsValid)
 		{
-			mRenderScene.DestroyMeshProxy(mEntity.Id);
+			mRenderScene.RenderWorld.DestroySkinnedMeshProxy(mProxyHandle);
 		}
 		mProxyHandle = .Invalid;
 	}
+
+	/// Gets the proxy handle for this skinned mesh.
+	public ProxyHandle ProxyHandle => mProxyHandle;
 }
