@@ -26,10 +26,9 @@ using Sedulous.Geometry.Tooling;
 using Sedulous.Shell.SDL3;
 
 // Type aliases to resolve ambiguity - use specific types from each namespace
-typealias ShellKeyCode = Sedulous.Shell.Input.KeyCode;
-typealias ShellKeyModifiers = Sedulous.Shell.Input.KeyModifiers;
-typealias UIKeyCode = Sedulous.UI.KeyCode;
-typealias UIKeyModifiers = Sedulous.UI.KeyModifiers;
+typealias LocalShellKeyCode = Sedulous.Shell.Input.KeyCode;
+typealias LocalUIKeyCode = Sedulous.UI.KeyCode;
+typealias LocalUIKeyModifiers = Sedulous.UI.KeyModifiers;
 typealias DrawingTexture = Sedulous.Drawing.ITexture;
 
 /// Clipboard adapter that wraps Shell clipboard for UI use.
@@ -993,9 +992,9 @@ class SceneUISample : RHISampleApp
 		}
 
 		// Keyboard routing
-		for (int key = 0; key < (int)ShellKeyCode.Count; key++)
+		for (int key = 0; key < (int)LocalShellKeyCode.Count; key++)
 		{
-			let shellKey = (ShellKeyCode)key;
+			let shellKey = (LocalShellKeyCode)key;
 			if (input.Keyboard.IsKeyPressed(shellKey))
 				mUIScene.OnKeyDown(MapKey(shellKey), 0, mods);
 			if (input.Keyboard.IsKeyReleased(shellKey))
@@ -1004,7 +1003,7 @@ class SceneUISample : RHISampleApp
 	}
 
 	/// Attempts to route a click to the world UI via raycasting.
-	private void TryWorldUIClick(float screenX, float screenY, MouseButton button, bool pressed, UIKeyModifiers mods)
+	private void TryWorldUIClick(float screenX, float screenY, MouseButton button, bool pressed, LocalUIKeyModifiers mods)
 	{
 		if (mWorldUIComponent == null || !mWorldUIComponent.IsRenderingInitialized)
 			return;
@@ -1135,9 +1134,9 @@ class SceneUISample : RHISampleApp
 		}
 	}
 
-	private UIKeyModifiers GetModifiers(Sedulous.Shell.Input.IKeyboard keyboard)
+	private LocalUIKeyModifiers GetModifiers(Sedulous.Shell.Input.IKeyboard keyboard)
 	{
-		UIKeyModifiers mods = .None;
+		LocalUIKeyModifiers mods = .None;
 		if (keyboard.IsKeyDown(.LeftShift) || keyboard.IsKeyDown(.RightShift))
 			mods |= .Shift;
 		if (keyboard.IsKeyDown(.LeftCtrl) || keyboard.IsKeyDown(.RightCtrl))
@@ -1147,7 +1146,7 @@ class SceneUISample : RHISampleApp
 		return mods;
 	}
 
-	private static UIKeyCode MapKey(ShellKeyCode shellKey)
+	private static LocalUIKeyCode MapKey(LocalShellKeyCode shellKey)
 	{
 		switch (shellKey)
 		{

@@ -41,6 +41,7 @@ class SceneManager
 	public Scene CreateScene(StringView name)
 	{
 		let scene = new Scene(name, mComponentRegistry);
+		scene.[Friend]mContext = mContext;
 		mScenes.Add(scene);
 		scene.SetState(.Loading);
 

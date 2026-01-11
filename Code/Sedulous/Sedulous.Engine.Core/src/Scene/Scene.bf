@@ -13,6 +13,7 @@ class Scene : ISerializable
 	private SceneState mState = .Unloaded;
 	private EntityManager mEntityManager ~ delete _;
 	private ComponentRegistry mComponentRegistry;
+	private Context mContext;
 	private List<ISceneComponent> mSceneComponents = new .();
 	private Dictionary<Type, ISceneComponent> mSceneComponentMap = new .() ~ delete _;
 
@@ -39,6 +40,9 @@ class Scene : ISerializable
 
 	/// Gets the component registry.
 	public ComponentRegistry ComponentRegistry => mComponentRegistry;
+
+	/// Gets the context this scene belongs to.
+	public Context Context => mContext;
 
 	/// Creates a new scene with the given name.
 	public this(StringView name, ComponentRegistry componentRegistry)
