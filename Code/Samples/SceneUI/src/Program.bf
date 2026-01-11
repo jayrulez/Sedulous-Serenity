@@ -931,13 +931,8 @@ class SceneUISample : RHISampleApp
 
 	protected override void OnPrepareFrame(int32 frameIndex)
 	{
-		// Prepare world-space UI (manual - rendered before render graph)
-		if (mWorldUIComponent != null && mWorldUIComponent.IsRenderingInitialized)
-		{
-			mWorldUIComponent.PrepareGPU(frameIndex, mAtlasTextureView);
-		}
-
 		// Begin render graph frame - this adds shadow cascades and Scene3D passes
+		// Note: World UI PrepareGPU is called automatically by UISceneComponent.AddUIPass
 		mRendererService.BeginFrame(
 			(uint32)frameIndex, DeltaTime, TotalTime,
 			SwapChain.CurrentTexture, SwapChain.CurrentTextureView,
