@@ -79,6 +79,14 @@ class UISceneComponent : ISceneComponent
 	public void OnDetach()
 	{
 		Console.WriteLine("UISceneComponent.OnDetach() called");
+
+		// Notify all world UI components that we're going away.
+		// This prevents them from trying to unregister during their OnDetach
+		// (which would access deleted memory).
+		for (let component in mWorldUIComponents)
+			component.ClearUISceneReference();
+		mWorldUIComponents.Clear();
+
 		CleanupRendering();
 		mScene = null;
 	}

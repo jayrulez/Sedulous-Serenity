@@ -99,6 +99,17 @@ class UIComponent : IEntityComponent
 		TextureSize = .((float)width, (float)height);
 	}
 
+	public ~this()
+	{
+		// Clean up UIRenderer if we own it (conditional ownership can't use ~ delete _)
+		if (mOwnsRenderer && mUIRenderer != null)
+		{
+			mUIRenderer.Dispose();
+			delete mUIRenderer;
+			mUIRenderer = null;
+		}
+	}
+
 	// ==================== IEntityComponent Implementation ====================
 
 	public void OnAttach(Entity entity)
@@ -123,10 +134,17 @@ class UIComponent : IEntityComponent
 	{
 		CleanupRendering();
 
-		// Unregister from scene component
+		// Unregister from scene component (if not already cleared by UISceneComponent.OnDetach)
 		mUIScene?.UnregisterWorldUI(this);
 		mUIScene = null;
 		mEntity = null;
+	}
+
+	/// Called by UISceneComponent when it's being detached.
+	/// Clears the reference to prevent accessing deleted memory.
+	public void ClearUISceneReference()
+	{
+		mUIScene = null;
 	}
 
 	public void OnUpdate(float deltaTime)
