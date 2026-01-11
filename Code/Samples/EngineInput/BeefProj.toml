@@ -1,0 +1,6 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.Shell" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Engine.Core" = "*", "Sedulous.Engine.Input" = "*", "Sedulous.Mathematics" = "*"}
+
+[Project]
+Name = "EngineInput"
+StartupObject = "EngineInput.Program"
