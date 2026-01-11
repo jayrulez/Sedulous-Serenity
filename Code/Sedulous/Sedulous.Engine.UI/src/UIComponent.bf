@@ -353,6 +353,7 @@ class UIComponent : IEntityComponent
 
 	/// Renders the UI to its render texture.
 	/// Call this before the main render pass to render off-screen.
+	/// Note: When using RenderGraph, use RenderWithinPass instead.
 	public void RenderToTexture(ICommandEncoder encoder, int32 frameIndex)
 	{
 		if (!mTextureCreated || !Visible || mUIRenderer == null || mRenderTextureView == null)
@@ -380,6 +381,19 @@ class UIComponent : IEntityComponent
 			return;
 
 		defer { renderPass.End(); delete renderPass; }
+
+		let width = (uint32)TextureSize.X;
+		let height = (uint32)TextureSize.Y;
+
+		mUIRenderer.Render(renderPass, width, height, frameIndex);
+	}
+
+	/// Renders the UI within an existing render pass.
+	/// Use this when integrating with RenderGraph - the graph handles the render pass.
+	public void RenderWithinPass(IRenderPassEncoder renderPass, int32 frameIndex)
+	{
+		if (!mTextureCreated || !Visible || mUIRenderer == null)
+			return;
 
 		let width = (uint32)TextureSize.X;
 		let height = (uint32)TextureSize.Y;

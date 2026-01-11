@@ -938,22 +938,16 @@ class SceneUISample : RHISampleApp
 			SwapChain.CurrentTexture, SwapChain.CurrentTextureView,
 			mDepthTexture, DepthTextureView);
 
+		// Add world UI render-to-texture passes (before Scene3D which samples them)
+		mUIScene.AddWorldUIPasses(mRendererService.RenderGraph, frameIndex);
+
 		// Add UI overlay pass to the render graph
 		mUIScene.AddUIPass(mRendererService.RenderGraph, mRendererService.SwapChainHandle, frameIndex);
 	}
 
 	protected override bool OnRenderFrame(ICommandEncoder encoder, int32 frameIndex)
 	{
-		// Render world-space UI to texture (before render graph execution)
-		if (mWorldUIComponent != null && mWorldUIComponent.IsRenderingInitialized)
-		{
-			mWorldUIComponent.RenderToTexture(encoder, frameIndex);
-
-			// Transition texture from render target to shader read for sprite sampling
-			encoder.TextureBarrier(mWorldUIComponent.RenderTexture, .ColorAttachment, .ShaderReadOnly);
-		}
-
-		// Execute all render graph passes (shadow cascades, Scene3D, UI overlay)
+		// Execute all render graph passes (world UI, shadow cascades, Scene3D, UI overlay)
 		mRendererService.ExecuteFrame(encoder);
 
 		return true;

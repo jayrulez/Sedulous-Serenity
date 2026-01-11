@@ -265,8 +265,11 @@ class UISceneComponent : ISceneComponent
 
 	/// Adds world UI render-to-texture passes to the render graph.
 	/// These render before the main scene pass so their textures can be sampled.
-	public void AddWorldUIPasses(RenderGraph graph, int32 frameIndex)
+	/// Pass names are "WorldUI_0", "WorldUI_1", etc. for dependency declarations.
+	/// Returns the resource handles for the world UI textures (caller can declare reads).
+	public void AddWorldUIPasses(RenderGraph graph, int32 frameIndex, List<ResourceHandle> outHandles = null)
 	{
+		int32 index = 0;
 		for (let component in mWorldUIComponents)
 		{
 			if (!component.Visible || !component.IsRenderingInitialized)
@@ -278,27 +281,28 @@ class UISceneComponent : ISceneComponent
 			if (renderTex == null || renderView == null)
 				continue;
 
-			// Get entity name for pass naming
-			String entityName = scope .();
-			if (component.Entity != null)
-				entityName.Set(component.Entity.Name);
-			else
-				entityName.Set("Unknown");
+			// Use index-based naming for consistent dependency declarations
+			String textureName = scope $"WorldUITex_{index}";
+			let handle = graph.ImportTexture(textureName, renderTex, renderView, .Undefined);
 
-			String passName = scope $"WorldUI_{entityName}";
-			let handle = graph.ImportTexture(passName, renderTex, renderView, .Undefined);
+			// Return handle to caller for read declarations
+			outHandles?.Add(handle);
 
 			// Capture for lambda
 			let comp = component;
 			let frame = frameIndex;
 
-			String renderPassName = scope $"WorldUI_{entityName}_Render";
-			graph.AddGraphicsPass(renderPassName)
+			// Pass name matches what Scene3D declares as dependency
+			String passName = scope $"WorldUI_{index}";
+			graph.AddGraphicsPass(passName)
 				.SetColorAttachment(0, handle, .Clear, .Store, Color(0, 0, 0, 0))
+				.Write(handle, .ColorAttachment)  // Mark as written for barrier management
 				.SetExecute(new [=](ctx) => {
-					// World UI uses its own render pass internally
-					comp.RenderToTexture(ctx.Encoder, frame);
+					// Render within the graph's render pass
+					comp.RenderWithinPass(ctx.RenderPass, frame);
 				});
+
+			index++;
 		}
 	}
 

@@ -271,6 +271,14 @@ class RenderSceneComponent : ISceneComponent
 			passBuilder.AddDependency(depName);
 		}
 
+		// Add dependencies on potential world UI passes (if they exist)
+		// World UI renders to texture before Scene3D so it can be sampled as sprites
+		for (int32 i = 0; i < 16; i++)  // Support up to 16 world UI components
+		{
+			String depName = scope $"WorldUI_{i}";
+			passBuilder.AddDependency(depName);
+		}
+
 		// Read from shadow map array for shadow sampling
 		if (shadowMapHandle.IsValid)
 			passBuilder.Read(shadowMapHandle, .ShaderReadOnly);

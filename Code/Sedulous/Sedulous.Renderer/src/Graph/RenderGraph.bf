@@ -336,10 +336,51 @@ class RenderGraph
 
 	private void ComputeBarriers()
 	{
+		// First pass: identify textures written as ColorAttachment that need to be readable
+		// by dependent passes (for implicit sampling like world UI -> sprite rendering)
+		HashSet<uint32> colorAttachmentOutputs = scope .();
+		Dictionary<uint32, uint32> textureLastWriter = scope .();
+
+		for (let pass in mSortedPasses)
+		{
+			for (let dep in pass.Writes)
+			{
+				if (dep.Handle.Type == .Texture && dep.RequiredLayout == .ColorAttachment)
+				{
+					colorAttachmentOutputs.Add(dep.Handle.Index);
+					textureLastWriter[dep.Handle.Index] = pass.Index;
+				}
+			}
+		}
+
 		// Track current layout for each texture resource
 		for (let pass in mSortedPasses)
 		{
 			pass.PreBarriers.Clear();
+
+			// For passes with explicit dependencies, transition any ColorAttachment outputs
+			// from the dependency to ShaderReadOnly (for implicit texture sampling)
+			for (let depIndex in pass.DependsOn)
+			{
+				// Find textures written by the dependency pass
+				for (let texIdx in colorAttachmentOutputs)
+				{
+					if (textureLastWriter.TryGetValue(texIdx, let writerIdx) && writerIdx == depIndex)
+					{
+						let node = mResources[texIdx];
+						if (node.CurrentLayout == .ColorAttachment)
+						{
+							pass.PreBarriers.Add(.()
+							{
+								Handle = .(texIdx, .Texture),
+								OldLayout = .ColorAttachment,
+								NewLayout = .ShaderReadOnly
+							});
+							node.CurrentLayout = .ShaderReadOnly;
+						}
+					}
+				}
+			}
 
 			// Check reads for required transitions
 			for (let dep in pass.Reads)
