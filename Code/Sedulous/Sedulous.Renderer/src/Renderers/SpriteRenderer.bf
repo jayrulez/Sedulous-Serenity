@@ -5,8 +5,57 @@ using System.Collections;
 using Sedulous.RHI;
 using Sedulous.Mathematics;
 
+/// A batch of sprites sharing the same texture.
+struct SpriteBatch
+{
+	/// Texture for this batch (null = white texture).
+	public ITextureView Texture;
+	/// Starting index in the instance buffer.
+	public uint32 StartIndex;
+	/// Number of sprites in this batch.
+	public uint32 Count;
+
+	public this(ITextureView texture, uint32 startIndex, uint32 count)
+	{
+		Texture = texture;
+		StartIndex = startIndex;
+		Count = count;
+	}
+}
+
+/// Entry for a sprite with its texture before batching.
+struct SpriteEntry
+{
+	public SpriteInstance Instance;
+	public ITextureView Texture;
+
+	public this(SpriteInstance instance, ITextureView texture)
+	{
+		Instance = instance;
+		Texture = texture;
+	}
+}
+
+/// Cached bind groups for a texture.
+class TextureBindGroupEntry
+{
+	public ITextureView Texture;
+	public IBindGroup[2] BindGroups;  // MAX_FRAMES = 2
+
+	public this(ITextureView texture)
+	{
+		Texture = texture;
+	}
+
+	public ~this()
+	{
+		for (let bg in BindGroups)
+			delete bg;
+	}
+}
+
 /// Batched sprite renderer for efficient billboard rendering.
-/// Owns the sprite pipeline and handles rendering.
+/// Supports multiple textures via automatic batching.
 class SpriteRenderer
 {
 	private const int32 MAX_FRAMES = 2;
@@ -21,7 +70,6 @@ class SpriteRenderer
 	private IBindGroupLayout mBindGroupLayout ~ delete _;
 	private IPipelineLayout mPipelineLayout ~ delete _;
 	private IRenderPipeline mPipeline ~ delete _;
-	private IBindGroup[MAX_FRAMES] mBindGroups ~ { for (var bg in _) delete bg; };
 
 	// Per-frame camera buffers (references, not owned)
 	private IBuffer[MAX_FRAMES] mCameraBuffers;
@@ -30,13 +78,18 @@ class SpriteRenderer
 	private ITexture mWhiteTexture ~ delete _;
 	private ITextureView mWhiteTextureView ~ delete _;
 	private ISampler mSampler ~ delete _;
-	private ITextureView mCurrentTexture;  // Not owned - set per batch
 
-	// Sprite data
-	private List<SpriteInstance> mSprites = new .() ~ delete _;
+	// Sprite data - entries before batching
+	private List<SpriteEntry> mSpriteEntries = new .() ~ delete _;
+	// Sorted sprite instances for GPU upload
+	private List<SpriteInstance> mSortedSprites = new .() ~ delete _;
+	// Batches after sorting
+	private List<SpriteBatch> mBatches = new .() ~ delete _;
+	// Cached bind groups per texture
+	private List<TextureBindGroupEntry> mTextureBindGroups = new .() ~ DeleteContainerAndItems!(_);
+
 	private int32 mMaxSprites;
 	private bool mDirty = false;
-	private bool mTextureChanged = true;
 
 	// Configuration
 	private TextureFormat mColorFormat = .BGRA8UnormSrgb;
@@ -82,7 +135,6 @@ class SpriteRenderer
 		if (CreatePipeline() case .Err)
 			return .Err;
 
-		mCurrentTexture = mWhiteTextureView;
 		mInitialized = true;
 		return .Ok;
 	}
@@ -160,19 +212,7 @@ class SpriteRenderer
 			return .Err;
 		mPipelineLayout = pipelineLayout;
 
-		// Create per-frame bind groups with default white texture
-		for (int i = 0; i < MAX_FRAMES; i++)
-		{
-			BindGroupEntry[3] entries = .(
-				BindGroupEntry.Buffer(0, mCameraBuffers[i]),
-				BindGroupEntry.Texture(0, mWhiteTextureView),
-				BindGroupEntry.Sampler(0, mSampler)
-			);
-			BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, entries);
-			if (mDevice.CreateBindGroup(&bindGroupDesc) not case .Ok(let group))
-				return .Err;
-			mBindGroups[i] = group;
-		}
+		// Bind groups are created on-demand per texture in GetOrCreateBindGroups()
 
 		// SpriteInstance layout: Position(12) + Size(8) + UVRect(16) + Color(4) = 40 bytes
 		Sedulous.RHI.VertexAttribute[4] vertexAttrs = .(
@@ -229,106 +269,165 @@ class SpriteRenderer
 		return .Ok;
 	}
 
-	/// Renders all sprites in the current batch.
+	/// Renders all sprite batches.
 	public void Render(IRenderPassEncoder renderPass, int32 frameIndex)
 	{
-		if (!mInitialized || mPipeline == null || mSprites.Count == 0)
+		if (!mInitialized || mPipeline == null || mBatches.Count == 0)
 			return;
 
 		if (frameIndex < 0 || frameIndex >= MAX_FRAMES)
 			return;
 
 		renderPass.SetPipeline(mPipeline);
-		renderPass.SetBindGroup(0, mBindGroups[frameIndex]);
 		renderPass.SetVertexBuffer(0, mInstanceBuffer, 0);
-		renderPass.Draw(6, (uint32)mSprites.Count, 0, 0);
+
+		// Render each batch with its texture
+		for (let batch in mBatches)
+		{
+			let bindGroups = GetOrCreateBindGroups(batch.Texture);
+			renderPass.SetBindGroup(0, bindGroups[frameIndex]);
+			// Draw 6 vertices per sprite (2 triangles), starting at the batch's offset
+			renderPass.Draw(6, batch.Count, 0, batch.StartIndex);
+		}
 	}
 
 	/// Clears all sprites for a new frame.
 	public void Begin()
 	{
-		mSprites.Clear();
+		mSpriteEntries.Clear();
+		mSortedSprites.Clear();
+		mBatches.Clear();
 		mDirty = true;
 	}
 
-	/// Adds a sprite to the batch.
-	public void AddSprite(SpriteInstance sprite)
+	/// Adds a sprite with a specific texture.
+	public void AddSprite(SpriteInstance sprite, ITextureView texture)
 	{
-		if (mSprites.Count < mMaxSprites)
+		if (mSpriteEntries.Count < mMaxSprites)
 		{
-			mSprites.Add(sprite);
+			mSpriteEntries.Add(.(sprite, texture));
 			mDirty = true;
 		}
 	}
 
-	/// Adds a sprite with common parameters.
-	public void AddSprite(Vector3 position, Vector2 size, Color color = .White)
+	/// Adds a sprite using the default white texture.
+	public void AddSprite(SpriteInstance sprite)
 	{
-		AddSprite(.(position, size, color));
+		AddSprite(sprite, null);
 	}
 
-	/// Uploads sprite data to GPU and prepares for rendering.
+	/// Adds a sprite with common parameters using the default white texture.
+	public void AddSprite(Vector3 position, Vector2 size, Color color = .White)
+	{
+		AddSprite(.(position, size, color), null);
+	}
+
+	/// Sorts sprites by texture, builds batches, and uploads to GPU.
 	public void End()
 	{
-		if (mSprites.Count == 0)
+		if (mSpriteEntries.Count == 0)
 			return;
-
-		// Rebuild bind groups if texture changed
-		if (mTextureChanged)
-		{
-			RebuildBindGroups();
-			mTextureChanged = false;
-		}
 
 		if (!mDirty)
 			return;
 
-		// Upload instance data
-		let dataSize = (uint64)(sizeof(SpriteInstance) * mSprites.Count);
-		Span<uint8> data = .((uint8*)mSprites.Ptr, (int)dataSize);
-		mDevice.Queue.WriteBuffer(mInstanceBuffer, 0, data);
+		// Sort entries by texture pointer for batching
+		mSpriteEntries.Sort(scope (a, b) => {
+			let ptrA = (int)(void*)a.Texture;
+			let ptrB = (int)(void*)b.Texture;
+			return ptrA <=> ptrB;
+		});
+
+		// Build sorted sprite list and batches
+		mSortedSprites.Clear();
+		mBatches.Clear();
+
+		ITextureView currentTexture = null;
+		uint32 batchStart = 0;
+		uint32 batchCount = 0;
+		bool firstSprite = true;
+
+		for (let entry in mSpriteEntries)
+		{
+			if (firstSprite)
+			{
+				currentTexture = entry.Texture;
+				firstSprite = false;
+			}
+			else if (entry.Texture != currentTexture)
+			{
+				// End current batch
+				if (batchCount > 0)
+					mBatches.Add(.(currentTexture, batchStart, batchCount));
+
+				// Start new batch
+				currentTexture = entry.Texture;
+				batchStart = (uint32)mSortedSprites.Count;
+				batchCount = 0;
+			}
+
+			mSortedSprites.Add(entry.Instance);
+			batchCount++;
+		}
+
+		// Add final batch
+		if (batchCount > 0)
+			mBatches.Add(.(currentTexture, batchStart, batchCount));
+
+		// Upload all sprite instances to GPU
+		if (mSortedSprites.Count > 0)
+		{
+			let dataSize = (uint64)(sizeof(SpriteInstance) * mSortedSprites.Count);
+			Span<uint8> data = .((uint8*)mSortedSprites.Ptr, (int)dataSize);
+			mDevice.Queue.WriteBuffer(mInstanceBuffer, 0, data);
+		}
 
 		mDirty = false;
 	}
 
-	/// Sets the texture to use for this batch.
-	/// Pass null to use the default white texture.
-	public void SetTexture(ITextureView texture)
+	/// Gets or creates bind groups for a texture.
+	private IBindGroup* GetOrCreateBindGroups(ITextureView texture)
 	{
-		ITextureView newTexture = texture != null ? texture : mWhiteTextureView;
-		if (mCurrentTexture != newTexture)
-		{
-			mCurrentTexture = newTexture;
-			mTextureChanged = true;
-		}
-	}
+		// Use white texture if null
+		let actualTexture = texture != null ? texture : mWhiteTextureView;
 
-	/// Rebuilds bind groups with the current texture.
-	private void RebuildBindGroups()
-	{
+		// Look for existing entry
+		for (let entry in mTextureBindGroups)
+		{
+			if (entry.Texture == actualTexture)
+				return &entry.BindGroups;
+		}
+
+		// Create new entry with bind groups
+		let entry = new TextureBindGroupEntry(actualTexture);
 		for (int i = 0; i < MAX_FRAMES; i++)
 		{
-			// Delete old bind group
-			if (mBindGroups[i] != null)
-			{
-				delete mBindGroups[i];
-				mBindGroups[i] = null;
-			}
-
-			// Create new bind group with current texture
 			BindGroupEntry[3] entries = .(
 				BindGroupEntry.Buffer(0, mCameraBuffers[i]),
-				BindGroupEntry.Texture(0, mCurrentTexture),
+				BindGroupEntry.Texture(0, actualTexture),
 				BindGroupEntry.Sampler(0, mSampler)
 			);
 			BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, entries);
 			if (mDevice.CreateBindGroup(&bindGroupDesc) case .Ok(let group))
-				mBindGroups[i] = group;
+				entry.BindGroups[i] = group;
 		}
+
+		mTextureBindGroups.Add(entry);
+		return &entry.BindGroups;
 	}
 
-	/// Returns the number of sprites in the current batch.
-	public int32 SpriteCount => (int32)mSprites.Count;
+	/// Clears cached bind groups (call when textures are destroyed).
+	public void ClearBindGroupCache()
+	{
+		DeleteContainerAndItems!(mTextureBindGroups);
+		mTextureBindGroups = new .();
+	}
+
+	/// Returns the number of sprites added this frame.
+	public int32 SpriteCount => (int32)mSpriteEntries.Count;
+
+	/// Returns the number of texture batches.
+	public int32 BatchCount => (int32)mBatches.Count;
 
 	/// Gets the instance buffer for rendering.
 	public IBuffer InstanceBuffer => mInstanceBuffer;
