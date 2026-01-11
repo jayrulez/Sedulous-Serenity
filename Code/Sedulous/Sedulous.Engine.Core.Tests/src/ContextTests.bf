@@ -4,7 +4,7 @@ using Sedulous.Engine.Core;
 namespace Sedulous.Engine.Core.Tests;
 
 /// Test service implementation.
-class TestService : IContextService
+class TestService : ContextService
 {
 	public bool WasRegistered = false;
 	public bool WasUnregistered = false;
@@ -13,41 +13,41 @@ class TestService : IContextService
 	public float TotalDeltaTime = 0;
 	public Context RegisteredContext = null;
 
-	public void OnRegister(Context context)
+	public override void OnRegister(Context context)
 	{
 		WasRegistered = true;
 		RegisteredContext = context;
 	}
 
-	public void OnUnregister()
+	public override void OnUnregister()
 	{
 		WasUnregistered = true;
 	}
 
-	public void Startup()
+	public override void Startup()
 	{
 		WasStarted = true;
 	}
 
-	public void Shutdown()
+	public override void Shutdown()
 	{
 		WasShutdown = true;
 	}
 
-	public void Update(float deltaTime)
+	public override void Update(float deltaTime)
 	{
 		TotalDeltaTime += deltaTime;
 	}
 }
 
 /// Another test service.
-class AnotherTestService : IContextService
+class AnotherTestService : ContextService
 {
-	public void OnRegister(Context context) { }
-	public void OnUnregister() { }
-	public void Startup() { }
-	public void Shutdown() { }
-	public void Update(float deltaTime) { }
+	public override void OnRegister(Context context) { }
+	public override void OnUnregister() { }
+	public override void Startup() { }
+	public override void Shutdown() { }
+	public override void Update(float deltaTime) { }
 }
 
 class ContextTests

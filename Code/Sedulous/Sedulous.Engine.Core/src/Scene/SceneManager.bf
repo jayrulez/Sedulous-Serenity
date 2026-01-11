@@ -11,6 +11,7 @@ delegate void SceneEventDelegate(Scene scene);
 class SceneManager
 {
 	private ComponentRegistry mComponentRegistry;
+	private Context mContext;
 	private Scene mActiveScene;
 	private List<Scene> mScenes = new .() ~ DeleteContainerAndItems!(_);
 	private EventAccessor<SceneEventDelegate> mOnSceneLoaded = new .() ~ delete _;
@@ -29,17 +30,24 @@ class SceneManager
 	public EventAccessor<SceneEventDelegate> OnSceneUnloaded => mOnSceneUnloaded;
 
 	/// Creates a new SceneManager.
-	public this(ComponentRegistry componentRegistry)
+	public this(ComponentRegistry componentRegistry, Context context = null)
 	{
 		mComponentRegistry = componentRegistry;
+		mContext = context;
 	}
 
 	/// Creates a new empty scene.
+	/// Services will be notified via OnSceneCreated after the scene is in Loading state.
 	public Scene CreateScene(StringView name)
 	{
 		let scene = new Scene(name, mComponentRegistry);
 		mScenes.Add(scene);
 		scene.SetState(.Loading);
+
+		// Notify services to add their scene components
+		if (mContext != null && mContext.IsRunning)
+			mContext.[Friend]NotifyServicesSceneCreated(scene);
+
 		scene.SetState(.Active);
 		mOnSceneLoaded.[Friend]Invoke(scene);
 		return scene;
@@ -81,6 +89,7 @@ class SceneManager
 	}
 
 	/// Unloads a specific scene.
+	/// Services will be notified via OnSceneDestroyed before the scene is deleted.
 	public void UnloadScene(Scene scene)
 	{
 		if (!mScenes.Contains(scene))
@@ -90,6 +99,11 @@ class SceneManager
 			mActiveScene = null;
 
 		scene.SetState(.Unloading);
+
+		// Notify services before destruction
+		if (mContext != null)
+			mContext.[Friend]NotifyServicesSceneDestroyed(scene);
+
 		scene.SetState(.Unloaded);
 
 		mOnSceneUnloaded.[Friend]Invoke(scene);

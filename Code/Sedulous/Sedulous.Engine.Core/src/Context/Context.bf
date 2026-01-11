@@ -16,7 +16,7 @@ class Context
 	private ResourceSystem mResourceSystem ~ delete _;
 	private SceneManager mSceneManager ~ delete _;
 	private ComponentRegistry mComponentRegistry ~ delete _;
-	private Dictionary<Type, IContextService> mServices = new .() ~ delete _;
+	private Dictionary<Type, ContextService> mServices = new .() ~ delete _;
 	private bool mIsRunning = false;
 
 	/// Gets the logger.
@@ -50,12 +50,12 @@ class Context
 		mJobSystem = new .(logger, workers);
 		mResourceSystem = new .(logger, mJobSystem);
 		mComponentRegistry = new .();
-		mSceneManager = new .(mComponentRegistry);
+		mSceneManager = new .(mComponentRegistry, this);
 	}
 
 	/// Registers a service with the context.
-	/// Services are type-keyed and must implement IContextService.
-	public void RegisterService<T>(T service) where T : IContextService
+	/// Services are type-keyed and must extend ContextService.
+	public void RegisterService<T>(T service) where T : ContextService
 	{
 		let type = typeof(T);
 		if (mServices.ContainsKey(type))
@@ -72,7 +72,7 @@ class Context
 	}
 
 	/// Unregisters a service from the context.
-	public void UnregisterService<T>() where T : IContextService
+	public void UnregisterService<T>() where T : ContextService
 	{
 		let type = typeof(T);
 		if (mServices.TryGetValue(type, let service))
@@ -86,7 +86,7 @@ class Context
 
 	/// Gets a registered service by type.
 	/// Returns null if the service is not registered.
-	public T GetService<T>() where T : IContextService, class
+	public T GetService<T>() where T : ContextService
 	{
 		if (mServices.TryGetValue(typeof(T), let service))
 			return (T)service;
@@ -94,7 +94,7 @@ class Context
 	}
 
 	/// Checks if a service is registered.
-	public bool HasService<T>() where T : IContextService
+	public bool HasService<T>() where T : ContextService
 	{
 		return mServices.ContainsKey(typeof(T));
 	}
@@ -159,5 +159,21 @@ class Context
 
 		mIsRunning = false;
 		mLogger?.LogInformation("Context shutdown complete.");
+	}
+
+	// ==================== Internal Scene Notifications ====================
+
+	/// Called by SceneManager when a scene is created.
+	private void NotifyServicesSceneCreated(Scene scene)
+	{
+		for (let service in mServices.Values)
+			service.OnSceneCreated(scene);
+	}
+
+	/// Called by SceneManager when a scene is being destroyed.
+	private void NotifyServicesSceneDestroyed(Scene scene)
+	{
+		for (let service in mServices.Values)
+			service.OnSceneDestroyed(scene);
 	}
 }

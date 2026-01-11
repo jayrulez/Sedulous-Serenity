@@ -1,12 +1,14 @@
 namespace Sedulous.Engine.Renderer;
 
 using System;
+using System.Collections;
 using Sedulous.RHI;
 using Sedulous.Engine.Core;
 using Sedulous.Renderer;
 
 /// Context service that owns shared GPU resources across all scenes.
 /// Register this service with the Context to enable entity-based rendering.
+/// Automatically creates RenderSceneComponent for each scene.
 ///
 /// Owns:
 /// - GPUResourceManager (meshes, textures)
@@ -16,7 +18,7 @@ using Sedulous.Renderer;
 /// - RenderPipeline (shared rendering orchestrator)
 ///
 /// Note: LightingSystem is per-scene and owned by RenderContext, not here.
-class RendererService : IContextService, IDisposable
+class RendererService : ContextService, IDisposable
 {
 	private Context mContext;
 	private IDevice mDevice;
@@ -28,6 +30,9 @@ class RendererService : IContextService, IDisposable
 	private bool mInitialized = false;
 	private TextureFormat mColorFormat = .BGRA8Unorm;
 	private TextureFormat mDepthFormat = .Depth32FloatStencil8;
+
+	// Track created scene components
+	private List<RenderSceneComponent> mSceneComponents = new .() ~ delete _;
 
 	/// Gets the graphics device.
 	public IDevice Device => mDevice;
@@ -49,6 +54,12 @@ class RendererService : IContextService, IDisposable
 
 	/// Gets whether the service has been initialized.
 	public bool IsInitialized => mInitialized;
+
+	/// Gets the color format used for rendering.
+	public TextureFormat ColorFormat => mColorFormat;
+
+	/// Gets the depth format used for rendering.
+	public TextureFormat DepthFormat => mDepthFormat;
 
 	/// Initializes the renderer service with a graphics device.
 	/// Call this before registering the service with the context.
@@ -91,25 +102,25 @@ class RendererService : IContextService, IDisposable
 	// ==================== IContextService Implementation ====================
 
 	/// Called when the service is registered with the context.
-	public void OnRegister(Context context)
+	public override void OnRegister(Context context)
 	{
 		mContext = context;
 	}
 
 	/// Called when the service is unregistered from the context.
-	public void OnUnregister()
+	public override void OnUnregister()
 	{
 		mContext = null;
 	}
 
 	/// Called during context startup.
-	public void Startup()
+	public override void Startup()
 	{
 		// Renderer is ready to use after context startup
 	}
 
 	/// Called during context shutdown.
-	public void Shutdown()
+	public override void Shutdown()
 	{
 		// Clean up cached resources
 		if (mPipelineCache != null)
@@ -119,11 +130,57 @@ class RendererService : IContextService, IDisposable
 	}
 
 	/// Called each frame during context update.
-	public void Update(float deltaTime)
+	public override void Update(float deltaTime)
 	{
 		// Global renderer updates (if any) go here
 		// Per-scene rendering is handled by RenderSceneComponent
 	}
+
+	/// Called when a scene is created.
+	/// Automatically adds RenderSceneComponent to the scene.
+	public override void OnSceneCreated(Scene scene)
+	{
+		if (!mInitialized || mDevice == null)
+		{
+			mContext?.Logger?.LogWarning("RendererService: Not initialized, skipping RenderSceneComponent for '{}'", scene.Name);
+			return;
+		}
+
+		let component = new RenderSceneComponent(this);
+		scene.AddSceneComponent(component);
+		mSceneComponents.Add(component);
+
+		// Initialize rendering resources
+		if (component.InitializeRendering() case .Err)
+		{
+			mContext?.Logger?.LogError("RendererService: Failed to initialize rendering for scene '{}'", scene.Name);
+			scene.RemoveSceneComponent<RenderSceneComponent>();
+			mSceneComponents.Remove(component);
+			return;
+		}
+
+		mContext?.Logger?.LogDebug("RendererService: Added RenderSceneComponent to scene '{}'", scene.Name);
+	}
+
+	/// Called when a scene is being destroyed.
+	/// Removes tracked component for this scene.
+	public override void OnSceneDestroyed(Scene scene)
+	{
+		// Find and remove component belonging to this scene
+		for (int i = mSceneComponents.Count - 1; i >= 0; i--)
+		{
+			let component = mSceneComponents[i];
+			if (component.Scene == scene)
+			{
+				mSceneComponents.RemoveAt(i);
+				// Note: Scene will delete the component via RemoveSceneComponent
+				break;
+			}
+		}
+	}
+
+	/// Gets all RenderSceneComponents created by this service.
+	public Span<RenderSceneComponent> SceneComponents => mSceneComponents;
 
 	// ==================== IDisposable Implementation ====================
 

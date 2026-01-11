@@ -91,16 +91,13 @@ class RendererMaterialsCustomSample : RHISampleApp
 		}
 		mContext.RegisterService<RendererService>(mRendererService);
 
-		// Create scene with RenderSceneComponent
-		mScene = mContext.SceneManager.CreateScene("ToonScene");
-		mRenderSceneComponent = mScene.AddSceneComponent(new RenderSceneComponent(mRendererService));
+		// Start context before creating scenes (enables automatic component creation)
+		mContext.Startup();
 
-		// Initialize rendering
-		if (mRenderSceneComponent.InitializeRendering(SwapChain.Format, .Depth24PlusStencil8) case .Err)
-		{
-			Console.WriteLine("Failed to initialize scene rendering");
-			return false;
-		}
+		// Create scene - RenderSceneComponent is added automatically by RendererService
+		mScene = mContext.SceneManager.CreateScene("ToonScene");
+		mRenderSceneComponent = mScene.GetSceneComponent<RenderSceneComponent>();
+		mContext.SceneManager.SetActiveScene(mScene);
 
 		// Load Fox model
 		if (!LoadFox())
@@ -111,10 +108,6 @@ class RendererMaterialsCustomSample : RHISampleApp
 		// Create materials and entities
 		CreateToonMaterial();
 		CreateEntities();
-
-		// Set active scene and start context
-		mContext.SceneManager.SetActiveScene(mScene);
-		mContext.Startup();
 
 		Console.WriteLine("Custom Material Demo - Toon Shading initialized");
 		Console.WriteLine("Controls: WASD=Move, QE=Up/Down, Tab=Toggle mouse capture, Shift=Fast");

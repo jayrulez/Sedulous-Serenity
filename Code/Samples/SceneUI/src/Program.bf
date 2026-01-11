@@ -122,6 +122,7 @@ class SceneUISample : RHISampleApp
 	private RenderSceneComponent mRenderSceneComponent;
 
 	// UI components
+	private UIService mUIService;
 	private UISceneComponent mUIScene;
 
 	// Services for UI
@@ -220,33 +221,24 @@ class SceneUISample : RHISampleApp
 		}
 		mContext.RegisterService<RendererService>(mRendererService);
 
-		// Create scene with components
+		// Create and configure UIService
+		mUIService = new UIService();
+		ConfigureUIServices();  // Sets up font service, theme, clipboard on UIService
+		mUIService.SetAtlasTexture(mAtlasTextureView, .(mFontAtlas.WhitePixelUV.U, mFontAtlas.WhitePixelUV.V));
+		mContext.RegisterService<UIService>(mUIService);
+
+		// Start context before creating scenes (enables automatic component creation)
+		mContext.Startup();
+
+		// Create scene - components added automatically by services
 		mScene = mContext.SceneManager.CreateScene("SceneUI");
-
-		// Add RenderSceneComponent
-		mRenderSceneComponent = mScene.AddSceneComponent(new RenderSceneComponent(mRendererService));
-		if (mRenderSceneComponent.InitializeRendering(SwapChain.Format, .Depth24PlusStencil8) case .Err)
-		{
-			Console.WriteLine("Failed to initialize scene rendering");
-			return false;
-		}
-
-		// Add UISceneComponent
-		mUIScene = mScene.AddSceneComponent(new UISceneComponent());
-		if (mUIScene.InitializeRendering(Device, SwapChain.Format, MAX_FRAMES_IN_FLIGHT) case .Err)
-		{
-			Console.WriteLine("Failed to initialize UI rendering");
-			return false;
-		}
-
-		// Set atlas texture for fonts
-		mUIScene.SetAtlasTexture(mAtlasTextureView);
-		let (u, v) = mFontAtlas.WhitePixelUV;
-		mUIScene.SetWhitePixelUV(.(u, v));
+		mRenderSceneComponent = mScene.GetSceneComponent<RenderSceneComponent>();
+		mUIScene = mScene.GetSceneComponent<UISceneComponent>();
 		mUIScene.SetViewportSize(SwapChain.Width, SwapChain.Height);
+		mContext.SceneManager.SetActiveScene(mScene);
 
-		// Configure UI services
-		ConfigureUIServices();
+		// Register additional UI services on the scene's UIContext
+		ConfigureSceneUIServices();
 
 		// Load Fox model
 		if (!LoadFoxModel())
@@ -263,10 +255,6 @@ class SceneUISample : RHISampleApp
 
 		// Build UI
 		BuildUI();
-
-		// Set active scene and start context
-		mContext.SceneManager.SetActiveScene(mScene);
-		mContext.Startup();
 
 		// Subscribe to text input events
 		mTextInputDelegate = new => OnTextInput;
@@ -371,19 +359,25 @@ class SceneUISample : RHISampleApp
 
 	private void ConfigureUIServices()
 	{
-		let uiContext = mUIScene.UIContext;
+		// Configure UIService (before scene creation)
+		// These services will be automatically registered on UISceneComponent.UIContext
 
 		// Register clipboard
 		mClipboard = new UIClipboardAdapter();
-		uiContext.RegisterClipboard(mClipboard);
+		mUIService.SetClipboard(mClipboard);
 
 		// Register font service (shares mCachedFont - does not own it)
 		mFontService = new SceneUIFontService(mCachedFont, mFontTextureRef);
-		uiContext.RegisterService<IFontService>(mFontService);
+		mUIService.SetFontService(mFontService);
 
 		// Register theme
-		let theme = new DarkTheme();
-		uiContext.RegisterService<ITheme>(theme);
+		mUIService.SetTheme(new DarkTheme());
+	}
+
+	private void ConfigureSceneUIServices()
+	{
+		// Register additional services directly on UIContext (after scene creation)
+		let uiContext = mUIScene.UIContext;
 
 		// Register tooltip service
 		mTooltipService = new TooltipService();
@@ -1339,6 +1333,8 @@ class SceneUISample : RHISampleApp
 
 		// Shutdown context (deletes scene components including mUIScene and mWorldUIComponent)
 		mContext?.Shutdown();
+
+		delete mUIService;
 
 		Device.WaitIdle();
 

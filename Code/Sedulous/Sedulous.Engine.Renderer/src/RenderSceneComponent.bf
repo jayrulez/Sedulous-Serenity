@@ -190,8 +190,8 @@ class RenderSceneComponent : ISceneComponent
 	// ==================== Rendering Initialization ====================
 
 	/// Initializes GPU rendering resources.
-	/// Call this after the swap chain is created to set up pipelines and buffers.
-	public Result<void> InitializeRendering(TextureFormat colorFormat, TextureFormat depthFormat)
+	/// Called automatically by RendererService when scene is created.
+	public Result<void> InitializeRendering()
 	{
 		if (mRenderingInitialized)
 			return .Ok;

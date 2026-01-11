@@ -97,26 +97,19 @@ class MultiViewSample : RHISampleApp
 		}
 		mContext.RegisterService<RendererService>(mRendererService);
 
-		// Create scene with RenderSceneComponent
-		mScene = mContext.SceneManager.CreateScene("MainScene");
-		mRenderSceneComponent = mScene.AddSceneComponent(new RenderSceneComponent(mRendererService));
+		// Start context before creating scenes (enables automatic component creation)
+		mContext.Startup();
 
-		// Initialize rendering
-		if (mRenderSceneComponent.InitializeRendering(SwapChain.Format, .Depth24PlusStencil8) case .Err)
-		{
-			Console.WriteLine("Failed to initialize scene rendering");
-			return false;
-		}
+		// Create scene - RenderSceneComponent is added automatically by RendererService
+		mScene = mContext.SceneManager.CreateScene("MainScene");
+		mRenderSceneComponent = mScene.GetSceneComponent<RenderSceneComponent>();
+		mContext.SceneManager.SetActiveScene(mScene);
 
 		// Create materials
 		CreateMaterials();
 
 		// Create scene content
 		CreateEntities();
-
-		// Set active scene and start
-		mContext.SceneManager.SetActiveScene(mScene);
-		mContext.Startup();
 
 		Console.WriteLine("Multi-View Rendering Sample initialized");
 		Console.WriteLine($"Created {GRID_SIZE * GRID_SIZE} cubes, 2 cameras (split-screen)");

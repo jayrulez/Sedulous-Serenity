@@ -117,16 +117,13 @@ class RendererMaterialsSample : RHISampleApp
 		}
 		mContext.RegisterService<RendererService>(mRendererService);
 
-		// Create scene with RenderSceneComponent
-		mScene = mContext.SceneManager.CreateScene("MaterialScene");
-		mRenderSceneComponent = mScene.AddSceneComponent(new RenderSceneComponent(mRendererService));
+		// Start context before creating scenes (enables automatic component creation)
+		mContext.Startup();
 
-		// Initialize rendering
-		if (mRenderSceneComponent.InitializeRendering(SwapChain.Format, .Depth24PlusStencil8) case .Err)
-		{
-			Console.WriteLine("Failed to initialize scene rendering");
-			return false;
-		}
+		// Create scene - RenderSceneComponent is added automatically by RendererService
+		mScene = mContext.SceneManager.CreateScene("MaterialScene");
+		mRenderSceneComponent = mScene.GetSceneComponent<RenderSceneComponent>();
+		mContext.SceneManager.SetActiveScene(mScene);
 
 		// Load Fox model
 		if (!LoadFox())
@@ -137,10 +134,6 @@ class RendererMaterialsSample : RHISampleApp
 		// Create materials and entities
 		CreateMaterials();
 		CreateEntities();
-
-		// Set active scene and start context
-		mContext.SceneManager.SetActiveScene(mScene);
-		mContext.Startup();
 
 		// Create debug line pipeline
 		if (!CreateLinePipeline())

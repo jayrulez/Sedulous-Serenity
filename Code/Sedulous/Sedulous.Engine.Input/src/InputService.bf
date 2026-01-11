@@ -7,7 +7,7 @@ using Sedulous.Shell.Input;
 
 /// Engine service that manages input contexts and action processing.
 /// Bridges Shell.InputManager with high-level action system.
-class InputService : IContextService
+class InputService : ContextService
 {
 	private Context mContext;
 	private IInputManager mInputManager;
@@ -36,25 +36,25 @@ class InputService : IContextService
 
 	// ==================== IContextService ====================
 
-	public void OnRegister(Context context)
+	public override void OnRegister(Context context)
 	{
 		mContext = context;
 	}
 
-	public void OnUnregister()
+	public override void OnUnregister()
 	{
 		mContext = null;
 	}
 
-	public void Startup()
+	public override void Startup()
 	{
 	}
 
-	public void Shutdown()
+	public override void Shutdown()
 	{
 	}
 
-	public void Update(float deltaTime)
+	public override void Update(float deltaTime)
 	{
 		if (mInputManager == null)
 			return;

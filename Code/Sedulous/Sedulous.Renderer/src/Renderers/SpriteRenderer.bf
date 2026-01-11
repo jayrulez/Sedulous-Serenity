@@ -332,9 +332,10 @@ class SpriteRenderer
 			return;
 
 		// Sort entries by texture pointer for batching
+		// Null textures (using white pixel) sort together at the beginning
 		mSpriteEntries.Sort(scope (a, b) => {
-			let ptrA = (int)(void*)a.Texture;
-			let ptrB = (int)(void*)b.Texture;
+			int ptrA = a.Texture != null ? (int)Internal.UnsafeCastToPtr(a.Texture) : 0;
+			int ptrB = b.Texture != null ? (int)Internal.UnsafeCastToPtr(b.Texture) : 0;
 			return ptrA <=> ptrB;
 		});
 
