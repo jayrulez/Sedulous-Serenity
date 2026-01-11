@@ -85,11 +85,15 @@ class SpriteComponent : IEntityComponent
 		let position = mEntity.Transform.WorldPosition;
 		mProxyHandle = mRenderScene.CreateSpriteProxy(mEntity.Id, position, Size, UVRect, Color);
 
-		// Set visibility flag
+		// Set initial properties on the proxy
 		if (mProxyHandle.IsValid && mRenderScene.RenderWorld != null)
 		{
 			if (let proxy = mRenderScene.RenderWorld.GetSpriteProxy(mProxyHandle))
 			{
+				// Set texture
+				proxy.Texture = Texture;
+
+				// Set visibility flag
 				if (Visible)
 					proxy.Flags |= .Visible;
 				else
