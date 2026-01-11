@@ -234,10 +234,79 @@ class UISceneComponent : ISceneComponent
 		Console.WriteLine("UISceneComponent.CleanupRendering() done");
 	}
 
-	// ==================== Frame Rendering ====================
+	// ==================== Render Graph Integration ====================
+
+	/// Adds UI overlay pass to the render graph.
+	/// Called by RenderSceneComponent.AddRenderPasses().
+	public void AddUIPass(RenderGraph graph, ResourceHandle swapChain, int32 frameIndex)
+	{
+		if (!mRenderingInitialized || mUIRenderer == null)
+			return;
+
+		// Prepare UI geometry
+		PrepareGPU(frameIndex);
+
+		// Prepare world UI components
+		PrepareWorldUIComponents(frameIndex);
+
+		// Capture state for lambda
+		let renderer = mUIRenderer;
+		let width = mWidth;
+		let height = mHeight;
+
+		// Add UI overlay pass (after Scene3D)
+		graph.AddGraphicsPass("UIOverlay")
+			.AddDependency("Scene3D")
+			.SetColorAttachment(0, swapChain, .Load, .Store, default)  // Preserve 3D content
+			.SetExecute(new [=](ctx) => {
+				renderer.Render(ctx.RenderPass, width, height, frameIndex);
+			});
+	}
+
+	/// Adds world UI render-to-texture passes to the render graph.
+	/// These render before the main scene pass so their textures can be sampled.
+	public void AddWorldUIPasses(RenderGraph graph, int32 frameIndex)
+	{
+		for (let component in mWorldUIComponents)
+		{
+			if (!component.Visible || !component.IsRenderingInitialized)
+				continue;
+
+			// Import world UI render texture
+			let renderTex = component.RenderTexture;
+			let renderView = component.RenderTextureView;
+			if (renderTex == null || renderView == null)
+				continue;
+
+			// Get entity name for pass naming
+			String entityName = scope .();
+			if (component.Entity != null)
+				entityName.Set(component.Entity.Name);
+			else
+				entityName.Set("Unknown");
+
+			String passName = scope $"WorldUI_{entityName}";
+			let handle = graph.ImportTexture(passName, renderTex, renderView, .Undefined);
+
+			// Capture for lambda
+			let comp = component;
+			let frame = frameIndex;
+
+			String renderPassName = scope $"WorldUI_{entityName}_Render";
+			graph.AddGraphicsPass(renderPassName)
+				.SetColorAttachment(0, handle, .Clear, .Store, Color(0, 0, 0, 0))
+				.SetExecute(new [=](ctx) => {
+					// World UI uses its own render pass internally
+					comp.RenderToTexture(ctx.Encoder, frame);
+				});
+		}
+	}
+
+	// ==================== Frame Rendering (Legacy) ====================
 
 	/// Prepares UI geometry for GPU rendering.
 	/// Call this in OnPrepareFrame after layout is complete.
+	/// Note: When using RenderGraph, this is called automatically by AddUIPass.
 	public void PrepareGPU(int32 frameIndex)
 	{
 		if (!mRenderingInitialized || mUIContext == null || mUIRenderer == null)

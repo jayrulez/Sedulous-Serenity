@@ -233,10 +233,82 @@ class RenderSceneComponent : ISceneComponent
 		mRenderingInitialized = false;
 	}
 
-	// ==================== Frame Rendering ====================
+	// ==================== Render Graph Integration ====================
+
+	/// Adds render passes to the render graph for this scene.
+	/// Called by RendererService.BeginFrame().
+	public void AddRenderPasses(RenderGraph graph, ResourceHandle swapChain, ResourceHandle depth)
+	{
+		if (!mRenderingInitialized || mContext == null)
+			return;
+
+		let pipeline = mRendererService.Pipeline;
+		if (pipeline == null)
+			return;
+
+		let frameIndex = (int32)mRendererService.FrameIndex;
+
+		// PrepareGPU - upload uniforms, visibility
+		PrepareGPU(frameIndex);
+
+		// Add shadow passes
+		AddShadowPasses(graph);
+
+		// Add main 3D scene pass
+		let clearColor = Color(0.08f, 0.1f, 0.12f, 1.0f);
+		let context = mContext;
+		let pipelineRef = pipeline;
+
+		graph.AddGraphicsPass("Scene3D")
+			.SetColorAttachment(0, swapChain, .Clear, .Store, clearColor)
+			.SetDepthAttachment(depth, .Clear, .Store, 1.0f)
+			.SetExecute(new [=](ctx) => {
+				pipelineRef.RenderViews(context, ctx.RenderPass);
+				context.EndFrame();
+			});
+
+		// Note: UISceneComponent adds its own pass via RendererService
+	}
+
+	/// Adds shadow cascade passes to the render graph.
+	private void AddShadowPasses(RenderGraph graph)
+	{
+		if (mContext?.Lighting == null)
+			return;
+
+		let lighting = mContext.Lighting;
+		let pipeline = mRendererService.Pipeline;
+		if (pipeline == null)
+			return;
+
+		// For now, shadow maps are imported as external resources
+		// TODO: Create shadow map as transient resource in the graph
+		let shadowMapTexture = lighting.CascadeShadowMapTexture;
+		let shadowMapView = lighting.CascadeShadowMapView;
+		if (shadowMapTexture == null || shadowMapView == null)
+			return;
+
+		// Import shadow map
+		let shadowHandle = graph.ImportTexture("ShadowMap", shadowMapTexture, shadowMapView, .Undefined);
+
+		let pipelineRef = pipeline;
+		let contextRef = mContext;
+
+		// Add shadow pass (renders all cascades)
+		graph.AddGraphicsPass("Shadows")
+			.Write(shadowHandle, .DepthStencilAttachment)
+			.SetExecute(new [=](ctx) => {
+				// Shadow rendering uses its own internal render passes
+				// We just need to execute it before the main pass
+				pipelineRef.RenderShadows(contextRef, ctx.Encoder);
+			});
+	}
+
+	// ==================== Frame Rendering (Legacy) ====================
 
 	/// Uploads per-frame GPU data.
 	/// Call this in OnPrepareFrame after the fence wait.
+	/// Note: When using RenderGraph, this is called automatically by AddRenderPasses.
 	public void PrepareGPU(int32 frameIndex)
 	{
 		if (!mRenderingInitialized || mContext == null)

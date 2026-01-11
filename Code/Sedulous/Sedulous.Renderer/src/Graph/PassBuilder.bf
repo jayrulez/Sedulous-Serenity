@@ -41,6 +41,14 @@ struct PassBuilder
 		return this;
 	}
 
+	/// Declares an explicit dependency on another pass by name.
+	/// This pass will execute after the named pass.
+	public Self AddDependency(StringView passName) mut
+	{
+		mPass.ExplicitDependencies.Add(new String(passName));
+		return this;
+	}
+
 	/// Sets a color attachment for this graphics pass.
 	public Self SetColorAttachment(int slot, ResourceHandle target, LoadOp load = .Clear, StoreOp store = .Store, Color? clearColor = null) mut
 	{

@@ -34,6 +34,15 @@ class RendererService : ContextService, IDisposable
 	// Track created scene components
 	private List<RenderSceneComponent> mSceneComponents = new .() ~ delete _;
 
+	// Render graph for automatic pass management
+	private RenderGraph mRenderGraph ~ delete _;
+	private ResourceHandle mSwapChainHandle;
+	private ResourceHandle mDepthHandle;
+	private uint32 mFrameIndex;
+	private float mDeltaTime;
+	private float mTotalTime;
+	private bool mFrameActive = false;
+
 	/// Gets the graphics device.
 	public IDevice Device => mDevice;
 
@@ -61,6 +70,21 @@ class RendererService : ContextService, IDisposable
 	/// Gets the depth format used for rendering.
 	public TextureFormat DepthFormat => mDepthFormat;
 
+	/// Gets the render graph for automatic pass management.
+	public RenderGraph RenderGraph => mRenderGraph;
+
+	/// Gets the current frame index.
+	public uint32 FrameIndex => mFrameIndex;
+
+	/// Gets the swap chain handle for the current frame.
+	public ResourceHandle SwapChainHandle => mSwapChainHandle;
+
+	/// Gets the depth handle for the current frame.
+	public ResourceHandle DepthHandle => mDepthHandle;
+
+	/// Gets whether a frame is currently active.
+	public bool IsFrameActive => mFrameActive;
+
 	/// Initializes the renderer service with a graphics device.
 	/// Call this before registering the service with the context.
 	public Result<void> Initialize(IDevice device, StringView shaderBasePath = "shaders")
@@ -80,6 +104,9 @@ class RendererService : ContextService, IDisposable
 			mPipelineCache, mColorFormat, mDepthFormat) case .Err)
 			return .Err;
 
+		// Create render graph for automatic pass management
+		mRenderGraph = new RenderGraph(device);
+
 		mInitialized = true;
 		return .Ok;
 	}
@@ -97,6 +124,50 @@ class RendererService : ContextService, IDisposable
 	{
 		if (mShaderLibrary != null)
 			mShaderLibrary.SetShaderPath(path);
+	}
+
+	// ==================== Render Graph Frame Methods ====================
+
+	/// Begins a render graph frame.
+	/// Imports swap chain and depth resources, then collects passes from all scene components.
+	public void BeginFrame(uint32 frameIndex, float deltaTime, float totalTime,
+		ITexture swapChainTexture, ITextureView swapChainView,
+		ITexture depthTexture, ITextureView depthView)
+	{
+		if (!mInitialized || mRenderGraph == null)
+			return;
+
+		mFrameIndex = frameIndex;
+		mDeltaTime = deltaTime;
+		mTotalTime = totalTime;
+		mFrameActive = true;
+
+		// Begin render graph frame
+		mRenderGraph.BeginFrame(frameIndex, deltaTime, totalTime);
+
+		// Import swap chain
+		mSwapChainHandle = mRenderGraph.ImportTexture("SwapChain", swapChainTexture, swapChainView, .Undefined);
+
+		// Import depth buffer
+		mDepthHandle = mRenderGraph.ImportTexture("Depth", depthTexture, depthView, .Undefined);
+
+		// Collect passes from all scene components
+		for (let component in mSceneComponents)
+		{
+			component.AddRenderPasses(mRenderGraph, mSwapChainHandle, mDepthHandle);
+		}
+	}
+
+	/// Compiles and executes all render passes.
+	public void ExecuteFrame(ICommandEncoder encoder)
+	{
+		if (!mFrameActive || mRenderGraph == null)
+			return;
+
+		mRenderGraph.Compile();
+		mRenderGraph.Execute(encoder);
+		mRenderGraph.EndFrame();
+		mFrameActive = false;
 	}
 
 	// ==================== IContextService Implementation ====================

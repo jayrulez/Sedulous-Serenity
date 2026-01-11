@@ -128,11 +128,9 @@ class RenderGraph
 		if (mIsCompiled)
 			return;
 
-		// For now, use simple linear ordering (passes execute in declaration order)
-		// TODO: Implement topological sort for more complex dependency graphs
-		mSortedPasses.Clear();
-		for (let pass in mPasses)
-			mSortedPasses.Add(pass);
+		// Build dependency graph and topologically sort passes
+		BuildDependencyGraph();
+		TopologicalSort();
 
 		// Allocate transient resources
 		AllocateTransientResources();
@@ -141,6 +139,112 @@ class RenderGraph
 		ComputeBarriers();
 
 		mIsCompiled = true;
+	}
+
+	/// Builds the dependency graph based on resource usage and explicit dependencies.
+	private void BuildDependencyGraph()
+	{
+		// Build a map of pass names to indices for explicit dependency lookup
+		Dictionary<StringView, uint32> passNameToIndex = scope .();
+		for (let pass in mPasses)
+			passNameToIndex[pass.Name] = pass.Index;
+
+		// Build a map of resource -> last writer pass for implicit dependencies
+		Dictionary<uint32, uint32> resourceLastWriter = scope .();
+
+		for (let pass in mPasses)
+		{
+			pass.DependsOn.Clear();
+
+			// Add explicit dependencies
+			for (let depName in pass.ExplicitDependencies)
+			{
+				if (passNameToIndex.TryGetValue(depName, let depIndex))
+				{
+					if (!pass.DependsOn.Contains(depIndex))
+						pass.DependsOn.Add(depIndex);
+				}
+			}
+
+			// Add implicit dependencies from resource reads
+			// If we read a resource, we depend on whoever wrote it last
+			for (let dep in pass.Reads)
+			{
+				if (resourceLastWriter.TryGetValue(dep.Handle.Index, let writerIndex))
+				{
+					if (writerIndex != pass.Index && !pass.DependsOn.Contains(writerIndex))
+						pass.DependsOn.Add(writerIndex);
+				}
+			}
+
+			// Record this pass as writer for any resources it writes
+			for (let dep in pass.Writes)
+				resourceLastWriter[dep.Handle.Index] = pass.Index;
+		}
+	}
+
+	/// Topologically sorts passes using Kahn's algorithm.
+	private void TopologicalSort()
+	{
+		mSortedPasses.Clear();
+
+		if (mPasses.Count == 0)
+			return;
+
+		// Calculate in-degree for each pass
+		int32[] inDegree = scope int32[mPasses.Count];
+		for (let pass in mPasses)
+		{
+			for (let depIndex in pass.DependsOn)
+				inDegree[pass.Index]++;
+		}
+
+		// Queue of passes with no remaining dependencies
+		List<RenderPass> ready = scope .();
+		for (let pass in mPasses)
+		{
+			if (inDegree[pass.Index] == 0)
+				ready.Add(pass);
+		}
+
+		// Process passes in dependency order
+		while (ready.Count > 0)
+		{
+			// Take a pass with no remaining dependencies
+			// For determinism, prefer lower index when multiple are ready
+			int bestIdx = 0;
+			for (int i = 1; i < ready.Count; i++)
+			{
+				if (ready[i].Index < ready[bestIdx].Index)
+					bestIdx = i;
+			}
+
+			let pass = ready[bestIdx];
+			ready.RemoveAt(bestIdx);
+			mSortedPasses.Add(pass);
+
+			// Decrement in-degree of passes that depend on this one
+			for (let otherPass in mPasses)
+			{
+				if (otherPass.DependsOn.Contains(pass.Index))
+				{
+					inDegree[otherPass.Index]--;
+					if (inDegree[otherPass.Index] == 0)
+						ready.Add(otherPass);
+				}
+			}
+		}
+
+		// Check for cycles
+		if (mSortedPasses.Count != mPasses.Count)
+		{
+			// Cycle detected - fall back to declaration order for remaining passes
+			for (let pass in mPasses)
+			{
+				if (!mSortedPasses.Contains(pass))
+					mSortedPasses.Add(pass);
+			}
+		}
 	}
 
 	/// Executes all passes in the graph.

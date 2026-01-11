@@ -931,7 +931,7 @@ class SceneUISample : RHISampleApp
 
 	protected override void OnPrepareFrame(int32 frameIndex)
 	{
-		// Prepare 3D rendering
+		// Prepare 3D rendering (legacy method - doesn't use RenderGraph)
 		mRenderSceneComponent.PrepareGPU(frameIndex);
 
 		// Prepare screen-space UI

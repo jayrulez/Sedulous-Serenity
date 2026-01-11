@@ -134,6 +134,12 @@ class RenderPass
 	/// Resources this pass writes to.
 	public List<ResourceDependency> Writes = new .() ~ delete _;
 
+	/// Explicit dependencies on other passes (by name).
+	public List<String> ExplicitDependencies = new .() ~ DeleteContainerAndItems!(_);
+
+	/// Computed dependencies on other passes (by index). Set during compilation.
+	public List<uint32> DependsOn = new .() ~ delete _;
+
 	/// Color attachments for graphics passes.
 	public List<PassColorAttachment> ColorAttachments = new .() ~ delete _;
 
