@@ -5,6 +5,7 @@ using System.Collections;
 using Sedulous.RHI;
 using Sedulous.Engine.Core;
 using Sedulous.Renderer;
+using Sedulous.Mathematics;
 
 /// Context service that owns shared GPU resources across all scenes.
 /// Register this service with the Context to enable entity-based rendering.
@@ -42,6 +43,14 @@ class RendererService : ContextService, IDisposable
 	private float mDeltaTime;
 	private float mTotalTime;
 	private bool mFrameActive = false;
+
+	// Debug draw service reference (looked up on startup)
+	private DebugDrawService mDebugDrawService;
+
+	// View-projection matrix for debug drawing
+	private Matrix mDebugViewProjection;
+	private uint32 mViewportWidth;
+	private uint32 mViewportHeight;
 
 	/// Gets the graphics device.
 	public IDevice Device => mDevice;
@@ -84,6 +93,9 @@ class RendererService : ContextService, IDisposable
 
 	/// Gets whether a frame is currently active.
 	public bool IsFrameActive => mFrameActive;
+
+	/// Gets the debug draw service (if registered).
+	public DebugDrawService DebugDrawService => mDebugDrawService;
 
 	/// Initializes the renderer service with a graphics device.
 	/// Call this before registering the service with the context.
@@ -142,6 +154,10 @@ class RendererService : ContextService, IDisposable
 		mTotalTime = totalTime;
 		mFrameActive = true;
 
+		// Store viewport dimensions
+		mViewportWidth = swapChainTexture.Width;
+		mViewportHeight = swapChainTexture.Height;
+
 		// Begin render graph frame
 		mRenderGraph.BeginFrame(frameIndex, deltaTime, totalTime);
 
@@ -156,6 +172,44 @@ class RendererService : ContextService, IDisposable
 		{
 			component.AddRenderPasses(mRenderGraph, mSwapChainHandle, mDepthHandle);
 		}
+
+		// Add debug draw pass if service is available and has primitives
+		AddDebugDrawPass();
+	}
+
+	/// Adds the debug draw pass to the render graph.
+	/// Called automatically at the end of BeginFrame.
+	private void AddDebugDrawPass()
+	{
+		if (mDebugDrawService == null || !mDebugDrawService.HasPrimitives)
+			return;
+
+		// Get view-projection from main camera of first scene
+		Matrix viewProjection = .Identity;
+		if (mSceneComponents.Count > 0)
+		{
+			if (let camera = mSceneComponents[0].GetMainCameraProxy())
+			{
+				var projection = camera.ProjectionMatrix;
+
+				// Apply Y-flip for Vulkan
+				if (mDevice != null && mDevice.FlipProjectionRequired)
+					projection.M22 = -projection.M22;
+
+				viewProjection = camera.ViewMatrix * projection;
+			}
+		}
+
+		// Add debug pass
+		mDebugDrawService.AddDebugPass(
+			mRenderGraph,
+			mSwapChainHandle,
+			mDepthHandle,
+			viewProjection,
+			mViewportWidth,
+			mViewportHeight,
+			(int32)mFrameIndex,
+			"Scene3D");
 	}
 
 	/// Compiles and executes all render passes.
@@ -187,7 +241,8 @@ class RendererService : ContextService, IDisposable
 	/// Called during context startup.
 	public override void Startup()
 	{
-		// Renderer is ready to use after context startup
+		// Look up debug draw service if registered
+		mDebugDrawService = mContext?.GetService<DebugDrawService>();
 	}
 
 	/// Called during context shutdown.

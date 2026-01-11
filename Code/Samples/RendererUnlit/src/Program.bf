@@ -18,20 +18,6 @@ using Sedulous.Logging.Debug;
 using SampleFramework;
 using Sedulous.Renderer.Resources;
 
-/// Debug line vertex
-[CRepr]
-struct LineVertex
-{
-	public Vector3 Position;
-	public Vector4 Color;
-
-	public this(Vector3 pos, Vector4 col)
-	{
-		Position = pos;
-		Color = col;
-	}
-}
-
 /// Demonstrates Unlit materials vs PBR materials.
 /// Shows how unlit materials are not affected by lighting.
 class RendererUnlitSample : RHISampleApp
@@ -73,15 +59,8 @@ class RendererUnlitSample : RHISampleApp
 	private float mLightPitch = -0.7f;
 	private float mLightIntensity = 2.0f;
 
-	// Debug line rendering
-	private const int32 MAX_DEBUG_LINES = 100;
-	private IRenderPipeline mLinePipeline;
-	private IBindGroupLayout mLineBindGroupLayout;
-	private IPipelineLayout mLinePipelineLayout;
-	private IBuffer[MAX_FRAMES_IN_FLIGHT] mLineVertexBuffers;
-	private IBuffer[MAX_FRAMES_IN_FLIGHT] mLineUniformBuffers;
-	private IBindGroup[MAX_FRAMES_IN_FLIGHT] mLineBindGroups;
-	private List<LineVertex> mDebugLines = new .() ~ delete _;
+	// Debug drawing
+	private DebugDrawService mDebugDrawService;
 
 	// Current frame index
 	private int32 mCurrentFrameIndex = 0;
@@ -117,6 +96,10 @@ class RendererUnlitSample : RHISampleApp
 		}
 		mContext.RegisterService<RendererService>(mRendererService);
 
+		// Create and register DebugDrawService
+		mDebugDrawService = new DebugDrawService();
+		mContext.RegisterService<DebugDrawService>(mDebugDrawService);
+
 		// Start context before creating scenes (enables automatic component creation)
 		mContext.Startup();
 
@@ -131,13 +114,6 @@ class RendererUnlitSample : RHISampleApp
 		// Create materials and entities
 		CreateMaterials();
 		CreateEntities();
-
-		// Create debug line pipeline
-		if (!CreateLinePipeline())
-		{
-			Console.WriteLine("Failed to create line pipeline");
-			return false;
-		}
 
 		Console.WriteLine("Unlit Material Demo initialized");
 		Console.WriteLine("Top row: UNLIT cubes (constant color, ignores lighting)");
@@ -663,49 +639,14 @@ class RendererUnlitSample : RHISampleApp
 	{
 		mCurrentFrameIndex = frameIndex;
 
-		// Update debug lines
-		UpdateDebugLines();
+		// Update debug drawing
+		UpdateDebugDrawing();
 
-		// Upload debug line vertices
-		if (mDebugLines.Count > 0 && mLineVertexBuffers[frameIndex] != null)
-		{
-			let dataSize = (uint64)(mDebugLines.Count * sizeof(LineVertex));
-			Span<uint8> data = .((uint8*)mDebugLines.Ptr, (int)dataSize);
-			var buf = mLineVertexBuffers[frameIndex];
-			Device.Queue.WriteBuffer(buf, 0, data);
-		}
-
-		// Upload camera VP for debug lines
-		if (mCameraEntity != null && mLineUniformBuffers[frameIndex] != null)
-		{
-			if (let cameraComp = mCameraEntity.GetComponent<CameraComponent>())
-			{
-				let camPos = mCameraEntity.Transform.WorldPosition;
-				let camFwd = mCameraEntity.Transform.Forward;
-				let camUp = mCameraEntity.Transform.Up;
-				let viewMatrix = Matrix.CreateLookAt(camPos, camPos + camFwd, camUp);
-
-				float aspectRatio = (float)cameraComp.ViewportWidth / (float)cameraComp.ViewportHeight;
-				var projection = Matrix.CreatePerspectiveFieldOfView(cameraComp.FieldOfView, aspectRatio, cameraComp.NearPlane, cameraComp.FarPlane);
-
-				if (Device.FlipProjectionRequired)
-					projection.M22 = -projection.M22;
-
-				var vp = viewMatrix * projection;
-				Span<uint8> vpSpan = .((uint8*)&vp, sizeof(Matrix));
-				var buf = mLineUniformBuffers[frameIndex];
-				Device.Queue.WriteBuffer(buf, 0, vpSpan);
-			}
-		}
-
-		// Begin render graph frame - adds shadow cascades and Scene3D passes
+		// Begin render graph frame - adds shadow cascades, Scene3D, and debug draw passes
 		mRendererService.BeginFrame(
 			(uint32)frameIndex, DeltaTime, TotalTime,
 			SwapChain.CurrentTexture, SwapChain.CurrentTextureView,
 			mDepthTexture, DepthTextureView);
-
-		// Add debug lines pass (after Scene3D)
-		AddDebugLinesPass(frameIndex);
 	}
 
 	protected override bool OnRenderFrame(ICommandEncoder encoder, int32 frameIndex)
@@ -720,195 +661,28 @@ class RendererUnlitSample : RHISampleApp
 		// Not used - OnRenderFrame handles rendering
 	}
 
-	private bool CreateLinePipeline()
+	private void UpdateDebugDrawing()
 	{
-		let vertCode = """
-			#pragma pack_matrix(row_major)
-
-			cbuffer Camera : register(b0) {
-				float4x4 viewProjection;
-			};
-
-			struct VSInput {
-				float3 position : POSITION;
-				float4 color : COLOR;
-			};
-
-			struct VSOutput {
-				float4 position : SV_Position;
-				float4 color : COLOR;
-			};
-
-			VSOutput main(VSInput input) {
-				VSOutput output;
-				output.position = mul(float4(input.position, 1.0), viewProjection);
-				output.color = input.color;
-				return output;
-			}
-			""";
-
-		let fragCode = """
-			struct PSInput {
-				float4 position : SV_Position;
-				float4 color : COLOR;
-			};
-
-			float4 main(PSInput input) : SV_Target {
-				return input.color;
-			}
-			""";
-
-		let vertResult = ShaderUtils.CompileShader(Device, vertCode, "main", .Vertex);
-		if (vertResult case .Err)
-			return false;
-		let lineVertShader = vertResult.Get();
-		defer delete lineVertShader;
-
-		let fragResult = ShaderUtils.CompileShader(Device, fragCode, "main", .Fragment);
-		if (fragResult case .Err)
-			return false;
-		let lineFragShader = fragResult.Get();
-		defer delete lineFragShader;
-
-		BindGroupLayoutEntry[1] lineLayoutEntries = .(
-			BindGroupLayoutEntry.UniformBuffer(0, .Vertex)
-		);
-
-		BindGroupLayoutDescriptor lineLayoutDesc = .(lineLayoutEntries);
-		if (Device.CreateBindGroupLayout(&lineLayoutDesc) case .Ok(let bindLayout))
-			mLineBindGroupLayout = bindLayout;
-		else return false;
-
-		IBindGroupLayout[1] lineBindGroupLayouts = .(mLineBindGroupLayout);
-		PipelineLayoutDescriptor linePipelineLayoutDesc = .(lineBindGroupLayouts);
-		if (Device.CreatePipelineLayout(&linePipelineLayoutDesc) case .Ok(let pipLayout))
-			mLinePipelineLayout = pipLayout;
-		else return false;
-
-		Sedulous.RHI.VertexAttribute[2] lineAttrs = .(
-			.(VertexFormat.Float3, 0, 0),
-			.(VertexFormat.Float4, 12, 1)
-		);
-
-		VertexBufferLayout[1] lineVertexBuffers = .(
-			.(28, lineAttrs, .Vertex)
-		);
-
-		DepthStencilState lineDepthState = .();
-		lineDepthState.DepthTestEnabled = true;
-		lineDepthState.DepthWriteEnabled = false;
-		lineDepthState.DepthCompare = .Less;
-		lineDepthState.Format = .Depth24PlusStencil8;
-
-		ColorTargetState[1] lineColorTargets = .(.(SwapChain.Format));
-		RenderPipelineDescriptor linePipelineDesc = .()
-		{
-			Layout = mLinePipelineLayout,
-			Vertex = .() { Shader = .(lineVertShader, "main"), Buffers = lineVertexBuffers },
-			Fragment = .() { Shader = .(lineFragShader, "main"), Targets = lineColorTargets },
-			Primitive = .() { Topology = .LineList, FrontFace = .CCW, CullMode = .None },
-			DepthStencil = lineDepthState,
-			Multisample = .() { Count = 1, Mask = uint32.MaxValue }
-		};
-
-		if (Device.CreateRenderPipeline(&linePipelineDesc) case .Ok(let pipeline))
-			mLinePipeline = pipeline;
-		else return false;
-
-		for (int32 i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-		{
-			BufferDescriptor uniformDesc = .((uint64)sizeof(Matrix), .Uniform, .Upload);
-			if (Device.CreateBuffer(&uniformDesc) case .Ok(let uniformBuf))
-				mLineUniformBuffers[i] = uniformBuf;
-			else return false;
-
-			BufferDescriptor vertexDesc = .((uint64)(sizeof(LineVertex) * MAX_DEBUG_LINES * 2), .Vertex, .Upload);
-			if (Device.CreateBuffer(&vertexDesc) case .Ok(let vertexBuf))
-				mLineVertexBuffers[i] = vertexBuf;
-			else return false;
-
-			BindGroupEntry[1] lineBindGroupEntries = .(
-				BindGroupEntry.Buffer(0, mLineUniformBuffers[i])
-			);
-			BindGroupDescriptor lineBindGroupDesc = .(mLineBindGroupLayout, lineBindGroupEntries);
-			if (Device.CreateBindGroup(&lineBindGroupDesc) case .Ok(let group))
-				mLineBindGroups[i] = group;
-			else return false;
-		}
-
-		return true;
-	}
-
-	private void AddDebugLinesPass(int32 frameIndex)
-	{
-		if (mDebugLines.Count == 0 || mLinePipeline == null)
-			return;
-
-		let graph = mRendererService.RenderGraph;
-		let swapChainHandle = mRendererService.SwapChainHandle;
-		let depthHandle = mRendererService.DepthHandle;
-
-		// Capture for lambda
-		let pipeline = mLinePipeline;
-		let bindGroup = mLineBindGroups[frameIndex];
-		let vertexBuffer = mLineVertexBuffers[frameIndex];
-		let lineCount = (uint32)mDebugLines.Count;
-		let width = SwapChain.Width;
-		let height = SwapChain.Height;
-
-		graph.AddGraphicsPass("DebugLines")
-			.AddDependency("Scene3D")
-			.SetColorAttachment(0, swapChainHandle, .Load, .Store, default)
-			.SetDepthAttachment(depthHandle, .Load, .Store, 1.0f)
-			.SetExecute(new [=](ctx) => {
-				ctx.RenderPass.SetViewport(0, 0, width, height, 0, 1);
-				ctx.RenderPass.SetScissorRect(0, 0, width, height);
-				ctx.RenderPass.SetPipeline(pipeline);
-				ctx.RenderPass.SetBindGroup(0, bindGroup);
-				ctx.RenderPass.SetVertexBuffer(0, vertexBuffer, 0);
-				ctx.RenderPass.Draw(lineCount, 1, 0, 0);
-			});
-	}
-
-	private void UpdateDebugLines()
-	{
-		mDebugLines.Clear();
-
 		let lightDir = GetLightDirection();
 		let lightStart = Vector3(0, 5, 0);
-
-		// XYZ axis
-		let axisLength = 1.5f;
-
-		mDebugLines.Add(LineVertex(lightStart, .(1, 0, 0, 1)));
-		mDebugLines.Add(LineVertex(lightStart + Vector3(axisLength, 0, 0), .(1, 0, 0, 1)));
-
-		mDebugLines.Add(LineVertex(lightStart, .(0, 1, 0, 1)));
-		mDebugLines.Add(LineVertex(lightStart + Vector3(0, axisLength, 0), .(0, 1, 0, 1)));
-
-		mDebugLines.Add(LineVertex(lightStart, .(0, 0, 1, 1)));
-		mDebugLines.Add(LineVertex(lightStart + Vector3(0, 0, axisLength), .(0, 0, 1, 1)));
-
-		// Light direction arrow
 		let lightEnd = lightStart + lightDir * 5.0f;
-		mDebugLines.Add(LineVertex(lightStart, .(1, 1, 0, 1)));
-		mDebugLines.Add(LineVertex(lightEnd, .(1, 0.5f, 0, 1)));
 
+		// Draw XYZ axes at light position
+		mDebugDrawService.DrawAxes(lightStart, 1.5f);
+
+		// Draw light direction line
+		mDebugDrawService.DrawLine(lightStart, lightEnd, .(255, 255, 0, 255));
+
+		// Draw arrow head
 		let right = Vector3.Normalize(Vector3.Cross(lightDir, Vector3.Up));
 		let up = Vector3.Normalize(Vector3.Cross(right, lightDir));
 		let arrowSize = 0.3f;
+		let arrowColor = Color(255, 128, 0, 255);
 
-		mDebugLines.Add(LineVertex(lightEnd, .(1, 0.5f, 0, 1)));
-		mDebugLines.Add(LineVertex(lightEnd - lightDir * arrowSize + right * arrowSize * 0.5f, .(1, 0.5f, 0, 1)));
-
-		mDebugLines.Add(LineVertex(lightEnd, .(1, 0.5f, 0, 1)));
-		mDebugLines.Add(LineVertex(lightEnd - lightDir * arrowSize - right * arrowSize * 0.5f, .(1, 0.5f, 0, 1)));
-
-		mDebugLines.Add(LineVertex(lightEnd, .(1, 0.5f, 0, 1)));
-		mDebugLines.Add(LineVertex(lightEnd - lightDir * arrowSize + up * arrowSize * 0.5f, .(1, 0.5f, 0, 1)));
-
-		mDebugLines.Add(LineVertex(lightEnd, .(1, 0.5f, 0, 1)));
-		mDebugLines.Add(LineVertex(lightEnd - lightDir * arrowSize - up * arrowSize * 0.5f, .(1, 0.5f, 0, 1)));
+		mDebugDrawService.DrawLine(lightEnd, lightEnd - lightDir * arrowSize + right * arrowSize * 0.5f, arrowColor);
+		mDebugDrawService.DrawLine(lightEnd, lightEnd - lightDir * arrowSize - right * arrowSize * 0.5f, arrowColor);
+		mDebugDrawService.DrawLine(lightEnd, lightEnd - lightDir * arrowSize + up * arrowSize * 0.5f, arrowColor);
+		mDebugDrawService.DrawLine(lightEnd, lightEnd - lightDir * arrowSize - up * arrowSize * 0.5f, arrowColor);
 	}
 
 	protected override void OnCleanup()
@@ -916,17 +690,6 @@ class RendererUnlitSample : RHISampleApp
 		mContext?.Shutdown();
 
 		Device.WaitIdle();
-
-		// Clean up debug line resources
-		for (int32 i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-		{
-			delete mLineBindGroups[i];
-			delete mLineVertexBuffers[i];
-			delete mLineUniformBuffers[i];
-		}
-		delete mLinePipeline;
-		delete mLinePipelineLayout;
-		delete mLineBindGroupLayout;
 
 		// Clean up materials
 		if (mRendererService?.MaterialSystem != null)
@@ -960,6 +723,8 @@ class RendererUnlitSample : RHISampleApp
 		if (mFoxTexture.IsValid && mRendererService?.ResourceManager != null)
 			mRendererService.ResourceManager.ReleaseTexture(mFoxTexture);
 
+		// Services deleted in reverse order of creation
+		delete mDebugDrawService;
 		delete mRendererService;
 	}
 }
