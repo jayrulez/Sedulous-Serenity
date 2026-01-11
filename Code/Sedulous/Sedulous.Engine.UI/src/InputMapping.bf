@@ -82,4 +82,24 @@ static class InputMapping
 	{
 		return (.)shellButton;
 	}
+
+	/// Maps UI.CursorType to Shell.Input.CursorType.
+	public static Sedulous.Shell.Input.CursorType MapCursor(Sedulous.UI.CursorType uiCursor)
+	{
+		switch (uiCursor)
+		{
+		case .Default:    return .Default;
+		case .Text:       return .Text;
+		case .Wait:       return .Wait;
+		case .Crosshair:  return .Crosshair;
+		case .Progress:   return .Progress;
+		case .Move:       return .Move;
+		case .NotAllowed: return .NotAllowed;
+		case .Pointer:    return .Pointer;
+		case .ResizeEW:   return .ResizeEW;
+		case .ResizeNS:   return .ResizeNS;
+		case .ResizeNWSE: return .ResizeNWSE;
+		case .ResizeNESW: return .ResizeNESW;
+		}
+	}
 }

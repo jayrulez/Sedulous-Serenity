@@ -12,6 +12,7 @@ using Sedulous.Fonts.TTF;
 using Sedulous.UI;
 using Sedulous.UI.Renderer;
 using Sedulous.Engine.Core;
+using Sedulous.Engine.Input;
 using Sedulous.Engine.UI;
 using Sedulous.Engine.Renderer;
 using Sedulous.Renderer;
@@ -25,10 +26,7 @@ using Sedulous.Logging.Debug;
 using Sedulous.Geometry.Tooling;
 using Sedulous.Shell.SDL3;
 
-// Type aliases to resolve ambiguity - use specific types from each namespace
-typealias LocalShellKeyCode = Sedulous.Shell.Input.KeyCode;
-typealias LocalUIKeyCode = Sedulous.UI.KeyCode;
-typealias LocalUIKeyModifiers = Sedulous.UI.KeyModifiers;
+// Type alias to resolve ambiguity between Drawing.ITexture and RHI.ITexture
 typealias DrawingTexture = Sedulous.Drawing.ITexture;
 
 /// Clipboard adapter that wraps Shell clipboard for UI use.
@@ -120,6 +118,9 @@ class SceneUISample : RHISampleApp
 	private RendererService mRendererService;
 	private RenderSceneComponent mRenderSceneComponent;
 
+	// Input components
+	private InputService mInputService;
+
 	// UI components
 	private UIService mUIService;
 	private UISceneComponent mUIScene;
@@ -128,7 +129,6 @@ class SceneUISample : RHISampleApp
 	private UIClipboardAdapter mClipboard;
 	private SceneUIFontService mFontService;
 	private TooltipService mTooltipService;
-	private delegate void(StringView) mTextInputDelegate;
 
 	// Font resources
 	private IFont mFont;
@@ -176,8 +176,6 @@ class SceneUISample : RHISampleApp
 	private float mFpsTimer = 0;
 	private int mCurrentFps = 0;
 
-	// Cursor tracking
-	private Sedulous.UI.CursorType mLastUICursor = .Default;
 
 	// Click counter
 	private int mClickCount = 0;
@@ -220,6 +218,10 @@ class SceneUISample : RHISampleApp
 		}
 		mContext.RegisterService<RendererService>(mRendererService);
 
+		// Create and register InputService
+		mInputService = new InputService(Shell.InputManager);
+		mContext.RegisterService<InputService>(mInputService);
+
 		// Create and configure UIService
 		mUIService = new UIService();
 		ConfigureUIServices();  // Sets up font service, theme, clipboard on UIService
@@ -254,10 +256,6 @@ class SceneUISample : RHISampleApp
 
 		// Build UI
 		BuildUI();
-
-		// Subscribe to text input events
-		mTextInputDelegate = new => OnTextInput;
-		Shell.InputManager.Keyboard.OnTextInput.Subscribe(mTextInputDelegate);
 
 		Console.WriteLine("Scene UI sample initialized with Fox model.");
 		return true;
@@ -645,14 +643,6 @@ class SceneUISample : RHISampleApp
 		}
 	}
 
-	private void OnTextInput(StringView text)
-	{
-		for (let c in text.DecodedChars)
-		{
-			mUIScene.OnTextInput(c);
-		}
-	}
-
 	private void BuildUI()
 	{
 		// Create root layout - DockPanel with side panel
@@ -932,277 +922,11 @@ class SceneUISample : RHISampleApp
 				mAnimationLabel.Text = scope:: $"Animation: {animName}";
 		}
 
-		// Route UI input
-		RouteInput();
-
-		// Update context (handles scene and components)
+		// Update context (handles scene, components, and automatic UI input routing)
 		mContext.Update(deltaTime);
 
 		// Update tooltip system
 		mTooltipService?.Update(mUIScene.UIContext, deltaTime);
-	}
-
-	private void RouteInput()
-	{
-		let input = Shell.InputManager;
-		let mods = GetModifiers(input.Keyboard);
-
-		// Route to screen-space UI first
-		mUIScene.OnMouseMove(input.Mouse.X, input.Mouse.Y, mods);
-
-		// Check if screen-space UI wants this input (has element under mouse)
-		// Ignore hits on the root element itself (transparent overlay doesn't block world UI)
-		let screenHitElement = mUIScene.UIContext.HitTest(input.Mouse.X, input.Mouse.Y);
-		let screenUIHasElement = screenHitElement != null && screenHitElement != mUIScene.RootElement;
-
-		// Update cursor based on what's under mouse
-		UpdateCursor(input.Mouse, screenUIHasElement);
-
-		if (input.Mouse.IsButtonPressed(.Left))
-		{
-			if (screenUIHasElement)
-				mUIScene.OnMouseDown(.Left, input.Mouse.X, input.Mouse.Y, mods);
-			else
-				TryWorldUIClick(input.Mouse.X, input.Mouse.Y, .Left, true, mods);
-		}
-		if (input.Mouse.IsButtonReleased(.Left))
-		{
-			if (screenUIHasElement)
-				mUIScene.OnMouseUp(.Left, input.Mouse.X, input.Mouse.Y, mods);
-			else
-				TryWorldUIClick(input.Mouse.X, input.Mouse.Y, .Left, false, mods);
-		}
-
-		if (input.Mouse.IsButtonPressed(.Right))
-			mUIScene.OnMouseDown(.Right, input.Mouse.X, input.Mouse.Y, mods);
-		if (input.Mouse.IsButtonReleased(.Right))
-			mUIScene.OnMouseUp(.Right, input.Mouse.X, input.Mouse.Y, mods);
-
-		if (input.Mouse.ScrollY != 0)
-			mUIScene.OnMouseWheel(input.Mouse.ScrollX, input.Mouse.ScrollY, mods);
-
-		// Route mouse move to world UI for hover effects
-		if (!screenUIHasElement && mWorldUIComponent != null && mWorldUIComponent.IsRenderingInitialized)
-		{
-			Vector2 localHit = default;
-			if (RaycastWorldUI(input.Mouse.X, input.Mouse.Y, out localHit))
-			{
-				mWorldUIComponent.UIContext.InputManager.ProcessMouseMove(localHit.X, localHit.Y);
-			}
-		}
-
-		// Keyboard routing
-		for (int key = 0; key < (int)LocalShellKeyCode.Count; key++)
-		{
-			let shellKey = (LocalShellKeyCode)key;
-			if (input.Keyboard.IsKeyPressed(shellKey))
-				mUIScene.OnKeyDown(MapKey(shellKey), 0, mods);
-			if (input.Keyboard.IsKeyReleased(shellKey))
-				mUIScene.OnKeyUp(MapKey(shellKey), 0, mods);
-		}
-	}
-
-	/// Attempts to route a click to the world UI via raycasting.
-	private void TryWorldUIClick(float screenX, float screenY, MouseButton button, bool pressed, LocalUIKeyModifiers mods)
-	{
-		if (mWorldUIComponent == null || !mWorldUIComponent.IsRenderingInitialized)
-			return;
-
-		Vector2 localHit = default;
-		if (RaycastWorldUI(screenX, screenY, out localHit))
-		{
-			// IMPORTANT: Route mouse move BEFORE click to update hover state
-			// Button.OnMouseUpRouted checks IsMouseOver before firing Click
-			mWorldUIComponent.UIContext.InputManager.ProcessMouseMove(localHit.X, localHit.Y);
-
-			if (pressed)
-				mWorldUIComponent.UIContext.InputManager.ProcessMouseDown(button, localHit.X, localHit.Y);
-			else
-				mWorldUIComponent.UIContext.InputManager.ProcessMouseUp(button, localHit.X, localHit.Y);
-		}
-	}
-
-	/// Raycasts from screen coordinates to the world UI panel.
-	/// Returns true if hit, with localHit in UI texture coordinates.
-	private bool RaycastWorldUI(float screenX, float screenY, out Vector2 localHit)
-	{
-		localHit = default;
-
-		if (mWorldUIComponent == null || mWorldUIEntity == null || mCameraEntity == null)
-			return false;
-
-		// Get camera
-		let cameraComp = mCameraEntity.GetComponent<CameraComponent>();
-		if (cameraComp == null)
-			return false;
-
-		// Create ray from camera through screen point
-		let ray = cameraComp.ScreenPointToRay(screenX, screenY, SwapChain.Width, SwapChain.Height);
-
-		// World UI panel position and orientation
-		let panelCenter = mWorldUIEntity.Transform.WorldPosition;
-		let worldSize = mWorldUIComponent.WorldSize;
-		let textureSize = mWorldUIComponent.TextureSize;
-
-		// For billboard, the panel normal faces the camera
-		let cameraPos = mCameraEntity.Transform.WorldPosition;
-		let panelNormal = Vector3.Normalize(cameraPos - panelCenter);
-
-		// Ray-plane intersection
-		let denom = Vector3.Dot(panelNormal, ray.Direction);
-		if (Math.Abs(denom) < 0.0001f)
-			return false;  // Ray parallel to plane
-
-		let t = Vector3.Dot(panelCenter - ray.Position, panelNormal) / denom;
-		if (t < 0)
-			return false;  // Behind camera
-
-		let hitPoint = ray.Position + ray.Direction * t;
-
-		// Convert to local coordinates on the panel
-		// Get right and up vectors for the billboard
-		let forward = -panelNormal;
-		var right = Vector3.Cross(.(0, 1, 0), forward);
-		if (right.LengthSquared() < 0.0001f)
-			right = Vector3.Cross(.(0, 0, 1), forward);
-		right = Vector3.Normalize(right);
-		let up = Vector3.Cross(forward, right);
-
-		// Project hit point onto panel local space
-		let toHit = hitPoint - panelCenter;
-		let localX = Vector3.Dot(toHit, right);
-		let localY = Vector3.Dot(toHit, up);
-
-		// Check if within panel bounds
-		let halfWidth = worldSize.X * 0.5f;
-		let halfHeight = worldSize.Y * 0.5f;
-
-		if (localX < -halfWidth || localX > halfWidth || localY < -halfHeight || localY > halfHeight)
-			return false;
-
-		// Convert to texture coordinates (0 to textureSize)
-		// localX: -halfWidth to halfWidth -> 0 to textureSize.X
-		// localY: -halfHeight to halfHeight -> textureSize.Y to 0 (Y is inverted for UI)
-		localHit.X = ((localX + halfWidth) / worldSize.X) * textureSize.X;
-		localHit.Y = ((halfHeight - localY) / worldSize.Y) * textureSize.Y;
-
-		return true;
-	}
-
-	private void UpdateCursor(Sedulous.Shell.Input.IMouse mouse, bool screenUIHasElement)
-	{
-		Sedulous.UI.CursorType uiCursor = .Default;
-
-		if (screenUIHasElement)
-		{
-			// Use screen UI cursor
-			uiCursor = mUIScene.UIContext.CurrentCursor;
-		}
-		else if (mWorldUIComponent != null && mWorldUIComponent.IsRenderingInitialized)
-		{
-			// Check if hovering over world UI
-			Vector2 localHit = default;
-			if (RaycastWorldUI(mouse.X, mouse.Y, out localHit))
-			{
-				uiCursor = mWorldUIComponent.UIContext.CurrentCursor;
-			}
-		}
-
-		if (uiCursor != mLastUICursor)
-		{
-			mLastUICursor = uiCursor;
-			mouse.Cursor = MapCursor(uiCursor);
-		}
-	}
-
-	private static Sedulous.Shell.Input.CursorType MapCursor(Sedulous.UI.CursorType uiCursor)
-	{
-		switch (uiCursor)
-		{
-		case .Default:    return .Default;
-		case .Text:       return .Text;
-		case .Wait:       return .Wait;
-		case .Crosshair:  return .Crosshair;
-		case .Progress:   return .Progress;
-		case .Move:       return .Move;
-		case .NotAllowed: return .NotAllowed;
-		case .Pointer:    return .Pointer;
-		case .ResizeEW:   return .ResizeEW;
-		case .ResizeNS:   return .ResizeNS;
-		case .ResizeNWSE: return .ResizeNWSE;
-		case .ResizeNESW: return .ResizeNESW;
-		}
-	}
-
-	private LocalUIKeyModifiers GetModifiers(Sedulous.Shell.Input.IKeyboard keyboard)
-	{
-		LocalUIKeyModifiers mods = .None;
-		if (keyboard.IsKeyDown(.LeftShift) || keyboard.IsKeyDown(.RightShift))
-			mods |= .Shift;
-		if (keyboard.IsKeyDown(.LeftCtrl) || keyboard.IsKeyDown(.RightCtrl))
-			mods |= .Ctrl;
-		if (keyboard.IsKeyDown(.LeftAlt) || keyboard.IsKeyDown(.RightAlt))
-			mods |= .Alt;
-		return mods;
-	}
-
-	private static LocalUIKeyCode MapKey(LocalShellKeyCode shellKey)
-	{
-		switch (shellKey)
-		{
-		case .A: return .A;
-		case .B: return .B;
-		case .C: return .C;
-		case .D: return .D;
-		case .E: return .E;
-		case .F: return .F;
-		case .G: return .G;
-		case .H: return .H;
-		case .I: return .I;
-		case .J: return .J;
-		case .K: return .K;
-		case .L: return .L;
-		case .M: return .M;
-		case .N: return .N;
-		case .O: return .O;
-		case .P: return .P;
-		case .Q: return .Q;
-		case .R: return .R;
-		case .S: return .S;
-		case .T: return .T;
-		case .U: return .U;
-		case .V: return .V;
-		case .W: return .W;
-		case .X: return .X;
-		case .Y: return .Y;
-		case .Z: return .Z;
-		case .Num0: return .Num0;
-		case .Num1: return .Num1;
-		case .Num2: return .Num2;
-		case .Num3: return .Num3;
-		case .Num4: return .Num4;
-		case .Num5: return .Num5;
-		case .Num6: return .Num6;
-		case .Num7: return .Num7;
-		case .Num8: return .Num8;
-		case .Num9: return .Num9;
-		case .Return: return .Return;
-		case .Escape: return .Escape;
-		case .Backspace: return .Backspace;
-		case .Tab: return .Tab;
-		case .Space: return .Space;
-		case .Left: return .Left;
-		case .Right: return .Right;
-		case .Up: return .Up;
-		case .Down: return .Down;
-		case .Home: return .Home;
-		case .End: return .End;
-		case .PageUp: return .PageUp;
-		case .PageDown: return .PageDown;
-		case .Delete: return .Delete;
-		case .Insert: return .Insert;
-		default: return .Unknown;
-		}
 	}
 
 	protected override void OnPrepareFrame(int32 frameIndex)
@@ -1303,14 +1027,6 @@ class SceneUISample : RHISampleApp
 	{
 		Console.WriteLine("SceneUISample.OnCleanup() called");
 
-		// Unsubscribe from text input events
-		if (mTextInputDelegate != null)
-		{
-			Shell.InputManager.Keyboard.OnTextInput.Unsubscribe(mTextInputDelegate, false);
-			delete mTextInputDelegate;
-			mTextInputDelegate = null;
-		}
-
 		// Clean up UI services BEFORE context shutdown (scene components get deleted during shutdown)
 		if (mUIScene?.UIContext != null)
 		{
@@ -1334,6 +1050,7 @@ class SceneUISample : RHISampleApp
 		mContext?.Shutdown();
 
 		delete mUIService;
+		delete mInputService;
 
 		Device.WaitIdle();
 
