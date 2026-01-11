@@ -297,9 +297,9 @@ class UISandboxSample : RHISampleApp
 	// UI System
 	private UIContext mUIContext ~ delete _;
 	private UIClipboardAdapter mClipboard ~ delete _;
-	private UISandboxFontService mFontService ~ delete _;
-	private TooltipService mTooltipService ~ delete _;
-	private delegate void(StringView) mTextInputDelegate ~ delete _;
+	private UISandboxFontService mFontService /*~ delete _*/;
+	private TooltipService mTooltipService /*~ delete _*/;
+	private delegate void(StringView) mTextInputDelegate /*~ delete _*/;
 
 	// Drawing context
 	private DrawContext mDrawContext = new .() ~ delete _;
@@ -2289,11 +2289,19 @@ class UISandboxSample : RHISampleApp
 	{
 		// Unsubscribe from text input events
 		if (mTextInputDelegate != null)
+		{
 			Shell.InputManager.Keyboard.OnTextInput.Unsubscribe(mTextInputDelegate, false);
+			delete mTextInputDelegate;
+			mTextInputDelegate = null;
+		}
 
-		// Clean up theme (registered as service, owned by us)
+		// Clean up services (registered with UIContext, but owned by us)
 		if (mUIContext.GetService<ITheme>() case .Ok(let theme))
 			delete theme;
+		if (mFontService != null)
+			delete mFontService;
+		if (mTooltipService != null)
+			delete mTooltipService;
 
 		// Clean up MSAA quad resources
 		if (mQuadPipeline != null) delete mQuadPipeline;
@@ -2323,7 +2331,7 @@ class UISandboxSample : RHISampleApp
 		if (mAtlasTextureView != null) delete mAtlasTextureView;
 		if (mAtlasTexture != null) delete mAtlasTexture;
 
-		// Note: mFont and mFontAtlas are owned by CachedFont (via UISandboxFontService via UIContext)
+		// Note: mFont and mFontAtlas are owned by CachedFont (via UISandboxFontService, deleted above)
 
 		TrueTypeFonts.Shutdown();
 	}

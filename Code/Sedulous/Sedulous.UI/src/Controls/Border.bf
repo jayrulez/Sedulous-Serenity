@@ -5,6 +5,18 @@ using Sedulous.Mathematics;
 namespace Sedulous.UI;
 
 /// A control that draws a border and background around a single child.
+///
+/// IMPORTANT: Use the `Child` property to set the content, not `AddChild()`.
+/// The `Child` property ensures proper measurement and layout of the content.
+///
+/// Example:
+/// ```
+/// let border = new Border();
+/// border.Background = Color(45, 50, 60);
+/// border.Padding = Thickness(10);
+/// border.Child = new TextBlock("Hello");  // Correct
+/// // border.AddChild(new TextBlock("Hello"));  // Wrong - layout will fail
+/// ```
 public class Border : Control
 {
 	private UIElement mChild;

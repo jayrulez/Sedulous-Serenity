@@ -430,6 +430,7 @@ public class UIRenderer : IDisposable
 			for (let bg in mBindGroups)
 				if (bg != null) delete bg;
 			delete mBindGroups;
+			mBindGroups = null;
 		}
 
 		if (mUniformBuffers != null)
@@ -437,6 +438,7 @@ public class UIRenderer : IDisposable
 			for (let ub in mUniformBuffers)
 				if (ub != null) delete ub;
 			delete mUniformBuffers;
+			mUniformBuffers = null;
 		}
 
 		if (mIndexBuffers != null)
@@ -444,6 +446,7 @@ public class UIRenderer : IDisposable
 			for (let ib in mIndexBuffers)
 				if (ib != null) delete ib;
 			delete mIndexBuffers;
+			mIndexBuffers = null;
 		}
 
 		if (mVertexBuffers != null)
@@ -451,20 +454,22 @@ public class UIRenderer : IDisposable
 			for (let vb in mVertexBuffers)
 				if (vb != null) delete vb;
 			delete mVertexBuffers;
+			mVertexBuffers = null;
 		}
 
 		// Pipeline resources
-		if (mMsaaPipeline != null) delete mMsaaPipeline;
-		if (mPipeline != null) delete mPipeline;
-		if (mPipelineLayout != null) delete mPipelineLayout;
-		if (mBindGroupLayout != null) delete mBindGroupLayout;
+		if (mMsaaPipeline != null) { delete mMsaaPipeline; mMsaaPipeline = null; }
+		if (mPipeline != null) { delete mPipeline; mPipeline = null; }
+		if (mPipelineLayout != null) { delete mPipelineLayout; mPipelineLayout = null; }
+		if (mBindGroupLayout != null) { delete mBindGroupLayout; mBindGroupLayout = null; }
 
 		// Sampler
-		if (mSampler != null) delete mSampler;
+		if (mSampler != null) { delete mSampler; mSampler = null; }
 
 		// Shaders
-		if (mFragShader != null) delete mFragShader;
-		if (mVertShader != null) delete mVertShader;
+		Console.WriteLine("  Disposing shaders");
+		if (mFragShader != null) { delete mFragShader; mFragShader = null; }
+		if (mVertShader != null) { delete mVertShader; mVertShader = null; }
 
 		IsInitialized = false;
 	}

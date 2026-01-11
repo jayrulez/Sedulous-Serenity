@@ -13,8 +13,20 @@ class Scene : ISerializable
 	private SceneState mState = .Unloaded;
 	private EntityManager mEntityManager ~ delete _;
 	private ComponentRegistry mComponentRegistry;
-	private List<ISceneComponent> mSceneComponents = new .() ~ DeleteContainerAndItems!(_);
+	private List<ISceneComponent> mSceneComponents = new .();
 	private Dictionary<Type, ISceneComponent> mSceneComponentMap = new .() ~ delete _;
+
+	public ~this()
+	{
+		// Call OnDetach on all scene components before deleting them
+		// This ensures proper cleanup of GPU resources etc.
+		for (let component in mSceneComponents)
+		{
+			component.OnDetach();
+			delete component;
+		}
+		delete mSceneComponents;
+	}
 
 	/// Gets the scene name.
 	public StringView Name => mName;

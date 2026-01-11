@@ -18,6 +18,22 @@ public enum ScrollBarVisibility
 }
 
 /// Provides a scrollable view of content larger than the viewport.
+///
+/// IMPORTANT: Use the `Content` property to set the scrollable content, not `AddChild()`.
+/// The `Content` property ensures proper measurement, layout, and scrolling behavior.
+///
+/// Example:
+/// ```
+/// let scrollViewer = new ScrollViewer();
+/// scrollViewer.Padding = Thickness(20);
+///
+/// let content = new StackPanel();
+/// content.AddChild(new TextBlock("Item 1"));
+/// content.AddChild(new TextBlock("Item 2"));
+///
+/// scrollViewer.Content = content;  // Correct
+/// // scrollViewer.AddChild(content);  // Wrong - scrolling and layout will fail
+/// ```
 public class ScrollViewer : UIElement
 {
 	private UIElement mContent;

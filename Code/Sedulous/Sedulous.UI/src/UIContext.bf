@@ -228,18 +228,15 @@ public class UIContext
 			delete mRootElement;
 		}
 
-		// Clean up registered services
-		for (let obj in mServices.Values)
-		{
-			delete obj;
-		}
-
-		// Clean up clipboard
-		if (mClipboard != null)
-			delete mClipboard;
+		// Note: Services and clipboard are NOT deleted here.
+		// They are owned by whoever created and registered them.
+		// The caller is responsible for deleting them.
 	}
 
 	/// Registers the clipboard service.
+	///
+	/// IMPORTANT: The caller retains ownership of the clipboard and is responsible
+	/// for deleting it. UIContext only holds a reference for lookup purposes.
 	public void RegisterClipboard(IClipboard clipboard)
 	{
 		mClipboard = clipboard;
@@ -252,6 +249,10 @@ public class UIContext
 	}
 
 	/// Registers a service of type T.
+	///
+	/// IMPORTANT: The caller retains ownership of the service and is responsible
+	/// for deleting it. UIContext only holds a reference for lookup purposes.
+	/// Services should be deleted before UIContext is destroyed.
 	public void RegisterService<T>(T service) where T : class
 	{
 		mServices[typeof(T)] = service;

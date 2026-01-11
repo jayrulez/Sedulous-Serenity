@@ -1,0 +1,7 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "SampleFramework" = "*", "Sedulous.Engine.Core" = "*", "Sedulous.Engine.UI" = "*", "Sedulous.UI" = "*", "Sedulous.UI.Renderer" = "*", "Sedulous.Fonts" = "*", "Sedulous.Fonts.TTF" = "*", "Sedulous.Drawing" = "*", "Sedulous.Shell" = "*", "Sedulous.Shell.SDL3" = "*"}
+
+[Project]
+Name = "SceneUI"
+TargetType = "BeefConsoleApplication"
+StartupObject = "SceneUI.Program"
