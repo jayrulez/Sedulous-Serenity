@@ -81,11 +81,21 @@ class UIComponent : IEntityComponent
 	/// Use this to display the UI as a texture on a sprite/mesh.
 	public RHITextureView RenderTextureView => mRenderTextureView;
 
+	/// Gets the underlying render texture (for texture barriers).
+	public RHITexture RenderTexture => mRenderTexture;
+
 	/// Gets the entity this component is attached to.
 	public Entity Entity => mEntity;
 
 	/// Gets whether the render texture has been created.
 	public bool IsRenderingInitialized => mTextureCreated;
+
+	/// Sets the white pixel UV coordinates for solid color rendering.
+	public void SetWhitePixelUV(Vector2 uv)
+	{
+		if (mDrawContext != null)
+			mDrawContext.WhitePixelUV = uv;
+	}
 
 	// ==================== Constructor ====================
 

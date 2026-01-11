@@ -155,6 +155,7 @@ class SceneUISample : RHISampleApp
 	// World-space UI entity
 	private Entity mWorldUIEntity;
 	private UIComponent mWorldUIComponent;
+	private SpriteComponent mWorldUISprite;
 
 	// Camera entity and control
 	private Entity mCameraEntity;
@@ -612,7 +613,7 @@ class SceneUISample : RHISampleApp
 				mFoxMeshComponent.PlayAnimation(0, true);
 		}
 
-		// Create world-space UI entity
+		// Create world-space UI entity with sprite for display
 		{
 			mWorldUIEntity = mScene.CreateEntity("WorldUI");
 			mWorldUIEntity.Transform.SetPosition(.(3.0f, 1.0f, 0));
@@ -629,6 +630,10 @@ class SceneUISample : RHISampleApp
 			}
 			else
 			{
+				// Set white pixel UV for solid color rendering (from font atlas)
+				let (wu, wv) = mFontAtlas.WhitePixelUV;
+				mWorldUIComponent.SetWhitePixelUV(.(wu, wv));
+
 				// Register services for world UI context (shares mCachedFont - does not own it)
 				let worldUIContext = mWorldUIComponent.UIContext;
 				let worldFontService = new SceneUIFontService(mCachedFont, mFontTextureRef);
@@ -638,6 +643,11 @@ class SceneUISample : RHISampleApp
 
 				// Build world-space UI
 				BuildWorldUI();
+
+				// Create sprite to display the UI texture in 3D
+				mWorldUISprite = new SpriteComponent(mWorldUIComponent.WorldSize);
+				mWorldUISprite.Texture = mWorldUIComponent.RenderTextureView;
+				mWorldUIEntity.AddComponent(mWorldUISprite);
 			}
 		}
 	}
@@ -944,14 +954,31 @@ class SceneUISample : RHISampleApp
 		let input = Shell.InputManager;
 		let mods = GetModifiers(input.Keyboard);
 
-		// Route to screen-space UI
+		// Route to screen-space UI first
 		mUIScene.OnMouseMove(input.Mouse.X, input.Mouse.Y, mods);
-		UpdateCursor(input.Mouse);
+
+		// Check if screen-space UI wants this input (has element under mouse)
+		// Ignore hits on the root element itself (transparent overlay doesn't block world UI)
+		let screenHitElement = mUIScene.UIContext.HitTest(input.Mouse.X, input.Mouse.Y);
+		let screenUIHasElement = screenHitElement != null && screenHitElement != mUIScene.RootElement;
+
+		// Update cursor based on what's under mouse
+		UpdateCursor(input.Mouse, screenUIHasElement);
 
 		if (input.Mouse.IsButtonPressed(.Left))
-			mUIScene.OnMouseDown(.Left, input.Mouse.X, input.Mouse.Y, mods);
+		{
+			if (screenUIHasElement)
+				mUIScene.OnMouseDown(.Left, input.Mouse.X, input.Mouse.Y, mods);
+			else
+				TryWorldUIClick(input.Mouse.X, input.Mouse.Y, .Left, true, mods);
+		}
 		if (input.Mouse.IsButtonReleased(.Left))
-			mUIScene.OnMouseUp(.Left, input.Mouse.X, input.Mouse.Y, mods);
+		{
+			if (screenUIHasElement)
+				mUIScene.OnMouseUp(.Left, input.Mouse.X, input.Mouse.Y, mods);
+			else
+				TryWorldUIClick(input.Mouse.X, input.Mouse.Y, .Left, false, mods);
+		}
 
 		if (input.Mouse.IsButtonPressed(.Right))
 			mUIScene.OnMouseDown(.Right, input.Mouse.X, input.Mouse.Y, mods);
@@ -960,6 +987,16 @@ class SceneUISample : RHISampleApp
 
 		if (input.Mouse.ScrollY != 0)
 			mUIScene.OnMouseWheel(input.Mouse.ScrollX, input.Mouse.ScrollY, mods);
+
+		// Route mouse move to world UI for hover effects
+		if (!screenUIHasElement && mWorldUIComponent != null && mWorldUIComponent.IsRenderingInitialized)
+		{
+			Vector2 localHit = default;
+			if (RaycastWorldUI(input.Mouse.X, input.Mouse.Y, out localHit))
+			{
+				mWorldUIComponent.UIContext.InputManager.ProcessMouseMove(localHit.X, localHit.Y);
+			}
+		}
 
 		// Keyboard routing
 		for (int key = 0; key < (int)ShellKeyCode.Count; key++)
@@ -972,9 +1009,112 @@ class SceneUISample : RHISampleApp
 		}
 	}
 
-	private void UpdateCursor(Sedulous.Shell.Input.IMouse mouse)
+	/// Attempts to route a click to the world UI via raycasting.
+	private void TryWorldUIClick(float screenX, float screenY, MouseButton button, bool pressed, UIKeyModifiers mods)
 	{
-		let uiCursor = mUIScene.UIContext.CurrentCursor;
+		if (mWorldUIComponent == null || !mWorldUIComponent.IsRenderingInitialized)
+			return;
+
+		Vector2 localHit = default;
+		if (RaycastWorldUI(screenX, screenY, out localHit))
+		{
+			// IMPORTANT: Route mouse move BEFORE click to update hover state
+			// Button.OnMouseUpRouted checks IsMouseOver before firing Click
+			mWorldUIComponent.UIContext.InputManager.ProcessMouseMove(localHit.X, localHit.Y);
+
+			if (pressed)
+				mWorldUIComponent.UIContext.InputManager.ProcessMouseDown(button, localHit.X, localHit.Y);
+			else
+				mWorldUIComponent.UIContext.InputManager.ProcessMouseUp(button, localHit.X, localHit.Y);
+		}
+	}
+
+	/// Raycasts from screen coordinates to the world UI panel.
+	/// Returns true if hit, with localHit in UI texture coordinates.
+	private bool RaycastWorldUI(float screenX, float screenY, out Vector2 localHit)
+	{
+		localHit = default;
+
+		if (mWorldUIComponent == null || mWorldUIEntity == null || mCameraEntity == null)
+			return false;
+
+		// Get camera
+		let cameraComp = mCameraEntity.GetComponent<CameraComponent>();
+		if (cameraComp == null)
+			return false;
+
+		// Create ray from camera through screen point
+		let ray = cameraComp.ScreenPointToRay(screenX, screenY, SwapChain.Width, SwapChain.Height);
+
+		// World UI panel position and orientation
+		let panelCenter = mWorldUIEntity.Transform.WorldPosition;
+		let worldSize = mWorldUIComponent.WorldSize;
+		let textureSize = mWorldUIComponent.TextureSize;
+
+		// For billboard, the panel normal faces the camera
+		let cameraPos = mCameraEntity.Transform.WorldPosition;
+		let panelNormal = Vector3.Normalize(cameraPos - panelCenter);
+
+		// Ray-plane intersection
+		let denom = Vector3.Dot(panelNormal, ray.Direction);
+		if (Math.Abs(denom) < 0.0001f)
+			return false;  // Ray parallel to plane
+
+		let t = Vector3.Dot(panelCenter - ray.Position, panelNormal) / denom;
+		if (t < 0)
+			return false;  // Behind camera
+
+		let hitPoint = ray.Position + ray.Direction * t;
+
+		// Convert to local coordinates on the panel
+		// Get right and up vectors for the billboard
+		let forward = -panelNormal;
+		var right = Vector3.Cross(.(0, 1, 0), forward);
+		if (right.LengthSquared() < 0.0001f)
+			right = Vector3.Cross(.(0, 0, 1), forward);
+		right = Vector3.Normalize(right);
+		let up = Vector3.Cross(forward, right);
+
+		// Project hit point onto panel local space
+		let toHit = hitPoint - panelCenter;
+		let localX = Vector3.Dot(toHit, right);
+		let localY = Vector3.Dot(toHit, up);
+
+		// Check if within panel bounds
+		let halfWidth = worldSize.X * 0.5f;
+		let halfHeight = worldSize.Y * 0.5f;
+
+		if (localX < -halfWidth || localX > halfWidth || localY < -halfHeight || localY > halfHeight)
+			return false;
+
+		// Convert to texture coordinates (0 to textureSize)
+		// localX: -halfWidth to halfWidth -> 0 to textureSize.X
+		// localY: -halfHeight to halfHeight -> textureSize.Y to 0 (Y is inverted for UI)
+		localHit.X = ((localX + halfWidth) / worldSize.X) * textureSize.X;
+		localHit.Y = ((halfHeight - localY) / worldSize.Y) * textureSize.Y;
+
+		return true;
+	}
+
+	private void UpdateCursor(Sedulous.Shell.Input.IMouse mouse, bool screenUIHasElement)
+	{
+		Sedulous.UI.CursorType uiCursor = .Default;
+
+		if (screenUIHasElement)
+		{
+			// Use screen UI cursor
+			uiCursor = mUIScene.UIContext.CurrentCursor;
+		}
+		else if (mWorldUIComponent != null && mWorldUIComponent.IsRenderingInitialized)
+		{
+			// Check if hovering over world UI
+			Vector2 localHit = default;
+			if (RaycastWorldUI(mouse.X, mouse.Y, out localHit))
+			{
+				uiCursor = mWorldUIComponent.UIContext.CurrentCursor;
+			}
+		}
+
 		if (uiCursor != mLastUICursor)
 		{
 			mLastUICursor = uiCursor;
@@ -1096,43 +1236,67 @@ class SceneUISample : RHISampleApp
 		if (mWorldUIComponent != null && mWorldUIComponent.IsRenderingInitialized)
 		{
 			mWorldUIComponent.RenderToTexture(encoder, frameIndex);
+
+			// Transition texture from render target to shader read for sprite sampling
+			encoder.TextureBarrier(mWorldUIComponent.RenderTexture, .ColorAttachment, .ShaderReadOnly);
 		}
 
-		// Main render pass
 		let textureView = SwapChain.CurrentTextureView;
 		if (textureView == null) return true;
 
-		RenderPassColorAttachment[1] colorAttachments = .(.()
+		// === Pass 1: 3D scene with depth ===
 		{
-			View = textureView,
-			ResolveTarget = null,
-			LoadOp = .Clear,
-			StoreOp = .Store,
-			ClearValue = .(0.08f, 0.1f, 0.12f, 1.0f)
-		});
+			RenderPassColorAttachment[1] colorAttachments = .(.()
+			{
+				View = textureView,
+				ResolveTarget = null,
+				LoadOp = .Clear,
+				StoreOp = .Store,
+				ClearValue = .(0.08f, 0.1f, 0.12f, 1.0f)
+			});
 
-		RenderPassDescriptor renderPassDesc = .(colorAttachments);
-		RenderPassDepthStencilAttachment depthAttachment = .()
+			RenderPassDescriptor renderPassDesc = .(colorAttachments);
+			RenderPassDepthStencilAttachment depthAttachment = .()
+			{
+				View = DepthTextureView,
+				DepthLoadOp = .Clear,
+				DepthStoreOp = .Store,
+				DepthClearValue = 1.0f,
+				StencilLoadOp = .Clear,
+				StencilStoreOp = .Discard,
+				StencilClearValue = 0
+			};
+			renderPassDesc.DepthStencilAttachment = depthAttachment;
+
+			let renderPass = encoder.BeginRenderPass(&renderPassDesc);
+			if (renderPass == null) return true;
+			defer { renderPass.End(); delete renderPass; }
+
+			// Render 3D scene
+			mRenderSceneComponent.Render(renderPass, SwapChain.Width, SwapChain.Height);
+		}
+
+		// === Pass 2: UI overlay without depth ===
 		{
-			View = DepthTextureView,
-			DepthLoadOp = .Clear,
-			DepthStoreOp = .Store,
-			DepthClearValue = 1.0f,
-			StencilLoadOp = .Clear,
-			StencilStoreOp = .Discard,
-			StencilClearValue = 0
-		};
-		renderPassDesc.DepthStencilAttachment = depthAttachment;
+			RenderPassColorAttachment[1] colorAttachments = .(.()
+			{
+				View = textureView,
+				ResolveTarget = null,
+				LoadOp = .Load,  // Preserve 3D content
+				StoreOp = .Store,
+				ClearValue = default
+			});
 
-		let renderPass = encoder.BeginRenderPass(&renderPassDesc);
-		if (renderPass == null) return true;
-		defer { renderPass.End(); delete renderPass; }
+			RenderPassDescriptor uiPassDesc = .(colorAttachments);
+			// No depth attachment - UI doesn't need depth testing
 
-		// Render 3D scene
-		mRenderSceneComponent.Render(renderPass, SwapChain.Width, SwapChain.Height);
+			let uiPass = encoder.BeginRenderPass(&uiPassDesc);
+			if (uiPass == null) return true;
+			defer { uiPass.End(); delete uiPass; }
 
-		// Render screen-space UI overlay (on top of 3D)
-		mUIScene.Render(renderPass, SwapChain.Width, SwapChain.Height, frameIndex);
+			// Render screen-space UI overlay
+			mUIScene.Render(uiPass, SwapChain.Width, SwapChain.Height, frameIndex);
+		}
 
 		return true;
 	}

@@ -26,10 +26,17 @@ class SpriteRenderer
 	// Per-frame camera buffers (references, not owned)
 	private IBuffer[MAX_FRAMES] mCameraBuffers;
 
+	// Texture resources
+	private ITexture mWhiteTexture ~ delete _;
+	private ITextureView mWhiteTextureView ~ delete _;
+	private ISampler mSampler ~ delete _;
+	private ITextureView mCurrentTexture;  // Not owned - set per batch
+
 	// Sprite data
 	private List<SpriteInstance> mSprites = new .() ~ delete _;
 	private int32 mMaxSprites;
 	private bool mDirty = false;
+	private bool mTextureChanged = true;
 
 	// Configuration
 	private TextureFormat mColorFormat = .BGRA8UnormSrgb;
@@ -64,10 +71,52 @@ class SpriteRenderer
 		mColorFormat = colorFormat;
 		mDepthFormat = depthFormat;
 
+		// Create default white texture (1x1 white pixel)
+		if (CreateDefaultTexture() case .Err)
+			return .Err;
+
+		// Create sampler
+		if (CreateSampler() case .Err)
+			return .Err;
+
 		if (CreatePipeline() case .Err)
 			return .Err;
 
+		mCurrentTexture = mWhiteTextureView;
 		mInitialized = true;
+		return .Ok;
+	}
+
+	private Result<void> CreateDefaultTexture()
+	{
+		// Create 1x1 white texture
+		TextureDescriptor texDesc = TextureDescriptor.Texture2D(1, 1, .RGBA8Unorm, .Sampled | .CopyDst);
+		if (mDevice.CreateTexture(&texDesc) not case .Ok(let tex))
+			return .Err;
+		mWhiteTexture = tex;
+
+		// Upload white pixel
+		uint8[4] whitePixel = .(255, 255, 255, 255);
+		TextureDataLayout dataLayout = .() { Offset = 0, BytesPerRow = 4, RowsPerImage = 1 };
+		Extent3D writeSize = .(1, 1, 1);
+		mDevice.Queue.WriteTexture(mWhiteTexture, Span<uint8>(&whitePixel, 4), &dataLayout, &writeSize);
+
+		// Create view
+		TextureViewDescriptor viewDesc = .() { Format = .RGBA8Unorm };
+		if (mDevice.CreateTextureView(mWhiteTexture, &viewDesc) not case .Ok(let view))
+			return .Err;
+		mWhiteTextureView = view;
+
+		return .Ok;
+	}
+
+	private Result<void> CreateSampler()
+	{
+		SamplerDescriptor samplerDesc = .();
+		// Default values are ClampToEdge and Linear filtering
+		if (mDevice.CreateSampler(&samplerDesc) not case .Ok(let sampler))
+			return .Err;
+		mSampler = sampler;
 		return .Ok;
 	}
 
@@ -93,9 +142,11 @@ class SpriteRenderer
 			return .Err;
 		let fragShader = fragResult.Get();
 
-		// Bind group layout: b0=camera uniforms
-		BindGroupLayoutEntry[1] layoutEntries = .(
-			BindGroupLayoutEntry.UniformBuffer(0, .Vertex)
+		// Bind group layout: b0=camera uniforms, t0=texture, s0=sampler
+		BindGroupLayoutEntry[3] layoutEntries = .(
+			BindGroupLayoutEntry.UniformBuffer(0, .Vertex),
+			BindGroupLayoutEntry.SampledTexture(0, .Fragment),
+			BindGroupLayoutEntry.Sampler(0, .Fragment)
 		);
 		BindGroupLayoutDescriptor bindLayoutDesc = .(layoutEntries);
 		if (mDevice.CreateBindGroupLayout(&bindLayoutDesc) not case .Ok(let layout))
@@ -109,11 +160,13 @@ class SpriteRenderer
 			return .Err;
 		mPipelineLayout = pipelineLayout;
 
-		// Create per-frame bind groups
+		// Create per-frame bind groups with default white texture
 		for (int i = 0; i < MAX_FRAMES; i++)
 		{
-			BindGroupEntry[1] entries = .(
-				BindGroupEntry.Buffer(0, mCameraBuffers[i])
+			BindGroupEntry[3] entries = .(
+				BindGroupEntry.Buffer(0, mCameraBuffers[i]),
+				BindGroupEntry.Texture(0, mWhiteTextureView),
+				BindGroupEntry.Sampler(0, mSampler)
 			);
 			BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, entries);
 			if (mDevice.CreateBindGroup(&bindGroupDesc) not case .Ok(let group))
@@ -217,7 +270,17 @@ class SpriteRenderer
 	/// Uploads sprite data to GPU and prepares for rendering.
 	public void End()
 	{
-		if (!mDirty || mSprites.Count == 0)
+		if (mSprites.Count == 0)
+			return;
+
+		// Rebuild bind groups if texture changed
+		if (mTextureChanged)
+		{
+			RebuildBindGroups();
+			mTextureChanged = false;
+		}
+
+		if (!mDirty)
 			return;
 
 		// Upload instance data
@@ -228,11 +291,50 @@ class SpriteRenderer
 		mDirty = false;
 	}
 
+	/// Sets the texture to use for this batch.
+	/// Pass null to use the default white texture.
+	public void SetTexture(ITextureView texture)
+	{
+		ITextureView newTexture = texture != null ? texture : mWhiteTextureView;
+		if (mCurrentTexture != newTexture)
+		{
+			mCurrentTexture = newTexture;
+			mTextureChanged = true;
+		}
+	}
+
+	/// Rebuilds bind groups with the current texture.
+	private void RebuildBindGroups()
+	{
+		for (int i = 0; i < MAX_FRAMES; i++)
+		{
+			// Delete old bind group
+			if (mBindGroups[i] != null)
+			{
+				delete mBindGroups[i];
+				mBindGroups[i] = null;
+			}
+
+			// Create new bind group with current texture
+			BindGroupEntry[3] entries = .(
+				BindGroupEntry.Buffer(0, mCameraBuffers[i]),
+				BindGroupEntry.Texture(0, mCurrentTexture),
+				BindGroupEntry.Sampler(0, mSampler)
+			);
+			BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, entries);
+			if (mDevice.CreateBindGroup(&bindGroupDesc) case .Ok(let group))
+				mBindGroups[i] = group;
+		}
+	}
+
 	/// Returns the number of sprites in the current batch.
 	public int32 SpriteCount => (int32)mSprites.Count;
 
 	/// Gets the instance buffer for rendering.
 	public IBuffer InstanceBuffer => mInstanceBuffer;
+
+	/// Gets the default white texture view.
+	public ITextureView WhiteTexture => mWhiteTextureView;
 
 	/// Returns true if the renderer is fully initialized with pipeline.
 	public bool IsInitialized => mInitialized && mPipeline != null;

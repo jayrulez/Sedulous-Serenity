@@ -110,6 +110,38 @@ class CameraComponent : IEntityComponent
 		return null;
 	}
 
+	/// Creates a ray from the camera through a screen point.
+	/// screenX/screenY are in pixel coordinates (0,0 = top-left).
+	public Ray ScreenPointToRay(float screenX, float screenY, uint32 viewportWidth, uint32 viewportHeight)
+	{
+		if (mEntity == null)
+			return .(Vector3.Zero, Vector3.Forward);
+
+		// Convert screen to normalized device coordinates (-1 to 1)
+		let ndcX = (screenX / (float)viewportWidth) * 2.0f - 1.0f;
+		let ndcY = 1.0f - (screenY / (float)viewportHeight) * 2.0f;  // Flip Y
+
+		// Camera properties
+		let cameraPos = mEntity.Transform.WorldPosition;
+		let forward = mEntity.Transform.Forward;
+		let up = mEntity.Transform.Up;
+		let right = mEntity.Transform.Right;
+
+		// Calculate the ray direction using perspective projection
+		let halfFovTan = Math.Tan(FieldOfView * 0.5f);
+		let aspect = (float)viewportWidth / (float)viewportHeight;
+
+		// Direction in view space
+		let viewDirX = ndcX * halfFovTan * aspect;
+		let viewDirY = ndcY * halfFovTan;
+
+		// Transform to world space
+		var rayDir = forward + right * viewDirX + up * viewDirY;
+		rayDir = Vector3.Normalize(rayDir);
+
+		return .(cameraPos, rayDir);
+	}
+
 	// ==================== IEntityComponent Implementation ====================
 
 	/// Called when the component is attached to an entity.

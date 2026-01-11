@@ -2,6 +2,7 @@ namespace Sedulous.Renderer;
 
 using System;
 using Sedulous.Mathematics;
+using Sedulous.RHI;
 
 /// Render proxy for a billboard sprite in the scene.
 /// Decoupled from gameplay entities - stores only render-relevant data.
@@ -22,6 +23,9 @@ struct SpriteProxy
 
 	/// Tint color (RGBA).
 	public Color Color;
+
+	/// Texture view for this sprite (null = use default white texture).
+	public ITextureView Texture;
 
 	/// World-space bounding box (for culling).
 	public BoundingBox WorldBounds;
@@ -49,6 +53,7 @@ struct SpriteProxy
 			p.Size = .(1, 1);
 			p.UVRect = .(0, 0, 1, 1);
 			p.Color = .White;
+			p.Texture = null;
 			p.WorldBounds = .(.Zero, .Zero);
 			p.Flags = .None;
 			p.LayerMask = 0xFFFFFFFF;
@@ -66,6 +71,7 @@ struct SpriteProxy
 		Size = size;
 		UVRect = .(0, 0, 1, 1);
 		Color = color;
+		Texture = null;
 		WorldBounds = CalculateBounds(position, size);
 		Flags = .Visible;
 		LayerMask = 0xFFFFFFFF;
@@ -81,6 +87,23 @@ struct SpriteProxy
 		Size = size;
 		UVRect = uvRect;
 		Color = color;
+		Texture = null;
+		WorldBounds = CalculateBounds(position, size);
+		Flags = .Visible;
+		LayerMask = 0xFFFFFFFF;
+		DistanceToCamera = 0;
+		SortKey = 0;
+	}
+
+	/// Creates a sprite proxy with texture.
+	public this(uint32 id, Vector3 position, Vector2 size, ITextureView texture, Color color = .White)
+	{
+		Id = id;
+		Position = position;
+		Size = size;
+		UVRect = .(0, 0, 1, 1);
+		Color = color;
+		Texture = texture;
 		WorldBounds = CalculateBounds(position, size);
 		Flags = .Visible;
 		LayerMask = 0xFFFFFFFF;

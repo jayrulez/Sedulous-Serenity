@@ -23,6 +23,9 @@ class SpriteComponent : IEntityComponent
 	/// Sprite tint color.
 	public Color Color = .White;
 
+	/// Texture for this sprite (null = solid color).
+	public ITextureView Texture = null;
+
 	/// Whether the sprite is visible.
 	public bool Visible = true;
 
@@ -122,6 +125,10 @@ class SpriteComponent : IEntityComponent
 			// Update color if changed
 			if (proxy.Color != Color)
 				proxy.Color = Color;
+
+			// Update texture if changed
+			if (proxy.Texture != Texture)
+				proxy.Texture = Texture;
 
 			// Update visibility
 			if (Visible && !proxy.Flags.HasFlag(.Visible))

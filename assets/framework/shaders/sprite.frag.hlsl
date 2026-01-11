@@ -1,5 +1,5 @@
 // Sprite/Billboard Fragment Shader
-// Simple colored sprite (no texture)
+// Textured sprite with color tint
 
 struct PSInput
 {
@@ -8,8 +8,13 @@ struct PSInput
     float4 color : COLOR;
 };
 
+// Texture and sampler (binding 0 in texture/sampler space)
+Texture2D spriteTexture : register(t0);
+SamplerState spriteSampler : register(s0);
+
 float4 main(PSInput input) : SV_Target
 {
-    // Simple colored sprite (no texture for now)
-    return input.color;
+    // Sample texture and multiply by tint color
+    float4 texColor = spriteTexture.Sample(spriteSampler, input.uv);
+    return texColor * input.color;
 }

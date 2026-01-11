@@ -31,12 +31,16 @@ VSOutput main(VSInput input)
 {
     VSOutput output;
 
-    // Quad corner offsets (0=BL, 1=BR, 2=TL, 3=TR)
-    static const float2 corners[4] = {
-        float2(-0.5, -0.5),  // Bottom-left
-        float2( 0.5, -0.5),  // Bottom-right
-        float2(-0.5,  0.5),  // Top-left
-        float2( 0.5,  0.5)   // Top-right
+    // Quad corner offsets for 6 vertices (2 triangles)
+    // Triangle 1: BL, BR, TL (0, 1, 2)
+    // Triangle 2: TL, BR, TR (3, 4, 5)
+    static const float2 corners[6] = {
+        float2(-0.5, -0.5),  // 0: Bottom-left
+        float2( 0.5, -0.5),  // 1: Bottom-right
+        float2(-0.5,  0.5),  // 2: Top-left
+        float2(-0.5,  0.5),  // 3: Top-left
+        float2( 0.5, -0.5),  // 4: Bottom-right
+        float2( 0.5,  0.5)   // 5: Top-right
     };
 
     // Get camera right and up vectors from view matrix (row-major layout)
@@ -44,8 +48,8 @@ VSOutput main(VSInput input)
     float3 right = float3(view[0][0], view[0][1], view[0][2]);
     float3 up = float3(view[1][0], view[1][1], view[1][2]);
 
-    // Compute corner position
-    uint cornerIndex = input.vertexId % 4;
+    // Compute corner position (6 vertices per quad)
+    uint cornerIndex = input.vertexId % 6;
     float2 corner = corners[cornerIndex];
     float3 worldPos = input.position
         + right * corner.x * input.size.x
@@ -53,12 +57,14 @@ VSOutput main(VSInput input)
 
     output.position = mul(viewProjection, float4(worldPos, 1.0));
 
-    // Compute UV from rect
-    float2 uvCorners[4] = {
-        float2(input.uvRect.x, input.uvRect.w),  // BL
-        float2(input.uvRect.z, input.uvRect.w),  // BR
-        float2(input.uvRect.x, input.uvRect.y),  // TL
-        float2(input.uvRect.z, input.uvRect.y)   // TR
+    // Compute UV from rect (6 vertices matching corner positions)
+    float2 uvCorners[6] = {
+        float2(input.uvRect.x, input.uvRect.w),  // 0: BL
+        float2(input.uvRect.z, input.uvRect.w),  // 1: BR
+        float2(input.uvRect.x, input.uvRect.y),  // 2: TL
+        float2(input.uvRect.x, input.uvRect.y),  // 3: TL
+        float2(input.uvRect.z, input.uvRect.w),  // 4: BR
+        float2(input.uvRect.z, input.uvRect.y)   // 5: TR
     };
     output.uv = uvCorners[cornerIndex];
 

@@ -272,17 +272,35 @@ class RenderSceneComponent : ISceneComponent
 		}
 
 		// Build and upload sprite data from proxies
+		// For now, all sprites use the same texture (first textured sprite's texture, or white)
+		// TODO: Support multiple texture batches with separate render calls
 		if (pipeline.SpriteRenderer != null && mContext.World.SpriteCount > 0)
 		{
-			pipeline.SpriteRenderer.Begin();
 			// Collect sprites from proxies
 			List<SpriteProxy*> sprites = scope .();
 			mContext.World.GetValidSpriteProxies(sprites);
-			for (let spriteProxy in sprites)
+
+			if (sprites.Count > 0)
 			{
-				pipeline.SpriteRenderer.AddSprite(spriteProxy.ToSpriteInstance());
+				pipeline.SpriteRenderer.Begin();
+
+				// Find first textured sprite to use its texture for all sprites
+				ITextureView batchTexture = null;
+				for (let spriteProxy in sprites)
+				{
+					if (spriteProxy.Texture != null)
+					{
+						batchTexture = spriteProxy.Texture;
+						break;
+					}
+				}
+
+				pipeline.SpriteRenderer.SetTexture(batchTexture);
+				for (let spriteProxy in sprites)
+					pipeline.SpriteRenderer.AddSprite(spriteProxy.ToSpriteInstance());
+
+				pipeline.SpriteRenderer.End();
 			}
-			pipeline.SpriteRenderer.End();
 		}
 	}
 
