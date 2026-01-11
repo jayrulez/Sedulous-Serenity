@@ -251,18 +251,31 @@ class RenderSceneComponent : ISceneComponent
 		// PrepareGPU - upload uniforms, visibility
 		PrepareGPU(frameIndex);
 
-		// Add shadow passes
-		AddShadowPasses(graph);
+		// Add shadow passes and get shadow map handle for Scene3D to read
+		ResourceHandle shadowMapHandle = default;
+		let shadowCascadeCount = AddShadowPasses(graph, out shadowMapHandle);
 
 		// Add main 3D scene pass
 		let clearColor = Color(0.08f, 0.1f, 0.12f, 1.0f);
 		let context = mContext;
 		let pipelineRef = pipeline;
 
-		graph.AddGraphicsPass("Scene3D")
+		var passBuilder = graph.AddGraphicsPass("Scene3D")
 			.SetColorAttachment(0, swapChain, .Clear, .Store, clearColor)
-			.SetDepthAttachment(depth, .Clear, .Store, 1.0f)
-			.SetExecute(new [=](ctx) => {
+			.SetDepthAttachment(depth, .Clear, .Store, 1.0f);
+
+		// Add dependencies on all shadow cascade passes
+		for (int32 i = 0; i < shadowCascadeCount; i++)
+		{
+			String depName = scope $"ShadowCascade{i}";
+			passBuilder.AddDependency(depName);
+		}
+
+		// Read from shadow map array for shadow sampling
+		if (shadowMapHandle.IsValid)
+			passBuilder.Read(shadowMapHandle, .ShaderReadOnly);
+
+		passBuilder.SetExecute(new [=](ctx) => {
 				pipelineRef.RenderViews(context, ctx.RenderPass);
 				context.EndFrame();
 			});
@@ -271,37 +284,73 @@ class RenderSceneComponent : ISceneComponent
 	}
 
 	/// Adds shadow cascade passes to the render graph.
-	private void AddShadowPasses(RenderGraph graph)
+	/// Returns the number of cascade passes added.
+	/// Outputs the shadow map array handle for Scene3D to read from.
+	private int32 AddShadowPasses(RenderGraph graph, out ResourceHandle shadowMapArrayHandle)
 	{
+		shadowMapArrayHandle = default;
+
 		if (mContext?.Lighting == null)
-			return;
+			return 0;
 
 		let lighting = mContext.Lighting;
 		let pipeline = mRendererService.Pipeline;
 		if (pipeline == null)
-			return;
+			return 0;
 
-		// For now, shadow maps are imported as external resources
-		// TODO: Create shadow map as transient resource in the graph
+		let shadowRenderer = pipeline.ShadowRenderer;
+		if (shadowRenderer == null || !shadowRenderer.HasShadows)
+			return 0;
+
 		let shadowMapTexture = lighting.CascadeShadowMapTexture;
-		let shadowMapView = lighting.CascadeShadowMapView;
-		if (shadowMapTexture == null || shadowMapView == null)
-			return;
+		let shadowMapArrayView = lighting.CascadeShadowMapView;
+		if (shadowMapTexture == null || shadowMapArrayView == null)
+			return 0;
 
-		// Import shadow map
-		let shadowHandle = graph.ImportTexture("ShadowMap", shadowMapTexture, shadowMapView, .Undefined);
+		let frameIndex = (int32)mRendererService.FrameIndex;
 
-		let pipelineRef = pipeline;
-		let contextRef = mContext;
+		// Clean up temporary bind groups for this frame
+		shadowRenderer.BeginFrame(frameIndex);
 
-		// Add shadow pass (renders all cascades)
-		graph.AddGraphicsPass("Shadows")
-			.Write(shadowHandle, .DepthStencilAttachment)
-			.SetExecute(new [=](ctx) => {
-				// Shadow rendering uses its own internal render passes
-				// We just need to execute it before the main pass
-				pipelineRef.RenderShadows(contextRef, ctx.Encoder);
-			});
+		// Import the shadow map array view (used for sampling in Scene3D)
+		shadowMapArrayHandle = graph.ImportTexture("ShadowMapArray", shadowMapTexture, shadowMapArrayView, .Undefined);
+
+		int32 cascadesAdded = 0;
+
+		// Add a pass for each shadow cascade
+		for (int32 cascade = 0; cascade < shadowRenderer.CascadeCount; cascade++)
+		{
+			let cascadeView = lighting.GetCascadeRenderView(cascade);
+			if (cascadeView == null)
+				continue;
+
+			// Prepare uniform data for this cascade
+			shadowRenderer.PrepareCascade(frameIndex, cascade);
+
+			// Import this cascade's slice view (for rendering to)
+			String cascadeName = scope $"ShadowCascade{cascade}";
+			let cascadeHandle = graph.ImportTexture(cascadeName, shadowMapTexture, cascadeView, .Undefined);
+
+			// Capture values for lambda
+			let shadowRendererRef = shadowRenderer;
+			let pipelineRef = pipeline;
+			let cascadeIdx = cascade;
+			let frame = frameIndex;
+
+			// Create pass for this cascade
+			String passName = scope $"ShadowCascade{cascade}";
+			graph.AddGraphicsPass(passName)
+				.SetDepthAttachment(cascadeHandle, .Clear, .Store, 1.0f)
+				.SetExecute(new [=](ctx) => {
+					shadowRendererRef.RenderCascadeShadows(
+						ctx.RenderPass, frame, cascadeIdx,
+						pipelineRef.StaticMeshRenderer, pipelineRef.SkinnedMeshRenderer);
+				});
+
+			cascadesAdded++;
+		}
+
+		return cascadesAdded;
 	}
 
 	// ==================== Frame Rendering (Legacy) ====================

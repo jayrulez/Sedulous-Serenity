@@ -931,25 +931,25 @@ class SceneUISample : RHISampleApp
 
 	protected override void OnPrepareFrame(int32 frameIndex)
 	{
-		// Prepare 3D rendering (legacy method - doesn't use RenderGraph)
-		mRenderSceneComponent.PrepareGPU(frameIndex);
-
-		// Prepare screen-space UI
-		mUIScene.PrepareGPU(frameIndex);
-
-		// Prepare world-space UI
+		// Prepare world-space UI (manual - rendered before render graph)
 		if (mWorldUIComponent != null && mWorldUIComponent.IsRenderingInitialized)
 		{
 			mWorldUIComponent.PrepareGPU(frameIndex, mAtlasTextureView);
 		}
+
+		// Begin render graph frame - this adds shadow cascades and Scene3D passes
+		mRendererService.BeginFrame(
+			(uint32)frameIndex, DeltaTime, TotalTime,
+			SwapChain.CurrentTexture, SwapChain.CurrentTextureView,
+			mDepthTexture, DepthTextureView);
+
+		// Add UI overlay pass to the render graph
+		mUIScene.AddUIPass(mRendererService.RenderGraph, mRendererService.SwapChainHandle, frameIndex);
 	}
 
 	protected override bool OnRenderFrame(ICommandEncoder encoder, int32 frameIndex)
 	{
-		// Render shadow passes
-		mRenderSceneComponent.RenderShadows(encoder, frameIndex);
-
-		// Render world-space UI to texture (before main pass)
+		// Render world-space UI to texture (before render graph execution)
 		if (mWorldUIComponent != null && mWorldUIComponent.IsRenderingInitialized)
 		{
 			mWorldUIComponent.RenderToTexture(encoder, frameIndex);
@@ -958,62 +958,8 @@ class SceneUISample : RHISampleApp
 			encoder.TextureBarrier(mWorldUIComponent.RenderTexture, .ColorAttachment, .ShaderReadOnly);
 		}
 
-		let textureView = SwapChain.CurrentTextureView;
-		if (textureView == null) return true;
-
-		// === Pass 1: 3D scene with depth ===
-		{
-			RenderPassColorAttachment[1] colorAttachments = .(.()
-			{
-				View = textureView,
-				ResolveTarget = null,
-				LoadOp = .Clear,
-				StoreOp = .Store,
-				ClearValue = .(0.08f, 0.1f, 0.12f, 1.0f)
-			});
-
-			RenderPassDescriptor renderPassDesc = .(colorAttachments);
-			RenderPassDepthStencilAttachment depthAttachment = .()
-			{
-				View = DepthTextureView,
-				DepthLoadOp = .Clear,
-				DepthStoreOp = .Store,
-				DepthClearValue = 1.0f,
-				StencilLoadOp = .Clear,
-				StencilStoreOp = .Discard,
-				StencilClearValue = 0
-			};
-			renderPassDesc.DepthStencilAttachment = depthAttachment;
-
-			let renderPass = encoder.BeginRenderPass(&renderPassDesc);
-			if (renderPass == null) return true;
-			defer { renderPass.End(); delete renderPass; }
-
-			// Render 3D scene
-			mRenderSceneComponent.Render(renderPass, SwapChain.Width, SwapChain.Height);
-		}
-
-		// === Pass 2: UI overlay without depth ===
-		{
-			RenderPassColorAttachment[1] colorAttachments = .(.()
-			{
-				View = textureView,
-				ResolveTarget = null,
-				LoadOp = .Load,  // Preserve 3D content
-				StoreOp = .Store,
-				ClearValue = default
-			});
-
-			RenderPassDescriptor uiPassDesc = .(colorAttachments);
-			// No depth attachment - UI doesn't need depth testing
-
-			let uiPass = encoder.BeginRenderPass(&uiPassDesc);
-			if (uiPass == null) return true;
-			defer { uiPass.End(); delete uiPass; }
-
-			// Render screen-space UI overlay
-			mUIScene.Render(uiPass, SwapChain.Width, SwapChain.Height, frameIndex);
-		}
+		// Execute all render graph passes (shadow cascades, Scene3D, UI overlay)
+		mRendererService.ExecuteFrame(encoder);
 
 		return true;
 	}

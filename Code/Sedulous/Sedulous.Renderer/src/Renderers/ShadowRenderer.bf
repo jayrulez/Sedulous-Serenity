@@ -268,6 +268,7 @@ class ShadowRenderer
 
 	/// Renders shadows for all cascade levels.
 	/// Returns true if shadows were rendered (texture barrier needed).
+	/// Note: For RenderGraph usage, use PrepareCascade + RenderCascadeShadows instead.
 	public bool RenderShadows(ICommandEncoder encoder, int32 frameIndex,
 		StaticMeshRenderer staticRenderer, SkinnedMeshRenderer skinnedRenderer)
 	{
@@ -290,17 +291,8 @@ class ShadowRenderer
 			let cascadeView = mLightingSystem.GetCascadeRenderView(cascade);
 			if (cascadeView == null) continue;
 
-			let cascadeData = mLightingSystem.GetCascadeData(cascade);
-
-			// Upload shadow uniforms for this cascade
-			var shadowUniforms = ShadowRendererUniforms();
-			shadowUniforms.LightViewProjection = cascadeData.ViewProjection;
-			shadowUniforms.DepthBias = .(0.001f, 0.002f, 0, 0);
-			Span<uint8> shadowSpan = .((uint8*)&shadowUniforms, sizeof(ShadowRendererUniforms));
-
-			let shadowBuffer = mShadowUniformBuffers[frameIndex][cascade];
-			if (shadowBuffer != null && mDevice.Queue != null)
-				mDevice.Queue.WriteBuffer(shadowBuffer, 0, shadowSpan);
+			// Prepare uniforms for this cascade
+			PrepareCascade(frameIndex, cascade);
 
 			// Begin shadow render pass for this cascade
 			RenderPassDepthStencilAttachment depthAttachment = .()
@@ -320,20 +312,8 @@ class ShadowRenderer
 			let shadowPass = encoder.BeginRenderPass(&passDesc);
 			if (shadowPass == null) continue;
 
-			shadowPass.SetViewport(0, 0, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE, 0, 1);
-			shadowPass.SetScissorRect(0, 0, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
-
-			// Render static meshes
-			if (hasStaticMeshes)
-			{
-				RenderStaticShadows(shadowPass, staticRenderer, frameIndex, cascade);
-			}
-
-			// Render skinned meshes
-			if (hasSkinnedMeshes)
-			{
-				RenderSkinnedShadows(shadowPass, skinnedRenderer, shadowBuffer, frameIndex);
-			}
+			// Render this cascade
+			RenderCascadeShadows(shadowPass, frameIndex, cascade, staticRenderer, skinnedRenderer);
 
 			shadowPass.End();
 			delete shadowPass;
@@ -345,6 +325,72 @@ class ShadowRenderer
 
 		return true;
 	}
+
+	/// Prepares uniform data for a specific cascade.
+	/// Call this before RenderCascadeShadows for each cascade when using RenderGraph.
+	public void PrepareCascade(int32 frameIndex, int32 cascade)
+	{
+		if (mLightingSystem == null)
+			return;
+
+		let cascadeData = mLightingSystem.GetCascadeData(cascade);
+
+		// Upload shadow uniforms for this cascade
+		var shadowUniforms = ShadowRendererUniforms();
+		shadowUniforms.LightViewProjection = cascadeData.ViewProjection;
+		shadowUniforms.DepthBias = .(0.001f, 0.002f, 0, 0);
+		Span<uint8> shadowSpan = .((uint8*)&shadowUniforms, sizeof(ShadowRendererUniforms));
+
+		let shadowBuffer = mShadowUniformBuffers[frameIndex][cascade];
+		if (shadowBuffer != null && mDevice.Queue != null)
+			mDevice.Queue.WriteBuffer(shadowBuffer, 0, shadowSpan);
+	}
+
+	/// Renders shadow geometry for a specific cascade within an existing render pass.
+	/// The render pass must already be configured with the cascade's depth view.
+	/// Use this method when integrating with RenderGraph.
+	public void RenderCascadeShadows(IRenderPassEncoder shadowPass, int32 frameIndex, int32 cascade,
+		StaticMeshRenderer staticRenderer, SkinnedMeshRenderer skinnedRenderer)
+	{
+		let hasStaticMeshes = staticRenderer != null && staticRenderer.MaterialBatches.Count > 0;
+		let hasSkinnedMeshes = skinnedRenderer != null && skinnedRenderer.SkinnedMeshCount > 0;
+
+		if (!hasStaticMeshes && !hasSkinnedMeshes)
+			return;
+
+		// Set viewport and scissor for shadow map
+		shadowPass.SetViewport(0, 0, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE, 0, 1);
+		shadowPass.SetScissorRect(0, 0, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
+
+		// Render static meshes
+		if (hasStaticMeshes)
+		{
+			RenderStaticShadows(shadowPass, staticRenderer, frameIndex, cascade);
+		}
+
+		// Render skinned meshes
+		if (hasSkinnedMeshes)
+		{
+			let shadowBuffer = mShadowUniformBuffers[frameIndex][cascade];
+			RenderSkinnedShadows(shadowPass, skinnedRenderer, shadowBuffer, frameIndex);
+		}
+	}
+
+	/// Cleans up temporary bind groups for a frame.
+	/// Call this at the start of frame before rendering shadows.
+	public void BeginFrame(int32 frameIndex)
+	{
+		ClearAndDeleteItems!(mTempSkinnedBindGroups[frameIndex]);
+	}
+
+	/// Gets whether shadows should be rendered.
+	public bool HasShadows => mLightingSystem != null && mLightingSystem.HasDirectionalShadows;
+
+	/// Gets the shadow map size.
+	public int32 ShadowMapSize => SHADOW_MAP_SIZE;
+
+	/// Gets the number of cascade levels.
+	public int32 CascadeCount => CASCADE_COUNT;
 
 	/// Renders static mesh shadows.
 	private void RenderStaticShadows(IRenderPassEncoder shadowPass, StaticMeshRenderer staticRenderer,
