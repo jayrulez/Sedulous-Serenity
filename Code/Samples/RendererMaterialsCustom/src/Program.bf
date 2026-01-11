@@ -611,47 +611,18 @@ class RendererMaterialsCustomSample : RHISampleApp
 	protected override void OnPrepareFrame(int32 frameIndex)
 	{
 		mCurrentFrameIndex = frameIndex;
-		mRenderSceneComponent.PrepareGPU(frameIndex);
+
+		// Begin render graph frame - adds shadow cascades and Scene3D passes
+		mRendererService.BeginFrame(
+			(uint32)frameIndex, DeltaTime, TotalTime,
+			SwapChain.CurrentTexture, SwapChain.CurrentTextureView,
+			mDepthTexture, DepthTextureView);
 	}
 
 	protected override bool OnRenderFrame(ICommandEncoder encoder, int32 frameIndex)
 	{
-		// Render shadow passes
-		mRenderSceneComponent.RenderShadows(encoder, frameIndex);
-
-		// Main render pass
-		let textureView = SwapChain.CurrentTextureView;
-		if (textureView == null) return true;
-
-		RenderPassColorAttachment[1] colorAttachments = .(.()
-		{
-			View = textureView,
-			ResolveTarget = null,
-			LoadOp = .Clear,
-			StoreOp = .Store,
-			ClearValue = .(0.1f, 0.1f, 0.15f, 1.0f)
-		});
-
-		RenderPassDescriptor renderPassDesc = .(colorAttachments);
-		RenderPassDepthStencilAttachment depthAttachment = .()
-		{
-			View = DepthTextureView,
-			DepthLoadOp = .Clear,
-			DepthStoreOp = .Store,
-			DepthClearValue = 1.0f,
-			StencilLoadOp = .Clear,
-			StencilStoreOp = .Discard,
-			StencilClearValue = 0
-		};
-		renderPassDesc.DepthStencilAttachment = depthAttachment;
-
-		let renderPass = encoder.BeginRenderPass(&renderPassDesc);
-		if (renderPass == null) return true;
-		defer delete renderPass;
-
-		mRenderSceneComponent.Render(renderPass, SwapChain.Width, SwapChain.Height);
-
-		renderPass.End();
+		// Execute all render graph passes (shadow cascades, Scene3D)
+		mRendererService.ExecuteFrame(encoder);
 		return true;
 	}
 

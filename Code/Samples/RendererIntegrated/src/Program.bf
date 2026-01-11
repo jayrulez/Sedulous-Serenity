@@ -810,6 +810,37 @@ class RendererIntegratedSample : RHISampleApp
 		return true;
 	}
 
+	private void AddDebugLinesPass(int32 frameIndex)
+	{
+		if (mDebugLines.Count == 0 || mLinePipeline == null)
+			return;
+
+		let graph = mRendererService.RenderGraph;
+		let swapChainHandle = mRendererService.SwapChainHandle;
+		let depthHandle = mRendererService.DepthHandle;
+
+		// Capture for lambda
+		let pipeline = mLinePipeline;
+		let bindGroup = mLineBindGroups[frameIndex];
+		let vertexBuffer = mLineVertexBuffers[frameIndex];
+		let lineCount = (uint32)mDebugLines.Count;
+		let width = SwapChain.Width;
+		let height = SwapChain.Height;
+
+		graph.AddGraphicsPass("DebugLines")
+			.AddDependency("Scene3D")
+			.SetColorAttachment(0, swapChainHandle, .Load, .Store, default)
+			.SetDepthAttachment(depthHandle, .Load, .Store, 1.0f)
+			.SetExecute(new [=](ctx) => {
+				ctx.RenderPass.SetViewport(0, 0, width, height, 0, 1);
+				ctx.RenderPass.SetScissorRect(0, 0, width, height);
+				ctx.RenderPass.SetPipeline(pipeline);
+				ctx.RenderPass.SetBindGroup(0, bindGroup);
+				ctx.RenderPass.SetVertexBuffer(0, vertexBuffer, 0);
+				ctx.RenderPass.Draw(lineCount, 1, 0, 0);
+			});
+	}
+
 	private void UpdateDebugLines()
 	{
 		mDebugLines.Clear();
@@ -872,9 +903,7 @@ class RendererIntegratedSample : RHISampleApp
 			Console.WriteLine($"[DEBUG] Frame {debugFrameCount}: Meshes={mRenderSceneComponent.MeshCount}, Visible={mRenderSceneComponent.VisibleInstanceCount}, HasCamera={mRenderSceneComponent.GetMainCameraProxy() != null}");
 		}
 
-		// Upload GPU data - this is called after fence wait, safe to write buffers
 		mCurrentFrameIndex = frameIndex;
-		mRenderSceneComponent.PrepareGPU(frameIndex);
 
 		// Update debug lines
 		UpdateDebugLines();
@@ -912,60 +941,22 @@ class RendererIntegratedSample : RHISampleApp
 				Device.Queue.WriteBuffer(buf, 0, vpSpan);
 			}
 		}
+
+		// Begin render graph frame - adds shadow cascades and Scene3D passes
+		mRendererService.BeginFrame(
+			(uint32)frameIndex, DeltaTime, TotalTime,
+			SwapChain.CurrentTexture, SwapChain.CurrentTextureView,
+			mDepthTexture, DepthTextureView);
+
+		// Add debug lines pass (after Scene3D)
+		AddDebugLinesPass(frameIndex);
 	}
 
 	protected override bool OnRenderFrame(ICommandEncoder encoder, int32 frameIndex)
 	{
-		// Render shadow passes first (before main render pass)
-		mRenderSceneComponent.RenderShadows(encoder, frameIndex);
-
-		// Create main render pass
-		let textureView = SwapChain.CurrentTextureView;
-		if (textureView == null) return true;
-
-		RenderPassColorAttachment[1] colorAttachments = .(.()
-		{
-			View = textureView,
-			ResolveTarget = null,
-			LoadOp = .Clear,
-			StoreOp = .Store,
-			ClearValue = .(0.1f, 0.1f, 0.15f, 1.0f)
-		});
-
-		RenderPassDescriptor renderPassDesc = .(colorAttachments);
-		RenderPassDepthStencilAttachment depthAttachment = .()
-		{
-			View = DepthTextureView,
-			DepthLoadOp = .Clear,
-			DepthStoreOp = .Store,
-			DepthClearValue = 1.0f,
-			StencilLoadOp = .Clear,
-			StencilStoreOp = .Discard,
-			StencilClearValue = 0
-		};
-		renderPassDesc.DepthStencilAttachment = depthAttachment;
-
-		let renderPass = encoder.BeginRenderPass(&renderPassDesc);
-		if (renderPass == null) return true;
-		defer delete renderPass;
-
-		renderPass.SetViewport(0, 0, SwapChain.Width, SwapChain.Height, 0, 1);
-		renderPass.SetScissorRect(0, 0, SwapChain.Width, SwapChain.Height);
-
-		// Render the scene - all GPU details handled by RenderSceneComponent
-		mRenderSceneComponent.Render(renderPass, SwapChain.Width, SwapChain.Height);
-
-		// Draw debug lines (light direction gizmo)
-		if (mDebugLines.Count > 0 && mLinePipeline != null)
-		{
-			renderPass.SetPipeline(mLinePipeline);
-			renderPass.SetBindGroup(0, mLineBindGroups[frameIndex]);
-			renderPass.SetVertexBuffer(0, mLineVertexBuffers[frameIndex], 0);
-			renderPass.Draw((uint32)mDebugLines.Count, 1, 0, 0);
-		}
-
-		renderPass.End();
-		return true;  // We handled rendering
+		// Execute all render graph passes (shadow cascades, Scene3D, debug lines)
+		mRendererService.ExecuteFrame(encoder);
+		return true;
 	}
 
 	protected override void OnRender(IRenderPassEncoder renderPass)
