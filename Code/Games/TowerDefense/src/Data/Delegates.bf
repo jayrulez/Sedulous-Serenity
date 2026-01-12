@@ -1,6 +1,7 @@
 namespace TowerDefense.Data;
 
 using Sedulous.Engine.Core;
+using Sedulous.Mathematics;
 using TowerDefense.Components;
 
 /// Delegate for enemy exit events.
@@ -14,3 +15,9 @@ delegate void DamageDelegate(float damage);
 
 /// Delegate for simple events with no parameters.
 delegate void SimpleDelegate();
+
+/// Delegate for tower fire events.
+delegate void TowerFireDelegate(TowerComponent tower, Entity target, Vector3 origin);
+
+/// Delegate for projectile hit events.
+delegate void ProjectileHitDelegate(Entity projectile, Entity target);

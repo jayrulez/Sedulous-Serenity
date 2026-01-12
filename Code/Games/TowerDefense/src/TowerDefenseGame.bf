@@ -18,10 +18,11 @@ using SampleFramework;
 using TowerDefense.Data;
 using TowerDefense.Maps;
 using TowerDefense.Enemies;
+using TowerDefense.Towers;
 using TowerDefense.Components;
 
 /// Tower Defense game main class.
-/// Phase 3: Enemy System - Enemies that follow the path.
+/// Phase 4: Tower System - Placeable towers that shoot enemies.
 class TowerDefenseGame : RHISampleApp
 {
 	// Engine Core
@@ -44,6 +45,10 @@ class TowerDefenseGame : RHISampleApp
 
 	// Enemy system
 	private EnemyFactory mEnemyFactory ~ delete _;
+
+	// Tower system
+	private TowerFactory mTowerFactory ~ delete _;
+	private int32 mSelectedTowerType = 0;  // 0=None, 1=Cannon, 2=Archer, 3=Frost, 4=Mortar, 5=SAM
 
 	// Game state
 	private int32 mMoney = 200;
@@ -80,7 +85,7 @@ class TowerDefenseGame : RHISampleApp
 
 	protected override bool OnInitialize()
 	{
-		Console.WriteLine("=== Tower Defense - Phase 3: Enemy System ===");
+		Console.WriteLine("=== Tower Defense - Phase 4: Tower System ===");
 
 		// Create logger
 		mLogger = new DebugLogger(.Information);
@@ -116,6 +121,10 @@ class TowerDefenseGame : RHISampleApp
 		mEnemyFactory.OnEnemyReachedExit.Subscribe(new => OnEnemyReachedExit);
 		mEnemyFactory.OnEnemyKilled.Subscribe(new => OnEnemyKilled);
 
+		// Initialize tower factory
+		mTowerFactory = new TowerFactory(mScene, mRendererService, mEnemyFactory);
+		mTowerFactory.InitializeMaterials();
+
 		// Create scene entities (light, camera)
 		CreateSceneEntities();
 
@@ -123,8 +132,12 @@ class TowerDefenseGame : RHISampleApp
 		LoadMap();
 
 		Console.WriteLine("Initialization complete!");
-		Console.WriteLine("Controls: WASD=Pan camera, QE=Zoom, Space=Spawn enemy, T=Toggle auto-spawn, Escape=Exit");
-		Console.WriteLine($"Starting: Money={mMoney}, Lives={mLives}");
+		Console.WriteLine("Controls:");
+		Console.WriteLine("  WASD=Pan camera, QE=Zoom");
+		Console.WriteLine("  F1-F5=Select tower (Cannon/Archer/Frost/Mortar/SAM)");
+		Console.WriteLine("  Left Click=Place tower, Right Click=Cancel");
+		Console.WriteLine("  Space=Spawn enemy, T=Toggle auto-spawn");
+		Console.WriteLine($"Starting: Money=${mMoney}, Lives={mLives}");
 
 		return true;
 	}
@@ -252,6 +265,7 @@ class TowerDefenseGame : RHISampleApp
 	protected override void OnInput()
 	{
 		let keyboard = Shell.InputManager.Keyboard;
+		let mouse = Shell.InputManager.Mouse;
 
 		// Camera panning with WASD
 		float panSpeed = mCameraMoveSpeed * DeltaTime;
@@ -271,6 +285,34 @@ class TowerDefenseGame : RHISampleApp
 			mCameraHeight = Math.Max(10.0f, mCameraHeight - zoomSpeed);
 		if (keyboard.IsKeyDown(.E))
 			mCameraHeight = Math.Min(100.0f, mCameraHeight + zoomSpeed);
+
+		// Tower selection with F1-F5
+		if (keyboard.IsKeyPressed(.F1))
+			SelectTower(1, .Cannon);
+		if (keyboard.IsKeyPressed(.F2))
+			SelectTower(2, .Archer);
+		if (keyboard.IsKeyPressed(.F3))
+			SelectTower(3, .SlowTower);
+		if (keyboard.IsKeyPressed(.F4))
+			SelectTower(4, .Splash);
+		if (keyboard.IsKeyPressed(.F5))
+			SelectTower(5, .AntiAir);
+
+		// Cancel tower selection with Escape or Right Click
+		if (keyboard.IsKeyPressed(.Escape) || mouse.IsButtonPressed(.Right))
+		{
+			if (mSelectedTowerType != 0)
+			{
+				mSelectedTowerType = 0;
+				Console.WriteLine("Tower selection cancelled");
+			}
+		}
+
+		// Place tower with Left Click
+		if (mouse.IsButtonPressed(.Left) && mSelectedTowerType != 0)
+		{
+			TryPlaceTower(mouse.X, mouse.Y);
+		}
 
 		// Spawn enemy with Space
 		if (keyboard.IsKeyPressed(.Space))
@@ -298,6 +340,85 @@ class TowerDefenseGame : RHISampleApp
 		UpdateCameraTransform();
 	}
 
+	private void SelectTower(int32 type, TowerDefinition def)
+	{
+		mSelectedTowerType = type;
+		Console.WriteLine($"Selected: {def.Name} (${def.Cost})");
+	}
+
+	private void TryPlaceTower(float screenX, float screenY)
+	{
+		// Convert screen position to world position (simple top-down projection)
+		let worldPos = ScreenToWorld(screenX, screenY);
+
+		// Convert to grid coordinates
+		let (gridX, gridY) = mCurrentMap.WorldToGrid(worldPos);
+		if (gridX < 0 || gridY < 0)
+		{
+			Console.WriteLine("Cannot place tower outside map!");
+			return;
+		}
+
+		// Get tile type
+		let tileType = mCurrentMap.GetTile(gridX, gridY);
+
+		// Check if placement is valid
+		if (!mTowerFactory.CanPlaceTower(gridX, gridY, tileType))
+		{
+			Console.WriteLine("Cannot place tower here!");
+			return;
+		}
+
+		// Get tower definition
+		TowerDefinition def;
+		switch (mSelectedTowerType)
+		{
+		case 1: def = .Cannon;
+		case 2: def = .Archer;
+		case 3: def = .SlowTower;
+		case 4: def = .Splash;
+		case 5: def = .AntiAir;
+		default: return;
+		}
+
+		// Check if we have enough money
+		if (mMoney < def.Cost)
+		{
+			Console.WriteLine($"Not enough money! Need ${def.Cost}, have ${mMoney}");
+			return;
+		}
+
+		// Place the tower
+		let tileWorldPos = mCurrentMap.GridToWorld(gridX, gridY);
+		mTowerFactory.PlaceTower(def, tileWorldPos, gridX, gridY);
+		mMoney -= def.Cost;
+		Console.WriteLine($"Placed {def.Name}! Money: ${mMoney}");
+	}
+
+	private Vector3 ScreenToWorld(float screenX, float screenY)
+	{
+		// Simple conversion for top-down camera
+		// Assumes camera is looking straight down at ground plane (Y=0)
+		let cameraComp = mCameraEntity.GetComponent<CameraComponent>();
+		if (cameraComp == null)
+			return .Zero;
+
+		// Normalize screen coordinates to -1..1
+		float ndcX = (2.0f * screenX / SwapChain.Width) - 1.0f;
+		float ndcY = 1.0f - (2.0f * screenY / SwapChain.Height);
+
+		// Calculate world position based on camera height and FOV
+		float fovY = Math.PI_f / 4.0f;
+		float aspect = (float)SwapChain.Width / (float)SwapChain.Height;
+		float halfHeight = mCameraHeight * Math.Tan(fovY / 2.0f);
+		float halfWidth = halfHeight * aspect;
+
+		float worldX = mCameraTargetX + ndcX * halfWidth;
+		float worldZ = mCameraTargetZ - ndcY * halfHeight;  // Negative because camera looks down
+
+		return .(worldX, 0, worldZ);
+	}
+
 	protected override void OnUpdate(float deltaTime, float totalTime)
 	{
 		// Auto-spawn enemies
@@ -310,6 +431,9 @@ class TowerDefenseGame : RHISampleApp
 				SpawnTestEnemy();
 			}
 		}
+
+		// Update tower system (targeting, firing, projectiles)
+		mTowerFactory.Update(deltaTime);
 
 		// Update engine context (handles entity sync, visibility culling, etc.)
 		mContext.Update(deltaTime);
@@ -378,6 +502,9 @@ class TowerDefenseGame : RHISampleApp
 
 		// Wait for GPU
 		Device.WaitIdle();
+
+		// Clean up tower factory (releases materials)
+		mTowerFactory?.Cleanup();
 
 		// Clean up enemy factory (releases materials)
 		mEnemyFactory?.Cleanup();
