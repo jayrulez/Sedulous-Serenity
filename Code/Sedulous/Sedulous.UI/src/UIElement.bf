@@ -166,6 +166,10 @@ public abstract class UIElement
 				mVisibility = value;
 				InvalidateMeasure();
 				InvalidateVisual();
+
+				// Parent also needs to remeasure when child visibility changes
+				// (especially Collapsed <-> Visible transitions)
+				mParent?.InvalidateMeasure();
 			}
 		}
 	}
