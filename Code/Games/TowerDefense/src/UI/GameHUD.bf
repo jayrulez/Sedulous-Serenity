@@ -18,8 +18,9 @@ delegate void GameActionDelegate();
 /// Displays money, lives, wave info, tower selection, and game state overlays.
 class GameHUD
 {
-	// Root UI element
-	private DockPanel mRoot ~ delete _;
+	// Root UI element - Grid allows full-screen overlays on top of HUD
+	private Grid mRoot ~ delete _;
+	private DockPanel mHudPanel;
 
 	// Top bar elements
 	private TextBlock mMoneyLabel;
@@ -63,16 +64,24 @@ class GameHUD
 
 	private void BuildUI()
 	{
-		mRoot = new DockPanel();
+		// Grid as root - allows full-screen overlays on top of HUD
+		mRoot = new Grid();
 		mRoot.Background = Color.Transparent;
-		// LastChildFill = true (default) - last child fills remaining center
+
+		// DockPanel for HUD elements (stretches to fill Grid)
+		mHudPanel = new DockPanel();
+		mHudPanel.Background = Color.Transparent;
+		mHudPanel.HorizontalAlignment = .Stretch;
+		mHudPanel.VerticalAlignment = .Stretch;
+		mHudPanel.LastChildFill = false;  // Don't fill center - just dock top/bottom
+		mRoot.AddChild(mHudPanel);
 
 		// === Top Bar (Money, Lives, Wave) ===
 		let topBar = new Border();
 		topBar.Background = Color(20, 25, 30, 220);
 		topBar.Height = 50;
 		topBar.Padding = Thickness(20, 10, 20, 10);
-		mRoot.SetDock(topBar, .Top);
+		mHudPanel.SetDock(topBar, .Top);
 
 		let topBarContent = new StackPanel();
 		topBarContent.Orientation = .Horizontal;
@@ -156,14 +165,14 @@ class GameHUD
 			topBarContent.AddChild(mStartWaveButton);
 		}
 
-		mRoot.AddChild(topBar);
+		mHudPanel.AddChild(topBar);
 
 		// === Bottom Tower Selection Panel ===
 		let bottomPanel = new Border();
 		bottomPanel.Background = Color(20, 25, 30, 220);
 		bottomPanel.Height = 80;
 		bottomPanel.Padding = Thickness(20, 10, 20, 10);
-		mRoot.SetDock(bottomPanel, .Bottom);
+		mHudPanel.SetDock(bottomPanel, .Bottom);
 
 		mTowerPanel = new StackPanel();
 		mTowerPanel.Orientation = .Horizontal;
@@ -179,12 +188,9 @@ class GameHUD
 		CreateTowerButton(3, "Mortar", "$200", Color(200, 80, 80));
 		CreateTowerButton(4, "SAM", "$250", Color(80, 200, 80));
 
-		mRoot.AddChild(bottomPanel);
+		mHudPanel.AddChild(bottomPanel);
 
-		// === Overlay Container (Grid allows overlays to stack) ===
-		// This is the last child of DockPanel, so it fills the center area
-		let overlayContainer = new Grid();
-		overlayContainer.Background = Color.Transparent;
+		// === Overlays (added to root Grid for full-screen coverage) ===
 
 		// === Game Over Overlay (hidden by default) ===
 		mGameOverOverlay = new Border();
@@ -216,7 +222,7 @@ class GameHUD
 		});
 		gameOverContent.AddChild(gameOverRestartBtn);
 
-		overlayContainer.AddChild(mGameOverOverlay);
+		mRoot.AddChild(mGameOverOverlay);
 
 		// === Victory Overlay (hidden by default) ===
 		mVictoryOverlay = new Border();
@@ -248,7 +254,7 @@ class GameHUD
 		});
 		victoryContent.AddChild(victoryRestartBtn);
 
-		overlayContainer.AddChild(mVictoryOverlay);
+		mRoot.AddChild(mVictoryOverlay);
 
 		// === Pause Overlay (hidden by default) ===
 		mPauseOverlay = new Border();
@@ -287,10 +293,7 @@ class GameHUD
 		});
 		pauseContent.AddChild(resumeBtn);
 
-		overlayContainer.AddChild(mPauseOverlay);
-
-		// Add overlay container as last child (fills center via LastChildFill)
-		mRoot.AddChild(overlayContainer);
+		mRoot.AddChild(mPauseOverlay);
 	}
 
 	private void CreateTowerButton(int32 index, StringView name, StringView cost, Color color)
