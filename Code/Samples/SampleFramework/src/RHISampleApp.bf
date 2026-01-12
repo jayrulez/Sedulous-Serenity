@@ -158,11 +158,14 @@ abstract class RHISampleApp
 			mLastFrameTime = currentTime;
 			mTotalTime = currentTime;
 
-			// Handle escape key
+			// Handle escape key - allow derived classes to override
 			if (mShell.InputManager.Keyboard.IsKeyPressed(.Escape))
 			{
-				mShell.RequestExit();
-				continue;
+				if (!OnEscapePressed())
+				{
+					mShell.RequestExit();
+					continue;
+				}
 			}
 
 			// Check for key presses and call OnKeyDown
@@ -237,6 +240,11 @@ abstract class RHISampleApp
 
 	/// Called when a key is pressed.
 	protected virtual void OnKeyDown(KeyCode key) { }
+
+	/// Called when the Escape key is pressed.
+	/// Return true if the application handled it (prevents default exit behavior).
+	/// Return false to allow the default behavior (exit application).
+	protected virtual bool OnEscapePressed() => false;
 
 	/// Called when the window is resized.
 	protected virtual void OnResize(uint32 width, uint32 height) { }
@@ -371,7 +379,7 @@ abstract class RHISampleApp
 			return false;
 		}
 
-		Console.WriteLine(scope $"{mConfig.Title} running. Press Escape to exit.");
+		Console.WriteLine(scope $"{mConfig.Title} running.");
 		return true;
 	}
 

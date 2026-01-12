@@ -12,12 +12,21 @@ using TowerDefense.Data;
 using TowerDefense.Components;
 using TowerDefense.Enemies;
 
+/// Delegate for tower fire events (for audio/effects).
+delegate void TowerFiredDelegate(TowerDefinition def, Vector3 position);
+
 /// Factory for creating and managing towers and projectiles.
 class TowerFactory
 {
 	private Scene mScene;
 	private RendererService mRendererService;
 	private EnemyFactory mEnemyFactory;
+
+	// Events
+	private EventAccessor<TowerFiredDelegate> mOnTowerFired = new .() ~ delete _;
+
+	/// Event fired when any tower fires (for audio/effects).
+	public EventAccessor<TowerFiredDelegate> OnTowerFired => mOnTowerFired;
 
 	// Shared meshes
 	private StaticMesh mTowerMesh ~ delete _;
@@ -199,6 +208,9 @@ class TowerFactory
 	private void OnTowerFire(TowerComponent tower, Entity target, Vector3 origin)
 	{
 		SpawnProjectile(origin, target, tower.GetDamage(), tower.Definition.ProjectileSpeed, tower.Definition.ProjectileColor);
+
+		// Notify external listeners (for audio/effects)
+		mOnTowerFired.[Friend]Invoke(tower.Definition, origin);
 	}
 
 	/// Spawns a projectile.

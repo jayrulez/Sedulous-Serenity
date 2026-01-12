@@ -11,6 +11,9 @@ using Sedulous.Renderer;
 using TowerDefense.Data;
 using TowerDefense.Components;
 
+/// Delegate for enemy death events with position (for audio).
+delegate void EnemyDeathAudioDelegate(Vector3 position);
+
 /// Factory for creating enemy entities.
 class EnemyFactory
 {
@@ -34,12 +37,16 @@ class EnemyFactory
 	// Event accessors
 	private EventAccessor<EnemyExitDelegate> mOnEnemyReachedExit = new .() ~ delete _;
 	private EventAccessor<EnemyKilledDelegate> mOnEnemyKilled = new .() ~ delete _;
+	private EventAccessor<EnemyDeathAudioDelegate> mOnEnemyDeathAudio = new .() ~ delete _;
 
 	/// Event fired when an enemy reaches the exit.
 	public EventAccessor<EnemyExitDelegate> OnEnemyReachedExit => mOnEnemyReachedExit;
 
 	/// Event fired when an enemy dies.
 	public EventAccessor<EnemyKilledDelegate> OnEnemyKilled => mOnEnemyKilled;
+
+	/// Event fired when an enemy dies (with position for audio).
+	public EventAccessor<EnemyDeathAudioDelegate> OnEnemyDeathAudio => mOnEnemyDeathAudio;
 
 	/// Number of active enemies.
 	public int32 ActiveEnemyCount => (.)mActiveEnemies.Count;
@@ -166,7 +173,11 @@ class EnemyFactory
 	/// Called when an enemy dies.
 	private void OnEnemyDeath(Entity entity, int32 reward)
 	{
+		// Capture position before removing enemy
+		let position = entity.Transform.WorldPosition;
+
 		mOnEnemyKilled.[Friend]Invoke(entity, reward);
+		mOnEnemyDeathAudio.[Friend]Invoke(position);
 		RemoveEnemy(entity);
 	}
 

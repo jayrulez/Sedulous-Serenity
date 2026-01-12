@@ -80,7 +80,7 @@ struct EnemyDefinition
 		Damage = 1,
 		Type = .Air,
 		Scale = 0.7f,
-		Color = .(0.3f, 0.3f, 0.7f, 1.0f)  // Blue
+		Color = .(1.0f, 0.9f, 0.2f, 1.0f)  // Yellow (air unit)
 	};
 
 	/// Creates a boss enemy definition.

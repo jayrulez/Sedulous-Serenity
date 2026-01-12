@@ -71,7 +71,10 @@ public class Button : ContentControl
 			UpdateControlState();
 
 			// Fire click if mouse is still over button
-			if (IsMouseOver && IsEnabled)
+			// Use bounds check instead of IsMouseOver because IsMouseOver is only true
+			// for the exact hovered element, not for parent elements when clicking on
+			// child content (e.g., text inside a button).
+			if (Bounds.Contains(args.ScreenX, args.ScreenY) && IsEnabled)
 			{
 				OnClick();
 			}
@@ -128,12 +131,34 @@ public class Button : ContentControl
 			state = (Sedulous.UI.ControlState)((int)state | (int)Sedulous.UI.ControlState.Disabled);
 		if (IsFocused)
 			state = (Sedulous.UI.ControlState)((int)state | (int)Sedulous.UI.ControlState.Focused);
-		if (IsMouseOver)
+		if (IsMouseOverOrDescendant())
 			state = (Sedulous.UI.ControlState)((int)state | (int)Sedulous.UI.ControlState.Hovered);
 		if (mIsPressed)
 			state = (Sedulous.UI.ControlState)((int)state | (int)Sedulous.UI.ControlState.Pressed);
 
 		ControlState = state;
+	}
+
+	/// Checks if the mouse is over this button or any of its descendants.
+	private bool IsMouseOverOrDescendant()
+	{
+		if (IsMouseOver)
+			return true;
+
+		// Check if the currently hovered element is a descendant of this button
+		let hovered = Context?.HoveredElement;
+		if (hovered == null)
+			return false;
+
+		// Walk up the parent chain to see if we're an ancestor
+		var current = hovered;
+		while (current != null)
+		{
+			if (current == this)
+				return true;
+			current = current.Parent;
+		}
+		return false;
 	}
 
 	protected override void OnRender(DrawContext drawContext)
