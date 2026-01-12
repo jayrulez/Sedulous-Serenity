@@ -24,6 +24,9 @@ class MapDefinition
 	/// Enemies follow these points from first to last.
 	public List<Vector3> Waypoints = new .() ~ delete _;
 
+	/// Wave definitions for this map.
+	public List<WaveDefinition> Waves = new .() ~ DeleteContainerAndItems!(_);
+
 	/// Starting money for the player.
 	public int32 StartingMoney = 200;
 

@@ -20,9 +20,10 @@ using TowerDefense.Maps;
 using TowerDefense.Enemies;
 using TowerDefense.Towers;
 using TowerDefense.Components;
+using TowerDefense.Systems;
 
 /// Tower Defense game main class.
-/// Phase 4: Tower System - Placeable towers that shoot enemies.
+/// Phase 5: Game Logic - Wave system and win/lose conditions.
 class TowerDefenseGame : RHISampleApp
 {
 	// Engine Core
@@ -50,7 +51,11 @@ class TowerDefenseGame : RHISampleApp
 	private TowerFactory mTowerFactory ~ delete _;
 	private int32 mSelectedTowerType = 0;  // 0=None, 1=Cannon, 2=Archer, 3=Frost, 4=Mortar, 5=SAM
 
+	// Wave system
+	private WaveSpawner mWaveSpawner ~ delete _;
+
 	// Game state
+	private GameState mGameState = .WaitingToStart;
 	private int32 mMoney = 200;
 	private int32 mLives = 20;
 	private int32 mEnemiesKilled = 0;
@@ -67,11 +72,6 @@ class TowerDefenseGame : RHISampleApp
 	// Current frame
 	private int32 mCurrentFrameIndex = 0;
 
-	// Spawn timer for testing
-	private float mSpawnTimer = 0.0f;
-	private float mSpawnInterval = 2.0f;
-	private bool mAutoSpawn = false;
-
 	public this() : base(.()
 		{
 			Title = "Tower Defense",
@@ -85,7 +85,7 @@ class TowerDefenseGame : RHISampleApp
 
 	protected override bool OnInitialize()
 	{
-		Console.WriteLine("=== Tower Defense - Phase 4: Tower System ===");
+		Console.WriteLine("=== Tower Defense - Phase 5: Game Logic ===");
 
 		// Create logger
 		mLogger = new DebugLogger(.Information);
@@ -125,6 +125,13 @@ class TowerDefenseGame : RHISampleApp
 		mTowerFactory = new TowerFactory(mScene, mRendererService, mEnemyFactory);
 		mTowerFactory.InitializeMaterials();
 
+		// Initialize wave spawner
+		mWaveSpawner = new WaveSpawner();
+		mWaveSpawner.OnWaveStarted.Subscribe(new => OnWaveStarted);
+		mWaveSpawner.OnWaveCompleted.Subscribe(new => OnWaveCompleted);
+		mWaveSpawner.OnAllWavesCompleted.Subscribe(new => OnAllWavesCompleted);
+		mWaveSpawner.OnSpawnEnemy.Subscribe(new => OnSpawnEnemyRequest);
+
 		// Create scene entities (light, camera)
 		CreateSceneEntities();
 
@@ -136,8 +143,10 @@ class TowerDefenseGame : RHISampleApp
 		Console.WriteLine("  WASD=Pan camera, QE=Zoom");
 		Console.WriteLine("  F1-F5=Select tower (Cannon/Archer/Frost/Mortar/SAM)");
 		Console.WriteLine("  Left Click=Place tower, Right Click=Cancel");
-		Console.WriteLine("  Space=Spawn enemy, T=Toggle auto-spawn");
-		Console.WriteLine($"Starting: Money=${mMoney}, Lives={mLives}");
+		Console.WriteLine("  Space=Start next wave");
+		Console.WriteLine("  R=Restart game");
+		Console.WriteLine($"Starting: Money=${mMoney}, Lives={mLives}, Waves={mWaveSpawner.TotalWaves}");
+		Console.WriteLine("Press SPACE to start Wave 1!");
 
 		return true;
 	}
@@ -230,13 +239,20 @@ class TowerDefenseGame : RHISampleApp
 		// Set up enemy factory with waypoints
 		mEnemyFactory.SetWaypoints(mCurrentMap.Waypoints);
 
+		// Set up wave spawner with map waves
+		mWaveSpawner.ClearWaves();
+		for (let wave in mCurrentMap.Waves)
+			mWaveSpawner.AddWave(wave);
+
 		// Initialize game state from map
 		mMoney = mCurrentMap.StartingMoney;
 		mLives = mCurrentMap.StartingLives;
+		mGameState = .WaitingToStart;
 
 		Console.WriteLine($"Map loaded: {mCurrentMap.Name}");
 		Console.WriteLine($"  Size: {mCurrentMap.Width}x{mCurrentMap.Height}");
 		Console.WriteLine($"  Waypoints: {mCurrentMap.Waypoints.Count}");
+		Console.WriteLine($"  Waves: {mCurrentMap.Waves.Count}");
 		Console.WriteLine($"  Starting money: {mCurrentMap.StartingMoney}");
 		Console.WriteLine($"  Starting lives: {mCurrentMap.StartingLives}");
 	}
@@ -314,34 +330,79 @@ class TowerDefenseGame : RHISampleApp
 			TryPlaceTower(mouse.X, mouse.Y);
 		}
 
-		// Spawn enemy with Space
+		// Start wave with Space
 		if (keyboard.IsKeyPressed(.Space))
 		{
-			SpawnTestEnemy();
+			TryStartNextWave();
 		}
 
-		// Toggle auto-spawn with T
-		if (keyboard.IsKeyPressed(.T))
+		// Restart game with R
+		if (keyboard.IsKeyPressed(.R))
 		{
-			mAutoSpawn = !mAutoSpawn;
-			Console.WriteLine($"Auto-spawn: {mAutoSpawn}");
+			RestartGame();
 		}
-
-		// Spawn different enemy types with 1-4
-		if (keyboard.IsKeyPressed(.Num1))
-			mEnemyFactory.SpawnEnemy(.BasicTank);
-		if (keyboard.IsKeyPressed(.Num2))
-			mEnemyFactory.SpawnEnemy(.FastTank);
-		if (keyboard.IsKeyPressed(.Num3))
-			mEnemyFactory.SpawnEnemy(.ArmoredTank);
-		if (keyboard.IsKeyPressed(.Num4))
-			mEnemyFactory.SpawnEnemy(.Helicopter);
 
 		UpdateCameraTransform();
 	}
 
+	private void TryStartNextWave()
+	{
+		// Can only start waves in WaitingToStart or WavePaused states
+		if (mGameState != .WaitingToStart && mGameState != .WavePaused)
+		{
+			if (mGameState == .WaveInProgress)
+				Console.WriteLine("Wave already in progress!");
+			else if (mGameState == .Victory)
+				Console.WriteLine("You already won! Press R to restart.");
+			else if (mGameState == .GameOver)
+				Console.WriteLine("Game over! Press R to restart.");
+			return;
+		}
+
+		if (mWaveSpawner.StartNextWave())
+		{
+			mGameState = .WaveInProgress;
+		}
+	}
+
+	private void RestartGame()
+	{
+		Console.WriteLine("\n=== RESTARTING GAME ===\n");
+
+		// Clear all enemies
+		mEnemyFactory.ClearAllEnemies();
+
+		// Clear all towers
+		mTowerFactory.ClearAll();
+
+		// Reset wave spawner
+		mWaveSpawner.Reset();
+
+		// Reload wave definitions
+		mWaveSpawner.ClearWaves();
+		for (let wave in mCurrentMap.Waves)
+			mWaveSpawner.AddWave(wave);
+
+		// Reset game state
+		mMoney = mCurrentMap.StartingMoney;
+		mLives = mCurrentMap.StartingLives;
+		mEnemiesKilled = 0;
+		mGameState = .WaitingToStart;
+		mSelectedTowerType = 0;
+
+		Console.WriteLine($"Game restarted! Money=${mMoney}, Lives={mLives}");
+		Console.WriteLine("Press SPACE to start Wave 1!");
+	}
+
 	private void SelectTower(int32 type, TowerDefinition def)
 	{
+		// Can't place towers during victory/game over
+		if (mGameState == .Victory || mGameState == .GameOver)
+		{
+			Console.WriteLine("Press R to restart the game first!");
+			return;
+		}
+
 		mSelectedTowerType = type;
 		Console.WriteLine($"Selected: {def.Name} (${def.Cost})");
 	}
@@ -421,15 +482,11 @@ class TowerDefenseGame : RHISampleApp
 
 	protected override void OnUpdate(float deltaTime, float totalTime)
 	{
-		// Auto-spawn enemies
-		if (mAutoSpawn && mLives > 0)
+		// Only update game logic if not in victory/game over
+		if (mGameState == .WaveInProgress)
 		{
-			mSpawnTimer += deltaTime;
-			if (mSpawnTimer >= mSpawnInterval)
-			{
-				mSpawnTimer = 0.0f;
-				SpawnTestEnemy();
-			}
+			// Update wave spawner
+			mWaveSpawner.Update(deltaTime);
 		}
 
 		// Update tower system (targeting, firing, projectiles)
@@ -439,37 +496,70 @@ class TowerDefenseGame : RHISampleApp
 		mContext.Update(deltaTime);
 	}
 
-	private void SpawnTestEnemy()
+	// Wave event handlers
+	private void OnWaveStarted(int32 waveNumber)
 	{
-		// Randomly select an enemy type
-		int32 roll = (int32)(TotalTime * 1000) % 4;
-		EnemyDefinition def;
-		switch (roll)
-		{
-		case 0: def = .BasicTank;
-		case 1: def = .FastTank;
-		case 2: def = .ArmoredTank;
-		default: def = .BasicTank;
-		}
+		Console.WriteLine($"\n=== WAVE {waveNumber}/{mWaveSpawner.TotalWaves} ===");
+	}
 
+	private void OnWaveCompleted(int32 waveNumber, int32 bonusReward)
+	{
+		mMoney += bonusReward;
+		Console.WriteLine($"Wave {waveNumber} complete! Bonus: +${bonusReward} (Total: ${mMoney})");
+
+		// Check if more waves remain
+		if (waveNumber < mWaveSpawner.TotalWaves)
+		{
+			mGameState = .WavePaused;
+			Console.WriteLine($"Press SPACE for Wave {waveNumber + 1}!");
+		}
+	}
+
+	private void OnAllWavesCompleted()
+	{
+		mGameState = .Victory;
+		Console.WriteLine("\n=== VICTORY! ===");
+		Console.WriteLine($"Final Score: Kills={mEnemiesKilled}, Money=${mMoney}");
+		Console.WriteLine("Press R to play again!");
+	}
+
+	private void OnSpawnEnemyRequest(EnemyPreset preset)
+	{
+		// Convert preset to definition and spawn
+		EnemyDefinition def;
+		switch (preset)
+		{
+		case .BasicTank: def = .BasicTank;
+		case .FastTank: def = .FastTank;
+		case .ArmoredTank: def = .ArmoredTank;
+		case .Helicopter: def = .Helicopter;
+		case .BossTank: def = .BossTank;
+		}
 		mEnemyFactory.SpawnEnemy(def);
-		Console.WriteLine($"Spawned {def.Name}. Active enemies: {mEnemyFactory.ActiveEnemyCount}");
 	}
 
 	private void OnEnemyReachedExit(EnemyComponent enemy)
 	{
+		// Notify wave spawner
+		mWaveSpawner.OnEnemyRemoved();
+
 		mLives -= enemy.Definition.Damage;
 		Console.WriteLine($"Enemy reached exit! Lives: {mLives}");
 
 		if (mLives <= 0)
 		{
-			Console.WriteLine("=== GAME OVER ===");
-			mAutoSpawn = false;
+			mGameState = .GameOver;
+			Console.WriteLine("\n=== GAME OVER ===");
+			Console.WriteLine($"You survived {mWaveSpawner.CurrentWaveNumber - 1} waves. Kills: {mEnemiesKilled}");
+			Console.WriteLine("Press R to try again!");
 		}
 	}
 
 	private void OnEnemyKilled(Entity enemy, int32 reward)
 	{
+		// Notify wave spawner
+		mWaveSpawner.OnEnemyRemoved();
+
 		mMoney += reward;
 		mEnemiesKilled++;
 		Console.WriteLine($"Enemy killed! +${reward} (Total: ${mMoney}, Kills: {mEnemiesKilled})");

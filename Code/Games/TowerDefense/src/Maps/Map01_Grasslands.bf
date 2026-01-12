@@ -55,6 +55,15 @@ static class Map01_Grasslands
 		map.Waypoints.Add(map.GridToWorld(10, 5));  // Near exit
 		map.Waypoints.Add(map.GridToWorld(12, 5)); // Exit (off-grid right)
 
+		// Add wave definitions
+		map.Waves.Add(WaveDefinition.CreateWave1());  // Introduction
+		map.Waves.Add(WaveDefinition.CreateWave2());  // More enemies
+		map.Waves.Add(WaveDefinition.CreateWave3());  // Introduce fast tanks
+		map.Waves.Add(WaveDefinition.CreateWave4());  // Mixed assault
+		map.Waves.Add(WaveDefinition.CreateWave5());  // Air attack
+		map.Waves.Add(WaveDefinition.CreateWave6());  // Heavy assault
+		map.Waves.Add(WaveDefinition.CreateWave7());  // Boss wave
+
 		return map;
 	}
 }

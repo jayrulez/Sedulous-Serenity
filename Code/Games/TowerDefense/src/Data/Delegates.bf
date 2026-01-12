@@ -21,3 +21,15 @@ delegate void TowerFireDelegate(TowerComponent tower, Entity target, Vector3 ori
 
 /// Delegate for projectile hit events.
 delegate void ProjectileHitDelegate(Entity projectile, Entity target);
+
+/// Delegate for wave started events.
+delegate void WaveStartedDelegate(int32 waveNumber);
+
+/// Delegate for wave completed events.
+delegate void WaveCompletedDelegate(int32 waveNumber, int32 bonusReward);
+
+/// Delegate for all waves completed event.
+delegate void AllWavesCompletedDelegate();
+
+/// Delegate for spawn enemy request.
+delegate void SpawnEnemyDelegate(EnemyPreset enemyType);
