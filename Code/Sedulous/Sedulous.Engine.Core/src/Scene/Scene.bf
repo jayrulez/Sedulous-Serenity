@@ -11,7 +11,7 @@ class Scene : ISerializable
 {
 	private String mName ~ delete _;
 	private SceneState mState = .Unloaded;
-	private EntityManager mEntityManager ~ delete _;
+	private EntityManager mEntityManager;  // Deleted in destructor (before scene components)
 	private ComponentRegistry mComponentRegistry;
 	private Context mContext;
 	private List<ISceneComponent> mSceneComponents = new .();
@@ -19,8 +19,12 @@ class Scene : ISerializable
 
 	public ~this()
 	{
-		// Call OnDetach on all scene components before deleting them
-		// This ensures proper cleanup of GPU resources etc.
+		// IMPORTANT: Delete entities FIRST, before scene components
+		// Entity components (like StaticMeshComponent, LightComponent) reference
+		// scene components (like RenderSceneComponent) in their OnDetach().
+		delete mEntityManager;
+
+		// Now safe to delete scene components
 		for (let component in mSceneComponents)
 		{
 			component.OnDetach();
@@ -137,21 +141,18 @@ class Scene : ISerializable
 	}
 
 	/// Updates the scene.
+	/// Entity deletions during update are deferred until end of frame.
 	public void Update(float deltaTime)
 	{
 		if (mState != .Active)
 			return;
 
-		// Update entity transforms first so scene components have valid world matrices
-		mEntityManager.UpdateTransforms();
-
 		// Update scene components (e.g., RenderSceneComponent syncs entity transforms to proxies)
 		for (let component in mSceneComponents)
 			component.OnUpdate(deltaTime);
 
-		// Update entity components (after transforms are synced to rendering)
-		for (let entity in mEntityManager)
-			entity.Update(deltaTime);
+		// Update entities (handles transforms, components, and deferred deletions)
+		mEntityManager.Update(deltaTime);
 	}
 
 	// ISerializable implementation

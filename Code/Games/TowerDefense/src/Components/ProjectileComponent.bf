@@ -12,8 +12,8 @@ class ProjectileComponent : IEntityComponent
 {
 	private Entity mEntity;
 
-	/// Target entity to track.
-	public Entity Target;
+	/// Target entity ID to track.
+	public EntityId TargetId = .Invalid;
 
 	/// Damage dealt on hit.
 	public float Damage;
@@ -45,6 +45,21 @@ class ProjectileComponent : IEntityComponent
 	/// Event fired when projectile hits a target.
 	public EventAccessor<ProjectileHitDelegate> OnHit => mOnHit;
 
+	/// Gets the target entity (may be null if deleted or invalid).
+	public Entity Target
+	{
+		get
+		{
+			if (!TargetId.IsValid || mEntity == null)
+				return null;
+			return mEntity.Scene?.GetEntity(TargetId);
+		}
+		set
+		{
+			TargetId = value?.Id ?? .Invalid;
+		}
+	}
+
 	/// Creates a new ProjectileComponent.
 	public this()
 	{
@@ -68,7 +83,7 @@ class ProjectileComponent : IEntityComponent
 	public void OnDetach()
 	{
 		mEntity = null;
-		Target = null;
+		TargetId = .Invalid;
 	}
 
 	public void OnUpdate(float deltaTime)
@@ -87,21 +102,21 @@ class ProjectileComponent : IEntityComponent
 		// Get current position
 		let currentPos = mEntity.Transform.WorldPosition;
 
+		// Get target entity (lookup via EntityId - returns null if deleted)
+		let target = Target;
+
 		// Determine movement direction
 		Vector3 moveDir;
 		Vector3 targetPos;
 
-		if (IsHoming && Target != null)
+		if (IsHoming && target != null)
 		{
-			// Track target
-			targetPos = Target.Transform.WorldPosition;
-			moveDir = targetPos - currentPos;
-
 			// Check if target is still valid
-			let enemyComp = Target.GetComponent<EnemyComponent>();
+			let enemyComp = target.GetComponent<EnemyComponent>();
 			if (enemyComp == null || !enemyComp.IsActive)
 			{
 				// Target lost - continue in last direction or destroy
+				TargetId = .Invalid;
 				if (Direction.LengthSquared() > 0.001f)
 				{
 					IsHoming = false;
@@ -111,6 +126,15 @@ class ProjectileComponent : IEntityComponent
 					HasHit = true;
 					return;
 				}
+				// Fall through to non-homing movement
+				moveDir = Direction;
+				targetPos = currentPos + Direction * 100.0f;
+			}
+			else
+			{
+				// Track target
+				targetPos = target.Transform.WorldPosition;
+				moveDir = targetPos - currentPos;
 			}
 		}
 		else
@@ -122,28 +146,25 @@ class ProjectileComponent : IEntityComponent
 
 		float distanceToTarget = moveDir.Length();
 
-		// Check for hit
-		if (distanceToTarget <= HitRadius)
+		// Check for hit (only if we still have a valid target)
+		if (distanceToTarget <= HitRadius && target != null)
 		{
-			if (Target != null)
-			{
-				HasHit = true;
-				mOnHit.[Friend]Invoke(mEntity, Target);
-			}
+			HasHit = true;
+			mOnHit.[Friend]Invoke(mEntity, target);
 			return;
 		}
 
 		// Move toward target
-		moveDir = Vector3.Normalize(moveDir);
-		Direction = moveDir;  // Store for non-homing fallback
-
-		float moveDistance = Speed * deltaTime;
-		let newPos = currentPos + moveDir * moveDistance;
-		mEntity.Transform.SetPosition(newPos);
-
-		// Face movement direction
-		if (moveDir.LengthSquared() > 0.001f)
+		if (distanceToTarget > 0.001f)
 		{
+			moveDir = Vector3.Normalize(moveDir);
+			Direction = moveDir;  // Store for non-homing fallback
+
+			float moveDistance = Speed * deltaTime;
+			let newPos = currentPos + moveDir * moveDistance;
+			mEntity.Transform.SetPosition(newPos);
+
+			// Face movement direction
 			float angle = Math.Atan2(moveDir.X, moveDir.Z);
 			mEntity.Transform.SetRotation(Quaternion.CreateFromAxisAngle(.(0, 1, 0), angle));
 		}

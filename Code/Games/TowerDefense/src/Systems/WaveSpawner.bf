@@ -8,8 +8,8 @@ using TowerDefense.Data;
 /// Manages wave spawning and progression.
 class WaveSpawner
 {
-	// Wave definitions
-	private List<WaveDefinition> mWaves ~ DeleteContainerAndItems!(_);
+	// Wave definitions (not owned - just references to map's waves)
+	private List<WaveDefinition> mWaves ~ delete _;
 
 	// Current state
 	private int32 mCurrentWaveIndex = -1;
@@ -69,11 +69,10 @@ class WaveSpawner
 		mWaves.Add(wave);
 	}
 
-	/// Clears all wave definitions.
+	/// Clears all wave definitions (does not delete them - they're owned by map).
 	public void ClearWaves()
 	{
-		DeleteContainerAndItems!(mWaves);
-		mWaves = new .();
+		mWaves.Clear();
 		mCurrentWaveIndex = -1;
 	}
 

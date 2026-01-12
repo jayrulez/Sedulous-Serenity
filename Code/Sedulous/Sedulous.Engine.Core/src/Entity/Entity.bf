@@ -12,7 +12,16 @@ class Entity
 	private String mName ~ delete _;
 	private EntityId mParentId = .Invalid;
 	private List<EntityId> mChildIds = new .() ~ delete _;
-	private List<IEntityComponent> mComponents = new .() ~ DeleteContainerAndItems!(_);
+	private List<IEntityComponent> mComponents = new .();
+
+	public ~this()
+	{
+		// Call OnDetach on all components before deleting them
+		// This ensures proper cleanup (e.g., render proxy removal)
+		for (let component in mComponents)
+			component.OnDetach();
+		DeleteContainerAndItems!(mComponents);
+	}
 
 	/// The entity's transform (position, rotation, scale).
 	public Transform Transform = .Identity;

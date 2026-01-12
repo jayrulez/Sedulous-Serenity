@@ -587,20 +587,17 @@ class TowerDefenseGame : RHISampleApp
 	{
 		Console.WriteLine("Cleaning up...");
 
-		// Shutdown context
-		mContext?.Shutdown();
+		// Clean up game objects BEFORE context shutdown (while scene is still valid)
+		// This allows entity components to properly clean up render proxies etc.
+		mTowerFactory?.Cleanup();
+		mEnemyFactory?.Cleanup();
+		mMapBuilder?.Cleanup();
 
-		// Wait for GPU
+		// Wait for GPU before destroying renderer resources
 		Device.WaitIdle();
 
-		// Clean up tower factory (releases materials)
-		mTowerFactory?.Cleanup();
-
-		// Clean up enemy factory (releases materials)
-		mEnemyFactory?.Cleanup();
-
-		// Clean up map builder (releases materials)
-		mMapBuilder?.Cleanup();
+		// Shutdown context (destroys scenes)
+		mContext?.Shutdown();
 
 		// Delete services (in reverse order)
 		delete mAudioService;

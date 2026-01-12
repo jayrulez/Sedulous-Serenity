@@ -12,6 +12,8 @@ class EntityManager
 	private List<Entity> mEntities = new .() ~ DeleteContainerAndItems!(_);
 	private List<uint32> mGenerations = new .() ~ delete _;
 	private List<uint32> mFreeIndices = new .() ~ delete _;
+	private List<EntityId> mPendingDeletions = new .() ~ delete _;
+	private bool mIsUpdating = false;
 	private uint32 mNextIndex = 1; // 0 is reserved for invalid
 
 	/// Gets the number of active entities.
@@ -55,8 +57,27 @@ class EntityManager
 	}
 
 	/// Destroys an entity by its ID.
-	/// Returns true if the entity was destroyed.
+	/// If called during Update, deletion is deferred until end of frame.
+	/// Returns true if the entity will be destroyed (or was destroyed immediately).
 	public bool DestroyEntity(EntityId id)
+	{
+		if (!IsValid(id))
+			return false;
+
+		// If we're in the middle of updating, defer the deletion
+		if (mIsUpdating)
+		{
+			// Check if already pending
+			if (!mPendingDeletions.Contains(id))
+				mPendingDeletions.Add(id);
+			return true;
+		}
+
+		return DestroyEntityImmediate(id);
+	}
+
+	/// Immediately destroys an entity (internal use).
+	private bool DestroyEntityImmediate(EntityId id)
 	{
 		if (!IsValid(id))
 			return false;
@@ -76,7 +97,7 @@ class EntityManager
 		List<EntityId> childrenToDestroy = scope .();
 		childrenToDestroy.AddRange(entity.ChildIds);
 		for (let childId in childrenToDestroy)
-			DestroyEntity(childId);
+			DestroyEntityImmediate(childId);
 
 		// Clean up entity
 		delete entity;
@@ -87,6 +108,15 @@ class EntityManager
 		mFreeIndices.Add(id.Index);
 
 		return true;
+	}
+
+	/// Flushes all pending entity deletions.
+	/// Called automatically at the end of Update.
+	public void FlushPendingDeletions()
+	{
+		for (let id in mPendingDeletions)
+			DestroyEntityImmediate(id);
+		mPendingDeletions.Clear();
 	}
 
 	/// Gets an entity by its ID.
@@ -163,15 +193,22 @@ class EntityManager
 	}
 
 	/// Updates all entities.
+	/// Entity deletions during update are deferred until end of frame.
 	public void Update(float deltaTime)
 	{
 		UpdateTransforms();
 
+		mIsUpdating = true;
 		for (let entity in mEntities)
 		{
-			if (entity != null)
+			// Check entity is still valid (may have been marked for deletion)
+			if (entity != null && !mPendingDeletions.Contains(entity.Id))
 				entity.Update(deltaTime);
 		}
+		mIsUpdating = false;
+
+		// Process deferred deletions
+		FlushPendingDeletions();
 	}
 
 	/// Gets an enumerator over all valid entities.

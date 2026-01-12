@@ -19,8 +19,8 @@ class TowerComponent : IEntityComponent
 	/// Current upgrade level (1 = base).
 	public int32 Level = 1;
 
-	/// Current target entity (may be null).
-	public Entity CurrentTarget;
+	/// Current target entity ID (use GetCurrentTarget() to get entity).
+	public EntityId CurrentTargetId = .Invalid;
 
 	/// Time until next shot is ready.
 	public float FireCooldown = 0.0f;
@@ -34,6 +34,21 @@ class TowerComponent : IEntityComponent
 
 	/// Event fired when tower shoots at a target.
 	public EventAccessor<TowerFireDelegate> OnFire => mOnFire;
+
+	/// Gets the current target entity (may be null if deleted or invalid).
+	public Entity CurrentTarget
+	{
+		get
+		{
+			if (!CurrentTargetId.IsValid || mEntity == null)
+				return null;
+			return mEntity.Scene?.GetEntity(CurrentTargetId);
+		}
+		set
+		{
+			CurrentTargetId = value?.Id ?? .Invalid;
+		}
+	}
 
 	/// Creates a new TowerComponent.
 	public this()
@@ -117,12 +132,13 @@ class TowerComponent : IEntityComponent
 	/// Returns true if a shot was fired.
 	public bool TryFire()
 	{
-		if (FireCooldown > 0 || CurrentTarget == null || mEntity == null)
+		let target = CurrentTarget;
+		if (FireCooldown > 0 || target == null || mEntity == null)
 			return false;
 
-		if (!IsValidTarget(CurrentTarget))
+		if (!IsValidTarget(target))
 		{
-			CurrentTarget = null;
+			CurrentTargetId = .Invalid;
 			return false;
 		}
 
@@ -134,18 +150,18 @@ class TowerComponent : IEntityComponent
 		let towerPos = mEntity.Transform.WorldPosition;
 		let spawnPos = Vector3(towerPos.X, towerPos.Y + Definition.Scale, towerPos.Z);
 
-		mOnFire.[Friend]Invoke(this, CurrentTarget, spawnPos);
+		mOnFire.[Friend]Invoke(this, target, spawnPos);
 		return true;
 	}
 
 	/// Rotates tower to face current target.
-	private void FaceTarget()
+	private void FaceTarget(Entity target)
 	{
-		if (CurrentTarget == null || mEntity == null)
+		if (target == null || mEntity == null)
 			return;
 
 		let towerPos = mEntity.Transform.WorldPosition;
-		let targetPos = CurrentTarget.Transform.WorldPosition;
+		let targetPos = target.Transform.WorldPosition;
 
 		// Calculate direction (XZ plane only for Y-axis rotation)
 		let direction = targetPos - towerPos;
@@ -166,7 +182,7 @@ class TowerComponent : IEntityComponent
 	public void OnDetach()
 	{
 		mEntity = null;
-		CurrentTarget = null;
+		CurrentTargetId = .Invalid;
 	}
 
 	public void OnUpdate(float deltaTime)
@@ -175,9 +191,10 @@ class TowerComponent : IEntityComponent
 		if (FireCooldown > 0)
 			FireCooldown -= deltaTime;
 
-		// Face target
-		if (CurrentTarget != null)
-			FaceTarget();
+		// Face target (lookup once via EntityId)
+		let target = CurrentTarget;
+		if (target != null)
+			FaceTarget(target);
 	}
 
 	// ==================== ISerializable Implementation ====================
