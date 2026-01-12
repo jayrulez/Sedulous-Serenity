@@ -121,52 +121,46 @@ class SDL3AudioSystem : IAudioSystem
 		}
 	}
 
-	public void PlayOneShot(IAudioClip clip, float volume)
+	public void PlayOneShot(AudioClip clip, float volume)
 	{
 		if (mDeviceId == 0)
 			return;
 
-		if (let sdlClip = clip as SDL3AudioClip)
+		if (clip != null && clip.IsLoaded)
 		{
-			if (sdlClip.IsLoaded)
-			{
-				let source = new SDL3AudioSource(mDeviceId);
-				source.IsOneShot = true;
-				source.SetMasterVolume(mMasterVolume);
-				source.Volume = volume;
-				source.Play(clip);
-				mOneShotSources.Add(source);
-			}
+			let source = new SDL3AudioSource(mDeviceId);
+			source.IsOneShot = true;
+			source.SetMasterVolume(mMasterVolume);
+			source.Volume = volume;
+			source.Play(clip);
+			mOneShotSources.Add(source);
 		}
 	}
 
-	public void PlayOneShot3D(IAudioClip clip, Vector3 position, float volume)
+	public void PlayOneShot3D(AudioClip clip, Vector3 position, float volume)
 	{
 		if (mDeviceId == 0)
 			return;
 
-		if (let sdlClip = clip as SDL3AudioClip)
+		if (clip != null && clip.IsLoaded)
 		{
-			if (sdlClip.IsLoaded)
-			{
-				let source = new SDL3AudioSource(mDeviceId);
-				source.IsOneShot = true;
-				source.SetMasterVolume(mMasterVolume);
-				source.Volume = volume;
-				source.Position = position;
+			let source = new SDL3AudioSource(mDeviceId);
+			source.IsOneShot = true;
+			source.SetMasterVolume(mMasterVolume);
+			source.Volume = volume;
+			source.Position = position;
 
-				// Calculate initial 3D parameters before playing
-				source.Update3D(mListener);
+			// Calculate initial 3D parameters before playing
+			source.Update3D(mListener);
 
-				// Play (will apply 3D panning in the first chunk)
-				source.Play(clip);
+			// Play (will apply 3D panning in the first chunk)
+			source.Play(clip);
 
-				mOneShotSources.Add(source);
-			}
+			mOneShotSources.Add(source);
 		}
 	}
 
-	public Result<IAudioClip> LoadClip(Span<uint8> data)
+	public Result<AudioClip> LoadClip(Span<uint8> data)
 	{
 		if (mDeviceId == 0)
 			return .Err;
@@ -187,7 +181,29 @@ class SDL3AudioSystem : IAudioSystem
 			return .Err;
 		}
 
-		return .Ok(new SDL3AudioClip(audioData, audioLen, spec));
+		// Convert SDL format to our AudioFormat
+		AudioFormat format;
+		switch (spec.format)
+		{
+		case .SDL_AUDIO_S16:
+			format = .Int16;
+		case .SDL_AUDIO_S32:
+			format = .Int32;
+		case .SDL_AUDIO_F32:
+			format = .Float32;
+		default:
+			// Unsupported format - free SDL memory and return error
+			SDL3.SDL_free(audioData);
+			LogError("Unsupported audio format");
+			return .Err;
+		}
+
+		// Copy data to our buffer (SDL uses SDL_free, we use delete)
+		uint8* ourData = new uint8[audioLen]*;
+		Internal.MemCpy(ourData, audioData, audioLen);
+		SDL3.SDL_free(audioData);
+
+		return .Ok(new AudioClip(ourData, audioLen, spec.freq, (.)spec.channels, format, ownsData: true));
 	}
 
 	public Result<IAudioStream> OpenStream(StringView filePath)

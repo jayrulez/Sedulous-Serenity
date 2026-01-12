@@ -10,7 +10,8 @@ class SDL3AudioSource : IAudioSource
 {
 	private SDL_AudioStream* mStream;
 	private SDL_AudioDeviceID mDeviceId;
-	private SDL3AudioClip mCurrentClip;
+	private AudioClip mCurrentClip;
+	private SDL_AudioFormat mClipFormat;
 	private AudioSourceState mState = .Stopped;
 	private float mVolume = 1.0f;
 	private float mPitch = 1.0f;
@@ -96,10 +97,15 @@ class SDL3AudioSource : IAudioSource
 		set => mMaxDistance = Math.Max(value, mMinDistance);
 	}
 
-	public void Play(IAudioClip clip)
+	public void Play(AudioClip clip)
 	{
-		mCurrentClip = clip as SDL3AudioClip;
+		mCurrentClip = clip;
 		if (mCurrentClip == null || !mCurrentClip.IsLoaded)
+			return;
+
+		// Convert AudioFormat to SDL_AudioFormat
+		mClipFormat = AudioFormatToSDL(mCurrentClip.Format);
+		if (mClipFormat == .SDL_AUDIO_UNKNOWN)
 			return;
 
 		// Destroy existing stream
@@ -114,7 +120,7 @@ class SDL3AudioSource : IAudioSource
 		SDL_AudioSpec outputSpec = .();
 		outputSpec.format = .SDL_AUDIO_S16;
 		outputSpec.channels = 2;  // Always stereo for 3D panning
-		outputSpec.freq = mCurrentClip.Spec.freq;
+		outputSpec.freq = mCurrentClip.SampleRate;
 
 		mStream = SDL3.SDL_CreateAudioStream(&outputSpec, &deviceSpec);
 		if (mStream == null)
@@ -226,7 +232,7 @@ class SDL3AudioSource : IAudioSource
 		}
 
 		// Check if we've finished playing
-		if (mPlaybackPosition >= mCurrentClip.AudioLen && SDL3.SDL_GetAudioStreamQueued(mStream) <= 0)
+		if (mPlaybackPosition >= (uint32)mCurrentClip.DataLength && SDL3.SDL_GetAudioStreamQueued(mStream) <= 0)
 		{
 			if (mLoop)
 			{
@@ -247,12 +253,11 @@ class SDL3AudioSource : IAudioSource
 			return;
 
 		// Calculate how many bytes to read from source
-		let remainingBytes = mCurrentClip.AudioLen - mPlaybackPosition;
+		let remainingBytes = (uint32)mCurrentClip.DataLength - mPlaybackPosition;
 		if (remainingBytes == 0)
 			return;
 
-		let srcSpec = mCurrentClip.Spec;
-		let srcFrameSize = SDL3.SDL_AUDIO_FRAMESIZE(srcSpec);
+		let srcFrameSize = (uint32)mCurrentClip.BytesPerFrame;
 		if (srcFrameSize == 0)
 			return;
 
@@ -263,7 +268,7 @@ class SDL3AudioSource : IAudioSource
 		if (bytesToRead == 0)
 			return;
 
-		let srcData = mCurrentClip.AudioData + mPlaybackPosition;
+		let srcData = mCurrentClip.Data + mPlaybackPosition;
 		let numFrames = (int32)(bytesToRead / srcFrameSize);
 
 		// Calculate gains
@@ -280,17 +285,17 @@ class SDL3AudioSource : IAudioSource
 		// Process audio based on source format
 		int32 outputBytes = 0;
 
-		if (srcSpec.channels == 1)
+		if (mCurrentClip.Channels == 1)
 		{
 			// Mono source -> stereo with panning
-			outputBytes = ProcessMonoToStereo(srcData, numFrames, srcSpec.format, leftGain, rightGain);
+			outputBytes = ProcessMonoToStereo(srcData, numFrames, mClipFormat, leftGain, rightGain);
 		}
-		else if (srcSpec.channels == 2)
+		else if (mCurrentClip.Channels == 2)
 		{
 			// Stereo source -> apply gains to existing channels
-			outputBytes = ProcessStereo(srcData, numFrames, srcSpec.format, leftGain, rightGain);
+			outputBytes = ProcessStereo(srcData, numFrames, mClipFormat, leftGain, rightGain);
 		}
-			else
+		else
 		{
 			// Other channel counts: just use distance attenuation, no panning
 			// Feed directly with simple gain (less accurate but handles edge cases)
@@ -414,6 +419,20 @@ class SDL3AudioSource : IAudioSource
 			SDL3.SDL_UnbindAudioStream(mStream);
 			SDL3.SDL_DestroyAudioStream(mStream);
 			mStream = null;
+		}
+	}
+
+	/// Converts Sedulous AudioFormat to SDL_AudioFormat.
+	private static SDL_AudioFormat AudioFormatToSDL(AudioFormat format)
+	{
+		switch (format)
+		{
+		case .Int16:
+			return .SDL_AUDIO_S16;
+		case .Int32:
+			return .SDL_AUDIO_S32;
+		case .Float32:
+			return .SDL_AUDIO_F32;
 		}
 	}
 }

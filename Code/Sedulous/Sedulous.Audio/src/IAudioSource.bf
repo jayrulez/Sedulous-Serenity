@@ -29,7 +29,7 @@ interface IAudioSource
 	float MaxDistance { get; set; }
 
 	/// Plays the specified audio clip from the beginning.
-	void Play(IAudioClip clip);
+	void Play(AudioClip clip);
 
 	/// Pauses the currently playing audio.
 	void Pause();

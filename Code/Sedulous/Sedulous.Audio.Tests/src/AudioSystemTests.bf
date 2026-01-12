@@ -339,7 +339,7 @@ class AudioClipTests
 		switch (system.LoadClip(Span<uint8>(wavData.Ptr, wavData.Count)))
 		{
 		case .Ok(let clip):
-			// Test all IAudioClip properties
+			// Test all AudioClip properties
 			Test.Assert(clip.Duration > 0);
 			Test.Assert(clip.SampleRate > 0);
 			Test.Assert(clip.Channels > 0);

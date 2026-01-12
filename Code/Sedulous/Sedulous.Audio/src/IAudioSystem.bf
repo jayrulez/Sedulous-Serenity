@@ -22,13 +22,13 @@ interface IAudioSystem : IDisposable
 	void DestroySource(IAudioSource source);
 
 	/// Plays an audio clip with fire-and-forget semantics (no source management needed).
-	void PlayOneShot(IAudioClip clip, float volume = 1.0f);
+	void PlayOneShot(AudioClip clip, float volume = 1.0f);
 
 	/// Plays an audio clip at a 3D position with fire-and-forget semantics.
-	void PlayOneShot3D(IAudioClip clip, Vector3 position, float volume = 1.0f);
+	void PlayOneShot3D(AudioClip clip, Vector3 position, float volume = 1.0f);
 
 	/// Loads an audio clip from raw audio file data (WAV format).
-	Result<IAudioClip> LoadClip(Span<uint8> data);
+	Result<AudioClip> LoadClip(Span<uint8> data);
 
 	/// Opens an audio stream from a file path for streaming playback.
 	/// Use this for music and long audio files that shouldn't be loaded entirely into memory.

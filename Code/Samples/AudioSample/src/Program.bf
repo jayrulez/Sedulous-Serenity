@@ -70,7 +70,7 @@ class Program
 
 		// Load clip
 		Console.WriteLine("Loading audio clip...");
-		IAudioClip clip = null;
+		AudioClip clip = null;
 
 		switch (audioSystem.LoadClip(Span<uint8>(wavData.Ptr, wavData.Count)))
 		{
