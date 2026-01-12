@@ -3,6 +3,7 @@ namespace Sedulous.Renderer;
 using System;
 using System.Collections;
 using Sedulous.RHI;
+using Sedulous.RHI.HLSLShaderCompiler;
 using Sedulous.Mathematics;
 
 /// Manages materials and material instances for rendering.

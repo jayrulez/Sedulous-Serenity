@@ -4,6 +4,7 @@ using System;
 using System.Collections;
 using Sedulous.Mathematics;
 using Sedulous.RHI;
+using Sedulous.RHI.HLSLShaderCompiler;
 
 /// Stateless rendering orchestrator. Shared across all scenes.
 /// Given a RenderContext, performs all rendering operations.

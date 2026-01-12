@@ -6,6 +6,7 @@ using Sedulous.RHI;
 using Sedulous.Mathematics;
 using Sedulous.Engine.Renderer;
 using Sedulous.Renderer;
+using Sedulous.RHI.HLSLShaderCompiler;
 using Sedulous.Shell.Input;
 using SampleFramework;
 

@@ -3,6 +3,7 @@ namespace Sedulous.Renderer;
 using System;
 using System.Collections;
 using Sedulous.RHI;
+using Sedulous.RHI.HLSLShaderCompiler;
 
 /// Key identifying a unique pipeline configuration.
 struct PipelineKey : IEquatable<PipelineKey>, IHashable

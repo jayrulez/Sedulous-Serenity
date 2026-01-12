@@ -1,10 +1,9 @@
-namespace Sedulous.Renderer;
+namespace Sedulous.RHI.HLSLShaderCompiler;
 
 using System;
 using System.IO;
 using System.Collections;
 using Sedulous.RHI;
-using Sedulous.RHI.HLSLShaderCompiler;
 
 /// Shader variant flags for compile-time shader permutations.
 //[Flags]
