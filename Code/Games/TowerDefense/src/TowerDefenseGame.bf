@@ -17,9 +17,11 @@ using Sedulous.Logging.Debug;
 using SampleFramework;
 using TowerDefense.Data;
 using TowerDefense.Maps;
+using TowerDefense.Enemies;
+using TowerDefense.Components;
 
 /// Tower Defense game main class.
-/// Phase 2: Map System - Grid-based maps with tile rendering.
+/// Phase 3: Enemy System - Enemies that follow the path.
 class TowerDefenseGame : RHISampleApp
 {
 	// Engine Core
@@ -40,6 +42,14 @@ class TowerDefenseGame : RHISampleApp
 	private MapBuilder mMapBuilder ~ delete _;
 	private MapDefinition mCurrentMap ~ delete _;
 
+	// Enemy system
+	private EnemyFactory mEnemyFactory ~ delete _;
+
+	// Game state
+	private int32 mMoney = 200;
+	private int32 mLives = 20;
+	private int32 mEnemiesKilled = 0;
+
 	// Entities
 	private Entity mCameraEntity;
 
@@ -51,6 +61,11 @@ class TowerDefenseGame : RHISampleApp
 
 	// Current frame
 	private int32 mCurrentFrameIndex = 0;
+
+	// Spawn timer for testing
+	private float mSpawnTimer = 0.0f;
+	private float mSpawnInterval = 2.0f;
+	private bool mAutoSpawn = false;
 
 	public this() : base(.()
 		{
@@ -65,7 +80,7 @@ class TowerDefenseGame : RHISampleApp
 
 	protected override bool OnInitialize()
 	{
-		Console.WriteLine("=== Tower Defense - Phase 2: Map System ===");
+		Console.WriteLine("=== Tower Defense - Phase 3: Enemy System ===");
 
 		// Create logger
 		mLogger = new DebugLogger(.Information);
@@ -93,6 +108,14 @@ class TowerDefenseGame : RHISampleApp
 		mMapBuilder = new MapBuilder(mScene, mRendererService);
 		mMapBuilder.InitializeMaterials();
 
+		// Initialize enemy factory
+		mEnemyFactory = new EnemyFactory(mScene, mRendererService);
+		mEnemyFactory.InitializeMaterials();
+
+		// Subscribe to enemy events
+		mEnemyFactory.OnEnemyReachedExit.Subscribe(new => OnEnemyReachedExit);
+		mEnemyFactory.OnEnemyKilled.Subscribe(new => OnEnemyKilled);
+
 		// Create scene entities (light, camera)
 		CreateSceneEntities();
 
@@ -100,7 +123,8 @@ class TowerDefenseGame : RHISampleApp
 		LoadMap();
 
 		Console.WriteLine("Initialization complete!");
-		Console.WriteLine("Controls: WASD=Pan camera, QE=Zoom, Escape=Exit");
+		Console.WriteLine("Controls: WASD=Pan camera, QE=Zoom, Space=Spawn enemy, T=Toggle auto-spawn, Escape=Exit");
+		Console.WriteLine($"Starting: Money={mMoney}, Lives={mLives}");
 
 		return true;
 	}
@@ -190,6 +214,13 @@ class TowerDefenseGame : RHISampleApp
 		// Build the map (creates tile entities)
 		mMapBuilder.BuildMap(mCurrentMap);
 
+		// Set up enemy factory with waypoints
+		mEnemyFactory.SetWaypoints(mCurrentMap.Waypoints);
+
+		// Initialize game state from map
+		mMoney = mCurrentMap.StartingMoney;
+		mLives = mCurrentMap.StartingLives;
+
 		Console.WriteLine($"Map loaded: {mCurrentMap.Name}");
 		Console.WriteLine($"  Size: {mCurrentMap.Width}x{mCurrentMap.Height}");
 		Console.WriteLine($"  Waypoints: {mCurrentMap.Waypoints.Count}");
@@ -241,13 +272,83 @@ class TowerDefenseGame : RHISampleApp
 		if (keyboard.IsKeyDown(.E))
 			mCameraHeight = Math.Min(100.0f, mCameraHeight + zoomSpeed);
 
+		// Spawn enemy with Space
+		if (keyboard.IsKeyPressed(.Space))
+		{
+			SpawnTestEnemy();
+		}
+
+		// Toggle auto-spawn with T
+		if (keyboard.IsKeyPressed(.T))
+		{
+			mAutoSpawn = !mAutoSpawn;
+			Console.WriteLine($"Auto-spawn: {mAutoSpawn}");
+		}
+
+		// Spawn different enemy types with 1-4
+		if (keyboard.IsKeyPressed(.Num1))
+			mEnemyFactory.SpawnEnemy(.BasicTank);
+		if (keyboard.IsKeyPressed(.Num2))
+			mEnemyFactory.SpawnEnemy(.FastTank);
+		if (keyboard.IsKeyPressed(.Num3))
+			mEnemyFactory.SpawnEnemy(.ArmoredTank);
+		if (keyboard.IsKeyPressed(.Num4))
+			mEnemyFactory.SpawnEnemy(.Helicopter);
+
 		UpdateCameraTransform();
 	}
 
 	protected override void OnUpdate(float deltaTime, float totalTime)
 	{
+		// Auto-spawn enemies
+		if (mAutoSpawn && mLives > 0)
+		{
+			mSpawnTimer += deltaTime;
+			if (mSpawnTimer >= mSpawnInterval)
+			{
+				mSpawnTimer = 0.0f;
+				SpawnTestEnemy();
+			}
+		}
+
 		// Update engine context (handles entity sync, visibility culling, etc.)
 		mContext.Update(deltaTime);
+	}
+
+	private void SpawnTestEnemy()
+	{
+		// Randomly select an enemy type
+		int32 roll = (int32)(TotalTime * 1000) % 4;
+		EnemyDefinition def;
+		switch (roll)
+		{
+		case 0: def = .BasicTank;
+		case 1: def = .FastTank;
+		case 2: def = .ArmoredTank;
+		default: def = .BasicTank;
+		}
+
+		mEnemyFactory.SpawnEnemy(def);
+		Console.WriteLine($"Spawned {def.Name}. Active enemies: {mEnemyFactory.ActiveEnemyCount}");
+	}
+
+	private void OnEnemyReachedExit(EnemyComponent enemy)
+	{
+		mLives -= enemy.Definition.Damage;
+		Console.WriteLine($"Enemy reached exit! Lives: {mLives}");
+
+		if (mLives <= 0)
+		{
+			Console.WriteLine("=== GAME OVER ===");
+			mAutoSpawn = false;
+		}
+	}
+
+	private void OnEnemyKilled(Entity enemy, int32 reward)
+	{
+		mMoney += reward;
+		mEnemiesKilled++;
+		Console.WriteLine($"Enemy killed! +${reward} (Total: ${mMoney}, Kills: {mEnemiesKilled})");
 	}
 
 	protected override void OnPrepareFrame(int32 frameIndex)
@@ -277,6 +378,9 @@ class TowerDefenseGame : RHISampleApp
 
 		// Wait for GPU
 		Device.WaitIdle();
+
+		// Clean up enemy factory (releases materials)
+		mEnemyFactory?.Cleanup();
 
 		// Clean up map builder (releases materials)
 		mMapBuilder?.Cleanup();
