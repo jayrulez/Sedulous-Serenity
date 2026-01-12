@@ -7,6 +7,7 @@ using Sedulous.Drawing;
 using Sedulous.Mathematics;
 using Sedulous.Foundation.Core;
 using TowerDefense.Data;
+using TowerDefense.Components;
 
 /// Delegate for tower selection events.
 delegate void TowerSelectedDelegate(int32 towerIndex);
@@ -42,16 +43,27 @@ class GameHUD
 	private TextBlock mGameOverText;
 	private TextBlock mVictoryText;
 
+	// Tower info panel (shown when a placed tower is selected)
+	private Border mTowerInfoPanel;
+	private TextBlock mTowerInfoName;
+	private TextBlock mTowerInfoDamage;
+	private TextBlock mTowerInfoRange;
+	private TextBlock mTowerInfoFireRate;
+	private TextBlock mTowerInfoSellPrice;
+	private Button mSellButton;
+
 	// Events
 	private EventAccessor<TowerSelectedDelegate> mOnTowerSelected = new .() ~ delete _;
 	private EventAccessor<GameActionDelegate> mOnStartWave = new .() ~ delete _;
 	private EventAccessor<GameActionDelegate> mOnRestart = new .() ~ delete _;
 	private EventAccessor<GameActionDelegate> mOnResume = new .() ~ delete _;
+	private EventAccessor<GameActionDelegate> mOnSellTower = new .() ~ delete _;
 
 	public EventAccessor<TowerSelectedDelegate> OnTowerSelected => mOnTowerSelected;
 	public EventAccessor<GameActionDelegate> OnStartWave => mOnStartWave;
 	public EventAccessor<GameActionDelegate> OnRestart => mOnRestart;
 	public EventAccessor<GameActionDelegate> OnResume => mOnResume;
+	public EventAccessor<GameActionDelegate> OnSellTower => mOnSellTower;
 
 	/// Gets the root UI element.
 	public UIElement RootElement => mRoot;
@@ -294,6 +306,85 @@ class GameHUD
 		pauseContent.AddChild(resumeBtn);
 
 		mRoot.AddChild(mPauseOverlay);
+
+		// === Tower Info Panel (hidden by default, shown on right side) ===
+		mTowerInfoPanel = new Border();
+		mTowerInfoPanel.Background = Color(20, 25, 30, 230);
+		mTowerInfoPanel.Visibility = .Collapsed;
+		mTowerInfoPanel.Width = 180;
+		mTowerInfoPanel.HorizontalAlignment = .Right;
+		mTowerInfoPanel.VerticalAlignment = .Center;
+		mTowerInfoPanel.Padding = Thickness(15, 15, 15, 15);
+		mTowerInfoPanel.Margin = Thickness(0, 0, 20, 0);
+
+		let infoContent = new StackPanel();
+		infoContent.Orientation = .Vertical;
+		infoContent.Spacing = 8;
+		mTowerInfoPanel.Child = infoContent;
+
+		// Tower name
+		mTowerInfoName = new TextBlock();
+		mTowerInfoName.Text = "Tower Name";
+		mTowerInfoName.Foreground = Color.White;
+		mTowerInfoName.FontSize = 18;
+		mTowerInfoName.HorizontalAlignment = .Center;
+		infoContent.AddChild(mTowerInfoName);
+
+		// Separator
+		let separator = new Border();
+		separator.Background = Color(100, 100, 100);
+		separator.Height = 1;
+		separator.Margin = Thickness(0, 5, 0, 5);
+		infoContent.AddChild(separator);
+
+		// Damage
+		mTowerInfoDamage = new TextBlock();
+		mTowerInfoDamage.Text = "Damage: 0";
+		mTowerInfoDamage.Foreground = Color(255, 200, 100);
+		mTowerInfoDamage.FontSize = 14;
+		infoContent.AddChild(mTowerInfoDamage);
+
+		// Range
+		mTowerInfoRange = new TextBlock();
+		mTowerInfoRange.Text = "Range: 0";
+		mTowerInfoRange.Foreground = Color(100, 200, 255);
+		mTowerInfoRange.FontSize = 14;
+		infoContent.AddChild(mTowerInfoRange);
+
+		// Fire rate
+		mTowerInfoFireRate = new TextBlock();
+		mTowerInfoFireRate.Text = "Fire Rate: 0/s";
+		mTowerInfoFireRate.Foreground = Color(200, 100, 255);
+		mTowerInfoFireRate.FontSize = 14;
+		infoContent.AddChild(mTowerInfoFireRate);
+
+		// Separator before sell
+		let separator2 = new Border();
+		separator2.Background = Color(100, 100, 100);
+		separator2.Height = 1;
+		separator2.Margin = Thickness(0, 5, 0, 5);
+		infoContent.AddChild(separator2);
+
+		// Sell price
+		mTowerInfoSellPrice = new TextBlock();
+		mTowerInfoSellPrice.Text = "Sell: $0";
+		mTowerInfoSellPrice.Foreground = Color(255, 215, 0);
+		mTowerInfoSellPrice.FontSize = 14;
+		mTowerInfoSellPrice.HorizontalAlignment = .Center;
+		infoContent.AddChild(mTowerInfoSellPrice);
+
+		// Sell button
+		mSellButton = new Button();
+		mSellButton.ContentText = "Sell Tower";
+		mSellButton.Padding = Thickness(20, 10, 20, 10);
+		mSellButton.Background = Color(180, 50, 50);
+		mSellButton.HorizontalAlignment = .Center;
+		mSellButton.Click.Subscribe(new (btn) => {
+			mOnSellTower.[Friend]Invoke();
+		});
+		infoContent.AddChild(mSellButton);
+
+		mRoot.AddChild(mTowerInfoPanel);
 	}
 
 	private void CreateTowerButton(int32 index, StringView name, StringView cost, Color color)
@@ -433,5 +524,27 @@ class GameHUD
 		mSelectedTowerIndex = -1;
 		for (let btn in mTowerButtons)
 			btn.BorderThickness = Thickness(0);
+	}
+
+	/// Shows the tower info panel with the given tower's stats.
+	public void ShowTowerInfo(TowerComponent tower)
+	{
+		if (tower == null)
+			return;
+
+		let def = tower.Definition;
+		mTowerInfoName.Text = scope:: $"{def.Name}";
+		mTowerInfoDamage.Text = scope:: $"Damage: {tower.GetDamage():F0}";
+		mTowerInfoRange.Text = scope:: $"Range: {tower.GetRange():F1}";
+		mTowerInfoFireRate.Text = scope:: $"Fire Rate: {tower.GetFireRate():F1}/s";
+		mTowerInfoSellPrice.Text = scope:: $"Sell: ${def.Cost / 2}";
+
+		mTowerInfoPanel.Visibility = .Visible;
+	}
+
+	/// Hides the tower info panel.
+	public void HideTowerInfo()
+	{
+		mTowerInfoPanel.Visibility = .Collapsed;
 	}
 }

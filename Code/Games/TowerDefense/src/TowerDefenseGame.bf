@@ -77,6 +77,7 @@ class TowerDefenseGame : RHISampleApp
 	// Tower system
 	private TowerFactory mTowerFactory ~ delete _;
 	private int32 mSelectedTowerType = 0;  // 0=None, 1=Cannon, 2=Archer, 3=Frost, 4=Mortar, 5=SAM
+	private Entity mSelectedPlacedTower = null;  // Currently selected placed tower (for info panel)
 
 	// Tower placement preview
 	private Entity mTowerPreview;
@@ -434,6 +435,10 @@ class TowerDefenseGame : RHISampleApp
 			mGameAudio?.PlayUIClick();
 			ResumeGame();
 		});
+		mGameHUD.OnSellTower.Subscribe(new () => {
+			mGameAudio?.PlayUIClick();
+			SellSelectedTower();
+		});
 
 		// Start with main menu visible
 		ShowMainMenu();
@@ -764,6 +769,10 @@ class TowerDefenseGame : RHISampleApp
 				HideTowerPreview();
 				Console.WriteLine("Tower selection cancelled");
 			}
+			else if (mSelectedPlacedTower != null)
+			{
+				DeselectPlacedTower();
+			}
 			else
 			{
 				// Pause the game instead of returning to main menu
@@ -803,7 +812,7 @@ class TowerDefenseGame : RHISampleApp
 		if (keyboard.IsKeyPressed(.F5))
 			SelectTower(5, .AntiAir);
 
-		// Cancel tower selection with Right Click
+		// Cancel tower selection or deselect placed tower with Right Click
 		if (mouse.IsButtonPressed(.Right))
 		{
 			if (mSelectedTowerType != 0)
@@ -812,6 +821,10 @@ class TowerDefenseGame : RHISampleApp
 				mGameHUD?.ClearSelection();
 				HideTowerPreview();
 				Console.WriteLine("Tower selection cancelled");
+			}
+			else if (mSelectedPlacedTower != null)
+			{
+				DeselectPlacedTower();
 			}
 		}
 
@@ -824,6 +837,15 @@ class TowerDefenseGame : RHISampleApp
 			{
 				// Click is not on HUD - try to place tower
 				TryPlaceTower(mouse.X, mouse.Y);
+			}
+		}
+		// Select placed tower with Left Click (when not in placement mode)
+		else if (mouse.IsButtonPressed(.Left) && mSelectedTowerType == 0)
+		{
+			bool inHUDArea = mouse.Y < 50 || mouse.Y > (SwapChain.Height - 80);
+			if (!inHUDArea)
+			{
+				TrySelectPlacedTower(mouse.X, mouse.Y);
 			}
 		}
 
@@ -1024,6 +1046,60 @@ class TowerDefenseGame : RHISampleApp
 		mGameHUD?.ClearSelection();
 		HideTowerPreview();
 
+		UpdateHUD();
+	}
+
+	/// Tries to select a placed tower at the screen position.
+	private void TrySelectPlacedTower(float screenX, float screenY)
+	{
+		let worldPos = ScreenToWorld(screenX, screenY);
+
+		// Convert to grid coordinates
+		let (gridX, gridY) = mCurrentMap.WorldToGrid(worldPos);
+		if (gridX < 0 || gridY < 0)
+			return;
+
+		// Check if there is a tower at this position
+		let tower = mTowerFactory.GetTowerAt(gridX, gridY);
+		if (tower != null)
+		{
+			mSelectedPlacedTower = tower;
+			let towerComp = tower.GetComponent<TowerComponent>();
+			if (towerComp != null)
+			{
+				Console.WriteLine($"Selected {towerComp.Definition.Name} tower at ({gridX}, {gridY})");
+				mGameHUD?.ShowTowerInfo(towerComp);
+			}
+		}
+		else
+		{
+			// Clicked on empty space - deselect
+			DeselectPlacedTower();
+		}
+	}
+
+	/// Deselects the currently selected placed tower.
+	private void DeselectPlacedTower()
+	{
+		if (mSelectedPlacedTower != null)
+		{
+			Console.WriteLine("Deselected tower");
+			mSelectedPlacedTower = null;
+			mGameHUD?.HideTowerInfo();
+		}
+	}
+
+	/// Sells the currently selected placed tower.
+	private void SellSelectedTower()
+	{
+		if (mSelectedPlacedTower == null)
+			return;
+
+		let refund = mTowerFactory.SellTower(mSelectedPlacedTower);
+		mMoney += refund;
+		Console.WriteLine($"Sold tower for ${refund}. Money: ${mMoney}");
+		mSelectedPlacedTower = null;
+		mGameHUD?.HideTowerInfo();
 		UpdateHUD();
 	}
 
