@@ -1,0 +1,7 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "SampleFramework" = "*", "Sedulous.Foundation" = "*", "Sedulous.Mathematics" = "*", "Sedulous.Geometry" = "*", "Sedulous.RHI" = "*", "Sedulous.Renderer" = "*", "Sedulous.Engine.Renderer" = "*", "Sedulous.Audio" = "*", "Sedulous.Audio.SDL3" = "*", "Sedulous.Audio.Decoders" = "*", "Sedulous.Engine.Audio" = "*", "Sedulous.Drawing" = "*", "Sedulous.Fonts" = "*", "Sedulous.Fonts.TTF" = "*", "Sedulous.UI" = "*", "Sedulous.UI.Renderer" = "*", "Sedulous.Shell" = "*", "Sedulous.Shell.SDL3" = "*"}
+
+[Project]
+Name = "TowerDefense"
+TargetType = "BeefConsoleApplication"
+StartupObject = "TowerDefense.Program"
