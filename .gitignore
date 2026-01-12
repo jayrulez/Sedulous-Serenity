@@ -11,12 +11,12 @@ nul
 OpenDDL/
 ReferenceSedulous/
 claude.md
-renderer.md
+/renderer.md
 
 Assets/cache/
 new_ui.md
 ui_status.md
-ui.md
+/ui.md
 fonts.md
 fonts-implementation-plan.md
 drawing.md
