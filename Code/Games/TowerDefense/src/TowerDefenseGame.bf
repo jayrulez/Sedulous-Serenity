@@ -15,9 +15,11 @@ using Sedulous.Audio.Decoders;
 using Sedulous.Logging.Abstractions;
 using Sedulous.Logging.Debug;
 using SampleFramework;
+using TowerDefense.Data;
+using TowerDefense.Maps;
 
 /// Tower Defense game main class.
-/// Phase 1: Foundation - Context/Scene/Entity setup with rendering and audio.
+/// Phase 2: Map System - Grid-based maps with tile rendering.
 class TowerDefenseGame : RHISampleApp
 {
 	// Engine Core
@@ -34,17 +36,15 @@ class TowerDefenseGame : RHISampleApp
 	private SDL3AudioSystem mAudioSystem;
 	private AudioDecoderFactory mDecoderFactory ~ delete _;
 
-	// Materials
-	private MaterialHandle mPBRMaterial = .Invalid;
-	private MaterialInstanceHandle mGroundMaterial = .Invalid;
-	private MaterialInstanceHandle mCubeMaterial = .Invalid;
+	// Map system
+	private MapBuilder mMapBuilder ~ delete _;
+	private MapDefinition mCurrentMap ~ delete _;
 
 	// Entities
 	private Entity mCameraEntity;
-	private Entity mTestCubeEntity;
 
 	// Camera control (top-down)
-	private float mCameraHeight = 30.0f;
+	private float mCameraHeight = 25.0f;
 	private float mCameraTargetX = 0.0f;
 	private float mCameraTargetZ = 0.0f;
 	private float mCameraMoveSpeed = 20.0f;
@@ -57,7 +57,7 @@ class TowerDefenseGame : RHISampleApp
 			Title = "Tower Defense",
 			Width = 1280,
 			Height = 720,
-			ClearColor = .(0.2f, 0.3f, 0.2f, 1.0f),  // Grass-like green
+			ClearColor = .(0.15f, 0.2f, 0.15f, 1.0f),  // Dark green background
 			EnableDepth = true
 		})
 	{
@@ -65,7 +65,7 @@ class TowerDefenseGame : RHISampleApp
 
 	protected override bool OnInitialize()
 	{
-		Console.WriteLine("=== Tower Defense - Phase 1: Foundation ===");
+		Console.WriteLine("=== Tower Defense - Phase 2: Map System ===");
 
 		// Create logger
 		mLogger = new DebugLogger(.Information);
@@ -89,11 +89,15 @@ class TowerDefenseGame : RHISampleApp
 		mRenderSceneComponent = mScene.GetSceneComponent<RenderSceneComponent>();
 		mContext.SceneManager.SetActiveScene(mScene);
 
-		// Create materials
-		CreateMaterials();
+		// Initialize map builder
+		mMapBuilder = new MapBuilder(mScene, mRendererService);
+		mMapBuilder.InitializeMaterials();
 
-		// Create entities
-		CreateEntities();
+		// Create scene entities (light, camera)
+		CreateSceneEntities();
+
+		// Load and build the first map
+		LoadMap();
 
 		Console.WriteLine("Initialization complete!");
 		Console.WriteLine("Controls: WASD=Pan camera, QE=Zoom, Escape=Exit");
@@ -153,92 +157,14 @@ class TowerDefenseGame : RHISampleApp
 		return true;
 	}
 
-	private void CreateMaterials()
+	private void CreateSceneEntities()
 	{
-		let materialSystem = mRendererService.MaterialSystem;
-		if (materialSystem == null)
-			return;
-
-		// Create PBR material
-		let pbrMaterial = Material.CreatePBR("PBRMaterial");
-		mPBRMaterial = materialSystem.RegisterMaterial(pbrMaterial);
-
-		if (!mPBRMaterial.IsValid)
-		{
-			Console.WriteLine("Failed to register PBR material");
-			return;
-		}
-
-		// Ground material (gray)
-		mGroundMaterial = materialSystem.CreateInstance(mPBRMaterial);
-		if (mGroundMaterial.IsValid)
-		{
-			let instance = materialSystem.GetInstance(mGroundMaterial);
-			if (instance != null)
-			{
-				instance.SetFloat4("baseColor", .(0.3f, 0.5f, 0.3f, 1.0f));  // Grass green
-				instance.SetFloat("metallic", 0.0f);
-				instance.SetFloat("roughness", 0.9f);
-				instance.SetFloat("ao", 1.0f);
-				instance.SetFloat4("emissive", .(0, 0, 0, 1));
-				materialSystem.UploadInstance(mGroundMaterial);
-			}
-		}
-
-		// Test cube material (orange)
-		mCubeMaterial = materialSystem.CreateInstance(mPBRMaterial);
-		if (mCubeMaterial.IsValid)
-		{
-			let instance = materialSystem.GetInstance(mCubeMaterial);
-			if (instance != null)
-			{
-				instance.SetFloat4("baseColor", .(0.9f, 0.5f, 0.2f, 1.0f));  // Orange
-				instance.SetFloat("metallic", 0.2f);
-				instance.SetFloat("roughness", 0.5f);
-				instance.SetFloat("ao", 1.0f);
-				instance.SetFloat4("emissive", .(0, 0, 0, 1));
-				materialSystem.UploadInstance(mCubeMaterial);
-			}
-		}
-
-		Console.WriteLine("Materials created");
-	}
-
-	private void CreateEntities()
-	{
-		// Create shared cube mesh
-		let cubeMesh = StaticMesh.CreateCube(1.0f);
-		defer delete cubeMesh;
-
-		// Create ground plane (large flat cube)
-		{
-			let ground = mScene.CreateEntity("Ground");
-			ground.Transform.SetPosition(.(0, -0.5f, 0));
-			ground.Transform.SetScale(.(30.0f, 1.0f, 30.0f));
-
-			let meshComp = new StaticMeshComponent();
-			ground.AddComponent(meshComp);
-			meshComp.SetMesh(cubeMesh);
-			meshComp.SetMaterialInstance(0, mGroundMaterial);
-		}
-
-		// Create test cube at origin
-		{
-			mTestCubeEntity = mScene.CreateEntity("TestCube");
-			mTestCubeEntity.Transform.SetPosition(.(0, 1.0f, 0));
-
-			let meshComp = new StaticMeshComponent();
-			mTestCubeEntity.AddComponent(meshComp);
-			meshComp.SetMesh(cubeMesh);
-			meshComp.SetMaterialInstance(0, mCubeMaterial);
-		}
-
 		// Create directional light (sun)
 		{
 			let sunLight = mScene.CreateEntity("SunLight");
-			sunLight.Transform.LookAt(.(-0.5f, -1.0f, -0.3f));
+			sunLight.Transform.LookAt(.(-0.4f, -1.0f, -0.3f));
 
-			let lightComp = LightComponent.CreateDirectional(.(1.0f, 0.95f, 0.8f), 1.0f, true);
+			let lightComp = LightComponent.CreateDirectional(.(1.0f, 0.95f, 0.85f), 1.2f, true);
 			sunLight.AddComponent(lightComp);
 		}
 
@@ -253,7 +179,22 @@ class TowerDefenseGame : RHISampleApp
 			mCameraEntity.AddComponent(cameraComp);
 		}
 
-		Console.WriteLine("Entities created");
+		Console.WriteLine("Scene entities created");
+	}
+
+	private void LoadMap()
+	{
+		// Create Map01 - Grasslands
+		mCurrentMap = Map01_Grasslands.Create();
+
+		// Build the map (creates tile entities)
+		mMapBuilder.BuildMap(mCurrentMap);
+
+		Console.WriteLine($"Map loaded: {mCurrentMap.Name}");
+		Console.WriteLine($"  Size: {mCurrentMap.Width}x{mCurrentMap.Height}");
+		Console.WriteLine($"  Waypoints: {mCurrentMap.Waypoints.Count}");
+		Console.WriteLine($"  Starting money: {mCurrentMap.StartingMoney}");
+		Console.WriteLine($"  Starting lives: {mCurrentMap.StartingLives}");
 	}
 
 	private void UpdateCameraTransform()
@@ -305,13 +246,6 @@ class TowerDefenseGame : RHISampleApp
 
 	protected override void OnUpdate(float deltaTime, float totalTime)
 	{
-		// Rotate test cube
-		if (mTestCubeEntity != null)
-		{
-			let rotation = Quaternion.CreateFromYawPitchRoll(totalTime * 0.5f, 0, 0);
-			mTestCubeEntity.Transform.SetRotation(rotation);
-		}
-
 		// Update engine context (handles entity sync, visibility culling, etc.)
 		mContext.Update(deltaTime);
 	}
@@ -344,18 +278,8 @@ class TowerDefenseGame : RHISampleApp
 		// Wait for GPU
 		Device.WaitIdle();
 
-		// Clean up materials
-		if (mRendererService?.MaterialSystem != null)
-		{
-			let materialSystem = mRendererService.MaterialSystem;
-
-			if (mCubeMaterial.IsValid)
-				materialSystem.ReleaseInstance(mCubeMaterial);
-			if (mGroundMaterial.IsValid)
-				materialSystem.ReleaseInstance(mGroundMaterial);
-			if (mPBRMaterial.IsValid)
-				materialSystem.ReleaseMaterial(mPBRMaterial);
-		}
+		// Clean up map builder (releases materials)
+		mMapBuilder?.Cleanup();
 
 		// Delete services (in reverse order)
 		delete mAudioService;
