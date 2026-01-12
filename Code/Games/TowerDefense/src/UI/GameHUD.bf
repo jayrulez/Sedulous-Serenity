@@ -409,7 +409,23 @@ class GameHUD
 	{
 		Console.WriteLine("GameHUD.ShowPause() called");
 		mPauseOverlay.Visibility = .Visible;
+
+		// Force layout recalculation since element was measured while Collapsed
+		mPauseOverlay.InvalidateMeasure();
+		mRoot.InvalidateMeasure();
+
 		Console.WriteLine($"Pause overlay visibility: {mPauseOverlay.Visibility}");
+		Console.WriteLine($"Pause overlay Bounds: {mPauseOverlay.Bounds}");
+		Console.WriteLine($"Pause overlay DesiredSize: {mPauseOverlay.DesiredSize}");
+		Console.WriteLine($"Pause overlay HAlign: {mPauseOverlay.HorizontalAlignment}, VAlign: {mPauseOverlay.VerticalAlignment}");
+		Console.WriteLine($"Pause overlay Parent: {mPauseOverlay.Parent}");
+		if (mPauseOverlay.Parent != null)
+		{
+			Console.WriteLine($"Parent Bounds: {mPauseOverlay.Parent.Bounds}");
+			Console.WriteLine($"Parent DesiredSize: {mPauseOverlay.Parent.DesiredSize}");
+		}
+		Console.WriteLine($"Root Bounds: {mRoot.Bounds}");
+		Console.WriteLine($"Root DesiredSize: {mRoot.DesiredSize}");
 	}
 
 	/// Hides the pause overlay.
