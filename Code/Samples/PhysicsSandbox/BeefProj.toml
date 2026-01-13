@@ -1,0 +1,6 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.Mathematics" = "*", "Sedulous.Physics" = "*", "Sedulous.Physics.Jolt" = "*"}
+
+[Project]
+Name = "PhysicsSandbox"
+StartupObject = "PhysicsSandbox.Program"

@@ -35,8 +35,11 @@ class PhysicsSceneComponent : ISceneComponent
 
 	// ==================== Properties ====================
 
-	/// Gets the physics world.
+	/// Gets the physics world (may be null if scene is being destroyed).
 	public IPhysicsWorld PhysicsWorld => mPhysicsWorld;
+
+	/// Gets whether the physics world is still valid.
+	public bool HasPhysicsWorld => mPhysicsWorld != null;
 
 	/// Gets the scene this component is attached to.
 	public Scene Scene => mScene;
@@ -372,6 +375,15 @@ class PhysicsSceneComponent : ISceneComponent
 				entity.Transform.SetRotation(rot);
 			}
 		}
+	}
+
+	// ==================== Internal ====================
+
+	/// Called by PhysicsService before the physics world is destroyed.
+	/// This allows the component to release its reference before deletion.
+	public void InvalidatePhysicsWorld()
+	{
+		mPhysicsWorld = null;
 	}
 
 	// ==================== Helpers ====================
