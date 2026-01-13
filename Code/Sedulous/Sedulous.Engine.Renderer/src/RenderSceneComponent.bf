@@ -29,6 +29,9 @@ class RenderSceneComponent : ISceneComponent
 	// Particle emitter component list (for per-frame updates like Upload)
 	private List<ParticleEmitterComponent> mParticleEmitters = new .() ~ delete _;
 
+	// Trail component list (for rendering)
+	private List<TrailComponent> mTrailComponents = new .() ~ delete _;
+
 	// Main camera handle
 	private ProxyHandle mMainCamera = .Invalid;
 
@@ -283,8 +286,39 @@ class RenderSceneComponent : ISceneComponent
 		if (shadowMapHandle.IsValid)
 			passBuilder.Read(shadowMapHandle, .ShaderReadOnly);
 
+		// Capture trail components for rendering
+		let trailComponents = mTrailComponents;
+
 		passBuilder.SetExecute(new [=](ctx) => {
 				pipelineRef.RenderViews(context, ctx.RenderPass);
+
+				// Render trail components
+				if (trailComponents.Count > 0 && pipelineRef.TrailRenderer != null && pipelineRef.TrailRenderer.IsInitialized)
+				{
+					// Get camera position for billboard orientation
+					Vector3 cameraPos = .Zero;
+					if (let camera = context.World?.MainCamera)
+						cameraPos = camera.Position;
+
+					for (let trailComp in trailComponents)
+					{
+						if (trailComp.HasPoints)
+						{
+							let trail = trailComp.Trail;
+							let settings = trailComp.GetTrailSettings();
+							pipelineRef.TrailRenderer.RenderTrail(
+								ctx.RenderPass,
+								context.FrameIndex,
+								trail,
+								cameraPos,
+								settings,
+								trailComp.BlendMode,
+								trailComp.CurrentTime
+							);
+						}
+					}
+				}
+
 				context.EndFrame();
 			});
 
@@ -601,6 +635,22 @@ class RenderSceneComponent : ISceneComponent
 	{
 		mParticleEmitters.Remove(emitter);
 	}
+
+	/// Registers a trail component for rendering.
+	public void RegisterTrailComponent(TrailComponent trail)
+	{
+		if (!mTrailComponents.Contains(trail))
+			mTrailComponents.Add(trail);
+	}
+
+	/// Unregisters a trail component.
+	public void UnregisterTrailComponent(TrailComponent trail)
+	{
+		mTrailComponents.Remove(trail);
+	}
+
+	/// Gets the list of registered trail components.
+	public List<TrailComponent> TrailComponents => mTrailComponents;
 
 	/// Creates a sprite proxy for an entity.
 	public ProxyHandle CreateSpriteProxy(EntityId entityId, Vector3 position, Vector2 size, Color color = .White)

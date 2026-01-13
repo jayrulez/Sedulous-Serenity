@@ -128,6 +128,13 @@ class ParticleEmitterConfig
 	/// Trail width at the tail.
 	public float TrailWidthEnd = 0.0f;
 
+	/// Per-particle trail settings.
+	/// When Enabled is true, each particle leaves a trail behind it.
+	public TrailSettings ParticleTrails = .() { Enabled = false };
+
+	/// Maximum age of trail points in seconds.
+	public float TrailMaxAge = 1.0f;
+
 	// ==================== Stretched Billboard Settings ====================
 
 	/// Base stretch factor for stretched billboards.
@@ -231,6 +238,29 @@ class ParticleEmitterConfig
 		TrailMinVertexDistance = minDistance;
 	}
 
+	/// Enables per-particle trails (each particle leaves a ribbon behind it).
+	public void EnableParticleTrails(int32 maxPoints = 20, float minDistance = 0.1f, float maxAge = 1.0f)
+	{
+		ParticleTrails = .()
+		{
+			Enabled = true,
+			MaxPoints = maxPoints,
+			MinVertexDistance = minDistance,
+			WidthStart = InitialSize.Min,
+			WidthEnd = 0.0f,
+			MaxAge = maxAge,
+			InheritParticleColor = true
+		};
+		TrailMaxAge = maxAge;
+	}
+
+	/// Enables per-particle trails with custom settings.
+	public void EnableParticleTrails(TrailSettings settings)
+	{
+		ParticleTrails = settings;
+		TrailMaxAge = settings.MaxAge;
+	}
+
 	/// Adds a particle behavior module.
 	public void AddModule(IParticleModule module)
 	{
@@ -263,6 +293,14 @@ class ParticleEmitterConfig
 	public void AddAttractor(Vector3 position, float strength = 5.0f)
 	{
 		AddModule(new AttractorModule(position, strength));
+	}
+
+	/// Adds a force field module that responds to scene-level force fields.
+	public void AddForceFieldResponse(RenderWorld world, float strengthMultiplier = 1.0f)
+	{
+		let module = new ForceFieldModule(world);
+		module.StrengthMultiplier = strengthMultiplier;
+		AddModule(module);
 	}
 
 	/// Configures emission from a sphere.

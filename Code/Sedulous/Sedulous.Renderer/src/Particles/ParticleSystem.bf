@@ -27,10 +27,16 @@ struct Particle
 	public uint16 TextureFrame;
 	public uint16 TotalFrames;
 
+	// Per-particle trail index (-1 = no trail)
+	public int16 TrailIndex;
+
 	// Per-particle random seed
 	public uint32 RandomSeed;
 
 	public bool IsAlive => Life > 0;
+
+	/// Whether this particle has an associated trail.
+	public bool HasTrail => TrailIndex >= 0;
 
 	/// Ratio of life remaining (1 = just spawned, 0 = dead)
 	public float LifeRatio => MaxLife > 0 ? Life / MaxLife : 0;
@@ -58,6 +64,12 @@ class ParticleSystem
 	private Random mRandom = new .() ~ delete _;
 	private bool mEmitting = true;
 
+	// Per-particle trail storage
+	private ParticleTrail[] mTrails ~ { if (_ != null) { for (let t in _) delete t; delete _; } };
+	private List<int16> mFreeTrailSlots = new .() ~ delete _;
+	private int32 mMaxTrails = 0;
+	private bool mTrailsEnabled = false;
+
 	public const int32 DEFAULT_MAX_PARTICLES = 10000;
 
 	// ==================== Properties ====================
@@ -73,6 +85,18 @@ class ParticleSystem
 	public IBuffer IndexBuffer => mIndexBuffer;
 	public uint32 IndexCount => (uint32)(mParticles.Count * 6);
 
+	/// Whether per-particle trails are enabled.
+	public bool TrailsEnabled => mTrailsEnabled;
+
+	/// Gets the trail settings from the config.
+	public TrailSettings TrailSettings => mConfig?.ParticleTrails ?? .();
+
+	/// Gets the array of particle trails (for rendering).
+	public ParticleTrail[] Trails => mTrails;
+
+	/// Gets the number of active trails.
+	public int32 ActiveTrailCount => mMaxTrails - (int32)mFreeTrailSlots.Count;
+
 	// ==================== Constructor ====================
 
 	public this(IDevice device, int32 maxParticles = DEFAULT_MAX_PARTICLES)
@@ -85,6 +109,7 @@ class ParticleSystem
 		mEmitterVelocity = .Zero;
 
 		CreateBuffers();
+		InitializeTrails();
 	}
 
 	public this(IDevice device, ParticleEmitterConfig config, int32 maxParticles = DEFAULT_MAX_PARTICLES)
@@ -97,6 +122,7 @@ class ParticleSystem
 		mEmitterVelocity = .Zero;
 
 		CreateBuffers();
+		InitializeTrails();
 	}
 
 	public ~this()
@@ -114,6 +140,9 @@ class ParticleSystem
 			delete mConfig;
 		mConfig = config;
 		mOwnsConfig = ownConfig;
+
+		// Reinitialize trails if config changed
+		InitializeTrails();
 	}
 
 	// ==================== Buffer Management ====================
@@ -172,6 +201,12 @@ class ParticleSystem
 		{
 			EmitParticles(deltaTime);
 		}
+
+		// Update particle trails
+		if (mTrailsEnabled)
+		{
+			UpdateParticleTrails();
+		}
 	}
 
 	private void UpdateParticles(float deltaTime)
@@ -183,6 +218,10 @@ class ParticleSystem
 			p.Life -= deltaTime;
 			if (p.Life <= 0)
 			{
+				// Free associated trail before removing particle
+				if (p.HasTrail)
+					FreeTrail(p.TrailIndex);
+
 				mParticles.RemoveAtFast(i);
 				continue;
 			}
@@ -220,6 +259,10 @@ class ParticleSystem
 				// Check if module killed the particle
 				if (p.Life <= 0)
 				{
+					// Free associated trail
+					if (p.HasTrail)
+						FreeTrail(p.TrailIndex);
+
 					mParticles.RemoveAtFast(i);
 					continue;
 				}
@@ -348,6 +391,9 @@ class ParticleSystem
 		int32 totalFrames = mConfig.TextureSheetRows * mConfig.TextureSheetColumns;
 		p.TotalFrames = (uint16)totalFrames;
 		p.TextureFrame = (uint16)mConfig.StartFrame;
+
+		// Allocate trail if trails are enabled
+		p.TrailIndex = mTrailsEnabled ? AllocateTrail() : -1;
 
 		// Call module spawn callbacks
 		if (mConfig.Modules != null)
@@ -557,6 +603,13 @@ class ParticleSystem
 	/// Clears all particles.
 	public void Clear()
 	{
+		// Free all trails associated with particles
+		for (let p in mParticles)
+		{
+			if (p.HasTrail)
+				FreeTrail(p.TrailIndex);
+		}
+
 		mParticles.Clear();
 		mEmissionAccumulator = 0;
 		mBurstAccumulator = 0;
@@ -574,4 +627,116 @@ class ParticleSystem
 
 	/// Gets read-only access to the particle list.
 	public Span<Particle> Particles => mParticles;
+
+	// ==================== Trail Management ====================
+
+	/// Initializes trail storage based on config.
+	/// Called automatically when config changes.
+	private void InitializeTrails()
+	{
+		// Clean up existing trails
+		if (mTrails != null)
+		{
+			for (let t in mTrails)
+				delete t;
+			delete mTrails;
+			mTrails = null;
+		}
+		mFreeTrailSlots.Clear();
+		mMaxTrails = 0;
+		mTrailsEnabled = false;
+
+		// Check if trails are enabled in config
+		if (mConfig == null || !mConfig.ParticleTrails.Enabled)
+			return;
+
+		// Allocate trail storage (one trail per potential particle)
+		mMaxTrails = mMaxParticles;
+		mTrails = new ParticleTrail[mMaxTrails];
+
+		let settings = mConfig.ParticleTrails;
+		for (int32 i = 0; i < mMaxTrails; i++)
+		{
+			mTrails[i] = new ParticleTrail(settings.MaxPoints);
+			mTrails[i].MinVertexDistance = settings.MinVertexDistance;
+			mFreeTrailSlots.Add((int16)i);
+		}
+
+		mTrailsEnabled = true;
+	}
+
+	/// Allocates a trail for a particle.
+	/// Returns the trail index, or -1 if no trails available.
+	private int16 AllocateTrail()
+	{
+		if (!mTrailsEnabled || mFreeTrailSlots.Count == 0)
+			return -1;
+
+		int16 index = mFreeTrailSlots.PopBack();
+		mTrails[index].Clear();
+		return index;
+	}
+
+	/// Frees a trail back to the pool.
+	private void FreeTrail(int16 index)
+	{
+		if (index < 0 || index >= mMaxTrails)
+			return;
+
+		mTrails[index].Clear();
+		mFreeTrailSlots.Add(index);
+	}
+
+	/// Updates trail points for all particles with trails.
+	private void UpdateParticleTrails()
+	{
+		if (!mTrailsEnabled || mConfig == null)
+			return;
+
+		let settings = mConfig.ParticleTrails;
+
+		for (int i = 0; i < mParticles.Count; i++)
+		{
+			ref Particle p = ref mParticles[i];
+			if (!p.HasTrail)
+				continue;
+
+			let trail = mTrails[p.TrailIndex];
+
+			// Determine trail width based on particle size
+			float width = settings.InheritParticleColor ? p.Size.X : settings.WidthStart;
+
+			// Determine trail color
+			Color trailColor = settings.InheritParticleColor ? p.Color : settings.TrailColor;
+
+			// Try to add a new point
+			trail.TryAddPoint(p.Position, width, trailColor, mTotalTime);
+
+			// Remove old points
+			trail.RemoveOldPoints(mTotalTime, settings.MaxAge);
+		}
+	}
+
+	/// Gets a list of active trails for rendering.
+	/// Only returns trails that have points.
+	public void GetActiveTrails(List<ParticleTrail> outTrails)
+	{
+		outTrails.Clear();
+
+		if (!mTrailsEnabled || mTrails == null)
+			return;
+
+		for (let particle in mParticles)
+		{
+			if (particle.HasTrail && particle.TrailIndex < mMaxTrails)
+			{
+				let trail = mTrails[particle.TrailIndex];
+				if (trail.HasPoints)
+					outTrails.Add(trail);
+			}
+		}
+	}
+
+	/// Gets the current time for trail rendering.
+	public float CurrentTime => mTotalTime;
 }

@@ -86,6 +86,24 @@ class RendererIntegratedSample : RHISampleApp
 	}
 	private List<ParticleEffectLabel> mParticleLabels = new .() ~ delete _;
 
+	// Force fields (scene-level particle forces) - low-level handles
+	private ForceFieldHandle mWindField = .Invalid;
+	private ForceFieldHandle mVortexField = .Invalid;
+	private ForceFieldHandle mAttractorField = .Invalid;
+
+	// Trail demo (low-level approach for debug lines)
+	private ParticleTrail mLaserTrail ~ delete _;
+	private Vector3 mTrailPosition = .(0, 3, 15);
+	private float mTrailAngle = 0;
+
+	// Force field demo entity (to connect after force fields exist)
+	private Entity mForceFieldDustEntity;
+
+	// Component-based trail demo (high-level approach)
+	private Entity mTrailEntity;
+	private Entity mSwordTrailEntity;
+	private float mComponentTrailAngle = 0;
+
 	public this() : base(.()
 	{
 		Title = "Framework.Core + Renderer Integration",
@@ -134,6 +152,12 @@ class RendererIntegratedSample : RHISampleApp
 
 		// Create all entities (cubes, lights, camera)
 		CreateEntities();
+
+		// Create scene-level force fields
+		CreateForceFields();
+
+		// Initialize trail renderer and demo trail
+		InitializeTrails();
 
 		Console.WriteLine("Framework.Core + Renderer integration sample initialized");
 		Console.WriteLine($"Created {GRID_SIZE * GRID_SIZE} cube entities with MeshRendererComponent");
@@ -611,6 +635,65 @@ class RendererIntegratedSample : RHISampleApp
 			RegisterEffect(pos, .(200, 200, 255, 255), "STEAM");
 		}
 
+		// ==================== PER-PARTICLE TRAILS ====================
+		// Particles that leave ribbon trails behind them as they move
+		{
+			let pos = Vector3(15, 3, 10);
+			let trailedEntity = mScene.CreateEntity("TrailedSparks");
+			trailedEntity.Transform.SetPosition(pos);
+
+			let config = new ParticleEmitterConfig();
+			config.EmissionRate = 8;  // Fewer particles for clearer trails
+			config.Lifetime = .(2.0f, 3.0f);
+			config.InitialSpeed = .(4, 8);
+			config.InitialSize = .(0.1f, 0.2f);
+			config.MaxParticles = 50;  // Limit count for performance
+			config.SetSphereEmission(0.5f);
+			config.BlendMode = .Additive;
+			config.Gravity = .(0, -3, 0);
+			config.SetColorOverLifetime(.(255, 200, 50, 255), .(255, 100, 0, 0));
+
+			// Enable per-particle trails!
+			config.EnableParticleTrails(15, 0.1f, 0.8f);  // 15 points, 0.1 min dist, 0.8s max age
+			config.ParticleTrails.WidthStart = 0.15f;
+			config.ParticleTrails.WidthEnd = 0.0f;
+			config.ParticleTrails.InheritParticleColor = true;
+
+			let emitter = new ParticleEmitterComponent(config);
+			trailedEntity.AddComponent(emitter);
+
+			RegisterEffect(pos, .(255, 200, 50, 255), "TRAILED");
+		}
+
+		// ==================== FORCE FIELD DEMO - DUST CLOUD ====================
+		// Particles that respond to scene force fields (wind, attractor, vortex)
+		{
+			let pos = Vector3(-3, 1.5f, 3);
+			mForceFieldDustEntity = mScene.CreateEntity("ForceFieldDust");
+			mForceFieldDustEntity.Transform.SetPosition(pos);
+
+			let config = new ParticleEmitterConfig();
+			config.EmissionRate = 40;
+			config.Lifetime = .(3.0f, 5.0f);
+			config.InitialSpeed = .(0.5f, 1.5f);
+			config.InitialSize = .(0.1f, 0.2f);
+			config.MaxParticles = 300;
+			config.SetSphereEmission(3.0f);  // Emit from large sphere
+			config.BlendMode = .AlphaBlend;
+			config.Gravity = .(0, 0.1f, 0);  // Nearly neutral buoyancy
+			config.Drag = 0.2f;
+			// Brown/tan dust colors
+			config.StartColor = .(.(180, 150, 100, 200));
+			config.EndColor = .(.(150, 120, 80, 0));
+			config.SetSizeOverLifetime(1.0f, 1.5f);
+			// Force field response added in CreateForceFields() after fields exist
+
+			let emitter = new ParticleEmitterComponent(config);
+			mForceFieldDustEntity.AddComponent(emitter);
+
+			RegisterEffect(pos, .(180, 150, 100, 255), "FF DUST");
+		}
+
 		// Print legend to console
 		Console.WriteLine("\n=== PARTICLE EFFECTS LEGEND ===");
 		for (let label in mParticleLabels)
@@ -761,6 +844,206 @@ class RendererIntegratedSample : RHISampleApp
 			meshComponent.PlayAnimation(0, true);
 			Console.WriteLine($"Fox animation playing: {meshComponent.AnimationClips[0].Name}");
 		}
+	}
+
+	private void CreateForceFields()
+	{
+		let renderWorld = mRenderSceneComponent?.RenderWorld;
+		if (renderWorld == null)
+		{
+			Console.WriteLine("Warning: RenderWorld not available for force fields");
+			return;
+		}
+
+		// Create a global wind force field (gentle breeze from +X direction)
+		mWindField = renderWorld.CreateDirectionalForceField(.(1, 0.2f, 0.3f), 2.0f);
+		Console.WriteLine("Created wind force field (direction: +X, strength: 2.0)");
+
+		// Create a vortex around the magic orb position
+		mVortexField = renderWorld.CreateVortexForceField(
+			.(12, 2.5f, 0),    // Position (same as magic orb)
+			.(0, 1, 0),        // Vertical axis
+			8.0f,              // Rotational strength
+			6.0f,              // Radius
+			1.5f               // Inward pull
+		);
+		Console.WriteLine("Created vortex force field at magic orb (radius: 6.0, strength: 8.0)");
+
+		// Create a point attractor that pulls particles (for "black hole" effect)
+		mAttractorField = renderWorld.CreatePointForceField(
+			.(-5, 2, 5),       // Position
+			15.0f,             // Strong attraction
+			8.0f,              // Radius of effect
+			1.5f               // Falloff
+		);
+		Console.WriteLine("Created attractor force field at (-5, 2, 5) (strength: 15.0)");
+
+		// Register attractor for debug visualization
+		mParticleLabels.Add(.(.(-5, 2, 5), .(255, 0, 0, 255), "ATTRACTOR"));
+
+		// Connect dust particles to force fields
+		if (mForceFieldDustEntity != null)
+		{
+			if (let emitter = mForceFieldDustEntity.GetComponent<ParticleEmitterComponent>())
+			{
+				// Add force field module to make particles respond to scene forces
+				emitter.Config.AddForceFieldResponse(renderWorld, 1.0f);
+				Console.WriteLine("Connected FF DUST particles to scene force fields");
+			}
+		}
+	}
+
+	private void InitializeTrails()
+	{
+		// ==================== Low-Level Trail (debug lines) ====================
+		// Create a particle trail for the laser demo (drawn via debug lines)
+		mLaserTrail = new ParticleTrail(50);  // 50 points max
+		mLaserTrail.MinVertexDistance = 0.15f;
+
+		Console.WriteLine("Trail demo initialized - Laser trail orbits around (0, 3, 15)");
+		Console.WriteLine("  Trail visualized with debug lines (cyan ribbon)");
+		mParticleLabels.Add(.(.(0, 3, 15), .(0, 255, 255, 255), "LASER TRAIL"));
+
+		// ==================== Component-Based Trail (GPU rendered) ====================
+		// Create an entity with TrailComponent for GPU-rendered trails
+		{
+			let pos = Vector3(-8, 3, 15);
+			mTrailEntity = mScene.CreateEntity("LaserTrailEntity");
+			mTrailEntity.Transform.SetPosition(pos);
+
+			// Use the laser preset with shorter trail
+			let trailComponent = TrailComponent.CreateLaser(.(0, 255, 100, 255), 0.15f);
+			trailComponent.MaxAge = 0.5f;  // Shorter trail (was 1.2)
+			trailComponent.IsEmitting = false;  // Don't emit until first update positions it
+			mTrailEntity.AddComponent(trailComponent);
+
+			Console.WriteLine("Component-based trail created at (-8, 3, 15)");
+			Console.WriteLine("  Trail rendered via TrailRenderer (green laser)");
+			mParticleLabels.Add(.(pos, .(0, 255, 100, 255), "COMP TRAIL"));
+		}
+
+		// ==================== Sword Swing Trail Demo ====================
+		// Create a magic sword swing trail
+		{
+			let pos = Vector3(8, 2, 15);
+			mSwordTrailEntity = mScene.CreateEntity("SwordSwingTrail");
+			mSwordTrailEntity.Transform.SetPosition(pos);
+
+			// Use the sword swing preset with custom purple color
+			let trailComponent = TrailComponent.CreateSwordSwing(.(180, 100, 255, 200));
+			trailComponent.MaxAge = 0.2f;
+			trailComponent.WidthStart = 0.8f;
+			trailComponent.WidthEnd = 0.2f;
+			trailComponent.IsEmitting = false;  // Don't emit until first update positions it
+			mSwordTrailEntity.AddComponent(trailComponent);
+
+			Console.WriteLine("Sword swing trail created at (8, 2, 15)");
+			mParticleLabels.Add(.(pos, .(180, 100, 255, 255), "SWORD TRAIL"));
+		}
+	}
+
+	private void UpdateTrailDemo(float deltaTime)
+	{
+		// ==================== Update low-level trail demo ====================
+		if (mLaserTrail != null)
+		{
+			// Update trail angle (orbiting motion)
+			mTrailAngle += deltaTime * 2.0f;  // 2 rad/sec
+
+			// Calculate position on orbit
+			float radius = 3.0f;
+			float height = Math.Sin(mTrailAngle * 0.5f) * 1.5f;  // Bobbing up/down
+			mTrailPosition = .(
+				Math.Cos(mTrailAngle) * radius,
+				3.0f + height,
+				15.0f + Math.Sin(mTrailAngle) * radius
+			);
+
+			// Add point to trail
+			let color = Color(
+				(uint8)(128 + Math.Sin(mTrailAngle * 3) * 127),
+				255,
+				(uint8)(200 + Math.Cos(mTrailAngle * 2) * 55),
+				255
+			);
+			mLaserTrail.TryAddPoint(mTrailPosition, 1.0f, color, TotalTime);
+
+			// Remove old points
+			mLaserTrail.RemoveOldPoints(TotalTime, 1.5f);  // 1.5 second trail
+		}
+
+		// ==================== Update component-based trail entity ====================
+		// The TrailComponent automatically adds points based on entity position
+		if (mTrailEntity != null)
+		{
+			// Animate the entity in a different orbit pattern (figure-8)
+			mComponentTrailAngle += deltaTime * 1.8f;
+
+			float radius = 2.5f;
+			float x = Math.Sin(mComponentTrailAngle) * radius;
+			float y = 3.0f + Math.Sin(mComponentTrailAngle * 2) * 1.0f;
+			float z = 15.0f + Math.Sin(mComponentTrailAngle * 2) * radius * 0.5f;
+
+			mTrailEntity.Transform.SetPosition(.(-8 + x, y, z));
+
+			// Enable emission after first position update
+			if (let trail = mTrailEntity.GetComponent<TrailComponent>())
+			{
+				if (!trail.IsEmitting)
+					trail.IsEmitting = true;
+			}
+		}
+
+		// Update sword trail entity (swinging motion)
+		if (mSwordTrailEntity != null)
+		{
+			// Simulate a sword swing with pendulum motion
+			float swingAngle = Math.Sin(TotalTime * 3.0f) * 1.5f;
+			float swingX = Math.Sin(swingAngle) * 2.0f;
+			float swingY = 2.0f + Math.Abs(Math.Cos(swingAngle)) * 1.0f;
+
+			mSwordTrailEntity.Transform.SetPosition(.(8 + swingX, swingY, 15));
+
+			// Enable emission after first position update
+			if (let trail = mSwordTrailEntity.GetComponent<TrailComponent>())
+			{
+				if (!trail.IsEmitting)
+					trail.IsEmitting = true;
+			}
+		}
+	}
+
+	private void DrawTrailDebug()
+	{
+		if (mLaserTrail == null || !mDebugDrawService.IsInitialized)
+			return;
+
+		let pointCount = mLaserTrail.PointCount;
+		if (pointCount < 2)
+			return;
+
+		// Draw trail as connected line segments with fading
+		for (int32 i = 0; i < pointCount - 1; i++)
+		{
+			let p0 = mLaserTrail.GetPoint(i);
+			let p1 = mLaserTrail.GetPoint(i + 1);
+
+			// Fade based on position in trail (older = more faded)
+			float t = (float)i / (float)(pointCount - 1);
+			uint8 alpha = (uint8)(t * 255);
+			let color = Color(p0.Color.R, p0.Color.G, p0.Color.B, alpha);
+
+			mDebugDrawService.DrawLine(p0.Position, p1.Position, color);
+
+			// Draw thicker line by offsetting
+			let offset = Vector3(0.02f, 0, 0);
+			mDebugDrawService.DrawLine(p0.Position + offset, p1.Position + offset, color);
+			mDebugDrawService.DrawLine(p0.Position - offset, p1.Position - offset, color);
+		}
+
+		// Draw head of trail with a bright marker
+		let head = mLaserTrail.GetNewestPoint();
+		mDebugDrawService.DrawWireSphere(head.Position, 0.15f, .(0, 255, 255, 255));
 	}
 
 	protected override void OnResize(uint32 width, uint32 height)
@@ -969,6 +1252,9 @@ class RendererIntegratedSample : RHISampleApp
 		let cameraUp = mCameraEntity.Transform.Up;
 		mDebugDrawService.SetCameraVectors(cameraRight, cameraUp);
 
+		// Draw the trail demo
+		DrawTrailDebug();
+
 		for (let label in mParticleLabels)
 		{
 			let pos = label.Position;
@@ -1008,6 +1294,9 @@ class RendererIntegratedSample : RHISampleApp
 	{
 		// Update the context - handles entity transforms, proxy sync, visibility culling
 		mContext.Update(deltaTime);
+
+		// Update trail demo (orbiting trail)
+		UpdateTrailDemo(deltaTime);
 	}
 
 	protected override void OnPrepareFrame(int32 frameIndex)

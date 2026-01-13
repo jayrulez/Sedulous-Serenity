@@ -260,6 +260,39 @@ class WindModule : IParticleModule
 	}
 }
 
+/// Force field module that applies scene-level force fields to particles.
+/// Force fields are managed by RenderWorld and affect all particles in range.
+class ForceFieldModule : IParticleModule
+{
+	/// Reference to the render world containing force fields.
+	public RenderWorld World;
+
+	/// Layer mask for filtering which force fields affect these particles.
+	public uint32 LayerMask = 0xFFFFFFFF;
+
+	/// Multiplier for force field strength.
+	public float StrengthMultiplier = 1.0f;
+
+	public this(RenderWorld world)
+	{
+		World = world;
+	}
+
+	public void OnParticleSpawn(ref Particle particle, ParticleEmitterConfig config, Random random)
+	{
+	}
+
+	public void OnParticleUpdate(ref Particle particle, float deltaTime, ParticleEmitterConfig config, float time)
+	{
+		if (World == null)
+			return;
+
+		// Query all force fields and apply their combined force
+		Vector3 force = World.CalculateTotalForceFieldForce(particle.Position, time, LayerMask);
+		particle.Velocity += force * StrengthMultiplier * deltaTime;
+	}
+}
+
 /// Simple 3D simplex noise implementation for particle effects.
 static class SimplexNoise
 {

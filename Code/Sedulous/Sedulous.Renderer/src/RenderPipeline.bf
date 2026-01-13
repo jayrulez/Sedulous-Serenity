@@ -40,6 +40,7 @@ class RenderPipeline
 	private ParticleRenderer mParticleRenderer ~ delete _;
 	private SpriteRenderer mSpriteRenderer ~ delete _;
 	private SkyboxRenderer mSkyboxRenderer ~ delete _;
+	private TrailRenderer mTrailRenderer ~ delete _;
 
 	// ==================== Per-Frame GPU Resources ====================
 
@@ -62,6 +63,7 @@ class RenderPipeline
 	// ==================== Temporary Lists ====================
 
 	private List<ParticleEmitterProxy*> mVisibleParticles = new .() ~ delete _;
+	private List<ParticleTrail> mTempParticleTrails = new .() ~ delete _;  // For per-particle trail rendering
 	private List<RenderView*> mSortedViews = new .() ~ delete _;
 
 	// ==================== Public Accessors ====================
@@ -83,6 +85,9 @@ class RenderPipeline
 
 	/// Gets the skybox renderer.
 	public SkyboxRenderer SkyboxRenderer => mSkyboxRenderer;
+
+	/// Gets the trail renderer.
+	public TrailRenderer TrailRenderer => mTrailRenderer;
 
 	/// Gets the scene bind group layout (for contexts to create bind groups).
 	public IBindGroupLayout SceneBindGroupLayout => mSceneBindGroupLayout;
@@ -241,6 +246,11 @@ class RenderPipeline
 		if (mSpriteRenderer.Initialize(mShaderLibrary, billboardBuffersArray, mColorFormat, mDepthFormat) case .Err)
 			return .Err;
 
+		// Initialize trail renderer
+		mTrailRenderer = new TrailRenderer(mDevice);
+		if (mTrailRenderer.Initialize(mShaderLibrary, billboardBuffersArray, mColorFormat, mDepthFormat) case .Err)
+			return .Err;
+
 		return .Ok;
 	}
 
@@ -353,6 +363,10 @@ class RenderPipeline
 
 		let frameIndex = context.FrameIndex;
 
+		// Reset trail renderer vertex offset for this frame
+		if (mTrailRenderer != null)
+			mTrailRenderer.BeginFrame(frameIndex);
+
 		// Get all enabled views sorted by priority
 		context.GetEnabledSortedViews(mSortedViews);
 
@@ -422,6 +436,46 @@ class RenderPipeline
 		{
 			context.World.GetValidParticleEmitterProxies(mVisibleParticles);
 			mParticleRenderer.RenderEmitters(renderPass, frameIndex, mVisibleParticles);
+
+			// Render per-particle trails after particles
+			if (mTrailRenderer != null && mTrailRenderer.IsInitialized)
+			{
+				// Get camera position from view
+				Vector3 cameraPos = view != null ? view.Position : .Zero;
+
+				for (let proxy in mVisibleParticles)
+				{
+					if (!proxy.IsVisible || proxy.System == null)
+						continue;
+
+					let particleSystem = proxy.System;
+					if (!particleSystem.TrailsEnabled)
+						continue;
+
+					// Get trails from this particle system
+					particleSystem.GetActiveTrails(mTempParticleTrails);
+					if (mTempParticleTrails.Count == 0)
+						continue;
+
+					let settings = particleSystem.TrailSettings;
+					let config = particleSystem.Config;
+					let blendMode = config?.BlendMode ?? .AlphaBlend;
+
+					// Render each trail
+					for (let trail in mTempParticleTrails)
+					{
+						mTrailRenderer.RenderTrail(
+							renderPass,
+							frameIndex,
+							trail,
+							cameraPos,
+							settings,
+							blendMode,
+							particleSystem.CurrentTime
+						);
+					}
+				}
+			}
 		}
 
 		// Sprites

@@ -65,6 +65,12 @@ class RenderWorld
 	private List<uint32> mFreeSpriteSlots = new .() ~ delete _;
 	private uint32 mSpriteCount = 0;
 
+	// Force fields (scene-level particle forces)
+	private List<ForceField> mForceFields = new .() ~ delete _;
+	private List<uint32> mForceFieldGenerations = new .() ~ delete _;
+	private List<uint32> mFreeForceFieldSlots = new .() ~ delete _;
+	private uint32 mForceFieldCount = 0;
+
 	// Main camera handle
 	private ProxyHandle mMainCamera = .Invalid;
 
@@ -75,6 +81,7 @@ class RenderWorld
 	private bool mCamerasDirty = true;
 	private bool mParticleEmittersDirty = true;
 	private bool mSpritesDirty = true;
+	private bool mForceFieldsDirty = true;
 
 	// Per-frame render views
 	private List<RenderView> mRenderViews = new .() ~ delete _;
@@ -649,6 +656,149 @@ class RenderWorld
 	/// Number of active sprite proxies.
 	public uint32 SpriteCount => mSpriteCount;
 
+	// ==================== Force Field Management ====================
+
+	/// Creates a force field and returns a handle.
+	public ForceFieldHandle CreateForceField(ForceField field)
+	{
+		uint32 index;
+		uint32 generation;
+
+		if (mFreeForceFieldSlots.Count > 0)
+		{
+			index = mFreeForceFieldSlots.PopBack();
+			generation = mForceFieldGenerations[(int)index] + 1;
+			mForceFieldGenerations[(int)index] = generation;
+		}
+		else
+		{
+			index = (uint32)mForceFields.Count;
+			generation = 1;
+			mForceFields.Add(.Invalid);
+			mForceFieldGenerations.Add(generation);
+		}
+
+		var f = field;
+		f.Id = index;
+		mForceFields[(int)index] = f;
+		mForceFieldCount++;
+		mForceFieldsDirty = true;
+
+		return .(index, generation);
+	}
+
+	/// Creates a directional (wind) force field.
+	public ForceFieldHandle CreateDirectionalForceField(Vector3 direction, float strength)
+	{
+		return CreateForceField(.Directional(direction, strength));
+	}
+
+	/// Creates a point attractor/repulsor force field.
+	public ForceFieldHandle CreatePointForceField(Vector3 position, float strength, float radius, float falloff = 2.0f)
+	{
+		return CreateForceField(.Point(position, strength, radius, falloff));
+	}
+
+	/// Creates a vortex force field.
+	public ForceFieldHandle CreateVortexForceField(Vector3 position, Vector3 axis, float strength, float radius, float inwardForce = 0)
+	{
+		return CreateForceField(.Vortex(position, axis, strength, radius, inwardForce));
+	}
+
+	/// Creates a turbulence force field.
+	public ForceFieldHandle CreateTurbulenceForceField(Vector3 position, float strength, float radius, float frequency = 1.0f, int32 octaves = 2)
+	{
+		return CreateForceField(.Turbulence(position, strength, radius, frequency, octaves));
+	}
+
+	/// Gets a force field by handle.
+	public ForceField* GetForceField(ForceFieldHandle handle)
+	{
+		if (!handle.IsValid)
+			return null;
+		if (handle.Index >= (uint32)mForceFields.Count)
+			return null;
+		if (mForceFieldGenerations[(int)handle.Index] != handle.Generation)
+			return null;
+
+		return &mForceFields[(int)handle.Index];
+	}
+
+	/// Sets a force field's enabled state.
+	public void SetForceFieldEnabled(ForceFieldHandle handle, bool enabled)
+	{
+		if (let field = GetForceField(handle))
+		{
+			field.Enabled = enabled;
+			mForceFieldsDirty = true;
+		}
+	}
+
+	/// Sets a force field's strength.
+	public void SetForceFieldStrength(ForceFieldHandle handle, float strength)
+	{
+		if (let field = GetForceField(handle))
+		{
+			field.Strength = strength;
+			mForceFieldsDirty = true;
+		}
+	}
+
+	/// Sets a force field's position.
+	public void SetForceFieldPosition(ForceFieldHandle handle, Vector3 position)
+	{
+		if (let field = GetForceField(handle))
+		{
+			field.Position = position;
+			mForceFieldsDirty = true;
+		}
+	}
+
+	/// Destroys a force field.
+	public void DestroyForceField(ForceFieldHandle handle)
+	{
+		if (!handle.IsValid)
+			return;
+		if (handle.Index >= (uint32)mForceFields.Count)
+			return;
+		if (mForceFieldGenerations[(int)handle.Index] != handle.Generation)
+			return;
+
+		mForceFields[(int)handle.Index] = .Invalid;
+		mFreeForceFieldSlots.Add(handle.Index);
+		mForceFieldCount--;
+		mForceFieldsDirty = true;
+	}
+
+	/// Gets all enabled force fields.
+	public void GetEnabledForceFields(List<ForceField*> outFields)
+	{
+		outFields.Clear();
+		for (var i < mForceFields.Count)
+		{
+			if (mForceFields[i].IsValid && mForceFields[i].Enabled)
+				outFields.Add(&mForceFields[i]);
+		}
+	}
+
+	/// Calculates the total force from all force fields at a given position.
+	public Vector3 CalculateTotalForceFieldForce(Vector3 position, float time, uint32 layerMask = 0xFFFFFFFF)
+	{
+		Vector3 totalForce = .Zero;
+		for (var i < mForceFields.Count)
+		{
+			let field = mForceFields[i];
+			if (field.IsValid && field.Enabled && (field.LayerMask & layerMask) != 0)
+			{
+				totalForce += field.CalculateForce(position, time);
+			}
+		}
+		return totalForce;
+	}
+
+	/// Number of active force fields.
+	public uint32 ForceFieldCount => mForceFieldCount;
+
 	// ==================== Render View Management ====================
 
 	/// Clears all render views and resets the view ID counter.
@@ -888,6 +1038,7 @@ class RenderWorld
 		mCamerasDirty = false;
 		mParticleEmittersDirty = false;
 		mSpritesDirty = false;
+		mForceFieldsDirty = false;
 	}
 
 	/// Clears all proxies.
@@ -923,6 +1074,11 @@ class RenderWorld
 		mFreeSpriteSlots.Clear();
 		mSpriteCount = 0;
 
+		mForceFields.Clear();
+		mForceFieldGenerations.Clear();
+		mFreeForceFieldSlots.Clear();
+		mForceFieldCount = 0;
+
 		mMainCamera = .Invalid;
 
 		mRenderViews.Clear();
@@ -934,6 +1090,7 @@ class RenderWorld
 		mCamerasDirty = true;
 		mParticleEmittersDirty = true;
 		mSpritesDirty = true;
+		mForceFieldsDirty = true;
 	}
 
 	// ==================== Queries ====================
@@ -980,4 +1137,5 @@ class RenderWorld
 	public bool CamerasDirty => mCamerasDirty;
 	public bool ParticleEmittersDirty => mParticleEmittersDirty;
 	public bool SpritesDirty => mSpritesDirty;
+	public bool ForceFieldsDirty => mForceFieldsDirty;
 }
