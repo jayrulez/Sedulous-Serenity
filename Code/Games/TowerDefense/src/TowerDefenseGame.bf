@@ -30,6 +30,7 @@ using TowerDefense.Components;
 using TowerDefense.Systems;
 using TowerDefense.UI;
 using TowerDefense.Audio;
+using TowerDefense.Effects;
 
 /// Tower Defense game main class.
 /// Phase 7: Audio - Sound effects and music.
@@ -92,6 +93,9 @@ class TowerDefenseGame : RHISampleApp
 
 	// Wave system
 	private WaveSpawner mWaveSpawner ~ delete _;
+
+	// Particle effects
+	private ParticleEffects mParticleEffects ~ delete _;
 
 	// Game state
 	private GameState mGameState = .MainMenu;
@@ -179,17 +183,28 @@ class TowerDefenseGame : RHISampleApp
 		mEnemyFactory.OnEnemyReachedExit.Subscribe(new => OnEnemyReachedExit);
 		mEnemyFactory.OnEnemyKilled.Subscribe(new => OnEnemyKilled);
 
-		// Subscribe to enemy death audio event
+		// Subscribe to enemy death audio event (also spawn particles)
 		mEnemyFactory.OnEnemyDeathAudio.Subscribe(new (position) => {
 			mGameAudio?.PlayEnemyDeath(position);
+			mParticleEffects?.SpawnEnemyDeath(position, .(1.0f, 0.5f, 0.2f, 1.0f));  // Orange explosion
 		});
 
 		// Initialize tower factory (pass GameAudio for AudioSourceComponent)
 		mTowerFactory = new TowerFactory(mScene, mRendererService, mEnemyFactory, mGameAudio);
 		mTowerFactory.InitializeMaterials();
 
-		// Note: Tower fire audio is now played via AudioSourceComponent on each tower entity
-		// The OnTowerFired event is still available for visual effects if needed
+		// Initialize particle effects
+		mParticleEffects = new ParticleEffects(mScene);
+
+		// Subscribe to tower fire event for particle effects (audio is handled by AudioSourceComponent)
+		mTowerFactory.OnTowerFired.Subscribe(new (def, position) => {
+			mParticleEffects?.SpawnTowerFire(def.Name, position, .(0, 1, 0));
+		});
+
+		// Subscribe to projectile impact event for particle effects
+		mTowerFactory.OnProjectileImpact.Subscribe(new (position, color) => {
+			mParticleEffects?.SpawnProjectileHit(position, color);
+		});
 
 		// Create tower placement preview
 		CreateTowerPreview();
@@ -983,6 +998,9 @@ class TowerDefenseGame : RHISampleApp
 		// Clear all towers
 		mTowerFactory.ClearAll();
 
+		// Clear particle effects
+		mParticleEffects?.Clear();
+
 		// Reset wave spawner
 		mWaveSpawner.Reset();
 
@@ -1278,6 +1296,9 @@ class TowerDefenseGame : RHISampleApp
 
 			// Update enemy system (death animations cleanup)
 			mEnemyFactory.Update(scaledDelta);
+
+			// Update particle effects (cleanup expired effects)
+			mParticleEffects?.Update(scaledDelta);
 		}
 
 		// Update engine context (handles entity sync, visibility culling, etc.)

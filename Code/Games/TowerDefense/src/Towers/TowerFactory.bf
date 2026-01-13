@@ -18,6 +18,9 @@ using TowerDefense.Enemies;
 /// Delegate for tower fire events (for audio/effects).
 delegate void TowerFiredDelegate(TowerDefinition def, Vector3 position);
 
+/// Delegate for projectile impact events (for particle effects).
+delegate void ProjectileImpactDelegate(Vector3 position, Vector4 color);
+
 /// Factory for creating and managing towers and projectiles.
 class TowerFactory
 {
@@ -28,9 +31,13 @@ class TowerFactory
 
 	// Events
 	private EventAccessor<TowerFiredDelegate> mOnTowerFired = new .() ~ delete _;
+	private EventAccessor<ProjectileImpactDelegate> mOnProjectileImpact = new .() ~ delete _;
 
 	/// Event fired when any tower fires (for audio/effects).
 	public EventAccessor<TowerFiredDelegate> OnTowerFired => mOnTowerFired;
+
+	/// Event fired when a projectile hits a target (for particle effects).
+	public EventAccessor<ProjectileImpactDelegate> OnProjectileImpact => mOnProjectileImpact;
 
 	// Shared meshes
 	private StaticMesh mTowerMesh ~ delete _;
@@ -258,10 +265,12 @@ class TowerFactory
 		let projComp = new ProjectileComponent(target, damage, speed);
 		entity.AddComponent(projComp);
 
-		// Subscribe to hit event
+		// Subscribe to hit event (capture color and damage for particle effects)
+		var projectileColor = color;
+		var projectileDamage = damage;
 		projComp.OnHit.Subscribe(new (projectile, hitTarget) =>
 		{
-			OnProjectileHit(projectile, hitTarget, damage);
+			OnProjectileHitInternal(projectile, hitTarget, projectileDamage, projectileColor);
 		});
 
 		mProjectiles.Add(entity);
@@ -269,7 +278,7 @@ class TowerFactory
 	}
 
 	/// Called when a projectile hits a target.
-	private void OnProjectileHit(Entity projectile, Entity target, float damage)
+	private void OnProjectileHitInternal(Entity projectile, Entity target, float damage, Vector4 color)
 	{
 		// Apply damage to target
 		let healthComp = target.GetComponent<HealthComponent>();
@@ -277,6 +286,10 @@ class TowerFactory
 		{
 			healthComp.TakeDamage(damage);
 		}
+
+		// Fire event for particle effects at impact position
+		let hitPosition = projectile.Transform.WorldPosition;
+		mOnProjectileImpact.[Friend]Invoke(hitPosition, color);
 	}
 
 	/// Updates all towers (targeting) and projectiles.
