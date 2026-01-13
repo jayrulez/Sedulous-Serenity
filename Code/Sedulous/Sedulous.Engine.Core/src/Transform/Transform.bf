@@ -26,6 +26,9 @@ struct Transform
 	private bool mLocalDirty = true;
 	private bool mWorldDirty = true;
 
+	/// True if this transform has a parent (set during UpdateWorldMatrix).
+	private bool mHasParent = false;
+
 	/// Creates an identity transform.
 	public static Transform Identity => .();
 
@@ -49,8 +52,21 @@ struct Transform
 	/// Gets the cached world matrix.
 	public Matrix WorldMatrix => mWorldMatrix;
 
-	/// Gets the world position from the world matrix.
-	public Vector3 WorldPosition => mWorldMatrix.Translation;
+	/// Gets the world position.
+	/// For root entities (no parent), returns Position directly when dirty (before sync).
+	/// For child entities, returns cached world matrix translation (may be stale before sync).
+	public Vector3 WorldPosition
+	{
+		get
+		{
+			// If world matrix hasn't been synced yet and this is a root entity,
+			// return local position directly (which IS the world position for roots).
+			// For child entities, we must return cached value since we need parent's matrix.
+			if (mWorldDirty && !mHasParent)
+				return Position;
+			return mWorldMatrix.Translation;
+		}
+	}
 
 	/// Forward direction in local space.
 	public Vector3 Forward => Vector3.Transform(.(0, 0, -1), Matrix.CreateFromQuaternion(Rotation));
@@ -68,13 +84,27 @@ struct Transform
 		mWorldDirty = true;
 	}
 
+	/// Computes the world matrix for a root entity (no parent).
+	/// For root entities, world matrix equals local matrix.
+	public void UpdateWorldMatrix() mut
+	{
+		if (mLocalDirty || mWorldDirty)
+		{
+			mWorldMatrix = LocalMatrix;
+			mWorldDirty = false;
+			mHasParent = false;
+		}
+	}
+
 	/// Computes the world matrix given a parent's world matrix.
+	/// Use this for child entities in a hierarchy.
 	public void UpdateWorldMatrix(Matrix parentWorld) mut
 	{
 		if (mLocalDirty || mWorldDirty)
 		{
 			mWorldMatrix = LocalMatrix * parentWorld;
 			mWorldDirty = false;
+			mHasParent = true;
 		}
 	}
 

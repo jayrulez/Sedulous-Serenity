@@ -94,12 +94,15 @@ class TowerComponent : IEntityComponent
 		if (!Definition.TargetType.CanTarget(enemyComp.Definition.Type))
 			return false;
 
-		// Check range
+		// Check range using horizontal distance (XZ plane) to match the visual range indicator
 		let towerPos = mEntity.Transform.WorldPosition;
 		let targetPos = target.Transform.WorldPosition;
-		float distance = Vector3.Distance(towerPos, targetPos);
+		float dx = towerPos.X - targetPos.X;
+		float dz = towerPos.Z - targetPos.Z;
+		float horizontalDistance = Math.Sqrt(dx * dx + dz * dz);
+		let range = GetRange();
 
-		return distance <= GetRange();
+		return horizontalDistance <= range;
 	}
 
 	/// Finds the best target from a list of enemies.

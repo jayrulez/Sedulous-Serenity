@@ -171,7 +171,7 @@ class EntityManager
 			if (!entity.ParentId.IsValid)
 			{
 				// Root entity: world matrix equals local matrix
-				entity.Transform.UpdateWorldMatrix(.Identity);
+				entity.Transform.UpdateWorldMatrix();
 				UpdateChildTransforms(entity);
 			}
 		}

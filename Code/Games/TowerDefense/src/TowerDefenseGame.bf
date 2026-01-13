@@ -42,6 +42,7 @@ class TowerDefenseGame : RHISampleApp
 
 	// Services
 	private RendererService mRendererService;
+	private DebugDrawService mDebugDrawService;
 	private AudioService mAudioService;
 	private InputService mInputService;
 	private UIService mUIService;
@@ -230,6 +231,11 @@ class TowerDefenseGame : RHISampleApp
 		}
 
 		mContext.RegisterService<RendererService>(mRendererService);
+
+		// Create and register debug draw service (for health bars, range indicators)
+		mDebugDrawService = new DebugDrawService();
+		mContext.RegisterService<DebugDrawService>(mDebugDrawService);
+
 		Console.WriteLine("Renderer service initialized");
 		return true;
 	}
@@ -935,6 +941,7 @@ class TowerDefenseGame : RHISampleApp
 		mLives = mCurrentMap.StartingLives;
 		mEnemiesKilled = 0;
 		mSelectedTowerType = 0;
+		mSelectedPlacedTower = null;  // Clear stale reference before towers are deleted
 
 		// Hide tower preview
 		HideTowerPreview();
@@ -1004,6 +1011,20 @@ class TowerDefenseGame : RHISampleApp
 
 		mSelectedTowerType = type;
 		Console.WriteLine($"Selected: {def.Name} (${def.Cost})");
+	}
+
+	/// Gets tower definition by selection index (1-5).
+	private TowerDefinition GetTowerDefinitionByIndex(int32 index)
+	{
+		switch (index)
+		{
+		case 1: return .Cannon;
+		case 2: return .Archer;
+		case 3: return .SlowTower;
+		case 4: return .Splash;
+		case 5: return .AntiAir;
+		default: return .Cannon;
+		}
 	}
 
 	private void TryPlaceTower(float screenX, float screenY)
@@ -1163,6 +1184,133 @@ class TowerDefenseGame : RHISampleApp
 		// Update engine context (handles entity sync, visibility culling, etc.)
 		// Pass zero delta when paused to freeze component updates
 		mContext.Update(effectiveDelta);
+
+		// Draw debug visuals (health bars, range indicators)
+		DrawDebugVisuals();
+	}
+
+	/// Draws health bars above enemies and range indicators for towers.
+	private void DrawDebugVisuals()
+	{
+		let debugDraw = mRendererService?.DebugDrawService;
+		if (debugDraw == null)
+			return;
+
+		// Don't draw during main menu
+		if (mGameState == .MainMenu)
+			return;
+
+		// Draw enemy health bars
+		DrawEnemyHealthBars(debugDraw);
+
+		// Draw tower range indicator
+		DrawTowerRangeIndicator(debugDraw);
+	}
+
+	/// Draws health bars above all active enemies.
+	private void DrawEnemyHealthBars(DebugDrawService debugDraw)
+	{
+		if (mEnemyFactory == null)
+			return;
+
+		let enemies = scope List<Entity>();
+		mEnemyFactory.GetActiveEnemies(enemies);
+
+		for (let enemy in enemies)
+		{
+			let healthComp = enemy.GetComponent<HealthComponent>();
+			if (healthComp == null || healthComp.IsDead)
+				continue;
+
+			let pos = enemy.Transform.WorldPosition;
+			let healthPct = healthComp.HealthPercent;
+
+			// Health bar dimensions
+			let barWidth = 1.2f;
+			let barHeight = 0.15f;
+			let barY = pos.Y + 1.5f;  // Height above enemy
+
+			// For top-down view, draw horizontal bar on XZ plane
+			let halfWidth = barWidth * 0.5f;
+			let halfHeight = barHeight * 0.5f;
+
+			// Background (dark red) - full width
+			let bgColor = Color(60, 20, 20, 200);
+			debugDraw.DrawQuad(
+				.(pos.X - halfWidth, barY, pos.Z - halfHeight),
+				.(pos.X + halfWidth, barY, pos.Z - halfHeight),
+				.(pos.X + halfWidth, barY, pos.Z + halfHeight),
+				.(pos.X - halfWidth, barY, pos.Z + halfHeight),
+				bgColor, .Overlay);
+
+			// Foreground (green to red based on health) - scaled by health
+			let fgWidth = barWidth * healthPct;
+			let fgStartX = pos.X - halfWidth;  // Start from left edge
+
+			// Color: green when healthy, yellow at 50%, red when low
+			uint8 r = (uint8)(255 * (1.0f - healthPct));
+			uint8 g = (uint8)(255 * healthPct);
+			let fgColor = Color(r, g, 0, 255);
+
+			if (healthPct > 0.01f)
+			{
+				debugDraw.DrawQuad(
+					.(fgStartX, barY + 0.01f, pos.Z - halfHeight * 0.8f),
+					.(fgStartX + fgWidth, barY + 0.01f, pos.Z - halfHeight * 0.8f),
+					.(fgStartX + fgWidth, barY + 0.01f, pos.Z + halfHeight * 0.8f),
+					.(fgStartX, barY + 0.01f, pos.Z + halfHeight * 0.8f),
+					fgColor, .Overlay);
+			}
+		}
+	}
+
+	/// Draws range indicator circle for selected tower or tower being placed.
+	private void DrawTowerRangeIndicator(DebugDrawService debugDraw)
+	{
+		Vector3 center = .Zero;
+		float range = 0;
+		Color color = .(100, 200, 255, 180);  // Light blue
+
+		// Check if placing a tower
+		if (mSelectedTowerType > 0 && mTowerPreview != null && mPreviewMeshComp?.Visible == true)
+		{
+			center = mTowerPreview.Transform.WorldPosition;
+			let def = GetTowerDefinitionByIndex(mSelectedTowerType);
+			range = def.Range;
+			color = mPreviewValid ? Color(100, 255, 100, 150) : Color(255, 100, 100, 150);
+		}
+		// Check if a placed tower is selected
+		else if (mSelectedPlacedTower != null)
+		{
+			let towerComp = mSelectedPlacedTower.GetComponent<TowerComponent>();
+			if (towerComp != null)
+			{
+				center = mSelectedPlacedTower.Transform.WorldPosition;
+				range = towerComp.GetRange();
+			}
+		}
+
+		// Draw range circle if we have a valid range
+		if (range > 0)
+		{
+			DrawCircleXZ(debugDraw, center, range, color, 32);
+		}
+	}
+
+	/// Draws a circle on the XZ plane (ground).
+	private void DrawCircleXZ(DebugDrawService debugDraw, Vector3 center, float radius, Color color, int segments)
+	{
+		float angleStep = Math.PI_f * 2.0f / segments;
+		float y = center.Y + 0.05f;  // Slightly above ground to avoid z-fighting
+
+		for (int i = 0; i < segments; i++)
+		{
+			float a0 = i * angleStep;
+			float a1 = (i + 1) * angleStep;
+			Vector3 p0 = .(center.X + Math.Cos(a0) * radius, y, center.Z + Math.Sin(a0) * radius);
+			Vector3 p1 = .(center.X + Math.Cos(a1) * radius, y, center.Z + Math.Sin(a1) * radius);
+			debugDraw.DrawLine(p0, p1, color, .Overlay);
+		}
 	}
 
 	// Wave event handlers
@@ -1318,6 +1466,7 @@ class TowerDefenseGame : RHISampleApp
 		delete mInputService;
 		delete mUIService;
 		delete mAudioService;
+		delete mDebugDrawService;
 		delete mRendererService;
 
 		// Audio system is owned by AudioService if takeOwnership=true (default)
