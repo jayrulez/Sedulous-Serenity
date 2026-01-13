@@ -225,23 +225,29 @@ class SDL3AudioSource : IAudioSource
 			return;
 
 		// Feed more audio if the stream needs it
-		let queued = SDL3.SDL_GetAudioStreamQueued(mStream);
+		var queued = SDL3.SDL_GetAudioStreamQueued(mStream);
 		if (queued < CHUNK_SIZE * 2)
 		{
 			FeedAudioChunk();
 		}
 
 		// Check if we've finished playing
-		if (mPlaybackPosition >= (uint32)mCurrentClip.DataLength && SDL3.SDL_GetAudioStreamQueued(mStream) <= 0)
+		let clipLen = (uint32)mCurrentClip.DataLength;
+		queued = SDL3.SDL_GetAudioStreamQueued(mStream);  // Re-query after potential feed
+		if (mPlaybackPosition >= clipLen)
 		{
-			if (mLoop)
+			// SDL3 may keep a small residual buffer, use threshold instead of exact 0
+			if (queued < 256)
 			{
-				mPlaybackPosition = 0;
-				FeedAudioChunk();
-			}
-			else
-			{
-				mState = .Stopped;
+				if (mLoop)
+				{
+					mPlaybackPosition = 0;
+					FeedAudioChunk();
+				}
+				else
+				{
+					mState = .Stopped;
+				}
 			}
 		}
 	}

@@ -15,6 +15,9 @@ delegate void TowerSelectedDelegate(int32 towerIndex);
 /// Delegate for game action events.
 delegate void GameActionDelegate();
 
+/// Delegate for volume change events.
+delegate void VolumeChangeDelegate(float newVolume);
+
 /// Main game HUD for Tower Defense.
 /// Displays money, lives, wave info, tower selection, and game state overlays.
 class GameHUD
@@ -52,18 +55,28 @@ class GameHUD
 	private TextBlock mTowerInfoSellPrice;
 	private Button mSellButton;
 
+	// Volume controls (in pause menu)
+	private TextBlock mMusicVolumeLabel;
+	private TextBlock mSFXVolumeLabel;
+	private float mMusicVolume = 0.5f;
+	private float mSFXVolume = 0.7f;
+
 	// Events
 	private EventAccessor<TowerSelectedDelegate> mOnTowerSelected = new .() ~ delete _;
 	private EventAccessor<GameActionDelegate> mOnStartWave = new .() ~ delete _;
 	private EventAccessor<GameActionDelegate> mOnRestart = new .() ~ delete _;
 	private EventAccessor<GameActionDelegate> mOnResume = new .() ~ delete _;
 	private EventAccessor<GameActionDelegate> mOnSellTower = new .() ~ delete _;
+	private EventAccessor<VolumeChangeDelegate> mOnMusicVolumeChanged = new .() ~ delete _;
+	private EventAccessor<VolumeChangeDelegate> mOnSFXVolumeChanged = new .() ~ delete _;
 
 	public EventAccessor<TowerSelectedDelegate> OnTowerSelected => mOnTowerSelected;
 	public EventAccessor<GameActionDelegate> OnStartWave => mOnStartWave;
 	public EventAccessor<GameActionDelegate> OnRestart => mOnRestart;
 	public EventAccessor<GameActionDelegate> OnResume => mOnResume;
 	public EventAccessor<GameActionDelegate> OnSellTower => mOnSellTower;
+	public EventAccessor<VolumeChangeDelegate> OnMusicVolumeChanged => mOnMusicVolumeChanged;
+	public EventAccessor<VolumeChangeDelegate> OnSFXVolumeChanged => mOnSFXVolumeChanged;
 
 	/// Gets the root UI element.
 	public UIElement RootElement => mRoot;
@@ -304,6 +317,95 @@ class GameHUD
 			mOnResume.[Friend]Invoke();
 		});
 		pauseContent.AddChild(resumeBtn);
+
+		// Volume controls section
+		let volumeSection = new StackPanel();
+		volumeSection.Orientation = .Vertical;
+		volumeSection.Spacing = 10;
+		volumeSection.HorizontalAlignment = .Center;
+		volumeSection.Margin = Thickness(0, 20, 0, 0);
+		pauseContent.AddChild(volumeSection);
+
+		let volumeTitle = new TextBlock();
+		volumeTitle.Text = "Volume";
+		volumeTitle.Foreground = Color(200, 200, 200);
+		volumeTitle.FontSize = 18;
+		volumeTitle.HorizontalAlignment = .Center;
+		volumeSection.AddChild(volumeTitle);
+
+		// Music volume row
+		let musicRow = new StackPanel();
+		musicRow.Orientation = .Horizontal;
+		musicRow.Spacing = 10;
+		musicRow.HorizontalAlignment = .Center;
+		volumeSection.AddChild(musicRow);
+
+		let musicDownBtn = new Button();
+		musicDownBtn.ContentText = "-";
+		musicDownBtn.Width = 30;
+		musicDownBtn.Height = 30;
+		musicDownBtn.Click.Subscribe(new (btn) => {
+			mMusicVolume = Math.Max(0.0f, mMusicVolume - 0.1f);
+			UpdateVolumeLabels();
+			mOnMusicVolumeChanged.[Friend]Invoke(mMusicVolume);
+		});
+		musicRow.AddChild(musicDownBtn);
+
+		mMusicVolumeLabel = new TextBlock();
+		mMusicVolumeLabel.Text = "Music: 50%";
+		mMusicVolumeLabel.Foreground = Color.White;
+		mMusicVolumeLabel.FontSize = 14;
+		mMusicVolumeLabel.Width = 100;
+		mMusicVolumeLabel.HorizontalAlignment = .Center;
+		musicRow.AddChild(mMusicVolumeLabel);
+
+		let musicUpBtn = new Button();
+		musicUpBtn.ContentText = "+";
+		musicUpBtn.Width = 30;
+		musicUpBtn.Height = 30;
+		musicUpBtn.Click.Subscribe(new (btn) => {
+			mMusicVolume = Math.Min(1.0f, mMusicVolume + 0.1f);
+			UpdateVolumeLabels();
+			mOnMusicVolumeChanged.[Friend]Invoke(mMusicVolume);
+		});
+		musicRow.AddChild(musicUpBtn);
+
+		// SFX volume row
+		let sfxRow = new StackPanel();
+		sfxRow.Orientation = .Horizontal;
+		sfxRow.Spacing = 10;
+		sfxRow.HorizontalAlignment = .Center;
+		volumeSection.AddChild(sfxRow);
+
+		let sfxDownBtn = new Button();
+		sfxDownBtn.ContentText = "-";
+		sfxDownBtn.Width = 30;
+		sfxDownBtn.Height = 30;
+		sfxDownBtn.Click.Subscribe(new (btn) => {
+			mSFXVolume = Math.Max(0.0f, mSFXVolume - 0.1f);
+			UpdateVolumeLabels();
+			mOnSFXVolumeChanged.[Friend]Invoke(mSFXVolume);
+		});
+		sfxRow.AddChild(sfxDownBtn);
+
+		mSFXVolumeLabel = new TextBlock();
+		mSFXVolumeLabel.Text = "SFX: 70%";
+		mSFXVolumeLabel.Foreground = Color.White;
+		mSFXVolumeLabel.FontSize = 14;
+		mSFXVolumeLabel.Width = 100;
+		mSFXVolumeLabel.HorizontalAlignment = .Center;
+		sfxRow.AddChild(mSFXVolumeLabel);
+
+		let sfxUpBtn = new Button();
+		sfxUpBtn.ContentText = "+";
+		sfxUpBtn.Width = 30;
+		sfxUpBtn.Height = 30;
+		sfxUpBtn.Click.Subscribe(new (btn) => {
+			mSFXVolume = Math.Min(1.0f, mSFXVolume + 0.1f);
+			UpdateVolumeLabels();
+			mOnSFXVolumeChanged.[Friend]Invoke(mSFXVolume);
+		});
+		sfxRow.AddChild(sfxUpBtn);
 
 		mRoot.AddChild(mPauseOverlay);
 
@@ -546,5 +648,22 @@ class GameHUD
 	public void HideTowerInfo()
 	{
 		mTowerInfoPanel.Visibility = .Collapsed;
+	}
+
+	/// Updates volume display labels.
+	private void UpdateVolumeLabels()
+	{
+		int32 musicPct = (int32)(mMusicVolume * 100 + 0.5f);
+		int32 sfxPct = (int32)(mSFXVolume * 100 + 0.5f);
+		mMusicVolumeLabel.Text = scope:: $"Music: {musicPct}%";
+		mSFXVolumeLabel.Text = scope:: $"SFX: {sfxPct}%";
+	}
+
+	/// Sets current volume values (for syncing with GameAudio).
+	public void SetVolumes(float musicVolume, float sfxVolume)
+	{
+		mMusicVolume = musicVolume;
+		mSFXVolume = sfxVolume;
+		UpdateVolumeLabels();
 	}
 }

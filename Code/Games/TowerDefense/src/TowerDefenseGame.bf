@@ -144,7 +144,7 @@ class TowerDefenseGame : RHISampleApp
 			return false;
 
 		// Create game audio helper (after audio service)
-		mGameAudio = new GameAudio(mAudioService);
+		mGameAudio = new GameAudio(mAudioService, mDecoderFactory);
 
 		// Initialize input service
 		mInputService = new InputService(Shell.InputManager);
@@ -439,6 +439,16 @@ class TowerDefenseGame : RHISampleApp
 			mGameAudio?.PlayUIClick();
 			SellSelectedTower();
 		});
+		mGameHUD.OnMusicVolumeChanged.Subscribe(new (volume) => {
+			mGameAudio?.SetMusicVolume(volume);
+		});
+		mGameHUD.OnSFXVolumeChanged.Subscribe(new (volume) => {
+			mGameAudio?.SetSFXVolume(volume);
+		});
+
+		// Sync initial volume values to HUD
+		if (mGameAudio != null)
+			mGameHUD.SetVolumes(mGameAudio.MusicVolume, mGameAudio.SFXVolume);
 
 		// Start with main menu visible
 		ShowMainMenu();
@@ -467,6 +477,9 @@ class TowerDefenseGame : RHISampleApp
 
 		// Switch to game UI
 		ShowGameUI();
+
+		// Start background music
+		mGameAudio?.StartMusic();
 
 		// Set game state
 		mGameState = .WaitingToStart;
@@ -957,6 +970,7 @@ class TowerDefenseGame : RHISampleApp
 		Console.WriteLine("Game paused");
 		mPrePauseState = mGameState;
 		mGameState = .Paused;
+		mGameAudio?.PauseMusic();
 		mGameHUD?.ShowPause();
 	}
 
@@ -967,6 +981,7 @@ class TowerDefenseGame : RHISampleApp
 
 		Console.WriteLine("Game resumed");
 		mGameState = mPrePauseState;
+		mGameAudio?.ResumeMusic();
 		mGameHUD?.HidePause();
 	}
 
@@ -1180,6 +1195,7 @@ class TowerDefenseGame : RHISampleApp
 		Console.WriteLine($"Final Score: Kills={mEnemiesKilled}, Money=${mMoney}");
 		Console.WriteLine("Press R to play again!");
 
+		mGameAudio?.StopMusic();
 		mGameAudio?.PlayVictory();
 		mGameHUD?.ShowVictory(mMoney, mEnemiesKilled);
 		UpdateHUD();
@@ -1216,6 +1232,7 @@ class TowerDefenseGame : RHISampleApp
 			Console.WriteLine($"You survived {mWaveSpawner.CurrentWaveNumber - 1} waves. Kills: {mEnemiesKilled}");
 			Console.WriteLine("Press R to try again!");
 
+			mGameAudio?.StopMusic();
 			mGameAudio?.PlayGameOver();
 			mGameHUD?.ShowGameOver(mWaveSpawner.CurrentWaveNumber - 1, mEnemiesKilled);
 		}

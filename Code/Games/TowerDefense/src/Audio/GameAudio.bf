@@ -2,6 +2,7 @@ namespace TowerDefense.Audio;
 
 using System;
 using Sedulous.Audio;
+using Sedulous.Audio.Decoders;
 using Sedulous.Engine.Audio;
 using Sedulous.Mathematics;
 using TowerDefense.Data;
@@ -11,6 +12,7 @@ using TowerDefense.Data;
 class GameAudio
 {
 	private AudioService mAudioService;
+	private AudioDecoderFactory mDecoderFactory;
 
 	// Sound effect clips (procedurally generated)
 	private AudioClip mCannonFireClip ~ delete _;
@@ -28,17 +30,26 @@ class GameAudio
 	private AudioClip mTowerPlaceClip ~ delete _;
 	private AudioClip mNoMoneyClip ~ delete _;
 
+	// Background music
+	private AudioClip mProceduralMusicClip ~ delete _;  // Procedural music (fallback)
+	private AudioClip mDecodedMusicClip ~ delete _;     // Decoded mp3/ogg music
+	private IAudioSource mMusicSource;                   // Music playback source
+	private bool mMusicPlaying = false;
+	private bool mUseDecodedMusic = true;  // Try decoded file first, fall back to procedural
+
 	// Volume settings
 	public float SFXVolume = 0.7f;
 	public float MusicVolume = 0.5f;
 
-	public this(AudioService audioService)
+	public this(AudioService audioService, AudioDecoderFactory decoderFactory)
 	{
 		mAudioService = audioService;
+		mDecoderFactory = decoderFactory;
 
 		if (mAudioService != null && mAudioService.IsInitialized)
 		{
 			GenerateSounds();
+			LoadMusicFile();
 			Console.WriteLine("GameAudio: Sounds generated");
 		}
 		else
@@ -46,6 +57,8 @@ class GameAudio
 			Console.WriteLine("GameAudio: AudioService not available, audio disabled");
 		}
 	}
+
+	// No destructor needed - SDL3AudioSystem owns and cleans up all sources it creates
 
 	/// Generates all procedural sound effects.
 	private void GenerateSounds()
@@ -73,6 +86,30 @@ class GameAudio
 		mUIClickClip = GenerateClick(800, 0.03f);
 		mTowerPlaceClip = GenerateClick(400, 0.08f);
 		mNoMoneyClip = GenerateBuzz(200, 0.15f);
+
+		// Procedural background music (fallback)
+		mProceduralMusicClip = GenerateBackgroundMusic();
+	}
+
+	/// Loads music from file using decoder factory.
+	private void LoadMusicFile()
+	{
+		if (mDecoderFactory == null)
+		{
+			mUseDecodedMusic = false;
+			return;
+		}
+
+		let musicPath = "Assets/sounds/background.mp3";
+		switch (mDecoderFactory.DecodeFile(musicPath))
+		{
+		case .Ok(let clip):
+			mDecodedMusicClip = clip;
+			Console.WriteLine($"GameAudio: Loaded music file '{musicPath}' ({clip.DataLength} bytes PCM)");
+		case .Err:
+			Console.WriteLine($"GameAudio: Failed to load music file '{musicPath}', using procedural");
+			mUseDecodedMusic = false;
+		}
 	}
 
 	// ==================== Playback Methods ====================
@@ -179,6 +216,89 @@ class GameAudio
 			return;
 
 		mAudioService.PlayOneShot(mNoMoneyClip, SFXVolume * 0.6f);
+	}
+
+	// ==================== Music Methods ====================
+
+	/// Starts playing background music.
+	public void StartMusic()
+	{
+		if (mAudioService == null || mMusicPlaying)
+			return;
+
+		// Select which clip to use
+		AudioClip musicClip = mUseDecodedMusic ? mDecodedMusicClip : mProceduralMusicClip;
+		if (musicClip == null)
+		{
+			// Fallback to procedural if decoded not available
+			musicClip = mProceduralMusicClip;
+			if (musicClip == null)
+				return;
+		}
+
+		// Create source if needed
+		if (mMusicSource == null)
+		{
+			mMusicSource = mAudioService.AudioSystem.CreateSource();
+			if (mMusicSource == null)
+				return;
+		}
+
+		mMusicSource.Volume = MusicVolume;
+		mMusicSource.Loop = true;
+		mMusicSource.Play(musicClip);
+		mMusicPlaying = true;
+
+		let sourceType = (musicClip == mDecodedMusicClip) ? "decoded mp3" : "procedural";
+		Console.WriteLine($"GameAudio: Background music started ({sourceType})");
+	}
+
+	/// Stops playing background music.
+	public void StopMusic()
+	{
+		if (!mMusicPlaying)
+			return;
+
+		if (mMusicSource != null)
+			mMusicSource.Stop();
+
+		mMusicPlaying = false;
+		Console.WriteLine("GameAudio: Background music stopped");
+	}
+
+	/// Pauses background music.
+	public void PauseMusic()
+	{
+		if (!mMusicPlaying)
+			return;
+
+		if (mMusicSource != null)
+			mMusicSource.Pause();
+	}
+
+	/// Resumes background music.
+	public void ResumeMusic()
+	{
+		if (!mMusicPlaying)
+			return;
+
+		if (mMusicSource != null)
+			mMusicSource.Resume();
+	}
+
+	/// Updates music volume.
+	public void SetMusicVolume(float volume)
+	{
+		MusicVolume = Math.Clamp(volume, 0.0f, 1.0f);
+
+		if (mMusicSource != null)
+			mMusicSource.Volume = MusicVolume;
+	}
+
+	/// Updates SFX volume.
+	public void SetSFXVolume(float volume)
+	{
+		SFXVolume = Math.Clamp(volume, 0.0f, 1.0f);
 	}
 
 	// ==================== Sound Generation ====================
@@ -401,6 +521,62 @@ class GameAudio
 			float sample = Math.Sin(2.0f * Math.PI_f * (freq + vibrato) * t) * envelope;
 
 			samples[i] = (int16)(sample * 18000);
+		}
+
+		return AudioClip.FromInt16(samples, SAMPLE_RATE, 1);
+	}
+
+	/// Generates ambient background music (loopable).
+	private AudioClip GenerateBackgroundMusic()
+	{
+		// Create a 4-second ambient loop
+		float duration = 4.0f;
+		int32 sampleCount = (int32)(SAMPLE_RATE * duration);
+		int16[] samples = new int16[sampleCount];
+		defer delete samples;
+
+		// Ambient drone using layered sine waves
+		// Minor key base notes for atmospheric feel
+		float[] baseFreqs = scope float[](
+			110.0f,    // A2 (root)
+			164.81f,   // E3 (fifth)
+			220.0f     // A3 (octave)
+		);
+
+		for (int32 i = 0; i < sampleCount; i++)
+		{
+			float t = (float)i / SAMPLE_RATE;
+			float loopProgress = t / duration;
+
+			float sample = 0.0f;
+
+			// Layer 1: Deep drone
+			for (let freq in baseFreqs)
+			{
+				// Slow amplitude modulation for movement
+				float lfoFreq = 0.2f + freq * 0.001f;
+				float lfo = 0.7f + 0.3f * Math.Sin(2.0f * Math.PI_f * lfoFreq * t);
+
+				sample += Math.Sin(2.0f * Math.PI_f * freq * t) * lfo * 0.15f;
+			}
+
+			// Layer 2: High shimmer (quiet, adds texture)
+			float shimmerFreq = 880.0f + Math.Sin(t * 0.5f) * 20.0f;
+			sample += Math.Sin(2.0f * Math.PI_f * shimmerFreq * t) * 0.03f;
+
+			// Layer 3: Very subtle noise for air
+			float noise = ((float)gRand.NextDouble() * 2.0f - 1.0f) * 0.02f;
+			sample += noise;
+
+			// Crossfade for seamless loop (fade last 0.1s into first 0.1s)
+			float fadeTime = 0.1f;
+			if (loopProgress > (1.0f - fadeTime / duration))
+			{
+				float fadeOut = (1.0f - loopProgress) / (fadeTime / duration);
+				sample *= fadeOut;
+			}
+
+			samples[i] = (int16)(Math.Clamp(sample, -1.0f, 1.0f) * 15000);
 		}
 
 		return AudioClip.FromInt16(samples, SAMPLE_RATE, 1);
