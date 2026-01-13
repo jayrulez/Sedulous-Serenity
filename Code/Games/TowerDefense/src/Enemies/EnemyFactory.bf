@@ -32,6 +32,7 @@ class EnemyFactory
 
 	// Enemy tracking
 	private List<Entity> mActiveEnemies = new .() ~ delete _;
+	private List<Entity> mDyingEnemies = new .() ~ delete _;
 	private int32 mEnemyCounter = 0;
 
 	// Event accessors
@@ -173,12 +174,24 @@ class EnemyFactory
 	/// Called when an enemy dies.
 	private void OnEnemyDeath(Entity entity, int32 reward)
 	{
-		// Capture position before removing enemy
+		// Capture position before starting death animation
 		let position = entity.Transform.WorldPosition;
 
 		mOnEnemyKilled.[Friend]Invoke(entity, reward);
 		mOnEnemyDeathAudio.[Friend]Invoke(position);
-		RemoveEnemy(entity);
+
+		// Start death animation instead of immediate removal
+		let enemyComp = entity.GetComponent<EnemyComponent>();
+		if (enemyComp != null)
+		{
+			enemyComp.StartDying();
+			mActiveEnemies.Remove(entity);
+			mDyingEnemies.Add(entity);
+		}
+		else
+		{
+			RemoveEnemy(entity);
+		}
 	}
 
 	/// Removes an enemy from tracking and destroys it.
@@ -199,6 +212,22 @@ class EnemyFactory
 	}
 
 	/// Destroys all active enemies.
+	/// Updates dying enemies and removes them when animation completes.
+	public void Update(float deltaTime)
+	{
+		// Check dying enemies for completed animations
+		for (int i = mDyingEnemies.Count - 1; i >= 0; i--)
+		{
+			let entity = mDyingEnemies[i];
+			let enemyComp = entity.GetComponent<EnemyComponent>();
+			if (enemyComp == null || enemyComp.DeathAnimComplete)
+			{
+				mDyingEnemies.RemoveAt(i);
+				mScene.DestroyEntity(entity.Id);
+			}
+		}
+	}
+
 	public void ClearAllEnemies()
 	{
 		for (let entity in mActiveEnemies)
@@ -206,6 +235,12 @@ class EnemyFactory
 			mScene.DestroyEntity(entity.Id);
 		}
 		mActiveEnemies.Clear();
+
+		for (let entity in mDyingEnemies)
+		{
+			mScene.DestroyEntity(entity.Id);
+		}
+		mDyingEnemies.Clear();
 	}
 
 	/// Cleans up materials.

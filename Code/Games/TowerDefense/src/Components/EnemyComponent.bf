@@ -28,8 +28,23 @@ class EnemyComponent : IEntityComponent
 	/// Whether this enemy has reached the exit.
 	public bool HasReachedExit = false;
 
+	/// Whether this enemy is dying (playing death animation).
+	public bool IsDying = false;
+
+	/// Timer for death animation.
+	private float mDyingTimer = 0.0f;
+
+	/// Duration of death animation.
+	private const float DeathAnimDuration = 0.3f;
+
+	/// Original scale (for death animation).
+	private Vector3 mOriginalScale = .(1, 1, 1);
+
+	/// Whether death animation is complete.
+	public bool DeathAnimComplete = false;
+
 	/// Whether this enemy is active (alive and hasn't exited).
-	public bool IsActive => !HasReachedExit && mEntity != null;
+	public bool IsActive => !HasReachedExit && !IsDying && mEntity != null;
 
 	// Event accessor
 	private EventAccessor<EnemyExitDelegate> mOnReachedExit = new .() ~ delete _;
@@ -47,6 +62,18 @@ class EnemyComponent : IEntityComponent
 	{
 		Definition = definition;
 		Waypoints = waypoints;
+	}
+
+	/// Starts the death animation.
+	public void StartDying()
+	{
+		if (IsDying)
+			return;
+
+		IsDying = true;
+		mDyingTimer = 0.0f;
+		if (mEntity != null)
+			mOriginalScale = mEntity.Transform.Scale;
 	}
 
 	// ==================== IEntityComponent Implementation ====================
@@ -72,7 +99,27 @@ class EnemyComponent : IEntityComponent
 
 	public void OnUpdate(float deltaTime)
 	{
-		if (mEntity == null || Waypoints == null || HasReachedExit)
+		if (mEntity == null)
+			return;
+
+		// Handle death animation
+		if (IsDying)
+		{
+			mDyingTimer += deltaTime;
+			float t = Math.Clamp(mDyingTimer / DeathAnimDuration, 0.0f, 1.0f);
+
+			// Scale down from original to near-zero
+			float scale = 1.0f - t;
+			mEntity.Transform.SetScale(mOriginalScale * scale);
+
+			// Animation complete
+			if (t >= 1.0f)
+				DeathAnimComplete = true;
+
+			return;
+		}
+
+		if (Waypoints == null || HasReachedExit)
 			return;
 
 		// Check if we've reached the end

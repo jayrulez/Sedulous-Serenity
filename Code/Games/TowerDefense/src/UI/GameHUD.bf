@@ -75,6 +75,7 @@ class GameHUD
 	private EventAccessor<GameActionDelegate> mOnStartWave = new .() ~ delete _;
 	private EventAccessor<GameActionDelegate> mOnRestart = new .() ~ delete _;
 	private EventAccessor<GameActionDelegate> mOnResume = new .() ~ delete _;
+	private EventAccessor<GameActionDelegate> mOnMainMenu = new .() ~ delete _;
 	private EventAccessor<GameActionDelegate> mOnSellTower = new .() ~ delete _;
 	private EventAccessor<GameActionDelegate> mOnUpgradeTower = new .() ~ delete _;
 	private EventAccessor<VolumeChangeDelegate> mOnMusicVolumeChanged = new .() ~ delete _;
@@ -85,6 +86,7 @@ class GameHUD
 	public EventAccessor<GameActionDelegate> OnStartWave => mOnStartWave;
 	public EventAccessor<GameActionDelegate> OnRestart => mOnRestart;
 	public EventAccessor<GameActionDelegate> OnResume => mOnResume;
+	public EventAccessor<GameActionDelegate> OnMainMenu => mOnMainMenu;
 	public EventAccessor<GameActionDelegate> OnSellTower => mOnSellTower;
 	public EventAccessor<GameActionDelegate> OnUpgradeTower => mOnUpgradeTower;
 	public EventAccessor<VolumeChangeDelegate> OnMusicVolumeChanged => mOnMusicVolumeChanged;
@@ -295,6 +297,16 @@ class GameHUD
 		});
 		gameOverContent.AddChild(gameOverRestartBtn);
 
+		let gameOverMenuBtn = new Button();
+		gameOverMenuBtn.ContentText = "Main Menu";
+		gameOverMenuBtn.Padding = Thickness(30, 15, 30, 15);
+		gameOverMenuBtn.HorizontalAlignment = .Center;
+		gameOverMenuBtn.Background = Color(80, 80, 100);
+		gameOverMenuBtn.Click.Subscribe(new (btn) => {
+			mOnMainMenu.[Friend]Invoke();
+		});
+		gameOverContent.AddChild(gameOverMenuBtn);
+
 		mRoot.AddChild(mGameOverOverlay);
 
 		// === Victory Overlay (hidden by default) ===
@@ -326,6 +338,16 @@ class GameHUD
 			mOnRestart.[Friend]Invoke();
 		});
 		victoryContent.AddChild(victoryRestartBtn);
+
+		let victoryMenuBtn = new Button();
+		victoryMenuBtn.ContentText = "Main Menu";
+		victoryMenuBtn.Padding = Thickness(30, 15, 30, 15);
+		victoryMenuBtn.HorizontalAlignment = .Center;
+		victoryMenuBtn.Background = Color(80, 80, 100);
+		victoryMenuBtn.Click.Subscribe(new (btn) => {
+			mOnMainMenu.[Friend]Invoke();
+		});
+		victoryContent.AddChild(victoryMenuBtn);
 
 		mRoot.AddChild(mVictoryOverlay);
 
@@ -454,6 +476,18 @@ class GameHUD
 			mOnSFXVolumeChanged.[Friend]Invoke(mSFXVolume);
 		});
 		sfxRow.AddChild(sfxUpBtn);
+
+		// Main Menu button at bottom of pause screen
+		let pauseMenuBtn = new Button();
+		pauseMenuBtn.ContentText = "Main Menu";
+		pauseMenuBtn.Padding = Thickness(30, 15, 30, 15);
+		pauseMenuBtn.HorizontalAlignment = .Center;
+		pauseMenuBtn.Margin = Thickness(0, 20, 0, 0);
+		pauseMenuBtn.Background = Color(100, 60, 60);
+		pauseMenuBtn.Click.Subscribe(new (btn) => {
+			mOnMainMenu.[Friend]Invoke();
+		});
+		pauseContent.AddChild(pauseMenuBtn);
 
 		mRoot.AddChild(mPauseOverlay);
 
