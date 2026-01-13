@@ -176,6 +176,12 @@ class ParticleEmitterConfig
 	/// Modules are executed in order during particle update.
 	public List<IParticleModule> Modules ~ DeleteContainerAndItems!(_);
 
+	// ==================== Sub-Emitters ====================
+
+	/// Sub-emitters that spawn child particles on events (birth, death, collision).
+	/// Each sub-emitter has its own config and trigger condition.
+	public List<SubEmitter> SubEmitters ~ DeleteContainerAndItems!(_);
+
 	// ==================== Methods ====================
 
 	/// Creates a default config.
@@ -303,6 +309,50 @@ class ParticleEmitterConfig
 		AddModule(module);
 	}
 
+	/// Adds a sub-emitter to this config.
+	public void AddSubEmitter(SubEmitter subEmitter)
+	{
+		if (SubEmitters == null)
+			SubEmitters = new .();
+		SubEmitters.Add(subEmitter);
+	}
+
+	/// Adds a sub-emitter that triggers when particles die.
+	/// Useful for explosions, impact effects, etc.
+	public void AddOnDeathSubEmitter(ParticleEmitterConfig childConfig, int32 emitCount = 10, float probability = 1.0f, bool inheritColor = false)
+	{
+		let sub = SubEmitter.OnDeath(childConfig, emitCount);
+		sub.Probability = probability;
+		sub.InheritColor = inheritColor;
+		AddSubEmitter(sub);
+	}
+
+	/// Adds a sub-emitter that triggers when particles are born.
+	/// Useful for spawn effects, trails, etc.
+	public void AddOnBirthSubEmitter(ParticleEmitterConfig childConfig, int32 emitCount = 5, float probability = 1.0f, bool inheritColor = false)
+	{
+		let sub = SubEmitter.OnBirth(childConfig, emitCount);
+		sub.Probability = probability;
+		sub.InheritColor = inheritColor;
+		AddSubEmitter(sub);
+	}
+
+	/// Gets sub-emitters for a specific trigger type.
+	public void GetSubEmittersForTrigger(SubEmitterTrigger trigger, List<SubEmitter> outList)
+	{
+		outList.Clear();
+		if (SubEmitters == null)
+			return;
+		for (let sub in SubEmitters)
+		{
+			if (sub.Trigger == trigger)
+				outList.Add(sub);
+		}
+	}
+
+	/// Returns true if this config has any sub-emitters.
+	public bool HasSubEmitters => SubEmitters != null && SubEmitters.Count > 0;
+
 	/// Configures emission from a sphere.
 	public void SetSphereEmission(float radius, bool surface = false)
 	{
@@ -389,6 +439,91 @@ class ParticleEmitterConfig
 		config.Gravity = .(0, 0.5f, 0); // Gentle float up
 		config.SetColorOverLifetime(.(100, 200, 255, 255), .(200, 100, 255, 2));
 		config.SetSizeOverLifetime(1.0f, 0.0f); // Shrink to nothing
+		return config;
+	}
+
+	/// Creates a firework emitter with sub-emitter explosion on death.
+	/// The main particle rises up and explodes into sparks when it dies.
+	/// The explosion inherits the shell's color, so set StartColor before bursting
+	/// to create different colored fireworks.
+	public static ParticleEmitterConfig CreateFirework()
+	{
+		let config = new ParticleEmitterConfig();
+		// Main rising particle (the "shell")
+		config.EmissionRate = 0; // Manual burst only
+		config.BurstCount = 1;
+		config.Lifetime = .(1.0f, 1.5f);
+		config.InitialSpeed = .(15, 20);
+		config.InitialSize = .(0.15f, 0.2f);
+		config.SetConeEmission(5); // Narrow cone upward
+		config.BlendMode = .Additive;
+		config.Gravity = .(0, -9.81f, 0);
+		// Default color - will be overridden per-burst for variety
+		config.StartColor = .(Color(255, 255, 200, 255));
+		config.EndColor = .(Color(255, 200, 100, 200));
+
+		// Create explosion sub-emitter config
+		// Uses white base color that will be tinted by inherited shell color
+		let explosionConfig = new ParticleEmitterConfig();
+		explosionConfig.EmissionRate = 0;
+		explosionConfig.Lifetime = .(0.5f, 1.5f);
+		explosionConfig.InitialSpeed = .(8, 15);
+		explosionConfig.InitialSize = .(0.05f, 0.12f);
+		explosionConfig.SetSphereEmission(0.1f);
+		explosionConfig.BlendMode = .Additive;
+		explosionConfig.Gravity = .(0, -5.0f, 0);
+		explosionConfig.Drag = 0.3f;
+		// White base will be multiplied with inherited parent color
+		explosionConfig.StartColor = .(Color(255, 255, 255, 255));
+		explosionConfig.EndColor = .(Color(255, 220, 180, 2));
+		explosionConfig.SetSizeOverLifetime(1.0f, 0.2f);
+
+		// Add sub-emitter that triggers when main particle dies
+		// Enable color inheritance so explosion takes on shell's color
+		config.AddOnDeathSubEmitter(explosionConfig, 50, 1.0f, inheritColor: true);
+
+		return config;
+	}
+
+	/// Creates a firework burst config (just the explosion, no shell).
+	/// Useful for direct spawn of explosion effect.
+	public static ParticleEmitterConfig CreateFireworkBurst()
+	{
+		let config = new ParticleEmitterConfig();
+		config.EmissionRate = 0;
+		config.BurstCount = 50;
+		config.Lifetime = .(0.5f, 1.5f);
+		config.InitialSpeed = .(8, 15);
+		config.InitialSize = .(0.05f, 0.12f);
+		config.SetSphereEmission(0.1f);
+		config.BlendMode = .Additive;
+		config.Gravity = .(0, -5.0f, 0);
+		config.Drag = 0.3f;
+		config.SetColorOverLifetime(.(255, 255, 100, 255), .(255, 50, 0, 2));
+		config.SetSizeOverLifetime(1.0f, 0.2f);
+		return config;
+	}
+
+	/// Creates fire with sparks that fly off when particles die.
+	public static ParticleEmitterConfig CreateFireWithSparks()
+	{
+		let config = CreateFire();
+
+		// Create spark sub-emitter config
+		let sparkConfig = new ParticleEmitterConfig();
+		sparkConfig.EmissionRate = 0;
+		sparkConfig.Lifetime = .(0.3f, 0.6f);
+		sparkConfig.InitialSpeed = .(3, 8);
+		sparkConfig.InitialSize = .(0.02f, 0.04f);
+		sparkConfig.SetSphereEmission(0.05f);
+		sparkConfig.BlendMode = .Additive;
+		sparkConfig.SetStretchedBillboard(1.5f, 0.3f);
+		sparkConfig.Gravity = .(0, -9.81f, 0);
+		sparkConfig.SetColorOverLifetime(.(255, 255, 200, 255), .(255, 100, 0, 2));
+
+		// 20% chance to spawn sparks when fire particle dies
+		config.AddOnDeathSubEmitter(sparkConfig, 3, 0.2f);
+
 		return config;
 	}
 }

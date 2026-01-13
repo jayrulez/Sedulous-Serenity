@@ -82,11 +82,11 @@ struct ParticleEmitterProxy
 	/// Checks if actively emitting new particles.
 	public bool IsEmitting => Flags.HasFlag(.Emitting);
 
-	/// Gets the current particle count.
+	/// Gets the current particle count (main particles only).
 	public int32 ParticleCount => System?.ParticleCount ?? 0;
 
-	/// Checks if has particles to render.
-	public bool HasParticles => ParticleCount > 0;
+	/// Checks if has particles to render (including sub-emitters).
+	public bool HasParticles => TotalParticleCount > 0;
 
 	/// Gets the emitter configuration (if available).
 	public ParticleEmitterConfig Config => System?.Config;
@@ -102,6 +102,15 @@ struct ParticleEmitterProxy
 
 	/// Returns true if this emitter requires sorting (alpha-blended particles).
 	public bool RequiresSorting => BlendMode == .AlphaBlend && (Config?.SortParticles ?? false);
+
+	/// Returns true if this emitter has active sub-emitter instances.
+	public bool HasActiveSubEmitters => System?.HasActiveSubEmitters ?? false;
+
+	/// Gets the sub-emitter manager (if available).
+	public SubEmitterManager SubEmitters => System?.SubEmitters;
+
+	/// Gets the total particle count including sub-emitters.
+	public int32 TotalParticleCount => System?.TotalParticleCount ?? 0;
 }
 
 /// Flags controlling particle emitter proxy behavior.

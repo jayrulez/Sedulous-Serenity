@@ -70,6 +70,10 @@ class ParticleSystem
 	private int32 mMaxTrails = 0;
 	private bool mTrailsEnabled = false;
 
+	// Sub-emitter management
+	private SubEmitterManager mSubEmitterManager ~ delete _;
+	private List<SubEmitter> mTempSubEmitters = new .() ~ delete _;
+
 	public const int32 DEFAULT_MAX_PARTICLES = 10000;
 
 	// ==================== Properties ====================
@@ -80,6 +84,9 @@ class ParticleSystem
 	public Vector3 Position { get => mEmitterPosition; set => mEmitterPosition = value; }
 	public Vector3 Velocity { get => mEmitterVelocity; set => mEmitterVelocity = value; }
 	public ParticleEmitterConfig Config => mConfig;
+
+	/// Color tint applied to all particles on spawn. Used for color inheritance from parent particles.
+	public Color ColorTint { get; set; } = Color.White;
 
 	public IBuffer VertexBuffer => mVertexBuffer;
 	public IBuffer IndexBuffer => mIndexBuffer;
@@ -110,6 +117,7 @@ class ParticleSystem
 
 		CreateBuffers();
 		InitializeTrails();
+		InitializeSubEmitters();
 	}
 
 	public this(IDevice device, ParticleEmitterConfig config, int32 maxParticles = DEFAULT_MAX_PARTICLES)
@@ -123,6 +131,7 @@ class ParticleSystem
 
 		CreateBuffers();
 		InitializeTrails();
+		InitializeSubEmitters();
 	}
 
 	public ~this()
@@ -143,6 +152,7 @@ class ParticleSystem
 
 		// Reinitialize trails if config changed
 		InitializeTrails();
+		InitializeSubEmitters();
 	}
 
 	// ==================== Buffer Management ====================
@@ -207,6 +217,12 @@ class ParticleSystem
 		{
 			UpdateParticleTrails();
 		}
+
+		// Update sub-emitters
+		if (mSubEmitterManager != null)
+		{
+			mSubEmitterManager.Update(deltaTime);
+		}
 	}
 
 	private void UpdateParticles(float deltaTime)
@@ -218,6 +234,9 @@ class ParticleSystem
 			p.Life -= deltaTime;
 			if (p.Life <= 0)
 			{
+				// Trigger OnDeath sub-emitters before removing particle
+				TriggerSubEmitters(.OnDeath, p.Position, p.Velocity, p.Color);
+
 				// Free associated trail before removing particle
 				if (p.HasTrail)
 					FreeTrail(p.TrailIndex);
@@ -259,6 +278,9 @@ class ParticleSystem
 				// Check if module killed the particle
 				if (p.Life <= 0)
 				{
+					// Trigger OnDeath sub-emitters
+					TriggerSubEmitters(.OnDeath, p.Position, p.Velocity, p.Color);
+
 					// Free associated trail
 					if (p.HasTrail)
 						FreeTrail(p.TrailIndex);
@@ -375,8 +397,18 @@ class ParticleSystem
 		p.Size = .(size, size);
 		p.StartSize = p.Size;
 
-		// Initial color
+		// Initial color (apply tint for inherited colors)
 		p.Color = mConfig.StartColor.Evaluate(mRandom);
+		if (ColorTint != Color.White)
+		{
+			// Multiply RGB components, keep alpha from particle
+			p.Color = Color(
+				(uint8)((p.Color.R * ColorTint.R) / 255),
+				(uint8)((p.Color.G * ColorTint.G) / 255),
+				(uint8)((p.Color.B * ColorTint.B) / 255),
+				p.Color.A
+			);
+		}
 		p.StartColor = p.Color;
 
 		// Rotation
@@ -405,6 +437,9 @@ class ParticleSystem
 		}
 
 		mParticles.Add(p);
+
+		// Trigger OnBirth sub-emitters after particle is fully initialized
+		TriggerSubEmitters(.OnBirth, p.Position, p.Velocity, p.Color);
 	}
 
 	private void CalculateEmissionPoint(out Vector3 offset, out Vector3 direction)
@@ -554,6 +589,19 @@ class ParticleSystem
 	/// Uploads particle data to GPU.
 	public void Upload()
 	{
+		// Upload main particle data
+		UploadMainParticles();
+
+		// Upload sub-emitter particles
+		if (mSubEmitterManager != null)
+		{
+			mSubEmitterManager.Upload();
+		}
+	}
+
+	/// Uploads main particle system data to GPU.
+	private void UploadMainParticles()
+	{
 		if (mParticles.Count == 0)
 			return;
 
@@ -613,6 +661,12 @@ class ParticleSystem
 		mParticles.Clear();
 		mEmissionAccumulator = 0;
 		mBurstAccumulator = 0;
+
+		// Clear sub-emitters
+		if (mSubEmitterManager != null)
+		{
+			mSubEmitterManager.Clear();
+		}
 	}
 
 	/// Emits a burst of particles.
@@ -627,6 +681,38 @@ class ParticleSystem
 
 	/// Gets read-only access to the particle list.
 	public Span<Particle> Particles => mParticles;
+
+	// ==================== Sub-Emitter Management ====================
+
+	/// Initializes the sub-emitter manager.
+	/// Called automatically when config changes.
+	private void InitializeSubEmitters()
+	{
+		// Create or clear sub-emitter manager
+		if (mSubEmitterManager == null)
+		{
+			mSubEmitterManager = new SubEmitterManager(mDevice);
+		}
+		else
+		{
+			mSubEmitterManager.Clear();
+		}
+	}
+
+	/// Triggers sub-emitters for the given trigger type.
+	private void TriggerSubEmitters(SubEmitterTrigger trigger, Vector3 position, Vector3 velocity, Color color)
+	{
+		if (mConfig == null || !mConfig.HasSubEmitters || mSubEmitterManager == null)
+			return;
+
+		// Get sub-emitters for this trigger
+		mConfig.GetSubEmittersForTrigger(trigger, mTempSubEmitters);
+
+		for (let subEmitter in mTempSubEmitters)
+		{
+			mSubEmitterManager.SpawnSubEmitter(subEmitter, position, velocity, color);
+		}
+	}
 
 	// ==================== Trail Management ====================
 
@@ -739,4 +825,15 @@ class ParticleSystem
 
 	/// Gets the current time for trail rendering.
 	public float CurrentTime => mTotalTime;
+
+	// ==================== Sub-Emitter Properties ====================
+
+	/// Gets the sub-emitter manager for this particle system.
+	public SubEmitterManager SubEmitters => mSubEmitterManager;
+
+	/// Returns true if this system has active sub-emitter instances.
+	public bool HasActiveSubEmitters => mSubEmitterManager != null && mSubEmitterManager.ActiveCount > 0;
+
+	/// Gets the total particle count including sub-emitters.
+	public int32 TotalParticleCount => ParticleCount + (mSubEmitterManager?.TotalParticleCount ?? 0);
 }

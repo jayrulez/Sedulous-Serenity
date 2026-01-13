@@ -99,6 +99,10 @@ class RendererIntegratedSample : RHISampleApp
 	// Force field demo entity (to connect after force fields exist)
 	private Entity mForceFieldDustEntity;
 
+	// Firework sub-emitter demo
+	private Entity mFireworkEntity;
+	private float mFireworkTimer = 0;
+
 	// Component-based trail demo (high-level approach)
 	private Entity mTrailEntity;
 	private Entity mSwordTrailEntity;
@@ -801,6 +805,21 @@ class RendererIntegratedSample : RHISampleApp
 			RegisterEffect(pos, .(180, 150, 100, 255), "FF DUST");
 		}
 
+		// ==================== SUB-EMITTER DEMO - FIREWORK ====================
+		// Demonstrates sub-emitters: main particle explodes into sparks when it dies
+		{
+			let pos = Vector3(8, 0, -8);
+			mFireworkEntity = mScene.CreateEntity("Firework");
+			mFireworkEntity.Transform.SetPosition(pos);
+
+			let config = ParticleEmitterConfig.CreateFirework();
+			let emitter = new ParticleEmitterComponent(config);
+			emitter.Emitting = false;  // We'll burst manually
+			mFireworkEntity.AddComponent(emitter);
+
+			RegisterEffect(pos, .(255, 255, 100, 255), "FIREWORK");
+		}
+
 		// Print legend to console
 		Console.WriteLine("\n=== PARTICLE EFFECTS LEGEND ===");
 		for (let label in mParticleLabels)
@@ -1411,6 +1430,59 @@ class RendererIntegratedSample : RHISampleApp
 
 		// Update trail demo (orbiting trail)
 		UpdateTrailDemo(deltaTime);
+
+		// Update firework sub-emitter demo (periodic bursts)
+		UpdateFireworkDemo(deltaTime);
+	}
+
+	private void UpdateFireworkDemo(float deltaTime)
+	{
+		if (mFireworkEntity == null)
+			return;
+
+		mFireworkTimer += deltaTime;
+
+		// Launch a firework every 3 seconds
+		if (mFireworkTimer >= 3.0f)
+		{
+			mFireworkTimer = 0;
+
+			if (let emitter = mFireworkEntity.GetComponent<ParticleEmitterComponent>())
+			{
+				// Randomize firework color - explosion inherits this color
+				Color[?] fireworkColors = .(
+					.(255, 100, 100, 255),  // Red
+					.(100, 255, 100, 255),  // Green
+					.(100, 100, 255, 255),  // Blue
+					.(255, 255, 100, 255),  // Yellow
+					.(255, 100, 255, 255),  // Magenta
+					.(100, 255, 255, 255),  // Cyan
+					.(255, 200, 100, 255),  // Orange
+					.(255, 150, 200, 255)   // Pink
+				);
+
+				var random = scope Random();
+				int colorIndex = random.Next(0, fireworkColors.Count);
+				let color = fireworkColors[colorIndex];
+
+				// Set the shell color - sub-emitter will inherit this
+				let endColor = Color(color.R, (uint8)(color.G * 0.7f), (uint8)(color.B * 0.5f), 200);
+				emitter.Config.StartColor = .(color);
+				emitter.Config.EndColor = .(endColor);
+
+				// Also set the ColorTint on the particle system directly
+				// so the burst gets the right color
+				if (emitter.ParticleSystem != null)
+					emitter.ParticleSystem.ColorTint = color;
+
+				// Burst a single firework shell - it will explode via sub-emitter when it dies
+				emitter.Burst(1);
+
+				// Reset tint for next burst
+				if (emitter.ParticleSystem != null)
+					emitter.ParticleSystem.ColorTint = Color.White;
+			}
+		}
 	}
 
 	protected override void OnPrepareFrame(int32 frameIndex)

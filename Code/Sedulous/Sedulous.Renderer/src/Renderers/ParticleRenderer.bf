@@ -549,9 +549,59 @@ class ParticleRenderer
 				usingSoftBindGroup = needSoftBindGroup;
 			}
 
-			renderPass.SetVertexBuffer(0, particleSystem.VertexBuffer, 0);
-			renderPass.SetIndexBuffer(particleSystem.IndexBuffer, .UInt16, 0);
-			renderPass.DrawIndexed(6, (uint32)particleSystem.ParticleCount, 0, 0, 0);
+			// Render main particle system
+			if (particleSystem.ParticleCount > 0)
+			{
+				renderPass.SetVertexBuffer(0, particleSystem.VertexBuffer, 0);
+				renderPass.SetIndexBuffer(particleSystem.IndexBuffer, .UInt16, 0);
+				renderPass.DrawIndexed(6, (uint32)particleSystem.ParticleCount, 0, 0, 0);
+			}
+
+			// Render sub-emitter instances
+			if (proxy.HasActiveSubEmitters)
+			{
+				let subManager = proxy.SubEmitters;
+				for (let instance in subManager.ActiveInstances)
+				{
+					let subSystem = instance.System;
+					if (subSystem == null || subSystem.ParticleCount == 0)
+						continue;
+
+					let subConfig = subSystem.Config;
+					if (subConfig == null)
+						continue;
+
+					// Update uniforms for sub-emitter
+					UpdateUniforms(frameIndex, subConfig, nearPlane, farPlane);
+
+					// Switch pipeline if blend mode changed
+					if (subConfig.BlendMode != currentBlendMode)
+					{
+						let pipeline = GetPipelineForBlendMode(subConfig.BlendMode, useNoDepthPipelines);
+						if (pipeline != currentPipeline)
+						{
+							renderPass.SetPipeline(pipeline);
+							currentPipeline = pipeline;
+							currentBlendMode = subConfig.BlendMode;
+						}
+					}
+
+					// Sub-emitters use the same bind group as parent (soft particles or not)
+					bool subNeedSoftBindGroup = subConfig.SoftParticles && softParticleBindGroup != null;
+					if (subNeedSoftBindGroup != usingSoftBindGroup)
+					{
+						if (subNeedSoftBindGroup)
+							renderPass.SetBindGroup(0, softParticleBindGroup);
+						else
+							renderPass.SetBindGroup(0, mBindGroups[frameIndex]);
+						usingSoftBindGroup = subNeedSoftBindGroup;
+					}
+
+					renderPass.SetVertexBuffer(0, subSystem.VertexBuffer, 0);
+					renderPass.SetIndexBuffer(subSystem.IndexBuffer, .UInt16, 0);
+					renderPass.DrawIndexed(6, (uint32)subSystem.ParticleCount, 0, 0, 0);
+				}
+			}
 		}
 	}
 
