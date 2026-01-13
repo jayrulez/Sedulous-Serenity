@@ -490,7 +490,7 @@ class ParticleRenderer
 		else
 			renderPass.SetBindGroup(0, mBindGroups[frameIndex]);
 
-		renderPass.SetVertexBuffer(0, particleSystem.VertexBuffer, 0);
+		renderPass.SetVertexBuffer(0, particleSystem.GetVertexBuffer(frameIndex), 0);
 		renderPass.SetIndexBuffer(particleSystem.IndexBuffer, .UInt16, 0);
 		renderPass.DrawIndexed(6, (uint32)particleCount, 0, 0, 0);
 	}
@@ -584,7 +584,7 @@ class ParticleRenderer
 			// Render main particle system
 			if (particleSystem.ParticleCount > 0)
 			{
-				renderPass.SetVertexBuffer(0, particleSystem.VertexBuffer, 0);
+				renderPass.SetVertexBuffer(0, particleSystem.GetVertexBuffer(frameIndex), 0);
 				renderPass.SetIndexBuffer(particleSystem.IndexBuffer, .UInt16, 0);
 				renderPass.DrawIndexed(6, (uint32)particleSystem.ParticleCount, 0, 0, 0);
 				mLastDrawCallCount++;
@@ -631,7 +631,7 @@ class ParticleRenderer
 						usingSoftBindGroup = subNeedSoftBindGroup;
 					}
 
-					renderPass.SetVertexBuffer(0, subSystem.VertexBuffer, 0);
+					renderPass.SetVertexBuffer(0, subSystem.GetVertexBuffer(frameIndex), 0);
 					renderPass.SetIndexBuffer(subSystem.IndexBuffer, .UInt16, 0);
 					renderPass.DrawIndexed(6, (uint32)subSystem.ParticleCount, 0, 0, 0);
 					mLastDrawCallCount++;

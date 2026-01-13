@@ -543,7 +543,7 @@ class RenderSceneComponent : ISceneComponent
 			if (emitter.Visible && emitter.ParticleSystem != null)
 			{
 				emitter.ParticleSystem.CameraPosition = cameraPos;
-				emitter.ParticleSystem.Upload();
+				emitter.ParticleSystem.Upload(frameIndex);
 			}
 		}
 

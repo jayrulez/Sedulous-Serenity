@@ -144,10 +144,10 @@ class SubEmitterInstance
 		System?.Burst(count);
 	}
 
-	/// Uploads particle data to GPU.
-	public void Upload()
+	/// Uploads particle data to GPU for the specified frame.
+	public void Upload(int32 frameIndex)
 	{
-		System?.Upload();
+		System?.Upload(frameIndex);
 	}
 }
 
@@ -246,12 +246,12 @@ class SubEmitterManager
 		}
 	}
 
-	/// Uploads all active sub-emitter particle data to GPU.
-	public void Upload()
+	/// Uploads all active sub-emitter particle data to GPU for the specified frame.
+	public void Upload(int32 frameIndex)
 	{
 		for (let instance in mActiveInstances)
 		{
-			instance.Upload();
+			instance.Upload(frameIndex);
 		}
 	}
 

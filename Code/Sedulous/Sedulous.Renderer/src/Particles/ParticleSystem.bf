@@ -48,14 +48,17 @@ struct Particle
 /// CPU-driven particle system with advanced features.
 class ParticleSystem
 {
+	private const int32 MAX_FRAMES = 2;
+
 	private IDevice mDevice;
 
 	// Particle pool - pre-allocated array for zero runtime allocations
 	private Particle[] mParticlePool ~ delete _;
 	private int32 mActiveParticleCount = 0;
 
-	private IBuffer mVertexBuffer;
-	private IBuffer mIndexBuffer;
+	// Double-buffered vertex buffers to avoid GPU/CPU race conditions
+	private IBuffer[MAX_FRAMES] mVertexBuffers ~ { for (var buf in _) if (buf != null) delete buf; };
+	private IBuffer mIndexBuffer ~ delete _;
 
 	private ParticleEmitterConfig mConfig ~ if (mOwnsConfig) delete _;
 	private bool mOwnsConfig = false;
@@ -101,7 +104,8 @@ class ParticleSystem
 	/// Whether the emitter is culled due to LOD distance.
 	public bool IsCulledByLOD => LODFactor <= 0;
 
-	public IBuffer VertexBuffer => mVertexBuffer;
+	/// Gets the vertex buffer for the specified frame index.
+	public IBuffer GetVertexBuffer(int32 frameIndex) => mVertexBuffers[frameIndex % MAX_FRAMES];
 	public IBuffer IndexBuffer => mIndexBuffer;
 	public uint32 IndexCount => (uint32)(mActiveParticleCount * 6);
 
@@ -157,15 +161,20 @@ class ParticleSystem
 
 	public ~this()
 	{
-		// Wait for GPU to finish using buffers before deleting them
-		// This prevents Vulkan validation errors when particle systems are destroyed
-		// while their buffers are still referenced by in-flight command buffers.
-		// TODO: Replace with proper deferred deletion queue for better performance.
-		if (mVertexBuffer != null || mIndexBuffer != null)
+		// Wait for GPU to finish using buffers before deleting them.
+		// Even with double buffering, we need to ensure the GPU is done with all
+		// in-flight frames before destroying the buffers during cleanup.
+		// A proper deferred deletion queue would be more efficient.
+		bool hasBuffers = mIndexBuffer != null;
+		if (!hasBuffers)
+		{
+			for (let buf in mVertexBuffers)
+				if (buf != null) { hasBuffers = true; break; }
+		}
+		if (hasBuffers)
 			mDevice.WaitIdle();
 
-		if (mVertexBuffer != null) delete mVertexBuffer;
-		if (mIndexBuffer != null) delete mIndexBuffer;
+		// Note: mVertexBuffers and mIndexBuffer are deleted by field destructors
 	}
 
 	// ==================== Configuration ====================
@@ -187,13 +196,16 @@ class ParticleSystem
 
 	private void CreateBuffers()
 	{
-		// Vertex buffer
+		// Create double-buffered vertex buffers (one per frame in flight)
 		let vertexSize = (uint64)(sizeof(ParticleVertex) * mMaxParticles);
 		BufferDescriptor vertexDesc = .(vertexSize, .Vertex, .Upload);
-		if (mDevice.CreateBuffer(&vertexDesc) case .Ok(let vertBuf))
-			mVertexBuffer = vertBuf;
+		for (int i = 0; i < MAX_FRAMES; i++)
+		{
+			if (mDevice.CreateBuffer(&vertexDesc) case .Ok(let vertBuf))
+				mVertexBuffers[i] = vertBuf;
+		}
 
-		// Index buffer for quads
+		// Index buffer for quads (shared across frames - never changes)
 		let indexCount = mMaxParticles * 6;
 		let indexSize = (uint64)(sizeof(uint16) * indexCount);
 		BufferDescriptor indexDesc = .(indexSize, .Index, .Upload);
@@ -674,8 +686,9 @@ class ParticleSystem
 
 	// ==================== GPU Upload ====================
 
-	/// Uploads particle data to GPU.
-	public void Upload()
+	/// Uploads particle data to GPU for the specified frame.
+	/// Each frame should use a different buffer to avoid GPU/CPU race conditions.
+	public void Upload(int32 frameIndex)
 	{
 		// Sort particles if enabled (only for alpha blend, additive is order-independent)
 		if (mConfig != null && mConfig.SortParticles && mConfig.BlendMode == .AlphaBlend)
@@ -683,13 +696,13 @@ class ParticleSystem
 			SortParticlesByDistance();
 		}
 
-		// Upload main particle data
-		UploadMainParticles();
+		// Upload main particle data to the frame's buffer
+		UploadMainParticles(frameIndex);
 
 		// Upload sub-emitter particles
 		if (mSubEmitterManager != null)
 		{
-			mSubEmitterManager.Upload();
+			mSubEmitterManager.Upload(frameIndex);
 		}
 	}
 
@@ -714,10 +727,14 @@ class ParticleSystem
 		});
 	}
 
-	/// Uploads main particle system data to GPU.
-	private void UploadMainParticles()
+	/// Uploads main particle system data to GPU for the specified frame.
+	private void UploadMainParticles(int32 frameIndex)
 	{
 		if (mActiveParticleCount == 0)
+			return;
+
+		let buffer = mVertexBuffers[frameIndex % MAX_FRAMES];
+		if (buffer == null)
 			return;
 
 		ParticleVertex[] vertices = new ParticleVertex[mActiveParticleCount];
@@ -758,7 +775,7 @@ class ParticleSystem
 
 		let dataSize = (uint64)(sizeof(ParticleVertex) * mActiveParticleCount);
 		Span<uint8> data = .((uint8*)vertices.Ptr, (int)dataSize);
-		mDevice.Queue.WriteBuffer(mVertexBuffer, 0, data);
+		mDevice.Queue.WriteBuffer(buffer, 0, data);
 	}
 
 	// ==================== Public Control ====================

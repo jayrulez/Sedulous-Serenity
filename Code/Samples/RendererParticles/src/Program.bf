@@ -564,10 +564,13 @@ class RendererParticlesSample : RHISampleApp
 
 		// Update particle systems
 		mParticleSystem.Update(deltaTime);
-		mParticleSystem.Upload();
 
 		mFireworkSystem.Update(deltaTime);
-		mFireworkSystem.Upload();
+
+		// Upload particle data using frame index for double-buffering
+		let frameIndex = (int32)SwapChain.CurrentFrameIndex;
+		mParticleSystem.Upload(frameIndex);
+		mFireworkSystem.Upload(frameIndex);
 
 		var projection = mCamera.ProjectionMatrix;
 		let view = mCamera.ViewMatrix;
@@ -606,6 +609,7 @@ class RendererParticlesSample : RHISampleApp
 		// Render particles
 		if (mParticlePipeline != null && mParticleBindGroup != null)
 		{
+			let frameIndex = (int32)SwapChain.CurrentFrameIndex;
 			renderPass.SetPipeline(mParticlePipeline);
 			renderPass.SetBindGroup(0, mParticleBindGroup);
 
@@ -613,7 +617,7 @@ class RendererParticlesSample : RHISampleApp
 			let particleCount = mParticleSystem.ParticleCount;
 			if (particleCount > 0)
 			{
-				renderPass.SetVertexBuffer(0, mParticleSystem.VertexBuffer, 0);
+				renderPass.SetVertexBuffer(0, mParticleSystem.GetVertexBuffer(frameIndex), 0);
 				renderPass.SetIndexBuffer(mParticleSystem.IndexBuffer, .UInt16, 0);
 				renderPass.DrawIndexed(6, (uint32)particleCount, 0, 0, 0);
 			}
@@ -622,7 +626,7 @@ class RendererParticlesSample : RHISampleApp
 			let fireworkCount = mFireworkSystem.ParticleCount;
 			if (fireworkCount > 0)
 			{
-				renderPass.SetVertexBuffer(0, mFireworkSystem.VertexBuffer, 0);
+				renderPass.SetVertexBuffer(0, mFireworkSystem.GetVertexBuffer(frameIndex), 0);
 				renderPass.SetIndexBuffer(mFireworkSystem.IndexBuffer, .UInt16, 0);
 				renderPass.DrawIndexed(6, (uint32)fireworkCount, 0, 0, 0);
 			}
@@ -635,7 +639,7 @@ class RendererParticlesSample : RHISampleApp
 					let subSystem = instance.System;
 					if (subSystem != null && subSystem.ParticleCount > 0)
 					{
-						renderPass.SetVertexBuffer(0, subSystem.VertexBuffer, 0);
+						renderPass.SetVertexBuffer(0, subSystem.GetVertexBuffer(frameIndex), 0);
 						renderPass.SetIndexBuffer(subSystem.IndexBuffer, .UInt16, 0);
 						renderPass.DrawIndexed(6, (uint32)subSystem.ParticleCount, 0, 0, 0);
 					}

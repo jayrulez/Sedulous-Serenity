@@ -184,8 +184,15 @@ class ParticleEmitterComponent : IEntityComponent
 		// Update particles
 		mParticleSystem.Update(deltaTime);
 
-		// Upload to GPU (camera position already set above)
-		mParticleSystem.Upload();
+		// Upload to GPU - only if not registered with RenderSceneComponent
+		// When registered, RenderSceneComponent.PrepareGPU() handles upload with proper frame index
+		if (mRenderScene == null)
+		{
+			// Standalone mode - upload immediately (frame 0 for simple cases)
+			mParticleSystem.Upload(0);
+		}
+		// Note: When mRenderScene != null, upload is handled by RenderSceneComponent.PrepareGPU()
+		// with the correct frameIndex from RendererService
 
 		// Update proxy state
 		CreateOrUpdateProxy();
