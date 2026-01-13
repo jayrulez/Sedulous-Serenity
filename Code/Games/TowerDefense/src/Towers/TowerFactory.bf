@@ -182,15 +182,15 @@ class TowerFactory
 		return entity;
 	}
 
-	/// Removes a tower and returns partial refund.
+	/// Removes a tower and returns partial refund (50% of total invested).
 	public int32 SellTower(Entity tower)
 	{
 		let towerComp = tower.GetComponent<TowerComponent>();
 		if (towerComp == null)
 			return 0;
 
-		// Calculate refund (50% of cost)
-		int32 refund = towerComp.Definition.Cost / 2;
+		// Calculate refund (50% of total invested including upgrades)
+		int32 refund = towerComp.GetTotalInvested() / 2;
 
 		// Remove from grid
 		let gridKey = GridKey(towerComp.GridX, towerComp.GridY);

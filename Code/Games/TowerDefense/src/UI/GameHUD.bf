@@ -49,17 +49,19 @@ class GameHUD
 	// Tower info panel (shown when a placed tower is selected)
 	private Border mTowerInfoPanel;
 	private TextBlock mTowerInfoName;
+	private TextBlock mTowerInfoLevel;
 	private TextBlock mTowerInfoDamage;
 	private TextBlock mTowerInfoRange;
 	private TextBlock mTowerInfoFireRate;
+	private Button mUpgradeButton;
 	private TextBlock mTowerInfoSellPrice;
 	private Button mSellButton;
 
 	// Volume controls (in pause menu)
 	private TextBlock mMusicVolumeLabel;
 	private TextBlock mSFXVolumeLabel;
-	private float mMusicVolume = 0.5f;
-	private float mSFXVolume = 0.7f;
+	private float mMusicVolume = 0.1f;
+	private float mSFXVolume = 0.1f;
 
 	// Events
 	private EventAccessor<TowerSelectedDelegate> mOnTowerSelected = new .() ~ delete _;
@@ -67,6 +69,7 @@ class GameHUD
 	private EventAccessor<GameActionDelegate> mOnRestart = new .() ~ delete _;
 	private EventAccessor<GameActionDelegate> mOnResume = new .() ~ delete _;
 	private EventAccessor<GameActionDelegate> mOnSellTower = new .() ~ delete _;
+	private EventAccessor<GameActionDelegate> mOnUpgradeTower = new .() ~ delete _;
 	private EventAccessor<VolumeChangeDelegate> mOnMusicVolumeChanged = new .() ~ delete _;
 	private EventAccessor<VolumeChangeDelegate> mOnSFXVolumeChanged = new .() ~ delete _;
 
@@ -75,6 +78,7 @@ class GameHUD
 	public EventAccessor<GameActionDelegate> OnRestart => mOnRestart;
 	public EventAccessor<GameActionDelegate> OnResume => mOnResume;
 	public EventAccessor<GameActionDelegate> OnSellTower => mOnSellTower;
+	public EventAccessor<GameActionDelegate> OnUpgradeTower => mOnUpgradeTower;
 	public EventAccessor<VolumeChangeDelegate> OnMusicVolumeChanged => mOnMusicVolumeChanged;
 	public EventAccessor<VolumeChangeDelegate> OnSFXVolumeChanged => mOnSFXVolumeChanged;
 
@@ -432,6 +436,14 @@ class GameHUD
 		mTowerInfoName.HorizontalAlignment = .Center;
 		infoContent.AddChild(mTowerInfoName);
 
+		// Tower level
+		mTowerInfoLevel = new TextBlock();
+		mTowerInfoLevel.Text = "Level 1";
+		mTowerInfoLevel.Foreground = Color(180, 180, 180);
+		mTowerInfoLevel.FontSize = 14;
+		mTowerInfoLevel.HorizontalAlignment = .Center;
+		infoContent.AddChild(mTowerInfoLevel);
+
 		// Separator
 		let separator = new Border();
 		separator.Background = Color(100, 100, 100);
@@ -460,12 +472,23 @@ class GameHUD
 		mTowerInfoFireRate.FontSize = 14;
 		infoContent.AddChild(mTowerInfoFireRate);
 
-		// Separator before sell
+		// Separator before upgrade/sell
 		let separator2 = new Border();
 		separator2.Background = Color(100, 100, 100);
 		separator2.Height = 1;
 		separator2.Margin = Thickness(0, 5, 0, 5);
 		infoContent.AddChild(separator2);
+
+		// Upgrade button
+		mUpgradeButton = new Button();
+		mUpgradeButton.ContentText = "Upgrade $0";
+		mUpgradeButton.Padding = Thickness(20, 10, 20, 10);
+		mUpgradeButton.Background = Color(50, 150, 50);
+		mUpgradeButton.HorizontalAlignment = .Center;
+		mUpgradeButton.Click.Subscribe(new (btn) => {
+			mOnUpgradeTower.[Friend]Invoke();
+		});
+		infoContent.AddChild(mUpgradeButton);
 
 		// Sell price
 		mTowerInfoSellPrice = new TextBlock();
@@ -636,10 +659,30 @@ class GameHUD
 
 		let def = tower.Definition;
 		mTowerInfoName.Text = scope:: $"{def.Name}";
+		mTowerInfoLevel.Text = scope:: $"Level {tower.Level}";
 		mTowerInfoDamage.Text = scope:: $"Damage: {tower.GetDamage():F0}";
 		mTowerInfoRange.Text = scope:: $"Range: {tower.GetRange():F1}";
 		mTowerInfoFireRate.Text = scope:: $"Fire Rate: {tower.GetFireRate():F1}/s";
-		mTowerInfoSellPrice.Text = scope:: $"Sell: ${def.Cost / 2}";
+
+		// Upgrade button
+		if (tower.CanUpgrade)
+		{
+			mUpgradeButton.ContentText = scope:: $"Upgrade ${tower.GetUpgradeCost()}";
+			mUpgradeButton.IsEnabled = true;
+			mUpgradeButton.Background = Color(50, 150, 50);
+			mUpgradeButton.Visibility = .Visible;
+		}
+		else
+		{
+			mUpgradeButton.ContentText = "MAX LEVEL";
+			mUpgradeButton.IsEnabled = false;
+			mUpgradeButton.Background = Color(80, 80, 80);
+			mUpgradeButton.Visibility = .Visible;
+		}
+
+		// Sell price is 50% of total invested
+		let sellPrice = tower.GetTotalInvested() / 2;
+		mTowerInfoSellPrice.Text = scope:: $"Sell: ${sellPrice}";
 
 		mTowerInfoPanel.Visibility = .Visible;
 	}

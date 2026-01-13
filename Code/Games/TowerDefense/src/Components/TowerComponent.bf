@@ -13,6 +13,9 @@ class TowerComponent : IEntityComponent
 {
 	private Entity mEntity;
 
+	/// Maximum upgrade level for towers.
+	public const int32 MaxLevel = 3;
+
 	/// The tower definition (stats).
 	public TowerDefinition Definition;
 
@@ -77,6 +80,51 @@ class TowerComponent : IEntityComponent
 	public float GetFireRate()
 	{
 		return Definition.FireRate * (1.0f + (Level - 1) * 0.15f);
+	}
+
+	/// Returns true if this tower can be upgraded further.
+	public bool CanUpgrade => Level < MaxLevel;
+
+	/// Gets the cost to upgrade to the next level.
+	/// Cost increases by 50% per level.
+	public int32 GetUpgradeCost()
+	{
+		if (!CanUpgrade)
+			return 0;
+		// Level 1→2: base cost, Level 2→3: 1.5x base cost
+		return (int32)(Definition.UpgradeCost * (1.0f + (Level - 1) * 0.5f));
+	}
+
+	/// Gets the total value of this tower (for sell price calculation).
+	/// Returns original cost plus all upgrade costs spent.
+	public int32 GetTotalInvested()
+	{
+		int32 total = Definition.Cost;
+		for (int32 lvl = 1; lvl < Level; lvl++)
+		{
+			total += (int32)(Definition.UpgradeCost * (1.0f + (lvl - 1) * 0.5f));
+		}
+		return total;
+	}
+
+	/// Upgrades the tower to the next level.
+	/// Returns true if upgrade was successful.
+	public bool Upgrade()
+	{
+		if (!CanUpgrade)
+			return false;
+
+		Level++;
+
+		// Update visual scale (5% bigger per level)
+		if (mEntity != null)
+		{
+			let levelScale = 1.0f + (Level - 1) * 0.05f;
+			let baseScale = Definition.Scale;
+			mEntity.Transform.SetScale(.(baseScale * 0.8f * levelScale, baseScale * levelScale, baseScale * 0.8f * levelScale));
+		}
+
+		return true;
 	}
 
 	/// Checks if a target is valid (in range and correct type).

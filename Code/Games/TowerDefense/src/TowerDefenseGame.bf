@@ -445,6 +445,10 @@ class TowerDefenseGame : RHISampleApp
 			mGameAudio?.PlayUIClick();
 			SellSelectedTower();
 		});
+		mGameHUD.OnUpgradeTower.Subscribe(new () => {
+			mGameAudio?.PlayUIClick();
+			UpgradeSelectedTower();
+		});
 		mGameHUD.OnMusicVolumeChanged.Subscribe(new (volume) => {
 			mGameAudio?.SetMusicVolume(volume);
 		});
@@ -1136,6 +1140,42 @@ class TowerDefenseGame : RHISampleApp
 		Console.WriteLine($"Sold tower for ${refund}. Money: ${mMoney}");
 		mSelectedPlacedTower = null;
 		mGameHUD?.HideTowerInfo();
+		UpdateHUD();
+	}
+
+	/// Upgrades the currently selected placed tower.
+	private void UpgradeSelectedTower()
+	{
+		if (mSelectedPlacedTower == null)
+			return;
+
+		let towerComp = mSelectedPlacedTower.GetComponent<TowerComponent>();
+		if (towerComp == null)
+			return;
+
+		// Check if can upgrade
+		if (!towerComp.CanUpgrade)
+		{
+			Console.WriteLine("Tower is already at max level!");
+			return;
+		}
+
+		// Check if we have enough money
+		let cost = towerComp.GetUpgradeCost();
+		if (mMoney < cost)
+		{
+			mGameAudio?.PlayNoMoney();
+			Console.WriteLine($"Not enough money! Need ${cost}, have ${mMoney}");
+			return;
+		}
+
+		// Perform upgrade
+		mMoney -= cost;
+		towerComp.Upgrade();
+		Console.WriteLine($"Upgraded {towerComp.Definition.Name} to level {towerComp.Level}! Money: ${mMoney}");
+
+		// Refresh tower info panel to show new stats
+		mGameHUD?.ShowTowerInfo(towerComp);
 		UpdateHUD();
 	}
 

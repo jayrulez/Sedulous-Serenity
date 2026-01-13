@@ -38,8 +38,8 @@ class GameAudio
 	private bool mUseDecodedMusic = true;  // Try decoded file first, fall back to procedural
 
 	// Volume settings
-	public float SFXVolume = 0.7f;
-	public float MusicVolume = 0.5f;
+	public float SFXVolume = 0.1f;
+	public float MusicVolume = 0.1f;
 
 	public this(AudioService audioService, AudioDecoderFactory decoderFactory)
 	{
