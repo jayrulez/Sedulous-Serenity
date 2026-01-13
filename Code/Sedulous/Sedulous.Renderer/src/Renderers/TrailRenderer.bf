@@ -33,9 +33,13 @@ class TrailRenderer
 	private IBindGroupLayout mBindGroupLayout ~ delete _;
 	private IPipelineLayout mPipelineLayout ~ delete _;
 
-	// Pipelines for different blend modes
+	// Pipelines for different blend modes (with depth attachment)
 	private IRenderPipeline mAlphaBlendPipeline ~ delete _;
 	private IRenderPipeline mAdditivePipeline ~ delete _;
+
+	// No-depth pipelines for transparent pass (soft particles)
+	private IRenderPipeline mAlphaBlendNoDepthPipeline ~ delete _;
+	private IRenderPipeline mAdditiveNoDepthPipeline ~ delete _;
 
 	// Per-frame resources
 	private IBuffer[MAX_FRAMES] mTrailUniformBuffers ~ { for (var buf in _) delete buf; };
@@ -223,30 +227,44 @@ class TrailRenderer
 			VertexBufferLayout(24, vertexAttrs, .Vertex)
 		);
 
+		// Depth state for pipelines with depth attachment
 		DepthStencilState depthState = .();
 		depthState.DepthTestEnabled = true;
 		depthState.DepthWriteEnabled = false;  // Trails don't write to depth
 		depthState.DepthCompare = .Less;
 		depthState.Format = mDepthFormat;
 
-		// Alpha blend pipeline
-		ColorTargetState[1] alphaTargets = .(
-			ColorTargetState(mColorFormat, BlendState.AlphaBlend)
-		);
+		// No-depth state for transparent pass
+		DepthStencilState noDepthState = .();
+		noDepthState.DepthTestEnabled = false;
+		noDepthState.DepthWriteEnabled = false;
+		noDepthState.Format = .Undefined;
+
+		// Blend states
+		BlendState additiveBlend = .();
+		additiveBlend.Color = .(.Add, .SrcAlpha, .One);
+		additiveBlend.Alpha = .(.Add, .One, .One);
+
+		// Create pipelines WITH depth attachment
+		ColorTargetState[1] alphaTargets = .(ColorTargetState(mColorFormat, BlendState.AlphaBlend));
+		ColorTargetState[1] additiveTargets = .(ColorTargetState(mColorFormat, additiveBlend));
+
 		if (CreatePipelineWithTargets(vertShaderInfo.Module, fragShaderInfo.Module, vertexBuffers, depthState, alphaTargets) not case .Ok(let alphaPipeline))
 			return .Err;
 		mAlphaBlendPipeline = alphaPipeline;
 
-		// Additive blend pipeline
-		BlendState additiveBlend = .();
-		additiveBlend.Color = .(.Add, .SrcAlpha, .One);
-		additiveBlend.Alpha = .(.Add, .One, .One);
-		ColorTargetState[1] additiveTargets = .(
-			ColorTargetState(mColorFormat, additiveBlend)
-		);
 		if (CreatePipelineWithTargets(vertShaderInfo.Module, fragShaderInfo.Module, vertexBuffers, depthState, additiveTargets) not case .Ok(let additivePipeline))
 			return .Err;
 		mAdditivePipeline = additivePipeline;
+
+		// Create pipelines WITHOUT depth attachment (for transparent pass)
+		if (CreatePipelineWithTargets(vertShaderInfo.Module, fragShaderInfo.Module, vertexBuffers, noDepthState, alphaTargets) not case .Ok(let alphaNoDepthPipeline))
+			return .Err;
+		mAlphaBlendNoDepthPipeline = alphaNoDepthPipeline;
+
+		if (CreatePipelineWithTargets(vertShaderInfo.Module, fragShaderInfo.Module, vertexBuffers, noDepthState, additiveTargets) not case .Ok(let additiveNoDepthPipeline))
+			return .Err;
+		mAdditiveNoDepthPipeline = additiveNoDepthPipeline;
 
 		return .Ok;
 	}
@@ -289,12 +307,23 @@ class TrailRenderer
 		return .Ok(pipeline);
 	}
 
-	private IRenderPipeline GetPipelineForBlendMode(ParticleBlendMode blendMode)
+	private IRenderPipeline GetPipelineForBlendMode(ParticleBlendMode blendMode, bool useNoDepth = false)
 	{
-		switch (blendMode)
+		if (useNoDepth)
 		{
-		case .Additive: return mAdditivePipeline;
-		default: return mAlphaBlendPipeline;
+			switch (blendMode)
+			{
+			case .Additive: return mAdditiveNoDepthPipeline;
+			default: return mAlphaBlendNoDepthPipeline;
+			}
+		}
+		else
+		{
+			switch (blendMode)
+			{
+			case .Additive: return mAdditivePipeline;
+			default: return mAlphaBlendPipeline;
+			}
 		}
 	}
 
@@ -321,9 +350,10 @@ class TrailRenderer
 
 	/// Renders a single trail.
 	/// Returns the number of vertices rendered.
+	/// useNoDepth: Use pipeline without depth attachment (for transparent pass)
 	public int32 RenderTrail(IRenderPassEncoder renderPass, int32 frameIndex,
 		ParticleTrail trail, Vector3 cameraPosition,
-		TrailSettings settings, ParticleBlendMode blendMode, float currentTime)
+		TrailSettings settings, ParticleBlendMode blendMode, float currentTime, bool useNoDepth = false)
 	{
 		if (!mInitialized || trail == null || !trail.HasPoints)
 			return 0;
@@ -364,7 +394,7 @@ class TrailRenderer
 		UpdateUniforms(frameIndex, false, 0.3f);
 
 		// Render with vertex buffer offset
-		let pipeline = GetPipelineForBlendMode(blendMode);
+		let pipeline = GetPipelineForBlendMode(blendMode, useNoDepth);
 		renderPass.SetPipeline(pipeline);
 		renderPass.SetBindGroup(0, mBindGroups[frameIndex]);
 		renderPass.SetVertexBuffer(0, mVertexBuffers[frameIndex], byteOffset);

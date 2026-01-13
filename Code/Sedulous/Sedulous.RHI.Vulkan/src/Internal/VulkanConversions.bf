@@ -11,6 +11,9 @@ static class VulkanConversions
 	{
 		switch (format)
 		{
+		// Undefined format
+		case .Undefined: return .VK_FORMAT_UNDEFINED;
+
 		// 8-bit formats
 		case .R8Unorm: return .VK_FORMAT_R8_UNORM;
 		case .R8Snorm: return .VK_FORMAT_R8_SNORM;
@@ -255,6 +258,21 @@ static class VulkanConversions
 			return .VK_IMAGE_ASPECT_DEPTH_BIT;
 		else
 			return .VK_IMAGE_ASPECT_COLOR_BIT;
+	}
+
+	/// Gets the VkImageAspectFlags for a format with explicit aspect selection.
+	/// For sampled depth/stencil views, use DepthOnly or StencilOnly aspect.
+	public static VkImageAspectFlags GetAspectFlags(TextureFormat format, TextureAspect aspect)
+	{
+		switch (aspect)
+		{
+		case .DepthOnly:
+			return .VK_IMAGE_ASPECT_DEPTH_BIT;
+		case .StencilOnly:
+			return .VK_IMAGE_ASPECT_STENCIL_BIT;
+		case .All:
+			return GetAspectFlags(format);
+		}
 	}
 
 	/// Converts RHI BindingType to VkDescriptorType.

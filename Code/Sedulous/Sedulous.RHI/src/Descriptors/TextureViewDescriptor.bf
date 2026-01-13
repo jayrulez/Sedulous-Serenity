@@ -1,6 +1,19 @@
 using System;
 namespace Sedulous.RHI;
 
+/// Specifies which aspect of a texture to view.
+/// For depth/stencil textures, you must choose one aspect for sampled views.
+enum TextureAspect
+{
+	/// All aspects (default for color textures).
+	/// For depth/stencil, uses both depth and stencil (valid for attachments).
+	All,
+	/// Depth aspect only (for sampling depth from depth/stencil textures).
+	DepthOnly,
+	/// Stencil aspect only (for sampling stencil from depth/stencil textures).
+	StencilOnly
+}
+
 /// Describes a view into a texture.
 struct TextureViewDescriptor
 {
@@ -16,6 +29,9 @@ struct TextureViewDescriptor
 	public uint32 BaseArrayLayer;
 	/// Number of array layers to include.
 	public uint32 ArrayLayerCount;
+	/// Aspect of the texture to view (for depth/stencil textures).
+	/// Use DepthOnly when creating a sampled view of depth/stencil textures.
+	public TextureAspect Aspect;
 	/// Optional label for debugging.
 	public StringView Label;
 
@@ -27,6 +43,7 @@ struct TextureViewDescriptor
 		MipLevelCount = 1;
 		BaseArrayLayer = 0;
 		ArrayLayerCount = 1;
+		Aspect = .All;
 		Label = default;
 	}
 }

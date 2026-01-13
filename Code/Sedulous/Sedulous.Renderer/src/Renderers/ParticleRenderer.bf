@@ -16,12 +16,22 @@ struct ParticleUniforms
 	public float MinStretchLength;
 	public uint32 UseTexture;
 
+	// Soft particle parameters
+	public uint32 SoftParticlesEnabled;
+	public float SoftParticleDistance;
+	public float NearPlane;
+	public float FarPlane;
+
 	public static Self Default => .()
 	{
 		RenderMode = 0,
 		StretchFactor = 1.0f,
 		MinStretchLength = 0.1f,
-		UseTexture = 0
+		UseTexture = 0,
+		SoftParticlesEnabled = 0,
+		SoftParticleDistance = 0.5f,
+		NearPlane = 0.1f,
+		FarPlane = 1000.0f
 	};
 }
 
@@ -38,11 +48,17 @@ class ParticleRenderer
 	private IBindGroupLayout mBindGroupLayout ~ delete _;
 	private IPipelineLayout mPipelineLayout ~ delete _;
 
-	// Pipelines for different blend modes
+	// Pipelines for different blend modes (with depth attachment)
 	private IRenderPipeline mAlphaBlendPipeline ~ delete _;
 	private IRenderPipeline mAdditivePipeline ~ delete _;
 	private IRenderPipeline mMultiplyPipeline ~ delete _;
 	private IRenderPipeline mPremultipliedPipeline ~ delete _;
+
+	// No-depth pipelines for transparent pass (soft particles)
+	private IRenderPipeline mAlphaBlendNoDepthPipeline ~ delete _;
+	private IRenderPipeline mAdditiveNoDepthPipeline ~ delete _;
+	private IRenderPipeline mMultiplyNoDepthPipeline ~ delete _;
+	private IRenderPipeline mPremultipliedNoDepthPipeline ~ delete _;
 
 	// Per-frame resources
 	private IBuffer[MAX_FRAMES] mParticleUniformBuffers ~ { for (var buf in _) delete buf; };
@@ -52,6 +68,11 @@ class ParticleRenderer
 	private ITexture mDefaultTexture ~ delete _;
 	private ITextureView mDefaultTextureView ~ delete _;
 	private ISampler mDefaultSampler ~ delete _;
+
+	// Default depth texture for non-soft particles (1x1 white, depth=1.0)
+	private ITexture mDefaultDepthTexture ~ delete _;
+	private ITextureView mDefaultDepthTextureView ~ delete _;
+	private ISampler mDepthSampler ~ delete _;
 
 	// Per-frame camera buffers (references, not owned)
 	private IBuffer[MAX_FRAMES] mCameraBuffers;
@@ -131,18 +152,52 @@ class ParticleRenderer
 			return .Err;
 		mDefaultSampler = sampler;
 
+		// Create default depth texture (R32Float with depth=1.0 = far plane)
+		TextureDescriptor depthTexDesc = TextureDescriptor.Texture2D(1, 1, .R32Float, .Sampled | .CopyDst);
+		if (mDevice.CreateTexture(&depthTexDesc) not case .Ok(let depthTex))
+			return .Err;
+		mDefaultDepthTexture = depthTex;
+
+		// Upload max depth (1.0)
+		float maxDepth = 1.0f;
+		TextureDataLayout depthDataLayout = .() { Offset = 0, BytesPerRow = 4, RowsPerImage = 1 };
+		mDevice.Queue.WriteTexture(mDefaultDepthTexture, Span<uint8>((uint8*)&maxDepth, 4), &depthDataLayout, &writeSize);
+
+		// Create depth texture view
+		TextureViewDescriptor depthViewDesc = .() { Format = .R32Float };
+		if (mDevice.CreateTextureView(mDefaultDepthTexture, &depthViewDesc) not case .Ok(let depthView))
+			return .Err;
+		mDefaultDepthTextureView = depthView;
+
+		// Create depth sampler (point sampling for depth)
+		SamplerDescriptor depthSamplerDesc = .()
+		{
+			MinFilter = .Nearest,
+			MagFilter = .Nearest,
+			AddressModeU = .ClampToEdge,
+			AddressModeV = .ClampToEdge,
+			AddressModeW = .ClampToEdge
+		};
+		if (mDevice.CreateSampler(&depthSamplerDesc) not case .Ok(let depthSampler))
+			return .Err;
+		mDepthSampler = depthSampler;
+
 		return .Ok;
 	}
 
 	private Result<void> CreateBindGroupLayouts()
 	{
 		// Single bind group layout matching shader:
-		// b0 = camera uniforms, b1 = particle uniforms, t0 = texture, s0 = sampler
-		BindGroupLayoutEntry[4] layoutEntries = .(
+		// b0 = camera uniforms, b1 = particle uniforms
+		// t0 = particle texture, s0 = particle sampler
+		// t1 = depth texture (for soft particles), s1 = depth sampler
+		BindGroupLayoutEntry[6] layoutEntries = .(
 			BindGroupLayoutEntry.UniformBuffer(0, .Vertex | .Fragment),   // b0: camera
 			BindGroupLayoutEntry.UniformBuffer(1, .Vertex | .Fragment),   // b1: particle uniforms
-			BindGroupLayoutEntry.SampledTexture(0, .Fragment),            // t0: texture
-			BindGroupLayoutEntry.Sampler(0, .Fragment)                    // s0: sampler
+			BindGroupLayoutEntry.SampledTexture(0, .Fragment),            // t0: particle texture
+			BindGroupLayoutEntry.Sampler(0, .Fragment),                   // s0: particle sampler
+			BindGroupLayoutEntry.SampledTexture(1, .Fragment),            // t1: depth texture
+			BindGroupLayoutEntry.Sampler(1, .Fragment)                    // s1: depth sampler
 		);
 		BindGroupLayoutDescriptor bindLayoutDesc = .(layoutEntries);
 		if (mDevice.CreateBindGroupLayout(&bindLayoutDesc) not case .Ok(let layout))
@@ -176,14 +231,16 @@ class ParticleRenderer
 
 	private Result<void> CreateBindGroups()
 	{
-		// Create per-frame bind groups with all bindings
+		// Create per-frame bind groups with all bindings (using default depth texture)
 		for (int i = 0; i < MAX_FRAMES; i++)
 		{
-			BindGroupEntry[4] entries = .(
-				BindGroupEntry.Buffer(0, mCameraBuffers[i]),         // b0: camera
-				BindGroupEntry.Buffer(1, mParticleUniformBuffers[i]), // b1: particle uniforms
-				BindGroupEntry.Texture(0, mDefaultTextureView),      // t0: texture
-				BindGroupEntry.Sampler(0, mDefaultSampler)           // s0: sampler
+			BindGroupEntry[6] entries = .(
+				BindGroupEntry.Buffer(0, mCameraBuffers[i]),           // b0: camera
+				BindGroupEntry.Buffer(1, mParticleUniformBuffers[i]),  // b1: particle uniforms
+				BindGroupEntry.Texture(0, mDefaultTextureView),        // t0: particle texture
+				BindGroupEntry.Sampler(0, mDefaultSampler),            // s0: particle sampler
+				BindGroupEntry.Texture(1, mDefaultDepthTextureView),   // t1: depth texture (default)
+				BindGroupEntry.Sampler(1, mDepthSampler)               // s1: depth sampler
 			);
 			BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, entries);
 			if (mDevice.CreateBindGroup(&bindGroupDesc) not case .Ok(let group))
@@ -192,6 +249,27 @@ class ParticleRenderer
 		}
 
 		return .Ok;
+	}
+
+	/// Creates a bind group with an actual depth texture for soft particles.
+	/// The caller is responsible for deleting the returned bind group.
+	public Result<IBindGroup> CreateSoftParticleBindGroup(int32 frameIndex, ITextureView depthTextureView)
+	{
+		if (frameIndex < 0 || frameIndex >= MAX_FRAMES)
+			return .Err;
+
+		BindGroupEntry[6] entries = .(
+			BindGroupEntry.Buffer(0, mCameraBuffers[frameIndex]),           // b0: camera
+			BindGroupEntry.Buffer(1, mParticleUniformBuffers[frameIndex]),  // b1: particle uniforms
+			BindGroupEntry.Texture(0, mDefaultTextureView),                 // t0: particle texture
+			BindGroupEntry.Sampler(0, mDefaultSampler),                     // s0: particle sampler
+			BindGroupEntry.Texture(1, depthTextureView),                    // t1: actual depth texture
+			BindGroupEntry.Sampler(1, mDepthSampler)                        // s1: depth sampler
+		);
+		BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, entries);
+		if (mDevice.CreateBindGroup(&bindGroupDesc) not case .Ok(let group))
+			return .Err;
+		return .Ok(group);
 	}
 
 	private Result<void> CreatePipelines()
@@ -222,54 +300,70 @@ class ParticleRenderer
 			VertexBufferLayout(52, vertexAttrs, .Instance)
 		);
 
+		// Depth state for pipelines with depth attachment
 		DepthStencilState depthState = .();
 		depthState.DepthTestEnabled = true;
 		depthState.DepthWriteEnabled = false;  // Particles don't write to depth
 		depthState.DepthCompare = .Less;
 		depthState.Format = mDepthFormat;
 
-		// Alpha blend pipeline
-		ColorTargetState[1] alphaTargets = .(
-			ColorTargetState(mColorFormat, BlendState.AlphaBlend)
-		);
-		if (CreatePipelineWithTargets(vertShaderInfo.Module, fragShaderInfo.Module, vertexBuffers, depthState, alphaTargets) not case .Ok(let alphaPipeline))
-			return .Err;
-		mAlphaBlendPipeline = alphaPipeline;
+		// No-depth state for transparent pass (soft particles)
+		DepthStencilState noDepthState = .();
+		noDepthState.DepthTestEnabled = false;
+		noDepthState.DepthWriteEnabled = false;
+		noDepthState.Format = .Undefined;
 
-		// Additive blend pipeline (srcColor * srcAlpha + dstColor)
+		// Define blend states
 		BlendState additiveBlend = .();
 		additiveBlend.Color = .(.Add, .SrcAlpha, .One);
 		additiveBlend.Alpha = .(.Add, .One, .One);
-		ColorTargetState[1] additiveTargets = .(
-			ColorTargetState(mColorFormat, additiveBlend)
-		);
-		if (CreatePipelineWithTargets(vertShaderInfo.Module, fragShaderInfo.Module, vertexBuffers, depthState, additiveTargets) not case .Ok(let additivePipeline))
-			return .Err;
-		mAdditivePipeline = additivePipeline;
 
-		// Multiply blend pipeline (dstColor * srcColor)
 		BlendState multiplyBlend = .();
 		multiplyBlend.Color = .(.Add, .Dst, .Zero);
 		multiplyBlend.Alpha = .(.Add, .DstAlpha, .Zero);
 
-		ColorTargetState[1] multiplyTargets = .(
-			ColorTargetState(mColorFormat, multiplyBlend)
-		);
-		if (CreatePipelineWithTargets(vertShaderInfo.Module, fragShaderInfo.Module, vertexBuffers, depthState, multiplyTargets) not case .Ok(let multiplyPipeline))
-			return .Err;
-		mMultiplyPipeline = multiplyPipeline;
-
-		// Premultiplied alpha pipeline
 		BlendState premultBlend = .();
 		premultBlend.Color = .(.Add, .One, .OneMinusSrcAlpha);
 		premultBlend.Alpha = .(.Add, .One, .OneMinusSrcAlpha);
 
-		ColorTargetState[1] premultTargets = .(
-			ColorTargetState(mColorFormat, premultBlend)
-		);
+		// Create pipelines WITH depth attachment
+		ColorTargetState[1] alphaTargets = .(ColorTargetState(mColorFormat, BlendState.AlphaBlend));
+		ColorTargetState[1] additiveTargets = .(ColorTargetState(mColorFormat, additiveBlend));
+		ColorTargetState[1] multiplyTargets = .(ColorTargetState(mColorFormat, multiplyBlend));
+		ColorTargetState[1] premultTargets = .(ColorTargetState(mColorFormat, premultBlend));
+
+		if (CreatePipelineWithTargets(vertShaderInfo.Module, fragShaderInfo.Module, vertexBuffers, depthState, alphaTargets) not case .Ok(let alphaPipeline))
+			return .Err;
+		mAlphaBlendPipeline = alphaPipeline;
+
+		if (CreatePipelineWithTargets(vertShaderInfo.Module, fragShaderInfo.Module, vertexBuffers, depthState, additiveTargets) not case .Ok(let additivePipeline))
+			return .Err;
+		mAdditivePipeline = additivePipeline;
+
+		if (CreatePipelineWithTargets(vertShaderInfo.Module, fragShaderInfo.Module, vertexBuffers, depthState, multiplyTargets) not case .Ok(let multiplyPipeline))
+			return .Err;
+		mMultiplyPipeline = multiplyPipeline;
+
 		if (CreatePipelineWithTargets(vertShaderInfo.Module, fragShaderInfo.Module, vertexBuffers, depthState, premultTargets) not case .Ok(let premultPipeline))
 			return .Err;
 		mPremultipliedPipeline = premultPipeline;
+
+		// Create pipelines WITHOUT depth attachment (for soft particle transparent pass)
+		if (CreatePipelineWithTargets(vertShaderInfo.Module, fragShaderInfo.Module, vertexBuffers, noDepthState, alphaTargets) not case .Ok(let alphaNoDepthPipeline))
+			return .Err;
+		mAlphaBlendNoDepthPipeline = alphaNoDepthPipeline;
+
+		if (CreatePipelineWithTargets(vertShaderInfo.Module, fragShaderInfo.Module, vertexBuffers, noDepthState, additiveTargets) not case .Ok(let additiveNoDepthPipeline))
+			return .Err;
+		mAdditiveNoDepthPipeline = additiveNoDepthPipeline;
+
+		if (CreatePipelineWithTargets(vertShaderInfo.Module, fragShaderInfo.Module, vertexBuffers, noDepthState, multiplyTargets) not case .Ok(let multiplyNoDepthPipeline))
+			return .Err;
+		mMultiplyNoDepthPipeline = multiplyNoDepthPipeline;
+
+		if (CreatePipelineWithTargets(vertShaderInfo.Module, fragShaderInfo.Module, vertexBuffers, noDepthState, premultTargets) not case .Ok(let premultNoDepthPipeline))
+			return .Err;
+		mPremultipliedNoDepthPipeline = premultNoDepthPipeline;
 
 		return .Ok;
 	}
@@ -312,19 +406,32 @@ class ParticleRenderer
 		return .Ok(pipeline);
 	}
 
-	private IRenderPipeline GetPipelineForBlendMode(ParticleBlendMode blendMode)
+	private IRenderPipeline GetPipelineForBlendMode(ParticleBlendMode blendMode, bool useNoDepth = false)
 	{
-		switch (blendMode)
+		if (useNoDepth)
 		{
-		case .Additive: return mAdditivePipeline;
-		case .Multiply: return mMultiplyPipeline;
-		case .Premultiplied: return mPremultipliedPipeline;
-		default: return mAlphaBlendPipeline;
+			switch (blendMode)
+			{
+			case .Additive: return mAdditiveNoDepthPipeline;
+			case .Multiply: return mMultiplyNoDepthPipeline;
+			case .Premultiplied: return mPremultipliedNoDepthPipeline;
+			default: return mAlphaBlendNoDepthPipeline;
+			}
+		}
+		else
+		{
+			switch (blendMode)
+			{
+			case .Additive: return mAdditivePipeline;
+			case .Multiply: return mMultiplyPipeline;
+			case .Premultiplied: return mPremultipliedPipeline;
+			default: return mAlphaBlendPipeline;
+			}
 		}
 	}
 
 	/// Updates the particle uniform buffer for a specific render configuration.
-	public void UpdateUniforms(int32 frameIndex, ParticleEmitterConfig config)
+	public void UpdateUniforms(int32 frameIndex, ParticleEmitterConfig config, float nearPlane = 0.1f, float farPlane = 1000.0f)
 	{
 		if (frameIndex < 0 || frameIndex >= MAX_FRAMES)
 			return;
@@ -335,12 +442,19 @@ class ParticleRenderer
 		uniforms.MinStretchLength = config.MinStretchLength;
 		uniforms.UseTexture = config.Texture != null ? 1 : 0;
 
+		// Soft particle parameters
+		uniforms.SoftParticlesEnabled = config.SoftParticles ? 1 : 0;
+		uniforms.SoftParticleDistance = config.SoftParticleDistance;
+		uniforms.NearPlane = nearPlane;
+		uniforms.FarPlane = farPlane;
+
 		Span<uint8> data = .((uint8*)&uniforms, sizeof(ParticleUniforms));
 		mDevice.Queue.WriteBuffer(mParticleUniformBuffers[frameIndex], 0, data);
 	}
 
 	/// Renders particles from a single particle system.
-	public void Render(IRenderPassEncoder renderPass, int32 frameIndex, ParticleSystem particleSystem)
+	public void Render(IRenderPassEncoder renderPass, int32 frameIndex, ParticleSystem particleSystem,
+		float nearPlane = 0.1f, float farPlane = 1000.0f, IBindGroup softParticleBindGroup = null)
 	{
 		if (!mInitialized || particleSystem == null)
 			return;
@@ -357,7 +471,7 @@ class ParticleRenderer
 			return;
 
 		// Update uniforms
-		UpdateUniforms(frameIndex, config);
+		UpdateUniforms(frameIndex, config, nearPlane, farPlane);
 
 		// Select pipeline based on blend mode
 		let pipeline = GetPipelineForBlendMode(config.BlendMode);
@@ -365,7 +479,12 @@ class ParticleRenderer
 			return;
 
 		renderPass.SetPipeline(pipeline);
-		renderPass.SetBindGroup(0, mBindGroups[frameIndex]);
+
+		// Use soft particle bind group if available and soft particles are enabled
+		if (config.SoftParticles && softParticleBindGroup != null)
+			renderPass.SetBindGroup(0, softParticleBindGroup);
+		else
+			renderPass.SetBindGroup(0, mBindGroups[frameIndex]);
 
 		renderPass.SetVertexBuffer(0, particleSystem.VertexBuffer, 0);
 		renderPass.SetIndexBuffer(particleSystem.IndexBuffer, .UInt16, 0);
@@ -373,7 +492,11 @@ class ParticleRenderer
 	}
 
 	/// Renders particles from multiple particle emitter proxies.
-	public void RenderEmitters(IRenderPassEncoder renderPass, int32 frameIndex, List<ParticleEmitterProxy*> emitters)
+	/// softParticleBindGroup: Optional bind group with depth texture for soft particles
+	/// useNoDepthPipelines: Use pipelines without depth attachment (for transparent pass with soft particles)
+	/// nearPlane/farPlane: Camera planes for depth linearization
+	public void RenderEmitters(IRenderPassEncoder renderPass, int32 frameIndex, List<ParticleEmitterProxy*> emitters,
+		float nearPlane = 0.1f, float farPlane = 1000.0f, IBindGroup softParticleBindGroup = null, bool useNoDepthPipelines = false)
 	{
 		if (!mInitialized || emitters == null || emitters.Count == 0)
 			return;
@@ -382,6 +505,9 @@ class ParticleRenderer
 			return;
 
 		IRenderPipeline currentPipeline = null;
+		bool usingSoftBindGroup = false;
+		ParticleBlendMode currentBlendMode = .AlphaBlend;
+		bool firstPipeline = true;
 
 		for (let proxy in emitters)
 		{
@@ -397,23 +523,40 @@ class ParticleRenderer
 				continue;
 
 			// Update uniforms for this emitter
-			UpdateUniforms(frameIndex, config);
+			UpdateUniforms(frameIndex, config, nearPlane, farPlane);
 
-			// Switch pipeline if blend mode changed
-			let pipeline = GetPipelineForBlendMode(config.BlendMode);
-			if (pipeline != currentPipeline)
+			// Switch pipeline if blend mode changed or first emitter
+			if (firstPipeline || config.BlendMode != currentBlendMode)
 			{
-				renderPass.SetPipeline(pipeline);
-				currentPipeline = pipeline;
+				let pipeline = GetPipelineForBlendMode(config.BlendMode, useNoDepthPipelines);
+				if (pipeline != currentPipeline)
+				{
+					renderPass.SetPipeline(pipeline);
+					currentPipeline = pipeline;
+					currentBlendMode = config.BlendMode;
+				}
+				firstPipeline = false;
 			}
 
-			renderPass.SetBindGroup(0, mBindGroups[frameIndex]);
+			// Use soft particle bind group if available and this emitter uses soft particles
+			bool needSoftBindGroup = config.SoftParticles && softParticleBindGroup != null;
+			if (needSoftBindGroup != usingSoftBindGroup || !usingSoftBindGroup)
+			{
+				if (needSoftBindGroup)
+					renderPass.SetBindGroup(0, softParticleBindGroup);
+				else
+					renderPass.SetBindGroup(0, mBindGroups[frameIndex]);
+				usingSoftBindGroup = needSoftBindGroup;
+			}
 
 			renderPass.SetVertexBuffer(0, particleSystem.VertexBuffer, 0);
 			renderPass.SetIndexBuffer(particleSystem.IndexBuffer, .UInt16, 0);
 			renderPass.DrawIndexed(6, (uint32)particleSystem.ParticleCount, 0, 0, 0);
 		}
 	}
+
+	/// Gets the bind group layout for external use (e.g., creating custom bind groups).
+	public IBindGroupLayout BindGroupLayout => mBindGroupLayout;
 
 	/// Returns true if the renderer is fully initialized with pipelines.
 	public bool IsInitialized => mInitialized && mAlphaBlendPipeline != null;

@@ -3,6 +3,9 @@ namespace Sedulous.RHI;
 /// Texture pixel formats.
 enum TextureFormat
 {
+	// No format / undefined
+	Undefined = 0,
+
 	// 8-bit formats
 	R8Unorm,
 	R8Snorm,

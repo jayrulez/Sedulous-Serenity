@@ -76,7 +76,8 @@ class VulkanTextureView : ITextureView
 				},
 				subresourceRange = .()
 				{
-					aspectMask = VulkanConversions.GetAspectFlags(descriptor.Format),
+					// Use explicit aspect selection for depth/stencil sampled views
+					aspectMask = VulkanConversions.GetAspectFlags(descriptor.Format, descriptor.Aspect),
 					baseMipLevel = descriptor.BaseMipLevel,
 					levelCount = descriptor.MipLevelCount,
 					baseArrayLayer = descriptor.BaseArrayLayer,

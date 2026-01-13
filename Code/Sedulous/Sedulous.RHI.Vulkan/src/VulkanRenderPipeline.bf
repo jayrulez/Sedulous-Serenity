@@ -373,8 +373,8 @@ class VulkanRenderPipeline : IRenderPipeline
 			}
 		}
 
-		// Depth attachment
-		if (descriptor.DepthStencil.HasValue)
+		// Depth attachment (only if format is valid, not Undefined)
+		if (descriptor.DepthStencil.HasValue && descriptor.DepthStencil.Value.Format != .Undefined)
 		{
 			let ds = descriptor.DepthStencil.Value;
 			uint32 index = (uint32)attachments.Count;

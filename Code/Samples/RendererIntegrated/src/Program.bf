@@ -110,7 +110,8 @@ class RendererIntegratedSample : RHISampleApp
 		Width = 1280,
 		Height = 720,
 		ClearColor = .(0.1f, 0.1f, 0.15f, 1.0f),
-		EnableDepth = true
+		EnableDepth = true,
+		EnableReadableDepth = true  // Enable soft particles
 	})
 	{
 	}
@@ -146,6 +147,14 @@ class RendererIntegratedSample : RHISampleApp
 		mScene = mContext.SceneManager.CreateScene("MainScene");
 		mRenderSceneComponent = mScene.GetSceneComponent<RenderSceneComponent>();
 		mContext.SceneManager.SetActiveScene(mScene);
+
+		// Enable soft particles (requires split rendering passes)
+		if (ReadableDepthTextureView != null)
+		{
+			mRenderSceneComponent.ReadableDepthTexture = ReadableDepthTextureView;
+			mRenderSceneComponent.EnableSoftParticles = true;
+			Console.WriteLine("Soft particles enabled");
+		}
 
 		// Create materials
 		CreateMaterials();
@@ -434,7 +443,7 @@ class RendererIntegratedSample : RHISampleApp
 		}
 
 		// ==================== SMOKE EFFECT ====================
-		// Smoke rising above the fire - separated to avoid overlap
+		// Smoke rising above the fire - with soft particles for realistic surface blending
 		{
 			let pos = Vector3(0, 1.8f, -15);  // Higher up, above where fire dies
 			let smokeEntity = mScene.CreateEntity("Smoke");
@@ -447,34 +456,128 @@ class RendererIntegratedSample : RHISampleApp
 			config.Lifetime = .(2.5f, 4.0f);
 			config.AddWind(.(0.3f, 0, 0.2f), 0.2f);
 
+			// Enable soft particles - smoke will fade near surfaces
+			config.SoftParticles = true;
+			config.SoftParticleDistance = 0.8f;  // Fade over 0.8 units near surfaces
+
 			let emitter = new ParticleEmitterComponent(config);
 			smokeEntity.AddComponent(emitter);
 
-			RegisterEffect(.(0, 3.0f, -15), .(128, 128, 128, 255), "SMOKE");
+			RegisterEffect(.(0, 3.0f, -15), .(128, 128, 128, 255), "SMOKE (soft)");
 		}
 
-		// ==================== MAGIC SPARKLE EFFECTS ====================
-		// Magical orb floating near the fox - with swirling vortex
-		{
-			let pos = Vector3(12, 2.5f, 0);
-			let magicEntity = mScene.CreateEntity("MagicOrb");
-			magicEntity.Transform.SetPosition(pos);
+		// ==================== MAGIC ORB - MULTI-LAYER EFFECT ====================
+		// TODO: Revisit magic orb effect - swirling/orbiting particles not working as intended.
+		// Need to investigate vortex module behavior and possibly add tangential velocity emission.
+		// A convincing magic orb with core glow, swirling energy, and outer sparkles
+		let magicOrbPos = Vector3(12, 2.5f, 0);
 
-			let config = ParticleEmitterConfig.CreateMagicSparkle();
-			config.EmissionRate = 50;
-			config.MaxParticles = 250;
-			config.SetSphereEmission(0.8f);
-			// Blue-purple magic
-			config.SetColorOverLifetime(.(100, 150, 255, 255), .(200, 50, 255, 0));
-			// Add swirling vortex effect
-			config.AddVortex(3.0f, .(0, 1, 0));
-			config.AddTurbulence(0.5f, 2.0f);
+		// Layer 1: Core Glow - Bright pulsating center
+		{
+			let coreEntity = mScene.CreateEntity("MagicOrbCore");
+			coreEntity.Transform.SetPosition(magicOrbPos);
+
+			let config = new ParticleEmitterConfig();
+			config.EmissionRate = 20;
+			config.MaxParticles = 40;
+			config.Lifetime = .(0.2f, 0.5f);  // Very short-lived for pulsing
+			config.InitialSpeed = .(0.0f, 0.1f);  // Almost stationary
+			config.InitialSize = .(0.3f, 0.6f);
+			config.SetSphereEmission(0.1f);  // Tight center
+			config.BlendMode = .Additive;
+			config.Gravity = .(0, 0, 0);
+			// Bright white-cyan core
+			config.SetColorOverLifetime(.(255, 255, 255, 255), .(100, 200, 255, 0));
+			config.SetSizeOverLifetime(0.8f, 1.2f);
 
 			let emitter = new ParticleEmitterComponent(config);
-			magicEntity.AddComponent(emitter);
-
-			RegisterEffect(pos, .(150, 100, 255, 255), "MAGIC ORB");
+			coreEntity.AddComponent(emitter);
 		}
+
+		// Layer 2: Swirling Ring - Particles in horizontal orbit
+		// Key: very low initial speed + strong vortex + attractor to keep them in orbit
+		{
+			let swirlEntity = mScene.CreateEntity("MagicOrbSwirl");
+			swirlEntity.Transform.SetPosition(magicOrbPos);
+
+			let config = new ParticleEmitterConfig();
+			config.EmissionRate = 25;
+			config.MaxParticles = 80;
+			config.Lifetime = .(1.5f, 2.5f);
+			config.InitialSpeed = .(0.0f, 0.2f);  // Nearly stationary - vortex provides motion
+			config.InitialSize = .(0.1f, 0.18f);
+			// Emit on a ring around the orb (use box emission for horizontal plane)
+			config.SetSphereEmission(0.5f, true);  // Surface of sphere
+			config.BlendMode = .Additive;
+			config.Gravity = .(0, 0, 0);
+			// Cyan energy
+			config.SetColorOverLifetime(.(80, 200, 255, 255), .(150, 100, 255, 0));
+			config.SetSizeOverLifetime(1.0f, 0.5f);
+			// Strong vortex creates orbital motion
+			config.AddVortex(12.0f, .(0, 1, 0));
+			// Attractor at orb center keeps particles from drifting away
+			config.AddAttractor(magicOrbPos, 3.0f);
+			config.Drag = 0.5f;
+
+			let emitter = new ParticleEmitterComponent(config);
+			swirlEntity.AddComponent(emitter);
+		}
+
+		// Layer 3: Floating Sparkles - Gentle ambient particles
+		{
+			let sparkleEntity = mScene.CreateEntity("MagicOrbSparkles");
+			sparkleEntity.Transform.SetPosition(magicOrbPos);
+
+			let config = new ParticleEmitterConfig();
+			config.EmissionRate = 8;
+			config.MaxParticles = 50;
+			config.Lifetime = .(1.5f, 3.0f);
+			config.InitialSpeed = .(0.2f, 0.5f);
+			config.InitialSize = .(0.04f, 0.1f);
+			config.SetSphereEmission(0.8f);
+			config.BlendMode = .Additive;
+			config.Gravity = .(0, 0.3f, 0);  // Gentle upward float
+			// Blue-purple sparkles
+			config.SetColorOverLifetime(.(150, 180, 255, 200), .(180, 100, 255, 0));
+			config.SetSizeOverLifetime(1.0f, 0.0f);  // Shrink to nothing
+			config.AddTurbulence(0.5f, 1.0f);
+
+			let emitter = new ParticleEmitterComponent(config);
+			sparkleEntity.AddComponent(emitter);
+		}
+
+		// Layer 4: Energy Wisps with Trails
+		{
+			let wispEntity = mScene.CreateEntity("MagicOrbWisps");
+			wispEntity.Transform.SetPosition(magicOrbPos);
+
+			let config = new ParticleEmitterConfig();
+			config.EmissionRate = 2;  // Very few wisps
+			config.MaxParticles = 6;
+			config.Lifetime = .(2.5f, 4.0f);
+			config.InitialSpeed = .(0.1f, 0.3f);  // Start slow, vortex accelerates
+			config.InitialSize = .(0.12f, 0.18f);
+			config.SetSphereEmission(0.4f, true);
+			config.BlendMode = .Additive;
+			config.Gravity = .(0, 0, 0);
+			// Bright cyan-white wisps
+			config.SetColorOverLifetime(.(200, 240, 255, 255), .(100, 180, 255, 50));
+			config.SetSizeOverLifetime(1.0f, 0.6f);
+			// Vortex + attractor for stable orbit
+			config.AddVortex(10.0f, .(0, 1, 0));
+			config.AddAttractor(magicOrbPos, 2.5f);
+			config.Drag = 0.3f;
+			// Per-particle trails
+			config.EnableParticleTrails(30, 0.03f, 0.8f);
+			config.ParticleTrails.WidthStart = 0.1f;
+			config.ParticleTrails.WidthEnd = 0.0f;
+			config.ParticleTrails.InheritParticleColor = true;
+
+			let emitter = new ParticleEmitterComponent(config);
+			wispEntity.AddComponent(emitter);
+		}
+
+		RegisterEffect(magicOrbPos, .(150, 100, 255, 255), "MAGIC ORB");
 
 		// Green healing magic - particles spiral inward
 		{
@@ -607,7 +710,7 @@ class RendererIntegratedSample : RHISampleApp
 		}
 
 		// ==================== STEAM/MIST RISING ====================
-		// Steam vent effect with billowing turbulence
+		// Steam vent effect with billowing turbulence - soft particles for ground blending
 		{
 			let pos = Vector3(0, 0.1f, 10);
 			let steamEntity = mScene.CreateEntity("Steam");
@@ -629,10 +732,14 @@ class RendererIntegratedSample : RHISampleApp
 			config.SetSizeOverLifetime(1.0f, 3.0f);
 			config.AddTurbulence(1.2f, 0.8f);
 
+			// Enable soft particles - steam will fade near ground surface
+			config.SoftParticles = true;
+			config.SoftParticleDistance = 1.0f;  // Fade over 1 unit
+
 			let emitter = new ParticleEmitterComponent(config);
 			steamEntity.AddComponent(emitter);
 
-			RegisterEffect(pos, .(200, 200, 255, 255), "STEAM");
+			RegisterEffect(pos, .(200, 200, 255, 255), "STEAM (soft)");
 		}
 
 		// ==================== PER-PARTICLE TRAILS ====================
@@ -1052,6 +1159,13 @@ class RendererIntegratedSample : RHISampleApp
 		if (let cameraComp = mCameraEntity?.GetComponent<CameraComponent>())
 		{
 			cameraComp.SetViewport(width, height);
+		}
+
+		// Update soft particles depth texture after resize
+		// (base class recreates the depth buffer and readable depth view)
+		if (mRenderSceneComponent != null && ReadableDepthTextureView != null)
+		{
+			mRenderSceneComponent.ReadableDepthTexture = ReadableDepthTextureView;
 		}
 	}
 

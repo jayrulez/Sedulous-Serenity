@@ -24,6 +24,7 @@ struct SampleConfig
 	public Color ClearColor = .(0.1f, 0.1f, 0.1f, 1.0f);
 	public bool EnableDepth = false;
 	public TextureFormat DepthFormat = .Depth24PlusStencil8;
+	public bool EnableReadableDepth = false;  // For soft particles - creates samplable depth copy
 }
 
 /// Base class for RHI sample applications.
@@ -64,6 +65,9 @@ abstract class RHISampleApp
 	// Depth buffer (optional)
 	protected ITexture mDepthTexture;
 	protected ITextureView mDepthTextureView;
+
+	// Readable depth view for soft particles (sampled view of the same depth texture)
+	protected ITextureView mReadableDepthTextureView;
 
 	// Per-frame command buffers
 	protected const int MAX_FRAMES_IN_FLIGHT = 2;
@@ -266,6 +270,9 @@ abstract class RHISampleApp
 	/// Returns the current depth texture view, or null if depth is disabled.
 	public ITextureView DepthTextureView => mDepthTextureView;
 
+	/// Returns the readable depth texture view for soft particles, or null if not enabled.
+	public ITextureView ReadableDepthTextureView => mReadableDepthTextureView;
+
 	/// Returns the discovered Assets directory path.
 	/// This is an absolute path to the Assets folder containing the .assets marker file.
 	public StringView AssetDirectory => mAssetDirectory;
@@ -385,11 +392,17 @@ abstract class RHISampleApp
 
 	private bool CreateDepthBuffer()
 	{
+		// If soft particles are enabled, we need the depth texture to be both
+		// an attachment and samplable. Create with appropriate usage flags.
+		TextureUsage depthUsage = .DepthStencil;
+		if (mConfig.EnableReadableDepth)
+			depthUsage = depthUsage | .Sampled;  // Enable depth sampling for soft particles
+
 		TextureDescriptor depthDesc = TextureDescriptor.Texture2D(
 			mSwapChain.Width,
 			mSwapChain.Height,
 			mConfig.DepthFormat,
-			.DepthStencil
+			depthUsage
 		);
 
 		if (mDevice.CreateTexture(&depthDesc) not case .Ok(let texture))
@@ -397,6 +410,7 @@ abstract class RHISampleApp
 
 		mDepthTexture = texture;
 
+		// Create attachment view for depth testing/writing
 		TextureViewDescriptor viewDesc = .()
 		{
 			Format = mConfig.DepthFormat,
@@ -411,11 +425,52 @@ abstract class RHISampleApp
 
 		mDepthTextureView = view;
 		Console.WriteLine("Depth buffer created");
+
+		// Create sampled view for soft particles (reads depth as texture)
+		if (mConfig.EnableReadableDepth)
+		{
+			if (!CreateReadableDepthView())
+			{
+				Console.WriteLine("Warning: Failed to create readable depth view");
+			}
+		}
+
+		return true;
+	}
+
+	private bool CreateReadableDepthView()
+	{
+		// Create a sampled view of the depth texture for shader reading.
+		// For depth/stencil formats, we must use DepthOnly aspect for sampled views.
+		TextureViewDescriptor sampledViewDesc = .()
+		{
+			Format = mConfig.DepthFormat,
+			Dimension = .Texture2D,
+			BaseMipLevel = 0,
+			MipLevelCount = 1,
+			BaseArrayLayer = 0,
+			ArrayLayerCount = 1,
+			Aspect = .DepthOnly  // Required for sampling from depth/stencil textures
+		};
+
+		if (mDevice.CreateTextureView(mDepthTexture, &sampledViewDesc) not case .Ok(let view))
+			return false;
+
+		mReadableDepthTextureView = view;
+		Console.WriteLine("Readable depth view created for soft particles");
 		return true;
 	}
 
 	private void DestroyDepthBuffer()
 	{
+		// Destroy readable depth view (same texture, different view)
+		if (mReadableDepthTextureView != null)
+		{
+			delete mReadableDepthTextureView;
+			mReadableDepthTextureView = null;
+		}
+
+		// Destroy main depth buffer and its view
 		if (mDepthTextureView != null)
 		{
 			delete mDepthTextureView;

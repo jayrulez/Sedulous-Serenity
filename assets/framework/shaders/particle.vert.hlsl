@@ -19,6 +19,7 @@ struct VSOutput
     float4 position : SV_Position;
     float2 uv : TEXCOORD0;
     float4 color : COLOR;
+    float4 screenPos : TEXCOORD1;  // For soft particle depth sampling
 };
 
 // Camera uniform buffer (binding 0)
@@ -154,6 +155,7 @@ VSOutput main(VSInput input)
     }
 
     output.position = mul(viewProjection, float4(worldPos, 1.0));
+    output.screenPos = output.position;  // Pass clip-space position for soft particles
 
     // Apply atlas UV transformation
     float2 baseUV = uvs[cornerIndex];

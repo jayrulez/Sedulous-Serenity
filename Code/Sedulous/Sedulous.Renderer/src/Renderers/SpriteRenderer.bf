@@ -71,6 +71,7 @@ class SpriteRenderer
 	private IBindGroupLayout mBindGroupLayout ~ delete _;
 	private IPipelineLayout mPipelineLayout ~ delete _;
 	private IRenderPipeline mPipeline ~ delete _;
+	private IRenderPipeline mNoDepthPipeline ~ delete _;  // For transparent pass without depth attachment
 
 	// Per-frame camera buffers (references, not owned)
 	private IBuffer[MAX_FRAMES] mCameraBuffers;
@@ -230,11 +231,18 @@ class SpriteRenderer
 			ColorTargetState(mColorFormat, .AlphaBlend)
 		);
 
+		// Depth state for pipeline with depth attachment
 		DepthStencilState depthState = .();
 		depthState.DepthTestEnabled = true;
 		depthState.DepthWriteEnabled = false;
 		depthState.DepthCompare = .Less;
 		depthState.Format = mDepthFormat;
+
+		// No-depth state for transparent pass
+		DepthStencilState noDepthState = .();
+		noDepthState.DepthTestEnabled = false;
+		noDepthState.DepthWriteEnabled = false;
+		noDepthState.Format = .Undefined;
 
 		RenderPipelineDescriptor pipelineDesc = .()
 		{
@@ -267,11 +275,18 @@ class SpriteRenderer
 			return .Err;
 		mPipeline = pipeline;
 
+		// Create no-depth pipeline variant
+		pipelineDesc.DepthStencil = noDepthState;
+		if (mDevice.CreateRenderPipeline(&pipelineDesc) not case .Ok(let noDepthPipeline))
+			return .Err;
+		mNoDepthPipeline = noDepthPipeline;
+
 		return .Ok;
 	}
 
 	/// Renders all sprite batches.
-	public void Render(IRenderPassEncoder renderPass, int32 frameIndex)
+	/// useNoDepth: Use pipeline without depth attachment (for transparent pass)
+	public void Render(IRenderPassEncoder renderPass, int32 frameIndex, bool useNoDepth = false)
 	{
 		if (!mInitialized || mPipeline == null || mBatches.Count == 0)
 			return;
@@ -279,7 +294,8 @@ class SpriteRenderer
 		if (frameIndex < 0 || frameIndex >= MAX_FRAMES)
 			return;
 
-		renderPass.SetPipeline(mPipeline);
+		let pipeline = useNoDepth ? mNoDepthPipeline : mPipeline;
+		renderPass.SetPipeline(pipeline);
 		renderPass.SetVertexBuffer(0, mInstanceBuffer, 0);
 
 		// Render each batch with its texture

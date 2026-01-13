@@ -66,6 +66,12 @@ class RenderPipeline
 	private List<ParticleTrail> mTempParticleTrails = new .() ~ delete _;  // For per-particle trail rendering
 	private List<RenderView*> mSortedViews = new .() ~ delete _;
 
+	// ==================== Soft Particle Resources ====================
+
+	// Cached soft particle bind groups per frame (created when depth texture is provided)
+	private IBindGroup[MAX_FRAMES] mSoftParticleBindGroups ~ { for (let bg in _) if (bg != null) delete bg; };
+	private ITextureView[MAX_FRAMES] mCachedDepthTextureViews;  // Track which depth textures are cached
+
 	// ==================== Public Accessors ====================
 
 	/// Gets the static mesh renderer.
@@ -334,6 +340,54 @@ class RenderPipeline
 		context.CreateViewBindGroups(mSceneBindGroupLayout, this, viewSlot);
 	}
 
+	/// Prepares soft particle bind groups for this frame.
+	/// Call this during PrepareGPU, BEFORE command buffer recording.
+	/// depthTextureView: Readable depth texture view (DepthOnly aspect) for soft particles.
+	public void PrepareSoftParticleBindGroups(int32 frameIndex, ITextureView depthTextureView)
+	{
+		if (!mInitialized || mParticleRenderer == null)
+			return;
+
+		if (depthTextureView == null)
+		{
+			// Clear cached soft particle bind group when depth is null
+			if (mSoftParticleBindGroups[frameIndex] != null)
+			{
+				delete mSoftParticleBindGroups[frameIndex];
+				mSoftParticleBindGroups[frameIndex] = null;
+				mCachedDepthTextureViews[frameIndex] = null;
+			}
+			return;
+		}
+
+		// Only recreate if depth texture changed
+		if (mSoftParticleBindGroups[frameIndex] == null || mCachedDepthTextureViews[frameIndex] != depthTextureView)
+		{
+			// Delete old bind group if exists
+			if (mSoftParticleBindGroups[frameIndex] != null)
+			{
+				delete mSoftParticleBindGroups[frameIndex];
+				mSoftParticleBindGroups[frameIndex] = null;
+			}
+
+			// Create new bind group
+			if (mParticleRenderer.CreateSoftParticleBindGroup(frameIndex, depthTextureView) case .Ok(let bindGroup))
+			{
+				mSoftParticleBindGroups[frameIndex] = bindGroup;
+				mCachedDepthTextureViews[frameIndex] = depthTextureView;
+			}
+		}
+	}
+
+	/// Gets the cached soft particle bind group for the given frame.
+	/// Returns null if soft particles aren't enabled or bind group wasn't prepared.
+	public IBindGroup GetSoftParticleBindGroup(int32 frameIndex)
+	{
+		if (frameIndex >= 0 && frameIndex < MAX_FRAMES)
+			return mSoftParticleBindGroups[frameIndex];
+		return null;
+	}
+
 	/// Renders shadow passes for all cascades.
 	/// Returns true if shadows were rendered.
 	public bool RenderShadows(RenderContext context, ICommandEncoder encoder)
@@ -355,8 +409,10 @@ class RenderPipeline
 	/// Views are rendered in priority order (shadows first, then cameras).
 	/// Each camera view uses its own bind group with its own camera buffer.
 	/// Note: Shadow views are handled by RenderShadows(), this only renders camera views.
+	/// depthTextureView: Optional readable depth texture for soft particles (must be separate from render target)
 	public void RenderViews(RenderContext context, IRenderPassEncoder renderPass,
-		bool renderSkybox = true, bool renderParticles = true, bool renderSprites = true)
+		bool renderSkybox = true, bool renderParticles = true, bool renderSprites = true,
+		ITextureView depthTextureView = null)
 	{
 		if (!mInitialized)
 			return;
@@ -388,7 +444,7 @@ class RenderPipeline
 				continue;
 
 			// Render the view
-			RenderViewInternal(context, view, renderPass, bindGroup, viewSlot, renderSkybox, renderParticles, renderSprites);
+			RenderViewInternal(context, view, renderPass, bindGroup, viewSlot, renderSkybox, renderParticles, renderSprites, depthTextureView);
 			viewSlot++;
 		}
 	}
@@ -397,20 +453,22 @@ class RenderPipeline
 	/// For advanced usage when you need to render a specific view.
 	public void RenderView(RenderContext context, RenderView* view, IRenderPassEncoder renderPass,
 		int32 viewSlot = 0,
-		bool renderSkybox = true, bool renderParticles = true, bool renderSprites = true)
+		bool renderSkybox = true, bool renderParticles = true, bool renderSprites = true,
+		ITextureView depthTextureView = null)
 	{
 		if (!mInitialized || view == null)
 			return;
 
 		let bindGroup = context.GetViewBindGroup(context.FrameIndex, viewSlot);
 		if (bindGroup != null)
-			RenderViewInternal(context, view, renderPass, bindGroup, viewSlot, renderSkybox, renderParticles, renderSprites);
+			RenderViewInternal(context, view, renderPass, bindGroup, viewSlot, renderSkybox, renderParticles, renderSprites, depthTextureView);
 	}
 
 	/// Internal render view implementation.
 	private void RenderViewInternal(RenderContext context, RenderView* view, IRenderPassEncoder renderPass,
 		IBindGroup sceneBindGroup, int32 viewSlot,
-		bool renderSkybox = true, bool renderParticles = true, bool renderSprites = true)
+		bool renderSkybox = true, bool renderParticles = true, bool renderSprites = true,
+		ITextureView depthTextureView = null)
 	{
 		if (!mInitialized || view == null)
 			return;
@@ -427,15 +485,32 @@ class RenderPipeline
 		if (renderSkybox && mSkyboxRenderer != null && mSkyboxRenderer.IsInitialized)
 			mSkyboxRenderer.Render(renderPass, frameIndex);
 
-		// Static meshes
-		if (mStaticMeshRenderer != null)
+		// Determine if we should use no-depth pipelines (for soft particle transparent pass)
+		// When depthTextureView is provided, we're in the transparent pass that has no depth attachment
+		bool useNoDepthPipelines = depthTextureView != null;
+
+		// Static meshes - only render in opaque pass (not when depth texture is provided for soft particles)
+		if (!useNoDepthPipelines && mStaticMeshRenderer != null)
 			mStaticMeshRenderer.RenderMaterials(renderPass, sceneBindGroup, frameIndex);
 
 		// Particles
 		if (renderParticles && mParticleRenderer != null && mParticleRenderer.IsInitialized)
 		{
 			context.World.GetValidParticleEmitterProxies(mVisibleParticles);
-			mParticleRenderer.RenderEmitters(renderPass, frameIndex, mVisibleParticles);
+
+			// Get cached soft particle bind group if depth texture is provided
+			// Note: Bind group must be prepared BEFORE command recording via PrepareSoftParticleBindGroups
+			IBindGroup softParticleBindGroup = null;
+			if (depthTextureView != null)
+			{
+				softParticleBindGroup = GetSoftParticleBindGroup(frameIndex);
+			}
+
+			// Pass view's near/far planes for soft particle depth linearization
+			float nearPlane = view != null ? view.NearPlane : 0.1f;
+			float farPlane = view != null ? view.FarPlane : 1000.0f;
+
+			mParticleRenderer.RenderEmitters(renderPass, frameIndex, mVisibleParticles, nearPlane, farPlane, softParticleBindGroup, useNoDepthPipelines);
 
 			// Render per-particle trails after particles
 			if (mTrailRenderer != null && mTrailRenderer.IsInitialized)
@@ -471,7 +546,8 @@ class RenderPipeline
 							cameraPos,
 							settings,
 							blendMode,
-							particleSystem.CurrentTime
+							particleSystem.CurrentTime,
+							useNoDepthPipelines
 						);
 					}
 				}
@@ -480,10 +556,10 @@ class RenderPipeline
 
 		// Sprites
 		if (renderSprites && mSpriteRenderer != null && mSpriteRenderer.IsInitialized)
-			mSpriteRenderer.Render(renderPass, frameIndex);
+			mSpriteRenderer.Render(renderPass, frameIndex, useNoDepthPipelines);
 
-		// Skinned meshes - use view-slot-specific camera buffer
-		if (mSkinnedMeshRenderer != null)
+		// Skinned meshes - only render in opaque pass (not when depth texture is provided for soft particles)
+		if (!useNoDepthPipelines && mSkinnedMeshRenderer != null)
 		{
 			let cameraBuffer = GetCameraBuffer(frameIndex, viewSlot);
 			mSkinnedMeshRenderer.Render(renderPass, cameraBuffer, sceneBindGroup, frameIndex);
@@ -563,5 +639,37 @@ class RenderPipeline
 
 		Span<uint8> data = .((uint8*)&billboardData, sizeof(BillboardCameraUniforms));
 		mDevice.Queue.WriteBuffer(buffer, 0, data);
+	}
+
+	// ==================== Soft Particle Helpers ====================
+
+	/// Gets or creates a soft particle bind group for the given frame and depth texture.
+	/// Caches the bind group to avoid creating new ones each frame.
+	private IBindGroup GetOrCreateSoftParticleBindGroup(int32 frameIndex, ITextureView depthTextureView)
+	{
+		if (frameIndex < 0 || frameIndex >= MAX_FRAMES || depthTextureView == null)
+			return null;
+
+		// Check if we already have a bind group for this depth texture
+		if (mSoftParticleBindGroups[frameIndex] != null && mCachedDepthTextureViews[frameIndex] == depthTextureView)
+		{
+			return mSoftParticleBindGroups[frameIndex];
+		}
+
+		// Need to create a new bind group
+		if (mSoftParticleBindGroups[frameIndex] != null)
+		{
+			delete mSoftParticleBindGroups[frameIndex];
+			mSoftParticleBindGroups[frameIndex] = null;
+		}
+
+		if (mParticleRenderer.CreateSoftParticleBindGroup(frameIndex, depthTextureView) case .Ok(let bindGroup))
+		{
+			mSoftParticleBindGroups[frameIndex] = bindGroup;
+			mCachedDepthTextureViews[frameIndex] = depthTextureView;
+			return bindGroup;
+		}
+
+		return null;
 	}
 }

@@ -40,6 +40,12 @@ class RenderSceneComponent : ISceneComponent
 	private ITextureView* mColorTarget;
 	private ITextureView* mDepthTarget;
 
+	// Soft particles - readable depth texture view (for depth sampling)
+	private ITextureView mReadableDepthTexture = null;
+
+	// Soft particles - enable split passes for proper depth reading
+	private bool mEnableSoftParticles = false;
+
 	// ==================== Properties ====================
 
 	/// Gets the renderer service.
@@ -106,6 +112,25 @@ class RenderSceneComponent : ISceneComponent
 
 	/// Gets the sprite renderer.
 	public SpriteRenderer SpriteRenderer => Pipeline?.SpriteRenderer;
+
+	/// Gets or sets the readable depth texture view for soft particles.
+	/// This should be a sampled view of the depth texture.
+	/// When EnableSoftParticles is true, rendering is split into opaque and transparent passes
+	/// to allow depth sampling in the transparent pass.
+	public ITextureView ReadableDepthTexture
+	{
+		get => mReadableDepthTexture;
+		set => mReadableDepthTexture = value;
+	}
+
+	/// Gets or sets whether soft particles are enabled.
+	/// When enabled, rendering is split into separate opaque and transparent passes
+	/// to allow particles to sample the depth buffer for soft fading near surfaces.
+	public bool EnableSoftParticles
+	{
+		get => mEnableSoftParticles;
+		set => mEnableSoftParticles = value;
+	}
 
 	/// Gets the list of registered skinned mesh proxies.
 	public List<SkinnedMeshProxy*> SkinnedMeshProxies => Pipeline?.SkinnedMeshRenderer?.SkinnedMeshes;
@@ -258,71 +283,151 @@ class RenderSceneComponent : ISceneComponent
 		ResourceHandle shadowMapHandle = default;
 		let shadowCascadeCount = AddShadowPasses(graph, out shadowMapHandle);
 
-		// Add main 3D scene pass
 		let clearColor = Color(0.08f, 0.1f, 0.12f, 1.0f);
+
+		// When soft particles are enabled, we split into two passes:
+		// 1. Opaque pass: renders skybox, static meshes, skinned meshes (depth write)
+		// 2. Transparent pass: renders particles with depth sampling (depth test only)
+		if (mEnableSoftParticles && mReadableDepthTexture != null)
+		{
+			AddSplitPasses(graph, swapChain, depth, shadowMapHandle, shadowCascadeCount, clearColor);
+		}
+		else
+		{
+			// Single pass: everything in one go (no soft particles)
+			AddSinglePass(graph, swapChain, depth, shadowMapHandle, shadowCascadeCount, clearColor);
+		}
+
+		// Note: UISceneComponent adds its own pass via RendererService
+	}
+
+	/// Adds a single combined pass for rendering (no soft particles).
+	private void AddSinglePass(RenderGraph graph, ResourceHandle swapChain, ResourceHandle depth,
+		ResourceHandle shadowMapHandle, int32 shadowCascadeCount, Color clearColor)
+	{
 		let context = mContext;
-		let pipelineRef = pipeline;
+		let pipelineRef = mRendererService.Pipeline;
+		let trailComponents = mTrailComponents;
 
 		var passBuilder = graph.AddGraphicsPass("Scene3D")
 			.SetColorAttachment(0, swapChain, .Clear, .Store, clearColor)
 			.SetDepthAttachment(depth, .Clear, .Store, 1.0f);
 
-		// Add dependencies on all shadow cascade passes
+		// Add shadow cascade dependencies
 		for (int32 i = 0; i < shadowCascadeCount; i++)
-		{
-			String depName = scope $"ShadowCascade{i}";
-			passBuilder.AddDependency(depName);
-		}
+			passBuilder.AddDependency(scope $"ShadowCascade{i}");
 
-		// Add dependencies on potential world UI passes (if they exist)
-		// World UI renders to texture before Scene3D so it can be sampled as sprites
-		for (int32 i = 0; i < 16; i++)  // Support up to 16 world UI components
-		{
-			String depName = scope $"WorldUI_{i}";
-			passBuilder.AddDependency(depName);
-		}
+		// Add world UI dependencies
+		for (int32 i = 0; i < 16; i++)
+			passBuilder.AddDependency(scope $"WorldUI_{i}");
 
-		// Read from shadow map array for shadow sampling
 		if (shadowMapHandle.IsValid)
 			passBuilder.Read(shadowMapHandle, .ShaderReadOnly);
 
-		// Capture trail components for rendering
-		let trailComponents = mTrailComponents;
-
 		passBuilder.SetExecute(new [=](ctx) => {
-				pipelineRef.RenderViews(context, ctx.RenderPass);
+				// Render everything in one pass (no depth sampling for particles)
+				pipelineRef.RenderViews(context, ctx.RenderPass, true, true, true, null);
 
 				// Render trail components
-				if (trailComponents.Count > 0 && pipelineRef.TrailRenderer != null && pipelineRef.TrailRenderer.IsInitialized)
-				{
-					// Get camera position for billboard orientation
-					Vector3 cameraPos = .Zero;
-					if (let camera = context.World?.MainCamera)
-						cameraPos = camera.Position;
-
-					for (let trailComp in trailComponents)
-					{
-						if (trailComp.HasPoints)
-						{
-							let trail = trailComp.Trail;
-							let settings = trailComp.GetTrailSettings();
-							pipelineRef.TrailRenderer.RenderTrail(
-								ctx.RenderPass,
-								context.FrameIndex,
-								trail,
-								cameraPos,
-								settings,
-								trailComp.BlendMode,
-								trailComp.CurrentTime
-							);
-						}
-					}
-				}
+				RenderTrailComponents(ctx.RenderPass, pipelineRef, context, trailComponents);
 
 				context.EndFrame();
 			});
+	}
 
-		// Note: UISceneComponent adds its own pass via RendererService
+	/// Adds split passes for soft particles (opaque + transparent).
+	private void AddSplitPasses(RenderGraph graph, ResourceHandle swapChain, ResourceHandle depth,
+		ResourceHandle shadowMapHandle, int32 shadowCascadeCount, Color clearColor)
+	{
+		let context = mContext;
+		let pipelineRef = mRendererService.Pipeline;
+		let trailComponents = mTrailComponents;
+		let readableDepth = mReadableDepthTexture;
+
+		// === Pass 1: Scene3D_Opaque ===
+		// Renders skybox, static meshes, skinned meshes
+		// Clears and writes to depth buffer
+		var opaquePass = graph.AddGraphicsPass("Scene3D_Opaque")
+			.SetColorAttachment(0, swapChain, .Clear, .Store, clearColor)
+			.SetDepthAttachment(depth, .Clear, .Store, 1.0f);
+
+		for (int32 i = 0; i < shadowCascadeCount; i++)
+			opaquePass.AddDependency(scope $"ShadowCascade{i}");
+
+		for (int32 i = 0; i < 16; i++)
+			opaquePass.AddDependency(scope $"WorldUI_{i}");
+
+		if (shadowMapHandle.IsValid)
+			opaquePass.Read(shadowMapHandle, .ShaderReadOnly);
+
+		opaquePass.SetExecute(new [=](ctx) => {
+				// Render skybox, static meshes, skinned meshes only (no particles/sprites)
+				pipelineRef.RenderViews(context, ctx.RenderPass,
+					true,   // renderSkybox
+					false,  // renderParticles - disabled for opaque pass
+					false,  // renderSprites - disabled for opaque pass
+					null    // no depth texture needed
+				);
+			});
+
+		// === Pass 2: Scene3D_Transparent ===
+		// Renders particles and sprites with depth sampling for soft particles
+		// No depth attachment - particles don't need depth testing when using soft fade
+		// The depth texture is only sampled (not used as attachment) for soft particle fade
+		var transparentPass = graph.AddGraphicsPass("Scene3D_Transparent")
+			.SetColorAttachment(0, swapChain, .Load, .Store, clearColor)
+			// No depth attachment - we sample depth texture for soft particles instead
+			.AddDependency("Scene3D_Opaque")
+			// Read depth texture with ShaderReadOnly layout for sampling in soft particles
+			// This triggers a layout transition from DepthStencilAttachment (opaque pass) to ShaderReadOnly
+			.Read(depth, .ShaderReadOnly);
+
+		transparentPass.SetExecute(new [=](ctx) => {
+				// Render particles and sprites only, with depth sampling
+				pipelineRef.RenderViews(context, ctx.RenderPass,
+					false,  // renderSkybox - already rendered
+					true,   // renderParticles
+					true,   // renderSprites
+					readableDepth  // pass readable depth texture
+				);
+
+				// Render trail components (use no-depth pipelines for transparent pass)
+				RenderTrailComponents(ctx.RenderPass, pipelineRef, context, trailComponents, true);
+
+				context.EndFrame();
+			});
+	}
+
+	/// Helper to render trail components.
+	private void RenderTrailComponents(IRenderPassEncoder renderPass, RenderPipeline pipeline,
+		RenderContext context, List<TrailComponent> trailComponents, bool useNoDepthPipelines = false)
+	{
+		if (trailComponents.Count == 0 || pipeline.TrailRenderer == null || !pipeline.TrailRenderer.IsInitialized)
+			return;
+
+		// Get camera position for billboard orientation
+		Vector3 cameraPos = .Zero;
+		if (let camera = context.World?.MainCamera)
+			cameraPos = camera.Position;
+
+		for (let trailComp in trailComponents)
+		{
+			if (trailComp.HasPoints)
+			{
+				let trail = trailComp.Trail;
+				let settings = trailComp.GetTrailSettings();
+				pipeline.TrailRenderer.RenderTrail(
+					renderPass,
+					context.FrameIndex,
+					trail,
+					cameraPos,
+					settings,
+					trailComp.BlendMode,
+					trailComp.CurrentTime,
+					useNoDepthPipelines
+				);
+			}
+		}
 	}
 
 	/// Adds shadow cascade passes to the render graph.
@@ -434,6 +539,13 @@ class RenderSceneComponent : ISceneComponent
 				emitter.ParticleSystem.Upload();
 		}
 
+		// Prepare soft particle bind groups BEFORE any command recording
+		// This must happen during PrepareGPU, not during rendering
+		if (mEnableSoftParticles && mReadableDepthTexture != null)
+		{
+			pipeline.PrepareSoftParticleBindGroups(frameIndex, mReadableDepthTexture);
+		}
+
 		// Build and upload sprite data from proxies (supports multiple textures via batching)
 		if (pipeline.SpriteRenderer != null && mContext.World.SpriteCount > 0)
 		{
@@ -472,8 +584,8 @@ class RenderSceneComponent : ISceneComponent
 		if (!mRenderingInitialized || mContext == null)
 			return;
 
-		// Render all views
-		mRendererService.Pipeline?.RenderViews(mContext, renderPass);
+		// Render all views (with soft particle depth if available)
+		mRendererService.Pipeline?.RenderViews(mContext, renderPass, true, true, true, mReadableDepthTexture);
 
 		// End frame
 		mContext.EndFrame();
