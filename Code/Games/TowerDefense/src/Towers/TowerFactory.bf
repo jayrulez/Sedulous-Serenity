@@ -2,13 +2,16 @@ namespace TowerDefense.Towers;
 
 using System;
 using System.Collections;
+using Sedulous.Audio;
 using Sedulous.Mathematics;
 using Sedulous.Geometry;
 using Sedulous.Engine.Core;
+using Sedulous.Engine.Audio;
 using Sedulous.Engine.Renderer;
 using Sedulous.Foundation.Core;
 using Sedulous.Renderer;
 using TowerDefense.Data;
+using TowerDefense.Audio;
 using TowerDefense.Components;
 using TowerDefense.Enemies;
 
@@ -21,6 +24,7 @@ class TowerFactory
 	private Scene mScene;
 	private RendererService mRendererService;
 	private EnemyFactory mEnemyFactory;
+	private GameAudio mGameAudio;
 
 	// Events
 	private EventAccessor<TowerFiredDelegate> mOnTowerFired = new .() ~ delete _;
@@ -55,11 +59,12 @@ class TowerFactory
 	public int32 TowerCount => (.)mTowers.Count;
 
 	/// Creates a new TowerFactory.
-	public this(Scene scene, RendererService rendererService, EnemyFactory enemyFactory)
+	public this(Scene scene, RendererService rendererService, EnemyFactory enemyFactory, GameAudio gameAudio)
 	{
 		mScene = scene;
 		mRendererService = rendererService;
 		mEnemyFactory = enemyFactory;
+		mGameAudio = gameAudio;
 	}
 
 	/// Initializes materials for tower and projectile rendering.
@@ -169,10 +174,17 @@ class TowerFactory
 		towerComp.GridY = gridY;
 		entity.AddComponent(towerComp);
 
+		// Add audio source component for tower fire sounds
+		let audioSource = new AudioSourceComponent();
+		audioSource.Volume = mGameAudio?.SFXVolume ?? 0.1f;
+		audioSource.MinDistance = 5.0f;   // Full volume within 5 units
+		audioSource.MaxDistance = 50.0f;  // Fade out over 50 units
+		entity.AddComponent(audioSource);
+
 		// Subscribe to fire event
 		towerComp.OnFire.Subscribe(new (tower, target, origin) =>
 		{
-			OnTowerFire(tower, target, origin);
+			OnTowerFire(tower, target, origin, entity);
 		});
 
 		mTowers.Add(entity);
@@ -205,11 +217,23 @@ class TowerFactory
 	}
 
 	/// Called when a tower fires.
-	private void OnTowerFire(TowerComponent tower, Entity target, Vector3 origin)
+	private void OnTowerFire(TowerComponent tower, Entity target, Vector3 origin, Entity towerEntity)
 	{
 		SpawnProjectile(origin, target, tower.GetDamage(), tower.Definition.ProjectileSpeed, tower.Definition.ProjectileColor);
 
-		// Notify external listeners (for audio/effects)
+		// Play fire sound via tower's AudioSourceComponent
+		if (mGameAudio != null)
+		{
+			let audioSource = towerEntity.GetComponent<AudioSourceComponent>();
+			if (audioSource != null)
+			{
+				let clip = mGameAudio.GetTowerFireClip(tower.Definition.Name);
+				if (clip != null)
+					audioSource.Play(clip);
+			}
+		}
+
+		// Notify external listeners (for visual effects, etc.)
 		mOnTowerFired.[Friend]Invoke(tower.Definition, origin);
 	}
 

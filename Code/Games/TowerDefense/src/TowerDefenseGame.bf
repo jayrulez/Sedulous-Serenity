@@ -51,6 +51,7 @@ class TowerDefenseGame : RHISampleApp
 
 	// UI
 	private MainMenu mMainMenu ~ delete _;
+	private LevelSelect mLevelSelect ~ delete _;
 	private GameHUD mGameHUD ~ delete _;
 	private ITheme mUITheme ~ delete _;
 	private GameFontService mFontService ~ delete _;
@@ -183,14 +184,12 @@ class TowerDefenseGame : RHISampleApp
 			mGameAudio?.PlayEnemyDeath(position);
 		});
 
-		// Initialize tower factory
-		mTowerFactory = new TowerFactory(mScene, mRendererService, mEnemyFactory);
+		// Initialize tower factory (pass GameAudio for AudioSourceComponent)
+		mTowerFactory = new TowerFactory(mScene, mRendererService, mEnemyFactory, mGameAudio);
 		mTowerFactory.InitializeMaterials();
 
-		// Subscribe to tower fire event for audio
-		mTowerFactory.OnTowerFired.Subscribe(new (def, position) => {
-			mGameAudio?.PlayTowerFire(def, position);
-		});
+		// Note: Tower fire audio is now played via AudioSourceComponent on each tower entity
+		// The OnTowerFired event is still available for visual effects if needed
 
 		// Create tower placement preview
 		CreateTowerPreview();
@@ -205,10 +204,7 @@ class TowerDefenseGame : RHISampleApp
 		// Create scene entities (light, camera)
 		CreateSceneEntities();
 
-		// Load and build the first map
-		LoadMap();
-
-		// Build game UI
+		// Build game UI (map is loaded when level is selected)
 		BuildUI();
 
 		Console.WriteLine("Initialization complete!");
@@ -411,12 +407,25 @@ class TowerDefenseGame : RHISampleApp
 		// Subscribe to menu events
 		mMainMenu.OnPlay.Subscribe(new () => {
 			mGameAudio?.PlayUIClick();
-			StartGame();
+			ShowLevelSelect();
 		});
 
 		mMainMenu.OnQuit.Subscribe(new () => {
 			mGameAudio?.PlayUIClick();
 			Shell.RequestExit();
+		});
+
+		// Create level select screen
+		mLevelSelect = new LevelSelect();
+
+		mLevelSelect.OnLevelSelected.Subscribe(new (levelIndex) => {
+			mGameAudio?.PlayUIClick();
+			StartGame(levelIndex);
+		});
+
+		mLevelSelect.OnBack.Subscribe(new () => {
+			mGameAudio?.PlayUIClick();
+			ShowMainMenu();
 		});
 
 		// Create game HUD
@@ -441,6 +450,10 @@ class TowerDefenseGame : RHISampleApp
 		mGameHUD.OnResume.Subscribe(new () => {
 			mGameAudio?.PlayUIClick();
 			ResumeGame();
+		});
+		mGameHUD.OnMainMenu.Subscribe(new () => {
+			mGameAudio?.PlayUIClick();
+			ReturnToMainMenu();
 		});
 		mGameHUD.OnSellTower.Subscribe(new () => {
 			mGameAudio?.PlayUIClick();
@@ -478,6 +491,12 @@ class TowerDefenseGame : RHISampleApp
 		mGameState = .MainMenu;
 	}
 
+	private void ShowLevelSelect()
+	{
+		mUISceneComponent.RootElement = mLevelSelect.RootElement;
+		mGameState = .MainMenu;  // Still in menu state
+	}
+
 	private void ShowGameUI()
 	{
 		// Simply swap root element - no need for visibility toggling
@@ -486,9 +505,12 @@ class TowerDefenseGame : RHISampleApp
 		UpdateHUD();
 	}
 
-	private void StartGame()
+	private void StartGame(int32 levelIndex)
 	{
-		Console.WriteLine("\n=== STARTING GAME ===\n");
+		Console.WriteLine($"\n=== STARTING GAME (Level {levelIndex + 1}) ===\n");
+
+		// Load the selected map
+		LoadMap(levelIndex);
 
 		// Switch to game UI
 		ShowGameUI();
@@ -571,10 +593,30 @@ class TowerDefenseGame : RHISampleApp
 		Console.WriteLine("Scene entities created");
 	}
 
-	private void LoadMap()
+	private void LoadMap(int32 levelIndex)
 	{
-		// Create Map01 - Grasslands
-		mCurrentMap = Map01_Grasslands.Create();
+		// Clean up existing map if any
+		if (mCurrentMap != null)
+		{
+			mMapBuilder.ClearMap();
+			mTowerFactory.ClearAll();
+			mEnemyFactory.ClearAllEnemies();
+			delete mCurrentMap;
+			mCurrentMap = null;
+		}
+
+		// Create the selected map
+		switch (levelIndex)
+		{
+		case 0:
+			mCurrentMap = Map01_Grasslands.Create();
+		case 1:
+			mCurrentMap = Map02_Desert.Create();
+		case 2:
+			mCurrentMap = Map03_Fortress.Create();
+		default:
+			mCurrentMap = Map01_Grasslands.Create();  // Fallback
+		}
 
 		// Build the map (creates tile entities)
 		mMapBuilder.BuildMap(mCurrentMap);
@@ -590,6 +632,10 @@ class TowerDefenseGame : RHISampleApp
 		// Initialize game values from map (state is set by menu/StartGame)
 		mMoney = mCurrentMap.StartingMoney;
 		mLives = mCurrentMap.StartingLives;
+		mEnemiesKilled = 0;
+		mSelectedTowerType = 0;
+		mSelectedPlacedTower = null;
+		mGameSpeed = 1.0f;
 
 		Console.WriteLine($"Map loaded: {mCurrentMap.Name}");
 		Console.WriteLine($"  Size: {mCurrentMap.Width}x{mCurrentMap.Height}");
@@ -1229,6 +1275,9 @@ class TowerDefenseGame : RHISampleApp
 
 			// Update tower system (targeting, firing, projectiles)
 			mTowerFactory.Update(scaledDelta);
+
+			// Update enemy system (death animations cleanup)
+			mEnemyFactory.Update(scaledDelta);
 		}
 
 		// Update engine context (handles entity sync, visibility culling, etc.)
@@ -1500,6 +1549,7 @@ class TowerDefenseGame : RHISampleApp
 
 		// Delete UI objects before context shutdown
 		DeleteAndNullify!(mMainMenu);
+		DeleteAndNullify!(mLevelSelect);
 		DeleteAndNullify!(mGameHUD);
 
 		// Wait for GPU before destroying renderer resources

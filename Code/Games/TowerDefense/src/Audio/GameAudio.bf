@@ -1,6 +1,7 @@
 namespace TowerDefense.Audio;
 
 using System;
+using System.Collections;
 using Sedulous.Audio;
 using Sedulous.Audio.Decoders;
 using Sedulous.Engine.Audio;
@@ -37,6 +38,9 @@ class GameAudio
 	private bool mMusicPlaying = false;
 	private bool mUseDecodedMusic = true;  // Try decoded file first, fall back to procedural
 
+	// Tower fire clips lookup (for AudioSourceComponent access)
+	private Dictionary<String, AudioClip> mTowerFireClips = new .() ~ DeleteDictionaryAndKeys!(_);
+
 	// Volume settings
 	public float SFXVolume = 0.1f;
 	public float MusicVolume = 0.1f;
@@ -70,6 +74,9 @@ class GameAudio
 		mMortarFireClip = GenerateBoom(60, 0.25f);        // Deep boom
 		mSAMFireClip = GenerateSweep(400, 1200, 0.08f);   // Rising whoosh
 
+		// Register tower fire clips with AudioService for use by AudioSourceComponent
+		RegisterTowerFireClips();
+
 		// Enemy sounds
 		mEnemyDeathClip = GenerateNoiseBurst(0.1f);
 		mEnemyExitClip = GenerateSweep(400, 200, 0.2f);
@@ -89,6 +96,58 @@ class GameAudio
 
 		// Procedural background music (fallback)
 		mProceduralMusicClip = GenerateBackgroundMusic();
+	}
+
+	/// Registers tower fire clips with AudioService for access by AudioSourceComponent.
+	private void RegisterTowerFireClips()
+	{
+		if (mAudioService == null)
+			return;
+
+		// Register each tower fire clip with a standardized name
+		RegisterClipIfValid("tower_fire_cannon", mCannonFireClip);
+		RegisterClipIfValid("tower_fire_archer", mArcherFireClip);
+		RegisterClipIfValid("tower_fire_frost", mFrostFireClip);
+		RegisterClipIfValid("tower_fire_mortar", mMortarFireClip);
+		RegisterClipIfValid("tower_fire_sam", mSAMFireClip);
+	}
+
+	/// Registers a clip with AudioService if it's valid.
+	private void RegisterClipIfValid(StringView name, AudioClip clip)
+	{
+		if (clip == null || mAudioService == null)
+			return;
+
+		// LoadClip expects raw data, but we already have AudioClip objects.
+		// Instead, we'll cache them directly (add a helper method to AudioService if needed).
+		// For now, store them in a lookup so GetTowerFireClip can return them.
+		mTowerFireClips[new String(name)] = clip;
+	}
+
+	/// Gets the clip name for a tower's fire sound.
+	public static void GetTowerFireClipName(StringView towerName, String outName)
+	{
+		outName.Clear();
+		outName.Append("tower_fire_");
+		let lowerName = scope String(towerName);
+		lowerName.ToLower();
+		outName.Append(lowerName);
+	}
+
+	/// Gets the tower fire clip for the given tower name.
+	public AudioClip GetTowerFireClip(StringView towerName)
+	{
+		let clipName = scope String();
+		GetTowerFireClipName(towerName, clipName);
+
+		if (mTowerFireClips.TryGetValue(clipName, let clip))
+			return clip;
+
+		// Fallback to cannon
+		if (mTowerFireClips.TryGetValue("tower_fire_cannon", let fallback))
+			return fallback;
+
+		return mCannonFireClip;
 	}
 
 	/// Loads music from file using decoder factory.
