@@ -22,6 +22,12 @@ class RendererParticlesSample : RHISampleApp
 
 	// Common resources
 	private IBuffer mCameraUniformBuffer;
+	private IBuffer mParticleUniformBuffer;
+
+	// Default texture resources for non-textured particles
+	private ITexture mDefaultTexture;
+	private ITextureView mDefaultTextureView;
+	private ISampler mDefaultSampler;
 
 	// Particle pipeline
 	private IBindGroupLayout mParticleBindGroupLayout;
@@ -67,6 +73,9 @@ class RendererParticlesSample : RHISampleApp
 		UpdateCameraDirection();
 
 		if (!CreateBuffers())
+			return false;
+
+		if (!CreateDefaultTexture())
 			return false;
 
 		if (!CreateSkybox())
@@ -142,10 +151,53 @@ class RendererParticlesSample : RHISampleApp
 	private bool CreateBuffers()
 	{
 		BufferDescriptor cameraDesc = .(256, .Uniform, .Upload);
-		if (Device.CreateBuffer(&cameraDesc) case .Ok(let buf))
-			mCameraUniformBuffer = buf;
+		if (Device.CreateBuffer(&cameraDesc) case .Ok(let camBuf))
+			mCameraUniformBuffer = camBuf;
 		else
 			return false;
+
+		BufferDescriptor particleUniformDesc = .((uint64)sizeof(Sedulous.Renderer.ParticleUniforms), .Uniform, .Upload);
+		if (Device.CreateBuffer(&particleUniformDesc) case .Ok(let particleBuf))
+			mParticleUniformBuffer = particleBuf;
+		else
+			return false;
+
+		return true;
+	}
+
+	private bool CreateDefaultTexture()
+	{
+		// Create a 1x1 white texture for non-textured particles
+		TextureDescriptor texDesc = TextureDescriptor.Texture2D(1, 1, .RGBA8Unorm, .Sampled | .CopyDst);
+
+		if (Device.CreateTexture(&texDesc) not case .Ok(let texture))
+			return false;
+		mDefaultTexture = texture;
+
+		// Upload white pixel
+		uint8[4] whitePixel = .(255, 255, 255, 255);
+		TextureDataLayout dataLayout = .() { Offset = 0, BytesPerRow = 4, RowsPerImage = 1 };
+		Extent3D writeSize = .(1, 1, 1);
+		Device.Queue.WriteTexture(mDefaultTexture, Span<uint8>(&whitePixel, 4), &dataLayout, &writeSize);
+
+		// Create texture view
+		TextureViewDescriptor viewDesc = .() { Format = .RGBA8Unorm };
+		if (Device.CreateTextureView(mDefaultTexture, &viewDesc) not case .Ok(let view))
+			return false;
+		mDefaultTextureView = view;
+
+		// Create default sampler
+		SamplerDescriptor samplerDesc = .()
+		{
+			MinFilter = .Linear,
+			MagFilter = .Linear,
+			AddressModeU = .ClampToEdge,
+			AddressModeV = .ClampToEdge,
+			AddressModeW = .ClampToEdge
+		};
+		if (Device.CreateSampler(&samplerDesc) not case .Ok(let sampler))
+			return false;
+		mDefaultSampler = sampler;
 
 		return true;
 	}
@@ -171,19 +223,17 @@ class RendererParticlesSample : RHISampleApp
 	{
 		mParticleSystem = new ParticleSystem(Device, 2000);
 
-		// Configure as fountain effect
-		var config = ref mParticleSystem.Config;
+		// Configure as fountain effect using the new config API
+		let config = mParticleSystem.Config;
 		config.EmissionRate = 150;
-		config.MinVelocity = .(-1.0f, 6.0f, -1.0f);
-		config.MaxVelocity = .(1.0f, 10.0f, 1.0f);
-		config.MinSize = 0.1f;
-		config.MaxSize = 0.25f;
-		config.MinLife = 2.0f;
-		config.MaxLife = 3.5f;
-		config.StartColor = .(255, 200, 50, 255);    // Bright yellow-orange
-		config.EndColor = .(255, 50, 0, 100);        // Red-orange, transparent
+		config.SetConeEmission(30);  // Emit in a cone
+		config.InitialSpeed = .(6.0f, 10.0f);
+		config.InitialSize = .(0.1f, 0.25f);
+		config.Lifetime = .(2.0f, 3.5f);
+		config.StartColor = .(Color(255, 200, 50, 255));    // Bright yellow-orange
+		config.EndColor = .(Color(255, 50, 0, 100));        // Red-orange, transparent
 		config.Gravity = .(0, -8.0f, 0);
-		config.SizeOverLife = 0.3f;
+		config.SetSizeOverLifetime(1.0f, 0.3f);  // Shrink to 30%
 
 		// Position emitter at origin
 		mParticleSystem.Position = .(0.0f, 0.0f, 0.0f);
@@ -273,8 +323,12 @@ class RendererParticlesSample : RHISampleApp
 		let (vertShader, fragShader) = shaderResult.Get();
 		defer { delete vertShader; delete fragShader; }
 
-		BindGroupLayoutEntry[1] layoutEntries = .(
-			BindGroupLayoutEntry.UniformBuffer(0, .Vertex)
+		// Bind group layout matching shader: b0=camera, b1=particle uniforms, t0=texture, s0=sampler
+		BindGroupLayoutEntry[4] layoutEntries = .(
+			BindGroupLayoutEntry.UniformBuffer(0, .Vertex | .Fragment),   // b0: camera
+			BindGroupLayoutEntry.UniformBuffer(1, .Vertex | .Fragment),   // b1: particle uniforms
+			BindGroupLayoutEntry.SampledTexture(0, .Fragment),            // t0: texture
+			BindGroupLayoutEntry.Sampler(0, .Fragment)                    // s0: sampler
 		);
 		BindGroupLayoutDescriptor bindLayoutDesc = .(layoutEntries);
 		if (Device.CreateBindGroupLayout(&bindLayoutDesc) not case .Ok(let layout))
@@ -287,27 +341,34 @@ class RendererParticlesSample : RHISampleApp
 			return false;
 		mParticlePipelineLayout = pipelineLayout;
 
-		BindGroupEntry[1] entries = .(
-			BindGroupEntry.Buffer(0, mCameraUniformBuffer)
+		BindGroupEntry[4] entries = .(
+			BindGroupEntry.Buffer(0, mCameraUniformBuffer),         // b0: camera
+			BindGroupEntry.Buffer(1, mParticleUniformBuffer),       // b1: particle uniforms
+			BindGroupEntry.Texture(0, mDefaultTextureView),         // t0: texture
+			BindGroupEntry.Sampler(0, mDefaultSampler)              // s0: sampler
 		);
 		BindGroupDescriptor bindGroupDesc = .(mParticleBindGroupLayout, entries);
 		if (Device.CreateBindGroup(&bindGroupDesc) not case .Ok(let group))
 			return false;
 		mParticleBindGroup = group;
 
-		// ParticleVertex: Position(12) + Size(8) + Color(4) + Rotation(4) = 28 bytes
-		Sedulous.RHI.VertexAttribute[4] vertexAttrs = .(
-			.(VertexFormat.Float3, 0, 0),
-			.(VertexFormat.Float2, 12, 1),
-			.(VertexFormat.UByte4Normalized, 16, 2),
-			.(VertexFormat.Float, 20, 3)
+		// Updated ParticleVertex layout: 52 bytes
+		// Position(12) + Size(8) + Color(4) + Rotation(4) + TexCoordOffset(8) + TexCoordScale(8) + Velocity2D(8)
+		Sedulous.RHI.VertexAttribute[7] vertexAttrs = .(
+			.(VertexFormat.Float3, 0, 0),              // Position
+			.(VertexFormat.Float2, 12, 1),             // Size
+			.(VertexFormat.UByte4Normalized, 20, 2),   // Color
+			.(VertexFormat.Float, 24, 3),              // Rotation
+			.(VertexFormat.Float2, 28, 4),             // TexCoordOffset
+			.(VertexFormat.Float2, 36, 5),             // TexCoordScale
+			.(VertexFormat.Float2, 44, 6)              // Velocity2D
 		);
 		VertexBufferLayout[1] vertexBuffers = .(
-			VertexBufferLayout(28, vertexAttrs, .Instance)
+			VertexBufferLayout(52, vertexAttrs, .Instance)
 		);
 
 		ColorTargetState[1] colorTargets = .(
-			ColorTargetState(SwapChain.Format, .AlphaBlend)
+			ColorTargetState(SwapChain.Format, BlendState.AlphaBlend)
 		);
 
 		DepthStencilState depthState = .();
@@ -357,6 +418,11 @@ class RendererParticlesSample : RHISampleApp
 
 		Span<uint8> camData = .((uint8*)&cameraData, sizeof(BillboardCameraUniforms));
 		Device.Queue.WriteBuffer(mCameraUniformBuffer, 0, camData);
+
+		// Write particle uniforms
+		Sedulous.Renderer.ParticleUniforms particleUniforms = Sedulous.Renderer.ParticleUniforms.Default;
+		Span<uint8> particleData = .((uint8*)&particleUniforms, sizeof(Sedulous.Renderer.ParticleUniforms));
+		Device.Queue.WriteBuffer(mParticleUniformBuffer, 0, particleData);
 	}
 
 	protected override void OnRender(IRenderPassEncoder renderPass)
@@ -400,6 +466,11 @@ class RendererParticlesSample : RHISampleApp
 		if (mSkyboxBindGroupLayout != null) delete mSkyboxBindGroupLayout;
 
 		if (mCameraUniformBuffer != null) delete mCameraUniformBuffer;
+		if (mParticleUniformBuffer != null) delete mParticleUniformBuffer;
+
+		if (mDefaultSampler != null) delete mDefaultSampler;
+		if (mDefaultTextureView != null) delete mDefaultTextureView;
+		if (mDefaultTexture != null) delete mDefaultTexture;
 
 		if (mParticleSystem != null) delete mParticleSystem;
 		if (mSkyboxRenderer != null) delete mSkyboxRenderer;

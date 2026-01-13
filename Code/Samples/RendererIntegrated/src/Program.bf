@@ -70,6 +70,22 @@ class RendererIntegratedSample : RHISampleApp
 	// Debug drawing service
 	private DebugDrawService mDebugDrawService;
 
+	// Particle effect positions for labeling
+	private struct ParticleEffectLabel
+	{
+		public Vector3 Position;
+		public Color MarkerColor;
+		public String Name;
+
+		public this(Vector3 pos, Color color, String name)
+		{
+			Position = pos;
+			MarkerColor = color;
+			Name = name;
+		}
+	}
+	private List<ParticleEffectLabel> mParticleLabels = new .() ~ delete _;
+
 	public this() : base(.()
 	{
 		Title = "Framework.Core + Renderer Integration",
@@ -121,7 +137,7 @@ class RendererIntegratedSample : RHISampleApp
 
 		Console.WriteLine("Framework.Core + Renderer integration sample initialized");
 		Console.WriteLine($"Created {GRID_SIZE * GRID_SIZE} cube entities with MeshRendererComponent");
-		Console.WriteLine($"Created 4 particle emitters and 10 sprite entities");
+		Console.WriteLine("Created 10 sprite entities");
 		Console.WriteLine("Controls: WASD=Move, QE=Up/Down, Tab=Toggle mouse capture, Shift=Fast");
 		Console.WriteLine("          Space=Cycle Fox animations, Arrow keys=Light direction");
 		Console.WriteLine("          Z/X=Light intensity");
@@ -302,51 +318,8 @@ class RendererIntegratedSample : RHISampleApp
 			mCameraEntity.AddComponent(cameraComp);
 		}
 
-		// Create 4 particle emitters at corners of ground
-		{
-			// Corner positions (ground is 50x50, so corners at ±20)
-			Vector3[4] corners = .(
-				.(-20, 0.5f, -20),
-				.(20, 0.5f, -20),
-				.(-20, 0.5f, 20),
-				.(20, 0.5f, 20)
-			);
-
-			// Different color schemes for each corner
-			Color[4] startColors = .(
-				.(255, 100, 100, 255),  // Red
-				.(100, 255, 100, 255),  // Green
-				.(100, 100, 255, 255),  // Blue
-				.(255, 255, 100, 255)   // Yellow
-			);
-			Color[4] endColors = .(
-				.(255, 200, 50, 0),     // Red -> Orange
-				.(50, 255, 200, 0),     // Green -> Cyan
-				.(200, 50, 255, 0),     // Blue -> Purple
-				.(255, 100, 200, 0)     // Yellow -> Pink
-			);
-
-			for (int i = 0; i < 4; i++)
-			{
-				let particleEntity = mScene.CreateEntity(scope $"ParticleFountain_{i}");
-				particleEntity.Transform.SetPosition(corners[i]);
-
-				var config = ParticleEmitterConfig.Default;
-				config.EmissionRate = 100;
-				config.MinVelocity = .(-1.5f, 6, -1.5f);
-				config.MaxVelocity = .(1.5f, 10, 1.5f);
-				config.MinLife = 1.5f;
-				config.MaxLife = 2.5f;
-				config.MinSize = 0.1f;
-				config.MaxSize = 0.2f;
-				config.StartColor = startColors[i];
-				config.EndColor = endColors[i];
-				config.Gravity = .(0, -12.0f, 0);
-
-				let emitter = new ParticleEmitterComponent(config);
-				particleEntity.AddComponent(emitter);
-			}
-		}
+		// Create various particle effects around the scene
+		CreateParticleEffects();
 
 		// Create some sprite entities
 		for (int i = 0; i < 10; i++)
@@ -373,6 +346,251 @@ class RendererIntegratedSample : RHISampleApp
 		// Check debug draw service initialized
 		if (!mDebugDrawService.IsInitialized)
 			Console.WriteLine("Warning: DebugDrawService not initialized");
+	}
+
+	private void CreateParticleEffects()
+	{
+		// Helper to register an effect for debug labeling
+		void RegisterEffect(Vector3 pos, Color color, String name)
+		{
+			mParticleLabels.Add(.(pos, color, name));
+		}
+
+		// ==================== FIRE EFFECTS ====================
+		// Fire pit at center-back of scene
+		{
+			let pos = Vector3(0, 0.2f, -15);
+			let fireEntity = mScene.CreateEntity("FirePit");
+			fireEntity.Transform.SetPosition(pos);
+
+			let config = ParticleEmitterConfig.CreateFire();
+			config.EmissionRate = 80;
+			config.MaxParticles = 500;
+
+			let emitter = new ParticleEmitterComponent(config);
+			fireEntity.AddComponent(emitter);
+
+			RegisterEffect(pos, .(255, 100, 0, 255), "FIRE");
+		}
+
+		// Smaller torch fires at corners
+		{
+			Vector3[4] torchPositions = .(
+				.(-18, 2.0f, -18),
+				.(18, 2.0f, -18),
+				.(-18, 2.0f, 18),
+				.(18, 2.0f, 18)
+			);
+
+			for (int i = 0; i < 4; i++)
+			{
+				let torchEntity = mScene.CreateEntity(scope $"Torch_{i}");
+				torchEntity.Transform.SetPosition(torchPositions[i]);
+
+				let config = ParticleEmitterConfig.CreateFire();
+				config.EmissionRate = 25;
+				config.InitialSize = .(0.15f, 0.3f);
+				config.MaxParticles = 150;
+
+				let emitter = new ParticleEmitterComponent(config);
+				torchEntity.AddComponent(emitter);
+
+				RegisterEffect(torchPositions[i], .(255, 150, 50, 255), "TORCH");
+			}
+		}
+
+		// ==================== SMOKE EFFECT ====================
+		// Smoke rising from fire pit
+		{
+			let pos = Vector3(0, 1.5f, -15);
+			let smokeEntity = mScene.CreateEntity("Smoke");
+			smokeEntity.Transform.SetPosition(pos);
+
+			let config = ParticleEmitterConfig.CreateSmoke();
+			config.EmissionRate = 8;
+			config.MaxParticles = 100;
+
+			let emitter = new ParticleEmitterComponent(config);
+			smokeEntity.AddComponent(emitter);
+
+			RegisterEffect(.(0, 3.0f, -15), .(128, 128, 128, 255), "SMOKE");
+		}
+
+		// ==================== MAGIC SPARKLE EFFECTS ====================
+		// Magical orb floating near the fox
+		{
+			let pos = Vector3(12, 2.5f, 0);
+			let magicEntity = mScene.CreateEntity("MagicOrb");
+			magicEntity.Transform.SetPosition(pos);
+
+			let config = ParticleEmitterConfig.CreateMagicSparkle();
+			config.EmissionRate = 40;
+			config.MaxParticles = 200;
+			// Blue-purple magic
+			config.SetColorOverLifetime(.(100, 150, 255, 255), .(200, 50, 255, 0));
+
+			let emitter = new ParticleEmitterComponent(config);
+			magicEntity.AddComponent(emitter);
+
+			RegisterEffect(pos, .(150, 100, 255, 255), "MAGIC ORB");
+		}
+
+		// Green healing magic
+		{
+			let pos = Vector3(-10, 0.5f, 8);
+			let healEntity = mScene.CreateEntity("HealingMagic");
+			healEntity.Transform.SetPosition(pos);
+
+			let config = ParticleEmitterConfig.CreateMagicSparkle();
+			config.EmissionRate = 25;
+			config.MaxParticles = 150;
+			config.SetSphereEmission(1.0f);
+			config.Gravity = .(0, 1.5f, 0);
+			// Green healing colors
+			config.SetColorOverLifetime(.(50, 255, 100, 255), .(100, 255, 150, 0));
+
+			let emitter = new ParticleEmitterComponent(config);
+			healEntity.AddComponent(emitter);
+
+			RegisterEffect(pos, .(50, 255, 100, 255), "HEAL");
+		}
+
+		// ==================== SPARKS EFFECT ====================
+		// Welding/grinding sparks
+		{
+			let pos = Vector3(10, 1.0f, -8);
+			let sparksEntity = mScene.CreateEntity("Sparks");
+			sparksEntity.Transform.SetPosition(pos);
+
+			let config = ParticleEmitterConfig.CreateSparks();
+			config.EmissionRate = 60;
+			config.MaxParticles = 300;
+
+			let emitter = new ParticleEmitterComponent(config);
+			sparksEntity.AddComponent(emitter);
+
+			RegisterEffect(pos, .(255, 255, 100, 255), "SPARKS");
+		}
+
+		// ==================== WATER FOUNTAIN ====================
+		// Classic fountain with blue particles
+		{
+			let pos = Vector3(-12, 0.5f, -8);
+			let fountainEntity = mScene.CreateEntity("WaterFountain");
+			fountainEntity.Transform.SetPosition(pos);
+
+			let config = new ParticleEmitterConfig();
+			config.EmissionRate = 100;
+			config.Lifetime = .(1.5f, 2.5f);
+			config.InitialSpeed = .(8.0f, 12.0f);
+			config.InitialSize = .(0.08f, 0.15f);
+			config.MaxParticles = 500;
+			config.SetConeEmission(8);
+			config.BlendMode = .AlphaBlend;
+			config.Gravity = .(0, -15.0f, 0);
+			// Blue water colors
+			config.StartColor = .(.(100, 180, 255, 220));
+			config.EndColor = .(.(50, 120, 200, 0));
+			config.SetSizeOverLifetime(1.0f, 0.5f);
+
+			let emitter = new ParticleEmitterComponent(config);
+			fountainEntity.AddComponent(emitter);
+
+			RegisterEffect(pos, .(100, 180, 255, 255), "FOUNTAIN");
+		}
+
+		// ==================== SNOW/ASH EFFECT ====================
+		// Gentle falling particles over part of the scene
+		{
+			let pos = Vector3(8, 8, 10);  // Label at lower height for visibility
+			let snowEntity = mScene.CreateEntity("Snow");
+			snowEntity.Transform.SetPosition(.(8, 12, 10));
+
+			let config = new ParticleEmitterConfig();
+			config.EmissionRate = 30;
+			config.Lifetime = .(4.0f, 6.0f);
+			config.InitialSpeed = .(0.2f, 0.8f);
+			config.InitialSize = .(0.05f, 0.12f);
+			config.MaxParticles = 300;
+			config.SetBoxEmission(.(8, 0.5f, 8), false);
+			config.BlendMode = .AlphaBlend;
+			config.Gravity = .(0, -1.0f, 0);
+			config.Drag = 0.3f;
+			// White snow
+			config.StartColor = .(.(255, 255, 255, 200));
+			config.EndColor = .(.(200, 200, 220, 0));
+			config.InitialRotationSpeed = .(-1.0f, 1.0f);
+
+			let emitter = new ParticleEmitterComponent(config);
+			snowEntity.AddComponent(emitter);
+
+			RegisterEffect(pos, .(255, 255, 255, 255), "SNOW");
+		}
+
+		// ==================== FAIRY DUST / FIREFLIES ====================
+		// Floating glowing particles
+		{
+			let pos = Vector3(-8, 1.5f, 12);
+			let fairyEntity = mScene.CreateEntity("FairyDust");
+			fairyEntity.Transform.SetPosition(pos);
+
+			let config = new ParticleEmitterConfig();
+			config.EmissionRate = 15;
+			config.Lifetime = .(2.0f, 4.0f);
+			config.InitialSpeed = .(0.3f, 1.0f);
+			config.InitialSize = .(0.08f, 0.15f);
+			config.MaxParticles = 100;
+			config.SetSphereEmission(2.0f);
+			config.BlendMode = .Additive;
+			config.Gravity = .(0, 0.2f, 0);
+			config.Drag = 0.8f;
+			// Golden yellow glow
+			config.StartColor = .(.(255, 220, 100, 255));
+			config.EndColor = .(.(255, 180, 50, 0));
+			config.SetSizeOverLifetime(0.5f, 1.5f);
+			config.SetAlphaOverLifetime(1.0f, 0.0f);
+
+			let emitter = new ParticleEmitterComponent(config);
+			fairyEntity.AddComponent(emitter);
+
+			RegisterEffect(pos, .(255, 220, 100, 255), "FIREFLIES");
+		}
+
+		// ==================== STEAM/MIST RISING ====================
+		// Steam vent effect
+		{
+			let pos = Vector3(0, 0.1f, 10);
+			let steamEntity = mScene.CreateEntity("Steam");
+			steamEntity.Transform.SetPosition(pos);
+
+			let config = new ParticleEmitterConfig();
+			config.EmissionRate = 20;
+			config.Lifetime = .(2.0f, 3.5f);
+			config.InitialSpeed = .(2.0f, 4.0f);
+			config.InitialSize = .(0.3f, 0.6f);
+			config.MaxParticles = 150;
+			config.SetConeEmission(20);
+			config.BlendMode = .AlphaBlend;
+			config.Gravity = .(0, 1.5f, 0);
+			config.Drag = 0.4f;
+			// White/light gray steam
+			config.StartColor = .(.(240, 240, 255, 180));
+			config.EndColor = .(.(200, 200, 220, 0));
+			config.SetSizeOverLifetime(1.0f, 3.0f);
+
+			let emitter = new ParticleEmitterComponent(config);
+			steamEntity.AddComponent(emitter);
+
+			RegisterEffect(pos, .(200, 200, 255, 255), "STEAM");
+		}
+
+		// Print legend to console
+		Console.WriteLine("\n=== PARTICLE EFFECTS LEGEND ===");
+		for (let label in mParticleLabels)
+		{
+			Console.WriteLine($"  [{label.Name}] at ({label.Position.X:0.0}, {label.Position.Y:0.0}, {label.Position.Z:0.0})");
+		}
+		Console.WriteLine("================================\n");
 	}
 
 	private void CreateFoxEntity()
@@ -663,6 +881,26 @@ class RendererIntegratedSample : RHISampleApp
 		if (!mDebugDrawService.IsInitialized)
 			return;
 
+		// Set screen size for 2D text and draw FPS
+		mDebugDrawService.SetScreenSize(SwapChain.Width, SwapChain.Height);
+
+		// Draw FPS at top-right corner
+		// Label is fixed, number is right-aligned separately to avoid shifting
+		let fps = (DeltaTime > 0) ? (1.0f / DeltaTime) : 0;
+		let fpsScale = 2.0f;
+		let charWidth = 8.0f * fpsScale;  // 16 pixels per char at scale 2
+		let numberWidth = 6 * charWidth;  // Reserve space for "999.9" + margin
+		let rightMargin = 10.0f;
+
+		// Draw "FPS:" label at fixed position
+		let labelX = (float)SwapChain.Width - rightMargin - numberWidth - (4 * charWidth);
+		mDebugDrawService.DrawText2D("FPS:", labelX, 10, .(255, 255, 0, 255), fpsScale);
+
+		// Draw number right-aligned
+		let fpsNumber = scope String();
+		fpsNumber.AppendF("{0:0.0}", fps);
+		mDebugDrawService.DrawText2DRight(fpsNumber, rightMargin, 10, .(255, 255, 0, 255), fpsScale);
+
 		// Draw light direction as an arrow from above origin
 		let lightDir = GetLightDirection();
 		let lightStart = Vector3(0, 5, 0);  // Start above ground
@@ -696,6 +934,46 @@ class RendererIntegratedSample : RHISampleApp
 		{
 			let foxPos = mFoxEntity.Transform.WorldPosition;
 			mDebugDrawService.DrawWireBox(foxPos - .(1.5f, 0, 1.5f), foxPos + .(1.5f, 3.0f, 1.5f), .(255, 0, 255, 255));
+		}
+
+		// Draw colored markers at each particle effect location
+		// Get camera vectors for text billboarding
+		let cameraRight = mCameraEntity.Transform.Right;
+		let cameraUp = mCameraEntity.Transform.Up;
+		mDebugDrawService.SetCameraVectors(cameraRight, cameraUp);
+
+		for (let label in mParticleLabels)
+		{
+			let pos = label.Position;
+			let color = label.MarkerColor;
+
+			// Draw a diamond/octahedron marker
+			let size = 0.5f;
+			let top = pos + .(0, size * 1.5f, 0);
+			let bottom = pos - .(0, size * 0.5f, 0);
+			let center = pos + .(0, size * 0.5f, 0);
+
+			// Vertical line
+			mDebugDrawService.DrawLine(top, bottom, color);
+
+			// Cross at center
+			mDebugDrawService.DrawLine(center + .(size, 0, 0), center - .(size, 0, 0), color);
+			mDebugDrawService.DrawLine(center + .(0, 0, size), center - .(0, 0, size), color);
+
+			// Connect to top and bottom to form diamond shape
+			mDebugDrawService.DrawLine(top, center + .(size, 0, 0), color);
+			mDebugDrawService.DrawLine(top, center - .(size, 0, 0), color);
+			mDebugDrawService.DrawLine(top, center + .(0, 0, size), color);
+			mDebugDrawService.DrawLine(top, center - .(0, 0, size), color);
+
+			mDebugDrawService.DrawLine(bottom, center + .(size, 0, 0), color);
+			mDebugDrawService.DrawLine(bottom, center - .(size, 0, 0), color);
+			mDebugDrawService.DrawLine(bottom, center + .(0, 0, size), color);
+			mDebugDrawService.DrawLine(bottom, center - .(0, 0, size), color);
+
+			// Draw text label above the marker
+			let textPos = top + .(0, 0.3f, 0);
+			mDebugDrawService.DrawTextCentered(label.Name, textPos, color, 1.5f);
 		}
 	}
 

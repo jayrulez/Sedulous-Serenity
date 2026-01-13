@@ -26,6 +26,10 @@ class DebugDrawService : ContextService, IDisposable
 	private DebugRenderer mDebugRenderer ~ delete _;
 	private bool mInitialized = false;
 
+	// Camera vectors for text billboarding
+	private Vector3 mCameraRight = Vector3.UnitX;
+	private Vector3 mCameraUp = Vector3.UnitY;
+
 	/// Gets whether the service has been initialized.
 	public bool IsInitialized => mInitialized;
 
@@ -403,6 +407,98 @@ class DebugDrawService : ContextService, IDisposable
 	{
 		if (mDebugRenderer != null)
 			mDebugRenderer.AddQuad(v0, v1, v2, v3, color, mode);
+	}
+
+	/// Sets the camera vectors used for text billboarding.
+	/// Call this once per frame before drawing text, typically from AddDebugPass.
+	public void SetCameraVectors(Vector3 right, Vector3 up)
+	{
+		mCameraRight = right;
+		mCameraUp = up;
+	}
+
+	/// Sets the camera vectors from a view matrix.
+	/// The right and up vectors are extracted from the inverse of the view matrix.
+	public void SetCameraFromView(Matrix view)
+	{
+		// Extract camera orientation from view matrix
+		// View matrix rows contain inverted camera axes
+		mCameraRight = .(view.M11, view.M21, view.M31);
+		mCameraUp = .(view.M12, view.M22, view.M32);
+	}
+
+	/// Draws 3D text at the specified world position.
+	/// Text is billboard-oriented using the camera vectors set by SetCameraVectors.
+	/// @param text The string to render.
+	/// @param position World-space position of the text (bottom-left origin).
+	/// @param color Text color.
+	/// @param scale Size multiplier (1.0 = default size).
+	/// @param mode Depth test or overlay mode.
+	public void DrawText(StringView text, Vector3 position, Color color, float scale = 1.0f, DebugRenderMode mode = .DepthTest)
+	{
+		if (mDebugRenderer != null)
+			mDebugRenderer.AddText(text, position, color, scale, mCameraRight, mCameraUp, mode);
+	}
+
+	/// Draws 3D text with explicit billboard orientation.
+	/// @param text The string to render.
+	/// @param position World-space position of the text (bottom-left origin).
+	/// @param color Text color.
+	/// @param scale Size multiplier (1.0 = default size).
+	/// @param right Camera right vector for billboarding.
+	/// @param up Camera up vector for billboarding.
+	/// @param mode Depth test or overlay mode.
+	public void DrawText(StringView text, Vector3 position, Color color, float scale, Vector3 right, Vector3 up, DebugRenderMode mode = .DepthTest)
+	{
+		if (mDebugRenderer != null)
+			mDebugRenderer.AddText(text, position, color, scale, right, up, mode);
+	}
+
+	/// Draws 3D text centered at the specified world position.
+	/// Text is billboard-oriented using the camera vectors set by SetCameraVectors.
+	public void DrawTextCentered(StringView text, Vector3 position, Color color, float scale = 1.0f, DebugRenderMode mode = .DepthTest)
+	{
+		if (mDebugRenderer != null)
+			mDebugRenderer.AddTextCentered(text, position, color, scale, mCameraRight, mCameraUp, mode);
+	}
+
+	/// Draws 3D text centered with explicit billboard orientation.
+	public void DrawTextCentered(StringView text, Vector3 position, Color color, float scale, Vector3 right, Vector3 up, DebugRenderMode mode = .DepthTest)
+	{
+		if (mDebugRenderer != null)
+			mDebugRenderer.AddTextCentered(text, position, color, scale, right, up, mode);
+	}
+
+	/// Sets the screen size for 2D text positioning.
+	/// Call this once per frame before drawing 2D text.
+	public void SetScreenSize(uint32 width, uint32 height)
+	{
+		if (mDebugRenderer != null)
+			mDebugRenderer.SetScreenSize(width, height);
+	}
+
+	/// Draws 2D screen-space text.
+	/// @param text The string to render.
+	/// @param x X position in pixels (from left edge).
+	/// @param y Y position in pixels (from top edge).
+	/// @param color Text color.
+	/// @param scale Size multiplier (1.0 = 8 pixels per character).
+	public void DrawText2D(StringView text, float x, float y, Color color, float scale = 1.0f)
+	{
+		if (mDebugRenderer != null)
+			mDebugRenderer.AddText2D(text, x, y, color, scale);
+	}
+
+	/// Draws 2D screen-space text aligned to the right edge.
+	/// @param text The string to render.
+	/// @param rightMargin Pixels from the right edge.
+	/// @param y Y position in pixels (from top edge).
+	/// @param color Text color.
+	/// @param scale Size multiplier.
+	public void DrawText2DRight(StringView text, float rightMargin, float y, Color color, float scale = 1.0f)
+	{
+		if (mDebugRenderer != null)
+			mDebugRenderer.AddText2DRight(text, rightMargin, y, color, scale);
 	}
 
 	/// Returns true if there are any debug primitives to render.

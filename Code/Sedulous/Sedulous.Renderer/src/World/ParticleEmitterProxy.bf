@@ -87,6 +87,21 @@ struct ParticleEmitterProxy
 
 	/// Checks if has particles to render.
 	public bool HasParticles => ParticleCount > 0;
+
+	/// Gets the emitter configuration (if available).
+	public ParticleEmitterConfig Config => System?.Config;
+
+	/// Gets the blend mode for this emitter.
+	public ParticleBlendMode BlendMode => Config?.BlendMode ?? .AlphaBlend;
+
+	/// Gets the render mode for this emitter.
+	public ParticleRenderMode RenderMode => Config?.RenderMode ?? .Billboard;
+
+	/// Returns true if this emitter uses additive blending.
+	public bool IsAdditive => BlendMode == .Additive;
+
+	/// Returns true if this emitter requires sorting (alpha-blended particles).
+	public bool RequiresSorting => BlendMode == .AlphaBlend && (Config?.SortParticles ?? false);
 }
 
 /// Flags controlling particle emitter proxy behavior.

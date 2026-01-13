@@ -8,15 +8,17 @@ using Sedulous.Serialization;
 using Sedulous.Renderer;
 
 /// Entity component that emits particles.
+/// Uses the proxy pattern to integrate with the render world.
 class ParticleEmitterComponent : IEntityComponent
 {
 	private Entity mEntity;
 	private RenderSceneComponent mRenderScene;
 	private ParticleSystem mParticleSystem ~ delete _;
 	private ProxyHandle mProxyHandle = .Invalid;
+	private Vector3 mLastPosition = .Zero;
 
-	/// Emitter configuration.
-	public ParticleEmitterConfig Config = .Default;
+	/// Emitter configuration (owned by this component).
+	public ParticleEmitterConfig Config ~ delete _ ;
 
 	/// Whether the emitter is actively emitting.
 	public bool Emitting = true;
@@ -33,16 +35,52 @@ class ParticleEmitterComponent : IEntityComponent
 	/// Gets the proxy handle for this emitter.
 	public ProxyHandle ProxyHandle => mProxyHandle;
 
-	/// Creates a new ParticleEmitterComponent.
+	/// Gets whether the emitter has been initialized.
+	public bool IsInitialized => mParticleSystem != null;
+
+	/// Creates a new ParticleEmitterComponent with default configuration.
 	public this()
 	{
+		Config = new ParticleEmitterConfig();
 	}
 
-	/// Creates a particle emitter with custom config.
+	/// Creates a particle emitter with custom config (takes ownership).
 	public this(ParticleEmitterConfig config)
 	{
-		Config = config;
+		Config = config ?? new ParticleEmitterConfig();
 	}
+
+	// ==================== Configuration Helpers ====================
+
+	/// Sets up a fire-like effect.
+	public void ConfigureAsFire()
+	{
+		if (Config != null) delete Config;
+		Config = ParticleEmitterConfig.CreateFire();
+	}
+
+	/// Sets up a smoke-like effect.
+	public void ConfigureAsSmoke()
+	{
+		if (Config != null) delete Config;
+		Config = ParticleEmitterConfig.CreateSmoke();
+	}
+
+	/// Sets up a spark effect.
+	public void ConfigureAsSparks()
+	{
+		if (Config != null) delete Config;
+		Config = ParticleEmitterConfig.CreateSparks();
+	}
+
+	/// Sets up a magic sparkle effect.
+	public void ConfigureAsMagicSparkle()
+	{
+		if (Config != null) delete Config;
+		Config = ParticleEmitterConfig.CreateMagicSparkle();
+	}
+
+	// ==================== Control Methods ====================
 
 	/// Emits a burst of particles.
 	public void Burst(int32 count)
@@ -56,6 +94,29 @@ class ParticleEmitterComponent : IEntityComponent
 		mParticleSystem?.Clear();
 	}
 
+	/// Starts emitting particles.
+	public void StartEmitting()
+	{
+		Emitting = true;
+		if (mParticleSystem != null)
+			mParticleSystem.IsEmitting = true;
+	}
+
+	/// Stops emitting new particles (existing particles continue).
+	public void StopEmitting()
+	{
+		Emitting = false;
+		if (mParticleSystem != null)
+			mParticleSystem.IsEmitting = false;
+	}
+
+	/// Stops emitting and clears all particles.
+	public void Stop()
+	{
+		StopEmitting();
+		Clear();
+	}
+
 	// ==================== IEntityComponent Implementation ====================
 
 	public void OnAttach(Entity entity)
@@ -67,8 +128,12 @@ class ParticleEmitterComponent : IEntityComponent
 			mRenderScene = entity.Scene.GetSceneComponent<RenderSceneComponent>();
 			if (mRenderScene?.RendererService?.Device != null)
 			{
-				mParticleSystem = new ParticleSystem(mRenderScene.RendererService.Device);
-				mParticleSystem.Config = Config;
+				// Create particle system with the config (config ownership stays with component)
+				mParticleSystem = new ParticleSystem(mRenderScene.RendererService.Device, Config, Config.MaxParticles);
+				mParticleSystem.IsEmitting = Emitting;
+				mLastPosition = entity.Transform.WorldPosition;
+				mParticleSystem.Position = mLastPosition;
+
 				CreateOrUpdateProxy();
 				mRenderScene.RegisterParticleEmitter(this);
 			}
@@ -90,16 +155,30 @@ class ParticleEmitterComponent : IEntityComponent
 		if (mParticleSystem == null)
 			return;
 
-		// Sync config
-		mParticleSystem.Config = Config;
+		// Sync emitting state
 		mParticleSystem.IsEmitting = Emitting;
 
 		// Update position from entity transform
 		if (mEntity != null)
-			mParticleSystem.Position = mEntity.Transform.WorldPosition;
+		{
+			Vector3 newPosition = mEntity.Transform.WorldPosition;
+
+			// Calculate velocity for emitter (for velocity inheritance)
+			if (deltaTime > 0.0001f)
+			{
+				Vector3 velocity = (newPosition - mLastPosition) / deltaTime;
+				mParticleSystem.Velocity = velocity;
+			}
+
+			mParticleSystem.Position = newPosition;
+			mLastPosition = newPosition;
+		}
 
 		// Update particles
 		mParticleSystem.Update(deltaTime);
+
+		// Upload to GPU
+		mParticleSystem.Upload();
 
 		// Update proxy state
 		CreateOrUpdateProxy();
@@ -107,7 +186,7 @@ class ParticleEmitterComponent : IEntityComponent
 
 	// ==================== ISerializable Implementation ====================
 
-	public int32 SerializationVersion => 1;
+	public int32 SerializationVersion => 2;
 
 	public SerializationResult Serialize(Serializer serializer)
 	{
@@ -128,17 +207,57 @@ class ParticleEmitterComponent : IEntityComponent
 			Visible = (flags & 2) != 0;
 		}
 
-		// Serialize config
-		result = serializer.Float("emissionRate", ref Config.EmissionRate);
+		// Serialize basic config values
+		float emissionRate = Config.EmissionRate;
+		result = serializer.Float("emissionRate", ref emissionRate);
 		if (result != .Ok) return result;
-		result = serializer.Float("minLife", ref Config.MinLife);
+		if (serializer.IsReading) Config.EmissionRate = emissionRate;
+
+		float lifetimeMin = Config.Lifetime.Min;
+		float lifetimeMax = Config.Lifetime.Max;
+		result = serializer.Float("lifetimeMin", ref lifetimeMin);
 		if (result != .Ok) return result;
-		result = serializer.Float("maxLife", ref Config.MaxLife);
+		result = serializer.Float("lifetimeMax", ref lifetimeMax);
 		if (result != .Ok) return result;
-		result = serializer.Float("minSize", ref Config.MinSize);
+		if (serializer.IsReading) Config.Lifetime = .(lifetimeMin, lifetimeMax);
+
+		float sizeMin = Config.InitialSize.Min;
+		float sizeMax = Config.InitialSize.Max;
+		result = serializer.Float("sizeMin", ref sizeMin);
 		if (result != .Ok) return result;
-		result = serializer.Float("maxSize", ref Config.MaxSize);
+		result = serializer.Float("sizeMax", ref sizeMax);
 		if (result != .Ok) return result;
+		if (serializer.IsReading) Config.InitialSize = .(sizeMin, sizeMax);
+
+		float speedMin = Config.InitialSpeed.Min;
+		float speedMax = Config.InitialSpeed.Max;
+		result = serializer.Float("speedMin", ref speedMin);
+		if (result != .Ok) return result;
+		result = serializer.Float("speedMax", ref speedMax);
+		if (result != .Ok) return result;
+		if (serializer.IsReading) Config.InitialSpeed = .(speedMin, speedMax);
+
+		// Gravity
+		Vector3 gravity = Config.Gravity;
+		result = serializer.Float("gravityX", ref gravity.X);
+		if (result != .Ok) return result;
+		result = serializer.Float("gravityY", ref gravity.Y);
+		if (result != .Ok) return result;
+		result = serializer.Float("gravityZ", ref gravity.Z);
+		if (result != .Ok) return result;
+		if (serializer.IsReading) Config.Gravity = gravity;
+
+		// Blend mode
+		int32 blendMode = (int32)Config.BlendMode;
+		result = serializer.Int32("blendMode", ref blendMode);
+		if (result != .Ok) return result;
+		if (serializer.IsReading) Config.BlendMode = (ParticleBlendMode)blendMode;
+
+		// Render mode
+		int32 renderMode = (int32)Config.RenderMode;
+		result = serializer.Int32("renderMode", ref renderMode);
+		if (result != .Ok) return result;
+		if (serializer.IsReading) Config.RenderMode = (ParticleRenderMode)renderMode;
 
 		return .Ok;
 	}
@@ -150,7 +269,7 @@ class ParticleEmitterComponent : IEntityComponent
 		if (mRenderScene == null || mEntity == null)
 			return;
 
-		// Create proxy if needed (via RenderSceneComponent for consistent pattern)
+		// Create proxy if needed
 		if (!mProxyHandle.IsValid && mParticleSystem != null)
 		{
 			mProxyHandle = mRenderScene.CreateParticleEmitterProxy(
@@ -162,21 +281,42 @@ class ParticleEmitterComponent : IEntityComponent
 		{
 			if (let proxy = mRenderScene.RenderWorld.GetParticleEmitterProxy(mProxyHandle))
 			{
-				proxy.SetPosition(mEntity.Transform.WorldPosition);
+				float boundsRadius = EstimateBoundsRadius();
+				proxy.SetPosition(mEntity.Transform.WorldPosition, boundsRadius);
 				proxy.System = mParticleSystem;
 
-				// Update flags
-				if (Visible)
-					proxy.Flags |= .Visible;
-				else
-					proxy.Flags &= ~.Visible;
+				// Update flags based on component state
+				ParticleEmitterProxyFlags newFlags = .None;
 
+				if (Visible)
+					newFlags |= .Visible;
 				if (Emitting)
-					proxy.Flags |= .Emitting;
-				else
-					proxy.Flags &= ~.Emitting;
+					newFlags |= .Emitting;
+				if (Config.SoftParticles)
+					newFlags |= .SoftParticles;
+				if (Config.WorldSpace)
+					newFlags |= .WorldSpace;
+				if (Config.LitParticles)
+					newFlags |= .AffectsLighting;
+
+				proxy.Flags = newFlags;
 			}
 		}
+	}
+
+	private float EstimateBoundsRadius()
+	{
+		// Estimate bounds based on particle lifetime and speed
+		float maxSpeed = Config.InitialSpeed.Max;
+		float maxLife = Config.Lifetime.Max;
+		float maxSize = Config.InitialSize.Max;
+
+		// Account for gravity influence
+		float gravityMag = Config.Gravity.Length();
+		float gravityContribution = 0.5f * gravityMag * maxLife * maxLife;
+
+		// Rough estimate of particle spread
+		return Math.Max(5.0f, maxSpeed * maxLife + gravityContribution + maxSize * 2);
 	}
 
 	private void DestroyProxy()
