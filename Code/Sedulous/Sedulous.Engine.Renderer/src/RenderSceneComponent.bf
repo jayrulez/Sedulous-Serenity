@@ -609,7 +609,7 @@ class RenderSceneComponent : ISceneComponent
 	// ==================== Proxy Management ====================
 
 	/// Creates a mesh proxy for an entity.
-	public ProxyHandle CreateStaticMeshProxy(EntityId entityId, GPUMeshHandle mesh, Matrix transform, BoundingBox bounds)
+	public ProxyHandle CreateStaticMeshProxy(EntityId entityId, GPUStaticMeshHandle mesh, Matrix transform, BoundingBox bounds)
 	{
 		if (mContext?.World == null)
 			return .Invalid;

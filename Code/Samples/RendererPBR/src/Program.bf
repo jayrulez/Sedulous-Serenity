@@ -23,7 +23,7 @@ class RendererPBRSample : RHISampleApp
 	private GPUResourceManager mResourceManager;
 
 	// GPU resources
-	private GPUMeshHandle mSphereMesh;
+	private GPUStaticMeshHandle mSphereMesh;
 	private GPUTextureHandle mAlbedoTexture;
 	private GPUTextureHandle mNormalTexture;
 	private GPUTextureHandle mMetallicRoughnessTexture;
@@ -176,7 +176,7 @@ class RendererPBRSample : RHISampleApp
 		let cpuMesh = StaticMesh.CreateSphere(0.8f, 48, 24);
 		defer delete cpuMesh;
 
-		mSphereMesh = mResourceManager.CreateMesh(cpuMesh);
+		mSphereMesh = mResourceManager.CreateStaticMesh(cpuMesh);
 		if (!mSphereMesh.IsValid)
 		{
 			Console.WriteLine("Failed to create sphere mesh");
@@ -428,7 +428,7 @@ class RendererPBRSample : RHISampleApp
 
 	protected override void OnRender(IRenderPassEncoder renderPass)
 	{
-		let mesh = mResourceManager.GetMesh(mSphereMesh);
+		let mesh = mResourceManager.GetStaticMesh(mSphereMesh);
 		if (mesh == null)
 			return;
 
@@ -462,7 +462,7 @@ class RendererPBRSample : RHISampleApp
 
 		if (mResourceManager != null)
 		{
-			mResourceManager.ReleaseMesh(mSphereMesh);
+			mResourceManager.ReleaseStaticMesh(mSphereMesh);
 			mResourceManager.ReleaseTexture(mAlbedoTexture);
 			mResourceManager.ReleaseTexture(mNormalTexture);
 			mResourceManager.ReleaseTexture(mMetallicRoughnessTexture);

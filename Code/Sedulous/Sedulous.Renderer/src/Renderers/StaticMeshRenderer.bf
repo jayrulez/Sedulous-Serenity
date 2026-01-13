@@ -191,7 +191,7 @@ class StaticMeshRenderer
 		});
 
 		// Build batches
-		GPUMeshHandle currentMesh = .Invalid;
+		GPUStaticMeshHandle currentMesh = .Invalid;
 		MaterialInstanceHandle currentMaterial = .Invalid;
 		int32 batchStart = 0;
 
@@ -320,7 +320,7 @@ class StaticMeshRenderer
 				}
 
 				// Draw batch
-				let gpuMesh = mResourceManager.GetMesh(batch.Mesh);
+				let gpuMesh = mResourceManager.GetStaticMesh(batch.Mesh);
 				if (gpuMesh != null)
 				{
 					renderPass.SetVertexBuffer(0, gpuMesh.VertexBuffer, 0);

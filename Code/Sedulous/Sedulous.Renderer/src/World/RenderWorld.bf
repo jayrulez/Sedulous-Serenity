@@ -90,7 +90,7 @@ class RenderWorld
 	// ==================== Mesh Proxy Management ====================
 
 	/// Creates a new mesh proxy.
-	public ProxyHandle CreateStaticMeshProxy(GPUMeshHandle mesh, Matrix transform, BoundingBox localBounds)
+	public ProxyHandle CreateStaticMeshProxy(GPUStaticMeshHandle mesh, Matrix transform, BoundingBox localBounds)
 	{
 		uint32 index;
 		uint32 generation;

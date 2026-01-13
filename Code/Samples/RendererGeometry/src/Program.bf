@@ -20,7 +20,7 @@ class RendererGeometrySample : RHISampleApp
 	private SkyboxRenderer mSkyboxRenderer;
 
 	// Mesh resources
-	private GPUMeshHandle mCubeMesh;
+	private GPUStaticMeshHandle mCubeMesh;
 	private IBuffer mCameraUniformBuffer;
 	private IBuffer mObjectUniformBuffer;
 	private IBuffer mBlueCubeObjectBuffer;
@@ -188,7 +188,7 @@ class RendererGeometrySample : RHISampleApp
 		let cpuMesh = StaticMesh.CreateCube(1.0f);
 		defer delete cpuMesh;
 
-		mCubeMesh = mResourceManager.CreateMesh(cpuMesh);
+		mCubeMesh = mResourceManager.CreateStaticMesh(cpuMesh);
 		if (!mCubeMesh.IsValid)
 		{
 			Console.WriteLine("Failed to create cube mesh");
@@ -449,7 +449,7 @@ class RendererGeometrySample : RHISampleApp
 		}
 
 		// Render cubes
-		let mesh = mResourceManager.GetMesh(mCubeMesh);
+		let mesh = mResourceManager.GetStaticMesh(mCubeMesh);
 		if (mesh != null)
 		{
 			renderPass.SetPipeline(mMeshPipeline);
@@ -496,7 +496,7 @@ class RendererGeometrySample : RHISampleApp
 
 		if (mResourceManager != null)
 		{
-			mResourceManager.ReleaseMesh(mCubeMesh);
+			mResourceManager.ReleaseStaticMesh(mCubeMesh);
 			delete mResourceManager;
 		}
 	}

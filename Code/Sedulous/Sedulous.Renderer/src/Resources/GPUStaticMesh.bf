@@ -6,7 +6,7 @@ using Sedulous.Geometry;
 using Sedulous.Mathematics;
 
 /// GPU-side mesh data with vertex and index buffers.
-class GPUMesh
+class GPUStaticMesh
 {
 	/// Vertex buffer containing all vertex data.
 	public IBuffer VertexBuffer ~ delete _;
@@ -54,7 +54,7 @@ class GPUMesh
 }
 
 /// Handle to a GPU mesh resource.
-struct GPUMeshHandle : IEquatable<GPUMeshHandle>, IHashable
+struct GPUStaticMeshHandle : IEquatable<GPUStaticMeshHandle>, IHashable
 {
 	private uint32 mIndex;
 	private uint32 mGeneration;
@@ -71,7 +71,7 @@ struct GPUMeshHandle : IEquatable<GPUMeshHandle>, IHashable
 		mGeneration = generation;
 	}
 
-	public bool Equals(GPUMeshHandle other)
+	public bool Equals(GPUStaticMeshHandle other)
 	{
 		return mIndex == other.mIndex && mGeneration == other.mGeneration;
 	}

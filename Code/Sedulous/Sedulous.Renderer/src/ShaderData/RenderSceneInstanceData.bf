@@ -59,7 +59,7 @@ struct MaterialInstanceData
 struct DrawBatch
 {
 	/// Handle to the GPU mesh.
-	public GPUMeshHandle Mesh;
+	public GPUStaticMeshHandle Mesh;
 
 	/// Handle to the material instance.
 	public MaterialInstanceHandle Material;
@@ -70,7 +70,7 @@ struct DrawBatch
 	/// Number of instances in this batch.
 	public int32 InstanceCount;
 
-	public this(GPUMeshHandle mesh, MaterialInstanceHandle material, int32 offset, int32 count)
+	public this(GPUStaticMeshHandle mesh, MaterialInstanceHandle material, int32 offset, int32 count)
 	{
 		Mesh = mesh;
 		Material = material;

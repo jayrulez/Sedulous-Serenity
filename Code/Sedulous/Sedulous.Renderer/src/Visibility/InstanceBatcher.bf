@@ -33,7 +33,7 @@ struct InstanceData
 struct InstanceBatch
 {
 	/// GPU mesh handle.
-	public GPUMeshHandle MeshHandle;
+	public GPUStaticMeshHandle MeshHandle;
 
 	/// Primary material ID.
 	public uint32 MaterialId;
@@ -60,7 +60,7 @@ class InstanceBatcher
 	/// Key for grouping instances.
 	private struct BatchKey : IHashable, IEquatable<BatchKey>
 	{
-		public GPUMeshHandle MeshHandle;
+		public GPUStaticMeshHandle MeshHandle;
 		public uint32 MaterialId;
 		public int32 SubMeshIndex;
 		public bool IsSkinned;

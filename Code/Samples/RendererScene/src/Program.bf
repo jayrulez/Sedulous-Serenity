@@ -26,7 +26,7 @@ class RendererSceneSample : RHISampleApp
 	private VisibilityResolver mVisibilityResolver;
 
 	// GPU Resources
-	private GPUMeshHandle mCubeMesh;
+	private GPUStaticMeshHandle mCubeMesh;
 	private IBuffer mCameraUniformBuffer;
 	private IBuffer mInstanceBuffer;
 	private ISampler mSampler;
@@ -160,7 +160,7 @@ class RendererSceneSample : RHISampleApp
 		let cubeMesh = StaticMesh.CreateCube(1.0f);
 		defer delete cubeMesh;
 
-		mCubeMesh = mResourceManager.CreateMesh(cubeMesh);
+		mCubeMesh = mResourceManager.CreateStaticMesh(cubeMesh);
 		if (!mCubeMesh.IsValid)
 		{
 			Console.WriteLine("Failed to create cube mesh");
@@ -467,7 +467,7 @@ class RendererSceneSample : RHISampleApp
 		renderPass.SetScissorRect(0, 0, SwapChain.Width, SwapChain.Height);
 
 		// Get the GPU mesh
-		let gpuMesh = mResourceManager.GetMesh(mCubeMesh);
+		let gpuMesh = mResourceManager.GetStaticMesh(mCubeMesh);
 		if (gpuMesh == null)
 			return;
 
@@ -517,7 +517,7 @@ class RendererSceneSample : RHISampleApp
 
 		if (mResourceManager != null)
 		{
-			mResourceManager.ReleaseMesh(mCubeMesh);
+			mResourceManager.ReleaseStaticMesh(mCubeMesh);
 			delete mResourceManager;
 		}
 

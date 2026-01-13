@@ -410,10 +410,10 @@ class ShadowRenderer
 	}
 
 	/// Draws a batch of static mesh instances to the shadow map.
-	private void DrawStaticShadowBatch(IRenderPassEncoder shadowPass, GPUMeshHandle meshHandle,
+	private void DrawStaticShadowBatch(IRenderPassEncoder shadowPass, GPUStaticMeshHandle meshHandle,
 		IBuffer instanceBuffer, int32 instanceOffset, int32 instanceCount)
 	{
-		let gpuMesh = mResourceManager.GetMesh(meshHandle);
+		let gpuMesh = mResourceManager.GetStaticMesh(meshHandle);
 		if (gpuMesh == null)
 			return;
 

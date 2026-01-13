@@ -11,7 +11,7 @@ using Sedulous.Renderer;
 class StaticMeshComponent : IEntityComponent
 {
 	// GPU mesh handle
-	private GPUMeshHandle mGPUMesh = .Invalid;
+	private GPUStaticMeshHandle mGPUMesh = .Invalid;
 	private BoundingBox mLocalBounds = .(.Zero, .Zero);
 
 	// Entity and scene references
@@ -42,7 +42,7 @@ class StaticMeshComponent : IEntityComponent
 	public BoundingBox LocalBounds => mLocalBounds;
 
 	/// Gets the GPU mesh handle (framework use).
-	public GPUMeshHandle GPUMeshHandle => mGPUMesh;
+	public GPUStaticMeshHandle GPUMeshHandle => mGPUMesh;
 
 	/// Checks if this component uses material instances (vs legacy material IDs).
 	public bool UsesMaterialInstances => MaterialInstances[0].IsValid;
@@ -79,7 +79,7 @@ class StaticMeshComponent : IEntityComponent
 	}
 
 	/// Sets the GPU mesh to render (low-level API).
-	internal void SetMesh(GPUMeshHandle mesh, BoundingBox bounds)
+	internal void SetMesh(GPUStaticMeshHandle mesh, BoundingBox bounds)
 	{
 		mGPUMesh = mesh;
 		mLocalBounds = bounds;
@@ -112,7 +112,7 @@ class StaticMeshComponent : IEntityComponent
 		}
 
 		// Upload to GPU
-		mGPUMesh = mRenderScene.RendererService.ResourceManager.CreateMesh(mesh);
+		mGPUMesh = mRenderScene.RendererService.ResourceManager.CreateStaticMesh(mesh);
 		mLocalBounds = mesh.GetBounds();
 
 		// Update proxy if attached

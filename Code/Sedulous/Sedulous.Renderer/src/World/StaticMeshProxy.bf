@@ -24,7 +24,7 @@ struct StaticMeshProxy
 	public BoundingBox LocalBounds;
 
 	/// Handle to the GPU mesh.
-	public GPUMeshHandle MeshHandle;
+	public GPUStaticMeshHandle MeshHandle;
 
 	/// Material instance handles for each sub-mesh.
 	/// Index corresponds to SubMesh index.
@@ -81,7 +81,7 @@ struct StaticMeshProxy
 	}
 
 	/// Creates a mesh proxy with the given parameters.
-	public this(uint32 id, GPUMeshHandle mesh, Matrix transform, BoundingBox localBounds)
+	public this(uint32 id, GPUStaticMeshHandle mesh, Matrix transform, BoundingBox localBounds)
 	{
 		Id = id;
 		MeshHandle = mesh;

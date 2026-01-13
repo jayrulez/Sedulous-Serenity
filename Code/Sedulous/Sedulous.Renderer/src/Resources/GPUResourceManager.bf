@@ -14,9 +14,9 @@ class GPUResourceManager
 	private IDevice mDevice;
 
 	// Mesh storage
-	private List<GPUMesh> mMeshes = new .() ~ DeleteContainerAndItems!(_);
-	private List<uint32> mMeshGenerations = new .() ~ delete _;
-	private List<uint32> mFreeMeshSlots = new .() ~ delete _;
+	private List<GPUStaticMesh> mStaticMeshes = new .() ~ DeleteContainerAndItems!(_);
+	private List<uint32> mStaticMeshGenerations = new .() ~ delete _;
+	private List<uint32> mStaticFreeMeshSlots = new .() ~ delete _;
 
 	// Texture storage
 	private List<GPUTexture> mTextures = new .() ~ DeleteContainerAndItems!(_);
@@ -37,12 +37,12 @@ class GPUResourceManager
 
 	/// Creates a GPU mesh from a CPU mesh.
 	/// Returns a handle to the GPU mesh, or Invalid on failure.
-	public GPUMeshHandle CreateMesh(StaticMesh cpuMesh)
+	public GPUStaticMeshHandle CreateStaticMesh(StaticMesh cpuMesh)
 	{
 		if (cpuMesh == null || cpuMesh.Vertices == null)
 			return .Invalid;
 
-		let gpuMesh = new GPUMesh();
+		let gpuMesh = new GPUStaticMesh();
 
 		// Create vertex buffer
 		let vertexDataSize = (uint64)cpuMesh.Vertices.GetDataSize();
@@ -104,35 +104,35 @@ class GPUResourceManager
 			}
 		}
 
-		return AllocateMeshSlot(gpuMesh);
+		return AllocateStaticMeshSlot(gpuMesh);
 	}
 
 	/// Gets the GPU mesh for a handle. Returns null if invalid.
-	public GPUMesh GetMesh(GPUMeshHandle handle)
+	public GPUStaticMesh GetStaticMesh(GPUStaticMeshHandle handle)
 	{
-		if (!handle.IsValid || handle.Index >= mMeshes.Count)
+		if (!handle.IsValid || handle.Index >= mStaticMeshes.Count)
 			return null;
 
-		if (mMeshGenerations[(int)handle.Index] != handle.Generation)
+		if (mStaticMeshGenerations[(int)handle.Index] != handle.Generation)
 			return null;
 
-		return mMeshes[(int)handle.Index];
+		return mStaticMeshes[(int)handle.Index];
 	}
 
 	/// Releases a mesh handle. Frees the GPU mesh if reference count reaches zero.
-	public void ReleaseMesh(GPUMeshHandle handle)
+	public void ReleaseStaticMesh(GPUStaticMeshHandle handle)
 	{
-		let mesh = GetMesh(handle);
+		let mesh = GetStaticMesh(handle);
 		if (mesh != null && mesh.Release())
 		{
-			FreeMeshSlot(handle.Index);
+			FreeStaticMeshSlot(handle.Index);
 		}
 	}
 
 	/// Adds a reference to a mesh.
-	public void AddMeshRef(GPUMeshHandle handle)
+	public void AddStaticMeshRef(GPUStaticMeshHandle handle)
 	{
-		let mesh = GetMesh(handle);
+		let mesh = GetStaticMesh(handle);
 		if (mesh != null)
 			mesh.AddRef();
 	}
@@ -390,36 +390,36 @@ class GPUResourceManager
 
 	// ===== Helper Methods =====
 
-	private GPUMeshHandle AllocateMeshSlot(GPUMesh mesh)
+	private GPUStaticMeshHandle AllocateStaticMeshSlot(GPUStaticMesh mesh)
 	{
 		uint32 index;
 		uint32 generation;
 
-		if (mFreeMeshSlots.Count > 0)
+		if (mStaticFreeMeshSlots.Count > 0)
 		{
-			index = mFreeMeshSlots.PopBack();
-			generation = mMeshGenerations[(int)index];
-			mMeshes[(int)index] = mesh;
+			index = mStaticFreeMeshSlots.PopBack();
+			generation = mStaticMeshGenerations[(int)index];
+			mStaticMeshes[(int)index] = mesh;
 		}
 		else
 		{
-			index = (uint32)mMeshes.Count;
+			index = (uint32)mStaticMeshes.Count;
 			generation = 0;
-			mMeshes.Add(mesh);
-			mMeshGenerations.Add(generation);
+			mStaticMeshes.Add(mesh);
+			mStaticMeshGenerations.Add(generation);
 		}
 
 		return .(index, generation);
 	}
 
-	private void FreeMeshSlot(uint32 index)
+	private void FreeStaticMeshSlot(uint32 index)
 	{
-		if (index < mMeshes.Count)
+		if (index < mStaticMeshes.Count)
 		{
-			delete mMeshes[(int)index];
-			mMeshes[(int)index] = null;
-			mMeshGenerations[(int)index]++;
-			mFreeMeshSlots.Add(index);
+			delete mStaticMeshes[(int)index];
+			mStaticMeshes[(int)index] = null;
+			mStaticMeshGenerations[(int)index]++;
+			mStaticFreeMeshSlots.Add(index);
 		}
 	}
 

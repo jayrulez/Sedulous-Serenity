@@ -140,6 +140,7 @@ Per-scene component that manages rendering. Automatically created by RendererSer
 | `VisibilityResolver` | `VisibilityResolver` | Frustum culling |
 | `MainCamera` | `ProxyHandle` | Main camera proxy handle |
 | `VisibleMeshes` | `List<StaticMeshProxy*>` | Meshes visible this frame |
+| `VisibleParticleEmitters` | `List<ParticleEmitterProxy*>` | Particle emitters visible this frame |
 | `ActiveLights` | `List<LightProxy*>` | Active lights this frame |
 
 ### Methods
@@ -155,7 +156,13 @@ void SetRenderTargets(ITextureView* colorTarget, ITextureView* depthTarget);
 ProxyHandle CreateStaticMeshProxy(Entity entity, StaticMeshComponent component);
 ProxyHandle CreateLightProxy(Entity entity, LightComponent component);
 ProxyHandle CreateCameraProxy(Entity entity, CameraComponent component);
+ProxyHandle CreateParticleEmitterProxy(EntityId entityId, ParticleSystem system, Vector3 position);
+void DestroyParticleEmitterProxy(EntityId entityId);
 void RemoveProxy(ProxyHandle handle);
+
+// Particle emitter registration
+void RegisterParticleEmitter(ParticleEmitterComponent emitter);
+void UnregisterParticleEmitter(ParticleEmitterComponent emitter);
 
 // Get camera proxy
 CameraProxy* GetMainCameraProxy();
@@ -270,18 +277,115 @@ entity.AddComponent(sprite);
 
 ### ParticleEmitterComponent
 
-Emits and renders particles.
+Emits and renders particles with full configuration support.
 
 ```beef
+// Create with default configuration
 let emitter = new ParticleEmitterComponent();
-emitter.EmissionRate = 100;
-emitter.ParticleLifetime = 2.0f;
-emitter.StartSize = 0.1f;
-emitter.EndSize = 0.0f;
-emitter.StartColor = Color.White;
-emitter.EndColor = Color(255, 255, 255, 0);
+emitter.Config.EmissionRate = 100;
+emitter.Config.Lifetime = .(1.0f, 2.0f);
+emitter.Config.InitialSpeed = .(2.0f, 5.0f);
+emitter.Config.InitialSize = .(0.1f, 0.3f);
+emitter.Config.SetConeEmission(30);  // 30 degree cone
+emitter.Config.Gravity = .(0, -9.81f, 0);
+emitter.Config.BlendMode = .Additive;
+emitter.Config.SetColorOverLifetime(.(255, 255, 100, 255), .(255, 50, 0, 0));
 entity.AddComponent(emitter);
+
+// Or use preset configurations
+let fire = new ParticleEmitterComponent();
+fire.ConfigureAsFire();
+entity.AddComponent(fire);
+
+// Available presets: ConfigureAsFire(), ConfigureAsSmoke(),
+// ConfigureAsSparks(), ConfigureAsMagicSparkle()
 ```
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `Config` | `ParticleEmitterConfig` | Full emitter configuration |
+| `Emitting` | `bool` | Whether actively emitting (default true) |
+| `Visible` | `bool` | Whether particles are visible (default true) |
+| `ParticleCount` | `int32` | Current active particle count |
+| `ParticleSystem` | `ParticleSystem` | Underlying particle system |
+| `ProxyHandle` | `ProxyHandle` | Render proxy handle |
+| `IsInitialized` | `bool` | Whether system is ready |
+
+#### Control Methods
+
+```beef
+// Emit a burst of particles
+emitter.Burst(50);
+
+// Clear all particles
+emitter.Clear();
+
+// Start/stop emission
+emitter.StartEmitting();
+emitter.StopEmitting();  // Existing particles continue
+
+// Stop and clear
+emitter.Stop();
+```
+
+#### Configuration Options
+
+The `Config` property provides access to all particle settings:
+
+**Emission:**
+- `EmissionRate` - Particles per second
+- `BurstCount` / `BurstInterval` - Burst emission
+- Emission shapes: `SetPointEmission()`, `SetConeEmission(angle)`, `SetSphereEmission(radius)`, `SetHemisphereEmission(radius)`, `SetBoxEmission(extents)`, `SetCircleEmission(radius)`, `SetEdgeEmission(length)`
+
+**Particle Properties:**
+- `Lifetime` - Min/max lifetime in seconds
+- `InitialSpeed`, `InitialSize`, `InitialRotation` - Randomized ranges
+- `StartColor`, `EndColor` - Color interpolation
+- `Gravity`, `Drag` - Physics
+
+**Rendering:**
+- `RenderMode` - Billboard, StretchedBillboard, HorizontalBillboard, VerticalBillboard, Trail
+- `BlendMode` - AlphaBlend, Additive, Multiply, Premultiplied
+- `SoftParticles` / `SoftParticleDistance` - Depth fade near surfaces
+- `SortParticles` - Back-to-front sorting for alpha
+
+**Curves:**
+- `SetSizeOverLifetime(startScale, endScale)`
+- `SetColorOverLifetime(startColor, endColor)`
+- Or use `ParticleCurve<T>` for complex animations
+
+**LOD:**
+- `EnableLOD` - Distance-based emission reduction
+- `LODStartDistance`, `LODEndDistance`, `LODMinEmissionRate`
+
+**Modules:**
+```beef
+// Add composable behaviors
+emitter.Config.AddModule(new TurbulenceModule(strength: 2.0f, frequency: 1.0f));
+emitter.Config.AddModule(new VortexModule(axis: .(0, 1, 0), strength: 5.0f));
+emitter.Config.AddModule(new AttractorModule(position: .(0, 5, 0), strength: 10.0f));
+emitter.Config.AddModule(new WindModule(direction: .(1, 0, 0), strength: 3.0f));
+```
+
+**Sub-Emitters:**
+```beef
+// Spawn child particles on events
+let explosionConfig = new ParticleEmitterConfig();
+explosionConfig.SetSphereEmission(0.1f);
+explosionConfig.BlendMode = .Additive;
+emitter.Config.AddOnDeathSubEmitter(explosionConfig, emitCount: 30);
+```
+
+**Trails:**
+```beef
+emitter.Config.RenderMode = .Trail;
+emitter.Config.TrailLength = 20;
+emitter.Config.TrailMinVertexDistance = 0.1f;
+emitter.Config.TrailWidthStart = 0.2f;
+emitter.Config.TrailWidthEnd = 0.0f;
+```
+
+See [Renderer Documentation](../Renderer.md#particle-system) for detailed particle system reference.
 
 ## DebugDrawService
 
@@ -351,7 +455,7 @@ Context.Update()
   ├── Scene.Update()
   │   └── RenderSceneComponent.Update()
   │       ├── Sync entity transforms → proxies
-  │       ├── Update particle systems
+  │       ├── Update particle systems (simulation + GPU upload)
   │       └── Prepare visibility data
   │
 RendererService.BeginFrame()
@@ -360,12 +464,13 @@ RendererService.BeginFrame()
   │
 RenderSceneComponent.Render() [via render graph]
   ├── Frustum culling (VisibilityResolver)
+  │   └── Cull particle emitters (with distance calculation)
   ├── Shadow pass (LightingSystem)
   ├── Main pass (RenderPipeline)
   │   ├── StaticMeshRenderer
   │   ├── SkinnedMeshRenderer
   │   ├── SpriteRenderer
-  │   └── ParticleRenderer
+  │   └── ParticleRenderer (sorted back-to-front, batched by blend mode)
   └── Post-process passes
   │
 DebugDrawService render pass
@@ -407,6 +512,7 @@ class MyGame
         CreateCamera();
         CreateLights();
         CreateMeshes();
+        CreateParticleEffect();
     }
 
     private void CreateCamera()
@@ -414,6 +520,32 @@ class MyGame
         let entity = mScene.CreateEntity("Camera");
         entity.Transform.Position = .(0, 5, 10);
         entity.AddComponent(new CameraComponent(Math.PI_f / 4, 0.1f, 1000f, isMain: true));
+    }
+
+    private void CreateParticleEffect()
+    {
+        // Fire effect using preset
+        let fireEntity = mScene.CreateEntity("Fire");
+        fireEntity.Transform.Position = .(0, 0, 0);
+        let fire = new ParticleEmitterComponent();
+        fire.ConfigureAsFire();
+        fireEntity.AddComponent(fire);
+
+        // Custom smoke effect
+        let smokeEntity = mScene.CreateEntity("Smoke");
+        smokeEntity.Transform.Position = .(0, 1, 0);
+        let smoke = new ParticleEmitterComponent();
+        smoke.Config.EmissionRate = 20;
+        smoke.Config.Lifetime = .(2.0f, 4.0f);
+        smoke.Config.InitialSize = .(0.3f, 0.5f);
+        smoke.Config.InitialSpeed = .(0.5f, 1.5f);
+        smoke.Config.SetConeEmission(15);
+        smoke.Config.Gravity = .(0, 0.5f, 0);  // Rise up
+        smoke.Config.BlendMode = .AlphaBlend;
+        smoke.Config.SoftParticles = true;
+        smoke.Config.SetColorOverLifetime(.(128, 128, 128, 200), .(64, 64, 64, 0));
+        smoke.Config.SetSizeOverLifetime(1.0f, 3.0f);
+        smokeEntity.AddComponent(smoke);
     }
 
     public void Update(float dt)
