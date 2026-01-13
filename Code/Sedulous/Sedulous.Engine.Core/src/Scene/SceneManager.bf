@@ -91,6 +91,19 @@ class SceneManager
 
 	/// Unloads a specific scene.
 	/// Services will be notified via OnSceneDestroyed before the scene is deleted.
+	///
+	/// TODO: The current lifecycle has a design issue:
+	///   - OnSceneDestroyed is called BEFORE the scene is deleted
+	///   - Services may delete resources (e.g., physics world) in OnSceneDestroyed
+	///   - But entity components are cleaned up DURING scene deletion (after OnSceneDestroyed)
+	///   - Entity components may try to access already-deleted service resources
+	///
+	/// A proper lifecycle should have distinct phases:
+	///   1. OnSceneWillUnload - Services prepare, can still access scene
+	///   2. Scene.Cleanup() - Entities and components are cleaned up
+	///   3. OnSceneDidUnload - Services delete resources safely
+	///
+	/// For now, services must handle this by invalidating references before deletion.
 	public void UnloadScene(Scene scene)
 	{
 		if (!mScenes.Contains(scene))
@@ -102,6 +115,8 @@ class SceneManager
 		scene.SetState(.Unloading);
 
 		// Notify services before destruction
+		// WARNING: Services should NOT delete resources here that entity components may still need.
+		// See TODO above for proper lifecycle design.
 		if (mContext != null)
 			mContext.[Friend]NotifyServicesSceneDestroyed(scene);
 
