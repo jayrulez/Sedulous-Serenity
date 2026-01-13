@@ -18,6 +18,9 @@ delegate void GameActionDelegate();
 /// Delegate for volume change events.
 delegate void VolumeChangeDelegate(float newVolume);
 
+/// Delegate for game speed change events.
+delegate void SpeedChangeDelegate(float speedMultiplier);
+
 /// Main game HUD for Tower Defense.
 /// Displays money, lives, wave info, tower selection, and game state overlays.
 class GameHUD
@@ -38,6 +41,10 @@ class GameHUD
 
 	// Action buttons
 	private Button mStartWaveButton;
+	private Button mSpeed1xButton;
+	private Button mSpeed2xButton;
+	private Button mSpeed3xButton;
+	private float mCurrentSpeed = 1.0f;
 
 	// Game state overlays
 	private Border mGameOverOverlay;
@@ -72,6 +79,7 @@ class GameHUD
 	private EventAccessor<GameActionDelegate> mOnUpgradeTower = new .() ~ delete _;
 	private EventAccessor<VolumeChangeDelegate> mOnMusicVolumeChanged = new .() ~ delete _;
 	private EventAccessor<VolumeChangeDelegate> mOnSFXVolumeChanged = new .() ~ delete _;
+	private EventAccessor<SpeedChangeDelegate> mOnSpeedChanged = new .() ~ delete _;
 
 	public EventAccessor<TowerSelectedDelegate> OnTowerSelected => mOnTowerSelected;
 	public EventAccessor<GameActionDelegate> OnStartWave => mOnStartWave;
@@ -81,6 +89,7 @@ class GameHUD
 	public EventAccessor<GameActionDelegate> OnUpgradeTower => mOnUpgradeTower;
 	public EventAccessor<VolumeChangeDelegate> OnMusicVolumeChanged => mOnMusicVolumeChanged;
 	public EventAccessor<VolumeChangeDelegate> OnSFXVolumeChanged => mOnSFXVolumeChanged;
+	public EventAccessor<SpeedChangeDelegate> OnSpeedChanged => mOnSpeedChanged;
 
 	/// Gets the root UI element.
 	public UIElement RootElement => mRoot;
@@ -192,6 +201,41 @@ class GameHUD
 				mOnStartWave.[Friend]Invoke();
 			});
 			topBarContent.AddChild(mStartWaveButton);
+		}
+
+		// Speed control buttons
+		{
+			let speedPanel = new StackPanel();
+			speedPanel.Orientation = .Horizontal;
+			speedPanel.Spacing = 4;
+			speedPanel.Margin = Thickness(20, 0, 0, 0);
+
+			mSpeed1xButton = new Button();
+			mSpeed1xButton.ContentText = "1x";
+			mSpeed1xButton.Width = 40;
+			mSpeed1xButton.Padding = Thickness(8, 6, 8, 6);
+			mSpeed1xButton.Background = Color(80, 80, 80);
+			mSpeed1xButton.BorderThickness = Thickness(2);  // Selected by default
+			mSpeed1xButton.Click.Subscribe(new (btn) => { SetSpeed(1.0f); });
+			speedPanel.AddChild(mSpeed1xButton);
+
+			mSpeed2xButton = new Button();
+			mSpeed2xButton.ContentText = "2x";
+			mSpeed2xButton.Width = 40;
+			mSpeed2xButton.Padding = Thickness(8, 6, 8, 6);
+			mSpeed2xButton.Background = Color(80, 80, 80);
+			mSpeed2xButton.Click.Subscribe(new (btn) => { SetSpeed(2.0f); });
+			speedPanel.AddChild(mSpeed2xButton);
+
+			mSpeed3xButton = new Button();
+			mSpeed3xButton.ContentText = "3x";
+			mSpeed3xButton.Width = 40;
+			mSpeed3xButton.Padding = Thickness(8, 6, 8, 6);
+			mSpeed3xButton.Background = Color(80, 80, 80);
+			mSpeed3xButton.Click.Subscribe(new (btn) => { SetSpeed(3.0f); });
+			speedPanel.AddChild(mSpeed3xButton);
+
+			topBarContent.AddChild(speedPanel);
 		}
 
 		mHudPanel.AddChild(topBar);
@@ -708,5 +752,24 @@ class GameHUD
 		mMusicVolume = musicVolume;
 		mSFXVolume = sfxVolume;
 		UpdateVolumeLabels();
+	}
+
+	/// Sets the game speed and updates button visuals.
+	private void SetSpeed(float speed)
+	{
+		mCurrentSpeed = speed;
+
+		// Update button visuals (border indicates selection)
+		mSpeed1xButton.BorderThickness = (speed == 1.0f) ? Thickness(2) : Thickness(0);
+		mSpeed2xButton.BorderThickness = (speed == 2.0f) ? Thickness(2) : Thickness(0);
+		mSpeed3xButton.BorderThickness = (speed == 3.0f) ? Thickness(2) : Thickness(0);
+
+		mOnSpeedChanged.[Friend]Invoke(speed);
+	}
+
+	/// Resets speed to 1x (used when restarting game).
+	public void ResetSpeed()
+	{
+		SetSpeed(1.0f);
 	}
 }

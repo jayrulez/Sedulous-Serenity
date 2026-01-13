@@ -98,6 +98,7 @@ class TowerDefenseGame : RHISampleApp
 	private int32 mMoney = 200;
 	private int32 mLives = 20;
 	private int32 mEnemiesKilled = 0;
+	private float mGameSpeed = 1.0f;  // Game speed multiplier (1x, 2x, 3x)
 
 	// Entities
 	private Entity mCameraEntity;
@@ -454,6 +455,10 @@ class TowerDefenseGame : RHISampleApp
 		});
 		mGameHUD.OnSFXVolumeChanged.Subscribe(new (volume) => {
 			mGameAudio?.SetSFXVolume(volume);
+		});
+		mGameHUD.OnSpeedChanged.Subscribe(new (speed) => {
+			mGameSpeed = speed;
+			Console.WriteLine($"Game speed: {speed}x");
 		});
 
 		// Sync initial volume values to HUD
@@ -946,6 +951,7 @@ class TowerDefenseGame : RHISampleApp
 		mEnemiesKilled = 0;
 		mSelectedTowerType = 0;
 		mSelectedPlacedTower = null;  // Clear stale reference before towers are deleted
+		mGameSpeed = 1.0f;  // Reset speed to 1x
 
 		// Hide tower preview
 		HideTowerPreview();
@@ -953,6 +959,7 @@ class TowerDefenseGame : RHISampleApp
 		// Reset UI
 		mGameHUD?.HideOverlays();
 		mGameHUD?.ClearSelection();
+		mGameHUD?.ResetSpeed();
 	}
 
 	private void RestartGame()
@@ -1205,8 +1212,11 @@ class TowerDefenseGame : RHISampleApp
 
 	protected override void OnUpdate(float deltaTime, float totalTime)
 	{
+		// Apply game speed multiplier
+		let scaledDelta = deltaTime * mGameSpeed;
+
 		// When paused, use zero delta time so components don't update movement/cooldowns
-		let effectiveDelta = (mGameState == .Paused) ? 0.0f : deltaTime;
+		let effectiveDelta = (mGameState == .Paused) ? 0.0f : scaledDelta;
 
 		// Skip game logic updates when in main menu or paused
 		if (mGameState != .MainMenu && mGameState != .Paused)
@@ -1214,11 +1224,11 @@ class TowerDefenseGame : RHISampleApp
 			// Update wave spawner during active wave
 			if (mGameState == .WaveInProgress)
 			{
-				mWaveSpawner.Update(deltaTime);
+				mWaveSpawner.Update(scaledDelta);
 			}
 
 			// Update tower system (targeting, firing, projectiles)
-			mTowerFactory.Update(deltaTime);
+			mTowerFactory.Update(scaledDelta);
 		}
 
 		// Update engine context (handles entity sync, visibility culling, etc.)
