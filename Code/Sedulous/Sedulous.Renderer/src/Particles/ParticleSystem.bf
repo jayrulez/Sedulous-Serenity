@@ -53,6 +53,7 @@ class ParticleSystem
 	private Vector3 mEmitterVelocity; // For velocity inheritance
 	private float mEmissionAccumulator = 0;
 	private float mBurstAccumulator = 0;
+	private float mTotalTime = 0; // For time-based effects (turbulence, etc.)
 	private int32 mMaxParticles;
 	private Random mRandom = new .() ~ delete _;
 	private bool mEmitting = true;
@@ -161,6 +162,8 @@ class ParticleSystem
 		if (mConfig == null)
 			return;
 
+		mTotalTime += deltaTime;
+
 		// Update existing particles
 		UpdateParticles(deltaTime);
 
@@ -203,6 +206,22 @@ class ParticleSystem
 					Vector3 dir = p.Velocity / currentSpeed;
 					float startSpeed = p.StartVelocity.Length();
 					p.Velocity = dir * (startSpeed * speedMult);
+				}
+			}
+
+			// Execute particle modules (turbulence, vortex, attractors, etc.)
+			if (mConfig.Modules != null)
+			{
+				for (let module in mConfig.Modules)
+				{
+					module.OnParticleUpdate(ref p, deltaTime, mConfig, mTotalTime);
+				}
+
+				// Check if module killed the particle
+				if (p.Life <= 0)
+				{
+					mParticles.RemoveAtFast(i);
+					continue;
 				}
 			}
 
@@ -329,6 +348,15 @@ class ParticleSystem
 		int32 totalFrames = mConfig.TextureSheetRows * mConfig.TextureSheetColumns;
 		p.TotalFrames = (uint16)totalFrames;
 		p.TextureFrame = (uint16)mConfig.StartFrame;
+
+		// Call module spawn callbacks
+		if (mConfig.Modules != null)
+		{
+			for (let module in mConfig.Modules)
+			{
+				module.OnParticleSpawn(ref p, mConfig, mRandom);
+			}
+		}
 
 		mParticles.Add(p);
 	}

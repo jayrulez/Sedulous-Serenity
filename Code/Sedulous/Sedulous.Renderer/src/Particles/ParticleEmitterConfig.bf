@@ -1,6 +1,7 @@
 namespace Sedulous.Renderer;
 
 using System;
+using System.Collections;
 using Sedulous.Mathematics;
 using Sedulous.RHI;
 
@@ -162,6 +163,12 @@ class ParticleEmitterConfig
 	/// Whether particles simulate in world space (true) or local space (false).
 	public bool WorldSpace = true;
 
+	// ==================== Modules ====================
+
+	/// Particle behavior modules (turbulence, vortex, attractors, etc.).
+	/// Modules are executed in order during particle update.
+	public List<IParticleModule> Modules ~ DeleteContainerAndItems!(_);
+
 	// ==================== Methods ====================
 
 	/// Creates a default config.
@@ -224,6 +231,40 @@ class ParticleEmitterConfig
 		TrailMinVertexDistance = minDistance;
 	}
 
+	/// Adds a particle behavior module.
+	public void AddModule(IParticleModule module)
+	{
+		if (Modules == null)
+			Modules = new .();
+		Modules.Add(module);
+	}
+
+	/// Adds turbulence effect.
+	public void AddTurbulence(float strength = 1.0f, float frequency = 1.0f)
+	{
+		AddModule(new TurbulenceModule(strength, frequency));
+	}
+
+	/// Adds a vortex effect.
+	public void AddVortex(float strength = 2.0f, Vector3 axis = default)
+	{
+		AddModule(new VortexModule(strength, axis));
+	}
+
+	/// Adds wind effect.
+	public void AddWind(Vector3 direction, float turbulence = 0)
+	{
+		let wind = new WindModule(direction);
+		wind.Turbulence = turbulence;
+		AddModule(wind);
+	}
+
+	/// Adds an attractor point.
+	public void AddAttractor(Vector3 position, float strength = 5.0f)
+	{
+		AddModule(new AttractorModule(position, strength));
+	}
+
 	/// Configures emission from a sphere.
 	public void SetSphereEmission(float radius, bool surface = false)
 	{
@@ -255,7 +296,8 @@ class ParticleEmitterConfig
 		config.SetConeEmission(15);
 		config.BlendMode = .Additive;
 		config.Gravity = .(0, 2, 0); // Rise up
-		config.SetColorOverLifetime(.(255, 200, 50, 255), .(200, 50, 0, 0));
+		// End nearly invisible to avoid pop when particle dies
+		config.SetColorOverLifetime(.(255, 200, 50, 255), .(200, 50, 0, 2));
 		config.SetSizeOverLifetime(1.0f, 2.0f);
 		return config;
 	}
@@ -272,10 +314,11 @@ class ParticleEmitterConfig
 		config.BlendMode = .AlphaBlend;
 		config.Gravity = .(0, 0.5f, 0); // Slow rise
 		config.Drag = 0.5f;
-		config.SetColorOverLifetime(.(128, 128, 128, 200), .(64, 64, 64, 0));
+		config.SetColorOverLifetime(.(128, 128, 128, 200), .(64, 64, 64, 2));
 		config.SetSizeOverLifetime(1.0f, 4.0f);
 		config.SoftParticles = true;
 		config.SortParticles = true;
+		config.AddTurbulence(1.5f, 0.5f);
 		return config;
 	}
 
@@ -291,7 +334,7 @@ class ParticleEmitterConfig
 		config.BlendMode = .Additive;
 		config.SetStretchedBillboard(2.0f, 0.5f);
 		config.Gravity = .(0, -9.81f, 0);
-		config.SetColorOverLifetime(.(255, 255, 200, 255), .(255, 100, 0, 0));
+		config.SetColorOverLifetime(.(255, 255, 200, 255), .(255, 100, 0, 2));
 		return config;
 	}
 
@@ -306,7 +349,7 @@ class ParticleEmitterConfig
 		config.SetSphereEmission(0.5f);
 		config.BlendMode = .Additive;
 		config.Gravity = .(0, 0.5f, 0); // Gentle float up
-		config.SetColorOverLifetime(.(100, 200, 255, 255), .(200, 100, 255, 0));
+		config.SetColorOverLifetime(.(100, 200, 255, 255), .(200, 100, 255, 2));
 		config.SetSizeOverLifetime(1.0f, 0.0f); // Shrink to nothing
 		return config;
 	}

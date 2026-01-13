@@ -46,9 +46,6 @@ float4 main(PSInput input) : SV_Target
         finalColor.a *= alpha;
     }
 
-    // Discard nearly transparent pixels
-    if (finalColor.a < 0.02)
-        discard;
-
+    // Let alpha blending handle transparency (no discard)
     return finalColor;
 }

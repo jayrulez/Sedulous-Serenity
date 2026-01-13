@@ -363,9 +363,19 @@ class RendererIntegratedSample : RHISampleApp
 			let fireEntity = mScene.CreateEntity("FirePit");
 			fireEntity.Transform.SetPosition(pos);
 
-			let config = ParticleEmitterConfig.CreateFire();
+			let config = new ParticleEmitterConfig();
 			config.EmissionRate = 80;
+			config.Lifetime = .(0.4f, 1.0f);
+			config.InitialSpeed = .(2, 4);
+			config.InitialSize = .(0.3f, 0.5f);
 			config.MaxParticles = 500;
+			config.SetConeEmission(15);
+			config.BlendMode = .Additive;
+			config.Gravity = .(0, 2, 0);
+			config.StartColor = .(.(255, 200, 50, 255));
+			config.EndColor = .(.(200, 50, 0, 2));  // Nearly invisible at death
+			config.SetSizeOverLifetime(1.0f, 1.5f);
+			// No turbulence - just clean fire
 
 			let emitter = new ParticleEmitterComponent(config);
 			fireEntity.AddComponent(emitter);
@@ -400,15 +410,18 @@ class RendererIntegratedSample : RHISampleApp
 		}
 
 		// ==================== SMOKE EFFECT ====================
-		// Smoke rising from fire pit
+		// Smoke rising above the fire - separated to avoid overlap
 		{
-			let pos = Vector3(0, 1.5f, -15);
+			let pos = Vector3(0, 1.8f, -15);  // Higher up, above where fire dies
 			let smokeEntity = mScene.CreateEntity("Smoke");
 			smokeEntity.Transform.SetPosition(pos);
 
 			let config = ParticleEmitterConfig.CreateSmoke();
-			config.EmissionRate = 8;
-			config.MaxParticles = 100;
+			config.EmissionRate = 12;
+			config.MaxParticles = 150;
+			config.InitialSize = .(0.6f, 1.0f);
+			config.Lifetime = .(2.5f, 4.0f);
+			config.AddWind(.(0.3f, 0, 0.2f), 0.2f);
 
 			let emitter = new ParticleEmitterComponent(config);
 			smokeEntity.AddComponent(emitter);
@@ -417,17 +430,21 @@ class RendererIntegratedSample : RHISampleApp
 		}
 
 		// ==================== MAGIC SPARKLE EFFECTS ====================
-		// Magical orb floating near the fox
+		// Magical orb floating near the fox - with swirling vortex
 		{
 			let pos = Vector3(12, 2.5f, 0);
 			let magicEntity = mScene.CreateEntity("MagicOrb");
 			magicEntity.Transform.SetPosition(pos);
 
 			let config = ParticleEmitterConfig.CreateMagicSparkle();
-			config.EmissionRate = 40;
-			config.MaxParticles = 200;
+			config.EmissionRate = 50;
+			config.MaxParticles = 250;
+			config.SetSphereEmission(0.8f);
 			// Blue-purple magic
 			config.SetColorOverLifetime(.(100, 150, 255, 255), .(200, 50, 255, 0));
+			// Add swirling vortex effect
+			config.AddVortex(3.0f, .(0, 1, 0));
+			config.AddTurbulence(0.5f, 2.0f);
 
 			let emitter = new ParticleEmitterComponent(config);
 			magicEntity.AddComponent(emitter);
@@ -435,19 +452,23 @@ class RendererIntegratedSample : RHISampleApp
 			RegisterEffect(pos, .(150, 100, 255, 255), "MAGIC ORB");
 		}
 
-		// Green healing magic
+		// Green healing magic - particles spiral inward
 		{
 			let pos = Vector3(-10, 0.5f, 8);
 			let healEntity = mScene.CreateEntity("HealingMagic");
 			healEntity.Transform.SetPosition(pos);
 
 			let config = ParticleEmitterConfig.CreateMagicSparkle();
-			config.EmissionRate = 25;
-			config.MaxParticles = 150;
-			config.SetSphereEmission(1.0f);
-			config.Gravity = .(0, 1.5f, 0);
+			config.EmissionRate = 30;
+			config.MaxParticles = 180;
+			config.SetSphereEmission(2.5f);  // Larger emission sphere
+			config.Gravity = .(0, 0.5f, 0);
+			config.Lifetime = .(1.5f, 3.0f);
 			// Green healing colors
 			config.SetColorOverLifetime(.(50, 255, 100, 255), .(100, 255, 150, 0));
+			// Particles spiral inward toward center
+			config.AddAttractor(.(0, 1.0f, 0), 2.0f);
+			config.AddVortex(2.0f, .(0, 1, 0));
 
 			let emitter = new ParticleEmitterComponent(config);
 			healEntity.AddComponent(emitter);
@@ -500,18 +521,18 @@ class RendererIntegratedSample : RHISampleApp
 		}
 
 		// ==================== SNOW/ASH EFFECT ====================
-		// Gentle falling particles over part of the scene
+		// Gentle falling particles with wind gusts
 		{
 			let pos = Vector3(8, 8, 10);  // Label at lower height for visibility
 			let snowEntity = mScene.CreateEntity("Snow");
 			snowEntity.Transform.SetPosition(.(8, 12, 10));
 
 			let config = new ParticleEmitterConfig();
-			config.EmissionRate = 30;
+			config.EmissionRate = 35;
 			config.Lifetime = .(4.0f, 6.0f);
 			config.InitialSpeed = .(0.2f, 0.8f);
 			config.InitialSize = .(0.05f, 0.12f);
-			config.MaxParticles = 300;
+			config.MaxParticles = 350;
 			config.SetBoxEmission(.(8, 0.5f, 8), false);
 			config.BlendMode = .AlphaBlend;
 			config.Gravity = .(0, -1.0f, 0);
@@ -520,6 +541,8 @@ class RendererIntegratedSample : RHISampleApp
 			config.StartColor = .(.(255, 255, 255, 200));
 			config.EndColor = .(.(200, 200, 220, 0));
 			config.InitialRotationSpeed = .(-1.0f, 1.0f);
+			// Wind with gusts
+			config.AddWind(.(1.5f, 0, 0.5f), 0.8f);
 
 			let emitter = new ParticleEmitterComponent(config);
 			snowEntity.AddComponent(emitter);
@@ -528,27 +551,30 @@ class RendererIntegratedSample : RHISampleApp
 		}
 
 		// ==================== FAIRY DUST / FIREFLIES ====================
-		// Floating glowing particles
+		// Floating glowing particles with lazy orbiting
 		{
 			let pos = Vector3(-8, 1.5f, 12);
 			let fairyEntity = mScene.CreateEntity("FairyDust");
 			fairyEntity.Transform.SetPosition(pos);
 
 			let config = new ParticleEmitterConfig();
-			config.EmissionRate = 15;
-			config.Lifetime = .(2.0f, 4.0f);
-			config.InitialSpeed = .(0.3f, 1.0f);
+			config.EmissionRate = 20;
+			config.Lifetime = .(3.0f, 5.0f);
+			config.InitialSpeed = .(0.2f, 0.6f);
 			config.InitialSize = .(0.08f, 0.15f);
-			config.MaxParticles = 100;
-			config.SetSphereEmission(2.0f);
+			config.MaxParticles = 120;
+			config.SetSphereEmission(2.5f);
 			config.BlendMode = .Additive;
-			config.Gravity = .(0, 0.2f, 0);
-			config.Drag = 0.8f;
+			config.Gravity = .(0, 0.1f, 0);
+			config.Drag = 0.5f;
 			// Golden yellow glow
 			config.StartColor = .(.(255, 220, 100, 255));
 			config.EndColor = .(.(255, 180, 50, 0));
 			config.SetSizeOverLifetime(0.5f, 1.5f);
 			config.SetAlphaOverLifetime(1.0f, 0.0f);
+			// Gentle orbiting and wandering
+			config.AddVortex(0.8f, .(0, 1, 0));
+			config.AddTurbulence(0.3f, 0.5f);
 
 			let emitter = new ParticleEmitterComponent(config);
 			fairyEntity.AddComponent(emitter);
@@ -557,18 +583,18 @@ class RendererIntegratedSample : RHISampleApp
 		}
 
 		// ==================== STEAM/MIST RISING ====================
-		// Steam vent effect
+		// Steam vent effect with billowing turbulence
 		{
 			let pos = Vector3(0, 0.1f, 10);
 			let steamEntity = mScene.CreateEntity("Steam");
 			steamEntity.Transform.SetPosition(pos);
 
 			let config = new ParticleEmitterConfig();
-			config.EmissionRate = 20;
+			config.EmissionRate = 25;
 			config.Lifetime = .(2.0f, 3.5f);
 			config.InitialSpeed = .(2.0f, 4.0f);
 			config.InitialSize = .(0.3f, 0.6f);
-			config.MaxParticles = 150;
+			config.MaxParticles = 180;
 			config.SetConeEmission(20);
 			config.BlendMode = .AlphaBlend;
 			config.Gravity = .(0, 1.5f, 0);
@@ -577,6 +603,7 @@ class RendererIntegratedSample : RHISampleApp
 			config.StartColor = .(.(240, 240, 255, 180));
 			config.EndColor = .(.(200, 200, 220, 0));
 			config.SetSizeOverLifetime(1.0f, 3.0f);
+			config.AddTurbulence(1.2f, 0.8f);
 
 			let emitter = new ParticleEmitterComponent(config);
 			steamEntity.AddComponent(emitter);
