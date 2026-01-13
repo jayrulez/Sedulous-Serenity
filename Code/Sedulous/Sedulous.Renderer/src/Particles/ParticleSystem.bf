@@ -157,6 +157,13 @@ class ParticleSystem
 
 	public ~this()
 	{
+		// Wait for GPU to finish using buffers before deleting them
+		// This prevents Vulkan validation errors when particle systems are destroyed
+		// while their buffers are still referenced by in-flight command buffers.
+		// TODO: Replace with proper deferred deletion queue for better performance.
+		if (mVertexBuffer != null || mIndexBuffer != null)
+			mDevice.WaitIdle();
+
 		if (mVertexBuffer != null) delete mVertexBuffer;
 		if (mIndexBuffer != null) delete mIndexBuffer;
 	}
