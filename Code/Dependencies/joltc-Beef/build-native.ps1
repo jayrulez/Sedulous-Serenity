@@ -1,86 +1,116 @@
 $option = $args[0]
+
+function PrintHelp()
+{
+    echo "Arguments:"
+    echo "make [DEBUG|RELEASE|ALL]... configure cmake"
+    echo "build [DEBUG|RELEASE|ALL]... build libraries"
+    echo "clean... remove build directories"
+}
+
 if(!$option -or $option -eq "help")
 {
-	echo "Arguments:"
-	echo "make... runs cmake"
-	echo "clean... deletes the build-directory"
-	echo "build [DEBUG|RELEASE|ALL]... builds the debug or release library"
+    PrintHelp
 }
-elseif(($option -eq "make") -or (!$option))
+elseif($option -eq "make")
 {
-    if(!(Test-Path build))
+    $target = $args[1]
+    if(!$target) { $target = "ALL" }
+
+    if($target -eq "DEBUG" -or $target -eq "ALL")
     {
-		mkdir build
+        echo "Configuring Debug (/MTd)..."
+
+        if(!(Test-Path build-debug))
+        {
+            mkdir build-debug
+        }
+
+        cmake -S ./joltc -B build-debug
     }
-    cd build
-    cmake ../
-    cd ..
-}
-elseif($option -eq "clean")
-{
-    if(Test-Path build)
+
+    if($target -eq "RELEASE" -or $target -eq "ALL")
     {
-        echo "Removing old build directory..."
-        rm -Recurse build
-    }
-    else
-    {
-        echo "Already clean."
+        echo "Configuring Release (/MT)..."
+
+        if(!(Test-Path build-release))
+        {
+            mkdir build-release
+        }
+
+        cmake -S ./joltc -B build-release
+
     }
 }
 elseif($option -eq "build")
 {
-	if(!(Test-Path build))
+    $target = $args[1]
+    if(!$target)
     {
-        echo "Build directory doesn't exist."
+        echo "Build targets: DEBUG or RELEASE or ALL"
+        return
     }
-    else
+
+    if($target -eq "DEBUG" -or $target -eq "ALL")
     {
-		if(!$args[1] -or $args[1] -eq "help")
-		{
-			echo "Build targets: DEBUG or RELEASE"
-		}
-		
-		[bool] $built = $false
-		
-        if($args[1] -eq "DEBUG" -or $args[1] -eq "ALL")
+        if(!(Test-Path build-debug))
         {
-            echo "Building debug..."
-            cmake --build build --config Debug
-            echo "Finished build."
-            echo "Copying library..."
+            echo "Debug build directory missing. Run 'make DEBUG' first."
+        }
+        else
+        {
+            echo "Building Debug..."
+            cmake --build build-debug --config Debug
 
             $targetPath = "./dist/Debug-Win64/"
             if(!(Test-Path $targetPath))
             {
-		        mkdir $targetPath
+                mkdir $targetPath
             }
-			copy-item "./build/lib/Debug/joltcd.lib" ($targetPath + "joltcd.lib") -Force
-			copy-item "./build/joltc/Debug/joltcd.pdb" ($targetPath + "joltcd.pdb") -Force
-			copy-item "./build/lib/Debug/Joltd.lib" ($targetPath + "Joltd.lib") -Force
-			$built = $true
+
+            copy-item "./build-debug/lib/Debug/joltcd.lib" "$targetPath/joltcd.lib" -Force
+            copy-item "./build-debug/lib/Debug/joltd.lib"  "$targetPath/joltd.lib"  -Force
+            copy-item "./build-debug/bin/Debug/joltcd.dll"  "$targetPath/joltcd.dll"  -Force
+            copy-item "./build-debug/bin/Debug/joltcd.pdb"  "$targetPath/joltcd.pdb"  -Force
         }
-        
-		if($args[1] -eq "RELEASE" -or $args[1] -eq "ALL")
+    }
+
+    if($target -eq "RELEASE" -or $target -eq "ALL")
+    {
+        if(!(Test-Path build-release))
         {
-            echo "Building release..."
-            cmake --build build --config Release
-            echo "Finished build."
-            echo "Copying library..."
+            echo "Release build directory missing. Run 'make RELEASE' first."
+        }
+        else
+        {
+            echo "Building Release..."
+            cmake --build build-release --config Release
 
             $targetPath = "./dist/Release-Win64/"
             if(!(Test-Path $targetPath))
             {
-		        mkdir $targetPath
+                mkdir $targetPath
             }
-			copy-item "./build/lib/Release/joltc.lib" ($targetPath + "joltc.lib") -Force
-			copy-item "./build/lib/Release/Jolt.lib" ($targetPath + "Jolt.lib") -Force
-			$built = $true
+
+            copy-item "./build-release/lib/Release/joltc.lib" "$targetPath/joltc.lib" -Force
+            copy-item "./build-release/lib/Release/jolt.lib"  "$targetPath/jolt.lib"  -Force
+            copy-item "./build-release/bin/Release/joltc.dll"  "$targetPath/joltc.dll"  -Force
         }
-		
-		if($built -eq $false)
-		{
-			echo "No build attempted."
-		}
     }
+}
+elseif($option -eq "clean")
+{
+    if(Test-Path build-debug)
+    {
+        echo "Removing build-debug..."
+        rm -Recurse -Force build-debug
+    }
+
+    if(Test-Path build-release)
+    {
+        echo "Removing build-release..."
+        rm -Recurse -Force build-release
+    }
+
+    echo "Clean complete."
 }
