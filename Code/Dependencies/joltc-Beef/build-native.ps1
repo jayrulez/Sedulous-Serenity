@@ -49,14 +49,15 @@ elseif($option -eq "build")
             cmake --build build --config Debug
             echo "Finished build."
             echo "Copying library..."
-			
+
             $targetPath = "./dist/Debug-Win64/"
             if(!(Test-Path $targetPath))
             {
 		        mkdir $targetPath
             }
-			copy-item "./build/joltc/Debug/joltcd.lib" ($targetPath + "joltcd.lib") -Force
+			copy-item "./build/lib/Debug/joltcd.lib" ($targetPath + "joltcd.lib") -Force
 			copy-item "./build/joltc/Debug/joltcd.pdb" ($targetPath + "joltcd.pdb") -Force
+			copy-item "./build/lib/Debug/Joltd.lib" ($targetPath + "Joltd.lib") -Force
 			$built = $true
         }
         
@@ -66,13 +67,14 @@ elseif($option -eq "build")
             cmake --build build --config Release
             echo "Finished build."
             echo "Copying library..."
-			
+
             $targetPath = "./dist/Release-Win64/"
             if(!(Test-Path $targetPath))
             {
 		        mkdir $targetPath
             }
-			copy-item "./build/joltc/Release/joltc.lib" ($targetPath + "joltc.lib") -Force
+			copy-item "./build/lib/Release/joltc.lib" ($targetPath + "joltc.lib") -Force
+			copy-item "./build/lib/Release/Jolt.lib" ($targetPath + "Jolt.lib") -Force
 			$built = $true
         }
 		

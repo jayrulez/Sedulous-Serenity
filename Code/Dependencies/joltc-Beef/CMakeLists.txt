@@ -1,17 +1,17 @@
-#cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.16)
 
-#project(joltc)
+# Enable new MSVC runtime library handling
+cmake_policy(SET CMP0091 NEW)
 
-#add_library(joltc_static STATIC joltc_stub.c)
+# Set static runtime library for both Debug (/MTd) and Release (/MT)
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>" CACHE STRING "MSVC Runtime Library" FORCE)
 
-#set_property(TARGET joltc_static PROPERTY
-#    MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+# Force JPH_MASTER_PROJECT=ON so that the static runtime library setting is applied
+set(JPH_MASTER_PROJECT ON CACHE BOOL "Build as master project" FORCE)
 
-#set_source_files_properties(joltc_stub.c PROPERTIES LANGUAGE C)
-
-#set(CMAKE_C_STANDARD 11)
-#set(CMAKE_BUILD_TYPE RelWithDebInfo)
-
-#set_target_properties(joltc_static PROPERTIES OUTPUT_NAME joltc)
+# Build static library, disable samples and install
+set(JPH_BUILD_SHARED OFF CACHE BOOL "Build shared library" FORCE)
+set(JPH_SAMPLES OFF CACHE BOOL "Build samples" FORCE)
+set(JPH_INSTALL OFF CACHE BOOL "Install target" FORCE)
 
 add_subdirectory(joltc)
