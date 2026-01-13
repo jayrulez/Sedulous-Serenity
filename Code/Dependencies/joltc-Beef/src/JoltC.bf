@@ -426,42 +426,42 @@ enum JPH_TransmissionMode : int32
 
 [CRepr] struct JPH_Vec3
 {
-	float x;
-	float y;
-	float z;
+	public float x;
+	public float y;
+	public float z;
 }
 
 [CRepr] struct JPH_Vec4
 {
-	float x;
-	float y;
-	float z;
-	float w;
+	public float x;
+	public float y;
+	public float z;
+	public float w;
 }
 
 [CRepr] struct JPH_Quat
 {
-	float x;
-	float y;
-	float z;
-	float w;
+	public float x;
+	public float y;
+	public float z;
+	public float w;
 }
 
 [CRepr] struct JPH_Plane
 {
-	JPH_Vec3 normal;
-	float distance;
+	public JPH_Vec3 normal;
+	public float distance;
 }
 
 [CRepr] struct JPH_Mat4
 {
-	JPH_Vec4[4] column;
+	public JPH_Vec4[4] column;
 }
 
 [CRepr] struct JPH_Point
 {
-	float x;
-	float y;
+	public float x;
+	public float y;
 }
 
 //#if defined(JPH_DOUBLE_PRECISION)
@@ -484,147 +484,147 @@ typealias JPH_Color = uint32;
 
 [CRepr] struct JPH_AABox
 {
-	JPH_Vec3 min;
-	JPH_Vec3 max;
+	public JPH_Vec3 min;
+	public JPH_Vec3 max;
 }
 
 [CRepr] struct JPH_Triangle
 {
-	JPH_Vec3 v1;
-	JPH_Vec3 v2;
-	JPH_Vec3 v3;
-	uint32 materialIndex;
+	public JPH_Vec3 v1;
+	public JPH_Vec3 v2;
+	public JPH_Vec3 v3;
+	public uint32 materialIndex;
 }
 
 [CRepr] struct JPH_IndexedTriangleNoMaterial
 {
-	uint32 i1;
-	uint32 i2;
-	uint32 i3;
+	public uint32 i1;
+	public uint32 i2;
+	public uint32 i3;
 }
 
 [CRepr] struct JPH_IndexedTriangle
 {
-	uint32 i1;
-	uint32 i2;
-	uint32 i3;
-	uint32 materialIndex;
-	uint32 userData;
+	public uint32 i1;
+	public uint32 i2;
+	public uint32 i3;
+	public uint32 materialIndex;
+	public uint32 userData;
 }
 
 [CRepr] struct JPH_MassProperties
 {
-	float mass;
-	JPH_Mat4 inertia;
+	public float mass;
+	public JPH_Mat4 inertia;
 }
 
 [CRepr] struct JPH_ContactSettings
 {
-	float					combinedFriction;
-	float					combinedRestitution;
-	float					invMassScale1;
-	float					invInertiaScale1;
-	float					invMassScale2;
-	float					invInertiaScale2;
-	JPH_Bool				isSensor;
-	JPH_Vec3				relativeLinearSurfaceVelocity;
-	JPH_Vec3				relativeAngularSurfaceVelocity;
+	public float					combinedFriction;
+	public float					combinedRestitution;
+	public float					invMassScale1;
+	public float					invInertiaScale1;
+	public float					invMassScale2;
+	public float					invInertiaScale2;
+	public JPH_Bool				isSensor;
+	public JPH_Vec3				relativeLinearSurfaceVelocity;
+	public JPH_Vec3				relativeAngularSurfaceVelocity;
 }
 
 [CRepr] struct JPH_CollideSettingsBase
 {
 	/// How active edges (edges that a moving object should bump into) are handled
-	JPH_ActiveEdgeMode			activeEdgeMode /* = JPH_ActiveEdgeMode_CollideOnlyWithActive*/;
+	public JPH_ActiveEdgeMode			activeEdgeMode /* = JPH_ActiveEdgeMode_CollideOnlyWithActive*/;
 
 	/// If colliding faces should be collected or only the collision point
-	JPH_CollectFacesMode		collectFacesMode /* = JPH_CollectFacesMode_NoFaces*/;
+	public JPH_CollectFacesMode		collectFacesMode /* = JPH_CollectFacesMode_NoFaces*/;
 
 	/// If objects are closer than this distance, they are considered to be colliding (used for GJK) (unit: meter)
-	float						collisionTolerance /* = JPH_DEFAULT_COLLISION_TOLERANCE*/;
+	public float						collisionTolerance /* = JPH_DEFAULT_COLLISION_TOLERANCE*/;
 
 	/// A factor that determines the accuracy of the penetration depth calculation. If the change of the squared distance is less than tolerance * current_penetration_depth^2 the algorithm will terminate. (unit: dimensionless)
-	float						penetrationTolerance /* = JPH_DEFAULT_PENETRATION_TOLERANCE*/;
+	public float						penetrationTolerance /* = JPH_DEFAULT_PENETRATION_TOLERANCE*/;
 
 	/// When mActiveEdgeMode is CollideOnlyWithActive a movement direction can be provided. When hitting an inactive edge, the system will select the triangle normal as penetration depth only if it impedes the movement less than with the calculated penetration depth.
-	JPH_Vec3					activeEdgeMovementDirection /* = Vec3::sZero()*/;
+	public JPH_Vec3					activeEdgeMovementDirection /* = Vec3::sZero()*/;
 }
 
 /* CollideShapeSettings */
 [CRepr] struct JPH_CollideShapeSettings
 {
-	JPH_CollideSettingsBase     @base; /* Inherits JPH_CollideSettingsBase */
+	public JPH_CollideSettingsBase     @base; /* Inherits JPH_CollideSettingsBase */
 	/// When > 0 contacts in the vicinity of the query shape can be found. All nearest contacts that are not further away than this distance will be found (unit: meter)
-	float						maxSeparationDistance /* = 0.0f*/;
+	public float						maxSeparationDistance /* = 0.0f*/;
 
 	/// How backfacing triangles should be treated
-	JPH_BackFaceMode			backFaceMode /* = JPH_BackFaceMode_IgnoreBackFaces*/;
+	public JPH_BackFaceMode			backFaceMode /* = JPH_BackFaceMode_IgnoreBackFaces*/;
 }
 
 /* ShapeCastSettings */
 [CRepr] struct JPH_ShapeCastSettings
 {
-	JPH_CollideSettingsBase     @base; /* Inherits JPH_CollideSettingsBase */
+	public JPH_CollideSettingsBase     @base; /* Inherits JPH_CollideSettingsBase */
 
 	/// How backfacing triangles should be treated (should we report moving from back to front for triangle based shapes, e.g. for MeshShape/HeightFieldShape?)
-	JPH_BackFaceMode			backFaceModeTriangles /* = JPH_BackFaceMode_IgnoreBackFaces*/;
+	public JPH_BackFaceMode			backFaceModeTriangles /* = JPH_BackFaceMode_IgnoreBackFaces*/;
 
 	/// How backfacing convex objects should be treated (should we report starting inside an object and moving out?)
-	JPH_BackFaceMode			backFaceModeConvex /* = JPH_BackFaceMode_IgnoreBackFaces*/;
+	public JPH_BackFaceMode			backFaceModeConvex /* = JPH_BackFaceMode_IgnoreBackFaces*/;
 
 	/// Indicates if we want to shrink the shape by the convex radius and then expand it again. This speeds up collision detection and gives a more accurate normal at the cost of a more 'rounded' shape.
-	bool						useShrunkenShapeAndConvexRadius /* = false*/;
+	public bool						useShrunkenShapeAndConvexRadius /* = false*/;
 
 	/// When true, and the shape is intersecting at the beginning of the cast (fraction = 0) then this will calculate the deepest penetration point (costing additional CPU time)
-	bool						returnDeepestPoint /* = false*/;
+	public bool						returnDeepestPoint /* = false*/;
 }
 
 [CRepr] struct JPH_RayCastSettings
 {
 	/// How backfacing triangles should be treated (should we report back facing hits for triangle based shapes, e.g. MeshShape/HeightFieldShape?)
-	JPH_BackFaceMode backFaceModeTriangles /* = JPH_BackFaceMode_IgnoreBackFaces*/;
+	public JPH_BackFaceMode backFaceModeTriangles /* = JPH_BackFaceMode_IgnoreBackFaces*/;
 
 	/// How backfacing convex objects should be treated (should we report back facing hits for convex shapes?)
-	JPH_BackFaceMode backFaceModeConvex /* = JPH_BackFaceMode_IgnoreBackFaces*/;
+	public JPH_BackFaceMode backFaceModeConvex /* = JPH_BackFaceMode_IgnoreBackFaces*/;
 
 	/// If convex shapes should be treated as solid. When true, a ray starting inside a convex shape will generate a hit at fraction 0.
-	bool treatConvexAsSolid /* = true*/;
+	public bool treatConvexAsSolid /* = true*/;
 }
 
 [CRepr] struct JPH_SpringSettings
 {
-	JPH_SpringMode mode;
-	float frequencyOrStiffness;
-	float damping;
+	public JPH_SpringMode mode;
+	public float frequencyOrStiffness;
+	public float damping;
 }
 
 [CRepr] struct JPH_MotorSettings
 {
-	JPH_SpringSettings springSettings;
-	float minForceLimit;
-	float maxForceLimit;
-	float minTorqueLimit;
-	float maxTorqueLimit;
+	public JPH_SpringSettings springSettings;
+	public float minForceLimit;
+	public float maxForceLimit;
+	public float minTorqueLimit;
+	public float maxTorqueLimit;
 }
 
 [CRepr] struct JPH_SubShapeIDPair
 {
-	JPH_BodyID     Body1ID;
-	JPH_SubShapeID subShapeID1;
-	JPH_BodyID     Body2ID;
-	JPH_SubShapeID subShapeID2;
+	public JPH_BodyID     Body1ID;
+	public JPH_SubShapeID subShapeID1;
+	public JPH_BodyID     Body2ID;
+	public JPH_SubShapeID subShapeID2;
 }
 
 [CRepr] struct JPH_BroadPhaseCastResult
 {
-	JPH_BodyID     bodyID;
-	float          fraction;
+	public JPH_BodyID     bodyID;
+	public float          fraction;
 }
 
 [CRepr] struct JPH_RayCastResult
 {
-	JPH_BodyID     bodyID;
-	float          fraction;
-	JPH_SubShapeID subShapeID2;
+	public JPH_BodyID     bodyID;
+	public float          fraction;
+	public JPH_SubShapeID subShapeID2;
 }
 
 [CRepr] struct JPH_CollidePointResult
@@ -650,15 +650,15 @@ typealias JPH_Color = uint32;
 
 [CRepr] struct JPH_ShapeCastResult
 {
-	JPH_Vec3           contactPointOn1;
-	JPH_Vec3           contactPointOn2;
-	JPH_Vec3           penetrationAxis;
-	float              penetrationDepth;
-	JPH_SubShapeID     subShapeID1;
-	JPH_SubShapeID     subShapeID2;
-	JPH_BodyID         bodyID2;
-	float              fraction;
-	bool			   isBackFaceHit;
+	public JPH_Vec3           contactPointOn1;
+	public JPH_Vec3           contactPointOn2;
+	public JPH_Vec3           penetrationAxis;
+	public float              penetrationDepth;
+	public JPH_SubShapeID     subShapeID1;
+	public JPH_SubShapeID     subShapeID2;
+	public JPH_BodyID         bodyID2;
+	public float              fraction;
+	public bool			   isBackFaceHit;
 }
 
 [CRepr] struct JPH_DrawSettings
@@ -771,161 +771,161 @@ typealias  JPH_CastShapeCollectorCallback = function  float(void* context, JPH_S
 
 [CRepr] struct JPH_ConstraintSettings
 {
-	bool						enabled;
-	uint32					constraintPriority;
-	uint32					numVelocityStepsOverride;
-	uint32					numPositionStepsOverride;
-	float						drawConstraintSize;
-	uint64					userData;
+	public bool					enabled;
+	public uint32				constraintPriority;
+	public uint32				numVelocityStepsOverride;
+	public uint32				numPositionStepsOverride;
+	public float				drawConstraintSize;
+	public uint64				userData;
 }
 
 [CRepr] struct JPH_FixedConstraintSettings
 {
-	JPH_ConstraintSettings		@base; /* Inherits JPH_ConstraintSettings */
+	public JPH_ConstraintSettings	@base; /* Inherits JPH_ConstraintSettings */
 
-	JPH_ConstraintSpace			space;
-	bool						autoDetectPoint;
-	JPH_RVec3					point1;
-	JPH_Vec3					axisX1;
-	JPH_Vec3					axisY1;
-	JPH_RVec3					point2;
-	JPH_Vec3					axisX2;
-	JPH_Vec3					axisY2;
+	public JPH_ConstraintSpace		space;
+	public bool						autoDetectPoint;
+	public JPH_RVec3				point1;
+	public JPH_Vec3					axisX1;
+	public JPH_Vec3					axisY1;
+	public JPH_RVec3				point2;
+	public JPH_Vec3					axisX2;
+	public JPH_Vec3					axisY2;
 }
 
 [CRepr] struct JPH_DistanceConstraintSettings
 {
-	JPH_ConstraintSettings		@base; /* Inherits JPH_ConstraintSettings */
+	public JPH_ConstraintSettings	@base; /* Inherits JPH_ConstraintSettings */
 
-	JPH_ConstraintSpace			space;
-	JPH_RVec3					point1;
-	JPH_RVec3					point2;
-	float						minDistance;
-	float						maxDistance;
-	JPH_SpringSettings			limitsSpringSettings;
+	public JPH_ConstraintSpace		space;
+	public JPH_RVec3				point1;
+	public JPH_RVec3				point2;
+	public float					minDistance;
+	public float					maxDistance;
+	public JPH_SpringSettings		limitsSpringSettings;
 }
 
 [CRepr] struct JPH_PointConstraintSettings
 {
-	JPH_ConstraintSettings		@base; /* Inherits JPH_ConstraintSettings */
+	public JPH_ConstraintSettings	@base; /* Inherits JPH_ConstraintSettings */
 
-	JPH_ConstraintSpace			space;
-	JPH_RVec3					point1;
-	JPH_RVec3					point2;
+	public JPH_ConstraintSpace		space;
+	public JPH_RVec3				point1;
+	public JPH_RVec3				point2;
 }
 
 [CRepr] struct JPH_HingeConstraintSettings
 {
-	JPH_ConstraintSettings		@base; /* Inherits JPH_ConstraintSettings */
+	public JPH_ConstraintSettings	@base; /* Inherits JPH_ConstraintSettings */
 
-	JPH_ConstraintSpace			space;
-	JPH_RVec3					point1;
-	JPH_Vec3					hingeAxis1;
-	JPH_Vec3					normalAxis1;
-	JPH_RVec3					point2;
-	JPH_Vec3					hingeAxis2;
-	JPH_Vec3					normalAxis2;
-	float						limitsMin;
-	float						limitsMax;
-	JPH_SpringSettings			limitsSpringSettings;
-	float						maxFrictionTorque;
-	JPH_MotorSettings			motorSettings;
+	public JPH_ConstraintSpace		space;
+	public JPH_RVec3				point1;
+	public JPH_Vec3					hingeAxis1;
+	public JPH_Vec3					normalAxis1;
+	public JPH_RVec3				point2;
+	public JPH_Vec3					hingeAxis2;
+	public JPH_Vec3					normalAxis2;
+	public float					limitsMin;
+	public float					limitsMax;
+	public JPH_SpringSettings		limitsSpringSettings;
+	public float					maxFrictionTorque;
+	public JPH_MotorSettings		motorSettings;
 }
 
 [CRepr] struct JPH_SliderConstraintSettings
 {
-	JPH_ConstraintSettings		@base; /* Inherits JPH_ConstraintSettings */
+	public JPH_ConstraintSettings	@base; /* Inherits JPH_ConstraintSettings */
 
-	JPH_ConstraintSpace			space;
-	bool						autoDetectPoint;
-	JPH_RVec3					point1;
-	JPH_Vec3					sliderAxis1;
-	JPH_Vec3					normalAxis1;
-	JPH_RVec3					point2;
-	JPH_Vec3					sliderAxis2;
-	JPH_Vec3					normalAxis2;
-	float						limitsMin;
-	float						limitsMax;
-	JPH_SpringSettings			limitsSpringSettings;
-	float						maxFrictionForce;
-	JPH_MotorSettings			motorSettings;
+	public JPH_ConstraintSpace		space;
+	public bool						autoDetectPoint;
+	public JPH_RVec3				point1;
+	public JPH_Vec3					sliderAxis1;
+	public JPH_Vec3					normalAxis1;
+	public JPH_RVec3				point2;
+	public JPH_Vec3					sliderAxis2;
+	public JPH_Vec3					normalAxis2;
+	public float					limitsMin;
+	public float					limitsMax;
+	public JPH_SpringSettings		limitsSpringSettings;
+	public float					maxFrictionForce;
+	public JPH_MotorSettings		motorSettings;
 }
 
 [CRepr] struct JPH_ConeConstraintSettings
 {
-	JPH_ConstraintSettings		@base; /* Inherits JPH_ConstraintSettings */
+	public JPH_ConstraintSettings	@base; /* Inherits JPH_ConstraintSettings */
 
-	JPH_ConstraintSpace			space;
-	JPH_RVec3					point1;
-	JPH_Vec3					twistAxis1;
-	JPH_RVec3					point2;
-	JPH_Vec3					twistAxis2;
-	float						halfConeAngle;
+	public JPH_ConstraintSpace		space;
+	public JPH_RVec3				point1;
+	public JPH_Vec3					twistAxis1;
+	public JPH_RVec3				point2;
+	public JPH_Vec3					twistAxis2;
+	public float					halfConeAngle;
 }
 
 [CRepr] struct JPH_SwingTwistConstraintSettings
 {
-	JPH_ConstraintSettings		@base; /* Inherits JPH_ConstraintSettings */
+	public JPH_ConstraintSettings	@base; /* Inherits JPH_ConstraintSettings */
 
-	JPH_ConstraintSpace			space;
-	JPH_RVec3					position1;
-	JPH_Vec3					twistAxis1;
-	JPH_Vec3					planeAxis1;
-	JPH_RVec3					position2;
-	JPH_Vec3					twistAxis2;
-	JPH_Vec3					planeAxis2;
-	JPH_SwingType				swingType;
-	float						normalHalfConeAngle;
-	float						planeHalfConeAngle;
-	float						twistMinAngle;
-	float						twistMaxAngle;
-	float						maxFrictionTorque;
-	JPH_MotorSettings			swingMotorSettings;
-	JPH_MotorSettings			twistMotorSettings;
+	public JPH_ConstraintSpace		space;
+	public JPH_RVec3				position1;
+	public JPH_Vec3					twistAxis1;
+	public JPH_Vec3					planeAxis1;
+	public JPH_RVec3				position2;
+	public JPH_Vec3					twistAxis2;
+	public JPH_Vec3					planeAxis2;
+	public JPH_SwingType			swingType;
+	public float					normalHalfConeAngle;
+	public float					planeHalfConeAngle;
+	public float					twistMinAngle;
+	public float					twistMaxAngle;
+	public float					maxFrictionTorque;
+	public JPH_MotorSettings		swingMotorSettings;
+	public JPH_MotorSettings		twistMotorSettings;
 }
 
 [CRepr] struct JPH_SixDOFConstraintSettings
 {
-	JPH_ConstraintSettings		@base; /* Inherits JPH_ConstraintSettings */
+	public JPH_ConstraintSettings	@base; /* Inherits JPH_ConstraintSettings */
 
-	JPH_ConstraintSpace			space;
-	JPH_RVec3					position1;
-	JPH_Vec3					axisX1;
-	JPH_Vec3					axisY1;
-	JPH_RVec3					position2;
-	JPH_Vec3					axisX2;
-	JPH_Vec3					axisY2;
-	float[(int)JPH_SixDOFConstraintAxis._JPH_SixDOFConstraintAxis_Num]						maxFriction;
-	JPH_SwingType				swingType;
-	float[(int)JPH_SixDOFConstraintAxis._JPH_SixDOFConstraintAxis_Num]						limitMin;
-	float[(int)JPH_SixDOFConstraintAxis._JPH_SixDOFConstraintAxis_Num]						limitMax;
+	public JPH_ConstraintSpace		space;
+	public JPH_RVec3				position1;
+	public JPH_Vec3					axisX1;
+	public JPH_Vec3					axisY1;
+	public JPH_RVec3				position2;
+	public JPH_Vec3					axisX2;
+	public JPH_Vec3					axisY2;
+	public float[(int)JPH_SixDOFConstraintAxis._JPH_SixDOFConstraintAxis_Num]					maxFriction;
+	public JPH_SwingType			swingType;
+	public float[(int)JPH_SixDOFConstraintAxis._JPH_SixDOFConstraintAxis_Num]					limitMin;
+	public float[(int)JPH_SixDOFConstraintAxis._JPH_SixDOFConstraintAxis_Num]					limitMax;
 
-	JPH_SpringSettings[(int)JPH_SixDOFConstraintAxis._JPH_SixDOFConstraintAxis_NumTranslation]			limitsSpringSettings;
-	JPH_MotorSettings[(int)JPH_SixDOFConstraintAxis._JPH_SixDOFConstraintAxis_Num]			motorSettings;
+	public JPH_SpringSettings[(int)JPH_SixDOFConstraintAxis._JPH_SixDOFConstraintAxis_NumTranslation]	limitsSpringSettings;
+	public JPH_MotorSettings[(int)JPH_SixDOFConstraintAxis._JPH_SixDOFConstraintAxis_Num]		motorSettings;
 }
 
 [CRepr] struct JPH_GearConstraintSettings
 {
-	JPH_ConstraintSettings		@base; /* Inherits JPH_ConstraintSettings */
+	public JPH_ConstraintSettings	@base; /* Inherits JPH_ConstraintSettings */
 
-	JPH_ConstraintSpace			space;
-	JPH_Vec3					hingeAxis1;
-	JPH_Vec3					hingeAxis2;
-	float						ratio;
+	public JPH_ConstraintSpace		space;
+	public JPH_Vec3					hingeAxis1;
+	public JPH_Vec3					hingeAxis2;
+	public float					ratio;
 }
 
 [CRepr] struct JPH_BodyLockRead
 {
-	JPH_BodyLockInterface* lockInterface;
-	JPH_SharedMutex* mutex;
-	JPH_Body* body;
+	public JPH_BodyLockInterface* lockInterface;
+	public JPH_SharedMutex* mutex;
+	public JPH_Body* body;
 }
 
 [CRepr] struct JPH_BodyLockWrite
 {
-	JPH_BodyLockInterface* lockInterface;
-	JPH_SharedMutex* mutex;
-	JPH_Body* body;
+	public JPH_BodyLockInterface* lockInterface;
+	public JPH_SharedMutex* mutex;
+	public JPH_Body* body;
 }
 
 [CRepr] struct JPH_BodyLockMultiRead;
@@ -933,83 +933,83 @@ typealias  JPH_CastShapeCollectorCallback = function  float(void* context, JPH_S
 
 [CRepr] struct JPH_ExtendedUpdateSettings
 {
-	JPH_Vec3	stickToFloorStepDown;
-	JPH_Vec3	walkStairsStepUp;
-	float		walkStairsMinStepForward;
-	float		walkStairsStepForwardTest;
-	float		walkStairsCosAngleForwardContact;
-	JPH_Vec3	walkStairsStepDownExtra;
+	public JPH_Vec3		stickToFloorStepDown;
+	public JPH_Vec3		walkStairsStepUp;
+	public float		walkStairsMinStepForward;
+	public float		walkStairsStepForwardTest;
+	public float		walkStairsCosAngleForwardContact;
+	public JPH_Vec3		walkStairsStepDownExtra;
 }
 
 [CRepr] struct JPH_CharacterBaseSettings
 {
-	JPH_Vec3 up;
-	JPH_Plane supportingVolume;
-	float maxSlopeAngle;
-	bool enhancedInternalEdgeRemoval;
-	JPH_Shape* shape;
+	public JPH_Vec3 up;
+	public JPH_Plane supportingVolume;
+	public float maxSlopeAngle;
+	public bool enhancedInternalEdgeRemoval;
+	public JPH_Shape* shape;
 }
 
 /* Character */
 [CRepr] struct JPH_CharacterSettings
 {
-	JPH_CharacterBaseSettings       @base; /* Inherits JPH_CharacterBaseSettings */
-	JPH_ObjectLayer					layer;
-	float							mass;
-	float							friction;
-	float							gravityFactor;
-	JPH_AllowedDOFs                 allowedDOFs;
+	public JPH_CharacterBaseSettings		@base; /* Inherits JPH_CharacterBaseSettings */
+	public JPH_ObjectLayer					layer;
+	public float							mass;
+	public float							friction;
+	public float							gravityFactor;
+	public JPH_AllowedDOFs					allowedDOFs;
 }
 
 /* CharacterVirtual */
 [CRepr] struct JPH_CharacterVirtualSettings
 {
-	JPH_CharacterBaseSettings           @base; /* Inherits JPH_CharacterBaseSettings */
-	JPH_CharacterID						ID;
-	float								mass;
-	float								maxStrength;
-	JPH_Vec3							shapeOffset;
-	JPH_BackFaceMode					backFaceMode;
-	float								predictiveContactDistance;
-	uint32							maxCollisionIterations;
-	uint32							maxConstraintIterations;
-	float								minTimeRemaining;
-	float								collisionTolerance;
-	float								characterPadding;
-	uint32							maxNumHits;
-	float								hitReductionCosMaxAngle;
-	float								penetrationRecoverySpeed;
-	JPH_Shape*					innerBodyShape;
-	JPH_BodyID							innerBodyIDOverride;
-	JPH_ObjectLayer						innerBodyLayer;
+	public JPH_CharacterBaseSettings		@base; /* Inherits JPH_CharacterBaseSettings */
+	public JPH_CharacterID					ID;
+	public float							mass;
+	public float							maxStrength;
+	public JPH_Vec3							shapeOffset;
+	public JPH_BackFaceMode					backFaceMode;
+	public float							predictiveContactDistance;
+	public uint32							maxCollisionIterations;
+	public uint32							maxConstraintIterations;
+	public float							minTimeRemaining;
+	public float							collisionTolerance;
+	public float							characterPadding;
+	public uint32							maxNumHits;
+	public float							hitReductionCosMaxAngle;
+	public float							penetrationRecoverySpeed;
+	public JPH_Shape*						innerBodyShape;
+	public JPH_BodyID						innerBodyIDOverride;
+	public JPH_ObjectLayer					innerBodyLayer;
 }
 
 [CRepr] struct JPH_CharacterContactSettings
 {
-	bool canPushCharacter;
-	bool canReceiveImpulses;
+	public bool canPushCharacter;
+	public bool canReceiveImpulses;
 }
 
 [CRepr] struct JPH_CharacterVirtualContact
 {
-	uint64						hash;
-	JPH_BodyID						bodyB;
-	JPH_CharacterID					characterIDB;
-	JPH_SubShapeID					subShapeIDB;
-	JPH_RVec3						position;
-	JPH_Vec3						linearVelocity;
-	JPH_Vec3						contactNormal;
-	JPH_Vec3						surfaceNormal;
-	float							distance;
-	float							fraction;
-	JPH_MotionType					motionTypeB;
-	bool							isSensorB;
-	JPH_CharacterVirtual*		characterB;
-	uint64						userData;
-	JPH_PhysicsMaterial*		material;
-	bool							hadCollision;
-	bool							wasDiscarded;
-	bool							canPushCharacter;
+	public uint64					hash;
+	public JPH_BodyID				bodyB;
+	public JPH_CharacterID			characterIDB;
+	public JPH_SubShapeID			subShapeIDB;
+	public JPH_RVec3				position;
+	public JPH_Vec3					linearVelocity;
+	public JPH_Vec3					contactNormal;
+	public JPH_Vec3					surfaceNormal;
+	public float					distance;
+	public float					fraction;
+	public JPH_MotionType			motionTypeB;
+	public bool						isSensorB;
+	public JPH_CharacterVirtual*	characterB;
+	public uint64					userData;
+	public JPH_PhysicsMaterial*		material;
+	public bool						hadCollision;
+	public bool						wasDiscarded;
+	public bool						canPushCharacter;
 }
 
 [CRepr /*, CallingConvention(.Cdecl)*/] typealias JPH_TraceFunc = function void(char8* message);
@@ -1021,18 +1021,18 @@ typealias JPH_QueueJobsCallback = function void(void* context, JPH_JobFunction* 
 
 [CRepr] struct JobSystemThreadPoolConfig
 {
-	uint32 maxJobs;
-	uint32 maxBarriers;
-	int32 numThreads;
+	public uint32 maxJobs;
+	public uint32 maxBarriers;
+	public int32 numThreads;
 }
 
 [CRepr] struct JPH_JobSystemConfig
 {
-	void* context;
-	JPH_QueueJobCallback* queueJob;
-	JPH_QueueJobsCallback* queueJobs;
-	uint32 maxConcurrency;
-	uint32 maxBarriers;
+	public void* context;
+	public JPH_QueueJobCallback* queueJob;
+	public JPH_QueueJobsCallback* queueJobs;
+	public uint32 maxConcurrency;
+	public uint32 maxBarriers;
 }
 
 [CRepr] struct JPH_JobSystem;
@@ -1056,8 +1056,8 @@ static
 	[CLink] public static extern JPH_JobSystem* JPH_JobSystemCallback_Create(JPH_JobSystemConfig* config);
 	[CLink] public static extern void JPH_JobSystem_Destroy(JPH_JobSystem* jobSystem);
 
-	[CLink] public static extern bool JPH_Init(void);
-	[CLink] public static extern void JPH_Shutdown(void);
+	[CLink] public static extern bool JPH_Init();
+	[CLink] public static extern void JPH_Shutdown();
 	[CLink] public static extern void JPH_SetTraceHandler(JPH_TraceFunc handler);
 	[CLink] public static extern void JPH_SetAssertFailureHandler(JPH_AssertFailureFunc handler);
 
@@ -1073,7 +1073,7 @@ static
 	[CLink] public static extern void JPH_BroadPhaseLayerInterfaceTable_MapObjectToBroadPhaseLayer(JPH_BroadPhaseLayerInterface* bpInterface, JPH_ObjectLayer objectLayer, JPH_BroadPhaseLayer broadPhaseLayer);
 
 	/* JPH_ObjectLayerPairFilter */
-	[CLink] public static extern JPH_ObjectLayerPairFilter* JPH_ObjectLayerPairFilterMask_Create(void);
+	[CLink] public static extern JPH_ObjectLayerPairFilter* JPH_ObjectLayerPairFilterMask_Create();
 	[CLink] public static extern JPH_ObjectLayer JPH_ObjectLayerPairFilterMask_GetObjectLayer(uint32 group, uint32 mask);
 	[CLink] public static extern uint32 JPH_ObjectLayerPairFilterMask_GetGroup(JPH_ObjectLayer layer);
 	[CLink] public static extern uint32 JPH_ObjectLayerPairFilterMask_GetMask(JPH_ObjectLayer layer);
@@ -1096,14 +1096,14 @@ static
 	/* JPH_PhysicsSystem */
 [CRepr] struct JPH_PhysicsSystemSettings
 {
-	uint32 maxBodies; /* 10240 */
-	uint32 numBodyMutexes; /* 0 */
-	uint32 maxBodyPairs; /* 65536 */
-	uint32 maxContactConstraints; /* 10240 */
-	uint32 _padding;
-	JPH_BroadPhaseLayerInterface* broadPhaseLayerInterface;
-	JPH_ObjectLayerPairFilter* objectLayerPairFilter;
-	JPH_ObjectVsBroadPhaseLayerFilter* objectVsBroadPhaseLayerFilter;
+	public uint32 maxBodies; /* 10240 */
+	public uint32 numBodyMutexes; /* 0 */
+	public uint32 maxBodyPairs; /* 65536 */
+	public uint32 maxContactConstraints; /* 10240 */
+	public uint32 _padding;
+	public JPH_BroadPhaseLayerInterface* broadPhaseLayerInterface;
+	public JPH_ObjectLayerPairFilter* objectLayerPairFilter;
+	public JPH_ObjectVsBroadPhaseLayerFilter* objectVsBroadPhaseLayerFilter;
 }
 
 [CRepr] struct JPH_PhysicsSettings
@@ -1483,11 +1483,11 @@ static
 	[CLink] public static extern uint32 JPH_CompoundShape_GetSubShapeIndexFromID(JPH_CompoundShape* shape, JPH_SubShapeID id, JPH_SubShapeID* remainder);
 
 	/* StaticCompoundShape */
-	[CLink] public static extern JPH_StaticCompoundShapeSettings* JPH_StaticCompoundShapeSettings_Create(void);
+	[CLink] public static extern JPH_StaticCompoundShapeSettings* JPH_StaticCompoundShapeSettings_Create();
 	[CLink] public static extern JPH_StaticCompoundShape* JPH_StaticCompoundShape_Create(JPH_StaticCompoundShapeSettings* settings);
 
 	/* MutableCompoundShape */
-	[CLink] public static extern JPH_MutableCompoundShapeSettings* JPH_MutableCompoundShapeSettings_Create(void);
+	[CLink] public static extern JPH_MutableCompoundShapeSettings* JPH_MutableCompoundShapeSettings_Create();
 	[CLink] public static extern JPH_MutableCompoundShape* JPH_MutableCompoundShape_Create(JPH_MutableCompoundShapeSettings* settings);
 
 	[CLink] public static extern uint32 JPH_MutableCompoundShape_AddShape(JPH_MutableCompoundShape* shape, JPH_Vec3* position, JPH_Quat* rotation, JPH_Shape* child, uint32 userData /* = 0 */, uint32 index /* = UINT32_MAX */);
@@ -1527,7 +1527,7 @@ static
 	[CLink] public static extern JPH_EmptyShape* JPH_EmptyShapeSettings_CreateShape(JPH_EmptyShapeSettings* settings);
 
 	/* JPH_BodyCreationSettings */
-	[CLink] public static extern JPH_BodyCreationSettings* JPH_BodyCreationSettings_Create(void);
+	[CLink] public static extern JPH_BodyCreationSettings* JPH_BodyCreationSettings_Create();
 	[CLink] public static extern JPH_BodyCreationSettings* JPH_BodyCreationSettings_Create2(JPH_ShapeSettings* settings,
 		JPH_RVec3* position,
 		JPH_Quat* rotation,
@@ -1628,7 +1628,7 @@ static
 	[CLink] public static extern void JPH_BodyCreationSettings_SetMassPropertiesOverride(JPH_BodyCreationSettings* settings, JPH_MassProperties* massProperties);
 
 	/* JPH_SoftBodyCreationSettings */
-	[CLink] public static extern JPH_SoftBodyCreationSettings* JPH_SoftBodyCreationSettings_Create(void);
+	[CLink] public static extern JPH_SoftBodyCreationSettings* JPH_SoftBodyCreationSettings_Create();
 	[CLink] public static extern void JPH_SoftBodyCreationSettings_Destroy(JPH_SoftBodyCreationSettings* settings);
 
 	/* JPH_Constraint */
@@ -2035,7 +2035,7 @@ static
 		JPH_RVec3* origin, JPH_Vec3* direction,
 		JPH_RayCastSettings* rayCastSettings,
 		JPH_CollisionCollectorType collectorType,
-		JPH_CastRayResultCallback* callback, void* userData,
+		JPH_CastRayResultCallback callback, void* userData,
 		JPH_BroadPhaseLayerFilter* broadPhaseLayerFilter,
 		JPH_ObjectLayerFilter* objectLayerFilter,
 		JPH_BodyFilter* bodyFilter,
@@ -2096,7 +2096,7 @@ static
 		JPH_ShapeCastSettings* settings,
 		JPH_RVec3* baseOffset,
 		JPH_CollisionCollectorType collectorType,
-		JPH_CastShapeResultCallback* callback, void* userData,
+		JPH_CastShapeResultCallback callback, void* userData,
 		JPH_BroadPhaseLayerFilter* broadPhaseLayerFilter,
 		JPH_ObjectLayerFilter* objectLayerFilter,
 		JPH_BodyFilter* bodyFilter,
@@ -2197,7 +2197,7 @@ static
 	[CLink] public static extern void JPH_Body_SetUserData(JPH_Body* body, uint64 userData);
 	[CLink] public static extern uint64 JPH_Body_GetUserData(JPH_Body* body);
 
-	[CLink] public static extern JPH_Body* JPH_Body_GetFixedToWorldBody(void);
+	[CLink] public static extern JPH_Body* JPH_Body_GetFixedToWorldBody();
 }
 	/* JPH_BroadPhaseLayerFilter_Procs */
 [CRepr] struct JPH_BroadPhaseLayerFilter_Procs
@@ -2571,7 +2571,7 @@ static
 {
 	[CLink] public static extern void JPH_CharacterVsCharacterCollision_SetProcs(JPH_CharacterVsCharacterCollision_Procs* procs);
 	[CLink] public static extern JPH_CharacterVsCharacterCollision* JPH_CharacterVsCharacterCollision_Create(void* userData);
-	[CLink] public static extern JPH_CharacterVsCharacterCollision* JPH_CharacterVsCharacterCollision_CreateSimple(void);
+	[CLink] public static extern JPH_CharacterVsCharacterCollision* JPH_CharacterVsCharacterCollision_CreateSimple();
 	[CLink] public static extern void JPH_CharacterVsCharacterCollisionSimple_AddCharacter(JPH_CharacterVsCharacterCollision* characterVsCharacter, JPH_CharacterVirtual* character);
 	[CLink] public static extern void JPH_CharacterVsCharacterCollisionSimple_RemoveCharacter(JPH_CharacterVsCharacterCollision* characterVsCharacter, JPH_CharacterVirtual* character);
 	[CLink] public static extern void JPH_CharacterVsCharacterCollision_Destroy(JPH_CharacterVsCharacterCollision* listener);
@@ -2648,7 +2648,7 @@ static
 }
 static
 {
-	[CLink] public static extern JPH_Skeleton* JPH_Skeleton_Create(void);
+	[CLink] public static extern JPH_Skeleton* JPH_Skeleton_Create();
 	[CLink] public static extern void JPH_Skeleton_Destroy(JPH_Skeleton* skeleton);
 
 	[CLink] public static extern uint32 JPH_Skeleton_AddJoint(JPH_Skeleton* skeleton, char8* name);
@@ -2661,7 +2661,7 @@ static
 	[CLink] public static extern bool JPH_Skeleton_AreJointsCorrectlyOrdered(JPH_Skeleton* skeleton);
 
 	/* SkeletonPose */
-	[CLink] public static extern JPH_SkeletonPose* JPH_SkeletonPose_Create(void);
+	[CLink] public static extern JPH_SkeletonPose* JPH_SkeletonPose_Create();
 	[CLink] public static extern void JPH_SkeletonPose_Destroy(JPH_SkeletonPose* pose);
 	[CLink] public static extern void JPH_SkeletonPose_SetSkeleton(JPH_SkeletonPose* pose, JPH_Skeleton* skeleton);
 	[CLink] public static extern JPH_Skeleton* JPH_SkeletonPose_GetSkeleton(JPH_SkeletonPose* pose);
@@ -2679,7 +2679,7 @@ static
 	[CLink] public static extern void JPH_SkeletonPose_CalculateLocalSpaceJointMatrices(JPH_SkeletonPose* pose, JPH_Mat4* outMatrices);
 
 	/* SkeletalAnimation */
-	[CLink] public static extern JPH_SkeletalAnimation* JPH_SkeletalAnimation_Create(void);
+	[CLink] public static extern JPH_SkeletalAnimation* JPH_SkeletalAnimation_Create();
 	[CLink] public static extern void JPH_SkeletalAnimation_Destroy(JPH_SkeletalAnimation* animation);
 	[CLink] public static extern float JPH_SkeletalAnimation_GetDuration(JPH_SkeletalAnimation* animation);
 	[CLink] public static extern bool JPH_SkeletalAnimation_IsLooping(JPH_SkeletalAnimation* animation);
@@ -2691,7 +2691,7 @@ static
 	[CLink] public static extern void JPH_SkeletalAnimation_AddKeyframe(JPH_SkeletalAnimation* animation, int32 jointIndex, float time, JPH_Vec3* translation, JPH_Quat* rotation);
 
 	/* SkeletonMapper */
-	[CLink] public static extern JPH_SkeletonMapper* JPH_SkeletonMapper_Create(void);
+	[CLink] public static extern JPH_SkeletonMapper* JPH_SkeletonMapper_Create();
 	[CLink] public static extern void JPH_SkeletonMapper_Destroy(JPH_SkeletonMapper* mapper);
 	[CLink] public static extern void JPH_SkeletonMapper_Initialize(JPH_SkeletonMapper* mapper, JPH_Skeleton* skeleton1, JPH_Mat4* neutralPose1, JPH_Skeleton* skeleton2, JPH_Mat4* neutralPose2);
 	[CLink] public static extern void JPH_SkeletonMapper_LockAllTranslations(JPH_SkeletonMapper* mapper, JPH_Skeleton* skeleton2, JPH_Mat4* neutralPose2);
@@ -2702,7 +2702,7 @@ static
 	[CLink] public static extern bool JPH_SkeletonMapper_IsJointTranslationLocked(JPH_SkeletonMapper* mapper, int32 joint2Index);
 
 	/* RagdollSettings */
-	[CLink] public static extern JPH_RagdollSettings* JPH_RagdollSettings_Create(void);
+	[CLink] public static extern JPH_RagdollSettings* JPH_RagdollSettings_Create();
 	[CLink] public static extern void JPH_RagdollSettings_Destroy(JPH_RagdollSettings* settings);
 
 	[CLink] public static extern JPH_Skeleton* JPH_RagdollSettings_GetSkeleton(JPH_RagdollSettings* character);
@@ -2846,7 +2846,7 @@ static
 	[CLink] public static extern void JPH_VehicleConstraint_GetWheelWorldTransform(JPH_VehicleConstraint* constraint, uint32 wheelIndex, JPH_Vec3* wheelRight, JPH_Vec3* wheelUp, JPH_RMat4* result);
 
 	/* Wheel */
-	[CLink] public static extern JPH_WheelSettings* JPH_WheelSettings_Create(void);
+	[CLink] public static extern JPH_WheelSettings* JPH_WheelSettings_Create();
 	[CLink] public static extern void JPH_WheelSettings_Destroy(JPH_WheelSettings* settings);
 	[CLink] public static extern void JPH_WheelSettings_GetPosition(JPH_WheelSettings* settings, JPH_Vec3* result);
 	[CLink] public static extern void JPH_WheelSettings_SetPosition(JPH_WheelSettings* settings, JPH_Vec3* value);
@@ -2918,7 +2918,7 @@ static
 	[CLink] public static extern void JPH_VehicleDifferentialSettings_Init(JPH_VehicleDifferentialSettings* settings);
 
 	/* VehicleTransmissionSettings */
-	[CLink] public static extern JPH_VehicleTransmissionSettings* JPH_VehicleTransmissionSettings_Create(void);
+	[CLink] public static extern JPH_VehicleTransmissionSettings* JPH_VehicleTransmissionSettings_Create();
 	[CLink] public static extern void JPH_VehicleTransmissionSettings_Destroy(JPH_VehicleTransmissionSettings* settings);
 
 	[CLink] public static extern JPH_TransmissionMode JPH_VehicleTransmissionSettings_GetMode(JPH_VehicleTransmissionSettings* settings);
@@ -2973,7 +2973,7 @@ static
 
 	/* ---- WheelSettingsWV - WheelWV - WheeledVehicleController ---- */
 
-	[CLink] public static extern JPH_WheelSettingsWV* JPH_WheelSettingsWV_Create(void);
+	[CLink] public static extern JPH_WheelSettingsWV* JPH_WheelSettingsWV_Create();
 	[CLink] public static extern float JPH_WheelSettingsWV_GetInertia(JPH_WheelSettingsWV* settings);
 	[CLink] public static extern void JPH_WheelSettingsWV_SetInertia(JPH_WheelSettingsWV* settings, float value);
 	[CLink] public static extern float JPH_WheelSettingsWV_GetAngularDamping(JPH_WheelSettingsWV* settings);
@@ -2993,7 +2993,7 @@ static
 	[CLink] public static extern JPH_WheelSettingsWV* JPH_WheelWV_GetSettings(JPH_WheelWV* wheel);
 	[CLink] public static extern void JPH_WheelWV_ApplyTorque(JPH_WheelWV* wheel, float torque, float deltaTime);
 
-	[CLink] public static extern JPH_WheeledVehicleControllerSettings* JPH_WheeledVehicleControllerSettings_Create(void);
+	[CLink] public static extern JPH_WheeledVehicleControllerSettings* JPH_WheeledVehicleControllerSettings_Create();
 
 	[CLink] public static extern void JPH_WheeledVehicleControllerSettings_GetEngine(JPH_WheeledVehicleControllerSettings* settings, JPH_VehicleEngineSettings* result);
 	[CLink] public static extern void JPH_WheeledVehicleControllerSettings_SetEngine(JPH_WheeledVehicleControllerSettings* settings, JPH_VehicleEngineSettings* value);
@@ -3063,7 +3063,7 @@ static
 	[CLink] public static extern JPH_VehicleTrack* JPH_TrackedVehicleController_GetTrack(JPH_TrackedVehicleController* controller, JPH_TrackSide side);
 
 	/* WheelSettingsTV */
-	[CLink] public static extern JPH_WheelSettingsTV* JPH_WheelSettingsTV_Create(void);
+	[CLink] public static extern JPH_WheelSettingsTV* JPH_WheelSettingsTV_Create();
 	[CLink] public static extern float JPH_WheelSettingsTV_GetLongitudinalFriction(JPH_WheelSettingsTV* settings);
 	[CLink] public static extern void JPH_WheelSettingsTV_SetLongitudinalFriction(JPH_WheelSettingsTV* settings, float value);
 	[CLink] public static extern float JPH_WheelSettingsTV_GetLateralFriction(JPH_WheelSettingsTV* settings);
@@ -3072,7 +3072,7 @@ static
 	[CLink] public static extern JPH_WheelTV* JPH_WheelTV_Create(JPH_WheelSettingsTV* settings);
 	[CLink] public static extern JPH_WheelSettingsTV* JPH_WheelTV_GetSettings(JPH_WheelTV* wheel);
 
-	[CLink] public static extern JPH_TrackedVehicleControllerSettings* JPH_TrackedVehicleControllerSettings_Create(void);
+	[CLink] public static extern JPH_TrackedVehicleControllerSettings* JPH_TrackedVehicleControllerSettings_Create();
 
 	[CLink] public static extern void JPH_TrackedVehicleControllerSettings_GetEngine(JPH_TrackedVehicleControllerSettings* settings, JPH_VehicleEngineSettings* result);
 	[CLink] public static extern void JPH_TrackedVehicleControllerSettings_SetEngine(JPH_TrackedVehicleControllerSettings* settings, JPH_VehicleEngineSettings* value);
@@ -3092,7 +3092,7 @@ static
 	[CLink] public static extern JPH_VehicleTransmission* JPH_TrackedVehicleController_GetTransmission(JPH_TrackedVehicleController* controller);
 
 	/* MotorcycleController */
-	[CLink] public static extern JPH_MotorcycleControllerSettings* JPH_MotorcycleControllerSettings_Create(void);
+	[CLink] public static extern JPH_MotorcycleControllerSettings* JPH_MotorcycleControllerSettings_Create();
 	[CLink] public static extern float JPH_MotorcycleControllerSettings_GetMaxLeanAngle(JPH_MotorcycleControllerSettings* settings);
 	[CLink] public static extern void JPH_MotorcycleControllerSettings_SetMaxLeanAngle(JPH_MotorcycleControllerSettings* settings, float value);
 	[CLink] public static extern float JPH_MotorcycleControllerSettings_GetLeanSpringConstant(JPH_MotorcycleControllerSettings* settings);
@@ -3123,7 +3123,7 @@ static
 	[CLink] public static extern void JPH_MotorcycleController_SetLeanSmoothingFactor(JPH_MotorcycleController* controller, float value);
 
 	/* LinearCurve */
-	[CLink] public static extern JPH_LinearCurve* JPH_LinearCurve_Create(void);
+	[CLink] public static extern JPH_LinearCurve* JPH_LinearCurve_Create();
 	[CLink] public static extern void JPH_LinearCurve_Destroy(JPH_LinearCurve* curve);
 	[CLink] public static extern void JPH_LinearCurve_Clear(JPH_LinearCurve* curve);
 	[CLink] public static extern void JPH_LinearCurve_Reserve(JPH_LinearCurve* curve, uint32 numPoints);
