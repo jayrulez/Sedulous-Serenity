@@ -213,6 +213,45 @@ class FrustumCuller
 				outVisible.Add(light);
 		}
 	}
+
+	/// Culls particle emitter proxies.
+	public void CullParticleEmitters(List<ParticleEmitterProxy*> emitters, List<ParticleEmitterProxy*> outVisible, Vector3 cameraPos)
+	{
+		outVisible.Clear();
+
+		for (let emitter in emitters)
+		{
+			if (!emitter.IsVisible)
+				continue;
+
+			// Skip emitters with no particles (unless still emitting, which may spawn soon)
+			if (!emitter.HasParticles && !emitter.IsEmitting)
+			{
+				emitter.Flags |= .Culled;
+				continue;
+			}
+
+			// Layer mask check
+			if ((emitter.LayerMask & mLayerMask) == 0)
+			{
+				emitter.Flags |= .Culled;
+				continue;
+			}
+
+			// Test emitter bounding box against frustum
+			if (IsVisible(emitter.WorldBounds))
+			{
+				// Calculate distance to camera for sorting/LOD
+				let center = (emitter.WorldBounds.Min + emitter.WorldBounds.Max) * 0.5f;
+				emitter.DistanceToCamera = Vector3.Distance(center, cameraPos);
+				outVisible.Add(emitter);
+			}
+			else
+			{
+				emitter.Flags |= .Culled;
+			}
+		}
+	}
 }
 
 /// Result of a frustum intersection test.

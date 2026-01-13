@@ -533,10 +533,18 @@ class RenderSceneComponent : ISceneComponent
 		pipeline.PrepareGPU(mContext);
 
 		// Upload component-specific data (particles)
+		// Set camera position for sorting before upload
+		Vector3 cameraPos = .Zero;
+		if (let camera = mContext.World.MainCamera)
+			cameraPos = camera.Position;
+
 		for (let emitter in mParticleEmitters)
 		{
 			if (emitter.Visible && emitter.ParticleSystem != null)
+			{
+				emitter.ParticleSystem.CameraPosition = cameraPos;
 				emitter.ParticleSystem.Upload();
+			}
 		}
 
 		// Prepare soft particle bind groups BEFORE any command recording

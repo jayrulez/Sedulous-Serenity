@@ -96,6 +96,25 @@ class ParticleEmitterConfig
 	/// Fraction of emitter velocity to inherit (0-1).
 	public float InheritVelocityFactor = 1.0f;
 
+	// ==================== LOD (Level of Detail) ====================
+
+	/// Enable distance-based LOD for this emitter.
+	public bool EnableLOD = false;
+
+	/// Distance at which LOD begins (full quality below this).
+	public float LODStartDistance = 20.0f;
+
+	/// Distance at which particles are fully culled (no rendering beyond this).
+	public float LODEndDistance = 100.0f;
+
+	/// Minimum emission rate multiplier at max LOD distance (0-1).
+	/// At LODEndDistance, emission rate is multiplied by this value.
+	public float LODMinEmissionRate = 0.1f;
+
+	/// Whether to reduce max particle count at distance.
+	/// When true, particles beyond LODStartDistance may be skipped.
+	public bool LODReduceParticleCount = true;
+
 	// ==================== Curves Over Lifetime ====================
 
 	/// Size multiplier curve over particle lifetime (0-1).

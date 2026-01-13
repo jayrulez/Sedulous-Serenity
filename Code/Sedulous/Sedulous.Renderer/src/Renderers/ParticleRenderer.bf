@@ -82,6 +82,10 @@ class ParticleRenderer
 	private TextureFormat mDepthFormat = .Depth24PlusStencil8;
 	private bool mInitialized = false;
 
+	// Statistics (reset per RenderEmitters call)
+	private int32 mLastDrawCallCount = 0;
+	private int32 mLastPipelineSwitchCount = 0;
+
 	public this(IDevice device)
 	{
 		mDevice = device;
@@ -495,8 +499,10 @@ class ParticleRenderer
 	/// softParticleBindGroup: Optional bind group with depth texture for soft particles
 	/// useNoDepthPipelines: Use pipelines without depth attachment (for transparent pass with soft particles)
 	/// nearPlane/farPlane: Camera planes for depth linearization
+	/// sortByBlendMode: If true, sorts emitters by blend mode to minimize pipeline switches (default: true)
 	public void RenderEmitters(IRenderPassEncoder renderPass, int32 frameIndex, List<ParticleEmitterProxy*> emitters,
-		float nearPlane = 0.1f, float farPlane = 1000.0f, IBindGroup softParticleBindGroup = null, bool useNoDepthPipelines = false)
+		float nearPlane = 0.1f, float farPlane = 1000.0f, IBindGroup softParticleBindGroup = null, bool useNoDepthPipelines = false,
+		bool sortByBlendMode = true)
 	{
 		if (!mInitialized || emitters == null || emitters.Count == 0)
 			return;
@@ -504,10 +510,35 @@ class ParticleRenderer
 		if (frameIndex < 0 || frameIndex >= MAX_FRAMES)
 			return;
 
+		// Sort emitters by blend mode to minimize pipeline switches
+		// This groups AlphaBlend, Additive, Multiply, Premultiplied together
+		if (sortByBlendMode && emitters.Count > 1)
+		{
+			emitters.Sort(scope (a, b) =>
+			{
+				// Primary sort: blend mode (to minimize pipeline switches)
+				int32 blendA = (int32)a.BlendMode;
+				int32 blendB = (int32)b.BlendMode;
+				if (blendA != blendB)
+					return blendA <=> blendB;
+
+				// Secondary sort: distance (back-to-front for transparency)
+				// Note: Distance sorting was already done in VisibilityResolver,
+				// but we maintain it within each blend mode group
+				if (a.DistanceToCamera > b.DistanceToCamera) return -1;
+				if (a.DistanceToCamera < b.DistanceToCamera) return 1;
+				return 0;
+			});
+		}
+
 		IRenderPipeline currentPipeline = null;
 		bool usingSoftBindGroup = false;
 		ParticleBlendMode currentBlendMode = .AlphaBlend;
 		bool firstPipeline = true;
+
+		// Track statistics
+		mLastDrawCallCount = 0;
+		mLastPipelineSwitchCount = 0;
 
 		for (let proxy in emitters)
 		{
@@ -534,6 +565,7 @@ class ParticleRenderer
 					renderPass.SetPipeline(pipeline);
 					currentPipeline = pipeline;
 					currentBlendMode = config.BlendMode;
+					mLastPipelineSwitchCount++;
 				}
 				firstPipeline = false;
 			}
@@ -555,6 +587,7 @@ class ParticleRenderer
 				renderPass.SetVertexBuffer(0, particleSystem.VertexBuffer, 0);
 				renderPass.SetIndexBuffer(particleSystem.IndexBuffer, .UInt16, 0);
 				renderPass.DrawIndexed(6, (uint32)particleSystem.ParticleCount, 0, 0, 0);
+				mLastDrawCallCount++;
 			}
 
 			// Render sub-emitter instances
@@ -583,6 +616,7 @@ class ParticleRenderer
 							renderPass.SetPipeline(pipeline);
 							currentPipeline = pipeline;
 							currentBlendMode = subConfig.BlendMode;
+							mLastPipelineSwitchCount++;
 						}
 					}
 
@@ -600,6 +634,7 @@ class ParticleRenderer
 					renderPass.SetVertexBuffer(0, subSystem.VertexBuffer, 0);
 					renderPass.SetIndexBuffer(subSystem.IndexBuffer, .UInt16, 0);
 					renderPass.DrawIndexed(6, (uint32)subSystem.ParticleCount, 0, 0, 0);
+					mLastDrawCallCount++;
 				}
 			}
 		}
@@ -610,4 +645,13 @@ class ParticleRenderer
 
 	/// Returns true if the renderer is fully initialized with pipelines.
 	public bool IsInitialized => mInitialized && mAlphaBlendPipeline != null;
+
+	// ==================== Statistics ====================
+
+	/// Number of draw calls issued in the last RenderEmitters call.
+	public int32 LastDrawCallCount => mLastDrawCallCount;
+
+	/// Number of pipeline switches in the last RenderEmitters call.
+	/// Lower is better - sorting by blend mode helps minimize this.
+	public int32 LastPipelineSwitchCount => mLastPipelineSwitchCount;
 }

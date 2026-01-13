@@ -174,10 +174,17 @@ class ParticleEmitterComponent : IEntityComponent
 			mLastPosition = newPosition;
 		}
 
+		// Set camera position for LOD and sorting (needed before Update)
+		if (mRenderScene?.RenderWorld != null)
+		{
+			if (let camera = mRenderScene.RenderWorld.MainCamera)
+				mParticleSystem.CameraPosition = camera.Position;
+		}
+
 		// Update particles
 		mParticleSystem.Update(deltaTime);
 
-		// Upload to GPU
+		// Upload to GPU (camera position already set above)
 		mParticleSystem.Upload();
 
 		// Update proxy state

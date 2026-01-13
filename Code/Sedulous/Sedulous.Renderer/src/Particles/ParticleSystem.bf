@@ -49,7 +49,11 @@ struct Particle
 class ParticleSystem
 {
 	private IDevice mDevice;
-	private List<Particle> mParticles = new .() ~ delete _;
+
+	// Particle pool - pre-allocated array for zero runtime allocations
+	private Particle[] mParticlePool ~ delete _;
+	private int32 mActiveParticleCount = 0;
+
 	private IBuffer mVertexBuffer;
 	private IBuffer mIndexBuffer;
 
@@ -78,7 +82,7 @@ class ParticleSystem
 
 	// ==================== Properties ====================
 
-	public int32 ParticleCount => (int32)mParticles.Count;
+	public int32 ParticleCount => mActiveParticleCount;
 	public int32 MaxParticles => mMaxParticles;
 	public bool IsEmitting { get => mEmitting; set => mEmitting = value; }
 	public Vector3 Position { get => mEmitterPosition; set => mEmitterPosition = value; }
@@ -88,9 +92,18 @@ class ParticleSystem
 	/// Color tint applied to all particles on spawn. Used for color inheritance from parent particles.
 	public Color ColorTint { get; set; } = Color.White;
 
+	/// Camera position for distance-based sorting. Set before Upload() for proper sorting.
+	public Vector3 CameraPosition { get; set; } = .Zero;
+
+	/// Current LOD factor (0 = culled, 1 = full quality). Calculated from camera distance.
+	public float LODFactor { get; private set; } = 1.0f;
+
+	/// Whether the emitter is culled due to LOD distance.
+	public bool IsCulledByLOD => LODFactor <= 0;
+
 	public IBuffer VertexBuffer => mVertexBuffer;
 	public IBuffer IndexBuffer => mIndexBuffer;
-	public uint32 IndexCount => (uint32)(mParticles.Count * 6);
+	public uint32 IndexCount => (uint32)(mActiveParticleCount * 6);
 
 	/// Whether per-particle trails are enabled.
 	public bool TrailsEnabled => mTrailsEnabled;
@@ -115,6 +128,10 @@ class ParticleSystem
 		mEmitterPosition = .Zero;
 		mEmitterVelocity = .Zero;
 
+		// Pre-allocate particle pool for zero runtime allocations
+		mParticlePool = new Particle[maxParticles];
+		mActiveParticleCount = 0;
+
 		CreateBuffers();
 		InitializeTrails();
 		InitializeSubEmitters();
@@ -128,6 +145,10 @@ class ParticleSystem
 		mOwnsConfig = false;
 		mEmitterPosition = .Zero;
 		mEmitterVelocity = .Zero;
+
+		// Pre-allocate particle pool for zero runtime allocations
+		mParticlePool = new Particle[maxParticles];
+		mActiveParticleCount = 0;
 
 		CreateBuffers();
 		InitializeTrails();
@@ -203,11 +224,14 @@ class ParticleSystem
 
 		mTotalTime += deltaTime;
 
-		// Update existing particles
+		// Calculate LOD factor based on camera distance
+		CalculateLOD();
+
+		// Update existing particles (even if culled, so they die naturally)
 		UpdateParticles(deltaTime);
 
-		// Emit new particles
-		if (mEmitting && mParticles.Count < mMaxParticles)
+		// Emit new particles (respects LOD factor)
+		if (mEmitting && mActiveParticleCount < mMaxParticles && LODFactor > 0)
 		{
 			EmitParticles(deltaTime);
 		}
@@ -225,11 +249,57 @@ class ParticleSystem
 		}
 	}
 
+	/// Calculates the LOD factor based on distance from camera.
+	private void CalculateLOD()
+	{
+		if (mConfig == null || !mConfig.EnableLOD)
+		{
+			LODFactor = 1.0f;
+			return;
+		}
+
+		float distance = (mEmitterPosition - CameraPosition).Length();
+
+		if (distance <= mConfig.LODStartDistance)
+		{
+			// Full quality
+			LODFactor = 1.0f;
+		}
+		else if (distance >= mConfig.LODEndDistance)
+		{
+			// Fully culled
+			LODFactor = 0.0f;
+		}
+		else
+		{
+			// Linear interpolation between start and end distance
+			float t = (distance - mConfig.LODStartDistance) / (mConfig.LODEndDistance - mConfig.LODStartDistance);
+			// LODFactor goes from 1.0 at start to LODMinEmissionRate at end
+			LODFactor = 1.0f - t * (1.0f - mConfig.LODMinEmissionRate);
+		}
+	}
+
+	/// Removes a particle from the pool by swapping with the last active particle.
+	/// This is O(1) and avoids shifting the array.
+	[Inline]
+	private void RemoveParticleAt(int index)
+	{
+		if (index < 0 || index >= mActiveParticleCount)
+			return;
+
+		// Swap with last active particle and decrement count
+		mActiveParticleCount--;
+		if (index < mActiveParticleCount)
+		{
+			mParticlePool[index] = mParticlePool[mActiveParticleCount];
+		}
+	}
+
 	private void UpdateParticles(float deltaTime)
 	{
-		for (int i = mParticles.Count - 1; i >= 0; i--)
+		for (int i = mActiveParticleCount - 1; i >= 0; i--)
 		{
-			ref Particle p = ref mParticles[i];
+			ref Particle p = ref mParticlePool[i];
 
 			p.Life -= deltaTime;
 			if (p.Life <= 0)
@@ -241,7 +311,7 @@ class ParticleSystem
 				if (p.HasTrail)
 					FreeTrail(p.TrailIndex);
 
-				mParticles.RemoveAtFast(i);
+				RemoveParticleAt(i);
 				continue;
 			}
 
@@ -285,7 +355,7 @@ class ParticleSystem
 					if (p.HasTrail)
 						FreeTrail(p.TrailIndex);
 
-					mParticles.RemoveAtFast(i);
+					RemoveParticleAt(i);
 					continue;
 				}
 			}
@@ -341,25 +411,31 @@ class ParticleSystem
 
 	private void EmitParticles(float deltaTime)
 	{
-		// Continuous emission
-		if (mConfig.EmissionRate > 0)
-		{
-			mEmissionAccumulator += mConfig.EmissionRate * deltaTime;
+		// Apply LOD factor to emission rate
+		float effectiveRate = mConfig.EmissionRate * LODFactor;
 
-			while (mEmissionAccumulator >= 1.0f && mParticles.Count < mMaxParticles)
+		// Continuous emission
+		if (effectiveRate > 0)
+		{
+			mEmissionAccumulator += effectiveRate * deltaTime;
+
+			while (mEmissionAccumulator >= 1.0f && mActiveParticleCount < mMaxParticles)
 			{
 				EmitParticle();
 				mEmissionAccumulator -= 1.0f;
 			}
 		}
 
-		// Burst emission
+		// Burst emission (also scaled by LOD)
 		if (mConfig.BurstCount > 0 && mConfig.BurstInterval > 0)
 		{
 			mBurstAccumulator += deltaTime;
 			if (mBurstAccumulator >= mConfig.BurstInterval)
 			{
-				Burst(mConfig.BurstCount);
+				// Scale burst count by LOD factor
+				int32 effectiveBurst = (int32)Math.Ceiling(mConfig.BurstCount * LODFactor);
+				if (effectiveBurst > 0)
+					Burst(effectiveBurst);
 				mBurstAccumulator = 0;
 			}
 		}
@@ -436,10 +512,15 @@ class ParticleSystem
 			}
 		}
 
-		mParticles.Add(p);
+		// Add particle to pool
+		if (mActiveParticleCount < mMaxParticles)
+		{
+			mParticlePool[mActiveParticleCount] = p;
+			mActiveParticleCount++;
 
-		// Trigger OnBirth sub-emitters after particle is fully initialized
-		TriggerSubEmitters(.OnBirth, p.Position, p.Velocity, p.Color);
+			// Trigger OnBirth sub-emitters after particle is fully initialized
+			TriggerSubEmitters(.OnBirth, p.Position, p.Velocity, p.Color);
+		}
 	}
 
 	private void CalculateEmissionPoint(out Vector3 offset, out Vector3 direction)
@@ -589,6 +670,12 @@ class ParticleSystem
 	/// Uploads particle data to GPU.
 	public void Upload()
 	{
+		// Sort particles if enabled (only for alpha blend, additive is order-independent)
+		if (mConfig != null && mConfig.SortParticles && mConfig.BlendMode == .AlphaBlend)
+		{
+			SortParticlesByDistance();
+		}
+
 		// Upload main particle data
 		UploadMainParticles();
 
@@ -599,21 +686,42 @@ class ParticleSystem
 		}
 	}
 
+	/// Sorts particles back-to-front by distance from camera.
+	/// This is necessary for correct alpha blending.
+	private void SortParticlesByDistance()
+	{
+		if (mActiveParticleCount < 2)
+			return;
+
+		let camPos = CameraPosition;
+
+		// Sort using squared distance (avoids sqrt)
+		// Use Span to sort the active portion of the pool
+		Span<Particle> activeParticles = .(mParticlePool.Ptr, mActiveParticleCount);
+		activeParticles.Sort(scope (a, b) =>
+		{
+			float distA = (a.Position - camPos).LengthSquared();
+			float distB = (b.Position - camPos).LengthSquared();
+			// Back-to-front: larger distance first
+			return distB <=> distA;
+		});
+	}
+
 	/// Uploads main particle system data to GPU.
 	private void UploadMainParticles()
 	{
-		if (mParticles.Count == 0)
+		if (mActiveParticleCount == 0)
 			return;
 
-		ParticleVertex[] vertices = new ParticleVertex[mParticles.Count];
+		ParticleVertex[] vertices = new ParticleVertex[mActiveParticleCount];
 		defer delete vertices;
 
 		int32 columns = mConfig.TextureSheetColumns;
 		int32 rows = mConfig.TextureSheetRows;
 
-		for (int i = 0; i < mParticles.Count; i++)
+		for (int i = 0; i < mActiveParticleCount; i++)
 		{
-			ref Particle p = ref mParticles[i];
+			ref Particle p = ref mParticlePool[i];
 
 			// Calculate texture atlas frame
 			int32 frame = p.TextureFrame;
@@ -641,7 +749,7 @@ class ParticleSystem
 			);
 		}
 
-		let dataSize = (uint64)(sizeof(ParticleVertex) * mParticles.Count);
+		let dataSize = (uint64)(sizeof(ParticleVertex) * mActiveParticleCount);
 		Span<uint8> data = .((uint8*)vertices.Ptr, (int)dataSize);
 		mDevice.Queue.WriteBuffer(mVertexBuffer, 0, data);
 	}
@@ -652,13 +760,13 @@ class ParticleSystem
 	public void Clear()
 	{
 		// Free all trails associated with particles
-		for (let p in mParticles)
+		for (int i = 0; i < mActiveParticleCount; i++)
 		{
-			if (p.HasTrail)
-				FreeTrail(p.TrailIndex);
+			if (mParticlePool[i].HasTrail)
+				FreeTrail(mParticlePool[i].TrailIndex);
 		}
 
-		mParticles.Clear();
+		mActiveParticleCount = 0;
 		mEmissionAccumulator = 0;
 		mBurstAccumulator = 0;
 
@@ -672,15 +780,15 @@ class ParticleSystem
 	/// Emits a burst of particles.
 	public void Burst(int32 count)
 	{
-		int32 maxToEmit = Math.Min(count, mMaxParticles - (int32)mParticles.Count);
+		int32 maxToEmit = Math.Min(count, mMaxParticles - mActiveParticleCount);
 		for (int32 i = 0; i < maxToEmit; i++)
 		{
 			EmitParticle();
 		}
 	}
 
-	/// Gets read-only access to the particle list.
-	public Span<Particle> Particles => mParticles;
+	/// Gets read-only access to the active particles.
+	public Span<Particle> Particles => .(mParticlePool.Ptr, mActiveParticleCount);
 
 	// ==================== Sub-Emitter Management ====================
 
@@ -781,9 +889,9 @@ class ParticleSystem
 
 		let settings = mConfig.ParticleTrails;
 
-		for (int i = 0; i < mParticles.Count; i++)
+		for (int i = 0; i < mActiveParticleCount; i++)
 		{
-			ref Particle p = ref mParticles[i];
+			ref Particle p = ref mParticlePool[i];
 			if (!p.HasTrail)
 				continue;
 
@@ -812,8 +920,9 @@ class ParticleSystem
 		if (!mTrailsEnabled || mTrails == null)
 			return;
 
-		for (let particle in mParticles)
+		for (int i = 0; i < mActiveParticleCount; i++)
 		{
+			let particle = mParticlePool[i];
 			if (particle.HasTrail && particle.TrailIndex < mMaxTrails)
 			{
 				let trail = mTrails[particle.TrailIndex];

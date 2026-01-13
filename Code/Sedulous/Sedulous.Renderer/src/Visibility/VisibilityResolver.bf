@@ -14,6 +14,8 @@ class VisibilityResolver
 	private List<StaticMeshProxy*> mVisibleMeshes = new .() ~ delete _;
 	private List<LightProxy*> mAllLights = new .() ~ delete _;
 	private List<LightProxy*> mVisibleLights = new .() ~ delete _;
+	private List<ParticleEmitterProxy*> mAllParticleEmitters = new .() ~ delete _;
+	private List<ParticleEmitterProxy*> mVisibleParticleEmitters = new .() ~ delete _;
 
 	// Output lists
 	private List<StaticMeshProxy*> mOpaqueMeshes = new .() ~ delete _;
@@ -32,6 +34,9 @@ class VisibilityResolver
 	/// Gets visible lights.
 	public List<LightProxy*> VisibleLights => mVisibleLights;
 
+	/// Gets visible particle emitters (back-to-front sorted for alpha blending).
+	public List<ParticleEmitterProxy*> VisibleParticleEmitters => mVisibleParticleEmitters;
+
 	/// Resolves visibility for a render world and camera.
 	public void Resolve(RenderWorld world, CameraProxy* camera)
 	{
@@ -46,12 +51,19 @@ class VisibilityResolver
 		// Gather all proxies
 		world.GetValidStaticMeshProxies(mAllMeshes);
 		world.GetValidLightProxies(mAllLights);
+		world.GetValidParticleEmitterProxies(mAllParticleEmitters);
 
 		// Cull meshes
 		mCuller.CullMeshes(mAllMeshes, mVisibleMeshes, camera.Position);
 
 		// Cull lights
 		mCuller.CullLights(mAllLights, mVisibleLights);
+
+		// Cull particle emitters
+		mCuller.CullParticleEmitters(mAllParticleEmitters, mVisibleParticleEmitters, camera.Position);
+
+		// Sort particle emitters back-to-front for transparency
+		SortParticleEmittersBackToFront();
 
 		// Separate opaque and transparent
 		mOpaqueMeshes.Clear();
@@ -97,12 +109,19 @@ class VisibilityResolver
 		// Gather all proxies
 		world.GetValidStaticMeshProxies(mAllMeshes);
 		world.GetValidLightProxies(mAllLights);
+		world.GetValidParticleEmitterProxies(mAllParticleEmitters);
 
 		// Cull meshes
 		mCuller.CullMeshes(mAllMeshes, mVisibleMeshes, view.Position);
 
 		// Cull lights
 		mCuller.CullLights(mAllLights, mVisibleLights);
+
+		// Cull particle emitters
+		mCuller.CullParticleEmitters(mAllParticleEmitters, mVisibleParticleEmitters, view.Position);
+
+		// Sort particle emitters back-to-front for transparency
+		SortParticleEmittersBackToFront();
 
 		// Separate opaque and transparent
 		mOpaqueMeshes.Clear();
@@ -168,6 +187,8 @@ class VisibilityResolver
 		mVisibleMeshes.Clear();
 		mAllLights.Clear();
 		mVisibleLights.Clear();
+		mAllParticleEmitters.Clear();
+		mVisibleParticleEmitters.Clear();
 		mOpaqueMeshes.Clear();
 		mTransparentMeshes.Clear();
 		mShadowCasters.Clear();
@@ -253,6 +274,18 @@ class VisibilityResolver
 		});
 	}
 
+	/// Sorts particle emitters back-to-front for correct alpha blending.
+	private void SortParticleEmittersBackToFront()
+	{
+		// Sort by distance (descending)
+		mVisibleParticleEmitters.Sort(scope (a, b) =>
+		{
+			if (a.DistanceToCamera > b.DistanceToCamera) return -1;
+			if (a.DistanceToCamera < b.DistanceToCamera) return 1;
+			return 0;
+		});
+	}
+
 	// ==================== Statistics ====================
 
 	/// Number of meshes culled this frame.
@@ -269,6 +302,12 @@ class VisibilityResolver
 
 	/// Number of visible lights.
 	public int32 VisibleLightCount => (int32)mVisibleLights.Count;
+
+	/// Number of particle emitters culled this frame.
+	public int32 CulledParticleEmitterCount => (int32)(mAllParticleEmitters.Count - mVisibleParticleEmitters.Count);
+
+	/// Number of visible particle emitters.
+	public int32 VisibleParticleEmitterCount => (int32)mVisibleParticleEmitters.Count;
 
 	/// Which plane caused culling (debug, 0=left,1=right,2=bottom,3=top,4=near,5=far,-1=none)
 	public int32 CullingPlane => mCuller.LastCullingPlane;
