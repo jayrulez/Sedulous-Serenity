@@ -13,7 +13,6 @@ class LightingSystem
 	// Forward shadow constants for external access
 	public const int32 CASCADE_COUNT = ShadowConstants.CASCADE_COUNT;
 	public const int32 SHADOW_MAP_SIZE = ShadowConstants.CASCADE_MAP_SIZE;
-	public const int32 MAX_FRAMES_IN_FLIGHT = 2;
 
 	private IDevice mDevice;
 	private ClusterGrid mClusterGrid ~ delete _;
@@ -25,7 +24,7 @@ class LightingSystem
 	private ShadowUniforms mShadowUniforms;
 
 	// Per-frame shadow uniform buffers (to avoid GPU/CPU synchronization issues)
-	private IBuffer[MAX_FRAMES_IN_FLIGHT] mShadowUniformBuffers ~ { for (let b in _) delete b; };
+	private IBuffer[FrameConfig.MAX_FRAMES_IN_FLIGHT] mShadowUniformBuffers ~ { for (let b in _) delete b; };
 
 	// Directional light (only one for now)
 	private LightProxy* mDirectionalLight = null;
@@ -51,7 +50,7 @@ class LightingSystem
 	{
 		// Create per-frame shadow uniform buffers
 		BufferDescriptor uniformDesc = .((uint64)sizeof(ShadowUniforms), .Uniform, .Upload);
-		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		for (int i = 0; i < FrameConfig.MAX_FRAMES_IN_FLIGHT; i++)
 		{
 			if (mDevice.CreateBuffer(&uniformDesc) case .Ok(let buf))
 				mShadowUniformBuffers[i] = buf;
@@ -268,7 +267,7 @@ class LightingSystem
 	/// Uploads shadow uniform data to GPU for the specified frame.
 	public void UploadShadowUniforms(int32 frameIndex)
 	{
-		if (frameIndex >= 0 && frameIndex < MAX_FRAMES_IN_FLIGHT && mShadowUniformBuffers[frameIndex] != null && mDevice?.Queue != null)
+		if (frameIndex >= 0 && frameIndex < FrameConfig.MAX_FRAMES_IN_FLIGHT && mShadowUniformBuffers[frameIndex] != null && mDevice?.Queue != null)
 		{
 			Span<uint8> data = .((uint8*)&mShadowUniforms, sizeof(ShadowUniforms));
 			mDevice.Queue.WriteBuffer(mShadowUniformBuffers[frameIndex], 0, data);
@@ -325,7 +324,7 @@ class LightingSystem
 	/// Gets the shadow uniform buffer for shader binding for the specified frame.
 	public IBuffer GetShadowUniformBuffer(int32 frameIndex)
 	{
-		if (frameIndex >= 0 && frameIndex < MAX_FRAMES_IN_FLIGHT)
+		if (frameIndex >= 0 && frameIndex < FrameConfig.MAX_FRAMES_IN_FLIGHT)
 			return mShadowUniformBuffers[frameIndex];
 		return null;
 	}

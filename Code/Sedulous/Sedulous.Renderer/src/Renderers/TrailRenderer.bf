@@ -23,7 +23,6 @@ struct TrailUniforms
 /// Creates continuous ribbon geometry from trail point data.
 class TrailRenderer
 {
-	private const int32 MAX_FRAMES = 2;
 	private const int32 MAX_TRAIL_VERTICES = 8192;  // Max vertices per frame
 
 	private IDevice mDevice;
@@ -42,9 +41,9 @@ class TrailRenderer
 	private IRenderPipeline mAdditiveNoDepthPipeline ~ delete _;
 
 	// Per-frame resources
-	private IBuffer[MAX_FRAMES] mTrailUniformBuffers ~ { for (var buf in _) delete buf; };
-	private IBuffer[MAX_FRAMES] mVertexBuffers ~ { for (var buf in _) delete buf; };
-	private IBindGroup[MAX_FRAMES] mBindGroups ~ { for (var bg in _) delete bg; };
+	private IBuffer[FrameConfig.MAX_FRAMES_IN_FLIGHT] mTrailUniformBuffers ~ { for (var buf in _) delete buf; };
+	private IBuffer[FrameConfig.MAX_FRAMES_IN_FLIGHT] mVertexBuffers ~ { for (var buf in _) delete buf; };
+	private IBindGroup[FrameConfig.MAX_FRAMES_IN_FLIGHT] mBindGroups ~ { for (var bg in _) delete bg; };
 
 	// Default white texture for non-textured trails
 	private ITexture mDefaultTexture ~ delete _;
@@ -52,13 +51,13 @@ class TrailRenderer
 	private ISampler mDefaultSampler ~ delete _;
 
 	// Per-frame camera buffers (references, not owned)
-	private IBuffer[MAX_FRAMES] mCameraBuffers;
+	private IBuffer[FrameConfig.MAX_FRAMES_IN_FLIGHT] mCameraBuffers;
 
 	// CPU-side vertex staging
 	private TrailVertex[] mStagingVertices = new TrailVertex[MAX_TRAIL_VERTICES] ~ delete _;
 
 	// Per-frame vertex offset tracking (to avoid overwriting data still being drawn)
-	private int32[MAX_FRAMES] mCurrentVertexOffset;
+	private int32[FrameConfig.MAX_FRAMES_IN_FLIGHT] mCurrentVertexOffset;
 
 	// Configuration
 	private TextureFormat mColorFormat = .BGRA8UnormSrgb;
@@ -72,7 +71,7 @@ class TrailRenderer
 
 	/// Initializes the trail renderer with pipeline resources.
 	public Result<void> Initialize(ShaderLibrary shaderLibrary,
-		IBuffer[MAX_FRAMES] cameraBuffers, TextureFormat colorFormat, TextureFormat depthFormat)
+		IBuffer[FrameConfig.MAX_FRAMES_IN_FLIGHT] cameraBuffers, TextureFormat colorFormat, TextureFormat depthFormat)
 	{
 		if (mDevice == null)
 			return .Err;
@@ -167,7 +166,7 @@ class TrailRenderer
 		uint64 uniformSize = sizeof(TrailUniforms);
 		uint64 vertexBufferSize = (uint64)(sizeof(TrailVertex) * MAX_TRAIL_VERTICES);
 
-		for (int i = 0; i < MAX_FRAMES; i++)
+		for (int i = 0; i < FrameConfig.MAX_FRAMES_IN_FLIGHT; i++)
 		{
 			// Uniform buffer
 			BufferDescriptor uniformDesc = .(uniformSize, .Uniform, .Upload);
@@ -187,7 +186,7 @@ class TrailRenderer
 
 	private Result<void> CreateBindGroups()
 	{
-		for (int i = 0; i < MAX_FRAMES; i++)
+		for (int i = 0; i < FrameConfig.MAX_FRAMES_IN_FLIGHT; i++)
 		{
 			BindGroupEntry[4] entries = .(
 				BindGroupEntry.Buffer(0, mCameraBuffers[i]),        // b0: camera
@@ -331,14 +330,14 @@ class TrailRenderer
 	/// Call this at the start of each frame before rendering any trails.
 	public void BeginFrame(int32 frameIndex)
 	{
-		if (frameIndex >= 0 && frameIndex < MAX_FRAMES)
+		if (frameIndex >= 0 && frameIndex < FrameConfig.MAX_FRAMES_IN_FLIGHT)
 			mCurrentVertexOffset[frameIndex] = 0;
 	}
 
 	/// Updates the trail uniform buffer.
 	public void UpdateUniforms(int32 frameIndex, bool useTexture, float softEdge)
 	{
-		if (frameIndex < 0 || frameIndex >= MAX_FRAMES)
+		if (frameIndex < 0 || frameIndex >= FrameConfig.MAX_FRAMES_IN_FLIGHT)
 			return;
 
 		TrailUniforms uniforms = .();
@@ -358,7 +357,7 @@ class TrailRenderer
 		if (!mInitialized || trail == null || !trail.HasPoints)
 			return 0;
 
-		if (frameIndex < 0 || frameIndex >= MAX_FRAMES)
+		if (frameIndex < 0 || frameIndex >= FrameConfig.MAX_FRAMES_IN_FLIGHT)
 			return 0;
 
 		// Get current offset for this frame
@@ -412,7 +411,7 @@ class TrailRenderer
 		if (!mInitialized || trails == null || trails.Count == 0)
 			return 0;
 
-		if (frameIndex < 0 || frameIndex >= MAX_FRAMES)
+		if (frameIndex < 0 || frameIndex >= FrameConfig.MAX_FRAMES_IN_FLIGHT)
 			return 0;
 
 		int32 totalVertices = 0;

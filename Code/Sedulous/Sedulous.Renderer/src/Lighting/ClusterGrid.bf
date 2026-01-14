@@ -9,7 +9,6 @@ using Sedulous.RHI;
 /// Subdivides the view frustum into 16x9x24 clusters for efficient light culling.
 class ClusterGrid
 {
-	public const int32 MAX_FRAMES_IN_FLIGHT = 2;
 
 	private IDevice mDevice;
 
@@ -17,10 +16,10 @@ class ClusterGrid
 	private IBuffer mClusterAABBBuffer ~ delete _;     // ClusterAABB[CLUSTER_COUNT]
 
 	// Per-frame GPU buffers (to avoid GPU/CPU synchronization issues)
-	private IBuffer[MAX_FRAMES_IN_FLIGHT] mLightGridBuffers ~ { for (let b in _) delete b; };
-	private IBuffer[MAX_FRAMES_IN_FLIGHT] mLightIndexBuffers ~ { for (let b in _) delete b; };
-	private IBuffer[MAX_FRAMES_IN_FLIGHT] mLightBuffers ~ { for (let b in _) delete b; };
-	private IBuffer[MAX_FRAMES_IN_FLIGHT] mLightingUniformBuffers ~ { for (let b in _) delete b; };
+	private IBuffer[FrameConfig.MAX_FRAMES_IN_FLIGHT] mLightGridBuffers ~ { for (let b in _) delete b; };
+	private IBuffer[FrameConfig.MAX_FRAMES_IN_FLIGHT] mLightIndexBuffers ~ { for (let b in _) delete b; };
+	private IBuffer[FrameConfig.MAX_FRAMES_IN_FLIGHT] mLightBuffers ~ { for (let b in _) delete b; };
+	private IBuffer[FrameConfig.MAX_FRAMES_IN_FLIGHT] mLightingUniformBuffers ~ { for (let b in _) delete b; };
 
 	// CPU-side data for uploading
 	private GPUClusteredLight[] mCpuLights ~ delete _;
@@ -60,7 +59,7 @@ class ClusterGrid
 			mClusterAABBBuffer = aabbBuf;
 
 		// Create per-frame buffers for data that changes every frame
-		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		for (int i = 0; i < FrameConfig.MAX_FRAMES_IN_FLIGHT; i++)
 		{
 			// Light grid buffer - stores offset/count per cluster
 			BufferDescriptor lightGridDesc = .((uint64)(sizeof(LightGridEntry) * ClusterConstants.CLUSTER_COUNT), .Storage, .Upload);
@@ -123,7 +122,7 @@ class ClusterGrid
 	/// Assigns lights to clusters for the specified frame.
 	public void CullLights(List<LightProxy*> lights, CameraProxy* camera, int32 frameIndex)
 	{
-		if (camera == null || frameIndex < 0 || frameIndex >= MAX_FRAMES_IN_FLIGHT)
+		if (camera == null || frameIndex < 0 || frameIndex >= FrameConfig.MAX_FRAMES_IN_FLIGHT)
 			return;
 
 		CullLightsInternal(lights, camera.ViewMatrix, frameIndex);
@@ -132,7 +131,7 @@ class ClusterGrid
 	/// Assigns lights to clusters for the specified frame using a render view.
 	public void CullLightsFromView(List<LightProxy*> lights, RenderView* view, int32 frameIndex)
 	{
-		if (view == null || frameIndex < 0 || frameIndex >= MAX_FRAMES_IN_FLIGHT)
+		if (view == null || frameIndex < 0 || frameIndex >= FrameConfig.MAX_FRAMES_IN_FLIGHT)
 			return;
 
 		CullLightsInternal(lights, view.ViewMatrix, frameIndex);
@@ -168,7 +167,7 @@ class ClusterGrid
 	/// Updates the lighting uniform buffer for the specified frame.
 	public void UpdateUniforms(CameraProxy* camera, LightProxy* directionalLight, int32 frameIndex)
 	{
-		if (frameIndex < 0 || frameIndex >= MAX_FRAMES_IN_FLIGHT)
+		if (frameIndex < 0 || frameIndex >= FrameConfig.MAX_FRAMES_IN_FLIGHT)
 			return;
 
 		if (camera != null)
@@ -185,7 +184,7 @@ class ClusterGrid
 	/// Updates the lighting uniform buffer for the specified frame using a render view.
 	public void UpdateUniformsFromView(RenderView* view, LightProxy* directionalLight, int32 frameIndex)
 	{
-		if (frameIndex < 0 || frameIndex >= MAX_FRAMES_IN_FLIGHT)
+		if (frameIndex < 0 || frameIndex >= FrameConfig.MAX_FRAMES_IN_FLIGHT)
 			return;
 
 		if (view != null)
@@ -244,7 +243,7 @@ class ClusterGrid
 	/// Gets the light grid buffer for binding for the specified frame.
 	public IBuffer GetLightGridBuffer(int32 frameIndex)
 	{
-		if (frameIndex >= 0 && frameIndex < MAX_FRAMES_IN_FLIGHT)
+		if (frameIndex >= 0 && frameIndex < FrameConfig.MAX_FRAMES_IN_FLIGHT)
 			return mLightGridBuffers[frameIndex];
 		return null;
 	}
@@ -252,7 +251,7 @@ class ClusterGrid
 	/// Gets the light index buffer for binding for the specified frame.
 	public IBuffer GetLightIndexBuffer(int32 frameIndex)
 	{
-		if (frameIndex >= 0 && frameIndex < MAX_FRAMES_IN_FLIGHT)
+		if (frameIndex >= 0 && frameIndex < FrameConfig.MAX_FRAMES_IN_FLIGHT)
 			return mLightIndexBuffers[frameIndex];
 		return null;
 	}
@@ -260,7 +259,7 @@ class ClusterGrid
 	/// Gets the light buffer for binding for the specified frame.
 	public IBuffer GetLightBuffer(int32 frameIndex)
 	{
-		if (frameIndex >= 0 && frameIndex < MAX_FRAMES_IN_FLIGHT)
+		if (frameIndex >= 0 && frameIndex < FrameConfig.MAX_FRAMES_IN_FLIGHT)
 			return mLightBuffers[frameIndex];
 		return null;
 	}
@@ -268,7 +267,7 @@ class ClusterGrid
 	/// Gets the lighting uniform buffer for binding for the specified frame.
 	public IBuffer GetLightingUniformBuffer(int32 frameIndex)
 	{
-		if (frameIndex >= 0 && frameIndex < MAX_FRAMES_IN_FLIGHT)
+		if (frameIndex >= 0 && frameIndex < FrameConfig.MAX_FRAMES_IN_FLIGHT)
 			return mLightingUniformBuffers[frameIndex];
 		return null;
 	}
@@ -461,7 +460,7 @@ class ClusterGrid
 
 	private void UploadLightData(int32 frameIndex)
 	{
-		if (frameIndex < 0 || frameIndex >= MAX_FRAMES_IN_FLIGHT)
+		if (frameIndex < 0 || frameIndex >= FrameConfig.MAX_FRAMES_IN_FLIGHT)
 			return;
 
 		// Upload lights

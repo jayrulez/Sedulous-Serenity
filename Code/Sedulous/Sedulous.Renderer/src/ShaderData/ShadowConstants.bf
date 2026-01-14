@@ -3,8 +3,6 @@ namespace Sedulous.Renderer;
 /// Constants for shadow mapping.
 static class ShadowConstants
 {
-	/// Maximum frames in flight for GPU/CPU synchronization.
-	public const int32 MAX_FRAMES_IN_FLIGHT = 2;
 	/// Number of shadow cascades for directional light.
 	public const int32 CASCADE_COUNT = 4;
 	/// Resolution of each cascade shadow map.

@@ -41,7 +41,7 @@ struct SpriteEntry
 class TextureBindGroupEntry
 {
 	public ITextureView Texture;
-	public IBindGroup[2] BindGroups;  // MAX_FRAMES = 2
+	public IBindGroup[FrameConfig.MAX_FRAMES_IN_FLIGHT] BindGroups;
 
 	public this(ITextureView texture)
 	{
@@ -59,7 +59,6 @@ class TextureBindGroupEntry
 /// Supports multiple textures via automatic batching.
 class SpriteRenderer
 {
-	private const int32 MAX_FRAMES = 2;
 
 	private IDevice mDevice;
 	private ShaderLibrary mShaderLibrary;
@@ -74,7 +73,7 @@ class SpriteRenderer
 	private IRenderPipeline mNoDepthPipeline ~ delete _;  // For transparent pass without depth attachment
 
 	// Per-frame camera buffers (references, not owned)
-	private IBuffer[MAX_FRAMES] mCameraBuffers;
+	private IBuffer[FrameConfig.MAX_FRAMES_IN_FLIGHT] mCameraBuffers;
 
 	// Texture resources
 	private ITexture mWhiteTexture ~ delete _;
@@ -116,7 +115,7 @@ class SpriteRenderer
 
 	/// Initializes the sprite renderer with pipeline resources.
 	public Result<void> Initialize(ShaderLibrary shaderLibrary,
-		IBuffer[MAX_FRAMES] cameraBuffers, TextureFormat colorFormat, TextureFormat depthFormat)
+		IBuffer[FrameConfig.MAX_FRAMES_IN_FLIGHT] cameraBuffers, TextureFormat colorFormat, TextureFormat depthFormat)
 	{
 		if (mDevice == null)
 			return .Err;
@@ -291,7 +290,7 @@ class SpriteRenderer
 		if (!mInitialized || mPipeline == null || mBatches.Count == 0)
 			return;
 
-		if (frameIndex < 0 || frameIndex >= MAX_FRAMES)
+		if (frameIndex < 0 || frameIndex >= FrameConfig.MAX_FRAMES_IN_FLIGHT)
 			return;
 
 		let pipeline = useNoDepth ? mNoDepthPipeline : mPipeline;
@@ -418,7 +417,7 @@ class SpriteRenderer
 
 		// Create new entry with bind groups
 		let entry = new TextureBindGroupEntry(actualTexture);
-		for (int i = 0; i < MAX_FRAMES; i++)
+		for (int i = 0; i < FrameConfig.MAX_FRAMES_IN_FLIGHT; i++)
 		{
 			BindGroupEntry[3] entries = .(
 				BindGroupEntry.Buffer(0, mCameraBuffers[i]),

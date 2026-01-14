@@ -32,7 +32,6 @@ struct SkinnedDrawBatch
 /// Handles rendering of skinned meshes with skeletal animation and PBR materials.
 class SkinnedMeshRenderer
 {
-	private const int32 MAX_FRAMES = 2;
 
 	private IDevice mDevice;
 	private ShaderLibrary mShaderLibrary;
@@ -60,7 +59,7 @@ class SkinnedMeshRenderer
 	private List<SkinnedDrawBatch> mMaterialBatches = new .() ~ delete _;
 
 	// Per-frame temporary object bind groups (for material pipeline)
-	private List<IBindGroup>[MAX_FRAMES] mTempObjectBindGroups = .(new .(), new .()) ~ {
+	private List<IBindGroup>[FrameConfig.MAX_FRAMES_IN_FLIGHT] mTempObjectBindGroups = .(new .(), new .()) ~ {
 		for (var list in _) DeleteContainerAndItems!(list);
 	};
 

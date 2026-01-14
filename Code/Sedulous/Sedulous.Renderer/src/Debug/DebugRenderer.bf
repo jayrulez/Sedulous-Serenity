@@ -20,7 +20,8 @@ enum DebugRenderMode
 class DebugRenderer
 {
 	private const int32 MAX_VERTICES = 65536;
-	private const int32 MAX_FRAMES = 3;
+	// Use DELETION_DEFER_FRAMES (MAX_FRAMES_IN_FLIGHT + 1) for extra buffer safety
+	private const int32 MAX_FRAMES = FrameConfig.DELETION_DEFER_FRAMES;
 
 	private IDevice mDevice;
 	private ShaderLibrary mShaderLibrary;

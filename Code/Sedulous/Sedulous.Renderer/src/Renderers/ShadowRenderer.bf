@@ -18,7 +18,6 @@ struct ShadowRendererUniforms
 /// Owns shadow pipelines, bind groups, and uniform buffers.
 class ShadowRenderer
 {
-	private const int32 MAX_FRAMES = 2;
 	private const int32 CASCADE_COUNT = 4;
 	private const int32 SHADOW_MAP_SIZE = 2048;
 
@@ -39,19 +38,19 @@ class ShadowRenderer
 	// Note: Object buffers are now per-component (SkinnedMeshRendererComponent.ObjectUniformBuffer)
 
 	// Per-frame, per-cascade resources
-	private IBuffer[MAX_FRAMES][CASCADE_COUNT] mShadowUniformBuffers ~ {
-		for (int i = 0; i < MAX_FRAMES; i++)
+	private IBuffer[FrameConfig.MAX_FRAMES_IN_FLIGHT][CASCADE_COUNT] mShadowUniformBuffers ~ {
+		for (int i = 0; i < FrameConfig.MAX_FRAMES_IN_FLIGHT; i++)
 			for (int c = 0; c < CASCADE_COUNT; c++)
 				delete _[i][c];
 	};
-	private IBindGroup[MAX_FRAMES][CASCADE_COUNT] mStaticShadowBindGroups ~ {
-		for (int i = 0; i < MAX_FRAMES; i++)
+	private IBindGroup[FrameConfig.MAX_FRAMES_IN_FLIGHT][CASCADE_COUNT] mStaticShadowBindGroups ~ {
+		for (int i = 0; i < FrameConfig.MAX_FRAMES_IN_FLIGHT; i++)
 			for (int c = 0; c < CASCADE_COUNT; c++)
 				delete _[i][c];
 	};
 
 	// Per-frame temporary bind groups for skinned meshes (cleaned up each frame)
-	private List<IBindGroup>[MAX_FRAMES] mTempSkinnedBindGroups = .(new .(), new .()) ~ {
+	private List<IBindGroup>[FrameConfig.MAX_FRAMES_IN_FLIGHT] mTempSkinnedBindGroups = .(new .(), new .()) ~ {
 		for (var list in _) DeleteContainerAndItems!(list);
 	};
 
@@ -66,7 +65,7 @@ class ShadowRenderer
 
 		// Create per-frame, per-cascade uniform buffers
 		BufferDescriptor shadowDesc = .((uint64)sizeof(ShadowRendererUniforms), .Uniform, .Upload);
-		for (int i = 0; i < MAX_FRAMES; i++)
+		for (int i = 0; i < FrameConfig.MAX_FRAMES_IN_FLIGHT; i++)
 		{
 			for (int32 c = 0; c < CASCADE_COUNT; c++)
 			{
@@ -82,7 +81,7 @@ class ShadowRenderer
 			return .Err;
 
 		// Create static shadow bind groups
-		for (int i = 0; i < MAX_FRAMES; i++)
+		for (int i = 0; i < FrameConfig.MAX_FRAMES_IN_FLIGHT; i++)
 		{
 			for (int32 c = 0; c < CASCADE_COUNT; c++)
 			{

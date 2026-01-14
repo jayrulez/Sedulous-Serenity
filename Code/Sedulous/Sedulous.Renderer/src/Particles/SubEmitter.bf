@@ -163,8 +163,7 @@ class SubEmitterManager
 	private Random mRandom = new .() ~ delete _;
 	private int32 mFrameCount = 0;
 
-	// Defer deletion by max frames in flight + 1 to ensure GPU has finished using buffers
-	private const int32 DELETION_DEFER_FRAMES = LightingSystem.MAX_FRAMES_IN_FLIGHT + 1;
+	// Defer deletion using centralized frame config to ensure GPU has finished using buffers
 
 	public this(IDevice device, int32 maxInstances = 500)
 	{
@@ -223,7 +222,7 @@ class SubEmitterManager
 		for (int i = mPendingDeletion.Count - 1; i >= 0; i--)
 		{
 			let instance = mPendingDeletion[i];
-			if (mFrameCount - instance.DeletionFrameCount >= DELETION_DEFER_FRAMES)
+			if (mFrameCount - instance.DeletionFrameCount >= FrameConfig.DELETION_DEFER_FRAMES)
 			{
 				delete instance;
 				mPendingDeletion.RemoveAt(i);

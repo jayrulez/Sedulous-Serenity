@@ -48,7 +48,6 @@ struct Particle
 /// CPU-driven particle system with advanced features.
 class ParticleSystem
 {
-	private const int32 MAX_FRAMES = 2;
 
 	private IDevice mDevice;
 
@@ -57,7 +56,7 @@ class ParticleSystem
 	private int32 mActiveParticleCount = 0;
 
 	// Double-buffered vertex buffers to avoid GPU/CPU race conditions
-	private IBuffer[MAX_FRAMES] mVertexBuffers ~ { for (var buf in _) if (buf != null) delete buf; };
+	private IBuffer[FrameConfig.MAX_FRAMES_IN_FLIGHT] mVertexBuffers ~ { for (var buf in _) if (buf != null) delete buf; };
 	private IBuffer mIndexBuffer ~ delete _;
 
 	private ParticleEmitterConfig mConfig ~ if (mOwnsConfig) delete _;
@@ -105,7 +104,7 @@ class ParticleSystem
 	public bool IsCulledByLOD => LODFactor <= 0;
 
 	/// Gets the vertex buffer for the specified frame index.
-	public IBuffer GetVertexBuffer(int32 frameIndex) => mVertexBuffers[frameIndex % MAX_FRAMES];
+	public IBuffer GetVertexBuffer(int32 frameIndex) => mVertexBuffers[frameIndex % FrameConfig.MAX_FRAMES_IN_FLIGHT];
 	public IBuffer IndexBuffer => mIndexBuffer;
 	public uint32 IndexCount => (uint32)(mActiveParticleCount * 6);
 
@@ -199,7 +198,7 @@ class ParticleSystem
 		// Create double-buffered vertex buffers (one per frame in flight)
 		let vertexSize = (uint64)(sizeof(ParticleVertex) * mMaxParticles);
 		BufferDescriptor vertexDesc = .(vertexSize, .Vertex, .Upload);
-		for (int i = 0; i < MAX_FRAMES; i++)
+		for (int i = 0; i < FrameConfig.MAX_FRAMES_IN_FLIGHT; i++)
 		{
 			if (mDevice.CreateBuffer(&vertexDesc) case .Ok(let vertBuf))
 				mVertexBuffers[i] = vertBuf;
@@ -733,7 +732,7 @@ class ParticleSystem
 		if (mActiveParticleCount == 0)
 			return;
 
-		let buffer = mVertexBuffers[frameIndex % MAX_FRAMES];
+		let buffer = mVertexBuffers[frameIndex % FrameConfig.MAX_FRAMES_IN_FLIGHT];
 		if (buffer == null)
 			return;
 

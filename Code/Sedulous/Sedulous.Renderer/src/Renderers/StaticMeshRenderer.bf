@@ -10,7 +10,6 @@ using Sedulous.Mathematics;
 /// Manages instance buffers and batch building for efficient draw call batching.
 class StaticMeshRenderer
 {
-	private const int32 MAX_FRAMES = 2;
 	private const int32 MAX_INSTANCES = 4096;
 
 	private IDevice mDevice;
@@ -27,7 +26,7 @@ class StaticMeshRenderer
 	private bool mDefaultMaterialCreated = false;
 
 	// Per-frame instance buffers
-	private IBuffer[MAX_FRAMES] mMaterialInstanceBuffers ~ { for (var buf in _) delete buf; };
+	private IBuffer[FrameConfig.MAX_FRAMES_IN_FLIGHT] mMaterialInstanceBuffers ~ { for (var buf in _) delete buf; };
 
 	// CPU-side instance data
 	private MaterialInstanceData[] mMaterialInstanceData ~ delete _;
@@ -76,7 +75,7 @@ class StaticMeshRenderer
 		mMaterialInstanceData = new MaterialInstanceData[MAX_INSTANCES];
 
 		// Create per-frame instance buffers
-		for (int i = 0; i < MAX_FRAMES; i++)
+		for (int i = 0; i < FrameConfig.MAX_FRAMES_IN_FLIGHT; i++)
 		{
 			uint64 bufferSize = (uint64)(sizeof(MaterialInstanceData) * MAX_INSTANCES);
 			BufferDescriptor bufferDesc = .(bufferSize, .Vertex, .Upload);
@@ -231,7 +230,7 @@ class StaticMeshRenderer
 	/// Called during PrepareGPU after the fence wait.
 	public void PrepareGPU(int32 frameIndex)
 	{
-		if (mDevice?.Queue == null || frameIndex < 0 || frameIndex >= MAX_FRAMES)
+		if (mDevice?.Queue == null || frameIndex < 0 || frameIndex >= FrameConfig.MAX_FRAMES_IN_FLIGHT)
 			return;
 
 		// Upload material instance data

@@ -2,6 +2,7 @@ namespace Sedulous.Renderer;
 
 using System;
 using Sedulous.Mathematics;
+using Sedulous.RHI;
 
 /// Render proxy for a camera in the scene.
 /// Caches computed matrices and frustum planes for efficient culling.
@@ -80,6 +81,10 @@ struct CameraProxy
 	/// Render target priority (lower = renders first).
 	public int32 Priority;
 
+	/// Whether the projection matrix has been flipped for the current backend.
+	/// Set by ApplyBackendFlip() when Vulkan Y-flip is applied.
+	public bool ProjectionFlipped;
+
 	/// Creates an invalid camera proxy.
 	public static Self Invalid => .()
 	{
@@ -107,7 +112,8 @@ struct CameraProxy
 		ViewportWidth = 1920,
 		ViewportHeight = 1080,
 		LayerMask = 0xFFFFFFFF,
-		Priority = 0
+		Priority = 0,
+		ProjectionFlipped = false
 	};
 
 	/// Creates a camera proxy from a Camera struct.
@@ -135,6 +141,9 @@ struct CameraProxy
 	/// Updates all cached matrices and frustum planes.
 	public void UpdateMatrices() mut
 	{
+		// Reset flip state when matrices are updated
+		ProjectionFlipped = false;
+
 		// Save previous VP for motion vectors
 		PreviousViewProjection = ViewProjectionMatrix;
 
@@ -142,7 +151,7 @@ struct CameraProxy
 		ViewMatrix = Matrix.CreateLookAt(Position, Position + Forward, Up);
 
 		// Compute projection matrix
-		// Note: Y-flip for Vulkan should be applied by the caller using Device.FlipProjectionRequired
+		// Note: Y-flip for Vulkan is applied via ApplyBackendFlip() method
 		if (UseReverseZ)
 			ProjectionMatrix = CreateReverseZPerspective(FieldOfView, AspectRatio, NearPlane, FarPlane);
 		else
@@ -323,4 +332,29 @@ struct CameraProxy
 
 	/// Checks if this proxy is valid.
 	public bool IsValid => Id != uint32.MaxValue;
+
+	/// Applies Y-flip to projection matrix if required by the graphics backend.
+	/// This should be called once after UpdateMatrices() when preparing for GPU upload.
+	/// For Vulkan, Y-axis clip space is inverted compared to OpenGL/D3D.
+	public void ApplyBackendFlip(IDevice device) mut
+	{
+		if (device.FlipProjectionRequired && !ProjectionFlipped)
+		{
+			ProjectionMatrix.M22 = -ProjectionMatrix.M22;
+			// Recompute derived matrices
+			ViewProjectionMatrix = ViewMatrix * ProjectionMatrix;
+			var jitteredProj = ProjectionMatrix;
+			jitteredProj.M31 += JitterOffset.X;
+			jitteredProj.M32 += JitterOffset.Y;
+			JitteredViewProjectionMatrix = ViewMatrix * jitteredProj;
+			InverseProjectionMatrix = Matrix.Invert(ProjectionMatrix);
+			ProjectionFlipped = true;
+		}
+	}
+
+	/// Resets the projection flip state (call before UpdateMatrices if camera is reused).
+	public void ResetFlipState() mut
+	{
+		ProjectionFlipped = false;
+	}
 }

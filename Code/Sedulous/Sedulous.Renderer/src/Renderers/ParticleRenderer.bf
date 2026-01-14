@@ -39,7 +39,6 @@ struct ParticleUniforms
 /// Supports multiple blend modes, textures, and render modes.
 class ParticleRenderer
 {
-	private const int32 MAX_FRAMES = 2;
 
 	private IDevice mDevice;
 	private ShaderLibrary mShaderLibrary;
@@ -61,8 +60,8 @@ class ParticleRenderer
 	private IRenderPipeline mPremultipliedNoDepthPipeline ~ delete _;
 
 	// Per-frame resources
-	private IBuffer[MAX_FRAMES] mParticleUniformBuffers ~ { for (var buf in _) delete buf; };
-	private IBindGroup[MAX_FRAMES] mBindGroups ~ { for (var bg in _) delete bg; };
+	private IBuffer[FrameConfig.MAX_FRAMES_IN_FLIGHT] mParticleUniformBuffers ~ { for (var buf in _) delete buf; };
+	private IBindGroup[FrameConfig.MAX_FRAMES_IN_FLIGHT] mBindGroups ~ { for (var bg in _) delete bg; };
 
 	// Default white texture for non-textured particles
 	private ITexture mDefaultTexture ~ delete _;
@@ -75,7 +74,7 @@ class ParticleRenderer
 	private ISampler mDepthSampler ~ delete _;
 
 	// Per-frame camera buffers (references, not owned)
-	private IBuffer[MAX_FRAMES] mCameraBuffers;
+	private IBuffer[FrameConfig.MAX_FRAMES_IN_FLIGHT] mCameraBuffers;
 
 	// Configuration
 	private TextureFormat mColorFormat = .BGRA8UnormSrgb;
@@ -93,7 +92,7 @@ class ParticleRenderer
 
 	/// Initializes the particle renderer with pipeline resources.
 	public Result<void> Initialize(ShaderLibrary shaderLibrary,
-		IBuffer[MAX_FRAMES] cameraBuffers, TextureFormat colorFormat, TextureFormat depthFormat)
+		IBuffer[FrameConfig.MAX_FRAMES_IN_FLIGHT] cameraBuffers, TextureFormat colorFormat, TextureFormat depthFormat)
 	{
 		if (mDevice == null)
 			return .Err;
@@ -222,7 +221,7 @@ class ParticleRenderer
 	{
 		uint64 uniformSize = sizeof(ParticleUniforms);
 
-		for (int i = 0; i < MAX_FRAMES; i++)
+		for (int i = 0; i < FrameConfig.MAX_FRAMES_IN_FLIGHT; i++)
 		{
 			BufferDescriptor bufferDesc = .(uniformSize, .Uniform, .Upload);
 			if (mDevice.CreateBuffer(&bufferDesc) not case .Ok(let buffer))
@@ -236,7 +235,7 @@ class ParticleRenderer
 	private Result<void> CreateBindGroups()
 	{
 		// Create per-frame bind groups with all bindings (using default depth texture)
-		for (int i = 0; i < MAX_FRAMES; i++)
+		for (int i = 0; i < FrameConfig.MAX_FRAMES_IN_FLIGHT; i++)
 		{
 			BindGroupEntry[6] entries = .(
 				BindGroupEntry.Buffer(0, mCameraBuffers[i]),           // b0: camera
@@ -259,7 +258,7 @@ class ParticleRenderer
 	/// The caller is responsible for deleting the returned bind group.
 	public Result<IBindGroup> CreateSoftParticleBindGroup(int32 frameIndex, ITextureView depthTextureView)
 	{
-		if (frameIndex < 0 || frameIndex >= MAX_FRAMES)
+		if (frameIndex < 0 || frameIndex >= FrameConfig.MAX_FRAMES_IN_FLIGHT)
 			return .Err;
 
 		BindGroupEntry[6] entries = .(
@@ -437,7 +436,7 @@ class ParticleRenderer
 	/// Updates the particle uniform buffer for a specific render configuration.
 	public void UpdateUniforms(int32 frameIndex, ParticleEmitterConfig config, float nearPlane = 0.1f, float farPlane = 1000.0f)
 	{
-		if (frameIndex < 0 || frameIndex >= MAX_FRAMES)
+		if (frameIndex < 0 || frameIndex >= FrameConfig.MAX_FRAMES_IN_FLIGHT)
 			return;
 
 		ParticleUniforms uniforms = .();
@@ -463,7 +462,7 @@ class ParticleRenderer
 		if (!mInitialized || particleSystem == null)
 			return;
 
-		if (frameIndex < 0 || frameIndex >= MAX_FRAMES)
+		if (frameIndex < 0 || frameIndex >= FrameConfig.MAX_FRAMES_IN_FLIGHT)
 			return;
 
 		let particleCount = particleSystem.ParticleCount;
@@ -507,7 +506,7 @@ class ParticleRenderer
 		if (!mInitialized || emitters == null || emitters.Count == 0)
 			return;
 
-		if (frameIndex < 0 || frameIndex >= MAX_FRAMES)
+		if (frameIndex < 0 || frameIndex >= FrameConfig.MAX_FRAMES_IN_FLIGHT)
 			return;
 
 		// Sort emitters by blend mode to minimize pipeline switches

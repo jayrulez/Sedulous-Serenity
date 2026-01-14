@@ -23,7 +23,6 @@ using Sedulous.RHI;
 ///   context.EndFrame();
 class RenderContext
 {
-	private const int32 MAX_FRAMES = 2;
 	private const int32 MAX_VIEWS = 4;  // Maximum simultaneous camera views per frame
 
 	// ==================== Owned Systems ====================
@@ -42,7 +41,7 @@ class RenderContext
 	/// Per-view bind groups for all views.
 	/// Index = frameIndex * MAX_VIEWS + viewSlot.
 	/// Each view slot has its own bind group pointing to its own camera buffer.
-	private IBindGroup[MAX_FRAMES * MAX_VIEWS] mViewBindGroups ~ { for (let g in _) if (g != null) delete g; };
+	private IBindGroup[FrameConfig.MAX_FRAMES_IN_FLIGHT * MAX_VIEWS] mViewBindGroups ~ { for (let g in _) if (g != null) delete g; };
 
 	/// Number of bind groups created per frame.
 	private int32 mBindGroupsPerFrame = 0;
@@ -117,7 +116,7 @@ class RenderContext
 	/// Each camera view has its own bind group with its own camera buffer.
 	public IBindGroup GetViewBindGroup(int32 frameIndex, int32 viewSlot)
 	{
-		if (frameIndex >= 0 && frameIndex < MAX_FRAMES && viewSlot >= 0 && viewSlot < MAX_VIEWS)
+		if (frameIndex >= 0 && frameIndex < FrameConfig.MAX_FRAMES_IN_FLIGHT && viewSlot >= 0 && viewSlot < MAX_VIEWS)
 		{
 			int index = frameIndex * MAX_VIEWS + viewSlot;
 			return mViewBindGroups[index];
@@ -173,7 +172,7 @@ class RenderContext
 			return .Ok;
 
 		// Create bind groups for each view slot that doesn't exist yet
-		for (int32 frame = 0; frame < MAX_FRAMES; frame++)
+		for (int32 frame = 0; frame < FrameConfig.MAX_FRAMES_IN_FLIGHT; frame++)
 		{
 			for (int32 viewSlot = mBindGroupsPerFrame; viewSlot < neededCount; viewSlot++)
 			{

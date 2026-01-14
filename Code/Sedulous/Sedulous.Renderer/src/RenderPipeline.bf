@@ -21,7 +21,6 @@ using Sedulous.Shaders;
 /// - Frame state (managed by RenderContext)
 class RenderPipeline
 {
-	private const int32 MAX_FRAMES = 2;
 	private const int32 MAX_VIEWS = 4;  // Maximum simultaneous camera views per frame
 
 	// ==================== Borrowed Services ====================
@@ -45,12 +44,12 @@ class RenderPipeline
 	// ==================== Per-Frame GPU Resources ====================
 
 	// Primary camera buffers (view slot 0) - backward compatible
-	private IBuffer[MAX_FRAMES] mCameraBuffers ~ { for (let b in _) delete b; };
-	private IBuffer[MAX_FRAMES] mBillboardCameraBuffers ~ { for (let b in _) delete b; };
+	private IBuffer[FrameConfig.MAX_FRAMES_IN_FLIGHT] mCameraBuffers ~ { for (let b in _) delete b; };
+	private IBuffer[FrameConfig.MAX_FRAMES_IN_FLIGHT] mBillboardCameraBuffers ~ { for (let b in _) delete b; };
 
 	// Additional view slots for multi-view rendering (view slots 1-3)
-	private IBuffer[MAX_FRAMES * (MAX_VIEWS - 1)] mMultiViewCameraBuffers ~ { for (let b in _) delete b; };
-	private IBuffer[MAX_FRAMES * (MAX_VIEWS - 1)] mMultiViewBillboardBuffers ~ { for (let b in _) delete b; };
+	private IBuffer[FrameConfig.MAX_FRAMES_IN_FLIGHT * (MAX_VIEWS - 1)] mMultiViewCameraBuffers ~ { for (let b in _) delete b; };
+	private IBuffer[FrameConfig.MAX_FRAMES_IN_FLIGHT * (MAX_VIEWS - 1)] mMultiViewBillboardBuffers ~ { for (let b in _) delete b; };
 
 	private IBindGroupLayout mSceneBindGroupLayout ~ delete _;
 
@@ -69,8 +68,8 @@ class RenderPipeline
 	// ==================== Soft Particle Resources ====================
 
 	// Cached soft particle bind groups per frame (created when depth texture is provided)
-	private IBindGroup[MAX_FRAMES] mSoftParticleBindGroups ~ { for (let bg in _) if (bg != null) delete bg; };
-	private ITextureView[MAX_FRAMES] mCachedDepthTextureViews;  // Track which depth textures are cached
+	private IBindGroup[FrameConfig.MAX_FRAMES_IN_FLIGHT] mSoftParticleBindGroups ~ { for (let bg in _) if (bg != null) delete bg; };
+	private ITextureView[FrameConfig.MAX_FRAMES_IN_FLIGHT] mCachedDepthTextureViews;  // Track which depth textures are cached
 
 	// ==================== Public Accessors ====================
 
@@ -133,7 +132,7 @@ class RenderPipeline
 	}
 
 	/// Gets the camera buffers array (for context bind group creation).
-	public IBuffer[MAX_FRAMES] CameraBuffers => mCameraBuffers;
+	public IBuffer[FrameConfig.MAX_FRAMES_IN_FLIGHT] CameraBuffers => mCameraBuffers;
 
 	/// Gets the maximum number of simultaneous view slots.
 	public int32 MaxViewSlots => MAX_VIEWS;
@@ -165,7 +164,7 @@ class RenderPipeline
 		mDepthFormat = depthFormat;
 
 		// Create per-frame camera buffers (primary view slot 0)
-		for (int i = 0; i < MAX_FRAMES; i++)
+		for (int i = 0; i < FrameConfig.MAX_FRAMES_IN_FLIGHT; i++)
 		{
 			// Scene camera buffer
 			BufferDescriptor cameraDesc = .((uint64)sizeof(SceneCameraUniforms), .Uniform, .Upload);
@@ -183,7 +182,7 @@ class RenderPipeline
 		}
 
 		// Create additional multi-view camera buffers (view slots 1-3)
-		for (int i = 0; i < MAX_FRAMES * (MAX_VIEWS - 1); i++)
+		for (int i = 0; i < FrameConfig.MAX_FRAMES_IN_FLIGHT * (MAX_VIEWS - 1); i++)
 		{
 			BufferDescriptor cameraDesc = .((uint64)sizeof(SceneCameraUniforms), .Uniform, .Upload);
 			if (device.CreateBuffer(&cameraDesc) case .Ok(let cameraBuf))
@@ -237,13 +236,13 @@ class RenderPipeline
 		if (!mSkyboxRenderer.CreateGradientSky(topColor, bottomColor, 32))
 			return .Err;
 
-		IBuffer[MAX_FRAMES] cameraBuffersArray = .(mCameraBuffers[0], mCameraBuffers[1]);
+		IBuffer[FrameConfig.MAX_FRAMES_IN_FLIGHT] cameraBuffersArray = .(mCameraBuffers[0], mCameraBuffers[1]);
 		if (mSkyboxRenderer.Initialize(mShaderLibrary, cameraBuffersArray, mColorFormat, mDepthFormat) case .Err)
 			return .Err;
 
 		// Initialize particle renderer
 		mParticleRenderer = new ParticleRenderer(mDevice);
-		IBuffer[MAX_FRAMES] billboardBuffersArray = .(mBillboardCameraBuffers[0], mBillboardCameraBuffers[1]);
+		IBuffer[FrameConfig.MAX_FRAMES_IN_FLIGHT] billboardBuffersArray = .(mBillboardCameraBuffers[0], mBillboardCameraBuffers[1]);
 		if (mParticleRenderer.Initialize(mShaderLibrary, billboardBuffersArray, mColorFormat, mDepthFormat) case .Err)
 			return .Err;
 
@@ -383,7 +382,7 @@ class RenderPipeline
 	/// Returns null if soft particles aren't enabled or bind group wasn't prepared.
 	public IBindGroup GetSoftParticleBindGroup(int32 frameIndex)
 	{
-		if (frameIndex >= 0 && frameIndex < MAX_FRAMES)
+		if (frameIndex >= 0 && frameIndex < FrameConfig.MAX_FRAMES_IN_FLIGHT)
 			return mSoftParticleBindGroups[frameIndex];
 		return null;
 	}
@@ -647,7 +646,7 @@ class RenderPipeline
 	/// Caches the bind group to avoid creating new ones each frame.
 	private IBindGroup GetOrCreateSoftParticleBindGroup(int32 frameIndex, ITextureView depthTextureView)
 	{
-		if (frameIndex < 0 || frameIndex >= MAX_FRAMES || depthTextureView == null)
+		if (frameIndex < 0 || frameIndex >= FrameConfig.MAX_FRAMES_IN_FLIGHT || depthTextureView == null)
 			return null;
 
 		// Check if we already have a bind group for this depth texture

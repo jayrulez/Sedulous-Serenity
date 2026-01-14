@@ -9,7 +9,6 @@ using Sedulous.Mathematics;
 /// Owns the cubemap resources, pipeline, and handles rendering.
 class SkyboxRenderer
 {
-	private const int32 MAX_FRAMES = 2;
 
 	private IDevice mDevice;
 	private ShaderLibrary mShaderLibrary;
@@ -24,10 +23,10 @@ class SkyboxRenderer
 	private IBindGroupLayout mBindGroupLayout ~ delete _;
 	private IPipelineLayout mPipelineLayout ~ delete _;
 	private IRenderPipeline mPipeline ~ delete _;
-	private IBindGroup[MAX_FRAMES] mBindGroups ~ { for (var bg in _) delete bg; };
+	private IBindGroup[FrameConfig.MAX_FRAMES_IN_FLIGHT] mBindGroups ~ { for (var bg in _) delete bg; };
 
 	// Per-frame camera buffers (references, not owned)
-	private IBuffer[MAX_FRAMES] mCameraBuffers;
+	private IBuffer[FrameConfig.MAX_FRAMES_IN_FLIGHT] mCameraBuffers;
 
 	// Configuration
 	private TextureFormat mColorFormat = .BGRA8UnormSrgb;
@@ -56,7 +55,7 @@ class SkyboxRenderer
 	/// Initializes the skybox renderer with pipeline resources.
 	/// Must be called after creating the cubemap (CreateGradientSky, etc.).
 	public Result<void> Initialize(ShaderLibrary shaderLibrary,
-		IBuffer[MAX_FRAMES] cameraBuffers, TextureFormat colorFormat, TextureFormat depthFormat)
+		IBuffer[FrameConfig.MAX_FRAMES_IN_FLIGHT] cameraBuffers, TextureFormat colorFormat, TextureFormat depthFormat)
 	{
 		if (mDevice == null || !IsValid)
 			return .Err;
@@ -105,7 +104,7 @@ class SkyboxRenderer
 		mPipelineLayout = pipelineLayout;
 
 		// Create per-frame bind groups
-		for (int i = 0; i < MAX_FRAMES; i++)
+		for (int i = 0; i < FrameConfig.MAX_FRAMES_IN_FLIGHT; i++)
 		{
 			BindGroupEntry[3] entries = .(
 				BindGroupEntry.Buffer(0, mCameraBuffers[i]),
@@ -169,7 +168,7 @@ class SkyboxRenderer
 		if (!mInitialized || mPipeline == null || !IsValid)
 			return;
 
-		if (frameIndex < 0 || frameIndex >= MAX_FRAMES)
+		if (frameIndex < 0 || frameIndex >= FrameConfig.MAX_FRAMES_IN_FLIGHT)
 			return;
 
 		renderPass.SetPipeline(mPipeline);
