@@ -1,80 +1,29 @@
-namespace Sedulous.RHI.HLSLShaderCompiler;
+namespace Sedulous.Shaders;
 
 using System;
 using System.IO;
 using System.Collections;
 using Sedulous.RHI;
-
-/// Shader variant flags for compile-time shader permutations.
-//[Flags]
-enum ShaderFlags : uint32
-{
-	None = 0,
-	Skinned = 1 << 0,      // Vertex skinning enabled
-	Instanced = 1 << 1,    // GPU instancing enabled
-	AlphaTest = 1 << 2,    // Alpha testing/cutout
-	NormalMap = 1 << 3,    // Normal mapping enabled
-	Emissive = 1 << 4,     // Emissive channel enabled
-}
-
-/// Identifies a specific shader variant.
-struct ShaderVariantKey : IEquatable<ShaderVariantKey>, IHashable
-{
-	public StringView ShaderName;
-	public ShaderFlags Flags;
-	public ShaderStage Stage;
-
-	public this(StringView name, ShaderStage stage, ShaderFlags flags = .None)
-	{
-		ShaderName = name;
-		Stage = stage;
-		Flags = flags;
-	}
-
-	public bool Equals(ShaderVariantKey other)
-	{
-		return ShaderName == other.ShaderName && Flags == other.Flags && Stage == other.Stage;
-	}
-
-	public int GetHashCode()
-	{
-		int hash = ShaderName.GetHashCode();
-		hash = hash * 31 + (int)Flags;
-		hash = hash * 31 + (int)Stage;
-		return hash;
-	}
-}
-
-/// A compiled shader module with its metadata.
-class ShaderModule
-{
-	public IShaderModule Module ~ delete _;
-	public ShaderStage Stage;
-	public ShaderFlags Flags;
-	public String Name ~ delete _;
-
-	public this(IShaderModule module, ShaderStage stage, ShaderFlags flags, StringView name)
-	{
-		Module = module;
-		Stage = stage;
-		Flags = flags;
-		Name = new String(name);
-	}
-}
+using Sedulous.RHI.HLSLShaderCompiler;
 
 /// Manages shader loading, compilation, and caching.
+/// Supports both in-memory caching and disk-based precompiled shader caching.
 class ShaderLibrary
 {
 	private IDevice mDevice;
 	private HLSLCompiler mCompiler ~ delete _;
 	private Dictionary<int, ShaderModule> mShaderCache = new .() ~ DeleteDictionaryAndValues!(_);
 	private String mShaderBasePath = new .() ~ delete _;
+	private String mCachePath = new .() ~ delete _;
 
 	/// Binding shifts for SPIRV compilation (Vulkan).
 	public uint32 ConstantBufferShift = VulkanBindingShifts.SHIFT_B;
 	public uint32 TextureShift = VulkanBindingShifts.SHIFT_T;
 	public uint32 SamplerShift = VulkanBindingShifts.SHIFT_S;
 	public uint32 UAVShift = VulkanBindingShifts.SHIFT_U;
+
+	/// Target compilation format (SPIRV for Vulkan, DXIL for D3D12).
+	public ShaderTarget Target = .SPIRV;
 
 	public this(IDevice device, StringView shaderBasePath = "shaders")
 	{
@@ -83,26 +32,57 @@ class ShaderLibrary
 		mCompiler = new HLSLCompiler();
 	}
 
-	/// Sets the base path for shader files.
+	/// Sets the base path for shader source files.
 	public void SetShaderPath(StringView path)
 	{
 		mShaderBasePath.Set(path);
 	}
 
-	/// Gets a shader module, loading and compiling it if not cached.
+	/// Sets the cache path for precompiled shaders.
+	/// If set, shaders are loaded from cache when available and saved after compilation.
+	/// Set to empty string to disable disk caching.
+	public void SetCachePath(StringView path)
+	{
+		mCachePath.Set(path);
+
+		// Create cache directory if it doesn't exist
+		if (mCachePath.Length > 0 && !Directory.Exists(mCachePath))
+		{
+			Directory.CreateDirectory(mCachePath).IgnoreError();
+		}
+	}
+
+	/// Gets a shader module, loading from cache or compiling if not cached.
 	public Result<ShaderModule> GetShader(StringView name, ShaderStage stage, ShaderFlags flags = .None)
 	{
 		let key = ShaderVariantKey(name, stage, flags);
 		let hash = key.GetHashCode();
 
-		// Check cache
+		// Check in-memory cache first
 		if (mShaderCache.TryGetValue(hash, let cached))
 			return .Ok(cached);
 
-		// Load and compile
+		// Try to load from disk cache
+		if (mCachePath.Length > 0)
+		{
+			if (TryLoadFromDiskCache(key) case .Ok(let module))
+			{
+				mShaderCache[hash] = module;
+				return .Ok(module);
+			}
+		}
+
+		// Compile from source
 		if (LoadAndCompileShader(name, stage, flags) case .Ok(let module))
 		{
 			mShaderCache[hash] = module;
+
+			// Save to disk cache
+			if (mCachePath.Length > 0)
+			{
+				SaveToDiskCache(key, module);
+			}
+
 			return .Ok(module);
 		}
 
@@ -144,7 +124,7 @@ class ShaderLibrary
 		return .Err;
 	}
 
-	/// Clears the shader cache and releases all modules.
+	/// Clears the in-memory shader cache and releases all modules.
 	public void ClearCache()
 	{
 		for (let kv in mShaderCache)
@@ -154,7 +134,118 @@ class ShaderLibrary
 		mShaderCache.Clear();
 	}
 
-	// ===== Internal Methods =====
+	/// Clears the disk cache directory.
+	public void ClearDiskCache()
+	{
+		if (mCachePath.Length == 0)
+			return;
+
+		for (let entry in Directory.EnumerateFiles(mCachePath))
+		{
+			String fileName = scope .();
+			entry.GetFileName(fileName);
+			if (fileName.EndsWith(".spv") || fileName.EndsWith(".dxil"))
+			{
+				String fullPath = scope .();
+				entry.GetFilePath(fullPath);
+				File.Delete(fullPath).IgnoreError();
+			}
+		}
+	}
+
+	// ===== Disk Cache Methods =====
+
+	private Result<ShaderModule> TryLoadFromDiskCache(ShaderVariantKey key)
+	{
+		String cacheKey = scope .();
+		key.GenerateCacheKey(cacheKey);
+
+		String cachePath = scope .();
+		cachePath.Append(mCachePath);
+		cachePath.Append("/");
+		cachePath.Append(cacheKey);
+		cachePath.Append(Target == .SPIRV ? ".spv" : ".dxil");
+
+		if (!File.Exists(cachePath))
+			return .Err;
+
+		// Read cached bytecode
+		List<uint8> bytecode = scope .();
+		if (File.ReadAll(cachePath, bytecode) case .Err)
+			return .Err;
+
+		// Create shader module from cached bytecode
+		ShaderModuleDescriptor desc = .(.(bytecode.Ptr, bytecode.Count));
+		if (mDevice.CreateShaderModule(&desc) case .Ok(let rhiModule))
+		{
+			return .Ok(new ShaderModule(rhiModule, key.Stage, key.Flags, key.ShaderName));
+		}
+
+		return .Err;
+	}
+
+	private void SaveToDiskCache(ShaderVariantKey key, ShaderModule module)
+	{
+		// We need to recompile to get the bytecode for saving
+		// This is a limitation - we don't store bytecode in ShaderModule
+		// For now, just skip disk caching for runtime-compiled shaders
+		// A proper implementation would store bytecode in ShaderModule
+
+		// Actually, let's compile again just to get the bytecode
+		String path = scope .();
+		path.Append(mShaderBasePath);
+		path.Append("/");
+		path.Append(key.ShaderName);
+
+		switch (key.Stage)
+		{
+		case .Vertex:   path.Append(".vert.hlsl");
+		case .Fragment: path.Append(".frag.hlsl");
+		case .Compute:  path.Append(".comp.hlsl");
+		default:        return;
+		}
+
+		String source = scope .();
+		if (!ReadTextFile(path, source))
+			return;
+
+		String fullSource = scope .();
+		AppendDefines(fullSource, key.Flags);
+		fullSource.Append(source);
+
+		// Compile to get bytecode
+		if (!mCompiler.IsInitialized)
+			return;
+
+		ShaderCompileOptions options = .();
+		options.EntryPoint = "main";
+		options.Stage = key.Stage;
+		options.Target = Target;
+		options.ConstantBufferShift = ConstantBufferShift;
+		options.TextureShift = TextureShift;
+		options.SamplerShift = SamplerShift;
+		options.UAVShift = UAVShift;
+
+		let result = mCompiler.Compile(fullSource, options);
+		defer delete result;
+
+		if (!result.Success)
+			return;
+
+		// Save bytecode to cache
+		String cacheKey = scope .();
+		key.GenerateCacheKey(cacheKey);
+
+		String cachePath = scope .();
+		cachePath.Append(mCachePath);
+		cachePath.Append("/");
+		cachePath.Append(cacheKey);
+		cachePath.Append(Target == .SPIRV ? ".spv" : ".dxil");
+
+		File.WriteAll(cachePath, result.Bytecode).IgnoreError();
+	}
+
+	// ===== Compilation Methods =====
 
 	private Result<ShaderModule> LoadAndCompileShader(StringView name, ShaderStage stage, ShaderFlags flags)
 	{
@@ -205,7 +296,7 @@ class ShaderLibrary
 		ShaderCompileOptions options = .();
 		options.EntryPoint = "main";
 		options.Stage = stage;
-		options.Target = .SPIRV;
+		options.Target = Target;
 		options.ConstantBufferShift = ConstantBufferShift;
 		options.TextureShift = TextureShift;
 		options.SamplerShift = SamplerShift;
@@ -240,6 +331,20 @@ class ShaderLibrary
 			output.Append("#define NORMAL_MAP 1\n");
 		if (flags.HasFlag(.Emissive))
 			output.Append("#define EMISSIVE 1\n");
+		if (flags.HasFlag(.DepthTest))
+			output.Append("#define DEPTH_TEST 1\n");
+		if (flags.HasFlag(.DepthWrite))
+			output.Append("#define DEPTH_WRITE 1\n");
+		if (flags.HasFlag(.ReverseZ))
+			output.Append("#define REVERSE_Z 1\n");
+		if (flags.HasFlag(.ReceiveShadows))
+			output.Append("#define RECEIVE_SHADOWS 1\n");
+		if (flags.HasFlag(.CastShadows))
+			output.Append("#define CAST_SHADOWS 1\n");
+		if (flags.HasFlag(.Wireframe))
+			output.Append("#define WIREFRAME 1\n");
+		if (flags.HasFlag(.DoubleSided))
+			output.Append("#define DOUBLE_SIDED 1\n");
 	}
 
 	private static bool ReadTextFile(StringView path, String outContent)

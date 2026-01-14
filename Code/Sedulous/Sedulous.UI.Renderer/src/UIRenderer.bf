@@ -3,6 +3,7 @@ namespace Sedulous.UI.Renderer;
 using System;
 using System.Collections;
 using Sedulous.RHI;
+using Sedulous.Shaders;
 using Sedulous.RHI.HLSLShaderCompiler;
 using Sedulous.Drawing;
 using Sedulous.Mathematics;

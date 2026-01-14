@@ -2,7 +2,7 @@ namespace Sedulous.Renderer;
 
 using System;
 using Sedulous.RHI;
-using Sedulous.RHI.HLSLShaderCompiler;
+using Sedulous.Shaders;
 using Sedulous.Mathematics;
 
 /// Renders a skybox using a cubemap texture.

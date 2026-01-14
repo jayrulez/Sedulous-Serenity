@@ -3,7 +3,7 @@ namespace Sedulous.Renderer;
 using System;
 using System.Collections;
 using Sedulous.RHI;
-using Sedulous.RHI.HLSLShaderCompiler;
+using Sedulous.Shaders;
 using Sedulous.Mathematics;
 
 /// Uniform data for particle rendering.

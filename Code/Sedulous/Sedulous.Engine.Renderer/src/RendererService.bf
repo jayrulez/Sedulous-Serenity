@@ -5,7 +5,7 @@ using System.Collections;
 using Sedulous.RHI;
 using Sedulous.Engine.Core;
 using Sedulous.Renderer;
-using Sedulous.RHI.HLSLShaderCompiler;
+using Sedulous.Shaders;
 using Sedulous.Mathematics;
 
 /// Context service that owns shared GPU resources across all scenes.

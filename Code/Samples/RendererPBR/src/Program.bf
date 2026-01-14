@@ -7,7 +7,7 @@ using Sedulous.Geometry;
 using Sedulous.Imaging;
 using Sedulous.Engine.Renderer;
 using Sedulous.Renderer;
-using Sedulous.RHI.HLSLShaderCompiler;
+using Sedulous.Shaders;
 using Sedulous.Shell.Input;
 using SampleFramework;
 
