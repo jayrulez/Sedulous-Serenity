@@ -1,0 +1,6 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.Foundation" = "*", "Sedulous.Collections" = "*", "Sedulous.Mathematics" = "*", "Sedulous.Geometry" = "*", "Sedulous.RHI" = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Shaders" = "*", "Sedulous.RendererNext" = "*", "Sedulous.Resources" = "*", "Sedulous.Shell" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Jobs" = "*"}
+
+[Project]
+Name = "Sedulous.EngineNext"
+TargetType = "BeefLib"

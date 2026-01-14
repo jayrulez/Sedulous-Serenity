@@ -1,0 +1,7 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.EngineNext" = "*", "Sedulous.RendererNext" = "*", "Sedulous.Mathematics" = "*"}
+
+[Project]
+Name = "SandboxNext"
+TargetType = "BeefConsoleApplication"
+StartupObject = "SandboxNext.Program"

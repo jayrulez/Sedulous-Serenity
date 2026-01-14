@@ -1,0 +1,7 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.RendererNext" = "*", "Sedulous.Resources" = "*", "Sedulous.Imaging" = "*", "Sedulous.Geometry" = "*", "Sedulous.Models" = "*", "Sedulous.Models.GLTF" = "*"}
+
+[Project]
+Name = "Sedulous.RendererNext.Resources"
+TargetType = "BeefLib"
+StartupObject = "Sedulous.RendererNext.Resources.Program"
