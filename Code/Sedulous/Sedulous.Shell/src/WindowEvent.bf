@@ -32,7 +32,11 @@ public enum WindowEventType
 	/// Window entered fullscreen mode.
 	EnterFullscreen,
 	/// Window left fullscreen mode.
-	LeaveFullscreen
+	LeaveFullscreen,
+	/// Display content scale (DPI) changed.
+	/// This occurs when the window is moved to a display with different scaling.
+	/// Query IWindow.ContentScale to get the new scale value.
+	DisplayScaleChanged
 }
 
 /// Represents a window event.

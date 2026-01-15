@@ -85,6 +85,10 @@ abstract class RHISampleApp
 	private float mFixedUpdateAccumulator = 0.0f;
 	private int32 mMaxFixedStepsPerFrame = 8;  // Prevent spiral of death
 
+	// Frame rate limiting
+	private int32 mTargetFrameRate = 0;  // 0 = unlimited
+	private float mTargetFrameTime = 0.0f;  // Cached 1/targetFrameRate
+
 	// Error tracking
 	private int mConsecutiveErrors = 0;
 	private const int MAX_CONSECUTIVE_ERRORS = 10;
@@ -160,6 +164,8 @@ abstract class RHISampleApp
 		// Main loop
 		while (mShell.IsRunning)
 		{
+			float frameStartTime = (float)mStopwatch.Elapsed.TotalSeconds;
+
 			mShell.ProcessEvents();
 
 			// Update timing
@@ -217,6 +223,18 @@ abstract class RHISampleApp
 				{
 					Console.WriteLine(scope $"Too many consecutive render errors ({MAX_CONSECUTIVE_ERRORS}), exiting.");
 					mShell.RequestExit();
+				}
+			}
+
+			// Frame rate limiting
+			if (mTargetFrameTime > 0)
+			{
+				float frameEndTime = (float)mStopwatch.Elapsed.TotalSeconds;
+				float frameElapsed = frameEndTime - frameStartTime;
+				float sleepTime = mTargetFrameTime - frameElapsed;
+				if (sleepTime > 0.001f)  // Only sleep if > 1ms remaining
+				{
+					System.Threading.Thread.Sleep((int32)(sleepTime * 1000));
 				}
 			}
 		}
@@ -306,6 +324,19 @@ abstract class RHISampleApp
 	{
 		get => mMaxFixedStepsPerFrame;
 		set => mMaxFixedStepsPerFrame = Math.Max(value, 1);
+	}
+
+	/// Gets or sets the target frame rate for frame pacing.
+	/// Set to 0 for unlimited (default). Common values: 30, 60, 120, 144.
+	/// Note: This is independent of VSync which is controlled by PresentMode.
+	public int32 TargetFrameRate
+	{
+		get => mTargetFrameRate;
+		set
+		{
+			mTargetFrameRate = Math.Max(value, 0);
+			mTargetFrameTime = (mTargetFrameRate > 0) ? (1.0f / mTargetFrameRate) : 0.0f;
+		}
 	}
 
 	/// Returns the current depth texture view, or null if depth is disabled.

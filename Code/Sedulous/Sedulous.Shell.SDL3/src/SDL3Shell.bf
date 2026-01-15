@@ -84,7 +84,8 @@ class SDL3Shell : IShell
 				 .SDL_EVENT_WINDOW_FOCUS_LOST,
 				 .SDL_EVENT_WINDOW_CLOSE_REQUESTED,
 				 .SDL_EVENT_WINDOW_ENTER_FULLSCREEN,
-				 .SDL_EVENT_WINDOW_LEAVE_FULLSCREEN:
+				 .SDL_EVENT_WINDOW_LEAVE_FULLSCREEN,
+				 .SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED:
 				mWindowManager.HandleWindowEvent(&e.window);
 
 				// Update focus window for mouse relative mode

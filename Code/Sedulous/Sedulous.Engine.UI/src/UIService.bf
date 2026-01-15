@@ -98,6 +98,25 @@ class UIService : ContextService
 		}
 	}
 
+	/// Sets the UI scale for all scenes based on display content scale (DPI).
+	/// Call this at startup with window.ContentScale and again when
+	/// DisplayScaleChanged events are received.
+	/// @param contentScale The display content scale (1.0 = 100%, 1.5 = 150%, 2.0 = 200%)
+	public void SetContentScale(float contentScale)
+	{
+		for (let component in mSceneComponents)
+		{
+			component.UIContext.Scale = contentScale;
+		}
+	}
+
+	/// Convenience method to apply content scale from a window.
+	/// Call at startup and when DisplayScaleChanged events occur.
+	public void ApplyContentScaleFromWindow(Sedulous.Shell.IWindow window)
+	{
+		SetContentScale(window.ContentScale);
+	}
+
 	// ==================== ContextService Implementation ====================
 
 	public override void OnRegister(Context context)

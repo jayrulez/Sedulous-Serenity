@@ -133,6 +133,8 @@ class SDL3WindowManager : IWindowManager
 			evt = .(WindowEventType.EnterFullscreen);
 		case .SDL_EVENT_WINDOW_LEAVE_FULLSCREEN:
 			evt = .(WindowEventType.LeaveFullscreen);
+		case .SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED:
+			evt = .(WindowEventType.DisplayScaleChanged);
 		default:
 			return;
 		}
