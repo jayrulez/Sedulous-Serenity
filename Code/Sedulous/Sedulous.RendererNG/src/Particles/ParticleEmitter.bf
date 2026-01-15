@@ -71,6 +71,9 @@ class ParticleEmitter : IDisposable
 	// Camera for sorting
 	public Vector3 CameraPosition { get; set; } = .Zero;
 
+	// Layer mask for force field filtering
+	private uint32 mLayerMask = 0xFFFFFFFF;
+
 	// Properties
 	public int32 ParticleCount => mActiveCount;
 	public int32 MaxParticles => mMaxParticles;
@@ -78,6 +81,8 @@ class ParticleEmitter : IDisposable
 	public Vector3 Position { get => mPosition; set => mPosition = value; }
 	public Vector3 Velocity { get => mVelocity; set => mVelocity = value; }
 	public ParticleEmitterConfig Config => mConfig;
+	public uint32 LayerMask { get => mLayerMask; set => mLayerMask = value; }
+	public float TotalTime => mTotalTime;
 
 	public const int32 DefaultMaxParticles = 5000;
 
@@ -375,6 +380,135 @@ class ParticleEmitter : IDisposable
 			float distB = (b.Position - camPos).LengthSquared();
 			return distB <=> distA; // Back-to-front
 		});
+	}
+
+	/// Applies force fields to all active particles.
+	public void ApplyForceFields(Span<ForceFieldProxy> forceFields, float deltaTime)
+	{
+		if (forceFields.Length == 0 || mActiveCount == 0)
+			return;
+
+		for (int i = 0; i < mActiveCount; i++)
+		{
+			ref Particle p = ref mParticlePool[i];
+
+			for (let field in forceFields)
+			{
+				// Check if force field is active and affects this emitter's layer
+				if (!field.IsActive || (field.LayerMask & mLayerMask) == 0)
+					continue;
+
+				// Calculate force for this particle
+				Vector3 force = CalculateForce(ref p, field);
+				p.Velocity += force * deltaTime;
+			}
+		}
+	}
+
+	/// Calculates force from a single force field on a particle.
+	private Vector3 CalculateForce(ref Particle p, ForceFieldProxy field)
+	{
+		Vector3 toField = field.Position - p.Position;
+		float distance = toField.Length();
+
+		// Check radius
+		if (distance >= field.Radius)
+			return .Zero;
+
+		float falloff = field.GetFalloff(distance);
+		float strength = field.Strength;
+
+		// Invert flag
+		if ((field.Flags & .Invert) != 0)
+			strength = -strength;
+
+		switch (field.Type)
+		{
+		case .Wind:
+			return CalculateWindForce(field, falloff, strength);
+
+		case .Point:
+			return CalculatePointForce(toField, distance, falloff, strength);
+
+		case .Vortex:
+			return CalculateVortexForce(toField, field.VortexAxis, distance, falloff, strength);
+
+		case .Turbulence:
+			return CalculateTurbulenceForce(p.Position, field, falloff);
+
+		case .Drag:
+			return CalculateDragForce(ref p, falloff, strength);
+		}
+	}
+
+	/// Calculates directional wind force.
+	private Vector3 CalculateWindForce(ForceFieldProxy field, float falloff, float strength)
+	{
+		return Vector3.Normalize(field.Direction) * strength * falloff;
+	}
+
+	/// Calculates radial point force (attraction/repulsion).
+	private Vector3 CalculatePointForce(Vector3 toField, float distance, float falloff, float strength)
+	{
+		if (distance < 0.001f)
+			return .Zero;
+
+		Vector3 direction = toField / distance;
+		return direction * strength * falloff;
+	}
+
+	/// Calculates vortex force (rotation around axis).
+	private Vector3 CalculateVortexForce(Vector3 toField, Vector3 axis, float distance, float falloff, float strength)
+	{
+		if (distance < 0.001f)
+			return .Zero;
+
+		// Project position onto the plane perpendicular to vortex axis
+		Vector3 normalizedAxis = Vector3.Normalize(axis);
+		float axisComponent = Vector3.Dot(toField, normalizedAxis);
+		Vector3 radialComponent = toField - normalizedAxis * axisComponent;
+
+		float radialDistance = radialComponent.Length();
+		if (radialDistance < 0.001f)
+			return .Zero;
+
+		// Tangent direction (perpendicular to both axis and radial)
+		Vector3 tangent = Vector3.Cross(normalizedAxis, radialComponent / radialDistance);
+		return tangent * strength * falloff;
+	}
+
+	/// Calculates turbulence force using simple noise.
+	private Vector3 CalculateTurbulenceForce(Vector3 position, ForceFieldProxy field, float falloff)
+	{
+		// Simple pseudo-noise based on position and time
+		float freq = field.NoiseFrequency;
+		float amp = field.NoiseAmplitude * field.Strength;
+		float time = mTotalTime;
+
+		// Generate 3D noise-like values using trig functions
+		float px = position.X * freq + time;
+		float py = position.Y * freq + time * 0.8f;
+		float pz = position.Z * freq + time * 1.2f;
+
+		Vector3 noise = .(
+			Math.Sin(px * 1.7f) * Math.Cos(py * 2.3f) + Math.Sin(pz * 1.1f),
+			Math.Cos(px * 1.3f) * Math.Sin(pz * 1.9f) + Math.Cos(py * 2.1f),
+			Math.Sin(py * 1.5f) * Math.Cos(px * 2.7f) + Math.Sin(pz * 1.3f)
+		);
+
+		return noise * amp * falloff;
+	}
+
+	/// Calculates drag force (velocity-relative).
+	private Vector3 CalculateDragForce(ref Particle p, float falloff, float strength)
+	{
+		float speed = p.Velocity.Length();
+		if (speed < 0.001f)
+			return .Zero;
+
+		// Drag opposes velocity, proportional to speed
+		Vector3 dragDirection = -p.Velocity / speed;
+		return dragDirection * speed * strength * falloff;
 	}
 
 	/// Gets read-only access to active particles.

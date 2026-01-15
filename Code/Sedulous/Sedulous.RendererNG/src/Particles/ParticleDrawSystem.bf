@@ -64,6 +64,12 @@ class ParticleDrawSystem : IDisposable
 	private ITextureView mDefaultTextureView ~ delete _;
 	private ISampler mDefaultSampler ~ delete _;
 
+	// Uniform buffer for particle settings
+	private IBuffer mUniformBuffer ~ delete _;
+
+	// Depth sampler for soft particles
+	private ISampler mDepthSampler ~ delete _;
+
 	// Shared index buffer (quad indices for max particles)
 	private IBuffer mSharedIndexBuffer ~ delete _;
 	private int32 mMaxParticlesInIndexBuffer;
@@ -100,6 +106,9 @@ class ParticleDrawSystem : IDisposable
 			return .Err;
 
 		if (CreateBindGroupLayout() case .Err)
+			return .Err;
+
+		if (CreateUniformBuffer() case .Err)
 			return .Err;
 
 		if (CreateSharedIndexBuffer(DefaultMaxParticles) case .Err)
@@ -143,6 +152,29 @@ class ParticleDrawSystem : IDisposable
 		case .Err: return .Err;
 		}
 
+		// Create depth sampler for soft particles (nearest filtering for depth)
+		var depthSamplerDesc = SamplerDescriptor();
+		depthSamplerDesc.MinFilter = .Nearest;
+		depthSamplerDesc.MagFilter = .Nearest;
+		depthSamplerDesc.AddressModeU = .ClampToEdge;
+		depthSamplerDesc.AddressModeV = .ClampToEdge;
+		switch (mDevice.CreateSampler(&depthSamplerDesc))
+		{
+		case .Ok(let sampler): mDepthSampler = sampler;
+		case .Err: return .Err;
+		}
+
+		return .Ok;
+	}
+
+	private Result<void> CreateUniformBuffer()
+	{
+		var bufDesc = BufferDescriptor(ParticleUniforms.Size, .Uniform, .Upload);
+		switch (mDevice.CreateBuffer(&bufDesc))
+		{
+		case .Ok(let buf): mUniformBuffer = buf;
+		case .Err: return .Err;
+		}
 		return .Ok;
 	}
 
@@ -443,8 +475,150 @@ class ParticleDrawSystem : IDisposable
 	/// Gets default sampler.
 	public ISampler DefaultSampler => mDefaultSampler;
 
+	/// Gets depth sampler for soft particles.
+	public ISampler DepthSampler => mDepthSampler;
+
+	/// Gets uniform buffer.
+	public IBuffer UniformBuffer => mUniformBuffer;
+
 	/// Returns true if initialized.
 	public bool IsInitialized => mInitialized;
+
+	// ========================================================================
+	// Soft Particle Support
+	// ========================================================================
+
+	/// Updates particle uniforms. Call before rendering each frame.
+	public void UpdateUniforms(ParticleRenderMode renderMode, float stretchFactor, float minStretchLength,
+							   bool useTexture, bool softParticlesEnabled, float softParticleDistance,
+							   float nearPlane, float farPlane)
+	{
+		ParticleUniforms uniforms = .();
+		uniforms.RenderMode = (uint32)renderMode;
+		uniforms.StretchFactor = stretchFactor;
+		uniforms.MinStretchLength = minStretchLength;
+		uniforms.UseTexture = useTexture ? 1u : 0u;
+		uniforms.SoftParticlesEnabled = softParticlesEnabled ? 1u : 0u;
+		uniforms.SoftParticleDistance = softParticleDistance;
+		uniforms.NearPlane = nearPlane;
+		uniforms.FarPlane = farPlane;
+
+		Span<uint8> data = .((uint8*)&uniforms, (int)ParticleUniforms.Size);
+		mDevice.Queue.WriteBuffer(mUniformBuffer, 0, data);
+	}
+
+	/// Updates uniforms with default values and soft particle settings.
+	public void UpdateUniformsDefault(bool softParticlesEnabled = false, float softParticleDistance = 0.5f,
+									  float nearPlane = 0.1f, float farPlane = 1000.0f)
+	{
+		UpdateUniforms(.Billboard, 1.0f, 0.1f, false, softParticlesEnabled, softParticleDistance, nearPlane, farPlane);
+	}
+
+	/// Creates a bind group for particle rendering without soft particles.
+	public Result<IBindGroup> CreateBindGroup(IBuffer sceneBuffer, ITextureView particleTexture = null)
+	{
+		let tex = particleTexture != null ? particleTexture : mDefaultTextureView;
+
+		BindGroupEntry[6] entries = .(
+			BindGroupEntry.Buffer(0, sceneBuffer),       // b0: scene uniforms
+			BindGroupEntry.Buffer(1, mUniformBuffer),    // b1: particle uniforms
+			BindGroupEntry.Texture(0, tex),              // t0: particle texture
+			BindGroupEntry.Sampler(0, mDefaultSampler),  // s0: texture sampler
+			BindGroupEntry.Texture(1, mDefaultTextureView), // t1: depth (placeholder)
+			BindGroupEntry.Sampler(1, mDepthSampler)     // s1: depth sampler
+		);
+
+		BindGroupDescriptor desc = .(mBindGroupLayout, entries);
+		switch (mDevice.CreateBindGroup(&desc))
+		{
+		case .Ok(let group): return .Ok(group);
+		case .Err: return .Err;
+		}
+	}
+
+	/// Creates a bind group for particle rendering with soft particles.
+	/// depthTexture: The scene depth texture for soft particle fading.
+	public Result<IBindGroup> CreateBindGroupWithDepth(IBuffer sceneBuffer, ITextureView depthTexture,
+													   ITextureView particleTexture = null)
+	{
+		let tex = particleTexture != null ? particleTexture : mDefaultTextureView;
+
+		BindGroupEntry[6] entries = .(
+			BindGroupEntry.Buffer(0, sceneBuffer),       // b0: scene uniforms
+			BindGroupEntry.Buffer(1, mUniformBuffer),    // b1: particle uniforms
+			BindGroupEntry.Texture(0, tex),              // t0: particle texture
+			BindGroupEntry.Sampler(0, mDefaultSampler),  // s0: texture sampler
+			BindGroupEntry.Texture(1, depthTexture),     // t1: depth texture for soft particles
+			BindGroupEntry.Sampler(1, mDepthSampler)     // s1: depth sampler
+		);
+
+		BindGroupDescriptor desc = .(mBindGroupLayout, entries);
+		switch (mDevice.CreateBindGroup(&desc))
+		{
+		case .Ok(let group): return .Ok(group);
+		case .Err: return .Err;
+		}
+	}
+
+	/// Renders particles with a pre-created bind group.
+	/// Use this overload when you need soft particles and have created the bind group with CreateBindGroupWithDepth.
+	public void RenderWithBindGroup(IRenderPassEncoder renderPass, IBindGroup bindGroup, bool hasDepth = true,
+									IShaderModule vertShader = null, IShaderModule fragShader = null)
+	{
+		if (!mInitialized || mBatches.Count == 0)
+			return;
+
+		if (vertShader == null || fragShader == null)
+			return;
+
+		// Sort batches by blend mode
+		mBatches.Sort(scope (a, b) => (int)a.BlendMode <=> (int)b.BlendMode);
+
+		ParticleBlendMode currentBlend = .AlphaBlend;
+		bool currentSoft = false;
+		IRenderPipeline currentPipeline = null;
+		bool firstBatch = true;
+
+		// Set bind group once
+		renderPass.SetBindGroup(0, bindGroup, .());
+
+		for (let batch in mBatches)
+		{
+			// Switch pipeline if needed
+			if (firstBatch || batch.BlendMode != currentBlend || batch.SoftParticles != currentSoft)
+			{
+				ParticlePipelineKey key;
+				key.BlendMode = batch.BlendMode;
+				key.HasDepth = hasDepth;
+				key.SoftParticles = batch.SoftParticles;
+
+				let pipelineResult = GetOrCreatePipeline(key, vertShader, fragShader);
+				if (pipelineResult case .Err)
+					continue;
+
+				let pipeline = pipelineResult.Get();
+				if (pipeline != currentPipeline)
+				{
+					renderPass.SetPipeline(pipeline);
+					currentPipeline = pipeline;
+					Stats.PipelineSwitches++;
+				}
+
+				currentBlend = batch.BlendMode;
+				currentSoft = batch.SoftParticles;
+				firstBatch = false;
+			}
+
+			// Set vertex buffer from transient pool
+			let vertexBuffer = mRenderer.TransientBuffers.VertexBuffer.Buffer;
+			renderPass.SetVertexBuffer(0, vertexBuffer, batch.VertexOffset);
+			renderPass.SetIndexBuffer(mSharedIndexBuffer, .UInt16, 0);
+
+			// Draw
+			renderPass.DrawIndexed(6, batch.VertexCount, 0, 0, 0);
+			Stats.DrawCalls++;
+		}
+	}
 
 	/// Gets statistics string.
 	public void GetStats(String outStats)
@@ -531,6 +705,51 @@ class ParticleDrawSystem : IDisposable
 					passData.SceneBuffer,
 					passData.HasDepth,
 					null,
+					passData.VertexShader,
+					passData.FragmentShader);
+			});
+	}
+
+	/// Data for soft particle pass execution (with bind group).
+	private struct SoftParticlePassData
+	{
+		public ParticleDrawSystem DrawSystem;
+		public IBindGroup BindGroup;
+		public IShaderModule VertexShader;
+		public IShaderModule FragmentShader;
+		public bool HasDepth;
+	}
+
+	/// Adds a soft particle rendering pass to the render graph.
+	/// This pass reads the depth buffer to fade particles near geometry.
+	/// Usage:
+	/// 1. Render opaque geometry first (writes to depth)
+	/// 2. Call this pass (reads depth for soft particle fading)
+	public PassBuilder AddSoftParticlePass(
+		RenderGraph graph,
+		RGResourceHandle colorTarget,
+		RGResourceHandle depthTarget,
+		IBindGroup bindGroup,
+		IShaderModule vertShader,
+		IShaderModule fragShader)
+	{
+		SoftParticlePassData passData;
+		passData.DrawSystem = this;
+		passData.BindGroup = bindGroup;
+		passData.VertexShader = vertShader;
+		passData.FragmentShader = fragShader;
+		passData.HasDepth = true;
+
+		return graph.AddGraphicsPass("SoftParticles")
+			.SetColorAttachment(0, colorTarget, .Load, .Store)
+			.SetDepthAttachmentReadOnly(depthTarget)
+			.ReadTexture(depthTarget, .ShaderRead)
+			.SetFlags(.NeverCull)
+			.SetExecute(new (encoder) => {
+				passData.DrawSystem.RenderWithBindGroup(
+					encoder,
+					passData.BindGroup,
+					passData.HasDepth,
 					passData.VertexShader,
 					passData.FragmentShader);
 			});
