@@ -56,6 +56,7 @@ class RendererNGSandboxApp : Application
 		RunMeshSystemTests();
 		RunLightingSystemTests();
 		RunShadowSystemTests();
+		TestParticleSystem();
 
 		mInitialized = true;
 		Console.WriteLine("\n=== Initialization Complete ===\n");
