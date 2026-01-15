@@ -248,56 +248,59 @@ class RenderView
 	}
 
 	/// Extracts frustum planes from the view-projection matrix.
+	/// Uses Gribb/Hartmann method adapted for row-major matrices with row vector convention (v * M).
+	/// Translation is in row 4 (M41, M42, M43), so we extract planes from rows.
 	private void ExtractFrustumPlanes()
 	{
 		let m = ViewProjectionMatrix;
 
-		// Left plane
+		// For row-major matrices with v*M convention:
+		// Left plane:   row4 + row1
 		FrustumPlanes[0] = Plane.Normalize(Plane(
-			m.M14 + m.M11,
-			m.M24 + m.M21,
-			m.M34 + m.M31,
-			m.M44 + m.M41
+			m.M41 + m.M11,
+			m.M42 + m.M12,
+			m.M43 + m.M13,
+			m.M44 + m.M14
 		));
 
-		// Right plane
+		// Right plane:  row4 - row1
 		FrustumPlanes[1] = Plane.Normalize(Plane(
-			m.M14 - m.M11,
-			m.M24 - m.M21,
-			m.M34 - m.M31,
-			m.M44 - m.M41
+			m.M41 - m.M11,
+			m.M42 - m.M12,
+			m.M43 - m.M13,
+			m.M44 - m.M14
 		));
 
-		// Bottom plane
+		// Bottom plane: row4 + row2
 		FrustumPlanes[2] = Plane.Normalize(Plane(
-			m.M14 + m.M12,
-			m.M24 + m.M22,
-			m.M34 + m.M32,
-			m.M44 + m.M42
+			m.M41 + m.M21,
+			m.M42 + m.M22,
+			m.M43 + m.M23,
+			m.M44 + m.M24
 		));
 
-		// Top plane
+		// Top plane:    row4 - row2
 		FrustumPlanes[3] = Plane.Normalize(Plane(
-			m.M14 - m.M12,
-			m.M24 - m.M22,
-			m.M34 - m.M32,
-			m.M44 - m.M42
+			m.M41 - m.M21,
+			m.M42 - m.M22,
+			m.M43 - m.M23,
+			m.M44 - m.M24
 		));
 
-		// Near plane
+		// Near plane:   row3 (for [0,1] depth range)
 		FrustumPlanes[4] = Plane.Normalize(Plane(
-			m.M13,
-			m.M23,
+			m.M31,
+			m.M32,
 			m.M33,
-			m.M43
+			m.M34
 		));
 
-		// Far plane
+		// Far plane:    row4 - row3
 		FrustumPlanes[5] = Plane.Normalize(Plane(
-			m.M14 - m.M13,
-			m.M24 - m.M23,
-			m.M34 - m.M33,
-			m.M44 - m.M43
+			m.M41 - m.M31,
+			m.M42 - m.M32,
+			m.M43 - m.M33,
+			m.M44 - m.M34
 		));
 	}
 
@@ -319,5 +322,143 @@ class RenderView
 	public void SavePreviousTransform()
 	{
 		PreviousViewProjectionMatrix = ViewProjectionMatrix;
+	}
+
+	// ===== Factory Methods =====
+
+	/// Creates a perspective camera view.
+	public static RenderView CreateCamera(
+		StringView name,
+		Vector3 position,
+		Vector3 forward,
+		Vector3 up,
+		float fovRadians,
+		float aspectRatio,
+		float nearPlane,
+		float farPlane,
+		int32 viewportWidth,
+		int32 viewportHeight)
+	{
+		let view = new RenderView(name);
+		view.Type = .MainCamera;
+		view.Flags = .DefaultCamera;
+		view.Position = position;
+		view.Forward = Vector3.Normalize(forward);
+		view.Up = Vector3.Normalize(up);
+		view.Right = Vector3.Normalize(Vector3.Cross(view.Forward, view.Up));
+		view.FieldOfViewOrSize = fovRadians;
+		view.AspectRatio = aspectRatio;
+		view.NearPlane = nearPlane;
+		view.FarPlane = farPlane;
+		view.SetViewport(0, 0, viewportWidth, viewportHeight);
+		view.UpdateMatrices();
+		return view;
+	}
+
+	/// Creates a perspective camera view from a CameraProxy.
+	public static RenderView CreateFromCameraProxy(CameraProxy* camera, int32 viewportWidth, int32 viewportHeight)
+	{
+		let view = new RenderView();
+		view.Type = .MainCamera;
+		view.Flags = .DefaultCamera;
+
+		if ((camera.Flags & .MainCamera) != 0)
+			view.Type = .MainCamera;
+
+		view.Position = camera.Position;
+		view.Forward = camera.Forward;
+		view.Up = camera.Up;
+		view.Right = camera.Right;
+		view.FieldOfViewOrSize = camera.FieldOfView;
+		view.AspectRatio = camera.AspectRatio;
+		view.NearPlane = camera.NearPlane;
+		view.FarPlane = camera.FarPlane;
+		view.LayerMask = camera.CullingMask;
+		view.Priority = (int16)camera.Priority;
+
+		if (camera.Projection == .Orthographic)
+		{
+			view.Flags |= .Orthographic;
+			view.FieldOfViewOrSize = camera.OrthoHeight;
+		}
+
+		// Apply viewport from camera's normalized viewport
+		let vx = (int32)(camera.Viewport.X * viewportWidth);
+		let vy = (int32)(camera.Viewport.Y * viewportHeight);
+		let vw = (int32)(camera.Viewport.Width * viewportWidth);
+		let vh = (int32)(camera.Viewport.Height * viewportHeight);
+		view.SetViewport(vx, vy, vw, vh);
+
+		view.UpdateMatrices();
+		return view;
+	}
+
+	/// Creates a shadow cascade view for directional light shadows.
+	public static RenderView CreateShadowCascade(
+		int32 cascadeIndex,
+		Vector3 lightDirection,
+		Matrix viewMatrix,
+		Matrix projectionMatrix,
+		int32 resolution)
+	{
+		let view = new RenderView();
+		view.Type = .ShadowCascade;
+		view.Flags = .DefaultShadow;
+		view.CascadeIndex = cascadeIndex;
+		view.Priority = (int16)(-100 + cascadeIndex); // Shadows render before main views
+
+		// For shadow views, we set matrices directly
+		view.ViewMatrix = viewMatrix;
+		view.ProjectionMatrix = projectionMatrix;
+		view.ViewProjectionMatrix = viewMatrix * projectionMatrix;
+		view.InverseViewMatrix = Matrix.Invert(viewMatrix);
+		view.InverseProjectionMatrix = Matrix.Invert(projectionMatrix);
+		view.InverseViewProjectionMatrix = Matrix.Invert(view.ViewProjectionMatrix);
+
+		// Extract position from inverse view matrix
+		view.Position = .(view.InverseViewMatrix.M14, view.InverseViewMatrix.M24, view.InverseViewMatrix.M34);
+		view.Forward = Vector3.Normalize(lightDirection);
+
+		view.SetViewport(0, 0, resolution, resolution);
+
+		return view;
+	}
+
+	/// Creates a local light shadow view (for point/spot lights in shadow atlas).
+	public static RenderView CreateShadowLocal(
+		int32 atlasTileIndex,
+		Vector3 position,
+		Vector3 direction,
+		float range,
+		float fovRadians,
+		int32 tileX,
+		int32 tileY,
+		int32 tileSize)
+	{
+		let view = new RenderView();
+		view.Type = .ShadowLocal;
+		view.Flags = .DefaultShadow;
+		view.AtlasTileIndex = atlasTileIndex;
+		view.Priority = -50; // After cascades, before main views
+
+		view.Position = position;
+		view.Forward = Vector3.Normalize(direction);
+		// Calculate right and up vectors
+		let worldUp = Vector3(0, 1, 0);
+		if (Math.Abs(Vector3.Dot(view.Forward, worldUp)) > 0.99f)
+			view.Right = Vector3.Normalize(Vector3.Cross(Vector3(1, 0, 0), view.Forward));
+		else
+			view.Right = Vector3.Normalize(Vector3.Cross(worldUp, view.Forward));
+		view.Up = Vector3.Cross(view.Forward, view.Right);
+
+		view.NearPlane = 0.1f;
+		view.FarPlane = range;
+		view.FieldOfViewOrSize = fovRadians;
+		view.AspectRatio = 1.0f;
+
+		view.SetViewport(tileX, tileY, tileSize, tileSize);
+		view.UpdateMatrices();
+
+		return view;
 	}
 }
