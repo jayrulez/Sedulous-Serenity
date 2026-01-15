@@ -32,6 +32,12 @@ public interface IWindow
 	/// Gets whether the window has input focus.
 	bool Focused { get; }
 
+	/// Gets the display content scale (DPI scaling factor).
+	/// Returns 1.0 for standard DPI (96 DPI on Windows, 72 DPI on macOS).
+	/// Returns 1.5 for 150% scaling, 2.0 for 200% scaling (Retina), etc.
+	/// Use this to scale UI elements for proper display on high-DPI screens.
+	float ContentScale { get; }
+
 	/// Shows the window.
 	void Show();
 

@@ -110,6 +110,8 @@ class SDL3Window : IWindow
 
 	public bool Focused => SDL_GetWindowFlags(mWindow).HasFlag(.SDL_WINDOW_INPUT_FOCUS);
 
+	public float ContentScale => SDL_GetWindowDisplayScale(mWindow);
+
 	public void* NativeHandle
 	{
 		get

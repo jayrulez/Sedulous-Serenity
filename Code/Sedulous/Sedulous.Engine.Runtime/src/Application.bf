@@ -34,6 +34,27 @@ abstract class Application
 	private Stopwatch mStopwatch = new .() ~ delete _;
 	private float mLastFrameTime;
 
+	// Fixed update timing
+	private float mFixedTimeStep = 1.0f / 60.0f;  // 60 Hz default
+	private float mFixedUpdateAccumulator = 0.0f;
+	private int32 mMaxFixedStepsPerFrame = 8;  // Prevent spiral of death
+
+	/// Gets or sets the fixed timestep in seconds.
+	/// Default is 1/60 (60 Hz). Minimum is 0.001 seconds.
+	public float FixedTimeStep
+	{
+		get => mFixedTimeStep;
+		set => mFixedTimeStep = Math.Max(value, 0.001f);
+	}
+
+	/// Gets or sets the maximum fixed update steps per frame.
+	/// Limits CPU usage if framerate drops significantly.
+	public int32 MaxFixedStepsPerFrame
+	{
+		get => mMaxFixedStepsPerFrame;
+		set => mMaxFixedStepsPerFrame = Math.Max(value, 1);
+	}
+
 	/// Creates an application with the provided dependencies.
 	/// @param shell The shell for windowing and input (must be initialized).
 	/// @param device The RHI device for GPU operations.
@@ -88,6 +109,19 @@ abstract class Application
 
 			OnInput();
 
+			// Fixed update loop - may run multiple times per frame
+			mFixedUpdateAccumulator += deltaTime;
+			int32 fixedSteps = 0;
+			while (mFixedUpdateAccumulator >= mFixedTimeStep && fixedSteps < mMaxFixedStepsPerFrame)
+			{
+				OnFixedUpdate(mFixedTimeStep);
+				mFixedUpdateAccumulator -= mFixedTimeStep;
+				fixedSteps++;
+			}
+			// Clamp accumulator to prevent spiral of death
+			if (mFixedUpdateAccumulator > mFixedTimeStep * 2)
+				mFixedUpdateAccumulator = mFixedTimeStep * 2;
+
 			let frameContext = FrameContext()
 			{
 				DeltaTime = deltaTime,
@@ -126,6 +160,12 @@ abstract class Application
 
 	/// Called each frame for input handling (before Update).
 	protected virtual void OnInput() { }
+
+	/// Called at a fixed timestep for physics and deterministic game logic.
+	/// May be called multiple times per frame (or not at all) depending on framerate.
+	/// Use this for physics simulation, AI updates, or anything requiring consistent timing.
+	/// @param fixedDeltaTime The fixed timestep duration (same as FixedTimeStep property).
+	protected virtual void OnFixedUpdate(float fixedDeltaTime) { }
 
 	/// Called each frame for game/application logic.
 	protected virtual void OnUpdate(FrameContext frame) { }

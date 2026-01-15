@@ -38,6 +38,7 @@ struct SampleConfig
 /// Main Loop:
 ///     ProcessEvents()
 ///     OnInput()                      // Handle input (no GPU resources)
+///     OnFixedUpdate(fixedDeltaTime)  // Fixed timestep (may run 0-N times)
 ///     OnUpdate(deltaTime, totalTime) // Game logic (no GPU resources)
 ///
 ///     Frame():
@@ -78,6 +79,11 @@ abstract class RHISampleApp
 	protected float mDeltaTime;
 	protected float mTotalTime;
 	private float mLastFrameTime;
+
+	// Fixed update timing
+	private float mFixedTimeStep = 1.0f / 60.0f;  // 60 Hz default
+	private float mFixedUpdateAccumulator = 0.0f;
+	private int32 mMaxFixedStepsPerFrame = 8;  // Prevent spiral of death
 
 	// Error tracking
 	private int mConsecutiveErrors = 0;
@@ -183,6 +189,19 @@ abstract class RHISampleApp
 			// Input handling - no GPU resource access
 			OnInput();
 
+			// Fixed update loop - may run multiple times per frame
+			mFixedUpdateAccumulator += mDeltaTime;
+			int32 fixedSteps = 0;
+			while (mFixedUpdateAccumulator >= mFixedTimeStep && fixedSteps < mMaxFixedStepsPerFrame)
+			{
+				OnFixedUpdate(mFixedTimeStep);
+				mFixedUpdateAccumulator -= mFixedTimeStep;
+				fixedSteps++;
+			}
+			// Clamp accumulator to prevent spiral of death
+			if (mFixedUpdateAccumulator > mFixedTimeStep * 2)
+				mFixedUpdateAccumulator = mFixedTimeStep * 2;
+
 			// Game logic update - no GPU resource access (use OnPrepareFrame for buffer writes)
 			OnUpdate(mDeltaTime, mTotalTime);
 
@@ -222,6 +241,12 @@ abstract class RHISampleApp
 	/// Called each frame for game logic updates (physics, AI, animation, etc.).
 	/// Do NOT write to per-frame GPU buffers here - use OnPrepareFrame() instead.
 	protected virtual void OnUpdate(float deltaTime, float totalTime) { }
+
+	/// Called at a fixed timestep for physics and deterministic game logic.
+	/// May be called multiple times per frame (or not at all) depending on framerate.
+	/// Use this for physics simulation, AI updates, or anything requiring consistent timing.
+	/// @param fixedDeltaTime The fixed timestep duration (same as FixedTimeStep property).
+	protected virtual void OnFixedUpdate(float fixedDeltaTime) { }
 
 	/// Called after fence wait to prepare per-frame GPU resources.
 	/// This is the ONLY place where it's safe to write to per-frame buffers.
@@ -266,6 +291,22 @@ abstract class RHISampleApp
 	public IShell Shell => mShell;
 	public float DeltaTime => mDeltaTime;
 	public float TotalTime => mTotalTime;
+
+	/// Gets or sets the fixed timestep in seconds.
+	/// Default is 1/60 (60 Hz). Minimum is 0.001 seconds.
+	public float FixedTimeStep
+	{
+		get => mFixedTimeStep;
+		set => mFixedTimeStep = Math.Max(value, 0.001f);
+	}
+
+	/// Gets or sets the maximum fixed update steps per frame.
+	/// Limits CPU usage if framerate drops significantly.
+	public int32 MaxFixedStepsPerFrame
+	{
+		get => mMaxFixedStepsPerFrame;
+		set => mMaxFixedStepsPerFrame = Math.Max(value, 1);
+	}
 
 	/// Returns the current depth texture view, or null if depth is disabled.
 	public ITextureView DepthTextureView => mDepthTextureView;
