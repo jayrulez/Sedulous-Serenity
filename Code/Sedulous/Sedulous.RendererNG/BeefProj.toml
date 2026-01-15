@@ -5,3 +5,9 @@ Dependencies = {corlib = "*", "Sedulous.Foundation" = "*", "Sedulous.Geometry" =
 Name = "Sedulous.RendererNG"
 TargetType = "BeefLib"
 StartupObject = "Sedulous.RendererNG.Program"
+
+[Configs.Debug.Win64]
+PostBuildCmds = ["CopyToDependents(\"$(ProjectDir)/shaders/\")"]
+
+[Configs.Release.Win64]
+PostBuildCmds = ["CopyToDependents(\"$(ProjectDir)/shaders/\")"]

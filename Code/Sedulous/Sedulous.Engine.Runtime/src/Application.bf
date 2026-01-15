@@ -286,7 +286,18 @@ abstract class Application
 		if (mDevice.CreateTexture(&desc) case .Ok(let texture))
 		{
 			mDepthTexture = texture;
-			if (mDevice.CreateTextureView(texture, null) case .Ok(let view))
+
+			TextureViewDescriptor viewDesc = .()
+			{
+				Format = mSettings.DepthFormat,
+				Dimension = .Texture2D,
+				BaseMipLevel = 0,
+				MipLevelCount = 1,
+				BaseArrayLayer = 0,
+				ArrayLayerCount = 1
+			};
+
+			if (mDevice.CreateTextureView(texture, &viewDesc) case .Ok(let view))
 				mDepthTextureView = view;
 		}
 	}

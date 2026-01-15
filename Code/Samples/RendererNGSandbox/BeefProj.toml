@@ -4,9 +4,3 @@ Dependencies = {corlib = "*", "Sedulous.Mathematics" = "*", "Sedulous.RHI" = "*"
 [Project]
 Name = "RendererNGSandbox"
 StartupObject = "RendererNGSandbox.Program"
-
-[Configs.Debug.Win64]
-PostBuildCmds = ["xcopy /s /y /d \"$(ProjectDir)\\shaders\" \"$(TargetDir)\\shaders\\\""]
-
-[Configs.Release.Win64]
-PostBuildCmds = ["xcopy /s /y /d \"$(ProjectDir)\\shaders\" \"$(TargetDir)\\shaders\\\""]
