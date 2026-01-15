@@ -61,6 +61,12 @@ class RenderGraphResource
 		LastReader = .Invalid;
 	}
 
+	public ~this()
+	{
+		// Clean up transient GPU resources (imported resources are owned elsewhere)
+		ReleaseTransient();
+	}
+
 	/// Creates a texture resource descriptor.
 	public static Self CreateTexture(StringView name, TextureResourceDesc desc)
 	{

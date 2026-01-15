@@ -5,16 +5,16 @@ using System.Collections;
 
 /// Container for all render proxies in a scene.
 /// Manages the lifecycle of proxies and provides efficient access.
-class RenderWorld : IDisposable
+class RenderWorld
 {
-	// Proxy pools
-	private ProxyPool<StaticMeshProxy> mStaticMeshes;
-	private ProxyPool<SkinnedMeshProxy> mSkinnedMeshes;
-	private ProxyPool<LightProxy> mLights;
-	private ProxyPool<CameraProxy> mCameras;
-	private ProxyPool<ParticleEmitterProxy> mParticleEmitters;
-	private ProxyPool<SpriteProxy> mSprites;
-	private ProxyPool<ForceFieldProxy> mForceFields;
+	// Proxy pools (~ delete _ ensures cleanup when RenderWorld is deleted)
+	private ProxyPool<StaticMeshProxy> mStaticMeshes ~ delete _;
+	private ProxyPool<SkinnedMeshProxy> mSkinnedMeshes ~ delete _;
+	private ProxyPool<LightProxy> mLights ~ delete _;
+	private ProxyPool<CameraProxy> mCameras ~ delete _;
+	private ProxyPool<ParticleEmitterProxy> mParticleEmitters ~ delete _;
+	private ProxyPool<SpriteProxy> mSprites ~ delete _;
+	private ProxyPool<ForceFieldProxy> mForceFields ~ delete _;
 
 	/// Gets the number of active static mesh proxies.
 	public int32 StaticMeshCount => (int32)mStaticMeshes.AllocatedCount;
@@ -317,14 +317,4 @@ class RenderWorld : IDisposable
 		mForceFields.Clear();
 	}
 
-	public void Dispose()
-	{
-		delete mStaticMeshes;
-		delete mSkinnedMeshes;
-		delete mLights;
-		delete mCameras;
-		delete mParticleEmitters;
-		delete mSprites;
-		delete mForceFields;
-	}
 }
