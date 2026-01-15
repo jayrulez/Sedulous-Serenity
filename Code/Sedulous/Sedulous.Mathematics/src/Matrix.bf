@@ -6,6 +6,26 @@ namespace Sedulous.Mathematics;
 /// <summary>
 /// Represents a 4x4 transformation matrix.
 /// </summary>
+/// <remarks>
+/// This matrix uses the XNA/MonoGame convention:
+/// - Storage is row-major in memory ([CRepr] compatible)
+/// - Basis vectors (X, Y, Z axes) are stored in columns 1, 2, 3
+/// - Translation is stored in row 4 (M41, M42, M43)
+/// - Vector transformation uses row-vector convention: result = vector * matrix
+///
+/// Matrix layout:
+///   M11 M12 M13 M14   (X components of basis + padding)
+///   M21 M22 M23 M24   (Y components of basis + padding)
+///   M31 M32 M33 M34   (Z components of basis + padding)
+///   M41 M42 M43 M44   (Translation + 1)
+///
+/// For shaders:
+/// - HLSL with row_major: use matrix directly
+/// - HLSL with column_major: transpose before upload
+/// - GLSL: transpose before upload (GLSL is column-major)
+///
+/// For frustum plane extraction, use column-based Gribb/Hartmann method.
+/// </remarks>
 [CRepr]
 struct Matrix : IEquatable<Matrix>, IInterpolatable<Matrix>, IEquatable, IHashable
 {

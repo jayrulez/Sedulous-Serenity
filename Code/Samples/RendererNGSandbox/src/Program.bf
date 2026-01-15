@@ -59,6 +59,7 @@ class RendererNGSandboxApp : Application
 		TestParticleSystem();
 		TestSpriteAndSkyboxSystems();
 		TestRenderGraph();
+		TestVisibilitySystem();
 
 		mInitialized = true;
 		Console.WriteLine("\n=== Initialization Complete ===\n");
