@@ -485,8 +485,7 @@ class ClusterGrid
 		if (mLightIndexBuffers[frameIndex] != null && totalIndices > 0)
 		{
 			Span<uint8> data = .((uint8*)mCpuLightIndices.Ptr, (int)(sizeof(uint32) * totalIndices));
-			var buf = mLightIndexBuffers[frameIndex];// beef bug
-			mDevice.Queue.WriteBuffer(buf, 0, data);
+			mDevice.Queue.WriteBuffer(mLightIndexBuffers[frameIndex], 0, data);
 		}
 	}
 }

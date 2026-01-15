@@ -238,8 +238,7 @@ class StaticMeshRenderer
 		{
 			uint64 dataSize = (uint64)(sizeof(MaterialInstanceData) * mMaterialInstanceCount);
 			Span<uint8> data = .((uint8*)mMaterialInstanceData.Ptr, (int)dataSize);
-			var buf = mMaterialInstanceBuffers[frameIndex];// beef bug
-			mDevice.Queue.WriteBuffer(buf, 0, data);
+			mDevice.Queue.WriteBuffer(mMaterialInstanceBuffers[frameIndex], 0, data);
 		}
 	}
 

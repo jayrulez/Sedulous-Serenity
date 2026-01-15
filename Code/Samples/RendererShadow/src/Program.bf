@@ -686,8 +686,7 @@ class RendererShadowSample : RHISampleApp
 		};
 
 		Span<uint8> camSpan = .((uint8*)&camData, sizeof(CameraData));
-		var res = mFrameResources[frameIndex];// beef bug
-		Device.Queue.WriteBuffer(res.CameraBuffer, 0, camSpan);
+		Device.Queue.WriteBuffer(mFrameResources[frameIndex].CameraBuffer, 0, camSpan);
 
 		// Prepare debug renderer
 		mDebugRenderer.SetViewProjection(camData.ViewProjection);

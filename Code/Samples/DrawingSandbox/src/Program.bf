@@ -453,8 +453,7 @@ class DrawingSandboxSample : RHISampleApp
 		};
 
 		Span<uint8> uniformData = .((uint8*)&uniforms, sizeof(Uniforms));
-		var buf = mUniformBuffers[frameIndex];// beef bug
-		Device.Queue.WriteBuffer(buf, 0, uniformData);
+		Device.Queue.WriteBuffer(mUniformBuffers[frameIndex], 0, uniformData);
 	}
 
 	private void BuildDrawCommands()
@@ -687,12 +686,10 @@ class DrawingSandboxSample : RHISampleApp
 		if (mVertices.Count > 0)
 		{
 			let vertexData = Span<uint8>((uint8*)mVertices.Ptr, mVertices.Count * sizeof(RenderVertex));
-			var buf = mVertexBuffers[frameIndex];// beef bug
-			Device.Queue.WriteBuffer(buf, 0, vertexData);
+			Device.Queue.WriteBuffer(mVertexBuffers[frameIndex], 0, vertexData);
 
 			let indexData = Span<uint8>((uint8*)mIndices.Ptr, mIndices.Count * sizeof(uint16));
-			var ibuf = mIndexBuffers[frameIndex];// beef bug
-			Device.Queue.WriteBuffer(ibuf, 0, indexData);
+			Device.Queue.WriteBuffer(mIndexBuffers[frameIndex], 0, indexData);
 		}
 	}
 
