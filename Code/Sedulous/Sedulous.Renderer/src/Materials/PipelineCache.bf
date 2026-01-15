@@ -233,9 +233,9 @@ class PipelineCache
 			colorTargets = .(.(key.ColorFormat));
 		}
 
-		// Depth stencil state
+		// Depth stencil state (Undefined = no depth buffer)
 		DepthStencilState? depthStencil = null;
-		if (key.DepthFormat != .RGBA8Unorm) // Using RGBA8Unorm as "no depth" indicator
+		if (key.DepthFormat != .Undefined)
 		{
 			depthStencil = material.GetDepthStencilState();
 		}
@@ -343,9 +343,9 @@ class PipelineCache
 			colorTargets = .(.(key.ColorFormat));
 		}
 
-		// Depth stencil state
+		// Depth stencil state (Undefined = no depth buffer)
 		DepthStencilState? depthStencil = null;
-		if (key.DepthFormat != .RGBA8Unorm) // Using RGBA8Unorm as "no depth" indicator
+		if (key.DepthFormat != .Undefined)
 		{
 			depthStencil = material.GetDepthStencilState();
 		}
@@ -433,9 +433,9 @@ class PipelineCache
 			colorTargets = .(.(key.ColorFormat));
 		}
 
-		// Depth stencil state
+		// Depth stencil state (Undefined = no depth buffer)
 		DepthStencilState? depthStencil = null;
-		if (key.DepthFormat != .RGBA8Unorm)
+		if (key.DepthFormat != .Undefined)
 		{
 			depthStencil = material.GetDepthStencilState();
 		}

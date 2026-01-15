@@ -70,4 +70,24 @@ struct DepthStencilState
 
 	/// Depth test without writing.
 	public static Self ReadOnly => .() { DepthWriteEnabled = false };
+
+	// ===== Common Presets =====
+
+	/// Opaque geometry: depth test + write with less-than comparison.
+	/// Use for solid objects that should write to and test against the depth buffer.
+	public static Self Opaque => Default;
+
+	/// Transparent geometry: depth test only, no writing.
+	/// Use for blended objects - they should be depth-sorted but not occlude each other.
+	public static Self Transparent => ReadOnly;
+
+	/// Skybox/background: depth test with less-equal, no writing.
+	/// Use for rendering at the far plane (z=1) after opaque geometry.
+	public static Self Skybox => .() { DepthWriteEnabled = false, DepthCompare = .LessEqual };
+
+	/// Creates a shadow map depth state with bias to reduce shadow acne.
+	/// @param bias Constant depth bias (typically 1-4)
+	/// @param slopeScale Slope-scaled depth bias (typically 1.0-4.0)
+	public static Self Shadow(int32 bias = 2, float slopeScale = 2.0f) =>
+		.() { Format = .Depth32Float, DepthBias = bias, DepthBiasSlopeScale = slopeScale };
 }
