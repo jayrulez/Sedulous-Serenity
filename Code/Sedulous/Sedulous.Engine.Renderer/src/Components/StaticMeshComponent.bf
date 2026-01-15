@@ -22,10 +22,6 @@ class StaticMeshComponent : IEntityComponent
 	/// Material instance handles for each sub-mesh (up to 8).
 	public MaterialInstanceHandle[8] MaterialInstances = .(.Invalid, .Invalid, .Invalid, .Invalid, .Invalid, .Invalid, .Invalid, .Invalid);
 
-	/// Legacy material IDs for each sub-mesh (up to 8).
-	/// Used when MaterialInstances[i].IsValid == false.
-	public uint32[8] MaterialIds;
-
 	/// Number of materials used.
 	public uint8 MaterialCount;
 
@@ -196,16 +192,6 @@ class StaticMeshComponent : IEntityComponent
 			return result;
 		MaterialCount = (uint8)Math.Min(matCount, 8);
 
-		for (int32 i = 0; i < MaterialCount; i++)
-		{
-			int32 matId = (int32)MaterialIds[i];
-			result = serializer.Int32(null, ref matId);
-			if (result != .Ok)
-				return result;
-			if (serializer.IsReading)
-				MaterialIds[i] = (uint32)matId;
-		}
-
 		// Note: GPU mesh is not serialized - it needs to be set up by the loading code
 		// using resource references (e.g., mesh path)
 
@@ -235,7 +221,6 @@ class StaticMeshComponent : IEntityComponent
 				for (int i = 0; i < 8; i++)
 				{
 					proxy.MaterialInstances[i] = MaterialInstances[i];
-					proxy.MaterialIds[i] = MaterialIds[i];
 				}
 			}
 		}

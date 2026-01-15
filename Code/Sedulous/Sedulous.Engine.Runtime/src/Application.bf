@@ -292,7 +292,7 @@ abstract class Application
 				DepthStoreOp = .Store,
 				DepthClearValue = 1.0f,
 				StencilLoadOp = .Clear,
-				StencilStoreOp = .Store,
+				StencilStoreOp = .Store, // different from SF
 				StencilClearValue = 0
 			};
 		}

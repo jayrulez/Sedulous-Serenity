@@ -44,12 +44,6 @@ class SkinnedMeshComponent : IEntityComponent
 	private RenderSceneComponent mRenderScene;
 	private ProxyHandle mProxyHandle = .Invalid;
 
-	/// Material IDs for each sub-mesh (up to 8).
-	public uint32[8] MaterialIds;
-
-	/// Number of materials used.
-	public uint8 MaterialCount;
-
 	/// Whether this mesh casts shadows.
 	public bool CastShadows = true;
 
@@ -400,23 +394,6 @@ class SkinnedMeshComponent : IEntityComponent
 			CastShadows = (flags & 1) != 0;
 			ReceiveShadows = (flags & 2) != 0;
 			Visible = (flags & 4) != 0;
-		}
-
-		// Serialize material count and IDs
-		int32 matCount = (int32)MaterialCount;
-		result = serializer.Int32("materialCount", ref matCount);
-		if (result != .Ok)
-			return result;
-		MaterialCount = (uint8)Math.Min(matCount, 8);
-
-		for (int32 i = 0; i < MaterialCount; i++)
-		{
-			int32 matId = (int32)MaterialIds[i];
-			result = serializer.Int32(null, ref matId);
-			if (result != .Ok)
-				return result;
-			if (serializer.IsReading)
-				MaterialIds[i] = (uint32)matId;
 		}
 
 		// Note: GPU mesh, skeleton, and animations are not serialized
