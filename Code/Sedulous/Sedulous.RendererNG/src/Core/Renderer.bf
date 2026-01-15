@@ -77,27 +77,6 @@ struct LightingUniformData
 	};
 }
 
-/// Material uniform data matching mesh.frag.hlsl MaterialUniforms (b2).
-[Packed, CRepr]
-struct MaterialUniformData
-{
-	public Vector4 BaseColor;
-	public float Metallic;
-	public float Roughness;
-	public float AO;
-	public float AlphaCutoff;
-	public Vector4 EmissiveColor;
-
-	public static Self Default => .()
-	{
-		BaseColor = .(0.8f, 0.8f, 0.8f, 1.0f),
-		Metallic = 0.0f,
-		Roughness = 0.5f,
-		AO = 1.0f,
-		AlphaCutoff = 0.5f,
-		EmissiveColor = .(0, 0, 0, 0)
-	};
-}
 
 /// Main entry point for the RendererNG system.
 /// Owns all rendering subsystems and orchestrates frame rendering.
@@ -113,11 +92,18 @@ class Renderer : IDisposable
 	private ShaderSystem mShaderSystem ~ delete _;
 	private PipelineFactory mPipelineFactory ~ delete _;
 	private BindGroupLayoutCache mLayoutCache ~ delete _;
+	private MaterialSystem mMaterialSystem ~ delete _;
 	// private RenderGraph mRenderGraph;
 
 	// Pipeline layouts and pipelines
 	private IPipelineLayout mMeshPipelineLayout ~ delete _;
 	private IRenderPipeline mMeshPipeline; // Owned by PipelineFactory cache
+
+	// Default material for meshes without a material assigned
+	private Material mDefaultMaterial ~ delete _;
+	private MaterialInstance mDefaultMaterialInstance ~ delete _;
+	private IBindGroupLayout mDefaultMaterialLayout ~ delete _;
+	private IBindGroup mDefaultMaterialBindGroup; // Managed by MaterialSystem
 
 	// Draw systems
 	private MeshDrawSystem mMeshDrawSystem ~ delete _;
@@ -129,7 +115,6 @@ class Renderer : IDisposable
 	// Scene uniform buffer data
 	private IBuffer mSceneUniformBuffer ~ delete _;
 	private IBuffer mLightingUniformBuffer ~ delete _;
-	private IBuffer mMaterialUniformBuffer ~ delete _;
 	private IBindGroup mSceneBindGroup ~ delete _;
 
 	// Scene uniform bind group layout
@@ -166,6 +151,9 @@ class Renderer : IDisposable
 
 	/// Gets the bind group layout cache.
 	public BindGroupLayoutCache LayoutCache => mLayoutCache;
+
+	/// Gets the material system.
+	public MaterialSystem Materials => mMaterialSystem;
 
 	/// Gets the mesh draw system.
 	public MeshDrawSystem MeshDraw => mMeshDrawSystem;
@@ -224,6 +212,14 @@ class Renderer : IDisposable
 			return .Err;
 		}
 
+		// Initialize material system
+		mMaterialSystem = new MaterialSystem();
+		if (mMaterialSystem.Initialize(device, mResourcePool) case .Err)
+		{
+			Console.WriteLine("ERROR: Failed to initialize MaterialSystem");
+			return .Err;
+		}
+
 		// Create scene uniform buffers
 		if (!CreateSceneBuffers())
 		{
@@ -249,7 +245,7 @@ class Renderer : IDisposable
 		mMeshDrawSystem.Initialize(mDevice, meshPool, mTransientBuffers, mPipelineFactory, mLayoutCache);
 	}
 
-	/// Creates scene uniform buffers.
+	/// Creates scene uniform buffers (Set 0: scene + lighting).
 	private bool CreateSceneBuffers()
 	{
 		// Scene uniform buffer (matches SceneUniforms in common.hlsli)
@@ -276,28 +272,12 @@ class Renderer : IDisposable
 		else
 			return false;
 
-		// Material uniform buffer (default material)
-		BufferDescriptor materialDesc = .()
-		{
-			Size = (uint64)sizeof(MaterialUniformData),
-			Usage = .Uniform | .CopyDst
-		};
-
-		if (mDevice.CreateBuffer(&materialDesc) case .Ok(let materialBuffer))
-			mMaterialUniformBuffer = materialBuffer;
-		else
-			return false;
-
-		// Upload default material values
-		var defaultMaterial = MaterialUniformData.Default;
-		mDevice.Queue.WriteBuffer(mMaterialUniformBuffer, 0, Span<uint8>((uint8*)&defaultMaterial, sizeof(MaterialUniformData)));
-
-		// Create bind group layout for scene data (set 0)
-		// b0: SceneUniforms, b1: LightingUniforms, b2: MaterialUniforms
-		BindGroupLayoutEntry[3] sceneEntries = .(
-			.UniformBuffer(0, .Vertex | .Fragment), // SceneUniforms
-			.UniformBuffer(1, .Fragment),           // LightingUniforms
-			.UniformBuffer(2, .Fragment)            // MaterialUniforms
+		// Create bind group layout for scene data (set 0 / space0)
+		// b0: SceneUniforms, b1: LightingUniforms
+		// Material uniforms are in set 1 / space1, managed by MaterialSystem
+		BindGroupLayoutEntry[2] sceneEntries = .(
+			.UniformBuffer(0, .Vertex | .Fragment), // SceneUniforms (b0, space0)
+			.UniformBuffer(1, .Fragment)            // LightingUniforms (b1, space0)
 		);
 
 		if (mDevice.CreateBindGroupLayout(&BindGroupLayoutDescriptor() { Entries = sceneEntries }) case .Ok(let layout))
@@ -306,10 +286,9 @@ class Renderer : IDisposable
 			return false;
 
 		// Create the bind group
-		BindGroupEntry[3] bindEntries = .(
+		BindGroupEntry[2] bindEntries = .(
 			.Buffer(0, mSceneUniformBuffer, 0, (uint64)sizeof(SceneUniformData)),
-			.Buffer(1, mLightingUniformBuffer, 0, (uint64)sizeof(LightingUniformData)),
-			.Buffer(2, mMaterialUniformBuffer, 0, (uint64)sizeof(MaterialUniformData))
+			.Buffer(1, mLightingUniformBuffer, 0, (uint64)sizeof(LightingUniformData))
 		);
 
 		if (mDevice.CreateBindGroup(&BindGroupDescriptor() { Layout = mSceneBindGroupLayout, Entries = bindEntries }) case .Ok(let group))
@@ -482,9 +461,10 @@ class Renderer : IDisposable
 		if (mMeshDrawSystem.BatchCount == 0)
 			return;
 
-		// Bind pipeline and scene uniforms
+		// Bind pipeline and bind groups
 		renderPass.SetPipeline(mMeshPipeline);
-		renderPass.SetBindGroup(0, mSceneBindGroup);
+		renderPass.SetBindGroup(0, mSceneBindGroup);           // Set 0: Scene + Lighting
+		renderPass.SetBindGroup(1, mDefaultMaterialBindGroup); // Set 1: Material
 
 		// Render all batches
 		mMeshDrawSystem.Render(renderPass, mMeshPipelineLayout);
@@ -493,13 +473,51 @@ class Renderer : IDisposable
 		mStats.DrawCalls += (int32)mMeshDrawSystem.BatchCount;
 	}
 
-	/// Creates the standard mesh render pipeline.
+	/// Creates the standard mesh render pipeline with default PBR material.
 	private bool CreateMeshPipeline()
 	{
-		// Create pipeline layout with scene bind group
+		// Create default PBR material if not already created
+		if (mDefaultMaterial == null)
+		{
+			mDefaultMaterial = CreateDefaultPBRMaterial();
+			if (mDefaultMaterial == null)
+			{
+				Console.WriteLine("ERROR: Failed to create default material");
+				return false;
+			}
+
+			// Create material instance
+			mDefaultMaterialInstance = new MaterialInstance(mDefaultMaterial);
+			mDefaultMaterialInstance.SetColor("BaseColor", .(0.8f, 0.8f, 0.8f, 1.0f));
+			mDefaultMaterialInstance.SetFloat("Metallic", 0.0f);
+			mDefaultMaterialInstance.SetFloat("Roughness", 0.5f);
+			mDefaultMaterialInstance.SetFloat("AO", 1.0f);
+			mDefaultMaterialInstance.SetFloat("AlphaCutoff", 0.5f);
+			mDefaultMaterialInstance.SetColor("EmissiveColor", .(0, 0, 0, 0));
+
+			// Get bind group layout for material
+			if (mMaterialSystem.GetOrCreateLayout(mDefaultMaterial) case .Ok(let layout))
+				mDefaultMaterialLayout = layout;
+			else
+			{
+				Console.WriteLine("ERROR: Failed to create material bind group layout");
+				return false;
+			}
+
+			// Prepare material instance (creates bind group)
+			if (mMaterialSystem.PrepareInstance(mDefaultMaterialInstance, mDefaultMaterialLayout) case .Ok(let bg))
+				mDefaultMaterialBindGroup = bg;
+			else
+			{
+				Console.WriteLine("ERROR: Failed to create material bind group");
+				return false;
+			}
+		}
+
+		// Create pipeline layout with scene and material bind groups
 		if (mMeshPipelineLayout == null)
 		{
-			IBindGroupLayout[1] layouts = .(mSceneBindGroupLayout);
+			IBindGroupLayout[2] layouts = .(mSceneBindGroupLayout, mDefaultMaterialLayout);
 			PipelineLayoutDescriptor layoutDesc = .()
 			{
 				BindGroupLayouts = layouts
@@ -525,6 +543,33 @@ class Renderer : IDisposable
 		}
 
 		return false;
+	}
+
+	/// Creates the default PBR material definition.
+	private Material CreateDefaultPBRMaterial()
+	{
+		// Use MaterialBuilder to create a PBR material matching mesh.frag.hlsl
+		let builder = scope MaterialBuilder("DefaultPBR");
+		builder
+			.Shader("mesh")
+			.Flags(.Instanced)
+			.VertexLayout(.PositionNormalUV)
+			// Uniform properties (must match MaterialUniforms in mesh.frag.hlsl)
+			.Color("BaseColor", .(1, 1, 1, 1))
+			.Float("Metallic", 0.0f)
+			.Float("Roughness", 0.5f)
+			.Float("AO", 1.0f)
+			.Float("AlphaCutoff", 0.5f)
+			.Color("EmissiveColor", .(0, 0, 0, 0))
+			// Textures (set default textures from MaterialSystem)
+			.Texture("AlbedoMap", mMaterialSystem.WhiteTexture)
+			.Texture("NormalMap", mMaterialSystem.NormalTexture)
+			.Texture("MetallicRoughnessMap", mMaterialSystem.WhiteTexture)
+			.Texture("EmissiveMap", mMaterialSystem.BlackTexture)
+			.Texture("AOMap", mMaterialSystem.WhiteTexture)
+			.Sampler("MaterialSampler", mMaterialSystem.DefaultSampler);
+
+		return builder.Build();
 	}
 
 	public void Dispose()

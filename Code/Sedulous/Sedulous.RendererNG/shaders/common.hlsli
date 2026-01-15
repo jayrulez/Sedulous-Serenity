@@ -17,10 +17,10 @@ static const uint MAX_BONES = 256;
 static const uint MAX_LIGHTS = 1024;
 
 // ============================================================================
-// Scene Uniform Buffer (binding 0, set 0)
+// Scene Uniform Buffer (binding 0, set 0 / space0)
 // ============================================================================
 
-cbuffer SceneUniforms : register(b0)
+cbuffer SceneUniforms : register(b0, space0)
 {
     float4x4 ViewMatrix;
     float4x4 ProjectionMatrix;
@@ -52,11 +52,11 @@ struct InstanceData
 };
 
 // ============================================================================
-// Skinning Data
+// Skinning Data (Set 2 / space2 when skinned)
 // ============================================================================
 
 #ifdef SKINNED
-cbuffer BoneMatrices : register(b1)
+cbuffer BoneMatrices : register(b0, space2)
 {
     float4x4 Bones[MAX_BONES];
 };

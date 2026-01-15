@@ -4,10 +4,10 @@
 #include "common.hlsli"
 
 // ============================================================================
-// Material Uniforms
+// Material Uniforms (Set 1 / space1 = per-material bind group)
 // ============================================================================
 
-cbuffer MaterialUniforms : register(b2)
+cbuffer MaterialUniforms : register(b0, space1)
 {
     float4 BaseColor;
     float Metallic;
@@ -18,19 +18,19 @@ cbuffer MaterialUniforms : register(b2)
 };
 
 // ============================================================================
-// Textures and Samplers
+// Textures and Samplers (Set 1 / space1 = per-material bind group)
 // ============================================================================
 
-Texture2D AlbedoMap : register(t0);
-Texture2D NormalMap : register(t1);
-Texture2D MetallicRoughnessMap : register(t2);
-Texture2D EmissiveMap : register(t3);
-Texture2D AOMap : register(t4);
+Texture2D AlbedoMap : register(t0, space1);
+Texture2D NormalMap : register(t1, space1);
+Texture2D MetallicRoughnessMap : register(t2, space1);
+Texture2D EmissiveMap : register(t3, space1);
+Texture2D AOMap : register(t4, space1);
 
-SamplerState MaterialSampler : register(s0);
+SamplerState MaterialSampler : register(s0, space1);
 
 // ============================================================================
-// Lighting (simplified for initial implementation)
+// Lighting (Set 0 / space0 = scene bind group)
 // ============================================================================
 
 struct DirectionalLight
@@ -41,7 +41,7 @@ struct DirectionalLight
     float Padding;
 };
 
-cbuffer LightingUniforms : register(b1)
+cbuffer LightingUniforms : register(b1, space0)
 {
     DirectionalLight SunLight;
     float3 AmbientColor;
