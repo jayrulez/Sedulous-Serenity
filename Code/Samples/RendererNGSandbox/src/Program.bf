@@ -52,6 +52,7 @@ class RendererNGSandboxApp : Application
 		TestProxySystem();
 		TestRenderFrameAndViews();
 		TestShaderSystem();
+		RunPipelineSystemTests();
 
 		mInitialized = true;
 		Console.WriteLine("\n=== Initialization Complete ===\n");
