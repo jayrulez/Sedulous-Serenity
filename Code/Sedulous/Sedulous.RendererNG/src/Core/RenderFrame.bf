@@ -112,28 +112,6 @@ class RenderFrame
 	/// Gets the main camera view (first view, if any).
 	public RenderView MainView => mViews.Count > 0 ? mViews[0] : null;
 
-	// TODO: Transient allocation methods
-	// public TransientAllocation AllocateVertices(uint32 count, uint32 stride);
-	// public TransientAllocation AllocateIndices(uint32 count);
-	// public TransientAllocation AllocateUniform(uint32 size);
-	// public TransientAllocation AllocateStorage(uint32 size);
-}
-
-/// Transient buffer allocation result.
-struct TransientAllocation
-{
-	/// The buffer containing the allocation.
-	public IBuffer Buffer;
-
-	/// Offset into the buffer (bytes).
-	public uint32 Offset;
-
-	/// Size of the allocation (bytes).
-	public uint32 Size;
-
-	/// Whether this allocation is valid.
-	public bool IsValid => Buffer != null;
-
-	/// Invalid allocation constant.
-	public static readonly Self Invalid = .();
+	// Transient allocation is now handled by TransientBufferPool
+	// Access via Renderer.TransientBuffers
 }

@@ -13,6 +13,7 @@ class Renderer : IDisposable
 
 	// Core systems
 	private ResourcePool mResourcePool ~ delete _;
+	private TransientBufferPool mTransientBuffers ~ delete _;
 	// private ShaderSystem mShaderSystem;
 	// private MaterialRegistry mMaterialRegistry;
 	// private PipelineFactory mPipelineFactory;
@@ -37,6 +38,9 @@ class Renderer : IDisposable
 
 	/// Gets the resource pool.
 	public ResourcePool Resources => mResourcePool;
+
+	/// Gets the transient buffer pool.
+	public TransientBufferPool TransientBuffers => mTransientBuffers;
 
 	/// Gets the current frame statistics.
 	public ref RenderStats Stats => ref mStats;
@@ -63,6 +67,7 @@ class Renderer : IDisposable
 
 		// Initialize core systems
 		mResourcePool = new ResourcePool(device);
+		mTransientBuffers = new TransientBufferPool(device);
 		// mShaderSystem = new ShaderSystem(device, shaderBasePath);
 		// mMaterialRegistry = new MaterialRegistry();
 		// mPipelineFactory = new PipelineFactory(device, mShaderSystem);
@@ -119,6 +124,9 @@ class Renderer : IDisposable
 
 		// Reset per-frame statistics
 		mStats.Reset();
+
+		// Reset transient buffers for this frame
+		mTransientBuffers.BeginFrame((int32)frameIndex);
 
 		// TODO: Begin frame on subsystems
 		// mRenderGraph.BeginFrame(frameIndex, deltaTime, totalTime);
