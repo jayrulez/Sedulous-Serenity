@@ -90,20 +90,10 @@ class SceneManager
 	}
 
 	/// Unloads a specific scene.
-	/// Services will be notified via OnSceneDestroyed before the scene is deleted.
-	///
-	/// TODO: The current lifecycle has a design issue:
-	///   - OnSceneDestroyed is called BEFORE the scene is deleted
-	///   - Services may delete resources (e.g., physics world) in OnSceneDestroyed
-	///   - But entity components are cleaned up DURING scene deletion (after OnSceneDestroyed)
-	///   - Entity components may try to access already-deleted service resources
-	///
-	/// A proper lifecycle should have distinct phases:
-	///   1. OnSceneWillUnload - Services prepare, can still access scene
-	///   2. Scene.Cleanup() - Entities and components are cleaned up
-	///   3. OnSceneDidUnload - Services delete resources safely
-	///
-	/// For now, services must handle this by invalidating references before deletion.
+	/// Uses a three-phase lifecycle to ensure safe cleanup:
+	///   1. Scene.Cleanup() - Entities/components cleaned up (can access service resources)
+	///   2. OnSceneDestroyed - Services notified, can safely delete resources
+	///   3. delete scene - Scene components cleaned up
 	public void UnloadScene(Scene scene)
 	{
 		if (!mScenes.Contains(scene))
@@ -114,9 +104,13 @@ class SceneManager
 
 		scene.SetState(.Unloading);
 
-		// Notify services before destruction
-		// WARNING: Services should NOT delete resources here that entity components may still need.
-		// See TODO above for proper lifecycle design.
+		// Phase 1: Clean up all entities FIRST
+		// Entity components can still access service resources (RenderSceneComponent, etc.)
+		// during their OnDetach callbacks.
+		scene.Cleanup();
+
+		// Phase 2: Notify services that scene is destroyed
+		// Now safe for services to delete their resources since entities are gone.
 		if (mContext != null)
 			mContext.[Friend]NotifyServicesSceneDestroyed(scene);
 
@@ -124,6 +118,7 @@ class SceneManager
 
 		mOnSceneUnloaded.[Friend]Invoke(scene);
 
+		// Phase 3: Delete the scene (cleans up scene components)
 		mScenes.Remove(scene);
 		delete scene;
 	}

@@ -590,9 +590,8 @@ class RenderPipeline
 		var projection = view.ProjectionMatrix;
 		let viewMatrix = view.ViewMatrix;
 
-		// Query flip projection directly from device
-		if (mDevice.FlipProjectionRequired)
-			projection.M22 = -projection.M22;
+		// Apply backend-specific projection flip (e.g., Vulkan Y-axis inversion)
+		Camera.FlipProjectionIfRequired(ref projection, mDevice);
 
 		SceneCameraUniforms cameraData = .();
 		cameraData.ViewProjection = viewMatrix * projection;
@@ -626,9 +625,8 @@ class RenderPipeline
 		var projection = view.ProjectionMatrix;
 		let viewMatrix = view.ViewMatrix;
 
-		// Query flip projection directly from device
-		if (mDevice.FlipProjectionRequired)
-			projection.M22 = -projection.M22;
+		// Apply backend-specific projection flip (e.g., Vulkan Y-axis inversion)
+		Camera.FlipProjectionIfRequired(ref projection, mDevice);
 
 		BillboardCameraUniforms billboardData = .();
 		billboardData.ViewProjection = viewMatrix * projection;

@@ -47,8 +47,8 @@ public abstract class Application
 	protected ISurface mSurface;
 	protected ISwapChain mSwapChain;
 
-	// Per-frame command buffers
-	protected const int MAX_FRAMES_IN_FLIGHT = 2;
+	// Per-frame command buffers (use centralized FrameConfig from RHI)
+	protected const int MAX_FRAMES_IN_FLIGHT = FrameConfig.MAX_FRAMES_IN_FLIGHT;
 	protected ICommandBuffer[MAX_FRAMES_IN_FLIGHT] mCommandBuffers;
 
 	// UI system

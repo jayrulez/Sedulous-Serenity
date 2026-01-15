@@ -10,7 +10,8 @@ namespace Sedulous.Engine.Runtime;
 /// Provides lifecycle methods, window management, and rendering loop.
 abstract class Application
 {
-	private const int MAX_FRAMES_IN_FLIGHT = 2;
+	// Use centralized FrameConfig from RHI
+	private const int MAX_FRAMES_IN_FLIGHT = FrameConfig.MAX_FRAMES_IN_FLIGHT;
 
 	// Injected dependencies (owned by caller)
 	protected IShell mShell;

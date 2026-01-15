@@ -193,9 +193,8 @@ class RendererService : ContextService, IDisposable
 			{
 				var projection = camera.ProjectionMatrix;
 
-				// Apply Y-flip for Vulkan
-				if (mDevice != null && mDevice.FlipProjectionRequired)
-					projection.M22 = -projection.M22;
+				// Apply backend-specific projection flip (e.g., Vulkan Y-axis inversion)
+				Camera.FlipProjectionIfRequired(ref projection, mDevice);
 
 				viewProjection = camera.ViewMatrix * projection;
 			}

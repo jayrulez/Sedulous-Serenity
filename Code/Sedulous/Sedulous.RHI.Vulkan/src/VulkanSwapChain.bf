@@ -25,8 +25,8 @@ class VulkanSwapChain : ISwapChain
 	private uint32 mCurrentImageIndex = 0;
 	private uint32 mCurrentFrameIndex = 0;
 
-	// Per-frame fences for CPU/GPU synchronization
-	private const int MAX_FRAMES_IN_FLIGHT = 2;
+	// Per-frame fences for CPU/GPU synchronization (use centralized FrameConfig)
+	private const int MAX_FRAMES_IN_FLIGHT = Sedulous.RHI.FrameConfig.MAX_FRAMES_IN_FLIGHT;
 	private VkFence[MAX_FRAMES_IN_FLIGHT] mInFlightFences;
 
 	// Per-swapchain-image semaphores (sized dynamically based on image count)

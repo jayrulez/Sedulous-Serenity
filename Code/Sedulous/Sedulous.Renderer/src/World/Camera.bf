@@ -2,6 +2,7 @@ namespace Sedulous.Renderer;
 
 using System;
 using Sedulous.Mathematics;
+using Sedulous.RHI;
 
 /// Camera for 3D rendering with view and projection matrices.
 struct Camera
@@ -170,5 +171,51 @@ struct Camera
 		}
 
 		return result;
+	}
+
+	// ==================== Backend Flip Helpers ====================
+
+	/// Gets the projection matrix, flipped for the graphics backend if required.
+	/// Use this when uploading camera data to GPU buffers.
+	/// For Vulkan, the Y-axis clip space is inverted compared to OpenGL/D3D.
+	public Matrix GetProjectionForBackend(IDevice device)
+	{
+		var proj = ProjectionMatrix;
+		FlipProjectionIfRequired(ref proj, device);
+		return proj;
+	}
+
+	/// Gets the jittered projection matrix, flipped for the graphics backend if required.
+	public Matrix GetJitteredProjectionForBackend(IDevice device)
+	{
+		var proj = JitteredProjectionMatrix;
+		FlipProjectionIfRequired(ref proj, device);
+		return proj;
+	}
+
+	/// Gets the view-projection matrix, flipped for the graphics backend if required.
+	public Matrix GetViewProjectionForBackend(IDevice device)
+	{
+		return ViewMatrix * GetProjectionForBackend(device);
+	}
+
+	/// Flips a projection matrix's Y coordinate if required by the device.
+	/// Use this for custom projection matrices that aren't from Camera.
+	/// Returns true if the flip was applied.
+	public static bool FlipProjectionIfRequired(ref Matrix projection, IDevice device)
+	{
+		if (device != null && device.FlipProjectionRequired)
+		{
+			projection.M22 = -projection.M22;
+			return true;
+		}
+		return false;
+	}
+
+	/// Unconditionally flips a projection matrix's Y coordinate.
+	/// Use when you know a flip is needed (e.g., Vulkan) and have already checked.
+	public static void FlipProjectionY(ref Matrix projection)
+	{
+		projection.M22 = -projection.M22;
 	}
 }

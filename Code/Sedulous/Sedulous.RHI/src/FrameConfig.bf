@@ -1,7 +1,10 @@
-namespace Sedulous.Renderer;
+namespace Sedulous.RHI;
 
-/// Central frame configuration. All renderer systems should use these constants
-/// instead of defining their own MAX_FRAMES or MAX_FRAMES_IN_FLIGHT.
+/// Central frame configuration. All systems using multi-buffered GPU resources
+/// should use these constants instead of defining their own MAX_FRAMES constants.
+///
+/// This is placed in Sedulous.RHI (the base rendering layer) so that all higher-level
+/// modules (Renderer, AppFramework, Engine.Runtime, etc.) can reference it.
 static class FrameConfig
 {
 	/// Maximum frames in flight (double buffering).

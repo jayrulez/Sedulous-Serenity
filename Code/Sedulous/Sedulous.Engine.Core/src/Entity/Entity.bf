@@ -13,9 +13,20 @@ class Entity
 	private EntityId mParentId = .Invalid;
 	private List<EntityId> mChildIds = new .() ~ delete _;
 	private List<IEntityComponent> mComponents = new .();
+	private List<IEntityComponent> mPendingAdditions = new .() ~ delete _;
+	private List<IEntityComponent> mPendingRemovals = new .() ~ delete _;
+	private bool mIsUpdating = false;
 
 	public ~this()
 	{
+		// Clean up any pending additions (they never got attached properly)
+		for (let component in mPendingAdditions)
+			delete component;
+		mPendingAdditions.Clear();
+
+		// Pending removals are already in mComponents, so they'll be cleaned up below
+		mPendingRemovals.Clear();
+
 		// Call OnDetach on all components before deleting them
 		// This ensures proper cleanup (e.g., render proxy removal)
 		for (let component in mComponents)
@@ -54,11 +65,20 @@ class Entity
 	}
 
 	/// Adds a component to this entity.
+	/// If called during Update, the addition is deferred until end of frame.
 	/// Returns the component for chaining.
 	public T AddComponent<T>(T component) where T : IEntityComponent
 	{
-		mComponents.Add(component);
-		component.OnAttach(this);
+		if (mIsUpdating)
+		{
+			// Defer addition until end of update
+			mPendingAdditions.Add(component);
+		}
+		else
+		{
+			mComponents.Add(component);
+			component.OnAttach(this);
+		}
 		return component;
 	}
 
@@ -86,7 +106,8 @@ class Entity
 	}
 
 	/// Removes a component of the specified type.
-	/// Returns true if a component was removed.
+	/// If called during Update, the removal is deferred until end of frame.
+	/// Returns true if a component was found (and will be removed).
 	public bool RemoveComponent<T>() where T : IEntityComponent, class, delete
 	{
 		for (int i = 0; i < mComponents.Count; i++)
@@ -94,9 +115,18 @@ class Entity
 			let component = mComponents[i];
 			if (component.GetType() == typeof(T) || component.GetType().IsSubtypeOf(typeof(T)))
 			{
-				component.OnDetach();
-				mComponents.RemoveAt(i);
-				delete (T)component;
+				if (mIsUpdating)
+				{
+					// Defer removal until end of update
+					if (!mPendingRemovals.Contains(component))
+						mPendingRemovals.Add(component);
+				}
+				else
+				{
+					component.OnDetach();
+					mComponents.RemoveAt(i);
+					delete (T)component;
+				}
 				return true;
 			}
 		}
@@ -107,10 +137,43 @@ class Entity
 	public List<IEntityComponent> Components => mComponents;
 
 	/// Updates all components on this entity.
+	/// Component additions/removals during update are deferred until end of frame.
 	public void Update(float deltaTime)
 	{
+		mIsUpdating = true;
+
 		for (let component in mComponents)
-			component.OnUpdate(deltaTime);
+		{
+			// Skip components pending removal
+			if (!mPendingRemovals.Contains(component))
+				component.OnUpdate(deltaTime);
+		}
+
+		mIsUpdating = false;
+
+		// Process deferred operations
+		FlushPendingOperations();
+	}
+
+	/// Processes any deferred component additions/removals.
+	private void FlushPendingOperations()
+	{
+		// Process removals first
+		for (let component in mPendingRemovals)
+		{
+			component.OnDetach();
+			mComponents.Remove(component);
+			delete component;
+		}
+		mPendingRemovals.Clear();
+
+		// Process additions
+		for (let component in mPendingAdditions)
+		{
+			mComponents.Add(component);
+			component.OnAttach(this);
+		}
+		mPendingAdditions.Clear();
 	}
 
 	/// Sets the entity's name.

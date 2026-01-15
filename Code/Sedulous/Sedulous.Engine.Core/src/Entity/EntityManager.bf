@@ -119,6 +119,27 @@ class EntityManager
 		mPendingDeletions.Clear();
 	}
 
+	/// Destroys all entities immediately.
+	/// Used during scene cleanup to ensure entity components are detached
+	/// while service resources are still valid.
+	public void DestroyAllEntities()
+	{
+		// Flush any pending deletions first
+		FlushPendingDeletions();
+
+		// Collect all valid entity IDs (can't iterate while destroying)
+		List<EntityId> entitiesToDestroy = scope .();
+		for (let entity in mEntities)
+		{
+			if (entity != null)
+				entitiesToDestroy.Add(entity.Id);
+		}
+
+		// Destroy all entities - this triggers OnDetach for all components
+		for (let id in entitiesToDestroy)
+			DestroyEntityImmediate(id);
+	}
+
 	/// Gets an entity by its ID.
 	/// Returns null if the entity doesn't exist or the ID is stale.
 	public Entity GetEntity(EntityId id)

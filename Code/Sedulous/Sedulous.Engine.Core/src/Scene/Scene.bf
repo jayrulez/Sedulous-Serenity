@@ -140,6 +140,15 @@ class Scene : ISerializable
 			component.OnSceneStateChanged(oldState, newState);
 	}
 
+	/// Cleans up all entities in the scene.
+	/// This should be called BEFORE services are notified of scene destruction,
+	/// ensuring entity components can safely access service resources during OnDetach.
+	/// After this call, the scene will have no entities.
+	public void Cleanup()
+	{
+		mEntityManager.DestroyAllEntities();
+	}
+
 	/// Updates the scene.
 	/// Entity deletions during update are deferred until end of frame.
 	public void Update(float deltaTime)
