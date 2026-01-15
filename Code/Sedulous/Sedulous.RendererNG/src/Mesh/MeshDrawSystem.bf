@@ -27,12 +27,23 @@ class MeshDrawSystem : IDisposable
 	/// Instance data buffer allocation for current frame.
 	private TransientAllocation mInstanceAllocation;
 
+	/// Bone matrix buffer allocation for current frame (skinned meshes).
+	private TransientAllocation mBoneAllocation;
+
 	/// Maximum instances per frame.
 	public const int MaxInstances = 8192;
+
+	/// Maximum bone matrices per frame.
+	public const int MaxBoneMatrices = 4096;
+
+	/// Size of a single bone matrix in bytes.
+	public const uint32 BoneMatrixSize = 64; // sizeof(Matrix)
 
 	/// Stats
 	public int InstanceCount => mInstances.Count;
 	public int BatchCount => mBatches.Count;
+	public int SkinnedInstanceCount { get; private set; }
+	public int TotalBoneCount { get; private set; }
 
 	/// Initializes the mesh draw system.
 	public void Initialize(IDevice device, MeshPool meshPool, TransientBufferPool transientPool,
@@ -52,6 +63,9 @@ class MeshDrawSystem : IDisposable
 		mBatches.Clear();
 		mBatchLookup.Clear();
 		mInstanceAllocation = default;
+		mBoneAllocation = default;
+		SkinnedInstanceCount = 0;
+		TotalBoneCount = 0;
 	}
 
 	/// Adds a mesh instance for rendering.
@@ -63,6 +77,25 @@ class MeshDrawSystem : IDisposable
 		var instance = MeshInstanceRef(mesh, material, instanceData);
 		instance.SubmeshIndex = submeshIndex;
 		mInstances.Add(instance);
+	}
+
+	/// Adds a skinned mesh instance for rendering.
+	/// boneMatrices must remain valid until BuildBatches() is called.
+	public void AddSkinnedInstance(MeshHandle mesh, MaterialInstance* material, MeshInstanceData instanceData,
+								   Matrix* boneMatrices, uint32 boneCount, uint32 submeshIndex = 0)
+	{
+		if (mInstances.Count >= MaxInstances)
+			return;
+
+		if (TotalBoneCount + (int)boneCount > MaxBoneMatrices)
+			return;
+
+		var instance = MeshInstanceRef(mesh, material, instanceData, boneMatrices, boneCount);
+		instance.SubmeshIndex = submeshIndex;
+		mInstances.Add(instance);
+
+		SkinnedInstanceCount++;
+		TotalBoneCount += (int)boneCount;
 	}
 
 	/// Adds a mesh instance from a static mesh proxy.
@@ -111,6 +144,8 @@ class MeshDrawSystem : IDisposable
 			{
 				// Add to existing batch
 				mBatches[batchIndex].InstanceCount++;
+				if (instance.IsSkinned)
+					mBatches[batchIndex].TotalBoneCount += instance.BoneCount;
 			}
 			else
 			{
@@ -120,10 +155,8 @@ class MeshDrawSystem : IDisposable
 				batch.SubmeshIndex = instance.SubmeshIndex;
 				batch.Material = instance.Material;
 				batch.InstanceCount = 1;
-
-				let gpuMesh = mMeshPool.Get(instance.Mesh);
-				if (gpuMesh != null)
-					batch.IsSkinned = gpuMesh.IsSkinned;
+				batch.IsSkinned = instance.IsSkinned;
+				batch.TotalBoneCount = instance.BoneCount;
 
 				let newIndex = mBatches.Count;
 				mBatches.Add(batch);
@@ -147,9 +180,35 @@ class MeshDrawSystem : IDisposable
 			if (alloc.IsValid)
 			{
 				mInstanceAllocation = alloc;
-				UploadInstanceData();
 			}
 		}
+
+		// Allocate bone buffer for skinned meshes
+		if (TotalBoneCount > 0)
+		{
+			// Compute bone buffer offsets per batch
+			uint32 totalBoneOffset = 0;
+			for (var batch in ref mBatches)
+			{
+				if (batch.IsSkinned && batch.TotalBoneCount > 0)
+				{
+					batch.BoneBufferOffset = totalBoneOffset * BoneMatrixSize;
+					totalBoneOffset += batch.TotalBoneCount;
+				}
+			}
+
+			// Allocate bone buffer (uses uniform buffer for shader access)
+			let boneBufferSize = (uint32)TotalBoneCount * BoneMatrixSize;
+			let boneAlloc = mTransientPool.AllocateRawUniform(boneBufferSize);
+			if (boneAlloc.IsValid)
+			{
+				mBoneAllocation = boneAlloc;
+			}
+		}
+
+		// Upload all data
+		UploadInstanceData();
+		UploadBoneData();
 	}
 
 	/// Uploads instance data to the transient buffer.
@@ -173,6 +232,36 @@ class MeshDrawSystem : IDisposable
 				let destPtr = (MeshInstanceData*)((uint8*)mInstanceAllocation.Data + offset * MeshInstanceData.Size);
 				*destPtr = instance.InstanceData;
 				batchCounts[batchIndex]++;
+			}
+		}
+	}
+
+	/// Uploads bone matrices to the transient buffer.
+	private void UploadBoneData()
+	{
+		if (!mBoneAllocation.IsValid || TotalBoneCount == 0)
+			return;
+
+		// Track bone offset per batch
+		uint32[] batchBoneOffsets = scope uint32[mBatches.Count];
+
+		for (let instance in mInstances)
+		{
+			if (!instance.IsSkinned)
+				continue;
+
+			let key = BatchKey(instance.Mesh, instance.SubmeshIndex, instance.Material);
+			if (mBatchLookup.TryGetValue(key, let batchIndex))
+			{
+				let batch = mBatches[batchIndex];
+
+				// Compute destination offset in bone buffer
+				let boneOffset = batch.BoneBufferOffset + batchBoneOffsets[batchIndex] * BoneMatrixSize;
+				let destPtr = (Matrix*)((uint8*)mBoneAllocation.Data + boneOffset);
+
+				// Copy bone matrices
+				Internal.MemCpy(destPtr, instance.BoneMatrices, instance.BoneCount * BoneMatrixSize);
+				batchBoneOffsets[batchIndex] += instance.BoneCount;
 			}
 		}
 	}
@@ -253,11 +342,16 @@ class MeshDrawSystem : IDisposable
 	public void GetStats(String outStats)
 	{
 		outStats.AppendF("Mesh Draw System:\n");
-		outStats.AppendF("  Instances: {}\n", mInstances.Count);
+		outStats.AppendF("  Instances: {} ({} skinned)\n", mInstances.Count, SkinnedInstanceCount);
 		outStats.AppendF("  Batches: {}\n", mBatches.Count);
 		if (mInstanceAllocation.Buffer != null)
 			outStats.AppendF("  Instance buffer: {} bytes\n", mInstances.Count * MeshInstanceData.Size);
+		if (mBoneAllocation.Buffer != null)
+			outStats.AppendF("  Bone buffer: {} matrices ({} bytes)\n", TotalBoneCount, TotalBoneCount * BoneMatrixSize);
 	}
+
+	/// Gets the bone buffer allocation for binding to shaders.
+	public TransientAllocation BoneBuffer => mBoneAllocation;
 
 	public void Dispose()
 	{

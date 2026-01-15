@@ -262,6 +262,79 @@ extension RendererNGSandboxApp
 		Console.WriteLine("\nMesh Draw Batching tests passed!");
 	}
 
+	/// Tests skinned mesh rendering with bone matrices.
+	public void TestSkinnedMeshRendering()
+	{
+		Console.WriteLine("\n=== Testing Skinned Mesh Rendering ===\n");
+
+		// Create test components
+		let pool = scope MeshPool();
+		pool.Initialize(mDevice);
+
+		let transientPool = scope TransientBufferPool(mDevice);
+		transientPool.BeginFrame(0);
+
+		let pipelineFactory = scope PipelineFactory();
+
+		let layoutCache = scope BindGroupLayoutCache();
+		layoutCache.Initialize(mDevice);
+
+		let drawSystem = scope MeshDrawSystem();
+		drawSystem.Initialize(mDevice, pool, transientPool, pipelineFactory, layoutCache);
+
+		Console.WriteLine("Testing skinned instance data structures...");
+		Console.WriteLine("  SkinnedInstanceData size: {} bytes", SkinnedInstanceData.Size);
+		Console.WriteLine("  SkinnedMeshInstanceData size: {} bytes", SkinnedMeshInstanceData.Size);
+
+		// Create test bone matrices (simple identity bones)
+		Matrix[4] boneMatrices = .(
+			.Identity,
+			.Identity,
+			.Identity,
+			.Identity
+		);
+
+		Console.WriteLine("\nTesting skinned mesh draw system...");
+
+		drawSystem.BeginFrame();
+
+		// Create a dummy mesh handle
+		let meshHandle = MeshHandle(0, 1);
+
+		// Add static instance
+		var staticInstance = MeshInstanceData.FromTransform(.(0, 0, 0), .Identity, .One);
+		drawSystem.AddInstance(meshHandle, null, staticInstance, 0);
+
+		// Add skinned instances
+		var skinnedInstance1 = MeshInstanceData.FromTransform(.(2, 0, 0), .Identity, .One);
+		drawSystem.AddSkinnedInstance(meshHandle, null, skinnedInstance1, &boneMatrices[0], 4, 0);
+
+		var skinnedInstance2 = MeshInstanceData.FromTransform(.(4, 0, 0), .Identity, .One);
+		drawSystem.AddSkinnedInstance(meshHandle, null, skinnedInstance2, &boneMatrices[0], 4, 0);
+
+		Console.WriteLine("After adding instances:");
+		Console.WriteLine("  Total instances: {}", drawSystem.InstanceCount);
+		Console.WriteLine("  Skinned instances: {}", drawSystem.SkinnedInstanceCount);
+		Console.WriteLine("  Total bone count: {}", drawSystem.TotalBoneCount);
+
+		// Build batches
+		drawSystem.BuildBatches();
+
+		Console.WriteLine("\nAfter building batches:");
+		Console.WriteLine("  Batches: {}", drawSystem.BatchCount);
+		Console.WriteLine("  Bone buffer valid: {}", drawSystem.BoneBuffer.IsValid);
+		if (drawSystem.BoneBuffer.IsValid)
+			Console.WriteLine("  Bone buffer size: {} bytes", drawSystem.TotalBoneCount * MeshDrawSystem.BoneMatrixSize);
+
+		// Get stats
+		let stats = scope String();
+		drawSystem.GetStats(stats);
+		Console.WriteLine("\nStats:");
+		Console.Write(stats);
+
+		Console.WriteLine("\nSkinned Mesh Rendering tests passed!");
+	}
+
 	/// Runs all mesh system tests.
 	public void RunMeshSystemTests()
 	{
@@ -276,6 +349,7 @@ extension RendererNGSandboxApp
 		TestMeshUploader();
 		TestMeshInstance();
 		TestMeshDrawBatching();
+		TestSkinnedMeshRendering();
 
 		Console.WriteLine("\n=====================================");
 		Console.WriteLine("    ALL MESH TESTS COMPLETED!       ");

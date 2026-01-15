@@ -39,6 +39,58 @@ struct MeshInstanceData
 	}
 }
 
+/// Per-instance bone data for skinned mesh rendering.
+/// Contains offset into shared bone buffer and count.
+[CRepr]
+struct SkinnedInstanceData
+{
+	public uint32 BoneBufferOffset;  // Byte offset into bone matrix buffer
+	public uint32 BoneCount;         // Number of bones for this instance
+	public uint32 Padding0;
+	public uint32 Padding1;
+
+	public const uint32 Size = 16;
+
+	public this()
+	{
+		BoneBufferOffset = 0;
+		BoneCount = 0;
+		Padding0 = 0;
+		Padding1 = 0;
+	}
+
+	public this(uint32 offset, uint32 count)
+	{
+		BoneBufferOffset = offset;
+		BoneCount = count;
+		Padding0 = 0;
+		Padding1 = 0;
+	}
+}
+
+/// Combined instance data for skinned meshes.
+/// Used when rendering skinned mesh instances.
+[CRepr]
+struct SkinnedMeshInstanceData
+{
+	public MeshInstanceData BaseData;
+	public SkinnedInstanceData SkinData;
+
+	public const uint32 Size = MeshInstanceData.Size + SkinnedInstanceData.Size; // 160
+
+	public this()
+	{
+		BaseData = .();
+		SkinData = .();
+	}
+
+	public this(MeshInstanceData baseData, uint32 boneOffset, uint32 boneCount)
+	{
+		BaseData = baseData;
+		SkinData = .(boneOffset, boneCount);
+	}
+}
+
 /// Reference to a mesh instance for rendering.
 struct MeshInstanceRef
 {
@@ -48,6 +100,10 @@ struct MeshInstanceRef
 	public MeshInstanceData InstanceData;
 	public float SortKey; // For distance sorting (transparency)
 
+	// Skinned mesh data (null for static meshes)
+	public Matrix* BoneMatrices; // Pointer to caller-owned bone matrices
+	public uint32 BoneCount;
+
 	public this(MeshHandle mesh, MaterialInstance* material, MeshInstanceData instanceData)
 	{
 		Mesh = mesh;
@@ -55,7 +111,24 @@ struct MeshInstanceRef
 		Material = material;
 		InstanceData = instanceData;
 		SortKey = 0;
+		BoneMatrices = null;
+		BoneCount = 0;
 	}
+
+	/// Creates a skinned mesh instance reference.
+	public this(MeshHandle mesh, MaterialInstance* material, MeshInstanceData instanceData,
+				Matrix* boneMatrices, uint32 boneCount)
+	{
+		Mesh = mesh;
+		SubmeshIndex = 0;
+		Material = material;
+		InstanceData = instanceData;
+		SortKey = 0;
+		BoneMatrices = boneMatrices;
+		BoneCount = boneCount;
+	}
+
+	public bool IsSkinned => BoneMatrices != null && BoneCount > 0;
 }
 
 /// A batch of mesh instances sharing the same mesh and material.
@@ -69,6 +142,10 @@ struct MeshDrawBatch
 	public uint32 InstanceCount;
 	public bool IsSkinned;
 
+	// Bone buffer info for skinned batches
+	public uint32 BoneBufferOffset;  // Byte offset into shared bone buffer
+	public uint32 TotalBoneCount;    // Total bones for all instances in batch
+
 	public this()
 	{
 		Mesh = .Invalid;
@@ -77,6 +154,8 @@ struct MeshDrawBatch
 		InstanceOffset = 0;
 		InstanceCount = 0;
 		IsSkinned = false;
+		BoneBufferOffset = 0;
+		TotalBoneCount = 0;
 	}
 }
 
