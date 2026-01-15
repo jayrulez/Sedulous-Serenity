@@ -225,7 +225,8 @@ abstract class Application
 			Title = title,
 			Width = mSettings.Width,
 			Height = mSettings.Height,
-			Resizable = mSettings.Resizable
+			Resizable = mSettings.Resizable,
+			Bordered = true
 		};
 
 		if (mShell.WindowManager.CreateWindow(windowSettings) not case .Ok(let window))

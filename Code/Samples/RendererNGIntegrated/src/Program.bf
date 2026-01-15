@@ -52,7 +52,7 @@ class RendererNGIntegratedApp : Application
 
 		// Initialize the renderer
 		mRenderer = new Renderer();
-		if (mRenderer.Initialize(Device, "shaders/rendererng") case .Err)
+		if (mRenderer.Initialize(Device, "shaders") case .Err)
 		{
 			Console.WriteLine("ERROR: Failed to initialize renderer");
 			Exit();
@@ -68,6 +68,9 @@ class RendererNGIntegratedApp : Application
 
 		mMeshUploader = new MeshUploader();
 		mMeshUploader.Initialize(Device, mMeshPool);
+
+		// Wire mesh pool to renderer's draw system
+		mRenderer.InitializeMeshSystem(mMeshPool);
 
 		// Create scene
 		if (!CreateScene())
@@ -247,22 +250,37 @@ class RendererNGIntegratedApp : Application
 		// Begin renderer frame
 		mRenderer.BeginFrame((uint32)frame.FrameIndex, frame.DeltaTime, frame.TotalTime);
 		mRenderWorld.BeginFrame();
+
+		// Prepare scene uniforms from camera
+		if (let camera = mRenderWorld.GetCamera(mCamera))
+		{
+			mRenderer.PrepareFrame(camera, frame.TotalTime, frame.DeltaTime,
+				(uint32)mWindow.Width, (uint32)mWindow.Height);
+		}
+
+		// Prepare lighting uniforms
+		mRenderer.PrepareLighting(mRenderWorld);
 	}
 
 	protected override void OnRender(IRenderPassEncoder renderPass, FrameContext frame)
 	{
-		// TODO: When Renderer is fully wired up, this will use the render graph
-		// For now, this is a placeholder showing the intended flow:
+		// The renderer systems are now wired up:
+		// - ShaderSystem: Compiles and caches shaders
+		// - PipelineFactory: Creates and caches render pipelines
+		// - BindGroupLayoutCache: Caches bind group layouts
+		// - MeshDrawSystem: Batches and renders meshes
 		//
-		// 1. Renderer.RenderFrame() would:
-		//    - Build render graph passes (shadows, opaques, transparents, post-process)
-		//    - Execute the render graph
-		//    - Handle all resource transitions automatically
+		// Scene uniforms (view/projection matrices) and lighting uniforms
+		// are uploaded to GPU buffers each frame via PrepareFrame/PrepareLighting.
 		//
-		// The actual rendering would look like:
-		// mRenderer.RenderFrame(mRenderWorld, swapchainTexture);
+		// To complete rendering, we still need:
+		// 1. Create a render pipeline for the mesh shader
+		// 2. Bind the scene uniform bind group (mRenderer.SceneBindGroup)
+		// 3. Add instances to MeshDrawSystem
+		// 4. Build batches and render
 		//
-		// For now, we just clear the screen (done by Application base class)
+		// This will be completed in the next iteration.
+		// For now, the clear color shows the frame is updating.
 	}
 
 	protected override void OnFrameEnd()
