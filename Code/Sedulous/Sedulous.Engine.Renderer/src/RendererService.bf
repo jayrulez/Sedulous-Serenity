@@ -56,6 +56,9 @@ class RendererService : ContextService, IDisposable
 	private uint32 mViewportWidth;
 	private uint32 mViewportHeight;
 
+	// Registered graph renderers for extensibility (4.6)
+	private List<IGraphRenderer> mGraphRenderers = new .() ~ delete _;
+
 	/// Gets the graphics device.
 	public IDevice Device => mDevice;
 
@@ -100,6 +103,26 @@ class RendererService : ContextService, IDisposable
 
 	/// Gets the debug draw service (if registered).
 	public DebugDrawService DebugDrawService => mDebugDrawService;
+
+	// ==================== Graph Renderer Registration (4.6) ====================
+
+	/// Registers a graph renderer to participate in frame rendering.
+	/// Registered renderers have their AddPasses() called during BeginFrame().
+	/// Use this to hook custom rendering systems into the render graph.
+	public void RegisterGraphRenderer(IGraphRenderer renderer)
+	{
+		if (renderer != null && !mGraphRenderers.Contains(renderer))
+			mGraphRenderers.Add(renderer);
+	}
+
+	/// Unregisters a graph renderer.
+	public void UnregisterGraphRenderer(IGraphRenderer renderer)
+	{
+		mGraphRenderers.Remove(renderer);
+	}
+
+	/// Gets the number of registered graph renderers.
+	public int GraphRendererCount => mGraphRenderers.Count;
 
 	/// Initializes the renderer service with a graphics device.
 	/// Call this before registering the service with the context.
@@ -175,6 +198,12 @@ class RendererService : ContextService, IDisposable
 		for (let component in mSceneComponents)
 		{
 			component.AddRenderPasses(mRenderGraph, mSwapChainHandle, mDepthHandle);
+		}
+
+		// Collect passes from registered graph renderers (extensibility hook)
+		for (let renderer in mGraphRenderers)
+		{
+			renderer.AddPasses(mRenderGraph, (int32)frameIndex);
 		}
 
 		// Add debug draw pass if service is available and has primitives
