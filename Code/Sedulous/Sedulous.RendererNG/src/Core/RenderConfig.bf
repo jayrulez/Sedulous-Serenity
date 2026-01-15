@@ -139,6 +139,9 @@ static class RenderConfig
 	/// Initial capacity for particle emitter proxy pool.
 	public const int32 INITIAL_PARTICLE_EMITTER_PROXY_CAPACITY = 128;
 
+	/// Initial capacity for force field proxy pool.
+	public const int32 INITIAL_FORCE_FIELD_PROXY_CAPACITY = 32;
+
 	// ===== Default Formats =====
 
 	/// Default color format for render targets.
