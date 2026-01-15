@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 using Sedulous.RHI;
 using Sedulous.Shell;
 using Sedulous.Mathematics;
@@ -29,6 +30,10 @@ abstract class Application
 	// Settings and state
 	protected ApplicationSettings mSettings;
 	protected bool mIsRunning;
+
+	// Asset directories (discovered at construction time)
+	private String mAssetDirectory = new .() ~ delete _;
+	private String mAssetCacheDirectory = new .() ~ delete _;
 
 	// Timing
 	private Stopwatch mStopwatch = new .() ~ delete _;
@@ -81,6 +86,7 @@ abstract class Application
 		mShell = shell;
 		mDevice = device;
 		mBackend = backend;
+		DiscoverAssetDirectories();
 	}
 
 	/// The RHI device for GPU operations.
@@ -100,6 +106,30 @@ abstract class Application
 
 	/// Application settings.
 	public ApplicationSettings Settings => mSettings;
+
+	/// Returns the discovered NGAssets directory path.
+	/// This is an absolute path to the NGAssets folder containing the .ngassets marker file.
+	public StringView AssetDirectory => mAssetDirectory;
+
+	/// Returns the discovered NGAssetsCache directory path.
+	/// This is an absolute path to the NGAssetsCache folder for cached/compiled assets.
+	public StringView AssetCacheDirectory => mAssetCacheDirectory;
+
+	/// Returns a path relative to the NGAssets directory.
+	/// Example: GetAssetPath("shaders/mesh.vert.hlsl") returns full path to the shader.
+	public void GetAssetPath(StringView relativePath, String outPath)
+	{
+		outPath.Clear();
+		Path.InternalCombine(outPath, mAssetDirectory, relativePath);
+	}
+
+	/// Returns a path relative to the NGAssetsCache directory.
+	/// Example: GetAssetCachePath("shaders/compiled/mesh.vert.spv") returns full path.
+	public void GetAssetCachePath(StringView relativePath, String outPath)
+	{
+		outPath.Clear();
+		Path.InternalCombine(outPath, mAssetCacheDirectory, relativePath);
+	}
 
 	/// Runs the application with the given settings.
 	/// @param settings Application configuration.
@@ -449,5 +479,57 @@ abstract class Application
 		if (mSurface != null) delete mSurface;
 
 		// Note: shell, device, backend are NOT deleted - they're owned by caller
+	}
+
+	/// Discovers the NGAssets and NGAssetsCache directories.
+	/// Searches from current directory upward for NGAssets folder with .ngassets marker.
+	private void DiscoverAssetDirectories()
+	{
+		// Start from current working directory
+		let currentDir = Directory.GetCurrentDirectory(.. scope .());
+		String searchDir = scope .(currentDir);
+
+		while (true)
+		{
+			// Check if NGAssets folder exists in this directory
+			let assetsPath = scope String();
+			Path.InternalCombine(assetsPath, searchDir, "NGAssets");
+
+			if (Directory.Exists(assetsPath))
+			{
+				// Check for .ngassets marker file
+				let markerPath = scope String();
+				Path.InternalCombine(markerPath, assetsPath, ".ngassets");
+
+				if (File.Exists(markerPath))
+				{
+					mAssetDirectory.Set(assetsPath);
+
+					// NGAssetsCache is a sibling folder
+					Path.InternalCombine(mAssetCacheDirectory, searchDir, "NGAssetsCache");
+
+					// Create cache directory if it doesn't exist
+					if (!Directory.Exists(mAssetCacheDirectory))
+						Directory.CreateDirectory(mAssetCacheDirectory);
+
+					return;
+				}
+			}
+
+			// Get parent directory
+			let parentDir = Path.GetDirectoryPath(searchDir, .. scope .());
+
+			// Check if we've reached the root (parent == current)
+			if (parentDir.IsEmpty || parentDir == searchDir)
+			{
+				// Fall back to current directory with warning
+				Console.WriteLine("WARNING: Could not find NGAssets directory with .ngassets marker. Using current directory.");
+				mAssetDirectory.Set(currentDir);
+				mAssetCacheDirectory.Set(currentDir);
+				return;
+			}
+
+			searchDir.Set(parentDir);
+		}
 	}
 }

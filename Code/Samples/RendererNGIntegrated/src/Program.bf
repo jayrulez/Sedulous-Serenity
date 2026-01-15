@@ -50,9 +50,12 @@ class RendererNGIntegratedApp : Application
 		Console.WriteLine("=== RendererNG Integrated Sample ===");
 		Console.WriteLine("Demonstrating full renderer pipeline\n");
 
-		// Initialize the renderer
+		// Initialize the renderer with shader path from asset directory
 		mRenderer = new Renderer();
-		if (mRenderer.Initialize(Device, "shaders") case .Err)
+		let shaderPath = GetAssetPath("shaders", .. scope .());
+		Console.WriteLine("Shader path: {}", shaderPath);
+
+		if (mRenderer.Initialize(Device, shaderPath) case .Err)
 		{
 			Console.WriteLine("ERROR: Failed to initialize renderer");
 			Exit();
