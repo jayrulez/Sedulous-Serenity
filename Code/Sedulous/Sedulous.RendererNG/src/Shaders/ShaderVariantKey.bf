@@ -1,0 +1,106 @@
+namespace Sedulous.RendererNG;
+
+using System;
+using Sedulous.RHI;
+
+/// Uniquely identifies a shader variant for caching.
+/// Combines shader name, stage, and variant flags.
+struct ShaderVariantKey : IHashable, IEquatable<ShaderVariantKey>
+{
+	/// Shader source name (without extension).
+	public StringView Name;
+
+	/// Shader stage (vertex, fragment, compute).
+	public ShaderStage Stage;
+
+	/// Variant flags that determine #defines.
+	public ShaderFlags Flags;
+
+	public this(StringView name, ShaderStage stage, ShaderFlags flags = .None)
+	{
+		Name = name;
+		Stage = stage;
+		Flags = flags;
+	}
+
+	/// Computes a hash code for cache lookup.
+	public int GetHashCode()
+	{
+		int hash = Name.GetHashCode();
+		hash = hash * 31 + (int)Stage;
+		hash = hash * 31 + (int)Flags;
+		return hash;
+	}
+
+	/// Compares two keys for equality.
+	public bool Equals(ShaderVariantKey other)
+	{
+		return Name == other.Name && Stage == other.Stage && Flags == other.Flags;
+	}
+
+	/// Generates a filename-safe cache key string.
+	/// Format: {name}_{stage}_{flags}.spv or .dxil
+	public void GenerateCacheFilename(String outFilename, bool spirv = true)
+	{
+		outFilename.Append(Name);
+		outFilename.Append("_");
+
+		switch (Stage)
+		{
+		case .Vertex:
+			outFilename.Append("vs");
+		case .Fragment:
+			outFilename.Append("fs");
+		case .Compute:
+			outFilename.Append("cs");
+		case .None:
+			outFilename.Append("none");
+		}
+
+		if (Flags != .None)
+		{
+			outFilename.Append("_");
+			Flags.AppendKeyString(outFilename);
+		}
+
+		outFilename.Append(spirv ? ".spv" : ".dxil");
+	}
+
+	/// Gets the DXC target profile string for this stage.
+	public void GetTargetProfile(String outProfile, StringView shaderModel = "6_0")
+	{
+		switch (Stage)
+		{
+		case .Vertex:
+			outProfile.AppendF("vs_{}", shaderModel);
+		case .Fragment:
+			outProfile.AppendF("ps_{}", shaderModel);
+		case .Compute:
+			outProfile.AppendF("cs_{}", shaderModel);
+		case .None:
+			outProfile.Append("lib_6_0");
+		}
+	}
+
+	/// Gets the entry point name for this stage (default convention).
+	public void GetDefaultEntryPoint(String outEntryPoint)
+	{
+		switch (Stage)
+		{
+		case .Vertex:
+			outEntryPoint.Append("VSMain");
+		case .Fragment:
+			outEntryPoint.Append("PSMain");
+		case .Compute:
+			outEntryPoint.Append("CSMain");
+		case .None:
+			outEntryPoint.Append("main");
+		}
+	}
+
+	/// Creates a debug string representation.
+	public override void ToString(String outStr)
+	{
+		outStr.AppendF("{}:{}:{}", Name, Stage, (uint32)Flags);
+	}
+}

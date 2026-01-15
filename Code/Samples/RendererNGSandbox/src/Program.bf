@@ -51,6 +51,7 @@ class RendererNGSandboxApp : Application
 		TestTransientBuffers();
 		TestProxySystem();
 		TestRenderFrameAndViews();
+		TestShaderSystem();
 
 		mInitialized = true;
 		Console.WriteLine("\n=== Initialization Complete ===\n");
