@@ -69,7 +69,7 @@ class MeshDrawSystem : IDisposable
 	}
 
 	/// Adds a mesh instance for rendering.
-	public void AddInstance(MeshHandle mesh, MaterialInstance* material, MeshInstanceData instanceData, uint32 submeshIndex = 0)
+	public void AddInstance(MeshHandle mesh, MaterialInstance material, MeshInstanceData instanceData, uint32 submeshIndex = 0)
 	{
 		if (mInstances.Count >= MaxInstances)
 			return;
@@ -81,7 +81,7 @@ class MeshDrawSystem : IDisposable
 
 	/// Adds a skinned mesh instance for rendering.
 	/// boneMatrices must remain valid until BuildBatches() is called.
-	public void AddSkinnedInstance(MeshHandle mesh, MaterialInstance* material, MeshInstanceData instanceData,
+	public void AddSkinnedInstance(MeshHandle mesh, MaterialInstance material, MeshInstanceData instanceData,
 								   Matrix* boneMatrices, uint32 boneCount, uint32 submeshIndex = 0)
 	{
 		if (mInstances.Count >= MaxInstances)
@@ -99,7 +99,7 @@ class MeshDrawSystem : IDisposable
 	}
 
 	/// Adds a mesh instance from a static mesh proxy.
-	public void AddFromProxy(StaticMeshProxy* proxy, MeshPool meshPool, MaterialInstance* material)
+	public void AddFromProxy(StaticMeshProxy* proxy, MeshPool meshPool, MaterialInstance material)
 	{
 		if (proxy == null || !proxy.IsVisible)
 			return;
@@ -356,5 +356,161 @@ class MeshDrawSystem : IDisposable
 	public void Dispose()
 	{
 		// Transient buffer is not owned
+	}
+
+	// ========================================================================
+	// Render Graph Integration
+	// ========================================================================
+
+	/// Adds an opaque mesh rendering pass to the render graph.
+	/// Opaque meshes are rendered with depth write enabled.
+	public PassBuilder AddOpaquePass(
+		RenderGraph graph,
+		RGResourceHandle colorTarget,
+		RGResourceHandle depthTarget,
+		IPipelineLayout pipelineLayout)
+	{
+		MeshPassData passData;
+		passData.DrawSystem = this;
+		passData.MeshPool = mMeshPool;
+		passData.PipelineLayout = pipelineLayout;
+		passData.IsOpaque = true;
+
+		return graph.AddGraphicsPass("OpaqueGeometry")
+			.SetColorAttachment(0, colorTarget, .Load, .Store)
+			.SetDepthAttachment(depthTarget, .Load, .Store)
+			.SetFlags(.NeverCull)
+			.SetExecute(new (encoder) => {
+				passData.DrawSystem.RenderOpaqueBatches(encoder, passData.PipelineLayout);
+			});
+	}
+
+	/// Adds a transparent mesh rendering pass to the render graph.
+	/// Transparent meshes are rendered with depth test but no depth write.
+	public PassBuilder AddTransparentPass(
+		RenderGraph graph,
+		RGResourceHandle colorTarget,
+		RGResourceHandle depthTarget,
+		IPipelineLayout pipelineLayout)
+	{
+		MeshPassData passData;
+		passData.DrawSystem = this;
+		passData.MeshPool = mMeshPool;
+		passData.PipelineLayout = pipelineLayout;
+		passData.IsOpaque = false;
+
+		return graph.AddGraphicsPass("TransparentGeometry")
+			.SetColorAttachment(0, colorTarget, .Load, .Store)
+			.SetDepthAttachmentReadOnly(depthTarget)
+			.SetFlags(.NeverCull)
+			.SetExecute(new (encoder) => {
+				passData.DrawSystem.RenderTransparentBatches(encoder, passData.PipelineLayout);
+			});
+	}
+
+	/// Adds a shadow rendering pass for mesh shadow casters.
+	public PassBuilder AddShadowPass(
+		RenderGraph graph,
+		StringView passName,
+		RGResourceHandle depthTarget,
+		IPipelineLayout pipelineLayout)
+	{
+		MeshPassData passData;
+		passData.DrawSystem = this;
+		passData.MeshPool = mMeshPool;
+		passData.PipelineLayout = pipelineLayout;
+		passData.IsOpaque = true;
+
+		return graph.AddGraphicsPass(passName)
+			.SetDepthAttachment(depthTarget, .Clear, .Store)
+			.SetExecute(new (encoder) => {
+				passData.DrawSystem.RenderShadowBatches(encoder, passData.PipelineLayout);
+			});
+	}
+
+	/// Renders only opaque batches (for render graph pass).
+	public void RenderOpaqueBatches(IRenderPassEncoder renderPass, IPipelineLayout layout)
+	{
+		if (mBatches.Count == 0)
+			return;
+
+		MeshHandle lastMesh = .Invalid;
+
+		for (let batch in mBatches)
+		{
+			// Skip transparent batches - check if material has non-opaque blend mode
+			if (batch.Material != null && batch.Material.Material.PipelineConfig.BlendMode != BlendMode.Opaque)
+				continue;
+
+			RenderSingleBatch(renderPass, batch, ref lastMesh);
+		}
+	}
+
+	/// Renders only transparent batches (for render graph pass).
+	public void RenderTransparentBatches(IRenderPassEncoder renderPass, IPipelineLayout layout)
+	{
+		if (mBatches.Count == 0)
+			return;
+
+		MeshHandle lastMesh = .Invalid;
+
+		for (let batch in mBatches)
+		{
+			// Skip opaque batches - only render non-opaque materials
+			if (batch.Material == null || batch.Material.Material.PipelineConfig.BlendMode == BlendMode.Opaque)
+				continue;
+
+			RenderSingleBatch(renderPass, batch, ref lastMesh);
+		}
+	}
+
+	/// Renders shadow caster batches (for shadow pass).
+	public void RenderShadowBatches(IRenderPassEncoder renderPass, IPipelineLayout layout)
+	{
+		if (mBatches.Count == 0)
+			return;
+
+		MeshHandle lastMesh = .Invalid;
+
+		for (let batch in mBatches)
+		{
+			// Only render shadow casters (check ShaderFlags for CastShadows)
+			if (batch.Material != null && !batch.Material.Material.ShaderFlags.HasFlag(.CastShadows))
+				continue;
+
+			RenderSingleBatch(renderPass, batch, ref lastMesh);
+		}
+	}
+
+	/// Renders a single batch (helper for graph passes).
+	private void RenderSingleBatch(IRenderPassEncoder renderPass, MeshDrawBatch batch, ref MeshHandle lastMesh)
+	{
+		let gpuMesh = mMeshPool.Get(batch.Mesh);
+		if (gpuMesh == null || !gpuMesh.IsValid)
+			return;
+
+		// Bind mesh buffers if changed
+		if (batch.Mesh != lastMesh)
+		{
+			renderPass.SetVertexBuffer(0, gpuMesh.VertexBuffer, 0);
+			renderPass.SetIndexBuffer(gpuMesh.IndexBuffer, gpuMesh.IndexFormat, 0);
+			lastMesh = batch.Mesh;
+		}
+
+		// Bind instance buffer (slot 1)
+		if (mInstanceAllocation.Buffer != null)
+		{
+			let instanceOffset = mInstanceAllocation.Offset + batch.InstanceOffset * MeshInstanceData.Size;
+			renderPass.SetVertexBuffer(1, mInstanceAllocation.Buffer, instanceOffset);
+		}
+
+		// Get submesh
+		if (batch.SubmeshIndex >= gpuMesh.Submeshes.Count)
+			return;
+
+		let submesh = gpuMesh.Submeshes[batch.SubmeshIndex];
+
+		// Draw instanced
+		renderPass.DrawIndexed(submesh.IndexCount, batch.InstanceCount, submesh.IndexOffset, 0, 0);
 	}
 }

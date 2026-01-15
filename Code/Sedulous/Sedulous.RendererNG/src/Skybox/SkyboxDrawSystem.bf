@@ -296,4 +296,35 @@ class SkyboxDrawSystem : IDisposable
 	{
 		// Resources cleaned up by destructor
 	}
+
+	// ========================================================================
+	// Render Graph Integration
+	// ========================================================================
+
+	/// Data for skybox pass execution.
+	private struct SkyboxPassData
+	{
+		public SkyboxDrawSystem DrawSystem;
+		public IBindGroup BindGroup;
+	}
+
+	/// Adds a skybox rendering pass to the render graph.
+	/// Skybox is rendered after opaque geometry with depth test LessEqual.
+	public PassBuilder AddPass(
+		RenderGraph graph,
+		RGResourceHandle colorTarget,
+		RGResourceHandle depthTarget,
+		IBindGroup bindGroup = null)
+	{
+		SkyboxPassData passData;
+		passData.DrawSystem = this;
+		passData.BindGroup = bindGroup;
+
+		return graph.AddGraphicsPass("Skybox")
+			.SetColorAttachment(0, colorTarget, .Load, .Store)
+			.SetDepthAttachmentReadOnly(depthTarget)
+			.SetExecute(new (encoder) => {
+				passData.DrawSystem.Render(encoder, passData.BindGroup);
+			});
+	}
 }

@@ -96,7 +96,7 @@ struct MeshInstanceRef
 {
 	public MeshHandle Mesh;
 	public uint32 SubmeshIndex;
-	public MaterialInstance* Material; // Pointer to avoid ownership issues
+	public MaterialInstance Material; // Reference to material instance
 	public MeshInstanceData InstanceData;
 	public float SortKey; // For distance sorting (transparency)
 
@@ -104,7 +104,7 @@ struct MeshInstanceRef
 	public Matrix* BoneMatrices; // Pointer to caller-owned bone matrices
 	public uint32 BoneCount;
 
-	public this(MeshHandle mesh, MaterialInstance* material, MeshInstanceData instanceData)
+	public this(MeshHandle mesh, MaterialInstance material, MeshInstanceData instanceData)
 	{
 		Mesh = mesh;
 		SubmeshIndex = 0;
@@ -116,7 +116,7 @@ struct MeshInstanceRef
 	}
 
 	/// Creates a skinned mesh instance reference.
-	public this(MeshHandle mesh, MaterialInstance* material, MeshInstanceData instanceData,
+	public this(MeshHandle mesh, MaterialInstance material, MeshInstanceData instanceData,
 				Matrix* boneMatrices, uint32 boneCount)
 	{
 		Mesh = mesh;
@@ -137,7 +137,7 @@ struct MeshDrawBatch
 {
 	public MeshHandle Mesh;
 	public uint32 SubmeshIndex;
-	public MaterialInstance* Material;
+	public MaterialInstance Material;
 	public uint32 InstanceOffset; // Offset into instance buffer
 	public uint32 InstanceCount;
 	public bool IsSkinned;
@@ -164,9 +164,9 @@ struct BatchKey : IHashable, IEquatable<BatchKey>
 {
 	public MeshHandle Mesh;
 	public uint32 SubmeshIndex;
-	public MaterialInstance* Material;
+	public MaterialInstance Material;
 
-	public this(MeshHandle mesh, uint32 submeshIndex, MaterialInstance* material)
+	public this(MeshHandle mesh, uint32 submeshIndex, MaterialInstance material)
 	{
 		Mesh = mesh;
 		SubmeshIndex = submeshIndex;
@@ -177,7 +177,8 @@ struct BatchKey : IHashable, IEquatable<BatchKey>
 	{
 		int hash = Mesh.GetHashCode();
 		hash = hash * 31 + (int)SubmeshIndex;
-		hash = hash * 31 + (int)(void*)Material;
+		// Use reference identity for hashing - classes use reference equality by default
+		hash = hash * 31 + (Material != null ? Internal.UnsafeCastToPtr(Material).GetHashCode() : 0);
 		return hash;
 	}
 

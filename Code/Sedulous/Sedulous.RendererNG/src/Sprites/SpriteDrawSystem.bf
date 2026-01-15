@@ -474,4 +474,67 @@ class SpriteDrawSystem : IDisposable
 	{
 		// Resources cleaned up by destructor
 	}
+
+	// ========================================================================
+	// Render Graph Integration
+	// ========================================================================
+
+	/// Adds a sprite rendering pass to the render graph.
+	/// Sprites are rendered as transparent with depth read (no write).
+	public PassBuilder AddPass(
+		RenderGraph graph,
+		RGResourceHandle colorTarget,
+		RGResourceHandle depthTarget,
+		IBuffer sceneBuffer,
+		IShaderModule vertShader,
+		IShaderModule fragShader)
+	{
+		SpritePassData passData;
+		passData.DrawSystem = this;
+		passData.SceneBuffer = sceneBuffer;
+		passData.VertexShader = vertShader;
+		passData.FragmentShader = fragShader;
+		passData.HasDepth = true;
+
+		return graph.AddGraphicsPass("Sprites")
+			.SetColorAttachment(0, colorTarget, .Load, .Store)
+			.SetDepthAttachmentReadOnly(depthTarget)
+			.SetFlags(.NeverCull)
+			.SetExecute(new (encoder) => {
+				passData.DrawSystem.Render(
+					encoder,
+					passData.SceneBuffer,
+					passData.HasDepth,
+					passData.VertexShader,
+					passData.FragmentShader);
+			});
+	}
+
+	/// Adds a sprite rendering pass without depth testing (for UI/2D sprites).
+	public PassBuilder AddPassNoDepth(
+		RenderGraph graph,
+		RGResourceHandle colorTarget,
+		IBuffer sceneBuffer,
+		IShaderModule vertShader,
+		IShaderModule fragShader)
+	{
+		SpritePassData passData;
+		passData.DrawSystem = this;
+		passData.SceneBuffer = sceneBuffer;
+		passData.VertexShader = vertShader;
+		passData.FragmentShader = fragShader;
+		passData.HasDepth = false;
+
+		return graph.AddGraphicsPass("SpritesNoDepth")
+			.SetColorAttachment(0, colorTarget, .Load, .Store)
+			.SetFlags(.NeverCull)
+			.SetExecute(new (encoder) => {
+				passData.DrawSystem.Render(
+					encoder,
+					passData.SceneBuffer,
+					passData.HasDepth,
+					passData.VertexShader,
+					passData.FragmentShader);
+			});
+	}
 }

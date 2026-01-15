@@ -462,4 +462,77 @@ class ParticleDrawSystem : IDisposable
 	{
 		// Resources cleaned up by destructor
 	}
+
+	// ========================================================================
+	// Render Graph Integration
+	// ========================================================================
+
+	/// Adds a particle rendering pass to the render graph.
+	/// Particles are rendered as transparent with depth read (no write).
+	public PassBuilder AddPass(
+		RenderGraph graph,
+		RGResourceHandle colorTarget,
+		RGResourceHandle depthTarget,
+		IBuffer sceneBuffer,
+		IShaderModule vertShader,
+		IShaderModule fragShader,
+		ITextureView depthTextureForSoft = null)
+	{
+		ParticlePassData passData;
+		passData.DrawSystem = this;
+		passData.SceneBuffer = sceneBuffer;
+		passData.VertexShader = vertShader;
+		passData.FragmentShader = fragShader;
+		passData.DepthTexture = depthTextureForSoft;
+		passData.HasDepth = true;
+
+		var builder = graph.AddGraphicsPass("Particles")
+			.SetColorAttachment(0, colorTarget, .Load, .Store)
+			.SetDepthAttachmentReadOnly(depthTarget)
+			.SetFlags(.NeverCull);
+
+		// If using soft particles, declare depth texture as shader read
+		if (depthTextureForSoft != null)
+			builder.ReadTexture(depthTarget, .ShaderRead);
+
+		return builder.SetExecute(new (encoder) => {
+			passData.DrawSystem.Render(
+				encoder,
+				passData.SceneBuffer,
+				passData.HasDepth,
+				passData.DepthTexture,
+				passData.VertexShader,
+				passData.FragmentShader);
+		});
+	}
+
+	/// Adds a particle rendering pass without depth testing (for UI/overlay particles).
+	public PassBuilder AddPassNoDepth(
+		RenderGraph graph,
+		RGResourceHandle colorTarget,
+		IBuffer sceneBuffer,
+		IShaderModule vertShader,
+		IShaderModule fragShader)
+	{
+		ParticlePassData passData;
+		passData.DrawSystem = this;
+		passData.SceneBuffer = sceneBuffer;
+		passData.VertexShader = vertShader;
+		passData.FragmentShader = fragShader;
+		passData.DepthTexture = null;
+		passData.HasDepth = false;
+
+		return graph.AddGraphicsPass("ParticlesNoDepth")
+			.SetColorAttachment(0, colorTarget, .Load, .Store)
+			.SetFlags(.NeverCull)
+			.SetExecute(new (encoder) => {
+				passData.DrawSystem.Render(
+					encoder,
+					passData.SceneBuffer,
+					passData.HasDepth,
+					null,
+					passData.VertexShader,
+					passData.FragmentShader);
+			});
+	}
 }

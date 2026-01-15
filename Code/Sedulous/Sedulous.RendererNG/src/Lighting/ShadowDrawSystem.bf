@@ -262,4 +262,106 @@ class ShadowDrawSystem : IDisposable
 	{
 		// Resources cleaned up by destructor
 	}
+
+	// ========================================================================
+	// Render Graph Integration
+	// ========================================================================
+
+	/// Adds cascade shadow map rendering passes to the render graph.
+	/// Creates one pass per cascade that renders shadow casters.
+	/// Returns the cascade depth handles for later passes to sample.
+	public void AddCascadePasses(
+		RenderGraph graph,
+		MeshDrawSystem meshDrawSystem,
+		IPipelineLayout shadowPipelineLayout,
+		RGResourceHandle[] outCascadeHandles)
+	{
+		for (uint32 i = 0; i < mConfig.CascadeCount && i < outCascadeHandles.Count; i++)
+		{
+			// Create transient depth texture for this cascade
+			let cascadeDepth = graph.CreateTexture(
+				scope $"CascadeDepth{i}",
+				TextureResourceDesc.DepthStencil(mConfig.CascadeResolution, mConfig.CascadeResolution, .Depth32Float));
+
+			outCascadeHandles[i] = cascadeDepth;
+
+			ShadowPassData passData;
+			passData.DrawSystem = this;
+			passData.MeshDrawSystem = meshDrawSystem;
+			passData.PipelineLayout = shadowPipelineLayout;
+			passData.CascadeIndex = i;
+
+			graph.AddGraphicsPass(scope $"ShadowCascade{i}")
+				.SetDepthAttachment(cascadeDepth, 1.0f, .Clear, .Store)
+				.SetExecute(new (encoder) => {
+					// Shadow casters render to depth-only
+					passData.MeshDrawSystem.RenderShadowBatches(encoder, passData.PipelineLayout);
+				});
+		}
+	}
+
+	/// Adds a single cascade shadow map pass (for more control).
+	public PassBuilder AddCascadePass(
+		RenderGraph graph,
+		uint32 cascadeIndex,
+		RGResourceHandle cascadeDepth,
+		MeshDrawSystem meshDrawSystem,
+		IPipelineLayout shadowPipelineLayout)
+	{
+		ShadowPassData passData;
+		passData.DrawSystem = this;
+		passData.MeshDrawSystem = meshDrawSystem;
+		passData.PipelineLayout = shadowPipelineLayout;
+		passData.CascadeIndex = cascadeIndex;
+
+		return graph.AddGraphicsPass(scope $"ShadowCascade{cascadeIndex}")
+			.SetDepthAttachment(cascadeDepth, 1.0f, .Clear, .Store)
+			.SetExecute(new (encoder) => {
+				passData.MeshDrawSystem.RenderShadowBatches(encoder, passData.PipelineLayout);
+			});
+	}
+
+	/// Adds local shadow rendering passes to the render graph.
+	/// Creates passes for each allocated shadow region.
+	public void AddLocalShadowPasses(
+		RenderGraph graph,
+		RGResourceHandle atlasDepth,
+		MeshDrawSystem meshDrawSystem,
+		IPipelineLayout shadowPipelineLayout)
+	{
+		let regions = GetLocalShadowRegions();
+		if (regions.Length == 0)
+			return;
+
+		for (int i = 0; i < regions.Length; i++)
+		{
+			let region = regions[i];
+			if (region.LightIndex == ShadowAtlasRegion.Invalid)
+				continue;
+
+			ShadowPassData passData;
+			passData.DrawSystem = this;
+			passData.MeshDrawSystem = meshDrawSystem;
+			passData.PipelineLayout = shadowPipelineLayout;
+			passData.RegionIndex = (uint32)i;
+
+			// Each local shadow renders to a region of the atlas
+			// The viewport/scissor is set in the execute callback
+			graph.AddGraphicsPass(scope $"LocalShadow{i}")
+				.SetDepthAttachment(atlasDepth, .Load, .Store)  // Load to preserve other regions
+				.SetExecute(new (encoder) => {
+					// Set viewport for this region
+					// Note: In a real implementation, you'd set the viewport here
+					passData.MeshDrawSystem.RenderShadowBatches(encoder, passData.PipelineLayout);
+				});
+		}
+	}
+
+	/// Creates a shadow atlas resource in the render graph.
+	public RGResourceHandle CreateAtlasResource(RenderGraph graph)
+	{
+		return graph.CreateTexture(
+			"ShadowAtlas",
+			TextureResourceDesc.DepthStencil(mConfig.AtlasSize, mConfig.AtlasSize, .Depth32Float));
+	}
 }
