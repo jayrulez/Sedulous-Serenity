@@ -21,6 +21,9 @@ using Sedulous.Mathematics;
 /// - Overlay: Primitives always render on top
 class DebugDrawService : ContextService, IDisposable
 {
+	/// Debug drawing should happen after main rendering setup.
+	public override int32 UpdateOrder => 600;
+
 	private Context mContext;
 	private RendererService mRendererService;
 	private DebugRenderer mDebugRenderer ~ delete _;

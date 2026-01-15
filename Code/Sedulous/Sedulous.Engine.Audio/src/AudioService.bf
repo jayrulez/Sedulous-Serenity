@@ -18,6 +18,9 @@ using Sedulous.Mathematics;
 /// Note: Per-scene audio source management is handled by AudioSceneComponent.
 class AudioService : ContextService, IDisposable
 {
+	/// Audio should update after game logic, before rendering.
+	public override int32 UpdateOrder => 200;
+
 	private Context mContext;
 	private IAudioSystem mAudioSystem;
 	private bool mOwnsAudioSystem = false;

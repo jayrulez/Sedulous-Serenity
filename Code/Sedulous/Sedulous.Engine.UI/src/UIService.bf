@@ -19,6 +19,9 @@ using Sedulous.Shell.Input;
 /// - InputService: For input routing to UI (optional but recommended)
 class UIService : ContextService
 {
+	/// UI should process input and layout after game logic, before rendering.
+	public override int32 UpdateOrder => 450;
+
 	private Context mContext;
 
 	// Dependencies (looked up on Startup)

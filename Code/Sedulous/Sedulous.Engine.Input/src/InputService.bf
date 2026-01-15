@@ -9,6 +9,9 @@ using Sedulous.Shell.Input;
 /// Bridges Shell.InputManager with high-level action system.
 class InputService : ContextService
 {
+	/// Input should be processed very early, before game logic.
+	public override int32 UpdateOrder => -100;
+
 	private Context mContext;
 	private IInputManager mInputManager;
 	private List<InputContext> mContextStack = new .() ~ delete _;

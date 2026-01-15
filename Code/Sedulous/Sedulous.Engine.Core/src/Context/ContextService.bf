@@ -4,6 +4,17 @@ namespace Sedulous.Engine.Core;
 /// Services provide functionality that can be accessed throughout the application.
 abstract class ContextService
 {
+	/// Update order priority. Lower values update first.
+	/// Default is 0. Use negative values for early updates (e.g., input),
+	/// positive values for late updates (e.g., rendering).
+	///
+	/// Suggested ranges:
+	///   -1000 to -100: Input, early systems
+	///       0 to  100: Game logic, physics
+	///     100 to  500: Audio, animation
+	///     500 to 1000: Rendering, debug visualization
+	public virtual int32 UpdateOrder => 0;
+
 	/// Called when the service is registered with the context.
 	public virtual void OnRegister(Context context) {}
 

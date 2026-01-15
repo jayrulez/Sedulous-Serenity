@@ -22,6 +22,9 @@ using Sedulous.Mathematics;
 /// Note: LightingSystem is per-scene and owned by RenderContext, not here.
 class RendererService : ContextService, IDisposable
 {
+	/// Rendering should happen late in the frame, after game logic updates.
+	public override int32 UpdateOrder => 500;
+
 	private Context mContext;
 	private IDevice mDevice;
 	private GPUResourceManager mResourceManager ~ delete _;

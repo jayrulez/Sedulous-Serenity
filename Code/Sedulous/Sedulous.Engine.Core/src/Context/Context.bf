@@ -17,6 +17,7 @@ class Context
 	private SceneManager mSceneManager ~ delete _;
 	private ComponentRegistry mComponentRegistry ~ delete _;
 	private Dictionary<Type, ContextService> mServices = new .() ~ delete _;
+	private List<ContextService> mSortedServices = new .() ~ delete _;  // Sorted by UpdateOrder
 	private bool mIsRunning = false;
 
 	/// Gets the logger.
@@ -55,6 +56,7 @@ class Context
 
 	/// Registers a service with the context.
 	/// Services are type-keyed and must extend ContextService.
+	/// Services are updated in order based on their UpdateOrder property.
 	public void RegisterService<T>(T service) where T : ContextService
 	{
 		let type = typeof(T);
@@ -65,6 +67,7 @@ class Context
 		}
 
 		mServices[type] = service;
+		RebuildSortedServiceList();
 		service.OnRegister(this);
 
 		if (mIsRunning)
@@ -81,6 +84,7 @@ class Context
 				service.Shutdown();
 			service.OnUnregister();
 			mServices.Remove(type);
+			RebuildSortedServiceList();
 		}
 	}
 
@@ -110,8 +114,8 @@ class Context
 		mJobSystem.Startup();
 		mResourceSystem.Startup();
 
-		// Start all registered services
-		for (let service in mServices.Values)
+		// Start all registered services (in UpdateOrder)
+		for (let service in mSortedServices)
 			service.Startup();
 
 		mIsRunning = true;
@@ -130,8 +134,8 @@ class Context
 		// Update resource system
 		mResourceSystem.Update();
 
-		// Update services
-		for (let service in mServices.Values)
+		// Update services (in UpdateOrder - lower values first)
+		for (let service in mSortedServices)
 			service.Update(deltaTime);
 
 		// Update scene manager (and active scene)
@@ -149,9 +153,9 @@ class Context
 		// Unload all scenes
 		mSceneManager.UnloadAllScenes();
 
-		// Shutdown services in reverse order
-		for (let service in mServices.Values)
-			service.Shutdown();
+		// Shutdown services in reverse UpdateOrder (higher values first)
+		for (int i = mSortedServices.Count - 1; i >= 0; i--)
+			mSortedServices[i].Shutdown();
 
 		// Shutdown core systems
 		mResourceSystem.Shutdown();
@@ -166,14 +170,27 @@ class Context
 	/// Called by SceneManager when a scene is created.
 	private void NotifyServicesSceneCreated(Scene scene)
 	{
-		for (let service in mServices.Values)
+		for (let service in mSortedServices)
 			service.OnSceneCreated(scene);
 	}
 
 	/// Called by SceneManager when a scene is being destroyed.
 	private void NotifyServicesSceneDestroyed(Scene scene)
 	{
-		for (let service in mServices.Values)
+		for (let service in mSortedServices)
 			service.OnSceneDestroyed(scene);
+	}
+
+	// ==================== Internal Helpers ====================
+
+	/// Rebuilds the sorted service list after registration changes.
+	private void RebuildSortedServiceList()
+	{
+		mSortedServices.Clear();
+		for (let service in mServices.Values)
+			mSortedServices.Add(service);
+
+		// Sort by UpdateOrder (lower values first)
+		mSortedServices.Sort(scope (a, b) => a.UpdateOrder <=> b.UpdateOrder);
 	}
 }

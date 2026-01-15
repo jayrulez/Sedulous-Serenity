@@ -12,6 +12,9 @@ using Sedulous.Physics.Jolt;
 /// Automatically creates PhysicsSceneComponent for each scene.
 class PhysicsService : ContextService, IDisposable
 {
+	/// Physics should run early, before game logic processes physics results.
+	public override int32 UpdateOrder => 0;
+
 	private Context mContext;
 	private bool mInitialized = false;
 
