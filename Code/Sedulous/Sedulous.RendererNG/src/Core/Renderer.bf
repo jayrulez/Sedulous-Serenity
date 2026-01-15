@@ -9,9 +9,10 @@ class Renderer : IDisposable
 {
 	private IDevice mDevice;
 	private bool mInitialized = false;
+	private uint32 mFrameNumber = 0;
 
-	// Core systems (to be implemented)
-	// private ResourcePool mResourcePool;
+	// Core systems
+	private ResourcePool mResourcePool ~ delete _;
 	// private ShaderSystem mShaderSystem;
 	// private MaterialRegistry mMaterialRegistry;
 	// private PipelineFactory mPipelineFactory;
@@ -34,11 +35,17 @@ class Renderer : IDisposable
 	/// Gets whether the renderer has been initialized.
 	public bool IsInitialized => mInitialized;
 
+	/// Gets the resource pool.
+	public ResourcePool Resources => mResourcePool;
+
 	/// Gets the current frame statistics.
 	public ref RenderStats Stats => ref mStats;
 
 	/// Gets the statistics accumulator.
 	public RenderStatsAccumulator StatsAccumulator => mStatsAccumulator;
+
+	/// Gets the current frame number.
+	public uint32 FrameNumber => mFrameNumber;
 
 	/// Initializes the renderer with a graphics device.
 	/// @param device The RHI device to use for rendering.
@@ -54,8 +61,8 @@ class Renderer : IDisposable
 
 		mDevice = device;
 
-		// TODO: Initialize subsystems
-		// mResourcePool = new ResourcePool(device);
+		// Initialize core systems
+		mResourcePool = new ResourcePool(device);
 		// mShaderSystem = new ShaderSystem(device, shaderBasePath);
 		// mMaterialRegistry = new MaterialRegistry();
 		// mPipelineFactory = new PipelineFactory(device, mShaderSystem);
@@ -85,12 +92,15 @@ class Renderer : IDisposable
 		// delete mParticleDrawSystem; mParticleDrawSystem = null;
 		// delete mMeshDrawSystem; mMeshDrawSystem = null;
 
-		// TODO: Shutdown core systems
+		// Shutdown core systems (reverse order)
 		// delete mRenderGraph; mRenderGraph = null;
 		// delete mPipelineFactory; mPipelineFactory = null;
 		// delete mMaterialRegistry; mMaterialRegistry = null;
 		// delete mShaderSystem; mShaderSystem = null;
-		// delete mResourcePool; mResourcePool = null;
+
+		// Shutdown resource pool (flushes pending deletions)
+		if (mResourcePool != null)
+			mResourcePool.Shutdown();
 
 		mDevice = null;
 		mInitialized = false;
@@ -105,11 +115,12 @@ class Renderer : IDisposable
 		if (!mInitialized)
 			return;
 
+		mFrameNumber++;
+
 		// Reset per-frame statistics
 		mStats.Reset();
 
 		// TODO: Begin frame on subsystems
-		// mResourcePool.BeginFrame(frameIndex);
 		// mRenderGraph.BeginFrame(frameIndex, deltaTime, totalTime);
 	}
 
@@ -121,7 +132,9 @@ class Renderer : IDisposable
 
 		// TODO: End frame on subsystems
 		// mRenderGraph.EndFrame();
-		// mResourcePool.ProcessDeletions(frameIndex);
+
+		// Process deferred resource deletions
+		mResourcePool.ProcessDeletions(mFrameNumber);
 
 		// Record statistics
 		mStatsAccumulator.RecordFrame(mStats);

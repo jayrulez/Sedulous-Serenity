@@ -1,0 +1,12 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.Mathematics" = "*", "Sedulous.RHI" = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Engine.Runtime" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.RendererNG" = "*", "SampleFramework" = "*"}
+
+[Project]
+Name = "RendererNGSandbox"
+StartupObject = "RendererNGSandbox.Program"
+
+[Configs.Debug.Win64]
+PostBuildCmds = ["xcopy /s /y /d \"$(ProjectDir)\\shaders\" \"$(TargetDir)\\shaders\\\""]
+
+[Configs.Release.Win64]
+PostBuildCmds = ["xcopy /s /y /d \"$(ProjectDir)\\shaders\" \"$(TargetDir)\\shaders\\\""]
