@@ -7,7 +7,7 @@
 // Material Uniforms
 // ============================================================================
 
-cbuffer MaterialUniforms : register(b3)
+cbuffer MaterialUniforms : register(b2)
 {
     float4 BaseColor;
     float Metallic;
@@ -41,7 +41,7 @@ struct DirectionalLight
     float Padding;
 };
 
-cbuffer LightingUniforms : register(b4)
+cbuffer LightingUniforms : register(b1)
 {
     DirectionalLight SunLight;
     float3 AmbientColor;
@@ -125,7 +125,7 @@ float3 CalculateDirectLight(float3 N, float3 V, float3 L, float3 radiance,
 // Main Fragment Shader
 // ============================================================================
 
-float4 PSMain(VS_OUTPUT input) : SV_TARGET
+float4 main(VS_OUTPUT input) : SV_TARGET
 {
     // Sample base color
     float4 albedo = BaseColor;

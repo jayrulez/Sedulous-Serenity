@@ -85,17 +85,8 @@ struct ShaderVariantKey : IHashable, IEquatable<ShaderVariantKey>
 	/// Gets the entry point name for this stage (default convention).
 	public void GetDefaultEntryPoint(String outEntryPoint)
 	{
-		switch (Stage)
-		{
-		case .Vertex:
-			outEntryPoint.Append("VSMain");
-		case .Fragment:
-			outEntryPoint.Append("PSMain");
-		case .Compute:
-			outEntryPoint.Append("CSMain");
-		case .None:
-			outEntryPoint.Append("main");
-		}
+		// All shaders use "main" as entry point for Vulkan/SPIRV compatibility
+		outEntryPoint.Append("main");
 	}
 
 	/// Creates a debug string representation.

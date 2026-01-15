@@ -121,15 +121,45 @@ class PipelineFactory : IDisposable
 			}
 		}
 
-		// Build vertex layout
+		// Build vertex layout for per-vertex data (slot 0)
 		VertexAttribute[8] vertexAttribs = default;
 		let attribCount = VertexLayouts.FillAttributes(config.VertexLayout, Span<VertexAttribute>(&vertexAttribs[0], 8));
 		let stride = VertexLayouts.GetStride(config.VertexLayout);
 
-		VertexBufferLayout[1] vertexBuffers = default;
+		// Build instance attributes (slot 1) for instanced rendering
+		// MeshInstanceData: WorldMatrix (4x float4), NormalMatrix (4x float4), CustomData (float4)
+		// Locations 3-11 (after per-vertex data which uses 0-2)
+		// Constructor: (format, offset, shaderLocation)
+		VertexAttribute[9] instanceAttribs = .(
+			.(.Float4, 0,   3),   // WorldMatrix row 0
+			.(.Float4, 16,  4),   // WorldMatrix row 1
+			.(.Float4, 32,  5),   // WorldMatrix row 2
+			.(.Float4, 48,  6),   // WorldMatrix row 3
+			.(.Float4, 64,  7),   // NormalMatrix row 0
+			.(.Float4, 80,  8),   // NormalMatrix row 1
+			.(.Float4, 96,  9),   // NormalMatrix row 2
+			.(.Float4, 112, 10),  // NormalMatrix row 3
+			.(.Float4, 128, 11)   // CustomData
+		);
+		let instanceStride = MeshInstanceData.Size; // 144 bytes
+
+		// Set up vertex buffers - 1 for per-vertex, optionally 1 for per-instance
+		VertexBufferLayout[2] vertexBuffers = default;
+		int32 bufferCount = 0;
+
 		if (attribCount > 0)
 		{
 			vertexBuffers[0] = .(stride, Span<VertexAttribute>(&vertexAttribs[0], attribCount));
+			bufferCount++;
+		}
+
+		// Add instance buffer for instanced rendering
+		if (config.ShaderFlags.HasFlag(.Instanced))
+		{
+			var instanceLayout = VertexBufferLayout(instanceStride, instanceAttribs);
+			instanceLayout.StepMode = .Instance;
+			vertexBuffers[bufferCount] = instanceLayout;
+			bufferCount++;
 		}
 
 		// Build primitive state
@@ -224,7 +254,7 @@ class PipelineFactory : IDisposable
 		desc.Layout = layout;
 		desc.Vertex = .() {
 			Shader = .(vertexShader),
-			Buffers = attribCount > 0 ? vertexBuffers : default
+			Buffers = bufferCount > 0 ? Span<VertexBufferLayout>(&vertexBuffers[0], bufferCount) : default
 		};
 		desc.Fragment = fragmentState;
 		desc.Primitive = primitive;

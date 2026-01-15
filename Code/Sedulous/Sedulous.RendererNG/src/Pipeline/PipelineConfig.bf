@@ -151,7 +151,7 @@ struct PipelineConfig : IHashable, IEquatable<PipelineConfig>
 		CustomAttributeCount = 0;
 		Topology = .TriangleList;
 		CullMode = .Back;
-		FrontFace = .CCW;
+		FrontFace = .CCW; // Counter-clockwise after Y-flip in projection
 		FillMode = .Solid;
 		BlendMode = .Opaque;
 		ColorWriteMask = .All;

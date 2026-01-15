@@ -264,23 +264,8 @@ class RendererNGIntegratedApp : Application
 
 	protected override void OnRender(IRenderPassEncoder renderPass, FrameContext frame)
 	{
-		// The renderer systems are now wired up:
-		// - ShaderSystem: Compiles and caches shaders
-		// - PipelineFactory: Creates and caches render pipelines
-		// - BindGroupLayoutCache: Caches bind group layouts
-		// - MeshDrawSystem: Batches and renders meshes
-		//
-		// Scene uniforms (view/projection matrices) and lighting uniforms
-		// are uploaded to GPU buffers each frame via PrepareFrame/PrepareLighting.
-		//
-		// To complete rendering, we still need:
-		// 1. Create a render pipeline for the mesh shader
-		// 2. Bind the scene uniform bind group (mRenderer.SceneBindGroup)
-		// 3. Add instances to MeshDrawSystem
-		// 4. Build batches and render
-		//
-		// This will be completed in the next iteration.
-		// For now, the clear color shows the frame is updating.
+		// Render all meshes from the render world
+		mRenderer.RenderMeshes(renderPass, mRenderWorld, mMeshPool);
 	}
 
 	protected override void OnFrameEnd()

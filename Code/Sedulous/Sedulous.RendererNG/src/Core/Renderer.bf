@@ -61,7 +61,7 @@ struct DirectionalLightData
 	};
 }
 
-/// Lighting uniform data matching mesh.frag.hlsl LightingUniforms (b4).
+/// Lighting uniform data matching mesh.frag.hlsl LightingUniforms (b1).
 [Packed, CRepr]
 struct LightingUniformData
 {
@@ -74,6 +74,28 @@ struct LightingUniformData
 		SunLight = .Default,
 		AmbientColor = .(0.3f, 0.35f, 0.4f),
 		AmbientIntensity = 0.3f
+	};
+}
+
+/// Material uniform data matching mesh.frag.hlsl MaterialUniforms (b2).
+[Packed, CRepr]
+struct MaterialUniformData
+{
+	public Vector4 BaseColor;
+	public float Metallic;
+	public float Roughness;
+	public float AO;
+	public float AlphaCutoff;
+	public Vector4 EmissiveColor;
+
+	public static Self Default => .()
+	{
+		BaseColor = .(0.8f, 0.8f, 0.8f, 1.0f),
+		Metallic = 0.0f,
+		Roughness = 0.5f,
+		AO = 1.0f,
+		AlphaCutoff = 0.5f,
+		EmissiveColor = .(0, 0, 0, 0)
 	};
 }
 
@@ -93,8 +115,9 @@ class Renderer : IDisposable
 	private BindGroupLayoutCache mLayoutCache ~ delete _;
 	// private RenderGraph mRenderGraph;
 
-	// Pipeline layouts
+	// Pipeline layouts and pipelines
 	private IPipelineLayout mMeshPipelineLayout ~ delete _;
+	private IRenderPipeline mMeshPipeline; // Owned by PipelineFactory cache
 
 	// Draw systems
 	private MeshDrawSystem mMeshDrawSystem ~ delete _;
@@ -106,6 +129,7 @@ class Renderer : IDisposable
 	// Scene uniform buffer data
 	private IBuffer mSceneUniformBuffer ~ delete _;
 	private IBuffer mLightingUniformBuffer ~ delete _;
+	private IBuffer mMaterialUniformBuffer ~ delete _;
 	private IBindGroup mSceneBindGroup ~ delete _;
 
 	// Scene uniform bind group layout
@@ -117,6 +141,10 @@ class Renderer : IDisposable
 
 	// Shader base path
 	private String mShaderBasePath ~ delete _;
+
+	// Render target formats
+	private TextureFormat mColorFormat = .BGRA8UnormSrgb;
+	private TextureFormat mDepthFormat = .Depth24PlusStencil8;
 
 	/// Gets the graphics device.
 	public IDevice Device => mDevice;
@@ -154,8 +182,12 @@ class Renderer : IDisposable
 	/// Initializes the renderer with a graphics device.
 	/// @param device The RHI device to use for rendering.
 	/// @param shaderBasePath Base path for shader files.
+	/// @param colorFormat The color target format for rendering.
+	/// @param depthFormat The depth target format for rendering.
 	/// @returns Success or error.
-	public Result<void> Initialize(IDevice device, StringView shaderBasePath = "shaders")
+	public Result<void> Initialize(IDevice device, StringView shaderBasePath = "shaders",
+								   TextureFormat colorFormat = .BGRA8UnormSrgb,
+								   TextureFormat depthFormat = .Depth24PlusStencil8)
 	{
 		if (device == null)
 			return .Err;
@@ -165,6 +197,8 @@ class Renderer : IDisposable
 
 		mDevice = device;
 		mShaderBasePath = new String(shaderBasePath);
+		mColorFormat = colorFormat;
+		mDepthFormat = depthFormat;
 
 		// Initialize core systems
 		mResourcePool = new ResourcePool(device);
@@ -242,10 +276,28 @@ class Renderer : IDisposable
 		else
 			return false;
 
+		// Material uniform buffer (default material)
+		BufferDescriptor materialDesc = .()
+		{
+			Size = (uint64)sizeof(MaterialUniformData),
+			Usage = .Uniform | .CopyDst
+		};
+
+		if (mDevice.CreateBuffer(&materialDesc) case .Ok(let materialBuffer))
+			mMaterialUniformBuffer = materialBuffer;
+		else
+			return false;
+
+		// Upload default material values
+		var defaultMaterial = MaterialUniformData.Default;
+		mDevice.Queue.WriteBuffer(mMaterialUniformBuffer, 0, Span<uint8>((uint8*)&defaultMaterial, sizeof(MaterialUniformData)));
+
 		// Create bind group layout for scene data (set 0)
-		BindGroupLayoutEntry[2] sceneEntries = .(
+		// b0: SceneUniforms, b1: LightingUniforms, b2: MaterialUniforms
+		BindGroupLayoutEntry[3] sceneEntries = .(
 			.UniformBuffer(0, .Vertex | .Fragment), // SceneUniforms
-			.UniformBuffer(1, .Fragment)            // LightingUniforms
+			.UniformBuffer(1, .Fragment),           // LightingUniforms
+			.UniformBuffer(2, .Fragment)            // MaterialUniforms
 		);
 
 		if (mDevice.CreateBindGroupLayout(&BindGroupLayoutDescriptor() { Entries = sceneEntries }) case .Ok(let layout))
@@ -254,9 +306,10 @@ class Renderer : IDisposable
 			return false;
 
 		// Create the bind group
-		BindGroupEntry[2] bindEntries = .(
+		BindGroupEntry[3] bindEntries = .(
 			.Buffer(0, mSceneUniformBuffer, 0, (uint64)sizeof(SceneUniformData)),
-			.Buffer(1, mLightingUniformBuffer, 0, (uint64)sizeof(LightingUniformData))
+			.Buffer(1, mLightingUniformBuffer, 0, (uint64)sizeof(LightingUniformData)),
+			.Buffer(2, mMaterialUniformBuffer, 0, (uint64)sizeof(MaterialUniformData))
 		);
 
 		if (mDevice.CreateBindGroup(&BindGroupDescriptor() { Layout = mSceneBindGroupLayout, Entries = bindEntries }) case .Ok(let group))
@@ -323,8 +376,11 @@ class Renderer : IDisposable
 
 		// Build view matrix from camera
 		let viewMatrix = Matrix.CreateLookAt(camera.Position, camera.Position + camera.Forward, camera.Up);
-		let projMatrix = Matrix.CreatePerspectiveFieldOfView(
+		var projMatrix = Matrix.CreatePerspectiveFieldOfView(
 			camera.FieldOfView, camera.AspectRatio, camera.NearPlane, camera.FarPlane);
+		// Flip Y for backends that require it (Vulkan has Y pointing down in NDC)
+		if (mDevice.FlipProjectionRequired)
+			projMatrix.M22 = -projMatrix.M22;
 		let viewProj = viewMatrix * projMatrix;
 
 		// Build scene uniform data
@@ -394,6 +450,82 @@ class Renderer : IDisposable
 
 	/// Gets the scene bind group layout.
 	public IBindGroupLayout SceneBindGroupLayout => mSceneBindGroupLayout;
+
+	/// Renders all visible meshes from a RenderWorld.
+	/// Call this from within a render pass.
+	public void RenderMeshes(IRenderPassEncoder renderPass, RenderWorld world, MeshPool meshPool)
+	{
+		if (!mInitialized || world == null || meshPool == null)
+			return;
+
+		// Ensure we have the mesh pipeline
+		if (mMeshPipeline == null)
+		{
+			if (!CreateMeshPipeline())
+			{
+				Console.WriteLine("ERROR: Failed to create mesh pipeline");
+				return;
+			}
+		}
+
+		// Collect visible static meshes
+		world.ForEachStaticMesh(scope [&] (handle, proxy) => {
+			if (proxy.IsVisible)
+			{
+				mMeshDrawSystem.AddFromProxy(proxy, meshPool, null); // null material for now
+			}
+		});
+
+		// Build draw batches
+		mMeshDrawSystem.BuildBatches();
+
+		if (mMeshDrawSystem.BatchCount == 0)
+			return;
+
+		// Bind pipeline and scene uniforms
+		renderPass.SetPipeline(mMeshPipeline);
+		renderPass.SetBindGroup(0, mSceneBindGroup);
+
+		// Render all batches
+		mMeshDrawSystem.Render(renderPass, mMeshPipelineLayout);
+
+		// Update stats
+		mStats.DrawCalls += (int32)mMeshDrawSystem.BatchCount;
+	}
+
+	/// Creates the standard mesh render pipeline.
+	private bool CreateMeshPipeline()
+	{
+		// Create pipeline layout with scene bind group
+		if (mMeshPipelineLayout == null)
+		{
+			IBindGroupLayout[1] layouts = .(mSceneBindGroupLayout);
+			PipelineLayoutDescriptor layoutDesc = .()
+			{
+				BindGroupLayouts = layouts
+			};
+
+			if (mDevice.CreatePipelineLayout(&layoutDesc) case .Ok(let layout))
+				mMeshPipelineLayout = layout;
+			else
+				return false;
+		}
+
+		// Create pipeline config for opaque instanced mesh
+		var config = PipelineConfig.ForOpaqueMesh("mesh", .Instanced);
+		config.ColorFormat = mColorFormat;
+		config.DepthFormat = mDepthFormat;
+
+		// Get or create pipeline
+		if (mPipelineFactory.GetOrCreatePipeline(config, mMeshPipelineLayout) case .Ok(let pipeline))
+		{
+			mMeshPipeline = pipeline;
+			Console.WriteLine("Mesh pipeline created successfully");
+			return true;
+		}
+
+		return false;
+	}
 
 	public void Dispose()
 	{

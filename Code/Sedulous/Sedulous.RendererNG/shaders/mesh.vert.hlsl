@@ -53,19 +53,19 @@ void ApplySkinning(
 // ============================================================================
 
 #ifdef SKINNED
-VS_OUTPUT VSMain(VS_INPUT_SKINNED input
+VS_OUTPUT main(VS_INPUT_SKINNED input
 #ifdef INSTANCED
     , InstanceInput instance
 #endif
     )
 #elif defined(NORMAL_MAP)
-VS_OUTPUT VSMain(VS_INPUT_PNUT input
+VS_OUTPUT main(VS_INPUT_PNUT input
 #ifdef INSTANCED
     , InstanceInput instance
 #endif
     )
 #else
-VS_OUTPUT VSMain(VS_INPUT_PNU input
+VS_OUTPUT main(VS_INPUT_PNU input
 #ifdef INSTANCED
     , InstanceInput instance
 #endif
