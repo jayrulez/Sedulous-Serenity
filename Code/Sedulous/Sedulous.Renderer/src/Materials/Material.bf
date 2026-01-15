@@ -216,6 +216,39 @@ class Material
 		return state;
 	}
 
+	/// Converts DepthMode and UseReverseZ to ShaderFlags.
+	/// Use this when shader variants need to know about depth configuration.
+	/// Note: Most shaders don't need this since depth is typically pipeline state only.
+	public ShaderFlags GetDepthShaderFlags()
+	{
+		ShaderFlags flags = .None;
+
+		switch (DepthMode)
+		{
+		case .Disabled:
+			// No depth flags
+			break;
+		case .ReadWrite:
+			flags |= .DepthTest | .DepthWrite;
+		case .ReadOnly:
+			flags |= .DepthTest;
+		case .WriteOnly:
+			flags |= .DepthWrite;
+		}
+
+		if (UseReverseZ)
+			flags |= .ReverseZ;
+
+		return flags;
+	}
+
+	/// Gets all shader flags for this material, including depth flags.
+	/// Combines user-set ShaderFlags with depth configuration flags.
+	public ShaderFlags GetAllShaderFlags()
+	{
+		return ShaderFlags | GetDepthShaderFlags();
+	}
+
 	/// Creates a standard PBR material.
 	public static Material CreatePBR(StringView name)
 	{
