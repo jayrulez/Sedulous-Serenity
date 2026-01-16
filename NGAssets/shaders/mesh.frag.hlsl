@@ -33,6 +33,8 @@ SamplerState MaterialSampler : register(s0, space1);
 // Lighting (Set 0 / space0 = scene bind group)
 // ============================================================================
 
+#define MAX_POINT_LIGHTS 4
+
 struct DirectionalLight
 {
     float3 Direction;
@@ -41,12 +43,30 @@ struct DirectionalLight
     float Padding;
 };
 
+struct PointLight
+{
+    float3 Position;
+    float Range;
+    float3 Color;
+    float Intensity;
+};
+
 cbuffer LightingUniforms : register(b1, space0)
 {
     DirectionalLight SunLight;
     float3 AmbientColor;
     float AmbientIntensity;
+    PointLight PointLights[MAX_POINT_LIGHTS];
+    int ActivePointLights;
+    float3 _LightingPadding;
 };
+
+// Point light attenuation (inverse square with range clamping)
+float CalculateAttenuation(float distance, float range)
+{
+    float attenuation = saturate(1.0 - (distance / range));
+    return attenuation * attenuation;
+}
 
 // ============================================================================
 // PBR Functions
@@ -175,6 +195,21 @@ float4 main(VS_OUTPUT input) : SV_TARGET
         float3 L = normalize(-SunLight.Direction);
         float3 radiance = SunLight.Color * SunLight.Intensity;
         Lo += CalculateDirectLight(N, V, L, radiance, albedo.rgb, metallic, roughness);
+    }
+
+    // Point lights
+    for (int i = 0; i < ActivePointLights && i < MAX_POINT_LIGHTS; i++)
+    {
+        float3 lightVec = PointLights[i].Position - input.WorldPos;
+        float distance = length(lightVec);
+
+        if (distance < PointLights[i].Range)
+        {
+            float3 L = lightVec / distance;
+            float attenuation = CalculateAttenuation(distance, PointLights[i].Range);
+            float3 radiance = PointLights[i].Color * PointLights[i].Intensity * attenuation;
+            Lo += CalculateDirectLight(N, V, L, radiance, albedo.rgb, metallic, roughness);
+        }
     }
 
     // Ambient lighting (simplified IBL approximation)

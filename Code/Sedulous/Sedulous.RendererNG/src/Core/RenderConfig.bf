@@ -61,6 +61,9 @@ static class RenderConfig
 
 	// ===== Lighting =====
 
+	/// Maximum point lights in forward pass uniform buffer.
+	public const int32 MAX_POINT_LIGHTS = 4;
+
 	/// Maximum lights per scene.
 	public const int32 MAX_LIGHTS = 1024;
 

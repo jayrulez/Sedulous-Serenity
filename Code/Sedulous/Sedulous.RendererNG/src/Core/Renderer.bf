@@ -61,6 +61,24 @@ struct DirectionalLightData
 	};
 }
 
+/// Point light data.
+[Packed, CRepr]
+struct PointLightData
+{
+	public Vector3 Position;
+	public float Range;
+	public Vector3 Color;
+	public float Intensity;
+
+	public static Self Default => .()
+	{
+		Position = .Zero,
+		Range = 10.0f,
+		Color = .(1.0f, 1.0f, 1.0f),
+		Intensity = 1.0f
+	};
+}
+
 /// Lighting uniform data matching mesh.frag.hlsl LightingUniforms (b1).
 [Packed, CRepr]
 struct LightingUniformData
@@ -68,12 +86,18 @@ struct LightingUniformData
 	public DirectionalLightData SunLight;
 	public Vector3 AmbientColor;
 	public float AmbientIntensity;
+	public PointLightData[RenderConfig.MAX_POINT_LIGHTS] PointLights;
+	public int32 ActivePointLights;
+	public Vector3 _LightingPadding;
 
 	public static Self Default => .()
 	{
 		SunLight = .Default,
 		AmbientColor = .(0.3f, 0.35f, 0.4f),
-		AmbientIntensity = 0.3f
+		AmbientIntensity = 0.3f,
+		PointLights = default,
+		ActivePointLights = 0,
+		_LightingPadding = .Zero
 	};
 }
 
@@ -107,10 +131,18 @@ class Renderer : IDisposable
 
 	// Draw systems
 	private MeshDrawSystem mMeshDrawSystem ~ delete _;
-	// private ParticleDrawSystem mParticleDrawSystem;
+	private SkyboxDrawSystem mSkyboxDrawSystem ~ delete _;
+	private ParticleDrawSystem mParticleDrawSystem ~ delete _;
 	// private SpriteDrawSystem mSpriteDrawSystem;
-	// private SkyboxDrawSystem mSkyboxDrawSystem;
 	// private ShadowDrawSystem mShadowDrawSystem;
+
+	// Skybox bind group (scene + skybox uniforms + cubemap)
+	private IBindGroup mSkyboxBindGroup ~ delete _;
+
+	// Particle shaders and bind group
+	private IShaderModule mParticleVertShader;
+	private IShaderModule mParticleFragShader;
+	private IBindGroup mParticleBindGroup ~ delete _;
 
 	// Scene uniform buffer data
 	private IBuffer mSceneUniformBuffer ~ delete _;
@@ -157,6 +189,12 @@ class Renderer : IDisposable
 
 	/// Gets the mesh draw system.
 	public MeshDrawSystem MeshDraw => mMeshDrawSystem;
+
+	/// Gets the skybox draw system.
+	public SkyboxDrawSystem SkyboxDraw => mSkyboxDrawSystem;
+
+	/// Gets the particle draw system.
+	public ParticleDrawSystem ParticleDraw => mParticleDrawSystem;
 
 	/// Gets the current frame statistics.
 	public ref RenderStats Stats => ref mStats;
@@ -229,6 +267,22 @@ class Renderer : IDisposable
 
 		// Initialize mesh draw system (needs MeshPool from caller later)
 		mMeshDrawSystem = new MeshDrawSystem();
+
+		// Initialize skybox draw system
+		mSkyboxDrawSystem = new SkyboxDrawSystem(this);
+		if (mSkyboxDrawSystem.Initialize(device, colorFormat, depthFormat) case .Err)
+		{
+			Console.WriteLine("ERROR: Failed to initialize SkyboxDrawSystem");
+			return .Err;
+		}
+
+		// Initialize particle draw system
+		mParticleDrawSystem = new ParticleDrawSystem(this);
+		if (mParticleDrawSystem.Initialize(device, colorFormat, depthFormat) case .Err)
+		{
+			Console.WriteLine("ERROR: Failed to initialize ParticleDrawSystem");
+			return .Err;
+		}
 
 		mInitialized = true;
 		Console.WriteLine("Renderer initialized with shader path: {}", shaderBasePath);
@@ -344,6 +398,9 @@ class Renderer : IDisposable
 
 		if (mMeshDrawSystem != null)
 			mMeshDrawSystem.BeginFrame();
+
+		if (mParticleDrawSystem != null)
+			mParticleDrawSystem.BeginFrame();
 	}
 
 	/// Updates scene uniforms from a camera proxy.
@@ -380,6 +437,10 @@ class Renderer : IDisposable
 
 		// Upload scene uniforms
 		mDevice.Queue.WriteBuffer(mSceneUniformBuffer, 0, Span<uint8>((uint8*)&sceneData, sizeof(SceneUniformData)));
+
+		// Update skybox uniforms (needs view/projection for inverse VP calculation)
+		if (mSkyboxDrawSystem != null)
+			mSkyboxDrawSystem.UpdateUniforms(viewMatrix, projMatrix);
 	}
 
 	/// Updates lighting uniforms from a render world.
@@ -389,16 +450,31 @@ class Renderer : IDisposable
 			return;
 
 		var lightingData = LightingUniformData.Default;
+		int32 pointLightIndex = 0;
 
-		// Find first directional light for sun
-		world.ForEachLight(scope [&lightingData] (handle, light) => {
-			if (light.Type == .Directional && light.IsEnabled)
+		// Collect lights from render world
+		world.ForEachLight(scope [&lightingData, &pointLightIndex] (handle, light) => {
+			if (!light.IsEnabled)
+				return;
+
+			if (light.Type == .Directional)
 			{
+				// Use first directional light as sun
 				lightingData.SunLight.Direction = light.Direction;
 				lightingData.SunLight.Color = light.Color;
 				lightingData.SunLight.Intensity = light.Intensity;
 			}
+			else if (light.Type == .Point && pointLightIndex < RenderConfig.MAX_POINT_LIGHTS)
+			{
+				lightingData.PointLights[pointLightIndex].Position = light.Position;
+				lightingData.PointLights[pointLightIndex].Range = light.Range;
+				lightingData.PointLights[pointLightIndex].Color = light.Color;
+				lightingData.PointLights[pointLightIndex].Intensity = light.Intensity;
+				pointLightIndex++;
+			}
 		});
+
+		lightingData.ActivePointLights = pointLightIndex;
 
 		// Upload lighting uniforms
 		mDevice.Queue.WriteBuffer(mLightingUniformBuffer, 0, Span<uint8>((uint8*)&lightingData, sizeof(LightingUniformData)));
@@ -571,6 +647,209 @@ class Renderer : IDisposable
 
 		return builder.Build();
 	}
+
+	/// Initializes the skybox system with shaders.
+	/// Call after Initialize() to enable skybox rendering.
+	/// @returns True if successful.
+	public bool InitializeSkybox()
+	{
+		if (!mInitialized || mSkyboxDrawSystem == null)
+			return false;
+
+		// Get skybox shaders
+		IShaderModule vertShader = null;
+		IShaderModule fragShader = null;
+
+		if (mShaderSystem.GetShader("skybox", .Vertex, .None) case .Ok(let vsModule))
+		{
+			if (vsModule.GetRhiModule(mDevice) case .Ok(let rhi))
+				vertShader = rhi;
+		}
+
+		if (mShaderSystem.GetShader("skybox", .Fragment, .None) case .Ok(let fsModule))
+		{
+			if (fsModule.GetRhiModule(mDevice) case .Ok(let rhi))
+				fragShader = rhi;
+		}
+
+		if (vertShader == null || fragShader == null)
+		{
+			Console.WriteLine("ERROR: Failed to get skybox shaders");
+			return false;
+		}
+
+		// Create skybox pipeline
+		if (mSkyboxDrawSystem.CreatePipeline(vertShader, fragShader) case .Err)
+		{
+			Console.WriteLine("ERROR: Failed to create skybox pipeline");
+			return false;
+		}
+
+		// Create skybox bind group
+		if (!CreateSkyboxBindGroup())
+		{
+			Console.WriteLine("ERROR: Failed to create skybox bind group");
+			return false;
+		}
+
+		Console.WriteLine("Skybox system initialized");
+		return true;
+	}
+
+	/// Creates the skybox bind group (scene + skybox uniforms + cubemap).
+	private bool CreateSkyboxBindGroup()
+	{
+		if (mSkyboxDrawSystem == null)
+			return false;
+
+		// Bind group entries: b0=scene, b1=skybox, t0=cubemap, s0=sampler
+		BindGroupEntry[4] entries = .(
+			.Buffer(0, mSceneUniformBuffer, 0, (uint64)sizeof(SceneUniformData)),
+			.Buffer(1, mSkyboxDrawSystem.UniformBuffer, 0, SkyboxUniforms.Size),
+			.Texture(0, mSkyboxDrawSystem.CurrentCubemap),
+			.Sampler(0, mSkyboxDrawSystem.CubemapSampler)
+		);
+
+		BindGroupDescriptor bgDesc = .(mSkyboxDrawSystem.BindGroupLayout, entries);
+		if (mDevice.CreateBindGroup(&bgDesc) case .Ok(let bg))
+		{
+			if (mSkyboxBindGroup != null)
+				delete mSkyboxBindGroup;
+			mSkyboxBindGroup = bg;
+			return true;
+		}
+
+		return false;
+	}
+
+	/// Sets the skybox cubemap texture.
+	/// Pass null to use default black cubemap.
+	public void SetSkyboxCubemap(ITextureView cubemap)
+	{
+		if (mSkyboxDrawSystem != null)
+		{
+			mSkyboxDrawSystem.SetCubemap(cubemap);
+			// Recreate bind group with new cubemap
+			CreateSkyboxBindGroup();
+		}
+	}
+
+	/// Sets the skybox exposure (for HDR cubemaps).
+	public void SetSkyboxExposure(float exposure)
+	{
+		if (mSkyboxDrawSystem != null)
+			mSkyboxDrawSystem.SetExposure(exposure);
+	}
+
+	/// Sets the skybox rotation around the Y axis (radians).
+	public void SetSkyboxRotation(float rotation)
+	{
+		if (mSkyboxDrawSystem != null)
+			mSkyboxDrawSystem.SetRotation(rotation);
+	}
+
+	/// Renders the skybox.
+	/// Call this after rendering opaque geometry (skybox uses depth test LessEqual).
+	public void RenderSkybox(IRenderPassEncoder renderPass)
+	{
+		if (!mInitialized || mSkyboxDrawSystem == null || !mSkyboxDrawSystem.HasPipeline)
+			return;
+
+		mSkyboxDrawSystem.Render(renderPass, mSkyboxBindGroup);
+		mStats.DrawCalls++;
+	}
+
+	// ========================================================================
+	// Particle System
+	// ========================================================================
+
+	/// Initializes the particle system with shaders.
+	/// Call after Initialize() to enable particle rendering.
+	/// @returns True if successful.
+	public bool InitializeParticles()
+	{
+		if (!mInitialized || mParticleDrawSystem == null)
+			return false;
+
+		// Get particle shaders
+		if (mShaderSystem.GetShader("particle", .Vertex, .None) case .Ok(let vsModule))
+		{
+			if (vsModule.GetRhiModule(mDevice) case .Ok(let rhi))
+				mParticleVertShader = rhi;
+		}
+
+		if (mShaderSystem.GetShader("particle", .Fragment, .None) case .Ok(let fsModule))
+		{
+			if (fsModule.GetRhiModule(mDevice) case .Ok(let rhi))
+				mParticleFragShader = rhi;
+		}
+
+		if (mParticleVertShader == null || mParticleFragShader == null)
+		{
+			Console.WriteLine("ERROR: Failed to get particle shaders");
+			return false;
+		}
+
+		// Create particle bind group
+		if (!CreateParticleBindGroup())
+		{
+			Console.WriteLine("ERROR: Failed to create particle bind group");
+			return false;
+		}
+
+		Console.WriteLine("Particle system initialized");
+		return true;
+	}
+
+	/// Creates the particle bind group.
+	private bool CreateParticleBindGroup()
+	{
+		if (mParticleDrawSystem == null)
+			return false;
+
+		// Update uniforms with defaults
+		mParticleDrawSystem.UpdateUniformsDefault();
+
+		// Create bind group
+		if (mParticleDrawSystem.CreateBindGroup(mSceneUniformBuffer) case .Ok(let bg))
+		{
+			if (mParticleBindGroup != null)
+				delete mParticleBindGroup;
+			mParticleBindGroup = bg;
+			return true;
+		}
+
+		return false;
+	}
+
+	/// Prepares a particle emitter for rendering.
+	/// Call this for each visible emitter during the update phase.
+	public void PrepareParticleEmitter(ParticleEmitter emitter)
+	{
+		if (!mInitialized || mParticleDrawSystem == null)
+			return;
+
+		mParticleDrawSystem.PrepareEmitter(emitter);
+	}
+
+	/// Renders all prepared particles.
+	/// Call this after opaque geometry but before UI.
+	public void RenderParticles(IRenderPassEncoder renderPass)
+	{
+		if (!mInitialized || mParticleDrawSystem == null || mParticleBindGroup == null)
+			return;
+
+		if (mParticleVertShader == null || mParticleFragShader == null)
+			return;
+
+		mParticleDrawSystem.RenderWithBindGroup(renderPass, mParticleBindGroup, true,
+			mParticleVertShader, mParticleFragShader);
+
+		mStats.DrawCalls += mParticleDrawSystem.Stats.DrawCalls;
+	}
+
+	/// Gets particle rendering statistics.
+	public ParticleStats ParticleStats => mParticleDrawSystem?.Stats ?? .();
 
 	public void Dispose()
 	{

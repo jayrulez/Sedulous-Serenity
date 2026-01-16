@@ -39,7 +39,7 @@ struct ParticleInstance
 // Vertex Output
 // ============================================================================
 
-struct VS_OUTPUT
+struct ParticleVS_OUTPUT
 {
     float4 Position : SV_POSITION;
     float4 Color : COLOR0;
@@ -74,13 +74,13 @@ static const float2 QuadUVs[4] =
 // Rotation Helper
 // ============================================================================
 
-float2 RotatePoint(float2 point, float rotation)
+float2 RotatePoint(float2 pt, float rotation)
 {
     float s = sin(rotation);
     float c = cos(rotation);
     return float2(
-        point.x * c - point.y * s,
-        point.x * s + point.y * c
+        pt.x * c - pt.y * s,
+        pt.x * s + pt.y * c
     );
 }
 
@@ -88,9 +88,9 @@ float2 RotatePoint(float2 point, float rotation)
 // Main Vertex Shader
 // ============================================================================
 
-VS_OUTPUT main(uint vertexID : SV_VertexID, ParticleInstance particle)
+ParticleVS_OUTPUT main(uint vertexID : SV_VertexID, ParticleInstance particle)
 {
-    VS_OUTPUT output = (VS_OUTPUT)0;
+    ParticleVS_OUTPUT output = (ParticleVS_OUTPUT)0;
 
     // Get quad corner for this vertex (indices are 0,1,2,2,1,3)
     uint cornerIndex = vertexID;

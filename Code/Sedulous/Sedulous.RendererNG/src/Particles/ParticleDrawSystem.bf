@@ -578,9 +578,7 @@ class ParticleDrawSystem : IDisposable
 		bool currentSoft = false;
 		IRenderPipeline currentPipeline = null;
 		bool firstBatch = true;
-
-		// Set bind group once
-		renderPass.SetBindGroup(0, bindGroup, .());
+		bool bindGroupSet = false;
 
 		for (let batch in mBatches)
 		{
@@ -602,6 +600,13 @@ class ParticleDrawSystem : IDisposable
 					renderPass.SetPipeline(pipeline);
 					currentPipeline = pipeline;
 					Stats.PipelineSwitches++;
+
+					// Set bind group after first pipeline is bound
+					if (!bindGroupSet)
+					{
+						renderPass.SetBindGroup(0, bindGroup, .());
+						bindGroupSet = true;
+					}
 				}
 
 				currentBlend = batch.BlendMode;

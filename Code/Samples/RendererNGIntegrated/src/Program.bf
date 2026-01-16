@@ -40,6 +40,10 @@ class RendererNGIntegratedApp : Application
 	// Animation
 	private float mRotation = 0;
 
+	// Particle emitters
+	private ParticleEmitter mFireEmitter;
+	private ParticleEmitter mSmokeEmitter;
+
 	public this(IShell shell, IDevice device, IBackend backend)
 		: base(shell, device, backend)
 	{
@@ -74,6 +78,18 @@ class RendererNGIntegratedApp : Application
 
 		// Wire mesh pool to renderer's draw system
 		mRenderer.InitializeMeshSystem(mMeshPool);
+
+		// Initialize skybox system
+		if (!mRenderer.InitializeSkybox())
+		{
+			Console.WriteLine("WARNING: Failed to initialize skybox (will render without)");
+		}
+
+		// Initialize particle system
+		if (!mRenderer.InitializeParticles())
+		{
+			Console.WriteLine("WARNING: Failed to initialize particles (will render without)");
+		}
 
 		// Create scene
 		if (!CreateScene())
@@ -152,14 +168,87 @@ class RendererNGIntegratedApp : Application
 			Console.WriteLine("Directional light created");
 		}
 
+		// Create point lights
+		let redLight = mRenderWorld.CreateLight(.DefaultPoint);
+		if (let light = mRenderWorld.GetLight(redLight))
+		{
+			light.Position = .(3.0f, 1.0f, 0.0f);
+			light.Color = .(1.0f, 0.2f, 0.2f);
+			light.Intensity = 2.0f;
+			light.Range = 8.0f;
+			light.Flags = .Enabled;
+			Console.WriteLine("Red point light created");
+		}
+
+		let blueLight = mRenderWorld.CreateLight(.DefaultPoint);
+		if (let light = mRenderWorld.GetLight(blueLight))
+		{
+			light.Position = .(-3.0f, 1.0f, 0.0f);
+			light.Color = .(0.2f, 0.2f, 1.0f);
+			light.Intensity = 2.0f;
+			light.Range = 8.0f;
+			light.Flags = .Enabled;
+			Console.WriteLine("Blue point light created");
+		}
+
+		let greenLight = mRenderWorld.CreateLight(.DefaultPoint);
+		if (let light = mRenderWorld.GetLight(greenLight))
+		{
+			light.Position = .(0.0f, 1.0f, 3.0f);
+			light.Color = .(0.2f, 1.0f, 0.2f);
+			light.Intensity = 2.0f;
+			light.Range = 8.0f;
+			light.Flags = .Enabled;
+			Console.WriteLine("Green point light created");
+		}
+
 		// Create camera
 		mCamera = mRenderWorld.CreateCamera(.DefaultPerspective);
 		UpdateCamera();
 		Console.WriteLine("Camera created");
 
+		// Create particle emitters
+		CreateParticleEmitters();
+
 		Console.WriteLine("\nScene created: {} static meshes, {} lights, {} cameras",
 			mRenderWorld.StaticMeshCount, mRenderWorld.LightCount, mRenderWorld.CameraCount);
 		return true;
+	}
+
+	private void CreateParticleEmitters()
+	{
+		// Fire emitter (additive, upward particles)
+		mFireEmitter = new ParticleEmitter(1000);
+		let fireConfig = mFireEmitter.Config;
+		fireConfig.EmissionRate = 50;
+		fireConfig.EmissionShape = .Cone(30, 0.2f);
+		fireConfig.InitialSpeed = .(1.5f, 2.5f);
+		fireConfig.InitialSize = .(0.15f, 0.25f);
+		fireConfig.Lifetime = .(0.8f, 1.2f);
+		fireConfig.Gravity = .(0, 0.5f, 0); // Slight upward force
+		fireConfig.Drag = 0.3f;
+		fireConfig.BlendMode = .Additive;
+		fireConfig.StartColor = .(Color(255, 200, 50, 255), Color(255, 100, 20, 255));
+		fireConfig.EndColor = .(Color(200, 50, 0, 0), Color(100, 20, 0, 0));
+		mFireEmitter.Position = .(-2.0f, 0.0f, 0.0f);
+		Console.WriteLine("Fire emitter created");
+
+		// Smoke emitter (alpha blend, rising particles)
+		mSmokeEmitter = new ParticleEmitter(500);
+		let smokeConfig = mSmokeEmitter.Config;
+		smokeConfig.EmissionRate = 20;
+		smokeConfig.EmissionShape = .Sphere(0.3f);
+		smokeConfig.InitialSpeed = .(0.3f, 0.6f);
+		smokeConfig.InitialSize = .(0.2f, 0.4f);
+		smokeConfig.Lifetime = .(2.0f, 3.5f);
+		smokeConfig.Gravity = .(0, 0.3f, 0); // Rising
+		smokeConfig.Drag = 0.1f;
+		smokeConfig.BlendMode = .AlphaBlend;
+		smokeConfig.StartColor = .(Color(80, 80, 80, 180), Color(100, 100, 100, 200));
+		smokeConfig.EndColor = .(Color(60, 60, 60, 0), Color(80, 80, 80, 0));
+		smokeConfig.InitialRotationSpeed = .(-0.5f, 0.5f);
+		mSmokeEmitter.Position = .(2.0f, 0.0f, 0.0f);
+		Console.WriteLine("Smoke emitter created");
 	}
 
 	private void UpdateCamera()
@@ -233,6 +322,16 @@ class RendererNGIntegratedApp : Application
 		Console.WriteLine("\n=== Mesh Pool ===");
 		Console.WriteLine("Active meshes: {}", mMeshPool.ActiveCount);
 		Console.WriteLine("Total slots: {}", mMeshPool.TotalCount);
+
+		Console.WriteLine("\n=== Particles ===");
+		let particleStats = mRenderer.ParticleStats;
+		Console.WriteLine("Emitters: {}", particleStats.EmitterCount);
+		Console.WriteLine("Particles: {}", particleStats.ParticleCount);
+		Console.WriteLine("Particle Draw Calls: {}", particleStats.DrawCalls);
+		if (mFireEmitter != null)
+			Console.WriteLine("Fire: {} particles", mFireEmitter.ParticleCount);
+		if (mSmokeEmitter != null)
+			Console.WriteLine("Smoke: {} particles", mSmokeEmitter.ParticleCount);
 	}
 
 	protected override void OnUpdate(FrameContext frame)
@@ -250,6 +349,22 @@ class RendererNGIntegratedApp : Application
 		// Update camera
 		UpdateCamera();
 
+		// Update particle emitters
+		if (mFireEmitter != null)
+		{
+			mFireEmitter.Update(frame.DeltaTime);
+			// Update camera position for sorting (if alpha blend was enabled)
+			if (let camera = mRenderWorld.GetCamera(mCamera))
+				mFireEmitter.CameraPosition = camera.Position;
+		}
+
+		if (mSmokeEmitter != null)
+		{
+			mSmokeEmitter.Update(frame.DeltaTime);
+			if (let camera = mRenderWorld.GetCamera(mCamera))
+				mSmokeEmitter.CameraPosition = camera.Position;
+		}
+
 		// Begin renderer frame
 		mRenderer.BeginFrame((uint32)frame.FrameIndex, frame.DeltaTime, frame.TotalTime);
 		mRenderWorld.BeginFrame();
@@ -263,12 +378,22 @@ class RendererNGIntegratedApp : Application
 
 		// Prepare lighting uniforms
 		mRenderer.PrepareLighting(mRenderWorld);
+
+		// Prepare particle emitters for rendering
+		mRenderer.PrepareParticleEmitter(mFireEmitter);
+		mRenderer.PrepareParticleEmitter(mSmokeEmitter);
 	}
 
 	protected override void OnRender(IRenderPassEncoder renderPass, FrameContext frame)
 	{
 		// Render all meshes from the render world
 		mRenderer.RenderMeshes(renderPass, mRenderWorld, mMeshPool);
+
+		// Render skybox (after opaque geometry, uses depth LessEqual)
+		mRenderer.RenderSkybox(renderPass);
+
+		// Render particles (after opaque geometry and skybox)
+		mRenderer.RenderParticles(renderPass);
 	}
 
 	protected override void OnFrameEnd()
@@ -281,6 +406,12 @@ class RendererNGIntegratedApp : Application
 	protected override void OnShutdown()
 	{
 		Console.WriteLine("\n=== Shutting Down ===");
+
+		// Delete particle emitters
+		delete mFireEmitter;
+		mFireEmitter = null;
+		delete mSmokeEmitter;
+		mSmokeEmitter = null;
 
 		// Destroy scene objects
 		if (mRenderWorld != null)

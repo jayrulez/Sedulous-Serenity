@@ -27,7 +27,7 @@ SamplerState SkyboxSampler : register(s0);
 // Pixel Input
 // ============================================================================
 
-struct PS_INPUT
+struct SkyboxPS_INPUT
 {
     float4 Position : SV_POSITION;
     float3 RayDir : TEXCOORD0;
@@ -46,7 +46,7 @@ float3 ToneMapReinhard(float3 color)
 // Main Fragment Shader
 // ============================================================================
 
-float4 main(PS_INPUT input) : SV_Target
+float4 main(SkyboxPS_INPUT input) : SV_Target
 {
     // Sample cubemap
     float3 skyColor = SkyboxCubemap.Sample(SkyboxSampler, input.RayDir).rgb;

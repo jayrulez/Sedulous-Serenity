@@ -54,6 +54,18 @@ class ShaderCompiler : IDisposable
 	/// Optimization level (0-3).
 	public int OptimizationLevel = 3;
 
+	/// Binding shift for textures (SPIRV only). Default matches RHI.Vulkan shifts.
+	public uint32 TextureShift = 1000;
+
+	/// Binding shift for samplers (SPIRV only). Default matches RHI.Vulkan shifts.
+	public uint32 SamplerShift = 3000;
+
+	/// Binding shift for UAVs (SPIRV only). Default matches RHI.Vulkan shifts.
+	public uint32 UAVShift = 2000;
+
+	/// Binding shift for constant buffers (SPIRV only). Usually 0.
+	public uint32 ConstantBufferShift = 0;
+
 	/// Include paths for shader compilation.
 	private List<String> mIncludePaths = new .() ~ DeleteContainerAndItems!(_);
 
@@ -142,6 +154,50 @@ class ShaderCompiler : IDisposable
 			args.Add("-spirv");
 			args.Add("-fspv-target-env=vulkan1.2");
 			args.Add("-fvk-use-dx-layout");
+
+			// Binding shifts for Vulkan to avoid conflicts between resource types
+			// Apply to all descriptor sets (space0-space3)
+			for (int32 setIndex = 0; setIndex < 4; setIndex++)
+			{
+				String setStr = scope:: .();
+				setStr.AppendF("{}", setIndex);
+
+				if (ConstantBufferShift > 0)
+				{
+					args.Add("-fvk-b-shift");
+					String shiftStr = scope:: .();
+					shiftStr.AppendF("{}", ConstantBufferShift);
+					args.Add(shiftStr);
+					args.Add(setStr);
+				}
+
+				if (TextureShift > 0)
+				{
+					args.Add("-fvk-t-shift");
+					String shiftStr = scope:: .();
+					shiftStr.AppendF("{}", TextureShift);
+					args.Add(shiftStr);
+					args.Add(setStr);
+				}
+
+				if (SamplerShift > 0)
+				{
+					args.Add("-fvk-s-shift");
+					String shiftStr = scope:: .();
+					shiftStr.AppendF("{}", SamplerShift);
+					args.Add(shiftStr);
+					args.Add(setStr);
+				}
+
+				if (UAVShift > 0)
+				{
+					args.Add("-fvk-u-shift");
+					String shiftStr = scope:: .();
+					shiftStr.AppendF("{}", UAVShift);
+					args.Add(shiftStr);
+					args.Add(setStr);
+				}
+			}
 		}
 
 		// Matrix packing

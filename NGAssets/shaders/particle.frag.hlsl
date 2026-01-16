@@ -36,7 +36,7 @@ SamplerState DepthSampler : register(s1);
 // Pixel Input
 // ============================================================================
 
-struct PS_INPUT
+struct ParticlePS_INPUT
 {
     float4 Position : SV_POSITION;
     float4 Color : COLOR0;
@@ -61,7 +61,7 @@ float LinearizeDepth(float depth, float nearPlane, float farPlane)
 // Main Fragment Shader
 // ============================================================================
 
-float4 main(PS_INPUT input) : SV_Target
+float4 main(ParticlePS_INPUT input) : SV_Target
 {
     // Sample particle texture
     float4 texColor = float4(1, 1, 1, 1);

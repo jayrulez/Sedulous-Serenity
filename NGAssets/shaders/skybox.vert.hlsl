@@ -20,7 +20,7 @@ cbuffer SkyboxUniforms : register(b1)
 // Vertex Output
 // ============================================================================
 
-struct VS_OUTPUT
+struct SkyboxVS_OUTPUT
 {
     float4 Position : SV_POSITION;
     float3 RayDir : TEXCOORD0;
@@ -30,9 +30,9 @@ struct VS_OUTPUT
 // Main Vertex Shader
 // ============================================================================
 
-VS_OUTPUT main(uint vertexID : SV_VertexID)
+SkyboxVS_OUTPUT main(uint vertexID : SV_VertexID)
 {
-    VS_OUTPUT output = (VS_OUTPUT)0;
+    SkyboxVS_OUTPUT output = (SkyboxVS_OUTPUT)0;
 
     // Generate fullscreen triangle from vertex ID
     // Triangle covers [-1,-1] to [3,3] in NDC

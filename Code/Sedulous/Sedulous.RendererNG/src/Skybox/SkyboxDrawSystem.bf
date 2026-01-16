@@ -90,11 +90,28 @@ class SkyboxDrawSystem : IDisposable
 		case .Err: return .Err;
 		}
 
-		// Note: Default cubemap is uninitialized (black) which is fine for a fallback
+		// Initialize cubemap with black pixels (also transitions to correct layout)
+		uint8[4] blackPixel = .(0, 0, 0, 255);
+		var layout = TextureDataLayout()
+		{
+			BytesPerRow = 4,
+			RowsPerImage = 1
+		};
+		var writeSize = Extent3D(1, 1, 1);
+
+		// Write to each face of the cubemap
+		for (uint32 face = 0; face < 6; face++)
+		{
+			mDevice.Queue.WriteTexture(mDefaultCubemap, Span<uint8>(&blackPixel[0], 4), &layout, &writeSize, 0, face);
+		}
 
 		var viewDesc = TextureViewDescriptor();
 		viewDesc.Dimension = .TextureCube;
 		viewDesc.Format = .RGBA8Unorm;
+		viewDesc.BaseMipLevel = 0;
+		viewDesc.MipLevelCount = 1;
+		viewDesc.BaseArrayLayer = 0;
+		viewDesc.ArrayLayerCount = 6; // Cubemap has 6 faces
 		switch (mDevice.CreateTextureView(mDefaultCubemap, &viewDesc))
 		{
 		case .Ok(let view): mDefaultCubemapView = view;
