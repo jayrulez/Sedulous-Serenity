@@ -202,10 +202,10 @@ class ShaderCompiler : IDisposable
 		}
 
 		// Matrix packing
-		if (RowMajorMatrices)
+		/*if (RowMajorMatrices)
 			args.Add(DXC_ARG_PACK_MATRIX_ROW_MAJOR);
 		else
-			args.Add(DXC_ARG_PACK_MATRIX_COLUMN_MAJOR);
+			args.Add(DXC_ARG_PACK_MATRIX_COLUMN_MAJOR);*/
 
 		// Optimization level
 		switch (OptimizationLevel)

@@ -260,7 +260,7 @@ class Renderer : IDisposable
 		mTransientBuffers = new TransientBufferPool(device);
 
 		// Initialize shader system
-		mShaderSystem = new ShaderLibrary(device, shaderBasePath);
+		mShaderSystem = new ShaderLibrary();
 		if (mShaderSystem.Initialize(device, shaderBasePath) case .Err)
 		{
 			Console.WriteLine("ERROR: Failed to initialize ShaderSystem");

@@ -42,6 +42,11 @@ class NewShaderSystem : IDisposable
 	{
 	}
 
+	public ~this()
+	{
+
+	}
+
 	/// Access to the shader compiler.
 	public ShaderCompiler Compiler => mCompiler;
 
@@ -58,6 +63,11 @@ class NewShaderSystem : IDisposable
 		mShaderSourcePath = new String(shaderSourcePath);
 
 		// Initialize compiler
+		if(mCompiler != null)
+		{
+			delete mCompiler;
+			mCompiler = null;
+		}
 		mCompiler = new ShaderCompiler();
 		if (mCompiler.Initialize() case .Err)
 		{
@@ -74,6 +84,11 @@ class NewShaderSystem : IDisposable
 			mCompiler.AddIncludePath(path);
 
 		// Initialize cache
+		if(mCache != null)
+		{
+			delete mCache;
+			mCache = null;
+		}
 		mCache = new ShaderCache();
 		mCache.Target = Target;
 

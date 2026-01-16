@@ -9,7 +9,7 @@ using Sedulous.Materials;
 /// Cached render pipeline entry.
 class CachedPipeline
 {
-	public IRenderPipeline Pipeline ~ delete _;
+	public IRenderPipeline Pipeline /*~ delete _*/;
 	public uint64 LastUsedFrame;
 	public PipelineConfig Config;
 }

@@ -13,8 +13,8 @@ class MaterialSystem : IDisposable
 
 	/// Bind group layout cache (keyed by layout hash).
 	private Dictionary<int, IBindGroupLayout> mLayoutCache = new .() ~ {
-		for (let kv in _)
-			delete kv.value;
+		//for (let kv in _)
+		//	delete kv.value;
 		delete _;
 	};
 
