@@ -1,4 +1,4 @@
-namespace Sedulous.Shaders2;
+namespace Sedulous.Shaders;
 
 using System;
 using Sedulous.RHI;
@@ -9,6 +9,9 @@ struct ShaderVariantKey : IHashable, IEquatable<ShaderVariantKey>
 {
 	/// Shader source name (without extension).
 	public StringView Name;
+
+	/// Alias for Name (compatibility with Sedulous.Shaders).
+	public StringView ShaderName => Name;
 
 	/// Shader stage (vertex, fragment, compute).
 	public ShaderStage Stage;
@@ -79,6 +82,27 @@ struct ShaderVariantKey : IHashable, IEquatable<ShaderVariantKey>
 			outProfile.AppendF("cs_{}", shaderModel);
 		case .None:
 			outProfile.Append("lib_6_0");
+		}
+	}
+
+	/// Generate a unique string key for caching purposes.
+	public void GenerateCacheKey(String outKey)
+	{
+		outKey.Clear();
+		outKey.Append(ShaderName);
+		outKey.Append("_");
+
+		switch (Stage)
+		{
+		case .Vertex:   outKey.Append("vert");
+		case .Fragment: outKey.Append("frag");
+		case .Compute:  outKey.Append("comp");
+		default:        outKey.Append("unknown");
+		}
+
+		if (Flags != .None)
+		{
+			outKey.AppendF("_{:X}", (uint32)Flags);
 		}
 	}
 

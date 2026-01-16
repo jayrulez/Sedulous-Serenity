@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.RHI" = "*", "Sedulous.Shaders" = "*", "Sedulous.RHI.HLSLShaderCompiler" = "*", "Sedulous.Drawing" = "*", "Sedulous.Mathematics" = "*"}
+Dependencies = {corlib = "*", "Sedulous.RHI" = "*", "Sedulous.RHI.HLSLShaderCompiler" = "*", "Sedulous.Drawing" = "*", "Sedulous.Mathematics" = "*"}
 
 [Project]
 Name = "Sedulous.UI.Renderer"

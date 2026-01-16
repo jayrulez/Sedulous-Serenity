@@ -3,7 +3,7 @@ namespace Sedulous.Materials;
 using System;
 using Sedulous.RHI;
 using Sedulous.Mathematics;
-using Sedulous.Shaders2;
+using Sedulous.Shaders;
 
 /// Fluent builder for creating materials.
 class MaterialBuilder

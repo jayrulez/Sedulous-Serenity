@@ -3,7 +3,7 @@ namespace Sedulous.RendererNG;
 using System;
 using Sedulous.RHI;
 using Sedulous.Mathematics;
-using Sedulous.Shaders2;
+using Sedulous.Shaders;
 using Sedulous.Materials;
 
 /// Scene uniform data matching common.hlsli SceneUniforms (b0).
@@ -115,7 +115,7 @@ class Renderer : IDisposable
 	// Core systems
 	private ResourcePool mResourcePool ~ delete _;
 	private TransientBufferPool mTransientBuffers ~ delete _;
-	private ShaderSystem mShaderSystem ~ delete _;
+	private ShaderLibrary mShaderSystem ~ delete _;
 	private PipelineFactory mPipelineFactory ~ delete _;
 	private BindGroupLayoutCache mLayoutCache ~ delete _;
 	private MaterialSystem mMaterialSystem ~ delete _;
@@ -193,7 +193,7 @@ class Renderer : IDisposable
 	public TransientBufferPool TransientBuffers => mTransientBuffers;
 
 	/// Gets the shader system.
-	public ShaderSystem Shaders => mShaderSystem;
+	public ShaderLibrary Shaders => mShaderSystem;
 
 	/// Gets the pipeline factory.
 	public PipelineFactory Pipelines => mPipelineFactory;
@@ -260,7 +260,7 @@ class Renderer : IDisposable
 		mTransientBuffers = new TransientBufferPool(device);
 
 		// Initialize shader system
-		mShaderSystem = new ShaderSystem();
+		mShaderSystem = new ShaderLibrary(device, shaderBasePath);
 		if (mShaderSystem.Initialize(device, shaderBasePath) case .Err)
 		{
 			Console.WriteLine("ERROR: Failed to initialize ShaderSystem");

@@ -4,7 +4,7 @@ using System;
 using System.Collections;
 using Sedulous.RHI;
 using Sedulous.Mathematics;
-using Sedulous.Shaders2;
+using Sedulous.Shaders;
 using Sedulous.Materials;
 
 /// System for rendering static and skinned meshes.

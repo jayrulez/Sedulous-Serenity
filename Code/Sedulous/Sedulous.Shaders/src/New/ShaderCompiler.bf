@@ -1,18 +1,19 @@
-namespace Sedulous.Shaders2;
+namespace Sedulous.Shaders;
 
 using System;
 using System.Collections;
 using Sedulous.RHI;
 using Dxc_Beef;
+using Sedulous.RHI.HLSLShaderCompiler;
 
 /// Shader compilation target format.
-enum ShaderTarget
+/*enum ShaderTarget
 {
 	/// SPIRV bytecode (Vulkan).
 	SPIRV,
 	/// DXIL bytecode (Direct3D 12).
 	DXIL
-}
+}*/
 
 /// Result of shader compilation.
 struct CompilationResult : IDisposable
@@ -153,7 +154,7 @@ class ShaderCompiler : IDisposable
 		{
 			args.Add("-spirv");
 			args.Add("-fspv-target-env=vulkan1.2");
-			args.Add("-fvk-use-dx-layout");
+			//args.Add("-fvk-use-dx-layout");
 
 			// Binding shifts for Vulkan to avoid conflicts between resource types
 			// Apply to all descriptor sets (space0-space3)

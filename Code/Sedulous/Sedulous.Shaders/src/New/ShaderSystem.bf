@@ -1,14 +1,15 @@
-namespace Sedulous.Shaders2;
+namespace Sedulous.Shaders;
 
 using System;
 using System.IO;
 using System.Collections;
 using Sedulous.RHI;
+using Sedulous.RHI.HLSLShaderCompiler;
 
 /// Main shader system facade.
 /// Handles shader loading, compilation, and caching.
 /// Three-tier lookup: memory cache → disk cache → compile from source.
-class ShaderSystem : IDisposable
+class NewShaderSystem : IDisposable
 {
 	private ShaderCompiler mCompiler ~ delete _;
 	private ShaderCache mCache ~ delete _;
@@ -28,6 +29,18 @@ class ShaderSystem : IDisposable
 
 	/// Access to the shader cache.
 	public ShaderCache Cache => mCache;
+
+	/// Compatibility constructor that initializes immediately.
+	/// For new code, prefer using default constructor + Initialize().
+	public this(IDevice device, StringView shaderBasePath)
+	{
+		Initialize(device, shaderBasePath);
+	}
+
+	/// Default constructor - call Initialize() before use.
+	public this()
+	{
+	}
 
 	/// Access to the shader compiler.
 	public ShaderCompiler Compiler => mCompiler;
@@ -83,6 +96,17 @@ class ShaderSystem : IDisposable
 			mCompiler.AddIncludePath(path);
 	}
 
+	/// Sets the base path for shader source files.
+	/// Compatibility method for old ShaderLibrary API.
+	public void SetShaderPath(StringView path)
+	{
+		delete mShaderSourcePath;
+		mShaderSourcePath = new String(path);
+		// Also add as include path
+		if (mCompiler != null)
+			mCompiler.AddIncludePath(path);
+	}
+
 	/// Gets a compiled shader module.
 	/// Looks up in cache first, compiles from source if not found.
 	public Result<ShaderModule> GetShader(
@@ -101,7 +125,7 @@ class ShaderSystem : IDisposable
 	}
 
 	/// Gets a vertex/fragment shader pair.
-	public Result<(ShaderModule vertex, ShaderModule fragment)> GetShaderPair(
+	public Result<(ShaderModule vert, ShaderModule frag)> GetShaderPair(
 		StringView name,
 		ShaderFlags flags = .None)
 	{
@@ -258,3 +282,6 @@ class ShaderSystem : IDisposable
 		mCompiler = null;
 	}
 }
+
+/// Type alias for backward compatibility with Sedulous.Shaders.
+//typealias ShaderLibrary = ShaderSystem;

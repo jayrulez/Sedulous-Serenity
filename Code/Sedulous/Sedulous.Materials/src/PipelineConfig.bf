@@ -2,7 +2,7 @@ namespace Sedulous.Materials;
 
 using System;
 using Sedulous.RHI;
-using Sedulous.Shaders2;
+using Sedulous.Shaders;
 
 /// Blend mode presets for common rendering scenarios.
 enum BlendMode : uint8

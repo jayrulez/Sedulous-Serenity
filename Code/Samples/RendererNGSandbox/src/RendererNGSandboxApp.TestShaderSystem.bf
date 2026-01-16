@@ -4,7 +4,7 @@ using System;
 using System.IO;
 using Sedulous.RHI;
 using Sedulous.RendererNG;
-using Sedulous.Shaders2;
+using Sedulous.Shaders;
 
 extension RendererNGSandboxApp
 {

@@ -1,8 +1,9 @@
-namespace Sedulous.Shaders2;
+namespace Sedulous.Shaders;
 
 using System;
 using System.IO;
 using System.Collections;
+using Sedulous.RHI.HLSLShaderCompiler;
 
 /// Caches compiled shader bytecode in memory and on disk.
 /// Three-tier lookup: memory cache → disk cache → compile.

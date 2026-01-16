@@ -4,7 +4,7 @@ using System;
 using System.Collections;
 using Sedulous.RHI;
 using Sedulous.Mathematics;
-using Sedulous.Shaders2;
+using Sedulous.Shaders;
 
 /// Key for trail pipeline caching.
 struct TrailPipelineKey : IHashable

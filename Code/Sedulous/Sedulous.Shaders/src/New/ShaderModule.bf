@@ -1,4 +1,4 @@
-namespace Sedulous.Shaders2;
+namespace Sedulous.Shaders;
 
 using System;
 using Sedulous.RHI;
@@ -30,6 +30,25 @@ class ShaderModule : IDisposable
 
 	/// Gets the shader flags.
 	public ShaderFlags Flags => Key.Flags;
+
+	/// Gets the shader name.
+	public StringView Name => Key.Name;
+
+	/// Gets the RHI shader module directly (compatibility property).
+	/// Lazily creates the module if not already created.
+	/// Returns null if no device is available or creation fails.
+	public IShaderModule Module
+	{
+		get
+		{
+			if (mRhiModule == null && mDevice != null && IsValid)
+				if(GetRhiModule() case .Err)
+				{
+					Runtime.FatalError();
+				}
+			return mRhiModule;
+		}
+	}
 
 	/// Creates a shader module from compiled bytecode.
 	public this(ShaderVariantKey key, Span<uint8> bytecode, IDevice device = null)

@@ -5,6 +5,3 @@ Dependencies = {corlib = "*", "SampleFramework" = "*", "Sedulous.Foundation" = "
 Name = "TowerDefense"
 TargetType = "BeefConsoleApplication"
 StartupObject = "TowerDefense.Program"
-
-[Configs.Debug.Win64]
-PostBuildCmds = ["xcopy /s /y /d /i \"$(ProjectDir)\\Assets\" \"$(TargetDir)\\Assets\\\""]

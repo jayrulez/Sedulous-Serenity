@@ -3,7 +3,7 @@ namespace Sedulous.RendererNG;
 using System;
 using System.Collections;
 using Sedulous.RHI;
-using Sedulous.Shaders2;
+using Sedulous.Shaders;
 using Sedulous.Materials;
 
 /// Cached render pipeline entry.
@@ -19,7 +19,7 @@ class CachedPipeline
 class PipelineFactory : IDisposable
 {
 	private IDevice mDevice;
-	private ShaderSystem mShaderSystem;
+	private ShaderLibrary mShaderSystem;
 
 	/// Pipeline cache by config hash.
 	private Dictionary<int, CachedPipeline> mPipelineCache = new .() ~ {
@@ -48,7 +48,7 @@ class PipelineFactory : IDisposable
 	public int LayoutCount => mLayoutCache.Count;
 
 	/// Initializes the pipeline factory.
-	public Result<void> Initialize(IDevice device, ShaderSystem shaderSystem)
+	public Result<void> Initialize(IDevice device, ShaderLibrary shaderSystem)
 	{
 		mDevice = device;
 		mShaderSystem = shaderSystem;

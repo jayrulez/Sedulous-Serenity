@@ -1,5 +1,5 @@
 using System;
-namespace Sedulous.Shaders2;
+namespace Sedulous.Shaders;
 
 /// Shader variant flags for compile-time permutations.
 /// These flags are converted to #defines during shader compilation.
@@ -45,18 +45,21 @@ enum ShaderFlags : uint32
 	/// Render to shadow maps.
 	CastShadows = 1 << 9,
 
-	// ===== Particle Features =====
-
-	/// Enable depth-based soft particle fading.
-	SoftParticles = 1 << 10,
-
 	// ===== Rendering Features =====
+
+	/// Wireframe rendering mode.
+	Wireframe = 1 << 10,
 
 	/// Disable backface culling.
 	DoubleSided = 1 << 11,
 
 	/// Use vertex colors.
 	VertexColors = 1 << 12,
+
+	// ===== Particle Features =====
+
+	/// Enable depth-based soft particle fading.
+	SoftParticles = 1 << 13,
 
 	// ===== Common Combinations =====
 
@@ -76,7 +79,7 @@ enum ShaderFlags : uint32
 	DefaultSoftParticle = DepthTest | SoftParticles,
 
 	/// All feature flags (excluding depth/shadow config).
-	AllFeatures = Skinned | Instanced | AlphaTest | NormalMap | Emissive | SoftParticles | DoubleSided | VertexColors
+	AllFeatures = Skinned | Instanced | AlphaTest | NormalMap | Emissive | Wireframe | DoubleSided | VertexColors | SoftParticles
 }
 
 extension ShaderFlags
@@ -104,12 +107,14 @@ extension ShaderFlags
 			outDefines.Append("#define RECEIVE_SHADOWS 1\n");
 		if (HasFlag(.CastShadows))
 			outDefines.Append("#define CAST_SHADOWS 1\n");
-		if (HasFlag(.SoftParticles))
-			outDefines.Append("#define SOFT_PARTICLES 1\n");
+		if (HasFlag(.Wireframe))
+			outDefines.Append("#define WIREFRAME 1\n");
 		if (HasFlag(.DoubleSided))
 			outDefines.Append("#define DOUBLE_SIDED 1\n");
 		if (HasFlag(.VertexColors))
 			outDefines.Append("#define VERTEX_COLORS 1\n");
+		if (HasFlag(.SoftParticles))
+			outDefines.Append("#define SOFT_PARTICLES 1\n");
 	}
 
 	/// Gets a short string representation for cache keys.
@@ -125,8 +130,9 @@ extension ShaderFlags
 		if (HasFlag(.ReverseZ)) outKey.Append("Rz");
 		if (HasFlag(.ReceiveShadows)) outKey.Append("Rs");
 		if (HasFlag(.CastShadows)) outKey.Append("Cs");
-		if (HasFlag(.SoftParticles)) outKey.Append("Sp");
+		if (HasFlag(.Wireframe)) outKey.Append("Wf");
 		if (HasFlag(.DoubleSided)) outKey.Append("Ds");
 		if (HasFlag(.VertexColors)) outKey.Append("Vc");
+		if (HasFlag(.SoftParticles)) outKey.Append("Sp");
 	}
 }
