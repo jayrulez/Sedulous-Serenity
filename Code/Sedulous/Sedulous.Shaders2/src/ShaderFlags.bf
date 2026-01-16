@@ -1,5 +1,5 @@
 using System;
-namespace Sedulous.RendererNG;
+namespace Sedulous.Shaders2;
 
 /// Shader variant flags for compile-time permutations.
 /// These flags are converted to #defines during shader compilation.

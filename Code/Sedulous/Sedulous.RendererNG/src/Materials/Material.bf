@@ -4,6 +4,7 @@ using System;
 using System.Collections;
 using Sedulous.RHI;
 using Sedulous.Mathematics;
+using Sedulous.Shaders2;
 
 /// Property type for material parameters.
 enum MaterialPropertyType : uint8

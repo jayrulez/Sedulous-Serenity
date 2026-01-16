@@ -4,6 +4,7 @@ using System;
 using System.Collections;
 using Sedulous.RHI;
 using Sedulous.Mathematics;
+using Sedulous.Shaders2;
 
 /// Manages sprite rendering with texture batching and transient buffers.
 class SpriteDrawSystem : IDisposable

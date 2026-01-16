@@ -3,6 +3,7 @@ namespace Sedulous.RendererNG;
 using System;
 using Sedulous.RHI;
 using Sedulous.Mathematics;
+using Sedulous.Shaders2;
 
 /// Context for render graph pass execution.
 /// Contains all resources needed by draw systems during graph execution.

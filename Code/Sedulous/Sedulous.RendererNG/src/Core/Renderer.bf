@@ -3,6 +3,7 @@ namespace Sedulous.RendererNG;
 using System;
 using Sedulous.RHI;
 using Sedulous.Mathematics;
+using Sedulous.Shaders2;
 
 /// Scene uniform data matching common.hlsli SceneUniforms (b0).
 [CRepr]

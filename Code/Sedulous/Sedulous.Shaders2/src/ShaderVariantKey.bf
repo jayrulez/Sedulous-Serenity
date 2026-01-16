@@ -1,4 +1,4 @@
-namespace Sedulous.RendererNG;
+namespace Sedulous.Shaders2;
 
 using System;
 using Sedulous.RHI;

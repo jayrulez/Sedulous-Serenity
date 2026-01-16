@@ -3,6 +3,7 @@ namespace Sedulous.RendererNG;
 using System;
 using System.Collections;
 using Sedulous.RHI;
+using Sedulous.Shaders2;
 
 /// Cached render pipeline entry.
 class CachedPipeline
