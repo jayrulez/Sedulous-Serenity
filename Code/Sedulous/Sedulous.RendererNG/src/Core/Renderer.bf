@@ -5,7 +5,7 @@ using Sedulous.RHI;
 using Sedulous.Mathematics;
 
 /// Scene uniform data matching common.hlsli SceneUniforms (b0).
-[Packed, CRepr]
+[CRepr]
 struct SceneUniformData
 {
 	public Matrix ViewMatrix;
@@ -44,7 +44,7 @@ struct SceneUniformData
 }
 
 /// Directional light data.
-[Packed, CRepr]
+[CRepr]
 struct DirectionalLightData
 {
 	public Vector3 Direction;
@@ -62,7 +62,7 @@ struct DirectionalLightData
 }
 
 /// Point light data.
-[Packed, CRepr]
+[CRepr]
 struct PointLightData
 {
 	public Vector3 Position;
@@ -80,7 +80,7 @@ struct PointLightData
 }
 
 /// Lighting uniform data matching mesh.frag.hlsl LightingUniforms (b1).
-[Packed, CRepr]
+[CRepr]
 struct LightingUniformData
 {
 	public DirectionalLightData SunLight;
@@ -133,8 +133,8 @@ class Renderer : IDisposable
 	private MeshDrawSystem mMeshDrawSystem ~ delete _;
 	private SkyboxDrawSystem mSkyboxDrawSystem ~ delete _;
 	private ParticleDrawSystem mParticleDrawSystem ~ delete _;
+	private ShadowDrawSystem mShadowDrawSystem ~ delete _;
 	// private SpriteDrawSystem mSpriteDrawSystem;
-	// private ShadowDrawSystem mShadowDrawSystem;
 
 	// Skybox bind group (scene + skybox uniforms + cubemap)
 	private IBindGroup mSkyboxBindGroup ~ delete _;
@@ -143,6 +143,21 @@ class Renderer : IDisposable
 	private IShaderModule mParticleVertShader;
 	private IShaderModule mParticleFragShader;
 	private IBindGroup mParticleBindGroup ~ delete _;
+
+	// Shadow rendering
+	private IShaderModule mShadowVertShader;
+	private IRenderPipeline mShadowPipeline ~ delete _;
+	private IPipelineLayout mShadowPipelineLayout ~ delete _;
+	private IBindGroupLayout mShadowBindGroupLayout ~ delete _;
+	private IBuffer mShadowUniformBuffer ~ delete _;
+	private IBindGroup mShadowBindGroup ~ delete _;
+	private bool mShadowsEnabled = false;
+
+	// Extended scene bind group with shadow resources
+	private IBindGroupLayout mSceneWithShadowsLayout ~ delete _;
+	private IBindGroup mSceneWithShadowsBindGroup ~ delete _;
+	private IRenderPipeline mMeshWithShadowsPipeline ~ delete _;
+	private IPipelineLayout mMeshWithShadowsPipelineLayout ~ delete _;
 
 	// Scene uniform buffer data
 	private IBuffer mSceneUniformBuffer ~ delete _;
@@ -195,6 +210,18 @@ class Renderer : IDisposable
 
 	/// Gets the particle draw system.
 	public ParticleDrawSystem ParticleDraw => mParticleDrawSystem;
+
+	/// Gets the shadow draw system.
+	public ShadowDrawSystem ShadowDraw => mShadowDrawSystem;
+
+	/// Returns true if shadows are enabled.
+	public bool ShadowsEnabled => mShadowsEnabled;
+
+	/// Gets the number of shadow cascades.
+	public uint32 ShadowCascadeCount => mShadowDrawSystem?.CascadeCount ?? 0;
+
+	/// Gets the shadow map resolution for each cascade.
+	public uint32 ShadowMapResolution => mShadowDrawSystem?.Config.CascadeResolution ?? 0;
 
 	/// Gets the current frame statistics.
 	public ref RenderStats Stats => ref mStats;
@@ -281,6 +308,17 @@ class Renderer : IDisposable
 		if (mParticleDrawSystem.Initialize(device, colorFormat, depthFormat) case .Err)
 		{
 			Console.WriteLine("ERROR: Failed to initialize ParticleDrawSystem");
+			return .Err;
+		}
+
+		// Initialize shadow draw system (with reduced resolution for sample)
+		var shadowConfig = ShadowConfig();
+		shadowConfig.CascadeCount = 4;
+		shadowConfig.CascadeResolution = 1024;
+		mShadowDrawSystem = new ShadowDrawSystem(shadowConfig);
+		if (mShadowDrawSystem.Initialize(device) case .Err)
+		{
+			Console.WriteLine("ERROR: Failed to initialize ShadowDrawSystem");
 			return .Err;
 		}
 
@@ -523,6 +561,9 @@ class Renderer : IDisposable
 			}
 		}
 
+		// Start fresh collection of meshes for this pass
+		mMeshDrawSystem.BeginFrame();
+
 		// Collect visible static meshes
 		world.ForEachStaticMesh(scope [&] (handle, proxy) => {
 			if (proxy.IsVisible)
@@ -549,46 +590,97 @@ class Renderer : IDisposable
 		mStats.DrawCalls += (int32)mMeshDrawSystem.BatchCount;
 	}
 
+	/// Renders all visible meshes from a RenderWorld with shadow mapping enabled.
+	/// Uses the shadow-enabled pipeline and bind group.
+	public void RenderMeshesWithShadows(IRenderPassEncoder renderPass, RenderWorld world, MeshPool meshPool)
+	{
+		if (!mInitialized || world == null || meshPool == null)
+			return;
+
+		if (!mShadowsEnabled || mMeshWithShadowsPipeline == null || mSceneWithShadowsBindGroup == null)
+		{
+			// Fall back to regular rendering
+			RenderMeshes(renderPass, world, meshPool);
+			return;
+		}
+
+		// Collect visible meshes and build batches
+		mMeshDrawSystem.BeginFrame();
+
+		world.ForEachStaticMesh(scope [&] (handle, proxy) => {
+			if (proxy.IsVisible)
+			{
+				mMeshDrawSystem.AddFromProxy(proxy, meshPool, null);
+			}
+		});
+
+		mMeshDrawSystem.BuildBatches();
+
+		if (mMeshDrawSystem.BatchCount == 0)
+			return;
+
+		// Bind shadow-enabled pipeline and bind groups
+		renderPass.SetPipeline(mMeshWithShadowsPipeline);
+		renderPass.SetBindGroup(0, mSceneWithShadowsBindGroup);  // Set 0: Scene + Lighting + Shadows
+		renderPass.SetBindGroup(1, mDefaultMaterialBindGroup);    // Set 1: Material
+
+		// Render all batches
+		mMeshDrawSystem.Render(renderPass, mMeshWithShadowsPipelineLayout);
+
+		// Update stats
+		mStats.DrawCalls += (int32)mMeshDrawSystem.BatchCount;
+	}
+
+	/// Ensures the default PBR material and its bind group layout are created.
+	/// This can be called independently to ensure the material is ready for other pipelines.
+	private bool EnsureDefaultMaterial()
+	{
+		if (mDefaultMaterial != null)
+			return true;  // Already created
+
+		mDefaultMaterial = CreateDefaultPBRMaterial();
+		if (mDefaultMaterial == null)
+		{
+			Console.WriteLine("ERROR: Failed to create default material");
+			return false;
+		}
+
+		// Create material instance
+		mDefaultMaterialInstance = new MaterialInstance(mDefaultMaterial);
+		mDefaultMaterialInstance.SetColor("BaseColor", .(0.8f, 0.8f, 0.8f, 1.0f));
+		mDefaultMaterialInstance.SetFloat("Metallic", 0.0f);
+		mDefaultMaterialInstance.SetFloat("Roughness", 0.5f);
+		mDefaultMaterialInstance.SetFloat("AO", 1.0f);
+		mDefaultMaterialInstance.SetFloat("AlphaCutoff", 0.5f);
+		mDefaultMaterialInstance.SetColor("EmissiveColor", .(0, 0, 0, 0));
+
+		// Get bind group layout for material
+		if (mMaterialSystem.GetOrCreateLayout(mDefaultMaterial) case .Ok(let layout))
+			mDefaultMaterialLayout = layout;
+		else
+		{
+			Console.WriteLine("ERROR: Failed to create material bind group layout");
+			return false;
+		}
+
+		// Prepare material instance (creates bind group)
+		if (mMaterialSystem.PrepareInstance(mDefaultMaterialInstance, mDefaultMaterialLayout) case .Ok(let bg))
+			mDefaultMaterialBindGroup = bg;
+		else
+		{
+			Console.WriteLine("ERROR: Failed to create material bind group");
+			return false;
+		}
+
+		return true;
+	}
+
 	/// Creates the standard mesh render pipeline with default PBR material.
 	private bool CreateMeshPipeline()
 	{
-		// Create default PBR material if not already created
-		if (mDefaultMaterial == null)
-		{
-			mDefaultMaterial = CreateDefaultPBRMaterial();
-			if (mDefaultMaterial == null)
-			{
-				Console.WriteLine("ERROR: Failed to create default material");
-				return false;
-			}
-
-			// Create material instance
-			mDefaultMaterialInstance = new MaterialInstance(mDefaultMaterial);
-			mDefaultMaterialInstance.SetColor("BaseColor", .(0.8f, 0.8f, 0.8f, 1.0f));
-			mDefaultMaterialInstance.SetFloat("Metallic", 0.0f);
-			mDefaultMaterialInstance.SetFloat("Roughness", 0.5f);
-			mDefaultMaterialInstance.SetFloat("AO", 1.0f);
-			mDefaultMaterialInstance.SetFloat("AlphaCutoff", 0.5f);
-			mDefaultMaterialInstance.SetColor("EmissiveColor", .(0, 0, 0, 0));
-
-			// Get bind group layout for material
-			if (mMaterialSystem.GetOrCreateLayout(mDefaultMaterial) case .Ok(let layout))
-				mDefaultMaterialLayout = layout;
-			else
-			{
-				Console.WriteLine("ERROR: Failed to create material bind group layout");
-				return false;
-			}
-
-			// Prepare material instance (creates bind group)
-			if (mMaterialSystem.PrepareInstance(mDefaultMaterialInstance, mDefaultMaterialLayout) case .Ok(let bg))
-				mDefaultMaterialBindGroup = bg;
-			else
-			{
-				Console.WriteLine("ERROR: Failed to create material bind group");
-				return false;
-			}
-		}
+		// Ensure default material is created
+		if (!EnsureDefaultMaterial())
+			return false;
 
 		// Create pipeline layout with scene and material bind groups
 		if (mMeshPipelineLayout == null)
@@ -850,6 +942,325 @@ class Renderer : IDisposable
 
 	/// Gets particle rendering statistics.
 	public ParticleStats ParticleStats => mParticleDrawSystem?.Stats ?? .();
+
+	// ========================================================================
+	// Shadow System
+	// ========================================================================
+
+	/// Shadow uniform data for the shadow pass (light view-projection).
+	[CRepr]
+	struct ShadowPassUniforms
+	{
+		public Matrix LightViewProjection;
+		public const uint32 Size = 64;
+	}
+
+	/// Initializes the shadow system with shaders.
+	/// Call after Initialize() to enable shadow mapping.
+	/// @returns True if successful.
+	public bool InitializeShadows()
+	{
+		if (!mInitialized || mShadowDrawSystem == null)
+			return false;
+
+		// Get shadow vertex shader
+		if (mShaderSystem.GetShader("shadow", .Vertex, .None) case .Ok(let vsModule))
+		{
+			if (vsModule.GetRhiModule(mDevice) case .Ok(let rhi))
+				mShadowVertShader = rhi;
+		}
+
+		if (mShadowVertShader == null)
+		{
+			Console.WriteLine("ERROR: Failed to get shadow vertex shader");
+			return false;
+		}
+
+		// Create shadow pass uniform buffer (light view-projection matrix)
+		var bufDesc = BufferDescriptor(ShadowPassUniforms.Size, .Uniform, .Upload);
+		if (mDevice.CreateBuffer(&bufDesc) case .Ok(let buf))
+			mShadowUniformBuffer = buf;
+		else
+		{
+			Console.WriteLine("ERROR: Failed to create shadow uniform buffer");
+			return false;
+		}
+
+		// Create bind group layout for shadow pass (just needs light VP matrix)
+		BindGroupLayoutEntry[1] layoutEntries = .(
+			.UniformBuffer(0, .Vertex)  // Light VP matrix
+		);
+
+		if (mDevice.CreateBindGroupLayout(&BindGroupLayoutDescriptor() { Entries = layoutEntries }) case .Ok(let bgLayout))
+			mShadowBindGroupLayout = bgLayout;
+		else
+		{
+			Console.WriteLine("ERROR: Failed to create shadow bind group layout");
+			return false;
+		}
+
+		// Create bind group
+		BindGroupEntry[1] bgEntries = .(
+			.Buffer(0, mShadowUniformBuffer, 0, ShadowPassUniforms.Size)
+		);
+
+		if (mDevice.CreateBindGroup(&BindGroupDescriptor() { Layout = mShadowBindGroupLayout, Entries = bgEntries }) case .Ok(let bg))
+			mShadowBindGroup = bg;
+		else
+		{
+			Console.WriteLine("ERROR: Failed to create shadow bind group");
+			return false;
+		}
+
+		// Create pipeline layout
+		IBindGroupLayout[1] layouts = .(mShadowBindGroupLayout);
+		if (mDevice.CreatePipelineLayout(&PipelineLayoutDescriptor() { BindGroupLayouts = layouts }) case .Ok(let pipeLayout))
+			mShadowPipelineLayout = pipeLayout;
+		else
+		{
+			Console.WriteLine("ERROR: Failed to create shadow pipeline layout");
+			return false;
+		}
+
+		// Create shadow pipeline (depth-only, no fragment shader)
+		if (!CreateShadowPipeline())
+		{
+			Console.WriteLine("ERROR: Failed to create shadow pipeline");
+			return false;
+		}
+
+		// Create extended scene bind group with shadow resources
+		if (!CreateSceneWithShadowsBindGroup())
+		{
+			Console.WriteLine("ERROR: Failed to create shadow-enabled scene bind group");
+			return false;
+		}
+
+		// Create mesh pipeline with shadows enabled (optional - sampling shadows requires shader variants)
+		if (!CreateMeshWithShadowsPipeline())
+		{
+			Console.WriteLine("WARNING: Failed to create shadow-enabled mesh pipeline (shadows will be generated but not sampled)");
+			// Continue anyway - shadow depth rendering still works
+		}
+
+		mShadowsEnabled = true;
+		Console.WriteLine("Shadow system initialized (depth pass enabled)");
+		return true;
+	}
+
+	/// Creates the extended scene bind group layout and bind group that includes shadow resources.
+	private bool CreateSceneWithShadowsBindGroup()
+	{
+		// Extended layout: b0=scene, b1=lighting, b2=cascade data, t0=shadow cascades, s0=shadow sampler
+		BindGroupLayoutEntry[5] layoutEntries = .(
+			.UniformBuffer(0, .Vertex | .Fragment),  // SceneUniforms (b0)
+			.UniformBuffer(1, .Fragment),            // LightingUniforms (b1)
+			.UniformBuffer(2, .Fragment),            // ShadowUniforms (b2) - cascade data
+			.SampledTexture(0, .Fragment, .Texture2DArray), // Shadow cascades (t0)
+			.Sampler(0, .Fragment)                   // Shadow sampler (s0) - comparison sampler
+		);
+
+		if (mDevice.CreateBindGroupLayout(&BindGroupLayoutDescriptor() { Entries = layoutEntries }) case .Ok(let bgLayout))
+			mSceneWithShadowsLayout = bgLayout;
+		else
+			return false;
+
+		// Create bind group with shadow resources
+		BindGroupEntry[5] bindEntries = .(
+			BindGroupEntry.Buffer(0, mSceneUniformBuffer, 0, (uint64)sizeof(SceneUniformData)),
+			BindGroupEntry.Buffer(1, mLightingUniformBuffer, 0, (uint64)sizeof(LightingUniformData)),
+			BindGroupEntry.Buffer(2, mShadowDrawSystem.CascadeBuffer, 0, CascadeShadowData.Size),
+			BindGroupEntry.Texture(0, mShadowDrawSystem.CascadeArrayView),
+			BindGroupEntry.Sampler(0, mShadowDrawSystem.ShadowSampler)
+		);
+
+		if (mDevice.CreateBindGroup(&BindGroupDescriptor() { Layout = mSceneWithShadowsLayout, Entries = bindEntries }) case .Ok(let group))
+			mSceneWithShadowsBindGroup = group;
+		else
+			return false;
+
+		return true;
+	}
+
+	/// Creates the mesh pipeline with shadows enabled using PipelineFactory.
+	private bool CreateMeshWithShadowsPipeline()
+	{
+		// Ensure default material is created (needed for material layout)
+		if (!EnsureDefaultMaterial())
+		{
+			Console.WriteLine("ERROR: Failed to create default material for shadow-enabled pipeline");
+			return false;
+		}
+
+		// Create pipeline layout with extended scene bind group (includes shadow resources)
+		IBindGroupLayout[2] layouts = .(mSceneWithShadowsLayout, mDefaultMaterialLayout);
+		if (mDevice.CreatePipelineLayout(&PipelineLayoutDescriptor() { BindGroupLayouts = layouts }) case .Ok(let layout))
+			mMeshWithShadowsPipelineLayout = layout;
+		else
+		{
+			Console.WriteLine("ERROR: Failed to create shadow-enabled mesh pipeline layout");
+			return false;
+		}
+
+		// Use PipelineConfig for opaque mesh with shadow receiving and instancing
+		var config = PipelineConfig.ForOpaqueMesh("mesh", .Instanced | .ReceiveShadows);
+		config.ColorFormat = mColorFormat;
+		config.DepthFormat = mDepthFormat;
+
+		// Get or create pipeline via factory
+		if (mPipelineFactory.GetOrCreatePipeline(config, mMeshWithShadowsPipelineLayout) case .Ok(let pipeline))
+		{
+			mMeshWithShadowsPipeline = pipeline;
+			Console.WriteLine("Shadow-enabled mesh pipeline created successfully");
+			return true;
+		}
+
+		Console.WriteLine("ERROR: Failed to create shadow-enabled mesh pipeline via factory");
+		return false;
+	}
+
+	/// Creates the shadow depth-only pipeline using PipelineFactory.
+	private bool CreateShadowPipeline()
+	{
+		// Use PipelineConfig for shadow pass with instancing
+		// Note: Uses PositionNormalUV to match mesh vertex buffer layout,
+		// even though the shadow shader only consumes Position
+		var config = PipelineConfig.ForShadow("shadow", .Instanced);
+		config.VertexLayout = .PositionNormalUV;  // Match mesh vertex buffer format
+		config.DepthFormat = .Depth32Float;
+
+		// Get or create pipeline via factory
+		if (mPipelineFactory.GetOrCreatePipeline(config, mShadowPipelineLayout) case .Ok(let pipeline))
+		{
+			mShadowPipeline = pipeline;
+			return true;
+		}
+
+		Console.WriteLine("ERROR: Failed to create shadow pipeline via factory");
+		return false;
+	}
+
+	/// Prepares shadow maps for the frame.
+	/// Call after PrepareFrame() and before rendering.
+	public void PrepareShadows(CameraProxy* camera, RenderWorld world)
+	{
+		if (!mShadowsEnabled || mShadowDrawSystem == null || camera == null || world == null)
+			return;
+
+		// Get sun direction from directional light
+		Vector3 sunDirection = .(0.5f, -1.0f, 0.3f);
+		world.ForEachLight(scope [&sunDirection] (handle, light) => {
+			if (light.Type == .Directional && light.IsEnabled)
+				sunDirection = light.Direction;
+		});
+
+		// Build view matrix from camera
+		let viewMatrix = Matrix.CreateLookAt(camera.Position, camera.Position + camera.Forward, camera.Up);
+		var projMatrix = Matrix.CreatePerspectiveFieldOfView(
+			camera.FieldOfView, camera.AspectRatio, camera.NearPlane, camera.FarPlane);
+		if (mDevice.FlipProjectionRequired)
+			projMatrix.M22 = -projMatrix.M22;
+
+		// Update shadow system
+		mShadowDrawSystem.SetCamera(viewMatrix, projMatrix, camera.NearPlane, camera.FarPlane);
+		mShadowDrawSystem.SetSunDirection(sunDirection);
+		mShadowDrawSystem.BeginFrame();
+		mShadowDrawSystem.UpdateCascades();
+	}
+
+	/// Prepares shadow uniforms for a cascade. Call BEFORE BeginRenderPass.
+	/// @param cascadeIndex The cascade index to prepare (0-3).
+	public void PrepareShadowCascade(uint32 cascadeIndex)
+	{
+		if (!mShadowsEnabled || mShadowDrawSystem == null)
+			return;
+
+		if (cascadeIndex >= mShadowDrawSystem.CascadeCount)
+			return;
+
+		// Get light view-projection for this cascade
+		let lightVP = mShadowDrawSystem.GetCascadeViewProjection(cascadeIndex);
+
+		// Upload shadow uniforms (must happen outside render pass)
+		ShadowPassUniforms uniforms;
+		uniforms.LightViewProjection = lightVP;
+		mDevice.Queue.WriteBuffer(mShadowUniformBuffer, 0, Span<uint8>((uint8*)&uniforms, ShadowPassUniforms.Size));
+	}
+
+	/// Renders shadow maps for a specific cascade.
+	/// You must call PrepareShadowCascade() BEFORE BeginRenderPass, then call this inside the pass.
+	/// @param renderPass The render pass encoder for the shadow pass.
+	/// @param cascadeIndex The cascade index to render (0-3).
+	/// @param world The render world containing meshes.
+	/// @param meshPool The mesh pool.
+	public void RenderShadowCascade(IRenderPassEncoder renderPass, uint32 cascadeIndex, RenderWorld world, MeshPool meshPool)
+	{
+		if (!mShadowsEnabled || mShadowDrawSystem == null || world == null || meshPool == null)
+			return;
+
+		if (cascadeIndex >= mShadowDrawSystem.CascadeCount)
+			return;
+
+		// Bind shadow pipeline and bind group
+		renderPass.SetPipeline(mShadowPipeline);
+		renderPass.SetBindGroup(0, mShadowBindGroup);
+
+		// Collect shadow casters and render
+		mMeshDrawSystem.BeginFrame();
+
+		world.ForEachStaticMesh(scope [&] (handle, proxy) => {
+			if (proxy.IsVisible && proxy.CastsShadows)
+			{
+				mMeshDrawSystem.AddFromProxy(proxy, meshPool, null);
+			}
+		});
+
+		mMeshDrawSystem.BuildBatches();
+		mMeshDrawSystem.RenderShadowBatches(renderPass, mShadowPipelineLayout);
+
+		mStats.ShadowDrawCalls += (int32)mMeshDrawSystem.BatchCount;
+	}
+
+	/// Gets the cascade depth view for creating render pass.
+	public ITextureView GetShadowCascadeDepthView(uint32 cascadeIndex)
+	{
+		if (mShadowDrawSystem == null)
+			return null;
+		return mShadowDrawSystem.GetCascadeDepthView(cascadeIndex);
+	}
+
+	/// Gets the cascade array view for sampling shadows in shaders.
+	public ITextureView GetShadowCascadeArrayView()
+	{
+		return mShadowDrawSystem?.CascadeArrayView;
+	}
+
+	/// Gets the cascade uniform buffer for shader access.
+	public IBuffer GetShadowCascadeBuffer()
+	{
+		return mShadowDrawSystem?.CascadeBuffer;
+	}
+
+	/// Gets the shadow sampler (comparison sampler for PCF).
+	public ISampler GetShadowSampler()
+	{
+		return mShadowDrawSystem?.ShadowSampler;
+	}
+
+	/// Gets the cascade view-projection matrix.
+	public Matrix GetShadowCascadeViewProjection(uint32 cascadeIndex)
+	{
+		if (mShadowDrawSystem == null)
+			return .Identity;
+		return mShadowDrawSystem.GetCascadeViewProjection(cascadeIndex);
+	}
+
+	/// Gets the shadow map texture for layout transitions.
+	/// Call TextureBarrier after shadow passes and before sampling.
+	public ITexture GetShadowMapTexture()
+	{
+		return mShadowDrawSystem?.CascadeShadows?.ShadowMapArray;
+	}
 
 	public void Dispose()
 	{

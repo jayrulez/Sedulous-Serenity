@@ -4,6 +4,9 @@
 #ifndef COMMON_HLSLI
 #define COMMON_HLSLI
 
+// Use row-major matrix packing to match Beef's memory layout
+#pragma pack_matrix(row_major)
+
 // ============================================================================
 // Constants
 // ============================================================================

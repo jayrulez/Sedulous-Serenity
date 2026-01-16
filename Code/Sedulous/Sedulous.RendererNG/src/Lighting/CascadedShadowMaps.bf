@@ -148,12 +148,42 @@ class CascadedShadowMaps : IDisposable
 		// Compute cascade split distances using practical split scheme
 		ComputeSplitDistances(nearPlane, farPlane);
 
-		// Get camera inverse view for frustum corners
-		Matrix.Invert(cameraView, var invCameraView);
-		Matrix.Invert(cameraProj, var invCameraProj);
-
 		// Normalize light direction
 		Vector3 lightDir = Vector3.Normalize(lightDirection);
+
+		// NOTE: Frustum-fitted bounds produce offset shadows due to light-space bounds
+		// calculation issues. Using fixed bounds centered on scene origin as a workaround.
+		// This works correctly for scenes with known extents around the origin.
+		// Same approach as the old Sedulous.Renderer implementation.
+
+		// Fixed bounds centered on scene origin - covers a 30x30 unit area
+		Vector3 center = Vector3(0, 0, 0);
+		float halfSize = 15.0f;
+
+		// Compute stable up vector to avoid discontinuities when light is vertical
+		Vector3 refVec = Math.Abs(lightDir.Y) < 0.9f ? Vector3.Up : Vector3.Right;
+		Vector3 lightRight = Vector3.Normalize(Vector3.Cross(refVec, lightDir));
+		Vector3 lightUp = Vector3.Cross(lightDir, lightRight);
+
+		// Light view matrix (looking along light direction toward scene center)
+		Vector3 lightPos = center - lightDir * 50.0f;
+		Matrix lightView = Matrix.CreateLookAt(lightPos, center, lightUp);
+
+		// Simple symmetric ortho bounds
+		float minX = -halfSize;
+		float maxX = halfSize;
+		float minY = -halfSize;
+		float maxY = halfSize;
+		float zNear = 0.1f;
+		float zFar = 100.0f;
+
+		// Orthographic projection for directional light
+		Matrix lightProj = Matrix.CreateOrthographicOffCenter(
+			minX, maxX, minY, maxY, zNear, zFar
+		);
+
+		// All cascades use the same matrix for fixed bounds
+		Matrix lightViewProj = lightView * lightProj;
 
 		// Compute view-projection for each cascade
 		for (uint32 i = 0; i < CascadeCount; i++)
@@ -161,49 +191,7 @@ class CascadedShadowMaps : IDisposable
 			float cascadeNear = mSplitDistances[i];
 			float cascadeFar = mSplitDistances[i + 1];
 
-			// Get frustum corners for this cascade
-			Vector3[8] frustumCorners = GetFrustumCorners(invCameraView, invCameraProj, cascadeNear, cascadeFar, nearPlane, farPlane);
-
-			// Compute frustum center
-			Vector3 center = .Zero;
-			for (let corner in frustumCorners)
-				center += corner;
-			center /= 8.0f;
-
-			// Compute light view matrix looking at frustum center
-			Matrix lightView = Matrix.CreateLookAt(center - lightDir * 100.0f, center, .UnitY);
-
-			// Transform frustum corners to light space
-			Vector3 minBounds = .(float.MaxValue);
-			Vector3 maxBounds = .(float.MinValue);
-
-			for (let corner in frustumCorners)
-			{
-				Vector4 lightSpaceCorner = Vector4.Transform(Vector4(corner, 1.0f), lightView);
-				Vector3 ls = .(lightSpaceCorner.X, lightSpaceCorner.Y, lightSpaceCorner.Z);
-				minBounds = Vector3.Min(minBounds, ls);
-				maxBounds = Vector3.Max(maxBounds, ls);
-			}
-
-			// Add some padding to avoid edge artifacts
-			float padding = (maxBounds.X - minBounds.X) * 0.1f;
-			minBounds.X -= padding;
-			minBounds.Y -= padding;
-			maxBounds.X += padding;
-			maxBounds.Y += padding;
-
-			// Extend Z range for shadow casters behind the frustum
-			minBounds.Z -= 200.0f;
-			maxBounds.Z += 50.0f;
-
-			// Create orthographic projection for this cascade
-			Matrix lightProj = Matrix.CreateOrthographicOffCenter(
-				minBounds.X, maxBounds.X,
-				minBounds.Y, maxBounds.Y,
-				minBounds.Z, maxBounds.Z
-			);
-
-			mLightViewProjections[i] = lightView * lightProj;
+			mLightViewProjections[i] = lightViewProj;
 
 			// Store cascade data
 			mCascades[i].ViewProjection = mLightViewProjections[i];
@@ -285,15 +273,12 @@ class CascadedShadowMaps : IDisposable
 	/// Uploads cascade data to GPU.
 	private void UploadCascadeData()
 	{
-		if (mCascadeBuffer == null)
+		if (mCascadeBuffer == null || mDevice == null)
 			return;
 
-		let ptr = mCascadeBuffer.Map();
-		if (ptr != null)
-		{
-			*(CascadeShadowData*)ptr = mGpuData;
-			mCascadeBuffer.Unmap();
-		}
+		// Use WriteBuffer for consistent upload (same as other uniform buffers)
+		Span<uint8> data = .((uint8*)&mGpuData, CascadeShadowData.Size);
+		mDevice.Queue.WriteBuffer(mCascadeBuffer, 0, data);
 	}
 
 	/// Gets the view-projection matrix for a cascade.

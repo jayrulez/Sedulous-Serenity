@@ -91,6 +91,16 @@ class RendererNGIntegratedApp : Application
 			Console.WriteLine("WARNING: Failed to initialize particles (will render without)");
 		}
 
+		// Initialize shadow system
+		if (!mRenderer.InitializeShadows())
+		{
+			Console.WriteLine("WARNING: Failed to initialize shadows (will render without)");
+		}
+		else
+		{
+			Console.WriteLine("Shadow system initialized");
+		}
+
 		// Create scene
 		if (!CreateScene())
 		{
@@ -379,21 +389,117 @@ class RendererNGIntegratedApp : Application
 		// Prepare lighting uniforms
 		mRenderer.PrepareLighting(mRenderWorld);
 
+		// Prepare shadow maps
+		if (let camera = mRenderWorld.GetCamera(mCamera))
+		{
+			mRenderer.PrepareShadows(camera, mRenderWorld);
+		}
+
 		// Prepare particle emitters for rendering
 		mRenderer.PrepareParticleEmitter(mFireEmitter);
 		mRenderer.PrepareParticleEmitter(mSmokeEmitter);
 	}
 
-	protected override void OnRender(IRenderPassEncoder renderPass, FrameContext frame)
+	protected override bool OnRenderFrame(RenderContext render)
 	{
+		// Render shadow cascades first
+		if (mRenderer.ShadowsEnabled)
+		{
+			let shadowRes = mRenderer.ShadowMapResolution;
+
+			// Transition shadow map to depth attachment for rendering
+			// Note: Uses Undefined as old layout since on first frame it's undefined,
+			// and subsequent frames transition from ShaderReadOnly but Undefined->DepthAttachment
+			// works for both cases (discards contents which is fine since we clear)
+			let shadowTexture = mRenderer.GetShadowMapTexture();
+			if (shadowTexture != null)
+			{
+				render.Encoder.TextureBarrier(shadowTexture, .Undefined, .DepthStencilAttachment);
+			}
+
+			for (uint32 cascade = 0; cascade < mRenderer.ShadowCascadeCount; cascade++)
+			{
+				let cascadeView = mRenderer.GetShadowCascadeDepthView(cascade);
+				if (cascadeView == null)
+					continue;
+
+				// Create shadow render pass for this cascade
+				// Note: Depth32Float has no stencil, so don't set stencil ops
+				RenderPassDescriptor shadowDesc = .();
+				shadowDesc.DepthStencilAttachment = .()
+				{
+					View = cascadeView,
+					DepthLoadOp = .Clear,
+					DepthStoreOp = .Store,
+					DepthClearValue = 1.0f
+				};
+
+				// Prepare shadow uniforms BEFORE starting render pass
+				// (WriteBuffer cannot be called during an active render pass)
+				mRenderer.PrepareShadowCascade(cascade);
+
+				let shadowPass = render.Encoder.BeginRenderPass(&shadowDesc);
+				shadowPass.SetViewport(0, 0, shadowRes, shadowRes, 0, 1);
+				shadowPass.SetScissorRect(0, 0, shadowRes, shadowRes);
+
+				mRenderer.RenderShadowCascade(shadowPass, cascade, mRenderWorld, mMeshPool);
+
+				shadowPass.End();
+				delete shadowPass;
+			}
+
+			// Transition shadow map from depth attachment to shader read for sampling
+			if (shadowTexture != null)
+			{
+				render.Encoder.TextureBarrier(shadowTexture, .DepthStencilAttachment, .ShaderReadOnly);
+			}
+		}
+
+		// Create main render pass
+		RenderPassColorAttachment[1] colorAttachments = .(.()
+		{
+			View = render.CurrentTextureView,
+			ResolveTarget = null,
+			LoadOp = .Clear,
+			StoreOp = .Store,
+			ClearValue = render.ClearColor
+		});
+
+		RenderPassDescriptor mainDesc = .(colorAttachments);
+		if (render.DepthTextureView != null)
+		{
+			mainDesc.DepthStencilAttachment = .()
+			{
+				View = render.DepthTextureView,
+				DepthLoadOp = .Clear,
+				DepthStoreOp = .Store,
+				DepthClearValue = 1.0f,
+				StencilLoadOp = .Clear,
+				StencilStoreOp = .Store,
+				StencilClearValue = 0
+			};
+		}
+
+		let renderPass = render.Encoder.BeginRenderPass(&mainDesc);
+		renderPass.SetViewport(0, 0, render.SwapChain.Width, render.SwapChain.Height, 0, 1);
+		renderPass.SetScissorRect(0, 0, render.SwapChain.Width, render.SwapChain.Height);
+
 		// Render all meshes from the render world
-		mRenderer.RenderMeshes(renderPass, mRenderWorld, mMeshPool);
+		if (mRenderer.ShadowsEnabled)
+			mRenderer.RenderMeshesWithShadows(renderPass, mRenderWorld, mMeshPool);
+		else
+			mRenderer.RenderMeshes(renderPass, mRenderWorld, mMeshPool);
 
 		// Render skybox (after opaque geometry, uses depth LessEqual)
 		mRenderer.RenderSkybox(renderPass);
 
 		// Render particles (after opaque geometry and skybox)
 		mRenderer.RenderParticles(renderPass);
+
+		renderPass.End();
+		delete renderPass;
+
+		return true;  // We handled rendering
 	}
 
 	protected override void OnFrameEnd()

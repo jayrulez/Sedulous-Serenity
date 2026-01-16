@@ -61,6 +61,78 @@ cbuffer LightingUniforms : register(b1, space0)
     float3 _LightingPadding;
 };
 
+// ============================================================================
+// Shadow Mapping (Set 0 / space0 = scene bind group)
+// ============================================================================
+
+#define CASCADE_COUNT 4
+
+struct CascadeData
+{
+    float4x4 ViewProjection;
+    float4 SplitDepth;     // x=near, y=far, z=1/width, w=1/height
+    float4 Offset;         // xy=offset in atlas, zw=scale
+};
+
+cbuffer ShadowUniforms : register(b2, space0)
+{
+    CascadeData Cascades[CASCADE_COUNT];
+    float4 ShadowParams;   // x=bias, y=normalBias, z=softness, w=cascadeCount
+    float4 LightDirection; // xyz=direction, w=unused
+};
+
+Texture2DArray ShadowCascades : register(t0, space0);
+SamplerComparisonState ShadowSampler : register(s0, space0);
+
+// Calculate shadow factor for cascaded shadow maps
+float CalculateShadow(float3 worldPos, float3 normal)
+{
+    // Calculate view-space depth for cascade selection
+    float4 viewPos = mul(float4(worldPos, 1.0), ViewMatrix);
+    float depth = -viewPos.z;
+
+    // Find which cascade to use
+    int cascadeIndex = CASCADE_COUNT - 1;
+    for (int i = 0; i < CASCADE_COUNT; i++)
+    {
+        if (depth < Cascades[i].SplitDepth.y)
+        {
+            cascadeIndex = i;
+            break;
+        }
+    }
+
+    // Transform to shadow space
+    float4 shadowPos = mul(float4(worldPos, 1.0), Cascades[cascadeIndex].ViewProjection);
+    shadowPos.xyz /= shadowPos.w;
+
+    // Convert to [0, 1] UV coordinates
+    // Note: Y-flip is handled in the light projection matrix, not here
+    float2 shadowUV = shadowPos.xy * 0.5 + 0.5;
+
+    // Apply bias
+    float bias = ShadowParams.x + ShadowParams.y * (1.0 - saturate(dot(normal, -LightDirection.xyz)));
+    float compareDepth = shadowPos.z - bias;
+
+    // Sample shadow map with PCF
+    float shadow = 0.0;
+    float2 texelSize = float2(Cascades[cascadeIndex].SplitDepth.z, Cascades[cascadeIndex].SplitDepth.w);
+
+    // 3x3 PCF
+    for (int x = -1; x <= 1; x++)
+    {
+        for (int y = -1; y <= 1; y++)
+        {
+            float2 offset = float2(x, y) * texelSize;
+            shadow += ShadowCascades.SampleCmpLevelZero(ShadowSampler,
+                float3(shadowUV + offset, cascadeIndex), compareDepth);
+        }
+    }
+    shadow /= 9.0;
+
+    return shadow;
+}
+
 // Point light attenuation (inverse square with range clamping)
 float CalculateAttenuation(float distance, float range)
 {
@@ -190,11 +262,18 @@ float4 main(VS_OUTPUT input) : SV_TARGET
     // Calculate lighting
     float3 Lo = float3(0, 0, 0);
 
-    // Directional light (sun)
+    // Directional light (sun) with shadows
     {
         float3 L = normalize(-SunLight.Direction);
         float3 radiance = SunLight.Color * SunLight.Intensity;
-        Lo += CalculateDirectLight(N, V, L, radiance, albedo.rgb, metallic, roughness);
+
+        // Calculate shadow (1.0 = fully lit, 0.0 = fully shadowed)
+        float shadow = 1.0;
+#ifdef RECEIVE_SHADOWS
+        shadow = CalculateShadow(input.WorldPos, N);
+#endif
+
+        Lo += CalculateDirectLight(N, V, L, radiance * shadow, albedo.rgb, metallic, roughness);
     }
 
     // Point lights
@@ -227,10 +306,6 @@ float4 main(VS_OUTPUT input) : SV_TARGET
     emissive *= EmissiveMap.Sample(MaterialSampler, input.TexCoord).rgb;
 #endif
     color += emissive;
-#endif
-
-#ifdef RECEIVE_SHADOWS
-    // Shadow sampling would go here (Phase 4)
 #endif
 
     return float4(color, albedo.a);

@@ -342,6 +342,8 @@ abstract class Application
 			return;
 		}
 
+		mDevice.WaitIdle();
+
 		// Safe to write per-frame buffers now
 		OnPrepareFrame(frameContext);
 
