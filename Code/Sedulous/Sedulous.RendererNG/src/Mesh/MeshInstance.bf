@@ -2,6 +2,7 @@ namespace Sedulous.RendererNG;
 
 using System;
 using Sedulous.Mathematics;
+using Sedulous.Materials;
 
 /// Per-instance data uploaded to GPU for instanced rendering.
 /// Must match shader cbuffer layout.

@@ -4,6 +4,7 @@ using System;
 using Sedulous.RendererNG;
 using Sedulous.RHI;
 using Sedulous.Mathematics;
+using Sedulous.Materials;
 
 extension RendererNGSandboxApp
 {

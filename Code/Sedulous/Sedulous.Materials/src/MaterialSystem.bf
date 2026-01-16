@@ -1,4 +1,4 @@
-namespace Sedulous.RendererNG;
+namespace Sedulous.Materials;
 
 using System;
 using System.Collections;
@@ -10,7 +10,6 @@ using Sedulous.Mathematics;
 class MaterialSystem : IDisposable
 {
 	private IDevice mDevice;
-	private ResourcePool mResourcePool;
 
 	/// Bind group layout cache (keyed by layout hash).
 	private Dictionary<int, IBindGroupLayout> mLayoutCache = new .() ~ {
@@ -58,13 +57,12 @@ class MaterialSystem : IDisposable
 	public IDevice Device => mDevice;
 
 	/// Initializes the material system.
-	public Result<void> Initialize(IDevice device, ResourcePool resourcePool = null)
+	public Result<void> Initialize(IDevice device)
 	{
 		if (device == null)
 			return .Err;
 
 		mDevice = device;
-		mResourcePool = resourcePool;
 
 		if (!CreateDefaultResources())
 			return .Err;

@@ -4,6 +4,7 @@ using System;
 using Sedulous.RHI;
 using Sedulous.Mathematics;
 using Sedulous.Shaders2;
+using Sedulous.Materials;
 
 /// Scene uniform data matching common.hlsli SceneUniforms (b0).
 [CRepr]
@@ -280,7 +281,7 @@ class Renderer : IDisposable
 
 		// Initialize material system
 		mMaterialSystem = new MaterialSystem();
-		if (mMaterialSystem.Initialize(device, mResourcePool) case .Err)
+		if (mMaterialSystem.Initialize(device) case .Err)
 		{
 			Console.WriteLine("ERROR: Failed to initialize MaterialSystem");
 			return .Err;

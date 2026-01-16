@@ -3,6 +3,7 @@ namespace Sedulous.RendererNG;
 using System;
 using System.Collections;
 using Sedulous.Mathematics;
+using Sedulous.Materials;
 
 /// Submesh definition within a mesh.
 struct Submesh

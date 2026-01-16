@@ -4,6 +4,7 @@ using System;
 using System.Collections;
 using Sedulous.RHI;
 using Sedulous.Mathematics;
+using Sedulous.Materials;
 
 /// Handle to a GPU mesh in the mesh pool.
 struct MeshHandle : IHashable, IEquatable<MeshHandle>

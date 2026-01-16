@@ -4,6 +4,7 @@ using System;
 using System.Collections;
 using Sedulous.RHI;
 using Sedulous.Shaders2;
+using Sedulous.Materials;
 
 /// Cached render pipeline entry.
 class CachedPipeline

@@ -3,6 +3,7 @@ namespace Sedulous.RendererNG;
 using System;
 using Sedulous.RHI;
 using Sedulous.Mathematics;
+using Sedulous.Materials;
 
 /// Standard vertex formats used by the renderer.
 /// These match the VertexLayoutType enum in PipelineConfig.

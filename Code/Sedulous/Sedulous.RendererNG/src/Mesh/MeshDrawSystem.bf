@@ -5,6 +5,7 @@ using System.Collections;
 using Sedulous.RHI;
 using Sedulous.Mathematics;
 using Sedulous.Shaders2;
+using Sedulous.Materials;
 
 /// System for rendering static and skinned meshes.
 /// Handles batching, instancing, and draw call submission.

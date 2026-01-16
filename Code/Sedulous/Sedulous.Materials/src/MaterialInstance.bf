@@ -1,4 +1,4 @@
-namespace Sedulous.RendererNG;
+namespace Sedulous.Materials;
 
 using System;
 using System.Collections;
@@ -69,9 +69,6 @@ class MaterialInstance : IDisposable
 
 	/// Whether bind group needs recreation.
 	private bool mBindGroupDirty = true;
-
-	/// Current bind group handle.
-	public BindGroupHandle BindGroup = .Invalid;
 
 	/// The base material.
 	public Material Material => mMaterial;

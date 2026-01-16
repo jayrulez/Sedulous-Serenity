@@ -1,4 +1,4 @@
-namespace Sedulous.RendererNG;
+namespace Sedulous.Materials;
 
 using System;
 using System.Collections;
