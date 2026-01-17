@@ -176,7 +176,11 @@ class RendererShadowSample : RHISampleApp
 
 		// Create debug renderer
 		let shaderPath = GetAssetPath("framework/shaders", .. scope .());
-		mShaderLibrary = new ShaderLibrary(Device, shaderPath);
+		mShaderLibrary = new ShaderLibrary();
+		if(mShaderLibrary.Initialize(Device, shaderPath) case .Err)
+		{
+			return false;
+		}
 		mDebugRenderer = new DebugRenderer(Device, mShaderLibrary);
 		if (mDebugRenderer.Initialize(SwapChain.Format, .Depth32Float) case .Err)
 		{

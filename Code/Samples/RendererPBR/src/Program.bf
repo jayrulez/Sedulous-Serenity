@@ -62,7 +62,11 @@ class RendererPBRSample : RHISampleApp
 	protected override bool OnInitialize()
 	{
 		// Initialize renderer components
-		mShaderLibrary = new ShaderLibrary(Device, "shaders");
+		mShaderLibrary = new ShaderLibrary();
+		if(mShaderLibrary.Initialize(Device, "shaders") case .Err)
+		{
+			return false;
+		}
 		mResourceManager = new GPUResourceManager(Device);
 
 		// Setup camera - use standard depth (not reverse-Z) since sample framework clears to 1.0

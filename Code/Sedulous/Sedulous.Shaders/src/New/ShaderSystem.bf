@@ -30,13 +30,6 @@ class NewShaderSystem : IDisposable
 	/// Access to the shader cache.
 	public ShaderCache Cache => mCache;
 
-	/// Compatibility constructor that initializes immediately.
-	/// For new code, prefer using default constructor + Initialize().
-	public this(IDevice device, StringView shaderBasePath)
-	{
-		Initialize(device, shaderBasePath);
-	}
-
 	/// Default constructor - call Initialize() before use.
 	public this()
 	{

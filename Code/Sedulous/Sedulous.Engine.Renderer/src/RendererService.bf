@@ -133,7 +133,13 @@ class RendererService : ContextService, IDisposable
 
 		mDevice = device;
 		mResourceManager = new GPUResourceManager(device);
-		mShaderLibrary = new ShaderLibrary(device, shaderBasePath);
+		mShaderLibrary = new ShaderLibrary();
+		if(mShaderLibrary.Initialize(device, shaderBasePath) case .Err)
+		{
+			delete mResourceManager;
+			delete mShaderLibrary;
+			return .Err;
+		}
 		mPipelineCache = new PipelineCache(device, mShaderLibrary);
 		mMaterialSystem = new MaterialSystem(device, mShaderLibrary, mResourceManager);
 
