@@ -31,8 +31,8 @@ class VulkanTextureView : ITextureView
 		mArrayLayerCount = descriptor.ArrayLayerCount;
 		if (descriptor.Label.Ptr != null && descriptor.Label.Length > 0)
 			mDebugName = new String(descriptor.Label);
-		else
-			Runtime.FatalError();
+		//else
+		//	Runtime.FatalError();
 		CreateImageView(descriptor);
 	}
 

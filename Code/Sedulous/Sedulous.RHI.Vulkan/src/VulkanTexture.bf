@@ -40,8 +40,8 @@ class VulkanTexture : ITexture
 		mOwnsImage = true;
 		if (descriptor.Label.Ptr != null && descriptor.Label.Length > 0)
 			mDebugName = new String(descriptor.Label);
-		else
-			Runtime.FatalError();
+		//else
+		//	Runtime.FatalError();
 		CreateImage(descriptor);
 	}
 
