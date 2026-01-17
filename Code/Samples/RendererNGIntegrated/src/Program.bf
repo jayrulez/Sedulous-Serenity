@@ -10,6 +10,7 @@ using Sedulous.Shell.SDL3;
 using Sedulous.Shell.Input;
 using Sedulous.Engine.Runtime;
 using Sedulous.RendererNG;
+using Sedulous.Geometry;
 
 /// Integrated sample demonstrating the full RendererNG pipeline.
 /// This sample shows how to use all RendererNG systems together.
@@ -116,15 +117,15 @@ class RendererNGIntegratedApp : Application
 
 	private bool CreateScene()
 	{
-		// Create a cube mesh
-		let cubeMesh = MeshPrimitives.CreateCube("Cube");
+		// Create a cube mesh using Geometry library
+		let cubeMesh = Sedulous.Geometry.StaticMesh.CreateCube(1.0f);
 		defer delete cubeMesh;
 
 		if (mMeshUploader.Upload(cubeMesh) case .Ok(let handle))
 		{
 			mCubeMesh = handle;
 			Console.WriteLine("Cube mesh created: {} vertices, {} indices",
-				cubeMesh.VertexCount, cubeMesh.IndexCount);
+				cubeMesh.Vertices.VertexCount, cubeMesh.Indices.IndexCount);
 		}
 		else
 		{
@@ -132,15 +133,15 @@ class RendererNGIntegratedApp : Application
 			return false;
 		}
 
-		// Create a ground plane
-		let planeMesh = MeshPrimitives.CreatePlane(10.0f, 10.0f, "GroundPlane");
+		// Create a ground plane using Geometry library
+		let planeMesh = Sedulous.Geometry.StaticMesh.CreatePlane(10.0f, 10.0f, 1, 1);
 		defer delete planeMesh;
 
 		if (mMeshUploader.Upload(planeMesh) case .Ok(let planeHandle))
 		{
 			mPlaneMesh = planeHandle;
 			Console.WriteLine("Plane mesh created: {} vertices, {} indices",
-				planeMesh.VertexCount, planeMesh.IndexCount);
+				planeMesh.Vertices.VertexCount, planeMesh.Indices.IndexCount);
 		}
 		else
 		{
@@ -152,7 +153,7 @@ class RendererNGIntegratedApp : Application
 		mCubeProxy = mRenderWorld.CreateStaticMesh(.()
 		{
 			Transform = Matrix.CreateTranslation(0, 0.5f, 0),
-			Bounds = cubeMesh.Bounds,
+			Bounds = cubeMesh.GetBounds(),
 			MeshHandle = mCubeMesh.Index,
 			Flags = .Visible | .CastShadow | .ReceiveShadow
 		});
@@ -161,7 +162,7 @@ class RendererNGIntegratedApp : Application
 		mPlaneProxy = mRenderWorld.CreateStaticMesh(.()
 		{
 			Transform = Matrix.Identity,
-			Bounds = planeMesh.Bounds,
+			Bounds = planeMesh.GetBounds(),
 			MeshHandle = mPlaneMesh.Index,
 			Flags = .Visible | .ReceiveShadow
 		});
@@ -346,15 +347,15 @@ class RendererNGIntegratedApp : Application
 
 	protected override void OnUpdate(FrameContext frame)
 	{
-		// Animate the cube
-		mRotation += frame.DeltaTime;
-		if (mCubeProxy.HasValidIndex)
-		{
-			if (let proxy = mRenderWorld.GetStaticMesh(mCubeProxy))
-			{
-				proxy.Transform = Matrix.CreateRotationY(mRotation) * Matrix.CreateTranslation(0, 0.5f, 0);
-			}
-		}
+		// Cube is now stationary (rotation disabled for shadow debugging)
+		// mRotation += frame.DeltaTime;
+		// if (mCubeProxy.HasValidIndex)
+		// {
+		// 	if (let proxy = mRenderWorld.GetStaticMesh(mCubeProxy))
+		// 	{
+		// 		proxy.Transform = Matrix.CreateRotationY(mRotation) * Matrix.CreateTranslation(0, 0.5f, 0);
+		// 	}
+		// }
 
 		// Update camera
 		UpdateCamera();

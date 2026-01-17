@@ -2,6 +2,7 @@ namespace Sedulous.RendererNG;
 
 using System;
 using Sedulous.RHI;
+using Sedulous.Materials;
 
 /// Uploads CPU mesh data to GPU buffers.
 class MeshUploader
@@ -14,99 +15,6 @@ class MeshUploader
 	{
 		mDevice = device;
 		mMeshPool = meshPool;
-	}
-
-	/// Uploads a static mesh to the GPU.
-	/// Returns a handle to the GPU mesh.
-	public Result<MeshHandle> Upload(StaticMesh mesh)
-	{
-		if (mesh.VertexData == null || mesh.IndexData == null)
-			return .Err;
-
-		// Allocate GPU mesh slot
-		let handleResult = mMeshPool.Allocate();
-		if (handleResult case .Err)
-			return .Err;
-
-		let handle = handleResult.Value;
-		let gpuMesh = mMeshPool.Get(handle);
-
-		// Create vertex buffer with Upload access for direct writes
-		var vbDesc = BufferDescriptor(mesh.VertexDataSize, .Vertex, .Upload);
-		vbDesc.Label = "MeshVertexBuffer";
-
-		switch (mDevice.CreateBuffer(&vbDesc))
-		{
-		case .Ok(let buffer):
-			gpuMesh.VertexBuffer = buffer;
-			// Copy data to buffer
-			let mappedPtr = buffer.Map();
-			if (mappedPtr != null)
-			{
-				Internal.MemCpy(mappedPtr, mesh.VertexData.Ptr, mesh.VertexDataSize);
-				buffer.Unmap();
-			}
-		case .Err:
-			mMeshPool.Release(handle);
-			return .Err;
-		}
-
-		// Create index buffer with Upload access for direct writes
-		var ibDesc = BufferDescriptor(mesh.IndexDataSize, .Index, .Upload);
-		ibDesc.Label = "MeshIndexBuffer";
-
-		switch (mDevice.CreateBuffer(&ibDesc))
-		{
-		case .Ok(let buffer):
-			gpuMesh.IndexBuffer = buffer;
-			// Copy data to buffer
-			let mappedPtr = buffer.Map();
-			if (mappedPtr != null)
-			{
-				Internal.MemCpy(mappedPtr, mesh.IndexData.Ptr, mesh.IndexDataSize);
-				buffer.Unmap();
-			}
-		case .Err:
-			mMeshPool.Release(handle);
-			return .Err;
-		}
-
-		// Copy mesh properties
-		gpuMesh.VertexLayout = mesh.VertexLayout;
-		gpuMesh.VertexCount = mesh.VertexCount;
-		gpuMesh.IndexCount = mesh.IndexCount;
-		gpuMesh.Use32BitIndices = mesh.Use32BitIndices;
-		gpuMesh.Bounds = mesh.Bounds;
-		gpuMesh.IsSkinned = false;
-
-		// Copy submeshes
-		gpuMesh.Submeshes.Clear();
-		for (let submesh in mesh.Submeshes)
-			gpuMesh.Submeshes.Add(submesh);
-
-		// If no submeshes defined, create one covering entire mesh
-		if (gpuMesh.Submeshes.Count == 0)
-			gpuMesh.Submeshes.Add(.(0, mesh.IndexCount, 0));
-
-		return handle;
-	}
-
-	/// Uploads a skinned mesh to the GPU.
-	public Result<MeshHandle> Upload(SkinnedMesh mesh)
-	{
-		// Use base upload logic
-		let handleResult = Upload((StaticMesh)mesh);
-		if (handleResult case .Err)
-			return .Err;
-
-		let handle = handleResult.Value;
-		let gpuMesh = mMeshPool.Get(handle);
-
-		// Set skinned mesh properties
-		gpuMesh.IsSkinned = true;
-		gpuMesh.BoneCount = mesh.Bones.Count;
-
-		return handle;
 	}
 
 	/// Updates vertex data for an existing GPU mesh.
@@ -139,5 +47,168 @@ class MeshUploader
 		Internal.MemCpy((uint8*)mappedPtr + offset, indexData.Ptr, indexData.Length);
 		gpuMesh.IndexBuffer.Unmap();
 		return .Ok;
+	}
+
+	/// Uploads a Sedulous.Geometry.StaticMesh to the GPU.
+	/// Returns a handle to the GPU mesh.
+	public Result<MeshHandle> Upload(Sedulous.Geometry.StaticMesh mesh)
+	{
+		if (mesh.Vertices == null || mesh.Indices == null)
+			return .Err;
+
+		let vertexDataSize = (uint32)mesh.Vertices.GetDataSize();
+		let indexDataSize = (uint32)mesh.Indices.GetDataSize();
+
+		if (vertexDataSize == 0 || indexDataSize == 0)
+			return .Err;
+
+		// Allocate GPU mesh slot
+		let handleResult = mMeshPool.Allocate();
+		if (handleResult case .Err)
+			return .Err;
+
+		let handle = handleResult.Value;
+		let gpuMesh = mMeshPool.Get(handle);
+
+		// Create vertex buffer
+		var vbDesc = BufferDescriptor(vertexDataSize, .Vertex, .Upload);
+		vbDesc.Label = "GeometryMeshVertexBuffer";
+
+		switch (mDevice.CreateBuffer(&vbDesc))
+		{
+		case .Ok(let buffer):
+			gpuMesh.VertexBuffer = buffer;
+			let mappedPtr = buffer.Map();
+			if (mappedPtr != null)
+			{
+				Internal.MemCpy(mappedPtr, mesh.Vertices.GetRawData(), vertexDataSize);
+				buffer.Unmap();
+			}
+		case .Err:
+			mMeshPool.Release(handle);
+			return .Err;
+		}
+
+		// Create index buffer
+		var ibDesc = BufferDescriptor(indexDataSize, .Index, .Upload);
+		ibDesc.Label = "GeometryMeshIndexBuffer";
+
+		switch (mDevice.CreateBuffer(&ibDesc))
+		{
+		case .Ok(let buffer):
+			gpuMesh.IndexBuffer = buffer;
+			let mappedPtr = buffer.Map();
+			if (mappedPtr != null)
+			{
+				Internal.MemCpy(mappedPtr, mesh.Indices.GetRawData(), indexDataSize);
+				buffer.Unmap();
+			}
+		case .Err:
+			mMeshPool.Release(handle);
+			return .Err;
+		}
+
+		// Set mesh properties
+		gpuMesh.VertexLayout = .Mesh;
+		gpuMesh.VertexCount = (uint32)mesh.Vertices.VertexCount;
+		gpuMesh.IndexCount = (uint32)mesh.Indices.IndexCount;
+		gpuMesh.Use32BitIndices = mesh.Indices.Format == .UInt32;
+		gpuMesh.Bounds = mesh.GetBounds();
+		gpuMesh.IsSkinned = false;
+
+		// Convert submeshes
+		gpuMesh.Submeshes.Clear();
+		for (let sub in mesh.SubMeshes)
+		{
+			gpuMesh.Submeshes.Add(Submesh((uint32)sub.startIndex, (uint32)sub.indexCount, (uint32)sub.materialIndex));
+		}
+
+		// If no submeshes defined, create one covering entire mesh
+		if (gpuMesh.Submeshes.Count == 0)
+			gpuMesh.Submeshes.Add(.(0, (uint32)mesh.Indices.IndexCount, 0));
+
+		return handle;
+	}
+
+	/// Uploads a Sedulous.Geometry.SkinnedMesh to the GPU.
+	/// Returns a handle to the GPU mesh.
+	public Result<MeshHandle> Upload(Sedulous.Geometry.SkinnedMesh mesh)
+	{
+		if (mesh.Vertices == null || mesh.Indices == null)
+			return .Err;
+
+		let vertexDataSize = (uint32)(mesh.VertexCount * mesh.VertexSize);
+		let indexDataSize = (uint32)mesh.Indices.GetDataSize();
+
+		if (vertexDataSize == 0 || indexDataSize == 0)
+			return .Err;
+
+		// Allocate GPU mesh slot
+		let handleResult = mMeshPool.Allocate();
+		if (handleResult case .Err)
+			return .Err;
+
+		let handle = handleResult.Value;
+		let gpuMesh = mMeshPool.Get(handle);
+
+		// Create vertex buffer
+		var vbDesc = BufferDescriptor(vertexDataSize, .Vertex, .Upload);
+		vbDesc.Label = "SkinnedMeshVertexBuffer";
+
+		switch (mDevice.CreateBuffer(&vbDesc))
+		{
+		case .Ok(let buffer):
+			gpuMesh.VertexBuffer = buffer;
+			let mappedPtr = buffer.Map();
+			if (mappedPtr != null)
+			{
+				Internal.MemCpy(mappedPtr, mesh.GetVertexData(), vertexDataSize);
+				buffer.Unmap();
+			}
+		case .Err:
+			mMeshPool.Release(handle);
+			return .Err;
+		}
+
+		// Create index buffer
+		var ibDesc = BufferDescriptor(indexDataSize, .Index, .Upload);
+		ibDesc.Label = "SkinnedMeshIndexBuffer";
+
+		switch (mDevice.CreateBuffer(&ibDesc))
+		{
+		case .Ok(let buffer):
+			gpuMesh.IndexBuffer = buffer;
+			let mappedPtr = buffer.Map();
+			if (mappedPtr != null)
+			{
+				Internal.MemCpy(mappedPtr, mesh.Indices.GetRawData(), indexDataSize);
+				buffer.Unmap();
+			}
+		case .Err:
+			mMeshPool.Release(handle);
+			return .Err;
+		}
+
+		// Set mesh properties
+		gpuMesh.VertexLayout = .Skinned;
+		gpuMesh.VertexCount = (uint32)mesh.VertexCount;
+		gpuMesh.IndexCount = (uint32)mesh.Indices.IndexCount;
+		gpuMesh.Use32BitIndices = mesh.Indices.Format == .UInt32;
+		gpuMesh.Bounds = mesh.Bounds;
+		gpuMesh.IsSkinned = true;
+		gpuMesh.BoneCount = 0; // SkinnedMesh doesn't have bone hierarchy, just per-vertex bone data
+
+		// Convert submeshes
+		gpuMesh.Submeshes.Clear();
+		for (let sub in mesh.SubMeshes)
+		{
+			gpuMesh.Submeshes.Add(Submesh((uint32)sub.startIndex, (uint32)sub.indexCount, (uint32)sub.materialIndex));
+		}
+
+		// If no submeshes defined, create one covering entire mesh
+		if (gpuMesh.Submeshes.Count == 0)
+			gpuMesh.Submeshes.Add(.(0, (uint32)mesh.Indices.IndexCount, 0));
+
+		return handle;
 	}
 }

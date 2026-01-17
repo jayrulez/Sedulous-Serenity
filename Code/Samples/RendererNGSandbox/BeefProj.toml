@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Mathematics" = "*", "Sedulous.RHI" = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Engine.Runtime" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.RendererNG" = "*", SampleFramework = "*"}
+Dependencies = {corlib = "*", "Sedulous.Mathematics" = "*", "Sedulous.RHI" = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Engine.Runtime" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.RendererNG" = "*", "Sedulous.Geometry" = "*", SampleFramework = "*"}
 
 [Project]
 Name = "RendererNGSandbox"

@@ -210,7 +210,7 @@ static class Materials
 	{
 		return scope MaterialBuilder(name)
 			.Shader("pbr")
-			.VertexLayout(.PositionNormalUVTangent)
+			.VertexLayout(.Mesh)
 			.Color("BaseColor", .(1, 1, 1, 1))
 			.Float("Metallic", 0.0f)
 			.Float("Roughness", 0.5f)
@@ -229,7 +229,7 @@ static class Materials
 	{
 		return scope MaterialBuilder(name)
 			.Shader("unlit")
-			.VertexLayout(.PositionNormalUV)
+			.VertexLayout(.Mesh)
 			.Color("Color", .(1, 1, 1, 1))
 			.Texture("MainTexture", defaultTexture)
 			.Sampler("MainSampler", defaultSampler)

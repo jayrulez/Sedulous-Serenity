@@ -201,7 +201,7 @@ extension RendererNGSandboxApp
 		// Create a material using the builder
 		let material = scope MaterialBuilder("TestMaterial")
 			.Shader("pbr")
-			.VertexLayout(.PositionNormalUVTangent)
+			.VertexLayout(.Mesh)
 			.Color("BaseColor", .(1, 0.5f, 0.5f, 1))
 			.Float("Metallic", 0.0f)
 			.Float("Roughness", 0.5f)
@@ -270,25 +270,21 @@ extension RendererNGSandboxApp
 		// Test stride lookup
 		Console.WriteLine("Vertex strides:");
 		Console.WriteLine("  PositionOnly: {} bytes", VertexLayouts.GetStride(.PositionOnly));
-		Console.WriteLine("  PositionNormal: {} bytes", VertexLayouts.GetStride(.PositionNormal));
-		Console.WriteLine("  PositionNormalUV: {} bytes", VertexLayouts.GetStride(.PositionNormalUV));
-		Console.WriteLine("  PositionNormalUVTangent: {} bytes", VertexLayouts.GetStride(.PositionNormalUVTangent));
-		Console.WriteLine("  Skinned: {} bytes", VertexLayouts.GetStride(.Skinned));
 		Console.WriteLine("  PositionUVColor: {} bytes", VertexLayouts.GetStride(.PositionUVColor));
+		Console.WriteLine("  Mesh: {} bytes", VertexLayouts.GetStride(.Mesh));
+		Console.WriteLine("  Skinned: {} bytes", VertexLayouts.GetStride(.Skinned));
 
 		// Test attribute counts
 		Console.WriteLine("\nAttribute counts:");
 		Console.WriteLine("  PositionOnly: {}", VertexLayouts.GetAttributeCount(.PositionOnly));
-		Console.WriteLine("  PositionNormal: {}", VertexLayouts.GetAttributeCount(.PositionNormal));
-		Console.WriteLine("  PositionNormalUV: {}", VertexLayouts.GetAttributeCount(.PositionNormalUV));
-		Console.WriteLine("  PositionNormalUVTangent: {}", VertexLayouts.GetAttributeCount(.PositionNormalUVTangent));
-		Console.WriteLine("  Skinned: {}", VertexLayouts.GetAttributeCount(.Skinned));
 		Console.WriteLine("  PositionUVColor: {}", VertexLayouts.GetAttributeCount(.PositionUVColor));
+		Console.WriteLine("  Mesh: {}", VertexLayouts.GetAttributeCount(.Mesh));
+		Console.WriteLine("  Skinned: {}", VertexLayouts.GetAttributeCount(.Skinned));
 
 		// Test attribute filling
 		VertexAttribute[8] attribs = default;
-		let count = VertexLayouts.FillAttributes(.PositionNormalUVTangent, Span<VertexAttribute>(&attribs[0], 8));
-		Console.WriteLine("\nPNUT attributes ({}):", count);
+		let count = VertexLayouts.FillAttributes(.Mesh, Span<VertexAttribute>(&attribs[0], 8));
+		Console.WriteLine("\nMesh attributes ({}):", count);
 		for (int i = 0; i < count; i++)
 			Console.WriteLine("  {}: Format={}, Offset={}", i, attribs[i].Format, attribs[i].Offset);
 

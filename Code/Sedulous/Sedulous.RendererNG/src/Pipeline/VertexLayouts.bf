@@ -10,116 +10,31 @@ using Sedulous.Materials;
 static class VertexLayouts
 {
 	/// Position only vertex (12 bytes).
+	/// Used for skybox and shadow depth passes.
 	[CRepr]
-	public struct VertexP
+	public struct VertexPosition
 	{
 		public Vector3 Position;
 
 		public const uint32 Stride = 12;
+		public const int AttributeCount = 1;
 
 		public static void GetAttributes(Span<VertexAttribute> outAttribs)
 		{
 			outAttribs[0] = .(VertexFormat.Float3, 0, 0); // Position
 		}
-
-		public const int AttributeCount = 1;
-	}
-
-	/// Position + Normal vertex (24 bytes).
-	[CRepr]
-	public struct VertexPN
-	{
-		public Vector3 Position;
-		public Vector3 Normal;
-
-		public const uint32 Stride = 24;
-
-		public static void GetAttributes(Span<VertexAttribute> outAttribs)
-		{
-			outAttribs[0] = .(VertexFormat.Float3, 0, 0);  // Position
-			outAttribs[1] = .(VertexFormat.Float3, 12, 1); // Normal
-		}
-
-		public const int AttributeCount = 2;
-	}
-
-	/// Position + Normal + UV vertex (32 bytes).
-	[CRepr]
-	public struct VertexPNU
-	{
-		public Vector3 Position;
-		public Vector3 Normal;
-		public Vector2 TexCoord;
-
-		public const uint32 Stride = 32;
-
-		public static void GetAttributes(Span<VertexAttribute> outAttribs)
-		{
-			outAttribs[0] = .(VertexFormat.Float3, 0, 0);  // Position
-			outAttribs[1] = .(VertexFormat.Float3, 12, 1); // Normal
-			outAttribs[2] = .(VertexFormat.Float2, 24, 2); // TexCoord
-		}
-
-		public const int AttributeCount = 3;
-	}
-
-	/// Position + Normal + UV + Tangent vertex (48 bytes).
-	[CRepr]
-	public struct VertexPNUT
-	{
-		public Vector3 Position;
-		public Vector3 Normal;
-		public Vector2 TexCoord;
-		public Vector4 Tangent; // w = handedness
-
-		public const uint32 Stride = 48;
-
-		public static void GetAttributes(Span<VertexAttribute> outAttribs)
-		{
-			outAttribs[0] = .(VertexFormat.Float3, 0, 0);  // Position
-			outAttribs[1] = .(VertexFormat.Float3, 12, 1); // Normal
-			outAttribs[2] = .(VertexFormat.Float2, 24, 2); // TexCoord
-			outAttribs[3] = .(VertexFormat.Float4, 32, 3); // Tangent
-		}
-
-		public const int AttributeCount = 4;
-	}
-
-	/// Skinned mesh vertex (72 bytes).
-	[CRepr]
-	public struct VertexSkinned
-	{
-		public Vector3 Position;
-		public Vector3 Normal;
-		public Vector2 TexCoord;
-		public Vector4 Tangent;
-		public uint8[4] BoneIndices;
-		public float[4] BoneWeights;
-
-		public const uint32 Stride = 72;
-
-		public static void GetAttributes(Span<VertexAttribute> outAttribs)
-		{
-			outAttribs[0] = .(VertexFormat.Float3, 0, 0);  // Position
-			outAttribs[1] = .(VertexFormat.Float3, 12, 1); // Normal
-			outAttribs[2] = .(VertexFormat.Float2, 24, 2); // TexCoord
-			outAttribs[3] = .(VertexFormat.Float4, 32, 3); // Tangent
-			outAttribs[4] = .(VertexFormat.UByte4, 48, 4); // BoneIndices
-			outAttribs[5] = .(VertexFormat.Float4, 52, 5); // BoneWeights
-		}
-
-		public const int AttributeCount = 6;
 	}
 
 	/// Sprite/Particle vertex (28 bytes).
 	[CRepr]
-	public struct VertexPUC
+	public struct VertexSprite
 	{
 		public Vector3 Position;
 		public Vector2 TexCoord;
 		public Color Color;
 
 		public const uint32 Stride = 28;
+		public const int AttributeCount = 3;
 
 		public static void GetAttributes(Span<VertexAttribute> outAttribs)
 		{
@@ -127,8 +42,58 @@ static class VertexLayouts
 			outAttribs[1] = .(VertexFormat.Float2, 12, 1);  // TexCoord
 			outAttribs[2] = .(VertexFormat.UByte4Normalized, 20, 2); // Color
 		}
+	}
 
-		public const int AttributeCount = 3;
+	/// Standard mesh vertex format (48 bytes).
+	/// Position + Normal + UV + Color + Tangent.
+	[CRepr]
+	public struct VertexMesh
+	{
+		public Vector3 Position;   // 12 bytes, offset 0
+		public Vector3 Normal;     // 12 bytes, offset 12
+		public Vector2 TexCoord;   // 8 bytes, offset 24
+		public uint32 Color;       // 4 bytes, offset 32
+		public Vector3 Tangent;    // 12 bytes, offset 36
+
+		public const uint32 Stride = 48;
+		public const int AttributeCount = 5;
+
+		public static void GetAttributes(Span<VertexAttribute> outAttribs)
+		{
+			outAttribs[0] = .(VertexFormat.Float3, 0, 0);              // Position
+			outAttribs[1] = .(VertexFormat.Float3, 12, 1);             // Normal
+			outAttribs[2] = .(VertexFormat.Float2, 24, 2);             // TexCoord
+			outAttribs[3] = .(VertexFormat.UByte4Normalized, 32, 3);   // Color
+			outAttribs[4] = .(VertexFormat.Float3, 36, 4);             // Tangent
+		}
+	}
+
+	/// Skinned mesh vertex format (72 bytes).
+	/// Position + Normal + UV + Color + Tangent + Joints + Weights.
+	[CRepr]
+	public struct VertexSkinned
+	{
+		public Vector3 Position;   // 12 bytes, offset 0
+		public Vector3 Normal;     // 12 bytes, offset 12
+		public Vector2 TexCoord;   // 8 bytes, offset 24
+		public uint32 Color;       // 4 bytes, offset 32
+		public Vector3 Tangent;    // 12 bytes, offset 36
+		public uint16[4] Joints;   // 8 bytes, offset 48
+		public Vector4 Weights;    // 16 bytes, offset 56
+
+		public const uint32 Stride = 72;
+		public const int AttributeCount = 7;
+
+		public static void GetAttributes(Span<VertexAttribute> outAttribs)
+		{
+			outAttribs[0] = .(VertexFormat.Float3, 0, 0);              // Position
+			outAttribs[1] = .(VertexFormat.Float3, 12, 1);             // Normal
+			outAttribs[2] = .(VertexFormat.Float2, 24, 2);             // TexCoord
+			outAttribs[3] = .(VertexFormat.UByte4Normalized, 32, 3);   // Color
+			outAttribs[4] = .(VertexFormat.Float3, 36, 4);             // Tangent
+			outAttribs[5] = .(VertexFormat.UShort4, 48, 5);            // Joints (uint16x4)
+			outAttribs[6] = .(VertexFormat.Float4, 56, 6);             // Weights
+		}
 	}
 
 	/// Gets the stride for a vertex layout type.
@@ -137,12 +102,10 @@ static class VertexLayouts
 		switch (layout)
 		{
 		case .None: return 0;
-		case .PositionOnly: return VertexP.Stride;
-		case .PositionNormal: return VertexPN.Stride;
-		case .PositionNormalUV: return VertexPNU.Stride;
-		case .PositionNormalUVTangent: return VertexPNUT.Stride;
+		case .PositionOnly: return VertexPosition.Stride;
+		case .PositionUVColor: return VertexSprite.Stride;
+		case .Mesh: return VertexMesh.Stride;
 		case .Skinned: return VertexSkinned.Stride;
-		case .PositionUVColor: return VertexPUC.Stride;
 		case .Custom: return 0;
 		}
 	}
@@ -153,12 +116,10 @@ static class VertexLayouts
 		switch (layout)
 		{
 		case .None: return 0;
-		case .PositionOnly: return VertexP.AttributeCount;
-		case .PositionNormal: return VertexPN.AttributeCount;
-		case .PositionNormalUV: return VertexPNU.AttributeCount;
-		case .PositionNormalUVTangent: return VertexPNUT.AttributeCount;
+		case .PositionOnly: return VertexPosition.AttributeCount;
+		case .PositionUVColor: return VertexSprite.AttributeCount;
+		case .Mesh: return VertexMesh.AttributeCount;
 		case .Skinned: return VertexSkinned.AttributeCount;
-		case .PositionUVColor: return VertexPUC.AttributeCount;
 		case .Custom: return 0;
 		}
 	}
@@ -172,23 +133,17 @@ static class VertexLayouts
 		case .None:
 			return 0;
 		case .PositionOnly:
-			VertexP.GetAttributes(outAttribs);
-			return VertexP.AttributeCount;
-		case .PositionNormal:
-			VertexPN.GetAttributes(outAttribs);
-			return VertexPN.AttributeCount;
-		case .PositionNormalUV:
-			VertexPNU.GetAttributes(outAttribs);
-			return VertexPNU.AttributeCount;
-		case .PositionNormalUVTangent:
-			VertexPNUT.GetAttributes(outAttribs);
-			return VertexPNUT.AttributeCount;
+			VertexPosition.GetAttributes(outAttribs);
+			return VertexPosition.AttributeCount;
+		case .PositionUVColor:
+			VertexSprite.GetAttributes(outAttribs);
+			return VertexSprite.AttributeCount;
+		case .Mesh:
+			VertexMesh.GetAttributes(outAttribs);
+			return VertexMesh.AttributeCount;
 		case .Skinned:
 			VertexSkinned.GetAttributes(outAttribs);
 			return VertexSkinned.AttributeCount;
-		case .PositionUVColor:
-			VertexPUC.GetAttributes(outAttribs);
-			return VertexPUC.AttributeCount;
 		case .Custom:
 			return 0;
 		}

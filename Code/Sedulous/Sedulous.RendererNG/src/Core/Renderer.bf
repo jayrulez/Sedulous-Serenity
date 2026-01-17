@@ -723,7 +723,7 @@ class Renderer : IDisposable
 		builder
 			.Shader("mesh")
 			.Flags(.Instanced)
-			.VertexLayout(.PositionNormalUV)
+			.VertexLayout(.Mesh)
 			// Uniform properties (must match MaterialUniforms in mesh.frag.hlsl)
 			.Color("BaseColor", .(1, 1, 1, 1))
 			.Float("Metallic", 0.0f)
@@ -1125,10 +1125,10 @@ class Renderer : IDisposable
 	private bool CreateShadowPipeline()
 	{
 		// Use PipelineConfig for shadow pass with instancing
-		// Note: Uses PositionNormalUV to match mesh vertex buffer layout,
+		// Note: Uses Mesh layout to match mesh vertex buffer,
 		// even though the shadow shader only consumes Position
 		var config = PipelineConfig.ForShadow("shadow", .Instanced);
-		config.VertexLayout = .PositionNormalUV;  // Match mesh vertex buffer format
+		config.VertexLayout = .Mesh;  // Match mesh vertex buffer format
 		config.DepthFormat = .Depth32Float;
 
 		// Get or create pipeline via factory

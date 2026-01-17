@@ -87,6 +87,7 @@ extension ShaderFlags
 	/// Generates shader #define string for these flags.
 	public void AppendDefines(String outDefines)
 	{
+		// SKINNED define for skinned mesh shaders
 		if (HasFlag(.Skinned))
 			outDefines.Append("#define SKINNED 1\n");
 		if (HasFlag(.Instanced))

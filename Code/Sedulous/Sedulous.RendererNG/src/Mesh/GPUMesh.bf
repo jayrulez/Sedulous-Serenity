@@ -6,6 +6,30 @@ using Sedulous.RHI;
 using Sedulous.Mathematics;
 using Sedulous.Materials;
 
+/// Defines a subset of a mesh (for multi-material meshes).
+struct Submesh
+{
+	/// Offset into the index buffer.
+	public uint32 IndexOffset;
+
+	/// Number of indices in this submesh.
+	public uint32 IndexCount;
+
+	/// Material index for this submesh.
+	public uint32 MaterialIndex;
+
+	/// Local bounding box (optional).
+	public BoundingBox Bounds;
+
+	public this(uint32 indexOffset, uint32 indexCount, uint32 materialIndex = 0)
+	{
+		IndexOffset = indexOffset;
+		IndexCount = indexCount;
+		MaterialIndex = materialIndex;
+		Bounds = .(.Zero, .Zero);
+	}
+}
+
 /// Handle to a GPU mesh in the mesh pool.
 struct MeshHandle : IHashable, IEquatable<MeshHandle>
 {

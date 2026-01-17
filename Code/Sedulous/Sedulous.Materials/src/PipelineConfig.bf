@@ -48,18 +48,14 @@ enum VertexLayoutType : uint8
 {
 	/// No vertex input (procedural rendering).
 	None,
-	/// Position only (P).
+	/// Position only (skybox, shadow depth pass).
 	PositionOnly,
-	/// Position + Normal (PN).
-	PositionNormal,
-	/// Position + Normal + UV (PNU).
-	PositionNormalUV,
-	/// Position + Normal + UV + Tangent (PNUT).
-	PositionNormalUVTangent,
-	/// Position + Normal + UV + Tangent + BoneWeights (skinned).
-	Skinned,
 	/// Position + UV + Color (sprites/particles).
 	PositionUVColor,
+	/// Standard mesh format: Position + Normal + UV + Color + Tangent (48 bytes).
+	Mesh,
+	/// Skinned mesh format: Position + Normal + UV + Color + Tangent + Joints + Weights (72 bytes).
+	Skinned,
 	/// Custom layout (use CustomVertexLayout).
 	Custom
 }
@@ -147,7 +143,7 @@ struct PipelineConfig : IHashable, IEquatable<PipelineConfig>
 	{
 		ShaderName = default;
 		ShaderFlags = .None;
-		VertexLayout = .PositionNormalUV;
+		VertexLayout = .Mesh;
 		CustomVertexStride = 0;
 		CustomAttributeCount = 0;
 		Topology = .TriangleList;
@@ -221,7 +217,7 @@ struct PipelineConfig : IHashable, IEquatable<PipelineConfig>
 		var config = Self();
 		config.ShaderName = shaderName;
 		config.ShaderFlags = flags;
-		config.VertexLayout = .PositionNormalUV;
+		config.VertexLayout = .Mesh;
 		config.BlendMode = .Opaque;
 		config.DepthMode = .ReadWrite;
 		return config;
@@ -233,7 +229,7 @@ struct PipelineConfig : IHashable, IEquatable<PipelineConfig>
 		var config = Self();
 		config.ShaderName = shaderName;
 		config.ShaderFlags = flags;
-		config.VertexLayout = .PositionNormalUV;
+		config.VertexLayout = .Mesh;
 		config.BlendMode = .AlphaBlend;
 		config.DepthMode = .ReadOnly;
 		return config;
@@ -261,6 +257,7 @@ struct PipelineConfig : IHashable, IEquatable<PipelineConfig>
 		config.ColorTargetCount = 0;
 		config.DepthBias = 2;
 		config.DepthBiasSlopeScale = 2.0f;
+		config.CullMode = .Front;  // Front-face culling helps prevent shadow acne
 		return config;
 	}
 

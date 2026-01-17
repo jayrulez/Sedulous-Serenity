@@ -69,34 +69,34 @@ cbuffer BoneMatrices : register(b0, space2)
 // Vertex Layouts
 // ============================================================================
 
+// Position only (for skybox, shadow depth pass, etc.)
 struct VS_INPUT_POS
 {
     float3 Position : POSITION;
 };
 
-struct VS_INPUT_PNU
+// Standard mesh format (48 bytes):
+// Position + Normal + UV + Color + Tangent
+struct VS_INPUT_MESH
 {
     float3 Position : POSITION;
     float3 Normal : NORMAL;
     float2 TexCoord : TEXCOORD0;
+    float4 Color : COLOR0;      // Packed uint32 as normalized float4
+    float3 Tangent : TANGENT;
 };
 
-struct VS_INPUT_PNUT
-{
-    float3 Position : POSITION;
-    float3 Normal : NORMAL;
-    float2 TexCoord : TEXCOORD0;
-    float4 Tangent : TANGENT; // w = handedness
-};
-
+// Skinned mesh format (72 bytes):
+// Position + Normal + UV + Color + Tangent + Joints + Weights
 struct VS_INPUT_SKINNED
 {
     float3 Position : POSITION;
     float3 Normal : NORMAL;
     float2 TexCoord : TEXCOORD0;
-    float4 Tangent : TANGENT;
-    uint4 BoneIndices : BLENDINDICES;
-    float4 BoneWeights : BLENDWEIGHT;
+    float4 Color : COLOR0;
+    float3 Tangent : TANGENT;
+    uint4 Joints : BLENDINDICES;   // uint16[4] -> uint4
+    float4 Weights : BLENDWEIGHT;
 };
 
 // ============================================================================

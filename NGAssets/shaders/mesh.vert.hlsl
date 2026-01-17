@@ -52,20 +52,15 @@ void ApplySkinning(
 // Main Vertex Shader
 // ============================================================================
 
-#ifdef SKINNED
+#if defined(SKINNED)
 VS_OUTPUT main(VS_INPUT_SKINNED input
 #ifdef INSTANCED
     , InstanceInput instance
 #endif
     )
-#elif defined(NORMAL_MAP)
-VS_OUTPUT main(VS_INPUT_PNUT input
-#ifdef INSTANCED
-    , InstanceInput instance
-#endif
-    )
 #else
-VS_OUTPUT main(VS_INPUT_PNU input
+// Default: use standard mesh format (48 bytes)
+VS_OUTPUT main(VS_INPUT_MESH input
 #ifdef INSTANCED
     , InstanceInput instance
 #endif
@@ -76,17 +71,12 @@ VS_OUTPUT main(VS_INPUT_PNU input
 
     float3 localPos = input.Position;
     float3 localNormal = input.Normal;
-    float3 localTangent = float3(1, 0, 0);
+    // Geometry format always has tangent
+    float3 localTangent = input.Tangent;
+    float tangentSign = 1.0; // Geometry format has no handedness in tangent.w
 
-#ifdef NORMAL_MAP
-    localTangent = input.Tangent.xyz;
-    float tangentSign = input.Tangent.w;
-#else
-    float tangentSign = 1.0;
-#endif
-
-#ifdef SKINNED
-    ApplySkinning(localPos, localNormal, localTangent, input.BoneIndices, input.BoneWeights);
+#if defined(SKINNED)
+    ApplySkinning(localPos, localNormal, localTangent, input.Joints, input.Weights);
 #endif
 
     // Get world/normal matrices

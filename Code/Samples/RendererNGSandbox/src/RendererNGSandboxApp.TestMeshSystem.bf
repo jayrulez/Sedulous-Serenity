@@ -4,101 +4,129 @@ using System;
 using Sedulous.RendererNG;
 using Sedulous.RHI;
 using Sedulous.Mathematics;
+using Sedulous.Geometry;
 
 extension RendererNGSandboxApp
 {
-	/// Tests the mesh data structures.
+	/// Tests the Geometry mesh data structures.
 	public void TestMeshData()
 	{
-		Console.WriteLine("\n=== Testing Mesh Data ===\n");
+		Console.WriteLine("\n=== Testing Geometry Mesh Data ===\n");
 
-		// Test StaticMesh creation
-		let mesh = new StaticMesh("TestMesh", .PositionNormalUV, 24, 36, false);
+		// Test StaticMesh creation with common vertex format
+		let mesh = new Sedulous.Geometry.StaticMesh();
+		mesh.SetupCommonVertexFormat();
+		mesh.Vertices.Resize(24);
+		mesh.Indices.Resize(36);
+
 		Console.WriteLine("StaticMesh created:");
-		Console.WriteLine("  Name: {}", mesh.Name);
-		Console.WriteLine("  VertexLayout: {}", mesh.VertexLayout);
-		Console.WriteLine("  VertexCount: {}", mesh.VertexCount);
-		Console.WriteLine("  IndexCount: {}", mesh.IndexCount);
-		Console.WriteLine("  VertexStride: {} bytes", mesh.VertexStride);
-		Console.WriteLine("  VertexDataSize: {} bytes", mesh.VertexDataSize);
-		Console.WriteLine("  IndexDataSize: {} bytes", mesh.IndexDataSize);
+		Console.WriteLine("  VertexCount: {}", mesh.Vertices.VertexCount);
+		Console.WriteLine("  IndexCount: {}", mesh.Indices.IndexCount);
+		Console.WriteLine("  VertexSize: {} bytes", mesh.Vertices.VertexSize);
+		Console.WriteLine("  VertexDataSize: {} bytes", mesh.Vertices.GetDataSize());
+		Console.WriteLine("  IndexDataSize: {} bytes", mesh.Indices.GetDataSize());
 
-		// Test vertex access
-		var vertices = mesh.GetVertices<VertexLayouts.VertexPNU>();
-		Console.WriteLine("  Vertex span length: {}", vertices.Length);
+		// Fill some test data using the high-level API
+		mesh.SetPosition(0, .(0, 0, 0));
+		mesh.SetNormal(0, .(0, 1, 0));
+		mesh.SetUV(0, .(0, 0));
 
-		// Fill some test data
-		vertices[0] = .() { Position = .(0, 0, 0), Normal = .(0, 1, 0), TexCoord = .(0, 0) };
-		vertices[1] = .() { Position = .(1, 0, 0), Normal = .(0, 1, 0), TexCoord = .(1, 0) };
-		vertices[2] = .() { Position = .(1, 0, 1), Normal = .(0, 1, 0), TexCoord = .(1, 1) };
+		mesh.SetPosition(1, .(1, 0, 0));
+		mesh.SetNormal(1, .(0, 1, 0));
+		mesh.SetUV(1, .(1, 0));
+
+		mesh.SetPosition(2, .(1, 0, 1));
+		mesh.SetNormal(2, .(0, 1, 0));
+		mesh.SetUV(2, .(1, 1));
+
+		// Test reading back
+		let pos = mesh.GetPosition(1);
+		Console.WriteLine("  Position[1]: ({}, {}, {})", pos.X, pos.Y, pos.Z);
 
 		// Test bounds computation
-		mesh.ComputeBounds();
-		Console.WriteLine("  Bounds: {} - {}", mesh.Bounds.Min, mesh.Bounds.Max);
+		let bounds = mesh.GetBounds();
+		Console.WriteLine("  Bounds: {} - {}", bounds.Min, bounds.Max);
 
 		// Test submeshes
-		mesh.AddSubmesh(0, 6, 0);
-		mesh.AddSubmesh(6, 12, 1);
-		Console.WriteLine("  Submeshes: {}", mesh.Submeshes.Count);
+		mesh.SubMeshes.Add(.(0, 6, 0));
+		mesh.SubMeshes.Add(.(6, 12, 1));
+		Console.WriteLine("  SubMeshes: {}", mesh.SubMeshes.Count);
 
 		delete mesh;
 
 		// Test SkinnedMesh
-		let skinnedMesh = new SkinnedMesh("SkinnedTest", 100, 300, false);
-		Console.WriteLine("\nSkinnedMesh created:");
-		Console.WriteLine("  VertexLayout: {}", skinnedMesh.VertexLayout);
-		Console.WriteLine("  VertexStride: {} bytes", skinnedMesh.VertexStride);
+		let skinnedMesh = new Sedulous.Geometry.SkinnedMesh();
+		skinnedMesh.ResizeVertices(100);
+		skinnedMesh.ReserveIndices(300);
 
-		// Add bones
-		skinnedMesh.AddBone("Root", -1, .Identity);
-		skinnedMesh.AddBone("Spine", 0, .Identity);
-		skinnedMesh.AddBone("Head", 1, .Identity);
-		Console.WriteLine("  Bones: {}", skinnedMesh.Bones.Count);
-		Console.WriteLine("  Root bone index: {}", skinnedMesh.GetBoneIndex("Root"));
-		Console.WriteLine("  Unknown bone: {}", skinnedMesh.GetBoneIndex("Unknown"));
+		Console.WriteLine("\nSkinnedMesh created:");
+		Console.WriteLine("  VertexCount: {}", skinnedMesh.VertexCount);
+		Console.WriteLine("  VertexSize: {} bytes", skinnedMesh.VertexSize);
+
+		// Set a skinned vertex
+		var vertex = SkinnedVertex();
+		vertex.Position = .(1, 2, 3);
+		vertex.Normal = .(0, 1, 0);
+		vertex.Joints = .(0, 1, 0, 0);
+		vertex.Weights = .(0.7f, 0.3f, 0, 0);
+		skinnedMesh.SetVertex(0, vertex);
+
+		let readBack = skinnedMesh.GetVertex(0);
+		Console.WriteLine("  Vertex[0] Position: ({}, {}, {})", readBack.Position.X, readBack.Position.Y, readBack.Position.Z);
+		Console.WriteLine("  Vertex[0] Weights: ({}, {}, {}, {})",
+			readBack.Weights.X, readBack.Weights.Y, readBack.Weights.Z, readBack.Weights.W);
 
 		delete skinnedMesh;
 
-		Console.WriteLine("\nMesh Data tests passed!");
+		Console.WriteLine("\nGeometry Mesh Data tests passed!");
 	}
 
-	/// Tests the mesh primitives.
+	/// Tests the Geometry mesh primitives.
 	public void TestMeshPrimitives()
 	{
-		Console.WriteLine("\n=== Testing Mesh Primitives ===\n");
+		Console.WriteLine("\n=== Testing Geometry Mesh Primitives ===\n");
 
 		// Test cube
-		let cube = MeshPrimitives.CreateCube("TestCube");
+		let cube = Sedulous.Geometry.StaticMesh.CreateCube(1.0f);
 		Console.WriteLine("Cube:");
-		Console.WriteLine("  Vertices: {}", cube.VertexCount);
-		Console.WriteLine("  Indices: {}", cube.IndexCount);
-		Console.WriteLine("  Submeshes: {}", cube.Submeshes.Count);
-		Console.WriteLine("  Bounds: {} - {}", cube.Bounds.Min, cube.Bounds.Max);
+		Console.WriteLine("  Vertices: {}", cube.Vertices.VertexCount);
+		Console.WriteLine("  Indices: {}", cube.Indices.IndexCount);
+		Console.WriteLine("  SubMeshes: {}", cube.SubMeshes.Count);
+		let cubeBounds = cube.GetBounds();
+		Console.WriteLine("  Bounds: {} - {}", cubeBounds.Min, cubeBounds.Max);
 		delete cube;
 
 		// Test plane
-		let plane = MeshPrimitives.CreatePlane(2, 2, "TestPlane");
+		let plane = Sedulous.Geometry.StaticMesh.CreatePlane(2, 2, 1, 1);
 		Console.WriteLine("\nPlane (2x2):");
-		Console.WriteLine("  Vertices: {}", plane.VertexCount);
-		Console.WriteLine("  Indices: {}", plane.IndexCount);
+		Console.WriteLine("  Vertices: {}", plane.Vertices.VertexCount);
+		Console.WriteLine("  Indices: {}", plane.Indices.IndexCount);
 		delete plane;
 
 		// Test sphere
-		let sphere = MeshPrimitives.CreateSphere(8, 8, 1.0f, "TestSphere");
+		let sphere = Sedulous.Geometry.StaticMesh.CreateSphere(1.0f, 8, 8);
 		Console.WriteLine("\nSphere (8x8 segments):");
-		Console.WriteLine("  Vertices: {}", sphere.VertexCount);
-		Console.WriteLine("  Indices: {}", sphere.IndexCount);
-		Console.WriteLine("  Bounds: {} - {}", sphere.Bounds.Min, sphere.Bounds.Max);
+		Console.WriteLine("  Vertices: {}", sphere.Vertices.VertexCount);
+		Console.WriteLine("  Indices: {}", sphere.Indices.IndexCount);
+		let sphereBounds = sphere.GetBounds();
+		Console.WriteLine("  Bounds: {} - {}", sphereBounds.Min, sphereBounds.Max);
 		delete sphere;
 
 		// Test cylinder
-		let cylinder = MeshPrimitives.CreateCylinder(12, 0.5f, 2.0f, "TestCylinder");
+		let cylinder = Sedulous.Geometry.StaticMesh.CreateCylinder(0.5f, 2.0f, 12);
 		Console.WriteLine("\nCylinder (12 segments):");
-		Console.WriteLine("  Vertices: {}", cylinder.VertexCount);
-		Console.WriteLine("  Indices: {}", cylinder.IndexCount);
+		Console.WriteLine("  Vertices: {}", cylinder.Vertices.VertexCount);
+		Console.WriteLine("  Indices: {}", cylinder.Indices.IndexCount);
 		delete cylinder;
 
-		Console.WriteLine("\nMesh Primitives tests passed!");
+		// Test torus
+		let torus = Sedulous.Geometry.StaticMesh.CreateTorus(1.0f, 0.3f, 16, 8);
+		Console.WriteLine("\nTorus (16x8 segments):");
+		Console.WriteLine("  Vertices: {}", torus.Vertices.VertexCount);
+		Console.WriteLine("  Indices: {}", torus.Indices.IndexCount);
+		delete torus;
+
+		Console.WriteLine("\nGeometry Mesh Primitives tests passed!");
 	}
 
 	/// Tests the mesh pool and GPU upload.
@@ -144,10 +172,10 @@ extension RendererNGSandboxApp
 		Console.WriteLine("\nMesh Pool tests passed!");
 	}
 
-	/// Tests mesh uploading.
+	/// Tests mesh uploading with Geometry meshes.
 	public void TestMeshUploader()
 	{
-		Console.WriteLine("\n=== Testing Mesh Uploader ===\n");
+		Console.WriteLine("\n=== Testing Mesh Uploader (Geometry) ===\n");
 
 		let pool = scope MeshPool();
 		pool.Initialize(mDevice);
@@ -156,9 +184,9 @@ extension RendererNGSandboxApp
 		uploader.Initialize(mDevice, pool);
 		Console.WriteLine("MeshUploader initialized");
 
-		// Create and upload a cube
-		let cube = MeshPrimitives.CreateCube("UploadCube");
-		Console.WriteLine("\nUploading cube...");
+		// Create and upload a Geometry cube
+		let cube = Sedulous.Geometry.StaticMesh.CreateCube(1.0f);
+		Console.WriteLine("\nUploading Geometry cube...");
 
 		switch (uploader.Upload(cube))
 		{
@@ -171,6 +199,7 @@ extension RendererNGSandboxApp
 			Console.WriteLine("  IndexBuffer valid: {}", gpuMesh.IndexBuffer != null);
 			Console.WriteLine("  VertexCount: {}", gpuMesh.VertexCount);
 			Console.WriteLine("  IndexCount: {}", gpuMesh.IndexCount);
+			Console.WriteLine("  VertexLayout: {}", gpuMesh.VertexLayout);
 			Console.WriteLine("  Submeshes: {}", gpuMesh.Submeshes.Count);
 			Console.WriteLine("  IsValid: {}", gpuMesh.IsValid);
 
@@ -179,6 +208,42 @@ extension RendererNGSandboxApp
 		}
 
 		delete cube;
+
+		// Test uploading a skinned mesh
+		Console.WriteLine("\nUploading Geometry skinned mesh...");
+		let skinnedMesh = new Sedulous.Geometry.SkinnedMesh();
+		skinnedMesh.ResizeVertices(4);
+		skinnedMesh.ReserveIndices(6);
+
+		// Add some vertices
+		for (int i < 4)
+		{
+			var v = SkinnedVertex();
+			v.Position = .((float)i, 0, 0);
+			v.Normal = .(0, 1, 0);
+			v.Joints = .(0, 0, 0, 0);
+			v.Weights = .(1, 0, 0, 0);
+			skinnedMesh.SetVertex((int32)i, v);
+		}
+
+		// Add indices
+		skinnedMesh.AddTriangle(0, 1, 2);
+		skinnedMesh.AddTriangle(0, 2, 3);
+		skinnedMesh.SubMeshes.Add(.(0, 6, 0));
+
+		switch (uploader.Upload(skinnedMesh))
+		{
+		case .Ok(let handle):
+			Console.WriteLine("Skinned mesh upload successful!");
+			let gpuMesh = pool.Get(handle);
+			Console.WriteLine("  VertexLayout: {}", gpuMesh.VertexLayout);
+			Console.WriteLine("  IsSkinned: {}", gpuMesh.IsSkinned);
+
+		case .Err:
+			Console.WriteLine("ERROR: Failed to upload skinned mesh");
+		}
+
+		delete skinnedMesh;
 
 		Console.WriteLine("\nMesh Uploader tests passed!");
 	}
