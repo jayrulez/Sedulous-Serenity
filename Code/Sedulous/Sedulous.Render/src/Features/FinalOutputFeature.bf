@@ -8,7 +8,47 @@ using Sedulous.Shaders;
 
 /// Final output render feature.
 /// Blits the scene color to the swapchain for presentation.
-/// This feature must be registered last as it outputs to the swapchain.
+///
+/// ## Current Implementation (Manual Barriers)
+///
+/// The render graph does not yet support automatic image layout transitions/barriers.
+/// Therefore, this feature operates OUTSIDE the render graph:
+///
+/// 1. `AddPasses()` does nothing - no render graph integration
+/// 2. Application must call `BlitToSwapchain()` manually after `RenderGraph.Execute()`
+/// 3. `BlitToSwapchain()` manually inserts the texture barrier and creates the render pass
+///
+/// Example usage:
+/// ```
+/// renderSystem.Execute(encoder);
+/// finalOutputFeature.BlitToSwapchain(encoder, sceneColorTexture, sceneColorView);
+/// ```
+///
+/// ## Future Implementation (Automatic Barriers)
+///
+/// When the render graph supports automatic layout transitions, refactor as follows:
+///
+/// 1. Move `BlitToSwapchain()` logic into `AddPasses()`:
+///    ```
+///    graph.AddGraphicsPass("FinalOutput")
+///        .ReadTexture(colorHandle)  // RG will insert ColorAttachment->ShaderReadOnly barrier
+///        .WriteColor(swapchainHandle, .Clear, .Store, clearColor)
+///        .NeverCull()
+///        .SetExecuteCallback(new (encoder) => ExecuteBlitPass(encoder));
+///    ```
+///
+/// 2. Remove the manual `BlitToSwapchain()` method
+///
+/// 3. Application code simplifies to just:
+///    ```
+///    renderSystem.Execute(encoder);  // FinalOutput pass runs automatically
+///    ```
+///
+/// 4. The render graph will handle:
+///    - Barrier insertion before ReadTexture resources
+///    - Swapchain layout transitions for presentation
+///    - Pass ordering based on dependencies
+///
 public class FinalOutputFeature : RenderFeatureBase
 {
 	// Blit pipeline
@@ -16,6 +56,10 @@ public class FinalOutputFeature : RenderFeatureBase
 	private IPipelineLayout mBlitPipelineLayout ~ delete _;
 	private IBindGroupLayout mBlitBindGroupLayout ~ delete _;
 	private ISampler mLinearSampler ~ delete _;
+
+	// Bind group (recreated when scene color changes)
+	private IBindGroup mBlitBindGroup ~ delete _;
+	private ITextureView mLastSceneColorView;
 
 	// Swapchain reference (set each frame)
 	private ISwapChain mSwapChain;
@@ -148,51 +192,77 @@ public class FinalOutputFeature : RenderFeatureBase
 
 	public override void AddPasses(RenderGraph graph, RenderView view, RenderWorld world)
 	{
-		if (mSwapChain == null)
-			return;
-
-		// Get scene color buffer
-		let colorHandle = graph.GetResource("SceneColor");
-		if (!colorHandle.IsValid)
-			return;
-
-		// Import swapchain as output target
-		let swapchainHandle = graph.ImportTexture(
-			"Swapchain",
-			mSwapChain.CurrentTexture,
-			mSwapChain.CurrentTextureView
-		);
-
-		// Add final blit pass
-		graph.AddGraphicsPass("FinalOutput")
-			.ReadTexture(colorHandle)
-			.WriteColor(swapchainHandle, .Clear, .Store, .(0.0f, 0.0f, 0.0f, 1.0f))
-			.NeverCull()
-			.SetExecuteCallback(new (encoder) => {
-				ExecuteBlitPass(encoder, view, colorHandle);
-			});
+		// FinalOutput doesn't add render graph passes - it runs manually after the graph
+		// to properly handle swapchain transitions and barriers.
 	}
 
-	private void ExecuteBlitPass(IRenderPassEncoder encoder, RenderView view, RGResourceHandle colorHandle)
+	/// Blits the scene color to the swapchain.
+	/// Call this AFTER RenderGraph.Execute() to present the final image.
+	public void BlitToSwapchain(ICommandEncoder encoder, ITexture sceneColorTexture, ITextureView sceneColorView)
 	{
-		// Set viewport
-		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0.0f, 1.0f);
-		encoder.SetScissorRect(0, 0, view.Width, view.Height);
-
-		// If blit pipeline isn't ready, the render pass will just clear the swapchain
-		// This ensures the swapchain is transitioned to the correct layout for presentation
-		if (mBlitPipeline == null)
+		if (mSwapChain == null || mBlitPipeline == null)
 			return;
 
-		// Set pipeline
-		encoder.SetPipeline(mBlitPipeline);
+		// Transition SceneColor from ColorAttachment to ShaderReadOnly for sampling
+		if (sceneColorTexture != null)
+			encoder.TextureBarrier(sceneColorTexture, .ColorAttachment, .ShaderReadOnly);
 
-		// TODO: Create and bind the source texture bind group
-		// For now, the render pass clears the swapchain.
-		// Full blit implementation requires the render graph to provide resolved texture views.
+		// Create or update bind group if scene color view changed
+		if (sceneColorView != null && sceneColorView != mLastSceneColorView)
+		{
+			// Release old bind group
+			if (mBlitBindGroup != null)
+			{
+				delete mBlitBindGroup;
+				mBlitBindGroup = null;
+			}
 
-		// Draw fullscreen triangle
-		encoder.Draw(3, 1, 0, 0);
-		Renderer.Stats.DrawCalls++;
+			// Create new bind group with current scene color
+			BindGroupEntry[2] entries = .(
+				BindGroupEntry.Texture(0, sceneColorView),
+				BindGroupEntry.Sampler(0, mLinearSampler)
+			);
+
+			BindGroupDescriptor bgDesc = .()
+			{
+				Label = "Blit BindGroup",
+				Layout = mBlitBindGroupLayout,
+				Entries = entries
+			};
+
+			if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bg))
+				mBlitBindGroup = bg;
+
+			mLastSceneColorView = sceneColorView;
+		}
+
+		// Create render pass for swapchain
+		RenderPassColorAttachment[1] colorAttachments = .(.()
+		{
+			View = mSwapChain.CurrentTextureView,
+			ResolveTarget = null,
+			LoadOp = .Clear,
+			StoreOp = .Store,
+			ClearValue = .(0.0f, 0.0f, 0.0f, 1.0f)
+		});
+
+		RenderPassDescriptor desc = .(colorAttachments);
+
+		let renderPass = encoder.BeginRenderPass(&desc);
+		if (renderPass == null)
+			return;
+		defer { renderPass.End(); delete renderPass; }
+
+		renderPass.SetViewport(0, 0, mSwapChain.Width, mSwapChain.Height, 0, 1);
+		renderPass.SetScissorRect(0, 0, mSwapChain.Width, mSwapChain.Height);
+
+		// Draw fullscreen blit if bind group is ready
+		if (mBlitBindGroup != null)
+		{
+			renderPass.SetPipeline(mBlitPipeline);
+			renderPass.SetBindGroup(0, mBlitBindGroup, default);
+			renderPass.Draw(3, 1, 0, 0);
+			Renderer.Stats.DrawCalls++;
+		}
 	}
 }

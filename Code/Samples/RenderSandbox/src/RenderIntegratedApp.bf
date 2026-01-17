@@ -23,14 +23,7 @@ class RenderIntegratedApp : Application
 	private ForwardOpaqueFeature mForwardFeature;
 	private SkyFeature mSkyFeature;
 	private DebugRenderFeature mDebugFeature;
-
-	// Blit pipeline (for final output to swapchain)
-	private IRenderPipeline mBlitPipeline ~ delete _;
-	private IPipelineLayout mBlitPipelineLayout ~ delete _;
-	private IBindGroupLayout mBlitBindGroupLayout ~ delete _;
-	private ISampler mBlitSampler ~ delete _;
-	private IBindGroup mBlitBindGroup ~ delete _;
-	private ITextureView mLastSceneColorView;
+	private FinalOutputFeature mFinalOutputFeature;
 
 	// Test objects
 	private GPUMeshHandle mCubeMeshHandle;
@@ -112,9 +105,6 @@ class RenderIntegratedApp : Application
 		// Register render features
 		RegisterFeatures();
 
-		// Create blit pipeline for final output
-		CreateBlitPipeline();
-
 		// Create test meshes
 		CreateMeshes();
 
@@ -182,119 +172,12 @@ class RenderIntegratedApp : Application
 		else
 			Console.WriteLine("Registered: DebugRenderFeature");
 
-		// Note: Final output to swapchain is handled manually in OnRenderFrame
-		// to properly transition the swapchain to PRESENT_SRC_KHR layout
-	}
-
-	private void CreateBlitPipeline()
-	{
-		// Create sampler for blit
-		SamplerDescriptor samplerDesc = .()
-		{
-			AddressModeU = .ClampToEdge,
-			AddressModeV = .ClampToEdge,
-			AddressModeW = .ClampToEdge,
-			MinFilter = .Linear,
-			MagFilter = .Linear,
-			MipmapFilter = .Nearest
-		};
-
-		if (mDevice.CreateSampler(&samplerDesc) case .Ok(let sampler))
-			mBlitSampler = sampler;
+		// Final output (blits scene to swapchain)
+		mFinalOutputFeature = new FinalOutputFeature();
+		if (mRenderSystem.RegisterFeature(mFinalOutputFeature) case .Err)
+			Console.WriteLine("Warning: Failed to register FinalOutputFeature");
 		else
-		{
-			Console.WriteLine("Warning: Failed to create blit sampler");
-			return;
-		}
-
-		// Create bind group layout: t0=source texture, s0=sampler
-		BindGroupLayoutEntry[2] layoutEntries = .(
-			.() { Binding = 0, Visibility = .Fragment, Type = .SampledTexture }, // t0
-			.() { Binding = 0, Visibility = .Fragment, Type = .Sampler }         // s0
-		);
-
-		BindGroupLayoutDescriptor bgLayoutDesc = .()
-		{
-			Label = "Blit BindGroup Layout",
-			Entries = layoutEntries
-		};
-
-		if (mDevice.CreateBindGroupLayout(&bgLayoutDesc) case .Ok(let bgLayout))
-			mBlitBindGroupLayout = bgLayout;
-		else
-		{
-			Console.WriteLine("Warning: Failed to create blit bind group layout");
-			return;
-		}
-
-		// Create pipeline layout
-		IBindGroupLayout[1] bgLayouts = .(mBlitBindGroupLayout);
-		PipelineLayoutDescriptor plDesc = .(bgLayouts);
-		if (mDevice.CreatePipelineLayout(&plDesc) case .Ok(let pipelineLayout))
-			mBlitPipelineLayout = pipelineLayout;
-		else
-		{
-			Console.WriteLine("Warning: Failed to create blit pipeline layout");
-			return;
-		}
-
-		// Load blit shaders
-		if (mRenderSystem.ShaderSystem == null)
-		{
-			Console.WriteLine("Warning: Shader system not available");
-			return;
-		}
-
-		let shaderResult = mRenderSystem.ShaderSystem.GetShaderPair("blit");
-		if (shaderResult case .Err)
-		{
-			Console.WriteLine("Warning: Blit shaders not available");
-			return;
-		}
-
-		let (vertShader, fragShader) = shaderResult.Value;
-
-		// Color targets - match swapchain format
-		ColorTargetState[1] colorTargets = .(.(.BGRA8UnormSrgb));
-
-		// Blit uses fullscreen triangle with SV_VertexID
-		RenderPipelineDescriptor pipelineDesc = .()
-		{
-			Label = "Blit Pipeline",
-			Layout = mBlitPipelineLayout,
-			Vertex = .()
-			{
-				Shader = .(vertShader.Module, "main"),
-				Buffers = default // No vertex buffers - SV_VertexID
-			},
-			Fragment = .()
-			{
-				Shader = .(fragShader.Module, "main"),
-				Targets = colorTargets
-			},
-			Primitive = .()
-			{
-				Topology = .TriangleList,
-				FrontFace = .CCW,
-				CullMode = .None
-			},
-			DepthStencil = .None, // No depth attachment for blit
-			Multisample = .()
-			{
-				Count = 1,
-				Mask = uint32.MaxValue
-			}
-		};
-
-		if (mDevice.CreateRenderPipeline(&pipelineDesc) case .Ok(let pipeline))
-		{
-			mBlitPipeline = pipeline;
-			Console.WriteLine("Blit pipeline created");
-		}
-		else
-		{
-			Console.WriteLine("Warning: Failed to create blit pipeline");
-		}
+			Console.WriteLine("Registered: FinalOutputFeature");
 	}
 
 	private void CreateMeshes()
@@ -839,6 +722,10 @@ class RenderIntegratedApp : Application
 		// Begin frame
 		mRenderSystem.BeginFrame((float)render.Frame.TotalTime, (float)render.Frame.DeltaTime);
 
+		// Set swapchain for final output
+		if (mFinalOutputFeature != null)
+			mFinalOutputFeature.SetSwapChain(render.SwapChain);
+
 		// Set camera
 		mRenderSystem.SetCamera(
 			mCameraPosition,
@@ -859,87 +746,19 @@ class RenderIntegratedApp : Application
 			mRenderSystem.Execute(render.Encoder);
 		}
 
-		// Final output to swapchain
-		// The render graph renders to SceneColor, we need to present to swapchain
-		// For now, just clear the swapchain so it transitions to correct layout
-		RenderToSwapchain(render);
+		// Final output to swapchain (after render graph, with proper barriers)
+		if (mFinalOutputFeature != null)
+		{
+			let sceneColorHandle = mRenderSystem.RenderGraph.GetResource("SceneColor");
+			let sceneColorTexture = mRenderSystem.RenderGraph.GetTexture(sceneColorHandle);
+			let sceneColorView = mRenderSystem.RenderGraph.GetTextureView(sceneColorHandle);
+			mFinalOutputFeature.BlitToSwapchain(render.Encoder, sceneColorTexture, sceneColorView);
+		}
 
 		// End frame
 		mRenderSystem.EndFrame();
 
 		return true;
-	}
-
-	private void RenderToSwapchain(RenderContext render)
-	{
-		// Get SceneColor texture and view from render graph
-		let sceneColorHandle = mRenderSystem.RenderGraph.GetResource("SceneColor");
-		let sceneColorTexture = mRenderSystem.RenderGraph.GetTexture(sceneColorHandle);
-		let sceneColorView = mRenderSystem.RenderGraph.GetTextureView(sceneColorHandle);
-
-		// Transition SceneColor from ColorAttachment to ShaderReadOnly for sampling
-		if (sceneColorTexture != null)
-			render.Encoder.TextureBarrier(sceneColorTexture, .ColorAttachment, .ShaderReadOnly);
-
-		// Create or update bind group if scene color view changed
-		if (sceneColorView != null && mBlitPipeline != null)
-		{
-			if (sceneColorView != mLastSceneColorView)
-			{
-				// Release old bind group
-				if (mBlitBindGroup != null)
-				{
-					delete mBlitBindGroup;
-					mBlitBindGroup = null;
-				}
-
-				// Create new bind group with current scene color
-				BindGroupEntry[2] entries = .(
-					BindGroupEntry.Texture(0, sceneColorView),
-					BindGroupEntry.Sampler(0, mBlitSampler)
-				);
-
-				BindGroupDescriptor bgDesc = .()
-				{
-					Label = "Blit BindGroup",
-					Layout = mBlitBindGroupLayout,
-					Entries = entries
-				};
-
-				if (mDevice.CreateBindGroup(&bgDesc) case .Ok(let bg))
-					mBlitBindGroup = bg;
-
-				mLastSceneColorView = sceneColorView;
-			}
-		}
-
-		// Final output to swapchain
-		// Clear to ensure proper layout transition
-		RenderPassColorAttachment[1] colorAttachments = .(.()
-		{
-			View = render.CurrentTextureView,
-			ResolveTarget = null,
-			LoadOp = .Clear,
-			StoreOp = .Store,
-			ClearValue = .(0.0f, 0.0f, 0.0f, 1.0f)
-		});
-
-		RenderPassDescriptor desc = .(colorAttachments);
-
-		let renderPass = render.Encoder.BeginRenderPass(&desc);
-		renderPass.SetViewport(0, 0, render.SwapChain.Width, render.SwapChain.Height, 0, 1);
-		renderPass.SetScissorRect(0, 0, render.SwapChain.Width, render.SwapChain.Height);
-
-		// Draw fullscreen blit if pipeline and bind group are ready
-		if (mBlitPipeline != null && mBlitBindGroup != null)
-		{
-			renderPass.SetPipeline(mBlitPipeline);
-			renderPass.SetBindGroup(0, mBlitBindGroup, default);
-			renderPass.Draw(3, 1, 0, 0); // Fullscreen triangle
-		}
-
-		renderPass.End();
-		delete renderPass;
 	}
 
 	protected override void OnFrameEnd()
