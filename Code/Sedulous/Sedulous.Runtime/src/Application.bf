@@ -495,13 +495,13 @@ abstract class Application
 		{
 			// Check if NGAssets folder exists in this directory
 			let assetsPath = scope String();
-			Path.InternalCombine(assetsPath, searchDir, "NGAssets");
+			Path.InternalCombine(assetsPath, searchDir, "Assets");
 
 			if (Directory.Exists(assetsPath))
 			{
 				// Check for .ngassets marker file
 				let markerPath = scope String();
-				Path.InternalCombine(markerPath, assetsPath, ".ngassets");
+				Path.InternalCombine(markerPath, assetsPath, ".assets");
 
 				if (File.Exists(markerPath))
 				{

@@ -510,6 +510,7 @@ public class RenderGraph : IDisposable
 		let encoder = commandEncoder.BeginRenderPass(&rpDesc);
 		if (encoder == null)
 			return .Err;
+		defer delete encoder;
 
 		// Execute callback
 		if (pass.ExecuteCallback != null)
