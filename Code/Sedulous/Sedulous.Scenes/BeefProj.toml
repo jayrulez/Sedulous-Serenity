@@ -1,0 +1,6 @@
+FileVersion = 1
+
+[Project]
+Name = "Sedulous.Scenes"
+TargetType = "BeefLib"
+StartupObject = "Sedulous.Scenes.Program"
