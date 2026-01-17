@@ -5,6 +5,9 @@ using System;
 /// A GPU buffer resource.
 interface IBuffer : IDisposable
 {
+	/// Debug name for tracking resource leaks.
+	StringView DebugName { get; }
+
 	/// Size of the buffer in bytes.
 	uint64 Size { get; }
 

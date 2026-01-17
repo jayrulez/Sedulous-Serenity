@@ -349,7 +349,8 @@ class VulkanSwapChain : ISwapChain
 					BaseMipLevel = 0,
 					MipLevelCount = 1,
 					BaseArrayLayer = 0,
-					ArrayLayerCount = 1
+					ArrayLayerCount = 1,
+					Label = scope $"SwapchainTexture{mImages.IndexOf(image)}"
 				};
 
 			if (mDevice.CreateTextureView(texture, &viewDesc) case .Ok(let view))

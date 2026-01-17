@@ -10,10 +10,13 @@ class VulkanSampler : ISampler
 {
 	private VulkanDevice mDevice;
 	private VkSampler mSampler;
+	private String mDebugName ~ delete _;
 
 	public this(VulkanDevice device, SamplerDescriptor* descriptor)
 	{
 		mDevice = device;
+		if (descriptor.Label.Ptr != null && descriptor.Label.Length > 0)
+			mDebugName = new String(descriptor.Label);
 		CreateSampler(descriptor);
 	}
 
@@ -33,6 +36,8 @@ class VulkanSampler : ISampler
 
 	/// Returns true if the sampler was created successfully.
 	public bool IsValid => mSampler != default;
+
+	public StringView DebugName => mDebugName != null ? mDebugName : "";
 
 	/// Gets the Vulkan sampler handle.
 	public VkSampler Sampler => mSampler;

@@ -5,6 +5,9 @@ using System;
 /// A view into a texture resource.
 interface ITextureView : IDisposable
 {
+	/// Debug name for tracking resource leaks.
+	StringView DebugName { get; }
+
 	/// The texture this view references.
 	ITexture Texture { get; }
 

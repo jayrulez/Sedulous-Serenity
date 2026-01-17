@@ -5,6 +5,9 @@ using System;
 /// A GPU texture resource.
 interface ITexture : IDisposable
 {
+	/// Debug name for tracking resource leaks.
+	StringView DebugName { get; }
+
 	/// Texture dimensionality.
 	TextureDimension Dimension { get; }
 

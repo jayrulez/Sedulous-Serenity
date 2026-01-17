@@ -22,6 +22,7 @@ class VulkanTexture : ITexture
 	private TextureUsage mUsage;
 	private bool mOwnsImage;
 	private bool mIsSwapChainTexture;
+	private String mDebugName ~ delete _;
 
 	/// Creates a texture from a descriptor.
 	public this(VulkanDevice device, TextureDescriptor* descriptor)
@@ -37,6 +38,10 @@ class VulkanTexture : ITexture
 		mSampleCount = descriptor.SampleCount;
 		mUsage = descriptor.Usage;
 		mOwnsImage = true;
+		if (descriptor.Label.Ptr != null && descriptor.Label.Length > 0)
+			mDebugName = new String(descriptor.Label);
+		else
+			Runtime.FatalError();
 		CreateImage(descriptor);
 	}
 
@@ -84,6 +89,7 @@ class VulkanTexture : ITexture
 	/// Returns true if the texture was created successfully.
 	public bool IsValid => mImage != default;
 
+	public StringView DebugName => mDebugName != null ? mDebugName : "";
 	public TextureDimension Dimension => mDimension;
 	public TextureFormat Format => mFormat;
 	public uint32 Width => mWidth;
@@ -107,7 +113,8 @@ class VulkanTexture : ITexture
 	{
 		// Determine image flags
 		VkImageCreateFlags flags = 0;
-		if (descriptor.ArrayLayerCount == 6)
+		// Set cube compatible for single cubemaps (6 layers) and cubemap arrays (multiples of 6)
+		if (descriptor.ArrayLayerCount >= 6 && descriptor.ArrayLayerCount % 6 == 0)
 			flags |= .VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
 
 		// Create image
