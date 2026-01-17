@@ -96,9 +96,9 @@ SamplerComparisonState ShadowSampler : register(s0, space0);
 // Calculate shadow factor for cascaded shadow maps
 float CalculateShadow(float3 worldPos, float3 normal)
 {
-    // Calculate view-space depth for cascade selection
+    // Calculate view-space depth for cascade selection (matching old renderer approach)
     float4 viewPos = mul(float4(worldPos, 1.0), ViewMatrix);
-    float depth = -viewPos.z;
+    float depth = abs(viewPos.z);  // Use abs() like old renderer
 
     // Find which cascade to use
     int cascadeIndex = CASCADE_COUNT - 1;
@@ -115,9 +115,8 @@ float CalculateShadow(float3 worldPos, float3 normal)
     float4 shadowPos = mul(float4(worldPos, 1.0), Cascades[cascadeIndex].ViewProjection);
     shadowPos.xyz /= shadowPos.w;
 
-    // Convert to [0, 1] UV coordinates
-    // Flip V for Vulkan's texture coordinate system (V=0 at top, V=1 at bottom)
-    float2 shadowUV = float2(shadowPos.x * 0.5 + 0.5, -shadowPos.y * 0.5 + 0.5);
+    // Convert to [0, 1] UV coordinates (same as old renderer - no flip needed)
+    float2 shadowUV = shadowPos.xy * 0.5 + 0.5;
 
     // Use saturate to clamp depth to [0,1] like the old renderer
     // Hardware depth bias is used instead of shader-based bias
@@ -161,8 +160,7 @@ float3 DebugShadow(float3 worldPos, float3 normal)
     float4 shadowPos = mul(float4(worldPos, 1.0), Cascades[cascadeIndex].ViewProjection);
     shadowPos.xyz /= shadowPos.w;
     // Convert to [0, 1] UV coordinates (must match CalculateShadow exactly)
-    // Flip V for Vulkan's texture coordinate system (V=0 at top, V=1 at bottom)
-    float2 shadowUV = float2(shadowPos.x * 0.5 + 0.5, -shadowPos.y * 0.5 + 0.5);
+    float2 shadowUV = shadowPos.xy * 0.5 + 0.5;
 
 #if SHADOW_DEBUG_MODE == 1
     // Show UV coordinates as color (R=U, G=V, B=0)

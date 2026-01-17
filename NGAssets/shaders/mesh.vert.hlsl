@@ -10,7 +10,7 @@
 #ifdef INSTANCED
 // Instance attributes start after vertex attributes
 // Mesh format uses locations 0-4 (POSITION, NORMAL, TEXCOORD0, COLOR0, TANGENT)
-// Instance data uses TEXCOORD5-13 to map to locations 5-13
+// DXC maps TEXCOORD indices to SPIR-V locations automatically
 struct InstanceInput
 {
     float4 WorldRow0 : TEXCOORD5;   // World matrix row 0
