@@ -87,6 +87,9 @@ public class DrawBatcher
 	// Statistics
 	private BatchStats mStats;
 
+	// Reference to the render world (valid only during Build)
+	private RenderWorld mWorld;
+
 	/// Gets all static mesh draw commands.
 	public Span<DrawCommand> DrawCommands => mDrawCommands;
 
@@ -110,6 +113,9 @@ public class DrawBatcher
 	{
 		Clear();
 
+		// Store world reference for material lookups
+		mWorld = world;
+
 		// Build static mesh commands
 		BuildStaticMeshCommands(world, visibility);
 
@@ -124,6 +130,9 @@ public class DrawBatcher
 		mStats.OpaqueBatchCount = (int32)mOpaqueBatches.Count;
 		mStats.TransparentBatchCount = (int32)mTransparentBatches.Count;
 		mStats.SkinnedBatchCount = (int32)mSkinnedBatches.Count;
+
+		// Clear world reference (not needed after build)
+		mWorld = null;
 	}
 
 	/// Clears all batches and commands.
@@ -309,20 +318,33 @@ public class DrawBatcher
 
 	private MaterialInstance GetMaterial(DrawCommand cmd)
 	{
-		// In a full implementation, we'd look up the material from the proxy
-		// For now, return null as placeholder
+		if (mWorld == null || !cmd.MeshHandle.IsValid)
+			return null;
+
+		if (let proxy = mWorld.GetMesh(cmd.MeshHandle))
+			return proxy.Material;
+
 		return null;
 	}
 
 	private MaterialInstance GetSkinnedMaterial(SkinnedDrawCommand cmd)
 	{
+		if (mWorld == null || !cmd.MeshHandle.IsValid)
+			return null;
+
+		if (let proxy = mWorld.GetSkinnedMesh(cmd.MeshHandle))
+			return proxy.Material;
+
 		return null;
 	}
 
 	private bool IsMaterialTransparent(MaterialInstance material)
 	{
-		// TODO: Check material blend mode
-		return false;
+		if (material == null)
+			return false;
+
+		// Check material blend mode - anything not Opaque is considered transparent
+		return material.BlendMode != .Opaque;
 	}
 }
 

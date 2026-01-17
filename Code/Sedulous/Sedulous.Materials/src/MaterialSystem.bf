@@ -41,6 +41,13 @@ class MaterialSystem : IDisposable
 	private ITextureView mNormalTextureView ~ delete _;
 	private ITextureView mBlackTextureView ~ delete _;
 
+	/// Default PBR material (for meshes without assigned materials).
+	private Material mDefaultMaterial ~ delete _;
+	private MaterialInstance mDefaultMaterialInstance ~ delete _;
+
+	/// Cached default material bind group layout.
+	private IBindGroupLayout mDefaultMaterialLayout ~ delete _;
+
 	/// Gets the default sampler (linear, clamp).
 	public ISampler DefaultSampler => mDefaultSampler;
 
@@ -55,6 +62,15 @@ class MaterialSystem : IDisposable
 
 	/// Gets the device.
 	public IDevice Device => mDevice;
+
+	/// Gets the default PBR material.
+	public Material DefaultMaterial => mDefaultMaterial;
+
+	/// Gets the default material instance.
+	public MaterialInstance DefaultMaterialInstance => mDefaultMaterialInstance;
+
+	/// Gets the default material bind group layout.
+	public IBindGroupLayout DefaultMaterialLayout => mDefaultMaterialLayout;
 
 	/// Initializes the material system.
 	public Result<void> Initialize(IDevice device)
@@ -257,6 +273,31 @@ class MaterialSystem : IDisposable
 
 		// Create black 1x1 texture
 		if (!CreateTexture1x1(.(0, 0, 0, 255), out mBlackTexture, out mBlackTextureView))
+			return false;
+
+		// Create default PBR material
+		if (!CreateDefaultMaterial())
+			return false;
+
+		return true;
+	}
+
+	private bool CreateDefaultMaterial()
+	{
+		// Create the default PBR material with standard texture slots
+		mDefaultMaterial = Materials.CreatePBR("DefaultPBR", mWhiteTextureView, mDefaultSampler);
+
+		// Create an instance of the default material
+		mDefaultMaterialInstance = new MaterialInstance(mDefaultMaterial);
+
+		// Get/create the layout for the default material
+		if (GetOrCreateLayout(mDefaultMaterial) case .Ok(let layout))
+			mDefaultMaterialLayout = layout;
+		else
+			return false;
+
+		// Prepare the default instance (creates bind group)
+		if (PrepareInstance(mDefaultMaterialInstance, mDefaultMaterialLayout) case .Err)
 			return false;
 
 		return true;

@@ -16,6 +16,7 @@ public struct RenderStats
 	public int32 VisibleMeshes;
 	public int32 CulledMeshes;
 	public int32 ShadowDrawCalls;
+	public int32 TransparentDrawCalls;
 	public int32 ComputeDispatches;
 	public float GpuTimeMs;
 
@@ -38,6 +39,8 @@ public class RenderSystem : IDisposable
 	private RenderGraph mRenderGraph ~ delete _;
 	private TransientResourcePool mTransientPool ~ delete _;
 	private GPUResourceManager mResourceManager ~ delete _;
+	private NewShaderSystem mShaderSystem ~ delete _;
+	private MaterialSystem mMaterialSystem ~ delete _;
 
 	// Render features
 	private List<IRenderFeature> mFeatures = new .() ~ delete _;
@@ -73,6 +76,12 @@ public class RenderSystem : IDisposable
 	/// Gets the GPU resource manager.
 	public GPUResourceManager ResourceManager => mResourceManager;
 
+	/// Gets the shader system.
+	public NewShaderSystem ShaderSystem => mShaderSystem;
+
+	/// Gets the material system.
+	public MaterialSystem MaterialSystem => mMaterialSystem;
+
 	/// Gets the current frame statistics.
 	public ref RenderStats Stats => ref mStats;
 
@@ -91,6 +100,7 @@ public class RenderSystem : IDisposable
 	/// Initializes the render system.
 	public Result<void> Initialize(
 		IDevice device,
+		StringView shaderPath = default,
 		TextureFormat colorFormat = .BGRA8UnormSrgb,
 		TextureFormat depthFormat = .Depth24PlusStencil8)
 	{
@@ -120,6 +130,19 @@ public class RenderSystem : IDisposable
 		// Initialize GPU resource manager
 		mResourceManager = new GPUResourceManager();
 		if (mResourceManager.Initialize(device) case .Err)
+			return .Err;
+
+		// Initialize shader system
+		if (!shaderPath.IsEmpty)
+		{
+			mShaderSystem = new NewShaderSystem();
+			if (mShaderSystem.Initialize(device, shaderPath) case .Err)
+				return .Err;
+		}
+
+		// Initialize material system
+		mMaterialSystem = new MaterialSystem();
+		if (mMaterialSystem.Initialize(device) case .Err)
 			return .Err;
 
 		mInitialized = true;
@@ -316,6 +339,12 @@ public class RenderSystem : IDisposable
 
 		if (mResourceManager != null)
 			mResourceManager.Dispose();
+
+		if (mMaterialSystem != null)
+			mMaterialSystem.Dispose();
+
+		if (mShaderSystem != null)
+			mShaderSystem.Dispose();
 
 		mInitialized = false;
 		mDevice = null;

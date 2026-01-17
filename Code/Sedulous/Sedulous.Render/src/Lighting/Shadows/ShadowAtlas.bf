@@ -127,6 +127,9 @@ public class ShadowAtlas : IDisposable
 	/// Gets the point light cubemap array.
 	public ITexture PointLightCubemapArray => mPointLightCubemapArray;
 
+	/// Gets the point light cubemap array view.
+	public ITextureView PointLightCubemapArrayView => mPointLightCubemapArrayView;
+
 	/// Gets the configuration.
 	public ShadowAtlasConfig Config => mConfig;
 
@@ -239,6 +242,22 @@ public class ShadowAtlas : IDisposable
 		if (mLightToTile.TryGetValue(lightHandle, let tileIndex))
 			return &mTiles[tileIndex];
 		return null;
+	}
+
+	/// Gets a tile by its index.
+	public ShadowTile* GetTileByIndex(int32 index)
+	{
+		if (index >= 0 && index < mTiles.Count)
+			return &mTiles[index];
+		return null;
+	}
+
+	/// Gets view for rendering to a specific tile.
+	public ITextureView GetTileRenderTarget(int32 tileIndex)
+	{
+		// For atlas rendering, we use viewport to target specific tiles
+		// The main atlas view is used for all tiles
+		return mAtlasView;
 	}
 
 	/// Updates shadow matrices for a spot light.

@@ -4,6 +4,7 @@ using System;
 using System.Collections;
 using Sedulous.Mathematics;
 using Sedulous.RHI;
+using Sedulous.Shaders;
 
 /// Configuration for the cluster grid.
 public struct ClusterGridConfig
@@ -95,12 +96,26 @@ public class ClusterGrid : IDisposable
 	private IBuffer mClusterUniformBuffer;   // Cluster parameters
 
 	// Compute pipelines
-	private IComputePipeline mBuildClustersPipeline;
-	private IComputePipeline mCullLightsPipeline;
+	private IComputePipeline mBuildClustersPipeline ~ delete _;
+	private IComputePipeline mCullLightsPipeline ~ delete _;
+
+	// Bind group layouts
+	private IBindGroupLayout mBuildClustersBindGroupLayout ~ delete _;
+	private IBindGroupLayout mCullLightsBindGroupLayout ~ delete _;
 
 	// Bind groups
-	private IBindGroup mBuildClustersBindGroup;
-	private IBindGroup mCullLightsBindGroup;
+	private IBindGroup mBuildClustersBindGroup ~ delete _;
+	private IBindGroup mCullLightsBindGroup ~ delete _;
+
+	// Pipeline layouts
+	private IPipelineLayout mBuildClustersPipelineLayout ~ delete _;
+	private IPipelineLayout mCullLightsPipelineLayout ~ delete _;
+
+	// Counter buffer for atomic allocation
+	private IBuffer mLightIndexCounterBuffer ~ delete _;
+
+	// Whether GPU culling is available
+	private bool mGPUCullingAvailable = false;
 
 	// CPU-side cluster data (for debugging/fallback)
 	private BoundingBox[] mClusterAABBs ~ delete _;
@@ -126,15 +141,25 @@ public class ClusterGrid : IDisposable
 	/// Gets the light index buffer (global light indices).
 	public IBuffer LightIndexBuffer => mLightIndexBuffer;
 
+	/// Whether GPU light culling is available.
+	public bool GPUCullingAvailable => mGPUCullingAvailable;
+
+	// Shader system reference (not owned)
+	private NewShaderSystem mShaderSystem;
+
 	/// Initializes the cluster grid.
-	public Result<void> Initialize(IDevice device, ClusterGridConfig config = .Default)
+	public Result<void> Initialize(IDevice device, ClusterGridConfig config = .Default, NewShaderSystem shaderSystem = null)
 	{
 		mDevice = device;
 		mConfig = config;
+		mShaderSystem = shaderSystem;
 
 		// Create GPU buffers
 		if (CreateBuffers() case .Err)
 			return .Err;
+
+		// Create compute pipelines (non-fatal if shaders unavailable)
+		CreateComputePipelines();
 
 		return .Ok;
 	}
@@ -164,21 +189,52 @@ public class ClusterGrid : IDisposable
 		return .Ok;
 	}
 
-	/// Performs light culling against the cluster grid.
+	/// Performs light culling against the cluster grid using GPU compute.
 	/// This assigns lights to clusters based on their bounding volumes.
-	public void CullLights(ICommandEncoder encoder, LightBuffer lightBuffer)
+	public void CullLights(IComputePassEncoder encoder, LightBuffer lightBuffer)
 	{
-		if (!IsInitialized)
+		if (!IsInitialized || !mGPUCullingAvailable)
 			return;
 
-		// The actual implementation would dispatch a compute shader that:
-		// 1. For each cluster, tests all lights against the cluster AABB
-		// 2. Builds per-cluster light lists
-		// 3. Compacts into the global light index buffer
+		if (mCullLightsPipeline == null || mCullLightsBindGroup == null)
+			return;
 
-		// For now, this is a stub - CPU fallback could be implemented
-		mStats.ClustersWithLights = 0;
-		mStats.AverageLightsPerCluster = 0;
+		// Reset counter buffer
+		uint32[1] zero = .(0);
+		mDevice.Queue.WriteBuffer(mLightIndexCounterBuffer, 0, Span<uint8>((uint8*)&zero[0], 4));
+
+		// Set pipeline and bind group
+		encoder.SetPipeline(mCullLightsPipeline);
+		encoder.SetBindGroup(0, mCullLightsBindGroup, default);
+
+		// Dispatch one workgroup per cluster
+		// Using 1x1x1 threads per group, dispatch ClustersX * ClustersY * ClustersZ groups
+		encoder.Dispatch(mConfig.ClustersX, mConfig.ClustersY, mConfig.ClustersZ);
+
+		// Update stats (would need readback for accurate counts)
+		mStats.ClustersWithLights = (int32)mConfig.TotalClusters; // Estimate
+		mStats.AverageLightsPerCluster = (float)lightBuffer.LightCount / (float)Math.Max(1, mStats.ClustersWithLights);
+	}
+
+	/// Builds cluster AABBs using GPU compute.
+	public void BuildClustersGPU(IComputePassEncoder encoder)
+	{
+		if (!IsInitialized || !mGPUCullingAvailable)
+			return;
+
+		if (mBuildClustersPipeline == null || mBuildClustersBindGroup == null)
+			return;
+
+		// Set pipeline and bind group
+		encoder.SetPipeline(mBuildClustersPipeline);
+		encoder.SetBindGroup(0, mBuildClustersBindGroup, default);
+
+		// Dispatch with 8x8x1 threads per workgroup
+		let groupsX = (mConfig.ClustersX + 7) / 8;
+		let groupsY = (mConfig.ClustersY + 7) / 8;
+		let groupsZ = mConfig.ClustersZ;
+
+		encoder.Dispatch(groupsX, groupsY, groupsZ);
 	}
 
 	/// CPU fallback for light culling (for debugging or when compute is unavailable).
@@ -219,14 +275,30 @@ public class ClusterGrid : IDisposable
 
 	public void Dispose()
 	{
+		// Buffers
 		if (mClusterAABBBuffer != null) { delete mClusterAABBBuffer; mClusterAABBBuffer = null; }
 		if (mClusterLightInfoBuffer != null) { delete mClusterLightInfoBuffer; mClusterLightInfoBuffer = null; }
 		if (mLightIndexBuffer != null) { delete mLightIndexBuffer; mLightIndexBuffer = null; }
 		if (mClusterUniformBuffer != null) { delete mClusterUniformBuffer; mClusterUniformBuffer = null; }
-		if (mBuildClustersPipeline != null) { delete mBuildClustersPipeline; mBuildClustersPipeline = null; }
-		if (mCullLightsPipeline != null) { delete mCullLightsPipeline; mCullLightsPipeline = null; }
+		if (mLightIndexCounterBuffer != null) { delete mLightIndexCounterBuffer; mLightIndexCounterBuffer = null; }
+
+		// Bind groups
 		if (mBuildClustersBindGroup != null) { delete mBuildClustersBindGroup; mBuildClustersBindGroup = null; }
 		if (mCullLightsBindGroup != null) { delete mCullLightsBindGroup; mCullLightsBindGroup = null; }
+
+		// Pipelines
+		if (mBuildClustersPipeline != null) { delete mBuildClustersPipeline; mBuildClustersPipeline = null; }
+		if (mCullLightsPipeline != null) { delete mCullLightsPipeline; mCullLightsPipeline = null; }
+
+		// Pipeline layouts
+		if (mBuildClustersPipelineLayout != null) { delete mBuildClustersPipelineLayout; mBuildClustersPipelineLayout = null; }
+		if (mCullLightsPipelineLayout != null) { delete mCullLightsPipelineLayout; mCullLightsPipelineLayout = null; }
+
+		// Bind group layouts
+		if (mBuildClustersBindGroupLayout != null) { delete mBuildClustersBindGroupLayout; mBuildClustersBindGroupLayout = null; }
+		if (mCullLightsBindGroupLayout != null) { delete mCullLightsBindGroupLayout; mCullLightsBindGroupLayout = null; }
+
+		mGPUCullingAvailable = false;
 	}
 
 	private Result<void> CreateBuffers()
@@ -294,7 +366,160 @@ public class ClusterGrid : IDisposable
 		// Allocate CPU-side AABB storage
 		mClusterAABBs = new BoundingBox[totalClusters];
 
+		// Light index counter buffer (for atomic allocation)
+		BufferDescriptor counterDesc = .()
+		{
+			Label = "Light Index Counter",
+			Size = 4, // Single uint32
+			Usage = .Storage | .CopyDst
+		};
+
+		switch (mDevice.CreateBuffer(&counterDesc))
+		{
+		case .Ok(let buf): mLightIndexCounterBuffer = buf;
+		case .Err: return .Err;
+		}
+
 		return .Ok;
+	}
+
+	private void CreateComputePipelines()
+	{
+		// Skip if shader system not available
+		if (mShaderSystem == null)
+			return;
+
+		// Create bind group layout for cluster building
+		BindGroupLayoutEntry[2] buildEntries = .(
+			.() { Binding = 0, Visibility = .Compute, Type = .UniformBuffer }, // ClusterUniforms
+			.() { Binding = 1, Visibility = .Compute, Type = .StorageBuffer }  // ClusterAABBs (output)
+		);
+
+		BindGroupLayoutDescriptor buildLayoutDesc = .()
+		{
+			Label = "Cluster Build BindGroup Layout",
+			Entries = buildEntries
+		};
+
+		switch (mDevice.CreateBindGroupLayout(&buildLayoutDesc))
+		{
+		case .Ok(let layout): mBuildClustersBindGroupLayout = layout;
+		case .Err: return;
+		}
+
+		// Create bind group layout for light culling
+		BindGroupLayoutEntry[6] cullEntries = .(
+			.() { Binding = 0, Visibility = .Compute, Type = .UniformBuffer },  // ClusterUniforms
+			.() { Binding = 1, Visibility = .Compute, Type = .UniformBuffer },  // LightingUniforms
+			.() { Binding = 2, Visibility = .Compute, Type = .StorageBuffer },  // ClusterAABBs (input)
+			.() { Binding = 3, Visibility = .Compute, Type = .StorageBuffer },  // Lights (input)
+			.() { Binding = 4, Visibility = .Compute, Type = .StorageBuffer },  // ClusterLightInfos (output)
+			.() { Binding = 5, Visibility = .Compute, Type = .StorageBuffer }   // LightIndices (output)
+		);
+
+		BindGroupLayoutDescriptor cullLayoutDesc = .()
+		{
+			Label = "Cluster Cull BindGroup Layout",
+			Entries = cullEntries
+		};
+
+		switch (mDevice.CreateBindGroupLayout(&cullLayoutDesc))
+		{
+		case .Ok(let layout): mCullLightsBindGroupLayout = layout;
+		case .Err: return;
+		}
+
+		// Create pipeline layouts
+		IBindGroupLayout[1] buildLayouts = .(mBuildClustersBindGroupLayout);
+		PipelineLayoutDescriptor buildPlDesc = .(buildLayouts);
+		switch (mDevice.CreatePipelineLayout(&buildPlDesc))
+		{
+		case .Ok(let layout): mBuildClustersPipelineLayout = layout;
+		case .Err: return;
+		}
+
+		IBindGroupLayout[1] cullLayouts = .(mCullLightsBindGroupLayout);
+		PipelineLayoutDescriptor cullPlDesc = .(cullLayouts);
+		switch (mDevice.CreatePipelineLayout(&cullPlDesc))
+		{
+		case .Ok(let layout): mCullLightsPipelineLayout = layout;
+		case .Err: return;
+		}
+
+		// Load cluster build shader
+		if (mShaderSystem.GetShader("cluster_build", .Compute) case .Ok(let buildShader))
+		{
+			ComputePipelineDescriptor buildPipelineDesc = .(mBuildClustersPipelineLayout, buildShader.Module);
+			buildPipelineDesc.Label = "Cluster Build Pipeline";
+
+			switch (mDevice.CreateComputePipeline(&buildPipelineDesc))
+			{
+			case .Ok(let pipeline): mBuildClustersPipeline = pipeline;
+			case .Err:
+			}
+		}
+
+		// Load cluster cull shader
+		if (mShaderSystem.GetShader("cluster_cull", .Compute) case .Ok(let cullShader))
+		{
+			ComputePipelineDescriptor cullPipelineDesc = .(mCullLightsPipelineLayout, cullShader.Module);
+			cullPipelineDesc.Label = "Cluster Cull Pipeline";
+
+			switch (mDevice.CreateComputePipeline(&cullPipelineDesc))
+			{
+			case .Ok(let pipeline): mCullLightsPipeline = pipeline;
+			case .Err:
+			}
+		}
+
+		mGPUCullingAvailable = mBuildClustersPipeline != null && mCullLightsPipeline != null;
+	}
+
+	/// Creates bind groups for GPU culling (call after light buffer is ready).
+	public void CreateBindGroups(LightBuffer lightBuffer)
+	{
+		if (!mGPUCullingAvailable || lightBuffer == null)
+			return;
+
+		// Create build clusters bind group
+		if (mBuildClustersBindGroupLayout != null && mBuildClustersBindGroup == null)
+		{
+			BindGroupEntry[2] buildEntries = .(
+				BindGroupEntry.Buffer(0, mClusterUniformBuffer, 0, (uint64)ClusterUniforms.Size),
+				BindGroupEntry.Buffer(1, mClusterAABBBuffer, 0, mConfig.TotalClusters * 24)
+			);
+
+			BindGroupDescriptor buildDesc = .(mBuildClustersBindGroupLayout, buildEntries);
+			buildDesc.Label = "Cluster Build BindGroup";
+
+			switch (mDevice.CreateBindGroup(&buildDesc))
+			{
+			case .Ok(let bg): mBuildClustersBindGroup = bg;
+			case .Err:
+			}
+		}
+
+		// Create cull lights bind group
+		if (mCullLightsBindGroupLayout != null && mCullLightsBindGroup == null)
+		{
+			BindGroupEntry[6] cullEntries = .(
+				BindGroupEntry.Buffer(0, mClusterUniformBuffer, 0, (uint64)ClusterUniforms.Size),
+				BindGroupEntry.Buffer(1, lightBuffer.UniformBuffer, 0, (uint64)LightingUniforms.Size),
+				BindGroupEntry.Buffer(2, mClusterAABBBuffer, 0, mConfig.TotalClusters * 24),
+				BindGroupEntry.Buffer(3, lightBuffer.LightDataBuffer, 0, (uint64)(lightBuffer.MaxLights * GPULight.Size)),
+				BindGroupEntry.Buffer(4, mClusterLightInfoBuffer, 0, mConfig.TotalClusters * 8),
+				BindGroupEntry.Buffer(5, mLightIndexBuffer, 0, mConfig.MaxLightsPerCluster * mConfig.TotalClusters * 4)
+			);
+
+			BindGroupDescriptor cullDesc = .(mCullLightsBindGroupLayout, cullEntries);
+			cullDesc.Label = "Cluster Cull BindGroup";
+
+			switch (mDevice.CreateBindGroup(&cullDesc))
+			{
+			case .Ok(let bg): mCullLightsBindGroup = bg;
+			case .Err:
+			}
+		}
 	}
 
 	private void BuildClusterAABBs(Matrix inverseProjection)

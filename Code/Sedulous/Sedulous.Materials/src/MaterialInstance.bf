@@ -70,8 +70,36 @@ class MaterialInstance : IDisposable
 	/// Whether bind group needs recreation.
 	private bool mBindGroupDirty = true;
 
+	/// GPU bind group for this material instance.
+	private IBindGroup mBindGroup ~ delete _;
+
+	/// Blend mode for transparent rendering.
+	private BlendMode mBlendMode = .AlphaBlend;
+
 	/// The base material.
 	public Material Material => mMaterial;
+
+	/// Gets the vertex layout type from the material's pipeline config.
+	public VertexLayoutType VertexLayout => mMaterial?.PipelineConfig.VertexLayout ?? .Mesh;
+
+	/// Gets or sets the GPU bind group.
+	public IBindGroup BindGroup
+	{
+		get => mBindGroup;
+		set
+		{
+			if (mBindGroup != null)
+				delete mBindGroup;
+			mBindGroup = value;
+		}
+	}
+
+	/// Gets or sets the blend mode for transparent rendering.
+	public BlendMode BlendMode
+	{
+		get => mBlendMode;
+		set => mBlendMode = value;
+	}
 
 	/// Whether uniform data is dirty.
 	public bool IsUniformDirty => mUniformDirty;

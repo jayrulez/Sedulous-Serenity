@@ -1,6 +1,7 @@
 namespace Sedulous.Render;
 
 using System;
+using Sedulous.RHI;
 using Sedulous.Mathematics;
 using Sedulous.Materials;
 
@@ -75,6 +76,9 @@ public struct MeshProxy
 	/// Whether this proxy slot is in use.
 	public bool IsActive;
 
+	/// GPU bind group for per-object uniforms (transform, etc.).
+	public IBindGroup ObjectBindGroup;
+
 	/// Whether the proxy is visible.
 	public bool IsVisible => (Flags & .Visible) != 0 && IsActive;
 
@@ -144,6 +148,7 @@ public struct MeshProxy
 		LayerMask = 0xFFFFFFFF;
 		SortKey = 0;
 		IsActive = false;
+		ObjectBindGroup = null; // Bind group owned by render system, not deleted here
 	}
 
 	/// Transforms a bounding box by a matrix.

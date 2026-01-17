@@ -3,6 +3,7 @@ namespace Sedulous.Render;
 using System;
 using Sedulous.Mathematics;
 using Sedulous.RHI;
+using Sedulous.Shaders;
 
 /// Manages clustered lighting infrastructure.
 /// Coordinates cluster grid building and light culling.
@@ -40,13 +41,13 @@ public class LightingSystem : IDisposable
 	public bool IsInitialized => mDevice != null && mClusterGrid != null && mLightBuffer != null;
 
 	/// Initializes the lighting system.
-	public Result<void> Initialize(IDevice device, ClusterGridConfig clusterConfig = .Default)
+	public Result<void> Initialize(IDevice device, ClusterGridConfig clusterConfig = .Default, NewShaderSystem shaderSystem = null)
 	{
 		mDevice = device;
 
 		// Initialize cluster grid
 		mClusterGrid = new ClusterGrid();
-		if (mClusterGrid.Initialize(device, clusterConfig) case .Err)
+		if (mClusterGrid.Initialize(device, clusterConfig, shaderSystem) case .Err)
 			return .Err;
 
 		// Initialize light buffer
@@ -97,13 +98,51 @@ public class LightingSystem : IDisposable
 	}
 
 	/// Updates lighting for rendering (GPU operations).
+	/// This dispatches GPU compute for cluster building and light culling.
 	public void PrepareForRendering(ICommandEncoder encoder)
 	{
 		if (!IsInitialized)
 			return;
 
-		// GPU light culling would be dispatched here
-		// For now, we use the CPU fallback in Update()
+		// Skip GPU culling if not available
+		if (!mClusterGrid.GPUCullingAvailable || !mUseClustered)
+			return;
+
+		// Ensure bind groups are created
+		mClusterGrid.CreateBindGroups(mLightBuffer);
+
+		// Begin compute pass for GPU light culling
+		let computePass = encoder.BeginComputePass();
+		if (computePass != null)
+		{
+			// Build cluster AABBs on GPU (only if view changed - handled internally)
+			mClusterGrid.BuildClustersGPU(computePass);
+
+			// Cull lights against clusters
+			mClusterGrid.CullLights(computePass, mLightBuffer);
+
+			computePass.End();
+			delete computePass;
+		}
+	}
+
+	/// Performs GPU light culling in an existing compute pass.
+	public void DispatchLightCulling(IComputePassEncoder encoder)
+	{
+		if (!IsInitialized || !mUseClustered)
+			return;
+
+		if (!mClusterGrid.GPUCullingAvailable)
+		{
+			// Fall back to CPU culling (already done in Update)
+			return;
+		}
+
+		// Ensure bind groups are created
+		mClusterGrid.CreateBindGroups(mLightBuffer);
+
+		// Cull lights against clusters
+		mClusterGrid.CullLights(encoder, mLightBuffer);
 	}
 
 	/// Sets the ambient light color.

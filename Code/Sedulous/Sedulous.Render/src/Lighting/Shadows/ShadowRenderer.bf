@@ -100,7 +100,27 @@ public class ShadowRenderer : IDisposable
 		}
 
 		// Add atlas passes for spot/point lights
-		// (Would iterate through allocated tiles)
+		for (uint32 i = 0; i < mShadowAtlas.Config.TotalTiles; i++)
+		{
+			if (let tile = mShadowAtlas.GetTileByIndex((int32)i))
+			{
+				if (!tile.IsAllocated)
+					continue;
+
+				// Determine pass type based on whether this is a point light face
+				ShadowPassType passType = tile.CubeFace > 0 ? .PointLightFace : .AtlasTile;
+
+				outPasses.Add(.()
+				{
+					Type = passType,
+					CascadeIndex = 0,
+					CubeFace = tile.CubeFace,
+					ViewProjection = tile.ViewProjection,
+					RenderTarget = mShadowAtlas.AtlasView,
+					Viewport = .((.)tile.ViewportX, (.)tile.ViewportY, (.)tile.ViewportSize, (.)tile.ViewportSize)
+				});
+			}
+		}
 	}
 
 	/// Assigns a shadow index to a light.
@@ -179,12 +199,87 @@ public class ShadowRenderer : IDisposable
 				{
 					mShadowAtlas.UpdateSpotLightShadow(visibleLight.Handle, light);
 				}
-				// Point light update would go here
+				else if (light.Type == .Point)
+				{
+					// Get all 6 tiles for this point light
+					ShadowTile*[6] tiles = .();
+					if (GetPointLightTiles(visibleLight.Handle, ref tiles))
+					{
+						mShadowAtlas.UpdatePointLightShadow(visibleLight.Handle, light, tiles);
+					}
+				}
 			}
 		}
 
 		mShadowAtlas.UploadShadowData();
 	}
+
+	/// Gets the 6 cubemap tiles for a point light.
+	private bool GetPointLightTiles(LightProxyHandle lightHandle, ref ShadowTile*[6] outTiles)
+	{
+		if (let firstTile = mShadowAtlas.GetTile(lightHandle))
+		{
+			// Find all 6 faces starting from the first tile
+			int32 startIndex = firstTile.Index;
+
+			for (int face = 0; face < 6; face++)
+			{
+				if (let tile = mShadowAtlas.GetTileByIndex(startIndex + (.)face))
+				{
+					if (tile.LightHandle == lightHandle)
+						outTiles[face] = tile;
+					else
+						return false; // Not all tiles belong to this light
+				}
+				else
+				{
+					return false;
+				}
+			}
+			return true;
+		}
+		return false;
+	}
+
+	/// Gets shadow data for binding to shaders.
+	public ShadowShaderData GetShadowShaderData()
+	{
+		return .()
+		{
+			CascadedShadowMapView = mCascadedShadows?.ShadowMapArrayView,
+			CascadedShadowSampler = mCascadedShadows?.ShadowSampler,
+			CascadedShadowUniforms = mCascadedShadows?.UniformBuffer,
+			ShadowAtlasView = mShadowAtlas?.AtlasView,
+			ShadowAtlasSampler = mShadowAtlas?.ShadowSampler,
+			ShadowAtlasData = mShadowAtlas?.ShadowDataBuffer,
+			PointLightCubemapView = mShadowAtlas?.PointLightCubemapArrayView
+		};
+	}
+}
+
+/// Shadow resources for shader binding.
+public struct ShadowShaderData
+{
+	/// Cascaded shadow map array view.
+	public ITextureView CascadedShadowMapView;
+
+	/// Shadow comparison sampler.
+	public ISampler CascadedShadowSampler;
+
+	/// Cascade uniform buffer.
+	public IBuffer CascadedShadowUniforms;
+
+	/// Shadow atlas texture view.
+	public ITextureView ShadowAtlasView;
+
+	/// Shadow atlas sampler.
+	public ISampler ShadowAtlasSampler;
+
+	/// Shadow atlas data buffer.
+	public IBuffer ShadowAtlasData;
+
+	/// Point light cubemap array view.
+	public ITextureView PointLightCubemapView;
 }
 
 /// Type of shadow pass.
