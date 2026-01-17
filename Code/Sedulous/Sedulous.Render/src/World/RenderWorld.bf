@@ -11,28 +11,50 @@ public class RenderWorld : IDisposable
 {
 	// Proxy pools
 	private ProxyPool<MeshProxy> mMeshProxies = new .() ~ delete _;
+	private ProxyPool<SkinnedMeshProxy> mSkinnedMeshProxies = new .() ~ delete _;
 	private ProxyPool<LightProxy> mLightProxies = new .() ~ delete _;
+	private ProxyPool<CameraProxy> mCameraProxies = new .() ~ delete _;
 	private ProxyPool<ParticleEmitterProxy> mParticleProxies = new .() ~ delete _;
+
+	// Main camera handle
+	private CameraProxyHandle mMainCamera = .Invalid;
 
 	// Dirty tracking
 	private bool mMeshesDirty = false;
+	private bool mSkinnedMeshesDirty = false;
 	private bool mLightsDirty = false;
+	private bool mCamerasDirty = false;
 	private bool mParticlesDirty = false;
 
 	/// Gets the mesh proxy pool.
 	public ProxyPool<MeshProxy> MeshProxies => mMeshProxies;
 
+	/// Gets the skinned mesh proxy pool.
+	public ProxyPool<SkinnedMeshProxy> SkinnedMeshProxies => mSkinnedMeshProxies;
+
 	/// Gets the light proxy pool.
 	public ProxyPool<LightProxy> LightProxies => mLightProxies;
+
+	/// Gets the camera proxy pool.
+	public ProxyPool<CameraProxy> CameraProxies => mCameraProxies;
 
 	/// Gets the particle emitter proxy pool.
 	public ProxyPool<ParticleEmitterProxy> ParticleProxies => mParticleProxies;
 
+	/// Gets the main camera handle.
+	public CameraProxyHandle MainCamera => mMainCamera;
+
 	/// Gets the number of active meshes.
 	public int32 MeshCount => mMeshProxies.ActiveCount;
 
+	/// Gets the number of active skinned meshes.
+	public int32 SkinnedMeshCount => mSkinnedMeshProxies.ActiveCount;
+
 	/// Gets the number of active lights.
 	public int32 LightCount => mLightProxies.ActiveCount;
+
+	/// Gets the number of active cameras.
+	public int32 CameraCount => mCameraProxies.ActiveCount;
 
 	/// Gets the number of active particle emitters.
 	public int32 ParticleEmitterCount => mParticleProxies.ActiveCount;
@@ -40,8 +62,14 @@ public class RenderWorld : IDisposable
 	/// Whether any meshes have changed.
 	public bool MeshesDirty => mMeshesDirty;
 
+	/// Whether any skinned meshes have changed.
+	public bool SkinnedMeshesDirty => mSkinnedMeshesDirty;
+
 	/// Whether any lights have changed.
 	public bool LightsDirty => mLightsDirty;
+
+	/// Whether any cameras have changed.
+	public bool CamerasDirty => mCamerasDirty;
 
 	/// Whether any particles have changed.
 	public bool ParticlesDirty => mParticlesDirty;
@@ -131,6 +159,105 @@ public class RenderWorld : IDisposable
 	public void ForEachMesh(ProxyCallback<MeshProxy> callback)
 	{
 		mMeshProxies.ForEach(callback);
+	}
+
+	// ========================================================================
+	// Skinned Mesh API
+	// ========================================================================
+
+	/// Creates a new skinned mesh proxy.
+	public SkinnedMeshProxyHandle CreateSkinnedMesh()
+	{
+		let handle = mSkinnedMeshProxies.Allocate();
+		var proxy = mSkinnedMeshProxies.Get(handle);
+		proxy.Reset();
+		proxy.IsActive = true;
+		proxy.Generation = handle.Generation;
+		proxy.Flags = .DefaultOpaque;
+		mSkinnedMeshesDirty = true;
+		return .() { Handle = handle };
+	}
+
+	/// Gets a skinned mesh proxy by handle.
+	public SkinnedMeshProxy* GetSkinnedMesh(SkinnedMeshProxyHandle handle)
+	{
+		return mSkinnedMeshProxies.Get(handle.Handle);
+	}
+
+	/// Gets a reference to a skinned mesh proxy.
+	public ref SkinnedMeshProxy GetSkinnedMeshRef(SkinnedMeshProxyHandle handle)
+	{
+		return ref mSkinnedMeshProxies.GetRef(handle.Handle);
+	}
+
+	/// Destroys a skinned mesh proxy.
+	public void DestroySkinnedMesh(SkinnedMeshProxyHandle handle)
+	{
+		if (mSkinnedMeshProxies.TryGet(handle.Handle, let proxy))
+		{
+			proxy.Reset();
+		}
+		mSkinnedMeshProxies.Free(handle.Handle);
+		mSkinnedMeshesDirty = true;
+	}
+
+	/// Sets skinned mesh transform.
+	public void SetSkinnedMeshTransform(SkinnedMeshProxyHandle handle, Matrix worldMatrix)
+	{
+		if (let proxy = GetSkinnedMesh(handle))
+		{
+			proxy.SetTransform(worldMatrix);
+			mSkinnedMeshesDirty = true;
+		}
+	}
+
+	/// Sets skinned mesh GPU handles and bounds.
+	public void SetSkinnedMeshData(SkinnedMeshProxyHandle handle, GPUMeshHandle meshHandle, GPUBoneBufferHandle boneBufferHandle, BoundingBox localBounds, uint16 boneCount)
+	{
+		if (let proxy = GetSkinnedMesh(handle))
+		{
+			proxy.MeshHandle = meshHandle;
+			proxy.BoneBufferHandle = boneBufferHandle;
+			proxy.BoneCount = boneCount;
+			proxy.SetLocalBounds(localBounds);
+			mSkinnedMeshesDirty = true;
+		}
+	}
+
+	/// Sets skinned mesh material.
+	public void SetSkinnedMeshMaterial(SkinnedMeshProxyHandle handle, MaterialInstance material)
+	{
+		if (let proxy = GetSkinnedMesh(handle))
+		{
+			proxy.Material = material;
+			mSkinnedMeshesDirty = true;
+		}
+	}
+
+	/// Sets skinned mesh flags.
+	public void SetSkinnedMeshFlags(SkinnedMeshProxyHandle handle, MeshFlags flags)
+	{
+		if (let proxy = GetSkinnedMesh(handle))
+		{
+			proxy.Flags = flags;
+			mSkinnedMeshesDirty = true;
+		}
+	}
+
+	/// Marks skinned mesh bones as dirty (need GPU upload).
+	public void MarkSkinnedMeshBonesDirty(SkinnedMeshProxyHandle handle)
+	{
+		if (let proxy = GetSkinnedMesh(handle))
+		{
+			proxy.MarkBonesDirty();
+			mSkinnedMeshesDirty = true;
+		}
+	}
+
+	/// Iterates over all active skinned meshes.
+	public void ForEachSkinnedMesh(ProxyCallback<SkinnedMeshProxy> callback)
+	{
+		mSkinnedMeshProxies.ForEach(callback);
 	}
 
 	// ========================================================================
@@ -261,6 +388,132 @@ public class RenderWorld : IDisposable
 	}
 
 	// ========================================================================
+	// Camera API
+	// ========================================================================
+
+	/// Creates a new camera proxy.
+	public CameraProxyHandle CreateCamera()
+	{
+		let handle = mCameraProxies.Allocate();
+		var proxy = mCameraProxies.Get(handle);
+		proxy.Reset();
+		proxy.IsActive = true;
+		proxy.Generation = handle.Generation;
+		mCamerasDirty = true;
+		return .() { Handle = handle };
+	}
+
+	/// Creates a perspective camera.
+	public CameraProxyHandle CreatePerspectiveCamera(Vector3 position, Vector3 target, Vector3 up, float fov, float aspectRatio, float nearPlane, float farPlane)
+	{
+		let handle = CreateCamera();
+		if (let proxy = mCameraProxies.Get(handle.Handle))
+		{
+			*proxy = CameraProxy.CreatePerspective(position, target, up, fov, aspectRatio, nearPlane, farPlane);
+			proxy.IsActive = true;
+			proxy.Generation = handle.Handle.Generation;
+		}
+		return handle;
+	}
+
+	/// Creates an orthographic camera.
+	public CameraProxyHandle CreateOrthographicCamera(Vector3 position, Vector3 target, Vector3 up, float width, float height, float nearPlane, float farPlane)
+	{
+		let handle = CreateCamera();
+		if (let proxy = mCameraProxies.Get(handle.Handle))
+		{
+			*proxy = CameraProxy.CreateOrthographic(position, target, up, width, height, nearPlane, farPlane);
+			proxy.IsActive = true;
+			proxy.Generation = handle.Handle.Generation;
+		}
+		return handle;
+	}
+
+	/// Gets a camera proxy by handle.
+	public CameraProxy* GetCamera(CameraProxyHandle handle)
+	{
+		return mCameraProxies.Get(handle.Handle);
+	}
+
+	/// Gets a reference to a camera proxy.
+	public ref CameraProxy GetCameraRef(CameraProxyHandle handle)
+	{
+		return ref mCameraProxies.GetRef(handle.Handle);
+	}
+
+	/// Destroys a camera proxy.
+	public void DestroyCamera(CameraProxyHandle handle)
+	{
+		// If this was the main camera, clear it
+		if (mMainCamera == handle)
+			mMainCamera = .Invalid;
+
+		if (mCameraProxies.TryGet(handle.Handle, let proxy))
+		{
+			proxy.Reset();
+		}
+		mCameraProxies.Free(handle.Handle);
+		mCamerasDirty = true;
+	}
+
+	/// Sets the main camera.
+	public void SetMainCamera(CameraProxyHandle handle)
+	{
+		mMainCamera = handle;
+		if (let proxy = mCameraProxies.Get(handle.Handle))
+		{
+			proxy.IsMainCamera = true;
+		}
+		mCamerasDirty = true;
+	}
+
+	/// Sets camera position and orientation using look-at.
+	public void SetCameraLookAt(CameraProxyHandle handle, Vector3 position, Vector3 target, Vector3 up)
+	{
+		if (let proxy = mCameraProxies.Get(handle.Handle))
+		{
+			proxy.SetLookAt(position, target, up);
+			mCamerasDirty = true;
+		}
+	}
+
+	/// Sets camera position and direction.
+	public void SetCameraPositionDirection(CameraProxyHandle handle, Vector3 position, Vector3 forward, Vector3 up)
+	{
+		if (let proxy = mCameraProxies.Get(handle.Handle))
+		{
+			proxy.SetPositionDirection(position, forward, up);
+			mCamerasDirty = true;
+		}
+	}
+
+	/// Updates camera matrices. Should be called after changing position/orientation.
+	public void UpdateCameraMatrices(CameraProxyHandle handle, bool flipY = false)
+	{
+		if (let proxy = mCameraProxies.Get(handle.Handle))
+		{
+			proxy.UpdateMatrices(flipY);
+			mCamerasDirty = true;
+		}
+	}
+
+	/// Sets camera TAA jitter for the current frame.
+	public void SetCameraJitter(CameraProxyHandle handle, Vector2 pixelOffset, uint32 viewportWidth, uint32 viewportHeight)
+	{
+		if (let proxy = mCameraProxies.Get(handle.Handle))
+		{
+			proxy.SetJitter(pixelOffset, viewportWidth, viewportHeight);
+			mCamerasDirty = true;
+		}
+	}
+
+	/// Iterates over all active cameras.
+	public void ForEachCamera(ProxyCallback<CameraProxy> callback)
+	{
+		mCameraProxies.ForEach(callback);
+	}
+
+	// ========================================================================
 	// Particle API
 	// ========================================================================
 
@@ -323,7 +576,9 @@ public class RenderWorld : IDisposable
 	public void ClearDirtyFlags()
 	{
 		mMeshesDirty = false;
+		mSkinnedMeshesDirty = false;
 		mLightsDirty = false;
+		mCamerasDirty = false;
 		mParticlesDirty = false;
 	}
 
@@ -331,10 +586,15 @@ public class RenderWorld : IDisposable
 	public void Clear()
 	{
 		mMeshProxies.Clear();
+		mSkinnedMeshProxies.Clear();
 		mLightProxies.Clear();
+		mCameraProxies.Clear();
 		mParticleProxies.Clear();
+		mMainCamera = .Invalid;
 		mMeshesDirty = true;
+		mSkinnedMeshesDirty = true;
 		mLightsDirty = true;
+		mCamerasDirty = true;
 		mParticlesDirty = true;
 	}
 

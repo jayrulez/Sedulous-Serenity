@@ -88,6 +88,9 @@ public class GPUMesh
 	/// Whether this slot is in use.
 	public bool IsActive;
 
+	/// Whether this mesh has skinning vertex data.
+	public bool IsSkinned;
+
 	/// Frees GPU resources.
 	public void Release()
 	{

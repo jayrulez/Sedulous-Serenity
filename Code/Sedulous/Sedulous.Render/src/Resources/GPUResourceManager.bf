@@ -9,10 +9,43 @@ using Sedulous.Mathematics;
 /// Pending deletion entry.
 struct PendingDeletion
 {
-	public enum Type { Mesh, Texture }
+	public enum Type { Mesh, Texture, BoneBuffer }
 	public Type ResourceType;
 	public uint32 Index;
 	public uint64 FrameNumber;
+}
+
+/// GPU-side bone buffer for skinned mesh animation.
+public class GPUBoneBuffer
+{
+	/// Storage buffer for bone matrices.
+	public IBuffer Buffer;
+
+	/// Number of bones this buffer supports.
+	public uint16 BoneCount;
+
+	/// Size in bytes.
+	public uint64 Size;
+
+	/// Reference count.
+	public int32 RefCount;
+
+	/// Generation for handle validation.
+	public uint32 Generation;
+
+	/// Whether this slot is in use.
+	public bool IsActive;
+
+	/// Frees GPU resources.
+	public void Release()
+	{
+		if (Buffer != null)
+		{
+			delete Buffer;
+			Buffer = null;
+		}
+		IsActive = false;
+	}
 }
 
 /// Manages GPU resources (meshes, textures) with reference counting and deferred deletion.
@@ -27,6 +60,10 @@ public class GPUResourceManager : IDisposable
 	// Texture storage
 	private List<GPUTexture> mTextures = new .() ~ DeleteContainerAndItems!(_);
 	private List<int32> mFreeTextureSlots = new .() ~ delete _;
+
+	// Bone buffer storage
+	private List<GPUBoneBuffer> mBoneBuffers = new .() ~ DeleteContainerAndItems!(_);
+	private List<int32> mFreeBoneBufferSlots = new .() ~ delete _;
 
 	// Pending deletions (deferred to allow GPU to finish using resources)
 	private List<PendingDeletion> mPendingDeletions = new .() ~ delete _;
@@ -192,6 +229,228 @@ public class GPUResourceManager : IDisposable
 				mPendingDeletions.Add(.()
 				{
 					ResourceType = .Mesh,
+					Index = handle.Index,
+					FrameNumber = frameNumber
+				});
+			}
+		}
+	}
+
+	/// Uploads a skinned mesh to the GPU.
+	public Result<GPUMeshHandle> UploadMesh(SkinnedMesh mesh)
+	{
+		if (mesh == null || mesh.Vertices == null || mesh.Indices == null)
+			return .Err;
+
+		if (mesh.VertexCount == 0 || mesh.IndexCount == 0)
+			return .Err;
+
+		// Allocate slot
+		GPUMesh gpuMesh;
+		uint32 index;
+		uint32 generation;
+
+		if (mFreeMeshSlots.Count > 0)
+		{
+			index = (uint32)mFreeMeshSlots.PopBack();
+			gpuMesh = mMeshes[(int)index];
+			generation = gpuMesh.Generation + 1;
+		}
+		else
+		{
+			index = (uint32)mMeshes.Count;
+			gpuMesh = new GPUMesh();
+			mMeshes.Add(gpuMesh);
+			generation = 1;
+		}
+
+		// Create vertex buffer
+		let vertexDataSize = (uint64)(mesh.VertexCount * mesh.VertexSize);
+		var vbDesc = BufferDescriptor()
+		{
+			Size = vertexDataSize,
+			Usage = .Vertex | .CopyDst
+		};
+
+		if (mDevice.CreateBuffer(&vbDesc) case .Ok(let vb))
+		{
+			gpuMesh.VertexBuffer = vb;
+			mDevice.Queue.WriteBuffer(vb, 0, Span<uint8>(mesh.GetVertexData(), (int)vertexDataSize));
+		}
+		else
+		{
+			return .Err;
+		}
+
+		// Create index buffer
+		let indices = mesh.Indices;
+		let indexSize = indices.Format == .UInt16 ? 2 : 4;
+		let indexDataSize = (uint64)(indices.IndexCount * indexSize);
+		var ibDesc = BufferDescriptor()
+		{
+			Size = indexDataSize,
+			Usage = .Index | .CopyDst
+		};
+
+		if (mDevice.CreateBuffer(&ibDesc) case .Ok(let ib))
+		{
+			gpuMesh.IndexBuffer = ib;
+			mDevice.Queue.WriteBuffer(ib, 0, Span<uint8>(mesh.GetIndexData(), (int)indexDataSize));
+		}
+		else
+		{
+			delete gpuMesh.VertexBuffer;
+			gpuMesh.VertexBuffer = null;
+			return .Err;
+		}
+
+		// Set mesh properties
+		gpuMesh.VertexCount = (uint32)mesh.VertexCount;
+		gpuMesh.IndexCount = (uint32)mesh.IndexCount;
+		gpuMesh.VertexStride = (uint32)mesh.VertexSize;
+		gpuMesh.IndexFormat = indices.Format == .UInt16 ? .UInt16 : .UInt32;
+		gpuMesh.Bounds = mesh.Bounds;
+		gpuMesh.RefCount = 1;
+		gpuMesh.Generation = generation;
+		gpuMesh.IsActive = true;
+		gpuMesh.IsSkinned = true;
+
+		// Copy submeshes
+		if (mesh.SubMeshes != null && mesh.SubMeshes.Count > 0)
+		{
+			gpuMesh.SubMeshes = new GPUSubMesh[mesh.SubMeshes.Count];
+			for (int i = 0; i < mesh.SubMeshes.Count; i++)
+			{
+				let sub = mesh.SubMeshes[i];
+				gpuMesh.SubMeshes[i] = .()
+				{
+					IndexStart = (uint32)sub.startIndex,
+					IndexCount = (uint32)sub.indexCount,
+					BaseVertex = 0,
+					MaterialSlot = (uint32)sub.materialIndex
+				};
+			}
+		}
+		else
+		{
+			// Single submesh for entire mesh
+			gpuMesh.SubMeshes = new GPUSubMesh[1];
+			gpuMesh.SubMeshes[0] = .()
+			{
+				IndexStart = 0,
+				IndexCount = gpuMesh.IndexCount,
+				BaseVertex = 0,
+				MaterialSlot = 0
+			};
+		}
+
+		return .Ok(.() { Index = index, Generation = generation });
+	}
+
+	// ========================================================================
+	// Bone Buffer API
+	// ========================================================================
+
+	/// Creates a bone buffer for a skinned mesh.
+	public Result<GPUBoneBufferHandle> CreateBoneBuffer(uint16 boneCount)
+	{
+		if (boneCount == 0 || boneCount > BoneTransforms.MaxBones)
+			return .Err;
+
+		// Allocate slot
+		GPUBoneBuffer boneBuffer;
+		uint32 index;
+		uint32 generation;
+
+		if (mFreeBoneBufferSlots.Count > 0)
+		{
+			index = (uint32)mFreeBoneBufferSlots.PopBack();
+			boneBuffer = mBoneBuffers[(int)index];
+			generation = boneBuffer.Generation + 1;
+		}
+		else
+		{
+			index = (uint32)mBoneBuffers.Count;
+			boneBuffer = new GPUBoneBuffer();
+			mBoneBuffers.Add(boneBuffer);
+			generation = 1;
+		}
+
+		// Size: current + previous frame matrices for each bone
+		let bufferSize = BoneTransforms.GetSizeForBoneCount((int32)boneCount);
+
+		var bufDesc = BufferDescriptor()
+		{
+			Size = bufferSize,
+			Usage = .Storage | .CopyDst
+		};
+
+		if (mDevice.CreateBuffer(&bufDesc) case .Ok(let buffer))
+		{
+			boneBuffer.Buffer = buffer;
+			boneBuffer.BoneCount = boneCount;
+			boneBuffer.Size = bufferSize;
+			boneBuffer.RefCount = 1;
+			boneBuffer.Generation = generation;
+			boneBuffer.IsActive = true;
+
+			return .Ok(.() { Index = index, Generation = generation });
+		}
+
+		return .Err;
+	}
+
+	/// Gets a bone buffer by handle.
+	public GPUBoneBuffer GetBoneBuffer(GPUBoneBufferHandle handle)
+	{
+		if (!handle.IsValid || handle.Index >= mBoneBuffers.Count)
+			return null;
+
+		let buffer = mBoneBuffers[(int)handle.Index];
+		if (!buffer.IsActive || buffer.Generation != handle.Generation)
+			return null;
+
+		return buffer;
+	}
+
+	/// Updates bone transforms in a bone buffer.
+	public void UpdateBoneBuffer(GPUBoneBufferHandle handle, Matrix* currentBones, Matrix* prevBones, uint16 boneCount)
+	{
+		if (let buffer = GetBoneBuffer(handle))
+		{
+			var actualBoneCount = boneCount;
+			if (actualBoneCount > buffer.BoneCount)
+				actualBoneCount = buffer.BoneCount;
+
+			let matrixSize = (uint64)(sizeof(Matrix) * actualBoneCount);
+
+			// Upload current frame matrices
+			mDevice.Queue.WriteBuffer(buffer.Buffer, 0, Span<uint8>((uint8*)currentBones, (int)matrixSize));
+
+			// Upload previous frame matrices (offset by MaxBones matrices)
+			let prevOffset = (uint64)(sizeof(Matrix) * BoneTransforms.MaxBones);
+			mDevice.Queue.WriteBuffer(buffer.Buffer, prevOffset, Span<uint8>((uint8*)prevBones, (int)matrixSize));
+		}
+	}
+
+	/// Adds a reference to a bone buffer.
+	public void AddBoneBufferRef(GPUBoneBufferHandle handle)
+	{
+		if (let buffer = GetBoneBuffer(handle))
+			buffer.RefCount++;
+	}
+
+	/// Releases a reference to a bone buffer.
+	public void ReleaseBoneBuffer(GPUBoneBufferHandle handle, uint64 frameNumber)
+	{
+		if (let buffer = GetBoneBuffer(handle))
+		{
+			buffer.RefCount--;
+			if (buffer.RefCount <= 0)
+			{
+				mPendingDeletions.Add(.()
+				{
+					ResourceType = .BoneBuffer,
 					Index = handle.Index,
 					FrameNumber = frameNumber
 				});
@@ -446,6 +705,11 @@ public class GPUResourceManager : IDisposable
 					let tex = mTextures[(int)pending.Index];
 					tex.Release();
 					mFreeTextureSlots.Add((int32)pending.Index);
+
+				case .BoneBuffer:
+					let buffer = mBoneBuffers[(int)pending.Index];
+					buffer.Release();
+					mFreeBoneBufferSlots.Add((int32)pending.Index);
 				}
 
 				mPendingDeletions.RemoveAtFast(i);
@@ -461,6 +725,9 @@ public class GPUResourceManager : IDisposable
 
 		for (let tex in mTextures)
 			tex.Release();
+
+		for (let buffer in mBoneBuffers)
+			buffer.Release();
 
 		mPendingDeletions.Clear();
 	}
