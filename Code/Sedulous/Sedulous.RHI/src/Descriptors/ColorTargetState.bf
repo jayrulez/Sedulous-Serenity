@@ -65,8 +65,29 @@ struct BlendState
 		Alpha = .();
 	}
 
-	/// Standard alpha blending.
+	/// Standard alpha blending (src * srcAlpha + dst * (1 - srcAlpha)).
 	public static Self AlphaBlend => .() { Color = .AlphaBlendColor, Alpha = .AlphaBlendAlpha };
+
+	/// Additive blending (src + dst).
+	public static Self Additive => .()
+	{
+		Color = .(.Add, .One, .One),
+		Alpha = .(.Add, .One, .One)
+	};
+
+	/// Multiply blending (src * dst).
+	public static Self Multiply => .()
+	{
+		Color = .(.Add, .Dst, .Zero),
+		Alpha = .(.Add, .DstAlpha, .Zero)
+	};
+
+	/// Premultiplied alpha blending (src + dst * (1 - srcAlpha)).
+	public static Self PremultipliedAlpha => .()
+	{
+		Color = .(.Add, .One, .OneMinusSrcAlpha),
+		Alpha = .(.Add, .One, .OneMinusSrcAlpha)
+	};
 }
 
 /// Describes a color target in a render pipeline.
