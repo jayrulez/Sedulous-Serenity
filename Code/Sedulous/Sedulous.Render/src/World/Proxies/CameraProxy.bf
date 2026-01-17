@@ -252,56 +252,59 @@ public struct CameraProxy
 	}
 
 	/// Extracts frustum planes from the view-projection matrix.
+	/// Uses Gribb/Hartmann method for row-major matrices with column vectors.
+	/// Matrix naming: MRC where R=row, C=column (1-indexed)
 	private void ExtractFrustumPlanes() mut
 	{
 		let m = ViewProjectionMatrix;
 
-		// Left plane
+		// For row-major with column vectors (clip = VP * world):
+		// Left plane: row4 + row1
 		FrustumPlanes[0] = Plane.Normalize(Plane(
-			m.M14 + m.M11,
-			m.M24 + m.M21,
-			m.M34 + m.M31,
-			m.M44 + m.M41
+			m.M41 + m.M11,
+			m.M42 + m.M12,
+			m.M43 + m.M13,
+			m.M44 + m.M14
 		));
 
-		// Right plane
+		// Right plane: row4 - row1
 		FrustumPlanes[1] = Plane.Normalize(Plane(
-			m.M14 - m.M11,
-			m.M24 - m.M21,
-			m.M34 - m.M31,
-			m.M44 - m.M41
+			m.M41 - m.M11,
+			m.M42 - m.M12,
+			m.M43 - m.M13,
+			m.M44 - m.M14
 		));
 
-		// Bottom plane
+		// Bottom plane: row4 + row2
 		FrustumPlanes[2] = Plane.Normalize(Plane(
-			m.M14 + m.M12,
-			m.M24 + m.M22,
-			m.M34 + m.M32,
-			m.M44 + m.M42
+			m.M41 + m.M21,
+			m.M42 + m.M22,
+			m.M43 + m.M23,
+			m.M44 + m.M24
 		));
 
-		// Top plane
+		// Top plane: row4 - row2
 		FrustumPlanes[3] = Plane.Normalize(Plane(
-			m.M14 - m.M12,
-			m.M24 - m.M22,
-			m.M34 - m.M32,
-			m.M44 - m.M42
+			m.M41 - m.M21,
+			m.M42 - m.M22,
+			m.M43 - m.M23,
+			m.M44 - m.M24
 		));
 
-		// Near plane
+		// Near plane: row3 (D3D convention, near=0 in NDC)
 		FrustumPlanes[4] = Plane.Normalize(Plane(
-			m.M13,
-			m.M23,
+			m.M31,
+			m.M32,
 			m.M33,
-			m.M43
+			m.M34
 		));
 
-		// Far plane
+		// Far plane: row4 - row3
 		FrustumPlanes[5] = Plane.Normalize(Plane(
-			m.M14 - m.M13,
-			m.M24 - m.M23,
-			m.M34 - m.M33,
-			m.M44 - m.M43
+			m.M41 - m.M31,
+			m.M42 - m.M32,
+			m.M43 - m.M33,
+			m.M44 - m.M34
 		));
 	}
 
