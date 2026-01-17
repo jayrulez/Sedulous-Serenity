@@ -93,7 +93,7 @@ public class LightingSystem : IDisposable
 		// Perform light culling against clusters
 		if (mUseClustered)
 		{
-			mClusterGrid.CullLightsCPU(world, visibility);
+			mClusterGrid.CullLightsCPU(world, visibility, camera.ViewMatrix);
 		}
 	}
 

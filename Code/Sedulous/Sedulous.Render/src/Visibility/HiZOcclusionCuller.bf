@@ -247,13 +247,14 @@ public class HiZOcclusionCuller : IDisposable
 		if (mHiZMipViews[0] == null)
 			return;
 
-		// Create bind group entries
+		// Create bind group entries - use HLSL register numbers
+		// b0=params, t0=bounds, t1=hiZ, s0=sampler, u0=visibility
 		BindGroupEntry[5] entries = .(
-			BindGroupEntry.Buffer(0, mCullParamsBuffer, 0, sizeof(HiZCullParams)),
-			BindGroupEntry.Buffer(1, mBoundsBuffer, 0, mMaxObjects * 24),
-			BindGroupEntry.Texture(2, mHiZMipViews[0]),  // Use full Hi-Z pyramid (mip 0 view, shader samples mips)
-			BindGroupEntry.Sampler(3, mHiZSampler),
-			BindGroupEntry.Buffer(4, mVisibilityBuffer, 0, mMaxObjects * 4)
+			BindGroupEntry.Buffer(0, mCullParamsBuffer, 0, sizeof(HiZCullParams)), // b0: Cull params
+			BindGroupEntry.Buffer(0, mBoundsBuffer, 0, mMaxObjects * 24),          // t0: Input bounds (StructuredBuffer)
+			BindGroupEntry.Texture(1, mHiZMipViews[0]),                            // t1: Hi-Z pyramid
+			BindGroupEntry.Sampler(0, mHiZSampler),                                // s0: Hi-Z sampler
+			BindGroupEntry.Buffer(0, mVisibilityBuffer, 0, mMaxObjects * 4)        // u0: Output visibility (RWStructuredBuffer)
 		);
 
 		BindGroupDescriptor desc = .()
@@ -624,11 +625,13 @@ public class HiZOcclusionCuller : IDisposable
 		let shader = shaderResult.Value;
 
 		// Create bind group layout for Hi-Z build
+		// Shader bindings: t0=InputDepth, u0=OutputHiZ, s0=DepthSampler, b0=BuildParams
+		// Use HLSL register numbers - RHI handles Vulkan shifts internally
 		BindGroupLayoutEntry[4] buildEntries = .(
-			.() { Binding = 0, Visibility = .Compute, Type = .SampledTexture }, // Input depth
-			.() { Binding = 1, Visibility = .Compute, Type = .StorageTexture }, // Output Hi-Z
-			.() { Binding = 2, Visibility = .Compute, Type = .Sampler },        // Depth sampler
-			.() { Binding = 3, Visibility = .Compute, Type = .UniformBuffer }   // Build params
+			.() { Binding = 0, Visibility = .Compute, Type = .SampledTexture }, // t0: Input depth
+			.() { Binding = 0, Visibility = .Compute, Type = .StorageTexture }, // u0: Output Hi-Z
+			.() { Binding = 0, Visibility = .Compute, Type = .Sampler },        // s0: Depth sampler
+			.() { Binding = 0, Visibility = .Compute, Type = .UniformBuffer }   // b0: Build params
 		);
 
 		BindGroupLayoutDescriptor buildLayoutDesc = .()
@@ -687,17 +690,14 @@ public class HiZOcclusionCuller : IDisposable
 		let shader = shaderResult.Value;
 
 		// Create bind group layout for Hi-Z cull
-		// Binding 0: Cull params (uniform buffer)
-		// Binding 1: Input bounds (storage buffer, read)
-		// Binding 2: Hi-Z pyramid (sampled texture)
-		// Binding 3: Hi-Z sampler
-		// Binding 4: Output visibility (storage buffer, write)
+		// Shader bindings: b0=CullParams, t0=InputBounds, t1=HiZPyramid, s0=HiZSampler, u0=OutputVisibility
+		// Use HLSL register numbers - RHI applies Vulkan shifts based on Type
 		BindGroupLayoutEntry[5] cullEntries = .(
-			.() { Binding = 0, Visibility = .Compute, Type = .UniformBuffer },    // Cull params
-			.() { Binding = 1, Visibility = .Compute, Type = .StorageBuffer },    // Input bounds
-			.() { Binding = 2, Visibility = .Compute, Type = .SampledTexture },   // Hi-Z pyramid
-			.() { Binding = 3, Visibility = .Compute, Type = .Sampler },          // Hi-Z sampler
-			.() { Binding = 4, Visibility = .Compute, Type = .StorageBuffer }     // Output visibility
+			.() { Binding = 0, Visibility = .Compute, Type = .UniformBuffer },          // b0: Cull params
+			.() { Binding = 0, Visibility = .Compute, Type = .StorageBuffer },          // t0: Input bounds (StructuredBuffer)
+			.() { Binding = 1, Visibility = .Compute, Type = .SampledTexture },         // t1: Hi-Z pyramid
+			.() { Binding = 0, Visibility = .Compute, Type = .Sampler },                // s0: Hi-Z sampler
+			.() { Binding = 0, Visibility = .Compute, Type = .StorageBufferReadWrite }  // u0: Output visibility (RWStructuredBuffer)
 		);
 
 		BindGroupLayoutDescriptor cullLayoutDesc = .()
@@ -790,12 +790,13 @@ public class HiZOcclusionCuller : IDisposable
 			mBuildHiZBindGroups[mipLevel] = null;
 		}
 
-		// Create bind group entries
+		// Create bind group entries - use HLSL register numbers
+		// t0=input, u0=output, s0=sampler, b0=params
 		BindGroupEntry[4] entries = .(
-			BindGroupEntry.Texture(0, inputView),
-			BindGroupEntry.Texture(1, outputView),
-			BindGroupEntry.Sampler(2, mHiZSampler),
-			BindGroupEntry.Buffer(3, mBuildParamsBuffer, 0, sizeof(HiZBuildParams))
+			BindGroupEntry.Texture(0, inputView),     // t0
+			BindGroupEntry.Texture(0, outputView),    // u0 (storage texture uses u register)
+			BindGroupEntry.Sampler(0, mHiZSampler),   // s0
+			BindGroupEntry.Buffer(0, mBuildParamsBuffer, 0, sizeof(HiZBuildParams)) // b0
 		);
 
 		BindGroupDescriptor desc = .()

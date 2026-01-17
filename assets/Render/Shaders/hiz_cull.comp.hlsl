@@ -20,7 +20,7 @@ struct AABB
     float3 Max;
 };
 
-// Input: bounding boxes
+// Input: bounding boxes (read-only)
 StructuredBuffer<AABB> InputBounds : register(t0);
 
 // Hi-Z pyramid texture

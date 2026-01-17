@@ -134,6 +134,14 @@ public class RenderGraph : IDisposable
 		return null;
 	}
 
+	/// Gets the texture for a resource.
+	public ITexture GetTexture(RGResourceHandle handle)
+	{
+		if (let resource = GetResourceByHandle(handle))
+			return resource.Texture;
+		return null;
+	}
+
 	/// Gets the buffer for a resource.
 	public IBuffer GetBuffer(RGResourceHandle handle)
 	{

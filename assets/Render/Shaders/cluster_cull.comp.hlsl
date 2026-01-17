@@ -62,7 +62,7 @@ struct ClusterLightInfo
     uint Count;
 };
 
-// Input buffers
+// Input buffers (read-only)
 StructuredBuffer<ClusterAABB> ClusterAABBs : register(t0);
 StructuredBuffer<Light> Lights : register(t1);
 

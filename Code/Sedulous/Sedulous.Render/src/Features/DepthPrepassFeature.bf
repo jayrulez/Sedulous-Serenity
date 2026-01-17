@@ -15,9 +15,17 @@ public class DepthPrepassFeature : RenderFeatureBase
 {
 	// Resources
 	private IBindGroupLayout mBindGroupLayout ~ delete _;
+	private IBindGroup mDepthBindGroup ~ delete _;
+	private IBuffer mObjectUniformBuffer ~ delete _;
 	private IRenderPipeline mDepthPipeline ~ delete _;
 	private IRenderPipeline mDepthSkinnedPipeline ~ delete _;
 	private IRenderPipeline mDepthInstancedPipeline ~ delete _;
+
+	// Constants for per-object uniforms
+	private const int MaxObjectsPerFrame = 1024;
+	private const uint64 ObjectUniformAlignment = 256;
+	private const uint64 ObjectUniformSize = 208; // 3 matrices (192) + padding
+	private const uint64 AlignedObjectUniformSize = ((ObjectUniformSize + ObjectUniformAlignment - 1) / ObjectUniformAlignment) * ObjectUniformAlignment;
 
 	// Visibility
 	private VisibilityResolver mVisibility = new .() ~ delete _;
@@ -63,6 +71,10 @@ public class DepthPrepassFeature : RenderFeatureBase
 		if (CreateBindGroupLayout() case .Err)
 			return .Err;
 
+		// Create object uniform buffer
+		if (CreateObjectUniformBuffer() case .Err)
+			return .Err;
+
 		// Create depth pipelines
 		if (CreateDepthPipelines() case .Err)
 			return .Err;
@@ -95,7 +107,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 		case .Err: return .Err;
 		}
 
-		// Vertex layout from material system (default to Mesh layout)
+		// Vertex layout - Mesh format matches Sedulous.Geometry.StaticMesh
 		VertexBufferLayout[1] vertexBuffers = .(
 			VertexLayoutHelper.CreateBufferLayout(.Mesh)
 		);
@@ -140,6 +152,12 @@ public class DepthPrepassFeature : RenderFeatureBase
 
 	protected override void OnShutdown()
 	{
+		if (mDepthBindGroup != null)
+		{
+			delete mDepthBindGroup;
+			mDepthBindGroup = null;
+		}
+
 		if (mHiZCuller != null)
 			mHiZCuller.Dispose();
 	}
@@ -160,6 +178,13 @@ public class DepthPrepassFeature : RenderFeatureBase
 		// Batch draws by material/state
 		mBatcher.Clear();
 		mBatcher.Build(world, mVisibility);
+
+		// Create/update bind group if needed
+		if (mDepthBindGroup == null)
+			CreateDepthBindGroup();
+
+		// Upload object uniforms BEFORE the render pass
+		PrepareObjectUniforms();
 
 		// Add depth prepass
 		graph.AddGraphicsPass("DepthPrepass")
@@ -196,11 +221,12 @@ public class DepthPrepassFeature : RenderFeatureBase
 				Visibility = .Vertex,
 				Type = .UniformBuffer
 			},
-			.() // Object uniforms
+			.() // Object uniforms (with dynamic offset)
 			{
 				Binding = 1,
 				Visibility = .Vertex,
-				Type = .UniformBuffer
+				Type = .UniformBuffer,
+				HasDynamicOffset = true
 			}
 		);
 
@@ -219,6 +245,90 @@ public class DepthPrepassFeature : RenderFeatureBase
 		return .Ok;
 	}
 
+	private Result<void> CreateObjectUniformBuffer()
+	{
+		// Create buffer for per-object uniforms with space for MaxObjectsPerFrame objects
+		let bufferSize = MaxObjectsPerFrame * (int)AlignedObjectUniformSize;
+		BufferDescriptor bufDesc = .((uint64)bufferSize, .Uniform | .CopyDst);
+
+		switch (Renderer.Device.CreateBuffer(&bufDesc))
+		{
+		case .Ok(let buffer): mObjectUniformBuffer = buffer;
+		case .Err: return .Err;
+		}
+
+		return .Ok;
+	}
+
+	private void CreateDepthBindGroup()
+	{
+		// Delete old bind group if exists
+		if (mDepthBindGroup != null)
+		{
+			delete mDepthBindGroup;
+			mDepthBindGroup = null;
+		}
+
+		// Get required buffers
+		let cameraBuffer = Renderer.RenderFrameContext?.SceneUniformBuffer;
+		if (cameraBuffer == null || mObjectUniformBuffer == null)
+			return;
+
+		// Build bind group entries
+		BindGroupEntry[2] entries = .(
+			BindGroupEntry.Buffer(0, cameraBuffer, 0, SceneUniforms.Size),
+			BindGroupEntry.Buffer(1, mObjectUniformBuffer, 0, AlignedObjectUniformSize)
+		);
+
+		BindGroupDescriptor bgDesc = .()
+		{
+			Label = "DepthPrepass BindGroup",
+			Layout = mBindGroupLayout,
+			Entries = entries
+		};
+
+		if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bg))
+			mDepthBindGroup = bg;
+	}
+
+	private void PrepareObjectUniforms()
+	{
+		// Upload all object transforms to the uniform buffer BEFORE the render pass
+		let commands = mBatcher.DrawCommands;
+
+		int32 objectIndex = 0;
+		for (let batch in mBatcher.OpaqueBatches)
+		{
+			if (batch.CommandCount == 0)
+				continue;
+
+			for (int32 i = 0; i < batch.CommandCount; i++)
+			{
+				if (objectIndex >= MaxObjectsPerFrame)
+					break;
+
+				let cmd = commands[batch.CommandStart + i];
+
+				// Create object uniforms with the object's world transform
+				ObjectUniforms objectUniforms = .()
+				{
+					WorldMatrix = cmd.WorldMatrix,
+					PrevWorldMatrix = cmd.PrevWorldMatrix,
+					NormalMatrix = cmd.NormalMatrix,
+					ObjectID = (uint32)objectIndex,
+					MaterialID = 0,
+					_Padding = default
+				};
+
+				// Upload to buffer at aligned offset
+				let offset = (uint64)(objectIndex * (int32)AlignedObjectUniformSize);
+				Renderer.Device.Queue.WriteBuffer(mObjectUniformBuffer, offset, Span<uint8>((uint8*)&objectUniforms, ObjectUniformSize));
+
+				objectIndex++;
+			}
+		}
+	}
+
 	private void ExecuteDepthPass(IRenderPassEncoder encoder, RenderWorld world, RenderView view)
 	{
 		// Set viewport
@@ -229,10 +339,11 @@ public class DepthPrepassFeature : RenderFeatureBase
 		if (mDepthPipeline != null)
 			encoder.SetPipeline(mDepthPipeline);
 
-		// Get draw commands from batcher
+		// Get draw commands from batcher (uniforms already uploaded in PrepareObjectUniforms)
 		let commands = mBatcher.DrawCommands;
 
-		// Render opaque batches
+		// Render opaque batches with dynamic offsets
+		int32 objectIndex = 0;
 		for (let batch in mBatcher.OpaqueBatches)
 		{
 			if (batch.CommandCount == 0)
@@ -241,11 +352,21 @@ public class DepthPrepassFeature : RenderFeatureBase
 			// Draw each command in this batch
 			for (int32 i = 0; i < batch.CommandCount; i++)
 			{
+				if (objectIndex >= MaxObjectsPerFrame)
+					break;
+
 				let cmd = commands[batch.CommandStart + i];
 
 				// Get mesh data
 				if (let mesh = Renderer.ResourceManager.GetMesh(cmd.GPUMesh))
 				{
+					// Bind depth bind group with dynamic offset for this object
+					if (mDepthBindGroup != null)
+					{
+						uint32[1] dynamicOffsets = .((uint32)(objectIndex * (int32)AlignedObjectUniformSize));
+						encoder.SetBindGroup(0, mDepthBindGroup, dynamicOffsets);
+					}
+
 					// Bind vertex/index buffers
 					encoder.SetVertexBuffer(0, mesh.VertexBuffer, 0);
 					if (mesh.IndexBuffer != null)
@@ -257,9 +378,22 @@ public class DepthPrepassFeature : RenderFeatureBase
 						encoder.Draw(mesh.VertexCount, 1, 0, 0);
 
 					Renderer.Stats.DrawCalls++;
+					objectIndex++;
 				}
 			}
 		}
+	}
+
+	/// Per-object uniform data for depth prepass.
+	[CRepr]
+	struct ObjectUniforms
+	{
+		public Matrix WorldMatrix;
+		public Matrix PrevWorldMatrix;
+		public Matrix NormalMatrix;
+		public uint32 ObjectID;
+		public uint32 MaterialID;
+		public float[2] _Padding;
 	}
 
 	private void ExecuteHiZGeneration(IComputePassEncoder encoder, ITextureView depthView)

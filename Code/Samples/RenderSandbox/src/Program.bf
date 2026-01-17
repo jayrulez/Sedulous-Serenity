@@ -53,7 +53,7 @@ class Program
 		// Create and run application
 		let settings = ApplicationSettings()
 		{
-			Title = "RendererNG Integrated",
+			Title = "RenderSandbox",
 			Width = 1280,
 			Height = 720,
 			EnableDepth = true,

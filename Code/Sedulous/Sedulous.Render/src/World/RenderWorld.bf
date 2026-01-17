@@ -19,6 +19,12 @@ public class RenderWorld : IDisposable
 	// Main camera handle
 	private CameraProxyHandle mMainCamera = .Invalid;
 
+	// Environment lighting settings
+	private Vector3 mAmbientColor = .(0.03f, 0.03f, 0.03f);
+	private float mAmbientIntensity = 1.0f;
+	private float mExposure = 1.0f;
+	private bool mEnvironmentDirty = true;
+
 	// Dirty tracking
 	private bool mMeshesDirty = false;
 	private bool mSkinnedMeshesDirty = false;
@@ -73,6 +79,37 @@ public class RenderWorld : IDisposable
 
 	/// Whether any particles have changed.
 	public bool ParticlesDirty => mParticlesDirty;
+
+	/// Whether environment settings have changed.
+	public bool EnvironmentDirty => mEnvironmentDirty;
+
+	// ========================================================================
+	// Environment Lighting API
+	// ========================================================================
+
+	/// Gets or sets the ambient light color.
+	public Vector3 AmbientColor
+	{
+		get => mAmbientColor;
+		set { mAmbientColor = value; mEnvironmentDirty = true; }
+	}
+
+	/// Gets or sets the ambient light intensity.
+	public float AmbientIntensity
+	{
+		get => mAmbientIntensity;
+		set { mAmbientIntensity = value; mEnvironmentDirty = true; }
+	}
+
+	/// Gets or sets the exposure value for tonemapping.
+	public float Exposure
+	{
+		get => mExposure;
+		set { mExposure = value; mEnvironmentDirty = true; }
+	}
+
+	/// Clears the environment dirty flag.
+	public void ClearEnvironmentDirty() { mEnvironmentDirty = false; }
 
 	// ========================================================================
 	// Mesh API

@@ -37,16 +37,18 @@ class MaterialSystem : IDisposable
 	private ITexture mWhiteTexture ~ delete _;
 	private ITexture mNormalTexture ~ delete _;
 	private ITexture mBlackTexture ~ delete _;
+	private ITexture mDepthTexture ~ delete _;
 	private ITextureView mWhiteTextureView ~ delete _;
 	private ITextureView mNormalTextureView ~ delete _;
 	private ITextureView mBlackTextureView ~ delete _;
+	private ITextureView mDepthTextureView ~ delete _;
 
 	/// Default PBR material (for meshes without assigned materials).
 	private Material mDefaultMaterial ~ delete _;
 	private MaterialInstance mDefaultMaterialInstance ~ delete _;
 
-	/// Cached default material bind group layout.
-	private IBindGroupLayout mDefaultMaterialLayout ~ delete _;
+	/// Cached default material bind group layout (owned by mLayoutCache, not deleted here).
+	private IBindGroupLayout mDefaultMaterialLayout;
 
 	/// Gets the default sampler (linear, clamp).
 	public ISampler DefaultSampler => mDefaultSampler;
@@ -59,6 +61,9 @@ class MaterialSystem : IDisposable
 
 	/// Gets the black 1x1 texture view.
 	public ITextureView BlackTexture => mBlackTextureView;
+
+	/// Gets the depth 1x1 texture view (for shadow fallback).
+	public ITextureView DepthTexture => mDepthTextureView;
 
 	/// Gets the device.
 	public IDevice Device => mDevice;
@@ -275,6 +280,10 @@ class MaterialSystem : IDisposable
 		if (!CreateTexture1x1(.(0, 0, 0, 255), out mBlackTexture, out mBlackTextureView))
 			return false;
 
+		// Create 1x1 depth texture (for shadow fallback with comparison sampler)
+		if (!CreateDepthTexture1x1())
+			return false;
+
 		// Create default PBR material
 		if (!CreateDefaultMaterial())
 			return false;
@@ -310,6 +319,7 @@ class MaterialSystem : IDisposable
 
 		// Create texture descriptor
 		var texDesc = TextureDescriptor.Texture2D(1, 1, .RGBA8Unorm, .Sampled | .CopyDst, 1);
+		texDesc.Label = "1x1";
 
 		if (mDevice.CreateTexture(&texDesc) case .Ok(let tex))
 			texture = tex;
@@ -335,7 +345,8 @@ class MaterialSystem : IDisposable
 			BaseMipLevel = 0,
 			MipLevelCount = 1,
 			BaseArrayLayer = 0,
-			ArrayLayerCount = 1
+			ArrayLayerCount = 1,
+			Label = "1x1View"
 		};
 
 		if (mDevice.CreateTextureView(texture, &viewDesc) case .Ok(let v))
@@ -344,6 +355,86 @@ class MaterialSystem : IDisposable
 			return false;
 
 		return true;
+	}
+
+	private bool CreateDepthTexture1x1()
+	{
+		// Create 1x1 depth texture for shadow comparison fallback
+		// Use DepthStencil to allow clearing, Sampled to allow sampling
+		var texDesc = TextureDescriptor.Texture2D(1, 1, .Depth32Float, .Sampled | .DepthStencil, 1);
+		texDesc.Label = "Depth1x1";
+
+		if (mDevice.CreateTexture(&texDesc) case .Ok(let tex))
+			mDepthTexture = tex;
+		else
+			return false;
+
+		// Create view with depth aspect
+		var viewDesc = TextureViewDescriptor()
+		{
+			Dimension = .Texture2D,
+			Format = .Depth32Float,
+			BaseMipLevel = 0,
+			MipLevelCount = 1,
+			BaseArrayLayer = 0,
+			ArrayLayerCount = 1,
+			Aspect = .DepthOnly,
+			Label = "Depth1x1View"
+		};
+
+		if (mDevice.CreateTextureView(mDepthTexture, &viewDesc) case .Ok(let v))
+			mDepthTextureView = v;
+		else
+			return false;
+
+		// Clear the texture to transition from UNDEFINED to SHADER_READ_ONLY
+		// by doing a dummy render pass with depth clear
+		ClearDepthTexture();
+
+		return true;
+	}
+
+	private void ClearDepthTexture()
+	{
+		// Get a command encoder to clear the texture
+		if (let encoder = mDevice.CreateCommandEncoder())
+		{
+			// Create a render pass that clears depth
+			RenderPassDepthStencilAttachment depthAttachment = .()
+			{
+				View = mDepthTextureView,
+				DepthLoadOp = .Clear,
+				DepthStoreOp = .Store,
+				DepthClearValue = 1.0f,
+				StencilLoadOp = .Clear,
+				StencilStoreOp = .Store,
+				StencilClearValue = 0
+			};
+
+			RenderPassDescriptor rpDesc = .()
+			{
+				DepthStencilAttachment = depthAttachment
+			};
+
+			if (let pass = encoder.BeginRenderPass(&rpDesc))
+			{
+				pass.End();
+				delete pass;
+			}
+
+			// Transition from DepthStencilAttachment to ShaderReadOnly for sampling
+			encoder.TextureBarrier(mDepthTexture, .DepthStencilAttachment, .ShaderReadOnly);
+
+			// Submit the command buffer
+			if (let cmdBuffer = encoder.Finish())
+			{
+				mDevice.Queue.Submit(cmdBuffer);
+				mDevice.WaitIdle(); // Wait for completion before continuing
+				delete cmdBuffer;
+			}
+
+			delete encoder;
+		}
 	}
 
 	private int ComputeLayoutHash(Material material)

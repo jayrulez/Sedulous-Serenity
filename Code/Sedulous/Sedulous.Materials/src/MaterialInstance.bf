@@ -73,8 +73,8 @@ class MaterialInstance : IDisposable
 	/// GPU bind group for this material instance.
 	private IBindGroup mBindGroup ~ delete _;
 
-	/// Blend mode for transparent rendering.
-	private BlendMode mBlendMode = .AlphaBlend;
+	/// Blend mode for rendering.
+	private BlendMode mBlendMode = .Opaque;
 
 	/// The base material.
 	public Material Material => mMaterial;

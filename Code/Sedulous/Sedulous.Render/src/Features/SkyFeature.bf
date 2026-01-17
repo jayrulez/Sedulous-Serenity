@@ -356,7 +356,7 @@ public class SkyFeature : RenderFeatureBase
 			ArrayLayerCount = 1,
 			SampleCount = 1,
 			Dimension = .Texture2D,
-			Usage = .Sampled | .Storage
+			Usage = .Sampled | .CopyDst  // Need CopyDst for WriteTexture
 		};
 
 		switch (Renderer.Device.CreateTexture(&desc))
@@ -368,7 +368,8 @@ public class SkyFeature : RenderFeatureBase
 		TextureViewDescriptor viewDesc = .()
 		{
 			Label = "BRDF LUT View",
-			Dimension = .Texture2D
+			Dimension = .Texture2D,
+			Format = .RG16Float  // Must match texture format
 		};
 
 		switch (Renderer.Device.CreateTextureView(mBRDFLut, &viewDesc))

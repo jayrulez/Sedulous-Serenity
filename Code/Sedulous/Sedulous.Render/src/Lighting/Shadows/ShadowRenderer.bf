@@ -14,7 +14,7 @@ public class ShadowRenderer : IDisposable
 
 	// Configuration
 	private IDevice mDevice;
-	private bool mEnableShadows = true;
+	private bool mEnableShadows = false; // Disabled until CSM shader compatibility is fixed
 
 	// Current state
 	private LightProxyHandle mMainDirectionalLight = .Invalid;

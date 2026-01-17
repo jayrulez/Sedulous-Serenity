@@ -54,24 +54,29 @@ public struct GPULight
 }
 
 /// GPU uniform buffer for lighting parameters.
+/// Layout MUST match forward.frag.hlsl LightingUniforms cbuffer.
 [CRepr]
 public struct LightingUniforms
 {
-	/// Ambient light color.
+	/// Ambient light color (rgb).
 	public Vector3 AmbientColor;
+	/// Ambient light intensity multiplier.
+	public float AmbientIntensity;
+
 	/// Number of active lights.
 	public uint32 LightCount;
+	/// Cluster grid dimensions (x, y, z).
+	public uint32 ClusterDimensionX;
+	public uint32 ClusterDimensionY;
+	public uint32 ClusterDimensionZ;
 
-	/// Environment map intensity.
-	public float EnvironmentIntensity;
-	/// Exposure for HDR.
-	public float Exposure;
-	/// Padding.
-	public float Padding0;
-	public float Padding1;
+	/// Cluster scale for index calculation.
+	public Vector2 ClusterScale;
+	/// Cluster bias for index calculation.
+	public Vector2 ClusterBias;
 
 	/// Size of this struct in bytes.
-	public static int Size => 32;
+	public static int Size => 48;
 }
 
 /// Manages GPU light data for clustered forward rendering.
@@ -91,8 +96,16 @@ public class LightBuffer : IDisposable
 
 	// Lighting settings
 	private Vector3 mAmbientColor = .(0.03f, 0.03f, 0.03f);
+	private float mAmbientIntensity = 1.0f;
 	private float mEnvironmentIntensity = 1.0f;
 	private float mExposure = 1.0f;
+
+	// Cluster info (set by ClusterGrid)
+	private uint32 mClusterDimX = 16;
+	private uint32 mClusterDimY = 9;
+	private uint32 mClusterDimZ = 24;
+	private Vector2 mClusterScale = .(1.0f, 1.0f);
+	private Vector2 mClusterBias = .(0.0f, 0.0f);
 
 	/// Gets the number of active lights.
 	public int32 LightCount => mLightCount;
@@ -105,6 +118,23 @@ public class LightBuffer : IDisposable
 	{
 		get => mAmbientColor;
 		set => mAmbientColor = value;
+	}
+
+	/// Gets or sets the ambient light intensity.
+	public float AmbientIntensity
+	{
+		get => mAmbientIntensity;
+		set => mAmbientIntensity = value;
+	}
+
+	/// Sets cluster grid info for the lighting uniform buffer.
+	public void SetClusterInfo(uint32 dimX, uint32 dimY, uint32 dimZ, Vector2 scale, Vector2 bias)
+	{
+		mClusterDimX = dimX;
+		mClusterDimY = dimY;
+		mClusterDimZ = dimZ;
+		mClusterScale = scale;
+		mClusterBias = bias;
 	}
 
 	/// Gets or sets the environment map intensity.
@@ -250,12 +280,21 @@ public class LightBuffer : IDisposable
 		LightingUniforms uniforms = .()
 		{
 			AmbientColor = mAmbientColor,
+			AmbientIntensity = mAmbientIntensity,
 			LightCount = (uint32)mLightCount,
-			EnvironmentIntensity = mEnvironmentIntensity,
-			Exposure = mExposure
+			ClusterDimensionX = mClusterDimX,
+			ClusterDimensionY = mClusterDimY,
+			ClusterDimensionZ = mClusterDimZ,
+			ClusterScale = mClusterScale,
+			ClusterBias = mClusterBias
 		};
 
 		mDevice.Queue.WriteBuffer(mLightingUniformBuffer, 0, Span<uint8>((uint8*)&uniforms, LightingUniforms.Size));
+	}
+
+	public ~this()
+	{
+		Dispose();
 	}
 
 	public void Dispose()

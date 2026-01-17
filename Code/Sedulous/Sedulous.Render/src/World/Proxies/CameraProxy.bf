@@ -252,59 +252,61 @@ public struct CameraProxy
 	}
 
 	/// Extracts frustum planes from the view-projection matrix.
-	/// Uses Gribb/Hartmann method for row-major matrices with column vectors.
+	/// Uses Gribb/Hartmann method for row-major matrices with row vectors.
+	/// Row vectors: clip = worldPos * VP, so use columns for extraction.
 	/// Matrix naming: MRC where R=row, C=column (1-indexed)
 	private void ExtractFrustumPlanes() mut
 	{
 		let m = ViewProjectionMatrix;
 
-		// For row-major with column vectors (clip = VP * world):
-		// Left plane: row4 + row1
+		// For row-major with row vectors (clip = world * VP):
+		// Extract from columns of the matrix
+		// Left plane: col4 + col1
 		FrustumPlanes[0] = Plane.Normalize(Plane(
-			m.M41 + m.M11,
-			m.M42 + m.M12,
-			m.M43 + m.M13,
-			m.M44 + m.M14
+			m.M14 + m.M11,
+			m.M24 + m.M21,
+			m.M34 + m.M31,
+			m.M44 + m.M41
 		));
 
-		// Right plane: row4 - row1
+		// Right plane: col4 - col1
 		FrustumPlanes[1] = Plane.Normalize(Plane(
-			m.M41 - m.M11,
-			m.M42 - m.M12,
-			m.M43 - m.M13,
-			m.M44 - m.M14
+			m.M14 - m.M11,
+			m.M24 - m.M21,
+			m.M34 - m.M31,
+			m.M44 - m.M41
 		));
 
-		// Bottom plane: row4 + row2
+		// Bottom plane: col4 + col2
 		FrustumPlanes[2] = Plane.Normalize(Plane(
-			m.M41 + m.M21,
-			m.M42 + m.M22,
-			m.M43 + m.M23,
-			m.M44 + m.M24
+			m.M14 + m.M12,
+			m.M24 + m.M22,
+			m.M34 + m.M32,
+			m.M44 + m.M42
 		));
 
-		// Top plane: row4 - row2
+		// Top plane: col4 - col2
 		FrustumPlanes[3] = Plane.Normalize(Plane(
-			m.M41 - m.M21,
-			m.M42 - m.M22,
-			m.M43 - m.M23,
-			m.M44 - m.M24
+			m.M14 - m.M12,
+			m.M24 - m.M22,
+			m.M34 - m.M32,
+			m.M44 - m.M42
 		));
 
-		// Near plane: row3 (D3D convention, near=0 in NDC)
+		// Near plane: col3 (D3D convention, near=0 in NDC)
 		FrustumPlanes[4] = Plane.Normalize(Plane(
-			m.M31,
-			m.M32,
+			m.M13,
+			m.M23,
 			m.M33,
-			m.M34
+			m.M43
 		));
 
-		// Far plane: row4 - row3
+		// Far plane: col4 - col3
 		FrustumPlanes[5] = Plane.Normalize(Plane(
-			m.M41 - m.M31,
-			m.M42 - m.M32,
-			m.M43 - m.M33,
-			m.M44 - m.M34
+			m.M14 - m.M13,
+			m.M24 - m.M23,
+			m.M34 - m.M33,
+			m.M44 - m.M43
 		));
 	}
 

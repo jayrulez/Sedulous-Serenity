@@ -123,6 +123,11 @@ public class ClusterGrid : IDisposable
 	// Statistics
 	private ClusterStats mStats;
 
+	public ~this()
+	{
+		Dispose();
+	}
+
 	/// Gets the cluster grid configuration.
 	public ClusterGridConfig Config => mConfig;
 
@@ -238,38 +243,79 @@ public class ClusterGrid : IDisposable
 	}
 
 	/// CPU fallback for light culling (for debugging or when compute is unavailable).
-	public void CullLightsCPU(RenderWorld world, VisibilityResolver visibility)
+	/// This writes light assignments to the GPU buffers for the shader to read.
+	/// @param world The render world containing light data.
+	/// @param visibility The visibility resolver with visible lights.
+	/// @param viewMatrix The view matrix to transform lights to view space (cluster AABBs are in view space).
+	public void CullLightsCPU(RenderWorld world, VisibilityResolver visibility, Matrix viewMatrix)
 	{
 		if (mClusterAABBs == null)
 			return;
 
 		mStats.ClustersWithLights = 0;
-		int totalLights = 0;
+		int totalLightsAssigned = 0;
 
-		// For each cluster, test against visible lights
-		for (int i = 0; i < mClusterAABBs.Count; i++)
+		// Temporary storage for cluster light data
+		let totalClusters = (int)mConfig.TotalClusters;
+		let maxLightsPerCluster = (int)mConfig.MaxLightsPerCluster;
+
+		// Allocate CPU-side buffers for upload
+		ClusterLightInfo[] clusterInfos = new ClusterLightInfo[totalClusters];
+		defer delete clusterInfos;
+		uint32[] lightIndices = new uint32[totalClusters * maxLightsPerCluster];
+		defer delete lightIndices;
+
+		uint32 globalLightIndexOffset = 0;
+
+		// For each cluster, test against visible lights and record assignments
+		for (int i = 0; i < totalClusters; i++)
 		{
 			let clusterAABB = mClusterAABBs[i];
-			int lightsInCluster = 0;
+			uint32 lightsInCluster = 0;
+			uint32 clusterStartOffset = globalLightIndexOffset;
 
+			int lightIndex = 0;
 			for (let visibleLight in visibility.VisibleLights)
 			{
+				if (lightsInCluster >= maxLightsPerCluster)
+					break;
+
 				if (let light = world.GetLight(visibleLight.Handle))
 				{
-					if (LightIntersectsCluster(light, clusterAABB))
+					if (LightIntersectsClusterViewSpace(light, clusterAABB, viewMatrix))
+					{
+						// Record this light index for this cluster
+						lightIndices[globalLightIndexOffset] = (uint32)lightIndex;
+						globalLightIndexOffset++;
 						lightsInCluster++;
+					}
 				}
+				lightIndex++;
 			}
+
+			// Record cluster info (offset and count)
+			clusterInfos[i] = .() { Offset = clusterStartOffset, Count = lightsInCluster };
 
 			if (lightsInCluster > 0)
 			{
 				mStats.ClustersWithLights++;
-				totalLights += lightsInCluster;
+				totalLightsAssigned += (int)lightsInCluster;
 			}
 		}
 
+		// Upload cluster info buffer to GPU
+		mDevice.Queue.WriteBuffer(mClusterLightInfoBuffer, 0,
+			Span<uint8>((uint8*)&clusterInfos[0], totalClusters * sizeof(ClusterLightInfo)));
+
+		// Upload light indices buffer to GPU (only the used portion)
+		if (globalLightIndexOffset > 0)
+		{
+			mDevice.Queue.WriteBuffer(mLightIndexBuffer, 0,
+				Span<uint8>((uint8*)&lightIndices[0], (int)globalLightIndexOffset * sizeof(uint32)));
+		}
+
 		mStats.AverageLightsPerCluster = mStats.ClustersWithLights > 0
-			? (float)totalLights / (float)mStats.ClustersWithLights
+			? (float)totalLightsAssigned / (float)mStats.ClustersWithLights
 			: 0;
 	}
 
@@ -324,7 +370,7 @@ public class ClusterGrid : IDisposable
 		{
 			Label = "Cluster Light Info",
 			Size = totalClusters * 8,
-			Usage = .Storage
+			Usage = .Storage | .CopyDst
 		};
 
 		switch (mDevice.CreateBuffer(&infoDesc))
@@ -340,7 +386,7 @@ public class ClusterGrid : IDisposable
 		{
 			Label = "Light Indices",
 			Size = maxIndices * 4,
-			Usage = .Storage
+			Usage = .Storage | .CopyDst
 		};
 
 		switch (mDevice.CreateBuffer(&indexDesc))
@@ -390,9 +436,12 @@ public class ClusterGrid : IDisposable
 			return;
 
 		// Create bind group layout for cluster building
-		BindGroupLayoutEntry[2] buildEntries = .(
-			.() { Binding = 0, Visibility = .Compute, Type = .UniformBuffer }, // ClusterUniforms
-			.() { Binding = 1, Visibility = .Compute, Type = .StorageBuffer }  // ClusterAABBs (output)
+		// Shader bindings: b0=ClusterUniforms, b1=CameraUniforms, u0=ClusterAABBs
+		// Use HLSL register numbers - RHI applies Vulkan shifts based on Type
+		BindGroupLayoutEntry[3] buildEntries = .(
+			.() { Binding = 0, Visibility = .Compute, Type = .UniformBuffer },          // b0: ClusterUniforms
+			.() { Binding = 1, Visibility = .Compute, Type = .UniformBuffer },          // b1: CameraUniforms
+			.() { Binding = 0, Visibility = .Compute, Type = .StorageBufferReadWrite }  // u0: ClusterAABBs (RWStructuredBuffer)
 		);
 
 		BindGroupLayoutDescriptor buildLayoutDesc = .()
@@ -408,13 +457,17 @@ public class ClusterGrid : IDisposable
 		}
 
 		// Create bind group layout for light culling
-		BindGroupLayoutEntry[6] cullEntries = .(
-			.() { Binding = 0, Visibility = .Compute, Type = .UniformBuffer },  // ClusterUniforms
-			.() { Binding = 1, Visibility = .Compute, Type = .UniformBuffer },  // LightingUniforms
-			.() { Binding = 2, Visibility = .Compute, Type = .StorageBuffer },  // ClusterAABBs (input)
-			.() { Binding = 3, Visibility = .Compute, Type = .StorageBuffer },  // Lights (input)
-			.() { Binding = 4, Visibility = .Compute, Type = .StorageBuffer },  // ClusterLightInfos (output)
-			.() { Binding = 5, Visibility = .Compute, Type = .StorageBuffer }   // LightIndices (output)
+		// Shader bindings: b0=ClusterUniforms, b1=LightingUniforms, t0=ClusterAABBs, t1=Lights,
+		//                  u0=ClusterLightInfos, u1=LightIndices, u2=GlobalLightIndexCounter
+		// Use HLSL register numbers - RHI applies Vulkan shifts based on Type
+		BindGroupLayoutEntry[7] cullEntries = .(
+			.() { Binding = 0, Visibility = .Compute, Type = .UniformBuffer },          // b0: ClusterUniforms
+			.() { Binding = 1, Visibility = .Compute, Type = .UniformBuffer },          // b1: LightingUniforms
+			.() { Binding = 0, Visibility = .Compute, Type = .StorageBuffer },          // t0: ClusterAABBs (StructuredBuffer)
+			.() { Binding = 1, Visibility = .Compute, Type = .StorageBuffer },          // t1: Lights (StructuredBuffer)
+			.() { Binding = 0, Visibility = .Compute, Type = .StorageBufferReadWrite }, // u0: ClusterLightInfos (RWStructuredBuffer)
+			.() { Binding = 1, Visibility = .Compute, Type = .StorageBufferReadWrite }, // u1: LightIndices (RWStructuredBuffer)
+			.() { Binding = 2, Visibility = .Compute, Type = .StorageBufferReadWrite }  // u2: GlobalLightIndexCounter
 		);
 
 		BindGroupLayoutDescriptor cullLayoutDesc = .()
@@ -481,34 +534,24 @@ public class ClusterGrid : IDisposable
 		if (!mGPUCullingAvailable || lightBuffer == null)
 			return;
 
-		// Create build clusters bind group
-		if (mBuildClustersBindGroupLayout != null && mBuildClustersBindGroup == null)
-		{
-			BindGroupEntry[2] buildEntries = .(
-				BindGroupEntry.Buffer(0, mClusterUniformBuffer, 0, (uint64)ClusterUniforms.Size),
-				BindGroupEntry.Buffer(1, mClusterAABBBuffer, 0, mConfig.TotalClusters * 24)
-			);
-
-			BindGroupDescriptor buildDesc = .(mBuildClustersBindGroupLayout, buildEntries);
-			buildDesc.Label = "Cluster Build BindGroup";
-
-			switch (mDevice.CreateBindGroup(&buildDesc))
-			{
-			case .Ok(let bg): mBuildClustersBindGroup = bg;
-			case .Err:
-			}
-		}
+		// Note: Build clusters bind group requires camera buffer (b1: CameraUniforms with InverseProjection)
+		// This must be provided separately when calling BuildClustersGPU
+		// For now, we skip creating the build bind group - cluster building is done on CPU
+		// TODO: Add camera uniform buffer parameter to CreateBindGroups for GPU cluster building
 
 		// Create cull lights bind group
+		// Bindings: b0=ClusterUniforms, b1=LightingUniforms, t0=ClusterAABBs, t1=Lights,
+		//           u0=ClusterLightInfos, u1=LightIndices, u2=GlobalLightIndexCounter
 		if (mCullLightsBindGroupLayout != null && mCullLightsBindGroup == null)
 		{
-			BindGroupEntry[6] cullEntries = .(
-				BindGroupEntry.Buffer(0, mClusterUniformBuffer, 0, (uint64)ClusterUniforms.Size),
-				BindGroupEntry.Buffer(1, lightBuffer.UniformBuffer, 0, (uint64)LightingUniforms.Size),
-				BindGroupEntry.Buffer(2, mClusterAABBBuffer, 0, mConfig.TotalClusters * 24),
-				BindGroupEntry.Buffer(3, lightBuffer.LightDataBuffer, 0, (uint64)(lightBuffer.MaxLights * GPULight.Size)),
-				BindGroupEntry.Buffer(4, mClusterLightInfoBuffer, 0, mConfig.TotalClusters * 8),
-				BindGroupEntry.Buffer(5, mLightIndexBuffer, 0, mConfig.MaxLightsPerCluster * mConfig.TotalClusters * 4)
+			BindGroupEntry[7] cullEntries = .(
+				BindGroupEntry.Buffer(0, mClusterUniformBuffer, 0, (uint64)ClusterUniforms.Size),       // b0: ClusterUniforms
+				BindGroupEntry.Buffer(1, lightBuffer.UniformBuffer, 0, (uint64)LightingUniforms.Size),  // b1: LightingUniforms
+				BindGroupEntry.Buffer(0, mClusterAABBBuffer, 0, mConfig.TotalClusters * 24),            // t0: ClusterAABBs (StructuredBuffer)
+				BindGroupEntry.Buffer(1, lightBuffer.LightDataBuffer, 0, (uint64)(lightBuffer.MaxLights * GPULight.Size)), // t1: Lights (StructuredBuffer)
+				BindGroupEntry.Buffer(0, mClusterLightInfoBuffer, 0, mConfig.TotalClusters * 8),        // u0: ClusterLightInfos (RWStructuredBuffer)
+				BindGroupEntry.Buffer(1, mLightIndexBuffer, 0, mConfig.MaxLightsPerCluster * mConfig.TotalClusters * 4), // u1: LightIndices (RWStructuredBuffer)
+				BindGroupEntry.Buffer(2, mLightIndexCounterBuffer, 0, 4)                                // u2: GlobalLightIndexCounter
 			);
 
 			BindGroupDescriptor cullDesc = .(mCullLightsBindGroupLayout, cullEntries);
@@ -576,29 +619,39 @@ public class ClusterGrid : IDisposable
 		float zNear, float zFar,
 		Matrix inverseProjection)
 	{
-		// Transform 8 corners of the cluster from NDC to view space
+		// Build view-space AABB directly from frustum corners
+		// The zNear/zFar are positive depth values (distance from camera)
+		// In view space (RH), Z is negative in front of camera
 		Vector3 minBounds = .(float.MaxValue);
 		Vector3 maxBounds = .(float.MinValue);
 
 		float[2] xs = .(ndcMinX, ndcMaxX);
 		float[2] ys = .(ndcMinY, ndcMaxY);
-		float[2] zs = .(zNear, zFar);
+		float[2] depths = .(zNear, zFar);
 
 		for (let ndcX in xs)
 		{
 			for (let ndcY in ys)
 			{
-				for (let viewZ in zs)
+				for (let depth in depths)
 				{
-					// Convert depth to NDC Z (assuming D3D convention: 0 at near, 1 at far)
-					let ndcZ = (viewZ - mNearPlane) / (mFarPlane - mNearPlane);
+					// For a perspective projection, to find view-space position:
+					// We unproject NDC XY at the near plane, then scale by depth
+					//
+					// At NDC Z=0 (near plane), unproject to get direction
+					var clipPosNear = Vector4(ndcX, ndcY, 0.0f, 1.0f);
+					var viewPosNear = Vector4.Transform(clipPosNear, inverseProjection);
+					viewPosNear /= viewPosNear.W;
 
-					// Unproject to view space
-					var clipPos = Vector4(ndcX, ndcY, ndcZ, 1.0f);
-					var viewPos = Vector4.Transform(clipPos, inverseProjection);
-					viewPos /= viewPos.W;
+					// viewPosNear.Z should be -nearPlane (negative in RH view space)
+					// Scale the XY by depth/nearPlane to get position at desired depth
+					let scale = depth / mNearPlane;
+					let viewPos3 = Vector3(
+						viewPosNear.X * scale,
+						viewPosNear.Y * scale,
+						-depth  // View space Z is negative
+					);
 
-					let viewPos3 = Vector3(viewPos.X, viewPos.Y, viewPos.Z);
 					minBounds = Vector3.Min(minBounds, viewPos3);
 					maxBounds = Vector3.Max(maxBounds, viewPos3);
 				}
@@ -633,14 +686,41 @@ public class ClusterGrid : IDisposable
 		mDevice.Queue.WriteBuffer(mClusterUniformBuffer, 0, Span<uint8>((uint8*)&uniforms, ClusterUniforms.Size));
 	}
 
-	private bool LightIntersectsCluster(LightProxy* light, BoundingBox clusterAABB)
+	// Debug flag for one-time output
+	private static bool sIntersectDebugPrinted = false;
+
+	/// Tests if a light intersects a cluster AABB in view space.
+	/// @param light The light proxy (position is in world space).
+	/// @param clusterAABB The cluster bounds in view space.
+	/// @param viewMatrix The view matrix to transform world to view space.
+	private bool LightIntersectsClusterViewSpace(LightProxy* light, BoundingBox clusterAABB, Matrix viewMatrix)
 	{
 		if (light.Type == .Directional)
 			return true; // Directional lights affect all clusters
 
-		// Test sphere-AABB intersection
-		let lightSphere = BoundingSphere(light.Position, light.Range);
-		return SphereIntersectsAABB(lightSphere, clusterAABB);
+		// Transform light position from world space to view space
+		let worldPos = Vector4(light.Position.X, light.Position.Y, light.Position.Z, 1.0f);
+		let viewPos = Vector4.Transform(worldPos, viewMatrix);
+		let lightPosViewSpace = Vector3(viewPos.X, viewPos.Y, viewPos.Z);
+
+		// Test sphere-AABB intersection in view space
+		let lightSphere = BoundingSphere(lightPosViewSpace, light.Range);
+		let intersects = SphereIntersectsAABB(lightSphere, clusterAABB);
+
+		// Debug output (once per session)
+		if (!sIntersectDebugPrinted && light.Type == .Point)
+		{
+			sIntersectDebugPrinted = true;
+			Console.WriteLine("\n=== Light-Cluster Intersection Debug ===");
+			Console.WriteLine("Light world pos: ({}, {}, {})", light.Position.X, light.Position.Y, light.Position.Z);
+			Console.WriteLine("Light view pos: ({}, {}, {})", lightPosViewSpace.X, lightPosViewSpace.Y, lightPosViewSpace.Z);
+			Console.WriteLine("Light range: {}", light.Range);
+			Console.WriteLine("Cluster AABB min: ({}, {}, {})", clusterAABB.Min.X, clusterAABB.Min.Y, clusterAABB.Min.Z);
+			Console.WriteLine("Cluster AABB max: ({}, {}, {})", clusterAABB.Max.X, clusterAABB.Max.Y, clusterAABB.Max.Z);
+			Console.WriteLine("Intersects: {}", intersects);
+		}
+
+		return intersects;
 	}
 
 	private static bool SphereIntersectsAABB(BoundingSphere sphere, BoundingBox bounds)

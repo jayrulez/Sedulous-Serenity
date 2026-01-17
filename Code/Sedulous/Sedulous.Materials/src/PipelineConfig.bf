@@ -52,10 +52,13 @@ enum VertexLayoutType : uint8
 	PositionOnly,
 	/// Position + UV + Color (sprites/particles).
 	PositionUVColor,
-	/// Standard mesh format: Position + Normal + UV + Color + Tangent (48 bytes).
+	/// Simple mesh format: Position + Normal + UV (32 bytes).
+	MeshNoTangent,
+	/// Standard mesh format: Position + Normal + UV + Color + Tangent3 (48 bytes).
+	/// Matches Sedulous.Geometry.StaticMesh.SetupCommonVertexFormat().
 	Mesh,
-	/// Skinned mesh format: Position + Normal + UV + Color + Tangent + Joints + Weights (72 bytes).
-	Skinned,
+	/// Skinned mesh format: Position + Normal + UV + Tangent + Joints + Weights (80 bytes).
+	SkinnedMesh,
 	/// Custom layout (use CustomVertexLayout).
 	Custom
 }
@@ -240,7 +243,7 @@ struct PipelineConfig : IHashable, IEquatable<PipelineConfig>
 	{
 		var config = transparent ? ForTransparentMesh(shaderName) : ForOpaqueMesh(shaderName);
 		config.ShaderFlags |= .Skinned;
-		config.VertexLayout = .Skinned;
+		config.VertexLayout = .SkinnedMesh;
 		return config;
 	}
 

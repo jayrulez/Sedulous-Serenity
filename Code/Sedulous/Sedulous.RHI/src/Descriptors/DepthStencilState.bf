@@ -65,8 +65,8 @@ struct DepthStencilState
 	/// Default depth test (less-than, write enabled).
 	public static Self Default => .();
 
-	/// No depth testing or writing.
-	public static Self None => .() { DepthTestEnabled = false, DepthWriteEnabled = false };
+	/// No depth testing or writing (no depth attachment).
+	public static Self None => .() { Format = .Undefined, DepthTestEnabled = false, DepthWriteEnabled = false };
 
 	/// Depth test without writing.
 	public static Self ReadOnly => .() { DepthWriteEnabled = false };

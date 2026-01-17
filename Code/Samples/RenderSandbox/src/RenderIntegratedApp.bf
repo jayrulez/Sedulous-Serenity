@@ -22,6 +22,15 @@ class RenderIntegratedApp : Application
 	private DepthPrepassFeature mDepthFeature;
 	private ForwardOpaqueFeature mForwardFeature;
 	private SkyFeature mSkyFeature;
+	private DebugRenderFeature mDebugFeature;
+
+	// Blit pipeline (for final output to swapchain)
+	private IRenderPipeline mBlitPipeline ~ delete _;
+	private IPipelineLayout mBlitPipelineLayout ~ delete _;
+	private IBindGroupLayout mBlitBindGroupLayout ~ delete _;
+	private ISampler mBlitSampler ~ delete _;
+	private IBindGroup mBlitBindGroup ~ delete _;
+	private ITextureView mLastSceneColorView;
 
 	// Test objects
 	private GPUMeshHandle mCubeMeshHandle;
@@ -31,13 +40,37 @@ class RenderIntegratedApp : Application
 	private LightProxyHandle mSunLight;
 	private List<LightProxyHandle> mPointLights = new .() ~ delete _;
 
-	// Camera control
-	private float mCameraYaw = 0.5f;
-	private float mCameraPitch = 0.4f;
-	private float mCameraDistance = 8.0f;
-	private Vector3 mCameraTarget = .(0, 0.5f, 0);
+	// Materials
+	private MaterialInstance mCubeMaterial ~ delete _;
+
+	// Camera mode
+	private enum CameraMode { Orbital, Flythrough }
+	private CameraMode mCameraMode = .Orbital;
+
+	// Orbital camera control
+	private float mOrbitalYaw = 0.5f;
+	private float mOrbitalPitch = 0.4f;
+	private float mOrbitalDistance = 12.0f;
+	private Vector3 mOrbitalTarget = .(0, 0.5f, 0);
+
+	// Flythrough camera control
+	private Vector3 mFlyPosition = .(0, 5, 15);
+	private float mFlyYaw = Math.PI_f;        // Start looking toward -Z (toward origin)
+	private float mFlyPitch = -0.3f;          // Slightly looking down
+	private bool mMouseCaptured = false;
+	private float mCameraMoveSpeed = 15.0f;
+	private float mCameraLookSpeed = 0.003f;
+
+	// Shared camera state
 	private Vector3 mCameraPosition;
 	private Vector3 mCameraForward;
+
+	// Sun light control
+	private float mSunYaw = 0.5f;
+	private float mSunPitch = -1.0f; // Pointing downward
+
+	// Timing
+	private float mDeltaTime = 0.016f;  // Cache delta time for input handling
 
 	// Stats display
 	private float mStatsTimer = 0;
@@ -79,6 +112,9 @@ class RenderIntegratedApp : Application
 		// Register render features
 		RegisterFeatures();
 
+		// Create blit pipeline for final output
+		CreateBlitPipeline();
+
 		// Create test meshes
 		CreateMeshes();
 
@@ -88,16 +124,32 @@ class RenderIntegratedApp : Application
 		// Create lights
 		CreateLights();
 
+		// Set environment lighting
+		mWorld.AmbientColor = .(0.02f, 0.02f, 0.03f);  // Slight blue tint
+		mWorld.AmbientIntensity = 0.1f;
+		mWorld.Exposure = 0.5f;
+
 		Console.WriteLine("\n=== Initialization Complete ===");
 		Console.WriteLine("Objects in world:");
 		Console.WriteLine("  Meshes: {}", mWorld.MeshCount);
 		Console.WriteLine("  Lights: {}", mWorld.LightCount);
 		Console.WriteLine("\nControls:");
-		Console.WriteLine("  WASD/Arrow keys: rotate camera");
-		Console.WriteLine("  Q/E: zoom in/out");
+		Console.WriteLine("  Tab: toggle camera mode (Orbital/Flythrough)");
+		Console.WriteLine("  Arrow keys: rotate sun light");
 		Console.WriteLine("  R: print render stats");
+		Console.WriteLine("  C: print detailed culling info");
 		Console.WriteLine("  H: toggle Hi-Z culling");
-		Console.WriteLine("  ESC: exit\n");
+		Console.WriteLine("  ESC: exit");
+		Console.WriteLine("\nOrbital Camera (default):");
+		Console.WriteLine("  WASD: rotate around target");
+		Console.WriteLine("  Q/E: zoom in/out");
+		Console.WriteLine("\nFlythrough Camera:");
+		Console.WriteLine("  Tab: toggle mouse capture");
+		Console.WriteLine("  ` (backtick): return to Orbital mode");
+		Console.WriteLine("  WASD: move forward/back/strafe");
+		Console.WriteLine("  Q/E: move down/up");
+		Console.WriteLine("  Mouse capture or Right-click + drag: look around");
+		Console.WriteLine("  Shift: move faster\n");
 	}
 
 	private void RegisterFeatures()
@@ -122,6 +174,127 @@ class RenderIntegratedApp : Application
 			Console.WriteLine("Warning: Failed to register SkyFeature");
 		else
 			Console.WriteLine("Registered: SkyFeature");
+
+		// Debug rendering (lines, shapes, text)
+		mDebugFeature = new DebugRenderFeature();
+		if (mRenderSystem.RegisterFeature(mDebugFeature) case .Err)
+			Console.WriteLine("Warning: Failed to register DebugRenderFeature");
+		else
+			Console.WriteLine("Registered: DebugRenderFeature");
+
+		// Note: Final output to swapchain is handled manually in OnRenderFrame
+		// to properly transition the swapchain to PRESENT_SRC_KHR layout
+	}
+
+	private void CreateBlitPipeline()
+	{
+		// Create sampler for blit
+		SamplerDescriptor samplerDesc = .()
+		{
+			AddressModeU = .ClampToEdge,
+			AddressModeV = .ClampToEdge,
+			AddressModeW = .ClampToEdge,
+			MinFilter = .Linear,
+			MagFilter = .Linear,
+			MipmapFilter = .Nearest
+		};
+
+		if (mDevice.CreateSampler(&samplerDesc) case .Ok(let sampler))
+			mBlitSampler = sampler;
+		else
+		{
+			Console.WriteLine("Warning: Failed to create blit sampler");
+			return;
+		}
+
+		// Create bind group layout: t0=source texture, s0=sampler
+		BindGroupLayoutEntry[2] layoutEntries = .(
+			.() { Binding = 0, Visibility = .Fragment, Type = .SampledTexture }, // t0
+			.() { Binding = 0, Visibility = .Fragment, Type = .Sampler }         // s0
+		);
+
+		BindGroupLayoutDescriptor bgLayoutDesc = .()
+		{
+			Label = "Blit BindGroup Layout",
+			Entries = layoutEntries
+		};
+
+		if (mDevice.CreateBindGroupLayout(&bgLayoutDesc) case .Ok(let bgLayout))
+			mBlitBindGroupLayout = bgLayout;
+		else
+		{
+			Console.WriteLine("Warning: Failed to create blit bind group layout");
+			return;
+		}
+
+		// Create pipeline layout
+		IBindGroupLayout[1] bgLayouts = .(mBlitBindGroupLayout);
+		PipelineLayoutDescriptor plDesc = .(bgLayouts);
+		if (mDevice.CreatePipelineLayout(&plDesc) case .Ok(let pipelineLayout))
+			mBlitPipelineLayout = pipelineLayout;
+		else
+		{
+			Console.WriteLine("Warning: Failed to create blit pipeline layout");
+			return;
+		}
+
+		// Load blit shaders
+		if (mRenderSystem.ShaderSystem == null)
+		{
+			Console.WriteLine("Warning: Shader system not available");
+			return;
+		}
+
+		let shaderResult = mRenderSystem.ShaderSystem.GetShaderPair("blit");
+		if (shaderResult case .Err)
+		{
+			Console.WriteLine("Warning: Blit shaders not available");
+			return;
+		}
+
+		let (vertShader, fragShader) = shaderResult.Value;
+
+		// Color targets - match swapchain format
+		ColorTargetState[1] colorTargets = .(.(.BGRA8UnormSrgb));
+
+		// Blit uses fullscreen triangle with SV_VertexID
+		RenderPipelineDescriptor pipelineDesc = .()
+		{
+			Label = "Blit Pipeline",
+			Layout = mBlitPipelineLayout,
+			Vertex = .()
+			{
+				Shader = .(vertShader.Module, "main"),
+				Buffers = default // No vertex buffers - SV_VertexID
+			},
+			Fragment = .()
+			{
+				Shader = .(fragShader.Module, "main"),
+				Targets = colorTargets
+			},
+			Primitive = .()
+			{
+				Topology = .TriangleList,
+				FrontFace = .CCW,
+				CullMode = .None
+			},
+			DepthStencil = .None, // No depth attachment for blit
+			Multisample = .()
+			{
+				Count = 1,
+				Mask = uint32.MaxValue
+			}
+		};
+
+		if (mDevice.CreateRenderPipeline(&pipelineDesc) case .Ok(let pipeline))
+		{
+			mBlitPipeline = pipeline;
+			Console.WriteLine("Blit pipeline created");
+		}
+		else
+		{
+			Console.WriteLine("Warning: Failed to create blit pipeline");
+		}
 	}
 
 	private void CreateMeshes()
@@ -155,10 +328,17 @@ class RenderIntegratedApp : Application
 
 	private void CreateSceneObjects()
 	{
-		// Get default material
+		// Get default material for floor
 		let defaultMaterial = mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
 
-		// Create floor
+		// Create a colored material for cubes
+		if (let baseMaterial = mRenderSystem.MaterialSystem?.DefaultMaterial)
+		{
+			mCubeMaterial = new MaterialInstance(baseMaterial);
+			mCubeMaterial.SetColor("BaseColor", .(0.2f, 0.6f, 0.9f, 1.0f)); // Blue color
+		}
+
+		// Create floor (white/default)
 		mFloorProxy = mWorld.CreateMesh();
 		if (let proxy = mWorld.GetMesh(mFloorProxy))
 		{
@@ -169,7 +349,7 @@ class RenderIntegratedApp : Application
 			proxy.Flags = .DefaultOpaque;
 		}
 
-		// Create grid of cubes
+		// Create grid of cubes (blue)
 		let gridSize = 3;
 		let spacing = 2.0f;
 		let offset = (gridSize - 1) * spacing * 0.5f;
@@ -182,7 +362,7 @@ class RenderIntegratedApp : Application
 				if (let proxy = mWorld.GetMesh(cubeProxy))
 				{
 					proxy.MeshHandle = mCubeMeshHandle;
-					proxy.Material = defaultMaterial;
+					proxy.Material = mCubeMaterial ?? defaultMaterial;
 					proxy.SetLocalBounds(BoundingBox(Vector3(-0.5f, -0.5f, -0.5f), Vector3(0.5f, 0.5f, 0.5f)));
 
 					let position = Vector3(
@@ -213,15 +393,17 @@ class RenderIntegratedApp : Application
 		if (let light = mWorld.GetLight(mSunLight))
 		{
 			light.CastsShadows = true;
+			light.Intensity = 0.1f;
 		}
 		Console.WriteLine("Sun light created");
 
 		// Create colored point lights
-		Color[4] lightColors = .(
-			.(1.0f, 0.3f, 0.2f, 1.0f),  // Red-orange
-			.(0.2f, 1.0f, 0.3f, 1.0f),  // Green
-			.(0.2f, 0.3f, 1.0f, 1.0f),  // Blue
-			.(1.0f, 0.9f, 0.3f, 1.0f)   // Yellow
+		// Use Vector3 for normalized (0-1) color values
+		Vector3[4] lightColors = .(
+			.(1.0f, 0.3f, 0.2f),  // Red-orange
+			.(0.2f, 1.0f, 0.3f),  // Green
+			.(0.2f, 0.3f, 1.0f),  // Blue
+			.(1.0f, 0.9f, 0.3f)   // Yellow
 		);
 
 		float radius = 4.0f;
@@ -236,9 +418,9 @@ class RenderIntegratedApp : Application
 
 			let pointLight = mWorld.CreatePointLight(
 				position,
-				.(lightColors[i].R, lightColors[i].G, lightColors[i].B),
-				5.0f,  // Intensity
-				6.0f   // Range
+				lightColors[i],
+				10.0f,  // Intensity
+				4.0f   // Range
 			);
 			mPointLights.Add(pointLight);
 		}
@@ -247,13 +429,13 @@ class RenderIntegratedApp : Application
 
 	private void UpdateCamera()
 	{
-		// Calculate camera position from spherical coordinates
-		float x = mCameraDistance * Math.Cos(mCameraPitch) * Math.Sin(mCameraYaw);
-		float y = mCameraDistance * Math.Sin(mCameraPitch);
-		float z = mCameraDistance * Math.Cos(mCameraPitch) * Math.Cos(mCameraYaw);
-
-		mCameraPosition = mCameraTarget + Vector3(x, y, z);
-		mCameraForward = Vector3.Normalize(mCameraTarget - mCameraPosition);
+		switch (mCameraMode)
+		{
+		case .Orbital:
+			UpdateOrbitalCamera();
+		case .Flythrough:
+			UpdateFlythroughCamera();
+		}
 
 		// Update view
 		mView.CameraPosition = mCameraPosition;
@@ -264,29 +446,89 @@ class RenderIntegratedApp : Application
 		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
 	}
 
+	private void UpdateOrbitalCamera()
+	{
+		// Calculate camera position from spherical coordinates around target
+		float x = mOrbitalDistance * Math.Cos(mOrbitalPitch) * Math.Sin(mOrbitalYaw);
+		float y = mOrbitalDistance * Math.Sin(mOrbitalPitch);
+		float z = mOrbitalDistance * Math.Cos(mOrbitalPitch) * Math.Cos(mOrbitalYaw);
+
+		mCameraPosition = mOrbitalTarget + Vector3(x, y, z);
+		mCameraForward = Vector3.Normalize(mOrbitalTarget - mCameraPosition);
+	}
+
+	private void UpdateFlythroughCamera()
+	{
+		// Calculate forward direction from yaw/pitch
+		float cosP = Math.Cos(mFlyPitch);
+		mCameraForward = Vector3.Normalize(.(
+			cosP * Math.Sin(mFlyYaw),
+			Math.Sin(mFlyPitch),
+			cosP * Math.Cos(mFlyYaw)
+		));
+		mCameraPosition = mFlyPosition;
+	}
+
 	protected override void OnInput()
 	{
 		let keyboard = mShell.InputManager.Keyboard;
+		let mouse = mShell.InputManager.Mouse;
 
 		if (keyboard.IsKeyPressed(.Escape))
 			Exit();
 
-		// Camera rotation
-		float rotSpeed = 0.02f;
-		if (keyboard.IsKeyDown(.Left) || keyboard.IsKeyDown(.A))
-			mCameraYaw -= rotSpeed;
-		if (keyboard.IsKeyDown(.Right) || keyboard.IsKeyDown(.D))
-			mCameraYaw += rotSpeed;
-		if (keyboard.IsKeyDown(.Up) || keyboard.IsKeyDown(.W))
-			mCameraPitch = Math.Clamp(mCameraPitch + rotSpeed, -1.4f, 1.4f);
-		if (keyboard.IsKeyDown(.Down) || keyboard.IsKeyDown(.S))
-			mCameraPitch = Math.Clamp(mCameraPitch - rotSpeed, -1.4f, 1.4f);
+		// Tab toggles different things depending on mode
+		if (keyboard.IsKeyPressed(.Tab))
+		{
+			if (mCameraMode == .Orbital)
+			{
+				// In orbital mode, Tab switches to flythrough
+				mCameraMode = .Flythrough;
+				Console.WriteLine("Camera Mode: Flythrough");
+			}
+			else
+			{
+				// In flythrough mode, Tab toggles mouse capture
+				mMouseCaptured = !mMouseCaptured;
+				mouse.RelativeMode = mMouseCaptured;
+				mouse.Visible = !mMouseCaptured;
+				Console.WriteLine("Mouse Capture: {}", mMouseCaptured ? "ON" : "OFF");
+			}
+		}
 
-		// Camera zoom
-		if (keyboard.IsKeyDown(.Q))
-			mCameraDistance = Math.Clamp(mCameraDistance - 0.1f, 2.0f, 25.0f);
-		if (keyboard.IsKeyDown(.E))
-			mCameraDistance = Math.Clamp(mCameraDistance + 0.1f, 2.0f, 25.0f);
+		// Backtick (`) to return to orbital mode from flythrough
+		if (keyboard.IsKeyPressed(.Grave) && mCameraMode == .Flythrough)
+		{
+			mCameraMode = .Orbital;
+			// Release mouse capture when switching modes
+			if (mMouseCaptured)
+			{
+				mMouseCaptured = false;
+				mouse.RelativeMode = false;
+				mouse.Visible = true;
+			}
+			Console.WriteLine("Camera Mode: Orbital");
+		}
+
+		// Camera controls depend on mode
+		switch (mCameraMode)
+		{
+		case .Orbital:
+			HandleOrbitalInput(keyboard);
+		case .Flythrough:
+			HandleFlythroughInput(keyboard, mouse);
+		}
+
+		// Sun light rotation (Arrow keys)
+		float lightRotSpeed = 0.03f;
+		if (keyboard.IsKeyDown(.Left))
+			mSunYaw -= lightRotSpeed;
+		if (keyboard.IsKeyDown(.Right))
+			mSunYaw += lightRotSpeed;
+		if (keyboard.IsKeyDown(.Up))
+			mSunPitch = Math.Clamp(mSunPitch + lightRotSpeed, -1.5f, -0.1f);
+		if (keyboard.IsKeyDown(.Down))
+			mSunPitch = Math.Clamp(mSunPitch - lightRotSpeed, -1.5f, -0.1f);
 
 		// Toggle Hi-Z
 		if (keyboard.IsKeyPressed(.H))
@@ -301,6 +543,68 @@ class RenderIntegratedApp : Application
 		// Stats
 		if (keyboard.IsKeyPressed(.R))
 			PrintStats();
+
+		// Detailed culling info
+		if (keyboard.IsKeyPressed(.C))
+			PrintDetailedCulling();
+	}
+
+	private void HandleOrbitalInput(Sedulous.Shell.Input.IKeyboard keyboard)
+	{
+		// Camera rotation (WASD)
+		float rotSpeed = 0.02f;
+		if (keyboard.IsKeyDown(.A))
+			mOrbitalYaw -= rotSpeed;
+		if (keyboard.IsKeyDown(.D))
+			mOrbitalYaw += rotSpeed;
+		if (keyboard.IsKeyDown(.W))
+			mOrbitalPitch = Math.Clamp(mOrbitalPitch + rotSpeed, -1.4f, 1.4f);
+		if (keyboard.IsKeyDown(.S))
+			mOrbitalPitch = Math.Clamp(mOrbitalPitch - rotSpeed, -1.4f, 1.4f);
+
+		// Camera zoom (Q/E)
+		if (keyboard.IsKeyDown(.Q))
+			mOrbitalDistance = Math.Clamp(mOrbitalDistance - 0.1f, 2.0f, 25.0f);
+		if (keyboard.IsKeyDown(.E))
+			mOrbitalDistance = Math.Clamp(mOrbitalDistance + 0.1f, 2.0f, 25.0f);
+	}
+
+	private void HandleFlythroughInput(Sedulous.Shell.Input.IKeyboard keyboard, Sedulous.Shell.Input.IMouse mouse)
+	{
+		// Mouse look (when captured or right-click held)
+		if (mMouseCaptured || mouse.IsButtonDown(.Right))
+		{
+			mFlyYaw -= mouse.DeltaX * mCameraLookSpeed;
+			mFlyPitch -= mouse.DeltaY * mCameraLookSpeed;
+			mFlyPitch = Math.Clamp(mFlyPitch, -Math.PI_f * 0.49f, Math.PI_f * 0.49f);
+		}
+
+		// Calculate movement vectors
+		Vector3 forward = mCameraForward;
+		Vector3 right = Vector3.Normalize(Vector3.Cross(forward, .(0, 1, 0)));
+		Vector3 up = .(0, 1, 0);
+
+		float speed = mCameraMoveSpeed * mDeltaTime;
+
+		// Shift doubles speed
+		if (keyboard.IsKeyDown(.LeftShift) || keyboard.IsKeyDown(.RightShift))
+			speed *= 2.0f;
+
+		// WASD movement
+		if (keyboard.IsKeyDown(.W))
+			mFlyPosition = mFlyPosition + forward * speed;
+		if (keyboard.IsKeyDown(.S))
+			mFlyPosition = mFlyPosition - forward * speed;
+		if (keyboard.IsKeyDown(.A))
+			mFlyPosition = mFlyPosition - right * speed;
+		if (keyboard.IsKeyDown(.D))
+			mFlyPosition = mFlyPosition + right * speed;
+
+		// Q/E for up/down
+		if (keyboard.IsKeyDown(.Q))
+			mFlyPosition = mFlyPosition - up * speed;
+		if (keyboard.IsKeyDown(.E))
+			mFlyPosition = mFlyPosition + up * speed;
 	}
 
 	private void PrintStats()
@@ -315,14 +619,159 @@ class RenderIntegratedApp : Application
 		Console.WriteLine("World Meshes: {}", mWorld.MeshCount);
 		Console.WriteLine("World Lights: {}", mWorld.LightCount);
 		if (mDepthFeature != null)
+		{
 			Console.WriteLine("Hi-Z Culling: {}", mDepthFeature.EnableHiZ ? "ON" : "OFF");
+
+			// Print visibility stats
+			let visStats = mDepthFeature.Visibility.Stats;
+			Console.WriteLine("\n--- Visibility Stats ---");
+			Console.WriteLine("Visible Meshes: {} / {}", visStats.VisibleMeshCount, visStats.TotalMeshCount);
+			Console.WriteLine("Cull Percentage: {:.1}%", visStats.MeshCullPercentage);
+			Console.WriteLine("Frustum Tests: {}", visStats.CullStats.TotalTests);
+			Console.WriteLine("Frustum Passed: {}", visStats.CullStats.VisibleCount);
+			Console.WriteLine("Frustum Culled: {}", visStats.CullStats.CulledCount);
+		}
 		Console.WriteLine("");
+	}
+
+	private void PrintDetailedCulling()
+	{
+		Console.WriteLine("\n=== Per-Mesh Culling Details ===");
+
+		// Get the culler from depth feature
+		if (mDepthFeature == null)
+			return;
+
+		let culler = mDepthFeature.Visibility.Culler;
+
+		// Manually test each mesh and report
+		Console.WriteLine("Testing {} meshes against frustum:", mWorld.MeshCount);
+		Console.WriteLine("Camera pos: ({}, {}, {})", mCameraPosition.X, mCameraPosition.Y, mCameraPosition.Z);
+
+		int visibleCount = 0;
+		int culledCount = 0;
+
+		// Test floor
+		if (let proxy = mWorld.GetMesh(mFloorProxy))
+		{
+			let bounds = proxy.WorldBounds;
+			let local = proxy.LocalBounds;
+			let isVisible = culler.IsVisible(bounds);
+			Console.WriteLine("  Floor:");
+			Console.WriteLine("    Local:  min=({}, {}, {}) max=({}, {}, {})",
+				local.Min.X, local.Min.Y, local.Min.Z,
+				local.Max.X, local.Max.Y, local.Max.Z);
+			Console.WriteLine("    World:  min=({}, {}, {}) max=({}, {}, {})",
+				bounds.Min.X, bounds.Min.Y, bounds.Min.Z,
+				bounds.Max.X, bounds.Max.Y, bounds.Max.Z);
+			Console.WriteLine("    Visible: {}", isVisible);
+			if (isVisible) visibleCount++; else culledCount++;
+		}
+
+		// Test cubes
+		for (int i < mCubeProxies.Count)
+		{
+			if (let proxy = mWorld.GetMesh(mCubeProxies[i]))
+			{
+				let bounds = proxy.WorldBounds;
+				let local = proxy.LocalBounds;
+				let worldPos = proxy.WorldMatrix.Translation;
+				let isVisible = culler.IsVisible(bounds);
+				Console.WriteLine("  Cube {}:", i);
+				Console.WriteLine("    Pos:    ({}, {}, {})", worldPos.X, worldPos.Y, worldPos.Z);
+				Console.WriteLine("    Local:  min=({}, {}, {}) max=({}, {}, {})",
+					local.Min.X, local.Min.Y, local.Min.Z,
+					local.Max.X, local.Max.Y, local.Max.Z);
+				Console.WriteLine("    World:  min=({}, {}, {}) max=({}, {}, {})",
+					bounds.Min.X, bounds.Min.Y, bounds.Min.Z,
+					bounds.Max.X, bounds.Max.Y, bounds.Max.Z);
+				Console.WriteLine("    Visible: {}", isVisible);
+				if (isVisible) visibleCount++; else culledCount++;
+			}
+		}
+
+		Console.WriteLine("Total: {} visible, {} culled", visibleCount, culledCount);
+		Console.WriteLine("");
+	}
+
+	private void UpdateSunLight()
+	{
+		if (let light = mWorld.GetLight(mSunLight))
+		{
+			// Calculate sun direction from spherical coordinates
+			float x = Math.Cos(mSunPitch) * Math.Sin(mSunYaw);
+			float y = Math.Sin(mSunPitch);
+			float z = Math.Cos(mSunPitch) * Math.Cos(mSunYaw);
+			light.Direction = Vector3.Normalize(.(x, y, z));
+		}
+	}
+
+	private void DrawDebugLights()
+	{
+		if (mDebugFeature == null)
+			return;
+
+		// Clear previous frame's debug primitives
+		mDebugFeature.BeginFrame();
+
+		// Draw directional light direction
+		if (let light = mWorld.GetLight(mSunLight))
+		{
+			// Draw from a point above the scene, showing the light direction
+			Vector3 sunOrigin = .(0, 8, 0);
+			Vector3 sunEnd = sunOrigin + light.Direction * 5.0f;
+
+			// Arrow showing light direction (yellow)
+			mDebugFeature.AddArrow(sunOrigin, sunEnd, Color.Yellow, 0.3f, .Overlay);
+
+			// Add a small sun icon (circle)
+			mDebugFeature.AddSphere(sunOrigin, 0.3f, Color.Yellow, 8, .Overlay);
+		}
+
+		// Draw point light positions
+		Color[4] lightColors = .(
+			.(255, 77, 51, 255),   // Red-orange
+			.(51, 255, 77, 255),   // Green
+			.(51, 77, 255, 255),   // Blue
+			.(255, 230, 77, 255)   // Yellow
+		);
+
+		for (int i < mPointLights.Count)
+		{
+			if (let light = mWorld.GetLight(mPointLights[i]))
+			{
+				// Draw sphere at light position showing its range
+				mDebugFeature.AddSphere(light.Position, 0.2f, lightColors[i], 8, .Overlay);
+
+				// Draw cross at light position
+				mDebugFeature.AddCross(light.Position, 0.5f, lightColors[i], .Overlay);
+
+				// Draw range indicator (faint circle on XZ plane)
+				mDebugFeature.AddCircle(
+					.(light.Position.X, 0.01f, light.Position.Z),
+					light.Range,
+					.(0, 1, 0),
+					Color(lightColors[i].R, lightColors[i].G, lightColors[i].B, 64),
+					24,
+					.DepthTest
+				);
+			}
+		}
+
+		// Draw coordinate axes at origin
+		mDebugFeature.AddAxes(.(0, 0.01f, 0), 1.0f, .DepthTest);
 	}
 
 	protected override void OnUpdate(FrameContext frame)
 	{
+		// Cache delta time for input handling
+		mDeltaTime = (float)frame.DeltaTime;
+
 		// Update camera
 		UpdateCamera();
+
+		// Update sun light direction
+		UpdateSunLight();
 
 		// Animate cubes (gentle bobbing and rotation)
 		float time = (float)frame.TotalTime;
@@ -380,6 +829,9 @@ class RenderIntegratedApp : Application
 			// Uncomment to see periodic stats:
 			// PrintStats();
 		}
+
+		// Draw debug visualization for lights
+		DrawDebugLights();
 	}
 
 	protected override bool OnRenderFrame(RenderContext render)
@@ -406,11 +858,11 @@ class RenderIntegratedApp : Application
 			// Execute the render graph
 			mRenderSystem.Execute(render.Encoder);
 		}
-		else
-		{
-			// Fallback: render a simple clear pass if render graph fails
-			RenderFallback(render);
-		}
+
+		// Final output to swapchain
+		// The render graph renders to SceneColor, we need to present to swapchain
+		// For now, just clear the swapchain so it transitions to correct layout
+		RenderToSwapchain(render);
 
 		// End frame
 		mRenderSystem.EndFrame();
@@ -418,36 +870,74 @@ class RenderIntegratedApp : Application
 		return true;
 	}
 
-	private void RenderFallback(RenderContext render)
+	private void RenderToSwapchain(RenderContext render)
 	{
-		// Simple fallback rendering when render graph isn't ready
+		// Get SceneColor texture and view from render graph
+		let sceneColorHandle = mRenderSystem.RenderGraph.GetResource("SceneColor");
+		let sceneColorTexture = mRenderSystem.RenderGraph.GetTexture(sceneColorHandle);
+		let sceneColorView = mRenderSystem.RenderGraph.GetTextureView(sceneColorHandle);
+
+		// Transition SceneColor from ColorAttachment to ShaderReadOnly for sampling
+		if (sceneColorTexture != null)
+			render.Encoder.TextureBarrier(sceneColorTexture, .ColorAttachment, .ShaderReadOnly);
+
+		// Create or update bind group if scene color view changed
+		if (sceneColorView != null && mBlitPipeline != null)
+		{
+			if (sceneColorView != mLastSceneColorView)
+			{
+				// Release old bind group
+				if (mBlitBindGroup != null)
+				{
+					delete mBlitBindGroup;
+					mBlitBindGroup = null;
+				}
+
+				// Create new bind group with current scene color
+				BindGroupEntry[2] entries = .(
+					BindGroupEntry.Texture(0, sceneColorView),
+					BindGroupEntry.Sampler(0, mBlitSampler)
+				);
+
+				BindGroupDescriptor bgDesc = .()
+				{
+					Label = "Blit BindGroup",
+					Layout = mBlitBindGroupLayout,
+					Entries = entries
+				};
+
+				if (mDevice.CreateBindGroup(&bgDesc) case .Ok(let bg))
+					mBlitBindGroup = bg;
+
+				mLastSceneColorView = sceneColorView;
+			}
+		}
+
+		// Final output to swapchain
+		// Clear to ensure proper layout transition
 		RenderPassColorAttachment[1] colorAttachments = .(.()
 		{
 			View = render.CurrentTextureView,
 			ResolveTarget = null,
 			LoadOp = .Clear,
 			StoreOp = .Store,
-			ClearValue = .(0.1f, 0.12f, 0.18f, 1.0f)
+			ClearValue = .(0.0f, 0.0f, 0.0f, 1.0f)
 		});
 
-		RenderPassDescriptor mainDesc = .(colorAttachments);
-		if (render.DepthTextureView != null)
-		{
-			mainDesc.DepthStencilAttachment = .()
-			{
-				View = render.DepthTextureView,
-				DepthLoadOp = .Clear,
-				DepthStoreOp = .Store,
-				DepthClearValue = 1.0f,
-				StencilLoadOp = .Clear,
-				StencilStoreOp = .Store,
-				StencilClearValue = 0
-			};
-		}
+		RenderPassDescriptor desc = .(colorAttachments);
 
-		let renderPass = render.Encoder.BeginRenderPass(&mainDesc);
+		let renderPass = render.Encoder.BeginRenderPass(&desc);
 		renderPass.SetViewport(0, 0, render.SwapChain.Width, render.SwapChain.Height, 0, 1);
 		renderPass.SetScissorRect(0, 0, render.SwapChain.Width, render.SwapChain.Height);
+
+		// Draw fullscreen blit if pipeline and bind group are ready
+		if (mBlitPipeline != null && mBlitBindGroup != null)
+		{
+			renderPass.SetPipeline(mBlitPipeline);
+			renderPass.SetBindGroup(0, mBlitBindGroup, default);
+			renderPass.Draw(3, 1, 0, 0); // Fullscreen triangle
+		}
+
 		renderPass.End();
 		delete renderPass;
 	}

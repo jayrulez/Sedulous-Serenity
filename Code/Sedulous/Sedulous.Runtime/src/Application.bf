@@ -311,7 +311,8 @@ abstract class Application
 			Dimension = .Texture2D,
 			MipLevelCount = 1,
 			ArrayLayerCount = 1,
-			SampleCount = 1
+			SampleCount = 1,
+			Label = "Depth"
 		};
 
 		if (mDevice.CreateTexture(&desc) case .Ok(let texture))
@@ -325,7 +326,8 @@ abstract class Application
 				BaseMipLevel = 0,
 				MipLevelCount = 1,
 				BaseArrayLayer = 0,
-				ArrayLayerCount = 1
+				ArrayLayerCount = 1,
+				Label = "DepthView"
 			};
 
 			if (mDevice.CreateTextureView(texture, &viewDesc) case .Ok(let view))

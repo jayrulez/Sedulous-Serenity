@@ -21,48 +21,58 @@ cbuffer CameraUniforms : register(b0)
 };
 
 // Lighting uniforms
+// Layout MUST match LightingUniforms struct in LightBuffer.bf
 cbuffer LightingUniforms : register(b3)
 {
     float3 AmbientColor;
     float AmbientIntensity;
     uint LightCount;
-    uint3 ClusterDimensions;
+    uint ClusterDimensionX;
+    uint ClusterDimensionY;
+    uint ClusterDimensionZ;
     float2 ClusterScale;
     float2 ClusterBias;
 };
 
-// Material uniforms
-cbuffer MaterialUniforms : register(b4)
+// Material uniforms (space1 = descriptor set 1 for materials)
+// Layout MUST match MaterialBuilder.CreatePBR in MaterialBuilder.bf:
+//   - BaseColor (float4) at offset 0
+//   - Metallic (float) at offset 16
+//   - Roughness (float) at offset 20
+//   - AO (float) at offset 24
+cbuffer MaterialUniforms : register(b0, space1)
 {
     float4 BaseColor;
-    float4 EmissiveColor;
     float Metallic;
     float Roughness;
     float AO;
-    float AlphaCutoff;
+    float AlphaCutoff; // Not used by default PBR material, but kept for alpha cutoff variants
 };
 
-// Light structure
+// Light structure - MUST match GPULight in LightBuffer.bf
 struct Light
 {
     float3 Position;
     float Range;
+    float3 Direction;
+    float SpotAngleCos;    // cos(outer cone angle) for spot lights
     float3 Color;
     float Intensity;
-    float3 Direction;
-    uint Type; // 0 = point, 1 = spot, 2 = directional
-    float SpotAngle;
-    float SpotInnerAngle;
+    uint Type;             // 0 = Directional, 1 = Point, 2 = Spot
+    int ShadowIndex;
     float2 _Padding;
 };
 
-// Textures
-Texture2D AlbedoTexture : register(t0);
-Texture2D NormalTexture : register(t1);
-Texture2D MetallicRoughnessTexture : register(t2);
-Texture2D EmissiveTexture : register(t3);
+// Material textures (space1 = descriptor set 1 for materials)
+// Order MUST match MaterialBuilder.CreatePBR texture order:
+//   AlbedoMap, NormalMap, MetallicRoughnessMap, OcclusionMap, EmissiveMap
+Texture2D AlbedoTexture : register(t0, space1);
+Texture2D NormalTexture : register(t1, space1);
+Texture2D MetallicRoughnessTexture : register(t2, space1);
+Texture2D OcclusionTexture : register(t3, space1);
+Texture2D EmissiveTexture : register(t4, space1);
 
-// Clustered lighting buffers
+// Clustered lighting buffers (read-only)
 StructuredBuffer<Light> Lights : register(t4);
 StructuredBuffer<uint2> ClusterLightInfo : register(t5); // offset, count
 StructuredBuffer<uint> LightIndices : register(t6);
@@ -81,7 +91,8 @@ cbuffer ShadowUniforms : register(b5)
 };
 #endif
 
-SamplerState LinearSampler : register(s0);
+// Material sampler (space1 = descriptor set 1 for materials)
+SamplerState LinearSampler : register(s0, space1);
 
 struct FragmentInput
 {
@@ -140,17 +151,20 @@ float3 FresnelSchlick(float cosTheta, float3 F0)
 }
 
 // Cluster index calculation
+// ClusterScale.xy = screen-to-cluster scale (ClustersX/Width, ClustersY/Height)
+// ClusterBias.x = log depth scale (ClustersZ / log(far/near))
+// ClusterBias.y = log depth bias (-ClustersZ * log(near) / log(far/near))
 uint GetClusterIndex(float2 screenPos, float viewZ)
 {
     uint clusterX = uint(screenPos.x * ClusterScale.x);
     uint clusterY = uint(screenPos.y * ClusterScale.y);
-    uint clusterZ = uint(log(viewZ) * ClusterScale.x + ClusterBias.x);
+    uint clusterZ = uint(max(0.0, log(viewZ) * ClusterBias.x + ClusterBias.y));
 
-    clusterX = min(clusterX, ClusterDimensions.x - 1);
-    clusterY = min(clusterY, ClusterDimensions.y - 1);
-    clusterZ = min(clusterZ, ClusterDimensions.z - 1);
+    clusterX = min(clusterX, ClusterDimensionX - 1);
+    clusterY = min(clusterY, ClusterDimensionY - 1);
+    clusterZ = min(clusterZ, ClusterDimensionZ - 1);
 
-    return clusterX + clusterY * ClusterDimensions.x + clusterZ * ClusterDimensions.x * ClusterDimensions.y;
+    return clusterX + clusterY * ClusterDimensionX + clusterZ * ClusterDimensionX * ClusterDimensionY;
 }
 
 // Light attenuation
@@ -166,16 +180,18 @@ float GetAttenuation(Light light, float3 worldPos)
 float GetSpotFalloff(Light light, float3 L)
 {
     float cosAngle = dot(-L, light.Direction);
-    float cosOuter = cos(light.SpotAngle);
-    float cosInner = cos(light.SpotInnerAngle);
+    float cosOuter = light.SpotAngleCos;
+    // Assume inner cone is 80% of outer cone angle
+    float cosInner = lerp(1.0, cosOuter, 0.8);
     return saturate((cosAngle - cosOuter) / max(cosInner - cosOuter, EPSILON));
 }
 
 #ifdef RECEIVE_SHADOWS
 float SampleShadowMap(float3 worldPos, float3 N)
 {
-    // Find cascade
-    float viewZ = mul(float4(worldPos, 1.0), ViewMatrix).z;
+    // Find cascade based on view-space depth
+    // Note: Use positive depth (cascade splits are positive distances)
+    float viewZ = abs(mul(float4(worldPos, 1.0), ViewMatrix).z);
     uint cascadeIndex = 0;
     for (uint i = 0; i < CascadeCount; i++)
     {
@@ -220,9 +236,9 @@ float4 main(FragmentInput input) : SV_Target
     float4 metallicRoughness = MetallicRoughnessTexture.Sample(LinearSampler, input.TexCoord);
     float metallic = metallicRoughness.b * Metallic;
     float roughness = metallicRoughness.g * Roughness;
-    float ao = metallicRoughness.r * AO;
+    float ao = OcclusionTexture.Sample(LinearSampler, input.TexCoord).r * AO;
 
-    float3 emissive = EmissiveTexture.Sample(LinearSampler, input.TexCoord).rgb * EmissiveColor.rgb;
+    float3 emissive = EmissiveTexture.Sample(LinearSampler, input.TexCoord).rgb;
 
     // Get normal
     float3 N = normalize(input.WorldNormal);
@@ -244,7 +260,9 @@ float4 main(FragmentInput input) : SV_Target
     float3 Lo = float3(0.0, 0.0, 0.0);
 
     // Get cluster index
-    float viewZ = mul(float4(input.WorldPosition, 1.0), ViewMatrix).z;
+    // Note: View-space Z is negative in front of camera (RH convention),
+    // but cluster slicing uses positive depth values, so we negate/abs
+    float viewZ = abs(mul(float4(input.WorldPosition, 1.0), ViewMatrix).z);
     uint clusterIndex = GetClusterIndex(input.Position.xy, viewZ);
     uint2 lightInfo = ClusterLightInfo[clusterIndex];
     uint lightOffset = lightInfo.x;
@@ -259,7 +277,7 @@ float4 main(FragmentInput input) : SV_Target
         float3 L;
         float attenuation;
 
-        if (light.Type == 2) // Directional
+        if (light.Type == 0) // Directional
         {
             L = -light.Direction;
             attenuation = 1.0;
@@ -270,7 +288,7 @@ float4 main(FragmentInput input) : SV_Target
             L = normalize(lightVec);
             attenuation = GetAttenuation(light, input.WorldPosition);
 
-            if (light.Type == 1) // Spot
+            if (light.Type == 2) // Spot
             {
                 attenuation *= GetSpotFalloff(light, L);
             }

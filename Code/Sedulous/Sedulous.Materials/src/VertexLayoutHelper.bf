@@ -20,22 +20,32 @@ public static class VertexLayoutHelper
 		.(VertexFormat.Float4, 20, 2)   // Color
 	);
 
-	/// Mesh: Position (float3) + Normal (float3) + UV (float2) + Tangent (float4)
-	public static VertexAttribute[4] MeshAttributes = .(
+	/// MeshNoTangent: Position (float3) + Normal (float3) + UV (float2) - simple format without tangent
+	public static VertexAttribute[3] MeshNoTangentAttributes = .(
 		.(VertexFormat.Float3, 0, 0),   // Position
 		.(VertexFormat.Float3, 12, 1),  // Normal
-		.(VertexFormat.Float2, 24, 2),  // UV
-		.(VertexFormat.Float4, 32, 3)   // Tangent
+		.(VertexFormat.Float2, 24, 2)   // UV
 	);
 
-	/// Skinned: Mesh attributes + JointIndices (uint4) + JointWeights (float4)
-	public static VertexAttribute[6] SkinnedAttributes = .(
+	/// Mesh: Position (float3) + Normal (float3) + UV (float2) + Color (ubyte4) + Tangent (float3)
+	/// Matches Sedulous.Geometry.StaticMesh.SetupCommonVertexFormat() - 48 bytes
+	public static VertexAttribute[5] MeshAttributes = .(
 		.(VertexFormat.Float3, 0, 0),   // Position
 		.(VertexFormat.Float3, 12, 1),  // Normal
 		.(VertexFormat.Float2, 24, 2),  // UV
-		.(VertexFormat.Float4, 32, 3),  // Tangent
-		.(VertexFormat.UInt4, 48, 4),   // Joint Indices
-		.(VertexFormat.Float4, 64, 5)   // Joint Weights
+		.(VertexFormat.UByte4Normalized, 32, 3), // Color
+		.(VertexFormat.Float3, 36, 4)   // Tangent (float3)
+	);
+
+	/// SkinnedMesh: Mesh attributes + JointIndices (uint4) + JointWeights (float4)
+	public static VertexAttribute[7] SkinnedMeshAttributes = .(
+		.(VertexFormat.Float3, 0, 0),   // Position
+		.(VertexFormat.Float3, 12, 1),  // Normal
+		.(VertexFormat.Float2, 24, 2),  // UV
+		.(VertexFormat.UByte4Normalized, 32, 3), // Color
+		.(VertexFormat.Float3, 36, 4),  // Tangent
+		.(VertexFormat.UInt4, 48, 5),   // Joint Indices
+		.(VertexFormat.Float4, 64, 6)   // Joint Weights
 	);
 
 	/// Gets the vertex stride for a layout type.
@@ -46,8 +56,9 @@ public static class VertexLayoutHelper
 		case .None: return 0;
 		case .PositionOnly: return 12;       // float3
 		case .PositionUVColor: return 36;    // float3 + float2 + float4
-		case .Mesh: return 48;               // float3 + float3 + float2 + float4
-		case .Skinned: return 80;            // Mesh + uint4 + float4
+		case .MeshNoTangent: return 32;      // float3 + float3 + float2
+		case .Mesh: return 48;               // float3 + float3 + float2 + ubyte4 + float3
+		case .SkinnedMesh: return 80;        // Mesh + uint4 + float4
 		case .Custom: return 0;              // Custom layouts define their own stride
 		}
 	}
@@ -60,8 +71,9 @@ public static class VertexLayoutHelper
 		case .None: return 0;
 		case .PositionOnly: return 1;
 		case .PositionUVColor: return 3;
-		case .Mesh: return 4;
-		case .Skinned: return 6;
+		case .MeshNoTangent: return 3;
+		case .Mesh: return 5;
+		case .SkinnedMesh: return 7;
 		case .Custom: return 0;
 		}
 	}
@@ -74,8 +86,9 @@ public static class VertexLayoutHelper
 		case .None: return default;
 		case .PositionOnly: return PositionOnlyAttributes;
 		case .PositionUVColor: return PositionUVColorAttributes;
+		case .MeshNoTangent: return MeshNoTangentAttributes;
 		case .Mesh: return MeshAttributes;
-		case .Skinned: return SkinnedAttributes;
+		case .SkinnedMesh: return SkinnedMeshAttributes;
 		case .Custom: return default;
 		}
 	}

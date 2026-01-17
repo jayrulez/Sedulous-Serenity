@@ -143,13 +143,22 @@ class Material
 	}
 
 	/// Allocates default uniform data buffer.
+	/// Preserves existing data when growing the buffer.
 	public void AllocateDefaultUniformData()
 	{
 		if (mUniformDataSize > 0)
 		{
+			uint8[] newData = new uint8[mUniformDataSize];
+
+			// Copy existing data if present (preserve previously set defaults)
 			if (mDefaultUniformData != null)
+			{
+				let copyLen = Math.Min(mDefaultUniformData.Count, (int)mUniformDataSize);
+				Internal.MemCpy(newData.Ptr, mDefaultUniformData.Ptr, copyLen);
 				delete mDefaultUniformData;
-			mDefaultUniformData = new uint8[mUniformDataSize];
+			}
+
+			mDefaultUniformData = newData;
 		}
 	}
 
