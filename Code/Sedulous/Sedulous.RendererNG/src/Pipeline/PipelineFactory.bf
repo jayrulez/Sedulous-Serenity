@@ -130,18 +130,19 @@ class PipelineFactory : IDisposable
 
 		// Build instance attributes (slot 1) for instanced rendering
 		// MeshInstanceData: WorldMatrix (4x float4), NormalMatrix (4x float4), CustomData (float4)
-		// Locations 3-11 (after per-vertex data which uses 0-2)
+		// Locations start after per-vertex attributes (Mesh format uses 0-4, so instance starts at 5)
 		// Constructor: (format, offset, shaderLocation)
+		let instanceBaseLocation = (uint32)attribCount; // Start after vertex attributes
 		VertexAttribute[9] instanceAttribs = .(
-			.(.Float4, 0,   3),   // WorldMatrix row 0
-			.(.Float4, 16,  4),   // WorldMatrix row 1
-			.(.Float4, 32,  5),   // WorldMatrix row 2
-			.(.Float4, 48,  6),   // WorldMatrix row 3
-			.(.Float4, 64,  7),   // NormalMatrix row 0
-			.(.Float4, 80,  8),   // NormalMatrix row 1
-			.(.Float4, 96,  9),   // NormalMatrix row 2
-			.(.Float4, 112, 10),  // NormalMatrix row 3
-			.(.Float4, 128, 11)   // CustomData
+			.(.Float4, 0,   instanceBaseLocation + 0),   // WorldMatrix row 0
+			.(.Float4, 16,  instanceBaseLocation + 1),   // WorldMatrix row 1
+			.(.Float4, 32,  instanceBaseLocation + 2),   // WorldMatrix row 2
+			.(.Float4, 48,  instanceBaseLocation + 3),   // WorldMatrix row 3
+			.(.Float4, 64,  instanceBaseLocation + 4),   // NormalMatrix row 0
+			.(.Float4, 80,  instanceBaseLocation + 5),   // NormalMatrix row 1
+			.(.Float4, 96,  instanceBaseLocation + 6),   // NormalMatrix row 2
+			.(.Float4, 112, instanceBaseLocation + 7),   // NormalMatrix row 3
+			.(.Float4, 128, instanceBaseLocation + 8)    // CustomData
 		);
 		let instanceStride = MeshInstanceData.Size; // 144 bytes
 

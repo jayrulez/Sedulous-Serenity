@@ -8,11 +8,20 @@
 // ============================================================================
 
 #ifdef INSTANCED
+// Instance attributes start after vertex attributes
+// Mesh format uses locations 0-4 (POSITION, NORMAL, TEXCOORD0, COLOR0, TANGENT)
+// Instance data uses TEXCOORD5-13 to map to locations 5-13
 struct InstanceInput
 {
-    float4x4 WorldMatrix : INSTANCE_TRANSFORM;
-    float4x4 NormalMatrix : INSTANCE_NORMAL;
-    float4 CustomData : INSTANCE_DATA;
+    float4 WorldRow0 : TEXCOORD5;   // World matrix row 0
+    float4 WorldRow1 : TEXCOORD6;   // World matrix row 1
+    float4 WorldRow2 : TEXCOORD7;   // World matrix row 2
+    float4 WorldRow3 : TEXCOORD8;   // World matrix row 3
+    float4 NormalRow0 : TEXCOORD9;  // Normal matrix row 0
+    float4 NormalRow1 : TEXCOORD10; // Normal matrix row 1
+    float4 NormalRow2 : TEXCOORD11; // Normal matrix row 2
+    float4 NormalRow3 : TEXCOORD12; // Normal matrix row 3
+    float4 CustomData : TEXCOORD13; // Custom per-instance data
 };
 #else
 // Single object uniform when not instanced
@@ -81,8 +90,19 @@ VS_OUTPUT main(VS_INPUT_MESH input
 
     // Get world/normal matrices
 #ifdef INSTANCED
-    float4x4 world = instance.WorldMatrix;
-    float4x4 normalMat = instance.NormalMatrix;
+    // Reconstruct matrices from instance rows
+    float4x4 world = float4x4(
+        instance.WorldRow0,
+        instance.WorldRow1,
+        instance.WorldRow2,
+        instance.WorldRow3
+    );
+    float4x4 normalMat = float4x4(
+        instance.NormalRow0,
+        instance.NormalRow1,
+        instance.NormalRow2,
+        instance.NormalRow3
+    );
 #else
     float4x4 world = WorldMatrix;
     float4x4 normalMat = NormalMatrix;
