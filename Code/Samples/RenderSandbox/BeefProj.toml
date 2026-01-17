@@ -1,0 +1,6 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.Runtime" = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Shell.SDL3" = "*"}
+
+[Project]
+Name = "RenderSandbox"
+StartupObject = "RenderSandbox.Program"
