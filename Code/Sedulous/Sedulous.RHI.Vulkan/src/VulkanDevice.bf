@@ -302,7 +302,8 @@ class VulkanDevice : IDevice
 
 		// Device features
 		VkPhysicalDeviceFeatures deviceFeatures = .();
-		deviceFeatures.fillModeNonSolid = VkBool32.True;  // Enable wireframe rendering
+		deviceFeatures.fillModeNonSolid = VkBool32.True;   // Enable wireframe rendering
+		deviceFeatures.imageCubeArray = VkBool32.True;     // Enable cubemap arrays for shadow mapping
 
 		// Create device
 		VkDeviceCreateInfo createInfo = .();
