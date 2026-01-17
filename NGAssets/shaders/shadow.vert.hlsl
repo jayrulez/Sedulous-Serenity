@@ -17,19 +17,19 @@ cbuffer ShadowUniforms : register(b0)
 // Instance Data (matches MeshInstanceData: WorldMatrix, NormalMatrix, CustomData)
 // ============================================================================
 
-// Instance attributes start at location 3 (after per-vertex Position=0, Normal=1, UV=2)
-// TEXCOORD3-11 should map to locations 3-11 in SPIR-V
+// Instance attributes start at location 5 (after per-vertex: Position=0, Normal=1, UV=2, Color=3, Tangent=4)
+// TEXCOORD5-13 maps to locations 5-13 in SPIR-V
 struct InstanceInput
 {
-    float4 World0 : TEXCOORD3;   // WorldMatrix row 0 (location 3)
-    float4 World1 : TEXCOORD4;   // WorldMatrix row 1 (location 4)
-    float4 World2 : TEXCOORD5;   // WorldMatrix row 2 (location 5)
-    float4 World3 : TEXCOORD6;   // WorldMatrix row 3 (location 6)
-    float4 Normal0 : TEXCOORD7;  // NormalMatrix row 0 (location 7, unused in shadow)
-    float4 Normal1 : TEXCOORD8;  // NormalMatrix row 1 (location 8, unused in shadow)
-    float4 Normal2 : TEXCOORD9;  // NormalMatrix row 2 (location 9, unused in shadow)
-    float4 Normal3 : TEXCOORD10; // NormalMatrix row 3 (location 10, unused in shadow)
-    float4 CustomData : TEXCOORD11; // Custom data (location 11, unused in shadow)
+    float4 World0 : TEXCOORD5;   // WorldMatrix row 0 (location 5)
+    float4 World1 : TEXCOORD6;   // WorldMatrix row 1 (location 6)
+    float4 World2 : TEXCOORD7;   // WorldMatrix row 2 (location 7)
+    float4 World3 : TEXCOORD8;   // WorldMatrix row 3 (location 8)
+    float4 Normal0 : TEXCOORD9;  // NormalMatrix row 0 (location 9, unused in shadow)
+    float4 Normal1 : TEXCOORD10; // NormalMatrix row 1 (location 10, unused in shadow)
+    float4 Normal2 : TEXCOORD11; // NormalMatrix row 2 (location 11, unused in shadow)
+    float4 Normal3 : TEXCOORD12; // NormalMatrix row 3 (location 12, unused in shadow)
+    float4 CustomData : TEXCOORD13; // Custom data (location 13, unused in shadow)
 };
 
 // ============================================================================

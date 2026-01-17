@@ -351,7 +351,7 @@ class ShadowDrawSystem : IDisposable
 				.SetDepthAttachment(atlasDepth, .Load, .Store)  // Load to preserve other regions
 				.SetExecute(new (encoder) => {
 					// Set viewport for this region
-					// Note: In a real implementation, you'd set the viewport here
+					// todo: set the viewport here
 					passData.MeshDrawSystem.RenderShadowBatches(encoder, passData.PipelineLayout);
 				});
 		}

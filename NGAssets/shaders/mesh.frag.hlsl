@@ -84,6 +84,15 @@ cbuffer ShadowUniforms : register(b2, space0)
 Texture2DArray ShadowCascades : register(t0, space0);
 SamplerComparisonState ShadowSampler : register(s0, space0);
 
+// Shadow Debug Modes (set to 0 for normal rendering):
+//   0 = Normal rendering (shadows applied)
+//   1 = Show shadow UV coordinates as R=U, G=V (should be in [0,1] with smooth gradients)
+//   2 = Show shadow clip-space depth as grayscale (0=near, 1=far)
+//   3 = Show cascade index (Red=0, Green=1, Blue=2, Yellow=3)
+//   4 = Show UV/depth validity (Green=valid, Magenta=UV out of bounds, Red=depth out of bounds)
+//   5 = Show view-space depth for cascade selection
+#define SHADOW_DEBUG_MODE 0
+
 // Calculate shadow factor for cascaded shadow maps
 float CalculateShadow(float3 worldPos, float3 normal)
 {
@@ -107,12 +116,12 @@ float CalculateShadow(float3 worldPos, float3 normal)
     shadowPos.xyz /= shadowPos.w;
 
     // Convert to [0, 1] UV coordinates
-    // Note: Y-flip is handled in the light projection matrix, not here
-    float2 shadowUV = shadowPos.xy * 0.5 + 0.5;
+    // Flip V for Vulkan's texture coordinate system (V=0 at top, V=1 at bottom)
+    float2 shadowUV = float2(shadowPos.x * 0.5 + 0.5, -shadowPos.y * 0.5 + 0.5);
 
-    // Apply bias
-    float bias = ShadowParams.x + ShadowParams.y * (1.0 - saturate(dot(normal, -LightDirection.xyz)));
-    float compareDepth = shadowPos.z - bias;
+    // Use saturate to clamp depth to [0,1] like the old renderer
+    // Hardware depth bias is used instead of shader-based bias
+    float compareDepth = saturate(shadowPos.z);
 
     // Sample shadow map with PCF
     float shadow = 0.0;
@@ -131,6 +140,62 @@ float CalculateShadow(float3 worldPos, float3 normal)
     shadow /= 9.0;
 
     return shadow;
+}
+
+// Debug function to visualize shadow data
+float3 DebugShadow(float3 worldPos, float3 normal)
+{
+    float4 viewPos = mul(float4(worldPos, 1.0), ViewMatrix);
+    float depth = -viewPos.z;
+
+    int cascadeIndex = CASCADE_COUNT - 1;
+    for (int i = 0; i < CASCADE_COUNT; i++)
+    {
+        if (depth < Cascades[i].SplitDepth.y)
+        {
+            cascadeIndex = i;
+            break;
+        }
+    }
+
+    float4 shadowPos = mul(float4(worldPos, 1.0), Cascades[cascadeIndex].ViewProjection);
+    shadowPos.xyz /= shadowPos.w;
+    // Convert to [0, 1] UV coordinates (must match CalculateShadow exactly)
+    // Flip V for Vulkan's texture coordinate system (V=0 at top, V=1 at bottom)
+    float2 shadowUV = float2(shadowPos.x * 0.5 + 0.5, -shadowPos.y * 0.5 + 0.5);
+
+#if SHADOW_DEBUG_MODE == 1
+    // Show UV coordinates as color (R=U, G=V, B=0)
+    // Values should be in [0,1] range - red/green show UV coverage
+    return float3(shadowUV.x, shadowUV.y, 0.0);
+#elif SHADOW_DEBUG_MODE == 2
+    // Show shadow clip-space depth as grayscale
+    // Should be in [0,1] range - 0=near, 1=far
+    float d = saturate(shadowPos.z);
+    return float3(d, d, d);
+#elif SHADOW_DEBUG_MODE == 3
+    // Show cascade index as color
+    float3 cascadeColors[4] = {
+        float3(1, 0, 0),  // Red = cascade 0
+        float3(0, 1, 0),  // Green = cascade 1
+        float3(0, 0, 1),  // Blue = cascade 2
+        float3(1, 1, 0)   // Yellow = cascade 3
+    };
+    return cascadeColors[cascadeIndex];
+#elif SHADOW_DEBUG_MODE == 4
+    // Show if UVs are out of bounds (should be in [0,1])
+    // Green = valid UV, Red/Magenta = out of bounds
+    if (shadowUV.x < 0.0 || shadowUV.x > 1.0 || shadowUV.y < 0.0 || shadowUV.y > 1.0)
+        return float3(1, 0, 1);  // Magenta = UV out of bounds
+    if (shadowPos.z < 0.0 || shadowPos.z > 1.0)
+        return float3(1, 0, 0);  // Red = depth out of bounds
+    return float3(0, 1, 0);  // Green = all values in valid range
+#elif SHADOW_DEBUG_MODE == 5
+    // Show view-space depth for cascade selection
+    return float3(depth / 100.0, 0.0, 0.0);  // Scale by far plane for visibility
+#else
+    return float3(0, 0, 0);
+#endif
 }
 
 // Point light attenuation (inverse square with range clamping)
@@ -271,6 +336,12 @@ float4 main(VS_OUTPUT input) : SV_TARGET
         float shadow = 1.0;
 #ifdef RECEIVE_SHADOWS
         shadow = CalculateShadow(input.WorldPos, N);
+
+        // Debug visualization - uncomment to debug shadow issues
+        // Change SHADOW_DEBUG_MODE at top of file: 1=UV, 2=depth, 3=cascade
+#if SHADOW_DEBUG_MODE != 0
+        return float4(DebugShadow(input.WorldPos, N), 1.0);
+#endif
 #endif
 
         Lo += CalculateDirectLight(N, V, L, radiance * shadow, albedo.rgb, metallic, roughness);

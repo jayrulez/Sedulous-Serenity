@@ -158,7 +158,7 @@ class CascadedShadowMaps : IDisposable
 
 		// Fixed bounds centered on scene origin - covers a 30x30 unit area
 		Vector3 center = Vector3(0, 0, 0);
-		float halfSize = 15.0f;
+		float halfSize = 15.0f;  // Covers 30x30 area (matches old renderer)
 
 		// Compute stable up vector to avoid discontinuities when light is vertical
 		Vector3 refVec = Math.Abs(lightDir.Y) < 0.9f ? Vector3.Up : Vector3.Right;
@@ -178,9 +178,13 @@ class CascadedShadowMaps : IDisposable
 		float zFar = 100.0f;
 
 		// Orthographic projection for directional light
+		// Using standard function - the Z mapping works for negative view-space Z
 		Matrix lightProj = Matrix.CreateOrthographicOffCenter(
 			minX, maxX, minY, maxY, zNear, zFar
 		);
+
+		// NOTE: Do NOT flip Y here for shadows. The shadow pass renders depth-only
+		// and we compensate in the shader's UV calculation for Vulkan's coordinate system.
 
 		// All cascades use the same matrix for fixed bounds
 		Matrix lightViewProj = lightView * lightProj;

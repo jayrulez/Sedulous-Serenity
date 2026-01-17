@@ -1156,12 +1156,10 @@ class Renderer : IDisposable
 				sunDirection = light.Direction;
 		});
 
-		// Build view matrix from camera
+		// Build view matrix from camera (no Y-flip needed - shadow system only uses this for cascade depth calculations)
 		let viewMatrix = Matrix.CreateLookAt(camera.Position, camera.Position + camera.Forward, camera.Up);
-		var projMatrix = Matrix.CreatePerspectiveFieldOfView(
+		let projMatrix = Matrix.CreatePerspectiveFieldOfView(
 			camera.FieldOfView, camera.AspectRatio, camera.NearPlane, camera.FarPlane);
-		if (mDevice.FlipProjectionRequired)
-			projMatrix.M22 = -projMatrix.M22;
 
 		// Update shadow system
 		mShadowDrawSystem.SetCamera(viewMatrix, projMatrix, camera.NearPlane, camera.FarPlane);
