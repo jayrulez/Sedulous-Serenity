@@ -104,8 +104,9 @@ static class VertexLayouts
 		case .None: return 0;
 		case .PositionOnly: return VertexPosition.Stride;
 		case .PositionUVColor: return VertexSprite.Stride;
+		case .MeshNoTangent: return 32; // Position + Normal + UV
 		case .Mesh: return VertexMesh.Stride;
-		case .Skinned: return VertexSkinned.Stride;
+		case .SkinnedMesh: return VertexSkinned.Stride;
 		case .Custom: return 0;
 		}
 	}
@@ -118,8 +119,9 @@ static class VertexLayouts
 		case .None: return 0;
 		case .PositionOnly: return VertexPosition.AttributeCount;
 		case .PositionUVColor: return VertexSprite.AttributeCount;
+		case .MeshNoTangent: return 3;
 		case .Mesh: return VertexMesh.AttributeCount;
-		case .Skinned: return VertexSkinned.AttributeCount;
+		case .SkinnedMesh: return VertexSkinned.AttributeCount;
 		case .Custom: return 0;
 		}
 	}
@@ -138,10 +140,16 @@ static class VertexLayouts
 		case .PositionUVColor:
 			VertexSprite.GetAttributes(outAttribs);
 			return VertexSprite.AttributeCount;
+		case .MeshNoTangent:
+			// Position + Normal + UV only
+			outAttribs[0] = .(VertexFormat.Float3, 0, 0);   // Position
+			outAttribs[1] = .(VertexFormat.Float3, 12, 1);  // Normal
+			outAttribs[2] = .(VertexFormat.Float2, 24, 2);  // TexCoord
+			return 3;
 		case .Mesh:
 			VertexMesh.GetAttributes(outAttribs);
 			return VertexMesh.AttributeCount;
-		case .Skinned:
+		case .SkinnedMesh:
 			VertexSkinned.GetAttributes(outAttribs);
 			return VertexSkinned.AttributeCount;
 		case .Custom:

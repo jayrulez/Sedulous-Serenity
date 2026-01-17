@@ -272,14 +272,14 @@ extension RendererNGSandboxApp
 		Console.WriteLine("  PositionOnly: {} bytes", VertexLayouts.GetStride(.PositionOnly));
 		Console.WriteLine("  PositionUVColor: {} bytes", VertexLayouts.GetStride(.PositionUVColor));
 		Console.WriteLine("  Mesh: {} bytes", VertexLayouts.GetStride(.Mesh));
-		Console.WriteLine("  Skinned: {} bytes", VertexLayouts.GetStride(.Skinned));
+		Console.WriteLine("  SkinnedMesh: {} bytes", VertexLayouts.GetStride(.SkinnedMesh));
 
 		// Test attribute counts
 		Console.WriteLine("\nAttribute counts:");
 		Console.WriteLine("  PositionOnly: {}", VertexLayouts.GetAttributeCount(.PositionOnly));
 		Console.WriteLine("  PositionUVColor: {}", VertexLayouts.GetAttributeCount(.PositionUVColor));
 		Console.WriteLine("  Mesh: {}", VertexLayouts.GetAttributeCount(.Mesh));
-		Console.WriteLine("  Skinned: {}", VertexLayouts.GetAttributeCount(.Skinned));
+		Console.WriteLine("  SkinnedMesh: {}", VertexLayouts.GetAttributeCount(.SkinnedMesh));
 
 		// Test attribute filling
 		VertexAttribute[8] attribs = default;

@@ -190,7 +190,7 @@ class MeshUploader
 		}
 
 		// Set mesh properties
-		gpuMesh.VertexLayout = .Skinned;
+		gpuMesh.VertexLayout = .SkinnedMesh;
 		gpuMesh.VertexCount = (uint32)mesh.VertexCount;
 		gpuMesh.IndexCount = (uint32)mesh.Indices.IndexCount;
 		gpuMesh.Use32BitIndices = mesh.Indices.Format == .UInt32;
