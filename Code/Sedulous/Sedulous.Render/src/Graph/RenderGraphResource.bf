@@ -87,6 +87,11 @@ public struct BufferResourceDesc
 /// A resource managed by the render graph.
 public class RenderGraphResource
 {
+	public ~this()
+	{
+		ReleaseTransient();
+	}
+
 	/// Resource name for debugging.
 	public String Name = new .() ~ delete _;
 
@@ -187,7 +192,8 @@ public class RenderGraphResource
 				Usage = TextureDesc.Usage,
 				MipLevelCount = TextureDesc.MipLevels,
 				SampleCount = TextureDesc.SampleCount,
-				Dimension = .Texture2D
+				Dimension = .Texture2D,
+				Label = "RGAllocated"
 			};
 
 			if (device.CreateTexture(&desc) case .Ok(let tex))
@@ -202,7 +208,8 @@ public class RenderGraphResource
 					BaseMipLevel = 0,
 					MipLevelCount = TextureDesc.MipLevels,
 					BaseArrayLayer = 0,
-					ArrayLayerCount = TextureDesc.DepthOrArrayLayers
+					ArrayLayerCount = TextureDesc.DepthOrArrayLayers,
+					Label = "RGAllocatedView"
 				};
 
 				if (device.CreateTextureView(tex, &viewDesc) case .Ok(let view))

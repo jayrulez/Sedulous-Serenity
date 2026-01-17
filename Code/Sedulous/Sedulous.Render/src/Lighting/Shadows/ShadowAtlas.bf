@@ -112,6 +112,11 @@ public class ShadowAtlas : IDisposable
 	private GPUShadowData[] mShadowData ~ delete _;
 	private int32 mActiveShadowCount = 0;
 
+	public ~this()
+	{
+		Dispose();
+	}
+
 	/// Gets the atlas texture.
 	public ITexture AtlasTexture => mAtlasTexture;
 

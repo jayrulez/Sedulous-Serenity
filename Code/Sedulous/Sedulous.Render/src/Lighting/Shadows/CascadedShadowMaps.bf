@@ -110,6 +110,11 @@ public class CascadedShadowMaps : IDisposable
 	// Current light
 	private Vector3 mLightDirection;
 
+	public ~this()
+	{
+		Dispose();
+	}
+
 	/// Gets the shadow map texture array.
 	public ITexture ShadowMapArray => mShadowMapArray;
 

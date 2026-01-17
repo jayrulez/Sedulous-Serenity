@@ -325,10 +325,12 @@ public class RenderSystem : IDisposable
 		// Wait for GPU to finish
 		mDevice.WaitIdle();
 
-		// Shutdown features in reverse order
+		// Shutdown and delete features in reverse order
 		for (int i = mFeatures.Count - 1; i >= 0; i--)
 		{
-			mFeatures[i].Shutdown();
+			let feature = mFeatures[i];
+			feature.Shutdown();
+			delete feature;
 		}
 		mFeatures.Clear();
 		mSortedFeatures.Clear();
