@@ -32,13 +32,21 @@ public struct CascadeConfig
 		CascadeCount = 4,
 		Resolution = 2048,
 		SplitLambda = 0.5f,
-		Bias = 0.005f,
+		Bias = 0.0001f,  // Minimal bias - just enough to prevent acne
 		NormalBias = 0.02f,
 		Softness = 1.0f
 	};
 }
 
 /// GPU uniform data for shadow rendering.
+/// Layout MUST match forward.frag.hlsl ShadowUniforms cbuffer.
+///
+/// BUG FIX (2026-01-18): Previously this struct had fields:
+///   ShadowBias, ShadowNormalBias, ShadowSoftness, Padding
+/// But the shader expected:
+///   CascadeCount, ShadowBias, ShadowMapSize
+/// This caused CascadeCount to be read as garbage (ShadowBias float interpreted as uint),
+/// leading to out-of-bounds access in CascadeSplits[i] and VK_ERROR_DEVICE_LOST.
 [CRepr]
 public struct ShadowUniforms
 {
@@ -48,20 +56,18 @@ public struct ShadowUniforms
 	/// Cascade split depths in view space.
 	public Vector4 CascadeSplits;
 
+	/// Number of active cascades.
+	public uint32 CascadeCount;
+
 	/// Shadow bias.
 	public float ShadowBias;
 
-	/// Shadow normal bias.
-	public float ShadowNormalBias;
-
-	/// Shadow softness (for PCF).
-	public float ShadowSoftness;
-
-	/// Padding.
-	public float Padding;
+	/// Shadow map size (width, height) for PCF texel calculations.
+	public Vector2 ShadowMapSize;
 
 	/// Size of this struct in bytes.
-	public static int Size => 4 * 64 + 16 + 16; // 4 matrices + splits + params = 288
+	/// 4 matrices (256) + splits (16) + count (4) + bias (4) + size (8) = 288
+	public static int Size => 4 * 64 + 16 + 4 + 4 + 8;
 }
 
 /// Per-cascade data.
@@ -369,11 +375,25 @@ public class CascadedShadowMaps : IDisposable
 		mCascades[cascadeIndex].TexelSize = (radius * 2.0f) / (float)mConfig.Resolution;
 
 		// Calculate light view matrix
-		let lightPos = frustumCenter - mLightDirection * radius;
-		let viewMatrix = Matrix.CreateLookAt(lightPos, frustumCenter, .(0, 1, 0));
+		// Position light far enough to capture shadow casters, but not so far that depth precision suffers
+		let shadowDistance = radius * 2.0f;
+		let lightPos = frustumCenter - mLightDirection * shadowDistance;
+
+		// Compute stable up vector using orthonormal basis to avoid discontinuities
+		// when light direction is close to vertical
+		Vector3 refVec = Math.Abs(mLightDirection.Y) < 0.9f ? Vector3.UnitY : Vector3.UnitX;
+		Vector3 lightRight = Vector3.Normalize(Vector3.Cross(refVec, mLightDirection));
+		Vector3 lightUp = Vector3.Cross(mLightDirection, lightRight);
+
+		let viewMatrix = Matrix.CreateLookAt(lightPos, frustumCenter, lightUp);
 
 		// Calculate orthographic projection
-		let projMatrix = Matrix.CreateOrthographic(radius * 2.0f, radius * 2.0f, 0.0f, radius * 2.0f);
+		// Depth range from near edge to far edge of the light frustum
+		var projMatrix = Matrix.CreateOrthographic(radius * 2.0f, radius * 2.0f, 0.01f, shadowDistance * 2.0f);
+
+		// Flip Y if required by the graphics API (Vulkan has Y pointing down in clip space)
+		if (mDevice.FlipProjectionRequired)
+			projMatrix.M22 = -projMatrix.M22;
 
 		// Snap to texel grid to prevent shadow edge swimming
 		var viewProj = viewMatrix * projMatrix;
@@ -460,9 +480,9 @@ public class CascadedShadowMaps : IDisposable
 			mSplitDistances[3]
 		);
 
+		uniforms.CascadeCount = mConfig.CascadeCount;
 		uniforms.ShadowBias = mConfig.Bias;
-		uniforms.ShadowNormalBias = mConfig.NormalBias;
-		uniforms.ShadowSoftness = mConfig.Softness;
+		uniforms.ShadowMapSize = Vector2((float)mConfig.Resolution, (float)mConfig.Resolution);
 
 		// Use Map/Unmap to avoid command buffer creation
 		if (let ptr = mShadowUniformBuffer.Map())

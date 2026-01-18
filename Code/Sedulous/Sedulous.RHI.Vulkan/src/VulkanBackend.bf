@@ -147,12 +147,25 @@ class VulkanBackend : IBackend
 
 		// Add debug extension only if validation is enabled and the extension is available
 		bool debugUtilsAvailable = false;
+		bool validationFeaturesAvailable = false;
 		if (validationAvailable)
 		{
 			debugUtilsAvailable = CheckExtensionSupport("VK_EXT_debug_utils");
 			if (debugUtilsAvailable)
 			{
 				extensions.Add("VK_EXT_debug_utils");
+			}
+
+			// Check for validation features extension (needed for GPU-assisted validation)
+			validationFeaturesAvailable = CheckExtensionSupport("VK_EXT_validation_features");
+			if (validationFeaturesAvailable)
+			{
+				extensions.Add("VK_EXT_validation_features");
+				Console.WriteLine("[Vulkan] VK_EXT_validation_features extension available");
+			}
+			else
+			{
+				Console.WriteLine("[Vulkan] WARNING: VK_EXT_validation_features extension NOT available");
 			}
 		}
 
@@ -173,6 +186,28 @@ class VulkanBackend : IBackend
 		{
 			createInfo.enabledLayerCount = 0;
 			mValidationEnabled = false;
+		}
+
+		// Enable GPU-assisted validation if the extension is available
+		// This provides more detailed error messages for buffer overflows, descriptor issues, etc.
+		VkValidationFeaturesEXT validationFeatures = .();
+		VkValidationFeatureEnableEXT[3] enabledFeatures = .(
+			.VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT,
+			.VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT,
+			.VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT
+		);
+
+		if (validationFeaturesAvailable)
+		{
+			validationFeatures.sType = .VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT;
+			validationFeatures.pNext = null;
+			validationFeatures.enabledValidationFeatureCount = (uint32)enabledFeatures.Count;
+			validationFeatures.pEnabledValidationFeatures = &enabledFeatures;
+			validationFeatures.disabledValidationFeatureCount = 0;
+			validationFeatures.pDisabledValidationFeatures = null;
+
+			createInfo.pNext = &validationFeatures;
+			Console.WriteLine("[Vulkan] GPU-assisted validation ENABLED");
 		}
 
 		if (VulkanNative.vkCreateInstance(&createInfo, null, &mInstance) != .VK_SUCCESS)

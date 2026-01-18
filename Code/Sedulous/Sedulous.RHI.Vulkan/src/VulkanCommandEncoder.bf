@@ -286,11 +286,13 @@ class VulkanCommandEncoder : ICommandEncoder
 			srcAccess = .VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 			srcStage = .VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 		case .DepthStencilAttachment:
-			srcAccess = .VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-			srcStage = .VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+			// Include both READ and WRITE since depth test reads, and both early and late fragment tests
+			srcAccess = .VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | .VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+			srcStage = .VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | .VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
 		case .ShaderReadOnly:
 			srcAccess = .VK_ACCESS_SHADER_READ_BIT;
-			srcStage = .VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+			// Include both vertex and fragment shader stages since textures can be sampled in either
+			srcStage = .VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | .VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 		case .TransferSrc:
 			srcAccess = .VK_ACCESS_TRANSFER_READ_BIT;
 			srcStage = .VK_PIPELINE_STAGE_TRANSFER_BIT;
@@ -316,10 +318,11 @@ class VulkanCommandEncoder : ICommandEncoder
 			dstStage = .VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 		case .DepthStencilAttachment:
 			dstAccess = .VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | .VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-			dstStage = .VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+			dstStage = .VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | .VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
 		case .ShaderReadOnly:
 			dstAccess = .VK_ACCESS_SHADER_READ_BIT;
-			dstStage = .VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+			// Include both vertex and fragment shader stages since textures can be sampled in either
+			dstStage = .VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | .VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 		case .TransferSrc:
 			dstAccess = .VK_ACCESS_TRANSFER_READ_BIT;
 			dstStage = .VK_PIPELINE_STAGE_TRANSFER_BIT;

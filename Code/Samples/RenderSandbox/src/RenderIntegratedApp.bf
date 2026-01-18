@@ -232,7 +232,8 @@ class RenderIntegratedApp : Application
 			proxy.Flags = .DefaultOpaque;
 		}
 
-		// Create grid of cubes (blue)
+		// Grid of cubes (commented out for shadow testing)
+		/*
 		let gridSize = 3;
 		let spacing = 2.0f;
 		let offset = (gridSize - 1) * spacing * 0.5f;
@@ -259,8 +260,26 @@ class RenderIntegratedApp : Application
 				mCubeProxies.Add(cubeProxy);
 			}
 		}
+		*/
 
-		Console.WriteLine("Created {} cubes and 1 floor", mCubeProxies.Count);
+		// Single cube at the center, sitting on the floor
+		{
+			let cubeProxy = mWorld.CreateMesh();
+			if (let proxy = mWorld.GetMesh(cubeProxy))
+			{
+				proxy.MeshHandle = mCubeMeshHandle;
+				proxy.Material = mCubeMaterial ?? defaultMaterial;
+				proxy.SetLocalBounds(BoundingBox(Vector3(-0.5f, -0.5f, -0.5f), Vector3(0.5f, 0.5f, 0.5f)));
+
+				// Position cube at center, on the floor (Y=0.5 so bottom touches Y=0 floor)
+				let position = Vector3(0, 0.5f, 0);
+				proxy.SetTransformImmediate(Matrix.CreateTranslation(position));
+				proxy.Flags = .DefaultOpaque;
+			}
+			mCubeProxies.Add(cubeProxy);
+		}
+
+		Console.WriteLine("Created {} cube(s) and 1 floor", mCubeProxies.Count);
 	}
 
 	private void CreateLights()
@@ -283,7 +302,7 @@ class RenderIntegratedApp : Application
 		// Disable shadow rendering to isolate crash
 		if (mForwardFeature?.ShadowRenderer != null)
 		{
-			mForwardFeature.ShadowRenderer.EnableShadows = false;
+			mForwardFeature.ShadowRenderer.EnableShadows = true;
 			Console.WriteLine("Shadow rendering DISABLED for crash isolation");
 		}
 
@@ -662,9 +681,11 @@ class RenderIntegratedApp : Application
 
 		// Update sun light direction
 		UpdateSunLight();
-
-		// Animate cubes (gentle bobbing and rotation)
 		float time = (float)frame.TotalTime;
+
+		// Cube animation disabled - static single cube for shadow testing
+		/*
+		// Animate cubes (gentle bobbing and rotation)
 		for (int i < mCubeProxies.Count)
 		{
 			if (let proxy = mWorld.GetMesh(mCubeProxies[i]))
@@ -693,6 +714,7 @@ class RenderIntegratedApp : Application
 				proxy.SetTransform(rotation * translation);
 			}
 		}
+		*/
 
 		// Animate point lights (orbit around center)
 		for (int i < mPointLights.Count)

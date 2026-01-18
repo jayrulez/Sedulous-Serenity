@@ -192,7 +192,9 @@ float SampleShadowMap(float3 worldPos, float3 N)
     // Find cascade based on view-space depth
     // Note: Use positive depth (cascade splits are positive distances)
     float viewZ = abs(mul(float4(worldPos, 1.0), ViewMatrix).z);
-    uint cascadeIndex = 0;
+
+    // Default to last cascade if beyond all splits
+    uint cascadeIndex = CascadeCount - 1;
     for (uint i = 0; i < CascadeCount; i++)
     {
         if (viewZ < CascadeSplits[i])
@@ -205,10 +207,26 @@ float SampleShadowMap(float3 worldPos, float3 N)
     // Transform to shadow space
     float4 shadowCoord = mul(float4(worldPos, 1.0), ShadowViewProjection[cascadeIndex]);
     shadowCoord.xyz /= shadowCoord.w;
+
+    // Convert from NDC [-1,1] to texture UV [0,1]
     shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;
+
+    // Clamp depth to valid range (matches old renderer)
+    shadowCoord.z = saturate(shadowCoord.z);
+
+    // DX12/WebGPU have Y-up NDC, need to flip Y for shadow UV
+    // Vulkan has Y-down NDC, no flip needed
+#if !defined(VULKAN)
     shadowCoord.y = 1.0 - shadowCoord.y;
+#endif
+
+    // Early out if outside shadow map bounds
+    if (any(shadowCoord.xy < 0.0) || any(shadowCoord.xy > 1.0))
+        return 1.0;
 
     // PCF sampling with cascade array index
+    // Note: Shadow bias is applied via hardware depth bias during shadow map rendering,
+    // so we compare against shadowCoord.z directly (no shader bias subtraction needed)
     float shadow = 0.0;
     float2 texelSize = 1.0 / ShadowMapSize;
     for (int x = -1; x <= 1; x++)
@@ -217,7 +235,7 @@ float SampleShadowMap(float3 worldPos, float3 N)
         {
             float2 offset = float2(x, y) * texelSize;
             float3 sampleCoord = float3(shadowCoord.xy + offset, (float)cascadeIndex);
-            shadow += ShadowMap.SampleCmpLevelZero(ShadowSampler, sampleCoord, shadowCoord.z - ShadowBias);
+            shadow += ShadowMap.SampleCmpLevelZero(ShadowSampler, sampleCoord, shadowCoord.z);
         }
     }
     return shadow / 9.0;

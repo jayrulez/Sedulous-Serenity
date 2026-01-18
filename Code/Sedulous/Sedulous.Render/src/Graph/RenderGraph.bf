@@ -39,6 +39,11 @@ public class RenderGraph : IDisposable
 	/// Enable verbose logging for layout tracking and barriers.
 	private const bool DebugLogLayouts = false;
 
+	/// Tracks frame count for limited debug output.
+	private static int32 sFrameCount = 0;
+	private const int32 MaxDebugFrames = 10;
+	private const int32 FrameLogInterval = 100; // Print every N frames
+
 	private IDevice mDevice;
 
 	// Resources - uses slot-based system where removed resources leave null holes
@@ -74,6 +79,15 @@ public class RenderGraph : IDisposable
 	/// Begins building the render graph for a new frame.
 	public void BeginFrame()
 	{
+		// Increment frame counter for debug output
+		sFrameCount++;
+
+		// Periodic frame logging to track crash timing
+		if (sFrameCount % FrameLogInterval == 0)
+		{
+			Console.WriteLine("[RenderGraph] Frame {}", sFrameCount);
+		}
+
 		// Clear previous frame passes
 		for (let pass in mPasses)
 			delete pass;
@@ -299,25 +313,40 @@ public class RenderGraph : IDisposable
 	{
 		Runtime.Assert(mIsCompiled, "Must call Compile before Execute");
 
+		// Debug: track pass execution (first few frames only)
+		bool debugPasses = sFrameCount <= MaxDebugFrames;
+
 		for (let passHandle in mExecutionOrder)
 		{
 			let pass = mPasses[passHandle.Index];
 			if (pass.IsCulled)
 				continue;
 
+			if (debugPasses)
+				Console.WriteLine("[Execute] Frame {} Begin pass '{}'", sFrameCount, pass.Name);
+
 			// Insert barriers for resources transitioning to this pass's usage
 			InsertBarriersForPass(pass, commandEncoder);
 
 			// Execute the pass
 			if (ExecutePass(pass, commandEncoder) case .Err)
+			{
+				Console.WriteLine("[Execute] Frame {} ERROR in pass '{}'", sFrameCount, pass.Name);
 				return .Err;
+			}
 
 			// Update layout state for resources modified by this pass
 			UpdateLayoutsAfterPass(pass);
+
+			if (debugPasses)
+				Console.WriteLine("[Execute] Frame {} End pass '{}'", sFrameCount, pass.Name);
 		}
 
 		// Transition present targets to Present layout for presentation
 		TransitionPresentTargets(commandEncoder);
+
+		if (debugPasses)
+			Console.WriteLine("[Execute] Frame {} Complete (all passes)", sFrameCount);
 
 		return .Ok;
 	}
@@ -733,12 +762,28 @@ public class RenderGraph : IDisposable
 				if (resource.Type == .Texture && resource.Texture != null)
 				{
 					let currentLayout = GetTextureLayout(resource.Texture);
+
+					// Debug output for shadow map and scene color barriers (limited frames)
+					bool isShadowRelated = resource.Name.Contains("Shadow");
+					bool isSceneColor = resource.Name.Contains("SceneColor");
+					if ((isShadowRelated || isSceneColor) && sFrameCount < MaxDebugFrames)
+					{
+						Console.WriteLine("[Barrier] Frame {} Pass '{}' reading '{}': current={}, need=ShaderReadOnly",
+							sFrameCount, pass.Name, resource.Name, currentLayout);
+					}
+
 					if (DebugLogLayouts)
 						Console.WriteLine("[Barrier] Pass '{}' reading '{}': current={}, need=ShaderReadOnly",
 							pass.Name, resource.Name, currentLayout);
 					if (currentLayout != .ShaderReadOnly)
 					{
 						let oldLayout = ToTextureLayout(currentLayout);
+
+						if ((isShadowRelated || isSceneColor) && sFrameCount < MaxDebugFrames)
+						{
+							Console.WriteLine("[Barrier]   Frame {} Issuing barrier: {} -> ShaderReadOnly", sFrameCount, oldLayout);
+						}
+
 						if (DebugLogLayouts)
 							Console.WriteLine("[Barrier]   Issuing barrier: {} -> ShaderReadOnly", oldLayout);
 						commandEncoder.TextureBarrier(resource.Texture, oldLayout, .ShaderReadOnly);
@@ -754,9 +799,92 @@ public class RenderGraph : IDisposable
 			}
 		}
 
-		// NOTE: Color and depth attachments are NOT transitioned here.
-		// The Vulkan render pass handles these automatically via initialLayout/finalLayout.
-		// See VulkanCommandEncoder.CreateRenderPass for details.
+		// Handle depth attachments - need DepthStencilAttachment layout BEFORE render pass starts
+		// The render pass uses initialLayout=UNDEFINED with LoadOp.Clear, which works when the
+		// actual layout is UNDEFINED or DepthStencilAttachment. But if the texture was previously
+		// used as a shader read (ShaderReadOnly layout), we MUST issue an explicit barrier first.
+		// This is because initialLayout=UNDEFINED tells Vulkan "discard contents" but the driver
+		// still needs a valid layout transition.
+		if (pass.DepthStencil.HasValue)
+		{
+			let depthAtt = pass.DepthStencil.Value;
+			if (let resource = GetResourceByHandle(depthAtt.Handle))
+			{
+				if (resource.Type == .Texture && resource.Texture != null)
+				{
+					let currentLayout = GetTextureLayout(resource.Texture);
+
+					// Debug output for shadow and scene depth attachments
+					bool isShadowRelated = resource.Name.Contains("Shadow");
+					bool isSceneDepth = resource.Name.Contains("SceneDepth");
+					if ((isShadowRelated || isSceneDepth) && sFrameCount < MaxDebugFrames)
+					{
+						Console.WriteLine("[Barrier] Frame {} Pass '{}' depth '{}': current={}, need=DepthStencilAttachment",
+							sFrameCount, pass.Name, resource.Name, currentLayout);
+					}
+
+					// If texture is not already in DepthStencilAttachment (or Undefined which is the initial state),
+					// we need to transition it explicitly
+					if (currentLayout != .DepthStencilAttachment && currentLayout != .Undefined)
+					{
+						let oldLayout = ToTextureLayout(currentLayout);
+
+						if ((isShadowRelated || isSceneDepth) && sFrameCount < MaxDebugFrames)
+						{
+							Console.WriteLine("[Barrier]   Frame {} Issuing depth barrier: {} -> DepthStencilAttachment",
+								sFrameCount, oldLayout);
+						}
+
+						if (DebugLogLayouts)
+							Console.WriteLine("[Barrier]   Issuing depth barrier: {} -> DepthStencilAttachment", oldLayout);
+
+						commandEncoder.TextureBarrier(resource.Texture, oldLayout, .DepthStencilAttachment);
+						SetTextureLayout(resource.Texture, .DepthStencilAttachment);
+					}
+				}
+			}
+		}
+
+		// Handle color attachments - need ColorAttachment layout BEFORE render pass starts
+		// Similar to depth attachments, if a color texture was used for shader reading,
+		// we need to transition it back to ColorAttachment before the render pass.
+		for (let attachment in pass.ColorAttachments)
+		{
+			if (let resource = GetResourceByHandle(attachment.Handle))
+			{
+				if (resource.Type == .Texture && resource.Texture != null)
+				{
+					let currentLayout = GetTextureLayout(resource.Texture);
+
+					// Debug output for SceneColor transitions
+					bool isSceneColor = resource.Name.Contains("SceneColor");
+					if (isSceneColor && sFrameCount < MaxDebugFrames)
+					{
+						Console.WriteLine("[Barrier] Frame {} Pass '{}' color '{}': current={}, need=ColorAttachment",
+							sFrameCount, pass.Name, resource.Name, currentLayout);
+					}
+
+					// If texture is not already in ColorAttachment (or Undefined/Present for swapchain),
+					// we need to transition it explicitly
+					if (currentLayout != .ColorAttachment && currentLayout != .Undefined && currentLayout != .Present)
+					{
+						let oldLayout = ToTextureLayout(currentLayout);
+
+						if (isSceneColor && sFrameCount < MaxDebugFrames)
+						{
+							Console.WriteLine("[Barrier]   Frame {} Issuing color barrier: {} -> ColorAttachment",
+								sFrameCount, oldLayout);
+						}
+
+						if (DebugLogLayouts)
+							Console.WriteLine("[Barrier]   Issuing color barrier: {} -> ColorAttachment", oldLayout);
+
+						commandEncoder.TextureBarrier(resource.Texture, oldLayout, .ColorAttachment);
+						SetTextureLayout(resource.Texture, .ColorAttachment);
+					}
+				}
+			}
+		}
 
 		// Handle storage/UAV writes - need General layout
 		for (let handle in pass.Writes)
@@ -790,6 +918,14 @@ public class RenderGraph : IDisposable
 			{
 				if (resource.Type == .Texture && resource.Texture != null)
 				{
+					// Debug output for shadow-related depth attachment updates
+					bool isShadowRelated = resource.Name.Contains("Shadow");
+					if (isShadowRelated && sFrameCount < MaxDebugFrames)
+					{
+						Console.WriteLine("[Layout] Frame {} Pass '{}' depth '{}': setting to DepthStencilAttachment",
+							sFrameCount, pass.Name, resource.Name);
+					}
+
 					if (DebugLogLayouts)
 						Console.WriteLine("[Layout] Pass '{}' depth '{}': setting to DepthStencilAttachment",
 							pass.Name, resource.Name);

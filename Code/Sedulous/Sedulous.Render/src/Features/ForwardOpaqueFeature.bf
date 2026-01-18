@@ -354,7 +354,9 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				DepthTestEnabled = true,
 				DepthWriteEnabled = true,
 				DepthCompare = .Less,
-				Format = .Depth32Float // Match shadow map format
+				Format = .Depth32Float, // Match shadow map format
+				DepthBias = 2,          // Hardware depth bias to prevent shadow acne
+				DepthBiasSlopeScale = 2.0f
 			},
 			Multisample = .()
 			{
@@ -738,20 +740,28 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		}
 
 		// Add each shadow pass
-		int32 cascadeIndex = 0;
 		for (let shadowPass in shadowPasses)
 		{
+			// Currently only cascade passes are fully supported
+			// Atlas/point light passes need additional uniform buffer handling
+			if (shadowPass.Type != .Cascade)
+			{
+				// TODO: Implement atlas/point light shadow pass support
+				// These require separate VP matrix handling since they don't use cascade slots
+				continue;
+			}
+
+			// Validate cascade index is within bounds
+			if (shadowPass.CascadeIndex >= 4)
+			{
+				Console.WriteLine("[Shadow] ERROR: Cascade index {} out of bounds (max 3)", shadowPass.CascadeIndex);
+				continue;
+			}
+
 			String passName = scope $"Shadow_{shadowPass.Type}_{shadowPass.CascadeIndex}";
 
 			// Get the actual texture based on pass type
-			ITexture shadowTexture = null;
-			switch (shadowPass.Type)
-			{
-			case .Cascade:
-				shadowTexture = mShadowRenderer.CascadedShadows?.ShadowMapArray;
-			case .AtlasTile, .PointLightFace:
-				shadowTexture = mShadowRenderer.ShadowAtlas?.AtlasTexture;
-			}
+			ITexture shadowTexture = mShadowRenderer.CascadedShadows?.ShadowMapArray;
 
 			if (shadowTexture == null || shadowPass.RenderTarget == null)
 				continue;
@@ -759,17 +769,14 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			// Import shadow render target with actual texture
 			let shadowTarget = graph.ImportTexture(passName, shadowTexture, shadowPass.RenderTarget);
 
-			// Copy shadow pass and cascade index for closure
+			// Copy shadow pass for closure - use CascadeIndex from the pass itself
 			ShadowPass passCopy = shadowPass;
-			int32 cascadeIdx = cascadeIndex;
 			graph.AddGraphicsPass(passName)
 				.WriteDepth(shadowTarget)
 				.NeverCull() // Shadow maps are used externally by forward pass
 				.SetExecuteCallback(new (encoder) => {
-					ExecuteShadowPass(encoder, world, visibility, passCopy, cascadeIdx);
+					ExecuteShadowPass(encoder, world, visibility, passCopy);
 				});
-
-			cascadeIndex++;
 		}
 	}
 
@@ -784,12 +791,26 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			mCurrentShadowPasses.Add(pass);
 
 		// Map shadow uniform buffer and write cascade VPs directly (no command buffers needed)
+		// Use the CascadeIndex from each pass to determine the correct buffer slot
 		if (let uniformPtr = mShadowUniformBuffer.Map())
 		{
-			for (int32 i = 0; i < shadowPasses.Count && i < 4; i++)
+			for (let pass in shadowPasses)
 			{
-				mShadowUniforms.ViewProjectionMatrix = shadowPasses[i].ViewProjection;
-				let offset = (uint64)i * mAlignedSceneUniformSize;
+				// Only cascade passes use this uniform buffer
+				if (pass.Type != .Cascade)
+					continue;
+
+				// Validate cascade index is within bounds (0-3)
+				let cascadeIdx = (int32)pass.CascadeIndex;
+				if (cascadeIdx < 0 || cascadeIdx >= 4)
+				{
+					Console.WriteLine("[Shadow] ERROR: Invalid cascade index {} in PrepareShadowUniforms", cascadeIdx);
+					continue;
+				}
+
+				mShadowUniforms.ViewProjectionMatrix = pass.ViewProjection;
+				let offset = (uint64)cascadeIdx * mAlignedSceneUniformSize;
+
 				// Bounds check against actual buffer size
 				Runtime.Assert(offset + SceneUniforms.Size <= mShadowUniformBuffer.Size, scope $"Shadow uniform write (offset {offset} + size {SceneUniforms.Size}) exceeds buffer size ({mShadowUniformBuffer.Size})");
 				Internal.MemCpy((uint8*)uniformPtr + offset, &mShadowUniforms, SceneUniforms.Size);
@@ -1075,11 +1096,45 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		}
 	}
 
-	private void ExecuteShadowPass(IRenderPassEncoder encoder, RenderWorld world, VisibilityResolver visibility, ShadowPass shadowPass, int32 cascadeIndex)
+	private static bool sShadowPassDebugPrinted = false;
+
+	private void ExecuteShadowPass(IRenderPassEncoder encoder, RenderWorld world, VisibilityResolver visibility, ShadowPass shadowPass)
 	{
+		// Debug output (once per session)
+		if (!sShadowPassDebugPrinted)
+		{
+			sShadowPassDebugPrinted = true;
+			Console.WriteLine("[Shadow] ExecuteShadowPass starting:");
+			Console.WriteLine("  Pipeline: {}", mShadowDepthPipeline != null ? "OK" : "NULL");
+			Console.WriteLine("  BindGroup: {}", mShadowBindGroup != null ? "OK" : "NULL");
+			Console.WriteLine("  UniformBuffer: {}", mShadowUniformBuffer != null ? "OK" : "NULL");
+			Console.WriteLine("  ObjectBuffer: {}", mShadowObjectBuffer != null ? "OK" : "NULL");
+		}
+
 		// Skip if no pipeline or bind group
 		if (mShadowDepthPipeline == null || mShadowBindGroup == null)
 			return;
+
+		// Only cascade passes are currently supported
+		if (shadowPass.Type != .Cascade)
+		{
+			Console.WriteLine("[Shadow] ERROR: ExecuteShadowPass called with non-cascade pass type {}", shadowPass.Type);
+			return;
+		}
+
+		// Validate cascade index (must be 0-3)
+		let cascadeIndex = (int32)shadowPass.CascadeIndex;
+		if (cascadeIndex < 0 || cascadeIndex >= 4)
+		{
+			Console.WriteLine("[Shadow] ERROR: Cascade index {} out of bounds in ExecuteShadowPass", cascadeIndex);
+			return;
+		}
+
+		// Only print cascade execution details once per session to avoid spam
+		if (!sShadowPassDebugPrinted)
+		{
+			// Already printed in the block above, skip per-cascade output
+		}
 
 		// Set viewport for shadow map tile
 		encoder.SetViewport(
@@ -1101,6 +1156,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		encoder.SetPipeline(mShadowDepthPipeline);
 
 		// Calculate cascade VP offset (for dynamic uniform binding 0)
+		// Uses CascadeIndex from the shadow pass to select the correct VP matrix slot
 		uint32 cascadeVPOffset = (uint32)((int64)cascadeIndex * (int64)mAlignedSceneUniformSize);
 
 		// Render shadow casters (object transforms already uploaded in PrepareShadowUniforms)
@@ -1139,6 +1195,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				}
 			}
 		}
+
 	}
 
 	private void CreateShadowBindGroup()

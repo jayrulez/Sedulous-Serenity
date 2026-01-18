@@ -125,8 +125,18 @@ class ShaderCompiler : IDisposable
 			return result;
 		}
 
-		// Prepend #defines from shader flags
+		// Prepend #defines from shader flags and target backend
 		String fullSource = scope .();
+
+		// Add backend-specific define
+		switch (target)
+		{
+		case .SPIRV:
+			fullSource.Append("#define VULKAN 1\n");
+		case .DXIL:
+			fullSource.Append("#define DX12 1\n");
+		}
+
 		key.Flags.AppendDefines(fullSource);
 		fullSource.Append(source);
 
