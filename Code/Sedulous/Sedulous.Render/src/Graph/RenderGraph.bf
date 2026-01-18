@@ -4,14 +4,44 @@ using System;
 using System.Collections;
 using Sedulous.RHI;
 
+/// Wrapper for ITexture pointer to enable use as dictionary key.
+/// Implements IHashable based on the pointer address.
+struct TextureKey : IHashable
+{
+	public ITexture Texture;
+
+	public this(ITexture texture)
+	{
+		Texture = texture;
+	}
+
+	public int GetHashCode()
+	{
+		// Hash based on the object's pointer address
+		return (int)(void*)Internal.UnsafeCastToPtr(Texture);
+	}
+
+	public static bool operator ==(Self lhs, Self rhs)
+	{
+		// Compare by reference (same object instance)
+		return lhs.Texture === rhs.Texture;
+	}
+
+	public static bool operator !=(Self lhs, Self rhs)
+	{
+		return !(lhs == rhs);
+	}
+}
+
 /// Render graph that manages pass dependencies and resource lifetimes.
 public class RenderGraph : IDisposable
 {
 	private IDevice mDevice;
 
-	// Resources
+	// Resources - uses slot-based system where removed resources leave null holes
 	private List<RenderGraphResource> mResources = new .() ~ DeleteContainerAndItems!(_);
 	private Dictionary<String, RGResourceHandle> mResourceNames = new .() ~ DeleteDictionaryAndKeys!(_);
+	private List<int32> mFreeSlots = new .() ~ delete _; // Indices of null slots available for reuse
 
 	// Passes
 	private List<RenderPass> mPasses = new .() ~ DeleteContainerAndItems!(_);
@@ -20,6 +50,13 @@ public class RenderGraph : IDisposable
 	// Frame state
 	private bool mIsBuilding = false;
 	private bool mIsCompiled = false;
+
+	// Texture layout tracking (by texture pointer, not by resource)
+	// This correctly handles imported resources that share the same underlying texture
+	private Dictionary<TextureKey, ResourceLayoutState> mTextureLayouts = new .() ~ delete _;
+
+	// Resources that need to be transitioned to Present layout at end of frame (e.g., swapchain)
+	private List<RGResourceHandle> mPresentTargets = new .() ~ delete _;
 
 	// Statistics
 	public int32 PassCount => (int32)mPasses.Count;
@@ -39,12 +76,22 @@ public class RenderGraph : IDisposable
 			delete pass;
 		mPasses.Clear();
 
-		// Reset transient resources
-		for (int i = mResources.Count - 1; i >= 0; i--)
+		// Reset transient resources - null out slots instead of removing to preserve indices
+		for (int i = 0; i < mResources.Count; i++)
 		{
 			let resource = mResources[i];
+			if (resource == null)
+				continue; // Already a free slot
+
 			if (resource.IsTransient)
 			{
+				// Remove texture layout tracking for this resource before releasing
+				if (resource.Type == .Texture && resource.Texture != null)
+				{
+					let key = TextureKey(resource.Texture);
+					mTextureLayouts.Remove(key);
+				}
+
 				resource.ReleaseTransient();
 
 				// Remove name mapping
@@ -60,7 +107,8 @@ public class RenderGraph : IDisposable
 				}
 
 				delete resource;
-				mResources.RemoveAt(i);
+				mResources[i] = null; // Leave a hole, don't shift indices
+				mFreeSlots.Add((int32)i); // Track this slot for reuse
 			}
 			else
 			{
@@ -68,10 +116,15 @@ public class RenderGraph : IDisposable
 				resource.RefCount = 0;
 				resource.FirstWriter = .Invalid;
 				resource.LastReader = .Invalid;
+				// Keep CurrentLayout - imported resources maintain their layout across frames
 			}
 		}
 
 		mExecutionOrder.Clear();
+		mPresentTargets.Clear();
+		// Note: Do NOT clear mTextureLayouts - texture layout state persists across frames.
+		// This is important for swapchain images which cycle through and retain their
+		// layout state (e.g., Present after being presented, ColorAttachment after rendering).
 		mIsBuilding = true;
 		mIsCompiled = false;
 		CulledPassCount = 0;
@@ -96,25 +149,52 @@ public class RenderGraph : IDisposable
 	}
 
 	/// Imports an external texture.
+	/// If a resource with the same name already exists, updates its texture/view references.
+	/// This is important for swapchain textures which change each frame.
 	public RGResourceHandle ImportTexture(StringView name, ITexture texture, ITextureView view)
 	{
 		let nameStr = scope String(name);
 		if (mResourceNames.TryGetValue(nameStr, let existing))
+		{
+			// Update the existing resource's texture references
+			// This is critical for swapchain textures which cycle between multiple images
+			if (let resource = GetResourceByHandle(existing))
+			{
+				resource.Texture = texture;
+				resource.TextureView = view;
+			}
 			return existing;
+		}
 
 		let resource = RenderGraphResource.ImportTexture(name, texture, view);
 		return AddResource(resource, name);
 	}
 
 	/// Imports an external buffer.
+	/// If a resource with the same name already exists, updates its buffer reference.
 	public RGResourceHandle ImportBuffer(StringView name, IBuffer buffer)
 	{
 		let nameStr = scope String(name);
 		if (mResourceNames.TryGetValue(nameStr, let existing))
+		{
+			// Update the existing resource's buffer reference
+			if (let resource = GetResourceByHandle(existing))
+			{
+				resource.Buffer = buffer;
+			}
 			return existing;
+		}
 
 		let resource = RenderGraphResource.ImportBuffer(name, buffer);
 		return AddResource(resource, name);
+	}
+
+	/// Marks a texture resource to be transitioned to Present layout at end of frame.
+	/// Use this for swapchain textures that will be presented.
+	public void MarkForPresent(RGResourceHandle handle)
+	{
+		if (handle.IsValid)
+			mPresentTargets.Add(handle);
 	}
 
 	/// Gets a resource handle by name.
@@ -222,11 +302,45 @@ public class RenderGraph : IDisposable
 			if (pass.IsCulled)
 				continue;
 
+			// Insert barriers for resources transitioning to this pass's usage
+			InsertBarriersForPass(pass, commandEncoder);
+
+			// Execute the pass
 			if (ExecutePass(pass, commandEncoder) case .Err)
 				return .Err;
+
+			// Update layout state for resources modified by this pass
+			UpdateLayoutsAfterPass(pass);
 		}
 
+		// Transition present targets to Present layout for presentation
+		TransitionPresentTargets(commandEncoder);
+
 		return .Ok;
+	}
+
+	/// Transitions all marked present targets to Present layout.
+	///
+	/// This explicitly transitions to Present layout using Undefined as source layout.
+	/// Using Undefined is safe because:
+	/// 1. Vulkan allows Undefined as oldLayout (it discards content but that's fine since
+	///    we just rendered to it - the render pass finalLayout should have handled the transition)
+	/// 2. It works as a fallback if the render pass didn't properly transition the layout
+	private void TransitionPresentTargets(ICommandEncoder commandEncoder)
+	{
+		for (let handle in mPresentTargets)
+		{
+			if (let resource = GetResourceByHandle(handle))
+			{
+				if (resource.Type == .Texture && resource.Texture != null)
+				{
+					// Always use Undefined as source - this is safe as a fallback
+					// The render pass should have already transitioned to Present via finalLayout,
+					// but if something went wrong, this ensures we're in the right layout
+					commandEncoder.TextureBarrier(resource.Texture, .Undefined, .Present);
+				}
+			}
+		}
 	}
 
 	/// Ends the frame.
@@ -241,8 +355,21 @@ public class RenderGraph : IDisposable
 
 	private RGResourceHandle AddResource(RenderGraphResource resource, StringView name)
 	{
-		let handle = RGResourceHandle() { Index = (uint32)mResources.Count, Generation = resource.Generation };
-		mResources.Add(resource);
+		int32 index;
+
+		// Reuse a free slot if available, otherwise append
+		if (mFreeSlots.Count > 0)
+		{
+			index = mFreeSlots.PopBack();
+			mResources[index] = resource;
+		}
+		else
+		{
+			index = (int32)mResources.Count;
+			mResources.Add(resource);
+		}
+
+		let handle = RGResourceHandle() { Index = (uint32)index, Generation = resource.Generation };
 
 		let nameKey = new String(name);
 		mResourceNames[nameKey] = handle;
@@ -262,6 +389,8 @@ public class RenderGraph : IDisposable
 		if (!handle.IsValid || handle.Index >= mResources.Count)
 			return null;
 		let resource = mResources[handle.Index];
+		if (resource == null) // Slot was freed
+			return null;
 		if (resource.Generation != handle.Generation)
 			return null;
 		return resource;
@@ -449,6 +578,9 @@ public class RenderGraph : IDisposable
 	{
 		for (let resource in mResources)
 		{
+			if (resource == null) // Skip freed slots
+				continue;
+
 			if (resource.RefCount > 0 || !resource.IsTransient)
 			{
 				if (resource.Allocate(mDevice) case .Err)
@@ -464,6 +596,8 @@ public class RenderGraph : IDisposable
 			return ExecuteGraphicsPass(pass, commandEncoder);
 		else if (pass.Type == .Compute)
 			return ExecuteComputePass(pass, commandEncoder);
+		else if (pass.Type == .Copy)
+			return ExecuteCopyPass(pass, commandEncoder);
 
 		return .Ok;
 	}
@@ -542,6 +676,114 @@ public class RenderGraph : IDisposable
 		encoder.End();
 
 		return .Ok;
+	}
+
+	private Result<void> ExecuteCopyPass(RenderPass pass, ICommandEncoder commandEncoder)
+	{
+		// Copy passes execute directly on the command encoder without beginning a sub-pass
+		if (pass.CopyCallback != null)
+			pass.CopyCallback(commandEncoder);
+
+		return .Ok;
+	}
+
+	// ========================================================================
+	// Automatic Barrier Insertion
+	// ========================================================================
+
+	/// Gets the current layout for a texture, defaulting to Undefined if not tracked.
+	private ResourceLayoutState GetTextureLayout(ITexture texture)
+	{
+		let key = TextureKey(texture);
+		if (mTextureLayouts.TryGetValue(key, let layout))
+			return layout;
+		return .Undefined;
+	}
+
+	/// Sets the tracked layout for a texture.
+	private void SetTextureLayout(ITexture texture, ResourceLayoutState layout)
+	{
+		let key = TextureKey(texture);
+		mTextureLayouts[key] = layout;
+	}
+
+	/// Inserts barriers for resources that need layout transitions before this pass.
+	///
+	/// IMPORTANT: The Vulkan backend's render pass automatically handles layout transitions
+	/// for color and depth attachments via initialLayout/finalLayout. For swapchain textures:
+	/// - initialLayout = Undefined (with LoadOp.Clear)
+	/// - finalLayout = Present
+	///
+	/// Therefore, we only insert barriers for:
+	/// 1. Shader read textures (need ShaderReadOnly layout)
+	/// 2. Storage/UAV writes (need General layout)
+	///
+	/// Color and depth attachments are handled by the render pass itself.
+	private void InsertBarriersForPass(RenderPass pass, ICommandEncoder commandEncoder)
+	{
+		// Handle shader read textures - need ShaderReadOnly layout
+		// These are textures being sampled in shaders, not render targets
+		for (let handle in pass.Reads)
+		{
+			if (let resource = GetResourceByHandle(handle))
+			{
+				if (resource.Type == .Texture && resource.Texture != null)
+				{
+					let currentLayout = GetTextureLayout(resource.Texture);
+					if (currentLayout != .ShaderReadOnly)
+					{
+						let oldLayout = ToTextureLayout(currentLayout);
+						commandEncoder.TextureBarrier(resource.Texture, oldLayout, .ShaderReadOnly);
+						SetTextureLayout(resource.Texture, .ShaderReadOnly);
+					}
+				}
+			}
+		}
+
+		// NOTE: Color and depth attachments are NOT transitioned here.
+		// The Vulkan render pass handles these automatically via initialLayout/finalLayout.
+		// See VulkanCommandEncoder.CreateRenderPass for details.
+
+		// Handle storage/UAV writes - need General layout
+		for (let handle in pass.Writes)
+		{
+			if (let resource = GetResourceByHandle(handle))
+			{
+				if (resource.Type == .Texture && resource.Texture != null)
+				{
+					let currentLayout = GetTextureLayout(resource.Texture);
+					if (currentLayout != .General)
+					{
+						let oldLayout = ToTextureLayout(currentLayout);
+						commandEncoder.TextureBarrier(resource.Texture, oldLayout, .General);
+						SetTextureLayout(resource.Texture, .General);
+					}
+				}
+			}
+		}
+	}
+
+	/// Updates resource layouts after a pass has executed.
+	/// Layout tracking is done at the texture level in InsertBarriersForPass,
+	/// so this method is now a no-op (kept for potential future use).
+	private void UpdateLayoutsAfterPass(RenderPass pass)
+	{
+		// Layout updates are now done in InsertBarriersForPass using texture-level tracking.
+		// This method is kept for potential future use (e.g., debug validation).
+	}
+
+	/// Converts ResourceLayoutState to RHI TextureLayout.
+	private static TextureLayout ToTextureLayout(ResourceLayoutState state)
+	{
+		switch (state)
+		{
+		case .Undefined: return .Undefined;
+		case .ColorAttachment: return .ColorAttachment;
+		case .DepthStencilAttachment: return .DepthStencilAttachment;
+		case .ShaderReadOnly: return .ShaderReadOnly;
+		case .General: return .General;
+		case .Present: return .Present;
+		}
 	}
 
 	public void Dispose()

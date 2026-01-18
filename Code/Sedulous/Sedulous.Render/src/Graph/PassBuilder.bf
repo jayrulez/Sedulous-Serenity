@@ -136,4 +136,16 @@ public struct PassBuilder
 		}
 		return this;
 	}
+
+	/// Sets the execute callback for copy/transfer passes.
+	public Self SetCopyCallback(CopyPassExecuteCallback callback) mut
+	{
+		if (let pass = mGraph.[Friend]GetPass(mHandle))
+		{
+			if (pass.CopyCallback != null)
+				delete pass.CopyCallback;
+			pass.CopyCallback = callback;
+		}
+		return this;
+	}
 }

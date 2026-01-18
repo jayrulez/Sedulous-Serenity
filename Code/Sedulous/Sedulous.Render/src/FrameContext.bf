@@ -100,12 +100,14 @@ class RenderFrameContext : IDisposable
 		mSceneUniforms = .Identity;
 
 		// Create triple-buffered scene uniform buffers
+		// Use Upload memory for CPU mapping (avoids command buffer for writes)
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
 			var desc = BufferDescriptor()
 			{
 				Size = 464, // SceneUniforms size: 7 matrices (448) + 4 floats (16) = 464
-				Usage = .Uniform | .CopyDst
+				Usage = .Uniform,
+				MemoryAccess = .Upload // CPU-mappable
 			};
 
 			if (device.CreateBuffer(&desc) case .Ok(let buffer))
@@ -217,7 +219,12 @@ class RenderFrameContext : IDisposable
 			return;
 
 		let buffer = mSceneUniformBuffers[mFrameIndex];
-		mDevice.Queue.WriteBuffer(buffer, 0, Span<uint8>((uint8*)&mSceneUniforms, 464));
+		// Use Map/Unmap to avoid command buffer creation
+		if (let ptr = buffer.Map())
+		{
+			Internal.MemCpy(ptr, &mSceneUniforms, Sedulous.Render.SceneUniforms.Size);
+			buffer.Unmap();
+		}
 		mSceneUniformsDirty = false;
 	}
 

@@ -299,11 +299,13 @@ public class SkyFeature : RenderFeatureBase
 
 	private Result<void> CreateSkyParamsBuffer()
 	{
+		// Use Upload memory for CPU mapping (avoids command buffer for writes)
 		BufferDescriptor desc = .()
 		{
 			Label = "Sky Params",
 			Size = (uint64)ProceduralSkyParams.Size,
-			Usage = .Uniform | .CopyDst
+			Usage = .Uniform,
+			MemoryAccess = .Upload // CPU-mappable
 		};
 
 		switch (Renderer.Device.CreateBuffer(&desc))
@@ -531,10 +533,12 @@ public class SkyFeature : RenderFeatureBase
 		// Update time from renderer
 		mSkyParams.Time = Renderer.RenderFrameContext?.TotalTime ?? 0.0f;
 
-		Renderer.Device.Queue.WriteBuffer(
-			mSkyParamsBuffer, 0,
-			Span<uint8>((uint8*)&mSkyParams, ProceduralSkyParams.Size)
-		);
+		// Use Map/Unmap to avoid command buffer creation
+		if (let ptr = mSkyParamsBuffer.Map())
+		{
+			Internal.MemCpy(ptr, &mSkyParams, ProceduralSkyParams.Size);
+			mSkyParamsBuffer.Unmap();
+		}
 
 		// Ensure bind group is ready for this frame
 		EnsureSkyBindGroup();

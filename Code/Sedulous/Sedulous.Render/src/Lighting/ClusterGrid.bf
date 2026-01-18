@@ -204,9 +204,13 @@ public class ClusterGrid : IDisposable
 		if (mCullLightsPipeline == null || mCullLightsBindGroup == null)
 			return;
 
-		// Reset counter buffer
-		uint32[1] zero = .(0);
-		mDevice.Queue.WriteBuffer(mLightIndexCounterBuffer, 0, Span<uint8>((uint8*)&zero[0], 4));
+		// Reset counter buffer using Map/Unmap
+		if (let ptr = mLightIndexCounterBuffer.Map())
+		{
+			uint32 zero = 0;
+			Internal.MemCpy(ptr, &zero, 4);
+			mLightIndexCounterBuffer.Unmap();
+		}
 
 		// Set pipeline and bind group
 		encoder.SetPipeline(mCullLightsPipeline);
@@ -303,15 +307,21 @@ public class ClusterGrid : IDisposable
 			}
 		}
 
-		// Upload cluster info buffer to GPU
-		mDevice.Queue.WriteBuffer(mClusterLightInfoBuffer, 0,
-			Span<uint8>((uint8*)&clusterInfos[0], totalClusters * sizeof(ClusterLightInfo)));
+		// Upload cluster info buffer to GPU using Map/Unmap
+		if (let ptr = mClusterLightInfoBuffer.Map())
+		{
+			Internal.MemCpy(ptr, &clusterInfos[0], totalClusters * sizeof(ClusterLightInfo));
+			mClusterLightInfoBuffer.Unmap();
+		}
 
 		// Upload light indices buffer to GPU (only the used portion)
 		if (globalLightIndexOffset > 0)
 		{
-			mDevice.Queue.WriteBuffer(mLightIndexBuffer, 0,
-				Span<uint8>((uint8*)&lightIndices[0], (int)globalLightIndexOffset * sizeof(uint32)));
+			if (let ptr = mLightIndexBuffer.Map())
+			{
+				Internal.MemCpy(ptr, &lightIndices[0], (int)globalLightIndexOffset * sizeof(uint32));
+				mLightIndexBuffer.Unmap();
+			}
 		}
 
 		mStats.AverageLightsPerCluster = mStats.ClustersWithLights > 0
@@ -352,6 +362,7 @@ public class ClusterGrid : IDisposable
 		let totalClusters = mConfig.TotalClusters;
 
 		// Cluster AABB buffer: 6 floats per cluster (min xyz, max xyz)
+		// Note: This is only written during resize, not per-frame
 		BufferDescriptor aabbDesc = .()
 		{
 			Label = "Cluster AABBs",
@@ -366,11 +377,13 @@ public class ClusterGrid : IDisposable
 		}
 
 		// Cluster light info buffer: 2 uint32s per cluster (offset, count)
+		// Use Upload memory for CPU mapping (written every frame)
 		BufferDescriptor infoDesc = .()
 		{
 			Label = "Cluster Light Info",
 			Size = totalClusters * 8,
-			Usage = .Storage | .CopyDst
+			Usage = .Storage,
+			MemoryAccess = .Upload // CPU-mappable
 		};
 
 		switch (mDevice.CreateBuffer(&infoDesc))
@@ -380,13 +393,14 @@ public class ClusterGrid : IDisposable
 		}
 
 		// Light index buffer: maxLightsPerCluster * totalClusters indices
-		// In practice, we use a more compact representation
+		// Use Upload memory for CPU mapping (written every frame)
 		let maxIndices = mConfig.MaxLightsPerCluster * totalClusters;
 		BufferDescriptor indexDesc = .()
 		{
 			Label = "Light Indices",
 			Size = maxIndices * 4,
-			Usage = .Storage | .CopyDst
+			Usage = .Storage,
+			MemoryAccess = .Upload // CPU-mappable
 		};
 
 		switch (mDevice.CreateBuffer(&indexDesc))
@@ -396,11 +410,13 @@ public class ClusterGrid : IDisposable
 		}
 
 		// Cluster uniform buffer
+		// Use Upload memory for CPU mapping (written on resize)
 		BufferDescriptor uniformDesc = .()
 		{
 			Label = "Cluster Uniforms",
 			Size = (uint64)ClusterUniforms.Size,
-			Usage = .Uniform | .CopyDst
+			Usage = .Uniform,
+			MemoryAccess = .Upload // CPU-mappable
 		};
 
 		switch (mDevice.CreateBuffer(&uniformDesc))
@@ -413,11 +429,13 @@ public class ClusterGrid : IDisposable
 		mClusterAABBs = new BoundingBox[totalClusters];
 
 		// Light index counter buffer (for atomic allocation)
+		// Use Upload memory for CPU mapping (reset every frame in GPU path)
 		BufferDescriptor counterDesc = .()
 		{
 			Label = "Light Index Counter",
 			Size = 4, // Single uint32
-			Usage = .Storage | .CopyDst
+			Usage = .Storage,
+			MemoryAccess = .Upload // CPU-mappable
 		};
 
 		switch (mDevice.CreateBuffer(&counterDesc))
@@ -682,8 +700,12 @@ public class ClusterGrid : IDisposable
 			TileSizeY = (float)mScreenHeight / (float)mConfig.ClustersY
 		};
 
-		// Upload to GPU
-		mDevice.Queue.WriteBuffer(mClusterUniformBuffer, 0, Span<uint8>((uint8*)&uniforms, ClusterUniforms.Size));
+		// Upload to GPU using Map/Unmap
+		if (let ptr = mClusterUniformBuffer.Map())
+		{
+			Internal.MemCpy(ptr, &uniforms, ClusterUniforms.Size);
+			mClusterUniformBuffer.Unmap();
+		}
 	}
 
 	// Debug flag for one-time output

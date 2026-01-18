@@ -99,7 +99,7 @@ class RenderIntegratedApp : Application
 		mView.Height = mSwapChain.Height;
 		mView.FieldOfView = Math.PI_f / 4.0f;
 		mView.NearPlane = 0.1f;
-		mView.FarPlane = 100.0f;
+		mView.FarPlane = 30.0f; // Reduced for better shadow map utilization
 		Console.WriteLine("RenderView created");
 
 		// Register render features
@@ -116,8 +116,8 @@ class RenderIntegratedApp : Application
 
 		// Set environment lighting
 		mWorld.AmbientColor = .(0.02f, 0.02f, 0.03f);  // Slight blue tint
-		mWorld.AmbientIntensity = 0.1f;
-		mWorld.Exposure = 0.5f;
+		mWorld.AmbientIntensity = 0.5f;
+		mWorld.Exposure = 1.0f;
 
 		Console.WriteLine("\n=== Initialization Complete ===");
 		Console.WriteLine("Objects in world:");
@@ -276,9 +276,16 @@ class RenderIntegratedApp : Application
 		if (let light = mWorld.GetLight(mSunLight))
 		{
 			light.CastsShadows = true;
-			light.Intensity = 0.1f;
+			light.Intensity = 2.0f;
 		}
 		Console.WriteLine("Sun light created");
+
+		// Enable shadow rendering
+		if (mForwardFeature?.ShadowRenderer != null)
+		{
+			mForwardFeature.ShadowRenderer.EnableShadows = true;
+			Console.WriteLine("Shadow rendering enabled with automatic barriers");
+		}
 
 		// Create colored point lights
 		// Use Vector3 for normalized (0-1) color values
@@ -722,7 +729,7 @@ class RenderIntegratedApp : Application
 		// Begin frame
 		mRenderSystem.BeginFrame((float)render.Frame.TotalTime, (float)render.Frame.DeltaTime);
 
-		// Set swapchain for final output
+		// Set swapchain for final output (FinalOutputFeature will use this in AddPasses)
 		if (mFinalOutputFeature != null)
 			mFinalOutputFeature.SetSwapChain(render.SwapChain);
 
@@ -739,20 +746,11 @@ class RenderIntegratedApp : Application
 			mView.Height
 		);
 
-		// Build render graph using registered features
+		// Build and execute render graph
+		// FinalOutput pass is now integrated - automatic barriers handle all transitions
 		if (mRenderSystem.BuildRenderGraph(mView) case .Ok)
 		{
-			// Execute the render graph
 			mRenderSystem.Execute(render.Encoder);
-		}
-
-		// Final output to swapchain (after render graph, with proper barriers)
-		if (mFinalOutputFeature != null)
-		{
-			let sceneColorHandle = mRenderSystem.RenderGraph.GetResource("SceneColor");
-			let sceneColorTexture = mRenderSystem.RenderGraph.GetTexture(sceneColorHandle);
-			let sceneColorView = mRenderSystem.RenderGraph.GetTextureView(sceneColorHandle);
-			mFinalOutputFeature.BlitToSwapchain(render.Encoder, sceneColorTexture, sceneColorView);
 		}
 
 		// End frame

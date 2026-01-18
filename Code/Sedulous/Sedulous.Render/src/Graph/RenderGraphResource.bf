@@ -3,6 +3,23 @@ namespace Sedulous.Render;
 using System;
 using Sedulous.RHI;
 
+/// Tracks the current layout state of a texture resource for automatic barrier insertion.
+public enum ResourceLayoutState
+{
+	/// Layout is unknown/undefined - first use will transition from undefined.
+	Undefined,
+	/// Resource is in color attachment layout.
+	ColorAttachment,
+	/// Resource is in depth/stencil attachment layout.
+	DepthStencilAttachment,
+	/// Resource is in shader read-only layout (sampled).
+	ShaderReadOnly,
+	/// Resource is in general layout (storage/UAV).
+	General,
+	/// Resource is ready for presentation.
+	Present
+}
+
 /// Handle to a render graph resource.
 public struct RGResourceHandle : IHashable
 {
@@ -112,6 +129,9 @@ public class RenderGraphResource
 
 	/// Handle to the pass that last reads from this resource.
 	public PassHandle LastReader = .Invalid;
+
+	/// Current layout state for automatic barrier insertion (textures only).
+	public ResourceLayoutState CurrentLayout = .Undefined;
 
 	// Texture data
 	public TextureResourceDesc TextureDesc;

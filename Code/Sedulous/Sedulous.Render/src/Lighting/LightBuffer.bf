@@ -166,11 +166,13 @@ public class LightBuffer : IDisposable
 		mDevice = device;
 
 		// Create light data buffer (structured buffer)
+		// Use Upload memory for CPU mapping (avoids command buffer for writes)
 		BufferDescriptor lightDesc = .()
 		{
 			Label = "Light Data",
 			Size = (uint64)(MAX_LIGHTS * GPULight.Size),
-			Usage = .Storage | .CopyDst
+			Usage = .Storage,
+			MemoryAccess = .Upload // CPU-mappable
 		};
 
 		switch (mDevice.CreateBuffer(&lightDesc))
@@ -180,11 +182,13 @@ public class LightBuffer : IDisposable
 		}
 
 		// Create lighting uniform buffer
+		// Use Upload memory for CPU mapping (avoids command buffer for writes)
 		BufferDescriptor uniformDesc = .()
 		{
 			Label = "Lighting Uniforms",
 			Size = (uint64)LightingUniforms.Size,
-			Usage = .Uniform | .CopyDst
+			Usage = .Uniform,
+			MemoryAccess = .Upload // CPU-mappable
 		};
 
 		switch (mDevice.CreateBuffer(&uniformDesc))
@@ -267,8 +271,13 @@ public class LightBuffer : IDisposable
 		if (!IsInitialized || mLightCount == 0)
 			return;
 
-		let uploadSize = mLightCount * GPULight.Size;
-		mDevice.Queue.WriteBuffer(mLightDataBuffer, 0, Span<uint8>((uint8*)&mLights[0], uploadSize));
+		// Use Map/Unmap to avoid command buffer creation
+		if (let ptr = mLightDataBuffer.Map())
+		{
+			let uploadSize = mLightCount * GPULight.Size;
+			Internal.MemCpy(ptr, &mLights[0], uploadSize);
+			mLightDataBuffer.Unmap();
+		}
 	}
 
 	/// Uploads lighting uniforms to GPU.
@@ -289,7 +298,12 @@ public class LightBuffer : IDisposable
 			ClusterBias = mClusterBias
 		};
 
-		mDevice.Queue.WriteBuffer(mLightingUniformBuffer, 0, Span<uint8>((uint8*)&uniforms, LightingUniforms.Size));
+		// Use Map/Unmap to avoid command buffer creation
+		if (let ptr = mLightingUniformBuffer.Map())
+		{
+			Internal.MemCpy(ptr, &uniforms, LightingUniforms.Size);
+			mLightingUniformBuffer.Unmap();
+		}
 	}
 
 	public ~this()

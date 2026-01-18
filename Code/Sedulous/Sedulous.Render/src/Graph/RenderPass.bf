@@ -61,6 +61,9 @@ public delegate void RenderPassExecuteCallback(IRenderPassEncoder encoder);
 /// Callback for executing a compute pass.
 public delegate void ComputePassExecuteCallback(IComputePassEncoder encoder);
 
+/// Callback for executing a copy/transfer pass.
+public delegate void CopyPassExecuteCallback(ICommandEncoder encoder);
+
 /// A render pass in the render graph.
 public class RenderPass
 {
@@ -99,6 +102,9 @@ public class RenderPass
 
 	/// Compute pass execute callback.
 	public ComputePassExecuteCallback ComputeCallback ~ delete _;
+
+	/// Copy pass execute callback.
+	public CopyPassExecuteCallback CopyCallback ~ delete _;
 
 	public this(StringView name, RenderPassType type)
 	{

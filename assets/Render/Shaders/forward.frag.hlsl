@@ -78,7 +78,7 @@ StructuredBuffer<uint2> ClusterLightInfo : register(t5); // offset, count
 StructuredBuffer<uint> LightIndices : register(t6);
 
 #ifdef RECEIVE_SHADOWS
-Texture2D ShadowMap : register(t7);
+Texture2DArray ShadowMap : register(t7);
 SamplerComparisonState ShadowSampler : register(s1);
 
 cbuffer ShadowUniforms : register(b5)
@@ -208,7 +208,7 @@ float SampleShadowMap(float3 worldPos, float3 N)
     shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;
     shadowCoord.y = 1.0 - shadowCoord.y;
 
-    // PCF sampling
+    // PCF sampling with cascade array index
     float shadow = 0.0;
     float2 texelSize = 1.0 / ShadowMapSize;
     for (int x = -1; x <= 1; x++)
@@ -216,7 +216,8 @@ float SampleShadowMap(float3 worldPos, float3 N)
         for (int y = -1; y <= 1; y++)
         {
             float2 offset = float2(x, y) * texelSize;
-            shadow += ShadowMap.SampleCmpLevelZero(ShadowSampler, shadowCoord.xy + offset, shadowCoord.z - ShadowBias);
+            float3 sampleCoord = float3(shadowCoord.xy + offset, (float)cascadeIndex);
+            shadow += ShadowMap.SampleCmpLevelZero(ShadowSampler, sampleCoord, shadowCoord.z - ShadowBias);
         }
     }
     return shadow / 9.0;

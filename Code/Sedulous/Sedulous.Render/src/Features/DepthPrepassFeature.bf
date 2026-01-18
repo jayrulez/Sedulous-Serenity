@@ -248,8 +248,14 @@ public class DepthPrepassFeature : RenderFeatureBase
 	private Result<void> CreateObjectUniformBuffer()
 	{
 		// Create buffer for per-object uniforms with space for MaxObjectsPerFrame objects
+		// Use Upload memory for CPU mapping (avoids command buffer for writes)
 		let bufferSize = MaxObjectsPerFrame * (int)AlignedObjectUniformSize;
-		BufferDescriptor bufDesc = .((uint64)bufferSize, .Uniform | .CopyDst);
+		BufferDescriptor bufDesc = .()
+		{
+			Size = (uint64)bufferSize,
+			Usage = .Uniform,
+			MemoryAccess = .Upload // CPU-mappable
+		};
 
 		switch (Renderer.Device.CreateBuffer(&bufDesc))
 		{
@@ -294,38 +300,43 @@ public class DepthPrepassFeature : RenderFeatureBase
 	private void PrepareObjectUniforms()
 	{
 		// Upload all object transforms to the uniform buffer BEFORE the render pass
+		// Use Map/Unmap to avoid command buffer creation
 		let commands = mBatcher.DrawCommands;
 
-		int32 objectIndex = 0;
-		for (let batch in mBatcher.OpaqueBatches)
+		if (let bufferPtr = mObjectUniformBuffer.Map())
 		{
-			if (batch.CommandCount == 0)
-				continue;
-
-			for (int32 i = 0; i < batch.CommandCount; i++)
+			int32 objectIndex = 0;
+			for (let batch in mBatcher.OpaqueBatches)
 			{
-				if (objectIndex >= MaxObjectsPerFrame)
-					break;
+				if (batch.CommandCount == 0)
+					continue;
 
-				let cmd = commands[batch.CommandStart + i];
-
-				// Create object uniforms with the object's world transform
-				ObjectUniforms objectUniforms = .()
+				for (int32 i = 0; i < batch.CommandCount; i++)
 				{
-					WorldMatrix = cmd.WorldMatrix,
-					PrevWorldMatrix = cmd.PrevWorldMatrix,
-					NormalMatrix = cmd.NormalMatrix,
-					ObjectID = (uint32)objectIndex,
-					MaterialID = 0,
-					_Padding = default
-				};
+					if (objectIndex >= MaxObjectsPerFrame)
+						break;
 
-				// Upload to buffer at aligned offset
-				let offset = (uint64)(objectIndex * (int32)AlignedObjectUniformSize);
-				Renderer.Device.Queue.WriteBuffer(mObjectUniformBuffer, offset, Span<uint8>((uint8*)&objectUniforms, ObjectUniformSize));
+					let cmd = commands[batch.CommandStart + i];
 
-				objectIndex++;
+					// Create object uniforms with the object's world transform
+					ObjectUniforms objectUniforms = .()
+					{
+						WorldMatrix = cmd.WorldMatrix,
+						PrevWorldMatrix = cmd.PrevWorldMatrix,
+						NormalMatrix = cmd.NormalMatrix,
+						ObjectID = (uint32)objectIndex,
+						MaterialID = 0,
+						_Padding = default
+					};
+
+					// Copy to mapped buffer at aligned offset
+					let offset = (uint64)(objectIndex * (int32)AlignedObjectUniformSize);
+					Internal.MemCpy((uint8*)bufferPtr + offset, &objectUniforms, ObjectUniformSize);
+
+					objectIndex++;
+				}
 			}
+			mObjectUniformBuffer.Unmap();
 		}
 	}
 

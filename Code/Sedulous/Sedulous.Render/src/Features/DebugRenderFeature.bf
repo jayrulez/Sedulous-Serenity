@@ -799,51 +799,66 @@ public class DebugRenderFeature : RenderFeatureBase
 		if (device?.Queue == null || mUniformBuffers[frameIndex] == null)
 			return;
 
-		// Upload view-projection matrix
-		var vp = mViewProjection;
-		Span<uint8> vpSpan = .((uint8*)&vp, sizeof(Matrix));
-		device.Queue.WriteBuffer(mUniformBuffers[frameIndex], 0, vpSpan);
+		// Upload view-projection matrix using Map/Unmap
+		if (let ptr = mUniformBuffers[frameIndex].Map())
+		{
+			var vp = mViewProjection;
+			Internal.MemCpy(ptr, &vp, sizeof(Matrix));
+			mUniformBuffers[frameIndex].Unmap();
+		}
 
 		// Calculate total vertices needed
 		int totalVertices = mLineDepthCount + mLineOverlayCount + mTriDepthCount + mTriOverlayCount;
 
-		// Upload line/triangle vertices
+		// Upload line/triangle vertices using Map/Unmap
 		if (totalVertices > 0 && mVertexBuffers[frameIndex] != null)
 		{
-			List<DebugVertex> allVertices = scope .();
-			allVertices.AddRange(mLineVerticesDepth);
-			allVertices.AddRange(mLineVerticesOverlay);
-			allVertices.AddRange(mTriVerticesDepth);
-			allVertices.AddRange(mTriVerticesOverlay);
+			if (let ptr = mVertexBuffers[frameIndex].Map())
+			{
+				List<DebugVertex> allVertices = scope .();
+				allVertices.AddRange(mLineVerticesDepth);
+				allVertices.AddRange(mLineVerticesOverlay);
+				allVertices.AddRange(mTriVerticesDepth);
+				allVertices.AddRange(mTriVerticesOverlay);
 
-			let dataSize = (uint64)(allVertices.Count * DebugVertex.SizeInBytes);
-			Span<uint8> vertexSpan = .((uint8*)allVertices.Ptr, (int)dataSize);
-			device.Queue.WriteBuffer(mVertexBuffers[frameIndex], 0, vertexSpan);
+				let dataSize = allVertices.Count * DebugVertex.SizeInBytes;
+				Internal.MemCpy(ptr, allVertices.Ptr, dataSize);
+				mVertexBuffers[frameIndex].Unmap();
+			}
 		}
 
-		// Upload text vertices
+		// Upload text vertices using Map/Unmap
 		int totalTextVertices = mTextDepthCount + mTextOverlayCount;
 		if (totalTextVertices > 0 && mTextVertexBuffers[frameIndex] != null)
 		{
-			List<DebugTextVertex> allTextVertices = scope .();
-			allTextVertices.AddRange(mTextVerticesDepth);
-			allTextVertices.AddRange(mTextVerticesOverlay);
+			if (let ptr = mTextVertexBuffers[frameIndex].Map())
+			{
+				List<DebugTextVertex> allTextVertices = scope .();
+				allTextVertices.AddRange(mTextVerticesDepth);
+				allTextVertices.AddRange(mTextVerticesOverlay);
 
-			let dataSize = (uint64)(allTextVertices.Count * DebugTextVertex.SizeInBytes);
-			Span<uint8> textVertexSpan = .((uint8*)allTextVertices.Ptr, (int)dataSize);
-			device.Queue.WriteBuffer(mTextVertexBuffers[frameIndex], 0, textVertexSpan);
+				let dataSize = allTextVertices.Count * DebugTextVertex.SizeInBytes;
+				Internal.MemCpy(ptr, allTextVertices.Ptr, dataSize);
+				mTextVertexBuffers[frameIndex].Unmap();
+			}
 		}
 
-		// Upload 2D text vertices and screen params
+		// Upload 2D text vertices and screen params using Map/Unmap
 		if (mText2DCount > 0 && mText2DVertexBuffers[frameIndex] != null && mScreenParamBuffers[frameIndex] != null)
 		{
-			float[4] screenParams = .((float)mScreenWidth, (float)mScreenHeight, mFlipY, 0);
-			Span<uint8> screenSpan = .((uint8*)&screenParams, sizeof(float[4]));
-			device.Queue.WriteBuffer(mScreenParamBuffers[frameIndex], 0, screenSpan);
+			if (let ptr = mScreenParamBuffers[frameIndex].Map())
+			{
+				float[4] screenParams = .((float)mScreenWidth, (float)mScreenHeight, mFlipY, 0);
+				Internal.MemCpy(ptr, &screenParams, sizeof(float[4]));
+				mScreenParamBuffers[frameIndex].Unmap();
+			}
 
-			let dataSize = (uint64)(mText2DVertices.Count * DebugText2DVertex.SizeInBytes);
-			Span<uint8> text2DSpan = .((uint8*)mText2DVertices.Ptr, (int)dataSize);
-			device.Queue.WriteBuffer(mText2DVertexBuffers[frameIndex], 0, text2DSpan);
+			if (let ptr = mText2DVertexBuffers[frameIndex].Map())
+			{
+				let dataSize = mText2DVertices.Count * DebugText2DVertex.SizeInBytes;
+				Internal.MemCpy(ptr, mText2DVertices.Ptr, dataSize);
+				mText2DVertexBuffers[frameIndex].Unmap();
+			}
 		}
 	}
 

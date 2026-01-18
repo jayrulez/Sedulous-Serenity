@@ -296,11 +296,13 @@ public class CascadedShadowMaps : IDisposable
 
 	private Result<void> CreateUniformBuffer()
 	{
+		// Use Upload memory for CPU mapping (avoids command buffer for writes)
 		BufferDescriptor desc = .()
 		{
 			Label = "Shadow Uniforms",
 			Size = (uint64)ShadowUniforms.Size,
-			Usage = .Uniform | .CopyDst
+			Usage = .Uniform,
+			MemoryAccess = .Upload // CPU-mappable
 		};
 
 		switch (mDevice.CreateBuffer(&desc))
@@ -462,6 +464,11 @@ public class CascadedShadowMaps : IDisposable
 		uniforms.ShadowNormalBias = mConfig.NormalBias;
 		uniforms.ShadowSoftness = mConfig.Softness;
 
-		mDevice.Queue.WriteBuffer(mShadowUniformBuffer, 0, Span<uint8>((uint8*)&uniforms, ShadowUniforms.Size));
+		// Use Map/Unmap to avoid command buffer creation
+		if (let ptr = mShadowUniformBuffer.Map())
+		{
+			Internal.MemCpy(ptr, &uniforms, ShadowUniforms.Size);
+			mShadowUniformBuffer.Unmap();
+		}
 	}
 }

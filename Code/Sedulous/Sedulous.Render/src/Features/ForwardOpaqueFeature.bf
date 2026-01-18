@@ -52,6 +52,16 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 	// Pipeline cache (material -> pipeline)
 	private Dictionary<MaterialInstance, IRenderPipeline> mPipelineCache = new .() ~ delete _;
 
+	// Shadow depth rendering
+	private IRenderPipeline mShadowDepthPipeline ~ delete _;
+	private IPipelineLayout mShadowPipelineLayout ~ delete _;
+	private IBindGroupLayout mShadowBindGroupLayout ~ delete _;
+	private IBindGroup mShadowBindGroup ~ delete _;
+	private IBuffer mShadowUniformBuffer ~ delete _; // Per-cascade SceneUniforms for light matrices
+	private IBuffer mShadowObjectBuffer ~ delete _;  // Per-object transforms for shadow pass
+	private SceneUniforms mShadowUniforms; // CPU-side shadow uniforms
+	private uint64 mAlignedSceneUniformSize; // Aligned size for dynamic uniform offset
+
 	/// Feature name.
 	public override StringView Name => "ForwardOpaque";
 
@@ -89,6 +99,10 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 		// Create forward pipelines
 		if (CreateForwardPipelines() case .Err)
+			return .Err;
+
+		// Create shadow depth pipeline
+		if (CreateShadowPipeline() case .Err)
 			return .Err;
 
 		return .Ok;
@@ -176,6 +190,132 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		return .Ok;
 	}
 
+	private Result<void> CreateShadowPipeline()
+	{
+		// Skip if shader system not initialized
+		if (Renderer.ShaderSystem == null)
+			return .Ok;
+
+		// Load depth shaders for shadow rendering
+		let shaderResult = Renderer.ShaderSystem.GetShaderPair("depth", .DepthTest | .DepthWrite);
+		if (shaderResult case .Err)
+			return .Ok; // Shaders not available yet
+
+		let (vertShader, fragShader) = shaderResult.Value;
+
+		// Create shadow bind group layout: light VP (b0, dynamic) + object transforms (b1, dynamic)
+		// Both use dynamic offset: b0 selects cascade VP, b1 selects object transforms
+		BindGroupLayoutEntry[2] shadowEntries = .(
+			.() { Binding = 0, Visibility = .Vertex, Type = .UniformBuffer, HasDynamicOffset = true }, // Light ViewProjectionMatrix (per cascade)
+			.() { Binding = 1, Visibility = .Vertex, Type = .UniformBuffer, HasDynamicOffset = true } // Object transforms
+		);
+
+		BindGroupLayoutDescriptor shadowLayoutDesc = .()
+		{
+			Label = "Shadow BindGroup Layout",
+			Entries = shadowEntries
+		};
+
+		switch (Renderer.Device.CreateBindGroupLayout(&shadowLayoutDesc))
+		{
+		case .Ok(let layout): mShadowBindGroupLayout = layout;
+		case .Err: return .Err;
+		}
+
+		// Create shadow pipeline layout
+		IBindGroupLayout[1] layouts = .(mShadowBindGroupLayout);
+		PipelineLayoutDescriptor layoutDesc = .(layouts);
+		switch (Renderer.Device.CreatePipelineLayout(&layoutDesc))
+		{
+		case .Ok(let layout): mShadowPipelineLayout = layout;
+		case .Err: return .Err;
+		}
+
+		// Create shadow uniform buffer large enough for 4 cascades with alignment
+		// Each cascade needs SceneUniforms aligned to 256 bytes
+		// Use Upload memory for CPU mapping (avoids command buffer for writes)
+		const uint64 AlignedSceneUniformSize = ((SceneUniforms.Size + 255) / 256) * 256; // 256-byte aligned
+		BufferDescriptor uniformDesc = .()
+		{
+			Size = AlignedSceneUniformSize * 4, // 4 cascades
+			Usage = .Uniform,
+			MemoryAccess = .Upload // CPU-mappable
+		};
+		switch (Renderer.Device.CreateBuffer(&uniformDesc))
+		{
+		case .Ok(let buf): mShadowUniformBuffer = buf;
+		case .Err: return .Err;
+		}
+
+		// Initialize shadow uniforms
+		mShadowUniforms = .Identity;
+		mAlignedSceneUniformSize = AlignedSceneUniformSize;
+
+		// Create shadow object buffer with Upload memory for CPU mapping
+		BufferDescriptor objDesc = .()
+		{
+			Size = AlignedObjectUniformSize * MaxObjectsPerFrame,
+			Usage = .Uniform,
+			MemoryAccess = .Upload // CPU-mappable
+		};
+		switch (Renderer.Device.CreateBuffer(&objDesc))
+		{
+		case .Ok(let buf): mShadowObjectBuffer = buf;
+		case .Err: return .Err;
+		}
+
+		// Vertex layout
+		VertexBufferLayout[1] vertexBuffers = .(
+			VertexLayoutHelper.CreateBufferLayout(.Mesh)
+		);
+
+		// Shadow depth pipeline - depth only output
+		RenderPipelineDescriptor pipelineDesc = .()
+		{
+			Label = "Shadow Depth Pipeline",
+			Layout = mShadowPipelineLayout,
+			Vertex = .()
+			{
+				Shader = .(vertShader.Module, "main"),
+				Buffers = vertexBuffers
+			},
+			Fragment = .()
+			{
+				Shader = .(fragShader.Module, "main"),
+				Targets = default // No color targets
+			},
+			Primitive = .()
+			{
+				Topology = .TriangleList,
+				FrontFace = .CCW,
+				CullMode = .Back
+			},
+			DepthStencil = .()
+			{
+				DepthTestEnabled = true,
+				DepthWriteEnabled = true,
+				DepthCompare = .Less,
+				Format = .Depth32Float // Match shadow map format
+			},
+			Multisample = .()
+			{
+				Count = 1,
+				Mask = uint32.MaxValue
+			}
+		};
+
+		switch (Renderer.Device.CreateRenderPipeline(&pipelineDesc))
+		{
+		case .Ok(let pipeline): mShadowDepthPipeline = pipeline;
+		case .Err: return .Err;
+		}
+
+		// Create shadow bind group
+		CreateShadowBindGroup();
+
+		return .Ok;
+	}
+
 	protected override void OnShutdown()
 	{
 		// Clear pipeline cache
@@ -187,6 +327,12 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		{
 			delete mSceneBindGroup;
 			mSceneBindGroup = null;
+		}
+
+		if (mShadowBindGroup != null)
+		{
+			delete mShadowBindGroup;
+			mShadowBindGroup = null;
 		}
 
 		if (mLighting != null)
@@ -216,8 +362,9 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		// Update lighting
 		UpdateLighting(world, depthFeature.Visibility, view);
 
-		// Add shadow passes
-		AddShadowPasses(graph, world, depthFeature.Visibility, view);
+		// Add shadow passes and get shadow map handle for automatic barrier
+		RGResourceHandle shadowMapHandle = .Invalid;
+		AddShadowPasses(graph, world, depthFeature.Visibility, view, out shadowMapHandle);
 
 		// Create/update scene bind group (needs to be done each frame for frame-specific resources)
 		CreateSceneBindGroup();
@@ -226,51 +373,61 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		PrepareObjectUniforms(depthFeature);
 
 		// Add forward opaque pass
-		graph.AddGraphicsPass("ForwardOpaque")
+		// ReadTexture on shadow map triggers automatic barrier: DepthStencil -> ShaderReadOnly
+		var passBuilder = graph.AddGraphicsPass("ForwardOpaque")
 			.WriteColor(colorHandle, .Clear, .Store, .(0.0f, 0.0f, 0.0f, 1.0f))
 			.ReadDepth(depthHandle)
-			.NeverCull()
-			.SetExecuteCallback(new (encoder) => {
-				ExecuteForwardPass(encoder, world, view, depthFeature);
-			});
+			.NeverCull();
+
+		// Add shadow map as read dependency if available (triggers automatic barrier)
+		if (shadowMapHandle.IsValid)
+			passBuilder.ReadTexture(shadowMapHandle);
+
+		passBuilder.SetExecuteCallback(new (encoder) => {
+			ExecuteForwardPass(encoder, world, view, depthFeature);
+		});
 	}
 
 	private void PrepareObjectUniforms(DepthPrepassFeature depthFeature)
 	{
 		// Upload all object transforms to the uniform buffer BEFORE the render pass
+		// Use Map/Unmap to avoid command buffer creation
 		let commands = depthFeature.[Friend]mBatcher.DrawCommands;
 
-		int32 objectIndex = 0;
-		for (let batch in depthFeature.[Friend]mBatcher.OpaqueBatches)
+		if (let bufferPtr = mObjectUniformBuffer.Map())
 		{
-			if (batch.CommandCount == 0)
-				continue;
-
-			for (int32 i = 0; i < batch.CommandCount; i++)
+			int32 objectIndex = 0;
+			for (let batch in depthFeature.[Friend]mBatcher.OpaqueBatches)
 			{
-				if (objectIndex >= MaxObjectsPerFrame)
-					break;
+				if (batch.CommandCount == 0)
+					continue;
 
-				let cmd = commands[batch.CommandStart + i];
-
-				// Build object uniforms from draw command
-				ObjectUniforms objUniforms = .()
+				for (int32 i = 0; i < batch.CommandCount; i++)
 				{
-					WorldMatrix = cmd.WorldMatrix,
-					PrevWorldMatrix = cmd.PrevWorldMatrix,
-					NormalMatrix = cmd.NormalMatrix,
-					ObjectID = (uint32)objectIndex,
-					MaterialID = 0,
-					_Padding = .(0, 0)
-				};
+					if (objectIndex >= MaxObjectsPerFrame)
+						break;
 
-				// Upload to buffer at aligned offset
-				let bufferOffset = (uint64)objectIndex * AlignedObjectUniformSize;
-				Renderer.Device.Queue.WriteBuffer(mObjectUniformBuffer, bufferOffset,
-					Span<uint8>((uint8*)&objUniforms, (int)ObjectUniforms.Size));
+					let cmd = commands[batch.CommandStart + i];
 
-				objectIndex++;
+					// Build object uniforms from draw command
+					ObjectUniforms objUniforms = .()
+					{
+						WorldMatrix = cmd.WorldMatrix,
+						PrevWorldMatrix = cmd.PrevWorldMatrix,
+						NormalMatrix = cmd.NormalMatrix,
+						ObjectID = (uint32)objectIndex,
+						MaterialID = 0,
+						_Padding = .(0, 0)
+					};
+
+					// Copy to mapped buffer at aligned offset
+					let bufferOffset = (uint64)objectIndex * AlignedObjectUniformSize;
+					Internal.MemCpy((uint8*)bufferPtr + bufferOffset, &objUniforms, ObjectUniforms.Size);
+
+					objectIndex++;
+				}
 			}
+			mObjectUniformBuffer.Unmap();
 		}
 	}
 
@@ -338,41 +495,148 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		}
 	}
 
-	private void AddShadowPasses(RenderGraph graph, RenderWorld world, VisibilityResolver visibility, RenderView view)
+	private static bool sShadowDebugPrinted = false;
+
+	private void AddShadowPasses(RenderGraph graph, RenderWorld world, VisibilityResolver visibility, RenderView view, out RGResourceHandle outShadowMapHandle)
 	{
+		outShadowMapHandle = .Invalid;
+
 		if (!mShadowRenderer.EnableShadows)
 			return;
 
-		// Get camera proxy for CSM
-		CameraProxy* camera = null;
-		for (let mesh in visibility.VisibleMeshes)
-		{
-			// Would get camera from view
-			break;
-		}
+		if (!mShadowRenderer.IsInitialized)
+			return;
+
+		// Create camera proxy from RenderView for CSM calculations
+		let target = view.CameraPosition + view.CameraForward;
+		var camera = CameraProxy.CreatePerspective(
+			view.CameraPosition,
+			target,
+			view.CameraUp,
+			view.FieldOfView,
+			view.AspectRatio,
+			view.NearPlane,
+			view.FarPlane
+		);
 
 		// Update shadow renderer
-		mShadowRenderer.Update(world, visibility, camera);
+		mShadowRenderer.Update(world, visibility, &camera);
 
 		// Get shadow passes
 		List<ShadowPass> shadowPasses = scope .();
 		mShadowRenderer.GetShadowPasses(shadowPasses);
 
+		if (shadowPasses.Count == 0)
+			return;
+
+		// Debug output (once)
+		if (!sShadowDebugPrinted)
+		{
+			sShadowDebugPrinted = true;
+			Console.WriteLine("[Shadow] Adding {} shadow passes", shadowPasses.Count);
+		}
+
+		// Upload all shadow uniforms BEFORE adding passes (avoid WriteBuffer during render pass)
+		PrepareShadowUniforms(world, visibility, shadowPasses);
+
+		// Import the shadow map array once with a common name for barrier tracking
+		// This handle will be used by the forward pass to trigger automatic barrier
+		let cascadedShadowMap = mShadowRenderer.CascadedShadows?.ShadowMapArray;
+		let cascadedShadowMapView = mShadowRenderer.CascadedShadows?.ShadowMapArrayView;
+		if (cascadedShadowMap != null && cascadedShadowMapView != null)
+		{
+			outShadowMapHandle = graph.ImportTexture("ShadowMap", cascadedShadowMap, cascadedShadowMapView);
+		}
+
 		// Add each shadow pass
+		int32 cascadeIndex = 0;
 		for (let shadowPass in shadowPasses)
 		{
 			String passName = scope $"Shadow_{shadowPass.Type}_{shadowPass.CascadeIndex}";
 
-			// Import shadow render target
-			let shadowTarget = graph.ImportTexture(passName, null, shadowPass.RenderTarget);
+			// Get the actual texture based on pass type
+			ITexture shadowTexture = null;
+			switch (shadowPass.Type)
+			{
+			case .Cascade:
+				shadowTexture = mShadowRenderer.CascadedShadows?.ShadowMapArray;
+			case .AtlasTile, .PointLightFace:
+				shadowTexture = mShadowRenderer.ShadowAtlas?.AtlasTexture;
+			}
 
-			// Copy shadow pass for closure
+			if (shadowTexture == null || shadowPass.RenderTarget == null)
+				continue;
+
+			// Import shadow render target with actual texture
+			let shadowTarget = graph.ImportTexture(passName, shadowTexture, shadowPass.RenderTarget);
+
+			// Copy shadow pass and cascade index for closure
 			ShadowPass passCopy = shadowPass;
+			int32 cascadeIdx = cascadeIndex;
 			graph.AddGraphicsPass(passName)
 				.WriteDepth(shadowTarget)
+				.NeverCull() // Shadow maps are used externally by forward pass
 				.SetExecuteCallback(new (encoder) => {
-					ExecuteShadowPass(encoder, world, visibility, passCopy);
+					ExecuteShadowPass(encoder, world, visibility, passCopy, cascadeIdx);
 				});
+
+			cascadeIndex++;
+		}
+	}
+
+	// Store shadow passes for VP lookup during execution
+	private List<ShadowPass> mCurrentShadowPasses = new .() ~ delete _;
+
+	private void PrepareShadowUniforms(RenderWorld world, VisibilityResolver visibility, List<ShadowPass> shadowPasses)
+	{
+		// Store shadow passes for VP lookup during cascade rendering
+		mCurrentShadowPasses.Clear();
+		for (let pass in shadowPasses)
+			mCurrentShadowPasses.Add(pass);
+
+		// Map shadow uniform buffer and write cascade VPs directly (no command buffers needed)
+		if (let uniformPtr = mShadowUniformBuffer.Map())
+		{
+			for (int32 i = 0; i < shadowPasses.Count && i < 4; i++)
+			{
+				mShadowUniforms.ViewProjectionMatrix = shadowPasses[i].ViewProjection;
+				let offset = (uint64)i * mAlignedSceneUniformSize;
+				Internal.MemCpy((uint8*)uniformPtr + offset, &mShadowUniforms, SceneUniforms.Size);
+			}
+			mShadowUniformBuffer.Unmap();
+		}
+
+		// Map shadow object buffer and write transforms directly
+		if (let objectPtr = mShadowObjectBuffer.Map())
+		{
+			int32 objectIndex = 0;
+			for (let visibleMesh in visibility.VisibleMeshes)
+			{
+				if (objectIndex >= MaxObjectsPerFrame)
+					break;
+
+				if (let proxy = world.GetMesh(visibleMesh.Handle))
+				{
+					if (!proxy.CastsShadows)
+						continue;
+
+					ObjectUniforms objUniforms = .()
+					{
+						WorldMatrix = proxy.WorldMatrix,
+						PrevWorldMatrix = proxy.PrevWorldMatrix,
+						NormalMatrix = proxy.NormalMatrix,
+						ObjectID = (uint32)objectIndex,
+						MaterialID = 0,
+						_Padding = default
+					};
+
+					let offset = (uint64)objectIndex * AlignedObjectUniformSize;
+					Internal.MemCpy((uint8*)objectPtr + offset, &objUniforms, ObjectUniforms.Size);
+
+					objectIndex++;
+				}
+			}
+			mShadowObjectBuffer.Unmap();
 		}
 	}
 
@@ -416,10 +680,12 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 	private Result<void> CreateObjectUniformBuffer()
 	{
 		// Create object uniform buffer large enough for MaxObjectsPerFrame with alignment
+		// Use Upload memory for CPU mapping (avoids command buffer for writes)
 		var bufferDesc = BufferDescriptor()
 		{
 			Size = AlignedObjectUniformSize * MaxObjectsPerFrame,
-			Usage = .Uniform | .CopyDst
+			Usage = .Uniform,
+			MemoryAccess = .Upload // CPU-mappable
 		};
 
 		switch (Renderer.Device.CreateBuffer(&bufferDesc))
@@ -477,20 +743,29 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		// t6: LightIndices storage buffer
 		entries[5] = BindGroupEntry.Buffer(6, lightIndexBuffer, 0, (uint64)(mLighting.ClusterGrid.Config.MaxLightsPerCluster * mLighting.ClusterGrid.Config.TotalClusters * 4));
 
-		// b5: Shadow uniforms (use lighting buffer as fallback - shadows not yet working)
-		entries[6] = BindGroupEntry.Buffer(5, lightingBuffer, 0, (uint64)LightingUniforms.Size);
-
-		// t7: Shadow map texture - use depth texture fallback (shadows disabled for now)
-		// Note: Comparison sampler requires depth format texture
+		// Get shadow resources from ShadowRenderer
+		let shadowData = mShadowRenderer.GetShadowShaderData();
 		let materialSystem = Renderer.MaterialSystem;
-		if (materialSystem?.DepthTexture != null)
-			entries[7] = BindGroupEntry.Texture(7, materialSystem.DepthTexture);
+
+		// b5: Shadow uniforms
+		if (shadowData.CascadedShadowUniforms != null)
+			entries[6] = BindGroupEntry.Buffer(5, shadowData.CascadedShadowUniforms, 0, (uint64)ShadowUniforms.Size);
+		else
+			entries[6] = BindGroupEntry.Buffer(5, lightingBuffer, 0, (uint64)LightingUniforms.Size); // Fallback
+
+		// t7: Shadow map texture (cascaded shadow map array)
+		if (shadowData.CascadedShadowMapView != null)
+			entries[7] = BindGroupEntry.Texture(7, shadowData.CascadedShadowMapView);
+		else if (materialSystem?.DepthTexture != null)
+			entries[7] = BindGroupEntry.Texture(7, materialSystem.DepthTexture); // Fallback
 		else
 			return; // Can't create without texture
 
-		// s1: Shadow sampler - use default sampler
-		if (materialSystem?.DefaultSampler != null)
-			entries[8] = BindGroupEntry.Sampler(1, materialSystem.DefaultSampler);
+		// s1: Shadow sampler (comparison sampler for PCF)
+		if (shadowData.CascadedShadowSampler != null)
+			entries[8] = BindGroupEntry.Sampler(1, shadowData.CascadedShadowSampler);
+		else if (materialSystem?.DefaultSampler != null)
+			entries[8] = BindGroupEntry.Sampler(1, materialSystem.DefaultSampler); // Fallback
 		else
 			return; // Can't create without sampler
 
@@ -601,8 +876,12 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		}
 	}
 
-	private void ExecuteShadowPass(IRenderPassEncoder encoder, RenderWorld world, VisibilityResolver visibility, ShadowPass shadowPass)
+	private void ExecuteShadowPass(IRenderPassEncoder encoder, RenderWorld world, VisibilityResolver visibility, ShadowPass shadowPass, int32 cascadeIndex)
 	{
+		// Skip if no pipeline or bind group
+		if (mShadowDepthPipeline == null || mShadowBindGroup == null)
+			return;
+
 		// Set viewport for shadow map tile
 		encoder.SetViewport(
 			(float)shadowPass.Viewport.X,
@@ -619,9 +898,19 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			(uint32)shadowPass.Viewport.Height
 		);
 
-		// Render shadow casters
+		// Set shadow pipeline
+		encoder.SetPipeline(mShadowDepthPipeline);
+
+		// Calculate cascade VP offset (for dynamic uniform binding 0)
+		uint32 cascadeVPOffset = (uint32)((int64)cascadeIndex * (int64)mAlignedSceneUniformSize);
+
+		// Render shadow casters (object transforms already uploaded in PrepareShadowUniforms)
+		int32 objectIndex = 0;
 		for (let visibleMesh in visibility.VisibleMeshes)
 		{
+			if (objectIndex >= MaxObjectsPerFrame)
+				break;
+
 			if (let proxy = world.GetMesh(visibleMesh.Handle))
 			{
 				if (!proxy.CastsShadows)
@@ -629,6 +918,12 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 				if (let mesh = Renderer.ResourceManager.GetMesh(proxy.MeshHandle))
 				{
+					// Two dynamic offsets: [0] = cascade VP, [1] = object transforms
+					uint32 objectOffset = (uint32)((int64)objectIndex * (int64)AlignedObjectUniformSize);
+					uint32[2] dynamicOffsets = .(cascadeVPOffset, objectOffset);
+					encoder.SetBindGroup(0, mShadowBindGroup, dynamicOffsets);
+
+					// Bind vertex/index buffers and draw
 					encoder.SetVertexBuffer(0, mesh.VertexBuffer, 0);
 					if (mesh.IndexBuffer != null)
 					{
@@ -641,8 +936,36 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 					}
 
 					Renderer.Stats.ShadowDrawCalls++;
+					objectIndex++;
 				}
 			}
 		}
+	}
+
+	private void CreateShadowBindGroup()
+	{
+		// Only create once
+		if (mShadowBindGroup != null)
+			return;
+
+		if (mShadowBindGroupLayout == null || mShadowUniformBuffer == null || mShadowObjectBuffer == null)
+			return;
+
+		// Create bind group entries
+		// For dynamic uniform buffers, size is the per-element size that dynamic offset selects
+		BindGroupEntry[2] entries = .(
+			BindGroupEntry.Buffer(0, mShadowUniformBuffer, 0, mAlignedSceneUniformSize), // Per-cascade VP (dynamic)
+			BindGroupEntry.Buffer(1, mShadowObjectBuffer, 0, AlignedObjectUniformSize)   // Per-object transforms (dynamic)
+		);
+
+		BindGroupDescriptor bgDesc = .()
+		{
+			Label = "Shadow BindGroup",
+			Layout = mShadowBindGroupLayout,
+			Entries = entries
+		};
+
+		if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bg))
+			mShadowBindGroup = bg;
 	}
 }
