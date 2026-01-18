@@ -255,9 +255,12 @@ public class SkyFeature : RenderFeatureBase
 		UpdateSkyParams();
 
 		// Add sky rendering pass
+		// Note: Must be NeverCull because render graph culling only preserves FirstWriter,
+		// and ForwardOpaque is the first writer of SceneColor
 		graph.AddGraphicsPass("Sky")
 			.WriteColor(colorHandle, .Load, .Store) // Blend sky into existing color
 			.ReadDepth(depthHandle) // Use depth for sky masking
+			.NeverCull() // Don't cull - sky renders in background
 			.SetExecuteCallback(new (encoder) => {
 				ExecuteSkyPass(encoder, view);
 			});
