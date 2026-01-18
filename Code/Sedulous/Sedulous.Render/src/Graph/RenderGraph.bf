@@ -36,6 +36,9 @@ struct TextureKey : IHashable
 /// Render graph that manages pass dependencies and resource lifetimes.
 public class RenderGraph : IDisposable
 {
+	/// Enable verbose logging for layout tracking and barriers.
+	private const bool DebugLogLayouts = false;
+
 	private IDevice mDevice;
 
 	// Resources - uses slot-based system where removed resources leave null holes
@@ -730,13 +733,24 @@ public class RenderGraph : IDisposable
 				if (resource.Type == .Texture && resource.Texture != null)
 				{
 					let currentLayout = GetTextureLayout(resource.Texture);
+					if (DebugLogLayouts)
+						Console.WriteLine("[Barrier] Pass '{}' reading '{}': current={}, need=ShaderReadOnly",
+							pass.Name, resource.Name, currentLayout);
 					if (currentLayout != .ShaderReadOnly)
 					{
 						let oldLayout = ToTextureLayout(currentLayout);
+						if (DebugLogLayouts)
+							Console.WriteLine("[Barrier]   Issuing barrier: {} -> ShaderReadOnly", oldLayout);
 						commandEncoder.TextureBarrier(resource.Texture, oldLayout, .ShaderReadOnly);
 						SetTextureLayout(resource.Texture, .ShaderReadOnly);
 					}
 				}
+			}
+			else
+			{
+				if (DebugLogLayouts)
+					Console.WriteLine("[Barrier] Pass '{}' reading handle {},{}: RESOURCE NOT FOUND",
+						pass.Name, handle.Index, handle.Generation);
 			}
 		}
 
@@ -764,12 +778,60 @@ public class RenderGraph : IDisposable
 	}
 
 	/// Updates resource layouts after a pass has executed.
-	/// Layout tracking is done at the texture level in InsertBarriersForPass,
-	/// so this method is now a no-op (kept for potential future use).
+	/// This is critical for tracking the finalLayout of render pass attachments,
+	/// which Vulkan transitions automatically at the end of the render pass.
 	private void UpdateLayoutsAfterPass(RenderPass pass)
 	{
-		// Layout updates are now done in InsertBarriersForPass using texture-level tracking.
-		// This method is kept for potential future use (e.g., debug validation).
+		// Update depth attachment layout - render pass leaves it in DepthStencilAttachment
+		if (pass.DepthStencil.HasValue)
+		{
+			let depthAtt = pass.DepthStencil.Value;
+			if (let resource = GetResourceByHandle(depthAtt.Handle))
+			{
+				if (resource.Type == .Texture && resource.Texture != null)
+				{
+					if (DebugLogLayouts)
+						Console.WriteLine("[Layout] Pass '{}' depth '{}': setting to DepthStencilAttachment",
+							pass.Name, resource.Name);
+					SetTextureLayout(resource.Texture, .DepthStencilAttachment);
+				}
+			}
+		}
+
+		// Update color attachment layouts
+		// Swapchain textures are transitioned to Present by the render pass finalLayout
+		// Non-swapchain textures stay in ColorAttachment
+		for (let attachment in pass.ColorAttachments)
+		{
+			if (let resource = GetResourceByHandle(attachment.Handle))
+			{
+				if (resource.Type == .Texture && resource.Texture != null)
+				{
+					// Check if this is a present target (swapchain)
+					bool isPresentTarget = false;
+					for (let presentHandle in mPresentTargets)
+					{
+						if (presentHandle.Index == attachment.Handle.Index &&
+							presentHandle.Generation == attachment.Handle.Generation)
+						{
+							isPresentTarget = true;
+							break;
+						}
+					}
+
+					if (isPresentTarget)
+					{
+						// Swapchain textures are transitioned to Present by the render pass
+						SetTextureLayout(resource.Texture, .Present);
+					}
+					else
+					{
+						// Non-swapchain color attachments stay in ColorAttachment
+						SetTextureLayout(resource.Texture, .ColorAttachment);
+					}
+				}
+			}
+		}
 	}
 
 	/// Converts ResourceLayoutState to RHI TextureLayout.

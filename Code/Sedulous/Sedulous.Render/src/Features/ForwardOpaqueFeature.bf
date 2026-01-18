@@ -62,6 +62,10 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 	private SceneUniforms mShadowUniforms; // CPU-side shadow uniforms
 	private uint64 mAlignedSceneUniformSize; // Aligned size for dynamic uniform offset
 
+	// Dummy shadow map array for when shadows are disabled
+	private ITexture mDummyShadowMapArray ~ delete _;
+	private ITextureView mDummyShadowMapArrayView ~ delete _;
+
 	/// Feature name.
 	public override StringView Name => "ForwardOpaque";
 
@@ -105,10 +109,15 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		if (CreateShadowPipeline() case .Err)
 			return .Err;
 
+		// Create dummy shadow map for when shadows are disabled
+		if (CreateDummyShadowMap() case .Err)
+			return .Err;
+
 		return .Ok;
 	}
 
-	private IRenderPipeline mForwardPipeline ~ delete _;
+	private IRenderPipeline mForwardPipeline ~ delete _;          // No shadows variant
+	private IRenderPipeline mForwardShadowPipeline ~ delete _;    // With shadows variant
 	private IPipelineLayout mForwardPipelineLayout ~ delete _;
 
 	private Result<void> CreateForwardPipelines()
@@ -117,19 +126,12 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		if (Renderer.ShaderSystem == null)
 			return .Ok;
 
-		// Load forward shaders with default opaque flags (no NormalMap since StaticMesh has no tangents)
-		let shaderResult = Renderer.ShaderSystem.GetShaderPair("forward", .DefaultOpaque);
-		if (shaderResult case .Err)
-			return .Ok; // Shaders not available yet
-
-		let (vertShader, fragShader) = shaderResult.Value;
-
 		// Get material bind group layout from MaterialSystem
 		let materialLayout = Renderer.MaterialSystem?.DefaultMaterialLayout;
 		if (materialLayout == null)
 			return .Ok; // MaterialSystem not initialized yet
 
-		// Create pipeline layout
+		// Create pipeline layout (shared by both variants)
 		IBindGroupLayout[2] layouts = .(mSceneBindGroupLayout, materialLayout);
 		PipelineLayoutDescriptor layoutDesc = .(layouts);
 		switch (Renderer.Device.CreatePipelineLayout(&layoutDesc))
@@ -148,43 +150,100 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			.(.RGBA16Float)
 		);
 
-		RenderPipelineDescriptor pipelineDesc = .()
+		// --- Create non-shadow pipeline variant ---
 		{
-			Label = "Forward Opaque Pipeline",
-			Layout = mForwardPipelineLayout,
-			Vertex = .()
-			{
-				Shader = .(vertShader.Module, "main"),
-				Buffers = vertexBuffers
-			},
-			Fragment = .()
-			{
-				Shader = .(fragShader.Module, "main"),
-				Targets = colorTargets
-			},
-			Primitive = .()
-			{
-				Topology = .TriangleList,
-				FrontFace = .CCW,
-				CullMode = .Back
-			},
-			DepthStencil = .() // Depth test with equal, no write
-			{
-				DepthTestEnabled = true,
-				DepthWriteEnabled = false,
-				DepthCompare = .LessEqual
-			},
-			Multisample = .()
-			{
-				Count = 1,
-				Mask = uint32.MaxValue
-			}
-		};
+			let shaderResult = Renderer.ShaderSystem.GetShaderPair("forward", .DepthTest | .DepthWrite);
+			if (shaderResult case .Err)
+				return .Ok; // Shaders not available yet
 
-		switch (Renderer.Device.CreateRenderPipeline(&pipelineDesc))
+			let (vertShader, fragShader) = shaderResult.Value;
+
+			RenderPipelineDescriptor pipelineDesc = .()
+			{
+				Label = "Forward Opaque Pipeline (No Shadows)",
+				Layout = mForwardPipelineLayout,
+				Vertex = .()
+				{
+					Shader = .(vertShader.Module, "main"),
+					Buffers = vertexBuffers
+				},
+				Fragment = .()
+				{
+					Shader = .(fragShader.Module, "main"),
+					Targets = colorTargets
+				},
+				Primitive = .()
+				{
+					Topology = .TriangleList,
+					FrontFace = .CCW,
+					CullMode = .Back
+				},
+				DepthStencil = .() // Depth test with equal, no write
+				{
+					DepthTestEnabled = true,
+					DepthWriteEnabled = false,
+					DepthCompare = .LessEqual
+				},
+				Multisample = .()
+				{
+					Count = 1,
+					Mask = uint32.MaxValue
+				}
+			};
+
+			switch (Renderer.Device.CreateRenderPipeline(&pipelineDesc))
+			{
+			case .Ok(let pipeline): mForwardPipeline = pipeline;
+			case .Err: return .Err;
+			}
+		}
+
+		// --- Create shadow-receiving pipeline variant ---
 		{
-		case .Ok(let pipeline): mForwardPipeline = pipeline;
-		case .Err: return .Err;
+			let shaderResult = Renderer.ShaderSystem.GetShaderPair("forward", .DefaultOpaque);
+			if (shaderResult case .Err)
+				return .Ok; // Shaders not available yet (will use non-shadow variant)
+
+			let (vertShader, fragShader) = shaderResult.Value;
+
+			RenderPipelineDescriptor pipelineDesc = .()
+			{
+				Label = "Forward Opaque Pipeline (With Shadows)",
+				Layout = mForwardPipelineLayout,
+				Vertex = .()
+				{
+					Shader = .(vertShader.Module, "main"),
+					Buffers = vertexBuffers
+				},
+				Fragment = .()
+				{
+					Shader = .(fragShader.Module, "main"),
+					Targets = colorTargets
+				},
+				Primitive = .()
+				{
+					Topology = .TriangleList,
+					FrontFace = .CCW,
+					CullMode = .Back
+				},
+				DepthStencil = .() // Depth test with equal, no write
+				{
+					DepthTestEnabled = true,
+					DepthWriteEnabled = false,
+					DepthCompare = .LessEqual
+				},
+				Multisample = .()
+				{
+					Count = 1,
+					Mask = uint32.MaxValue
+				}
+			};
+
+			switch (Renderer.Device.CreateRenderPipeline(&pipelineDesc))
+			{
+			case .Ok(let pipeline): mForwardShadowPipeline = pipeline;
+			case .Err: return .Err;
+			}
 		}
 
 		return .Ok;
@@ -316,6 +375,134 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		return .Ok;
 	}
 
+	private Result<void> CreateDummyShadowMap()
+	{
+		// Create a small 4x4 depth array texture with 4 layers for use when shadows are disabled
+		// This satisfies the shader's expectation of Texture2DArray for ShadowMap
+		// Using 4x4 instead of 1x1 to avoid sampling artifacts with comparison sampler
+		TextureDescriptor texDesc = .()
+		{
+			Label = "Dummy Shadow Map Array",
+			Dimension = .Texture2D,
+			Width = 4,
+			Height = 4,
+			Depth = 1,
+			Format = .Depth32Float,
+			MipLevelCount = 1,
+			ArrayLayerCount = 4, // Match cascade count
+			SampleCount = 1,
+			Usage = .DepthStencil | .Sampled
+		};
+
+		switch (Renderer.Device.CreateTexture(&texDesc))
+		{
+		case .Ok(let tex): mDummyShadowMapArray = tex;
+		case .Err: return .Err;
+		}
+
+		// Create array view for sampling
+		TextureViewDescriptor viewDesc = .()
+		{
+			Label = "Dummy Shadow Map Array View",
+			Format = .Depth32Float,
+			Dimension = .Texture2DArray,
+			BaseMipLevel = 0,
+			MipLevelCount = 1,
+			BaseArrayLayer = 0,
+			ArrayLayerCount = 4,
+			Aspect = .DepthOnly
+		};
+
+		switch (Renderer.Device.CreateTextureView(mDummyShadowMapArray, &viewDesc))
+		{
+		case .Ok(let view): mDummyShadowMapArrayView = view;
+		case .Err: return .Err;
+		}
+
+		// Initialize to max depth (1.0 = fully lit, no shadow) via a clear render pass
+		// This transitions the texture out of UNDEFINED layout
+		ClearDummyShadowMap();
+
+		return .Ok;
+	}
+
+	private void ClearDummyShadowMap()
+	{
+		if (mDummyShadowMapArray == null)
+			return;
+
+		// Create temporary views for all layers
+		ITextureView[4] layerViews = .(null, null, null, null);
+		defer
+		{
+			for (let view in layerViews)
+				if (view != null)
+					delete view;
+		}
+
+		for (uint32 layer = 0; layer < 4; layer++)
+		{
+			TextureViewDescriptor layerViewDesc = .()
+			{
+				Label = "Dummy Shadow Layer View",
+				Format = .Depth32Float,
+				Dimension = .Texture2D,
+				BaseMipLevel = 0,
+				MipLevelCount = 1,
+				BaseArrayLayer = layer,
+				ArrayLayerCount = 1,
+				Aspect = .DepthOnly
+			};
+
+			if (Renderer.Device.CreateTextureView(mDummyShadowMapArray, &layerViewDesc) case .Ok(let view))
+				layerViews[layer] = view;
+		}
+
+		// Use a single command encoder to clear all layers and transition
+		let encoder = Renderer.Device.CreateCommandEncoder();
+		if (encoder == null)
+			return;
+		defer delete encoder;
+
+		// Clear each layer with a render pass
+		for (uint32 layer = 0; layer < 4; layer++)
+		{
+			if (layerViews[layer] == null)
+				continue;
+
+			RenderPassDescriptor rpDesc = .()
+			{
+				Label = "Clear Dummy Shadow Layer",
+				DepthStencilAttachment = .()
+				{
+					View = layerViews[layer],
+					DepthLoadOp = .Clear,
+					DepthStoreOp = .Store,
+					DepthClearValue = 1.0f // Max depth = no shadow
+				}
+			};
+
+			let pass = encoder.BeginRenderPass(&rpDesc);
+			if (pass != null)
+			{
+				pass.End();
+				delete pass;
+			}
+		}
+
+		// Transition whole texture to ShaderReadOnly after all clears
+		encoder.TextureBarrier(mDummyShadowMapArray, .DepthStencilAttachment, .ShaderReadOnly);
+
+		let cmdBuffer = encoder.Finish();
+		if (cmdBuffer != null)
+		{
+			Renderer.Device.Queue.Submit(cmdBuffer);
+			// Wait for GPU to finish before we delete the views
+			Renderer.Device.WaitIdle();
+			delete cmdBuffer;
+		}
+	}
+
 	protected override void OnShutdown()
 	{
 		// Clear pipeline cache
@@ -422,6 +609,8 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 					// Copy to mapped buffer at aligned offset
 					let bufferOffset = (uint64)objectIndex * AlignedObjectUniformSize;
+					// Bounds check against actual buffer size
+					Runtime.Assert(bufferOffset + ObjectUniforms.Size <= mObjectUniformBuffer.Size, scope $"Object uniform write (offset {bufferOffset} + size {ObjectUniforms.Size}) exceeds buffer size ({mObjectUniformBuffer.Size})");
 					Internal.MemCpy((uint8*)bufferPtr + bufferOffset, &objUniforms, ObjectUniforms.Size);
 
 					objectIndex++;
@@ -601,6 +790,8 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			{
 				mShadowUniforms.ViewProjectionMatrix = shadowPasses[i].ViewProjection;
 				let offset = (uint64)i * mAlignedSceneUniformSize;
+				// Bounds check against actual buffer size
+				Runtime.Assert(offset + SceneUniforms.Size <= mShadowUniformBuffer.Size, scope $"Shadow uniform write (offset {offset} + size {SceneUniforms.Size}) exceeds buffer size ({mShadowUniformBuffer.Size})");
 				Internal.MemCpy((uint8*)uniformPtr + offset, &mShadowUniforms, SceneUniforms.Size);
 			}
 			mShadowUniformBuffer.Unmap();
@@ -631,6 +822,8 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 					};
 
 					let offset = (uint64)objectIndex * AlignedObjectUniformSize;
+					// Bounds check against actual buffer size
+					Runtime.Assert(offset + ObjectUniforms.Size <= mShadowObjectBuffer.Size, scope $"Shadow object uniform write (offset {offset} + size {ObjectUniforms.Size}) exceeds buffer size ({mShadowObjectBuffer.Size})");
 					Internal.MemCpy((uint8*)objectPtr + offset, &objUniforms, ObjectUniforms.Size);
 
 					objectIndex++;
@@ -743,25 +936,28 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		// t6: LightIndices storage buffer
 		entries[5] = BindGroupEntry.Buffer(6, lightIndexBuffer, 0, (uint64)(mLighting.ClusterGrid.Config.MaxLightsPerCluster * mLighting.ClusterGrid.Config.TotalClusters * 4));
 
-		// Get shadow resources from ShadowRenderer
+		// Get shadow resources from ShadowRenderer (only use if shadows are enabled)
+		let shadowsEnabled = mShadowRenderer?.EnableShadows ?? false;
 		let shadowData = mShadowRenderer.GetShadowShaderData();
 		let materialSystem = Renderer.MaterialSystem;
 
 		// b5: Shadow uniforms
-		if (shadowData.CascadedShadowUniforms != null)
+		if (shadowsEnabled && shadowData.CascadedShadowUniforms != null)
 			entries[6] = BindGroupEntry.Buffer(5, shadowData.CascadedShadowUniforms, 0, (uint64)ShadowUniforms.Size);
 		else
 			entries[6] = BindGroupEntry.Buffer(5, lightingBuffer, 0, (uint64)LightingUniforms.Size); // Fallback
 
 		// t7: Shadow map texture (cascaded shadow map array)
-		if (shadowData.CascadedShadowMapView != null)
+		// Only use shadow map if shadows are enabled - otherwise use dummy shadow map array
+		if (shadowsEnabled && shadowData.CascadedShadowMapView != null)
 			entries[7] = BindGroupEntry.Texture(7, shadowData.CascadedShadowMapView);
-		else if (materialSystem?.DepthTexture != null)
-			entries[7] = BindGroupEntry.Texture(7, materialSystem.DepthTexture); // Fallback
+		else if (mDummyShadowMapArrayView != null)
+			entries[7] = BindGroupEntry.Texture(7, mDummyShadowMapArrayView); // Dummy 4-layer array
 		else
 			return; // Can't create without texture
 
 		// s1: Shadow sampler (comparison sampler for PCF)
+		// Always use the shadow sampler if available (comparison sampler needed for depth comparison)
 		if (shadowData.CascadedShadowSampler != null)
 			entries[8] = BindGroupEntry.Sampler(1, shadowData.CascadedShadowSampler);
 		else if (materialSystem?.DefaultSampler != null)
@@ -789,16 +985,19 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0.0f, 1.0f);
 		encoder.SetScissorRect(0, 0, view.Width, view.Height);
 
-		// Set forward pipeline
-		if (mForwardPipeline != null)
-			encoder.SetPipeline(mForwardPipeline);
+		// Select pipeline based on shadow state
+		let shadowsEnabled = mShadowRenderer?.EnableShadows ?? false;
+		let activePipeline = (shadowsEnabled && mForwardShadowPipeline != null) ? mForwardShadowPipeline : mForwardPipeline;
+
+		if (activePipeline != null)
+			encoder.SetPipeline(activePipeline);
 
 		// Debug output (once)
 		if (!sForwardPassDebugPrinted)
 		{
 			sForwardPassDebugPrinted = true;
 			Console.WriteLine("\n=== Forward Pass Debug ===");
-			Console.WriteLine("Pipeline: {}", mForwardPipeline != null ? "OK" : "NULL");
+			Console.WriteLine("Pipeline (shadows={}): {}", shadowsEnabled, activePipeline != null ? "OK" : "NULL");
 			Console.WriteLine("SceneBindGroup: {}", mSceneBindGroup != null ? "OK" : "NULL");
 			Console.WriteLine("ObjectUniformBuffer: {}", mObjectUniformBuffer != null ? "OK" : "NULL");
 		}

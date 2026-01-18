@@ -208,6 +208,8 @@ public class ClusterGrid : IDisposable
 		if (let ptr = mLightIndexCounterBuffer.Map())
 		{
 			uint32 zero = 0;
+			// Bounds check: counter buffer
+			Runtime.Assert(4 <= mLightIndexCounterBuffer.Size, scope $"Light index counter copy size (4) exceeds buffer size ({mLightIndexCounterBuffer.Size})");
 			Internal.MemCpy(ptr, &zero, 4);
 			mLightIndexCounterBuffer.Unmap();
 		}
@@ -310,7 +312,10 @@ public class ClusterGrid : IDisposable
 		// Upload cluster info buffer to GPU using Map/Unmap
 		if (let ptr = mClusterLightInfoBuffer.Map())
 		{
-			Internal.MemCpy(ptr, &clusterInfos[0], totalClusters * sizeof(ClusterLightInfo));
+			// Bounds check against actual buffer size
+			let copySize = totalClusters * sizeof(ClusterLightInfo);
+			Runtime.Assert(copySize <= (.)mClusterLightInfoBuffer.Size, scope $"ClusterLightInfo copy size ({copySize}) exceeds buffer size ({mClusterLightInfoBuffer.Size})");
+			Internal.MemCpy(ptr, &clusterInfos[0], copySize);
 			mClusterLightInfoBuffer.Unmap();
 		}
 
@@ -319,7 +324,10 @@ public class ClusterGrid : IDisposable
 		{
 			if (let ptr = mLightIndexBuffer.Map())
 			{
-				Internal.MemCpy(ptr, &lightIndices[0], (int)globalLightIndexOffset * sizeof(uint32));
+				// Bounds check against actual buffer size
+				let copySize = (int)globalLightIndexOffset * sizeof(uint32);
+				Runtime.Assert(copySize <= (.)mLightIndexBuffer.Size, scope $"LightIndices copy size ({copySize}) exceeds buffer size ({mLightIndexBuffer.Size})");
+				Internal.MemCpy(ptr, &lightIndices[0], copySize);
 				mLightIndexBuffer.Unmap();
 			}
 		}
@@ -703,6 +711,8 @@ public class ClusterGrid : IDisposable
 		// Upload to GPU using Map/Unmap
 		if (let ptr = mClusterUniformBuffer.Map())
 		{
+			// Bounds check against actual buffer size
+			Runtime.Assert(ClusterUniforms.Size <= (.)mClusterUniformBuffer.Size, scope $"ClusterUniforms copy size ({ClusterUniforms.Size}) exceeds buffer size ({mClusterUniformBuffer.Size})");
 			Internal.MemCpy(ptr, &uniforms, ClusterUniforms.Size);
 			mClusterUniformBuffer.Unmap();
 		}

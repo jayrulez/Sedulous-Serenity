@@ -467,6 +467,8 @@ public class CascadedShadowMaps : IDisposable
 		// Use Map/Unmap to avoid command buffer creation
 		if (let ptr = mShadowUniformBuffer.Map())
 		{
+			// Bounds check against actual buffer size
+			Runtime.Assert(ShadowUniforms.Size <= (.)mShadowUniformBuffer.Size, scope $"ShadowUniforms copy size ({ShadowUniforms.Size}) exceeds buffer size ({mShadowUniformBuffer.Size})");
 			Internal.MemCpy(ptr, &uniforms, ShadowUniforms.Size);
 			mShadowUniformBuffer.Unmap();
 		}

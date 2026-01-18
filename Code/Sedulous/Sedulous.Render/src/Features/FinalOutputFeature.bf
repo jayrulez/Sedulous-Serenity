@@ -168,14 +168,18 @@ public class FinalOutputFeature : RenderFeatureBase
 		if (sceneColorHandle.IsValid && mBlitPipeline != null)
 		{
 			// Full mode: blit SceneColor to swapchain
-			mCurrentSceneColorView = graph.GetTextureView(sceneColorHandle);
+			// Capture the graph and handle for use in the execute callback
+			RenderGraph graphRef = graph;
+			RGResourceHandle colorHandle = sceneColorHandle;
 
 			graph.AddGraphicsPass("FinalOutput")
 				.ReadTexture(sceneColorHandle)
 				.WriteColor(swapchainHandle, .Clear, .Store, .(0.0f, 0.0f, 0.0f, 1.0f))
 				.NeverCull()
-				.SetExecuteCallback(new (encoder) => {
-					ExecuteBlitPass(encoder);
+				.SetExecuteCallback(new [=](encoder) => {
+					// Get texture view INSIDE the callback - after the graph has allocated resources
+					let sceneColorView = graphRef.GetTextureView(colorHandle);
+					ExecuteBlitPass(encoder, sceneColorView);
 				});
 		}
 		else
@@ -191,17 +195,20 @@ public class FinalOutputFeature : RenderFeatureBase
 		graph.MarkForPresent(swapchainHandle);
 	}
 
-	// Current scene color view for bind group creation
-	private ITextureView mCurrentSceneColorView;
-
 	/// Executes the blit pass (called by render graph).
-	private void ExecuteBlitPass(IRenderPassEncoder encoder)
+	private void ExecuteBlitPass(IRenderPassEncoder encoder, ITextureView sceneColorView)
 	{
 		if (mSwapChain == null || mBlitPipeline == null)
 			return;
 
+		if (sceneColorView == null)
+		{
+			Console.WriteLine("[FinalOutput] ERROR: sceneColorView is null!");
+			return;
+		}
+
 		// Create or update bind group if scene color view changed
-		if (mCurrentSceneColorView != null && mCurrentSceneColorView != mLastSceneColorView)
+		if (sceneColorView != mLastSceneColorView)
 		{
 			// Release old bind group
 			if (mBlitBindGroup != null)
@@ -212,7 +219,7 @@ public class FinalOutputFeature : RenderFeatureBase
 
 			// Create new bind group with current scene color
 			BindGroupEntry[2] entries = .(
-				BindGroupEntry.Texture(0, mCurrentSceneColorView),
+				BindGroupEntry.Texture(0, sceneColorView),
 				BindGroupEntry.Sampler(0, mLinearSampler)
 			);
 
@@ -226,7 +233,7 @@ public class FinalOutputFeature : RenderFeatureBase
 			if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bg))
 				mBlitBindGroup = bg;
 
-			mLastSceneColorView = mCurrentSceneColorView;
+			mLastSceneColorView = sceneColorView;
 		}
 
 		// Set viewport and scissor
@@ -240,6 +247,10 @@ public class FinalOutputFeature : RenderFeatureBase
 			encoder.SetBindGroup(0, mBlitBindGroup, default);
 			encoder.Draw(3, 1, 0, 0);
 			Renderer.Stats.DrawCalls++;
+		}
+		else
+		{
+			Console.WriteLine("[FinalOutput] ERROR: mBlitBindGroup is null!");
 		}
 	}
 

@@ -222,7 +222,10 @@ class RenderFrameContext : IDisposable
 		// Use Map/Unmap to avoid command buffer creation
 		if (let ptr = buffer.Map())
 		{
-			Internal.MemCpy(ptr, &mSceneUniforms, Sedulous.Render.SceneUniforms.Size);
+			// Bounds check: ensure we don't write past buffer size
+			let copySize = Sedulous.Render.SceneUniforms.Size;
+			Runtime.Assert(copySize <= (.)buffer.Size, scope $"SceneUniforms copy size ({copySize}) exceeds buffer size ({buffer.Size})");
+			Internal.MemCpy(ptr, &mSceneUniforms, copySize);
 			buffer.Unmap();
 		}
 		mSceneUniformsDirty = false;

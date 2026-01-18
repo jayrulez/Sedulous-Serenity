@@ -271,10 +271,14 @@ public class LightBuffer : IDisposable
 		if (!IsInitialized || mLightCount == 0)
 			return;
 
+		// Bounds check: ensure we don't exceed buffer capacity
+		Runtime.Assert(mLightCount <= MAX_LIGHTS, scope $"mLightCount ({mLightCount}) exceeds MAX_LIGHTS ({MAX_LIGHTS})");
+
 		// Use Map/Unmap to avoid command buffer creation
 		if (let ptr = mLightDataBuffer.Map())
 		{
 			let uploadSize = mLightCount * GPULight.Size;
+			Runtime.Assert(uploadSize <= (.)mLightDataBuffer.Size, scope $"Light data upload size ({uploadSize}) exceeds buffer size ({mLightDataBuffer.Size})");
 			Internal.MemCpy(ptr, &mLights[0], uploadSize);
 			mLightDataBuffer.Unmap();
 		}
@@ -301,6 +305,8 @@ public class LightBuffer : IDisposable
 		// Use Map/Unmap to avoid command buffer creation
 		if (let ptr = mLightingUniformBuffer.Map())
 		{
+			// Bounds check against actual buffer size
+			Runtime.Assert(LightingUniforms.Size <= (.)mLightingUniformBuffer.Size, scope $"LightingUniforms copy size ({LightingUniforms.Size}) exceeds buffer size ({mLightingUniformBuffer.Size})");
 			Internal.MemCpy(ptr, &uniforms, LightingUniforms.Size);
 			mLightingUniformBuffer.Unmap();
 		}

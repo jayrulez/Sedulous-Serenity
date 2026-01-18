@@ -803,8 +803,11 @@ public class DebugRenderFeature : RenderFeatureBase
 		if (let ptr = mUniformBuffers[frameIndex].Map())
 		{
 			var vp = mViewProjection;
+			let uniformBuffer = mUniformBuffers[frameIndex];
+			// Bounds check against actual buffer size
+			Runtime.Assert(sizeof(Matrix) <= (.)uniformBuffer.Size, scope $"Matrix copy size ({sizeof(Matrix)}) exceeds uniform buffer size ({uniformBuffer.Size})");
 			Internal.MemCpy(ptr, &vp, sizeof(Matrix));
-			mUniformBuffers[frameIndex].Unmap();
+			uniformBuffer.Unmap();
 		}
 
 		// Calculate total vertices needed
@@ -822,8 +825,11 @@ public class DebugRenderFeature : RenderFeatureBase
 				allVertices.AddRange(mTriVerticesOverlay);
 
 				let dataSize = allVertices.Count * DebugVertex.SizeInBytes;
+				let vertexBuffer = mVertexBuffers[frameIndex];
+				// Bounds check against actual buffer size
+				Runtime.Assert(dataSize <= (.)vertexBuffer.Size, scope $"Debug vertex data size ({dataSize}) exceeds buffer size ({vertexBuffer.Size})");
 				Internal.MemCpy(ptr, allVertices.Ptr, dataSize);
-				mVertexBuffers[frameIndex].Unmap();
+				vertexBuffer.Unmap();
 			}
 		}
 
@@ -838,8 +844,11 @@ public class DebugRenderFeature : RenderFeatureBase
 				allTextVertices.AddRange(mTextVerticesOverlay);
 
 				let dataSize = allTextVertices.Count * DebugTextVertex.SizeInBytes;
+				let textBuffer = mTextVertexBuffers[frameIndex];
+				// Bounds check against actual buffer size
+				Runtime.Assert(dataSize <= (.)textBuffer.Size, scope $"Debug text vertex data size ({dataSize}) exceeds buffer size ({textBuffer.Size})");
 				Internal.MemCpy(ptr, allTextVertices.Ptr, dataSize);
-				mTextVertexBuffers[frameIndex].Unmap();
+				textBuffer.Unmap();
 			}
 		}
 
@@ -849,15 +858,21 @@ public class DebugRenderFeature : RenderFeatureBase
 			if (let ptr = mScreenParamBuffers[frameIndex].Map())
 			{
 				float[4] screenParams = .((float)mScreenWidth, (float)mScreenHeight, mFlipY, 0);
+				let screenBuffer = mScreenParamBuffers[frameIndex];
+				// Bounds check against actual buffer size
+				Runtime.Assert(sizeof(float[4]) <= (.)screenBuffer.Size, scope $"Screen params copy size ({sizeof(float[4])}) exceeds buffer size ({screenBuffer.Size})");
 				Internal.MemCpy(ptr, &screenParams, sizeof(float[4]));
-				mScreenParamBuffers[frameIndex].Unmap();
+				screenBuffer.Unmap();
 			}
 
 			if (let ptr = mText2DVertexBuffers[frameIndex].Map())
 			{
 				let dataSize = mText2DVertices.Count * DebugText2DVertex.SizeInBytes;
+				let text2DBuffer = mText2DVertexBuffers[frameIndex];
+				// Bounds check against actual buffer size
+				Runtime.Assert(dataSize <= (.)text2DBuffer.Size, scope $"Debug 2D text vertex data size ({dataSize}) exceeds buffer size ({text2DBuffer.Size})");
 				Internal.MemCpy(ptr, mText2DVertices.Ptr, dataSize);
-				mText2DVertexBuffers[frameIndex].Unmap();
+				text2DBuffer.Unmap();
 			}
 		}
 	}

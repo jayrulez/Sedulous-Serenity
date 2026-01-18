@@ -331,6 +331,8 @@ public class DepthPrepassFeature : RenderFeatureBase
 
 					// Copy to mapped buffer at aligned offset
 					let offset = (uint64)(objectIndex * (int32)AlignedObjectUniformSize);
+					// Bounds check against actual buffer size
+					Runtime.Assert(offset + ObjectUniformSize <= mObjectUniformBuffer.Size, scope $"DepthPrepass object uniform write (offset {offset} + size {ObjectUniformSize}) exceeds buffer size ({mObjectUniformBuffer.Size})");
 					Internal.MemCpy((uint8*)bufferPtr + offset, &objectUniforms, ObjectUniformSize);
 
 					objectIndex++;

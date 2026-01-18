@@ -536,6 +536,8 @@ public class SkyFeature : RenderFeatureBase
 		// Use Map/Unmap to avoid command buffer creation
 		if (let ptr = mSkyParamsBuffer.Map())
 		{
+			// Bounds check: buffer size is ProceduralSkyParams.Size (80 bytes)
+			Runtime.Assert(ProceduralSkyParams.Size <= (.)mSkyParamsBuffer.Size, scope $"ProceduralSkyParams copy size exceeds buffer size ({mSkyParamsBuffer.Size})");
 			Internal.MemCpy(ptr, &mSkyParams, ProceduralSkyParams.Size);
 			mSkyParamsBuffer.Unmap();
 		}
