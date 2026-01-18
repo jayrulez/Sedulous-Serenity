@@ -47,6 +47,11 @@ public struct ProceduralSkyParams
 	/// Time (for animated effects).
 	public float Time;
 
+	/// Solid color (used when Mode is SolidColor).
+	public Vector3 SolidColor;
+	/// Sky mode (0 = Procedural, 1 = SolidColor).
+	public float Mode;
+
 	/// Default values.
 	public static Self Default => .()
 	{
@@ -59,11 +64,13 @@ public struct ProceduralSkyParams
 		ZenithColor = .(0.3f, 0.5f, 0.85f),
 		CloudCoverage = 0.0f,
 		HorizonColor = .(0.8f, 0.85f, 0.9f),
-		Time = 0.0f
+		Time = 0.0f,
+		SolidColor = .(0.529f, 0.808f, 0.922f), // Sky blue default
+		Mode = 0.0f
 	};
 
-	/// Size in bytes (must be 80 bytes: 5 float4s).
-	public static int Size => 80;
+	/// Size in bytes (must be 96 bytes: 6 float4s).
+	public static int Size => 96;
 }
 
 /// Sky and atmosphere render feature.
@@ -109,6 +116,13 @@ public class SkyFeature : RenderFeatureBase
 	{
 		get => mMode;
 		set => mMode = value;
+	}
+
+	/// Gets or sets the solid color (used when Mode is SolidColor).
+	public Vector3 SolidColor
+	{
+		get => mSkyParams.SolidColor;
+		set => mSkyParams.SolidColor = value;
 	}
 
 	/// Gets or sets the procedural sky parameters.
@@ -536,10 +550,13 @@ public class SkyFeature : RenderFeatureBase
 		// Update time from renderer
 		mSkyParams.Time = Renderer.RenderFrameContext?.TotalTime ?? 0.0f;
 
+		// Set mode from enum (0 = Procedural, 1 = SolidColor)
+		mSkyParams.Mode = (mMode == .SolidColor) ? 1.0f : 0.0f;
+
 		// Use Map/Unmap to avoid command buffer creation
 		if (let ptr = mSkyParamsBuffer.Map())
 		{
-			// Bounds check: buffer size is ProceduralSkyParams.Size (80 bytes)
+			// Bounds check: buffer size is ProceduralSkyParams.Size (96 bytes)
 			Runtime.Assert(ProceduralSkyParams.Size <= (.)mSkyParamsBuffer.Size, scope $"ProceduralSkyParams copy size exceeds buffer size ({mSkyParamsBuffer.Size})");
 			Internal.MemCpy(ptr, &mSkyParams, ProceduralSkyParams.Size);
 			mSkyParamsBuffer.Unmap();

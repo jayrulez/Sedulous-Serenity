@@ -26,6 +26,8 @@ cbuffer SkyUniforms : register(b1)
     float CloudCoverage;
     float3 HorizonColor;
     float Time;
+    float3 SolidColorValue;
+    float SkyMode; // 0 = Procedural, 1 = SolidColor
 };
 
 struct FragmentInput
@@ -125,6 +127,12 @@ float3 CalculateAtmosphere(float3 rayOrigin, float3 rayDir, float rayLength, flo
 
 float4 main(FragmentInput input) : SV_Target
 {
+    // Solid color mode - just output the solid color
+    if (SkyMode > 0.5)
+    {
+        return float4(SolidColorValue, 1.0);
+    }
+
     float3 viewDir = normalize(input.ViewDir);
 
     // Simple fallback if looking below horizon

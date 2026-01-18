@@ -131,6 +131,7 @@ class RenderIntegratedApp : Application
 		Console.WriteLine("  R: print render stats");
 		Console.WriteLine("  C: print detailed culling info");
 		Console.WriteLine("  H: toggle Hi-Z culling");
+		Console.WriteLine("  K: toggle sky mode (Procedural/Solid Color)");
 		Console.WriteLine("  ESC: exit");
 		Console.WriteLine("\nOrbital Camera (default):");
 		Console.WriteLine("  WASD: rotate around target");
@@ -477,6 +478,25 @@ class RenderIntegratedApp : Application
 			{
 				mDepthFeature.EnableHiZ = !mDepthFeature.EnableHiZ;
 				Console.WriteLine("Hi-Z Occlusion Culling: {}", mDepthFeature.EnableHiZ ? "ON" : "OFF");
+			}
+		}
+
+		// Toggle sky mode (procedural vs solid color)
+		if (keyboard.IsKeyPressed(.K))
+		{
+			if (mSkyFeature != null)
+			{
+				if (mSkyFeature.Mode == .Procedural)
+				{
+					mSkyFeature.Mode = .SolidColor;
+					mSkyFeature.SolidColor = .(0.529f, 0.808f, 0.922f); // Sky blue
+					Console.WriteLine("Sky Mode: Solid Color (Sky Blue)");
+				}
+				else
+				{
+					mSkyFeature.Mode = .Procedural;
+					Console.WriteLine("Sky Mode: Procedural");
+				}
 			}
 		}
 
