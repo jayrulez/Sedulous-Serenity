@@ -21,6 +21,7 @@ class RenderIntegratedApp : Application
 	// Render features (owned by RenderSystem after registration)
 	private DepthPrepassFeature mDepthFeature;
 	private ForwardOpaqueFeature mForwardFeature;
+	private ForwardTransparentFeature mTransparentFeature;
 	private SkyFeature mSkyFeature;
 	private DebugRenderFeature mDebugFeature;
 	private FinalOutputFeature mFinalOutputFeature;
@@ -35,6 +36,7 @@ class RenderIntegratedApp : Application
 
 	// Materials
 	private MaterialInstance mCubeMaterial ~ delete _;
+	private MaterialInstance mTransparentMaterial ~ delete _;
 
 	// Camera mode
 	private enum CameraMode { Orbital, Flythrough }
@@ -158,6 +160,13 @@ class RenderIntegratedApp : Application
 		else
 			Console.WriteLine("Registered: ForwardOpaqueFeature");
 
+		// Forward transparent (alpha-blended geometry)
+		mTransparentFeature = new ForwardTransparentFeature();
+		if (mRenderSystem.RegisterFeature(mTransparentFeature) case .Err)
+			Console.WriteLine("Warning: Failed to register ForwardTransparentFeature");
+		else
+			Console.WriteLine("Registered: ForwardTransparentFeature");
+
 		// Sky (procedural sky and IBL)
 		mSkyFeature = new SkyFeature();
 		if (mRenderSystem.RegisterFeature(mSkyFeature) case .Err)
@@ -219,6 +228,11 @@ class RenderIntegratedApp : Application
 		{
 			mCubeMaterial = new MaterialInstance(baseMaterial);
 			mCubeMaterial.SetColor("BaseColor", .(0.2f, 0.6f, 0.9f, 1.0f)); // Blue color
+
+			// Create transparent material (red with 50% alpha)
+			mTransparentMaterial = new MaterialInstance(baseMaterial);
+			mTransparentMaterial.SetColor("BaseColor", .(0.9f, 0.2f, 0.2f, 0.5f)); // Red, 50% transparent
+			mTransparentMaterial.BlendMode = .AlphaBlend;
 		}
 
 		// Create floor (white/default)
@@ -262,7 +276,7 @@ class RenderIntegratedApp : Application
 		}
 		*/
 
-		// Single cube at the center, sitting on the floor
+		// Single opaque cube at the center, sitting on the floor
 		{
 			let cubeProxy = mWorld.CreateMesh();
 			if (let proxy = mWorld.GetMesh(cubeProxy))
@@ -279,7 +293,24 @@ class RenderIntegratedApp : Application
 			mCubeProxies.Add(cubeProxy);
 		}
 
-		Console.WriteLine("Created {} cube(s) and 1 floor", mCubeProxies.Count);
+		// Transparent cube next to the opaque cube
+		{
+			let transparentProxy = mWorld.CreateMesh();
+			if (let proxy = mWorld.GetMesh(transparentProxy))
+			{
+				proxy.MeshHandle = mCubeMeshHandle;
+				proxy.Material = mTransparentMaterial;
+				proxy.SetLocalBounds(BoundingBox(Vector3(-0.5f, -0.5f, -0.5f), Vector3(0.5f, 0.5f, 0.5f)));
+
+				// Position slightly to the right and behind the opaque cube to test transparency
+				let position = Vector3(1.5f, 0.5f, -1.0f);
+				proxy.SetTransformImmediate(Matrix.CreateTranslation(position));
+				proxy.Flags = .DefaultTransparent;
+			}
+			mCubeProxies.Add(transparentProxy);
+		}
+
+		Console.WriteLine("Created {} cube(s) (1 opaque, 1 transparent) and 1 floor", mCubeProxies.Count);
 	}
 
 	private void CreateLights()

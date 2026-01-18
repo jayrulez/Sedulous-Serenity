@@ -622,8 +622,6 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		}
 	}
 
-	private static bool sLightingDebugPrinted = false;
-
 	private void UpdateLighting(RenderWorld world, VisibilityResolver visibility, RenderView view)
 	{
 		// Update cluster grid
@@ -657,36 +655,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		// Perform light culling (CPU fallback for now)
 		// Pass view matrix to transform light positions to view space for cluster testing
 		mLighting.ClusterGrid.CullLightsCPU(world, visibility, view.ViewMatrix);
-
-		// Debug output (once)
-		if (!sLightingDebugPrinted)
-		{
-			sLightingDebugPrinted = true;
-			Console.WriteLine("\n=== Lighting Debug ===");
-			Console.WriteLine("World lights: {}", world.LightCount);
-			Console.WriteLine("Visible lights: {}", visibility.VisibleLights.Length);
-			Console.WriteLine("Light buffer count: {}", mLighting.LightBuffer.LightCount);
-			Console.WriteLine("Cluster grid: {}x{}x{}", config.ClustersX, config.ClustersY, config.ClustersZ);
-			Console.WriteLine("Clusters with lights: {}", mLighting.ClusterGrid.Stats.ClustersWithLights);
-			Console.WriteLine("Avg lights/cluster: {}", mLighting.ClusterGrid.Stats.AverageLightsPerCluster);
-			Console.WriteLine("ClusterScale: ({}, {})", clusterScaleX, clusterScaleY);
-			Console.WriteLine("ClusterBias: ({}, {})", logDepthScale, logDepthBias);
-
-			// Print light details
-			for (let visLight in visibility.VisibleLights)
-			{
-				if (let light = world.GetLight(visLight.Handle))
-				{
-					Console.WriteLine("  Light: type={}, pos=({},{},{}), dir=({},{},{}), color=({},{},{}), intensity={}",
-						(int)light.Type, light.Position.X, light.Position.Y, light.Position.Z,
-						light.Direction.X, light.Direction.Y, light.Direction.Z,
-						light.Color.X, light.Color.Y, light.Color.Z, light.Intensity);
-				}
-			}
-		}
 	}
-
-	private static bool sShadowDebugPrinted = false;
 
 	private void AddShadowPasses(RenderGraph graph, RenderWorld world, VisibilityResolver visibility, RenderView view, out RGResourceHandle outShadowMapHandle)
 	{
@@ -719,13 +688,6 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 		if (shadowPasses.Count == 0)
 			return;
-
-		// Debug output (once)
-		if (!sShadowDebugPrinted)
-		{
-			sShadowDebugPrinted = true;
-			Console.WriteLine("[Shadow] Adding {} shadow passes", shadowPasses.Count);
-		}
 
 		// Upload all shadow uniforms BEFORE adding passes (avoid WriteBuffer during render pass)
 		PrepareShadowUniforms(world, visibility, shadowPasses);
@@ -998,8 +960,6 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			mSceneBindGroup = bg;
 	}
 
-	private static bool sForwardPassDebugPrinted = false;
-
 	private void ExecuteForwardPass(IRenderPassEncoder encoder, RenderWorld world, RenderView view, DepthPrepassFeature depthFeature)
 	{
 		// Set viewport
@@ -1012,16 +972,6 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 		if (activePipeline != null)
 			encoder.SetPipeline(activePipeline);
-
-		// Debug output (once)
-		if (!sForwardPassDebugPrinted)
-		{
-			sForwardPassDebugPrinted = true;
-			Console.WriteLine("\n=== Forward Pass Debug ===");
-			Console.WriteLine("Pipeline (shadows={}): {}", shadowsEnabled, activePipeline != null ? "OK" : "NULL");
-			Console.WriteLine("SceneBindGroup: {}", mSceneBindGroup != null ? "OK" : "NULL");
-			Console.WriteLine("ObjectUniformBuffer: {}", mObjectUniformBuffer != null ? "OK" : "NULL");
-		}
 
 		// Get material system for binding materials
 		let materialSystem = Renderer.MaterialSystem;
@@ -1096,45 +1046,20 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		}
 	}
 
-	private static bool sShadowPassDebugPrinted = false;
-
 	private void ExecuteShadowPass(IRenderPassEncoder encoder, RenderWorld world, VisibilityResolver visibility, ShadowPass shadowPass)
 	{
-		// Debug output (once per session)
-		if (!sShadowPassDebugPrinted)
-		{
-			sShadowPassDebugPrinted = true;
-			Console.WriteLine("[Shadow] ExecuteShadowPass starting:");
-			Console.WriteLine("  Pipeline: {}", mShadowDepthPipeline != null ? "OK" : "NULL");
-			Console.WriteLine("  BindGroup: {}", mShadowBindGroup != null ? "OK" : "NULL");
-			Console.WriteLine("  UniformBuffer: {}", mShadowUniformBuffer != null ? "OK" : "NULL");
-			Console.WriteLine("  ObjectBuffer: {}", mShadowObjectBuffer != null ? "OK" : "NULL");
-		}
-
 		// Skip if no pipeline or bind group
 		if (mShadowDepthPipeline == null || mShadowBindGroup == null)
 			return;
 
 		// Only cascade passes are currently supported
 		if (shadowPass.Type != .Cascade)
-		{
-			Console.WriteLine("[Shadow] ERROR: ExecuteShadowPass called with non-cascade pass type {}", shadowPass.Type);
 			return;
-		}
 
 		// Validate cascade index (must be 0-3)
 		let cascadeIndex = (int32)shadowPass.CascadeIndex;
 		if (cascadeIndex < 0 || cascadeIndex >= 4)
-		{
-			Console.WriteLine("[Shadow] ERROR: Cascade index {} out of bounds in ExecuteShadowPass", cascadeIndex);
 			return;
-		}
-
-		// Only print cascade execution details once per session to avoid spam
-		if (!sShadowPassDebugPrinted)
-		{
-			// Already printed in the block above, skip per-cascade output
-		}
 
 		// Set viewport for shadow map tile
 		encoder.SetViewport(
