@@ -359,8 +359,8 @@ class RenderIntegratedApp : Application
 				proxy.Material = mCubeMaterial ?? defaultMaterial;
 				proxy.SetLocalBounds(BoundingBox(Vector3(-0.5f, -0.5f, -0.5f), Vector3(0.5f, 0.5f, 0.5f)));
 
-				// Position cube near the fox to test clipping (fox is at -2, 0, 2)
-				let position = Vector3(-2.5f, 0.5f, 2);
+				// Position cube at center, on the floor (Y=0.5 so bottom touches Y=0 floor)
+				let position = Vector3(0, 0.5f, 0);
 				proxy.SetTransformImmediate(Matrix.CreateTranslation(position));
 				proxy.Flags = .DefaultOpaque;
 			}

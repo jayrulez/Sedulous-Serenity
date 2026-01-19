@@ -782,6 +782,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 	// Store shadow passes for VP lookup during execution
 	private List<ShadowPass> mCurrentShadowPasses = new .() ~ delete _;
+	private int32 mShadowSkinnedMeshStartIndex = 0;
 
 	private void PrepareShadowUniforms(RenderWorld world, VisibilityResolver visibility, List<ShadowPass> shadowPasses)
 	{
@@ -822,6 +823,8 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		if (let objectPtr = mShadowObjectBuffer.Map())
 		{
 			int32 objectIndex = 0;
+
+			// Static meshes
 			for (let visibleMesh in visibility.VisibleMeshes)
 			{
 				if (objectIndex >= MaxObjectsPerFrame)
@@ -850,6 +853,39 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 					objectIndex++;
 				}
 			}
+
+			// Store where skinned meshes start for ExecuteShadowPass
+			mShadowSkinnedMeshStartIndex = objectIndex;
+
+			// Skinned meshes
+			for (let visibleMesh in visibility.VisibleSkinnedMeshes)
+			{
+				if (objectIndex >= MaxObjectsPerFrame)
+					break;
+
+				if (let proxy = world.GetSkinnedMesh(visibleMesh.Handle))
+				{
+					if (!proxy.CastsShadows)
+						continue;
+
+					ObjectUniforms objUniforms = .()
+					{
+						WorldMatrix = proxy.WorldMatrix,
+						PrevWorldMatrix = proxy.PrevWorldMatrix,
+						NormalMatrix = proxy.NormalMatrix,
+						ObjectID = (uint32)objectIndex,
+						MaterialID = 0,
+						_Padding = default
+					};
+
+					let offset = (uint64)objectIndex * AlignedObjectUniformSize;
+					Runtime.Assert(offset + ObjectUniforms.Size <= mShadowObjectBuffer.Size, scope $"Shadow skinned object uniform write (offset {offset} + size {ObjectUniforms.Size}) exceeds buffer size ({mShadowObjectBuffer.Size})");
+					Internal.MemCpy((uint8*)objectPtr + offset, &objUniforms, ObjectUniforms.Size);
+
+					objectIndex++;
+				}
+			}
+
 			mShadowObjectBuffer.Unmap();
 		}
 	}
@@ -1212,6 +1248,8 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 		// Render shadow casters (object transforms already uploaded in PrepareShadowUniforms)
 		int32 objectIndex = 0;
+
+		// Static meshes
 		for (let visibleMesh in visibility.VisibleMeshes)
 		{
 			if (objectIndex >= MaxObjectsPerFrame)
@@ -1247,6 +1285,61 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			}
 		}
 
+		// Skinned meshes - render using post-transform vertex buffers
+		RenderSkinnedMeshesShadow(encoder, world, visibility, cascadeVPOffset);
+	}
+
+	private void RenderSkinnedMeshesShadow(IRenderPassEncoder encoder, RenderWorld world, VisibilityResolver visibility, uint32 cascadeVPOffset)
+	{
+		// Get GPU skinning feature to access skinned vertex buffers
+		let skinningFeature = Renderer.GetFeature<GPUSkinningFeature>();
+		if (skinningFeature == null)
+			return;
+
+		int32 objectIndex = mShadowSkinnedMeshStartIndex;
+
+		for (let visibleMesh in visibility.VisibleSkinnedMeshes)
+		{
+			if (objectIndex >= MaxObjectsPerFrame)
+				break;
+
+			if (let proxy = world.GetSkinnedMesh(visibleMesh.Handle))
+			{
+				if (!proxy.CastsShadows)
+					continue;
+
+				// Get the skinned vertex buffer
+				let skinnedVertexBuffer = skinningFeature.GetSkinnedVertexBuffer(visibleMesh.Handle);
+				if (skinnedVertexBuffer == null)
+					continue;
+
+				// Two dynamic offsets: [0] = cascade VP, [1] = object transforms
+				uint32 objectOffset = (uint32)((int64)objectIndex * (int64)AlignedObjectUniformSize);
+				uint32[2] dynamicOffsets = .(cascadeVPOffset, objectOffset);
+				encoder.SetBindGroup(0, mShadowBindGroup, dynamicOffsets);
+
+				// Bind the skinned vertex buffer
+				encoder.SetVertexBuffer(0, skinnedVertexBuffer, 0);
+
+				// Get original mesh for index buffer
+				if (let mesh = Renderer.ResourceManager.GetMesh(proxy.MeshHandle))
+				{
+					if (mesh.IndexBuffer != null)
+					{
+						encoder.SetIndexBuffer(mesh.IndexBuffer, mesh.IndexFormat);
+						encoder.DrawIndexed(mesh.IndexCount, 1, 0, 0, 0);
+					}
+					else
+					{
+						encoder.Draw(mesh.VertexCount, 1, 0, 0);
+					}
+
+					Renderer.Stats.ShadowDrawCalls++;
+				}
+
+				objectIndex++;
+			}
+		}
 	}
 
 	private void CreateShadowBindGroup()
