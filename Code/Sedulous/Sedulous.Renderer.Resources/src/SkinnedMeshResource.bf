@@ -7,6 +7,8 @@ using Sedulous.Serialization;
 using Sedulous.Serialization.OpenDDL;
 using Sedulous.OpenDDL;
 using Sedulous.Mathematics;
+using Sedulous.Animation;
+using Sedulous.Animation.Resources;
 
 using static Sedulous.Mathematics.MathSerializerExtensions;
 
@@ -16,7 +18,7 @@ namespace Sedulous.Renderer.Resources;
 /// Contains the mesh data plus skeleton and animations for complete skeletal animation support.
 class SkinnedMeshResource : Resource
 {
-	public const int32 FileVersion = 1;
+	public const int32 FileVersion = 2; // Bumped for new animation format
 	public const int32 FileType = 2; // ResourceFileType.SkinnedMesh
 	public const int32 BundleFileType = 7; // ResourceFileType.SkinnedMeshBundle
 
@@ -130,9 +132,10 @@ class SkinnedMeshResource : Resource
 	/// Caller owns the returned player.
 	public AnimationPlayer CreatePlayer()
 	{
-		if (mSkeleton == null)
+		let skeleton = Skeleton;
+		if (skeleton == null)
 			return null;
-		return new AnimationPlayer(mSkeleton);
+		return new AnimationPlayer(skeleton);
 	}
 
 	// ---- Serialization ----
@@ -150,10 +153,11 @@ class SkinnedMeshResource : Resource
 			SerializeMesh(s);
 
 			// Serialize skeleton if present
-			bool hasSkeleton = Skeleton != null;
+			let skeleton = Skeleton;
+			bool hasSkeleton = skeleton != null;
 			s.Bool("hasSkeleton", ref hasSkeleton);
 			if (hasSkeleton)
-				SerializeSkeleton(s, Skeleton);
+				SerializeSkeleton(s, skeleton);
 
 			// Serialize animations
 			int32 animCount = (int32)(mAnimations?.Count ?? 0);
@@ -392,25 +396,28 @@ class SkinnedMeshResource : Resource
 
 			for (int32 i = 0; i < boneCount; i++)
 			{
-				int32 parentIndex = 0;
-				Matrix localTransform = .Identity;
-				Matrix inverseBindMatrix = .Identity;
-				skeleton.GetBoneData(i, out parentIndex, out localTransform, out inverseBindMatrix);
-
-				Vector3 bindTranslation = .Zero;
-				Quaternion bindRotation = .Identity;
-				Vector3 bindScale = .(1, 1, 1);
-				skeleton.GetBindPose(i, out bindTranslation, out bindRotation, out bindScale);
+				let bone = skeleton.Bones[i];
+				if (bone == null)
+					continue;
 
 				s.BeginObject(scope $"bone{i}");
 
-				String boneName = scope String(skeleton.GetBoneName(i));
+				String boneName = scope String(bone.Name);
 				s.String("name", boneName);
 
+				int32 parentIndex = bone.ParentIndex;
 				s.Int32("parentIndex", ref parentIndex);
+
+				Matrix inverseBindMatrix = bone.InverseBindPose;
 				s.Matrix4x4("inverseBindMatrix", ref inverseBindMatrix);
+
+				Vector3 bindTranslation = bone.LocalBindPose.Position;
 				s.Vector3("bindTranslation", ref bindTranslation);
+
+				Quaternion bindRotation = bone.LocalBindPose.Rotation;
 				s.Quaternion("bindRotation", ref bindRotation);
+
+				Vector3 bindScale = bone.LocalBindPose.Scale;
 				s.Vector3("bindScale", ref bindScale);
 
 				s.EndObject();
@@ -457,13 +464,24 @@ class SkinnedMeshResource : Resource
 				Vector3 bindScale = .(1, 1, 1);
 				s.Vector3("bindScale", ref bindScale);
 
-				skeleton.SetBone(i, boneName, parentIdx, bindTranslation, bindRotation, bindScale, inverseBindMatrix);
+				// Set up the bone using the new API
+				let bone = skeleton.Bones[i];
+				bone.Name.Set(boneName);
+				bone.Index = i;
+				bone.ParentIndex = parentIdx;
+				bone.InverseBindPose = inverseBindMatrix;
+				bone.LocalBindPose = Transform(bindTranslation, bindRotation, bindScale);
 
 				s.EndObject();
 			}
 
 			s.EndObject();
 		}
+
+		// Build skeleton hierarchy
+		skeleton.BuildNameMap();
+		skeleton.FindRootBones();
+		skeleton.BuildChildIndices();
 
 		s.EndObject();
 		return skeleton;
@@ -487,50 +505,108 @@ class SkinnedMeshResource : Resource
 			float duration = clip.Duration;
 			s.Float("duration", ref duration);
 
-			int32 channelCount = (int32)clip.Channels.Count;
-			s.Int32("channelCount", ref channelCount);
+			bool isLooping = clip.IsLooping;
+			s.Bool("isLooping", ref isLooping);
 
-			for (int32 c = 0; c < channelCount; c++)
+			// Serialize position tracks
+			int32 posTrackCount = (int32)clip.PositionTracks.Count;
+			s.Int32("positionTrackCount", ref posTrackCount);
+			for (int32 t = 0; t < posTrackCount; t++)
 			{
-				let channel = clip.Channels[c];
-				s.BeginObject(scope $"ch{c}");
+				let track = clip.PositionTracks[t];
+				s.BeginObject(scope $"posTrack{t}");
 
-				int32 boneIndex = channel.BoneIndex;
+				int32 boneIndex = track.BoneIndex;
 				s.Int32("boneIndex", ref boneIndex);
 
-				int32 propertyInt = (int32)channel.Property;
-				s.Int32("property", ref propertyInt);
-
-				int32 interpInt = (int32)channel.Interpolation;
+				int32 interpInt = (int32)track.Interpolation;
 				s.Int32("interpolation", ref interpInt);
 
-				int32 keyframeCount = (int32)channel.Keyframes.Count;
+				int32 keyframeCount = (int32)track.Keyframes.Count;
 				s.Int32("keyframeCount", ref keyframeCount);
 
 				if (keyframeCount > 0)
 				{
 					let times = scope List<float>();
 					let values = scope List<float>();
-
-					for (int32 k = 0; k < keyframeCount; k++)
+					for (let kf in track.Keyframes)
 					{
-						let kf = channel.Keyframes[k];
 						times.Add(kf.Time);
-
-						switch (channel.Property)
-						{
-						case .Translation, .Scale:
-							values.Add(kf.Value.X);
-							values.Add(kf.Value.Y);
-							values.Add(kf.Value.Z);
-						case .Rotation:
-							values.Add(kf.Value.X);
-							values.Add(kf.Value.Y);
-							values.Add(kf.Value.Z);
-							values.Add(kf.Value.W);
-						}
+						values.Add(kf.Value.X);
+						values.Add(kf.Value.Y);
+						values.Add(kf.Value.Z);
 					}
+					s.ArrayFloat("times", times);
+					s.ArrayFloat("values", values);
+				}
 
+				s.EndObject();
+			}
+
+			// Serialize rotation tracks
+			int32 rotTrackCount = (int32)clip.RotationTracks.Count;
+			s.Int32("rotationTrackCount", ref rotTrackCount);
+			for (int32 t = 0; t < rotTrackCount; t++)
+			{
+				let track = clip.RotationTracks[t];
+				s.BeginObject(scope $"rotTrack{t}");
+
+				int32 boneIndex = track.BoneIndex;
+				s.Int32("boneIndex", ref boneIndex);
+
+				int32 interpInt = (int32)track.Interpolation;
+				s.Int32("interpolation", ref interpInt);
+
+				int32 keyframeCount = (int32)track.Keyframes.Count;
+				s.Int32("keyframeCount", ref keyframeCount);
+
+				if (keyframeCount > 0)
+				{
+					let times = scope List<float>();
+					let values = scope List<float>();
+					for (let kf in track.Keyframes)
+					{
+						times.Add(kf.Time);
+						values.Add(kf.Value.X);
+						values.Add(kf.Value.Y);
+						values.Add(kf.Value.Z);
+						values.Add(kf.Value.W);
+					}
+					s.ArrayFloat("times", times);
+					s.ArrayFloat("values", values);
+				}
+
+				s.EndObject();
+			}
+
+			// Serialize scale tracks
+			int32 scaleTrackCount = (int32)clip.ScaleTracks.Count;
+			s.Int32("scaleTrackCount", ref scaleTrackCount);
+			for (int32 t = 0; t < scaleTrackCount; t++)
+			{
+				let track = clip.ScaleTracks[t];
+				s.BeginObject(scope $"scaleTrack{t}");
+
+				int32 boneIndex = track.BoneIndex;
+				s.Int32("boneIndex", ref boneIndex);
+
+				int32 interpInt = (int32)track.Interpolation;
+				s.Int32("interpolation", ref interpInt);
+
+				int32 keyframeCount = (int32)track.Keyframes.Count;
+				s.Int32("keyframeCount", ref keyframeCount);
+
+				if (keyframeCount > 0)
+				{
+					let times = scope List<float>();
+					let values = scope List<float>();
+					for (let kf in track.Keyframes)
+					{
+						times.Add(kf.Time);
+						values.Add(kf.Value.X);
+						values.Add(kf.Value.Y);
+						values.Add(kf.Value.Z);
+					}
 					s.ArrayFloat("times", times);
 					s.ArrayFloat("values", values);
 				}
@@ -560,32 +636,29 @@ class SkinnedMeshResource : Resource
 			String clipName = scope String();
 			s.String("name", clipName);
 
-			let clip = new AnimationClip(clipName);
-
 			float duration = 0;
 			s.Float("duration", ref duration);
-			clip.Duration = duration;
 
-			int32 channelCount = 0;
-			s.Int32("channelCount", ref channelCount);
+			bool isLooping = false;
+			s.Bool("isLooping", ref isLooping);
 
-			for (int32 c = 0; c < channelCount; c++)
+			let clip = new AnimationClip(clipName, duration, isLooping);
+
+			// Deserialize position tracks
+			int32 posTrackCount = 0;
+			s.Int32("positionTrackCount", ref posTrackCount);
+			for (int32 t = 0; t < posTrackCount; t++)
 			{
-				s.BeginObject(scope $"ch{c}");
+				s.BeginObject(scope $"posTrack{t}");
 
 				int32 boneIndex = 0;
 				s.Int32("boneIndex", ref boneIndex);
 
-				int32 propertyInt = 0;
-				s.Int32("property", ref propertyInt);
-				let property = (AnimationProperty)propertyInt;
-
 				int32 interpInt = 0;
 				s.Int32("interpolation", ref interpInt);
-				let interpolation = (AnimationInterpolation)interpInt;
 
-				let channel = clip.AddChannel(boneIndex, property);
-				channel.Interpolation = interpolation;
+				let track = clip.GetOrCreatePositionTrack(boneIndex);
+				track.Interpolation = (InterpolationMode)interpInt;
 
 				int32 keyframeCount = 0;
 				s.Int32("keyframeCount", ref keyframeCount);
@@ -594,29 +667,97 @@ class SkinnedMeshResource : Resource
 				{
 					let times = scope List<float>();
 					let values = scope List<float>();
-
 					s.ArrayFloat("times", times);
 					s.ArrayFloat("values", values);
 
-					int32 componentCount = GetComponentCount(property);
 					for (int32 k = 0; k < keyframeCount; k++)
 					{
 						float time = k < times.Count ? times[k] : 0;
-						int32 baseIdx = k * componentCount;
-						Vector4 value = .Zero;
+						int32 baseIdx = k * 3;
+						Vector3 value = .Zero;
+						if (baseIdx + 2 < values.Count)
+							value = .(values[baseIdx], values[baseIdx + 1], values[baseIdx + 2]);
+						track.AddKeyframe(time, value);
+					}
+				}
 
-						switch (property)
-						{
-						case .Translation, .Scale:
-							if (baseIdx + 2 < values.Count)
-								value = .(values[baseIdx], values[baseIdx + 1], values[baseIdx + 2], 0);
-						case .Rotation:
-							if (baseIdx + 3 < values.Count)
-								value = .(values[baseIdx], values[baseIdx + 1],
-									values[baseIdx + 2], values[baseIdx + 3]);
-						}
+				s.EndObject();
+			}
 
-						channel.AddKeyframe(time, value);
+			// Deserialize rotation tracks
+			int32 rotTrackCount = 0;
+			s.Int32("rotationTrackCount", ref rotTrackCount);
+			for (int32 t = 0; t < rotTrackCount; t++)
+			{
+				s.BeginObject(scope $"rotTrack{t}");
+
+				int32 boneIndex = 0;
+				s.Int32("boneIndex", ref boneIndex);
+
+				int32 interpInt = 0;
+				s.Int32("interpolation", ref interpInt);
+
+				let track = clip.GetOrCreateRotationTrack(boneIndex);
+				track.Interpolation = (InterpolationMode)interpInt;
+
+				int32 keyframeCount = 0;
+				s.Int32("keyframeCount", ref keyframeCount);
+
+				if (keyframeCount > 0)
+				{
+					let times = scope List<float>();
+					let values = scope List<float>();
+					s.ArrayFloat("times", times);
+					s.ArrayFloat("values", values);
+
+					for (int32 k = 0; k < keyframeCount; k++)
+					{
+						float time = k < times.Count ? times[k] : 0;
+						int32 baseIdx = k * 4;
+						Quaternion value = .Identity;
+						if (baseIdx + 3 < values.Count)
+							value = Quaternion(values[baseIdx], values[baseIdx + 1], values[baseIdx + 2], values[baseIdx + 3]);
+						track.AddKeyframe(time, value);
+					}
+				}
+
+				s.EndObject();
+			}
+
+			// Deserialize scale tracks
+			int32 scaleTrackCount = 0;
+			s.Int32("scaleTrackCount", ref scaleTrackCount);
+			for (int32 t = 0; t < scaleTrackCount; t++)
+			{
+				s.BeginObject(scope $"scaleTrack{t}");
+
+				int32 boneIndex = 0;
+				s.Int32("boneIndex", ref boneIndex);
+
+				int32 interpInt = 0;
+				s.Int32("interpolation", ref interpInt);
+
+				let track = clip.GetOrCreateScaleTrack(boneIndex);
+				track.Interpolation = (InterpolationMode)interpInt;
+
+				int32 keyframeCount = 0;
+				s.Int32("keyframeCount", ref keyframeCount);
+
+				if (keyframeCount > 0)
+				{
+					let times = scope List<float>();
+					let values = scope List<float>();
+					s.ArrayFloat("times", times);
+					s.ArrayFloat("values", values);
+
+					for (int32 k = 0; k < keyframeCount; k++)
+					{
+						float time = k < times.Count ? times[k] : 0;
+						int32 baseIdx = k * 3;
+						Vector3 value = .(1, 1, 1);
+						if (baseIdx + 2 < values.Count)
+							value = .(values[baseIdx], values[baseIdx + 1], values[baseIdx + 2]);
+						track.AddKeyframe(time, value);
 					}
 				}
 
@@ -629,15 +770,6 @@ class SkinnedMeshResource : Resource
 
 		s.EndObject();
 		return animations;
-	}
-
-	private static int32 GetComponentCount(AnimationProperty prop)
-	{
-		switch (prop)
-		{
-		case .Translation, .Scale: return 3;
-		case .Rotation: return 4;
-		}
 	}
 
 	/// Save this skinned mesh resource to a file (bundle format with skeleton + animations).

@@ -11,6 +11,7 @@ using Sedulous.Models;
 using Sedulous.Models.GLTF;
 using Sedulous.Engine.Renderer;
 using Sedulous.Renderer;
+using Sedulous.Animation;
 using Sedulous.Shell.Input;
 using SampleFramework;
 using Sedulous.Renderer.Resources;
@@ -593,11 +594,22 @@ class RendererSkinnedSample : RHISampleApp
 		if (mFoxAnimPlayer != null)
 		{
 			mFoxAnimPlayer.Update(deltaTime);
+			mFoxAnimPlayer.Evaluate(); // Compute bone matrices
 
 			if (mBoneBuffer != null)
 			{
-				Span<uint8> boneData = .((uint8*)mFoxAnimPlayer.BoneMatrices.Ptr, 128 * sizeof(Matrix));
-				Device.Queue.WriteBuffer(mBoneBuffer, 0, boneData);
+				let skinningMatrices = mFoxAnimPlayer.GetSkinningMatrices();
+				// Copy to buffer, padding with identity for unused bones
+				Matrix[128] boneData = .();
+				for (int i = 0; i < 128; i++)
+				{
+					if (i < skinningMatrices.Length)
+						boneData[i] = skinningMatrices[i];
+					else
+						boneData[i] = .Identity;
+				}
+				Span<uint8> bufferData = .((uint8*)&boneData[0], 128 * sizeof(Matrix));
+				Device.Queue.WriteBuffer(mBoneBuffer, 0, bufferData);
 			}
 		}
 

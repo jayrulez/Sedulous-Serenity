@@ -3,7 +3,7 @@ using System.Collections;
 using Sedulous.Mathematics;
 using Sedulous.Geometry;
 using Sedulous.Models;
-using Sedulous.Renderer;
+using Sedulous.Animation;
 
 namespace Sedulous.Geometry.Tooling;
 
@@ -17,8 +17,7 @@ static class AnimationConverter
 		if (modelAnim == null)
 			return null;
 
-		let clip = new AnimationClip(modelAnim.Name);
-		clip.Duration = modelAnim.Duration;
+		let clip = new AnimationClip(modelAnim.Name, modelAnim.Duration);
 
 		for (let modelChannel in modelAnim.Channels)
 		{
@@ -31,26 +30,37 @@ static class AnimationConverter
 			if (boneIdx < 0)
 				continue;  // This node is not a skin joint, skip
 
-			AnimationProperty property;
-			switch (modelChannel.Path)
-			{
-			case .Translation: property = .Translation;
-			case .Rotation: property = .Rotation;
-			case .Scale: property = .Scale;
-			case .Weights: continue;  // Morph targets not supported yet
-			}
-
-			let channel = clip.AddChannel(boneIdx, property);
-
+			InterpolationMode interpolation;
 			switch (modelChannel.Interpolation)
 			{
-			case .Linear: channel.Interpolation = .Linear;
-			case .Step: channel.Interpolation = .Step;
-			case .CubicSpline: channel.Interpolation = .CubicSpline;
+			case .Linear: interpolation = .Linear;
+			case .Step: interpolation = .Step;
+			case .CubicSpline: interpolation = .CubicSpline;
 			}
 
-			for (let keyframe in modelChannel.Keyframes)
-				channel.AddKeyframe(keyframe.Time, keyframe.Value);
+			switch (modelChannel.Path)
+			{
+			case .Translation:
+				let track = clip.GetOrCreatePositionTrack(boneIdx);
+				track.Interpolation = interpolation;
+				for (let keyframe in modelChannel.Keyframes)
+					track.AddKeyframe(keyframe.Time, .(keyframe.Value.X, keyframe.Value.Y, keyframe.Value.Z));
+
+			case .Rotation:
+				let track = clip.GetOrCreateRotationTrack(boneIdx);
+				track.Interpolation = interpolation;
+				for (let keyframe in modelChannel.Keyframes)
+					track.AddKeyframe(keyframe.Time, Quaternion(keyframe.Value.X, keyframe.Value.Y, keyframe.Value.Z, keyframe.Value.W));
+
+			case .Scale:
+				let track = clip.GetOrCreateScaleTrack(boneIdx);
+				track.Interpolation = interpolation;
+				for (let keyframe in modelChannel.Keyframes)
+					track.AddKeyframe(keyframe.Time, .(keyframe.Value.X, keyframe.Value.Y, keyframe.Value.Z));
+
+			case .Weights:
+				continue;  // Morph targets not supported yet
+			}
 		}
 
 		return clip;

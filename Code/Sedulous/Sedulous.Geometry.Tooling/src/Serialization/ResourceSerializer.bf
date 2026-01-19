@@ -9,6 +9,7 @@ using Sedulous.Geometry;
 using Sedulous.Imaging;
 using Sedulous.Renderer;
 using Sedulous.Renderer.Resources;
+using Sedulous.Animation.Resources;
 
 namespace Sedulous.Geometry.Tooling;
 

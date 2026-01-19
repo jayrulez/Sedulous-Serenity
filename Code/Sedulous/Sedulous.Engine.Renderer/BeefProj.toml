@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Foundation" = "*", "Sedulous.Mathematics" = "*", "Sedulous.Logging" = "*", "Sedulous.RHI" = "*", "Sedulous.Resources" = "*", "Sedulous.Geometry" = "*", "Sedulous.Imaging" = "*", "Sedulous.Engine.Core" = "*", "Sedulous.Renderer" = "*", "Sedulous.Renderer.Resources" = "*", "Sedulous.Shaders" = "*"}
+Dependencies = {corlib = "*", "Sedulous.Foundation" = "*", "Sedulous.Mathematics" = "*", "Sedulous.Logging" = "*", "Sedulous.RHI" = "*", "Sedulous.Resources" = "*", "Sedulous.Geometry" = "*", "Sedulous.Imaging" = "*", "Sedulous.Engine.Core" = "*", "Sedulous.Renderer" = "*", "Sedulous.Renderer.Resources" = "*", "Sedulous.Shaders" = "*", "Sedulous.Animation" = "*"}
 
 [Project]
 Name = "Sedulous.Engine.Renderer"

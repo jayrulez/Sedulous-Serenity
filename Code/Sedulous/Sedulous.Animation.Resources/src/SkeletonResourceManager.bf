@@ -2,8 +2,9 @@ using System;
 using System.IO;
 using Sedulous.Resources;
 using Sedulous.Geometry;
+using Sedulous.Animation;
 
-namespace Sedulous.Renderer.Resources;
+namespace Sedulous.Animation.Resources;
 
 /// Resource manager for SkeletonResource.
 class SkeletonResourceManager : ResourceManager<SkeletonResource>

@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Renderer" = "*", "Sedulous.Resources" = "*", "Sedulous.Serialization.OpenDDL" = "*", "Sedulous.Mathematics.Serialization" = "*"}
+Dependencies = {corlib = "*", "Sedulous.Renderer" = "*", "Sedulous.Resources" = "*", "Sedulous.Serialization.OpenDDL" = "*", "Sedulous.Mathematics.Serialization" = "*", "Sedulous.Animation" = "*", "Sedulous.Animation.Resources" = "*"}
 
 [Project]
 Name = "Sedulous.Renderer.Resources"

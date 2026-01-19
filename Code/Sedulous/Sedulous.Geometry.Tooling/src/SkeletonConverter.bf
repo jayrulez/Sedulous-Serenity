@@ -3,7 +3,7 @@ using System.Collections;
 using Sedulous.Mathematics;
 using Sedulous.Geometry;
 using Sedulous.Models;
-using Sedulous.Renderer;
+using Sedulous.Animation;
 
 namespace Sedulous.Geometry.Tooling;
 
@@ -50,16 +50,19 @@ static class SkeletonConverter
 				? skin.InverseBindMatrices[skinJointIdx]
 				: Matrix.Identity;
 
-			skeleton.SetBone(
-				skinJointIdx,
-				modelBone.Name,
-				parentSkinJointIdx,
-				modelBone.Translation,
-				modelBone.Rotation,
-				modelBone.Scale,
-				ibm
-			);
+			// Set up the bone in the skeleton
+			let bone = skeleton.Bones[skinJointIdx];
+			bone.Name.Set(modelBone.Name);
+			bone.Index = skinJointIdx;
+			bone.ParentIndex = parentSkinJointIdx;
+			bone.InverseBindPose = ibm;
+			bone.LocalBindPose = Transform(modelBone.Translation, modelBone.Rotation, modelBone.Scale);
 		}
+
+		// Build skeleton hierarchy data
+		skeleton.BuildNameMap();
+		skeleton.FindRootBones();
+		skeleton.BuildChildIndices();
 
 		return skeleton;
 	}

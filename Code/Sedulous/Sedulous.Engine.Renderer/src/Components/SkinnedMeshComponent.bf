@@ -8,6 +8,13 @@ using Sedulous.Mathematics;
 using Sedulous.RHI;
 using Sedulous.Serialization;
 using Sedulous.Renderer;
+using Sedulous.Animation;
+
+/// Maximum bones supported in shader (must match shader constant).
+public static class SkinnedMeshConstants
+{
+	public const int32 MAX_BONES = 128;
+}
 
 /// Entity component that renders a skinned mesh with skeletal animation.
 class SkinnedMeshComponent : IEntityComponent
@@ -214,7 +221,7 @@ class SkinnedMeshComponent : IEntityComponent
 
 		if (let clip = GetAnimationClip(name))
 		{
-			mAnimationPlayer.Looping = loop;
+			clip.IsLooping = loop;
 			mAnimationPlayer.Play(clip);
 		}
 	}
@@ -227,7 +234,7 @@ class SkinnedMeshComponent : IEntityComponent
 
 		if (let clip = GetAnimationClip(index))
 		{
-			mAnimationPlayer.Looping = loop;
+			clip.IsLooping = loop;
 			mAnimationPlayer.Play(clip);
 		}
 	}
@@ -341,8 +348,10 @@ class SkinnedMeshComponent : IEntityComponent
 		// Update animation
 		if (mAnimationPlayer != null && mAnimationPlayer.State == .Playing)
 		{
-			// Update animation time and compute bone matrices
+			// Update animation time
 			mAnimationPlayer.Update(deltaTime);
+			// Evaluate to compute bone matrices
+			mAnimationPlayer.Evaluate();
 
 			// Upload bone matrices to GPU
 			UploadBoneMatrices();
@@ -415,8 +424,7 @@ class SkinnedMeshComponent : IEntityComponent
 		if (mBoneMatrixBuffer == null)
 		{
 			// Create buffer for MAX_BONES matrices
-			const int32 maxBones = Sedulous.Renderer.Skeleton.MAX_BONES;
-			uint64 bufferSize = (uint64)(maxBones * sizeof(Matrix));
+			uint64 bufferSize = (uint64)(SkinnedMeshConstants.MAX_BONES * sizeof(Matrix));
 			BufferDescriptor desc = .(bufferSize, .Uniform | .Storage, .Upload);
 			desc.Label = "BoneMatrices";
 
@@ -425,8 +433,8 @@ class SkinnedMeshComponent : IEntityComponent
 				mBoneMatrixBuffer = buffer;
 
 				// Initialize to identity matrices
-				Matrix[maxBones] identity = .();
-				for (int i = 0; i < maxBones; i++)
+				Matrix[SkinnedMeshConstants.MAX_BONES] identity = .();
+				for (int i = 0; i < SkinnedMeshConstants.MAX_BONES; i++)
 					identity[i] = .Identity;
 
 				Span<uint8> data = .((uint8*)&identity[0], (int)bufferSize);
@@ -453,15 +461,28 @@ class SkinnedMeshComponent : IEntityComponent
 			return;
 		if (mBoneMatrixBuffer == null)
 			return;
-		if (mAnimationPlayer?.BoneMatrices == null)
+		if (mAnimationPlayer == null)
 			return;
 
 		let device = mRenderScene.RendererService.Device;
 
-		// Upload bone matrices from animation player
-		const int32 maxBones = Sedulous.Renderer.Skeleton.MAX_BONES;
-		uint64 dataSize = (uint64)(maxBones * sizeof(Matrix));
-		Span<uint8> data = .((uint8*)mAnimationPlayer.BoneMatrices.Ptr, (int)dataSize);
+		// Get skinning matrices from animation player
+		let skinningMatrices = mAnimationPlayer.GetSkinningMatrices();
+
+		// Upload bone matrices
+		uint64 dataSize = (uint64)(SkinnedMeshConstants.MAX_BONES * sizeof(Matrix));
+
+		// Create a buffer with identity for any bones beyond what we have
+		Matrix[SkinnedMeshConstants.MAX_BONES] boneData = .();
+		for (int i = 0; i < SkinnedMeshConstants.MAX_BONES; i++)
+		{
+			if (i < skinningMatrices.Length)
+				boneData[i] = skinningMatrices[i];
+			else
+				boneData[i] = .Identity;
+		}
+
+		Span<uint8> data = .((uint8*)&boneData[0], (int)dataSize);
 		device.Queue.WriteBuffer(mBoneMatrixBuffer, 0, data);
 	}
 

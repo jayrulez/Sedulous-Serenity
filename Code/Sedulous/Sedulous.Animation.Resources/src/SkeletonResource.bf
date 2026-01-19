@@ -6,16 +6,17 @@ using Sedulous.Serialization;
 using Sedulous.Serialization.OpenDDL;
 using Sedulous.OpenDDL;
 using Sedulous.Mathematics;
+using Sedulous.Animation;
 
 using static Sedulous.Mathematics.MathSerializerExtensions;
 
-namespace Sedulous.Renderer.Resources;
+namespace Sedulous.Animation.Resources;
 
 /// CPU-side skeleton resource for skeletal animation.
 /// Can be shared between multiple SkinnedMeshResources.
 class SkeletonResource : Resource
 {
-	public const int32 FileVersion = 1;
+	public const int32 FileVersion = 2; // Bumped for new animation format
 	public const int32 FileType = 3; // ResourceFileType.Skeleton
 
 	private Skeleton mSkeleton;
@@ -82,25 +83,28 @@ class SkeletonResource : Resource
 
 				for (int32 i = 0; i < boneCount; i++)
 				{
-					int32 parentIndex = 0;
-					Matrix localTransform = .Identity;
-					Matrix inverseBindMatrix = .Identity;
-					mSkeleton.GetBoneData(i, out parentIndex, out localTransform, out inverseBindMatrix);
-
-					Vector3 bindTranslation = .Zero;
-					Quaternion bindRotation = .Identity;
-					Vector3 bindScale = .(1, 1, 1);
-					mSkeleton.GetBindPose(i, out bindTranslation, out bindRotation, out bindScale);
+					let bone = mSkeleton.Bones[i];
+					if (bone == null)
+						continue;
 
 					s.BeginObject(scope $"bone{i}");
 
-					String boneName = scope String(mSkeleton.GetBoneName(i));
+					String boneName = scope String(bone.Name);
 					s.String("name", boneName);
 
+					int32 parentIndex = bone.ParentIndex;
 					s.Int32("parentIndex", ref parentIndex);
+
+					Matrix inverseBindMatrix = bone.InverseBindPose;
 					s.Matrix4x4("inverseBindMatrix", ref inverseBindMatrix);
+
+					Vector3 bindTranslation = bone.LocalBindPose.Position;
 					s.Vector3("bindTranslation", ref bindTranslation);
+
+					Quaternion bindRotation = bone.LocalBindPose.Rotation;
 					s.Quaternion("bindRotation", ref bindRotation);
+
+					Vector3 bindScale = bone.LocalBindPose.Scale;
 					s.Vector3("bindScale", ref bindScale);
 
 					s.EndObject();
@@ -142,13 +146,24 @@ class SkeletonResource : Resource
 					Vector3 bindScale = .(1, 1, 1);
 					s.Vector3("bindScale", ref bindScale);
 
-					skeleton.SetBone(i, boneName, parentIdx, bindTranslation, bindRotation, bindScale, inverseBindMatrix);
+					// Set up the bone using the new API
+					let bone = skeleton.Bones[i];
+					bone.Name.Set(boneName);
+					bone.Index = i;
+					bone.ParentIndex = parentIdx;
+					bone.InverseBindPose = inverseBindMatrix;
+					bone.LocalBindPose = Transform(bindTranslation, bindRotation, bindScale);
 
 					s.EndObject();
 				}
 
 				s.EndObject();
 			}
+
+			// Build skeleton hierarchy
+			skeleton.BuildNameMap();
+			skeleton.FindRootBones();
+			skeleton.BuildChildIndices();
 
 			SetSkeleton(skeleton, true);
 		}
