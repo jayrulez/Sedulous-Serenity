@@ -2,17 +2,17 @@
 // Injects lighting and density into the froxel volume
 #pragma pack_matrix(row_major)
 
-// Light structure
+// Light structure - MUST match GPULight in LightBuffer.bf and forward.frag.hlsl
 struct Light
 {
     float3 Position;
     float Range;
+    float3 Direction;
+    float SpotAngleCos;    // cos(outer cone angle) for spot lights
     float3 Color;
     float Intensity;
-    float3 Direction;
-    uint Type;
-    float SpotAngle;
-    float SpotInnerAngle;
+    uint Type;             // 0 = Directional, 1 = Point, 2 = Spot
+    int ShadowIndex;
     float2 _Padding;
 };
 
@@ -105,7 +105,7 @@ float3 CalculateLighting(float3 worldPos, float3 viewDir, float density)
         float3 lightDir;
         float attenuation;
 
-        if (light.Type == 2) // Directional
+        if (light.Type == 0) // Directional
         {
             lightDir = -light.Direction;
             attenuation = 1.0;
@@ -120,12 +120,13 @@ float3 CalculateLighting(float3 worldPos, float3 viewDir, float density)
             attenuation = saturate(1.0 - distance / light.Range);
             attenuation *= attenuation;
 
-            if (light.Type == 1) // Spot
+            if (light.Type == 2) // Spot
             {
                 float cosAngle = dot(-lightDir, light.Direction);
-                float cosOuter = cos(light.SpotAngle);
-                float cosInner = cos(light.SpotInnerAngle);
-                attenuation *= saturate((cosAngle - cosOuter) / max(cosInner - cosOuter, 0.001));
+                // SpotAngleCos is the cosine of the outer cone angle
+                // Use a smooth falloff from center to edge
+                float cosInner = lerp(1.0, light.SpotAngleCos, 0.8); // Inner cone at 80% of outer
+                attenuation *= saturate((cosAngle - light.SpotAngleCos) / max(cosInner - light.SpotAngleCos, 0.001));
             }
         }
 

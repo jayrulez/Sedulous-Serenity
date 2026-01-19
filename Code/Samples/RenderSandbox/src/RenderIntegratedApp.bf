@@ -24,6 +24,7 @@ class RenderIntegratedApp : Application
 	private ForwardTransparentFeature mTransparentFeature;
 	private SkyFeature mSkyFeature;
 	private ParticleFeature mParticleFeature;
+	private VolumetricFogFeature mVolumetricFogFeature;
 	private DebugRenderFeature mDebugFeature;
 	private FinalOutputFeature mFinalOutputFeature;
 
@@ -107,6 +108,7 @@ class RenderIntegratedApp : Application
 		mView.FieldOfView = Math.PI_f / 4.0f;
 		mView.NearPlane = 0.1f;
 		mView.FarPlane = 30.0f; // Reduced for better shadow map utilization
+		mView.PostProcess.EnableVolumetricFog = true;
 		Console.WriteLine("RenderView created");
 
 		// Register render features
@@ -142,6 +144,7 @@ class RenderIntegratedApp : Application
 		Console.WriteLine("  H: toggle Hi-Z culling");
 		Console.WriteLine("  K: toggle sky mode (Procedural/Solid Color)");
 		Console.WriteLine("  P: toggle particle systems");
+		Console.WriteLine("  V: toggle volumetric fog");
 		Console.WriteLine("  ESC: exit");
 		Console.WriteLine("\nOrbital Camera (default):");
 		Console.WriteLine("  WASD: rotate around target");
@@ -192,6 +195,16 @@ class RenderIntegratedApp : Application
 		else
 			Console.WriteLine("Registered: ParticleFeature");
 
+		// Volumetric fog (froxel-based ray marching)
+		mVolumetricFogFeature = new VolumetricFogFeature();
+		// Configure fog settings for visible fog effect
+		mVolumetricFogFeature.Settings.FogDensity = 0.2f;
+		mVolumetricFogFeature.Settings.FogColor = .(0.5f, 0.6f, 0.7f);
+		if (mRenderSystem.RegisterFeature(mVolumetricFogFeature) case .Err)
+			Console.WriteLine("Warning: Failed to register VolumetricFogFeature");
+		else
+			Console.WriteLine("Registered: VolumetricFogFeature");
+
 		// Debug rendering (lines, shapes, text)
 		mDebugFeature = new DebugRenderFeature();
 		if (mRenderSystem.RegisterFeature(mDebugFeature) case .Err)
@@ -205,6 +218,26 @@ class RenderIntegratedApp : Application
 			Console.WriteLine("Warning: Failed to register FinalOutputFeature");
 		else
 			Console.WriteLine("Registered: FinalOutputFeature");
+
+		// Register post-process effects
+		RegisterPostProcessEffects();
+	}
+
+	private void RegisterPostProcessEffects()
+	{
+		let stack = mRenderSystem.PostProcessStack;
+		if (stack == null)
+			return;
+
+		// Volumetric fog effect (reads fog volume computed by VolumetricFogFeature)
+		let fogEffect = new VolumetricFogEffect(mVolumetricFogFeature);
+		stack.RegisterEffect(fogEffect);
+
+		// Initialize all post-process effects
+		if (stack.Initialize(mDevice) case .Err)
+			Console.WriteLine("Warning: Failed to initialize PostProcessStack");
+		else
+			Console.WriteLine("Registered: VolumetricFogEffect (PostProcess)");
 	}
 
 	private void CreateMeshes()
@@ -579,6 +612,13 @@ class RenderIntegratedApp : Application
 			}
 			let isEmitting = mWorld.GetParticleEmitter(mSmokeEmitter)?.IsEmitting ?? false;
 			Console.WriteLine("Particle Systems: {}", isEmitting ? "ON" : "OFF");
+		}
+
+		// Toggle volumetric fog
+		if (keyboard.IsKeyPressed(.V))
+		{
+			mView.PostProcess.EnableVolumetricFog = !mView.PostProcess.EnableVolumetricFog;
+			Console.WriteLine("Volumetric Fog: {}", mView.PostProcess.EnableVolumetricFog ? "ON" : "OFF");
 		}
 
 		// Stats

@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Runtime" = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Render" = "*", "Sedulous.Geometry" = "*"}
+Dependencies = {corlib = "*", "Sedulous.Runtime" = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Render" = "*", "Sedulous.Geometry" = "*", "Sedulous.Geometry.Tooling" = "*", "Sedulous.Models.GLTF" = "*"}
 
 [Project]
 Name = "RenderSandbox"

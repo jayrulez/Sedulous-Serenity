@@ -51,6 +51,10 @@ public class RenderSystem : IDisposable
 	// Render world (scene data)
 	private RenderWorld mActiveWorld;
 
+	// Post-processing stack
+	private PostProcessStack mPostProcessStack ~ delete _;
+	private RGResourceHandle mPostProcessOutput;
+
 	// Statistics
 	private RenderStats mStats;
 
@@ -96,6 +100,13 @@ public class RenderSystem : IDisposable
 
 	/// Gets the active render world.
 	public RenderWorld ActiveWorld => mActiveWorld;
+
+	/// Gets the post-process stack.
+	public PostProcessStack PostProcessStack => mPostProcessStack;
+
+	/// Gets the post-process output handle for the current frame.
+	/// Returns the final output from post-processing, or invalid handle if no effects are enabled.
+	public RGResourceHandle PostProcessOutput => mPostProcessOutput;
 
 	/// Initializes the render system.
 	public Result<void> Initialize(
@@ -144,6 +155,9 @@ public class RenderSystem : IDisposable
 		mMaterialSystem = new MaterialSystem();
 		if (mMaterialSystem.Initialize(device) case .Err)
 			return .Err;
+
+		// Initialize post-process stack
+		mPostProcessStack = new PostProcessStack();
 
 		mInitialized = true;
 		return .Ok;
@@ -279,10 +293,37 @@ public class RenderSystem : IDisposable
 			mFeaturesSorted = true;
 		}
 
-		// Let each feature add its passes
+		// Reset post-process output
+		mPostProcessOutput = .Invalid;
+
+		// Let each feature add its passes (except FinalOutput which we handle specially)
 		for (let feature in mSortedFeatures)
 		{
+			// Skip FinalOutput - we'll add it after post-processing
+			if (feature.Name == "FinalOutput")
+				continue;
+
 			feature.AddPasses(mRenderGraph, view, mActiveWorld);
+		}
+
+		// Add post-processing passes if any effects are enabled
+		if (mPostProcessStack != null && mPostProcessStack.HasEnabledEffects)
+		{
+			let sceneColorHandle = mRenderGraph.GetResource("SceneColor");
+			let depthHandle = mRenderGraph.GetResource("SceneDepth");
+
+			if (sceneColorHandle.IsValid && depthHandle.IsValid)
+			{
+				mPostProcessOutput = mPostProcessStack.AddPasses(
+					mRenderGraph, view, sceneColorHandle, depthHandle);
+			}
+		}
+
+		// Now add FinalOutput pass
+		let finalOutputFeature = GetFeature("FinalOutput");
+		if (finalOutputFeature != null)
+		{
+			finalOutputFeature.AddPasses(mRenderGraph, view, mActiveWorld);
 		}
 
 		// Compile the graph

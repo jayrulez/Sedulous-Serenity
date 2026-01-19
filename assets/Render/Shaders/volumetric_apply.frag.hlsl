@@ -26,16 +26,6 @@ struct VertexOutput
     float2 TexCoord : TEXCOORD0;
 };
 
-// Fullscreen triangle vertex shader
-VertexOutput VSMain(uint vertexID : SV_VertexID)
-{
-    VertexOutput output;
-    float2 uv = float2((vertexID << 1) & 2, vertexID & 2);
-    output.Position = float4(uv * 2.0 - 1.0, 0.0, 1.0);
-    output.TexCoord = float2(uv.x, 1.0 - uv.y);
-    return output;
-}
-
 // Convert depth to linear
 float LinearizeDepth(float depth)
 {
@@ -50,7 +40,7 @@ float DepthToFroxelZ(float linearDepth)
     return sqrt(saturate(t)); // Inverse of exponential distribution
 }
 
-float4 PSMain(VertexOutput input) : SV_Target
+float4 main(VertexOutput input) : SV_Target
 {
     // Sample scene
     float4 sceneColor = SceneColor.Sample(PointSampler, input.TexCoord);

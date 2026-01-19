@@ -11,8 +11,8 @@ cbuffer VolumetricParams : register(b0)
     float2 _Padding2;
 };
 
-RWTexture3D<float4> ScatteringVolume : register(u0); // Input: injected scattering
-RWTexture3D<float4> IntegratedVolume : register(u1); // Output: accumulated scattering
+Texture3D<float4> ScatteringVolume : register(t0); // Input: injected scattering (read-only)
+RWTexture3D<float4> IntegratedVolume : register(u0); // Output: accumulated scattering
 
 [numthreads(8, 8, 1)]
 void main(uint3 DTid : SV_DispatchThreadID)

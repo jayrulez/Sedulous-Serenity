@@ -32,3 +32,5 @@ claude_session t.txt
 RenderPromp.txt
 Render.md
 Scenes.md
+Assets/Render/Shaders/final_composite.frag.hlsl
+Assets/Render/Shaders/final_composite.vert.hlsl

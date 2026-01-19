@@ -162,18 +162,20 @@ public class FinalOutputFeature : RenderFeatureBase
 		// Import swapchain as render target
 		let swapchainHandle = graph.ImportTexture("Swapchain", mSwapChain.CurrentTexture, mSwapChain.CurrentTextureView);
 
-		// Get scene color from render graph (may not exist in minimal test mode)
-		let sceneColorHandle = graph.GetResource("SceneColor");
+		// Check for post-processed output first, then fall back to scene color
+		var sourceHandle = Renderer.PostProcessOutput;
+		if (!sourceHandle.IsValid)
+			sourceHandle = graph.GetResource("SceneColor");
 
-		if (sceneColorHandle.IsValid && mBlitPipeline != null)
+		if (sourceHandle.IsValid && mBlitPipeline != null)
 		{
-			// Full mode: blit SceneColor to swapchain
+			// Full mode: blit source (post-processed or scene color) to swapchain
 			// Capture the graph and handle for use in the execute callback
 			RenderGraph graphRef = graph;
-			RGResourceHandle colorHandle = sceneColorHandle;
+			RGResourceHandle colorHandle = sourceHandle;
 
 			graph.AddGraphicsPass("FinalOutput")
-				.ReadTexture(sceneColorHandle)
+				.ReadTexture(sourceHandle)
 				.WriteColor(swapchainHandle, .Clear, .Store, .(0.0f, 0.0f, 0.0f, 1.0f))
 				.NeverCull()
 				.SetExecuteCallback(new [=](encoder) => {
