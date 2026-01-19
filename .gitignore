@@ -34,3 +34,7 @@ Render.md
 Scenes.md
 Assets/Render/Shaders/final_composite.frag.hlsl
 Assets/Render/Shaders/final_composite.vert.hlsl
+Code/Dependencies/joltc-Beef/dist/Release-Win64/joltc.lib
+Code/Dependencies/joltc-Beef/dist/Release-Win64/Jolt.lib
+Code/Dependencies/joltc-Beef/dist/Release-Win64/joltc.dll
+Code/Dependencies/joltc-Beef/dist/Release-Win64/joltc.exp
