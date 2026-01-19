@@ -31,12 +31,15 @@ public class ForwardTransparentFeature : RenderFeatureBase
 	// Pipeline layout is borrowed from ForwardOpaqueFeature - don't delete
 	private IPipelineLayout mTransparentPipelineLayout;
 
-	// Object uniform buffer for transparent objects (with dynamic offset)
-	private IBuffer mObjectUniformBuffer ~ delete _;
-	private IBindGroup mSceneBindGroup ~ delete _;
+	// Object uniform buffers for transparent objects (per-frame for multi-buffering)
+	private IBuffer[RenderConfig.FrameBufferCount] mObjectUniformBuffers;
+	private IBindGroup[RenderConfig.FrameBufferCount] mSceneBindGroups;
 	private const int MaxTransparentObjects = 256;
 	private const uint64 ObjectUniformAlignment = 256;
 	private const uint64 AlignedObjectUniformSize = ((ObjectUniforms.Size + ObjectUniformAlignment - 1) / ObjectUniformAlignment) * ObjectUniformAlignment;
+
+	/// Gets the current frame index for multi-buffering.
+	private int32 FrameIndex => Renderer.RenderFrameContext?.FrameIndex ?? 0;
 
 	protected override Result<void> OnInitialize()
 	{
@@ -56,18 +59,22 @@ public class ForwardTransparentFeature : RenderFeatureBase
 
 	private Result<void> CreateObjectUniformBuffer()
 	{
-		BufferDescriptor desc = .()
+		// Create per-frame object uniform buffers
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			Label = "Transparent Object Uniforms",
-			Size = AlignedObjectUniformSize * MaxTransparentObjects,
-			Usage = .Uniform,
-			MemoryAccess = .Upload
-		};
+			BufferDescriptor desc = .()
+			{
+				Label = "Transparent Object Uniforms",
+				Size = AlignedObjectUniformSize * MaxTransparentObjects,
+				Usage = .Uniform,
+				MemoryAccess = .Upload
+			};
 
-		switch (Renderer.Device.CreateBuffer(&desc))
-		{
-		case .Ok(let buf): mObjectUniformBuffer = buf;
-		case .Err: return .Err;
+			switch (Renderer.Device.CreateBuffer(&desc))
+			{
+			case .Ok(let buf): mObjectUniformBuffers[i] = buf;
+			case .Err: return .Err;
+			}
 		}
 
 		return .Ok;
@@ -234,6 +241,21 @@ public class ForwardTransparentFeature : RenderFeatureBase
 
 	protected override void OnShutdown()
 	{
+		// Clean up per-frame resources
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
+		{
+			if (mObjectUniformBuffers[i] != null)
+			{
+				delete mObjectUniformBuffers[i];
+				mObjectUniformBuffers[i] = null;
+			}
+
+			if (mSceneBindGroups[i] != null)
+			{
+				delete mSceneBindGroups[i];
+				mSceneBindGroups[i] = null;
+			}
+		}
 	}
 
 	public override void AddPasses(RenderGraph graph, RenderView view, RenderWorld world)
@@ -257,9 +279,10 @@ public class ForwardTransparentFeature : RenderFeatureBase
 		if (mSortedDraws.Count == 0)
 			return;
 
-		// Upload transparent object uniforms and create scene bind group
+		// Upload transparent object uniforms and create scene bind group for current frame
+		let frameIndex = FrameIndex;
 		PrepareTransparentObjectUniforms(world);
-		CreateSceneBindGroup();
+		CreateSceneBindGroup(frameIndex);
 
 		// Add transparent pass
 		// Note: Must be NeverCull because render graph culling only preserves FirstWriter,
@@ -275,10 +298,12 @@ public class ForwardTransparentFeature : RenderFeatureBase
 
 	private void PrepareTransparentObjectUniforms(RenderWorld world)
 	{
-		if (mObjectUniformBuffer == null || mSortedDraws.Count == 0)
+		// Use current frame's buffer
+		let objectUniformBuffer = mObjectUniformBuffers[FrameIndex];
+		if (objectUniformBuffer == null || mSortedDraws.Count == 0)
 			return;
 
-		if (let bufferPtr = mObjectUniformBuffer.Map())
+		if (let bufferPtr = objectUniformBuffer.Map())
 		{
 			int32 objectIndex = 0;
 			for (var sortedDraw in ref mSortedDraws)
@@ -306,17 +331,17 @@ public class ForwardTransparentFeature : RenderFeatureBase
 					objectIndex++;
 				}
 			}
-			mObjectUniformBuffer.Unmap();
+			objectUniformBuffer.Unmap();
 		}
 	}
 
-	private void CreateSceneBindGroup()
+	private void CreateSceneBindGroup(int32 frameIndex)
 	{
 		// Delete old bind group if exists
-		if (mSceneBindGroup != null)
+		if (mSceneBindGroups[frameIndex] != null)
 		{
-			delete mSceneBindGroup;
-			mSceneBindGroup = null;
+			delete mSceneBindGroups[frameIndex];
+			mSceneBindGroups[frameIndex] = null;
 		}
 
 		// Get ForwardOpaqueFeature for shared resources
@@ -335,13 +360,15 @@ public class ForwardTransparentFeature : RenderFeatureBase
 		if (lighting == null)
 			return;
 
+		// Use frame-specific buffers
 		let cameraBuffer = Renderer.RenderFrameContext?.SceneUniformBuffer;
-		let lightingBuffer = lighting.LightBuffer?.UniformBuffer;
-		let lightDataBuffer = lighting.LightBuffer?.LightDataBuffer;
-		let clusterInfoBuffer = lighting.ClusterGrid?.ClusterLightInfoBuffer;
-		let lightIndexBuffer = lighting.ClusterGrid?.LightIndexBuffer;
+		let objectUniformBuffer = mObjectUniformBuffers[frameIndex];
+		let lightingBuffer = lighting.LightBuffer?.GetUniformBuffer(frameIndex);
+		let lightDataBuffer = lighting.LightBuffer?.GetLightDataBuffer(frameIndex);
+		let clusterInfoBuffer = lighting.ClusterGrid?.GetClusterLightInfoBuffer(frameIndex);
+		let lightIndexBuffer = lighting.ClusterGrid?.GetLightIndexBuffer(frameIndex);
 
-		if (cameraBuffer == null || mObjectUniformBuffer == null ||
+		if (cameraBuffer == null || objectUniformBuffer == null ||
 			lightingBuffer == null || lightDataBuffer == null ||
 			clusterInfoBuffer == null || lightIndexBuffer == null)
 			return;
@@ -353,7 +380,7 @@ public class ForwardTransparentFeature : RenderFeatureBase
 		entries[0] = BindGroupEntry.Buffer(0, cameraBuffer, 0, SceneUniforms.Size);
 
 		// b1: Object uniforms (dynamic offset - our own buffer for transparent objects)
-		entries[1] = BindGroupEntry.Buffer(1, mObjectUniformBuffer, 0, AlignedObjectUniformSize);
+		entries[1] = BindGroupEntry.Buffer(1, objectUniformBuffer, 0, AlignedObjectUniformSize);
 
 		// b3: Lighting uniforms
 		entries[2] = BindGroupEntry.Buffer(3, lightingBuffer, 0, (uint64)LightingUniforms.Size);
@@ -404,7 +431,7 @@ public class ForwardTransparentFeature : RenderFeatureBase
 		};
 
 		if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bg))
-			mSceneBindGroup = bg;
+			mSceneBindGroups[frameIndex] = bg;
 	}
 
 	private void SortTransparentDraws(RenderWorld world, DepthPrepassFeature depthFeature, RenderView view)
@@ -455,8 +482,9 @@ public class ForwardTransparentFeature : RenderFeatureBase
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0.0f, 1.0f);
 		encoder.SetScissorRect(0, 0, view.Width, view.Height);
 
-		// Check we have a valid scene bind group
-		if (mSceneBindGroup == null)
+		// Check we have a valid scene bind group for current frame
+		let sceneBindGroup = mSceneBindGroups[FrameIndex];
+		if (sceneBindGroup == null)
 			return;
 
 		// Get material system for binding materials
@@ -512,7 +540,7 @@ public class ForwardTransparentFeature : RenderFeatureBase
 
 					// Bind scene bind group with dynamic offset for this object's transforms
 					uint32[1] dynamicOffsets = .((uint32)(sortedDraw.ObjectIndex * (int32)AlignedObjectUniformSize));
-					encoder.SetBindGroup(0, mSceneBindGroup, dynamicOffsets);
+					encoder.SetBindGroup(0, sceneBindGroup, dynamicOffsets);
 
 					// Bind vertex/index buffers
 					encoder.SetVertexBuffer(0, mesh.VertexBuffer, 0);

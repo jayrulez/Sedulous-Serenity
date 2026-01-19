@@ -87,8 +87,8 @@ public class LightBuffer : IDisposable
 
 	// GPU resources
 	private IDevice mDevice;
-	private IBuffer mLightDataBuffer;     // Array of GPULight structs
-	private IBuffer mLightingUniformBuffer; // LightingUniforms
+	private IBuffer[RenderConfig.FrameBufferCount] mLightDataBuffers;     // Array of GPULight structs (per-frame)
+	private IBuffer[RenderConfig.FrameBufferCount] mLightingUniformBuffers; // LightingUniforms (per-frame)
 
 	// CPU-side light data for upload
 	private GPULight[] mLights ~ delete _;
@@ -151,50 +151,56 @@ public class LightBuffer : IDisposable
 		set => mExposure = value;
 	}
 
-	/// Gets the light data buffer for binding.
-	public IBuffer LightDataBuffer => mLightDataBuffer;
+	/// Gets the light data buffer for a specific frame index.
+	public IBuffer GetLightDataBuffer(int32 frameIndex) => mLightDataBuffers[frameIndex];
 
-	/// Gets the lighting uniform buffer for binding.
-	public IBuffer UniformBuffer => mLightingUniformBuffer;
+	/// Gets the lighting uniform buffer for a specific frame index.
+	public IBuffer GetUniformBuffer(int32 frameIndex) => mLightingUniformBuffers[frameIndex];
 
 	/// Whether the buffer has been initialized.
-	public bool IsInitialized => mDevice != null && mLightDataBuffer != null;
+	public bool IsInitialized => mDevice != null && mLightDataBuffers[0] != null;
 
 	/// Initializes the light buffer.
 	public Result<void> Initialize(IDevice device)
 	{
 		mDevice = device;
 
-		// Create light data buffer (structured buffer)
+		// Create per-frame light data buffers (structured buffer)
 		// Use Upload memory for CPU mapping (avoids command buffer for writes)
-		BufferDescriptor lightDesc = .()
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			Label = "Light Data",
-			Size = (uint64)(MAX_LIGHTS * GPULight.Size),
-			Usage = .Storage,
-			MemoryAccess = .Upload // CPU-mappable
-		};
+			BufferDescriptor lightDesc = .()
+			{
+				Label = "Light Data",
+				Size = (uint64)(MAX_LIGHTS * GPULight.Size),
+				Usage = .Storage,
+				MemoryAccess = .Upload // CPU-mappable
+			};
 
-		switch (mDevice.CreateBuffer(&lightDesc))
-		{
-		case .Ok(let buf): mLightDataBuffer = buf;
-		case .Err: return .Err;
+			switch (mDevice.CreateBuffer(&lightDesc))
+			{
+			case .Ok(let buf): mLightDataBuffers[i] = buf;
+			case .Err: return .Err;
+			}
 		}
 
-		// Create lighting uniform buffer
+		// Create per-frame lighting uniform buffers
 		// Use Upload memory for CPU mapping (avoids command buffer for writes)
-		BufferDescriptor uniformDesc = .()
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			Label = "Lighting Uniforms",
-			Size = (uint64)LightingUniforms.Size,
-			Usage = .Uniform,
-			MemoryAccess = .Upload // CPU-mappable
-		};
+			BufferDescriptor uniformDesc = .()
+			{
+				Label = "Lighting Uniforms",
+				Size = (uint64)LightingUniforms.Size,
+				Usage = .Uniform,
+				MemoryAccess = .Upload // CPU-mappable
+			};
 
-		switch (mDevice.CreateBuffer(&uniformDesc))
-		{
-		case .Ok(let buf): mLightingUniformBuffer = buf;
-		case .Err: return .Err;
+			switch (mDevice.CreateBuffer(&uniformDesc))
+			{
+			case .Ok(let buf): mLightingUniformBuffers[i] = buf;
+			case .Err: return .Err;
+			}
 		}
 
 		// Allocate CPU-side light array
@@ -203,7 +209,8 @@ public class LightBuffer : IDisposable
 		return .Ok;
 	}
 
-	/// Updates the light buffer from visible lights.
+	/// Updates the light buffer from visible lights (CPU-side only).
+	/// Call UploadLightData and UploadUniforms with frame index to upload to GPU.
 	public void Update(RenderWorld world, VisibilityResolver visibility)
 	{
 		mLightCount = 0;
@@ -220,13 +227,10 @@ public class LightBuffer : IDisposable
 				mLightCount++;
 			}
 		}
-
-		// Upload to GPU
-		UploadLightData();
-		UploadUniforms();
 	}
 
-	/// Updates the light buffer from a render world (all active lights).
+	/// Updates the light buffer from a render world (all active lights, CPU-side only).
+	/// Call UploadLightData and UploadUniforms with frame index to upload to GPU.
 	public void UpdateFromWorld(RenderWorld world)
 	{
 		mLightCount = 0;
@@ -242,10 +246,6 @@ public class LightBuffer : IDisposable
 			mLights[mLightCount] = GPULight.FromProxy(&proxy);
 			mLightCount++;
 		});
-
-		// Upload to GPU
-		UploadLightData();
-		UploadUniforms();
 	}
 
 	/// Manually sets a light at the given index.
@@ -265,8 +265,8 @@ public class LightBuffer : IDisposable
 		mLightCount = 0;
 	}
 
-	/// Uploads current light data to GPU.
-	public void UploadLightData()
+	/// Uploads current light data to GPU for the specified frame.
+	public void UploadLightData(int32 frameIndex)
 	{
 		if (!IsInitialized || mLightCount == 0)
 			return;
@@ -275,17 +275,19 @@ public class LightBuffer : IDisposable
 		Runtime.Assert(mLightCount <= MAX_LIGHTS, scope $"mLightCount ({mLightCount}) exceeds MAX_LIGHTS ({MAX_LIGHTS})");
 
 		// Use Map/Unmap to avoid command buffer creation
-		if (let ptr = mLightDataBuffer.Map())
+		// Upload to specified frame's buffer
+		let buffer = mLightDataBuffers[frameIndex];
+		if (let ptr = buffer.Map())
 		{
 			let uploadSize = mLightCount * GPULight.Size;
-			Runtime.Assert(uploadSize <= (.)mLightDataBuffer.Size, scope $"Light data upload size ({uploadSize}) exceeds buffer size ({mLightDataBuffer.Size})");
+			Runtime.Assert(uploadSize <= (.)buffer.Size, scope $"Light data upload size ({uploadSize}) exceeds buffer size ({buffer.Size})");
 			Internal.MemCpy(ptr, &mLights[0], uploadSize);
-			mLightDataBuffer.Unmap();
+			buffer.Unmap();
 		}
 	}
 
-	/// Uploads lighting uniforms to GPU.
-	public void UploadUniforms()
+	/// Uploads lighting uniforms to GPU for the specified frame.
+	public void UploadUniforms(int32 frameIndex)
 	{
 		if (!IsInitialized)
 			return;
@@ -303,12 +305,14 @@ public class LightBuffer : IDisposable
 		};
 
 		// Use Map/Unmap to avoid command buffer creation
-		if (let ptr = mLightingUniformBuffer.Map())
+		// Upload to specified frame's buffer
+		let buffer = mLightingUniformBuffers[frameIndex];
+		if (let ptr = buffer.Map())
 		{
 			// Bounds check against actual buffer size
-			Runtime.Assert(LightingUniforms.Size <= (.)mLightingUniformBuffer.Size, scope $"LightingUniforms copy size ({LightingUniforms.Size}) exceeds buffer size ({mLightingUniformBuffer.Size})");
+			Runtime.Assert(LightingUniforms.Size <= (.)buffer.Size, scope $"LightingUniforms copy size ({LightingUniforms.Size}) exceeds buffer size ({buffer.Size})");
 			Internal.MemCpy(ptr, &uniforms, LightingUniforms.Size);
-			mLightingUniformBuffer.Unmap();
+			buffer.Unmap();
 		}
 	}
 
@@ -319,7 +323,10 @@ public class LightBuffer : IDisposable
 
 	public void Dispose()
 	{
-		if (mLightDataBuffer != null) { delete mLightDataBuffer; mLightDataBuffer = null; }
-		if (mLightingUniformBuffer != null) { delete mLightingUniformBuffer; mLightingUniformBuffer = null; }
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
+		{
+			if (mLightDataBuffers[i] != null) { delete mLightDataBuffers[i]; mLightDataBuffers[i] = null; }
+			if (mLightingUniformBuffers[i] != null) { delete mLightingUniformBuffers[i]; mLightingUniformBuffers[i] = null; }
+		}
 	}
 }

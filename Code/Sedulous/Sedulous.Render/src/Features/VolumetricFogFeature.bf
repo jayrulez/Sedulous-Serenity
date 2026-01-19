@@ -154,6 +154,9 @@ public class VolumetricFogFeature : RenderFeatureBase
 	private IBindGroup mScatterBindGroup ~ delete _;
 	private IBindGroup mApplyBindGroup ~ delete _;
 
+	/// Gets the current frame index for multi-buffering.
+	private int32 FrameIndex => Renderer.RenderFrameContext?.FrameIndex ?? 0;
+
 	// Depth-only view for sampling (depth/stencil textures need aspect specified)
 	private ITextureView mDepthOnlyView ~ delete _;
 	private ITexture mLastDepthTexture;
@@ -803,7 +806,7 @@ public class VolumetricFogFeature : RenderFeatureBase
 		{
 			if (forwardFeature.Lighting?.LightBuffer != null)
 			{
-				lightBuffer = forwardFeature.Lighting.LightBuffer.LightDataBuffer;
+				lightBuffer = forwardFeature.Lighting.LightBuffer.GetLightDataBuffer(FrameIndex);
 				lightBufferSize = Math.Max(forwardFeature.Lighting.LightBuffer.LightCount, 1) * GPULight.Size;
 			}
 		}

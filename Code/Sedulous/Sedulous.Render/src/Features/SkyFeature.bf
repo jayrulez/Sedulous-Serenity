@@ -90,17 +90,17 @@ public class SkyFeature : RenderFeatureBase
 	private ITexture mBRDFLut;
 	private ITextureView mBRDFLutView;
 
-	// Sky rendering
+	// Sky rendering (per-frame for multi-buffering)
 	private IRenderPipeline mSkyPipeline ~ delete _;
-	private IBuffer mSkyParamsBuffer ~ delete _;
+	private IBuffer[RenderConfig.FrameBufferCount] mSkyParamsBuffers;
 	private IBindGroupLayout mSkyBindGroupLayout ~ delete _;
-	private IBindGroup mSkyBindGroup ~ delete _;
+	private IBindGroup[RenderConfig.FrameBufferCount] mSkyBindGroups;
 
 	// Full-screen quad mesh (kept for potential future use, shader uses SV_VertexID)
 	private IBuffer mFullscreenQuadVB ~ delete _;
 
-	// Cached frame index for bind group updates
-	private int32 mLastFrameIndex = -1;
+	/// Gets the current frame index for multi-buffering.
+	private int32 FrameIndex => Renderer.RenderFrameContext?.FrameIndex ?? 0;
 
 	/// Feature name.
 	public override StringView Name => "Sky";
@@ -247,6 +247,22 @@ public class SkyFeature : RenderFeatureBase
 
 	protected override void OnShutdown()
 	{
+		// Clean up per-frame resources
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
+		{
+			if (mSkyParamsBuffers[i] != null)
+			{
+				delete mSkyParamsBuffers[i];
+				mSkyParamsBuffers[i] = null;
+			}
+
+			if (mSkyBindGroups[i] != null)
+			{
+				delete mSkyBindGroups[i];
+				mSkyBindGroups[i] = null;
+			}
+		}
+
 		if (mEnvironmentMapView != null) delete mEnvironmentMapView;
 		if (mEnvironmentMap != null) delete mEnvironmentMap;
 		if (mIrradianceMapView != null) delete mIrradianceMapView;
@@ -317,19 +333,23 @@ public class SkyFeature : RenderFeatureBase
 
 	private Result<void> CreateSkyParamsBuffer()
 	{
-		// Use Upload memory for CPU mapping (avoids command buffer for writes)
-		BufferDescriptor desc = .()
+		// Create per-frame sky params buffers
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			Label = "Sky Params",
-			Size = (uint64)ProceduralSkyParams.Size,
-			Usage = .Uniform,
-			MemoryAccess = .Upload // CPU-mappable
-		};
+			// Use Upload memory for CPU mapping (avoids command buffer for writes)
+			BufferDescriptor desc = .()
+			{
+				Label = "Sky Params",
+				Size = (uint64)ProceduralSkyParams.Size,
+				Usage = .Uniform,
+				MemoryAccess = .Upload // CPU-mappable
+			};
 
-		switch (Renderer.Device.CreateBuffer(&desc))
-		{
-		case .Ok(let buf): mSkyParamsBuffer = buf;
-		case .Err: return .Err;
+			switch (Renderer.Device.CreateBuffer(&desc))
+			{
+			case .Ok(let buf): mSkyParamsBuffers[i] = buf;
+			case .Err: return .Err;
+			}
 		}
 
 		return .Ok;
@@ -494,10 +514,11 @@ public class SkyFeature : RenderFeatureBase
 		// when SetEnvironmentMap is called with proper compute shader support.
 	}
 
-	/// Ensures the sky bind group exists and is up to date for the current frame.
-	private void EnsureSkyBindGroup()
+	/// Ensures the sky bind group exists for the current frame.
+	private void EnsureSkyBindGroup(int32 frameIndex)
 	{
-		if (mSkyBindGroupLayout == null || mSkyParamsBuffer == null)
+		let skyParamsBuffer = mSkyParamsBuffers[frameIndex];
+		if (mSkyBindGroupLayout == null || skyParamsBuffer == null)
 			return;
 
 		// Get current frame's camera buffer
@@ -509,16 +530,11 @@ public class SkyFeature : RenderFeatureBase
 		if (cameraBuffer == null)
 			return;
 
-		// Only recreate bind group if frame index changed (triple buffering)
-		let currentFrameIndex = frameContext.FrameIndex;
-		if (mSkyBindGroup != null && mLastFrameIndex == currentFrameIndex)
-			return;
-
-		// Release old bind group
-		if (mSkyBindGroup != null)
+		// Delete old bind group if exists
+		if (mSkyBindGroups[frameIndex] != null)
 		{
-			delete mSkyBindGroup;
-			mSkyBindGroup = null;
+			delete mSkyBindGroups[frameIndex];
+			mSkyBindGroups[frameIndex] = null;
 		}
 
 		// Create bind group entries
@@ -526,7 +542,7 @@ public class SkyFeature : RenderFeatureBase
 		// Binding 1: Sky params
 		BindGroupEntry[2] entries = .(
 			BindGroupEntry.Buffer(0, cameraBuffer, 0, SceneUniforms.Size),
-			BindGroupEntry.Buffer(1, mSkyParamsBuffer, 0, (uint64)ProceduralSkyParams.Size)
+			BindGroupEntry.Buffer(1, skyParamsBuffer, 0, (uint64)ProceduralSkyParams.Size)
 		);
 
 		BindGroupDescriptor desc = .()
@@ -536,14 +552,8 @@ public class SkyFeature : RenderFeatureBase
 			Entries = entries
 		};
 
-		switch (Renderer.Device.CreateBindGroup(&desc))
-		{
-		case .Ok(let bg):
-			mSkyBindGroup = bg;
-			mLastFrameIndex = currentFrameIndex;
-		case .Err:
-			return;
-		}
+		if (Renderer.Device.CreateBindGroup(&desc) case .Ok(let bg))
+			mSkyBindGroups[frameIndex] = bg;
 	}
 
 	private void UpdateSkyParams()
@@ -554,17 +564,23 @@ public class SkyFeature : RenderFeatureBase
 		// Set mode from enum (0 = Procedural, 1 = SolidColor)
 		mSkyParams.Mode = (mMode == .SolidColor) ? 1.0f : 0.0f;
 
+		// Use current frame's buffer
+		let frameIndex = FrameIndex;
+		let skyParamsBuffer = mSkyParamsBuffers[frameIndex];
+		if (skyParamsBuffer == null)
+			return;
+
 		// Use Map/Unmap to avoid command buffer creation
-		if (let ptr = mSkyParamsBuffer.Map())
+		if (let ptr = skyParamsBuffer.Map())
 		{
 			// Bounds check: buffer size is ProceduralSkyParams.Size (96 bytes)
-			Runtime.Assert(ProceduralSkyParams.Size <= (.)mSkyParamsBuffer.Size, scope $"ProceduralSkyParams copy size exceeds buffer size ({mSkyParamsBuffer.Size})");
+			Runtime.Assert(ProceduralSkyParams.Size <= (.)skyParamsBuffer.Size, scope $"ProceduralSkyParams copy size exceeds buffer size ({skyParamsBuffer.Size})");
 			Internal.MemCpy(ptr, &mSkyParams, ProceduralSkyParams.Size);
-			mSkyParamsBuffer.Unmap();
+			skyParamsBuffer.Unmap();
 		}
 
 		// Ensure bind group is ready for this frame
-		EnsureSkyBindGroup();
+		EnsureSkyBindGroup(frameIndex);
 	}
 
 	private void ExecuteSkyPass(IRenderPassEncoder encoder, RenderView view)
@@ -579,9 +595,10 @@ public class SkyFeature : RenderFeatureBase
 		// Bind pipeline
 		encoder.SetPipeline(mSkyPipeline);
 
-		// Bind resources
-		if (mSkyBindGroup != null)
-			encoder.SetBindGroup(0, mSkyBindGroup, default);
+		// Bind resources using current frame's bind group
+		let skyBindGroup = mSkyBindGroups[FrameIndex];
+		if (skyBindGroup != null)
+			encoder.SetBindGroup(0, skyBindGroup, default);
 
 		// Draw fullscreen triangle using SV_VertexID (no vertex buffer needed)
 		encoder.Draw(3, 1, 0, 0);

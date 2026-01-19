@@ -39,12 +39,12 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 	private LightingSystem mLighting ~ delete _;
 	private ShadowRenderer mShadowRenderer ~ delete _;
 
-	// Bind groups
+	// Bind groups (per-frame for multi-buffering)
 	private IBindGroupLayout mSceneBindGroupLayout ~ delete _;
-	private IBindGroup mSceneBindGroup ~ delete _;
+	private IBindGroup[RenderConfig.FrameBufferCount] mSceneBindGroups;
 
-	// Object uniform buffer (for per-object transforms with dynamic offsets)
-	private IBuffer mObjectUniformBuffer ~ delete _;
+	// Object uniform buffers (per-frame for multi-buffering)
+	private IBuffer[RenderConfig.FrameBufferCount] mObjectUniformBuffers;
 	private const int MaxObjectsPerFrame = 1024;
 	private const uint64 ObjectUniformAlignment = 256; // Vulkan minUniformBufferOffsetAlignment
 	private const uint64 AlignedObjectUniformSize = ((ObjectUniforms.Size + ObjectUniformAlignment - 1) / ObjectUniformAlignment) * ObjectUniformAlignment;
@@ -52,13 +52,13 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 	// Pipeline cache (material -> pipeline)
 	private Dictionary<MaterialInstance, IRenderPipeline> mPipelineCache = new .() ~ delete _;
 
-	// Shadow depth rendering
+	// Shadow depth rendering (per-frame for multi-buffering)
 	private IRenderPipeline mShadowDepthPipeline ~ delete _;
 	private IPipelineLayout mShadowPipelineLayout ~ delete _;
 	private IBindGroupLayout mShadowBindGroupLayout ~ delete _;
-	private IBindGroup mShadowBindGroup ~ delete _;
-	private IBuffer mShadowUniformBuffer ~ delete _; // Per-cascade SceneUniforms for light matrices
-	private IBuffer mShadowObjectBuffer ~ delete _;  // Per-object transforms for shadow pass
+	private IBindGroup[RenderConfig.FrameBufferCount] mShadowBindGroups;
+	private IBuffer[RenderConfig.FrameBufferCount] mShadowUniformBuffers; // Per-cascade SceneUniforms for light matrices
+	private IBuffer[RenderConfig.FrameBufferCount] mShadowObjectBuffers;  // Per-object transforms for shadow pass
 	private SceneUniforms mShadowUniforms; // CPU-side shadow uniforms
 	private uint64 mAlignedSceneUniformSize; // Aligned size for dynamic uniform offset
 
@@ -68,6 +68,9 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 	/// Feature name.
 	public override StringView Name => "ForwardOpaque";
+
+	/// Gets the current frame index for multi-buffering.
+	private int32 FrameIndex => Renderer.RenderFrameContext?.FrameIndex ?? 0;
 
 	/// Gets the lighting system.
 	public LightingSystem Lighting => mLighting;
@@ -291,37 +294,43 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		case .Err: return .Err;
 		}
 
-		// Create shadow uniform buffer large enough for 4 cascades with alignment
+		// Create per-frame shadow uniform buffers large enough for 4 cascades with alignment
 		// Each cascade needs SceneUniforms aligned to 256 bytes
 		// Use Upload memory for CPU mapping (avoids command buffer for writes)
 		const uint64 AlignedSceneUniformSize = ((SceneUniforms.Size + 255) / 256) * 256; // 256-byte aligned
-		BufferDescriptor uniformDesc = .()
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			Size = AlignedSceneUniformSize * 4, // 4 cascades
-			Usage = .Uniform,
-			MemoryAccess = .Upload // CPU-mappable
-		};
-		switch (Renderer.Device.CreateBuffer(&uniformDesc))
-		{
-		case .Ok(let buf): mShadowUniformBuffer = buf;
-		case .Err: return .Err;
+			BufferDescriptor uniformDesc = .()
+			{
+				Size = AlignedSceneUniformSize * 4, // 4 cascades
+				Usage = .Uniform,
+				MemoryAccess = .Upload // CPU-mappable
+			};
+			switch (Renderer.Device.CreateBuffer(&uniformDesc))
+			{
+			case .Ok(let buf): mShadowUniformBuffers[i] = buf;
+			case .Err: return .Err;
+			}
 		}
 
 		// Initialize shadow uniforms
 		mShadowUniforms = .Identity;
 		mAlignedSceneUniformSize = AlignedSceneUniformSize;
 
-		// Create shadow object buffer with Upload memory for CPU mapping
-		BufferDescriptor objDesc = .()
+		// Create per-frame shadow object buffers with Upload memory for CPU mapping
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			Size = AlignedObjectUniformSize * MaxObjectsPerFrame,
-			Usage = .Uniform,
-			MemoryAccess = .Upload // CPU-mappable
-		};
-		switch (Renderer.Device.CreateBuffer(&objDesc))
-		{
-		case .Ok(let buf): mShadowObjectBuffer = buf;
-		case .Err: return .Err;
+			BufferDescriptor objDesc = .()
+			{
+				Size = AlignedObjectUniformSize * MaxObjectsPerFrame,
+				Usage = .Uniform,
+				MemoryAccess = .Upload // CPU-mappable
+			};
+			switch (Renderer.Device.CreateBuffer(&objDesc))
+			{
+			case .Ok(let buf): mShadowObjectBuffers[i] = buf;
+			case .Err: return .Err;
+			}
 		}
 
 		// Vertex layout
@@ -513,16 +522,38 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			delete kv.value;
 		mPipelineCache.Clear();
 
-		if (mSceneBindGroup != null)
+		// Clean up per-frame resources
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			delete mSceneBindGroup;
-			mSceneBindGroup = null;
-		}
+			if (mSceneBindGroups[i] != null)
+			{
+				delete mSceneBindGroups[i];
+				mSceneBindGroups[i] = null;
+			}
 
-		if (mShadowBindGroup != null)
-		{
-			delete mShadowBindGroup;
-			mShadowBindGroup = null;
+			if (mObjectUniformBuffers[i] != null)
+			{
+				delete mObjectUniformBuffers[i];
+				mObjectUniformBuffers[i] = null;
+			}
+
+			if (mShadowBindGroups[i] != null)
+			{
+				delete mShadowBindGroups[i];
+				mShadowBindGroups[i] = null;
+			}
+
+			if (mShadowUniformBuffers[i] != null)
+			{
+				delete mShadowUniformBuffers[i];
+				mShadowUniformBuffers[i] = null;
+			}
+
+			if (mShadowObjectBuffers[i] != null)
+			{
+				delete mShadowObjectBuffers[i];
+				mShadowObjectBuffers[i] = null;
+			}
 		}
 
 		if (mLighting != null)
@@ -556,8 +587,9 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		RGResourceHandle shadowMapHandle = .Invalid;
 		AddShadowPasses(graph, world, depthFeature.Visibility, view, out shadowMapHandle);
 
-		// Create/update scene bind group (needs to be done each frame for frame-specific resources)
-		CreateSceneBindGroup();
+		// Create/update scene bind group for current frame (needs to be done each frame for frame-specific resources)
+		let frameIndex = FrameIndex;
+		CreateSceneBindGroup(frameIndex);
 
 		// Upload object uniforms BEFORE the render pass
 		PrepareObjectUniforms(depthFeature);
@@ -585,7 +617,12 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		let commands = depthFeature.[Friend]mBatcher.DrawCommands;
 		let skinnedCommands = depthFeature.[Friend]mBatcher.SkinnedCommands;
 
-		if (let bufferPtr = mObjectUniformBuffer.Map())
+		// Use the current frame's buffer
+		let buffer = mObjectUniformBuffers[FrameIndex];
+		if (buffer == null)
+			return;
+
+		if (let bufferPtr = buffer.Map())
 		{
 			int32 objectIndex = 0;
 
@@ -616,7 +653,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 					// Copy to mapped buffer at aligned offset
 					let bufferOffset = (uint64)objectIndex * AlignedObjectUniformSize;
 					// Bounds check against actual buffer size
-					Runtime.Assert(bufferOffset + ObjectUniforms.Size <= mObjectUniformBuffer.Size, scope $"Object uniform write (offset {bufferOffset} + size {ObjectUniforms.Size}) exceeds buffer size ({mObjectUniformBuffer.Size})");
+					Runtime.Assert(bufferOffset + ObjectUniforms.Size <= buffer.Size, scope $"Object uniform write (offset {bufferOffset} + size {ObjectUniforms.Size}) exceeds buffer size ({buffer.Size})");
 					Internal.MemCpy((uint8*)bufferPtr + bufferOffset, &objUniforms, ObjectUniforms.Size);
 
 					objectIndex++;
@@ -649,14 +686,14 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 					// Copy to mapped buffer at aligned offset
 					let bufferOffset = (uint64)objectIndex * AlignedObjectUniformSize;
-					Runtime.Assert(bufferOffset + ObjectUniforms.Size <= mObjectUniformBuffer.Size, scope $"Object uniform write (offset {bufferOffset} + size {ObjectUniforms.Size}) exceeds buffer size ({mObjectUniformBuffer.Size})");
+					Runtime.Assert(bufferOffset + ObjectUniforms.Size <= buffer.Size, scope $"Object uniform write (offset {bufferOffset} + size {ObjectUniforms.Size}) exceeds buffer size ({buffer.Size})");
 					Internal.MemCpy((uint8*)bufferPtr + bufferOffset, &objUniforms, ObjectUniforms.Size);
 
 					objectIndex++;
 				}
 			}
 
-			mObjectUniformBuffer.Unmap();
+			buffer.Unmap();
 		}
 	}
 
@@ -686,13 +723,14 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		mLighting.LightBuffer.Exposure = world.Exposure;
 
 		// Update light buffer from visibility
+		let frameIndex = FrameIndex;
 		mLighting.LightBuffer.Update(world, visibility);
-		mLighting.LightBuffer.UploadLightData();
-		mLighting.LightBuffer.UploadUniforms();
+		mLighting.LightBuffer.UploadLightData(frameIndex);
+		mLighting.LightBuffer.UploadUniforms(frameIndex);
 
 		// Perform light culling (CPU fallback for now)
 		// Pass view matrix to transform light positions to view space for cluster testing
-		mLighting.ClusterGrid.CullLightsCPU(world, visibility, view.ViewMatrix);
+		mLighting.ClusterGrid.CullLightsCPU(world, visibility, view.ViewMatrix, frameIndex);
 	}
 
 	private void AddShadowPasses(RenderGraph graph, RenderWorld world, VisibilityResolver visibility, RenderView view, out RGResourceHandle outShadowMapHandle)
@@ -791,9 +829,16 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		for (let pass in shadowPasses)
 			mCurrentShadowPasses.Add(pass);
 
+		// Use current frame's buffers
+		let shadowUniformBuffer = mShadowUniformBuffers[FrameIndex];
+		let shadowObjectBuffer = mShadowObjectBuffers[FrameIndex];
+
+		if (shadowUniformBuffer == null || shadowObjectBuffer == null)
+			return;
+
 		// Map shadow uniform buffer and write cascade VPs directly (no command buffers needed)
 		// Use the CascadeIndex from each pass to determine the correct buffer slot
-		if (let uniformPtr = mShadowUniformBuffer.Map())
+		if (let uniformPtr = shadowUniformBuffer.Map())
 		{
 			for (let pass in shadowPasses)
 			{
@@ -813,14 +858,14 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				let offset = (uint64)cascadeIdx * mAlignedSceneUniformSize;
 
 				// Bounds check against actual buffer size
-				Runtime.Assert(offset + SceneUniforms.Size <= mShadowUniformBuffer.Size, scope $"Shadow uniform write (offset {offset} + size {SceneUniforms.Size}) exceeds buffer size ({mShadowUniformBuffer.Size})");
+				Runtime.Assert(offset + SceneUniforms.Size <= shadowUniformBuffer.Size, scope $"Shadow uniform write (offset {offset} + size {SceneUniforms.Size}) exceeds buffer size ({shadowUniformBuffer.Size})");
 				Internal.MemCpy((uint8*)uniformPtr + offset, &mShadowUniforms, SceneUniforms.Size);
 			}
-			mShadowUniformBuffer.Unmap();
+			shadowUniformBuffer.Unmap();
 		}
 
 		// Map shadow object buffer and write transforms directly
-		if (let objectPtr = mShadowObjectBuffer.Map())
+		if (let objectPtr = shadowObjectBuffer.Map())
 		{
 			int32 objectIndex = 0;
 
@@ -847,7 +892,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 					let offset = (uint64)objectIndex * AlignedObjectUniformSize;
 					// Bounds check against actual buffer size
-					Runtime.Assert(offset + ObjectUniforms.Size <= mShadowObjectBuffer.Size, scope $"Shadow object uniform write (offset {offset} + size {ObjectUniforms.Size}) exceeds buffer size ({mShadowObjectBuffer.Size})");
+					Runtime.Assert(offset + ObjectUniforms.Size <= shadowObjectBuffer.Size, scope $"Shadow object uniform write (offset {offset} + size {ObjectUniforms.Size}) exceeds buffer size ({shadowObjectBuffer.Size})");
 					Internal.MemCpy((uint8*)objectPtr + offset, &objUniforms, ObjectUniforms.Size);
 
 					objectIndex++;
@@ -879,14 +924,14 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 					};
 
 					let offset = (uint64)objectIndex * AlignedObjectUniformSize;
-					Runtime.Assert(offset + ObjectUniforms.Size <= mShadowObjectBuffer.Size, scope $"Shadow skinned object uniform write (offset {offset} + size {ObjectUniforms.Size}) exceeds buffer size ({mShadowObjectBuffer.Size})");
+					Runtime.Assert(offset + ObjectUniforms.Size <= shadowObjectBuffer.Size, scope $"Shadow skinned object uniform write (offset {offset} + size {ObjectUniforms.Size}) exceeds buffer size ({shadowObjectBuffer.Size})");
 					Internal.MemCpy((uint8*)objectPtr + offset, &objUniforms, ObjectUniforms.Size);
 
 					objectIndex++;
 				}
 			}
 
-			mShadowObjectBuffer.Unmap();
+			shadowObjectBuffer.Unmap();
 		}
 	}
 
@@ -929,42 +974,46 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 	private Result<void> CreateObjectUniformBuffer()
 	{
-		// Create object uniform buffer large enough for MaxObjectsPerFrame with alignment
+		// Create per-frame object uniform buffers large enough for MaxObjectsPerFrame with alignment
 		// Use Upload memory for CPU mapping (avoids command buffer for writes)
-		var bufferDesc = BufferDescriptor()
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			Size = AlignedObjectUniformSize * MaxObjectsPerFrame,
-			Usage = .Uniform,
-			MemoryAccess = .Upload // CPU-mappable
-		};
+			var bufferDesc = BufferDescriptor()
+			{
+				Size = AlignedObjectUniformSize * MaxObjectsPerFrame,
+				Usage = .Uniform,
+				MemoryAccess = .Upload // CPU-mappable
+			};
 
-		switch (Renderer.Device.CreateBuffer(&bufferDesc))
-		{
-		case .Ok(let buffer): mObjectUniformBuffer = buffer;
-		case .Err: return .Err;
+			switch (Renderer.Device.CreateBuffer(&bufferDesc))
+			{
+			case .Ok(let buffer): mObjectUniformBuffers[i] = buffer;
+			case .Err: return .Err;
+			}
 		}
 
 		return .Ok;
 	}
 
-	private void CreateSceneBindGroup()
+	private void CreateSceneBindGroup(int32 frameIndex)
 	{
 		// Delete old bind group if exists
-		if (mSceneBindGroup != null)
+		if (mSceneBindGroups[frameIndex] != null)
 		{
-			delete mSceneBindGroup;
-			mSceneBindGroup = null;
+			delete mSceneBindGroups[frameIndex];
+			mSceneBindGroups[frameIndex] = null;
 		}
 
-		// Need all resources to be valid
+		// Need all resources to be valid - use frame-specific buffers
 		let cameraBuffer = Renderer.RenderFrameContext?.SceneUniformBuffer;
-		let lightingBuffer = mLighting?.LightBuffer?.UniformBuffer;
-		let lightDataBuffer = mLighting?.LightBuffer?.LightDataBuffer;
-		let clusterInfoBuffer = mLighting?.ClusterGrid?.ClusterLightInfoBuffer;
-		let lightIndexBuffer = mLighting?.ClusterGrid?.LightIndexBuffer;
+		let objectBuffer = mObjectUniformBuffers[frameIndex];
+		let lightingBuffer = mLighting?.LightBuffer?.GetUniformBuffer(frameIndex);
+		let lightDataBuffer = mLighting?.LightBuffer?.GetLightDataBuffer(frameIndex);
+		let clusterInfoBuffer = mLighting?.ClusterGrid?.GetClusterLightInfoBuffer(frameIndex);
+		let lightIndexBuffer = mLighting?.ClusterGrid?.GetLightIndexBuffer(frameIndex);
 
 		// Check required resources
-		if (cameraBuffer == null || mObjectUniformBuffer == null ||
+		if (cameraBuffer == null || objectBuffer == null ||
 			lightingBuffer == null || lightDataBuffer == null ||
 			clusterInfoBuffer == null || lightIndexBuffer == null)
 		{
@@ -979,7 +1028,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		entries[0] = BindGroupEntry.Buffer(0, cameraBuffer, 0, SceneUniforms.Size);
 
 		// b1: Object uniforms (dynamic offset - bind full buffer, use aligned size per object)
-		entries[1] = BindGroupEntry.Buffer(1, mObjectUniformBuffer, 0, AlignedObjectUniformSize);
+		entries[1] = BindGroupEntry.Buffer(1, objectBuffer, 0, AlignedObjectUniformSize);
 
 		// b3: Lighting uniforms
 		entries[2] = BindGroupEntry.Buffer(3, lightingBuffer, 0, (uint64)LightingUniforms.Size);
@@ -1031,7 +1080,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		};
 
 		if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bg))
-			mSceneBindGroup = bg;
+			mSceneBindGroups[frameIndex] = bg;
 	}
 
 	private void ExecuteForwardPass(IRenderPassEncoder encoder, RenderWorld world, RenderView view, DepthPrepassFeature depthFeature)
@@ -1092,10 +1141,11 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				}
 
 				// Bind scene bind group with dynamic offset for this object's transforms
-				if (mSceneBindGroup != null)
+				let sceneBindGroup = mSceneBindGroups[FrameIndex];
+				if (sceneBindGroup != null)
 				{
 					uint32[1] dynamicOffsets = .((uint32)(objectIndex * (int32)AlignedObjectUniformSize));
-					encoder.SetBindGroup(0, mSceneBindGroup, dynamicOffsets);
+					encoder.SetBindGroup(0, sceneBindGroup, dynamicOffsets);
 				}
 
 				// Get mesh data
@@ -1172,10 +1222,11 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 				// Upload object uniforms for this skinned mesh
 				// Note: Skinned mesh uniforms should have been prepared by PrepareSkinnedObjectUniforms
-				if (mSceneBindGroup != null)
+				let sceneBindGroup = mSceneBindGroups[FrameIndex];
+				if (sceneBindGroup != null)
 				{
 					uint32[1] dynamicOffsets = .((uint32)(objectIndex * (int32)AlignedObjectUniformSize));
-					encoder.SetBindGroup(0, mSceneBindGroup, dynamicOffsets);
+					encoder.SetBindGroup(0, sceneBindGroup, dynamicOffsets);
 				}
 
 				// Get the skinned vertex buffer from the skinning feature
@@ -1211,7 +1262,8 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 	private void ExecuteShadowPass(IRenderPassEncoder encoder, RenderWorld world, VisibilityResolver visibility, ShadowPass shadowPass)
 	{
 		// Skip if no pipeline or bind group
-		if (mShadowDepthPipeline == null || mShadowBindGroup == null)
+		let shadowBindGroup = mShadowBindGroups[FrameIndex];
+		if (mShadowDepthPipeline == null || shadowBindGroup == null)
 			return;
 
 		// Only cascade passes are currently supported
@@ -1265,7 +1317,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 					// Two dynamic offsets: [0] = cascade VP, [1] = object transforms
 					uint32 objectOffset = (uint32)((int64)objectIndex * (int64)AlignedObjectUniformSize);
 					uint32[2] dynamicOffsets = .(cascadeVPOffset, objectOffset);
-					encoder.SetBindGroup(0, mShadowBindGroup, dynamicOffsets);
+					encoder.SetBindGroup(0, shadowBindGroup, dynamicOffsets);
 
 					// Bind vertex/index buffers and draw
 					encoder.SetVertexBuffer(0, mesh.VertexBuffer, 0);
@@ -1296,6 +1348,10 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		if (skinningFeature == null)
 			return;
 
+		let shadowBindGroup = mShadowBindGroups[FrameIndex];
+		if (shadowBindGroup == null)
+			return;
+
 		int32 objectIndex = mShadowSkinnedMeshStartIndex;
 
 		for (let visibleMesh in visibility.VisibleSkinnedMeshes)
@@ -1316,7 +1372,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				// Two dynamic offsets: [0] = cascade VP, [1] = object transforms
 				uint32 objectOffset = (uint32)((int64)objectIndex * (int64)AlignedObjectUniformSize);
 				uint32[2] dynamicOffsets = .(cascadeVPOffset, objectOffset);
-				encoder.SetBindGroup(0, mShadowBindGroup, dynamicOffsets);
+				encoder.SetBindGroup(0, shadowBindGroup, dynamicOffsets);
 
 				// Bind the skinned vertex buffer
 				encoder.SetVertexBuffer(0, skinnedVertexBuffer, 0);
@@ -1344,28 +1400,38 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 	private void CreateShadowBindGroup()
 	{
-		// Only create once
-		if (mShadowBindGroup != null)
+		if (mShadowBindGroupLayout == null)
 			return;
 
-		if (mShadowBindGroupLayout == null || mShadowUniformBuffer == null || mShadowObjectBuffer == null)
-			return;
-
-		// Create bind group entries
-		// For dynamic uniform buffers, size is the per-element size that dynamic offset selects
-		BindGroupEntry[2] entries = .(
-			BindGroupEntry.Buffer(0, mShadowUniformBuffer, 0, mAlignedSceneUniformSize), // Per-cascade VP (dynamic)
-			BindGroupEntry.Buffer(1, mShadowObjectBuffer, 0, AlignedObjectUniformSize)   // Per-object transforms (dynamic)
-		);
-
-		BindGroupDescriptor bgDesc = .()
+		// Create per-frame shadow bind groups
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			Label = "Shadow BindGroup",
-			Layout = mShadowBindGroupLayout,
-			Entries = entries
-		};
+			// Skip if already created
+			if (mShadowBindGroups[i] != null)
+				continue;
 
-		if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bg))
-			mShadowBindGroup = bg;
+			let shadowUniformBuffer = mShadowUniformBuffers[i];
+			let shadowObjectBuffer = mShadowObjectBuffers[i];
+
+			if (shadowUniformBuffer == null || shadowObjectBuffer == null)
+				continue;
+
+			// Create bind group entries
+			// For dynamic uniform buffers, size is the per-element size that dynamic offset selects
+			BindGroupEntry[2] entries = .(
+				BindGroupEntry.Buffer(0, shadowUniformBuffer, 0, mAlignedSceneUniformSize), // Per-cascade VP (dynamic)
+				BindGroupEntry.Buffer(1, shadowObjectBuffer, 0, AlignedObjectUniformSize)   // Per-object transforms (dynamic)
+			);
+
+			BindGroupDescriptor bgDesc = .()
+			{
+				Label = "Shadow BindGroup",
+				Layout = mShadowBindGroupLayout,
+				Entries = entries
+			};
+
+			if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bg))
+				mShadowBindGroups[i] = bg;
+		}
 	}
 }

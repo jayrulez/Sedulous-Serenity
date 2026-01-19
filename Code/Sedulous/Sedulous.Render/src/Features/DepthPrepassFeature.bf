@@ -15,8 +15,8 @@ public class DepthPrepassFeature : RenderFeatureBase
 {
 	// Resources
 	private IBindGroupLayout mBindGroupLayout ~ delete _;
-	private IBindGroup mDepthBindGroup ~ delete _;
-	private IBuffer mObjectUniformBuffer ~ delete _;
+	private IBindGroup[RenderConfig.FrameBufferCount] mDepthBindGroups;  // Per-frame bind groups
+	private IBuffer[RenderConfig.FrameBufferCount] mObjectUniformBuffers; // Per-frame uniform buffers
 	private IRenderPipeline mDepthPipeline ~ delete _;
 	private IRenderPipeline mDepthSkinnedPipeline ~ delete _;
 	private IRenderPipeline mDepthInstancedPipeline ~ delete _;
@@ -40,6 +40,9 @@ public class DepthPrepassFeature : RenderFeatureBase
 
 	/// Feature name.
 	public override StringView Name => "DepthPrepass";
+
+	/// Gets the current frame index for multi-buffering.
+	private int32 FrameIndex => Renderer.RenderFrameContext?.FrameIndex ?? 0;
 
 	/// Gets the Hi-Z culler.
 	public HiZOcclusionCuller HiZCuller => mHiZCuller;
@@ -152,10 +155,10 @@ public class DepthPrepassFeature : RenderFeatureBase
 
 	protected override void OnShutdown()
 	{
-		if (mDepthBindGroup != null)
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			delete mDepthBindGroup;
-			mDepthBindGroup = null;
+			if (mDepthBindGroups[i] != null) { delete mDepthBindGroups[i]; mDepthBindGroups[i] = null; }
+			if (mObjectUniformBuffers[i] != null) { delete mObjectUniformBuffers[i]; mObjectUniformBuffers[i] = null; }
 		}
 
 		if (mHiZCuller != null)
@@ -179,9 +182,10 @@ public class DepthPrepassFeature : RenderFeatureBase
 		mBatcher.Clear();
 		mBatcher.Build(world, mVisibility);
 
-		// Create/update bind group if needed
-		if (mDepthBindGroup == null)
-			CreateDepthBindGroup();
+		// Create/update bind group for current frame if needed
+		let frameIndex = FrameIndex;
+		if (mDepthBindGroups[frameIndex] == null)
+			CreateDepthBindGroup(frameIndex);
 
 		// Upload object uniforms BEFORE the render pass
 		PrepareObjectUniforms();
@@ -247,43 +251,52 @@ public class DepthPrepassFeature : RenderFeatureBase
 
 	private Result<void> CreateObjectUniformBuffer()
 	{
-		// Create buffer for per-object uniforms with space for MaxObjectsPerFrame objects
+		// Create per-frame buffers for per-object uniforms with space for MaxObjectsPerFrame objects
 		// Use Upload memory for CPU mapping (avoids command buffer for writes)
 		let bufferSize = MaxObjectsPerFrame * (int)AlignedObjectUniformSize;
-		BufferDescriptor bufDesc = .()
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			Size = (uint64)bufferSize,
-			Usage = .Uniform,
-			MemoryAccess = .Upload // CPU-mappable
-		};
+			BufferDescriptor bufDesc = .()
+			{
+				Size = (uint64)bufferSize,
+				Usage = .Uniform,
+				MemoryAccess = .Upload // CPU-mappable
+			};
 
-		switch (Renderer.Device.CreateBuffer(&bufDesc))
-		{
-		case .Ok(let buffer): mObjectUniformBuffer = buffer;
-		case .Err: return .Err;
+			switch (Renderer.Device.CreateBuffer(&bufDesc))
+			{
+			case .Ok(let buffer): mObjectUniformBuffers[i] = buffer;
+			case .Err: return .Err;
+			}
 		}
 
 		return .Ok;
 	}
 
-	private void CreateDepthBindGroup()
+	private void CreateDepthBindGroup(int32 frameIndex)
 	{
 		// Delete old bind group if exists
-		if (mDepthBindGroup != null)
+		if (mDepthBindGroups[frameIndex] != null)
 		{
-			delete mDepthBindGroup;
-			mDepthBindGroup = null;
+			delete mDepthBindGroups[frameIndex];
+			mDepthBindGroups[frameIndex] = null;
 		}
 
-		// Get required buffers
-		let cameraBuffer = Renderer.RenderFrameContext?.SceneUniformBuffer;
-		if (cameraBuffer == null || mObjectUniformBuffer == null)
+		// Get required buffers - use the frame-specific scene buffer and object buffer
+		let frameContext = Renderer.RenderFrameContext;
+		if (frameContext == null)
+			return;
+
+		// Need to get the scene buffer for this specific frame index
+		let cameraBuffer = frameContext.SceneUniformBuffer; // This already returns the buffer for the current frame
+		let objectBuffer = mObjectUniformBuffers[frameIndex];
+		if (cameraBuffer == null || objectBuffer == null)
 			return;
 
 		// Build bind group entries
 		BindGroupEntry[2] entries = .(
 			BindGroupEntry.Buffer(0, cameraBuffer, 0, SceneUniforms.Size),
-			BindGroupEntry.Buffer(1, mObjectUniformBuffer, 0, AlignedObjectUniformSize)
+			BindGroupEntry.Buffer(1, objectBuffer, 0, AlignedObjectUniformSize)
 		);
 
 		BindGroupDescriptor bgDesc = .()
@@ -294,7 +307,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 		};
 
 		if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bg))
-			mDepthBindGroup = bg;
+			mDepthBindGroups[frameIndex] = bg;
 	}
 
 	private void PrepareObjectUniforms()
@@ -304,7 +317,12 @@ public class DepthPrepassFeature : RenderFeatureBase
 		let commands = mBatcher.DrawCommands;
 		let skinnedCommands = mBatcher.SkinnedCommands;
 
-		if (let bufferPtr = mObjectUniformBuffer.Map())
+		// Use the current frame's buffer
+		let buffer = mObjectUniformBuffers[FrameIndex];
+		if (buffer == null)
+			return;
+
+		if (let bufferPtr = buffer.Map())
 		{
 			int32 objectIndex = 0;
 
@@ -335,7 +353,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 					// Copy to mapped buffer at aligned offset
 					let offset = (uint64)(objectIndex * (int32)AlignedObjectUniformSize);
 					// Bounds check against actual buffer size
-					Runtime.Assert(offset + ObjectUniformSize <= mObjectUniformBuffer.Size, scope $"DepthPrepass object uniform write (offset {offset} + size {ObjectUniformSize}) exceeds buffer size ({mObjectUniformBuffer.Size})");
+					Runtime.Assert(offset + ObjectUniformSize <= buffer.Size, scope $"DepthPrepass object uniform write (offset {offset} + size {ObjectUniformSize}) exceeds buffer size ({buffer.Size})");
 					Internal.MemCpy((uint8*)bufferPtr + offset, &objectUniforms, ObjectUniformSize);
 
 					objectIndex++;
@@ -366,14 +384,14 @@ public class DepthPrepassFeature : RenderFeatureBase
 					};
 
 					let offset = (uint64)(objectIndex * (int32)AlignedObjectUniformSize);
-					Runtime.Assert(offset + ObjectUniformSize <= mObjectUniformBuffer.Size, scope $"DepthPrepass skinned object uniform write (offset {offset} + size {ObjectUniformSize}) exceeds buffer size ({mObjectUniformBuffer.Size})");
+					Runtime.Assert(offset + ObjectUniformSize <= buffer.Size, scope $"DepthPrepass skinned object uniform write (offset {offset} + size {ObjectUniformSize}) exceeds buffer size ({buffer.Size})");
 					Internal.MemCpy((uint8*)bufferPtr + offset, &objectUniforms, ObjectUniformSize);
 
 					objectIndex++;
 				}
 			}
 
-			mObjectUniformBuffer.Unmap();
+			buffer.Unmap();
 		}
 	}
 
@@ -389,6 +407,9 @@ public class DepthPrepassFeature : RenderFeatureBase
 
 		// Get draw commands from batcher (uniforms already uploaded in PrepareObjectUniforms)
 		let commands = mBatcher.DrawCommands;
+
+		// Get current frame's bind group
+		let bindGroup = mDepthBindGroups[FrameIndex];
 
 		// Render opaque batches with dynamic offsets
 		int32 objectIndex = 0;
@@ -409,10 +430,10 @@ public class DepthPrepassFeature : RenderFeatureBase
 				if (let mesh = Renderer.ResourceManager.GetMesh(cmd.GPUMesh))
 				{
 					// Bind depth bind group with dynamic offset for this object
-					if (mDepthBindGroup != null)
+					if (bindGroup != null)
 					{
 						uint32[1] dynamicOffsets = .((uint32)(objectIndex * (int32)AlignedObjectUniformSize));
-						encoder.SetBindGroup(0, mDepthBindGroup, dynamicOffsets);
+						encoder.SetBindGroup(0, bindGroup, dynamicOffsets);
 					}
 
 					// Bind vertex/index buffers
@@ -444,6 +465,9 @@ public class DepthPrepassFeature : RenderFeatureBase
 
 		let skinnedCommands = mBatcher.SkinnedCommands;
 
+		// Get current frame's bind group
+		let bindGroup = mDepthBindGroups[FrameIndex];
+
 		for (let batch in mBatcher.SkinnedBatches)
 		{
 			if (batch.CommandCount == 0)
@@ -462,10 +486,10 @@ public class DepthPrepassFeature : RenderFeatureBase
 					continue;
 
 				// Bind depth bind group with dynamic offset
-				if (mDepthBindGroup != null)
+				if (bindGroup != null)
 				{
 					uint32[1] dynamicOffsets = .((uint32)(objectIndex * (int32)AlignedObjectUniformSize));
-					encoder.SetBindGroup(0, mDepthBindGroup, dynamicOffsets);
+					encoder.SetBindGroup(0, bindGroup, dynamicOffsets);
 				}
 
 				// Bind the skinned vertex buffer

@@ -91,8 +91,8 @@ public class ClusterGrid : IDisposable
 	// GPU resources
 	private IDevice mDevice;
 	private IBuffer mClusterAABBBuffer;      // AABB for each cluster (computed once per resize)
-	private IBuffer mClusterLightInfoBuffer; // Per-cluster light offset/count
-	private IBuffer mLightIndexBuffer;       // Global list of light indices
+	private IBuffer[RenderConfig.FrameBufferCount] mClusterLightInfoBuffers; // Per-cluster light offset/count (per-frame)
+	private IBuffer[RenderConfig.FrameBufferCount] mLightIndexBuffers;       // Global list of light indices (per-frame)
 	private IBuffer mClusterUniformBuffer;   // Cluster parameters
 
 	// Compute pipelines
@@ -105,7 +105,7 @@ public class ClusterGrid : IDisposable
 
 	// Bind groups
 	private IBindGroup mBuildClustersBindGroup ~ delete _;
-	private IBindGroup mCullLightsBindGroup ~ delete _;
+	private IBindGroup[RenderConfig.FrameBufferCount] mCullLightsBindGroups; // Per-frame bind groups
 
 	// Pipeline layouts
 	private IPipelineLayout mBuildClustersPipelineLayout ~ delete _;
@@ -140,11 +140,11 @@ public class ClusterGrid : IDisposable
 	/// Gets the cluster uniform buffer.
 	public IBuffer UniformBuffer => mClusterUniformBuffer;
 
-	/// Gets the cluster light info buffer (per-cluster offset/count).
-	public IBuffer ClusterLightInfoBuffer => mClusterLightInfoBuffer;
+	/// Gets the cluster light info buffer for a specific frame index.
+	public IBuffer GetClusterLightInfoBuffer(int32 frameIndex) => mClusterLightInfoBuffers[frameIndex];
 
-	/// Gets the light index buffer (global light indices).
-	public IBuffer LightIndexBuffer => mLightIndexBuffer;
+	/// Gets the light index buffer for a specific frame index.
+	public IBuffer GetLightIndexBuffer(int32 frameIndex) => mLightIndexBuffers[frameIndex];
 
 	/// Whether GPU light culling is available.
 	public bool GPUCullingAvailable => mGPUCullingAvailable;
@@ -196,12 +196,13 @@ public class ClusterGrid : IDisposable
 
 	/// Performs light culling against the cluster grid using GPU compute.
 	/// This assigns lights to clusters based on their bounding volumes.
-	public void CullLights(IComputePassEncoder encoder, LightBuffer lightBuffer)
+	/// @param frameIndex The frame index for multi-buffering.
+	public void CullLights(IComputePassEncoder encoder, LightBuffer lightBuffer, int32 frameIndex)
 	{
 		if (!IsInitialized || !mGPUCullingAvailable)
 			return;
 
-		if (mCullLightsPipeline == null || mCullLightsBindGroup == null)
+		if (mCullLightsPipeline == null || mCullLightsBindGroups[frameIndex] == null)
 			return;
 
 		// Reset counter buffer using Map/Unmap
@@ -214,9 +215,9 @@ public class ClusterGrid : IDisposable
 			mLightIndexCounterBuffer.Unmap();
 		}
 
-		// Set pipeline and bind group
+		// Set pipeline and bind group for current frame
 		encoder.SetPipeline(mCullLightsPipeline);
-		encoder.SetBindGroup(0, mCullLightsBindGroup, default);
+		encoder.SetBindGroup(0, mCullLightsBindGroups[frameIndex], default);
 
 		// Dispatch one workgroup per cluster
 		// Using 1x1x1 threads per group, dispatch ClustersX * ClustersY * ClustersZ groups
@@ -253,7 +254,8 @@ public class ClusterGrid : IDisposable
 	/// @param world The render world containing light data.
 	/// @param visibility The visibility resolver with visible lights.
 	/// @param viewMatrix The view matrix to transform lights to view space (cluster AABBs are in view space).
-	public void CullLightsCPU(RenderWorld world, VisibilityResolver visibility, Matrix viewMatrix)
+	/// @param frameIndex The frame index for multi-buffering.
+	public void CullLightsCPU(RenderWorld world, VisibilityResolver visibility, Matrix viewMatrix, int32 frameIndex)
 	{
 		if (mClusterAABBs == null)
 			return;
@@ -309,26 +311,28 @@ public class ClusterGrid : IDisposable
 			}
 		}
 
-		// Upload cluster info buffer to GPU using Map/Unmap
-		if (let ptr = mClusterLightInfoBuffer.Map())
+		// Upload cluster info buffer to GPU using Map/Unmap (specified frame's buffer)
+		let clusterInfoBuffer = mClusterLightInfoBuffers[frameIndex];
+		if (let ptr = clusterInfoBuffer.Map())
 		{
 			// Bounds check against actual buffer size
 			let copySize = totalClusters * sizeof(ClusterLightInfo);
-			Runtime.Assert(copySize <= (.)mClusterLightInfoBuffer.Size, scope $"ClusterLightInfo copy size ({copySize}) exceeds buffer size ({mClusterLightInfoBuffer.Size})");
+			Runtime.Assert(copySize <= (.)clusterInfoBuffer.Size, scope $"ClusterLightInfo copy size ({copySize}) exceeds buffer size ({clusterInfoBuffer.Size})");
 			Internal.MemCpy(ptr, &clusterInfos[0], copySize);
-			mClusterLightInfoBuffer.Unmap();
+			clusterInfoBuffer.Unmap();
 		}
 
-		// Upload light indices buffer to GPU (only the used portion)
+		// Upload light indices buffer to GPU (only the used portion, specified frame's buffer)
 		if (globalLightIndexOffset > 0)
 		{
-			if (let ptr = mLightIndexBuffer.Map())
+			let lightIndexBuffer = mLightIndexBuffers[frameIndex];
+			if (let ptr = lightIndexBuffer.Map())
 			{
 				// Bounds check against actual buffer size
 				let copySize = (int)globalLightIndexOffset * sizeof(uint32);
-				Runtime.Assert(copySize <= (.)mLightIndexBuffer.Size, scope $"LightIndices copy size ({copySize}) exceeds buffer size ({mLightIndexBuffer.Size})");
+				Runtime.Assert(copySize <= (.)lightIndexBuffer.Size, scope $"LightIndices copy size ({copySize}) exceeds buffer size ({lightIndexBuffer.Size})");
 				Internal.MemCpy(ptr, &lightIndices[0], copySize);
-				mLightIndexBuffer.Unmap();
+				lightIndexBuffer.Unmap();
 			}
 		}
 
@@ -341,14 +345,20 @@ public class ClusterGrid : IDisposable
 	{
 		// Buffers
 		if (mClusterAABBBuffer != null) { delete mClusterAABBBuffer; mClusterAABBBuffer = null; }
-		if (mClusterLightInfoBuffer != null) { delete mClusterLightInfoBuffer; mClusterLightInfoBuffer = null; }
-		if (mLightIndexBuffer != null) { delete mLightIndexBuffer; mLightIndexBuffer = null; }
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
+		{
+			if (mClusterLightInfoBuffers[i] != null) { delete mClusterLightInfoBuffers[i]; mClusterLightInfoBuffers[i] = null; }
+			if (mLightIndexBuffers[i] != null) { delete mLightIndexBuffers[i]; mLightIndexBuffers[i] = null; }
+		}
 		if (mClusterUniformBuffer != null) { delete mClusterUniformBuffer; mClusterUniformBuffer = null; }
 		if (mLightIndexCounterBuffer != null) { delete mLightIndexCounterBuffer; mLightIndexCounterBuffer = null; }
 
 		// Bind groups
 		if (mBuildClustersBindGroup != null) { delete mBuildClustersBindGroup; mBuildClustersBindGroup = null; }
-		if (mCullLightsBindGroup != null) { delete mCullLightsBindGroup; mCullLightsBindGroup = null; }
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
+		{
+			if (mCullLightsBindGroups[i] != null) { delete mCullLightsBindGroups[i]; mCullLightsBindGroups[i] = null; }
+		}
 
 		// Pipelines
 		if (mBuildClustersPipeline != null) { delete mBuildClustersPipeline; mBuildClustersPipeline = null; }
@@ -386,35 +396,43 @@ public class ClusterGrid : IDisposable
 
 		// Cluster light info buffer: 2 uint32s per cluster (offset, count)
 		// Use Upload memory for CPU mapping (written every frame)
-		BufferDescriptor infoDesc = .()
+		// Create per-frame buffers for multi-buffering
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			Label = "Cluster Light Info",
-			Size = totalClusters * 8,
-			Usage = .Storage,
-			MemoryAccess = .Upload // CPU-mappable
-		};
+			BufferDescriptor infoDesc = .()
+			{
+				Label = "Cluster Light Info",
+				Size = totalClusters * 8,
+				Usage = .Storage,
+				MemoryAccess = .Upload // CPU-mappable
+			};
 
-		switch (mDevice.CreateBuffer(&infoDesc))
-		{
-		case .Ok(let buf): mClusterLightInfoBuffer = buf;
-		case .Err: return .Err;
+			switch (mDevice.CreateBuffer(&infoDesc))
+			{
+			case .Ok(let buf): mClusterLightInfoBuffers[i] = buf;
+			case .Err: return .Err;
+			}
 		}
 
 		// Light index buffer: maxLightsPerCluster * totalClusters indices
 		// Use Upload memory for CPU mapping (written every frame)
+		// Create per-frame buffers for multi-buffering
 		let maxIndices = mConfig.MaxLightsPerCluster * totalClusters;
-		BufferDescriptor indexDesc = .()
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			Label = "Light Indices",
-			Size = maxIndices * 4,
-			Usage = .Storage,
-			MemoryAccess = .Upload // CPU-mappable
-		};
+			BufferDescriptor indexDesc = .()
+			{
+				Label = "Light Indices",
+				Size = maxIndices * 4,
+				Usage = .Storage,
+				MemoryAccess = .Upload // CPU-mappable
+			};
 
-		switch (mDevice.CreateBuffer(&indexDesc))
-		{
-		case .Ok(let buf): mLightIndexBuffer = buf;
-		case .Err: return .Err;
+			switch (mDevice.CreateBuffer(&indexDesc))
+			{
+			case .Ok(let buf): mLightIndexBuffers[i] = buf;
+			case .Err: return .Err;
+			}
 		}
 
 		// Cluster uniform buffer
@@ -565,28 +583,34 @@ public class ClusterGrid : IDisposable
 		// For now, we skip creating the build bind group - cluster building is done on CPU
 		// TODO: Add camera uniform buffer parameter to CreateBindGroups for GPU cluster building
 
-		// Create cull lights bind group
+		// Create cull lights bind groups (one per frame for multi-buffering)
 		// Bindings: b0=ClusterUniforms, b1=LightingUniforms, t0=ClusterAABBs, t1=Lights,
 		//           u0=ClusterLightInfos, u1=LightIndices, u2=GlobalLightIndexCounter
-		if (mCullLightsBindGroupLayout != null && mCullLightsBindGroup == null)
+		if (mCullLightsBindGroupLayout != null)
 		{
-			BindGroupEntry[7] cullEntries = .(
-				BindGroupEntry.Buffer(0, mClusterUniformBuffer, 0, (uint64)ClusterUniforms.Size),       // b0: ClusterUniforms
-				BindGroupEntry.Buffer(1, lightBuffer.UniformBuffer, 0, (uint64)LightingUniforms.Size),  // b1: LightingUniforms
-				BindGroupEntry.Buffer(0, mClusterAABBBuffer, 0, mConfig.TotalClusters * 24),            // t0: ClusterAABBs (StructuredBuffer)
-				BindGroupEntry.Buffer(1, lightBuffer.LightDataBuffer, 0, (uint64)(lightBuffer.MaxLights * GPULight.Size)), // t1: Lights (StructuredBuffer)
-				BindGroupEntry.Buffer(0, mClusterLightInfoBuffer, 0, mConfig.TotalClusters * 8),        // u0: ClusterLightInfos (RWStructuredBuffer)
-				BindGroupEntry.Buffer(1, mLightIndexBuffer, 0, mConfig.MaxLightsPerCluster * mConfig.TotalClusters * 4), // u1: LightIndices (RWStructuredBuffer)
-				BindGroupEntry.Buffer(2, mLightIndexCounterBuffer, 0, 4)                                // u2: GlobalLightIndexCounter
-			);
-
-			BindGroupDescriptor cullDesc = .(mCullLightsBindGroupLayout, cullEntries);
-			cullDesc.Label = "Cluster Cull BindGroup";
-
-			switch (mDevice.CreateBindGroup(&cullDesc))
+			for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 			{
-			case .Ok(let bg): mCullLightsBindGroup = bg;
-			case .Err:
+				if (mCullLightsBindGroups[i] != null)
+					continue;
+
+				BindGroupEntry[7] cullEntries = .(
+					BindGroupEntry.Buffer(0, mClusterUniformBuffer, 0, (uint64)ClusterUniforms.Size),       // b0: ClusterUniforms
+					BindGroupEntry.Buffer(1, lightBuffer.GetUniformBuffer(i), 0, (uint64)LightingUniforms.Size),  // b1: LightingUniforms
+					BindGroupEntry.Buffer(0, mClusterAABBBuffer, 0, mConfig.TotalClusters * 24),            // t0: ClusterAABBs (StructuredBuffer)
+					BindGroupEntry.Buffer(1, lightBuffer.GetLightDataBuffer(i), 0, (uint64)(lightBuffer.MaxLights * GPULight.Size)), // t1: Lights (StructuredBuffer)
+					BindGroupEntry.Buffer(0, mClusterLightInfoBuffers[i], 0, mConfig.TotalClusters * 8),        // u0: ClusterLightInfos (RWStructuredBuffer)
+					BindGroupEntry.Buffer(1, mLightIndexBuffers[i], 0, mConfig.MaxLightsPerCluster * mConfig.TotalClusters * 4), // u1: LightIndices (RWStructuredBuffer)
+					BindGroupEntry.Buffer(2, mLightIndexCounterBuffer, 0, 4)                                // u2: GlobalLightIndexCounter
+				);
+
+				BindGroupDescriptor cullDesc = .(mCullLightsBindGroupLayout, cullEntries);
+				cullDesc.Label = "Cluster Cull BindGroup";
+
+				switch (mDevice.CreateBindGroup(&cullDesc))
+				{
+				case .Ok(let bg): mCullLightsBindGroups[i] = bg;
+				case .Err:
+				}
 			}
 		}
 	}

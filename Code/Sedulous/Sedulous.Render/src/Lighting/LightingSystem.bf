@@ -59,12 +59,14 @@ public class LightingSystem : IDisposable
 	}
 
 	/// Updates the lighting system for the current frame.
+	/// @param frameIndex The frame index for multi-buffering.
 	public void Update(
 		RenderWorld world,
 		VisibilityResolver visibility,
 		CameraProxy* camera,
 		uint32 screenWidth,
-		uint32 screenHeight)
+		uint32 screenHeight,
+		int32 frameIndex)
 	{
 		if (!IsInitialized || camera == null)
 			return;
@@ -87,19 +89,23 @@ public class LightingSystem : IDisposable
 			mClusterGrid.Update(screenWidth, screenHeight, mNearPlane, mFarPlane, mInverseProjection);
 		}
 
-		// Update light buffer from visible lights
+		// Update light buffer from visible lights (CPU-side fill only)
 		mLightBuffer.Update(world, visibility);
+		// Upload to GPU for specified frame
+		mLightBuffer.UploadLightData(frameIndex);
+		mLightBuffer.UploadUniforms(frameIndex);
 
 		// Perform light culling against clusters
 		if (mUseClustered)
 		{
-			mClusterGrid.CullLightsCPU(world, visibility, camera.ViewMatrix);
+			mClusterGrid.CullLightsCPU(world, visibility, camera.ViewMatrix, frameIndex);
 		}
 	}
 
 	/// Updates lighting for rendering (GPU operations).
 	/// This dispatches GPU compute for cluster building and light culling.
-	public void PrepareForRendering(ICommandEncoder encoder)
+	/// @param frameIndex The frame index for multi-buffering.
+	public void PrepareForRendering(ICommandEncoder encoder, int32 frameIndex)
 	{
 		if (!IsInitialized)
 			return;
@@ -119,7 +125,7 @@ public class LightingSystem : IDisposable
 			mClusterGrid.BuildClustersGPU(computePass);
 
 			// Cull lights against clusters
-			mClusterGrid.CullLights(computePass, mLightBuffer);
+			mClusterGrid.CullLights(computePass, mLightBuffer, frameIndex);
 
 			computePass.End();
 			delete computePass;
@@ -127,7 +133,8 @@ public class LightingSystem : IDisposable
 	}
 
 	/// Performs GPU light culling in an existing compute pass.
-	public void DispatchLightCulling(IComputePassEncoder encoder)
+	/// @param frameIndex The frame index for multi-buffering.
+	public void DispatchLightCulling(IComputePassEncoder encoder, int32 frameIndex)
 	{
 		if (!IsInitialized || !mUseClustered)
 			return;
@@ -142,7 +149,7 @@ public class LightingSystem : IDisposable
 		mClusterGrid.CreateBindGroups(mLightBuffer);
 
 		// Cull lights against clusters
-		mClusterGrid.CullLights(encoder, mLightBuffer);
+		mClusterGrid.CullLights(encoder, mLightBuffer, frameIndex);
 	}
 
 	/// Sets the ambient light color.

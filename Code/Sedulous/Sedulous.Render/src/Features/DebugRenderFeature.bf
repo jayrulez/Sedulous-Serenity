@@ -19,7 +19,6 @@ public enum DebugRenderMode
 public class DebugRenderFeature : RenderFeatureBase
 {
 	private const int32 MAX_VERTICES = 65536;
-	private const int32 MAX_FRAMES = 3;
 
 	// Pipelines
 	private IRenderPipeline mLinePipelineDepth ~ delete _;
@@ -30,9 +29,9 @@ public class DebugRenderFeature : RenderFeatureBase
 	private IPipelineLayout mPipelineLayout ~ delete _;
 
 	// Per-frame resources
-	private IBuffer[MAX_FRAMES] mVertexBuffers ~ { for (var b in _) delete b; };
-	private IBuffer[MAX_FRAMES] mUniformBuffers ~ { for (var b in _) delete b; };
-	private IBindGroup[MAX_FRAMES] mBindGroups ~ { for (var b in _) delete b; };
+	private IBuffer[RenderConfig.FrameBufferCount] mVertexBuffers ~ { for (var b in _) delete b; };
+	private IBuffer[RenderConfig.FrameBufferCount] mUniformBuffers ~ { for (var b in _) delete b; };
+	private IBindGroup[RenderConfig.FrameBufferCount] mBindGroups ~ { for (var b in _) delete b; };
 
 	// Batching state
 	private List<DebugVertex> mLineVerticesDepth = new .() ~ delete _;
@@ -45,8 +44,8 @@ public class DebugRenderFeature : RenderFeatureBase
 	private IRenderPipeline mTextPipelineOverlay ~ delete _;
 	private IBindGroupLayout mTextBindGroupLayout ~ delete _;
 	private IPipelineLayout mTextPipelineLayout ~ delete _;
-	private IBuffer[MAX_FRAMES] mTextVertexBuffers ~ { for (var b in _) delete b; };
-	private IBindGroup[MAX_FRAMES] mTextBindGroups ~ { for (var b in _) delete b; };
+	private IBuffer[RenderConfig.FrameBufferCount] mTextVertexBuffers ~ { for (var b in _) delete b; };
+	private IBindGroup[RenderConfig.FrameBufferCount] mTextBindGroups ~ { for (var b in _) delete b; };
 	private ITexture mFontTexture ~ delete _;
 	private ITextureView mFontTextureView ~ delete _;
 	private ISampler mFontSampler ~ delete _;
@@ -57,9 +56,9 @@ public class DebugRenderFeature : RenderFeatureBase
 	private IRenderPipeline mText2DPipeline ~ delete _;
 	private IBindGroupLayout mText2DBindGroupLayout ~ delete _;
 	private IPipelineLayout mText2DPipelineLayout ~ delete _;
-	private IBuffer[MAX_FRAMES] mText2DVertexBuffers ~ { for (var b in _) delete b; };
-	private IBuffer[MAX_FRAMES] mScreenParamBuffers ~ { for (var b in _) delete b; };
-	private IBindGroup[MAX_FRAMES] mText2DBindGroups ~ { for (var b in _) delete b; };
+	private IBuffer[RenderConfig.FrameBufferCount] mText2DVertexBuffers ~ { for (var b in _) delete b; };
+	private IBuffer[RenderConfig.FrameBufferCount] mScreenParamBuffers ~ { for (var b in _) delete b; };
+	private IBindGroup[RenderConfig.FrameBufferCount] mText2DBindGroups ~ { for (var b in _) delete b; };
 	private List<DebugText2DVertex> mText2DVertices = new .() ~ delete _;
 
 	// Saved counts after PrepareGPU
@@ -81,8 +80,8 @@ public class DebugRenderFeature : RenderFeatureBase
 	private TextureFormat mColorFormat = .RGBA16Float;
 	private TextureFormat mDepthFormat = .Depth32Float;
 
-	// Frame index tracking
-	private int32 mCurrentFrame = 0;
+	/// Gets the current frame index for multi-buffering.
+	private int32 FrameIndex => Renderer.RenderFrameContext?.FrameIndex ?? 0;
 
 	/// Feature name.
 	public override StringView Name => "DebugRender";
@@ -128,7 +127,7 @@ public class DebugRenderFeature : RenderFeatureBase
 		}
 
 		// Create per-frame resources
-		for (int i = 0; i < MAX_FRAMES; i++)
+		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
 			// Uniform buffer for view-projection matrix
 			BufferDescriptor uniformDesc = .((uint64)sizeof(Matrix), .Uniform, .Upload);
@@ -764,7 +763,7 @@ public class DebugRenderFeature : RenderFeatureBase
 			return;
 
 		// Store frame index for render callback
-		int32 frameIndex = mCurrentFrame;
+		int32 frameIndex = FrameIndex;
 
 		// Add debug render pass
 		graph.AddGraphicsPass("DebugRender")
@@ -774,15 +773,12 @@ public class DebugRenderFeature : RenderFeatureBase
 			.SetExecuteCallback(new (encoder) => {
 				ExecuteDebugPass(encoder, view, frameIndex);
 			});
-
-		// Advance frame
-		mCurrentFrame = (mCurrentFrame + 1) % MAX_FRAMES;
 	}
 
 	private void PrepareGPU()
 	{
 		let device = Renderer.Device;
-		int32 frameIndex = mCurrentFrame;
+		int32 frameIndex = FrameIndex;
 
 		// Save counts
 		mLineDepthCount = (int32)mLineVerticesDepth.Count;
@@ -793,7 +789,7 @@ public class DebugRenderFeature : RenderFeatureBase
 		mTextOverlayCount = (int32)mTextVerticesOverlay.Count;
 		mText2DCount = (int32)mText2DVertices.Count;
 
-		if (frameIndex < 0 || frameIndex >= MAX_FRAMES)
+		if (frameIndex < 0 || frameIndex >= RenderConfig.FrameBufferCount)
 			return;
 
 		if (device?.Queue == null || mUniformBuffers[frameIndex] == null)
@@ -886,7 +882,7 @@ public class DebugRenderFeature : RenderFeatureBase
 		if (mLinePipelineDepth == null)
 			return;
 
-		if (frameIndex < 0 || frameIndex >= MAX_FRAMES)
+		if (frameIndex < 0 || frameIndex >= RenderConfig.FrameBufferCount)
 			return;
 
 		var bindGroup = mBindGroups[frameIndex];
@@ -1231,7 +1227,7 @@ public class DebugRenderFeature : RenderFeatureBase
 		}
 
 		// Create per-frame text resources
-		for (int i = 0; i < MAX_FRAMES; i++)
+		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
 			BufferDescriptor textVertexDesc = .((uint64)(MAX_VERTICES * DebugTextVertex.SizeInBytes), .Vertex, .Upload);
 			switch (device.CreateBuffer(&textVertexDesc))
@@ -1383,7 +1379,7 @@ public class DebugRenderFeature : RenderFeatureBase
 		}
 
 		// Create per-frame 2D text resources
-		for (int i = 0; i < MAX_FRAMES; i++)
+		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
 			BufferDescriptor screenParamDesc = .((uint64)sizeof(float[4]), .Uniform, .Upload);
 			switch (device.CreateBuffer(&screenParamDesc))
