@@ -1,4 +1,4 @@
-namespace Sedulous.Framework.Core.Scenes;
+namespace Sedulous.Framework.Scenes;
 
 /// Interface for scene modules that process components.
 /// Modules contain logic and operate on scene-owned data.

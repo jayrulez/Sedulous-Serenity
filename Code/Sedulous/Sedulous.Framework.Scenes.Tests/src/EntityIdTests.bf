@@ -1,7 +1,7 @@
-namespace Sedulous.Framework.Core.Tests;
+namespace Sedulous.Framework.Scenes.Tests;
 
 using System;
-using Sedulous.Framework.Core.Scenes;
+using Sedulous.Framework.Scenes;
 
 class EntityIdTests
 {

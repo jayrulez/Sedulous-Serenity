@@ -1,4 +1,4 @@
-namespace Sedulous.Framework.Core.Scenes;
+namespace Sedulous.Framework.Scenes;
 
 /// Base class providing empty implementations for ISceneModule.
 /// Inherit from this class and override only the methods you need.

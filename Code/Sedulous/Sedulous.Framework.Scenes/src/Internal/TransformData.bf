@@ -1,4 +1,4 @@
-namespace Sedulous.Framework.Core.Scenes.Internal;
+namespace Sedulous.Framework.Scenes.Internal;
 
 using Sedulous.Mathematics;
 

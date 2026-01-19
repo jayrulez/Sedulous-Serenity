@@ -1,9 +1,9 @@
-namespace Sedulous.Framework.Core.Scenes;
+namespace Sedulous.Framework.Scenes;
 
 using System;
 using System.Collections;
 using Sedulous.Mathematics;
-using Sedulous.Framework.Core.Scenes.Internal;
+using Sedulous.Framework.Scenes.Internal;
 
 /// A data-oriented scene containing entities, transforms, and components.
 /// The scene is the single source of truth and owns all entity data.

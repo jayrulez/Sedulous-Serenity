@@ -1,7 +1,7 @@
-namespace Sedulous.Framework.Core.Tests;
+namespace Sedulous.Framework.Scenes.Tests;
 
 using System;
-using Sedulous.Framework.Core.Scenes;
+using Sedulous.Framework.Scenes;
 
 /// Module that destroys an entity during update to test deferred destruction.
 class DestructionTestModule : SceneModule

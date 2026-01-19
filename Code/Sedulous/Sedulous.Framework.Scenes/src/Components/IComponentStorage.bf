@@ -1,4 +1,4 @@
-namespace Sedulous.Framework.Core.Scenes;
+namespace Sedulous.Framework.Scenes;
 
 /// Marker interface for component storage containers.
 /// Each component type has its own storage instance managed by the scene.

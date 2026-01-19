@@ -1,8 +1,8 @@
-namespace Sedulous.Framework.Core.Tests;
+namespace Sedulous.Framework.Scenes.Tests;
 
 using System;
 using System.Collections;
-using Sedulous.Framework.Core.Scenes;
+using Sedulous.Framework.Scenes;
 using Sedulous.Mathematics;
 
 class HierarchyTests
