@@ -33,9 +33,11 @@ cbuffer EmitterParams : register(b0)
     float Gravity;
     float Drag;
     uint MaxParticles;
-    uint SpawnCount;
+    uint AliveCount;
     float DeltaTime;
     float TotalTime;
+    uint SpawnCount;
+    uint _Padding;
 };
 
 // Buffers

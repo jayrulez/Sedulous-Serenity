@@ -15,18 +15,22 @@ struct Particle
     float RotationSpeed;
 };
 
+// Must match SceneUniforms in FrameContext.bf
 cbuffer CameraUniforms : register(b0)
 {
     float4x4 ViewMatrix;
     float4x4 ProjectionMatrix;
     float4x4 ViewProjectionMatrix;
     float4x4 InvViewMatrix;
+    float4x4 InvProjectionMatrix;
+    float4x4 PrevViewProjectionMatrix;
     float3 CameraPosition;
+    float Time;
+    float3 CameraForward;
+    float DeltaTime;
+    float2 ScreenSize;
     float NearPlane;
-    float3 CameraRight;
     float FarPlane;
-    float3 CameraUp;
-    float _Padding;
 };
 
 StructuredBuffer<Particle> Particles : register(t0);
@@ -49,7 +53,11 @@ VertexOutput main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
 {
     VertexOutput output;
 
-    if (instanceID >= AliveCount)
+    // Get particle from alive list
+    uint particleIndex = AliveList[instanceID];
+
+    // Skip invalid entries or out-of-bounds instances
+    if (instanceID >= AliveCount || particleIndex == 0xFFFFFFFF)
     {
         output.Position = float4(0, 0, 0, 0);
         output.TexCoord = float2(0, 0);
@@ -57,8 +65,6 @@ VertexOutput main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
         return output;
     }
 
-    // Get particle from alive list
-    uint particleIndex = AliveList[instanceID];
     Particle p = Particles[particleIndex];
 
     // Quad vertex positions (2 triangles, 6 vertices)
@@ -93,6 +99,10 @@ VertexOutput main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
 
     // Apply size
     rotatedOffset *= p.Size;
+
+    // Extract camera right/up from inverse view matrix for billboarding
+    float3 CameraRight = InvViewMatrix[0].xyz;
+    float3 CameraUp = InvViewMatrix[1].xyz;
 
     // Billboard: expand in camera space
     float3 worldPos = p.Position +

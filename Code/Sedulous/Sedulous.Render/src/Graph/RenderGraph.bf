@@ -672,6 +672,7 @@ public class RenderGraph : IDisposable
 		let encoder = commandEncoder.BeginComputePass();
 		if (encoder == null)
 			return .Err;
+		defer delete encoder;
 
 		if (pass.ComputeCallback != null)
 			pass.ComputeCallback(encoder);

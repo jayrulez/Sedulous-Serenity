@@ -23,8 +23,13 @@ class RenderIntegratedApp : Application
 	private ForwardOpaqueFeature mForwardFeature;
 	private ForwardTransparentFeature mTransparentFeature;
 	private SkyFeature mSkyFeature;
+	private ParticleFeature mParticleFeature;
 	private DebugRenderFeature mDebugFeature;
 	private FinalOutputFeature mFinalOutputFeature;
+
+	// Particle emitters
+	private ParticleEmitterProxyHandle mSmokeEmitter;
+	private ParticleEmitterProxyHandle mFireEmitter;
 
 	// Test objects
 	private GPUMeshHandle mCubeMeshHandle;
@@ -116,6 +121,9 @@ class RenderIntegratedApp : Application
 		// Create lights
 		CreateLights();
 
+		// Create particle systems
+		CreateParticles();
+
 		// Set environment lighting
 		mWorld.AmbientColor = .(0.02f, 0.02f, 0.03f);  // Slight blue tint
 		mWorld.AmbientIntensity = 0.5f;
@@ -125,6 +133,7 @@ class RenderIntegratedApp : Application
 		Console.WriteLine("Objects in world:");
 		Console.WriteLine("  Meshes: {}", mWorld.MeshCount);
 		Console.WriteLine("  Lights: {}", mWorld.LightCount);
+		Console.WriteLine("  Particles: {}", mWorld.ParticleEmitterCount);
 		Console.WriteLine("\nControls:");
 		Console.WriteLine("  Tab: toggle camera mode (Orbital/Flythrough)");
 		Console.WriteLine("  Arrow keys: rotate sun light");
@@ -132,6 +141,7 @@ class RenderIntegratedApp : Application
 		Console.WriteLine("  C: print detailed culling info");
 		Console.WriteLine("  H: toggle Hi-Z culling");
 		Console.WriteLine("  K: toggle sky mode (Procedural/Solid Color)");
+		Console.WriteLine("  P: toggle particle systems");
 		Console.WriteLine("  ESC: exit");
 		Console.WriteLine("\nOrbital Camera (default):");
 		Console.WriteLine("  WASD: rotate around target");
@@ -174,6 +184,13 @@ class RenderIntegratedApp : Application
 			Console.WriteLine("Warning: Failed to register SkyFeature");
 		else
 			Console.WriteLine("Registered: SkyFeature");
+
+		// Particles (GPU compute-driven particle systems)
+		mParticleFeature = new ParticleFeature();
+		if (mRenderSystem.RegisterFeature(mParticleFeature) case .Err)
+			Console.WriteLine("Warning: Failed to register ParticleFeature");
+		else
+			Console.WriteLine("Registered: ParticleFeature");
 
 		// Debug rendering (lines, shapes, text)
 		mDebugFeature = new DebugRenderFeature();
@@ -368,6 +385,53 @@ class RenderIntegratedApp : Application
 		Console.WriteLine("Created {} point lights", mPointLights.Count);
 	}
 
+	private void CreateParticles()
+	{
+		// Create smoke emitter (grey, rising slowly, fading out)
+		mSmokeEmitter = mWorld.CreateParticleEmitter();
+		if (let smoke = mWorld.GetParticleEmitter(mSmokeEmitter))
+		{
+			smoke.Position = .(-2.0f, 0.0f, 0.0f); // Left side of scene
+			smoke.MaxParticles = 500;
+			smoke.SpawnRate = 30.0f;
+			smoke.ParticleLifetime = 4.0f;
+			smoke.StartSize = .(0.2f, 0.2f);
+			smoke.EndSize = .(0.8f, 0.8f);
+			smoke.StartColor = .(0.5f, 0.5f, 0.5f, 0.6f); // Grey, semi-transparent
+			smoke.EndColor = .(0.3f, 0.3f, 0.3f, 0.0f);   // Fade out
+			smoke.InitialVelocity = .(0.0f, 1.5f, 0.0f);  // Rise slowly
+			smoke.VelocityRandomness = .(0.3f, 0.2f, 0.3f);
+			smoke.GravityMultiplier = -0.2f; // Slight upward drift
+			smoke.Drag = 0.5f;
+			smoke.BlendMode = .Alpha;
+			smoke.IsEnabled = true;
+			smoke.IsEmitting = true;
+		}
+		Console.WriteLine("Created smoke particle emitter");
+
+		// Create fire emitter (orange/yellow, rising fast, bright)
+		mFireEmitter = mWorld.CreateParticleEmitter();
+		if (let fire = mWorld.GetParticleEmitter(mFireEmitter))
+		{
+			fire.Position = .(2.0f, 0.0f, 0.0f); // Right side of scene
+			fire.MaxParticles = 300;
+			fire.SpawnRate = 50.0f;
+			fire.ParticleLifetime = 1.5f;
+			fire.StartSize = .(0.15f, 0.15f);
+			fire.EndSize = .(0.4f, 0.4f);
+			fire.StartColor = .(1.0f, 0.8f, 0.2f, 1.0f);  // Bright yellow-orange
+			fire.EndColor = .(1.0f, 0.2f, 0.0f, 0.0f);    // Red, fade out
+			fire.InitialVelocity = .(0.0f, 3.0f, 0.0f);   // Rise quickly
+			fire.VelocityRandomness = .(0.5f, 0.5f, 0.5f);
+			fire.GravityMultiplier = -0.5f; // Strong upward
+			fire.Drag = 0.3f;
+			fire.BlendMode = .Additive;
+			fire.IsEnabled = true;
+			fire.IsEmitting = true;
+		}
+		Console.WriteLine("Created fire particle emitter");
+	}
+
 	private void UpdateCamera()
 	{
 		switch (mCameraMode)
@@ -498,6 +562,23 @@ class RenderIntegratedApp : Application
 					Console.WriteLine("Sky Mode: Procedural");
 				}
 			}
+		}
+
+		// Toggle particle systems
+		if (keyboard.IsKeyPressed(.P))
+		{
+			// Toggle smoke emitter
+			if (let smoke = mWorld.GetParticleEmitter(mSmokeEmitter))
+			{
+				smoke.IsEmitting = !smoke.IsEmitting;
+			}
+			// Toggle fire emitter
+			if (let fire = mWorld.GetParticleEmitter(mFireEmitter))
+			{
+				fire.IsEmitting = !fire.IsEmitting;
+			}
+			let isEmitting = mWorld.GetParticleEmitter(mSmokeEmitter)?.IsEmitting ?? false;
+			Console.WriteLine("Particle Systems: {}", isEmitting ? "ON" : "OFF");
 		}
 
 		// Stats

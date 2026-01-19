@@ -36,14 +36,15 @@ cbuffer EmitterParams : register(b0)
     uint AliveCount;
     float DeltaTime;
     float TotalTime;
+    uint SpawnCount;
+    uint _Padding;
 };
 
-// Buffers
+// Buffers (same layout as spawn shader for simplicity)
 RWStructuredBuffer<Particle> Particles : register(u0);
-RWStructuredBuffer<uint> AliveListIn : register(u1);
-RWStructuredBuffer<uint> AliveListOut : register(u2);
-RWStructuredBuffer<uint> DeadList : register(u3);
-RWStructuredBuffer<uint> Counters : register(u4); // [0] = alive out, [1] = dead count
+RWStructuredBuffer<uint> AliveList : register(u1);  // Single alive list (read/write in place)
+RWStructuredBuffer<uint> DeadList : register(u2);
+RWStructuredBuffer<uint> Counters : register(u3); // [0] = alive count, [1] = dead count
 
 static const float3 GRAVITY_VEC = float3(0.0, -9.81, 0.0);
 
@@ -53,7 +54,12 @@ void main(uint3 DTid : SV_DispatchThreadID)
     if (DTid.x >= AliveCount)
         return;
 
-    uint particleIndex = AliveListIn[DTid.x];
+    uint particleIndex = AliveList[DTid.x];
+
+    // Skip invalid entries (particles that died and left holes in the list)
+    if (particleIndex == 0xFFFFFFFF || particleIndex >= MaxParticles)
+        return;
+
     Particle p = Particles[particleIndex];
 
     // Update age
@@ -66,6 +72,9 @@ void main(uint3 DTid : SV_DispatchThreadID)
         uint deadIndex;
         InterlockedAdd(Counters[1], 1, deadIndex);
         DeadList[deadIndex] = particleIndex;
+
+        // Mark slot as invalid in alive list (will be compacted later or skipped)
+        AliveList[DTid.x] = 0xFFFFFFFF;
         return;
     }
 
@@ -100,9 +109,4 @@ void main(uint3 DTid : SV_DispatchThreadID)
 
     // Write back
     Particles[particleIndex] = p;
-
-    // Add to alive output list
-    uint aliveIndex;
-    InterlockedAdd(Counters[0], 1, aliveIndex);
-    AliveListOut[aliveIndex] = particleIndex;
 }
