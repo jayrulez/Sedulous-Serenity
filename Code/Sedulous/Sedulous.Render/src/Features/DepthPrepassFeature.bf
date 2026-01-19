@@ -21,6 +21,10 @@ public class DepthPrepassFeature : RenderFeatureBase
 	private IRenderPipeline mDepthSkinnedPipeline ~ delete _;
 	private IRenderPipeline mDepthInstancedPipeline ~ delete _;
 
+	// Instance buffer manager for GPU instancing
+	private InstanceBufferManager mInstanceBufferManager ~ { if (_ != null) { _.Shutdown(); delete _; } };
+	private bool mInstancingEnabled = false;
+
 	// Constants for per-object uniforms
 	private static int MaxObjectsPerFrame => RenderConfig.MaxOpaqueObjectsPerFrame;
 	private const uint64 ObjectUniformAlignment = 256;
@@ -37,6 +41,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 
 	// Configuration
 	private bool mEnableHiZ = true;
+	private bool mEnableInstancing = true;
 
 	/// Feature name.
 	public override StringView Name => "DepthPrepass";
@@ -56,6 +61,22 @@ public class DepthPrepassFeature : RenderFeatureBase
 		get => mEnableHiZ;
 		set => mEnableHiZ = value;
 	}
+
+	/// Gets or sets whether GPU instancing is enabled.
+	public bool EnableInstancing
+	{
+		get => mEnableInstancing;
+		set => mEnableInstancing = value;
+	}
+
+	/// Gets whether instancing is currently active (enabled and available).
+	public bool InstancingActive => mEnableInstancing && mInstancingEnabled;
+
+	/// Gets the instance buffer for a frame (for use by other features).
+	public IBuffer GetInstanceBuffer(int32 frameIndex) => mInstanceBufferManager?.GetBuffer(frameIndex);
+
+	/// Gets the draw batcher.
+	public DrawBatcher Batcher => mBatcher;
 
 	/// Depends on GPU skinning (skinned vertex buffers must be ready).
 	public override void GetDependencies(List<StringView> outDependencies)
@@ -81,6 +102,18 @@ public class DepthPrepassFeature : RenderFeatureBase
 		// Create depth pipelines
 		if (CreateDepthPipelines() case .Err)
 			return .Err;
+
+		// Initialize instance buffer manager for GPU instancing
+		if (mEnableInstancing)
+		{
+			mInstanceBufferManager = new InstanceBufferManager();
+			if (mInstanceBufferManager.Initialize(Renderer.Device) case .Ok)
+			{
+				// Try to create instanced pipeline
+				if (CreateInstancedDepthPipeline() case .Ok)
+					mInstancingEnabled = true;
+			}
+		}
 
 		return .Ok;
 	}
@@ -153,6 +186,76 @@ public class DepthPrepassFeature : RenderFeatureBase
 		return .Ok;
 	}
 
+	private Result<void> CreateInstancedDepthPipeline()
+	{
+		// Skip if shader system not initialized or pipeline layout not ready
+		if (Renderer.ShaderSystem == null || mPipelineLayout == null)
+			return .Err;
+
+		// Load depth shaders with INSTANCED variant
+		let shaderPairResult = Renderer.ShaderSystem.GetShaderPair("depth", .DepthTest | .DepthWrite | .Instanced);
+		if (shaderPairResult case .Err)
+			return .Err; // Instanced shader variant not available
+
+		let (vertShader, fragShader) = shaderPairResult.Value;
+
+		// Vertex layout for depth instancing:
+		// - Mesh buffer uses stride 48 (full Mesh format) but only declares Position/Normal/UV (what shader uses)
+		// - DXC assigns locations sequentially, so instance data starts at location 3 (after UV)
+		Sedulous.RHI.VertexAttribute[3] meshAttrs = .(
+			.(VertexFormat.Float3, 0, 0),   // Position
+			.(VertexFormat.Float3, 12, 1),  // Normal
+			.(VertexFormat.Float2, 24, 2)   // UV
+		);
+		Sedulous.RHI.VertexAttribute[4] instanceAttrs = .(
+			.(VertexFormat.Float4, 0, 3),   // WorldRow0
+			.(VertexFormat.Float4, 16, 4),  // WorldRow1
+			.(VertexFormat.Float4, 32, 5),  // WorldRow2
+			.(VertexFormat.Float4, 48, 6)   // WorldRow3
+		);
+		VertexBufferLayout[2] vertexBuffers = .(
+			.(48, meshAttrs, .Vertex),              // Mesh buffer (stride 48, but only 3 attrs declared)
+			.(64, instanceAttrs, .Instance)         // Instance buffer
+		);
+
+		// Instanced depth pipeline descriptor
+		RenderPipelineDescriptor pipelineDesc = .()
+		{
+			Label = "DepthPrepass Instanced Pipeline",
+			Layout = mPipelineLayout,
+			Vertex = .()
+			{
+				Shader = .(vertShader.Module, "main"),
+				Buffers = vertexBuffers
+			},
+			Fragment = .()
+			{
+				Shader = .(fragShader.Module, "main"),
+				Targets = default // No color targets for depth-only
+			},
+			Primitive = .()
+			{
+				Topology = .TriangleList,
+				FrontFace = .CCW,
+				CullMode = .Back
+			},
+			DepthStencil = .Opaque,
+			Multisample = .()
+			{
+				Count = 1,
+				Mask = uint32.MaxValue
+			}
+		};
+
+		switch (Renderer.Device.CreateRenderPipeline(&pipelineDesc))
+		{
+		case .Ok(let pipeline): mDepthInstancedPipeline = pipeline;
+		case .Err: return .Err;
+		}
+
+		return .Ok;
+	}
+
 	protected override void OnShutdown()
 	{
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
@@ -191,6 +294,10 @@ public class DepthPrepassFeature : RenderFeatureBase
 
 		// Upload object uniforms BEFORE the render pass
 		PrepareObjectUniforms(frameIndex);
+
+		// Upload instance data if instancing is active
+		if (InstancingActive && mInstanceBufferManager != null)
+			mInstanceBufferManager.UploadInstanceData(frameIndex, mBatcher);
 
 		// Add depth prepass
 		graph.AddGraphicsPass("DepthPrepass")
@@ -403,6 +510,76 @@ public class DepthPrepassFeature : RenderFeatureBase
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0.0f, 1.0f);
 		encoder.SetScissorRect(0, 0, view.Width, view.Height);
 
+		// Track object index for uniform buffer dynamic offsets
+		var objectIndex = (int32)0;
+
+		// Use instanced path if available and has instance groups
+		if (InstancingActive && mDepthInstancedPipeline != null && mBatcher.OpaqueInstanceGroups.Length > 0)
+		{
+			ExecuteInstancedDepthPass(encoder, frameIndex);
+			// Instanced path doesn't use uniform buffer for static meshes,
+			// but skinned uniforms are still uploaded after static in PrepareObjectUniforms
+			objectIndex = (int32)mBatcher.DrawCommands.Length;
+		}
+		else
+		{
+			// Fall back to non-instanced path
+			ExecuteNonInstancedDepthPass(encoder, frameIndex, ref objectIndex);
+		}
+
+		// Render skinned meshes (always non-instanced)
+		RenderSkinnedMeshesDepth(encoder, world, frameIndex, ref objectIndex);
+	}
+
+	private void ExecuteInstancedDepthPass(IRenderPassEncoder encoder, int32 frameIndex)
+	{
+		// Set instanced depth pipeline
+		encoder.SetPipeline(mDepthInstancedPipeline);
+
+		// Get instance buffer for this frame
+		let instanceBuffer = mInstanceBufferManager.GetBuffer(frameIndex);
+		if (instanceBuffer == null)
+			return;
+
+		// Bind depth bind group for camera uniforms (dynamic offset 0 - object uniforms not used with instancing)
+		let bindGroup = mDepthBindGroups[frameIndex];
+		if (bindGroup != null)
+		{
+			uint32[1] dynamicOffsets = .(0);
+			encoder.SetBindGroup(0, bindGroup, dynamicOffsets);
+		}
+
+		// Render opaque instance groups
+		for (let group in mBatcher.OpaqueInstanceGroups)
+		{
+			if (group.InstanceCount == 0)
+				continue;
+
+			// Get mesh data
+			if (let mesh = Renderer.ResourceManager.GetMesh(group.GPUMesh))
+			{
+				// Bind vertex buffers: slot 0 = mesh, slot 1 = instance data
+				encoder.SetVertexBuffer(0, mesh.VertexBuffer, 0);
+				encoder.SetVertexBuffer(1, instanceBuffer, (uint64)(group.InstanceStart * (int32)InstanceData.Size));
+
+				if (mesh.IndexBuffer != null)
+				{
+					encoder.SetIndexBuffer(mesh.IndexBuffer, mesh.IndexFormat);
+					encoder.DrawIndexed(mesh.IndexCount, (uint32)group.InstanceCount, 0, 0, 0);
+				}
+				else
+				{
+					encoder.Draw(mesh.VertexCount, (uint32)group.InstanceCount, 0, 0);
+				}
+
+				Renderer.Stats.DrawCalls++;
+				Renderer.Stats.InstanceCount += group.InstanceCount;
+			}
+		}
+	}
+
+	private void ExecuteNonInstancedDepthPass(IRenderPassEncoder encoder, int32 frameIndex, ref int32 objectIndex)
+	{
 		// Set depth pipeline
 		if (mDepthPipeline != null)
 			encoder.SetPipeline(mDepthPipeline);
@@ -414,7 +591,6 @@ public class DepthPrepassFeature : RenderFeatureBase
 		let bindGroup = mDepthBindGroups[frameIndex];
 
 		// Render opaque batches with dynamic offsets
-		int32 objectIndex = 0;
 		for (let batch in mBatcher.OpaqueBatches)
 		{
 			if (batch.CommandCount == 0)
@@ -453,9 +629,6 @@ public class DepthPrepassFeature : RenderFeatureBase
 				}
 			}
 		}
-
-		// Render skinned meshes using post-transform vertex buffers
-		RenderSkinnedMeshesDepth(encoder, world, frameIndex, ref objectIndex);
 	}
 
 	private void RenderSkinnedMeshesDepth(IRenderPassEncoder encoder, RenderWorld world, int32 frameIndex, ref int32 objectIndex)
@@ -464,6 +637,11 @@ public class DepthPrepassFeature : RenderFeatureBase
 		let skinningFeature = Renderer.GetFeature<GPUSkinningFeature>();
 		if (skinningFeature == null)
 			return;
+
+		// Switch to non-instanced pipeline for skinned meshes
+		// (instanced pipeline may still be bound from previous pass)
+		if (mDepthPipeline != null)
+			encoder.SetPipeline(mDepthPipeline);
 
 		let skinnedCommands = mBatcher.SkinnedCommands;
 

@@ -108,6 +108,10 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		if (CreateForwardPipelines() case .Err)
 			return .Err;
 
+		// Try to create instanced forward pipelines
+		if (CreateInstancedForwardPipelines() case .Ok)
+			mInstancingEnabled = true;
+
 		// Create shadow depth pipeline
 		if (CreateShadowPipeline() case .Err)
 			return .Err;
@@ -121,7 +125,12 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 	private IRenderPipeline mForwardPipeline ~ delete _;          // No shadows variant
 	private IRenderPipeline mForwardShadowPipeline ~ delete _;    // With shadows variant
+	private IRenderPipeline mForwardInstancedPipeline ~ delete _; // Instanced variant (no shadows)
+	private IRenderPipeline mForwardInstancedShadowPipeline ~ delete _; // Instanced variant (with shadows)
 	private IPipelineLayout mForwardPipelineLayout ~ delete _;
+
+	// Instancing state (uses instance buffer from DepthPrepassFeature)
+	private bool mInstancingEnabled = false;
 
 	private Result<void> CreateForwardPipelines()
 	{
@@ -246,6 +255,140 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			{
 			case .Ok(let pipeline): mForwardShadowPipeline = pipeline;
 			case .Err: return .Err;
+			}
+		}
+
+		return .Ok;
+	}
+
+	private Result<void> CreateInstancedForwardPipelines()
+	{
+		// Skip if shader system or pipeline layout not initialized
+		if (Renderer.ShaderSystem == null || mForwardPipelineLayout == null)
+			return .Err;
+
+		// Get material bind group layout from MaterialSystem
+		let materialLayout = Renderer.MaterialSystem?.DefaultMaterialLayout;
+		if (materialLayout == null)
+			return .Err;
+
+		// Vertex layout for forward instancing (without NORMAL_MAP):
+		// - Mesh buffer uses stride 48 (full Mesh format) but only declares Position/Normal/UV
+		// - DXC assigns locations sequentially, so instance data starts at location 3
+		Sedulous.RHI.VertexAttribute[3] meshAttrs = .(
+			.(VertexFormat.Float3, 0, 0),   // Position
+			.(VertexFormat.Float3, 12, 1),  // Normal
+			.(VertexFormat.Float2, 24, 2)   // UV
+		);
+		Sedulous.RHI.VertexAttribute[4] instanceAttrs = .(
+			.(VertexFormat.Float4, 0, 3),   // WorldRow0
+			.(VertexFormat.Float4, 16, 4),  // WorldRow1
+			.(VertexFormat.Float4, 32, 5),  // WorldRow2
+			.(VertexFormat.Float4, 48, 6)   // WorldRow3
+		);
+		VertexBufferLayout[2] vertexBuffers = .(
+			.(48, meshAttrs, .Vertex),              // Mesh buffer (stride 48, but only 3 attrs)
+			.(64, instanceAttrs, .Instance)         // Instance buffer
+		);
+
+		// Color targets for HDR output
+		ColorTargetState[1] colorTargets = .(
+			.(.RGBA16Float)
+		);
+
+		// --- Create instanced non-shadow pipeline ---
+		{
+			let shaderResult = Renderer.ShaderSystem.GetShaderPair("forward", .DepthTest | .DepthWrite | .Instanced);
+			if (shaderResult case .Err)
+				return .Err; // Instanced shader variant not available
+
+			let (vertShader, fragShader) = shaderResult.Value;
+
+			RenderPipelineDescriptor pipelineDesc = .()
+			{
+				Label = "Forward Opaque Instanced Pipeline (No Shadows)",
+				Layout = mForwardPipelineLayout,
+				Vertex = .()
+				{
+					Shader = .(vertShader.Module, "main"),
+					Buffers = vertexBuffers
+				},
+				Fragment = .()
+				{
+					Shader = .(fragShader.Module, "main"),
+					Targets = colorTargets
+				},
+				Primitive = .()
+				{
+					Topology = .TriangleList,
+					FrontFace = .CCW,
+					CullMode = .Back
+				},
+				DepthStencil = .()
+				{
+					DepthTestEnabled = true,
+					DepthWriteEnabled = false,
+					DepthCompare = .LessEqual
+				},
+				Multisample = .()
+				{
+					Count = 1,
+					Mask = uint32.MaxValue
+				}
+			};
+
+			switch (Renderer.Device.CreateRenderPipeline(&pipelineDesc))
+			{
+			case .Ok(let pipeline): mForwardInstancedPipeline = pipeline;
+			case .Err: return .Err;
+			}
+		}
+
+		// --- Create instanced shadow-receiving pipeline ---
+		{
+			let shaderResult = Renderer.ShaderSystem.GetShaderPair("forward", .DefaultOpaque | .Instanced);
+			if (shaderResult case .Err)
+				return .Ok; // Shadow variant not available, but basic instancing works
+
+			let (vertShader, fragShader) = shaderResult.Value;
+
+			RenderPipelineDescriptor pipelineDesc = .()
+			{
+				Label = "Forward Opaque Instanced Pipeline (With Shadows)",
+				Layout = mForwardPipelineLayout,
+				Vertex = .()
+				{
+					Shader = .(vertShader.Module, "main"),
+					Buffers = vertexBuffers
+				},
+				Fragment = .()
+				{
+					Shader = .(fragShader.Module, "main"),
+					Targets = colorTargets
+				},
+				Primitive = .()
+				{
+					Topology = .TriangleList,
+					FrontFace = .CCW,
+					CullMode = .Back
+				},
+				DepthStencil = .()
+				{
+					DepthTestEnabled = true,
+					DepthWriteEnabled = false,
+					DepthCompare = .LessEqual
+				},
+				Multisample = .()
+				{
+					Count = 1,
+					Mask = uint32.MaxValue
+				}
+			};
+
+			switch (Renderer.Device.CreateRenderPipeline(&pipelineDesc))
+			{
+			case .Ok(let pipeline): mForwardInstancedShadowPipeline = pipeline;
+			case .Err: // Shadow variant failed, but basic instancing still works
 			}
 		}
 
@@ -615,8 +758,8 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 	{
 		// Upload all object transforms to the uniform buffer BEFORE the render pass
 		// Use Map/Unmap to avoid command buffer creation
-		let commands = depthFeature.[Friend]mBatcher.DrawCommands;
-		let skinnedCommands = depthFeature.[Friend]mBatcher.SkinnedCommands;
+		let commands = depthFeature.Batcher.DrawCommands;
+		let skinnedCommands = depthFeature.Batcher.SkinnedCommands;
 
 		// Use the current frame's buffer
 		let buffer = mObjectUniformBuffers[frameIndex];
@@ -628,7 +771,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			int32 objectIndex = 0;
 
 			// Static meshes
-			for (let batch in depthFeature.[Friend]mBatcher.OpaqueBatches)
+			for (let batch in depthFeature.Batcher.OpaqueBatches)
 			{
 				if (batch.CommandCount == 0)
 					continue;
@@ -662,7 +805,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			}
 
 			// Skinned meshes
-			for (let batch in depthFeature.[Friend]mBatcher.SkinnedBatches)
+			for (let batch in depthFeature.Batcher.SkinnedBatches)
 			{
 				if (batch.CommandCount == 0)
 					continue;
@@ -1089,6 +1232,107 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0.0f, 1.0f);
 		encoder.SetScissorRect(0, 0, view.Width, view.Height);
 
+		// Track object index for uniform buffer dynamic offsets
+		var objectIndex = (int32)0;
+
+		// Track current bound material to minimize rebinds
+		MaterialInstance currentMaterial = null;
+
+		// Use instanced path if available and has instance groups
+		let batcher = depthFeature.Batcher;
+		if (mInstancingEnabled && depthFeature.InstancingActive && mForwardInstancedPipeline != null && batcher.OpaqueInstanceGroups.Length > 0)
+		{
+			ExecuteInstancedForwardPass(encoder, world, depthFeature, frameIndex, ref currentMaterial);
+			// Instanced path doesn't use uniform buffer for static meshes,
+			// but skinned uniforms are still uploaded after static in PrepareObjectUniforms
+			objectIndex = (int32)batcher.DrawCommands.Length;
+		}
+		else
+		{
+			// Fall back to non-instanced path
+			ExecuteNonInstancedForwardPass(encoder, world, depthFeature, frameIndex, ref objectIndex, ref currentMaterial);
+		}
+
+		// Render skinned meshes (always non-instanced)
+		RenderSkinnedMeshes(encoder, world, view, depthFeature, frameIndex, ref objectIndex, ref currentMaterial);
+	}
+
+	private void ExecuteInstancedForwardPass(IRenderPassEncoder encoder, RenderWorld world, DepthPrepassFeature depthFeature, int32 frameIndex, ref MaterialInstance currentMaterial)
+	{
+		// Select instanced pipeline based on shadow state
+		let shadowsEnabled = mShadowRenderer?.EnableShadows ?? false;
+		let activePipeline = (shadowsEnabled && mForwardInstancedShadowPipeline != null) ? mForwardInstancedShadowPipeline : mForwardInstancedPipeline;
+
+		if (activePipeline == null)
+			return;
+
+		encoder.SetPipeline(activePipeline);
+
+		// Get instance buffer from depth feature
+		let instanceBuffer = depthFeature.GetInstanceBuffer(frameIndex);
+		if (instanceBuffer == null)
+			return;
+
+		// Get material system for binding materials
+		let materialSystem = Renderer.MaterialSystem;
+		let defaultMaterialInstance = materialSystem?.DefaultMaterialInstance;
+
+		// Get batcher data
+		let batcher = depthFeature.Batcher;
+
+		// Bind scene bind group (no dynamic offset needed for instanced - uses instance 0)
+		let sceneBindGroup = mSceneBindGroups[frameIndex];
+		if (sceneBindGroup != null)
+		{
+			uint32[1] dynamicOffsets = .(0);
+			encoder.SetBindGroup(0, sceneBindGroup, dynamicOffsets);
+		}
+
+		// Render opaque instance groups
+		for (let group in batcher.OpaqueInstanceGroups)
+		{
+			if (group.InstanceCount == 0)
+				continue;
+
+			// Get material for this group (all instances in group share the same material)
+			MaterialInstance material = group.Material ?? defaultMaterialInstance;
+
+			// Bind material if changed
+			if (material != currentMaterial && material != null && materialSystem != null)
+			{
+				if (materialSystem.PrepareInstance(material) case .Ok(let bindGroup))
+				{
+					encoder.SetBindGroup(1, bindGroup, default);
+					currentMaterial = material;
+				}
+			}
+
+			// Get mesh data
+			if (let mesh = Renderer.ResourceManager.GetMesh(group.GPUMesh))
+			{
+				// Bind vertex buffers: slot 0 = mesh, slot 1 = instance data
+				encoder.SetVertexBuffer(0, mesh.VertexBuffer, 0);
+				encoder.SetVertexBuffer(1, instanceBuffer, (uint64)(group.InstanceStart * (int32)InstanceData.Size));
+
+				if (mesh.IndexBuffer != null)
+				{
+					encoder.SetIndexBuffer(mesh.IndexBuffer, mesh.IndexFormat);
+					encoder.DrawIndexed(mesh.IndexCount, (uint32)group.InstanceCount, 0, 0, 0);
+				}
+				else
+				{
+					encoder.Draw(mesh.VertexCount, (uint32)group.InstanceCount, 0, 0);
+				}
+
+				Renderer.Stats.DrawCalls++;
+				Renderer.Stats.InstanceCount += group.InstanceCount;
+				Renderer.Stats.TriangleCount += (int32)(mesh.IndexCount / 3) * group.InstanceCount;
+			}
+		}
+	}
+
+	private void ExecuteNonInstancedForwardPass(IRenderPassEncoder encoder, RenderWorld world, DepthPrepassFeature depthFeature, int32 frameIndex, ref int32 objectIndex, ref MaterialInstance currentMaterial)
+	{
 		// Select pipeline based on shadow state
 		let shadowsEnabled = mShadowRenderer?.EnableShadows ?? false;
 		let activePipeline = (shadowsEnabled && mForwardShadowPipeline != null) ? mForwardShadowPipeline : mForwardPipeline;
@@ -1100,15 +1344,12 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		let materialSystem = Renderer.MaterialSystem;
 		let defaultMaterialInstance = materialSystem?.DefaultMaterialInstance;
 
-		// Track current bound material to minimize rebinds
-		MaterialInstance currentMaterial = null;
-
 		// Get draw commands from batcher (uniforms already uploaded in PrepareObjectUniforms)
-		let commands = depthFeature.[Friend]mBatcher.DrawCommands;
+		let batcher = depthFeature.Batcher;
+		let commands = batcher.DrawCommands;
 
 		// Render with dynamic offsets
-		int32 objectIndex = 0;
-		for (let batch in depthFeature.[Friend]mBatcher.OpaqueBatches)
+		for (let batch in batcher.OpaqueBatches)
 		{
 			if (batch.CommandCount == 0)
 				continue;
@@ -1168,9 +1409,6 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				objectIndex++;
 			}
 		}
-
-		// Render skinned meshes
-		RenderSkinnedMeshes(encoder, world, view, depthFeature, frameIndex, ref objectIndex, ref currentMaterial);
 	}
 
 	private void RenderSkinnedMeshes(IRenderPassEncoder encoder, RenderWorld world, RenderView view, DepthPrepassFeature depthFeature, int32 frameIndex, ref int32 objectIndex, ref MaterialInstance currentMaterial)
@@ -1180,14 +1418,21 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		if (skinningFeature == null)
 			return;
 
+		// Switch to non-instanced pipeline for skinned meshes
+		// (instanced pipeline may still be bound from previous pass)
+		let shadowsEnabled = mShadowRenderer?.EnableShadows ?? false;
+		let activePipeline = (shadowsEnabled && mForwardShadowPipeline != null) ? mForwardShadowPipeline : mForwardPipeline;
+		if (activePipeline != null)
+			encoder.SetPipeline(activePipeline);
+
 		let materialSystem = Renderer.MaterialSystem;
 		let defaultMaterialInstance = materialSystem?.DefaultMaterialInstance;
 
 		// Get skinned mesh commands from batcher
-		let skinnedCommands = depthFeature.[Friend]mBatcher.SkinnedCommands;
+		let skinnedCommands = depthFeature.Batcher.SkinnedCommands;
 
 		// Render each skinned mesh batch
-		for (let batch in depthFeature.[Friend]mBatcher.SkinnedBatches)
+		for (let batch in depthFeature.Batcher.SkinnedBatches)
 		{
 			if (batch.CommandCount == 0)
 				continue;

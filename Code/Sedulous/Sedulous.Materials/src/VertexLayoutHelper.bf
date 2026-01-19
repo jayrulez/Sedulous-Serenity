@@ -48,6 +48,22 @@ public static class VertexLayoutHelper
 		.(VertexFormat.Float4, 64, 6)   // Joint Weights
 	);
 
+	/// Instance data: 4 x float4 (world matrix rows) - for GPU instancing
+	/// Used as second vertex buffer with per-instance step rate
+	/// NOTE: DXC assigns locations SEQUENTIALLY based on struct order, not semantic index.
+	/// For a shader with Position, Normal, UV, TEXCOORD3-6:
+	///   - Position=0, Normal=1, UV=2, then instance at 3,4,5,6
+	/// Use CreateInstanceDataAttributes() to get attributes at correct starting location.
+	public static VertexAttribute[4] InstanceDataAttributes = .(
+		.(VertexFormat.Float4, 0, 3),   // WorldRow0 (location 3)
+		.(VertexFormat.Float4, 16, 4),  // WorldRow1 (location 4)
+		.(VertexFormat.Float4, 32, 5),  // WorldRow2 (location 5)
+		.(VertexFormat.Float4, 48, 6)   // WorldRow3 (location 6)
+	);
+
+	/// Instance data stride (4 x float4 = 64 bytes).
+	public const uint32 InstanceDataStride = 64;
+
 	/// Gets the vertex stride for a layout type.
 	public static uint32 GetStride(VertexLayoutType layoutType)
 	{
@@ -120,5 +136,46 @@ public static class VertexLayoutHelper
 		out VertexBufferLayout[1] outLayouts)
 	{
 		outLayouts = .(CreateBufferLayout(layoutType));
+	}
+
+	/// Creates instance data attributes at a given starting location.
+	/// Use this when the shader has a different number of per-vertex attributes.
+	/// For a depth shader (Position, Normal, UV), startLocation should be 3.
+	/// For a forward shader with tangent (Position, Normal, UV, Tangent), startLocation should be 4.
+	public static void CreateInstanceDataAttributes(uint32 startLocation, out VertexAttribute[4] outAttributes)
+	{
+		outAttributes = .(
+			.(VertexFormat.Float4, 0, startLocation),       // WorldRow0
+			.(VertexFormat.Float4, 16, startLocation + 1),  // WorldRow1
+			.(VertexFormat.Float4, 32, startLocation + 2),  // WorldRow2
+			.(VertexFormat.Float4, 48, startLocation + 3)   // WorldRow3
+		);
+	}
+
+	/// Creates an instance buffer layout for GPU instancing.
+	/// The instance buffer uses per-instance step mode (advances once per instance, not per vertex).
+	public static VertexBufferLayout CreateInstanceBufferLayout()
+	{
+		return .(InstanceDataStride, InstanceDataAttributes, .Instance);
+	}
+
+	/// Creates an instance buffer layout at a custom starting location.
+	public static VertexBufferLayout CreateInstanceBufferLayoutAt(uint32 startLocation)
+	{
+		VertexAttribute[4] attrs = default;
+		CreateInstanceDataAttributes(startLocation, out attrs);
+		return .(InstanceDataStride, attrs, .Instance);
+	}
+
+	/// Creates a vertex buffer layout array for instanced mesh rendering.
+	/// First buffer is per-vertex mesh data, second buffer is per-instance data.
+	public static void CreateInstancedMeshLayout(
+		VertexLayoutType vertexLayout,
+		out VertexBufferLayout[2] outLayouts)
+	{
+		outLayouts = .(
+			CreateBufferLayout(vertexLayout),
+			CreateInstanceBufferLayout()
+		);
 	}
 }

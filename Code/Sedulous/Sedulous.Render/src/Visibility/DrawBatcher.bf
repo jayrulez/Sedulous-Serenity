@@ -71,6 +71,29 @@ public struct DrawBatch
 	public bool IsSkinned;
 }
 
+/// A group of identical meshes that can be drawn with GPU instancing.
+/// All instances share the same mesh and material.
+public struct InstanceGroup
+{
+	/// GPU mesh handle (shared by all instances).
+	public GPUMeshHandle GPUMesh;
+
+	/// Material for this group.
+	public MaterialInstance Material;
+
+	/// Start index in the instance data buffer.
+	public int32 InstanceStart;
+
+	/// Number of instances in this group.
+	public int32 InstanceCount;
+
+	/// Start index in the command list (for accessing transforms).
+	public int32 CommandStart;
+
+	/// Whether this is a transparent group.
+	public bool IsTransparent;
+}
+
 /// Groups visible objects into batches for efficient rendering.
 /// Minimizes state changes by grouping draws by material.
 public class DrawBatcher
@@ -79,10 +102,14 @@ public class DrawBatcher
 	private List<DrawCommand> mDrawCommands = new .() ~ delete _;
 	private List<SkinnedDrawCommand> mSkinnedCommands = new .() ~ delete _;
 
-	// Batches
+	// Batches (non-instanced path)
 	private List<DrawBatch> mOpaqueBatches = new .() ~ delete _;
 	private List<DrawBatch> mTransparentBatches = new .() ~ delete _;
 	private List<DrawBatch> mSkinnedBatches = new .() ~ delete _;
+
+	// Instance groups (GPU instancing path)
+	private List<InstanceGroup> mOpaqueInstanceGroups = new .() ~ delete _;
+	private List<InstanceGroup> mTransparentInstanceGroups = new .() ~ delete _;
 
 	// Statistics
 	private BatchStats mStats;
@@ -104,6 +131,12 @@ public class DrawBatcher
 
 	/// Gets skinned mesh draw batches.
 	public Span<DrawBatch> SkinnedBatches => mSkinnedBatches;
+
+	/// Gets opaque instance groups (for GPU instancing).
+	public Span<InstanceGroup> OpaqueInstanceGroups => mOpaqueInstanceGroups;
+
+	/// Gets transparent instance groups (for GPU instancing).
+	public Span<InstanceGroup> TransparentInstanceGroups => mTransparentInstanceGroups;
 
 	/// Gets batching statistics.
 	public BatchStats Stats => mStats;
@@ -143,6 +176,8 @@ public class DrawBatcher
 		mOpaqueBatches.Clear();
 		mTransparentBatches.Clear();
 		mSkinnedBatches.Clear();
+		mOpaqueInstanceGroups.Clear();
+		mTransparentInstanceGroups.Clear();
 		mStats = .();
 	}
 
@@ -188,26 +223,35 @@ public class DrawBatcher
 
 	private void BuildBatches()
 	{
-		// Sort static mesh commands by material for batching
+		// Sort static mesh commands by material and mesh for batching/instancing
 		SortCommandsByMaterial();
 
-		// Build static mesh batches
+		// Build static mesh batches (non-instanced path)
 		BuildStaticBatches();
 
-		// Build skinned mesh batches (separate pipeline)
+		// Build instance groups (GPU instancing path)
+		BuildInstanceGroups();
+
+		// Build skinned mesh batches (separate pipeline, no instancing)
 		BuildSkinnedBatches();
 	}
 
 	private void SortCommandsByMaterial()
 	{
-		// Sort by material pointer for grouping
-		// In a real implementation, we'd also consider blend mode for opaque/transparent split
+		// Sort by material and mesh for optimal batching and instancing
+		// Commands with same material AND mesh can be instanced together
 		mDrawCommands.Sort(scope (a, b) =>
 		{
 			// First sort by material
 			let matA = (int)Internal.UnsafeCastToPtr(GetMaterial(a));
 			let matB = (int)Internal.UnsafeCastToPtr(GetMaterial(b));
-			return matA <=> matB;
+			if (matA != matB)
+				return matA <=> matB;
+
+			// Then sort by GPU mesh (enables instancing of identical meshes)
+			let meshA = a.GPUMesh.Index;
+			let meshB = b.GPUMesh.Index;
+			return meshA <=> meshB;
 		});
 
 		mSkinnedCommands.Sort(scope (a, b) =>
@@ -300,6 +344,88 @@ public class DrawBatcher
 		}
 	}
 
+	private void BuildInstanceGroups()
+	{
+		// Build instance groups from sorted draw commands
+		// Commands are already sorted by material then by mesh
+		// Consecutive commands with same mesh+material form an instance group
+
+		if (mDrawCommands.IsEmpty)
+			return;
+
+		int32 instanceStart = 0;  // Running instance index for instance buffer
+		int32 groupStart = 0;
+		GPUMeshHandle currentMesh = mDrawCommands[0].GPUMesh;
+		MaterialInstance currentMaterial = GetMaterial(mDrawCommands[0]);
+		bool isCurrentTransparent = IsMaterialTransparent(currentMaterial);
+
+		for (int32 i = 1; i <= mDrawCommands.Count; i++)
+		{
+			bool endGroup = (i == mDrawCommands.Count);
+
+			if (!endGroup)
+			{
+				let cmd = mDrawCommands[i];
+				let material = GetMaterial(cmd);
+				let isTransparent = IsMaterialTransparent(material);
+
+				// Check if this command can be grouped with the previous one
+				// Must have same mesh, same material, and same transparency mode
+				endGroup = (cmd.GPUMesh.Index != currentMesh.Index) ||
+				           (material != currentMaterial) ||
+				           (isTransparent != isCurrentTransparent);
+			}
+
+			if (endGroup)
+			{
+				// Create instance group
+				int32 groupCount = i - groupStart;
+
+				// Limit group size to MaxInstancesPerDraw
+				int32 remaining = groupCount;
+				int32 groupOffset = 0;
+
+				while (remaining > 0)
+				{
+					int32 batchSize = Math.Min(remaining, RenderConfig.MaxInstancesPerDraw);
+
+					let group = InstanceGroup()
+					{
+						GPUMesh = currentMesh,
+						Material = currentMaterial,
+						InstanceStart = instanceStart,
+						InstanceCount = batchSize,
+						CommandStart = groupStart + groupOffset,
+						IsTransparent = isCurrentTransparent
+					};
+
+					if (isCurrentTransparent)
+						mTransparentInstanceGroups.Add(group);
+					else
+						mOpaqueInstanceGroups.Add(group);
+
+					instanceStart += batchSize;
+					groupOffset += batchSize;
+					remaining -= batchSize;
+				}
+
+				// Start new group
+				if (i < mDrawCommands.Count)
+				{
+					groupStart = i;
+					currentMesh = mDrawCommands[i].GPUMesh;
+					currentMaterial = GetMaterial(mDrawCommands[i]);
+					isCurrentTransparent = IsMaterialTransparent(currentMaterial);
+				}
+			}
+		}
+
+		// Update stats
+		mStats.OpaqueInstanceGroupCount = (int32)mOpaqueInstanceGroups.Count;
+		mStats.TransparentInstanceGroupCount = (int32)mTransparentInstanceGroups.Count;
+		mStats.TotalInstanceCount = instanceStart;
+	}
+
 	private void AddBatch(MaterialInstance material, int32 start, int32 count, bool isTransparent, bool isSkinned)
 	{
 		let batch = DrawBatch()
@@ -363,8 +489,30 @@ public struct BatchStats
 	/// Number of skinned mesh batches.
 	public int32 SkinnedBatchCount;
 
+	/// Number of opaque instance groups (for GPU instancing).
+	public int32 OpaqueInstanceGroupCount;
+
+	/// Number of transparent instance groups (for GPU instancing).
+	public int32 TransparentInstanceGroupCount;
+
+	/// Total number of instances (sum of all instance counts).
+	public int32 TotalInstanceCount;
+
 	/// Average draws per batch.
 	public float AverageDrawsPerBatch => (OpaqueBatchCount + TransparentBatchCount + SkinnedBatchCount) > 0
 		? (float)TotalDrawCalls / (float)(OpaqueBatchCount + TransparentBatchCount + SkinnedBatchCount)
 		: 0.0f;
+
+	/// Draw call reduction ratio from instancing.
+	/// Lower is better (e.g., 0.1 means 10x fewer draw calls).
+	public float InstancingEfficiency
+	{
+		get
+		{
+			if (TotalInstanceCount == 0)
+				return 1.0f;
+			let instancedDrawCalls = OpaqueInstanceGroupCount + TransparentInstanceGroupCount;
+			return (float)instancedDrawCalls / (float)TotalInstanceCount;
+		}
+	}
 }
