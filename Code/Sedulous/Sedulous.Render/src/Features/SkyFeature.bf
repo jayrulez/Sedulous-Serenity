@@ -105,10 +105,11 @@ public class SkyFeature : RenderFeatureBase
 	/// Feature name.
 	public override StringView Name => "Sky";
 
-	/// Sky renders after transparent (at depth = 1.0).
+	/// Sky renders after opaque but BEFORE transparent (at depth = 1.0).
+	/// Transparent objects render on top of the sky.
 	public override void GetDependencies(List<StringView> outDependencies)
 	{
-		outDependencies.Add("ForwardTransparent");
+		outDependencies.Add("ForwardOpaque");
 	}
 
 	/// Gets or sets the sky mode.

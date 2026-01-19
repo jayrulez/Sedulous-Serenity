@@ -54,10 +54,10 @@ public class DepthPrepassFeature : RenderFeatureBase
 		set => mEnableHiZ = value;
 	}
 
-	/// No dependencies - depth prepass runs first.
+	/// Depends on GPU skinning (skinned vertex buffers must be ready).
 	public override void GetDependencies(List<StringView> outDependencies)
 	{
-		// No dependencies
+		outDependencies.Add("GPUSkinning");
 	}
 
 	protected override Result<void> OnInitialize()
@@ -302,10 +302,13 @@ public class DepthPrepassFeature : RenderFeatureBase
 		// Upload all object transforms to the uniform buffer BEFORE the render pass
 		// Use Map/Unmap to avoid command buffer creation
 		let commands = mBatcher.DrawCommands;
+		let skinnedCommands = mBatcher.SkinnedCommands;
 
 		if (let bufferPtr = mObjectUniformBuffer.Map())
 		{
 			int32 objectIndex = 0;
+
+			// Static meshes
 			for (let batch in mBatcher.OpaqueBatches)
 			{
 				if (batch.CommandCount == 0)
@@ -338,6 +341,38 @@ public class DepthPrepassFeature : RenderFeatureBase
 					objectIndex++;
 				}
 			}
+
+			// Skinned meshes
+			for (let batch in mBatcher.SkinnedBatches)
+			{
+				if (batch.CommandCount == 0)
+					continue;
+
+				for (int32 i = 0; i < batch.CommandCount; i++)
+				{
+					if (objectIndex >= MaxObjectsPerFrame)
+						break;
+
+					let cmd = skinnedCommands[batch.CommandStart + i];
+
+					ObjectUniforms objectUniforms = .()
+					{
+						WorldMatrix = cmd.WorldMatrix,
+						PrevWorldMatrix = cmd.PrevWorldMatrix,
+						NormalMatrix = cmd.NormalMatrix,
+						ObjectID = (uint32)objectIndex,
+						MaterialID = 0,
+						_Padding = default
+					};
+
+					let offset = (uint64)(objectIndex * (int32)AlignedObjectUniformSize);
+					Runtime.Assert(offset + ObjectUniformSize <= mObjectUniformBuffer.Size, scope $"DepthPrepass skinned object uniform write (offset {offset} + size {ObjectUniformSize}) exceeds buffer size ({mObjectUniformBuffer.Size})");
+					Internal.MemCpy((uint8*)bufferPtr + offset, &objectUniforms, ObjectUniformSize);
+
+					objectIndex++;
+				}
+			}
+
 			mObjectUniformBuffer.Unmap();
 		}
 	}
@@ -393,6 +428,66 @@ public class DepthPrepassFeature : RenderFeatureBase
 					Renderer.Stats.DrawCalls++;
 					objectIndex++;
 				}
+			}
+		}
+
+		// Render skinned meshes using post-transform vertex buffers
+		RenderSkinnedMeshesDepth(encoder, world, ref objectIndex);
+	}
+
+	private void RenderSkinnedMeshesDepth(IRenderPassEncoder encoder, RenderWorld world, ref int32 objectIndex)
+	{
+		// Get GPU skinning feature to access skinned vertex buffers
+		let skinningFeature = Renderer.GetFeature<GPUSkinningFeature>();
+		if (skinningFeature == null)
+			return;
+
+		let skinnedCommands = mBatcher.SkinnedCommands;
+
+		for (let batch in mBatcher.SkinnedBatches)
+		{
+			if (batch.CommandCount == 0)
+				continue;
+
+			for (int32 i = 0; i < batch.CommandCount; i++)
+			{
+				if (objectIndex >= MaxObjectsPerFrame)
+					break;
+
+				let cmd = skinnedCommands[batch.CommandStart + i];
+
+				// Get the skinned vertex buffer from GPU skinning feature
+				let skinnedVertexBuffer = skinningFeature.GetSkinnedVertexBuffer(cmd.MeshHandle);
+				if (skinnedVertexBuffer == null)
+					continue;
+
+				// Bind depth bind group with dynamic offset
+				if (mDepthBindGroup != null)
+				{
+					uint32[1] dynamicOffsets = .((uint32)(objectIndex * (int32)AlignedObjectUniformSize));
+					encoder.SetBindGroup(0, mDepthBindGroup, dynamicOffsets);
+				}
+
+				// Bind the skinned vertex buffer
+				encoder.SetVertexBuffer(0, skinnedVertexBuffer, 0);
+
+				// Get original mesh for index buffer (indices don't change with skinning)
+				if (let mesh = Renderer.ResourceManager.GetMesh(cmd.GPUMesh))
+				{
+					if (mesh.IndexBuffer != null)
+					{
+						encoder.SetIndexBuffer(mesh.IndexBuffer, mesh.IndexFormat);
+						encoder.DrawIndexed(mesh.IndexCount, 1, 0, 0, 0);
+					}
+					else
+					{
+						encoder.Draw(mesh.VertexCount, 1, 0, 0);
+					}
+
+					Renderer.Stats.DrawCalls++;
+				}
+
+				objectIndex++;
 			}
 		}
 	}

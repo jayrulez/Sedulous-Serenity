@@ -17,10 +17,11 @@ public class ForwardTransparentFeature : RenderFeatureBase
 	/// Feature name.
 	public override StringView Name => "ForwardTransparent";
 
-	/// Depends on forward opaque (uses same color/depth buffers).
+	/// Depends on forward opaque and sky (transparent renders on top of sky).
 	public override void GetDependencies(List<StringView> outDependencies)
 	{
 		outDependencies.Add("ForwardOpaque");
+		outDependencies.Add("Sky");
 	}
 
 	// Transparent render pipelines for different blend modes
