@@ -41,7 +41,7 @@ public class GPUSkinningFeature : RenderFeatureBase
 	// Per-mesh skinning data
 	private Dictionary<SkinnedMeshProxyHandle, SkinningInstance> mSkinningInstances = new .() ~ {
 		for (let kv in _)
-			kv.value.Dispose();
+			delete kv.value;
 		delete _;
 	};
 
@@ -52,6 +52,24 @@ public class GPUSkinningFeature : RenderFeatureBase
 	public override void GetDependencies(List<StringView> outDependencies)
 	{
 		// No dependencies - runs first to prepare skinned vertex buffers
+	}
+
+	/// Gets the skinned (transformed) vertex buffer for a skinned mesh.
+	/// This buffer contains the post-skinning vertices ready for rendering.
+	/// Returns null if no skinning instance exists for this mesh.
+	public IBuffer GetSkinnedVertexBuffer(SkinnedMeshProxyHandle handle)
+	{
+		if (mSkinningInstances.TryGetValue(handle, let instance))
+			return instance.SkinnedVertexBuffer;
+		return null;
+	}
+
+	/// Gets the vertex count for a skinned mesh instance.
+	public int32 GetSkinnedVertexCount(SkinnedMeshProxyHandle handle)
+	{
+		if (mSkinningInstances.TryGetValue(handle, let instance))
+			return instance.VertexCount;
+		return 0;
 	}
 
 	protected override Result<void> OnInitialize()
@@ -66,7 +84,7 @@ public class GPUSkinningFeature : RenderFeatureBase
 	protected override void OnShutdown()
 	{
 		for (let kv in mSkinningInstances)
-			kv.value.Dispose();
+			delete kv.value;
 		mSkinningInstances.Clear();
 	}
 
@@ -90,6 +108,7 @@ public class GPUSkinningFeature : RenderFeatureBase
 
 		// Add skinning compute pass
 		graph.AddComputePass("GPUSkinning")
+			.NeverCull()
 			.SetComputeCallback(new (encoder) => {
 				ExecuteSkinningPass(encoder, world, meshCopy);
 				delete meshCopy;
@@ -102,9 +121,9 @@ public class GPUSkinningFeature : RenderFeatureBase
 	{
 		// Create bind group layout matching skinning.comp.hlsl:
 		// b0: SkinningParams (uniform)
-		// b1: BoneMatrices (uniform)
-		// t0: SourceVertices (storage, read-only)
-		// u0: OutputVertices (storage, read-write)
+		// t0: BoneMatrices (StructuredBuffer<float4x4>)
+		// t1: SourceVertices (ByteAddressBuffer - 72 bytes per vertex)
+		// u0: OutputVertices (RWByteAddressBuffer - 48 bytes per vertex)
 		BindGroupLayoutEntry[4] entries = .(
 			.() // Skinning params (b0)
 			{
@@ -112,23 +131,23 @@ public class GPUSkinningFeature : RenderFeatureBase
 				Visibility = .Compute,
 				Type = .UniformBuffer
 			},
-			.() // Bone matrices (b1)
+			.() // Bone matrices (t0) - read-only storage from GPUBoneBuffer
+			{
+				Binding = 0,
+				Visibility = .Compute,
+				Type = .StorageBuffer
+			},
+			.() // Source vertices (t1) - read-only storage
 			{
 				Binding = 1,
-				Visibility = .Compute,
-				Type = .UniformBuffer
-			},
-			.() // Source vertices (t0) - read-only storage
-			{
-				Binding = 2,
 				Visibility = .Compute,
 				Type = .StorageBuffer
 			},
 			.() // Output vertices (u0) - read-write storage
 			{
-				Binding = 3,
+				Binding = 0,
 				Visibility = .Compute,
-				Type = .StorageBuffer
+				Type = .StorageBufferReadWrite
 			}
 		);
 
@@ -218,10 +237,16 @@ public class GPUSkinningFeature : RenderFeatureBase
 		if (gpuMesh == null)
 			return null;
 
+		// Get the bone buffer from the resource manager
+		let gpuBoneBuffer = Renderer.ResourceManager?.GetBoneBuffer(proxy.BoneBufferHandle);
+		if (gpuBoneBuffer == null || gpuBoneBuffer.Buffer == null)
+			return null;
+
 		let instance = new SkinningInstance();
 		instance.VertexCount = (int32)gpuMesh.VertexCount;
 		instance.BoneCount = (int32)proxy.BoneCount;
 		instance.SourceVertexBuffer = gpuMesh.VertexBuffer;
+		instance.BoneBufferHandle = proxy.BoneBufferHandle;
 
 		// Create skinning params uniform buffer
 		BufferDescriptor paramsBufferDesc = .()
@@ -239,24 +264,9 @@ public class GPUSkinningFeature : RenderFeatureBase
 			return null;
 		}
 
-		// Create bone transform buffer
-		BufferDescriptor boneBufferDesc = .()
-		{
-			Label = "Bone Transforms",
-			Size = (uint64)GPUBoneTransforms.Size,
-			Usage = .Uniform | .CopyDst
-		};
-
-		switch (Renderer.Device.CreateBuffer(&boneBufferDesc))
-		{
-		case .Ok(let buf): instance.BoneBuffer = buf;
-		case .Err:
-			delete instance;
-			return null;
-		}
-
 		// Create skinned vertex output buffer
-		// Output vertex format: Position (12) + Normal (12) + Tangent (16) + TexCoord (8) = 48 bytes
+		// Output vertex format (VertexLayoutHelper.Mesh - 48 bytes):
+		// Position (12) + Normal (12) + TexCoord (8) + Color (4) + Tangent (12) = 48 bytes
 		let outputVertexSize = 48;
 		BufferDescriptor skinnedBufferDesc = .()
 		{
@@ -273,8 +283,8 @@ public class GPUSkinningFeature : RenderFeatureBase
 			return null;
 		}
 
-		// Create bind group
-		if (!CreateSkinningBindGroup(instance))
+		// Create bind group with bone buffer
+		if (!CreateSkinningBindGroup(instance, gpuBoneBuffer.Buffer))
 		{
 			delete instance;
 			return null;
@@ -293,43 +303,19 @@ public class GPUSkinningFeature : RenderFeatureBase
 		return instance;
 	}
 
-	private bool CreateSkinningBindGroup(SkinningInstance instance)
+	private bool CreateSkinningBindGroup(SkinningInstance instance, IBuffer boneBuffer)
 	{
 		if (mSkinningBindGroupLayout == null)
 			return false;
 
-		if (instance.SourceVertexBuffer == null || instance.SkinnedVertexBuffer == null)
+		if (instance.SourceVertexBuffer == null || instance.SkinnedVertexBuffer == null || boneBuffer == null)
 			return false;
 
 		BindGroupEntry[4] entries = .(
-			.() // Skinning params (binding 0)
-			{
-				Binding = 0,
-				Buffer = instance.ParamsBuffer,
-				BufferOffset = 0,
-				BufferSize = SkinningParams.Size
-			},
-			.() // Bone matrices (binding 1)
-			{
-				Binding = 1,
-				Buffer = instance.BoneBuffer,
-				BufferOffset = 0,
-				BufferSize = (uint64)GPUBoneTransforms.Size
-			},
-			.() // Source vertices (binding 2)
-			{
-				Binding = 2,
-				Buffer = instance.SourceVertexBuffer,
-				BufferOffset = 0,
-				BufferSize = 0  // Entire buffer
-			},
-			.() // Output vertices (binding 3)
-			{
-				Binding = 3,
-				Buffer = instance.SkinnedVertexBuffer,
-				BufferOffset = 0,
-				BufferSize = 0  // Entire buffer
-			}
+			BindGroupEntry.Buffer(0, instance.ParamsBuffer, 0, SkinningParams.Size),  // b0: SkinningParams
+			BindGroupEntry.Buffer(0, boneBuffer, 0, 0),                                // t0: BoneMatrices
+			BindGroupEntry.Buffer(1, instance.SourceVertexBuffer, 0, 0),               // t1: SourceVertices
+			BindGroupEntry.Buffer(0, instance.SkinnedVertexBuffer, 0, 0)               // u0: OutputVertices
 		);
 
 		BindGroupDescriptor desc = .()
@@ -350,21 +336,26 @@ public class GPUSkinningFeature : RenderFeatureBase
 
 	private void UpdateBoneTransforms(SkinningInstance instance, SkinnedMeshProxy* proxy)
 	{
-		if (instance.BoneBuffer == null)
-			return;
+		// Check if the bone buffer handle changed - if so, recreate the bind group
+		if (instance.BoneBufferHandle.Index != proxy.BoneBufferHandle.Index ||
+			instance.BoneBufferHandle.Generation != proxy.BoneBufferHandle.Generation)
+		{
+			let gpuBoneBuffer = Renderer.ResourceManager?.GetBoneBuffer(proxy.BoneBufferHandle);
+			if (gpuBoneBuffer != null && gpuBoneBuffer.Buffer != null)
+			{
+				// Delete old bind group and create new one
+				if (instance.BindGroup != null)
+				{
+					delete instance.BindGroup;
+					instance.BindGroup = null;
+				}
+				CreateSkinningBindGroup(instance, gpuBoneBuffer.Buffer);
+				instance.BoneBufferHandle = proxy.BoneBufferHandle;
+			}
+		}
 
-		// Get the bone buffer from the resource manager
-		let boneBuffer = Renderer.ResourceManager?.GetBoneBuffer(proxy.BoneBufferHandle);
-		if (boneBuffer == null)
-			return;
-
-		// The bone matrices are already in the bone buffer managed by the animation system
-		// We need to copy them to our skinning instance's bone buffer
-		// For now, we assume the bone buffer contains properly formatted matrices
-
-		// If the proxy has a direct bone buffer reference, use it
-		// Otherwise, the animation system should have already uploaded the matrices
-		// to the bone buffer referenced by BoneBufferHandle
+		// The bone matrices are uploaded to the GPUBoneBuffer by the animation system
+		// The bind group directly references the GPUBoneBuffer, so no copy is needed
 
 		// Mark that bones have been updated
 		proxy.ClearBonesDirty();
@@ -376,8 +367,8 @@ public class GPUSkinningFeature : RenderFeatureBase
 		/// Skinning parameters uniform buffer.
 		public IBuffer ParamsBuffer ~ delete _;
 
-		/// Bone transform uniform buffer.
-		public IBuffer BoneBuffer ~ delete _;
+		/// Handle to the bone buffer (not owned, from GPUResourceManager).
+		public GPUBoneBufferHandle BoneBufferHandle;
 
 		/// Reference to source vertex buffer (not owned, from GPUMesh).
 		public IBuffer SourceVertexBuffer;

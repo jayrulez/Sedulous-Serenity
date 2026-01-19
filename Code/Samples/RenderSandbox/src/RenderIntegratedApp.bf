@@ -5,6 +5,8 @@ using Sedulous.Shell;
 using Sedulous.Render;
 using Sedulous.Geometry;
 using Sedulous.Materials;
+using Sedulous.Animation;
+using Sedulous.Models;
 using System;
 using System.Collections;
 
@@ -25,6 +27,7 @@ class RenderIntegratedApp : Application
 	private SkyFeature mSkyFeature;
 	private ParticleFeature mParticleFeature;
 	private VolumetricFogFeature mVolumetricFogFeature;
+	private GPUSkinningFeature mSkinningFeature;
 	private DebugRenderFeature mDebugFeature;
 	private FinalOutputFeature mFinalOutputFeature;
 
@@ -43,6 +46,14 @@ class RenderIntegratedApp : Application
 	// Materials
 	private MaterialInstance mCubeMaterial ~ delete _;
 	private MaterialInstance mTransparentMaterial ~ delete _;
+
+	// Animated mesh (Fox model)
+	private AnimatedMeshComponent mFoxComponent ~ delete _;
+	private LoadedModel mFoxModel;
+	private bool mFoxModelOwned = false;
+	private int32 mCurrentFoxAnimation = 0;
+	private MaterialInstance mFoxMaterial ~ delete _;
+	private GPUTextureHandle mFoxTextureHandle;
 
 	// Camera mode
 	private enum CameraMode { Orbital, Flythrough }
@@ -126,6 +137,9 @@ class RenderIntegratedApp : Application
 		// Create particle systems
 		CreateParticles();
 
+		// Load animated model (Fox)
+		LoadAnimatedModel();
+
 		// Set environment lighting
 		mWorld.AmbientColor = .(0.02f, 0.02f, 0.03f);  // Slight blue tint
 		mWorld.AmbientIntensity = 0.5f;
@@ -134,6 +148,7 @@ class RenderIntegratedApp : Application
 		Console.WriteLine("\n=== Initialization Complete ===");
 		Console.WriteLine("Objects in world:");
 		Console.WriteLine("  Meshes: {}", mWorld.MeshCount);
+		Console.WriteLine("  Skinned Meshes: {}", mWorld.SkinnedMeshCount);
 		Console.WriteLine("  Lights: {}", mWorld.LightCount);
 		Console.WriteLine("  Particles: {}", mWorld.ParticleEmitterCount);
 		Console.WriteLine("\nControls:");
@@ -145,6 +160,7 @@ class RenderIntegratedApp : Application
 		Console.WriteLine("  K: toggle sky mode (Procedural/Solid Color)");
 		Console.WriteLine("  P: toggle particle systems");
 		Console.WriteLine("  V: toggle volumetric fog");
+		Console.WriteLine("  M: cycle Fox animation");
 		Console.WriteLine("  ESC: exit");
 		Console.WriteLine("\nOrbital Camera (default):");
 		Console.WriteLine("  WASD: rotate around target");
@@ -160,6 +176,13 @@ class RenderIntegratedApp : Application
 
 	private void RegisterFeatures()
 	{
+		// GPU Skinning (runs first to prepare skinned vertex buffers)
+		mSkinningFeature = new GPUSkinningFeature();
+		if (mRenderSystem.RegisterFeature(mSkinningFeature) case .Err)
+			Console.WriteLine("Warning: Failed to register GPUSkinningFeature");
+		else
+			Console.WriteLine("Registered: GPUSkinningFeature");
+
 		// Depth prepass (runs first, generates depth buffer for Hi-Z)
 		mDepthFeature = new DepthPrepassFeature();
 		if (mRenderSystem.RegisterFeature(mDepthFeature) case .Err)
@@ -198,7 +221,7 @@ class RenderIntegratedApp : Application
 		// Volumetric fog (froxel-based ray marching)
 		mVolumetricFogFeature = new VolumetricFogFeature();
 		// Configure fog settings for visible fog effect
-		mVolumetricFogFeature.Settings.FogDensity = 0.2f;
+		mVolumetricFogFeature.Settings.FogDensity = 0.05f;
 		mVolumetricFogFeature.Settings.FogColor = .(0.5f, 0.6f, 0.7f);
 		if (mRenderSystem.RegisterFeature(mVolumetricFogFeature) case .Err)
 			Console.WriteLine("Warning: Failed to register VolumetricFogFeature");
@@ -465,6 +488,238 @@ class RenderIntegratedApp : Application
 		Console.WriteLine("Created fire particle emitter");
 	}
 
+	private void LoadAnimatedModel()
+	{
+		// Load Fox model
+		let foxPath = scope $"{AssetDirectory}/Samples/Models/Fox/glTF/Fox.gltf";
+		Console.WriteLine("Loading Fox model from: {}", foxPath);
+
+		if (ModelLoader.Load(foxPath) case .Ok(let loaded))
+		{
+			mFoxModel = loaded;
+			mFoxModelOwned = true;
+			Console.WriteLine("Loaded Fox model:");
+			Console.WriteLine("  Skeleton: {} bones", mFoxModel.Skeleton?.BoneCount ?? 0);
+			Console.WriteLine("  Animations: {} clips", mFoxModel.Clips.Count);
+			for (int i < mFoxModel.Clips.Count)
+			{
+				Console.WriteLine("    [{}] {}: {:.2}s", i, mFoxModel.Clips[i].Name, mFoxModel.Clips[i].Duration);
+			}
+
+			// Get the mesh for this skinned model
+			let meshIndex = ModelLoader.GetSkinnedMeshIndex(mFoxModel.Model, mFoxModel.SkinIndex);
+			if (meshIndex >= 0 && meshIndex < mFoxModel.Model.Meshes.Count)
+			{
+				let modelMesh = mFoxModel.Model.Meshes[meshIndex];
+				Console.WriteLine("  Mesh: {} vertices, {} indices", modelMesh.VertexCount, modelMesh.IndexCount);
+
+				// Convert to skinned mesh using the working converter from Geometry.Tooling
+				let skin = mFoxModel.Model.Skins[mFoxModel.SkinIndex];
+				if (Sedulous.Geometry.Tooling.ModelMeshConverter.ConvertToSkinnedMesh(modelMesh, skin) case .Ok(var conversionResult))
+				{
+					defer conversionResult.Dispose();
+					let skinnedMesh = conversionResult.Mesh;
+					defer delete skinnedMesh;
+
+					// Upload to GPU
+					if (mRenderSystem.ResourceManager.UploadMesh(skinnedMesh) case .Ok(let gpuMeshHandle))
+					{
+						Console.WriteLine("  Uploaded skinned mesh to GPU");
+
+						// Create bone buffer
+						let boneCount = (uint16)mFoxModel.Skeleton.BoneCount;
+						if (mRenderSystem.ResourceManager.CreateBoneBuffer(boneCount) case .Ok(let boneBufferHandle))
+						{
+							Console.WriteLine("  Created bone buffer for {} bones", boneCount);
+
+							// Create animated mesh component
+							mFoxComponent = new AnimatedMeshComponent();
+							mFoxComponent.Skeleton = mFoxModel.Skeleton;
+							mFoxModel.Skeleton = null; // Transfer ownership
+							mFoxComponent.Clips = mFoxModel.Clips;
+							mFoxModel.Clips = null; // Transfer ownership
+							mFoxComponent.GPUMesh = gpuMeshHandle;
+							mFoxComponent.BoneBuffer = boneBufferHandle;
+
+							// Initialize animation player
+							mFoxComponent.InitializePlayer();
+
+							// Load albedo texture from model
+							LoadFoxTexture(modelMesh);
+
+							// Create skinned mesh proxy in render world
+							mFoxComponent.MeshProxy = mWorld.CreateSkinnedMesh();
+							if (let proxy = mWorld.GetSkinnedMesh(mFoxComponent.MeshProxy))
+							{
+								proxy.MeshHandle = gpuMeshHandle;
+								proxy.BoneBufferHandle = boneBufferHandle;
+								proxy.Material = mFoxMaterial ?? mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
+								proxy.SetLocalBounds(skinnedMesh.Bounds);
+								proxy.BoneCount = boneCount;
+
+								// Position the fox on the floor, scaled down (fox model is quite large)
+								let scale = 0.02f;
+								let transform = Matrix.CreateScale(scale) * Matrix.CreateTranslation(-2.0f, 0, 2.0f);
+								mFoxComponent.Transform = transform;
+								proxy.SetTransformImmediate(transform);
+								proxy.Flags = .DefaultOpaque;
+							}
+
+							// Play the first animation (Survey/look around)
+							if (mFoxComponent.Clips.Count > 0)
+							{
+								mFoxComponent.PlayAnimation(0, true);
+								Console.WriteLine("  Playing animation: {}", mFoxComponent.Clips[0].Name);
+							}
+
+							Console.WriteLine("Fox animated mesh created successfully");
+						}
+						else
+						{
+							Console.WriteLine("ERROR: Failed to create bone buffer");
+							mRenderSystem.ResourceManager.ReleaseMesh(gpuMeshHandle, mRenderSystem.FrameNumber);
+						}
+					}
+					else
+					{
+						Console.WriteLine("ERROR: Failed to upload skinned mesh");
+					}
+				}
+				else
+				{
+					Console.WriteLine("ERROR: Failed to convert mesh to skinned format");
+				}
+			}
+			else
+			{
+				Console.WriteLine("ERROR: Could not find skinned mesh in model");
+			}
+		}
+		else
+		{
+			Console.WriteLine("WARNING: Failed to load Fox model");
+		}
+	}
+
+	private void LoadFoxTexture(ModelMesh modelMesh)
+	{
+		// Get material index from the first mesh part, or fallback to first material
+		int32 materialIndex = -1;
+		if (modelMesh.Parts != null && modelMesh.Parts.Count > 0)
+			materialIndex = modelMesh.Parts[0].MaterialIndex;
+
+		// Find a texture to use - try material first, then fallback to first texture in model
+		int32 texIndex = -1;
+
+		if (materialIndex >= 0 && materialIndex < mFoxModel.Model.Materials.Count)
+		{
+			let modelMat = mFoxModel.Model.Materials[materialIndex];
+			Console.WriteLine("  Material: {}", modelMat.Name);
+			texIndex = modelMat.BaseColorTextureIndex;
+		}
+		else if (mFoxModel.Model.Materials.Count > 0)
+		{
+			// Fallback: use first material's texture
+			let modelMat = mFoxModel.Model.Materials[0];
+			Console.WriteLine("  Material (fallback): {}", modelMat.Name);
+			texIndex = modelMat.BaseColorTextureIndex;
+		}
+
+		// If still no texture, try first texture in model
+		if (texIndex < 0 && mFoxModel.Model.Textures.Count > 0)
+		{
+			Console.WriteLine("  Using first texture from model (no material reference)");
+			texIndex = 0;
+		}
+
+		if (texIndex < 0 || texIndex >= mFoxModel.Model.Textures.Count)
+		{
+			Console.WriteLine("  No albedo texture found (index: {})", texIndex);
+			return;
+		}
+
+		let modelTex = mFoxModel.Model.Textures[texIndex];
+		if (!modelTex.HasEmbeddedData || modelTex.Width <= 0 || modelTex.Height <= 0)
+		{
+			Console.WriteLine("  Texture has no decoded pixel data");
+			return;
+		}
+
+		Console.WriteLine("  Albedo texture: {}x{} ({})", modelTex.Width, modelTex.Height, modelTex.PixelFormat);
+
+		// Convert pixel format to RHI TextureFormat
+		TextureFormat format = .RGBA8UnormSrgb; // Default with sRGB
+		uint32 bpp = 4;
+		switch (modelTex.PixelFormat)
+		{
+		case .R8: format = .R8Unorm; bpp = 1;
+		case .RG8: format = .RG8Unorm; bpp = 2;
+		case .RGB8, .BGR8: format = .RGBA8UnormSrgb; bpp = 4; // Will need conversion
+		case .RGBA8, .BGRA8: format = .RGBA8UnormSrgb; bpp = 4;
+		default: format = .RGBA8UnormSrgb; bpp = 4;
+		}
+
+		// Handle RGB8 (3 bytes per pixel) -> RGBA8 (4 bytes per pixel) conversion
+		uint8* pixelData = modelTex.GetData();
+		uint8[] convertedData = null;
+		if (modelTex.PixelFormat == .RGB8 || modelTex.PixelFormat == .BGR8)
+		{
+			// Convert RGB8 to RGBA8
+			let pixelCount = modelTex.Width * modelTex.Height;
+			convertedData = new uint8[pixelCount * 4];
+			for (int i = 0; i < pixelCount; i++)
+			{
+				if (modelTex.PixelFormat == .BGR8)
+				{
+					// BGR -> RGBA
+					convertedData[i * 4 + 0] = pixelData[i * 3 + 2]; // R
+					convertedData[i * 4 + 1] = pixelData[i * 3 + 1]; // G
+					convertedData[i * 4 + 2] = pixelData[i * 3 + 0]; // B
+				}
+				else
+				{
+					// RGB -> RGBA
+					convertedData[i * 4 + 0] = pixelData[i * 3 + 0]; // R
+					convertedData[i * 4 + 1] = pixelData[i * 3 + 1]; // G
+					convertedData[i * 4 + 2] = pixelData[i * 3 + 2]; // B
+				}
+				convertedData[i * 4 + 3] = 255; // A
+			}
+			pixelData = &convertedData[0];
+			bpp = 4;
+		}
+
+		// Create texture data for upload
+		let texSize = (uint64)modelTex.Width * (uint64)modelTex.Height * (uint64)bpp;
+		let texData = TextureData.Create2D(pixelData, texSize, (uint32)modelTex.Width, (uint32)modelTex.Height, format);
+
+		// Upload to GPU
+		if (mRenderSystem.ResourceManager.UploadTexture(texData) case .Ok(let texHandle))
+		{
+			mFoxTextureHandle = texHandle;
+			Console.WriteLine("  Uploaded albedo texture to GPU");
+
+			// Create material instance with the texture
+			if (let baseMaterial = mRenderSystem.MaterialSystem?.DefaultMaterial)
+			{
+				mFoxMaterial = new MaterialInstance(baseMaterial);
+
+				// Get the texture view and set it on the material
+				if (let texView = mRenderSystem.ResourceManager.GetTextureView(mFoxTextureHandle))
+				{
+					mFoxMaterial.SetTexture("AlbedoMap", texView);
+					Console.WriteLine("  Created fox material with albedo texture");
+				}
+			}
+		}
+		else
+		{
+			Console.WriteLine("  ERROR: Failed to upload texture to GPU");
+		}
+
+		delete convertedData;
+	}
+
 	private void UpdateCamera()
 	{
 		switch (mCameraMode)
@@ -619,6 +874,17 @@ class RenderIntegratedApp : Application
 		{
 			mView.PostProcess.EnableVolumetricFog = !mView.PostProcess.EnableVolumetricFog;
 			Console.WriteLine("Volumetric Fog: {}", mView.PostProcess.EnableVolumetricFog ? "ON" : "OFF");
+		}
+
+		// Cycle Fox animation
+		if (keyboard.IsKeyPressed(.M))
+		{
+			if (mFoxComponent != null && mFoxComponent.Clips.Count > 0)
+			{
+				mCurrentFoxAnimation = (mCurrentFoxAnimation + 1) % (int32)mFoxComponent.Clips.Count;
+				mFoxComponent.PlayAnimation(mCurrentFoxAnimation, true);
+				Console.WriteLine("Fox Animation: [{}] {}", mCurrentFoxAnimation, mFoxComponent.Clips[mCurrentFoxAnimation].Name);
+			}
 		}
 
 		// Stats
@@ -855,6 +1121,19 @@ class RenderIntegratedApp : Application
 		UpdateSunLight();
 		float time = (float)frame.TotalTime;
 
+		// Update animated mesh (Fox)
+		if (mFoxComponent != null)
+		{
+			// Update animation
+			mFoxComponent.Update(mDeltaTime);
+
+			// Upload bone matrices to GPU
+			mFoxComponent.UploadBones(mRenderSystem.ResourceManager);
+
+			// Update transform in render world
+			mFoxComponent.UpdateTransform(mWorld);
+		}
+
 		// Cube animation disabled - static single cube for shadow testing
 		/*
 		// Animate cubes (gentle bobbing and rotation)
@@ -966,6 +1245,21 @@ class RenderIntegratedApp : Application
 			mRenderSystem.ResourceManager.ReleaseMesh(mCubeMeshHandle, mRenderSystem.FrameNumber);
 		if (mPlaneMeshHandle.IsValid)
 			mRenderSystem.ResourceManager.ReleaseMesh(mPlaneMeshHandle, mRenderSystem.FrameNumber);
+
+		// Release fox model resources
+		if (mFoxComponent != null)
+		{
+			if (mFoxComponent.GPUMesh.IsValid)
+				mRenderSystem.ResourceManager.ReleaseMesh(mFoxComponent.GPUMesh, mRenderSystem.FrameNumber);
+			if (mFoxComponent.BoneBuffer.IsValid)
+				mRenderSystem.ResourceManager.ReleaseBoneBuffer(mFoxComponent.BoneBuffer, mRenderSystem.FrameNumber);
+		}
+		if (mFoxTextureHandle.IsValid)
+			mRenderSystem.ResourceManager.ReleaseTexture(mFoxTextureHandle, mRenderSystem.FrameNumber);
+
+		// Dispose loaded model data
+		if (mFoxModelOwned)
+			mFoxModel.Dispose();
 
 		// Shutdown render system (handles feature cleanup)
 		if (mRenderSystem != null)

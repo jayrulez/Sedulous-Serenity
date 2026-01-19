@@ -75,9 +75,10 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 	/// Gets the shadow renderer.
 	public ShadowRenderer ShadowRenderer => mShadowRenderer;
 
-	/// Depends on depth prepass.
+	/// Depends on depth prepass and GPU skinning.
 	public override void GetDependencies(List<StringView> outDependencies)
 	{
+		outDependencies.Add("GPUSkinning");
 		outDependencies.Add("DepthPrepass");
 	}
 
@@ -582,10 +583,13 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		// Upload all object transforms to the uniform buffer BEFORE the render pass
 		// Use Map/Unmap to avoid command buffer creation
 		let commands = depthFeature.[Friend]mBatcher.DrawCommands;
+		let skinnedCommands = depthFeature.[Friend]mBatcher.SkinnedCommands;
 
 		if (let bufferPtr = mObjectUniformBuffer.Map())
 		{
 			int32 objectIndex = 0;
+
+			// Static meshes
 			for (let batch in depthFeature.[Friend]mBatcher.OpaqueBatches)
 			{
 				if (batch.CommandCount == 0)
@@ -618,6 +622,40 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 					objectIndex++;
 				}
 			}
+
+			// Skinned meshes
+			for (let batch in depthFeature.[Friend]mBatcher.SkinnedBatches)
+			{
+				if (batch.CommandCount == 0)
+					continue;
+
+				for (int32 i = 0; i < batch.CommandCount; i++)
+				{
+					if (objectIndex >= MaxObjectsPerFrame)
+						break;
+
+					let cmd = skinnedCommands[batch.CommandStart + i];
+
+					// Build object uniforms from skinned draw command
+					ObjectUniforms objUniforms = .()
+					{
+						WorldMatrix = cmd.WorldMatrix,
+						PrevWorldMatrix = cmd.PrevWorldMatrix,
+						NormalMatrix = cmd.NormalMatrix,
+						ObjectID = (uint32)objectIndex,
+						MaterialID = 0,
+						_Padding = .(0, 0)
+					};
+
+					// Copy to mapped buffer at aligned offset
+					let bufferOffset = (uint64)objectIndex * AlignedObjectUniformSize;
+					Runtime.Assert(bufferOffset + ObjectUniforms.Size <= mObjectUniformBuffer.Size, scope $"Object uniform write (offset {bufferOffset} + size {ObjectUniforms.Size}) exceeds buffer size ({mObjectUniformBuffer.Size})");
+					Internal.MemCpy((uint8*)bufferPtr + bufferOffset, &objUniforms, ObjectUniforms.Size);
+
+					objectIndex++;
+				}
+			}
+
 			mObjectUniformBuffer.Unmap();
 		}
 	}
@@ -1039,6 +1077,94 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 					Renderer.Stats.DrawCalls++;
 					Renderer.Stats.TriangleCount += (int32)(mesh.IndexCount / 3);
+				}
+
+				objectIndex++;
+			}
+		}
+
+		// Render skinned meshes
+		RenderSkinnedMeshes(encoder, world, view, depthFeature, ref objectIndex, ref currentMaterial);
+	}
+
+	private void RenderSkinnedMeshes(IRenderPassEncoder encoder, RenderWorld world, RenderView view, DepthPrepassFeature depthFeature, ref int32 objectIndex, ref MaterialInstance currentMaterial)
+	{
+		// Get GPU skinning feature to access skinned vertex buffers
+		let skinningFeature = Renderer.GetFeature<GPUSkinningFeature>();
+		if (skinningFeature == null)
+			return;
+
+		let materialSystem = Renderer.MaterialSystem;
+		let defaultMaterialInstance = materialSystem?.DefaultMaterialInstance;
+
+		// Get skinned mesh commands from batcher
+		let skinnedCommands = depthFeature.[Friend]mBatcher.SkinnedCommands;
+
+		// Render each skinned mesh batch
+		for (let batch in depthFeature.[Friend]mBatcher.SkinnedBatches)
+		{
+			if (batch.CommandCount == 0)
+				continue;
+
+			for (int32 i = 0; i < batch.CommandCount; i++)
+			{
+				if (objectIndex >= MaxObjectsPerFrame)
+					break;
+
+				let cmd = skinnedCommands[batch.CommandStart + i];
+
+				// Get skinned mesh proxy for material
+				SkinnedMeshProxy* proxy = null;
+				if (cmd.MeshHandle.IsValid)
+					proxy = world.GetSkinnedMesh(cmd.MeshHandle);
+
+				if (proxy == null)
+					continue;
+
+				// Get material instance
+				MaterialInstance material = proxy.Material ?? defaultMaterialInstance;
+
+				// Bind material if changed
+				if (material != currentMaterial && material != null && materialSystem != null)
+				{
+					if (materialSystem.PrepareInstance(material) case .Ok(let bindGroup))
+					{
+						encoder.SetBindGroup(1, bindGroup, default);
+						currentMaterial = material;
+					}
+				}
+
+				// Upload object uniforms for this skinned mesh
+				// Note: Skinned mesh uniforms should have been prepared by PrepareSkinnedObjectUniforms
+				if (mSceneBindGroup != null)
+				{
+					uint32[1] dynamicOffsets = .((uint32)(objectIndex * (int32)AlignedObjectUniformSize));
+					encoder.SetBindGroup(0, mSceneBindGroup, dynamicOffsets);
+				}
+
+				// Get the skinned vertex buffer from the skinning feature
+				let skinnedVertexBuffer = skinningFeature.GetSkinnedVertexBuffer(cmd.MeshHandle);
+				if (skinnedVertexBuffer != null)
+				{
+					// Bind the skinned vertex buffer (post-transform)
+					encoder.SetVertexBuffer(0, skinnedVertexBuffer, 0);
+
+					// Get mesh for index buffer (indices don't change with skinning)
+					if (let mesh = Renderer.ResourceManager.GetMesh(cmd.GPUMesh))
+					{
+						if (mesh.IndexBuffer != null)
+						{
+							encoder.SetIndexBuffer(mesh.IndexBuffer, mesh.IndexFormat);
+							encoder.DrawIndexed(mesh.IndexCount, 1, 0, 0, 0);
+						}
+						else
+						{
+							encoder.Draw(mesh.VertexCount, 1, 0, 0);
+						}
+
+						Renderer.Stats.DrawCalls++;
+						Renderer.Stats.TriangleCount += (int32)((mesh.IndexCount > 0 ? mesh.IndexCount : mesh.VertexCount) / 3);
+					}
 				}
 
 				objectIndex++;

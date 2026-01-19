@@ -237,12 +237,13 @@ public class GPUResourceManager : IDisposable
 	}
 
 	/// Uploads a skinned mesh to the GPU.
+	/// Supports both indexed and non-indexed meshes.
 	public Result<GPUMeshHandle> UploadMesh(SkinnedMesh mesh)
 	{
-		if (mesh == null || mesh.Vertices == null || mesh.Indices == null)
+		if (mesh == null || mesh.Vertices == null)
 			return .Err;
 
-		if (mesh.VertexCount == 0 || mesh.IndexCount == 0)
+		if (mesh.VertexCount == 0)
 			return .Err;
 
 		// Allocate slot
@@ -264,12 +265,12 @@ public class GPUResourceManager : IDisposable
 			generation = 1;
 		}
 
-		// Create vertex buffer
+		// Create vertex buffer (with Storage for GPU skinning compute shader access)
 		let vertexDataSize = (uint64)(mesh.VertexCount * mesh.VertexSize);
 		var vbDesc = BufferDescriptor()
 		{
 			Size = vertexDataSize,
-			Usage = .Vertex | .CopyDst
+			Usage = .Vertex | .Storage | .CopyDst
 		};
 
 		if (mDevice.CreateBuffer(&vbDesc) case .Ok(let vb))
@@ -282,33 +283,42 @@ public class GPUResourceManager : IDisposable
 			return .Err;
 		}
 
-		// Create index buffer
+		// Create index buffer (if mesh has indices)
 		let indices = mesh.Indices;
-		let indexSize = indices.Format == .UInt16 ? 2 : 4;
-		let indexDataSize = (uint64)(indices.IndexCount * indexSize);
-		var ibDesc = BufferDescriptor()
-		{
-			Size = indexDataSize,
-			Usage = .Index | .CopyDst
-		};
+		let hasIndices = indices != null && indices.IndexCount > 0;
 
-		if (mDevice.CreateBuffer(&ibDesc) case .Ok(let ib))
+		if (hasIndices)
 		{
-			gpuMesh.IndexBuffer = ib;
-			mDevice.Queue.WriteBuffer(ib, 0, Span<uint8>(mesh.GetIndexData(), (int)indexDataSize));
+			let indexSize = indices.Format == .UInt16 ? 2 : 4;
+			let indexDataSize = (uint64)(indices.IndexCount * indexSize);
+			var ibDesc = BufferDescriptor()
+			{
+				Size = indexDataSize,
+				Usage = .Index | .CopyDst
+			};
+
+			if (mDevice.CreateBuffer(&ibDesc) case .Ok(let ib))
+			{
+				gpuMesh.IndexBuffer = ib;
+				mDevice.Queue.WriteBuffer(ib, 0, Span<uint8>(mesh.GetIndexData(), (int)indexDataSize));
+			}
+			else
+			{
+				delete gpuMesh.VertexBuffer;
+				gpuMesh.VertexBuffer = null;
+				return .Err;
+			}
 		}
 		else
 		{
-			delete gpuMesh.VertexBuffer;
-			gpuMesh.VertexBuffer = null;
-			return .Err;
+			gpuMesh.IndexBuffer = null;
 		}
 
 		// Set mesh properties
 		gpuMesh.VertexCount = (uint32)mesh.VertexCount;
-		gpuMesh.IndexCount = (uint32)mesh.IndexCount;
+		gpuMesh.IndexCount = hasIndices ? (uint32)indices.IndexCount : 0;
 		gpuMesh.VertexStride = (uint32)mesh.VertexSize;
-		gpuMesh.IndexFormat = indices.Format == .UInt16 ? .UInt16 : .UInt32;
+		gpuMesh.IndexFormat = hasIndices && indices.Format == .UInt16 ? .UInt16 : .UInt32;
 		gpuMesh.Bounds = mesh.Bounds;
 		gpuMesh.RefCount = 1;
 		gpuMesh.Generation = generation;
@@ -333,12 +343,12 @@ public class GPUResourceManager : IDisposable
 		}
 		else
 		{
-			// Single submesh for entire mesh
+			// Single submesh for entire mesh - use vertex count for non-indexed meshes
 			gpuMesh.SubMeshes = new GPUSubMesh[1];
 			gpuMesh.SubMeshes[0] = .()
 			{
 				IndexStart = 0,
-				IndexCount = gpuMesh.IndexCount,
+				IndexCount = hasIndices ? gpuMesh.IndexCount : gpuMesh.VertexCount,
 				BaseVertex = 0,
 				MaterialSlot = 0
 			};
@@ -427,8 +437,8 @@ public class GPUResourceManager : IDisposable
 			// Upload current frame matrices
 			mDevice.Queue.WriteBuffer(buffer.Buffer, 0, Span<uint8>((uint8*)currentBones, (int)matrixSize));
 
-			// Upload previous frame matrices (offset by MaxBones matrices)
-			let prevOffset = (uint64)(sizeof(Matrix) * BoneTransforms.MaxBones);
+			// Upload previous frame matrices (offset by buffer's bone count, not MaxBones)
+			let prevOffset = (uint64)(sizeof(Matrix) * buffer.BoneCount);
 			mDevice.Queue.WriteBuffer(buffer.Buffer, prevOffset, Span<uint8>((uint8*)prevBones, (int)matrixSize));
 		}
 	}
