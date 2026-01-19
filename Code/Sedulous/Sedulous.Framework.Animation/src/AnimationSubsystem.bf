@@ -1,26 +1,58 @@
 namespace Sedulous.Framework.Animation;
 
 using System;
+using System.Collections;
+using Sedulous.Animation;
 using Sedulous.Framework.Core;
+using Sedulous.Framework.Scenes;
 
-/// Animation subsystem for managing skeletal and property animations.
-public class AnimationSubsystem : Subsystem
+/// Animation subsystem that manages skeletal and property animations.
+/// Integrates with Sedulous.Animation.
+/// Implements ISceneAware to automatically create AnimationSceneModule for each scene.
+public class AnimationSubsystem : Subsystem, ISceneAware
 {
-	/// Called during the main update phase for animation updates.
-	public override void Update(float deltaTime)
+	/// Animation updates after physics, before rendering.
+	public override int32 UpdateOrder => 100;
+
+	private AnimationSystem mAnimationSystem ~ delete _;
+
+	// ==================== Construction ====================
+
+	public this()
 	{
-		// TODO: Update animations
+		mAnimationSystem = new AnimationSystem();
 	}
 
-	/// Override to perform animation subsystem initialization.
+	// ==================== Properties ====================
+
+	/// Gets the underlying animation system.
+	public AnimationSystem AnimationSystem => mAnimationSystem;
+
+	// ==================== Subsystem Lifecycle ====================
+
 	protected override void OnInit()
 	{
-		// TODO: Initialize animation system
 	}
 
-	/// Override to perform animation subsystem shutdown.
 	protected override void OnShutdown()
 	{
-		// TODO: Cleanup animation resources
+	}
+
+	public override void Update(float deltaTime)
+	{
+		// Per-scene animation updates are handled by AnimationSceneModule
+	}
+
+	// ==================== ISceneAware ====================
+
+	public void OnSceneCreated(Scene scene)
+	{
+		let module = new AnimationSceneModule(this);
+		scene.AddModule(module);
+	}
+
+	public void OnSceneDestroyed(Scene scene)
+	{
+		// Scene will clean up its modules
 	}
 }

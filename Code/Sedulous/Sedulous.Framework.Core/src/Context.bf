@@ -10,6 +10,7 @@ public class Context : IDisposable
 	private Dictionary<Type, Subsystem> mSubsystems = new .() ~ delete _;
 	private List<Subsystem> mSortedSubsystems = new .() ~ delete _;
 	private bool mIsRunning = false;
+	private bool mDisposed = false;
 
 	/// Returns true if the context is running.
 	public bool IsRunning => mIsRunning;
@@ -20,6 +21,12 @@ public class Context : IDisposable
 	/// Creates a new context.
 	public this()
 	{
+	}
+
+	/// Destructor - ensures Dispose is called.
+	public ~this()
+	{
+		Dispose();
 	}
 
 	/// Registers a subsystem with the context.
@@ -127,13 +134,19 @@ public class Context : IDisposable
 	/// Disposes the context and all owned subsystems.
 	public virtual void Dispose()
 	{
+		if (mDisposed)
+			return;
+		mDisposed = true;
+
 		Shutdown();
 
-		// Dispose all subsystems
-		for (let subsystem in mSortedSubsystems)
+		// Dispose all subsystems in reverse order
+		for (int i = mSortedSubsystems.Count - 1; i >= 0; i--)
 		{
+			let subsystem = mSortedSubsystems[i];
 			subsystem.OnUnregister();
 			subsystem.Dispose();
+			delete subsystem;
 		}
 
 		mSubsystems.Clear();

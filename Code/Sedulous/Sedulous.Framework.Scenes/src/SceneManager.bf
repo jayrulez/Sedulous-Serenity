@@ -2,6 +2,7 @@ namespace Sedulous.Framework.Scenes;
 
 using System;
 using System.Collections;
+using Sedulous.Foundation.Core;
 
 /// Delegate for scene lifecycle events.
 public delegate void SceneEventDelegate(Scene scene);
@@ -14,8 +15,8 @@ public class SceneManager : IDisposable
 	private Scene mActiveScene = null;
 
 	// Events
-	private Event<SceneEventDelegate> mOnSceneLoaded ~ _.Dispose();
-	private Event<SceneEventDelegate> mOnSceneUnloaded ~ _.Dispose();
+	private EventAccessor<SceneEventDelegate> mOnSceneLoaded = new .() ~ delete _;
+	private EventAccessor<SceneEventDelegate> mOnSceneUnloaded = new .() ~ delete _;
 
 	/// Gets the currently active scene.
 	public Scene ActiveScene => mActiveScene;
@@ -26,25 +27,25 @@ public class SceneManager : IDisposable
 	/// Subscribe to scene loaded event.
 	public void OnSceneLoaded(SceneEventDelegate handler)
 	{
-		mOnSceneLoaded.Add(handler);
+		mOnSceneLoaded.Subscribe(handler);
 	}
 
 	/// Unsubscribe from scene loaded event.
 	public void OffSceneLoaded(SceneEventDelegate handler)
 	{
-		mOnSceneLoaded.Remove(handler);
+		mOnSceneLoaded.Unsubscribe(handler);
 	}
 
 	/// Subscribe to scene unloaded event.
 	public void OnSceneUnloaded(SceneEventDelegate handler)
 	{
-		mOnSceneUnloaded.Add(handler);
+		mOnSceneUnloaded.Subscribe(handler);
 	}
 
 	/// Unsubscribe from scene unloaded event.
 	public void OffSceneUnloaded(SceneEventDelegate handler)
 	{
-		mOnSceneUnloaded.Remove(handler);
+		mOnSceneUnloaded.Unsubscribe(handler);
 	}
 
 	/// Creates a new empty scene and adds it to the manager.
@@ -55,7 +56,7 @@ public class SceneManager : IDisposable
 		mScenes.Add(scene);
 		scene.SetState(.Loading);
 		scene.SetState(.Active);
-		mOnSceneLoaded(scene);
+		mOnSceneLoaded.[Friend]Invoke(scene);
 		return scene;
 	}
 
@@ -121,7 +122,7 @@ public class SceneManager : IDisposable
 		scene.SetState(.Unloaded);
 
 		// Fire event
-		mOnSceneUnloaded(scene);
+		mOnSceneUnloaded.[Friend]Invoke(scene);
 
 		// Remove and dispose
 		mScenes.Remove(scene);
