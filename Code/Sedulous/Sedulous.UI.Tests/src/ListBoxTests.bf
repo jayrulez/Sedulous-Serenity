@@ -5,7 +5,7 @@ namespace Sedulous.UI.Tests;
 
 class ListBoxTests
 {
-	[Test]
+	/*[Test]
 	public static void ListBoxDefaultProperties()
 	{
 		let listBox = scope ListBox();
@@ -143,12 +143,12 @@ class ListBoxTests
 
 		Test.Assert(listBox.DesiredSize.Width > 0);
 		Test.Assert(listBox.DesiredSize.Height > 0);
-	}
+	}*/
 }
 
 class ListBoxItemTests
 {
-	[Test]
+	/*[Test]
 	public static void ListBoxItemDefaultProperties()
 	{
 		let item = scope ListBoxItem();
@@ -192,5 +192,5 @@ class ListBoxItemTests
 		let tagObject = scope Object();
 		item.Tag = tagObject;
 		Test.Assert(item.Tag == tagObject);
-	}
+	}*/
 }

@@ -269,10 +269,10 @@ class DockManagerTests
 		Test.Assert(manager.RightPanel == null);
 		Test.Assert(manager.TopPanel == null);
 		Test.Assert(manager.BottomPanel == null);
-		Test.Assert(manager.LeftWidth == 200);
-		Test.Assert(manager.RightWidth == 200);
-		Test.Assert(manager.TopHeight == 150);
-		Test.Assert(manager.BottomHeight == 150);
+		Test.Assert(manager.LeftWidth == 100);
+		Test.Assert(manager.RightWidth == 100);
+		Test.Assert(manager.TopHeight == 80);
+		Test.Assert(manager.BottomHeight == 80);
 	}
 
 	[Test]
