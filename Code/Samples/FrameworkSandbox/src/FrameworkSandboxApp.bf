@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using Sedulous.Mathematics;
 using Sedulous.Framework.Runtime;
 using Sedulous.Framework.Core;
@@ -16,6 +17,7 @@ using Sedulous.Physics;
 using Sedulous.Physics.Jolt;
 using Sedulous.Audio;
 using Sedulous.Audio.SDL3;
+using Sedulous.Framework.Physics;
 
 namespace FrameworkSandbox;
 
@@ -36,28 +38,49 @@ class FrameworkSandboxApp : Application
 	private DepthPrepassFeature mDepthFeature;
 	private ForwardOpaqueFeature mForwardFeature;
 	private SkyFeature mSkyFeature;
+	private DebugRenderFeature mDebugFeature;
 	private FinalOutputFeature mFinalOutputFeature;
 
 	// Test objects
 	private GPUMeshHandle mCubeMeshHandle;
 	private GPUMeshHandle mPlaneMeshHandle;
+	private GPUMeshHandle mSphereMeshHandle;
 	private MaterialInstance mCubeMaterial ~ delete _;
 	private MaterialInstance mFloorMaterial ~ delete _;
+	private MaterialInstance mSphereMaterial ~ delete _;
 
 	// Entities
 	private EntityId mFloorEntity;
 	private EntityId mCubeEntity;
 	private EntityId mCameraEntity;
 	private EntityId mSunEntity;
+	private List<EntityId> mDynamicEntities = new .() ~ delete _;
+	private EntityId[4] mWallEntities;
 
 	// Camera control
 	private float mCameraYaw = 0.5f;
 	private float mCameraPitch = 0.4f;
-	private float mCameraDistance = 8.0f;
-	private Vector3 mCameraTarget = .(0, 0.5f, 0);
+	private float mCameraDistance = 15.0f;
+	private Vector3 mCameraTarget = .(0, 1.0f, 0);
 
-	// Timing
+	// Timing and FPS
 	private float mDeltaTime = 0.016f;
+	private float mSmoothedFps = 60.0f;
+
+	// Spawning
+	private bool mSpawningEnabled = false;
+	private int32 mSpawnCount = 0;
+	private float mSpawnTimer = 0.0f;
+	private const float SpawnInterval = 0.15f;  // Time between spawns
+	private const float ObjectRestitution = 0.7f;  // Bounciness
+
+	// Debug draw toggle
+	private bool mPhysicsDebugDraw = true;
+
+	// Arena size
+	private const float ArenaHalfSize = 10.0f;
+	private const float WallHeight = 2.0f;
+	private const float WallThickness = 0.5f;
 
 	public this(IShell shell, IDevice device, IBackend backend)
 		: base(shell, device, backend)
@@ -91,6 +114,8 @@ class FrameworkSandboxApp : Application
 		Console.WriteLine("Controls:");
 		Console.WriteLine("  WASD: Rotate camera");
 		Console.WriteLine("  Q/E: Zoom in/out");
+		Console.WriteLine("  Space: Toggle spawn");
+		Console.WriteLine("  F: Toggle physics debug draw");
 		Console.WriteLine("  ESC: Exit\n");
 	}
 
@@ -132,6 +157,11 @@ class FrameworkSandboxApp : Application
 		mSkyFeature = new SkyFeature();
 		if (mRenderSystem.RegisterFeature(mSkyFeature) case .Ok)
 			Console.WriteLine("Registered: SkyFeature");
+
+		// Debug render (for physics debug draw)
+		mDebugFeature = new DebugRenderFeature();
+		if (mRenderSystem.RegisterFeature(mDebugFeature) case .Ok)
+			Console.WriteLine("Registered: DebugRenderFeature");
 
 		// Final output
 		mFinalOutputFeature = new FinalOutputFeature();
@@ -219,13 +249,22 @@ class FrameworkSandboxApp : Application
 			return;
 		}
 
+		// Get physics module for creating physics bodies
+		let physicsModule = mMainScene.GetModule<PhysicsSceneModule>();
+		if (physicsModule != null)
+		{
+			// Enable physics debug draw
+			physicsModule.DebugDrawEnabled = true;
+			Console.WriteLine("Physics debug draw enabled");
+		}
+
 		// Create meshes
 		CreateMeshes();
 
 		// Get default material
 		let defaultMaterial = mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
 
-		// Create cube material (blue)
+		// Create materials
 		if (let baseMaterial = mRenderSystem.MaterialSystem?.DefaultMaterial)
 		{
 			mCubeMaterial = new MaterialInstance(baseMaterial);
@@ -233,23 +272,58 @@ class FrameworkSandboxApp : Application
 
 			mFloorMaterial = new MaterialInstance(baseMaterial);
 			mFloorMaterial.SetColor("BaseColor", .(0.8f, 0.8f, 0.8f, 1.0f));
+
+			mSphereMaterial = new MaterialInstance(baseMaterial);
+			mSphereMaterial.SetColor("BaseColor", .(0.9f, 0.3f, 0.2f, 1.0f));  // Red sphere
 		}
 
 		// Create floor entity
 		mFloorEntity = mMainScene.CreateEntity();
 		{
 			var transform = mMainScene.GetTransform(mFloorEntity);
-			transform.Position = .(0, 0, 0);
+			transform.Position = .(0, -0.5f, 0);  // Position below origin so top surface is at y=0
 			mMainScene.SetTransform(mFloorEntity, transform);
 
 			let handle = renderModule.CreateMeshRenderer(mFloorEntity);
 			if (handle.IsValid)
 			{
-				renderModule.SetMeshData(mFloorEntity, mPlaneMeshHandle, BoundingBox(Vector3(-5, 0, -5), Vector3(5, 0.01f, 5)));
+				renderModule.SetMeshData(mFloorEntity, mPlaneMeshHandle, BoundingBox(Vector3(-ArenaHalfSize, 0, -ArenaHalfSize), Vector3(ArenaHalfSize, 0.01f, ArenaHalfSize)));
 				renderModule.SetMeshMaterial(mFloorEntity, mFloorMaterial ?? defaultMaterial);
 			}
+
+			// Add static physics body (thin box for floor)
+			if (physicsModule != null)
+				physicsModule.CreateBoxBody(mFloorEntity, .(ArenaHalfSize, 0.5f, ArenaHalfSize), .Static);
 		}
-		Console.WriteLine("  Created floor entity");
+		Console.WriteLine("  Created floor entity with static physics body");
+
+		// Create wall entities (banks at edges - physics only, rendered by debug draw)
+		if (physicsModule != null)
+		{
+			// Wall positions: +X, -X, +Z, -Z
+			Vector3[4] wallPositions = .(
+				.(ArenaHalfSize + WallThickness * 0.5f, WallHeight * 0.5f, 0),  // +X wall
+				.(-ArenaHalfSize - WallThickness * 0.5f, WallHeight * 0.5f, 0), // -X wall
+				.(0, WallHeight * 0.5f, ArenaHalfSize + WallThickness * 0.5f),  // +Z wall
+				.(0, WallHeight * 0.5f, -ArenaHalfSize - WallThickness * 0.5f)  // -Z wall
+			);
+			Vector3[4] wallHalfExtents = .(
+				.(WallThickness * 0.5f, WallHeight * 0.5f, ArenaHalfSize),  // +X wall (thin in X)
+				.(WallThickness * 0.5f, WallHeight * 0.5f, ArenaHalfSize),  // -X wall
+				.(ArenaHalfSize, WallHeight * 0.5f, WallThickness * 0.5f),  // +Z wall (thin in Z)
+				.(ArenaHalfSize, WallHeight * 0.5f, WallThickness * 0.5f)   // -Z wall
+			);
+
+			for (int i = 0; i < 4; i++)
+			{
+				mWallEntities[i] = mMainScene.CreateEntity();
+				var transform = mMainScene.GetTransform(mWallEntities[i]);
+				transform.Position = wallPositions[i];
+				mMainScene.SetTransform(mWallEntities[i], transform);
+				physicsModule.CreateBoxBody(mWallEntities[i], wallHalfExtents[i], .Static);
+			}
+			Console.WriteLine("  Created 4 wall entities (banks at edges)");
+		}
 
 		// Create spinning cube entity
 		mCubeEntity = mMainScene.CreateEntity();
@@ -268,8 +342,52 @@ class FrameworkSandboxApp : Application
 				renderModule.SetMeshData(mCubeEntity, mCubeMeshHandle, BoundingBox(Vector3(-0.5f), Vector3(0.5f)));
 				renderModule.SetMeshMaterial(mCubeEntity, mCubeMaterial ?? defaultMaterial);
 			}
+
+			// Add kinematic physics body (controlled by gameplay, not physics simulation)
+			if (physicsModule != null)
+				physicsModule.CreateBoxBody(mCubeEntity, .(0.5f, 0.5f, 0.5f), .Kinematic);
 		}
-		Console.WriteLine("  Created spinning cube entity with SpinComponent and BobComponent");
+		Console.WriteLine("  Created spinning cube entity with kinematic physics body");
+
+		// Create multiple dynamic objects (simulated by physics)
+		if (physicsModule != null)
+		{
+			// Spawn positions for falling objects (spread around the arena)
+			Vector3[?] spawnPositions = .(
+				.(2.0f, 5.0f, 2.0f),
+				.(-3.0f, 6.0f, 1.0f),
+				.(4.0f, 7.0f, -2.0f),
+				.(-2.0f, 4.0f, -3.0f),
+				.(0.0f, 8.0f, 4.0f),
+				.(5.0f, 5.0f, 0.0f),
+				.(-4.0f, 6.0f, -4.0f),
+				.(3.0f, 9.0f, 3.0f),
+				.(-1.0f, 7.0f, -1.0f),
+				.(1.0f, 10.0f, -4.0f)
+			);
+
+			for (int i = 0; i < spawnPositions.Count; i++)
+			{
+				let entity = mMainScene.CreateEntity();
+				mDynamicEntities.Add(entity);
+
+				var transform = mMainScene.GetTransform(entity);
+				transform.Position = spawnPositions[i];
+				mMainScene.SetTransform(entity, transform);
+
+				let handle = renderModule.CreateMeshRenderer(entity);
+				if (handle.IsValid)
+				{
+					renderModule.SetMeshData(entity, mSphereMeshHandle, BoundingBox(Vector3(-0.3f), Vector3(0.3f)));
+					renderModule.SetMeshMaterial(entity, mSphereMaterial ?? defaultMaterial);
+				}
+
+				// Add dynamic physics body - will fall and bounce
+				physicsModule.CreateSphereBody(entity, 0.3f, .Dynamic, ObjectRestitution);
+				mSpawnCount++;
+			}
+			Console.WriteLine("  Created {} dynamic sphere entities (physics-simulated)", spawnPositions.Count);
+		}
 
 		// Create camera entity
 		mCameraEntity = mMainScene.CreateEntity();
@@ -309,11 +427,17 @@ class FrameworkSandboxApp : Application
 			mCubeMeshHandle = cubeHandle;
 		delete cubeMesh;
 
-		// Create floor plane mesh
-		let planeMesh = StaticMesh.CreatePlane(10.0f, 10.0f, 1, 1);
+		// Create floor plane mesh (sized to arena)
+		let planeMesh = StaticMesh.CreatePlane(ArenaHalfSize * 2, ArenaHalfSize * 2, 1, 1);
 		if (mRenderSystem.ResourceManager.UploadMesh(planeMesh) case .Ok(let planeHandle))
 			mPlaneMeshHandle = planeHandle;
 		delete planeMesh;
+
+		// Create sphere mesh
+		let sphereMesh = StaticMesh.CreateSphere(0.3f, 16, 12);
+		if (mRenderSystem.ResourceManager.UploadMesh(sphereMesh) case .Ok(let sphereHandle))
+			mSphereMeshHandle = sphereHandle;
+		delete sphereMesh;
 	}
 
 	protected override void OnInput()
@@ -322,6 +446,18 @@ class FrameworkSandboxApp : Application
 
 		if (keyboard.IsKeyPressed(.Escape))
 			Exit();
+
+		// Toggle spawning
+		if (keyboard.IsKeyPressed(.Space))
+			mSpawningEnabled = !mSpawningEnabled;
+
+		// Toggle physics debug draw
+		if (keyboard.IsKeyPressed(.F))
+		{
+			mPhysicsDebugDraw = !mPhysicsDebugDraw;
+			if (let physicsModule = mMainScene?.GetModule<PhysicsSceneModule>())
+				physicsModule.DebugDrawEnabled = mPhysicsDebugDraw;
+		}
 
 		// Camera rotation
 		float rotSpeed = 0.02f;
@@ -345,6 +481,24 @@ class FrameworkSandboxApp : Application
 	{
 		mDeltaTime = (float)frame.DeltaTime;
 
+		// Update smoothed FPS (exponential moving average)
+		if (mDeltaTime > 0)
+		{
+			let instantFps = 1.0f / mDeltaTime;
+			mSmoothedFps = mSmoothedFps * 0.95f + instantFps * 0.05f;
+		}
+
+		// Spawn objects when enabled
+		if (mSpawningEnabled)
+		{
+			mSpawnTimer += mDeltaTime;
+			while (mSpawnTimer >= SpawnInterval)
+			{
+				mSpawnTimer -= SpawnInterval;
+				SpawnObject();
+			}
+		}
+
 		// Update framework context (updates all subsystems and scenes)
 		mContext.BeginFrame(mDeltaTime);
 		mContext.Update(mDeltaTime);
@@ -352,6 +506,41 @@ class FrameworkSandboxApp : Application
 
 		// Update camera transform
 		UpdateCamera();
+	}
+
+	private void SpawnObject()
+	{
+		if (mMainScene == null)
+			return;
+
+		let renderModule = mMainScene.GetModule<RenderSceneModule>();
+		let physicsModule = mMainScene.GetModule<PhysicsSceneModule>();
+		if (renderModule == null || physicsModule == null)
+			return;
+
+		// Random position above the arena
+		let rand = scope System.Random();
+		let x = (rand.NextDouble() * 2.0 - 1.0) * (ArenaHalfSize - 1.0);
+		let z = (rand.NextDouble() * 2.0 - 1.0) * (ArenaHalfSize - 1.0);
+		let y = 8.0 + rand.NextDouble() * 5.0;
+
+		let entity = mMainScene.CreateEntity();
+		mDynamicEntities.Add(entity);
+
+		var transform = mMainScene.GetTransform(entity);
+		transform.Position = .((float)x, (float)y, (float)z);
+		mMainScene.SetTransform(entity, transform);
+
+		let handle = renderModule.CreateMeshRenderer(entity);
+		if (handle.IsValid)
+		{
+			renderModule.SetMeshData(entity, mSphereMeshHandle, BoundingBox(Vector3(-0.3f), Vector3(0.3f)));
+			let defaultMaterial = mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
+			renderModule.SetMeshMaterial(entity, mSphereMaterial ?? defaultMaterial);
+		}
+
+		physicsModule.CreateSphereBody(entity, 0.3f, .Dynamic, ObjectRestitution);
+		mSpawnCount++;
 	}
 
 	private void UpdateCamera()
@@ -398,6 +587,47 @@ class FrameworkSandboxApp : Application
 				mRenderSystem.SetActiveWorld(world);
 		}
 
+		// Draw debug HUD
+		if (mDebugFeature != null)
+		{
+			let bgColor = Color(0, 0, 0, 180);
+			let brightBlue = Color(100, 180, 255, 255);
+			let brightCyan = Color(100, 255, 255, 255);
+			let brightGreen = Color(100, 255, 100, 255);
+
+			// Background for top-left instructions
+			mDebugFeature.AddRect2D(5, 5, 420, 20, bgColor);
+			mDebugFeature.AddText2D("WASD: Camera  Q/E: Zoom  Space: Spawn  F: Debug  ESC: Exit", 10, 8, brightBlue, 1.0f);
+
+			// Background for top-right stats panel
+			mDebugFeature.AddRect2D((float)mRenderView.Width - 155, 5, 150, 95, bgColor);
+
+			// FPS display (top right)
+			let fpsInt = (int32)Math.Round(mSmoothedFps);
+			let fpsText = scope String();
+			fpsInt.ToString(fpsText);
+			mDebugFeature.AddText2D("FPS:", (float)mRenderView.Width - 100, 10, brightBlue, 1.5f);
+			mDebugFeature.AddText2DRight(fpsText, 10, 10, brightCyan, 1.5f);
+
+			// Spawn count display
+			let countText = scope String();
+			mSpawnCount.ToString(countText);
+			mDebugFeature.AddText2D("Objects:", (float)mRenderView.Width - 140, 32, brightBlue, 1.5f);
+			mDebugFeature.AddText2DRight(countText, 10, 32, brightCyan, 1.5f);
+
+			// Spawn status
+			let spawnStatus = mSpawningEnabled ? "ON" : "OFF";
+			let spawnColor = mSpawningEnabled ? brightGreen : brightBlue;
+			mDebugFeature.AddText2D("Spawn:", (float)mRenderView.Width - 115, 54, brightBlue, 1.5f);
+			mDebugFeature.AddText2DRight(spawnStatus, 10, 54, spawnColor, 1.5f);
+
+			// Debug draw status
+			let debugStatus = mPhysicsDebugDraw ? "ON" : "OFF";
+			let debugColor = mPhysicsDebugDraw ? brightGreen : brightBlue;
+			mDebugFeature.AddText2D("Debug:", (float)mRenderView.Width - 115, 76, brightBlue, 1.5f);
+			mDebugFeature.AddText2DRight(debugStatus, 10, 76, debugColor, 1.5f);
+		}
+
 		// Set camera
 		mRenderSystem.SetCamera(
 			mRenderView.CameraPosition,
@@ -432,6 +662,8 @@ class FrameworkSandboxApp : Application
 			mRenderSystem.ResourceManager.ReleaseMesh(mCubeMeshHandle, mRenderSystem.FrameNumber);
 		if (mPlaneMeshHandle.IsValid)
 			mRenderSystem.ResourceManager.ReleaseMesh(mPlaneMeshHandle, mRenderSystem.FrameNumber);
+		if (mSphereMeshHandle.IsValid)
+			mRenderSystem.ResourceManager.ReleaseMesh(mSphereMeshHandle, mRenderSystem.FrameNumber);
 
 		// Context destructor will dispose all subsystems automatically via ~ delete _
 
