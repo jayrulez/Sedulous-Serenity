@@ -25,9 +25,13 @@ public class ForwardTransparentFeature : RenderFeatureBase
 	}
 
 	// Transparent render pipelines for different blend modes
-	private IRenderPipeline mAlphaBlendPipeline ~ delete _;
-	private IRenderPipeline mAdditivePipeline ~ delete _;
-	private IRenderPipeline mMultiplyPipeline ~ delete _;
+	// Each blend mode has two pipelines: one for back faces, one for front faces
+	private IRenderPipeline mAlphaBlendBackPipeline ~ delete _;
+	private IRenderPipeline mAlphaBlendFrontPipeline ~ delete _;
+	private IRenderPipeline mAdditiveBackPipeline ~ delete _;
+	private IRenderPipeline mAdditiveFrontPipeline ~ delete _;
+	private IRenderPipeline mMultiplyBackPipeline ~ delete _;
+	private IRenderPipeline mMultiplyFrontPipeline ~ delete _;
 	// Pipeline layout is borrowed from ForwardOpaqueFeature - don't delete
 	private IPipelineLayout mTransparentPipelineLayout;
 
@@ -113,15 +117,17 @@ public class ForwardTransparentFeature : RenderFeatureBase
 			VertexLayoutHelper.CreateBufferLayout(.Mesh)
 		);
 
-		// Create alpha blend pipeline (standard transparency)
+		// Create alpha blend pipelines (standard transparency)
+		// Two-pass rendering: back faces first, then front faces for correct ordering
 		{
 			ColorTargetState[1] colorTargets = .(
 				.(.RGBA16Float, .AlphaBlend)
 			);
 
-			RenderPipelineDescriptor pipelineDesc = .()
+			// Back faces pipeline (renders interior faces first)
+			RenderPipelineDescriptor backDesc = .()
 			{
-				Label = "Forward Transparent Alpha Blend Pipeline",
+				Label = "Forward Transparent Alpha Blend Back Pipeline",
 				Layout = mTransparentPipelineLayout,
 				Vertex = .()
 				{
@@ -137,7 +143,7 @@ public class ForwardTransparentFeature : RenderFeatureBase
 				{
 					Topology = .TriangleList,
 					FrontFace = .CCW,
-					CullMode = .None // Render both sides for transparent objects
+					CullMode = .Front // Cull front faces, render back faces
 				},
 				DepthStencil = .Transparent,
 				Multisample = .()
@@ -147,22 +153,58 @@ public class ForwardTransparentFeature : RenderFeatureBase
 				}
 			};
 
-			switch (Renderer.Device.CreateRenderPipeline(&pipelineDesc))
+			switch (Renderer.Device.CreateRenderPipeline(&backDesc))
 			{
-			case .Ok(let pipeline): mAlphaBlendPipeline = pipeline;
+			case .Ok(let pipeline): mAlphaBlendBackPipeline = pipeline;
+			case .Err: return .Err;
+			}
+
+			// Front faces pipeline (renders exterior faces second)
+			RenderPipelineDescriptor frontDesc = .()
+			{
+				Label = "Forward Transparent Alpha Blend Front Pipeline",
+				Layout = mTransparentPipelineLayout,
+				Vertex = .()
+				{
+					Shader = .(vertShader.Module, "main"),
+					Buffers = vertexBuffers
+				},
+				Fragment = .()
+				{
+					Shader = .(fragShader.Module, "main"),
+					Targets = colorTargets
+				},
+				Primitive = .()
+				{
+					Topology = .TriangleList,
+					FrontFace = .CCW,
+					CullMode = .Back // Cull back faces, render front faces
+				},
+				DepthStencil = .Transparent,
+				Multisample = .()
+				{
+					Count = 1,
+					Mask = uint32.MaxValue
+				}
+			};
+
+			switch (Renderer.Device.CreateRenderPipeline(&frontDesc))
+			{
+			case .Ok(let pipeline): mAlphaBlendFrontPipeline = pipeline;
 			case .Err: return .Err;
 			}
 		}
 
-		// Create additive blend pipeline
+		// Create additive blend pipelines
 		{
 			ColorTargetState[1] colorTargets = .(
 				.(.RGBA16Float, .Additive)
 			);
 
-			RenderPipelineDescriptor pipelineDesc = .()
+			// Back faces pipeline
+			RenderPipelineDescriptor backDesc = .()
 			{
-				Label = "Forward Transparent Additive Pipeline",
+				Label = "Forward Transparent Additive Back Pipeline",
 				Layout = mTransparentPipelineLayout,
 				Vertex = .()
 				{
@@ -178,7 +220,7 @@ public class ForwardTransparentFeature : RenderFeatureBase
 				{
 					Topology = .TriangleList,
 					FrontFace = .CCW,
-					CullMode = .None
+					CullMode = .Front
 				},
 				DepthStencil = .Transparent,
 				Multisample = .()
@@ -188,22 +230,58 @@ public class ForwardTransparentFeature : RenderFeatureBase
 				}
 			};
 
-			switch (Renderer.Device.CreateRenderPipeline(&pipelineDesc))
+			switch (Renderer.Device.CreateRenderPipeline(&backDesc))
 			{
-			case .Ok(let pipeline): mAdditivePipeline = pipeline;
+			case .Ok(let pipeline): mAdditiveBackPipeline = pipeline;
+			case .Err: return .Err;
+			}
+
+			// Front faces pipeline
+			RenderPipelineDescriptor frontDesc = .()
+			{
+				Label = "Forward Transparent Additive Front Pipeline",
+				Layout = mTransparentPipelineLayout,
+				Vertex = .()
+				{
+					Shader = .(vertShader.Module, "main"),
+					Buffers = vertexBuffers
+				},
+				Fragment = .()
+				{
+					Shader = .(fragShader.Module, "main"),
+					Targets = colorTargets
+				},
+				Primitive = .()
+				{
+					Topology = .TriangleList,
+					FrontFace = .CCW,
+					CullMode = .Back
+				},
+				DepthStencil = .Transparent,
+				Multisample = .()
+				{
+					Count = 1,
+					Mask = uint32.MaxValue
+				}
+			};
+
+			switch (Renderer.Device.CreateRenderPipeline(&frontDesc))
+			{
+			case .Ok(let pipeline): mAdditiveFrontPipeline = pipeline;
 			case .Err: return .Err;
 			}
 		}
 
-		// Create multiply blend pipeline
+		// Create multiply blend pipelines
 		{
 			ColorTargetState[1] colorTargets = .(
 				.(.RGBA16Float, .Multiply)
 			);
 
-			RenderPipelineDescriptor pipelineDesc = .()
+			// Back faces pipeline
+			RenderPipelineDescriptor backDesc = .()
 			{
-				Label = "Forward Transparent Multiply Pipeline",
+				Label = "Forward Transparent Multiply Back Pipeline",
 				Layout = mTransparentPipelineLayout,
 				Vertex = .()
 				{
@@ -219,7 +297,7 @@ public class ForwardTransparentFeature : RenderFeatureBase
 				{
 					Topology = .TriangleList,
 					FrontFace = .CCW,
-					CullMode = .None
+					CullMode = .Front
 				},
 				DepthStencil = .Transparent,
 				Multisample = .()
@@ -229,9 +307,44 @@ public class ForwardTransparentFeature : RenderFeatureBase
 				}
 			};
 
-			switch (Renderer.Device.CreateRenderPipeline(&pipelineDesc))
+			switch (Renderer.Device.CreateRenderPipeline(&backDesc))
 			{
-			case .Ok(let pipeline): mMultiplyPipeline = pipeline;
+			case .Ok(let pipeline): mMultiplyBackPipeline = pipeline;
+			case .Err: return .Err;
+			}
+
+			// Front faces pipeline
+			RenderPipelineDescriptor frontDesc = .()
+			{
+				Label = "Forward Transparent Multiply Front Pipeline",
+				Layout = mTransparentPipelineLayout,
+				Vertex = .()
+				{
+					Shader = .(vertShader.Module, "main"),
+					Buffers = vertexBuffers
+				},
+				Fragment = .()
+				{
+					Shader = .(fragShader.Module, "main"),
+					Targets = colorTargets
+				},
+				Primitive = .()
+				{
+					Topology = .TriangleList,
+					FrontFace = .CCW,
+					CullMode = .Back
+				},
+				DepthStencil = .Transparent,
+				Multisample = .()
+				{
+					Count = 1,
+					Mask = uint32.MaxValue
+				}
+			};
+
+			switch (Renderer.Device.CreateRenderPipeline(&frontDesc))
+			{
+			case .Ok(let pipeline): mMultiplyFrontPipeline = pipeline;
 			case .Err: return .Err;
 			}
 		}
@@ -281,7 +394,7 @@ public class ForwardTransparentFeature : RenderFeatureBase
 
 		// Upload transparent object uniforms and create scene bind group for current frame
 		let frameIndex = FrameIndex;
-		PrepareTransparentObjectUniforms(world);
+		PrepareTransparentObjectUniforms(world, frameIndex);
 		CreateSceneBindGroup(frameIndex);
 
 		// Add transparent pass
@@ -292,14 +405,14 @@ public class ForwardTransparentFeature : RenderFeatureBase
 			.ReadDepth(depthHandle) // Read depth, don't write
 			.NeverCull() // Don't cull - we need to render on top of opaque
 			.SetExecuteCallback(new (encoder) => {
-				ExecuteTransparentPass(encoder, world, view);
+				ExecuteTransparentPass(encoder, world, view, frameIndex);
 			});
 	}
 
-	private void PrepareTransparentObjectUniforms(RenderWorld world)
+	private void PrepareTransparentObjectUniforms(RenderWorld world, int32 frameIndex)
 	{
 		// Use current frame's buffer
-		let objectUniformBuffer = mObjectUniformBuffers[FrameIndex];
+		let objectUniformBuffer = mObjectUniformBuffers[frameIndex];
 		if (objectUniformBuffer == null || mSortedDraws.Count == 0)
 			return;
 
@@ -476,14 +589,14 @@ public class ForwardTransparentFeature : RenderFeatureBase
 		});
 	}
 
-	private void ExecuteTransparentPass(IRenderPassEncoder encoder, RenderWorld world, RenderView view)
+	private void ExecuteTransparentPass(IRenderPassEncoder encoder, RenderWorld world, RenderView view, int32 frameIndex)
 	{
 		// Set viewport
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0.0f, 1.0f);
 		encoder.SetScissorRect(0, 0, view.Width, view.Height);
 
 		// Check we have a valid scene bind group for current frame
-		let sceneBindGroup = mSceneBindGroups[FrameIndex];
+		let sceneBindGroup = mSceneBindGroups[frameIndex];
 		if (sceneBindGroup == null)
 			return;
 
@@ -491,11 +604,9 @@ public class ForwardTransparentFeature : RenderFeatureBase
 		let materialSystem = Renderer.MaterialSystem;
 		let defaultMaterialInstance = materialSystem?.DefaultMaterialInstance;
 
-		// Track current pipeline and material to minimize state changes
-		IRenderPipeline currentPipeline = null;
-		MaterialInstance currentMaterial = null;
-
 		// Render sorted transparent objects (back-to-front)
+		// Each object is rendered twice: back faces first, then front faces
+		// This ensures correct ordering within each convex transparent object
 		for (let sortedDraw in mSortedDraws)
 		{
 			// Verify proxy still exists (mesh data stored in sortedDraw)
@@ -506,55 +617,71 @@ public class ForwardTransparentFeature : RenderFeatureBase
 					// Get material instance (use default if none assigned)
 					MaterialInstance material = sortedDraw.Material ?? defaultMaterialInstance;
 
-					// Select pipeline based on material blend mode
-					IRenderPipeline targetPipeline = mAlphaBlendPipeline;
+					// Select pipeline pair based on material blend mode
+					IRenderPipeline backPipeline = mAlphaBlendBackPipeline;
+					IRenderPipeline frontPipeline = mAlphaBlendFrontPipeline;
 					if (material != null)
 					{
 						switch (material.BlendMode)
 						{
 						case .Additive:
-							targetPipeline = mAdditivePipeline;
+							backPipeline = mAdditiveBackPipeline;
+							frontPipeline = mAdditiveFrontPipeline;
 						case .Multiply:
-							targetPipeline = mMultiplyPipeline;
+							backPipeline = mMultiplyBackPipeline;
+							frontPipeline = mMultiplyFrontPipeline;
 						default:
-							targetPipeline = mAlphaBlendPipeline;
+							backPipeline = mAlphaBlendBackPipeline;
+							frontPipeline = mAlphaBlendFrontPipeline;
 						}
 					}
 
-					// Set pipeline if changed
-					if (targetPipeline != currentPipeline && targetPipeline != null)
-					{
-						encoder.SetPipeline(targetPipeline);
-						currentPipeline = targetPipeline;
-					}
-
-					// Bind material if changed
-					if (material != currentMaterial && material != null && materialSystem != null)
+					// Get material bind group
+					IBindGroup materialBindGroup = null;
+					if (material != null && materialSystem != null)
 					{
 						if (materialSystem.PrepareInstance(material) case .Ok(let bindGroup))
-						{
-							encoder.SetBindGroup(1, bindGroup, default);
-							currentMaterial = material;
-						}
+							materialBindGroup = bindGroup;
 					}
 
 					// Bind scene bind group with dynamic offset for this object's transforms
 					uint32[1] dynamicOffsets = .((uint32)(sortedDraw.ObjectIndex * (int32)AlignedObjectUniformSize));
-					encoder.SetBindGroup(0, sceneBindGroup, dynamicOffsets);
 
 					// Bind vertex/index buffers
 					encoder.SetVertexBuffer(0, mesh.VertexBuffer, 0);
 					if (mesh.IndexBuffer != null)
 						encoder.SetIndexBuffer(mesh.IndexBuffer, mesh.IndexFormat);
 
-					// Draw
-					if (mesh.IndexBuffer != null)
-						encoder.DrawIndexed(mesh.IndexCount, 1, 0, 0, 0);
-					else
-						encoder.Draw(mesh.VertexCount, 1, 0, 0);
+					// Pass 1: Render back faces (interior)
+					if (backPipeline != null)
+					{
+						encoder.SetPipeline(backPipeline);
+						encoder.SetBindGroup(0, sceneBindGroup, dynamicOffsets);
+						if (materialBindGroup != null)
+							encoder.SetBindGroup(1, materialBindGroup, default);
 
-					Renderer.Stats.DrawCalls++;
-					Renderer.Stats.TransparentDrawCalls++;
+						if (mesh.IndexBuffer != null)
+							encoder.DrawIndexed(mesh.IndexCount, 1, 0, 0, 0);
+						else
+							encoder.Draw(mesh.VertexCount, 1, 0, 0);
+					}
+
+					// Pass 2: Render front faces (exterior)
+					if (frontPipeline != null)
+					{
+						encoder.SetPipeline(frontPipeline);
+						encoder.SetBindGroup(0, sceneBindGroup, dynamicOffsets);
+						if (materialBindGroup != null)
+							encoder.SetBindGroup(1, materialBindGroup, default);
+
+						if (mesh.IndexBuffer != null)
+							encoder.DrawIndexed(mesh.IndexCount, 1, 0, 0, 0);
+						else
+							encoder.Draw(mesh.VertexCount, 1, 0, 0);
+					}
+
+					Renderer.Stats.DrawCalls += 2;
+					Renderer.Stats.TransparentDrawCalls += 2;
 				}
 			}
 		}

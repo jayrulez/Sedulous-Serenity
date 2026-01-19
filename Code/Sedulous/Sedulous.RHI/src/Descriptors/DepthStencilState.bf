@@ -79,7 +79,9 @@ struct DepthStencilState
 
 	/// Transparent geometry: depth test only, no writing.
 	/// Use for blended objects - they should be depth-sorted but not occlude each other.
-	public static Self Transparent => ReadOnly;
+	/// Uses LessEqual to avoid z-fighting when transparent surfaces are co-planar with opaque geometry.
+	/// Small negative depth bias pushes toward camera to prevent z-fighting with opaque surfaces.
+	public static Self Transparent => .() { DepthWriteEnabled = false, DepthCompare = .LessEqual, DepthBias = -1, DepthBiasSlopeScale = -1.0f };
 
 	/// Skybox/background: depth test with less-equal, no writing.
 	/// Use for rendering at the far plane (z=1) after opaque geometry.

@@ -580,19 +580,21 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 		let colorHandle = graph.CreateTexture("SceneColor", colorDesc);
 
+		// Capture frame index for consistent multi-buffering
+		let frameIndex = FrameIndex;
+
 		// Update lighting
-		UpdateLighting(world, depthFeature.Visibility, view);
+		UpdateLighting(world, depthFeature.Visibility, view, frameIndex);
 
 		// Add shadow passes and get shadow map handle for automatic barrier
 		RGResourceHandle shadowMapHandle = .Invalid;
-		AddShadowPasses(graph, world, depthFeature.Visibility, view, out shadowMapHandle);
+		AddShadowPasses(graph, world, depthFeature.Visibility, view, frameIndex, out shadowMapHandle);
 
 		// Create/update scene bind group for current frame (needs to be done each frame for frame-specific resources)
-		let frameIndex = FrameIndex;
 		CreateSceneBindGroup(frameIndex);
 
 		// Upload object uniforms BEFORE the render pass
-		PrepareObjectUniforms(depthFeature);
+		PrepareObjectUniforms(depthFeature, frameIndex);
 
 		// Add forward opaque pass
 		// ReadTexture on shadow map triggers automatic barrier: DepthStencil -> ShaderReadOnly
@@ -606,11 +608,11 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			passBuilder.ReadTexture(shadowMapHandle);
 
 		passBuilder.SetExecuteCallback(new (encoder) => {
-			ExecuteForwardPass(encoder, world, view, depthFeature);
+			ExecuteForwardPass(encoder, world, view, depthFeature, frameIndex);
 		});
 	}
 
-	private void PrepareObjectUniforms(DepthPrepassFeature depthFeature)
+	private void PrepareObjectUniforms(DepthPrepassFeature depthFeature, int32 frameIndex)
 	{
 		// Upload all object transforms to the uniform buffer BEFORE the render pass
 		// Use Map/Unmap to avoid command buffer creation
@@ -618,7 +620,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		let skinnedCommands = depthFeature.[Friend]mBatcher.SkinnedCommands;
 
 		// Use the current frame's buffer
-		let buffer = mObjectUniformBuffers[FrameIndex];
+		let buffer = mObjectUniformBuffers[frameIndex];
 		if (buffer == null)
 			return;
 
@@ -697,7 +699,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		}
 	}
 
-	private void UpdateLighting(RenderWorld world, VisibilityResolver visibility, RenderView view)
+	private void UpdateLighting(RenderWorld world, VisibilityResolver visibility, RenderView view, int32 frameIndex)
 	{
 		// Update cluster grid
 		let inverseProj = Matrix.Invert(view.ProjectionMatrix);
@@ -723,7 +725,6 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		mLighting.LightBuffer.Exposure = world.Exposure;
 
 		// Update light buffer from visibility
-		let frameIndex = FrameIndex;
 		mLighting.LightBuffer.Update(world, visibility);
 		mLighting.LightBuffer.UploadLightData(frameIndex);
 		mLighting.LightBuffer.UploadUniforms(frameIndex);
@@ -733,7 +734,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		mLighting.ClusterGrid.CullLightsCPU(world, visibility, view.ViewMatrix, frameIndex);
 	}
 
-	private void AddShadowPasses(RenderGraph graph, RenderWorld world, VisibilityResolver visibility, RenderView view, out RGResourceHandle outShadowMapHandle)
+	private void AddShadowPasses(RenderGraph graph, RenderWorld world, VisibilityResolver visibility, RenderView view, int32 frameIndex, out RGResourceHandle outShadowMapHandle)
 	{
 		outShadowMapHandle = .Invalid;
 
@@ -766,7 +767,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			return;
 
 		// Upload all shadow uniforms BEFORE adding passes (avoid WriteBuffer during render pass)
-		PrepareShadowUniforms(world, visibility, shadowPasses);
+		PrepareShadowUniforms(world, visibility, shadowPasses, frameIndex);
 
 		// Import the shadow map array once with a common name for barrier tracking
 		// This handle will be used by the forward pass to trigger automatic barrier
@@ -813,7 +814,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				.WriteDepth(shadowTarget)
 				.NeverCull() // Shadow maps are used externally by forward pass
 				.SetExecuteCallback(new (encoder) => {
-					ExecuteShadowPass(encoder, world, visibility, passCopy);
+					ExecuteShadowPass(encoder, world, visibility, passCopy, frameIndex);
 				});
 		}
 	}
@@ -822,7 +823,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 	private List<ShadowPass> mCurrentShadowPasses = new .() ~ delete _;
 	private int32 mShadowSkinnedMeshStartIndex = 0;
 
-	private void PrepareShadowUniforms(RenderWorld world, VisibilityResolver visibility, List<ShadowPass> shadowPasses)
+	private void PrepareShadowUniforms(RenderWorld world, VisibilityResolver visibility, List<ShadowPass> shadowPasses, int32 frameIndex)
 	{
 		// Store shadow passes for VP lookup during cascade rendering
 		mCurrentShadowPasses.Clear();
@@ -830,8 +831,8 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			mCurrentShadowPasses.Add(pass);
 
 		// Use current frame's buffers
-		let shadowUniformBuffer = mShadowUniformBuffers[FrameIndex];
-		let shadowObjectBuffer = mShadowObjectBuffers[FrameIndex];
+		let shadowUniformBuffer = mShadowUniformBuffers[frameIndex];
+		let shadowObjectBuffer = mShadowObjectBuffers[frameIndex];
 
 		if (shadowUniformBuffer == null || shadowObjectBuffer == null)
 			return;
@@ -1083,7 +1084,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			mSceneBindGroups[frameIndex] = bg;
 	}
 
-	private void ExecuteForwardPass(IRenderPassEncoder encoder, RenderWorld world, RenderView view, DepthPrepassFeature depthFeature)
+	private void ExecuteForwardPass(IRenderPassEncoder encoder, RenderWorld world, RenderView view, DepthPrepassFeature depthFeature, int32 frameIndex)
 	{
 		// Set viewport
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0.0f, 1.0f);
@@ -1141,7 +1142,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				}
 
 				// Bind scene bind group with dynamic offset for this object's transforms
-				let sceneBindGroup = mSceneBindGroups[FrameIndex];
+				let sceneBindGroup = mSceneBindGroups[frameIndex];
 				if (sceneBindGroup != null)
 				{
 					uint32[1] dynamicOffsets = .((uint32)(objectIndex * (int32)AlignedObjectUniformSize));
@@ -1170,10 +1171,10 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		}
 
 		// Render skinned meshes
-		RenderSkinnedMeshes(encoder, world, view, depthFeature, ref objectIndex, ref currentMaterial);
+		RenderSkinnedMeshes(encoder, world, view, depthFeature, frameIndex, ref objectIndex, ref currentMaterial);
 	}
 
-	private void RenderSkinnedMeshes(IRenderPassEncoder encoder, RenderWorld world, RenderView view, DepthPrepassFeature depthFeature, ref int32 objectIndex, ref MaterialInstance currentMaterial)
+	private void RenderSkinnedMeshes(IRenderPassEncoder encoder, RenderWorld world, RenderView view, DepthPrepassFeature depthFeature, int32 frameIndex, ref int32 objectIndex, ref MaterialInstance currentMaterial)
 	{
 		// Get GPU skinning feature to access skinned vertex buffers
 		let skinningFeature = Renderer.GetFeature<GPUSkinningFeature>();
@@ -1222,7 +1223,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 				// Upload object uniforms for this skinned mesh
 				// Note: Skinned mesh uniforms should have been prepared by PrepareSkinnedObjectUniforms
-				let sceneBindGroup = mSceneBindGroups[FrameIndex];
+				let sceneBindGroup = mSceneBindGroups[frameIndex];
 				if (sceneBindGroup != null)
 				{
 					uint32[1] dynamicOffsets = .((uint32)(objectIndex * (int32)AlignedObjectUniformSize));
@@ -1259,10 +1260,10 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		}
 	}
 
-	private void ExecuteShadowPass(IRenderPassEncoder encoder, RenderWorld world, VisibilityResolver visibility, ShadowPass shadowPass)
+	private void ExecuteShadowPass(IRenderPassEncoder encoder, RenderWorld world, VisibilityResolver visibility, ShadowPass shadowPass, int32 frameIndex)
 	{
 		// Skip if no pipeline or bind group
-		let shadowBindGroup = mShadowBindGroups[FrameIndex];
+		let shadowBindGroup = mShadowBindGroups[frameIndex];
 		if (mShadowDepthPipeline == null || shadowBindGroup == null)
 			return;
 
@@ -1338,17 +1339,17 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		}
 
 		// Skinned meshes - render using post-transform vertex buffers
-		RenderSkinnedMeshesShadow(encoder, world, visibility, cascadeVPOffset);
+		RenderSkinnedMeshesShadow(encoder, world, visibility, cascadeVPOffset, frameIndex);
 	}
 
-	private void RenderSkinnedMeshesShadow(IRenderPassEncoder encoder, RenderWorld world, VisibilityResolver visibility, uint32 cascadeVPOffset)
+	private void RenderSkinnedMeshesShadow(IRenderPassEncoder encoder, RenderWorld world, VisibilityResolver visibility, uint32 cascadeVPOffset, int32 frameIndex)
 	{
 		// Get GPU skinning feature to access skinned vertex buffers
 		let skinningFeature = Renderer.GetFeature<GPUSkinningFeature>();
 		if (skinningFeature == null)
 			return;
 
-		let shadowBindGroup = mShadowBindGroups[FrameIndex];
+		let shadowBindGroup = mShadowBindGroups[frameIndex];
 		if (shadowBindGroup == null)
 			return;
 

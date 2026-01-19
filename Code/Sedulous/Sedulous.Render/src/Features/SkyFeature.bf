@@ -282,8 +282,11 @@ public class SkyFeature : RenderFeatureBase
 		if (!colorHandle.IsValid || !depthHandle.IsValid)
 			return;
 
+		// Capture frame index for consistent multi-buffering
+		let frameIndex = FrameIndex;
+
 		// Upload sky params
-		UpdateSkyParams();
+		UpdateSkyParams(frameIndex);
 
 		// Add sky rendering pass
 		// Note: Must be NeverCull because render graph culling only preserves FirstWriter,
@@ -293,7 +296,7 @@ public class SkyFeature : RenderFeatureBase
 			.ReadDepth(depthHandle) // Use depth for sky masking
 			.NeverCull() // Don't cull - sky renders in background
 			.SetExecuteCallback(new (encoder) => {
-				ExecuteSkyPass(encoder, view);
+				ExecuteSkyPass(encoder, view, frameIndex);
 			});
 	}
 
@@ -556,7 +559,7 @@ public class SkyFeature : RenderFeatureBase
 			mSkyBindGroups[frameIndex] = bg;
 	}
 
-	private void UpdateSkyParams()
+	private void UpdateSkyParams(int32 frameIndex)
 	{
 		// Update time from renderer
 		mSkyParams.Time = Renderer.RenderFrameContext?.TotalTime ?? 0.0f;
@@ -565,7 +568,6 @@ public class SkyFeature : RenderFeatureBase
 		mSkyParams.Mode = (mMode == .SolidColor) ? 1.0f : 0.0f;
 
 		// Use current frame's buffer
-		let frameIndex = FrameIndex;
 		let skyParamsBuffer = mSkyParamsBuffers[frameIndex];
 		if (skyParamsBuffer == null)
 			return;
@@ -583,7 +585,7 @@ public class SkyFeature : RenderFeatureBase
 		EnsureSkyBindGroup(frameIndex);
 	}
 
-	private void ExecuteSkyPass(IRenderPassEncoder encoder, RenderView view)
+	private void ExecuteSkyPass(IRenderPassEncoder encoder, RenderView view, int32 frameIndex)
 	{
 		if (mSkyPipeline == null)
 			return;
@@ -596,7 +598,7 @@ public class SkyFeature : RenderFeatureBase
 		encoder.SetPipeline(mSkyPipeline);
 
 		// Bind resources using current frame's bind group
-		let skyBindGroup = mSkyBindGroups[FrameIndex];
+		let skyBindGroup = mSkyBindGroups[frameIndex];
 		if (skyBindGroup != null)
 			encoder.SetBindGroup(0, skyBindGroup, default);
 

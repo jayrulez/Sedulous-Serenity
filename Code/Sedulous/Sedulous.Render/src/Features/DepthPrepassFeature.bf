@@ -182,20 +182,22 @@ public class DepthPrepassFeature : RenderFeatureBase
 		mBatcher.Clear();
 		mBatcher.Build(world, mVisibility);
 
-		// Create/update bind group for current frame if needed
+		// Capture frame index for consistent multi-buffering
 		let frameIndex = FrameIndex;
+
+		// Create/update bind group for current frame if needed
 		if (mDepthBindGroups[frameIndex] == null)
 			CreateDepthBindGroup(frameIndex);
 
 		// Upload object uniforms BEFORE the render pass
-		PrepareObjectUniforms();
+		PrepareObjectUniforms(frameIndex);
 
 		// Add depth prepass
 		graph.AddGraphicsPass("DepthPrepass")
 			.WriteDepth(depthHandle)
 			.NeverCull()
 			.SetExecuteCallback(new (encoder) => {
-				ExecuteDepthPass(encoder, world, view);
+				ExecuteDepthPass(encoder, world, view, frameIndex);
 			});
 
 		// Add Hi-Z generation pass if enabled
@@ -310,7 +312,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 			mDepthBindGroups[frameIndex] = bg;
 	}
 
-	private void PrepareObjectUniforms()
+	private void PrepareObjectUniforms(int32 frameIndex)
 	{
 		// Upload all object transforms to the uniform buffer BEFORE the render pass
 		// Use Map/Unmap to avoid command buffer creation
@@ -318,7 +320,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 		let skinnedCommands = mBatcher.SkinnedCommands;
 
 		// Use the current frame's buffer
-		let buffer = mObjectUniformBuffers[FrameIndex];
+		let buffer = mObjectUniformBuffers[frameIndex];
 		if (buffer == null)
 			return;
 
@@ -395,7 +397,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 		}
 	}
 
-	private void ExecuteDepthPass(IRenderPassEncoder encoder, RenderWorld world, RenderView view)
+	private void ExecuteDepthPass(IRenderPassEncoder encoder, RenderWorld world, RenderView view, int32 frameIndex)
 	{
 		// Set viewport
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0.0f, 1.0f);
@@ -409,7 +411,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 		let commands = mBatcher.DrawCommands;
 
 		// Get current frame's bind group
-		let bindGroup = mDepthBindGroups[FrameIndex];
+		let bindGroup = mDepthBindGroups[frameIndex];
 
 		// Render opaque batches with dynamic offsets
 		int32 objectIndex = 0;
@@ -453,10 +455,10 @@ public class DepthPrepassFeature : RenderFeatureBase
 		}
 
 		// Render skinned meshes using post-transform vertex buffers
-		RenderSkinnedMeshesDepth(encoder, world, ref objectIndex);
+		RenderSkinnedMeshesDepth(encoder, world, frameIndex, ref objectIndex);
 	}
 
-	private void RenderSkinnedMeshesDepth(IRenderPassEncoder encoder, RenderWorld world, ref int32 objectIndex)
+	private void RenderSkinnedMeshesDepth(IRenderPassEncoder encoder, RenderWorld world, int32 frameIndex, ref int32 objectIndex)
 	{
 		// Get GPU skinning feature to access skinned vertex buffers
 		let skinningFeature = Renderer.GetFeature<GPUSkinningFeature>();
@@ -466,7 +468,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 		let skinnedCommands = mBatcher.SkinnedCommands;
 
 		// Get current frame's bind group
-		let bindGroup = mDepthBindGroups[FrameIndex];
+		let bindGroup = mDepthBindGroups[frameIndex];
 
 		for (let batch in mBatcher.SkinnedBatches)
 		{
