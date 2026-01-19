@@ -3,7 +3,7 @@ using Sedulous.Shell.SDL3;
 using Sedulous.RHI.Vulkan;
 using System.Collections;
 using Sedulous.RHI;
-using Sedulous.Runtime;
+using Sedulous.Framework.Runtime;
 namespace RenderSandbox;
 
 class Program

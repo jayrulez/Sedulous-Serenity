@@ -1,5 +1,5 @@
 using Sedulous.Mathematics;
-using Sedulous.Runtime;
+using Sedulous.Framework.Runtime;
 using Sedulous.RHI;
 using Sedulous.Shell;
 using Sedulous.Render;
