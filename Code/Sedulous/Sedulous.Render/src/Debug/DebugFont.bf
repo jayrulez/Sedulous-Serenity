@@ -214,6 +214,7 @@ public static class DebugFont
 
 	/// Generates the font texture data as a single-channel grayscale image.
 	/// Returns a texture buffer of size TextureWidth * TextureHeight bytes.
+	/// Includes a solid white block at the end for rectangle drawing.
 	public static uint8[] GenerateTextureData()
 	{
 		uint8[] data = new uint8[TextureWidth * TextureHeight];
@@ -238,7 +239,39 @@ public static class DebugFont
 			}
 		}
 
+		// Add a solid white block after the last character (for rectangle drawing)
+		// Position it at the next slot after the last character
+		let solidCharIdx = CharCount;  // Index 95 (slot after '~')
+		let solidRow = solidCharIdx / CharsPerRow;
+		let solidCol = solidCharIdx % CharsPerRow;
+		let solidBaseX = solidCol * CharWidth;
+		let solidBaseY = solidRow * CharHeight;
+		for (int row = 0; row < CharHeight; row++)
+		{
+			for (int col = 0; col < CharWidth; col++)
+			{
+				let pixelX = solidBaseX + col;
+				let pixelY = solidBaseY + row;
+				if (pixelX < TextureWidth && pixelY < TextureHeight)
+					data[pixelY * TextureWidth + pixelX] = 255;
+			}
+		}
+
 		return data;
+	}
+
+	/// Gets the UV coordinates for a solid white block (for rectangle backgrounds).
+	public static void GetSolidBlockUV(out float u0, out float v0, out float u1, out float v1)
+	{
+		// Solid block is at index CharCount (after the last character)
+		let solidCharIdx = CharCount;
+		let solidRow = solidCharIdx / CharsPerRow;
+		let solidCol = solidCharIdx % CharsPerRow;
+
+		u0 = (float)(solidCol * CharWidth) / (float)TextureWidth;
+		v0 = (float)(solidRow * CharHeight) / (float)TextureHeight;
+		u1 = (float)((solidCol + 1) * CharWidth) / (float)TextureWidth;
+		v1 = (float)((solidRow + 1) * CharHeight) / (float)TextureHeight;
 	}
 
 	/// Gets the UV coordinates for a character.

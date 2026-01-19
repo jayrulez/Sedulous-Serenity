@@ -730,12 +730,45 @@ public class DebugRenderFeature : RenderFeatureBase
 		AddText2D(text, x, y, color, scale);
 	}
 
-	/// Returns true if there are any primitives to render.
+	/// Adds a 2D filled rectangle (useful for text backgrounds).
+	public void AddRect2D(float x, float y, float width, float height, Color color)
+	{
+		if (mFontTexture == null)
+			return;
+
+		// Get UV for solid white block
+		float u0, v0, u1, v1;
+		DebugFont.GetSolidBlockUV(out u0, out v0, out u1, out v1);
+
+		let left = x;
+		let right = x + width;
+		let top = y;
+		let bottom = y + height;
+
+		// Triangle 1
+		mText2DVertices.Add(.(left, top, u0, v0, color));
+		mText2DVertices.Add(.(left, bottom, u0, v1, color));
+		mText2DVertices.Add(.(right, bottom, u1, v1, color));
+
+		// Triangle 2
+		mText2DVertices.Add(.(left, top, u0, v0, color));
+		mText2DVertices.Add(.(right, bottom, u1, v1, color));
+		mText2DVertices.Add(.(right, top, u1, v0, color));
+	}
+
+	/// Returns true if there are any primitives queued to render (checks lists).
 	public bool HasPrimitives =>
 		mLineVerticesDepth.Count > 0 || mLineVerticesOverlay.Count > 0 ||
 		mTriVerticesDepth.Count > 0 || mTriVerticesOverlay.Count > 0 ||
 		mTextVerticesDepth.Count > 0 || mTextVerticesOverlay.Count > 0 ||
 		mText2DVertices.Count > 0;
+
+	/// Returns true if there are primitives to render this frame (checks saved counts after PrepareGPU).
+	private bool HasPrimitivesToRender =>
+		mLineDepthCount > 0 || mLineOverlayCount > 0 ||
+		mTriDepthCount > 0 || mTriOverlayCount > 0 ||
+		mTextDepthCount > 0 || mTextOverlayCount > 0 ||
+		mText2DCount > 0;
 
 	// ==================== Render Graph Integration ====================
 
@@ -755,11 +788,14 @@ public class DebugRenderFeature : RenderFeatureBase
 		SetViewProjection(view.ViewProjectionMatrix);
 		SetScreenSize(view.Width, view.Height);
 
-		// Upload data to GPU
+		// Upload data to GPU (saves counts before clearing)
 		PrepareGPU();
 
-		// Skip if nothing to render
-		if (!HasPrimitives)
+		// Clear CPU-side lists now that data is on GPU (ready for next frame's primitives)
+		BeginFrame();
+
+		// Skip if nothing to render (check saved counts, not lists which are now cleared)
+		if (!HasPrimitivesToRender)
 			return;
 
 		// Store frame index for render callback
