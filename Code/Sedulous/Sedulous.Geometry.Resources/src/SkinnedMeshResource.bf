@@ -12,7 +12,7 @@ using Sedulous.Animation.Resources;
 
 using static Sedulous.Mathematics.MathSerializerExtensions;
 
-namespace Sedulous.Renderer.Resources;
+namespace Sedulous.Geometry.Resources;
 
 /// CPU-side skinned mesh resource wrapping a SkinnedMesh.
 /// Contains the mesh data plus skeleton and animations for complete skeletal animation support.

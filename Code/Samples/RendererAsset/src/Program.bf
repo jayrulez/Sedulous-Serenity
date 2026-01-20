@@ -17,6 +17,7 @@ using Sedulous.Logging.Abstractions;
 using Sedulous.Logging.Debug;
 using SampleFramework;
 using Sedulous.Renderer.Resources;
+using Sedulous.Geometry.Resources;
 
 /// Demonstrates the asset cache system.
 /// - Checks for cached assets on startup

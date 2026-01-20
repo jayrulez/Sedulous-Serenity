@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using Sedulous.Renderer.Resources;
 using Sedulous.Animation.Resources;
+using Sedulous.Geometry.Resources;
 
 namespace Sedulous.Geometry.Tooling;
 

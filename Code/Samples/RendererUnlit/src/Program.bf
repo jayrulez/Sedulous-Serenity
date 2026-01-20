@@ -17,6 +17,7 @@ using Sedulous.Logging.Abstractions;
 using Sedulous.Logging.Debug;
 using SampleFramework;
 using Sedulous.Renderer.Resources;
+using Sedulous.Geometry.Resources;
 
 /// Demonstrates Unlit materials vs PBR materials.
 /// Shows how unlit materials are not affected by lighting.

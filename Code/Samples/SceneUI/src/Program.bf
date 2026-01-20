@@ -25,6 +25,7 @@ using Sedulous.Logging.Abstractions;
 using Sedulous.Logging.Debug;
 using Sedulous.Geometry.Tooling;
 using Sedulous.Shell.SDL3;
+using Sedulous.Geometry.Resources;
 
 // Type alias to resolve ambiguity between Drawing.ITexture and RHI.ITexture
 typealias DrawingTexture = Sedulous.Drawing.ITexture;

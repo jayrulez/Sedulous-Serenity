@@ -3,7 +3,7 @@ using System.IO;
 using Sedulous.Resources;
 using Sedulous.Geometry;
 
-namespace Sedulous.Renderer.Resources;
+namespace Sedulous.Geometry.Resources;
 
 /// Resource manager for SkinnedMeshResource.
 /// Note: Direct file loading is not implemented - use ModelLoader and converters instead.

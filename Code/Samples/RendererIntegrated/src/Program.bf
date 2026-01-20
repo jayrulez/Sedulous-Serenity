@@ -18,6 +18,7 @@ using SampleFramework;
 using Sedulous.Logging.Debug;
 using Sedulous.Geometry.Tooling;
 using Sedulous.Renderer.Resources;
+using Sedulous.Geometry.Resources;
 
 /// Demonstrates Framework.Core integration with Framework.Renderer.
 /// Uses entities with MeshRendererComponent, LightComponent, and CameraComponent.

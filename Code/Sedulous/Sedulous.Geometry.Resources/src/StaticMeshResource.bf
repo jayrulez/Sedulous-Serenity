@@ -8,7 +8,7 @@ using Sedulous.Serialization.OpenDDL;
 using Sedulous.OpenDDL;
 using Sedulous.Mathematics;
 
-namespace Sedulous.Renderer.Resources;
+namespace Sedulous.Geometry.Resources;
 
 /// CPU-side mesh resource wrapping a Mesh.
 class StaticMeshResource : Resource
