@@ -1,9 +1,9 @@
 using System;
 using System.IO;
-using Sedulous.Resources;
 using Sedulous.Mathematics;
+using Sedulous.Resources;
 
-namespace Sedulous.Renderer.Resources;
+namespace Sedulous.Renderer;
 
 /// Resource manager for MaterialResource.
 class MaterialResourceManager : ResourceManager<MaterialResource>

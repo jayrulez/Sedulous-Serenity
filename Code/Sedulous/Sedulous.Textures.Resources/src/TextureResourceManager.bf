@@ -3,7 +3,7 @@ using System.IO;
 using Sedulous.Resources;
 using Sedulous.Imaging;
 
-namespace Sedulous.Renderer.Resources;
+namespace Sedulous.Textures.Resources;
 
 /// Resource manager for TextureResource.
 class TextureResourceManager : ResourceManager<TextureResource>

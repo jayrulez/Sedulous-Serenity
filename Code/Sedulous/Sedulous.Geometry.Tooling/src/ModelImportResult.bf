@@ -1,8 +1,9 @@
 using System;
 using System.Collections;
-using Sedulous.Renderer.Resources;
+using Sedulous.Renderer;
 using Sedulous.Animation.Resources;
 using Sedulous.Geometry.Resources;
+using Sedulous.Textures.Resources;
 
 namespace Sedulous.Geometry.Tooling;
 

@@ -7,7 +7,7 @@ using Sedulous.Serialization;
 using Sedulous.Serialization.OpenDDL;
 using Sedulous.OpenDDL;
 
-namespace Sedulous.Renderer.Resources;
+namespace Sedulous.Renderer;
 
 /// Material types supported by the renderer.
 enum MaterialType

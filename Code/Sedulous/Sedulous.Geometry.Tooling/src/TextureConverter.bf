@@ -5,6 +5,7 @@ using Sedulous.Renderer;
 using System.IO;
 using System.IO;
 using Sedulous.Renderer.Resources;
+using Sedulous.Textures.Resources;
 
 namespace Sedulous.Geometry.Tooling;
 

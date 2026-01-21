@@ -3,25 +3,9 @@ using System.IO;
 using Sedulous.Resources;
 using Sedulous.Imaging;
 
-namespace Sedulous.Renderer.Resources;
+namespace Sedulous.Textures.Resources;
 
-/// Texture filtering mode.
-enum TextureFilter
-{
-	Nearest,
-	Linear,
-	MipmapNearest,
-	MipmapLinear
-}
 
-/// Texture wrap mode.
-enum TextureWrap
-{
-	Repeat,
-	ClampToEdge,
-	ClampToBorder,
-	MirroredRepeat
-}
 
 /// CPU-side texture resource wrapping an Image.
 class TextureResource : Resource

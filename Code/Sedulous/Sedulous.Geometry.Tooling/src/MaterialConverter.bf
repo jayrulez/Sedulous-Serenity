@@ -2,7 +2,7 @@ using System;
 using System.Collections;
 using Sedulous.Models;
 using Sedulous.Mathematics;
-using Sedulous.Renderer.Resources;
+using Sedulous.Renderer;
 
 namespace Sedulous.Geometry.Tooling;
 
