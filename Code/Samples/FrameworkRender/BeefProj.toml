@@ -1,0 +1,6 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Render" = "*", "Sedulous.Framework.Runtime" = "*", "Sedulous.Framework.Core" = "*", "Sedulous.Framework.Scenes" = "*", "Sedulous.Framework.Render" = "*", "Sedulous.Geometry" = "*", "Sedulous.Profiler" = "*"}
+
+[Project]
+Name = "FrameworkRender"
+StartupObject = "FrameworkRender.Program"

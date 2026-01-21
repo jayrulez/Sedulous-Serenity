@@ -12,7 +12,7 @@ static class RenderConfig
 	// ==================== Object Limits ====================
 
 	/// Maximum opaque objects per frame.
-	public const int32 MaxOpaqueObjectsPerFrame = 2048;
+	public const int32 MaxOpaqueObjectsPerFrame = 80000;
 
 	/// Maximum transparent objects per frame.
 	public const int32 MaxTransparentObjectsPerFrame = 256;
