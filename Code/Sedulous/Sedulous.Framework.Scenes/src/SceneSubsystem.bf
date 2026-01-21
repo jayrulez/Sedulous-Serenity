@@ -38,6 +38,11 @@ public class SceneSubsystem : Subsystem
 		mSceneManager.UnloadAllScenes();
 	}
 
+	public override void FixedUpdate(float fixedDeltaTime)
+	{
+		mSceneManager.FixedUpdate(fixedDeltaTime);
+	}
+
 	public override void Update(float deltaTime)
 	{
 		mSceneManager.Update(deltaTime);

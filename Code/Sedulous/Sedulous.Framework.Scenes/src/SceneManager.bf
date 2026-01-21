@@ -151,6 +151,23 @@ public class SceneManager : IDisposable
 			UnloadScene(scene);
 	}
 
+	/// Calls FixedUpdate on the active scene.
+	public void FixedUpdate(float fixedDeltaTime)
+	{
+		if (mActiveScene != null && mActiveScene.State == .Active)
+			mActiveScene.FixedUpdate(fixedDeltaTime);
+	}
+
+	/// Calls FixedUpdate on all active scenes.
+	public void FixedUpdateAll(float fixedDeltaTime)
+	{
+		for (let scene in mScenes)
+		{
+			if (scene.State == .Active)
+				scene.FixedUpdate(fixedDeltaTime);
+		}
+	}
+
 	/// Updates the active scene.
 	public void Update(float deltaTime)
 	{

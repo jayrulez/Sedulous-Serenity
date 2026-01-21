@@ -16,7 +16,6 @@ using Sedulous.Renderer;
 using Sedulous.Logging.Abstractions;
 using Sedulous.Logging.Debug;
 using SampleFramework;
-using Sedulous.Renderer.Resources;
 using Sedulous.Geometry.Resources;
 
 /// Demonstrates the Material System integration.

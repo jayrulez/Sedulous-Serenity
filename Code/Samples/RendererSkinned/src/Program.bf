@@ -14,7 +14,6 @@ using Sedulous.Renderer;
 using Sedulous.Animation;
 using Sedulous.Shell.Input;
 using SampleFramework;
-using Sedulous.Renderer.Resources;
 using Sedulous.Geometry.Resources;
 
 /// Skinned mesh sample demonstrating:

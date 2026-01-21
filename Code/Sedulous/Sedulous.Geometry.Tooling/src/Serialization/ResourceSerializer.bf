@@ -8,7 +8,6 @@ using Sedulous.Mathematics;
 using Sedulous.Geometry;
 using Sedulous.Imaging;
 using Sedulous.Renderer;
-using Sedulous.Renderer.Resources;
 using Sedulous.Animation.Resources;
 using Sedulous.Geometry.Resources;
 using Sedulous.Textures.Resources;

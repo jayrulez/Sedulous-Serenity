@@ -14,6 +14,11 @@ interface ISceneModule
 	/// Called at the beginning of each frame, before Update.
 	void OnBeginFrame(Scene scene, float deltaTime);
 
+	/// Called at a fixed timestep for deterministic simulation.
+	/// May be called multiple times per frame (or not at all) depending on framerate.
+	/// Use this for physics, AI, or anything requiring consistent timing.
+	void FixedUpdate(Scene scene, float fixedDeltaTime);
+
 	/// Called during the main update phase.
 	/// This is where modules should process their components.
 	void Update(Scene scene, float deltaTime);

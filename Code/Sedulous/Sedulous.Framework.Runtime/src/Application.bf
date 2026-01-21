@@ -4,6 +4,7 @@ using System.IO;
 using Sedulous.RHI;
 using Sedulous.Shell;
 using Sedulous.Mathematics;
+using Sedulous.Framework.Core;
 
 namespace Sedulous.Framework.Runtime;
 
@@ -30,6 +31,9 @@ abstract class Application
 	// Settings and state
 	protected ApplicationSettings mSettings;
 	protected bool mIsRunning;
+
+	// Framework context (created and owned by Application)
+	protected Context mContext ~ delete _;
 
 	// Asset directories (discovered at construction time)
 	private String mAssetDirectory = new .() ~ delete _;
@@ -104,6 +108,9 @@ abstract class Application
 	/// Whether the application is currently running.
 	public bool IsRunning => mIsRunning;
 
+	/// The framework context managing all subsystems.
+	public Context Context => mContext;
+
 	/// Application settings.
 	public ApplicationSettings Settings => mSettings;
 
@@ -141,7 +148,17 @@ abstract class Application
 		if (!Initialize())
 			return -1;
 
-		OnInitialize();
+		// Create the framework context
+		mContext = CreateContext();
+
+		// Let derived class configure the context (register subsystems, etc.)
+		OnInitialize(mContext);
+
+		// Start up the context (initializes all subsystems)
+		mContext.Startup();
+
+		// Notify derived class that context is ready
+		OnContextStarted();
 
 		mStopwatch.Start();
 		mIsRunning = true;
@@ -163,6 +180,7 @@ abstract class Application
 			int32 fixedSteps = 0;
 			while (mFixedUpdateAccumulator >= mFixedTimeStep && fixedSteps < mMaxFixedStepsPerFrame)
 			{
+				mContext.FixedUpdate(mFixedTimeStep);
 				OnFixedUpdate(mFixedTimeStep);
 				mFixedUpdateAccumulator -= mFixedTimeStep;
 				fixedSteps++;
@@ -179,8 +197,15 @@ abstract class Application
 				FrameCount = (int32)mSwapChain.FrameCount
 			};
 
+			// Update framework - BeginFrame, Update, PostUpdate
+			mContext.BeginFrame(deltaTime);
 			OnUpdate(frameContext);
+			mContext.Update(deltaTime);
+			mContext.PostUpdate(deltaTime);
+
 			Frame(frameContext);
+
+			mContext.EndFrame();
 
 			// Frame rate limiting
 			if (mTargetFrameTime > 0)
@@ -197,6 +222,7 @@ abstract class Application
 
 		mDevice.WaitIdle();
 		OnShutdown();
+		mContext.Shutdown();
 		Cleanup();
 
 		return 0;
@@ -210,8 +236,20 @@ abstract class Application
 
 	// Lifecycle methods - override in user application
 
+	/// Creates the framework context. Override to provide a custom Context subclass.
+	protected virtual Context CreateContext()
+	{
+		return new Context();
+	}
+
 	/// Called once at startup after device and swap chain are ready.
-	protected virtual void OnInitialize() { }
+	/// Use this to register subsystems with the context.
+	/// @param context The framework context (not yet started).
+	protected virtual void OnInitialize(Context context) { }
+
+	/// Called after context.Startup() completes, before the main loop.
+	/// All subsystems are initialized at this point.
+	protected virtual void OnContextStarted() { }
 
 	/// Called once at shutdown before cleanup.
 	protected virtual void OnShutdown() { }

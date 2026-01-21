@@ -6,7 +6,6 @@ using Sedulous.Geometry;
 using Sedulous.Models;
 using Sedulous.Imaging;
 using Sedulous.Renderer;
-using Sedulous.Renderer.Resources;
 using Sedulous.Animation.Resources;
 using Sedulous.Geometry.Resources;
 

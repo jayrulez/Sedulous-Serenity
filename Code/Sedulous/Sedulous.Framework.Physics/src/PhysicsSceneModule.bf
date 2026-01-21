@@ -57,8 +57,6 @@ class PhysicsSceneModule : SceneModule
 
 	// Simulation settings
 	private int32 mCollisionSteps = 1;
-	private float mFixedTimeStep = 1.0f / 60.0f;
-	private float mAccumulatedTime = 0.0f;
 
 	// Debug drawing
 	private bool mDebugDrawEnabled = false;
@@ -84,13 +82,6 @@ class PhysicsSceneModule : SceneModule
 	{
 		get => mCollisionSteps;
 		set => mCollisionSteps = Math.Max(1, value);
-	}
-
-	/// Gets or sets the fixed time step for physics simulation.
-	public float FixedTimeStep
-	{
-		get => mFixedTimeStep;
-		set => mFixedTimeStep = Math.Max(0.001f, value);
 	}
 
 	/// Gets or sets whether physics debug drawing is enabled.
@@ -135,24 +126,25 @@ class PhysicsSceneModule : SceneModule
 		mScene = null;
 	}
 
-	public override void Update(Scene scene, float deltaTime)
+	public override void FixedUpdate(Scene scene, float fixedDeltaTime)
 	{
 		if (mPhysicsWorld == null)
 			return;
 
-		// Sync kinematic bodies TO physics
+		// Sync kinematic bodies TO physics before stepping
 		SyncKinematicBodies(scene);
 
-		// Fixed timestep physics simulation
-		mAccumulatedTime += deltaTime;
-		while (mAccumulatedTime >= mFixedTimeStep)
-		{
-			mPhysicsWorld.Step(mFixedTimeStep, mCollisionSteps);
-			mAccumulatedTime -= mFixedTimeStep;
-		}
+		// Step physics simulation at fixed timestep
+		mPhysicsWorld.Step(fixedDeltaTime, mCollisionSteps);
 
-		// Sync dynamic bodies FROM physics
+		// Sync dynamic bodies FROM physics after stepping
 		SyncDynamicBodies(scene);
+	}
+
+	public override void Update(Scene scene, float deltaTime)
+	{
+		// Physics simulation now happens in FixedUpdate.
+		// This method is kept for potential future per-frame work (e.g., interpolation).
 	}
 
 	public override void OnEndFrame(Scene scene)

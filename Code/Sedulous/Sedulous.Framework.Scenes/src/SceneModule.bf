@@ -13,6 +13,9 @@ abstract class SceneModule : ISceneModule
 	/// Called at the beginning of each frame.
 	public virtual void OnBeginFrame(Scene scene, float deltaTime) { }
 
+	/// Called at a fixed timestep for deterministic simulation.
+	public virtual void FixedUpdate(Scene scene, float fixedDeltaTime) { }
+
 	/// Called during the main update phase.
 	public virtual void Update(Scene scene, float deltaTime) { }
 

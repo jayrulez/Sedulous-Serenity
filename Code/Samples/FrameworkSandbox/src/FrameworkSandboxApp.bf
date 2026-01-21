@@ -24,8 +24,7 @@ namespace FrameworkSandbox;
 /// Demonstrates the Sedulous Framework with Context, Subsystems, Scenes, and Entities.
 class FrameworkSandboxApp : Application
 {
-	// Framework core
-	private Context mContext ~ delete _;
+	// Framework core (mContext is now owned by base Application)
 	private SceneSubsystem mSceneSubsystem;
 	private RenderSubsystem mRenderSubsystem;
 	private Scene mMainScene;
@@ -87,7 +86,7 @@ class FrameworkSandboxApp : Application
 	{
 	}
 
-	protected override void OnInitialize()
+	protected override void OnInitialize(Context context)
 	{
 		Console.WriteLine("=== Framework Sandbox ===");
 		Console.WriteLine("Demonstrating Sedulous Framework\n");
@@ -95,16 +94,13 @@ class FrameworkSandboxApp : Application
 		// Initialize render system first (before subsystems that depend on it)
 		InitializeRenderSystem();
 
-		// Create framework context
-		mContext = new Context();
+		// Register subsystems with the context (context is owned by base Application)
+		RegisterSubsystems(context);
+	}
 
-		// Create and register subsystems
-		RegisterSubsystems();
-
-		// Start up the context (initializes all subsystems)
-		mContext.Startup();
-
-		// Create the main scene
+	protected override void OnContextStarted()
+	{
+		// Create the main scene (subsystems are now initialized)
 		CreateMainScene();
 
 		// Create scene objects
@@ -169,18 +165,18 @@ class FrameworkSandboxApp : Application
 			Console.WriteLine("Registered: FinalOutputFeature");
 	}
 
-	private void RegisterSubsystems()
+	private void RegisterSubsystems(Context context)
 	{
 		Console.WriteLine("\nRegistering subsystems...");
 
 		// Scene subsystem (manages scenes)
 		mSceneSubsystem = new SceneSubsystem();
-		mContext.RegisterSubsystem(mSceneSubsystem);
+		context.RegisterSubsystem(mSceneSubsystem);
 		Console.WriteLine("  - SceneSubsystem (manages scene lifecycle)");
 
 		// Animation subsystem
 		let animSubsystem = new AnimationSubsystem();
-		mContext.RegisterSubsystem(animSubsystem);
+		context.RegisterSubsystem(animSubsystem);
 		Console.WriteLine("  - AnimationSubsystem (skeletal animation)");
 
 		// Audio subsystem
@@ -188,7 +184,7 @@ class FrameworkSandboxApp : Application
 		if (audioSystem.IsInitialized)
 		{
 			let audioSubsystem = new AudioSubsystem(audioSystem, takeOwnership: true);
-			mContext.RegisterSubsystem(audioSubsystem);
+			context.RegisterSubsystem(audioSubsystem);
 			Console.WriteLine("  - AudioSubsystem (SDL3 backend)");
 		}
 		else
@@ -207,12 +203,12 @@ class FrameworkSandboxApp : Application
 				}
 			}
 		);
-		mContext.RegisterSubsystem(physicsSubsystem);
+		context.RegisterSubsystem(physicsSubsystem);
 		Console.WriteLine("  - PhysicsSubsystem (Jolt backend)");
 
 		// Render subsystem
 		mRenderSubsystem = new RenderSubsystem(mRenderSystem, takeOwnership: false);
-		mContext.RegisterSubsystem(mRenderSubsystem);
+		context.RegisterSubsystem(mRenderSubsystem);
 		Console.WriteLine("  - RenderSubsystem");
 	}
 
@@ -499,10 +495,10 @@ class FrameworkSandboxApp : Application
 			}
 		}
 
-		// Update framework context (updates all subsystems and scenes)
-		mContext.BeginFrame(mDeltaTime);
-		mContext.Update(mDeltaTime);
-		mContext.EndFrame();
+		// Framework context update is now handled by base Application:
+		// - BeginFrame before OnUpdate
+		// - Update/PostUpdate after OnUpdate
+		// - EndFrame after Frame
 
 		// Update camera transform
 		UpdateCamera();
@@ -665,7 +661,7 @@ class FrameworkSandboxApp : Application
 		if (mSphereMeshHandle.IsValid)
 			mRenderSystem.ResourceManager.ReleaseMesh(mSphereMeshHandle, mRenderSystem.FrameNumber);
 
-		// Context destructor will dispose all subsystems automatically via ~ delete _
+		// Context shutdown is handled by base Application after OnShutdown
 
 		// Shutdown render system (not owned by context)
 		if (mRenderSystem != null)

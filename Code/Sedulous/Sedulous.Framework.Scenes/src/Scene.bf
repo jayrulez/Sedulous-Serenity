@@ -499,6 +499,17 @@ public class Scene : IDisposable
 
 	// ==================== Update Lifecycle ====================
 
+	/// Calls FixedUpdate on all modules for deterministic simulation.
+	/// Should be called from a fixed timestep loop (may be called multiple times per frame).
+	public void FixedUpdate(float fixedDeltaTime)
+	{
+		if (mState != .Active)
+			return;
+
+		for (let module in mModules)
+			module.FixedUpdate(this, fixedDeltaTime);
+	}
+
 	/// Updates the scene for one frame.
 	/// Follows deterministic order: BeginFrame -> Update -> TransformUpdate -> EndFrame -> DeferredDestruction
 	public void Update(float deltaTime)

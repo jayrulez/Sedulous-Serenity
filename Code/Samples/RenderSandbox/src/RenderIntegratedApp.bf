@@ -93,7 +93,7 @@ class RenderIntegratedApp : Application
 	{
 	}
 
-	protected override void OnInitialize()
+	protected override void OnInitialize(Sedulous.Framework.Core.Context context)
 	{
 		Console.WriteLine("=== Sedulous.Render Sandbox ===");
 		Console.WriteLine("Testing render feature infrastructure\n");

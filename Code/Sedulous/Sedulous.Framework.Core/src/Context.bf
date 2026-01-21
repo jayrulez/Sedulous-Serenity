@@ -98,6 +98,17 @@ public class Context : IDisposable
 			subsystem.BeginFrame(deltaTime);
 	}
 
+	/// Calls FixedUpdate on all subsystems for deterministic simulation.
+	/// Should be called from a fixed timestep loop (may be called multiple times per frame).
+	public virtual void FixedUpdate(float fixedDeltaTime)
+	{
+		if (!mIsRunning)
+			return;
+
+		for (let subsystem in mSortedSubsystems)
+			subsystem.FixedUpdate(fixedDeltaTime);
+	}
+
 	/// Updates all subsystems.
 	public virtual void Update(float deltaTime)
 	{
@@ -106,6 +117,17 @@ public class Context : IDisposable
 
 		for (let subsystem in mSortedSubsystems)
 			subsystem.Update(deltaTime);
+	}
+
+	/// Calls PostUpdate on all subsystems.
+	/// Called after Update, before EndFrame.
+	public virtual void PostUpdate(float deltaTime)
+	{
+		if (!mIsRunning)
+			return;
+
+		for (let subsystem in mSortedSubsystems)
+			subsystem.PostUpdate(deltaTime);
 	}
 
 	/// Called at the end of each frame.

@@ -63,8 +63,17 @@ public abstract class Subsystem : IDisposable
 	/// Called at the beginning of each frame.
 	public virtual void BeginFrame(float deltaTime) { }
 
+	/// Called at a fixed timestep for deterministic simulation.
+	/// May be called multiple times per frame (or not at all) depending on framerate.
+	/// Use this for physics, AI, or anything requiring consistent timing.
+	public virtual void FixedUpdate(float fixedDeltaTime) { }
+
 	/// Called during the main update phase.
 	public virtual void Update(float deltaTime) { }
+
+	/// Called after Update, before EndFrame.
+	/// Use this for late updates that depend on Update results.
+	public virtual void PostUpdate(float deltaTime) { }
 
 	/// Called at the end of each frame.
 	public virtual void EndFrame() { }

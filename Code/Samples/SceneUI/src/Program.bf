@@ -16,7 +16,6 @@ using Sedulous.Engine.Input;
 using Sedulous.Engine.UI;
 using Sedulous.Engine.Renderer;
 using Sedulous.Renderer;
-using Sedulous.Renderer.Resources;
 using Sedulous.Geometry;
 using Sedulous.Models;
 using Sedulous.Models.GLTF;
