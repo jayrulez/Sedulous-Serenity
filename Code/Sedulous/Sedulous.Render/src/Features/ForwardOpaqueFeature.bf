@@ -45,7 +45,6 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 	// Object uniform buffers (per-frame for multi-buffering)
 	private IBuffer[RenderConfig.FrameBufferCount] mObjectUniformBuffers;
-	private const int MaxObjectsPerFrame = 1024;
 	private const uint64 ObjectUniformAlignment = 256; // Vulkan minUniformBufferOffsetAlignment
 	private const uint64 AlignedObjectUniformSize = ((ObjectUniforms.Size + ObjectUniformAlignment - 1) / ObjectUniformAlignment) * ObjectUniformAlignment;
 
@@ -322,7 +321,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		{
 			BufferDescriptor objDesc = .()
 			{
-				Size = AlignedObjectUniformSize * MaxObjectsPerFrame,
+				Size = AlignedObjectUniformSize * RenderConfig.MaxOpaqueObjectsPerFrame,
 				Usage = .Uniform,
 				MemoryAccess = .Upload // CPU-mappable
 			};
@@ -636,7 +635,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 				for (int32 i = 0; i < batch.CommandCount; i++)
 				{
-					if (objectIndex >= MaxObjectsPerFrame)
+					if (objectIndex >= RenderConfig.MaxOpaqueObjectsPerFrame)
 						break;
 
 					let cmd = commands[batch.CommandStart + i];
@@ -670,7 +669,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 				for (int32 i = 0; i < batch.CommandCount; i++)
 				{
-					if (objectIndex >= MaxObjectsPerFrame)
+					if (objectIndex >= RenderConfig.MaxOpaqueObjectsPerFrame)
 						break;
 
 					let cmd = skinnedCommands[batch.CommandStart + i];
@@ -873,7 +872,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			// Static meshes
 			for (let visibleMesh in visibility.VisibleMeshes)
 			{
-				if (objectIndex >= MaxObjectsPerFrame)
+				if (objectIndex >= RenderConfig.MaxOpaqueObjectsPerFrame)
 					break;
 
 				if (let proxy = world.GetMesh(visibleMesh.Handle))
@@ -906,7 +905,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			// Skinned meshes
 			for (let visibleMesh in visibility.VisibleSkinnedMeshes)
 			{
-				if (objectIndex >= MaxObjectsPerFrame)
+				if (objectIndex >= RenderConfig.MaxOpaqueObjectsPerFrame)
 					break;
 
 				if (let proxy = world.GetSkinnedMesh(visibleMesh.Handle))
@@ -975,13 +974,13 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 	private Result<void> CreateObjectUniformBuffer()
 	{
-		// Create per-frame object uniform buffers large enough for MaxObjectsPerFrame with alignment
+		// Create per-frame object uniform buffers large enough for RenderConfig.MaxOpaqueObjectsPerFrame with alignment
 		// Use Upload memory for CPU mapping (avoids command buffer for writes)
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
 			var bufferDesc = BufferDescriptor()
 			{
-				Size = AlignedObjectUniformSize * MaxObjectsPerFrame,
+				Size = AlignedObjectUniformSize * RenderConfig.MaxOpaqueObjectsPerFrame,
 				Usage = .Uniform,
 				MemoryAccess = .Upload // CPU-mappable
 			};
@@ -1117,7 +1116,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			// Draw each command in this batch
 			for (int32 i = 0; i < batch.CommandCount; i++)
 			{
-				if (objectIndex >= MaxObjectsPerFrame)
+				if (objectIndex >= RenderConfig.MaxOpaqueObjectsPerFrame)
 					break;
 
 				let cmd = commands[batch.CommandStart + i];
@@ -1195,7 +1194,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 			for (int32 i = 0; i < batch.CommandCount; i++)
 			{
-				if (objectIndex >= MaxObjectsPerFrame)
+				if (objectIndex >= RenderConfig.MaxOpaqueObjectsPerFrame)
 					break;
 
 				let cmd = skinnedCommands[batch.CommandStart + i];
@@ -1305,7 +1304,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		// Static meshes
 		for (let visibleMesh in visibility.VisibleMeshes)
 		{
-			if (objectIndex >= MaxObjectsPerFrame)
+			if (objectIndex >= RenderConfig.MaxOpaqueObjectsPerFrame)
 				break;
 
 			if (let proxy = world.GetMesh(visibleMesh.Handle))
@@ -1357,7 +1356,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 		for (let visibleMesh in visibility.VisibleSkinnedMeshes)
 		{
-			if (objectIndex >= MaxObjectsPerFrame)
+			if (objectIndex >= RenderConfig.MaxOpaqueObjectsPerFrame)
 				break;
 
 			if (let proxy = world.GetSkinnedMesh(visibleMesh.Handle))

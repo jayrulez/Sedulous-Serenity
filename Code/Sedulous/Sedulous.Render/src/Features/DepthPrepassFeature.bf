@@ -22,7 +22,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 	private IRenderPipeline mDepthInstancedPipeline ~ delete _;
 
 	// Constants for per-object uniforms
-	private const int MaxObjectsPerFrame = 1024;
+	private static int MaxObjectsPerFrame => RenderConfig.MaxOpaqueObjectsPerFrame;
 	private const uint64 ObjectUniformAlignment = 256;
 	private const uint64 ObjectUniformSize = 208; // 3 matrices (192) + padding
 	private const uint64 AlignedObjectUniformSize = ((ObjectUniformSize + ObjectUniformAlignment - 1) / ObjectUniformAlignment) * ObjectUniformAlignment;

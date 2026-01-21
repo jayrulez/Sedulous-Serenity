@@ -224,15 +224,12 @@ public struct SkinnedMeshProxy
 [CRepr]
 public struct BoneTransforms
 {
-	/// Maximum number of bones supported per skeleton.
-	public const int32 MaxBones = 256;
-
 	/// Current frame bone matrices (model space -> bone space -> model space).
 	/// These are the final skinning matrices: inverseBindPose * currentPose.
-	public Matrix[MaxBones] BoneMatrices;
+	public Matrix[RenderConfig.MaxBonesPerMesh] BoneMatrices;
 
 	/// Previous frame bone matrices (for motion vectors).
-	public Matrix[MaxBones] PrevBoneMatrices;
+	public Matrix[RenderConfig.MaxBonesPerMesh] PrevBoneMatrices;
 
 	/// Size in bytes for a given bone count.
 	public static uint64 GetSizeForBoneCount(int32 boneCount)

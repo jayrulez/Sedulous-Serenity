@@ -5,6 +5,7 @@ using Sedulous.RHI;
 using Sedulous.Shell;
 using Sedulous.Mathematics;
 using Sedulous.Framework.Core;
+using Sedulous.Profiler;
 
 namespace Sedulous.Framework.Runtime;
 
@@ -165,29 +166,42 @@ abstract class Application
 
 		while (mIsRunning && mShell.IsRunning)
 		{
+			SProfiler.BeginFrame();
+
 			float frameStartTime = (float)mStopwatch.Elapsed.TotalSeconds;
 
-			mShell.ProcessEvents();
+			{
+				using (SProfiler.Begin("ProcessEvents"))
+					mShell.ProcessEvents();
+			}
 
 			float currentTime = (float)mStopwatch.Elapsed.TotalSeconds;
 			float deltaTime = currentTime - mLastFrameTime;
 			mLastFrameTime = currentTime;
 
-			OnInput();
+			{
+				using (SProfiler.Begin("Input"))
+					OnInput();
+			}
 
 			// Fixed update loop - may run multiple times per frame
-			mFixedUpdateAccumulator += deltaTime;
-			int32 fixedSteps = 0;
-			while (mFixedUpdateAccumulator >= mFixedTimeStep && fixedSteps < mMaxFixedStepsPerFrame)
 			{
-				mContext.FixedUpdate(mFixedTimeStep);
-				OnFixedUpdate(mFixedTimeStep);
-				mFixedUpdateAccumulator -= mFixedTimeStep;
-				fixedSteps++;
+				using (SProfiler.Begin("FixedUpdate"))
+				{
+					mFixedUpdateAccumulator += deltaTime;
+					int32 fixedSteps = 0;
+					while (mFixedUpdateAccumulator >= mFixedTimeStep && fixedSteps < mMaxFixedStepsPerFrame)
+					{
+						mContext.FixedUpdate(mFixedTimeStep);
+						OnFixedUpdate(mFixedTimeStep);
+						mFixedUpdateAccumulator -= mFixedTimeStep;
+						fixedSteps++;
+					}
+					// Clamp accumulator to prevent spiral of death
+					if (mFixedUpdateAccumulator > mFixedTimeStep * 2)
+						mFixedUpdateAccumulator = mFixedTimeStep * 2;
+				}
 			}
-			// Clamp accumulator to prevent spiral of death
-			if (mFixedUpdateAccumulator > mFixedTimeStep * 2)
-				mFixedUpdateAccumulator = mFixedTimeStep * 2;
 
 			let frameContext = FrameContext()
 			{
@@ -198,14 +212,35 @@ abstract class Application
 			};
 
 			// Update framework - BeginFrame, Update, PostUpdate
-			mContext.BeginFrame(deltaTime);
-			OnUpdate(frameContext);
-			mContext.Update(deltaTime);
-			mContext.PostUpdate(deltaTime);
+			{
+				using (SProfiler.Begin("BeginFrame"))
+					mContext.BeginFrame(deltaTime);
+			}
 
-			Frame(frameContext);
+			{
+				using (SProfiler.Begin("Update"))
+				{
+					OnUpdate(frameContext);
+					mContext.Update(deltaTime);
+				}
+			}
 
-			mContext.EndFrame();
+			{
+				using (SProfiler.Begin("PostUpdate"))
+					mContext.PostUpdate(deltaTime);
+			}
+
+			{
+				using (SProfiler.Begin("Frame"))
+					Frame(frameContext);
+			}
+
+			{
+				using (SProfiler.Begin("EndFrame"))
+					mContext.EndFrame();
+			}
+
+			SProfiler.EndFrame();
 
 			// Frame rate limiting
 			if (mTargetFrameTime > 0)

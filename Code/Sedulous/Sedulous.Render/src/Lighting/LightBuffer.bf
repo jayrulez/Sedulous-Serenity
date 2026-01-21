@@ -83,7 +83,7 @@ public struct LightingUniforms
 public class LightBuffer : IDisposable
 {
 	// Configuration
-	private const int MAX_LIGHTS = 1024;
+	private static int32 MAX_LIGHTS => RenderConfig.MaxLights;
 
 	// GPU resources
 	private IDevice mDevice;

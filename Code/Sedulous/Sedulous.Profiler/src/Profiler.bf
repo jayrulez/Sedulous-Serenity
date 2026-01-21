@@ -6,6 +6,9 @@ using Sedulous.Profiler.Internal;
 
 namespace Sedulous.Profiler;
 
+/// Alias to avoid conflict with System.Diagnostics.Profiler
+typealias SProfiler = Sedulous.Profiler.Profiler;
+
 /// Static profiler API for collecting timing data.
 /// Thread-safe for multi-threaded profiling.
 static class Profiler

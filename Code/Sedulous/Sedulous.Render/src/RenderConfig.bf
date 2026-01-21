@@ -1,10 +1,26 @@
 namespace Sedulous.Render;
 
 /// Configuration constants for the renderer.
+/// All render features should reference these constants for consistency.
 static class RenderConfig
 {
-	/// Number of frames to buffer for multi-buffering (triple buffering).
-	public const int32 FrameBufferCount = 3;
+	// ==================== Frame Buffering ====================
+
+	/// Number of frames to buffer for multi-buffering.
+	public const int32 FrameBufferCount = 2;
+
+	// ==================== Object Limits ====================
+
+	/// Maximum opaque objects per frame.
+	public const int32 MaxOpaqueObjectsPerFrame = 2048;
+
+	/// Maximum transparent objects per frame.
+	public const int32 MaxTransparentObjectsPerFrame = 256;
+
+	/// Maximum debug vertices for debug rendering.
+	public const int32 MaxDebugVertices = 65536;
+
+	// ==================== Lighting ====================
 
 	/// Maximum number of point lights supported.
 	public const int32 MaxPointLights = 256;
@@ -16,7 +32,7 @@ static class RenderConfig
 	public const int32 MaxAreaLights = 32;
 
 	/// Maximum total lights (all types combined).
-	public const int32 MaxLights = 512;
+	public const int32 MaxLights = 1024;
 
 	/// Maximum lights per cluster for clustered lighting.
 	public const int32 MaxLightsPerCluster = 256;
@@ -38,6 +54,10 @@ static class RenderConfig
 
 	/// Maximum instances per draw call for instanced rendering.
 	public const int32 MaxInstancesPerDraw = 1024;
+
+	/// Maximum total instances per frame (buffer capacity for all instance groups).
+	/// Should be at least MaxOpaqueObjectsPerFrame + MaxTransparentObjectsPerFrame.
+	public const int32 MaxInstancesPerFrame = MaxOpaqueObjectsPerFrame + MaxTransparentObjectsPerFrame;
 
 	/// Maximum bone count for skinned meshes.
 	public const int32 MaxBonesPerMesh = 256;

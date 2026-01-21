@@ -364,7 +364,7 @@ public class GPUResourceManager : IDisposable
 	/// Creates a bone buffer for a skinned mesh.
 	public Result<GPUBoneBufferHandle> CreateBoneBuffer(uint16 boneCount)
 	{
-		if (boneCount == 0 || boneCount > BoneTransforms.MaxBones)
+		if (boneCount == 0 || boneCount > RenderConfig.MaxBonesPerMesh)
 			return .Err;
 
 		// Allocate slot

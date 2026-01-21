@@ -38,9 +38,9 @@ public class ForwardTransparentFeature : RenderFeatureBase
 	// Object uniform buffers for transparent objects (per-frame for multi-buffering)
 	private IBuffer[RenderConfig.FrameBufferCount] mObjectUniformBuffers;
 	private IBindGroup[RenderConfig.FrameBufferCount] mSceneBindGroups;
-	private const int MaxTransparentObjects = 256;
 	private const uint64 ObjectUniformAlignment = 256;
 	private const uint64 AlignedObjectUniformSize = ((ObjectUniforms.Size + ObjectUniformAlignment - 1) / ObjectUniformAlignment) * ObjectUniformAlignment;
+	private static int32 MaxTransparentObjects => RenderConfig.MaxTransparentObjectsPerFrame;
 
 	/// Gets the current frame index for multi-buffering.
 	private int32 FrameIndex => Renderer.RenderFrameContext?.FrameIndex ?? 0;
@@ -69,7 +69,7 @@ public class ForwardTransparentFeature : RenderFeatureBase
 			BufferDescriptor desc = .()
 			{
 				Label = "Transparent Object Uniforms",
-				Size = AlignedObjectUniformSize * MaxTransparentObjects,
+				Size = AlignedObjectUniformSize * (uint64)MaxTransparentObjects,
 				Usage = .Uniform,
 				MemoryAccess = .Upload
 			};

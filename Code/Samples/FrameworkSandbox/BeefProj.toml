@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Render" = "*", "Sedulous.Framework.Runtime" = "*", "Sedulous.Framework.Core" = "*", "Sedulous.Framework.Scenes" = "*", "Sedulous.Framework.Render" = "*", "Sedulous.Framework.Animation" = "*", "Sedulous.Framework.Physics" = "*", "Sedulous.Framework.Audio" = "*", "Sedulous.Physics.Jolt" = "*", "Sedulous.Audio.SDL3" = "*", "Sedulous.Geometry" = "*"}
+Dependencies = {corlib = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Render" = "*", "Sedulous.Framework.Runtime" = "*", "Sedulous.Framework.Core" = "*", "Sedulous.Framework.Scenes" = "*", "Sedulous.Framework.Render" = "*", "Sedulous.Framework.Animation" = "*", "Sedulous.Framework.Physics" = "*", "Sedulous.Framework.Audio" = "*", "Sedulous.Physics.Jolt" = "*", "Sedulous.Audio.SDL3" = "*", "Sedulous.Geometry" = "*", "Sedulous.Profiler" = "*"}
 
 [Project]
 Name = "FrameworkSandbox"

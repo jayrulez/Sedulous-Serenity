@@ -18,6 +18,7 @@ using Sedulous.Physics.Jolt;
 using Sedulous.Audio;
 using Sedulous.Audio.SDL3;
 using Sedulous.Framework.Physics;
+using Sedulous.Profiler;
 
 namespace FrameworkSandbox;
 
@@ -70,8 +71,8 @@ class FrameworkSandboxApp : Application
 	private bool mSpawningEnabled = false;
 	private int32 mSpawnCount = 0;
 	private float mSpawnTimer = 0.0f;
-	private const float SpawnInterval = 0.15f;  // Time between spawns
-	private const float ObjectRestitution = 0.7f;  // Bounciness
+	private const float SpawnInterval = 0.075f;  // Time between spawns
+	private const float ObjectRestitution = 0.3f;  // Bounciness
 
 	// Debug draw toggle
 	private bool mPhysicsDebugDraw = true;
@@ -91,6 +92,10 @@ class FrameworkSandboxApp : Application
 		Console.WriteLine("=== Framework Sandbox ===");
 		Console.WriteLine("Demonstrating Sedulous Framework\n");
 
+		// Physics tuning for high body counts
+		FixedTimeStep = 1.0f / 30.0f;    // 30Hz physics (33ms budget per step)
+		MaxFixedStepsPerFrame = 3;        // Cap catch-up to prevent spiral of death
+
 		// Initialize render system first (before subsystems that depend on it)
 		InitializeRenderSystem();
 
@@ -100,6 +105,9 @@ class FrameworkSandboxApp : Application
 
 	protected override void OnContextStarted()
 	{
+		// Initialize profiler
+		SProfiler.Initialize();
+
 		// Create the main scene (subsystems are now initialized)
 		CreateMainScene();
 
@@ -112,6 +120,7 @@ class FrameworkSandboxApp : Application
 		Console.WriteLine("  Q/E: Zoom in/out");
 		Console.WriteLine("  Space: Toggle spawn");
 		Console.WriteLine("  F: Toggle physics debug draw");
+		Console.WriteLine("  P: Print profiler stats");
 		Console.WriteLine("  ESC: Exit\n");
 	}
 
@@ -455,6 +464,10 @@ class FrameworkSandboxApp : Application
 				physicsModule.DebugDrawEnabled = mPhysicsDebugDraw;
 		}
 
+		// Print profiler stats
+		if (keyboard.IsKeyPressed(.P))
+			PrintProfilerStats();
+
 		// Camera rotation
 		float rotSpeed = 0.02f;
 		if (keyboard.IsKeyDown(.A))
@@ -649,8 +662,32 @@ class FrameworkSandboxApp : Application
 		return true;
 	}
 
+	private void PrintProfilerStats()
+	{
+		let frame = SProfiler.GetCompletedFrame();
+		Console.WriteLine("\n=== Profiler Frame {} ===", frame.FrameNumber);
+		Console.WriteLine("Total Frame Time: {0:F2}ms", frame.FrameDurationMs);
+		Console.WriteLine("Samples: {}", frame.SampleCount);
+
+		if (frame.SampleCount > 0)
+		{
+			Console.WriteLine("\nBreakdown:");
+			for (let sample in frame.Samples)
+			{
+				let indent = scope String();
+				for (int i = 0; i < sample.Depth; i++)
+					indent.Append("  ");
+				Console.WriteLine("  {0}{1}: {2:F3}ms", indent, sample.Name, sample.DurationMs);
+			}
+		}
+		Console.WriteLine("");
+	}
+
 	protected override void OnShutdown()
 	{
+		// Shutdown profiler
+		Profiler.Shutdown();
+
 		Console.WriteLine("\n=== Shutting Down ===");
 
 		// Release mesh handles before render system shutdown

@@ -7,6 +7,7 @@ using Sedulous.Framework.Render;
 using Sedulous.Mathematics;
 using Sedulous.Physics;
 using Sedulous.Render;
+using Sedulous.Profiler;
 
 /// Component for entities with physics bodies.
 struct RigidBodyComponent
@@ -132,13 +133,22 @@ class PhysicsSceneModule : SceneModule
 			return;
 
 		// Sync kinematic bodies TO physics before stepping
-		SyncKinematicBodies(scene);
+		{
+			using (SProfiler.Begin("Physics.SyncKinematic"))
+				SyncKinematicBodies(scene);
+		}
 
 		// Step physics simulation at fixed timestep
-		mPhysicsWorld.Step(fixedDeltaTime, mCollisionSteps);
+		{
+			using (SProfiler.Begin("Physics.Step"))
+				mPhysicsWorld.Step(fixedDeltaTime, mCollisionSteps);
+		}
 
 		// Sync dynamic bodies FROM physics after stepping
-		SyncDynamicBodies(scene);
+		{
+			using (SProfiler.Begin("Physics.SyncDynamic"))
+				SyncDynamicBodies(scene);
+		}
 	}
 
 	public override void Update(Scene scene, float deltaTime)

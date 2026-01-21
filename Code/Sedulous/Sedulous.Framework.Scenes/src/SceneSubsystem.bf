@@ -3,6 +3,7 @@ namespace Sedulous.Framework.Scenes;
 using System;
 using System.Collections;
 using Sedulous.Framework.Core;
+using Sedulous.Profiler;
 
 /// Subsystem that manages scenes and notifies other subsystems of scene lifecycle events.
 /// Register this with Context to enable scene support.
@@ -40,12 +41,14 @@ public class SceneSubsystem : Subsystem
 
 	public override void FixedUpdate(float fixedDeltaTime)
 	{
-		mSceneManager.FixedUpdate(fixedDeltaTime);
+		using (SProfiler.Begin("Scene.FixedUpdate"))
+			mSceneManager.FixedUpdate(fixedDeltaTime);
 	}
 
 	public override void Update(float deltaTime)
 	{
-		mSceneManager.Update(deltaTime);
+		using (SProfiler.Begin("Scene.Update"))
+			mSceneManager.Update(deltaTime);
 	}
 
 	/// Creates a new scene and notifies ISceneAware subsystems.

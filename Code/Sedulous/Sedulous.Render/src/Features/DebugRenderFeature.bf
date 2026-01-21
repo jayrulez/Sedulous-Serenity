@@ -18,7 +18,7 @@ public enum DebugRenderMode
 /// Provides immediate-mode debug drawing API that integrates with the render graph.
 public class DebugRenderFeature : RenderFeatureBase
 {
-	private const int32 MAX_VERTICES = 65536;
+	private static int32 MAX_VERTICES => RenderConfig.MaxDebugVertices;
 
 	// Pipelines
 	private IRenderPipeline mLinePipelineDepth ~ delete _;

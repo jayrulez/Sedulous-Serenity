@@ -10,13 +10,11 @@ using Sedulous.Shaders;
 [CRepr]
 public struct GPUBoneTransforms
 {
-	public const int MaxBones = 256;
-
 	/// Bone matrices in model space.
-	public Matrix[MaxBones] BoneMatrices;
+	public Matrix[RenderConfig.MaxBonesPerMesh] BoneMatrices;
 
 	/// Size of the struct in bytes.
-	public static int Size => MaxBones * sizeof(Matrix);
+	public static int Size => RenderConfig.MaxBonesPerMesh * sizeof(Matrix);
 }
 
 /// Skinning parameters uniform buffer (must match skinning.comp.hlsl SkinningParams).

@@ -2,6 +2,7 @@ namespace Sedulous.Framework.Core;
 
 using System;
 using System.Collections;
+using Sedulous.Profiler;
 
 /// Central access point for all subsystems.
 /// Manages subsystem registration, lifecycle, and update ordering.
@@ -106,7 +107,11 @@ public class Context : IDisposable
 			return;
 
 		for (let subsystem in mSortedSubsystems)
-			subsystem.FixedUpdate(fixedDeltaTime);
+		{
+			let name = subsystem.GetType().GetName(.. scope .());
+			using (SProfiler.Begin(name))
+				subsystem.FixedUpdate(fixedDeltaTime);
+		}
 	}
 
 	/// Updates all subsystems.
@@ -116,7 +121,11 @@ public class Context : IDisposable
 			return;
 
 		for (let subsystem in mSortedSubsystems)
-			subsystem.Update(deltaTime);
+		{
+			let name = subsystem.GetType().GetName(.. scope .());
+			using (SProfiler.Begin(name))
+				subsystem.Update(deltaTime);
+		}
 	}
 
 	/// Calls PostUpdate on all subsystems.
