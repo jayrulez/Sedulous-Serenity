@@ -186,6 +186,23 @@ public class SceneManager : IDisposable
 		}
 	}
 
+	/// Calls PostUpdate on the active scene.
+	public void PostUpdate(float deltaTime)
+	{
+		if (mActiveScene != null && mActiveScene.State == .Active)
+			mActiveScene.PostUpdate(deltaTime);
+	}
+
+	/// Calls PostUpdate on all active scenes.
+	public void PostUpdateAll(float deltaTime)
+	{
+		for (let scene in mScenes)
+		{
+			if (scene.State == .Active)
+				scene.PostUpdate(deltaTime);
+		}
+	}
+
 	/// Checks if a scene with the given name exists.
 	public bool HasScene(StringView name)
 	{

@@ -157,7 +157,7 @@ class PhysicsSceneModule : SceneModule
 		// This method is kept for potential future per-frame work (e.g., interpolation).
 	}
 
-	public override void OnEndFrame(Scene scene)
+	public override void PostUpdate(Scene scene, float deltaTime)
 	{
 		if (!mDebugDrawEnabled || mPhysicsWorld == null || mScene == null)
 			return;

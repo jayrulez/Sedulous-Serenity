@@ -498,7 +498,7 @@ class FrameworkSandboxApp : Application
 		}
 
 		// Spawn objects when enabled
-		if (mSpawningEnabled)
+		if (mSpawningEnabled && mSpawnCount < 1200)
 		{
 			mSpawnTimer += mDeltaTime;
 			while (mSpawnTimer >= SpawnInterval)

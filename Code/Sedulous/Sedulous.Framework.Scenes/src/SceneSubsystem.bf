@@ -51,6 +51,12 @@ public class SceneSubsystem : Subsystem
 			mSceneManager.Update(deltaTime);
 	}
 
+	public override void PostUpdate(float deltaTime)
+	{
+		using (SProfiler.Begin("Scene.PostUpdate"))
+			mSceneManager.PostUpdate(deltaTime);
+	}
+
 	/// Creates a new scene and notifies ISceneAware subsystems.
 	public Scene CreateScene(StringView name)
 	{

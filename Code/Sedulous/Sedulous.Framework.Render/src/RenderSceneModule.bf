@@ -114,7 +114,7 @@ class RenderSceneModule : SceneModule
 		mScene = null;
 	}
 
-	public override void OnEndFrame(Scene scene)
+	public override void PostUpdate(Scene scene, float deltaTime)
 	{
 		if (mScene == null || mWorld == null)
 			return;

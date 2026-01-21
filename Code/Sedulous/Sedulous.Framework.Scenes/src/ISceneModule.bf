@@ -23,9 +23,13 @@ interface ISceneModule
 	/// This is where modules should process their components.
 	void Update(Scene scene, float deltaTime);
 
-	/// Called at the end of each frame, after transform hierarchy updates.
-	/// World matrices are valid at this point.
+	/// Called at the end of the update phase, before PostUpdate.
 	void OnEndFrame(Scene scene);
+
+	/// Called after transform hierarchy updates, when world matrices are valid.
+	/// Use this for syncing to render systems or other post-transform work.
+	/// This runs after ALL subsystems have completed their Update phase.
+	void PostUpdate(Scene scene, float deltaTime);
 
 	/// Called when an entity is about to be destroyed.
 	/// Modules should clean up any references to this entity.

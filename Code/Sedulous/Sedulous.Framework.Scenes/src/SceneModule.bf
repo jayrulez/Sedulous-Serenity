@@ -19,8 +19,11 @@ abstract class SceneModule : ISceneModule
 	/// Called during the main update phase.
 	public virtual void Update(Scene scene, float deltaTime) { }
 
-	/// Called at the end of each frame.
+	/// Called at the end of the update phase.
 	public virtual void OnEndFrame(Scene scene) { }
+
+	/// Called after transform hierarchy updates, when world matrices are valid.
+	public virtual void PostUpdate(Scene scene, float deltaTime) { }
 
 	/// Called when an entity is about to be destroyed.
 	public virtual void OnEntityDestroyed(Scene scene, EntityId entity) { }

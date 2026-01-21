@@ -511,7 +511,8 @@ public class Scene : IDisposable
 	}
 
 	/// Updates the scene for one frame.
-	/// Follows deterministic order: BeginFrame -> Update -> TransformUpdate -> EndFrame -> DeferredDestruction
+	/// Follows deterministic order: BeginFrame -> Update -> EndFrame
+	/// Call PostUpdate separately after all subsystems have completed their Update phase.
 	public void Update(float deltaTime)
 	{
 		if (mState != .Active)
@@ -527,16 +528,28 @@ public class Scene : IDisposable
 		for (let module in mModules)
 			module.Update(this, deltaTime);
 
-		// 3. Scene updates transform hierarchy (local -> world)
-		UpdateTransformHierarchy();
-
-		// 4. Modules.OnEndFrame
+		// 3. Modules.OnEndFrame
 		for (let module in mModules)
 			module.OnEndFrame(this);
+	}
+
+	/// Post-update phase called after all subsystems have completed their Update.
+	/// Updates transform hierarchy, calls module PostUpdate, and processes deferred destructions.
+	public void PostUpdate(float deltaTime)
+	{
+		if (mState != .Active)
+			return;
+
+		// 1. Scene updates transform hierarchy (local -> world)
+		UpdateTransformHierarchy();
+
+		// 2. Modules.PostUpdate - world matrices are now valid
+		for (let module in mModules)
+			module.PostUpdate(this, deltaTime);
 
 		mIsUpdating = false;
 
-		// 5. Process deferred entity destructions
+		// 3. Process deferred entity destructions
 		ProcessDeferredDestructions();
 	}
 
