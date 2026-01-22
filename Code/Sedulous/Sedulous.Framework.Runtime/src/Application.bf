@@ -410,6 +410,10 @@ abstract class Application
 
 	private void Frame(FrameContext frameContext)
 	{
+		// Skip rendering when window is minimized
+		if (mWindow.State == .Minimized)
+			return;
+
 		// Acquire next image (sync point - waits for fence)
 		if (mSwapChain.AcquireNextImage() case .Err)
 		{
