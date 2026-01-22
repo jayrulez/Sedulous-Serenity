@@ -21,9 +21,8 @@ public class FinalOutputFeature : RenderFeatureBase
 	private IBindGroupLayout mBlitBindGroupLayout ~ delete _;
 	private ISampler mLinearSampler ~ delete _;
 
-	// Bind group (recreated when scene color changes)
+	// Bind group - recreated each frame since scene color is a transient resource
 	private IBindGroup mBlitBindGroup ~ delete _;
-	private ITextureView mLastSceneColorView;
 
 	// Swapchain reference (set each frame)
 	private ISwapChain mSwapChain;
@@ -209,34 +208,30 @@ public class FinalOutputFeature : RenderFeatureBase
 			return;
 		}
 
-		// Create or update bind group if scene color view changed
-		if (sceneColorView != mLastSceneColorView)
+		// Always recreate bind group each frame since scene color is a transient resource.
+		// Caching by pointer is unsafe because transient resources are destroyed each frame,
+		// and memory reuse in release builds can cause stale pointer matches.
+		if (mBlitBindGroup != null)
 		{
-			// Release old bind group
-			if (mBlitBindGroup != null)
-			{
-				delete mBlitBindGroup;
-				mBlitBindGroup = null;
-			}
-
-			// Create new bind group with current scene color
-			BindGroupEntry[2] entries = .(
-				BindGroupEntry.Texture(0, sceneColorView),
-				BindGroupEntry.Sampler(0, mLinearSampler)
-			);
-
-			BindGroupDescriptor bgDesc = .()
-			{
-				Label = "Blit BindGroup",
-				Layout = mBlitBindGroupLayout,
-				Entries = entries
-			};
-
-			if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bg))
-				mBlitBindGroup = bg;
-
-			mLastSceneColorView = sceneColorView;
+			delete mBlitBindGroup;
+			mBlitBindGroup = null;
 		}
+
+		// Create new bind group with current scene color
+		BindGroupEntry[2] entries = .(
+			BindGroupEntry.Texture(0, sceneColorView),
+			BindGroupEntry.Sampler(0, mLinearSampler)
+		);
+
+		BindGroupDescriptor bgDesc = .()
+		{
+			Label = "Blit BindGroup",
+			Layout = mBlitBindGroupLayout,
+			Entries = entries
+		};
+
+		if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bg))
+			mBlitBindGroup = bg;
 
 		// Set viewport and scissor
 		encoder.SetViewport(0, 0, mSwapChain.Width, mSwapChain.Height, 0, 1);

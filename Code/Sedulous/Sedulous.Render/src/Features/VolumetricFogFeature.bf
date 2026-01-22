@@ -158,8 +158,8 @@ public class VolumetricFogFeature : RenderFeatureBase
 	private int32 FrameIndex => Renderer.RenderFrameContext?.FrameIndex ?? 0;
 
 	// Depth-only view for sampling (depth/stencil textures need aspect specified)
+	// Recreated each frame since depth texture is a transient resource
 	private ITextureView mDepthOnlyView ~ delete _;
-	private ITexture mLastDepthTexture;
 
 	// Settings
 	private VolumetricFogSettings mSettings = .Default;
@@ -271,11 +271,9 @@ public class VolumetricFogFeature : RenderFeatureBase
 		if (depthTexture == null)
 			return null;
 
-		// Reuse existing view if texture hasn't changed
-		if (depthTexture == mLastDepthTexture && mDepthOnlyView != null)
-			return mDepthOnlyView;
-
-		// Delete old view
+		// Always recreate depth-only view each frame since depth texture is a transient resource.
+		// Caching by pointer is unsafe because transient resources are destroyed each frame,
+		// and memory reuse in release builds can cause stale pointer matches.
 		if (mDepthOnlyView != null)
 		{
 			delete mDepthOnlyView;
@@ -295,7 +293,6 @@ public class VolumetricFogFeature : RenderFeatureBase
 		{
 		case .Ok(let view):
 			mDepthOnlyView = view;
-			mLastDepthTexture = depthTexture;
 			return view;
 		case .Err:
 			return null;

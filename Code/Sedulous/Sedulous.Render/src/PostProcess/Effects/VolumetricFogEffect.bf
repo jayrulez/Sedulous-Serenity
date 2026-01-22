@@ -35,14 +35,11 @@ public class VolumetricFogEffect : IPostProcessEffect
 	private IBuffer mParamsBuffer ~ delete _;
 	private ISampler mPointSampler ~ delete _;
 
-	// Per-frame bind group
+	// Per-frame bind group - recreated each frame since inputs are transient resources
 	private IBindGroup mBindGroup ~ delete _;
-	private ITextureView mLastInputView;
-	private ITextureView mLastDepthView;
 
-	// Depth-only view cache
+	// Depth-only view - recreated each frame since depth texture is transient
 	private ITextureView mDepthOnlyView ~ delete _;
-	private ITexture mLastDepthTexture;
 
 	private bool mEnabled = true;
 
@@ -245,9 +242,9 @@ public class VolumetricFogEffect : IPostProcessEffect
 		if (depthTexture == null)
 			return null;
 
-		if (depthTexture == mLastDepthTexture && mDepthOnlyView != null)
-			return mDepthOnlyView;
-
+		// Always recreate depth-only view each frame since depth texture is a transient resource.
+		// Caching by pointer is unsafe because transient resources are destroyed each frame,
+		// and memory reuse in release builds can cause stale pointer matches.
 		if (mDepthOnlyView != null)
 		{
 			delete mDepthOnlyView;
@@ -264,7 +261,6 @@ public class VolumetricFogEffect : IPostProcessEffect
 		{
 		case .Ok(let createdView):
 			mDepthOnlyView = createdView;
-			mLastDepthTexture = depthTexture;
 			return createdView;
 		case .Err:
 			return null;
@@ -281,38 +277,34 @@ public class VolumetricFogEffect : IPostProcessEffect
 		if (inputView == null || depthView == null || fogVolumeView == null)
 			return;
 
-		// Recreate bind group if resources changed
+		// Always recreate bind group each frame since input/depth are transient resources.
+		// Caching by pointer is unsafe because transient resources are destroyed each frame,
+		// and memory reuse in release builds can cause stale pointer matches.
 		let fogLinearSampler = mFogFeature.LinearSampler;
-		if (inputView != mLastInputView || depthView != mLastDepthView || mBindGroup == null)
+		if (mBindGroup != null)
 		{
-			if (mBindGroup != null)
-			{
-				delete mBindGroup;
-				mBindGroup = null;
-			}
+			delete mBindGroup;
+			mBindGroup = null;
+		}
 
-			BindGroupEntry[6] entries = .(
-				BindGroupEntry.Buffer(0, mParamsBuffer, 0, (uint64)FogApplyParams.Size),
-				BindGroupEntry.Texture(0, inputView),
-				BindGroupEntry.Texture(1, depthView),
-				BindGroupEntry.Texture(2, fogVolumeView),
-				BindGroupEntry.Sampler(0, mPointSampler),
-				BindGroupEntry.Sampler(1, fogLinearSampler)
-			);
+		BindGroupEntry[6] entries = .(
+			BindGroupEntry.Buffer(0, mParamsBuffer, 0, (uint64)FogApplyParams.Size),
+			BindGroupEntry.Texture(0, inputView),
+			BindGroupEntry.Texture(1, depthView),
+			BindGroupEntry.Texture(2, fogVolumeView),
+			BindGroupEntry.Sampler(0, mPointSampler),
+			BindGroupEntry.Sampler(1, fogLinearSampler)
+		);
 
-			BindGroupDescriptor bgDesc = .();
-			bgDesc.Label = "Fog Apply BindGroup";
-			bgDesc.Layout = mBindGroupLayout;
-			bgDesc.Entries = entries;
+		BindGroupDescriptor bgDesc = .();
+		bgDesc.Label = "Fog Apply BindGroup";
+		bgDesc.Layout = mBindGroupLayout;
+		bgDesc.Entries = entries;
 
-			switch (mDevice.CreateBindGroup(&bgDesc))
-			{
-			case .Ok(let bg): mBindGroup = bg;
-			case .Err: return;
-			}
-
-			mLastInputView = inputView;
-			mLastDepthView = depthView;
+		switch (mDevice.CreateBindGroup(&bgDesc))
+		{
+		case .Ok(let bg): mBindGroup = bg;
+		case .Err: return;
 		}
 
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0, 1);
