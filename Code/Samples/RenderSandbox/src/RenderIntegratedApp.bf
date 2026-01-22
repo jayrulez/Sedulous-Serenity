@@ -320,8 +320,7 @@ class RenderIntegratedApp : Application
 			proxy.Flags = .DefaultOpaque;
 		}
 
-		// Grid of cubes (commented out for shadow testing)
-		/*
+		// Grid of cubes
 		let gridSize = 3;
 		let spacing = 2.0f;
 		let offset = (gridSize - 1) * spacing * 0.5f;
@@ -348,8 +347,7 @@ class RenderIntegratedApp : Application
 				mCubeProxies.Add(cubeProxy);
 			}
 		}
-		*/
-
+		/*
 		// Single opaque cube at the center, sitting on the floor
 		{
 			let cubeProxy = mWorld.CreateMesh();
@@ -366,7 +364,7 @@ class RenderIntegratedApp : Application
 			}
 			mCubeProxies.Add(cubeProxy);
 		}
-
+		*/
 		// Transparent cube next to the opaque cube
 		{
 			let transparentProxy = mWorld.CreateMesh();
@@ -968,6 +966,7 @@ class RenderIntegratedApp : Application
 		if (mDepthFeature != null)
 		{
 			Console.WriteLine("Hi-Z Culling: {}", mDepthFeature.EnableHiZ ? "ON" : "OFF");
+			Console.WriteLine("Instancing: {} (active: {})", mDepthFeature.EnableInstancing ? "ON" : "OFF", mDepthFeature.InstancingActive ? "YES" : "NO");
 
 			// Print visibility stats
 			let visStats = mDepthFeature.Visibility.Stats;
@@ -977,6 +976,26 @@ class RenderIntegratedApp : Application
 			Console.WriteLine("Frustum Tests: {}", visStats.CullStats.TotalTests);
 			Console.WriteLine("Frustum Passed: {}", visStats.CullStats.VisibleCount);
 			Console.WriteLine("Frustum Culled: {}", visStats.CullStats.CulledCount);
+
+			// Print batcher stats
+			let batcher = mDepthFeature.Batcher;
+			Console.WriteLine("\n--- Batcher Stats ---");
+			Console.WriteLine("Draw Commands: {}", batcher.DrawCommands.Length);
+			Console.WriteLine("Opaque Batches: {}", batcher.OpaqueBatches.Length);
+			Console.WriteLine("Opaque Instance Groups: {}", batcher.OpaqueInstanceGroups.Length);
+			for (int i < batcher.OpaqueInstanceGroups.Length)
+			{
+				let group = batcher.OpaqueInstanceGroups[i];
+				Console.WriteLine("  Group {}: Instances={}, Start={}, CmdStart={}, Mesh={}",
+					i, group.InstanceCount, group.InstanceStart, group.CommandStart, group.GPUMesh.Index);
+			}
+			Console.WriteLine("Transparent Instance Groups: {}", batcher.TransparentInstanceGroups.Length);
+			for (int i < batcher.TransparentInstanceGroups.Length)
+			{
+				let group = batcher.TransparentInstanceGroups[i];
+				Console.WriteLine("  Group {}: Instances={}, Start={}, CmdStart={}, Mesh={}",
+					i, group.InstanceCount, group.InstanceStart, group.CommandStart, group.GPUMesh.Index);
+			}
 		}
 		Console.WriteLine("");
 	}

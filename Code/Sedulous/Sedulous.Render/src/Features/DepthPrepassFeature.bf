@@ -6,6 +6,7 @@ using Sedulous.RHI;
 using Sedulous.Mathematics;
 using Sedulous.Shaders;
 using Sedulous.Materials;
+using Sedulous.Profiler;
 
 /// Depth prepass render feature.
 /// Renders depth-only for all opaque geometry to enable:
@@ -270,57 +271,70 @@ public class DepthPrepassFeature : RenderFeatureBase
 
 	public override void AddPasses(RenderGraph graph, RenderView view, RenderWorld world)
 	{
-		// Create/get depth buffer
-		let depthDesc = TextureResourceDesc(view.Width, view.Height, Renderer.DepthFormat, .DepthStencil | .Sampled);
-
-		let depthHandle = graph.CreateTexture("SceneDepth", depthDesc);
-
-		// Perform CPU frustum culling
-		mCuller.SetFrustum(view.ViewProjectionMatrix);
-
-		mVisibility.Clear();
-		mVisibility.Resolve(world, view.ViewProjectionMatrix, view.CameraPosition);
-
-		// Batch draws by material/state
-		mBatcher.Clear();
-		mBatcher.Build(world, mVisibility);
-
-		// Capture frame index for consistent multi-buffering
-		let frameIndex = FrameIndex;
-
-		// Create/update bind group for current frame if needed
-		if (mDepthBindGroups[frameIndex] == null)
-			CreateDepthBindGroup(frameIndex);
-
-		// Upload object uniforms BEFORE the render pass
-		PrepareObjectUniforms(frameIndex);
-
-		// Upload instance data if instancing is active
-		if (InstancingActive && mInstanceBufferManager != null)
-			mInstanceBufferManager.UploadInstanceData(frameIndex, mBatcher);
-
-		// Add depth prepass
-		graph.AddGraphicsPass("DepthPrepass")
-			.WriteDepth(depthHandle)
-			.NeverCull()
-			.SetExecuteCallback(new (encoder) => {
-				ExecuteDepthPass(encoder, world, view, frameIndex);
-			});
-
-		// Add Hi-Z generation pass if enabled
-		if (mEnableHiZ && mHiZCuller.IsInitialized && mHiZCuller.GPUBuildAvailable)
+		using (SProfiler.Begin("DepthPrepass.AddPasses"))
 		{
-			// Hi-Z needs the depth buffer as input
-			// Capture graph and depth handle for use in callback
-			RenderGraph graphRef = graph;
-			RGResourceHandle depthRef = depthHandle;
+			// Create/get depth buffer
+			let depthDesc = TextureResourceDesc(view.Width, view.Height, Renderer.DepthFormat, .DepthStencil | .Sampled);
 
-			graph.AddComputePass("HiZGenerate")
-				.ReadTexture(depthHandle)
-				.SetComputeCallback(new [=](encoder) => {
-					let depthView = graphRef.GetTextureView(depthRef);
-					ExecuteHiZGeneration(encoder, depthView);
+			let depthHandle = graph.CreateTexture("SceneDepth", depthDesc);
+
+			// Perform CPU frustum culling
+			using (SProfiler.Begin("Visibility.Resolve"))
+			{
+				mCuller.SetFrustum(view.ViewProjectionMatrix);
+
+				mVisibility.Clear();
+				mVisibility.Resolve(world, view.ViewProjectionMatrix, view.CameraPosition);
+			}
+
+			// Batch draws by material/state
+			using (SProfiler.Begin("Batcher.Build"))
+			{
+				mBatcher.Clear();
+				mBatcher.Build(world, mVisibility);
+			}
+
+			// Capture frame index for consistent multi-buffering
+			let frameIndex = FrameIndex;
+
+			// Create/update bind group for current frame if needed
+			if (mDepthBindGroups[frameIndex] == null)
+				CreateDepthBindGroup(frameIndex);
+
+			// Upload object uniforms BEFORE the render pass
+			using (SProfiler.Begin("PrepareUniforms"))
+				PrepareObjectUniforms(frameIndex);
+
+			// Upload instance data if instancing is active
+			if (InstancingActive && mInstanceBufferManager != null)
+			{
+				using (SProfiler.Begin("UploadInstanceData"))
+					mInstanceBufferManager.UploadInstanceData(frameIndex, mBatcher);
+			}
+
+			// Add depth prepass
+			graph.AddGraphicsPass("DepthPrepass")
+				.WriteDepth(depthHandle)
+				.NeverCull()
+				.SetExecuteCallback(new (encoder) => {
+					ExecuteDepthPass(encoder, world, view, frameIndex);
 				});
+
+			// Add Hi-Z generation pass if enabled
+			if (mEnableHiZ && mHiZCuller.IsInitialized && mHiZCuller.GPUBuildAvailable)
+			{
+				// Hi-Z needs the depth buffer as input
+				// Capture graph and depth handle for use in callback
+				RenderGraph graphRef = graph;
+				RGResourceHandle depthRef = depthHandle;
+
+				graph.AddComputePass("HiZGenerate")
+					.ReadTexture(depthHandle)
+					.SetComputeCallback(new [=](encoder) => {
+						let depthView = graphRef.GetTextureView(depthRef);
+						ExecuteHiZGeneration(encoder, depthView);
+					});
+			}
 		}
 	}
 
@@ -421,9 +435,8 @@ public class DepthPrepassFeature : RenderFeatureBase
 
 	private void PrepareObjectUniforms(int32 frameIndex)
 	{
-		// Upload all object transforms to the uniform buffer BEFORE the render pass
+		// Upload object transforms to the uniform buffer BEFORE the render pass
 		// Use Map/Unmap to avoid command buffer creation
-		let commands = mBatcher.DrawCommands;
 		let skinnedCommands = mBatcher.SkinnedCommands;
 
 		// Use the current frame's buffer
@@ -435,41 +448,44 @@ public class DepthPrepassFeature : RenderFeatureBase
 		{
 			int32 objectIndex = 0;
 
-			// Static meshes
-			for (let batch in mBatcher.OpaqueBatches)
+			// Static meshes - SKIP if instancing is active (instance buffer has transforms)
+			if (!InstancingActive)
 			{
-				if (batch.CommandCount == 0)
-					continue;
-
-				for (int32 i = 0; i < batch.CommandCount; i++)
+				let commands = mBatcher.DrawCommands;
+				for (let batch in mBatcher.OpaqueBatches)
 				{
-					if (objectIndex >= MaxObjectsPerFrame)
-						break;
+					if (batch.CommandCount == 0)
+						continue;
 
-					let cmd = commands[batch.CommandStart + i];
-
-					// Create object uniforms with the object's world transform
-					ObjectUniforms objectUniforms = .()
+					for (int32 i = 0; i < batch.CommandCount; i++)
 					{
-						WorldMatrix = cmd.WorldMatrix,
-						PrevWorldMatrix = cmd.PrevWorldMatrix,
-						NormalMatrix = cmd.NormalMatrix,
-						ObjectID = (uint32)objectIndex,
-						MaterialID = 0,
-						_Padding = default
-					};
+						if (objectIndex >= MaxObjectsPerFrame)
+							break;
 
-					// Copy to mapped buffer at aligned offset
-					let offset = (uint64)(objectIndex * (int32)AlignedObjectUniformSize);
-					// Bounds check against actual buffer size
-					Runtime.Assert(offset + ObjectUniformSize <= buffer.Size, scope $"DepthPrepass object uniform write (offset {offset} + size {ObjectUniformSize}) exceeds buffer size ({buffer.Size})");
-					Internal.MemCpy((uint8*)bufferPtr + offset, &objectUniforms, ObjectUniformSize);
+						let cmd = commands[batch.CommandStart + i];
 
-					objectIndex++;
+						// Create object uniforms with the object's world transform
+						ObjectUniforms objectUniforms = .()
+						{
+							WorldMatrix = cmd.WorldMatrix,
+							PrevWorldMatrix = cmd.PrevWorldMatrix,
+							NormalMatrix = cmd.NormalMatrix,
+							ObjectID = (uint32)objectIndex,
+							MaterialID = 0,
+							_Padding = default
+						};
+
+						// Copy to mapped buffer at aligned offset
+						let offset = (uint64)(objectIndex * (int32)AlignedObjectUniformSize);
+						Runtime.Assert(offset + ObjectUniformSize <= buffer.Size, scope $"DepthPrepass object uniform write (offset {offset} + size {ObjectUniformSize}) exceeds buffer size ({buffer.Size})");
+						Internal.MemCpy((uint8*)bufferPtr + offset, &objectUniforms, ObjectUniformSize);
+
+						objectIndex++;
+					}
 				}
 			}
 
-			// Skinned meshes
+			// Skinned meshes - always need uniforms (not instanced)
 			for (let batch in mBatcher.SkinnedBatches)
 			{
 				if (batch.CommandCount == 0)
@@ -506,29 +522,35 @@ public class DepthPrepassFeature : RenderFeatureBase
 
 	private void ExecuteDepthPass(IRenderPassEncoder encoder, RenderWorld world, RenderView view, int32 frameIndex)
 	{
-		// Set viewport
-		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0.0f, 1.0f);
-		encoder.SetScissorRect(0, 0, view.Width, view.Height);
-
-		// Track object index for uniform buffer dynamic offsets
-		var objectIndex = (int32)0;
-
-		// Use instanced path if available and has instance groups
-		if (InstancingActive && mDepthInstancedPipeline != null && mBatcher.OpaqueInstanceGroups.Length > 0)
+		using (SProfiler.Begin("DepthPrepass.Execute"))
 		{
-			ExecuteInstancedDepthPass(encoder, frameIndex);
-			// Instanced path doesn't use uniform buffer for static meshes,
-			// but skinned uniforms are still uploaded after static in PrepareObjectUniforms
-			objectIndex = (int32)mBatcher.DrawCommands.Length;
-		}
-		else
-		{
-			// Fall back to non-instanced path
-			ExecuteNonInstancedDepthPass(encoder, frameIndex, ref objectIndex);
-		}
+			// Set viewport
+			encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0.0f, 1.0f);
+			encoder.SetScissorRect(0, 0, view.Width, view.Height);
 
-		// Render skinned meshes (always non-instanced)
-		RenderSkinnedMeshesDepth(encoder, world, frameIndex, ref objectIndex);
+			// Track object index for uniform buffer dynamic offsets
+			var objectIndex = (int32)0;
+
+			// Use instanced path if available and has instance groups
+			if (InstancingActive && mDepthInstancedPipeline != null && mBatcher.OpaqueInstanceGroups.Length > 0)
+			{
+				using (SProfiler.Begin("InstancedDraw"))
+					ExecuteInstancedDepthPass(encoder, frameIndex);
+				// Instanced path doesn't use uniform buffer for static meshes,
+				// skinned uniforms start at index 0 (we skipped static mesh uploads)
+				objectIndex = 0;
+			}
+			else
+			{
+				// Fall back to non-instanced path
+				using (SProfiler.Begin("NonInstancedDraw"))
+					ExecuteNonInstancedDepthPass(encoder, frameIndex, ref objectIndex);
+			}
+
+			// Render skinned meshes (always non-instanced)
+			using (SProfiler.Begin("SkinnedMeshes"))
+				RenderSkinnedMeshesDepth(encoder, world, frameIndex, ref objectIndex);
+		}
 	}
 
 	private void ExecuteInstancedDepthPass(IRenderPassEncoder encoder, int32 frameIndex)

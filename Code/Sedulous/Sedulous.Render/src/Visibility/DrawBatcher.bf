@@ -353,7 +353,11 @@ public class DrawBatcher
 		if (mDrawCommands.IsEmpty)
 			return;
 
-		int32 instanceStart = 0;  // Running instance index for instance buffer
+		// Track separate instance starts for opaque and transparent
+		// This matches how UploadInstanceData uploads: opaque first, then transparent
+		int32 opaqueInstanceStart = 0;
+		int32 transparentInstanceStart = 0;
+
 		int32 groupStart = 0;
 		GPUMeshHandle currentMesh = mDrawCommands[0].GPUMesh;
 		MaterialInstance currentMaterial = GetMaterial(mDrawCommands[0]);
@@ -389,6 +393,9 @@ public class DrawBatcher
 				{
 					int32 batchSize = Math.Min(remaining, RenderConfig.MaxInstancesPerDraw);
 
+					// Use the appropriate instance start based on transparency
+					int32 instanceStart = isCurrentTransparent ? transparentInstanceStart : opaqueInstanceStart;
+
 					let group = InstanceGroup()
 					{
 						GPUMesh = currentMesh,
@@ -400,11 +407,16 @@ public class DrawBatcher
 					};
 
 					if (isCurrentTransparent)
+					{
 						mTransparentInstanceGroups.Add(group);
+						transparentInstanceStart += batchSize;
+					}
 					else
+					{
 						mOpaqueInstanceGroups.Add(group);
+						opaqueInstanceStart += batchSize;
+					}
 
-					instanceStart += batchSize;
 					groupOffset += batchSize;
 					remaining -= batchSize;
 				}
@@ -420,10 +432,19 @@ public class DrawBatcher
 			}
 		}
 
+		// Transparent instances are uploaded AFTER opaque instances in the buffer,
+		// so offset all transparent InstanceStart values by the total opaque count
+		for (int32 i = 0; i < mTransparentInstanceGroups.Count; i++)
+		{
+			var group = mTransparentInstanceGroups[i];
+			group.InstanceStart += opaqueInstanceStart;
+			mTransparentInstanceGroups[i] = group;
+		}
+
 		// Update stats
 		mStats.OpaqueInstanceGroupCount = (int32)mOpaqueInstanceGroups.Count;
 		mStats.TransparentInstanceGroupCount = (int32)mTransparentInstanceGroups.Count;
-		mStats.TotalInstanceCount = instanceStart;
+		mStats.TotalInstanceCount = opaqueInstanceStart + transparentInstanceStart;
 	}
 
 	private void AddBatch(MaterialInstance material, int32 start, int32 count, bool isTransparent, bool isSkinned)

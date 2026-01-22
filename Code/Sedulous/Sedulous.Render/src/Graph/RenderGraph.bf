@@ -3,6 +3,7 @@ namespace Sedulous.Render;
 using System;
 using System.Collections;
 using Sedulous.RHI;
+using Sedulous.Profiler;
 
 /// Wrapper for ITexture pointer to enable use as dictionary key.
 /// Implements IHashable based on the pointer address.
@@ -305,15 +306,18 @@ public class RenderGraph : IDisposable
 			if (pass.IsCulled)
 				continue;
 
-			// Insert barriers for resources transitioning to this pass's usage
-			InsertBarriersForPass(pass, commandEncoder);
+			using (SProfiler.Begin(pass.Name))
+			{
+				// Insert barriers for resources transitioning to this pass's usage
+				InsertBarriersForPass(pass, commandEncoder);
 
-			// Execute the pass
-			if (ExecutePass(pass, commandEncoder) case .Err)
-				return .Err;
+				// Execute the pass
+				if (ExecutePass(pass, commandEncoder) case .Err)
+					return .Err;
 
-			// Update layout state for resources modified by this pass
-			UpdateLayoutsAfterPass(pass);
+				// Update layout state for resources modified by this pass
+				UpdateLayoutsAfterPass(pass);
+			}
 		}
 
 		// Transition present targets to Present layout for presentation

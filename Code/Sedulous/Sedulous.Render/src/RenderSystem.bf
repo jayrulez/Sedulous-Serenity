@@ -6,6 +6,7 @@ using Sedulous.RHI;
 using Sedulous.Shaders;
 using Sedulous.Materials;
 using Sedulous.Mathematics;
+using Sedulous.Profiler;
 
 /// Statistics for a single frame.
 public struct RenderStats
@@ -249,16 +250,19 @@ public class RenderSystem : IDisposable
 	/// Begins a new frame.
 	public void BeginFrame(float totalTime, float deltaTime)
 	{
-		if (!mInitialized)
-			return;
+		using (SProfiler.Begin("Render.BeginFrame"))
+		{
+			if (!mInitialized)
+				return;
 
-		mFrameNumber++;
-		mStats.Reset();
+			mFrameNumber++;
+			mStats.Reset();
 
-		// Begin frame on subsystems
-		mRenderFrameContext.BeginFrame(mFrameNumber, totalTime, deltaTime);
-		mRenderGraph.BeginFrame();
-		mTransientPool.BeginFrame(mRenderFrameContext.FrameIndex);
+			// Begin frame on subsystems
+			mRenderFrameContext.BeginFrame(mFrameNumber, totalTime, deltaTime);
+			mRenderGraph.BeginFrame();
+			mTransientPool.BeginFrame(mRenderFrameContext.FrameIndex);
+		}
 	}
 
 	/// Prepares camera for rendering.
@@ -283,78 +287,96 @@ public class RenderSystem : IDisposable
 	/// Builds the render graph for the current frame.
 	public Result<void> BuildRenderGraph(RenderView view)
 	{
-		if (!mInitialized || mActiveWorld == null)
-			return .Err;
-
-		// Sort features by dependencies if needed
-		if (!mFeaturesSorted)
+		using (SProfiler.Begin("Render.BuildGraph"))
 		{
-			SortFeatures();
-			mFeaturesSorted = true;
-		}
+			if (!mInitialized || mActiveWorld == null)
+				return .Err;
 
-		// Reset post-process output
-		mPostProcessOutput = .Invalid;
-
-		// Let each feature add its passes (except FinalOutput which we handle specially)
-		for (let feature in mSortedFeatures)
-		{
-			// Skip FinalOutput - we'll add it after post-processing
-			if (feature.Name == "FinalOutput")
-				continue;
-
-			feature.AddPasses(mRenderGraph, view, mActiveWorld);
-		}
-
-		// Add post-processing passes if any effects are enabled
-		if (mPostProcessStack != null && mPostProcessStack.HasEnabledEffects)
-		{
-			let sceneColorHandle = mRenderGraph.GetResource("SceneColor");
-			let depthHandle = mRenderGraph.GetResource("SceneDepth");
-
-			if (sceneColorHandle.IsValid && depthHandle.IsValid)
+			// Sort features by dependencies if needed
+			if (!mFeaturesSorted)
 			{
-				mPostProcessOutput = mPostProcessStack.AddPasses(
-					mRenderGraph, view, sceneColorHandle, depthHandle);
+				SortFeatures();
+				mFeaturesSorted = true;
 			}
-		}
 
-		// Now add FinalOutput pass
-		let finalOutputFeature = GetFeature("FinalOutput");
-		if (finalOutputFeature != null)
-		{
-			finalOutputFeature.AddPasses(mRenderGraph, view, mActiveWorld);
-		}
+			// Reset post-process output
+			mPostProcessOutput = .Invalid;
 
-		// Compile the graph
-		return mRenderGraph.Compile();
+			// Let each feature add its passes (except FinalOutput which we handle specially)
+			using (SProfiler.Begin("Features.AddPasses"))
+			{
+				for (let feature in mSortedFeatures)
+				{
+					// Skip FinalOutput - we'll add it after post-processing
+					if (feature.Name == "FinalOutput")
+						continue;
+
+					feature.AddPasses(mRenderGraph, view, mActiveWorld);
+				}
+			}
+
+			// Add post-processing passes if any effects are enabled
+			if (mPostProcessStack != null && mPostProcessStack.HasEnabledEffects)
+			{
+				using (SProfiler.Begin("PostProcess.AddPasses"))
+				{
+					let sceneColorHandle = mRenderGraph.GetResource("SceneColor");
+					let depthHandle = mRenderGraph.GetResource("SceneDepth");
+
+					if (sceneColorHandle.IsValid && depthHandle.IsValid)
+					{
+						mPostProcessOutput = mPostProcessStack.AddPasses(
+							mRenderGraph, view, sceneColorHandle, depthHandle);
+					}
+				}
+			}
+
+			// Now add FinalOutput pass
+			let finalOutputFeature = GetFeature("FinalOutput");
+			if (finalOutputFeature != null)
+			{
+				finalOutputFeature.AddPasses(mRenderGraph, view, mActiveWorld);
+			}
+
+			// Compile the graph
+			using (SProfiler.Begin("Graph.Compile"))
+				return mRenderGraph.Compile();
+		}
 	}
 
 	/// Executes the render graph.
 	public Result<void> Execute(ICommandEncoder commandEncoder)
 	{
-		if (!mInitialized)
-			return .Err;
+		using (SProfiler.Begin("Render.Execute"))
+		{
+			if (!mInitialized)
+				return .Err;
 
-		// Upload scene uniforms
-		mRenderFrameContext.UploadSceneUniforms();
+			// Upload scene uniforms
+			using (SProfiler.Begin("UploadUniforms"))
+				mRenderFrameContext.UploadSceneUniforms();
 
-		// Execute the render graph
-		return mRenderGraph.Execute(commandEncoder);
+			// Execute the render graph
+			using (SProfiler.Begin("Graph.Execute"))
+				return mRenderGraph.Execute(commandEncoder);
+		}
 	}
 
 	/// Ends the current frame.
 	public void EndFrame()
 	{
-		if (!mInitialized)
-			return;
+		using (SProfiler.Begin("Render.EndFrame"))
+		{
+			if (!mInitialized)
+				return;
 
-		mRenderFrameContext.EndFrame();
-		mRenderGraph.EndFrame();
-		mTransientPool.EndFrame();
+			mRenderFrameContext.EndFrame();
+			mRenderGraph.EndFrame();
+			mTransientPool.EndFrame();
 
-		// Process deferred resource deletions
-		mResourceManager.ProcessDeletions(mFrameNumber);
+			// Process deferred resource deletions
+			mResourceManager.ProcessDeletions(mFrameNumber);
+		}
 	}
 
 	/// Shuts down the render system.

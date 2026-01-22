@@ -6,6 +6,7 @@ using Sedulous.RHI;
 using Sedulous.Mathematics;
 using Sedulous.Shaders;
 using Sedulous.Materials;
+using Sedulous.Profiler;
 
 /// Per-object uniform data matching forward.vert.hlsl ObjectUniforms (b1, space0).
 [CRepr]
@@ -707,58 +708,63 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 	public override void AddPasses(RenderGraph graph, RenderView view, RenderWorld world)
 	{
-		// Get depth prepass feature for visibility data
-		let depthFeature = Renderer.GetFeature<DepthPrepassFeature>();
-		if (depthFeature == null)
-			return;
+		using (SProfiler.Begin("ForwardOpaque.AddPasses"))
+		{
+			// Get depth prepass feature for visibility data
+			let depthFeature = Renderer.GetFeature<DepthPrepassFeature>();
+			if (depthFeature == null)
+				return;
 
-		// Get existing depth buffer
-		let depthHandle = graph.GetResource("SceneDepth");
-		if (!depthHandle.IsValid)
-			return;
+			// Get existing depth buffer
+			let depthHandle = graph.GetResource("SceneDepth");
+			if (!depthHandle.IsValid)
+				return;
 
-		// Create HDR color buffer
-		let colorDesc = TextureResourceDesc(view.Width, view.Height, .RGBA16Float, .RenderTarget | .Sampled);
+			// Create HDR color buffer
+			let colorDesc = TextureResourceDesc(view.Width, view.Height, .RGBA16Float, .RenderTarget | .Sampled);
 
-		let colorHandle = graph.CreateTexture("SceneColor", colorDesc);
+			let colorHandle = graph.CreateTexture("SceneColor", colorDesc);
 
-		// Capture frame index for consistent multi-buffering
-		let frameIndex = FrameIndex;
+			// Capture frame index for consistent multi-buffering
+			let frameIndex = FrameIndex;
 
-		// Update lighting
-		UpdateLighting(world, depthFeature.Visibility, view, frameIndex);
+			// Update lighting
+			using (SProfiler.Begin("UpdateLighting"))
+				UpdateLighting(world, depthFeature.Visibility, view, frameIndex);
 
-		// Add shadow passes and get shadow map handle for automatic barrier
-		RGResourceHandle shadowMapHandle = .Invalid;
-		AddShadowPasses(graph, world, depthFeature.Visibility, view, frameIndex, out shadowMapHandle);
+			// Add shadow passes and get shadow map handle for automatic barrier
+			RGResourceHandle shadowMapHandle = .Invalid;
+			using (SProfiler.Begin("AddShadowPasses"))
+				AddShadowPasses(graph, world, depthFeature.Visibility, view, frameIndex, out shadowMapHandle);
 
-		// Create/update scene bind group for current frame (needs to be done each frame for frame-specific resources)
-		CreateSceneBindGroup(frameIndex);
+			// Create/update scene bind group for current frame (needs to be done each frame for frame-specific resources)
+			CreateSceneBindGroup(frameIndex);
 
-		// Upload object uniforms BEFORE the render pass
-		PrepareObjectUniforms(depthFeature, frameIndex);
+			// Upload object uniforms BEFORE the render pass
+			using (SProfiler.Begin("PrepareObjectUniforms"))
+				PrepareObjectUniforms(depthFeature, frameIndex);
 
-		// Add forward opaque pass
-		// ReadTexture on shadow map triggers automatic barrier: DepthStencil -> ShaderReadOnly
-		var passBuilder = graph.AddGraphicsPass("ForwardOpaque")
-			.WriteColor(colorHandle, .Clear, .Store, .(0.0f, 0.0f, 0.0f, 1.0f))
-			.ReadDepth(depthHandle)
-			.NeverCull();
+			// Add forward opaque pass
+			// ReadTexture on shadow map triggers automatic barrier: DepthStencil -> ShaderReadOnly
+			var passBuilder = graph.AddGraphicsPass("ForwardOpaque")
+				.WriteColor(colorHandle, .Clear, .Store, .(0.0f, 0.0f, 0.0f, 1.0f))
+				.ReadDepth(depthHandle)
+				.NeverCull();
 
-		// Add shadow map as read dependency if available (triggers automatic barrier)
-		if (shadowMapHandle.IsValid)
-			passBuilder.ReadTexture(shadowMapHandle);
+			// Add shadow map as read dependency if available (triggers automatic barrier)
+			if (shadowMapHandle.IsValid)
+				passBuilder.ReadTexture(shadowMapHandle);
 
-		passBuilder.SetExecuteCallback(new (encoder) => {
-			ExecuteForwardPass(encoder, world, view, depthFeature, frameIndex);
-		});
+			passBuilder.SetExecuteCallback(new (encoder) => {
+				ExecuteForwardPass(encoder, world, view, depthFeature, frameIndex);
+			});
+		}
 	}
 
 	private void PrepareObjectUniforms(DepthPrepassFeature depthFeature, int32 frameIndex)
 	{
-		// Upload all object transforms to the uniform buffer BEFORE the render pass
+		// Upload object transforms to the uniform buffer BEFORE the render pass
 		// Use Map/Unmap to avoid command buffer creation
-		let commands = depthFeature.Batcher.DrawCommands;
 		let skinnedCommands = depthFeature.Batcher.SkinnedCommands;
 
 		// Use the current frame's buffer
@@ -770,41 +776,44 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		{
 			int32 objectIndex = 0;
 
-			// Static meshes
-			for (let batch in depthFeature.Batcher.OpaqueBatches)
+			// Static meshes - SKIP if instancing is active (instance buffer has transforms)
+			if (!depthFeature.InstancingActive)
 			{
-				if (batch.CommandCount == 0)
-					continue;
-
-				for (int32 i = 0; i < batch.CommandCount; i++)
+				let commands = depthFeature.Batcher.DrawCommands;
+				for (let batch in depthFeature.Batcher.OpaqueBatches)
 				{
-					if (objectIndex >= RenderConfig.MaxOpaqueObjectsPerFrame)
-						break;
+					if (batch.CommandCount == 0)
+						continue;
 
-					let cmd = commands[batch.CommandStart + i];
-
-					// Build object uniforms from draw command
-					ObjectUniforms objUniforms = .()
+					for (int32 i = 0; i < batch.CommandCount; i++)
 					{
-						WorldMatrix = cmd.WorldMatrix,
-						PrevWorldMatrix = cmd.PrevWorldMatrix,
-						NormalMatrix = cmd.NormalMatrix,
-						ObjectID = (uint32)objectIndex,
-						MaterialID = 0,
-						_Padding = .(0, 0)
-					};
+						if (objectIndex >= RenderConfig.MaxOpaqueObjectsPerFrame)
+							break;
 
-					// Copy to mapped buffer at aligned offset
-					let bufferOffset = (uint64)objectIndex * AlignedObjectUniformSize;
-					// Bounds check against actual buffer size
-					Runtime.Assert(bufferOffset + ObjectUniforms.Size <= buffer.Size, scope $"Object uniform write (offset {bufferOffset} + size {ObjectUniforms.Size}) exceeds buffer size ({buffer.Size})");
-					Internal.MemCpy((uint8*)bufferPtr + bufferOffset, &objUniforms, ObjectUniforms.Size);
+						let cmd = commands[batch.CommandStart + i];
 
-					objectIndex++;
+						// Build object uniforms from draw command
+						ObjectUniforms objUniforms = .()
+						{
+							WorldMatrix = cmd.WorldMatrix,
+							PrevWorldMatrix = cmd.PrevWorldMatrix,
+							NormalMatrix = cmd.NormalMatrix,
+							ObjectID = (uint32)objectIndex,
+							MaterialID = 0,
+							_Padding = .(0, 0)
+						};
+
+						// Copy to mapped buffer at aligned offset
+						let bufferOffset = (uint64)objectIndex * AlignedObjectUniformSize;
+						Runtime.Assert(bufferOffset + ObjectUniforms.Size <= buffer.Size, scope $"Object uniform write (offset {bufferOffset} + size {ObjectUniforms.Size}) exceeds buffer size ({buffer.Size})");
+						Internal.MemCpy((uint8*)bufferPtr + bufferOffset, &objUniforms, ObjectUniforms.Size);
+
+						objectIndex++;
+					}
 				}
 			}
 
-			// Skinned meshes
+			// Skinned meshes - always need uniforms (not instanced)
 			for (let batch in depthFeature.Batcher.SkinnedBatches)
 			{
 				if (batch.CommandCount == 0)
@@ -1228,33 +1237,39 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 	private void ExecuteForwardPass(IRenderPassEncoder encoder, RenderWorld world, RenderView view, DepthPrepassFeature depthFeature, int32 frameIndex)
 	{
-		// Set viewport
-		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0.0f, 1.0f);
-		encoder.SetScissorRect(0, 0, view.Width, view.Height);
-
-		// Track object index for uniform buffer dynamic offsets
-		var objectIndex = (int32)0;
-
-		// Track current bound material to minimize rebinds
-		MaterialInstance currentMaterial = null;
-
-		// Use instanced path if available and has instance groups
-		let batcher = depthFeature.Batcher;
-		if (mInstancingEnabled && depthFeature.InstancingActive && mForwardInstancedPipeline != null && batcher.OpaqueInstanceGroups.Length > 0)
+		using (SProfiler.Begin("ForwardOpaque.Execute"))
 		{
-			ExecuteInstancedForwardPass(encoder, world, depthFeature, frameIndex, ref currentMaterial);
-			// Instanced path doesn't use uniform buffer for static meshes,
-			// but skinned uniforms are still uploaded after static in PrepareObjectUniforms
-			objectIndex = (int32)batcher.DrawCommands.Length;
-		}
-		else
-		{
-			// Fall back to non-instanced path
-			ExecuteNonInstancedForwardPass(encoder, world, depthFeature, frameIndex, ref objectIndex, ref currentMaterial);
-		}
+			// Set viewport
+			encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0.0f, 1.0f);
+			encoder.SetScissorRect(0, 0, view.Width, view.Height);
 
-		// Render skinned meshes (always non-instanced)
-		RenderSkinnedMeshes(encoder, world, view, depthFeature, frameIndex, ref objectIndex, ref currentMaterial);
+			// Track object index for uniform buffer dynamic offsets
+			var objectIndex = (int32)0;
+
+			// Track current bound material to minimize rebinds
+			MaterialInstance currentMaterial = null;
+
+			// Use instanced path if available and has instance groups
+			let batcher = depthFeature.Batcher;
+			if (mInstancingEnabled && depthFeature.InstancingActive && mForwardInstancedPipeline != null && batcher.OpaqueInstanceGroups.Length > 0)
+			{
+				using (SProfiler.Begin("InstancedDraw"))
+					ExecuteInstancedForwardPass(encoder, world, depthFeature, frameIndex, ref currentMaterial);
+				// Instanced path doesn't use uniform buffer for static meshes,
+				// skinned uniforms start at index 0 (we skipped static mesh uploads)
+				objectIndex = 0;
+			}
+			else
+			{
+				// Fall back to non-instanced path
+				using (SProfiler.Begin("NonInstancedDraw"))
+					ExecuteNonInstancedForwardPass(encoder, world, depthFeature, frameIndex, ref objectIndex, ref currentMaterial);
+			}
+
+			// Render skinned meshes (always non-instanced)
+			using (SProfiler.Begin("SkinnedMeshes"))
+				RenderSkinnedMeshes(encoder, world, view, depthFeature, frameIndex, ref objectIndex, ref currentMaterial);
+		}
 	}
 
 	private void ExecuteInstancedForwardPass(IRenderPassEncoder encoder, RenderWorld world, DepthPrepassFeature depthFeature, int32 frameIndex, ref MaterialInstance currentMaterial)
