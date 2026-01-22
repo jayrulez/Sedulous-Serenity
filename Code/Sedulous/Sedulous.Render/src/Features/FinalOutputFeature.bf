@@ -158,6 +158,10 @@ public class FinalOutputFeature : RenderFeatureBase
 		if (mSwapChain == null)
 			return;
 
+		// Skip if swapchain has no valid texture (e.g., during resize or minimized)
+		if (mSwapChain.CurrentTexture == null || mSwapChain.CurrentTextureView == null)
+			return;
+
 		// Import swapchain as render target
 		let swapchainHandle = graph.ImportTexture("Swapchain", mSwapChain.CurrentTexture, mSwapChain.CurrentTextureView);
 
@@ -175,7 +179,7 @@ public class FinalOutputFeature : RenderFeatureBase
 
 			graph.AddGraphicsPass("FinalOutput")
 				.ReadTexture(sourceHandle)
-				.WriteColor(swapchainHandle, .Clear, .Store, .(0.0f, 0.0f, 0.0f, 1.0f))
+				.WriteColor(swapchainHandle, .Clear, .Store, .(1.0f, 0.0f, 1.0f, 1.0f))
 				.NeverCull()
 				.SetExecuteCallback(new [=](encoder) => {
 					// Get texture view INSIDE the callback - after the graph has allocated resources

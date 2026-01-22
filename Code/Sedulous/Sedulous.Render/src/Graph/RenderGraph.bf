@@ -326,13 +326,14 @@ public class RenderGraph : IDisposable
 		return .Ok;
 	}
 
-	/// Transitions all marked present targets to Present layout.
+	/// Ensures all marked present targets are in Present layout.
 	///
-	/// This explicitly transitions to Present layout using Undefined as source layout.
-	/// Using Undefined is safe because:
-	/// 1. Vulkan allows Undefined as oldLayout (it discards content but that's fine since
-	///    we just rendered to it - the render pass finalLayout should have handled the transition)
-	/// 2. It works as a fallback if the render pass didn't properly transition the layout
+	/// The Vulkan render pass already transitions swapchain attachments to Present via
+	/// finalLayout, so this is typically a no-op. Only issues a barrier if the tracked
+	/// layout indicates the transition hasn't happened yet.
+	///
+	/// IMPORTANT: Never use Undefined as the source layout here - that tells the driver
+	/// it can discard the image contents, which some drivers (AMD, Intel) will do.
 	private void TransitionPresentTargets(ICommandEncoder commandEncoder)
 	{
 		for (let handle in mPresentTargets)
@@ -341,10 +342,13 @@ public class RenderGraph : IDisposable
 			{
 				if (resource.Type == .Texture && resource.Texture != null)
 				{
-					// Always use Undefined as source - this is safe as a fallback
-					// The render pass should have already transitioned to Present via finalLayout,
-					// but if something went wrong, this ensures we're in the right layout
-					commandEncoder.TextureBarrier(resource.Texture, .Undefined, .Present);
+					let currentLayout = GetTextureLayout(resource.Texture);
+					if (currentLayout != .Present)
+					{
+						// Only issue barrier if not already in Present layout
+						commandEncoder.TextureBarrier(resource.Texture, ToTextureLayout(currentLayout), .Present);
+						SetTextureLayout(resource.Texture, .Present);
+					}
 				}
 			}
 		}
