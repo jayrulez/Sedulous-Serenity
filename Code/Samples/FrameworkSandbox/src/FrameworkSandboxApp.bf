@@ -37,6 +37,8 @@ class FrameworkSandboxApp : Application
 	// Render features
 	private DepthPrepassFeature mDepthFeature;
 	private ForwardOpaqueFeature mForwardFeature;
+	private ForwardTransparentFeature mTransparentFeature;
+	private ParticleFeature mParticleFeature;
 	private SkyFeature mSkyFeature;
 	private DebugRenderFeature mDebugFeature;
 	private FinalOutputFeature mFinalOutputFeature;
@@ -56,6 +58,8 @@ class FrameworkSandboxApp : Application
 	private EntityId mSunEntity;
 	private List<EntityId> mDynamicEntities = new .() ~ delete _;
 	private EntityId[4] mWallEntities;
+	private EntityId mFireEntity;
+	private EntityId mSmokeEntity;
 
 	// Camera control
 	private float mCameraYaw = 0.5f;
@@ -157,6 +161,16 @@ class FrameworkSandboxApp : Application
 		mForwardFeature = new ForwardOpaqueFeature();
 		if (mRenderSystem.RegisterFeature(mForwardFeature) case .Ok)
 			Console.WriteLine("Registered: ForwardOpaqueFeature");
+
+		// Forward transparent
+		mTransparentFeature = new ForwardTransparentFeature();
+		if (mRenderSystem.RegisterFeature(mTransparentFeature) case .Ok)
+			Console.WriteLine("Registered: ForwardTransparentFeature");
+
+		// Particles
+		mParticleFeature = new ParticleFeature();
+		if (mRenderSystem.RegisterFeature(mParticleFeature) case .Ok)
+			Console.WriteLine("Registered: ParticleFeature");
 
 		// Sky
 		mSkyFeature = new SkyFeature();
@@ -413,6 +427,74 @@ class FrameworkSandboxApp : Application
 			renderModule.CreateDirectionalLight(mSunEntity, .(1.0f, 0.98f, 0.95f), 2.0f);
 		}
 		Console.WriteLine("  Created sun light entity");
+
+		// Create fire particle emitter
+		mFireEntity = mMainScene.CreateEntity();
+		{
+			var transform = mMainScene.GetTransform(mFireEntity);
+			transform.Position = .(3.0f, 0.0f, -2.0f);
+			mMainScene.SetTransform(mFireEntity, transform);
+
+			let handle = renderModule.CreateCPUParticleEmitter(mFireEntity, 2000);
+			if (handle.IsValid)
+			{
+				if (let proxy = renderModule.GetParticleEmitterProxy(mFireEntity))
+				{
+					proxy.SpawnRate = 200.0f;
+					proxy.ParticleLifetime = 1.2f;
+					proxy.BlendMode = .Additive;
+					proxy.StartColor = .(1.0f, 0.6f, 0.1f, 1.0f);   // Bright orange
+					proxy.EndColor = .(0.8f, 0.1f, 0.0f, 0.0f);     // Dark red, faded
+					proxy.StartSize = .(0.15f, 0.15f);
+					proxy.EndSize = .(0.05f, 0.05f);
+					proxy.InitialVelocity = .(0.0f, 2.0f, 0.0f);
+					proxy.VelocityRandomness = .(0.5f, 0.3f, 0.5f);
+					proxy.GravityMultiplier = -0.3f;  // Negative = buoyant
+					proxy.Drag = 1.0f;
+					proxy.SortParticles = false;
+					proxy.IsEnabled = true;
+					proxy.IsEmitting = true;
+
+					if (proxy.CPUEmitter != null)
+						proxy.CPUEmitter.Shape = EmissionShape.Cone(0.3f, 0.1f);
+				}
+			}
+		}
+		Console.WriteLine("  Created fire particle emitter");
+
+		// Create smoke particle emitter (above the fire)
+		mSmokeEntity = mMainScene.CreateEntity();
+		{
+			var transform = mMainScene.GetTransform(mSmokeEntity);
+			transform.Position = .(3.0f, 0.5f, -2.0f);
+			mMainScene.SetTransform(mSmokeEntity, transform);
+
+			let handle = renderModule.CreateCPUParticleEmitter(mSmokeEntity, 1000);
+			if (handle.IsValid)
+			{
+				if (let proxy = renderModule.GetParticleEmitterProxy(mSmokeEntity))
+				{
+					proxy.SpawnRate = 40.0f;
+					proxy.ParticleLifetime = 3.5f;
+					proxy.BlendMode = .Alpha;
+					proxy.StartColor = .(0.4f, 0.4f, 0.4f, 0.6f);   // Gray smoke
+					proxy.EndColor = .(0.2f, 0.2f, 0.2f, 0.0f);     // Faded
+					proxy.StartSize = .(0.1f, 0.1f);
+					proxy.EndSize = .(0.6f, 0.6f);
+					proxy.InitialVelocity = .(0.0f, 1.2f, 0.0f);
+					proxy.VelocityRandomness = .(0.4f, 0.2f, 0.4f);
+					proxy.GravityMultiplier = -0.1f;  // Slightly buoyant
+					proxy.Drag = 0.8f;
+					proxy.SortParticles = true;
+					proxy.IsEnabled = true;
+					proxy.IsEmitting = true;
+
+					if (proxy.CPUEmitter != null)
+						proxy.CPUEmitter.Shape = EmissionShape.Cone(0.5f, 0.15f);
+				}
+			}
+		}
+		Console.WriteLine("  Created smoke particle emitter");
 
 		// Set world ambient
 		if (let world = renderModule.World)

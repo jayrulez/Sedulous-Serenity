@@ -59,6 +59,9 @@ public struct ParticleEmitterProxy
 	/// Previous frame position (for motion vectors).
 	public Vector3 PrevPosition;
 
+	/// Simulation backend (CPU or GPU).
+	public ParticleSimulationBackend Backend;
+
 	/// Simulation space.
 	public ParticleSpace SimulationSpace;
 
@@ -67,6 +70,9 @@ public struct ParticleEmitterProxy
 
 	/// Render mode.
 	public ParticleRenderMode RenderMode;
+
+	/// CPU emitter simulation state (only used when Backend == CPU).
+	public CPUParticleEmitter CPUEmitter;
 
 	/// Handle to the GPU particle buffer.
 	public IBuffer ParticleBuffer;
@@ -116,6 +122,10 @@ public struct ParticleEmitterProxy
 	/// Drag coefficient.
 	public float Drag;
 
+	/// Soft particle fade distance (0 = disabled).
+	/// When > 0, particles fade out near opaque geometry.
+	public float SoftParticleDistance;
+
 	/// Stretch factor for stretched billboards.
 	public float StretchFactor;
 
@@ -160,9 +170,11 @@ public struct ParticleEmitterProxy
 		emitter.Rotation = .Identity;
 		emitter.Scale = .One;
 		emitter.PrevPosition = .Zero;
+		emitter.Backend = .GPU;
 		emitter.SimulationSpace = .World;
 		emitter.BlendMode = .Alpha;
 		emitter.RenderMode = .Billboard;
+		emitter.CPUEmitter = null;
 		emitter.MaxParticles = 1000;
 		emitter.SpawnRate = 100.0f;
 		emitter.ParticleLifetime = 2.0f;
@@ -174,6 +186,7 @@ public struct ParticleEmitterProxy
 		emitter.VelocityRandomness = .(0.5f, 0.5f, 0.5f);
 		emitter.GravityMultiplier = 0.0f;
 		emitter.Drag = 0.0f;
+		emitter.SoftParticleDistance = 0.0f;
 		emitter.StretchFactor = 1.0f;
 		emitter.SortParticles = true;
 		emitter.IsEnabled = true;
@@ -189,9 +202,11 @@ public struct ParticleEmitterProxy
 		Rotation = .Identity;
 		Scale = .One;
 		PrevPosition = .Zero;
+		Backend = .GPU;
 		SimulationSpace = .World;
 		BlendMode = .Alpha;
 		RenderMode = .Billboard;
+		CPUEmitter = null;
 		ParticleBuffer = null;
 		IndirectBuffer = null;
 		ParticleTexture = null;
@@ -208,6 +223,7 @@ public struct ParticleEmitterProxy
 		VelocityRandomness = .Zero;
 		GravityMultiplier = 1.0f;
 		Drag = 0.0f;
+		SoftParticleDistance = 0.0f;
 		StretchFactor = 1.0f;
 		SortParticles = false;
 		IsEnabled = false;

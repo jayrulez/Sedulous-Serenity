@@ -57,6 +57,7 @@ public class RenderSubsystem : Subsystem, ISceneAware
 		// Clean up all render worlds
 		for (let (scene, world) in mSceneWorlds)
 		{
+			world.Dispose();
 			delete world;
 		}
 		mSceneWorlds.Clear();
@@ -96,6 +97,7 @@ public class RenderSubsystem : Subsystem, ISceneAware
 		if (mSceneWorlds.TryGetValue(scene, let world))
 		{
 			mSceneWorlds.Remove(scene);
+			world.Dispose();
 			delete world;
 		}
 	}

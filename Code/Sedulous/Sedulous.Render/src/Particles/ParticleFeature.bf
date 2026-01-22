@@ -1,0 +1,998 @@
+namespace Sedulous.Render;
+
+using System;
+using System.Collections;
+using Sedulous.RHI;
+using Sedulous.Mathematics;
+using Sedulous.Shaders;
+
+/// Unified particle render feature.
+/// Supports both GPU compute and CPU simulation backends.
+public class ParticleFeature : RenderFeatureBase
+{
+	// Compute pipelines (GPU backend)
+	private IComputePipeline mSpawnPipeline ~ delete _;
+	private IComputePipeline mUpdatePipeline ~ delete _;
+
+	// GPU render pipelines (one per blend mode)
+	private IRenderPipeline mGPURenderPipelineAlpha ~ delete _;
+	private IRenderPipeline mGPURenderPipelineAdditive ~ delete _;
+	private IRenderPipeline mGPURenderPipelinePremultiplied ~ delete _;
+
+	// CPU render pipelines (one per blend mode, different vertex input)
+	private IRenderPipeline mCPURenderPipelineAlpha ~ delete _;
+	private IRenderPipeline mCPURenderPipelineAdditive ~ delete _;
+	private IRenderPipeline mCPURenderPipelinePremultiplied ~ delete _;
+
+	// Bind groups
+	private IBindGroupLayout mComputeBindGroupLayout ~ delete _;
+	private IBindGroupLayout mGPURenderBindGroupLayout ~ delete _;
+	private IBindGroupLayout mCPURenderBindGroupLayout ~ delete _;
+
+	// Default particle resources
+	private ITexture mDefaultParticleTexture ~ delete _;
+	private ITextureView mDefaultParticleTextureView ~ delete _;
+	private ISampler mDefaultSampler ~ delete _;
+
+	// Per-emitter GPU resources
+	private Dictionary<ParticleEmitterProxyHandle, GPUParticleSystem> mGPUParticleSystems = new .() ~ DeleteDictionaryAndValues!(_);
+
+	// Per-frame active emitters
+	private List<ParticleEmitterProxyHandle> mActiveGPUEmitters = new .() ~ delete _;
+	private List<ParticleEmitterProxyHandle> mActiveCPUEmitters = new .() ~ delete _;
+
+	// Per-frame view dimensions
+	private uint32 mViewWidth;
+	private uint32 mViewHeight;
+
+	// Per-frame CPU emitter bind groups (per-emitter, per-frame)
+	private Dictionary<ParticleEmitterProxyHandle, IBindGroup>[RenderConfig.FrameBufferCount] mCPURenderBindGroups;
+
+	private void InitCPUBindGroupDicts()
+	{
+		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
+			mCPURenderBindGroups[i] = new .();
+	}
+
+	private void CleanupCPUBindGroupDicts()
+	{
+		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
+		{
+			if (mCPURenderBindGroups[i] != null)
+			{
+				DeleteDictionaryAndValues!(mCPURenderBindGroups[i]);
+				mCPURenderBindGroups[i] = null;
+			}
+		}
+	}
+
+	/// Feature name.
+	public override StringView Name => "Particles";
+
+	/// Particles render after transparent.
+	public override void GetDependencies(List<StringView> outDependencies)
+	{
+		outDependencies.Add("ForwardTransparent");
+	}
+
+	protected override Result<void> OnInitialize()
+	{
+		InitCPUBindGroupDicts();
+
+		if (CreateDefaultResources() case .Err)
+			return .Err;
+
+		if (CreateComputePipelines() case .Err)
+			return .Err;
+
+		if (CreateRenderPipeline() case .Err)
+			return .Err;
+
+		if (CreateShaderPipelines() case .Err)
+			return .Err;
+
+		return .Ok;
+	}
+
+	private Result<void> CreateDefaultResources()
+	{
+		// Create default white particle texture (64x64 soft circle)
+		const int32 TexSize = 64;
+		const int32 TexBytes = TexSize * TexSize * 4;
+
+		TextureDescriptor texDesc = .()
+		{
+			Label = "Default Particle Texture",
+			Width = TexSize,
+			Height = TexSize,
+			Depth = 1,
+			Format = .RGBA8Unorm,
+			MipLevelCount = 1,
+			ArrayLayerCount = 1,
+			SampleCount = 1,
+			Dimension = .Texture2D,
+			Usage = .Sampled | .CopyDst
+		};
+
+		switch (Renderer.Device.CreateTexture(&texDesc))
+		{
+		case .Ok(let tex): mDefaultParticleTexture = tex;
+		case .Err: return .Err;
+		}
+
+		// Fill with white pixels with soft Gaussian-like falloff
+		uint8[] pixels = scope uint8[TexBytes];
+		float center = (float)(TexSize - 1) * 0.5f;
+
+		for (int32 y = 0; y < TexSize; y++)
+		{
+			for (int32 x = 0; x < TexSize; x++)
+			{
+				float dx = ((float)x - center) / center;
+				float dy = ((float)y - center) / center;
+				float distSq = dx * dx + dy * dy;
+
+				float dist = Math.Sqrt(distSq);
+				float alpha;
+				if (dist >= 1.0f)
+				{
+					alpha = 0.0f;
+				}
+				else
+				{
+					float t = 1.0f - distSq;
+					alpha = t * t;
+				}
+
+				uint8 a = (uint8)(alpha * 255.0f);
+
+				int32 idx = (y * TexSize + x) * 4;
+				pixels[idx] = 255;     // R
+				pixels[idx + 1] = 255; // G
+				pixels[idx + 2] = 255; // B
+				pixels[idx + 3] = a;   // A
+			}
+		}
+
+		var layout = TextureDataLayout() { BytesPerRow = TexSize * 4, RowsPerImage = TexSize };
+		var writeSize = Extent3D(TexSize, TexSize, 1);
+		Renderer.Device.Queue.WriteTexture(mDefaultParticleTexture, Span<uint8>(&pixels[0], TexBytes), &layout, &writeSize);
+
+		// Create texture view
+		TextureViewDescriptor viewDesc = .()
+		{
+			Label = "Default Particle Texture View",
+			Dimension = .Texture2D
+		};
+
+		switch (Renderer.Device.CreateTextureView(mDefaultParticleTexture, &viewDesc))
+		{
+		case .Ok(let view): mDefaultParticleTextureView = view;
+		case .Err: return .Err;
+		}
+
+		// Create default sampler (linear, clamp)
+		SamplerDescriptor samplerDesc = .()
+		{
+			Label = "Particle Sampler",
+			AddressModeU = .ClampToEdge,
+			AddressModeV = .ClampToEdge,
+			AddressModeW = .ClampToEdge,
+			MinFilter = .Linear,
+			MagFilter = .Linear,
+			MipmapFilter = .Linear
+		};
+
+		switch (Renderer.Device.CreateSampler(&samplerDesc))
+		{
+		case .Ok(let sampler): mDefaultSampler = sampler;
+		case .Err: return .Err;
+		}
+
+		return .Ok;
+	}
+
+	private IPipelineLayout mComputePipelineLayout ~ delete _;
+	private IPipelineLayout mGPURenderPipelineLayout ~ delete _;
+	private IPipelineLayout mCPURenderPipelineLayout ~ delete _;
+
+	private Result<void> CreateShaderPipelines()
+	{
+		if (Renderer.ShaderSystem == null)
+			return .Ok;
+
+		// Create compute pipeline layout
+		IBindGroupLayout[1] computeLayouts = .(mComputeBindGroupLayout);
+		PipelineLayoutDescriptor computeLayoutDesc = .(computeLayouts);
+		switch (Renderer.Device.CreatePipelineLayout(&computeLayoutDesc))
+		{
+		case .Ok(let layout): mComputePipelineLayout = layout;
+		case .Err: return .Err;
+		}
+
+		// Load spawn compute shader
+		let spawnResult = Renderer.ShaderSystem.GetShader("particle_spawn", .Compute);
+		if (spawnResult case .Ok(let spawnShader))
+		{
+			ComputePipelineDescriptor spawnDesc = .(mComputePipelineLayout, spawnShader.Module);
+			spawnDesc.Label = "Particle Spawn Pipeline";
+
+			switch (Renderer.Device.CreateComputePipeline(&spawnDesc))
+			{
+			case .Ok(let pipeline): mSpawnPipeline = pipeline;
+			case .Err: // Non-fatal
+			}
+		}
+
+		// Load update compute shader
+		let updateResult = Renderer.ShaderSystem.GetShader("particle_update", .Compute);
+		if (updateResult case .Ok(let updateShader))
+		{
+			ComputePipelineDescriptor updateDesc = .(mComputePipelineLayout, updateShader.Module);
+			updateDesc.Label = "Particle Update Pipeline";
+
+			switch (Renderer.Device.CreateComputePipeline(&updateDesc))
+			{
+			case .Ok(let pipeline): mUpdatePipeline = pipeline;
+			case .Err: // Non-fatal
+			}
+		}
+
+		// Create GPU render pipeline layout
+		IBindGroupLayout[1] gpuRenderLayouts = .(mGPURenderBindGroupLayout);
+		PipelineLayoutDescriptor gpuRenderLayoutDesc = .(gpuRenderLayouts);
+		switch (Renderer.Device.CreatePipelineLayout(&gpuRenderLayoutDesc))
+		{
+		case .Ok(let layout): mGPURenderPipelineLayout = layout;
+		case .Err: return .Err;
+		}
+
+		// Load GPU render shaders and create pipelines for each blend mode
+		let gpuRenderResult = Renderer.ShaderSystem.GetShaderPair("particle");
+		if (gpuRenderResult case .Ok(let shaders))
+		{
+			delegate void(BlendState, StringView, ref IRenderPipeline) createGPURenderPipeline = scope (blendMode, label, pipeline) => {
+				ColorTargetState[1] colorTargets = .(
+					.(.RGBA16Float, blendMode)
+				);
+
+				RenderPipelineDescriptor renderDesc = .()
+				{
+					Label = scope :: $"Particle GPU Render Pipeline ({label})",
+					Layout = mGPURenderPipelineLayout,
+					Vertex = .()
+					{
+						Shader = .(shaders.vert.Module, "main"),
+						Buffers = default
+					},
+					Fragment = .()
+					{
+						Shader = .(shaders.frag.Module, "main"),
+						Targets = colorTargets
+					},
+					Primitive = .()
+					{
+						Topology = .TriangleList,
+						FrontFace = .CCW,
+						CullMode = .None
+					},
+					DepthStencil = .Transparent,
+					Multisample = .()
+					{
+						Count = 1,
+						Mask = uint32.MaxValue
+					}
+				};
+
+				switch (Renderer.Device.CreateRenderPipeline(&renderDesc))
+				{
+				case .Ok(let createdPipeline): pipeline = createdPipeline;
+				case .Err: // Non-fatal
+				}
+			};
+
+			createGPURenderPipeline(.AlphaBlend, "Alpha", ref mGPURenderPipelineAlpha);
+			createGPURenderPipeline(.Additive, "Additive", ref mGPURenderPipelineAdditive);
+			createGPURenderPipeline(.PremultipliedAlpha, "Premultiplied", ref mGPURenderPipelinePremultiplied);
+		}
+
+		// Create CPU render pipeline layout
+		if (mCPURenderBindGroupLayout != null)
+		{
+			IBindGroupLayout[1] cpuRenderLayouts = .(mCPURenderBindGroupLayout);
+			PipelineLayoutDescriptor cpuRenderLayoutDesc = .(cpuRenderLayouts);
+			switch (Renderer.Device.CreatePipelineLayout(&cpuRenderLayoutDesc))
+			{
+			case .Ok(let layout): mCPURenderPipelineLayout = layout;
+			case .Err: return .Err;
+			}
+
+			// Load CPU particle render shaders
+			let cpuRenderResult = Renderer.ShaderSystem.GetShaderPair("cpu_particle");
+			if (cpuRenderResult case .Ok(let cpuShaders))
+			{
+				// CPU particles use instance buffer with vertex attributes
+				VertexBufferLayout[1] cpuVertexBuffers = .(
+					.()
+					{
+						ArrayStride = (uint64)CPUParticleVertex.SizeInBytes,
+						StepMode = .Instance,
+						Attributes = VertexAttribute[6](
+							.() { Format = .Float3,           Offset = 0,  ShaderLocation = 0 },  // Position
+							.() { Format = .Float2,           Offset = 12, ShaderLocation = 1 },  // Size
+							.() { Format = .UByte4Normalized, Offset = 20, ShaderLocation = 2 },  // Color
+							.() { Format = .Float,            Offset = 24, ShaderLocation = 3 },  // Rotation
+							.() { Format = .Float4,           Offset = 28, ShaderLocation = 4 },  // TexCoordOffset+Scale
+							.() { Format = .Float2,           Offset = 44, ShaderLocation = 5 }   // Velocity2D
+						)
+					}
+				);
+
+				delegate void(BlendState, StringView, ref IRenderPipeline) createCPURenderPipeline = scope (blendMode, label, pipeline) => {
+					ColorTargetState[1] colorTargets = .(
+						.(.RGBA16Float, blendMode)
+					);
+
+					RenderPipelineDescriptor renderDesc = .()
+					{
+						Label = scope :: $"Particle CPU Render Pipeline ({label})",
+						Layout = mCPURenderPipelineLayout,
+						Vertex = .()
+						{
+							Shader = .(cpuShaders.vert.Module, "main"),
+							Buffers = cpuVertexBuffers
+						},
+						Fragment = .()
+						{
+							Shader = .(cpuShaders.frag.Module, "main"),
+							Targets = colorTargets
+						},
+						Primitive = .()
+						{
+							Topology = .TriangleList,
+							FrontFace = .CCW,
+							CullMode = .None
+						},
+						DepthStencil = .Transparent,
+						Multisample = .()
+						{
+							Count = 1,
+							Mask = uint32.MaxValue
+						}
+					};
+
+					switch (Renderer.Device.CreateRenderPipeline(&renderDesc))
+					{
+					case .Ok(let createdPipeline): pipeline = createdPipeline;
+					case .Err: // Non-fatal
+					}
+				};
+
+				createCPURenderPipeline(.AlphaBlend, "Alpha", ref mCPURenderPipelineAlpha);
+				createCPURenderPipeline(.Additive, "Additive", ref mCPURenderPipelineAdditive);
+				createCPURenderPipeline(.PremultipliedAlpha, "Premultiplied", ref mCPURenderPipelinePremultiplied);
+			}
+		}
+
+		return .Ok;
+	}
+
+	protected override void OnShutdown()
+	{
+		for (let kv in mGPUParticleSystems)
+			delete kv.value;
+		mGPUParticleSystems.Clear();
+
+		CleanupCPUBindGroupDicts();
+	}
+
+	public override void AddPasses(RenderGraph graph, RenderView view, RenderWorld world)
+	{
+		mActiveGPUEmitters.Clear();
+		mActiveCPUEmitters.Clear();
+
+		// Iterate all particle emitters and categorize by backend
+		world.ForEachParticleEmitter(scope [&] (handle, proxy) =>
+		{
+			if (proxy.IsEnabled && proxy.IsEmitting)
+			{
+				let emitterHandle = ParticleEmitterProxyHandle() { Handle = handle };
+
+				if (proxy.Backend == .GPU)
+				{
+					mActiveGPUEmitters.Add(emitterHandle);
+
+					// Ensure GPU particle system exists
+					GPUParticleSystem system;
+					if (!mGPUParticleSystems.TryGetValue(emitterHandle, out system))
+					{
+						system = CreateGPUParticleSystem(&proxy);
+						if (system != null)
+							mGPUParticleSystems[emitterHandle] = system;
+					}
+
+					if (system != null)
+						UpdateGPUEmitterParams(system, &proxy);
+				}
+				else // CPU
+				{
+					mActiveCPUEmitters.Add(emitterHandle);
+
+					// Update CPU emitter simulation
+					if (proxy.CPUEmitter != null)
+					{
+						proxy.CPUEmitter.Update(Renderer.RenderFrameContext.DeltaTime, &proxy);
+					}
+				}
+			}
+		});
+
+		if (mActiveGPUEmitters.Count == 0 && mActiveCPUEmitters.Count == 0)
+			return;
+
+		// GPU simulation pass
+		if (mActiveGPUEmitters.Count > 0)
+		{
+			graph.AddComputePass("ParticleSimulation")
+				.NeverCull()
+				.SetComputeCallback(new [&] (encoder) => {
+					ExecuteGPUSimulationPass(encoder, mActiveGPUEmitters);
+				});
+		}
+
+		// Upload CPU particle vertex data
+		if (mActiveCPUEmitters.Count > 0)
+		{
+			let frameContext = Renderer.RenderFrameContext;
+			let cameraPos = frameContext != null ? frameContext.SceneUniforms.CameraPosition : Vector3.Zero;
+			let frameIndex = frameContext != null ? frameContext.FrameIndex : (int32)0;
+
+			world.ForEachParticleEmitter(scope [&] (handle, proxy) =>
+			{
+				if (proxy.IsEnabled && proxy.IsEmitting && proxy.Backend == .CPU && proxy.CPUEmitter != null)
+				{
+					proxy.CPUEmitter.Upload((uint32)(frameIndex % CPUParticleEmitter.FrameBufferCount), cameraPos, &proxy);
+				}
+			});
+		}
+
+		// Get existing resources
+		let colorHandle = graph.GetResource("SceneColor");
+		let depthHandle = graph.GetResource("SceneDepth");
+
+		if (!colorHandle.IsValid || !depthHandle.IsValid)
+			return;
+
+		mViewWidth = view.Width;
+		mViewHeight = view.Height;
+
+		// Single render pass for all particles (both backends)
+		graph.AddGraphicsPass("ParticleRender")
+			.WriteColor(colorHandle, .Load, .Store)
+			.ReadDepth(depthHandle)
+			.NeverCull()
+			.SetExecuteCallback(new [&] (encoder) => {
+				ExecuteRenderPass(encoder, mViewWidth, mViewHeight);
+			});
+	}
+
+	private Result<void> CreateComputePipelines()
+	{
+		BindGroupLayoutEntry[5] computeEntries = .(
+			.() { Binding = 0, Visibility = .Compute, Type = .UniformBuffer },
+			.() { Binding = 0, Visibility = .Compute, Type = .StorageBufferReadWrite },
+			.() { Binding = 1, Visibility = .Compute, Type = .StorageBufferReadWrite },
+			.() { Binding = 2, Visibility = .Compute, Type = .StorageBufferReadWrite },
+			.() { Binding = 3, Visibility = .Compute, Type = .StorageBufferReadWrite }
+		);
+
+		BindGroupLayoutDescriptor computeLayoutDesc = .()
+		{
+			Label = "Particle Compute BindGroup Layout",
+			Entries = computeEntries
+		};
+
+		switch (Renderer.Device.CreateBindGroupLayout(&computeLayoutDesc))
+		{
+		case .Ok(let layout): mComputeBindGroupLayout = layout;
+		case .Err: return .Err;
+		}
+
+		return .Ok;
+	}
+
+	private Result<void> CreateRenderPipeline()
+	{
+		// GPU render bind group layout
+		BindGroupLayoutEntry[6] gpuRenderEntries = .(
+			.() { Binding = 0, Visibility = .Vertex, Type = .UniformBuffer },
+			.() { Binding = 1, Visibility = .Vertex, Type = .UniformBuffer },
+			.() { Binding = 0, Visibility = .Vertex, Type = .StorageBuffer },
+			.() { Binding = 1, Visibility = .Vertex, Type = .StorageBuffer },
+			.() { Binding = 2, Visibility = .Fragment, Type = .SampledTexture },
+			.() { Binding = 0, Visibility = .Fragment, Type = .Sampler }
+		);
+
+		BindGroupLayoutDescriptor gpuRenderLayoutDesc = .()
+		{
+			Label = "Particle GPU Render BindGroup Layout",
+			Entries = gpuRenderEntries
+		};
+
+		switch (Renderer.Device.CreateBindGroupLayout(&gpuRenderLayoutDesc))
+		{
+		case .Ok(let layout): mGPURenderBindGroupLayout = layout;
+		case .Err: return .Err;
+		}
+
+		// CPU render bind group layout
+		// CPU particles use vertex buffer for instance data, bind group has:
+		// - CameraUniforms (b0)
+		// - ParticleTexture (t0)
+		// - LinearSampler (s0)
+		BindGroupLayoutEntry[3] cpuRenderEntries = .(
+			.() { Binding = 0, Visibility = .Vertex, Type = .UniformBuffer },
+			.() { Binding = 0, Visibility = .Fragment, Type = .SampledTexture },
+			.() { Binding = 0, Visibility = .Fragment, Type = .Sampler }
+		);
+
+		BindGroupLayoutDescriptor cpuRenderLayoutDesc = .()
+		{
+			Label = "Particle CPU Render BindGroup Layout",
+			Entries = cpuRenderEntries
+		};
+
+		switch (Renderer.Device.CreateBindGroupLayout(&cpuRenderLayoutDesc))
+		{
+		case .Ok(let layout): mCPURenderBindGroupLayout = layout;
+		case .Err: return .Err;
+		}
+
+		return .Ok;
+	}
+
+	private void ExecuteGPUSimulationPass(IComputePassEncoder encoder, List<ParticleEmitterProxyHandle> emitters)
+	{
+		for (let handle in emitters)
+		{
+			GPUParticleSystem system;
+			if (!mGPUParticleSystems.TryGetValue(handle, out system))
+				continue;
+
+			if (system.ComputeBindGroup == null)
+				continue;
+
+			if (mSpawnPipeline != null && system.PendingSpawnCount > 0)
+			{
+				encoder.SetPipeline(mSpawnPipeline);
+				encoder.SetBindGroup(0, system.ComputeBindGroup, default);
+				encoder.Dispatch((system.PendingSpawnCount + 63) / 64, 1, 1);
+				Renderer.Stats.ComputeDispatches++;
+			}
+
+			if (mUpdatePipeline != null && system.EstimatedAliveCount > 0)
+			{
+				encoder.SetPipeline(mUpdatePipeline);
+				encoder.SetBindGroup(0, system.ComputeBindGroup, default);
+				encoder.Dispatch((system.EstimatedAliveCount + 63) / 64, 1, 1);
+				Renderer.Stats.ComputeDispatches++;
+			}
+		}
+	}
+
+	private void ExecuteRenderPass(IRenderPassEncoder encoder, uint32 viewWidth, uint32 viewHeight)
+	{
+		if (viewWidth == 0 || viewHeight == 0)
+			return;
+
+		encoder.SetViewport(0, 0, (float)viewWidth, (float)viewHeight, 0.0f, 1.0f);
+		encoder.SetScissorRect(0, 0, viewWidth, viewHeight);
+
+		// Render GPU particles
+		RenderGPUParticles(encoder);
+
+		// Render CPU particles
+		RenderCPUParticles(encoder);
+	}
+
+	private void RenderGPUParticles(IRenderPassEncoder encoder)
+	{
+		if (mGPURenderPipelineAlpha == null && mGPURenderPipelineAdditive == null && mGPURenderPipelinePremultiplied == null)
+			return;
+
+		let frameIndex = Renderer.RenderFrameContext.FrameIndex;
+
+		for (let handle in mActiveGPUEmitters)
+		{
+			GPUParticleSystem system;
+			if (mGPUParticleSystems.TryGetValue(handle, out system))
+			{
+				let bindGroup = system.GetRenderBindGroup(frameIndex);
+				if (bindGroup != null)
+				{
+					IRenderPipeline pipeline = null;
+					switch (system.BlendMode)
+					{
+					case .Alpha: pipeline = mGPURenderPipelineAlpha;
+					case .Additive: pipeline = mGPURenderPipelineAdditive;
+					case .Premultiplied: pipeline = mGPURenderPipelinePremultiplied;
+					}
+
+					if (pipeline == null)
+						continue;
+
+					encoder.SetPipeline(pipeline);
+
+					uint32[4] particleParams = .(system.EstimatedAliveCount, 0, 0, 0);
+					Renderer.Device.Queue.WriteBuffer(
+						system.ParticleParams, 0,
+						Span<uint8>((uint8*)&particleParams[0], 16)
+					);
+
+					encoder.SetBindGroup(0, bindGroup, default);
+
+					let instanceCount = Math.Min(system.EstimatedAliveCount, system.MaxParticles);
+					if (instanceCount > 0)
+					{
+						encoder.Draw(6, instanceCount, 0, 0);
+						Renderer.Stats.DrawCalls++;
+						Renderer.Stats.InstanceCount += (int32)instanceCount;
+					}
+				}
+			}
+		}
+	}
+
+	private void RenderCPUParticles(IRenderPassEncoder encoder)
+	{
+		if (mCPURenderPipelineAlpha == null && mCPURenderPipelineAdditive == null && mCPURenderPipelinePremultiplied == null)
+			return;
+
+		let frameIndex = Renderer.RenderFrameContext.FrameIndex;
+		let frameDict = mCPURenderBindGroups[frameIndex];
+
+		for (let handle in mActiveCPUEmitters)
+		{
+			let proxy = Renderer.ActiveWorld?.GetParticleEmitter(handle);
+			if (proxy == null || proxy.CPUEmitter == null)
+				continue;
+
+			let emitter = proxy.CPUEmitter;
+			let aliveCount = emitter.GetAliveCount();
+			if (aliveCount == 0)
+				continue;
+
+			let vertexBuffer = emitter.GetVertexBuffer((uint32)frameIndex);
+			if (vertexBuffer == null)
+				continue;
+
+			IRenderPipeline pipeline = null;
+			switch (proxy.BlendMode)
+			{
+			case .Alpha: pipeline = mCPURenderPipelineAlpha;
+			case .Additive: pipeline = mCPURenderPipelineAdditive;
+			case .Premultiplied: pipeline = mCPURenderPipelinePremultiplied;
+			}
+
+			if (pipeline == null)
+				continue;
+
+			encoder.SetPipeline(pipeline);
+
+			// Get or create per-frame bind group for this emitter
+			IBindGroup bindGroup = null;
+			if (!frameDict.TryGetValue(handle, out bindGroup))
+			{
+				bindGroup = CreateCPURenderBindGroup(proxy);
+				if (bindGroup != null)
+					frameDict[handle] = bindGroup;
+			}
+
+			if (bindGroup == null)
+				continue;
+
+			encoder.SetBindGroup(0, bindGroup, default);
+			encoder.SetVertexBuffer(0, vertexBuffer, 0);
+			encoder.Draw(6, (uint32)aliveCount, 0, 0);
+			Renderer.Stats.DrawCalls++;
+			Renderer.Stats.InstanceCount += (int32)aliveCount;
+		}
+	}
+
+	private IBindGroup CreateCPURenderBindGroup(ParticleEmitterProxy* proxy)
+	{
+		if (mCPURenderBindGroupLayout == null || mDefaultParticleTextureView == null || mDefaultSampler == null)
+			return null;
+
+		let cameraBuffer = Renderer.RenderFrameContext?.SceneUniformBuffer;
+		if (cameraBuffer == null)
+			return null;
+
+		let textureView = proxy.ParticleTexture != null ? proxy.ParticleTexture : mDefaultParticleTextureView;
+
+		BindGroupEntry[3] entries = .(
+			BindGroupEntry.Buffer(0, cameraBuffer, 0, SceneUniforms.Size),
+			BindGroupEntry.Texture(0, textureView),
+			BindGroupEntry.Sampler(0, mDefaultSampler)
+		);
+
+		BindGroupDescriptor bgDesc = .()
+		{
+			Label = "CPU Particle Render BindGroup",
+			Layout = mCPURenderBindGroupLayout,
+			Entries = entries
+		};
+
+		switch (Renderer.Device.CreateBindGroup(&bgDesc))
+		{
+		case .Ok(let bg): return bg;
+		case .Err: return null;
+		}
+	}
+
+	private GPUParticleSystem CreateGPUParticleSystem(ParticleEmitterProxy* proxy)
+	{
+		let system = new GPUParticleSystem();
+		system.MaxParticles = proxy.MaxParticles;
+		system.BlendMode = proxy.BlendMode;
+
+		BufferDescriptor particleBufferDesc = .()
+		{
+			Label = "Particles",
+			Size = (uint64)(proxy.MaxParticles * GPUParticle.SizeInBytes),
+			Usage = .Storage
+		};
+
+		switch (Renderer.Device.CreateBuffer(&particleBufferDesc))
+		{
+		case .Ok(let buf): system.ParticleBuffer = buf;
+		case .Err:
+			delete system;
+			return null;
+		}
+
+		BufferDescriptor indexBufferDesc = .()
+		{
+			Label = "Particle Indices",
+			Size = (uint64)(proxy.MaxParticles * 4),
+			Usage = .Storage | .CopyDst
+		};
+
+		switch (Renderer.Device.CreateBuffer(&indexBufferDesc))
+		{
+		case .Ok(let buf): system.AliveList = buf;
+		case .Err:
+			delete system;
+			return null;
+		}
+
+		switch (Renderer.Device.CreateBuffer(&indexBufferDesc))
+		{
+		case .Ok(let buf): system.DeadList = buf;
+		case .Err:
+			delete system;
+			return null;
+		}
+
+		BufferDescriptor countersDesc = .()
+		{
+			Label = "Particle Counters",
+			Size = 8,
+			Usage = .Storage | .CopyDst
+		};
+
+		switch (Renderer.Device.CreateBuffer(&countersDesc))
+		{
+		case .Ok(let buf): system.Counters = buf;
+		case .Err:
+			delete system;
+			return null;
+		}
+
+		// Initialize dead list
+		{
+			uint32[] deadIndices = scope uint32[proxy.MaxParticles];
+			for (uint32 i = 0; i < proxy.MaxParticles; i++)
+				deadIndices[i] = i;
+			Renderer.Device.Queue.WriteBuffer(
+				system.DeadList, 0,
+				Span<uint8>((uint8*)&deadIndices[0], (int)(proxy.MaxParticles * 4))
+			);
+		}
+
+		// Initialize counters
+		{
+			uint32[2] counters = .(0, proxy.MaxParticles);
+			Renderer.Device.Queue.WriteBuffer(
+				system.Counters, 0,
+				Span<uint8>((uint8*)&counters[0], 8)
+			);
+		}
+
+		BufferDescriptor paramsDesc = .()
+		{
+			Label = "Emitter Params",
+			Size = (uint64)GPUEmitterParams.SizeInBytes,
+			Usage = .Uniform | .CopyDst
+		};
+
+		switch (Renderer.Device.CreateBuffer(&paramsDesc))
+		{
+		case .Ok(let buf): system.EmitterParams = buf;
+		case .Err:
+			delete system;
+			return null;
+		}
+
+		BufferDescriptor particleParamsDesc = .()
+		{
+			Label = "Particle Params",
+			Size = 16,
+			Usage = .Uniform | .CopyDst
+		};
+
+		switch (Renderer.Device.CreateBuffer(&particleParamsDesc))
+		{
+		case .Ok(let buf): system.ParticleParams = buf;
+		case .Err:
+			delete system;
+			return null;
+		}
+
+		// Create compute bind group
+		if (mComputeBindGroupLayout != null)
+		{
+			BindGroupEntry[5] computeEntries = .(
+				BindGroupEntry.Buffer(0, system.EmitterParams, 0, (uint64)GPUEmitterParams.SizeInBytes),
+				BindGroupEntry.Buffer(0, system.ParticleBuffer, 0, (uint64)(proxy.MaxParticles * GPUParticle.SizeInBytes)),
+				BindGroupEntry.Buffer(1, system.AliveList, 0, (uint64)(proxy.MaxParticles * 4)),
+				BindGroupEntry.Buffer(2, system.DeadList, 0, (uint64)(proxy.MaxParticles * 4)),
+				BindGroupEntry.Buffer(3, system.Counters, 0, 8)
+			);
+
+			BindGroupDescriptor computeBgDesc = .()
+			{
+				Label = "Particle Compute BindGroup",
+				Layout = mComputeBindGroupLayout,
+				Entries = computeEntries
+			};
+
+			switch (Renderer.Device.CreateBindGroup(&computeBgDesc))
+			{
+			case .Ok(let bg): system.ComputeBindGroup = bg;
+			case .Err:
+			}
+		}
+
+		// Create per-frame render bind groups (one per frame buffer)
+		if (mGPURenderBindGroupLayout != null && mDefaultParticleTextureView != null && mDefaultSampler != null)
+		{
+			let frameContext = Renderer.RenderFrameContext;
+			if (frameContext != null)
+			{
+				for (int32 frameIdx = 0; frameIdx < RenderConfig.FrameBufferCount; frameIdx++)
+				{
+					let cameraBuffer = frameContext.GetSceneUniformBuffer(frameIdx);
+					if (cameraBuffer == null)
+						continue;
+
+					BindGroupEntry[6] renderEntries = .(
+						BindGroupEntry.Buffer(0, cameraBuffer, 0, SceneUniforms.Size),
+						BindGroupEntry.Buffer(1, system.ParticleParams, 0, 16),
+						BindGroupEntry.Buffer(0, system.ParticleBuffer, 0, (uint64)(proxy.MaxParticles * GPUParticle.SizeInBytes)),
+						BindGroupEntry.Buffer(1, system.AliveList, 0, (uint64)(proxy.MaxParticles * 4)),
+						BindGroupEntry.Texture(2, mDefaultParticleTextureView),
+						BindGroupEntry.Sampler(0, mDefaultSampler)
+					);
+
+					BindGroupDescriptor renderBgDesc = .()
+					{
+						Label = "Particle GPU Render BindGroup",
+						Layout = mGPURenderBindGroupLayout,
+						Entries = renderEntries
+					};
+
+					switch (Renderer.Device.CreateBindGroup(&renderBgDesc))
+					{
+					case .Ok(let bg): system.RenderBindGroups[frameIdx] = bg;
+					case .Err:
+					}
+				}
+			}
+		}
+
+		return system;
+	}
+
+	private void UpdateGPUEmitterParams(GPUParticleSystem system, ParticleEmitterProxy* proxy)
+	{
+		let deltaTime = Renderer.RenderFrameContext.DeltaTime;
+		let avgLifetime = proxy.ParticleLifetime;
+
+		system.BlendMode = proxy.BlendMode;
+		system.TimeSinceReset += deltaTime;
+
+		let resetInterval = 30.0f;
+		let writeIndexNearCapacity = system.GPUAliveWriteIndex > (system.MaxParticles * 8 / 10);
+		if (system.TimeSinceReset >= resetInterval || writeIndexNearCapacity || system.NeedsReset)
+		{
+			ResetGPUParticleSystem(system, proxy);
+		}
+
+		system.AccumulatedSpawn += proxy.SpawnRate * deltaTime;
+		let spawnedThisFrame = (uint32)system.AccumulatedSpawn;
+		system.AccumulatedSpawn -= (float)spawnedThisFrame;
+		system.PendingSpawnCount = spawnedThisFrame;
+		system.GPUAliveWriteIndex += spawnedThisFrame;
+
+		let deathRate = (float)system.EstimatedAliveCount / Math.Max(avgLifetime, 0.1f);
+		let deadThisFrame = (uint32)(deathRate * deltaTime);
+
+		let newAlive = system.EstimatedAliveCount + spawnedThisFrame - Math.Min(deadThisFrame, system.EstimatedAliveCount);
+		system.EstimatedAliveCount = (uint32)Math.Min((int64)newAlive, (int64)system.MaxParticles);
+		system.EstimatedAliveCount = Math.Max(system.EstimatedAliveCount, spawnedThisFrame);
+
+		GPUEmitterParams emitterParams = default;
+		emitterParams.Position = proxy.Position;
+		emitterParams.SpawnRate = proxy.SpawnRate;
+		emitterParams.Direction = proxy.InitialVelocity;
+		emitterParams.SpawnRadius = 0.5f;
+		emitterParams.Velocity = proxy.InitialVelocity;
+		emitterParams.VelocityRandomness = proxy.VelocityRandomness.X;
+		emitterParams.ColorStart = proxy.StartColor;
+		emitterParams.ColorEnd = proxy.EndColor;
+		emitterParams.SizeStart = proxy.StartSize;
+		emitterParams.SizeEnd = proxy.EndSize;
+		emitterParams.LifetimeMin = proxy.ParticleLifetime * 0.5f;
+		emitterParams.LifetimeMax = proxy.ParticleLifetime * 1.5f;
+		emitterParams.Gravity = proxy.GravityMultiplier;
+		emitterParams.Drag = proxy.Drag;
+		emitterParams.MaxParticles = proxy.MaxParticles;
+		emitterParams.AliveCount = system.EstimatedAliveCount;
+		emitterParams.DeltaTime = deltaTime;
+		emitterParams.TotalTime = Renderer.RenderFrameContext.TotalTime;
+		emitterParams.SpawnCount = system.PendingSpawnCount;
+
+		Renderer.Device.Queue.WriteBuffer(
+			system.EmitterParams, 0,
+			Span<uint8>((uint8*)&emitterParams, GPUEmitterParams.SizeInBytes)
+		);
+	}
+
+	private void ResetGPUParticleSystem(GPUParticleSystem system, ParticleEmitterProxy* proxy)
+	{
+		{
+			uint32[] deadIndices = scope uint32[system.MaxParticles];
+			for (uint32 i = 0; i < system.MaxParticles; i++)
+				deadIndices[i] = i;
+			Renderer.Device.Queue.WriteBuffer(
+				system.DeadList, 0,
+				Span<uint8>((uint8*)&deadIndices[0], (int)(system.MaxParticles * 4))
+			);
+		}
+
+		{
+			uint32[2] counters = .(0, system.MaxParticles);
+			Renderer.Device.Queue.WriteBuffer(
+				system.Counters, 0,
+				Span<uint8>((uint8*)&counters[0], 8)
+			);
+		}
+
+		{
+			uint32[] aliveIndices = scope uint32[system.MaxParticles];
+			for (uint32 i = 0; i < system.MaxParticles; i++)
+				aliveIndices[i] = 0xFFFFFFFF;
+			Renderer.Device.Queue.WriteBuffer(
+				system.AliveList, 0,
+				Span<uint8>((uint8*)&aliveIndices[0], (int)(system.MaxParticles * 4))
+			);
+		}
+
+		system.EstimatedAliveCount = 0;
+		system.AccumulatedSpawn = 0;
+		system.GPUAliveWriteIndex = 0;
+		system.TimeSinceReset = 0;
+		system.NeedsReset = false;
+	}
+}

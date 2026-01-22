@@ -4,6 +4,7 @@ using System;
 using System.Collections;
 using Sedulous.Mathematics;
 using Sedulous.Materials;
+using Sedulous.RHI;
 
 /// Container for all renderable objects in a scene.
 /// Manages proxy pools for meshes, lights, particles, etc.
@@ -15,6 +16,7 @@ public class RenderWorld : IDisposable
 	private ProxyPool<LightProxy> mLightProxies = new .() ~ delete _;
 	private ProxyPool<CameraProxy> mCameraProxies = new .() ~ delete _;
 	private ProxyPool<ParticleEmitterProxy> mParticleProxies = new .() ~ delete _;
+	private ProxyPool<SpriteProxy> mSpriteProxies = new .() ~ delete _;
 
 	// Main camera handle
 	private CameraProxyHandle mMainCamera = .Invalid;
@@ -31,6 +33,7 @@ public class RenderWorld : IDisposable
 	private bool mLightsDirty = false;
 	private bool mCamerasDirty = false;
 	private bool mParticlesDirty = false;
+	private bool mSpritesDirty = false;
 
 	/// Gets the mesh proxy pool.
 	public ProxyPool<MeshProxy> MeshProxies => mMeshProxies;
@@ -46,6 +49,9 @@ public class RenderWorld : IDisposable
 
 	/// Gets the particle emitter proxy pool.
 	public ProxyPool<ParticleEmitterProxy> ParticleProxies => mParticleProxies;
+
+	/// Gets the sprite proxy pool.
+	public ProxyPool<SpriteProxy> SpriteProxies => mSpriteProxies;
 
 	/// Gets the main camera handle.
 	public CameraProxyHandle MainCamera => mMainCamera;
@@ -65,6 +71,9 @@ public class RenderWorld : IDisposable
 	/// Gets the number of active particle emitters.
 	public int32 ParticleEmitterCount => mParticleProxies.ActiveCount;
 
+	/// Gets the number of active sprites.
+	public int32 SpriteCount => mSpriteProxies.ActiveCount;
+
 	/// Whether any meshes have changed.
 	public bool MeshesDirty => mMeshesDirty;
 
@@ -79,6 +88,9 @@ public class RenderWorld : IDisposable
 
 	/// Whether any particles have changed.
 	public bool ParticlesDirty => mParticlesDirty;
+
+	/// Whether any sprites have changed.
+	public bool SpritesDirty => mSpritesDirty;
 
 	/// Whether environment settings have changed.
 	public bool EnvironmentDirty => mEnvironmentDirty;
@@ -583,6 +595,11 @@ public class RenderWorld : IDisposable
 	{
 		if (mParticleProxies.TryGet(handle.Handle, let proxy))
 		{
+			if (proxy.CPUEmitter != null)
+			{
+				delete proxy.CPUEmitter;
+				proxy.CPUEmitter = null;
+			}
 			proxy.Reset();
 		}
 		mParticleProxies.Free(handle.Handle);
@@ -606,6 +623,101 @@ public class RenderWorld : IDisposable
 	}
 
 	// ========================================================================
+	// Sprite API
+	// ========================================================================
+
+	/// Creates a new sprite proxy.
+	public SpriteProxyHandle CreateSprite()
+	{
+		let handle = mSpriteProxies.Allocate();
+		var proxy = mSpriteProxies.Get(handle);
+		*proxy = SpriteProxy.CreateDefault();
+		proxy.IsActive = true;
+		proxy.Generation = handle.Generation;
+		mSpritesDirty = true;
+		return .() { Handle = handle };
+	}
+
+	/// Gets a sprite proxy by handle.
+	public SpriteProxy* GetSprite(SpriteProxyHandle handle)
+	{
+		return mSpriteProxies.Get(handle.Handle);
+	}
+
+	/// Gets a reference to a sprite proxy.
+	public ref SpriteProxy GetSpriteRef(SpriteProxyHandle handle)
+	{
+		return ref mSpriteProxies.GetRef(handle.Handle);
+	}
+
+	/// Destroys a sprite proxy.
+	public void DestroySprite(SpriteProxyHandle handle)
+	{
+		if (mSpriteProxies.TryGet(handle.Handle, let proxy))
+		{
+			proxy.Reset();
+		}
+		mSpriteProxies.Free(handle.Handle);
+		mSpritesDirty = true;
+	}
+
+	/// Sets sprite position.
+	public void SetSpritePosition(SpriteProxyHandle handle, Vector3 position)
+	{
+		if (let proxy = mSpriteProxies.Get(handle.Handle))
+		{
+			proxy.Position = position;
+			mSpritesDirty = true;
+		}
+	}
+
+	/// Sets sprite size.
+	public void SetSpriteSize(SpriteProxyHandle handle, Vector2 size)
+	{
+		if (let proxy = mSpriteProxies.Get(handle.Handle))
+		{
+			proxy.Size = size;
+			mSpritesDirty = true;
+		}
+	}
+
+	/// Sets sprite color.
+	public void SetSpriteColor(SpriteProxyHandle handle, Color color)
+	{
+		if (let proxy = mSpriteProxies.Get(handle.Handle))
+		{
+			proxy.Color = color;
+			mSpritesDirty = true;
+		}
+	}
+
+	/// Sets sprite texture.
+	public void SetSpriteTexture(SpriteProxyHandle handle, ITextureView texture)
+	{
+		if (let proxy = mSpriteProxies.Get(handle.Handle))
+		{
+			proxy.Texture = texture;
+			mSpritesDirty = true;
+		}
+	}
+
+	/// Sets sprite UV rect for atlas sub-regions.
+	public void SetSpriteUVRect(SpriteProxyHandle handle, Vector4 uvRect)
+	{
+		if (let proxy = mSpriteProxies.Get(handle.Handle))
+		{
+			proxy.UVRect = uvRect;
+			mSpritesDirty = true;
+		}
+	}
+
+	/// Iterates over all active sprites.
+	public void ForEachSprite(ProxyCallback<SpriteProxy> callback)
+	{
+		mSpriteProxies.ForEach(callback);
+	}
+
+	// ========================================================================
 	// General
 	// ========================================================================
 
@@ -617,22 +729,35 @@ public class RenderWorld : IDisposable
 		mLightsDirty = false;
 		mCamerasDirty = false;
 		mParticlesDirty = false;
+		mSpritesDirty = false;
 	}
 
 	/// Clears all objects from the world.
 	public void Clear()
 	{
+		// Delete owned CPUParticleEmitter instances before clearing proxies
+		mParticleProxies.ForEach(scope (handle, proxy) =>
+		{
+			if (proxy.CPUEmitter != null)
+			{
+				delete proxy.CPUEmitter;
+				proxy.CPUEmitter = null;
+			}
+		});
+
 		mMeshProxies.Clear();
 		mSkinnedMeshProxies.Clear();
 		mLightProxies.Clear();
 		mCameraProxies.Clear();
 		mParticleProxies.Clear();
+		mSpriteProxies.Clear();
 		mMainCamera = .Invalid;
 		mMeshesDirty = true;
 		mSkinnedMeshesDirty = true;
 		mLightsDirty = true;
 		mCamerasDirty = true;
 		mParticlesDirty = true;
+		mSpritesDirty = true;
 	}
 
 	public void Dispose()

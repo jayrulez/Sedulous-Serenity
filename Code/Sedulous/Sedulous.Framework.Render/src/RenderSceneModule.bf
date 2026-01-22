@@ -5,6 +5,7 @@ using System.Collections;
 using Sedulous.Framework.Scenes;
 using Sedulous.Mathematics;
 using Sedulous.Render;
+using Sedulous.RHI;
 using Sedulous.Materials;
 
 /// Component for entities with a static mesh.
@@ -578,5 +579,42 @@ class RenderSceneModule : SceneModule
 				return mWorld?.GetParticleEmitter(comp.ProxyHandle);
 		}
 		return null;
+	}
+
+	/// Creates a CPU-simulated particle emitter for an entity.
+	/// The CPUParticleEmitter is created and assigned to the proxy.
+	public ParticleEmitterProxyHandle CreateCPUParticleEmitter(EntityId entity, int32 maxParticles = 1000)
+	{
+		if (mScene == null || mWorld == null)
+			return .Invalid;
+
+		let device = mSubsystem.RenderSystem?.Device;
+		if (device == null)
+			return .Invalid;
+
+		let handle = mWorld.CreateParticleEmitter();
+
+		var comp = mScene.GetComponent<ParticleEmitterComponent>(entity);
+		if (comp == null)
+		{
+			mScene.SetComponent<ParticleEmitterComponent>(entity, .Default);
+			comp = mScene.GetComponent<ParticleEmitterComponent>(entity);
+		}
+
+		comp.ProxyHandle = handle;
+		comp.Enabled = true;
+
+		// Configure for CPU backend
+		if (let proxy = mWorld.GetParticleEmitter(handle))
+		{
+			proxy.Backend = .CPU;
+			proxy.MaxParticles = (uint32)maxParticles;
+			proxy.CPUEmitter = new CPUParticleEmitter(device, maxParticles);
+		}
+
+		let worldMatrix = mScene.GetWorldMatrix(entity);
+		mWorld.SetParticleEmitterPosition(handle, worldMatrix.Translation);
+
+		return handle;
 	}
 }

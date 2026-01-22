@@ -93,6 +93,9 @@ class RenderFrameContext : IDisposable
 	/// Scene uniform buffer for current frame.
 	public IBuffer SceneUniformBuffer => mSceneUniformBuffers[mFrameIndex];
 
+	/// Scene uniform buffer for a specific frame index.
+	public IBuffer GetSceneUniformBuffer(int32 frameIdx) => mSceneUniformBuffers[frameIdx];
+
 	/// Initializes the frame context.
 	public Result<void> Initialize(IDevice device)
 	{
