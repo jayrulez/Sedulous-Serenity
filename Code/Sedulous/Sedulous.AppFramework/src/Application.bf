@@ -11,9 +11,10 @@ using Sedulous.RHI;
 using Sedulous.RHI.Vulkan;
 using Sedulous.Drawing;
 using Sedulous.Fonts;
-using Sedulous.Fonts.TTF;
 using Sedulous.UI;
 using Sedulous.UI.Renderer;
+using Sedulous.UI.Shell;
+using Sedulous.UI.Fonts;
 
 // Type aliases to resolve ambiguity
 typealias RHITexture = Sedulous.RHI.ITexture;
@@ -57,11 +58,7 @@ public abstract class Application
 	protected DrawContext mDrawContext;
 
 	// Font system
-	protected IFont mFont;
-	protected IFontAtlas mFontAtlas;
-	protected RHITexture mFontTexture;
-	protected ITextureView mFontTextureView;
-	protected TextureRef mFontTextureRef;
+	protected FontService mFontService;
 
 	// Timing
 	protected Stopwatch mStopwatch = new .() ~ delete _;
@@ -364,83 +361,18 @@ public abstract class Application
 
 	private bool InitializeFonts()
 	{
-		// Initialize TrueType font system
-		TrueTypeFonts.Initialize();
+		mFontService = new FontService(mDevice);
 
-		// Load default font
 		let fontPath = GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", .. scope .());
 
 		FontLoadOptions options = .ExtendedLatin;
 		options.PixelHeight = 16;
 
-		if (FontLoaderFactory.LoadFont(fontPath, options) case .Ok(let font))
-			mFont = font;
-		else
+		if (mFontService.LoadFont("Roboto", fontPath, options) case .Err)
 		{
 			Console.WriteLine(scope $"Failed to load font: {fontPath}");
 			return false;
 		}
-
-		// Create font atlas
-		if (FontLoaderFactory.CreateAtlas(mFont, options) case .Ok(let atlas))
-			mFontAtlas = atlas;
-		else
-		{
-			Console.WriteLine("Failed to create font atlas");
-			return false;
-		}
-
-		// Get atlas dimensions
-		let atlasWidth = mFontAtlas.Width;
-		let atlasHeight = mFontAtlas.Height;
-		let r8Data = mFontAtlas.PixelData;
-
-		// Convert R8 to RGBA8
-		uint8[] rgba8Data = new uint8[atlasWidth * atlasHeight * 4];
-		defer delete rgba8Data;
-
-		for (uint32 i = 0; i < atlasWidth * atlasHeight; i++)
-		{
-			let alpha = r8Data[i];
-			rgba8Data[i * 4 + 0] = 255;
-			rgba8Data[i * 4 + 1] = 255;
-			rgba8Data[i * 4 + 2] = 255;
-			rgba8Data[i * 4 + 3] = alpha;
-		}
-
-		// Create GPU texture for atlas
-		TextureDescriptor textureDesc = TextureDescriptor.Texture2D(
-			atlasWidth, atlasHeight,
-			.RGBA8Unorm, .Sampled | .CopyDst
-		);
-		if (mDevice.CreateTexture(&textureDesc) not case .Ok(let texture))
-		{
-			Console.WriteLine("Failed to create font texture");
-			return false;
-		}
-		mFontTexture = texture;
-
-		// Upload atlas data
-		TextureDataLayout dataLayout = .()
-		{
-			Offset = 0,
-			BytesPerRow = atlasWidth * 4,
-			RowsPerImage = atlasHeight
-		};
-		Extent3D writeSize = .(atlasWidth, atlasHeight, 1);
-		mDevice.Queue.WriteTexture(mFontTexture, Span<uint8>(rgba8Data.Ptr, rgba8Data.Count), &dataLayout, &writeSize);
-
-		// Create texture view
-		TextureViewDescriptor viewDesc = .() { Format = .RGBA8Unorm };
-		if (mDevice.CreateTextureView(mFontTexture, &viewDesc) not case .Ok(let view))
-		{
-			Console.WriteLine("Failed to create font texture view");
-			return false;
-		}
-		mFontTextureView = view;
-
-		// Create texture reference for Drawing system
-		mFontTextureRef = new TextureRef(mFontTexture, atlasWidth, atlasHeight);
 
 		return true;
 	}
@@ -451,19 +383,16 @@ public abstract class Application
 		mDrawContext = new DrawContext();
 
 		// Set white pixel UV for solid color rendering
-		let (u, v) = mFontAtlas.WhitePixelUV;
+		let (u, v) = mFontService.WhitePixelUV;
 		mDrawContext.WhitePixelUV = .(u, v);
 
-		// Create font service
-		let fontService = new AppFontService(mFont, mFontAtlas, mFontTextureRef);
-
 		// Create clipboard adapter
-		let clipboard = new AppClipboardAdapter();
+		let clipboard = new ShellClipboardAdapter(mShell.Clipboard);
 
 		// Create UI context
 		mUIContext = new UIContext();
 		mUIContext.RegisterClipboard(clipboard);
-		mUIContext.RegisterService<IFontService>(fontService);
+		mUIContext.RegisterService<IFontService>(mFontService);
 		mUIContext.SetViewportSize((float)mSwapChain.Width, (float)mSwapChain.Height);
 
 		// Subscribe to text input events
@@ -483,7 +412,9 @@ public abstract class Application
 		}
 
 		// Set the font texture for UI rendering
-		mUIRenderer.SetTexture(mFontTextureView);
+		let atlasView = mFontService.AtlasTextureView;
+		if (atlasView != null)
+			mUIRenderer.SetTexture(atlasView);
 
 		return true;
 	}
@@ -708,15 +639,9 @@ public abstract class Application
 		if (mDrawContext != null)
 			delete mDrawContext;
 
-		// Font resources
-		// NOTE: mFont and mFontAtlas are owned by CachedFont (via AppFontService via UIContext)
-		// so we don't delete them here - they're cleaned up when UIContext is deleted
-		if (mFontTextureRef != null)
-			delete mFontTextureRef;
-		if (mFontTextureView != null)
-			delete mFontTextureView;
-		if (mFontTexture != null)
-			delete mFontTexture;
+		// Font service (owns fonts, atlases, and GPU textures)
+		if (mFontService != null)
+			delete mFontService;
 
 		// RHI resources
 		if (mSwapChain != null)
@@ -739,50 +664,3 @@ public abstract class Application
 	}
 }
 
-//==========================================================================
-// Helper Classes
-//==========================================================================
-
-/// Font service implementation for Application.
-class AppFontService : IFontService
-{
-	private CachedFont mCachedFont;
-	private DrawingTexture mFontTexture ~ { }; // Not owned
-	private String mDefaultFontFamily = new .("Roboto") ~ delete _;
-
-	public this(IFont font, IFontAtlas atlas, DrawingTexture texture)
-	{
-		mCachedFont = new CachedFont(font, atlas);
-		mFontTexture = texture;
-	}
-
-	public ~this()
-	{
-		delete mCachedFont;
-	}
-
-	public StringView DefaultFontFamily => mDefaultFontFamily;
-
-	public CachedFont GetFont(float pixelHeight) => mCachedFont;
-	public CachedFont GetFont(StringView familyName, float pixelHeight) => mCachedFont;
-
-	public DrawingTexture GetAtlasTexture(CachedFont font) => mFontTexture;
-	public DrawingTexture GetAtlasTexture(StringView familyName, float pixelHeight) => mFontTexture;
-
-	public void ReleaseFont(CachedFont font) { }
-}
-
-/// Clipboard adapter for Application.
-class AppClipboardAdapter : Sedulous.UI.IClipboard
-{
-	private Sedulous.Shell.IClipboard mShellClipboard ~ delete _;
-
-	public this()
-	{
-		mShellClipboard = new SDL3Clipboard();
-	}
-
-	public Result<void> GetText(String outText) => mShellClipboard.GetText(outText);
-	public Result<void> SetText(StringView text) => mShellClipboard.SetText(text);
-	public bool HasText => mShellClipboard.HasText;
-}
