@@ -7,60 +7,15 @@ using Sedulous.Mathematics;
 using Sedulous.RHI;
 using SampleFramework;
 using Sedulous.Drawing;
-using Sedulous.Fonts;
-using Sedulous.Fonts.TTF;
 using Sedulous.UI;
+using Sedulous.UI.Fonts;
 using Sedulous.UI.Renderer;
 using Sedulous.Shell.Input;
-using Sedulous.Shell.SDL3;
+using Sedulous.UI.Shell;
 using Sedulous.Audio;
 using Sedulous.Audio.SDL3;
 using Sedulous.Audio.Decoders;
-
-// Type aliases
-typealias RHITexture = Sedulous.RHI.ITexture;
-typealias DrawingTexture = Sedulous.Drawing.ITexture;
-
-/// Clipboard adapter for UI.
-class UIClipboardAdapter : Sedulous.UI.IClipboard
-{
-	private Sedulous.Shell.IClipboard mShellClipboard ~ delete _;
-
-	public this()
-	{
-		mShellClipboard = new SDL3Clipboard();
-	}
-
-	public Result<void> GetText(String outText) => mShellClipboard.GetText(outText);
-	public Result<void> SetText(StringView text) => mShellClipboard.SetText(text);
-	public bool HasText => mShellClipboard.HasText;
-}
-
-/// Font service for UI.
-class AudioFontService : IFontService
-{
-	private CachedFont mCachedFont;
-	private DrawingTexture mFontTexture;
-	private String mDefaultFontFamily = new .("Roboto") ~ delete _;
-
-	public this(IFont font, IFontAtlas atlas, DrawingTexture texture)
-	{
-		mCachedFont = new CachedFont(font, atlas);
-		mFontTexture = texture;
-	}
-
-	public ~this()
-	{
-		delete mCachedFont;
-	}
-
-	public StringView DefaultFontFamily => mDefaultFontFamily;
-	public CachedFont GetFont(float pixelHeight) => mCachedFont;
-	public CachedFont GetFont(StringView familyName, float pixelHeight) => mCachedFont;
-	public DrawingTexture GetAtlasTexture(CachedFont font) => mFontTexture;
-	public DrawingTexture GetAtlasTexture(StringView familyName, float pixelHeight) => mFontTexture;
-	public void ReleaseFont(CachedFont font) { }
-}
+using Sedulous.Fonts;
 
 /// Audio track info.
 class AudioTrack
@@ -90,8 +45,8 @@ class EngineAudioSample : RHISampleApp
 
 	// UI System
 	private UIContext mUIContext ~ delete _;
-	private UIClipboardAdapter mClipboard ~ delete _;
-	private AudioFontService mFontService;
+	private ShellClipboardAdapter mClipboard ~ delete _;
+	private FontService mFontService;
 	private DarkTheme mTheme;
 	private TooltipService mTooltipService;
 	private delegate void(StringView) mTextInputDelegate;
@@ -99,17 +54,8 @@ class EngineAudioSample : RHISampleApp
 	// Drawing
 	private DrawContext mDrawContext = new .() ~ delete _;
 
-	// Font resources
-	private IFont mFont;
-	private IFontAtlas mFontAtlas;
-	private TextureRef mFontTextureRef ~ delete _;
-
 	// UI Renderer
 	private UIRenderer mUIRenderer;
-
-	// GPU resources
-	private RHITexture mAtlasTexture;
-	private ITextureView mAtlasTextureView;
 
 	// UI Elements (for updating)
 	private TextBlock mNowPlayingLabel;
@@ -133,11 +79,8 @@ class EngineAudioSample : RHISampleApp
 		if (!InitializeAudio())
 			return false;
 
-		// Initialize font
-		if (!InitializeFont())
-			return false;
-
-		if (!CreateAtlasTexture())
+		// Initialize font service
+		if (!InitializeFonts())
 			return false;
 
 		// Initialize UI Renderer
@@ -147,9 +90,9 @@ class EngineAudioSample : RHISampleApp
 			Console.WriteLine("Failed to initialize UI renderer");
 			return false;
 		}
-		mUIRenderer.SetTexture(mAtlasTextureView);
+		mUIRenderer.SetTexture(mFontService.AtlasTextureView);
 
-		let (u, v) = mFontAtlas.WhitePixelUV;
+		let (u, v) = mFontService.WhitePixelUV;
 		mDrawContext.WhitePixelUV = .(u, v);
 
 		// Initialize UI
@@ -180,89 +123,22 @@ class EngineAudioSample : RHISampleApp
 		return true;
 	}
 
-	private bool InitializeFont()
+	private bool InitializeFonts()
 	{
+		mFontService = new FontService(Device);
+
 		String fontPath = scope .();
 		GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", fontPath);
-
-		if (!File.Exists(fontPath))
-		{
-			Console.WriteLine($"Font not found: {fontPath}");
-			return false;
-		}
-
-		TrueTypeFonts.Initialize();
 
 		FontLoadOptions options = .ExtendedLatin;
 		options.PixelHeight = 16;
 
-		if (FontLoaderFactory.LoadFont(fontPath, options) case .Ok(let font))
-			mFont = font;
-		else
+		if (mFontService.LoadFont("Roboto", fontPath, options) case .Err)
 		{
-			Console.WriteLine("Failed to load font");
+			Console.WriteLine($"Failed to load font: {fontPath}");
 			return false;
 		}
 
-		if (FontLoaderFactory.CreateAtlas(mFont, options) case .Ok(let atlas))
-			mFontAtlas = atlas;
-		else
-		{
-			Console.WriteLine("Failed to create font atlas");
-			return false;
-		}
-
-		return true;
-	}
-
-	private bool CreateAtlasTexture()
-	{
-		let atlasWidth = mFontAtlas.Width;
-		let atlasHeight = mFontAtlas.Height;
-		let r8Data = mFontAtlas.PixelData;
-
-		// Convert R8 to RGBA8
-		uint8[] rgba8Data = new uint8[atlasWidth * atlasHeight * 4];
-		defer delete rgba8Data;
-
-		for (uint32 i = 0; i < atlasWidth * atlasHeight; i++)
-		{
-			let alpha = r8Data[i];
-			rgba8Data[i * 4 + 0] = 255;
-			rgba8Data[i * 4 + 1] = 255;
-			rgba8Data[i * 4 + 2] = 255;
-			rgba8Data[i * 4 + 3] = alpha;
-		}
-
-		TextureDescriptor textureDesc = TextureDescriptor.Texture2D(
-			atlasWidth, atlasHeight, .RGBA8Unorm, .Sampled | .CopyDst
-		);
-
-		if (Device.CreateTexture(&textureDesc) not case .Ok(let texture))
-		{
-			Console.WriteLine("Failed to create atlas texture");
-			return false;
-		}
-		mAtlasTexture = texture;
-
-		TextureDataLayout dataLayout = .()
-		{
-			Offset = 0,
-			BytesPerRow = atlasWidth * 4,
-			RowsPerImage = atlasHeight
-		};
-		Extent3D writeSize = .(atlasWidth, atlasHeight, 1);
-		Device.Queue.WriteTexture(mAtlasTexture, Span<uint8>(rgba8Data.Ptr, rgba8Data.Count), &dataLayout, &writeSize);
-
-		TextureViewDescriptor viewDesc = .() { Format = .RGBA8Unorm };
-		if (Device.CreateTextureView(mAtlasTexture, &viewDesc) not case .Ok(let view))
-		{
-			Console.WriteLine("Failed to create atlas texture view");
-			return false;
-		}
-		mAtlasTextureView = view;
-
-		mFontTextureRef = new TextureRef(mAtlasTexture, atlasWidth, atlasHeight);
 		return true;
 	}
 
@@ -271,10 +147,9 @@ class EngineAudioSample : RHISampleApp
 		mUIContext = new UIContext();
 		mUIContext.DebugSettings.ShowLayoutBounds = false;
 
-		mClipboard = new UIClipboardAdapter();
+		mClipboard = new ShellClipboardAdapter(mShell.Clipboard);
 		mUIContext.RegisterClipboard(mClipboard);
 
-		mFontService = new AudioFontService(mFont, mFontAtlas, mFontTextureRef);
 		mUIContext.RegisterService<IFontService>(mFontService);
 
 		mTheme = new DarkTheme();
@@ -661,11 +536,6 @@ class EngineAudioSample : RHISampleApp
 		if (mFontService != null) { delete mFontService; mFontService = null; }
 		if (mTheme != null) { delete mTheme; mTheme = null; }
 		if (mTooltipService != null) { delete mTooltipService; mTooltipService = null; }
-
-		if (mAtlasTextureView != null) { delete mAtlasTextureView; mAtlasTextureView = null; }
-		if (mAtlasTexture != null) { delete mAtlasTexture; mAtlasTexture = null; }
-		//if (mFontAtlas != null) { delete mFontAtlas; mFontAtlas = null; }
-		//if (mFont != null) { delete mFont; mFont = null; }
 	}
 }
 
