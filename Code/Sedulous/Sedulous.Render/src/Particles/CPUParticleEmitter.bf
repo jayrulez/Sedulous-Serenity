@@ -40,10 +40,12 @@ public class CPUParticleEmitter
 	private IBuffer[FrameBufferCount] mVertexBuffers;
 	private CPUParticleVertex[] mVertexData ~ delete _;
 
-	// Death event buffer (positions where particles died this frame)
-	private Vector3[] mDeathPositions ~ delete _;
+	// Lifecycle event buffers (for sub-emitter support)
+	private ParticleEvent[] mDeathEvents ~ delete _;
 	private int32 mDeathCount = 0;
-	private int32 mMaxDeathEvents;
+	private ParticleEvent[] mBirthEvents ~ delete _;
+	private int32 mBirthCount = 0;
+	private int32 mMaxEvents;
 
 	// Sort scratch buffer
 	private int32[] mSortIndices ~ delete _;
@@ -81,9 +83,16 @@ public class CPUParticleEmitter
 	/// Gets the number of particles that died this frame.
 	public int32 DeathCount => mDeathCount;
 
-	/// Gets the positions where particles died this frame.
+	/// Gets the death events this frame (position, velocity, color).
 	/// Valid until the next Update() call.
-	public Span<Vector3> DeathPositions => .(mDeathPositions.Ptr, mDeathCount);
+	public Span<ParticleEvent> DeathEvents => .(mDeathEvents.Ptr, mDeathCount);
+
+	/// Gets the number of particles born this frame.
+	public int32 BirthCount => mBirthCount;
+
+	/// Gets the birth events this frame (position, velocity, color).
+	/// Valid until the next Update() call.
+	public Span<ParticleEvent> BirthEvents => .(mBirthEvents.Ptr, mBirthCount);
 
 	/// Gets the trail vertex buffer for the given frame index.
 	public IBuffer GetTrailVertexBuffer(uint32 frameIndex)
@@ -95,25 +104,27 @@ public class CPUParticleEmitter
 	public int32 GetTrailVertexCount() => mTrailVertexCount;
 
 	/// Creates a new CPU particle emitter.
-	public this(IDevice device, int32 maxParticles, int32 maxDeathEvents = 64)
+	public this(IDevice device, int32 maxParticles, int32 maxEvents = 64)
 	{
 		mDevice = device;
 		mMaxParticles = maxParticles;
-		mMaxDeathEvents = maxDeathEvents;
+		mMaxEvents = maxEvents;
 		mParticles = new CPUParticle[maxParticles];
 		mVertexData = new CPUParticleVertex[maxParticles];
-		mDeathPositions = new Vector3[maxDeathEvents];
+		mDeathEvents = new ParticleEvent[maxEvents];
+		mBirthEvents = new ParticleEvent[maxEvents];
 		mSortIndices = new int32[maxParticles];
 		mSortDistances = new float[maxParticles];
 
-		// Create vertex buffers
+		// Create vertex buffers (host-visible for direct CPU writes each frame)
 		for (int i = 0; i < FrameBufferCount; i++)
 		{
 			BufferDescriptor desc = .()
 			{
 				Label = "CPU Particle Vertex Buffer",
 				Size = (uint64)(maxParticles * CPUParticleVertex.SizeInBytes),
-				Usage = .Vertex | .CopyDst
+				Usage = .Vertex,
+				MemoryAccess = .Upload
 			};
 
 			switch (device.CreateBuffer(&desc))
@@ -139,8 +150,9 @@ public class CPUParticleEmitter
 	/// cameraPos is used for LOD calculations.
 	public void Update(float deltaTime, ParticleEmitterProxy* config, Vector3 cameraPos)
 	{
-		// Reset death events from last frame
+		// Reset lifecycle events from last frame
 		mDeathCount = 0;
+		mBirthCount = 0;
 
 		// Calculate LOD rate multiplier
 		mLODRateMultiplier = CalculateLODMultiplier(config, cameraPos);
@@ -163,6 +175,53 @@ public class CPUParticleEmitter
 
 	/// Whether this emitter is culled by LOD (no alive particles and fully distant).
 	public bool IsLODCulled => mLODRateMultiplier <= 0 && mAliveCount == 0;
+
+	/// Injects a particle at the given position with optional inherited velocity and color.
+	/// Used by sub-emitter system to spawn child particles at parent event locations.
+	public void InjectParticle(Vector3 position, Vector3 inheritedVelocity, Color inheritedColor, float velocityFactor, bool useVelocity, bool useColor, ParticleEmitterProxy* config)
+	{
+		if (mAliveCount >= mMaxParticles)
+			return;
+
+		ref CPUParticle p = ref mParticles[mAliveCount];
+
+		// Position from parent event
+		p.Position = position;
+
+		// Velocity: blend between emitter's configured velocity and inherited
+		let randomFactor = Vector3(
+			(float)(mRandom.NextDouble() * 2.0 - 1.0) * config.VelocityRandomness.X,
+			(float)(mRandom.NextDouble() * 2.0 - 1.0) * config.VelocityRandomness.Y,
+			(float)(mRandom.NextDouble() * 2.0 - 1.0) * config.VelocityRandomness.Z
+		);
+		var velocity = config.InitialVelocity + randomFactor;
+		if (useVelocity)
+			velocity = velocity + inheritedVelocity * velocityFactor;
+		p.Velocity = velocity;
+		p.StartVelocity = velocity;
+
+		// Lifetime with variance
+		let varianceT = (float)mRandom.NextDouble();
+		let lifetimeMul = config.LifetimeVarianceMin + (config.LifetimeVarianceMax - config.LifetimeVarianceMin) * varianceT;
+		p.Lifetime = Math.Max(config.ParticleLifetime * lifetimeMul, 0.01f);
+		p.Age = 0;
+
+		p.Size = config.StartSize;
+
+		// Color: use inherited or configured
+		if (useColor)
+			p.Color = inheritedColor;
+		else
+		{
+			let sc = config.StartColor;
+			p.Color = Color(sc.X, sc.Y, sc.Z, sc.W);
+		}
+
+		p.Rotation = (float)(mRandom.NextDouble() * Math.PI_d * 2.0);
+		p.RotationSpeed = (float)(mRandom.NextDouble() * 2.0 - 1.0) * 2.0f;
+
+		mAliveCount++;
+	}
 
 	/// Uploads vertex data to GPU buffer for rendering.
 	public void Upload(uint32 frameIndex, Vector3 cameraPos, ParticleEmitterProxy* config)
@@ -275,7 +334,7 @@ public class CPUParticleEmitter
 
 	private void SpawnParticles(float deltaTime, ParticleEmitterProxy* config)
 	{
-		if (!config.IsEmitting)
+		if (!config.IsEmitting || config.SubEmitterOnly)
 			return;
 
 		int32 spawnCount = 0;
@@ -383,6 +442,18 @@ public class CPUParticleEmitter
 			p.Rotation = (float)(mRandom.NextDouble() * Math.PI_d * 2.0);
 			p.RotationSpeed = (float)(mRandom.NextDouble() * 2.0 - 1.0) * 2.0f;
 
+			// Record birth event for sub-emitter support
+			if (mBirthCount < mMaxEvents)
+			{
+				mBirthEvents[mBirthCount] = .()
+				{
+					Position = p.Position,
+					Velocity = p.Velocity,
+					Color = p.Color
+				};
+				mBirthCount++;
+			}
+
 			mAliveCount++;
 		}
 	}
@@ -404,10 +475,15 @@ public class CPUParticleEmitter
 			// Kill dead particles
 			if (p.Age >= p.Lifetime)
 			{
-				// Record death position for sub-emitter support
-				if (mDeathCount < mMaxDeathEvents)
+				// Record death event for sub-emitter support
+				if (mDeathCount < mMaxEvents)
 				{
-					mDeathPositions[mDeathCount] = p.Position;
+					mDeathEvents[mDeathCount] = .()
+					{
+						Position = p.Position,
+						Velocity = p.Velocity,
+						Color = p.Color
+					};
 					mDeathCount++;
 				}
 				continue;
@@ -590,14 +666,15 @@ public class CPUParticleEmitter
 		mMaxTrailVertices = mMaxParticles * (mMaxTrailPointsPerParticle - 1) * 6;
 		mTrailVertexData = new TrailVertex[mMaxTrailVertices];
 
-		// Create trail vertex buffers
+		// Create trail vertex buffers (host-visible for direct CPU writes each frame)
 		for (int i = 0; i < FrameBufferCount; i++)
 		{
 			BufferDescriptor desc = .()
 			{
 				Label = "CPU Particle Trail Vertex Buffer",
 				Size = (uint64)(mMaxTrailVertices * TrailVertex.SizeInBytes),
-				Usage = .Vertex | .CopyDst
+				Usage = .Vertex,
+				MemoryAccess = .Upload
 			};
 
 			switch (mDevice.CreateBuffer(&desc))

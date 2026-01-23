@@ -13,7 +13,7 @@ using System.Collections;
 namespace RenderSandbox;
 
 /// Integrated sample demonstrating the new Sedulous.Render pipeline.
-class RenderIntegratedApp : Application
+class RenderSandboxApp : Application
 {
 	// Render system
 	private RenderSystem mRenderSystem ~ delete _;

@@ -260,7 +260,7 @@ public class RenderSystem : IDisposable
 
 			// Begin frame on subsystems
 			mRenderFrameContext.BeginFrame(mFrameNumber, totalTime, deltaTime);
-			mRenderGraph.BeginFrame();
+			mRenderGraph.BeginFrame(mRenderFrameContext.FrameIndex);
 			mTransientPool.BeginFrame(mRenderFrameContext.FrameIndex);
 		}
 	}
@@ -399,6 +399,9 @@ public class RenderSystem : IDisposable
 		mSortedFeatures.Clear();
 
 		// Dispose resources before deletion
+		if (mRenderGraph != null)
+			mRenderGraph.Dispose();
+
 		if (mTransientPool != null)
 			mTransientPool.Dispose();
 

@@ -17,6 +17,7 @@ public class RenderWorld : IDisposable
 	private ProxyPool<CameraProxy> mCameraProxies = new .() ~ delete _;
 	private ProxyPool<ParticleEmitterProxy> mParticleProxies = new .() ~ delete _;
 	private ProxyPool<SpriteProxy> mSpriteProxies = new .() ~ delete _;
+	private ProxyPool<TrailEmitterProxy> mTrailProxies = new .() ~ delete _;
 
 	// Main camera handle
 	private CameraProxyHandle mMainCamera = .Invalid;
@@ -34,6 +35,7 @@ public class RenderWorld : IDisposable
 	private bool mCamerasDirty = false;
 	private bool mParticlesDirty = false;
 	private bool mSpritesDirty = false;
+	private bool mTrailsDirty = false;
 
 	/// Gets the mesh proxy pool.
 	public ProxyPool<MeshProxy> MeshProxies => mMeshProxies;
@@ -718,6 +720,50 @@ public class RenderWorld : IDisposable
 	}
 
 	// ========================================================================
+	// Trail API
+	// ========================================================================
+
+	/// Creates a new standalone trail emitter proxy.
+	public TrailEmitterProxyHandle CreateTrailEmitter()
+	{
+		let handle = mTrailProxies.Allocate();
+		var proxy = mTrailProxies.Get(handle);
+		*proxy = TrailEmitterProxy.CreateDefault();
+		proxy.IsActive = true;
+		proxy.Generation = handle.Generation;
+		mTrailsDirty = true;
+		return .() { Handle = handle };
+	}
+
+	/// Gets a trail emitter proxy by handle.
+	public TrailEmitterProxy* GetTrailEmitter(TrailEmitterProxyHandle handle)
+	{
+		return mTrailProxies.Get(handle.Handle);
+	}
+
+	/// Destroys a trail emitter proxy.
+	public void DestroyTrailEmitter(TrailEmitterProxyHandle handle)
+	{
+		if (mTrailProxies.TryGet(handle.Handle, let proxy))
+		{
+			if (proxy.Emitter != null)
+			{
+				delete proxy.Emitter;
+				proxy.Emitter = null;
+			}
+			proxy.Reset();
+		}
+		mTrailProxies.Free(handle.Handle);
+		mTrailsDirty = true;
+	}
+
+	/// Iterates over all active trail emitters.
+	public void ForEachTrailEmitter(ProxyCallback<TrailEmitterProxy> callback)
+	{
+		mTrailProxies.ForEach(callback);
+	}
+
+	// ========================================================================
 	// General
 	// ========================================================================
 
@@ -730,6 +776,7 @@ public class RenderWorld : IDisposable
 		mCamerasDirty = false;
 		mParticlesDirty = false;
 		mSpritesDirty = false;
+		mTrailsDirty = false;
 	}
 
 	/// Clears all objects from the world.
@@ -745,12 +792,23 @@ public class RenderWorld : IDisposable
 			}
 		});
 
+		// Delete owned standalone trail emitters before clearing
+		mTrailProxies.ForEach(scope (handle, proxy) =>
+		{
+			if (proxy.Emitter != null)
+			{
+				delete proxy.Emitter;
+				proxy.Emitter = null;
+			}
+		});
+
 		mMeshProxies.Clear();
 		mSkinnedMeshProxies.Clear();
 		mLightProxies.Clear();
 		mCameraProxies.Clear();
 		mParticleProxies.Clear();
 		mSpriteProxies.Clear();
+		mTrailProxies.Clear();
 		mMainCamera = .Invalid;
 		mMeshesDirty = true;
 		mSkinnedMeshesDirty = true;
@@ -758,6 +816,7 @@ public class RenderWorld : IDisposable
 		mCamerasDirty = true;
 		mParticlesDirty = true;
 		mSpritesDirty = true;
+		mTrailsDirty = true;
 	}
 
 	public void Dispose()

@@ -62,6 +62,11 @@ public class RenderGraph : IDisposable
 	// Resources that need to be transitioned to Present layout at end of frame (e.g., swapchain)
 	private List<RGResourceHandle> mPresentTargets = new .() ~ delete _;
 
+	// Deferred deletion queues per frame slot.
+	// Transient resources are pushed here instead of being deleted immediately,
+	// and flushed the next time the same frame slot is reused (after fence wait).
+	private List<RenderGraphResource>[RenderConfig.FrameBufferCount] mDeferredDeletions;
+
 	// Statistics
 	public int32 PassCount => (int32)mPasses.Count;
 	public int32 ResourceCount => (int32)mResources.Count;
@@ -70,17 +75,26 @@ public class RenderGraph : IDisposable
 	public this(IDevice device)
 	{
 		mDevice = device;
+		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
+			mDeferredDeletions[i] = new List<RenderGraphResource>();
 	}
 
 	/// Begins building the render graph for a new frame.
-	public void BeginFrame()
+	/// frameIndex is the current frame buffer slot (0 to FrameBufferCount-1),
+	/// used for deferred resource deletion (safe after fence wait in AcquireNextImage).
+	public void BeginFrame(int32 frameIndex)
 	{
+		// Flush deferred deletions for this frame slot.
+		// These resources were used in the previous command buffer for this slot,
+		// which has now completed (fence was waited on in AcquireNextImage).
+		FlushDeferredDeletions(frameIndex);
+
 		// Clear previous frame passes
 		for (let pass in mPasses)
 			delete pass;
 		mPasses.Clear();
 
-		// Reset transient resources - null out slots instead of removing to preserve indices
+		// Reset transient resources - defer deletion instead of immediate release
 		for (int i = 0; i < mResources.Count; i++)
 		{
 			let resource = mResources[i];
@@ -89,14 +103,12 @@ public class RenderGraph : IDisposable
 
 			if (resource.IsTransient)
 			{
-				// Remove texture layout tracking for this resource before releasing
+				// Remove texture layout tracking for this resource before deferring
 				if (resource.Type == .Texture && resource.Texture != null)
 				{
 					let key = TextureKey(resource.Texture);
 					mTextureLayouts.Remove(key);
 				}
-
-				resource.ReleaseTransient();
 
 				// Remove name mapping
 				for (let kv in mResourceNames)
@@ -110,7 +122,8 @@ public class RenderGraph : IDisposable
 					}
 				}
 
-				delete resource;
+				// Defer deletion until this frame slot's fence is waited on next time
+				mDeferredDeletions[frameIndex].Add(resource);
 				mResources[i] = null; // Leave a hole, don't shift indices
 				mFreeSlots.Add((int32)i); // Track this slot for reuse
 			}
@@ -947,7 +960,25 @@ public class RenderGraph : IDisposable
 		}
 	}
 
+	/// Flushes deferred deletions for a given frame slot.
+	private void FlushDeferredDeletions(int32 frameIndex)
+	{
+		let list = mDeferredDeletions[frameIndex];
+		for (let resource in list)
+		{
+			resource.ReleaseTransient();
+			delete resource;
+		}
+		list.Clear();
+	}
+
 	public void Dispose()
 	{
+		// Flush all deferred deletion queues on shutdown
+		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
+		{
+			FlushDeferredDeletions((int32)i);
+			delete mDeferredDeletions[i];
+		}
 	}
 }

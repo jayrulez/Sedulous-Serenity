@@ -415,15 +415,16 @@ abstract class Application
 			return;
 
 		// Acquire next image (sync point - waits for fence)
-		if (mSwapChain.AcquireNextImage() case .Err)
+		using (SProfiler.Begin("AcquireImage"))
 		{
-			HandleResize();
-			return;
+			if (mSwapChain.AcquireNextImage() case .Err)
+			{
+				HandleResize();
+				return;
+			}
 		}
 
-		mDevice.WaitIdle();
-
-		// Safe to write per-frame buffers now
+		//mDevice.WaitIdle(); // AcquireNextImage already waits on per-frame fence; uncomment to debug sync issues
 		OnPrepareFrame(frameContext);
 
 		// Clean up old command buffer
@@ -456,10 +457,14 @@ abstract class Application
 		let commandBuffer = encoder.Finish();
 		mCommandBuffers[frameIndex] = commandBuffer;
 
-		mDevice.Queue.Submit(commandBuffer, mSwapChain);
+		using (SProfiler.Begin("Submit"))
+			mDevice.Queue.Submit(commandBuffer, mSwapChain);
 
-		if (mSwapChain.Present() case .Err)
-			HandleResize();
+		using (SProfiler.Begin("Present"))
+		{
+			if (mSwapChain.Present() case .Err)
+				HandleResize();
+		}
 
 		delete encoder;
 		OnFrameEnd();

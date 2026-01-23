@@ -58,6 +58,7 @@ class Program
 			Width = 1280,
 			Height = 720,
 			EnableDepth = true,
+			PresentMode = .Mailbox,
 			ClearColor = .(0.1f, 0.15f, 0.2f, 1.0f)
 		};
 

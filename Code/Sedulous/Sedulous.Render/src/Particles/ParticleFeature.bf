@@ -5,6 +5,7 @@ using System.Collections;
 using Sedulous.RHI;
 using Sedulous.Mathematics;
 using Sedulous.Shaders;
+using Sedulous.Profiler;
 
 /// Unified particle render feature.
 /// Supports both GPU compute and CPU simulation backends.
@@ -45,6 +46,7 @@ public class ParticleFeature : RenderFeatureBase
 	private const int32 MaxActiveEmitters = 64;
 	private IBuffer mEmitterParamsBuffer ~ delete _;
 	private Dictionary<ParticleEmitterProxyHandle, int32> mEmitterParamIndices = new .() ~ delete _;
+	private Dictionary<TrailEmitterProxyHandle, int32> mTrailParamIndices = new .() ~ delete _;
 	private int32 mEmitterParamCount;
 	private RGResourceHandle mDepthHandle;
 
@@ -54,6 +56,7 @@ public class ParticleFeature : RenderFeatureBase
 	// Per-frame active emitters
 	private List<ParticleEmitterProxyHandle> mActiveGPUEmitters = new .() ~ delete _;
 	private List<ParticleEmitterProxyHandle> mActiveCPUEmitters = new .() ~ delete _;
+	private List<TrailEmitterProxyHandle> mActiveTrails = new .() ~ delete _;
 
 	// Per-frame view dimensions
 	private uint32 mViewWidth;
@@ -61,6 +64,12 @@ public class ParticleFeature : RenderFeatureBase
 
 	// Per-frame CPU emitter bind groups (per-emitter, per-frame)
 	private Dictionary<ParticleEmitterProxyHandle, IBindGroup>[RenderConfig.FrameBufferCount] mCPURenderBindGroups;
+
+	// Per-frame bind groups for standalone trails (uses default texture, same layout)
+	private IBindGroup[RenderConfig.FrameBufferCount] mTrailBindGroups;
+
+	// RNG for sub-emitter probability checks
+	private Random mSubEmitterRandom = new .() ~ delete _;
 
 	private void InitCPUBindGroupDicts()
 	{
@@ -208,7 +217,8 @@ public class ParticleFeature : RenderFeatureBase
 		{
 			Label = "Emitter Params (Dynamic UBO)",
 			Size = EmitterParamAlignment * MaxActiveEmitters,
-			Usage = .Uniform | .CopyDst
+			Usage = .Uniform,
+			MemoryAccess = .Upload
 		};
 
 		switch (Renderer.Device.CreateBuffer(&emitterParamsDesc))
@@ -475,78 +485,121 @@ public class ParticleFeature : RenderFeatureBase
 		mGPUParticleSystems.Clear();
 
 		CleanupCPUBindGroupDicts();
+
+		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
+		{
+			if (mTrailBindGroups[i] != null)
+			{
+				delete mTrailBindGroups[i];
+				mTrailBindGroups[i] = null;
+			}
+		}
 	}
 
 	public override void AddPasses(RenderGraph graph, RenderView view, RenderWorld world)
 	{
 		mActiveGPUEmitters.Clear();
 		mActiveCPUEmitters.Clear();
+		mActiveTrails.Clear();
 
-		// Invalidate cached render bind groups (depth texture may have changed on resize)
-		InvalidateRenderBindGroups();
+		// Invalidate cached render bind groups for current frame only
+		// (depth texture may have changed on resize, but other frame's bind groups may still be in-flight)
+		let frameIndex = Renderer.RenderFrameContext?.FrameIndex ?? 0;
+		InvalidateRenderBindGroups(frameIndex);
 
 		// Iterate all particle emitters and categorize by backend
-		world.ForEachParticleEmitter(scope [&] (handle, proxy) =>
+		using (SProfiler.Begin("Particles.Simulate"))
 		{
-			if (proxy.IsEnabled && proxy.IsEmitting)
+			world.ForEachParticleEmitter(scope [&] (handle, proxy) =>
 			{
-				let emitterHandle = ParticleEmitterProxyHandle() { Handle = handle };
-
-				if (proxy.Backend == .GPU)
+				if (proxy.IsEnabled && proxy.IsEmitting)
 				{
-					mActiveGPUEmitters.Add(emitterHandle);
+					let emitterHandle = ParticleEmitterProxyHandle() { Handle = handle };
 
-					// Ensure GPU particle system exists
-					GPUParticleSystem system;
-					if (!mGPUParticleSystems.TryGetValue(emitterHandle, out system))
+					if (proxy.Backend == .GPU)
 					{
-						system = CreateGPUParticleSystem(&proxy);
+						mActiveGPUEmitters.Add(emitterHandle);
+
+						// Ensure GPU particle system exists
+						GPUParticleSystem system;
+						if (!mGPUParticleSystems.TryGetValue(emitterHandle, out system))
+						{
+							system = CreateGPUParticleSystem(&proxy);
+							if (system != null)
+								mGPUParticleSystems[emitterHandle] = system;
+						}
+
 						if (system != null)
-							mGPUParticleSystems[emitterHandle] = system;
+							UpdateGPUEmitterParams(system, &proxy);
 					}
-
-					if (system != null)
-						UpdateGPUEmitterParams(system, &proxy);
-				}
-				else // CPU
-				{
-					mActiveCPUEmitters.Add(emitterHandle);
-
-					// Update CPU emitter simulation
-					if (proxy.CPUEmitter != null)
+					else // CPU
 					{
-						proxy.CPUEmitter.Update(Renderer.RenderFrameContext.DeltaTime, &proxy, view.CameraPosition);
+						mActiveCPUEmitters.Add(emitterHandle);
+
+						// Update CPU emitter simulation
+						if (proxy.CPUEmitter != null)
+						{
+							proxy.CPUEmitter.Update(Renderer.RenderFrameContext.DeltaTime, &proxy, view.CameraPosition);
+						}
 					}
 				}
+			});
+
+			// Process sub-emitter events (after all emitters have been simulated)
+			ProcessSubEmitterEvents(world);
+		}
+
+		// Collect standalone trail emitters
+		world.ForEachTrailEmitter(scope [&] (handle, proxy) =>
+		{
+			if (proxy.IsEnabled && proxy.IsActive && proxy.Emitter != null)
+			{
+				let trailHandle = TrailEmitterProxyHandle() { Handle = handle };
+				mActiveTrails.Add(trailHandle);
 			}
 		});
 
-		if (mActiveGPUEmitters.Count == 0 && mActiveCPUEmitters.Count == 0)
+		if (mActiveGPUEmitters.Count == 0 && mActiveCPUEmitters.Count == 0 && mActiveTrails.Count == 0)
 			return;
 
 		// Upload per-emitter params to dynamic uniform buffer (before render pass)
-		mEmitterParamIndices.Clear();
-		mEmitterParamCount = 0;
-
-		for (let handle in mActiveGPUEmitters)
+		using (SProfiler.Begin("Particles.EmitterParams"))
 		{
-			let proxy = world.GetParticleEmitter(handle);
-			if (proxy != null && mEmitterParamCount < MaxActiveEmitters)
+			mEmitterParamIndices.Clear();
+			mTrailParamIndices.Clear();
+			mEmitterParamCount = 0;
+
+			for (let handle in mActiveGPUEmitters)
 			{
-				mEmitterParamIndices[handle] = mEmitterParamCount;
-				WriteEmitterParams(mEmitterParamCount, proxy);
-				mEmitterParamCount++;
+				let proxy = world.GetParticleEmitter(handle);
+				if (proxy != null && mEmitterParamCount < MaxActiveEmitters)
+				{
+					mEmitterParamIndices[handle] = mEmitterParamCount;
+					WriteEmitterParams(mEmitterParamCount, proxy);
+					mEmitterParamCount++;
+				}
 			}
-		}
 
-		for (let handle in mActiveCPUEmitters)
-		{
-			let proxy = world.GetParticleEmitter(handle);
-			if (proxy != null && mEmitterParamCount < MaxActiveEmitters)
+			for (let handle in mActiveCPUEmitters)
 			{
-				mEmitterParamIndices[handle] = mEmitterParamCount;
-				WriteEmitterParams(mEmitterParamCount, proxy);
-				mEmitterParamCount++;
+				let proxy = world.GetParticleEmitter(handle);
+				if (proxy != null && mEmitterParamCount < MaxActiveEmitters)
+				{
+					mEmitterParamIndices[handle] = mEmitterParamCount;
+					WriteEmitterParams(mEmitterParamCount, proxy);
+					mEmitterParamCount++;
+				}
+			}
+
+			for (let handle in mActiveTrails)
+			{
+				let proxy = world.GetTrailEmitter(handle);
+				if (proxy != null && mEmitterParamCount < MaxActiveEmitters)
+				{
+					mTrailParamIndices[handle] = mEmitterParamCount;
+					WriteTrailEmitterParams(mEmitterParamCount, proxy);
+					mEmitterParamCount++;
+				}
 			}
 		}
 
@@ -561,24 +614,44 @@ public class ParticleFeature : RenderFeatureBase
 		}
 
 		// Upload CPU particle vertex data (particles + trails)
-		if (mActiveCPUEmitters.Count > 0)
+		using (SProfiler.Begin("Particles.Upload"))
 		{
-			let frameContext = Renderer.RenderFrameContext;
-			let cameraPos = frameContext != null ? frameContext.SceneUniforms.CameraPosition : Vector3.Zero;
-			let frameIndex = frameContext != null ? frameContext.FrameIndex : (int32)0;
-
-			world.ForEachParticleEmitter(scope [&] (handle, proxy) =>
+			if (mActiveCPUEmitters.Count > 0)
 			{
-				if (proxy.IsEnabled && proxy.IsEmitting && proxy.Backend == .CPU && proxy.CPUEmitter != null)
-				{
-					let bufIdx = (uint32)(frameIndex % CPUParticleEmitter.FrameBufferCount);
-					proxy.CPUEmitter.Upload(bufIdx, cameraPos, &proxy);
+				let frameContext = Renderer.RenderFrameContext;
+				let cameraPos = frameContext != null ? frameContext.SceneUniforms.CameraPosition : Vector3.Zero;
 
-					// Upload trail vertices if trails are active
-					if (proxy.Trail.IsActive)
-						proxy.CPUEmitter.UploadTrails(bufIdx, cameraPos, &proxy);
+				world.ForEachParticleEmitter(scope [&] (handle, proxy) =>
+				{
+					if (proxy.IsEnabled && proxy.IsEmitting && proxy.Backend == .CPU && proxy.CPUEmitter != null)
+					{
+						let bufIdx = (uint32)(frameIndex % CPUParticleEmitter.FrameBufferCount);
+						proxy.CPUEmitter.Upload(bufIdx, cameraPos, &proxy);
+
+						// Upload trail vertices if trails are active
+						if (proxy.Trail.IsActive)
+							proxy.CPUEmitter.UploadTrails(bufIdx, cameraPos, &proxy);
+					}
+				});
+			}
+
+			// Update and upload standalone trail vertex data
+			if (mActiveTrails.Count > 0)
+			{
+				let frameContext = Renderer.RenderFrameContext;
+				let cameraPos = frameContext != null ? frameContext.SceneUniforms.CameraPosition : Vector3.Zero;
+				let deltaTime = frameContext != null ? frameContext.DeltaTime : 0.0f;
+
+				for (let handle in mActiveTrails)
+				{
+					let proxy = Renderer.ActiveWorld?.GetTrailEmitter(handle);
+					if (proxy != null && proxy.Emitter != null)
+					{
+						proxy.Emitter.Update(deltaTime);
+						proxy.Emitter.Upload((uint32)frameIndex, cameraPos, proxy);
+					}
 				}
-			});
+			}
 		}
 
 		// Get existing resources
@@ -601,6 +674,70 @@ public class ParticleFeature : RenderFeatureBase
 			.SetExecuteCallback(new [&] (encoder) => {
 				ExecuteRenderPass(encoder, mViewWidth, mViewHeight);
 			});
+	}
+
+	/// Processes sub-emitter events: for each parent emitter with sub-emitter config,
+	/// checks death/birth events and injects particles into child emitters.
+	private void ProcessSubEmitterEvents(RenderWorld world)
+	{
+		for (let parentHandle in mActiveCPUEmitters)
+		{
+			let parentProxy = world.GetParticleEmitter(parentHandle);
+			if (parentProxy == null || parentProxy.SubEmitterCount <= 0)
+				continue;
+			if (parentProxy.CPUEmitter == null)
+				continue;
+
+			let cpuEmitter = parentProxy.CPUEmitter;
+
+			for (int32 subIdx = 0; subIdx < parentProxy.SubEmitterCount; subIdx++)
+			{
+				let entry = parentProxy.SubEmitters[subIdx];
+				if (!entry.ChildEmitter.IsValid)
+					continue;
+
+				let childProxy = world.GetParticleEmitter(entry.ChildEmitter);
+				if (childProxy == null || childProxy.CPUEmitter == null)
+					continue;
+
+				// Select event buffer based on trigger type
+				Span<ParticleEvent> events;
+				switch (entry.Trigger)
+				{
+				case .OnBirth:
+					events = cpuEmitter.BirthEvents;
+				case .OnDeath:
+					events = cpuEmitter.DeathEvents;
+				}
+
+				// Process each event
+				for (let evt in events)
+				{
+					// Probability check
+					if (entry.Probability < 1.0f)
+					{
+						if ((float)mSubEmitterRandom.NextDouble() > entry.Probability)
+							continue;
+					}
+
+					// Spawn particles in child emitter
+					let spawnPos = entry.InheritPosition ? evt.Position : childProxy.Position;
+
+					for (int32 s = 0; s < entry.SpawnCount; s++)
+					{
+						childProxy.CPUEmitter.InjectParticle(
+							spawnPos,
+							evt.Velocity,
+							evt.Color,
+							entry.VelocityInheritFactor,
+							entry.InheritVelocity,
+							entry.InheritColor,
+							childProxy
+						);
+					}
+				}
+			}
+		}
 	}
 
 	private Result<void> CreateComputePipelines()
@@ -729,6 +866,9 @@ public class ParticleFeature : RenderFeatureBase
 		RenderCPUParticles(encoder, depthView);
 
 		// Render particle trails
+		RenderParticleTrails(encoder, depthView);
+
+		// Render trail emitters
 		RenderTrails(encoder, depthView);
 	}
 
@@ -892,7 +1032,7 @@ public class ParticleFeature : RenderFeatureBase
 		}
 	}
 
-	private void RenderTrails(IRenderPassEncoder encoder, ITextureView depthView)
+	private void RenderParticleTrails(IRenderPassEncoder encoder, ITextureView depthView)
 	{
 		if (mTrailRenderPipelineAlpha == null && mTrailRenderPipelineAdditive == null)
 			return;
@@ -953,6 +1093,134 @@ public class ParticleFeature : RenderFeatureBase
 			encoder.SetVertexBuffer(0, trailBuffer, 0);
 			encoder.Draw((uint32)trailVertexCount, 1, 0, 0);
 			Renderer.Stats.DrawCalls++;
+		}
+	}
+
+	private void RenderTrails(IRenderPassEncoder encoder, ITextureView depthView)
+	{
+		if (mTrailRenderPipelineAlpha == null && mTrailRenderPipelineAdditive == null)
+			return;
+
+		if (mActiveTrails.Count == 0)
+			return;
+
+		let frameIndex = Renderer.RenderFrameContext.FrameIndex;
+
+		// Ensure per-frame bind group exists
+		if (mTrailBindGroups[frameIndex] == null)
+		{
+			mTrailBindGroups[frameIndex] = CreateTrailBindGroup(depthView);
+			if (mTrailBindGroups[frameIndex] == null)
+				return;
+		}
+
+		for (let handle in mActiveTrails)
+		{
+			let proxy = Renderer.ActiveWorld?.GetTrailEmitter(handle);
+			if (proxy == null || proxy.Emitter == null)
+				continue;
+
+			let vertexCount = proxy.Emitter.VertexCount;
+			if (vertexCount == 0)
+				continue;
+
+			let trailBuffer = proxy.Emitter.GetVertexBuffer((uint32)frameIndex);
+			if (trailBuffer == null)
+				continue;
+
+			// Select pipeline based on blend mode
+			IRenderPipeline pipeline = null;
+			switch (proxy.BlendMode)
+			{
+			case .Alpha: pipeline = mTrailRenderPipelineAlpha;
+			case .Additive: pipeline = mTrailRenderPipelineAdditive;
+			default: pipeline = mTrailRenderPipelineAlpha;
+			}
+
+			if (pipeline == null)
+				continue;
+
+			encoder.SetPipeline(pipeline);
+
+			// Use dynamic offset for this trail's params
+			int32 emitterIndex = 0;
+			mTrailParamIndices.TryGetValue(handle, out emitterIndex);
+			uint32[1] dynamicOffsets = .((uint32)((int64)emitterIndex * (int64)EmitterParamAlignment));
+			encoder.SetBindGroup(0, mTrailBindGroups[frameIndex], dynamicOffsets);
+			encoder.SetVertexBuffer(0, trailBuffer, 0);
+			encoder.Draw((uint32)vertexCount, 1, 0, 0);
+			Renderer.Stats.DrawCalls++;
+		}
+	}
+
+	private IBindGroup CreateTrailBindGroup(ITextureView depthView)
+	{
+		if (mCPURenderBindGroupLayout == null || mDefaultParticleTextureView == null || mDefaultSampler == null)
+			return null;
+		if (depthView == null || mEmitterParamsBuffer == null)
+			return null;
+
+		let cameraBuffer = Renderer.RenderFrameContext?.SceneUniformBuffer;
+		if (cameraBuffer == null)
+			return null;
+
+		// Get lighting buffers (same as CPU particles)
+		let frameIndex = Renderer.RenderFrameContext.FrameIndex;
+		IBuffer lightingBuffer = null;
+		IBuffer lightDataBuffer = null;
+		IBuffer clusterInfoBuffer = null;
+		IBuffer lightIndexBuffer = null;
+		uint64 lightDataSize = 64;
+		uint64 clusterInfoSize = 8;
+		uint64 lightIndexSize = 4;
+
+		if (let forwardFeature = Renderer.GetFeature<ForwardOpaqueFeature>())
+		{
+			if (forwardFeature.Lighting != null)
+			{
+				lightingBuffer = forwardFeature.Lighting.LightBuffer?.GetUniformBuffer(frameIndex);
+				lightDataBuffer = forwardFeature.Lighting.LightBuffer?.GetLightDataBuffer(frameIndex);
+				clusterInfoBuffer = forwardFeature.Lighting.ClusterGrid?.GetClusterLightInfoBuffer(frameIndex);
+				lightIndexBuffer = forwardFeature.Lighting.ClusterGrid?.GetLightIndexBuffer(frameIndex);
+
+				if (forwardFeature.Lighting.LightBuffer != null)
+					lightDataSize = (uint64)(forwardFeature.Lighting.LightBuffer.MaxLights * GPULight.Size);
+				if (forwardFeature.Lighting.ClusterGrid != null)
+				{
+					let config = forwardFeature.Lighting.ClusterGrid.Config;
+					clusterInfoSize = (uint64)(config.TotalClusters * 8);
+					lightIndexSize = (uint64)(config.MaxLightsPerCluster * config.TotalClusters * 4);
+				}
+			}
+		}
+
+		if (lightingBuffer == null || lightDataBuffer == null ||
+			clusterInfoBuffer == null || lightIndexBuffer == null)
+			return null;
+
+		BindGroupEntry[9] entries = .(
+			BindGroupEntry.Buffer(0, cameraBuffer, 0, SceneUniforms.Size),
+			BindGroupEntry.Texture(0, mDefaultParticleTextureView),
+			BindGroupEntry.Sampler(0, mDefaultSampler),
+			BindGroupEntry.Texture(1, depthView, .DepthStencilReadOnly),
+			BindGroupEntry.Buffer(1, mEmitterParamsBuffer, 0, EmitterParamAlignment),
+			BindGroupEntry.Buffer(3, lightingBuffer, 0, (uint64)LightingUniforms.Size),
+			BindGroupEntry.Buffer(4, lightDataBuffer, 0, lightDataSize),
+			BindGroupEntry.Buffer(5, clusterInfoBuffer, 0, clusterInfoSize),
+			BindGroupEntry.Buffer(6, lightIndexBuffer, 0, lightIndexSize)
+		);
+
+		BindGroupDescriptor bgDesc = .()
+		{
+			Label = "Standalone Trail Render BindGroup",
+			Layout = mCPURenderBindGroupLayout,
+			Entries = entries
+		};
+
+		switch (Renderer.Device.CreateBindGroup(&bgDesc))
+		{
+		case .Ok(let bg): return bg;
+		case .Err: return null;
 		}
 	}
 
@@ -1030,31 +1298,36 @@ public class ParticleFeature : RenderFeatureBase
 		}
 	}
 
-	private void InvalidateRenderBindGroups()
+	private void InvalidateRenderBindGroups(int32 frameIndex)
 	{
-		// Clear GPU particle render bind groups
+		// Only invalidate the current frame's bind groups.
+		// The other frame slot's bind groups may still be in use by the GPU
+		// (its fence hasn't been waited yet).
+
+		// Clear GPU particle render bind groups for this frame
 		for (let kv in mGPUParticleSystems)
 		{
 			let system = kv.value;
-			for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
+			if (system.RenderBindGroups[frameIndex] != null)
 			{
-				if (system.RenderBindGroups[i] != null)
-				{
-					delete system.RenderBindGroups[i];
-					system.RenderBindGroups[i] = null;
-				}
+				delete system.RenderBindGroups[frameIndex];
+				system.RenderBindGroups[frameIndex] = null;
 			}
 		}
 
-		// Clear CPU particle render bind groups
-		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
+		// Clear CPU particle render bind groups for this frame
+		if (mCPURenderBindGroups[frameIndex] != null)
 		{
-			if (mCPURenderBindGroups[i] != null)
-			{
-				for (let kv in mCPURenderBindGroups[i])
-					delete kv.value;
-				mCPURenderBindGroups[i].Clear();
-			}
+			for (let kv in mCPURenderBindGroups[frameIndex])
+				delete kv.value;
+			mCPURenderBindGroups[frameIndex].Clear();
+		}
+
+		// Clear standalone trail bind group for this frame
+		if (mTrailBindGroups[frameIndex] != null)
+		{
+			delete mTrailBindGroups[frameIndex];
+			mTrailBindGroups[frameIndex] = null;
 		}
 	}
 
@@ -1071,6 +1344,29 @@ public class ParticleFeature : RenderFeatureBase
 			(float)proxy.RenderMode.Underlying,
 			proxy.StretchFactor,
 			proxy.Lit ? 1.0f : 0.0f,
+			0.0f, 0.0f
+		);
+
+		let offset = (uint64)emitterIndex * EmitterParamAlignment;
+		Renderer.Device.Queue.WriteBuffer(
+			mEmitterParamsBuffer, offset,
+			Span<uint8>((uint8*)&emitterParams[0], 32)
+		);
+	}
+
+	private void WriteTrailEmitterParams(int32 emitterIndex, TrailEmitterProxy* proxy)
+	{
+		if (mEmitterParamsBuffer == null || emitterIndex >= MaxActiveEmitters)
+			return;
+
+		let frameContext = Renderer.RenderFrameContext;
+		float[8] emitterParams = .(
+			proxy.SoftParticleDistance,
+			frameContext != null ? frameContext.SceneUniforms.NearPlane : 0.1f,
+			frameContext != null ? frameContext.SceneUniforms.FarPlane : 1000.0f,
+			0.0f,  // RenderMode: Billboard (irrelevant for trail vertex shader)
+			1.0f,  // StretchFactor
+			0.0f,  // Lit: unlit
 			0.0f, 0.0f
 		);
 

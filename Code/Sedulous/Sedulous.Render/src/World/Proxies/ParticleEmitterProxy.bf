@@ -212,6 +212,17 @@ public struct ParticleEmitterProxy
 	/// Whether particles receive scene lighting (cluster-based).
 	public bool Lit;
 
+	// --- Sub-emitters ---
+
+	/// Sub-emitter entries (child emitters triggered by particle lifecycle events).
+	public SubEmitterEntry[SubEmitterConstants.MaxSubEmitters] SubEmitters;
+
+	/// Number of active sub-emitter entries.
+	public int32 SubEmitterCount;
+
+	/// When true, this emitter does not self-emit (only receives particles from parent sub-emitter events).
+	public bool SubEmitterOnly;
+
 	/// Trail rendering settings.
 	public TrailSettings Trail;
 
@@ -292,6 +303,9 @@ public struct ParticleEmitterProxy
 		emitter.LifetimeVarianceMax = 1.0f;
 		emitter.SortParticles = true;
 		emitter.Lit = false;
+		emitter.SubEmitters = default;
+		emitter.SubEmitterCount = 0;
+		emitter.SubEmitterOnly = false;
 		emitter.Trail = .Default();
 		emitter.IsEnabled = true;
 		emitter.IsEmitting = true;
@@ -350,6 +364,9 @@ public struct ParticleEmitterProxy
 		LifetimeVarianceMax = 1.0f;
 		SortParticles = false;
 		Lit = false;
+		SubEmitters = default;
+		SubEmitterCount = 0;
+		SubEmitterOnly = false;
 		Trail = default;
 		IsEnabled = false;
 		IsEmitting = false;

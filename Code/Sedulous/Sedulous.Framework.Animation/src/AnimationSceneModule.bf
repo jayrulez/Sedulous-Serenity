@@ -32,8 +32,8 @@ class AnimationSceneModule : SceneModule
 
 	// Animation players owned by this module (one per animated entity)
 	private Dictionary<uint64, AnimationPlayer> mPlayers = new .() ~ {
-		for (let (_, player) in _)
-			delete player;
+		for (let entry in _)
+			delete entry.value;
 		delete _;
 	};
 

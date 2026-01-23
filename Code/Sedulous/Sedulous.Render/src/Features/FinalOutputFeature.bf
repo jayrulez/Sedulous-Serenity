@@ -21,8 +21,8 @@ public class FinalOutputFeature : RenderFeatureBase
 	private IBindGroupLayout mBlitBindGroupLayout ~ delete _;
 	private ISampler mLinearSampler ~ delete _;
 
-	// Bind group - recreated each frame since scene color is a transient resource
-	private IBindGroup mBlitBindGroup ~ delete _;
+	// Per-frame bind groups - recreated each frame since scene color is a transient resource
+	private IBindGroup[RenderConfig.FrameBufferCount] mBlitBindGroups;
 
 	// Swapchain reference (set each frame)
 	private ISwapChain mSwapChain;
@@ -151,6 +151,14 @@ public class FinalOutputFeature : RenderFeatureBase
 
 	protected override void OnShutdown()
 	{
+		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
+		{
+			if (mBlitBindGroups[i] != null)
+			{
+				delete mBlitBindGroups[i];
+				mBlitBindGroups[i] = null;
+			}
+		}
 	}
 
 	public override void AddPasses(RenderGraph graph, RenderView view, RenderWorld world)
@@ -212,13 +220,14 @@ public class FinalOutputFeature : RenderFeatureBase
 			return;
 		}
 
-		// Always recreate bind group each frame since scene color is a transient resource.
-		// Caching by pointer is unsafe because transient resources are destroyed each frame,
-		// and memory reuse in release builds can cause stale pointer matches.
-		if (mBlitBindGroup != null)
+		// Recreate bind group for current frame slot only.
+		// Only the current frame's fence has been waited, so only its bind group is safe to free.
+		let frameIndex = Renderer.RenderFrameContext?.FrameIndex ?? 0;
+
+		if (mBlitBindGroups[frameIndex] != null)
 		{
-			delete mBlitBindGroup;
-			mBlitBindGroup = null;
+			delete mBlitBindGroups[frameIndex];
+			mBlitBindGroups[frameIndex] = null;
 		}
 
 		// Create new bind group with current scene color
@@ -235,17 +244,17 @@ public class FinalOutputFeature : RenderFeatureBase
 		};
 
 		if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bg))
-			mBlitBindGroup = bg;
+			mBlitBindGroups[frameIndex] = bg;
 
 		// Set viewport and scissor
 		encoder.SetViewport(0, 0, mSwapChain.Width, mSwapChain.Height, 0, 1);
 		encoder.SetScissorRect(0, 0, mSwapChain.Width, mSwapChain.Height);
 
 		// Draw fullscreen blit if bind group is ready
-		if (mBlitBindGroup != null)
+		if (mBlitBindGroups[frameIndex] != null)
 		{
 			encoder.SetPipeline(mBlitPipeline);
-			encoder.SetBindGroup(0, mBlitBindGroup, default);
+			encoder.SetBindGroup(0, mBlitBindGroups[frameIndex], default);
 			encoder.Draw(3, 1, 0, 0);
 			Renderer.Stats.DrawCalls++;
 		}

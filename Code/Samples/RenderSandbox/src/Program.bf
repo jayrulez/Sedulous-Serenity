@@ -60,7 +60,7 @@ class Program
 			ClearColor = .(0.2f, 0.3f, 0.4f, 1.0f)
 		};
 
-		let app = scope RenderIntegratedApp(shell, device, backend);
+		let app = scope RenderSandboxApp(shell, device, backend);
 		return app.Run(settings);
 	}
 }

@@ -64,13 +64,31 @@ class FrameworkSandboxApp : Application
 	private EntityId mSparksEntity;
 	private EntityId mMagicEntity;
 	private EntityId mTrailEntity;
+	private EntityId mFireworkLauncherEntity;
+	private EntityId mFireworkBurstEntity;
+	private EntityId mSteamEntity;
+	private EntityId mFountainEntity;
+	private EntityId mSnowEntity;
+	private EntityId mFairyDustEntity;
+	private EntityId mTrailedSparksEntity;
+	private EntityId mHealingEntity;
 	private EntityId mSpriteEntity;
 
+	// Trail emitter
+	private EntityId mTrailEmitterEntity;
+	private float mTrailTime = 0.0f;
+
 	// Camera control
+	private bool mCameraFlyMode = false;
+	// Orbit mode
 	private float mCameraYaw = 0.5f;
 	private float mCameraPitch = 0.4f;
-	private float mCameraDistance = 15.0f;
+	private float mCameraDistance = 25.0f;
 	private Vector3 mCameraTarget = .(0, 1.0f, 0);
+	// Fly mode
+	private Vector3 mFlyPosition = .(0, 5.0f, 25.0f);
+	private float mFlyYaw = Math.PI_f;
+	private float mFlyPitch = -0.2f;
 
 	// Timing and FPS
 	private float mDeltaTime = 0.016f;
@@ -87,7 +105,7 @@ class FrameworkSandboxApp : Application
 	private bool mPhysicsDebugDraw = true;
 
 	// Arena size
-	private const float ArenaHalfSize = 10.0f;
+	private const float ArenaHalfSize = 25.0f;
 	private const float WallHeight = 2.0f;
 	private const float WallThickness = 0.5f;
 
@@ -187,10 +205,12 @@ class FrameworkSandboxApp : Application
 		if (mRenderSystem.RegisterFeature(mSpriteFeature) case .Ok)
 			Console.WriteLine("Registered: SpriteFeature");
 
-		// Sky
+		// Sky (solid deep blue)
 		mSkyFeature = new SkyFeature();
+		mSkyFeature.Mode = .SolidColor;
+		mSkyFeature.SolidColor = .(0.02f, 0.02f, 0.12f);
 		if (mRenderSystem.RegisterFeature(mSkyFeature) case .Ok)
-			Console.WriteLine("Registered: SkyFeature");
+			Console.WriteLine("Registered: SkyFeature (solid deep blue)");
 
 		// Debug render (for physics debug draw)
 		mDebugFeature = new DebugRenderFeature();
@@ -426,7 +446,7 @@ class FrameworkSandboxApp : Application
 		// Create camera entity
 		mCameraEntity = mMainScene.CreateEntity();
 		{
-			renderModule.CreatePerspectiveCamera(mCameraEntity, Math.PI_f / 4.0f, (float)mSwapChain.Width / mSwapChain.Height, 0.1f, 100.0f);
+			renderModule.CreatePerspectiveCamera(mCameraEntity, Math.PI_f / 4.0f, (float)mSwapChain.Width / mSwapChain.Height, 0.1f, 200.0f);
 			renderModule.SetMainCamera(mCameraEntity);
 		}
 		Console.WriteLine("  Created camera entity");
@@ -447,7 +467,7 @@ class FrameworkSandboxApp : Application
 		mFireEntity = mMainScene.CreateEntity();
 		{
 			var transform = mMainScene.GetTransform(mFireEntity);
-			transform.Position = .(3.0f, 0.0f, -2.0f);
+			transform.Position = .(0.0f, 0.0f, -8.0f);
 			mMainScene.SetTransform(mFireEntity, transform);
 
 			let handle = renderModule.CreateCPUParticleEmitter(mFireEntity, 2000);
@@ -497,7 +517,7 @@ class FrameworkSandboxApp : Application
 		mSmokeEntity = mMainScene.CreateEntity();
 		{
 			var transform = mMainScene.GetTransform(mSmokeEntity);
-			transform.Position = .(3.0f, 0.8f, -2.0f);
+			transform.Position = .(0.0f, 0.8f, -8.0f);
 			mMainScene.SetTransform(mSmokeEntity, transform);
 
 			let handle = renderModule.CreateCPUParticleEmitter(mSmokeEntity, 1000);
@@ -548,7 +568,7 @@ class FrameworkSandboxApp : Application
 		mSparksEntity = mMainScene.CreateEntity();
 		{
 			var transform = mMainScene.GetTransform(mSparksEntity);
-			transform.Position = .(-3.0f, 0.5f, -2.0f);
+			transform.Position = .(-8.0f, 0.5f, -4.0f);
 			mMainScene.SetTransform(mSparksEntity, transform);
 
 			let handle = renderModule.CreateCPUParticleEmitter(mSparksEntity, 500);
@@ -591,7 +611,7 @@ class FrameworkSandboxApp : Application
 		mMagicEntity = mMainScene.CreateEntity();
 		{
 			var transform = mMainScene.GetTransform(mMagicEntity);
-			transform.Position = .(-3.0f, 1.5f, 2.0f);
+			transform.Position = .(8.0f, 1.5f, 0.0f);
 			mMainScene.SetTransform(mMagicEntity, transform);
 
 			let handle = renderModule.CreateCPUParticleEmitter(mMagicEntity, 1000);
@@ -627,11 +647,11 @@ class FrameworkSandboxApp : Application
 					// Vortex makes particles swirl
 					proxy.ForceModules.VortexStrength = 3.0f;
 					proxy.ForceModules.VortexAxis = .(0, 1, 0);
-					proxy.ForceModules.VortexCenter = .(-3.0f, 1.5f, 2.0f);
+					proxy.ForceModules.VortexCenter = .(8.0f, 1.5f, 0.0f);
 
 					// Attractor keeps them orbiting
 					proxy.ForceModules.AttractorStrength = 2.0f;
-					proxy.ForceModules.AttractorPosition = .(-3.0f, 1.5f, 2.0f);
+					proxy.ForceModules.AttractorPosition = .(8.0f, 1.5f, 0.0f);
 					proxy.ForceModules.AttractorRadius = 2.0f;
 
 					if (proxy.CPUEmitter != null)
@@ -645,7 +665,7 @@ class FrameworkSandboxApp : Application
 		mTrailEntity = mMainScene.CreateEntity();
 		{
 			var transform = mMainScene.GetTransform(mTrailEntity);
-			transform.Position = .(0.0f, 2.0f, 3.0f);
+			transform.Position = .(-8.0f, 2.0f, 8.0f);
 			mMainScene.SetTransform(mTrailEntity, transform);
 
 			let handle = renderModule.CreateCPUParticleEmitter(mTrailEntity, 200);
@@ -691,11 +711,376 @@ class FrameworkSandboxApp : Application
 		}
 		Console.WriteLine("  Created trail comet emitter (stretched billboard + ribbon trails)");
 
-		// Create test sprite (floating marker near the fire)
+		// Create firework sub-emitter demo (launcher + explosion burst on death)
+		mFireworkLauncherEntity = mMainScene.CreateEntity();
+		mFireworkBurstEntity = mMainScene.CreateEntity();
+		{
+			var transform = mMainScene.GetTransform(mFireworkLauncherEntity);
+			transform.Position = .(12.0f, 0.0f, -10.0f);
+			mMainScene.SetTransform(mFireworkLauncherEntity, transform);
+
+			// First create the child "burst" emitter (SubEmitterOnly - only receives from parent)
+			let burstHandle = renderModule.CreateCPUParticleEmitter(mFireworkBurstEntity, 1000);
+			if (burstHandle.IsValid)
+			{
+				if (let burstProxy = renderModule.GetParticleEmitterProxy(mFireworkBurstEntity))
+				{
+					burstProxy.SubEmitterOnly = true;
+					burstProxy.SpawnRate = 0;
+					burstProxy.ParticleLifetime = 1.5f;
+					burstProxy.BlendMode = .Additive;
+					burstProxy.RenderMode = .StretchedBillboard;
+					burstProxy.StretchFactor = 2.0f;
+					burstProxy.StartColor = .(1.0f, 0.8f, 0.3f, 1.0f);
+					burstProxy.EndColor = .(1.0f, 0.2f, 0.0f, 0.0f);
+					burstProxy.StartSize = .(0.03f, 0.03f);
+					burstProxy.EndSize = .(0.005f, 0.005f);
+					burstProxy.InitialVelocity = .(0, 0, 0);
+					burstProxy.VelocityRandomness = .(3.0f, 3.0f, 3.0f);
+					burstProxy.GravityMultiplier = 1.5f;
+					burstProxy.Drag = 0.5f;
+					burstProxy.LifetimeVarianceMin = 0.5f;
+					burstProxy.LifetimeVarianceMax = 1.0f;
+					burstProxy.IsEnabled = true;
+					burstProxy.IsEmitting = true;
+
+					burstProxy.AlphaOverLifetime = .FadeOut(1.0f, 0.6f);
+					burstProxy.SpeedOverLifetime = .Linear(1.0f, 0.1f);
+
+					if (burstProxy.CPUEmitter != null)
+						burstProxy.CPUEmitter.Shape = EmissionShape.Sphere(0.05f, true);
+				}
+			}
+
+			// Now create the parent "launcher" emitter
+			let launcherHandle = renderModule.CreateCPUParticleEmitter(mFireworkLauncherEntity, 50);
+			if (launcherHandle.IsValid)
+			{
+				if (let launcherProxy = renderModule.GetParticleEmitterProxy(mFireworkLauncherEntity))
+				{
+					launcherProxy.SpawnRate = 0;
+					launcherProxy.BurstCount = 1;
+					launcherProxy.BurstInterval = 2.5f;
+					launcherProxy.BurstCycles = 0;
+					launcherProxy.ParticleLifetime = 1.0f;
+					launcherProxy.BlendMode = .Additive;
+					launcherProxy.StartColor = .(1.0f, 1.0f, 0.8f, 1.0f);
+					launcherProxy.EndColor = .(1.0f, 0.8f, 0.4f, 0.5f);
+					launcherProxy.StartSize = .(0.08f, 0.08f);
+					launcherProxy.EndSize = .(0.04f, 0.04f);
+					launcherProxy.InitialVelocity = .(0, 6.0f, 0);
+					launcherProxy.VelocityRandomness = .(0.5f, 1.0f, 0.5f);
+					launcherProxy.GravityMultiplier = 0.5f;
+					launcherProxy.IsEnabled = true;
+					launcherProxy.IsEmitting = true;
+
+					// Sub-emitter: spawn 20 burst particles when launcher particle dies
+					launcherProxy.SubEmitterCount = 1;
+					launcherProxy.SubEmitters[0] = .()
+					{
+						Trigger = .OnDeath,
+						ChildEmitter = burstHandle,
+						SpawnCount = 20,
+						Probability = 1.0f,
+						InheritPosition = true,
+						InheritVelocity = true,
+						InheritColor = false,
+						VelocityInheritFactor = 0.3f
+					};
+
+					if (launcherProxy.CPUEmitter != null)
+						launcherProxy.CPUEmitter.Shape = EmissionShape.Point();
+				}
+			}
+		}
+		Console.WriteLine("  Created firework sub-emitter (launcher + burst on death)");
+
+		// Create steam vent (soft particles + turbulence + upward buoyancy)
+		mSteamEntity = mMainScene.CreateEntity();
+		{
+			var transform = mMainScene.GetTransform(mSteamEntity);
+			transform.Position = .(8.0f, 0.1f, -8.0f);
+			mMainScene.SetTransform(mSteamEntity, transform);
+
+			let handle = renderModule.CreateCPUParticleEmitter(mSteamEntity, 500);
+			if (handle.IsValid)
+			{
+				if (let proxy = renderModule.GetParticleEmitterProxy(mSteamEntity))
+				{
+					proxy.SpawnRate = 30.0f;
+					proxy.ParticleLifetime = 3.0f;
+					proxy.BlendMode = .Alpha;
+					proxy.StartColor = .(1.0f, 1.0f, 1.0f, 0.4f);
+					proxy.EndColor = .(0.9f, 0.9f, 0.95f, 0.0f);
+					proxy.StartSize = .(0.2f, 0.2f);
+					proxy.EndSize = .(0.8f, 0.8f);
+					proxy.InitialVelocity = .(0, 2.5f, 0);
+					proxy.VelocityRandomness = .(0.3f, 0.5f, 0.3f);
+					proxy.GravityMultiplier = -0.2f;
+					proxy.Drag = 0.4f;
+					proxy.SoftParticleDistance = 1.0f;
+					proxy.SortParticles = true;
+					proxy.LifetimeVarianceMin = 0.7f;
+					proxy.LifetimeVarianceMax = 1.3f;
+					proxy.IsEnabled = true;
+					proxy.IsEmitting = true;
+
+					proxy.AlphaOverLifetime = .FadeOut(0.8f, 0.5f);
+
+					// Size grows over lifetime
+					proxy.SizeOverLifetime = .();
+					proxy.SizeOverLifetime.AddKey(0.0f, .(0.2f, 0.2f));
+					proxy.SizeOverLifetime.AddKey(0.5f, .(0.5f, 0.5f));
+					proxy.SizeOverLifetime.AddKey(1.0f, .(0.9f, 0.9f));
+
+					proxy.ForceModules.TurbulenceStrength = 1.2f;
+					proxy.ForceModules.TurbulenceFrequency = 0.8f;
+					proxy.ForceModules.TurbulenceSpeed = 0.8f;
+
+					if (proxy.CPUEmitter != null)
+						proxy.CPUEmitter.Shape = EmissionShape.Cone(0.35f, 0.1f);
+				}
+			}
+		}
+		Console.WriteLine("  Created steam vent (soft particles + turbulence)");
+
+		// Create water fountain (ballistic arc + high speed)
+		mFountainEntity = mMainScene.CreateEntity();
+		{
+			var transform = mMainScene.GetTransform(mFountainEntity);
+			transform.Position = .(-12.0f, 0.5f, 0.0f);
+			mMainScene.SetTransform(mFountainEntity, transform);
+
+			let handle = renderModule.CreateCPUParticleEmitter(mFountainEntity, 800);
+			if (handle.IsValid)
+			{
+				if (let proxy = renderModule.GetParticleEmitterProxy(mFountainEntity))
+				{
+					proxy.SpawnRate = 120.0f;
+					proxy.ParticleLifetime = 2.0f;
+					proxy.BlendMode = .Alpha;
+					proxy.StartColor = .(0.5f, 0.7f, 1.0f, 0.8f);
+					proxy.EndColor = .(0.3f, 0.5f, 0.9f, 0.0f);
+					proxy.StartSize = .(0.06f, 0.06f);
+					proxy.EndSize = .(0.03f, 0.03f);
+					proxy.InitialVelocity = .(0, 10.0f, 0);
+					proxy.VelocityRandomness = .(1.0f, 1.5f, 1.0f);
+					proxy.GravityMultiplier = 2.5f;
+					proxy.Drag = 0.1f;
+					proxy.SortParticles = false;
+					proxy.LifetimeVarianceMin = 0.6f;
+					proxy.LifetimeVarianceMax = 1.0f;
+					proxy.IsEnabled = true;
+					proxy.IsEmitting = true;
+
+					proxy.AlphaOverLifetime = .FadeOut(1.0f, 0.6f);
+
+					if (proxy.CPUEmitter != null)
+						proxy.CPUEmitter.Shape = EmissionShape.Cone(0.15f, 0.05f);
+				}
+			}
+		}
+		Console.WriteLine("  Created water fountain (ballistic arc + gravity)");
+
+		// Create snow (box emission + wind + gentle fall)
+		mSnowEntity = mMainScene.CreateEntity();
+		{
+			var transform = mMainScene.GetTransform(mSnowEntity);
+			transform.Position = .(0.0f, 12.0f, 0.0f);
+			mMainScene.SetTransform(mSnowEntity, transform);
+
+			let handle = renderModule.CreateCPUParticleEmitter(mSnowEntity, 500);
+			if (handle.IsValid)
+			{
+				if (let proxy = renderModule.GetParticleEmitterProxy(mSnowEntity))
+				{
+					proxy.SpawnRate = 40.0f;
+					proxy.ParticleLifetime = 8.0f;
+					proxy.BlendMode = .Alpha;
+					proxy.StartColor = .(1.0f, 1.0f, 1.0f, 0.8f);
+					proxy.EndColor = .(0.9f, 0.95f, 1.0f, 0.0f);
+					proxy.StartSize = .(0.04f, 0.04f);
+					proxy.EndSize = .(0.06f, 0.06f);
+					proxy.InitialVelocity = .(0, -0.5f, 0);
+					proxy.VelocityRandomness = .(0.2f, 0.1f, 0.2f);
+					proxy.GravityMultiplier = 0.15f;
+					proxy.Drag = 2.0f;
+					proxy.SortParticles = false;
+					proxy.LifetimeVarianceMin = 0.7f;
+					proxy.LifetimeVarianceMax = 1.3f;
+					proxy.IsEnabled = true;
+					proxy.IsEmitting = true;
+
+					proxy.AlphaOverLifetime = .FadeOut(0.7f, 0.8f);
+
+					// Wind drift
+					proxy.ForceModules.WindForce = .(1.2f, 0.0f, 0.4f);
+					proxy.ForceModules.WindTurbulence = 0.6f;
+
+					if (proxy.CPUEmitter != null)
+						proxy.CPUEmitter.Shape = EmissionShape.Box(.(10.0f, 0.5f, 10.0f));
+				}
+			}
+		}
+		Console.WriteLine("  Created snow (box emission + wind drift)");
+
+		// Create fairy dust / fireflies (turbulence + gentle float + glow)
+		mFairyDustEntity = mMainScene.CreateEntity();
+		{
+			var transform = mMainScene.GetTransform(mFairyDustEntity);
+			transform.Position = .(12.0f, 1.5f, 5.0f);
+			mMainScene.SetTransform(mFairyDustEntity, transform);
+
+			let handle = renderModule.CreateCPUParticleEmitter(mFairyDustEntity, 200);
+			if (handle.IsValid)
+			{
+				if (let proxy = renderModule.GetParticleEmitterProxy(mFairyDustEntity))
+				{
+					proxy.SpawnRate = 20.0f;
+					proxy.ParticleLifetime = 4.0f;
+					proxy.BlendMode = .Additive;
+					proxy.StartColor = .(1.0f, 0.85f, 0.4f, 0.9f);
+					proxy.EndColor = .(1.0f, 0.6f, 0.2f, 0.0f);
+					proxy.InitialVelocity = .(0, 0.2f, 0);
+					proxy.VelocityRandomness = .(0.4f, 0.3f, 0.4f);
+					proxy.GravityMultiplier = -0.05f;
+					proxy.Drag = 0.5f;
+					proxy.SortParticles = false;
+					proxy.LifetimeVarianceMin = 0.6f;
+					proxy.LifetimeVarianceMax = 1.4f;
+					proxy.IsEnabled = true;
+					proxy.IsEmitting = true;
+
+					// Size pulses
+					proxy.SizeOverLifetime = .();
+					proxy.SizeOverLifetime.AddKey(0.0f, .(0.04f, 0.04f));
+					proxy.SizeOverLifetime.AddKey(0.3f, .(0.1f, 0.1f));
+					proxy.SizeOverLifetime.AddKey(0.7f, .(0.06f, 0.06f));
+					proxy.SizeOverLifetime.AddKey(1.0f, .(0.0f, 0.0f));
+
+					proxy.AlphaOverLifetime = .FadeOut(1.0f, 0.6f);
+
+					// Gentle turbulence for organic motion
+					proxy.ForceModules.TurbulenceStrength = 0.4f;
+					proxy.ForceModules.TurbulenceFrequency = 0.6f;
+					proxy.ForceModules.TurbulenceSpeed = 0.5f;
+
+					// Gentle vortex for swirling
+					proxy.ForceModules.VortexStrength = 0.8f;
+					proxy.ForceModules.VortexAxis = .(0, 1, 0);
+					proxy.ForceModules.VortexCenter = .(12.0f, 1.5f, 5.0f);
+
+					if (proxy.CPUEmitter != null)
+						proxy.CPUEmitter.Shape = EmissionShape.Sphere(2.5f);
+				}
+			}
+		}
+		Console.WriteLine("  Created fairy dust (turbulence + vortex + glow)");
+
+		// Create trailed sparks (gravity + per-particle trails)
+		mTrailedSparksEntity = mMainScene.CreateEntity();
+		{
+			var transform = mMainScene.GetTransform(mTrailedSparksEntity);
+			transform.Position = .(-5.0f, 3.0f, 10.0f);
+			mMainScene.SetTransform(mTrailedSparksEntity, transform);
+
+			let handle = renderModule.CreateCPUParticleEmitter(mTrailedSparksEntity, 100);
+			if (handle.IsValid)
+			{
+				if (let proxy = renderModule.GetParticleEmitterProxy(mTrailedSparksEntity))
+				{
+					proxy.SpawnRate = 8.0f;
+					proxy.ParticleLifetime = 2.5f;
+					proxy.BlendMode = .Additive;
+					proxy.StartColor = .(1.0f, 0.8f, 0.2f, 1.0f);
+					proxy.EndColor = .(1.0f, 0.3f, 0.0f, 0.0f);
+					proxy.StartSize = .(0.06f, 0.06f);
+					proxy.EndSize = .(0.02f, 0.02f);
+					proxy.InitialVelocity = .(0, 5.0f, 0);
+					proxy.VelocityRandomness = .(3.0f, 2.0f, 3.0f);
+					proxy.GravityMultiplier = 1.5f;
+					proxy.Drag = 0.2f;
+					proxy.LifetimeVarianceMin = 0.6f;
+					proxy.LifetimeVarianceMax = 1.0f;
+					proxy.IsEnabled = true;
+					proxy.IsEmitting = true;
+
+					proxy.AlphaOverLifetime = .FadeOut(1.0f, 0.5f);
+
+					// Per-particle trails
+					proxy.Trail.Enabled = true;
+					proxy.Trail.MaxPoints = 15;
+					proxy.Trail.RecordInterval = 0.015f;
+					proxy.Trail.Lifetime = 0.6f;
+					proxy.Trail.WidthStart = 0.04f;
+					proxy.Trail.WidthEnd = 0.0f;
+					proxy.Trail.MinVertexDistance = 0.05f;
+					proxy.Trail.UseParticleColor = true;
+
+					if (proxy.CPUEmitter != null)
+						proxy.CPUEmitter.Shape = EmissionShape.Sphere(0.3f, true);
+				}
+			}
+		}
+		Console.WriteLine("  Created trailed sparks (gravity + per-particle trails)");
+
+		// Create healing magic (green sparkles + attractor spiral)
+		mHealingEntity = mMainScene.CreateEntity();
+		{
+			var transform = mMainScene.GetTransform(mHealingEntity);
+			transform.Position = .(5.0f, 0.5f, 8.0f);
+			mMainScene.SetTransform(mHealingEntity, transform);
+
+			let handle = renderModule.CreateCPUParticleEmitter(mHealingEntity, 300);
+			if (handle.IsValid)
+			{
+				if (let proxy = renderModule.GetParticleEmitterProxy(mHealingEntity))
+				{
+					proxy.SpawnRate = 35.0f;
+					proxy.ParticleLifetime = 2.5f;
+					proxy.BlendMode = .Additive;
+					proxy.StartColor = .(0.2f, 1.0f, 0.4f, 0.9f);
+					proxy.EndColor = .(0.1f, 0.8f, 0.3f, 0.0f);
+					proxy.InitialVelocity = .(0, 0.5f, 0);
+					proxy.VelocityRandomness = .(0.5f, 0.3f, 0.5f);
+					proxy.GravityMultiplier = -0.1f;
+					proxy.Drag = 0.3f;
+					proxy.SortParticles = false;
+					proxy.LifetimeVarianceMin = 0.7f;
+					proxy.LifetimeVarianceMax = 1.2f;
+					proxy.IsEnabled = true;
+					proxy.IsEmitting = true;
+
+					// Size shrinks to nothing
+					proxy.SizeOverLifetime = .();
+					proxy.SizeOverLifetime.AddKey(0.0f, .(0.02f, 0.02f));
+					proxy.SizeOverLifetime.AddKey(0.2f, .(0.08f, 0.08f));
+					proxy.SizeOverLifetime.AddKey(1.0f, .(0.0f, 0.0f));
+
+					proxy.AlphaOverLifetime = .FadeOut(1.0f, 0.6f);
+
+					// Attractor pulls particles inward (spiral upward)
+					proxy.ForceModules.AttractorStrength = 2.5f;
+					proxy.ForceModules.AttractorPosition = .(5.0f, 1.5f, 8.0f);
+					proxy.ForceModules.AttractorRadius = 3.0f;
+
+					// Vortex for spiral motion
+					proxy.ForceModules.VortexStrength = 2.0f;
+					proxy.ForceModules.VortexAxis = .(0, 1, 0);
+					proxy.ForceModules.VortexCenter = .(5.0f, 0.5f, 8.0f);
+
+					if (proxy.CPUEmitter != null)
+						proxy.CPUEmitter.Shape = EmissionShape.Sphere(2.0f);
+				}
+			}
+		}
+		Console.WriteLine("  Created healing magic (green sparkles + attractor spiral)");
+
+		// Create test sprite (floating marker)
 		mSpriteEntity = mMainScene.CreateEntity();
 		{
 			var transform = mMainScene.GetTransform(mSpriteEntity);
-			transform.Position = .(-3.0f, 1.5f, -1.0f);
+			transform.Position = .(0.0f, 2.0f, -5.0f);
 			mMainScene.SetTransform(mSpriteEntity, transform);
 
 			let handle = renderModule.CreateSprite(mSpriteEntity);
@@ -711,6 +1096,27 @@ class FrameworkSandboxApp : Application
 		}
 		Console.WriteLine("  Created test sprite");
 
+		// Create trail emitter (orbiting ring)
+		mTrailEmitterEntity = mMainScene.CreateEntity();
+		{
+			let handle = renderModule.CreateTrailEmitter(mTrailEmitterEntity, 64);
+			if (handle.IsValid)
+			{
+				if (let proxy = renderModule.GetTrailEmitterProxy(mTrailEmitterEntity))
+				{
+					proxy.BlendMode = .Additive;
+					proxy.Lifetime = 2.0f;
+					proxy.WidthStart = 0.08f;
+					proxy.WidthEnd = 0.0f;
+					proxy.MinVertexDistance = 0.02f;
+					proxy.Color = .(0.3f, 0.8f, 1.0f, 1.0f);
+					proxy.SoftParticleDistance = 0.5f;
+					proxy.IsEnabled = true;
+				}
+			}
+		}
+		Console.WriteLine("  Created trail emitter (orbiting ring)");
+
 		// Set world ambient
 		if (let world = renderModule.World)
 		{
@@ -719,6 +1125,16 @@ class FrameworkSandboxApp : Application
 		}
 
 		Console.WriteLine("\nEntity count: {}", mMainScene.EntityCount);
+
+		Console.WriteLine("\nControls:");
+		Console.WriteLine("  Tab    - Toggle orbit/fly camera");
+		Console.WriteLine("  Orbit: W/S pitch, A/D yaw, Q/E zoom");
+		Console.WriteLine("  Fly:   W/S forward/back, A/D strafe, Q/E up/down");
+		Console.WriteLine("         Arrow keys: look, Shift: fast");
+		Console.WriteLine("  Space  - Toggle physics spawning");
+		Console.WriteLine("  F      - Toggle physics debug draw");
+		Console.WriteLine("  P      - Print profiler stats");
+		Console.WriteLine("  Escape - Quit");
 	}
 
 	private void CreateMeshes()
@@ -765,22 +1181,80 @@ class FrameworkSandboxApp : Application
 		if (keyboard.IsKeyPressed(.P))
 			PrintProfilerStats();
 
-		// Camera rotation
-		float rotSpeed = 0.02f;
-		if (keyboard.IsKeyDown(.A))
-			mCameraYaw -= rotSpeed;
-		if (keyboard.IsKeyDown(.D))
-			mCameraYaw += rotSpeed;
-		if (keyboard.IsKeyDown(.W))
-			mCameraPitch = Math.Clamp(mCameraPitch + rotSpeed, -1.4f, 1.4f);
-		if (keyboard.IsKeyDown(.S))
-			mCameraPitch = Math.Clamp(mCameraPitch - rotSpeed, -1.4f, 1.4f);
+		// Toggle camera mode (Tab)
+		if (keyboard.IsKeyPressed(.Tab))
+		{
+			mCameraFlyMode = !mCameraFlyMode;
+			if (mCameraFlyMode)
+			{
+				// Initialize fly position from current orbit camera position
+				float x = mCameraDistance * Math.Cos(mCameraPitch) * Math.Sin(mCameraYaw);
+				float y = mCameraDistance * Math.Sin(mCameraPitch);
+				float z = mCameraDistance * Math.Cos(mCameraPitch) * Math.Cos(mCameraYaw);
+				mFlyPosition = mCameraTarget + Vector3(x, y, z);
+				let forward = Vector3.Normalize(mCameraTarget - mFlyPosition);
+				mFlyYaw = Math.Atan2(forward.X, forward.Z);
+				mFlyPitch = Math.Asin(-forward.Y);
+			}
+		}
 
-		// Camera zoom
-		if (keyboard.IsKeyDown(.Q))
-			mCameraDistance = Math.Clamp(mCameraDistance - 0.1f, 2.0f, 20.0f);
-		if (keyboard.IsKeyDown(.E))
-			mCameraDistance = Math.Clamp(mCameraDistance + 0.1f, 2.0f, 20.0f);
+		if (mCameraFlyMode)
+		{
+			// Fly mode: WASD movement, QE up/down, arrow keys look
+			float lookSpeed = 0.025f;
+			float moveSpeed = 15.0f * mDeltaTime;
+			if (keyboard.IsKeyDown(.LeftShift))
+				moveSpeed *= 2.0f;
+
+			// Look with arrow keys
+			if (keyboard.IsKeyDown(.Left))
+				mFlyYaw -= lookSpeed;
+			if (keyboard.IsKeyDown(.Right))
+				mFlyYaw += lookSpeed;
+			if (keyboard.IsKeyDown(.Up))
+				mFlyPitch = Math.Clamp(mFlyPitch + lookSpeed, -1.4f, 1.4f);
+			if (keyboard.IsKeyDown(.Down))
+				mFlyPitch = Math.Clamp(mFlyPitch - lookSpeed, -1.4f, 1.4f);
+
+			// Calculate forward/right vectors
+			let forward = Vector3(
+				Math.Sin(mFlyYaw) * Math.Cos(mFlyPitch),
+				-Math.Sin(mFlyPitch),
+				Math.Cos(mFlyYaw) * Math.Cos(mFlyPitch)
+			);
+			let right = Vector3.Normalize(Vector3.Cross(forward, .(0, 1, 0)));
+
+			// Movement
+			if (keyboard.IsKeyDown(.W))
+				mFlyPosition = mFlyPosition + forward * moveSpeed;
+			if (keyboard.IsKeyDown(.S))
+				mFlyPosition = mFlyPosition - forward * moveSpeed;
+			if (keyboard.IsKeyDown(.A))
+				mFlyPosition = mFlyPosition - right * moveSpeed;
+			if (keyboard.IsKeyDown(.D))
+				mFlyPosition = mFlyPosition + right * moveSpeed;
+			if (keyboard.IsKeyDown(.Q))
+				mFlyPosition.Y += moveSpeed;
+			if (keyboard.IsKeyDown(.E))
+				mFlyPosition.Y -= moveSpeed;
+		}
+		else
+		{
+			// Orbit mode: A/D rotate, W/S pitch, Q/E zoom
+			float rotSpeed = 0.02f;
+			if (keyboard.IsKeyDown(.A))
+				mCameraYaw -= rotSpeed;
+			if (keyboard.IsKeyDown(.D))
+				mCameraYaw += rotSpeed;
+			if (keyboard.IsKeyDown(.W))
+				mCameraPitch = Math.Clamp(mCameraPitch + rotSpeed, -1.4f, 1.4f);
+			if (keyboard.IsKeyDown(.S))
+				mCameraPitch = Math.Clamp(mCameraPitch - rotSpeed, -1.4f, 1.4f);
+			if (keyboard.IsKeyDown(.Q))
+				mCameraDistance = Math.Clamp(mCameraDistance - 0.15f, 2.0f, 50.0f);
+			if (keyboard.IsKeyDown(.E))
+				mCameraDistance = Math.Clamp(mCameraDistance + 0.15f, 2.0f, 50.0f);
+		}
 	}
 
 	protected override void OnUpdate(FrameContext frame)
@@ -809,6 +1283,30 @@ class FrameworkSandboxApp : Application
 		// - BeginFrame before OnUpdate
 		// - Update/PostUpdate after OnUpdate
 		// - EndFrame after Frame
+
+		// Update trail emitter (orbiting point)
+		{
+			mTrailTime += mDeltaTime;
+			let renderModule = mMainScene?.GetModule<RenderSceneModule>();
+			if (renderModule != null)
+			{
+				if (let proxy = renderModule.GetTrailEmitterProxy(mTrailEmitterEntity))
+				{
+					if (proxy.Emitter != null)
+					{
+						// Orbit in a circle at height 2.5, radius 2.0
+						let radius = 2.0f;
+						let speed = 1.5f;
+						let x = Math.Cos(mTrailTime * speed) * radius;
+						let z = Math.Sin(mTrailTime * speed) * radius;
+						let y = 2.5f + Math.Sin(mTrailTime * speed * 2.0f) * 0.5f;
+
+						let pos = Vector3((float)x, (float)y, (float)z);
+						proxy.Emitter.AddPointFiltered(pos, proxy.WidthStart, Color(255, 255, 255, 255), proxy.MinVertexDistance);
+					}
+				}
+			}
+		}
 
 		// Update camera transform
 		UpdateCamera();
@@ -851,18 +1349,33 @@ class FrameworkSandboxApp : Application
 
 	private void UpdateCamera()
 	{
-		// Calculate orbital camera position
-		float x = mCameraDistance * Math.Cos(mCameraPitch) * Math.Sin(mCameraYaw);
-		float y = mCameraDistance * Math.Sin(mCameraPitch);
-		float z = mCameraDistance * Math.Cos(mCameraPitch) * Math.Cos(mCameraYaw);
+		Vector3 cameraPos;
+		Vector3 cameraForward;
 
-		let cameraPos = mCameraTarget + Vector3(x, y, z);
-		let cameraForward = Vector3.Normalize(mCameraTarget - cameraPos);
+		if (mCameraFlyMode)
+		{
+			// Fly mode: position and direction from fly state
+			cameraPos = mFlyPosition;
+			cameraForward = Vector3(
+				Math.Sin(mFlyYaw) * Math.Cos(mFlyPitch),
+				-Math.Sin(mFlyPitch),
+				Math.Cos(mFlyYaw) * Math.Cos(mFlyPitch)
+			);
+			cameraForward = Vector3.Normalize(cameraForward);
+		}
+		else
+		{
+			// Orbit mode: spherical coordinates around target
+			float x = mCameraDistance * Math.Cos(mCameraPitch) * Math.Sin(mCameraYaw);
+			float y = mCameraDistance * Math.Sin(mCameraPitch);
+			float z = mCameraDistance * Math.Cos(mCameraPitch) * Math.Cos(mCameraYaw);
+			cameraPos = mCameraTarget + Vector3(x, y, z);
+			cameraForward = Vector3.Normalize(mCameraTarget - cameraPos);
+		}
 
 		// Update camera entity transform
 		var transform = mMainScene.GetTransform(mCameraEntity);
 		transform.Position = cameraPos;
-		// Calculate rotation from forward vector
 		let yaw = Math.Atan2(cameraForward.X, cameraForward.Z);
 		let pitch = Math.Asin(-cameraForward.Y);
 		transform.Rotation = Quaternion.CreateFromYawPitchRoll(yaw, pitch, 0);

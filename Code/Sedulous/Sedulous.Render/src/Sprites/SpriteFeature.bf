@@ -153,14 +153,15 @@ public class SpriteFeature : RenderFeatureBase
 		case .Err: return .Err;
 		}
 
-		// Create per-frame instance buffers
+		// Create per-frame instance buffers (host-visible for direct CPU writes each frame)
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
 			BufferDescriptor bufDesc = .()
 			{
 				Label = "Sprite Instance Buffer",
 				Size = (uint64)(MaxSprites * SpriteInstance.SizeInBytes),
-				Usage = .Vertex | .CopyDst
+				Usage = .Vertex,
+				MemoryAccess = .Upload
 			};
 
 			switch (Renderer.Device.CreateBuffer(&bufDesc))

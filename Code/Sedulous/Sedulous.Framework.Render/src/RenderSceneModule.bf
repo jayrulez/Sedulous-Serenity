@@ -97,6 +97,20 @@ struct SpriteComponent
 	};
 }
 
+/// Component for trail emitter entities.
+struct TrailEmitterComponent
+{
+	/// Handle to the trail emitter proxy in the render world.
+	public TrailEmitterProxyHandle ProxyHandle;
+	/// Whether this trail emitter is enabled.
+	public bool Enabled;
+
+	public static TrailEmitterComponent Default => .() {
+		ProxyHandle = .Invalid,
+		Enabled = true
+	};
+}
+
 /// Scene module that manages render proxies and syncs entity transforms to the render world.
 /// Created automatically by RenderSubsystem for each scene.
 class RenderSceneModule : SceneModule
@@ -252,6 +266,13 @@ class RenderSceneModule : SceneModule
 		{
 			if (sprite.ProxyHandle.IsValid)
 				mWorld.DestroySprite(sprite.ProxyHandle);
+		}
+
+		// Clean up trail emitter proxy
+		if (let trail = scene.GetComponent<TrailEmitterComponent>(entity))
+		{
+			if (trail.ProxyHandle.IsValid)
+				mWorld.DestroyTrailEmitter(trail.ProxyHandle);
 		}
 	}
 
@@ -714,5 +735,51 @@ class RenderSceneModule : SceneModule
 			if (comp.ProxyHandle.IsValid)
 				mWorld.SetSpriteTexture(comp.ProxyHandle, texture);
 		}
+	}
+
+	// ==================== Trail Emitter API ====================
+
+	/// Creates a trail emitter for an entity.
+	public TrailEmitterProxyHandle CreateTrailEmitter(EntityId entity, int32 maxPoints = 32)
+	{
+		if (mScene == null || mWorld == null)
+			return .Invalid;
+
+		let device = mSubsystem.RenderSystem?.Device;
+		if (device == null)
+			return .Invalid;
+
+		let handle = mWorld.CreateTrailEmitter();
+
+		var comp = mScene.GetComponent<TrailEmitterComponent>(entity);
+		if (comp == null)
+		{
+			mScene.SetComponent<TrailEmitterComponent>(entity, .Default);
+			comp = mScene.GetComponent<TrailEmitterComponent>(entity);
+		}
+
+		comp.ProxyHandle = handle;
+		comp.Enabled = true;
+
+		// Configure proxy and create the emitter
+		if (let proxy = mWorld.GetTrailEmitter(handle))
+		{
+			proxy.MaxPoints = maxPoints;
+			proxy.IsActive = true;
+			proxy.Emitter = new TrailEmitter(device, maxPoints);
+		}
+
+		return handle;
+	}
+
+	/// Gets the trail emitter proxy for direct access.
+	public TrailEmitterProxy* GetTrailEmitterProxy(EntityId entity)
+	{
+		if (let comp = mScene?.GetComponent<TrailEmitterComponent>(entity))
+		{
+			if (comp.ProxyHandle.IsValid)
+				return mWorld?.GetTrailEmitter(comp.ProxyHandle);
+		}
+		return null;
 	}
 }
