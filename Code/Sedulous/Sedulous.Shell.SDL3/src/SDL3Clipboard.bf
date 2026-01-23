@@ -4,7 +4,7 @@ using SDL3;
 namespace Sedulous.Shell.SDL3;
 
 /// SDL3 implementation of clipboard operations.
-public class SDL3Clipboard : IClipboard
+internal class SDL3Clipboard : IClipboard
 {
 	public bool HasText => SDL_HasClipboardText();
 

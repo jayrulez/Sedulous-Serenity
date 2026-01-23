@@ -12,6 +12,9 @@ public interface IShell
 	/// Gets the input manager.
 	IInputManager InputManager { get; }
 
+	/// Gets the clipboard.
+	IClipboard Clipboard { get; }
+
 	/// Initializes the shell subsystems.
 	Result<void> Initialize();
 

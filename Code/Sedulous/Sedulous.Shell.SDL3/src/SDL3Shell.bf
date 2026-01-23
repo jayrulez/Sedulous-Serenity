@@ -5,16 +5,20 @@ using Sedulous.Shell.Input;
 
 namespace Sedulous.Shell.SDL3;
 
+using internal Sedulous.Shell.SDL3;
+
 /// SDL3 implementation of the shell.
 class SDL3Shell : IShell
 {
 	private SDL3WindowManager mWindowManager = new .() ~ delete _;
 	private SDL3InputManager mInputManager = new .() ~ delete _;
+	private SDL3Clipboard mClipboard = new .() ~ delete _;
 	private bool mIsRunning;
 	private bool mInitialized;
 
 	public IWindowManager WindowManager => mWindowManager;
 	public IInputManager InputManager => mInputManager;
+	public IClipboard Clipboard => mClipboard;
 	public bool IsRunning => mIsRunning;
 
 	public Result<void> Initialize()
