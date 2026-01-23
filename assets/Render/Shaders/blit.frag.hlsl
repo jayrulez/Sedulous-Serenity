@@ -29,10 +29,13 @@ float4 main(FragmentInput input) : SV_Target
 
     // Simple Reinhard tone mapping (HDR to LDR)
     // Output remains in linear space - sRGB target applies gamma
-    color.rgb = color.rgb / (color.rgb + 1.0);
+    // color.rgb = color.rgb / (color.rgb + 1.0);
 
     // ACES alternative (more vibrant):
     // color.rgb = ACESFilm(color.rgb);
+
+    // Pass-through (clamp to LDR range)
+    color.rgb = saturate(color.rgb);
 
     return float4(color.rgb, 1.0);
 }

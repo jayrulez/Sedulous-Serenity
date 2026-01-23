@@ -98,6 +98,10 @@ class FrameworkSandboxApp : Application
 	// Debug draw toggle
 	private bool mPhysicsDebugDraw = true;
 
+	// Sun light control (spherical coordinates, matching RendererIntegrated)
+	private float mSunYaw = 0.5f;
+	private float mSunPitch = -1.0f;
+
 	// Arena size
 	private const float ArenaHalfSize = 25.0f;
 	private const float WallHeight = 2.0f;
@@ -207,12 +211,18 @@ class FrameworkSandboxApp : Application
 		if (mRenderSystem.RegisterFeature(mSpriteFeature) case .Ok)
 			Console.WriteLine("Registered: SpriteFeature");
 
-		// Sky (solid deep blue)
+		// Sky (gradient environment map)
 		mSkyFeature = new SkyFeature();
-		mSkyFeature.Mode = .SolidColor;
-		mSkyFeature.SolidColor = .(0.1f, 0.1f, 0.15f);
 		if (mRenderSystem.RegisterFeature(mSkyFeature) case .Ok)
-			Console.WriteLine("Registered: SkyFeature (solid deep blue)");
+		{
+			// Create gradient sky matching RendererIntegrated
+			let topColor = Color(70, 130, 200, 255);
+			let horizonColor = Color(180, 210, 240, 255);
+			if (mSkyFeature.CreateGradientSky(topColor, horizonColor, 32) case .Ok)
+				Console.WriteLine("Registered: SkyFeature (gradient environment map)");
+			else
+				Console.WriteLine("Registered: SkyFeature (fallback)");
+		}
 
 		// Debug render (for physics debug draw)
 		mDebugFeature = new DebugRenderFeature();
@@ -328,6 +338,9 @@ class FrameworkSandboxApp : Application
 
 			mFloorMaterial = new MaterialInstance(baseMaterial);
 			mFloorMaterial.SetColor("BaseColor", .(0.4f, 0.4f, 0.4f, 1.0f));
+			mFloorMaterial.SetFloat("Metallic", 0.0f);
+			mFloorMaterial.SetFloat("Roughness", 0.95f);
+			mFloorMaterial.SetFloat("AO", 1.0f);
 
 			mSphereMaterial = new MaterialInstance(baseMaterial);
 			mSphereMaterial.SetColor("BaseColor", .(0.9f, 0.3f, 0.2f, 1.0f));  // Red sphere
@@ -456,14 +469,45 @@ class FrameworkSandboxApp : Application
 		// Create sun light entity
 		mSunEntity = mMainScene.CreateEntity();
 		{
-			var transform = mMainScene.GetTransform(mSunEntity);
-			// Point light direction via transform forward
-			transform.Rotation = Quaternion.CreateFromAxisAngle(.(1, 0, 0), -0.8f) * Quaternion.CreateFromAxisAngle(.(0, 1, 0), 0.5f);
-			mMainScene.SetTransform(mSunEntity, transform);
+			// Direction computed from mSunYaw/mSunPitch (same as RendererIntegrated)
+			let handle = renderModule.CreateDirectionalLight(mSunEntity, .(1.0f, 0.98f, 0.95f), 2.0f);
+			if (handle.IsValid)
+				UpdateSunLight();
 
-			renderModule.CreateDirectionalLight(mSunEntity, .(1.0f, 0.98f, 0.95f), 2.0f);
+			// Enable shadow casting on the sun
+			if (let proxy = renderModule.GetLightProxy(mSunEntity))
+				proxy.CastsShadows = true;
 		}
 		Console.WriteLine("  Created sun light entity");
+
+		// Enable shadow rendering
+		if (mForwardFeature?.ShadowRenderer != null)
+			mForwardFeature.ShadowRenderer.EnableShadows = true;
+
+		// Create point lights (fixed seed for consistent placement, matching RendererIntegrated)
+		{
+			Random rng = scope .(12345);
+			for (int i = 0; i < 8; i++)
+			{
+				float px = ((float)rng.NextDouble() - 0.5f) * 24.0f;
+				float py = (float)rng.NextDouble() * 2.0f + 3.0f;
+				float pz = ((float)rng.NextDouble() - 0.5f) * 24.0f;
+
+				let lightEntity = mMainScene.CreateEntity();
+				var transform = mMainScene.GetTransform(lightEntity);
+				transform.Position = .(px, py, pz);
+				mMainScene.SetTransform(lightEntity, transform);
+
+				Vector3 color = .(
+					(float)rng.NextDouble() * 0.5f + 0.5f,
+					(float)rng.NextDouble() * 0.5f + 0.5f,
+					(float)rng.NextDouble() * 0.5f + 0.5f
+				);
+
+				renderModule.CreatePointLight(lightEntity, color, 5.0f, 8.0f);
+			}
+		}
+		Console.WriteLine("  Created 8 point lights");
 
 		// Create fire particle emitter (with color/size curves)
 		mFireEntity = mMainScene.CreateEntity();
@@ -975,7 +1019,7 @@ class FrameworkSandboxApp : Application
 		}
 		Console.WriteLine("  Created water fountain (ballistic arc + gravity)");
 
-		// Create snow (box emission + wind + gentle fall)
+		// Create cherry blossoms (box emission + wind + gentle fall)
 		mSnowEntity = mMainScene.CreateEntity();
 		{
 			var transform = mMainScene.GetTransform(mSnowEntity);
@@ -990,10 +1034,10 @@ class FrameworkSandboxApp : Application
 					proxy.SpawnRate = 40.0f;
 					proxy.ParticleLifetime = 8.0f;
 					proxy.BlendMode = .Alpha;
-					proxy.StartColor = .(1.0f, 1.0f, 1.0f, 0.8f);
-					proxy.EndColor = .(0.9f, 0.95f, 1.0f, 0.0f);
-					proxy.StartSize = .(0.04f, 0.04f);
-					proxy.EndSize = .(0.06f, 0.06f);
+					proxy.StartColor = .(1.0f, 0.4f, 0.5f, 0.9f);
+					proxy.EndColor = .(0.9f, 0.3f, 0.4f, 0.0f);
+					proxy.StartSize = .(0.08f, 0.08f);
+					proxy.EndSize = .(0.12f, 0.12f);
 					proxy.InitialVelocity = .(0, -0.5f, 0);
 					proxy.VelocityRandomness = .(0.2f, 0.1f, 0.2f);
 					proxy.GravityMultiplier = 0.15f;
@@ -1015,7 +1059,7 @@ class FrameworkSandboxApp : Application
 				}
 			}
 		}
-		Console.WriteLine("  Created snow (box emission + wind drift)");
+		Console.WriteLine("  Created cherry blossoms (box emission + wind drift)");
 
 		// Create fairy dust / fireflies (turbulence + gentle float + glow)
 		mFairyDustEntity = mMainScene.CreateEntity();
@@ -1219,7 +1263,7 @@ class FrameworkSandboxApp : Application
 				if (let proxy = renderModule.GetTrailEmitterProxy(mSwordTrailEntity))
 				{
 					proxy.BlendMode = .Alpha;
-					proxy.Lifetime = 0.4f;
+					proxy.Lifetime = 0.6f;
 					proxy.WidthStart = 1.2f;
 					proxy.WidthEnd = 0.3f;
 					proxy.MinVertexDistance = 0.02f;
@@ -1231,11 +1275,11 @@ class FrameworkSandboxApp : Application
 		}
 		Console.WriteLine("  Created sword swing trail");
 
-		// Set world ambient
+		// Set world ambient (matching RendererIntegrated)
 		if (let world = renderModule.World)
 		{
-			world.AmbientColor = .(0.05f, 0.05f, 0.08f);
-			world.AmbientIntensity = 1.0f;
+			world.AmbientColor = .(0.02f, 0.02f, 0.03f);
+			world.AmbientIntensity = 0.5f;
 		}
 
 		Console.WriteLine("\nEntity count: {}", mMainScene.EntityCount);
@@ -1244,7 +1288,8 @@ class FrameworkSandboxApp : Application
 		Console.WriteLine("  Tab    - Toggle orbit/fly camera");
 		Console.WriteLine("  Orbit: W/S pitch, A/D yaw, Q/E zoom");
 		Console.WriteLine("  Fly:   W/S forward/back, A/D strafe, Q/E up/down");
-		Console.WriteLine("         Arrow keys: look, Shift: fast");
+		Console.WriteLine("         Shift: fast");
+		Console.WriteLine("  Arrow keys - Rotate sun light");
 		Console.WriteLine("  Space  - Toggle physics spawning");
 		Console.WriteLine("  F      - Toggle physics debug draw");
 		Console.WriteLine("  P      - Print profiler stats");
@@ -1295,6 +1340,32 @@ class FrameworkSandboxApp : Application
 		// Print profiler stats
 		if (keyboard.IsKeyPressed(.P))
 			PrintProfilerStats();
+
+		// Cycle lighting debug mode (L key): 0=normal, 1=clusters, 2=light count, 3=diffuse only
+		if (keyboard.IsKeyPressed(.L))
+		{
+			let lightBuffer = mForwardFeature?.Lighting?.LightBuffer;
+			if (lightBuffer != null)
+			{
+				let mode = (lightBuffer.DebugMode + 1) % 4;
+				lightBuffer.DebugMode = mode;
+				String[4] names = .("Normal", "Cluster Index", "Light Count", "Diffuse Only");
+				Console.WriteLine("Lighting debug: {}", names[mode]);
+			}
+		}
+
+		// Sun light rotation (Arrow keys)
+		{
+			float lightRotSpeed = 0.03f;
+			if (keyboard.IsKeyDown(.Left))
+				mSunYaw -= lightRotSpeed;
+			if (keyboard.IsKeyDown(.Right))
+				mSunYaw += lightRotSpeed;
+			if (keyboard.IsKeyDown(.Up))
+				mSunPitch = Math.Clamp(mSunPitch + lightRotSpeed, -1.5f, -0.1f);
+			if (keyboard.IsKeyDown(.Down))
+				mSunPitch = Math.Clamp(mSunPitch - lightRotSpeed, -1.5f, -0.1f);
+		}
 
 		// Camera input
 		mCamera.HandleInput(keyboard, mouse, mDeltaTime);
@@ -1354,7 +1425,7 @@ class FrameworkSandboxApp : Application
 				{
 					if (proxy.Emitter != null)
 					{
-						let swingSpeed = 4.0f;
+						let swingSpeed = 2.0f;
 						let swingAngle = Math.Sin(mTrailTime * swingSpeed) * 2.0f;
 						let swingX = Math.Sin(swingAngle) * 3.5f;
 						let swingY = 2.5f + Math.Cos(swingAngle) * 2.0f;
@@ -1370,6 +1441,9 @@ class FrameworkSandboxApp : Application
 
 		// Update camera transform
 		UpdateCamera();
+
+		// Update sun light direction from arrow keys
+		UpdateSunLight();
 	}
 
 	private void SpawnObject()
@@ -1426,6 +1500,23 @@ class FrameworkSandboxApp : Application
 		mRenderView.UpdateMatrices(mDevice.FlipProjectionRequired);
 	}
 
+	private void UpdateSunLight()
+	{
+		// Update entity transform rotation so RenderSceneModule syncs the direction
+		var transform = mMainScene.GetTransform(mSunEntity);
+		transform.Rotation = Quaternion.CreateFromYawPitchRoll(mSunYaw, -mSunPitch, 0);
+		mMainScene.SetTransform(mSunEntity, transform);
+
+		// Update procedural sky sun direction (opposite of light travel direction)
+		if (mSkyFeature != null)
+		{
+			float x = Math.Cos(mSunPitch) * Math.Sin(mSunYaw);
+			float y = Math.Sin(mSunPitch);
+			float z = Math.Cos(mSunPitch) * Math.Cos(mSunYaw);
+			mSkyFeature.SkyParams.SunDirection = Vector3.Normalize(.(-x, -y, -z));
+		}
+	}
+
 	protected override bool OnRenderFrame(RenderContext render)
 	{
 		// Begin frame
@@ -1449,8 +1540,6 @@ class FrameworkSandboxApp : Application
 			let brightBlue = Color(100, 180, 255, 255);
 			let brightCyan = Color(100, 255, 255, 255);
 			let brightGreen = Color(100, 255, 100, 255);
-			let labelColor = Color(255, 255, 200, 255);
-
 			// Compute camera-facing billboard vectors for world-space labels
 			let camFwd = mCamera.Forward;
 			var camRight = Vector3.Cross(camFwd, .(0, 1, 0));
@@ -1461,25 +1550,41 @@ class FrameworkSandboxApp : Application
 				camRight = camRight / rightLen;
 			let camUp = Vector3.Normalize(Vector3.Cross(camRight, camFwd));
 
-			// Label particle emitters (scale 1.5 for readability)
-			mDebugFeature.AddText("Fire + Smoke", .(0.0f, 3.5f, -8.0f), labelColor, 1.5f, camRight, camUp, .Overlay);
-			mDebugFeature.AddText("Sparks", .(-8.0f, 3.0f, -4.0f), labelColor, 1.5f, camRight, camUp, .Overlay);
-			mDebugFeature.AddText("Magic Orb", .(8.0f, 4.0f, 0.0f), labelColor, 1.5f, camRight, camUp, .Overlay);
-			mDebugFeature.AddText("Trail Comet", .(-8.0f, 4.5f, 8.0f), labelColor, 1.5f, camRight, camUp, .Overlay);
-			mDebugFeature.AddText("Firework", .(12.0f, 4.0f, -10.0f), labelColor, 1.5f, camRight, camUp, .Overlay);
-			mDebugFeature.AddText("Steam", .(8.0f, 3.5f, -8.0f), labelColor, 1.5f, camRight, camUp, .Overlay);
-			mDebugFeature.AddText("Fountain", .(-12.0f, 4.0f, 0.0f), labelColor, 1.5f, camRight, camUp, .Overlay);
-			mDebugFeature.AddText("Fairy Dust", .(12.0f, 4.0f, 5.0f), labelColor, 1.5f, camRight, camUp, .Overlay);
-			mDebugFeature.AddText("Trailed Sparks", .(-5.0f, 5.5f, 10.0f), labelColor, 1.5f, camRight, camUp, .Overlay);
-			mDebugFeature.AddText("Healing", .(5.0f, 3.5f, 8.0f), labelColor, 1.5f, camRight, camUp, .Overlay);
-			mDebugFeature.AddText("Sword Trail", .(-12.0f, 4.5f, 8.0f), labelColor, 1.5f, camRight, camUp, .Overlay);
+			// Label particle emitters with per-effect colors (matching RendererIntegrated style)
+			mDebugFeature.AddText("FIRE + SMOKE", .(0.0f, 3.5f, -8.0f), Color(255, 150, 50, 255), 1.5f, camRight, camUp, .Overlay);
+			mDebugFeature.AddText("SPARKS", .(-8.0f, 3.0f, -4.0f), Color(255, 255, 100, 255), 1.5f, camRight, camUp, .Overlay);
+			mDebugFeature.AddText("MAGIC ORB", .(8.0f, 4.0f, 0.0f), Color(150, 100, 255, 255), 1.5f, camRight, camUp, .Overlay);
+			mDebugFeature.AddText("TRAIL COMET", .(-8.0f, 4.5f, 8.0f), Color(255, 200, 50, 255), 1.5f, camRight, camUp, .Overlay);
+			mDebugFeature.AddText("FIREWORK", .(12.0f, 4.0f, -10.0f), Color(255, 255, 100, 255), 1.5f, camRight, camUp, .Overlay);
+			mDebugFeature.AddText("STEAM", .(8.0f, 3.5f, -8.0f), Color(200, 200, 255, 255), 1.5f, camRight, camUp, .Overlay);
+			mDebugFeature.AddText("FOUNTAIN", .(-12.0f, 4.0f, 0.0f), Color(100, 180, 255, 255), 1.5f, camRight, camUp, .Overlay);
+			mDebugFeature.AddText("FAIRY DUST", .(12.0f, 4.0f, 5.0f), Color(255, 220, 100, 255), 1.5f, camRight, camUp, .Overlay);
+			mDebugFeature.AddText("TRAILED SPARKS", .(-5.0f, 5.5f, 10.0f), Color(255, 180, 50, 255), 1.5f, camRight, camUp, .Overlay);
+			mDebugFeature.AddText("HEALING", .(5.0f, 3.5f, 8.0f), Color(50, 255, 100, 255), 1.5f, camRight, camUp, .Overlay);
+			mDebugFeature.AddText("SWORD TRAIL", .(-12.0f, 4.5f, 8.0f), Color(180, 150, 255, 255), 1.5f, camRight, camUp, .Overlay);
+			mDebugFeature.AddText("CHERRY BLOSSOMS", .(0.0f, 13.0f, 0.0f), Color(255, 130, 150, 255), 1.5f, camRight, camUp, .Overlay);
+
+			// Draw directional light direction (matching RendererIntegrated)
+			{
+				let renderModule = mMainScene?.GetModule<RenderSceneModule>();
+				if (renderModule != null)
+				{
+					if (let light = renderModule.GetLightProxy(mSunEntity))
+					{
+						Vector3 sunOrigin = .(0, 8, 0);
+						Vector3 sunEnd = sunOrigin + light.Direction * 5.0f;
+						mDebugFeature.AddArrow(sunOrigin, sunEnd, Color.Yellow, 0.3f, .Overlay);
+						mDebugFeature.AddSphere(sunOrigin, 0.3f, Color.Yellow, 8, .Overlay);
+					}
+				}
+			}
 
 			let white = Color(255, 255, 255, 255);
 			let brightYellow = Color(255, 255, 100, 255);
 			let brightOrange = Color(255, 180, 100, 255);
 
 			// ===== TOP LEFT: Instructions =====
-			mDebugFeature.AddRect2D(5, 5, 400, 120, bgColor);
+			mDebugFeature.AddRect2D(5, 5, 400, 137, bgColor);
 			mDebugFeature.AddText2D("FRAMEWORK SANDBOX", 15, 12, brightYellow, 1.5f);
 
 			if (mCamera.CurrentMode == .Orbital)
@@ -1488,8 +1593,9 @@ class FrameworkSandboxApp : Application
 				mDebugFeature.AddText2D("FLY: WASD move, Q/E up/down, RMB look", 15, 35, white, 1.0f);
 
 			mDebugFeature.AddText2D("Tab: Toggle camera    `: Back to orbital", 15, 52, white, 1.0f);
-			mDebugFeature.AddText2D("Space: Spawn objects  F: Debug draw", 15, 69, white, 1.0f);
-			mDebugFeature.AddText2D("P: Profiler           ESC: Exit", 15, 86, white, 1.0f);
+			mDebugFeature.AddText2D("Arrow keys: Rotate sun light", 15, 69, white, 1.0f);
+			mDebugFeature.AddText2D("Space: Spawn objects  F: Debug draw", 15, 86, white, 1.0f);
+			mDebugFeature.AddText2D("P: Profiler           ESC: Exit", 15, 103, white, 1.0f);
 
 			// ===== TOP RIGHT: Stats =====
 			float panelX = (float)mRenderView.Width - 220;

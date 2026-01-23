@@ -27,8 +27,11 @@ cbuffer SkyUniforms : register(b1)
     float3 HorizonColor;
     float Time;
     float3 SolidColorValue;
-    float SkyMode; // 0 = Procedural, 1 = SolidColor
+    float SkyMode; // 0 = Procedural, 1 = SolidColor, 2 = EnvironmentMap
 };
+
+TextureCube EnvironmentMap : register(t0);
+SamplerState EnvSampler : register(s0);
 
 struct FragmentInput
 {
@@ -127,10 +130,18 @@ float3 CalculateAtmosphere(float3 rayOrigin, float3 rayDir, float rayLength, flo
 
 float4 main(FragmentInput input) : SV_Target
 {
-    // Solid color mode - just output the solid color
-    if (SkyMode > 0.5)
+    // Solid color mode
+    if (SkyMode > 0.5 && SkyMode < 1.5)
     {
         return float4(SolidColorValue, 1.0);
+    }
+
+    // Environment map mode - sample cubemap
+    if (SkyMode > 1.5)
+    {
+        float3 dir = normalize(input.ViewDir);
+        float3 color = EnvironmentMap.Sample(EnvSampler, dir).rgb;
+        return float4(color, 1.0);
     }
 
     float3 viewDir = normalize(input.ViewDir);

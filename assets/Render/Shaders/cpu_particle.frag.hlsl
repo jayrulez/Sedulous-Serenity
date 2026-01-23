@@ -46,6 +46,10 @@ cbuffer LightingUniforms : register(b3)
     uint ClusterDimensionZ;
     float2 ClusterScale;
     float2 ClusterBias;
+    uint DebugMode;
+    uint _LightPad0;
+    uint _LightPad1;
+    uint _LightPad2;
 };
 
 struct Light

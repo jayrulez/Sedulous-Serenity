@@ -32,6 +32,10 @@ cbuffer LightingUniforms : register(b3)
     uint ClusterDimensionZ;
     float2 ClusterScale;
     float2 ClusterBias;
+    uint DebugMode; // 0=normal, 1=cluster index, 2=light count, 3=diffuse only
+    uint _Pad0;
+    uint _Pad1;
+    uint _Pad2;
 };
 
 // Material uniforms (space1 = descriptor set 1 for materials)
@@ -287,6 +291,32 @@ float4 main(FragmentInput input) : SV_Target
     uint lightOffset = lightInfo.x;
     uint lightCount = lightInfo.y;
 
+    // Debug visualization modes
+    if (DebugMode == 1)
+    {
+        // Cluster index as color (XYZ mapped to RGB)
+        uint clusterX = uint(input.Position.x * ClusterScale.x);
+        uint clusterY = uint(input.Position.y * ClusterScale.y);
+        uint clusterZ = uint(max(0.0, log(viewZ) * ClusterBias.x + ClusterBias.y));
+        float3 debugColor = float3(
+            float(clusterX % ClusterDimensionX) / float(ClusterDimensionX),
+            float(clusterY % ClusterDimensionY) / float(ClusterDimensionY),
+            float(clusterZ % ClusterDimensionZ) / float(ClusterDimensionZ)
+        );
+        return float4(debugColor, 1.0);
+    }
+    else if (DebugMode == 2)
+    {
+        // Light count per cluster as heat map (black=0, blue=1, green=2-3, yellow=4-5, red=6+)
+        float t = saturate(float(lightCount) / 8.0);
+        float3 debugColor = float3(
+            saturate(t * 3.0 - 1.0),
+            saturate(t * 3.0) - saturate(t * 3.0 - 2.0),
+            saturate(1.0 - t * 3.0)
+        );
+        return float4(debugColor, 1.0);
+    }
+
     // Process lights in cluster
     for (uint i = 0; i < lightCount; i++)
     {
@@ -316,20 +346,29 @@ float4 main(FragmentInput input) : SV_Target
         float3 H = normalize(V + L);
         float3 radiance = light.Color * light.Intensity * attenuation;
 
-        // Cook-Torrance BRDF
-        float NDF = DistributionGGX(N, H, roughness);
-        float G = GeometrySmith(N, V, L, roughness);
-        float3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);
-
-        float3 numerator = NDF * G * F;
-        float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + EPSILON;
-        float3 specular = numerator / denominator;
-
-        float3 kS = F;
-        float3 kD = (1.0 - kS) * (1.0 - metallic);
-
         float NdotL = max(dot(N, L), 0.0);
-        Lo += (kD * albedo.rgb / PI + specular) * radiance * NdotL;
+
+        if (DebugMode == 3)
+        {
+            // Diffuse only (no specular) for debugging beam artifacts
+            Lo += albedo.rgb / PI * radiance * NdotL;
+        }
+        else
+        {
+            // Cook-Torrance BRDF
+            float NDF = DistributionGGX(N, H, roughness);
+            float G = GeometrySmith(N, V, L, roughness);
+            float3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);
+
+            float3 numerator = NDF * G * F;
+            float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + EPSILON;
+            float3 specular = numerator / denominator;
+
+            float3 kS = F;
+            float3 kD = (1.0 - kS) * (1.0 - metallic);
+
+            Lo += (kD * albedo.rgb / PI + specular) * radiance * NdotL;
+        }
     }
 
 #ifdef RECEIVE_SHADOWS

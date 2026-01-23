@@ -83,12 +83,18 @@ public class SkyFeature : RenderFeatureBase
 	// Environment map
 	private ITexture mEnvironmentMap;
 	private ITextureView mEnvironmentMapView;
+	private bool mOwnsEnvironmentMap = false;
 	private ITexture mIrradianceMap;
 	private ITextureView mIrradianceMapView;
 	private ITexture mPrefilteredMap;
 	private ITextureView mPrefilteredMapView;
 	private ITexture mBRDFLut;
 	private ITextureView mBRDFLutView;
+
+	// Cubemap sampler and fallback
+	private ISampler mEnvSampler ~ delete _;
+	private ITexture mFallbackCubemap ~ delete _;
+	private ITextureView mFallbackCubemapView ~ delete _;
 
 	// Sky rendering (per-frame for multi-buffering)
 	private IRenderPipeline mSkyPipeline ~ delete _;
@@ -155,6 +161,10 @@ public class SkyFeature : RenderFeatureBase
 		if (CreateBRDFLut() case .Err)
 			return .Err;
 
+		// Create env sampler and fallback cubemap
+		if (CreateEnvSamplerAndFallback() case .Err)
+			return .Err;
+
 		// Create sky pipeline
 		if (CreateSkyPipeline() case .Err)
 			return .Err;
@@ -178,9 +188,12 @@ public class SkyFeature : RenderFeatureBase
 		let (vertShader, fragShader) = shaderResult.Value;
 
 		// Create bind group layout
-		BindGroupLayoutEntry[2] layoutEntries = .(
-			.() { Binding = 0, Visibility = .Vertex | .Fragment, Type = .UniformBuffer }, // Camera
-			.() { Binding = 1, Visibility = .Fragment, Type = .UniformBuffer } // Sky params
+		// Binding indices match HLSL register indices per type: b0, b1, t0, s0
+		BindGroupLayoutEntry[4] layoutEntries = .(
+			.() { Binding = 0, Visibility = .Vertex | .Fragment, Type = .UniformBuffer }, // Camera (b0)
+			.() { Binding = 1, Visibility = .Fragment, Type = .UniformBuffer }, // Sky params (b1)
+			BindGroupLayoutEntry.SampledTexture(0, .Fragment, .TextureCube), // Environment cubemap (t0)
+			BindGroupLayoutEntry.Sampler(0, .Fragment) // Cubemap sampler (s0)
 		);
 
 		BindGroupLayoutDescriptor layoutDesc = .()
@@ -263,8 +276,11 @@ public class SkyFeature : RenderFeatureBase
 			}
 		}
 
-		if (mEnvironmentMapView != null) delete mEnvironmentMapView;
-		if (mEnvironmentMap != null) delete mEnvironmentMap;
+		if (mOwnsEnvironmentMap)
+		{
+			if (mEnvironmentMapView != null) delete mEnvironmentMapView;
+			if (mEnvironmentMap != null) delete mEnvironmentMap;
+		}
 		if (mIrradianceMapView != null) delete mIrradianceMapView;
 		if (mIrradianceMap != null) delete mIrradianceMap;
 		if (mPrefilteredMapView != null) delete mPrefilteredMapView;
@@ -304,8 +320,12 @@ public class SkyFeature : RenderFeatureBase
 	public Result<void> SetEnvironmentMap(ITexture envMap)
 	{
 		// Release old maps
-		if (mEnvironmentMapView != null) { delete mEnvironmentMapView; mEnvironmentMapView = null; }
-		if (mEnvironmentMap != null) { delete mEnvironmentMap; mEnvironmentMap = null; }
+		if (mOwnsEnvironmentMap)
+		{
+			if (mEnvironmentMapView != null) { delete mEnvironmentMapView; mEnvironmentMapView = null; }
+			if (mEnvironmentMap != null) { delete mEnvironmentMap; mEnvironmentMap = null; }
+		}
+		mOwnsEnvironmentMap = false;
 		if (mIrradianceMapView != null) { delete mIrradianceMapView; mIrradianceMapView = null; }
 		if (mIrradianceMap != null) { delete mIrradianceMap; mIrradianceMap = null; }
 		if (mPrefilteredMapView != null) { delete mPrefilteredMapView; mPrefilteredMapView = null; }
@@ -517,6 +537,191 @@ public class SkyFeature : RenderFeatureBase
 		// when SetEnvironmentMap is called with proper compute shader support.
 	}
 
+	private Result<void> CreateEnvSamplerAndFallback()
+	{
+		// Create sampler for cubemap sampling
+		SamplerDescriptor samplerDesc = .();
+		samplerDesc.MinFilter = .Linear;
+		samplerDesc.MagFilter = .Linear;
+		samplerDesc.MipmapFilter = .Linear;
+		samplerDesc.AddressModeU = .ClampToEdge;
+		samplerDesc.AddressModeV = .ClampToEdge;
+		samplerDesc.AddressModeW = .ClampToEdge;
+
+		switch (Renderer.Device.CreateSampler(&samplerDesc))
+		{
+		case .Ok(let sampler): mEnvSampler = sampler;
+		case .Err: return .Err;
+		}
+
+		// Create a 1x1 black fallback cubemap
+		TextureDescriptor texDesc = .Cubemap(1, .RGBA8Unorm, .Sampled | .CopyDst);
+
+		switch (Renderer.Device.CreateTexture(&texDesc))
+		{
+		case .Ok(let tex): mFallbackCubemap = tex;
+		case .Err: return .Err;
+		}
+
+		// Upload black pixels to each face
+		uint8[4] blackPixel = .(0, 0, 0, 255);
+		TextureDataLayout layout = .() { Offset = 0, BytesPerRow = 4, RowsPerImage = 1 };
+		Extent3D size = .(1, 1, 1);
+		Span<uint8> data = .(&blackPixel, 4);
+
+		for (uint32 face = 0; face < 6; face++)
+			Renderer.Device.Queue.WriteTexture(mFallbackCubemap, data, &layout, &size, 0, face);
+
+		// Create cube view
+		TextureViewDescriptor viewDesc = .()
+		{
+			Format = .RGBA8Unorm,
+			Dimension = .TextureCube,
+			BaseMipLevel = 0,
+			MipLevelCount = 1,
+			BaseArrayLayer = 0,
+			ArrayLayerCount = 6
+		};
+
+		switch (Renderer.Device.CreateTextureView(mFallbackCubemap, &viewDesc))
+		{
+		case .Ok(let view): mFallbackCubemapView = view;
+		case .Err: return .Err;
+		}
+
+		return .Ok;
+	}
+
+	/// Creates a procedural gradient sky cubemap matching RendererIntegrated's SkyboxRenderer.
+	/// topColor: Color at zenith (straight up)
+	/// horizonColor: Color at the horizon
+	/// groundColor: Color when looking down (defaults to horizon/3)
+	public Result<void> CreateGradientSky(Color topColor, Color horizonColor, int32 resolution = 64)
+	{
+		Color groundColor = Color(
+			(uint8)(horizonColor.R / 3),
+			(uint8)(horizonColor.G / 3),
+			(uint8)(horizonColor.B / 3),
+			255
+		);
+		return CreateGradientSkyWithGround(topColor, horizonColor, groundColor, resolution);
+	}
+
+	/// Creates a procedural gradient sky cubemap with explicit ground color.
+	public Result<void> CreateGradientSkyWithGround(Color topColor, Color horizonColor, Color groundColor, int32 resolution = 64)
+	{
+		// Release old owned environment map
+		if (mOwnsEnvironmentMap)
+		{
+			if (mEnvironmentMapView != null) { delete mEnvironmentMapView; mEnvironmentMapView = null; }
+			if (mEnvironmentMap != null) { delete mEnvironmentMap; mEnvironmentMap = null; }
+		}
+
+		// Create cubemap texture
+		TextureDescriptor texDesc = .Cubemap((uint32)resolution, .RGBA8Unorm, .Sampled | .CopyDst);
+
+		switch (Renderer.Device.CreateTexture(&texDesc))
+		{
+		case .Ok(let tex): mEnvironmentMap = tex;
+		case .Err: return .Err;
+		}
+		mOwnsEnvironmentMap = true;
+
+		// Generate gradient data for each face
+		int32 faceSize = resolution * resolution * 4;
+		uint8[] faceData = new uint8[faceSize];
+		defer delete faceData;
+
+		TextureDataLayout layout = .()
+		{
+			Offset = 0,
+			BytesPerRow = (uint32)(resolution * 4),
+			RowsPerImage = (uint32)resolution
+		};
+
+		Extent3D size = .((uint32)resolution, (uint32)resolution, 1);
+
+		// Cubemap face order: +X, -X, +Y, -Y, +Z, -Z
+		for (int32 face = 0; face < 6; face++)
+		{
+			for (int32 y = 0; y < resolution; y++)
+			{
+				Color c;
+
+				if (face == 2) // +Y (top/zenith)
+				{
+					c = topColor;
+				}
+				else if (face == 3) // -Y (bottom/ground)
+				{
+					c = groundColor;
+				}
+				else
+				{
+					// Side faces: gradient top -> horizon -> ground
+					float t = (float)y / (float)(resolution - 1);
+
+					if (t < 0.5f)
+					{
+						// Upper half: top to horizon
+						float u = t * 2.0f;
+						c = topColor.Interpolate(horizonColor, u);
+					}
+					else
+					{
+						// Lower half: horizon to ground
+						float u = (t - 0.5f) * 2.0f;
+						c = horizonColor.Interpolate(groundColor, u);
+					}
+				}
+
+				for (int32 x = 0; x < resolution; x++)
+				{
+					int32 idx = (y * resolution + x) * 4;
+					faceData[idx + 0] = c.R;
+					faceData[idx + 1] = c.G;
+					faceData[idx + 2] = c.B;
+					faceData[idx + 3] = c.A;
+				}
+			}
+
+			// Upload this face
+			Span<uint8> data = .(faceData.Ptr, faceSize);
+			Renderer.Device.Queue.WriteTexture(mEnvironmentMap, data, &layout, &size, 0, (uint32)face);
+		}
+
+		// Create cube view
+		TextureViewDescriptor viewDesc = .()
+		{
+			Format = .RGBA8Unorm,
+			Dimension = .TextureCube,
+			BaseMipLevel = 0,
+			MipLevelCount = 1,
+			BaseArrayLayer = 0,
+			ArrayLayerCount = 6
+		};
+
+		switch (Renderer.Device.CreateTextureView(mEnvironmentMap, &viewDesc))
+		{
+		case .Ok(let view): mEnvironmentMapView = view;
+		case .Err: return .Err;
+		}
+
+		mMode = .EnvironmentMap;
+
+		// Force bind group recreation on next frame
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
+		{
+			if (mSkyBindGroups[i] != null)
+			{
+				delete mSkyBindGroups[i];
+				mSkyBindGroups[i] = null;
+			}
+		}
+
+		return .Ok;
+	}
+
 	/// Ensures the sky bind group exists for the current frame.
 	private void EnsureSkyBindGroup(int32 frameIndex)
 	{
@@ -533,6 +738,10 @@ public class SkyFeature : RenderFeatureBase
 		if (cameraBuffer == null)
 			return;
 
+		// Need sampler and cubemap view
+		if (mEnvSampler == null || mFallbackCubemapView == null)
+			return;
+
 		// Delete old bind group if exists
 		if (mSkyBindGroups[frameIndex] != null)
 		{
@@ -540,12 +749,15 @@ public class SkyFeature : RenderFeatureBase
 			mSkyBindGroups[frameIndex] = null;
 		}
 
-		// Create bind group entries
-		// Binding 0: Camera uniforms (SceneUniforms)
-		// Binding 1: Sky params
-		BindGroupEntry[2] entries = .(
+		// Pick active cubemap view (user env map or fallback)
+		let cubemapView = (mEnvironmentMapView != null) ? mEnvironmentMapView : mFallbackCubemapView;
+
+		// Create bind group entries (binding indices match register spaces: b0, b1, t0, s0)
+		BindGroupEntry[4] entries = .(
 			BindGroupEntry.Buffer(0, cameraBuffer, 0, SceneUniforms.Size),
-			BindGroupEntry.Buffer(1, skyParamsBuffer, 0, (uint64)ProceduralSkyParams.Size)
+			BindGroupEntry.Buffer(1, skyParamsBuffer, 0, (uint64)ProceduralSkyParams.Size),
+			BindGroupEntry.Texture(0, cubemapView),
+			BindGroupEntry.Sampler(0, mEnvSampler)
 		);
 
 		BindGroupDescriptor desc = .()
@@ -564,8 +776,13 @@ public class SkyFeature : RenderFeatureBase
 		// Update time from renderer
 		mSkyParams.Time = Renderer.RenderFrameContext?.TotalTime ?? 0.0f;
 
-		// Set mode from enum (0 = Procedural, 1 = SolidColor)
-		mSkyParams.Mode = (mMode == .SolidColor) ? 1.0f : 0.0f;
+		// Set mode from enum (0 = Procedural, 1 = SolidColor, 2 = EnvironmentMap)
+		switch (mMode)
+		{
+		case .Procedural: mSkyParams.Mode = 0.0f;
+		case .SolidColor: mSkyParams.Mode = 1.0f;
+		case .EnvironmentMap: mSkyParams.Mode = 2.0f;
+		}
 
 		// Use current frame's buffer
 		let skyParamsBuffer = mSkyParamsBuffers[frameIndex];

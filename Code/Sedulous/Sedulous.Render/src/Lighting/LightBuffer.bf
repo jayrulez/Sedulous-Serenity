@@ -75,8 +75,14 @@ public struct LightingUniforms
 	/// Cluster bias for index calculation.
 	public Vector2 ClusterBias;
 
+	/// Debug visualization mode (0=normal, 1=cluster index, 2=light count, 3=diffuse only).
+	public uint32 DebugMode;
+	public uint32 _Pad0;
+	public uint32 _Pad1;
+	public uint32 _Pad2;
+
 	/// Size of this struct in bytes.
-	public static int Size => 48;
+	public static int Size => 64;
 }
 
 /// Manages GPU light data for clustered forward rendering.
@@ -106,6 +112,9 @@ public class LightBuffer : IDisposable
 	private uint32 mClusterDimZ = 24;
 	private Vector2 mClusterScale = .(1.0f, 1.0f);
 	private Vector2 mClusterBias = .(0.0f, 0.0f);
+
+	// Debug mode
+	private uint32 mDebugMode = 0;
 
 	/// Gets the number of active lights.
 	public int32 LightCount => mLightCount;
@@ -149,6 +158,14 @@ public class LightBuffer : IDisposable
 	{
 		get => mExposure;
 		set => mExposure = value;
+	}
+
+	/// Gets or sets the debug visualization mode.
+	/// 0=normal, 1=cluster index, 2=light count, 3=diffuse only
+	public uint32 DebugMode
+	{
+		get => mDebugMode;
+		set => mDebugMode = value;
 	}
 
 	/// Gets the light data buffer for a specific frame index.
@@ -301,7 +318,8 @@ public class LightBuffer : IDisposable
 			ClusterDimensionY = mClusterDimY,
 			ClusterDimensionZ = mClusterDimZ,
 			ClusterScale = mClusterScale,
-			ClusterBias = mClusterBias
+			ClusterBias = mClusterBias,
+			DebugMode = mDebugMode
 		};
 
 		// Use Map/Unmap to avoid command buffer creation
