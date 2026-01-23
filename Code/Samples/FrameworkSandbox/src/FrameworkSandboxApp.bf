@@ -63,6 +63,7 @@ class FrameworkSandboxApp : Application
 	private EntityId mSmokeEntity;
 	private EntityId mSparksEntity;
 	private EntityId mMagicEntity;
+	private EntityId mTrailEntity;
 	private EntityId mSpriteEntity;
 
 	// Camera control
@@ -131,7 +132,7 @@ class FrameworkSandboxApp : Application
 		Console.WriteLine("  P: Print profiler stats");
 		Console.WriteLine("\nParticle emitters:");
 		Console.WriteLine("  Fire (right):  Color/size curves + turbulence");
-		Console.WriteLine("  Smoke (above): Alpha curve + wind + turbulence");
+		Console.WriteLine("  Smoke (above): Lit + alpha curve + wind + turbulence");
 		Console.WriteLine("  Sparks (left): Burst emission + stretched billboard + speed curve");
 		Console.WriteLine("  Magic (back):  Vortex + attractor + size curve");
 		Console.WriteLine("  ESC: Exit\n");
@@ -514,6 +515,7 @@ class FrameworkSandboxApp : Application
 					proxy.GravityMultiplier = -0.1f;
 					proxy.Drag = 0.6f;
 					proxy.SortParticles = true;
+					proxy.Lit = true;
 					proxy.SoftParticleDistance = 0.5f;
 					proxy.LifetimeVarianceMin = 0.8f;
 					proxy.LifetimeVarianceMax = 1.5f;
@@ -540,7 +542,7 @@ class FrameworkSandboxApp : Application
 				}
 			}
 		}
-		Console.WriteLine("  Created smoke particle emitter (turbulence + wind + alpha curve)");
+		Console.WriteLine("  Created smoke particle emitter (lit + turbulence + wind + alpha curve)");
 
 		// Create sparks emitter (burst emission + stretched billboards + gravity)
 		mSparksEntity = mMainScene.CreateEntity();
@@ -638,6 +640,56 @@ class FrameworkSandboxApp : Application
 			}
 		}
 		Console.WriteLine("  Created magic orb emitter (vortex + attractor + size curve)");
+
+		// Create trail comet emitter (stretched billboard + ribbon trail)
+		mTrailEntity = mMainScene.CreateEntity();
+		{
+			var transform = mMainScene.GetTransform(mTrailEntity);
+			transform.Position = .(0.0f, 2.0f, 3.0f);
+			mMainScene.SetTransform(mTrailEntity, transform);
+
+			let handle = renderModule.CreateCPUParticleEmitter(mTrailEntity, 200);
+			if (handle.IsValid)
+			{
+				if (let proxy = renderModule.GetParticleEmitterProxy(mTrailEntity))
+				{
+					proxy.SpawnRate = 8.0f;
+					proxy.ParticleLifetime = 3.0f;
+					proxy.BlendMode = .Additive;
+					proxy.RenderMode = .StretchedBillboard;
+					proxy.StretchFactor = 1.5f;
+					proxy.StartColor = .(1.0f, 0.6f, 0.2f, 1.0f);
+					proxy.EndColor = .(1.0f, 0.2f, 0.0f, 0.0f);
+					proxy.StartSize = .(0.06f, 0.06f);
+					proxy.EndSize = .(0.02f, 0.02f);
+					proxy.InitialVelocity = .(1.5f, 0.5f, 0.0f);
+					proxy.VelocityRandomness = .(0.3f, 0.3f, 0.3f);
+					proxy.GravityMultiplier = 0.3f;
+					proxy.Drag = 0.5f;
+					proxy.LifetimeVarianceMin = 0.8f;
+					proxy.LifetimeVarianceMax = 1.2f;
+					proxy.IsEnabled = true;
+					proxy.IsEmitting = true;
+
+					// Color fades to transparent
+					proxy.AlphaOverLifetime = .FadeOut(1.0f, 0.5f);
+
+					// Enable trails
+					proxy.Trail.Enabled = true;
+					proxy.Trail.MaxPoints = 20;
+					proxy.Trail.RecordInterval = 0.02f;
+					proxy.Trail.Lifetime = 1.5f;
+					proxy.Trail.WidthStart = 0.04f;
+					proxy.Trail.WidthEnd = 0.0f;
+					proxy.Trail.MinVertexDistance = 0.01f;
+					proxy.Trail.UseParticleColor = true;
+
+					if (proxy.CPUEmitter != null)
+						proxy.CPUEmitter.Shape = EmissionShape.Sphere(0.2f);
+				}
+			}
+		}
+		Console.WriteLine("  Created trail comet emitter (stretched billboard + ribbon trails)");
 
 		// Create test sprite (floating marker near the fire)
 		mSpriteEntity = mMainScene.CreateEntity();
@@ -848,6 +900,19 @@ class FrameworkSandboxApp : Application
 			let brightBlue = Color(100, 180, 255, 255);
 			let brightCyan = Color(100, 255, 255, 255);
 			let brightGreen = Color(100, 255, 100, 255);
+			let labelColor = Color(255, 255, 200, 255);
+
+			// Compute camera billboard vectors for world-space labels
+			let cosYaw = Math.Cos(mCameraYaw);
+			let sinYaw = Math.Sin(mCameraYaw);
+			let camRight = Vector3((float)cosYaw, 0, (float)-sinYaw);
+			let camUp = Vector3(0, 1, 0);
+
+			// Label particle emitters
+			mDebugFeature.AddText("Fire + Smoke", .(3.0f, 2.5f, -2.0f), labelColor, 0.6f, camRight, camUp, .Overlay);
+			mDebugFeature.AddText("Sparks (Burst/Stretched)", .(-3.0f, 2.5f, -2.0f), labelColor, 0.6f, camRight, camUp, .Overlay);
+			mDebugFeature.AddText("Magic (Vortex/Attractor)", .(-3.0f, 3.0f, 2.0f), labelColor, 0.6f, camRight, camUp, .Overlay);
+			mDebugFeature.AddText("Trails (Ribbon)", .(0.0f, 3.5f, 3.0f), labelColor, 0.6f, camRight, camUp, .Overlay);
 
 			// Background for top-left instructions
 			mDebugFeature.AddRect2D(5, 5, 420, 20, bgColor);

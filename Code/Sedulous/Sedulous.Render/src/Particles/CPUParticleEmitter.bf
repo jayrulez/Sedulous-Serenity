@@ -49,6 +49,16 @@ public class CPUParticleEmitter
 	private int32[] mSortIndices ~ delete _;
 	private float[] mSortDistances ~ delete _;
 
+	// Trail rendering state
+	private ParticleTrailState[] mTrailStates ~ delete _;
+	private TrailPoint[] mTrailPoints ~ delete _;
+	private TrailVertex[] mTrailVertexData ~ delete _;
+	private IBuffer[FrameBufferCount] mTrailVertexBuffers;
+	private int32 mTrailVertexCount = 0;
+	private int32 mMaxTrailPointsPerParticle = 0;
+	private int32 mMaxTrailVertices = 0;
+	private bool mTrailsInitialized = false;
+
 	// Reference to device for buffer operations
 	private IDevice mDevice;
 
@@ -74,6 +84,15 @@ public class CPUParticleEmitter
 	/// Gets the positions where particles died this frame.
 	/// Valid until the next Update() call.
 	public Span<Vector3> DeathPositions => .(mDeathPositions.Ptr, mDeathCount);
+
+	/// Gets the trail vertex buffer for the given frame index.
+	public IBuffer GetTrailVertexBuffer(uint32 frameIndex)
+	{
+		return mTrailVertexBuffers[frameIndex % FrameBufferCount];
+	}
+
+	/// Gets the number of trail vertices generated this frame.
+	public int32 GetTrailVertexCount() => mTrailVertexCount;
 
 	/// Creates a new CPU particle emitter.
 	public this(IDevice device, int32 maxParticles, int32 maxDeathEvents = 64)
@@ -111,6 +130,8 @@ public class CPUParticleEmitter
 		{
 			if (mVertexBuffers[i] != null)
 				delete mVertexBuffers[i];
+			if (mTrailVertexBuffers[i] != null)
+				delete mTrailVertexBuffers[i];
 		}
 	}
 
@@ -129,6 +150,14 @@ public class CPUParticleEmitter
 		{
 			SpawnParticles(deltaTime, config);
 			SimulateParticles(deltaTime, config);
+		}
+
+		// Record trail points for alive particles
+		if (config.Trail.IsActive)
+		{
+			if (!mTrailsInitialized)
+				InitializeTrails(config);
+			RecordTrailPoints(config);
 		}
 	}
 
@@ -185,7 +214,23 @@ public class CPUParticleEmitter
 			v.Size = p.Size;
 			v.Color = p.Color;
 			v.Rotation = p.Rotation;
-			v.Velocity2D = .(p.Velocity.X, p.Velocity.Y);
+			// For stretched billboard: project 3D velocity into view plane
+			if (config.RenderMode == .StretchedBillboard)
+			{
+				let toCamera = Vector3.Normalize(cameraPos - v.Position);
+				var right = Vector3.Cross(.(0, 1, 0), toCamera);
+				let rightLen = right.Length();
+				if (rightLen > 0.001f)
+					right = right / rightLen;
+				else
+					right = .(1, 0, 0);
+				let up = Vector3.Cross(toCamera, right);
+				v.Velocity2D = .(Vector3.Dot(p.Velocity, right), Vector3.Dot(p.Velocity, up));
+			}
+			else
+			{
+				v.Velocity2D = .(p.Velocity.X, p.Velocity.Y);
+			}
 
 			// Compute atlas UV
 			if (useAtlas && config.AtlasFPS > 0)
@@ -448,9 +493,27 @@ public class CPUParticleEmitter
 
 			// Compact alive particles (swap-remove dead ones)
 			if (writeIdx != i)
+			{
 				mParticles[writeIdx] = p;
+				// Also compact trail state and trail points
+				if (mTrailsInitialized && mTrailStates != null)
+				{
+					mTrailStates[writeIdx] = mTrailStates[i];
+					let srcOffset = i * mMaxTrailPointsPerParticle;
+					let dstOffset = writeIdx * mMaxTrailPointsPerParticle;
+					for (int32 t = 0; t < mMaxTrailPointsPerParticle; t++)
+						mTrailPoints[dstOffset + t] = mTrailPoints[srcOffset + t];
+				}
+			}
 
 			writeIdx++;
+		}
+
+		// Clear trail states for dead particles at the end
+		if (mTrailsInitialized && mTrailStates != null)
+		{
+			for (int32 j = writeIdx; j < mAliveCount; j++)
+				mTrailStates[j].Clear();
 		}
 
 		mAliveCount = writeIdx;
@@ -509,5 +572,210 @@ public class CPUParticleEmitter
 		}
 
 		return 1.0f;
+	}
+
+	// --- Trail Methods ---
+
+	private void InitializeTrails(ParticleEmitterProxy* config)
+	{
+		mMaxTrailPointsPerParticle = Math.Max(config.Trail.MaxPoints, 2);
+
+		// Allocate trail states (one per particle slot)
+		mTrailStates = new ParticleTrailState[mMaxParticles];
+
+		// Allocate flat trail points array
+		mTrailPoints = new TrailPoint[mMaxParticles * mMaxTrailPointsPerParticle];
+
+		// Max trail vertices: each pair of adjacent points generates a quad (6 vertices)
+		mMaxTrailVertices = mMaxParticles * (mMaxTrailPointsPerParticle - 1) * 6;
+		mTrailVertexData = new TrailVertex[mMaxTrailVertices];
+
+		// Create trail vertex buffers
+		for (int i = 0; i < FrameBufferCount; i++)
+		{
+			BufferDescriptor desc = .()
+			{
+				Label = "CPU Particle Trail Vertex Buffer",
+				Size = (uint64)(mMaxTrailVertices * TrailVertex.SizeInBytes),
+				Usage = .Vertex | .CopyDst
+			};
+
+			switch (mDevice.CreateBuffer(&desc))
+			{
+			case .Ok(let buf): mTrailVertexBuffers[i] = buf;
+			case .Err: // Will be null, checked at render time
+			}
+		}
+
+		mTrailsInitialized = true;
+	}
+
+	private void RecordTrailPoints(ParticleEmitterProxy* config)
+	{
+		if (!mTrailsInitialized || mTrailStates == null)
+			return;
+
+		let trailSettings = config.Trail;
+
+		for (int32 i = 0; i < mAliveCount; i++)
+		{
+			ref CPUParticle p = ref mParticles[i];
+			ref ParticleTrailState state = ref mTrailStates[i];
+
+			// Check if enough time has passed since last record
+			let timeSinceRecord = mTotalTime - state.LastRecordTime;
+			if (timeSinceRecord < trailSettings.RecordInterval && state.Count > 0)
+				continue;
+
+			// Check minimum distance
+			if (state.Count > 0)
+			{
+				let diff = p.Position - state.LastPosition;
+				let distSq = Vector3.Dot(diff, diff);
+				if (distSq < trailSettings.MinVertexDistance * trailSettings.MinVertexDistance)
+					continue;
+			}
+
+			// Compute width based on particle life ratio
+			let lifeRatio = p.Age / p.Lifetime;
+			let width = trailSettings.WidthStart * (1.0f - lifeRatio) + trailSettings.WidthEnd * lifeRatio;
+
+			// Record trail point
+			let pointOffset = i * mMaxTrailPointsPerParticle + state.Head;
+			mTrailPoints[pointOffset] = .()
+			{
+				Position = p.Position,
+				Width = width,
+				Color = p.Color,
+				RecordTime = mTotalTime
+			};
+
+			state.Head = (state.Head + 1) % mMaxTrailPointsPerParticle;
+			if (state.Count < mMaxTrailPointsPerParticle)
+				state.Count++;
+
+			state.LastRecordTime = mTotalTime;
+			state.LastPosition = p.Position;
+		}
+	}
+
+	/// Uploads trail vertex data to GPU buffer for rendering.
+	public void UploadTrails(uint32 frameIndex, Vector3 cameraPos, ParticleEmitterProxy* config)
+	{
+		if (!mTrailsInitialized || mAliveCount == 0)
+		{
+			mTrailVertexCount = 0;
+			return;
+		}
+
+		let bufferIdx = frameIndex % FrameBufferCount;
+		let buffer = mTrailVertexBuffers[bufferIdx];
+		if (buffer == null)
+		{
+			mTrailVertexCount = 0;
+			return;
+		}
+
+		int32 vertexIdx = 0;
+		let trailSettings = config.Trail;
+
+		for (int32 i = 0; i < mAliveCount; i++)
+		{
+			ref ParticleTrailState state = ref mTrailStates[i];
+			if (state.Count < 2)
+				continue;
+
+			let baseOffset = i * mMaxTrailPointsPerParticle;
+
+			// Generate ribbon vertices for this particle's trail
+			// Walk from newest to oldest point
+			for (int32 seg = 0; seg < state.Count - 1; seg++)
+			{
+				if (vertexIdx + 6 > mMaxTrailVertices)
+					break;
+
+				// Get current and next point (newer to older)
+				let currRingIdx = ((state.Head - 1 - seg) % mMaxTrailPointsPerParticle + mMaxTrailPointsPerParticle) % mMaxTrailPointsPerParticle;
+				let nextRingIdx = ((state.Head - 2 - seg) % mMaxTrailPointsPerParticle + mMaxTrailPointsPerParticle) % mMaxTrailPointsPerParticle;
+
+				let currPoint = mTrailPoints[baseOffset + currRingIdx];
+				let nextPoint = mTrailPoints[baseOffset + nextRingIdx];
+
+				// Fade out old trail points
+				let currAge = mTotalTime - currPoint.RecordTime;
+				let nextAge = mTotalTime - nextPoint.RecordTime;
+
+				if (currAge > trailSettings.Lifetime || nextAge > trailSettings.Lifetime)
+					break;
+
+				let currFade = 1.0f - (currAge / trailSettings.Lifetime);
+				let nextFade = 1.0f - (nextAge / trailSettings.Lifetime);
+
+				// Direction along the ribbon
+				var dir = currPoint.Position - nextPoint.Position;
+				let dirLen = dir.Length();
+				if (dirLen < 0.0001f)
+					continue;
+				dir = dir / dirLen;
+
+				// Width direction: perpendicular to ribbon direction and camera-to-point
+				let toCamera = Vector3.Normalize(cameraPos - currPoint.Position);
+				var widthDir = Vector3.Cross(dir, toCamera);
+				let widthLen = widthDir.Length();
+				if (widthLen < 0.0001f)
+					continue;
+				widthDir = widthDir / widthLen;
+
+				// Width at each end, with fade
+				let currWidth = currPoint.Width * currFade * 0.5f;
+				let nextWidth = nextPoint.Width * nextFade * 0.5f;
+
+				// V coordinates: normalized position along trail
+				let vCurr = (float)seg / (float)(state.Count - 1);
+				let vNext = (float)(seg + 1) / (float)(state.Count - 1);
+
+				// Colors with fade
+				let currColor = Color(
+					(float)currPoint.Color.R / 255.0f,
+					(float)currPoint.Color.G / 255.0f,
+					(float)currPoint.Color.B / 255.0f,
+					(float)currPoint.Color.A / 255.0f * currFade
+				);
+				let nextColor = Color(
+					(float)nextPoint.Color.R / 255.0f,
+					(float)nextPoint.Color.G / 255.0f,
+					(float)nextPoint.Color.B / 255.0f,
+					(float)nextPoint.Color.A / 255.0f * nextFade
+				);
+
+				// Four corners of the quad
+				let p0 = currPoint.Position - widthDir * currWidth; // curr left
+				let p1 = currPoint.Position + widthDir * currWidth; // curr right
+				let p2 = nextPoint.Position - widthDir * nextWidth; // next left
+				let p3 = nextPoint.Position + widthDir * nextWidth; // next right
+
+				// Triangle 1: p0, p1, p2
+				mTrailVertexData[vertexIdx] = .() { Position = p0, TexCoord = .(0, vCurr), Color = currColor };
+				mTrailVertexData[vertexIdx + 1] = .() { Position = p1, TexCoord = .(1, vCurr), Color = currColor };
+				mTrailVertexData[vertexIdx + 2] = .() { Position = p2, TexCoord = .(0, vNext), Color = nextColor };
+
+				// Triangle 2: p2, p1, p3
+				mTrailVertexData[vertexIdx + 3] = .() { Position = p2, TexCoord = .(0, vNext), Color = nextColor };
+				mTrailVertexData[vertexIdx + 4] = .() { Position = p1, TexCoord = .(1, vCurr), Color = currColor };
+				mTrailVertexData[vertexIdx + 5] = .() { Position = p3, TexCoord = .(1, vNext), Color = nextColor };
+
+				vertexIdx += 6;
+			}
+		}
+
+		mTrailVertexCount = vertexIdx;
+
+		if (mTrailVertexCount > 0)
+		{
+			mDevice.Queue.WriteBuffer(
+				buffer, 0,
+				Span<uint8>((uint8*)&mTrailVertexData[0], mTrailVertexCount * TrailVertex.SizeInBytes)
+			);
+		}
 	}
 }

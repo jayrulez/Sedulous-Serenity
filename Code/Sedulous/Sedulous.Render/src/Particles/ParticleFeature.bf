@@ -26,6 +26,10 @@ public class ParticleFeature : RenderFeatureBase
 	private IRenderPipeline mCPURenderPipelinePremultiplied ~ delete _;
 	private IRenderPipeline mCPURenderPipelineMultiply ~ delete _;
 
+	// Trail render pipelines (per-vertex input, reuses CPU bind group layout)
+	private IRenderPipeline mTrailRenderPipelineAlpha ~ delete _;
+	private IRenderPipeline mTrailRenderPipelineAdditive ~ delete _;
+
 	// Bind groups
 	private IBindGroupLayout mComputeBindGroupLayout ~ delete _;
 	private IBindGroupLayout mGPURenderBindGroupLayout ~ delete _;
@@ -195,11 +199,11 @@ public class ParticleFeature : RenderFeatureBase
 		case .Err: return .Err;
 		}
 
-		// Create soft particle params buffer (16 bytes: SoftDistance, NearPlane, FarPlane, padding)
+		// Create emitter params buffer (32 bytes: SoftDistance, Near, Far, RenderMode, StretchFactor, padding)
 		BufferDescriptor softParamsDesc = .()
 		{
-			Label = "Soft Particle Params",
-			Size = 16,
+			Label = "Emitter Params",
+			Size = 32,
 			Usage = .Uniform | .CopyDst
 		};
 
@@ -394,6 +398,67 @@ public class ParticleFeature : RenderFeatureBase
 				createCPURenderPipeline(.PremultipliedAlpha, "Premultiplied", ref mCPURenderPipelinePremultiplied);
 				createCPURenderPipeline(.Multiply, "Multiply", ref mCPURenderPipelineMultiply);
 			}
+
+			// Create trail render pipelines (same bind group, per-vertex input)
+			let trailRenderResult = Renderer.ShaderSystem.GetShaderPair("cpu_particle_trail");
+			if (trailRenderResult case .Ok(let trailShaders))
+			{
+				VertexBufferLayout[1] trailVertexBuffers = .(
+					.()
+					{
+						ArrayStride = (uint64)TrailVertex.SizeInBytes,
+						StepMode = .Vertex,
+						Attributes = VertexAttribute[3](
+							.() { Format = .Float3,           Offset = 0,  ShaderLocation = 0 },  // Position
+							.() { Format = .Float2,           Offset = 12, ShaderLocation = 1 },  // TexCoord
+							.() { Format = .UByte4Normalized, Offset = 20, ShaderLocation = 2 }   // Color
+						)
+					}
+				);
+
+				delegate void(BlendState, StringView, ref IRenderPipeline) createTrailPipeline = scope (blendMode, label, pipeline) => {
+					ColorTargetState[1] colorTargets = .(
+						.(.RGBA16Float, blendMode)
+					);
+
+					RenderPipelineDescriptor renderDesc = .()
+					{
+						Label = scope :: $"Particle Trail Pipeline ({label})",
+						Layout = mCPURenderPipelineLayout,
+						Vertex = .()
+						{
+							Shader = .(trailShaders.vert.Module, "main"),
+							Buffers = trailVertexBuffers
+						},
+						Fragment = .()
+						{
+							Shader = .(trailShaders.frag.Module, "main"),
+							Targets = colorTargets
+						},
+						Primitive = .()
+						{
+							Topology = .TriangleList,
+							FrontFace = .CCW,
+							CullMode = .None
+						},
+						DepthStencil = .Transparent,
+						Multisample = .()
+						{
+							Count = 1,
+							Mask = uint32.MaxValue
+						}
+					};
+
+					switch (Renderer.Device.CreateRenderPipeline(&renderDesc))
+					{
+					case .Ok(let createdPipeline): pipeline = createdPipeline;
+					case .Err: // Non-fatal
+					}
+				};
+
+				createTrailPipeline(.AlphaBlend, "Alpha", ref mTrailRenderPipelineAlpha);
+				createTrailPipeline(.Additive, "Additive", ref mTrailRenderPipelineAdditive);
+			}
 		}
 
 		return .Ok;
@@ -465,7 +530,7 @@ public class ParticleFeature : RenderFeatureBase
 				});
 		}
 
-		// Upload CPU particle vertex data
+		// Upload CPU particle vertex data (particles + trails)
 		if (mActiveCPUEmitters.Count > 0)
 		{
 			let frameContext = Renderer.RenderFrameContext;
@@ -476,7 +541,12 @@ public class ParticleFeature : RenderFeatureBase
 			{
 				if (proxy.IsEnabled && proxy.IsEmitting && proxy.Backend == .CPU && proxy.CPUEmitter != null)
 				{
-					proxy.CPUEmitter.Upload((uint32)(frameIndex % CPUParticleEmitter.FrameBufferCount), cameraPos, &proxy);
+					let bufIdx = (uint32)(frameIndex % CPUParticleEmitter.FrameBufferCount);
+					proxy.CPUEmitter.Upload(bufIdx, cameraPos, &proxy);
+
+					// Upload trail vertices if trails are active
+					if (proxy.Trail.IsActive)
+						proxy.CPUEmitter.UploadTrails(bufIdx, cameraPos, &proxy);
 				}
 			});
 		}
@@ -554,13 +624,17 @@ public class ParticleFeature : RenderFeatureBase
 		case .Err: return .Err;
 		}
 
-		// CPU render bind group layout
-		BindGroupLayoutEntry[5] cpuRenderEntries = .(
-			.() { Binding = 0, Visibility = .Vertex, Type = .UniformBuffer },      // CameraUniforms (b0)
-			.() { Binding = 0, Visibility = .Fragment, Type = .SampledTexture },   // ParticleTexture (t0)
-			.() { Binding = 0, Visibility = .Fragment, Type = .Sampler },          // LinearSampler (s0)
-			.() { Binding = 1, Visibility = .Fragment, Type = .SampledTexture },   // DepthTexture (t1)
-			.() { Binding = 1, Visibility = .Fragment, Type = .UniformBuffer }     // SoftParticleParams (b1)
+		// CPU render bind group layout (includes lighting buffers for lit particles)
+		BindGroupLayoutEntry[9] cpuRenderEntries = .(
+			.() { Binding = 0, Visibility = .Vertex | .Fragment, Type = .UniformBuffer },  // CameraUniforms (b0)
+			.() { Binding = 0, Visibility = .Fragment, Type = .SampledTexture },           // ParticleTexture (t0)
+			.() { Binding = 0, Visibility = .Fragment, Type = .Sampler },                  // LinearSampler (s0)
+			.() { Binding = 1, Visibility = .Fragment, Type = .SampledTexture },           // DepthTexture (t1)
+			.() { Binding = 1, Visibility = .Vertex | .Fragment, Type = .UniformBuffer },  // EmitterParams (b1)
+			.() { Binding = 3, Visibility = .Fragment, Type = .UniformBuffer },            // LightingUniforms (b3)
+			.() { Binding = 4, Visibility = .Fragment, Type = .StorageBuffer },            // Lights (t4)
+			.() { Binding = 5, Visibility = .Fragment, Type = .StorageBuffer },            // ClusterLightInfo (t5)
+			.() { Binding = 6, Visibility = .Fragment, Type = .StorageBuffer }             // LightIndices (t6)
 		);
 
 		BindGroupLayoutDescriptor cpuRenderLayoutDesc = .()
@@ -623,6 +697,9 @@ public class ParticleFeature : RenderFeatureBase
 
 		// Render CPU particles
 		RenderCPUParticles(encoder, depthView);
+
+		// Render particle trails
+		RenderTrails(encoder, depthView);
 	}
 
 	private void RenderGPUParticles(IRenderPassEncoder encoder, ITextureView depthView)
@@ -665,9 +742,12 @@ public class ParticleFeature : RenderFeatureBase
 					Span<uint8>((uint8*)&particleParams[0], 16)
 				);
 
-				// Update soft particle params for this emitter
+				// Update emitter params for this emitter
 				let softDistance = proxy != null ? proxy.SoftParticleDistance : 0.0f;
-				WriteSoftParams(softDistance);
+				let renderMode = proxy != null ? proxy.RenderMode : ParticleRenderMode.Billboard;
+				let stretchFactor = proxy != null ? proxy.StretchFactor : 1.0f;
+				let lit = proxy != null ? proxy.Lit : false;
+				WriteEmitterParams(softDistance, renderMode, stretchFactor, lit);
 
 				encoder.SetBindGroup(0, bindGroup, default);
 
@@ -705,7 +785,7 @@ public class ParticleFeature : RenderFeatureBase
 			BindGroupEntry.Texture(2, mDefaultParticleTextureView),
 			BindGroupEntry.Sampler(0, mDefaultSampler),
 			BindGroupEntry.Texture(3, depthView, .DepthStencilReadOnly),
-			BindGroupEntry.Buffer(2, mSoftParamsBuffer, 0, 16)
+			BindGroupEntry.Buffer(2, mSoftParamsBuffer, 0, 32)
 		);
 
 		BindGroupDescriptor renderBgDesc = .()
@@ -763,8 +843,8 @@ public class ParticleFeature : RenderFeatureBase
 
 			encoder.SetPipeline(pipeline);
 
-			// Update soft particle params for this emitter
-			WriteSoftParams(proxy.SoftParticleDistance);
+			// Update emitter params for this emitter
+			WriteEmitterParams(proxy.SoftParticleDistance, proxy.RenderMode, proxy.StretchFactor, proxy.Lit);
 
 			// Get or create per-frame bind group for this emitter
 			IBindGroup bindGroup = null;
@@ -786,6 +866,69 @@ public class ParticleFeature : RenderFeatureBase
 		}
 	}
 
+	private void RenderTrails(IRenderPassEncoder encoder, ITextureView depthView)
+	{
+		if (mTrailRenderPipelineAlpha == null && mTrailRenderPipelineAdditive == null)
+			return;
+
+		let frameIndex = Renderer.RenderFrameContext.FrameIndex;
+		let frameDict = mCPURenderBindGroups[frameIndex];
+
+		for (let handle in mActiveCPUEmitters)
+		{
+			let proxy = Renderer.ActiveWorld?.GetParticleEmitter(handle);
+			if (proxy == null || proxy.CPUEmitter == null)
+				continue;
+
+			// Skip emitters without trails
+			if (!proxy.Trail.IsActive)
+				continue;
+
+			let emitter = proxy.CPUEmitter;
+			let trailVertexCount = emitter.GetTrailVertexCount();
+			if (trailVertexCount == 0)
+				continue;
+
+			let trailBuffer = emitter.GetTrailVertexBuffer((uint32)frameIndex);
+			if (trailBuffer == null)
+				continue;
+
+			// Select pipeline based on blend mode
+			IRenderPipeline pipeline = null;
+			switch (proxy.BlendMode)
+			{
+			case .Alpha: pipeline = mTrailRenderPipelineAlpha;
+			case .Additive: pipeline = mTrailRenderPipelineAdditive;
+			default: pipeline = mTrailRenderPipelineAlpha; // Fallback to alpha
+			}
+
+			if (pipeline == null)
+				continue;
+
+			encoder.SetPipeline(pipeline);
+
+			// Update emitter params
+			WriteEmitterParams(proxy.SoftParticleDistance, proxy.RenderMode, proxy.StretchFactor, proxy.Lit);
+
+			// Reuse the same bind group as CPU particles (same layout)
+			IBindGroup bindGroup = null;
+			if (!frameDict.TryGetValue(handle, out bindGroup))
+			{
+				bindGroup = CreateCPURenderBindGroup(proxy, depthView);
+				if (bindGroup != null)
+					frameDict[handle] = bindGroup;
+			}
+
+			if (bindGroup == null)
+				continue;
+
+			encoder.SetBindGroup(0, bindGroup, default);
+			encoder.SetVertexBuffer(0, trailBuffer, 0);
+			encoder.Draw((uint32)trailVertexCount, 1, 0, 0);
+			Renderer.Stats.DrawCalls++;
+		}
+	}
+
 	private IBindGroup CreateCPURenderBindGroup(ParticleEmitterProxy* proxy, ITextureView depthView)
 	{
 		if (mCPURenderBindGroupLayout == null || mDefaultParticleTextureView == null || mDefaultSampler == null)
@@ -799,12 +942,51 @@ public class ParticleFeature : RenderFeatureBase
 
 		let textureView = proxy.ParticleTexture != null ? proxy.ParticleTexture : mDefaultParticleTextureView;
 
-		BindGroupEntry[5] entries = .(
+		// Get lighting buffers from ForwardOpaqueFeature
+		let frameIndex = Renderer.RenderFrameContext.FrameIndex;
+		IBuffer lightingBuffer = null;
+		IBuffer lightDataBuffer = null;
+		IBuffer clusterInfoBuffer = null;
+		IBuffer lightIndexBuffer = null;
+		uint64 lightDataSize = 64;
+		uint64 clusterInfoSize = 8;
+		uint64 lightIndexSize = 4;
+
+		if (let forwardFeature = Renderer.GetFeature<ForwardOpaqueFeature>())
+		{
+			if (forwardFeature.Lighting != null)
+			{
+				lightingBuffer = forwardFeature.Lighting.LightBuffer?.GetUniformBuffer(frameIndex);
+				lightDataBuffer = forwardFeature.Lighting.LightBuffer?.GetLightDataBuffer(frameIndex);
+				clusterInfoBuffer = forwardFeature.Lighting.ClusterGrid?.GetClusterLightInfoBuffer(frameIndex);
+				lightIndexBuffer = forwardFeature.Lighting.ClusterGrid?.GetLightIndexBuffer(frameIndex);
+
+				if (forwardFeature.Lighting.LightBuffer != null)
+					lightDataSize = (uint64)(forwardFeature.Lighting.LightBuffer.MaxLights * GPULight.Size);
+				if (forwardFeature.Lighting.ClusterGrid != null)
+				{
+					let config = forwardFeature.Lighting.ClusterGrid.Config;
+					clusterInfoSize = (uint64)(config.TotalClusters * 8);
+					lightIndexSize = (uint64)(config.MaxLightsPerCluster * config.TotalClusters * 4);
+				}
+			}
+		}
+
+		// All lighting buffers must be available for the bind group
+		if (lightingBuffer == null || lightDataBuffer == null ||
+			clusterInfoBuffer == null || lightIndexBuffer == null)
+			return null;
+
+		BindGroupEntry[9] entries = .(
 			BindGroupEntry.Buffer(0, cameraBuffer, 0, SceneUniforms.Size),
 			BindGroupEntry.Texture(0, textureView),
 			BindGroupEntry.Sampler(0, mDefaultSampler),
 			BindGroupEntry.Texture(1, depthView, .DepthStencilReadOnly),
-			BindGroupEntry.Buffer(1, mSoftParamsBuffer, 0, 16)
+			BindGroupEntry.Buffer(1, mSoftParamsBuffer, 0, 32),
+			BindGroupEntry.Buffer(3, lightingBuffer, 0, (uint64)LightingUniforms.Size),
+			BindGroupEntry.Buffer(4, lightDataBuffer, 0, lightDataSize),
+			BindGroupEntry.Buffer(5, clusterInfoBuffer, 0, clusterInfoSize),
+			BindGroupEntry.Buffer(6, lightIndexBuffer, 0, lightIndexSize)
 		);
 
 		BindGroupDescriptor bgDesc = .()
@@ -849,22 +1031,25 @@ public class ParticleFeature : RenderFeatureBase
 		}
 	}
 
-	private void WriteSoftParams(float softDistance)
+	private void WriteEmitterParams(float softDistance, ParticleRenderMode renderMode, float stretchFactor, bool lit)
 	{
 		if (mSoftParamsBuffer == null)
 			return;
 
 		let frameContext = Renderer.RenderFrameContext;
-		float[4] softParams = .(
+		float[8] emitterParams = .(
 			softDistance,
 			frameContext != null ? frameContext.SceneUniforms.NearPlane : 0.1f,
 			frameContext != null ? frameContext.SceneUniforms.FarPlane : 1000.0f,
-			0.0f
+			(float)renderMode.Underlying,  // RenderMode as float
+			stretchFactor,
+			lit ? 1.0f : 0.0f,            // Lit flag
+			0.0f, 0.0f                    // padding
 		);
 
 		Renderer.Device.Queue.WriteBuffer(
 			mSoftParamsBuffer, 0,
-			Span<uint8>((uint8*)&softParams[0], 16)
+			Span<uint8>((uint8*)&emitterParams[0], 32)
 		);
 	}
 

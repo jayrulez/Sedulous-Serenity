@@ -209,6 +209,12 @@ public struct ParticleEmitterProxy
 	/// Sort particles back-to-front (for alpha blending).
 	public bool SortParticles;
 
+	/// Whether particles receive scene lighting (cluster-based).
+	public bool Lit;
+
+	/// Trail rendering settings.
+	public TrailSettings Trail;
+
 	/// Whether the emitter is enabled.
 	public bool IsEnabled;
 
@@ -285,6 +291,8 @@ public struct ParticleEmitterProxy
 		emitter.LifetimeVarianceMin = 1.0f;
 		emitter.LifetimeVarianceMax = 1.0f;
 		emitter.SortParticles = true;
+		emitter.Lit = false;
+		emitter.Trail = .Default();
 		emitter.IsEnabled = true;
 		emitter.IsEmitting = true;
 		emitter.LayerMask = 0xFFFFFFFF;
@@ -341,6 +349,8 @@ public struct ParticleEmitterProxy
 		LifetimeVarianceMin = 1.0f;
 		LifetimeVarianceMax = 1.0f;
 		SortParticles = false;
+		Lit = false;
+		Trail = default;
 		IsEnabled = false;
 		IsEmitting = false;
 		LayerMask = 0xFFFFFFFF;
