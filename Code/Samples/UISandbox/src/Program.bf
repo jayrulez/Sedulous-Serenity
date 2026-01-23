@@ -8,86 +8,14 @@ using Sedulous.RHI;
 using SampleFramework;
 using Sedulous.Drawing;
 using Sedulous.Fonts;
-using Sedulous.Fonts.TTF;
 using Sedulous.UI;
+using Sedulous.UI.Fonts;
 using Sedulous.UI.Renderer;
 using Sedulous.Shell.Input;
-using Sedulous.Shell.SDL3;
+using Sedulous.UI.Shell;
 
-// Type aliases to resolve ambiguity
+// Type alias to resolve ambiguity
 typealias RHITexture = Sedulous.RHI.ITexture;
-typealias DrawingTexture = Sedulous.Drawing.ITexture;
-
-/// Clipboard adapter that wraps Shell clipboard for UI use.
-class UIClipboardAdapter : Sedulous.UI.IClipboard
-{
-	private Sedulous.Shell.IClipboard mShellClipboard ~ delete _;
-
-	public this()
-	{
-		mShellClipboard = new SDL3Clipboard();
-	}
-
-	public Result<void> GetText(String outText)
-	{
-		return mShellClipboard.GetText(outText);
-	}
-
-	public Result<void> SetText(StringView text)
-	{
-		return mShellClipboard.SetText(text);
-	}
-
-	public bool HasText => mShellClipboard.HasText;
-}
-
-/// Font service that provides access to loaded fonts.
-class UISandboxFontService : IFontService
-{
-	private CachedFont mCachedFont;
-	private DrawingTexture mFontTexture;
-	private String mDefaultFontFamily = new .("Roboto") ~ delete _;
-
-	public this(IFont font, IFontAtlas atlas, DrawingTexture texture)
-	{
-		mCachedFont = new CachedFont(font, atlas);
-		mFontTexture = texture;
-	}
-
-	public ~this()
-	{
-		delete mCachedFont;
-	}
-
-	public StringView DefaultFontFamily => mDefaultFontFamily;
-
-	public CachedFont GetFont(float pixelHeight)
-	{
-		// For now, only support a single font size
-		return mCachedFont;
-	}
-
-	public CachedFont GetFont(StringView familyName, float pixelHeight)
-	{
-		// For now, only support the default font
-		return mCachedFont;
-	}
-
-	public DrawingTexture GetAtlasTexture(CachedFont font)
-	{
-		return mFontTexture;
-	}
-
-	public DrawingTexture GetAtlasTexture(StringView familyName, float pixelHeight)
-	{
-		return mFontTexture;
-	}
-
-	public void ReleaseFont(CachedFont font)
-	{
-		// We manage the font lifetime ourselves
-	}
-}
 
 /// Uniform buffer data for the projection matrix (used by quad shader).
 [CRepr]
@@ -96,226 +24,22 @@ struct Uniforms
 	public Matrix Projection;
 }
 
-/// Custom control that shows a context menu on right-click.
-class ContextMenuArea : Border
-{
-	private UIContext mUIContext;
-	private ContextMenu mContextMenu;
-
-	public this(UIContext context)
-	{
-		mUIContext = context;
-
-		// Create the context menu
-		mContextMenu = new ContextMenu();
-		mContextMenu.AddItem("Cut", "Ctrl+X", new (item) => {
-			Console.WriteLine("Cut clicked");
-		});
-		mContextMenu.AddItem("Copy", "Ctrl+C", new (item) => {
-			Console.WriteLine("Copy clicked");
-		});
-		mContextMenu.AddItem("Paste", "Ctrl+V", new (item) => {
-			Console.WriteLine("Paste clicked");
-		});
-		mContextMenu.AddSeparator();
-		mContextMenu.AddItem("Delete", "Del", new (item) => {
-			Console.WriteLine("Delete clicked");
-		});
-
-		// Add to tree so popup can find Context
-		AddChild(mContextMenu);
-	}
-
-	protected override void OnMouseUpRouted(MouseButtonEventArgs args)
-	{
-		if (args.Button == .Right)
-		{
-			// Open context menu at mouse position
-			mContextMenu.OpenAt(args.ScreenX, args.ScreenY);
-			args.Handled = true;
-		}
-		base.OnMouseUpRouted(args);
-	}
-}
-
-/// Wrapper class for Color to allow storing in DragData.
-class ColorBox
-{
-	public Color Value;
-	public this(Color color) { Value = color; }
-}
-
-/// Draggable box that can be dragged to drop targets.
-class DraggableBox : Border, IDragSource
-{
-	private UIContext mUIContext;
-	private String mLabel ~ delete _;
-	private Color mColor;
-	private bool mDragging = false;
-	private ColorBox mColorBox ~ delete _; // Owned for DragData lifetime
-
-	public this(UIContext context, StringView label, Color color)
-	{
-		mUIContext = context;
-		mLabel = new String(label);
-		mColor = color;
-		mColorBox = new ColorBox(color);
-		Background = color;
-		CornerRadius = 4;
-
-		// Add label
-		let text = new TextBlock();
-		text.Text = label;
-		text.Foreground = Color.White;
-		text.HorizontalAlignment = .Center;
-		text.VerticalAlignment = .Center;
-		AddChild(text);
-	}
-
-	public DragData OnDragStart(float x, float y)
-	{
-		let data = new DragData();
-		data.SetData("color", mColorBox);
-		data.SetData("label", mLabel);
-		return data;
-	}
-
-	public DragDropEffects GetAllowedEffects()
-	{
-		return .Copy | .Move;
-	}
-
-	public void OnDragComplete(DragDropEffects effect)
-	{
-		mDragging = false;
-		Console.WriteLine(scope $"Drag completed: {mLabel} with effect {effect}");
-	}
-
-	public void OnDragCancelled()
-	{
-		mDragging = false;
-		Console.WriteLine(scope $"Drag cancelled: {mLabel}");
-	}
-
-	protected override void OnMouseDownRouted(MouseButtonEventArgs args)
-	{
-		if (args.Button == .Left)
-		{
-			// Start drag operation
-			mDragging = true;
-			mUIContext.DragDrop.StartDrag(this, args.ScreenX, args.ScreenY);
-			args.Handled = true;
-		}
-		base.OnMouseDownRouted(args);
-	}
-}
-
-/// Drop target that accepts dragged items.
-class DropTargetBox : Border, IDropTarget
-{
-	private String mDroppedLabel ~ delete _;
-	private Color mDroppedColor = Color(60, 60, 70);
-	private bool mIsHighlighted = false;
-	private TextBlock mLabel;
-
-	public this()
-	{
-		Background = Color(60, 60, 70);
-		BorderBrush = Color(100, 100, 110);
-		BorderThickness = Thickness(2);
-		CornerRadius = 4;
-		mDroppedLabel = new String("Drop items here");
-
-		mLabel = new TextBlock();
-		mLabel.Text = mDroppedLabel;
-		mLabel.Foreground = Color(150, 150, 150);
-		mLabel.HorizontalAlignment = .Center;
-		mLabel.VerticalAlignment = .Center;
-		AddChild(mLabel);
-	}
-
-	public void OnDragEnter(DragEventArgs args)
-	{
-		// Check if we accept this data
-		if (args.Data.HasData("color"))
-		{
-			args.Effect = .Copy;
-			mIsHighlighted = true;
-			BorderBrush = Color(100, 200, 100);
-			InvalidateVisual();
-		}
-	}
-
-	public void OnDragOver(DragEventArgs args)
-	{
-		if (args.Data.HasData("color"))
-		{
-			args.Effect = .Copy;
-		}
-	}
-
-	public void OnDragLeave(DragEventArgs args)
-	{
-		mIsHighlighted = false;
-		BorderBrush = Color(100, 100, 110);
-		InvalidateVisual();
-	}
-
-	public void OnDrop(DragEventArgs args)
-	{
-		mIsHighlighted = false;
-		BorderBrush = Color(100, 100, 110);
-
-		if (args.Data.HasData("label"))
-		{
-			let label = args.Data.GetData("label") as String;
-			if (label != null)
-			{
-				mDroppedLabel.Set(scope $"Dropped: {label}");
-				mLabel.Text = mDroppedLabel;
-			}
-		}
-
-		if (args.Data.HasData("color"))
-		{
-			let colorBox = args.Data.GetData("color") as ColorBox;
-			if (colorBox != null)
-			{
-				Background = colorBox.Value;
-			}
-		}
-
-		args.Effect = .Copy;
-		args.Handled = true;
-		InvalidateVisual();
-	}
-}
-
 /// UI Sandbox sample demonstrating the Sedulous.UI framework.
 class UISandboxSample : RHISampleApp
 {
 	// UI System
 	private UIContext mUIContext ~ delete _;
-	private UIClipboardAdapter mClipboard ~ delete _;
-	private UISandboxFontService mFontService /*~ delete _*/;
-	private TooltipService mTooltipService /*~ delete _*/;
-	private delegate void(StringView) mTextInputDelegate /*~ delete _*/;
+	private ShellClipboardAdapter mClipboard ~ delete _;
+	private FontService mFontService;
+	private TooltipService mTooltipService;
+	private delegate void(StringView) mTextInputDelegate;
 
 	// Drawing context
 	private DrawContext mDrawContext = new .() ~ delete _;
 
-	// Font resources
-	private IFont mFont;
-	private IFontAtlas mFontAtlas;
-	private TextureRef mFontTextureRef ~ delete _;
-
-	// UI Renderer (replaces manual GPU resources)
+	// UI Renderer
 	// NOTE: Must be cleaned up in OnCleanup(), not destructor, because Device is destroyed in Application.Cleanup()
 	private UIRenderer mUIRenderer;
-
-	// GPU resources for font atlas
-	private RHITexture mAtlasTexture;
-	private ITextureView mAtlasTextureView;
 
 	// MSAA resources
 	private const uint32 MSAA_SAMPLES = 4;
@@ -358,10 +82,7 @@ class UISandboxSample : RHISampleApp
 
 	protected override bool OnInitialize()
 	{
-		if (!InitializeFont())
-			return false;
-
-		if (!CreateAtlasTexture())
+		if (!InitializeFonts())
 			return false;
 
 		// Initialize UI Renderer
@@ -371,7 +92,7 @@ class UISandboxSample : RHISampleApp
 			Console.WriteLine("Failed to initialize UI renderer");
 			return false;
 		}
-		mUIRenderer.SetTexture(mAtlasTextureView);
+		mUIRenderer.SetTexture(mFontService.AtlasTextureView);
 
 		if (!CreateMsaaTargets())
 			return false;
@@ -379,8 +100,8 @@ class UISandboxSample : RHISampleApp
 		if (!CreateQuadResources())
 			return false;
 
-		// Set white pixel UV from the font atlas
-		let (u, v) = mFontAtlas.WhitePixelUV;
+		// Set white pixel UV from the font service
+		let (u, v) = mFontService.WhitePixelUV;
 		mDrawContext.WhitePixelUV = .(u, v);
 
 		// Initialize UI
@@ -391,92 +112,21 @@ class UISandboxSample : RHISampleApp
 		return true;
 	}
 
-	private bool InitializeFont()
+	private bool InitializeFonts()
 	{
+		mFontService = new FontService(Device);
+
 		String fontPath = scope .();
 		GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", fontPath);
-
-		if (!File.Exists(fontPath))
-		{
-			Console.WriteLine(scope $"Font not found: {fontPath}");
-			return false;
-		}
-
-		TrueTypeFonts.Initialize();
 
 		FontLoadOptions options = .ExtendedLatin;
 		options.PixelHeight = 16;
 
-		if (FontLoaderFactory.LoadFont(fontPath, options) case .Ok(let font))
-			mFont = font;
-		else
+		if (mFontService.LoadFont("Roboto", fontPath, options) case .Err)
 		{
-			Console.WriteLine("Failed to load font");
+			Console.WriteLine(scope $"Failed to load font: {fontPath}");
 			return false;
 		}
-
-		if (FontLoaderFactory.CreateAtlas(mFont, options) case .Ok(let atlas))
-		{
-			mFontAtlas = atlas;
-			Console.WriteLine(scope $"Font atlas created: {mFontAtlas.Width}x{mFontAtlas.Height}");
-		}
-		else
-		{
-			Console.WriteLine("Failed to create font atlas");
-			return false;
-		}
-
-		return true;
-	}
-
-	private bool CreateAtlasTexture()
-	{
-		let atlasWidth = mFontAtlas.Width;
-		let atlasHeight = mFontAtlas.Height;
-		let r8Data = mFontAtlas.PixelData;
-
-		// Convert R8 to RGBA8
-		uint8[] rgba8Data = new uint8[atlasWidth * atlasHeight * 4];
-		defer delete rgba8Data;
-
-		for (uint32 i = 0; i < atlasWidth * atlasHeight; i++)
-		{
-			let alpha = r8Data[i];
-			rgba8Data[i * 4 + 0] = 255;
-			rgba8Data[i * 4 + 1] = 255;
-			rgba8Data[i * 4 + 2] = 255;
-			rgba8Data[i * 4 + 3] = alpha;
-		}
-
-		TextureDescriptor textureDesc = TextureDescriptor.Texture2D(
-			atlasWidth, atlasHeight, .RGBA8Unorm, .Sampled | .CopyDst
-		);
-
-		if (Device.CreateTexture(&textureDesc) not case .Ok(let texture))
-		{
-			Console.WriteLine("Failed to create atlas texture");
-			return false;
-		}
-		mAtlasTexture = texture;
-
-		TextureDataLayout dataLayout = .()
-		{
-			Offset = 0,
-			BytesPerRow = atlasWidth * 4,
-			RowsPerImage = atlasHeight
-		};
-		Extent3D writeSize = .(atlasWidth, atlasHeight, 1);
-		Device.Queue.WriteTexture(mAtlasTexture, Span<uint8>(rgba8Data.Ptr, rgba8Data.Count), &dataLayout, &writeSize);
-
-		TextureViewDescriptor viewDesc = .() { Format = .RGBA8Unorm };
-		if (Device.CreateTextureView(mAtlasTexture, &viewDesc) not case .Ok(let view))
-		{
-			Console.WriteLine("Failed to create atlas texture view");
-			return false;
-		}
-		mAtlasTextureView = view;
-
-		mFontTextureRef = new TextureRef(mAtlasTexture, atlasWidth, atlasHeight);
 
 		return true;
 	}
@@ -705,11 +355,10 @@ class UISandboxSample : RHISampleApp
 		mUIContext.DebugSettings.ShowFocused = mUIContext.DebugSettings.ShowLayoutBounds;
 
 		// Register clipboard (using SDL3 system clipboard)
-		mClipboard = new UIClipboardAdapter();
+		mClipboard = new ShellClipboardAdapter(Shell.Clipboard);
 		mUIContext.RegisterClipboard(mClipboard);
 
 		// Register font service
-		mFontService = new UISandboxFontService(mFont, mFontAtlas, mFontTextureRef);
 		mUIContext.RegisterService<IFontService>(mFontService);
 
 		// Register theme
@@ -2170,15 +1819,17 @@ class UISandboxSample : RHISampleApp
 		// FPS overlay (top-right)
 		float screenWidth = (float)SwapChain.Width;
 		float screenHeight = (float)SwapChain.Height;
+		let cachedFont = mFontService.GetFont(16);
+		let atlasTexture = mFontService.GetAtlasTexture(cachedFont);
 		let fpsText = scope $"FPS: {mCurrentFps}";
-		mDrawContext.DrawText(fpsText, mFontAtlas, mFontTextureRef, .(screenWidth - 80, 10 + mFont.Metrics.Ascent), Color.Lime);
+		mDrawContext.DrawText(fpsText, cachedFont.Atlas, atlasTexture, .(screenWidth - 80, 10 + cachedFont.Font.Metrics.Ascent), Color.Lime);
 
 		// Debug toggle hint (bottom-left)
 		float debugTextY = screenHeight - 10;
 		if (mUIContext.DebugSettings.ShowLayoutBounds)
-			mDrawContext.DrawText("F11: Debug ON", mFontAtlas, mFontTextureRef, .(10, debugTextY), Color.Yellow);
+			mDrawContext.DrawText("F11: Debug ON", cachedFont.Atlas, atlasTexture, .(10, debugTextY), Color.Yellow);
 		else
-			mDrawContext.DrawText("F11: Debug OFF", mFontAtlas, mFontTextureRef, .(10, debugTextY), Color.Gray);
+			mDrawContext.DrawText("F11: Debug OFF", cachedFont.Atlas, atlasTexture, .(10, debugTextY), Color.Gray);
 	}
 
 	protected override bool OnRenderFrame(ICommandEncoder encoder, int32 frameIndex)
@@ -2298,8 +1949,6 @@ class UISandboxSample : RHISampleApp
 		// Clean up services (registered with UIContext, but owned by us)
 		if (mUIContext.GetService<ITheme>() case .Ok(let theme))
 			delete theme;
-		if (mFontService != null)
-			delete mFontService;
 		if (mTooltipService != null)
 			delete mTooltipService;
 
@@ -2327,13 +1976,9 @@ class UISandboxSample : RHISampleApp
 			mUIRenderer = null;
 		}
 
-		// Clean up atlas texture
-		if (mAtlasTextureView != null) delete mAtlasTextureView;
-		if (mAtlasTexture != null) delete mAtlasTexture;
-
-		// Note: mFont and mFontAtlas are owned by CachedFont (via UISandboxFontService, deleted above)
-
-		TrueTypeFonts.Shutdown();
+		// Clean up font service (owns GPU atlas texture, delete after UIRenderer)
+		if (mFontService != null)
+			delete mFontService;
 	}
 }
 
