@@ -6,6 +6,7 @@ using Sedulous.RHI;
 using Sedulous.RHI.HLSLShaderCompiler;
 using Sedulous.Drawing;
 using Sedulous.Mathematics;
+using Sedulous.Profiler;
 
 /// Uniform buffer data for UI projection matrix.
 [CRepr]
@@ -62,6 +63,8 @@ public class UIRenderer : IDisposable
 		int32 frameCount,
 		IUIShaderProvider shaderProvider = null)
 	{
+		using (SProfiler.Begin("UIRenderer.Initialize"))
+		{
 		mDevice = device;
 		mTargetFormat = targetFormat;
 		mFrameCount = frameCount;
@@ -96,6 +99,7 @@ public class UIRenderer : IDisposable
 
 		IsInitialized = true;
 		return .Ok;
+		}
 	}
 
 	/// Set the texture to use for rendering.
@@ -109,6 +113,8 @@ public class UIRenderer : IDisposable
 	/// Call this after BuildDrawCommands and before the render pass.
 	public void Prepare(DrawBatch batch, int32 frameIndex)
 	{
+		using (SProfiler.Begin("UIRenderer.Prepare"))
+		{
 		// Convert vertices
 		mVertices.Clear();
 		for (let v in batch.Vertices)
@@ -136,11 +142,14 @@ public class UIRenderer : IDisposable
 
 		// Update bind group with current texture
 		UpdateBindGroup(frameIndex);
+		}
 	}
 
 	/// Update the projection matrix for the given viewport size.
 	public void UpdateProjection(uint32 width, uint32 height, int32 frameIndex)
 	{
+		using (SProfiler.Begin("UIRenderer.UpdateProjection"))
+		{
 		// Y-down orthographic projection for UI (origin at top-left)
 		// Check if device requires flipped projection (Vulkan vs OpenGL/D3D)
 		Matrix projection;
@@ -152,12 +161,15 @@ public class UIRenderer : IDisposable
 		UIUniforms uniforms = .() { Projection = projection };
 		let uniformData = Span<uint8>((uint8*)&uniforms, sizeof(UIUniforms));
 		mDevice.Queue.WriteBuffer(mUniformBuffers[frameIndex], 0, uniformData);
+		}
 	}
 
 	/// Render UI to the current render pass.
 	/// The render pass should already be begun.
 	public void Render(IRenderPassEncoder renderPass, uint32 width, uint32 height, int32 frameIndex, bool useMsaa = false)
 	{
+		using (SProfiler.Begin("UIRenderer.Render"))
+		{
 		if (mIndices.Count == 0 || mDrawCommands.Count == 0)
 			return;
 
@@ -191,6 +203,7 @@ public class UIRenderer : IDisposable
 			}
 
 			renderPass.DrawIndexed((uint32)cmd.IndexCount, 1, (uint32)cmd.StartIndex, 0, 0);
+		}
 		}
 	}
 
