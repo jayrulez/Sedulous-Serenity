@@ -63,6 +63,8 @@ class FrameworkSandboxApp : Application
 	private EntityId mSmokeEntity;
 	private EntityId mSparksEntity;
 	private EntityId mMagicEntity;
+	private EntityId mMagicCoreEntity;
+	private EntityId mMagicWispsEntity;
 	private EntityId mTrailEntity;
 	private EntityId mFireworkLauncherEntity;
 	private EntityId mFireworkBurstEntity;
@@ -74,21 +76,13 @@ class FrameworkSandboxApp : Application
 	private EntityId mHealingEntity;
 	private EntityId mSpriteEntity;
 
-	// Trail emitter
+	// Trail emitters
 	private EntityId mTrailEmitterEntity;
+	private EntityId mSwordTrailEntity;
 	private float mTrailTime = 0.0f;
 
 	// Camera control
-	private bool mCameraFlyMode = false;
-	// Orbit mode
-	private float mCameraYaw = 0.5f;
-	private float mCameraPitch = 0.4f;
-	private float mCameraDistance = 25.0f;
-	private Vector3 mCameraTarget = .(0, 1.0f, 0);
-	// Fly mode
-	private Vector3 mFlyPosition = .(0, 5.0f, 25.0f);
-	private float mFlyYaw = Math.PI_f;
-	private float mFlyPitch = -0.2f;
+	private OrbitFlyCamera mCamera ~ delete _;
 
 	// Timing and FPS
 	private float mDeltaTime = 0.016f;
@@ -112,6 +106,14 @@ class FrameworkSandboxApp : Application
 	public this(IShell shell, IDevice device, IBackend backend)
 		: base(shell, device, backend)
 	{
+		mCamera = new .();
+		mCamera.OrbitalYaw = 0.5f;
+		mCamera.OrbitalPitch = 0.4f;
+		mCamera.OrbitalDistance = 25.0f;
+		mCamera.OrbitalTarget = .(0, 1.0f, 0);
+		mCamera.FlyPosition = .(0, 5.0f, 25.0f);
+		mCamera.FlyPitch = -0.2f;
+		mCamera.Update();
 	}
 
 	protected override void OnInitialize(Context context)
@@ -208,7 +210,7 @@ class FrameworkSandboxApp : Application
 		// Sky (solid deep blue)
 		mSkyFeature = new SkyFeature();
 		mSkyFeature.Mode = .SolidColor;
-		mSkyFeature.SolidColor = .(0.02f, 0.02f, 0.12f);
+		mSkyFeature.SolidColor = .(0.1f, 0.1f, 0.15f);
 		if (mRenderSystem.RegisterFeature(mSkyFeature) case .Ok)
 			Console.WriteLine("Registered: SkyFeature (solid deep blue)");
 
@@ -325,7 +327,7 @@ class FrameworkSandboxApp : Application
 			mCubeMaterial.SetColor("BaseColor", .(0.2f, 0.6f, 0.9f, 1.0f));
 
 			mFloorMaterial = new MaterialInstance(baseMaterial);
-			mFloorMaterial.SetColor("BaseColor", .(0.8f, 0.8f, 0.8f, 1.0f));
+			mFloorMaterial.SetColor("BaseColor", .(0.4f, 0.4f, 0.4f, 1.0f));
 
 			mSphereMaterial = new MaterialInstance(baseMaterial);
 			mSphereMaterial.SetColor("BaseColor", .(0.9f, 0.3f, 0.2f, 1.0f));  // Red sphere
@@ -660,6 +662,97 @@ class FrameworkSandboxApp : Application
 			}
 		}
 		Console.WriteLine("  Created magic orb emitter (vortex + attractor + size curve)");
+
+		// Magic orb core glow (pulsating center)
+		mMagicCoreEntity = mMainScene.CreateEntity();
+		{
+			var transform = mMainScene.GetTransform(mMagicCoreEntity);
+			transform.Position = .(8.0f, 1.5f, 0.0f);
+			mMainScene.SetTransform(mMagicCoreEntity, transform);
+
+			let handle = renderModule.CreateCPUParticleEmitter(mMagicCoreEntity, 100);
+			if (handle.IsValid)
+			{
+				if (let proxy = renderModule.GetParticleEmitterProxy(mMagicCoreEntity))
+				{
+					proxy.SpawnRate = 15.0f;
+					proxy.ParticleLifetime = 1.0f;
+					proxy.BlendMode = .Additive;
+					proxy.StartColor = .(0.6f, 0.8f, 1.0f, 1.0f);
+					proxy.EndColor = .(0.4f, 0.5f, 1.0f, 0.0f);
+					proxy.InitialVelocity = .Zero;
+					proxy.VelocityRandomness = .(0.05f, 0.05f, 0.05f);
+					proxy.GravityMultiplier = 0;
+					proxy.Drag = 2.0f;
+					proxy.IsEnabled = true;
+					proxy.IsEmitting = true;
+
+					// Pulse size
+					proxy.SizeOverLifetime = .();
+					proxy.SizeOverLifetime.AddKey(0.0f, .(0.2f, 0.2f));
+					proxy.SizeOverLifetime.AddKey(0.5f, .(0.35f, 0.35f));
+					proxy.SizeOverLifetime.AddKey(1.0f, .(0.15f, 0.15f));
+
+					proxy.AlphaOverLifetime = .FadeOut(1.0f, 0.5f);
+
+					if (proxy.CPUEmitter != null)
+						proxy.CPUEmitter.Shape = EmissionShape.Sphere(0.1f);
+				}
+			}
+		}
+
+		// Magic orb energy wisps (per-particle trails orbiting)
+		mMagicWispsEntity = mMainScene.CreateEntity();
+		{
+			var transform = mMainScene.GetTransform(mMagicWispsEntity);
+			transform.Position = .(8.0f, 1.5f, 0.0f);
+			mMainScene.SetTransform(mMagicWispsEntity, transform);
+
+			let handle = renderModule.CreateCPUParticleEmitter(mMagicWispsEntity, 50);
+			if (handle.IsValid)
+			{
+				if (let proxy = renderModule.GetParticleEmitterProxy(mMagicWispsEntity))
+				{
+					proxy.SpawnRate = 5.0f;
+					proxy.ParticleLifetime = 4.0f;
+					proxy.BlendMode = .Additive;
+					proxy.StartColor = .(0.5f, 0.3f, 1.0f, 0.9f);
+					proxy.EndColor = .(0.8f, 0.4f, 1.0f, 0.0f);
+					proxy.StartSize = .(0.04f, 0.04f);
+					proxy.EndSize = .(0.01f, 0.01f);
+					proxy.InitialVelocity = .Zero;
+					proxy.VelocityRandomness = .(0.2f, 0.2f, 0.2f);
+					proxy.GravityMultiplier = 0;
+					proxy.Drag = 0.3f;
+					proxy.IsEnabled = true;
+					proxy.IsEmitting = true;
+
+					proxy.AlphaOverLifetime = .FadeOut(1.0f, 0.7f);
+
+					// Vortex + attractor keeps wisps orbiting
+					proxy.ForceModules.VortexStrength = 4.0f;
+					proxy.ForceModules.VortexAxis = .(0, 1, 0);
+					proxy.ForceModules.VortexCenter = .(8.0f, 1.5f, 0.0f);
+					proxy.ForceModules.AttractorStrength = 3.0f;
+					proxy.ForceModules.AttractorPosition = .(8.0f, 1.5f, 0.0f);
+					proxy.ForceModules.AttractorRadius = 1.5f;
+
+					// Per-particle trails
+					proxy.Trail.Enabled = true;
+					proxy.Trail.MaxPoints = 30;
+					proxy.Trail.RecordInterval = 0.03f;
+					proxy.Trail.Lifetime = 0.8f;
+					proxy.Trail.WidthStart = 0.03f;
+					proxy.Trail.WidthEnd = 0.0f;
+					proxy.Trail.MinVertexDistance = 0.02f;
+					proxy.Trail.UseParticleColor = true;
+
+					if (proxy.CPUEmitter != null)
+						proxy.CPUEmitter.Shape = EmissionShape.Sphere(1.0f);
+				}
+			}
+		}
+		Console.WriteLine("  Created magic orb layers (core glow + wisps with trails)");
 
 		// Create trail comet emitter (stretched billboard + ribbon trail)
 		mTrailEntity = mMainScene.CreateEntity();
@@ -1117,6 +1210,27 @@ class FrameworkSandboxApp : Application
 		}
 		Console.WriteLine("  Created trail emitter (orbiting ring)");
 
+		// Create sword swing trail (pendulum motion)
+		mSwordTrailEntity = mMainScene.CreateEntity();
+		{
+			let handle = renderModule.CreateTrailEmitter(mSwordTrailEntity, 40);
+			if (handle.IsValid)
+			{
+				if (let proxy = renderModule.GetTrailEmitterProxy(mSwordTrailEntity))
+				{
+					proxy.BlendMode = .Alpha;
+					proxy.Lifetime = 0.4f;
+					proxy.WidthStart = 1.2f;
+					proxy.WidthEnd = 0.3f;
+					proxy.MinVertexDistance = 0.02f;
+					proxy.Color = .(0.7f, 0.4f, 1.0f, 0.85f);
+					proxy.SoftParticleDistance = 0.5f;
+					proxy.IsEnabled = true;
+				}
+			}
+		}
+		Console.WriteLine("  Created sword swing trail");
+
 		// Set world ambient
 		if (let world = renderModule.World)
 		{
@@ -1161,6 +1275,7 @@ class FrameworkSandboxApp : Application
 	protected override void OnInput()
 	{
 		let keyboard = mShell.InputManager.Keyboard;
+		let mouse = mShell.InputManager.Mouse;
 
 		if (keyboard.IsKeyPressed(.Escape))
 			Exit();
@@ -1181,80 +1296,8 @@ class FrameworkSandboxApp : Application
 		if (keyboard.IsKeyPressed(.P))
 			PrintProfilerStats();
 
-		// Toggle camera mode (Tab)
-		if (keyboard.IsKeyPressed(.Tab))
-		{
-			mCameraFlyMode = !mCameraFlyMode;
-			if (mCameraFlyMode)
-			{
-				// Initialize fly position from current orbit camera position
-				float x = mCameraDistance * Math.Cos(mCameraPitch) * Math.Sin(mCameraYaw);
-				float y = mCameraDistance * Math.Sin(mCameraPitch);
-				float z = mCameraDistance * Math.Cos(mCameraPitch) * Math.Cos(mCameraYaw);
-				mFlyPosition = mCameraTarget + Vector3(x, y, z);
-				let forward = Vector3.Normalize(mCameraTarget - mFlyPosition);
-				mFlyYaw = Math.Atan2(forward.X, forward.Z);
-				mFlyPitch = Math.Asin(-forward.Y);
-			}
-		}
-
-		if (mCameraFlyMode)
-		{
-			// Fly mode: WASD movement, QE up/down, arrow keys look
-			float lookSpeed = 0.025f;
-			float moveSpeed = 15.0f * mDeltaTime;
-			if (keyboard.IsKeyDown(.LeftShift))
-				moveSpeed *= 2.0f;
-
-			// Look with arrow keys
-			if (keyboard.IsKeyDown(.Left))
-				mFlyYaw -= lookSpeed;
-			if (keyboard.IsKeyDown(.Right))
-				mFlyYaw += lookSpeed;
-			if (keyboard.IsKeyDown(.Up))
-				mFlyPitch = Math.Clamp(mFlyPitch + lookSpeed, -1.4f, 1.4f);
-			if (keyboard.IsKeyDown(.Down))
-				mFlyPitch = Math.Clamp(mFlyPitch - lookSpeed, -1.4f, 1.4f);
-
-			// Calculate forward/right vectors
-			let forward = Vector3(
-				Math.Sin(mFlyYaw) * Math.Cos(mFlyPitch),
-				-Math.Sin(mFlyPitch),
-				Math.Cos(mFlyYaw) * Math.Cos(mFlyPitch)
-			);
-			let right = Vector3.Normalize(Vector3.Cross(forward, .(0, 1, 0)));
-
-			// Movement
-			if (keyboard.IsKeyDown(.W))
-				mFlyPosition = mFlyPosition + forward * moveSpeed;
-			if (keyboard.IsKeyDown(.S))
-				mFlyPosition = mFlyPosition - forward * moveSpeed;
-			if (keyboard.IsKeyDown(.A))
-				mFlyPosition = mFlyPosition - right * moveSpeed;
-			if (keyboard.IsKeyDown(.D))
-				mFlyPosition = mFlyPosition + right * moveSpeed;
-			if (keyboard.IsKeyDown(.Q))
-				mFlyPosition.Y += moveSpeed;
-			if (keyboard.IsKeyDown(.E))
-				mFlyPosition.Y -= moveSpeed;
-		}
-		else
-		{
-			// Orbit mode: A/D rotate, W/S pitch, Q/E zoom
-			float rotSpeed = 0.02f;
-			if (keyboard.IsKeyDown(.A))
-				mCameraYaw -= rotSpeed;
-			if (keyboard.IsKeyDown(.D))
-				mCameraYaw += rotSpeed;
-			if (keyboard.IsKeyDown(.W))
-				mCameraPitch = Math.Clamp(mCameraPitch + rotSpeed, -1.4f, 1.4f);
-			if (keyboard.IsKeyDown(.S))
-				mCameraPitch = Math.Clamp(mCameraPitch - rotSpeed, -1.4f, 1.4f);
-			if (keyboard.IsKeyDown(.Q))
-				mCameraDistance = Math.Clamp(mCameraDistance - 0.15f, 2.0f, 50.0f);
-			if (keyboard.IsKeyDown(.E))
-				mCameraDistance = Math.Clamp(mCameraDistance + 0.15f, 2.0f, 50.0f);
-		}
+		// Camera input
+		mCamera.HandleInput(keyboard, mouse, mDeltaTime);
 	}
 
 	protected override void OnUpdate(FrameContext frame)
@@ -1284,17 +1327,17 @@ class FrameworkSandboxApp : Application
 		// - Update/PostUpdate after OnUpdate
 		// - EndFrame after Frame
 
-		// Update trail emitter (orbiting point)
+		// Update trail emitters
 		{
 			mTrailTime += mDeltaTime;
 			let renderModule = mMainScene?.GetModule<RenderSceneModule>();
 			if (renderModule != null)
 			{
+				// Orbiting ring trail
 				if (let proxy = renderModule.GetTrailEmitterProxy(mTrailEmitterEntity))
 				{
 					if (proxy.Emitter != null)
 					{
-						// Orbit in a circle at height 2.5, radius 2.0
 						let radius = 2.0f;
 						let speed = 1.5f;
 						let x = Math.Cos(mTrailTime * speed) * radius;
@@ -1303,6 +1346,23 @@ class FrameworkSandboxApp : Application
 
 						let pos = Vector3((float)x, (float)y, (float)z);
 						proxy.Emitter.AddPointFiltered(pos, proxy.WidthStart, Color(255, 255, 255, 255), proxy.MinVertexDistance);
+					}
+				}
+
+				// Sword swing trail (pendulum motion - wide arc)
+				if (let proxy = renderModule.GetTrailEmitterProxy(mSwordTrailEntity))
+				{
+					if (proxy.Emitter != null)
+					{
+						let swingSpeed = 4.0f;
+						let swingAngle = Math.Sin(mTrailTime * swingSpeed) * 2.0f;
+						let swingX = Math.Sin(swingAngle) * 3.5f;
+						let swingY = 2.5f + Math.Cos(swingAngle) * 2.0f;
+						let baseX = -12.0f;
+						let baseZ = 8.0f;
+
+						let pos = Vector3(baseX + (float)swingX, (float)swingY, baseZ);
+						proxy.Emitter.AddPointFiltered(pos, proxy.WidthStart, Color(180, 100, 255, 220), proxy.MinVertexDistance);
 					}
 				}
 			}
@@ -1349,41 +1409,17 @@ class FrameworkSandboxApp : Application
 
 	private void UpdateCamera()
 	{
-		Vector3 cameraPos;
-		Vector3 cameraForward;
-
-		if (mCameraFlyMode)
-		{
-			// Fly mode: position and direction from fly state
-			cameraPos = mFlyPosition;
-			cameraForward = Vector3(
-				Math.Sin(mFlyYaw) * Math.Cos(mFlyPitch),
-				-Math.Sin(mFlyPitch),
-				Math.Cos(mFlyYaw) * Math.Cos(mFlyPitch)
-			);
-			cameraForward = Vector3.Normalize(cameraForward);
-		}
-		else
-		{
-			// Orbit mode: spherical coordinates around target
-			float x = mCameraDistance * Math.Cos(mCameraPitch) * Math.Sin(mCameraYaw);
-			float y = mCameraDistance * Math.Sin(mCameraPitch);
-			float z = mCameraDistance * Math.Cos(mCameraPitch) * Math.Cos(mCameraYaw);
-			cameraPos = mCameraTarget + Vector3(x, y, z);
-			cameraForward = Vector3.Normalize(mCameraTarget - cameraPos);
-		}
-
 		// Update camera entity transform
 		var transform = mMainScene.GetTransform(mCameraEntity);
-		transform.Position = cameraPos;
-		let yaw = Math.Atan2(cameraForward.X, cameraForward.Z);
-		let pitch = Math.Asin(-cameraForward.Y);
+		transform.Position = mCamera.Position;
+		let yaw = Math.Atan2(mCamera.Forward.X, mCamera.Forward.Z);
+		let pitch = Math.Asin(-mCamera.Forward.Y);
 		transform.Rotation = Quaternion.CreateFromYawPitchRoll(yaw, pitch, 0);
 		mMainScene.SetTransform(mCameraEntity, transform);
 
 		// Also update render view for rendering
-		mRenderView.CameraPosition = cameraPos;
-		mRenderView.CameraForward = cameraForward;
+		mRenderView.CameraPosition = mCamera.Position;
+		mRenderView.CameraForward = mCamera.Forward;
 		mRenderView.CameraUp = .(0, 1, 0);
 		mRenderView.Width = mSwapChain.Width;
 		mRenderView.Height = mSwapChain.Height;
@@ -1415,49 +1451,79 @@ class FrameworkSandboxApp : Application
 			let brightGreen = Color(100, 255, 100, 255);
 			let labelColor = Color(255, 255, 200, 255);
 
-			// Compute camera billboard vectors for world-space labels
-			let cosYaw = Math.Cos(mCameraYaw);
-			let sinYaw = Math.Sin(mCameraYaw);
-			let camRight = Vector3((float)cosYaw, 0, (float)-sinYaw);
-			let camUp = Vector3(0, 1, 0);
+			// Compute camera-facing billboard vectors for world-space labels
+			let camFwd = mCamera.Forward;
+			var camRight = Vector3.Cross(camFwd, .(0, 1, 0));
+			let rightLen = camRight.Length();
+			if (rightLen < 0.001f)
+				camRight = .(1, 0, 0);
+			else
+				camRight = camRight / rightLen;
+			let camUp = Vector3.Normalize(Vector3.Cross(camRight, camFwd));
 
-			// Label particle emitters
-			mDebugFeature.AddText("Fire + Smoke", .(3.0f, 2.5f, -2.0f), labelColor, 0.6f, camRight, camUp, .Overlay);
-			mDebugFeature.AddText("Sparks (Burst/Stretched)", .(-3.0f, 2.5f, -2.0f), labelColor, 0.6f, camRight, camUp, .Overlay);
-			mDebugFeature.AddText("Magic (Vortex/Attractor)", .(-3.0f, 3.0f, 2.0f), labelColor, 0.6f, camRight, camUp, .Overlay);
-			mDebugFeature.AddText("Trails (Ribbon)", .(0.0f, 3.5f, 3.0f), labelColor, 0.6f, camRight, camUp, .Overlay);
+			// Label particle emitters (scale 1.5 for readability)
+			mDebugFeature.AddText("Fire + Smoke", .(0.0f, 3.5f, -8.0f), labelColor, 1.5f, camRight, camUp, .Overlay);
+			mDebugFeature.AddText("Sparks", .(-8.0f, 3.0f, -4.0f), labelColor, 1.5f, camRight, camUp, .Overlay);
+			mDebugFeature.AddText("Magic Orb", .(8.0f, 4.0f, 0.0f), labelColor, 1.5f, camRight, camUp, .Overlay);
+			mDebugFeature.AddText("Trail Comet", .(-8.0f, 4.5f, 8.0f), labelColor, 1.5f, camRight, camUp, .Overlay);
+			mDebugFeature.AddText("Firework", .(12.0f, 4.0f, -10.0f), labelColor, 1.5f, camRight, camUp, .Overlay);
+			mDebugFeature.AddText("Steam", .(8.0f, 3.5f, -8.0f), labelColor, 1.5f, camRight, camUp, .Overlay);
+			mDebugFeature.AddText("Fountain", .(-12.0f, 4.0f, 0.0f), labelColor, 1.5f, camRight, camUp, .Overlay);
+			mDebugFeature.AddText("Fairy Dust", .(12.0f, 4.0f, 5.0f), labelColor, 1.5f, camRight, camUp, .Overlay);
+			mDebugFeature.AddText("Trailed Sparks", .(-5.0f, 5.5f, 10.0f), labelColor, 1.5f, camRight, camUp, .Overlay);
+			mDebugFeature.AddText("Healing", .(5.0f, 3.5f, 8.0f), labelColor, 1.5f, camRight, camUp, .Overlay);
+			mDebugFeature.AddText("Sword Trail", .(-12.0f, 4.5f, 8.0f), labelColor, 1.5f, camRight, camUp, .Overlay);
 
-			// Background for top-left instructions
-			mDebugFeature.AddRect2D(5, 5, 420, 20, bgColor);
-			mDebugFeature.AddText2D("WASD: Camera  Q/E: Zoom  Space: Spawn  F: Debug  ESC: Exit", 10, 8, brightBlue, 1.0f);
+			let white = Color(255, 255, 255, 255);
+			let brightYellow = Color(255, 255, 100, 255);
+			let brightOrange = Color(255, 180, 100, 255);
 
-			// Background for top-right stats panel
-			mDebugFeature.AddRect2D((float)mRenderView.Width - 155, 5, 150, 95, bgColor);
+			// ===== TOP LEFT: Instructions =====
+			mDebugFeature.AddRect2D(5, 5, 400, 120, bgColor);
+			mDebugFeature.AddText2D("FRAMEWORK SANDBOX", 15, 12, brightYellow, 1.5f);
 
-			// FPS display (top right)
-			let fpsInt = (int32)Math.Round(mSmoothedFps);
+			if (mCamera.CurrentMode == .Orbital)
+				mDebugFeature.AddText2D("ORBITAL: WASD rotate, Q/E zoom, RMB drag", 15, 35, white, 1.0f);
+			else
+				mDebugFeature.AddText2D("FLY: WASD move, Q/E up/down, RMB look", 15, 35, white, 1.0f);
+
+			mDebugFeature.AddText2D("Tab: Toggle camera    `: Back to orbital", 15, 52, white, 1.0f);
+			mDebugFeature.AddText2D("Space: Spawn objects  F: Debug draw", 15, 69, white, 1.0f);
+			mDebugFeature.AddText2D("P: Profiler           ESC: Exit", 15, 86, white, 1.0f);
+
+			// ===== TOP RIGHT: Stats =====
+			float panelX = (float)mRenderView.Width - 220;
+			mDebugFeature.AddRect2D(panelX, 5, 215, 135, bgColor);
+
+			// FPS
 			let fpsText = scope String();
-			fpsInt.ToString(fpsText);
-			mDebugFeature.AddText2D("FPS:", (float)mRenderView.Width - 100, 10, brightBlue, 1.5f);
-			mDebugFeature.AddText2DRight(fpsText, 10, 10, brightCyan, 1.5f);
+			((int32)Math.Round(mSmoothedFps)).ToString(fpsText);
+			mDebugFeature.AddText2D("FPS:", panelX + 10, 12, brightBlue, 1.5f);
+			mDebugFeature.AddText2DRight(fpsText, 10, 12, brightCyan, 1.5f);
 
-			// Spawn count display
+			// Object count
 			let countText = scope String();
 			mSpawnCount.ToString(countText);
-			mDebugFeature.AddText2D("Objects:", (float)mRenderView.Width - 140, 32, brightBlue, 1.5f);
-			mDebugFeature.AddText2DRight(countText, 10, 32, brightCyan, 1.5f);
+			mDebugFeature.AddText2D("Objects:", panelX + 10, 35, brightBlue, 1.5f);
+			mDebugFeature.AddText2DRight(countText, 10, 35, brightCyan, 1.5f);
 
 			// Spawn status
 			let spawnStatus = mSpawningEnabled ? "ON" : "OFF";
 			let spawnColor = mSpawningEnabled ? brightGreen : brightBlue;
-			mDebugFeature.AddText2D("Spawn:", (float)mRenderView.Width - 115, 54, brightBlue, 1.5f);
-			mDebugFeature.AddText2DRight(spawnStatus, 10, 54, spawnColor, 1.5f);
+			mDebugFeature.AddText2D("Spawn:", panelX + 10, 58, brightBlue, 1.5f);
+			mDebugFeature.AddText2DRight(spawnStatus, 10, 58, spawnColor, 1.5f);
 
 			// Debug draw status
 			let debugStatus = mPhysicsDebugDraw ? "ON" : "OFF";
 			let debugColor = mPhysicsDebugDraw ? brightGreen : brightBlue;
-			mDebugFeature.AddText2D("Debug:", (float)mRenderView.Width - 115, 76, brightBlue, 1.5f);
-			mDebugFeature.AddText2DRight(debugStatus, 10, 76, debugColor, 1.5f);
+			mDebugFeature.AddText2D("Debug:", panelX + 10, 81, brightBlue, 1.5f);
+			mDebugFeature.AddText2DRight(debugStatus, 10, 81, debugColor, 1.5f);
+
+			// Camera mode
+			let camMode = (mCamera.CurrentMode == .Orbital) ? "ORBITAL" : "FLYTHROUGH";
+			let camColor = (mCamera.CurrentMode == .Orbital) ? brightGreen : brightOrange;
+			mDebugFeature.AddText2D("Camera:", panelX + 10, 104, brightBlue, 1.2f);
+			mDebugFeature.AddText2DRight(camMode, 10, 104, camColor, 1.2f);
 		}
 
 		// Set camera

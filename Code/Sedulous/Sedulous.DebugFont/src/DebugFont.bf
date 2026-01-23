@@ -1,4 +1,4 @@
-namespace Sedulous.Render;
+namespace Sedulous.DebugFont;
 
 using System;
 

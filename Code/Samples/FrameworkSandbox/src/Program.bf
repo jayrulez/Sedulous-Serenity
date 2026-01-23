@@ -59,7 +59,7 @@ class Program
 			Height = 720,
 			EnableDepth = true,
 			PresentMode = .Mailbox,
-			ClearColor = .(0.1f, 0.15f, 0.2f, 1.0f)
+			ClearColor = .(0.1f, 0.1f, 0.15f, 1.0f)
 		};
 
 		let app = scope FrameworkSandboxApp(shell, device, backend);

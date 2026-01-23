@@ -50,23 +50,8 @@ class FrameworkRenderApp : Application
 	private EntityId mSunEntity;
 	private List<EntityId> mSphereEntities = new .() ~ delete _;
 
-	// Camera mode
-	private enum CameraMode { Orbital, Flythrough }
-	private CameraMode mCameraMode = .Orbital;
-
-	// Orbital camera control
-	private float mOrbitalYaw = 0.0f;
-	private float mOrbitalPitch = 0.6f;
-	private float mOrbitalDistance = 200.0f;
-	private Vector3 mOrbitalTarget = .(0, 0, 0);
-
-	// Flythrough camera control
-	private Vector3 mFlyPosition = .(0, 50, 200);
-	private float mFlyYaw = Math.PI_f;
-	private float mFlyPitch = -0.3f;
-	private bool mMouseCaptured = false;
-	private float mCameraMoveSpeed = 100.0f;
-	private float mCameraLookSpeed = 0.003f;
+	// Camera control
+	private OrbitFlyCamera mCamera ~ delete _;
 
 	// Shared camera state
 	private Vector3 mCameraPosition;
@@ -90,6 +75,16 @@ class FrameworkRenderApp : Application
 	public this(IShell shell, IDevice device, IBackend backend)
 		: base(shell, device, backend)
 	{
+		mCamera = new .();
+		mCamera.OrbitalYaw = 0.0f;
+		mCamera.OrbitalPitch = 0.6f;
+		mCamera.OrbitalDistance = 200.0f;
+		mCamera.MoveSpeed = 100.0f;
+		mCamera.MinDistance = 10.0f;
+		mCamera.MaxDistance = 2000.0f;
+		mCamera.ProportionalZoom = true;
+		mCamera.FlyPosition = .(0, 50, 200);
+		mCamera.Update();
 	}
 
 	protected override void OnInitialize(Context context)
@@ -344,8 +339,8 @@ class FrameworkRenderApp : Application
 		mCurrentBatchCount++;
 
 		// Update camera distance based on grid size
-		mOrbitalDistance = Math.Max(50.0f, gridExtent * 1.5f);
-		mOrbitalTarget = .(0, 0, 0);
+		mCamera.OrbitalDistance = Math.Max(50.0f, gridExtent * 1.5f);
+		mCamera.OrbitalTarget = .(0, 0, 0);
 
 		Console.WriteLine("Total spheres: {}", mSphereEntities.Count);
 	}
@@ -413,18 +408,7 @@ class FrameworkRenderApp : Application
 		let mouse = mShell.InputManager.Mouse;
 
 		if (keyboard.IsKeyPressed(.Escape))
-		{
-			if (mMouseCaptured)
-			{
-				mMouseCaptured = false;
-				mouse.RelativeMode = false;
-				mouse.Visible = true;
-			}
-			else
-			{
-				Exit();
-			}
-		}
+			Exit();
 
 		// Add more spheres
 		if (keyboard.IsKeyPressed(.Space))
@@ -438,101 +422,8 @@ class FrameworkRenderApp : Application
 		if (keyboard.IsKeyPressed(.P))
 			PrintProfilerStats();
 
-		// Toggle camera mode
-		if (keyboard.IsKeyPressed(.Tab))
-		{
-			if (mCameraMode == .Orbital)
-			{
-				mCameraMode = .Flythrough;
-				// Initialize flythrough position from current orbital position
-				mFlyPosition = mCameraPosition;
-				// Calculate yaw/pitch from current forward
-				mFlyYaw = Math.Atan2(mCameraForward.X, mCameraForward.Z);
-				mFlyPitch = Math.Asin(-mCameraForward.Y);
-				// Capture mouse
-				mMouseCaptured = true;
-				mouse.RelativeMode = true;
-				mouse.Visible = false;
-			}
-			else
-			{
-				mCameraMode = .Orbital;
-				mMouseCaptured = false;
-				mouse.RelativeMode = false;
-				mouse.Visible = true;
-			}
-		}
-
-		// Backtick returns to orbital
-		if (keyboard.IsKeyPressed(.Grave))
-		{
-			mCameraMode = .Orbital;
-			mMouseCaptured = false;
-			mouse.RelativeMode = false;
-			mouse.Visible = true;
-		}
-
-		// Handle camera-mode-specific input
-		if (mCameraMode == .Orbital)
-			HandleOrbitalInput(keyboard);
-		else
-			HandleFlythroughInput(keyboard, mouse);
-	}
-
-	private void HandleOrbitalInput(IKeyboard keyboard)
-	{
-		// Camera rotation
-		float rotSpeed = 0.02f;
-		if (keyboard.IsKeyDown(.A))
-			mOrbitalYaw -= rotSpeed;
-		if (keyboard.IsKeyDown(.D))
-			mOrbitalYaw += rotSpeed;
-		if (keyboard.IsKeyDown(.W))
-			mOrbitalPitch = Math.Clamp(mOrbitalPitch + rotSpeed, 0.1f, 1.5f);
-		if (keyboard.IsKeyDown(.S))
-			mOrbitalPitch = Math.Clamp(mOrbitalPitch - rotSpeed, 0.1f, 1.5f);
-
-		// Camera zoom
-		if (keyboard.IsKeyDown(.Q))
-			mOrbitalDistance = Math.Max(10.0f, mOrbitalDistance - mOrbitalDistance * 0.02f);
-		if (keyboard.IsKeyDown(.E))
-			mOrbitalDistance = Math.Min(2000.0f, mOrbitalDistance + mOrbitalDistance * 0.02f);
-	}
-
-	private void HandleFlythroughInput(IKeyboard keyboard, IMouse mouse)
-	{
-		// Mouse look
-		if (mMouseCaptured)
-		{
-			mFlyYaw += mouse.DeltaX * mCameraLookSpeed;
-			mFlyPitch = Math.Clamp(mFlyPitch - mouse.DeltaY * mCameraLookSpeed, -1.5f, 1.5f);
-		}
-
-		// Calculate movement vectors
-		let forward = Vector3(
-			Math.Sin(mFlyYaw) * Math.Cos(mFlyPitch),
-			-Math.Sin(mFlyPitch),
-			Math.Cos(mFlyYaw) * Math.Cos(mFlyPitch)
-		);
-		let right = Vector3.Normalize(Vector3.Cross(forward, .(0, 1, 0)));
-
-		// WASD movement
-		float moveSpeed = mCameraMoveSpeed * mDeltaTime;
-		if (keyboard.IsKeyDown(.LeftShift))
-			moveSpeed *= 3.0f;
-
-		if (keyboard.IsKeyDown(.W))
-			mFlyPosition = mFlyPosition + forward * moveSpeed;
-		if (keyboard.IsKeyDown(.S))
-			mFlyPosition = mFlyPosition - forward * moveSpeed;
-		if (keyboard.IsKeyDown(.A))
-			mFlyPosition = mFlyPosition - right * moveSpeed;
-		if (keyboard.IsKeyDown(.D))
-			mFlyPosition = mFlyPosition + right * moveSpeed;
-		if (keyboard.IsKeyDown(.Q))
-			mFlyPosition.Y -= moveSpeed;
-		if (keyboard.IsKeyDown(.E))
-			mFlyPosition.Y += moveSpeed;
+		// Camera input
+		mCamera.HandleInput(keyboard, mouse, mDeltaTime);
 	}
 
 	protected override void OnUpdate(FrameContext frame)
@@ -553,10 +444,8 @@ class FrameworkRenderApp : Application
 
 	private void UpdateCamera()
 	{
-		if (mCameraMode == .Orbital)
-			UpdateOrbitalCamera();
-		else
-			UpdateFlythroughCamera();
+		mCameraPosition = mCamera.Position;
+		mCameraForward = mCamera.Forward;
 
 		// Apply to scene entity
 		var transform = mMainScene.GetTransform(mCameraEntity);
@@ -573,26 +462,6 @@ class FrameworkRenderApp : Application
 		mRenderView.Width = mSwapChain.Width;
 		mRenderView.Height = mSwapChain.Height;
 		mRenderView.UpdateMatrices(mDevice.FlipProjectionRequired);
-	}
-
-	private void UpdateOrbitalCamera()
-	{
-		float x = mOrbitalDistance * Math.Cos(mOrbitalPitch) * Math.Sin(mOrbitalYaw);
-		float y = mOrbitalDistance * Math.Sin(mOrbitalPitch);
-		float z = mOrbitalDistance * Math.Cos(mOrbitalPitch) * Math.Cos(mOrbitalYaw);
-
-		mCameraPosition = mOrbitalTarget + Vector3(x, y, z);
-		mCameraForward = Vector3.Normalize(mOrbitalTarget - mCameraPosition);
-	}
-
-	private void UpdateFlythroughCamera()
-	{
-		mCameraPosition = mFlyPosition;
-		mCameraForward = Vector3(
-			Math.Sin(mFlyYaw) * Math.Cos(mFlyPitch),
-			-Math.Sin(mFlyPitch),
-			Math.Cos(mFlyYaw) * Math.Cos(mFlyPitch)
-		);
 	}
 
 	protected override bool OnRenderFrame(RenderContext render)
@@ -652,7 +521,7 @@ class FrameworkRenderApp : Application
 		mDebugFeature.AddRect2D(5, 5, 400, 120, bgColor);
 		mDebugFeature.AddText2D("SPHERE STRESS TEST", 15, 12, brightYellow, 1.5f);
 
-		if (mCameraMode == .Orbital)
+		if (mCamera.CurrentMode == .Orbital)
 		{
 			mDebugFeature.AddText2D("ORBITAL: WASD rotate, Q/E zoom", 15, 35, white, 1.0f);
 		}
@@ -704,8 +573,8 @@ class FrameworkRenderApp : Application
 		mDebugFeature.AddText2DRight(matCountText, 10, 98, brightCyan, 1.2f);
 
 		// Camera mode
-		let camMode = (mCameraMode == .Orbital) ? "ORBITAL" : "FLYTHROUGH";
-		let camColor = (mCameraMode == .Orbital) ? brightGreen : brightOrange;
+		let camMode = (mCamera.CurrentMode == .Orbital) ? "ORBITAL" : "FLYTHROUGH";
+		let camColor = (mCamera.CurrentMode == .Orbital) ? brightGreen : brightOrange;
 		mDebugFeature.AddText2D("Camera:", panelX + 10, 118, brightBlue, 1.2f);
 		mDebugFeature.AddText2DRight(camMode, 10, 118, camColor, 1.2f);
 	}

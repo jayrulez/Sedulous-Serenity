@@ -5,6 +5,7 @@ using System.Collections;
 using Sedulous.RHI;
 using Sedulous.Shaders;
 using Sedulous.Mathematics;
+using Sedulous.DebugFont;
 
 /// Render mode for debug primitives.
 enum DebugRenderMode

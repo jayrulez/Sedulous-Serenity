@@ -4,6 +4,7 @@ using System;
 using System.Collections;
 using Sedulous.RHI;
 using Sedulous.Mathematics;
+using Sedulous.DebugFont;
 
 /// Render mode for debug primitives.
 public enum DebugRenderMode
@@ -856,10 +857,24 @@ public class DebugRenderFeature : RenderFeatureBase
 				allVertices.AddRange(mTriVerticesDepth);
 				allVertices.AddRange(mTriVerticesOverlay);
 
-				let dataSize = allVertices.Count * DebugVertex.SizeInBytes;
 				let vertexBuffer = mVertexBuffers[frameIndex];
-				// Bounds check against actual buffer size
-				Runtime.Assert(dataSize <= (.)vertexBuffer.Size, scope $"Debug vertex data size ({dataSize}) exceeds buffer size ({vertexBuffer.Size})");
+				let maxVertexCount = (int)(vertexBuffer.Size / (uint64)DebugVertex.SizeInBytes);
+				let copyCount = Math.Min(allVertices.Count, maxVertexCount);
+
+				// Clamp draw counts to what fits in the buffer
+				if (allVertices.Count > maxVertexCount)
+				{
+					int32 remaining = (int32)maxVertexCount;
+					mLineDepthCount = Math.Min(mLineDepthCount, remaining);
+					remaining -= mLineDepthCount;
+					mLineOverlayCount = Math.Min(mLineOverlayCount, remaining);
+					remaining -= mLineOverlayCount;
+					mTriDepthCount = Math.Min(mTriDepthCount, remaining);
+					remaining -= mTriDepthCount;
+					mTriOverlayCount = Math.Min(mTriOverlayCount, remaining);
+				}
+
+				let dataSize = copyCount * DebugVertex.SizeInBytes;
 				Internal.MemCpy(ptr, allVertices.Ptr, dataSize);
 				vertexBuffer.Unmap();
 			}
@@ -875,10 +890,19 @@ public class DebugRenderFeature : RenderFeatureBase
 				allTextVertices.AddRange(mTextVerticesDepth);
 				allTextVertices.AddRange(mTextVerticesOverlay);
 
-				let dataSize = allTextVertices.Count * DebugTextVertex.SizeInBytes;
 				let textBuffer = mTextVertexBuffers[frameIndex];
-				// Bounds check against actual buffer size
-				Runtime.Assert(dataSize <= (.)textBuffer.Size, scope $"Debug text vertex data size ({dataSize}) exceeds buffer size ({textBuffer.Size})");
+				let maxTextCount = (int)(textBuffer.Size / (uint64)DebugTextVertex.SizeInBytes);
+				let copyTextCount = Math.Min(allTextVertices.Count, maxTextCount);
+
+				if (allTextVertices.Count > maxTextCount)
+				{
+					int32 remaining = (int32)maxTextCount;
+					mTextDepthCount = Math.Min(mTextDepthCount, remaining);
+					remaining -= mTextDepthCount;
+					mTextOverlayCount = Math.Min(mTextOverlayCount, remaining);
+				}
+
+				let dataSize = copyTextCount * DebugTextVertex.SizeInBytes;
 				Internal.MemCpy(ptr, allTextVertices.Ptr, dataSize);
 				textBuffer.Unmap();
 			}
@@ -899,10 +923,12 @@ public class DebugRenderFeature : RenderFeatureBase
 
 			if (let ptr = mText2DVertexBuffers[frameIndex].Map())
 			{
-				let dataSize = mText2DVertices.Count * DebugText2DVertex.SizeInBytes;
 				let text2DBuffer = mText2DVertexBuffers[frameIndex];
-				// Bounds check against actual buffer size
-				Runtime.Assert(dataSize <= (.)text2DBuffer.Size, scope $"Debug 2D text vertex data size ({dataSize}) exceeds buffer size ({text2DBuffer.Size})");
+				let maxText2DCount = (int)(text2DBuffer.Size / (uint64)DebugText2DVertex.SizeInBytes);
+				let copyText2DCount = Math.Min(mText2DVertices.Count, maxText2DCount);
+				mText2DCount = (int32)Math.Min((int)mText2DCount, copyText2DCount);
+
+				let dataSize = copyText2DCount * DebugText2DVertex.SizeInBytes;
 				Internal.MemCpy(ptr, mText2DVertices.Ptr, dataSize);
 				text2DBuffer.Unmap();
 			}

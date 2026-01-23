@@ -1,11 +1,11 @@
-namespace Sedulous.Renderer;
+namespace Sedulous.DebugFont;
 
 using System;
 using Sedulous.Mathematics;
 
 /// Vertex format for debug drawing (position + color).
 [CRepr]
-struct DebugVertex
+public struct DebugVertex
 {
 	public Vector3 Position;
 	public Color Color;
