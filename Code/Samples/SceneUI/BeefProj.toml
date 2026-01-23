@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", SampleFramework = "*", "Sedulous.Engine.Core" = "*", "Sedulous.Engine.UI" = "*", "Sedulous.Engine.Renderer" = "*", "Sedulous.Renderer" = "*", "Sedulous.Geometry" = "*", "Sedulous.Geometry.Tooling" = "*", "Sedulous.Models" = "*", "Sedulous.Models.GLTF" = "*", "Sedulous.Imaging" = "*", "Sedulous.Logging" = "*", "Sedulous.UI" = "*", "Sedulous.UI.Renderer" = "*", "Sedulous.Fonts" = "*", "Sedulous.Fonts.TTF" = "*", "Sedulous.Drawing" = "*", "Sedulous.Shell" = "*", "Sedulous.Shell.SDL3" = "*"}
+Dependencies = {corlib = "*", SampleFramework = "*", "Sedulous.Engine.Core" = "*", "Sedulous.Engine.UI" = "*", "Sedulous.Engine.Renderer" = "*", "Sedulous.Renderer" = "*", "Sedulous.Geometry" = "*", "Sedulous.Geometry.Tooling" = "*", "Sedulous.Models" = "*", "Sedulous.Models.GLTF" = "*", "Sedulous.Imaging" = "*", "Sedulous.Logging" = "*", "Sedulous.UI" = "*", "Sedulous.UI.Fonts" = "*", "Sedulous.UI.Renderer" = "*", "Sedulous.Drawing" = "*", "Sedulous.Shell" = "*", "Sedulous.Shell.SDL3" = "*"}
 
 [Project]
 Name = "SceneUI"

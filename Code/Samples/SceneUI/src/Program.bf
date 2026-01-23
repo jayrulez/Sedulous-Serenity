@@ -7,9 +7,8 @@ using Sedulous.Mathematics;
 using Sedulous.RHI;
 using SampleFramework;
 using Sedulous.Drawing;
-using Sedulous.Fonts;
-using Sedulous.Fonts.TTF;
 using Sedulous.UI;
+using Sedulous.UI.Fonts;
 using Sedulous.UI.Renderer;
 using Sedulous.Engine.Core;
 using Sedulous.Engine.Input;
@@ -25,73 +24,8 @@ using Sedulous.Logging.Debug;
 using Sedulous.Geometry.Tooling;
 using Sedulous.Shell.SDL3;
 using Sedulous.Geometry.Resources;
-
-// Type alias to resolve ambiguity between Drawing.ITexture and RHI.ITexture
-typealias DrawingTexture = Sedulous.Drawing.ITexture;
-
-/// Clipboard adapter that wraps Shell clipboard for UI use.
-class UIClipboardAdapter : Sedulous.UI.IClipboard
-{
-	private Sedulous.Shell.IClipboard mShellClipboard ~ delete _;
-
-	public this()
-	{
-		mShellClipboard = new SDL3Clipboard();
-	}
-
-	public Result<void> GetText(String outText)
-	{
-		return mShellClipboard.GetText(outText);
-	}
-
-	public Result<void> SetText(StringView text)
-	{
-		return mShellClipboard.SetText(text);
-	}
-
-	public bool HasText => mShellClipboard.HasText;
-}
-
-/// Font service that provides access to loaded fonts.
-/// Does NOT own the CachedFont - caller retains ownership.
-class SceneUIFontService : IFontService
-{
-	private CachedFont mCachedFont;  // Not owned
-	private DrawingTexture mFontTexture;  // Not owned
-	private String mDefaultFontFamily = new .("Roboto") ~ delete _;
-
-	public this(CachedFont cachedFont, DrawingTexture texture)
-	{
-		mCachedFont = cachedFont;
-		mFontTexture = texture;
-	}
-
-	public StringView DefaultFontFamily => mDefaultFontFamily;
-
-	public CachedFont GetFont(float pixelHeight)
-	{
-		return mCachedFont;
-	}
-
-	public CachedFont GetFont(StringView familyName, float pixelHeight)
-	{
-		return mCachedFont;
-	}
-
-	public DrawingTexture GetAtlasTexture(CachedFont font)
-	{
-		return mFontTexture;
-	}
-
-	public DrawingTexture GetAtlasTexture(StringView familyName, float pixelHeight)
-	{
-		return mFontTexture;
-	}
-
-	public void ReleaseFont(CachedFont font)
-	{
-	}
-}
+using Sedulous.UI.Shell;
+using Sedulous.Fonts;
 
 /// Scene UI sample demonstrating Sedulous.Engine.UI integration with 3D rendering.
 /// Features:
@@ -126,19 +60,9 @@ class SceneUISample : RHISampleApp
 	private UISceneComponent mUIScene;
 
 	// Services for UI
-	private UIClipboardAdapter mClipboard;
-	private SceneUIFontService mFontService;
+	private ShellClipboardAdapter mClipboard;
+	private FontService mFontService;
 	private TooltipService mTooltipService;
-
-	// Font resources
-	private IFont mFont;
-	private IFontAtlas mFontAtlas;
-	private CachedFont mCachedFont ~ delete _;  // Owns mFont and mFontAtlas
-	private TextureRef mFontTextureRef ~ delete _;
-
-	// GPU resources for font atlas
-	private Sedulous.RHI.ITexture mAtlasTexture;
-	private ITextureView mAtlasTextureView;
 
 	// Fox resources
 	private SkinnedMeshResource mFoxResource ~ delete _;
@@ -194,11 +118,8 @@ class SceneUISample : RHISampleApp
 
 	protected override bool OnInitialize()
 	{
-		// Initialize font first (needed for UI)
-		if (!InitializeFont())
-			return false;
-
-		if (!CreateAtlasTexture())
+		// Initialize font service (needed for UI)
+		if (!InitializeFonts())
 			return false;
 
 		// Create logger
@@ -225,7 +146,8 @@ class SceneUISample : RHISampleApp
 		// Create and configure UIService
 		mUIService = new UIService();
 		ConfigureUIServices();  // Sets up font service, theme, clipboard on UIService
-		mUIService.SetAtlasTexture(mAtlasTextureView, .(mFontAtlas.WhitePixelUV.U, mFontAtlas.WhitePixelUV.V));
+		let (wu, wv) = mFontService.WhitePixelUV;
+		mUIService.SetAtlasTexture(mFontService.AtlasTextureView, .(wu, wv));
 		mContext.RegisterService<UIService>(mUIService);
 
 		// Start context before creating scenes (enables automatic component creation)
@@ -261,95 +183,21 @@ class SceneUISample : RHISampleApp
 		return true;
 	}
 
-	private bool InitializeFont()
+	private bool InitializeFonts()
 	{
+		mFontService = new FontService(Device);
+
 		String fontPath = scope .();
 		GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", fontPath);
-
-		if (!File.Exists(fontPath))
-		{
-			Console.WriteLine(scope $"Font not found: {fontPath}");
-			return false;
-		}
-
-		TrueTypeFonts.Initialize();
 
 		FontLoadOptions options = .ExtendedLatin;
 		options.PixelHeight = 16;
 
-		if (FontLoaderFactory.LoadFont(fontPath, options) case .Ok(let font))
-			mFont = font;
-		else
+		if (mFontService.LoadFont("Roboto", fontPath, options) case .Err)
 		{
-			Console.WriteLine("Failed to load font");
+			Console.WriteLine(scope $"Failed to load font: {fontPath}");
 			return false;
 		}
-
-		if (FontLoaderFactory.CreateAtlas(mFont, options) case .Ok(let atlas))
-		{
-			mFontAtlas = atlas;
-			Console.WriteLine(scope $"Font atlas created: {mFontAtlas.Width}x{mFontAtlas.Height}");
-		}
-		else
-		{
-			Console.WriteLine("Failed to create font atlas");
-			return false;
-		}
-
-		return true;
-	}
-
-	private bool CreateAtlasTexture()
-	{
-		let atlasWidth = mFontAtlas.Width;
-		let atlasHeight = mFontAtlas.Height;
-		let r8Data = mFontAtlas.PixelData;
-
-		// Convert R8 to RGBA8
-		uint8[] rgba8Data = new uint8[atlasWidth * atlasHeight * 4];
-		defer delete rgba8Data;
-
-		for (uint32 i = 0; i < atlasWidth * atlasHeight; i++)
-		{
-			let alpha = r8Data[i];
-			rgba8Data[i * 4 + 0] = 255;
-			rgba8Data[i * 4 + 1] = 255;
-			rgba8Data[i * 4 + 2] = 255;
-			rgba8Data[i * 4 + 3] = alpha;
-		}
-
-		TextureDescriptor textureDesc = TextureDescriptor.Texture2D(
-			atlasWidth, atlasHeight, .RGBA8Unorm, .Sampled | .CopyDst
-		);
-
-		if (Device.CreateTexture(&textureDesc) not case .Ok(let texture))
-		{
-			Console.WriteLine("Failed to create atlas texture");
-			return false;
-		}
-		mAtlasTexture = texture;
-
-		TextureDataLayout dataLayout = .()
-		{
-			Offset = 0,
-			BytesPerRow = atlasWidth * 4,
-			RowsPerImage = atlasHeight
-		};
-		Extent3D writeSize = .(atlasWidth, atlasHeight, 1);
-		Device.Queue.WriteTexture(mAtlasTexture, Span<uint8>(rgba8Data.Ptr, rgba8Data.Count), &dataLayout, &writeSize);
-
-		TextureViewDescriptor viewDesc = .() { Format = .RGBA8Unorm };
-		if (Device.CreateTextureView(mAtlasTexture, &viewDesc) not case .Ok(let view))
-		{
-			Console.WriteLine("Failed to create atlas texture view");
-			return false;
-		}
-		mAtlasTextureView = view;
-
-		mFontTextureRef = new TextureRef(mAtlasTexture, atlasWidth, atlasHeight);
-
-		// Create shared CachedFont (owns mFont and mFontAtlas)
-		mCachedFont = new CachedFont(mFont, mFontAtlas);
 
 		return true;
 	}
@@ -360,11 +208,10 @@ class SceneUISample : RHISampleApp
 		// These services will be automatically registered on UISceneComponent.UIContext
 
 		// Register clipboard
-		mClipboard = new UIClipboardAdapter();
+		mClipboard = new ShellClipboardAdapter(Shell.Clipboard);
 		mUIService.SetClipboard(mClipboard);
 
-		// Register font service (shares mCachedFont - does not own it)
-		mFontService = new SceneUIFontService(mCachedFont, mFontTextureRef);
+		// Register font service
 		mUIService.SetFontService(mFontService);
 
 		// Register theme
@@ -621,14 +468,13 @@ class SceneUISample : RHISampleApp
 			}
 			else
 			{
-				// Set white pixel UV for solid color rendering (from font atlas)
-				let (wu, wv) = mFontAtlas.WhitePixelUV;
-				mWorldUIComponent.SetWhitePixelUV(.(wu, wv));
+				// Set white pixel UV for solid color rendering
+				let (wwu, wwv) = mFontService.WhitePixelUV;
+				mWorldUIComponent.SetWhitePixelUV(.(wwu, wwv));
 
-				// Register services for world UI context (shares mCachedFont - does not own it)
+				// Register shared font service and theme for world UI context
 				let worldUIContext = mWorldUIComponent.UIContext;
-				let worldFontService = new SceneUIFontService(mCachedFont, mFontTextureRef);
-				worldUIContext.RegisterService<IFontService>(worldFontService);
+				worldUIContext.RegisterService<IFontService>(mFontService);
 				let worldTheme = new DarkTheme();
 				worldUIContext.RegisterService<ITheme>(worldTheme);
 
@@ -968,17 +814,14 @@ class SceneUISample : RHISampleApp
 			if (mUIScene.UIContext.GetService<ITheme>() case .Ok(let theme))
 				delete theme;
 		}
-		if (mFontService != null) { delete mFontService; mFontService = null; }
 		if (mTooltipService != null) { delete mTooltipService; mTooltipService = null; }
 		if (mClipboard != null) { delete mClipboard; mClipboard = null; }
 
-		// Clean up world UI services
+		// Clean up world UI services (font service is shared, only delete theme)
 		if (mWorldUIComponent?.UIContext != null)
 		{
 			if (mWorldUIComponent.UIContext.GetService<ITheme>() case .Ok(let theme))
 				delete theme;
-			if (mWorldUIComponent.UIContext.GetService<IFontService>() case .Ok(let fontService))
-				delete fontService;
 		}
 
 		// Shutdown context (deletes scene components including mUIScene and mWorldUIComponent)
@@ -1007,9 +850,8 @@ class SceneUISample : RHISampleApp
 
 		delete mRendererService;
 
-		// Clean up GPU resources
-		if (mAtlasTextureView != null) { delete mAtlasTextureView; mAtlasTextureView = null; }
-		if (mAtlasTexture != null) { delete mAtlasTexture; mAtlasTexture = null; }
+		// Clean up font service (owns GPU atlas texture resources)
+		if (mFontService != null) { delete mFontService; mFontService = null; }
 
 		Console.WriteLine("Scene UI sample cleaned up.");
 	}
