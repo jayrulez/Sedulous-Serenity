@@ -40,8 +40,12 @@ public class ParticleFeature : RenderFeatureBase
 	private ITextureView mDefaultParticleTextureView ~ delete _;
 	private ISampler mDefaultSampler ~ delete _;
 
-	// Soft particle resources
-	private IBuffer mSoftParamsBuffer ~ delete _;
+	// Emitter params dynamic uniform buffer (per-emitter, dynamic offset)
+	private const uint64 EmitterParamAlignment = 256; // Vulkan minUniformBufferOffsetAlignment
+	private const int32 MaxActiveEmitters = 64;
+	private IBuffer mEmitterParamsBuffer ~ delete _;
+	private Dictionary<ParticleEmitterProxyHandle, int32> mEmitterParamIndices = new .() ~ delete _;
+	private int32 mEmitterParamCount;
 	private RGResourceHandle mDepthHandle;
 
 	// Per-emitter GPU resources
@@ -199,17 +203,17 @@ public class ParticleFeature : RenderFeatureBase
 		case .Err: return .Err;
 		}
 
-		// Create emitter params buffer (32 bytes: SoftDistance, Near, Far, RenderMode, StretchFactor, padding)
-		BufferDescriptor softParamsDesc = .()
+		// Create emitter params dynamic uniform buffer (256-byte aligned slots for per-emitter params)
+		BufferDescriptor emitterParamsDesc = .()
 		{
-			Label = "Emitter Params",
-			Size = 32,
+			Label = "Emitter Params (Dynamic UBO)",
+			Size = EmitterParamAlignment * MaxActiveEmitters,
 			Usage = .Uniform | .CopyDst
 		};
 
-		switch (Renderer.Device.CreateBuffer(&softParamsDesc))
+		switch (Renderer.Device.CreateBuffer(&emitterParamsDesc))
 		{
-		case .Ok(let buf): mSoftParamsBuffer = buf;
+		case .Ok(let buf): mEmitterParamsBuffer = buf;
 		case .Err: return .Err;
 		}
 
@@ -520,6 +524,32 @@ public class ParticleFeature : RenderFeatureBase
 		if (mActiveGPUEmitters.Count == 0 && mActiveCPUEmitters.Count == 0)
 			return;
 
+		// Upload per-emitter params to dynamic uniform buffer (before render pass)
+		mEmitterParamIndices.Clear();
+		mEmitterParamCount = 0;
+
+		for (let handle in mActiveGPUEmitters)
+		{
+			let proxy = world.GetParticleEmitter(handle);
+			if (proxy != null && mEmitterParamCount < MaxActiveEmitters)
+			{
+				mEmitterParamIndices[handle] = mEmitterParamCount;
+				WriteEmitterParams(mEmitterParamCount, proxy);
+				mEmitterParamCount++;
+			}
+		}
+
+		for (let handle in mActiveCPUEmitters)
+		{
+			let proxy = world.GetParticleEmitter(handle);
+			if (proxy != null && mEmitterParamCount < MaxActiveEmitters)
+			{
+				mEmitterParamIndices[handle] = mEmitterParamCount;
+				WriteEmitterParams(mEmitterParamCount, proxy);
+				mEmitterParamCount++;
+			}
+		}
+
 		// GPU simulation pass
 		if (mActiveGPUEmitters.Count > 0)
 		{
@@ -609,7 +639,7 @@ public class ParticleFeature : RenderFeatureBase
 			.() { Binding = 2, Visibility = .Fragment, Type = .SampledTexture },   // ParticleTexture (t2)
 			.() { Binding = 0, Visibility = .Fragment, Type = .Sampler },          // LinearSampler (s0)
 			.() { Binding = 3, Visibility = .Fragment, Type = .SampledTexture },   // DepthTexture (t3)
-			.() { Binding = 2, Visibility = .Fragment, Type = .UniformBuffer }     // SoftParticleParams (b2)
+			.() { Binding = 2, Visibility = .Fragment, Type = .UniformBuffer, HasDynamicOffset = true }  // EmitterParams (b2, dynamic)
 		);
 
 		BindGroupLayoutDescriptor gpuRenderLayoutDesc = .()
@@ -630,7 +660,7 @@ public class ParticleFeature : RenderFeatureBase
 			.() { Binding = 0, Visibility = .Fragment, Type = .SampledTexture },           // ParticleTexture (t0)
 			.() { Binding = 0, Visibility = .Fragment, Type = .Sampler },                  // LinearSampler (s0)
 			.() { Binding = 1, Visibility = .Fragment, Type = .SampledTexture },           // DepthTexture (t1)
-			.() { Binding = 1, Visibility = .Vertex | .Fragment, Type = .UniformBuffer },  // EmitterParams (b1)
+			.() { Binding = 1, Visibility = .Vertex | .Fragment, Type = .UniformBuffer, HasDynamicOffset = true },  // EmitterParams (b1, dynamic)
 			.() { Binding = 3, Visibility = .Fragment, Type = .UniformBuffer },            // LightingUniforms (b3)
 			.() { Binding = 4, Visibility = .Fragment, Type = .StorageBuffer },            // Lights (t4)
 			.() { Binding = 5, Visibility = .Fragment, Type = .StorageBuffer },            // ClusterLightInfo (t5)
@@ -715,8 +745,6 @@ public class ParticleFeature : RenderFeatureBase
 			GPUParticleSystem system;
 			if (mGPUParticleSystems.TryGetValue(handle, out system))
 			{
-				let proxy = Renderer.ActiveWorld?.GetParticleEmitter(handle);
-
 				// Ensure render bind group exists for this frame
 				let bindGroup = GetOrCreateGPURenderBindGroup(system, frameIndex, depthView);
 				if (bindGroup == null)
@@ -742,14 +770,11 @@ public class ParticleFeature : RenderFeatureBase
 					Span<uint8>((uint8*)&particleParams[0], 16)
 				);
 
-				// Update emitter params for this emitter
-				let softDistance = proxy != null ? proxy.SoftParticleDistance : 0.0f;
-				let renderMode = proxy != null ? proxy.RenderMode : ParticleRenderMode.Billboard;
-				let stretchFactor = proxy != null ? proxy.StretchFactor : 1.0f;
-				let lit = proxy != null ? proxy.Lit : false;
-				WriteEmitterParams(softDistance, renderMode, stretchFactor, lit);
-
-				encoder.SetBindGroup(0, bindGroup, default);
+				// Use dynamic offset for this emitter's params
+				int32 emitterIndex = 0;
+				mEmitterParamIndices.TryGetValue(handle, out emitterIndex);
+				uint32[1] dynamicOffsets = .((uint32)((int64)emitterIndex * (int64)EmitterParamAlignment));
+				encoder.SetBindGroup(0, bindGroup, dynamicOffsets);
 
 				let instanceCount = Math.Min(system.EstimatedAliveCount, system.MaxParticles);
 				if (instanceCount > 0)
@@ -770,7 +795,7 @@ public class ParticleFeature : RenderFeatureBase
 
 		if (mGPURenderBindGroupLayout == null || mDefaultParticleTextureView == null || mDefaultSampler == null)
 			return null;
-		if (depthView == null || mSoftParamsBuffer == null)
+		if (depthView == null || mEmitterParamsBuffer == null)
 			return null;
 
 		let cameraBuffer = Renderer.RenderFrameContext?.GetSceneUniformBuffer(frameIndex);
@@ -785,7 +810,7 @@ public class ParticleFeature : RenderFeatureBase
 			BindGroupEntry.Texture(2, mDefaultParticleTextureView),
 			BindGroupEntry.Sampler(0, mDefaultSampler),
 			BindGroupEntry.Texture(3, depthView, .DepthStencilReadOnly),
-			BindGroupEntry.Buffer(2, mSoftParamsBuffer, 0, 32)
+			BindGroupEntry.Buffer(2, mEmitterParamsBuffer, 0, EmitterParamAlignment)
 		);
 
 		BindGroupDescriptor renderBgDesc = .()
@@ -843,9 +868,6 @@ public class ParticleFeature : RenderFeatureBase
 
 			encoder.SetPipeline(pipeline);
 
-			// Update emitter params for this emitter
-			WriteEmitterParams(proxy.SoftParticleDistance, proxy.RenderMode, proxy.StretchFactor, proxy.Lit);
-
 			// Get or create per-frame bind group for this emitter
 			IBindGroup bindGroup = null;
 			if (!frameDict.TryGetValue(handle, out bindGroup))
@@ -858,7 +880,11 @@ public class ParticleFeature : RenderFeatureBase
 			if (bindGroup == null)
 				continue;
 
-			encoder.SetBindGroup(0, bindGroup, default);
+			// Use dynamic offset for this emitter's params
+			int32 emitterIndex = 0;
+			mEmitterParamIndices.TryGetValue(handle, out emitterIndex);
+			uint32[1] dynamicOffsets = .((uint32)((int64)emitterIndex * (int64)EmitterParamAlignment));
+			encoder.SetBindGroup(0, bindGroup, dynamicOffsets);
 			encoder.SetVertexBuffer(0, vertexBuffer, 0);
 			encoder.Draw(6, (uint32)aliveCount, 0, 0);
 			Renderer.Stats.DrawCalls++;
@@ -907,9 +933,6 @@ public class ParticleFeature : RenderFeatureBase
 
 			encoder.SetPipeline(pipeline);
 
-			// Update emitter params
-			WriteEmitterParams(proxy.SoftParticleDistance, proxy.RenderMode, proxy.StretchFactor, proxy.Lit);
-
 			// Reuse the same bind group as CPU particles (same layout)
 			IBindGroup bindGroup = null;
 			if (!frameDict.TryGetValue(handle, out bindGroup))
@@ -922,7 +945,11 @@ public class ParticleFeature : RenderFeatureBase
 			if (bindGroup == null)
 				continue;
 
-			encoder.SetBindGroup(0, bindGroup, default);
+			// Use dynamic offset for this emitter's params
+			int32 emitterIndex = 0;
+			mEmitterParamIndices.TryGetValue(handle, out emitterIndex);
+			uint32[1] dynamicOffsets = .((uint32)((int64)emitterIndex * (int64)EmitterParamAlignment));
+			encoder.SetBindGroup(0, bindGroup, dynamicOffsets);
 			encoder.SetVertexBuffer(0, trailBuffer, 0);
 			encoder.Draw((uint32)trailVertexCount, 1, 0, 0);
 			Renderer.Stats.DrawCalls++;
@@ -933,7 +960,7 @@ public class ParticleFeature : RenderFeatureBase
 	{
 		if (mCPURenderBindGroupLayout == null || mDefaultParticleTextureView == null || mDefaultSampler == null)
 			return null;
-		if (depthView == null || mSoftParamsBuffer == null)
+		if (depthView == null || mEmitterParamsBuffer == null)
 			return null;
 
 		let cameraBuffer = Renderer.RenderFrameContext?.SceneUniformBuffer;
@@ -982,7 +1009,7 @@ public class ParticleFeature : RenderFeatureBase
 			BindGroupEntry.Texture(0, textureView),
 			BindGroupEntry.Sampler(0, mDefaultSampler),
 			BindGroupEntry.Texture(1, depthView, .DepthStencilReadOnly),
-			BindGroupEntry.Buffer(1, mSoftParamsBuffer, 0, 32),
+			BindGroupEntry.Buffer(1, mEmitterParamsBuffer, 0, EmitterParamAlignment),
 			BindGroupEntry.Buffer(3, lightingBuffer, 0, (uint64)LightingUniforms.Size),
 			BindGroupEntry.Buffer(4, lightDataBuffer, 0, lightDataSize),
 			BindGroupEntry.Buffer(5, clusterInfoBuffer, 0, clusterInfoSize),
@@ -1031,24 +1058,25 @@ public class ParticleFeature : RenderFeatureBase
 		}
 	}
 
-	private void WriteEmitterParams(float softDistance, ParticleRenderMode renderMode, float stretchFactor, bool lit)
+	private void WriteEmitterParams(int32 emitterIndex, ParticleEmitterProxy* proxy)
 	{
-		if (mSoftParamsBuffer == null)
+		if (mEmitterParamsBuffer == null || emitterIndex >= MaxActiveEmitters)
 			return;
 
 		let frameContext = Renderer.RenderFrameContext;
 		float[8] emitterParams = .(
-			softDistance,
+			proxy.SoftParticleDistance,
 			frameContext != null ? frameContext.SceneUniforms.NearPlane : 0.1f,
 			frameContext != null ? frameContext.SceneUniforms.FarPlane : 1000.0f,
-			(float)renderMode.Underlying,  // RenderMode as float
-			stretchFactor,
-			lit ? 1.0f : 0.0f,            // Lit flag
-			0.0f, 0.0f                    // padding
+			(float)proxy.RenderMode.Underlying,
+			proxy.StretchFactor,
+			proxy.Lit ? 1.0f : 0.0f,
+			0.0f, 0.0f
 		);
 
+		let offset = (uint64)emitterIndex * EmitterParamAlignment;
 		Renderer.Device.Queue.WriteBuffer(
-			mSoftParamsBuffer, 0,
+			mEmitterParamsBuffer, offset,
 			Span<uint8>((uint8*)&emitterParams[0], 32)
 		);
 	}
