@@ -116,6 +116,7 @@ class HierarchyTests
 		// Force transform update by running scene update
 		scene.SetState(.Active);
 		scene.Update(0.016f);
+		scene.PostUpdate(0.016f);
 
 		let childWorld = scene.GetWorldMatrix(child);
 		// Child world position should be parent + local = (15, 0, 0)
@@ -147,6 +148,7 @@ class HierarchyTests
 
 		scene.SetState(.Active);
 		scene.Update(0.016f);
+		scene.PostUpdate(0.016f);
 
 		// Each level adds 10, so level3 should be at 40
 		let level3World = scene.GetWorldMatrix(level3);
@@ -222,6 +224,7 @@ class HierarchyTests
 
 		scene.SetState(.Active);
 		scene.Update(0.016f);
+		scene.PostUpdate(0.016f);
 
 		let childWorld = scene.GetWorldMatrix(child);
 		// Scale combines: 2 * 3 = 6

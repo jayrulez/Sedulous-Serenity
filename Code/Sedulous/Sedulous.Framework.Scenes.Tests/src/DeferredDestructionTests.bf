@@ -56,7 +56,10 @@ class DeferredDestructionTests
 		// During update, entity was still valid
 		Test.Assert(module.WasEntityValidDuringUpdate);
 
-		// After update, entity is destroyed
+		// Deferred destructions are processed in PostUpdate
+		scene.PostUpdate(0.016f);
+
+		// After PostUpdate, entity is destroyed
 		Test.Assert(!scene.IsValid(entity));
 	}
 
@@ -79,8 +82,9 @@ class DeferredDestructionTests
 
 		scene.SetState(.Active);
 		scene.Update(0.016f);
+		scene.PostUpdate(0.016f);
 
-		// All entities destroyed after update
+		// All entities destroyed after PostUpdate
 		Test.Assert(scene.EntityCount == 0);
 		Test.Assert(!scene.IsValid(e1));
 		Test.Assert(!scene.IsValid(e2));
@@ -144,6 +148,7 @@ class DeferredDestructionTests
 
 		scene.SetState(.Active);
 		scene.Update(0.016f);
+		scene.PostUpdate(0.016f);
 
 		// Original entity destroyed
 		Test.Assert(!scene.IsValid(entity));
