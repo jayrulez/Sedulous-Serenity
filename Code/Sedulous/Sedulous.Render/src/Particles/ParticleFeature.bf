@@ -18,11 +18,13 @@ public class ParticleFeature : RenderFeatureBase
 	private IRenderPipeline mGPURenderPipelineAlpha ~ delete _;
 	private IRenderPipeline mGPURenderPipelineAdditive ~ delete _;
 	private IRenderPipeline mGPURenderPipelinePremultiplied ~ delete _;
+	private IRenderPipeline mGPURenderPipelineMultiply ~ delete _;
 
 	// CPU render pipelines (one per blend mode, different vertex input)
 	private IRenderPipeline mCPURenderPipelineAlpha ~ delete _;
 	private IRenderPipeline mCPURenderPipelineAdditive ~ delete _;
 	private IRenderPipeline mCPURenderPipelinePremultiplied ~ delete _;
+	private IRenderPipeline mCPURenderPipelineMultiply ~ delete _;
 
 	// Bind groups
 	private IBindGroupLayout mComputeBindGroupLayout ~ delete _;
@@ -312,6 +314,7 @@ public class ParticleFeature : RenderFeatureBase
 			createGPURenderPipeline(.AlphaBlend, "Alpha", ref mGPURenderPipelineAlpha);
 			createGPURenderPipeline(.Additive, "Additive", ref mGPURenderPipelineAdditive);
 			createGPURenderPipeline(.PremultipliedAlpha, "Premultiplied", ref mGPURenderPipelinePremultiplied);
+			createGPURenderPipeline(.Multiply, "Multiply", ref mGPURenderPipelineMultiply);
 		}
 
 		// Create CPU render pipeline layout
@@ -389,6 +392,7 @@ public class ParticleFeature : RenderFeatureBase
 				createCPURenderPipeline(.AlphaBlend, "Alpha", ref mCPURenderPipelineAlpha);
 				createCPURenderPipeline(.Additive, "Additive", ref mCPURenderPipelineAdditive);
 				createCPURenderPipeline(.PremultipliedAlpha, "Premultiplied", ref mCPURenderPipelinePremultiplied);
+				createCPURenderPipeline(.Multiply, "Multiply", ref mCPURenderPipelineMultiply);
 			}
 		}
 
@@ -442,7 +446,7 @@ public class ParticleFeature : RenderFeatureBase
 					// Update CPU emitter simulation
 					if (proxy.CPUEmitter != null)
 					{
-						proxy.CPUEmitter.Update(Renderer.RenderFrameContext.DeltaTime, &proxy);
+						proxy.CPUEmitter.Update(Renderer.RenderFrameContext.DeltaTime, &proxy, view.CameraPosition);
 					}
 				}
 			}
@@ -623,7 +627,8 @@ public class ParticleFeature : RenderFeatureBase
 
 	private void RenderGPUParticles(IRenderPassEncoder encoder, ITextureView depthView)
 	{
-		if (mGPURenderPipelineAlpha == null && mGPURenderPipelineAdditive == null && mGPURenderPipelinePremultiplied == null)
+		if (mGPURenderPipelineAlpha == null && mGPURenderPipelineAdditive == null &&
+			mGPURenderPipelinePremultiplied == null && mGPURenderPipelineMultiply == null)
 			return;
 
 		let frameIndex = Renderer.RenderFrameContext.FrameIndex;
@@ -646,6 +651,7 @@ public class ParticleFeature : RenderFeatureBase
 				case .Alpha: pipeline = mGPURenderPipelineAlpha;
 				case .Additive: pipeline = mGPURenderPipelineAdditive;
 				case .Premultiplied: pipeline = mGPURenderPipelinePremultiplied;
+				case .Multiply: pipeline = mGPURenderPipelineMultiply;
 				}
 
 				if (pipeline == null)
@@ -721,7 +727,8 @@ public class ParticleFeature : RenderFeatureBase
 
 	private void RenderCPUParticles(IRenderPassEncoder encoder, ITextureView depthView)
 	{
-		if (mCPURenderPipelineAlpha == null && mCPURenderPipelineAdditive == null && mCPURenderPipelinePremultiplied == null)
+		if (mCPURenderPipelineAlpha == null && mCPURenderPipelineAdditive == null &&
+			mCPURenderPipelinePremultiplied == null && mCPURenderPipelineMultiply == null)
 			return;
 
 		let frameIndex = Renderer.RenderFrameContext.FrameIndex;
@@ -748,6 +755,7 @@ public class ParticleFeature : RenderFeatureBase
 			case .Alpha: pipeline = mCPURenderPipelineAlpha;
 			case .Additive: pipeline = mCPURenderPipelineAdditive;
 			case .Premultiplied: pipeline = mCPURenderPipelinePremultiplied;
+			case .Multiply: pipeline = mCPURenderPipelineMultiply;
 			}
 
 			if (pipeline == null)

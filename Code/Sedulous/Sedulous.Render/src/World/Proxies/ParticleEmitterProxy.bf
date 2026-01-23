@@ -25,7 +25,10 @@ public enum ParticleBlendMode : uint8
 	Additive,
 
 	/// Premultiplied alpha.
-	Premultiplied
+	Premultiplied,
+
+	/// Multiply blending (darkens).
+	Multiply
 }
 
 /// Particle rendering mode.
@@ -37,8 +40,11 @@ public enum ParticleRenderMode : uint8
 	/// Velocity-aligned billboards.
 	StretchedBillboard,
 
-	/// Horizontal billboards (facing up).
+	/// Horizontal billboards (facing up, Y-axis normal).
 	HorizontalBillboard,
+
+	/// Vertical billboards (always face camera horizontally, locked Y-up).
+	VerticalBillboard,
 
 	/// Mesh particles.
 	Mesh
@@ -129,6 +135,77 @@ public struct ParticleEmitterProxy
 	/// Stretch factor for stretched billboards.
 	public float StretchFactor;
 
+	// --- Curves over lifetime ---
+
+	/// Size over lifetime curve (overrides StartSize/EndSize linear lerp when active).
+	public ParticleCurveVector2 SizeOverLifetime;
+
+	/// Color over lifetime curve (overrides StartColor/EndColor linear lerp when active).
+	public ParticleCurveColor ColorOverLifetime;
+
+	/// Speed multiplier over lifetime (scales velocity magnitude, 1.0 = no change).
+	public ParticleCurveFloat SpeedOverLifetime;
+
+	/// Alpha multiplier over lifetime (applied on top of color alpha).
+	public ParticleCurveFloat AlphaOverLifetime;
+
+	/// Rotation speed over lifetime (radians/sec multiplier).
+	public ParticleCurveFloat RotationSpeedOverLifetime;
+
+	// --- Burst emission ---
+
+	/// Number of particles to emit per burst.
+	public int32 BurstCount;
+
+	/// Interval between bursts in seconds (0 = single burst on spawn).
+	public float BurstInterval;
+
+	/// Number of burst cycles (0 = infinite).
+	public int32 BurstCycles;
+
+	// --- Texture atlas ---
+
+	/// Number of columns in the texture atlas (1 = no atlas).
+	public int32 AtlasColumns;
+
+	/// Number of rows in the texture atlas (1 = no atlas).
+	public int32 AtlasRows;
+
+	/// Animation speed in frames per second (for animated atlas).
+	public float AtlasFPS;
+
+	/// Whether atlas animation loops.
+	public bool AtlasLoop;
+
+	// --- Force modules ---
+
+	/// Force modules applied during simulation (turbulence, vortex, attractor, wind, radial).
+	public ParticleForceModules ForceModules;
+
+	// --- Velocity inheritance ---
+
+	/// Fraction of emitter velocity inherited by spawned particles [0, 1].
+	public float VelocityInheritance;
+
+	// --- LOD (Level of Detail) ---
+
+	/// Distance at which emission rate starts to decrease (0 = no LOD).
+	public float LODStartDistance;
+
+	/// Distance at which emission is fully culled (0 = no cull).
+	public float LODCullDistance;
+
+	/// Minimum emission rate multiplier at LODCullDistance [0, 1] (before full cull).
+	public float LODMinRateMultiplier;
+
+	// --- Lifetime variance ---
+
+	/// Randomized lifetime range (min multiplier on ParticleLifetime).
+	public float LifetimeVarianceMin;
+
+	/// Randomized lifetime range (max multiplier on ParticleLifetime).
+	public float LifetimeVarianceMax;
+
 	/// Sort particles back-to-front (for alpha blending).
 	public bool SortParticles;
 
@@ -188,6 +265,25 @@ public struct ParticleEmitterProxy
 		emitter.Drag = 0.0f;
 		emitter.SoftParticleDistance = 0.0f;
 		emitter.StretchFactor = 1.0f;
+		emitter.SizeOverLifetime = default;
+		emitter.ColorOverLifetime = default;
+		emitter.SpeedOverLifetime = default;
+		emitter.AlphaOverLifetime = default;
+		emitter.RotationSpeedOverLifetime = default;
+		emitter.BurstCount = 0;
+		emitter.BurstInterval = 0;
+		emitter.BurstCycles = 0;
+		emitter.AtlasColumns = 1;
+		emitter.AtlasRows = 1;
+		emitter.AtlasFPS = 0;
+		emitter.AtlasLoop = true;
+		emitter.ForceModules = default;
+		emitter.VelocityInheritance = 0;
+		emitter.LODStartDistance = 0;
+		emitter.LODCullDistance = 0;
+		emitter.LODMinRateMultiplier = 0;
+		emitter.LifetimeVarianceMin = 1.0f;
+		emitter.LifetimeVarianceMax = 1.0f;
 		emitter.SortParticles = true;
 		emitter.IsEnabled = true;
 		emitter.IsEmitting = true;
@@ -225,6 +321,25 @@ public struct ParticleEmitterProxy
 		Drag = 0.0f;
 		SoftParticleDistance = 0.0f;
 		StretchFactor = 1.0f;
+		SizeOverLifetime = default;
+		ColorOverLifetime = default;
+		SpeedOverLifetime = default;
+		AlphaOverLifetime = default;
+		RotationSpeedOverLifetime = default;
+		BurstCount = 0;
+		BurstInterval = 0;
+		BurstCycles = 0;
+		AtlasColumns = 1;
+		AtlasRows = 1;
+		AtlasFPS = 0;
+		AtlasLoop = false;
+		ForceModules = default;
+		VelocityInheritance = 0;
+		LODStartDistance = 0;
+		LODCullDistance = 0;
+		LODMinRateMultiplier = 0;
+		LifetimeVarianceMin = 1.0f;
+		LifetimeVarianceMax = 1.0f;
 		SortParticles = false;
 		IsEnabled = false;
 		IsEmitting = false;
