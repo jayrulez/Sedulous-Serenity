@@ -48,6 +48,9 @@ public struct PassBuilder
 		{
 			var attachment = RGDepthStencilAttachment(target, .Load, .Store);
 			attachment.ReadOnly = true;
+			// Read-only layout cannot use Clear ops - must Load existing content
+			attachment.StencilLoadOp = .Load;
+			attachment.StencilStoreOp = .Store;
 			pass.DepthStencil = attachment;
 		}
 		return this;

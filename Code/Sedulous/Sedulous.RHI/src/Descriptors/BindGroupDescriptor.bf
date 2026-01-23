@@ -17,6 +17,11 @@ struct BindGroupEntry
 	public ITextureView TextureView;
 	/// Sampler to bind (for sampler bindings).
 	public ISampler Sampler;
+	/// Optional explicit texture layout override.
+	/// When Undefined (default), the layout is inferred from the binding type.
+	/// Set to DepthStencilReadOnly when sampling a depth texture that is simultaneously
+	/// used as a read-only depth attachment in the same render pass.
+	public TextureLayout TextureLayoutOverride;
 
 	public this()
 	{
@@ -26,6 +31,7 @@ struct BindGroupEntry
 		BufferSize = 0;
 		TextureView = null;
 		Sampler = null;
+		TextureLayoutOverride = .Undefined;
 	}
 
 	/// Creates a buffer binding entry.
@@ -40,11 +46,12 @@ struct BindGroupEntry
 	}
 
 	/// Creates a texture view binding entry.
-	public static Self Texture(uint32 binding, ITextureView textureView)
+	public static Self Texture(uint32 binding, ITextureView textureView, TextureLayout layoutOverride = .Undefined)
 	{
 		Self entry = .();
 		entry.Binding = binding;
 		entry.TextureView = textureView;
+		entry.TextureLayoutOverride = layoutOverride;
 		return entry;
 	}
 

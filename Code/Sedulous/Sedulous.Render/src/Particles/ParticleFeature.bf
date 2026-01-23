@@ -34,6 +34,10 @@ public class ParticleFeature : RenderFeatureBase
 	private ITextureView mDefaultParticleTextureView ~ delete _;
 	private ISampler mDefaultSampler ~ delete _;
 
+	// Soft particle resources
+	private IBuffer mSoftParamsBuffer ~ delete _;
+	private RGResourceHandle mDepthHandle;
+
 	// Per-emitter GPU resources
 	private Dictionary<ParticleEmitterProxyHandle, GPUParticleSystem> mGPUParticleSystems = new .() ~ DeleteDictionaryAndValues!(_);
 
@@ -186,6 +190,20 @@ public class ParticleFeature : RenderFeatureBase
 		switch (Renderer.Device.CreateSampler(&samplerDesc))
 		{
 		case .Ok(let sampler): mDefaultSampler = sampler;
+		case .Err: return .Err;
+		}
+
+		// Create soft particle params buffer (16 bytes: SoftDistance, NearPlane, FarPlane, padding)
+		BufferDescriptor softParamsDesc = .()
+		{
+			Label = "Soft Particle Params",
+			Size = 16,
+			Usage = .Uniform | .CopyDst
+		};
+
+		switch (Renderer.Device.CreateBuffer(&softParamsDesc))
+		{
+		case .Ok(let buf): mSoftParamsBuffer = buf;
 		case .Err: return .Err;
 		}
 
@@ -391,6 +409,9 @@ public class ParticleFeature : RenderFeatureBase
 		mActiveGPUEmitters.Clear();
 		mActiveCPUEmitters.Clear();
 
+		// Invalidate cached render bind groups (depth texture may have changed on resize)
+		InvalidateRenderBindGroups();
+
 		// Iterate all particle emitters and categorize by backend
 		world.ForEachParticleEmitter(scope [&] (handle, proxy) =>
 		{
@@ -463,6 +484,8 @@ public class ParticleFeature : RenderFeatureBase
 		if (!colorHandle.IsValid || !depthHandle.IsValid)
 			return;
 
+		mDepthHandle = depthHandle;
+
 		mViewWidth = view.Width;
 		mViewHeight = view.Height;
 
@@ -504,13 +527,15 @@ public class ParticleFeature : RenderFeatureBase
 	private Result<void> CreateRenderPipeline()
 	{
 		// GPU render bind group layout
-		BindGroupLayoutEntry[6] gpuRenderEntries = .(
-			.() { Binding = 0, Visibility = .Vertex, Type = .UniformBuffer },
-			.() { Binding = 1, Visibility = .Vertex, Type = .UniformBuffer },
-			.() { Binding = 0, Visibility = .Vertex, Type = .StorageBuffer },
-			.() { Binding = 1, Visibility = .Vertex, Type = .StorageBuffer },
-			.() { Binding = 2, Visibility = .Fragment, Type = .SampledTexture },
-			.() { Binding = 0, Visibility = .Fragment, Type = .Sampler }
+		BindGroupLayoutEntry[8] gpuRenderEntries = .(
+			.() { Binding = 0, Visibility = .Vertex, Type = .UniformBuffer },      // CameraUniforms (b0)
+			.() { Binding = 1, Visibility = .Vertex, Type = .UniformBuffer },      // ParticleParams (b1)
+			.() { Binding = 0, Visibility = .Vertex, Type = .StorageBuffer },      // Particles (t0)
+			.() { Binding = 1, Visibility = .Vertex, Type = .StorageBuffer },      // AliveList (t1)
+			.() { Binding = 2, Visibility = .Fragment, Type = .SampledTexture },   // ParticleTexture (t2)
+			.() { Binding = 0, Visibility = .Fragment, Type = .Sampler },          // LinearSampler (s0)
+			.() { Binding = 3, Visibility = .Fragment, Type = .SampledTexture },   // DepthTexture (t3)
+			.() { Binding = 2, Visibility = .Fragment, Type = .UniformBuffer }     // SoftParticleParams (b2)
 		);
 
 		BindGroupLayoutDescriptor gpuRenderLayoutDesc = .()
@@ -526,14 +551,12 @@ public class ParticleFeature : RenderFeatureBase
 		}
 
 		// CPU render bind group layout
-		// CPU particles use vertex buffer for instance data, bind group has:
-		// - CameraUniforms (b0)
-		// - ParticleTexture (t0)
-		// - LinearSampler (s0)
-		BindGroupLayoutEntry[3] cpuRenderEntries = .(
-			.() { Binding = 0, Visibility = .Vertex, Type = .UniformBuffer },
-			.() { Binding = 0, Visibility = .Fragment, Type = .SampledTexture },
-			.() { Binding = 0, Visibility = .Fragment, Type = .Sampler }
+		BindGroupLayoutEntry[5] cpuRenderEntries = .(
+			.() { Binding = 0, Visibility = .Vertex, Type = .UniformBuffer },      // CameraUniforms (b0)
+			.() { Binding = 0, Visibility = .Fragment, Type = .SampledTexture },   // ParticleTexture (t0)
+			.() { Binding = 0, Visibility = .Fragment, Type = .Sampler },          // LinearSampler (s0)
+			.() { Binding = 1, Visibility = .Fragment, Type = .SampledTexture },   // DepthTexture (t1)
+			.() { Binding = 1, Visibility = .Fragment, Type = .UniformBuffer }     // SoftParticleParams (b1)
 		);
 
 		BindGroupLayoutDescriptor cpuRenderLayoutDesc = .()
@@ -588,14 +611,17 @@ public class ParticleFeature : RenderFeatureBase
 		encoder.SetViewport(0, 0, (float)viewWidth, (float)viewHeight, 0.0f, 1.0f);
 		encoder.SetScissorRect(0, 0, viewWidth, viewHeight);
 
+		// Resolve depth-only texture view for soft particles (depth aspect only for shader sampling)
+		let depthView = Renderer.RenderGraph?.GetDepthOnlyTextureView(mDepthHandle);
+
 		// Render GPU particles
-		RenderGPUParticles(encoder);
+		RenderGPUParticles(encoder, depthView);
 
 		// Render CPU particles
-		RenderCPUParticles(encoder);
+		RenderCPUParticles(encoder, depthView);
 	}
 
-	private void RenderGPUParticles(IRenderPassEncoder encoder)
+	private void RenderGPUParticles(IRenderPassEncoder encoder, ITextureView depthView)
 	{
 		if (mGPURenderPipelineAlpha == null && mGPURenderPipelineAdditive == null && mGPURenderPipelinePremultiplied == null)
 			return;
@@ -607,43 +633,93 @@ public class ParticleFeature : RenderFeatureBase
 			GPUParticleSystem system;
 			if (mGPUParticleSystems.TryGetValue(handle, out system))
 			{
-				let bindGroup = system.GetRenderBindGroup(frameIndex);
-				if (bindGroup != null)
+				let proxy = Renderer.ActiveWorld?.GetParticleEmitter(handle);
+
+				// Ensure render bind group exists for this frame
+				let bindGroup = GetOrCreateGPURenderBindGroup(system, frameIndex, depthView);
+				if (bindGroup == null)
+					continue;
+
+				IRenderPipeline pipeline = null;
+				switch (system.BlendMode)
 				{
-					IRenderPipeline pipeline = null;
-					switch (system.BlendMode)
-					{
-					case .Alpha: pipeline = mGPURenderPipelineAlpha;
-					case .Additive: pipeline = mGPURenderPipelineAdditive;
-					case .Premultiplied: pipeline = mGPURenderPipelinePremultiplied;
-					}
+				case .Alpha: pipeline = mGPURenderPipelineAlpha;
+				case .Additive: pipeline = mGPURenderPipelineAdditive;
+				case .Premultiplied: pipeline = mGPURenderPipelinePremultiplied;
+				}
 
-					if (pipeline == null)
-						continue;
+				if (pipeline == null)
+					continue;
 
-					encoder.SetPipeline(pipeline);
+				encoder.SetPipeline(pipeline);
 
-					uint32[4] particleParams = .(system.EstimatedAliveCount, 0, 0, 0);
-					Renderer.Device.Queue.WriteBuffer(
-						system.ParticleParams, 0,
-						Span<uint8>((uint8*)&particleParams[0], 16)
-					);
+				uint32[4] particleParams = .(system.EstimatedAliveCount, 0, 0, 0);
+				Renderer.Device.Queue.WriteBuffer(
+					system.ParticleParams, 0,
+					Span<uint8>((uint8*)&particleParams[0], 16)
+				);
 
-					encoder.SetBindGroup(0, bindGroup, default);
+				// Update soft particle params for this emitter
+				let softDistance = proxy != null ? proxy.SoftParticleDistance : 0.0f;
+				WriteSoftParams(softDistance);
 
-					let instanceCount = Math.Min(system.EstimatedAliveCount, system.MaxParticles);
-					if (instanceCount > 0)
-					{
-						encoder.Draw(6, instanceCount, 0, 0);
-						Renderer.Stats.DrawCalls++;
-						Renderer.Stats.InstanceCount += (int32)instanceCount;
-					}
+				encoder.SetBindGroup(0, bindGroup, default);
+
+				let instanceCount = Math.Min(system.EstimatedAliveCount, system.MaxParticles);
+				if (instanceCount > 0)
+				{
+					encoder.Draw(6, instanceCount, 0, 0);
+					Renderer.Stats.DrawCalls++;
+					Renderer.Stats.InstanceCount += (int32)instanceCount;
 				}
 			}
 		}
 	}
 
-	private void RenderCPUParticles(IRenderPassEncoder encoder)
+	private IBindGroup GetOrCreateGPURenderBindGroup(GPUParticleSystem system, int32 frameIndex, ITextureView depthView)
+	{
+		// Check if existing bind group is still valid
+		if (system.RenderBindGroups[frameIndex] != null)
+			return system.RenderBindGroups[frameIndex];
+
+		if (mGPURenderBindGroupLayout == null || mDefaultParticleTextureView == null || mDefaultSampler == null)
+			return null;
+		if (depthView == null || mSoftParamsBuffer == null)
+			return null;
+
+		let cameraBuffer = Renderer.RenderFrameContext?.GetSceneUniformBuffer(frameIndex);
+		if (cameraBuffer == null)
+			return null;
+
+		BindGroupEntry[8] renderEntries = .(
+			BindGroupEntry.Buffer(0, cameraBuffer, 0, SceneUniforms.Size),
+			BindGroupEntry.Buffer(1, system.ParticleParams, 0, 16),
+			BindGroupEntry.Buffer(0, system.ParticleBuffer, 0, (uint64)(system.MaxParticles * GPUParticle.SizeInBytes)),
+			BindGroupEntry.Buffer(1, system.AliveList, 0, (uint64)(system.MaxParticles * 4)),
+			BindGroupEntry.Texture(2, mDefaultParticleTextureView),
+			BindGroupEntry.Sampler(0, mDefaultSampler),
+			BindGroupEntry.Texture(3, depthView, .DepthStencilReadOnly),
+			BindGroupEntry.Buffer(2, mSoftParamsBuffer, 0, 16)
+		);
+
+		BindGroupDescriptor renderBgDesc = .()
+		{
+			Label = "Particle GPU Render BindGroup",
+			Layout = mGPURenderBindGroupLayout,
+			Entries = renderEntries
+		};
+
+		switch (Renderer.Device.CreateBindGroup(&renderBgDesc))
+		{
+		case .Ok(let bg):
+			system.RenderBindGroups[frameIndex] = bg;
+			return bg;
+		case .Err:
+			return null;
+		}
+	}
+
+	private void RenderCPUParticles(IRenderPassEncoder encoder, ITextureView depthView)
 	{
 		if (mCPURenderPipelineAlpha == null && mCPURenderPipelineAdditive == null && mCPURenderPipelinePremultiplied == null)
 			return;
@@ -679,11 +755,14 @@ public class ParticleFeature : RenderFeatureBase
 
 			encoder.SetPipeline(pipeline);
 
+			// Update soft particle params for this emitter
+			WriteSoftParams(proxy.SoftParticleDistance);
+
 			// Get or create per-frame bind group for this emitter
 			IBindGroup bindGroup = null;
 			if (!frameDict.TryGetValue(handle, out bindGroup))
 			{
-				bindGroup = CreateCPURenderBindGroup(proxy);
+				bindGroup = CreateCPURenderBindGroup(proxy, depthView);
 				if (bindGroup != null)
 					frameDict[handle] = bindGroup;
 			}
@@ -699,9 +778,11 @@ public class ParticleFeature : RenderFeatureBase
 		}
 	}
 
-	private IBindGroup CreateCPURenderBindGroup(ParticleEmitterProxy* proxy)
+	private IBindGroup CreateCPURenderBindGroup(ParticleEmitterProxy* proxy, ITextureView depthView)
 	{
 		if (mCPURenderBindGroupLayout == null || mDefaultParticleTextureView == null || mDefaultSampler == null)
+			return null;
+		if (depthView == null || mSoftParamsBuffer == null)
 			return null;
 
 		let cameraBuffer = Renderer.RenderFrameContext?.SceneUniformBuffer;
@@ -710,10 +791,12 @@ public class ParticleFeature : RenderFeatureBase
 
 		let textureView = proxy.ParticleTexture != null ? proxy.ParticleTexture : mDefaultParticleTextureView;
 
-		BindGroupEntry[3] entries = .(
+		BindGroupEntry[5] entries = .(
 			BindGroupEntry.Buffer(0, cameraBuffer, 0, SceneUniforms.Size),
 			BindGroupEntry.Texture(0, textureView),
-			BindGroupEntry.Sampler(0, mDefaultSampler)
+			BindGroupEntry.Sampler(0, mDefaultSampler),
+			BindGroupEntry.Texture(1, depthView, .DepthStencilReadOnly),
+			BindGroupEntry.Buffer(1, mSoftParamsBuffer, 0, 16)
 		);
 
 		BindGroupDescriptor bgDesc = .()
@@ -728,6 +811,53 @@ public class ParticleFeature : RenderFeatureBase
 		case .Ok(let bg): return bg;
 		case .Err: return null;
 		}
+	}
+
+	private void InvalidateRenderBindGroups()
+	{
+		// Clear GPU particle render bind groups
+		for (let kv in mGPUParticleSystems)
+		{
+			let system = kv.value;
+			for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
+			{
+				if (system.RenderBindGroups[i] != null)
+				{
+					delete system.RenderBindGroups[i];
+					system.RenderBindGroups[i] = null;
+				}
+			}
+		}
+
+		// Clear CPU particle render bind groups
+		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
+		{
+			if (mCPURenderBindGroups[i] != null)
+			{
+				for (let kv in mCPURenderBindGroups[i])
+					delete kv.value;
+				mCPURenderBindGroups[i].Clear();
+			}
+		}
+	}
+
+	private void WriteSoftParams(float softDistance)
+	{
+		if (mSoftParamsBuffer == null)
+			return;
+
+		let frameContext = Renderer.RenderFrameContext;
+		float[4] softParams = .(
+			softDistance,
+			frameContext != null ? frameContext.SceneUniforms.NearPlane : 0.1f,
+			frameContext != null ? frameContext.SceneUniforms.FarPlane : 1000.0f,
+			0.0f
+		);
+
+		Renderer.Device.Queue.WriteBuffer(
+			mSoftParamsBuffer, 0,
+			Span<uint8>((uint8*)&softParams[0], 16)
+		);
 	}
 
 	private GPUParticleSystem CreateGPUParticleSystem(ParticleEmitterProxy* proxy)
@@ -864,42 +994,8 @@ public class ParticleFeature : RenderFeatureBase
 			}
 		}
 
-		// Create per-frame render bind groups (one per frame buffer)
-		if (mGPURenderBindGroupLayout != null && mDefaultParticleTextureView != null && mDefaultSampler != null)
-		{
-			let frameContext = Renderer.RenderFrameContext;
-			if (frameContext != null)
-			{
-				for (int32 frameIdx = 0; frameIdx < RenderConfig.FrameBufferCount; frameIdx++)
-				{
-					let cameraBuffer = frameContext.GetSceneUniformBuffer(frameIdx);
-					if (cameraBuffer == null)
-						continue;
-
-					BindGroupEntry[6] renderEntries = .(
-						BindGroupEntry.Buffer(0, cameraBuffer, 0, SceneUniforms.Size),
-						BindGroupEntry.Buffer(1, system.ParticleParams, 0, 16),
-						BindGroupEntry.Buffer(0, system.ParticleBuffer, 0, (uint64)(proxy.MaxParticles * GPUParticle.SizeInBytes)),
-						BindGroupEntry.Buffer(1, system.AliveList, 0, (uint64)(proxy.MaxParticles * 4)),
-						BindGroupEntry.Texture(2, mDefaultParticleTextureView),
-						BindGroupEntry.Sampler(0, mDefaultSampler)
-					);
-
-					BindGroupDescriptor renderBgDesc = .()
-					{
-						Label = "Particle GPU Render BindGroup",
-						Layout = mGPURenderBindGroupLayout,
-						Entries = renderEntries
-					};
-
-					switch (Renderer.Device.CreateBindGroup(&renderBgDesc))
-					{
-					case .Ok(let bg): system.RenderBindGroups[frameIdx] = bg;
-					case .Err:
-					}
-				}
-			}
-		}
+		// Render bind groups are created lazily in RenderGPUParticles
+		// (requires depth texture view which isn't available until pass execution)
 
 		return system;
 	}

@@ -218,6 +218,14 @@ public class RenderGraph : IDisposable
 		return null;
 	}
 
+	/// Gets the depth-only texture view for a depth/stencil resource (for shader sampling).
+	public ITextureView GetDepthOnlyTextureView(RGResourceHandle handle)
+	{
+		if (let resource = GetResourceByHandle(handle))
+			return resource.DepthOnlyView;
+		return null;
+	}
+
 	/// Gets the texture for a resource.
 	public ITexture GetTexture(RGResourceHandle handle)
 	{
@@ -792,12 +800,9 @@ public class RenderGraph : IDisposable
 			}
 		}
 
-		// Handle depth attachments - need DepthStencilAttachment layout BEFORE render pass starts
-		// The render pass uses initialLayout=UNDEFINED with LoadOp.Clear, which works when the
-		// actual layout is UNDEFINED or DepthStencilAttachment. But if the texture was previously
-		// used as a shader read (ShaderReadOnly layout), we MUST issue an explicit barrier first.
-		// This is because initialLayout=UNDEFINED tells Vulkan "discard contents" but the driver
-		// still needs a valid layout transition.
+		// Handle depth attachments - need appropriate depth layout BEFORE render pass starts.
+		// Read-only depth uses DepthStencilReadOnly (allows concurrent shader sampling).
+		// Writable depth uses DepthStencilAttachment.
 		if (pass.DepthStencil.HasValue)
 		{
 			let depthAtt = pass.DepthStencil.Value;
@@ -806,18 +811,18 @@ public class RenderGraph : IDisposable
 				if (resource.Type == .Texture && resource.Texture != null)
 				{
 					let currentLayout = GetTextureLayout(resource.Texture);
+					let targetLayout = depthAtt.ReadOnly ? ResourceLayoutState.DepthStencilReadOnly : ResourceLayoutState.DepthStencilAttachment;
 
-					// If texture is not already in DepthStencilAttachment (or Undefined which is the initial state),
-					// we need to transition it explicitly
-					if (currentLayout != .DepthStencilAttachment && currentLayout != .Undefined)
+					if (currentLayout != targetLayout && currentLayout != .Undefined)
 					{
 						let oldLayout = ToTextureLayout(currentLayout);
+						let newLayout = ToTextureLayout(targetLayout);
 
 						if (DebugLogLayouts)
-							Console.WriteLine("[Barrier]   Issuing depth barrier: {} -> DepthStencilAttachment", oldLayout);
+							Console.WriteLine("[Barrier]   Issuing depth barrier: {} -> {}", oldLayout, newLayout);
 
-						commandEncoder.TextureBarrier(resource.Texture, oldLayout, .DepthStencilAttachment);
-						SetTextureLayout(resource.Texture, .DepthStencilAttachment);
+						commandEncoder.TextureBarrier(resource.Texture, oldLayout, newLayout);
+						SetTextureLayout(resource.Texture, targetLayout);
 					}
 				}
 			}
@@ -874,7 +879,7 @@ public class RenderGraph : IDisposable
 	/// which Vulkan transitions automatically at the end of the render pass.
 	private void UpdateLayoutsAfterPass(RenderPass pass)
 	{
-		// Update depth attachment layout - render pass leaves it in DepthStencilAttachment
+		// Update depth attachment layout based on whether it was read-only or writable
 		if (pass.DepthStencil.HasValue)
 		{
 			let depthAtt = pass.DepthStencil.Value;
@@ -882,10 +887,11 @@ public class RenderGraph : IDisposable
 			{
 				if (resource.Type == .Texture && resource.Texture != null)
 				{
+					let depthLayout = depthAtt.ReadOnly ? ResourceLayoutState.DepthStencilReadOnly : ResourceLayoutState.DepthStencilAttachment;
 					if (DebugLogLayouts)
-						Console.WriteLine("[Layout] Pass '{}' depth '{}': setting to DepthStencilAttachment",
-							pass.Name, resource.Name);
-					SetTextureLayout(resource.Texture, .DepthStencilAttachment);
+						Console.WriteLine("[Layout] Pass '{}' depth '{}': setting to {}",
+							pass.Name, resource.Name, depthLayout);
+					SetTextureLayout(resource.Texture, depthLayout);
 				}
 			}
 		}
@@ -934,6 +940,7 @@ public class RenderGraph : IDisposable
 		case .Undefined: return .Undefined;
 		case .ColorAttachment: return .ColorAttachment;
 		case .DepthStencilAttachment: return .DepthStencilAttachment;
+		case .DepthStencilReadOnly: return .DepthStencilReadOnly;
 		case .ShaderReadOnly: return .ShaderReadOnly;
 		case .General: return .General;
 		case .Present: return .Present;

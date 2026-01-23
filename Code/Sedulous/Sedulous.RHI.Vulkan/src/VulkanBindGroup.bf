@@ -149,12 +149,21 @@ class VulkanBindGroup : IBindGroup
 					let vkView = entry.TextureView as VulkanTextureView;
 					if (vkView != null)
 					{
+						VkImageLayout imgLayout;
+						if (entry.TextureLayoutOverride != .Undefined)
+						{
+							// Explicit layout override (e.g., DepthStencilReadOnly for depth sampling during read-only depth test)
+							imgLayout = VulkanCommandEncoder.ToVkImageLayout(entry.TextureLayoutOverride);
+						}
+						else if (layoutEntry.Type == .SampledTexture)
+							imgLayout = .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+						else
+							imgLayout = .VK_IMAGE_LAYOUT_GENERAL;
+
 						imageInfos.Add(.()
 							{
 								imageView = vkView.ImageView,
-								imageLayout = layoutEntry.Type == .SampledTexture ?
-									.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL :
-									.VK_IMAGE_LAYOUT_GENERAL,
+								imageLayout = imgLayout,
 								sampler = default
 							});
 						write.pImageInfo = &imageInfos[imageInfos.Count - 1];

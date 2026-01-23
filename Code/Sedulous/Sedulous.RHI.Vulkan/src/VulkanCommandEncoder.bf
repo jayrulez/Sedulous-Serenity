@@ -289,6 +289,10 @@ class VulkanCommandEncoder : ICommandEncoder
 			// Include both READ and WRITE since depth test reads, and both early and late fragment tests
 			srcAccess = .VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | .VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 			srcStage = .VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | .VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+		case .DepthStencilReadOnly:
+			// Read-only depth test + shader sampling
+			srcAccess = .VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | .VK_ACCESS_SHADER_READ_BIT;
+			srcStage = .VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | .VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT | .VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 		case .ShaderReadOnly:
 			srcAccess = .VK_ACCESS_SHADER_READ_BIT;
 			// Include both vertex and fragment shader stages since textures can be sampled in either
@@ -319,6 +323,10 @@ class VulkanCommandEncoder : ICommandEncoder
 		case .DepthStencilAttachment:
 			dstAccess = .VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | .VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 			dstStage = .VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | .VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+		case .DepthStencilReadOnly:
+			// Read-only depth test + shader sampling
+			dstAccess = .VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | .VK_ACCESS_SHADER_READ_BIT;
+			dstStage = .VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | .VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT | .VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 		case .ShaderReadOnly:
 			dstAccess = .VK_ACCESS_SHADER_READ_BIT;
 			// Include both vertex and fragment shader stages since textures can be sampled in either
@@ -368,7 +376,7 @@ class VulkanCommandEncoder : ICommandEncoder
 		);
 	}
 
-	private static VkImageLayout ToVkImageLayout(TextureLayout layout)
+	public static VkImageLayout ToVkImageLayout(TextureLayout layout)
 	{
 		switch (layout)
 		{
@@ -376,6 +384,7 @@ class VulkanCommandEncoder : ICommandEncoder
 		case .General: return .VK_IMAGE_LAYOUT_GENERAL;
 		case .ColorAttachment: return .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		case .DepthStencilAttachment: return .VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		case .DepthStencilReadOnly: return .VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
 		case .ShaderReadOnly: return .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		case .TransferSrc: return .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
 		case .TransferDst: return .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
@@ -1012,6 +1021,9 @@ class VulkanCommandEncoder : ICommandEncoder
 				{
 					uint32 index = (uint32)attachments.Count;
 					bool hasStencil = VulkanConversions.HasStencilComponent(vkView.Format);
+					let depthLayout = ds.DepthReadOnly ?
+						VkImageLayout.VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL :
+						VkImageLayout.VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
 					attachments.Add(.()
 						{
@@ -1021,14 +1033,14 @@ class VulkanCommandEncoder : ICommandEncoder
 							storeOp = ToVkStoreOp(ds.DepthStoreOp),
 							stencilLoadOp = hasStencil ? ToVkLoadOp(ds.StencilLoadOp) : .VK_ATTACHMENT_LOAD_OP_DONT_CARE,
 							stencilStoreOp = hasStencil ? ToVkStoreOp(ds.StencilStoreOp) : .VK_ATTACHMENT_STORE_OP_DONT_CARE,
-							initialLayout = ds.DepthLoadOp == .Load ? .VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL : .VK_IMAGE_LAYOUT_UNDEFINED,
-							finalLayout = .VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+							initialLayout = ds.DepthLoadOp == .Load ? depthLayout : .VK_IMAGE_LAYOUT_UNDEFINED,
+							finalLayout = depthLayout
 						});
 
 					depthRef = .()
 						{
 							attachment = index,
-							layout = .VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+							layout = depthLayout
 						};
 					hasDepth = true;
 				}

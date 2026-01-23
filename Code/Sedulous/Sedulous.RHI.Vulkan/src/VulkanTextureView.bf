@@ -13,6 +13,7 @@ class VulkanTextureView : ITextureView
 	private VkImageView mImageView;
 	private TextureViewDimension mDimension;
 	private TextureFormat mFormat;
+	private TextureAspect mAspect;
 	private uint32 mBaseMipLevel;
 	private uint32 mMipLevelCount;
 	private uint32 mBaseArrayLayer;
@@ -25,6 +26,7 @@ class VulkanTextureView : ITextureView
 		mTexture = texture;
 		mDimension = descriptor.Dimension;
 		mFormat = descriptor.Format;
+		mAspect = descriptor.Aspect;
 		mBaseMipLevel = descriptor.BaseMipLevel;
 		mMipLevelCount = descriptor.MipLevelCount;
 		mBaseArrayLayer = descriptor.BaseArrayLayer;
@@ -57,6 +59,7 @@ class VulkanTextureView : ITextureView
 	public ITexture Texture => mTexture;
 	public TextureViewDimension Dimension => mDimension;
 	public TextureFormat Format => mFormat;
+	public TextureAspect Aspect => mAspect;
 	public uint32 BaseMipLevel => mBaseMipLevel;
 	public uint32 MipLevelCount => mMipLevelCount;
 	public uint32 BaseArrayLayer => mBaseArrayLayer;

@@ -9,8 +9,10 @@ enum TextureLayout
 	General,
 	/// Optimal for use as a color attachment in a render pass.
 	ColorAttachment,
-	/// Optimal for use as a depth/stencil attachment.
+	/// Optimal for use as a depth/stencil attachment (read-write).
 	DepthStencilAttachment,
+	/// Optimal for read-only depth/stencil attachment that is also sampled in shaders.
+	DepthStencilReadOnly,
 	/// Optimal for reading in a shader (sampled image).
 	ShaderReadOnly,
 	/// Optimal for use as transfer source.

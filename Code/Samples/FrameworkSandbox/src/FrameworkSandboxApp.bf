@@ -493,6 +493,7 @@ class FrameworkSandboxApp : Application
 					proxy.GravityMultiplier = -0.1f;  // Slightly buoyant
 					proxy.Drag = 0.8f;
 					proxy.SortParticles = true;
+					proxy.SoftParticleDistance = 0.5f;  // Soft fade near geometry
 					proxy.IsEnabled = true;
 					proxy.IsEmitting = true;
 

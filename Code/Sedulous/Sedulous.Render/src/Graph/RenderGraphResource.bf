@@ -12,6 +12,8 @@ public enum ResourceLayoutState
 	ColorAttachment,
 	/// Resource is in depth/stencil attachment layout.
 	DepthStencilAttachment,
+	/// Resource is in depth/stencil read-only layout (depth test + shader sampling).
+	DepthStencilReadOnly,
 	/// Resource is in shader read-only layout (sampled).
 	ShaderReadOnly,
 	/// Resource is in general layout (storage/UAV).
@@ -137,6 +139,8 @@ public class RenderGraphResource
 	public TextureResourceDesc TextureDesc;
 	public ITexture Texture;
 	public ITextureView TextureView;
+	/// Depth-only texture view for sampling depth from depth/stencil textures.
+	public ITextureView DepthOnlyView;
 
 	// Buffer data
 	public BufferResourceDesc BufferDesc;
@@ -236,6 +240,28 @@ public class RenderGraphResource
 					TextureView = view;
 				else
 					return .Err;
+
+				// Create depth-only view for depth/stencil textures with Sampled usage
+				if (TextureDesc.Usage.HasFlag(.Sampled) &&
+					(TextureDesc.Format == .Depth24PlusStencil8 || TextureDesc.Format == .Depth32FloatStencil8))
+				{
+					var depthOnlyViewDesc = TextureViewDescriptor()
+					{
+						Format = TextureDesc.Format,
+						Dimension = .Texture2D,
+						BaseMipLevel = 0,
+						MipLevelCount = TextureDesc.MipLevels,
+						BaseArrayLayer = 0,
+						ArrayLayerCount = TextureDesc.DepthOrArrayLayers,
+						Aspect = .DepthOnly,
+						Label = "RGDepthOnlyView"
+					};
+
+					if (device.CreateTextureView(tex, &depthOnlyViewDesc) case .Ok(let depthOnlyView))
+						DepthOnlyView = depthOnlyView;
+					else
+						return .Err;
+				}
 			}
 			else
 				return .Err;
@@ -266,6 +292,11 @@ public class RenderGraphResource
 		if (!IsTransient)
 			return;
 
+		if (DepthOnlyView != null)
+		{
+			delete DepthOnlyView;
+			DepthOnlyView = null;
+		}
 		if (TextureView != null)
 		{
 			delete TextureView;
