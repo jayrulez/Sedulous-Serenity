@@ -1,5 +1,0 @@
-FileVersion = 1
-
-[Project]
-Name = "Sandbox"
-StartupObject = "Sandbox.Program"
