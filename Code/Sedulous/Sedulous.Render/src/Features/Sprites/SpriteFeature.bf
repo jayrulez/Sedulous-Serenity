@@ -423,7 +423,7 @@ public class SpriteFeature : RenderFeatureBase
 		{
 			let key = mSortEntries[i];
 			var j = i - 1;
-			while (j >= 0 && (int)(void*)mSortEntries[j].TextureView > (int)(void*)key.TextureView)
+			while (j >= 0 && (int)Internal.UnsafeCastToPtr(mSortEntries[j].TextureView) > (int)Internal.UnsafeCastToPtr(key.TextureView))
 			{
 				mSortEntries[j + 1] = mSortEntries[j];
 				j--;
