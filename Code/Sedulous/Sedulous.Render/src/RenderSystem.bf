@@ -431,7 +431,7 @@ public class RenderSystem : IDisposable
 			dependsOn[name] = scope:: .();
 		}
 
-		// Collect dependencies
+		// Collect dependencies (only count deps on registered features)
 		List<StringView> deps = scope .();
 		for (let feature in mFeatures)
 		{
@@ -440,6 +440,10 @@ public class RenderSystem : IDisposable
 
 			for (let dep in deps)
 			{
+				// Skip dependencies on features that aren't registered
+				if (!inDegree.ContainsKey(dep))
+					continue;
+
 				if (dependsOn.TryGetValue(feature.Name, let list))
 				{
 					list.Add(dep);

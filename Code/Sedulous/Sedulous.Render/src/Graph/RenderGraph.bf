@@ -280,7 +280,7 @@ public class RenderGraph : IDisposable
 		// Cull unused passes
 		CullPasses();
 
-		// Build pass dependencies
+		// Build pass dependencies (readers depend on latest writer, writers chain in order)
 		BuildDependencies();
 
 		// Topological sort
@@ -488,37 +488,62 @@ public class RenderGraph : IDisposable
 		}
 	}
 
+	/// Builds pass dependencies by tracking the latest writer per resource.
+	/// Each reader depends on the most recent writer before it.
+	/// Each writer (Load+Store) depends on the previous writer, forming a chain.
+	/// This ensures correct execution order for passes sharing resources.
 	private void BuildDependencies()
 	{
+		// Track latest writer per resource (by resource index)
+		PassHandle[] latestWriter = scope PassHandle[mResources.Count];
+		for (int i = 0; i < latestWriter.Count; i++)
+			latestWriter[i] = .Invalid;
+
+		// Iterate passes in insertion order
 		for (int i = 0; i < mPasses.Count; i++)
 		{
 			let pass = mPasses[i];
 			if (pass.IsCulled)
 				continue;
 
+			let passHandle = PassHandle() { Index = (uint32)i };
+
+			// For each input, depend on the latest writer before this pass
 			List<RGResourceHandle> inputs = scope .();
 			pass.GetInputs(inputs);
 
 			for (let handle in inputs)
 			{
-				if (let resource = GetResourceByHandle(handle))
+				if (!handle.IsValid || handle.Index >= (uint32)mResources.Count)
+					continue;
+
+				let writer = latestWriter[handle.Index];
+				if (writer.IsValid && writer.Index != (uint32)i)
 				{
-					if (resource.FirstWriter.IsValid && resource.FirstWriter.Index != (uint32)i)
+					bool found = false;
+					for (let dep in pass.Dependencies)
 					{
-						// Check if dependency already exists
-						bool found = false;
-						for (let dep in pass.Dependencies)
+						if (dep == writer)
 						{
-							if (dep == resource.FirstWriter)
-							{
-								found = true;
-								break;
-							}
+							found = true;
+							break;
 						}
-						if (!found)
-							pass.Dependencies.Add(resource.FirstWriter);
 					}
+					if (!found)
+						pass.Dependencies.Add(writer);
 				}
+			}
+
+			// Update latest writer for each output
+			List<RGResourceHandle> outputs = scope .();
+			pass.GetOutputs(outputs);
+
+			for (let handle in outputs)
+			{
+				if (!handle.IsValid || handle.Index >= (uint32)mResources.Count)
+					continue;
+
+				latestWriter[handle.Index] = passHandle;
 			}
 		}
 	}

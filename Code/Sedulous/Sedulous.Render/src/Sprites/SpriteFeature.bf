@@ -19,7 +19,9 @@ public class SpriteFeature : RenderFeatureBase
 	// Per-frame instance buffers
 	private IBuffer[RenderConfig.FrameBufferCount] mInstanceBuffers ~ { for (let b in _) delete b; };
 
-	// Default sampler
+	// Default texture (white circle) and sampler
+	private ITexture mDefaultTexture ~ delete _;
+	private ITextureView mDefaultTextureView ~ delete _;
 	private ISampler mDefaultSampler ~ delete _;
 
 	// Per-frame bind groups cached per texture per frame
@@ -42,10 +44,11 @@ public class SpriteFeature : RenderFeatureBase
 	/// Feature name.
 	public override StringView Name => "Sprites";
 
-	/// Sprites render after transparent.
+	/// Sprites render after transparent and sky.
 	public override void GetDependencies(List<StringView> outDependencies)
 	{
 		outDependencies.Add("ForwardTransparent");
+		outDependencies.Add("Sky");
 	}
 
 	protected override Result<void> OnInitialize()
@@ -88,6 +91,50 @@ public class SpriteFeature : RenderFeatureBase
 
 	private Result<void> CreateResources()
 	{
+		// Create default white texture (32x32 solid white)
+		const int32 TexSize = 32;
+		const int32 TexBytes = TexSize * TexSize * 4;
+
+		TextureDescriptor texDesc = .()
+		{
+			Label = "Default Sprite Texture",
+			Width = TexSize,
+			Height = TexSize,
+			Depth = 1,
+			Format = .RGBA8Unorm,
+			MipLevelCount = 1,
+			ArrayLayerCount = 1,
+			SampleCount = 1,
+			Dimension = .Texture2D,
+			Usage = .Sampled | .CopyDst
+		};
+
+		switch (Renderer.Device.CreateTexture(&texDesc))
+		{
+		case .Ok(let tex): mDefaultTexture = tex;
+		case .Err: return .Err;
+		}
+
+		uint8[] pixels = scope uint8[TexBytes];
+		for (int32 i = 0; i < TexBytes; i++)
+			pixels[i] = 255; // Solid white RGBA
+
+		var layout = TextureDataLayout() { BytesPerRow = TexSize * 4, RowsPerImage = TexSize };
+		var writeSize = Extent3D(TexSize, TexSize, 1);
+		Renderer.Device.Queue.WriteTexture(mDefaultTexture, Span<uint8>(&pixels[0], TexBytes), &layout, &writeSize);
+
+		TextureViewDescriptor viewDesc = .()
+		{
+			Label = "Default Sprite Texture View",
+			Dimension = .Texture2D
+		};
+
+		switch (Renderer.Device.CreateTextureView(mDefaultTexture, &viewDesc))
+		{
+		case .Ok(let view): mDefaultTextureView = view;
+		case .Err: return .Err;
+		}
+
 		// Create default sampler
 		SamplerDescriptor samplerDesc = .()
 		{
@@ -175,8 +222,8 @@ public class SpriteFeature : RenderFeatureBase
 					Attributes = VertexAttribute[4](
 						.() { Format = .Float3,           Offset = 0,  ShaderLocation = 0 },  // Position
 						.() { Format = .Float2,           Offset = 12, ShaderLocation = 1 },  // Size
-						.() { Format = .Float4,           Offset = 16, ShaderLocation = 2 },  // UVRect
-						.() { Format = .UByte4Normalized, Offset = 32, ShaderLocation = 3 }   // Color
+						.() { Format = .Float4,           Offset = 20, ShaderLocation = 2 },  // UVRect
+						.() { Format = .UByte4Normalized, Offset = 36, ShaderLocation = 3 }   // Color
 					)
 				}
 			);
@@ -236,13 +283,14 @@ public class SpriteFeature : RenderFeatureBase
 		int32 spriteIdx = 0;
 		world.ForEachSprite(scope [&] (handle, proxy) =>
 		{
-			if (!proxy.IsActive || proxy.Texture == null)
+			if (!proxy.IsActive)
 				return;
 
 			if (spriteIdx >= MaxSprites)
 				return;
 
-			mSortEntries.Add(.() { TextureView = proxy.Texture, OriginalIndex = spriteIdx });
+			let textureView = proxy.Texture != null ? proxy.Texture : mDefaultTextureView;
+			mSortEntries.Add(.() { TextureView = textureView, OriginalIndex = spriteIdx });
 
 			SpriteInstance inst = .();
 			inst.Position = proxy.Position;

@@ -83,6 +83,20 @@ struct ParticleEmitterComponent
 }
 
 
+/// Component for sprite entities.
+struct SpriteComponent
+{
+	/// Handle to the sprite proxy in the render world.
+	public SpriteProxyHandle ProxyHandle;
+	/// Whether this sprite is enabled.
+	public bool Enabled;
+
+	public static SpriteComponent Default => .() {
+		ProxyHandle = .Invalid,
+		Enabled = true
+	};
+}
+
 /// Scene module that manages render proxies and syncs entity transforms to the render world.
 /// Created automatically by RenderSubsystem for each scene.
 class RenderSceneModule : SceneModule
@@ -181,6 +195,16 @@ class RenderSceneModule : SceneModule
 			let worldMatrix = scene.GetWorldMatrix(entity);
 			mWorld.SetParticleEmitterPosition(emitter.ProxyHandle, worldMatrix.Translation);
 		}
+
+		// Sync sprite transforms
+		for (let (entity, sprite) in scene.Query<SpriteComponent>())
+		{
+			if (!sprite.ProxyHandle.IsValid || !sprite.Enabled)
+				continue;
+
+			let worldMatrix = scene.GetWorldMatrix(entity);
+			mWorld.SetSpritePosition(sprite.ProxyHandle, worldMatrix.Translation);
+		}
 	}
 
 	public override void OnEntityDestroyed(Scene scene, EntityId entity)
@@ -221,6 +245,13 @@ class RenderSceneModule : SceneModule
 		{
 			if (emitter.ProxyHandle.IsValid)
 				mWorld.DestroyParticleEmitter(emitter.ProxyHandle);
+		}
+
+		// Clean up sprite proxy
+		if (let sprite = scene.GetComponent<SpriteComponent>(entity))
+		{
+			if (sprite.ProxyHandle.IsValid)
+				mWorld.DestroySprite(sprite.ProxyHandle);
 		}
 	}
 
@@ -616,5 +647,72 @@ class RenderSceneModule : SceneModule
 		mWorld.SetParticleEmitterPosition(handle, worldMatrix.Translation);
 
 		return handle;
+	}
+
+	// ==================== Sprite API ====================
+
+	/// Creates a sprite for an entity.
+	public SpriteProxyHandle CreateSprite(EntityId entity)
+	{
+		if (mScene == null || mWorld == null)
+			return .Invalid;
+
+		let handle = mWorld.CreateSprite();
+
+		var comp = mScene.GetComponent<SpriteComponent>(entity);
+		if (comp == null)
+		{
+			mScene.SetComponent<SpriteComponent>(entity, .Default);
+			comp = mScene.GetComponent<SpriteComponent>(entity);
+		}
+
+		comp.ProxyHandle = handle;
+		comp.Enabled = true;
+
+		let worldMatrix = mScene.GetWorldMatrix(entity);
+		mWorld.SetSpritePosition(handle, worldMatrix.Translation);
+
+		return handle;
+	}
+
+	/// Gets the sprite proxy for direct access.
+	public SpriteProxy* GetSpriteProxy(EntityId entity)
+	{
+		if (let comp = mScene?.GetComponent<SpriteComponent>(entity))
+		{
+			if (comp.ProxyHandle.IsValid)
+				return mWorld?.GetSprite(comp.ProxyHandle);
+		}
+		return null;
+	}
+
+	/// Sets sprite size.
+	public void SetSpriteSize(EntityId entity, Vector2 size)
+	{
+		if (let comp = mScene?.GetComponent<SpriteComponent>(entity))
+		{
+			if (comp.ProxyHandle.IsValid)
+				mWorld.SetSpriteSize(comp.ProxyHandle, size);
+		}
+	}
+
+	/// Sets sprite color.
+	public void SetSpriteColor(EntityId entity, Color color)
+	{
+		if (let comp = mScene?.GetComponent<SpriteComponent>(entity))
+		{
+			if (comp.ProxyHandle.IsValid)
+				mWorld.SetSpriteColor(comp.ProxyHandle, color);
+		}
+	}
+
+	/// Sets sprite texture.
+	public void SetSpriteTexture(EntityId entity, ITextureView texture)
+	{
+		if (let comp = mScene?.GetComponent<SpriteComponent>(entity))
+		{
+			if (comp.ProxyHandle.IsValid)
+				mWorld.SetSpriteTexture(comp.ProxyHandle, texture);
+		}
 	}
 }

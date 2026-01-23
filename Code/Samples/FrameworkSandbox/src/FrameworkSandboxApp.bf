@@ -39,6 +39,7 @@ class FrameworkSandboxApp : Application
 	private ForwardOpaqueFeature mForwardFeature;
 	private ForwardTransparentFeature mTransparentFeature;
 	private ParticleFeature mParticleFeature;
+	private SpriteFeature mSpriteFeature;
 	private SkyFeature mSkyFeature;
 	private DebugRenderFeature mDebugFeature;
 	private FinalOutputFeature mFinalOutputFeature;
@@ -60,6 +61,7 @@ class FrameworkSandboxApp : Application
 	private EntityId[4] mWallEntities;
 	private EntityId mFireEntity;
 	private EntityId mSmokeEntity;
+	private EntityId mSpriteEntity;
 
 	// Camera control
 	private float mCameraYaw = 0.5f;
@@ -171,6 +173,11 @@ class FrameworkSandboxApp : Application
 		mParticleFeature = new ParticleFeature();
 		if (mRenderSystem.RegisterFeature(mParticleFeature) case .Ok)
 			Console.WriteLine("Registered: ParticleFeature");
+
+		// Sprites
+		mSpriteFeature = new SpriteFeature();
+		if (mRenderSystem.RegisterFeature(mSpriteFeature) case .Ok)
+			Console.WriteLine("Registered: SpriteFeature");
 
 		// Sky
 		mSkyFeature = new SkyFeature();
@@ -495,6 +502,26 @@ class FrameworkSandboxApp : Application
 			}
 		}
 		Console.WriteLine("  Created smoke particle emitter");
+
+		// Create test sprite (floating marker near the fire)
+		mSpriteEntity = mMainScene.CreateEntity();
+		{
+			var transform = mMainScene.GetTransform(mSpriteEntity);
+			transform.Position = .(-3.0f, 1.5f, -1.0f);
+			mMainScene.SetTransform(mSpriteEntity, transform);
+
+			let handle = renderModule.CreateSprite(mSpriteEntity);
+			if (handle.IsValid)
+			{
+				if (let proxy = renderModule.GetSpriteProxy(mSpriteEntity))
+				{
+					proxy.Size = .(0.5f, 0.5f);
+					proxy.Color = .(0.2f, 0.8f, 1.0f, 1.0f);  // Cyan tint
+					proxy.UVRect = .(0, 0, 1, 1);
+				}
+			}
+		}
+		Console.WriteLine("  Created test sprite");
 
 		// Set world ambient
 		if (let world = renderModule.World)
