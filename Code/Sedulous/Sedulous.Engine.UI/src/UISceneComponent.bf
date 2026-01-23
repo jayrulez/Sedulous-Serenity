@@ -13,6 +13,7 @@ using Sedulous.Renderer;
 using Sedulous.Serialization;
 using Sedulous.Drawing;
 using Sedulous.UI;
+using Sedulous.UI.Shell;
 using Sedulous.UI.Renderer;
 
 // Use UI types explicitly to avoid ambiguity with Shell types
