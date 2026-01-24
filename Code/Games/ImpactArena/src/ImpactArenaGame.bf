@@ -18,6 +18,7 @@ using Sedulous.Framework.Input;
 using Sedulous.Framework.Audio;
 using Sedulous.Audio;
 using Sedulous.Audio.SDL3;
+using Sedulous.Audio.Decoders;
 using Sedulous.Physics;
 using Sedulous.Physics.Jolt;
 
@@ -62,6 +63,8 @@ class ImpactArenaGame : Application
 	// Audio
 	private AudioSubsystem mAudioSubsystem;
 	private GameAudio mGameAudio = new .() ~ delete _;
+	private IAudioSource mBgMusicSource;
+	private AudioClip mBgMusicClip ~ delete _;
 
 	// Game objects
 	private Arena mArena = new .() ~ delete _;
@@ -244,6 +247,20 @@ class ImpactArenaGame : Application
 	private void InitializeAudio()
 	{
 		mGameAudio.Initialize(mAudioSubsystem, scope => GetAssetPath);
+
+		// Background music - decode via AudioDecoderFactory (handles 24-bit WAV -> 16-bit PCM)
+		let musicPath = scope String();
+		GetAssetPath("samples/audio/ImpactArena/eyeless.wav", musicPath);
+		let decoder = scope AudioDecoderFactory();
+		decoder.RegisterDefaultDecoders();
+		if (decoder.DecodeFile(musicPath) case .Ok(let clip))
+		{
+			mBgMusicClip = clip;
+			mBgMusicSource = mAudioSubsystem.AudioSystem.CreateSource();
+			mBgMusicSource.Loop = true;
+			mBgMusicSource.Volume = 0.15f;
+			mBgMusicSource.Play(clip);
+		}
 	}
 
 	private void CreateMeshes()
@@ -282,6 +299,7 @@ class ImpactArenaGame : Application
 		mPlayerMat.SetColor("BaseColor", .(0.2f, 0.5f, 1.0f, 1.0f));
 		mPlayerMat.SetFloat("Metallic", 0.8f);
 		mPlayerMat.SetFloat("Roughness", 0.2f);
+		mPlayerMat.SetTexture("EmissiveMap", mRenderSystem.MaterialSystem.WhiteTexture);
 
 		mGruntMat = new MaterialInstance(baseMat);
 		mGruntMat.SetColor("BaseColor", .(0.9f, 0.2f, 0.15f, 1.0f));
@@ -303,24 +321,28 @@ class ImpactArenaGame : Application
 		mHealthPickupMat.SetFloat("Metallic", 0.6f);
 		mHealthPickupMat.SetFloat("Roughness", 0.3f);
 		mHealthPickupMat.SetTexture("EmissiveMap", emissiveTex);
+		mHealthPickupMat.SetColor("EmissiveColor", .(0.1f, 0.8f, 0.3f, 1.0f));
 
 		mSpeedPickupMat = new MaterialInstance(baseMat);
 		mSpeedPickupMat.SetColor("BaseColor", .(0.1f, 0.8f, 1.0f, 1.0f));
 		mSpeedPickupMat.SetFloat("Metallic", 0.7f);
 		mSpeedPickupMat.SetFloat("Roughness", 0.2f);
 		mSpeedPickupMat.SetTexture("EmissiveMap", emissiveTex);
+		mSpeedPickupMat.SetColor("EmissiveColor", .(0.1f, 0.6f, 1.0f, 1.0f));
 
 		mShockPickupMat = new MaterialInstance(baseMat);
 		mShockPickupMat.SetColor("BaseColor", .(0.7f, 0.2f, 1.0f, 1.0f));
 		mShockPickupMat.SetFloat("Metallic", 0.6f);
 		mShockPickupMat.SetFloat("Roughness", 0.3f);
 		mShockPickupMat.SetTexture("EmissiveMap", emissiveTex);
+		mShockPickupMat.SetColor("EmissiveColor", .(0.6f, 0.15f, 0.9f, 1.0f));
 
 		mEmpPickupMat = new MaterialInstance(baseMat);
 		mEmpPickupMat.SetColor("BaseColor", .(1.0f, 0.9f, 0.2f, 1.0f));
 		mEmpPickupMat.SetFloat("Metallic", 0.9f);
 		mEmpPickupMat.SetFloat("Roughness", 0.1f);
 		mEmpPickupMat.SetTexture("EmissiveMap", emissiveTex);
+		mEmpPickupMat.SetColor("EmissiveColor", .(1.0f, 0.8f, 0.2f, 1.0f));
 	}
 
 	private void CreateScene()
@@ -497,18 +519,15 @@ class ImpactArenaGame : Application
 			}
 		}
 
-		// Invulnerability flash (pulse player base color)
+		// Invulnerability flash (pulse emissive glow)
 		if (mPlayer.IsInvulnerable)
 		{
 			let pulse = (Math.Sin(mPlayer.InvulnTimer * 20.0f) + 1.0f) * 0.5f;
-			let r = 0.2f + 0.8f * pulse;
-			let g = 0.5f * (1.0f - pulse);
-			let b = 1.0f * (1.0f - pulse);
-			mPlayerMat.SetColor("BaseColor", .(r, g, b, 1.0f));
+			mPlayerMat.SetColor("EmissiveColor", .(1.0f * pulse, 0.3f * pulse, 0.3f * pulse, 1.0f));
 		}
 		else
 		{
-			mPlayerMat.SetColor("BaseColor", .(0.2f, 0.5f, 1.0f, 1.0f));
+			mPlayerMat.SetColor("EmissiveColor", .(0, 0, 0, 1.0f));
 		}
 
 		// Combo display timer
@@ -818,6 +837,9 @@ class ImpactArenaGame : Application
 		delete mSpeedPickupMat;
 		delete mShockPickupMat;
 		delete mEmpPickupMat;
+
+		if (mBgMusicSource != null)
+			mAudioSubsystem.AudioSystem.DestroySource(mBgMusicSource);
 
 		if (mRenderSystem != null)
 			mRenderSystem.Shutdown();

@@ -171,22 +171,22 @@ class PowerUpManager
 		case .EMP: glowColor = .(1.0f, 1.0f, 0.3f, 1.0f);
 		}
 
-		let emitterHandle = mRenderModule.CreateCPUParticleEmitter(entity, 32);
+		let emitterHandle = mRenderModule.CreateCPUParticleEmitter(entity, 48);
 		if (emitterHandle.IsValid)
 		{
 			if (let proxy = mRenderModule.GetParticleEmitterProxy(entity))
 			{
 				proxy.BlendMode = .Additive;
-				proxy.SpawnRate = 10;
-				proxy.ParticleLifetime = 1.2f;
-				proxy.StartSize = .(0.06f, 0.06f);
-				proxy.EndSize = .(0.01f, 0.01f);
+				proxy.SpawnRate = 20;
+				proxy.ParticleLifetime = 1.5f;
+				proxy.StartSize = .(0.4f, 0.4f);
+				proxy.EndSize = .(0.1f, 0.1f);
 				proxy.StartColor = glowColor;
 				proxy.EndColor = .(glowColor.X * 0.5f, glowColor.Y * 0.5f, glowColor.Z * 0.5f, 0.0f);
-				proxy.InitialVelocity = .(0, 0.1f, 0);
-				proxy.VelocityRandomness = .(1.0f, 0.2f, 1.0f);
+				proxy.InitialVelocity = .(0, 0.5f, 0);
+				proxy.VelocityRandomness = .(2.0f, 0.5f, 2.0f);
 				proxy.GravityMultiplier = 0;
-				proxy.Drag = 1.5f;
+				proxy.Drag = 1.2f;
 				proxy.LifetimeVarianceMin = 0.5f;
 				proxy.LifetimeVarianceMax = 1.0f;
 				proxy.IsEnabled = true;

@@ -75,20 +75,14 @@ The CPU particle vertex layout includes attributes (likely for lit particles) th
 ## 7. PBR Shader: No Emissive Color Uniform
 
 **Severity:** Low (feature gap)
-**Status:** Open
+**Status:** Fixed
 
-The PBR material defines an `EmissiveMap` texture slot but has no emissive color/intensity uniform. The fragment shader (`Assets/Render/Shaders/forward.frag.hlsl:264`) samples the emissive texture directly:
+The PBR material defined an `EmissiveMap` texture slot but had no emissive color/intensity uniform. The fragment shader sampled the emissive texture directly with no multiplier.
+
+**Fix:** Added `float4 EmissiveColor` to the MaterialUniforms cbuffer (offset 32) and multiply in the shader:
 ```hlsl
-float3 emissive = EmissiveTexture.Sample(LinearSampler, input.TexCoord).rgb;
+float3 emissive = EmissiveTexture.Sample(LinearSampler, input.TexCoord).rgb * EmissiveColor.rgb;
 ```
+Registered `AlphaCutoff` (offset 28) and `EmissiveColor` (offset 32, default `(0,0,0,1)`) in `Materials.CreatePBR()`. Existing materials are unaffected since default is black (no emission). Set EmissiveMap to white texture + desired EmissiveColor for solid-color glow.
 
-Without a multiplier uniform, you cannot:
-- Tint emissive output without a custom texture per color
-- Animate emissive intensity (e.g., pulse/flash effects)
-- Scale emissive brightness at runtime
-
-**Suggested fix:** Add `float4 EmissiveColor` (or `float3 EmissiveColor` + `float EmissiveIntensity`) to the MaterialUniforms cbuffer and multiply:
-```hlsl
-float3 emissive = EmissiveTexture.Sample(LinearSampler, input.TexCoord).rgb * EmissiveColor.rgb * EmissiveIntensity;
-```
-Register matching parameters in `Materials.CreatePBR()` via the MaterialBuilder. Default to `(0,0,0)` or `(1,1,1)` with intensity 1.0 so existing materials are unaffected.
+**Files:** `Assets/Render/Shaders/forward.frag.hlsl`, `Sedulous.Materials/src/MaterialBuilder.bf`

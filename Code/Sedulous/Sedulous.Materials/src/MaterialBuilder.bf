@@ -215,6 +215,8 @@ static class Materials
 			.Float("Metallic", 0.0f)
 			.Float("Roughness", 0.5f)
 			.Float("AO", 1.0f)
+			.Float("AlphaCutoff", 0.0f)
+			.Color("EmissiveColor", .(0, 0, 0, 1))
 			.Texture("AlbedoMap", defaultAlbedo)
 			.Texture("NormalMap")
 			.Texture("MetallicRoughnessMap")

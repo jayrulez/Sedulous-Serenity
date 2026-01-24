@@ -44,13 +44,16 @@ cbuffer LightingUniforms : register(b3)
 //   - Metallic (float) at offset 16
 //   - Roughness (float) at offset 20
 //   - AO (float) at offset 24
+//   - AlphaCutoff (float) at offset 28
+//   - EmissiveColor (float4) at offset 32
 cbuffer MaterialUniforms : register(b0, space1)
 {
     float4 BaseColor;
     float Metallic;
     float Roughness;
     float AO;
-    float AlphaCutoff; // Not used by default PBR material, but kept for alpha cutoff variants
+    float AlphaCutoff;
+    float4 EmissiveColor;
 };
 
 // Light structure - MUST match GPULight in LightBuffer.bf
@@ -261,7 +264,7 @@ float4 main(FragmentInput input) : SV_Target
     float roughness = metallicRoughness.g * Roughness;
     float ao = OcclusionTexture.Sample(LinearSampler, input.TexCoord).r * AO;
 
-    float3 emissive = EmissiveTexture.Sample(LinearSampler, input.TexCoord).rgb;
+    float3 emissive = EmissiveTexture.Sample(LinearSampler, input.TexCoord).rgb * EmissiveColor.rgb;
 
     // Get normal
     float3 N = normalize(input.WorldNormal);
