@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Framework.Runtime" = "*"}
+Dependencies = {corlib = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Render" = "*", "Sedulous.Framework.Runtime" = "*", "Sedulous.Framework.Core" = "*", "Sedulous.Framework.Scenes" = "*", "Sedulous.Framework.Render" = "*", "Sedulous.Framework.Physics" = "*", "Sedulous.Framework.Audio" = "*", "Sedulous.Framework.Input" = "*", "Sedulous.Framework.UI" = "*", "Sedulous.Physics.Jolt" = "*", "Sedulous.Audio.SDL3" = "*", "Sedulous.Geometry" = "*", "Sedulous.Profiler" = "*", "Sedulous.UI" = "*"}
 
 [Project]
 Name = "ImpactArena"
