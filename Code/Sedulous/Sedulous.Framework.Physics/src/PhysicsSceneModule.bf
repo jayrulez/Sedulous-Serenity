@@ -374,6 +374,27 @@ class PhysicsSceneModule : SceneModule
 		}
 	}
 
+	/// Creates an infinite plane collider body for an entity (static only).
+	/// @param normal The plane normal direction (will be normalized).
+	/// @param distance Distance from origin along the normal.
+	public Result<BodyHandle> CreatePlaneBody(EntityId entity, Vector3 normal, float distance = 0.0f)
+	{
+		if (mPhysicsWorld == null)
+			return .Err;
+
+		switch (mPhysicsWorld.CreatePlaneShape(normal, distance))
+		{
+		case .Ok(let shape):
+			var descriptor = PhysicsBodyDescriptor();
+			descriptor.Shape = shape;
+			descriptor.BodyType = .Static;
+			return CreateBody(entity, descriptor);
+
+		case .Err:
+			return .Err;
+		}
+	}
+
 	/// Creates a mesh collider body for an entity (static only).
 	/// Mesh shapes are typically used for static level geometry.
 	public Result<BodyHandle> CreateMeshBody(EntityId entity, Span<Vector3> vertices, Span<uint32> indices)

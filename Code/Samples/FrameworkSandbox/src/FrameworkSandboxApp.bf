@@ -386,10 +386,6 @@ class FrameworkSandboxApp : Application
 		// Create floor entity
 		mFloorEntity = mMainScene.CreateEntity();
 		{
-			var transform = mMainScene.GetTransform(mFloorEntity);
-			transform.Position = .(0, -0.5f, 0);  // Position below origin so top surface is at y=0
-			mMainScene.SetTransform(mFloorEntity, transform);
-
 			let handle = renderModule.CreateMeshRenderer(mFloorEntity);
 			if (handle.IsValid)
 			{
@@ -397,9 +393,9 @@ class FrameworkSandboxApp : Application
 				renderModule.SetMeshMaterial(mFloorEntity, mFloorMaterial ?? defaultMaterial);
 			}
 
-			// Add static physics body (thin box for floor)
+			// Infinite plane at Y=0 facing up
 			if (physicsModule != null)
-				physicsModule.CreateBoxBody(mFloorEntity, .(ArenaHalfSize, 0.5f, ArenaHalfSize), .Static);
+				physicsModule.CreatePlaneBody(mFloorEntity, .(0, 1, 0), 0.0f);
 		}
 		Console.WriteLine("  Created floor entity with static physics body");
 

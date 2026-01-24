@@ -99,6 +99,12 @@ interface IPhysicsWorld : IDisposable
 	/// Creates a convex hull shape from points.
 	Result<ShapeHandle> CreateConvexHullShape(Span<Vector3> points);
 
+	/// Creates an infinite plane shape (half-space).
+	/// @param normal The plane normal (should be normalized).
+	/// @param distance Distance from origin along the normal.
+	/// @param halfExtent Bounding half-extent for broad phase (default 1000).
+	Result<ShapeHandle> CreatePlaneShape(Vector3 normal, float distance, float halfExtent = 1000.0f);
+
 	/// Creates a mesh shape for static geometry.
 	Result<ShapeHandle> CreateMeshShape(Span<Vector3> vertices, Span<uint32> indices);
 

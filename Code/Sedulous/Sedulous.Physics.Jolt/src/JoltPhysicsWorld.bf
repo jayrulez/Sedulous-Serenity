@@ -555,6 +555,19 @@ class JoltPhysicsWorld : IPhysicsWorld
 		return AllocateShapeHandle((JPH_Shape*)shape);
 	}
 
+	public Result<ShapeHandle> CreatePlaneShape(Vector3 normal, float distance, float halfExtent = 1000.0f)
+	{
+		var jphPlane = JPH_Plane();
+		jphPlane.normal = JoltConversions.ToJPHVec3(normal);
+		jphPlane.distance = distance;
+
+		let shape = JPH_PlaneShape_Create(&jphPlane, null, halfExtent);
+		if (shape == null)
+			return .Err;
+
+		return AllocateShapeHandle((JPH_Shape*)shape);
+	}
+
 	public Result<ShapeHandle> CreateMeshShape(Span<Vector3> vertices, Span<uint32> indices)
 	{
 		// Convert vertices to JPH_Vec3 array
