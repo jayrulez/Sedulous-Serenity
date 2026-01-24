@@ -8,6 +8,7 @@ using Sedulous.Mathematics;
 using Sedulous.Navigation;
 using Sedulous.Navigation.Detour;
 using Sedulous.Navigation.Crowd;
+using Sedulous.Navigation.Recast;
 using Sedulous.Render;
 
 /// Scene module that manages navigation agents and obstacles for entities.
@@ -17,6 +18,9 @@ class NavigationSceneModule : SceneModule
 	private NavigationSubsystem mSubsystem;
 	private NavWorld mNavWorld;
 	private Scene mScene;
+
+	// Persistent geometry for TileCache (dynamic obstacle support)
+	private InputGeometry mTileCacheGeometry ~ delete _;
 
 	// Debug drawing
 	private bool mDebugDrawEnabled = false;
@@ -115,6 +119,96 @@ class NavigationSceneModule : SceneModule
 				obstacle.ObstacleId = -1;
 			}
 		}
+	}
+
+	// ==================== High-Level Operations ====================
+
+	/// Builds a navigation mesh from the provided geometry and applies it to this scene's NavWorld.
+	/// Returns true if the navmesh was built and set successfully.
+	public bool BuildNavMesh(IInputGeometryProvider geometry, in NavMeshBuildConfig config)
+	{
+		if (mNavWorld == null)
+			return false;
+
+		let result = NavMeshBuilder.BuildSingle(geometry, config);
+		defer delete result;
+
+		if (!result.Success || result.NavMesh == null)
+		{
+			if (result.ErrorMessage != null)
+				Console.WriteLine(scope $"NavMesh build failed: {result.ErrorMessage}");
+			else
+				Console.WriteLine("NavMesh build failed: unknown error");
+			return false;
+		}
+
+		Console.WriteLine(scope $"NavMesh built: {result.Stats.PolyCount} polys, {result.Stats.VertexCount} verts");
+		mNavWorld.SetNavMesh(result.NavMesh);
+
+		// Initialize TileCache for dynamic obstacle support
+		if (mTileCacheGeometry != null)
+			delete mTileCacheGeometry;
+		mTileCacheGeometry = new InputGeometry(
+			Span<float>(geometry.Vertices, geometry.VertexCount * 3),
+			Span<int32>(geometry.Triangles, geometry.TriangleCount * 3));
+
+		let bounds = geometry.Bounds;
+		float[3] bmin = .(bounds.Min.X, bounds.Min.Y, bounds.Min.Z);
+		float[3] bmax = .(bounds.Max.X, bounds.Max.Y, bounds.Max.Z);
+		mNavWorld.InitTileCache(mTileCacheGeometry, config, bmin, bmax);
+
+		return true;
+	}
+
+	/// Sets the move target for an entity's agent to the given world position.
+	/// Returns true if the target was set successfully.
+	public bool RequestMoveTarget(EntityId entity, float[3] targetPos)
+	{
+		if (mScene == null || mNavWorld == null)
+			return false;
+
+		if (let agent = mScene.GetComponent<NavAgentComponent>(entity))
+		{
+			if (agent.AgentIndex >= 0)
+				return mNavWorld.RequestMoveTarget(agent.AgentIndex, targetPos);
+		}
+		return false;
+	}
+
+	/// Finds a path between two world positions.
+	/// Returns true if a path was found, with waypoints as [x,y,z,...] in outWaypoints.
+	public bool FindPath(float[3] start, float[3] end, List<float> outWaypoints)
+	{
+		if (mNavWorld == null)
+			return false;
+		return mNavWorld.FindPath(start, end, outWaypoints);
+	}
+
+	/// Gets the current position of an entity's crowd agent.
+	/// Returns true if the agent was found and position retrieved.
+	public bool GetAgentPosition(EntityId entity, out float[3] position)
+	{
+		position = default;
+		if (mScene == null || mNavWorld == null)
+			return false;
+
+		let crowd = mNavWorld.Crowd;
+		if (crowd == null)
+			return false;
+
+		if (let agent = mScene.GetComponent<NavAgentComponent>(entity))
+		{
+			if (agent.AgentIndex >= 0)
+			{
+				let crowdAgent = crowd.GetAgent(agent.AgentIndex);
+				if (crowdAgent != null)
+				{
+					position = crowdAgent.Position;
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	// ==================== SceneModule Lifecycle ====================

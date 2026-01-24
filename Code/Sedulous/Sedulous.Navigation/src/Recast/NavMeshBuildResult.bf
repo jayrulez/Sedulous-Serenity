@@ -13,7 +13,7 @@ class NavMeshBuildResult
 	/// The built navmesh (owned by the caller).
 	public NavMesh NavMesh;
 	/// The intermediate polygon mesh (for debugging).
-	public PolyMesh PolyMesh;
+	public PolyMesh PolyMesh ~ delete _;
 	/// Build statistics.
 	public NavMeshBuildStats Stats;
 

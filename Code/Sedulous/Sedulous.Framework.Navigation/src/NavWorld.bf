@@ -6,6 +6,7 @@ using Sedulous.Navigation;
 using Sedulous.Navigation.Detour;
 using Sedulous.Navigation.Crowd;
 using Sedulous.Navigation.Dynamic;
+using Sedulous.Navigation.Recast;
 
 /// Owns and manages all navigation state for a scene: the navmesh,
 /// pathfinding queries, crowd agents, and dynamic obstacles.
@@ -111,6 +112,23 @@ class NavWorld
 			return false;
 
 		return mCrowd.RequestMoveTarget(agentIndex, nearestRef, nearestPoint);
+	}
+
+	/// Initializes the TileCache for dynamic obstacle support.
+	/// Must be called after SetNavMesh with the same geometry and config used to build the navmesh.
+	public void InitTileCache(IInputGeometryProvider geometry, in NavMeshBuildConfig config, float[3] worldBMin, float[3] worldBMax)
+	{
+		if (mNavMesh == null)
+			return;
+
+		if (mTileCache != null)
+		{
+			delete mTileCache;
+			mTileCache = null;
+		}
+
+		mTileCache = new TileCache();
+		mTileCache.Init(mNavMesh, geometry, config, worldBMin, worldBMax);
 	}
 
 	/// Adds a cylindrical obstacle at the given position.

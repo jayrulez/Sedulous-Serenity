@@ -194,7 +194,7 @@ class CrowdManager
 				ApplySeparation(agent, i);
 		}
 
-		// Phase 6: Integrate and clamp
+		// Phase 6: Integrate constrained to navmesh
 		for (int32 i = 0; i < mMaxAgents; i++)
 		{
 			let agent = mAgents[i];
@@ -209,10 +209,32 @@ class CrowdManager
 				agent.Velocity[2] *= scale;
 			}
 
-			agent.Integrate(dt);
+			if (speed < 0.0001f)
+			{
+				CheckArrival(agent);
+				continue;
+			}
 
-			// Update position on navmesh
-			SnapToNavMesh(agent);
+			// Compute desired position
+			float[3] desiredPos;
+			desiredPos[0] = agent.Position[0] + agent.Velocity[0] * dt;
+			desiredPos[1] = agent.Position[1] + agent.Velocity[1] * dt;
+			desiredPos[2] = agent.Position[2] + agent.Velocity[2] * dt;
+
+			// Move along navmesh surface (constrained, won't cross wall edges)
+			if (agent.CurrentPoly.IsValid)
+			{
+				float[3] resultPos;
+				let visited = scope List<PolyRef>();
+				if (mQuery.MoveAlongSurface(agent.CurrentPoly, agent.Position, desiredPos,
+					mFilter, out resultPos, visited) == .Success)
+				{
+					agent.Position = resultPos;
+					// Update current poly to the last visited
+					if (visited.Count > 0)
+						agent.CurrentPoly = visited[visited.Count - 1];
+				}
+			}
 
 			// Check if reached target
 			CheckArrival(agent);
@@ -359,20 +381,6 @@ class CrowdManager
 
 		agent.Velocity[0] += separation[0];
 		agent.Velocity[2] += separation[2];
-	}
-
-	/// Snaps the agent back onto the navmesh after integration.
-	private void SnapToNavMesh(CrowdAgent agent)
-	{
-		float[3] extents = .(agent.Params.Radius * 2, agent.Params.Height, agent.Params.Radius * 2);
-		PolyRef nearestRef;
-		float[3] nearestPoint;
-
-		if (mQuery.FindNearestPoly(agent.Position, extents, mFilter, out nearestRef, out nearestPoint) == .Success)
-		{
-			agent.Position = nearestPoint;
-			agent.CurrentPoly = nearestRef;
-		}
 	}
 
 	/// Checks if the agent has reached its target.
