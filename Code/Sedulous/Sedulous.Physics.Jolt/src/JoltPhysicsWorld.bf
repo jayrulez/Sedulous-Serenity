@@ -271,6 +271,19 @@ class JoltPhysicsWorld : IPhysicsWorld
 			JPH_BodyCreationSettings_SetAngularVelocity(bodySettings, &vel);
 		}
 
+		// Mass override
+		if (descriptor.Mass > 0)
+		{
+			JPH_BodyCreationSettings_SetOverrideMassProperties(bodySettings, .JPH_OverrideMassProperties_CalculateInertia);
+			var massProps = JPH_MassProperties();
+			massProps.mass = descriptor.Mass;
+			JPH_BodyCreationSettings_SetMassPropertiesOverride(bodySettings, &massProps);
+		}
+
+		// Allowed degrees of freedom
+		if (descriptor.AllowedDOFs != .All)
+			JPH_BodyCreationSettings_SetAllowedDOFs(bodySettings, (JPH_AllowedDOFs)(int32)descriptor.AllowedDOFs);
+
 		// Create and add body
 		let bodyId = JPH_BodyInterface_CreateAndAddBody(mBodyInterface, bodySettings, .JPH_Activation_Activate);
 		JPH_BodyCreationSettings_Destroy(bodySettings);

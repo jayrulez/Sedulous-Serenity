@@ -41,6 +41,10 @@ struct PhysicsBodyDescriptor
 	/// Allowed degrees of freedom.
 	public AllowedDOFs AllowedDOFs = .All;
 
+	/// Mass override in kg. If > 0, overrides the mass calculated from shape volume.
+	/// Inertia is still calculated from the shape.
+	public float Mass = 0.0f;
+
 	/// Whether this body is a sensor (trigger) that detects but doesn't collide.
 	public bool IsSensor = false;
 

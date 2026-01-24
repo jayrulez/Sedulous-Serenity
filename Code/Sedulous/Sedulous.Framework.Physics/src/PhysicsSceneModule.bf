@@ -344,6 +344,35 @@ class PhysicsSceneModule : SceneModule
 		}
 	}
 
+	/// Creates a sphere collider body with full descriptor control.
+	/// The shape is created internally; all other descriptor fields are used as-is.
+	public Result<BodyHandle> CreateSphereBody(EntityId entity, float radius, in PhysicsBodyDescriptor baseDescriptor)
+	{
+		if (mPhysicsWorld == null)
+			return .Err;
+
+		switch (mPhysicsWorld.CreateSphereShape(radius))
+		{
+		case .Ok(let shape):
+			var descriptor = baseDescriptor;
+			descriptor.Shape = shape;
+			let result = CreateBody(entity, descriptor);
+
+			if (result case .Ok)
+			{
+				mScene?.SetComponent<PhysicsDebugShapeComponent>(entity, .() {
+					ShapeType = .Sphere,
+					HalfExtents = .(radius, 0, 0)
+				});
+			}
+
+			return result;
+
+		case .Err:
+			return .Err;
+		}
+	}
+
 	/// Creates a capsule collider body for an entity.
 	public Result<BodyHandle> CreateCapsuleBody(EntityId entity, float halfHeight, float radius, BodyType type = .Dynamic)
 	{
