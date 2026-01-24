@@ -14,7 +14,7 @@ class Arena
 {
 	public const float HalfSize = 10.0f;
 	public const float WallHeight = 1.5f;
-	public const float WallThickness = 0.5f;
+	public const float WallThickness = 2.0f;
 
 	private Scene mScene;
 	private RenderSceneModule mRenderModule;

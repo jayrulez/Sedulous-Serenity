@@ -25,10 +25,13 @@ struct EnemyData
 	public int32 Health;
 	public float DashTimer;
 	public float Radius;
+	public float SpawnTimer; // Counts up from 0 to SpawnDuration
 }
 
 class EnemyManager
 {
+	private const float SpawnDuration = 0.3f;
+
 	private Scene mScene;
 	private RenderSceneModule mRenderModule;
 	private PhysicsSceneModule mPhysicsModule;
@@ -90,12 +93,12 @@ class EnemyManager
 			mat = mDasherMat;
 		}
 
-		// Spawn at random edge position
+		// Spawn at random edge position, starting at zero scale
 		let pos = GetRandomEdgePosition();
 		let entity = mScene.CreateEntity();
 		var transform = mScene.GetTransform(entity);
 		transform.Position = .(pos.X, radius, pos.Y);
-		transform.Scale = .(radius * 2, radius * 2, radius * 2);
+		transform.Scale = .(0, 0, 0);
 		mScene.SetTransform(entity, transform);
 
 		let meshHandle = mRenderModule.CreateMeshRenderer(entity);
@@ -121,6 +124,7 @@ class EnemyManager
 		data.Health = health;
 		data.DashTimer = 2.0f + (float)mRandom.NextDouble() * 2.0f;
 		data.Radius = radius;
+		data.SpawnTimer = 0;
 		mEnemies.Add(data);
 	}
 
@@ -140,9 +144,45 @@ class EnemyManager
 		for (int32 i = 0; i < (int32)mEnemies.Count; i++)
 		{
 			var enemy = ref mEnemies[i];
+
+			// Spawn-in animation
+			if (enemy.SpawnTimer < SpawnDuration)
+			{
+				enemy.SpawnTimer += dt;
+				let t = Math.Min(enemy.SpawnTimer / SpawnDuration, 1.0f);
+				// Ease-out bounce: overshoot slightly then settle
+				let scale = t < 0.8f ? (t / 0.8f) * 1.15f : 1.15f - (t - 0.8f) / 0.2f * 0.15f;
+				let s = enemy.Radius * 2.0f * scale;
+				var transform = mScene.GetTransform(enemy.Entity);
+				transform.Scale = .(s, s, s);
+				mScene.SetTransform(enemy.Entity, transform);
+				continue; // No AI while spawning
+			}
+
 			let ePos = mScene.GetTransform(enemy.Entity).Position;
 			let toPlayer = playerPos - ePos;
 			let dist = Vector3(toPlayer.X, 0, toPlayer.Z).Length();
+
+			// Separation force - push away from nearby enemies to prevent tight clusters
+			Vector3 separation = .Zero;
+			for (int32 j = 0; j < (int32)mEnemies.Count; j++)
+			{
+				if (j == i) continue;
+				let other = mEnemies[j];
+				if (other.SpawnTimer < SpawnDuration) continue;
+				let otherPos = mScene.GetTransform(other.Entity).Position;
+				let diff = ePos - otherPos;
+				let sepDist = Vector3(diff.X, 0, diff.Z).Length();
+				let minSep = enemy.Radius + other.Radius + 1.5f;
+				if (sepDist < minSep && sepDist > 0.01f)
+				{
+					let sepDir = Vector3.Normalize(Vector3(diff.X, 0, diff.Z));
+					let strength = (minSep - sepDist) / minSep;
+					separation += sepDir * strength * 12.0f;
+				}
+			}
+			if (separation.LengthSquared() > 0.01f)
+				mPhysicsModule.AddForce(enemy.Entity, separation);
 
 			switch (enemy.Type)
 			{
@@ -183,6 +223,9 @@ class EnemyManager
 		for (int32 i = (int32)mEnemies.Count - 1; i >= 0; i--)
 		{
 			let enemy = mEnemies[i];
+			if (enemy.SpawnTimer < SpawnDuration)
+				continue; // Immune while spawning
+
 			let ePos = mScene.GetTransform(enemy.Entity).Position;
 			let toEnemy = ePos - playerPos;
 			let dist = Vector3(toEnemy.X, 0, toEnemy.Z).Length();
@@ -225,6 +268,29 @@ class EnemyManager
 		mPhysicsModule.DestroyBody(entity);
 		mScene.DestroyEntity(entity);
 		mEnemies.RemoveAt(index);
+	}
+
+	/// Kills all enemies within a radius of the given position.
+	/// Returns the number killed and populates death lists.
+	public int32 KillInRadius(Vector3 center, float radius, List<Vector3> deathPositions, List<EnemyType> deathTypes)
+	{
+		int32 killed = 0;
+		for (int32 i = (int32)mEnemies.Count - 1; i >= 0; i--)
+		{
+			let enemy = mEnemies[i];
+			let ePos = mScene.GetTransform(enemy.Entity).Position;
+			let toEnemy = ePos - center;
+			let dist = Vector3(toEnemy.X, 0, toEnemy.Z).Length();
+
+			if (dist < radius)
+			{
+				deathPositions.Add(ePos);
+				deathTypes.Add(enemy.Type);
+				DestroyEnemy(i);
+				killed++;
+			}
+		}
+		return killed;
 	}
 
 	public void ClearAll()

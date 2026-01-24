@@ -16,7 +16,8 @@ class HUD
 	}
 
 	public void Draw(GameState state, Player player, int32 wave, int32 enemiesLeft, int32 score,
-		int32 highScore, float waveIntroTimer, uint32 screenWidth, uint32 screenHeight)
+		int32 highScore, float waveIntroTimer, uint32 screenWidth, uint32 screenHeight,
+		PowerUpType* inventory, int32 inventoryCount, int32 activeSlot)
 	{
 		mScreenWidth = screenWidth;
 		mScreenHeight = screenHeight;
@@ -27,13 +28,16 @@ class HUD
 			DrawTitle(highScore);
 		case .Playing:
 			DrawPlayingHUD(player, wave, enemiesLeft, score);
+			DrawInventory(inventory, inventoryCount, activeSlot);
 		case .WaveIntro:
 			DrawPlayingHUD(player, wave, enemiesLeft, score);
+			DrawInventory(inventory, inventoryCount, activeSlot);
 			DrawWaveIntro(wave, waveIntroTimer);
 		case .GameOver:
 			DrawGameOver(score, highScore);
 		case .Paused:
 			DrawPlayingHUD(player, wave, enemiesLeft, score);
+			DrawInventory(inventory, inventoryCount, activeSlot);
 			DrawPaused();
 		}
 	}
@@ -75,11 +79,11 @@ class HUD
 		scoreText.AppendF("Score: {}", score);
 		mDebug.AddText2D(scoreText, scoreX + 10, 14, Color(100, 255, 100), 1.3f);
 
-		// Bottom-center: Health bar
+		// Top-center: Health bar
 		let barWidth = 200.0f;
 		let barHeight = 20.0f;
 		let barX = ((float)mScreenWidth - barWidth) * 0.5f;
-		let barY = (float)mScreenHeight - 40;
+		let barY = 12.0f;
 
 		mDebug.AddRect2D(barX - 2, barY - 2, barWidth + 4, barHeight + 4, Color(40, 40, 40, 200));
 
@@ -89,9 +93,9 @@ class HUD
 			: (player.HealthPercent > 0.25f ? Color(220, 200, 50, 255) : Color(220, 50, 50, 255));
 		mDebug.AddRect2D(barX, barY, healthWidth, barHeight, healthColor);
 
-		// Bottom-right: Dash cooldown
-		let dashX = (float)mScreenWidth - 80;
-		let dashY = (float)mScreenHeight - 40;
+		// Top-center-right: Dash cooldown (next to health bar)
+		let dashX = barX + barWidth + 10;
+		let dashY = barY;
 		mDebug.AddRect2D(dashX - 2, dashY - 2, 64, barHeight + 4, Color(40, 40, 40, 200));
 		let dashWidth = 60.0f * player.DashCooldownPercent;
 		let dashColor = player.DashCooldownPercent >= 1.0f ? Color(100, 180, 255, 255) : Color(60, 80, 120, 200);
@@ -102,13 +106,84 @@ class HUD
 	private void DrawWaveIntro(int32 wave, float timer)
 	{
 		if (timer <= 0) return;
-		let alpha = (uint8)Math.Min(255, (int32)(timer * 200));
 		let centerX = (float)mScreenWidth * 0.5f - 60;
 		let centerY = (float)mScreenHeight * 0.4f;
 
+		// Wave title
 		let text = scope String();
 		text.AppendF("WAVE {}", wave);
-		mDebug.AddText2D(text, centerX, centerY, Color(255, 220, 100, alpha), 3.0f);
+		mDebug.AddText2D(text, centerX, centerY, Color(255, 220, 100), 3.0f);
+
+		// Countdown number
+		int32 countdown = (int32)Math.Ceiling(timer);
+		if (countdown > 3) countdown = 3;
+		let countText = scope String();
+		countText.AppendF("{}", countdown);
+		let countX = (float)mScreenWidth * 0.5f - 10;
+		let countY = centerY + 50;
+		// Pulse: scale based on fractional part of timer
+		let frac = timer - (float)Math.Floor(timer);
+		let pulse = 1.0f + frac * 0.5f;
+		let countAlpha = (uint8)Math.Min(255, (int32)(frac * 400));
+		mDebug.AddText2D(countText, countX, countY, Color(255, 255, 255, countAlpha), 3.5f * pulse);
+	}
+
+	private void DrawInventory(PowerUpType* inventory, int32 count, int32 activeSlot)
+	{
+		let slotSize = 36.0f;
+		let slotGap = 6.0f;
+		let totalWidth = 3.0f * slotSize + 2.0f * slotGap;
+		let startX = ((float)mScreenWidth - totalWidth) * 0.5f;
+		let startY = (float)mScreenHeight - 50;
+
+		for (int32 i = 0; i < 3; i++)
+		{
+			let x = startX + (float)i * (slotSize + slotGap);
+			let isActive = (i == activeSlot && count > 0);
+
+			// Slot background
+			let bgColor = isActive ? Color(80, 80, 100, 220) : Color(30, 30, 40, 180);
+			mDebug.AddRect2D(x, startY, slotSize, slotSize, bgColor);
+
+			// Active slot border highlight
+			if (isActive)
+			{
+				mDebug.AddRect2D(x - 2, startY - 2, slotSize + 4, 2, Color(255, 255, 255, 200));
+				mDebug.AddRect2D(x - 2, startY + slotSize, slotSize + 4, 2, Color(255, 255, 255, 200));
+				mDebug.AddRect2D(x - 2, startY, 2, slotSize, Color(255, 255, 255, 200));
+				mDebug.AddRect2D(x + slotSize, startY, 2, slotSize, Color(255, 255, 255, 200));
+			}
+
+			// Draw item icon (colored text abbreviation)
+			if (i < count)
+			{
+				StringView label;
+				Color itemColor;
+				switch (inventory[i])
+				{
+				case .SpeedBoost:
+					label = "SPD";
+					itemColor = Color(50, 220, 255);
+				case .Shockwave:
+					label = "SHK";
+					itemColor = Color(180, 80, 255);
+				case .EMP:
+					label = "EMP";
+					itemColor = Color(255, 230, 50);
+				default:
+					label = "?";
+					itemColor = Color(200, 200, 200);
+				}
+				mDebug.AddText2D(label, x + 4, startY + 10, itemColor, 1.1f);
+			}
+		}
+
+		// Controls hint
+		if (count > 0)
+		{
+			mDebug.AddText2D("[E] Use  [</>] Cycle", startX - 10, startY + slotSize + 5,
+				Color(150, 150, 150, 180), 0.7f);
+		}
 	}
 
 	private void DrawGameOver(int32 score, int32 highScore)

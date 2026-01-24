@@ -9,7 +9,6 @@ using Sedulous.Render;
 using Sedulous.Geometry;
 using Sedulous.Materials;
 using Sedulous.Physics;
-using Sedulous.Shell.Input;
 
 class Player
 {
@@ -29,6 +28,7 @@ class Player
 	private float mHealth = MaxHealth;
 	private float mDashTimer = 0.0f;
 	private float mInvulnTimer = 0.0f;
+	private float mSpeedBoostTimer = 0.0f;
 	private Vector3 mLastMoveDir = .(0, 0, 1);
 	private bool mIsDashing = false;
 
@@ -39,6 +39,9 @@ class Player
 	public bool IsDashing => mIsDashing;
 	public bool IsAlive => mHealth > 0;
 	public bool IsInvulnerable => mInvulnTimer > 0;
+	public float InvulnTimer => mInvulnTimer;
+	public bool HasSpeedBoost => mSpeedBoostTimer > 0;
+	private float SpeedMultiplier => mSpeedBoostTimer > 0 ? 2.0f : 1.0f;
 
 	public Vector3 Position
 	{
@@ -84,30 +87,28 @@ class Player
 		physicsModule.CreateSphereBody(mEntity, Radius, descriptor);
 	}
 
-	public void Update(IKeyboard keyboard, float dt)
+	public void Update(Vector2 moveInput, bool dashPressed, float dt)
 	{
 		if (!IsAlive) return;
 
 		// Timers
 		if (mDashTimer > 0) mDashTimer -= dt;
 		if (mInvulnTimer > 0) mInvulnTimer -= dt;
+		if (mSpeedBoostTimer > 0) mSpeedBoostTimer -= dt;
 
-		// Movement input
-		Vector3 moveDir = .Zero;
-		if (keyboard.IsKeyDown(.W)) moveDir.Z -= 1;
-		if (keyboard.IsKeyDown(.S)) moveDir.Z += 1;
-		if (keyboard.IsKeyDown(.A)) moveDir.X -= 1;
-		if (keyboard.IsKeyDown(.D)) moveDir.X += 1;
+		// Movement: moveInput.X = left/right, moveInput.Y = forward/back
+		Vector3 moveDir = .(moveInput.X, 0, -moveInput.Y);
 
 		if (moveDir.LengthSquared() > 0.01f)
 		{
-			moveDir = Vector3.Normalize(moveDir);
-			mLastMoveDir = moveDir;
-			mPhysicsModule.AddForce(mEntity, moveDir * MoveForce);
+			if (moveDir.LengthSquared() > 1.0f)
+				moveDir = Vector3.Normalize(moveDir);
+			mLastMoveDir = Vector3.Normalize(moveDir);
+			mPhysicsModule.AddForce(mEntity, moveDir * MoveForce * SpeedMultiplier);
 		}
 
 		// Dash
-		if (keyboard.IsKeyPressed(.Space) && mDashTimer <= 0)
+		if (dashPressed && mDashTimer <= 0)
 		{
 			mPhysicsModule.AddImpulse(mEntity, mLastMoveDir * DashImpulse);
 			mDashTimer = DashCooldown;
@@ -130,11 +131,17 @@ class Player
 		mHealth = Math.Min(MaxHealth, mHealth + amount);
 	}
 
+	public void ApplySpeedBoost(float duration)
+	{
+		mSpeedBoostTimer = duration;
+	}
+
 	public void Reset()
 	{
 		mHealth = MaxHealth;
 		mDashTimer = 0;
 		mInvulnTimer = 0;
+		mSpeedBoostTimer = 0;
 		mIsDashing = false;
 
 		var transform = mScene.GetTransform(mEntity);

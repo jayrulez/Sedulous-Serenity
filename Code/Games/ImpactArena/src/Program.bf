@@ -54,8 +54,8 @@ class Program
 		let settings = ApplicationSettings()
 		{
 			Title = "Impact Arena",
-			Width = 1280,
-			Height = 720,
+			Width = 1600,
+			Height = 900,
 			EnableDepth = true,
 			PresentMode = .Mailbox,
 			ClearColor = .(0.02f, 0.02f, 0.05f, 1.0f)

@@ -61,6 +61,125 @@ class EffectsManager
 			.(1.5f, 1.5f, 1.5f), 0.8f, 0.6f);
 	}
 
+	public void SpawnPickupEffect(Vector3 position, PowerUpType type)
+	{
+		Vector4 startColor;
+		Vector4 endColor;
+
+		switch (type)
+		{
+		case .HealthPack:
+			startColor = .(0.2f, 1.0f, 0.4f, 1.0f);
+			endColor = .(0.0f, 0.8f, 0.2f, 0.0f);
+		case .SpeedBoost:
+			startColor = .(0.2f, 0.9f, 1.0f, 1.0f);
+			endColor = .(0.0f, 0.5f, 1.0f, 0.0f);
+		case .Shockwave:
+			startColor = .(0.8f, 0.3f, 1.0f, 1.0f);
+			endColor = .(0.5f, 0.0f, 1.0f, 0.0f);
+		case .EMP:
+			startColor = .(1.0f, 1.0f, 0.4f, 1.0f);
+			endColor = .(1.0f, 0.8f, 0.0f, 0.0f);
+		}
+
+		SpawnBurst(position, 60, startColor, endColor,
+			.(3.0f, 3.0f, 3.0f), 1.2f, 1.0f);
+	}
+
+	public void SpawnShockwaveEffect(Vector3 position)
+	{
+		let entity = mScene.CreateEntity();
+		var transform = mScene.GetTransform(entity);
+		transform.Position = position;
+		mScene.SetTransform(entity, transform);
+
+		let handle = mRenderModule.CreateCPUParticleEmitter(entity, 110);
+		if (handle.IsValid)
+		{
+			if (let proxy = mRenderModule.GetParticleEmitterProxy(entity))
+			{
+				proxy.BlendMode = .Additive;
+				proxy.SpawnRate = 0;
+				proxy.BurstCount = 100;
+				proxy.BurstInterval = 0;
+				proxy.BurstCycles = 1;
+				proxy.ParticleLifetime = 0.8f;
+				proxy.StartSize = .(0.25f, 0.25f);
+				proxy.EndSize = .(0.04f, 0.04f);
+				proxy.StartColor = .(1.0f, 0.8f, 1.0f, 1.0f);
+				proxy.EndColor = .(0.6f, 0.1f, 1.0f, 0.0f);
+				proxy.InitialVelocity = .(0, 0.3f, 0);
+				proxy.VelocityRandomness = .(8.0f, 0.5f, 8.0f); // Wide XZ ring, minimal Y
+				proxy.GravityMultiplier = 0;
+				proxy.Drag = 1.5f;
+				proxy.LifetimeVarianceMin = 0.7f;
+				proxy.LifetimeVarianceMax = 1.0f;
+				proxy.RenderMode = .StretchedBillboard;
+				proxy.StretchFactor = 2.0f;
+				proxy.IsEnabled = true;
+				proxy.IsEmitting = true;
+				proxy.AlphaOverLifetime = .FadeOut(1.0f, 0.3f);
+			}
+		}
+
+		var effect = ActiveEffect();
+		effect.Entity = entity;
+		effect.TimeRemaining = 2.0f;
+		mActiveEffects.Add(effect);
+	}
+
+	public void SpawnEMPEffect(Vector3 position)
+	{
+		let entity = mScene.CreateEntity();
+		var transform = mScene.GetTransform(entity);
+		transform.Position = position;
+		mScene.SetTransform(entity, transform);
+
+		let handle = mRenderModule.CreateCPUParticleEmitter(entity, 220);
+		if (handle.IsValid)
+		{
+			if (let proxy = mRenderModule.GetParticleEmitterProxy(entity))
+			{
+				proxy.BlendMode = .Additive;
+				proxy.SpawnRate = 0;
+				proxy.BurstCount = 200;
+				proxy.BurstInterval = 0;
+				proxy.BurstCycles = 1;
+				proxy.ParticleLifetime = 1.2f;
+				proxy.StartSize = .(0.35f, 0.35f);
+				proxy.EndSize = .(0.06f, 0.06f);
+				proxy.StartColor = .(1.0f, 1.0f, 0.6f, 1.0f);
+				proxy.EndColor = .(1.0f, 0.6f, 0.0f, 0.0f);
+				proxy.InitialVelocity = .(0, 0.5f, 0);
+				proxy.VelocityRandomness = .(15.0f, 1.0f, 15.0f);
+				proxy.GravityMultiplier = 0;
+				proxy.Drag = 1.0f;
+				proxy.LifetimeVarianceMin = 0.6f;
+				proxy.LifetimeVarianceMax = 1.0f;
+				proxy.RenderMode = .StretchedBillboard;
+				proxy.StretchFactor = 2.5f;
+				proxy.IsEnabled = true;
+				proxy.IsEmitting = true;
+				proxy.AlphaOverLifetime = .FadeOut(1.0f, 0.3f);
+			}
+		}
+
+		var effect = ActiveEffect();
+		effect.Entity = entity;
+		effect.TimeRemaining = 3.0f;
+		mActiveEffects.Add(effect);
+	}
+
+	public void SpawnPlayerDeathEffect(Vector3 position)
+	{
+		// Big blue explosion
+		SpawnBurst(position, 120, .(0.3f, 0.6f, 1.0f, 1.0f), .(0.1f, 0.2f, 1.0f, 0.0f),
+			.(5.0f, 4.0f, 5.0f), 2.0f, 2.0f);
+		// Secondary white flash
+		SpawnBurst(position, 40, .(1.0f, 1.0f, 1.0f, 1.0f), .(0.5f, 0.7f, 1.0f, 0.0f),
+			.(2.0f, 3.0f, 2.0f), 1.0f, 1.5f);
+	}
+
 	private void SpawnBurst(Vector3 position, int32 count, Vector4 startColor, Vector4 endColor,
 		Vector3 velocityRandomness, float lifetime, float effectDuration)
 	{
