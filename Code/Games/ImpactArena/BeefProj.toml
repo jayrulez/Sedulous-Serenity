@@ -1,0 +1,6 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.Framework.Runtime" = "*"}
+
+[Project]
+Name = "ImpactArena"
+StartupObject = "ImpactArena.Program"
