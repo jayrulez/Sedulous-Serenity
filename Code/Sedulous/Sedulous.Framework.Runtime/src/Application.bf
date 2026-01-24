@@ -564,6 +564,10 @@ abstract class Application
 		if (mSwapChain != null) delete mSwapChain;
 		if (mSurface != null) delete mSurface;
 
+		// Destroy window
+		if (mWindow != null)
+			mShell.WindowManager.DestroyWindow(mWindow);
+
 		// Note: shell, device, backend are NOT deleted - they're owned by caller
 	}
 
