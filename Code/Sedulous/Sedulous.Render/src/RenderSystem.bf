@@ -258,6 +258,9 @@ public class RenderSystem : IDisposable
 			mFrameNumber++;
 			mStats.Reset();
 
+			// Process deferred GPU resource deletions
+			mActiveWorld?.ProcessDeferredDeletions();
+
 			// Begin frame on subsystems
 			mRenderFrameContext.BeginFrame(mFrameNumber, totalTime, deltaTime);
 			mRenderGraph.BeginFrame(mRenderFrameContext.FrameIndex);

@@ -41,6 +41,12 @@ public class ParticleFeature : RenderFeatureBase
 	private ITextureView mDefaultParticleTextureView ~ delete _;
 	private ISampler mDefaultSampler ~ delete _;
 
+	// Fallback lighting buffers (used when ForwardOpaqueFeature lighting isn't available)
+	private IBuffer mFallbackLightingBuffer ~ delete _;
+	private IBuffer mFallbackLightDataBuffer ~ delete _;
+	private IBuffer mFallbackClusterInfoBuffer ~ delete _;
+	private IBuffer mFallbackLightIndexBuffer ~ delete _;
+
 	// Emitter params dynamic uniform buffer (per-emitter, dynamic offset)
 	private const uint64 EmitterParamAlignment = 256; // Vulkan minUniformBufferOffsetAlignment
 	private const int32 MaxActiveEmitters = 64;
@@ -224,6 +230,60 @@ public class ParticleFeature : RenderFeatureBase
 		switch (Renderer.Device.CreateBuffer(&emitterParamsDesc))
 		{
 		case .Ok(let buf): mEmitterParamsBuffer = buf;
+		case .Err: return .Err;
+		}
+
+		// Create fallback lighting buffers (zeroed = 0 lights, no clusters)
+		// Used when ForwardOpaqueFeature lighting isn't available yet
+		BufferDescriptor fallbackLightingDesc = .()
+		{
+			Label = "Fallback Lighting UBO",
+			Size = (uint64)LightingUniforms.Size,
+			Usage = .Uniform,
+			MemoryAccess = .Upload
+		};
+		switch (Renderer.Device.CreateBuffer(&fallbackLightingDesc))
+		{
+		case .Ok(let buf): mFallbackLightingBuffer = buf;
+		case .Err: return .Err;
+		}
+
+		BufferDescriptor fallbackLightDataDesc = .()
+		{
+			Label = "Fallback Light Data",
+			Size = 64,
+			Usage = .Storage,
+			MemoryAccess = .Upload
+		};
+		switch (Renderer.Device.CreateBuffer(&fallbackLightDataDesc))
+		{
+		case .Ok(let buf): mFallbackLightDataBuffer = buf;
+		case .Err: return .Err;
+		}
+
+		BufferDescriptor fallbackClusterInfoDesc = .()
+		{
+			Label = "Fallback Cluster Info",
+			Size = 8,
+			Usage = .Storage,
+			MemoryAccess = .Upload
+		};
+		switch (Renderer.Device.CreateBuffer(&fallbackClusterInfoDesc))
+		{
+		case .Ok(let buf): mFallbackClusterInfoBuffer = buf;
+		case .Err: return .Err;
+		}
+
+		BufferDescriptor fallbackLightIndexDesc = .()
+		{
+			Label = "Fallback Light Index",
+			Size = 4,
+			Usage = .Storage,
+			MemoryAccess = .Upload
+		};
+		switch (Renderer.Device.CreateBuffer(&fallbackLightIndexDesc))
+		{
+		case .Ok(let buf): mFallbackLightIndexBuffer = buf;
 		case .Err: return .Err;
 		}
 
@@ -1194,9 +1254,11 @@ public class ParticleFeature : RenderFeatureBase
 			}
 		}
 
-		if (lightingBuffer == null || lightDataBuffer == null ||
-			clusterInfoBuffer == null || lightIndexBuffer == null)
-			return null;
+		// Use fallback buffers when lighting isn't available
+		if (lightingBuffer == null) lightingBuffer = mFallbackLightingBuffer;
+		if (lightDataBuffer == null) { lightDataBuffer = mFallbackLightDataBuffer; lightDataSize = 64; }
+		if (clusterInfoBuffer == null) { clusterInfoBuffer = mFallbackClusterInfoBuffer; clusterInfoSize = 8; }
+		if (lightIndexBuffer == null) { lightIndexBuffer = mFallbackLightIndexBuffer; lightIndexSize = 4; }
 
 		BindGroupEntry[9] entries = .(
 			BindGroupEntry.Buffer(0, cameraBuffer, 0, SceneUniforms.Size),
@@ -1267,10 +1329,11 @@ public class ParticleFeature : RenderFeatureBase
 			}
 		}
 
-		// All lighting buffers must be available for the bind group
-		if (lightingBuffer == null || lightDataBuffer == null ||
-			clusterInfoBuffer == null || lightIndexBuffer == null)
-			return null;
+		// Use fallback buffers when lighting isn't available
+		if (lightingBuffer == null) lightingBuffer = mFallbackLightingBuffer;
+		if (lightDataBuffer == null) { lightDataBuffer = mFallbackLightDataBuffer; lightDataSize = 64; }
+		if (clusterInfoBuffer == null) { clusterInfoBuffer = mFallbackClusterInfoBuffer; clusterInfoSize = 8; }
+		if (lightIndexBuffer == null) { lightIndexBuffer = mFallbackLightIndexBuffer; lightIndexSize = 4; }
 
 		BindGroupEntry[9] entries = .(
 			BindGroupEntry.Buffer(0, cameraBuffer, 0, SceneUniforms.Size),

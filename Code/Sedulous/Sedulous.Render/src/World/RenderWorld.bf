@@ -28,6 +28,28 @@ public class RenderWorld : IDisposable
 	private float mExposure = 1.0f;
 	private bool mEnvironmentDirty = true;
 
+	// Deferred deletion queue for GPU-referenced resources
+	struct PendingEmitterDeletion
+	{
+		public CPUParticleEmitter Emitter;
+		public int32 FramesRemaining;
+	}
+	struct PendingTrailDeletion
+	{
+		public TrailEmitter Emitter;
+		public int32 FramesRemaining;
+	}
+	private List<PendingEmitterDeletion> mPendingEmitterDeletions = new .() ~ {
+		for (let pending in _)
+			delete pending.Emitter;
+		delete _;
+	};
+	private List<PendingTrailDeletion> mPendingTrailDeletions = new .() ~ {
+		for (let pending in _)
+			delete pending.Emitter;
+		delete _;
+	};
+
 	// Dirty tracking
 	private bool mMeshesDirty = false;
 	private bool mSkinnedMeshesDirty = false;
@@ -593,19 +615,51 @@ public class RenderWorld : IDisposable
 	}
 
 	/// Destroys a particle emitter proxy.
+	/// CPU emitter buffers are deferred for deletion to avoid destroying
+	/// GPU resources that may still be referenced by in-flight command buffers.
 	public void DestroyParticleEmitter(ParticleEmitterProxyHandle handle)
 	{
 		if (mParticleProxies.TryGet(handle.Handle, let proxy))
 		{
 			if (proxy.CPUEmitter != null)
 			{
-				delete proxy.CPUEmitter;
+				// Defer deletion until in-flight frames have completed
+				var pending = PendingEmitterDeletion();
+				pending.Emitter = proxy.CPUEmitter;
+				pending.FramesRemaining = RenderConfig.FrameBufferCount + 1;
+				mPendingEmitterDeletions.Add(pending);
 				proxy.CPUEmitter = null;
 			}
 			proxy.Reset();
 		}
 		mParticleProxies.Free(handle.Handle);
 		mParticlesDirty = true;
+	}
+
+	/// Processes deferred deletions. Call once per frame from the render system.
+	public void ProcessDeferredDeletions()
+	{
+		for (int32 i = (int32)mPendingEmitterDeletions.Count - 1; i >= 0; i--)
+		{
+			var pending = ref mPendingEmitterDeletions[i];
+			pending.FramesRemaining--;
+			if (pending.FramesRemaining <= 0)
+			{
+				delete pending.Emitter;
+				mPendingEmitterDeletions.RemoveAt(i);
+			}
+		}
+
+		for (int32 i = (int32)mPendingTrailDeletions.Count - 1; i >= 0; i--)
+		{
+			var pending = ref mPendingTrailDeletions[i];
+			pending.FramesRemaining--;
+			if (pending.FramesRemaining <= 0)
+			{
+				delete pending.Emitter;
+				mPendingTrailDeletions.RemoveAt(i);
+			}
+		}
 	}
 
 	/// Sets particle emitter position.
@@ -742,13 +796,18 @@ public class RenderWorld : IDisposable
 	}
 
 	/// Destroys a trail emitter proxy.
+	/// Trail emitter buffers are deferred for deletion to avoid destroying
+	/// GPU resources that may still be referenced by in-flight command buffers.
 	public void DestroyTrailEmitter(TrailEmitterProxyHandle handle)
 	{
 		if (mTrailProxies.TryGet(handle.Handle, let proxy))
 		{
 			if (proxy.Emitter != null)
 			{
-				delete proxy.Emitter;
+				var pending = PendingTrailDeletion();
+				pending.Emitter = proxy.Emitter;
+				pending.FramesRemaining = RenderConfig.FrameBufferCount + 1;
+				mPendingTrailDeletions.Add(pending);
 				proxy.Emitter = null;
 			}
 			proxy.Reset();
