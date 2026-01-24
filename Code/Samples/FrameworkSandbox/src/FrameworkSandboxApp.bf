@@ -8,6 +8,10 @@ using Sedulous.Framework.Render;
 using Sedulous.Framework.Animation;
 using Sedulous.Framework.Physics;
 using Sedulous.Framework.Audio;
+using Sedulous.Framework.Input;
+using Sedulous.Framework.UI;
+using Sedulous.Fonts;
+using Sedulous.UI;
 using Sedulous.RHI;
 using Sedulous.Shell;
 using Sedulous.Render;
@@ -28,6 +32,7 @@ class FrameworkSandboxApp : Application
 	// Framework core (mContext is now owned by base Application)
 	private SceneSubsystem mSceneSubsystem;
 	private RenderSubsystem mRenderSubsystem;
+	private UISubsystem mUISubsystem;
 	private Scene mMainScene;
 
 	// Render system (needed by RenderSubsystem)
@@ -75,6 +80,7 @@ class FrameworkSandboxApp : Application
 	private EntityId mTrailedSparksEntity;
 	private EntityId mHealingEntity;
 	private EntityId mSpriteEntity;
+	private EntityId mWorldUIPanelEntity;
 
 	// Trail emitters
 	private EntityId mTrailEmitterEntity;
@@ -146,6 +152,9 @@ class FrameworkSandboxApp : Application
 
 		// Create scene objects
 		CreateSceneObjects();
+
+		// Create UI overlay
+		CreateUI();
 
 		Console.WriteLine("\n=== Initialization Complete ===");
 		Console.WriteLine("Controls:");
@@ -280,6 +289,33 @@ class FrameworkSandboxApp : Application
 		mRenderSubsystem = new RenderSubsystem(mRenderSystem, takeOwnership: false);
 		context.RegisterSubsystem(mRenderSubsystem);
 		Console.WriteLine("  - RenderSubsystem");
+
+		// Input subsystem (needed for UI input routing)
+		let inputSubsystem = new InputSubsystem();
+		inputSubsystem.SetInputManager(mShell.InputManager);
+		context.RegisterSubsystem(inputSubsystem);
+		Console.WriteLine("  - InputSubsystem");
+
+		// UI subsystem
+		mUISubsystem = new UISubsystem();
+		context.RegisterSubsystem(mUISubsystem);
+		if (mUISubsystem.InitializeRendering(mDevice, .BGRA8UnormSrgb, 2, mShell, mRenderSystem) case .Ok)
+		{
+			// Load font
+			String fontPath = scope .();
+			GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", fontPath);
+			FontLoadOptions fontOptions = .ExtendedLatin;
+			fontOptions.PixelHeight = 16;
+			if (mUISubsystem.FontService.LoadFont("Roboto", fontPath, fontOptions) case .Ok)
+			{
+				mUISubsystem.ApplyFontAtlas();
+				Console.WriteLine("  - UISubsystem (with font)");
+			}
+			else
+				Console.WriteLine("  - UISubsystem (no font - file not found)");
+		}
+		else
+			Console.WriteLine("  - UISubsystem (render init failed)");
 	}
 
 	private void CreateMainScene()
@@ -301,6 +337,7 @@ class FrameworkSandboxApp : Application
 		Console.WriteLine("  - AudioSceneModule (from AudioSubsystem)");
 		Console.WriteLine("  - PhysicsSceneModule (from PhysicsSubsystem)");
 		Console.WriteLine("  - RenderSceneModule (from RenderSubsystem)");
+		Console.WriteLine("  - UISceneModule (from UISubsystem)");
 	}
 
 	private void CreateSceneObjects()
@@ -1233,6 +1270,52 @@ class FrameworkSandboxApp : Application
 		}
 		Console.WriteLine("  Created test sprite");
 
+		// Create world-space UI panel (floating in 3D)
+		{
+			let uiModule = mMainScene.GetModule<UISceneModule>();
+			if (uiModule != null)
+			{
+				mWorldUIPanelEntity = mMainScene.CreateEntity();
+				var uiTransform = mMainScene.GetTransform(mWorldUIPanelEntity);
+				uiTransform.Position = .(0.0f, 3.0f, -3.0f);
+				mMainScene.SetTransform(mWorldUIPanelEntity, uiTransform);
+
+				let panel = uiModule.CreateWorldUI(mWorldUIPanelEntity, 256, 192, 2.0f, 1.5f);
+				if (panel != null)
+				{
+					// Build UI content on the panel
+					let panelRoot = new StackPanel();
+					panelRoot.Background = Color(20, 20, 40, 220);
+					panelRoot.Padding = Thickness(12);
+					panelRoot.Spacing = 8;
+
+					let panelTitle = new TextBlock();
+					panelTitle.Text = "World Panel";
+					panelTitle.Foreground = Color(180, 220, 255);
+					panelTitle.FontSize = 16;
+					panelRoot.AddChild(panelTitle);
+
+					let panelInfo = new TextBlock();
+					panelInfo.Text = "3D UI Surface";
+					panelInfo.Foreground = Color(160, 160, 180);
+					panelInfo.FontSize = 12;
+					panelRoot.AddChild(panelInfo);
+
+					let panelBtn = new Button();
+					panelBtn.ContentText = "Click Me";
+					panelBtn.Width = 100;
+					panelBtn.Click.Subscribe(new (btn) => {
+						panel.MarkDirty();
+					});
+					panelRoot.AddChild(panelBtn);
+
+					panel.UIContext.RootElement = panelRoot;
+					panel.MarkDirty();
+					Console.WriteLine("  Created world-space UI panel");
+				}
+			}
+		}
+
 		// Create trail emitter (orbiting ring)
 		mTrailEmitterEntity = mMainScene.CreateEntity();
 		{
@@ -1294,6 +1377,90 @@ class FrameworkSandboxApp : Application
 		Console.WriteLine("  F      - Toggle physics debug draw");
 		Console.WriteLine("  P      - Print profiler stats");
 		Console.WriteLine("  Escape - Quit");
+	}
+
+	private void CreateUI()
+	{
+		if (mUISubsystem == null || !mUISubsystem.IsInitialized)
+			return;
+
+		// Create root canvas for absolute positioning
+		let root = new Canvas();
+
+		// Create a panel in the top-left corner
+		let panel = new StackPanel();
+		panel.Background = Color(20, 20, 30, 200);
+		panel.Padding = Thickness(10);
+		panel.Spacing = 6;
+
+		// Title
+		let title = new TextBlock();
+		title.Text = "UI Controls";
+		title.Foreground = Color(200, 220, 255);
+		title.FontSize = 14;
+		panel.AddChild(title);
+
+		// Spawn toggle button
+		let spawnBtn = new Button();
+		spawnBtn.ContentText = "Toggle Spawn";
+		spawnBtn.Width = 150;
+		spawnBtn.Click.Subscribe(new (btn) => {
+			mSpawningEnabled = !mSpawningEnabled;
+		});
+		panel.AddChild(spawnBtn);
+
+		// Physics debug toggle
+		let debugBtn = new Button();
+		debugBtn.ContentText = "Toggle Debug Draw";
+		debugBtn.Width = 150;
+		debugBtn.Click.Subscribe(new (btn) => {
+			if (let physicsModule = mMainScene?.GetModule<PhysicsSceneModule>())
+				physicsModule.DebugDrawEnabled = !physicsModule.DebugDrawEnabled;
+		});
+		panel.AddChild(debugBtn);
+
+		// Roughness slider label
+		let roughLabel = new TextBlock();
+		roughLabel.Text = "Roughness";
+		roughLabel.Foreground = Color(180, 180, 200);
+		panel.AddChild(roughLabel);
+
+		// Roughness slider
+		let roughSlider = new Slider();
+		roughSlider.Minimum = 0;
+		roughSlider.Maximum = 100;
+		roughSlider.Value = 95;
+		roughSlider.Width = 150;
+		roughSlider.ValueChanged.Subscribe(new (slider, value) => {
+			if (mSphereMaterial != null)
+				mSphereMaterial.SetFloat("Roughness", (float)value / 100.0f);
+		});
+		panel.AddChild(roughSlider);
+
+		// Metallic slider label
+		let metalLabel = new TextBlock();
+		metalLabel.Text = "Metallic";
+		metalLabel.Foreground = Color(180, 180, 200);
+		panel.AddChild(metalLabel);
+
+		// Metallic slider
+		let metalSlider = new Slider();
+		metalSlider.Minimum = 0;
+		metalSlider.Maximum = 100;
+		metalSlider.Value = 0;
+		metalSlider.Width = 150;
+		metalSlider.ValueChanged.Subscribe(new (slider, value) => {
+			if (mSphereMaterial != null)
+				mSphereMaterial.SetFloat("Metallic", (float)value / 100.0f);
+		});
+		panel.AddChild(metalSlider);
+
+		root.AddChild(panel);
+		root.SetLeft(panel, 10);
+		root.SetTop(panel, 150);
+		mUISubsystem.UIContext.RootElement = root;
+
+		Console.WriteLine("UI overlay created");
 	}
 
 	private void CreateMeshes()
@@ -1563,6 +1730,7 @@ class FrameworkSandboxApp : Application
 			mDebugFeature.AddText("HEALING", .(5.0f, 3.5f, 8.0f), Color(50, 255, 100, 255), 1.5f, camRight, camUp, .Overlay);
 			mDebugFeature.AddText("SWORD TRAIL", .(-12.0f, 4.5f, 8.0f), Color(180, 150, 255, 255), 1.5f, camRight, camUp, .Overlay);
 			mDebugFeature.AddText("CHERRY BLOSSOMS", .(0.0f, 13.0f, 0.0f), Color(255, 130, 150, 255), 1.5f, camRight, camUp, .Overlay);
+			mDebugFeature.AddText("WORLD UI", .(0.0f, 4.8f, -3.0f), Color(180, 220, 255, 255), 1.5f, camRight, camUp, .Overlay);
 
 			// Draw directional light direction (matching RendererIntegrated)
 			{
@@ -1649,6 +1817,13 @@ class FrameworkSandboxApp : Application
 		if (mRenderSystem.BuildRenderGraph(mRenderView) case .Ok)
 		{
 			mRenderSystem.Execute(render.Encoder);
+		}
+
+		// Render UI overlay (after 3D scene, before present)
+		if (mUISubsystem != null && mUISubsystem.IsInitialized)
+		{
+			mUISubsystem.RenderUI(render.Encoder, render.CurrentTextureView,
+				mSwapChain.Width, mSwapChain.Height, render.Frame.FrameIndex);
 		}
 
 		// End frame

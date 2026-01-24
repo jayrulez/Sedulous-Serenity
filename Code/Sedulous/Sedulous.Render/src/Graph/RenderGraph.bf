@@ -34,6 +34,13 @@ struct TextureKey : IHashable
 	}
 }
 
+/// A deferred texture read declaration: "pass X should read resource Y".
+class DeferredRead
+{
+	public String PassName = new .() ~ delete _;
+	public RGResourceHandle Handle;
+}
+
 /// Render graph that manages pass dependencies and resource lifetimes.
 public class RenderGraph : IDisposable
 {
@@ -61,6 +68,10 @@ public class RenderGraph : IDisposable
 
 	// Resources that need to be transitioned to Present layout at end of frame (e.g., swapchain)
 	private List<RGResourceHandle> mPresentTargets = new .() ~ delete _;
+
+	// Deferred texture reads: (passName, resourceHandle) pairs applied during Compile.
+	// Allows a feature to declare "pass X reads resource Y" before that pass exists.
+	private List<DeferredRead> mDeferredReads = new .() ~ DeleteContainerAndItems!(_);
 
 	// Deferred deletion queues per frame slot.
 	// Transient resources are pushed here instead of being deleted immediately,
@@ -139,6 +150,8 @@ public class RenderGraph : IDisposable
 
 		mExecutionOrder.Clear();
 		mPresentTargets.Clear();
+		for (let dr in mDeferredReads) delete dr;
+		mDeferredReads.Clear();
 		// Note: Do NOT clear mTextureLayouts - texture layout state persists across frames.
 		// This is important for swapchain images which cycle through and retain their
 		// layout state (e.g., Present after being presented, ColorAttachment after rendering).
@@ -212,6 +225,17 @@ public class RenderGraph : IDisposable
 	{
 		if (handle.IsValid)
 			mPresentTargets.Add(handle);
+	}
+
+	/// Declares that a named pass should read a texture resource.
+	/// Applied during Compile() so the pass does not need to exist yet.
+	/// This inserts a proper layout barrier and dependency edge.
+	public void DeferReadTexture(StringView passName, RGResourceHandle handle)
+	{
+		let entry = new DeferredRead();
+		entry.PassName.Set(passName);
+		entry.Handle = handle;
+		mDeferredReads.Add(entry);
 	}
 
 	/// Gets a resource handle by name.
@@ -294,6 +318,9 @@ public class RenderGraph : IDisposable
 		Runtime.Assert(mIsBuilding, "Must call BeginFrame before Compile");
 
 		mIsBuilding = false;
+
+		// Apply deferred reads to their target passes
+		ApplyDeferredReads();
 
 		// Build resource references
 		BuildResourceReferences();
@@ -407,6 +434,21 @@ public class RenderGraph : IDisposable
 		mResourceNames[nameKey] = handle;
 
 		return handle;
+	}
+
+	private void ApplyDeferredReads()
+	{
+		for (let deferred in mDeferredReads)
+		{
+			for (let pass in mPasses)
+			{
+				if (StringView(pass.Name) == StringView(deferred.PassName))
+				{
+					pass.Reads.Add(deferred.Handle);
+					break;
+				}
+			}
+		}
 	}
 
 	private RenderPass GetPass(PassHandle handle)
