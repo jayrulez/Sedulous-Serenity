@@ -1,0 +1,6 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.Framework.Core" = "*", "Sedulous.Framework.Scenes" = "*", "Sedulous.Framework.Render" = "*", "Sedulous.Framework.Physics" = "*", "Sedulous.Navigation" = "*", "Sedulous.Mathematics" = "*", "Sedulous.Render" = "*"}
+
+[Project]
+Name = "Sedulous.Framework.Navigation"
+TargetType = "BeefLib"
