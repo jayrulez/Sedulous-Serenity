@@ -106,7 +106,22 @@ public class UIRenderer : IDisposable
 	/// Must be called before Prepare() each frame.
 	public void SetTexture(ITextureView textureView)
 	{
-		mTextureView = textureView;
+		if (mTextureView != textureView)
+		{
+			mTextureView = textureView;
+			// Invalidate all bind groups so they get recreated with new texture
+			if (mBindGroups != null)
+			{
+				for (int i = 0; i < mBindGroups.Count; i++)
+				{
+					if (mBindGroups[i] != null)
+					{
+						delete mBindGroups[i];
+						mBindGroups[i] = null;
+					}
+				}
+			}
+		}
 	}
 
 	/// Prepare batch data for rendering.
@@ -376,33 +391,36 @@ public class UIRenderer : IDisposable
 
 		for (int32 i = 0; i < mFrameCount; i++)
 		{
-			// Vertex buffer
+			// Vertex buffer (host-visible for fast CPU writes)
 			BufferDescriptor vertexDesc = .()
 			{
 				Size = (uint64)(MAX_VERTICES * sizeof(UIRenderVertex)),
-				Usage = .Vertex | .CopyDst
+				Usage = .Vertex,
+				MemoryAccess = .Upload
 			};
 			if (mDevice.CreateBuffer(&vertexDesc) case .Ok(let vb))
 				mVertexBuffers[i] = vb;
 			else
 				return .Err;
 
-			// Index buffer
+			// Index buffer (host-visible for fast CPU writes)
 			BufferDescriptor indexDesc = .()
 			{
 				Size = (uint64)(MAX_INDICES * sizeof(uint16)),
-				Usage = .Index | .CopyDst
+				Usage = .Index,
+				MemoryAccess = .Upload
 			};
 			if (mDevice.CreateBuffer(&indexDesc) case .Ok(let ib))
 				mIndexBuffers[i] = ib;
 			else
 				return .Err;
 
-			// Uniform buffer
+			// Uniform buffer (host-visible for fast CPU writes)
 			BufferDescriptor uniformDesc = .()
 			{
 				Size = (uint64)sizeof(UIUniforms),
-				Usage = .Uniform | .CopyDst
+				Usage = .Uniform,
+				MemoryAccess = .Upload
 			};
 			if (mDevice.CreateBuffer(&uniformDesc) case .Ok(let ub))
 				mUniformBuffers[i] = ub;
@@ -415,12 +433,9 @@ public class UIRenderer : IDisposable
 
 	private void UpdateBindGroup(int32 frameIndex)
 	{
-		// Delete old bind group if exists
+		// Skip if bind group is already valid (invalidated by SetTexture on change)
 		if (mBindGroups[frameIndex] != null)
-		{
-			delete mBindGroups[frameIndex];
-			mBindGroups[frameIndex] = null;
-		}
+			return;
 
 		if (mTextureView == null)
 			return;

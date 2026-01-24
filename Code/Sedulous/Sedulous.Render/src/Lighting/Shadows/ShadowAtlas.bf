@@ -475,7 +475,8 @@ public class ShadowAtlas : IDisposable
 		{
 			Label = "Shadow Data",
 			Size = (uint64)(maxShadows * GPUShadowData.Size),
-			Usage = .Storage | .CopyDst
+			Usage = .Storage,
+			MemoryAccess = .Upload
 		};
 
 		switch (mDevice.CreateBuffer(&desc))

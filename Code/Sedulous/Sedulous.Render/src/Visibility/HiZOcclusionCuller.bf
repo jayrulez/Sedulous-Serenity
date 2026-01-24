@@ -551,7 +551,8 @@ public class HiZOcclusionCuller : IDisposable
 		{
 			Label = "HiZ Cull Bounds",
 			Size = boundsSize,
-			Usage = .Storage | .CopyDst
+			Usage = .Storage,
+			MemoryAccess = .Upload
 		};
 
 		switch (mDevice.CreateBuffer(&boundsDesc))
@@ -741,7 +742,8 @@ public class HiZOcclusionCuller : IDisposable
 		{
 			Label = "HiZ Cull Params",
 			Size = sizeof(HiZCullParams),
-			Usage = .Uniform | .CopyDst
+			Usage = .Uniform,
+			MemoryAccess = .Upload
 		};
 
 		switch (mDevice.CreateBuffer(&paramsDesc))
@@ -759,7 +761,8 @@ public class HiZOcclusionCuller : IDisposable
 		{
 			Label = "HiZ Build Params",
 			Size = sizeof(HiZBuildParams),
-			Usage = .Uniform | .CopyDst
+			Usage = .Uniform,
+			MemoryAccess = .Upload
 		};
 
 		switch (mDevice.CreateBuffer(&desc))

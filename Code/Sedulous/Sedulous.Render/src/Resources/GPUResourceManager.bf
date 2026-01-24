@@ -392,7 +392,8 @@ public class GPUResourceManager : IDisposable
 		var bufDesc = BufferDescriptor()
 		{
 			Size = bufferSize,
-			Usage = .Storage | .CopyDst
+			Usage = .Storage,
+			MemoryAccess = .Upload
 		};
 
 		if (mDevice.CreateBuffer(&bufDesc) case .Ok(let buffer))

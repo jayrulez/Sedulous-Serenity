@@ -45,7 +45,8 @@ class TransientBufferRing
 		var desc = BufferDescriptor()
 		{
 			Size = size,
-			Usage = usage | .CopyDst
+			Usage = usage,
+			MemoryAccess = .Upload
 		};
 
 		if (device.CreateBuffer(&desc) case .Ok(let buffer))

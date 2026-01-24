@@ -84,7 +84,8 @@ public class VolumetricFogEffect : IPostProcessEffect
 		BufferDescriptor bufDesc = .();
 		bufDesc.Label = "Fog Apply Params";
 		bufDesc.Size = (uint64)FogApplyParams.Size;
-		bufDesc.Usage = .Uniform | .CopyDst;
+		bufDesc.Usage = .Uniform;
+		bufDesc.MemoryAccess = .Upload;
 
 		switch (device.CreateBuffer(&bufDesc))
 		{

@@ -120,6 +120,10 @@ public class ClusterGrid : IDisposable
 	// CPU-side cluster data (for debugging/fallback)
 	private BoundingBox[] mClusterAABBs ~ delete _;
 
+	// Cached CPU culling arrays (avoid per-frame heap allocation)
+	private ClusterLightInfo[] mCullClusterInfos ~ delete _;
+	private uint32[] mCullLightIndices ~ delete _;
+
 	// Statistics
 	private ClusterStats mStats;
 
@@ -267,38 +271,80 @@ public class ClusterGrid : IDisposable
 		let totalClusters = (int)mConfig.TotalClusters;
 		let maxLightsPerCluster = (int)mConfig.MaxLightsPerCluster;
 
-		// Allocate CPU-side buffers for upload
-		ClusterLightInfo[] clusterInfos = new ClusterLightInfo[totalClusters];
-		defer delete clusterInfos;
-		uint32[] lightIndices = new uint32[totalClusters * maxLightsPerCluster];
-		defer delete lightIndices;
+		// Lazily allocate cached CPU-side buffers (reused each frame)
+		if (mCullClusterInfos == null || mCullClusterInfos.Count != totalClusters)
+		{
+			delete mCullClusterInfos;
+			mCullClusterInfos = new ClusterLightInfo[totalClusters];
+		}
+		if (mCullLightIndices == null || mCullLightIndices.Count != totalClusters * maxLightsPerCluster)
+		{
+			delete mCullLightIndices;
+			mCullLightIndices = new uint32[totalClusters * maxLightsPerCluster];
+		}
+		let clusterInfos = mCullClusterInfos;
+		let lightIndices = mCullLightIndices;
+
+		// Pre-transform visible lights to view space (avoid per-cluster matrix multiply)
+		let visibleLights = visibility.VisibleLights;
+		let lightCount = visibleLights.Length;
+
+		// Stack-allocate sphere array for reasonable light counts, heap for large
+		BoundingSphere[] lightSpheres = scope BoundingSphere[lightCount];
+		uint32[] directionalIndices = scope uint32[lightCount];
+		int directionalCount = 0;
+		int sphereLightCount = 0;
+		uint32[] sphereIndices = scope uint32[lightCount]; // Maps sphere index to light index
+
+		for (int i = 0; i < lightCount; i++)
+		{
+			if (let light = world.GetLight(visibleLights[i].Handle))
+			{
+				if (light.Type == .Directional)
+				{
+					directionalIndices[directionalCount++] = (uint32)i;
+				}
+				else
+				{
+					// Transform to view space once
+					let worldPos = Vector4(light.Position.X, light.Position.Y, light.Position.Z, 1.0f);
+					let viewPos = Vector4.Transform(worldPos, viewMatrix);
+					lightSpheres[sphereLightCount] = .(.(viewPos.X, viewPos.Y, viewPos.Z), light.Range);
+					sphereIndices[sphereLightCount] = (uint32)i;
+					sphereLightCount++;
+				}
+			}
+		}
 
 		uint32 globalLightIndexOffset = 0;
 
-		// For each cluster, test against visible lights and record assignments
+		// For each cluster, test against pre-transformed light spheres
 		for (int i = 0; i < totalClusters; i++)
 		{
 			let clusterAABB = mClusterAABBs[i];
 			uint32 lightsInCluster = 0;
 			uint32 clusterStartOffset = globalLightIndexOffset;
 
-			int lightIndex = 0;
-			for (let visibleLight in visibility.VisibleLights)
+			// Add directional lights (they affect all clusters)
+			for (int d = 0; d < directionalCount && lightsInCluster < maxLightsPerCluster; d++)
+			{
+				lightIndices[globalLightIndexOffset] = directionalIndices[d];
+				globalLightIndexOffset++;
+				lightsInCluster++;
+			}
+
+			// Test point/spot lights via sphere-AABB
+			for (int s = 0; s < sphereLightCount; s++)
 			{
 				if (lightsInCluster >= maxLightsPerCluster)
 					break;
 
-				if (let light = world.GetLight(visibleLight.Handle))
+				if (SphereIntersectsAABB(lightSpheres[s], clusterAABB))
 				{
-					if (LightIntersectsClusterViewSpace(light, clusterAABB, viewMatrix))
-					{
-						// Record this light index for this cluster
-						lightIndices[globalLightIndexOffset] = (uint32)lightIndex;
-						globalLightIndexOffset++;
-						lightsInCluster++;
-					}
+					lightIndices[globalLightIndexOffset] = sphereIndices[s];
+					globalLightIndexOffset++;
+					lightsInCluster++;
 				}
-				lightIndex++;
 			}
 
 			// Record cluster info (offset and count)

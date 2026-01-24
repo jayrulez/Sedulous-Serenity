@@ -469,7 +469,8 @@ public class VolumetricFogFeature : RenderFeatureBase
 		{
 			Label = "Inject Params",
 			Size = (uint64)InjectParams.Size,
-			Usage = .Uniform | .CopyDst
+			Usage = .Uniform,
+			MemoryAccess = .Upload
 		};
 
 		switch (Renderer.Device.CreateBuffer(&injectDesc))
@@ -483,7 +484,8 @@ public class VolumetricFogFeature : RenderFeatureBase
 		{
 			Label = "Inject Froxel Params",
 			Size = (uint64)InjectFroxelParams.Size,
-			Usage = .Uniform | .CopyDst
+			Usage = .Uniform,
+			MemoryAccess = .Upload
 		};
 
 		switch (Renderer.Device.CreateBuffer(&injectFroxelDesc))
@@ -497,7 +499,8 @@ public class VolumetricFogFeature : RenderFeatureBase
 		{
 			Label = "Scatter Params",
 			Size = (uint64)ScatterParams.Size,
-			Usage = .Uniform | .CopyDst
+			Usage = .Uniform,
+			MemoryAccess = .Upload
 		};
 
 		switch (Renderer.Device.CreateBuffer(&scatterDesc))
@@ -511,7 +514,8 @@ public class VolumetricFogFeature : RenderFeatureBase
 		{
 			Label = "Apply Params",
 			Size = (uint64)ApplyParams.Size,
-			Usage = .Uniform | .CopyDst
+			Usage = .Uniform,
+			MemoryAccess = .Upload
 		};
 
 		switch (Renderer.Device.CreateBuffer(&applyDesc))

@@ -244,7 +244,8 @@ public class MotionVectorFeature : RenderFeatureBase
 			var bufferDesc = BufferDescriptor()
 			{
 				Size = MotionCameraUniforms.Size,
-				Usage = .Uniform | .CopyDst
+				Usage = .Uniform,
+				MemoryAccess = .Upload
 			};
 
 			if (Renderer.Device.CreateBuffer(&bufferDesc) case .Ok(let buffer))
@@ -257,7 +258,8 @@ public class MotionVectorFeature : RenderFeatureBase
 		var objectBufferDesc = BufferDescriptor()
 		{
 			Size = MotionObjectUniforms.Size,
-			Usage = .Uniform | .CopyDst
+			Usage = .Uniform,
+			MemoryAccess = .Upload
 		};
 
 		if (Renderer.Device.CreateBuffer(&objectBufferDesc) case .Ok(let buffer))

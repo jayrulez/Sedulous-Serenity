@@ -41,6 +41,34 @@ class DeferredRead
 	public RGResourceHandle Handle;
 }
 
+/// A pooled transient texture, cached between frames to avoid re-creation.
+class PooledTexture
+{
+	public TextureResourceDesc Desc;
+	public ITexture Texture;
+	public ITextureView TextureView;
+	public ITextureView DepthOnlyView;
+
+	public ~this()
+	{
+		if (DepthOnlyView != null) delete DepthOnlyView;
+		if (TextureView != null) delete TextureView;
+		if (Texture != null) delete Texture;
+	}
+
+	/// Checks if this pooled texture matches the requested descriptor.
+	public bool Matches(TextureResourceDesc desc)
+	{
+		return Desc.Width == desc.Width &&
+			Desc.Height == desc.Height &&
+			Desc.Format == desc.Format &&
+			Desc.Usage == desc.Usage &&
+			Desc.DepthOrArrayLayers == desc.DepthOrArrayLayers &&
+			Desc.MipLevels == desc.MipLevels &&
+			Desc.SampleCount == desc.SampleCount;
+	}
+}
+
 /// Render graph that manages pass dependencies and resource lifetimes.
 public class RenderGraph : IDisposable
 {
@@ -77,6 +105,9 @@ public class RenderGraph : IDisposable
 	// Transient resources are pushed here instead of being deleted immediately,
 	// and flushed the next time the same frame slot is reused (after fence wait).
 	private List<RenderGraphResource>[RenderConfig.FrameBufferCount] mDeferredDeletions;
+
+	// Transient texture pool: GPU textures cached between frames to avoid re-creation.
+	private List<PooledTexture> mTexturePool = new .() ~ DeleteContainerAndItems!(_);
 
 	// Statistics
 	public int32 PassCount => (int32)mPasses.Count;
@@ -682,11 +713,49 @@ public class RenderGraph : IDisposable
 
 			if (resource.RefCount > 0 || !resource.IsTransient)
 			{
+				// Try to acquire from pool for transient textures
+				if (resource.IsTransient && resource.Type == .Texture && resource.Texture == null)
+				{
+					if (TryAcquireFromPool(resource))
+						continue;
+				}
+
 				if (resource.Allocate(mDevice) case .Err)
 					return .Err;
 			}
 		}
+
+		// Discard unmatched pool entries (e.g., from a window resize)
+		for (let pooled in mTexturePool)
+			delete pooled;
+		mTexturePool.Clear();
+
 		return .Ok;
+	}
+
+	/// Tries to find a matching texture in the pool and assign it to the resource.
+	private bool TryAcquireFromPool(RenderGraphResource resource)
+	{
+		for (int i = 0; i < mTexturePool.Count; i++)
+		{
+			let pooled = mTexturePool[i];
+			if (pooled.Matches(resource.TextureDesc))
+			{
+				// Transfer ownership from pool to resource
+				resource.Texture = pooled.Texture;
+				resource.TextureView = pooled.TextureView;
+				resource.DepthOnlyView = pooled.DepthOnlyView;
+
+				// Null out pool entry and remove (don't delete the GPU resources)
+				pooled.Texture = null;
+				pooled.TextureView = null;
+				pooled.DepthOnlyView = null;
+				delete pooled;
+				mTexturePool.RemoveAt(i);
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private Result<void> ExecutePass(RenderPass pass, ICommandEncoder commandEncoder)
@@ -1008,7 +1077,25 @@ public class RenderGraph : IDisposable
 		let list = mDeferredDeletions[frameIndex];
 		for (let resource in list)
 		{
-			resource.ReleaseTransient();
+			// Pool texture resources instead of destroying them
+			if (resource.Type == .Texture && resource.Texture != null)
+			{
+				let pooled = new PooledTexture();
+				pooled.Desc = resource.TextureDesc;
+				pooled.Texture = resource.Texture;
+				pooled.TextureView = resource.TextureView;
+				pooled.DepthOnlyView = resource.DepthOnlyView;
+				mTexturePool.Add(pooled);
+
+				// Null out so destructor doesn't double-free
+				resource.Texture = null;
+				resource.TextureView = null;
+				resource.DepthOnlyView = null;
+			}
+			else
+			{
+				resource.ReleaseTransient();
+			}
 			delete resource;
 		}
 		list.Clear();

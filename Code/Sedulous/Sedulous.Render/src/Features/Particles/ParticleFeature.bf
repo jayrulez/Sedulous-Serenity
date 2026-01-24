@@ -1460,7 +1460,8 @@ public class ParticleFeature : RenderFeatureBase
 		{
 			Label = "Emitter Params",
 			Size = (uint64)GPUEmitterParams.SizeInBytes,
-			Usage = .Uniform | .CopyDst
+			Usage = .Uniform,
+			MemoryAccess = .Upload
 		};
 
 		switch (Renderer.Device.CreateBuffer(&paramsDesc))
@@ -1475,7 +1476,8 @@ public class ParticleFeature : RenderFeatureBase
 		{
 			Label = "Particle Params",
 			Size = 16,
-			Usage = .Uniform | .CopyDst
+			Usage = .Uniform,
+			MemoryAccess = .Upload
 		};
 
 		switch (Renderer.Device.CreateBuffer(&particleParamsDesc))
