@@ -323,7 +323,13 @@ class VulkanBackend : IBackend
 	{
 		if (pCallbackData != null && pCallbackData.pMessage != null)
 		{
-			Console.Error.WriteLine(scope $"[Vulkan] {StringView(pCallbackData.pMessage)}");
+			StringView message = .(pCallbackData.pMessage);
+			Console.Error.WriteLine(scope $"[Vulkan] {message}");
+
+			if(message.Contains("vkFreeDescriptorSets()") || message.Contains("can't be called on VkImageView"))
+			{
+				int x = 1;
+			}
 		}
 		return VkBool32.False;
 	}
