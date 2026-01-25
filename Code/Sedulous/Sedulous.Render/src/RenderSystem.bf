@@ -42,6 +42,7 @@ public class RenderSystem : IDisposable
 	private GPUResourceManager mResourceManager ~ delete _;
 	private NewShaderSystem mShaderSystem ~ delete _;
 	private MaterialSystem mMaterialSystem ~ delete _;
+	private RenderPipelineCache mPipelineCache ~ delete _;
 
 	// Render features
 	private List<IRenderFeature> mFeatures = new .() ~ delete _;
@@ -86,6 +87,9 @@ public class RenderSystem : IDisposable
 
 	/// Gets the material system.
 	public MaterialSystem MaterialSystem => mMaterialSystem;
+
+	/// Gets the pipeline cache for dynamic pipeline creation.
+	public RenderPipelineCache PipelineCache => mPipelineCache;
 
 	/// Gets the current frame statistics.
 	public ref RenderStats Stats => ref mStats;
@@ -156,6 +160,10 @@ public class RenderSystem : IDisposable
 		mMaterialSystem = new MaterialSystem();
 		if (mMaterialSystem.Initialize(device) case .Err)
 			return .Err;
+
+		// Initialize pipeline cache (requires shader system)
+		if (mShaderSystem != null)
+			mPipelineCache = new RenderPipelineCache(device, mShaderSystem);
 
 		// Initialize post-process stack
 		mPostProcessStack = new PostProcessStack();

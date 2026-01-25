@@ -374,8 +374,8 @@ class RenderSandboxApp : Application
 				proxy.Material = mTransparentMaterial;
 				proxy.SetLocalBounds(BoundingBox(Vector3(-0.5f, -0.5f, -0.5f), Vector3(0.5f, 0.5f, 0.5f)));
 
-				// Position slightly to the right and behind the opaque cube to test transparency
-				let position = Vector3(1.5f, 0.5f, -1.0f);
+				// Position at corner of the plane for better visibility
+				let position = Vector3(4.0f, 0.5f, -4.0f);
 				proxy.SetTransformImmediate(Matrix.CreateTranslation(position));
 				proxy.Flags = .DefaultTransparent;
 			}

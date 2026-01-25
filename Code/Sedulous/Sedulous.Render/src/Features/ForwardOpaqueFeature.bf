@@ -49,8 +49,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 	private const uint64 ObjectUniformAlignment = 256; // Vulkan minUniformBufferOffsetAlignment
 	private const uint64 AlignedObjectUniformSize = ((ObjectUniforms.Size + ObjectUniformAlignment - 1) / ObjectUniformAlignment) * ObjectUniformAlignment;
 
-	// Dynamic pipeline cache for custom materials
-	private RenderPipelineCache mPipelineCache ~ delete _;
+	// Pipeline cache is owned by RenderSystem - access via Renderer.PipelineCache
 
 	// Shadow depth rendering (per-frame for multi-buffering)
 	private IRenderPipeline mShadowDepthPipeline ~ delete _;
@@ -108,12 +107,9 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		if (CreateObjectUniformBuffer() case .Err)
 			return .Err;
 
-		// Create pipeline cache for all forward pipelines
-		if (Renderer.ShaderSystem != null)
-		{
-			mPipelineCache = new RenderPipelineCache(Renderer.Device, Renderer.ShaderSystem);
-			mInstancingEnabled = true; // Always enable instancing path, cache will create pipeline on demand
-		}
+		// Enable instancing if pipeline cache is available
+		if (Renderer.PipelineCache != null)
+			mInstancingEnabled = true;
 
 		// Create forward pipeline layout (shared by all cached pipelines)
 		if (CreateForwardPipelineLayout() case .Err)
@@ -164,7 +160,8 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 	/// Returns null if the pipeline cannot be created.
 	private IRenderPipeline GetPipelineForMaterial(MaterialInstance material, bool shadowsEnabled, bool instanced)
 	{
-		if (mPipelineCache == null || mForwardPipelineLayout == null)
+		let pipelineCache = Renderer.PipelineCache;
+		if (pipelineCache == null || mForwardPipelineLayout == null)
 			return null;
 
 		// Build variant flags
@@ -196,7 +193,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				.(64, instanceAttrs, .Instance)
 			);
 
-			if (mPipelineCache.GetPipelineForMaterial(
+			if (pipelineCache.GetPipelineForMaterial(
 				material,
 				vertexBuffers,
 				mForwardPipelineLayout,
@@ -219,7 +216,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				VertexLayoutHelper.CreateBufferLayout(.Mesh)
 			);
 
-			if (mPipelineCache.GetPipelineForMaterial(
+			if (pipelineCache.GetPipelineForMaterial(
 				material,
 				vertexBuffers,
 				mForwardPipelineLayout,
