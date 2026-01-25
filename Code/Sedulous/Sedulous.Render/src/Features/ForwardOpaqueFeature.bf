@@ -49,8 +49,8 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 	private const uint64 ObjectUniformAlignment = 256; // Vulkan minUniformBufferOffsetAlignment
 	private const uint64 AlignedObjectUniformSize = ((ObjectUniforms.Size + ObjectUniformAlignment - 1) / ObjectUniformAlignment) * ObjectUniformAlignment;
 
-	// Pipeline cache (material -> pipeline)
-	private Dictionary<MaterialInstance, IRenderPipeline> mPipelineCache = new .() ~ delete _;
+	// Dynamic pipeline cache for custom materials
+	private RenderPipelineCache mPipelineCache ~ delete _;
 
 	// Shadow depth rendering (per-frame for multi-buffering)
 	private IRenderPipeline mShadowDepthPipeline ~ delete _;
@@ -112,6 +112,10 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		// Try to create instanced forward pipelines
 		if (CreateInstancedForwardPipelines() case .Ok)
 			mInstancingEnabled = true;
+
+		// Create dynamic pipeline cache for custom materials
+		if (Renderer.ShaderSystem != null)
+			mPipelineCache = new RenderPipelineCache(Renderer.Device, Renderer.ShaderSystem);
 
 		// Create shadow depth pipeline
 		if (CreateShadowPipeline() case .Err)
@@ -396,6 +400,88 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		return .Ok;
 	}
 
+	/// Gets the appropriate pipeline for a material.
+	/// Uses the pipeline cache with caller-provided vertex layouts.
+	/// The vertex layout is determined by the mesh type (instanced vs non-instanced), not the material.
+	private IRenderPipeline GetPipelineForMaterial(MaterialInstance material, bool shadowsEnabled, bool instanced)
+	{
+		if (mPipelineCache == null || mForwardPipelineLayout == null)
+			return mForwardPipeline;
+
+		// Build variant flags
+		PipelineVariantFlags variantFlags = .None;
+		if (instanced)
+			variantFlags |= .Instanced;
+		if (shadowsEnabled)
+			variantFlags |= .ReceiveShadows;
+
+		// Determine vertex layout based on mesh type (not material)
+		// These layouts match what the shaders expect
+		if (instanced)
+		{
+			// Instanced: simplified mesh attrs + instance transforms
+			// This matches the instanced forward shader's vertex input
+			Sedulous.RHI.VertexAttribute[3] meshAttrs = .(
+				.(VertexFormat.Float3, 0, 0),   // Position
+				.(VertexFormat.Float3, 12, 1),  // Normal
+				.(VertexFormat.Float2, 24, 2)   // UV
+			);
+			Sedulous.RHI.VertexAttribute[4] instanceAttrs = .(
+				.(VertexFormat.Float4, 0, 3),   // WorldRow0
+				.(VertexFormat.Float4, 16, 4),  // WorldRow1
+				.(VertexFormat.Float4, 32, 5),  // WorldRow2
+				.(VertexFormat.Float4, 48, 6)   // WorldRow3
+			);
+			VertexBufferLayout[2] vertexBuffers = .(
+				.(48, meshAttrs, .Vertex),
+				.(64, instanceAttrs, .Instance)
+			);
+
+			if (mPipelineCache.GetPipelineForMaterial(
+				material,
+				vertexBuffers,
+				mForwardPipelineLayout,
+				.RGBA16Float,
+				.Depth32Float,
+				1,
+				variantFlags,
+				.ReadOnly,
+				.LessEqual) case .Ok(let pipeline))  // LessEqual for forward pass after depth prepass
+			{
+				return pipeline;
+			}
+
+			// Fall back to pre-created instanced pipeline
+			return (shadowsEnabled && mForwardInstancedShadowPipeline != null)
+				? mForwardInstancedShadowPipeline
+				: mForwardInstancedPipeline;
+		}
+		else
+		{
+			// Non-instanced: full mesh vertex layout
+			VertexBufferLayout[1] vertexBuffers = .(
+				VertexLayoutHelper.CreateBufferLayout(.Mesh)
+			);
+
+			if (mPipelineCache.GetPipelineForMaterial(
+				material,
+				vertexBuffers,
+				mForwardPipelineLayout,
+				.RGBA16Float,
+				.Depth32Float,
+				1,
+				variantFlags,
+				.ReadOnly,
+				.LessEqual) case .Ok(let pipeline))  // LessEqual for forward pass after depth prepass
+			{
+				return pipeline;
+			}
+
+			// Fall back to pre-created pipeline
+			return mForwardPipeline;
+		}
+	}
+
 	private Result<void> CreateShadowPipeline()
 	{
 		// Skip if shader system not initialized
@@ -660,10 +746,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 	protected override void OnShutdown()
 	{
-		// Clear pipeline cache
-		for (let kv in mPipelineCache)
-			delete kv.value;
-		mPipelineCache.Clear();
+		// Pipeline cache is cleaned up by destructor (~ delete _)
 
 		// Clean up per-frame resources
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
@@ -738,7 +821,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				AddShadowPasses(graph, world, depthFeature.Visibility, view, frameIndex, out shadowMapHandle);
 
 			// Create/update scene bind group for current frame (needs to be done each frame for frame-specific resources)
-			CreateSceneBindGroup(frameIndex);
+			CreateSceneBindGroup(frameIndex); // todo jayrulez: look into who we need this per frame.
 
 			// Upload object uniforms BEFORE the render pass
 			using (SProfiler.Begin("PrepareObjectUniforms"))
@@ -1274,14 +1357,19 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 	private void ExecuteInstancedForwardPass(IRenderPassEncoder encoder, RenderWorld world, DepthPrepassFeature depthFeature, int32 frameIndex, ref MaterialInstance currentMaterial)
 	{
-		// Select instanced pipeline based on shadow state
+		// Get shadow state for pipeline selection
 		let shadowsEnabled = mShadowRenderer?.EnableShadows ?? false;
-		let activePipeline = (shadowsEnabled && mForwardInstancedShadowPipeline != null) ? mForwardInstancedShadowPipeline : mForwardInstancedPipeline;
 
-		if (activePipeline == null)
+		// Track current pipeline to minimize state changes
+		IRenderPipeline currentPipeline = null;
+
+		// Set initial default instanced pipeline
+		let defaultPipeline = (shadowsEnabled && mForwardInstancedShadowPipeline != null) ? mForwardInstancedShadowPipeline : mForwardInstancedPipeline;
+		if (defaultPipeline == null)
 			return;
 
-		encoder.SetPipeline(activePipeline);
+		encoder.SetPipeline(defaultPipeline);
+		currentPipeline = defaultPipeline;
 
 		// Get instance buffer from depth feature
 		let instanceBuffer = depthFeature.GetInstanceBuffer(frameIndex);
@@ -1311,6 +1399,15 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 			// Get material for this group (all instances in group share the same material)
 			MaterialInstance material = group.Material ?? defaultMaterialInstance;
+
+			// Get pipeline for this material (may be custom shader)
+			// Note: Custom shaders need instanced variants - fall back to default if not available
+			let pipeline = GetPipelineForMaterial(material, shadowsEnabled, true);
+			if (pipeline != null && pipeline != currentPipeline)
+			{
+				encoder.SetPipeline(pipeline);
+				currentPipeline = pipeline;
+			}
 
 			// Bind material if changed
 			if (material != currentMaterial && material != null && materialSystem != null)
@@ -1348,12 +1445,19 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 	private void ExecuteNonInstancedForwardPass(IRenderPassEncoder encoder, RenderWorld world, DepthPrepassFeature depthFeature, int32 frameIndex, ref int32 objectIndex, ref MaterialInstance currentMaterial)
 	{
-		// Select pipeline based on shadow state
+		// Get shadow state for pipeline selection
 		let shadowsEnabled = mShadowRenderer?.EnableShadows ?? false;
-		let activePipeline = (shadowsEnabled && mForwardShadowPipeline != null) ? mForwardShadowPipeline : mForwardPipeline;
 
-		if (activePipeline != null)
-			encoder.SetPipeline(activePipeline);
+		// Track current pipeline to minimize state changes
+		IRenderPipeline currentPipeline = null;
+
+		// Set initial default pipeline
+		let defaultPipeline = (shadowsEnabled && mForwardShadowPipeline != null) ? mForwardShadowPipeline : mForwardPipeline;
+		if (defaultPipeline != null)
+		{
+			encoder.SetPipeline(defaultPipeline);
+			currentPipeline = defaultPipeline;
+		}
 
 		// Get material system for binding materials
 		let materialSystem = Renderer.MaterialSystem;
@@ -1384,6 +1488,14 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 				// Get material instance (use default if none assigned)
 				MaterialInstance material = proxy?.Material ?? defaultMaterialInstance;
+
+				// Get pipeline for this material (may be custom shader)
+				let pipeline = GetPipelineForMaterial(material, shadowsEnabled, false);
+				if (pipeline != null && pipeline != currentPipeline)
+				{
+					encoder.SetPipeline(pipeline);
+					currentPipeline = pipeline;
+				}
 
 				// Bind material if changed
 				if (material != currentMaterial && material != null && materialSystem != null)
@@ -1433,12 +1545,19 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		if (skinningFeature == null)
 			return;
 
-		// Switch to non-instanced pipeline for skinned meshes
-		// (instanced pipeline may still be bound from previous pass)
+		// Get shadow state for pipeline selection
 		let shadowsEnabled = mShadowRenderer?.EnableShadows ?? false;
-		let activePipeline = (shadowsEnabled && mForwardShadowPipeline != null) ? mForwardShadowPipeline : mForwardPipeline;
-		if (activePipeline != null)
-			encoder.SetPipeline(activePipeline);
+
+		// Track current pipeline to minimize state changes
+		IRenderPipeline currentPipeline = null;
+
+		// Set initial default pipeline for skinned meshes (non-instanced)
+		let defaultPipeline = (shadowsEnabled && mForwardShadowPipeline != null) ? mForwardShadowPipeline : mForwardPipeline;
+		if (defaultPipeline != null)
+		{
+			encoder.SetPipeline(defaultPipeline);
+			currentPipeline = defaultPipeline;
+		}
 
 		let materialSystem = Renderer.MaterialSystem;
 		let defaultMaterialInstance = materialSystem?.DefaultMaterialInstance;
@@ -1469,6 +1588,14 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 				// Get material instance
 				MaterialInstance material = proxy.Material ?? defaultMaterialInstance;
+
+				// Get pipeline for this material (may be custom shader)
+				let pipeline = GetPipelineForMaterial(material, shadowsEnabled, false);
+				if (pipeline != null && pipeline != currentPipeline)
+				{
+					encoder.SetPipeline(pipeline);
+					currentPipeline = pipeline;
+				}
 
 				// Bind material if changed
 				if (material != currentMaterial && material != null && materialSystem != null)
