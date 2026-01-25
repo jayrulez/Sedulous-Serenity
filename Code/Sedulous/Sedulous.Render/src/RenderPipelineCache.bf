@@ -28,8 +28,11 @@ struct RenderPipelineKey : IHashable, IEquatable<RenderPipelineKey>
 	/// MSAA sample count.
 	public uint8 SampleCount;
 
-	/// Pipeline layout pointer hash (for bind group compatibility).
-	public int LayoutHash;
+	/// Scene bind group layout pointer hash.
+	public int SceneLayoutHash;
+
+	/// Material bind group layout pointer hash.
+	public int MaterialLayoutHash;
 
 	/// Additional flags for variants.
 	public uint32 VariantFlags;
@@ -42,7 +45,8 @@ struct RenderPipelineKey : IHashable, IEquatable<RenderPipelineKey>
 		hash = hash * 31 + (int)ColorFormat;
 		hash = hash * 31 + (int)DepthFormat;
 		hash = hash * 31 + (int)SampleCount;
-		hash = hash * 31 + LayoutHash;
+		hash = hash * 31 + SceneLayoutHash;
+		hash = hash * 31 + MaterialLayoutHash;
 		hash = hash * 31 + (int)VariantFlags;
 		return hash;
 	}
@@ -55,7 +59,8 @@ struct RenderPipelineKey : IHashable, IEquatable<RenderPipelineKey>
 			ColorFormat == other.ColorFormat &&
 			DepthFormat == other.DepthFormat &&
 			SampleCount == other.SampleCount &&
-			LayoutHash == other.LayoutHash &&
+			SceneLayoutHash == other.SceneLayoutHash &&
+			MaterialLayoutHash == other.MaterialLayoutHash &&
 			VariantFlags == other.VariantFlags;
 	}
 }
@@ -77,11 +82,15 @@ enum PipelineVariantFlags : uint32
 /// Vertex layouts are determined by the mesh type being rendered, not the material.
 /// The caller (render feature) knows what mesh format it's rendering and provides
 /// the appropriate vertex buffer layouts.
+///
+/// Pipeline layouts are created dynamically from scene + material bind group layouts,
+/// allowing different shaders to use different material layouts.
 class RenderPipelineCache
 {
 	private IDevice mDevice;
 	private NewShaderSystem mShaderSystem;
-	private Dictionary<int, IRenderPipeline> mCache = new .() ~ DeleteDictionaryAndValues!(_);
+	private Dictionary<int, IRenderPipeline> mPipelineCache = new .() ~ DeleteDictionaryAndValues!(_);
+	private Dictionary<int, IPipelineLayout> mLayoutCache = new .() ~ DeleteDictionaryAndValues!(_);
 
 	public this(IDevice device, NewShaderSystem shaderSystem)
 	{
@@ -94,7 +103,8 @@ class RenderPipelineCache
 	/// Parameters:
 	/// - material: The material instance (provides shader name, flags, blend/cull/depth modes)
 	/// - vertexBuffers: Vertex buffer layouts determined by mesh type (provided by caller)
-	/// - layout: Pipeline layout for bind groups
+	/// - sceneLayout: Bind group layout for scene data (set 0)
+	/// - materialLayout: Bind group layout for material data (set 1)
 	/// - colorFormat: Render target color format
 	/// - depthFormat: Render target depth format
 	/// - sampleCount: MSAA sample count
@@ -104,7 +114,8 @@ class RenderPipelineCache
 	public Result<IRenderPipeline> GetPipelineForMaterial(
 		MaterialInstance material,
 		Span<VertexBufferLayout> vertexBuffers,
-		IPipelineLayout layout,
+		IBindGroupLayout sceneLayout,
+		IBindGroupLayout materialLayout,
 		TextureFormat colorFormat,
 		TextureFormat depthFormat,
 		uint8 sampleCount = 1,
@@ -112,7 +123,7 @@ class RenderPipelineCache
 		DepthMode? depthModeOverride = null,
 		CompareFunction? depthCompareOverride = null)
 	{
-		if (material == null)
+		if (material == null || sceneLayout == null || materialLayout == null)
 			return .Err;
 
 		// Get config from material
@@ -131,17 +142,22 @@ class RenderPipelineCache
 			config.DepthCompare = depthCompareOverride.Value;
 
 		// Build cache key
-		let key = BuildKey(config, vertexBuffers, layout, colorFormat, depthFormat, sampleCount, variantFlags);
+		let key = BuildKey(config, vertexBuffers, sceneLayout, materialLayout, colorFormat, depthFormat, sampleCount, variantFlags);
 		let hash = key.GetHashCode();
 
 		// Check cache
-		if (mCache.TryGetValue(hash, let cached))
+		if (mPipelineCache.TryGetValue(hash, let cached))
 			return .Ok(cached);
 
+		// Get or create pipeline layout for this scene + material layout combination
+		let pipelineLayout = GetOrCreatePipelineLayout(sceneLayout, materialLayout);
+		if (pipelineLayout == null)
+			return .Err;
+
 		// Create new pipeline
-		if (CreatePipeline(config, vertexBuffers, layout, colorFormat, depthFormat, sampleCount, variantFlags) case .Ok(let pipeline))
+		if (CreatePipeline(config, vertexBuffers, pipelineLayout, colorFormat, depthFormat, sampleCount, variantFlags) case .Ok(let pipeline))
 		{
-			mCache[hash] = pipeline;
+			mPipelineCache[hash] = pipeline;
 			return .Ok(pipeline);
 		}
 
@@ -151,20 +167,53 @@ class RenderPipelineCache
 	/// Clears the pipeline cache.
 	public void Clear()
 	{
-		for (let kv in mCache)
+		for (let kv in mPipelineCache)
 			delete kv.value;
-		mCache.Clear();
+		mPipelineCache.Clear();
+
+		for (let kv in mLayoutCache)
+			delete kv.value;
+		mLayoutCache.Clear();
 	}
 
 	/// Gets the number of cached pipelines.
-	public int Count => mCache.Count;
+	public int PipelineCount => mPipelineCache.Count;
+
+	/// Gets the number of cached pipeline layouts.
+	public int LayoutCount => mLayoutCache.Count;
+
+	/// Gets or creates a pipeline layout for the given scene + material layout combination.
+	private IPipelineLayout GetOrCreatePipelineLayout(IBindGroupLayout sceneLayout, IBindGroupLayout materialLayout)
+	{
+		// Compute hash from both layout pointers
+		int hash = 17;
+		hash = hash * 31 + (int)(void*)Internal.UnsafeCastToPtr(sceneLayout);
+		hash = hash * 31 + (int)(void*)Internal.UnsafeCastToPtr(materialLayout);
+
+		// Check cache
+		if (mLayoutCache.TryGetValue(hash, let cached))
+			return cached;
+
+		// Create new pipeline layout with two bind groups: scene (0) + material (1)
+		IBindGroupLayout[2] layouts = .(sceneLayout, materialLayout);
+		PipelineLayoutDescriptor layoutDesc = .(layouts);
+
+		if (mDevice.CreatePipelineLayout(&layoutDesc) case .Ok(let layout))
+		{
+			mLayoutCache[hash] = layout;
+			return layout;
+		}
+
+		return null;
+	}
 
 	// ===== Key Building =====
 
 	private RenderPipelineKey BuildKey(
 		PipelineConfig config,
 		Span<VertexBufferLayout> vertexBuffers,
-		IPipelineLayout layout,
+		IBindGroupLayout sceneLayout,
+		IBindGroupLayout materialLayout,
 		TextureFormat colorFormat,
 		TextureFormat depthFormat,
 		uint8 sampleCount,
@@ -192,7 +241,8 @@ class RenderPipelineCache
 		key.ColorFormat = colorFormat;
 		key.DepthFormat = depthFormat;
 		key.SampleCount = sampleCount;
-		key.LayoutHash = (int)(void*)Internal.UnsafeCastToPtr(layout);
+		key.SceneLayoutHash = (int)(void*)Internal.UnsafeCastToPtr(sceneLayout);
+		key.MaterialLayoutHash = (int)(void*)Internal.UnsafeCastToPtr(materialLayout);
 		key.VariantFlags = (uint32)variantFlags;
 
 		return key;

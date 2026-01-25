@@ -87,6 +87,14 @@ class MaterialBuilder
 		return this;
 	}
 
+	/// Makes this material unlit (no lighting calculations).
+	public Self Unlit()
+	{
+		mMaterial.ShaderName.Set("unlit");
+		mMaterial.PipelineConfig.ShaderName = mMaterial.ShaderName;
+		return this;
+	}
+
 	/// Adds a float property.
 	public Self Float(StringView name, float defaultValue = 0)
 	{

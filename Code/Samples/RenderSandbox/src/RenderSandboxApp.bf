@@ -49,10 +49,13 @@ class RenderSandboxApp : Application
 
 	// Animated mesh (Fox model)
 	private AnimatedMeshComponent mFoxComponent ~ delete _;
+	private AnimatedMeshComponent mFoxUnlitComponent ~ delete _;
 	private LoadedModel mFoxModel;
 	private bool mFoxModelOwned = false;
 	private int32 mCurrentFoxAnimation = 0;
 	private MaterialInstance mFoxMaterial ~ delete _;
+	private Material mFoxUnlitBaseMaterial ~ delete _;
+	private MaterialInstance mFoxUnlitMaterial ~ delete _;
 	private GPUTextureHandle mFoxTextureHandle;
 
 	// Camera mode
@@ -556,8 +559,9 @@ class RenderSandboxApp : Application
 								proxy.BoneCount = boneCount;
 
 								// Position the fox on the floor, scaled down (fox model is quite large)
+								// Place in corner away from cube grid
 								let scale = 0.02f;
-								let transform = Matrix.CreateScale(scale) * Matrix.CreateTranslation(-2.0f, 0, 2.0f);
+								let transform = Matrix.CreateScale(scale) * Matrix.CreateTranslation(4.0f, 0, 3.0f);
 								mFoxComponent.Transform = transform;
 								proxy.SetTransformImmediate(transform);
 								proxy.Flags = .DefaultOpaque;
@@ -571,6 +575,51 @@ class RenderSandboxApp : Application
 							}
 
 							Console.WriteLine("Fox animated mesh created successfully");
+
+							// Create second fox with unlit material
+							if (mRenderSystem.ResourceManager.CreateBoneBuffer(boneCount) case .Ok(let boneBufferHandle2))
+							{
+								mFoxUnlitComponent = new AnimatedMeshComponent();
+								// Temporarily set skeleton to initialize player, then clear to avoid double-delete
+								mFoxUnlitComponent.Skeleton = mFoxComponent.Skeleton;
+								mFoxUnlitComponent.InitializePlayer();
+								mFoxUnlitComponent.Skeleton = null; // Clear - first component owns it
+								// Note: Clips not set - we'll play animation via first component's clips
+								mFoxUnlitComponent.GPUMesh = gpuMeshHandle; // Share GPU mesh
+								mFoxUnlitComponent.BoneBuffer = boneBufferHandle2;
+
+								// Create unlit material with the fox texture
+								mFoxUnlitBaseMaterial = Materials.CreateUnlit("fox_unlit");
+								mFoxUnlitMaterial = new MaterialInstance(mFoxUnlitBaseMaterial);
+								if (let texView = mRenderSystem.ResourceManager.GetTextureView(mFoxTextureHandle))
+									mFoxUnlitMaterial.SetTexture("AlbedoMap", texView);
+
+								// Create skinned mesh proxy for unlit fox
+								mFoxUnlitComponent.MeshProxy = mWorld.CreateSkinnedMesh();
+								if (let proxy2 = mWorld.GetSkinnedMesh(mFoxUnlitComponent.MeshProxy))
+								{
+									proxy2.MeshHandle = gpuMeshHandle;
+									proxy2.BoneBufferHandle = boneBufferHandle2;
+									proxy2.Material = mFoxUnlitMaterial ?? mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
+									proxy2.SetLocalBounds(skinnedMesh.Bounds);
+									proxy2.BoneCount = boneCount;
+
+									// Position unlit fox on opposite side
+									let unlitTransform = Matrix.CreateScale(0.02f) * Matrix.CreateTranslation(-4.0f, 0, 3.0f);
+									mFoxUnlitComponent.Transform = unlitTransform;
+									proxy2.SetTransformImmediate(unlitTransform);
+									proxy2.Flags = .DefaultOpaque;
+								}
+
+								// Play same animation (use first component's clips array)
+								if (mFoxComponent.Clips.Count > 0)
+								{
+									mFoxComponent.Clips[0].IsLooping = true;
+									mFoxUnlitComponent.Player.Play(mFoxComponent.Clips[0]);
+								}
+
+								Console.WriteLine("Unlit Fox created successfully");
+							}
 						}
 						else
 						{
@@ -1153,6 +1202,14 @@ class RenderSandboxApp : Application
 			mFoxComponent.UpdateTransform(mWorld);
 		}
 
+		// Update unlit fox
+		if (mFoxUnlitComponent != null)
+		{
+			mFoxUnlitComponent.Update(mDeltaTime);
+			mFoxUnlitComponent.UploadBones(mRenderSystem.ResourceManager);
+			mFoxUnlitComponent.UpdateTransform(mWorld);
+		}
+
 		// Cube animation disabled - static single cube for shadow testing
 		/*
 		// Animate cubes (gentle bobbing and rotation)
@@ -1272,6 +1329,12 @@ class RenderSandboxApp : Application
 				mRenderSystem.ResourceManager.ReleaseMesh(mFoxComponent.GPUMesh, mRenderSystem.FrameNumber);
 			if (mFoxComponent.BoneBuffer.IsValid)
 				mRenderSystem.ResourceManager.ReleaseBoneBuffer(mFoxComponent.BoneBuffer, mRenderSystem.FrameNumber);
+		}
+		// Release unlit fox bone buffer (GPU mesh is shared with first fox)
+		if (mFoxUnlitComponent != null)
+		{
+			if (mFoxUnlitComponent.BoneBuffer.IsValid)
+				mRenderSystem.ResourceManager.ReleaseBoneBuffer(mFoxUnlitComponent.BoneBuffer, mRenderSystem.FrameNumber);
 		}
 		if (mFoxTextureHandle.IsValid)
 			mRenderSystem.ResourceManager.ReleaseTexture(mFoxTextureHandle, mRenderSystem.FrameNumber);

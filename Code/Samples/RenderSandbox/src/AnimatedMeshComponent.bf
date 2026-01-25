@@ -27,6 +27,9 @@ public class AnimatedMeshComponent
 	/// Handle to the GPU bone buffer.
 	public GPUBoneBufferHandle BoneBuffer;
 
+	/// Cached bone count (so we can clear Skeleton reference for shared skeletons).
+	public uint16 CachedBoneCount;
+
 	/// World transform of this mesh.
 	public Matrix Transform = .Identity;
 
@@ -44,6 +47,7 @@ public class AnimatedMeshComponent
 	{
 		if (Skeleton != null)
 		{
+			CachedBoneCount = (uint16)Skeleton.BoneCount;
 			delete Player;
 			Player = new AnimationPlayer(Skeleton);
 		}
@@ -90,13 +94,12 @@ public class AnimatedMeshComponent
 
 		let currentMatrices = Player.GetSkinningMatrices();
 		let prevMatrices = Player.GetPrevSkinningMatrices();
-		let boneCount = (uint16)Skeleton.BoneCount;
 
 		resourceManager.UpdateBoneBuffer(
 			BoneBuffer,
 			currentMatrices.Ptr,
 			prevMatrices.Ptr,
-			boneCount
+			CachedBoneCount
 		);
 	}
 

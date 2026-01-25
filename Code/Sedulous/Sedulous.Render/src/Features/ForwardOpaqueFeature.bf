@@ -111,10 +111,6 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		if (Renderer.PipelineCache != null)
 			mInstancingEnabled = true;
 
-		// Create forward pipeline layout (shared by all cached pipelines)
-		if (CreateForwardPipelineLayout() case .Err)
-			return .Err;
-
 		// Create shadow depth pipeline
 		if (CreateShadowPipeline() case .Err)
 			return .Err;
@@ -126,42 +122,30 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		return .Ok;
 	}
 
-	private IPipelineLayout mForwardPipelineLayout ~ delete _;
-
 	// Instancing state (uses instance buffer from DepthPrepassFeature)
 	private bool mInstancingEnabled = false;
-
-	private Result<void> CreateForwardPipelineLayout()
-	{
-		// Skip if shader system not initialized
-		if (Renderer.ShaderSystem == null)
-			return .Ok;
-
-		// Get material bind group layout from MaterialSystem
-		let materialLayout = Renderer.MaterialSystem?.DefaultMaterialLayout;
-		if (materialLayout == null)
-			return .Ok; // MaterialSystem not initialized yet
-
-		// Create pipeline layout (used by all forward pipelines via cache)
-		IBindGroupLayout[2] layouts = .(mSceneBindGroupLayout, materialLayout);
-		PipelineLayoutDescriptor layoutDesc = .(layouts);
-		switch (Renderer.Device.CreatePipelineLayout(&layoutDesc))
-		{
-		case .Ok(let layout): mForwardPipelineLayout = layout;
-		case .Err: return .Err;
-		}
-
-		return .Ok;
-	}
 
 	/// Gets the appropriate pipeline for a material.
 	/// Uses the pipeline cache with caller-provided vertex layouts.
 	/// The vertex layout is determined by the mesh type (instanced vs non-instanced), not the material.
+	/// Pipeline layouts are created dynamically by the cache from scene + material layouts.
 	/// Returns null if the pipeline cannot be created.
 	private IRenderPipeline GetPipelineForMaterial(MaterialInstance material, bool shadowsEnabled, bool instanced)
 	{
 		let pipelineCache = Renderer.PipelineCache;
-		if (pipelineCache == null || mForwardPipelineLayout == null)
+		let materialSystem = Renderer.MaterialSystem;
+		if (pipelineCache == null || mSceneBindGroupLayout == null || materialSystem == null)
+			return null;
+
+		// Get or create the material's bind group layout
+		let baseMaterial = material?.Material;
+		if (baseMaterial == null)
+			return null;
+
+		IBindGroupLayout materialLayout = null;
+		if (materialSystem.GetOrCreateLayout(baseMaterial) case .Ok(let layout))
+			materialLayout = layout;
+		else
 			return null;
 
 		// Build variant flags
@@ -196,7 +180,8 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			if (pipelineCache.GetPipelineForMaterial(
 				material,
 				vertexBuffers,
-				mForwardPipelineLayout,
+				mSceneBindGroupLayout,
+				materialLayout,
 				.RGBA16Float,
 				.Depth32Float,
 				1,
@@ -219,7 +204,8 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			if (pipelineCache.GetPipelineForMaterial(
 				material,
 				vertexBuffers,
-				mForwardPipelineLayout,
+				mSceneBindGroupLayout,
+				materialLayout,
 				.RGBA16Float,
 				.Depth32Float,
 				1,

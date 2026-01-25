@@ -27,13 +27,17 @@ static class Materials
 	}
 
 	/// Creates a simple unlit material.
-	public static Material CreateUnlit(StringView name, String shaderName = null, ITextureView defaultTexture = null, ISampler defaultSampler = null)
+	/// Uses simplified layout with only properties needed for unlit rendering.
+	/// Layout matches unlit.frag.hlsl: BaseColor(0), EmissiveColor(16), AlphaCutoff(32)
+	public static Material CreateUnlit(StringView name, String shaderName = null, ITextureView defaultAlbedo = null, ISampler defaultSampler = null)
 	{
 		return scope MaterialBuilder(name)
 			.Shader(shaderName ?? "unlit")
 			.VertexLayout(.Mesh)
-			.Color("Color", .(1, 1, 1, 1))
-			.Texture("MainTexture", defaultTexture)
+			.Color("BaseColor", .(1, 1, 1, 1))
+			.Color("EmissiveColor", .(0, 0, 0, 1))
+			.Float("AlphaCutoff", 0.0f)
+			.Texture("AlbedoMap", defaultAlbedo)
 			.Sampler("MainSampler", defaultSampler)
 			.Build();
 	}

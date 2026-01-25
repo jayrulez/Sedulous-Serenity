@@ -310,4 +310,23 @@ struct PipelineConfig : IHashable, IEquatable<PipelineConfig>
 		config.CullMode = .None;
 		return config;
 	}
+
+	/// Creates a config for unlit mesh rendering (no lighting calculations).
+	public static Self ForUnlitMesh(bool transparent = false)
+	{
+		var config = Self();
+		config.ShaderName = "unlit";
+		config.VertexLayout = .Mesh;
+		if (transparent)
+		{
+			config.BlendMode = .AlphaBlend;
+			config.DepthMode = .ReadOnly;
+		}
+		else
+		{
+			config.BlendMode = .Opaque;
+			config.DepthMode = .ReadWrite;
+		}
+		return config;
+	}
 }

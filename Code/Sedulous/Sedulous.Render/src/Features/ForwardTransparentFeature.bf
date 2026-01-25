@@ -24,8 +24,8 @@ public class ForwardTransparentFeature : RenderFeatureBase
 		outDependencies.Add("Sky");
 	}
 
-	// Pipeline layout is borrowed from ForwardOpaqueFeature - don't delete
-	private IPipelineLayout mTransparentPipelineLayout;
+	// Scene bind group layout borrowed from ForwardOpaqueFeature - don't delete
+	private IBindGroupLayout mSceneBindGroupLayout;
 
 	// Object uniform buffers for transparent objects (per-frame for multi-buffering)
 	private IBuffer[RenderConfig.FrameBufferCount] mObjectUniformBuffers;
@@ -44,9 +44,9 @@ public class ForwardTransparentFeature : RenderFeatureBase
 		if (CreateObjectUniformBuffer() case .Err)
 			return .Err;
 
-		// Get pipeline layout from ForwardOpaqueFeature (will be used for cache lookups)
+		// Get scene bind group layout from ForwardOpaqueFeature (used for pipeline creation)
 		if (let opaqueFeature = Renderer.GetFeature<ForwardOpaqueFeature>())
-			mTransparentPipelineLayout = opaqueFeature.[Friend]mForwardPipelineLayout;
+			mSceneBindGroupLayout = opaqueFeature.[Friend]mSceneBindGroupLayout;
 
 		return .Ok;
 	}
@@ -76,10 +76,23 @@ public class ForwardTransparentFeature : RenderFeatureBase
 
 	/// Gets a pipeline for a transparent material with the specified cull mode.
 	/// Uses the pipeline cache for dynamic pipeline creation.
+	/// Pipeline layouts are created dynamically by the cache from scene + material layouts.
 	private IRenderPipeline GetPipelineForMaterial(MaterialInstance material, bool shadowsEnabled, bool backFaces)
 	{
 		let pipelineCache = Renderer.PipelineCache;
-		if (pipelineCache == null || mTransparentPipelineLayout == null)
+		let materialSystem = Renderer.MaterialSystem;
+		if (pipelineCache == null || mSceneBindGroupLayout == null || materialSystem == null)
+			return null;
+
+		// Get or create the material's bind group layout
+		let baseMaterial = material?.Material;
+		if (baseMaterial == null)
+			return null;
+
+		IBindGroupLayout materialLayout = null;
+		if (materialSystem.GetOrCreateLayout(baseMaterial) case .Ok(let layout))
+			materialLayout = layout;
+		else
 			return null;
 
 		// Build variant flags for cull mode
@@ -96,7 +109,8 @@ public class ForwardTransparentFeature : RenderFeatureBase
 		if (pipelineCache.GetPipelineForMaterial(
 			material,
 			vertexBuffers,
-			mTransparentPipelineLayout,
+			mSceneBindGroupLayout,
+			materialLayout,
 			.RGBA16Float,
 			.Depth32Float,
 			1,
