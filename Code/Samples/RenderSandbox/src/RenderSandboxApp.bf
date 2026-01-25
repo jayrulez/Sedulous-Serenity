@@ -405,11 +405,9 @@ class RenderSandboxApp : Application
 		}
 		Console.WriteLine("Sun light created");
 
-		// Disable shadow rendering to isolate crash
 		if (mForwardFeature?.ShadowRenderer != null)
 		{
 			mForwardFeature.ShadowRenderer.EnableShadows = true;
-			Console.WriteLine("Shadow rendering DISABLED for crash isolation");
 		}
 
 		// Create colored point lights

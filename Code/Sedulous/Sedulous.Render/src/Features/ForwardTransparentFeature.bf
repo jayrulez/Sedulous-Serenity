@@ -74,6 +74,11 @@ public class ForwardTransparentFeature : RenderFeatureBase
 		return .Ok;
 	}
 
+	/// Depth bias for transparent geometry to avoid z-fighting with coplanar surfaces.
+	/// Negative value pushes fragments slightly further from camera.
+	private const int16 TransparentDepthBias = -1;
+	private const float TransparentDepthBiasSlopeScale = -1.0f;
+
 	/// Gets a pipeline for a transparent material with the specified cull mode.
 	/// Uses the pipeline cache for dynamic pipeline creation.
 	/// Pipeline layouts are created dynamically by the cache from scene + material layouts.
@@ -106,6 +111,7 @@ public class ForwardTransparentFeature : RenderFeatureBase
 		);
 
 		// Get pipeline from cache with transparent depth mode (read-only)
+		// Apply depth bias to avoid z-fighting with coplanar opaque geometry
 		if (pipelineCache.GetPipelineForMaterial(
 			material,
 			vertexBuffers,
@@ -116,7 +122,9 @@ public class ForwardTransparentFeature : RenderFeatureBase
 			1,
 			variantFlags,
 			.ReadOnly,      // Transparent objects don't write depth
-			.LessEqual) case .Ok(let pipeline))
+			.LessEqual,
+			TransparentDepthBias,
+			TransparentDepthBiasSlopeScale) case .Ok(let pipeline))
 		{
 			return pipeline;
 		}

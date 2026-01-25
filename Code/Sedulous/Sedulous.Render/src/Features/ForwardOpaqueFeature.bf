@@ -332,8 +332,8 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				DepthWriteEnabled = true,
 				DepthCompare = .Less,
 				Format = .Depth32Float, // Match shadow map format
-				DepthBias = 2,          // Hardware depth bias to prevent shadow acne
-				DepthBiasSlopeScale = 2.0f
+				DepthBias = 4,          // Hardware depth bias to prevent shadow acne
+				DepthBiasSlopeScale = 4.0f
 			},
 			Multisample = .()
 			{

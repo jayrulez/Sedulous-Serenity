@@ -32,7 +32,7 @@ public struct CascadeConfig
 		CascadeCount = 4,
 		Resolution = 2048,
 		SplitLambda = 0.5f,
-		Bias = 0.0001f,  // Minimal bias - just enough to prevent acne
+		Bias = 0.005f,   // Shader-side bias for shadow comparison
 		NormalBias = 0.02f,
 		Softness = 1.0f
 	};

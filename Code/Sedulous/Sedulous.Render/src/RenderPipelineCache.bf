@@ -111,6 +111,8 @@ class RenderPipelineCache
 	/// - variantFlags: Additional pipeline variants (shadows, cull mode overrides)
 	/// - depthModeOverride: Override material's depth mode (e.g., for forward pass with depth prepass)
 	/// - depthCompareOverride: Override material's depth compare (e.g., LessEqual for forward pass after prepass)
+	/// - depthBiasOverride: Override depth bias (e.g., for transparent geometry to avoid z-fighting)
+	/// - depthBiasSlopeScaleOverride: Override depth bias slope scale
 	public Result<IRenderPipeline> GetPipelineForMaterial(
 		MaterialInstance material,
 		Span<VertexBufferLayout> vertexBuffers,
@@ -121,7 +123,9 @@ class RenderPipelineCache
 		uint8 sampleCount = 1,
 		PipelineVariantFlags variantFlags = .None,
 		DepthMode? depthModeOverride = null,
-		CompareFunction? depthCompareOverride = null)
+		CompareFunction? depthCompareOverride = null,
+		int16? depthBiasOverride = null,
+		float? depthBiasSlopeScaleOverride = null)
 	{
 		if (material == null || sceneLayout == null || materialLayout == null)
 			return .Err;
@@ -140,6 +144,12 @@ class RenderPipelineCache
 		// Override depth compare if specified (e.g., LessEqual for forward pass after prepass)
 		if (depthCompareOverride.HasValue)
 			config.DepthCompare = depthCompareOverride.Value;
+
+		// Override depth bias if specified (e.g., for transparent geometry to avoid z-fighting)
+		if (depthBiasOverride.HasValue)
+			config.DepthBias = depthBiasOverride.Value;
+		if (depthBiasSlopeScaleOverride.HasValue)
+			config.DepthBiasSlopeScale = depthBiasSlopeScaleOverride.Value;
 
 		// Build cache key
 		let key = BuildKey(config, vertexBuffers, sceneLayout, materialLayout, colorFormat, depthFormat, sampleCount, variantFlags);
@@ -227,12 +237,14 @@ class RenderPipelineCache
 			key.ShaderHash = key.ShaderHash * 31 + config.ShaderName.GetHashCode();
 		key.ShaderHash = key.ShaderHash * 31 + (int)config.ShaderFlags;
 
-		// Render state hash (blend, cull, depth)
+		// Render state hash (blend, cull, depth, depth bias)
 		key.RenderStateHash = 17;
 		key.RenderStateHash = key.RenderStateHash * 31 + (int)config.BlendMode;
 		key.RenderStateHash = key.RenderStateHash * 31 + (int)config.CullMode;
 		key.RenderStateHash = key.RenderStateHash * 31 + (int)config.DepthMode;
 		key.RenderStateHash = key.RenderStateHash * 31 + (int)config.DepthCompare;
+		key.RenderStateHash = key.RenderStateHash * 31 + (int)config.DepthBias;
+		key.RenderStateHash = key.RenderStateHash * 31 + (int)(config.DepthBiasSlopeScale * 1000); // Scale for precision
 
 		// Vertex layout hash
 		key.VertexLayoutHash = ComputeVertexLayoutHash(vertexBuffers);
