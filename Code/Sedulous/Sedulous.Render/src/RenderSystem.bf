@@ -391,6 +391,10 @@ public class RenderSystem : IDisposable
 		// Wait for GPU to finish
 		mDevice.WaitIdle();
 
+		// Shutdown post-process effects (before features since effects may reference features)
+		if (mPostProcessStack != null)
+			mPostProcessStack.Shutdown();
+
 		// Shutdown and delete features in reverse order
 		for (int i = mFeatures.Count - 1; i >= 0; i--)
 		{

@@ -35,13 +35,16 @@ public class VolumetricFogEffect : IPostProcessEffect
 	private IBuffer mParamsBuffer ~ delete _;
 	private ISampler mPointSampler ~ delete _;
 
-	// Per-frame bind group - recreated each frame since inputs are transient resources
-	private IBindGroup mBindGroup ~ delete _;
+	// Per-frame bind groups - indexed by frame to avoid use-after-free with in-flight commands
+	private IBindGroup[RenderConfig.FrameBufferCount] mBindGroups;
 
-	// Depth-only view - recreated each frame since depth texture is transient
-	private ITextureView mDepthOnlyView ~ delete _;
+	// Per-frame depth-only views - indexed by frame to avoid use-after-free with in-flight commands
+	private ITextureView[RenderConfig.FrameBufferCount] mDepthOnlyViews;
 
 	private bool mEnabled = true;
+
+	/// Gets the current frame index for multi-buffering.
+	private int32 FrameIndex => mFogFeature?.RenderSystem?.RenderFrameContext?.FrameIndex ?? 0;
 
 	/// Creates a new volumetric fog effect.
 	/// @param fogFeature The VolumetricFogFeature that computes the fog volume.
@@ -179,6 +182,20 @@ public class VolumetricFogEffect : IPostProcessEffect
 
 	public void Shutdown()
 	{
+		// Clean up per-frame resources
+		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
+		{
+			if (mBindGroups[i] != null)
+			{
+				delete mBindGroups[i];
+				mBindGroups[i] = null;
+			}
+			if (mDepthOnlyViews[i] != null)
+			{
+				delete mDepthOnlyViews[i];
+				mDepthOnlyViews[i] = null;
+			}
+		}
 	}
 
 	public void AddPasses(
@@ -243,13 +260,14 @@ public class VolumetricFogEffect : IPostProcessEffect
 		if (depthTexture == null)
 			return null;
 
-		// Always recreate depth-only view each frame since depth texture is a transient resource.
-		// Caching by pointer is unsafe because transient resources are destroyed each frame,
-		// and memory reuse in release builds can cause stale pointer matches.
-		if (mDepthOnlyView != null)
+		let frameIndex = FrameIndex;
+
+		// Delete previous view for this frame slot (safe now since that frame's commands have completed).
+		// Must recreate each frame because depth texture is transient.
+		if (mDepthOnlyViews[frameIndex] != null)
 		{
-			delete mDepthOnlyView;
-			mDepthOnlyView = null;
+			delete mDepthOnlyViews[frameIndex];
+			mDepthOnlyViews[frameIndex] = null;
 		}
 
 		TextureViewDescriptor viewDesc = .();
@@ -261,7 +279,7 @@ public class VolumetricFogEffect : IPostProcessEffect
 		switch (mDevice.CreateTextureView(depthTexture, &viewDesc))
 		{
 		case .Ok(let createdView):
-			mDepthOnlyView = createdView;
+			mDepthOnlyViews[frameIndex] = createdView;
 			return createdView;
 		case .Err:
 			return null;
@@ -278,14 +296,15 @@ public class VolumetricFogEffect : IPostProcessEffect
 		if (inputView == null || depthView == null || fogVolumeView == null)
 			return;
 
-		// Always recreate bind group each frame since input/depth are transient resources.
-		// Caching by pointer is unsafe because transient resources are destroyed each frame,
-		// and memory reuse in release builds can cause stale pointer matches.
+		let frameIndex = FrameIndex;
+
+		// Delete previous bind group for this frame slot (safe now since that frame's commands have completed).
+		// Must recreate each frame because input/depth are transient resources.
 		let fogLinearSampler = mFogFeature.LinearSampler;
-		if (mBindGroup != null)
+		if (mBindGroups[frameIndex] != null)
 		{
-			delete mBindGroup;
-			mBindGroup = null;
+			delete mBindGroups[frameIndex];
+			mBindGroups[frameIndex] = null;
 		}
 
 		BindGroupEntry[6] entries = .(
@@ -304,7 +323,7 @@ public class VolumetricFogEffect : IPostProcessEffect
 
 		switch (mDevice.CreateBindGroup(&bgDesc))
 		{
-		case .Ok(let bg): mBindGroup = bg;
+		case .Ok(let bg): mBindGroups[frameIndex] = bg;
 		case .Err: return;
 		}
 
@@ -312,7 +331,7 @@ public class VolumetricFogEffect : IPostProcessEffect
 		encoder.SetScissorRect(0, 0, view.Width, view.Height);
 
 		encoder.SetPipeline(mApplyPipeline);
-		encoder.SetBindGroup(0, mBindGroup, default);
+		encoder.SetBindGroup(0, mBindGroups[frameIndex], default);
 		encoder.Draw(3, 1, 0, 0);
 
 		// Update stats through feature's render system

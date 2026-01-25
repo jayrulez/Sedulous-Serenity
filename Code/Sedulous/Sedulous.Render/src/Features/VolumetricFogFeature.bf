@@ -149,17 +149,17 @@ public class VolumetricFogFeature : RenderFeatureBase
 	private IBuffer mScatterParamsBuffer ~ delete _;
 	private IBuffer mApplyParamsBuffer ~ delete _;
 
-	// Per-frame bind groups (recreated each frame due to changing resources)
-	private IBindGroup mInjectBindGroup ~ delete _;
-	private IBindGroup mScatterBindGroup ~ delete _;
-	private IBindGroup mApplyBindGroup ~ delete _;
+	// Per-frame bind groups (using arrays to avoid use-after-free with in-flight command buffers)
+	private IBindGroup[RenderConfig.FrameBufferCount] mInjectBindGroups;
+	private IBindGroup[RenderConfig.FrameBufferCount] mScatterBindGroups;
+	private IBindGroup[RenderConfig.FrameBufferCount] mApplyBindGroups;
 
 	/// Gets the current frame index for multi-buffering.
 	private int32 FrameIndex => Renderer.RenderFrameContext?.FrameIndex ?? 0;
 
 	// Depth-only view for sampling (depth/stencil textures need aspect specified)
-	// Recreated each frame since depth texture is a transient resource
-	private ITextureView mDepthOnlyView ~ delete _;
+	// Per-frame array since depth texture is transient and views are referenced by in-flight command buffers
+	private ITextureView[RenderConfig.FrameBufferCount] mDepthOnlyViews;
 
 	// Settings
 	private VolumetricFogSettings mSettings = .Default;
@@ -219,6 +219,30 @@ public class VolumetricFogFeature : RenderFeatureBase
 
 	protected override void OnShutdown()
 	{
+		// Clean up per-frame resources
+		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
+		{
+			if (mInjectBindGroups[i] != null)
+			{
+				delete mInjectBindGroups[i];
+				mInjectBindGroups[i] = null;
+			}
+			if (mScatterBindGroups[i] != null)
+			{
+				delete mScatterBindGroups[i];
+				mScatterBindGroups[i] = null;
+			}
+			if (mApplyBindGroups[i] != null)
+			{
+				delete mApplyBindGroups[i];
+				mApplyBindGroups[i] = null;
+			}
+			if (mDepthOnlyViews[i] != null)
+			{
+				delete mDepthOnlyViews[i];
+				mDepthOnlyViews[i] = null;
+			}
+		}
 	}
 
 	public override void AddPasses(RenderGraph graph, RenderView view, RenderWorld world)
@@ -271,13 +295,14 @@ public class VolumetricFogFeature : RenderFeatureBase
 		if (depthTexture == null)
 			return null;
 
-		// Always recreate depth-only view each frame since depth texture is a transient resource.
-		// Caching by pointer is unsafe because transient resources are destroyed each frame,
-		// and memory reuse in release builds can cause stale pointer matches.
-		if (mDepthOnlyView != null)
+		let frameIndex = FrameIndex;
+
+		// Delete previous view for this frame slot (safe now since that frame's commands have completed).
+		// Must recreate each frame because depth texture is transient.
+		if (mDepthOnlyViews[frameIndex] != null)
 		{
-			delete mDepthOnlyView;
-			mDepthOnlyView = null;
+			delete mDepthOnlyViews[frameIndex];
+			mDepthOnlyViews[frameIndex] = null;
 		}
 
 		// Create depth-only view
@@ -292,7 +317,7 @@ public class VolumetricFogFeature : RenderFeatureBase
 		switch (Renderer.Device.CreateTextureView(depthTexture, &viewDesc))
 		{
 		case .Ok(let view):
-			mDepthOnlyView = view;
+			mDepthOnlyViews[frameIndex] = view;
 			return view;
 		case .Err:
 			return null;
@@ -787,18 +812,11 @@ public class VolumetricFogFeature : RenderFeatureBase
 
 	private void CreateFrameBindGroups(RenderView view, RenderWorld world)
 	{
-		// Clean up previous frame's bind groups
-		if (mInjectBindGroup != null)
-		{
-			delete mInjectBindGroup;
-			mInjectBindGroup = null;
-		}
+		let frameIndex = FrameIndex;
 
-		if (mScatterBindGroup != null)
-		{
-			delete mScatterBindGroup;
-			mScatterBindGroup = null;
-		}
+		// Only create if bind group doesn't exist yet for this frame slot.
+		// Using per-frame arrays avoids use-after-free with in-flight command buffers.
+		// The bind groups reference frame-specific buffers which are stable handles.
 
 		// Get light buffer from ForwardOpaqueFeature
 		IBuffer lightBuffer = null;
@@ -812,8 +830,9 @@ public class VolumetricFogFeature : RenderFeatureBase
 			}
 		}
 
-		// Create inject bind group
-		if (mInjectBindGroupLayout != null && mInjectParamsBuffer != null &&
+		// Create inject bind group if not already created for this frame slot
+		if (mInjectBindGroups[frameIndex] == null &&
+			mInjectBindGroupLayout != null && mInjectParamsBuffer != null &&
 			mInjectFroxelParamsBuffer != null && lightBuffer != null &&
 			mNoiseTextureView != null && mScatteringVolumeView != null && mLinearSampler != null)
 		{
@@ -835,14 +854,14 @@ public class VolumetricFogFeature : RenderFeatureBase
 
 			switch (Renderer.Device.CreateBindGroup(&injectBgDesc))
 			{
-			case .Ok(let bg): mInjectBindGroup = bg;
+			case .Ok(let bg): mInjectBindGroups[frameIndex] = bg;
 			case .Err: // Non-fatal
 			}
 		}
 
-		// Create scatter bind group - only uses our own resources
-		// Layout: b0 = params, t0 = scattering (sampled), u0 = integrated (RW)
-		if (mScatterBindGroupLayout != null && mScatterParamsBuffer != null &&
+		// Create scatter bind group if not already created for this frame slot
+		if (mScatterBindGroups[frameIndex] == null &&
+			mScatterBindGroupLayout != null && mScatterParamsBuffer != null &&
 			mScatteringVolumeView != null && mIntegratedVolumeView != null)
 		{
 			BindGroupEntry[3] scatterEntries = .(
@@ -860,7 +879,7 @@ public class VolumetricFogFeature : RenderFeatureBase
 
 			switch (Renderer.Device.CreateBindGroup(&scatterBgDesc))
 			{
-			case .Ok(let bg): mScatterBindGroup = bg;
+			case .Ok(let bg): mScatterBindGroups[frameIndex] = bg;
 			case .Err: // Non-fatal
 			}
 		}
@@ -870,13 +889,16 @@ public class VolumetricFogFeature : RenderFeatureBase
 	}
 
 	/// Creates the apply bind group with scene textures from the render graph.
+	/// Note: Apply bind group must be recreated each frame because it references transient scene color/depth views.
 	private void CreateApplyBindGroup(ITextureView sceneColorView, ITextureView sceneDepthView)
 	{
-		// Clean up previous
-		if (mApplyBindGroup != null)
+		let frameIndex = FrameIndex;
+
+		// Clean up previous for this frame slot (must recreate because scene views are transient)
+		if (mApplyBindGroups[frameIndex] != null)
 		{
-			delete mApplyBindGroup;
-			mApplyBindGroup = null;
+			delete mApplyBindGroups[frameIndex];
+			mApplyBindGroups[frameIndex] = null;
 		}
 
 		if (mApplyBindGroupLayout == null || mApplyParamsBuffer == null ||
@@ -902,18 +924,19 @@ public class VolumetricFogFeature : RenderFeatureBase
 
 		switch (Renderer.Device.CreateBindGroup(&applyBgDesc))
 		{
-		case .Ok(let bg): mApplyBindGroup = bg;
+		case .Ok(let bg): mApplyBindGroups[frameIndex] = bg;
 		case .Err: // Non-fatal
 		}
 	}
 
 	private void ExecuteInjectPass(IComputePassEncoder encoder)
 	{
-		if (mInjectPipeline == null || mInjectBindGroup == null)
+		let bindGroup = mInjectBindGroups[FrameIndex];
+		if (mInjectPipeline == null || bindGroup == null)
 			return;
 
 		encoder.SetPipeline(mInjectPipeline);
-		encoder.SetBindGroup(0, mInjectBindGroup, default);
+		encoder.SetBindGroup(0, bindGroup, default);
 
 		// Dispatch - inject shader uses [numthreads(8, 8, 8)] for full 3D coverage
 		let dispatchX = (mFroxelsX + 7) / 8;
@@ -926,11 +949,12 @@ public class VolumetricFogFeature : RenderFeatureBase
 
 	private void ExecuteScatterPass(IComputePassEncoder encoder)
 	{
-		if (mScatterPipeline == null || mScatterBindGroup == null)
+		let bindGroup = mScatterBindGroups[FrameIndex];
+		if (mScatterPipeline == null || bindGroup == null)
 			return;
 
 		encoder.SetPipeline(mScatterPipeline);
-		encoder.SetBindGroup(0, mScatterBindGroup, default);
+		encoder.SetBindGroup(0, bindGroup, default);
 
 		// Dispatch - scatter shader uses [numthreads(8, 8, 1)] and marches Z internally
 		let dispatchX = (mFroxelsX + 7) / 8;
@@ -948,14 +972,15 @@ public class VolumetricFogFeature : RenderFeatureBase
 		// Create bind group with current scene textures
 		CreateApplyBindGroup(sceneColorView, sceneDepthView);
 
-		if (mApplyBindGroup == null)
+		let bindGroup = mApplyBindGroups[FrameIndex];
+		if (bindGroup == null)
 			return;
 
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0.0f, 1.0f);
 		encoder.SetScissorRect(0, 0, view.Width, view.Height);
 
 		encoder.SetPipeline(mApplyPipeline);
-		encoder.SetBindGroup(0, mApplyBindGroup, default);
+		encoder.SetBindGroup(0, bindGroup, default);
 
 		// Draw fullscreen triangle (3 vertices, vertex shader generates positions)
 		encoder.Draw(3, 1, 0, 0);
