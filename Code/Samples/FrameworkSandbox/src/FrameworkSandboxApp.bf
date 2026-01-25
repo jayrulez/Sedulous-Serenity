@@ -1517,6 +1517,17 @@ class FrameworkSandboxApp : Application
 			}
 		}
 
+		// Toggle shadows (O key)
+		if (keyboard.IsKeyPressed(.O))
+		{
+			let shadowRenderer = mForwardFeature?.ShadowRenderer;
+			if (shadowRenderer != null)
+			{
+				shadowRenderer.EnableShadows = !shadowRenderer.EnableShadows;
+				Console.WriteLine("Shadows: {}", shadowRenderer.EnableShadows ? "ON" : "OFF");
+			}
+		}
+
 		// Sun light rotation (Arrow keys)
 		{
 			float lightRotSpeed = 0.03f;

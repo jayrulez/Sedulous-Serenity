@@ -66,6 +66,9 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 	private ITexture mDummyShadowMapArray ~ delete _;
 	private ITextureView mDummyShadowMapArrayView ~ delete _;
 
+	// Track shadow state when bind groups were created (for runtime toggling)
+	private bool[RenderConfig.FrameBufferCount] mSceneBindGroupShadowState;
+
 	/// Feature name.
 	public override StringView Name => "ForwardOpaque";
 
@@ -105,17 +108,16 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		if (CreateObjectUniformBuffer() case .Err)
 			return .Err;
 
-		// Create forward pipelines
-		if (CreateForwardPipelines() case .Err)
-			return .Err;
-
-		// Try to create instanced forward pipelines
-		if (CreateInstancedForwardPipelines() case .Ok)
-			mInstancingEnabled = true;
-
-		// Create dynamic pipeline cache for custom materials
+		// Create pipeline cache for all forward pipelines
 		if (Renderer.ShaderSystem != null)
+		{
 			mPipelineCache = new RenderPipelineCache(Renderer.Device, Renderer.ShaderSystem);
+			mInstancingEnabled = true; // Always enable instancing path, cache will create pipeline on demand
+		}
+
+		// Create forward pipeline layout (shared by all cached pipelines)
+		if (CreateForwardPipelineLayout() case .Err)
+			return .Err;
 
 		// Create shadow depth pipeline
 		if (CreateShadowPipeline() case .Err)
@@ -128,16 +130,12 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		return .Ok;
 	}
 
-	private IRenderPipeline mForwardPipeline ~ delete _;          // No shadows variant
-	private IRenderPipeline mForwardShadowPipeline ~ delete _;    // With shadows variant
-	private IRenderPipeline mForwardInstancedPipeline ~ delete _; // Instanced variant (no shadows)
-	private IRenderPipeline mForwardInstancedShadowPipeline ~ delete _; // Instanced variant (with shadows)
 	private IPipelineLayout mForwardPipelineLayout ~ delete _;
 
 	// Instancing state (uses instance buffer from DepthPrepassFeature)
 	private bool mInstancingEnabled = false;
 
-	private Result<void> CreateForwardPipelines()
+	private Result<void> CreateForwardPipelineLayout()
 	{
 		// Skip if shader system not initialized
 		if (Renderer.ShaderSystem == null)
@@ -148,7 +146,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		if (materialLayout == null)
 			return .Ok; // MaterialSystem not initialized yet
 
-		// Create pipeline layout (shared by both variants)
+		// Create pipeline layout (used by all forward pipelines via cache)
 		IBindGroupLayout[2] layouts = .(mSceneBindGroupLayout, materialLayout);
 		PipelineLayoutDescriptor layoutDesc = .(layouts);
 		switch (Renderer.Device.CreatePipelineLayout(&layoutDesc))
@@ -157,256 +155,17 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		case .Err: return .Err;
 		}
 
-		// Vertex layout - Mesh format matches Sedulous.Geometry.StaticMesh
-		VertexBufferLayout[1] vertexBuffers = .(
-			VertexLayoutHelper.CreateBufferLayout(.Mesh)
-		);
-
-		// Color targets for HDR output
-		ColorTargetState[1] colorTargets = .(
-			.(.RGBA16Float)
-		);
-
-		// --- Create non-shadow pipeline variant ---
-		{
-			let shaderResult = Renderer.ShaderSystem.GetShaderPair("forward", .DepthTest | .DepthWrite);
-			if (shaderResult case .Err)
-				return .Ok; // Shaders not available yet
-
-			let (vertShader, fragShader) = shaderResult.Value;
-
-			RenderPipelineDescriptor pipelineDesc = .()
-			{
-				Label = "Forward Opaque Pipeline (No Shadows)",
-				Layout = mForwardPipelineLayout,
-				Vertex = .()
-				{
-					Shader = .(vertShader.Module, "main"),
-					Buffers = vertexBuffers
-				},
-				Fragment = .()
-				{
-					Shader = .(fragShader.Module, "main"),
-					Targets = colorTargets
-				},
-				Primitive = .()
-				{
-					Topology = .TriangleList,
-					FrontFace = .CCW,
-					CullMode = .Back
-				},
-				DepthStencil = .() // Depth test with equal, no write
-				{
-					DepthTestEnabled = true,
-					DepthWriteEnabled = false,
-					DepthCompare = .LessEqual
-				},
-				Multisample = .()
-				{
-					Count = 1,
-					Mask = uint32.MaxValue
-				}
-			};
-
-			switch (Renderer.Device.CreateRenderPipeline(&pipelineDesc))
-			{
-			case .Ok(let pipeline): mForwardPipeline = pipeline;
-			case .Err: return .Err;
-			}
-		}
-
-		// --- Create shadow-receiving pipeline variant ---
-		{
-			let shaderResult = Renderer.ShaderSystem.GetShaderPair("forward", .DefaultOpaque);
-			if (shaderResult case .Err)
-				return .Ok; // Shaders not available yet (will use non-shadow variant)
-
-			let (vertShader, fragShader) = shaderResult.Value;
-
-			RenderPipelineDescriptor pipelineDesc = .()
-			{
-				Label = "Forward Opaque Pipeline (With Shadows)",
-				Layout = mForwardPipelineLayout,
-				Vertex = .()
-				{
-					Shader = .(vertShader.Module, "main"),
-					Buffers = vertexBuffers
-				},
-				Fragment = .()
-				{
-					Shader = .(fragShader.Module, "main"),
-					Targets = colorTargets
-				},
-				Primitive = .()
-				{
-					Topology = .TriangleList,
-					FrontFace = .CCW,
-					CullMode = .Back
-				},
-				DepthStencil = .() // Depth test with equal, no write
-				{
-					DepthTestEnabled = true,
-					DepthWriteEnabled = false,
-					DepthCompare = .LessEqual
-				},
-				Multisample = .()
-				{
-					Count = 1,
-					Mask = uint32.MaxValue
-				}
-			};
-
-			switch (Renderer.Device.CreateRenderPipeline(&pipelineDesc))
-			{
-			case .Ok(let pipeline): mForwardShadowPipeline = pipeline;
-			case .Err: return .Err;
-			}
-		}
-
-		return .Ok;
-	}
-
-	private Result<void> CreateInstancedForwardPipelines()
-	{
-		// Skip if shader system or pipeline layout not initialized
-		if (Renderer.ShaderSystem == null || mForwardPipelineLayout == null)
-			return .Err;
-
-		// Get material bind group layout from MaterialSystem
-		let materialLayout = Renderer.MaterialSystem?.DefaultMaterialLayout;
-		if (materialLayout == null)
-			return .Err;
-
-		// Vertex layout for forward instancing (without NORMAL_MAP):
-		// - Mesh buffer uses stride 48 (full Mesh format) but only declares Position/Normal/UV
-		// - DXC assigns locations sequentially, so instance data starts at location 3
-		Sedulous.RHI.VertexAttribute[3] meshAttrs = .(
-			.(VertexFormat.Float3, 0, 0),   // Position
-			.(VertexFormat.Float3, 12, 1),  // Normal
-			.(VertexFormat.Float2, 24, 2)   // UV
-		);
-		Sedulous.RHI.VertexAttribute[4] instanceAttrs = .(
-			.(VertexFormat.Float4, 0, 3),   // WorldRow0
-			.(VertexFormat.Float4, 16, 4),  // WorldRow1
-			.(VertexFormat.Float4, 32, 5),  // WorldRow2
-			.(VertexFormat.Float4, 48, 6)   // WorldRow3
-		);
-		VertexBufferLayout[2] vertexBuffers = .(
-			.(48, meshAttrs, .Vertex),              // Mesh buffer (stride 48, but only 3 attrs)
-			.(64, instanceAttrs, .Instance)         // Instance buffer
-		);
-
-		// Color targets for HDR output
-		ColorTargetState[1] colorTargets = .(
-			.(.RGBA16Float)
-		);
-
-		// --- Create instanced non-shadow pipeline ---
-		{
-			let shaderResult = Renderer.ShaderSystem.GetShaderPair("forward", .DepthTest | .DepthWrite | .Instanced);
-			if (shaderResult case .Err)
-				return .Err; // Instanced shader variant not available
-
-			let (vertShader, fragShader) = shaderResult.Value;
-
-			RenderPipelineDescriptor pipelineDesc = .()
-			{
-				Label = "Forward Opaque Instanced Pipeline (No Shadows)",
-				Layout = mForwardPipelineLayout,
-				Vertex = .()
-				{
-					Shader = .(vertShader.Module, "main"),
-					Buffers = vertexBuffers
-				},
-				Fragment = .()
-				{
-					Shader = .(fragShader.Module, "main"),
-					Targets = colorTargets
-				},
-				Primitive = .()
-				{
-					Topology = .TriangleList,
-					FrontFace = .CCW,
-					CullMode = .Back
-				},
-				DepthStencil = .()
-				{
-					DepthTestEnabled = true,
-					DepthWriteEnabled = false,
-					DepthCompare = .LessEqual
-				},
-				Multisample = .()
-				{
-					Count = 1,
-					Mask = uint32.MaxValue
-				}
-			};
-
-			switch (Renderer.Device.CreateRenderPipeline(&pipelineDesc))
-			{
-			case .Ok(let pipeline): mForwardInstancedPipeline = pipeline;
-			case .Err: return .Err;
-			}
-		}
-
-		// --- Create instanced shadow-receiving pipeline ---
-		{
-			let shaderResult = Renderer.ShaderSystem.GetShaderPair("forward", .DefaultOpaque | .Instanced);
-			if (shaderResult case .Err)
-				return .Ok; // Shadow variant not available, but basic instancing works
-
-			let (vertShader, fragShader) = shaderResult.Value;
-
-			RenderPipelineDescriptor pipelineDesc = .()
-			{
-				Label = "Forward Opaque Instanced Pipeline (With Shadows)",
-				Layout = mForwardPipelineLayout,
-				Vertex = .()
-				{
-					Shader = .(vertShader.Module, "main"),
-					Buffers = vertexBuffers
-				},
-				Fragment = .()
-				{
-					Shader = .(fragShader.Module, "main"),
-					Targets = colorTargets
-				},
-				Primitive = .()
-				{
-					Topology = .TriangleList,
-					FrontFace = .CCW,
-					CullMode = .Back
-				},
-				DepthStencil = .()
-				{
-					DepthTestEnabled = true,
-					DepthWriteEnabled = false,
-					DepthCompare = .LessEqual
-				},
-				Multisample = .()
-				{
-					Count = 1,
-					Mask = uint32.MaxValue
-				}
-			};
-
-			switch (Renderer.Device.CreateRenderPipeline(&pipelineDesc))
-			{
-			case .Ok(let pipeline): mForwardInstancedShadowPipeline = pipeline;
-			case .Err: // Shadow variant failed, but basic instancing still works
-			}
-		}
-
 		return .Ok;
 	}
 
 	/// Gets the appropriate pipeline for a material.
 	/// Uses the pipeline cache with caller-provided vertex layouts.
 	/// The vertex layout is determined by the mesh type (instanced vs non-instanced), not the material.
+	/// Returns null if the pipeline cannot be created.
 	private IRenderPipeline GetPipelineForMaterial(MaterialInstance material, bool shadowsEnabled, bool instanced)
 	{
 		if (mPipelineCache == null || mForwardPipelineLayout == null)
-			return mForwardPipeline;
+			return null;
 
 		// Build variant flags
 		PipelineVariantFlags variantFlags = .None;
@@ -451,10 +210,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				return pipeline;
 			}
 
-			// Fall back to pre-created instanced pipeline
-			return (shadowsEnabled && mForwardInstancedShadowPipeline != null)
-				? mForwardInstancedShadowPipeline
-				: mForwardInstancedPipeline;
+			return null;
 		}
 		else
 		{
@@ -477,8 +233,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				return pipeline;
 			}
 
-			// Fall back to pre-created pipeline
-			return mForwardPipeline;
+			return null;
 		}
 	}
 
@@ -1232,9 +987,17 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 	private void CreateSceneBindGroup(int32 frameIndex)
 	{
-		// Delete old bind group if exists
+		// Check current shadow state
+		let shadowsEnabled = mShadowRenderer?.EnableShadows ?? false;
+
+		// Check if bind group exists and shadow state hasn't changed
+		// If shadow state changed, we need to recreate with correct shadow map (real or dummy)
 		if (mSceneBindGroups[frameIndex] != null)
 		{
+			if (mSceneBindGroupShadowState[frameIndex] == shadowsEnabled)
+				return; // State unchanged, keep existing bind group
+
+			// Shadow state changed - delete old bind group so we can recreate
 			delete mSceneBindGroups[frameIndex];
 			mSceneBindGroups[frameIndex] = null;
 		}
@@ -1277,8 +1040,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		// t6: LightIndices storage buffer
 		entries[5] = BindGroupEntry.Buffer(6, lightIndexBuffer, 0, (uint64)(mLighting.ClusterGrid.Config.MaxLightsPerCluster * mLighting.ClusterGrid.Config.TotalClusters * 4));
 
-		// Get shadow resources from ShadowRenderer (only use if shadows are enabled)
-		let shadowsEnabled = mShadowRenderer?.EnableShadows ?? false;
+		// Get shadow resources from ShadowRenderer (shadowsEnabled already computed at function start)
 		let shadowData = mShadowRenderer.GetShadowShaderData();
 		let materialSystem = Renderer.MaterialSystem;
 
@@ -1315,7 +1077,10 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		};
 
 		if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bg))
+		{
 			mSceneBindGroups[frameIndex] = bg;
+			mSceneBindGroupShadowState[frameIndex] = shadowsEnabled; // Track state for runtime toggling
+		}
 	}
 
 	private void ExecuteForwardPass(IRenderPassEncoder encoder, RenderWorld world, RenderView view, DepthPrepassFeature depthFeature, int32 frameIndex)
@@ -1334,7 +1099,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 			// Use instanced path if available and has instance groups
 			let batcher = depthFeature.Batcher;
-			if (mInstancingEnabled && depthFeature.InstancingActive && mForwardInstancedPipeline != null && batcher.OpaqueInstanceGroups.Length > 0)
+			if (mInstancingEnabled && depthFeature.InstancingActive && batcher.OpaqueInstanceGroups.Length > 0)
 			{
 				using (SProfiler.Begin("InstancedDraw"))
 					ExecuteInstancedForwardPass(encoder, world, depthFeature, frameIndex, ref currentMaterial);
@@ -1363,14 +1128,6 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		// Track current pipeline to minimize state changes
 		IRenderPipeline currentPipeline = null;
 
-		// Set initial default instanced pipeline
-		let defaultPipeline = (shadowsEnabled && mForwardInstancedShadowPipeline != null) ? mForwardInstancedShadowPipeline : mForwardInstancedPipeline;
-		if (defaultPipeline == null)
-			return;
-
-		encoder.SetPipeline(defaultPipeline);
-		currentPipeline = defaultPipeline;
-
 		// Get instance buffer from depth feature
 		let instanceBuffer = depthFeature.GetInstanceBuffer(frameIndex);
 		if (instanceBuffer == null)
@@ -1383,13 +1140,8 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		// Get batcher data
 		let batcher = depthFeature.Batcher;
 
-		// Bind scene bind group (no dynamic offset needed for instanced - uses instance 0)
+		// Get scene bind group for later binding (after pipeline is set)
 		let sceneBindGroup = mSceneBindGroups[frameIndex];
-		if (sceneBindGroup != null)
-		{
-			uint32[1] dynamicOffsets = .(0);
-			encoder.SetBindGroup(0, sceneBindGroup, dynamicOffsets);
-		}
 
 		// Render opaque instance groups
 		for (let group in batcher.OpaqueInstanceGroups)
@@ -1400,13 +1152,22 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			// Get material for this group (all instances in group share the same material)
 			MaterialInstance material = group.Material ?? defaultMaterialInstance;
 
-			// Get pipeline for this material (may be custom shader)
-			// Note: Custom shaders need instanced variants - fall back to default if not available
+			// Get pipeline for this material from cache
 			let pipeline = GetPipelineForMaterial(material, shadowsEnabled, true);
-			if (pipeline != null && pipeline != currentPipeline)
+			if (pipeline == null)
+				continue; // Skip if pipeline can't be created
+
+			if (pipeline != currentPipeline)
 			{
 				encoder.SetPipeline(pipeline);
 				currentPipeline = pipeline;
+
+				// Rebind scene bind group after pipeline change (descriptor sets must be bound after pipeline)
+				if (sceneBindGroup != null)
+				{
+					uint32[1] dynamicOffsets = .(0);
+					encoder.SetBindGroup(0, sceneBindGroup, dynamicOffsets);
+				}
 			}
 
 			// Bind material if changed
@@ -1451,14 +1212,6 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		// Track current pipeline to minimize state changes
 		IRenderPipeline currentPipeline = null;
 
-		// Set initial default pipeline
-		let defaultPipeline = (shadowsEnabled && mForwardShadowPipeline != null) ? mForwardShadowPipeline : mForwardPipeline;
-		if (defaultPipeline != null)
-		{
-			encoder.SetPipeline(defaultPipeline);
-			currentPipeline = defaultPipeline;
-		}
-
 		// Get material system for binding materials
 		let materialSystem = Renderer.MaterialSystem;
 		let defaultMaterialInstance = materialSystem?.DefaultMaterialInstance;
@@ -1489,9 +1242,15 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				// Get material instance (use default if none assigned)
 				MaterialInstance material = proxy?.Material ?? defaultMaterialInstance;
 
-				// Get pipeline for this material (may be custom shader)
+				// Get pipeline for this material from cache
 				let pipeline = GetPipelineForMaterial(material, shadowsEnabled, false);
-				if (pipeline != null && pipeline != currentPipeline)
+				if (pipeline == null)
+				{
+					objectIndex++;
+					continue; // Skip if pipeline can't be created
+				}
+
+				if (pipeline != currentPipeline)
 				{
 					encoder.SetPipeline(pipeline);
 					currentPipeline = pipeline;
@@ -1551,14 +1310,6 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		// Track current pipeline to minimize state changes
 		IRenderPipeline currentPipeline = null;
 
-		// Set initial default pipeline for skinned meshes (non-instanced)
-		let defaultPipeline = (shadowsEnabled && mForwardShadowPipeline != null) ? mForwardShadowPipeline : mForwardPipeline;
-		if (defaultPipeline != null)
-		{
-			encoder.SetPipeline(defaultPipeline);
-			currentPipeline = defaultPipeline;
-		}
-
 		let materialSystem = Renderer.MaterialSystem;
 		let defaultMaterialInstance = materialSystem?.DefaultMaterialInstance;
 
@@ -1589,9 +1340,15 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				// Get material instance
 				MaterialInstance material = proxy.Material ?? defaultMaterialInstance;
 
-				// Get pipeline for this material (may be custom shader)
+				// Get pipeline for this material from cache
 				let pipeline = GetPipelineForMaterial(material, shadowsEnabled, false);
-				if (pipeline != null && pipeline != currentPipeline)
+				if (pipeline == null)
+				{
+					objectIndex++;
+					continue; // Skip if pipeline can't be created
+				}
+
+				if (pipeline != currentPipeline)
 				{
 					encoder.SetPipeline(pipeline);
 					currentPipeline = pipeline;
