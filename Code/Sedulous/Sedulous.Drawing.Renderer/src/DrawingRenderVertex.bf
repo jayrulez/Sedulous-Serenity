@@ -1,18 +1,18 @@
-namespace Sedulous.UI.Renderer;
+namespace Sedulous.Drawing.Renderer;
 
 using System;
 using Sedulous.Drawing;
 
-/// GPU vertex format for UI rendering.
+/// GPU vertex format for 2D drawing rendering.
 /// Matches the shader vertex input layout.
 [CRepr]
-public struct UIRenderVertex
+public struct DrawingRenderVertex
 {
 	public float[2] Position;
 	public float[2] TexCoord;
 	public float[4] Color;
 
-	/// Convert from DrawVertex (CPU format) to UIRenderVertex (GPU format).
+	/// Convert from DrawVertex (CPU format) to DrawingRenderVertex (GPU format).
 	public this(DrawVertex v)
 	{
 		Position = .(v.Position.X, v.Position.Y);

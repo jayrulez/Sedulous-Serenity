@@ -12,9 +12,9 @@ using Sedulous.RHI.Vulkan;
 using Sedulous.Drawing;
 using Sedulous.Fonts;
 using Sedulous.UI;
-using Sedulous.UI.Renderer;
+using Sedulous.Drawing.Renderer;
 using Sedulous.UI.Shell;
-using Sedulous.UI.Fonts;
+using Sedulous.Drawing.Fonts;
 
 // Type aliases to resolve ambiguity
 typealias RHITexture = Sedulous.RHI.ITexture;
@@ -37,7 +37,7 @@ public struct ApplicationConfig
 }
 
 /// Base class for UI applications.
-/// Provides integrated RHI, Shell, UI, and UIRenderer support.
+/// Provides integrated RHI, Shell, UI, and DrawingRenderer support.
 public abstract class Application
 {
 	// Core RHI objects
@@ -54,7 +54,7 @@ public abstract class Application
 
 	// UI system
 	protected UIContext mUIContext;
-	protected UIRenderer mUIRenderer;
+	protected DrawingRenderer mDrawingRenderer;
 	protected DrawContext mDrawContext;
 
 	// Font system
@@ -339,7 +339,7 @@ public abstract class Application
 		}
 
 		// Initialize UI renderer
-		if (!InitializeUIRenderer())
+		if (!InitializeDrawingRenderer())
 		{
 			Console.WriteLine("Failed to initialize UI renderer");
 			return false;
@@ -379,12 +379,8 @@ public abstract class Application
 
 	private bool InitializeUI()
 	{
-		// Create draw context
-		mDrawContext = new DrawContext();
-
-		// Set white pixel UV for solid color rendering
-		let (u, v) = mFontService.WhitePixelUV;
-		mDrawContext.WhitePixelUV = .(u, v);
+		// Create draw context with font service (auto-sets WhitePixelUV)
+		mDrawContext = new DrawContext(mFontService);
 
 		// Create clipboard adapter
 		let clipboard = new ShellClipboardAdapter(mShell.Clipboard);
@@ -402,10 +398,10 @@ public abstract class Application
 		return true;
 	}
 
-	private bool InitializeUIRenderer()
+	private bool InitializeDrawingRenderer()
 	{
-		mUIRenderer = new UIRenderer();
-		if (mUIRenderer.Initialize(mDevice, mSwapChain.Format, (int32)mSwapChain.FrameCount) case .Err)
+		mDrawingRenderer = new DrawingRenderer();
+		if (mDrawingRenderer.Initialize(mDevice, mSwapChain.Format, (int32)mSwapChain.FrameCount) case .Err)
 		{
 			Console.WriteLine("Failed to initialize UI renderer");
 			return false;
@@ -414,7 +410,7 @@ public abstract class Application
 		// Set the font texture for UI rendering
 		let atlasView = mFontService.AtlasTextureView;
 		if (atlasView != null)
-			mUIRenderer.SetTexture(atlasView);
+			mDrawingRenderer.SetTexture(atlasView);
 
 		return true;
 	}
@@ -519,8 +515,8 @@ public abstract class Application
 		mUIContext.Render(mDrawContext);
 
 		// Prepare UI renderer
-		mUIRenderer.UpdateProjection(mSwapChain.Width, mSwapChain.Height, frameIndex);
-		mUIRenderer.Prepare(mDrawContext.GetBatch(), frameIndex);
+		mDrawingRenderer.UpdateProjection(mSwapChain.Width, mSwapChain.Height, frameIndex);
+		mDrawingRenderer.Prepare(mDrawContext.GetBatch(), frameIndex);
 
 		// Get current texture view
 		let textureView = mSwapChain.CurrentTextureView;
@@ -555,7 +551,7 @@ public abstract class Application
 			defer delete renderPass;
 
 			// Render UI
-			mUIRenderer.Render(renderPass, mSwapChain.Width, mSwapChain.Height, frameIndex);
+			mDrawingRenderer.Render(renderPass, mSwapChain.Width, mSwapChain.Height, frameIndex);
 
 			renderPass.End();
 		}
@@ -625,10 +621,10 @@ public abstract class Application
 		}
 
 		// UI renderer
-		if (mUIRenderer != null)
+		if (mDrawingRenderer != null)
 		{
-			mUIRenderer.Dispose();
-			delete mUIRenderer;
+			mDrawingRenderer.Dispose();
+			delete mDrawingRenderer;
 		}
 
 		// UI context (owns font service and clipboard)

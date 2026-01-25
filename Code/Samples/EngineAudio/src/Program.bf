@@ -8,8 +8,8 @@ using Sedulous.RHI;
 using SampleFramework;
 using Sedulous.Drawing;
 using Sedulous.UI;
-using Sedulous.UI.Fonts;
-using Sedulous.UI.Renderer;
+using Sedulous.Drawing.Fonts;
+using Sedulous.Drawing.Renderer;
 using Sedulous.Shell.Input;
 using Sedulous.UI.Shell;
 using Sedulous.Audio;
@@ -52,10 +52,10 @@ class EngineAudioSample : RHISampleApp
 	private delegate void(StringView) mTextInputDelegate;
 
 	// Drawing
-	private DrawContext mDrawContext = new .() ~ delete _;
+	private DrawContext mDrawContext ~ delete _;
 
 	// UI Renderer
-	private UIRenderer mUIRenderer;
+	private DrawingRenderer mDrawingRenderer;
 
 	// UI Elements (for updating)
 	private TextBlock mNowPlayingLabel;
@@ -84,16 +84,15 @@ class EngineAudioSample : RHISampleApp
 			return false;
 
 		// Initialize UI Renderer
-		mUIRenderer = new UIRenderer();
-		if (mUIRenderer.Initialize(Device, SwapChain.Format, MAX_FRAMES_IN_FLIGHT) case .Err)
+		mDrawingRenderer = new DrawingRenderer();
+		if (mDrawingRenderer.Initialize(Device, SwapChain.Format, MAX_FRAMES_IN_FLIGHT) case .Err)
 		{
 			Console.WriteLine("Failed to initialize UI renderer");
 			return false;
 		}
-		mUIRenderer.SetTexture(mFontService.AtlasTextureView);
+		mDrawingRenderer.SetTexture(mFontService.AtlasTextureView);
 
-		let (u, v) = mFontService.WhitePixelUV;
-		mDrawContext.WhitePixelUV = .(u, v);
+		mDrawContext = new .(mFontService);
 
 		// Initialize UI
 		if (!InitializeUI())
@@ -468,8 +467,8 @@ class EngineAudioSample : RHISampleApp
 
 		// Prepare UI renderer
 		let batch = mDrawContext.GetBatch();
-		mUIRenderer.Prepare(batch, frameIndex);
-		mUIRenderer.UpdateProjection(SwapChain.Width, SwapChain.Height, frameIndex);
+		mDrawingRenderer.Prepare(batch, frameIndex);
+		mDrawingRenderer.UpdateProjection(SwapChain.Width, SwapChain.Height, frameIndex);
 
 		// Create render pass
 		RenderPassColorAttachment[1] colorAttachments = .(.()
@@ -493,7 +492,7 @@ class EngineAudioSample : RHISampleApp
 		renderPass.SetScissorRect(0, 0, SwapChain.Width, SwapChain.Height);
 
 		// Render UI
-		mUIRenderer.Render(renderPass, SwapChain.Width, SwapChain.Height, frameIndex);
+		mDrawingRenderer.Render(renderPass, SwapChain.Width, SwapChain.Height, frameIndex);
 
 		renderPass.End();
 		mDrawContext.Clear();
@@ -525,11 +524,11 @@ class EngineAudioSample : RHISampleApp
 		}
 
 		// Dispose and delete UI renderer (must call Dispose to release GPU resources)
-		if (mUIRenderer != null)
+		if (mDrawingRenderer != null)
 		{
-			mUIRenderer.Dispose();
-			delete mUIRenderer;
-			mUIRenderer = null;
+			mDrawingRenderer.Dispose();
+			delete mDrawingRenderer;
+			mDrawingRenderer = null;
 		}
 
 		// Delete UI services (registered with UIContext but we own them)

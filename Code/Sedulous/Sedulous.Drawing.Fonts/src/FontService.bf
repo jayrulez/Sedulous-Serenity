@@ -1,4 +1,4 @@
-namespace Sedulous.UI.Fonts;
+namespace Sedulous.Drawing.Fonts;
 
 using System;
 using System.Collections;
@@ -6,10 +6,9 @@ using Sedulous.Fonts;
 using Sedulous.Fonts.TTF;
 using Sedulous.Drawing;
 using Sedulous.RHI;
-using Sedulous.UI;
 
 /// Font service implementation that loads fonts, creates atlas textures on the GPU,
-/// and provides them to UI controls via IFontService.
+/// and provides them to drawing and UI systems via IFontService.
 public class FontService : IFontService
 {
 	private IDevice mDevice;

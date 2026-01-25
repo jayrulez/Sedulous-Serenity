@@ -1,10 +1,9 @@
 using System;
 using Sedulous.Fonts;
-using Sedulous.Drawing;
 
-namespace Sedulous.UI;
+namespace Sedulous.Drawing;
 
-/// Service interface for providing fonts to UI controls.
+/// Service interface for providing fonts to drawing and UI systems.
 /// The implementation is responsible for managing font loading,
 /// caching, and texture creation for font atlases.
 public interface IFontService
@@ -30,4 +29,8 @@ public interface IFontService
 
 	/// The default font family name.
 	StringView DefaultFontFamily { get; }
+
+	/// The white pixel UV coordinates from the default font atlas.
+	/// Use this for DrawContext.WhitePixelUV for solid color rendering.
+	(float U, float V) WhitePixelUV { get; }
 }

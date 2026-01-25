@@ -7,7 +7,7 @@ using Sedulous.Mathematics;
 using Sedulous.Serialization;
 using Sedulous.Drawing;
 using Sedulous.UI;
-using Sedulous.UI.Renderer;
+using Sedulous.Drawing.Renderer;
 
 // Explicit RHI imports to avoid ambiguity with Drawing.ITexture
 using Sedulous.RHI;
@@ -36,7 +36,7 @@ class UIComponent : IEntityComponent
 	private DrawContext mDrawContext ~ delete _;
 
 	// GPU rendering
-	private UIRenderer mUIRenderer;  // Borrowed from UISceneComponent or created
+	private DrawingRenderer mDrawingRenderer;  // Borrowed from UISceneComponent or created
 	private bool mOwnsRenderer = false;
 
 	// Render-to-texture resources
@@ -111,12 +111,12 @@ class UIComponent : IEntityComponent
 
 	public ~this()
 	{
-		// Clean up UIRenderer if we own it (conditional ownership can't use ~ delete _)
-		if (mOwnsRenderer && mUIRenderer != null)
+		// Clean up DrawingRenderer if we own it (conditional ownership can't use ~ delete _)
+		if (mOwnsRenderer && mDrawingRenderer != null)
 		{
-			mUIRenderer.Dispose();
-			delete mUIRenderer;
-			mUIRenderer = null;
+			mDrawingRenderer.Dispose();
+			delete mDrawingRenderer;
+			mDrawingRenderer = null;
 		}
 	}
 
@@ -276,13 +276,13 @@ class UIComponent : IEntityComponent
 			return .Err;
 		}
 
-		// Create our own UIRenderer for off-screen rendering
-		mUIRenderer = new UIRenderer();
+		// Create our own DrawingRenderer for off-screen rendering
+		mDrawingRenderer = new DrawingRenderer();
 		mOwnsRenderer = true;
-		if (mUIRenderer.Initialize(device, format, frameCount) case .Err)
+		if (mDrawingRenderer.Initialize(device, format, frameCount) case .Err)
 		{
-			delete mUIRenderer;
-			mUIRenderer = null;
+			delete mDrawingRenderer;
+			mDrawingRenderer = null;
 			delete mRenderTextureView;
 			mRenderTextureView = null;
 			delete mRenderTexture;
@@ -299,12 +299,12 @@ class UIComponent : IEntityComponent
 
 	private void CleanupRendering()
 	{
-		if (mOwnsRenderer && mUIRenderer != null)
+		if (mOwnsRenderer && mDrawingRenderer != null)
 		{
-			mUIRenderer.Dispose();
-			delete mUIRenderer;
+			mDrawingRenderer.Dispose();
+			delete mDrawingRenderer;
 		}
-		mUIRenderer = null;
+		mDrawingRenderer = null;
 		mOwnsRenderer = false;
 
 		if (mRenderTextureView != null)
@@ -328,7 +328,7 @@ class UIComponent : IEntityComponent
 	/// Call this during the PrepareGPU phase.
 	public void PrepareGPU(int32 frameIndex, RHITextureView atlasTexture)
 	{
-		if (!mTextureCreated || !Visible || mUIContext == null || mUIRenderer == null)
+		if (!mTextureCreated || !Visible || mUIContext == null || mDrawingRenderer == null)
 			return;
 
 		// Clear the draw context
@@ -342,13 +342,13 @@ class UIComponent : IEntityComponent
 
 		// Set atlas texture
 		if (atlasTexture != null)
-			mUIRenderer.SetTexture(atlasTexture);
+			mDrawingRenderer.SetTexture(atlasTexture);
 
 		// Upload to GPU buffers
-		mUIRenderer.Prepare(batch, frameIndex);
+		mDrawingRenderer.Prepare(batch, frameIndex);
 
 		// Update projection matrix
-		mUIRenderer.UpdateProjection((uint32)TextureSize.X, (uint32)TextureSize.Y, frameIndex);
+		mDrawingRenderer.UpdateProjection((uint32)TextureSize.X, (uint32)TextureSize.Y, frameIndex);
 	}
 
 	/// Renders the UI to its render texture.
@@ -356,7 +356,7 @@ class UIComponent : IEntityComponent
 	/// Note: When using RenderGraph, use RenderWithinPass instead.
 	public void RenderToTexture(ICommandEncoder encoder, int32 frameIndex)
 	{
-		if (!mTextureCreated || !Visible || mUIRenderer == null || mRenderTextureView == null)
+		if (!mTextureCreated || !Visible || mDrawingRenderer == null || mRenderTextureView == null)
 			return;
 
 		// Create a render pass targeting our texture
@@ -385,20 +385,20 @@ class UIComponent : IEntityComponent
 		let width = (uint32)TextureSize.X;
 		let height = (uint32)TextureSize.Y;
 
-		mUIRenderer.Render(renderPass, width, height, frameIndex);
+		mDrawingRenderer.Render(renderPass, width, height, frameIndex);
 	}
 
 	/// Renders the UI within an existing render pass.
 	/// Use this when integrating with RenderGraph - the graph handles the render pass.
 	public void RenderWithinPass(IRenderPassEncoder renderPass, int32 frameIndex)
 	{
-		if (!mTextureCreated || !Visible || mUIRenderer == null)
+		if (!mTextureCreated || !Visible || mDrawingRenderer == null)
 			return;
 
 		let width = (uint32)TextureSize.X;
 		let height = (uint32)TextureSize.Y;
 
-		mUIRenderer.Render(renderPass, width, height, frameIndex);
+		mDrawingRenderer.Render(renderPass, width, height, frameIndex);
 	}
 
 	// ==================== Raycast Input ====================

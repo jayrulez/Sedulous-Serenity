@@ -7,8 +7,8 @@ using Sedulous.Framework.Scenes;
 using Sedulous.Framework.Input;
 using Sedulous.UI;
 using Sedulous.UI.Shell;
-using Sedulous.UI.Fonts;
-using Sedulous.UI.Renderer;
+using Sedulous.Drawing.Fonts;
+using Sedulous.Drawing.Renderer;
 using Sedulous.Drawing;
 using Sedulous.RHI;
 using Sedulous.Render;
@@ -28,7 +28,7 @@ public class UISubsystem : Subsystem, ISceneAware
 	// Core UI
 	private UIContext mUIContext;
 	private DrawContext mDrawContext;
-	private UIRenderer mUIRenderer;
+	private DrawingRenderer mDrawingRenderer;
 
 	// Services
 	private FontService mFontService;
@@ -59,7 +59,7 @@ public class UISubsystem : Subsystem, ISceneAware
 	public UIContext UIContext => mUIContext;
 
 	/// The UI renderer.
-	public UIRenderer UIRenderer => mUIRenderer;
+	public DrawingRenderer DrawingRenderer => mDrawingRenderer;
 
 	/// The font service for loading and managing fonts.
 	public FontService FontService => mFontService;
@@ -131,11 +131,11 @@ public class UISubsystem : Subsystem, ISceneAware
 		mWorldSpaceUIFeature = null;
 		mRenderSystem = null;
 
-		if (mUIRenderer != null)
+		if (mDrawingRenderer != null)
 		{
-			mUIRenderer.Dispose();
-			delete mUIRenderer;
-			mUIRenderer = null;
+			mDrawingRenderer.Dispose();
+			delete mDrawingRenderer;
+			mDrawingRenderer = null;
 		}
 
 		if (mDrawContext != null)
@@ -184,7 +184,7 @@ public class UISubsystem : Subsystem, ISceneAware
 	}
 
 	/// Initialize rendering resources. Call this after the device is ready.
-	/// Creates the UIRenderer, DrawContext, FontService, and default theme.
+	/// Creates the DrawingRenderer, DrawContext, FontService, and default theme.
 	/// Automatically sets up clipboard from the shell.
 	/// If renderSystem is provided, registers the WorldSpaceUIFeature for world-space UI panels.
 	public Result<void> InitializeRendering(IDevice device, TextureFormat targetFormat, int32 frameCount, IShell shell, RenderSystem renderSystem = null)
@@ -194,16 +194,16 @@ public class UISubsystem : Subsystem, ISceneAware
 		mRenderSystem = renderSystem;
 		mUIContext = new UIContext();
 
-		mUIRenderer = new UIRenderer();
-		if (mUIRenderer.Initialize(device, targetFormat, frameCount) case .Err)
+		mDrawingRenderer = new DrawingRenderer();
+		if (mDrawingRenderer.Initialize(device, targetFormat, frameCount) case .Err)
 		{
-			delete mUIRenderer;
-			mUIRenderer = null;
+			delete mDrawingRenderer;
+			mDrawingRenderer = null;
 			return .Err;
 		}
 
-		mDrawContext = new DrawContext();
 		mFontService = new FontService(device);
+		mDrawContext = new DrawContext(mFontService);
 		mUIContext.RegisterService<IFontService>(mFontService);
 
 		// Create and register default theme
@@ -228,8 +228,8 @@ public class UISubsystem : Subsystem, ISceneAware
 		return .Ok;
 	}
 
-	/// Call after loading fonts to update the UIRenderer atlas texture
-	/// and DrawContext white pixel UV.
+	/// Call after loading fonts to update the DrawingRenderer atlas texture.
+	/// Note: DrawContext WhitePixelUV is automatically set via FontService in constructor.
 	public void ApplyFontAtlas()
 	{
 		if (!mRenderingInitialized || mFontService == null)
@@ -237,10 +237,7 @@ public class UISubsystem : Subsystem, ISceneAware
 
 		let atlasView = mFontService.AtlasTextureView;
 		if (atlasView != null)
-			mUIRenderer.SetTexture(atlasView);
-
-		let (u, v) = mFontService.WhitePixelUV;
-		mDrawContext.WhitePixelUV = .(u, v);
+			mDrawingRenderer.SetTexture(atlasView);
 	}
 
 	/// Render UI overlay. Call this after the 3D scene has been rendered.
@@ -265,8 +262,8 @@ public class UISubsystem : Subsystem, ISceneAware
 				return;
 
 			// Upload to GPU
-			mUIRenderer.UpdateProjection(width, height, frameIndex);
-			mUIRenderer.Prepare(batch, frameIndex);
+			mDrawingRenderer.UpdateProjection(width, height, frameIndex);
+			mDrawingRenderer.Prepare(batch, frameIndex);
 
 			// Create overlay render pass (Load = preserve 3D scene)
 			RenderPassColorAttachment[1] colorAttachments = .(.()
@@ -282,7 +279,7 @@ public class UISubsystem : Subsystem, ISceneAware
 			let renderPass = encoder.BeginRenderPass(&passDesc);
 			if (renderPass != null)
 			{
-				mUIRenderer.Render(renderPass, width, height, frameIndex);
+				mDrawingRenderer.Render(renderPass, width, height, frameIndex);
 				renderPass.End();
 				delete renderPass;
 			}

@@ -1,4 +1,4 @@
-namespace Sedulous.UI.Renderer;
+namespace Sedulous.Drawing.Renderer;
 
 using System;
 using System.Collections;
@@ -8,16 +8,16 @@ using Sedulous.Drawing;
 using Sedulous.Mathematics;
 using Sedulous.Profiler;
 
-/// Uniform buffer data for UI projection matrix.
+/// Uniform buffer data for projection matrix.
 [CRepr]
-struct UIUniforms
+struct DrawingUniforms
 {
 	public Matrix Projection;
 }
 
-/// Renders UI DrawBatch content using RHI.
+/// Renders DrawContext/DrawBatch content using RHI.
 /// Does NOT own the device or swapchain - caller manages those.
-public class UIRenderer : IDisposable
+public class DrawingRenderer : IDisposable
 {
 	private IDevice mDevice;
 	private int32 mFrameCount;
@@ -45,7 +45,7 @@ public class UIRenderer : IDisposable
 	private ISampler mSampler;
 
 	// Batch data converted for GPU
-	private List<UIRenderVertex> mVertices = new .() ~ delete _;
+	private List<DrawingRenderVertex> mVertices = new .() ~ delete _;
 	private List<uint16> mIndices = new .() ~ delete _;
 	private List<DrawCommand> mDrawCommands = new .() ~ delete _;
 
@@ -61,17 +61,17 @@ public class UIRenderer : IDisposable
 		IDevice device,
 		TextureFormat targetFormat,
 		int32 frameCount,
-		IUIShaderProvider shaderProvider = null)
+		IDrawingShaderProvider shaderProvider = null)
 	{
-		using (SProfiler.Begin("UIRenderer.Initialize"))
+		using (SProfiler.Begin("DrawingRenderer.Initialize"))
 		{
 		mDevice = device;
 		mTargetFormat = targetFormat;
 		mFrameCount = frameCount;
 
 		// Use default shader provider if none specified
-		IUIShaderProvider provider;
-		DefaultUIShaderProvider defaultProvider = scope .();
+		IDrawingShaderProvider provider;
+		DefaultDrawingShaderProvider defaultProvider = scope .();
 		if (shaderProvider != null)
 			provider = shaderProvider;
 		else
@@ -125,10 +125,10 @@ public class UIRenderer : IDisposable
 	}
 
 	/// Prepare batch data for rendering.
-	/// Call this after BuildDrawCommands and before the render pass.
+	/// Call this after drawing to DrawContext and before the render pass.
 	public void Prepare(DrawBatch batch, int32 frameIndex)
 	{
-		using (SProfiler.Begin("UIRenderer.Prepare"))
+		using (SProfiler.Begin("DrawingRenderer.Prepare"))
 		{
 		// Convert vertices
 		mVertices.Clear();
@@ -148,7 +148,7 @@ public class UIRenderer : IDisposable
 		// Upload to GPU buffers
 		if (mVertices.Count > 0)
 		{
-			let vertexData = Span<uint8>((uint8*)mVertices.Ptr, mVertices.Count * sizeof(UIRenderVertex));
+			let vertexData = Span<uint8>((uint8*)mVertices.Ptr, mVertices.Count * sizeof(DrawingRenderVertex));
 			mDevice.Queue.WriteBuffer(mVertexBuffers[frameIndex], 0, vertexData);
 
 			let indexData = Span<uint8>((uint8*)mIndices.Ptr, mIndices.Count * sizeof(uint16));
@@ -163,9 +163,9 @@ public class UIRenderer : IDisposable
 	/// Update the projection matrix for the given viewport size.
 	public void UpdateProjection(uint32 width, uint32 height, int32 frameIndex)
 	{
-		using (SProfiler.Begin("UIRenderer.UpdateProjection"))
+		using (SProfiler.Begin("DrawingRenderer.UpdateProjection"))
 		{
-		// Y-down orthographic projection for UI (origin at top-left)
+		// Y-down orthographic projection (origin at top-left)
 		// Check if device requires flipped projection (Vulkan vs OpenGL/D3D)
 		Matrix projection;
 		if (mDevice.FlipProjectionRequired)
@@ -173,17 +173,17 @@ public class UIRenderer : IDisposable
 		else
 			projection = Matrix.CreateOrthographicOffCenter(0, (float)width, (float)height, 0, -1, 1);
 
-		UIUniforms uniforms = .() { Projection = projection };
-		let uniformData = Span<uint8>((uint8*)&uniforms, sizeof(UIUniforms));
+		DrawingUniforms uniforms = .() { Projection = projection };
+		let uniformData = Span<uint8>((uint8*)&uniforms, sizeof(DrawingUniforms));
 		mDevice.Queue.WriteBuffer(mUniformBuffers[frameIndex], 0, uniformData);
 		}
 	}
 
-	/// Render UI to the current render pass.
+	/// Render to the current render pass.
 	/// The render pass should already be begun.
 	public void Render(IRenderPassEncoder renderPass, uint32 width, uint32 height, int32 frameIndex, bool useMsaa = false)
 	{
-		using (SProfiler.Begin("UIRenderer.Render"))
+		using (SProfiler.Begin("DrawingRenderer.Render"))
 		{
 		if (mIndices.Count == 0 || mDrawCommands.Count == 0)
 			return;
@@ -222,7 +222,7 @@ public class UIRenderer : IDisposable
 		}
 	}
 
-	private Result<void> CompileShaders(IUIShaderProvider provider)
+	private Result<void> CompileShaders(IDrawingShaderProvider provider)
 	{
 		let compiler = scope HLSLCompiler();
 		if (!compiler.IsInitialized)
@@ -289,7 +289,7 @@ public class UIRenderer : IDisposable
 	private Result<void> CreateSampler()
 	{
 		SamplerDescriptor samplerDesc = .();
-		// Default values are already ClampToEdge and Linear, so just create it
+		// Default values are already ClampToEdge and Linear
 
 		if (mDevice.CreateSampler(&samplerDesc) case .Ok(let sampler))
 		{
@@ -333,7 +333,7 @@ public class UIRenderer : IDisposable
 			.(VertexFormat.Float4, 16, 2)   // Color
 		);
 		VertexBufferLayout[1] vertexBuffers = .(
-			.((uint64)sizeof(UIRenderVertex), vertexAttributes)
+			.((uint64)sizeof(DrawingRenderVertex), vertexAttributes)
 		);
 
 		ColorTargetState[1] colorTargets = .(.(mTargetFormat, .AlphaBlend));
@@ -394,7 +394,7 @@ public class UIRenderer : IDisposable
 			// Vertex buffer (host-visible for fast CPU writes)
 			BufferDescriptor vertexDesc = .()
 			{
-				Size = (uint64)(MAX_VERTICES * sizeof(UIRenderVertex)),
+				Size = (uint64)(MAX_VERTICES * sizeof(DrawingRenderVertex)),
 				Usage = .Vertex,
 				MemoryAccess = .Upload
 			};
@@ -418,7 +418,7 @@ public class UIRenderer : IDisposable
 			// Uniform buffer (host-visible for fast CPU writes)
 			BufferDescriptor uniformDesc = .()
 			{
-				Size = (uint64)sizeof(UIUniforms),
+				Size = (uint64)sizeof(DrawingUniforms),
 				Usage = .Uniform,
 				MemoryAccess = .Upload
 			};
@@ -495,7 +495,6 @@ public class UIRenderer : IDisposable
 		if (mSampler != null) { delete mSampler; mSampler = null; }
 
 		// Shaders
-		Console.WriteLine("  Disposing shaders");
 		if (mFragShader != null) { delete mFragShader; mFragShader = null; }
 		if (mVertShader != null) { delete mVertShader; mVertShader = null; }
 

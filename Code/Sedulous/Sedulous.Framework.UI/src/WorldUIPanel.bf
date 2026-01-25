@@ -4,21 +4,21 @@ using System;
 using Sedulous.Framework.Scenes;
 using Sedulous.UI;
 using Sedulous.UI.Shell;
-using Sedulous.UI.Fonts;
-using Sedulous.UI.Renderer;
+using Sedulous.Drawing.Fonts;
+using Sedulous.Drawing.Renderer;
 using Sedulous.Drawing;
 using Sedulous.RHI;
 using Sedulous.Render;
 using Sedulous.Mathematics;
 
 /// A world-space UI panel rendered to a texture and displayed as a sprite in 3D.
-/// Each panel owns its own UIContext, UIRenderer, and render texture.
+/// Each panel owns its own UIContext, DrawingRenderer, and render texture.
 public class WorldUIPanel
 {
 	// UI rendering
 	private UIContext mUIContext ~ delete _;
 	private DrawContext mDrawContext ~ delete _;
-	private UIRenderer mUIRenderer;
+	private DrawingRenderer mDrawingRenderer;
 	private ITheme mTheme ~ delete _;
 	private FontService mFontService; // shared, not owned
 
@@ -99,8 +99,8 @@ public class WorldUIPanel
 	/// The render texture view (for sprite display and render graph import).
 	public ITextureView TextureView => mTextureView;
 
-	/// The UIRenderer for this panel.
-	public UIRenderer Renderer => mUIRenderer;
+	/// The DrawingRenderer for this panel.
+	public DrawingRenderer Renderer => mDrawingRenderer;
 
 	/// The DrawContext for building geometry.
 	public DrawContext PanelDrawContext => mDrawContext;
@@ -140,14 +140,12 @@ public class WorldUIPanel
 		mUIContext.RegisterService<ITheme>(mTheme);
 
 		// Create draw context
-		mDrawContext = new DrawContext();
-		let (u, v) = fontService.WhitePixelUV;
-		mDrawContext.WhitePixelUV = .(u, v);
+		mDrawContext = new DrawContext(fontService);
 
 		// Create renderer
-		mUIRenderer = new UIRenderer();
-		mUIRenderer.Initialize(device, .RGBA8Unorm, frameCount);
-		mUIRenderer.SetTexture(fontService.AtlasTextureView);
+		mDrawingRenderer = new DrawingRenderer();
+		mDrawingRenderer.Initialize(device, .RGBA8Unorm, frameCount);
+		mDrawingRenderer.SetTexture(fontService.AtlasTextureView);
 
 		// Create render texture
 		TextureDescriptor texDesc = TextureDescriptor.Texture2D(
@@ -181,11 +179,11 @@ public class WorldUIPanel
 	/// Dispose GPU resources owned by this panel.
 	public void Dispose()
 	{
-		if (mUIRenderer != null)
+		if (mDrawingRenderer != null)
 		{
-			mUIRenderer.Dispose();
-			delete mUIRenderer;
-			mUIRenderer = null;
+			mDrawingRenderer.Dispose();
+			delete mDrawingRenderer;
+			mDrawingRenderer = null;
 		}
 	}
 }

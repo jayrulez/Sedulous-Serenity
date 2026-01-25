@@ -698,7 +698,7 @@ class GLTFViewerApp : Application
 		let uiPass = encoder.BeginRenderPass(&uiPassDesc);
 		if (uiPass != null)
 		{
-			mUIRenderer.Render(uiPass, SwapChain.Width, SwapChain.Height, frameIndex);
+			mDrawingRenderer.Render(uiPass, SwapChain.Width, SwapChain.Height, frameIndex);
 			uiPass.End();
 			delete uiPass;
 		}

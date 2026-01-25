@@ -9,8 +9,8 @@ using SampleFramework;
 using Sedulous.Drawing;
 using Sedulous.Fonts;
 using Sedulous.UI;
-using Sedulous.UI.Fonts;
-using Sedulous.UI.Renderer;
+using Sedulous.Drawing.Fonts;
+using Sedulous.Drawing.Renderer;
 using Sedulous.Shell.Input;
 using Sedulous.UI.Shell;
 
@@ -34,12 +34,12 @@ class UISandboxSample : RHISampleApp
 	private TooltipService mTooltipService;
 	private delegate void(StringView) mTextInputDelegate;
 
-	// Drawing context
-	private DrawContext mDrawContext = new .() ~ delete _;
+	// Drawing context (created after font service)
+	private DrawContext mDrawContext ~ delete _;
 
 	// UI Renderer
 	// NOTE: Must be cleaned up in OnCleanup(), not destructor, because Device is destroyed in Application.Cleanup()
-	private UIRenderer mUIRenderer;
+	private DrawingRenderer mDrawingRenderer;
 
 	// MSAA resources
 	private const uint32 MSAA_SAMPLES = 4;
@@ -85,24 +85,23 @@ class UISandboxSample : RHISampleApp
 		if (!InitializeFonts())
 			return false;
 
+		// Create draw context with font service (auto-sets WhitePixelUV)
+		mDrawContext = new DrawContext(mFontService);
+
 		// Initialize UI Renderer
-		mUIRenderer = new UIRenderer();
-		if (mUIRenderer.Initialize(Device, SwapChain.Format, MAX_FRAMES_IN_FLIGHT) case .Err)
+		mDrawingRenderer = new DrawingRenderer();
+		if (mDrawingRenderer.Initialize(Device, SwapChain.Format, MAX_FRAMES_IN_FLIGHT) case .Err)
 		{
 			Console.WriteLine("Failed to initialize UI renderer");
 			return false;
 		}
-		mUIRenderer.SetTexture(mFontService.AtlasTextureView);
+		mDrawingRenderer.SetTexture(mFontService.AtlasTextureView);
 
 		if (!CreateMsaaTargets())
 			return false;
 
 		if (!CreateQuadResources())
 			return false;
-
-		// Set white pixel UV from the font service
-		let (u, v) = mFontService.WhitePixelUV;
-		mDrawContext.WhitePixelUV = .(u, v);
 
 		// Initialize UI
 		if (!InitializeUI())
@@ -1804,9 +1803,9 @@ class UISandboxSample : RHISampleApp
 	{
 		BuildDrawCommands();
 
-		// Update UIRenderer with current frame data
-		mUIRenderer.UpdateProjection(SwapChain.Width, SwapChain.Height, frameIndex);
-		mUIRenderer.Prepare(mDrawContext.GetBatch(), frameIndex);
+		// Update DrawingRenderer with current frame data
+		mDrawingRenderer.UpdateProjection(SwapChain.Width, SwapChain.Height, frameIndex);
+		mDrawingRenderer.Prepare(mDrawContext.GetBatch(), frameIndex);
 	}
 
 	private void BuildDrawCommands()
@@ -1836,7 +1835,7 @@ class UISandboxSample : RHISampleApp
 	{
 		if (mUseMSAA)
 		{
-			// Render to MSAA target using UIRenderer
+			// Render to MSAA target using DrawingRenderer
 			RenderPassColorAttachment[1] msaaAttachments = .(.(mMsaaTextureView)
 				{
 					LoadOp = .Clear,
@@ -1848,7 +1847,7 @@ class UISandboxSample : RHISampleApp
 			let msaaPass = encoder.BeginRenderPass(&msaaPassDesc);
 			if (msaaPass != null)
 			{
-				mUIRenderer.Render(msaaPass, SwapChain.Width, SwapChain.Height, frameIndex, useMsaa: true);
+				mDrawingRenderer.Render(msaaPass, SwapChain.Width, SwapChain.Height, frameIndex, useMsaa: true);
 				msaaPass.End();
 				delete msaaPass;
 			}
@@ -1894,7 +1893,7 @@ class UISandboxSample : RHISampleApp
 			let renderPass = encoder.BeginRenderPass(&passDesc);
 			if (renderPass != null)
 			{
-				mUIRenderer.Render(renderPass, SwapChain.Width, SwapChain.Height, frameIndex, useMsaa: false);
+				mDrawingRenderer.Render(renderPass, SwapChain.Width, SwapChain.Height, frameIndex, useMsaa: false);
 				renderPass.End();
 				delete renderPass;
 			}
@@ -1969,14 +1968,14 @@ class UISandboxSample : RHISampleApp
 		if (mMsaaTexture != null) delete mMsaaTexture;
 
 		// Clean up UI Renderer (must be done before Device is destroyed in Application.Cleanup())
-		if (mUIRenderer != null)
+		if (mDrawingRenderer != null)
 		{
-			mUIRenderer.Dispose();
-			delete mUIRenderer;
-			mUIRenderer = null;
+			mDrawingRenderer.Dispose();
+			delete mDrawingRenderer;
+			mDrawingRenderer = null;
 		}
 
-		// Clean up font service (owns GPU atlas texture, delete after UIRenderer)
+		// Clean up font service (owns GPU atlas texture, delete after DrawingRenderer)
 		if (mFontService != null)
 			delete mFontService;
 	}

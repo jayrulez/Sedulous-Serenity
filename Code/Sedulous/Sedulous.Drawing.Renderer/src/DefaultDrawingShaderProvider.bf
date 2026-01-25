@@ -1,15 +1,15 @@
-namespace Sedulous.UI.Renderer;
+namespace Sedulous.Drawing.Renderer;
 
 using System;
 
-/// Default shader provider with embedded HLSL shaders for UI rendering.
-public class DefaultUIShaderProvider : IUIShaderProvider
+/// Default shader provider with embedded HLSL shaders for 2D drawing.
+public class DefaultDrawingShaderProvider : IDrawingShaderProvider
 {
 	public void GetVertexShaderSource(String outSource)
 	{
 		outSource.Append(
 			"""
-			// UI vertex shader
+			// 2D Drawing vertex shader
 			// Transforms 2D vertices with projection matrix
 
 			struct VSInput
@@ -46,7 +46,7 @@ public class DefaultUIShaderProvider : IUIShaderProvider
 	{
 		outSource.Append(
 			"""
-			// UI fragment shader
+			// 2D Drawing fragment shader
 			// Samples texture and multiplies with vertex color
 
 			struct PSInput
@@ -56,12 +56,12 @@ public class DefaultUIShaderProvider : IUIShaderProvider
 			    float4 color : COLOR0;
 			};
 
-			Texture2D uiTexture : register(t0);
-			SamplerState uiSampler : register(s0);
+			Texture2D drawTexture : register(t0);
+			SamplerState drawSampler : register(s0);
 
 			float4 main(PSInput input) : SV_Target
 			{
-			    float4 texColor = uiTexture.Sample(uiSampler, input.texCoord);
+			    float4 texColor = drawTexture.Sample(drawSampler, input.texCoord);
 			    return texColor * input.color;
 			}
 			""");

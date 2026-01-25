@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Foundation" = "*", "Sedulous.Mathematics" = "*", "Sedulous.Audio" = "*", "Sedulous.Audio.SDL3" = "*", "Sedulous.Audio.Decoders" = "*", "Sedulous.Imaging" = "*", "Sedulous.RHI" = "*", SampleFramework = "*", "Sedulous.Drawing" = "*", "Sedulous.UI" = "*", "Sedulous.UI.Fonts" = "*", "Sedulous.UI.Renderer" = "*", "Sedulous.Shell" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.UI.Shell" = "*"}
+Dependencies = {corlib = "*", "Sedulous.Foundation" = "*", "Sedulous.Mathematics" = "*", "Sedulous.Audio" = "*", "Sedulous.Audio.SDL3" = "*", "Sedulous.Audio.Decoders" = "*", "Sedulous.Imaging" = "*", "Sedulous.RHI" = "*", SampleFramework = "*", "Sedulous.Drawing" = "*", "Sedulous.UI" = "*", "Sedulous.Drawing.Fonts" = "*", "Sedulous.Drawing.Renderer" = "*", "Sedulous.Shell" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.UI.Shell" = "*"}
 
 [Project]
 Name = "EngineAudio"

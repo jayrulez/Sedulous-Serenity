@@ -2,6 +2,5 @@ FileVersion = 1
 Dependencies = {corlib = "*", "Sedulous.RHI" = "*", "Sedulous.RHI.HLSLShaderCompiler" = "*", "Sedulous.Drawing" = "*", "Sedulous.Mathematics" = "*", "Sedulous.Profiler" = "*"}
 
 [Project]
-Name = "Sedulous.UI.Renderer"
+Name = "Sedulous.Drawing.Renderer"
 TargetType = "BeefLib"
-StartupObject = "Sedulous.UI.Renderer.Program"

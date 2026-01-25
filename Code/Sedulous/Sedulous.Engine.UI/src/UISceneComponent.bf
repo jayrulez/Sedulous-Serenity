@@ -14,7 +14,7 @@ using Sedulous.Serialization;
 using Sedulous.Drawing;
 using Sedulous.UI;
 using Sedulous.UI.Shell;
-using Sedulous.UI.Renderer;
+using Sedulous.Drawing.Renderer;
 
 // Use UI types explicitly to avoid ambiguity with Shell types
 typealias UIKeyCode = Sedulous.UI.KeyCode;
@@ -23,7 +23,7 @@ typealias UIMouseButton = Sedulous.UI.MouseButton;
 
 /// Scene component that manages screen-space overlay UI for a scene.
 /// Owns a UIContext for the main UI tree, DrawContext for building geometry,
-/// and UIRenderer for GPU rendering.
+/// and DrawingRenderer for GPU rendering.
 /// Automatically routes input from InputService to the UI.
 class UISceneComponent : ISceneComponent
 {
@@ -34,7 +34,7 @@ class UISceneComponent : ISceneComponent
 	private DrawContext mDrawContext ~ delete _;
 
 	// GPU rendering
-	private UIRenderer mUIRenderer ~ delete _;
+	private DrawingRenderer mDrawingRenderer ~ delete _;
 	private bool mRenderingInitialized = false;
 
 	// Viewport state
@@ -181,11 +181,11 @@ class UISceneComponent : ISceneComponent
 			return .Ok;
 
 		// Create UI renderer
-		mUIRenderer = new UIRenderer();
-		if (mUIRenderer.Initialize(device, format, frameCount) case .Err)
+		mDrawingRenderer = new DrawingRenderer();
+		if (mDrawingRenderer.Initialize(device, format, frameCount) case .Err)
 		{
-			delete mUIRenderer;
-			mUIRenderer = null;
+			delete mDrawingRenderer;
+			mDrawingRenderer = null;
 			return .Err;
 		}
 
@@ -223,13 +223,13 @@ class UISceneComponent : ISceneComponent
 	private void CleanupRendering()
 	{
 		Console.WriteLine("UISceneComponent.CleanupRendering() called");
-		if (mUIRenderer != null)
+		if (mDrawingRenderer != null)
 		{
-			Console.WriteLine("  Calling mUIRenderer.Dispose()");
-			mUIRenderer.Dispose();
-			Console.WriteLine("  Deleting mUIRenderer");
-			delete mUIRenderer;
-			mUIRenderer = null;
+			Console.WriteLine("  Calling mDrawingRenderer.Dispose()");
+			mDrawingRenderer.Dispose();
+			Console.WriteLine("  Deleting mDrawingRenderer");
+			delete mDrawingRenderer;
+			mDrawingRenderer = null;
 		}
 		mRenderingInitialized = false;
 		Console.WriteLine("UISceneComponent.CleanupRendering() done");
@@ -241,7 +241,7 @@ class UISceneComponent : ISceneComponent
 	/// Called by RenderSceneComponent.AddRenderPasses().
 	public void AddUIPass(RenderGraph graph, ResourceHandle swapChain, int32 frameIndex)
 	{
-		if (!mRenderingInitialized || mUIRenderer == null)
+		if (!mRenderingInitialized || mDrawingRenderer == null)
 			return;
 
 		// Prepare UI geometry
@@ -251,7 +251,7 @@ class UISceneComponent : ISceneComponent
 		PrepareWorldUIComponents(frameIndex);
 
 		// Capture state for lambda
-		let renderer = mUIRenderer;
+		let renderer = mDrawingRenderer;
 		let width = mWidth;
 		let height = mHeight;
 
@@ -314,7 +314,7 @@ class UISceneComponent : ISceneComponent
 	/// Note: When using RenderGraph, this is called automatically by AddUIPass.
 	public void PrepareGPU(int32 frameIndex)
 	{
-		if (!mRenderingInitialized || mUIContext == null || mUIRenderer == null)
+		if (!mRenderingInitialized || mUIContext == null || mDrawingRenderer == null)
 			return;
 
 		// Clear the draw context
@@ -328,23 +328,23 @@ class UISceneComponent : ISceneComponent
 
 		// Set texture atlas
 		if (mAtlasTextureView != null)
-			mUIRenderer.SetTexture(mAtlasTextureView);
+			mDrawingRenderer.SetTexture(mAtlasTextureView);
 
 		// Update projection matrix first (matches UISandbox order)
-		mUIRenderer.UpdateProjection(mWidth, mHeight, frameIndex);
+		mDrawingRenderer.UpdateProjection(mWidth, mHeight, frameIndex);
 
 		// Upload to GPU buffers
-		mUIRenderer.Prepare(batch, frameIndex);
+		mDrawingRenderer.Prepare(batch, frameIndex);
 	}
 
 	/// Renders the UI overlay to the render pass.
 	/// Call this AFTER the 3D scene has been rendered.
 	public void Render(IRenderPassEncoder renderPass, uint32 width, uint32 height, int32 frameIndex)
 	{
-		if (!mRenderingInitialized || mUIRenderer == null)
+		if (!mRenderingInitialized || mDrawingRenderer == null)
 			return;
 
-		mUIRenderer.Render(renderPass, width, height, frameIndex);
+		mDrawingRenderer.Render(renderPass, width, height, frameIndex);
 	}
 
 	// ==================== Input Handling ====================

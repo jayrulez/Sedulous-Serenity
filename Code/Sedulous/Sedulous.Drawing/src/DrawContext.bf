@@ -27,6 +27,9 @@ public class DrawContext
 	private BlendMode mCurrentBlendMode = .Normal;
 	private int32 mCommandStartIndex = 0;
 
+	// Font service (optional)
+	private IFontService mFontService;
+
 	/// UV coordinates for solid color drawing (set to white pixel in your atlas)
 	public Vector2 WhitePixelUV
 	{
@@ -34,10 +37,27 @@ public class DrawContext
 		set => mRasterizer.WhitePixelUV = value;
 	}
 
+	/// The font service used by this context.
+	public IFontService FontService => mFontService;
+
 	public this()
 	{
 		mCurrentState = .();
 		mStateStack.Reserve(16);
+	}
+
+	/// Creates a DrawContext with a font service.
+	/// The WhitePixelUV is automatically set from the font service.
+	public this(IFontService fontService)
+	{
+		mCurrentState = .();
+		mStateStack.Reserve(16);
+		mFontService = fontService;
+		if (fontService != null)
+		{
+			let (u, v) = fontService.WhitePixelUV;
+			mRasterizer.WhitePixelUV = .(u, v);
+		}
 	}
 
 	// === Output ===
@@ -777,6 +797,36 @@ public class DrawContext
 		}
 
 		DrawText(text, atlas, atlasTexture, .(offsetX, offsetY), color);
+	}
+
+	/// Draw text using a cached font. Position is at the top-left of the text.
+	/// Requires a FontService to be set on this DrawContext.
+	public void DrawText(StringView text, CachedFont font, Vector2 position, Color color)
+	{
+		if (text.IsEmpty || font == null || mFontService == null)
+			return;
+
+		let atlasTexture = mFontService.GetAtlasTexture(font);
+		if (atlasTexture == null)
+			return;
+
+		// Offset Y by ascent so position is at top-left of text, not baseline
+		let baselineY = position.Y + font.Font.Metrics.Ascent;
+		DrawText(text, font.Atlas, atlasTexture, .(position.X, baselineY), color);
+	}
+
+	/// Draw text using the default font at the given pixel size. Position is at the top-left.
+	/// Requires a FontService to be set on this DrawContext.
+	public void DrawText(StringView text, float fontSize, Vector2 position, Color color)
+	{
+		if (text.IsEmpty || mFontService == null)
+			return;
+
+		let font = mFontService.GetFont(fontSize);
+		if (font == null)
+			return;
+
+		DrawText(text, font, position, color);
 	}
 
 	// === Internal Helpers ===

@@ -16,6 +16,7 @@ using Sedulous.Audio;
 using Sedulous.Audio.SDL3;
 using Sedulous.Audio.Decoders;
 using Sedulous.Drawing;
+using Sedulous.Drawing.Fonts;
 using Sedulous.Fonts;
 using Sedulous.Fonts.TTF;
 using Sedulous.UI;
@@ -55,13 +56,7 @@ class TowerDefenseGame : RHISampleApp
 	private LevelSelect mLevelSelect ~ delete _;
 	private GameHUD mGameHUD ~ delete _;
 	private ITheme mUITheme ~ delete _;
-	private GameFontService mFontService ~ delete _;
-	private IFont mFont ~ delete _;
-	private IFontAtlas mFontAtlas ~ delete _;
-	private CachedFont mCachedFont ~ delete _;
-	private Sedulous.RHI.ITexture mAtlasTexture;  // Deleted in OnCleanup (GPU resource)
-	private ITextureView mAtlasTextureView;       // Deleted in OnCleanup (GPU resource)
-	private TextureRef mFontTextureRef ~ delete _;
+	private FontService mFontService ~ delete _;
 
 	// Audio backend
 	private SDL3AudioSystem mAudioSystem;
@@ -289,94 +284,21 @@ class TowerDefenseGame : RHISampleApp
 	{
 		Console.WriteLine("Initializing fonts...");
 
+		mFontService = new FontService(Device);
+
 		String fontPath = scope .();
 		GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", fontPath);
-
-		if (!File.Exists(fontPath))
-		{
-			Console.WriteLine($"Font not found: {fontPath}");
-			return false;
-		}
-
-		TrueTypeFonts.Initialize();
 
 		FontLoadOptions options = .ExtendedLatin;
 		options.PixelHeight = 16;
 
-		if (FontLoaderFactory.LoadFont(fontPath, options) case .Ok(let font))
-			mFont = font;
-		else
+		if (mFontService.LoadFont("Roboto", fontPath, options) case .Err)
 		{
-			Console.WriteLine("Failed to load font");
+			Console.WriteLine($"Failed to load font: {fontPath}");
 			return false;
 		}
 
-		if (FontLoaderFactory.CreateAtlas(mFont, options) case .Ok(let atlas))
-		{
-			mFontAtlas = atlas;
-			Console.WriteLine($"Font atlas created: {mFontAtlas.Width}x{mFontAtlas.Height}");
-		}
-		else
-		{
-			Console.WriteLine("Failed to create font atlas");
-			return false;
-		}
-
-		return true;
-	}
-
-	private bool CreateAtlasTexture()
-	{
-		let atlasWidth = mFontAtlas.Width;
-		let atlasHeight = mFontAtlas.Height;
-		let r8Data = mFontAtlas.PixelData;
-
-		// Convert R8 to RGBA8
-		uint8[] rgba8Data = new uint8[atlasWidth * atlasHeight * 4];
-		defer delete rgba8Data;
-
-		for (uint32 i = 0; i < atlasWidth * atlasHeight; i++)
-		{
-			let alpha = r8Data[i];
-			rgba8Data[i * 4 + 0] = 255;
-			rgba8Data[i * 4 + 1] = 255;
-			rgba8Data[i * 4 + 2] = 255;
-			rgba8Data[i * 4 + 3] = alpha;
-		}
-
-		TextureDescriptor textureDesc = TextureDescriptor.Texture2D(
-			atlasWidth, atlasHeight, .RGBA8Unorm, .Sampled | .CopyDst
-		);
-
-		if (Device.CreateTexture(&textureDesc) not case .Ok(let texture))
-		{
-			Console.WriteLine("Failed to create atlas texture");
-			return false;
-		}
-		mAtlasTexture = texture;
-
-		TextureDataLayout dataLayout = .()
-		{
-			Offset = 0,
-			BytesPerRow = atlasWidth * 4,
-			RowsPerImage = atlasHeight
-		};
-		Extent3D writeSize = .(atlasWidth, atlasHeight, 1);
-		Device.Queue.WriteTexture(mAtlasTexture, Span<uint8>(rgba8Data.Ptr, rgba8Data.Count), &dataLayout, &writeSize);
-
-		TextureViewDescriptor viewDesc = .() { Format = .RGBA8Unorm };
-		if (Device.CreateTextureView(mAtlasTexture, &viewDesc) not case .Ok(let view))
-		{
-			Console.WriteLine("Failed to create atlas texture view");
-			return false;
-		}
-		mAtlasTextureView = view;
-
-		mFontTextureRef = new TextureRef(mAtlasTexture, atlasWidth, atlasHeight);
-		mCachedFont = new CachedFont(mFont, mFontAtlas);
-		mFont = null;  // CachedFont now owns the font
-		mFontAtlas = null;  // CachedFont now owns the atlas
-
+		Console.WriteLine("Font loaded successfully");
 		return true;
 	}
 
@@ -384,15 +306,10 @@ class TowerDefenseGame : RHISampleApp
 	{
 		Console.WriteLine("Initializing UI service...");
 
-		// Create atlas texture for UI rendering
-		if (!CreateAtlasTexture())
-			return false;
-
 		// Create and configure UIService
 		mUIService = new UIService();
 
 		// Register font service
-		mFontService = new GameFontService(mCachedFont, mFontTextureRef);
 		mUIService.SetFontService(mFontService);
 
 		// Register theme
@@ -400,8 +317,8 @@ class TowerDefenseGame : RHISampleApp
 		mUIService.SetTheme(mUITheme);
 
 		// Set atlas texture
-		let (wu, wv) = mCachedFont.Atlas.WhitePixelUV;
-		mUIService.SetAtlasTexture(mAtlasTextureView, .(wu, wv));
+		let (wu, wv) = mFontService.WhitePixelUV;
+		mUIService.SetAtlasTexture(mFontService.AtlasTextureView, .(wu, wv));
 
 		mContext.RegisterService<UIService>(mUIService);
 		Console.WriteLine("UI service initialized");
@@ -1575,10 +1492,6 @@ class TowerDefenseGame : RHISampleApp
 
 		// Wait for GPU before destroying renderer resources
 		Device.WaitIdle();
-
-		// Delete GPU resources (must be done while device is still valid)
-		delete mAtlasTextureView;
-		delete mAtlasTexture;
 
 		// Shutdown context (destroys scenes)
 		mContext?.Shutdown();
