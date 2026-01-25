@@ -294,7 +294,7 @@ class MaterialSystem : IDisposable
 	private bool CreateDefaultMaterial()
 	{
 		// Create the default PBR material with standard texture slots
-		mDefaultMaterial = Materials.CreatePBR("DefaultPBR", mWhiteTextureView, mDefaultSampler);
+		mDefaultMaterial = Materials.CreatePBR("DefaultPBR", "forward", mWhiteTextureView, mDefaultSampler);
 
 		// Create an instance of the default material
 		mDefaultMaterialInstance = new MaterialInstance(mDefaultMaterial);
