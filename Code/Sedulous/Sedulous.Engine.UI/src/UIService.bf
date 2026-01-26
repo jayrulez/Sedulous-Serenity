@@ -100,12 +100,6 @@ class UIService : ContextService
 		}
 	}
 
-	/// Sets the shader system for drawing shader loading.
-	public void SetShaderSystem(NewShaderSystem shaderSystem)
-	{
-		mShaderSystem = shaderSystem;
-	}
-
 	/// Sets the UI scale for all scenes based on display content scale (DPI).
 	/// Call this at startup with window.ContentScale and again when
 	/// DisplayScaleChanged events are received.
@@ -144,7 +138,7 @@ class UIService : ContextService
 		// Look up dependencies
 		mRendererService = mContext?.GetService<RendererService>();
 		mInputService = mContext?.GetService<InputService>();
-
+		
 		if (mRendererService == null)
 			mContext?.Logger?.LogWarning("UIService: RendererService not found - UI rendering will not work");
 
@@ -178,7 +172,7 @@ class UIService : ContextService
 		mSceneComponents.Add(uiComponent);
 
 		// Initialize rendering (use renderer's color format, double-buffered)
-		if (uiComponent.InitializeRendering(mRendererService.Device, mRendererService.ColorFormat, 2, mShaderSystem) case .Err)
+		if (uiComponent.InitializeRendering(mRendererService.Device, mRendererService.ColorFormat, 2, mShaderSystem ?? mRendererService.ShaderLibrary) case .Err)
 		{
 			mContext?.Logger?.LogError("UIService: Failed to initialize UI rendering for scene '{}'", scene.Name);
 			scene.RemoveSceneComponent<UISceneComponent>();

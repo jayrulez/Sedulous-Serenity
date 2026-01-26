@@ -413,7 +413,7 @@ public abstract class Application
 	{
 		mShaderSystem = new NewShaderSystem();
 		let shaderPath = GetAssetPath("Render/shaders", .. scope .());
-		if (mShaderSystem.Initialize(mDevice, shaderPath) case .Err)
+		if (mShaderSystem.Initialize(mDevice, scope StringView[](shaderPath)) case .Err)
 		{
 			Console.WriteLine("Failed to initialize shader system");
 			return false;

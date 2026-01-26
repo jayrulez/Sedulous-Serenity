@@ -134,7 +134,8 @@ class SceneUISample : RHISampleApp
 		mRendererService = new RendererService();
 		mRendererService.SetFormats(SwapChain.Format, .Depth24PlusStencil8);
 		let shaderPath = GetAssetPath(SHADER_REL_PATH, .. scope .());
-		if (mRendererService.Initialize(Device, shaderPath) case .Err)
+		let uiShaderPath = GetAssetPath("Render/shaders", .. scope .());
+		if (mRendererService.Initialize(Device, scope StringView[](shaderPath, uiShaderPath)) case .Err)
 		{
 			Console.WriteLine("Failed to initialize RendererService");
 			return false;
@@ -145,18 +146,8 @@ class SceneUISample : RHISampleApp
 		mInputService = new InputService(Shell.InputManager);
 		mContext.RegisterService<InputService>(mInputService);
 
-		// Initialize shader system for UI rendering
-		mShaderSystem = new NewShaderSystem();
-		let uiShaderPath = GetAssetPath("Render/shaders", .. scope .());
-		if (mShaderSystem.Initialize(Device, uiShaderPath) case .Err)
-		{
-			Console.WriteLine("Failed to initialize shader system for UI");
-			return false;
-		}
-
 		// Create and configure UIService
 		mUIService = new UIService();
-		mUIService.SetShaderSystem(mShaderSystem);
 		ConfigureUIServices();  // Sets up font service, theme, clipboard on UIService
 		let (wu, wv) = mFontService.WhitePixelUV;
 		mUIService.SetAtlasTexture(mFontService.AtlasTextureView, .(wu, wv));

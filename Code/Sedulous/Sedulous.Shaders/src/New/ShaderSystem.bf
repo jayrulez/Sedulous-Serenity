@@ -16,7 +16,7 @@ class NewShaderSystem : IDisposable
 	private IDevice mDevice;
 
 	/// Path to shader source files.
-	private String mShaderSourcePath ~ delete _;
+	private List<String> mShaderSourcePaths = new .() ~ DeleteContainerAndItems!(_);
 
 	/// Include paths for shader compilation.
 	private List<String> mIncludePaths = new .() ~ DeleteContainerAndItems!(_);
@@ -37,7 +37,6 @@ class NewShaderSystem : IDisposable
 
 	public ~this()
 	{
-
 	}
 
 	/// Access to the shader compiler.
@@ -47,16 +46,18 @@ class NewShaderSystem : IDisposable
 	/// - device: RHI device for creating shader modules
 	/// - shaderSourcePath: Path to shader source files
 	/// - cachePath: Optional path for disk cache (null to disable)
-	public Result<void> Initialize(IDevice device, StringView shaderSourcePath, StringView cachePath = default)
+	public Result<void> Initialize(IDevice device, Span<StringView> shaderSourcePaths, StringView cachePath = default)
 	{
 		mDevice = device;
 
 		// Store shader source path
-		delete mShaderSourcePath;
-		mShaderSourcePath = new String(shaderSourcePath);
+		for (var path in shaderSourcePaths)
+		{
+			mShaderSourcePaths.Add(new String(path));
+		}
 
 		// Initialize compiler
-		if(mCompiler != null)
+		if (mCompiler != null)
 		{
 			delete mCompiler;
 			mCompiler = null;
@@ -70,14 +71,17 @@ class NewShaderSystem : IDisposable
 		}
 
 		// Add shader source path as include path
-		mCompiler.AddIncludePath(mShaderSourcePath);
+		for (var path in mShaderSourcePaths)
+		{
+			mCompiler.AddIncludePath(path);
+		}
 
 		// Add any additional include paths
 		for (let path in mIncludePaths)
 			mCompiler.AddIncludePath(path);
 
 		// Initialize cache
-		if(mCache != null)
+		if (mCache != null)
 		{
 			delete mCache;
 			mCache = null;
@@ -106,10 +110,9 @@ class NewShaderSystem : IDisposable
 
 	/// Sets the base path for shader source files.
 	/// Compatibility method for old ShaderLibrary API.
-	public void SetShaderPath(StringView path)
+	public void AddShaderPath(StringView path)
 	{
-		delete mShaderSourcePath;
-		mShaderSourcePath = new String(path);
+		mShaderSourcePaths.Add(new String(path));
 		// Also add as include path
 		if (mCompiler != null)
 			mCompiler.AddIncludePath(path);
@@ -153,7 +156,16 @@ class NewShaderSystem : IDisposable
 	{
 		// Build source file path
 		String sourceFile = scope .();
-		GetShaderSourcePath(key, sourceFile);
+
+		for(var path in mShaderSourcePaths)
+		{
+			sourceFile.Clear();
+			GetShaderSourcePath(path, key, sourceFile);
+			if(File.Exists(sourceFile))
+			{
+				break;
+			}
+		}
 
 		if (!File.Exists(sourceFile))
 		{
@@ -208,9 +220,9 @@ class NewShaderSystem : IDisposable
 	}
 
 	/// Gets the full path to a shader source file.
-	private void GetShaderSourcePath(ShaderVariantKey key, String outPath)
+	private void GetShaderSourcePath(StringView shaderSourcePath, ShaderVariantKey key, String outPath)
 	{
-		Path.InternalCombine(outPath, mShaderSourcePath, key.Name);
+		Path.InternalCombine(outPath, shaderSourcePath, key.Name);
 
 		// Append extension based on stage
 		switch (key.Stage)
@@ -270,7 +282,16 @@ class NewShaderSystem : IDisposable
 	public void GetStats(String outStats)
 	{
 		outStats.AppendF("Shader System Statistics:\n");
-		outStats.AppendF("  Source path: {}\n", mShaderSourcePath ?? "not set");
+		outStats.AppendF("  Source paths:\n");
+		if(mShaderSourcePaths.Count == 0)
+		{
+			outStats.AppendF("    None set\n");
+		}else{
+			for(var path in mShaderSourcePaths)
+			{
+				outStats.AppendF("    {}\n", path);
+			}
+		}
 		outStats.AppendF("  Target: {}\n", Target);
 		outStats.AppendF("  Include paths: {}\n", mIncludePaths.Count);
 

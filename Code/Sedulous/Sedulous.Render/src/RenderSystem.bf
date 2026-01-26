@@ -152,7 +152,7 @@ public class RenderSystem : IDisposable
 		if (!shaderPath.IsEmpty)
 		{
 			mShaderSystem = new NewShaderSystem();
-			if (mShaderSystem.Initialize(device, shaderPath) case .Err)
+			if (mShaderSystem.Initialize(device, scope StringView[](shaderPath)) case .Err)
 				return .Err;
 		}
 

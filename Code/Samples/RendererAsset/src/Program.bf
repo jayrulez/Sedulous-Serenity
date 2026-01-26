@@ -90,7 +90,7 @@ class RendererAssetSample : RHISampleApp
 		// Set formats to match swap chain BEFORE initializing
 		mRendererService.SetFormats(SwapChain.Format, .Depth24PlusStencil8);
 		let shaderPath = GetAssetPath(SHADER_REL_PATH, .. scope .());
-		if (mRendererService.Initialize(Device, shaderPath) case .Err)
+		if (mRendererService.Initialize(Device, scope StringView[](shaderPath)) case .Err)
 		{
 			Console.WriteLine("Failed to initialize RendererService");
 			return false;

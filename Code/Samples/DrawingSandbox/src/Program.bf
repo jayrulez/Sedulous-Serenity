@@ -56,7 +56,7 @@ class DrawingSandboxSample : RHISampleApp
 		mShaderSystem = new NewShaderSystem();
 		String shaderPath = scope .();
 		GetAssetPath("Render/shaders", shaderPath);
-		if (mShaderSystem.Initialize(Device, shaderPath) case .Err)
+		if (mShaderSystem.Initialize(Device, scope StringView[](shaderPath)) case .Err)
 		{
 			Console.WriteLine("Failed to initialize shader system");
 			return false;

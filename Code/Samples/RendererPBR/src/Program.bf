@@ -63,7 +63,7 @@ class RendererPBRSample : RHISampleApp
 	{
 		// Initialize renderer components
 		mShaderLibrary = new ShaderLibrary();
-		if(mShaderLibrary.Initialize(Device, "shaders") case .Err)
+		if(mShaderLibrary.Initialize(Device, scope StringView[]("shaders")) case .Err)
 		{
 			return false;
 		}

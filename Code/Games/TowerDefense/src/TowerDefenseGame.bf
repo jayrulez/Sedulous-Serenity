@@ -229,9 +229,10 @@ class TowerDefenseGame : RHISampleApp
 
 		mRendererService = new RendererService();
 		mRendererService.SetFormats(SwapChain.Format, .Depth24PlusStencil8);
-
-		let shaderPath = GetAssetPath("framework/shaders", .. scope .());
-		if (mRendererService.Initialize(Device, shaderPath) case .Err)
+		
+		let frameworkShaderPath = GetAssetPath("framework/shaders", .. scope .());
+		let drawingShaderPath = GetAssetPath("Render/shaders", .. scope .());
+		if (mRendererService.Initialize(Device, scope StringView[](frameworkShaderPath, drawingShaderPath)) case .Err)
 		{
 			Console.WriteLine("Failed to initialize RendererService");
 			return false;

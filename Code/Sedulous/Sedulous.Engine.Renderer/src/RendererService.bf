@@ -126,7 +126,7 @@ class RendererService : ContextService, IDisposable
 
 	/// Initializes the renderer service with a graphics device.
 	/// Call this before registering the service with the context.
-	public Result<void> Initialize(IDevice device, StringView shaderBasePath = "shaders")
+	public Result<void> Initialize(IDevice device, Span<StringView> shaderBasePaths)
 	{
 		if (device == null)
 			return .Err;
@@ -134,7 +134,7 @@ class RendererService : ContextService, IDisposable
 		mDevice = device;
 		mResourceManager = new GPUResourceManager(device);
 		mShaderLibrary = new ShaderLibrary();
-		if(mShaderLibrary.Initialize(device, shaderBasePath) case .Err)
+		if(mShaderLibrary.Initialize(device, shaderBasePaths) case .Err)
 		{
 			delete mResourceManager;
 			delete mShaderLibrary;
@@ -168,7 +168,7 @@ class RendererService : ContextService, IDisposable
 	public void SetShaderPath(StringView path)
 	{
 		if (mShaderLibrary != null)
-			mShaderLibrary.SetShaderPath(path);
+			mShaderLibrary.AddShaderPath(path);
 	}
 
 	// ==================== Render Graph Frame Methods ====================

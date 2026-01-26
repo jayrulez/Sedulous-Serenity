@@ -93,7 +93,7 @@ class UISandboxSample : RHISampleApp
 		mShaderSystem = new NewShaderSystem();
 		String shaderPath = scope .();
 		GetAssetPath("Render/shaders", shaderPath);
-		if (mShaderSystem.Initialize(Device, shaderPath) case .Err)
+		if (mShaderSystem.Initialize(Device, scope StringView[](shaderPath)) case .Err)
 		{
 			Console.WriteLine("Failed to initialize shader system");
 			return false;
@@ -631,9 +631,10 @@ class UISandboxSample : RHISampleApp
 			let areaLabel = new TextBlock();
 			areaLabel.Text = "Right-click here";
 			areaLabel.Foreground = Color(200, 200, 200);
-			areaLabel.HorizontalAlignment = .Center;
+			areaLabel.TextAlignment = .Center;
+			areaLabel.HorizontalAlignment = .Stretch;
 			areaLabel.VerticalAlignment = .Center;
-			contextArea.AddChild(areaLabel);
+			contextArea.Child = areaLabel;
 
 			panel.AddChild(contextArea);
 		});
@@ -835,7 +836,7 @@ class UISandboxSample : RHISampleApp
 			label00.Foreground = Color.White;
 			label00.HorizontalAlignment = .Center;
 			label00.VerticalAlignment = .Center;
-			cell00.AddChild(label00);
+			cell00.Child = label00;
 			grid.SetRow(cell00, 0);
 			grid.SetColumn(cell00, 0);
 			grid.AddChild(cell00);
@@ -848,7 +849,7 @@ class UISandboxSample : RHISampleApp
 			label01.Foreground = Color.White;
 			label01.HorizontalAlignment = .Center;
 			label01.VerticalAlignment = .Center;
-			cell01.AddChild(label01);
+			cell01.Child = label01;
 			grid.SetRow(cell01, 0);
 			grid.SetColumn(cell01, 1);
 			grid.AddChild(cell01);
@@ -861,7 +862,7 @@ class UISandboxSample : RHISampleApp
 			label02.Foreground = Color.White;
 			label02.HorizontalAlignment = .Center;
 			label02.VerticalAlignment = .Center;
-			cell02.AddChild(label02);
+			cell02.Child = label02;
 			grid.SetRow(cell02, 0);
 			grid.SetColumn(cell02, 2);
 			grid.AddChild(cell02);
@@ -875,7 +876,7 @@ class UISandboxSample : RHISampleApp
 			label10.Foreground = Color.White;
 			label10.HorizontalAlignment = .Center;
 			label10.VerticalAlignment = .Center;
-			cell10.AddChild(label10);
+			cell10.Child = label10;
 			grid.SetRow(cell10, 1);
 			grid.SetColumn(cell10, 0);
 			grid.SetColumnSpan(cell10, 3);
@@ -890,7 +891,7 @@ class UISandboxSample : RHISampleApp
 			label20.Foreground = Color.White;
 			label20.HorizontalAlignment = .Center;
 			label20.VerticalAlignment = .Center;
-			cell20.AddChild(label20);
+			cell20.Child = label20;
 			grid.SetRow(cell20, 2);
 			grid.SetColumn(cell20, 0);
 			grid.AddChild(cell20);
@@ -903,7 +904,7 @@ class UISandboxSample : RHISampleApp
 			label21.Foreground = Color.White;
 			label21.HorizontalAlignment = .Center;
 			label21.VerticalAlignment = .Center;
-			cell21.AddChild(label21);
+			cell21.Child = label21;
 			grid.SetRow(cell21, 2);
 			grid.SetColumn(cell21, 1);
 			grid.SetColumnSpan(cell21, 2);
@@ -1015,7 +1016,7 @@ class UISandboxSample : RHISampleApp
 			topLabel.Foreground = Color.White;
 			topLabel.HorizontalAlignment = .Center;
 			topLabel.VerticalAlignment = .Center;
-			topDock.AddChild(topLabel);
+			topDock.Child = topLabel;
 			dockPanel.SetDock(topDock, .Top);
 			dockPanel.AddChild(topDock);
 
@@ -1027,7 +1028,7 @@ class UISandboxSample : RHISampleApp
 			bottomLabel.Foreground = Color.White;
 			bottomLabel.HorizontalAlignment = .Center;
 			bottomLabel.VerticalAlignment = .Center;
-			bottomDock.AddChild(bottomLabel);
+			bottomDock.Child = bottomLabel;
 			dockPanel.SetDock(bottomDock, .Bottom);
 			dockPanel.AddChild(bottomDock);
 
@@ -1039,7 +1040,7 @@ class UISandboxSample : RHISampleApp
 			leftLabel.Foreground = Color.White;
 			leftLabel.HorizontalAlignment = .Center;
 			leftLabel.VerticalAlignment = .Center;
-			leftDock.AddChild(leftLabel);
+			leftDock.Child = leftLabel;
 			dockPanel.SetDock(leftDock, .Left);
 			dockPanel.AddChild(leftDock);
 
@@ -1051,7 +1052,7 @@ class UISandboxSample : RHISampleApp
 			rightLabel.Foreground = Color.White;
 			rightLabel.HorizontalAlignment = .Center;
 			rightLabel.VerticalAlignment = .Center;
-			rightDock.AddChild(rightLabel);
+			rightDock.Child = rightLabel;
 			dockPanel.SetDock(rightDock, .Right);
 			dockPanel.AddChild(rightDock);
 
@@ -1063,7 +1064,7 @@ class UISandboxSample : RHISampleApp
 			centerLabel.Foreground = Color.White;
 			centerLabel.HorizontalAlignment = .Center;
 			centerLabel.VerticalAlignment = .Center;
-			centerDock.AddChild(centerLabel);
+			centerDock.Child = centerLabel;
 			dockPanel.AddChild(centerDock);
 
 			panel.AddChild(dockPanel);
@@ -1090,7 +1091,7 @@ class UISandboxSample : RHISampleApp
 			leftLabel.Foreground = Color.White;
 			leftLabel.HorizontalAlignment = .Center;
 			leftLabel.VerticalAlignment = .Center;
-			leftPane.AddChild(leftLabel);
+			leftPane.Child = leftLabel;
 			hSplit.Panel1 = leftPane;
 
 			let rightPane = new Border();
@@ -1100,7 +1101,7 @@ class UISandboxSample : RHISampleApp
 			rightLabel.Foreground = Color.White;
 			rightLabel.HorizontalAlignment = .Center;
 			rightLabel.VerticalAlignment = .Center;
-			rightPane.AddChild(rightLabel);
+			rightPane.Child = rightLabel;
 			hSplit.Panel2 = rightPane;
 
 			panel.AddChild(hSplit);
@@ -1125,7 +1126,7 @@ class UISandboxSample : RHISampleApp
 			topLabel.Foreground = Color.White;
 			topLabel.HorizontalAlignment = .Center;
 			topLabel.VerticalAlignment = .Center;
-			topPane.AddChild(topLabel);
+			topPane.Child = topLabel;
 			vSplit.Panel1 = topPane;
 
 			let bottomPane = new Border();
@@ -1135,7 +1136,7 @@ class UISandboxSample : RHISampleApp
 			bottomLabel.Foreground = Color.White;
 			bottomLabel.HorizontalAlignment = .Center;
 			bottomLabel.VerticalAlignment = .Center;
-			bottomPane.AddChild(bottomLabel);
+			bottomPane.Child = bottomLabel;
 			vSplit.Panel2 = bottomPane;
 
 			panel.AddChild(vSplit);
@@ -1395,7 +1396,7 @@ class UISandboxSample : RHISampleApp
 			centerLabel.Foreground = Color.White;
 			centerLabel.HorizontalAlignment = .Center;
 			centerLabel.VerticalAlignment = .Center;
-			centerContent.AddChild(centerLabel);
+			centerContent.Child = centerLabel;
 			dockManager.CenterContent = centerContent;
 
 			// Left docked panel
@@ -1505,9 +1506,10 @@ class UISandboxSample : RHISampleApp
 			let skewText = new TextBlock();
 			skewText.Text = "Skewed";
 			skewText.Foreground = Color.White;
-			skewText.HorizontalAlignment = .Center;
+			skewText.TextAlignment = .Center;
+			skewText.HorizontalAlignment = .Stretch;
 			skewText.VerticalAlignment = .Center;
-			skewedBorder.AddChild(skewText);
+			skewedBorder.Child = skewText;
 			transformContainer.AddChild(skewedBorder);
 
 			// === Flipped (mirrored) ===
@@ -1542,9 +1544,10 @@ class UISandboxSample : RHISampleApp
 			let combinedText = new TextBlock();
 			combinedText.Text = "Both";
 			combinedText.Foreground = Color.White;
-			combinedText.HorizontalAlignment = .Center;
+			combinedText.TextAlignment = .Center;
+			combinedText.HorizontalAlignment = .Stretch;
 			combinedText.VerticalAlignment = .Center;
-			combinedBorder.AddChild(combinedText);
+			combinedBorder.Child = combinedText;
 			transformContainer.AddChild(combinedBorder);
 
 			// === Animated rotation ===
@@ -1565,9 +1568,12 @@ class UISandboxSample : RHISampleApp
 			let spinText = new TextBlock();
 			spinText.Text = "Spin";
 			spinText.Foreground = Color.White;
-			spinText.HorizontalAlignment = .Center;
+			spinText.TextAlignment = .Center;
+			spinText.HorizontalAlignment = .Stretch;
 			spinText.VerticalAlignment = .Center;
-			spinBox.AddChild(spinText);
+			spinText.RenderTransform = Matrix.CreateRotationZ(Math.PI_f / 2.0f); // 90 degrees - vertical text
+			spinText.RenderTransformOrigin = .(0.5f, 0.5f); // Center origin
+			spinBox.Child = spinText;
 			spinBox.Margin = Thickness(30, 0, 0, 0);
 
 			let spinBtn = new Button();
