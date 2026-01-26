@@ -112,6 +112,10 @@ class ImpactArenaGame : Application
 	private InputAction mCycleRightAction;
 	private InputAction mUsePickupAction;
 
+	// Stored input state for fixed update
+	private Vector2 mMoveInput;
+	private bool mDashPressed;
+
 	// Inventory (storable pickups)
 	private const int32 MaxInventory = 3;
 	private PowerUpType[MaxInventory] mInventory;
@@ -564,7 +568,10 @@ class ImpactArenaGame : Application
 			if (mPauseAction.WasPressed)
 				Exit();
 		case .Playing, .WaveIntro:
-			mPlayer.Update(mMoveAction.Vector2Value, mDashAction.WasPressed, mDeltaTime);
+			// Store input state for fixed update
+			mMoveInput = mMoveAction.Vector2Value;
+			if (mDashAction.WasPressed)
+				mDashPressed = true; // Latch until consumed by fixed update
 			if (mPauseAction.WasPressed)
 			{
 				mState = .Paused;
@@ -697,60 +704,26 @@ class ImpactArenaGame : Application
 		}
 	}
 
-	private void UpdatePlaying()
+	protected override void OnFixedUpdate(float fixedDt)
 	{
+		switch (mState)
+		{
+		case .Playing, .WaveIntro:
+			FixedUpdatePlaying(fixedDt);
+		default:
+		}
+	}
+
+	private void FixedUpdatePlaying(float dt)
+	{
+		// Player physics update with stored input
+		mPlayer.Update(mMoveInput, mDashPressed, dt);
+		mDashPressed = false; // Consume the latched dash input
+
+		// Enemy AI and physics
 		let playerPos = mPlayer.Position;
-		mEnemyManager.Update(playerPos, mDeltaTime);
-		mPowerUpManager.Update(mDeltaTime);
-
-		// Dash trail - only emit when dashing
-		if (mTrailInitialized)
-		{
-			if (let renderModule = mMainScene.GetModule<RenderSceneModule>())
-			{
-				if (let proxy = renderModule.GetParticleEmitterProxy(mPlayer.Entity))
-				{
-					proxy.IsEmitting = mPlayer.IsDashing;
-				}
-			}
-		}
-
-		// Player visual effects based on state
-		if (mPlayer.IsInvulnerable)
-		{
-			// Invulnerability flash (red pulse)
-			let pulse = (Math.Sin(mPlayer.InvulnTimer * 20.0f) + 1.0f) * 0.5f;
-			mPlayerMat.SetColor("EmissiveColor", .(1.0f * pulse, 0.3f * pulse, 0.3f * pulse, 1.0f));
-		}
-		else
-		{
-			// Speed-based glow: faster = brighter cyan/blue glow
-			let speed = mPlayer.Speed;
-			let maxSpeed = mPlayer.IsDashing ? 25.0f : 12.0f; // Dash speed vs normal max
-			let speedFactor = Math.Clamp(speed / maxSpeed, 0.0f, 1.0f);
-
-			if (speedFactor > 0.1f)
-			{
-				// Cyan-blue speed glow that intensifies with speed
-				let intensity = speedFactor * speedFactor; // Quadratic for more dramatic effect
-				let r = 0.2f * intensity;
-				let g = 0.7f * intensity;
-				let b = 1.0f * intensity;
-				mPlayerMat.SetColor("EmissiveColor", .(r, g, b, 1.0f));
-			}
-			else
-			{
-				mPlayerMat.SetColor("EmissiveColor", .(0, 0, 0, 1.0f));
-			}
-		}
-
-		// Combo display timer
-		if (mComboDisplayTimer > 0)
-			mComboDisplayTimer -= mDeltaTime;
-
-		// Dash sound
-		if (mPlayer.IsDashing && !mWasDashing)
-			mGameAudio.PlayDash();
+		mEnemyManager.Update(playerPos, dt);
+		mPowerUpManager.Update(dt);
 
 		// Check power-up pickup
 		if (let pickupType = mPowerUpManager.CheckPickup(playerPos, mInventoryCount < MaxInventory))
@@ -760,16 +733,13 @@ class ImpactArenaGame : Application
 
 			if (pickupType == .HealthPack)
 			{
-				// Health is always instant
 				mPlayer.Heal(25.0f);
 			}
 			else if (mInventoryCount < MaxInventory)
 			{
-				// Store in inventory
 				mInventory[mInventoryCount] = pickupType;
 				mInventoryCount++;
 			}
-			// If inventory full, pickup is wasted (can't pick up more)
 		}
 
 		// Check collisions
@@ -799,39 +769,90 @@ class ImpactArenaGame : Application
 				mComboCount++;
 		}
 
-		// Combo bonus when dash ends
-		if (mWasDashing && !mPlayer.IsDashing && mComboCount > 1)
+		// Process combo at end of dash
+		if (!mPlayer.IsDashing && mComboCount > 1)
 		{
-			mLastComboBonus = mComboCount * mComboCount * 10; // Quadratic bonus
-			mScore += mLastComboBonus;
+			let bonus = mComboCount * 10;
+			mScore += bonus;
+			mLastComboBonus = bonus;
 			mComboDisplayTimer = 2.0f;
-			mGameAudio.PlayCombo();
 		}
 		if (!mPlayer.IsDashing)
 			mComboCount = 0;
-		mWasDashing = mPlayer.IsDashing;
 
 		// Check player death
 		if (!mPlayer.IsAlive)
 		{
 			mEffectsManager.SpawnPlayerDeathEffect(playerPos);
 			mGameAudio.PlayPlayerDeath();
-			mShakeIntensity = 1.5f;
-			mEnemyManager.ClearAll();
-			mState = .GameOver;
+			mShakeIntensity = 1.0f;
 			if (mScore > mHighScore)
 				mHighScore = mScore;
-			return;
+			mState = .GameOver;
 		}
 
-		// Check wave complete
-		if (mEnemyManager.AliveCount == 0)
+		// Wave complete check
+		if (mState == .Playing && mEnemyManager.AliveCount == 0)
 		{
 			mWave++;
-			mScore += mWave * 100; // Wave completion bonus
-			mWaveIntroTimer = 3.0f;
+			mScore += mWave * 100;
 			mState = .WaveIntro;
+			mWaveIntroTimer = 3.0f;
 		}
+	}
+
+	private void UpdatePlaying()
+	{
+		// Visual-only updates (physics handled in FixedUpdate)
+
+		// Dash trail - only emit when dashing
+		if (mTrailInitialized)
+		{
+			if (let renderModule = mMainScene.GetModule<RenderSceneModule>())
+			{
+				if (let proxy = renderModule.GetParticleEmitterProxy(mPlayer.Entity))
+				{
+					proxy.IsEmitting = mPlayer.IsDashing;
+				}
+			}
+		}
+
+		// Player visual effects based on state
+		if (mPlayer.IsInvulnerable)
+		{
+			// Invulnerability flash (red pulse)
+			let pulse = (Math.Sin(mPlayer.InvulnTimer * 20.0f) + 1.0f) * 0.5f;
+			mPlayerMat.SetColor("EmissiveColor", .(1.0f * pulse, 0.3f * pulse, 0.3f * pulse, 1.0f));
+		}
+		else
+		{
+			// Speed-based glow: faster = brighter cyan/blue glow
+			let speed = mPlayer.Speed;
+			let maxSpeed = mPlayer.IsDashing ? 25.0f : 12.0f;
+			let speedFactor = Math.Clamp(speed / maxSpeed, 0.0f, 1.0f);
+
+			if (speedFactor > 0.1f)
+			{
+				let intensity = speedFactor * speedFactor;
+				let r = 0.2f * intensity;
+				let g = 0.7f * intensity;
+				let b = 1.0f * intensity;
+				mPlayerMat.SetColor("EmissiveColor", .(r, g, b, 1.0f));
+			}
+			else
+			{
+				mPlayerMat.SetColor("EmissiveColor", .(0, 0, 0, 1.0f));
+			}
+		}
+
+		// Combo display timer (visual only)
+		if (mComboDisplayTimer > 0)
+			mComboDisplayTimer -= mDeltaTime;
+
+		// Dash sound trigger
+		if (mPlayer.IsDashing && !mWasDashing)
+			mGameAudio.PlayDash();
+		mWasDashing = mPlayer.IsDashing;
 	}
 
 	private void UseActivePickup()

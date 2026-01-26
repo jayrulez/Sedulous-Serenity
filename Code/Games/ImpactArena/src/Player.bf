@@ -13,7 +13,7 @@ using Sedulous.Physics;
 class Player
 {
 	public const float Radius = 0.5f;
-	public const float MoveForce = 40.0f;
+	public const float MoveForce = 2400.0f; // Scaled for dt multiplication
 	public const float DashImpulse = 20.0f;
 	public const float DashCooldown = 1.5f;
 	public const float DashSpeedThreshold = 8.0f;
@@ -104,7 +104,8 @@ class Player
 			if (moveDir.LengthSquared() > 1.0f)
 				moveDir = Vector3.Normalize(moveDir);
 			mLastMoveDir = Vector3.Normalize(moveDir);
-			mPhysicsModule.AddForce(mEntity, moveDir * MoveForce * SpeedMultiplier);
+			// Scale force by dt for frame-rate independence
+			mPhysicsModule.AddForce(mEntity, moveDir * MoveForce * SpeedMultiplier * dt);
 		}
 
 		// Dash

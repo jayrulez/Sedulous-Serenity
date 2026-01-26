@@ -178,11 +178,11 @@ class EnemyManager
 				{
 					let sepDir = Vector3.Normalize(Vector3(diff.X, 0, diff.Z));
 					let strength = (minSep - sepDist) / minSep;
-					separation += sepDir * strength * 12.0f;
+					separation += sepDir * strength * 720.0f; // Scaled for dt
 				}
 			}
 			if (separation.LengthSquared() > 0.01f)
-				mPhysicsModule.AddForce(enemy.Entity, separation);
+				mPhysicsModule.AddForce(enemy.Entity, separation * dt);
 
 			switch (enemy.Type)
 			{
@@ -191,14 +191,14 @@ class EnemyManager
 				if (dist > 0.5f)
 				{
 					let dir = Vector3.Normalize(Vector3(toPlayer.X, 0, toPlayer.Z));
-					mPhysicsModule.AddForce(enemy.Entity, dir * 8.0f);
+					mPhysicsModule.AddForce(enemy.Entity, dir * 480.0f * dt); // Scaled for dt
 				}
 			case .Brute:
 				// Slow but steady
 				if (dist > 1.0f)
 				{
 					let dir = Vector3.Normalize(Vector3(toPlayer.X, 0, toPlayer.Z));
-					mPhysicsModule.AddForce(enemy.Entity, dir * 5.0f);
+					mPhysicsModule.AddForce(enemy.Entity, dir * 300.0f * dt); // Scaled for dt
 				}
 			case .Dasher:
 				enemy.DashTimer -= dt;
