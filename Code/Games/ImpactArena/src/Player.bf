@@ -13,7 +13,7 @@ using Sedulous.Physics;
 class Player
 {
 	public const float Radius = 0.5f;
-	public const float MoveForce = 2400.0f; // Scaled for dt multiplication
+	public const float MoveForce = 3000.0f; // Scaled for dt multiplication (slightly boosted for responsiveness)
 	public const float DashImpulse = 20.0f;
 	public const float DashCooldown = 1.5f;
 	public const float DashSpeedThreshold = 8.0f;
