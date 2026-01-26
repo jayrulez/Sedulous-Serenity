@@ -15,6 +15,7 @@ using Sedulous.UI;
 using Sedulous.Drawing.Renderer;
 using Sedulous.UI.Shell;
 using Sedulous.Drawing.Fonts;
+using Sedulous.Shaders;
 
 // Type aliases to resolve ambiguity
 typealias RHITexture = Sedulous.RHI.ITexture;
@@ -59,6 +60,9 @@ public abstract class Application
 
 	// Font system
 	protected FontService mFontService;
+
+	// Shader system
+	protected NewShaderSystem mShaderSystem;
 
 	// Timing
 	protected Stopwatch mStopwatch = new .() ~ delete _;
@@ -331,6 +335,13 @@ public abstract class Application
 			return false;
 		}
 
+		// Initialize shader system
+		if (!InitializeShaderSystem())
+		{
+			Console.WriteLine("Failed to initialize shaders");
+			return false;
+		}
+
 		// Initialize UI system
 		if (!InitializeUI())
 		{
@@ -398,10 +409,22 @@ public abstract class Application
 		return true;
 	}
 
+	private bool InitializeShaderSystem()
+	{
+		mShaderSystem = new NewShaderSystem();
+		let shaderPath = GetAssetPath("Render/shaders", .. scope .());
+		if (mShaderSystem.Initialize(mDevice, shaderPath) case .Err)
+		{
+			Console.WriteLine("Failed to initialize shader system");
+			return false;
+		}
+		return true;
+	}
+
 	private bool InitializeDrawingRenderer()
 	{
 		mDrawingRenderer = new DrawingRenderer();
-		if (mDrawingRenderer.Initialize(mDevice, mSwapChain.Format, (int32)mSwapChain.FrameCount) case .Err)
+		if (mDrawingRenderer.Initialize(mDevice, mSwapChain.Format, (int32)mSwapChain.FrameCount, mShaderSystem) case .Err)
 		{
 			Console.WriteLine("Failed to initialize UI renderer");
 			return false;
@@ -638,6 +661,13 @@ public abstract class Application
 		// Font service (owns fonts, atlases, and GPU textures)
 		if (mFontService != null)
 			delete mFontService;
+
+		// Shader system
+		if (mShaderSystem != null)
+		{
+			mShaderSystem.Dispose();
+			delete mShaderSystem;
+		}
 
 		// RHI resources
 		if (mSwapChain != null)

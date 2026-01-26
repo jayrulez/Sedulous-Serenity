@@ -13,6 +13,7 @@ using Sedulous.Drawing.Fonts;
 using Sedulous.Drawing.Renderer;
 using Sedulous.Shell.Input;
 using Sedulous.UI.Shell;
+using Sedulous.Shaders;
 
 // Type alias to resolve ambiguity
 typealias RHITexture = Sedulous.RHI.ITexture;
@@ -40,6 +41,9 @@ class UISandboxSample : RHISampleApp
 	// UI Renderer
 	// NOTE: Must be cleaned up in OnCleanup(), not destructor, because Device is destroyed in Application.Cleanup()
 	private DrawingRenderer mDrawingRenderer;
+
+	// Shader system
+	private NewShaderSystem mShaderSystem;
 
 	// MSAA resources
 	private const uint32 MSAA_SAMPLES = 4;
@@ -85,12 +89,22 @@ class UISandboxSample : RHISampleApp
 		if (!InitializeFonts())
 			return false;
 
+		// Initialize shader system
+		mShaderSystem = new NewShaderSystem();
+		String shaderPath = scope .();
+		GetAssetPath("Render/shaders", shaderPath);
+		if (mShaderSystem.Initialize(Device, shaderPath) case .Err)
+		{
+			Console.WriteLine("Failed to initialize shader system");
+			return false;
+		}
+
 		// Create draw context with font service (auto-sets WhitePixelUV)
 		mDrawContext = new DrawContext(mFontService);
 
 		// Initialize UI Renderer
 		mDrawingRenderer = new DrawingRenderer();
-		if (mDrawingRenderer.Initialize(Device, SwapChain.Format, MAX_FRAMES_IN_FLIGHT) case .Err)
+		if (mDrawingRenderer.Initialize(Device, SwapChain.Format, MAX_FRAMES_IN_FLIGHT, mShaderSystem) case .Err)
 		{
 			Console.WriteLine("Failed to initialize UI renderer");
 			return false;
@@ -1978,6 +1992,13 @@ class UISandboxSample : RHISampleApp
 		// Clean up font service (owns GPU atlas texture, delete after DrawingRenderer)
 		if (mFontService != null)
 			delete mFontService;
+
+		// Clean up shader system
+		if (mShaderSystem != null)
+		{
+			mShaderSystem.Dispose();
+			delete mShaderSystem;
+		}
 	}
 }
 

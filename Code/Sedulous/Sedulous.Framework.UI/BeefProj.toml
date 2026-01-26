@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Framework.Core" = "*", "Sedulous.Framework.Scenes" = "*", "Sedulous.Framework.Input" = "*", "Sedulous.Framework.Render" = "*", "Sedulous.Foundation" = "*", "Sedulous.Mathematics" = "*", "Sedulous.UI" = "*", "Sedulous.UI.Shell" = "*", "Sedulous.Drawing.Fonts" = "*", "Sedulous.Drawing.Renderer" = "*", "Sedulous.Drawing" = "*", "Sedulous.RHI" = "*", "Sedulous.Shell" = "*", "Sedulous.Render" = "*", "Sedulous.Profiler" = "*"}
+Dependencies = {corlib = "*", "Sedulous.Framework.Core" = "*", "Sedulous.Framework.Scenes" = "*", "Sedulous.Framework.Input" = "*", "Sedulous.Framework.Render" = "*", "Sedulous.Foundation" = "*", "Sedulous.Mathematics" = "*", "Sedulous.UI" = "*", "Sedulous.UI.Shell" = "*", "Sedulous.Drawing.Fonts" = "*", "Sedulous.Drawing.Renderer" = "*", "Sedulous.Drawing" = "*", "Sedulous.RHI" = "*", "Sedulous.Shell" = "*", "Sedulous.Render" = "*", "Sedulous.Profiler" = "*", "Sedulous.Shaders" = "*"}
 
 [Project]
 Name = "Sedulous.Framework.UI"

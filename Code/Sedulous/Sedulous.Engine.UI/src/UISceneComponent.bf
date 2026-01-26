@@ -15,6 +15,7 @@ using Sedulous.Drawing;
 using Sedulous.UI;
 using Sedulous.UI.Shell;
 using Sedulous.Drawing.Renderer;
+using Sedulous.Shaders;
 
 // Use UI types explicitly to avoid ambiguity with Shell types
 typealias UIKeyCode = Sedulous.UI.KeyCode;
@@ -175,14 +176,14 @@ class UISceneComponent : ISceneComponent
 
 	/// Initializes GPU rendering resources.
 	/// Call this after the swap chain is created.
-	public Result<void> InitializeRendering(IDevice device, TextureFormat format, int32 frameCount)
+	public Result<void> InitializeRendering(IDevice device, TextureFormat format, int32 frameCount, NewShaderSystem shaderSystem)
 	{
 		if (mRenderingInitialized)
 			return .Ok;
 
 		// Create UI renderer
 		mDrawingRenderer = new DrawingRenderer();
-		if (mDrawingRenderer.Initialize(device, format, frameCount) case .Err)
+		if (mDrawingRenderer.Initialize(device, format, frameCount, shaderSystem) case .Err)
 		{
 			delete mDrawingRenderer;
 			mDrawingRenderer = null;

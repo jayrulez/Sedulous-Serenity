@@ -16,6 +16,7 @@ using Sedulous.Audio;
 using Sedulous.Audio.SDL3;
 using Sedulous.Audio.Decoders;
 using Sedulous.Fonts;
+using Sedulous.Shaders;
 
 /// Audio track info.
 class AudioTrack
@@ -57,6 +58,9 @@ class EngineAudioSample : RHISampleApp
 	// UI Renderer
 	private DrawingRenderer mDrawingRenderer;
 
+	// Shader system
+	private NewShaderSystem mShaderSystem;
+
 	// UI Elements (for updating)
 	private TextBlock mNowPlayingLabel;
 	private TextBlock mVolumeLabel;
@@ -83,9 +87,19 @@ class EngineAudioSample : RHISampleApp
 		if (!InitializeFonts())
 			return false;
 
+		// Initialize shader system
+		mShaderSystem = new NewShaderSystem();
+		String shaderPath = scope .();
+		GetAssetPath("Render/shaders", shaderPath);
+		if (mShaderSystem.Initialize(Device, shaderPath) case .Err)
+		{
+			Console.WriteLine("Failed to initialize shader system");
+			return false;
+		}
+
 		// Initialize UI Renderer
 		mDrawingRenderer = new DrawingRenderer();
-		if (mDrawingRenderer.Initialize(Device, SwapChain.Format, MAX_FRAMES_IN_FLIGHT) case .Err)
+		if (mDrawingRenderer.Initialize(Device, SwapChain.Format, MAX_FRAMES_IN_FLIGHT, mShaderSystem) case .Err)
 		{
 			Console.WriteLine("Failed to initialize UI renderer");
 			return false;
@@ -535,6 +549,13 @@ class EngineAudioSample : RHISampleApp
 		if (mFontService != null) { delete mFontService; mFontService = null; }
 		if (mTheme != null) { delete mTheme; mTheme = null; }
 		if (mTooltipService != null) { delete mTooltipService; mTooltipService = null; }
+
+		// Clean up shader system
+		if (mShaderSystem != null)
+		{
+			mShaderSystem.Dispose();
+			delete mShaderSystem;
+		}
 	}
 }
 

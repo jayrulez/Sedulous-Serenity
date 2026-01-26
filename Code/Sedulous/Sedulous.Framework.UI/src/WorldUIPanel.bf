@@ -9,6 +9,7 @@ using Sedulous.Drawing.Renderer;
 using Sedulous.Drawing;
 using Sedulous.RHI;
 using Sedulous.Render;
+using Sedulous.Shaders;
 using Sedulous.Mathematics;
 
 /// A world-space UI panel rendered to a texture and displayed as a sprite in 3D.
@@ -117,7 +118,8 @@ public class WorldUIPanel
 	/// - pixelWidth/Height: Render texture resolution
 	/// - panelWidth/Height: World-space size in units
 	/// - frameCount: Number of in-flight frames for triple-buffering
-	public this(IDevice device, FontService fontService, uint32 pixelWidth, uint32 pixelHeight, float panelWidth, float panelHeight, int32 frameCount)
+	/// - shaderSystem: Shader system for loading drawing shaders
+	public this(IDevice device, FontService fontService, uint32 pixelWidth, uint32 pixelHeight, float panelWidth, float panelHeight, int32 frameCount, NewShaderSystem shaderSystem)
 	{
 		mFontService = fontService;
 		mPixelWidth = pixelWidth;
@@ -144,7 +146,7 @@ public class WorldUIPanel
 
 		// Create renderer
 		mDrawingRenderer = new DrawingRenderer();
-		mDrawingRenderer.Initialize(device, .RGBA8Unorm, frameCount);
+		mDrawingRenderer.Initialize(device, .RGBA8Unorm, frameCount, shaderSystem);
 		mDrawingRenderer.SetTexture(fontService.AtlasTextureView);
 
 		// Create render texture

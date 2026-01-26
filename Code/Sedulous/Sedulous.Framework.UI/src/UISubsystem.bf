@@ -195,7 +195,7 @@ public class UISubsystem : Subsystem, ISceneAware
 		mUIContext = new UIContext();
 
 		mDrawingRenderer = new DrawingRenderer();
-		if (mDrawingRenderer.Initialize(device, targetFormat, frameCount) case .Err)
+		if (mDrawingRenderer.Initialize(device, targetFormat, frameCount, renderSystem?.ShaderSystem) case .Err)
 		{
 			delete mDrawingRenderer;
 			mDrawingRenderer = null;

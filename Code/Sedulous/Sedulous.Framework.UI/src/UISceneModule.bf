@@ -56,7 +56,7 @@ class UISceneModule : SceneModule
 		if (device == null || fontService == null || feature == null)
 			return null;
 
-		let panel = new WorldUIPanel(device, fontService, pixelWidth, pixelHeight, worldWidth, worldHeight, mSubsystem.FrameCount);
+		let panel = new WorldUIPanel(device, fontService, pixelWidth, pixelHeight, worldWidth, worldHeight, mSubsystem.FrameCount, mSubsystem.RenderSystem?.ShaderSystem);
 		panel.Entity = entity;
 		mPanels.Add(panel);
 		feature.AddPanel(panel);

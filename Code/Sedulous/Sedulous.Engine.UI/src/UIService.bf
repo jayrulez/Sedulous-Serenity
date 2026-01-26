@@ -9,6 +9,7 @@ using Sedulous.RHI;
 using Sedulous.UI;
 using Sedulous.Drawing;
 using Sedulous.Mathematics;
+using Sedulous.Shaders;
 using Sedulous.Shell.Input;
 
 /// Context service for UI management across all scenes.
@@ -34,6 +35,7 @@ class UIService : ContextService
 	private IClipboard mClipboard;
 	private ITextureView mAtlasTexture;
 	private Vector2 mWhitePixelUV;
+	private NewShaderSystem mShaderSystem;
 
 	// Track created scene components
 	private List<UISceneComponent> mSceneComponents = new .() ~ delete _;
@@ -96,6 +98,12 @@ class UIService : ContextService
 			component.SetAtlasTexture(atlas);
 			component.SetWhitePixelUV(whitePixelUV);
 		}
+	}
+
+	/// Sets the shader system for drawing shader loading.
+	public void SetShaderSystem(NewShaderSystem shaderSystem)
+	{
+		mShaderSystem = shaderSystem;
 	}
 
 	/// Sets the UI scale for all scenes based on display content scale (DPI).
@@ -170,7 +178,7 @@ class UIService : ContextService
 		mSceneComponents.Add(uiComponent);
 
 		// Initialize rendering (use renderer's color format, double-buffered)
-		if (uiComponent.InitializeRendering(mRendererService.Device, mRendererService.ColorFormat, 2) case .Err)
+		if (uiComponent.InitializeRendering(mRendererService.Device, mRendererService.ColorFormat, 2, mShaderSystem) case .Err)
 		{
 			mContext?.Logger?.LogError("UIService: Failed to initialize UI rendering for scene '{}'", scene.Name);
 			scene.RemoveSceneComponent<UISceneComponent>();

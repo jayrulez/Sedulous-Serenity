@@ -3,7 +3,7 @@ namespace Sedulous.Drawing.Renderer;
 using System;
 using System.Collections;
 using Sedulous.RHI;
-using Sedulous.RHI.HLSLShaderCompiler;
+using Sedulous.Shaders;
 using Sedulous.Drawing;
 using Sedulous.Mathematics;
 using Sedulous.Profiler;
@@ -15,90 +15,125 @@ struct DrawingUniforms
 	public Matrix Projection;
 }
 
+/// Per-instance data for instanced sprite rendering.
+/// Must match the shader's InstanceInput struct layout.
+[CRepr]
+public struct DrawingSpriteInstance
+{
+	public Vector2 Position;    // Screen position (top-left)
+	public Vector2 Size;        // Width, height in pixels
+	public Vector4 UVRect;      // minU, minV, maxU, maxV
+	public Color Color;         // RGBA color
+	public float Rotation;      // Rotation in radians
+	public float _Pad0;         // Padding to 48 bytes
+	public float _Pad1;
+	public float _Pad2;
+
+	public this(Vector2 position, Vector2 size, Vector4 uvRect, Color color, float rotation = 0)
+	{
+		Position = position;
+		Size = size;
+		UVRect = uvRect;
+		Color = color;
+		Rotation = rotation;
+		_Pad0 = 0;
+		_Pad1 = 0;
+		_Pad2 = 0;
+	}
+}
+
 /// Renders DrawContext/DrawBatch content using RHI.
+/// Supports both per-vertex rendering (shapes, text) and GPU-instanced sprites.
 /// Does NOT own the device or swapchain - caller manages those.
 public class DrawingRenderer : IDisposable
 {
 	private IDevice mDevice;
 	private int32 mFrameCount;
 	private TextureFormat mTargetFormat;
+	private NewShaderSystem mShaderSystem;  // Borrowed, not owned
 
-	// Shaders
+	// Standard pipeline (per-vertex)
 	private IShaderModule mVertShader;
 	private IShaderModule mFragShader;
-
-	// Pipeline
 	private IBindGroupLayout mBindGroupLayout;
 	private IPipelineLayout mPipelineLayout;
 	private IRenderPipeline mPipeline;
 	private IRenderPipeline mMsaaPipeline;
+
+	// Instanced pipeline
+	private IShaderModule mInstancedVertShader;
+	private IShaderModule mInstancedFragShader;
+	private IRenderPipeline mInstancedPipeline;
+	private IRenderPipeline mInstancedMsaaPipeline;
+
 	private uint32 mMsaaSampleCount = 4;
 
-	// Per-frame resources
+	// Per-frame resources for standard rendering
 	private IBuffer[] mVertexBuffers;
 	private IBuffer[] mIndexBuffers;
 	private IBuffer[] mUniformBuffers;
 	private IBindGroup[] mBindGroups;
 
+	// Per-frame resources for instanced rendering
+	private IBuffer[] mInstanceBuffers;
+	private IBindGroup[] mInstancedBindGroups;
+
 	// Current texture view (set before Prepare)
 	private ITextureView mTextureView;
 	private ISampler mSampler;
 
-	// Batch data converted for GPU
+	// Batch data converted for GPU (standard mode)
 	private List<DrawingRenderVertex> mVertices = new .() ~ delete _;
 	private List<uint16> mIndices = new .() ~ delete _;
 	private List<DrawCommand> mDrawCommands = new .() ~ delete _;
 
+	// Instance data for instanced sprite rendering
+	private List<DrawingSpriteInstance> mSpriteInstances = new .() ~ delete _;
+
 	// Buffer sizes
 	private const int32 MAX_VERTICES = 65536;
 	private const int32 MAX_INDICES = 65536 * 3;
+	private const int32 MAX_SPRITE_INSTANCES = 16384;
 
 	public bool IsInitialized { get; private set; }
 
-	/// Initialize the renderer with the given device and target format.
-	/// frameCount should match the swapchain's frame count.
+	/// Initialize the renderer with a shader system.
+	/// The shader system should be initialized with the path to shader files.
 	public Result<void> Initialize(
 		IDevice device,
 		TextureFormat targetFormat,
 		int32 frameCount,
-		IDrawingShaderProvider shaderProvider = null)
+		NewShaderSystem shaderSystem)
 	{
 		using (SProfiler.Begin("DrawingRenderer.Initialize"))
 		{
-		mDevice = device;
-		mTargetFormat = targetFormat;
-		mFrameCount = frameCount;
+			mDevice = device;
+			mTargetFormat = targetFormat;
+			mFrameCount = frameCount;
+			mShaderSystem = shaderSystem;
 
-		// Use default shader provider if none specified
-		IDrawingShaderProvider provider;
-		DefaultDrawingShaderProvider defaultProvider = scope .();
-		if (shaderProvider != null)
-			provider = shaderProvider;
-		else
-			provider = defaultProvider;
+			// Load shaders from files
+			if (LoadShaders() case .Err)
+				return .Err;
 
-		// Compile shaders
-		if (CompileShaders(provider) case .Err)
-			return .Err;
+			// Create sampler
+			if (CreateSampler() case .Err)
+				return .Err;
 
-		// Create sampler
-		if (CreateSampler() case .Err)
-			return .Err;
+			// Create bind group layout and pipeline layout
+			if (CreateLayouts() case .Err)
+				return .Err;
 
-		// Create bind group layout and pipeline layout
-		if (CreateLayouts() case .Err)
-			return .Err;
+			// Create pipelines (standard and instanced)
+			if (CreatePipelines() case .Err)
+				return .Err;
 
-		// Create pipeline
-		if (CreatePipeline() case .Err)
-			return .Err;
+			// Create per-frame resources
+			if (CreatePerFrameResources() case .Err)
+				return .Err;
 
-		// Create per-frame resources
-		if (CreatePerFrameResources() case .Err)
-			return .Err;
-
-		IsInitialized = true;
-		return .Ok;
+			IsInitialized = true;
+			return .Ok;
 		}
 	}
 
@@ -110,53 +145,81 @@ public class DrawingRenderer : IDisposable
 		{
 			mTextureView = textureView;
 			// Invalidate all bind groups so they get recreated with new texture
-			if (mBindGroups != null)
+			InvalidateBindGroups(mBindGroups);
+			InvalidateBindGroups(mInstancedBindGroups);
+		}
+	}
+
+	private void InvalidateBindGroups(IBindGroup[] bindGroups)
+	{
+		if (bindGroups == null)
+			return;
+
+		for (int i = 0; i < bindGroups.Count; i++)
+		{
+			if (bindGroups[i] != null)
 			{
-				for (int i = 0; i < mBindGroups.Count; i++)
-				{
-					if (mBindGroups[i] != null)
-					{
-						delete mBindGroups[i];
-						mBindGroups[i] = null;
-					}
-				}
+				delete bindGroups[i];
+				bindGroups[i] = null;
 			}
 		}
 	}
 
-	/// Prepare batch data for rendering.
+	/// Prepare batch data for standard (per-vertex) rendering.
 	/// Call this after drawing to DrawContext and before the render pass.
 	public void Prepare(DrawBatch batch, int32 frameIndex)
 	{
 		using (SProfiler.Begin("DrawingRenderer.Prepare"))
 		{
-		// Convert vertices
-		mVertices.Clear();
-		for (let v in batch.Vertices)
-			mVertices.Add(.(v));
+			// Convert vertices
+			mVertices.Clear();
+			for (let v in batch.Vertices)
+				mVertices.Add(.(v));
 
-		// Copy indices
-		mIndices.Clear();
-		for (let i in batch.Indices)
-			mIndices.Add(i);
+			// Copy indices
+			mIndices.Clear();
+			for (let i in batch.Indices)
+				mIndices.Add(i);
 
-		// Copy draw commands
-		mDrawCommands.Clear();
-		for (let cmd in batch.Commands)
-			mDrawCommands.Add(cmd);
+			// Copy draw commands
+			mDrawCommands.Clear();
+			for (let cmd in batch.Commands)
+				mDrawCommands.Add(cmd);
 
-		// Upload to GPU buffers
-		if (mVertices.Count > 0)
-		{
-			let vertexData = Span<uint8>((uint8*)mVertices.Ptr, mVertices.Count * sizeof(DrawingRenderVertex));
-			mDevice.Queue.WriteBuffer(mVertexBuffers[frameIndex], 0, vertexData);
+			// Upload to GPU buffers
+			if (mVertices.Count > 0)
+			{
+				let vertexData = Span<uint8>((uint8*)mVertices.Ptr, mVertices.Count * sizeof(DrawingRenderVertex));
+				mDevice.Queue.WriteBuffer(mVertexBuffers[frameIndex], 0, vertexData);
 
-			let indexData = Span<uint8>((uint8*)mIndices.Ptr, mIndices.Count * sizeof(uint16));
-			mDevice.Queue.WriteBuffer(mIndexBuffers[frameIndex], 0, indexData);
+				let indexData = Span<uint8>((uint8*)mIndices.Ptr, mIndices.Count * sizeof(uint16));
+				mDevice.Queue.WriteBuffer(mIndexBuffers[frameIndex], 0, indexData);
+			}
+
+			// Update bind group with current texture
+			UpdateBindGroup(frameIndex);
 		}
+	}
 
-		// Update bind group with current texture
-		UpdateBindGroup(frameIndex);
+	/// Prepare sprite instances for instanced rendering.
+	/// Call this with sprite instance data before rendering.
+	public void PrepareInstanced(Span<DrawingSpriteInstance> instances, int32 frameIndex)
+	{
+		using (SProfiler.Begin("DrawingRenderer.PrepareInstanced"))
+		{
+			mSpriteInstances.Clear();
+			for (let inst in instances)
+				mSpriteInstances.Add(inst);
+
+			// Upload to GPU instance buffer
+			if (mSpriteInstances.Count > 0 && mInstanceBuffers != null)
+			{
+				let instanceData = Span<uint8>((uint8*)mSpriteInstances.Ptr, mSpriteInstances.Count * sizeof(DrawingSpriteInstance));
+				mDevice.Queue.WriteBuffer(mInstanceBuffers[frameIndex], 0, instanceData);
+			}
+
+			// Update instanced bind group
+			UpdateInstancedBindGroup(frameIndex);
 		}
 	}
 
@@ -165,123 +228,113 @@ public class DrawingRenderer : IDisposable
 	{
 		using (SProfiler.Begin("DrawingRenderer.UpdateProjection"))
 		{
-		// Y-down orthographic projection (origin at top-left)
-		// Check if device requires flipped projection (Vulkan vs OpenGL/D3D)
-		Matrix projection;
-		if (mDevice.FlipProjectionRequired)
-			projection = Matrix.CreateOrthographicOffCenter(0, (float)width, 0, (float)height, -1, 1);
-		else
-			projection = Matrix.CreateOrthographicOffCenter(0, (float)width, (float)height, 0, -1, 1);
+			// Y-down orthographic projection (origin at top-left)
+			// Check if device requires flipped projection (Vulkan vs OpenGL/D3D)
+			Matrix projection;
+			if (mDevice.FlipProjectionRequired)
+				projection = Matrix.CreateOrthographicOffCenter(0, (float)width, 0, (float)height, -1, 1);
+			else
+				projection = Matrix.CreateOrthographicOffCenter(0, (float)width, (float)height, 0, -1, 1);
 
-		DrawingUniforms uniforms = .() { Projection = projection };
-		let uniformData = Span<uint8>((uint8*)&uniforms, sizeof(DrawingUniforms));
-		mDevice.Queue.WriteBuffer(mUniformBuffers[frameIndex], 0, uniformData);
+			DrawingUniforms uniforms = .() { Projection = projection };
+			let uniformData = Span<uint8>((uint8*)&uniforms, sizeof(DrawingUniforms));
+			mDevice.Queue.WriteBuffer(mUniformBuffers[frameIndex], 0, uniformData);
 		}
 	}
 
-	/// Render to the current render pass.
+	/// Render standard (per-vertex) content to the current render pass.
 	/// The render pass should already be begun.
 	public void Render(IRenderPassEncoder renderPass, uint32 width, uint32 height, int32 frameIndex, bool useMsaa = false)
 	{
 		using (SProfiler.Begin("DrawingRenderer.Render"))
 		{
-		if (mIndices.Count == 0 || mDrawCommands.Count == 0)
-			return;
+			if (mIndices.Count == 0 || mDrawCommands.Count == 0)
+				return;
 
-		renderPass.SetViewport(0, 0, width, height, 0, 1);
-		renderPass.SetPipeline(useMsaa ? mMsaaPipeline : mPipeline);
-		renderPass.SetBindGroup(0, mBindGroups[frameIndex]);
-		renderPass.SetVertexBuffer(0, mVertexBuffers[frameIndex], 0);
-		renderPass.SetIndexBuffer(mIndexBuffers[frameIndex], .UInt16, 0);
+			renderPass.SetViewport(0, 0, width, height, 0, 1);
+			renderPass.SetPipeline(useMsaa ? mMsaaPipeline : mPipeline);
+			renderPass.SetBindGroup(0, mBindGroups[frameIndex]);
+			renderPass.SetVertexBuffer(0, mVertexBuffers[frameIndex], 0);
+			renderPass.SetIndexBuffer(mIndexBuffers[frameIndex], .UInt16, 0);
 
-		// Process each draw command with its own scissor rect
-		for (let cmd in mDrawCommands)
-		{
-			if (cmd.IndexCount == 0)
-				continue;
-
-			// Set scissor rect based on clip mode
-			if (cmd.ClipMode == .Scissor && cmd.ClipRect.Width > 0 && cmd.ClipRect.Height > 0)
+			// Process each draw command with its own scissor rect
+			for (let cmd in mDrawCommands)
 			{
-				// Conservative scissor rect calculation
-				let startX = (int32)Math.Ceiling(Math.Max(0f, cmd.ClipRect.X));
-				let startY = (int32)Math.Ceiling(Math.Max(0f, cmd.ClipRect.Y));
-				let endX = (int32)Math.Floor(Math.Min(cmd.ClipRect.X + cmd.ClipRect.Width, (float)width));
-				let endY = (int32)Math.Floor(Math.Min(cmd.ClipRect.Y + cmd.ClipRect.Height, (float)height));
-				let w = (uint32)Math.Max(0, endX - startX);
-				let h = (uint32)Math.Max(0, endY - startY);
-				renderPass.SetScissorRect(startX, startY, w, h);
-			}
-			else
-			{
-				renderPass.SetScissorRect(0, 0, width, height);
-			}
+				if (cmd.IndexCount == 0)
+					continue;
 
-			renderPass.DrawIndexed((uint32)cmd.IndexCount, 1, (uint32)cmd.StartIndex, 0, 0);
-		}
+				// Set scissor rect based on clip mode
+				if (cmd.ClipMode == .Scissor && cmd.ClipRect.Width > 0 && cmd.ClipRect.Height > 0)
+				{
+					// Conservative scissor rect calculation
+					let startX = (int32)Math.Ceiling(Math.Max(0f, cmd.ClipRect.X));
+					let startY = (int32)Math.Ceiling(Math.Max(0f, cmd.ClipRect.Y));
+					let endX = (int32)Math.Floor(Math.Min(cmd.ClipRect.X + cmd.ClipRect.Width, (float)width));
+					let endY = (int32)Math.Floor(Math.Min(cmd.ClipRect.Y + cmd.ClipRect.Height, (float)height));
+					let w = (uint32)Math.Max(0, endX - startX);
+					let h = (uint32)Math.Max(0, endY - startY);
+					renderPass.SetScissorRect(startX, startY, w, h);
+				}
+				else
+				{
+					renderPass.SetScissorRect(0, 0, width, height);
+				}
+
+				renderPass.DrawIndexed((uint32)cmd.IndexCount, 1, (uint32)cmd.StartIndex, 0, 0);
+			}
 		}
 	}
 
-	private Result<void> CompileShaders(IDrawingShaderProvider provider)
+	/// Render instanced sprites to the current render pass.
+	/// Call PrepareInstanced() before this.
+	public void RenderInstanced(IRenderPassEncoder renderPass, uint32 width, uint32 height, int32 frameIndex, bool useMsaa = false)
 	{
-		let compiler = scope HLSLCompiler();
-		if (!compiler.IsInitialized)
+		using (SProfiler.Begin("DrawingRenderer.RenderInstanced"))
 		{
-			Console.WriteLine("Failed to initialize HLSL compiler");
-			return .Err;
+			if (mSpriteInstances.Count == 0 || mInstancedPipeline == null)
+				return;
+
+			renderPass.SetViewport(0, 0, width, height, 0, 1);
+			renderPass.SetScissorRect(0, 0, width, height);
+			renderPass.SetPipeline(useMsaa ? mInstancedMsaaPipeline : mInstancedPipeline);
+			renderPass.SetBindGroup(0, mInstancedBindGroups[frameIndex]);
+			renderPass.SetVertexBuffer(0, mInstanceBuffers[frameIndex], 0);
+
+			// Draw 6 vertices per sprite (2 triangles), N instances
+			renderPass.Draw(6, (uint32)mSpriteInstances.Count, 0, 0);
 		}
+	}
 
-		// Get shader sources
-		let vertSource = scope String();
-		let fragSource = scope String();
-		provider.GetVertexShaderSource(vertSource);
-		provider.GetFragmentShaderSource(fragSource);
+	private Result<void> LoadShaders()
+	{
+		if (mShaderSystem == null)
+			return .Err;
 
-		// Compile vertex shader
-		ShaderCompileOptions vertOptions = .();
-		vertOptions.EntryPoint = "main";
-		vertOptions.Stage = .Vertex;
-		vertOptions.Target = .SPIRV;
-		vertOptions.ConstantBufferShift = VulkanBindingShifts.SHIFT_B;
-		vertOptions.TextureShift = VulkanBindingShifts.SHIFT_T;
-		vertOptions.SamplerShift = VulkanBindingShifts.SHIFT_S;
-
-		let vertResult = compiler.Compile(vertSource, vertOptions);
-		defer delete vertResult;
-		if (!vertResult.Success)
+		// Load standard shaders (no instancing)
+		let standardResult = mShaderSystem.GetShaderPair("drawing", .None);
+		if (standardResult case .Ok(let stdShaders))
 		{
-			Console.WriteLine(scope $"Vertex shader compilation failed: {vertResult.Errors}");
-			return .Err;
+			mVertShader = stdShaders.vert.Module;
+			mFragShader = stdShaders.frag.Module;
 		}
-
-		ShaderModuleDescriptor vertDesc = .(vertResult.Bytecode);
-		if (mDevice.CreateShaderModule(&vertDesc) case .Ok(let vs))
-			mVertShader = vs;
 		else
-			return .Err;
-
-		// Compile fragment shader
-		ShaderCompileOptions fragOptions = .();
-		fragOptions.EntryPoint = "main";
-		fragOptions.Stage = .Fragment;
-		fragOptions.Target = .SPIRV;
-		fragOptions.ConstantBufferShift = VulkanBindingShifts.SHIFT_B;
-		fragOptions.TextureShift = VulkanBindingShifts.SHIFT_T;
-		fragOptions.SamplerShift = VulkanBindingShifts.SHIFT_S;
-
-		let fragResult = compiler.Compile(fragSource, fragOptions);
-		defer delete fragResult;
-		if (!fragResult.Success)
 		{
-			Console.WriteLine(scope $"Fragment shader compilation failed: {fragResult.Errors}");
+			Console.WriteLine("Failed to load standard drawing shaders");
 			return .Err;
 		}
 
-		ShaderModuleDescriptor fragDesc = .(fragResult.Bytecode);
-		if (mDevice.CreateShaderModule(&fragDesc) case .Ok(let fs))
-			mFragShader = fs;
+		// Load instanced shaders
+		let instancedResult = mShaderSystem.GetShaderPair("drawing", .Instanced);
+		if (instancedResult case .Ok(let instShaders))
+		{
+			mInstancedVertShader = instShaders.vert.Module;
+			mInstancedFragShader = instShaders.frag.Module;
+		}
 		else
+		{
+			Console.WriteLine("Failed to load instanced drawing shaders");
 			return .Err;
+		}
 
 		return .Ok;
 	}
@@ -324,7 +377,20 @@ public class DrawingRenderer : IDisposable
 		return .Ok;
 	}
 
-	private Result<void> CreatePipeline()
+	private Result<void> CreatePipelines()
+	{
+		// Create standard pipeline
+		if (CreateStandardPipeline() case .Err)
+			return .Err;
+
+		// Create instanced pipeline
+		if (CreateInstancedPipeline() case .Err)
+			return .Err;
+
+		return .Ok;
+	}
+
+	private Result<void> CreateStandardPipeline()
 	{
 		// Vertex layout: position (float2), texcoord (float2), color (float4)
 		VertexAttribute[3] vertexAttributes = .(
@@ -382,12 +448,80 @@ public class DrawingRenderer : IDisposable
 		return .Ok;
 	}
 
+	private Result<void> CreateInstancedPipeline()
+	{
+		if (mInstancedVertShader == null || mInstancedFragShader == null)
+			return .Ok;  // Skip if instanced shaders not loaded
+
+		// Instance layout: position (float2), size (float2), uvRect (float4), color (unorm8x4), rotation (float), padding
+		VertexAttribute[8] instanceAttributes = .(
+			.(VertexFormat.Float2, 0, 0),              // Position
+			.(VertexFormat.Float2, 8, 1),              // Size
+			.(VertexFormat.Float4, 16, 2),             // UVRect
+			.(VertexFormat.UByte4Normalized, 32, 3),   // Color
+			.(VertexFormat.Float, 36, 4),              // Rotation
+			.(VertexFormat.Float, 40, 5),              // Pad0
+			.(VertexFormat.Float, 44, 6),              // Pad1
+			.(VertexFormat.Float, 48, 7)               // Pad2
+		);
+		VertexBufferLayout[1] instanceBuffers = .(
+			.((uint64)sizeof(DrawingSpriteInstance), instanceAttributes, .Instance)
+		);
+
+		ColorTargetState[1] colorTargets = .(.(mTargetFormat, .AlphaBlend));
+
+		RenderPipelineDescriptor pipelineDesc = .()
+		{
+			Layout = mPipelineLayout,
+			Vertex = .()
+			{
+				Shader = .(mInstancedVertShader, "main"),
+				Buffers = instanceBuffers
+			},
+			Fragment = .()
+			{
+				Shader = .(mInstancedFragShader, "main"),
+				Targets = colorTargets
+			},
+			Primitive = .()
+			{
+				Topology = .TriangleList,
+				FrontFace = .CCW,
+				CullMode = .None
+			},
+			DepthStencil = null,
+			Multisample = .()
+			{
+				Count = 1,
+				Mask = uint32.MaxValue,
+				AlphaToCoverageEnabled = false
+			}
+		};
+
+		// Create instanced pipeline
+		if (mDevice.CreateRenderPipeline(&pipelineDesc) case .Ok(let pipeline))
+			mInstancedPipeline = pipeline;
+		else
+			return .Err;
+
+		// Create instanced MSAA pipeline variant
+		pipelineDesc.Multisample.Count = mMsaaSampleCount;
+		if (mDevice.CreateRenderPipeline(&pipelineDesc) case .Ok(let msaaPipeline))
+			mInstancedMsaaPipeline = msaaPipeline;
+		else
+			return .Err;
+
+		return .Ok;
+	}
+
 	private Result<void> CreatePerFrameResources()
 	{
 		mVertexBuffers = new IBuffer[mFrameCount];
 		mIndexBuffers = new IBuffer[mFrameCount];
 		mUniformBuffers = new IBuffer[mFrameCount];
 		mBindGroups = new IBindGroup[mFrameCount];
+		mInstanceBuffers = new IBuffer[mFrameCount];
+		mInstancedBindGroups = new IBindGroup[mFrameCount];
 
 		for (int32 i = 0; i < mFrameCount; i++)
 		{
@@ -426,6 +560,18 @@ public class DrawingRenderer : IDisposable
 				mUniformBuffers[i] = ub;
 			else
 				return .Err;
+
+			// Instance buffer for instanced sprites
+			BufferDescriptor instanceDesc = .()
+			{
+				Size = (uint64)(MAX_SPRITE_INSTANCES * sizeof(DrawingSpriteInstance)),
+				Usage = .Vertex,
+				MemoryAccess = .Upload
+			};
+			if (mDevice.CreateBuffer(&instanceDesc) case .Ok(let instBuf))
+				mInstanceBuffers[i] = instBuf;
+			else
+				return .Err;
 		}
 
 		return .Ok;
@@ -450,42 +596,40 @@ public class DrawingRenderer : IDisposable
 			mBindGroups[frameIndex] = group;
 	}
 
+	private void UpdateInstancedBindGroup(int32 frameIndex)
+	{
+		// Skip if bind group is already valid
+		if (mInstancedBindGroups[frameIndex] != null)
+			return;
+
+		if (mTextureView == null)
+			return;
+
+		BindGroupEntry[3] bindGroupEntries = .(
+			BindGroupEntry.Buffer(0, mUniformBuffers[frameIndex]),
+			BindGroupEntry.Texture(0, mTextureView),
+			BindGroupEntry.Sampler(0, mSampler)
+		);
+		BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
+		if (mDevice.CreateBindGroup(&bindGroupDesc) case .Ok(let group))
+			mInstancedBindGroups[frameIndex] = group;
+	}
+
 	public void Dispose()
 	{
 		// Per-frame resources
-		if (mBindGroups != null)
-		{
-			for (let bg in mBindGroups)
-				if (bg != null) delete bg;
-			delete mBindGroups;
-			mBindGroups = null;
-		}
+		DisposeBufferArray(ref mBindGroups);
+		DisposeBufferArray(ref mInstancedBindGroups);
+		DisposeBufferArray(ref mUniformBuffers);
+		DisposeBufferArray(ref mIndexBuffers);
+		DisposeBufferArray(ref mVertexBuffers);
+		DisposeBufferArray(ref mInstanceBuffers);
 
-		if (mUniformBuffers != null)
-		{
-			for (let ub in mUniformBuffers)
-				if (ub != null) delete ub;
-			delete mUniformBuffers;
-			mUniformBuffers = null;
-		}
+		// Instanced pipeline resources
+		if (mInstancedMsaaPipeline != null) { delete mInstancedMsaaPipeline; mInstancedMsaaPipeline = null; }
+		if (mInstancedPipeline != null) { delete mInstancedPipeline; mInstancedPipeline = null; }
 
-		if (mIndexBuffers != null)
-		{
-			for (let ib in mIndexBuffers)
-				if (ib != null) delete ib;
-			delete mIndexBuffers;
-			mIndexBuffers = null;
-		}
-
-		if (mVertexBuffers != null)
-		{
-			for (let vb in mVertexBuffers)
-				if (vb != null) delete vb;
-			delete mVertexBuffers;
-			mVertexBuffers = null;
-		}
-
-		// Pipeline resources
+		// Standard pipeline resources
 		if (mMsaaPipeline != null) { delete mMsaaPipeline; mMsaaPipeline = null; }
 		if (mPipeline != null) { delete mPipeline; mPipeline = null; }
 		if (mPipelineLayout != null) { delete mPipelineLayout; mPipelineLayout = null; }
@@ -494,10 +638,19 @@ public class DrawingRenderer : IDisposable
 		// Sampler
 		if (mSampler != null) { delete mSampler; mSampler = null; }
 
-		// Shaders
-		if (mFragShader != null) { delete mFragShader; mFragShader = null; }
-		if (mVertShader != null) { delete mVertShader; mVertShader = null; }
+		// Note: Shader modules are owned by the shader system cache, not by us
 
 		IsInitialized = false;
+	}
+
+	private void DisposeBufferArray<T>(ref T[] buffers) where T : IDisposable, delete
+	{
+		if (buffers != null)
+		{
+			for (let buf in buffers)
+				if (buf != null) delete buf;
+			delete buffers;
+			buffers = null;
+		}
 	}
 }

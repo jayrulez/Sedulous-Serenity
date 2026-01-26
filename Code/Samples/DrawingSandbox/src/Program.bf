@@ -9,6 +9,7 @@ using Sedulous.Drawing;
 using Sedulous.Drawing.Fonts;
 using Sedulous.Drawing.Renderer;
 using Sedulous.Fonts;
+using Sedulous.Shaders;
 
 /// Drawing sandbox sample demonstrating Sedulous.Drawing capabilities.
 class DrawingSandboxSample : RHISampleApp
@@ -21,6 +22,9 @@ class DrawingSandboxSample : RHISampleApp
 
 	// GPU renderer
 	private DrawingRenderer mDrawingRenderer;
+
+	// Shader system
+	private NewShaderSystem mShaderSystem;
 
 	// Font size used for labels
 	private const float FONT_SIZE = 20;
@@ -48,12 +52,22 @@ class DrawingSandboxSample : RHISampleApp
 		if (!InitializeFont())
 			return false;
 
+		// Initialize shader system
+		mShaderSystem = new NewShaderSystem();
+		String shaderPath = scope .();
+		GetAssetPath("Render/shaders", shaderPath);
+		if (mShaderSystem.Initialize(Device, shaderPath) case .Err)
+		{
+			Console.WriteLine("Failed to initialize shader system");
+			return false;
+		}
+
 		// Create draw context with font service (auto-sets WhitePixelUV)
 		mDrawContext = new DrawContext(mFontService);
 
 		// Create and initialize the drawing renderer
 		mDrawingRenderer = new DrawingRenderer();
-		if (mDrawingRenderer.Initialize(Device, SwapChain.Format, MAX_FRAMES_IN_FLIGHT) case .Err)
+		if (mDrawingRenderer.Initialize(Device, SwapChain.Format, MAX_FRAMES_IN_FLIGHT, mShaderSystem) case .Err)
 		{
 			Console.WriteLine("Failed to initialize DrawingRenderer");
 			return false;
@@ -363,6 +377,13 @@ class DrawingSandboxSample : RHISampleApp
 
 		// FontService handles font and atlas cleanup
 		if (mFontService != null) delete mFontService;
+
+		// Clean up shader system
+		if (mShaderSystem != null)
+		{
+			mShaderSystem.Dispose();
+			delete mShaderSystem;
+		}
 	}
 }
 

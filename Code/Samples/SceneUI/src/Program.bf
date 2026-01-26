@@ -26,6 +26,7 @@ using Sedulous.Shell.SDL3;
 using Sedulous.Geometry.Resources;
 using Sedulous.UI.Shell;
 using Sedulous.Fonts;
+using Sedulous.Shaders;
 
 /// Scene UI sample demonstrating Sedulous.Engine.UI integration with 3D rendering.
 /// Features:
@@ -63,6 +64,7 @@ class SceneUISample : RHISampleApp
 	private ShellClipboardAdapter mClipboard;
 	private FontService mFontService;
 	private TooltipService mTooltipService;
+	private NewShaderSystem mShaderSystem;
 
 	// Fox resources
 	private SkinnedMeshResource mFoxResource ~ delete _;
@@ -143,8 +145,18 @@ class SceneUISample : RHISampleApp
 		mInputService = new InputService(Shell.InputManager);
 		mContext.RegisterService<InputService>(mInputService);
 
+		// Initialize shader system for UI rendering
+		mShaderSystem = new NewShaderSystem();
+		let uiShaderPath = GetAssetPath("Render/shaders", .. scope .());
+		if (mShaderSystem.Initialize(Device, uiShaderPath) case .Err)
+		{
+			Console.WriteLine("Failed to initialize shader system for UI");
+			return false;
+		}
+
 		// Create and configure UIService
 		mUIService = new UIService();
+		mUIService.SetShaderSystem(mShaderSystem);
 		ConfigureUIServices();  // Sets up font service, theme, clipboard on UIService
 		let (wu, wv) = mFontService.WhitePixelUV;
 		mUIService.SetAtlasTexture(mFontService.AtlasTextureView, .(wu, wv));
@@ -462,7 +474,7 @@ class SceneUISample : RHISampleApp
 			mWorldUIEntity.AddComponent(mWorldUIComponent);
 
 			// Initialize world UI rendering
-			if (mWorldUIComponent.InitializeRendering(Device, SwapChain.Format, MAX_FRAMES_IN_FLIGHT) case .Err)
+			if (mWorldUIComponent.InitializeRendering(Device, SwapChain.Format, MAX_FRAMES_IN_FLIGHT, mShaderSystem) case .Err)
 			{
 				Console.WriteLine("Failed to initialize world UI rendering");
 			}
@@ -852,6 +864,14 @@ class SceneUISample : RHISampleApp
 
 		// Clean up font service (owns GPU atlas texture resources)
 		if (mFontService != null) { delete mFontService; mFontService = null; }
+
+		// Clean up shader system
+		if (mShaderSystem != null)
+		{
+			mShaderSystem.Dispose();
+			delete mShaderSystem;
+			mShaderSystem = null;
+		}
 
 		Console.WriteLine("Scene UI sample cleaned up.");
 	}

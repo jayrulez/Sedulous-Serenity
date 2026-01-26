@@ -8,6 +8,7 @@ using Sedulous.Serialization;
 using Sedulous.Drawing;
 using Sedulous.UI;
 using Sedulous.Drawing.Renderer;
+using Sedulous.Shaders;
 
 // Explicit RHI imports to avoid ambiguity with Drawing.ITexture
 using Sedulous.RHI;
@@ -226,7 +227,7 @@ class UIComponent : IEntityComponent
 
 	/// Initializes render-to-texture resources.
 	/// Call this after the device is available.
-	public Result<void> InitializeRendering(IDevice device, TextureFormat format, int32 frameCount)
+	public Result<void> InitializeRendering(IDevice device, TextureFormat format, int32 frameCount, NewShaderSystem shaderSystem)
 	{
 		if (mTextureCreated)
 			return .Ok;
@@ -279,7 +280,7 @@ class UIComponent : IEntityComponent
 		// Create our own DrawingRenderer for off-screen rendering
 		mDrawingRenderer = new DrawingRenderer();
 		mOwnsRenderer = true;
-		if (mDrawingRenderer.Initialize(device, format, frameCount) case .Err)
+		if (mDrawingRenderer.Initialize(device, format, frameCount, shaderSystem) case .Err)
 		{
 			delete mDrawingRenderer;
 			mDrawingRenderer = null;

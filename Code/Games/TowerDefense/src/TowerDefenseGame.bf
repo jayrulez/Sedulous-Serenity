@@ -56,7 +56,7 @@ class TowerDefenseGame : RHISampleApp
 	private LevelSelect mLevelSelect ~ delete _;
 	private GameHUD mGameHUD ~ delete _;
 	private ITheme mUITheme ~ delete _;
-	private FontService mFontService ~ delete _;
+	private FontService mFontService;
 
 	// Audio backend
 	private SDL3AudioSystem mAudioSystem;
@@ -1495,6 +1495,8 @@ class TowerDefenseGame : RHISampleApp
 
 		// Shutdown context (destroys scenes)
 		mContext?.Shutdown();
+
+		delete mFontService;
 
 		// Delete services (in reverse order of creation)
 		delete mInputService;
