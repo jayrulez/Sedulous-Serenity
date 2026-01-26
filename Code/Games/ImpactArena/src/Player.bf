@@ -15,7 +15,9 @@ class Player
 	public const float Radius = 0.5f;
 	public const float MoveForce = 3000.0f; // Scaled for dt multiplication (slightly boosted for responsiveness)
 	public const float DashImpulse = 20.0f;
-	public const float DashCooldown = 1.5f;
+	public const float BaseDashCooldown = 1.5f;
+	public const float MinDashCooldown = 0.8f; // Cap so player doesn't get too powerful
+	public const float DashCooldownReductionPerWave = 0.05f;
 	public const float DashSpeedThreshold = 8.0f;
 	public const float MaxHealth = 100.0f;
 	public const float DamagePerHit = 10.0f;
@@ -31,11 +33,13 @@ class Player
 	private float mSpeedBoostTimer = 0.0f;
 	private Vector3 mLastMoveDir = .(0, 0, 1);
 	private bool mIsDashing = false;
+	private int32 mCurrentWave = 1;
 
 	public EntityId Entity => mEntity;
 	public float Health => mHealth;
 	public float HealthPercent => mHealth / MaxHealth;
-	public float DashCooldownPercent => Math.Clamp(1.0f - mDashTimer / DashCooldown, 0, 1);
+	public float EffectiveDashCooldown => Math.Max(MinDashCooldown, BaseDashCooldown - (mCurrentWave - 1) * DashCooldownReductionPerWave);
+	public float DashCooldownPercent => Math.Clamp(1.0f - mDashTimer / EffectiveDashCooldown, 0, 1);
 	public bool IsDashing => mIsDashing;
 	public bool IsAlive => mHealth > 0;
 	public bool IsInvulnerable => mInvulnTimer > 0;
@@ -112,7 +116,7 @@ class Player
 		if (dashPressed && mDashTimer <= 0)
 		{
 			mPhysicsModule.AddImpulse(mEntity, mLastMoveDir * DashImpulse);
-			mDashTimer = DashCooldown;
+			mDashTimer = EffectiveDashCooldown;
 			mIsDashing = true;
 		}
 
@@ -137,6 +141,11 @@ class Player
 		mSpeedBoostTimer = duration;
 	}
 
+	public void SetWave(int32 wave)
+	{
+		mCurrentWave = wave;
+	}
+
 	public void Reset()
 	{
 		mHealth = MaxHealth;
@@ -144,6 +153,7 @@ class Player
 		mInvulnTimer = 0;
 		mSpeedBoostTimer = 0;
 		mIsDashing = false;
+		mCurrentWave = 1;
 
 		var transform = mScene.GetTransform(mEntity);
 		transform.Position = .(0, Radius, 0);

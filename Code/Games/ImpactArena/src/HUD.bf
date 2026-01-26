@@ -24,7 +24,7 @@ class HUD
 
 	public void Draw(GameState state, Player player, int32 wave, int32 enemiesLeft, int32 score,
 		int32 highScore, float waveIntroTimer, uint32 screenWidth, uint32 screenHeight,
-		PowerUpType* inventory, int32 inventoryCount, int32 activeSlot, float totalTime)
+		PowerUpType* inventory, int32 inventoryCount, int32 activeSlot, float totalTime, Achievements achievements)
 	{
 		mScreenWidth = screenWidth;
 		mScreenHeight = screenHeight;
@@ -32,24 +32,24 @@ class HUD
 		switch (state)
 		{
 		case .Title:
-			DrawTitle(highScore, totalTime);
+			DrawTitle(highScore, totalTime, achievements);
 		case .Playing:
-			DrawPlayingHUD(player, wave, enemiesLeft, score);
+			DrawPlayingHUD(player, wave, enemiesLeft, score, achievements);
 			DrawInventory(inventory, inventoryCount, activeSlot, totalTime);
 		case .WaveIntro:
-			DrawPlayingHUD(player, wave, enemiesLeft, score);
+			DrawPlayingHUD(player, wave, enemiesLeft, score, achievements);
 			DrawInventory(inventory, inventoryCount, activeSlot, totalTime);
 			DrawWaveIntro(wave, waveIntroTimer);
 		case .GameOver:
-			DrawGameOver(score, highScore);
+			DrawGameOver(score, highScore, achievements);
 		case .Paused:
-			DrawPlayingHUD(player, wave, enemiesLeft, score);
+			DrawPlayingHUD(player, wave, enemiesLeft, score, achievements);
 			DrawInventory(inventory, inventoryCount, activeSlot, totalTime);
 			DrawPaused();
 		}
 	}
 
-	private void DrawTitle(int32 highScore, float time)
+	private void DrawTitle(int32 highScore, float time, Achievements achievements)
 	{
 		let screenW = (float)mScreenWidth;
 		let screenH = (float)mScreenHeight;
@@ -76,7 +76,7 @@ class HUD
 
 		// Main panel
 		let panelW = 420.0f;
-		let panelH = 280.0f;
+		let panelH = 320.0f; // Increased height for title display
 		let panelX = centerX - panelW * 0.5f;
 		let panelY = centerY - panelH * 0.5f - 20;
 
@@ -128,8 +128,37 @@ class HUD
 		mDrawContext.FillRect(.(centerX - lineW * 0.5f, subY, lineW, 2), Color(60, 120, 180, 150));
 		mDrawContext.DrawText("SURVIVE THE ONSLAUGHT", FontSmall, .(centerX - 82, subY + 8), Color(150, 180, 210));
 
+		// Player title and stats
+		let statsY = panelY + 130;
+		let titleStr = scope String();
+		Achievements.GetTitleString(achievements.CurrentTitle, titleStr);
+		let titleColor = GetTitleColor(achievements.CurrentTitle);
+		mDrawContext.DrawText("YOUR RANK:", FontSmall, .(centerX - 40, statsY), Color(120, 140, 160));
+		mDrawContext.DrawText(titleStr, FontLarge, .(centerX - (float)titleStr.Length * 6, statsY + 18), titleColor);
+
+		// Title progress bar
+		let progY = statsY + 48;
+		let progW = 200.0f;
+		let progH = 8.0f;
+		let progX = centerX - progW * 0.5f;
+		mDrawContext.FillRect(.(progX - 1, progY - 1, progW + 2, progH + 2), Color(30, 35, 45, 200));
+		let progress = achievements.GetTitleProgress();
+		if (progress < 1.0f)
+		{
+			mDrawContext.FillRect(.(progX, progY, progW * progress, progH), titleColor);
+			let killsLeft = achievements.GetKillsToNextTitle();
+			let progText = scope String();
+			progText.AppendF("{} kills to next rank", killsLeft);
+			mDrawContext.DrawText(progText, FontSmall, .(centerX - 55, progY + 12), Color(100, 110, 120));
+		}
+		else
+		{
+			mDrawContext.FillRect(.(progX, progY, progW, progH), titleColor);
+			mDrawContext.DrawText("MAX RANK ACHIEVED", FontSmall, .(centerX - 60, progY + 12), Color(255, 200, 80));
+		}
+
 		// Pulsing "Press SPACE to start"
-		let startY = panelY + 155;
+		let startY = panelY + 205;
 		let startPulse = (Math.Sin(time * 4.0f) + 1.0f) * 0.5f;
 		let startAlpha = (uint8)(150 + startPulse * 105);
 		let startScale = 1.0f + startPulse * 0.05f;
@@ -138,36 +167,58 @@ class HUD
 		// High score
 		if (highScore > 0)
 		{
-			let hsY = panelY + 195;
+			let hsY = panelY + 245;
 			let hsText = scope String();
 			hsText.AppendF("HIGH SCORE: {}", highScore);
 			mDrawContext.DrawText(hsText, FontNormal, .(centerX - 65, hsY), Color(255, 200, 80));
 		}
 
 		// Controls section
-		let ctrlY = panelY + 235;
+		let ctrlY = panelY + 280;
 		mDrawContext.FillRect(.(panelX + 20, ctrlY - 8, panelW - 40, 1), Color(60, 80, 100, 100));
 		mDrawContext.DrawText("WASD Move    SPACE Dash    E Use Item    ESC Pause", FontSmall, .(centerX - 175, ctrlY), Color(120, 140, 160));
 	}
 
-	private void DrawPlayingHUD(Player player, int32 wave, int32 enemiesLeft, int32 score)
+	private Color GetTitleColor(PlayerTitle title)
 	{
-		// Top-left: Wave and enemies panel
+		switch (title)
+		{
+		case .Rookie: return Color(150, 150, 150); // Gray
+		case .Fighter: return Color(100, 200, 100); // Green
+		case .Warrior: return Color(100, 150, 255); // Blue
+		case .Slayer: return Color(200, 100, 255); // Purple
+		case .Champion: return Color(255, 200, 80); // Gold
+		case .Legend: return Color(255, 140, 50); // Orange
+		case .Destroyer: return Color(255, 80, 80); // Red
+		case .Godlike: return Color(255, 50, 200); // Pink/Magenta
+		}
+	}
+
+	private void DrawPlayingHUD(Player player, int32 wave, int32 enemiesLeft, int32 score, Achievements achievements)
+	{
+		// Top-left: Wave and enemies panel with title
 		let waveW = 160.0f;
-		let waveH = 58.0f;
+		let waveH = 75.0f; // Increased for title display
 		// Panel shadow
 		mDrawContext.FillRect(.(8, 8, waveW, waveH), Color(0, 0, 0, 80));
 		// Panel background
 		mDrawContext.FillRect(.(5, 5, waveW, waveH), Color(10, 15, 25, 220));
 		// Left accent bar
 		mDrawContext.FillRect(.(5, 5, 3, waveH), Color(255, 200, 80, 200));
-		// Text
+
+		// Player title at top
+		let titleStr = scope String();
+		Achievements.GetTitleString(achievements.CurrentTitle, titleStr);
+		let titleColor = GetTitleColor(achievements.CurrentTitle);
+		mDrawContext.DrawText(titleStr, FontSmall, .(18, 10), titleColor);
+
+		// Wave text
 		let waveText = scope String();
 		waveText.AppendF("WAVE {}", wave);
-		mDrawContext.DrawText(waveText, FontLarge, .(18, 12), Color(255, 220, 100));
+		mDrawContext.DrawText(waveText, FontLarge, .(18, 26), Color(255, 220, 100));
 		let enemyText = scope String();
 		enemyText.AppendF("Enemies: {}", enemiesLeft);
-		mDrawContext.DrawText(enemyText, FontNormal, .(18, 36), Color(180, 190, 200));
+		mDrawContext.DrawText(enemyText, FontNormal, .(18, 52), Color(180, 190, 200));
 
 		// Top-right: Score panel
 		let scoreW = 140.0f;
@@ -394,7 +445,7 @@ class HUD
 		}
 	}
 
-	private void DrawGameOver(int32 score, int32 highScore)
+	private void DrawGameOver(int32 score, int32 highScore, Achievements achievements)
 	{
 		let screenW = (float)mScreenWidth;
 		let screenH = (float)mScreenHeight;
@@ -406,7 +457,7 @@ class HUD
 
 		// Main panel
 		let panelW = 320.0f;
-		let panelH = 200.0f;
+		let panelH = 260.0f; // Increased for stats
 		let panelX = centerX - panelW * 0.5f;
 		let panelY = centerY - panelH * 0.5f;
 
@@ -425,20 +476,37 @@ class HUD
 		mDrawContext.DrawText("GAME OVER", FontTitle, .(centerX - 78 + 2, titleY + 2), Color(0, 0, 0, 150));
 		mDrawContext.DrawText("GAME OVER", FontTitle, .(centerX - 78, titleY), Color(220, 60, 60));
 
+		// Player rank
+		let rankY = panelY + 62;
+		let titleStr = scope String();
+		Achievements.GetTitleString(achievements.CurrentTitle, titleStr);
+		let titleColor = GetTitleColor(achievements.CurrentTitle);
+		mDrawContext.DrawText("RANK:", FontSmall, .(panelX + 40, rankY), Color(150, 140, 140));
+		mDrawContext.DrawText(titleStr, FontNormal, .(panelX + 85, rankY - 2), titleColor);
+
 		// Decorative line
-		mDrawContext.FillRect(.(panelX + 40, titleY + 45, panelW - 80, 1), Color(100, 60, 60, 150));
+		mDrawContext.FillRect(.(panelX + 40, rankY + 20, panelW - 80, 1), Color(100, 60, 60, 150));
 
 		// Score display
-		let scoreY = panelY + 85;
+		let scoreY = panelY + 100;
 		mDrawContext.DrawText("FINAL SCORE", FontSmall, .(centerX - 42, scoreY), Color(150, 140, 140));
 		let scoreText = scope String();
 		scoreText.AppendF("{}", score);
 		mDrawContext.DrawText(scoreText, FontTitle, .(centerX - 35, scoreY + 18), Color(255, 255, 255));
 
+		// Stats row
+		let statsY = panelY + 155;
+		let killsText = scope String();
+		killsText.AppendF("Total Kills: {}", achievements.TotalKills);
+		mDrawContext.DrawText(killsText, FontSmall, .(panelX + 40, statsY), Color(150, 160, 170));
+		let waveText = scope String();
+		waveText.AppendF("Best Wave: {}", achievements.HighestWave);
+		mDrawContext.DrawText(waveText, FontSmall, .(panelX + 40, statsY + 18), Color(150, 160, 170));
+
 		// New high score banner
 		if (score >= highScore && score > 0)
 		{
-			let hsY = panelY + 135;
+			let hsY = panelY + 195;
 			mDrawContext.FillRect(.(panelX + 20, hsY - 2, panelW - 40, 22), Color(255, 200, 50, 30));
 			mDrawContext.DrawText("NEW HIGH SCORE!", FontNormal, .(centerX - 68, hsY), Color(255, 220, 100));
 		}
@@ -503,9 +571,57 @@ class HUD
 		mDrawContext.DrawText("Press ESC to resume", FontNormal, .(centerX - 78, promptY), Color(140, 150, 160));
 	}
 
-	/// Draw additional UI elements (combo, speed boost, FPS, etc.)
-	public void DrawExtras(float comboDisplayTimer, int32 lastComboBonus, bool hasSpeedBoost, float fps, uint32 screenWidth, uint32 screenHeight, bool showGizmo)
+	/// Draw additional UI elements (combo, speed boost, powerup effects, FPS, achievements, etc.)
+	public void DrawExtras(float comboDisplayTimer, int32 lastComboBonus, bool hasSpeedBoost,
+		float shockwaveTimer, int32 shockwaveKills, float empTimer, int32 empKills,
+		float fps, uint32 screenWidth, uint32 screenHeight, bool showGizmo, Achievements achievements)
 	{
+		// Title upgrade notification (top center, prominent)
+		if (achievements.HasTitleNotification)
+		{
+			let alpha = (uint8)Math.Min(255, (int32)(achievements.TitleNotificationTimer * 100));
+			let centerX = (float)screenWidth * 0.5f;
+			let notifY = 100.0f;
+
+			// Background panel
+			let panelW = 280.0f;
+			let panelH = 70.0f;
+			mDrawContext.FillRect(.(centerX - panelW * 0.5f, notifY, panelW, panelH), Color(20, 10, 30, (uint8)(alpha * 0.9f)));
+
+			// Border with title color
+			let titleColor = GetTitleColor(achievements.NewTitle);
+			let borderColor = Color(titleColor.R, titleColor.G, titleColor.B, alpha);
+			mDrawContext.FillRect(.(centerX - panelW * 0.5f, notifY, panelW, 3), borderColor);
+			mDrawContext.FillRect(.(centerX - panelW * 0.5f, notifY + panelH - 3, panelW, 3), borderColor);
+
+			// Text
+			mDrawContext.DrawText("RANK UP!", FontLarge, .(centerX - 45, notifY + 10), Color(255, 255, 255, alpha));
+			let titleStr = scope String();
+			Achievements.GetTitleString(achievements.NewTitle, titleStr);
+			mDrawContext.DrawText(titleStr, FontTitle, .(centerX - (float)titleStr.Length * 8, notifY + 35), Color(titleColor.R, titleColor.G, titleColor.B, alpha));
+		}
+
+		// Achievement notification (right side)
+		if (achievements.HasNotification)
+		{
+			let alpha = (uint8)Math.Min(255, (int32)(achievements.NotificationTimer * 120));
+			let notifX = (float)screenWidth - 260;
+			let notifY = 90.0f;
+
+			// Background panel
+			let panelW = 250.0f;
+			let panelH = 55.0f;
+			mDrawContext.FillRect(.(notifX, notifY, panelW, panelH), Color(10, 20, 15, (uint8)(alpha * 0.9f)));
+
+			// Green accent border
+			mDrawContext.FillRect(.(notifX, notifY, 3, panelH), Color(80, 200, 100, alpha));
+
+			// Achievement text
+			let def = Achievements.GetDef(achievements.CurrentNotification);
+			mDrawContext.DrawText("ACHIEVEMENT!", FontSmall, .(notifX + 12, notifY + 8), Color(80, 200, 100, alpha));
+			mDrawContext.DrawText(def.Name, FontNormal, .(notifX + 12, notifY + 24), Color(255, 255, 255, alpha));
+		}
+
 		// Combo display (center screen, fades out)
 		if (comboDisplayTimer > 0 && lastComboBonus > 0)
 		{
@@ -516,11 +632,45 @@ class HUD
 			mDrawContext.DrawText(comboText, FontTitle, .(cx, (float)screenHeight * 0.35f), Color(255, 200, 50, alpha));
 		}
 
-		// Speed boost indicator
+		// Powerup effect indicators (bottom center, stacked)
+		float indicatorY = (float)screenHeight - 65;
+
+		// Speed boost indicator (cyan, duration-based)
 		if (hasSpeedBoost)
 		{
-			let boostX = (float)screenWidth * 0.5f - 50;
-			mDrawContext.DrawText("SPEED BOOST", FontNormal, .(boostX, (float)screenHeight - 65), Color(50, 220, 255));
+			let boostX = (float)screenWidth * 0.5f - 55;
+			mDrawContext.DrawText("SPEED BOOST!", FontNormal, .(boostX, indicatorY), Color(50, 220, 255));
+			indicatorY -= 25;
+		}
+
+		// Shockwave indicator (purple, fades out)
+		if (shockwaveTimer > 0)
+		{
+			let alpha = (uint8)Math.Min(255, (int32)(shockwaveTimer * 200));
+			let scale = 1.0f + (2.0f - shockwaveTimer) * 0.05f; // Slight scale up as it fades
+			let shockText = scope String();
+			if (shockwaveKills > 0)
+				shockText.AppendF("SHOCKWAVE! x{}", shockwaveKills);
+			else
+				shockText.Append("SHOCKWAVE!");
+			let textW = shockText.Length * 8.0f * scale;
+			let shockX = (float)screenWidth * 0.5f - textW * 0.5f;
+			mDrawContext.DrawText(shockText, FontNormal, .(shockX, indicatorY), Color(200, 100, 255, alpha));
+			indicatorY -= 25;
+		}
+
+		// EMP indicator (yellow, fades out)
+		if (empTimer > 0)
+		{
+			let alpha = (uint8)Math.Min(255, (int32)(empTimer * 200));
+			let empText = scope String();
+			if (empKills > 0)
+				empText.AppendF("WIPEOUT! x{}", empKills);
+			else
+				empText.Append("WIPEOUT!");
+			let textW = empText.Length * 8.0f;
+			let empX = (float)screenWidth * 0.5f - textW * 0.5f;
+			mDrawContext.DrawText(empText, FontNormal, .(empX, indicatorY), Color(255, 240, 80, alpha));
 		}
 
 		// FPS counter bottom-left

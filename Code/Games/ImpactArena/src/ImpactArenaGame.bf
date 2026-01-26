@@ -82,6 +82,7 @@ class ImpactArenaGame : Application
 	private EffectsManager mEffectsManager = new .() ~ delete _;
 	private PowerUpManager mPowerUpManager = new .() ~ delete _;
 	private HUD mHud = new .() ~ delete _;
+	private Achievements mAchievements = new .() ~ delete _;
 
 	// Game state
 	private GameState mState = .Title;
@@ -91,6 +92,7 @@ class ImpactArenaGame : Application
 	private float mWaveIntroTimer = 0;
 	private float mDeltaTime = 0;
 	private float mSmoothedFps = 60.0f;
+	private float mGameOverInputDelay = 0; // Prevents accidental restart from dying while dashing
 
 	// Screen shake
 	private float mShakeIntensity = 0;
@@ -101,6 +103,12 @@ class ImpactArenaGame : Application
 	private bool mWasDashing = false;
 	private float mComboDisplayTimer = 0;
 	private int32 mLastComboBonus = 0;
+
+	// Powerup usage text display timers
+	private float mShockwaveTextTimer = 0;
+	private float mEMPTextTimer = 0;
+	private int32 mLastShockwaveKills = 0;
+	private int32 mLastEMPKills = 0;
 
 	// Input actions
 	private InputSubsystem mInputSubsystem;
@@ -586,7 +594,8 @@ class ImpactArenaGame : Application
 			if (mUsePickupAction.WasPressed && mInventoryCount > 0)
 				UseActivePickup();
 		case .GameOver:
-			if (mConfirmAction.WasPressed)
+			// Brief delay prevents accidental restart when dying while dashing
+			if (mGameOverInputDelay <= 0 && mConfirmAction.WasPressed)
 				StartGame();
 			if (mPauseAction.WasPressed)
 				mState = .Title;
@@ -687,6 +696,11 @@ class ImpactArenaGame : Application
 		}
 
 		mEffectsManager.Update(mDeltaTime);
+		mAchievements.Update(mDeltaTime);
+
+		// Game over input delay decay
+		if (mGameOverInputDelay > 0)
+			mGameOverInputDelay -= mDeltaTime;
 
 		// Screen shake decay (runs in all states)
 		if (mShakeIntensity > 0.01f)
@@ -755,6 +769,7 @@ class ImpactArenaGame : Application
 			mEffectsManager.SpawnHitEffect(playerPos);
 			mGameAudio.PlayHit();
 			mShakeIntensity = 0.5f;
+			mAchievements.OnDamageTaken();
 		}
 
 		// Spawn death effects, add score, track combo
@@ -764,6 +779,9 @@ class ImpactArenaGame : Application
 			mGameAudio.PlayEnemyDeath();
 			let enemyScore = GetScoreForEnemy(mDeathTypes[i]);
 			mScore += enemyScore;
+
+			// Track kill for achievements
+			mAchievements.OnKill(mPlayer.HasSpeedBoost);
 
 			if (mPlayer.IsDashing)
 				mComboCount++;
@@ -776,6 +794,7 @@ class ImpactArenaGame : Application
 			mScore += bonus;
 			mLastComboBonus = bonus;
 			mComboDisplayTimer = 2.0f;
+			mAchievements.OnCombo(mComboCount);
 		}
 		if (!mPlayer.IsDashing)
 			mComboCount = 0;
@@ -789,15 +808,19 @@ class ImpactArenaGame : Application
 			if (mScore > mHighScore)
 				mHighScore = mScore;
 			mState = .GameOver;
+			mGameOverInputDelay = 1f; // Brief delay to prevent accidental restart
 		}
 
 		// Wave complete check
 		if (mState == .Playing && mEnemyManager.AliveCount == 0)
 		{
+			mAchievements.OnWaveComplete();
 			mWave++;
 			mScore += mWave * 100;
 			mState = .WaveIntro;
 			mWaveIntroTimer = 3.0f;
+			mPlayer.SetWave(mWave); // Reduce dash cooldown as difficulty increases
+			mAchievements.OnWaveStart(mWave);
 		}
 	}
 
@@ -849,6 +872,12 @@ class ImpactArenaGame : Application
 		if (mComboDisplayTimer > 0)
 			mComboDisplayTimer -= mDeltaTime;
 
+		// Powerup text display timers
+		if (mShockwaveTextTimer > 0)
+			mShockwaveTextTimer -= mDeltaTime;
+		if (mEMPTextTimer > 0)
+			mEMPTextTimer -= mDeltaTime;
+
 		// Dash sound trigger
 		if (mPlayer.IsDashing && !mWasDashing)
 			mGameAudio.PlayDash();
@@ -873,10 +902,14 @@ class ImpactArenaGame : Application
 			mDeathPositions.Clear();
 			mDeathTypes.Clear();
 			mEnemyManager.KillInRadius(playerPos, 5.0f, mDeathPositions, mDeathTypes);
+			mLastShockwaveKills = (int32)mDeathPositions.Count;
+			mShockwaveTextTimer = 2.0f;
+			mAchievements.OnShockwaveKills(mLastShockwaveKills);
 			for (int32 i = 0; i < (int32)mDeathPositions.Count; i++)
 			{
 				mEffectsManager.SpawnDeathEffect(mDeathPositions[i], mDeathTypes[i]);
 				mScore += GetScoreForEnemy(mDeathTypes[i]);
+				mAchievements.OnKill(mPlayer.HasSpeedBoost);
 			}
 		case .EMP:
 			mEffectsManager.SpawnEMPEffect(playerPos);
@@ -885,10 +918,14 @@ class ImpactArenaGame : Application
 			mDeathPositions.Clear();
 			mDeathTypes.Clear();
 			mEnemyManager.KillInRadius(playerPos, 20.0f, mDeathPositions, mDeathTypes);
+			mLastEMPKills = (int32)mDeathPositions.Count;
+			mEMPTextTimer = 2.0f;
+			mAchievements.OnEMPKills(mLastEMPKills);
 			for (int32 i = 0; i < (int32)mDeathPositions.Count; i++)
 			{
 				mEffectsManager.SpawnDeathEffect(mDeathPositions[i], mDeathTypes[i]);
 				mScore += GetScoreForEnemy(mDeathTypes[i]);
+				mAchievements.OnKill(mPlayer.HasSpeedBoost);
 			}
 		default:
 		}
@@ -930,6 +967,8 @@ class ImpactArenaGame : Application
 		mEnemyManager.ClearAll();
 		mEffectsManager.ClearAll();
 		mPowerUpManager.ClearAll();
+		mAchievements.OnGameStart();
+		mAchievements.OnWaveStart(mWave);
 	}
 
 	private int32 GetScoreForEnemy(EnemyType type)
@@ -961,9 +1000,10 @@ class ImpactArenaGame : Application
 			mDrawContext.Clear();
 			mHud.Draw(mState, mPlayer, mWave, mEnemyManager.AliveCount, mScore,
 				mHighScore, mWaveIntroTimer, mSwapChain.Width, mSwapChain.Height,
-				&mInventory[0], mInventoryCount, mActiveSlot, render.Frame.TotalTime);
+				&mInventory[0], mInventoryCount, mActiveSlot, render.Frame.TotalTime, mAchievements);
 			mHud.DrawExtras(mComboDisplayTimer, mLastComboBonus, mPlayer.HasSpeedBoost,
-				mSmoothedFps, mSwapChain.Width, mSwapChain.Height, mShowGizmo);
+				mShockwaveTextTimer, mLastShockwaveKills, mEMPTextTimer, mLastEMPKills,
+				mSmoothedFps, mSwapChain.Width, mSwapChain.Height, mShowGizmo, mAchievements);
 		}
 
 		// 3D Debug overlays (sun gizmo, arena boundary lines)
