@@ -1,6 +1,0 @@
-FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Mathematics" = "*", "Sedulous.RHI" = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Shell" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Engine.Runtime" = "*", "Sedulous.RendererNG" = "*", "Sedulous.Geometry" = "*"}
-
-[Project]
-Name = "RendererNGIntegrated"
-StartupObject = "RendererNGIntegrated.Program"
