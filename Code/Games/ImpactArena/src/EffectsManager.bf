@@ -88,86 +88,42 @@ class EffectsManager
 
 	public void SpawnShockwaveEffect(Vector3 position)
 	{
-		let entity = mScene.CreateEntity();
-		var transform = mScene.GetTransform(entity);
-		transform.Position = position;
-		mScene.SetTransform(entity, transform);
+		// Inner bright ring - fast expanding
+		SpawnExpandingRing(position, 80,
+			.(1.0f, 0.6f, 1.0f, 1.0f), .(0.8f, 0.2f, 1.0f, 0.0f),
+			12.0f, 0.5f, .(0.4f, 0.4f), .(0.15f, 0.15f));
 
-		let handle = mRenderModule.CreateCPUParticleEmitter(entity, 110);
-		if (handle.IsValid)
-		{
-			if (let proxy = mRenderModule.GetParticleEmitterProxy(entity))
-			{
-				proxy.BlendMode = .Additive;
-				proxy.SpawnRate = 0;
-				proxy.BurstCount = 100;
-				proxy.BurstInterval = 0;
-				proxy.BurstCycles = 1;
-				proxy.ParticleLifetime = 0.8f;
-				proxy.StartSize = .(0.25f, 0.25f);
-				proxy.EndSize = .(0.04f, 0.04f);
-				proxy.StartColor = .(1.0f, 0.8f, 1.0f, 1.0f);
-				proxy.EndColor = .(0.6f, 0.1f, 1.0f, 0.0f);
-				proxy.InitialVelocity = .(0, 0.3f, 0);
-				proxy.VelocityRandomness = .(8.0f, 0.5f, 8.0f); // Wide XZ ring, minimal Y
-				proxy.GravityMultiplier = 0;
-				proxy.Drag = 1.5f;
-				proxy.LifetimeVarianceMin = 0.7f;
-				proxy.LifetimeVarianceMax = 1.0f;
-				proxy.RenderMode = .StretchedBillboard;
-				proxy.StretchFactor = 2.0f;
-				proxy.IsEnabled = true;
-				proxy.IsEmitting = true;
-				proxy.AlphaOverLifetime = .FadeOut(1.0f, 0.3f);
-			}
-		}
+		// Outer softer ring - slower
+		SpawnExpandingRing(position, 60,
+			.(0.7f, 0.4f, 1.0f, 0.8f), .(0.4f, 0.1f, 0.8f, 0.0f),
+			8.0f, 0.7f, .(0.3f, 0.3f), .(0.08f, 0.08f));
 
-		var effect = ActiveEffect();
-		effect.Entity = entity;
-		effect.TimeRemaining = 2.0f;
-		mActiveEffects.Add(effect);
+		// Central flash burst
+		SpawnBurst(position, 30, .(1.0f, 1.0f, 1.0f, 1.0f), .(0.8f, 0.4f, 1.0f, 0.0f),
+			.(2.0f, 3.0f, 2.0f), 0.4f, 0.5f);
 	}
 
 	public void SpawnEMPEffect(Vector3 position)
 	{
-		let entity = mScene.CreateEntity();
-		var transform = mScene.GetTransform(entity);
-		transform.Position = position;
-		mScene.SetTransform(entity, transform);
+		// Multiple expanding rings for EMP wave effect
+		// Ring 1 - bright yellow core, fast
+		SpawnExpandingRing(position, 100,
+			.(1.0f, 1.0f, 0.5f, 1.0f), .(1.0f, 0.8f, 0.0f, 0.0f),
+			18.0f, 0.6f, .(0.5f, 0.5f), .(0.2f, 0.2f));
 
-		let handle = mRenderModule.CreateCPUParticleEmitter(entity, 220);
-		if (handle.IsValid)
-		{
-			if (let proxy = mRenderModule.GetParticleEmitterProxy(entity))
-			{
-				proxy.BlendMode = .Additive;
-				proxy.SpawnRate = 0;
-				proxy.BurstCount = 200;
-				proxy.BurstInterval = 0;
-				proxy.BurstCycles = 1;
-				proxy.ParticleLifetime = 1.2f;
-				proxy.StartSize = .(0.35f, 0.35f);
-				proxy.EndSize = .(0.06f, 0.06f);
-				proxy.StartColor = .(1.0f, 1.0f, 0.6f, 1.0f);
-				proxy.EndColor = .(1.0f, 0.6f, 0.0f, 0.0f);
-				proxy.InitialVelocity = .(0, 0.5f, 0);
-				proxy.VelocityRandomness = .(15.0f, 1.0f, 15.0f);
-				proxy.GravityMultiplier = 0;
-				proxy.Drag = 1.0f;
-				proxy.LifetimeVarianceMin = 0.6f;
-				proxy.LifetimeVarianceMax = 1.0f;
-				proxy.RenderMode = .StretchedBillboard;
-				proxy.StretchFactor = 2.5f;
-				proxy.IsEnabled = true;
-				proxy.IsEmitting = true;
-				proxy.AlphaOverLifetime = .FadeOut(1.0f, 0.3f);
-			}
-		}
+		// Ring 2 - orange middle ring, medium speed
+		SpawnExpandingRing(position, 80,
+			.(1.0f, 0.7f, 0.3f, 0.9f), .(1.0f, 0.4f, 0.0f, 0.0f),
+			14.0f, 0.8f, .(0.4f, 0.4f), .(0.12f, 0.12f));
 
-		var effect = ActiveEffect();
-		effect.Entity = entity;
-		effect.TimeRemaining = 3.0f;
-		mActiveEffects.Add(effect);
+		// Ring 3 - outer red ring, slower
+		SpawnExpandingRing(position, 60,
+			.(1.0f, 0.5f, 0.2f, 0.7f), .(0.8f, 0.2f, 0.0f, 0.0f),
+			10.0f, 1.0f, .(0.35f, 0.35f), .(0.08f, 0.08f));
+
+		// Central flash
+		SpawnBurst(position, 40, .(1.0f, 1.0f, 1.0f, 1.0f), .(1.0f, 0.9f, 0.3f, 0.0f),
+			.(3.0f, 4.0f, 3.0f), 0.5f, 0.6f);
 	}
 
 	public void SpawnPlayerDeathEffect(Vector3 position)
@@ -203,14 +159,15 @@ class EffectsManager
 				proxy.EndSize = .(0.01f, 0.01f);
 				proxy.StartColor = startColor;
 				proxy.EndColor = endColor;
-				proxy.InitialVelocity = .(0, 1.0f, 0);
-				proxy.VelocityRandomness = velocityRandomness;
-				proxy.GravityMultiplier = 0.8f;
+				// Top-down game: burst mostly in XZ plane
+				proxy.InitialVelocity = .(0, 0, 0);
+				proxy.VelocityRandomness = .(velocityRandomness.X, velocityRandomness.Y * 0.2f, velocityRandomness.Z);
+				proxy.GravityMultiplier = 0;
 				proxy.Drag = 0.5f;
 				proxy.LifetimeVarianceMin = 0.5f;
 				proxy.LifetimeVarianceMax = 1.0f;
-				proxy.RenderMode = .StretchedBillboard;
-				proxy.StretchFactor = 1.5f;
+				// Horizontal billboard for top-down view
+				proxy.RenderMode = .HorizontalBillboard;
 				proxy.IsEnabled = true;
 				proxy.IsEmitting = true;
 
@@ -221,6 +178,60 @@ class EffectsManager
 		var effect = ActiveEffect();
 		effect.Entity = entity;
 		effect.TimeRemaining = lifetime + effectDuration;
+		mActiveEffects.Add(effect);
+	}
+
+	/// Spawns an expanding ring of particles that move outward from the center.
+	private void SpawnExpandingRing(Vector3 position, int32 count, Vector4 startColor, Vector4 endColor,
+		float outwardSpeed, float lifetime, Vector2 startSize, Vector2 endSize)
+	{
+		let entity = mScene.CreateEntity();
+		var transform = mScene.GetTransform(entity);
+		transform.Position = position;
+		mScene.SetTransform(entity, transform);
+
+		let handle = mRenderModule.CreateCPUParticleEmitter(entity, count + 10);
+		if (handle.IsValid)
+		{
+			if (let proxy = mRenderModule.GetParticleEmitterProxy(entity))
+			{
+				proxy.BlendMode = .Additive;
+				proxy.SpawnRate = 0;
+				proxy.BurstCount = count;
+				proxy.BurstInterval = 0;
+				proxy.BurstCycles = 1;
+				proxy.ParticleLifetime = lifetime;
+				proxy.StartSize = startSize;
+				proxy.EndSize = endSize;
+				proxy.StartColor = startColor;
+				proxy.EndColor = endColor;
+
+				// Top-down game: expand in XZ plane only
+				proxy.InitialVelocity = .(0, 0, 0);
+				proxy.VelocityRandomness = .(outwardSpeed * 0.5f, 0, outwardSpeed * 0.5f);
+
+				// Use radial force module to push particles outward
+				proxy.ForceModules.RadialForce = outwardSpeed * 3.0f;
+				// Add turbulence for wavy effect
+				proxy.ForceModules.TurbulenceStrength = outwardSpeed * 1.5f;
+				proxy.ForceModules.TurbulenceFrequency = 3.0f;
+				proxy.ForceModules.TurbulenceSpeed = 8.0f;
+
+				proxy.GravityMultiplier = 0;
+				proxy.Drag = 0.2f;
+				proxy.LifetimeVarianceMin = 0.9f;
+				proxy.LifetimeVarianceMax = 1.0f;
+				// Horizontal billboard for top-down view (flat expanding ring)
+				proxy.RenderMode = .HorizontalBillboard;
+				proxy.IsEnabled = true;
+				proxy.IsEmitting = true;
+				proxy.AlphaOverLifetime = .FadeOut(0.8f, 0.2f);
+			}
+		}
+
+		var effect = ActiveEffect();
+		effect.Entity = entity;
+		effect.TimeRemaining = lifetime + 0.5f;
 		mActiveEffects.Add(effect);
 	}
 

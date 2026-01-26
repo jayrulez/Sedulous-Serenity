@@ -21,6 +21,10 @@ using Sedulous.Audio.SDL3;
 using Sedulous.Audio.Decoders;
 using Sedulous.Physics;
 using Sedulous.Physics.Jolt;
+using Sedulous.Drawing;
+using Sedulous.Drawing.Fonts;
+using Sedulous.Drawing.Renderer;
+using Sedulous.Fonts;
 
 class ImpactArenaGame : Application
 {
@@ -65,6 +69,11 @@ class ImpactArenaGame : Application
 	private GameAudio mGameAudio = new .() ~ delete _;
 	private IAudioSource mBgMusicSource;
 	private AudioClip mBgMusicClip ~ delete _;
+
+	// 2D Drawing (UI)
+	private FontService mFontService;
+	private DrawContext mDrawContext;
+	private DrawingRenderer mDrawingRenderer;
 
 	// Game objects
 	private Arena mArena = new .() ~ delete _;
@@ -112,9 +121,21 @@ class ImpactArenaGame : Application
 	// Dash trail (emitter on player entity)
 	private bool mTrailInitialized = false;
 
+	// Debug gizmo visibility
+	private bool mShowGizmo = false;
+
 	// Temp lists for collision results
 	private List<Vector3> mDeathPositions = new .() ~ delete _;
 	private List<EnemyType> mDeathTypes = new .() ~ delete _;
+
+	// Material mode toggle (true = unlit, false = PBR)
+	private const bool UseUnlitMaterials = false;
+	private Material mUnlitBaseMaterial ~ delete _;
+
+	// Sun light control (spherical coordinates)
+	private float mSunYaw = 0.0f;
+	private float mSunPitch = 1.3f;
+	private float mSunIntensity = 4.0f;
 
 	public this(IShell shell, IDevice device, IBackend backend)
 		: base(shell, device, backend)
@@ -240,8 +261,44 @@ class ImpactArenaGame : Application
 		CreateMeshes();
 		CreateMaterials();
 		CreateScene();
+		InitializeDrawing();
 		InitializeGameObjects();
 		InitializeAudio();
+	}
+
+	private void InitializeDrawing()
+	{
+		// Initialize font service with multiple sizes for UI hierarchy
+		mFontService = new FontService(mDevice);
+		let fontPath = scope String();
+		GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", fontPath);
+
+		// Load font at different sizes for UI hierarchy
+		int32[5] fontSizes = .(14, 18, 24, 32, 48);
+		for (let size in fontSizes)
+		{
+			FontLoadOptions options = .ExtendedLatin;
+			options.PixelHeight = size;
+			if (mFontService.LoadFont("Roboto", fontPath, options) case .Err)
+			{
+				Console.WriteLine($"Failed to load UI font at size {size}");
+			}
+		}
+
+		// Create draw context with font service
+		mDrawContext = new DrawContext(mFontService);
+
+		// Create and initialize the drawing renderer
+		mDrawingRenderer = new DrawingRenderer();
+		if (mDrawingRenderer.Initialize(mDevice, mSwapChain.Format, FrameConfig.MAX_FRAMES_IN_FLIGHT, mRenderSystem.ShaderSystem) case .Err)
+		{
+			Console.WriteLine("Failed to initialize DrawingRenderer");
+		}
+		else
+		{
+			// Set up multi-texture support for different font sizes
+			mDrawingRenderer.SetTextureLookup(new (texture) => mFontService.GetTextureView(texture));
+		}
 	}
 
 	private void InitializeAudio()
@@ -283,66 +340,115 @@ class ImpactArenaGame : Application
 
 	private void CreateMaterials()
 	{
+		if (UseUnlitMaterials)
+			CreateUnlitMaterials();
+		else
+			CreatePBRMaterials();
+	}
+
+	private void CreateUnlitMaterials()
+	{
+		// Create unlit base material
+		mUnlitBaseMaterial = Materials.CreateUnlit("GameUnlit");
+
+		mFloorMat = new MaterialInstance(mUnlitBaseMaterial);
+		mFloorMat.SetColor("BaseColor", .(0.15f, 0.15f, 0.2f, 1.0f));
+
+		mWallMat = new MaterialInstance(mUnlitBaseMaterial);
+		mWallMat.SetColor("BaseColor", .(0.3f, 0.3f, 0.35f, 1.0f));
+
+		mPlayerMat = new MaterialInstance(mUnlitBaseMaterial);
+		mPlayerMat.SetColor("BaseColor", .(0.2f, 0.5f, 1.0f, 1.0f));
+
+		mGruntMat = new MaterialInstance(mUnlitBaseMaterial);
+		mGruntMat.SetColor("BaseColor", .(0.9f, 0.2f, 0.15f, 1.0f));
+
+		mBruteMat = new MaterialInstance(mUnlitBaseMaterial);
+		mBruteMat.SetColor("BaseColor", .(0.2f, 0.8f, 0.2f, 1.0f));
+
+		mDasherMat = new MaterialInstance(mUnlitBaseMaterial);
+		mDasherMat.SetColor("BaseColor", .(0.9f, 0.8f, 0.1f, 1.0f));
+
+		// Pickups use emissive for glow effect
+		mHealthPickupMat = new MaterialInstance(mUnlitBaseMaterial);
+		mHealthPickupMat.SetColor("BaseColor", .(0.1f, 0.9f, 0.3f, 1.0f));
+		mHealthPickupMat.SetColor("EmissiveColor", .(0.1f, 0.8f, 0.3f, 1.0f));
+
+		mSpeedPickupMat = new MaterialInstance(mUnlitBaseMaterial);
+		mSpeedPickupMat.SetColor("BaseColor", .(0.1f, 0.8f, 1.0f, 1.0f));
+		mSpeedPickupMat.SetColor("EmissiveColor", .(0.1f, 0.6f, 1.0f, 1.0f));
+
+		mShockPickupMat = new MaterialInstance(mUnlitBaseMaterial);
+		mShockPickupMat.SetColor("BaseColor", .(0.7f, 0.2f, 1.0f, 1.0f));
+		mShockPickupMat.SetColor("EmissiveColor", .(0.6f, 0.15f, 0.9f, 1.0f));
+
+		mEmpPickupMat = new MaterialInstance(mUnlitBaseMaterial);
+		mEmpPickupMat.SetColor("BaseColor", .(1.0f, 0.9f, 0.2f, 1.0f));
+		mEmpPickupMat.SetColor("EmissiveColor", .(1.0f, 0.8f, 0.2f, 1.0f));
+	}
+
+	private void CreatePBRMaterials()
+	{
 		let baseMat = mRenderSystem.MaterialSystem?.DefaultMaterial;
 		if (baseMat == null) return;
 
 		mFloorMat = new MaterialInstance(baseMat);
-		mFloorMat.SetColor("BaseColor", .(0.15f, 0.15f, 0.2f, 1.0f));
+		mFloorMat.SetColor("BaseColor", .(0.35f, 0.35f, 0.45f, 1.0f));
 		mFloorMat.SetFloat("Metallic", 0.0f);
 		mFloorMat.SetFloat("Roughness", 0.9f);
 
 		mWallMat = new MaterialInstance(baseMat);
-		mWallMat.SetColor("BaseColor", .(0.3f, 0.3f, 0.35f, 1.0f));
+		mWallMat.SetColor("BaseColor", .(0.55f, 0.55f, 0.6f, 1.0f));
 		mWallMat.SetFloat("Roughness", 0.7f);
 
 		mPlayerMat = new MaterialInstance(baseMat);
-		mPlayerMat.SetColor("BaseColor", .(0.2f, 0.5f, 1.0f, 1.0f));
+		mPlayerMat.SetColor("BaseColor", .(0.4f, 0.7f, 1.0f, 1.0f));
 		mPlayerMat.SetFloat("Metallic", 0.8f);
 		mPlayerMat.SetFloat("Roughness", 0.2f);
 		mPlayerMat.SetTexture("EmissiveMap", mRenderSystem.MaterialSystem.WhiteTexture);
 
 		mGruntMat = new MaterialInstance(baseMat);
-		mGruntMat.SetColor("BaseColor", .(0.9f, 0.2f, 0.15f, 1.0f));
+		mGruntMat.SetColor("BaseColor", .(1.0f, 0.4f, 0.35f, 1.0f));
 		mGruntMat.SetFloat("Roughness", 0.5f);
 
 		mBruteMat = new MaterialInstance(baseMat);
-		mBruteMat.SetColor("BaseColor", .(0.2f, 0.8f, 0.2f, 1.0f));
+		mBruteMat.SetColor("BaseColor", .(0.4f, 0.95f, 0.4f, 1.0f));
 		mBruteMat.SetFloat("Roughness", 0.6f);
 
 		mDasherMat = new MaterialInstance(baseMat);
-		mDasherMat.SetColor("BaseColor", .(0.9f, 0.8f, 0.1f, 1.0f));
+		mDasherMat.SetColor("BaseColor", .(1.0f, 0.9f, 0.3f, 1.0f));
 		mDasherMat.SetFloat("Metallic", 0.5f);
 		mDasherMat.SetFloat("Roughness", 0.3f);
 
 		let emissiveTex = mRenderSystem.MaterialSystem.WhiteTexture;
 
 		mHealthPickupMat = new MaterialInstance(baseMat);
-		mHealthPickupMat.SetColor("BaseColor", .(0.1f, 0.9f, 0.3f, 1.0f));
+		mHealthPickupMat.SetColor("BaseColor", .(0.3f, 1.0f, 0.5f, 1.0f));
 		mHealthPickupMat.SetFloat("Metallic", 0.6f);
 		mHealthPickupMat.SetFloat("Roughness", 0.3f);
 		mHealthPickupMat.SetTexture("EmissiveMap", emissiveTex);
-		mHealthPickupMat.SetColor("EmissiveColor", .(0.1f, 0.8f, 0.3f, 1.0f));
+		mHealthPickupMat.SetColor("EmissiveColor", .(0.2f, 0.9f, 0.4f, 1.0f));
 
 		mSpeedPickupMat = new MaterialInstance(baseMat);
-		mSpeedPickupMat.SetColor("BaseColor", .(0.1f, 0.8f, 1.0f, 1.0f));
+		mSpeedPickupMat.SetColor("BaseColor", .(0.3f, 0.9f, 1.0f, 1.0f));
 		mSpeedPickupMat.SetFloat("Metallic", 0.7f);
 		mSpeedPickupMat.SetFloat("Roughness", 0.2f);
 		mSpeedPickupMat.SetTexture("EmissiveMap", emissiveTex);
-		mSpeedPickupMat.SetColor("EmissiveColor", .(0.1f, 0.6f, 1.0f, 1.0f));
+		mSpeedPickupMat.SetColor("EmissiveColor", .(0.2f, 0.7f, 1.0f, 1.0f));
 
 		mShockPickupMat = new MaterialInstance(baseMat);
-		mShockPickupMat.SetColor("BaseColor", .(0.7f, 0.2f, 1.0f, 1.0f));
+		mShockPickupMat.SetColor("BaseColor", .(0.8f, 0.4f, 1.0f, 1.0f));
 		mShockPickupMat.SetFloat("Metallic", 0.6f);
 		mShockPickupMat.SetFloat("Roughness", 0.3f);
 		mShockPickupMat.SetTexture("EmissiveMap", emissiveTex);
-		mShockPickupMat.SetColor("EmissiveColor", .(0.6f, 0.15f, 0.9f, 1.0f));
+		mShockPickupMat.SetColor("EmissiveColor", .(0.7f, 0.3f, 1.0f, 1.0f));
 
 		mEmpPickupMat = new MaterialInstance(baseMat);
-		mEmpPickupMat.SetColor("BaseColor", .(1.0f, 0.9f, 0.2f, 1.0f));
+		mEmpPickupMat.SetColor("BaseColor", .(1.0f, 0.95f, 0.4f, 1.0f));
 		mEmpPickupMat.SetFloat("Metallic", 0.9f);
 		mEmpPickupMat.SetFloat("Roughness", 0.1f);
 		mEmpPickupMat.SetTexture("EmissiveMap", emissiveTex);
-		mEmpPickupMat.SetColor("EmissiveColor", .(1.0f, 0.8f, 0.2f, 1.0f));
+		mEmpPickupMat.SetColor("EmissiveColor", .(1.0f, 0.9f, 0.3f, 1.0f));
 	}
 
 	private void CreateScene()
@@ -353,6 +459,14 @@ class ImpactArenaGame : Application
 		let renderModule = mMainScene.GetModule<RenderSceneModule>();
 		if (renderModule == null) return;
 
+		// Brighten the scene with ambient lighting and exposure
+		if (let world = renderModule.World)
+		{
+			world.AmbientColor = .(0.15f, 0.15f, 0.18f); // Brighter ambient with slight blue tint
+			world.AmbientIntensity = 1.2f;
+			world.Exposure = 1.0f;
+		}
+
 		// Camera - fixed top-down
 		mCameraEntity = mMainScene.CreateEntity();
 		renderModule.CreatePerspectiveCamera(mCameraEntity,
@@ -362,15 +476,30 @@ class ImpactArenaGame : Application
 		renderModule.SetMainCamera(mCameraEntity);
 
 		var camTransform = mMainScene.GetTransform(mCameraEntity);
-		camTransform.Position = .(0, 32, 4);
+		camTransform.Position = .(0, 35, 4);
 		mMainScene.SetTransform(mCameraEntity, camTransform);
 
-		// Sun light - set transform first so direction is derived from it
+		// Sun light - nearly overhead for even arena illumination
 		mSunEntity = mMainScene.CreateEntity();
-		var sunTransform = mMainScene.GetTransform(mSunEntity);
-		sunTransform.Rotation = Quaternion.CreateFromYawPitchRoll(0.3f, -0.8f, 0);
-		mMainScene.SetTransform(mSunEntity, sunTransform);
-		renderModule.CreateDirectionalLight(mSunEntity, .(1.0f, 0.95f, 0.9f), 2.0f);
+		renderModule.CreateDirectionalLight(mSunEntity, .(1.0f, 0.98f, 0.95f), mSunIntensity);
+		UpdateSunLight();
+	}
+
+	private void UpdateSunLight()
+	{
+		if (mMainScene == null) return;
+
+		var transform = mMainScene.GetTransform(mSunEntity);
+		transform.Rotation = Quaternion.CreateFromYawPitchRoll(mSunYaw, -mSunPitch, 0);
+		mMainScene.SetTransform(mSunEntity, transform);
+
+		// Update intensity on the light proxy (use pointer directly to modify in place)
+		if (let renderModule = mMainScene.GetModule<RenderSceneModule>())
+		{
+			let proxyPtr = renderModule.GetLightProxy(mSunEntity);
+			if (proxyPtr != null)
+				proxyPtr.Intensity = mSunIntensity;
+		}
 	}
 
 	private void InitializeGameObjects()
@@ -385,28 +514,33 @@ class ImpactArenaGame : Application
 		mPlayer.Initialize(mMainScene, renderModule, physicsModule,
 			mSphereMeshHandle, mPlayerMat);
 
-		// Player dash trail emitter
-		let trailHandle = renderModule.CreateCPUParticleEmitter(mPlayer.Entity, 64);
+		// Player dash trail emitter - speed/afterburner effect
+		let trailHandle = renderModule.CreateCPUParticleEmitter(mPlayer.Entity, 150);
 		if (trailHandle.IsValid)
 		{
 			if (let proxy = renderModule.GetParticleEmitterProxy(mPlayer.Entity))
 			{
 				proxy.BlendMode = .Additive;
-				proxy.SpawnRate = 15;
-				proxy.ParticleLifetime = 0.5f;
-				proxy.StartSize = .(0.15f, 0.15f);
-				proxy.EndSize = .(0.01f, 0.01f);
-				proxy.StartColor = .(0.3f, 0.7f, 1.0f, 0.8f);
-				proxy.EndColor = .(0.1f, 0.3f, 1.0f, 0.0f);
+				proxy.SpawnRate = 120; // High rate for solid trail
+				proxy.ParticleLifetime = 0.35f;
+				proxy.StartSize = .(0.8f, 0.8f);
+				proxy.EndSize = .(0.02f, 0.02f);
+				// Speed colors: bright cyan core fading to blue
+				proxy.StartColor = .(0.5f, 0.9f, 1.0f, 1.0f);
+				proxy.EndColor = .(0.1f, 0.4f, 1.0f, 0.0f);
+				// Top-down game: velocities in XZ plane only
 				proxy.InitialVelocity = .(0, 0.2f, 0);
-				proxy.VelocityRandomness = .(0.5f, 0.3f, 0.5f);
+				proxy.VelocityRandomness = .(0.5f, 0.3f, 0.5f); // XZ spread only
+				//proxy.VelocityInheritance = 0.5f; // Inherit player velocity for trail direction
 				proxy.GravityMultiplier = 0;
-				proxy.Drag = 2.0f;
-				proxy.LifetimeVarianceMin = 0.7f;
+				proxy.Drag = 2.0f; // Quick slowdown for tight trail
+				proxy.LifetimeVarianceMin = 0.8f;
 				proxy.LifetimeVarianceMax = 1.0f;
+				//// Horizontal billboard for top-down view (flat on ground)
+				//proxy.RenderMode = .HorizontalBillboard;
 				proxy.IsEnabled = true;
 				proxy.IsEmitting = false; // Only emit when dashing
-				proxy.AlphaOverLifetime = .FadeOut(1.0f, 0.3f);
+				proxy.AlphaOverLifetime = .FadeOut(1.0f, 0.2f);
 				mTrailInitialized = true;
 			}
 		}
@@ -417,7 +551,7 @@ class ImpactArenaGame : Application
 		mEffectsManager.Initialize(mMainScene, renderModule);
 		mPowerUpManager.Initialize(mMainScene, renderModule, mSphereMeshHandle,
 			mHealthPickupMat, mSpeedPickupMat, mShockPickupMat, mEmpPickupMat);
-		mHud.Initialize(mDebugFeature);
+		mHud.Initialize(mDrawContext);
 	}
 
 	protected override void OnInput()
@@ -456,6 +590,84 @@ class ImpactArenaGame : Application
 				mAudioSubsystem.AudioSystem.ResumeAll();
 			}
 		}
+
+		// Sun light controls (always active for tuning)
+		HandleLightControls();
+	}
+
+	private void HandleLightControls()
+	{
+		let keyboard = mShell.InputManager?.Keyboard;
+		if (keyboard == null) return;
+
+		// G - toggle debug gizmo (always available)
+		if (keyboard.IsKeyPressed(.G))
+			mShowGizmo = !mShowGizmo;
+
+		// Light controls only when gizmo is visible
+		if (!mShowGizmo)
+			return;
+
+		bool lightChanged = false;
+		float rotSpeed = 0.03f;
+		float intensityStep = 0.25f;
+
+		// Arrow keys - rotate sun
+		if (keyboard.IsKeyDown(.Left))
+		{
+			mSunYaw -= rotSpeed;
+			lightChanged = true;
+		}
+		if (keyboard.IsKeyDown(.Right))
+		{
+			mSunYaw += rotSpeed;
+			lightChanged = true;
+		}
+		if (keyboard.IsKeyDown(.Up))
+		{
+			mSunPitch = Math.Clamp(mSunPitch + rotSpeed, 0.1f, 1.5f);
+			lightChanged = true;
+		}
+		if (keyboard.IsKeyDown(.Down))
+		{
+			mSunPitch = Math.Clamp(mSunPitch - rotSpeed, 0.1f, 1.5f);
+			lightChanged = true;
+		}
+
+		// U/I - decrease/increase intensity
+		if (keyboard.IsKeyPressed(.U))
+		{
+			mSunIntensity = Math.Max(0.5f, mSunIntensity - intensityStep);
+			lightChanged = true;
+		}
+		if (keyboard.IsKeyPressed(.I))
+		{
+			mSunIntensity = Math.Min(10.0f, mSunIntensity + intensityStep);
+			lightChanged = true;
+		}
+
+		if (lightChanged)
+			UpdateSunLight();
+
+		// L - print light properties
+		if (keyboard.IsKeyPressed(.L))
+		{
+			Console.WriteLine("=== Sun Light Properties ===");
+			Console.WriteLine("  Yaw:       {:.3f} rad ({:.1f} deg)", mSunYaw, mSunYaw * 180.0f / Math.PI_f);
+			Console.WriteLine("  Pitch:     {:.3f} rad ({:.1f} deg)", mSunPitch, mSunPitch * 180.0f / Math.PI_f);
+			Console.WriteLine("  Intensity: {:.2f} (local)", mSunIntensity);
+
+			if (let renderModule = mMainScene?.GetModule<RenderSceneModule>())
+			{
+				let proxyPtr = renderModule.GetLightProxy(mSunEntity);
+				if (proxyPtr != null)
+				{
+					Console.WriteLine("  Intensity: {:.2f} (proxy)", proxyPtr.Intensity);
+					Console.WriteLine("  Direction: ({:.3f}, {:.3f}, {:.3f})", proxyPtr.Direction.X, proxyPtr.Direction.Y, proxyPtr.Direction.Z);
+				}
+			}
+			Console.WriteLine("============================");
+		}
 	}
 
 	protected override void OnUpdate(FrameContext frame)
@@ -491,43 +703,45 @@ class ImpactArenaGame : Application
 		mEnemyManager.Update(playerPos, mDeltaTime);
 		mPowerUpManager.Update(mDeltaTime);
 
-		// Dash trail - always on, changes color/intensity when dashing
+		// Dash trail - only emit when dashing
 		if (mTrailInitialized)
 		{
 			if (let renderModule = mMainScene.GetModule<RenderSceneModule>())
 			{
 				if (let proxy = renderModule.GetParticleEmitterProxy(mPlayer.Entity))
 				{
-					if (mPlayer.IsDashing)
-					{
-						proxy.SpawnRate = 50;
-						proxy.StartColor = .(1.0f, 0.6f, 0.1f, 1.0f);
-						proxy.EndColor = .(1.0f, 0.2f, 0.0f, 0.0f);
-						proxy.StartSize = .(0.3f, 0.3f);
-						proxy.EndSize = .(0.02f, 0.02f);
-					}
-					else
-					{
-						proxy.SpawnRate = 15;
-						proxy.StartColor = .(0.3f, 0.6f, 1.0f, 0.5f);
-						proxy.EndColor = .(0.1f, 0.3f, 0.8f, 0.0f);
-						proxy.StartSize = .(0.15f, 0.15f);
-						proxy.EndSize = .(0.01f, 0.01f);
-					}
-					proxy.IsEmitting = mPlayer.Speed > 1.0f;
+					proxy.IsEmitting = mPlayer.IsDashing;
 				}
 			}
 		}
 
-		// Invulnerability flash (pulse emissive glow)
+		// Player visual effects based on state
 		if (mPlayer.IsInvulnerable)
 		{
+			// Invulnerability flash (red pulse)
 			let pulse = (Math.Sin(mPlayer.InvulnTimer * 20.0f) + 1.0f) * 0.5f;
 			mPlayerMat.SetColor("EmissiveColor", .(1.0f * pulse, 0.3f * pulse, 0.3f * pulse, 1.0f));
 		}
 		else
 		{
-			mPlayerMat.SetColor("EmissiveColor", .(0, 0, 0, 1.0f));
+			// Speed-based glow: faster = brighter cyan/blue glow
+			let speed = mPlayer.Speed;
+			let maxSpeed = mPlayer.IsDashing ? 25.0f : 12.0f; // Dash speed vs normal max
+			let speedFactor = Math.Clamp(speed / maxSpeed, 0.0f, 1.0f);
+
+			if (speedFactor > 0.1f)
+			{
+				// Cyan-blue speed glow that intensifies with speed
+				let intensity = speedFactor * speedFactor; // Quadratic for more dramatic effect
+				let r = 0.2f * intensity;
+				let g = 0.7f * intensity;
+				let b = 1.0f * intensity;
+				mPlayerMat.SetColor("EmissiveColor", .(r, g, b, 1.0f));
+			}
+			else
+			{
+				mPlayerMat.SetColor("EmissiveColor", .(0, 0, 0, 1.0f));
+			}
 		}
 
 		// Combo display timer
@@ -685,7 +899,11 @@ class ImpactArenaGame : Application
 		mWave = 1;
 		mScore = 0;
 		mWaveIntroTimer = 3.0f;
-		mInventoryCount = 0;
+		// Start with one of each usable powerup
+		mInventory[0] = .SpeedBoost;
+		mInventory[1] = .Shockwave;
+		mInventory[2] = .EMP;
+		mInventoryCount = 3;
 		mActiveSlot = 0;
 		mPlayer.Reset();
 		mEnemyManager.ClearAll();
@@ -716,37 +934,35 @@ class ImpactArenaGame : Application
 				mRenderSystem.SetActiveWorld(world);
 		}
 
-		// Draw HUD
-		if (mDebugFeature != null)
+		// Draw 2D UI to DrawContext
+		if (mDrawContext != null)
 		{
+			mDrawContext.Clear();
 			mHud.Draw(mState, mPlayer, mWave, mEnemyManager.AliveCount, mScore,
 				mHighScore, mWaveIntroTimer, mSwapChain.Width, mSwapChain.Height,
-				&mInventory[0], mInventoryCount, mActiveSlot);
+				&mInventory[0], mInventoryCount, mActiveSlot, render.Frame.TotalTime);
+			mHud.DrawExtras(mComboDisplayTimer, mLastComboBonus, mPlayer.HasSpeedBoost,
+				mSmoothedFps, mSwapChain.Width, mSwapChain.Height, mShowGizmo);
+		}
 
-			// Combo display (center screen, fades out)
-			if (mComboDisplayTimer > 0 && mLastComboBonus > 0)
+		// 3D Debug overlays (sun gizmo, arena boundary lines)
+		if (mDebugFeature != null)
+		{
+			// Sun light direction gizmo (G to toggle)
+			if (mShowGizmo)
 			{
-				let alpha = (uint8)Math.Min(255, (int32)(mComboDisplayTimer * 200));
-				let comboText = scope String();
-				comboText.AppendF("COMBO +{}", mLastComboBonus);
-				let cx = (float)mSwapChain.Width * 0.5f - 50;
-				mDebugFeature.AddText2D(comboText, cx, (float)mSwapChain.Height * 0.35f,
-					Color(255, 200, 50, alpha), 2.0f);
+				if (let renderModule = mMainScene?.GetModule<RenderSceneModule>())
+				{
+					let lightProxy = renderModule.GetLightProxy(mSunEntity);
+					if (lightProxy != null)
+					{
+						Vector3 sunOrigin = .(0, 8, 0); // Elevated above arena center
+						Vector3 sunEnd = sunOrigin + lightProxy.Direction * 5.0f;
+						mDebugFeature.AddArrow(sunOrigin, sunEnd, Color.Yellow, 0.3f, .Overlay);
+						mDebugFeature.AddSphere(sunOrigin, 0.3f, Color.Yellow, 8, .Overlay);
+					}
+				}
 			}
-
-			// Speed boost indicator
-			if (mPlayer.HasSpeedBoost)
-			{
-				let boostX = (float)mSwapChain.Width * 0.5f - 40;
-				mDebugFeature.AddText2D("SPEED BOOST", boostX, (float)mSwapChain.Height - 65,
-					Color(50, 220, 255), 1.0f);
-			}
-
-			// FPS counter bottom-left
-			let fpsText = scope String();
-			fpsText.AppendF("FPS: {:.0}", mSmoothedFps);
-			mDebugFeature.AddText2D(fpsText, 10, (float)mSwapChain.Height - 20,
-				Color(150, 150, 150), 0.8f);
 
 			// Arena boundary lines - change color based on player proximity to edge
 			if (mState == .Playing || mState == .WaveIntro)
@@ -815,11 +1031,49 @@ class ImpactArenaGame : Application
 			mRenderSystem.Execute(render.Encoder);
 
 		mRenderSystem.EndFrame();
+
+		// Render 2D UI overlay on top of 3D scene
+		if (mDrawingRenderer != null && mDrawContext != null)
+		{
+			let frameIndex = render.Frame.FrameIndex;
+
+			// Prepare batch data for GPU
+			let batch = mDrawContext.GetBatch();
+			mDrawingRenderer.Prepare(batch, frameIndex);
+			mDrawingRenderer.UpdateProjection(mSwapChain.Width, mSwapChain.Height, frameIndex);
+
+			// Create render pass with Load to preserve 3D scene
+			RenderPassColorAttachment[1] colorAttachments = .(.()
+			{
+				View = render.SwapChain.CurrentTextureView,
+				LoadOp = .Load,
+				StoreOp = .Store
+			});
+
+			RenderPassDescriptor passDesc = .(colorAttachments);
+			let renderPass = render.Encoder.BeginRenderPass(&passDesc);
+			if (renderPass != null)
+			{
+				mDrawingRenderer.Render(renderPass, mSwapChain.Width, mSwapChain.Height, frameIndex);
+				renderPass.End();
+				delete renderPass;
+			}
+		}
+
 		return true;
 	}
 
 	protected override void OnShutdown()
 	{
+		// Clean up drawing system
+		if (mDrawingRenderer != null)
+		{
+			mDrawingRenderer.Dispose();
+			delete mDrawingRenderer;
+		}
+		delete mDrawContext;
+		delete mFontService;
+
 		if (mPlaneMeshHandle.IsValid)
 			mRenderSystem.ResourceManager.ReleaseMesh(mPlaneMeshHandle, mRenderSystem.FrameNumber);
 		if (mCubeMeshHandle.IsValid)
