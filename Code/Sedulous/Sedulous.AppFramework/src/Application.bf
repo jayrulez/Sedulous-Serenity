@@ -430,11 +430,8 @@ public abstract class Application
 			return false;
 		}
 
-		// Set the font texture for UI rendering
-		let atlasView = mFontService.AtlasTextureView;
-		if (atlasView != null)
-			mDrawingRenderer.SetTexture(atlasView);
-
+		// Set the font texture lookup for UI rendering
+		mDrawingRenderer.SetTextureLookup(new (texture) => mFontService.GetTextureView(texture));
 		return true;
 	}
 

@@ -8,6 +8,14 @@ using Sedulous.Drawing;
 using Sedulous.Mathematics;
 using Sedulous.Profiler;
 
+/// Interface for looking up RHI texture views from Drawing textures.
+/// Implemented by texture providers that manage multiple textures.
+public interface ITextureViewProvider
+{
+	/// Get the RHI texture view for a Drawing texture.
+	ITextureView GetTextureView(Sedulous.Drawing.ITexture texture);
+}
+
 /// Uniform buffer data for projection matrix.
 [CRepr]
 struct DrawingUniforms
@@ -78,9 +86,34 @@ public class DrawingRenderer : IDisposable
 	private IBuffer[] mInstanceBuffers;
 	private IBindGroup[] mInstancedBindGroups;
 
-	// Current texture view (set before Prepare)
-	private ITextureView mTextureView;
+	// Sampler for texture sampling
 	private ISampler mSampler;
+
+	// Texture lookup - either via interface or delegate
+	private ITextureViewProvider mTextureProvider;
+	private delegate ITextureView(Sedulous.Drawing.ITexture) mTextureLookup;
+	// Per-texture bind groups - stored as list of (texture, bindGroups) pairs
+	// Using list instead of dictionary since ITexture doesn't implement IHashable
+	private List<TextureBindGroupEntry> mPerTextureBindGroups = new .() ~ { for (var e in _) e.Dispose(mFrameCount); delete _; };
+	// Textures from current batch (stored for bind group creation)
+	private List<Sedulous.Drawing.ITexture> mBatchTextures = new .() ~ delete _;
+
+	// Helper struct for texture -> bind group mapping
+	private struct TextureBindGroupEntry
+	{
+		public Sedulous.Drawing.ITexture Texture;
+		public IBindGroup[] BindGroups;
+
+		public void Dispose(int32 frameCount)
+		{
+			if (BindGroups != null)
+			{
+				for (int i = 0; i < frameCount; i++)
+					if (BindGroups[i] != null) delete BindGroups[i];
+				delete BindGroups;
+			}
+		}
+	}
 
 	// Batch data converted for GPU (standard mode)
 	private List<DrawingRenderVertex> mVertices = new .() ~ delete _;
@@ -103,7 +136,8 @@ public class DrawingRenderer : IDisposable
 		IDevice device,
 		TextureFormat targetFormat,
 		int32 frameCount,
-		NewShaderSystem shaderSystem)
+		NewShaderSystem shaderSystem,
+		ITextureViewProvider textureProvider = null)
 	{
 		using (SProfiler.Begin("DrawingRenderer.Initialize"))
 		{
@@ -111,6 +145,7 @@ public class DrawingRenderer : IDisposable
 			mTargetFormat = targetFormat;
 			mFrameCount = frameCount;
 			mShaderSystem = shaderSystem;
+			mTextureProvider = textureProvider;
 
 			// Load shaders from files
 			if (LoadShaders() case .Err)
@@ -137,17 +172,62 @@ public class DrawingRenderer : IDisposable
 		}
 	}
 
-	/// Set the texture to use for rendering.
-	/// Must be called before Prepare() each frame.
+	/// Set the texture view provider after initialization.
+	/// This is useful when the provider isn't available at init time.
+	public void SetTextureProvider(ITextureViewProvider provider)
+	{
+		mTextureProvider = provider;
+		if (mTextureLookup != null)
+		{
+			delete mTextureLookup;
+			mTextureLookup = null;
+		}
+		ClearPerTextureBindGroups();
+	}
+
+	/// Set a texture lookup delegate for multi-texture support.
+	/// The delegate should return the RHI texture view for a Drawing texture.
+	/// Example: `renderer.SetTextureLookup(new (tex) => fontService.GetTextureView(tex));`
+	public void SetTextureLookup(delegate ITextureView(Sedulous.Drawing.ITexture) lookup)
+	{
+		if (mTextureLookup != null)
+			delete mTextureLookup;
+		mTextureLookup = lookup;
+		mTextureProvider = null;
+		ClearPerTextureBindGroups();
+	}
+
+	/// Set a single texture view for simple single-texture rendering.
+	/// Use this for simple cases where all drawing uses one texture (e.g., single font atlas).
+	/// For multi-texture support (multiple font sizes), use SetTextureLookup instead.
 	public void SetTexture(ITextureView textureView)
 	{
-		if (mTextureView != textureView)
-		{
-			mTextureView = textureView;
-			// Invalidate all bind groups so they get recreated with new texture
-			InvalidateBindGroups(mBindGroups);
-			InvalidateBindGroups(mInstancedBindGroups);
-		}
+		if (mTextureLookup != null)
+			delete mTextureLookup;
+		// Create a lookup that always returns the same texture
+		mTextureLookup = new (texture) => textureView;
+		mTextureProvider = null;
+		ClearPerTextureBindGroups();
+	}
+
+	/// Look up texture view using either provider or delegate.
+	private ITextureView LookupTextureView(Sedulous.Drawing.ITexture texture)
+	{
+		if (mTextureProvider != null)
+			return mTextureProvider.GetTextureView(texture);
+		if (mTextureLookup != null)
+			return mTextureLookup(texture);
+		return null;
+	}
+
+	/// Check if texture lookup is available.
+	private bool HasTextureLookup => mTextureProvider != null || mTextureLookup != null;
+
+	private void ClearPerTextureBindGroups()
+	{
+		for (var entry in mPerTextureBindGroups)
+			entry.Dispose(mFrameCount);
+		mPerTextureBindGroups.Clear();
 	}
 
 	private void InvalidateBindGroups(IBindGroup[] bindGroups)
@@ -186,6 +266,11 @@ public class DrawingRenderer : IDisposable
 			for (let cmd in batch.Commands)
 				mDrawCommands.Add(cmd);
 
+			// Store batch textures for multi-texture rendering
+			mBatchTextures.Clear();
+			for (let tex in batch.Textures)
+				mBatchTextures.Add(tex);
+
 			// Upload to GPU buffers
 			if (mVertices.Count > 0)
 			{
@@ -196,8 +281,12 @@ public class DrawingRenderer : IDisposable
 				mDevice.Queue.WriteBuffer(mIndexBuffers[frameIndex], 0, indexData);
 			}
 
-			// Update bind group with current texture
-			UpdateBindGroup(frameIndex);
+			// Update bind groups for multi-texture rendering
+			if (HasTextureLookup && mBatchTextures.Count > 0)
+			{
+				for (int32 texIdx = 0; texIdx < mBatchTextures.Count; texIdx++)
+					UpdatePerTextureBindGroup(texIdx, frameIndex);
+			}
 		}
 	}
 
@@ -253,15 +342,29 @@ public class DrawingRenderer : IDisposable
 
 			renderPass.SetViewport(0, 0, width, height, 0, 1);
 			renderPass.SetPipeline(useMsaa ? mMsaaPipeline : mPipeline);
-			renderPass.SetBindGroup(0, mBindGroups[frameIndex]);
 			renderPass.SetVertexBuffer(0, mVertexBuffers[frameIndex], 0);
 			renderPass.SetIndexBuffer(mIndexBuffers[frameIndex], .UInt16, 0);
+
+			// Track current texture to minimize bind group switches
+			// Use -2 as sentinel to force first bind group set
+			int32 currentTextureIndex = -2;
 
 			// Process each draw command with its own scissor rect
 			for (let cmd in mDrawCommands)
 			{
 				if (cmd.IndexCount == 0)
 					continue;
+
+				// Switch bind group if texture changed
+				// Note: texIdx of -1 (solid color) maps to texture 0 in GetBindGroupForTexture
+				let texIdx = cmd.TextureIndex;
+				if (texIdx != currentTextureIndex)
+				{
+					let bindGroup = GetBindGroupForTexture(texIdx, frameIndex);
+					if (bindGroup != null)
+						renderPass.SetBindGroup(0, bindGroup);
+					currentTextureIndex = texIdx;
+				}
 
 				// Set scissor rect based on clip mode
 				if (cmd.ClipMode == .Scissor && cmd.ClipRect.Width > 0 && cmd.ClipRect.Height > 0)
@@ -577,23 +680,75 @@ public class DrawingRenderer : IDisposable
 		return .Ok;
 	}
 
-	private void UpdateBindGroup(int32 frameIndex)
+	private void UpdatePerTextureBindGroup(int32 textureIndex, int32 frameIndex)
 	{
-		// Skip if bind group is already valid (invalidated by SetTexture on change)
-		if (mBindGroups[frameIndex] != null)
+		if (!HasTextureLookup || textureIndex >= mBatchTextures.Count)
 			return;
 
-		if (mTextureView == null)
+		let texture = mBatchTextures[textureIndex];
+		if (texture == null)
+			return;
+
+		// Find or create bind group array for this texture
+		IBindGroup[] bindGroups = null;
+		int entryIndex = -1;
+		for (int i = 0; i < mPerTextureBindGroups.Count; i++)
+		{
+			if (mPerTextureBindGroups[i].Texture == texture)
+			{
+				bindGroups = mPerTextureBindGroups[i].BindGroups;
+				entryIndex = i;
+				break;
+			}
+		}
+
+		if (bindGroups == null)
+		{
+			// Create new entry
+			bindGroups = new IBindGroup[mFrameCount];
+			mPerTextureBindGroups.Add(.() { Texture = texture, BindGroups = bindGroups });
+		}
+
+		// Skip if already created for this frame
+		if (bindGroups[frameIndex] != null)
+			return;
+
+		// Look up the texture view
+		let textureView = LookupTextureView(texture);
+		if (textureView == null)
 			return;
 
 		BindGroupEntry[3] bindGroupEntries = .(
 			BindGroupEntry.Buffer(0, mUniformBuffers[frameIndex]),
-			BindGroupEntry.Texture(0, mTextureView),
+			BindGroupEntry.Texture(0, textureView),
 			BindGroupEntry.Sampler(0, mSampler)
 		);
 		BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
 		if (mDevice.CreateBindGroup(&bindGroupDesc) case .Ok(let group))
-			mBindGroups[frameIndex] = group;
+			bindGroups[frameIndex] = group;
+	}
+
+	private IBindGroup GetBindGroupForTexture(int32 textureIndex, int32 frameIndex)
+	{
+		if (!HasTextureLookup || mBatchTextures.Count == 0)
+			return null;
+
+		// For solid color drawing (index -1), use texture 0 which contains the white pixel
+		let effectiveIndex = (textureIndex < 0) ? 0 : textureIndex;
+		if (effectiveIndex >= mBatchTextures.Count)
+			return null;
+
+		let texture = mBatchTextures[effectiveIndex];
+		if (texture == null)
+			return null;
+
+		// Find bind group for this texture
+		for (let entry in mPerTextureBindGroups)
+		{
+			if (entry.Texture == texture)
+				return entry.BindGroups[frameIndex];
+		}
+		return null;
 	}
 
 	private void UpdateInstancedBindGroup(int32 frameIndex)
@@ -602,12 +757,17 @@ public class DrawingRenderer : IDisposable
 		if (mInstancedBindGroups[frameIndex] != null)
 			return;
 
-		if (mTextureView == null)
+		// For instanced rendering, use the first texture from batch if available
+		ITextureView textureView = null;
+		if (HasTextureLookup && mBatchTextures.Count > 0)
+			textureView = LookupTextureView(mBatchTextures[0]);
+
+		if (textureView == null)
 			return;
 
 		BindGroupEntry[3] bindGroupEntries = .(
 			BindGroupEntry.Buffer(0, mUniformBuffers[frameIndex]),
-			BindGroupEntry.Texture(0, mTextureView),
+			BindGroupEntry.Texture(0, textureView),
 			BindGroupEntry.Sampler(0, mSampler)
 		);
 		BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
@@ -624,6 +784,11 @@ public class DrawingRenderer : IDisposable
 		DisposeBufferArray(ref mIndexBuffers);
 		DisposeBufferArray(ref mVertexBuffers);
 		DisposeBufferArray(ref mInstanceBuffers);
+
+		// Multi-texture resources
+		ClearPerTextureBindGroups();
+		mTextureProvider = null;
+		if (mTextureLookup != null) { delete mTextureLookup; mTextureLookup = null; }
 
 		// Instanced pipeline resources
 		if (mInstancedMsaaPipeline != null) { delete mInstancedMsaaPipeline; mInstancedMsaaPipeline = null; }

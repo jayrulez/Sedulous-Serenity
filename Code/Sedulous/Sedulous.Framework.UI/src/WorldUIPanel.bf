@@ -147,7 +147,8 @@ public class WorldUIPanel
 		// Create renderer
 		mDrawingRenderer = new DrawingRenderer();
 		mDrawingRenderer.Initialize(device, .RGBA8Unorm, frameCount, shaderSystem);
-		mDrawingRenderer.SetTexture(fontService.AtlasTextureView);
+		mFontService = fontService;
+		mDrawingRenderer.SetTextureLookup(new (texture) => mFontService.GetTextureView(texture));
 
 		// Create render texture
 		TextureDescriptor texDesc = TextureDescriptor.Texture2D(

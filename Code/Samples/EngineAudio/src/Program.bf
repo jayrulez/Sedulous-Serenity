@@ -104,7 +104,7 @@ class EngineAudioSample : RHISampleApp
 			Console.WriteLine("Failed to initialize UI renderer");
 			return false;
 		}
-		mDrawingRenderer.SetTexture(mFontService.AtlasTextureView);
+		mDrawingRenderer.SetTextureLookup(new (texture) => mFontService.GetTextureView(texture));
 
 		mDrawContext = new .(mFontService);
 

@@ -228,16 +228,14 @@ public class UISubsystem : Subsystem, ISceneAware
 		return .Ok;
 	}
 
-	/// Call after loading fonts to update the DrawingRenderer atlas texture.
+	/// Call after loading fonts to update the DrawingRenderer texture lookup.
 	/// Note: DrawContext WhitePixelUV is automatically set via FontService in constructor.
 	public void ApplyFontAtlas()
 	{
 		if (!mRenderingInitialized || mFontService == null)
 			return;
 
-		let atlasView = mFontService.AtlasTextureView;
-		if (atlasView != null)
-			mDrawingRenderer.SetTexture(atlasView);
+		mDrawingRenderer.SetTextureLookup(new (texture) => mFontService.GetTextureView(texture));
 	}
 
 	/// Render UI overlay. Call this after the 3D scene has been rendered.

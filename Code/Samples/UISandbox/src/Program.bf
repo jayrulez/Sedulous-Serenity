@@ -109,7 +109,7 @@ class UISandboxSample : RHISampleApp
 			Console.WriteLine("Failed to initialize UI renderer");
 			return false;
 		}
-		mDrawingRenderer.SetTexture(mFontService.AtlasTextureView);
+		mDrawingRenderer.SetTextureLookup(new (texture) => mFontService.GetTextureView(texture));
 
 		if (!CreateMsaaTargets())
 			return false;

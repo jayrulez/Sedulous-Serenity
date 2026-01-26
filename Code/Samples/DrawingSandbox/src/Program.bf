@@ -72,9 +72,7 @@ class DrawingSandboxSample : RHISampleApp
 			Console.WriteLine("Failed to initialize DrawingRenderer");
 			return false;
 		}
-
-		// Set the font atlas texture
-		mDrawingRenderer.SetTexture(mFontService.AtlasTextureView);
+		mDrawingRenderer.SetTextureLookup(new (texture) => mFontService.GetTextureView(texture));
 
 		Console.WriteLine("DrawingSandbox initialized with DrawingRenderer");
 		return true;
