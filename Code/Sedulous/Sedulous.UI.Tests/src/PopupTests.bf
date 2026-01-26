@@ -345,7 +345,7 @@ class UIContextPopupTests
 		popup.Content = content;
 
 		// Set context by adding as child temporarily
-		root.AddChild(popup);
+		root.Child = popup;
 
 		popup.Open();
 		Test.Assert(popup.IsOpen);
@@ -365,7 +365,7 @@ class UIContextPopupTests
 		content.Height = 100;
 		popup.Content = content;
 
-		root.AddChild(popup);
+		root.Child = popup;
 		popup.Open();
 		Test.Assert(popup.IsOpen);
 

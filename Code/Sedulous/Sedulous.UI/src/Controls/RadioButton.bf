@@ -145,10 +145,10 @@ public class RadioButton : ToggleButton
 	{
 		if (mGroupName == null)
 		{
-			// No group - uncheck siblings in same parent
-			if (Parent != null)
+			// No group - uncheck siblings in same parent (if parent is a CompositeControl)
+			if (let composite = Parent as CompositeControl)
 			{
-				for (let child in Parent.Children)
+				for (let child in composite.Children)
 				{
 					if (let radio = child as RadioButton)
 					{

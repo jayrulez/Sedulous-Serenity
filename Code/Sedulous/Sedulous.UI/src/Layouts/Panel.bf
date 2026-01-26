@@ -5,7 +5,8 @@ using Sedulous.Mathematics;
 namespace Sedulous.UI;
 
 /// Base class for layout containers that arrange multiple children.
-public abstract class Panel : UIElement
+/// Panels extend CompositeControl which provides children management.
+public abstract class Panel : CompositeControl
 {
 	private Color? mBackground;
 
@@ -18,9 +19,13 @@ public abstract class Panel : UIElement
 
 	protected override void OnRender(DrawContext drawContext)
 	{
+		// Draw background first
 		if (mBackground.HasValue)
 		{
 			drawContext.FillRect(Bounds, mBackground.Value);
 		}
+
+		// Let CompositeControl render children
+		base.OnRender(drawContext);
 	}
 }

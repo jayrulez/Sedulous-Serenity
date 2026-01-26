@@ -131,6 +131,9 @@ public class ContextMenu : Popup
 		// Border
 		let border = BorderBrush ?? theme?.GetColor("Border") ?? Color(70, 70, 80);
 		drawContext.DrawRect(bounds, border, 1.0f);
+
+		// Render menu items
+		RenderContent(drawContext);
 	}
 
 	protected override void OnKeyDownRouted(KeyEventArgs args)

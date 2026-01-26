@@ -5,73 +5,24 @@ using Sedulous.Mathematics;
 namespace Sedulous.UI;
 
 /// A control that draws a border and background around a single child.
-///
-/// IMPORTANT: Use the `Child` property to set the content, not `AddChild()`.
-/// The `Child` property ensures proper measurement and layout of the content.
+/// Use the `Child` property (inherited from Decorator) to set the content.
 ///
 /// Example:
 /// ```
 /// let border = new Border();
 /// border.Background = Color(45, 50, 60);
 /// border.Padding = Thickness(10);
-/// border.Child = new TextBlock("Hello");  // Correct
-/// // border.AddChild(new TextBlock("Hello"));  // Wrong - layout will fail
+/// border.Child = new TextBlock("Hello");
 /// ```
-public class Border : Control
+public class Border : Decorator
 {
-	private UIElement mChild;
 	private float mCornerRadius;
-
-	/// The single child element inside the border.
-	public UIElement Child
-	{
-		get => mChild;
-		set
-		{
-			if (mChild != value)
-			{
-				if (mChild != null)
-					RemoveChild(mChild);
-
-				mChild = value;
-
-				if (mChild != null)
-					AddChild(mChild);
-
-				InvalidateMeasure();
-			}
-		}
-	}
 
 	/// The corner radius for rounded corners.
 	public float CornerRadius
 	{
 		get => mCornerRadius;
 		set { mCornerRadius = value; InvalidateVisual(); }
-	}
-
-	public this()
-	{
-		// Border is not focusable by default
-		Focusable = false;
-	}
-
-	protected override DesiredSize MeasureContent(SizeConstraints constraints)
-	{
-		if (mChild != null)
-		{
-			mChild.Measure(constraints);
-			return mChild.DesiredSize;
-		}
-		return .(0, 0);
-	}
-
-	protected override void ArrangeContent(RectangleF contentBounds)
-	{
-		if (mChild != null)
-		{
-			mChild.Arrange(contentBounds);
-		}
 	}
 
 	protected override void OnRender(DrawContext drawContext)
@@ -114,6 +65,7 @@ public class Border : Control
 			}
 		}
 
-		// Child renders itself through the tree
+		// Render child (Decorator base class handles this)
+		base.OnRender(drawContext);
 	}
 }

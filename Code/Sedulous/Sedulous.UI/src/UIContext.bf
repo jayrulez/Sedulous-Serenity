@@ -222,15 +222,19 @@ public class UIContext
 
 	public ~this()
 	{
+		// Process any remaining deferred deletions
+		for (let element in mDeferredDeletions)
+			delete element;
+
 		if (mRootElement != null)
 		{
 			mRootElement.[Friend]mContext = null;
 			delete mRootElement;
 		}
 
-		// Note: Services and clipboard are NOT deleted here.
-		// They are owned by whoever created and registered them.
-		// The caller is responsible for deleting them.
+		// Note: Popups are NOT deleted here - they are owned by whoever created them.
+		// When a popup is deleted, it unregisters itself from mActivePopups.
+		// Services and clipboard are NOT deleted here - owned by their creators.
 	}
 
 	/// Registers the clipboard service.
@@ -478,8 +482,17 @@ public class UIContext
 	private void NotifyTooltipServiceRecursive(ITooltipService tooltipService, UIElement element)
 	{
 		tooltipService.OnElementDeleted(element);
-		for (let child in element.Children)
+		VisitVisualChildren(element, scope [&](child) => {
 			NotifyTooltipServiceRecursive(tooltipService, child);
+		});
+	}
+
+	/// Visits all visual children of an element.
+	/// Elements that have visual children implement IVisualChildProvider.
+	private static void VisitVisualChildren(UIElement element, delegate void(UIElement) visitor)
+	{
+		if (let provider = element as IVisualChildProvider)
+			provider.VisitVisualChildren(visitor);
 	}
 
 	/// Closes popups that should close when clicking outside.
@@ -721,10 +734,9 @@ public class UIContext
 			drawContext.SetTransform(savedTransform);
 
 		// Recurse to children
-		for (let child in element.Children)
-		{
+		VisitVisualChildren(element, scope [&](child) => {
 			RenderElementDebug(drawContext, child);
-		}
+		});
 	}
 
 	/// Performs hit testing to find the element at the specified point.

@@ -34,9 +34,9 @@ public enum ScrollBarVisibility
 /// scrollViewer.Content = content;  // Correct
 /// // scrollViewer.AddChild(content);  // Wrong - scrolling and layout will fail
 /// ```
-public class ScrollViewer : UIElement
+public class ScrollViewer : UIElement, IVisualChildProvider
 {
-	private UIElement mContent;
+	private UIElement mContent ~ delete _;
 	private Vector2 mScrollOffset;
 	private Vector2 mExtentSize;
 	private Vector2 mViewportSize;
@@ -59,12 +59,12 @@ public class ScrollViewer : UIElement
 		set
 		{
 			if (mContent != null)
-				RemoveChild(mContent);
+				mContent.[Friend]mParent = null;
 
 			mContent = value;
 
 			if (mContent != null)
-				AddChild(mContent);
+				mContent.[Friend]mParent = this;
 
 			InvalidateMeasure();
 		}
@@ -258,11 +258,9 @@ public class ScrollViewer : UIElement
 		// Render this element (sets up clip rect)
 		OnRender(drawContext);
 
-		// Render children (content) inside clip rect
-		for (let child in Children)
-		{
-			child.Render(drawContext);
-		}
+		// Render content inside clip rect
+		if (mContent != null)
+			mContent.Render(drawContext);
 
 		// Pop clip rect before rendering scrollbars
 		drawContext.PopClip();
@@ -503,5 +501,50 @@ public class ScrollViewer : UIElement
 			: barX;
 
 		return (thumbX, thumbWidth);
+	}
+
+	/// Override HitTest to check content.
+	public override UIElement HitTest(float x, float y)
+	{
+		if (Visibility != .Visible)
+			return null;
+
+		if (!Bounds.Contains(x, y))
+			return null;
+
+		// Check content first
+		if (mContent != null)
+		{
+			let result = mContent.HitTest(x, y);
+			if (result != null)
+				return result;
+		}
+
+		return this;
+	}
+
+	/// Override FindElementById to search content.
+	public override UIElement FindElementById(UIElementId id)
+	{
+		if (Id == id)
+			return this;
+
+		if (mContent != null)
+		{
+			let result = mContent.FindElementById(id);
+			if (result != null)
+				return result;
+		}
+
+		return null;
+	}
+
+	// === IVisualChildProvider ===
+
+	/// Visits all visual children of this element.
+	public void VisitVisualChildren(delegate void(UIElement) visitor)
+	{
+		if (mContent != null)
+			visitor(mContent);
 	}
 }

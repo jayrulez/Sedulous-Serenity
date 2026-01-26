@@ -20,9 +20,9 @@ public enum SelectionMode
 }
 
 /// A scrollable list of selectable items.
-public class ListBox : Control
+public class ListBox : Control, IVisualChildProvider
 {
-	private ScrollViewer mScrollViewer ~ { }; // Owned as child
+	private ScrollViewer mScrollViewer ~ delete _; // Owned as child
 	private StackPanel mItemsPanel ~ { }; // Owned by scroll viewer
 	private List<ListBoxItem> mItems = new .() ~ delete _; // List owns nothing, items are children of mItemsPanel
 	private List<ListBoxItem> mSelectedItems = new .() ~ delete _; // Just references, no ownership
@@ -106,13 +106,12 @@ public class ListBox : Control
 		mScrollViewer = new ScrollViewer();
 		mScrollViewer.HorizontalScrollBarVisibility = .Disabled;
 		mScrollViewer.VerticalScrollBarVisibility = .Auto;
+		mScrollViewer.[Friend]mParent = this;
 
 		mItemsPanel = new StackPanel();
 		mItemsPanel.Orientation = .Vertical;
 		mItemsPanel.Spacing = 0;
 		mScrollViewer.Content = mItemsPanel;
-
-		AddChild(mScrollViewer);
 	}
 
 	/// Adds an item to the list.
@@ -294,6 +293,9 @@ public class ListBox : Control
 			drawContext.FillRect(.(bounds.X, bounds.Y + bt.Top, bt.Left, bounds.Height - bt.TotalVertical), borderColor);
 		if (bt.Right > 0)
 			drawContext.FillRect(.(bounds.Right - bt.Right, bounds.Y + bt.Top, bt.Right, bounds.Height - bt.TotalVertical), borderColor);
+
+		// Render scroll viewer and items
+		RenderContent(drawContext);
 	}
 
 	protected override void OnMouseDownRouted(MouseButtonEventArgs args)
@@ -463,5 +465,49 @@ public class ListBox : Control
 	{
 		base.OnLostFocus();
 		InvalidateVisual();
+	}
+
+	protected override void RenderContent(DrawContext drawContext)
+	{
+		mScrollViewer.Render(drawContext);
+	}
+
+	/// Override HitTest to check scroll viewer.
+	public override UIElement HitTest(float x, float y)
+	{
+		if (Visibility != .Visible)
+			return null;
+
+		if (!Bounds.Contains(x, y))
+			return null;
+
+		// Check scroll viewer
+		let result = mScrollViewer.HitTest(x, y);
+		if (result != null)
+			return result;
+
+		return this;
+	}
+
+	/// Override FindElementById to search scroll viewer.
+	public override UIElement FindElementById(UIElementId id)
+	{
+		if (Id == id)
+			return this;
+
+		let result = mScrollViewer.FindElementById(id);
+		if (result != null)
+			return result;
+
+		return null;
+	}
+
+	// === IVisualChildProvider ===
+
+	/// Visits all visual children of this element.
+	public void VisitVisualChildren(delegate void(UIElement) visitor)
+	{
+		if (mScrollViewer != null)
+			visitor(mScrollViewer);
 	}
 }

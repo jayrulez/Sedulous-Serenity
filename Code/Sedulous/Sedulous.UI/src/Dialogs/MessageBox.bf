@@ -22,7 +22,7 @@ public enum MessageBoxIcon
 /// A simple message dialog with static methods for easy use.
 public class MessageBox : Dialog
 {
-	private TextBlock mMessageText ~ { }; // Owned as DialogContent
+	private TextBlock mMessageText; // Reference only - owned by Dialog.mContent via DialogContent
 	private MessageBoxIcon mIcon = .None;
 
 	/// The message text displayed in the dialog.

@@ -6,8 +6,29 @@ using Sedulous.Drawing;
 namespace Sedulous.UI;
 
 /// Manages dockable panel layout with dock zones and floating panels.
-public class DockManager : Control
+public class DockManager : CompositeControl
 {
+	// Theming support (since we don't extend Control)
+	private Color? mBackground;
+
+	/// Background color.
+	public Color? Background
+	{
+		get => mBackground;
+		set { mBackground = value; InvalidateVisual(); }
+	}
+
+	private ITheme GetTheme()
+	{
+		let context = Context;
+		if (context != null)
+		{
+			if (context.GetService<ITheme>() case .Ok(let theme))
+				return theme;
+		}
+		return null;
+	}
+
 	private UIElement mCenterContent;
 	private DockablePanel mLeftPanel;
 	private DockablePanel mRightPanel;
@@ -429,7 +450,7 @@ public class DockManager : Control
 		return .None;
 	}
 
-	protected override DesiredSize MeasureContent(SizeConstraints constraints)
+	protected override DesiredSize MeasureOverride(SizeConstraints constraints)
 	{
 		// Measure all docked panels
 		if (mLeftPanel != null)
@@ -479,7 +500,7 @@ public class DockManager : Control
 		return .(constraints.MaxWidth, constraints.MaxHeight);
 	}
 
-	protected override void ArrangeContent(RectangleF contentBounds)
+	protected override void ArrangeOverride(RectangleF contentBounds)
 	{
 		var left = contentBounds.X;
 		var top = contentBounds.Y;
@@ -579,5 +600,8 @@ public class DockManager : Control
 			if (!previewBounds.IsEmpty)
 				drawContext.FillRect(previewBounds, previewColor);
 		}
+
+		// Render children (panels, splitters, floating panels)
+		base.OnRender(drawContext);
 	}
 }

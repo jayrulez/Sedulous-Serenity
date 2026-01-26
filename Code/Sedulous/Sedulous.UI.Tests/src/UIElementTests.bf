@@ -4,7 +4,8 @@ using Sedulous.Mathematics;
 namespace Sedulous.UI.Tests;
 
 /// Simple concrete element for testing.
-class SimpleElement : UIElement
+/// Extends CompositeControl to support children for hierarchy tests.
+class SimpleElement : CompositeControl
 {
 	public float ContentWidth = 50;
 	public float ContentHeight = 30;

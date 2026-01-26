@@ -23,7 +23,8 @@ class TestClipboard : IClipboard
 }
 
 /// Simple test element for testing.
-class TestElement : UIElement
+/// Extends CompositeControl to support children for hierarchy tests.
+class TestElement : CompositeControl
 {
 	public int MeasureCallCount;
 	public int ArrangeCallCount;

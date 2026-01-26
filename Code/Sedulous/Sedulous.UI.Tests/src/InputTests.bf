@@ -5,7 +5,8 @@ using Sedulous.Mathematics;
 namespace Sedulous.UI.Tests;
 
 /// Test element that tracks input events received.
-class InputTestElement : UIElement
+/// Extends CompositeControl to support children for hierarchy tests.
+class InputTestElement : CompositeControl
 {
 	public List<String> ReceivedEvents = new .() ~ DeleteContainerAndItems!(_);
 	public MouseButtonEventArgs LastMouseDownArgs;

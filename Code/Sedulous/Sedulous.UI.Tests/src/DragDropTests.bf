@@ -247,7 +247,7 @@ class DragDropManagerTests
 
 		let manager = scope DragDropManager(context);
 		let source = new TestDragSource();
-		root.AddChild(source);
+		root.Child = source;
 
 		let data = new DragData();
 		let result = manager.StartDrag(source, data, .Copy | .Move, 100, 100);
@@ -270,7 +270,7 @@ class DragDropManagerTests
 
 		let manager = scope DragDropManager(context);
 		let source = new TestDragSource();
-		root.AddChild(source);
+		root.Child = source;
 
 		let result = manager.StartDrag(source, null, .All, 100, 100);
 		Test.Assert(!result);
@@ -290,7 +290,7 @@ class DragDropManagerTests
 
 		let manager = scope DragDropManager(context);
 		let source = new TestDragSource();
-		root.AddChild(source);
+		root.Child = source;
 
 		let result = manager.StartDrag(source, 50, 50);
 
@@ -314,7 +314,7 @@ class DragDropManagerTests
 
 		let manager = scope DragDropManager(context);
 		let source = new TestDragSource();
-		root.AddChild(source);
+		root.Child = source;
 
 		manager.StartDrag(source, 50, 50);
 		Test.Assert(manager.IsDragging);

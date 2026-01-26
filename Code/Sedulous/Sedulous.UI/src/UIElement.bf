@@ -6,6 +6,14 @@ using Sedulous.Foundation.Core;
 
 namespace Sedulous.UI;
 
+/// Interface for elements that have visual children.
+/// Elements implement this to allow tree traversal without type-checking chains.
+public interface IVisualChildProvider
+{
+	/// Visits all visual children of this element by calling the visitor delegate for each.
+	void VisitVisualChildren(delegate void(UIElement) visitor);
+}
+
 /// Base class for all UI elements.
 /// Provides core functionality for layout, rendering, and input handling.
 public abstract class UIElement
@@ -16,7 +24,6 @@ public abstract class UIElement
 	// Tree structure
 	internal UIContext mContext;
 	private UIElement mParent;
-	private List<UIElement> mChildren = new .() ~ DeleteContainerAndItems!(_);
 
 	// Layout properties
 	private SizeDimension mWidth = .Auto;
@@ -78,8 +85,8 @@ public abstract class UIElement
 	/// Parent element in the UI tree.
 	public UIElement Parent => mParent;
 
-	/// Children of this element.
-	public List<UIElement> Children => mChildren;
+	/// Whether this element has a render transform applied.
+	protected bool HasRenderTransform => mHasRenderTransform;
 
 	// === Layout Properties ===
 
@@ -311,54 +318,6 @@ public abstract class UIElement
 	/// Fired when the element is clicked.
 	public EventAccessor<delegate void(UIElement)> OnClickEvent => mOnClickEvent;
 
-	// === Tree Manipulation ===
-
-	/// Adds a child element.
-	public void AddChild(UIElement child)
-	{
-		if (child.mParent != null)
-			child.mParent.RemoveChild(child);
-
-		child.mParent = this;
-		mChildren.Add(child);
-		InvalidateMeasure();
-	}
-
-	/// Inserts a child at the specified index.
-	public void InsertChild(int index, UIElement child)
-	{
-		if (child.mParent != null)
-			child.mParent.RemoveChild(child);
-
-		child.mParent = this;
-		mChildren.Insert(index, child);
-		InvalidateMeasure();
-	}
-
-	/// Removes a child element.
-	public bool RemoveChild(UIElement child)
-	{
-		if (mChildren.Remove(child))
-		{
-			child.mParent = null;
-			InvalidateMeasure();
-			return true;
-		}
-		return false;
-	}
-
-	/// Removes all children.
-	public void ClearChildren()
-	{
-		for (let child in mChildren)
-		{
-			child.mParent = null;
-			delete child;
-		}
-		mChildren.Clear();
-		InvalidateMeasure();
-	}
-
 	// === Layout ===
 
 	/// Marks the element as needing re-measurement.
@@ -440,20 +399,10 @@ public abstract class UIElement
 	}
 
 	/// Override to measure content. Returns the desired content size.
+	/// Base implementation returns zero - subclasses should override to measure their content.
 	protected virtual DesiredSize MeasureOverride(SizeConstraints constraints)
 	{
-		// Default: measure children and return size of largest
-		var maxWidth = 0.0f;
-		var maxHeight = 0.0f;
-
-		for (let child in mChildren)
-		{
-			child.Measure(constraints);
-			maxWidth = Math.Max(maxWidth, child.DesiredSize.Width);
-			maxHeight = Math.Max(maxHeight, child.DesiredSize.Height);
-		}
-
-		return .(maxWidth, maxHeight);
+		return .Zero;
 	}
 
 	/// Arranges the element and its children within the final bounds.
@@ -520,14 +469,10 @@ public abstract class UIElement
 		mArrangeDirty = false;
 	}
 
-	/// Override to arrange children within the content bounds.
+	/// Override to arrange content within the content bounds.
+	/// Base implementation does nothing - subclasses should override to arrange their content.
 	protected virtual void ArrangeOverride(RectangleF contentBounds)
 	{
-		// Default: arrange all children to fill content bounds
-		for (let child in mChildren)
-		{
-			child.Arrange(contentBounds);
-		}
 	}
 
 	// === Rendering ===
@@ -570,12 +515,6 @@ public abstract class UIElement
 		// Render this element's content
 		OnRender(drawContext);
 
-		// Render children
-		for (let child in mChildren)
-		{
-			child.Render(drawContext);
-		}
-
 		// Pop clipping
 		if (mClipToBounds)
 			drawContext.PopClip();
@@ -596,9 +535,10 @@ public abstract class UIElement
 
 	// === Hit Testing ===
 
-	/// Tests if the specified point hits this element or any child.
-	/// Returns the deepest element hit, or null if no hit.
-	public UIElement HitTest(float x, float y)
+	/// Tests if the specified point hits this element.
+	/// Returns the element if hit, or null if no hit.
+	/// Subclasses with children (CompositeControl) override to check children first.
+	public virtual UIElement HitTest(float x, float y)
 	{
 		if (mVisibility != .Visible)
 			return null;
@@ -631,16 +571,6 @@ public abstract class UIElement
 		if (!mBounds.Contains(hitX, hitY))
 			return null;
 
-		// Check children in reverse order (front to back)
-		// Children use the transformed coordinates relative to this element
-		for (int i = mChildren.Count - 1; i >= 0; i--)
-		{
-			let result = mChildren[i].HitTest(hitX, hitY);
-			if (result != null)
-				return result;
-		}
-
-		// No child hit, return this element
 		return this;
 	}
 
@@ -653,17 +583,11 @@ public abstract class UIElement
 	// === Tree Searching ===
 
 	/// Finds an element by ID in this element and its descendants.
-	public UIElement FindElementById(UIElementId id)
+	/// Subclasses with children (CompositeControl) override to search children.
+	public virtual UIElement FindElementById(UIElementId id)
 	{
 		if (mId == id)
 			return this;
-
-		for (let child in mChildren)
-		{
-			let result = child.FindElementById(id);
-			if (result != null)
-				return result;
-		}
 
 		return null;
 	}

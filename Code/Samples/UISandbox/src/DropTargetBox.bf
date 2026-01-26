@@ -22,9 +22,10 @@ class DropTargetBox : Border, IDropTarget
 		mLabel = new TextBlock();
 		mLabel.Text = mDroppedLabel;
 		mLabel.Foreground = Color(150, 150, 150);
-		mLabel.HorizontalAlignment = .Center;
+		mLabel.TextAlignment = .Center;
+		mLabel.HorizontalAlignment = .Stretch;
 		mLabel.VerticalAlignment = .Center;
-		AddChild(mLabel);
+		Child = mLabel;
 	}
 
 	public void OnDragEnter(DragEventArgs args)

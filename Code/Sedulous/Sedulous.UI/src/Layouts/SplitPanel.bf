@@ -1,14 +1,15 @@
 using System;
 using Sedulous.Mathematics;
+using Sedulous.Drawing;
 
 namespace Sedulous.UI;
 
 /// A container that divides its space between two panels with a draggable splitter.
-public class SplitPanel : Control
+public class SplitPanel : Control, IVisualChildProvider
 {
-	private UIElement mPanel1;
-	private UIElement mPanel2;
-	private Splitter mSplitter; // Owned by parent as child - don't auto-delete
+	private UIElement mPanel1 ~ delete _;
+	private UIElement mPanel2 ~ delete _;
+	private Splitter mSplitter ~ delete _;
 	private float mSplitterPosition = 200;
 	private float mPanel1MinSize = 50;
 	private float mPanel2MinSize = 50;
@@ -81,12 +82,12 @@ public class SplitPanel : Control
 			if (mPanel1 != value)
 			{
 				if (mPanel1 != null)
-					RemoveChild(mPanel1);
+					mPanel1.[Friend]mParent = null;
 
 				mPanel1 = value;
 
 				if (mPanel1 != null)
-					AddChild(mPanel1);
+					mPanel1.[Friend]mParent = this;
 
 				InvalidateMeasure();
 			}
@@ -102,12 +103,12 @@ public class SplitPanel : Control
 			if (mPanel2 != value)
 			{
 				if (mPanel2 != null)
-					RemoveChild(mPanel2);
+					mPanel2.[Friend]mParent = null;
 
 				mPanel2 = value;
 
 				if (mPanel2 != null)
-					AddChild(mPanel2);
+					mPanel2.[Friend]mParent = this;
 
 				InvalidateMeasure();
 			}
@@ -119,7 +120,7 @@ public class SplitPanel : Control
 		mSplitter = new Splitter();
 		mSplitter.Orientation = .Horizontal;
 		mSplitter.SplitterMoved.Subscribe(new => OnSplitterMoved);
-		AddChild(mSplitter);
+		mSplitter.[Friend]mParent = this;
 	}
 
 	private void OnSplitterMoved(Splitter splitter, float delta)
@@ -258,5 +259,86 @@ public class SplitPanel : Control
 				mPanel2.Arrange(panel2Bounds);
 			}
 		}
+	}
+
+	protected override void RenderContent(DrawContext drawContext)
+	{
+		// Render panels and splitter
+		if (mPanel1 != null)
+			mPanel1.Render(drawContext);
+		if (mPanel2 != null)
+			mPanel2.Render(drawContext);
+		mSplitter.Render(drawContext);
+	}
+
+	/// Override HitTest to check children.
+	public override UIElement HitTest(float x, float y)
+	{
+		if (Visibility != .Visible)
+			return null;
+
+		if (!Bounds.Contains(x, y))
+			return null;
+
+		// Check splitter first (it's on top)
+		var result = mSplitter.HitTest(x, y);
+		if (result != null)
+			return result;
+
+		// Check panels
+		if (mPanel1 != null)
+		{
+			result = mPanel1.HitTest(x, y);
+			if (result != null)
+				return result;
+		}
+
+		if (mPanel2 != null)
+		{
+			result = mPanel2.HitTest(x, y);
+			if (result != null)
+				return result;
+		}
+
+		return this;
+	}
+
+	/// Override FindElementById to search children.
+	public override UIElement FindElementById(UIElementId id)
+	{
+		if (Id == id)
+			return this;
+
+		var result = mSplitter.FindElementById(id);
+		if (result != null)
+			return result;
+
+		if (mPanel1 != null)
+		{
+			result = mPanel1.FindElementById(id);
+			if (result != null)
+				return result;
+		}
+
+		if (mPanel2 != null)
+		{
+			result = mPanel2.FindElementById(id);
+			if (result != null)
+				return result;
+		}
+
+		return null;
+	}
+
+	// === IVisualChildProvider ===
+
+	/// Visits all visual children of this element.
+	public void VisitVisualChildren(delegate void(UIElement) visitor)
+	{
+		if (mPanel1 != null)
+			visitor(mPanel1);
+		if (mPanel2 != null)
+			visitor(mPanel2);
+		visitor(mSplitter);
 	}
 }

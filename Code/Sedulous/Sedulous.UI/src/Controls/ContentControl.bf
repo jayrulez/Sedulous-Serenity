@@ -7,9 +7,9 @@ namespace Sedulous.UI;
 
 /// Base class for controls that contain a single piece of content.
 /// The content can be a UIElement or will be displayed as text.
-public class ContentControl : Control
+public class ContentControl : Control, IVisualChildProvider
 {
-	private UIElement mContent;
+	private UIElement mContent ~ delete _;
 	private String mContentText ~ delete _;
 
 	/// The content of the control. Can be a UIElement or text.
@@ -21,12 +21,12 @@ public class ContentControl : Control
 			if (mContent != value)
 			{
 				if (mContent != null)
-					RemoveChild(mContent);
+					mContent.[Friend]mParent = null;
 
 				mContent = value;
 
 				if (mContent != null)
-					AddChild(mContent);
+					mContent.[Friend]mParent = this;
 
 				InvalidateMeasure();
 			}
@@ -114,7 +114,8 @@ public class ContentControl : Control
 	{
 		if (mContent != null)
 		{
-			// Content renders itself via the tree
+			// Render the content element
+			mContent.Render(drawContext);
 			return;
 		}
 
@@ -142,5 +143,50 @@ public class ContentControl : Control
 				}
 			}
 		}
+	}
+
+	/// Override HitTest to check content.
+	public override UIElement HitTest(float x, float y)
+	{
+		if (Visibility != .Visible)
+			return null;
+
+		if (!Bounds.Contains(x, y))
+			return null;
+
+		// Check content first
+		if (mContent != null)
+		{
+			let result = mContent.HitTest(x, y);
+			if (result != null)
+				return result;
+		}
+
+		return this;
+	}
+
+	/// Override FindElementById to search content.
+	public override UIElement FindElementById(UIElementId id)
+	{
+		if (Id == id)
+			return this;
+
+		if (mContent != null)
+		{
+			let result = mContent.FindElementById(id);
+			if (result != null)
+				return result;
+		}
+
+		return null;
+	}
+
+	// === IVisualChildProvider ===
+
+	/// Visits all visual children of this element.
+	public void VisitVisualChildren(delegate void(UIElement) visitor)
+	{
+		if (mContent != null)
+			visitor(mContent);
 	}
 }

@@ -5,7 +5,7 @@ namespace UISandbox;
 class ContextMenuArea : Border
 {
 	private UIContext mUIContext;
-	private ContextMenu mContextMenu;
+	private ContextMenu mContextMenu ~ delete _;
 
 	public this(UIContext context)
 	{
@@ -28,7 +28,7 @@ class ContextMenuArea : Border
 		});
 
 		// Add to tree so popup can find Context
-		AddChild(mContextMenu);
+		mContextMenu.[Friend]mParent = this;
 	}
 
 	protected override void OnMouseUpRouted(MouseButtonEventArgs args)

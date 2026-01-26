@@ -7,7 +7,7 @@ namespace Sedulous.UI;
 
 /// Base class for popup windows that float above the main UI.
 /// Popups are positioned relative to an anchor element or at absolute coordinates.
-public class Popup : Control
+public class Popup : Control, IVisualChildProvider
 {
 	private UIElement mAnchor;
 	private PopupPlacement mPlacement = .Bottom;
@@ -15,7 +15,7 @@ public class Popup : Control
 	private float mHorizontalOffset;
 	private float mVerticalOffset;
 	private bool mIsOpen;
-	private UIElement mContent;
+	private UIElement mContent ~ delete _;
 
 	// Events
 	private EventAccessor<delegate void(Popup)> mOpenedEvent = new .() ~ delete _;
@@ -71,12 +71,12 @@ public class Popup : Control
 			if (mContent != value)
 			{
 				if (mContent != null)
-					RemoveChild(mContent);
+					mContent.[Friend]mParent = null;
 
 				mContent = value;
 
 				if (mContent != null)
-					AddChild(mContent);
+					mContent.[Friend]mParent = this;
 
 				InvalidateMeasure();
 			}
@@ -94,6 +94,12 @@ public class Popup : Control
 		// Popups are not part of normal tab navigation
 		Focusable = false;
 		Visibility = .Collapsed;
+	}
+
+	public ~this()
+	{
+		// Unregister from context if still registered
+		Context?.ClosePopup(this);
 	}
 
 	/// Opens the popup.
@@ -262,6 +268,9 @@ public class Popup : Control
 
 		// Border
 		drawContext.DrawRect(Bounds, border, 1.0f);
+
+		// Render content
+		RenderContent(drawContext);
 	}
 
 	protected override void OnKeyDownRouted(KeyEventArgs args)
@@ -271,5 +280,56 @@ public class Popup : Control
 			Close();
 			args.Handled = true;
 		}
+	}
+
+	protected override void RenderContent(DrawContext drawContext)
+	{
+		if (mContent != null)
+			mContent.Render(drawContext);
+	}
+
+	/// Override HitTest to check content.
+	public override UIElement HitTest(float x, float y)
+	{
+		if (Visibility != .Visible)
+			return null;
+
+		if (!Bounds.Contains(x, y))
+			return null;
+
+		// Check content first
+		if (mContent != null)
+		{
+			let result = mContent.HitTest(x, y);
+			if (result != null)
+				return result;
+		}
+
+		return this;
+	}
+
+	/// Override FindElementById to search content.
+	public override UIElement FindElementById(UIElementId id)
+	{
+		if (Id == id)
+			return this;
+
+		if (mContent != null)
+		{
+			let result = mContent.FindElementById(id);
+			if (result != null)
+				return result;
+		}
+
+		return null;
+	}
+
+	// === IVisualChildProvider ===
+
+	/// Visits all visual children of this element.
+	public void VisitVisualChildren(delegate void(UIElement) visitor)
+	{
+		if (mContent != null)
+			visitor(mContent);
 	}
 }

@@ -6,10 +6,10 @@ using Sedulous.Foundation.Core;
 namespace Sedulous.UI;
 
 /// A panel that can be docked to edges or floated.
-public class DockablePanel : Control
+public class DockablePanel : Control, IVisualChildProvider
 {
 	private String mTitle ~ delete _;
-	private UIElement mContent;
+	private UIElement mContent ~ delete _;
 	private DockZone mDockZone = .None;
 	private bool mCanClose = true;
 	private bool mCanFloat = true;
@@ -49,12 +49,12 @@ public class DockablePanel : Control
 			if (mContent != value)
 			{
 				if (mContent != null)
-					RemoveChild(mContent);
+					mContent.[Friend]mParent = null;
 
 				mContent = value;
 
 				if (mContent != null)
-					AddChild(mContent);
+					mContent.[Friend]mParent = this;
 
 				InvalidateMeasure();
 			}
@@ -150,9 +150,14 @@ public class DockablePanel : Control
 	{
 		mClosingEvent.[Friend]Invoke(this);
 
-		// Remove from parent
+		// Remove from parent (only CompositeControl has RemoveChild)
 		if (Parent != null)
-			Parent.RemoveChild(this);
+		{
+			if (let composite = Parent as CompositeControl)
+				composite.RemoveChild(this);
+			else
+				this.[Friend]mParent = null; // Just clear parent
+		}
 
 		mDockZone = .None;
 		mClosedEvent.[Friend]Invoke(this);
@@ -280,6 +285,9 @@ public class DockablePanel : Control
 		// Border
 		let border = BorderBrush ?? theme?.GetColor("Border") ?? Color(180, 180, 180);
 		drawContext.DrawRect(bounds, border, 1);
+
+		// Render content
+		RenderContent(drawContext);
 	}
 
 	private bool IsMouseOverCloseButton()
@@ -359,5 +367,56 @@ public class DockablePanel : Control
 				return service;
 		}
 		return null;
+	}
+
+	protected override void RenderContent(DrawContext drawContext)
+	{
+		if (mContent != null)
+			mContent.Render(drawContext);
+	}
+
+	/// Override HitTest to check content.
+	public override UIElement HitTest(float x, float y)
+	{
+		if (Visibility != .Visible)
+			return null;
+
+		if (!Bounds.Contains(x, y))
+			return null;
+
+		// Check content first
+		if (mContent != null)
+		{
+			let result = mContent.HitTest(x, y);
+			if (result != null)
+				return result;
+		}
+
+		return this;
+	}
+
+	/// Override FindElementById to search content.
+	public override UIElement FindElementById(UIElementId id)
+	{
+		if (Id == id)
+			return this;
+
+		if (mContent != null)
+		{
+			let result = mContent.FindElementById(id);
+			if (result != null)
+				return result;
+		}
+
+		return null;
+	}
+
+	// === IVisualChildProvider ===
+
+	/// Visits all visual children of this element.
+	public void VisitVisualChildren(delegate void(UIElement) visitor)
+	{
+		if (mContent != null)
+			visitor(mContent);
 	}
 }

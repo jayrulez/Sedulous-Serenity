@@ -21,13 +21,14 @@ class DraggableBox : Border, IDragSource
 		Background = color;
 		CornerRadius = 4;
 
-		// Add label
+		// Add label - use TextAlignment for centering within the text bounds
 		let text = new TextBlock();
 		text.Text = label;
 		text.Foreground = Color.White;
-		text.HorizontalAlignment = .Center;
+		text.TextAlignment = .Center;
+		text.HorizontalAlignment = .Stretch;
 		text.VerticalAlignment = .Center;
-		AddChild(text);
+		Child = text;
 	}
 
 	public DragData OnDragStart(float x, float y)

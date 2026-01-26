@@ -86,8 +86,9 @@ public class Button : ContentControl
 	protected override void OnMouseLeave()
 	{
 		base.OnMouseLeave();
-		// Visual update but don't release press state
-		// (allows drag-back to click)
+		// Update visual state when mouse leaves
+		// (don't release press state - allows drag-back to click)
+		UpdateControlState();
 	}
 
 	protected override void OnKeyDownRouted(KeyEventArgs args)

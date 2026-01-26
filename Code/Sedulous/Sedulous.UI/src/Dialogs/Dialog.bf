@@ -9,10 +9,10 @@ namespace Sedulous.UI;
 public class Dialog : Popup
 {
 	private String mTitle ~ delete _;
-	private UIElement mContent;
+	private UIElement mContent ~ delete _;
 	private DialogButtons mButtons = .OK;
 	private DialogResult mResult = .None;
-	private StackPanel mButtonPanel ~ { }; // Owned as child
+	private StackPanel mButtonPanel ~ delete _; // Owned as child
 	protected float mTitleBarHeight = 28;
 	private bool mDeleteOnClose = false;
 
@@ -49,12 +49,12 @@ public class Dialog : Popup
 			if (mContent != value)
 			{
 				if (mContent != null)
-					RemoveChild(mContent);
+					mContent.[Friend]mParent = null;
 
 				mContent = value;
 
 				if (mContent != null)
-					AddChild(mContent);
+					mContent.[Friend]mParent = this;
 
 				InvalidateMeasure();
 			}
@@ -95,7 +95,7 @@ public class Dialog : Popup
 		mButtonPanel.Spacing = 8;
 		mButtonPanel.HorizontalAlignment = .Right;
 		mButtonPanel.Margin = Thickness(0, 8, 0, 0);
-		AddChild(mButtonPanel);
+		mButtonPanel.[Friend]mParent = this;
 
 		RebuildButtons();
 	}
@@ -248,6 +248,9 @@ public class Dialog : Popup
 		// Border
 		let border = BorderBrush ?? theme?.GetColor("Border") ?? Color(180, 180, 180);
 		drawContext.DrawRect(bounds, border, 1);
+
+		// Render content and buttons
+		RenderContent(drawContext);
 	}
 
 	protected override void OnKeyDownRouted(KeyEventArgs args)
@@ -288,6 +291,61 @@ public class Dialog : Popup
 			if (context.GetService<IFontService>() case .Ok(let service))
 				return service;
 		}
+		return null;
+	}
+
+	protected override void RenderContent(DrawContext drawContext)
+	{
+		// Render dialog content
+		if (mContent != null)
+			mContent.Render(drawContext);
+
+		// Render button panel
+		mButtonPanel.Render(drawContext);
+	}
+
+	/// Override HitTest to check both content and button panel.
+	public override UIElement HitTest(float x, float y)
+	{
+		if (Visibility != .Visible)
+			return null;
+
+		if (!Bounds.Contains(x, y))
+			return null;
+
+		// Check button panel first (it's typically in front)
+		var result = mButtonPanel.HitTest(x, y);
+		if (result != null)
+			return result;
+
+		// Check content
+		if (mContent != null)
+		{
+			result = mContent.HitTest(x, y);
+			if (result != null)
+				return result;
+		}
+
+		return this;
+	}
+
+	/// Override FindElementById to search both content and button panel.
+	public override UIElement FindElementById(UIElementId id)
+	{
+		if (Id == id)
+			return this;
+
+		var result = mButtonPanel.FindElementById(id);
+		if (result != null)
+			return result;
+
+		if (mContent != null)
+		{
+			result = mContent.FindElementById(id);
+			if (result != null)
+				return result;
+		}
+
 		return null;
 	}
 }
