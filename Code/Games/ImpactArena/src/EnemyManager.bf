@@ -8,6 +8,8 @@ using Sedulous.Framework.Render;
 using Sedulous.Framework.Physics;
 using Sedulous.Render;
 using Sedulous.Geometry;
+using Sedulous.Geometry.Resources;
+using Sedulous.Resources;
 using Sedulous.Materials;
 using Sedulous.Physics;
 
@@ -35,7 +37,7 @@ class EnemyManager
 	private Scene mScene;
 	private RenderSceneModule mRenderModule;
 	private PhysicsSceneModule mPhysicsModule;
-	private GPUMeshHandle mSphereMesh;
+	private StaticMeshResource mSphereResource;
 	private MaterialInstance mGruntMat;
 	private MaterialInstance mBruteMat;
 	private MaterialInstance mDasherMat;
@@ -46,12 +48,12 @@ class EnemyManager
 	public int32 AliveCount => (int32)mEnemies.Count;
 
 	public void Initialize(Scene scene, RenderSceneModule renderModule, PhysicsSceneModule physicsModule,
-		GPUMeshHandle sphereMesh, MaterialInstance gruntMat, MaterialInstance bruteMat, MaterialInstance dasherMat)
+		StaticMeshResource sphereResource, MaterialInstance gruntMat, MaterialInstance bruteMat, MaterialInstance dasherMat)
 	{
 		mScene = scene;
 		mRenderModule = renderModule;
 		mPhysicsModule = physicsModule;
-		mSphereMesh = sphereMesh;
+		mSphereResource = sphereResource;
 		mGruntMat = gruntMat;
 		mBruteMat = bruteMat;
 		mDasherMat = dasherMat;
@@ -101,12 +103,10 @@ class EnemyManager
 		transform.Scale = .(0, 0, 0);
 		mScene.SetTransform(entity, transform);
 
-		let meshHandle = mRenderModule.CreateMeshRenderer(entity);
-		if (meshHandle.IsValid)
-		{
-			mRenderModule.SetMeshData(entity, mSphereMesh, BoundingBox(.(-0.5f, -0.5f, -0.5f), .(0.5f, 0.5f, 0.5f)));
-			mRenderModule.SetMeshMaterial(entity, mat);
-		}
+		mScene.SetComponent<MeshRendererComponent>(entity, .Default);
+		var comp = mScene.GetComponent<MeshRendererComponent>(entity);
+		comp.Mesh = ResourceHandle<StaticMeshResource>(mSphereResource);
+		comp.Material = mat;
 
 		var descriptor = PhysicsBodyDescriptor();
 		descriptor.BodyType = .Dynamic;

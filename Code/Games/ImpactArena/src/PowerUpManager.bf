@@ -7,6 +7,8 @@ using Sedulous.Framework.Scenes;
 using Sedulous.Framework.Render;
 using Sedulous.Render;
 using Sedulous.Geometry;
+using Sedulous.Geometry.Resources;
+using Sedulous.Resources;
 using Sedulous.Materials;
 
 enum PowerUpType
@@ -36,7 +38,7 @@ class PowerUpManager
 
 	private Scene mScene;
 	private RenderSceneModule mRenderModule;
-	private GPUMeshHandle mSphereMesh;
+	private StaticMeshResource mSphereResource;
 	private MaterialInstance mHealthMat;
 	private MaterialInstance mSpeedMat;
 	private MaterialInstance mShockMat;
@@ -46,12 +48,12 @@ class PowerUpManager
 	private ActivePowerUp? mActivePowerUp = null;
 	private float mSpawnTimer = 10.0f; // First spawn after 10s
 
-	public void Initialize(Scene scene, RenderSceneModule renderModule, GPUMeshHandle sphereMesh,
+	public void Initialize(Scene scene, RenderSceneModule renderModule, StaticMeshResource sphereResource,
 		MaterialInstance healthMat, MaterialInstance speedMat, MaterialInstance shockMat, MaterialInstance empMat)
 	{
 		mScene = scene;
 		mRenderModule = renderModule;
-		mSphereMesh = sphereMesh;
+		mSphereResource = sphereResource;
 		mHealthMat = healthMat;
 		mSpeedMat = speedMat;
 		mShockMat = shockMat;
@@ -154,12 +156,10 @@ class PowerUpManager
 		case .EMP: mat = mEmpMat;
 		}
 
-		let meshHandle = mRenderModule.CreateMeshRenderer(entity);
-		if (meshHandle.IsValid)
-		{
-			mRenderModule.SetMeshData(entity, mSphereMesh, BoundingBox(.(-0.5f, -0.5f, -0.5f), .(0.5f, 0.5f, 0.5f)));
-			mRenderModule.SetMeshMaterial(entity, mat);
-		}
+		mScene.SetComponent<MeshRendererComponent>(entity, .Default);
+		var comp = mScene.GetComponent<MeshRendererComponent>(entity);
+		comp.Mesh = ResourceHandle<StaticMeshResource>(mSphereResource);
+		comp.Material = mat;
 
 		// Ambient glow particles
 		Vector4 glowColor;

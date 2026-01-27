@@ -17,6 +17,8 @@ using Sedulous.RHI;
 using Sedulous.Shell;
 using Sedulous.Render;
 using Sedulous.Geometry;
+using Sedulous.Geometry.Resources;
+using Sedulous.Resources;
 using Sedulous.Materials;
 using Sedulous.Physics;
 using Sedulous.Physics.Jolt;
@@ -46,8 +48,8 @@ class FrameworkNavigationApp : Application
 	private FinalOutputFeature mFinalOutputFeature;
 
 	// Meshes
-	private GPUMeshHandle mPlaneMeshHandle;
-	private GPUMeshHandle mCubeMeshHandle;
+	private StaticMeshResource mPlaneResource ~ delete _;
+	private StaticMeshResource mCubeResource ~ delete _;
 	private MaterialInstance mFloorMaterial ~ delete _;
 	private MaterialInstance mWallMaterial ~ delete _;
 
@@ -190,15 +192,8 @@ class FrameworkNavigationApp : Application
 
 	private void CreateMeshes()
 	{
-		let planeMesh = StaticMesh.CreatePlane(ArenaHalfSize * 2, ArenaHalfSize * 2, 1, 1);
-		if (mRenderSystem.ResourceManager.UploadMesh(planeMesh) case .Ok(let planeHandle))
-			mPlaneMeshHandle = planeHandle;
-		delete planeMesh;
-
-		let cubeMesh = StaticMesh.CreateCube(1.0f);
-		if (mRenderSystem.ResourceManager.UploadMesh(cubeMesh) case .Ok(let cubeHandle))
-			mCubeMeshHandle = cubeHandle;
-		delete cubeMesh;
+		mPlaneResource = StaticMeshResource.CreatePlane(ArenaHalfSize * 2, ArenaHalfSize * 2, 1, 1);
+		mCubeResource = StaticMeshResource.CreateCube(1.0f);
 	}
 
 	private void CreateSceneObjects()
@@ -225,12 +220,10 @@ class FrameworkNavigationApp : Application
 		// Floor entity
 		mFloorEntity = mMainScene.CreateEntity();
 		{
-			let handle = renderModule.CreateMeshRenderer(mFloorEntity);
-			if (handle.IsValid)
-			{
-				renderModule.SetMeshData(mFloorEntity, mPlaneMeshHandle, BoundingBox(Vector3(-ArenaHalfSize, 0, -ArenaHalfSize), Vector3(ArenaHalfSize, 0.01f, ArenaHalfSize)));
-				renderModule.SetMeshMaterial(mFloorEntity, mFloorMaterial ?? defaultMaterialInstance);
-			}
+			mMainScene.SetComponent<MeshRendererComponent>(mFloorEntity, .Default);
+			var comp = mMainScene.GetComponent<MeshRendererComponent>(mFloorEntity);
+			comp.Mesh = ResourceHandle<StaticMeshResource>(mPlaneResource);
+			comp.Material = mFloorMaterial ?? defaultMaterialInstance;
 			if (physicsModule != null)
 				physicsModule.CreatePlaneBody(mFloorEntity, .(0, 1, 0), 0.0f);
 		}
@@ -268,14 +261,11 @@ class FrameworkNavigationApp : Application
 		transform.Scale = halfExtents * 2.0f;
 		mMainScene.SetTransform(entity, transform);
 
-		let meshHandle = renderModule.CreateMeshRenderer(entity);
-		if (meshHandle.IsValid)
-		{
-			let bounds = BoundingBox(-halfExtents, halfExtents);
-			renderModule.SetMeshData(entity, mCubeMeshHandle, bounds);
-			let defaultMat = mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
-			renderModule.SetMeshMaterial(entity, mWallMaterial ?? defaultMat);
-		}
+		mMainScene.SetComponent<MeshRendererComponent>(entity, .Default);
+		var comp = mMainScene.GetComponent<MeshRendererComponent>(entity);
+		comp.Mesh = ResourceHandle<StaticMeshResource>(mCubeResource);
+		let defaultMat = mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
+		comp.Material = mWallMaterial ?? defaultMat;
 	}
 
 	private void CreateUI()
@@ -510,11 +500,6 @@ class FrameworkNavigationApp : Application
 	protected override void OnShutdown()
 	{
 		Profiler.Shutdown();
-
-		if (mPlaneMeshHandle.IsValid)
-			mRenderSystem.ResourceManager.ReleaseMesh(mPlaneMeshHandle, mRenderSystem.FrameNumber);
-		if (mCubeMeshHandle.IsValid)
-			mRenderSystem.ResourceManager.ReleaseMesh(mCubeMeshHandle, mRenderSystem.FrameNumber);
 
 		if(mFontService != null)
 		{

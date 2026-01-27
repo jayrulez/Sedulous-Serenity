@@ -3,36 +3,53 @@ namespace Sedulous.Framework.Render;
 using System;
 using System.Collections;
 using Sedulous.Framework.Scenes;
+using Sedulous.Geometry.Resources;
 using Sedulous.Mathematics;
 using Sedulous.Render;
+using Sedulous.Resources;
 using Sedulous.RHI;
 using Sedulous.Materials;
 
 /// Component for entities with a static mesh.
-/// The proxy handle is managed by RenderSceneModule.
+/// Set the Mesh field and the framework handles GPU upload automatically.
+/// Note: ResourceHandle uses manual ref counting. Call AddRef() when copying,
+/// Release() when removing/replacing.
 struct MeshRendererComponent
 {
-	/// Handle to the mesh proxy in the render world.
-	public MeshProxyHandle ProxyHandle;
+	/// The mesh resource handle. Set this to change the mesh.
+	/// Create with ResourceHandle<StaticMeshResource>(resource) which calls AddRef().
+	/// Call Release() when removing or replacing the mesh.
+	public ResourceHandle<StaticMeshResource> Mesh;
+	/// The material to use for rendering. Can be set before or after the mesh.
+	public MaterialInstance Material;
 	/// Whether this renderer is enabled.
 	public bool Enabled;
 
 	public static MeshRendererComponent Default => .() {
-		ProxyHandle = .Invalid,
+		Mesh = default,
+		Material = null,
 		Enabled = true
 	};
 }
 
 /// Component for entities with a skinned mesh.
+/// Set the Mesh field and the framework handles GPU upload automatically.
+/// Note: ResourceHandle uses manual ref counting. Call AddRef() when copying,
+/// Release() when removing/replacing.
 struct SkinnedMeshRendererComponent
 {
-	/// Handle to the skinned mesh proxy in the render world.
-	public SkinnedMeshProxyHandle ProxyHandle;
+	/// The skinned mesh resource handle. Set this to change the mesh.
+	/// Create with ResourceHandle<SkinnedMeshResource>(resource) which calls AddRef().
+	/// Call Release() when removing or replacing the mesh.
+	public ResourceHandle<SkinnedMeshResource> Mesh;
+	/// The material to use for rendering. Can be set before or after the mesh.
+	public MaterialInstance Material;
 	/// Whether this renderer is enabled.
 	public bool Enabled;
 
 	public static SkinnedMeshRendererComponent Default => .() {
-		ProxyHandle = .Invalid,
+		Mesh = default,
+		Material = null,
 		Enabled = true
 	};
 }
@@ -119,6 +136,24 @@ class RenderSceneModule : SceneModule
 	private RenderWorld mWorld;
 	private Scene mScene;
 
+	// Cache: resource -> GPU handle (shared across entities using same resource)
+	private Dictionary<StaticMeshResource, GPUMeshHandle> mStaticMeshCache = new .() ~ delete _;
+	private Dictionary<SkinnedMeshResource, GPUMeshHandle> mSkinnedMeshCache = new .() ~ delete _;
+
+	// Track which mesh resource is currently bound to each entity's proxy
+	// Used to detect when the mesh changes and needs re-upload
+	private Dictionary<EntityId, StaticMeshResource> mEntityMeshBinding = new .() ~ delete _;
+	private Dictionary<EntityId, SkinnedMeshResource> mEntitySkinnedMeshBinding = new .() ~ delete _;
+
+	// Track which material is currently bound to each entity's proxy
+	// Used to detect when the material changes and needs to be updated
+	private Dictionary<EntityId, MaterialInstance> mEntityMaterialBinding = new .() ~ delete _;
+	private Dictionary<EntityId, MaterialInstance> mEntitySkinnedMaterialBinding = new .() ~ delete _;
+
+	// Track proxy handles per entity (internal, not exposed on components)
+	private Dictionary<EntityId, MeshProxyHandle> mMeshProxies = new .() ~ delete _;
+	private Dictionary<EntityId, SkinnedMeshProxyHandle> mSkinnedMeshProxies = new .() ~ delete _;
+
 	/// Creates a RenderSceneModule linked to the given subsystem and render world.
 	public this(RenderSubsystem subsystem, RenderWorld world)
 	{
@@ -139,6 +174,39 @@ class RenderSceneModule : SceneModule
 
 	public override void OnSceneDestroy(Scene scene)
 	{
+		// Release mesh resource handles on all components
+		for (let (entity, meshComp) in scene.Query<MeshRendererComponent>())
+		{
+			meshComp.Mesh.Release();
+		}
+
+		for (let (entity, skinnedComp) in scene.Query<SkinnedMeshRendererComponent>())
+		{
+			skinnedComp.Mesh.Release();
+		}
+
+		// Release cached GPU meshes
+		let gpuManager = mSubsystem.RenderSystem?.ResourceManager;
+		let frameNumber = mSubsystem.RenderSystem?.FrameNumber ?? 0;
+
+		if (gpuManager != null)
+		{
+			for (let handle in mStaticMeshCache.Values)
+				gpuManager.ReleaseMesh(handle, frameNumber);
+
+			for (let handle in mSkinnedMeshCache.Values)
+				gpuManager.ReleaseMesh(handle, frameNumber);
+		}
+
+		mStaticMeshCache.Clear();
+		mSkinnedMeshCache.Clear();
+		mEntityMeshBinding.Clear();
+		mEntitySkinnedMeshBinding.Clear();
+		mEntityMaterialBinding.Clear();
+		mEntitySkinnedMaterialBinding.Clear();
+		mMeshProxies.Clear();
+		mSkinnedMeshProxies.Clear();
+
 		// Proxies are cleaned up when entities are destroyed or when RenderWorld is deleted
 		mScene = null;
 	}
@@ -148,24 +216,144 @@ class RenderSceneModule : SceneModule
 		if (mScene == null || mWorld == null)
 			return;
 
-		// Sync mesh transforms
+		// Process static mesh components - detect changes and handle GPU upload
 		for (let (entity, mesh) in scene.Query<MeshRendererComponent>())
 		{
-			if (!mesh.ProxyHandle.IsValid || !mesh.Enabled)
+			if (!mesh.Enabled)
 				continue;
 
-			let worldMatrix = scene.GetWorldMatrix(entity);
-			mWorld.SetMeshTransform(mesh.ProxyHandle, worldMatrix);
+			// Get the actual resource from the handle
+			let resource = mesh.Mesh.Resource;
+
+			// Get or create proxy handle
+			MeshProxyHandle proxyHandle = .Invalid;
+			if (mMeshProxies.TryGetValue(entity, var existingProxy))
+				proxyHandle = existingProxy;
+
+			// Check if mesh resource has changed
+			StaticMeshResource currentBinding = null;
+			mEntityMeshBinding.TryGetValue(entity, out currentBinding);
+
+			if (resource != currentBinding)
+			{
+				// Mesh changed - update binding and handle GPU upload
+				if (resource != null && resource.Mesh != null)
+				{
+					// Create proxy if needed
+					if (!proxyHandle.IsValid)
+					{
+						proxyHandle = mWorld.CreateMesh();
+						mMeshProxies[entity] = proxyHandle;
+					}
+
+					// Upload to GPU and set mesh data
+					UploadAndSetMeshData(entity, proxyHandle, resource);
+					mEntityMeshBinding[entity] = resource;
+				}
+				else if (resource == null && currentBinding != null)
+				{
+					// Mesh cleared - remove binding (proxy stays for potential reuse)
+					mEntityMeshBinding.Remove(entity);
+				}
+			}
+
+			// Check if material has changed
+			if (proxyHandle.IsValid)
+			{
+				MaterialInstance currentMaterial = null;
+				mEntityMaterialBinding.TryGetValue(entity, out currentMaterial);
+
+				if (mesh.Material != currentMaterial)
+				{
+					// Material changed - update binding and apply to proxy
+					if (mesh.Material != null)
+					{
+						mWorld.SetMeshMaterial(proxyHandle, mesh.Material);
+						mEntityMaterialBinding[entity] = mesh.Material;
+					}
+					else
+					{
+						mEntityMaterialBinding.Remove(entity);
+					}
+				}
+			}
+
+			// Sync transform
+			if (proxyHandle.IsValid)
+			{
+				let worldMatrix = scene.GetWorldMatrix(entity);
+				mWorld.SetMeshTransform(proxyHandle, worldMatrix);
+			}
 		}
 
-		// Sync skinned mesh transforms
+		// Process skinned mesh components - detect changes and handle GPU upload
 		for (let (entity, mesh) in scene.Query<SkinnedMeshRendererComponent>())
 		{
-			if (!mesh.ProxyHandle.IsValid || !mesh.Enabled)
+			if (!mesh.Enabled)
 				continue;
 
-			let worldMatrix = scene.GetWorldMatrix(entity);
-			mWorld.SetSkinnedMeshTransform(mesh.ProxyHandle, worldMatrix);
+			// Get the actual resource from the handle
+			let resource = mesh.Mesh.Resource;
+
+			// Get or create proxy handle
+			SkinnedMeshProxyHandle proxyHandle = .Invalid;
+			if (mSkinnedMeshProxies.TryGetValue(entity, var existingProxy))
+				proxyHandle = existingProxy;
+
+			// Check if mesh resource has changed
+			SkinnedMeshResource currentBinding = null;
+			mEntitySkinnedMeshBinding.TryGetValue(entity, out currentBinding);
+
+			if (resource != currentBinding)
+			{
+				// Mesh changed - update binding and handle GPU upload
+				if (resource != null && resource.Mesh != null)
+				{
+					// Create proxy if needed
+					if (!proxyHandle.IsValid)
+					{
+						proxyHandle = mWorld.CreateSkinnedMesh();
+						mSkinnedMeshProxies[entity] = proxyHandle;
+					}
+
+					// Upload to GPU and set mesh data
+					UploadAndSetSkinnedMeshData(entity, proxyHandle, resource);
+					mEntitySkinnedMeshBinding[entity] = resource;
+				}
+				else if (resource == null && currentBinding != null)
+				{
+					// Mesh cleared - remove binding (proxy stays for potential reuse)
+					mEntitySkinnedMeshBinding.Remove(entity);
+				}
+			}
+
+			// Check if material has changed
+			if (proxyHandle.IsValid)
+			{
+				MaterialInstance currentMaterial = null;
+				mEntitySkinnedMaterialBinding.TryGetValue(entity, out currentMaterial);
+
+				if (mesh.Material != currentMaterial)
+				{
+					// Material changed - update binding and apply to proxy
+					if (mesh.Material != null)
+					{
+						mWorld.SetSkinnedMeshMaterial(proxyHandle, mesh.Material);
+						mEntitySkinnedMaterialBinding[entity] = mesh.Material;
+					}
+					else
+					{
+						mEntitySkinnedMaterialBinding.Remove(entity);
+					}
+				}
+			}
+
+			// Sync transform
+			if (proxyHandle.IsValid)
+			{
+				let worldMatrix = scene.GetWorldMatrix(entity);
+				mWorld.SetSkinnedMeshTransform(proxyHandle, worldMatrix);
+			}
 		}
 
 		// Sync camera transforms
@@ -226,18 +414,32 @@ class RenderSceneModule : SceneModule
 		if (mWorld == null)
 			return;
 
-		// Clean up mesh proxy
-		if (let mesh = scene.GetComponent<MeshRendererComponent>(entity))
+		// Clean up mesh component - release resource handle
+		if (let meshComp = scene.GetComponent<MeshRendererComponent>(entity))
 		{
-			if (mesh.ProxyHandle.IsValid)
-				mWorld.DestroyMesh(mesh.ProxyHandle);
+			meshComp.Mesh.Release();
 		}
 
-		// Clean up skinned mesh proxy
-		if (let skinned = scene.GetComponent<SkinnedMeshRendererComponent>(entity))
+		// Clean up mesh proxy (from internal tracking)
+		if (mMeshProxies.TryGetValue(entity, let meshProxy))
 		{
-			if (skinned.ProxyHandle.IsValid)
-				mWorld.DestroySkinnedMesh(skinned.ProxyHandle);
+			if (meshProxy.IsValid)
+				mWorld.DestroyMesh(meshProxy);
+			mMeshProxies.Remove(entity);
+		}
+
+		// Clean up skinned mesh component - release resource handle
+		if (let skinnedComp = scene.GetComponent<SkinnedMeshRendererComponent>(entity))
+		{
+			skinnedComp.Mesh.Release();
+		}
+
+		// Clean up skinned mesh proxy (from internal tracking)
+		if (mSkinnedMeshProxies.TryGetValue(entity, let skinnedProxy))
+		{
+			if (skinnedProxy.IsValid)
+				mWorld.DestroySkinnedMesh(skinnedProxy);
+			mSkinnedMeshProxies.Remove(entity);
 		}
 
 		// Clean up camera proxy
@@ -274,63 +476,90 @@ class RenderSceneModule : SceneModule
 			if (trail.ProxyHandle.IsValid)
 				mWorld.DestroyTrailEmitter(trail.ProxyHandle);
 		}
+
+		// Clean up entity mesh and material bindings
+		mEntityMeshBinding.Remove(entity);
+		mEntitySkinnedMeshBinding.Remove(entity);
+		mEntityMaterialBinding.Remove(entity);
+		mEntitySkinnedMaterialBinding.Remove(entity);
 	}
 
 	// ==================== Mesh API ====================
 
-	/// Creates a mesh renderer for an entity.
-	/// Returns the proxy handle for further configuration.
-	public MeshProxyHandle CreateMeshRenderer(EntityId entity)
+	/// Internal: Uploads mesh resource to GPU (if not cached) and sets mesh data on proxy.
+	private void UploadAndSetMeshData(EntityId entity, MeshProxyHandle proxyHandle, StaticMeshResource resource)
 	{
-		if (mScene == null || mWorld == null)
-			return .Invalid;
+		if (resource == null || resource.Mesh == null || !proxyHandle.IsValid)
+			return;
 
-		let handle = mWorld.CreateMesh();
-
-		var comp = mScene.GetComponent<MeshRendererComponent>(entity);
-		if (comp == null)
+		// Check cache first
+		GPUMeshHandle gpuHandle;
+		if (mStaticMeshCache.TryGetValue(resource, out gpuHandle))
 		{
-			mScene.SetComponent<MeshRendererComponent>(entity, .Default);
-			comp = mScene.GetComponent<MeshRendererComponent>(entity);
+			// Already uploaded, just set the data
+			mWorld?.SetMeshData(proxyHandle, gpuHandle, resource.Mesh.GetBounds());
+			return;
 		}
 
-		comp.ProxyHandle = handle;
-		comp.Enabled = true;
+		// Upload to GPU
+		let gpuManager = mSubsystem.RenderSystem?.ResourceManager;
+		if (gpuManager == null)
+			return;
 
-		// Set initial transform
-		let worldMatrix = mScene.GetWorldMatrix(entity);
-		mWorld.SetMeshTransform(handle, worldMatrix);
-
-		return handle;
-	}
-
-	/// Sets the mesh data for a mesh renderer.
-	public void SetMeshData(EntityId entity, GPUMeshHandle meshHandle, BoundingBox localBounds)
-	{
-		if (let comp = mScene?.GetComponent<MeshRendererComponent>(entity))
+		if (gpuManager.UploadMesh(resource.Mesh) case .Ok(let handle))
 		{
-			if (comp.ProxyHandle.IsValid)
-				mWorld?.SetMeshData(comp.ProxyHandle, meshHandle, localBounds);
+			// Cache the mapping
+			mStaticMeshCache[resource] = handle;
+
+			// Set mesh data on proxy
+			mWorld?.SetMeshData(proxyHandle, handle, resource.Mesh.GetBounds());
 		}
 	}
 
-	/// Sets the material for a mesh renderer.
-	public void SetMeshMaterial(EntityId entity, MaterialInstance material)
+	/// Internal: Uploads skinned mesh resource to GPU (if not cached) and sets mesh data on proxy.
+	private void UploadAndSetSkinnedMeshData(EntityId entity, SkinnedMeshProxyHandle proxyHandle, SkinnedMeshResource resource)
 	{
-		if (let comp = mScene?.GetComponent<MeshRendererComponent>(entity))
+		if (resource == null || resource.Mesh == null || !proxyHandle.IsValid)
+			return;
+
+		// Check cache first for mesh
+		GPUMeshHandle gpuMeshHandle;
+		if (!mSkinnedMeshCache.TryGetValue(resource, out gpuMeshHandle))
 		{
-			if (comp.ProxyHandle.IsValid)
-				mWorld?.SetMeshMaterial(comp.ProxyHandle, material);
+			// Upload mesh to GPU
+			let gpuManager = mSubsystem.RenderSystem?.ResourceManager;
+			if (gpuManager == null)
+				return;
+
+			if (gpuManager.UploadMesh(resource.Mesh) case .Ok(let handle))
+			{
+				mSkinnedMeshCache[resource] = handle;
+				gpuMeshHandle = handle;
+			}
+			else
+				return;
+		}
+
+		// Create bone buffer for this instance
+		let skeleton = resource.Skeleton;
+		if (skeleton == null)
+			return;
+
+		let boneCount = (uint16)skeleton.BoneCount;
+		let gpuManager = mSubsystem.RenderSystem?.ResourceManager;
+		if (gpuManager.CreateBoneBuffer(boneCount) case .Ok(let boneHandle))
+		{
+			mWorld?.SetSkinnedMeshData(proxyHandle, gpuMeshHandle, boneHandle, resource.Mesh.Bounds, boneCount);
 		}
 	}
 
 	/// Sets the render flags for a mesh renderer.
 	public void SetMeshFlags(EntityId entity, MeshFlags flags)
 	{
-		if (let comp = mScene?.GetComponent<MeshRendererComponent>(entity))
+		if (mMeshProxies.TryGetValue(entity, let proxyHandle))
 		{
-			if (comp.ProxyHandle.IsValid)
-				mWorld?.SetMeshFlags(comp.ProxyHandle, flags);
+			if (proxyHandle.IsValid)
+				mWorld?.SetMeshFlags(proxyHandle, flags);
 		}
 	}
 
@@ -338,11 +567,13 @@ class RenderSceneModule : SceneModule
 	public void SetMeshEnabled(EntityId entity, bool enabled)
 	{
 		if (let comp = mScene?.GetComponent<MeshRendererComponent>(entity))
-		{
 			comp.Enabled = enabled;
-			if (comp.ProxyHandle.IsValid)
+
+		if (mMeshProxies.TryGetValue(entity, let proxyHandle))
+		{
+			if (proxyHandle.IsValid)
 			{
-				if (let proxy = mWorld?.GetMesh(comp.ProxyHandle))
+				if (let proxy = mWorld?.GetMesh(proxyHandle))
 				{
 					if (enabled)
 						proxy.Flags |= .Visible;
@@ -355,47 +586,13 @@ class RenderSceneModule : SceneModule
 
 	// ==================== Skinned Mesh API ====================
 
-	/// Creates a skinned mesh renderer for an entity.
-	public SkinnedMeshProxyHandle CreateSkinnedMeshRenderer(EntityId entity)
-	{
-		if (mScene == null || mWorld == null)
-			return .Invalid;
-
-		let handle = mWorld.CreateSkinnedMesh();
-
-		var comp = mScene.GetComponent<SkinnedMeshRendererComponent>(entity);
-		if (comp == null)
-		{
-			mScene.SetComponent<SkinnedMeshRendererComponent>(entity, .Default);
-			comp = mScene.GetComponent<SkinnedMeshRendererComponent>(entity);
-		}
-
-		comp.ProxyHandle = handle;
-		comp.Enabled = true;
-
-		let worldMatrix = mScene.GetWorldMatrix(entity);
-		mWorld.SetSkinnedMeshTransform(handle, worldMatrix);
-
-		return handle;
-	}
-
-	/// Sets the skinned mesh data.
-	public void SetSkinnedMeshData(EntityId entity, GPUMeshHandle meshHandle, GPUBoneBufferHandle boneBufferHandle, BoundingBox localBounds, uint16 boneCount)
-	{
-		if (let comp = mScene?.GetComponent<SkinnedMeshRendererComponent>(entity))
-		{
-			if (comp.ProxyHandle.IsValid)
-				mWorld?.SetSkinnedMeshData(comp.ProxyHandle, meshHandle, boneBufferHandle, localBounds, boneCount);
-		}
-	}
-
 	/// Marks skinned mesh bones as dirty (need GPU upload).
 	public void MarkSkinnedMeshBonesDirty(EntityId entity)
 	{
-		if (let comp = mScene?.GetComponent<SkinnedMeshRendererComponent>(entity))
+		if (mSkinnedMeshProxies.TryGetValue(entity, let proxyHandle))
 		{
-			if (comp.ProxyHandle.IsValid)
-				mWorld?.MarkSkinnedMeshBonesDirty(comp.ProxyHandle);
+			if (proxyHandle.IsValid)
+				mWorld?.MarkSkinnedMeshBonesDirty(proxyHandle);
 		}
 	}
 

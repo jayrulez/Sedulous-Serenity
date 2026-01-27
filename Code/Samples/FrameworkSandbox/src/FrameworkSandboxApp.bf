@@ -16,6 +16,8 @@ using Sedulous.RHI;
 using Sedulous.Shell;
 using Sedulous.Render;
 using Sedulous.Geometry;
+using Sedulous.Geometry.Resources;
+using Sedulous.Resources;
 using Sedulous.Materials;
 using Sedulous.Physics;
 using Sedulous.Physics.Jolt;
@@ -52,10 +54,10 @@ class FrameworkSandboxApp : Application
 	private DebugRenderFeature mDebugFeature;
 	private FinalOutputFeature mFinalOutputFeature;
 
-	// Test objects
-	private GPUMeshHandle mCubeMeshHandle;
-	private GPUMeshHandle mPlaneMeshHandle;
-	private GPUMeshHandle mSphereMeshHandle;
+	// Mesh resources
+	private StaticMeshResource mCubeResource /*~ delete _*/;
+	private StaticMeshResource mPlaneResource /*~ delete _*/;
+	private StaticMeshResource mSphereResource /*~ delete _*/;
 	private MaterialInstance mCubeMaterial ~ delete _;
 	private MaterialInstance mFloorMaterial ~ delete _;
 	private MaterialInstance mSphereMaterial ~ delete _;
@@ -400,12 +402,11 @@ class FrameworkSandboxApp : Application
 		// Create floor entity
 		mFloorEntity = mMainScene.CreateEntity();
 		{
-			let handle = renderModule.CreateMeshRenderer(mFloorEntity);
-			if (handle.IsValid)
-			{
-				renderModule.SetMeshData(mFloorEntity, mPlaneMeshHandle, BoundingBox(Vector3(-ArenaHalfSize, 0, -ArenaHalfSize), Vector3(ArenaHalfSize, 0.01f, ArenaHalfSize)));
-				renderModule.SetMeshMaterial(mFloorEntity, mFloorMaterial ?? defaultMaterial);
-			}
+			// Set mesh component - framework handles proxy creation and GPU upload
+			mMainScene.SetComponent<MeshRendererComponent>(mFloorEntity, .Default);
+			var comp = mMainScene.GetComponent<MeshRendererComponent>(mFloorEntity);
+			comp.Mesh = ResourceHandle<StaticMeshResource>(mPlaneResource);
+			comp.Material = mFloorMaterial ?? defaultMaterial;
 
 			// Infinite plane at Y=0 facing up
 			if (physicsModule != null)
@@ -452,12 +453,11 @@ class FrameworkSandboxApp : Application
 			mMainScene.SetComponent<SpinComponent>(mCubeEntity, SpinComponent() { Speed = 1.0f, CurrentAngle = 0 });
 			mMainScene.SetComponent<BobComponent>(mCubeEntity, BobComponent() { Speed = 2.0f, Amplitude = 0.2f, BaseY = 0.5f, Phase = 0 });
 
-			let handle = renderModule.CreateMeshRenderer(mCubeEntity);
-			if (handle.IsValid)
-			{
-				renderModule.SetMeshData(mCubeEntity, mCubeMeshHandle, BoundingBox(Vector3(-0.5f), Vector3(0.5f)));
-				renderModule.SetMeshMaterial(mCubeEntity, mCubeMaterial ?? defaultMaterial);
-			}
+			// Set mesh component - framework handles proxy creation and GPU upload
+			mMainScene.SetComponent<MeshRendererComponent>(mCubeEntity, .Default);
+			var comp = mMainScene.GetComponent<MeshRendererComponent>(mCubeEntity);
+			comp.Mesh = ResourceHandle<StaticMeshResource>(mCubeResource);
+			comp.Material = mCubeMaterial ?? defaultMaterial;
 
 			// Add kinematic physics body (controlled by gameplay, not physics simulation)
 			if (physicsModule != null)
@@ -491,12 +491,11 @@ class FrameworkSandboxApp : Application
 				transform.Position = spawnPositions[i];
 				mMainScene.SetTransform(entity, transform);
 
-				let handle = renderModule.CreateMeshRenderer(entity);
-				if (handle.IsValid)
-				{
-					renderModule.SetMeshData(entity, mSphereMeshHandle, BoundingBox(Vector3(-0.3f), Vector3(0.3f)));
-					renderModule.SetMeshMaterial(entity, mSphereMaterial ?? defaultMaterial);
-				}
+				// Set mesh component - framework handles proxy creation and GPU upload
+				mMainScene.SetComponent<MeshRendererComponent>(entity, .Default);
+				var comp = mMainScene.GetComponent<MeshRendererComponent>(entity);
+				comp.Mesh = ResourceHandle<StaticMeshResource>(mSphereResource);
+				comp.Material = mSphereMaterial ?? defaultMaterial;
 
 				// Add dynamic physics body - will fall and bounce
 				physicsModule.CreateSphereBody(entity, 0.3f, .Dynamic, ObjectRestitution);
@@ -1475,23 +1474,10 @@ class FrameworkSandboxApp : Application
 
 	private void CreateMeshes()
 	{
-		// Create cube mesh
-		let cubeMesh = StaticMesh.CreateCube(1.0f);
-		if (mRenderSystem.ResourceManager.UploadMesh(cubeMesh) case .Ok(let cubeHandle))
-			mCubeMeshHandle = cubeHandle;
-		delete cubeMesh;
-
-		// Create floor plane mesh (sized to arena)
-		let planeMesh = StaticMesh.CreatePlane(ArenaHalfSize * 2, ArenaHalfSize * 2, 1, 1);
-		if (mRenderSystem.ResourceManager.UploadMesh(planeMesh) case .Ok(let planeHandle))
-			mPlaneMeshHandle = planeHandle;
-		delete planeMesh;
-
-		// Create sphere mesh
-		let sphereMesh = StaticMesh.CreateSphere(0.3f, 16, 12);
-		if (mRenderSystem.ResourceManager.UploadMesh(sphereMesh) case .Ok(let sphereHandle))
-			mSphereMeshHandle = sphereHandle;
-		delete sphereMesh;
+		// Create mesh resources (framework handles GPU upload automatically)
+		mCubeResource = StaticMeshResource.CreateCube(1.0f);
+		mPlaneResource = StaticMeshResource.CreatePlane(ArenaHalfSize * 2, ArenaHalfSize * 2, 1, 1);
+		mSphereResource = StaticMeshResource.CreateSphere(0.3f, 16, 12);
 	}
 
 	protected override void OnInput()
@@ -1657,13 +1643,12 @@ class FrameworkSandboxApp : Application
 		transform.Position = .((float)x, (float)y, (float)z);
 		mMainScene.SetTransform(entity, transform);
 
-		let handle = renderModule.CreateMeshRenderer(entity);
-		if (handle.IsValid)
-		{
-			renderModule.SetMeshData(entity, mSphereMeshHandle, BoundingBox(Vector3(-0.3f), Vector3(0.3f)));
-			let defaultMaterial = mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
-			renderModule.SetMeshMaterial(entity, mSphereMaterial ?? defaultMaterial);
-		}
+		// Set mesh component - framework handles proxy creation and GPU upload
+		mMainScene.SetComponent<MeshRendererComponent>(entity, .Default);
+		var comp = mMainScene.GetComponent<MeshRendererComponent>(entity);
+		comp.Mesh = ResourceHandle<StaticMeshResource>(mSphereResource);
+		let defaultMaterial = mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
+		comp.Material = mSphereMaterial ?? defaultMaterial;
 
 		physicsModule.CreateSphereBody(entity, 0.3f, .Dynamic, ObjectRestitution);
 		mSpawnCount++;
@@ -1881,13 +1866,8 @@ class FrameworkSandboxApp : Application
 
 		Console.WriteLine("\n=== Shutting Down ===");
 
-		// Release mesh handles before render system shutdown
-		if (mCubeMeshHandle.IsValid)
-			mRenderSystem.ResourceManager.ReleaseMesh(mCubeMeshHandle, mRenderSystem.FrameNumber);
-		if (mPlaneMeshHandle.IsValid)
-			mRenderSystem.ResourceManager.ReleaseMesh(mPlaneMeshHandle, mRenderSystem.FrameNumber);
-		if (mSphereMeshHandle.IsValid)
-			mRenderSystem.ResourceManager.ReleaseMesh(mSphereMeshHandle, mRenderSystem.FrameNumber);
+		// Mesh resources are cleaned up automatically via ~ delete _ on fields
+		// GPU mesh cache is cleaned up when RenderSceneModule is destroyed
 
 		// Context shutdown is handled by base Application after OnShutdown
 

@@ -115,4 +115,47 @@ class ResourceCache
 		using (mMonitor.Enter())
 			resources.AddRange(mResources.Values);
 	}
+
+	/// Gets all resources of a specific type.
+	public void GetResourcesByType(Type type, List<ResourceHandle<IResource>> resources)
+	{
+		using (mMonitor.Enter())
+		{
+			for (var kv in mResources)
+			{
+				if (kv.key.ResourceType == type)
+					resources.Add(kv.value);
+			}
+		}
+	}
+
+	/// Removes all resources of a specific type from the cache.
+	/// Returns the removed handles for unloading. Releases the cache's ref on each handle.
+	public void RemoveByType(Type type, List<ResourceHandle<IResource>> removedHandles)
+	{
+		using (mMonitor.Enter())
+		{
+			List<ResourceCacheKey> keysToRemove = scope .();
+
+			for (var kv in mResources)
+			{
+				if (kv.key.ResourceType == type)
+				{
+					keysToRemove.Add(kv.key);
+					removedHandles.Add(kv.value);
+				}
+			}
+
+			for (let key in keysToRemove)
+			{
+				var keyToDispose = key;
+				if (mResources.TryGetValue(key, var handle))
+				{
+					handle.Release(); // Release cache's ref
+				}
+				mResources.Remove(key);
+				keyToDispose.Dispose();
+			}
+		}
+	}
 }

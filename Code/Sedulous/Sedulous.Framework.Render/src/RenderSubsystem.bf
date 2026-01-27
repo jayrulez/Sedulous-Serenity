@@ -4,6 +4,7 @@ using System;
 using System.Collections;
 using Sedulous.Framework.Core;
 using Sedulous.Framework.Scenes;
+using Sedulous.Geometry.Resources;
 using Sedulous.Render;
 
 /// Render subsystem that manages rendering and integrates with Sedulous.Render.
@@ -19,6 +20,10 @@ public class RenderSubsystem : Subsystem, ISceneAware
 
 	// Track render worlds per scene
 	private Dictionary<Scene, RenderWorld> mSceneWorlds = new .() ~ delete _;
+
+	// Resource managers
+	private StaticMeshResourceManager mStaticMeshManager;
+	private SkinnedMeshResourceManager mSkinnedMeshManager;
 
 	// ==================== Construction ====================
 
@@ -36,6 +41,12 @@ public class RenderSubsystem : Subsystem, ISceneAware
 	/// Gets the underlying render system.
 	public RenderSystem RenderSystem => mRenderSystem;
 
+	/// Gets the static mesh resource manager.
+	public StaticMeshResourceManager StaticMeshManager => mStaticMeshManager;
+
+	/// Gets the skinned mesh resource manager.
+	public SkinnedMeshResourceManager SkinnedMeshManager => mSkinnedMeshManager;
+
 	// ==================== World Access ====================
 
 	/// Gets the render world for a specific scene.
@@ -50,6 +61,12 @@ public class RenderSubsystem : Subsystem, ISceneAware
 
 	protected override void OnInit()
 	{
+		// Create and register resource managers with the resource system
+		mStaticMeshManager = new StaticMeshResourceManager();
+		mSkinnedMeshManager = new SkinnedMeshResourceManager();
+
+		Context.Resources.AddResourceManager(mStaticMeshManager);
+		Context.Resources.AddResourceManager(mSkinnedMeshManager);
 	}
 
 	protected override void OnShutdown()
@@ -61,6 +78,20 @@ public class RenderSubsystem : Subsystem, ISceneAware
 			delete world;
 		}
 		mSceneWorlds.Clear();
+
+		// Unregister and clean up resource managers
+		if (mStaticMeshManager != null)
+		{
+			Context.Resources.RemoveResourceManager(mStaticMeshManager);
+			delete mStaticMeshManager;
+			mStaticMeshManager = null;
+		}
+		if (mSkinnedMeshManager != null)
+		{
+			Context.Resources.RemoveResourceManager(mSkinnedMeshManager);
+			delete mSkinnedMeshManager;
+			mSkinnedMeshManager = null;
+		}
 
 		if (mOwnsRenderSystem && mRenderSystem != null)
 		{

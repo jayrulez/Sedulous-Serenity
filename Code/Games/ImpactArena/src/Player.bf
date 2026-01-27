@@ -7,6 +7,8 @@ using Sedulous.Framework.Render;
 using Sedulous.Framework.Physics;
 using Sedulous.Render;
 using Sedulous.Geometry;
+using Sedulous.Geometry.Resources;
+using Sedulous.Resources;
 using Sedulous.Materials;
 using Sedulous.Physics;
 
@@ -62,7 +64,7 @@ class Player
 	}
 
 	public void Initialize(Scene scene, RenderSceneModule renderModule, PhysicsSceneModule physicsModule,
-		GPUMeshHandle sphereMesh, MaterialInstance mat)
+		StaticMeshResource sphereMesh, MaterialInstance mat)
 	{
 		mScene = scene;
 		mPhysicsModule = physicsModule;
@@ -72,12 +74,10 @@ class Player
 		transform.Position = .(0, Radius, 0);
 		scene.SetTransform(mEntity, transform);
 
-		let meshHandle = renderModule.CreateMeshRenderer(mEntity);
-		if (meshHandle.IsValid)
-		{
-			renderModule.SetMeshData(mEntity, sphereMesh, BoundingBox(.(-Radius), .(Radius)));
-			renderModule.SetMeshMaterial(mEntity, mat);
-		}
+		mScene.SetComponent<MeshRendererComponent>(mEntity, .Default);
+		var comp = mScene.GetComponent<MeshRendererComponent>(mEntity);
+		comp.Mesh = ResourceHandle<StaticMeshResource>(sphereMesh);
+		comp.Material = mat;
 
 		// Create physics body constrained to XZ plane
 		var descriptor = PhysicsBodyDescriptor();

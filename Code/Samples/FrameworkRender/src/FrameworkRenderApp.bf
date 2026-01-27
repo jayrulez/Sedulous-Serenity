@@ -10,6 +10,8 @@ using Sedulous.Shell;
 using Sedulous.Shell.Input;
 using Sedulous.Render;
 using Sedulous.Geometry;
+using Sedulous.Geometry.Resources;
+using Sedulous.Resources;
 using Sedulous.Materials;
 using Sedulous.Profiler;
 
@@ -35,9 +37,9 @@ class FrameworkRenderApp : Application
 	private DebugRenderFeature mDebugFeature;
 	private FinalOutputFeature mFinalOutputFeature;
 
-	// Meshes
-	private GPUMeshHandle mSphereMeshHandle;
-	private GPUMeshHandle mPlaneMeshHandle;
+	// Mesh resources
+	private StaticMeshResource mSphereResource /*~ delete _*/;
+	private StaticMeshResource mPlaneResource /*~ delete _*/;
 
 	// Materials
 	private MaterialInstance mFloorMaterial ~ delete _;
@@ -211,12 +213,11 @@ class FrameworkRenderApp : Application
 			transform.Position = .(0, -1.0f, 0);
 			mMainScene.SetTransform(mFloorEntity, transform);
 
-			let handle = renderModule.CreateMeshRenderer(mFloorEntity);
-			if (handle.IsValid)
-			{
-				renderModule.SetMeshData(mFloorEntity, mPlaneMeshHandle, BoundingBox(Vector3(-500, 0, -500), Vector3(500, 0.01f, 500)));
-				renderModule.SetMeshMaterial(mFloorEntity, mFloorMaterial ?? defaultMaterial);
-			}
+			// Set mesh component - framework handles proxy creation and GPU upload
+			mMainScene.SetComponent<MeshRendererComponent>(mFloorEntity, .Default);
+			var comp = mMainScene.GetComponent<MeshRendererComponent>(mFloorEntity);
+			comp.Mesh = ResourceHandle<StaticMeshResource>(mPlaneResource);
+			comp.Material = mFloorMaterial ?? defaultMaterial;
 		}
 
 		// Create camera
@@ -246,17 +247,9 @@ class FrameworkRenderApp : Application
 
 	private void CreateMeshes()
 	{
-		// Create sphere mesh
-		let sphereMesh = StaticMesh.CreateSphere(SphereRadius, 12, 8);
-		if (mRenderSystem.ResourceManager.UploadMesh(sphereMesh) case .Ok(let sphereHandle))
-			mSphereMeshHandle = sphereHandle;
-		delete sphereMesh;
-
-		// Create floor plane
-		let planeMesh = StaticMesh.CreatePlane(1000, 1000, 1, 1);
-		if (mRenderSystem.ResourceManager.UploadMesh(planeMesh) case .Ok(let planeHandle))
-			mPlaneMeshHandle = planeHandle;
-		delete planeMesh;
+		// Create mesh resources (framework handles GPU upload automatically)
+		mSphereResource = StaticMeshResource.CreateSphere(SphereRadius, 12, 8);
+		mPlaneResource = StaticMeshResource.CreatePlane(1000, 1000, 1, 1);
 	}
 
 	private void CreateMaterials()
@@ -313,26 +306,25 @@ class FrameworkRenderApp : Application
 			transform.Position = .(x, y, z);
 			mMainScene.SetTransform(entity, transform);
 
-			let handle = renderModule.CreateMeshRenderer(entity);
-			if (handle.IsValid)
-			{
-				renderModule.SetMeshData(entity, mSphereMeshHandle, BoundingBox(Vector3(-SphereRadius), Vector3(SphereRadius)));
+			// Set mesh component - framework handles proxy creation and GPU upload
+			mMainScene.SetComponent<MeshRendererComponent>(entity, .Default);
+			var comp = mMainScene.GetComponent<MeshRendererComponent>(entity);
+			comp.Mesh = ResourceHandle<StaticMeshResource>(mSphereResource);
 
-				// Use shared or unique material based on mode
-				if (mUseUniqueMaterials && baseMaterial != null)
-				{
-					// Create unique material with color based on position
-					let uniqueMat = new MaterialInstance(baseMaterial);
-					let hue = (float)(index % 360) / 360.0f;
-					let color = HSVtoRGB(hue, 0.8f, 0.9f);
-					uniqueMat.SetColor("BaseColor", .(color.X, color.Y, color.Z, 1.0f));
-					mUniqueMaterials.Add(uniqueMat);
-					renderModule.SetMeshMaterial(entity, uniqueMat);
-				}
-				else
-				{
-					renderModule.SetMeshMaterial(entity, mSharedSphereMaterial ?? defaultMaterial);
-				}
+			// Use shared or unique material based on mode
+			if (mUseUniqueMaterials && baseMaterial != null)
+			{
+				// Create unique material with color based on position
+				let uniqueMat = new MaterialInstance(baseMaterial);
+				let hue = (float)(index % 360) / 360.0f;
+				let color = HSVtoRGB(hue, 0.8f, 0.9f);
+				uniqueMat.SetColor("BaseColor", .(color.X, color.Y, color.Z, 1.0f));
+				mUniqueMaterials.Add(uniqueMat);
+				comp.Material = uniqueMat;
+			}
+			else
+			{
+				comp.Material = mSharedSphereMaterial ?? defaultMaterial;
 			}
 		}
 
@@ -366,6 +358,9 @@ class FrameworkRenderApp : Application
 		for (int32 i = 0; i < mSphereEntities.Count; i++)
 		{
 			let entity = mSphereEntities[i];
+			var comp = mMainScene.GetComponent<MeshRendererComponent>(entity);
+			if (comp == null)
+				continue;
 
 			if (mUseUniqueMaterials && baseMaterial != null)
 			{
@@ -374,11 +369,11 @@ class FrameworkRenderApp : Application
 				let color = HSVtoRGB(hue, 0.8f, 0.9f);
 				uniqueMat.SetColor("BaseColor", .(color.X, color.Y, color.Z, 1.0f));
 				mUniqueMaterials.Add(uniqueMat);
-				renderModule.SetMeshMaterial(entity, uniqueMat);
+				comp.Material = uniqueMat;
 			}
 			else
 			{
-				renderModule.SetMeshMaterial(entity, mSharedSphereMaterial ?? defaultMaterial);
+				comp.Material = mSharedSphereMaterial ?? defaultMaterial;
 			}
 		}
 
@@ -606,10 +601,8 @@ class FrameworkRenderApp : Application
 
 		Console.WriteLine("\n=== Shutting Down ===");
 
-		if (mSphereMeshHandle.IsValid)
-			mRenderSystem.ResourceManager.ReleaseMesh(mSphereMeshHandle, mRenderSystem.FrameNumber);
-		if (mPlaneMeshHandle.IsValid)
-			mRenderSystem.ResourceManager.ReleaseMesh(mPlaneMeshHandle, mRenderSystem.FrameNumber);
+		// Mesh resources are cleaned up automatically via ~ delete _ on fields
+		// GPU mesh cache is cleaned up when RenderSceneModule is destroyed
 
 		if (mRenderSystem != null)
 			mRenderSystem.Shutdown();

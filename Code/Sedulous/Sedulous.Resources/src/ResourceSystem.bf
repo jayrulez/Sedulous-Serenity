@@ -66,12 +66,25 @@ class ResourceSystem
 	}
 
 	/// Unregisters a resource manager.
+	/// Unloads all resources managed by this manager before removing it.
 	public void RemoveResourceManager(IResourceManager manager)
 	{
+		// First, unload all resources of this type from the cache
+		List<ResourceHandle<IResource>> resourcesToUnload = scope .();
+		mCache.RemoveByType(manager.ResourceType, resourcesToUnload);
+
+		for (var resource in resourcesToUnload)
+		{
+			manager.Unload(ref resource);
+		}
+
+		// Then remove the manager
 		using (mManagersMonitor.Enter())
 		{
 			if (mManagers.TryGet(manager.ResourceType, var type, ?))
+			{
 				mManagers.Remove(type);
+			}
 		}
 	}
 

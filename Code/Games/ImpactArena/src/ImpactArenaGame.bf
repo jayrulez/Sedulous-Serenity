@@ -7,6 +7,8 @@ using Sedulous.Shell.Input;
 using Sedulous.RHI;
 using Sedulous.Mathematics;
 using Sedulous.Geometry;
+using Sedulous.Geometry.Resources;
+using Sedulous.Resources;
 using Sedulous.Materials;
 using Sedulous.Render;
 using Sedulous.Framework.Runtime;
@@ -48,9 +50,9 @@ class ImpactArenaGame : Application
 	private EntityId mSunEntity;
 
 	// Meshes
-	private GPUMeshHandle mPlaneMeshHandle;
-	private GPUMeshHandle mCubeMeshHandle;
-	private GPUMeshHandle mSphereMeshHandle;
+	private StaticMeshResource mPlaneResource /*~ delete _*/;
+	private StaticMeshResource mCubeResource /*~ delete _*/;
+	private StaticMeshResource mSphereResource /*~ delete _*/;
 
 	// Materials
 	private MaterialInstance mFloorMat;
@@ -329,20 +331,9 @@ class ImpactArenaGame : Application
 
 	private void CreateMeshes()
 	{
-		let planeMesh = StaticMesh.CreatePlane(Arena.HalfSize * 2, Arena.HalfSize * 2, 1, 1);
-		if (mRenderSystem.ResourceManager.UploadMesh(planeMesh) case .Ok(let planeHandle))
-			mPlaneMeshHandle = planeHandle;
-		delete planeMesh;
-
-		let cubeMesh = StaticMesh.CreateCube(1.0f);
-		if (mRenderSystem.ResourceManager.UploadMesh(cubeMesh) case .Ok(let cubeHandle))
-			mCubeMeshHandle = cubeHandle;
-		delete cubeMesh;
-
-		let sphereMesh = StaticMesh.CreateSphere(0.5f, 16, 12);
-		if (mRenderSystem.ResourceManager.UploadMesh(sphereMesh) case .Ok(let sphereHandle))
-			mSphereMeshHandle = sphereHandle;
-		delete sphereMesh;
+		mPlaneResource = StaticMeshResource.CreatePlane(Arena.HalfSize * 2, Arena.HalfSize * 2, 1, 1);
+		mCubeResource = StaticMeshResource.CreateCube(1.0f);
+		mSphereResource = StaticMeshResource.CreateSphere(0.5f, 16, 12);
 	}
 
 	private void CreateMaterials()
@@ -516,10 +507,10 @@ class ImpactArenaGame : Application
 		if (renderModule == null || physicsModule == null) return;
 
 		mArena.Initialize(mMainScene, renderModule, physicsModule,
-			mPlaneMeshHandle, mCubeMeshHandle, mFloorMat, mWallMat);
+			mPlaneResource, mCubeResource, mFloorMat, mWallMat);
 
 		mPlayer.Initialize(mMainScene, renderModule, physicsModule,
-			mSphereMeshHandle, mPlayerMat);
+			mSphereResource, mPlayerMat);
 
 		// Player dash trail emitter - speed/afterburner effect
 		let trailHandle = renderModule.CreateCPUParticleEmitter(mPlayer.Entity, 150);
@@ -553,10 +544,10 @@ class ImpactArenaGame : Application
 		}
 
 		mEnemyManager.Initialize(mMainScene, renderModule, physicsModule,
-			mSphereMeshHandle, mGruntMat, mBruteMat, mDasherMat);
+			mSphereResource, mGruntMat, mBruteMat, mDasherMat);
 
 		mEffectsManager.Initialize(mMainScene, renderModule);
-		mPowerUpManager.Initialize(mMainScene, renderModule, mSphereMeshHandle,
+		mPowerUpManager.Initialize(mMainScene, renderModule, mSphereResource,
 			mHealthPickupMat, mSpeedPickupMat, mShockPickupMat, mEmpPickupMat);
 		mHud.Initialize(mDrawContext);
 	}
@@ -1129,13 +1120,6 @@ class ImpactArenaGame : Application
 		}
 		delete mDrawContext;
 		delete mFontService;
-
-		if (mPlaneMeshHandle.IsValid)
-			mRenderSystem.ResourceManager.ReleaseMesh(mPlaneMeshHandle, mRenderSystem.FrameNumber);
-		if (mCubeMeshHandle.IsValid)
-			mRenderSystem.ResourceManager.ReleaseMesh(mCubeMeshHandle, mRenderSystem.FrameNumber);
-		if (mSphereMeshHandle.IsValid)
-			mRenderSystem.ResourceManager.ReleaseMesh(mSphereMeshHandle, mRenderSystem.FrameNumber);
 
 		delete mFloorMat;
 		delete mWallMat;
