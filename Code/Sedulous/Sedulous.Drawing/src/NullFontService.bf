@@ -11,9 +11,9 @@ public class NullFontService : IFontService
 
 	public CachedFont GetFont(StringView familyName, float pixelHeight) => null;
 
-	public ITexture GetAtlasTexture(CachedFont font) => null;
+	public IImageData GetAtlasTexture(CachedFont font) => null;
 
-	public ITexture GetAtlasTexture(StringView familyName, float pixelHeight) => null;
+	public IImageData GetAtlasTexture(StringView familyName, float pixelHeight) => null;
 
 	public void ReleaseFont(CachedFont font) { }
 

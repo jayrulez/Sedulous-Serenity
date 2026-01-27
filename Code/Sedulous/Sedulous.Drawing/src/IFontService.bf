@@ -18,11 +18,11 @@ public interface IFontService
 
 	/// Gets the texture for a font's atlas.
 	/// Returns null if texture is not available.
-	ITexture GetAtlasTexture(CachedFont font);
+	IImageData GetAtlasTexture(CachedFont font);
 
 	/// Gets the texture for a font's atlas (creates if necessary).
 	/// This is the primary method controls should use.
-	ITexture GetAtlasTexture(StringView familyName, float pixelHeight);
+	IImageData GetAtlasTexture(StringView familyName, float pixelHeight);
 
 	/// Releases a font reference when no longer needed.
 	void ReleaseFont(CachedFont font);

@@ -15,7 +15,7 @@ public class DrawBatch
 	public List<DrawCommand> Commands = new .() ~ delete _;
 	/// Textures referenced by commands (by TextureIndex)
 	/// These are not owned by DrawBatch - caller must manage texture lifetime
-	public List<ITexture> Textures = new .() ~ delete _;
+	public List<IImageData> Textures = new .() ~ delete _;
 
 	/// Get vertex data as a span for GPU upload
 	public Span<DrawVertex> GetVertexData()
@@ -39,7 +39,7 @@ public class DrawBatch
 	}
 
 	/// Get the texture for a command
-	public ITexture GetTextureForCommand(int index)
+	public IImageData GetTextureForCommand(int index)
 	{
 		let cmd = Commands[index];
 		if (cmd.TextureIndex >= 0 && cmd.TextureIndex < Textures.Count)

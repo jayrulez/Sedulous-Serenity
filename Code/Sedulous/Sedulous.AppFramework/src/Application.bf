@@ -19,7 +19,7 @@ using Sedulous.Shaders;
 
 // Type aliases to resolve ambiguity
 typealias RHITexture = Sedulous.RHI.ITexture;
-typealias DrawingTexture = Sedulous.Drawing.ITexture;
+typealias DrawingTexture = Sedulous.Drawing.IImageData;
 typealias ShellKeyCode = Sedulous.Shell.Input.KeyCode;
 typealias UIKeyCode = Sedulous.UI.KeyCode;
 typealias UIKeyModifiers = Sedulous.UI.KeyModifiers;

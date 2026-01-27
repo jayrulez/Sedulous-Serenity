@@ -13,7 +13,7 @@ public class DrawContext
 	private ShapeRasterizer mRasterizer = new .() ~ delete _;
 
 	// 1x1 white texture for solid color drawing
-	private OwnedTexture mWhiteTexture ~ delete _;
+	private OwnedImageData mWhiteTexture ~ delete _;
 
 	// State stack
 	private List<DrawState> mStateStack = new .() ~ delete _;
@@ -37,7 +37,7 @@ public class DrawContext
 	public IFontService FontService => mFontService;
 
 	/// The internal white texture used for solid color drawing.
-	public ITexture WhiteTexture => mWhiteTexture;
+	public IImageData WhiteTexture => mWhiteTexture;
 
 	/// Creates a DrawContext with an optional font service.
 	/// Font service is only needed for text rendering via DrawText methods.
@@ -49,7 +49,7 @@ public class DrawContext
 
 		// Create 1x1 white texture for solid color drawing
 		uint8[4] whitePixel = .(255, 255, 255, 255);
-		mWhiteTexture = new OwnedTexture(1, 1, .RGBA8, Span<uint8>(&whitePixel, 4));
+		mWhiteTexture = new OwnedImageData(1, 1, .RGBA8, Span<uint8>(&whitePixel, 4));
 
 		// Add white texture to batch as texture 0
 		mBatch.Textures.Add(mWhiteTexture);
@@ -554,25 +554,25 @@ public class DrawContext
 	// === Images ===
 
 	/// Draw an image at a position
-	public void DrawImage(ITexture texture, Vector2 position)
+	public void DrawImage(IImageData texture, Vector2 position)
 	{
 		DrawImage(texture, .(position.X, position.Y, texture.Width, texture.Height), .(0, 0, texture.Width, texture.Height), Color.White);
 	}
 
 	/// Draw an image at a position with tint
-	public void DrawImage(ITexture texture, Vector2 position, Color tint)
+	public void DrawImage(IImageData texture, Vector2 position, Color tint)
 	{
 		DrawImage(texture, .(position.X, position.Y, texture.Width, texture.Height), .(0, 0, texture.Width, texture.Height), tint);
 	}
 
 	/// Draw an image stretched to a destination rectangle
-	public void DrawImage(ITexture texture, RectangleF destRect)
+	public void DrawImage(IImageData texture, RectangleF destRect)
 	{
 		DrawImage(texture, destRect, .(0, 0, texture.Width, texture.Height), Color.White);
 	}
 
 	/// Draw an image stretched to a destination rectangle with source rect and tint
-	public void DrawImage(ITexture texture, RectangleF destRect, RectangleF srcRect, Color tint)
+	public void DrawImage(IImageData texture, RectangleF destRect, RectangleF srcRect, Color tint)
 	{
 		let textureIndex = GetOrAddTexture(texture);
 		SetupForTextureDraw(textureIndex);
@@ -582,7 +582,7 @@ public class DrawContext
 	}
 
 	/// Draw a 9-slice image
-	public void DrawNineSlice(ITexture texture, RectangleF destRect, RectangleF srcRect, NineSlice slices, Color tint)
+	public void DrawNineSlice(IImageData texture, RectangleF destRect, RectangleF srcRect, NineSlice slices, Color tint)
 	{
 		let textureIndex = GetOrAddTexture(texture);
 		SetupForTextureDraw(textureIndex);
@@ -674,7 +674,7 @@ public class DrawContext
 
 	/// Draw text at a position using a font atlas
 	/// Position is at the top-left of the text bounds
-	public void DrawText(StringView text, IFontAtlas atlas, ITexture atlasTexture, Vector2 position, Color color)
+	public void DrawText(StringView text, IFontAtlas atlas, IImageData atlasTexture, Vector2 position, Color color)
 	{
 		if (text.IsEmpty)
 			return;
@@ -700,7 +700,7 @@ public class DrawContext
 	}
 
 	/// Draw text at a position using a font atlas with brush for coloring
-	public void DrawText(StringView text, IFontAtlas atlas, ITexture atlasTexture, Vector2 position, IBrush brush)
+	public void DrawText(StringView text, IFontAtlas atlas, IImageData atlasTexture, Vector2 position, IBrush brush)
 	{
 		if (text.IsEmpty)
 			return;
@@ -735,7 +735,7 @@ public class DrawContext
 	}
 
 	/// Draw text with horizontal alignment within bounds
-	public void DrawText(StringView text, IFont font, IFontAtlas atlas, ITexture atlasTexture, RectangleF bounds, TextAlignment align, Color color)
+	public void DrawText(StringView text, IFont font, IFontAtlas atlas, IImageData atlasTexture, RectangleF bounds, TextAlignment align, Color color)
 	{
 		if (text.IsEmpty)
 			return;
@@ -760,7 +760,7 @@ public class DrawContext
 	}
 
 	/// Draw text with horizontal and vertical alignment within bounds
-	public void DrawText(StringView text, IFont font, IFontAtlas atlas, ITexture atlasTexture, RectangleF bounds, TextAlignment hAlign, VerticalAlignment vAlign, Color color)
+	public void DrawText(StringView text, IFont font, IFontAtlas atlas, IImageData atlasTexture, RectangleF bounds, TextAlignment hAlign, VerticalAlignment vAlign, Color color)
 	{
 		if (text.IsEmpty)
 			return;
@@ -848,7 +848,7 @@ public class DrawContext
 		}
 	}
 
-	private int32 GetOrAddTexture(ITexture texture)
+	private int32 GetOrAddTexture(IImageData texture)
 	{
 		for (int32 i = 0; i < mBatch.Textures.Count; i++)
 		{

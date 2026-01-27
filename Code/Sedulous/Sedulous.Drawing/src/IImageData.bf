@@ -5,7 +5,7 @@ namespace Sedulous.Drawing;
 /// Interface for textures used in 2D drawing.
 /// Textures carry CPU pixel data that the renderer uploads to the GPU.
 /// The renderer manages GPU resources and identifies textures by reference.
-public interface ITexture
+public interface IImageData
 {
 	/// Width of the texture in pixels
 	uint32 Width { get; }
@@ -22,7 +22,7 @@ public interface ITexture
 }
 
 /// A texture that owns its pixel data.
-public class OwnedTexture : ITexture
+public class OwnedImageData : IImageData
 {
 	private uint32 mWidth;
 	private uint32 mHeight;
@@ -58,7 +58,7 @@ public class OwnedTexture : ITexture
 }
 
 /// A texture that references external pixel data (does not own it).
-public class TextureRef : ITexture
+public class ImageDataRef : IImageData
 {
 	private uint32 mWidth;
 	private uint32 mHeight;

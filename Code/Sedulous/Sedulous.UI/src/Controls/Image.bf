@@ -20,13 +20,13 @@ public enum Stretch
 /// Displays an image.
 public class Image : Control
 {
-	private ITexture mSource;
+	private IImageData mSource;
 	private Stretch mStretch = .Uniform;
 	private HorizontalAlignment mHorizontalContentAlignment = .Center;
 	private VerticalAlignment mVerticalContentAlignment = .Center;
 
 	/// The image texture to display.
-	public ITexture Source
+	public IImageData Source
 	{
 		get => mSource;
 		set
@@ -72,7 +72,7 @@ public class Image : Control
 		Focusable = false;
 	}
 
-	public this(ITexture source) : this()
+	public this(IImageData source) : this()
 	{
 		mSource = source;
 	}

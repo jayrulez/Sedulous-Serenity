@@ -86,12 +86,12 @@ public class DrawingRenderer : IDisposable
 	private List<CachedTexture> mTextureCache = new .() ~ { for (var e in _) { e.Dispose(mFrameCount); delete e; } delete _; };
 
 	// Textures from current batch (stored for bind group creation)
-	private List<Sedulous.Drawing.ITexture> mBatchTextures = new .() ~ delete _;
+	private List<Sedulous.Drawing.IImageData> mBatchTextures = new .() ~ delete _;
 
 	/// Cached GPU resources for a Drawing.ITexture
 	private class CachedTexture
 	{
-		public Sedulous.Drawing.ITexture SourceTexture;
+		public Sedulous.Drawing.IImageData SourceTexture;
 		public Sedulous.RHI.ITexture GpuTexture;
 		public ITextureView GpuTextureView;
 		public IBindGroup[] BindGroups;
@@ -176,7 +176,7 @@ public class DrawingRenderer : IDisposable
 	}
 
 	/// Get or create cached GPU resources for a Drawing.ITexture
-	private CachedTexture GetOrCreateCachedTexture(Sedulous.Drawing.ITexture texture)
+	private CachedTexture GetOrCreateCachedTexture(Sedulous.Drawing.IImageData texture)
 	{
 		if (texture == null)
 			return null;

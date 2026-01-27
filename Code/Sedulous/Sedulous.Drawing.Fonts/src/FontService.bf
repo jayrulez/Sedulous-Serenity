@@ -21,7 +21,7 @@ public class FontService : IFontService
 	private class FontEntry
 	{
 		public CachedFont CachedFont;
-		public OwnedTexture Texture ~ delete _;
+		public OwnedImageData Texture ~ delete _;
 
 		public ~this()
 		{
@@ -102,7 +102,7 @@ public class FontService : IFontService
 		}
 
 		// Create texture with owned pixel data
-		let texture = new OwnedTexture(atlasWidth, atlasHeight, .RGBA8, rgba8Data);
+		let texture = new OwnedImageData(atlasWidth, atlasHeight, .RGBA8, rgba8Data);
 		let cachedFont = new CachedFont(font, atlas);
 
 		let entry = new FontEntry();
@@ -169,7 +169,7 @@ public class FontService : IFontService
 		return mDefaultFont;
 	}
 
-	public ITexture GetAtlasTexture(CachedFont font)
+	public IImageData GetAtlasTexture(CachedFont font)
 	{
 		for (let kv in mFonts)
 		{
@@ -179,7 +179,7 @@ public class FontService : IFontService
 		return null;
 	}
 
-	public ITexture GetAtlasTexture(StringView familyName, float pixelHeight)
+	public IImageData GetAtlasTexture(StringView familyName, float pixelHeight)
 	{
 		// First try exact match
 		let exactKey = scope String();

@@ -5,7 +5,7 @@ using Sedulous.Drawing;
 namespace Sedulous.Drawing.Tests;
 
 // Mock texture for testing
-class MockTexture : ITexture
+class MockTexture : IImageData
 {
 	private uint32 mWidth;
 	private uint32 mHeight;

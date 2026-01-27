@@ -7,11 +7,11 @@ namespace Sedulous.Drawing;
 /// A sprite sheet (texture atlas) containing multiple named sprites
 public class SpriteSheet
 {
-	private ITexture mTexture;
+	private IImageData mTexture;
 	private Dictionary<String, Sprite> mSprites = new .() ~ DeleteDictionaryAndKeys!(_);
 
 	/// The texture for this sprite sheet
-	public ITexture Texture => mTexture;
+	public IImageData Texture => mTexture;
 
 	/// Width of the texture in pixels
 	public uint32 Width => mTexture?.Width ?? 0;
@@ -22,7 +22,7 @@ public class SpriteSheet
 	/// Number of sprites in this sheet
 	public int SpriteCount => mSprites.Count;
 
-	public this(ITexture texture)
+	public this(IImageData texture)
 	{
 		mTexture = texture;
 	}

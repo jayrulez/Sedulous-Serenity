@@ -7,7 +7,7 @@ namespace Sedulous.Drawing;
 public struct Sprite
 {
 	/// The texture containing this sprite
-	public ITexture Texture;
+	public IImageData Texture;
 	/// Source rectangle in texture coordinates (pixels)
 	public RectangleF SourceRect;
 	/// Origin/pivot point relative to sprite size (0-1, default is top-left)
@@ -26,7 +26,7 @@ public struct Sprite
 	public uint32 TextureHeight => Texture?.Height ?? 0;
 
 	/// Create a sprite from a texture region
-	public this(ITexture texture, RectangleF sourceRect)
+	public this(IImageData texture, RectangleF sourceRect)
 	{
 		Texture = texture;
 		SourceRect = sourceRect;
@@ -34,7 +34,7 @@ public struct Sprite
 	}
 
 	/// Create a sprite from a texture region with custom origin
-	public this(ITexture texture, RectangleF sourceRect, Vector2 origin)
+	public this(IImageData texture, RectangleF sourceRect, Vector2 origin)
 	{
 		Texture = texture;
 		SourceRect = sourceRect;
@@ -42,7 +42,7 @@ public struct Sprite
 	}
 
 	/// Create a sprite from an entire texture
-	public static Sprite FromTexture(ITexture texture)
+	public static Sprite FromTexture(IImageData texture)
 	{
 		return .(texture, .(0, 0, texture.Width, texture.Height));
 	}
