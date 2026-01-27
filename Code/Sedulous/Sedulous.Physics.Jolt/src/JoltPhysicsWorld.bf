@@ -488,6 +488,151 @@ class JoltPhysicsWorld : IPhysicsWorld
 		return JoltConversions.ToBodyType(motionType);
 	}
 
+	public void SetBodyMass(BodyHandle handle, float mass)
+	{
+		if (!ValidateBodyHandle(handle))
+			return;
+
+		let body = GetJPHBody(handle);
+		if (body == null)
+			return;
+
+		let motionProps = JPH_Body_GetMotionProperties(body);
+		if (motionProps != null)
+			JPH_MotionProperties_SetInverseMass(motionProps, mass > 0 ? 1.0f / mass : 0);
+	}
+
+	public float GetBodyMass(BodyHandle handle)
+	{
+		if (!ValidateBodyHandle(handle))
+			return 1.0f;
+
+		let body = GetJPHBody(handle);
+		if (body == null)
+			return 1.0f;
+
+		let motionProps = JPH_Body_GetMotionProperties(body);
+		if (motionProps == null)
+			return 0;  // Static body
+
+		let invMass = JPH_MotionProperties_GetInverseMassUnchecked(motionProps);
+		return invMass > 0 ? 1.0f / invMass : 0;
+	}
+
+	public void SetBodyLinearDamping(BodyHandle handle, float damping)
+	{
+		if (!ValidateBodyHandle(handle))
+			return;
+
+		let body = GetJPHBody(handle);
+		if (body == null)
+			return;
+
+		let motionProps = JPH_Body_GetMotionProperties(body);
+		if (motionProps != null)
+			JPH_MotionProperties_SetLinearDamping(motionProps, damping);
+	}
+
+	public float GetBodyLinearDamping(BodyHandle handle)
+	{
+		if (!ValidateBodyHandle(handle))
+			return 0;
+
+		let body = GetJPHBody(handle);
+		if (body == null)
+			return 0;
+
+		let motionProps = JPH_Body_GetMotionProperties(body);
+		if (motionProps == null)
+			return 0;
+
+		return JPH_MotionProperties_GetLinearDamping(motionProps);
+	}
+
+	public void SetBodyAngularDamping(BodyHandle handle, float damping)
+	{
+		if (!ValidateBodyHandle(handle))
+			return;
+
+		let body = GetJPHBody(handle);
+		if (body == null)
+			return;
+
+		let motionProps = JPH_Body_GetMotionProperties(body);
+		if (motionProps != null)
+			JPH_MotionProperties_SetAngularDamping(motionProps, damping);
+	}
+
+	public float GetBodyAngularDamping(BodyHandle handle)
+	{
+		if (!ValidateBodyHandle(handle))
+			return 0;
+
+		let body = GetJPHBody(handle);
+		if (body == null)
+			return 0;
+
+		let motionProps = JPH_Body_GetMotionProperties(body);
+		if (motionProps == null)
+			return 0;
+
+		return JPH_MotionProperties_GetAngularDamping(motionProps);
+	}
+
+	public void SetBodyFriction(BodyHandle handle, float friction)
+	{
+		if (!ValidateBodyHandle(handle))
+			return;
+
+		let bodyId = mBodyIds[(int)handle.Index];
+		JPH_BodyInterface_SetFriction(mBodyInterface, bodyId, friction);
+	}
+
+	public float GetBodyFriction(BodyHandle handle)
+	{
+		if (!ValidateBodyHandle(handle))
+			return 0;
+
+		let bodyId = mBodyIds[(int)handle.Index];
+		return JPH_BodyInterface_GetFriction(mBodyInterface, bodyId);
+	}
+
+	public void SetBodyRestitution(BodyHandle handle, float restitution)
+	{
+		if (!ValidateBodyHandle(handle))
+			return;
+
+		let bodyId = mBodyIds[(int)handle.Index];
+		JPH_BodyInterface_SetRestitution(mBodyInterface, bodyId, restitution);
+	}
+
+	public float GetBodyRestitution(BodyHandle handle)
+	{
+		if (!ValidateBodyHandle(handle))
+			return 0;
+
+		let bodyId = mBodyIds[(int)handle.Index];
+		return JPH_BodyInterface_GetRestitution(mBodyInterface, bodyId);
+	}
+
+	public void SetBodyGravityFactor(BodyHandle handle, float factor)
+	{
+		if (!ValidateBodyHandle(handle))
+			return;
+
+		let bodyId = mBodyIds[(int)handle.Index];
+		JPH_BodyInterface_SetGravityFactor(mBodyInterface, bodyId, factor);
+	}
+
+	public float GetBodyGravityFactor(BodyHandle handle)
+	{
+		if (!ValidateBodyHandle(handle))
+			return 1.0f;
+
+		let bodyId = mBodyIds[(int)handle.Index];
+		return JPH_BodyInterface_GetGravityFactor(mBodyInterface, bodyId);
+	}
+
 	public void SetBodyUserData(BodyHandle handle, uint64 userData)
 	{
 		if (!ValidateBodyHandle(handle))

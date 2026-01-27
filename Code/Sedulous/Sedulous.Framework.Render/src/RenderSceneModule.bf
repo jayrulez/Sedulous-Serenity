@@ -57,15 +57,12 @@ struct SkinnedMeshRendererComponent
 /// Component for camera entities.
 struct CameraComponent
 {
-	/// Handle to the camera proxy in the render world.
-	public CameraProxyHandle ProxyHandle;
 	/// Whether this camera is active.
 	public bool Active;
 	/// Whether this is the main camera.
 	public bool IsMainCamera;
 
 	public static CameraComponent Default => .() {
-		ProxyHandle = .Invalid,
 		Active = true,
 		IsMainCamera = false
 	};
@@ -74,13 +71,10 @@ struct CameraComponent
 /// Component for light entities.
 struct LightComponent
 {
-	/// Handle to the light proxy in the render world.
-	public LightProxyHandle ProxyHandle;
 	/// Whether this light is enabled.
 	public bool Enabled;
 
 	public static LightComponent Default => .() {
-		ProxyHandle = .Invalid,
 		Enabled = true
 	};
 }
@@ -88,28 +82,21 @@ struct LightComponent
 /// Component for particle emitter entities.
 struct ParticleEmitterComponent
 {
-	/// Handle to the particle emitter proxy in the render world.
-	public ParticleEmitterProxyHandle ProxyHandle;
 	/// Whether this emitter is enabled.
 	public bool Enabled;
 
 	public static ParticleEmitterComponent Default => .() {
-		ProxyHandle = .Invalid,
 		Enabled = true
 	};
 }
 
-
 /// Component for sprite entities.
 struct SpriteComponent
 {
-	/// Handle to the sprite proxy in the render world.
-	public SpriteProxyHandle ProxyHandle;
 	/// Whether this sprite is enabled.
 	public bool Enabled;
 
 	public static SpriteComponent Default => .() {
-		ProxyHandle = .Invalid,
 		Enabled = true
 	};
 }
@@ -117,13 +104,10 @@ struct SpriteComponent
 /// Component for trail emitter entities.
 struct TrailEmitterComponent
 {
-	/// Handle to the trail emitter proxy in the render world.
-	public TrailEmitterProxyHandle ProxyHandle;
 	/// Whether this trail emitter is enabled.
 	public bool Enabled;
 
 	public static TrailEmitterComponent Default => .() {
-		ProxyHandle = .Invalid,
 		Enabled = true
 	};
 }
@@ -153,6 +137,11 @@ class RenderSceneModule : SceneModule
 	// Track proxy handles per entity (internal, not exposed on components)
 	private Dictionary<EntityId, MeshProxyHandle> mMeshProxies = new .() ~ delete _;
 	private Dictionary<EntityId, SkinnedMeshProxyHandle> mSkinnedMeshProxies = new .() ~ delete _;
+	private Dictionary<EntityId, CameraProxyHandle> mCameraProxies = new .() ~ delete _;
+	private Dictionary<EntityId, LightProxyHandle> mLightProxies = new .() ~ delete _;
+	private Dictionary<EntityId, ParticleEmitterProxyHandle> mParticleEmitterProxies = new .() ~ delete _;
+	private Dictionary<EntityId, SpriteProxyHandle> mSpriteProxies = new .() ~ delete _;
+	private Dictionary<EntityId, TrailEmitterProxyHandle> mTrailEmitterProxies = new .() ~ delete _;
 
 	/// Creates a RenderSceneModule linked to the given subsystem and render world.
 	public this(RenderSubsystem subsystem, RenderWorld world)
@@ -206,6 +195,11 @@ class RenderSceneModule : SceneModule
 		mEntitySkinnedMaterialBinding.Clear();
 		mMeshProxies.Clear();
 		mSkinnedMeshProxies.Clear();
+		mCameraProxies.Clear();
+		mLightProxies.Clear();
+		mParticleEmitterProxies.Clear();
+		mSpriteProxies.Clear();
+		mTrailEmitterProxies.Clear();
 
 		// Proxies are cleaned up when entities are destroyed or when RenderWorld is deleted
 		mScene = null;
@@ -359,11 +353,18 @@ class RenderSceneModule : SceneModule
 		// Sync camera transforms
 		for (let (entity, camera) in scene.Query<CameraComponent>())
 		{
-			if (!camera.ProxyHandle.IsValid || !camera.Active)
+			if (!camera.Active)
+				continue;
+
+			CameraProxyHandle proxyHandle = .Invalid;
+			if (mCameraProxies.TryGetValue(entity, var existingProxy))
+				proxyHandle = existingProxy;
+
+			if (!proxyHandle.IsValid)
 				continue;
 
 			let worldMatrix = scene.GetWorldMatrix(entity);
-			if (let proxy = mWorld.GetCamera(camera.ProxyHandle))
+			if (let proxy = mWorld.GetCamera(proxyHandle))
 			{
 				// Extract position and orientation from world matrix
 				let position = worldMatrix.Translation;
@@ -376,11 +377,18 @@ class RenderSceneModule : SceneModule
 		// Sync light transforms
 		for (let (entity, light) in scene.Query<LightComponent>())
 		{
-			if (!light.ProxyHandle.IsValid || !light.Enabled)
+			if (!light.Enabled)
+				continue;
+
+			LightProxyHandle proxyHandle = .Invalid;
+			if (mLightProxies.TryGetValue(entity, var existingProxy))
+				proxyHandle = existingProxy;
+
+			if (!proxyHandle.IsValid)
 				continue;
 
 			let worldMatrix = scene.GetWorldMatrix(entity);
-			if (let proxy = mWorld.GetLight(light.ProxyHandle))
+			if (let proxy = mWorld.GetLight(proxyHandle))
 			{
 				proxy.Position = worldMatrix.Translation;
 				// Extract forward direction for directional/spot lights
@@ -391,21 +399,35 @@ class RenderSceneModule : SceneModule
 		// Sync particle emitter transforms
 		for (let (entity, emitter) in scene.Query<ParticleEmitterComponent>())
 		{
-			if (!emitter.ProxyHandle.IsValid || !emitter.Enabled)
+			if (!emitter.Enabled)
+				continue;
+
+			ParticleEmitterProxyHandle proxyHandle = .Invalid;
+			if (mParticleEmitterProxies.TryGetValue(entity, var existingProxy))
+				proxyHandle = existingProxy;
+
+			if (!proxyHandle.IsValid)
 				continue;
 
 			let worldMatrix = scene.GetWorldMatrix(entity);
-			mWorld.SetParticleEmitterPosition(emitter.ProxyHandle, worldMatrix.Translation);
+			mWorld.SetParticleEmitterPosition(proxyHandle, worldMatrix.Translation);
 		}
 
 		// Sync sprite transforms
 		for (let (entity, sprite) in scene.Query<SpriteComponent>())
 		{
-			if (!sprite.ProxyHandle.IsValid || !sprite.Enabled)
+			if (!sprite.Enabled)
+				continue;
+
+			SpriteProxyHandle proxyHandle = .Invalid;
+			if (mSpriteProxies.TryGetValue(entity, var existingProxy))
+				proxyHandle = existingProxy;
+
+			if (!proxyHandle.IsValid)
 				continue;
 
 			let worldMatrix = scene.GetWorldMatrix(entity);
-			mWorld.SetSpritePosition(sprite.ProxyHandle, worldMatrix.Translation);
+			mWorld.SetSpritePosition(proxyHandle, worldMatrix.Translation);
 		}
 	}
 
@@ -442,39 +464,44 @@ class RenderSceneModule : SceneModule
 			mSkinnedMeshProxies.Remove(entity);
 		}
 
-		// Clean up camera proxy
-		if (let camera = scene.GetComponent<CameraComponent>(entity))
+		// Clean up camera proxy (from internal tracking)
+		if (mCameraProxies.TryGetValue(entity, let cameraProxy))
 		{
-			if (camera.ProxyHandle.IsValid)
-				mWorld.DestroyCamera(camera.ProxyHandle);
+			if (cameraProxy.IsValid)
+				mWorld.DestroyCamera(cameraProxy);
+			mCameraProxies.Remove(entity);
 		}
 
-		// Clean up light proxy
-		if (let light = scene.GetComponent<LightComponent>(entity))
+		// Clean up light proxy (from internal tracking)
+		if (mLightProxies.TryGetValue(entity, let lightProxy))
 		{
-			if (light.ProxyHandle.IsValid)
-				mWorld.DestroyLight(light.ProxyHandle);
+			if (lightProxy.IsValid)
+				mWorld.DestroyLight(lightProxy);
+			mLightProxies.Remove(entity);
 		}
 
-		// Clean up particle emitter proxy
-		if (let emitter = scene.GetComponent<ParticleEmitterComponent>(entity))
+		// Clean up particle emitter proxy (from internal tracking)
+		if (mParticleEmitterProxies.TryGetValue(entity, let emitterProxy))
 		{
-			if (emitter.ProxyHandle.IsValid)
-				mWorld.DestroyParticleEmitter(emitter.ProxyHandle);
+			if (emitterProxy.IsValid)
+				mWorld.DestroyParticleEmitter(emitterProxy);
+			mParticleEmitterProxies.Remove(entity);
 		}
 
-		// Clean up sprite proxy
-		if (let sprite = scene.GetComponent<SpriteComponent>(entity))
+		// Clean up sprite proxy (from internal tracking)
+		if (mSpriteProxies.TryGetValue(entity, let spriteProxy))
 		{
-			if (sprite.ProxyHandle.IsValid)
-				mWorld.DestroySprite(sprite.ProxyHandle);
+			if (spriteProxy.IsValid)
+				mWorld.DestroySprite(spriteProxy);
+			mSpriteProxies.Remove(entity);
 		}
 
-		// Clean up trail emitter proxy
-		if (let trail = scene.GetComponent<TrailEmitterComponent>(entity))
+		// Clean up trail emitter proxy (from internal tracking)
+		if (mTrailEmitterProxies.TryGetValue(entity, let trailProxy))
 		{
-			if (trail.ProxyHandle.IsValid)
-				mWorld.DestroyTrailEmitter(trail.ProxyHandle);
+			if (trailProxy.IsValid)
+				mWorld.DestroyTrailEmitter(trailProxy);
+			mTrailEmitterProxies.Remove(entity);
 		}
 
 		// Clean up entity mesh and material bindings
@@ -612,14 +639,16 @@ class RenderSceneModule : SceneModule
 
 		let handle = mWorld.CreatePerspectiveCamera(position, target, up, fov, aspectRatio, nearPlane, farPlane);
 
+		// Store in internal tracking
+		mCameraProxies[entity] = handle;
+
+		// Ensure component exists
 		var comp = mScene.GetComponent<CameraComponent>(entity);
 		if (comp == null)
 		{
 			mScene.SetComponent<CameraComponent>(entity, .Default);
 			comp = mScene.GetComponent<CameraComponent>(entity);
 		}
-
-		comp.ProxyHandle = handle;
 		comp.Active = true;
 
 		return handle;
@@ -639,14 +668,16 @@ class RenderSceneModule : SceneModule
 
 		let handle = mWorld.CreateOrthographicCamera(position, target, up, width, height, nearPlane, farPlane);
 
+		// Store in internal tracking
+		mCameraProxies[entity] = handle;
+
+		// Ensure component exists
 		var comp = mScene.GetComponent<CameraComponent>(entity);
 		if (comp == null)
 		{
 			mScene.SetComponent<CameraComponent>(entity, .Default);
 			comp = mScene.GetComponent<CameraComponent>(entity);
 		}
-
-		comp.ProxyHandle = handle;
 		comp.Active = true;
 
 		return handle;
@@ -657,31 +688,33 @@ class RenderSceneModule : SceneModule
 	{
 		if (let comp = mScene?.GetComponent<CameraComponent>(entity))
 		{
-			if (comp.ProxyHandle.IsValid)
-			{
-				comp.IsMainCamera = true;
-				mWorld?.SetMainCamera(comp.ProxyHandle);
-			}
+			comp.IsMainCamera = true;
+		}
+
+		if (mCameraProxies.TryGetValue(entity, let proxyHandle))
+		{
+			if (proxyHandle.IsValid)
+				mWorld?.SetMainCamera(proxyHandle);
 		}
 	}
 
 	/// Updates camera matrices. Call after changing projection parameters.
 	public void UpdateCameraMatrices(EntityId entity, bool flipY = false)
 	{
-		if (let comp = mScene?.GetComponent<CameraComponent>(entity))
+		if (mCameraProxies.TryGetValue(entity, let proxyHandle))
 		{
-			if (comp.ProxyHandle.IsValid)
-				mWorld?.UpdateCameraMatrices(comp.ProxyHandle, flipY);
+			if (proxyHandle.IsValid)
+				mWorld?.UpdateCameraMatrices(proxyHandle, flipY);
 		}
 	}
 
 	/// Gets the camera proxy for direct access.
 	public CameraProxy* GetCameraProxy(EntityId entity)
 	{
-		if (let comp = mScene?.GetComponent<CameraComponent>(entity))
+		if (mCameraProxies.TryGetValue(entity, let proxyHandle))
 		{
-			if (comp.ProxyHandle.IsValid)
-				return mWorld?.GetCamera(comp.ProxyHandle);
+			if (proxyHandle.IsValid)
+				return mWorld?.GetCamera(proxyHandle);
 		}
 		return null;
 	}
@@ -699,14 +732,16 @@ class RenderSceneModule : SceneModule
 
 		let handle = mWorld.CreateDirectionalLight(direction, color, intensity);
 
+		// Store in internal tracking
+		mLightProxies[entity] = handle;
+
+		// Ensure component exists
 		var comp = mScene.GetComponent<LightComponent>(entity);
 		if (comp == null)
 		{
 			mScene.SetComponent<LightComponent>(entity, .Default);
 			comp = mScene.GetComponent<LightComponent>(entity);
 		}
-
-		comp.ProxyHandle = handle;
 		comp.Enabled = true;
 
 		return handle;
@@ -723,14 +758,16 @@ class RenderSceneModule : SceneModule
 
 		let handle = mWorld.CreatePointLight(position, color, intensity, range);
 
+		// Store in internal tracking
+		mLightProxies[entity] = handle;
+
+		// Ensure component exists
 		var comp = mScene.GetComponent<LightComponent>(entity);
 		if (comp == null)
 		{
 			mScene.SetComponent<LightComponent>(entity, .Default);
 			comp = mScene.GetComponent<LightComponent>(entity);
 		}
-
-		comp.ProxyHandle = handle;
 		comp.Enabled = true;
 
 		return handle;
@@ -748,14 +785,16 @@ class RenderSceneModule : SceneModule
 
 		let handle = mWorld.CreateSpotLight(position, direction, color, intensity, range, innerAngle, outerAngle);
 
+		// Store in internal tracking
+		mLightProxies[entity] = handle;
+
+		// Ensure component exists
 		var comp = mScene.GetComponent<LightComponent>(entity);
 		if (comp == null)
 		{
 			mScene.SetComponent<LightComponent>(entity, .Default);
 			comp = mScene.GetComponent<LightComponent>(entity);
 		}
-
-		comp.ProxyHandle = handle;
 		comp.Enabled = true;
 
 		return handle;
@@ -764,10 +803,10 @@ class RenderSceneModule : SceneModule
 	/// Sets light color and intensity.
 	public void SetLightColor(EntityId entity, Vector3 color, float intensity)
 	{
-		if (let comp = mScene?.GetComponent<LightComponent>(entity))
+		if (mLightProxies.TryGetValue(entity, let proxyHandle))
 		{
-			if (comp.ProxyHandle.IsValid)
-				mWorld?.SetLightColor(comp.ProxyHandle, color, intensity);
+			if (proxyHandle.IsValid)
+				mWorld?.SetLightColor(proxyHandle, color, intensity);
 		}
 	}
 
@@ -777,18 +816,22 @@ class RenderSceneModule : SceneModule
 		if (let comp = mScene?.GetComponent<LightComponent>(entity))
 		{
 			comp.Enabled = enabled;
-			if (comp.ProxyHandle.IsValid)
-				mWorld?.SetLightEnabled(comp.ProxyHandle, enabled);
+		}
+
+		if (mLightProxies.TryGetValue(entity, let proxyHandle))
+		{
+			if (proxyHandle.IsValid)
+				mWorld?.SetLightEnabled(proxyHandle, enabled);
 		}
 	}
 
 	/// Gets the light proxy for direct access.
 	public LightProxy* GetLightProxy(EntityId entity)
 	{
-		if (let comp = mScene?.GetComponent<LightComponent>(entity))
+		if (mLightProxies.TryGetValue(entity, let proxyHandle))
 		{
-			if (comp.ProxyHandle.IsValid)
-				return mWorld?.GetLight(comp.ProxyHandle);
+			if (proxyHandle.IsValid)
+				return mWorld?.GetLight(proxyHandle);
 		}
 		return null;
 	}
@@ -803,14 +846,16 @@ class RenderSceneModule : SceneModule
 
 		let handle = mWorld.CreateParticleEmitter();
 
+		// Store in internal tracking
+		mParticleEmitterProxies[entity] = handle;
+
+		// Ensure component exists
 		var comp = mScene.GetComponent<ParticleEmitterComponent>(entity);
 		if (comp == null)
 		{
 			mScene.SetComponent<ParticleEmitterComponent>(entity, .Default);
 			comp = mScene.GetComponent<ParticleEmitterComponent>(entity);
 		}
-
-		comp.ProxyHandle = handle;
 		comp.Enabled = true;
 
 		let worldMatrix = mScene.GetWorldMatrix(entity);
@@ -822,10 +867,10 @@ class RenderSceneModule : SceneModule
 	/// Gets the particle emitter proxy for direct access.
 	public ParticleEmitterProxy* GetParticleEmitterProxy(EntityId entity)
 	{
-		if (let comp = mScene?.GetComponent<ParticleEmitterComponent>(entity))
+		if (mParticleEmitterProxies.TryGetValue(entity, let proxyHandle))
 		{
-			if (comp.ProxyHandle.IsValid)
-				return mWorld?.GetParticleEmitter(comp.ProxyHandle);
+			if (proxyHandle.IsValid)
+				return mWorld?.GetParticleEmitter(proxyHandle);
 		}
 		return null;
 	}
@@ -843,14 +888,16 @@ class RenderSceneModule : SceneModule
 
 		let handle = mWorld.CreateParticleEmitter();
 
+		// Store in internal tracking
+		mParticleEmitterProxies[entity] = handle;
+
+		// Ensure component exists
 		var comp = mScene.GetComponent<ParticleEmitterComponent>(entity);
 		if (comp == null)
 		{
 			mScene.SetComponent<ParticleEmitterComponent>(entity, .Default);
 			comp = mScene.GetComponent<ParticleEmitterComponent>(entity);
 		}
-
-		comp.ProxyHandle = handle;
 		comp.Enabled = true;
 
 		// Configure for CPU backend
@@ -877,14 +924,16 @@ class RenderSceneModule : SceneModule
 
 		let handle = mWorld.CreateSprite();
 
+		// Store in internal tracking
+		mSpriteProxies[entity] = handle;
+
+		// Ensure component exists
 		var comp = mScene.GetComponent<SpriteComponent>(entity);
 		if (comp == null)
 		{
 			mScene.SetComponent<SpriteComponent>(entity, .Default);
 			comp = mScene.GetComponent<SpriteComponent>(entity);
 		}
-
-		comp.ProxyHandle = handle;
 		comp.Enabled = true;
 
 		let worldMatrix = mScene.GetWorldMatrix(entity);
@@ -896,10 +945,10 @@ class RenderSceneModule : SceneModule
 	/// Gets the sprite proxy for direct access.
 	public SpriteProxy* GetSpriteProxy(EntityId entity)
 	{
-		if (let comp = mScene?.GetComponent<SpriteComponent>(entity))
+		if (mSpriteProxies.TryGetValue(entity, let proxyHandle))
 		{
-			if (comp.ProxyHandle.IsValid)
-				return mWorld?.GetSprite(comp.ProxyHandle);
+			if (proxyHandle.IsValid)
+				return mWorld?.GetSprite(proxyHandle);
 		}
 		return null;
 	}
@@ -907,30 +956,30 @@ class RenderSceneModule : SceneModule
 	/// Sets sprite size.
 	public void SetSpriteSize(EntityId entity, Vector2 size)
 	{
-		if (let comp = mScene?.GetComponent<SpriteComponent>(entity))
+		if (mSpriteProxies.TryGetValue(entity, let proxyHandle))
 		{
-			if (comp.ProxyHandle.IsValid)
-				mWorld.SetSpriteSize(comp.ProxyHandle, size);
+			if (proxyHandle.IsValid)
+				mWorld.SetSpriteSize(proxyHandle, size);
 		}
 	}
 
 	/// Sets sprite color.
 	public void SetSpriteColor(EntityId entity, Color color)
 	{
-		if (let comp = mScene?.GetComponent<SpriteComponent>(entity))
+		if (mSpriteProxies.TryGetValue(entity, let proxyHandle))
 		{
-			if (comp.ProxyHandle.IsValid)
-				mWorld.SetSpriteColor(comp.ProxyHandle, color);
+			if (proxyHandle.IsValid)
+				mWorld.SetSpriteColor(proxyHandle, color);
 		}
 	}
 
 	/// Sets sprite texture.
 	public void SetSpriteTexture(EntityId entity, ITextureView texture)
 	{
-		if (let comp = mScene?.GetComponent<SpriteComponent>(entity))
+		if (mSpriteProxies.TryGetValue(entity, let proxyHandle))
 		{
-			if (comp.ProxyHandle.IsValid)
-				mWorld.SetSpriteTexture(comp.ProxyHandle, texture);
+			if (proxyHandle.IsValid)
+				mWorld.SetSpriteTexture(proxyHandle, texture);
 		}
 	}
 
@@ -948,14 +997,16 @@ class RenderSceneModule : SceneModule
 
 		let handle = mWorld.CreateTrailEmitter();
 
+		// Store in internal tracking
+		mTrailEmitterProxies[entity] = handle;
+
+		// Ensure component exists
 		var comp = mScene.GetComponent<TrailEmitterComponent>(entity);
 		if (comp == null)
 		{
 			mScene.SetComponent<TrailEmitterComponent>(entity, .Default);
 			comp = mScene.GetComponent<TrailEmitterComponent>(entity);
 		}
-
-		comp.ProxyHandle = handle;
 		comp.Enabled = true;
 
 		// Configure proxy and create the emitter
@@ -972,10 +1023,10 @@ class RenderSceneModule : SceneModule
 	/// Gets the trail emitter proxy for direct access.
 	public TrailEmitterProxy* GetTrailEmitterProxy(EntityId entity)
 	{
-		if (let comp = mScene?.GetComponent<TrailEmitterComponent>(entity))
+		if (mTrailEmitterProxies.TryGetValue(entity, let proxyHandle))
 		{
-			if (comp.ProxyHandle.IsValid)
-				return mWorld?.GetTrailEmitter(comp.ProxyHandle);
+			if (proxyHandle.IsValid)
+				return mWorld?.GetTrailEmitter(proxyHandle);
 		}
 		return null;
 	}

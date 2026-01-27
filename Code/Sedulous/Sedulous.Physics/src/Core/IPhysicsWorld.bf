@@ -76,6 +76,42 @@ interface IPhysicsWorld : IDisposable
 	/// Gets the body type.
 	BodyType GetBodyType(BodyHandle handle);
 
+	/// Sets the mass of a dynamic body.
+	void SetBodyMass(BodyHandle handle, float mass);
+
+	/// Gets the mass of a body.
+	float GetBodyMass(BodyHandle handle);
+
+	/// Sets the linear damping of a body.
+	void SetBodyLinearDamping(BodyHandle handle, float damping);
+
+	/// Gets the linear damping of a body.
+	float GetBodyLinearDamping(BodyHandle handle);
+
+	/// Sets the angular damping of a body.
+	void SetBodyAngularDamping(BodyHandle handle, float damping);
+
+	/// Gets the angular damping of a body.
+	float GetBodyAngularDamping(BodyHandle handle);
+
+	/// Sets the friction of a body.
+	void SetBodyFriction(BodyHandle handle, float friction);
+
+	/// Gets the friction of a body.
+	float GetBodyFriction(BodyHandle handle);
+
+	/// Sets the restitution (bounciness) of a body.
+	void SetBodyRestitution(BodyHandle handle, float restitution);
+
+	/// Gets the restitution of a body.
+	float GetBodyRestitution(BodyHandle handle);
+
+	/// Sets the gravity factor for a body (0 = no gravity, 1 = normal).
+	void SetBodyGravityFactor(BodyHandle handle, float factor);
+
+	/// Gets the gravity factor of a body.
+	float GetBodyGravityFactor(BodyHandle handle);
+
 	/// Sets user data on a body for application use.
 	void SetBodyUserData(BodyHandle handle, uint64 userData);
 

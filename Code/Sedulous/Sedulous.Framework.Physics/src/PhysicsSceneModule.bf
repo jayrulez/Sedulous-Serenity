@@ -10,19 +10,36 @@ using Sedulous.Render;
 using Sedulous.Profiler;
 
 /// Component for entities with physics bodies.
+/// Exposes serializable physics properties that sync with the physics world.
+/// The actual body handle is managed internally by PhysicsSceneModule.
 struct RigidBodyComponent
 {
-	/// Handle to the physics body in the world.
-	public BodyHandle BodyHandle;
-	/// Whether to sync entity transform FROM physics (for dynamic bodies).
-	public bool SyncFromPhysics;
-	/// Whether to sync entity transform TO physics (for kinematic bodies).
-	public bool SyncToPhysics;
+	/// Body type (Dynamic, Kinematic, Static).
+	public BodyType BodyType;
+	/// Mass of the body (only applies to dynamic bodies).
+	public float Mass;
+	/// Linear damping coefficient.
+	public float LinearDamping;
+	/// Angular damping coefficient.
+	public float AngularDamping;
+	/// Friction coefficient.
+	public float Friction;
+	/// Restitution (bounciness) coefficient.
+	public float Restitution;
+	/// Gravity multiplier (0 = no gravity, 1 = normal gravity).
+	public float GravityFactor;
+	/// Whether the body is enabled in the simulation.
+	public bool Enabled;
 
 	public static RigidBodyComponent Default => .() {
-		BodyHandle = .Invalid,
-		SyncFromPhysics = true,
-		SyncToPhysics = false
+		BodyType = .Dynamic,
+		Mass = 1.0f,
+		LinearDamping = 0.0f,
+		AngularDamping = 0.05f,
+		Friction = 0.2f,
+		Restitution = 0.0f,
+		GravityFactor = 1.0f,
+		Enabled = true
 	};
 }
 
@@ -50,11 +67,31 @@ struct PhysicsDebugShapeComponent
 
 /// Scene module that manages physics bodies for entities.
 /// Created automatically by PhysicsSubsystem for each scene.
+/// Internal data for a physics body.
+struct PhysicsBodyData
+{
+	public BodyHandle Handle;
+	public bool SyncFromPhysics;  // Dynamic bodies: sync entity transform from physics
+	public bool SyncToPhysics;    // Kinematic bodies: sync entity transform to physics
+
+	// Cached component values for change detection
+	public float Mass;
+	public float LinearDamping;
+	public float AngularDamping;
+	public float Friction;
+	public float Restitution;
+	public float GravityFactor;
+	public bool Enabled;
+}
+
 class PhysicsSceneModule : SceneModule
 {
 	private PhysicsSubsystem mSubsystem;
 	private IPhysicsWorld mPhysicsWorld;
 	private Scene mScene;
+
+	// Track body data per entity (internal, not exposed on components)
+	private Dictionary<EntityId, PhysicsBodyData> mBodies = new .() ~ delete _;
 
 	// Simulation settings
 	private int32 mCollisionSteps = 1;
@@ -124,6 +161,7 @@ class PhysicsSceneModule : SceneModule
 		// Note: Physics bodies are cleaned up by the physics world when it's destroyed.
 		// The PhysicsSubsystem destroys the world before scene modules are notified,
 		// so we don't attempt to destroy bodies here.
+		mBodies.Clear();
 		mScene = null;
 	}
 
@@ -131,6 +169,12 @@ class PhysicsSceneModule : SceneModule
 	{
 		if (mPhysicsWorld == null)
 			return;
+
+		// Sync component property changes TO physics bodies
+		{
+			using (SProfiler.Begin("Physics.SyncProperties"))
+				SyncComponentProperties(scene);
+		}
 
 		// Sync kinematic bodies TO physics before stepping
 		{
@@ -176,9 +220,13 @@ class PhysicsSceneModule : SceneModule
 			return;
 
 		// Draw debug shapes for all physics bodies
-		for (let (entity, body) in scene.Query<RigidBodyComponent>())
+		for (let (entity, _) in scene.Query<RigidBodyComponent>())
 		{
-			if (!body.BodyHandle.IsValid)
+			PhysicsBodyData bodyData = .();
+			if (mBodies.TryGetValue(entity, var data))
+				bodyData = data;
+
+			if (!bodyData.Handle.IsValid)
 				continue;
 
 			// Get debug shape info
@@ -187,11 +235,11 @@ class PhysicsSceneModule : SceneModule
 				continue;
 
 			// Get body transform from physics world
-			let position = mPhysicsWorld.GetBodyPosition(body.BodyHandle);
-			let rotation = mPhysicsWorld.GetBodyRotation(body.BodyHandle);
+			let position = mPhysicsWorld.GetBodyPosition(bodyData.Handle);
+			let rotation = mPhysicsWorld.GetBodyRotation(bodyData.Handle);
 
 			// Determine color based on body type
-			let bodyType = mPhysicsWorld.GetBodyType(body.BodyHandle);
+			let bodyType = mPhysicsWorld.GetBodyType(bodyData.Handle);
 			Color color;
 			switch (bodyType)
 			{
@@ -232,13 +280,12 @@ class PhysicsSceneModule : SceneModule
 		if (mPhysicsWorld == null)
 			return;
 
-		if (let body = scene.GetComponent<RigidBodyComponent>(entity))
+		// Clean up body from internal tracking
+		if (mBodies.TryGetValue(entity, let bodyData))
 		{
-			if (body.BodyHandle.IsValid)
-			{
-				mPhysicsWorld.DestroyBody(body.BodyHandle);
-				body.BodyHandle = .Invalid;
-			}
+			if (bodyData.Handle.IsValid)
+				mPhysicsWorld.DestroyBody(bodyData.Handle);
+			mBodies.Remove(entity);
 		}
 	}
 
@@ -265,16 +312,36 @@ class PhysicsSceneModule : SceneModule
 		switch (mPhysicsWorld.CreateBody(descriptor))
 		{
 		case .Ok(let handle):
-			var bodyComp = mScene.GetComponent<RigidBodyComponent>(entity);
-			if (bodyComp == null)
+			// Store in internal tracking with sync settings and cached values
+			var bodyData = PhysicsBodyData();
+			bodyData.Handle = handle;
+			bodyData.SyncFromPhysics = (descriptor.BodyType == .Dynamic);
+			bodyData.SyncToPhysics = (descriptor.BodyType == .Kinematic);
+			bodyData.Mass = descriptor.Mass;
+			bodyData.LinearDamping = descriptor.LinearDamping;
+			bodyData.AngularDamping = descriptor.AngularDamping;
+			bodyData.Friction = descriptor.Friction;
+			bodyData.Restitution = descriptor.Restitution;
+			bodyData.GravityFactor = descriptor.GravityFactor;
+			bodyData.Enabled = true;
+			mBodies[entity] = bodyData;
+
+			// Ensure component exists and sync properties from descriptor
+			var comp = mScene.GetComponent<RigidBodyComponent>(entity);
+			if (comp == null)
 			{
 				mScene.SetComponent<RigidBodyComponent>(entity, .Default);
-				bodyComp = mScene.GetComponent<RigidBodyComponent>(entity);
+				comp = mScene.GetComponent<RigidBodyComponent>(entity);
 			}
 
-			bodyComp.BodyHandle = handle;
-			bodyComp.SyncFromPhysics = (descriptor.BodyType == .Dynamic);
-			bodyComp.SyncToPhysics = (descriptor.BodyType == .Kinematic);
+			comp.BodyType = descriptor.BodyType;
+			comp.Mass = descriptor.Mass;
+			comp.LinearDamping = descriptor.LinearDamping;
+			comp.AngularDamping = descriptor.AngularDamping;
+			comp.Friction = descriptor.Friction;
+			comp.Restitution = descriptor.Restitution;
+			comp.GravityFactor = descriptor.GravityFactor;
+			comp.Enabled = true;
 
 			return .Ok(handle);
 
@@ -451,16 +518,14 @@ class PhysicsSceneModule : SceneModule
 	/// Destroys the physics body for an entity.
 	public void DestroyBody(EntityId entity)
 	{
-		if (mScene == null || mPhysicsWorld == null)
+		if (mPhysicsWorld == null)
 			return;
 
-		if (let body = mScene.GetComponent<RigidBodyComponent>(entity))
+		if (mBodies.TryGetValue(entity, let bodyData))
 		{
-			if (body.BodyHandle.IsValid)
-			{
-				mPhysicsWorld.DestroyBody(body.BodyHandle);
-				body.BodyHandle = .Invalid;
-			}
+			if (bodyData.Handle.IsValid)
+				mPhysicsWorld.DestroyBody(bodyData.Handle);
+			mBodies.Remove(entity);
 		}
 	}
 
@@ -469,52 +534,52 @@ class PhysicsSceneModule : SceneModule
 	/// Applies a force to an entity's physics body.
 	public void AddForce(EntityId entity, Vector3 force)
 	{
-		if (mScene == null || mPhysicsWorld == null)
+		if (mPhysicsWorld == null)
 			return;
 
-		if (let body = mScene.GetComponent<RigidBodyComponent>(entity))
+		if (mBodies.TryGetValue(entity, let bodyData))
 		{
-			if (body.BodyHandle.IsValid)
-				mPhysicsWorld.AddForce(body.BodyHandle, force);
+			if (bodyData.Handle.IsValid)
+				mPhysicsWorld.AddForce(bodyData.Handle, force);
 		}
 	}
 
 	/// Applies an impulse to an entity's physics body.
 	public void AddImpulse(EntityId entity, Vector3 impulse)
 	{
-		if (mScene == null || mPhysicsWorld == null)
+		if (mPhysicsWorld == null)
 			return;
 
-		if (let body = mScene.GetComponent<RigidBodyComponent>(entity))
+		if (mBodies.TryGetValue(entity, let bodyData))
 		{
-			if (body.BodyHandle.IsValid)
-				mPhysicsWorld.AddImpulse(body.BodyHandle, impulse);
+			if (bodyData.Handle.IsValid)
+				mPhysicsWorld.AddImpulse(bodyData.Handle, impulse);
 		}
 	}
 
 	/// Sets the linear velocity of an entity's physics body.
 	public void SetLinearVelocity(EntityId entity, Vector3 velocity)
 	{
-		if (mScene == null || mPhysicsWorld == null)
+		if (mPhysicsWorld == null)
 			return;
 
-		if (let body = mScene.GetComponent<RigidBodyComponent>(entity))
+		if (mBodies.TryGetValue(entity, let bodyData))
 		{
-			if (body.BodyHandle.IsValid)
-				mPhysicsWorld.SetLinearVelocity(body.BodyHandle, velocity);
+			if (bodyData.Handle.IsValid)
+				mPhysicsWorld.SetLinearVelocity(bodyData.Handle, velocity);
 		}
 	}
 
 	/// Gets the linear velocity of an entity's physics body.
 	public Vector3 GetLinearVelocity(EntityId entity)
 	{
-		if (mScene == null || mPhysicsWorld == null)
+		if (mPhysicsWorld == null)
 			return .Zero;
 
-		if (let body = mScene.GetComponent<RigidBodyComponent>(entity))
+		if (mBodies.TryGetValue(entity, let bodyData))
 		{
-			if (body.BodyHandle.IsValid)
-				return mPhysicsWorld.GetLinearVelocity(body.BodyHandle);
+			if (bodyData.Handle.IsValid)
+				return mPhysicsWorld.GetLinearVelocity(bodyData.Handle);
 		}
 		return .Zero;
 	}
@@ -548,27 +613,99 @@ class PhysicsSceneModule : SceneModule
 
 	// ==================== Private ====================
 
+	/// Syncs component property changes to the physics bodies.
+	private void SyncComponentProperties(Scene scene)
+	{
+		for (let (entity, comp) in scene.Query<RigidBodyComponent>())
+		{
+			if (!mBodies.TryGetValue(entity, var bodyData))
+				continue;
+
+			if (!bodyData.Handle.IsValid)
+				continue;
+
+			bool changed = false;
+
+			// Check each property for changes
+			if (comp.Mass != bodyData.Mass)
+			{
+				mPhysicsWorld.SetBodyMass(bodyData.Handle, comp.Mass);
+				bodyData.Mass = comp.Mass;
+				changed = true;
+			}
+
+			if (comp.LinearDamping != bodyData.LinearDamping)
+			{
+				mPhysicsWorld.SetBodyLinearDamping(bodyData.Handle, comp.LinearDamping);
+				bodyData.LinearDamping = comp.LinearDamping;
+				changed = true;
+			}
+
+			if (comp.AngularDamping != bodyData.AngularDamping)
+			{
+				mPhysicsWorld.SetBodyAngularDamping(bodyData.Handle, comp.AngularDamping);
+				bodyData.AngularDamping = comp.AngularDamping;
+				changed = true;
+			}
+
+			if (comp.Friction != bodyData.Friction)
+			{
+				mPhysicsWorld.SetBodyFriction(bodyData.Handle, comp.Friction);
+				bodyData.Friction = comp.Friction;
+				changed = true;
+			}
+
+			if (comp.Restitution != bodyData.Restitution)
+			{
+				mPhysicsWorld.SetBodyRestitution(bodyData.Handle, comp.Restitution);
+				bodyData.Restitution = comp.Restitution;
+				changed = true;
+			}
+
+			if (comp.GravityFactor != bodyData.GravityFactor)
+			{
+				mPhysicsWorld.SetBodyGravityFactor(bodyData.Handle, comp.GravityFactor);
+				bodyData.GravityFactor = comp.GravityFactor;
+				changed = true;
+			}
+
+			if (comp.Enabled != bodyData.Enabled)
+			{
+				if (comp.Enabled)
+					mPhysicsWorld.ActivateBody(bodyData.Handle);
+				else
+					mPhysicsWorld.DeactivateBody(bodyData.Handle);
+				bodyData.Enabled = comp.Enabled;
+				changed = true;
+			}
+
+			// Update cached data if any property changed
+			if (changed)
+				mBodies[entity] = bodyData;
+		}
+	}
+
 	private void SyncKinematicBodies(Scene scene)
 	{
-		for (let (entity, body) in scene.Query<RigidBodyComponent>())
+		for (let (entity, bodyData) in mBodies)
 		{
-			if (!body.SyncToPhysics || !body.BodyHandle.IsValid)
+			if (!bodyData.SyncToPhysics || !bodyData.Handle.IsValid)
 				continue;
 
 			let transform = scene.GetTransform(entity);
-			mPhysicsWorld.SetBodyTransform(body.BodyHandle, transform.Position, transform.Rotation);
+			mPhysicsWorld.SetBodyTransform(bodyData.Handle, transform.Position, transform.Rotation);
 		}
 	}
 
 	private void SyncDynamicBodies(Scene scene)
 	{
-		for (let (entity, body) in scene.Query<RigidBodyComponent>())
+		for (let (entity, bodyData) in mBodies)
 		{
-			if (!body.SyncFromPhysics || !body.BodyHandle.IsValid)
+			if (!bodyData.SyncFromPhysics || !bodyData.Handle.IsValid)
 				continue;
 
-			let position = mPhysicsWorld.GetBodyPosition(body.BodyHandle);
-			let rotation = mPhysicsWorld.GetBodyRotation(body.BodyHandle);
+			let position = mPhysicsWorld.GetBodyPosition(bodyData.Handle);
+			let rotation = mPhysicsWorld.GetBodyRotation(bodyData.Handle);
 
 			var transform = scene.GetTransform(entity);
 			transform.Position = position;

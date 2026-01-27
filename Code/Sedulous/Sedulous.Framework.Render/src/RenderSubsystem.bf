@@ -6,6 +6,7 @@ using Sedulous.Framework.Core;
 using Sedulous.Framework.Scenes;
 using Sedulous.Geometry.Resources;
 using Sedulous.Render;
+using Sedulous.Textures.Resources;
 
 /// Render subsystem that manages rendering and integrates with Sedulous.Render.
 /// RenderSystem is injected via constructor.
@@ -24,6 +25,7 @@ public class RenderSubsystem : Subsystem, ISceneAware
 	// Resource managers
 	private StaticMeshResourceManager mStaticMeshManager;
 	private SkinnedMeshResourceManager mSkinnedMeshManager;
+	private TextureResourceManager mTextureManager;
 
 	// ==================== Construction ====================
 
@@ -47,6 +49,9 @@ public class RenderSubsystem : Subsystem, ISceneAware
 	/// Gets the skinned mesh resource manager.
 	public SkinnedMeshResourceManager SkinnedMeshManager => mSkinnedMeshManager;
 
+	/// Gets the texture resource manager.
+	public TextureResourceManager TextureManager => mTextureManager;
+
 	// ==================== World Access ====================
 
 	/// Gets the render world for a specific scene.
@@ -64,9 +69,11 @@ public class RenderSubsystem : Subsystem, ISceneAware
 		// Create and register resource managers with the resource system
 		mStaticMeshManager = new StaticMeshResourceManager();
 		mSkinnedMeshManager = new SkinnedMeshResourceManager();
+		mTextureManager = new TextureResourceManager();
 
 		Context.Resources.AddResourceManager(mStaticMeshManager);
 		Context.Resources.AddResourceManager(mSkinnedMeshManager);
+		Context.Resources.AddResourceManager(mTextureManager);
 	}
 
 	protected override void OnShutdown()
@@ -91,6 +98,12 @@ public class RenderSubsystem : Subsystem, ISceneAware
 			Context.Resources.RemoveResourceManager(mSkinnedMeshManager);
 			delete mSkinnedMeshManager;
 			mSkinnedMeshManager = null;
+		}
+		if (mTextureManager != null)
+		{
+			Context.Resources.RemoveResourceManager(mTextureManager);
+			delete mTextureManager;
+			mTextureManager = null;
 		}
 
 		if (mOwnsRenderSystem && mRenderSystem != null)
