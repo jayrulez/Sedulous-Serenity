@@ -45,6 +45,13 @@ class UIDebugSettingsTests
 
 class DebugVisualizationTests
 {
+	// Helper to create test DrawContext with NullFontService
+	private static mixin TestDrawContext()
+	{
+		let fontService = scope :: NullFontService();
+		scope :: DrawContext(fontService)
+	}
+
 	[Test]
 	public static void ContextDebugSettingsAccessible()
 	{
@@ -60,7 +67,7 @@ class DebugVisualizationTests
 		let context = scope UIContext();
 		context.DebugSettings.ShowLayoutBounds = true;
 
-		let drawContext = scope DrawContext();
+		let drawContext = TestDrawContext!();
 		// Should not crash when rendering with debug enabled but no root
 		context.Render(drawContext);
 		Test.Assert(true); // If we get here, no crash occurred
@@ -79,7 +86,7 @@ class DebugVisualizationTests
 		context.SetViewportSize(800, 600);
 		context.Update(0, 0);
 
-		let drawContext = scope DrawContext();
+		let drawContext = TestDrawContext!();
 		context.Render(drawContext);
 
 		// If we get here without crash, debug rendering succeeded
@@ -100,7 +107,7 @@ class DebugVisualizationTests
 		context.SetViewportSize(800, 600);
 		context.Update(0, 0);
 
-		let drawContext = scope DrawContext();
+		let drawContext = TestDrawContext!();
 		context.Render(drawContext);
 
 		Test.Assert(true);
@@ -120,7 +127,7 @@ class DebugVisualizationTests
 		context.SetViewportSize(800, 600);
 		context.Update(0, 0);
 
-		let drawContext = scope DrawContext();
+		let drawContext = TestDrawContext!();
 		context.Render(drawContext);
 
 		Test.Assert(true);
@@ -141,7 +148,7 @@ class DebugVisualizationTests
 		context.Update(0, 0);
 		context.SetFocus(root);
 
-		let drawContext = scope DrawContext();
+		let drawContext = TestDrawContext!();
 		context.Render(drawContext);
 
 		Test.Assert(true);
@@ -160,7 +167,7 @@ class DebugVisualizationTests
 		context.SetViewportSize(800, 600);
 		context.Update(0, 0);
 
-		let drawContext = scope DrawContext();
+		let drawContext = TestDrawContext!();
 		context.Render(drawContext);
 
 		Test.Assert(true);
@@ -186,7 +193,7 @@ class DebugVisualizationTests
 		context.SetViewportSize(800, 600);
 		context.Update(0, 0);
 
-		let drawContext = scope DrawContext();
+		let drawContext = TestDrawContext!();
 		context.Render(drawContext);
 
 		Test.Assert(true);
@@ -216,7 +223,7 @@ class DebugVisualizationTests
 		context.SetViewportSize(800, 600);
 		context.Update(0, 0);
 
-		let drawContext = scope DrawContext();
+		let drawContext = TestDrawContext!();
 		context.Render(drawContext);
 
 		Test.Assert(true);
@@ -243,7 +250,7 @@ class DebugVisualizationTests
 		context.Update(0, 0);
 		context.SetFocus(root);
 
-		let drawContext = scope DrawContext();
+		let drawContext = TestDrawContext!();
 		context.Render(drawContext);
 
 		Test.Assert(true);

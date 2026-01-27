@@ -16,6 +16,7 @@ using Sedulous.UI;
 using Sedulous.UI.Shell;
 using Sedulous.Drawing.Renderer;
 using Sedulous.Shaders;
+using Sedulous.Drawing.Fonts;
 
 // Use UI types explicitly to avoid ambiguity with Shell types
 typealias UIKeyCode = Sedulous.UI.KeyCode;
@@ -41,9 +42,6 @@ class UISceneComponent : ISceneComponent
 	// Viewport state
 	private uint32 mWidth;
 	private uint32 mHeight;
-
-	// Texture atlas for fonts/icons
-	private ITextureView mAtlasTextureView;
 
 	// World-space UI components (managed by this scene component)
 	private List<UIComponent> mWorldUIComponents = new .() ~ delete _;
@@ -102,8 +100,7 @@ class UISceneComponent : ISceneComponent
 		// Create UI context
 		mUIContext = new UIContext();
 
-		// Create draw context for building geometry
-		mDrawContext = new DrawContext();
+		// DrawContext is created in InitializeRendering when font service is available
 	}
 
 	public void OnDetach()
@@ -190,22 +187,24 @@ class UISceneComponent : ISceneComponent
 			return .Err;
 		}
 
+
+		// Get font service for texture lookup and DrawContext creation
+		let fontService = mScene.Context.GetService<UIService>().FontService;
+		if (fontService == null)
+		{
+			delete mDrawingRenderer;
+			mDrawingRenderer = null;
+			return .Err;
+		}
+
+		// Create draw context with font service (sets WhitePixelUV automatically)
+		mDrawContext = new DrawContext(fontService);
+
+		// Set up texture lookup for rendering
+		mDrawingRenderer.SetTextureLookup(new [=](texture) => ((FontService)fontService).GetTextureView(texture));
+
 		mRenderingInitialized = true;
 		return .Ok;
-	}
-
-	/// Sets the texture atlas for UI rendering (fonts, icons, etc.).
-	public void SetAtlasTexture(ITextureView atlasTextureView)
-	{
-		mAtlasTextureView = atlasTextureView;
-	}
-
-	/// Sets the white pixel UV coordinates for solid color rendering.
-	/// These coordinates should point to a white pixel in the atlas texture.
-	public void SetWhitePixelUV(Vector2 uv)
-	{
-		if (mDrawContext != null)
-			mDrawContext.WhitePixelUV = uv;
 	}
 
 	/// Sets the viewport size for UI layout.
@@ -326,10 +325,6 @@ class UISceneComponent : ISceneComponent
 
 		// Get the batch and prepare for GPU
 		let batch = mDrawContext.GetBatch();
-
-		// Set texture atlas
-		if (mAtlasTextureView != null)
-			mDrawingRenderer.SetTexture(mAtlasTextureView);
 
 		// Update projection matrix first (matches UISandbox order)
 		mDrawingRenderer.UpdateProjection(mWidth, mHeight, frameIndex);
@@ -776,7 +771,7 @@ class UISceneComponent : ISceneComponent
 		for (let component in mWorldUIComponents)
 		{
 			if (component.Visible && component.IsRenderingInitialized)
-				component.PrepareGPU(frameIndex, mAtlasTextureView);
+				component.PrepareGPU(frameIndex);
 		}
 	}
 

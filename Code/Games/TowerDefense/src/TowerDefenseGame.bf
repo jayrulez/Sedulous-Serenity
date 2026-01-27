@@ -318,8 +318,8 @@ class TowerDefenseGame : RHISampleApp
 		mUIService.SetTheme(mUITheme);
 
 		// Set atlas texture
-		let (wu, wv) = mFontService.WhitePixelUV;
-		mUIService.SetAtlasTexture(mFontService.AtlasTextureView, .(wu, wv));
+		/*let (wu, wv) = mFontService.WhitePixelUV;
+		mUIService.SetAtlasTexture(mFontService.AtlasTextureView, .(wu, wv));*/
 
 		mContext.RegisterService<UIService>(mUIService);
 		Console.WriteLine("UI service initialized");

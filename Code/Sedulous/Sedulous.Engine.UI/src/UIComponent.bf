@@ -12,6 +12,7 @@ using Sedulous.Shaders;
 
 // Explicit RHI imports to avoid ambiguity with Drawing.ITexture
 using Sedulous.RHI;
+using Sedulous.Drawing.Fonts;
 typealias RHITexture = Sedulous.RHI.ITexture;
 typealias RHITextureView = Sedulous.RHI.ITextureView;
 
@@ -130,8 +131,7 @@ class UIComponent : IEntityComponent
 		// Create UI context
 		mUIContext = new UIContext();
 
-		// Create draw context for building geometry
-		mDrawContext = new DrawContext();
+		// DrawContext is created in InitializeRendering when font service is available
 
 		// Get scene component for shared resources and register
 		if (entity.Scene != null)
@@ -291,6 +291,25 @@ class UIComponent : IEntityComponent
 			return .Err;
 		}
 
+		// Get font service for texture lookup and DrawContext creation
+		let fontService = mEntity.Scene.Context.GetService<UIService>().FontService;
+		if (fontService == null)
+		{
+			delete mDrawingRenderer;
+			mDrawingRenderer = null;
+			delete mRenderTextureView;
+			mRenderTextureView = null;
+			delete mRenderTexture;
+			mRenderTexture = null;
+			return .Err;
+		}
+
+		// Create draw context with font service (sets WhitePixelUV automatically)
+		mDrawContext = new DrawContext(fontService);
+
+		// Set up texture lookup for rendering
+		mDrawingRenderer.SetTextureLookup(new [=](texture) => ((FontService)fontService).GetTextureView(texture));
+
 		// Set viewport size on UI context
 		mUIContext?.SetViewportSize(TextureSize.X, TextureSize.Y);
 
@@ -327,7 +346,7 @@ class UIComponent : IEntityComponent
 
 	/// Prepares UI geometry for GPU rendering.
 	/// Call this during the PrepareGPU phase.
-	public void PrepareGPU(int32 frameIndex, RHITextureView atlasTexture)
+	public void PrepareGPU(int32 frameIndex)
 	{
 		if (!mTextureCreated || !Visible || mUIContext == null || mDrawingRenderer == null)
 			return;
@@ -340,10 +359,6 @@ class UIComponent : IEntityComponent
 
 		// Get the batch and prepare for GPU
 		let batch = mDrawContext.GetBatch();
-
-		// Set atlas texture
-		if (atlasTexture != null)
-			mDrawingRenderer.SetTexture(atlasTexture);
 
 		// Upload to GPU buffers
 		mDrawingRenderer.Prepare(batch, frameIndex);

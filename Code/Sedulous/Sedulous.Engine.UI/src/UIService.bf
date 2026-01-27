@@ -33,8 +33,6 @@ class UIService : ContextService
 	private IFontService mFontService;
 	private ITheme mTheme;
 	private IClipboard mClipboard;
-	private ITextureView mAtlasTexture;
-	private Vector2 mWhitePixelUV;
 	private NewShaderSystem mShaderSystem;
 
 	// Track created scene components
@@ -50,12 +48,6 @@ class UIService : ContextService
 
 	/// Gets the clipboard service.
 	public IClipboard Clipboard => mClipboard;
-
-	/// Gets the atlas texture for fonts/icons.
-	public ITextureView AtlasTexture => mAtlasTexture;
-
-	/// Gets the white pixel UV for solid color rendering.
-	public Vector2 WhitePixelUV => mWhitePixelUV;
 
 	/// Gets the input manager from InputService.
 	public IInputManager InputManager => mInputService?.InputManager;
@@ -84,20 +76,6 @@ class UIService : ContextService
 	public void SetClipboard(IClipboard clipboard)
 	{
 		mClipboard = clipboard;
-	}
-
-	/// Sets the atlas texture for fonts/icons.
-	public void SetAtlasTexture(ITextureView atlas, Vector2 whitePixelUV)
-	{
-		mAtlasTexture = atlas;
-		mWhitePixelUV = whitePixelUV;
-
-		// Update existing components
-		for (let component in mSceneComponents)
-		{
-			component.SetAtlasTexture(atlas);
-			component.SetWhitePixelUV(whitePixelUV);
-		}
 	}
 
 	/// Sets the UI scale for all scenes based on display content scale (DPI).
@@ -178,13 +156,6 @@ class UIService : ContextService
 			scene.RemoveSceneComponent<UISceneComponent>();
 			mSceneComponents.Remove(uiComponent);
 			return;
-		}
-
-		// Apply shared configuration
-		if (mAtlasTexture != null)
-		{
-			uiComponent.SetAtlasTexture(mAtlasTexture);
-			uiComponent.SetWhitePixelUV(mWhitePixelUV);
 		}
 
 		// Register services with UIContext

@@ -6,10 +6,17 @@ namespace Sedulous.Drawing.Tests;
 
 class DrawContextTests
 {
+	// Helper to create test DrawContext with NullFontService
+	private static mixin TestContext()
+	{
+		let fontService = scope :: NullFontService();
+		scope :: DrawContext(fontService)
+	}
+
 	[Test]
 	public static void New_BatchIsEmpty()
 	{
-		let ctx = scope DrawContext();
+		let ctx = TestContext!();
 		let batch = ctx.GetBatch();
 
 		Test.Assert(batch.VertexCount == 0);
@@ -19,7 +26,7 @@ class DrawContextTests
 	[Test]
 	public static void Clear_ResetsBatch()
 	{
-		let ctx = scope DrawContext();
+		let ctx = TestContext!();
 		ctx.FillRect(.(0, 0, 100, 100), Color.Red);
 		ctx.Clear();
 		let batch = ctx.GetBatch();
@@ -33,7 +40,7 @@ class DrawContextTests
 	[Test]
 	public static void GetTransform_Default_IsIdentity()
 	{
-		let ctx = scope DrawContext();
+		let ctx = TestContext!();
 
 		Test.Assert(ctx.GetTransform() == Matrix.Identity);
 	}
@@ -41,7 +48,7 @@ class DrawContextTests
 	[Test]
 	public static void SetTransform_ChangesTransform()
 	{
-		let ctx = scope DrawContext();
+		let ctx = TestContext!();
 		let transform = Matrix.CreateTranslation(100, 200, 0);
 		ctx.SetTransform(transform);
 
@@ -51,7 +58,7 @@ class DrawContextTests
 	[Test]
 	public static void ResetTransform_ResetsToIdentity()
 	{
-		let ctx = scope DrawContext();
+		let ctx = TestContext!();
 		ctx.SetTransform(Matrix.CreateTranslation(100, 200, 0));
 		ctx.ResetTransform();
 
@@ -61,7 +68,7 @@ class DrawContextTests
 	[Test]
 	public static void Translate_ModifiesTransform()
 	{
-		let ctx = scope DrawContext();
+		let ctx = TestContext!();
 		ctx.Translate(50, 100);
 
 		let transform = ctx.GetTransform();
@@ -72,7 +79,7 @@ class DrawContextTests
 	[Test]
 	public static void Rotate_ModifiesTransform()
 	{
-		let ctx = scope DrawContext();
+		let ctx = TestContext!();
 		ctx.Rotate(Math.PI_f / 4);
 
 		Test.Assert(ctx.GetTransform() != Matrix.Identity);
@@ -81,7 +88,7 @@ class DrawContextTests
 	[Test]
 	public static void Scale_ModifiesTransform()
 	{
-		let ctx = scope DrawContext();
+		let ctx = TestContext!();
 		ctx.Scale(2.0f, 0.5f);
 
 		Test.Assert(ctx.GetTransform() != Matrix.Identity);
@@ -92,7 +99,7 @@ class DrawContextTests
 	[Test]
 	public static void PushPopState_RestoresTransform()
 	{
-		let ctx = scope DrawContext();
+		let ctx = TestContext!();
 		let original = Matrix.CreateScale(2, 2, 1);
 		ctx.SetTransform(original);
 
@@ -106,7 +113,7 @@ class DrawContextTests
 	[Test]
 	public static void PopState_WithEmptyStack_DoesNotCrash()
 	{
-		let ctx = scope DrawContext();
+		let ctx = TestContext!();
 		ctx.PopState(); // Should not crash
 		Test.Assert(true);
 	}
@@ -116,7 +123,7 @@ class DrawContextTests
 	[Test]
 	public static void FillRect_AddsGeometry()
 	{
-		let ctx = scope DrawContext();
+		let ctx = TestContext!();
 		ctx.FillRect(.(0, 0, 100, 50), Color.Red);
 
 		let batch = ctx.GetBatch();
@@ -127,7 +134,7 @@ class DrawContextTests
 	[Test]
 	public static void FillRect_WithBrush_AddsGeometry()
 	{
-		let ctx = scope DrawContext();
+		let ctx = TestContext!();
 		let brush = scope SolidBrush(Color.Blue);
 		ctx.FillRect(.(0, 0, 100, 50), brush);
 
@@ -138,7 +145,7 @@ class DrawContextTests
 	[Test]
 	public static void FillCircle_AddsGeometry()
 	{
-		let ctx = scope DrawContext();
+		let ctx = TestContext!();
 		ctx.FillCircle(.(50, 50), 30, Color.Green);
 
 		let batch = ctx.GetBatch();
@@ -149,7 +156,7 @@ class DrawContextTests
 	[Test]
 	public static void FillEllipse_AddsGeometry()
 	{
-		let ctx = scope DrawContext();
+		let ctx = TestContext!();
 		ctx.FillEllipse(.(50, 50), 40, 20, Color.Yellow);
 
 		let batch = ctx.GetBatch();
@@ -159,7 +166,7 @@ class DrawContextTests
 	[Test]
 	public static void FillRoundedRect_AddsGeometry()
 	{
-		let ctx = scope DrawContext();
+		let ctx = TestContext!();
 		ctx.FillRoundedRect(.(0, 0, 100, 50), 10, Color.Purple);
 
 		let batch = ctx.GetBatch();
@@ -169,7 +176,7 @@ class DrawContextTests
 	[Test]
 	public static void FillArc_AddsGeometry()
 	{
-		let ctx = scope DrawContext();
+		let ctx = TestContext!();
 		ctx.FillArc(.(50, 50), 30, 0, Math.PI_f / 2, Color.Orange);
 
 		let batch = ctx.GetBatch();
@@ -179,7 +186,7 @@ class DrawContextTests
 	[Test]
 	public static void FillPolygon_AddsGeometry()
 	{
-		let ctx = scope DrawContext();
+		let ctx = TestContext!();
 		Vector2[] points = scope .(.(0, 0), .(100, 0), .(50, 100));
 		ctx.FillPolygon(points, Color.Red);
 
@@ -192,7 +199,7 @@ class DrawContextTests
 	[Test]
 	public static void DrawLine_AddsGeometry()
 	{
-		let ctx = scope DrawContext();
+		let ctx = TestContext!();
 		ctx.DrawLine(.(0, 0), .(100, 100), Color.Black, 2.0f);
 
 		let batch = ctx.GetBatch();
@@ -202,7 +209,7 @@ class DrawContextTests
 	[Test]
 	public static void DrawLine_WithPen_AddsGeometry()
 	{
-		let ctx = scope DrawContext();
+		let ctx = TestContext!();
 		let pen = scope Pen(Color.Red, 3.0f);
 		ctx.DrawLine(.(0, 0), .(100, 100), pen);
 
@@ -213,7 +220,7 @@ class DrawContextTests
 	[Test]
 	public static void DrawRect_AddsGeometry()
 	{
-		let ctx = scope DrawContext();
+		let ctx = TestContext!();
 		ctx.DrawRect(.(0, 0, 100, 50), Color.Black, 1.0f);
 
 		let batch = ctx.GetBatch();
@@ -223,7 +230,7 @@ class DrawContextTests
 	[Test]
 	public static void DrawCircle_AddsGeometry()
 	{
-		let ctx = scope DrawContext();
+		let ctx = TestContext!();
 		ctx.DrawCircle(.(50, 50), 30, Color.Black, 2.0f);
 
 		let batch = ctx.GetBatch();
@@ -233,7 +240,7 @@ class DrawContextTests
 	[Test]
 	public static void DrawPolygon_AddsGeometry()
 	{
-		let ctx = scope DrawContext();
+		let ctx = TestContext!();
 		Vector2[] points = scope .(.(0, 0), .(100, 0), .(100, 100), .(0, 100));
 		ctx.DrawPolygon(points, Color.Black, 1.0f);
 
@@ -244,7 +251,7 @@ class DrawContextTests
 	[Test]
 	public static void DrawPolyline_AddsGeometry()
 	{
-		let ctx = scope DrawContext();
+		let ctx = TestContext!();
 		Vector2[] points = scope .(.(0, 0), .(50, 50), .(100, 0));
 		ctx.DrawPolyline(points, Color.Black, 1.0f);
 
@@ -257,7 +264,7 @@ class DrawContextTests
 	[Test]
 	public static void SetBlendMode_CreatesNewCommand()
 	{
-		let ctx = scope DrawContext();
+		let ctx = TestContext!();
 		ctx.FillRect(.(0, 0, 50, 50), Color.Red);
 		ctx.SetBlendMode(.Additive);
 		ctx.FillRect(.(50, 0, 50, 50), Color.Blue);
@@ -273,7 +280,7 @@ class DrawContextTests
 	[Test]
 	public static void PushClipRect_SetsClipOnCommand()
 	{
-		let ctx = scope DrawContext();
+		let ctx = TestContext!();
 		ctx.PushClipRect(.(10, 10, 80, 80));
 		ctx.FillRect(.(0, 0, 100, 100), Color.Red);
 
@@ -288,8 +295,8 @@ class DrawContextTests
 	[Test]
 	public static void WhitePixelUV_PropagatestoRasterizer()
 	{
-		let ctx = scope DrawContext();
-		ctx.WhitePixelUV = .(0.5f, 0.5f);
+		let fontService = scope NullFontService(0.5f, 0.5f);
+		let ctx = scope DrawContext(fontService);
 		ctx.FillRect(.(0, 0, 10, 10), Color.White);
 
 		let batch = ctx.GetBatch();
@@ -301,7 +308,7 @@ class DrawContextTests
 	[Test]
 	public static void FillRect_WithLinearGradient_InterpolatesColors()
 	{
-		let ctx = scope DrawContext();
+		let ctx = TestContext!();
 		let brush = scope LinearGradientBrush(.(0, 0), .(100, 0), Color.Red, Color.Blue);
 		ctx.FillRect(.(0, 0, 100, 50), brush);
 
@@ -313,7 +320,7 @@ class DrawContextTests
 	[Test]
 	public static void FillCircle_WithRadialGradient_InterpolatesColors()
 	{
-		let ctx = scope DrawContext();
+		let ctx = TestContext!();
 		let brush = scope RadialGradientBrush(.(50, 50), 50, Color.White, Color.Black);
 		ctx.FillCircle(.(50, 50), 50, brush);
 

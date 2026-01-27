@@ -40,24 +40,16 @@ public class DrawContext
 	/// The font service used by this context.
 	public IFontService FontService => mFontService;
 
-	public this()
-	{
-		mCurrentState = .();
-		mStateStack.Reserve(16);
-	}
-
 	/// Creates a DrawContext with a font service.
 	/// The WhitePixelUV is automatically set from the font service.
+	/// Use NullFontService for testing when actual fonts aren't needed.
 	public this(IFontService fontService)
 	{
 		mCurrentState = .();
 		mStateStack.Reserve(16);
 		mFontService = fontService;
-		if (fontService != null)
-		{
-			let (u, v) = fontService.WhitePixelUV;
-			mRasterizer.WhitePixelUV = .(u, v);
-		}
+		let (u, v) = fontService.WhitePixelUV;
+		mRasterizer.WhitePixelUV = .(u, v);
 	}
 
 	// === Output ===
