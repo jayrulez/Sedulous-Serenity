@@ -257,16 +257,16 @@ class ShapeRasterizerTests
 	}
 
 	[Test]
-	public static void WhitePixelUV_CanBeSet()
+	public static void SolidShapes_UseFixedUV()
 	{
 		let rasterizer = scope ShapeRasterizer();
-		rasterizer.WhitePixelUV = .(0.99f, 0.99f);
 
 		let vertices = scope List<DrawVertex>();
 		let indices = scope List<uint16>();
 		rasterizer.RasterizeRect(.(0, 0, 10, 10), vertices, indices, Color.White);
 
-		Test.Assert(vertices[0].TexCoord.X == 0.99f);
-		Test.Assert(vertices[0].TexCoord.Y == 0.99f);
+		// Solid shapes use fixed UV (0.5, 0.5) for 1x1 white texture sampling
+		Test.Assert(vertices[0].TexCoord.X == 0.5f);
+		Test.Assert(vertices[0].TexCoord.Y == 0.5f);
 	}
 }

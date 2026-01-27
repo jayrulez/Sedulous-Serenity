@@ -47,12 +47,6 @@ public class DrawBatch
 		return null;
 	}
 
-	/// Get the underlying texture handle for a command (for renderer use)
-	public Object GetTextureHandleForCommand(int index)
-	{
-		let texture = GetTextureForCommand(index);
-		return texture?.Handle;
-	}
 
 	/// Total vertex count
 	public int VertexCount => Vertices.Count;

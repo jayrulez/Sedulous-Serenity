@@ -7,7 +7,6 @@ using Sedulous.Framework.Scenes;
 using Sedulous.Framework.Input;
 using Sedulous.UI;
 using Sedulous.UI.Shell;
-using Sedulous.Drawing.Fonts;
 using Sedulous.Drawing.Renderer;
 using Sedulous.Drawing;
 using Sedulous.RHI;
@@ -31,7 +30,7 @@ public class UISubsystem : Subsystem, ISceneAware
 	private DrawingRenderer mDrawingRenderer;
 
 	// Services
-	private FontService mFontService;
+	private IFontService mFontService;
 	private ShellClipboardAdapter mClipboardAdapter;
 	private ITheme mTheme;
 
@@ -62,7 +61,7 @@ public class UISubsystem : Subsystem, ISceneAware
 	public DrawingRenderer DrawingRenderer => mDrawingRenderer;
 
 	/// The font service for loading and managing fonts.
-	public FontService FontService => mFontService;
+	public IFontService FontService => mFontService;
 
 	/// The GPU device.
 	public IDevice Device => mDevice;
@@ -75,6 +74,11 @@ public class UISubsystem : Subsystem, ISceneAware
 
 	/// Number of in-flight frames.
 	public int32 FrameCount => mFrameCount;
+
+	public this(IFontService fontService)
+	{
+		mFontService = fontService;
+	}
 
 	/// Called during the main update phase for UI updates.
 	public override void Update(float deltaTime)
@@ -150,12 +154,6 @@ public class UISubsystem : Subsystem, ISceneAware
 			mTheme = null;
 		}
 
-		if (mFontService != null)
-		{
-			delete mFontService;
-			mFontService = null;
-		}
-
 		if (mClipboardAdapter != null)
 		{
 			delete mClipboardAdapter;
@@ -202,7 +200,6 @@ public class UISubsystem : Subsystem, ISceneAware
 			return .Err;
 		}
 
-		mFontService = new FontService(device);
 		mDrawContext = new DrawContext(mFontService);
 		mUIContext.RegisterService<IFontService>(mFontService);
 
@@ -226,16 +223,6 @@ public class UISubsystem : Subsystem, ISceneAware
 
 		mRenderingInitialized = true;
 		return .Ok;
-	}
-
-	/// Call after loading fonts to update the DrawingRenderer texture lookup.
-	/// Note: DrawContext WhitePixelUV is automatically set via FontService in constructor.
-	public void ApplyFontAtlas()
-	{
-		if (!mRenderingInitialized || mFontService == null)
-			return;
-
-		mDrawingRenderer.SetTextureLookup(new (texture) => mFontService.GetTextureView(texture));
 	}
 
 	/// Render UI overlay. Call this after the 3D scene has been rendered.

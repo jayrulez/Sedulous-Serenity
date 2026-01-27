@@ -23,6 +23,7 @@ using Sedulous.Audio;
 using Sedulous.Audio.SDL3;
 using Sedulous.Framework.Physics;
 using Sedulous.Profiler;
+using Sedulous.Drawing.Fonts;
 
 namespace FrameworkSandbox;
 
@@ -34,6 +35,8 @@ class FrameworkSandboxApp : Application
 	private RenderSubsystem mRenderSubsystem;
 	private UISubsystem mUISubsystem;
 	private Scene mMainScene;
+
+	private FontService mFontService;
 
 	// Render system (needed by RenderSubsystem)
 	private RenderSystem mRenderSystem ~ delete _;
@@ -138,6 +141,8 @@ class FrameworkSandboxApp : Application
 		// Initialize render system first (before subsystems that depend on it)
 		InitializeRenderSystem();
 
+		InitializeFont();
+
 		// Register subsystems with the context (context is owned by base Application)
 		RegisterSubsystems(context);
 	}
@@ -191,6 +196,28 @@ class FrameworkSandboxApp : Application
 
 		// Register render features
 		RegisterRenderFeatures();
+	}
+
+	private bool InitializeFont()
+	{
+		Console.WriteLine("Initializing fonts...");
+
+		mFontService = new FontService();
+
+		String fontPath = scope .();
+		GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", fontPath);
+
+		FontLoadOptions options = .ExtendedLatin;
+		options.PixelHeight = 16;
+
+		if (mFontService.LoadFont("Roboto", fontPath, options) case .Err)
+		{
+			Console.WriteLine($"Failed to load font: {fontPath}");
+			return false;
+		}
+
+		Console.WriteLine("Font loaded successfully");
+		return true;
 	}
 
 	private void RegisterRenderFeatures()
@@ -297,25 +324,12 @@ class FrameworkSandboxApp : Application
 		Console.WriteLine("  - InputSubsystem");
 
 		// UI subsystem
-		mUISubsystem = new UISubsystem();
+		mUISubsystem = new UISubsystem(mFontService);
 		context.RegisterSubsystem(mUISubsystem);
-		if (mUISubsystem.InitializeRendering(mDevice, .BGRA8UnormSrgb, 2, mShell, mRenderSystem) case .Ok)
+		if (mUISubsystem.InitializeRendering(mDevice, .BGRA8UnormSrgb, 2, mShell, mRenderSystem) not case .Ok)
 		{
-			// Load font
-			String fontPath = scope .();
-			GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", fontPath);
-			FontLoadOptions fontOptions = .ExtendedLatin;
-			fontOptions.PixelHeight = 16;
-			if (mUISubsystem.FontService.LoadFont("Roboto", fontPath, fontOptions) case .Ok)
-			{
-				mUISubsystem.ApplyFontAtlas();
-				Console.WriteLine("  - UISubsystem (with font)");
-			}
-			else
-				Console.WriteLine("  - UISubsystem (no font - file not found)");
-		}
-		else
 			Console.WriteLine("  - UISubsystem (render init failed)");
+		}
 	}
 
 	private void CreateMainScene()
@@ -1876,6 +1890,11 @@ class FrameworkSandboxApp : Application
 			mRenderSystem.ResourceManager.ReleaseMesh(mSphereMeshHandle, mRenderSystem.FrameNumber);
 
 		// Context shutdown is handled by base Application after OnShutdown
+
+		if(mFontService != null)
+		{
+			delete mFontService;
+		}
 
 		// Shutdown render system (not owned by context)
 		if (mRenderSystem != null)

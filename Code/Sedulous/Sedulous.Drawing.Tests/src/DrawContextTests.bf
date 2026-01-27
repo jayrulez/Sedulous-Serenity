@@ -290,17 +290,21 @@ class DrawContextTests
 		Test.Assert(cmd.ClipRect.Width > 0);
 	}
 
-	// === WhitePixelUV Tests ===
+	// === Solid Color Drawing Tests ===
 
 	[Test]
-	public static void WhitePixelUV_PropagatestoRasterizer()
+	public static void FillRect_UsesSolidUV()
 	{
-		let fontService = scope NullFontService(0.5f, 0.5f);
-		let ctx = scope DrawContext(fontService);
+		let ctx = scope DrawContext();
 		ctx.FillRect(.(0, 0, 10, 10), Color.White);
 
 		let batch = ctx.GetBatch();
+		// Solid color drawing uses fixed UV (0.5, 0.5) with internal white texture
 		Test.Assert(batch.Vertices[0].TexCoord.X == 0.5f);
+		Test.Assert(batch.Vertices[0].TexCoord.Y == 0.5f);
+		// White texture should be at index 0
+		Test.Assert(batch.Textures.Count >= 1);
+		Test.Assert(batch.Textures[0] == ctx.WhiteTexture);
 	}
 
 	// === Gradient Tests ===

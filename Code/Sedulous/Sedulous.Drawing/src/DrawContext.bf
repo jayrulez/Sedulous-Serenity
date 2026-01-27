@@ -12,6 +12,9 @@ public class DrawContext
 	private DrawBatch mBatch = new .() ~ delete _;
 	private ShapeRasterizer mRasterizer = new .() ~ delete _;
 
+	// 1x1 white texture for solid color drawing
+	private OwnedTexture mWhiteTexture ~ delete _;
+
 	// State stack
 	private List<DrawState> mStateStack = new .() ~ delete _;
 	private DrawState mCurrentState;
@@ -27,29 +30,29 @@ public class DrawContext
 	private BlendMode mCurrentBlendMode = .Normal;
 	private int32 mCommandStartIndex = 0;
 
-	// Font service (optional)
+	// Font service (optional - only needed for text rendering)
 	private IFontService mFontService;
-
-	/// UV coordinates for solid color drawing (set to white pixel in your atlas)
-	public Vector2 WhitePixelUV
-	{
-		get => mRasterizer.WhitePixelUV;
-		set => mRasterizer.WhitePixelUV = value;
-	}
 
 	/// The font service used by this context.
 	public IFontService FontService => mFontService;
 
-	/// Creates a DrawContext with a font service.
-	/// The WhitePixelUV is automatically set from the font service.
-	/// Use NullFontService for testing when actual fonts aren't needed.
-	public this(IFontService fontService)
+	/// The internal white texture used for solid color drawing.
+	public ITexture WhiteTexture => mWhiteTexture;
+
+	/// Creates a DrawContext with an optional font service.
+	/// Font service is only needed for text rendering via DrawText methods.
+	public this(IFontService fontService = null)
 	{
 		mCurrentState = .();
 		mStateStack.Reserve(16);
 		mFontService = fontService;
-		let (u, v) = fontService.WhitePixelUV;
-		mRasterizer.WhitePixelUV = .(u, v);
+
+		// Create 1x1 white texture for solid color drawing
+		uint8[4] whitePixel = .(255, 255, 255, 255);
+		mWhiteTexture = new OwnedTexture(1, 1, .RGBA8, Span<uint8>(&whitePixel, 4));
+
+		// Add white texture to batch as texture 0
+		mBatch.Textures.Add(mWhiteTexture);
 	}
 
 	// === Output ===
@@ -72,6 +75,9 @@ public class DrawContext
 		mCurrentTextureIndex = -1;
 		mCurrentBlendMode = .Normal;
 		mCommandStartIndex = 0;
+
+		// Re-add white texture at index 0 for solid color drawing
+		mBatch.Textures.Add(mWhiteTexture);
 	}
 
 	// === State Management ===
@@ -825,10 +831,11 @@ public class DrawContext
 
 	private void SetupForSolidDraw()
 	{
-		if (mCurrentTextureIndex != -1)
+		// Use white texture at index 0 for solid color drawing
+		if (mCurrentTextureIndex != 0)
 		{
 			FlushCurrentCommand();
-			mCurrentTextureIndex = -1;
+			mCurrentTextureIndex = 0;
 		}
 	}
 

@@ -285,7 +285,7 @@ class TowerDefenseGame : RHISampleApp
 	{
 		Console.WriteLine("Initializing fonts...");
 
-		mFontService = new FontService(Device);
+		mFontService = new FontService();
 
 		String fontPath = scope .();
 		GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", fontPath);

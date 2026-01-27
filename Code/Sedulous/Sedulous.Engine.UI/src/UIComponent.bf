@@ -12,7 +12,6 @@ using Sedulous.Shaders;
 
 // Explicit RHI imports to avoid ambiguity with Drawing.ITexture
 using Sedulous.RHI;
-using Sedulous.Drawing.Fonts;
 typealias RHITexture = Sedulous.RHI.ITexture;
 typealias RHITextureView = Sedulous.RHI.ITextureView;
 
@@ -91,13 +90,6 @@ class UIComponent : IEntityComponent
 
 	/// Gets whether the render texture has been created.
 	public bool IsRenderingInitialized => mTextureCreated;
-
-	/// Sets the white pixel UV coordinates for solid color rendering.
-	public void SetWhitePixelUV(Vector2 uv)
-	{
-		if (mDrawContext != null)
-			mDrawContext.WhitePixelUV = uv;
-	}
 
 	// ==================== Constructor ====================
 
@@ -306,9 +298,6 @@ class UIComponent : IEntityComponent
 
 		// Create draw context with font service (sets WhitePixelUV automatically)
 		mDrawContext = new DrawContext(fontService);
-
-		// Set up texture lookup for rendering
-		mDrawingRenderer.SetTextureLookup(new [=](texture) => ((FontService)fontService).GetTextureView(texture));
 
 		// Set viewport size on UI context
 		mUIContext?.SetViewportSize(TextureSize.X, TextureSize.Y);

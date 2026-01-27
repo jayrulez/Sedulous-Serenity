@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Render" = "*", "Sedulous.Framework.Runtime" = "*", "Sedulous.Framework.Core" = "*", "Sedulous.Framework.Scenes" = "*", "Sedulous.Framework.Render" = "*", "Sedulous.Framework.Physics" = "*", "Sedulous.Framework.UI" = "*", "Sedulous.Framework.Input" = "*", "Sedulous.Framework.Navigation" = "*", "Sedulous.Physics.Jolt" = "*", "Sedulous.Geometry" = "*", "Sedulous.Profiler" = "*", "Sedulous.UI" = "*", "Sedulous.Navigation" = "*"}
+Dependencies = {corlib = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Render" = "*", "Sedulous.Framework.Runtime" = "*", "Sedulous.Framework.Core" = "*", "Sedulous.Framework.Scenes" = "*", "Sedulous.Framework.Render" = "*", "Sedulous.Framework.Physics" = "*", "Sedulous.Framework.UI" = "*", "Sedulous.Framework.Input" = "*", "Sedulous.Framework.Navigation" = "*", "Sedulous.Physics.Jolt" = "*", "Sedulous.Geometry" = "*", "Sedulous.Profiler" = "*", "Sedulous.UI" = "*", "Sedulous.Navigation" = "*", "Sedulous.Drawing.Fonts" = "*"}
 
 [Project]
 Name = "FrameworkNavigation"

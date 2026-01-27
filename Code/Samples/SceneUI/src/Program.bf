@@ -187,7 +187,7 @@ class SceneUISample : RHISampleApp
 
 	private bool InitializeFonts()
 	{
-		mFontService = new FontService(Device);
+		mFontService = new FontService();
 
 		String fontPath = scope .();
 		GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", fontPath);
@@ -470,10 +470,6 @@ class SceneUISample : RHISampleApp
 			}
 			else
 			{
-				// Set white pixel UV for solid color rendering
-				let (wwu, wwv) = mFontService.WhitePixelUV;
-				mWorldUIComponent.SetWhitePixelUV(.(wwu, wwv));
-
 				// Register shared font service and theme for world UI context
 				let worldUIContext = mWorldUIComponent.UIContext;
 				worldUIContext.RegisterService<IFontService>(mFontService);

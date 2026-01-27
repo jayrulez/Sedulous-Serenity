@@ -372,7 +372,7 @@ public abstract class Application
 
 	private bool InitializeFonts()
 	{
-		mFontService = new FontService(mDevice);
+		mFontService = new FontService();
 
 		let fontPath = GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", .. scope .());
 
@@ -429,9 +429,6 @@ public abstract class Application
 			Console.WriteLine("Failed to initialize UI renderer");
 			return false;
 		}
-
-		// Set the font texture lookup for UI rendering
-		mDrawingRenderer.SetTextureLookup(new (texture) => mFontService.GetTextureView(texture));
 		return true;
 	}
 

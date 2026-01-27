@@ -4,7 +4,6 @@ using System;
 using Sedulous.Framework.Scenes;
 using Sedulous.UI;
 using Sedulous.UI.Shell;
-using Sedulous.Drawing.Fonts;
 using Sedulous.Drawing.Renderer;
 using Sedulous.Drawing;
 using Sedulous.RHI;
@@ -21,7 +20,7 @@ public class WorldUIPanel
 	private DrawContext mDrawContext ~ delete _;
 	private DrawingRenderer mDrawingRenderer;
 	private ITheme mTheme ~ delete _;
-	private FontService mFontService; // shared, not owned
+	private IFontService mFontService; // shared, not owned
 
 	// GPU render texture
 	private Sedulous.RHI.ITexture mTexture ~ delete _;
@@ -119,7 +118,7 @@ public class WorldUIPanel
 	/// - panelWidth/Height: World-space size in units
 	/// - frameCount: Number of in-flight frames for triple-buffering
 	/// - shaderSystem: Shader system for loading drawing shaders
-	public this(IDevice device, FontService fontService, uint32 pixelWidth, uint32 pixelHeight, float panelWidth, float panelHeight, int32 frameCount, NewShaderSystem shaderSystem)
+	public this(IDevice device, IFontService fontService, uint32 pixelWidth, uint32 pixelHeight, float panelWidth, float panelHeight, int32 frameCount, NewShaderSystem shaderSystem)
 	{
 		mFontService = fontService;
 		mPixelWidth = pixelWidth;
@@ -148,7 +147,6 @@ public class WorldUIPanel
 		mDrawingRenderer = new DrawingRenderer();
 		mDrawingRenderer.Initialize(device, .RGBA8Unorm, frameCount, shaderSystem);
 		mFontService = fontService;
-		mDrawingRenderer.SetTextureLookup(new (texture) => mFontService.GetTextureView(texture));
 
 		// Create render texture
 		TextureDescriptor texDesc = TextureDescriptor.Texture2D(

@@ -12,7 +12,8 @@ class MockTexture : ITexture
 
 	public uint32 Width => mWidth;
 	public uint32 Height => mHeight;
-	public Object Handle => this;
+	public PixelFormat Format => .RGBA8;
+	public Span<uint8> PixelData => .();
 
 	public this(uint32 width, uint32 height)
 	{

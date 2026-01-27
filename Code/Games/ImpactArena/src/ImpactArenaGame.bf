@@ -281,7 +281,7 @@ class ImpactArenaGame : Application
 	private void InitializeDrawing()
 	{
 		// Initialize font service with multiple sizes for UI hierarchy
-		mFontService = new FontService(mDevice);
+		mFontService = new FontService();
 		let fontPath = scope String();
 		GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", fontPath);
 
@@ -305,11 +305,6 @@ class ImpactArenaGame : Application
 		if (mDrawingRenderer.Initialize(mDevice, mSwapChain.Format, FrameConfig.MAX_FRAMES_IN_FLIGHT, mRenderSystem.ShaderSystem) case .Err)
 		{
 			Console.WriteLine("Failed to initialize DrawingRenderer");
-		}
-		else
-		{
-			// Set up multi-texture support for different font sizes
-			mDrawingRenderer.SetTextureLookup(new (texture) => mFontService.GetTextureView(texture));
 		}
 	}
 

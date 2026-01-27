@@ -21,6 +21,7 @@ using Sedulous.Materials;
 using Sedulous.Physics;
 using Sedulous.Physics.Jolt;
 using Sedulous.Profiler;
+using Sedulous.Drawing.Fonts;
 
 class FrameworkNavigationApp : Application
 {
@@ -31,6 +32,8 @@ class FrameworkNavigationApp : Application
 	private RenderSubsystem mRenderSubsystem;
 	private UISubsystem mUISubsystem;
 	private Scene mMainScene;
+
+	private FontService mFontService;
 
 	// Render system
 	private RenderSystem mRenderSystem ~ delete _;
@@ -167,16 +170,11 @@ class FrameworkNavigationApp : Application
 		context.RegisterSubsystem(inputSubsystem);
 
 		// UI
-		mUISubsystem = new UISubsystem();
+		mUISubsystem = new UISubsystem(mFontService);
 		context.RegisterSubsystem(mUISubsystem);
-		if (mUISubsystem.InitializeRendering(mDevice, .BGRA8UnormSrgb, 2, mShell, mRenderSystem) case .Ok)
+		if (mUISubsystem.InitializeRendering(mDevice, .BGRA8UnormSrgb, 2, mShell, mRenderSystem) not case .Ok)
 		{
-			String fontPath = scope .();
-			GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", fontPath);
-			FontLoadOptions fontOptions = .ExtendedLatin;
-			fontOptions.PixelHeight = 16;
-			if (mUISubsystem.FontService.LoadFont("Roboto", fontPath, fontOptions) case .Ok)
-				mUISubsystem.ApplyFontAtlas();
+			Console.WriteLine("  - UISubsystem (render init failed)");
 		}
 
 		// Navigation
@@ -517,6 +515,11 @@ class FrameworkNavigationApp : Application
 			mRenderSystem.ResourceManager.ReleaseMesh(mPlaneMeshHandle, mRenderSystem.FrameNumber);
 		if (mCubeMeshHandle.IsValid)
 			mRenderSystem.ResourceManager.ReleaseMesh(mCubeMeshHandle, mRenderSystem.FrameNumber);
+
+		if(mFontService != null)
+		{
+			delete mFontService;
+		}
 
 		if (mRenderSystem != null)
 			mRenderSystem.Shutdown();

@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Render" = "*", "Sedulous.Framework.Runtime" = "*", "Sedulous.Framework.Core" = "*", "Sedulous.Framework.Scenes" = "*", "Sedulous.Framework.Render" = "*", "Sedulous.Framework.Animation" = "*", "Sedulous.Framework.Physics" = "*", "Sedulous.Framework.Audio" = "*", "Sedulous.Framework.UI" = "*", "Sedulous.Framework.Input" = "*", "Sedulous.Physics.Jolt" = "*", "Sedulous.Audio.SDL3" = "*", "Sedulous.Geometry" = "*", "Sedulous.Profiler" = "*", "Sedulous.UI" = "*"}
+Dependencies = {corlib = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Render" = "*", "Sedulous.Framework.Runtime" = "*", "Sedulous.Framework.Core" = "*", "Sedulous.Framework.Scenes" = "*", "Sedulous.Framework.Render" = "*", "Sedulous.Framework.Animation" = "*", "Sedulous.Framework.Physics" = "*", "Sedulous.Framework.Audio" = "*", "Sedulous.Framework.UI" = "*", "Sedulous.Framework.Input" = "*", "Sedulous.Physics.Jolt" = "*", "Sedulous.Audio.SDL3" = "*", "Sedulous.Geometry" = "*", "Sedulous.Profiler" = "*", "Sedulous.UI" = "*", "Sedulous.Drawing.Fonts" = "*"}
 
 [Project]
 Name = "FrameworkSandbox"

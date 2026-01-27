@@ -8,8 +8,8 @@ namespace Sedulous.Drawing;
 /// Tessellates shapes into vertices and indices for rendering
 public class ShapeRasterizer
 {
-	/// UV coordinates for solid color drawing (should be set to white pixel in atlas)
-	public Vector2 WhitePixelUV = .(0, 0);
+	// Fixed UV for solid color drawing - works with any 1x1 texture
+	private const float SolidUV = 0.5f;
 
 	// === Filled Shapes ===
 
@@ -19,10 +19,10 @@ public class ShapeRasterizer
 		let baseIndex = (uint16)vertices.Count;
 
 		// 4 corners
-		vertices.Add(.(rect.X, rect.Y, WhitePixelUV.X, WhitePixelUV.Y, color));                              // Top-left
-		vertices.Add(.(rect.X + rect.Width, rect.Y, WhitePixelUV.X, WhitePixelUV.Y, color));                 // Top-right
-		vertices.Add(.(rect.X + rect.Width, rect.Y + rect.Height, WhitePixelUV.X, WhitePixelUV.Y, color));   // Bottom-right
-		vertices.Add(.(rect.X, rect.Y + rect.Height, WhitePixelUV.X, WhitePixelUV.Y, color));                // Bottom-left
+		vertices.Add(.(rect.X, rect.Y, SolidUV, SolidUV, color));                              // Top-left
+		vertices.Add(.(rect.X + rect.Width, rect.Y, SolidUV, SolidUV, color));                 // Top-right
+		vertices.Add(.(rect.X + rect.Width, rect.Y + rect.Height, SolidUV, SolidUV, color));   // Bottom-right
+		vertices.Add(.(rect.X, rect.Y + rect.Height, SolidUV, SolidUV, color));                // Bottom-left
 
 		// 2 triangles
 		indices.Add(baseIndex + 0);
@@ -38,10 +38,10 @@ public class ShapeRasterizer
 	{
 		let baseIndex = (uint16)vertices.Count;
 
-		vertices.Add(.(topLeft.X, topLeft.Y, WhitePixelUV.X, WhitePixelUV.Y, color));
-		vertices.Add(.(topRight.X, topRight.Y, WhitePixelUV.X, WhitePixelUV.Y, color));
-		vertices.Add(.(bottomRight.X, bottomRight.Y, WhitePixelUV.X, WhitePixelUV.Y, color));
-		vertices.Add(.(bottomLeft.X, bottomLeft.Y, WhitePixelUV.X, WhitePixelUV.Y, color));
+		vertices.Add(.(topLeft.X, topLeft.Y, SolidUV, SolidUV, color));
+		vertices.Add(.(topRight.X, topRight.Y, SolidUV, SolidUV, color));
+		vertices.Add(.(bottomRight.X, bottomRight.Y, SolidUV, SolidUV, color));
+		vertices.Add(.(bottomLeft.X, bottomLeft.Y, SolidUV, SolidUV, color));
 
 		// 2 triangles
 		indices.Add(baseIndex + 0);
@@ -65,7 +65,7 @@ public class ShapeRasterizer
 		let baseIndex = (uint16)vertices.Count;
 
 		// Center vertex
-		vertices.Add(.(center.X, center.Y, WhitePixelUV.X, WhitePixelUV.Y, color));
+		vertices.Add(.(center.X, center.Y, SolidUV, SolidUV, color));
 
 		// Perimeter vertices
 		let angleStep = Math.PI_f * 2.0f / segments;
@@ -74,7 +74,7 @@ public class ShapeRasterizer
 			let angle = i * angleStep;
 			let x = center.X + Math.Cos(angle) * rx;
 			let y = center.Y + Math.Sin(angle) * ry;
-			vertices.Add(.(x, y, WhitePixelUV.X, WhitePixelUV.Y, color));
+			vertices.Add(.(x, y, SolidUV, SolidUV, color));
 		}
 
 		// Triangle fan indices
@@ -105,7 +105,7 @@ public class ShapeRasterizer
 		// Center vertex for fan
 		let centerX = rect.X + rect.Width * 0.5f;
 		let centerY = rect.Y + rect.Height * 0.5f;
-		vertices.Add(.(centerX, centerY, WhitePixelUV.X, WhitePixelUV.Y, color));
+		vertices.Add(.(centerX, centerY, SolidUV, SolidUV, color));
 
 		// Generate vertices around the rounded rectangle
 		// Starting from top-left corner, going clockwise
@@ -117,7 +117,7 @@ public class ShapeRasterizer
 			let angle = Math.PI_f + i * angleStep;
 			let x = rect.X + r + Math.Cos(angle) * r;
 			let y = rect.Y + r + Math.Sin(angle) * r;
-			vertices.Add(.(x, y, WhitePixelUV.X, WhitePixelUV.Y, color));
+			vertices.Add(.(x, y, SolidUV, SolidUV, color));
 		}
 
 		// Top-right corner
@@ -126,7 +126,7 @@ public class ShapeRasterizer
 			let angle = Math.PI_f * 1.5f + i * angleStep;
 			let x = rect.X + rect.Width - r + Math.Cos(angle) * r;
 			let y = rect.Y + r + Math.Sin(angle) * r;
-			vertices.Add(.(x, y, WhitePixelUV.X, WhitePixelUV.Y, color));
+			vertices.Add(.(x, y, SolidUV, SolidUV, color));
 		}
 
 		// Bottom-right corner
@@ -135,7 +135,7 @@ public class ShapeRasterizer
 			let angle = i * angleStep;
 			let x = rect.X + rect.Width - r + Math.Cos(angle) * r;
 			let y = rect.Y + rect.Height - r + Math.Sin(angle) * r;
-			vertices.Add(.(x, y, WhitePixelUV.X, WhitePixelUV.Y, color));
+			vertices.Add(.(x, y, SolidUV, SolidUV, color));
 		}
 
 		// Bottom-left corner
@@ -144,7 +144,7 @@ public class ShapeRasterizer
 			let angle = Math.PI_f * 0.5f + i * angleStep;
 			let x = rect.X + r + Math.Cos(angle) * r;
 			let y = rect.Y + rect.Height - r + Math.Sin(angle) * r;
-			vertices.Add(.(x, y, WhitePixelUV.X, WhitePixelUV.Y, color));
+			vertices.Add(.(x, y, SolidUV, SolidUV, color));
 		}
 
 		// Generate triangle fan indices
@@ -164,7 +164,7 @@ public class ShapeRasterizer
 		let baseIndex = (uint16)vertices.Count;
 
 		// Center vertex
-		vertices.Add(.(center.X, center.Y, WhitePixelUV.X, WhitePixelUV.Y, color));
+		vertices.Add(.(center.X, center.Y, SolidUV, SolidUV, color));
 
 		// Arc vertices
 		let angleStep = sweepAngle / segments;
@@ -173,7 +173,7 @@ public class ShapeRasterizer
 			let angle = startAngle + i * angleStep;
 			let x = center.X + Math.Cos(angle) * radius;
 			let y = center.Y + Math.Sin(angle) * radius;
-			vertices.Add(.(x, y, WhitePixelUV.X, WhitePixelUV.Y, color));
+			vertices.Add(.(x, y, SolidUV, SolidUV, color));
 		}
 
 		// Triangle fan indices
@@ -208,10 +208,10 @@ public class ShapeRasterizer
 		let p2 = end + normal * halfThick;
 		let p3 = end - normal * halfThick;
 
-		vertices.Add(.(p0.X, p0.Y, WhitePixelUV.X, WhitePixelUV.Y, color));
-		vertices.Add(.(p1.X, p1.Y, WhitePixelUV.X, WhitePixelUV.Y, color));
-		vertices.Add(.(p2.X, p2.Y, WhitePixelUV.X, WhitePixelUV.Y, color));
-		vertices.Add(.(p3.X, p3.Y, WhitePixelUV.X, WhitePixelUV.Y, color));
+		vertices.Add(.(p0.X, p0.Y, SolidUV, SolidUV, color));
+		vertices.Add(.(p1.X, p1.Y, SolidUV, SolidUV, color));
+		vertices.Add(.(p2.X, p2.Y, SolidUV, SolidUV, color));
+		vertices.Add(.(p3.X, p3.Y, SolidUV, SolidUV, color));
 
 		indices.Add(baseIndex + 0);
 		indices.Add(baseIndex + 1);
@@ -255,16 +255,16 @@ public class ShapeRasterizer
 		let baseIndex = (uint16)vertices.Count;
 
 		// Outer vertices (clockwise)
-		vertices.Add(.(outer.X, outer.Y, WhitePixelUV.X, WhitePixelUV.Y, color));
-		vertices.Add(.(outer.X + outer.Width, outer.Y, WhitePixelUV.X, WhitePixelUV.Y, color));
-		vertices.Add(.(outer.X + outer.Width, outer.Y + outer.Height, WhitePixelUV.X, WhitePixelUV.Y, color));
-		vertices.Add(.(outer.X, outer.Y + outer.Height, WhitePixelUV.X, WhitePixelUV.Y, color));
+		vertices.Add(.(outer.X, outer.Y, SolidUV, SolidUV, color));
+		vertices.Add(.(outer.X + outer.Width, outer.Y, SolidUV, SolidUV, color));
+		vertices.Add(.(outer.X + outer.Width, outer.Y + outer.Height, SolidUV, SolidUV, color));
+		vertices.Add(.(outer.X, outer.Y + outer.Height, SolidUV, SolidUV, color));
 
 		// Inner vertices (clockwise)
-		vertices.Add(.(inner.X, inner.Y, WhitePixelUV.X, WhitePixelUV.Y, color));
-		vertices.Add(.(inner.X + inner.Width, inner.Y, WhitePixelUV.X, WhitePixelUV.Y, color));
-		vertices.Add(.(inner.X + inner.Width, inner.Y + inner.Height, WhitePixelUV.X, WhitePixelUV.Y, color));
-		vertices.Add(.(inner.X, inner.Y + inner.Height, WhitePixelUV.X, WhitePixelUV.Y, color));
+		vertices.Add(.(inner.X, inner.Y, SolidUV, SolidUV, color));
+		vertices.Add(.(inner.X + inner.Width, inner.Y, SolidUV, SolidUV, color));
+		vertices.Add(.(inner.X + inner.Width, inner.Y + inner.Height, SolidUV, SolidUV, color));
+		vertices.Add(.(inner.X, inner.Y + inner.Height, SolidUV, SolidUV, color));
 
 		// Top edge
 		indices.Add(baseIndex + 0); indices.Add(baseIndex + 1); indices.Add(baseIndex + 5);
@@ -316,12 +316,12 @@ public class ShapeRasterizer
 			// Outer vertex - offset outward along normal
 			let outerX = center.X + px + normalX * halfThick;
 			let outerY = center.Y + py + normalY * halfThick;
-			vertices.Add(.(outerX, outerY, WhitePixelUV.X, WhitePixelUV.Y, color));
+			vertices.Add(.(outerX, outerY, SolidUV, SolidUV, color));
 
 			// Inner vertex - offset inward along normal
 			let innerX = center.X + px - normalX * halfThick;
 			let innerY = center.Y + py - normalY * halfThick;
-			vertices.Add(.(innerX, innerY, WhitePixelUV.X, WhitePixelUV.Y, color));
+			vertices.Add(.(innerX, innerY, SolidUV, SolidUV, color));
 		}
 
 		// Generate quad strip indices
@@ -414,7 +414,7 @@ public class ShapeRasterizer
 		// Add all vertices
 		for (let point in points)
 		{
-			vertices.Add(.(point.X, point.Y, WhitePixelUV.X, WhitePixelUV.Y, color));
+			vertices.Add(.(point.X, point.Y, SolidUV, SolidUV, color));
 		}
 
 		// Simple ear clipping for convex or simple polygons
@@ -445,10 +445,10 @@ public class ShapeRasterizer
 
 			// Line body as quad
 			let baseIndex = (uint16)vertices.Count;
-			vertices.Add(.(p0.X - normal.X * halfThickness, p0.Y - normal.Y * halfThickness, WhitePixelUV.X, WhitePixelUV.Y, color));
-			vertices.Add(.(p0.X + normal.X * halfThickness, p0.Y + normal.Y * halfThickness, WhitePixelUV.X, WhitePixelUV.Y, color));
-			vertices.Add(.(p1.X + normal.X * halfThickness, p1.Y + normal.Y * halfThickness, WhitePixelUV.X, WhitePixelUV.Y, color));
-			vertices.Add(.(p1.X - normal.X * halfThickness, p1.Y - normal.Y * halfThickness, WhitePixelUV.X, WhitePixelUV.Y, color));
+			vertices.Add(.(p0.X - normal.X * halfThickness, p0.Y - normal.Y * halfThickness, SolidUV, SolidUV, color));
+			vertices.Add(.(p0.X + normal.X * halfThickness, p0.Y + normal.Y * halfThickness, SolidUV, SolidUV, color));
+			vertices.Add(.(p1.X + normal.X * halfThickness, p1.Y + normal.Y * halfThickness, SolidUV, SolidUV, color));
+			vertices.Add(.(p1.X - normal.X * halfThickness, p1.Y - normal.Y * halfThickness, SolidUV, SolidUV, color));
 
 			indices.Add(baseIndex + 0);
 			indices.Add(baseIndex + 1);
@@ -522,10 +522,10 @@ public class ShapeRasterizer
 
 			// Edge as quad
 			let baseIndex = (uint16)vertices.Count;
-			vertices.Add(.(p0.X - normal.X * halfThickness, p0.Y - normal.Y * halfThickness, WhitePixelUV.X, WhitePixelUV.Y, color));
-			vertices.Add(.(p0.X + normal.X * halfThickness, p0.Y + normal.Y * halfThickness, WhitePixelUV.X, WhitePixelUV.Y, color));
-			vertices.Add(.(p1.X + normal.X * halfThickness, p1.Y + normal.Y * halfThickness, WhitePixelUV.X, WhitePixelUV.Y, color));
-			vertices.Add(.(p1.X - normal.X * halfThickness, p1.Y - normal.Y * halfThickness, WhitePixelUV.X, WhitePixelUV.Y, color));
+			vertices.Add(.(p0.X - normal.X * halfThickness, p0.Y - normal.Y * halfThickness, SolidUV, SolidUV, color));
+			vertices.Add(.(p0.X + normal.X * halfThickness, p0.Y + normal.Y * halfThickness, SolidUV, SolidUV, color));
+			vertices.Add(.(p1.X + normal.X * halfThickness, p1.Y + normal.Y * halfThickness, SolidUV, SolidUV, color));
+			vertices.Add(.(p1.X - normal.X * halfThickness, p1.Y - normal.Y * halfThickness, SolidUV, SolidUV, color));
 
 			indices.Add(baseIndex + 0);
 			indices.Add(baseIndex + 1);
@@ -584,7 +584,7 @@ public class ShapeRasterizer
 		let baseIndex = (uint16)vertices.Count;
 
 		// Center vertex
-		vertices.Add(.(center.X, center.Y, WhitePixelUV.X, WhitePixelUV.Y, color));
+		vertices.Add(.(center.X, center.Y, SolidUV, SolidUV, color));
 
 		// Arc from -normal to +normal in the direction of the cap
 		let startAngle = Math.Atan2(normal.Y, normal.X);
@@ -595,7 +595,7 @@ public class ShapeRasterizer
 			let angle = startAngle + i * angleStep;
 			let x = center.X + Math.Cos(angle) * halfThickness;
 			let y = center.Y + Math.Sin(angle) * halfThickness;
-			vertices.Add(.(x, y, WhitePixelUV.X, WhitePixelUV.Y, color));
+			vertices.Add(.(x, y, SolidUV, SolidUV, color));
 		}
 
 		// Triangle fan
@@ -618,10 +618,10 @@ public class ShapeRasterizer
 		let p2 = center + direction * halfThickness + normal * halfThickness;
 		let p3 = center + direction * halfThickness - normal * halfThickness;
 
-		vertices.Add(.(p0.X, p0.Y, WhitePixelUV.X, WhitePixelUV.Y, color));
-		vertices.Add(.(p1.X, p1.Y, WhitePixelUV.X, WhitePixelUV.Y, color));
-		vertices.Add(.(p2.X, p2.Y, WhitePixelUV.X, WhitePixelUV.Y, color));
-		vertices.Add(.(p3.X, p3.Y, WhitePixelUV.X, WhitePixelUV.Y, color));
+		vertices.Add(.(p0.X, p0.Y, SolidUV, SolidUV, color));
+		vertices.Add(.(p1.X, p1.Y, SolidUV, SolidUV, color));
+		vertices.Add(.(p2.X, p2.Y, SolidUV, SolidUV, color));
+		vertices.Add(.(p3.X, p3.Y, SolidUV, SolidUV, color));
 
 		indices.Add(baseIndex + 0);
 		indices.Add(baseIndex + 1);

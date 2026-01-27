@@ -16,7 +16,6 @@ using Sedulous.UI;
 using Sedulous.UI.Shell;
 using Sedulous.Drawing.Renderer;
 using Sedulous.Shaders;
-using Sedulous.Drawing.Fonts;
 
 // Use UI types explicitly to avoid ambiguity with Shell types
 typealias UIKeyCode = Sedulous.UI.KeyCode;
@@ -199,9 +198,6 @@ class UISceneComponent : ISceneComponent
 
 		// Create draw context with font service (sets WhitePixelUV automatically)
 		mDrawContext = new DrawContext(fontService);
-
-		// Set up texture lookup for rendering
-		mDrawingRenderer.SetTextureLookup(new [=](texture) => ((FontService)fontService).GetTextureView(texture));
 
 		mRenderingInitialized = true;
 		return .Ok;

@@ -29,8 +29,4 @@ public interface IFontService
 
 	/// The default font family name.
 	StringView DefaultFontFamily { get; }
-
-	/// The white pixel UV coordinates from the default font atlas.
-	/// Use this for DrawContext.WhitePixelUV for solid color rendering.
-	(float U, float V) WhitePixelUV { get; }
 }

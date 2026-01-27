@@ -104,7 +104,6 @@ class EngineAudioSample : RHISampleApp
 			Console.WriteLine("Failed to initialize UI renderer");
 			return false;
 		}
-		mDrawingRenderer.SetTextureLookup(new (texture) => mFontService.GetTextureView(texture));
 
 		mDrawContext = new .(mFontService);
 
@@ -138,7 +137,7 @@ class EngineAudioSample : RHISampleApp
 
 	private bool InitializeFonts()
 	{
-		mFontService = new FontService(Device);
+		mFontService = new FontService();
 
 		String fontPath = scope .();
 		GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", fontPath);

@@ -72,7 +72,6 @@ class DrawingSandboxSample : RHISampleApp
 			Console.WriteLine("Failed to initialize DrawingRenderer");
 			return false;
 		}
-		mDrawingRenderer.SetTextureLookup(new (texture) => mFontService.GetTextureView(texture));
 
 		Console.WriteLine("DrawingSandbox initialized with DrawingRenderer");
 		return true;
@@ -80,7 +79,7 @@ class DrawingSandboxSample : RHISampleApp
 
 	private bool InitializeFont()
 	{
-		mFontService = new FontService(Device);
+		mFontService = new FontService();
 
 		String fontPath = scope .();
 		GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", fontPath);
