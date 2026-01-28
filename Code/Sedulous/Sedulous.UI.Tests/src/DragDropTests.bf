@@ -238,7 +238,7 @@ class DragDropManagerTests
 	public static void StartDragWithData()
 	{
 		let context = scope UIContext();
-		let root = new Border();
+		let root = scope Border();
 		root.Width = 800;
 		root.Height = 600;
 		context.RootElement = root;
@@ -265,7 +265,7 @@ class DragDropManagerTests
 	public static void StartDragWithNullDataFails()
 	{
 		let context = scope UIContext();
-		let root = new Border();
+		let root = scope Border();
 		context.RootElement = root;
 
 		let manager = scope DragDropManager(context);
@@ -281,7 +281,7 @@ class DragDropManagerTests
 	public static void StartDragFromIDragSource()
 	{
 		let context = scope UIContext();
-		let root = new Border();
+		let root = scope Border();
 		root.Width = 800;
 		root.Height = 600;
 		context.RootElement = root;
@@ -305,7 +305,7 @@ class DragDropManagerTests
 	public static void CancelDragNotifiesSource()
 	{
 		let context = scope UIContext();
-		let root = new Border();
+		let root = scope Border();
 		root.Width = 800;
 		root.Height = 600;
 		context.RootElement = root;

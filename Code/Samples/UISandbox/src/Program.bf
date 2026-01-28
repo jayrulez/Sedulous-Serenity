@@ -38,6 +38,8 @@ class UISandboxSample : RHISampleApp
 	// Drawing context (created after font service)
 	private DrawContext mDrawContext ~ delete _;
 
+	private DockPanel mUIRoot ~ delete _;
+
 	// UI Renderer
 	// NOTE: Must be cleaned up in OnCleanup(), not destructor, because Device is destroyed in Application.Cleanup()
 	private DrawingRenderer mDrawingRenderer;
@@ -406,15 +408,15 @@ class UISandboxSample : RHISampleApp
 	private void BuildUI()
 	{
 		// Create root layout
-		let root = new DockPanel();
-		root.Background = Color(30, 30, 40, 255);
+		mUIRoot = new DockPanel();
+		mUIRoot.Background = Color(30, 30, 40, 255);
 
 		// Header
 		let header = new StackPanel();
 		header.Orientation = .Horizontal;
 		header.Background = Color(50, 50, 70, 255);
 		header.Padding = Thickness(10, 5, 10, 5);
-		root.SetDock(header, .Top);
+		mUIRoot.SetDock(header, .Top);
 
 		let title = new TextBlock();
 		title.Text = "Sedulous UI Sandbox";
@@ -504,7 +506,7 @@ class UISandboxSample : RHISampleApp
 		});
 		header.AddChild(scale15Radio);
 
-		root.AddChild(header);
+		mUIRoot.AddChild(header);
 
 		// Main content area with scroll
 		let scrollViewer = new ScrollViewer();
@@ -1603,9 +1605,9 @@ class UISandboxSample : RHISampleApp
 		columns.AddChild(middleColumn);
 		columns.AddChild(rightColumn);
 		scrollViewer.Content = columns;
-		root.AddChild(scrollViewer);
+		mUIRoot.AddChild(scrollViewer);
 
-		mUIContext.RootElement = root;
+		mUIContext.RootElement = mUIRoot;
 	}
 
 	private void AddSection(StackPanel parent, StringView title, delegate void(StackPanel) buildContent)

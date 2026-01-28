@@ -118,6 +118,8 @@ class FrameworkSandboxApp : Application
 	private const float WallHeight = 2.0f;
 	private const float WallThickness = 0.5f;
 
+	private Canvas mUIRoot ~ delete _;
+
 	public this(IShell shell, IDevice device, IBackend backend)
 		: base(shell, device, backend)
 	{
@@ -1394,7 +1396,7 @@ class FrameworkSandboxApp : Application
 			return;
 
 		// Create root canvas for absolute positioning
-		let root = new Canvas();
+		mUIRoot = new Canvas();
 
 		// Create a panel in the top-left corner
 		let panel = new StackPanel();
@@ -1464,10 +1466,10 @@ class FrameworkSandboxApp : Application
 		});
 		panel.AddChild(metalSlider);
 
-		root.AddChild(panel);
-		root.SetLeft(panel, 10);
-		root.SetTop(panel, 150);
-		mUISubsystem.UIContext.RootElement = root;
+		mUIRoot.AddChild(panel);
+		mUIRoot.SetLeft(panel, 10);
+		mUIRoot.SetTop(panel, 150);
+		mUISubsystem.UIContext.RootElement = mUIRoot;
 
 		Console.WriteLine("UI overlay created");
 	}

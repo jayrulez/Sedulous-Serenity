@@ -226,11 +226,11 @@ public class UIContext
 		for (let element in mDeferredDeletions)
 			delete element;
 
-		if (mRootElement != null)
+		/*if (mRootElement != null)
 		{
 			mRootElement.[Friend]mContext = null;
 			delete mRootElement;
-		}
+		}*/
 
 		// Note: Popups are NOT deleted here - they are owned by whoever created them.
 		// When a popup is deleted, it unregisters itself from mActivePopups.

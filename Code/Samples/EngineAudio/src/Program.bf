@@ -52,6 +52,8 @@ class EngineAudioSample : RHISampleApp
 	private TooltipService mTooltipService;
 	private delegate void(StringView) mTextInputDelegate;
 
+	private DockPanel mUIRoot ~ delete _;
+
 	// Drawing
 	private DrawContext mDrawContext ~ delete _;
 
@@ -187,14 +189,14 @@ class EngineAudioSample : RHISampleApp
 
 	private void BuildUI()
 	{
-		let root = new DockPanel();
-		root.Background = Color(25, 25, 35, 255);
+		mUIRoot = new DockPanel();
+		mUIRoot.Background = Color(25, 25, 35, 255);
 
 		// Header
 		let header = new Border();
 		header.Background = Color(40, 40, 55, 255);
 		header.Padding = Thickness(20, 15, 20, 15);
-		root.SetDock(header, .Top);
+		mUIRoot.SetDock(header, .Top);
 
 		let headerContent = new StackPanel();
 		headerContent.Orientation = .Vertical;
@@ -212,13 +214,13 @@ class EngineAudioSample : RHISampleApp
 		mNowPlayingLabel.Foreground = Color(150, 150, 160);
 		headerContent.AddChild(mNowPlayingLabel);
 
-		root.AddChild(header);
+		mUIRoot.AddChild(header);
 
 		// Controls bar
 		let controlsBar = new Border();
 		controlsBar.Background = Color(35, 35, 50, 255);
 		controlsBar.Padding = Thickness(20, 10, 20, 10);
-		root.SetDock(controlsBar, .Bottom);
+		mUIRoot.SetDock(controlsBar, .Bottom);
 
 		let controls = new StackPanel();
 		controls.Orientation = .Horizontal;
@@ -268,7 +270,7 @@ class EngineAudioSample : RHISampleApp
 		volUp.Click.Subscribe(new (sender) => AdjustVolume(0.1f));
 		controls.AddChild(volUp);
 
-		root.AddChild(controlsBar);
+		mUIRoot.AddChild(controlsBar);
 
 		// Track list
 		let scrollViewer = new ScrollViewer();
@@ -279,9 +281,9 @@ class EngineAudioSample : RHISampleApp
 		mTrackList.Spacing = 2;
 		scrollViewer.Content = mTrackList;
 
-		root.AddChild(scrollViewer);
+		mUIRoot.AddChild(scrollViewer);
 
-		mUIContext.RootElement = root;
+		mUIContext.RootElement = mUIRoot;
 	}
 
 	private void LoadAudioTracks()

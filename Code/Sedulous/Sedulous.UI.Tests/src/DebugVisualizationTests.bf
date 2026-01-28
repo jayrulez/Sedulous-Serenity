@@ -79,7 +79,7 @@ class DebugVisualizationTests
 		let context = scope UIContext();
 		context.DebugSettings.ShowLayoutBounds = true;
 
-		let root = new StackPanel();
+		let root = scope StackPanel();
 		root.Width = 100;
 		root.Height = 100;
 		context.RootElement = root;  // UIContext takes ownership
@@ -99,7 +99,7 @@ class DebugVisualizationTests
 		let context = scope UIContext();
 		context.DebugSettings.ShowMargins = true;
 
-		let root = new StackPanel();
+		let root = scope StackPanel();
 		root.Width = 100;
 		root.Height = 100;
 		root.Margin = Thickness(10);
@@ -119,7 +119,7 @@ class DebugVisualizationTests
 		let context = scope UIContext();
 		context.DebugSettings.ShowPadding = true;
 
-		let root = new StackPanel();
+		let root = scope StackPanel();
 		root.Width = 100;
 		root.Height = 100;
 		root.Padding = Thickness(10);
@@ -139,7 +139,7 @@ class DebugVisualizationTests
 		let context = scope UIContext();
 		context.DebugSettings.ShowFocused = true;
 
-		let root = new StackPanel();
+		let root = scope StackPanel();
 		root.Width = 100;
 		root.Height = 100;
 		root.Focusable = true;
@@ -160,7 +160,7 @@ class DebugVisualizationTests
 		let context = scope UIContext();
 		context.DebugSettings.ShowHitTestBounds = true;
 
-		let root = new StackPanel();
+		let root = scope StackPanel();
 		root.Width = 100;
 		root.Height = 100;
 		context.RootElement = root;
@@ -179,7 +179,7 @@ class DebugVisualizationTests
 		let context = scope UIContext();
 		context.DebugSettings.ShowLayoutBounds = true;
 
-		let root = new StackPanel();
+		let root = scope StackPanel();
 		root.Width = 100;
 		root.Height = 100;
 
@@ -205,7 +205,7 @@ class DebugVisualizationTests
 		let context = scope UIContext();
 		context.DebugSettings.ShowLayoutBounds = true;
 
-		let root = new StackPanel();
+		let root = scope StackPanel();
 		root.Width = 200;
 		root.Height = 200;
 
@@ -239,7 +239,7 @@ class DebugVisualizationTests
 		context.DebugSettings.ShowFocused = true;
 		context.DebugSettings.ShowHitTestBounds = true;
 
-		let root = new StackPanel();
+		let root = scope StackPanel();
 		root.Width = 100;
 		root.Height = 100;
 		root.Margin = Thickness(5);

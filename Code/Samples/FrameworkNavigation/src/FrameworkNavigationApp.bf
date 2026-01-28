@@ -68,6 +68,8 @@ class FrameworkNavigationApp : Application
 	private float mDeltaTime = 0.016f;
 	private float mSmoothedFps = 60.0f;
 
+	private Canvas mUIRoot ~ delete _;
+
 	public this(IShell shell, IDevice device, IBackend backend) : base(shell, device, backend)
 	{
 		mCamera = new .();
@@ -273,7 +275,7 @@ class FrameworkNavigationApp : Application
 		if (mUISubsystem == null || !mUISubsystem.IsInitialized)
 			return;
 
-		let root = new Canvas();
+		mUIRoot = new Canvas();
 
 		let panel = new StackPanel();
 		panel.Background = Color(20, 20, 30, 200);
@@ -321,10 +323,10 @@ class FrameworkNavigationApp : Application
 		navBtn.Click.Subscribe(new (btn) => { mNavDemo?.ToggleNavMeshDraw(); });
 		panel.AddChild(navBtn);
 
-		root.AddChild(panel);
-		root.SetLeft(panel, 10);
-		root.SetTop(panel, 150);
-		mUISubsystem.UIContext.RootElement = root;
+		mUIRoot.AddChild(panel);
+		mUIRoot.SetLeft(panel, 10);
+		mUIRoot.SetTop(panel, 150);
+		mUISubsystem.UIContext.RootElement = mUIRoot;
 	}
 
 	protected override void OnInput()

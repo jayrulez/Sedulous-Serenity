@@ -89,6 +89,9 @@ class SceneUISample : RHISampleApp
 	private bool mMouseCaptured = false;
 	private float mCameraMoveSpeed = 10.0f;
 	private float mCameraLookSpeed = 0.003f;
+	
+	private DockPanel mSceneUIRoot ~ delete _;
+	private Border mWorldUIRoot ~ delete _;
 
 	// UI elements
 	private TextBlock mFpsLabel;
@@ -490,15 +493,15 @@ class SceneUISample : RHISampleApp
 	private void BuildUI()
 	{
 		// Create root layout - DockPanel with side panel
-		let root = new DockPanel();
-		root.Background = Color.Transparent;
+		mSceneUIRoot = new DockPanel();
+		mSceneUIRoot.Background = Color.Transparent;
 
 		// === Right Side Panel (Controls) ===
 		let sidePanel = new Border();
 		sidePanel.Background = Color(25, 28, 32, 230);
 		sidePanel.Width = 280;
 		sidePanel.Padding = Thickness(15, 10, 15, 10);
-		root.SetDock(sidePanel, .Right);
+		mSceneUIRoot.SetDock(sidePanel, .Right);
 
 		let sidePanelContent = new StackPanel();
 		sidePanelContent.Orientation = .Vertical;
@@ -618,24 +621,24 @@ class SceneUISample : RHISampleApp
 			sidePanelContent.AddChild(instructions);
 		}
 
-		root.AddChild(sidePanel);
+		mSceneUIRoot.AddChild(sidePanel);
 
 		// Set root element via UISceneComponent
-		mUIScene.RootElement = root;
+		mUIScene.RootElement = mSceneUIRoot;
 	}
 
 	private void BuildWorldUI()
 	{
-		let root = new Border();
-		root.Background = Color(40, 45, 55, 220);
-		root.Padding = Thickness(10);
-		root.CornerRadius = 8;
+		mWorldUIRoot = new Border();
+		mWorldUIRoot.Background = Color(40, 45, 55, 220);
+		mWorldUIRoot.Padding = Thickness(10);
+		mWorldUIRoot.CornerRadius = 8;
 
 		let content = new StackPanel();
 		content.Orientation = .Vertical;
 		content.Spacing = 8;
 		content.HorizontalAlignment = .Center;
-		root.Child = content;
+		mWorldUIRoot.Child = content;
 
 		let label = new TextBlock();
 		label.Text = "World UI";
@@ -659,7 +662,7 @@ class SceneUISample : RHISampleApp
 		});
 		content.AddChild(btn);
 
-		mWorldUIComponent.RootElement = root;
+		mWorldUIComponent.RootElement = mWorldUIRoot;
 	}
 
 	private void PlayAnimation(int32 index)

@@ -83,7 +83,7 @@ class UIContextTests
 	public static void SetRootElement()
 	{
 		let context = scope UIContext();
-		let root = new TestElement();
+		let root = scope TestElement();
 		context.RootElement = root;
 		Test.Assert(context.RootElement == root);
 		Test.Assert(context.IsLayoutDirty);
@@ -93,7 +93,7 @@ class UIContextTests
 	public static void UpdatePerformsLayout()
 	{
 		let context = scope UIContext();
-		let root = new TestElement();
+		let root = scope TestElement();
 		context.RootElement = root;
 		context.SetViewportSize(800, 600);
 
@@ -108,7 +108,7 @@ class UIContextTests
 	public static void SetFocus()
 	{
 		let context = scope UIContext();
-		let element = new TestElement();
+		let element = scope TestElement();
 		element.Focusable = true;
 		context.RootElement = element;
 
@@ -121,7 +121,7 @@ class UIContextTests
 	public static void ChangeFocus()
 	{
 		let context = scope UIContext();
-		let root = new TestElement();
+		let root = scope TestElement();
 		let child1 = new TestElement();
 		let child2 = new TestElement();
 		child1.Focusable = true;
@@ -143,7 +143,7 @@ class UIContextTests
 	public static void MouseCapture()
 	{
 		let context = scope UIContext();
-		let element = new TestElement();
+		let element = scope TestElement();
 		context.RootElement = element;
 
 		Test.Assert(context.CapturedElement == null);
@@ -166,7 +166,7 @@ class UIContextTests
 	public static void HitTestReturnsRoot()
 	{
 		let context = scope UIContext();
-		let root = new TestElement();
+		let root = scope TestElement();
 		root.Width = .Fixed(100);
 		root.Height = .Fixed(100);
 		context.RootElement = root;
@@ -181,7 +181,7 @@ class UIContextTests
 	public static void HitTestOutsideBoundsReturnsNull()
 	{
 		let context = scope UIContext();
-		let root = new TestElement();
+		let root = scope TestElement();
 		root.Width = .Fixed(100);
 		root.Height = .Fixed(100);
 		context.RootElement = root;

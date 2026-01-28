@@ -122,7 +122,7 @@ class PopupTests
 	public static void PopupCalculatePositionBottomOfAnchor()
 	{
 		let context = scope UIContext();
-		let anchor = new Border();
+		let anchor = scope Border();
 		anchor.Width = 100;
 		anchor.Height = 30;
 		context.RootElement = anchor;
@@ -334,7 +334,7 @@ class UIContextPopupTests
 	public static void OpenPopupRegistersWithContext()
 	{
 		let context = scope UIContext();
-		let root = new Border();
+		let root = scope Border();
 		context.RootElement = root;
 		context.SetViewportSize(800, 600);
 
@@ -355,7 +355,7 @@ class UIContextPopupTests
 	public static void ClosePopupUnregistersFromContext()
 	{
 		let context = scope UIContext();
-		let root = new Border();
+		let root = scope Border();
 		context.RootElement = root;
 		context.SetViewportSize(800, 600);
 

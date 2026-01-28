@@ -212,7 +212,7 @@ class HitTestingTests
 		let context = new UIContext();
 		defer delete context;
 
-		let element = new InputTestElement();
+		let element = scope InputTestElement();
 		element.Width = .Fixed(100);
 		element.Height = .Fixed(100);
 		context.RootElement = element;
@@ -235,7 +235,7 @@ class HitTestingTests
 		defer delete context;
 
 		// Use StackPanel for proper child layout
-		let parent = new StackPanel();
+		let parent = scope StackPanel();
 		parent.Width = .Fixed(200);
 		parent.Height = .Fixed(200);
 		parent.Orientation = .Vertical;
@@ -266,7 +266,7 @@ class HitTestingTests
 		defer delete context;
 
 		// Use Canvas for absolute positioning
-		let parent = new Canvas();
+		let parent = scope Canvas();
 		parent.Width = .Fixed(200);
 		parent.Height = .Fixed(200);
 
@@ -307,7 +307,7 @@ class MouseEventTests
 		let context = new UIContext();
 		defer delete context;
 
-		let element = new InputTestElement();
+		let element = scope InputTestElement();
 		element.Width = .Fixed(100);
 		element.Height = .Fixed(100);
 		context.RootElement = element;
@@ -333,7 +333,7 @@ class MouseEventTests
 		let context = new UIContext();
 		defer delete context;
 
-		let element = new InputTestElement();
+		let element = scope InputTestElement();
 		element.Width = .Fixed(100);
 		element.Height = .Fixed(100);
 		context.RootElement = element;
@@ -350,7 +350,7 @@ class MouseEventTests
 		let context = new UIContext();
 		defer delete context;
 
-		let element = new InputTestElement();
+		let element = scope InputTestElement();
 		element.Width = .Fixed(100);
 		element.Height = .Fixed(100);
 		element.Focusable = true;
@@ -373,7 +373,7 @@ class MouseEventTests
 		let context = new UIContext();
 		defer delete context;
 
-		let element = new InputTestElement();
+		let element = scope InputTestElement();
 		element.Width = .Fixed(100);
 		element.Height = .Fixed(100);
 		element.Focusable = true;
@@ -395,7 +395,7 @@ class MouseEventTests
 		let context = new UIContext();
 		defer delete context;
 
-		let element = new InputTestElement();
+		let element = scope InputTestElement();
 		element.Width = .Fixed(100);
 		element.Height = .Fixed(100);
 		context.RootElement = element;
@@ -419,7 +419,7 @@ class KeyboardEventTests
 		let context = new UIContext();
 		defer delete context;
 
-		let element = new InputTestElement();
+		let element = scope InputTestElement();
 		element.Width = .Fixed(100);
 		element.Height = .Fixed(100);
 		element.Focusable = true;
@@ -444,7 +444,7 @@ class KeyboardEventTests
 		let context = new UIContext();
 		defer delete context;
 
-		let element = new InputTestElement();
+		let element = scope InputTestElement();
 		element.Width = .Fixed(100);
 		element.Height = .Fixed(100);
 		element.Focusable = true;
@@ -463,7 +463,7 @@ class KeyboardEventTests
 		let context = new UIContext();
 		defer delete context;
 
-		let element = new InputTestElement();
+		let element = scope InputTestElement();
 		element.Width = .Fixed(100);
 		element.Height = .Fixed(100);
 		element.Focusable = true;
@@ -485,7 +485,7 @@ class EventBubblingTests
 		let context = new UIContext();
 		defer delete context;
 
-		let parent = new InputTestElement();
+		let parent = scope InputTestElement();
 		parent.Width = .Fixed(200);
 		parent.Height = .Fixed(200);
 
@@ -512,7 +512,7 @@ class EventBubblingTests
 		let context = new UIContext();
 		defer delete context;
 
-		let parent = new InputTestElement();
+		let parent = scope InputTestElement();
 		parent.Width = .Fixed(200);
 		parent.Height = .Fixed(200);
 
@@ -544,7 +544,7 @@ class FocusTests
 		let context = new UIContext();
 		defer delete context;
 
-		let element = new InputTestElement();
+		let element = scope InputTestElement();
 		element.Width = .Fixed(100);
 		element.Height = .Fixed(100);
 		element.Focusable = true;
@@ -574,7 +574,7 @@ class FocusTests
 		element2.Margin = Thickness(0, 50, 0, 0);
 		element2.Focusable = true;
 
-		let parent = new InputTestElement();
+		let parent = scope InputTestElement();
 		parent.Width = .Fixed(100);
 		parent.Height = .Fixed(100);
 		parent.AddChild(element1);
@@ -605,7 +605,7 @@ class MouseCaptureTests
 		let context = new UIContext();
 		defer delete context;
 
-		let element = new InputTestElement();
+		let element = scope InputTestElement();
 		element.Width = .Fixed(100);
 		element.Height = .Fixed(100);
 		context.RootElement = element;
@@ -645,7 +645,7 @@ class InputManagerTests
 		let context = new UIContext();
 		defer delete context;
 
-		let element = new InputTestElement();
+		let element = scope InputTestElement();
 		element.Width = .Fixed(100);
 		element.Height = .Fixed(100);
 		context.RootElement = element;
@@ -664,7 +664,7 @@ class InputManagerTests
 		let context = new UIContext();
 		defer delete context;
 
-		let element = new InputTestElement();
+		let element = scope InputTestElement();
 		element.Width = .Fixed(100);
 		element.Height = .Fixed(100);
 		context.RootElement = element;

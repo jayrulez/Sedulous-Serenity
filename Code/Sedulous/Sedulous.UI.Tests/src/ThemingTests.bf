@@ -247,7 +247,7 @@ class ControlThemeTests
 		// Verify service is registered
 		Test.Assert(context.HasService<ITheme>());
 
-		let control = new TestControl();
+		let control = scope TestControl();
 		context.RootElement = control; // UIContext takes ownership
 
 		// Control should have the context
@@ -267,7 +267,7 @@ class ControlThemeTests
 		let context = new UIContext();
 		defer delete context;
 
-		let control = new TestControl();
+		let control = scope TestControl();
 		context.RootElement = control; // UIContext takes ownership
 
 		// Verify control is focusable
@@ -292,7 +292,7 @@ class ControlThemeTests
 		let theme = new DefaultTheme();
 		context.RegisterService<ITheme>(theme);
 
-		let control = new TestControl();
+		let control = scope TestControl();
 		context.RootElement = control; // UIContext takes ownership
 
 		let customStyle = scope Style();
