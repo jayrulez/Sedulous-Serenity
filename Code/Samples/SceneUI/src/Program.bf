@@ -5,93 +5,94 @@ using System.Collections;
 using System.IO;
 using Sedulous.Mathematics;
 using Sedulous.RHI;
-using SampleFramework;
-using Sedulous.Drawing;
+using Sedulous.RHI.Vulkan;
+using Sedulous.Shell;
+using Sedulous.Shell.SDL3;
+using Sedulous.Shell.Input;
 using Sedulous.UI;
+using Sedulous.Fonts;
 using Sedulous.Drawing.Fonts;
-using Sedulous.Drawing.Renderer;
-using Sedulous.Engine.Core;
-using Sedulous.Engine.Input;
-using Sedulous.Engine.UI;
-using Sedulous.Engine.Renderer;
-using Sedulous.Renderer;
+using Sedulous.Framework.Runtime;
+using Sedulous.Framework.Core;
+using Sedulous.Framework.Scenes;
+using Sedulous.Framework.Render;
+using Sedulous.Framework.Animation;
+using Sedulous.Framework.UI;
+using Sedulous.Framework.Input;
+using Sedulous.Render;
 using Sedulous.Geometry;
+using Sedulous.Geometry.Resources;
+using Sedulous.Geometry.Tooling;
+using Sedulous.Resources;
+using Sedulous.Materials;
+using Sedulous.Materials.Resources;
+using Sedulous.Textures.Resources;
 using Sedulous.Models;
 using Sedulous.Models.GLTF;
 using Sedulous.Imaging;
-using Sedulous.Logging.Abstractions;
-using Sedulous.Logging.Debug;
-using Sedulous.Geometry.Tooling;
-using Sedulous.Shell.SDL3;
-using Sedulous.Geometry.Resources;
-using Sedulous.UI.Shell;
-using Sedulous.Fonts;
-using Sedulous.Shaders;
+using Sedulous.Animation;
+using Sedulous.Animation.Resources;
+using Sedulous.Profiler;
 
-/// Scene UI sample demonstrating Sedulous.Engine.UI integration with 3D rendering.
+/// Scene UI sample demonstrating Sedulous.Framework.UI integration with 3D rendering.
 /// Features:
 /// - Screen-space overlay UI with animation controls
 /// - Animated Fox model with switchable animations
-/// - World-space UI panel with button
-class SceneUISample : RHISampleApp
+class SceneUISample : Application
 {
 	// Asset paths
-	private const StringView CACHE_REL_DIR = "cache";
-	private const StringView CACHE_REL_PATH = "cache/fox1.skinnedmesh";
 	private const StringView GLTF_REL_PATH = "samples/models/Fox/glTF/Fox.gltf";
 	private const StringView GLTF_BASE_REL_PATH = "samples/models/Fox/glTF";
-	private const StringView TEXTURE_REL_PATH = "samples/models/Fox/glTF/Texture.png";
-	private const StringView SHADER_REL_PATH = "framework/shaders";
 
-	// Framework.Core components
-	private ILogger mLogger ~ delete _;
-	private Context mContext ~ delete _;
+	// Framework subsystems
+	private SceneSubsystem mSceneSubsystem;
+	private RenderSubsystem mRenderSubsystem;
+	private UISubsystem mUISubsystem;
 	private Scene mScene;
-	private ComponentRegistry mComponentRegistry;
 
-	// Renderer components
-	private RendererService mRendererService;
-	private RenderSceneComponent mRenderSceneComponent;
+	// Render system
+	private RenderSystem mRenderSystem ~ delete _;
+	private RenderView mRenderView ~ delete _;
 
-	// Input components
-	private InputService mInputService;
+	// Render features
+	private DepthPrepassFeature mDepthFeature;
+	private ForwardOpaqueFeature mForwardFeature;
+	private ForwardTransparentFeature mTransparentFeature;
+	private ParticleFeature mParticleFeature;
+	private SpriteFeature mSpriteFeature;
+	private SkyFeature mSkyFeature;
+	private DebugRenderFeature mDebugFeature;
+	private GPUSkinningFeature mSkinningFeature;
+	private FinalOutputFeature mFinalOutputFeature;
 
-	// UI components
-	private UIService mUIService;
-	private UISceneComponent mUIScene;
-
-	// Services for UI
-	private ShellClipboardAdapter mClipboard;
+	// Font service
 	private FontService mFontService;
-	private TooltipService mTooltipService;
 
-	// Fox resources
-	private SkinnedMeshResource mFoxResource ~ delete _;
-	private MaterialResource mFoxMaterialResource ~ delete _;
-	private GPUTextureHandle mFoxTexture = .Invalid;
-	private MaterialHandle mPBRMaterial = .Invalid;
-	private MaterialInstanceHandle mFoxMaterial = .Invalid;
-	private MaterialInstanceHandle mGroundMaterial = .Invalid;
+	// Fox resources (deleted in OnShutdown before RenderSystem)
+	private SkinnedMeshResource mFoxResource;
+	private Sedulous.Materials.Resources.MaterialResource mFoxMaterialResource;
 
-	// Fox entity reference
-	private Entity mFoxEntity;
-	private SkinnedMeshComponent mFoxMeshComponent;
+	// Materials (deleted in OnShutdown before RenderSystem)
+	private MaterialInstance mFoxMaterialInstance;
+	private MaterialInstance mGroundMaterialInstance;
 
-	// World-space UI entity
-	private Entity mWorldUIEntity;
-	private UIComponent mWorldUIComponent;
-	private SpriteComponent mWorldUISprite;
+	// Entities
+	private EntityId mFoxEntity;
+	private EntityId mGroundEntity;
+	private EntityId mCameraEntity;
+	private EntityId mSunEntity;
 
-	// Camera entity and control
-	private Entity mCameraEntity;
-	private float mCameraYaw = Math.PI_f;
-	private float mCameraPitch = -0.2f;
-	private bool mMouseCaptured = false;
-	private float mCameraMoveSpeed = 10.0f;
-	private float mCameraLookSpeed = 0.003f;
-	
-	private DockPanel mSceneUIRoot ~ delete _;
-	private Border mWorldUIRoot ~ delete _;
+	// GPU texture handle for fox
+	private GPUTextureHandle mFoxTextureHandle;
+
+	// Mesh resources (deleted in OnShutdown before RenderSystem)
+	private StaticMeshResource mPlaneResource;
+
+	// Camera control
+	private OrbitFlyCamera mCamera ~ delete _;
+
+	// UI roots
+	private Canvas mUIRoot ~ delete _;
 
 	// UI elements
 	private TextBlock mFpsLabel;
@@ -103,93 +104,146 @@ class SceneUISample : RHISampleApp
 	private int mFrameCount = 0;
 	private float mFpsTimer = 0;
 	private int mCurrentFps = 0;
+	private float mDeltaTime = 0.016f;
 
+	// Current animation index
+	private int mCurrentAnimIndex = 0;
 
-	// Click counter
-	private int mClickCount = 0;
-	private int mWorldClickCount = 0;
+	// Sun light control (spherical coordinates, matching FrameworkSandbox)
+	private float mSunYaw = 0.5f;
+	private float mSunPitch = -1.0f;
 
-	public this() : base(.()
-		{
-			Title = "Scene UI - Fox Animation Demo",
-			Width = 1280,
-			Height = 720,
-			ClearColor = .(0.08f, 0.1f, 0.12f, 1.0f),
-			EnableDepth = true
-		})
+	public this(IShell shell, IDevice device, IBackend backend)
+		: base(shell, device, backend)
 	{
+		mCamera = new .();
+		mCamera.OrbitalYaw = 0.0f;
+		mCamera.OrbitalPitch = 0.3f;
+		mCamera.OrbitalDistance = 200.0f;
+		mCamera.OrbitalTarget = .(0, 50.0f, 0);
+		mCamera.MinDistance = 50.0f;
+		mCamera.MaxDistance = 500.0f;
+		mCamera.Update();
 	}
 
-	protected override bool OnInitialize()
+	protected override void OnInitialize(Context context)
 	{
-		// Initialize font service (needed for UI)
-		if (!InitializeFonts())
-			return false;
+		Console.WriteLine("=== Scene UI Sample (Framework) ===");
+		Console.WriteLine("Fox Animation Demo with Screen UI\n");
 
-		// Create logger
-		mLogger = new DebugLogger(.Information);
+		// Initialize render system first
+		InitializeRenderSystem();
 
-		// Initialize Framework.Core context
-		mContext = new Context(mLogger, 4);
+		// Initialize font service
+		InitializeFonts();
 
-		// Create and register RendererService
-		mRendererService = new RendererService();
-		mRendererService.SetFormats(SwapChain.Format, .Depth24PlusStencil8);
-		let shaderPath = GetAssetPath(SHADER_REL_PATH, .. scope .());
-		let uiShaderPath = GetAssetPath("Render/shaders", .. scope .());
-		if (mRendererService.Initialize(Device, scope StringView[](shaderPath, uiShaderPath)) case .Err)
+		// Register subsystems
+		RegisterSubsystems(context);
+	}
+
+	protected override void OnContextStarted()
+	{
+		// Initialize profiler
+		Profiler.Initialize();
+
+		// Create the main scene
+		CreateMainScene();
+
+		// Create scene objects
+		CreateSceneObjects();
+
+		// Create UI overlay
+		CreateUI();
+
+		Console.WriteLine("\n=== Initialization Complete ===");
+		Console.WriteLine("Controls:");
+		Console.WriteLine("  Tab: Toggle orbital/fly camera");
+		Console.WriteLine("  WASD/QE: Move camera");
+		Console.WriteLine("  Right-click + drag: Look around");
+		Console.WriteLine("  Arrow keys: Rotate sun light");
+		Console.WriteLine("  1-3: Switch animations");
+		Console.WriteLine("  P: Toggle profiler");
+		Console.WriteLine("  ESC: Exit\n");
+	}
+
+	private void InitializeRenderSystem()
+	{
+		mRenderSystem = new RenderSystem();
+		if (mRenderSystem.Initialize(mDevice, scope $"{AssetDirectory}/Render/Shaders", .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
 		{
-			Console.WriteLine("Failed to initialize RendererService");
-			return false;
+			Console.WriteLine("ERROR: Failed to initialize RenderSystem");
+			return;
 		}
-		mContext.RegisterService<RendererService>(mRendererService);
+		Console.WriteLine("RenderSystem initialized");
 
-		// Create and register InputService
-		mInputService = new InputService(Shell.InputManager);
-		mContext.RegisterService<InputService>(mInputService);
+		// Create render view
+		mRenderView = new RenderView();
+		mRenderView.Width = mSwapChain.Width;
+		mRenderView.Height = mSwapChain.Height;
+		mRenderView.FieldOfView = Math.PI_f / 4.0f;
+		mRenderView.NearPlane = 1.0f;
+		mRenderView.FarPlane = 1000.0f;
 
-		// Create and configure UIService
-		mUIService = new UIService();
-		ConfigureUIServices();  // Sets up font service, theme, clipboard on UIService
-		/*let (wu, wv) = mFontService.WhitePixelUV;
-		mUIService.SetAtlasTexture(mFontService.AtlasTextureView, .(wu, wv));*/
-		mContext.RegisterService<UIService>(mUIService);
+		// Register render features
+		RegisterRenderFeatures();
+	}
 
-		// Start context before creating scenes (enables automatic component creation)
-		mContext.Startup();
+	private void RegisterRenderFeatures()
+	{
+		// GPU Skinning (runs first to prepare skinned vertex buffers)
+		mSkinningFeature = new GPUSkinningFeature();
+		if (mRenderSystem.RegisterFeature(mSkinningFeature) case .Err)
+			Console.WriteLine("Warning: Failed to register GPUSkinningFeature");
+		else
+			Console.WriteLine("Registered: GPUSkinningFeature");
 
-		// Create scene - components added automatically by services
-		mScene = mContext.SceneManager.CreateScene("SceneUI");
-		mRenderSceneComponent = mScene.GetSceneComponent<RenderSceneComponent>();
-		mUIScene = mScene.GetSceneComponent<UISceneComponent>();
-		mUIScene.SetViewportSize(SwapChain.Width, SwapChain.Height);
-		mContext.SceneManager.SetActiveScene(mScene);
+		// Depth prepass
+		mDepthFeature = new DepthPrepassFeature();
+		mRenderSystem.RegisterFeature(mDepthFeature);
 
-		// Register additional UI services on the scene's UIContext
-		ConfigureSceneUIServices();
+		// Forward opaque
+		mForwardFeature = new ForwardOpaqueFeature();
+		mRenderSystem.RegisterFeature(mForwardFeature);
 
-		// Load Fox model
-		if (!LoadFoxModel())
-		{
-			Console.WriteLine("Failed to load Fox model");
-			return false;
-		}
+		// Forward transparent
+		mTransparentFeature = new ForwardTransparentFeature();
+		if (mRenderSystem.RegisterFeature(mTransparentFeature) case .Ok)
+			Console.WriteLine("Registered: ForwardTransparentFeature");
+		
+		// Particles
+		mParticleFeature = new ParticleFeature();
+		if (mRenderSystem.RegisterFeature(mParticleFeature) case .Ok)
+			Console.WriteLine("Registered: ParticleFeature");
 
-		// Create materials
-		CreateMaterials();
+		// Sprites
+		mSpriteFeature = new SpriteFeature();
+		if (mRenderSystem.RegisterFeature(mSpriteFeature) case .Ok)
+			Console.WriteLine("Registered: SpriteFeature");
 
-		// Create entities
-		CreateEntities();
+		// Sky
+		mSkyFeature = new SkyFeature();
+		mRenderSystem.RegisterFeature(mSkyFeature);
 
-		// Build UI
-		BuildUI();
+		// Create gradient sky
+		let topColor = Color(70, 130, 200, 255);
+		let horizonColor = Color(180, 210, 240, 255);
+		mSkyFeature.CreateGradientSky(topColor, horizonColor, 32);
 
-		Console.WriteLine("Scene UI sample initialized with Fox model.");
-		return true;
+		// Debug rendering
+		mDebugFeature = new DebugRenderFeature();
+		mRenderSystem.RegisterFeature(mDebugFeature);
+
+		// Final output
+		mFinalOutputFeature = new FinalOutputFeature();
+		mRenderSystem.RegisterFeature(mFinalOutputFeature);
+
+		Console.WriteLine("Render features registered");
 	}
 
 	private bool InitializeFonts()
 	{
+		Console.WriteLine("Initializing fonts...");
+
 		mFontService = new FontService();
 
 		String fontPath = scope .();
@@ -200,661 +254,669 @@ class SceneUISample : RHISampleApp
 
 		if (mFontService.LoadFont("Roboto", fontPath, options) case .Err)
 		{
-			Console.WriteLine(scope $"Failed to load font: {fontPath}");
+			Console.WriteLine($"Failed to load font: {fontPath}");
 			return false;
 		}
 
+		Console.WriteLine("Font loaded successfully");
 		return true;
 	}
 
-	private void ConfigureUIServices()
+	private void RegisterSubsystems(Context context)
 	{
-		// Configure UIService (before scene creation)
-		// These services will be automatically registered on UISceneComponent.UIContext
+		Console.WriteLine("\nRegistering subsystems...");
 
-		// Register clipboard
-		mClipboard = new ShellClipboardAdapter(Shell.Clipboard);
-		mUIService.SetClipboard(mClipboard);
+		// Scene subsystem
+		mSceneSubsystem = new SceneSubsystem();
+		context.RegisterSubsystem(mSceneSubsystem);
+		Console.WriteLine("  - SceneSubsystem");
 
-		// Register font service
-		mUIService.SetFontService(mFontService);
+		// Animation subsystem
+		let animSubsystem = new AnimationSubsystem();
+		context.RegisterSubsystem(animSubsystem);
+		Console.WriteLine("  - AnimationSubsystem");
 
-		// Register theme
-		mUIService.SetTheme(new DarkTheme());
+		// Render subsystem
+		mRenderSubsystem = new RenderSubsystem(mRenderSystem, takeOwnership: false);
+		context.RegisterSubsystem(mRenderSubsystem);
+		Console.WriteLine("  - RenderSubsystem");
+
+		// Input subsystem
+		let inputSubsystem = new InputSubsystem();
+		inputSubsystem.SetInputManager(mShell.InputManager);
+		context.RegisterSubsystem(inputSubsystem);
+		Console.WriteLine("  - InputSubsystem");
+
+		// UI subsystem
+		mUISubsystem = new UISubsystem(mFontService);
+		context.RegisterSubsystem(mUISubsystem);
+		if (mUISubsystem.InitializeRendering(mDevice, .BGRA8UnormSrgb, 2, mShell, mRenderSystem) case .Ok)
+			Console.WriteLine("  - UISubsystem");
+		else
+			Console.WriteLine("  - UISubsystem (render init FAILED)");
 	}
 
-	private void ConfigureSceneUIServices()
+	private void CreateMainScene()
 	{
-		// Register additional services directly on UIContext (after scene creation)
-		let uiContext = mUIScene.UIContext;
+		Console.WriteLine("\nCreating main scene...");
 
-		// Register tooltip service
-		mTooltipService = new TooltipService();
-		uiContext.RegisterService<ITooltipService>(mTooltipService);
+		mScene = mSceneSubsystem.CreateScene("MainScene");
+		mSceneSubsystem.SetActiveScene(mScene);
+
+		Console.WriteLine("Scene created with modules");
 	}
 
-	private bool LoadFoxModel()
+	private void CreateSceneObjects()
 	{
-		let cachePath = GetAssetPath(CACHE_REL_PATH, .. scope .());
-		let gltfPath = GetAssetPath(GLTF_REL_PATH, .. scope .());
-		let gltfBasePath = GetAssetPath(GLTF_BASE_REL_PATH, .. scope .());
-		let cacheDir = GetAssetPath(CACHE_REL_DIR, .. scope .());
+		Console.WriteLine("\nCreating scene objects...");
 
-		// Try to load from cache first
-		if (File.Exists(cachePath))
+		let renderModule = mScene.GetModule<RenderSceneModule>();
+		let animModule = mScene.GetModule<AnimationSceneModule>();
+		if (renderModule == null)
 		{
-			if (ResourceSerializer.LoadSkinnedMeshBundle(cachePath) case .Ok(let resource))
-			{
-				mFoxResource = resource;
-				Console.WriteLine($"Fox loaded from cache: {mFoxResource.Mesh.VertexCount} vertices, {mFoxResource.AnimationCount} animations");
-				return true;
-			}
+			Console.WriteLine("ERROR: RenderSceneModule not found");
+			return;
 		}
-
-		// Import from GLTF
-		let foxModel = new Model();
-		defer delete foxModel;
-
-		let loader = scope GltfLoader();
-		if (loader.Load(gltfPath, foxModel) != .Ok)
-		{
-			Console.WriteLine("Failed to load Fox GLTF");
-			return false;
-		}
-
-		let importOptions = new ModelImportOptions();
-		importOptions.Flags = .SkinnedMeshes | .Skeletons | .Animations | .Textures | .Materials;
-		importOptions.BasePath.Set(gltfBasePath);
-
-		let imageLoader = scope SDLImageLoader();
-		let importer = scope ModelImporter(importOptions, imageLoader);
-		let importResult = importer.Import(foxModel);
-		defer delete importResult;
-
-		if (!importResult.Success || importResult.SkinnedMeshes.Count == 0)
-		{
-			Console.WriteLine("Failed to import Fox model");
-			return false;
-		}
-
-		// Save to cache
-		if (!Directory.Exists(cacheDir))
-			Directory.CreateDirectory(cacheDir);
-		ResourceSerializer.SaveImportResult(importResult, cacheDir);
-
-		mFoxResource = importResult.TakeSkinnedMesh(0);
-		if (importResult.Materials.Count > 0)
-		{
-			mFoxMaterialResource = importResult.Materials[0];
-			importResult.Materials.RemoveAt(0);
-		}
-
-		Console.WriteLine($"Fox imported: {mFoxResource.Mesh.VertexCount} vertices, {mFoxResource.AnimationCount} animations");
-		return true;
-	}
-
-	private void CreateMaterials()
-	{
-		let materialSystem = mRendererService.MaterialSystem;
-		if (materialSystem == null) return;
-
-		// Create PBR material template
-		let pbrMaterial = Material.CreatePBR("PBRMaterial");
-		mPBRMaterial = materialSystem.RegisterMaterial(pbrMaterial);
-
-		// Create fox material instance
-		mFoxMaterial = materialSystem.CreateInstance(mPBRMaterial);
-		if (mFoxMaterial.IsValid)
-		{
-			let inst = materialSystem.GetInstance(mFoxMaterial);
-			if (inst != null)
-			{
-				if (mFoxMaterialResource != null)
-				{
-					inst.SetFloat4("baseColor", mFoxMaterialResource.BaseColor);
-					inst.SetFloat("metallic", mFoxMaterialResource.Metallic);
-					inst.SetFloat("roughness", mFoxMaterialResource.Roughness);
-					inst.SetFloat("ao", mFoxMaterialResource.AO);
-					inst.SetFloat4("emissive", mFoxMaterialResource.Emissive);
-
-					// Load texture
-					if (mFoxMaterialResource.HasTexture("albedoMap"))
-					{
-						let textureName = mFoxMaterialResource.GetTexture("albedoMap");
-						let cachedTexturePath = GetAssetPath(scope $"{CACHE_REL_DIR}/{textureName}.texture", .. scope .());
-						let originalTexturePath = GetAssetPath(scope $"{GLTF_BASE_REL_PATH}/{textureName}", .. scope .());
-
-						if (File.Exists(cachedTexturePath))
-						{
-							if (ResourceSerializer.LoadTexture(cachedTexturePath) case .Ok(let texResource))
-							{
-								let img = texResource.Image;
-								mFoxTexture = mRendererService.ResourceManager.CreateTextureFromData(
-									img.Width, img.Height, .RGBA8Unorm, img.Data);
-								delete texResource;
-								if (mFoxTexture.IsValid)
-									inst.SetTexture("albedoMap", mFoxTexture);
-							}
-						}
-						else
-						{
-							let imageLoader = scope SDLImageLoader();
-							if (imageLoader.LoadFromFile(originalTexturePath) case .Ok(var loadInfo))
-							{
-								defer loadInfo.Dispose();
-								mFoxTexture = mRendererService.ResourceManager.CreateTextureFromData(
-									loadInfo.Width, loadInfo.Height, .RGBA8Unorm, .(loadInfo.Data.Ptr, loadInfo.Data.Count));
-								if (mFoxTexture.IsValid)
-									inst.SetTexture("albedoMap", mFoxTexture);
-							}
-						}
-					}
-				}
-				else
-				{
-					// Default values
-					inst.SetFloat4("baseColor", .(1.0f, 1.0f, 1.0f, 1.0f));
-					inst.SetFloat("metallic", 0.0f);
-					inst.SetFloat("roughness", 0.6f);
-					inst.SetFloat("ao", 1.0f);
-					inst.SetFloat4("emissive", .(0, 0, 0, 1));
-
-					// Load texture from original path
-					let originalTexturePath = GetAssetPath(TEXTURE_REL_PATH, .. scope .());
-					let imageLoader = scope SDLImageLoader();
-					if (imageLoader.LoadFromFile(originalTexturePath) case .Ok(var loadInfo))
-					{
-						defer loadInfo.Dispose();
-						mFoxTexture = mRendererService.ResourceManager.CreateTextureFromData(
-							loadInfo.Width, loadInfo.Height, .RGBA8Unorm, .(loadInfo.Data.Ptr, loadInfo.Data.Count));
-						if (mFoxTexture.IsValid)
-							inst.SetTexture("albedoMap", mFoxTexture);
-					}
-				}
-				materialSystem.UploadInstance(mFoxMaterial);
-			}
-		}
-
-		// Create ground material
-		mGroundMaterial = materialSystem.CreateInstance(mPBRMaterial);
-		if (mGroundMaterial.IsValid)
-		{
-			let inst = materialSystem.GetInstance(mGroundMaterial);
-			if (inst != null)
-			{
-				inst.SetFloat4("baseColor", .(0.3f, 0.3f, 0.3f, 1.0f));
-				inst.SetFloat("metallic", 0.0f);
-				inst.SetFloat("roughness", 0.9f);
-				inst.SetFloat("ao", 1.0f);
-				inst.SetFloat4("emissive", .(0, 0, 0, 1));
-				materialSystem.UploadInstance(mGroundMaterial);
-			}
-		}
-	}
-
-	private void CreateEntities()
-	{
-		// Create cube mesh for ground
-		let cubeMesh = StaticMesh.CreateCube(1.0f);
-		defer delete cubeMesh;
 
 		// Create ground plane
-		{
-			let groundEntity = mScene.CreateEntity("Ground");
-			groundEntity.Transform.SetPosition(.(0, -1.5f, 0));
-			groundEntity.Transform.SetScale(.(30.0f, 0.2f, 30.0f));
+		CreateGroundPlane(renderModule);
 
-			let staticMeshComponent = new StaticMeshComponent();
-			groundEntity.AddComponent(staticMeshComponent);
-			staticMeshComponent.SetMesh(cubeMesh);
-			staticMeshComponent.SetMaterialInstance(0, mGroundMaterial);
-		}
-
-		// Create directional light
-		{
-			let sunLight = mScene.CreateEntity("SunLight");
-			sunLight.Transform.LookAt(Vector3.Normalize(.(0.5f, -0.7f, 0.3f)));
-
-			let lightComp = LightComponent.CreateDirectional(.(1.0f, 0.98f, 0.9f), 2.0f, true);
-			sunLight.AddComponent(lightComp);
-		}
+		// Load and create fox
+		LoadFoxModel(renderModule, animModule);
 
 		// Create camera
-		{
-			mCameraEntity = mScene.CreateEntity("MainCamera");
-			mCameraEntity.Transform.SetPosition(.(0, 3, 8));
-			UpdateCameraDirection();
+		CreateCamera(renderModule);
 
-			let cameraComp = new CameraComponent(Math.PI_f / 4.0f, 0.1f, 500.0f, true);
-			cameraComp.UseReverseZ = false;
-			cameraComp.SetViewport(SwapChain.Width, SwapChain.Height);
-			mCameraEntity.AddComponent(cameraComp);
+		// Create sun light
+		CreateSunLight(renderModule);
+
+		Console.WriteLine("Scene objects created");
+	}
+
+	private void CreateGroundPlane(RenderSceneModule renderModule)
+	{
+		// Create ground mesh
+		let planeMesh = StaticMesh.CreatePlane(500.0f, 500.0f, 10, 10);
+		mPlaneResource = new StaticMeshResource(planeMesh, true);
+
+		// Get default material
+		let defaultMaterial = mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
+
+		// Create ground material
+		if (let baseMaterial = mRenderSystem.MaterialSystem?.DefaultMaterial)
+		{
+			mGroundMaterialInstance = new MaterialInstance(baseMaterial);
+			mGroundMaterialInstance.SetColor("BaseColor", .(0.3f, 0.5f, 0.3f, 1.0f));
+			mGroundMaterialInstance.SetFloat("Metallic", 0.0f);
+			mGroundMaterialInstance.SetFloat("Roughness", 0.8f);
 		}
 
-		// Create fox entity
-		if (mFoxResource != null)
+		// Create entity
+		mGroundEntity = mScene.CreateEntity();
+
+		// Set mesh component - framework handles proxy creation and GPU upload
+		mScene.SetComponent<MeshRendererComponent>(mGroundEntity, .Default);
+		var comp = mScene.GetComponent<MeshRendererComponent>(mGroundEntity);
+		comp.Mesh = ResourceHandle<StaticMeshResource>(mPlaneResource);
+		comp.Material = mGroundMaterialInstance ?? defaultMaterial;
+
+		Console.WriteLine("  Created ground plane");
+	}
+
+	private void LoadFoxModel(RenderSceneModule renderModule, AnimationSceneModule animModule)
+	{
+		// Always load from GLTF to get all resources including materials
+		Console.WriteLine("Loading Fox model from GLTF...");
+
+		String gltfPath = scope .();
+		GetAssetPath(GLTF_REL_PATH, gltfPath);
+
+		String basePath = scope .();
+		GetAssetPath(GLTF_BASE_REL_PATH, basePath);
+
+		let model = new Model();
+		let loader = scope GltfLoader();
+		if (loader.Load(gltfPath, model) == .Ok)
 		{
-			mFoxEntity = mScene.CreateEntity("Fox");
-			mFoxEntity.Transform.SetPosition(.(0, -1.4f, 0));
-			mFoxEntity.Transform.SetScale(Vector3(0.04f));
-			mFoxEntity.Transform.SetRotation(Quaternion.CreateFromYawPitchRoll(Math.PI_f, 0, 0));
+			defer delete model;
 
-			mFoxMeshComponent = new SkinnedMeshComponent();
-			mFoxEntity.AddComponent(mFoxMeshComponent);
+			let imageLoader = scope SDLImageLoader();
+			let importOptions = new ModelImportOptions();
+			importOptions.BasePath.Set(basePath);
+			importOptions.Flags = .SkinnedMeshes | .Animations | .Materials | .Textures;
 
-			if (mFoxResource.Skeleton != null)
-				mFoxMeshComponent.SetSkeleton(mFoxResource.Skeleton, false);
+			let importer = scope ModelImporter(importOptions, imageLoader);
+			let result = importer.Import(model);
+			defer delete result;
 
-			for (let clip in mFoxResource.Animations)
-				mFoxMeshComponent.AddAnimationClip(clip);
-
-			mFoxMeshComponent.SetMesh(mFoxResource.Mesh);
-			mFoxMeshComponent.SetMaterial(mFoxMaterial);
-
-			// Start with first animation
-			if (mFoxMeshComponent.AnimationClips.Count > 0)
-				mFoxMeshComponent.PlayAnimation(0, true);
-		}
-
-		// Create world-space UI entity with sprite for display
-		{
-			mWorldUIEntity = mScene.CreateEntity("WorldUI");
-			mWorldUIEntity.Transform.SetPosition(.(3.0f, 1.0f, 0));
-
-			mWorldUIComponent = new UIComponent(256, 128);
-			mWorldUIComponent.WorldSize = .(2.0f, 1.0f);
-			mWorldUIComponent.Orientation = .Billboard;
-			mWorldUIEntity.AddComponent(mWorldUIComponent);
-
-			// Initialize world UI rendering
-			if (mWorldUIComponent.InitializeRendering(Device, SwapChain.Format, MAX_FRAMES_IN_FLIGHT, mRendererService.ShaderLibrary) case .Err)
+			if (result.SkinnedMeshes.Count > 0)
 			{
-				Console.WriteLine("Failed to initialize world UI rendering");
+				mFoxResource = result.SkinnedMeshes[0];
+				result.SkinnedMeshes.RemoveAt(0); // Take ownership
+
+				Console.WriteLine($"  Imported: {mFoxResource.Mesh.VertexCount} vertices, {mFoxResource.Skeleton?.BoneCount ?? 0} bones, {mFoxResource.Animations?.Count ?? 0} animations");
+			}
+
+			// Get material resource if available
+			if (result.NewMaterials.Count > 0)
+			{
+				mFoxMaterialResource = result.NewMaterials[0];
+				result.NewMaterials.RemoveAt(0);
+				Console.WriteLine($"  Imported material: {mFoxMaterialResource.Name}");
+			}
+		}
+		else
+		{
+			Console.WriteLine("ERROR: Failed to load Fox GLTF");
+			return;
+		}
+
+		if (mFoxResource == null)
+			return;
+
+		// Get default material as fallback
+		let material = mFoxMaterialResource?.Material ?? mRenderSystem.MaterialSystem?.DefaultMaterial;
+
+		// Create fox material instance
+		// If we have imported material, use its properties; otherwise use defaults
+		if (let foxMaterial = material)
+		{
+			mFoxMaterialInstance = new MaterialInstance(foxMaterial);
+
+			// Copy material properties from imported material if available
+			/*if (mFoxMaterialResource?.Material != null)
+			{
+				let importedMat = mFoxMaterialResource.Material;
+
+				// Try to get BaseColor from imported material's uniform data
+				// The imported material stores values in its DefaultUniformData
+				// For now, set reasonable defaults for a textured model
+				mFoxMaterialInstance.SetColor("BaseColor", .(1.0f, 1.0f, 1.0f, 1.0f)); // White to not tint texture
+				mFoxMaterialInstance.SetFloat("Metallic", 0.0f);
+				mFoxMaterialInstance.SetFloat("Roughness", 0.5f);
 			}
 			else
 			{
-				// Register shared font service and theme for world UI context
-				let worldUIContext = mWorldUIComponent.UIContext;
-				worldUIContext.RegisterService<IFontService>(mFontService);
-				let worldTheme = new DarkTheme();
-				worldUIContext.RegisterService<ITheme>(worldTheme);
+				// Fallback to orange fox color
+				mFoxMaterialInstance.SetColor("BaseColor", .(1.0f, 0.6f, 0.2f, 1.0f));
+				mFoxMaterialInstance.SetFloat("Metallic", 0.0f);
+				mFoxMaterialInstance.SetFloat("Roughness", 0.7f);
+			}*/
+		}
 
-				// Build world-space UI
-				BuildWorldUI();
+		// Load textures from imported material
+		if (mFoxMaterialResource != null)
+		{
+			// Try to load albedo/base color texture
+			LoadAndSetTexture("AlbedoMap", basePath);
+			LoadAndSetTexture("BaseColorMap", basePath);
+		}
 
-				// Create sprite to display the UI texture in 3D
-				mWorldUISprite = new SpriteComponent(mWorldUIComponent.WorldSize);
-				mWorldUISprite.Texture = mWorldUIComponent.RenderTextureView;
-				mWorldUIEntity.AddComponent(mWorldUISprite);
+		// Create entity
+		mFoxEntity = mScene.CreateEntity();
+
+		// Set skinned mesh component - framework handles proxy creation and GPU upload
+		mScene.SetComponent<SkinnedMeshRendererComponent>(mFoxEntity, .Default);
+		var comp = mScene.GetComponent<SkinnedMeshRendererComponent>(mFoxEntity);
+		comp.Mesh = ResourceHandle<SkinnedMeshResource>(mFoxResource);
+		comp.Material = mFoxMaterialInstance ?? mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
+
+		// Setup animation
+		if (animModule != null && mFoxResource.Skeleton != null)
+		{
+			let player = animModule.SetupAnimation(mFoxEntity, mFoxResource.Skeleton);
+			if (player != null && mFoxResource.Animations != null && mFoxResource.Animations.Count > 0)
+			{
+				// Play first animation
+				animModule.Play(mFoxEntity, mFoxResource.Animations[0], true);
+				Console.WriteLine("  Playing animation 0");
 			}
 		}
+
+		Console.WriteLine("  Created Fox entity");
 	}
 
-	private void BuildUI()
+	private void LoadAndSetTexture(StringView slotName, StringView basePath)
 	{
-		// Create root layout - DockPanel with side panel
-		mSceneUIRoot = new DockPanel();
-		mSceneUIRoot.Background = Color.Transparent;
+		if (mFoxMaterialResource == null || mFoxMaterialInstance == null)
+			return;
 
-		// === Right Side Panel (Controls) ===
-		let sidePanel = new Border();
-		sidePanel.Background = Color(25, 28, 32, 230);
-		sidePanel.Width = 280;
-		sidePanel.Padding = Thickness(15, 10, 15, 10);
-		mSceneUIRoot.SetDock(sidePanel, .Right);
+		let texPath = mFoxMaterialResource.GetTexturePath(slotName);
+		if (texPath.IsEmpty)
+			return;
 
-		let sidePanelContent = new StackPanel();
-		sidePanelContent.Orientation = .Vertical;
-		sidePanelContent.Spacing = 15;
-		sidePanel.Child = sidePanelContent;
+		String fullTexPath = scope .();
+		fullTexPath.Append(basePath);
+		fullTexPath.Append("/");
+		fullTexPath.Append(texPath);
 
-		// Header
+		let imageLoader = scope SDLImageLoader();
+		if (imageLoader.LoadFromFile(fullTexPath) case .Ok(let loadInfo))
 		{
-			let header = new StackPanel();
-			header.Orientation = .Horizontal;
-			header.Spacing = 10;
+			defer { var li = loadInfo; li.Dispose(); }
 
-			let title = new TextBlock();
-			title.Text = "Fox Animation";
-			title.Foreground = Color(220, 225, 230);
-			header.AddChild(title);
+			// Convert to texture data
+			let format = ConvertPixelFormat(loadInfo.Format);
+			let texData = TextureData.Create2D(loadInfo.Data.Ptr, (uint64)loadInfo.Data.Count, loadInfo.Width, loadInfo.Height, format);
 
-			mFpsLabel = new TextBlock();
-			mFpsLabel.Text = "FPS: --";
-			mFpsLabel.Foreground = Color(150, 200, 150);
-			mFpsLabel.HorizontalAlignment = .Right;
-			header.AddChild(mFpsLabel);
-
-			sidePanelContent.AddChild(header);
-		}
-
-		// Current animation label
-		{
-			mAnimationLabel = new TextBlock();
-			mAnimationLabel.Text = "Animation: ---";
-			mAnimationLabel.Foreground = Color(180, 185, 190);
-			sidePanelContent.AddChild(mAnimationLabel);
-		}
-
-		// Animation buttons section
-		{
-			let sectionLabel = new TextBlock();
-			sectionLabel.Text = "Animations:";
-			sectionLabel.Foreground = Color(100, 180, 255);
-			sidePanelContent.AddChild(sectionLabel);
-
-			mAnimationButtonPanel = new StackPanel();
-			mAnimationButtonPanel.Orientation = .Vertical;
-			mAnimationButtonPanel.Spacing = 5;
-			mAnimationButtonPanel.Margin = Thickness(10, 0, 0, 0);
-			sidePanelContent.AddChild(mAnimationButtonPanel);
-
-			// Create buttons for each animation
-			if (mFoxMeshComponent != null)
+			if (mRenderSystem.ResourceManager.UploadTexture(texData) case .Ok(let texHandle))
 			{
-				for (int i = 0; i < mFoxMeshComponent.AnimationClips.Count; i++)
+				mFoxTextureHandle = texHandle;
+				let view = mRenderSystem.ResourceManager.GetTextureView(texHandle);
+				if (view != null)
 				{
-					let clip = mFoxMeshComponent.AnimationClips[i];
-					let animIndex = (int32)i;
-
-					let btn = new Button();
-					btn.ContentText = clip.Name;
-					btn.Padding = Thickness(10, 6, 10, 6);
-					btn.HorizontalAlignment = .Stretch;
-					btn.Click.Subscribe(new [=](sender) => {
-						PlayAnimation(animIndex);
-					});
-					mAnimationButtonPanel.AddChild(btn);
+					mFoxMaterialInstance.SetTexture("AlbedoMap", view);
+					Console.WriteLine($"  Loaded texture '{slotName}': {texPath}");
 				}
 			}
 		}
+	}
 
-		// Playback controls
+	private static TextureFormat ConvertPixelFormat(Sedulous.Imaging.Image.PixelFormat format)
+	{
+		switch (format)
 		{
-			let controlsLabel = new TextBlock();
-			controlsLabel.Text = "Playback:";
-			controlsLabel.Foreground = Color(100, 180, 255);
-			controlsLabel.Margin = Thickness(0, 10, 0, 0);
-			sidePanelContent.AddChild(controlsLabel);
+		case .R8:       return .R8Unorm;
+		case .RG8:      return .RG8Unorm;
+		case .RGB8:     return .RGBA8Unorm;
+		case .RGBA8:    return .RGBA8Unorm;
+		case .BGR8:     return .BGRA8Unorm;
+		case .BGRA8:    return .BGRA8Unorm;
+		case .R16F:     return .R16Float;
+		case .RG16F:    return .RG16Float;
+		case .RGB16F:   return .RGBA16Float;
+		case .RGBA16F:  return .RGBA16Float;
+		case .R32F:     return .R32Float;
+		case .RG32F:    return .RG32Float;
+		case .RGB32F:   return .RGBA32Float;
+		case .RGBA32F:  return .RGBA32Float;
+		default:        return .RGBA8Unorm;
+		}
+	}
 
-			let controlsRow = new StackPanel();
-			controlsRow.Orientation = .Horizontal;
-			controlsRow.Spacing = 5;
-			controlsRow.Margin = Thickness(10, 0, 0, 0);
+	private void CreateCamera(RenderSceneModule renderModule)
+	{
+		mCameraEntity = mScene.CreateEntity();
 
-			let pauseBtn = new Button();
-			pauseBtn.ContentText = "Pause";
-			pauseBtn.Padding = Thickness(10, 6, 10, 6);
-			pauseBtn.Click.Subscribe(new (sender) => {
-				mFoxMeshComponent?.PauseAnimation();
-				mStatusLabel.Text = "Animation paused";
+		let aspectRatio = (float)mSwapChain.Width / mSwapChain.Height;
+		renderModule.CreatePerspectiveCamera(mCameraEntity, Math.PI_f / 4.0f, aspectRatio, 1.0f, 1000.0f);
+		renderModule.SetMainCamera(mCameraEntity);
+
+		// Update camera position
+		var transform = mScene.GetTransform(mCameraEntity);
+		transform.Position = mCamera.Position;
+		mScene.SetTransform(mCameraEntity, transform);
+
+		Console.WriteLine("  Created camera entity");
+	}
+
+	private void CreateSunLight(RenderSceneModule renderModule)
+	{
+		mSunEntity = mScene.CreateEntity();
+
+		// Direction computed from mSunYaw/mSunPitch (same as FrameworkSandbox)
+		let sunHandle = renderModule.CreateDirectionalLight(mSunEntity, .(1.0f, 0.98f, 0.95f), 2.0f);
+		if (sunHandle.IsValid)
+			UpdateSunLight();
+
+		// Enable shadow casting on the sun
+		if (let proxy = renderModule.GetLightProxy(mSunEntity))
+			proxy.CastsShadows = true;
+
+		Console.WriteLine("  Created sun light entity");
+	}
+
+	private void UpdateSunLight()
+	{
+		// Update entity transform rotation so RenderSceneModule syncs the direction
+		var transform = mScene.GetTransform(mSunEntity);
+		transform.Rotation = Quaternion.CreateFromYawPitchRoll(mSunYaw, -mSunPitch, 0);
+		mScene.SetTransform(mSunEntity, transform);
+
+		// Update procedural sky sun direction (opposite of light travel direction)
+		if (mSkyFeature != null)
+		{
+			float x = Math.Cos(mSunPitch) * Math.Sin(mSunYaw);
+			float y = Math.Sin(mSunPitch);
+			float z = Math.Cos(mSunPitch) * Math.Cos(mSunYaw);
+			mSkyFeature.SkyParams.SunDirection = Vector3.Normalize(.(-x, -y, -z));
+		}
+	}
+
+	private void DrawDebugGizmos()
+	{
+		if (mDebugFeature == null)
+			return;
+
+		// Draw directional light direction
+		let renderModule = mScene?.GetModule<RenderSceneModule>();
+		if (renderModule != null)
+		{
+			if (let light = renderModule.GetLightProxy(mSunEntity))
+			{
+				Vector3 sunOrigin = .(0, 80, 0);
+				Vector3 sunEnd = sunOrigin + light.Direction * 30.0f;
+				mDebugFeature.AddArrow(sunOrigin, sunEnd, Color.Yellow, 2.0f, .Overlay);
+				mDebugFeature.AddSphere(sunOrigin, 2.0f, Color.Yellow, 8, .Overlay);
+			}
+		}
+
+		// Draw HUD text
+		let white = Color(255, 255, 255, 255);
+		mDebugFeature.AddText2D("Arrow keys: Rotate sun light", 15, mSwapChain.Height - 30, white, 1.0f);
+	}
+
+	private void CreateUI()
+	{
+		Console.WriteLine("\nCreating UI...");
+
+		// Create main canvas
+		mUIRoot = new Canvas();
+		mUIRoot.Background = null;
+
+		// Create info panel in top-left
+		let infoPanel = new StackPanel();
+		infoPanel.Orientation = .Vertical;
+		infoPanel.Margin = .(10, 10, 0, 0);
+		infoPanel.HorizontalAlignment = .Left;
+		infoPanel.VerticalAlignment = .Top;
+
+		// Title
+		let titleLabel = new TextBlock("Fox Animation Demo");
+		titleLabel.Foreground = .(1, 1, 1, 1);
+		titleLabel.Margin = .(0, 0, 0, 5);
+		infoPanel.AddChild(titleLabel);
+
+		// FPS label
+		mFpsLabel = new TextBlock("FPS: --");
+		mFpsLabel.Foreground = .(1, 1, 0, 1);
+		infoPanel.AddChild(mFpsLabel);
+
+		// Status label
+		mStatusLabel = new TextBlock("Status: Ready");
+		mStatusLabel.Foreground = .(0.8f, 0.8f, 0.8f, 1);
+		infoPanel.AddChild(mStatusLabel);
+
+		// Animation label
+		mAnimationLabel = new TextBlock("Animation: 0");
+		mAnimationLabel.Foreground = .(0.5f, 1, 0.5f, 1);
+		mAnimationLabel.Margin = .(0, 10, 0, 0);
+		infoPanel.AddChild(mAnimationLabel);
+
+		// Animation buttons (based on actual animation count)
+		mAnimationButtonPanel = new StackPanel();
+		mAnimationButtonPanel.Orientation = .Horizontal;
+		mAnimationButtonPanel.Margin = .(0, 5, 0, 0);
+
+		let animCount = mFoxResource?.Animations?.Count ?? 0;
+		for (int i = 0; i < animCount; i++)
+		{
+			let btn = new Button(scope $"Anim {i}");
+			btn.Margin = .(0, 0, 5, 0);
+			btn.Padding = .(8, 4, 8, 4);
+
+			let animIndex = i;
+			btn.Click.Subscribe(new [=](b) => {
+				PlayAnimation(animIndex);
 			});
-			controlsRow.AddChild(pauseBtn);
 
-			let resumeBtn = new Button();
-			resumeBtn.ContentText = "Resume";
-			resumeBtn.Padding = Thickness(10, 6, 10, 6);
-			resumeBtn.Click.Subscribe(new (sender) => {
-				mFoxMeshComponent?.ResumeAnimation();
-				mStatusLabel.Text = "Animation resumed";
-			});
-			controlsRow.AddChild(resumeBtn);
-
-			sidePanelContent.AddChild(controlsRow);
+			mAnimationButtonPanel.AddChild(btn);
 		}
+		infoPanel.AddChild(mAnimationButtonPanel);
 
-		// Status bar at bottom of side panel
-		{
-			mStatusLabel = new TextBlock();
-			mStatusLabel.Text = "Click animation buttons to switch";
-			mStatusLabel.Foreground = Color(140, 145, 150);
-			mStatusLabel.Margin = Thickness(0, 15, 0, 0);
-			sidePanelContent.AddChild(mStatusLabel);
-		}
+		mUIRoot.AddChild(infoPanel);
 
-		// Instructions
-		{
-			let instructions = new TextBlock();
-			instructions.Text = "Controls:\nWASD - Move camera\nQ/E - Up/Down\nTab - Capture mouse\nMouse - Look around";
-			instructions.Foreground = Color(100, 105, 110);
-			instructions.Margin = Thickness(0, 10, 0, 0);
-			sidePanelContent.AddChild(instructions);
-		}
+		// Set UI root
+		mUISubsystem.UIContext.RootElement = mUIRoot;
 
-		mSceneUIRoot.AddChild(sidePanel);
-
-		// Set root element via UISceneComponent
-		mUIScene.RootElement = mSceneUIRoot;
+		Console.WriteLine("UI created");
 	}
 
-	private void BuildWorldUI()
+	private void PlayAnimation(int index)
 	{
-		mWorldUIRoot = new Border();
-		mWorldUIRoot.Background = Color(40, 45, 55, 220);
-		mWorldUIRoot.Padding = Thickness(10);
-		mWorldUIRoot.CornerRadius = 8;
-
-		let content = new StackPanel();
-		content.Orientation = .Vertical;
-		content.Spacing = 8;
-		content.HorizontalAlignment = .Center;
-		mWorldUIRoot.Child = content;
-
-		let label = new TextBlock();
-		label.Text = "World UI";
-		label.Foreground = Color(200, 205, 210);
-		label.HorizontalAlignment = .Center;
-		content.AddChild(label);
-
-		let clickLabel = new TextBlock();
-		clickLabel.Text = "Clicks: 0";
-		clickLabel.Foreground = Color(150, 200, 150);
-		clickLabel.HorizontalAlignment = .Center;
-		content.AddChild(clickLabel);
-
-		let btn = new Button();
-		btn.ContentText = "Click Me!";
-		btn.Padding = Thickness(15, 8, 15, 8);
-		btn.HorizontalAlignment = .Center;
-		btn.Click.Subscribe(new [=](sender) => {
-			mWorldClickCount++;
-			clickLabel.Text = scope:: $"Clicks: {mWorldClickCount}";
-		});
-		content.AddChild(btn);
-
-		mWorldUIComponent.RootElement = mWorldUIRoot;
-	}
-
-	private void PlayAnimation(int32 index)
-	{
-		if (mFoxMeshComponent == null) return;
-
-		mFoxMeshComponent.PlayAnimation(index, true);
-
-		let clip = mFoxMeshComponent.GetAnimationClip(index);
-		if (clip != null)
+		let animModule = mScene?.GetModule<AnimationSceneModule>();
+		if (animModule != null && mFoxEntity.IsValid && mFoxResource?.Animations != null)
 		{
-			mAnimationLabel.Text = scope:: $"Animation: {clip.Name}";
-			mStatusLabel.Text = scope:: $"Playing: {clip.Name}";
+			let animCount = mFoxResource.Animations.Count;
+			if (index >= 0 && index < animCount)
+			{
+				animModule.Play(mFoxEntity, mFoxResource.Animations[index], true);
+				mCurrentAnimIndex = index;
+				mAnimationLabel.Text = scope $"Animation: {index}";
+			}
 		}
-	}
-
-	protected override void OnResize(uint32 width, uint32 height)
-	{
-		mUIScene?.SetViewportSize(width, height);
-		if (let cameraComp = mCameraEntity?.GetComponent<CameraComponent>())
-			cameraComp.SetViewport(width, height);
 	}
 
 	protected override void OnInput()
 	{
-		if (mCameraEntity == null)
-			return;
+		let keyboard = mShell.InputManager.Keyboard;
+		let mouse = mShell.InputManager.Mouse;
 
-		let keyboard = Shell.InputManager.Keyboard;
-		let mouse = Shell.InputManager.Mouse;
+		// Camera control
+		mCamera.HandleInput(keyboard, mouse, mDeltaTime);
 
-		// Toggle mouse capture
-		if (keyboard.IsKeyPressed(.Tab))
+		// Update camera entity position
+		if (mCameraEntity.IsValid)
 		{
-			mMouseCaptured = !mMouseCaptured;
-			mouse.RelativeMode = mMouseCaptured;
-			mouse.Visible = !mMouseCaptured;
+			var transform = mScene.GetTransform(mCameraEntity);
+			transform.Position = mCamera.Position;
+			let yaw = Math.Atan2(mCamera.Forward.X, mCamera.Forward.Z);
+			let pitch = Math.Asin(-mCamera.Forward.Y);
+			transform.Rotation = Quaternion.CreateFromYawPitchRoll(yaw, pitch, 0);
+			mScene.SetTransform(mCameraEntity, transform);
+
+			// Update camera proxy via RenderSceneModule
+			let renderModule = mScene?.GetModule<RenderSceneModule>();
+			if (renderModule != null)
+			{
+				if (let proxy = renderModule.GetCameraProxy(mCameraEntity))
+				{
+					proxy.Position = mCamera.Position;
+					proxy.Forward = mCamera.Forward;
+				}
+			}
 		}
 
-		// Mouse look (when captured or right-click held)
-		if (mMouseCaptured || mouse.IsButtonDown(.Right))
+		// Animation shortcuts
+		if (keyboard.IsKeyPressed(.Num1) || keyboard.IsKeyPressed(.Keypad1))
+			PlayAnimation(0);
+		else if (keyboard.IsKeyPressed(.Num2) || keyboard.IsKeyPressed(.Keypad2))
+			PlayAnimation(1);
+		else if (keyboard.IsKeyPressed(.Num3) || keyboard.IsKeyPressed(.Keypad3))
+			PlayAnimation(2);
+
+		// Sun light rotation (Arrow keys)
 		{
-			mCameraYaw -= mouse.DeltaX * mCameraLookSpeed;
-			mCameraPitch -= mouse.DeltaY * mCameraLookSpeed;
-			mCameraPitch = Math.Clamp(mCameraPitch, -Math.PI_f * 0.49f, Math.PI_f * 0.49f);
-			UpdateCameraDirection();
+			float lightRotSpeed = 0.03f;
+			bool sunChanged = false;
+			if (keyboard.IsKeyDown(.Left))
+			{
+				mSunYaw -= lightRotSpeed;
+				sunChanged = true;
+			}
+			if (keyboard.IsKeyDown(.Right))
+			{
+				mSunYaw += lightRotSpeed;
+				sunChanged = true;
+			}
+			if (keyboard.IsKeyDown(.Up))
+			{
+				mSunPitch = Math.Clamp(mSunPitch + lightRotSpeed, -1.5f, -0.1f);
+				sunChanged = true;
+			}
+			if (keyboard.IsKeyDown(.Down))
+			{
+				mSunPitch = Math.Clamp(mSunPitch - lightRotSpeed, -1.5f, -0.1f);
+				sunChanged = true;
+			}
+			if (sunChanged)
+				UpdateSunLight();
 		}
 
-		// WASD movement
-		let forward = mCameraEntity.Transform.Forward;
-		let right = mCameraEntity.Transform.Right;
-		let up = Vector3(0, 1, 0);
-		float speed = mCameraMoveSpeed * DeltaTime;
+		// Profiler toggle
+		if (keyboard.IsKeyPressed(.P))
+			PrintProfilerStats();
 
-		if (keyboard.IsKeyDown(.LeftShift) || keyboard.IsKeyDown(.RightShift))
-			speed *= 2.0f;
-
-		var pos = mCameraEntity.Transform.Position;
-		if (keyboard.IsKeyDown(.W)) pos = pos + forward * speed;
-		if (keyboard.IsKeyDown(.S)) pos = pos - forward * speed;
-		if (keyboard.IsKeyDown(.A)) pos = pos - right * speed;
-		if (keyboard.IsKeyDown(.D)) pos = pos + right * speed;
-		if (keyboard.IsKeyDown(.Q)) pos = pos - up * speed;
-		if (keyboard.IsKeyDown(.E)) pos = pos + up * speed;
-		mCameraEntity.Transform.SetPosition(pos);
+		// Exit
+		if (keyboard.IsKeyPressed(.Escape))
+			Exit();
 	}
 
-	private void UpdateCameraDirection()
+	protected override void OnUpdate(FrameContext frame)
 	{
-		if (mCameraEntity == null)
-			return;
+		mDeltaTime = frame.DeltaTime;
 
-		float cosP = Math.Cos(mCameraPitch);
-		let forward = Vector3.Normalize(.(
-			Math.Sin(mCameraYaw) * cosP,
-			Math.Sin(mCameraPitch),
-			Math.Cos(mCameraYaw) * cosP
-		));
-
-		let target = mCameraEntity.Transform.Position + forward;
-		mCameraEntity.Transform.LookAt(target);
-	}
-
-	protected override void OnUpdate(float deltaTime, float totalTime)
-	{
-		// FPS calculation
+		// Update FPS
 		mFrameCount++;
-		mFpsTimer += deltaTime;
+		mFpsTimer += frame.DeltaTime;
 		if (mFpsTimer >= 1.0f)
 		{
 			mCurrentFps = mFrameCount;
 			mFrameCount = 0;
-			mFpsTimer -= 1.0f;
+			mFpsTimer = 0;
 
 			if (mFpsLabel != null)
 				mFpsLabel.Text = scope:: $"FPS: {mCurrentFps}";
 		}
+	}
 
-		// Update current animation label
-		if (mAnimationLabel != null && mFoxMeshComponent != null)
+	protected override bool OnRenderFrame(RenderContext render)
+	{
+		// Begin frame
+		mRenderSystem.BeginFrame((float)render.Frame.TotalTime, (float)render.Frame.DeltaTime);
+
+		// Set swapchain for final output
+		if (mFinalOutputFeature != null)
+			mFinalOutputFeature.SetSwapChain(render.SwapChain);
+
+		// Set the active world from the scene's render module
+		if (let renderModule = mScene?.GetModule<RenderSceneModule>())
 		{
-			let animName = mFoxMeshComponent.CurrentAnimationName;
-			if (!animName.IsEmpty)
-				mAnimationLabel.Text = scope:: $"Animation: {animName}";
+			if (let world = renderModule.World)
+				mRenderSystem.SetActiveWorld(world);
 		}
 
-		// Update context (handles scene, components, and automatic UI input routing)
-		mContext.Update(deltaTime);
+		// Update render view from camera
+		mRenderView.CameraPosition = mCamera.Position;
+		mRenderView.CameraForward = mCamera.Forward;
+		mRenderView.CameraUp = .(0, 1, 0);
+		mRenderView.Width = mSwapChain.Width;
+		mRenderView.Height = mSwapChain.Height;
+		mRenderView.UpdateMatrices(mDevice.FlipProjectionRequired);
 
-		// Update tooltip system
-		mTooltipService?.Update(mUIScene.UIContext, deltaTime);
-	}
+		// Set camera
+		mRenderSystem.SetCamera(
+			mRenderView.CameraPosition,
+			mRenderView.CameraForward,
+			.(0, 1, 0),
+			mRenderView.FieldOfView,
+			mRenderView.AspectRatio,
+			mRenderView.NearPlane,
+			mRenderView.FarPlane,
+			mRenderView.Width,
+			mRenderView.Height
+		);
 
-	protected override void OnPrepareFrame(int32 frameIndex)
-	{
-		// Begin render graph frame - this adds shadow cascades and Scene3D passes
-		// Note: World UI PrepareGPU is called automatically by UISceneComponent.AddUIPass
-		mRendererService.BeginFrame(
-			(uint32)frameIndex, DeltaTime, TotalTime,
-			SwapChain.CurrentTexture, SwapChain.CurrentTextureView,
-			mDepthTexture, DepthTextureView);
+		// Draw debug gizmos
+		DrawDebugGizmos();
 
-		// Add world UI render-to-texture passes (before Scene3D which samples them)
-		mUIScene.AddWorldUIPasses(mRendererService.RenderGraph, frameIndex);
+		// Build and execute render graph
+		if (mRenderSystem.BuildRenderGraph(mRenderView) case .Ok)
+		{
+			mRenderSystem.Execute(render.Encoder);
+		}
 
-		// Add UI overlay pass to the render graph
-		mUIScene.AddUIPass(mRendererService.RenderGraph, mRendererService.SwapChainHandle, frameIndex);
-	}
+		// Render UI overlay (after 3D scene, before present)
+		if (mUISubsystem != null && mUISubsystem.IsInitialized)
+		{
+			mUISubsystem.RenderUI(render.Encoder, render.CurrentTextureView,
+				mSwapChain.Width, mSwapChain.Height, render.Frame.FrameIndex);
+		}
 
-	protected override bool OnRenderFrame(ICommandEncoder encoder, int32 frameIndex)
-	{
-		// Execute all render graph passes (world UI, shadow cascades, Scene3D, UI overlay)
-		mRendererService.ExecuteFrame(encoder);
+		// End frame
+		mRenderSystem.EndFrame();
 
 		return true;
 	}
 
-	protected override void OnRender(IRenderPassEncoder renderPass)
+	protected override void OnResize(int32 width, int32 height)
 	{
-		// Not used - OnRenderFrame handles rendering
+		if (mRenderView != null)
+		{
+			mRenderView.Width = (uint32)width;
+			mRenderView.Height = (uint32)height;
+		}
 	}
 
-	protected override void OnCleanup()
+	protected override void OnShutdown()
 	{
-		Console.WriteLine("SceneUISample.OnCleanup() called");
+		Console.WriteLine("\nShutting down...");
 
-		// Clean up UI services BEFORE context shutdown (scene components get deleted during shutdown)
-		if (mUIScene?.UIContext != null)
-		{
-			if (mUIScene.UIContext.GetService<ITheme>() case .Ok(let theme))
-				delete theme;
-		}
-		if (mTooltipService != null) { delete mTooltipService; mTooltipService = null; }
-		if (mClipboard != null) { delete mClipboard; mClipboard = null; }
+		// Wait for GPU to finish before releasing resources
+		mDevice.WaitIdle();
 
-		// Clean up world UI services (font service is shared, only delete theme)
-		if (mWorldUIComponent?.UIContext != null)
+		// Release GPU texture handle before RenderSystem cleanup
+		if (mFoxTextureHandle.IsValid && mRenderSystem?.ResourceManager != null)
 		{
-			if (mWorldUIComponent.UIContext.GetService<ITheme>() case .Ok(let theme))
-				delete theme;
+			mRenderSystem.ResourceManager.ReleaseTexture(mFoxTextureHandle, mRenderSystem.FrameNumber);
+			mFoxTextureHandle = .Invalid;
 		}
 
-		// Shutdown context (deletes scene components including mUIScene and mWorldUIComponent)
-		mContext?.Shutdown();
-
-		delete mUIService;
-		delete mInputService;
-
-		Device.WaitIdle();
-
-		// Clean up materials
-		if (mRendererService?.MaterialSystem != null)
+		// Delete material instances before RenderSystem (they reference GPU resources)
+		if (mFoxMaterialInstance != null)
 		{
-			let materialSystem = mRendererService.MaterialSystem;
-			if (mFoxMaterial.IsValid)
-				materialSystem.ReleaseInstance(mFoxMaterial);
-			if (mGroundMaterial.IsValid)
-				materialSystem.ReleaseInstance(mGroundMaterial);
-			if (mPBRMaterial.IsValid)
-				materialSystem.ReleaseMaterial(mPBRMaterial);
+			delete mFoxMaterialInstance;
+			mFoxMaterialInstance = null;
+		}
+		if (mGroundMaterialInstance != null)
+		{
+			delete mGroundMaterialInstance;
+			mGroundMaterialInstance = null;
 		}
 
-		// Clean up fox texture
-		if (mFoxTexture.IsValid && mRendererService?.ResourceManager != null)
-			mRendererService.ResourceManager.ReleaseTexture(mFoxTexture);
+		// Delete material resource
+		if (mFoxMaterialResource != null)
+		{
+			delete mFoxMaterialResource;
+			mFoxMaterialResource = null;
+		}
 
-		delete mRendererService;
+		if(mFontService != null)
+		{
+			delete mFontService;
+		}
 
-		// Clean up font service (owns GPU atlas texture resources)
-		if (mFontService != null) { delete mFontService; mFontService = null; }
+		
+		if (mRenderSystem != null)
+			mRenderSystem.Shutdown();
 
-		Console.WriteLine("Scene UI sample cleaned up.");
+		// Shutdown profiler
+		Profiler.Shutdown();
+
+		// Note: RenderSystem, RenderView, FontService, OrbitFlyCamera, UIRoot are
+		// deleted automatically via ~ delete _ field annotations after this method returns
+		// Context shutdown happens after OnShutdown, which cleans up subsystems and scenes
+	}
+
+	private void PrintProfilerStats()
+	{
+		let frame = SProfiler.GetCompletedFrame();
+		Console.WriteLine("\n=== Profiler Frame {} ===", frame.FrameNumber);
+		Console.WriteLine("Total Frame Time: {0:F2}ms", frame.FrameDurationMs);
+		Console.WriteLine("Samples: {}", frame.SampleCount);
+
+		if (frame.SampleCount > 0)
+		{
+			Console.WriteLine("\nBreakdown:");
+			for (let sample in frame.Samples)
+			{
+				let indent = scope String();
+				for (int i = 0; i < sample.Depth; i++)
+					indent.Append("  ");
+				Console.WriteLine("  {0}{1}: {2:F3}ms", indent, sample.Name, sample.DurationMs);
+			}
+		}
+		Console.WriteLine("");
 	}
 }
 
@@ -862,7 +924,59 @@ class Program
 {
 	public static int Main(String[] args)
 	{
-		let sample = scope SceneUISample();
-		return sample.Run();
+		// Create shell
+		let shell = new SDL3Shell();
+		defer { shell.Shutdown(); delete shell; }
+
+		if (shell.Initialize() case .Err)
+		{
+			Console.WriteLine("Failed to initialize shell");
+			return 1;
+		}
+
+		// Create Vulkan backend
+		let backend = new VulkanBackend(enableValidation: true);
+		defer delete backend;
+
+		if (!backend.IsInitialized)
+		{
+			Console.WriteLine("Failed to initialize Vulkan backend");
+			return 1;
+		}
+
+		// Enumerate adapters
+		List<IAdapter> adapters = scope .();
+		backend.EnumerateAdapters(adapters);
+
+		if (adapters.Count == 0)
+		{
+			Console.WriteLine("No GPU adapters found");
+			return 1;
+		}
+
+		Console.WriteLine("Using adapter: {0}", adapters[0].Info.Name);
+
+		// Create device
+		let device = adapters[0].CreateDevice().GetValueOrDefault();
+		if (device == null)
+		{
+			Console.WriteLine("Failed to create device");
+			return 1;
+		}
+		defer delete device;
+
+		// Run sample
+		let settings = ApplicationSettings()
+		{
+			Title = "Scene UI - Fox Animation Demo",
+			Width = 1280,
+			Height = 720,
+			EnableDepth = true,
+			PresentMode = .Mailbox,
+			ClearColor = .(0.1f, 0.1f, 0.15f, 1.0f)
+		};
+
+		let sample = scope SceneUISample(shell, device, backend);
+		return sample.Run(settings);
 	}
 }

@@ -2,21 +2,21 @@ using System;
 using System.Collections;
 using Sedulous.Models;
 using Sedulous.Mathematics;
-using Sedulous.Renderer;
+using Sedulous.Materials;
 
 namespace Sedulous.Geometry.Tooling;
 
 /// Converts ModelMaterial to MaterialResource.
 static class MaterialConverter
 {
-	/// Creates a MaterialResource from a ModelMaterial.
+	/// Creates a Renderer.MaterialResource from a ModelMaterial (legacy).
 	/// Texture paths are set based on the model's texture list.
-	public static MaterialResource Convert(ModelMaterial modelMat, Model model)
+	public static Sedulous.Renderer.MaterialResource Convert(ModelMaterial modelMat, Model model)
 	{
 		if (modelMat == null)
 			return null;
 
-		let matRes = new MaterialResource(.PBR);
+		let matRes = new Sedulous.Renderer.MaterialResource(.PBR);
 		matRes.Name.Set(modelMat.Name);
 
 		// Copy PBR properties
@@ -46,8 +46,8 @@ static class MaterialConverter
 		return matRes;
 	}
 
-	/// Helper to set texture slot in MaterialResource from model texture index.
-	private static void SetTextureSlot(MaterialResource matRes, StringView slot, Model model, int32 textureIndex)
+	/// Helper to set texture slot in legacy MaterialResource from model texture index.
+	private static void SetTextureSlot(Sedulous.Renderer.MaterialResource matRes, StringView slot, Model model, int32 textureIndex)
 	{
 		if (textureIndex >= 0 && textureIndex < model.Textures.Count)
 		{
@@ -62,6 +62,76 @@ static class MaterialConverter
 				texPath.Set(scope $"texture_{textureIndex}");
 
 			matRes.SetTexture(slot, texPath);
+		}
+	}
+
+	/// Creates a Materials.Resources.MaterialResource from a ModelMaterial.
+	/// Uses the new Sedulous.Materials system.
+	public static Sedulous.Materials.Resources.MaterialResource ConvertToNew(ModelMaterial modelMat, Model model)
+	{
+		if (modelMat == null)
+			return null;
+
+		// Create PBR material
+		let mat = Materials.CreatePBR(modelMat.Name, "forward");
+
+		// Set PBR properties (names match Materials.CreatePBR)
+		mat.SetDefaultFloat4("BaseColor", .(modelMat.BaseColorFactor.X, modelMat.BaseColorFactor.Y,
+			modelMat.BaseColorFactor.Z, modelMat.BaseColorFactor.W));
+		mat.SetDefaultFloat("Metallic", modelMat.MetallicFactor);
+		mat.SetDefaultFloat("Roughness", modelMat.RoughnessFactor);
+		mat.SetDefaultFloat4("EmissiveColor", .(modelMat.EmissiveFactor.X, modelMat.EmissiveFactor.Y,
+			modelMat.EmissiveFactor.Z, 1.0f));
+		mat.SetDefaultFloat("AlphaCutoff", modelMat.AlphaCutoff);
+
+		// Set pipeline config based on alpha mode
+		switch (modelMat.AlphaMode)
+		{
+		case .Opaque:
+			mat.PipelineConfig.BlendMode = .Opaque;
+			mat.PipelineConfig.DepthMode = .ReadWrite;
+		case .Mask:
+			mat.PipelineConfig.BlendMode = .Opaque;
+			mat.PipelineConfig.DepthMode = .ReadWrite;
+		case .Blend:
+			mat.PipelineConfig.BlendMode = .AlphaBlend;
+			mat.PipelineConfig.DepthMode = .ReadOnly;
+		}
+
+		mat.PipelineConfig.CullMode = modelMat.DoubleSided ? .None : .Back;
+
+		// Create resource wrapper
+		let matRes = new Sedulous.Materials.Resources.MaterialResource(mat, true);
+		matRes.Name.Set(modelMat.Name);
+
+		// Set texture paths (names match Materials.CreatePBR)
+		if (model != null)
+		{
+			SetNewTextureSlot(matRes, "AlbedoMap", model, modelMat.BaseColorTextureIndex);
+			SetNewTextureSlot(matRes, "NormalMap", model, modelMat.NormalTextureIndex);
+			SetNewTextureSlot(matRes, "MetallicRoughnessMap", model, modelMat.MetallicRoughnessTextureIndex);
+			SetNewTextureSlot(matRes, "OcclusionMap", model, modelMat.OcclusionTextureIndex);
+			SetNewTextureSlot(matRes, "EmissiveMap", model, modelMat.EmissiveTextureIndex);
+		}
+
+		return matRes;
+	}
+
+	/// Helper to set texture path in new MaterialResource from model texture index.
+	private static void SetNewTextureSlot(Sedulous.Materials.Resources.MaterialResource matRes, StringView slot, Model model, int32 textureIndex)
+	{
+		if (textureIndex >= 0 && textureIndex < model.Textures.Count)
+		{
+			let tex = model.Textures[textureIndex];
+			String texPath = scope .();
+			if (!tex.Name.IsEmpty)
+				texPath.Set(tex.Name);
+			else if (!tex.Uri.IsEmpty)
+				texPath.Set(tex.Uri);
+			else
+				texPath.Set(scope $"texture_{textureIndex}");
+
+			matRes.SetTexturePath(slot, texPath);
 		}
 	}
 }

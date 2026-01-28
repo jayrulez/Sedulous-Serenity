@@ -235,16 +235,19 @@ class ModelImporter
 		{
 			let modelMat = model.Materials[matIdx];
 
-			// Use MaterialConverter to create MaterialResource
+			// Create legacy MaterialResource
 			let matRes = MaterialConverter.Convert(modelMat, model);
+			if (matRes != null)
+				result.Materials.Add(matRes);
+			else
+				result.AddWarning(scope $"Failed to convert material '{modelMat.Name}' (legacy)");
 
-			if (matRes == null)
-			{
-				result.AddWarning(scope $"Failed to convert material '{modelMat.Name}'");
-				continue;
-			}
-
-			result.Materials.Add(matRes);
+			// Create new MaterialResource
+			let newMatRes = MaterialConverter.ConvertToNew(modelMat, model);
+			if (newMatRes != null)
+				result.NewMaterials.Add(newMatRes);
+			else
+				result.AddWarning(scope $"Failed to convert material '{modelMat.Name}' (new)");
 		}
 	}
 

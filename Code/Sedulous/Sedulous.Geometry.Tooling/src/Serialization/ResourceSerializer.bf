@@ -11,6 +11,7 @@ using Sedulous.Renderer;
 using Sedulous.Animation.Resources;
 using Sedulous.Geometry.Resources;
 using Sedulous.Textures.Resources;
+using Sedulous.Materials.Resources;
 
 namespace Sedulous.Geometry.Tooling;
 
@@ -86,16 +87,28 @@ static class ResourceSerializer
 		return AnimationClipResource.LoadFromFile(path);
 	}
 
-	/// Save a MaterialResource to a file. Delegates to MaterialResource.SaveToFile.
-	public static Result<void> SaveMaterial(MaterialResource material, StringView path)
+	/// Save a MaterialResource to a file (legacy Renderer system). Delegates to MaterialResource.SaveToFile.
+	public static Result<void> SaveMaterial(Sedulous.Renderer.MaterialResource material, StringView path)
 	{
 		return material?.SaveToFile(path) ?? .Err;
 	}
 
-	/// Load a MaterialResource from a file. Delegates to MaterialResource.LoadFromFile.
-	public static Result<MaterialResource> LoadMaterial(StringView path)
+	/// Load a MaterialResource from a file (legacy Renderer system). Delegates to MaterialResource.LoadFromFile.
+	public static Result<Sedulous.Renderer.MaterialResource> LoadMaterial(StringView path)
 	{
-		return MaterialResource.LoadFromFile(path);
+		return Sedulous.Renderer.MaterialResource.LoadFromFile(path);
+	}
+
+	/// Save a MaterialResource to a file (new Materials system). Delegates to MaterialResource.SaveToFile.
+	public static Result<void> SaveNewMaterial(Sedulous.Materials.Resources.MaterialResource material, StringView path)
+	{
+		return material?.SaveToFile(path) ?? .Err;
+	}
+
+	/// Load a MaterialResource from a file (new Materials system). Delegates to MaterialResource.LoadFromFile.
+	public static Result<Sedulous.Materials.Resources.MaterialResource> LoadNewMaterial(StringView path)
+	{
+		return Sedulous.Materials.Resources.MaterialResource.LoadFromFile(path);
 	}
 
 	/// Save a TextureResource to a binary file. Delegates to TextureResource.SaveToFile.
@@ -149,13 +162,22 @@ static class ResourceSerializer
 			SaveSkeleton(skeleton, path);
 		}
 
-		// Save materials
+		// Save legacy materials
 		for (let material in result.Materials)
 		{
 			let path = scope String();
 			path.AppendF("{}/{}.material", outputDir, material.Name);
 			SanitizePath(path);
 			SaveMaterial(material, path);
+		}
+
+		// Save new materials
+		for (let material in result.NewMaterials)
+		{
+			let path = scope String();
+			path.AppendF("{}/{}.mat", outputDir, material.Name);
+			SanitizePath(path);
+			SaveNewMaterial(material, path);
 		}
 
 		// Save textures

@@ -2,6 +2,7 @@ namespace Sedulous.Framework.Render;
 
 using System;
 using System.Collections;
+using Sedulous.Framework.Animation;
 using Sedulous.Framework.Scenes;
 using Sedulous.Geometry.Resources;
 using Sedulous.Mathematics;
@@ -347,6 +348,35 @@ class RenderSceneModule : SceneModule
 			{
 				let worldMatrix = scene.GetWorldMatrix(entity);
 				mWorld.SetSkinnedMeshTransform(proxyHandle, worldMatrix);
+
+				// Upload bone matrices if this entity has animation
+				if (let animComp = scene.GetComponent<SkeletalAnimationComponent>(entity))
+				{
+					if (animComp.Player != null)
+					{
+						if (let proxy = mWorld.GetSkinnedMesh(proxyHandle))
+						{
+							if (proxy.BoneBufferHandle.IsValid)
+							{
+								let gpuManager = mSubsystem.RenderSystem?.ResourceManager;
+								if (gpuManager != null)
+								{
+									let currentMatrices = animComp.Player.GetSkinningMatrices();
+									let prevMatrices = animComp.Player.GetPrevSkinningMatrices();
+									if (currentMatrices.Length > 0)
+									{
+										gpuManager.UpdateBoneBuffer(
+											proxy.BoneBufferHandle,
+											currentMatrices.Ptr,
+											prevMatrices.Ptr,
+											proxy.BoneCount
+										);
+									}
+								}
+							}
+						}
+					}
+				}
 			}
 		}
 

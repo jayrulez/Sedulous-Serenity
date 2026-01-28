@@ -122,14 +122,15 @@ class AnimationSceneModule : SceneModule
 	/// Plays an animation clip on an entity.
 	public void Play(EntityId entity, AnimationClip clip, bool loop = true)
 	{
-		if (mScene == null)
+		if (mScene == null || clip == null)
 			return;
 
 		if (let anim = mScene.GetComponent<SkeletalAnimationComponent>(entity))
 		{
 			if (anim.Player != null)
 			{
-				anim.Player.Play(clip, loop);
+				clip.IsLooping = loop;
+				anim.Player.Play(clip);
 				anim.Playing = true;
 			}
 		}
