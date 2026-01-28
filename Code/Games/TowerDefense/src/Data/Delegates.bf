@@ -1,6 +1,6 @@
 namespace TowerDefense.Data;
 
-using Sedulous.Engine.Core;
+using Sedulous.Framework.Scenes;
 using Sedulous.Mathematics;
 using TowerDefense.Components;
 
@@ -8,7 +8,7 @@ using TowerDefense.Components;
 delegate void EnemyExitDelegate(EnemyComponent enemy);
 
 /// Delegate for enemy killed events.
-delegate void EnemyKilledDelegate(Entity enemy, int32 reward);
+delegate void EnemyKilledDelegate(EntityId enemy, int32 reward);
 
 /// Delegate for damage events.
 delegate void DamageDelegate(float damage);
@@ -17,10 +17,10 @@ delegate void DamageDelegate(float damage);
 delegate void SimpleDelegate();
 
 /// Delegate for tower fire events.
-delegate void TowerFireDelegate(TowerComponent tower, Entity target, Vector3 origin);
+delegate void TowerFireDelegate(TowerDefinition def, EntityId target, Vector3 origin);
 
 /// Delegate for projectile hit events.
-delegate void ProjectileHitDelegate(Entity projectile, Entity target);
+delegate void ProjectileHitDelegate(EntityId projectile, EntityId target);
 
 /// Delegate for wave started events.
 delegate void WaveStartedDelegate(int32 waveNumber);

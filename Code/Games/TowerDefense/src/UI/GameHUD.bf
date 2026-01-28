@@ -8,6 +8,7 @@ using Sedulous.Mathematics;
 using Sedulous.Foundation.Core;
 using TowerDefense.Data;
 using TowerDefense.Components;
+using TowerDefense.Towers;
 
 /// Delegate for tower selection events.
 delegate void TowerSelectedDelegate(int32 towerIndex);
@@ -730,7 +731,7 @@ class GameHUD
 	}
 
 	/// Shows the tower info panel with the given tower's stats.
-	public void ShowTowerInfo(TowerComponent tower)
+	public void ShowTowerInfo(TowerData tower)
 	{
 		if (tower == null)
 			return;

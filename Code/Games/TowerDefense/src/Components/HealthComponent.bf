@@ -1,16 +1,14 @@
 namespace TowerDefense.Components;
 
 using System;
-using Sedulous.Engine.Core;
 using Sedulous.Foundation.Core;
-using Sedulous.Serialization;
 using TowerDefense.Data;
 
-/// Component that gives an entity health and damage handling.
-class HealthComponent : IEntityComponent
+/// Simple health tracking class.
+/// Note: Health is typically managed by factory classes (EnemyFactory)
+/// via their internal data classes. This remains for compatibility.
+class HealthComponent
 {
-	private Entity mEntity;
-
 	/// Maximum health points.
 	public float MaxHealth = 100.0f;
 
@@ -23,7 +21,7 @@ class HealthComponent : IEntityComponent
 	/// Health as a percentage (0.0 to 1.0).
 	public float HealthPercent => MaxHealth > 0 ? Math.Clamp(CurrentHealth / MaxHealth, 0.0f, 1.0f) : 0.0f;
 
-	// Event accessors
+	// Event accessors (using delegates from TowerDefense.Data)
 	private EventAccessor<DamageDelegate> mOnDamaged = new .() ~ delete _;
 	private EventAccessor<SimpleDelegate> mOnDeath = new .() ~ delete _;
 
@@ -68,44 +66,5 @@ class HealthComponent : IEntityComponent
 	public void Reset()
 	{
 		CurrentHealth = MaxHealth;
-	}
-
-	// ==================== IEntityComponent Implementation ====================
-
-	public void OnAttach(Entity entity)
-	{
-		mEntity = entity;
-	}
-
-	public void OnDetach()
-	{
-		mEntity = null;
-	}
-
-	public void OnUpdate(float deltaTime)
-	{
-		// Health doesn't need per-frame updates
-	}
-
-	// ==================== ISerializable Implementation ====================
-
-	public int32 SerializationVersion => 1;
-
-	public SerializationResult Serialize(Serializer serializer)
-	{
-		var version = SerializationVersion;
-		var result = serializer.Version(ref version);
-		if (result != .Ok)
-			return result;
-
-		result = serializer.Float("maxHealth", ref MaxHealth);
-		if (result != .Ok)
-			return result;
-
-		result = serializer.Float("currentHealth", ref CurrentHealth);
-		if (result != .Ok)
-			return result;
-
-		return .Ok;
 	}
 }

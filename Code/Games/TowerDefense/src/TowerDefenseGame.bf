@@ -3,26 +3,29 @@ namespace TowerDefense;
 using System;
 using System.Collections;
 using System.IO;
-using Sedulous.Mathematics;
+using Sedulous.Shell;
+using Sedulous.Shell.Input;
 using Sedulous.RHI;
+using Sedulous.Mathematics;
 using Sedulous.Geometry;
-using Sedulous.Engine.Core;
-using Sedulous.Engine.Renderer;
-using Sedulous.Engine.Audio;
-using Sedulous.Engine.Input;
-using Sedulous.Engine.UI;
-using Sedulous.Renderer;
+using Sedulous.Geometry.Resources;
+using Sedulous.Resources;
+using Sedulous.Materials;
+using Sedulous.Render;
+using Sedulous.Framework.Runtime;
+using Sedulous.Framework.Core;
+using Sedulous.Framework.Scenes;
+using Sedulous.Framework.Render;
+using Sedulous.Framework.Input;
+using Sedulous.Framework.Audio;
+using Sedulous.Framework.UI;
 using Sedulous.Audio;
 using Sedulous.Audio.SDL3;
 using Sedulous.Audio.Decoders;
-using Sedulous.Drawing;
 using Sedulous.Drawing.Fonts;
 using Sedulous.Fonts;
 using Sedulous.Fonts.TTF;
 using Sedulous.UI;
-using Sedulous.Logging.Abstractions;
-using Sedulous.Logging.Debug;
-using SampleFramework;
 using TowerDefense.Data;
 using TowerDefense.Maps;
 using TowerDefense.Enemies;
@@ -34,32 +37,45 @@ using TowerDefense.Audio;
 using TowerDefense.Effects;
 
 /// Tower Defense game main class.
-/// Phase 7: Audio - Sound effects and music.
-class TowerDefenseGame : RHISampleApp
+/// Ported to Sedulous.Framework.* architecture.
+class TowerDefenseGame : Application
 {
-	// Engine Core
-	private ILogger mLogger ~ delete _;
-	private Context mContext ~ delete _;
-	private Scene mScene;  // Owned by SceneManager
+	// Render system
+	private RenderSystem mRenderSystem;
+	private RenderView mRenderView;
+	private DepthPrepassFeature mDepthFeature;
+	private ForwardOpaqueFeature mForwardFeature;
+	private ForwardTransparentFeature mTransparentFeature;
+	private ParticleFeature mParticleFeature;
+	private DebugRenderFeature mDebugFeature;
+	private FinalOutputFeature mFinalOutputFeature;
 
-	// Services
-	private RendererService mRendererService;
-	private DebugDrawService mDebugDrawService;
-	private AudioService mAudioService;
-	private InputService mInputService;
-	private UIService mUIService;
-	private RenderSceneComponent mRenderSceneComponent;
-	private UISceneComponent mUISceneComponent;
+	// Subsystems
+	private SceneSubsystem mSceneSubsystem;
+	private RenderSubsystem mRenderSubsystem;
+	private InputSubsystem mInputSubsystem;
+	private AudioSubsystem mAudioSubsystem;
+	private UISubsystem mUISubsystem;
+
+	// Scene
+	private Scene mScene;
+	private EntityId mCameraEntity;
+	private EntityId mSunEntity;
+
+	// Meshes
+	private StaticMeshResource mCubeResource;
+
+	// Materials
+	private MaterialInstance mPreviewValidMat;
+	private MaterialInstance mPreviewInvalidMat;
 
 	// UI
-	private MainMenu mMainMenu ~ delete _;
-	private LevelSelect mLevelSelect ~ delete _;
-	private GameHUD mGameHUD ~ delete _;
-	private ITheme mUITheme ~ delete _;
 	private FontService mFontService;
+	private GameTheme mGameTheme ~ delete _;
+	private MainMenu mMainMenu ~ delete _;
+	private GameHUD mGameHUD ~ delete _;
 
 	// Audio backend
-	private SDL3AudioSystem mAudioSystem;
 	private AudioDecoderFactory mDecoderFactory ~ delete _;
 
 	// Game audio helper
@@ -75,15 +91,10 @@ class TowerDefenseGame : RHISampleApp
 	// Tower system
 	private TowerFactory mTowerFactory ~ delete _;
 	private int32 mSelectedTowerType = 0;  // 0=None, 1=Cannon, 2=Archer, 3=Frost, 4=Mortar, 5=SAM
-	private Entity mSelectedPlacedTower = null;  // Currently selected placed tower (for info panel)
+	private EntityId mSelectedPlacedTower = .Invalid;  // Currently selected placed tower
 
 	// Tower placement preview
-	private Entity mTowerPreview;
-	private StaticMeshComponent mPreviewMeshComp;
-	private StaticMesh mPreviewMesh ~ delete _;
-	private MaterialHandle mPreviewBaseMaterial = .Invalid;
-	private MaterialInstanceHandle mPreviewValidMaterial = .Invalid;
-	private MaterialInstanceHandle mPreviewInvalidMaterial = .Invalid;
+	private EntityId mTowerPreview = .Invalid;
 	private bool mPreviewValid = false;
 
 	// Wave system
@@ -94,14 +105,11 @@ class TowerDefenseGame : RHISampleApp
 
 	// Game state
 	private GameState mGameState = .MainMenu;
-	private GameState mPrePauseState = .MainMenu;  // State before pausing (to restore on resume)
+	private GameState mPrePauseState = .MainMenu;
 	private int32 mMoney = 200;
 	private int32 mLives = 20;
 	private int32 mEnemiesKilled = 0;
-	private float mGameSpeed = 1.0f;  // Game speed multiplier (1x, 2x, 3x)
-
-	// Entities
-	private Entity mCameraEntity;
+	private float mGameSpeed = 1.0f;
 
 	// Camera control (top-down)
 	private float mCameraHeight = 25.0f;
@@ -109,100 +117,401 @@ class TowerDefenseGame : RHISampleApp
 	private float mCameraTargetZ = 0.0f;
 	private float mCameraMoveSpeed = 20.0f;
 
-	// Current frame
-	private int32 mCurrentFrameIndex = 0;
+	// Input actions
+	private InputAction mMoveAction;
+	private InputAction mZoomInAction;
+	private InputAction mZoomOutAction;
+	private InputAction mPauseAction;
+	private InputAction mStartWaveAction;
+	private InputAction mRestartAction;
+	private InputAction mTower1Action;
+	private InputAction mTower2Action;
+	private InputAction mTower3Action;
+	private InputAction mTower4Action;
+	private InputAction mTower5Action;
+	private InputAction mCancelAction;
 
-	public this() : base(.()
-		{
-			Title = "Tower Defense",
-			Width = 1280,
-			Height = 720,
-			ClearColor = .(0.15f, 0.2f, 0.15f, 1.0f),  // Dark green background
-			EnableDepth = true
-		})
+	// Stored input state
+	private Vector2 mMoveInput;
+	private float mDeltaTime;
+
+	public this(IShell shell, IDevice device, IBackend backend)
+		: base(shell, device, backend)
 	{
 	}
 
-	protected override bool OnInitialize()
+	protected override void OnInitialize(Context context)
 	{
-		Console.WriteLine("=== Tower Defense - Phase 7: Audio ===");
+		Console.WriteLine("=== Tower Defense - Framework Port ===");
 
-		// Initialize font first (needed for UI)
-		if (!InitializeFont())
-			return false;
+		FixedTimeStep = 1.0f / 60.0f;
+		MaxFixedStepsPerFrame = 3;
 
-		// Create logger
-		mLogger = new DebugLogger(.Information);
+		InitializeRenderSystem();
+		RegisterSubsystems(context);
+	}
 
-		// Create engine context
-		mContext = new Context(mLogger, 4);
+	private void InitializeRenderSystem()
+	{
+		mRenderSystem = new RenderSystem();
+		if (mRenderSystem.Initialize(mDevice, scope $"{AssetDirectory}/Render/Shaders",
+			.BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
+		{
+			Console.WriteLine("Failed to initialize RenderSystem");
+			return;
+		}
 
-		// Initialize renderer service
-		if (!InitializeRenderer())
-			return false;
+		mRenderView = new RenderView();
+		mRenderView.Width = mSwapChain.Width;
+		mRenderView.Height = mSwapChain.Height;
+		mRenderView.FieldOfView = Math.PI_f / 4.0f;
+		mRenderView.NearPlane = 0.1f;
+		mRenderView.FarPlane = 500.0f;
 
-		// Initialize audio service
-		if (!InitializeAudio())
-			return false;
+		// Register render features
+		mDepthFeature = new DepthPrepassFeature();
+		mRenderSystem.RegisterFeature(mDepthFeature);
 
-		// Create game audio helper (after audio service)
-		mGameAudio = new GameAudio(mAudioService, mDecoderFactory);
+		mForwardFeature = new ForwardOpaqueFeature();
+		mRenderSystem.RegisterFeature(mForwardFeature);
 
-		// Initialize input service
-		mInputService = new InputService(Shell.InputManager);
-		mContext.RegisterService<InputService>(mInputService);
+		mTransparentFeature = new ForwardTransparentFeature();
+		mRenderSystem.RegisterFeature(mTransparentFeature);
 
-		// Initialize UI service
-		if (!InitializeUI())
-			return false;
+		mParticleFeature = new ParticleFeature();
+		mRenderSystem.RegisterFeature(mParticleFeature);
 
-		// Start context (enables automatic component creation)
-		mContext.Startup();
+		mDebugFeature = new DebugRenderFeature();
+		mRenderSystem.RegisterFeature(mDebugFeature);
 
-		// Create game scene
-		mScene = mContext.SceneManager.CreateScene("GameScene");
-		mRenderSceneComponent = mScene.GetSceneComponent<RenderSceneComponent>();
-		mUISceneComponent = mScene.GetSceneComponent<UISceneComponent>();
-		mUISceneComponent?.SetViewportSize(SwapChain.Width, SwapChain.Height);
-		mContext.SceneManager.SetActiveScene(mScene);
+		mFinalOutputFeature = new FinalOutputFeature();
+		mRenderSystem.RegisterFeature(mFinalOutputFeature);
 
-		// Initialize map builder
-		mMapBuilder = new MapBuilder(mScene, mRendererService);
+		Console.WriteLine("Render system initialized");
+	}
+
+	private void RegisterSubsystems(Context context)
+	{
+		// Scene subsystem
+		mSceneSubsystem = new SceneSubsystem();
+		context.RegisterSubsystem(mSceneSubsystem);
+
+		// Render subsystem
+		mRenderSubsystem = new RenderSubsystem(mRenderSystem, takeOwnership: false);
+		context.RegisterSubsystem(mRenderSubsystem);
+
+		// Input subsystem
+		mInputSubsystem = new InputSubsystem();
+		mInputSubsystem.SetInputManager(mShell.InputManager);
+		context.RegisterSubsystem(mInputSubsystem);
+		SetupInputActions();
+
+		// Audio subsystem
+		let audioSystem = new SDL3AudioSystem();
+		mAudioSubsystem = new AudioSubsystem(audioSystem, takeOwnership: true);
+		context.RegisterSubsystem(mAudioSubsystem);
+
+		// UI subsystem - create after font service is initialized in OnContextStarted
+		// mUISubsystem will be created later with font service
+
+		Console.WriteLine("Subsystems registered");
+	}
+
+	private void SetupInputActions()
+	{
+		let gameContext = mInputSubsystem.CreateContext("Game", 0);
+
+		// Camera movement: WASD
+		mMoveAction = gameContext.RegisterAction("Move");
+		mMoveAction.AddBinding(new CompositeBinding(.W, .S, .A, .D));
+
+		// Camera zoom: Q/E
+		mZoomInAction = gameContext.RegisterAction("ZoomIn");
+		mZoomInAction.AddBinding(new KeyBinding(.Q));
+
+		mZoomOutAction = gameContext.RegisterAction("ZoomOut");
+		mZoomOutAction.AddBinding(new KeyBinding(.E));
+
+		// Game controls
+		mPauseAction = gameContext.RegisterAction("Pause");
+		mPauseAction.AddBinding(new KeyBinding(.P));
+		mPauseAction.AddBinding(new KeyBinding(.Escape));
+
+		mStartWaveAction = gameContext.RegisterAction("StartWave");
+		mStartWaveAction.AddBinding(new KeyBinding(.Space));
+
+		mRestartAction = gameContext.RegisterAction("Restart");
+		mRestartAction.AddBinding(new KeyBinding(.R));
+
+		// Tower selection: F1-F5
+		mTower1Action = gameContext.RegisterAction("Tower1");
+		mTower1Action.AddBinding(new KeyBinding(.F1));
+
+		mTower2Action = gameContext.RegisterAction("Tower2");
+		mTower2Action.AddBinding(new KeyBinding(.F2));
+
+		mTower3Action = gameContext.RegisterAction("Tower3");
+		mTower3Action.AddBinding(new KeyBinding(.F3));
+
+		mTower4Action = gameContext.RegisterAction("Tower4");
+		mTower4Action.AddBinding(new KeyBinding(.F4));
+
+		mTower5Action = gameContext.RegisterAction("Tower5");
+		mTower5Action.AddBinding(new KeyBinding(.F5));
+
+		mCancelAction = gameContext.RegisterAction("Cancel");
+		mCancelAction.AddBinding(new KeyBinding(.Escape));
+	}
+
+	protected override void OnContextStarted()
+	{
+		InitializeUI();
+		CreateMeshes();
+		CreateMaterials();
+		CreateScene();
+		InitializeGameSystems();
+		InitializeAudio();
+
+		// Show main menu
+		mGameState = .MainMenu;
+
+		Console.WriteLine("Initialization complete!");
+		Console.WriteLine("Press SPACE to start the game!");
+	}
+
+	private void InitializeUI()
+	{
+		// Initialize font service
+		mFontService = new FontService();
+		let fontPath = scope String();
+		GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", fontPath);
+
+		// Load font at different sizes
+		int32[6] fontSizes = .(14, 16, 18, 20, 24, 32);
+		for (let size in fontSizes)
+		{
+			FontLoadOptions options = .ExtendedLatin;
+			options.PixelHeight = size;
+			if (mFontService.LoadFont("Roboto", fontPath, options) case .Err)
+			{
+				Console.WriteLine($"Failed to load font at size {size}");
+			}
+		}
+
+		// Create and initialize UI subsystem
+		mUISubsystem = new UISubsystem(mFontService);
+		mContext.RegisterSubsystem(mUISubsystem);
+
+		if (mUISubsystem.InitializeRendering(mDevice, .BGRA8UnormSrgb, FrameConfig.MAX_FRAMES_IN_FLIGHT, mShell, mRenderSystem) case .Err)
+		{
+			Console.WriteLine("Failed to initialize UI rendering");
+			return;
+		}
+
+		// Use GameTheme for dark UI with light text
+		mGameTheme = new GameTheme();
+		mUISubsystem.UIContext.RegisterService<ITheme>(mGameTheme);
+
+		// Create main menu and game HUD
+		mMainMenu = new MainMenu();
+		mGameHUD = new GameHUD();
+
+		// Start with main menu as root
+		mUISubsystem.UIContext.RootElement = mMainMenu.RootElement;
+
+		// Wire up main menu events
+		mMainMenu.OnPlay.Subscribe(new () => {
+			StartGame(0);  // Start level 1
+		});
+		mMainMenu.OnQuit.Subscribe(new () => {
+			Exit();
+		});
+
+		// Wire up HUD events
+		mGameHUD.OnTowerSelected.Subscribe(new (index) => {
+			let def = GetTowerDefinitionByIndex(index + 1);  // HUD uses 0-4, we use 1-5
+			SelectTower(index + 1, def);
+		});
+		mGameHUD.OnStartWave.Subscribe(new () => {
+			TryStartNextWave();
+		});
+		mGameHUD.OnRestart.Subscribe(new () => {
+			RestartGame();
+		});
+		mGameHUD.OnResume.Subscribe(new () => {
+			ResumeGame();
+		});
+		mGameHUD.OnMainMenu.Subscribe(new () => {
+			// Return to main menu
+			mEnemyFactory?.ClearAllEnemies();
+			mTowerFactory?.ClearAll();
+			mParticleEffects?.Clear();
+			mGameState = .MainMenu;
+			mUISubsystem.UIContext.RootElement = mMainMenu.RootElement;
+		});
+		mGameHUD.OnSellTower.Subscribe(new () => {
+			if (mSelectedPlacedTower.IsValid)
+			{
+				let refund = mTowerFactory.SellTower(mSelectedPlacedTower);
+				mMoney += refund;
+				DeselectPlacedTower();
+				mGameHUD.HideTowerInfo();
+			}
+		});
+		mGameHUD.OnUpgradeTower.Subscribe(new () => {
+			if (mSelectedPlacedTower.IsValid)
+			{
+				let data = mTowerFactory.GetTowerData(mSelectedPlacedTower);
+				if (data != null && data.CanUpgrade)
+				{
+					let cost = data.GetUpgradeCost();
+					if (mMoney >= cost)
+					{
+						mMoney -= cost;
+						mTowerFactory.UpgradeTower(mSelectedPlacedTower);
+						mGameHUD.ShowTowerInfo(data);  // Refresh display
+					}
+				}
+			}
+		});
+		mGameHUD.OnSpeedChanged.Subscribe(new (speed) => {
+			mGameSpeed = speed;
+		});
+		mGameHUD.OnMusicVolumeChanged.Subscribe(new (vol) => {
+			if (mGameAudio != null)
+				mGameAudio.MusicVolume = vol;
+		});
+		mGameHUD.OnSFXVolumeChanged.Subscribe(new (vol) => {
+			if (mGameAudio != null)
+				mGameAudio.SFXVolume = vol;
+		});
+
+		Console.WriteLine("UI system initialized");
+	}
+
+	private void CreateMeshes()
+	{
+		mCubeResource = StaticMeshResource.CreateCube(1.0f);
+		Console.WriteLine("Meshes created");
+	}
+
+	private void CreateMaterials()
+	{
+		let baseMat = mRenderSystem.MaterialSystem?.DefaultMaterial;
+		if (baseMat == null) return;
+
+		// Tower preview materials
+		mPreviewValidMat = new MaterialInstance(baseMat);
+		mPreviewValidMat.SetColor("BaseColor", .(0.2f, 0.8f, 0.2f, 0.6f));
+		mPreviewValidMat.SetFloat("Roughness", 0.8f);
+
+		mPreviewInvalidMat = new MaterialInstance(baseMat);
+		mPreviewInvalidMat.SetColor("BaseColor", .(0.8f, 0.2f, 0.2f, 0.6f));
+		mPreviewInvalidMat.SetFloat("Roughness", 0.8f);
+
+		Console.WriteLine("Materials created");
+	}
+
+	private void CreateScene()
+	{
+		mScene = mSceneSubsystem.CreateScene("GameScene");
+		mSceneSubsystem.SetActiveScene(mScene);
+
+		let renderModule = mScene.GetModule<RenderSceneModule>();
+		if (renderModule == null)
+		{
+			Console.WriteLine("ERROR: No RenderSceneModule found!");
+			return;
+		}
+
+		// Set ambient lighting (moderate ambient with strong directional for contrast)
+		if (let world = renderModule.World)
+		{
+			world.AmbientColor = .(0.12f, 0.13f, 0.11f);
+			world.AmbientIntensity = 0.6f;
+			world.Exposure = 1.0f;
+		}
+
+		// Create camera (top-down)
+		mCameraEntity = mScene.CreateEntity();
+		renderModule.CreatePerspectiveCamera(mCameraEntity,
+			Math.PI_f / 4.0f,
+			(float)mSwapChain.Width / mSwapChain.Height,
+			0.1f, 500.0f);
+		renderModule.SetMainCamera(mCameraEntity);
+		UpdateCameraTransform();
+
+		// Create sun light (strong intensity for visible lit/shadow sides)
+		mSunEntity = mScene.CreateEntity();
+		renderModule.CreateDirectionalLight(mSunEntity, .(1.0f, 0.95f, 0.85f), 2.5f);
+		var sunTransform = mScene.GetTransform(mSunEntity);
+		// LookAt direction matching old Engine setup: .(-0.4f, -1.0f, -0.3f)
+		let lightDir = Vector3.Normalize(.(-0.4f, -1.0f, -0.3f));
+		sunTransform.Rotation = Quaternion.CreateFromRotationMatrix(Matrix.CreateLookAt(sunTransform.Position, lightDir, .(0, 1, 0)));
+		mScene.SetTransform(mSunEntity, sunTransform);
+
+		// Create tower preview entity
+		CreateTowerPreview();
+
+		Console.WriteLine("Scene created");
+	}
+
+	private void CreateTowerPreview()
+	{
+		let renderModule = mScene.GetModule<RenderSceneModule>();
+		if (renderModule == null) return;
+
+		mTowerPreview = mScene.CreateEntity();
+
+		// Set initial position hidden
+		var transform = mScene.GetTransform(mTowerPreview);
+		transform.Position = .(0, -100, 0);
+		mScene.SetTransform(mTowerPreview, transform);
+
+		// Add mesh renderer component
+		mScene.SetComponent<MeshRendererComponent>(mTowerPreview, .Default);
+		var meshComp = mScene.GetComponent<MeshRendererComponent>(mTowerPreview);
+		meshComp.Mesh = ResourceHandle<StaticMeshResource>(mCubeResource);
+		meshComp.Material = mPreviewValidMat;
+
+		Console.WriteLine("Tower preview created");
+	}
+
+	private void InitializeGameSystems()
+	{
+		let renderModule = mScene.GetModule<RenderSceneModule>();
+		if (renderModule == null) return;
+
+		// Initialize map builder (uses cube mesh for tiles)
+		mMapBuilder = new MapBuilder(mScene, renderModule, mRenderSystem, mCubeResource);
 		mMapBuilder.InitializeMaterials();
 
 		// Initialize enemy factory
-		mEnemyFactory = new EnemyFactory(mScene, mRendererService);
+		mEnemyFactory = new EnemyFactory(mScene, renderModule, mRenderSystem, mCubeResource);
 		mEnemyFactory.InitializeMaterials();
 
 		// Subscribe to enemy events
 		mEnemyFactory.OnEnemyReachedExit.Subscribe(new => OnEnemyReachedExit);
 		mEnemyFactory.OnEnemyKilled.Subscribe(new => OnEnemyKilled);
-
-		// Subscribe to enemy death audio event (also spawn particles)
 		mEnemyFactory.OnEnemyDeathAudio.Subscribe(new (position) => {
 			mGameAudio?.PlayEnemyDeath(position);
-			mParticleEffects?.SpawnEnemyDeath(position, .(1.0f, 0.5f, 0.2f, 1.0f));  // Orange explosion
+			mParticleEffects?.SpawnEnemyDeath(position, .(1.0f, 0.5f, 0.2f, 1.0f));
 		});
 
-		// Initialize tower factory (pass GameAudio for AudioSourceComponent)
-		mTowerFactory = new TowerFactory(mScene, mRendererService, mEnemyFactory, mGameAudio);
+		// Initialize tower factory (uses cube mesh for towers and projectiles)
+		mTowerFactory = new TowerFactory(mScene, renderModule, mRenderSystem, mCubeResource, mCubeResource, mEnemyFactory, mGameAudio);
 		mTowerFactory.InitializeMaterials();
 
-		// Initialize particle effects
-		mParticleEffects = new ParticleEffects(mScene);
+		// Initialize particle effects (uses RenderWorld from RenderSceneModule)
+		mParticleEffects = new ParticleEffects(renderModule.World, mRenderSystem.Device);
 
-		// Subscribe to tower fire event for particle effects (audio is handled by AudioSourceComponent)
+		// Subscribe to tower events
 		mTowerFactory.OnTowerFired.Subscribe(new (def, position) => {
 			mParticleEffects?.SpawnTowerFire(def.Name, position, .(0, 1, 0));
 		});
-
-		// Subscribe to projectile impact event for particle effects
 		mTowerFactory.OnProjectileImpact.Subscribe(new (position, color) => {
 			mParticleEffects?.SpawnProjectileHit(position, color);
 		});
-
-		// Create tower placement preview
-		CreateTowerPreview();
 
 		// Initialize wave spawner
 		mWaveSpawner = new WaveSpawner();
@@ -211,802 +520,450 @@ class TowerDefenseGame : RHISampleApp
 		mWaveSpawner.OnAllWavesCompleted.Subscribe(new => OnAllWavesCompleted);
 		mWaveSpawner.OnSpawnEnemy.Subscribe(new => OnSpawnEnemyRequest);
 
-		// Create scene entities (light, camera)
-		CreateSceneEntities();
-
-		// Build game UI (map is loaded when level is selected)
-		BuildUI();
-
-		Console.WriteLine("Initialization complete!");
-		Console.WriteLine("Tower Defense running. Click PLAY to start!");
-
-		return true;
+		Console.WriteLine("Game systems initialized");
 	}
 
-	private bool InitializeRenderer()
+	private void InitializeAudio()
 	{
-		Console.WriteLine("Initializing renderer service...");
-
-		mRendererService = new RendererService();
-		mRendererService.SetFormats(SwapChain.Format, .Depth24PlusStencil8);
-		
-		let frameworkShaderPath = GetAssetPath("framework/shaders", .. scope .());
-		let drawingShaderPath = GetAssetPath("Render/shaders", .. scope .());
-		if (mRendererService.Initialize(Device, scope StringView[](frameworkShaderPath, drawingShaderPath)) case .Err)
-		{
-			Console.WriteLine("Failed to initialize RendererService");
-			return false;
-		}
-
-		mContext.RegisterService<RendererService>(mRendererService);
-
-		// Create and register debug draw service (for health bars, range indicators)
-		mDebugDrawService = new DebugDrawService();
-		mContext.RegisterService<DebugDrawService>(mDebugDrawService);
-
-		Console.WriteLine("Renderer service initialized");
-		return true;
-	}
-
-	private bool InitializeAudio()
-	{
-		Console.WriteLine("Initializing audio service...");
-
-		// Create SDL3 audio backend
-		mAudioSystem = new SDL3AudioSystem();
-		if (!mAudioSystem.IsInitialized)
-		{
-			Console.WriteLine("WARNING: Audio system failed to initialize");
-			delete mAudioSystem;
-			mAudioSystem = null;
-			return true;  // Continue without audio
-		}
-
-		// Create decoder factory
 		mDecoderFactory = new AudioDecoderFactory();
 		mDecoderFactory.RegisterDefaultDecoders();
 
-		// Create and register audio service
-		mAudioService = new AudioService();
-		if (mAudioService.Initialize(mAudioSystem) case .Err)
-		{
-			Console.WriteLine("WARNING: AudioService failed to initialize");
-			delete mAudioService;
-			mAudioService = null;
-			return true;
-		}
+		mGameAudio = new GameAudio(mAudioSubsystem, mDecoderFactory);
 
-		mContext.RegisterService<AudioService>(mAudioService);
-		Console.WriteLine($"Audio service initialized. Decoders: {mDecoderFactory.DecoderCount}");
-		return true;
+		Console.WriteLine("Audio initialized");
 	}
 
-	private bool InitializeFont()
+	private void UpdateCameraTransform()
 	{
-		Console.WriteLine("Initializing fonts...");
+		if (!mCameraEntity.IsValid)
+			return;
 
-		mFontService = new FontService();
+		var transform = mScene.GetTransform(mCameraEntity);
+		transform.Position = .(mCameraTargetX, mCameraHeight, mCameraTargetZ + 0.1f);
 
-		String fontPath = scope .();
-		GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", fontPath);
+		// Look at target point
+		let target = Vector3(mCameraTargetX, 0, mCameraTargetZ);
+		let forward = Vector3.Normalize(target - transform.Position);
+		let right = Vector3.Normalize(Vector3.Cross(.(0, 1, 0), forward));
+		let up = Vector3.Cross(forward, right);
+		transform.Rotation = Quaternion.CreateFromRotationMatrix(Matrix(
+			right.X, right.Y, right.Z, 0,
+			up.X, up.Y, up.Z, 0,
+			-forward.X, -forward.Y, -forward.Z, 0,
+			0, 0, 0, 1
+		));
 
-		FontLoadOptions options = .ExtendedLatin;
-		options.PixelHeight = 16;
-
-		if (mFontService.LoadFont("Roboto", fontPath, options) case .Err)
-		{
-			Console.WriteLine($"Failed to load font: {fontPath}");
-			return false;
-		}
-
-		Console.WriteLine("Font loaded successfully");
-		return true;
+		mScene.SetTransform(mCameraEntity, transform);
 	}
 
-	private bool InitializeUI()
+	protected override void OnInput()
 	{
-		Console.WriteLine("Initializing UI service...");
+		let mouse = mShell.InputManager?.Mouse;
 
-		// Create and configure UIService
-		mUIService = new UIService();
-
-		// Register font service
-		mUIService.SetFontService(mFontService);
-
-		// Register theme
-		mUITheme = new GameTheme();
-		mUIService.SetTheme(mUITheme);
-
-		// Set atlas texture
-		/*let (wu, wv) = mFontService.WhitePixelUV;
-		mUIService.SetAtlasTexture(mFontService.AtlasTextureView, .(wu, wv));*/
-
-		mContext.RegisterService<UIService>(mUIService);
-		Console.WriteLine("UI service initialized");
-		return true;
-	}
-
-	private void BuildUI()
-	{
-		if (mUISceneComponent == null)
+		// In main menu
+		if (mGameState == .MainMenu)
 		{
-			Console.WriteLine("WARNING: No UISceneComponent available");
+			if (mStartWaveAction.WasPressed)
+				StartGame(0);  // Start level 1
+			if (mCancelAction.WasPressed)
+				Exit();
 			return;
 		}
 
-		// Create main menu
-		mMainMenu = new MainMenu();
+		// Pause toggle
+		if (mPauseAction.WasPressed)
+		{
+			if (mGameState == .Paused)
+				ResumeGame();
+			else if (mGameState != .MainMenu && mGameState != .Victory && mGameState != .GameOver)
+				PauseGame();
+			return;
+		}
 
-		// Subscribe to menu events
-		mMainMenu.OnPlay.Subscribe(new () => {
-			mGameAudio?.PlayUIClick();
-			ShowLevelSelect();
-		});
+		// When paused
+		if (mGameState == .Paused)
+			return;
 
-		mMainMenu.OnQuit.Subscribe(new () => {
-			mGameAudio?.PlayUIClick();
-			Shell.RequestExit();
-		});
+		// Store movement input
+		mMoveInput = mMoveAction.Vector2Value;
 
-		// Create level select screen
-		mLevelSelect = new LevelSelect();
+		// Zoom
+		if (mZoomInAction.IsActive)
+			mCameraHeight = Math.Max(10.0f, mCameraHeight - 20.0f * mDeltaTime);
+		if (mZoomOutAction.IsActive)
+			mCameraHeight = Math.Min(100.0f, mCameraHeight + 20.0f * mDeltaTime);
 
-		mLevelSelect.OnLevelSelected.Subscribe(new (levelIndex) => {
-			mGameAudio?.PlayUIClick();
-			StartGame(levelIndex);
-		});
+		// Tower selection
+		if (mTower1Action.WasPressed)
+			SelectTower(1, .Cannon);
+		if (mTower2Action.WasPressed)
+			SelectTower(2, .Archer);
+		if (mTower3Action.WasPressed)
+			SelectTower(3, .SlowTower);
+		if (mTower4Action.WasPressed)
+			SelectTower(4, .Splash);
+		if (mTower5Action.WasPressed)
+			SelectTower(5, .AntiAir);
 
-		mLevelSelect.OnBack.Subscribe(new () => {
-			mGameAudio?.PlayUIClick();
-			ShowMainMenu();
-		});
+		// Cancel tower selection
+		if (mCancelAction.WasPressed && mSelectedTowerType != 0)
+		{
+			mSelectedTowerType = 0;
+			HideTowerPreview();
+		}
 
-		// Create game HUD
-		mGameHUD = new GameHUD();
-
-		// Subscribe to HUD events
-		mGameHUD.OnTowerSelected.Subscribe(new (index) => {
-			mGameAudio?.PlayUIClick();
-			SelectTowerByIndex(index);
-		});
-
-		mGameHUD.OnStartWave.Subscribe(new () => {
-			mGameAudio?.PlayUIClick();
+		// Start wave
+		if (mStartWaveAction.WasPressed)
 			TryStartNextWave();
-		});
 
-		mGameHUD.OnRestart.Subscribe(new () => {
-			mGameAudio?.PlayUIClick();
+		// Restart
+		if (mRestartAction.WasPressed)
 			RestartGame();
-		});
 
-		mGameHUD.OnResume.Subscribe(new () => {
-			mGameAudio?.PlayUIClick();
-			ResumeGame();
-		});
-		mGameHUD.OnMainMenu.Subscribe(new () => {
-			mGameAudio?.PlayUIClick();
-			ReturnToMainMenu();
-		});
-		mGameHUD.OnSellTower.Subscribe(new () => {
-			mGameAudio?.PlayUIClick();
-			SellSelectedTower();
-		});
-		mGameHUD.OnUpgradeTower.Subscribe(new () => {
-			mGameAudio?.PlayUIClick();
-			UpgradeSelectedTower();
-		});
-		mGameHUD.OnMusicVolumeChanged.Subscribe(new (volume) => {
-			mGameAudio?.SetMusicVolume(volume);
-		});
-		mGameHUD.OnSFXVolumeChanged.Subscribe(new (volume) => {
-			mGameAudio?.SetSFXVolume(volume);
-		});
-		mGameHUD.OnSpeedChanged.Subscribe(new (speed) => {
-			mGameSpeed = speed;
-			Console.WriteLine($"Game speed: {speed}x");
-		});
+		// Mouse input for tower placement
+		if (mouse != null)
+		{
+			// Right click cancels selection
+			if (mouse.IsButtonPressed(.Right))
+			{
+				if (mSelectedTowerType != 0)
+				{
+					mSelectedTowerType = 0;
+					HideTowerPreview();
+				}
+				else if (mSelectedPlacedTower.IsValid)
+				{
+					DeselectPlacedTower();
+				}
+			}
 
-		// Sync initial volume values to HUD
-		if (mGameAudio != null)
-			mGameHUD.SetVolumes(mGameAudio.MusicVolume, mGameAudio.SFXVolume);
+			// Left click places tower or selects tower
+			if (mouse.IsButtonPressed(.Left))
+			{
+				bool inHUDArea = mouse.Y < 50 || mouse.Y > (mSwapChain.Height - 80);
+				if (!inHUDArea)
+				{
+					if (mSelectedTowerType != 0)
+						TryPlaceTower(mouse.X, mouse.Y);
+					else
+						TrySelectPlacedTower(mouse.X, mouse.Y);
+				}
+			}
 
-		// Start with main menu visible
-		ShowMainMenu();
-
-		Console.WriteLine("Game UI built");
+			// Update tower preview
+			UpdateTowerPreview(mouse.X, mouse.Y);
+		}
 	}
 
-	private void ShowMainMenu()
+	protected override void OnUpdate(FrameContext frame)
 	{
-		// Simply swap root element - no need for visibility toggling
-		mUISceneComponent.RootElement = mMainMenu.RootElement;
-		mGameState = .MainMenu;
+		mDeltaTime = frame.DeltaTime;
+
+		// Skip updates when paused or in menu
+		if (mGameState == .Paused || mGameState == .MainMenu)
+			return;
+
+		let scaledDelta = mDeltaTime * mGameSpeed;
+
+		// Camera movement
+		mCameraTargetX += mMoveInput.X * mCameraMoveSpeed * mDeltaTime;
+		mCameraTargetZ -= mMoveInput.Y * mCameraMoveSpeed * mDeltaTime;
+		UpdateCameraTransform();
+
+		// Update game systems
+		if (mGameState == .WaveInProgress)
+			mWaveSpawner?.Update(scaledDelta);
+
+		mTowerFactory?.Update(scaledDelta);
+		mEnemyFactory?.Update(scaledDelta);
+		mParticleEffects?.Update(scaledDelta);
 	}
 
-	private void ShowLevelSelect()
+	protected override void OnFixedUpdate(float fixedDt)
 	{
-		mUISceneComponent.RootElement = mLevelSelect.RootElement;
-		mGameState = .MainMenu;  // Still in menu state
+		// Physics updates go here if needed
 	}
 
-	private void ShowGameUI()
+	protected override bool OnRenderFrame(RenderContext render)
 	{
-		// Simply swap root element - no need for visibility toggling
-		mUISceneComponent.RootElement = mGameHUD.RootElement;
-		mGameHUD.HideOverlays();  // Ensure overlays are hidden
+		mRenderSystem.BeginFrame(render.Frame.TotalTime, render.Frame.DeltaTime);
+
+		if (mFinalOutputFeature != null)
+			mFinalOutputFeature.SetSwapChain(render.SwapChain);
+
+		// Set active render world
+		if (let renderModule = mScene?.GetModule<RenderSceneModule>())
+		{
+			if (let world = renderModule.World)
+				mRenderSystem.SetActiveWorld(world);
+		}
+
+		// Update HUD state
 		UpdateHUD();
+
+		// Draw debug visuals
+		DrawDebugVisuals();
+
+		// Update camera in render view
+		var camTransform = mScene.GetTransform(mCameraEntity);
+		var camPos = camTransform.Position;
+		let camForward = Vector3.Normalize(Vector3(mCameraTargetX, 0, mCameraTargetZ) - camPos);
+		mRenderView.CameraPosition = camPos;
+		mRenderView.CameraForward = camForward;
+		mRenderView.CameraUp = .(0, 1, 0);
+		mRenderView.Width = mSwapChain.Width;
+		mRenderView.Height = mSwapChain.Height;
+		mRenderView.UpdateMatrices(mDevice.FlipProjectionRequired);
+
+		mRenderSystem.SetCamera(
+			mRenderView.CameraPosition,
+			mRenderView.CameraForward,
+			.(0, 1, 0),
+			mRenderView.FieldOfView,
+			mRenderView.AspectRatio,
+			mRenderView.NearPlane,
+			mRenderView.FarPlane,
+			mRenderView.Width,
+			mRenderView.Height
+		);
+
+		if (mRenderSystem.BuildRenderGraph(mRenderView) case .Ok)
+			mRenderSystem.Execute(render.Encoder);
+
+		mRenderSystem.EndFrame();
+
+		// Render UI overlay
+		if (mUISubsystem != null)
+		{
+			mUISubsystem.RenderUI(render.Encoder, render.SwapChain.CurrentTextureView,
+				mSwapChain.Width, mSwapChain.Height, render.Frame.FrameIndex);
+		}
+
+		return true;
 	}
+
+	private void UpdateHUD()
+	{
+		// Skip HUD updates when in main menu (MainMenu class handles that)
+		if (mGameState == .MainMenu || mGameHUD == null)
+			return;
+
+		// Update stats display
+		mGameHUD.SetMoney(mMoney);
+		mGameHUD.SetLives(mLives);
+		mGameHUD.SetWave(mWaveSpawner?.CurrentWaveNumber ?? 0, mWaveSpawner?.TotalWaves ?? 0);
+
+		// Update start wave button state
+		bool canStartWave = (mGameState == .WaitingToStart || mGameState == .WavePaused);
+		mGameHUD.SetStartWaveEnabled(canStartWave);
+		if (canStartWave)
+			mGameHUD.SetStartWaveText("Start Wave");
+		else if (mGameState == .WaveInProgress)
+			mGameHUD.SetStartWaveText("Wave Active...");
+		else
+			mGameHUD.SetStartWaveText("---");
+
+		// Update overlays based on game state
+		switch (mGameState)
+		{
+		case .MainMenu:
+			// Handled by MainMenu class
+		case .WaitingToStart, .WaveInProgress, .WavePaused:
+			mGameHUD.HideOverlays();
+		case .Paused:
+			mGameHUD.HideOverlays();
+			mGameHUD.ShowPause();
+		case .Victory:
+			mGameHUD.HideOverlays();
+			mGameHUD.ShowVictory(mMoney, mEnemiesKilled);
+		case .GameOver:
+			mGameHUD.HideOverlays();
+			mGameHUD.ShowGameOver(mWaveSpawner?.CurrentWaveNumber ?? 0, mEnemiesKilled);
+		}
+
+		// Update tower info panel
+		if (mSelectedPlacedTower.IsValid)
+		{
+			let data = mTowerFactory?.GetTowerData(mSelectedPlacedTower);
+			if (data != null)
+				mGameHUD.ShowTowerInfo(data);
+		}
+	}
+
+	private void DrawDebugVisuals()
+	{
+		if (mDebugFeature == null || mGameState == .MainMenu)
+			return;
+
+		// Draw enemy health bars
+		DrawEnemyHealthBars();
+
+		// Draw tower range indicator
+		DrawTowerRangeIndicator();
+	}
+
+	private void DrawEnemyHealthBars()
+	{
+		if (mEnemyFactory == null) return;
+
+		let enemies = scope List<EntityId>();
+		mEnemyFactory.GetActiveEnemies(enemies);
+
+		for (let enemy in enemies)
+		{
+			let healthPct = mEnemyFactory.GetEnemyHealthPercent(enemy);
+			if (healthPct <= 0 || healthPct > 1)
+				continue;
+
+			var enemyTransform = mScene.GetTransform(enemy);
+			let pos = enemyTransform.Position;
+
+			let barWidth = 1.2f;
+			let barHeight = 0.15f;
+			let barY = pos.Y + 1.5f;
+
+			let halfWidth = barWidth * 0.5f;
+			let halfHeight = barHeight * 0.5f;
+
+			// Background
+			mDebugFeature.AddQuad(
+				.(pos.X - halfWidth, barY, pos.Z - halfHeight),
+				.(pos.X + halfWidth, barY, pos.Z - halfHeight),
+				.(pos.X + halfWidth, barY, pos.Z + halfHeight),
+				.(pos.X - halfWidth, barY, pos.Z + halfHeight),
+				.(60, 20, 20, 200), .Overlay);
+
+			// Foreground
+			let fgWidth = barWidth * healthPct;
+			let fgStartX = pos.X - halfWidth;
+			uint8 r = (uint8)(255 * (1.0f - healthPct));
+			uint8 g = (uint8)(255 * healthPct);
+
+			mDebugFeature.AddQuad(
+				.(fgStartX, barY + 0.01f, pos.Z - halfHeight * 0.8f),
+				.(fgStartX + fgWidth, barY + 0.01f, pos.Z - halfHeight * 0.8f),
+				.(fgStartX + fgWidth, barY + 0.01f, pos.Z + halfHeight * 0.8f),
+				.(fgStartX, barY + 0.01f, pos.Z + halfHeight * 0.8f),
+				.(r, g, 0, 255), .Overlay);
+		}
+	}
+
+	private void DrawTowerRangeIndicator()
+	{
+		Vector3 center = .Zero;
+		float range = 0;
+		Color color = .(100, 200, 255, 180);
+
+		// Preview tower
+		if (mSelectedTowerType > 0 && mTowerPreview.IsValid)
+		{
+			var previewTransform = mScene.GetTransform(mTowerPreview);
+			let previewPos = previewTransform.Position;
+			if (previewPos.Y > -50)  // Not hidden
+			{
+				center = previewPos;
+				let def = GetTowerDefinitionByIndex(mSelectedTowerType);
+				range = def.Range;
+				color = mPreviewValid ? Color(100, 255, 100, 150) : Color(255, 100, 100, 150);
+			}
+		}
+		// Selected placed tower
+		else if (mSelectedPlacedTower.IsValid)
+		{
+			var selectedTransform = mScene.GetTransform(mSelectedPlacedTower);
+			center = selectedTransform.Position;
+			range = mTowerFactory?.GetTowerRange(mSelectedPlacedTower) ?? 0;
+		}
+
+		if (range > 0)
+			DrawCircleXZ(center, range, color, 32);
+	}
+
+	private void DrawCircleXZ(Vector3 center, float radius, Color color, int segments)
+	{
+		float angleStep = Math.PI_f * 2.0f / segments;
+		float y = center.Y + 0.05f;
+
+		for (int i = 0; i < segments; i++)
+		{
+			float a0 = i * angleStep;
+			float a1 = (i + 1) * angleStep;
+			Vector3 p0 = .(center.X + Math.Cos(a0) * radius, y, center.Z + Math.Sin(a0) * radius);
+			Vector3 p1 = .(center.X + Math.Cos(a1) * radius, y, center.Z + Math.Sin(a1) * radius);
+			mDebugFeature.AddLine(p0, p1, color, .Overlay);
+		}
+	}
+
+	// ==================== Game Logic ====================
 
 	private void StartGame(int32 levelIndex)
 	{
 		Console.WriteLine($"\n=== STARTING GAME (Level {levelIndex + 1}) ===\n");
 
-		// Load the selected map
+		// Switch UI to game HUD
+		mUISubsystem.UIContext.RootElement = mGameHUD.RootElement;
+		mGameHUD.HideOverlays();
+
 		LoadMap(levelIndex);
-
-		// Switch to game UI
-		ShowGameUI();
-
-		// Start background music
+		mGameState = .WaitingToStart;
 		mGameAudio?.StartMusic();
 
-		// Set game state
-		mGameState = .WaitingToStart;
-
-		// Update HUD
-		UpdateHUD();
-
 		Console.WriteLine($"Game started! Money=${mMoney}, Lives={mLives}");
-		Console.WriteLine("Press SPACE or click 'Start Wave' to begin Wave 1!");
-	}
-
-	private void SelectTowerByIndex(int32 index)
-	{
-		// Map index to tower type (1-based in the game logic)
-		mSelectedTowerType = index + 1;
-
-		TowerDefinition def;
-		switch (index)
-		{
-		case 0: def = .Cannon;
-		case 1: def = .Archer;
-		case 2: def = .SlowTower;  // Frost Tower
-		case 3: def = .Splash;     // Mortar Tower
-		case 4: def = .AntiAir;    // SAM Tower
-		default: return;
-		}
-
-		Console.WriteLine($"Selected: {def.Name} (${def.Cost})");
-	}
-
-	private void UpdateHUD()
-	{
-		if (mGameHUD == null)
-			return;
-
-		mGameHUD.SetMoney(mMoney);
-		mGameHUD.SetLives(mLives);
-		mGameHUD.SetWave(mWaveSpawner.CurrentWaveNumber, mWaveSpawner.TotalWaves);
-
-		// Update start wave button
-		bool canStartWave = (mGameState == .WaitingToStart || mGameState == .WavePaused);
-		mGameHUD.SetStartWaveEnabled(canStartWave);
-
-		if (mGameState == .WaveInProgress)
-			mGameHUD.SetStartWaveText("Wave In Progress");
-		else if (mGameState == .WaitingToStart)
-			mGameHUD.SetStartWaveText("Start Wave 1");
-		else if (mGameState == .WavePaused)
-			mGameHUD.SetStartWaveText(scope $"Start Wave {mWaveSpawner.CurrentWaveNumber + 1}");
-	}
-
-	private void CreateSceneEntities()
-	{
-		// Create directional light (sun)
-		{
-			let sunLight = mScene.CreateEntity("SunLight");
-			sunLight.Transform.LookAt(.(-0.4f, -1.0f, -0.3f));
-
-			let lightComp = LightComponent.CreateDirectional(.(1.0f, 0.95f, 0.85f), 1.2f, true);
-			sunLight.AddComponent(lightComp);
-		}
-
-		// Create top-down camera
-		{
-			mCameraEntity = mScene.CreateEntity("MainCamera");
-			UpdateCameraTransform();
-
-			let cameraComp = new CameraComponent(Math.PI_f / 4.0f, 0.1f, 500.0f, true);
-			cameraComp.UseReverseZ = false;
-			cameraComp.SetViewport(SwapChain.Width, SwapChain.Height);
-			mCameraEntity.AddComponent(cameraComp);
-		}
-
-		Console.WriteLine("Scene entities created");
 	}
 
 	private void LoadMap(int32 levelIndex)
 	{
-		// Clean up existing map if any
+		// Clean up existing map
 		if (mCurrentMap != null)
 		{
-			mMapBuilder.ClearMap();
-			mTowerFactory.ClearAll();
-			mEnemyFactory.ClearAllEnemies();
+			mMapBuilder?.ClearMap();
+			mTowerFactory?.ClearAll();
+			mEnemyFactory?.ClearAllEnemies();
 			delete mCurrentMap;
 			mCurrentMap = null;
 		}
 
-		// Create the selected map
+		// Create map
 		switch (levelIndex)
 		{
-		case 0:
-			mCurrentMap = Map01_Grasslands.Create();
-		case 1:
-			mCurrentMap = Map02_Desert.Create();
-		case 2:
-			mCurrentMap = Map03_Fortress.Create();
-		default:
-			mCurrentMap = Map01_Grasslands.Create();  // Fallback
+		case 0: mCurrentMap = Map01_Grasslands.Create();
+		case 1: mCurrentMap = Map02_Desert.Create();
+		case 2: mCurrentMap = Map03_Fortress.Create();
+		default: mCurrentMap = Map01_Grasslands.Create();
 		}
 
-		// Build the map (creates tile entities)
-		mMapBuilder.BuildMap(mCurrentMap);
+		// Build map
+		mMapBuilder?.BuildMap(mCurrentMap);
 
-		// Set up enemy factory with waypoints
-		mEnemyFactory.SetWaypoints(mCurrentMap.Waypoints);
+		// Set up systems
+		mEnemyFactory?.SetWaypoints(mCurrentMap.Waypoints);
 
-		// Set up wave spawner with map waves
-		mWaveSpawner.ClearWaves();
+		mWaveSpawner?.ClearWaves();
 		for (let wave in mCurrentMap.Waves)
-			mWaveSpawner.AddWave(wave);
+			mWaveSpawner?.AddWave(wave);
 
-		// Initialize game values from map (state is set by menu/StartGame)
+		// Reset state
 		mMoney = mCurrentMap.StartingMoney;
 		mLives = mCurrentMap.StartingLives;
 		mEnemiesKilled = 0;
 		mSelectedTowerType = 0;
-		mSelectedPlacedTower = null;
+		mSelectedPlacedTower = .Invalid;
 		mGameSpeed = 1.0f;
 
+		HideTowerPreview();
+
 		Console.WriteLine($"Map loaded: {mCurrentMap.Name}");
-		Console.WriteLine($"  Size: {mCurrentMap.Width}x{mCurrentMap.Height}");
-		Console.WriteLine($"  Waypoints: {mCurrentMap.Waypoints.Count}");
-		Console.WriteLine($"  Waves: {mCurrentMap.Waves.Count}");
-		Console.WriteLine($"  Starting money: {mCurrentMap.StartingMoney}");
-		Console.WriteLine($"  Starting lives: {mCurrentMap.StartingLives}");
-	}
-
-	private void UpdateCameraTransform()
-	{
-		if (mCameraEntity == null)
-			return;
-
-		// Position camera above target, looking down
-		mCameraEntity.Transform.SetPosition(.(mCameraTargetX, mCameraHeight, mCameraTargetZ + 0.1f));
-
-		// Look at target point
-		let target = Vector3(mCameraTargetX, 0, mCameraTargetZ);
-		mCameraEntity.Transform.LookAt(target);
-	}
-
-	private void CreateTowerPreview()
-	{
-		// Create preview entity (initially hidden far below ground)
-		mTowerPreview = mScene.CreateEntity("TowerPreview");
-		mTowerPreview.Transform.SetPosition(.(0, -100, 0));  // Hidden below ground
-
-		// Add mesh component using tower mesh
-		mPreviewMesh = StaticMesh.CreateCube(1.0f);
-		mPreviewMeshComp = new StaticMeshComponent();
-		mTowerPreview.AddComponent(mPreviewMeshComp);
-		mPreviewMeshComp.SetMesh(mPreviewMesh);
-
-		// Create semi-transparent materials for valid/invalid placement
-		let materialSystem = mRendererService.MaterialSystem;
-		if (materialSystem == null)
-			return;
-
-		// Create base PBR material for preview
-		let basePbrMaterial = Material.CreatePBR("PreviewMaterial");
-		mPreviewBaseMaterial = materialSystem.RegisterMaterial(basePbrMaterial);
-		if (!mPreviewBaseMaterial.IsValid)
-			return;
-
-		// Valid placement material (green, semi-transparent)
-		mPreviewValidMaterial = materialSystem.CreateInstance(mPreviewBaseMaterial);
-		if (mPreviewValidMaterial.IsValid)
-		{
-			let instance = materialSystem.GetInstance(mPreviewValidMaterial);
-			if (instance != null)
-			{
-				instance.SetFloat4("baseColor", .(0.2f, 0.8f, 0.2f, 0.6f));
-				instance.SetFloat("metallic", 0.0f);
-				instance.SetFloat("roughness", 0.8f);
-				instance.SetFloat("ao", 1.0f);
-				instance.SetFloat4("emissive", .(0.1f, 0.3f, 0.1f, 1.0f));
-				materialSystem.UploadInstance(mPreviewValidMaterial);
-			}
-		}
-
-		// Invalid placement material (red, semi-transparent)
-		mPreviewInvalidMaterial = materialSystem.CreateInstance(mPreviewBaseMaterial);
-		if (mPreviewInvalidMaterial.IsValid)
-		{
-			let instance = materialSystem.GetInstance(mPreviewInvalidMaterial);
-			if (instance != null)
-			{
-				instance.SetFloat4("baseColor", .(0.8f, 0.2f, 0.2f, 0.6f));
-				instance.SetFloat("metallic", 0.0f);
-				instance.SetFloat("roughness", 0.8f);
-				instance.SetFloat("ao", 1.0f);
-				instance.SetFloat4("emissive", .(0.3f, 0.1f, 0.1f, 1.0f));
-				materialSystem.UploadInstance(mPreviewInvalidMaterial);
-			}
-		}
-
-		// Start with valid material
-		mPreviewMeshComp.SetMaterialInstance(0, mPreviewValidMaterial);
-		Console.WriteLine("Tower preview created");
-	}
-
-	private void UpdateTowerPreview(float mouseX, float mouseY)
-	{
-		if (mTowerPreview == null)
-			return;
-
-		// Hide preview if no tower selected or in wrong game state
-		if (mSelectedTowerType == 0 || mGameState == .MainMenu || mGameState == .Victory || mGameState == .GameOver)
-		{
-			mTowerPreview.Transform.SetPosition(.(0, -100, 0));  // Hidden below ground
-			return;
-		}
-
-		// Check if mouse is over HUD area
-		bool inHUDArea = mouseY < 50 || mouseY > (SwapChain.Height - 80);
-		if (inHUDArea)
-		{
-			mTowerPreview.Transform.SetPosition(.(0, -100, 0));  // Hidden below ground
-			return;
-		}
-
-		// Convert screen position to world position
-		let worldPos = ScreenToWorld(mouseX, mouseY);
-
-		// Convert to grid coordinates
-		let (gridX, gridY) = mCurrentMap.WorldToGrid(worldPos);
-
-		// Get tile type and check validity
-		bool canPlace = false;
-		Vector3 snappedPos = worldPos;
-
-		if (gridX >= 0 && gridY >= 0)
-		{
-			let tileType = mCurrentMap.GetTile(gridX, gridY);
-			canPlace = mTowerFactory.CanPlaceTower(gridX, gridY, tileType);
-
-			// Snap preview to grid center
-			snappedPos = mCurrentMap.GridToWorld(gridX, gridY);
-		}
-
-		// Get current tower definition for scale
-		TowerDefinition def;
-		switch (mSelectedTowerType)
-		{
-		case 1: def = .Cannon;
-		case 2: def = .Archer;
-		case 3: def = .SlowTower;
-		case 4: def = .Splash;
-		case 5: def = .AntiAir;
-		default: def = .Cannon;
-		}
-
-		// Position preview at grid-snapped location
-		float yPos = def.Scale * 0.5f;
-		mTowerPreview.Transform.SetPosition(.(snappedPos.X, yPos, snappedPos.Z));
-		mTowerPreview.Transform.SetScale(.(def.Scale * 0.8f, def.Scale, def.Scale * 0.8f));
-
-		// Update material based on validity
-		if (canPlace != mPreviewValid)
-		{
-			mPreviewValid = canPlace;
-			mPreviewMeshComp.SetMaterialInstance(0, canPlace ? mPreviewValidMaterial : mPreviewInvalidMaterial);
-		}
-	}
-
-	private void HideTowerPreview()
-	{
-		if (mTowerPreview != null)
-			mTowerPreview.Transform.SetPosition(.(0, -100, 0));
-	}
-
-	protected override void OnResize(uint32 width, uint32 height)
-	{
-		if (let cameraComp = mCameraEntity?.GetComponent<CameraComponent>())
-		{
-			cameraComp.SetViewport(width, height);
-		}
-
-		// Update UI viewport
-		mUISceneComponent?.SetViewportSize(width, height);
-	}
-
-	protected override bool OnEscapePressed()
-	{
-		// Application handles Escape key - don't let base class exit
-		return true;
-	}
-
-	protected override void OnInput()
-	{
-		let keyboard = Shell.InputManager.Keyboard;
-		let mouse = Shell.InputManager.Mouse;
-
-		// In main menu - only handle Escape to quit
-		if (mGameState == .MainMenu)
-		{
-			if (keyboard.IsKeyPressed(.Escape))
-				Shell.RequestExit();
-			return;
-		}
-
-		// Pause toggle with P key (works in any gameplay state)
-		if (keyboard.IsKeyPressed(.P))
-		{
-			TogglePause();
-			return;
-		}
-
-		// When paused - only allow Escape to unpause
-		if (mGameState == .Paused)
-		{
-			if (keyboard.IsKeyPressed(.Escape))
-				ResumeGame();
-			return;
-		}
-
-		// Escape: cancel tower selection, or pause game
-		if (keyboard.IsKeyPressed(.Escape))
-		{
-			if (mSelectedTowerType != 0)
-			{
-				mSelectedTowerType = 0;
-				mGameHUD?.ClearSelection();
-				HideTowerPreview();
-				Console.WriteLine("Tower selection cancelled");
-			}
-			else if (mSelectedPlacedTower != null)
-			{
-				DeselectPlacedTower();
-			}
-			else
-			{
-				// Pause the game instead of returning to main menu
-				PauseGame();
-				return;
-			}
-		}
-
-		// Camera panning with WASD
-		float panSpeed = mCameraMoveSpeed * DeltaTime;
-
-		if (keyboard.IsKeyDown(.W))
-			mCameraTargetZ -= panSpeed;
-		if (keyboard.IsKeyDown(.S))
-			mCameraTargetZ += panSpeed;
-		if (keyboard.IsKeyDown(.A))
-			mCameraTargetX -= panSpeed;
-		if (keyboard.IsKeyDown(.D))
-			mCameraTargetX += panSpeed;
-
-		// Zoom with Q/E
-		float zoomSpeed = 20.0f * DeltaTime;
-		if (keyboard.IsKeyDown(.Q))
-			mCameraHeight = Math.Max(10.0f, mCameraHeight - zoomSpeed);
-		if (keyboard.IsKeyDown(.E))
-			mCameraHeight = Math.Min(100.0f, mCameraHeight + zoomSpeed);
-
-		// Tower selection with F1-F5
-		if (keyboard.IsKeyPressed(.F1))
-			SelectTower(1, .Cannon);
-		if (keyboard.IsKeyPressed(.F2))
-			SelectTower(2, .Archer);
-		if (keyboard.IsKeyPressed(.F3))
-			SelectTower(3, .SlowTower);
-		if (keyboard.IsKeyPressed(.F4))
-			SelectTower(4, .Splash);
-		if (keyboard.IsKeyPressed(.F5))
-			SelectTower(5, .AntiAir);
-
-		// Cancel tower selection or deselect placed tower with Right Click
-		if (mouse.IsButtonPressed(.Right))
-		{
-			if (mSelectedTowerType != 0)
-			{
-				mSelectedTowerType = 0;
-				mGameHUD?.ClearSelection();
-				HideTowerPreview();
-				Console.WriteLine("Tower selection cancelled");
-			}
-			else if (mSelectedPlacedTower != null)
-			{
-				DeselectPlacedTower();
-			}
-		}
-
-		// Place tower with Left Click (only if not clicking on UI HUD areas)
-		if (mouse.IsButtonPressed(.Left) && mSelectedTowerType != 0)
-		{
-			// Check if click is in HUD areas (top bar: 50px, bottom panel: 80px)
-			bool inHUDArea = mouse.Y < 50 || mouse.Y > (SwapChain.Height - 80);
-			if (!inHUDArea)
-			{
-				// Click is not on HUD - try to place tower
-				TryPlaceTower(mouse.X, mouse.Y);
-			}
-		}
-		// Select placed tower with Left Click (when not in placement mode)
-		else if (mouse.IsButtonPressed(.Left) && mSelectedTowerType == 0)
-		{
-			bool inHUDArea = mouse.Y < 50 || mouse.Y > (SwapChain.Height - 80);
-			if (!inHUDArea)
-			{
-				TrySelectPlacedTower(mouse.X, mouse.Y);
-			}
-		}
-
-		// Start wave with Space
-		if (keyboard.IsKeyPressed(.Space))
-		{
-			TryStartNextWave();
-		}
-
-		// Restart game with R
-		if (keyboard.IsKeyPressed(.R))
-		{
-			RestartGame();
-		}
-
-		UpdateCameraTransform();
-
-		// Update tower placement preview
-		UpdateTowerPreview(mouse.X, mouse.Y);
-	}
-
-	private void ReturnToMainMenu()
-	{
-		Console.WriteLine("\n=== RETURNING TO MAIN MENU ===\n");
-
-		// Hide tower preview
-		HideTowerPreview();
-
-		// Reset game state
-		ResetGameState();
-
-		// Show main menu
-		ShowMainMenu();
-	}
-
-	private void TryStartNextWave()
-	{
-		// Can only start waves in WaitingToStart or WavePaused states
-		if (mGameState != .WaitingToStart && mGameState != .WavePaused)
-		{
-			if (mGameState == .WaveInProgress)
-				Console.WriteLine("Wave already in progress!");
-			else if (mGameState == .Victory)
-				Console.WriteLine("You already won! Press R to restart.");
-			else if (mGameState == .GameOver)
-				Console.WriteLine("Game over! Press R to restart.");
-			return;
-		}
-
-		if (mWaveSpawner.StartNextWave())
-		{
-			mGameState = .WaveInProgress;
-		}
-	}
-
-	private void ResetGameState()
-	{
-		// Clear all enemies
-		mEnemyFactory.ClearAllEnemies();
-
-		// Clear all towers
-		mTowerFactory.ClearAll();
-
-		// Clear particle effects
-		mParticleEffects?.Clear();
-
-		// Reset wave spawner
-		mWaveSpawner.Reset();
-
-		// Reload wave definitions
-		mWaveSpawner.ClearWaves();
-		for (let wave in mCurrentMap.Waves)
-			mWaveSpawner.AddWave(wave);
-
-		// Reset game variables
-		mMoney = mCurrentMap.StartingMoney;
-		mLives = mCurrentMap.StartingLives;
-		mEnemiesKilled = 0;
-		mSelectedTowerType = 0;
-		mSelectedPlacedTower = null;  // Clear stale reference before towers are deleted
-		mGameSpeed = 1.0f;  // Reset speed to 1x
-
-		// Hide tower preview
-		HideTowerPreview();
-
-		// Reset UI
-		mGameHUD?.HideOverlays();
-		mGameHUD?.ClearSelection();
-		mGameHUD?.ResetSpeed();
-	}
-
-	private void RestartGame()
-	{
-		Console.WriteLine("\n=== RESTARTING GAME ===\n");
-
-		// Reset game state
-		ResetGameState();
-
-		// Set state to waiting
-		mGameState = .WaitingToStart;
-
-		// Update UI
-		UpdateHUD();
-
-		Console.WriteLine($"Game restarted! Money=${mMoney}, Lives={mLives}");
-		Console.WriteLine("Press SPACE to start Wave 1!");
-	}
-
-	private void PauseGame()
-	{
-		// Can only pause during active gameplay
-		if (mGameState == .MainMenu || mGameState == .Victory || mGameState == .GameOver || mGameState == .Paused)
-			return;
-
-		Console.WriteLine("Game paused");
-		mPrePauseState = mGameState;
-		mGameState = .Paused;
-		mGameAudio?.PauseMusic();
-		mGameHUD?.ShowPause();
-	}
-
-	private void ResumeGame()
-	{
-		if (mGameState != .Paused)
-			return;
-
-		Console.WriteLine("Game resumed");
-		mGameState = mPrePauseState;
-		mGameAudio?.ResumeMusic();
-		mGameHUD?.HidePause();
-	}
-
-	private void TogglePause()
-	{
-		if (mGameState == .Paused)
-			ResumeGame();
-		else
-			PauseGame();
 	}
 
 	private void SelectTower(int32 type, TowerDefinition def)
 	{
-		// Can't place towers during victory/game over
 		if (mGameState == .Victory || mGameState == .GameOver)
-		{
-			Console.WriteLine("Press R to restart the game first!");
 			return;
-		}
 
 		mSelectedTowerType = type;
 		Console.WriteLine($"Selected: {def.Name} (${def.Cost})");
 	}
 
-	/// Gets tower definition by selection index (1-5).
 	private TowerDefinition GetTowerDefinitionByIndex(int32 index)
 	{
 		switch (index)
@@ -1022,374 +979,206 @@ class TowerDefenseGame : RHISampleApp
 
 	private void TryPlaceTower(float screenX, float screenY)
 	{
-		// Convert screen position to world position (simple top-down projection)
 		let worldPos = ScreenToWorld(screenX, screenY);
-
-		// Convert to grid coordinates
 		let (gridX, gridY) = mCurrentMap.WorldToGrid(worldPos);
+
 		if (gridX < 0 || gridY < 0)
-		{
-			Console.WriteLine("Cannot place tower outside map!");
 			return;
-		}
 
-		// Get tile type
 		let tileType = mCurrentMap.GetTile(gridX, gridY);
-
-		// Check if placement is valid
 		if (!mTowerFactory.CanPlaceTower(gridX, gridY, tileType))
-		{
-			Console.WriteLine("Cannot place tower here!");
 			return;
-		}
 
-		// Get tower definition
-		TowerDefinition def;
-		switch (mSelectedTowerType)
-		{
-		case 1: def = .Cannon;
-		case 2: def = .Archer;
-		case 3: def = .SlowTower;
-		case 4: def = .Splash;
-		case 5: def = .AntiAir;
-		default: return;
-		}
-
-		// Check if we have enough money
+		let def = GetTowerDefinitionByIndex(mSelectedTowerType);
 		if (mMoney < def.Cost)
 		{
 			mGameAudio?.PlayNoMoney();
-			Console.WriteLine($"Not enough money! Need ${def.Cost}, have ${mMoney}");
 			return;
 		}
 
-		// Place the tower
 		let tileWorldPos = mCurrentMap.GridToWorld(gridX, gridY);
 		mTowerFactory.PlaceTower(def, tileWorldPos, gridX, gridY);
 		mMoney -= def.Cost;
 		mGameAudio?.PlayTowerPlace();
-		Console.WriteLine($"Placed {def.Name}! Money: ${mMoney}");
 
-		// Clear selection after placing
 		mSelectedTowerType = 0;
-		mGameHUD?.ClearSelection();
 		HideTowerPreview();
-
-		UpdateHUD();
 	}
 
-	/// Tries to select a placed tower at the screen position.
 	private void TrySelectPlacedTower(float screenX, float screenY)
 	{
 		let worldPos = ScreenToWorld(screenX, screenY);
-
-		// Convert to grid coordinates
 		let (gridX, gridY) = mCurrentMap.WorldToGrid(worldPos);
+
 		if (gridX < 0 || gridY < 0)
 			return;
 
-		// Check if there is a tower at this position
 		let tower = mTowerFactory.GetTowerAt(gridX, gridY);
-		if (tower != null)
-		{
+		if (tower.IsValid)
 			mSelectedPlacedTower = tower;
-			let towerComp = tower.GetComponent<TowerComponent>();
-			if (towerComp != null)
-			{
-				Console.WriteLine($"Selected {towerComp.Definition.Name} tower at ({gridX}, {gridY})");
-				mGameHUD?.ShowTowerInfo(towerComp);
-			}
-		}
 		else
-		{
-			// Clicked on empty space - deselect
 			DeselectPlacedTower();
-		}
 	}
 
-	/// Deselects the currently selected placed tower.
 	private void DeselectPlacedTower()
 	{
-		if (mSelectedPlacedTower != null)
+		mSelectedPlacedTower = .Invalid;
+	}
+
+	private void UpdateTowerPreview(float mouseX, float mouseY)
+	{
+		if (!mTowerPreview.IsValid)
+			return;
+
+		if (mSelectedTowerType == 0 || mGameState == .MainMenu || mGameState == .Victory || mGameState == .GameOver)
 		{
-			Console.WriteLine("Deselected tower");
-			mSelectedPlacedTower = null;
-			mGameHUD?.HideTowerInfo();
+			HideTowerPreview();
+			return;
+		}
+
+		bool inHUDArea = mouseY < 50 || mouseY > (mSwapChain.Height - 80);
+		if (inHUDArea)
+		{
+			HideTowerPreview();
+			return;
+		}
+
+		let worldPos = ScreenToWorld(mouseX, mouseY);
+		let (gridX, gridY) = mCurrentMap.WorldToGrid(worldPos);
+
+		bool canPlace = false;
+		Vector3 snappedPos = worldPos;
+
+		if (gridX >= 0 && gridY >= 0)
+		{
+			let tileType = mCurrentMap.GetTile(gridX, gridY);
+			canPlace = mTowerFactory.CanPlaceTower(gridX, gridY, tileType);
+			snappedPos = mCurrentMap.GridToWorld(gridX, gridY);
+		}
+
+		let def = GetTowerDefinitionByIndex(mSelectedTowerType);
+		float yPos = def.Scale * 0.5f;
+
+		var transform = mScene.GetTransform(mTowerPreview);
+		transform.Position = .(snappedPos.X, yPos, snappedPos.Z);
+		transform.Scale = .(def.Scale * 0.8f, def.Scale, def.Scale * 0.8f);
+		mScene.SetTransform(mTowerPreview, transform);
+
+		if (canPlace != mPreviewValid)
+		{
+			mPreviewValid = canPlace;
+			var meshComp = mScene.GetComponent<MeshRendererComponent>(mTowerPreview);
+			meshComp.Material = canPlace ? mPreviewValidMat : mPreviewInvalidMat;
 		}
 	}
 
-	/// Sells the currently selected placed tower.
-	private void SellSelectedTower()
+	private void HideTowerPreview()
 	{
-		if (mSelectedPlacedTower == null)
+		if (!mTowerPreview.IsValid)
 			return;
 
-		let refund = mTowerFactory.SellTower(mSelectedPlacedTower);
-		mMoney += refund;
-		Console.WriteLine($"Sold tower for ${refund}. Money: ${mMoney}");
-		mSelectedPlacedTower = null;
-		mGameHUD?.HideTowerInfo();
-		UpdateHUD();
-	}
-
-	/// Upgrades the currently selected placed tower.
-	private void UpgradeSelectedTower()
-	{
-		if (mSelectedPlacedTower == null)
-			return;
-
-		let towerComp = mSelectedPlacedTower.GetComponent<TowerComponent>();
-		if (towerComp == null)
-			return;
-
-		// Check if can upgrade
-		if (!towerComp.CanUpgrade)
-		{
-			Console.WriteLine("Tower is already at max level!");
-			return;
-		}
-
-		// Check if we have enough money
-		let cost = towerComp.GetUpgradeCost();
-		if (mMoney < cost)
-		{
-			mGameAudio?.PlayNoMoney();
-			Console.WriteLine($"Not enough money! Need ${cost}, have ${mMoney}");
-			return;
-		}
-
-		// Perform upgrade
-		mMoney -= cost;
-		towerComp.Upgrade();
-		Console.WriteLine($"Upgraded {towerComp.Definition.Name} to level {towerComp.Level}! Money: ${mMoney}");
-
-		// Refresh tower info panel to show new stats
-		mGameHUD?.ShowTowerInfo(towerComp);
-		UpdateHUD();
+		var transform = mScene.GetTransform(mTowerPreview);
+		transform.Position = .(0, -100, 0);
+		mScene.SetTransform(mTowerPreview, transform);
 	}
 
 	private Vector3 ScreenToWorld(float screenX, float screenY)
 	{
-		// Simple conversion for top-down camera
-		// Assumes camera is looking straight down at ground plane (Y=0)
-		let cameraComp = mCameraEntity.GetComponent<CameraComponent>();
-		if (cameraComp == null)
-			return .Zero;
+		float ndcX = (2.0f * screenX / mSwapChain.Width) - 1.0f;
+		float ndcY = 1.0f - (2.0f * screenY / mSwapChain.Height);
 
-		// Normalize screen coordinates to -1..1
-		float ndcX = (2.0f * screenX / SwapChain.Width) - 1.0f;
-		float ndcY = 1.0f - (2.0f * screenY / SwapChain.Height);
-
-		// Calculate world position based on camera height and FOV
 		float fovY = Math.PI_f / 4.0f;
-		float aspect = (float)SwapChain.Width / (float)SwapChain.Height;
+		float aspect = (float)mSwapChain.Width / (float)mSwapChain.Height;
 		float halfHeight = mCameraHeight * Math.Tan(fovY / 2.0f);
 		float halfWidth = halfHeight * aspect;
 
 		float worldX = mCameraTargetX + ndcX * halfWidth;
-		float worldZ = mCameraTargetZ - ndcY * halfHeight;  // Negative because camera looks down
+		float worldZ = mCameraTargetZ - ndcY * halfHeight;
 
 		return .(worldX, 0, worldZ);
 	}
 
-	protected override void OnUpdate(float deltaTime, float totalTime)
+	private void TryStartNextWave()
 	{
-		// Apply game speed multiplier
-		let scaledDelta = deltaTime * mGameSpeed;
-
-		// When paused, use zero delta time so components don't update movement/cooldowns
-		let effectiveDelta = (mGameState == .Paused) ? 0.0f : scaledDelta;
-
-		// Skip game logic updates when in main menu or paused
-		if (mGameState != .MainMenu && mGameState != .Paused)
-		{
-			// Update wave spawner during active wave
-			if (mGameState == .WaveInProgress)
-			{
-				mWaveSpawner.Update(scaledDelta);
-			}
-
-			// Update tower system (targeting, firing, projectiles)
-			mTowerFactory.Update(scaledDelta);
-
-			// Update enemy system (death animations cleanup)
-			mEnemyFactory.Update(scaledDelta);
-
-			// Update particle effects (cleanup expired effects)
-			mParticleEffects?.Update(scaledDelta);
-		}
-
-		// Update engine context (handles entity sync, visibility culling, etc.)
-		// Pass zero delta when paused to freeze component updates
-		mContext.Update(effectiveDelta);
-
-		// Draw debug visuals (health bars, range indicators)
-		DrawDebugVisuals();
-	}
-
-	/// Draws health bars above enemies and range indicators for towers.
-	private void DrawDebugVisuals()
-	{
-		let debugDraw = mRendererService?.DebugDrawService;
-		if (debugDraw == null)
+		if (mGameState != .WaitingToStart && mGameState != .WavePaused)
 			return;
 
-		// Don't draw during main menu
-		if (mGameState == .MainMenu)
-			return;
-
-		// Draw enemy health bars
-		DrawEnemyHealthBars(debugDraw);
-
-		// Draw tower range indicator
-		DrawTowerRangeIndicator(debugDraw);
+		if (mWaveSpawner.StartNextWave())
+			mGameState = .WaveInProgress;
 	}
 
-	/// Draws health bars above all active enemies.
-	private void DrawEnemyHealthBars(DebugDrawService debugDraw)
+	private void PauseGame()
 	{
-		if (mEnemyFactory == null)
-			return;
-
-		let enemies = scope List<Entity>();
-		mEnemyFactory.GetActiveEnemies(enemies);
-
-		for (let enemy in enemies)
-		{
-			let healthComp = enemy.GetComponent<HealthComponent>();
-			if (healthComp == null || healthComp.IsDead)
-				continue;
-
-			let pos = enemy.Transform.WorldPosition;
-			let healthPct = healthComp.HealthPercent;
-
-			// Health bar dimensions
-			let barWidth = 1.2f;
-			let barHeight = 0.15f;
-			let barY = pos.Y + 1.5f;  // Height above enemy
-
-			// For top-down view, draw horizontal bar on XZ plane
-			let halfWidth = barWidth * 0.5f;
-			let halfHeight = barHeight * 0.5f;
-
-			// Background (dark red) - full width
-			let bgColor = Color(60, 20, 20, 200);
-			debugDraw.DrawQuad(
-				.(pos.X - halfWidth, barY, pos.Z - halfHeight),
-				.(pos.X + halfWidth, barY, pos.Z - halfHeight),
-				.(pos.X + halfWidth, barY, pos.Z + halfHeight),
-				.(pos.X - halfWidth, barY, pos.Z + halfHeight),
-				bgColor, .Overlay);
-
-			// Foreground (green to red based on health) - scaled by health
-			let fgWidth = barWidth * healthPct;
-			let fgStartX = pos.X - halfWidth;  // Start from left edge
-
-			// Color: green when healthy, yellow at 50%, red when low
-			uint8 r = (uint8)(255 * (1.0f - healthPct));
-			uint8 g = (uint8)(255 * healthPct);
-			let fgColor = Color(r, g, 0, 255);
-
-			if (healthPct > 0.01f)
-			{
-				debugDraw.DrawQuad(
-					.(fgStartX, barY + 0.01f, pos.Z - halfHeight * 0.8f),
-					.(fgStartX + fgWidth, barY + 0.01f, pos.Z - halfHeight * 0.8f),
-					.(fgStartX + fgWidth, barY + 0.01f, pos.Z + halfHeight * 0.8f),
-					.(fgStartX, barY + 0.01f, pos.Z + halfHeight * 0.8f),
-					fgColor, .Overlay);
-			}
-		}
+		mPrePauseState = mGameState;
+		mGameState = .Paused;
+		mGameAudio?.PauseMusic();
 	}
 
-	/// Draws range indicator circle for selected tower or tower being placed.
-	private void DrawTowerRangeIndicator(DebugDrawService debugDraw)
+	private void ResumeGame()
 	{
-		Vector3 center = .Zero;
-		float range = 0;
-		Color color = .(100, 200, 255, 180);  // Light blue
-
-		// Check if placing a tower
-		if (mSelectedTowerType > 0 && mTowerPreview != null && mPreviewMeshComp?.Visible == true)
-		{
-			center = mTowerPreview.Transform.WorldPosition;
-			let def = GetTowerDefinitionByIndex(mSelectedTowerType);
-			range = def.Range;
-			color = mPreviewValid ? Color(100, 255, 100, 150) : Color(255, 100, 100, 150);
-		}
-		// Check if a placed tower is selected
-		else if (mSelectedPlacedTower != null)
-		{
-			let towerComp = mSelectedPlacedTower.GetComponent<TowerComponent>();
-			if (towerComp != null)
-			{
-				center = mSelectedPlacedTower.Transform.WorldPosition;
-				range = towerComp.GetRange();
-			}
-		}
-
-		// Draw range circle if we have a valid range
-		if (range > 0)
-		{
-			DrawCircleXZ(debugDraw, center, range, color, 32);
-		}
+		mGameState = mPrePauseState;
+		mGameAudio?.ResumeMusic();
 	}
 
-	/// Draws a circle on the XZ plane (ground).
-	private void DrawCircleXZ(DebugDrawService debugDraw, Vector3 center, float radius, Color color, int segments)
+	private void RestartGame()
 	{
-		float angleStep = Math.PI_f * 2.0f / segments;
-		float y = center.Y + 0.05f;  // Slightly above ground to avoid z-fighting
+		Console.WriteLine("\n=== RESTARTING GAME ===\n");
 
-		for (int i = 0; i < segments; i++)
-		{
-			float a0 = i * angleStep;
-			float a1 = (i + 1) * angleStep;
-			Vector3 p0 = .(center.X + Math.Cos(a0) * radius, y, center.Z + Math.Sin(a0) * radius);
-			Vector3 p1 = .(center.X + Math.Cos(a1) * radius, y, center.Z + Math.Sin(a1) * radius);
-			debugDraw.DrawLine(p0, p1, color, .Overlay);
-		}
+		mEnemyFactory?.ClearAllEnemies();
+		mTowerFactory?.ClearAll();
+		mParticleEffects?.Clear();
+		mWaveSpawner?.Reset();
+
+		mWaveSpawner?.ClearWaves();
+		for (let wave in mCurrentMap.Waves)
+			mWaveSpawner?.AddWave(wave);
+
+		mMoney = mCurrentMap.StartingMoney;
+		mLives = mCurrentMap.StartingLives;
+		mEnemiesKilled = 0;
+		mSelectedTowerType = 0;
+		mSelectedPlacedTower = .Invalid;
+		mGameSpeed = 1.0f;
+
+		HideTowerPreview();
+
+		// Reset HUD state
+		mGameHUD?.ClearSelection();
+		mGameHUD?.HideTowerInfo();
+		mGameHUD?.HideOverlays();
+		mGameHUD?.ResetSpeed();
+
+		mGameState = .WaitingToStart;
 	}
 
-	// Wave event handlers
+	// ==================== Event Handlers ====================
+
 	private void OnWaveStarted(int32 waveNumber)
 	{
 		Console.WriteLine($"\n=== WAVE {waveNumber}/{mWaveSpawner.TotalWaves} ===");
 		mGameAudio?.PlayWaveStart();
-		UpdateHUD();
 	}
 
 	private void OnWaveCompleted(int32 waveNumber, int32 bonusReward)
 	{
 		mMoney += bonusReward;
-		Console.WriteLine($"Wave {waveNumber} complete! Bonus: +${bonusReward} (Total: ${mMoney})");
+		Console.WriteLine($"Wave {waveNumber} complete! Bonus: +${bonusReward}");
 		mGameAudio?.PlayWaveComplete();
 
-		// Check if more waves remain
 		if (waveNumber < mWaveSpawner.TotalWaves)
-		{
 			mGameState = .WavePaused;
-			Console.WriteLine($"Press SPACE for Wave {waveNumber + 1}!");
-		}
-		UpdateHUD();
 	}
 
 	private void OnAllWavesCompleted()
 	{
 		mGameState = .Victory;
 		Console.WriteLine("\n=== VICTORY! ===");
-		Console.WriteLine($"Final Score: Kills={mEnemiesKilled}, Money=${mMoney}");
-		Console.WriteLine("Press R to play again!");
-
 		mGameAudio?.StopMusic();
 		mGameAudio?.PlayVictory();
-		mGameHUD?.ShowVictory(mMoney, mEnemiesKilled);
-		UpdateHUD();
 	}
 
 	private void OnSpawnEnemyRequest(EnemyPreset preset)
 	{
-		// Convert preset to definition and spawn
 		EnemyDefinition def;
 		switch (preset)
 		{
@@ -1399,118 +1188,48 @@ class TowerDefenseGame : RHISampleApp
 		case .Helicopter: def = .Helicopter;
 		case .BossTank: def = .BossTank;
 		}
-		mEnemyFactory.SpawnEnemy(def);
+		mEnemyFactory?.SpawnEnemy(def);
 	}
 
 	private void OnEnemyReachedExit(EnemyComponent enemy)
 	{
-		// Notify wave spawner
-		mWaveSpawner.OnEnemyRemoved();
-
+		mWaveSpawner?.OnEnemyRemoved();
 		mLives -= enemy.Definition.Damage;
-		Console.WriteLine($"Enemy reached exit! Lives: {mLives}");
 		mGameAudio?.PlayEnemyExit();
 
 		if (mLives <= 0)
 		{
 			mGameState = .GameOver;
 			Console.WriteLine("\n=== GAME OVER ===");
-			Console.WriteLine($"You survived {mWaveSpawner.CurrentWaveNumber - 1} waves. Kills: {mEnemiesKilled}");
-			Console.WriteLine("Press R to try again!");
-
 			mGameAudio?.StopMusic();
 			mGameAudio?.PlayGameOver();
-			mGameHUD?.ShowGameOver(mWaveSpawner.CurrentWaveNumber - 1, mEnemiesKilled);
 		}
-		UpdateHUD();
 	}
 
-	private void OnEnemyKilled(Entity enemy, int32 reward)
+	private void OnEnemyKilled(EntityId enemy, int32 reward)
 	{
-		// Notify wave spawner
-		mWaveSpawner.OnEnemyRemoved();
-
+		mWaveSpawner?.OnEnemyRemoved();
 		mMoney += reward;
 		mEnemiesKilled++;
-		Console.WriteLine($"Enemy killed! +${reward} (Total: ${mMoney}, Kills: {mEnemiesKilled})");
-		UpdateHUD();
 	}
 
-	protected override void OnPrepareFrame(int32 frameIndex)
+	protected override void OnShutdown()
 	{
-		mCurrentFrameIndex = frameIndex;
+		Console.WriteLine("Shutting down...");
 
-		// Begin render graph frame
-		mRendererService.BeginFrame(
-			(uint32)frameIndex, DeltaTime, TotalTime,
-			SwapChain.CurrentTexture, SwapChain.CurrentTextureView,
-			mDepthTexture, DepthTextureView);
-
-		// Add UI pass
-		mUISceneComponent?.AddUIPass(mRendererService.RenderGraph, mRendererService.SwapChainHandle, frameIndex);
-	}
-
-	protected override bool OnRenderFrame(ICommandEncoder encoder, int32 frameIndex)
-	{
-		// Execute all render passes
-		mRendererService.ExecuteFrame(encoder);
-		return true;
-	}
-
-	protected override void OnCleanup()
-	{
-		Console.WriteLine("Cleaning up...");
-
-		// Clean up preview materials
-		let materialSystem = mRendererService?.MaterialSystem;
-		if (materialSystem != null)
-		{
-			if (mPreviewValidMaterial.IsValid)
-				materialSystem.ReleaseInstance(mPreviewValidMaterial);
-			if (mPreviewInvalidMaterial.IsValid)
-				materialSystem.ReleaseInstance(mPreviewInvalidMaterial);
-			if (mPreviewBaseMaterial.IsValid)
-				materialSystem.ReleaseMaterial(mPreviewBaseMaterial);
-		}
-		mPreviewBaseMaterial = .Invalid;
-		mPreviewValidMaterial = .Invalid;
-		mPreviewInvalidMaterial = .Invalid;
-
-		// Clean up game objects BEFORE context shutdown (while scene is still valid)
-		// This allows entity components to properly clean up render proxies etc.
-		mTowerFactory?.Cleanup();
-		mEnemyFactory?.Cleanup();
-		mMapBuilder?.Cleanup();
-
-		// Clear UI root element before deleting UI objects
-		if (mUISceneComponent != null)
-			mUISceneComponent.RootElement = null;
-
-		// Delete UI objects before context shutdown
-		DeleteAndNullify!(mMainMenu);
-		DeleteAndNullify!(mLevelSelect);
-		DeleteAndNullify!(mGameHUD);
-
-		// Wait for GPU before destroying renderer resources
-		Device.WaitIdle();
-
-		// Shutdown context (destroys scenes)
-		mContext?.Shutdown();
-
+		// Clean up UI (FontService is owned by UISubsystem)
 		delete mFontService;
 
-		// Delete services (in reverse order of creation)
-		delete mInputService;
-		delete mUIService;
-		delete mAudioService;
-		delete mDebugDrawService;
-		delete mRendererService;
+		// Clean up materials
+		delete mPreviewValidMat;
+		delete mPreviewInvalidMat;
 
-		// Audio system is owned by AudioService if takeOwnership=true (default)
-		// But we created it ourselves, so if AudioService didn't take it, clean up
-		if (mAudioSystem != null && mAudioService == null)
-			delete mAudioSystem;
+		// Clean up render system
+		if (mRenderSystem != null)
+			mRenderSystem.Shutdown();
+		delete mRenderView;
+		delete mRenderSystem;
 
-		Console.WriteLine("Cleanup complete");
+		Console.WriteLine("Shutdown complete");
 	}
 }

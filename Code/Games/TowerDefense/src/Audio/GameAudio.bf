@@ -4,15 +4,16 @@ using System;
 using System.Collections;
 using Sedulous.Audio;
 using Sedulous.Audio.Decoders;
-using Sedulous.Engine.Audio;
+using Sedulous.Framework.Audio;
 using Sedulous.Mathematics;
 using TowerDefense.Data;
 
 /// Manages all game audio - sound effects and music.
 /// Generates procedural sounds for game events.
+/// Ported to Sedulous.Framework architecture.
 class GameAudio
 {
-	private AudioService mAudioService;
+	private AudioSubsystem mAudioSubsystem;
 	private AudioDecoderFactory mDecoderFactory;
 
 	// Sound effect clips (procedurally generated)
@@ -33,36 +34,42 @@ class GameAudio
 
 	// Background music
 	private AudioClip mProceduralMusicClip ~ delete _;  // Procedural music (fallback)
-	private AudioClip mDecodedMusicClip ~ delete _;     // Decoded mp3/ogg music
-	private IAudioSource mMusicSource;                   // Music playback source
+	private IAudioStream mMusicStream;                   // Music playback stream
 	private bool mMusicPlaying = false;
 	private bool mUseDecodedMusic = true;  // Try decoded file first, fall back to procedural
+	private String mMusicFilePath = new .("Assets/sounds/background.mp3") ~ delete _;
 
-	// Tower fire clips lookup (for AudioSourceComponent access)
+	// Tower fire clips lookup (for direct access)
 	private Dictionary<String, AudioClip> mTowerFireClips = new .() ~ DeleteDictionaryAndKeys!(_);
 
 	// Volume settings
-	public float SFXVolume = 0.1f;
-	public float MusicVolume = 0.1f;
-
-	public this(AudioService audioService, AudioDecoderFactory decoderFactory)
+	public float SFXVolume
 	{
-		mAudioService = audioService;
+		get => mAudioSubsystem?.SFXVolume ?? 0.1f;
+		set { if (mAudioSubsystem != null) mAudioSubsystem.SFXVolume = value; }
+	}
+
+	public float MusicVolume
+	{
+		get => mAudioSubsystem?.MusicVolume ?? 0.1f;
+		set { if (mAudioSubsystem != null) mAudioSubsystem.MusicVolume = value; }
+	}
+
+	public this(AudioSubsystem audioSubsystem, AudioDecoderFactory decoderFactory)
+	{
+		mAudioSubsystem = audioSubsystem;
 		mDecoderFactory = decoderFactory;
 
-		if (mAudioService != null && mAudioService.IsInitialized)
+		if (mAudioSubsystem != null && mAudioSubsystem.AudioSystem != null)
 		{
 			GenerateSounds();
-			LoadMusicFile();
 			Console.WriteLine("GameAudio: Sounds generated");
 		}
 		else
 		{
-			Console.WriteLine("GameAudio: AudioService not available, audio disabled");
+			Console.WriteLine("GameAudio: AudioSubsystem not available, audio disabled");
 		}
 	}
-
-	// No destructor needed - SDL3AudioSystem owns and cleans up all sources it creates
 
 	/// Generates all procedural sound effects.
 	private void GenerateSounds()
@@ -74,7 +81,7 @@ class GameAudio
 		mMortarFireClip = GenerateBoom(60, 0.25f);        // Deep boom
 		mSAMFireClip = GenerateSweep(400, 1200, 0.08f);   // Rising whoosh
 
-		// Register tower fire clips with AudioService for use by AudioSourceComponent
+		// Register tower fire clips
 		RegisterTowerFireClips();
 
 		// Enemy sounds
@@ -98,30 +105,14 @@ class GameAudio
 		mProceduralMusicClip = GenerateBackgroundMusic();
 	}
 
-	/// Registers tower fire clips with AudioService for access by AudioSourceComponent.
+	/// Registers tower fire clips.
 	private void RegisterTowerFireClips()
 	{
-		if (mAudioService == null)
-			return;
-
-		// Register each tower fire clip with a standardized name
-		RegisterClipIfValid("tower_fire_cannon", mCannonFireClip);
-		RegisterClipIfValid("tower_fire_archer", mArcherFireClip);
-		RegisterClipIfValid("tower_fire_frost", mFrostFireClip);
-		RegisterClipIfValid("tower_fire_mortar", mMortarFireClip);
-		RegisterClipIfValid("tower_fire_sam", mSAMFireClip);
-	}
-
-	/// Registers a clip with AudioService if it's valid.
-	private void RegisterClipIfValid(StringView name, AudioClip clip)
-	{
-		if (clip == null || mAudioService == null)
-			return;
-
-		// LoadClip expects raw data, but we already have AudioClip objects.
-		// Instead, we'll cache them directly (add a helper method to AudioService if needed).
-		// For now, store them in a lookup so GetTowerFireClip can return them.
-		mTowerFireClips[new String(name)] = clip;
+		mTowerFireClips[new String("tower_fire_cannon")] = mCannonFireClip;
+		mTowerFireClips[new String("tower_fire_archer")] = mArcherFireClip;
+		mTowerFireClips[new String("tower_fire_frost")] = mFrostFireClip;
+		mTowerFireClips[new String("tower_fire_mortar")] = mMortarFireClip;
+		mTowerFireClips[new String("tower_fire_sam")] = mSAMFireClip;
 	}
 
 	/// Gets the clip name for a tower's fire sound.
@@ -150,33 +141,20 @@ class GameAudio
 		return mCannonFireClip;
 	}
 
-	/// Loads music from file using decoder factory.
-	private void LoadMusicFile()
-	{
-		if (mDecoderFactory == null)
-		{
-			mUseDecodedMusic = false;
-			return;
-		}
-
-		let musicPath = "Assets/sounds/background.mp3";
-		switch (mDecoderFactory.DecodeFile(musicPath))
-		{
-		case .Ok(let clip):
-			mDecodedMusicClip = clip;
-			Console.WriteLine($"GameAudio: Loaded music file '{musicPath}' ({clip.DataLength} bytes PCM)");
-		case .Err:
-			Console.WriteLine($"GameAudio: Failed to load music file '{musicPath}', using procedural");
-			mUseDecodedMusic = false;
-		}
-	}
-
 	// ==================== Playback Methods ====================
+
+	/// Plays a clip at a 3D position (convenience wrapper).
+	public void PlaySpatial(AudioClip clip, Vector3 position)
+	{
+		if (mAudioSubsystem == null || clip == null)
+			return;
+		mAudioSubsystem.PlayOneShot3D(clip, position);
+	}
 
 	/// Plays tower fire sound based on tower type.
 	public void PlayTowerFire(TowerDefinition def, Vector3 position)
 	{
-		if (mAudioService == null)
+		if (mAudioSubsystem == null)
 			return;
 
 		AudioClip clip = null;
@@ -193,88 +171,88 @@ class GameAudio
 		}
 
 		if (clip != null)
-			mAudioService.PlayOneShot3D(clip, position, SFXVolume);
+			mAudioSubsystem.PlayOneShot3D(clip, position);
 	}
 
 	/// Plays enemy death sound.
 	public void PlayEnemyDeath(Vector3 position)
 	{
-		if (mAudioService == null || mEnemyDeathClip == null)
+		if (mAudioSubsystem == null || mEnemyDeathClip == null)
 			return;
 
-		mAudioService.PlayOneShot3D(mEnemyDeathClip, position, SFXVolume * 0.8f);
+		mAudioSubsystem.PlayOneShot3D(mEnemyDeathClip, position, 0.8f);
 	}
 
 	/// Plays enemy reached exit sound.
 	public void PlayEnemyExit()
 	{
-		if (mAudioService == null || mEnemyExitClip == null)
+		if (mAudioSubsystem == null || mEnemyExitClip == null)
 			return;
 
-		mAudioService.PlayOneShot(mEnemyExitClip, SFXVolume);
+		mAudioSubsystem.PlayOneShot(mEnemyExitClip);
 	}
 
 	/// Plays wave start sound.
 	public void PlayWaveStart()
 	{
-		if (mAudioService == null || mWaveStartClip == null)
+		if (mAudioSubsystem == null || mWaveStartClip == null)
 			return;
 
-		mAudioService.PlayOneShot(mWaveStartClip, SFXVolume);
+		mAudioSubsystem.PlayOneShot(mWaveStartClip);
 	}
 
 	/// Plays wave complete sound.
 	public void PlayWaveComplete()
 	{
-		if (mAudioService == null || mWaveCompleteClip == null)
+		if (mAudioSubsystem == null || mWaveCompleteClip == null)
 			return;
 
-		mAudioService.PlayOneShot(mWaveCompleteClip, SFXVolume);
+		mAudioSubsystem.PlayOneShot(mWaveCompleteClip);
 	}
 
 	/// Plays victory jingle.
 	public void PlayVictory()
 	{
-		if (mAudioService == null || mVictoryClip == null)
+		if (mAudioSubsystem == null || mVictoryClip == null)
 			return;
 
-		mAudioService.PlayOneShot(mVictoryClip, SFXVolume);
+		mAudioSubsystem.PlayOneShot(mVictoryClip);
 	}
 
 	/// Plays game over sound.
 	public void PlayGameOver()
 	{
-		if (mAudioService == null || mGameOverClip == null)
+		if (mAudioSubsystem == null || mGameOverClip == null)
 			return;
 
-		mAudioService.PlayOneShot(mGameOverClip, SFXVolume);
+		mAudioSubsystem.PlayOneShot(mGameOverClip);
 	}
 
 	/// Plays UI click sound.
 	public void PlayUIClick()
 	{
-		if (mAudioService == null || mUIClickClip == null)
+		if (mAudioSubsystem == null || mUIClickClip == null)
 			return;
 
-		mAudioService.PlayOneShot(mUIClickClip, SFXVolume * 0.5f);
+		mAudioSubsystem.PlayOneShot(mUIClickClip, 0.5f);
 	}
 
 	/// Plays tower placement sound.
 	public void PlayTowerPlace()
 	{
-		if (mAudioService == null || mTowerPlaceClip == null)
+		if (mAudioSubsystem == null || mTowerPlaceClip == null)
 			return;
 
-		mAudioService.PlayOneShot(mTowerPlaceClip, SFXVolume);
+		mAudioSubsystem.PlayOneShot(mTowerPlaceClip);
 	}
 
 	/// Plays "not enough money" sound.
 	public void PlayNoMoney()
 	{
-		if (mAudioService == null || mNoMoneyClip == null)
+		if (mAudioSubsystem == null || mNoMoneyClip == null)
 			return;
 
-		mAudioService.PlayOneShot(mNoMoneyClip, SFXVolume * 0.6f);
+		mAudioSubsystem.PlayOneShot(mNoMoneyClip, 0.6f);
 	}
 
 	// ==================== Music Methods ====================
@@ -282,34 +260,41 @@ class GameAudio
 	/// Starts playing background music.
 	public void StartMusic()
 	{
-		if (mAudioService == null || mMusicPlaying)
+		if (mAudioSubsystem == null || mMusicPlaying)
 			return;
 
-		// Select which clip to use
-		AudioClip musicClip = mUseDecodedMusic ? mDecodedMusicClip : mProceduralMusicClip;
-		if (musicClip == null)
+		// Try streaming from file first
+		if (mUseDecodedMusic)
 		{
-			// Fallback to procedural if decoded not available
-			musicClip = mProceduralMusicClip;
-			if (musicClip == null)
+			switch (mAudioSubsystem.PlayMusic(mMusicFilePath, loop: true))
+			{
+			case .Ok(let stream):
+				mMusicStream = stream;
+				mMusicPlaying = true;
+				Console.WriteLine($"GameAudio: Background music started (streaming from file)");
 				return;
+			case .Err:
+				Console.WriteLine($"GameAudio: Failed to stream music file, using procedural");
+			}
 		}
 
-		// Create source if needed
-		if (mMusicSource == null)
+		// Fallback to procedural clip (play via one-shot loop - not ideal but works)
+		if (mProceduralMusicClip != null)
 		{
-			mMusicSource = mAudioService.AudioSystem.CreateSource();
-			if (mMusicSource == null)
-				return;
+			// Use AudioSystem's source for looping
+			if (let audioSystem = mAudioSubsystem.AudioSystem)
+			{
+				let source = audioSystem.CreateSource();
+				if (source != null)
+				{
+					source.Volume = mAudioSubsystem.EffectiveMusicVolume;
+					source.Loop = true;
+					source.Play(mProceduralMusicClip);
+					mMusicPlaying = true;
+					Console.WriteLine("GameAudio: Background music started (procedural)");
+				}
+			}
 		}
-
-		mMusicSource.Volume = MusicVolume;
-		mMusicSource.Loop = true;
-		mMusicSource.Play(musicClip);
-		mMusicPlaying = true;
-
-		let sourceType = (musicClip == mDecodedMusicClip) ? "decoded mp3" : "procedural";
-		Console.WriteLine($"GameAudio: Background music started ({sourceType})");
 	}
 
 	/// Stops playing background music.
@@ -318,8 +303,11 @@ class GameAudio
 		if (!mMusicPlaying)
 			return;
 
-		if (mMusicSource != null)
-			mMusicSource.Stop();
+		if (mMusicStream != null)
+		{
+			mAudioSubsystem.StopMusic(mMusicStream);
+			mMusicStream = null;
+		}
 
 		mMusicPlaying = false;
 		Console.WriteLine("GameAudio: Background music stopped");
@@ -328,36 +316,19 @@ class GameAudio
 	/// Pauses background music.
 	public void PauseMusic()
 	{
-		if (!mMusicPlaying)
+		if (!mMusicPlaying || mMusicStream == null)
 			return;
 
-		if (mMusicSource != null)
-			mMusicSource.Pause();
+		mMusicStream.Pause();
 	}
 
 	/// Resumes background music.
 	public void ResumeMusic()
 	{
-		if (!mMusicPlaying)
+		if (!mMusicPlaying || mMusicStream == null)
 			return;
 
-		if (mMusicSource != null)
-			mMusicSource.Resume();
-	}
-
-	/// Updates music volume.
-	public void SetMusicVolume(float volume)
-	{
-		MusicVolume = Math.Clamp(volume, 0.0f, 1.0f);
-
-		if (mMusicSource != null)
-			mMusicSource.Volume = MusicVolume;
-	}
-
-	/// Updates SFX volume.
-	public void SetSFXVolume(float volume)
-	{
-		SFXVolume = Math.Clamp(volume, 0.0f, 1.0f);
+		mMusicStream.Resume();
 	}
 
 	// ==================== Sound Generation ====================

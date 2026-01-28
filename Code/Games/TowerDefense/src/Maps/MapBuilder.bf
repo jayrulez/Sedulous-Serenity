@@ -4,93 +4,76 @@ using System;
 using System.Collections;
 using Sedulous.Mathematics;
 using Sedulous.Geometry;
-using Sedulous.Engine.Core;
-using Sedulous.Engine.Renderer;
-using Sedulous.Renderer;
+using Sedulous.Geometry.Resources;
+using Sedulous.Resources;
+using Sedulous.Materials;
+using Sedulous.Render;
+using Sedulous.Framework.Scenes;
+using Sedulous.Framework.Render;
 using TowerDefense.Data;
 
 /// Builds map entities from a MapDefinition.
 /// Creates tile meshes with appropriate materials for each tile type.
+/// Ported to Sedulous.Framework architecture.
 class MapBuilder
 {
 	private Scene mScene;
-	private RendererService mRendererService;
+	private RenderSceneModule mRenderModule;
+	private RenderSystem mRenderSystem;
 	private MapDefinition mMap;
 
 	// Shared mesh for all tiles
-	private StaticMesh mTileMesh ~ delete _;
+	private StaticMeshResource mTileMesh;
 
 	// Materials for different tile types
-	private MaterialHandle mPBRMaterial = .Invalid;
-	private MaterialInstanceHandle mGrassMaterial = .Invalid;
-	private MaterialInstanceHandle mPathMaterial = .Invalid;
-	private MaterialInstanceHandle mWaterMaterial = .Invalid;
-	private MaterialInstanceHandle mBlockedMaterial = .Invalid;
-	private MaterialInstanceHandle mSpawnMaterial = .Invalid;
-	private MaterialInstanceHandle mExitMaterial = .Invalid;
+	private MaterialInstance mGrassMaterial ~ delete _;
+	private MaterialInstance mPathMaterial ~ delete _;
+	private MaterialInstance mWaterMaterial ~ delete _;
+	private MaterialInstance mBlockedMaterial ~ delete _;
+	private MaterialInstance mSpawnMaterial ~ delete _;
+	private MaterialInstance mExitMaterial ~ delete _;
 
 	// Created tile entities (for cleanup)
-	private List<Entity> mTileEntities = new .() ~ delete _;
+	private List<EntityId> mTileEntities = new .() ~ delete _;
 
 	/// Creates a new MapBuilder for the given scene.
-	public this(Scene scene, RendererService rendererService)
+	public this(Scene scene, RenderSceneModule renderModule, RenderSystem renderSystem, StaticMeshResource tileMesh)
 	{
 		mScene = scene;
-		mRendererService = rendererService;
+		mRenderModule = renderModule;
+		mRenderSystem = renderSystem;
+		mTileMesh = tileMesh;
 	}
 
 	/// Initializes materials for tile rendering.
 	/// Call this once before building any maps.
 	public void InitializeMaterials()
 	{
-		let materialSystem = mRendererService.MaterialSystem;
-		if (materialSystem == null)
-			return;
-
-		// Create shared tile mesh (flat cube)
-		mTileMesh = StaticMesh.CreateCube(1.0f);
-
-		// Create PBR material template
-		let pbrMaterial = Material.CreatePBR("TileMaterial");
-		mPBRMaterial = materialSystem.RegisterMaterial(pbrMaterial);
-
-		if (!mPBRMaterial.IsValid)
+		let baseMat = mRenderSystem.MaterialSystem?.DefaultMaterial;
+		if (baseMat == null)
 		{
-			Console.WriteLine("MapBuilder: Failed to create PBR material");
+			Console.WriteLine("MapBuilder: Failed to get default material");
 			return;
 		}
 
 		// Create material instances for each tile type
-		mGrassMaterial = CreateTileMaterial(.(0.3f, 0.55f, 0.25f, 1.0f), 0.0f, 0.85f);   // Green grass
-		mPathMaterial = CreateTileMaterial(.(0.5f, 0.45f, 0.35f, 1.0f), 0.0f, 0.9f);     // Brown dirt path
-		mWaterMaterial = CreateTileMaterial(.(0.2f, 0.4f, 0.7f, 1.0f), 0.0f, 0.3f);      // Blue water
-		mBlockedMaterial = CreateTileMaterial(.(0.4f, 0.4f, 0.4f, 1.0f), 0.0f, 0.95f);   // Gray rocks
-		mSpawnMaterial = CreateTileMaterial(.(0.7f, 0.2f, 0.2f, 1.0f), 0.0f, 0.7f);      // Red spawn
-		mExitMaterial = CreateTileMaterial(.(0.2f, 0.7f, 0.2f, 1.0f), 0.0f, 0.7f);       // Green exit
+		mGrassMaterial = CreateTileMaterial(baseMat, .(0.3f, 0.55f, 0.25f, 1.0f), 0.0f, 0.85f);   // Green grass
+		mPathMaterial = CreateTileMaterial(baseMat, .(0.5f, 0.45f, 0.35f, 1.0f), 0.0f, 0.9f);     // Brown dirt path
+		mWaterMaterial = CreateTileMaterial(baseMat, .(0.2f, 0.4f, 0.7f, 1.0f), 0.0f, 0.3f);      // Blue water
+		mBlockedMaterial = CreateTileMaterial(baseMat, .(0.4f, 0.4f, 0.4f, 1.0f), 0.0f, 0.95f);   // Gray rocks
+		mSpawnMaterial = CreateTileMaterial(baseMat, .(0.7f, 0.2f, 0.2f, 1.0f), 0.0f, 0.7f);      // Red spawn
+		mExitMaterial = CreateTileMaterial(baseMat, .(0.2f, 0.7f, 0.2f, 1.0f), 0.0f, 0.7f);       // Green exit
 
 		Console.WriteLine("MapBuilder: Materials initialized");
 	}
 
-	private MaterialInstanceHandle CreateTileMaterial(Vector4 color, float metallic, float roughness)
+	private MaterialInstance CreateTileMaterial(Material baseMat, Vector4 color, float metallic, float roughness)
 	{
-		let materialSystem = mRendererService.MaterialSystem;
-		let handle = materialSystem.CreateInstance(mPBRMaterial);
-
-		if (handle.IsValid)
-		{
-			let instance = materialSystem.GetInstance(handle);
-			if (instance != null)
-			{
-				instance.SetFloat4("baseColor", color);
-				instance.SetFloat("metallic", metallic);
-				instance.SetFloat("roughness", roughness);
-				instance.SetFloat("ao", 1.0f);
-				instance.SetFloat4("emissive", .(0, 0, 0, 1));
-				materialSystem.UploadInstance(handle);
-			}
-		}
-
-		return handle;
+		let mat = new MaterialInstance(baseMat);
+		mat.SetColor("BaseColor", color);
+		mat.SetFloat("Metallic", metallic);
+		mat.SetFloat("Roughness", roughness);
+		return mat;
 	}
 
 	/// Builds the map from the given definition.
@@ -121,19 +104,21 @@ class MapBuilder
 
 	private void CreateTileEntity(int32 gridX, int32 gridY, TileType tileType, Vector3 worldPos, float tileSize)
 	{
-		let entity = mScene.CreateEntity(scope $"Tile_{gridX}_{gridY}");
+		let entity = mScene.CreateEntity();
 
 		// Position tile (flat on ground, scaled to tile size)
 		// Y position varies slightly by type for visual depth
 		float yOffset = GetTileYOffset(tileType);
-		entity.Transform.SetPosition(.(worldPos.X, yOffset, worldPos.Z));
-		entity.Transform.SetScale(.(tileSize * 0.95f, 0.2f, tileSize * 0.95f));  // Slight gap between tiles
+		var transform = mScene.GetTransform(entity);
+		transform.Position = .(worldPos.X, yOffset, worldPos.Z);
+		transform.Scale = .(tileSize * 0.95f, 0.2f, tileSize * 0.95f);  // Slight gap between tiles
+		mScene.SetTransform(entity, transform);
 
-		// Add mesh component
-		let meshComp = new StaticMeshComponent();
-		entity.AddComponent(meshComp);
-		meshComp.SetMesh(mTileMesh);
-		meshComp.SetMaterialInstance(0, GetMaterialForTileType(tileType));
+		// Add mesh renderer component
+		mScene.SetComponent<MeshRendererComponent>(entity, .Default);
+		var meshComp = mScene.GetComponent<MeshRendererComponent>(entity);
+		meshComp.Mesh = ResourceHandle<StaticMeshResource>(mTileMesh);
+		meshComp.Material = GetMaterialForTileType(tileType);
 
 		mTileEntities.Add(entity);
 	}
@@ -149,7 +134,7 @@ class MapBuilder
 		}
 	}
 
-	private MaterialInstanceHandle GetMaterialForTileType(TileType tileType)
+	private MaterialInstance GetMaterialForTileType(TileType tileType)
 	{
 		switch (tileType)
 		{
@@ -167,7 +152,7 @@ class MapBuilder
 	{
 		for (let entity in mTileEntities)
 		{
-			mScene.DestroyEntity(entity.Id);
+			mScene.DestroyEntity(entity);
 		}
 		mTileEntities.Clear();
 		mMap = null;
@@ -198,25 +183,5 @@ class MapBuilder
 	public void Cleanup()
 	{
 		ClearMap();
-
-		let materialSystem = mRendererService?.MaterialSystem;
-		if (materialSystem != null)
-		{
-			if (mGrassMaterial.IsValid) materialSystem.ReleaseInstance(mGrassMaterial);
-			if (mPathMaterial.IsValid) materialSystem.ReleaseInstance(mPathMaterial);
-			if (mWaterMaterial.IsValid) materialSystem.ReleaseInstance(mWaterMaterial);
-			if (mBlockedMaterial.IsValid) materialSystem.ReleaseInstance(mBlockedMaterial);
-			if (mSpawnMaterial.IsValid) materialSystem.ReleaseInstance(mSpawnMaterial);
-			if (mExitMaterial.IsValid) materialSystem.ReleaseInstance(mExitMaterial);
-			if (mPBRMaterial.IsValid) materialSystem.ReleaseMaterial(mPBRMaterial);
-		}
-
-		mGrassMaterial = .Invalid;
-		mPathMaterial = .Invalid;
-		mWaterMaterial = .Invalid;
-		mBlockedMaterial = .Invalid;
-		mSpawnMaterial = .Invalid;
-		mExitMaterial = .Invalid;
-		mPBRMaterial = .Invalid;
 	}
 }

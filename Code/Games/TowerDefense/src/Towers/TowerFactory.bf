@@ -2,14 +2,15 @@ namespace TowerDefense.Towers;
 
 using System;
 using System.Collections;
-using Sedulous.Audio;
 using Sedulous.Mathematics;
 using Sedulous.Geometry;
-using Sedulous.Engine.Core;
-using Sedulous.Engine.Audio;
-using Sedulous.Engine.Renderer;
+using Sedulous.Geometry.Resources;
+using Sedulous.Resources;
+using Sedulous.Materials;
+using Sedulous.Render;
+using Sedulous.Framework.Scenes;
+using Sedulous.Framework.Render;
 using Sedulous.Foundation.Core;
-using Sedulous.Renderer;
 using TowerDefense.Data;
 using TowerDefense.Audio;
 using TowerDefense.Components;
@@ -22,10 +23,12 @@ delegate void TowerFiredDelegate(TowerDefinition def, Vector3 position);
 delegate void ProjectileImpactDelegate(Vector3 position, Vector4 color);
 
 /// Factory for creating and managing towers and projectiles.
+/// Ported to Sedulous.Framework architecture.
 class TowerFactory
 {
 	private Scene mScene;
-	private RendererService mRendererService;
+	private RenderSceneModule mRenderModule;
+	private RenderSystem mRenderSystem;
 	private EnemyFactory mEnemyFactory;
 	private GameAudio mGameAudio;
 
@@ -40,36 +43,52 @@ class TowerFactory
 	public EventAccessor<ProjectileImpactDelegate> OnProjectileImpact => mOnProjectileImpact;
 
 	// Shared meshes
-	private StaticMesh mTowerMesh ~ delete _;
-	private StaticMesh mProjectileMesh ~ delete _;
-
-	// Base PBR material
-	private MaterialHandle mPBRMaterial = .Invalid;
+	private StaticMeshResource mTowerMesh;
+	private StaticMeshResource mProjectileMesh;
 
 	// Material instances (keyed by color)
-	private Dictionary<uint32, MaterialInstanceHandle> mMaterialCache = new .() ~ delete _;
+	private Dictionary<uint32, MaterialInstance> mMaterialCache = new .() ~ {
+		for (let mat in _.Values)
+			delete mat;
+		delete _;
+	};
 
 	// Tower tracking
-	private List<Entity> mTowers = new .() ~ delete _;
-	private Dictionary<int64, Entity> mTowerGrid = new .() ~ delete _;  // GridKey -> Tower
+	private List<EntityId> mTowers = new .() ~ delete _;
+	private Dictionary<EntityId, TowerData> mTowerData = new .() ~ {
+		for (let data in _.Values)
+			delete data;
+		delete _;
+	};
+	private Dictionary<int64, EntityId> mTowerGrid = new .() ~ delete _;  // GridKey -> Tower
 	private int32 mTowerCounter = 0;
 
 	// Projectile tracking
-	private List<Entity> mProjectiles = new .() ~ delete _;
-	private List<Entity> mProjectilesToRemove = new .() ~ delete _;
+	private List<EntityId> mProjectiles = new .() ~ delete _;
+	private Dictionary<EntityId, ProjectileData> mProjectileData = new .() ~ {
+		for (let data in _.Values)
+			delete data;
+		delete _;
+	};
+	private List<EntityId> mProjectilesToRemove = new .() ~ delete _;
 	private int32 mProjectileCounter = 0;
 
 	// Temp list for enemy queries
-	private List<Entity> mTempEnemyList = new .() ~ delete _;
+	private List<EntityId> mTempEnemyList = new .() ~ delete _;
 
 	/// Number of active towers.
 	public int32 TowerCount => (.)mTowers.Count;
 
 	/// Creates a new TowerFactory.
-	public this(Scene scene, RendererService rendererService, EnemyFactory enemyFactory, GameAudio gameAudio)
+	public this(Scene scene, RenderSceneModule renderModule, RenderSystem renderSystem,
+		StaticMeshResource towerMesh, StaticMeshResource projectileMesh,
+		EnemyFactory enemyFactory, GameAudio gameAudio)
 	{
 		mScene = scene;
-		mRendererService = rendererService;
+		mRenderModule = renderModule;
+		mRenderSystem = renderSystem;
+		mTowerMesh = towerMesh;
+		mProjectileMesh = projectileMesh;
 		mEnemyFactory = enemyFactory;
 		mGameAudio = gameAudio;
 	}
@@ -77,31 +96,11 @@ class TowerFactory
 	/// Initializes materials for tower and projectile rendering.
 	public void InitializeMaterials()
 	{
-		let materialSystem = mRendererService.MaterialSystem;
-		if (materialSystem == null)
-			return;
-
-		// Create tower mesh (tall cube)
-		mTowerMesh = StaticMesh.CreateCube(1.0f);
-
-		// Create projectile mesh (small cube)
-		mProjectileMesh = StaticMesh.CreateCube(0.2f);
-
-		// Create PBR material template
-		let pbrMaterial = Material.CreatePBR("TowerMaterial");
-		mPBRMaterial = materialSystem.RegisterMaterial(pbrMaterial);
-
-		if (!mPBRMaterial.IsValid)
-		{
-			Console.WriteLine("TowerFactory: Failed to create PBR material");
-			return;
-		}
-
 		Console.WriteLine("TowerFactory: Materials initialized");
 	}
 
 	/// Creates a material instance for the given color.
-	private MaterialInstanceHandle GetOrCreateMaterial(Vector4 color)
+	private MaterialInstance GetOrCreateMaterial(Vector4 color)
 	{
 		uint32 colorKey = ((uint32)(color.X * 255) << 24) |
 		                  ((uint32)(color.Y * 255) << 16) |
@@ -111,25 +110,17 @@ class TowerFactory
 		if (mMaterialCache.TryGetValue(colorKey, let existing))
 			return existing;
 
-		let materialSystem = mRendererService.MaterialSystem;
-		let handle = materialSystem.CreateInstance(mPBRMaterial);
+		let baseMat = mRenderSystem.MaterialSystem?.DefaultMaterial;
+		if (baseMat == null)
+			return null;
 
-		if (handle.IsValid)
-		{
-			let instance = materialSystem.GetInstance(handle);
-			if (instance != null)
-			{
-				instance.SetFloat4("baseColor", color);
-				instance.SetFloat("metallic", 0.5f);
-				instance.SetFloat("roughness", 0.4f);
-				instance.SetFloat("ao", 1.0f);
-				instance.SetFloat4("emissive", .(0, 0, 0, 1));
-				materialSystem.UploadInstance(handle);
-			}
-			mMaterialCache[colorKey] = handle;
-		}
+		let mat = new MaterialInstance(baseMat);
+		mat.SetColor("BaseColor", color);
+		mat.SetFloat("Metallic", 0.5f);
+		mat.SetFloat("Roughness", 0.4f);
 
-		return handle;
+		mMaterialCache[colorKey] = mat;
+		return mat;
 	}
 
 	/// Creates a grid key from coordinates.
@@ -150,49 +141,40 @@ class TowerFactory
 	}
 
 	/// Places a tower at the given world position.
-	public Entity PlaceTower(TowerDefinition definition, Vector3 worldPos, int32 gridX, int32 gridY)
+	public EntityId PlaceTower(TowerDefinition definition, Vector3 worldPos, int32 gridX, int32 gridY)
 	{
 		// Check if position is occupied
 		let gridKey = GridKey(gridX, gridY);
 		if (mTowerGrid.ContainsKey(gridKey))
 		{
 			Console.WriteLine("TowerFactory: Position already occupied!");
-			return null;
+			return .Invalid;
 		}
 
 		mTowerCounter++;
-		let entityName = scope $"Tower_{mTowerCounter}";
-		let entity = mScene.CreateEntity(entityName);
+		let entity = mScene.CreateEntity();
 
 		// Position tower
 		float yPos = definition.Scale * 0.5f;  // Half height to sit on ground
-		entity.Transform.SetPosition(.(worldPos.X, yPos, worldPos.Z));
-		entity.Transform.SetScale(.(definition.Scale * 0.8f, definition.Scale, definition.Scale * 0.8f));
+		var transform = mScene.GetTransform(entity);
+		transform.Position = .(worldPos.X, yPos, worldPos.Z);
+		transform.Scale = .(definition.Scale * 0.8f, definition.Scale, definition.Scale * 0.8f);
+		mScene.SetTransform(entity, transform);
 
-		// Add mesh component
-		let meshComp = new StaticMeshComponent();
-		entity.AddComponent(meshComp);
-		meshComp.SetMesh(mTowerMesh);
-		meshComp.SetMaterialInstance(0, GetOrCreateMaterial(definition.Color));
+		// Add mesh renderer component
+		mScene.SetComponent<MeshRendererComponent>(entity, .Default);
+		var meshComp = mScene.GetComponent<MeshRendererComponent>(entity);
+		meshComp.Mesh = ResourceHandle<StaticMeshResource>(mTowerMesh);
+		meshComp.Material = GetOrCreateMaterial(definition.Color);
 
-		// Add tower component
-		let towerComp = new TowerComponent(definition);
-		towerComp.GridX = gridX;
-		towerComp.GridY = gridY;
-		entity.AddComponent(towerComp);
-
-		// Add audio source component for tower fire sounds
-		let audioSource = new AudioSourceComponent();
-		audioSource.Volume = mGameAudio?.SFXVolume ?? 0.1f;
-		audioSource.MinDistance = 5.0f;   // Full volume within 5 units
-		audioSource.MaxDistance = 50.0f;  // Fade out over 50 units
-		entity.AddComponent(audioSource);
-
-		// Subscribe to fire event
-		towerComp.OnFire.Subscribe(new (tower, target, origin) =>
-		{
-			OnTowerFire(tower, target, origin, entity);
-		});
+		// Create tower data (replaces component)
+		let towerData = new TowerData();
+		towerData.Definition = definition;
+		towerData.GridX = gridX;
+		towerData.GridY = gridY;
+		towerData.Level = 1;
+		towerData.FireCooldown = 0.0f;
+		mTowerData[entity] = towerData;
 
 		mTowers.Add(entity);
 		mTowerGrid[gridKey] = entity;
@@ -202,94 +184,98 @@ class TowerFactory
 	}
 
 	/// Removes a tower and returns partial refund (50% of total invested).
-	public int32 SellTower(Entity tower)
+	public int32 SellTower(EntityId tower)
 	{
-		let towerComp = tower.GetComponent<TowerComponent>();
-		if (towerComp == null)
+		if (!mTowerData.TryGetValue(tower, let towerData))
 			return 0;
 
 		// Calculate refund (50% of total invested including upgrades)
-		int32 refund = towerComp.GetTotalInvested() / 2;
+		int32 refund = towerData.GetTotalInvested() / 2;
 
 		// Remove from grid
-		let gridKey = GridKey(towerComp.GridX, towerComp.GridY);
+		let gridKey = GridKey(towerData.GridX, towerData.GridY);
 		mTowerGrid.Remove(gridKey);
 
 		// Remove from list and destroy
 		mTowers.Remove(tower);
-		mScene.DestroyEntity(tower.Id);
+		delete towerData;
+		mTowerData.Remove(tower);
+		mScene.DestroyEntity(tower);
 
 		Console.WriteLine($"Sold tower for ${refund}");
 		return refund;
 	}
 
-	/// Called when a tower fires.
-	private void OnTowerFire(TowerComponent tower, Entity target, Vector3 origin, Entity towerEntity)
+	/// Gets tower data for the given entity.
+	public TowerData GetTowerData(EntityId entity)
 	{
-		SpawnProjectile(origin, target, tower.GetDamage(), tower.Definition.ProjectileSpeed, tower.Definition.ProjectileColor);
+		if (mTowerData.TryGetValue(entity, let data))
+			return data;
+		return null;
+	}
 
-		// Play fire sound via tower's AudioSourceComponent
+	/// Called when a tower fires.
+	private void OnTowerFire(EntityId towerEntity, TowerData towerData, EntityId target, Vector3 origin)
+	{
+		SpawnProjectile(origin, target, towerData.GetDamage(), towerData.Definition.ProjectileSpeed, towerData.Definition.ProjectileColor);
+
+		// Play fire sound via GameAudio (simplified - no AudioSourceComponent per tower)
 		if (mGameAudio != null)
 		{
-			let audioSource = towerEntity.GetComponent<AudioSourceComponent>();
-			if (audioSource != null)
+			let clip = mGameAudio.GetTowerFireClip(towerData.Definition.Name);
+			if (clip != null)
 			{
-				let clip = mGameAudio.GetTowerFireClip(tower.Definition.Name);
-				if (clip != null)
-					audioSource.Play(clip);
+				// Play at tower position
+				var towerTransform = mScene.GetTransform(towerEntity);
+				let towerPos = towerTransform.Position;
+				mGameAudio.PlaySpatial(clip, towerPos);
 			}
 		}
 
 		// Notify external listeners (for visual effects, etc.)
-		mOnTowerFired.[Friend]Invoke(tower.Definition, origin);
+		mOnTowerFired.[Friend]Invoke(towerData.Definition, origin);
 	}
 
 	/// Spawns a projectile.
-	private Entity SpawnProjectile(Vector3 origin, Entity target, float damage, float speed, Vector4 color)
+	private EntityId SpawnProjectile(Vector3 origin, EntityId target, float damage, float speed, Vector4 color)
 	{
 		mProjectileCounter++;
-		let entityName = scope $"Projectile_{mProjectileCounter}";
-		let entity = mScene.CreateEntity(entityName);
+		let entity = mScene.CreateEntity();
 
-		// Position projectile
-		entity.Transform.SetPosition(origin);
-		entity.Transform.SetScale(.(1, 1, 1));
+		// Position projectile (tiny scale for projectiles)
+		var transform = mScene.GetTransform(entity);
+		transform.Position = origin;
+		transform.Scale = .(0.15f, 0.15f, 0.15f);
+		mScene.SetTransform(entity, transform);
 
-		// Add mesh component
-		let meshComp = new StaticMeshComponent();
-		entity.AddComponent(meshComp);
-		meshComp.SetMesh(mProjectileMesh);
-		meshComp.SetMaterialInstance(0, GetOrCreateMaterial(color));
+		// Add mesh renderer component
+		mScene.SetComponent<MeshRendererComponent>(entity, .Default);
+		var meshComp = mScene.GetComponent<MeshRendererComponent>(entity);
+		meshComp.Mesh = ResourceHandle<StaticMeshResource>(mProjectileMesh);
+		meshComp.Material = GetOrCreateMaterial(color);
 
-		// Add projectile component
-		let projComp = new ProjectileComponent(target, damage, speed);
-		entity.AddComponent(projComp);
-
-		// Subscribe to hit event (capture color and damage for particle effects)
-		var projectileColor = color;
-		var projectileDamage = damage;
-		projComp.OnHit.Subscribe(new (projectile, hitTarget) =>
-		{
-			OnProjectileHitInternal(projectile, hitTarget, projectileDamage, projectileColor);
-		});
+		// Create projectile data (replaces component)
+		let projData = new ProjectileData();
+		projData.TargetId = target;
+		projData.Damage = damage;
+		projData.Speed = speed;
+		projData.Color = color;
+		mProjectileData[entity] = projData;
 
 		mProjectiles.Add(entity);
 		return entity;
 	}
 
 	/// Called when a projectile hits a target.
-	private void OnProjectileHitInternal(Entity projectile, Entity target, float damage, Vector4 color)
+	private void OnProjectileHit(EntityId projectile, ProjectileData projData, EntityId target)
 	{
-		// Apply damage to target
-		let healthComp = target.GetComponent<HealthComponent>();
-		if (healthComp != null)
-		{
-			healthComp.TakeDamage(damage);
-		}
+		// Apply damage to target via EnemyFactory
+		mEnemyFactory.DamageEnemy(target, projData.Damage);
 
 		// Fire event for particle effects at impact position
-		let hitPosition = projectile.Transform.WorldPosition;
-		mOnProjectileImpact.[Friend]Invoke(hitPosition, color);
+		var projTransform = mScene.GetTransform(projectile);
+		let hitPosition = projTransform.Position;
+		mOnProjectileImpact.[Friend]Invoke(hitPosition, projData.Color);
 	}
 
 	/// Updates all towers (targeting) and projectiles.
@@ -298,82 +284,375 @@ class TowerFactory
 		// Get current enemies
 		mEnemyFactory.GetActiveEnemies(mTempEnemyList);
 
-		// Update tower targeting
+		// Update tower targeting and firing
 		for (let tower in mTowers)
 		{
-			let towerComp = tower.GetComponent<TowerComponent>();
-			if (towerComp == null)
+			if (!mTowerData.TryGetValue(tower, let towerData))
 				continue;
 
+			// Update cooldown
+			if (towerData.FireCooldown > 0)
+				towerData.FireCooldown -= deltaTime;
+
 			// Find new target if needed
-			if (towerComp.CurrentTarget == null || !towerComp.IsValidTarget(towerComp.CurrentTarget))
+			if (!towerData.CurrentTargetId.IsValid || !IsValidTarget(tower, towerData, towerData.CurrentTargetId))
 			{
-				towerComp.CurrentTarget = towerComp.FindBestTarget(mTempEnemyList);
+				towerData.CurrentTargetId = FindBestTarget(tower, towerData, mTempEnemyList);
 			}
 
 			// Try to fire
-			towerComp.TryFire();
+			if (TryFire(tower, towerData))
+			{
+				// Fire was successful
+			}
+
+			// Face target
+			if (towerData.CurrentTargetId.IsValid)
+				FaceTarget(tower, towerData.CurrentTargetId);
+		}
+
+		// Update projectiles
+		for (let projectile in mProjectiles)
+		{
+			if (!mProjectileData.TryGetValue(projectile, let projData))
+				continue;
+
+			UpdateProjectile(projectile, projData, deltaTime);
 		}
 
 		// Clean up hit/expired projectiles
 		mProjectilesToRemove.Clear();
 		for (let projectile in mProjectiles)
 		{
-			let projComp = projectile.GetComponent<ProjectileComponent>();
-			if (projComp != null && projComp.HasHit)
+			if (mProjectileData.TryGetValue(projectile, let projData))
 			{
-				mProjectilesToRemove.Add(projectile);
+				if (projData.HasHit)
+					mProjectilesToRemove.Add(projectile);
 			}
 		}
 
 		for (let projectile in mProjectilesToRemove)
 		{
 			mProjectiles.Remove(projectile);
-			mScene.DestroyEntity(projectile.Id);
+			if (mProjectileData.TryGetValue(projectile, let projData))
+			{
+				delete projData;
+				mProjectileData.Remove(projectile);
+			}
+			mScene.DestroyEntity(projectile);
+		}
+	}
+
+	/// Updates a single projectile.
+	private void UpdateProjectile(EntityId projectile, ProjectileData projData, float deltaTime)
+	{
+		if (projData.HasHit)
+			return;
+
+		// Update lifetime
+		projData.Lifetime += deltaTime;
+		if (projData.Lifetime >= projData.MaxLifetime)
+		{
+			projData.HasHit = true;
+			return;
+		}
+
+		var transform = mScene.GetTransform(projectile);
+		let currentPos = transform.Position;
+
+		// Get target position
+		Vector3 targetPos;
+		Vector3 moveDir;
+		bool hasTarget = false;
+
+		if (projData.IsHoming && projData.TargetId.IsValid)
+		{
+			let enemyData = mEnemyFactory.GetEnemyData(projData.TargetId);
+			if (enemyData != null && !enemyData.IsDying && !enemyData.HasReachedExit)
+			{
+				var targetTransform = mScene.GetTransform(projData.TargetId);
+				targetPos = targetTransform.Position;
+				moveDir = targetPos - currentPos;
+				hasTarget = true;
+			}
+			else
+			{
+				// Target lost - continue in last direction or destroy
+				projData.TargetId = .Invalid;
+				if (projData.Direction.LengthSquared() > 0.001f)
+				{
+					projData.IsHoming = false;
+					moveDir = projData.Direction;
+					targetPos = currentPos + projData.Direction * 100.0f;
+				}
+				else
+				{
+					projData.HasHit = true;
+					return;
+				}
+			}
+		}
+		else
+		{
+			// Non-homing - travel in fixed direction
+			moveDir = projData.Direction;
+			targetPos = currentPos + projData.Direction * 100.0f;
+		}
+
+		float distanceToTarget = moveDir.Length();
+
+		// Check for hit (only if we still have a valid target)
+		if (hasTarget && distanceToTarget <= projData.HitRadius)
+		{
+			projData.HasHit = true;
+			OnProjectileHit(projectile, projData, projData.TargetId);
+			return;
+		}
+
+		// Move toward target
+		if (distanceToTarget > 0.001f)
+		{
+			moveDir = Vector3.Normalize(moveDir);
+			projData.Direction = moveDir;  // Store for non-homing fallback
+
+			float moveDistance = projData.Speed * deltaTime;
+			transform.Position = currentPos + moveDir * moveDistance;
+
+			// Face movement direction
+			float angle = Math.Atan2(moveDir.X, moveDir.Z);
+			transform.Rotation = Quaternion.CreateFromAxisAngle(.(0, 1, 0), angle);
+
+			mScene.SetTransform(projectile, transform);
+		}
+	}
+
+	/// Checks if a target is valid for the given tower.
+	private bool IsValidTarget(EntityId tower, TowerData towerData, EntityId target)
+	{
+		if (!target.IsValid)
+			return false;
+
+		let enemyData = mEnemyFactory.GetEnemyData(target);
+		if (enemyData == null || enemyData.IsDying || enemyData.HasReachedExit)
+			return false;
+
+		// Check target type compatibility
+		if (!towerData.Definition.TargetType.CanTarget(enemyData.Definition.Type))
+			return false;
+
+		// Check range using horizontal distance
+		var towerTransform = mScene.GetTransform(tower);
+		var targetTransform = mScene.GetTransform(target);
+		let towerPos = towerTransform.Position;
+		let targetPos = targetTransform.Position;
+		float dx = towerPos.X - targetPos.X;
+		float dz = towerPos.Z - targetPos.Z;
+		float horizontalDistance = Math.Sqrt(dx * dx + dz * dz);
+		let range = towerData.GetRange();
+
+		return horizontalDistance <= range;
+	}
+
+	/// Finds the best target from a list of enemies.
+	private EntityId FindBestTarget(EntityId tower, TowerData towerData, List<EntityId> enemies)
+	{
+		EntityId bestTarget = .Invalid;
+		float bestDistance = -1.0f;
+
+		for (let enemy in enemies)
+		{
+			if (!IsValidTarget(tower, towerData, enemy))
+				continue;
+
+			let enemyData = mEnemyFactory.GetEnemyData(enemy);
+			if (enemyData != null && enemyData.DistanceTraveled > bestDistance)
+			{
+				bestDistance = enemyData.DistanceTraveled;
+				bestTarget = enemy;
+			}
+		}
+
+		return bestTarget;
+	}
+
+	/// Tries to fire at the current target.
+	private bool TryFire(EntityId tower, TowerData towerData)
+	{
+		if (towerData.FireCooldown > 0 || !towerData.CurrentTargetId.IsValid)
+			return false;
+
+		if (!IsValidTarget(tower, towerData, towerData.CurrentTargetId))
+		{
+			towerData.CurrentTargetId = .Invalid;
+			return false;
+		}
+
+		// Fire!
+		let fireRate = towerData.GetFireRate();
+		towerData.FireCooldown = 1.0f / fireRate;
+
+		// Get projectile spawn position (top of tower)
+		var towerTransform = mScene.GetTransform(tower);
+		let towerPos = towerTransform.Position;
+		let spawnPos = Vector3(towerPos.X, towerPos.Y + towerData.Definition.Scale, towerPos.Z);
+
+		OnTowerFire(tower, towerData, towerData.CurrentTargetId, spawnPos);
+		return true;
+	}
+
+	/// Rotates tower to face current target.
+	private void FaceTarget(EntityId tower, EntityId target)
+	{
+		if (!target.IsValid)
+			return;
+
+		var towerTransform = mScene.GetTransform(tower);
+		var targetTransform = mScene.GetTransform(target);
+		let targetPos = targetTransform.Position;
+
+		// Calculate direction (XZ plane only for Y-axis rotation)
+		let direction = targetPos - towerTransform.Position;
+		if (direction.LengthSquared() > 0.001f)
+		{
+			float angle = Math.Atan2(direction.X, direction.Z);
+			towerTransform.Rotation = Quaternion.CreateFromAxisAngle(.(0, 1, 0), angle);
+			mScene.SetTransform(tower, towerTransform);
 		}
 	}
 
 	/// Gets the tower at the given grid position, or null.
-	public Entity GetTowerAt(int32 gridX, int32 gridY)
+	public EntityId GetTowerAt(int32 gridX, int32 gridY)
 	{
 		let gridKey = GridKey(gridX, gridY);
 		if (mTowerGrid.TryGetValue(gridKey, let tower))
 			return tower;
-		return null;
+		return .Invalid;
+	}
+
+	/// Gets the effective range of a tower.
+	public float GetTowerRange(EntityId tower)
+	{
+		if (mTowerData.TryGetValue(tower, let data))
+			return data.GetRange();
+		return 0;
+	}
+
+	/// Upgrades a tower. Returns true if upgrade was successful.
+	public bool UpgradeTower(EntityId tower)
+	{
+		if (!mTowerData.TryGetValue(tower, let towerData))
+			return false;
+
+		if (!towerData.CanUpgrade)
+			return false;
+
+		towerData.Level++;
+
+		// Update visual scale (5% bigger per level)
+		let levelScale = 1.0f + (towerData.Level - 1) * 0.05f;
+		let baseScale = towerData.Definition.Scale;
+		var transform = mScene.GetTransform(tower);
+		transform.Scale = .(baseScale * 0.8f * levelScale, baseScale * levelScale, baseScale * 0.8f * levelScale);
+		mScene.SetTransform(tower, transform);
+
+		return true;
 	}
 
 	/// Destroys all towers and projectiles.
 	public void ClearAll()
 	{
 		for (let tower in mTowers)
-			mScene.DestroyEntity(tower.Id);
+		{
+			if (mTowerData.TryGetValue(tower, let data))
+				delete data;
+			mScene.DestroyEntity(tower);
+		}
 		mTowers.Clear();
+		mTowerData.Clear();
 		mTowerGrid.Clear();
 
 		for (let projectile in mProjectiles)
-			mScene.DestroyEntity(projectile.Id);
+		{
+			if (mProjectileData.TryGetValue(projectile, let data))
+				delete data;
+			mScene.DestroyEntity(projectile);
+		}
 		mProjectiles.Clear();
+		mProjectileData.Clear();
 	}
 
 	/// Cleans up materials.
 	public void Cleanup()
 	{
 		ClearAll();
-
-		let materialSystem = mRendererService?.MaterialSystem;
-		if (materialSystem != null)
-		{
-			for (let handle in mMaterialCache.Values)
-			{
-				if (handle.IsValid)
-					materialSystem.ReleaseInstance(handle);
-			}
-			mMaterialCache.Clear();
-
-			if (mPBRMaterial.IsValid)
-				materialSystem.ReleaseMaterial(mPBRMaterial);
-		}
-
-		mPBRMaterial = .Invalid;
 	}
+}
+
+/// Internal data for tower tracking (replaces IEntityComponent).
+class TowerData
+{
+	/// Maximum upgrade level for towers.
+	public const int32 MaxLevel = 3;
+
+	public TowerDefinition Definition;
+	public int32 Level = 1;
+	public EntityId CurrentTargetId = .Invalid;
+	public float FireCooldown = 0.0f;
+	public int32 GridX;
+	public int32 GridY;
+
+	/// Gets the effective damage (with level scaling).
+	public float GetDamage()
+	{
+		return Definition.Damage * (1.0f + (Level - 1) * 0.25f);
+	}
+
+	/// Gets the effective range (with level scaling).
+	public float GetRange()
+	{
+		return Definition.Range * (1.0f + (Level - 1) * 0.1f);
+	}
+
+	/// Gets the effective fire rate (with level scaling).
+	public float GetFireRate()
+	{
+		return Definition.FireRate * (1.0f + (Level - 1) * 0.15f);
+	}
+
+	/// Returns true if this tower can be upgraded further.
+	public bool CanUpgrade => Level < MaxLevel;
+
+	/// Gets the cost to upgrade to the next level.
+	public int32 GetUpgradeCost()
+	{
+		if (!CanUpgrade)
+			return 0;
+		return (int32)(Definition.UpgradeCost * (1.0f + (Level - 1) * 0.5f));
+	}
+
+	/// Gets the total value of this tower (for sell price calculation).
+	public int32 GetTotalInvested()
+	{
+		int32 total = Definition.Cost;
+		for (int32 lvl = 1; lvl < Level; lvl++)
+		{
+			total += (int32)(Definition.UpgradeCost * (1.0f + (lvl - 1) * 0.5f));
+		}
+		return total;
+	}
+}
+
+/// Internal data for projectile tracking (replaces IEntityComponent).
+class ProjectileData
+{
+	public EntityId TargetId = .Invalid;
+	public float Damage;
+	public float Speed;
+	public Vector4 Color;
+	public float HitRadius = 0.5f;
+	public bool IsHoming = true;
+	public Vector3 Direction = .Zero;
+	public float MaxLifetime = 5.0f;
+	public float Lifetime = 0.0f;
+	public bool HasHit = false;
 }
