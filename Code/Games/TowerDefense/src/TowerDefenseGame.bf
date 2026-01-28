@@ -73,6 +73,7 @@ class TowerDefenseGame : Application
 	private FontService mFontService;
 	private GameTheme mGameTheme ~ delete _;
 	private MainMenu mMainMenu ~ delete _;
+	private LevelSelect mLevelSelect ~ delete _;
 	private GameHUD mGameHUD ~ delete _;
 
 	// Audio backend
@@ -312,8 +313,9 @@ class TowerDefenseGame : Application
 		mGameTheme = new GameTheme();
 		mUISubsystem.UIContext.RegisterService<ITheme>(mGameTheme);
 
-		// Create main menu and game HUD
+		// Create main menu, level select, and game HUD
 		mMainMenu = new MainMenu();
+		mLevelSelect = new LevelSelect();
 		mGameHUD = new GameHUD();
 
 		// Start with main menu as root
@@ -321,10 +323,19 @@ class TowerDefenseGame : Application
 
 		// Wire up main menu events
 		mMainMenu.OnPlay.Subscribe(new () => {
-			StartGame(0);  // Start level 1
+			// Show level selection
+			mUISubsystem.UIContext.RootElement = mLevelSelect.RootElement;
 		});
 		mMainMenu.OnQuit.Subscribe(new () => {
 			Exit();
+		});
+
+		// Wire up level select events
+		mLevelSelect.OnLevelSelected.Subscribe(new (levelIndex) => {
+			StartGame(levelIndex);
+		});
+		mLevelSelect.OnBack.Subscribe(new () => {
+			mUISubsystem.UIContext.RootElement = mMainMenu.RootElement;
 		});
 
 		// Wire up HUD events

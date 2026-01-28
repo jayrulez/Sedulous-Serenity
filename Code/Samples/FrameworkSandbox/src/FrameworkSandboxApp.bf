@@ -119,6 +119,7 @@ class FrameworkSandboxApp : Application
 	private const float WallThickness = 0.5f;
 
 	private Canvas mUIRoot ~ delete _;
+	private StackPanel mWorldSpaceUIRoot ~ delete _;
 
 	public this(IShell shell, IDevice device, IBackend backend)
 		: base(shell, device, backend)
@@ -1295,22 +1296,22 @@ class FrameworkSandboxApp : Application
 				if (panel != null)
 				{
 					// Build UI content on the panel
-					let panelRoot = new StackPanel();
-					panelRoot.Background = Color(20, 20, 40, 220);
-					panelRoot.Padding = Thickness(12);
-					panelRoot.Spacing = 8;
+					mWorldSpaceUIRoot = new StackPanel();
+					mWorldSpaceUIRoot.Background = Color(20, 20, 40, 220);
+					mWorldSpaceUIRoot.Padding = Thickness(12);
+					mWorldSpaceUIRoot.Spacing = 8;
 
 					let panelTitle = new TextBlock();
 					panelTitle.Text = "World Panel";
 					panelTitle.Foreground = Color(180, 220, 255);
 					panelTitle.FontSize = 16;
-					panelRoot.AddChild(panelTitle);
+					mWorldSpaceUIRoot.AddChild(panelTitle);
 
 					let panelInfo = new TextBlock();
 					panelInfo.Text = "3D UI Surface";
 					panelInfo.Foreground = Color(160, 160, 180);
 					panelInfo.FontSize = 12;
-					panelRoot.AddChild(panelInfo);
+					mWorldSpaceUIRoot.AddChild(panelInfo);
 
 					let panelBtn = new Button();
 					panelBtn.ContentText = "Click Me";
@@ -1318,9 +1319,9 @@ class FrameworkSandboxApp : Application
 					panelBtn.Click.Subscribe(new (btn) => {
 						panel.MarkDirty();
 					});
-					panelRoot.AddChild(panelBtn);
+					mWorldSpaceUIRoot.AddChild(panelBtn);
 
-					panel.UIContext.RootElement = panelRoot;
+					panel.UIContext.RootElement = mWorldSpaceUIRoot;
 					panel.MarkDirty();
 					Console.WriteLine("  Created world-space UI panel");
 				}
