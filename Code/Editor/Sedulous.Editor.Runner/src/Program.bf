@@ -2,6 +2,7 @@ namespace Sedulous.Editor.Runner;
 
 using System;
 using Sedulous.Editor.App;
+using Sedulous.Editor.Scenes;
 using Sedulous.Logging.Abstractions;
 using Sedulous.Logging.Console;
 
@@ -21,13 +22,17 @@ class Program
 				consoleLogger.MimimumLogLevel = .Warning;
 		}
 
-		// Create and run editor
+		// Create editor application
 		let config = EditorConfig();
 		let app = scope EditorApplication(config);
 
 		// Set console logger as inner logger (messages will be forwarded to it)
 		app.SetInnerLogger(consoleLogger);
 
+		// Register editor modules (plugin system)
+		app.RegisterModule(new SceneEditorModule());
+
+		// Run the editor
 		return app.Run();
 	}
 }
