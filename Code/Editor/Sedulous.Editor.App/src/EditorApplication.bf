@@ -95,6 +95,9 @@ public class EditorApplication : Application
 	{
 		sLogger?.LogDebug("Setting up editor UI...");
 
+		// Set dark theme as default
+		context.RegisterService<ITheme>(new DarkTheme());
+
 		// Create main dock manager
 		mDockManager = new DockManager();
 		mDockManager.Width = .Fill;
@@ -124,12 +127,39 @@ public class EditorApplication : Application
 		// Close project
 		CloseProject();
 
+		// Clean up UI - must happen before UIContext is deleted
+		// Clear root first to avoid stale references
+		if (mUIContext != null)
+			mUIContext.RootElement = null;
+
+		// Delete dock manager (which owns and deletes its children including panels)
+		if (mDockManager != null)
+		{
+			delete mDockManager;
+			mDockManager = null;
+		}
+
+		// Clear panel references (already deleted by dock manager)
+		mProjectPanel = null;
+		mPropertiesPanel = null;
+		mConsolePanel = null;
+
+		// Clean up theme (UIContext doesn't delete services in destructor)
+		if (mUIContext.GetService<ITheme>() case .Ok(let theme))
+			delete theme;
+
 		// Clean up core systems
 		if (mDocumentManager != null)
+		{
 			delete mDocumentManager;
+			mDocumentManager = null;
+		}
 
 		if (mAssetRegistry != null)
+		{
 			delete mAssetRegistry;
+			mAssetRegistry = null;
+		}
 
 		sLogger?.LogInformation("Editor shutdown complete");
 	}

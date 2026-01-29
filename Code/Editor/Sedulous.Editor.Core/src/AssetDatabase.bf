@@ -3,6 +3,7 @@ namespace Sedulous.Editor.Core;
 using System;
 using System.Collections;
 using System.IO;
+using Sedulous.Foundation.Core;
 
 /// Asset entry in the database.
 class AssetEntry
@@ -48,14 +49,19 @@ class AssetDatabase : IDisposable
 	private List<String> mAssetFolders = new .() ~ DeleteContainerAndItems!(_);
 	private AssetRegistry mRegistry;
 
+	// Events
+	private EventAccessor<delegate void(AssetEntry)> mAssetAdded = new .() ~ delete _;
+	private EventAccessor<delegate void(AssetEntry)> mAssetRemoved = new .() ~ delete _;
+	private EventAccessor<delegate void(AssetEntry)> mAssetModified = new .() ~ delete _;
+
 	/// Event fired when an asset is added.
-	public Event<delegate void(AssetEntry)> OnAssetAdded ~ _.Dispose();
+	public EventAccessor<delegate void(AssetEntry)> AssetAdded => mAssetAdded;
 
 	/// Event fired when an asset is removed.
-	public Event<delegate void(AssetEntry)> OnAssetRemoved ~ _.Dispose();
+	public EventAccessor<delegate void(AssetEntry)> AssetRemoved => mAssetRemoved;
 
 	/// Event fired when an asset is modified.
-	public Event<delegate void(AssetEntry)> OnAssetModified ~ _.Dispose();
+	public EventAccessor<delegate void(AssetEntry)> AssetModified => mAssetModified;
 
 	/// Number of assets in database.
 	public int AssetCount => mEntriesById.Count;
@@ -164,7 +170,7 @@ class AssetDatabase : IDisposable
 		mEntriesById[entry.AssetId] = entry;
 		mEntriesByPath[new String(path)] = entry;
 
-		OnAssetAdded.Invoke(entry);
+		mAssetAdded.[Friend]Invoke(entry);
 
 		return entry;
 	}
@@ -173,7 +179,7 @@ class AssetDatabase : IDisposable
 	{
 		if (mEntriesById.TryGetValue(assetId, let entry))
 		{
-			OnAssetRemoved.Invoke(entry);
+			mAssetRemoved.[Friend]Invoke(entry);
 
 			// Remove from path mapping
 			for (let kv in mEntriesByPath)
