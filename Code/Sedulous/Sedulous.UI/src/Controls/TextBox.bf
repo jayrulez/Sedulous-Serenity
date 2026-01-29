@@ -19,8 +19,44 @@ public class TextBox : Control
 	private bool mIsReadOnly = false;
 	private int mMaxLength = int.MaxValue;
 	private double mCaretBlinkResetTime = 0; // Time when caret was last reset (typing/navigation)
+	private Color? mExplicitBackground;
+	private Color? mExplicitBorderBrush;
 
 	private const double CaretBlinkRate = 0.53; // Seconds per blink phase (on or off)
+
+	/// The background color (uses TextBoxBackground theme color by default).
+	public new Color? Background
+	{
+		get
+		{
+			if (mExplicitBackground.HasValue)
+				return mExplicitBackground;
+			let theme = GetTheme();
+			if (theme != null)
+				return theme.GetColor("TextBoxBackground");
+			return null;
+		}
+		set { mExplicitBackground = value; InvalidateVisual(); }
+	}
+
+	/// The border color (uses TextBoxBorder/TextBoxBorderFocused theme colors).
+	public new Color? BorderBrush
+	{
+		get
+		{
+			if (mExplicitBorderBrush.HasValue)
+				return mExplicitBorderBrush;
+			let theme = GetTheme();
+			if (theme != null)
+			{
+				if (IsFocused)
+					return theme.GetColor("TextBoxBorderFocused");
+				return theme.GetColor("TextBoxBorder");
+			}
+			return null;
+		}
+		set { mExplicitBorderBrush = value; InvalidateVisual(); }
+	}
 
 	// Text changed event
 	private EventAccessor<delegate void(TextBox, StringView)> mTextChangedEvent = new .() ~ delete _;
