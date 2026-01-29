@@ -2,6 +2,7 @@ namespace Sedulous.Editor.Core;
 
 using System;
 using System.Collections;
+using Sedulous.Foundation.Core;
 
 /// Manages open asset documents.
 class DocumentManager : IDisposable
@@ -9,6 +10,12 @@ class DocumentManager : IDisposable
 	private List<IAssetDocument> mDocuments = new .() ~ DeleteContainerAndDisposeItems!(_);
 	private IAssetDocument mActiveDocument;
 	private AssetRegistry mAssetRegistry;
+
+	// Events
+	private EventAccessor<delegate void(IAssetDocument)> mDocumentOpened = new .() ~ delete _;
+	private EventAccessor<delegate void(IAssetDocument)> mDocumentClosed = new .() ~ delete _;
+	private EventAccessor<delegate void(IAssetDocument)> mActiveDocumentChanged = new .() ~ delete _;
+	private EventAccessor<delegate void(IAssetDocument)> mDocumentDirtyChanged = new .() ~ delete _;
 
 	/// Currently active document.
 	public IAssetDocument ActiveDocument => mActiveDocument;
@@ -20,16 +27,16 @@ class DocumentManager : IDisposable
 	public List<IAssetDocument>.Enumerator OpenDocuments => mDocuments.GetEnumerator();
 
 	/// Event fired when a document is opened.
-	public Event<delegate void(IAssetDocument)> OnDocumentOpened ~ _.Dispose();
+	public EventAccessor<delegate void(IAssetDocument)> DocumentOpened => mDocumentOpened;
 
 	/// Event fired when a document is closed.
-	public Event<delegate void(IAssetDocument)> OnDocumentClosed ~ _.Dispose();
+	public EventAccessor<delegate void(IAssetDocument)> DocumentClosed => mDocumentClosed;
 
 	/// Event fired when the active document changes.
-	public Event<delegate void(IAssetDocument)> OnActiveDocumentChanged ~ _.Dispose();
+	public EventAccessor<delegate void(IAssetDocument)> ActiveDocumentChanged => mActiveDocumentChanged;
 
 	/// Event fired when a document's dirty state changes.
-	public Event<delegate void(IAssetDocument)> OnDocumentDirtyChanged ~ _.Dispose();
+	public EventAccessor<delegate void(IAssetDocument)> DocumentDirtyChanged => mDocumentDirtyChanged;
 
 	public this(AssetRegistry assetRegistry)
 	{
@@ -67,7 +74,7 @@ class DocumentManager : IDisposable
 		if (handler.CreateDocument(asset) case .Ok(let document))
 		{
 			mDocuments.Add(document);
-			OnDocumentOpened.Invoke(document);
+			mDocumentOpened.[Friend]Invoke(document);
 			SetActive(document);
 			return document;
 		}
@@ -134,11 +141,11 @@ class DocumentManager : IDisposable
 			else
 			{
 				mActiveDocument = null;
-				OnActiveDocumentChanged.Invoke(null);
+				mActiveDocumentChanged.[Friend]Invoke(null);
 			}
 		}
 
-		OnDocumentClosed.Invoke(document);
+		mDocumentClosed.[Friend]Invoke(document);
 		delete document;
 
 		return true;
@@ -191,7 +198,7 @@ class DocumentManager : IDisposable
 		if (mActiveDocument != null)
 			mActiveDocument.OnActivate();
 
-		OnActiveDocumentChanged.Invoke(mActiveDocument);
+		mActiveDocumentChanged.[Friend]Invoke(mActiveDocument);
 	}
 
 	/// Save active document.

@@ -503,7 +503,7 @@ public abstract class Application
 
 	private static UIKeyCode MapKeyCode(ShellKeyCode shellKey)
 	{
-		return (UIKeyCode)(int32)shellKey;
+		return InputMapping.MapKey(shellKey);
 	}
 
 	private bool Frame()
