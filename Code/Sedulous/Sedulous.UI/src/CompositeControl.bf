@@ -51,11 +51,16 @@ public abstract class CompositeControl : UIElement, IVisualChildProvider
 		InvalidateMeasure();
 	}
 
-	/// Removes a child element.
+	/// Removes a child element (does not delete it).
 	public bool RemoveChild(UIElement child)
 	{
 		if (mChildren.Remove(child))
 		{
+			// Notify context before clearing parent (so Context property still works)
+			let context = child.Context;
+			if (context != null)
+				context.OnElementDeleted(child);
+
 			child.[Friend]mParent = null;
 			InvalidateMeasure();
 			return true;
@@ -63,13 +68,34 @@ public abstract class CompositeControl : UIElement, IVisualChildProvider
 		return false;
 	}
 
-	/// Removes all children.
+	/// Removes and deletes all children.
 	public void ClearChildren()
 	{
 		for (let child in mChildren)
 		{
+			// Notify context before clearing parent (so Context property still works)
+			let context = child.Context;
+			if (context != null)
+				context.OnElementDeleted(child);
+
 			child.[Friend]mParent = null;
 			delete child;
+		}
+		mChildren.Clear();
+		InvalidateMeasure();
+	}
+
+	/// Removes all children without deleting them.
+	public void DetachChildren()
+	{
+		for (let child in mChildren)
+		{
+			// Notify context before clearing parent
+			let context = child.Context;
+			if (context != null)
+				context.OnElementDeleted(child);
+
+			child.[Friend]mParent = null;
 		}
 		mChildren.Clear();
 		InvalidateMeasure();

@@ -21,7 +21,13 @@ public class ContentControl : Control, IVisualChildProvider
 			if (mContent != value)
 			{
 				if (mContent != null)
+				{
+					// Notify context before clearing parent (so Context property still works)
+					let context = mContent.Context;
+					if (context != null)
+						context.OnElementDeleted(mContent);
 					mContent.[Friend]mParent = null;
+				}
 
 				mContent = value;
 

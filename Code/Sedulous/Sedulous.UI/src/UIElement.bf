@@ -72,6 +72,14 @@ public abstract class UIElement
 	private EventAccessor<delegate void(UIElement, char32)> mOnTextInputEvent = new .() ~ delete _;
 	private EventAccessor<delegate void(UIElement)> mOnClickEvent = new .() ~ delete _;
 
+	public ~this()
+	{
+		// Notify context to clear any references to this element
+		let context = Context;
+		if (context != null)
+			context.OnElementDeleted(this);
+	}
+
 	/// Unique identifier for this element.
 	public UIElementId Id
 	{

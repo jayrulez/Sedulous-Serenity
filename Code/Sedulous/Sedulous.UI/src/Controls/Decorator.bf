@@ -20,7 +20,13 @@ public abstract class Decorator : Control, IVisualChildProvider
 			if (mChild != value)
 			{
 				if (mChild != null)
+				{
+					// Notify context before clearing parent (so Context property still works)
+					let context = mChild.Context;
+					if (context != null)
+						context.OnElementDeleted(mChild);
 					mChild.[Friend]mParent = null;
+				}
 
 				mChild = value;
 

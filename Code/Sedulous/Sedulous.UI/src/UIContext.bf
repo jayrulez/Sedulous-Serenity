@@ -434,6 +434,31 @@ public class UIContext
 			mDeferredDeletions.Add(element);
 	}
 
+	/// Clears any internal references to the specified element.
+	/// Called automatically by UIElement destructor to prevent dangling pointers.
+	public void OnElementDeleted(UIElement element)
+	{
+		if (element == null)
+			return;
+
+		// Clear direct references
+		if (mFocusedElement == element)
+			mFocusedElement = null;
+		if (mCapturedElement == element)
+			mCapturedElement = null;
+		if (mHoveredElement == element)
+			mHoveredElement = null;
+		if (mRootElement == element)
+			mRootElement = null;
+
+		// Remove from deferred deletion list if present
+		mDeferredDeletions.Remove(element);
+
+		// Notify tooltip service
+		if (GetService<ITooltipService>() case .Ok(let tooltipService))
+			tooltipService.OnElementDeleted(element);
+	}
+
 	/// Processes all pending deferred deletions.
 	/// Called automatically at the end of Update().
 	private void ProcessDeferredDeletions()
