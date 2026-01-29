@@ -9,22 +9,25 @@ class Program
 {
 	public static int Main(String[] args)
 	{
-		// Set up logging
-		let logger = scope ConsoleLogger(.Debug, "Editor");
-		EditorApplication.SetLogger(logger);
+		// Set up console logging
+		let consoleLogger = scope ConsoleLogger(.Debug, "Editor");
 
 		// Parse command line args for log level
 		for (let arg in args)
 		{
 			if (arg == "--verbose" || arg == "-v")
-				logger.MimimumLogLevel = .Trace;
+				consoleLogger.MimimumLogLevel = .Trace;
 			else if (arg == "--quiet" || arg == "-q")
-				logger.MimimumLogLevel = .Warning;
+				consoleLogger.MimimumLogLevel = .Warning;
 		}
 
 		// Create and run editor
 		let config = EditorConfig();
 		let app = scope EditorApplication(config);
+
+		// Set console logger as inner logger (messages will be forwarded to it)
+		app.SetInnerLogger(consoleLogger);
+
 		return app.Run();
 	}
 }

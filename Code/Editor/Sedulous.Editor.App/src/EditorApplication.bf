@@ -2,6 +2,7 @@ namespace Sedulous.Editor.App;
 
 using System;
 using System.Collections;
+using System.IO;
 using Sedulous.AppFramework;
 using Sedulous.Editor.Core;
 using Sedulous.UI;
@@ -18,6 +19,9 @@ public struct EditorConfig
 		Height = 900,
 		Resizable = true
 	};
+
+	/// Directory to store editor settings (recent projects, preferences).
+	public String SettingsDirectory = null;
 }
 
 /// Main editor application.
@@ -26,14 +30,20 @@ public class EditorApplication : Application
 	private EditorConfig mEditorConfig;
 
 	// Logging
-	private static ILogger sLogger;
+	private ILogger mEditorLogger ~ delete _;
+
+	// Settings
+	private RecentProjectsManager mRecentProjects ~ delete _;
+	private String mSettingsDirectory = new .() ~ delete _;
 
 	// Core systems
 	private AssetRegistry mAssetRegistry;
 	private DocumentManager mDocumentManager;
 	private EditorProject mProject;
 
-	// UI components
+	// UI state
+	private bool mShowingProjectManager = true;
+	private ProjectManagerView mProjectManagerView;
 	private DockManager mDockManager;
 	private DockablePanel mProjectPanel;
 	private DockablePanel mPropertiesPanel;
@@ -58,8 +68,11 @@ public class EditorApplication : Application
 	/// Document manager.
 	public DocumentManager DocumentManager => mDocumentManager;
 
-	/// Logger instance.
-	public static ILogger Logger => sLogger;
+	/// Editor logger (stores messages for console display).
+	public ILogger Logger => mEditorLogger;
+
+	/// Recent projects manager.
+	public RecentProjectsManager RecentProjects => mRecentProjects;
 
 	public this() : this(.())
 	{
@@ -70,15 +83,36 @@ public class EditorApplication : Application
 		mEditorConfig = config;
 	}
 
-	/// Set the logger for the editor application.
-	public static void SetLogger(ILogger logger)
+	/// Set an external logger to forward messages to.
+	public void SetInnerLogger(ILogger innerLogger)
 	{
-		sLogger = logger;
+		if (mEditorLogger != null)
+			return; // Already created
+
+		mEditorLogger = new EditorLogger(innerLogger, "Editor");
 	}
 
 	protected override bool OnInitialize()
 	{
-		sLogger?.LogInformation("Initializing editor...");
+		// Create editor logger if not already set
+		if (mEditorLogger == null)
+			mEditorLogger = new EditorLogger(null, "Editor");
+
+		mEditorLogger.LogInformation("Initializing editor...");
+
+		// Determine settings directory
+		if (mEditorConfig.SettingsDirectory != null)
+		{
+			mSettingsDirectory.Set(mEditorConfig.SettingsDirectory);
+		}
+		else
+		{
+			// Default to .sedulous folder in current directory
+			mSettingsDirectory.Set(".sedulous");
+		}
+
+		// Create recent projects manager
+		mRecentProjects = new RecentProjectsManager(mSettingsDirectory);
 
 		// Create core systems
 		mAssetRegistry = new AssetRegistry();
@@ -87,32 +121,45 @@ public class EditorApplication : Application
 		// Register built-in asset handlers
 		RegisterBuiltinHandlers();
 
-		sLogger?.LogInformation("Editor initialized successfully");
+		mEditorLogger.LogInformation("Editor initialized successfully");
 		return true;
 	}
 
 	protected override void OnUISetup(UIContext context)
 	{
-		sLogger?.LogDebug("Setting up editor UI...");
+		mEditorLogger.LogDebug("Setting up editor UI...");
 
 		// Set dark theme as default
 		context.RegisterService<ITheme>(new DarkTheme());
 
-		// Create main dock manager
-		mDockManager = new DockManager();
-		mDockManager.Width = .Fill;
-		mDockManager.Height = .Fill;
+		// Create project manager view (initial view)
+		mProjectManagerView = new ProjectManagerView(mRecentProjects);
+		mProjectManagerView.Width = .Fill;
+		mProjectManagerView.Height = .Fill;
 
-		// Create default panels
-		CreateDefaultPanels();
+		// Subscribe to project manager events
+		mProjectManagerView.ProjectSelected.Subscribe(new (project) => {
+			OpenProject(project.Path);
+		});
 
-		// Set up default layout
-		SetupDefaultLayout();
+		mProjectManagerView.NewProjectRequested.Subscribe(new () => {
+			// TODO: Show new project dialog
+			mEditorLogger.LogDebug("New project requested");
+		});
 
-		// Set as root
-		context.RootElement = mDockManager;
+		mProjectManagerView.OpenProjectRequested.Subscribe(new () => {
+			// TODO: Show file open dialog
+			mEditorLogger.LogDebug("Open project dialog requested");
+		});
 
-		sLogger?.LogDebug("Editor UI setup complete");
+		// Create dock manager (editor view, hidden initially)
+		CreateEditorLayout();
+
+		// Start with project manager
+		context.RootElement = mProjectManagerView;
+		mShowingProjectManager = true;
+
+		mEditorLogger.LogDebug("Editor UI setup complete");
 	}
 
 	protected override void OnUpdate(float deltaTime)
@@ -122,7 +169,7 @@ public class EditorApplication : Application
 
 	protected override void OnCleanup()
 	{
-		sLogger?.LogInformation("Shutting down editor...");
+		mEditorLogger?.LogInformation("Shutting down editor...");
 
 		// Close project
 		CloseProject();
@@ -132,7 +179,13 @@ public class EditorApplication : Application
 		if (mUIContext != null)
 			mUIContext.RootElement = null;
 
-		// Delete dock manager (which owns and deletes its children including panels)
+		// Delete UI elements
+		if (mProjectManagerView != null)
+		{
+			delete mProjectManagerView;
+			mProjectManagerView = null;
+		}
+
 		if (mDockManager != null)
 		{
 			delete mDockManager;
@@ -161,7 +214,7 @@ public class EditorApplication : Application
 			mAssetRegistry = null;
 		}
 
-		sLogger?.LogInformation("Editor shutdown complete");
+		mEditorLogger?.LogInformation("Editor shutdown complete");
 	}
 
 	protected override void OnKeyDown(ShellKeyCode key)
@@ -189,13 +242,38 @@ public class EditorApplication : Application
 				Redo();
 			case .O:
 				// TODO: Show open project dialog
-				sLogger?.LogDebug("Open project shortcut pressed");
+				mEditorLogger.LogDebug("Open project shortcut pressed");
 			case .N:
 				// TODO: Show new project dialog
-				sLogger?.LogDebug("New project shortcut pressed");
+				mEditorLogger.LogDebug("New project shortcut pressed");
 			default:
 			}
 		}
+	}
+
+	// ===== View Switching =====
+
+	/// Switch to editor layout (called when a project is opened).
+	private void SwitchToEditorLayout()
+	{
+		if (!mShowingProjectManager)
+			return;
+
+		mUIContext.RootElement = mDockManager;
+		mShowingProjectManager = false;
+	}
+
+	/// Switch to project manager (called when a project is closed).
+	private void SwitchToProjectManager()
+	{
+		if (mShowingProjectManager)
+			return;
+
+		// Refresh the project list
+		mProjectManagerView.RefreshProjectList();
+
+		mUIContext.RootElement = mProjectManagerView;
+		mShowingProjectManager = true;
 	}
 
 	// ===== Project Management =====
@@ -203,7 +281,7 @@ public class EditorApplication : Application
 	/// Create a new project.
 	public Result<void> NewProject(StringView path, StringView name)
 	{
-		sLogger?.LogInformation("Creating new project: {0} at {1}", name, path);
+		mEditorLogger.LogInformation("Creating new project: {0} at {1}", name, path);
 
 		// Close existing project
 		CloseProject();
@@ -212,19 +290,26 @@ public class EditorApplication : Application
 		if (EditorProject.Create(path, name, mAssetRegistry) case .Ok(let project))
 		{
 			mProject = project;
+
+			// Add to recent projects
+			mRecentProjects.AddProject(name, path);
+
+			// Switch to editor view
+			SwitchToEditorLayout();
+
 			mProjectOpened.[Friend]Invoke(mProject);
-			sLogger?.LogInformation("Project created: {0}", name);
+			mEditorLogger.LogInformation("Project created: {0}", name);
 			return .Ok;
 		}
 
-		sLogger?.LogError("Failed to create project: {0}", name);
+		mEditorLogger.LogError("Failed to create project: {0}", name);
 		return .Err;
 	}
 
 	/// Open an existing project.
 	public Result<void> OpenProject(StringView projectFilePath)
 	{
-		sLogger?.LogInformation("Opening project: {0}", projectFilePath);
+		mEditorLogger.LogInformation("Opening project: {0}", projectFilePath);
 
 		// Close existing project
 		CloseProject();
@@ -233,12 +318,19 @@ public class EditorApplication : Application
 		if (EditorProject.Open(projectFilePath, mAssetRegistry) case .Ok(let project))
 		{
 			mProject = project;
+
+			// Add to recent projects
+			mRecentProjects.AddProject(project.Name, projectFilePath);
+
+			// Switch to editor view
+			SwitchToEditorLayout();
+
 			mProjectOpened.[Friend]Invoke(mProject);
-			sLogger?.LogInformation("Project opened: {0}", project.Name);
+			mEditorLogger.LogInformation("Project opened: {0}", project.Name);
 			return .Ok;
 		}
 
-		sLogger?.LogError("Failed to open project: {0}", projectFilePath);
+		mEditorLogger.LogError("Failed to open project: {0}", projectFilePath);
 		return .Err;
 	}
 
@@ -248,7 +340,7 @@ public class EditorApplication : Application
 		if (mProject == null)
 			return;
 
-		sLogger?.LogInformation("Closing project: {0}", mProject.Name);
+		mEditorLogger.LogInformation("Closing project: {0}", mProject.Name);
 
 		// Close all documents
 		mDocumentManager.CloseAll();
@@ -256,6 +348,9 @@ public class EditorApplication : Application
 		// Dispose project
 		delete mProject;
 		mProject = null;
+
+		// Switch back to project manager
+		SwitchToProjectManager();
 
 		mProjectClosed.[Friend]Invoke();
 	}
@@ -265,11 +360,11 @@ public class EditorApplication : Application
 	{
 		if (mProject == null)
 		{
-			sLogger?.LogWarning("No project to save");
+			mEditorLogger.LogWarning("No project to save");
 			return .Err;
 		}
 
-		sLogger?.LogDebug("Saving project: {0}", mProject.Name);
+		mEditorLogger.LogDebug("Saving project: {0}", mProject.Name);
 		return mProject.Save();
 	}
 
@@ -280,20 +375,20 @@ public class EditorApplication : Application
 	{
 		if (mDocumentManager.ActiveDocument == null)
 		{
-			sLogger?.LogDebug("No active document to save");
+			mEditorLogger.LogDebug("No active document to save");
 			return .Err;
 		}
 
 		let title = scope String();
 		mDocumentManager.ActiveDocument.GetTitle(title);
-		sLogger?.LogDebug("Saving active document: {0}", title);
+		mEditorLogger.LogDebug("Saving active document: {0}", title);
 		return mDocumentManager.SaveActive();
 	}
 
 	/// Save all dirty documents.
 	public Result<void> SaveAll()
 	{
-		sLogger?.LogDebug("Saving all documents");
+		mEditorLogger.LogDebug("Saving all documents");
 		return mDocumentManager.SaveAll();
 	}
 
@@ -303,7 +398,7 @@ public class EditorApplication : Application
 		let doc = mDocumentManager.ActiveDocument;
 		if (doc != null)
 		{
-			sLogger?.LogDebug("Undo");
+			mEditorLogger.LogDebug("Undo");
 			doc.Undo();
 		}
 	}
@@ -314,7 +409,7 @@ public class EditorApplication : Application
 		let doc = mDocumentManager.ActiveDocument;
 		if (doc != null)
 		{
-			sLogger?.LogDebug("Redo");
+			mEditorLogger.LogDebug("Redo");
 			doc.Redo();
 		}
 	}
@@ -324,7 +419,21 @@ public class EditorApplication : Application
 	private void RegisterBuiltinHandlers()
 	{
 		// Asset handlers will be registered by editor modules (e.g., Sedulous.Editor.Scenes)
-		sLogger?.LogDebug("Registering built-in asset handlers");
+		mEditorLogger.LogDebug("Registering built-in asset handlers");
+	}
+
+	private void CreateEditorLayout()
+	{
+		// Create dock manager
+		mDockManager = new DockManager();
+		mDockManager.Width = .Fill;
+		mDockManager.Height = .Fill;
+
+		// Create default panels
+		CreateDefaultPanels();
+
+		// Set up default layout
+		SetupDefaultLayout();
 	}
 
 	private void CreateDefaultPanels()
@@ -364,7 +473,7 @@ public class EditorApplication : Application
 		centerContent.HorizontalAlignment = .Center;
 		centerContent.VerticalAlignment = .Center;
 
-		let welcomeLabel = new Label("Open a project to begin");
+		let welcomeLabel = new Label("Open an asset to edit");
 		centerContent.AddChild(welcomeLabel);
 
 		mDockManager.CenterContent = centerContent;
@@ -385,7 +494,7 @@ public class EditorApplication : Application
 		panel.Orientation = .Vertical;
 		panel.Padding = .(8);
 
-		let label = new Label("No project open");
+		let label = new Label("Project files");
 		panel.AddChild(label);
 
 		return panel;

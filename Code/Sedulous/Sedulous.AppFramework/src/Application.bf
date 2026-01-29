@@ -49,6 +49,8 @@ public abstract class Application
 	protected ISurface mSurface;
 	protected ISwapChain mSwapChain;
 
+	private ShellClipboardAdapter mClipboard ~ delete _;
+
 	// Per-frame command buffers (use centralized FrameConfig from RHI)
 	protected const int MAX_FRAMES_IN_FLIGHT = FrameConfig.MAX_FRAMES_IN_FLIGHT;
 	protected ICommandBuffer[MAX_FRAMES_IN_FLIGHT] mCommandBuffers;
@@ -85,6 +87,9 @@ public abstract class Application
 
 	// Text input delegate
 	private delegate void(StringView) mTextInputDelegate ~ delete _;
+
+	// Cursor tracking
+	private CursorType mLastUICursor = .Default;
 
 	public this(ApplicationConfig config)
 	{
@@ -186,6 +191,9 @@ public abstract class Application
 
 			// Route input to UI
 			ProcessUIInput();
+
+			// Update cursor from UI
+			UpdateCursor(mShell.InputManager.Mouse);
 
 			// Update UI
 			mUIContext.Update(mDeltaTime, (double)mTotalTime);
@@ -394,11 +402,11 @@ public abstract class Application
 		mDrawContext = new DrawContext(mFontService);
 
 		// Create clipboard adapter
-		let clipboard = new ShellClipboardAdapter(mShell.Clipboard);
+		mClipboard = new ShellClipboardAdapter(mShell.Clipboard);
 
 		// Create UI context
 		mUIContext = new UIContext();
-		mUIContext.RegisterClipboard(clipboard);
+		mUIContext.RegisterClipboard(mClipboard);
 		mUIContext.RegisterService<IFontService>(mFontService);
 		mUIContext.SetViewportSize((float)mSwapChain.Width, (float)mSwapChain.Height);
 
@@ -504,6 +512,16 @@ public abstract class Application
 	private static UIKeyCode MapKeyCode(ShellKeyCode shellKey)
 	{
 		return InputMapping.MapKey(shellKey);
+	}
+
+	private void UpdateCursor(Sedulous.Shell.Input.IMouse mouse)
+	{
+		let uiCursor = mUIContext.CurrentCursor;
+		if (uiCursor != mLastUICursor)
+		{
+			mLastUICursor = uiCursor;
+			mouse.Cursor = InputMapping.MapCursor(uiCursor);
+		}
 	}
 
 	private bool Frame()
