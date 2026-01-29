@@ -8,6 +8,7 @@ using Sedulous.Editor.Core;
 using Sedulous.UI;
 using Sedulous.Foundation.Core;
 using Sedulous.Logging.Abstractions;
+using Sedulous.Mathematics;
 
 /// Editor application configuration.
 public struct EditorConfig
@@ -41,13 +42,24 @@ public class EditorApplication : Application
 	private DocumentManager mDocumentManager;
 	private EditorProject mProject;
 
+	// Editor modules (registered by entry point)
+	private List<IEditorModule> mModules = new .() ~ DeleteContainerAndItems!(_);
+
 	// UI state
 	private bool mShowingProjectManager = true;
 	private ProjectManagerView mProjectManagerView;
+	private NewProjectDialog mNewProjectDialog;
 	private DockManager mDockManager;
 	private DockablePanel mProjectPanel;
 	private DockablePanel mPropertiesPanel;
 	private DockablePanel mConsolePanel;
+	private AssetBrowser mAssetBrowser;
+	private DocumentTabStrip mDocumentTabs;
+
+	// Pending actions (deferred to avoid modifying UI tree during event processing)
+	private String mPendingProjectName ~ delete _;
+	private String mPendingProjectFolder ~ delete _;
+	private bool mPendingDialogHide = false;
 
 	// Events
 	private EventAccessor<delegate void(EditorProject)> mProjectOpened = new .() ~ delete _;
@@ -74,6 +86,13 @@ public class EditorApplication : Application
 	/// Recent projects manager.
 	public RecentProjectsManager RecentProjects => mRecentProjects;
 
+	/// Registers an editor module.
+	/// Call this before Run() to add plugin functionality.
+	public void RegisterModule(IEditorModule module)
+	{
+		mModules.Add(module);
+	}
+
 	public this() : this(.())
 	{
 	}
@@ -81,6 +100,13 @@ public class EditorApplication : Application
 	public this(EditorConfig config) : base(config.AppConfig)
 	{
 		mEditorConfig = config;
+	}
+
+	public ~this()
+	{
+		// Shutdown modules before they're deleted
+		for (let module in mModules)
+			module.Shutdown();
 	}
 
 	/// Set an external logger to forward messages to.
@@ -139,12 +165,11 @@ public class EditorApplication : Application
 
 		// Subscribe to project manager events
 		mProjectManagerView.ProjectSelected.Subscribe(new (project) => {
-			OpenProject(project.Path);
+			OpenProject(project.Path).IgnoreError();
 		});
 
 		mProjectManagerView.NewProjectRequested.Subscribe(new () => {
-			// TODO: Show new project dialog
-			mEditorLogger.LogDebug("New project requested");
+			ShowNewProjectDialog();
 		});
 
 		mProjectManagerView.OpenProjectRequested.Subscribe(new () => {
@@ -164,7 +189,26 @@ public class EditorApplication : Application
 
 	protected override void OnUpdate(float deltaTime)
 	{
-		// Update editor systems
+		// Process pending dialog hide (deferred from event handlers)
+		if (mPendingDialogHide)
+		{
+			mPendingDialogHide = false;
+			HideNewProjectDialog();
+		}
+
+		// Process pending project creation (deferred from event handlers)
+		if (mPendingProjectName != null)
+		{
+			let name = mPendingProjectName;
+			let folder = mPendingProjectFolder;
+			mPendingProjectName = null;
+			mPendingProjectFolder = null;
+
+			NewProject(folder, name);
+
+			delete name;
+			delete folder;
+		}
 	}
 
 	protected override void OnCleanup()
@@ -184,6 +228,12 @@ public class EditorApplication : Application
 		{
 			delete mProjectManagerView;
 			mProjectManagerView = null;
+		}
+
+		if (mNewProjectDialog != null)
+		{
+			delete mNewProjectDialog;
+			mNewProjectDialog = null;
 		}
 
 		if (mDockManager != null)
@@ -259,6 +309,12 @@ public class EditorApplication : Application
 		if (!mShowingProjectManager)
 			return;
 
+		// Configure asset browser with project data
+		if (mAssetBrowser != null && mProject != null)
+		{
+			mAssetBrowser.SetDatabase(mProject.AssetDatabase, mProject.RootPath);
+		}
+
 		mUIContext.RootElement = mDockManager;
 		mShowingProjectManager = false;
 	}
@@ -276,6 +332,62 @@ public class EditorApplication : Application
 		mShowingProjectManager = true;
 	}
 
+	/// Show the new project dialog.
+	private void ShowNewProjectDialog()
+	{
+		mEditorLogger.LogDebug("Showing new project dialog");
+
+		// Create dialog if needed
+		if (mNewProjectDialog == null)
+		{
+			mNewProjectDialog = new NewProjectDialog(mShell);
+
+			mNewProjectDialog.ProjectCreated.Subscribe(new (name, folder) => {
+				// Defer actions to next update to avoid modifying UI tree during event processing
+				mPendingDialogHide = true;
+				delete mPendingProjectName;
+				delete mPendingProjectFolder;
+				mPendingProjectName = new String(name);
+				mPendingProjectFolder = new String(folder);
+			});
+
+			mNewProjectDialog.Cancelled.Subscribe(new () => {
+				// Defer hide to next update
+				mPendingDialogHide = true;
+			});
+		}
+
+		// Show dialog as overlay on project manager
+		// Use a simple container that centers the dialog
+		let overlay = new Grid();
+		overlay.Width = .Fill;
+		overlay.Height = .Fill;
+		overlay.Background = Color(0, 0, 0, 128); // Semi-transparent backdrop
+		overlay.AddChild(mNewProjectDialog);
+
+		mUIContext.RootElement = overlay;
+		mUIContext.SetFocus(mNewProjectDialog.NameInput);
+	}
+
+	/// Hide the new project dialog.
+	private void HideNewProjectDialog()
+	{
+		// Remove dialog from overlay but don't delete it (we reuse it)
+		if (mUIContext.RootElement is Grid)
+		{
+			let overlay = mUIContext.RootElement as Grid;
+			// Use DetachChildren to remove without deleting (we reuse the dialog)
+			overlay.DetachChildren();
+			// Switch root element first, then defer delete the overlay
+			mUIContext.RootElement = mProjectManagerView;
+			mUIContext.DeferDelete(overlay);
+			return;
+		}
+
+		// Return to project manager
+		mUIContext.RootElement = mProjectManagerView;
+	}
+
 	// ===== Project Management =====
 
 	/// Create a new project.
@@ -291,8 +403,8 @@ public class EditorApplication : Application
 		{
 			mProject = project;
 
-			// Add to recent projects
-			mRecentProjects.AddProject(name, path);
+			// Add to recent projects (use the full project file path)
+			mRecentProjects.AddProject(name, project.ProjectFilePath);
 
 			// Switch to editor view
 			SwitchToEditorLayout();
@@ -418,8 +530,14 @@ public class EditorApplication : Application
 
 	private void RegisterBuiltinHandlers()
 	{
-		// Asset handlers will be registered by editor modules (e.g., Sedulous.Editor.Scenes)
-		mEditorLogger.LogDebug("Registering built-in asset handlers");
+		mEditorLogger.LogDebug("Initializing {} editor module(s)", mModules.Count);
+
+		// Initialize all registered modules
+		for (let module in mModules)
+		{
+			module.Initialize(mAssetRegistry);
+			mEditorLogger.LogDebug("Initialized module: {}", module.Name);
+		}
 	}
 
 	private void CreateEditorLayout()
@@ -468,15 +586,12 @@ public class EditorApplication : Application
 		// |                   |  Console (Bottom)|                |
 		// +-------------------+------------------+----------------+
 
-		// Set center content placeholder
-		let centerContent = new StackPanel();
-		centerContent.HorizontalAlignment = .Center;
-		centerContent.VerticalAlignment = .Center;
+		// Create document tab strip for center area
+		mDocumentTabs = new DocumentTabStrip(mDocumentManager);
+		mDocumentTabs.Width = .Fill;
+		mDocumentTabs.Height = .Fill;
 
-		let welcomeLabel = new Label("Open an asset to edit");
-		centerContent.AddChild(welcomeLabel);
-
-		mDockManager.CenterContent = centerContent;
+		mDockManager.CenterContent = mDocumentTabs;
 
 		// Dock panels
 		mDockManager.LeftWidth = 250;
@@ -490,14 +605,43 @@ public class EditorApplication : Application
 
 	private UIElement CreateProjectBrowserContent()
 	{
-		let panel = new StackPanel();
-		panel.Orientation = .Vertical;
-		panel.Padding = .(8);
+		mAssetBrowser = new AssetBrowser();
+		mAssetBrowser.Width = .Fill;
+		mAssetBrowser.Height = .Fill;
 
-		let label = new Label("Project files");
-		panel.AddChild(label);
+		// Subscribe to asset selection events
+		mAssetBrowser.AssetSelected.Subscribe(new (entry) => {
+			mEditorLogger.LogDebug("Asset selected: {0}", entry.Name);
+			// TODO: Update properties panel with asset details
+		});
 
-		return panel;
+		mAssetBrowser.AssetDoubleClick.Subscribe(new (entry) => {
+			mEditorLogger.LogDebug("Asset double-clicked: {0}", entry.Name);
+			OpenAsset(entry);
+		});
+
+		return mAssetBrowser;
+	}
+
+	/// Open an asset for editing.
+	private void OpenAsset(AssetEntry entry)
+	{
+		if (entry == null || mProject == null)
+			return;
+
+		// Build full path to asset
+		let fullPath = scope String();
+		Path.InternalCombine(fullPath, mProject.RootPath, entry.Path);
+
+		// Open via document manager
+		if (mDocumentManager.OpenPath(fullPath) case .Ok(let doc))
+		{
+			mEditorLogger.LogInformation("Opened document: {0}", entry.Name);
+		}
+		else
+		{
+			mEditorLogger.LogWarning("Failed to open asset: {0}", entry.Path);
+		}
 	}
 
 	private UIElement CreatePropertiesContent()

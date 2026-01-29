@@ -9,7 +9,7 @@ class EditorProject : IDisposable
 	private String mRootPath = new .() ~ delete _;
 	private String mProjectFilePath = new .() ~ delete _;
 	private ProjectSettings mSettings = new .() ~ delete _;
-	private AssetDatabase mAssetDatabase;
+	private AssetDatabase mAssetDatabase ~ delete _;
 	private AssetRegistry mAssetRegistry;
 	private bool mIsDirty;
 
@@ -42,7 +42,7 @@ class EditorProject : IDisposable
 
 	public void Dispose()
 	{
-		delete mAssetDatabase;
+		// Cleanup handled by ~ delete _ on fields
 	}
 
 	/// Create a new project.
@@ -192,17 +192,52 @@ class EditorProject : IDisposable
 
 	private Result<void> LoadSettings()
 	{
-		// TODO: Implement XML/OpenDDL loading
-		// For now, create default settings
-		let projectName = Path.GetFileNameWithoutExtension(mProjectFilePath, .. scope .());
-		mSettings.Name.Set(projectName);
+		// Simple line-based format for now:
+		// Line 1: Project name
+		// Line 2: Project ID (GUID)
+		let content = scope String();
+		if (File.ReadAllText(mProjectFilePath, content) case .Err)
+			return .Err;
+
+		var lineNum = 0;
+		for (let line in content.Split('\n'))
+		{
+			let trimmed = scope String(line);
+			trimmed.Trim();
+
+			switch (lineNum)
+			{
+			case 0:
+				mSettings.Name.Set(trimmed);
+			case 1:
+				if (Guid.Parse(trimmed) case .Ok(let guid))
+					mSettings.ProjectId = guid;
+			}
+			lineNum++;
+		}
+
+		// Fallback name from filename if not in file
+		if (mSettings.Name.IsEmpty)
+		{
+			let projectName = Path.GetFileNameWithoutExtension(mProjectFilePath, .. scope .());
+			mSettings.Name.Set(projectName);
+		}
+
 		return .Ok;
 	}
 
 	private Result<void> SaveSettings()
 	{
-		// TODO: Implement XML/OpenDDL saving
-		// For now, just return success
+		// Simple line-based format:
+		// Line 1: Project name
+		// Line 2: Project ID (GUID)
+		let content = scope String();
+		content.AppendF("{}\n", mSettings.Name);
+		content.AppendF("{}\n", mSettings.ProjectId);
+
+		if (File.WriteAllText(mProjectFilePath, content) case .Err)
+			return .Err;
+
 		return .Ok;
 	}
 }
