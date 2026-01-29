@@ -485,7 +485,18 @@ public abstract class Application
 			let shellKey = (ShellKeyCode)key;
 			let uiKey = MapKeyCode(shellKey);
 			if (keyboard.IsKeyPressed(shellKey))
+			{
 				mUIContext.ProcessKeyDown(uiKey, 0, mods);
+
+				// Fallback text input from key presses (when SDL_StartTextInput not called)
+				// Skip when Ctrl or Alt are held - those are shortcuts, not text input
+				if (!mods.HasFlag(.Ctrl) && !mods.HasFlag(.Alt))
+				{
+					let c = InputMapping.KeyToChar(shellKey, mods.HasFlag(.Shift));
+					if (c != '\0')
+						mUIContext.ProcessTextInput(c);
+				}
+			}
 			if (keyboard.IsKeyReleased(shellKey))
 				mUIContext.ProcessKeyUp(uiKey, 0, mods);
 		}
