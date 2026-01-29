@@ -75,6 +75,11 @@ public class DarkTheme : Theme
 		// Dockable panel colors
 		SetColor("DockPanelHeader", .(50, 50, 55));
 		SetColor("DockZonePreview", .(0, 120, 215, 80));
+
+		// TextBox colors
+		SetColor("TextBoxBackground", .(50, 50, 55));
+		SetColor("TextBoxBorder", .(70, 70, 70));
+		SetColor("TextBoxBorderFocused", .(0, 120, 215));
 	}
 
 	private void InitializeStyles()

@@ -75,6 +75,11 @@ public class DefaultTheme : Theme
 		// Dockable panel colors
 		SetColor("DockPanelHeader", .(240, 240, 240));
 		SetColor("DockZonePreview", .(0, 120, 215, 80));
+
+		// TextBox colors
+		SetColor("TextBoxBackground", Color.White);
+		SetColor("TextBoxBorder", .(171, 171, 171));
+		SetColor("TextBoxBorderFocused", .(0, 120, 215));
 	}
 
 	private void InitializeStyles()

@@ -76,6 +76,11 @@ public class GameTheme : Theme
 		// Dockable panel colors
 		SetColor("DockPanelHeader", .(30, 38, 50));
 		SetColor("DockZonePreview", .(0, 200, 220, 80));
+
+		// TextBox colors
+		SetColor("TextBoxBackground", .(25, 30, 40));
+		SetColor("TextBoxBorder", .(40, 60, 80));
+		SetColor("TextBoxBorderFocused", .(0, 200, 220));
 	}
 
 	private void InitializeStyles()

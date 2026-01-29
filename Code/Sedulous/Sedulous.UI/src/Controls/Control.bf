@@ -139,12 +139,19 @@ public class Control : UIElement
 	/// Gets a themed color value, considering control state.
 	protected Color? GetThemedColor(StringView propertyName)
 	{
+		// First check explicit style
 		let style = GetEffectiveStyle();
 		if (style != null)
 		{
 			if (style.TryGetColor(propertyName, mControlState, let color))
 				return color;
 		}
+
+		// Fall back to theme colors
+		let theme = GetTheme();
+		if (theme != null)
+			return theme.GetColor(propertyName);
+
 		return null;
 	}
 
