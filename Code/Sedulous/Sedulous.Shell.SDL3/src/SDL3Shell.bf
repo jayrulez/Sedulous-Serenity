@@ -13,12 +13,14 @@ class SDL3Shell : IShell
 	private SDL3WindowManager mWindowManager = new .() ~ delete _;
 	private SDL3InputManager mInputManager = new .() ~ delete _;
 	private SDL3Clipboard mClipboard = new .() ~ delete _;
+	private SDL3DialogService mDialogService ~ delete _;
 	private bool mIsRunning;
 	private bool mInitialized;
 
 	public IWindowManager WindowManager => mWindowManager;
 	public IInputManager InputManager => mInputManager;
 	public IClipboard Clipboard => mClipboard;
+	public IDialogService Dialogs => mDialogService;
 	public bool IsRunning => mIsRunning;
 
 	public Result<void> Initialize()
@@ -34,6 +36,9 @@ class SDL3Shell : IShell
 
 		// Initialize any connected gamepads
 		mInputManager.InitializeGamepads();
+
+		// Create dialog service
+		mDialogService = new SDL3DialogService(mWindowManager);
 
 		mInitialized = true;
 		mIsRunning = true;

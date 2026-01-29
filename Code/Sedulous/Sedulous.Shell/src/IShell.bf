@@ -15,6 +15,9 @@ public interface IShell
 	/// Gets the clipboard.
 	IClipboard Clipboard { get; }
 
+	/// Gets the dialog service for native file/folder dialogs.
+	IDialogService Dialogs { get; }
+
 	/// Initializes the shell subsystems.
 	Result<void> Initialize();
 
