@@ -271,6 +271,29 @@ public class DrawContext
 		TransformVertices(startVertex);
 	}
 
+	/// Draw a rounded rectangle outline
+	public void DrawRoundedRect(RectangleF rect, float radius, IBrush brush, float thickness = 1.0f)
+	{
+		SetupForSolidDraw();
+		let startVertex = mBatch.Vertices.Count;
+
+		mRasterizer.RasterizeStrokeRoundedRect(rect, radius, thickness, mBatch.Vertices, mBatch.Indices, ApplyOpacity(brush.BaseColor));
+		TransformVertices(startVertex);
+
+		if (brush.RequiresInterpolation)
+			ApplyBrushToVertices(brush, rect, startVertex);
+	}
+
+	/// Draw a rounded rectangle outline with a solid color
+	public void DrawRoundedRect(RectangleF rect, float radius, Color color, float thickness = 1.0f)
+	{
+		SetupForSolidDraw();
+		let startVertex = mBatch.Vertices.Count;
+
+		mRasterizer.RasterizeStrokeRoundedRect(rect, radius, thickness, mBatch.Vertices, mBatch.Indices, ApplyOpacity(color));
+		TransformVertices(startVertex);
+	}
+
 	/// Fill a circle
 	public void FillCircle(Vector2 center, float radius, IBrush brush)
 	{
@@ -825,6 +848,99 @@ public class DrawContext
 			return;
 
 		DrawText(text, font, position, color);
+	}
+
+	/// Draw text with word wrapping using the text shaper.
+	/// Requires the CachedFont to have a Shaper set.
+	public void DrawTextWrapped(StringView text, CachedFont font, IImageData atlasTexture, RectangleF bounds, float maxWidth, Color color)
+	{
+		if (text.IsEmpty || font == null || font.Shaper == null || atlasTexture == null)
+			return;
+
+		// Use shaper to get positioned glyphs with wrapping
+		let positions = scope List<GlyphPosition>();
+		float totalHeight = 0;
+		if (font.Shaper.ShapeTextWrapped(font.Font, text, maxWidth, positions, out totalHeight) case .Err)
+			return;
+
+		// Render positioned glyphs
+		DrawPositionedGlyphs(positions, font.Atlas, atlasTexture, bounds.X, bounds.Y + font.Font.Metrics.Ascent, color);
+	}
+
+	/// Draw text with word wrapping using the text shaper.
+	/// Returns the total height of the wrapped text.
+	public float DrawTextWrapped(StringView text, CachedFont font, IImageData atlasTexture, Vector2 position, float maxWidth, Color color)
+	{
+		if (text.IsEmpty || font == null || font.Shaper == null || atlasTexture == null)
+			return 0;
+
+		// Use shaper to get positioned glyphs with wrapping
+		let positions = scope List<GlyphPosition>();
+		float totalHeight = 0;
+		if (font.Shaper.ShapeTextWrapped(font.Font, text, maxWidth, positions, out totalHeight) case .Err)
+			return 0;
+
+		// Render positioned glyphs (offset Y by ascent so position is top-left)
+		DrawPositionedGlyphs(positions, font.Atlas, atlasTexture, position.X, position.Y + font.Font.Metrics.Ascent, color);
+		return totalHeight;
+	}
+
+	/// Measure wrapped text without drawing.
+	/// Returns the total height of the wrapped text, or 0 if shaper unavailable.
+	public float MeasureTextWrapped(StringView text, CachedFont font, float maxWidth)
+	{
+		if (text.IsEmpty || font == null || font.Shaper == null)
+			return 0;
+
+		let positions = scope List<GlyphPosition>();
+		float totalHeight = 0;
+		if (font.Shaper.ShapeTextWrapped(font.Font, text, maxWidth, positions, out totalHeight) case .Err)
+			return 0;
+
+		return totalHeight;
+	}
+
+	/// Draw pre-positioned glyphs (from text shaping).
+	/// offsetX/offsetY are added to all glyph positions.
+	public void DrawPositionedGlyphs(List<GlyphPosition> positions, IFontAtlas atlas, IImageData atlasTexture, float offsetX, float offsetY, Color color)
+	{
+		if (positions.Count == 0)
+			return;
+
+		let textureIndex = GetOrAddTexture(atlasTexture);
+		SetupForTextureDraw(textureIndex);
+
+		let startVertex = mBatch.Vertices.Count;
+		let opacityColor = ApplyOpacity(color);
+		let atlasWidth = atlas.Width;
+		let atlasHeight = atlas.Height;
+
+		for (let pos in positions)
+		{
+			AtlasRegion region = ?;
+			if (!atlas.TryGetRegion(pos.Codepoint, out region))
+				continue;
+
+			if (region.IsEmpty)
+				continue;
+
+			// Calculate screen coordinates
+			// pos.X/Y are relative positions (Y at baseline), region.Offset is glyph offset
+			let x0 = offsetX + pos.X + region.OffsetX;
+			let y0 = offsetY + pos.Y + region.OffsetY;
+			let x1 = x0 + region.Width;
+			let y1 = y0 + region.Height;
+
+			// Calculate UVs
+			float u0, v0, u1, v1;
+			region.GetUVs(atlasWidth, atlasHeight, out u0, out v0, out u1, out v1);
+
+			// Create and rasterize the glyph quad
+			let quad = GlyphQuad(x0, y0, x1, y1, u0, v0, u1, v1);
+			mRasterizer.RasterizeGlyphQuad(quad, mBatch.Vertices, mBatch.Indices, opacityColor);
+		}
+
+		TransformVertices(startVertex);
 	}
 
 	// === Internal Helpers ===

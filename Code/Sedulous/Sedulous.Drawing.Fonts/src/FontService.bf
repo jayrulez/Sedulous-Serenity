@@ -103,7 +103,10 @@ public class FontService : IFontService
 
 		// Create texture with owned pixel data
 		let texture = new OwnedImageData(atlasWidth, atlasHeight, .RGBA8, rgba8Data);
-		let cachedFont = new CachedFont(font, atlas);
+
+		// Create text shaper for word wrapping support
+		let shaper = new TrueTypeTextShaper();
+		let cachedFont = new CachedFont(font, atlas, shaper);
 
 		let entry = new FontEntry();
 		entry.CachedFont = cachedFont;

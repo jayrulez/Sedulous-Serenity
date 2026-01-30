@@ -337,6 +337,99 @@ public class ShapeRasterizer
 		}
 	}
 
+	/// Rasterize a stroked rounded rectangle
+	public void RasterizeStrokeRoundedRect(RectangleF rect, float radius, float thickness, List<DrawVertex> vertices, List<uint16> indices, Color color)
+	{
+		// Clamp radius to half the smallest dimension
+		let maxRadius = Math.Min(rect.Width, rect.Height) * 0.5f;
+		var r = Math.Min(radius, maxRadius);
+
+		if (r <= 0)
+		{
+			RasterizeStrokeRect(rect, thickness, vertices, indices, color);
+			return;
+		}
+
+		let segments = CalculateCornerSegments(r);
+		let halfThick = thickness * 0.5f;
+		let baseIndex = (uint16)vertices.Count;
+		let angleStep = (Math.PI_f * 0.5f) / segments;
+
+		// Generate outer and inner vertices around the rounded rectangle perimeter
+		// Going clockwise: top-left corner, top-right corner, bottom-right corner, bottom-left corner
+
+		// Top-left corner (center at rect.X + r, rect.Y + r)
+		for (int32 i = 0; i <= segments; i++)
+		{
+			let angle = Math.PI_f + i * angleStep;
+			let cos = Math.Cos(angle);
+			let sin = Math.Sin(angle);
+			let cx = rect.X + r;
+			let cy = rect.Y + r;
+
+			// Outer vertex
+			vertices.Add(.(cx + cos * (r + halfThick), cy + sin * (r + halfThick), SolidUV, SolidUV, color));
+			// Inner vertex
+			vertices.Add(.(cx + cos * (r - halfThick), cy + sin * (r - halfThick), SolidUV, SolidUV, color));
+		}
+
+		// Top-right corner (center at rect.Right - r, rect.Y + r)
+		for (int32 i = 0; i <= segments; i++)
+		{
+			let angle = Math.PI_f * 1.5f + i * angleStep;
+			let cos = Math.Cos(angle);
+			let sin = Math.Sin(angle);
+			let cx = rect.X + rect.Width - r;
+			let cy = rect.Y + r;
+
+			vertices.Add(.(cx + cos * (r + halfThick), cy + sin * (r + halfThick), SolidUV, SolidUV, color));
+			vertices.Add(.(cx + cos * (r - halfThick), cy + sin * (r - halfThick), SolidUV, SolidUV, color));
+		}
+
+		// Bottom-right corner (center at rect.Right - r, rect.Bottom - r)
+		for (int32 i = 0; i <= segments; i++)
+		{
+			let angle = i * angleStep;
+			let cos = Math.Cos(angle);
+			let sin = Math.Sin(angle);
+			let cx = rect.X + rect.Width - r;
+			let cy = rect.Y + rect.Height - r;
+
+			vertices.Add(.(cx + cos * (r + halfThick), cy + sin * (r + halfThick), SolidUV, SolidUV, color));
+			vertices.Add(.(cx + cos * (r - halfThick), cy + sin * (r - halfThick), SolidUV, SolidUV, color));
+		}
+
+		// Bottom-left corner (center at rect.X + r, rect.Bottom - r)
+		for (int32 i = 0; i <= segments; i++)
+		{
+			let angle = Math.PI_f * 0.5f + i * angleStep;
+			let cos = Math.Cos(angle);
+			let sin = Math.Sin(angle);
+			let cx = rect.X + r;
+			let cy = rect.Y + rect.Height - r;
+
+			vertices.Add(.(cx + cos * (r + halfThick), cy + sin * (r + halfThick), SolidUV, SolidUV, color));
+			vertices.Add(.(cx + cos * (r - halfThick), cy + sin * (r - halfThick), SolidUV, SolidUV, color));
+		}
+
+		// Generate quad strip indices connecting the outline
+		let perimeterCount = (segments + 1) * 4;
+		for (int32 i = 0; i < perimeterCount; i++)
+		{
+			let curr = i * 2;
+			let next = ((i + 1) % perimeterCount) * 2;
+
+			let i0 = baseIndex + (uint16)curr;       // Current outer
+			let i1 = baseIndex + (uint16)(curr + 1); // Current inner
+			let i2 = baseIndex + (uint16)next;       // Next outer
+			let i3 = baseIndex + (uint16)(next + 1); // Next inner
+
+			// Two triangles forming a quad
+			indices.Add(i0); indices.Add(i2); indices.Add(i1);
+			indices.Add(i1); indices.Add(i2); indices.Add(i3);
+		}
+	}
+
 	// === Textured Shapes ===
 
 	/// Rasterize a textured quad
