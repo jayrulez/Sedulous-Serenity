@@ -73,6 +73,15 @@ public class MouseEventArgs : InputEventArgs
 	{
 	}
 
+	public this(float screenX, float screenY, KeyModifiers modifiers = .None)
+	{
+		ScreenX = screenX;
+		ScreenY = screenY;
+		LocalX = screenX;
+		LocalY = screenY;
+		Modifiers = modifiers;
+	}
+
 	/// Gets the screen position as a Vector2.
 	public Vector2 ScreenPosition => .(ScreenX, ScreenY);
 
@@ -106,6 +115,12 @@ public class MouseButtonEventArgs : MouseEventArgs
 	{
 	}
 
+	public this(float screenX, float screenY, MouseButton button, KeyModifiers modifiers = .None)
+		: base(screenX, screenY, modifiers)
+	{
+		Button = button;
+	}
+
 	public override void Reset()
 	{
 		base.Reset();
@@ -125,6 +140,13 @@ public class MouseWheelEventArgs : MouseEventArgs
 
 	public this()
 	{
+	}
+
+	public this(float screenX, float screenY, float deltaY, KeyModifiers modifiers = .None)
+		: base(screenX, screenY, modifiers)
+	{
+		DeltaX = 0;
+		DeltaY = deltaY;
 	}
 
 	public override void Reset()
@@ -154,6 +176,13 @@ public class KeyEventArgs : InputEventArgs
 	{
 	}
 
+	public this(KeyCode key, KeyModifiers modifiers = .None, bool isRepeat = false)
+	{
+		Key = key;
+		Modifiers = modifiers;
+		IsRepeat = isRepeat;
+	}
+
 	/// Checks if a modifier is active.
 	public bool HasModifier(KeyModifiers mod) => ((int32)Modifiers & (int32)mod) != 0;
 
@@ -175,6 +204,11 @@ public class TextInputEventArgs : InputEventArgs
 
 	public this()
 	{
+	}
+
+	public this(char32 character)
+	{
+		Character = character;
 	}
 
 	public override void Reset()

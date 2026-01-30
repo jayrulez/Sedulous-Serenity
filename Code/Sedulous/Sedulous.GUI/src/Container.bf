@@ -1,0 +1,240 @@
+using System;
+using System.Collections;
+using Sedulous.Mathematics;
+using Sedulous.Drawing;
+
+namespace Sedulous.GUI;
+
+/// Base class for elements that can contain multiple children.
+/// Provides child management with clear ownership semantics.
+public abstract class Container : UIElement
+{
+	private List<UIElement> mChildren = new .() ~ DeleteContainerAndItems!(_);
+
+	/// The children of this container.
+	public List<UIElement> Children => mChildren;
+
+	/// Number of children.
+	public int ChildCount => mChildren.Count;
+
+	/// Gets a child by index.
+	public UIElement GetChild(int index)
+	{
+		if (index < 0 || index >= mChildren.Count)
+			return null;
+		return mChildren[index];
+	}
+
+	/// Adds a child element. Transfers ownership to this container.
+	/// If the element already has a parent, it will be detached first.
+	public void AddChild(UIElement child)
+	{
+		if (child == null)
+			return;
+
+		// If child has a parent, detach from it first
+		child.DetachFromParent();
+
+		mChildren.Add(child);
+		child.SetParent(this);
+
+		// Propagate context if we have one
+		if (Context != null)
+			child.OnAttachedToContext(Context);
+
+		InvalidateLayout();
+	}
+
+	/// Inserts a child at the specified index.
+	public void InsertChild(int index, UIElement child)
+	{
+		if (child == null)
+			return;
+
+		// If child has a parent, detach from it first
+		child.DetachFromParent();
+
+		mChildren.Insert(Math.Clamp(index, 0, mChildren.Count), child);
+		child.SetParent(this);
+
+		// Propagate context if we have one
+		if (Context != null)
+			child.OnAttachedToContext(Context);
+
+		InvalidateLayout();
+	}
+
+	/// Removes a child from this container.
+	/// If deleteAfterRemove is true (default), the child will be deleted.
+	/// If false, ownership returns to the caller.
+	public void RemoveChild(UIElement child, bool deleteAfterRemove = true)
+	{
+		if (child == null)
+			return;
+
+		let index = mChildren.IndexOf(child);
+		if (index < 0)
+			return;
+
+		mChildren.RemoveAt(index);
+		child.SetParent(null);
+
+		if (Context != null)
+			child.OnDetachedFromContext();
+
+		if (deleteAfterRemove)
+			delete child;
+
+		InvalidateLayout();
+	}
+
+	/// Removes and returns a child at the specified index.
+	/// Ownership is transferred to the caller.
+	public UIElement DetachChild(int index)
+	{
+		if (index < 0 || index >= mChildren.Count)
+			return null;
+
+		let child = mChildren[index];
+		mChildren.RemoveAt(index);
+		child.SetParent(null);
+
+		if (Context != null)
+			child.OnDetachedFromContext();
+
+		InvalidateLayout();
+		return child;
+	}
+
+	/// Removes and returns the specified child.
+	/// Ownership is transferred to the caller.
+	public UIElement DetachChild(UIElement child)
+	{
+		if (child == null)
+			return null;
+
+		let index = mChildren.IndexOf(child);
+		if (index < 0)
+			return null;
+
+		return DetachChild(index);
+	}
+
+	/// Removes all children from this container.
+	/// If deleteAll is true (default), all children will be deleted.
+	/// If false, children are just removed (caller doesn't get ownership though).
+	public void ClearChildren(bool deleteAll = true)
+	{
+		for (let child in mChildren)
+		{
+			child.SetParent(null);
+			if (Context != null)
+				child.OnDetachedFromContext();
+			if (deleteAll)
+				delete child;
+		}
+		mChildren.Clear();
+		InvalidateLayout();
+	}
+
+	/// Override to support polymorphic child detachment.
+	public override UIElement TryDetachChild(UIElement child)
+	{
+		return DetachChild(child);
+	}
+
+	/// Override to support polymorphic child addition.
+	public override bool TryAddChild(UIElement child)
+	{
+		AddChild(child);
+		return true;
+	}
+
+	/// Gets the number of visual children.
+	public override int VisualChildCount => mChildren.Count;
+
+	/// Gets a visual child by index.
+	public override UIElement GetVisualChild(int index)
+	{
+		if (index < 0 || index >= mChildren.Count)
+			return null;
+		return mChildren[index];
+	}
+
+	/// Override to propagate context to children.
+	public override void OnAttachedToContext(GUIContext context)
+	{
+		base.OnAttachedToContext(context);
+		for (let child in mChildren)
+			child.OnAttachedToContext(context);
+	}
+
+	/// Override to propagate context removal to children.
+	public override void OnDetachedFromContext()
+	{
+		for (let child in mChildren)
+			child.OnDetachedFromContext();
+		base.OnDetachedFromContext();
+	}
+
+	/// Default measure: measure all children and return the largest.
+	protected override DesiredSize MeasureOverride(SizeConstraints constraints)
+	{
+		float maxWidth = 0;
+		float maxHeight = 0;
+
+		for (let child in mChildren)
+		{
+			if (child.Visibility == .Collapsed)
+				continue;
+
+			let childSize = child.Measure(constraints);
+			maxWidth = Math.Max(maxWidth, childSize.Width);
+			maxHeight = Math.Max(maxHeight, childSize.Height);
+		}
+
+		return .(maxWidth, maxHeight);
+	}
+
+	/// Default arrange: arrange all children to fill content bounds.
+	protected override void ArrangeOverride(RectangleF contentBounds)
+	{
+		for (let child in mChildren)
+		{
+			if (child.Visibility == .Collapsed)
+				continue;
+
+			child.Arrange(contentBounds);
+		}
+	}
+
+	/// Default render: render all children in order.
+	protected override void RenderOverride(DrawContext ctx)
+	{
+		for (let child in mChildren)
+		{
+			child.Render(ctx);
+		}
+	}
+
+	/// Hit test: test children in reverse order (topmost first), then self.
+	public override UIElement HitTest(Vector2 point)
+	{
+		if (Visibility != .Visible)
+			return null;
+
+		if (!ArrangedBounds.Contains(point.X, point.Y))
+			return null;
+
+		// Test children in reverse order (topmost first)
+		for (int i = mChildren.Count - 1; i >= 0; i--)
+		{
+			let child = mChildren[i];
+			let hit = child.HitTest(point);
+			if (hit != null)
+				return hit;
+		}
+
+		return this;
+	}
+}

@@ -484,7 +484,7 @@ public abstract class UIElement
 
 	/// Called when this element is attached to a context.
 	/// (Public for access from GUIContext; not intended for external use)
-	public void OnAttachedToContext(GUIContext context)
+	public virtual void OnAttachedToContext(GUIContext context)
 	{
 		mContext = context;
 		context.RegisterElement(this);
@@ -492,7 +492,7 @@ public abstract class UIElement
 
 	/// Called when this element is detached from a context.
 	/// (Public for access from GUIContext; not intended for external use)
-	public void OnDetachedFromContext()
+	public virtual void OnDetachedFromContext()
 	{
 		mContext?.UnregisterElement(this);
 		mContext = null;
@@ -503,6 +503,57 @@ public abstract class UIElement
 	public void SetParent(UIElement parent)
 	{
 		mParent = parent;
+	}
+
+	/// Attempts to detach the specified child from this element.
+	/// Returns the detached child if successful, null if the child wasn't found.
+	/// Override in Container, ContentControl, Decorator to implement actual detachment.
+	/// The caller takes ownership of the returned element.
+	public virtual UIElement TryDetachChild(UIElement child)
+	{
+		// Base UIElement has no children
+		return null;
+	}
+
+	/// Attempts to add a child to this element.
+	/// Returns true if successful, false if this element doesn't support children.
+	/// Override in Container to implement actual child addition.
+	/// Ownership of the child is transferred to this element on success.
+	public virtual bool TryAddChild(UIElement child)
+	{
+		// Base UIElement has no children
+		return false;
+	}
+
+	/// Detaches this element from its parent.
+	/// Returns true if detachment was successful.
+	/// The caller takes ownership of this element after detachment.
+	public bool DetachFromParent()
+	{
+		if (mParent == null)
+			return false;
+
+		return mParent.TryDetachChild(this) != null;
+	}
+
+	/// Gets the number of visual children.
+	/// Override in Container, ContentControl, Decorator.
+	public virtual int VisualChildCount => 0;
+
+	/// Gets a visual child by index.
+	/// Override in Container, ContentControl, Decorator.
+	public virtual UIElement GetVisualChild(int index) => null;
+
+	/// Iterates over all visual children, invoking the delegate for each.
+	public void ForEachVisualChild(delegate void(UIElement child) action)
+	{
+		let count = VisualChildCount;
+		for (int i = 0; i < count; i++)
+		{
+			let child = GetVisualChild(i);
+			if (child != null)
+				action(child);
+		}
 	}
 
 	// === Input Handlers ===

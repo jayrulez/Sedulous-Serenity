@@ -101,20 +101,33 @@ public class MutationQueue
 			switch (mutation.Type)
 			{
 			case .AddChild:
-				// TODO: Implement when Container class is added
-				break;
+				// Skip if child is already pending deletion
+				if (mutation.Child != null && !mutation.Child.IsPendingDeletion)
+				{
+					mutation.Target.TryAddChild(mutation.Child);
+				}
 
 			case .RemoveChild:
-				// TODO: Implement when Container class is added
-				if (mutation.DeleteAfterRemove && mutation.Child != null)
+				if (mutation.Child != null)
 				{
-					context.UnregisterElement(mutation.Child);
-					delete mutation.Child;
+					// Detach the child from its parent
+					let detached = mutation.Target.TryDetachChild(mutation.Child);
+
+					// If deletion requested and detachment succeeded
+					if (mutation.DeleteAfterRemove && detached != null)
+					{
+						context.OnElementDeleted(detached);
+						context.UnregisterElement(detached);
+						delete detached;
+					}
 				}
 
 			case .DeleteElement:
 				if (mutation.Target != null)
 				{
+					// Notify context so input/focus managers can clear references
+					context.OnElementDeleted(mutation.Target);
+
 					// Clear root element reference if this is the root
 					if (context.[Friend]mRootElement == mutation.Target)
 					{
@@ -124,7 +137,7 @@ public class MutationQueue
 					// Remove from parent if any
 					if (mutation.Target.Parent != null)
 					{
-						// TODO: Implement parent removal when Container class is added
+						mutation.Target.DetachFromParent();
 					}
 
 					context.UnregisterElement(mutation.Target);

@@ -14,18 +14,100 @@ using Sedulous.Drawing.Renderer;
 using Sedulous.Shell.Input;
 using Sedulous.Shaders;
 
-/// A simple colored rectangle element for testing.
-class ColoredRect : UIElement
+/// A focusable colored rectangle control for testing input and focus.
+class FocusableRect : Control
 {
-	public Color BackgroundColor = Color(100, 150, 200, 255);
+	public Color RectColor = Color(100, 150, 200, 255);
+
+	public this()
+	{
+		// All FocusableRects are focusable by default
+		IsFocusable = true;
+		IsTabStop = true;
+	}
+
+	protected override DesiredSize MeasureOverride(SizeConstraints constraints)
+	{
+		// Default size if not explicitly set
+		return .(100, 80);
+	}
 
 	protected override void RenderOverride(DrawContext ctx)
 	{
-		ctx.FillRect(ArrangedBounds, BackgroundColor);
+		// Draw background with state-aware color
+		let bgColor = GetStateBackground();
+		ctx.FillRect(ArrangedBounds, bgColor);
+
+		// Draw border (thicker when focused)
+		let borderColor = GetStateBorderColor();
+		let borderThickness = GetStateBorderThickness();
+		if (borderThickness > 0)
+		{
+			ctx.DrawRect(ArrangedBounds, borderColor, borderThickness);
+		}
+	}
+
+	protected override Color GetStateBackground()
+	{
+		// Apply state-based color modifications
+		switch (CurrentState)
+		{
+		case .Disabled:
+			return Color((uint8)(RectColor.R / 2), (uint8)(RectColor.G / 2), (uint8)(RectColor.B / 2), RectColor.A);
+		case .Pressed:
+			return Color(
+				(uint8)Math.Min(255, (int)(RectColor.R * 0.7f)),
+				(uint8)Math.Min(255, (int)(RectColor.G * 0.7f)),
+				(uint8)Math.Min(255, (int)(RectColor.B * 0.7f)),
+				RectColor.A);
+		case .Hover:
+			return Color(
+				(uint8)Math.Min(255, RectColor.R + 30),
+				(uint8)Math.Min(255, RectColor.G + 30),
+				(uint8)Math.Min(255, RectColor.B + 30),
+				RectColor.A);
+		case .Focused:
+			return Color(
+				(uint8)Math.Min(255, RectColor.R + 15),
+				(uint8)Math.Min(255, RectColor.G + 15),
+				(uint8)Math.Min(255, RectColor.B + 15),
+				RectColor.A);
+		default:
+			return RectColor;
+		}
 	}
 }
 
-/// GUI Sandbox sample demonstrating the new Sedulous.GUI framework.
+/// A simple panel for Phase 2 demo.
+class DemoPanel : Panel
+{
+	public this()
+	{
+		Background = Color(40, 45, 55, 255);
+	}
+
+	protected override void ArrangeOverride(RectangleF contentBounds)
+	{
+		// Simple horizontal layout
+		float x = contentBounds.X + 20;
+		float y = contentBounds.Y + 20;
+		float spacing = 20;
+
+		for (int i = 0; i < ChildCount; i++)
+		{
+			let child = GetChild(i);
+			if (child == null || child.Visibility == .Collapsed)
+				continue;
+
+			let desiredSize = child.DesiredSize;
+			child.Arrange(.(x, y, desiredSize.Width, desiredSize.Height));
+			x += desiredSize.Width + spacing;
+		}
+	}
+}
+
+/// GUI Sandbox sample demonstrating the Sedulous.GUI framework.
+/// Phase 2: Element hierarchy, input routing, focus management.
 class GUISandboxApp : RHISampleApp
 {
 	// GUI System
@@ -43,8 +125,9 @@ class GUISandboxApp : RHISampleApp
 	// Shader system
 	private NewShaderSystem mShaderSystem;
 
-	// Root element
-	private ColoredRect mRootRect ~ delete _;
+	// Root panel
+	private DemoPanel mRootPanel ~ delete _;
+
 
 	// FPS tracking
 	private int mFrameCount = 0;
@@ -53,7 +136,7 @@ class GUISandboxApp : RHISampleApp
 
 	public this() : base(.()
 		{
-			Title = "GUI Sandbox",
+			Title = "GUI Sandbox - Phase 2",
 			Width = 1280,
 			Height = 720,
 			ClearColor = .(0.1f, 0.1f, 0.15f, 1.0f)
@@ -102,7 +185,11 @@ class GUISandboxApp : RHISampleApp
 		// Initialize GUI
 		InitializeGUI();
 
-		Console.WriteLine("GUISandbox initialized. Press ESC to exit.");
+		Console.WriteLine("GUISandbox Phase 2 initialized.");
+		Console.WriteLine("  Click rectangles to focus them");
+		Console.WriteLine("  Tab/Shift+Tab to navigate focus");
+		Console.WriteLine("  F2 to toggle debug overlay");
+		Console.WriteLine("  ESC to exit");
 		return true;
 	}
 
@@ -111,14 +198,91 @@ class GUISandboxApp : RHISampleApp
 		mGUIContext = new GUIContext();
 		mGUIContext.SetViewportSize((float)SwapChain.Width, (float)SwapChain.Height);
 
-		// Create a simple colored rectangle
-		mRootRect = new ColoredRect();
-		mRootRect.Width = 200;
-		mRootRect.Height = 150;
-		mRootRect.Margin = .(50);
-		mRootRect.BackgroundColor = Color(80, 120, 180, 255);
+		// Create root panel
+		mRootPanel = new DemoPanel();
+		mRootPanel.Width = 800;
+		mRootPanel.Height = 200;
+		mRootPanel.Margin = .(50, 100, 50, 50);
 
-		mGUIContext.RootElement = mRootRect;
+		// Create 3 focusable rectangles with different colors
+		let rect1 = new FocusableRect();
+		rect1.Width = 120;
+		rect1.Height = 100;
+		rect1.RectColor = Color(200, 80, 80, 255);  // Red
+		rect1.TabIndex = 0;
+		rect1.BorderThickness = 2;
+		rect1.BorderColor = Color(150, 60, 60, 255);
+		rect1.FocusBorderColor = Color(255, 200, 100, 255);
+		rect1.FocusBorderThickness = 4;
+		mRootPanel.AddChild(rect1);
+
+		let rect2 = new FocusableRect();
+		rect2.Width = 120;
+		rect2.Height = 100;
+		rect2.RectColor = Color(80, 180, 80, 255);  // Green
+		rect2.TabIndex = 1;
+		rect2.BorderThickness = 2;
+		rect2.BorderColor = Color(60, 140, 60, 255);
+		rect2.FocusBorderColor = Color(255, 200, 100, 255);
+		rect2.FocusBorderThickness = 4;
+		mRootPanel.AddChild(rect2);
+
+		let rect3 = new FocusableRect();
+		rect3.Width = 120;
+		rect3.Height = 100;
+		rect3.RectColor = Color(80, 120, 200, 255);  // Blue
+		rect3.TabIndex = 2;
+		rect3.BorderThickness = 2;
+		rect3.BorderColor = Color(60, 90, 160, 255);
+		rect3.FocusBorderColor = Color(255, 200, 100, 255);
+		rect3.FocusBorderThickness = 4;
+		mRootPanel.AddChild(rect3);
+
+		mGUIContext.RootElement = mRootPanel;
+	}
+
+	protected override void OnInput()
+	{
+		let keyboard = mShell.InputManager.Keyboard;
+		let mouse = mShell.InputManager.Mouse;
+
+		// Toggle debug overlay with F2
+		if (keyboard.IsKeyPressed(.F2))
+		{
+			// Toggle between no debug and full debug
+			if (mGUIContext.DebugSettings.ShowLayoutBounds)
+				mGUIContext.DebugSettings = .Default;
+			else
+				mGUIContext.DebugSettings = .() { ShowLayoutBounds = true, ShowFocused = true, ShowHovered = true };
+		}
+
+		// Route mouse input to GUI
+		float mouseX = mouse.X;
+		float mouseY = mouse.Y;
+		mGUIContext.InputManager.ProcessMouseMove(mouseX, mouseY);
+
+		if (mouse.IsButtonPressed(.Left))
+			mGUIContext.InputManager.ProcessMouseDown(mouseX, mouseY, .Left);
+		if (mouse.IsButtonReleased(.Left))
+			mGUIContext.InputManager.ProcessMouseUp(mouseX, mouseY, .Left);
+
+		if (mouse.IsButtonPressed(.Right))
+			mGUIContext.InputManager.ProcessMouseDown(mouseX, mouseY, .Right);
+		if (mouse.IsButtonReleased(.Right))
+			mGUIContext.InputManager.ProcessMouseUp(mouseX, mouseY, .Right);
+
+		// Route keyboard input to GUI (use GUI's KeyModifiers type)
+		Sedulous.GUI.KeyModifiers modifiers = .None;
+		if (keyboard.IsKeyDown(.LeftShift) || keyboard.IsKeyDown(.RightShift))
+			modifiers |= .Shift;
+		if (keyboard.IsKeyDown(.LeftCtrl) || keyboard.IsKeyDown(.RightCtrl))
+			modifiers |= .Ctrl;
+		if (keyboard.IsKeyDown(.LeftAlt) || keyboard.IsKeyDown(.RightAlt))
+			modifiers |= .Alt;
+
+		// Tab navigation
+		if (keyboard.IsKeyPressed(.Tab))
+			mGUIContext.InputManager.ProcessKeyDown(.Tab, modifiers);
 	}
 
 	protected override void OnUpdate(float deltaTime, float totalTime)
@@ -150,18 +314,36 @@ class GUISandboxApp : RHISampleApp
 	{
 		mDrawContext.Clear();
 
-		// Render GUI
+		// Render GUI (includes debug overlay if enabled)
 		mGUIContext.Render(mDrawContext);
 
-		// FPS overlay
+		// FPS and info overlay
 		float screenWidth = (float)SwapChain.Width;
 		let cachedFont = mFontService.GetFont(16);
 		let atlasTexture = mFontService.GetAtlasTexture(cachedFont);
+
+		// FPS
 		let fpsText = scope $"FPS: {mCurrentFps}";
 		mDrawContext.DrawText(fpsText, cachedFont.Atlas, atlasTexture, .(screenWidth - 80, 10 + cachedFont.Font.Metrics.Ascent), Color.Lime);
 
 		// Title
-		mDrawContext.DrawText("Sedulous.GUI Phase 1 - Foundation", cachedFont.Atlas, atlasTexture, .(10, 10 + cachedFont.Font.Metrics.Ascent), Color.White);
+		mDrawContext.DrawText("Sedulous.GUI Phase 2 - Input & Focus", cachedFont.Atlas, atlasTexture, .(10, 10 + cachedFont.Font.Metrics.Ascent), Color.White);
+
+		// Instructions
+		mDrawContext.DrawText("Click rectangles to focus | Tab to navigate | F2 debug overlay", cachedFont.Atlas, atlasTexture, .(10, 35 + cachedFont.Font.Metrics.Ascent), Color(180, 180, 180, 255));
+
+		// Focus info
+		let focused = mGUIContext.FocusManager?.FocusedElement;
+		String focusText = scope .();
+		if (focused != null)
+			focusText.AppendF("Focused: Element #{0}", focused.Id.Value);
+		else
+			focusText.Append("Focused: None");
+		mDrawContext.DrawText(focusText, cachedFont.Atlas, atlasTexture, .(10, 60 + cachedFont.Font.Metrics.Ascent), Color(200, 200, 100, 255));
+
+		// Debug overlay indicator
+		if (mGUIContext.DebugSettings.ShowLayoutBounds)
+			mDrawContext.DrawText("[DEBUG ON]", cachedFont.Atlas, atlasTexture, .(screenWidth - 100, 35 + cachedFont.Font.Metrics.Ascent), Color.Yellow);
 	}
 
 	protected override void OnRender(IRenderPassEncoder renderPass)
