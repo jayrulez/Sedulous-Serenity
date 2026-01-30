@@ -284,7 +284,8 @@ public class DrawContext
 			ApplyBrushToVertices(brush, rect, startVertex);
 	}
 
-	/// Draw a rounded rectangle outline with a solid color
+	/// Draw a rounded rectangle outline with a solid color.
+	/// Stroke is centered on the rect edges (standard 2D graphics behavior).
 	public void DrawRoundedRect(RectangleF rect, float radius, Color color, float thickness = 1.0f)
 	{
 		SetupForSolidDraw();
@@ -292,6 +293,19 @@ public class DrawContext
 
 		mRasterizer.RasterizeStrokeRoundedRect(rect, radius, thickness, mBatch.Vertices, mBatch.Indices, ApplyOpacity(color));
 		TransformVertices(startVertex);
+	}
+
+	/// Draw a UI border rounded rectangle with stroke fully inside the rect bounds.
+	/// The outer edge of the stroke aligns exactly with the rect edges.
+	/// Use this for UI borders where content is positioned at rect + thickness.
+	public void DrawBorderRoundedRect(RectangleF rect, float radius, Color color, float thickness = 1.0f)
+	{
+		// Inset the rect by half thickness so the centered stroke lands inside
+		let halfThick = thickness * 0.5f;
+		let insetRect = RectangleF(rect.X + halfThick, rect.Y + halfThick, rect.Width - thickness, rect.Height - thickness);
+		// Also reduce radius slightly to maintain visual consistency
+		let insetRadius = Math.Max(0, radius - halfThick);
+		DrawRoundedRect(insetRect, insetRadius, color, thickness);
 	}
 
 	/// Fill a circle
@@ -407,7 +421,8 @@ public class DrawContext
 		TransformVertices(startVertex);
 	}
 
-	/// Draw a rectangle outline with color and thickness
+	/// Draw a rectangle outline with color and thickness.
+	/// Stroke is centered on the rect edges (standard 2D graphics behavior).
 	public void DrawRect(RectangleF rect, Color color, float thickness = 1.0f)
 	{
 		SetupForSolidDraw();
@@ -416,6 +431,17 @@ public class DrawContext
 		// Rasterize at original position, then transform vertices
 		mRasterizer.RasterizeStrokeRect(rect, thickness, mBatch.Vertices, mBatch.Indices, ApplyOpacity(color));
 		TransformVertices(startVertex);
+	}
+
+	/// Draw a UI border rectangle with stroke fully inside the rect bounds.
+	/// The outer edge of the stroke aligns exactly with the rect edges.
+	/// Use this for UI borders where content is positioned at rect + thickness.
+	public void DrawBorderRect(RectangleF rect, Color color, float thickness = 1.0f)
+	{
+		// Inset the rect by half thickness so the centered stroke lands inside
+		let halfThick = thickness * 0.5f;
+		let insetRect = RectangleF(rect.X + halfThick, rect.Y + halfThick, rect.Width - thickness, rect.Height - thickness);
+		DrawRect(insetRect, color, thickness);
 	}
 
 	/// Draw a circle outline

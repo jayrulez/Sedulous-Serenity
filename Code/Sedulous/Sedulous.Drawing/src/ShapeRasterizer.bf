@@ -242,14 +242,13 @@ public class ShapeRasterizer
 		}
 	}
 
-	/// Rasterize a stroked rectangle
+	/// Rasterize a stroked rectangle (stroke centered on rect edges)
 	public void RasterizeStrokeRect(RectangleF rect, float thickness, List<DrawVertex> vertices, List<uint16> indices, Color color)
 	{
 		let halfThick = thickness * 0.5f;
 
-		// Outer rectangle
+		// Stroke is centered on the rect edges (standard for 2D graphics)
 		let outer = RectangleF(rect.X - halfThick, rect.Y - halfThick, rect.Width + thickness, rect.Height + thickness);
-		// Inner rectangle
 		let inner = RectangleF(rect.X + halfThick, rect.Y + halfThick, rect.Width - thickness, rect.Height - thickness);
 
 		let baseIndex = (uint16)vertices.Count;
