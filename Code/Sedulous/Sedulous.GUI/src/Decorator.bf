@@ -135,12 +135,21 @@ public class Decorator : Control
 	}
 
 	/// Render: draw background/border then child.
+	/// Applies clipping to child if ClipToBounds is true.
 	protected override void RenderOverride(DrawContext ctx)
 	{
 		RenderBackground(ctx);
 
 		if (mChild != null)
+		{
+			if (ClipToBounds)
+				ctx.PushClipRect(ContentBounds);
+
 			mChild.Render(ctx);
+
+			if (ClipToBounds)
+				ctx.PopClip();
+		}
 	}
 
 	/// Hit test: test child first, then self.

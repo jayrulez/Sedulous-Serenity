@@ -73,6 +73,12 @@ public class GUIContext
 	private ITheme mTheme ~ delete _;
 	private EventAccessor<delegate void(ITheme)> mThemeChanged = new .() ~ delete _;
 
+	// Service registry (services are not owned - callers retain ownership)
+	private Dictionary<Type, Object> mServices = new .() ~ delete _;
+
+	// UI scaling
+	private float mScaleFactor = 1.0f;
+
 	/// Creates a new GUIContext.
 	public this()
 	{
@@ -154,6 +160,46 @@ public class GUIContext
 	/// Debug visualization settings.
 	public ref DebugSettings DebugSettings => ref mDebugSettings;
 
+	/// UI scale factor (default 1.0). Affects all layout and rendering.
+	/// Valid range: 0.5 to 3.0
+	public float ScaleFactor
+	{
+		get => mScaleFactor;
+		set
+		{
+			let clamped = Math.Clamp(value, 0.5f, 3.0f);
+			if (mScaleFactor != clamped)
+			{
+				mScaleFactor = clamped;
+				InvalidateLayout();
+			}
+		}
+	}
+
+	// === Service Registry ===
+
+	/// Registers a service instance.
+	/// The service will be owned by the context and deleted when the context is destroyed.
+	public void RegisterService<T>(T service) where T : class
+	{
+		mServices[typeof(T)] = service;
+	}
+
+	/// Gets a registered service.
+	/// Returns Ok with the service if found, Err otherwise.
+	public Result<T> GetService<T>() where T : class
+	{
+		if (mServices.TryGetValue(typeof(T), let service))
+			return .Ok((T)service);
+		return .Err;
+	}
+
+	/// Checks if a service is registered.
+	public bool HasService<T>() where T : class
+	{
+		return mServices.ContainsKey(typeof(T));
+	}
+
 	// === Element Registry ===
 
 	/// Registers an element in the registry.
@@ -217,12 +263,16 @@ public class GUIContext
 		if (!mLayoutDirty || mRootElement == null)
 			return;
 
+		// Scale the viewport for measurement (layout happens in unscaled coordinates)
+		let scaledWidth = mViewportWidth / mScaleFactor;
+		let scaledHeight = mViewportHeight / mScaleFactor;
+
 		// Measure pass
-		let constraints = SizeConstraints.FromMaximum(mViewportWidth, mViewportHeight);
+		let constraints = SizeConstraints.FromMaximum(scaledWidth, scaledHeight);
 		mRootElement.Measure(constraints);
 
 		// Arrange pass
-		let viewport = RectangleF(0, 0, mViewportWidth, mViewportHeight);
+		let viewport = RectangleF(0, 0, scaledWidth, scaledHeight);
 		mRootElement.Arrange(viewport);
 
 		mLayoutDirty = false;
@@ -253,6 +303,13 @@ public class GUIContext
 		if (mRootElement == null)
 			return;
 
+		// Apply scale transform if not 1.0
+		if (mScaleFactor != 1.0f)
+		{
+			ctx.PushState();
+			ctx.Scale(mScaleFactor, mScaleFactor);
+		}
+
 		mRootElement.Render(ctx);
 
 		// Debug visualization
@@ -262,6 +319,9 @@ public class GUIContext
 		{
 			RenderDebugOverlay(ctx);
 		}
+
+		if (mScaleFactor != 1.0f)
+			ctx.PopState();
 	}
 
 	/// Renders debug visualization overlay.
@@ -360,13 +420,18 @@ public class GUIContext
 	// === Hit Testing ===
 
 	/// Performs hit testing at the given screen coordinates.
+	/// Coordinates are automatically inverse-scaled by the ScaleFactor.
 	/// Returns the topmost element at that position, or null.
 	public UIElement HitTest(float x, float y)
 	{
 		if (mRootElement == null)
 			return null;
 
-		return mRootElement.HitTest(.(x, y));
+		// Inverse-scale input coordinates to match layout coordinates
+		let scaledX = x / mScaleFactor;
+		let scaledY = y / mScaleFactor;
+
+		return mRootElement.HitTest(.(scaledX, scaledY));
 	}
 
 	// === Deletion ===
@@ -390,27 +455,31 @@ public class GUIContext
 	// === Input Processing ===
 
 	/// Process a mouse move event.
+	/// Coordinates are automatically inverse-scaled by the ScaleFactor.
 	public void ProcessMouseMove(float x, float y)
 	{
-		mInputManager?.ProcessMouseMove(x, y);
+		mInputManager?.ProcessMouseMove(x / mScaleFactor, y / mScaleFactor);
 	}
 
 	/// Process a mouse button down event.
+	/// Coordinates are automatically inverse-scaled by the ScaleFactor.
 	public void ProcessMouseDown(float x, float y, MouseButton button)
 	{
-		mInputManager?.ProcessMouseDown(x, y, button);
+		mInputManager?.ProcessMouseDown(x / mScaleFactor, y / mScaleFactor, button);
 	}
 
 	/// Process a mouse button up event.
+	/// Coordinates are automatically inverse-scaled by the ScaleFactor.
 	public void ProcessMouseUp(float x, float y, MouseButton button)
 	{
-		mInputManager?.ProcessMouseUp(x, y, button);
+		mInputManager?.ProcessMouseUp(x / mScaleFactor, y / mScaleFactor, button);
 	}
 
 	/// Process a mouse wheel event.
+	/// Coordinates are automatically inverse-scaled by the ScaleFactor.
 	public void ProcessMouseWheel(float x, float y, float delta)
 	{
-		mInputManager?.ProcessMouseWheel(x, y, delta);
+		mInputManager?.ProcessMouseWheel(x / mScaleFactor, y / mScaleFactor, delta);
 	}
 
 	/// Process a key down event.

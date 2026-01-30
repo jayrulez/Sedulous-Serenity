@@ -87,6 +87,46 @@ public class LightTheme : ITheme
 			BorderThickness = 0,
 			CornerRadius = 0
 		};
+
+		// TextBlock style
+		mStyles[new String("TextBlock")] = .()
+		{
+			Background = Color.Transparent,
+			Foreground = mPalette.Text,
+			BorderColor = Color.Transparent,
+			BorderThickness = 0,
+			CornerRadius = 0
+		};
+
+		// Border style
+		mStyles[new String("Border")] = .()
+		{
+			Background = Color.Transparent,
+			Foreground = mPalette.Text,
+			BorderColor = mPalette.Border,
+			BorderThickness = 1,
+			CornerRadius = 0
+		};
+
+		// Separator style
+		mStyles[new String("Separator")] = .()
+		{
+			Background = Color.Transparent,
+			Foreground = mPalette.Text,
+			BorderColor = Color(220, 220, 220, 255),  // Subtle line color
+			BorderThickness = 1,
+			CornerRadius = 0
+		};
+
+		// ProgressBar style
+		mStyles[new String("ProgressBar")] = .()
+		{
+			Background = Color(230, 230, 230, 255),  // Track color
+			Foreground = mPalette.Accent,            // Fill color
+			BorderColor = Color.Transparent,
+			BorderThickness = 0,
+			CornerRadius = 4
+		};
 	}
 
 	public StringView Name => "Light";

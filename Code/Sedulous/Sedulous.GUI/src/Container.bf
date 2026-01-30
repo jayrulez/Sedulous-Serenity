@@ -231,12 +231,19 @@ public abstract class Container : UIElement
 	}
 
 	/// Default render: render all children in order.
+	/// Applies clipping if ClipToBounds is true.
 	protected override void RenderOverride(DrawContext ctx)
 	{
+		if (ClipToBounds)
+			ctx.PushClipRect(ArrangedBounds);
+
 		for (let child in mChildren)
 		{
 			child.Render(ctx);
 		}
+
+		if (ClipToBounds)
+			ctx.PopClip();
 	}
 
 	/// Hit test: test children in reverse order (topmost first), then self.

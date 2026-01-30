@@ -38,6 +38,7 @@ public abstract class UIElement
 	// Visual properties
 	private Visibility mVisibility = .Visible;
 	private float mOpacity = 1.0f;
+	private bool mClipToBounds = false;
 	private Matrix mRenderTransform = Matrix.Identity;
 	private Vector2 mRenderTransformOrigin = .(0.5f, 0.5f);
 	private CursorType mCursor = .Default;
@@ -256,6 +257,15 @@ public abstract class UIElement
 		{
 			mOpacity = Math.Clamp(value, 0.0f, 1.0f);
 		}
+	}
+
+	/// Whether child content is clipped to this element's bounds.
+	/// When true, any content that extends beyond this element's bounds
+	/// will be clipped. Applies to containers (Panel, Border, etc.).
+	public bool ClipToBounds
+	{
+		get => mClipToBounds;
+		set => mClipToBounds = value;
 	}
 
 	/// The render transform applied to this element.
