@@ -35,16 +35,16 @@ public abstract class Control : UIElement
 	private bool mIsTabStop = true;
 	private int mTabIndex = 0;
 
-	// Theming
-	private Color mBackground = Color.Transparent;
-	private Color mForeground = Color.White;
-	private Color mBorderColor = Color.Gray;
-	private float mBorderThickness = 0;
+	// Theming - null means use theme, explicit value overrides theme
+	private Color? mBackground;
+	private Color? mForeground;
+	private Color? mBorderColor;
+	private float? mBorderThickness;
 	private float mCornerRadius = 0;
 
-	// Focus visual
-	private Color mFocusBorderColor = Color(100, 149, 237, 255); // CornflowerBlue
-	private float mFocusBorderThickness = 2;
+	// Focus visual - null means use theme
+	private Color? mFocusBorderColor;
+	private float? mFocusBorderThickness;
 
 	/// Whether this control is enabled.
 	public bool IsEnabled
@@ -151,31 +151,43 @@ public abstract class Control : UIElement
 
 	// === Theming Properties ===
 
-	/// Background color.
+	/// The control type name used for theme style lookup.
+	/// Override in subclasses to use specific theme styles.
+	protected virtual StringView ControlTypeName => "Control";
+
+	/// Gets the theme style for this control type.
+	protected ControlStyle GetThemeStyle()
+	{
+		if (Context?.Theme != null)
+			return Context.Theme.GetControlStyle(ControlTypeName);
+		return default;
+	}
+
+	/// Background color. Set to override theme.
 	public Color Background
 	{
-		get => mBackground;
+		get => mBackground ?? GetThemeStyle().Background;
 		set => mBackground = value;
 	}
 
-	/// Foreground (text) color.
+	/// Foreground (text) color. Set to override theme.
 	public Color Foreground
 	{
-		get => mForeground;
+		get => mForeground ?? GetThemeStyle().Foreground;
 		set => mForeground = value;
 	}
 
-	/// Border color.
+	/// Border color. Set to override theme.
 	public Color BorderColor
 	{
-		get => mBorderColor;
+		get => mBorderColor ?? GetThemeStyle().BorderColor;
 		set => mBorderColor = value;
 	}
 
-	/// Border thickness.
+	/// Border thickness. Set to override theme.
 	public float BorderThickness
 	{
-		get => mBorderThickness;
+		get => mBorderThickness ?? GetThemeStyle().BorderThickness;
 		set
 		{
 			if (mBorderThickness != value)
@@ -193,17 +205,17 @@ public abstract class Control : UIElement
 		set => mCornerRadius = value;
 	}
 
-	/// Focus indicator border color.
+	/// Focus indicator border color. Set to override theme.
 	public Color FocusBorderColor
 	{
-		get => mFocusBorderColor;
+		get => mFocusBorderColor ?? Context?.Theme?.FocusIndicatorColor ?? Color(100, 149, 237, 255);
 		set => mFocusBorderColor = value;
 	}
 
-	/// Focus indicator border thickness.
+	/// Focus indicator border thickness. Set to override theme.
 	public float FocusBorderThickness
 	{
-		get => mFocusBorderThickness;
+		get => mFocusBorderThickness ?? Context?.Theme?.FocusIndicatorThickness ?? 2;
 		set => mFocusBorderThickness = value;
 	}
 
@@ -225,24 +237,33 @@ public abstract class Control : UIElement
 	/// Gets the background color for the current state.
 	protected virtual Color GetStateBackground()
 	{
+		let baseColor = Background;
 		switch (mCurrentState)
 		{
 		case .Disabled:
-			return Color(mBackground.R / 2, mBackground.G / 2, mBackground.B / 2, mBackground.A);
+			return Palette.ComputeDisabled(baseColor);
 		case .Pressed:
-			return Color(
-				(uint8)Math.Min(255, mBackground.R * 0.7f),
-				(uint8)Math.Min(255, mBackground.G * 0.7f),
-				(uint8)Math.Min(255, mBackground.B * 0.7f),
-				mBackground.A);
+			return Palette.ComputePressed(baseColor);
 		case .Hover:
-			return Color(
-				(uint8)Math.Min(255, mBackground.R + 20),
-				(uint8)Math.Min(255, mBackground.G + 20),
-				(uint8)Math.Min(255, mBackground.B + 20),
-				mBackground.A);
+			return Palette.ComputeHover(baseColor);
+		case .Focused:
+			// Focused state uses base color (focus is shown via border)
+			return baseColor;
 		default:
-			return mBackground;
+			return baseColor;
+		}
+	}
+
+	/// Gets the foreground color for the current state.
+	protected virtual Color GetStateForeground()
+	{
+		let baseColor = Foreground;
+		switch (mCurrentState)
+		{
+		case .Disabled:
+			return Palette.ComputeDisabled(baseColor);
+		default:
+			return baseColor;
 		}
 	}
 
@@ -250,16 +271,25 @@ public abstract class Control : UIElement
 	protected virtual Color GetStateBorderColor()
 	{
 		if (mIsFocused)
-			return mFocusBorderColor;
-		return mBorderColor;
+			return FocusBorderColor;
+		let baseColor = BorderColor;
+		switch (mCurrentState)
+		{
+		case .Disabled:
+			return Palette.ComputeDisabled(baseColor);
+		case .Hover:
+			return Palette.ComputeHover(baseColor);
+		default:
+			return baseColor;
+		}
 	}
 
 	/// Gets the border thickness for the current state.
 	protected virtual float GetStateBorderThickness()
 	{
-		if (mIsFocused && mFocusBorderThickness > mBorderThickness)
-			return mFocusBorderThickness;
-		return mBorderThickness;
+		if (mIsFocused)
+			return FocusBorderThickness;
+		return BorderThickness;
 	}
 
 	/// Renders the control background and border.

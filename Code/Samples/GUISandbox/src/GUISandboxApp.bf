@@ -78,12 +78,41 @@ class FocusableRect : Control
 	}
 }
 
-/// A simple panel for Phase 2 demo.
+/// A focusable rectangle that uses theme colors (no explicit colors set).
+class ThemedRect : Control
+{
+	public this()
+	{
+		IsFocusable = true;
+		IsTabStop = true;
+	}
+
+	protected override DesiredSize MeasureOverride(SizeConstraints constraints)
+	{
+		return .(100, 80);
+	}
+
+	protected override void RenderOverride(DrawContext ctx)
+	{
+		// Uses theme colors via base GetStateBackground/GetStateBorderColor
+		let bgColor = GetStateBackground();
+		ctx.FillRect(ArrangedBounds, bgColor);
+
+		let borderColor = GetStateBorderColor();
+		let borderThickness = GetStateBorderThickness();
+		if (borderThickness > 0)
+		{
+			ctx.DrawRect(ArrangedBounds, borderColor, borderThickness);
+		}
+	}
+}
+
+/// A simple panel for Phase 3 demo.
 class DemoPanel : Panel
 {
 	public this()
 	{
-		Background = Color(40, 45, 55, 255);
+		// Don't set explicit background - use theme
 	}
 
 	protected override void ArrangeOverride(RectangleF contentBounds)
@@ -134,9 +163,12 @@ class GUISandboxApp : RHISampleApp
 	private float mFpsTimer = 0;
 	private int mCurrentFps = 0;
 
+	// Track current theme for toggle
+	private bool mUsingDarkTheme = true;
+
 	public this() : base(.()
 		{
-			Title = "GUI Sandbox - Phase 2",
+			Title = "GUI Sandbox - Phase 3",
 			Width = 1280,
 			Height = 720,
 			ClearColor = .(0.1f, 0.1f, 0.15f, 1.0f)
@@ -185,9 +217,10 @@ class GUISandboxApp : RHISampleApp
 		// Initialize GUI
 		InitializeGUI();
 
-		Console.WriteLine("GUISandbox Phase 2 initialized.");
+		Console.WriteLine("GUISandbox Phase 3 initialized.");
 		Console.WriteLine("  Click rectangles to focus them");
 		Console.WriteLine("  Tab/Shift+Tab to navigate focus");
+		Console.WriteLine("  T to toggle theme (Dark/Light)");
 		Console.WriteLine("  F2 to toggle debug overlay");
 		Console.WriteLine("  ESC to exit");
 		return true;
@@ -238,6 +271,13 @@ class GUISandboxApp : RHISampleApp
 		rect3.FocusBorderThickness = 4;
 		mRootPanel.AddChild(rect3);
 
+		// Fourth rectangle uses theme colors (no explicit colors)
+		let rect4 = new ThemedRect();
+		rect4.Width = 120;
+		rect4.Height = 100;
+		rect4.TabIndex = 3;
+		mRootPanel.AddChild(rect4);
+
 		mGUIContext.RootElement = mRootPanel;
 	}
 
@@ -246,6 +286,16 @@ class GUISandboxApp : RHISampleApp
 		let keyboard = mShell.InputManager.Keyboard;
 		let mouse = mShell.InputManager.Mouse;
 
+		// Toggle theme with T
+		if (keyboard.IsKeyPressed(.T))
+		{
+			mUsingDarkTheme = !mUsingDarkTheme;
+			if (mUsingDarkTheme)
+				mGUIContext.Theme = new DarkTheme();
+			else
+				mGUIContext.Theme = new LightTheme();
+		}
+
 		// Toggle debug overlay with F2
 		if (keyboard.IsKeyPressed(.F2))
 		{
@@ -253,7 +303,7 @@ class GUISandboxApp : RHISampleApp
 			if (mGUIContext.DebugSettings.ShowLayoutBounds)
 				mGUIContext.DebugSettings = .Default;
 			else
-				mGUIContext.DebugSettings = .() { ShowLayoutBounds = true, ShowFocused = true, ShowHovered = true };
+				mGUIContext.DebugSettings = .() { ShowLayoutBounds = true, ShowFocused = true, ShowHovered = true, ShowHitTestBounds = true  };
 		}
 
 		// Route mouse input to GUI
@@ -322,15 +372,17 @@ class GUISandboxApp : RHISampleApp
 		let cachedFont = mFontService.GetFont(16);
 		let atlasTexture = mFontService.GetAtlasTexture(cachedFont);
 
-		// FPS
+		// FPS and theme indicator
 		let fpsText = scope $"FPS: {mCurrentFps}";
 		mDrawContext.DrawText(fpsText, cachedFont.Atlas, atlasTexture, .(screenWidth - 80, 10 + cachedFont.Font.Metrics.Ascent), Color.Lime);
 
-		// Title
-		mDrawContext.DrawText("Sedulous.GUI Phase 2 - Input & Focus", cachedFont.Atlas, atlasTexture, .(10, 10 + cachedFont.Font.Metrics.Ascent), Color.White);
+		// Title with theme
+		let themeName = mGUIContext.Theme?.Name ?? "None";
+		let titleText = scope $"Sedulous.GUI Phase 3 - Theming [{themeName}]";
+		mDrawContext.DrawText(titleText, cachedFont.Atlas, atlasTexture, .(10, 10 + cachedFont.Font.Metrics.Ascent), Color.White);
 
 		// Instructions
-		mDrawContext.DrawText("Click rectangles to focus | Tab to navigate | F2 debug overlay", cachedFont.Atlas, atlasTexture, .(10, 35 + cachedFont.Font.Metrics.Ascent), Color(180, 180, 180, 255));
+		mDrawContext.DrawText("Click to focus | Tab navigate | T theme | F2 debug", cachedFont.Atlas, atlasTexture, .(10, 35 + cachedFont.Font.Metrics.Ascent), Color(180, 180, 180, 255));
 
 		// Focus info
 		let focused = mGUIContext.FocusManager?.FocusedElement;
@@ -341,9 +393,9 @@ class GUISandboxApp : RHISampleApp
 			focusText.Append("Focused: None");
 		mDrawContext.DrawText(focusText, cachedFont.Atlas, atlasTexture, .(10, 60 + cachedFont.Font.Metrics.Ascent), Color(200, 200, 100, 255));
 
-		// Debug overlay indicator
+		// Status indicators
 		if (mGUIContext.DebugSettings.ShowLayoutBounds)
-			mDrawContext.DrawText("[DEBUG ON]", cachedFont.Atlas, atlasTexture, .(screenWidth - 100, 35 + cachedFont.Font.Metrics.Ascent), Color.Yellow);
+			mDrawContext.DrawText("[DEBUG]", cachedFont.Atlas, atlasTexture, .(screenWidth - 70, 35 + cachedFont.Font.Metrics.Ascent), Color.Yellow);
 	}
 
 	protected override void OnRender(IRenderPassEncoder renderPass)

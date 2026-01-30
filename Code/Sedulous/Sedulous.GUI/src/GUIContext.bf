@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using Sedulous.Mathematics;
 using Sedulous.Drawing;
+using Sedulous.Foundation.Core;
 
 namespace Sedulous.GUI;
 
@@ -68,12 +69,39 @@ public class GUIContext
 	// Debug settings
 	private DebugSettings mDebugSettings;
 
+	// Theming
+	private ITheme mTheme ~ delete _;
+	private EventAccessor<delegate void(ITheme)> mThemeChanged = new .() ~ delete _;
+
 	/// Creates a new GUIContext.
 	public this()
 	{
 		mInputManager = new InputManager(this);
 		mFocusManager = new FocusManager(this);
+		mTheme = new DarkTheme();
 	}
+
+	/// The current theme.
+	public ITheme Theme
+	{
+		get => mTheme;
+		set
+		{
+			if (mTheme == value)
+				return;
+
+			if (mTheme != null)
+				delete mTheme;
+
+			mTheme = value;
+			mThemeChanged.[Friend]Invoke(mTheme);
+			InvalidateLayout();
+		}
+	}
+
+	/// Event fired when the theme changes.
+	/// Handlers receive the new theme as a parameter.
+	public EventAccessor<delegate void(ITheme)> ThemeChanged => mThemeChanged;
 
 	/// The root element of the UI tree.
 	public UIElement RootElement
