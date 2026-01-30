@@ -61,6 +61,7 @@ class Phase2Tests
 
 		// Remove with delete (default)
 		panel.RemoveChild(child, deleteAfterRemove: true);
+		ctx.Update(0, 0);
 		Test.Assert(panel.ChildCount == 0);
 		// child is now deleted
 
@@ -127,6 +128,7 @@ class Phase2Tests
 		Test.Assert(panel.ChildCount == 3);
 
 		panel.ClearChildren(deleteAll: true);
+		ctx.Update(0, 0);
 		Test.Assert(panel.ChildCount == 0);
 
 		ctx.RootElement = null;
@@ -145,9 +147,10 @@ class Phase2Tests
 		Test.Assert(control.Content == content1);
 		Test.Assert(content1.Parent == control);
 
-		// Set new content - should delete old
+		// Set new content - should delete old (deferred)
 		let content2 = new TestElement();
 		control.Content = content2;
+		ctx.Update(0, 0);
 		Test.Assert(control.Content == content2);
 		// content1 is deleted
 
@@ -187,8 +190,10 @@ class Phase2Tests
 		decorator.Child = child1;
 		Test.Assert(decorator.Child == child1);
 
+		// Set new child - should delete old (deferred)
 		let child2 = new TestElement();
 		decorator.Child = child2;
+		ctx.Update(0, 0);
 		Test.Assert(decorator.Child == child2);
 		// child1 is deleted
 

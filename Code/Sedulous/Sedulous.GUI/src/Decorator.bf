@@ -13,7 +13,7 @@ public class Decorator : Control
 	private UIElement mChild ~ delete _;
 
 	/// The child element being decorated.
-	/// Setting a new child will delete the previous child.
+	/// Setting a new child will delete the previous child (deferred if attached to context).
 	public UIElement Child
 	{
 		get => mChild;
@@ -25,10 +25,21 @@ public class Decorator : Control
 			// Detach and delete old child
 			if (mChild != null)
 			{
-				mChild.SetParent(null);
+				let oldChild = mChild;
+				mChild = null;
+
+				oldChild.SetParent(null);
 				if (Context != null)
-					mChild.OnDetachedFromContext();
-				delete mChild;
+				{
+					oldChild.OnDetachedFromContext();
+					// Use deferred deletion to prevent use-after-free
+					Context.MutationQueue.QueueDelete(oldChild);
+				}
+				else
+				{
+					// Not attached to context, safe to delete immediately
+					delete oldChild;
+				}
 			}
 
 			mChild = value;

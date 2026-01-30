@@ -7,44 +7,48 @@ namespace Sedulous.GUI;
 public class FocusManager
 {
 	private GUIContext mContext;
-	private Control mFocusedElement;
-	private Control mCapturedElement;
+	private ElementHandle<UIElement> mFocusedElement;
+	private ElementHandle<UIElement> mCapturedElement;
 
 	/// Creates a FocusManager for the specified context.
 	public this(GUIContext context)
 	{
 		mContext = context;
+		mFocusedElement = .Invalid;
+		mCapturedElement = .Invalid;
 	}
 
-	/// The currently focused element.
-	public Control FocusedElement => mFocusedElement;
+	/// The currently focused element (null if deleted or none).
+	public UIElement FocusedElement => mFocusedElement.TryResolve();
 
-	/// The element that has captured mouse input.
-	public Control CapturedElement => mCapturedElement;
+	/// The element that has captured mouse input (null if deleted or none).
+	public UIElement CapturedElement => mCapturedElement.TryResolve();
 
-	/// Sets focus to the specified control.
-	/// If the control is null, clears focus.
-	public void SetFocus(Control control)
+	/// Sets focus to the specified element.
+	/// If the element is null, clears focus.
+	public void SetFocus(UIElement element)
 	{
-		if (mFocusedElement == control)
+		let currentFocused = mFocusedElement.TryResolve();
+
+		if (currentFocused == element)
 			return;
 
-		// Don't focus disabled or non-focusable controls
-		if (control != null && (!control.IsFocusable || !control.IsEffectivelyEnabled))
+		// Don't focus non-focusable elements
+		if (element != null && !element.IsFocusable)
 			return;
 
 		// Clear old focus
-		if (mFocusedElement != null)
+		if (currentFocused != null)
 		{
-			mFocusedElement.IsFocused = false;
+			currentFocused.IsFocused = false;
 		}
 
-		mFocusedElement = control;
+		mFocusedElement = element;
 
 		// Set new focus
-		if (mFocusedElement != null)
+		if (element != null)
 		{
-			mFocusedElement.IsFocused = true;
+			element.IsFocused = true;
 		}
 	}
 
@@ -54,17 +58,17 @@ public class FocusManager
 		SetFocus(null);
 	}
 
-	/// Captures mouse input for the specified control.
-	/// While captured, the control receives all mouse events regardless of position.
-	public void SetCapture(Control control)
+	/// Captures mouse input for the specified element.
+	/// While captured, the element receives all mouse events regardless of position.
+	public void SetCapture(UIElement element)
 	{
-		mCapturedElement = control;
+		mCapturedElement = element;
 	}
 
 	/// Releases mouse capture.
 	public void ReleaseCapture()
 	{
-		mCapturedElement = null;
+		mCapturedElement = .Invalid;
 	}
 
 	/// Moves focus to the next focusable element in tab order.
@@ -82,9 +86,9 @@ public class FocusManager
 	/// Moves focus in the specified direction.
 	private void MoveFocus(bool forward)
 	{
-		// Collect all focusable controls
-		let focusable = scope List<Control>();
-		CollectFocusableControls(mContext.RootElement, focusable);
+		// Collect all focusable elements
+		let focusable = scope List<UIElement>();
+		CollectFocusableElements(mContext.RootElement, focusable);
 
 		if (focusable.Count == 0)
 			return;
@@ -94,9 +98,10 @@ public class FocusManager
 
 		// Find current focused index
 		int currentIndex = -1;
-		if (mFocusedElement != null)
+		let currentFocused = mFocusedElement.TryResolve();
+		if (currentFocused != null)
 		{
-			currentIndex = focusable.IndexOf(mFocusedElement);
+			currentIndex = focusable.IndexOf(currentFocused);
 		}
 
 		// Calculate next index
@@ -115,18 +120,25 @@ public class FocusManager
 		SetFocus(focusable[nextIndex]);
 	}
 
-	/// Recursively collects all focusable controls.
-	private void CollectFocusableControls(UIElement element, List<Control> focusable)
+	/// Recursively collects all focusable elements.
+	private void CollectFocusableElements(UIElement element, List<UIElement> focusable)
 	{
 		if (element == null || element.Visibility != .Visible)
 			return;
 
-		// Check if this element is focusable
-		if (let control = element as Control)
+		// Check if this element is focusable and a tab stop
+		if (element.IsFocusable && element.IsTabStop)
 		{
-			if (control.IsFocusable && control.IsTabStop && control.IsEffectivelyEnabled)
+			// For Controls, also check if effectively enabled
+			if (let control = element as Control)
 			{
-				focusable.Add(control);
+				if (control.IsEffectivelyEnabled)
+					focusable.Add(element);
+			}
+			else
+			{
+				// Non-Control UIElements that are focusable (uncommon but allowed)
+				focusable.Add(element);
 			}
 		}
 
@@ -136,7 +148,7 @@ public class FocusManager
 		{
 			let child = element.GetVisualChild(i);
 			if (child != null)
-				CollectFocusableControls(child, focusable);
+				CollectFocusableElements(child, focusable);
 		}
 	}
 
@@ -144,9 +156,9 @@ public class FocusManager
 	/// Clears focus/capture if they reference the element.
 	public void OnElementDeleted(UIElement element)
 	{
-		if (mFocusedElement == element)
-			mFocusedElement = null;
-		if (mCapturedElement == element)
-			mCapturedElement = null;
+		if (mFocusedElement.Id == element.Id)
+			mFocusedElement = .Invalid;
+		if (mCapturedElement.Id == element.Id)
+			mCapturedElement = .Invalid;
 	}
 }

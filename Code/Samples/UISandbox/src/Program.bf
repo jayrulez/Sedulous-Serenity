@@ -38,7 +38,7 @@ class UISandboxSample : RHISampleApp
 	// Drawing context (created after font service)
 	private DrawContext mDrawContext ~ delete _;
 
-	private DockPanel mUIRoot ~ delete _;
+	private DockPanel mUIRoot;
 
 	// UI Renderer
 	// NOTE: Must be cleaned up in OnCleanup(), not destructor, because Device is destroyed in Application.Cleanup()
@@ -1965,6 +1965,8 @@ class UISandboxSample : RHISampleApp
 			delete mTextInputDelegate;
 			mTextInputDelegate = null;
 		}
+
+		delete mUIRoot;
 
 		// Clean up services (registered with UIContext, but owned by us)
 		if (mUIContext.GetService<ITheme>() case .Ok(let theme))

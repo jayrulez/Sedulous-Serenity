@@ -25,15 +25,9 @@ public abstract class Control : UIElement
 {
 	// State
 	private bool mIsEnabled = true;
-	private bool mIsFocused = false;
 	private bool mIsHovered = false;
 	private bool mIsPressed = false;
 	private ControlState mCurrentState = .Normal;
-
-	// Focus/Tab
-	private bool mIsFocusable = true;
-	private bool mIsTabStop = true;
-	private int mTabIndex = 0;
 
 	// Theming - null means use theme, explicit value overrides theme
 	private Color? mBackground;
@@ -45,6 +39,14 @@ public abstract class Control : UIElement
 	// Focus visual - null means use theme
 	private Color? mFocusBorderColor;
 	private float? mFocusBorderThickness;
+
+	/// Creates a Control with focus enabled by default.
+	public this()
+	{
+		// Controls are focusable and tab-navigable by default
+		IsFocusable = true;
+		IsTabStop = true;
+	}
 
 	/// Whether this control is enabled.
 	public bool IsEnabled
@@ -73,23 +75,6 @@ public abstract class Control : UIElement
 		}
 	}
 
-	/// Whether this control has keyboard focus.
-	public bool IsFocused
-	{
-		get => mIsFocused;
-		set
-		{
-			if (mIsFocused != value)
-			{
-				mIsFocused = value;
-				UpdateControlState();
-				if (value)
-					OnGotFocus(scope FocusEventArgs());
-				else
-					OnLostFocus(scope FocusEventArgs());
-			}
-		}
-	}
 
 	/// Whether the mouse is hovering over this control.
 	public bool IsHovered
@@ -121,33 +106,6 @@ public abstract class Control : UIElement
 
 	/// The current visual state of the control.
 	public ControlState CurrentState => mCurrentState;
-
-	/// Whether this control can receive keyboard focus.
-	public bool IsFocusable
-	{
-		get => mIsFocusable;
-		set => mIsFocusable = value;
-	}
-
-	/// Whether this control participates in tab navigation.
-	public bool IsTabStop
-	{
-		get => mIsTabStop;
-		set => mIsTabStop = value;
-	}
-
-	/// Tab order for keyboard navigation. Lower values come first.
-	public int TabIndex
-	{
-		get => mTabIndex;
-		set => mTabIndex = value;
-	}
-
-	/// Whether focus is within this control or any descendant.
-	public virtual bool IsFocusWithin
-	{
-		get => mIsFocused;
-	}
 
 	// === Theming Properties ===
 
@@ -226,7 +184,7 @@ public abstract class Control : UIElement
 			mCurrentState = .Disabled;
 		else if (mIsPressed)
 			mCurrentState = .Pressed;
-		else if (mIsFocused)
+		else if (IsFocused)
 			mCurrentState = .Focused;
 		else if (mIsHovered)
 			mCurrentState = .Hover;
@@ -270,7 +228,7 @@ public abstract class Control : UIElement
 	/// Gets the border color for the current state.
 	protected virtual Color GetStateBorderColor()
 	{
-		if (mIsFocused)
+		if (IsFocused)
 			return FocusBorderColor;
 		let baseColor = BorderColor;
 		switch (mCurrentState)
@@ -287,7 +245,7 @@ public abstract class Control : UIElement
 	/// Gets the border thickness for the current state.
 	protected virtual float GetStateBorderThickness()
 	{
-		if (mIsFocused)
+		if (IsFocused)
 			return FocusBorderThickness;
 		return BorderThickness;
 	}
@@ -352,7 +310,7 @@ public abstract class Control : UIElement
 		{
 			IsPressed = true;
 			// Request focus when clicked
-			if (mIsFocusable)
+			if (IsFocusable)
 				Context?.FocusManager?.SetFocus(this);
 		}
 		base.OnMouseDown(e);
@@ -365,5 +323,17 @@ public abstract class Control : UIElement
 			IsPressed = false;
 		}
 		base.OnMouseUp(e);
+	}
+
+	protected override void OnGotFocus(FocusEventArgs e)
+	{
+		UpdateControlState();
+		base.OnGotFocus(e);
+	}
+
+	protected override void OnLostFocus(FocusEventArgs e)
+	{
+		UpdateControlState();
+		base.OnLostFocus(e);
 	}
 }

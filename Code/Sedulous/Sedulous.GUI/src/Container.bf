@@ -65,7 +65,7 @@ public abstract class Container : UIElement
 	}
 
 	/// Removes a child from this container.
-	/// If deleteAfterRemove is true (default), the child will be deleted.
+	/// If deleteAfterRemove is true (default), the child will be deleted (deferred if attached to context).
 	/// If false, ownership returns to the caller.
 	public void RemoveChild(UIElement child, bool deleteAfterRemove = true)
 	{
@@ -83,7 +83,18 @@ public abstract class Container : UIElement
 			child.OnDetachedFromContext();
 
 		if (deleteAfterRemove)
-			delete child;
+		{
+			if (Context != null)
+			{
+				// Use deferred deletion to prevent use-after-free
+				Context.MutationQueue.QueueDelete(child);
+			}
+			else
+			{
+				// Not attached to context, safe to delete immediately
+				delete child;
+			}
+		}
 
 		InvalidateLayout();
 	}
@@ -121,7 +132,7 @@ public abstract class Container : UIElement
 	}
 
 	/// Removes all children from this container.
-	/// If deleteAll is true (default), all children will be deleted.
+	/// If deleteAll is true (default), all children will be deleted (deferred if attached to context).
 	/// If false, children are just removed (caller doesn't get ownership though).
 	public void ClearChildren(bool deleteAll = true)
 	{
@@ -131,7 +142,18 @@ public abstract class Container : UIElement
 			if (Context != null)
 				child.OnDetachedFromContext();
 			if (deleteAll)
-				delete child;
+			{
+				if (Context != null)
+				{
+					// Use deferred deletion to prevent use-after-free
+					Context.MutationQueue.QueueDelete(child);
+				}
+				else
+				{
+					// Not attached to context, safe to delete immediately
+					delete child;
+				}
+			}
 		}
 		mChildren.Clear();
 		InvalidateLayout();

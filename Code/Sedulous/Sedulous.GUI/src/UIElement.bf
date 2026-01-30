@@ -42,6 +42,12 @@ public abstract class UIElement
 	private Vector2 mRenderTransformOrigin = .(0.5f, 0.5f);
 	private CursorType mCursor = .Default;
 
+	// Focus properties (on UIElement for consistent FocusManager API)
+	private bool mIsFocusable = false;
+	private bool mIsTabStop = false;
+	private int mTabIndex = 0;
+	private bool mIsFocused = false;
+
 	/// Creates a new UI element and generates a unique ID.
 	public this()
 	{
@@ -282,6 +288,55 @@ public abstract class UIElement
 				return mCursor;
 			return mParent?.EffectiveCursor ?? .Default;
 		}
+	}
+
+	// === Focus Properties ===
+
+	/// Whether this element can receive keyboard focus.
+	/// Default is false for UIElement; Control overrides to true.
+	public bool IsFocusable
+	{
+		get => mIsFocusable;
+		set => mIsFocusable = value;
+	}
+
+	/// Whether this element participates in tab navigation.
+	/// Default is false for UIElement; Control overrides to true.
+	public bool IsTabStop
+	{
+		get => mIsTabStop;
+		set => mIsTabStop = value;
+	}
+
+	/// Tab order for keyboard navigation. Lower values come first.
+	public int TabIndex
+	{
+		get => mTabIndex;
+		set => mTabIndex = value;
+	}
+
+	/// Whether this element has keyboard focus.
+	public bool IsFocused
+	{
+		get => mIsFocused;
+		set
+		{
+			if (mIsFocused != value)
+			{
+				mIsFocused = value;
+				if (value)
+					OnGotFocus(scope FocusEventArgs());
+				else
+					OnLostFocus(scope FocusEventArgs());
+			}
+		}
+	}
+
+	/// Whether focus is within this element or any descendant.
+	/// Override in container classes to check children.
+	public virtual bool IsFocusWithin
+	{
+		get => mIsFocused;
 	}
 
 	// === Layout Methods ===

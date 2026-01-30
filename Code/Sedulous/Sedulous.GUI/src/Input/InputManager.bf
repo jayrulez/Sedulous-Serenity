@@ -8,17 +8,18 @@ namespace Sedulous.GUI;
 public class InputManager
 {
 	private GUIContext mContext;
-	private UIElement mHoveredElement;
+	private ElementHandle<UIElement> mHoveredElement;
 	private Vector2 mLastMousePosition;
 
 	/// Creates an InputManager for the specified context.
 	public this(GUIContext context)
 	{
 		mContext = context;
+		mHoveredElement = .Invalid;
 	}
 
-	/// The element currently under the mouse cursor.
-	public UIElement HoveredElement => mHoveredElement;
+	/// The element currently under the mouse cursor (null if deleted or none).
+	public UIElement HoveredElement => mHoveredElement.TryResolve();
 
 	/// The last known mouse position.
 	public Vector2 LastMousePosition => mLastMousePosition;
@@ -40,23 +41,26 @@ public class InputManager
 		// Hit test to find element under cursor
 		let hitElement = mContext.HitTest(x, y);
 
+		// Get current hovered element (may be null if deleted)
+		let currentHovered = mHoveredElement.TryResolve();
+
 		// Handle enter/leave
-		if (hitElement != mHoveredElement)
+		if (hitElement != currentHovered)
 		{
-			// Leave old element
-			if (mHoveredElement != null)
+			// Leave old element (only if still valid)
+			if (currentHovered != null)
 			{
 				let leaveArgs = scope MouseEventArgs(x, y);
-				InvokeMouseLeave(mHoveredElement, leaveArgs);
+				InvokeMouseLeave(currentHovered, leaveArgs);
 			}
 
 			mHoveredElement = hitElement;
 
 			// Enter new element
-			if (mHoveredElement != null)
+			if (hitElement != null)
 			{
 				let enterArgs = scope MouseEventArgs(x, y);
-				InvokeMouseEnter(mHoveredElement, enterArgs);
+				InvokeMouseEnter(hitElement, enterArgs);
 			}
 		}
 
@@ -173,8 +177,8 @@ public class InputManager
 	/// Clears hover state if necessary.
 	public void OnElementDeleted(UIElement element)
 	{
-		if (mHoveredElement == element)
-			mHoveredElement = null;
+		if (mHoveredElement.Id == element.Id)
+			mHoveredElement = .Invalid;
 	}
 
 	// === Internal event invocation ===

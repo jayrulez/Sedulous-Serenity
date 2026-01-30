@@ -12,7 +12,7 @@ public class ContentControl : Control
 	private UIElement mContent ~ delete _;
 
 	/// The content of this control.
-	/// Setting a new content will delete the previous content.
+	/// Setting a new content will delete the previous content (deferred if attached to context).
 	public UIElement Content
 	{
 		get => mContent;
@@ -24,10 +24,21 @@ public class ContentControl : Control
 			// Detach and delete old content
 			if (mContent != null)
 			{
-				mContent.SetParent(null);
+				let oldContent = mContent;
+				mContent = null;
+
+				oldContent.SetParent(null);
 				if (Context != null)
-					mContent.OnDetachedFromContext();
-				delete mContent;
+				{
+					oldContent.OnDetachedFromContext();
+					// Use deferred deletion to prevent use-after-free
+					Context.MutationQueue.QueueDelete(oldContent);
+				}
+				else
+				{
+					// Not attached to context, safe to delete immediately
+					delete oldContent;
+				}
 			}
 
 			mContent = value;
