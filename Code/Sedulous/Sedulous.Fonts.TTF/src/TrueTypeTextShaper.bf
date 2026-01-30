@@ -102,15 +102,24 @@ public class TrueTypeTextShaper : ITextShaper
 					y += lineHeight;
 					float reflowX = 0;
 
+					// Get the last character that was reflowed (for correct kerning)
+					int32 lastReflowedCodepoint = 0;
 					for (int32 i = lastSpaceIdx + 1; i < outPositions.Count; i++)
 					{
 						var pos = ref outPositions[i];
 						pos.X = reflowX;
 						pos.Y = y;
 						reflowX += pos.Advance;
+						lastReflowedCodepoint = pos.Codepoint;
 					}
 
-					x = reflowX + kern;
+					// Recalculate kerning based on the last reflowed character
+					if (lastReflowedCodepoint != 0)
+						kern = font.GetKerning(lastReflowedCodepoint, codepoint);
+					else
+						kern = 0; // Nothing was reflowed, start fresh
+
+					x = reflowX;
 					lineStartIdx = lastSpaceIdx + 1;
 				}
 				else

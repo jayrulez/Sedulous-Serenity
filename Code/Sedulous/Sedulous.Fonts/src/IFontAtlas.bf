@@ -23,6 +23,10 @@ public interface IFontAtlas
 	/// Updates cursorX to the position for the next character
 	bool GetGlyphQuad(int32 codepoint, ref float cursorX, float cursorY, out GlyphQuad quad);
 
+	/// Get quad for rendering a character at a specific position (no cursor advance)
+	/// Used for pre-positioned glyphs from text shaping
+	bool GetGlyphQuadAt(int32 codepoint, float x, float y, out GlyphQuad quad);
+
 	/// Check if atlas contains a specific codepoint
 	bool Contains(int32 codepoint);
 

@@ -912,31 +912,15 @@ public class DrawContext
 
 		let startVertex = mBatch.Vertices.Count;
 		let opacityColor = ApplyOpacity(color);
-		let atlasWidth = atlas.Width;
-		let atlasHeight = atlas.Height;
 
 		for (let pos in positions)
 		{
-			AtlasRegion region = ?;
-			if (!atlas.TryGetRegion(pos.Codepoint, out region))
+			// Get properly positioned and scaled quad from atlas
+			// pos.X/Y are relative positions (Y at baseline)
+			GlyphQuad quad = ?;
+			if (!atlas.GetGlyphQuadAt(pos.Codepoint, offsetX + pos.X, offsetY + pos.Y, out quad))
 				continue;
 
-			if (region.IsEmpty)
-				continue;
-
-			// Calculate screen coordinates
-			// pos.X/Y are relative positions (Y at baseline), region.Offset is glyph offset
-			let x0 = offsetX + pos.X + region.OffsetX;
-			let y0 = offsetY + pos.Y + region.OffsetY;
-			let x1 = x0 + region.Width;
-			let y1 = y0 + region.Height;
-
-			// Calculate UVs
-			float u0, v0, u1, v1;
-			region.GetUVs(atlasWidth, atlasHeight, out u0, out v0, out u1, out v1);
-
-			// Create and rasterize the glyph quad
-			let quad = GlyphQuad(x0, y0, x1, y1, u0, v0, u1, v1);
 			mRasterizer.RasterizeGlyphQuad(quad, mBatch.Vertices, mBatch.Indices, opacityColor);
 		}
 

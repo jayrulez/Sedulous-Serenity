@@ -130,6 +130,34 @@ public class TrueTypeFontAtlas : IFontAtlas
 		return true;
 	}
 
+	public bool GetGlyphQuadAt(int32 codepoint, float x, float y, out GlyphQuad quad)
+	{
+		quad = .();
+
+		if (codepoint < mFirstCodepoint || codepoint > mLastCodepoint)
+			return false;
+
+		let index = codepoint - mFirstCodepoint;
+
+		// Use stbtt_GetPackedQuad but ignore cursor advancement
+		stbtt_aligned_quad q = .();
+		float xpos = x;
+		float ypos = y;
+		stbtt_GetPackedQuad(mPackedChars.Ptr, (int32)mWidth, (int32)mHeight,
+			index, &xpos, &ypos, &q, 0);
+
+		quad.X0 = q.x0;
+		quad.Y0 = q.y0;
+		quad.X1 = q.x1;
+		quad.Y1 = q.y1;
+		quad.U0 = q.s0;
+		quad.V0 = q.t0;
+		quad.U1 = q.s1;
+		quad.V1 = q.t1;
+
+		return true;
+	}
+
 	public bool Contains(int32 codepoint)
 	{
 		if (codepoint < mFirstCodepoint || codepoint > mLastCodepoint)
