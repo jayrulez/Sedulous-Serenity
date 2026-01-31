@@ -231,6 +231,48 @@ public class DarkTheme : ITheme
 			Padding = .(2, 2, 2, 2),  // Minimal padding for hyperlinks
 			Hover = .() { Foreground = Color(130, 179, 255, 255) }  // Lighter accent
 		};
+
+		// Slider style
+		mStyles[new String("Slider")] = .()
+		{
+			Background = Color(50, 50, 50, 255),  // Track color
+			Foreground = mPalette.Accent,         // Thumb color
+			BorderColor = Color.Transparent,
+			BorderThickness = 0,
+			CornerRadius = 0
+		};
+
+		// ScrollBar style
+		mStyles[new String("ScrollBar")] = .()
+		{
+			Background = Color(30, 30, 30, 255),  // Track color
+			Foreground = Color(80, 80, 80, 255),  // Thumb color
+			BorderColor = Color.Transparent,
+			BorderThickness = 0,
+			CornerRadius = 0,
+			Hover = .() { Foreground = Color(100, 100, 100, 255) }
+		};
+
+		// ScrollViewer style
+		mStyles[new String("ScrollViewer")] = .()
+		{
+			Background = mPalette.Surface,
+			Foreground = mPalette.Text,
+			BorderColor = mPalette.Border,
+			BorderThickness = 1,
+			CornerRadius = 0
+		};
+
+		// Splitter style
+		mStyles[new String("Splitter")] = .()
+		{
+			Background = Color(45, 45, 45, 255),
+			Foreground = Color(100, 100, 100, 255),  // Grip color
+			BorderColor = Color.Transparent,
+			BorderThickness = 0,
+			CornerRadius = 0,
+			Hover = .() { Background = Color(55, 55, 55, 255) }
+		};
 	}
 
 	public StringView Name => "Dark";

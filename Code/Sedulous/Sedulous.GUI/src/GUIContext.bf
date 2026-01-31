@@ -454,6 +454,17 @@ public class GUIContext
 		return mRootElement.HitTest(.(scaledX, scaledY));
 	}
 
+	/// Performs hit testing at the given logical coordinates.
+	/// Use this when coordinates are already in logical space (already scaled).
+	/// Returns the topmost element at that position, or null.
+	public UIElement HitTestLogical(float x, float y)
+	{
+		if (mRootElement == null)
+			return null;
+
+		return mRootElement.HitTest(.(x, y));
+	}
+
 	// === Deletion ===
 
 	/// Queues an element for deletion.
@@ -497,9 +508,9 @@ public class GUIContext
 
 	/// Process a mouse wheel event.
 	/// Coordinates are automatically inverse-scaled by the ScaleFactor.
-	public void ProcessMouseWheel(float x, float y, float delta)
+	public void ProcessMouseWheel(float x, float y, float delta, KeyModifiers modifiers = .None)
 	{
-		mInputManager?.ProcessMouseWheel(x / mScaleFactor, y / mScaleFactor, delta);
+		mInputManager?.ProcessMouseWheel(x / mScaleFactor, y / mScaleFactor, delta, modifiers);
 	}
 
 	/// Process a key down event.

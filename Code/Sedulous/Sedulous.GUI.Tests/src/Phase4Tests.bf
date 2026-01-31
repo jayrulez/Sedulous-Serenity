@@ -471,6 +471,20 @@ class Phase4Tests
 	// ========== SplitPanel Tests ==========
 
 	[Test]
+	public static void SplitPanel_BasicSetup()
+	{
+		let panel = new SplitPanel();
+
+		// Check splitter exists and has correct properties
+		Test.Assert(panel.Splitter != null);
+		Test.Assert(panel.SplitterSize == 6);
+		Test.Assert(panel.Orientation == .Horizontal);
+		Test.Assert(panel.Splitter.Orientation == .Vertical);
+
+		delete panel;
+	}
+
+	[Test]
 	public static void SplitPanel_HorizontalSplit()
 	{
 		let ctx = scope GUIContext();
@@ -494,6 +508,7 @@ class Phase4Tests
 		ctx.Update(0, 0);
 
 		// Left and right should each be ~100 wide (children stretch to fill)
+		// Panel content = 206, splitter = 6, available = 200, each side = 100
 		Test.Assert(Math.Abs(left.ArrangedBounds.Width - 100) < 1.0f);
 		Test.Assert(Math.Abs(right.ArrangedBounds.Width - 100) < 1.0f);
 		Test.Assert(right.ArrangedBounds.X > left.ArrangedBounds.Right);

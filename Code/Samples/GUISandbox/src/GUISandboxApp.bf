@@ -59,6 +59,9 @@ class GUISandboxApp : RHISampleApp
 	// Text input demo instance (has state)
 	private TextInputDemo mTextInputDemo ~ delete _;
 
+	// Scrolling demo instance (has state)
+	private ScrollingDemo mScrollingDemo ~ delete _;
+
 	// Clipboard adapter
 	private ShellClipboardAdapter mClipboard ~ delete _;
 
@@ -196,6 +199,13 @@ class GUISandboxApp : RHISampleApp
 			mTextInputDemo = null;
 		}
 
+		// Clean up scrolling demo when switching away
+		if (demo != .Scrolling && mScrollingDemo != null)
+		{
+			delete mScrollingDemo;
+			mScrollingDemo = null;
+		}
+
 		// Create new demo
 		switch (demo)
 		{
@@ -223,6 +233,10 @@ class GUISandboxApp : RHISampleApp
 			if (mTextInputDemo == null)
 				mTextInputDemo = new TextInputDemo();
 			mDemoRoot = mTextInputDemo.Create();
+		case .Scrolling:
+			if (mScrollingDemo == null)
+				mScrollingDemo = new ScrollingDemo();
+			mDemoRoot = mScrollingDemo.CreateDemo();
 		}
 
 		mGUIContext.RootElement = mDemoRoot;
@@ -261,6 +275,8 @@ class GUISandboxApp : RHISampleApp
 				SwitchDemo(.InteractiveControls);
 			if (keyboard.IsKeyPressed(.Num9) || keyboard.IsKeyPressed(.Keypad9))
 				SwitchDemo(.TextInput);
+			if (keyboard.IsKeyPressed(.S))
+				SwitchDemo(.Scrolling);
 		}
 
 		// UI Scale with Ctrl+/Ctrl-
@@ -294,23 +310,27 @@ class GUISandboxApp : RHISampleApp
 				mGUIContext.DebugSettings = .() { ShowLayoutBounds = true, ShowFocused = true, ShowHovered = true, ShowHitTestBounds = true };
 		}
 
-		// Route mouse input to GUI
+		// Route mouse input to GUI (use GUIContext methods for proper scaling)
 		float mouseX = mouse.X;
 		float mouseY = mouse.Y;
-		mGUIContext.InputManager.ProcessMouseMove(mouseX, mouseY);
+		mGUIContext.ProcessMouseMove(mouseX, mouseY);
 
 		// Update cursor based on hovered element
 		UpdateCursor(mouse);
 
 		if (mouse.IsButtonPressed(.Left))
-			mGUIContext.InputManager.ProcessMouseDown(mouseX, mouseY, .Left);
+			mGUIContext.ProcessMouseDown(mouseX, mouseY, .Left);
 		if (mouse.IsButtonReleased(.Left))
-			mGUIContext.InputManager.ProcessMouseUp(mouseX, mouseY, .Left);
+			mGUIContext.ProcessMouseUp(mouseX, mouseY, .Left);
 
 		if (mouse.IsButtonPressed(.Right))
-			mGUIContext.InputManager.ProcessMouseDown(mouseX, mouseY, .Right);
+			mGUIContext.ProcessMouseDown(mouseX, mouseY, .Right);
 		if (mouse.IsButtonReleased(.Right))
-			mGUIContext.InputManager.ProcessMouseUp(mouseX, mouseY, .Right);
+			mGUIContext.ProcessMouseUp(mouseX, mouseY, .Right);
+
+		// Forward mouse wheel to GUI (with modifiers for Shift+wheel horizontal scroll)
+		if (mouse.ScrollY != 0)
+			mGUIContext.ProcessMouseWheel(mouseX, mouseY, mouse.ScrollY, modifiers);
 
 		// Forward navigation and editing keys to GUI
 		ForwardKeyIfPressed(keyboard, .Tab, modifiers);
@@ -598,6 +618,7 @@ class GUISandboxApp : RHISampleApp
 		case .DisplayControls: return "Display Controls";
 		case .InteractiveControls: return "Interactive Controls";
 		case .TextInput: return "Text Input";
+		case .Scrolling: return "Scrolling";
 		}
 	}
 

@@ -231,6 +231,48 @@ public class LightTheme : ITheme
 			Padding = .(2, 2, 2, 2),
 			Hover = .() { Foreground = Color(0, 120, 215, 255) }  // Darker accent
 		};
+
+		// Slider style
+		mStyles[new String("Slider")] = .()
+		{
+			Background = Color(200, 200, 200, 255),  // Track color
+			Foreground = mPalette.Accent,            // Thumb color
+			BorderColor = Color.Transparent,
+			BorderThickness = 0,
+			CornerRadius = 0
+		};
+
+		// ScrollBar style
+		mStyles[new String("ScrollBar")] = .()
+		{
+			Background = Color(235, 235, 235, 255),  // Track color
+			Foreground = Color(180, 180, 180, 255),  // Thumb color
+			BorderColor = Color.Transparent,
+			BorderThickness = 0,
+			CornerRadius = 0,
+			Hover = .() { Foreground = Color(160, 160, 160, 255) }
+		};
+
+		// ScrollViewer style
+		mStyles[new String("ScrollViewer")] = .()
+		{
+			Background = mPalette.Surface,
+			Foreground = mPalette.Text,
+			BorderColor = mPalette.Border,
+			BorderThickness = 1,
+			CornerRadius = 0
+		};
+
+		// Splitter style
+		mStyles[new String("Splitter")] = .()
+		{
+			Background = Color(220, 220, 220, 255),
+			Foreground = Color(160, 160, 160, 255),  // Grip color
+			BorderColor = Color.Transparent,
+			BorderThickness = 0,
+			CornerRadius = 0,
+			Hover = .() { Background = Color(200, 200, 200, 255) }
+		};
 	}
 
 	public StringView Name => "Light";

@@ -5,22 +5,26 @@ using Sedulous.Drawing;
 namespace Sedulous.GUI;
 
 /// A panel that splits its area into two resizable sections with a draggable splitter.
+/// Uses the Splitter control internally for consistent drag behavior.
 public class SplitPanel : Panel
 {
 	private Orientation mOrientation = .Horizontal;
 	private float mSplitRatio = 0.5f;  // 0.0 to 1.0
-	private float mSplitterSize = 6;
 	private float mMinFirstSize = 50;
 	private float mMinSecondSize = 50;
-	private Color mSplitterColor = Color(80, 80, 80, 255);
-	private Color mSplitterHoverColor = Color(100, 100, 100, 255);
-	private Color mSplitterDragColor = Color(120, 120, 120, 255);
+	// IMPORTANT: mSplitterMovedHandler must be declared before mSplitter so that
+	// mSplitter is destroyed first (reverse declaration order). The EventAccessor
+	// in Splitter will call Dispose() which deletes subscribed delegates.
+	private delegate void(Splitter, float) mSplitterMovedHandler;
+	private Splitter mSplitter ~ delete _;
 
-	// Interaction state
-	private bool mIsDragging = false;
-	private bool mIsHovered = false;
-	private float mDragStartRatio;
-	private float mDragStartPos;
+	/// Creates a new SplitPanel.
+	public this()
+	{
+		mSplitter = new Splitter(GetSplitterOrientation());
+		mSplitterMovedHandler = new => OnSplitterMoved;
+		mSplitter.SplitterMoved.Subscribe(mSplitterMovedHandler);
+	}
 
 	/// The orientation of the split.
 	/// Horizontal: first child on left, second on right.
@@ -33,9 +37,18 @@ public class SplitPanel : Panel
 			if (mOrientation != value)
 			{
 				mOrientation = value;
+				mSplitter.Orientation = GetSplitterOrientation();
 				InvalidateLayout();
 			}
 		}
+	}
+
+	/// Maps SplitPanel orientation to Splitter orientation.
+	/// SplitPanel.Horizontal (left/right) uses Splitter.Vertical (drags left/right).
+	/// SplitPanel.Vertical (top/bottom) uses Splitter.Horizontal (drags up/down).
+	private Orientation GetSplitterOrientation()
+	{
+		return mOrientation == .Horizontal ? .Vertical : .Horizontal;
 	}
 
 	/// The split ratio (0.0 to 1.0). 0.5 means equal split.
@@ -56,15 +69,8 @@ public class SplitPanel : Panel
 	/// The size of the splitter bar in pixels.
 	public float SplitterSize
 	{
-		get => mSplitterSize;
-		set
-		{
-			if (mSplitterSize != value)
-			{
-				mSplitterSize = Math.Max(1, value);
-				InvalidateLayout();
-			}
-		}
+		get => mSplitter.Thickness;
+		set => mSplitter.Thickness = value;
 	}
 
 	/// Minimum size of the first section.
@@ -81,26 +87,23 @@ public class SplitPanel : Panel
 		set => mMinSecondSize = Math.Max(0, value);
 	}
 
+	/// Whether to show the grip visual on the splitter.
+	public bool ShowGrip
+	{
+		get => mSplitter.ShowGrip;
+		set => mSplitter.ShowGrip = value;
+	}
+
 	/// Color of the splitter bar.
+	/// Hover and drag colors are calculated automatically by lightening this color.
 	public Color SplitterColor
 	{
-		get => mSplitterColor;
-		set => mSplitterColor = value;
+		get => mSplitter.Background;
+		set => mSplitter.Background = value;
 	}
 
-	/// Color of the splitter bar when hovered.
-	public Color SplitterHoverColor
-	{
-		get => mSplitterHoverColor;
-		set => mSplitterHoverColor = value;
-	}
-
-	/// Color of the splitter bar when being dragged.
-	public Color SplitterDragColor
-	{
-		get => mSplitterDragColor;
-		set => mSplitterDragColor = value;
-	}
+	/// The internal Splitter control (for advanced customization).
+	public Splitter Splitter => mSplitter;
 
 	/// Gets the first child (left/top section).
 	public UIElement FirstChild => ChildCount > 0 ? GetChild(0) : null;
@@ -108,39 +111,48 @@ public class SplitPanel : Panel
 	/// Gets the second child (right/bottom section).
 	public UIElement SecondChild => ChildCount > 1 ? GetChild(1) : null;
 
-	/// Gets the splitter rectangle in content bounds.
-	private RectangleF GetSplitterRect(RectangleF contentBounds)
+	/// Whether the splitter is currently being dragged.
+	public bool IsDragging => mSplitter.IsDragging;
+
+	// === Context Management ===
+
+	public override void OnAttachedToContext(GUIContext context)
 	{
-		float availableSize = mOrientation == .Horizontal ?
-			contentBounds.Width - mSplitterSize :
-			contentBounds.Height - mSplitterSize;
-
-		float firstSize = availableSize * mSplitRatio;
-
-		if (mOrientation == .Horizontal)
-		{
-			return .(
-				contentBounds.X + firstSize,
-				contentBounds.Y,
-				mSplitterSize,
-				contentBounds.Height
-			);
-		}
-		else
-		{
-			return .(
-				contentBounds.X,
-				contentBounds.Y + firstSize,
-				contentBounds.Width,
-				mSplitterSize
-			);
-		}
+		base.OnAttachedToContext(context);
+		mSplitter.OnAttachedToContext(context);
 	}
+
+	public override void OnDetachedFromContext()
+	{
+		mSplitter.OnDetachedFromContext();
+		base.OnDetachedFromContext();
+	}
+
+	// === Visual Children ===
+
+	/// Returns the number of visual children (content children + splitter).
+	public override int VisualChildCount => base.VisualChildCount + 1;
+
+	/// Gets a visual child by index (content children first, then splitter).
+	public override UIElement GetVisualChild(int index)
+	{
+		if (index < base.VisualChildCount)
+			return base.GetVisualChild(index);
+		if (index == base.VisualChildCount)
+			return mSplitter;
+		return null;
+	}
+
+	// === Layout ===
 
 	protected override DesiredSize MeasureOverride(SizeConstraints constraints)
 	{
 		float firstWidth = 0, firstHeight = 0;
 		float secondWidth = 0, secondHeight = 0;
+		let splitterSize = mSplitter.Thickness;
+
+		// Measure splitter
+		mSplitter.Measure(constraints);
 
 		// Measure first child
 		if (FirstChild != null && FirstChild.Visibility != .Collapsed)
@@ -161,7 +173,7 @@ public class SplitPanel : Panel
 		if (mOrientation == .Horizontal)
 		{
 			return .(
-				firstWidth + mSplitterSize + secondWidth,
+				firstWidth + splitterSize + secondWidth,
 				Math.Max(firstHeight, secondHeight)
 			);
 		}
@@ -169,16 +181,17 @@ public class SplitPanel : Panel
 		{
 			return .(
 				Math.Max(firstWidth, secondWidth),
-				firstHeight + mSplitterSize + secondHeight
+				firstHeight + splitterSize + secondHeight
 			);
 		}
 	}
 
 	protected override void ArrangeOverride(RectangleF contentBounds)
 	{
+		let splitterSize = mSplitter.Thickness;
 		float availableSize = mOrientation == .Horizontal ?
-			contentBounds.Width - mSplitterSize :
-			contentBounds.Height - mSplitterSize;
+			contentBounds.Width - splitterSize :
+			contentBounds.Height - splitterSize;
 
 		// Clamp ratio to respect minimum sizes
 		float minRatio = mMinFirstSize / Math.Max(1, availableSize);
@@ -203,6 +216,28 @@ public class SplitPanel : Panel
 			FirstChild.Arrange(firstRect);
 		}
 
+		// Arrange splitter
+		RectangleF splitterRect;
+		if (mOrientation == .Horizontal)
+		{
+			splitterRect = .(
+				contentBounds.X + firstSize,
+				contentBounds.Y,
+				splitterSize,
+				contentBounds.Height
+			);
+		}
+		else
+		{
+			splitterRect = .(
+				contentBounds.X,
+				contentBounds.Y + firstSize,
+				contentBounds.Width,
+				splitterSize
+			);
+		}
+		mSplitter.Arrange(splitterRect);
+
 		// Arrange second child
 		if (SecondChild != null && SecondChild.Visibility != .Collapsed)
 		{
@@ -210,7 +245,7 @@ public class SplitPanel : Panel
 			if (mOrientation == .Horizontal)
 			{
 				secondRect = .(
-					contentBounds.X + firstSize + mSplitterSize,
+					contentBounds.X + firstSize + splitterSize,
 					contentBounds.Y,
 					secondSize,
 					contentBounds.Height
@@ -220,7 +255,7 @@ public class SplitPanel : Panel
 			{
 				secondRect = .(
 					contentBounds.X,
-					contentBounds.Y + firstSize + mSplitterSize,
+					contentBounds.Y + firstSize + splitterSize,
 					contentBounds.Width,
 					secondSize
 				);
@@ -229,40 +264,69 @@ public class SplitPanel : Panel
 		}
 	}
 
+	// === Rendering ===
+
 	protected override void RenderOverride(DrawContext ctx)
 	{
-		// Draw background
-		base.RenderOverride(ctx);
+		if (ClipToBounds)
+			ctx.PushClipRect(ArrangedBounds);
 
-		// Draw splitter
-		let splitterRect = GetSplitterRect(ContentBounds);
-		Color splitterColor = mIsDragging ? mSplitterDragColor :
-			(mIsHovered ? mSplitterHoverColor : mSplitterColor);
-		ctx.FillRect(splitterRect, splitterColor);
+		// Render children
+		for (int i = 0; i < ChildCount; i++)
+		{
+			let child = GetChild(i);
+			child?.Render(ctx);
+		}
 
-		// Render children (already done by base, but we need to ensure order)
+		// Render splitter
+		mSplitter.Render(ctx);
+
+		if (ClipToBounds)
+			ctx.PopClip();
 	}
+
+	// === Hit Testing ===
 
 	public override UIElement HitTest(Vector2 point)
 	{
 		if (Visibility != .Visible)
 			return null;
 
-		if (!ArrangedBounds.Contains(point.X, point.Y))
+		// Transform hit point if this element has a render transform
+		var hitPoint = point;
+
+		if (RenderTransform != Matrix.Identity)
+		{
+			let originX = ArrangedBounds.X + ArrangedBounds.Width * RenderTransformOrigin.X;
+			let originY = ArrangedBounds.Y + ArrangedBounds.Height * RenderTransformOrigin.Y;
+
+			let toOrigin = Matrix.CreateTranslation(-originX, -originY, 0);
+			let fromOrigin = Matrix.CreateTranslation(originX, originY, 0);
+			let fullTransform = toOrigin * RenderTransform * fromOrigin;
+
+			Matrix inverseTransform;
+			if (Matrix.TryInvert(fullTransform, out inverseTransform))
+			{
+				let transformed = Vector2.Transform(point, inverseTransform);
+				hitPoint = transformed;
+			}
+		}
+
+		if (!ArrangedBounds.Contains(hitPoint.X, hitPoint.Y))
 			return null;
 
-		// Check if hit is on splitter
-		let splitterRect = GetSplitterRect(ContentBounds);
-		if (splitterRect.Contains(point.X, point.Y))
-			return this;  // Splitter is part of this panel
+		// Check splitter first
+		let splitterHit = mSplitter.HitTest(hitPoint);
+		if (splitterHit != null)
+			return splitterHit;
 
-		// Check children
+		// Check children in reverse order
 		for (int i = ChildCount - 1; i >= 0; i--)
 		{
 			let child = GetChild(i);
 			if (child == null)
 				continue;
-			let hit = child.HitTest(point);
+			let hit = child.HitTest(hitPoint);
 			if (hit != null)
 				return hit;
 		}
@@ -270,64 +334,25 @@ public class SplitPanel : Panel
 		return this;
 	}
 
-	protected override void OnMouseMove(MouseEventArgs e)
+	// === Splitter Event Handler ===
+
+	private void OnSplitterMoved(Splitter splitter, float delta)
 	{
-		let splitterRect = GetSplitterRect(ContentBounds);
-		mIsHovered = splitterRect.Contains(e.ScreenX, e.ScreenY);
+		let splitterSize = mSplitter.Thickness;
+		float availableSize = mOrientation == .Horizontal ?
+			ContentBounds.Width - splitterSize :
+			ContentBounds.Height - splitterSize;
 
-		if (mIsDragging)
-		{
-			// Calculate new ratio based on mouse position
-			float availableSize = mOrientation == .Horizontal ?
-				ContentBounds.Width - mSplitterSize :
-				ContentBounds.Height - mSplitterSize;
+		if (availableSize <= 0)
+			return;
 
-			float currentPos = mOrientation == .Horizontal ?
-				e.ScreenX - ContentBounds.X :
-				e.ScreenY - ContentBounds.Y;
+		// Convert delta to ratio change
+		float ratioChange = delta / availableSize;
+		float newRatio = mSplitRatio + ratioChange;
 
-			float newRatio = currentPos / Math.Max(1, availableSize);
-
-			// Clamp to respect minimum sizes
-			float minRatio = mMinFirstSize / Math.Max(1, availableSize);
-			float maxRatio = 1.0f - (mMinSecondSize / Math.Max(1, availableSize));
-			SplitRatio = Math.Clamp(newRatio, minRatio, maxRatio);
-		}
-
-		base.OnMouseMove(e);
-	}
-
-	protected override void OnMouseDown(MouseButtonEventArgs e)
-	{
-		if (e.Button == .Left)
-		{
-			let splitterRect = GetSplitterRect(ContentBounds);
-			if (splitterRect.Contains(e.ScreenX, e.ScreenY))
-			{
-				mIsDragging = true;
-				mDragStartRatio = mSplitRatio;
-				mDragStartPos = mOrientation == .Horizontal ? e.ScreenX : e.ScreenY;
-				Context?.FocusManager?.SetCapture(this);
-			}
-		}
-
-		base.OnMouseDown(e);
-	}
-
-	protected override void OnMouseUp(MouseButtonEventArgs e)
-	{
-		if (e.Button == .Left && mIsDragging)
-		{
-			mIsDragging = false;
-			Context?.FocusManager?.ReleaseCapture();
-		}
-
-		base.OnMouseUp(e);
-	}
-
-	protected override void OnMouseLeave(MouseEventArgs e)
-	{
-		mIsHovered = false;
-		base.OnMouseLeave(e);
+		// Clamp to respect minimum sizes
+		float minRatio = mMinFirstSize / Math.Max(1, availableSize);
+		float maxRatio = 1.0f - (mMinSecondSize / Math.Max(1, availableSize));
+		SplitRatio = Math.Clamp(newRatio, minRatio, maxRatio);
 	}
 }

@@ -27,7 +27,7 @@ public class Panel : Container
 			ctx.FillRect(ArrangedBounds, mBackground);
 		}
 
-		// Render children
+		// Render children (Container handles ClipToBounds)
 		base.RenderOverride(ctx);
 	}
 }

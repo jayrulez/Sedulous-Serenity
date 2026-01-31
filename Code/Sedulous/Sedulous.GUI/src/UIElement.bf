@@ -550,8 +550,32 @@ public abstract class UIElement
 		if (mVisibility != .Visible)
 			return null;
 
+		// Transform hit point if this element has a render transform
+		var hitX = point.X;
+		var hitY = point.Y;
+
+		if (mRenderTransform != Matrix.Identity)
+		{
+			// Calculate the inverse transform to map screen point to local space
+			let originX = mArrangedBounds.X + mArrangedBounds.Width * mRenderTransformOrigin.X;
+			let originY = mArrangedBounds.Y + mArrangedBounds.Height * mRenderTransformOrigin.Y;
+
+			let toOrigin = Matrix.CreateTranslation(-originX, -originY, 0);
+			let fromOrigin = Matrix.CreateTranslation(originX, originY, 0);
+			let fullTransform = toOrigin * mRenderTransform * fromOrigin;
+
+			// Try to invert the transform
+			Matrix inverseTransform;
+			if (Matrix.TryInvert(fullTransform, out inverseTransform))
+			{
+				let transformed = Vector2.Transform(.(point.X, point.Y), inverseTransform);
+				hitX = transformed.X;
+				hitY = transformed.Y;
+			}
+		}
+
 		// Check if point is within bounds
-		if (!mArrangedBounds.Contains(point.X, point.Y))
+		if (!mArrangedBounds.Contains(hitX, hitY))
 			return null;
 
 		return this;

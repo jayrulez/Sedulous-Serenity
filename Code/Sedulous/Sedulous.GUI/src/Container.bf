@@ -252,14 +252,37 @@ public abstract class Container : UIElement
 		if (Visibility != .Visible)
 			return null;
 
-		if (!ArrangedBounds.Contains(point.X, point.Y))
+		// Transform hit point if this element has a render transform
+		var hitPoint = point;
+
+		if (RenderTransform != Matrix.Identity)
+		{
+			// Calculate the inverse transform to map screen point to local space
+			let originX = ArrangedBounds.X + ArrangedBounds.Width * RenderTransformOrigin.X;
+			let originY = ArrangedBounds.Y + ArrangedBounds.Height * RenderTransformOrigin.Y;
+
+			let toOrigin = Matrix.CreateTranslation(-originX, -originY, 0);
+			let fromOrigin = Matrix.CreateTranslation(originX, originY, 0);
+			let fullTransform = toOrigin * RenderTransform * fromOrigin;
+
+			// Try to invert the transform
+			Matrix inverseTransform;
+			if (Matrix.TryInvert(fullTransform, out inverseTransform))
+			{
+				let transformed = Vector2.Transform(point, inverseTransform);
+				hitPoint = transformed;
+			}
+		}
+
+		if (!ArrangedBounds.Contains(hitPoint.X, hitPoint.Y))
 			return null;
 
 		// Test children in reverse order (topmost first)
+		// Pass the transformed point so children can apply their own transforms
 		for (int i = mChildren.Count - 1; i >= 0; i--)
 		{
 			let child = mChildren[i];
-			let hit = child.HitTest(point);
+			let hit = child.HitTest(hitPoint);
 			if (hit != null)
 				return hit;
 		}

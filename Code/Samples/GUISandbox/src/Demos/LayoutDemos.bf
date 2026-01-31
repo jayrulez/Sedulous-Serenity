@@ -289,8 +289,6 @@ static class LayoutDemos
 		outerSplit.MinFirstSize = 100;
 		outerSplit.MinSecondSize = 200;
 		outerSplit.SplitterColor = Color(60, 60, 70, 255);
-		outerSplit.SplitterHoverColor = Color(80, 80, 100, 255);
-		outerSplit.SplitterDragColor = Color(100, 100, 140, 255);
 
 		let leftPanel = new ColorBox(Color(100, 80, 80, 255), "Left Panel");
 		outerSplit.AddChild(leftPanel);
@@ -302,8 +300,6 @@ static class LayoutDemos
 		innerSplit.MinFirstSize = 80;
 		innerSplit.MinSecondSize = 80;
 		innerSplit.SplitterColor = Color(60, 60, 70, 255);
-		innerSplit.SplitterHoverColor = Color(80, 80, 100, 255);
-		innerSplit.SplitterDragColor = Color(100, 100, 140, 255);
 
 		let topRight = new ColorBox(Color(80, 100, 80, 255), "Top Right");
 		innerSplit.AddChild(topRight);

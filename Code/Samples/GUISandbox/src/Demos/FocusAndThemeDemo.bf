@@ -54,6 +54,20 @@ static class FocusAndThemeDemo
 		rect4.TabIndex = 3;
 		rootPanel.AddChild(rect4);
 
+		// Fifth rectangle is rotated to demonstrate transformed hit testing
+		let rect5 = new FocusableRect();
+		rect5.Width = 120;
+		rect5.Height = 100;
+		rect5.RectColor = Color(180, 80, 180, 255);  // Purple
+		rect5.TabIndex = 4;
+		rect5.BorderThickness = 2;
+		rect5.BorderColor = Color(140, 60, 140, 255);
+		rect5.FocusBorderColor = Color(255, 200, 100, 255);
+		rect5.FocusBorderThickness = 4;
+		// Apply a 15 degree rotation transform (15 degrees in radians)
+		rect5.RenderTransform = Matrix.CreateRotationZ(15.0f * (System.Math.PI_f / 180.0f));
+		rootPanel.AddChild(rect5);
+
 		return rootPanel;
 	}
 }
