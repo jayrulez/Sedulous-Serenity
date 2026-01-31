@@ -75,6 +75,33 @@ public class LightTheme : ITheme
 			BorderColor = mPalette.Border,
 			BorderThickness = 1,
 			CornerRadius = 4,
+			Padding = .(6, 4, 6, 4),
+			Hover = .() { BorderColor = Color(150, 150, 150, 255) },
+			Focused = .() { BorderColor = mPalette.Accent }
+		};
+
+		// PasswordBox style (same as TextBox)
+		mStyles[new String("PasswordBox")] = .()
+		{
+			Background = mPalette.Surface,
+			Foreground = mPalette.Text,
+			BorderColor = mPalette.Border,
+			BorderThickness = 1,
+			CornerRadius = 4,
+			Padding = .(6, 4, 6, 4),
+			Hover = .() { BorderColor = Color(150, 150, 150, 255) },
+			Focused = .() { BorderColor = mPalette.Accent }
+		};
+
+		// NumericUpDown style
+		mStyles[new String("NumericUpDown")] = .()
+		{
+			Background = mPalette.Surface,
+			Foreground = mPalette.Text,
+			BorderColor = mPalette.Border,
+			BorderThickness = 1,
+			CornerRadius = 4,
+			Padding = .(4, 2, 4, 2),
 			Hover = .() { BorderColor = Color(150, 150, 150, 255) },
 			Focused = .() { BorderColor = mPalette.Accent }
 		};

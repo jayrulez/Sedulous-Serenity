@@ -17,16 +17,20 @@ public class Hyperlink : Button
 	/// Creates a new Hyperlink.
 	public this() : base()
 	{
+		// Hyperlinks show a hand cursor
+		Cursor = .Pointer;
 	}
 
 	/// Creates a new Hyperlink with text content.
 	public this(StringView text) : base(text)
 	{
+		Cursor = .Pointer;
 	}
 
 	/// Creates a new Hyperlink with text and URI.
 	public this(StringView text, StringView uri) : base(text)
 	{
+		Cursor = .Pointer;
 		NavigateUri = uri;
 	}
 

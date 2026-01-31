@@ -34,7 +34,7 @@ public abstract class Control : UIElement
 	private Color? mForeground;
 	private Color? mBorderColor;
 	private float? mBorderThickness;
-	private float mCornerRadius = 0;
+	private float mCornerRadius = -1; // -1 means "use control-specific default" (Button uses 4, others use 0)
 	private Thickness? mControlPadding;
 
 	// Focus visual - null means use theme

@@ -76,6 +76,9 @@ public class GUIContext
 	// Service registry (services are not owned - callers retain ownership)
 	private Dictionary<Type, Object> mServices = new .() ~ delete _;
 
+	// Clipboard (not owned - caller retains ownership)
+	private IClipboard mClipboard;
+
 	// UI scaling
 	private float mScaleFactor = 1.0f;
 
@@ -145,6 +148,10 @@ public class GUIContext
 	/// The focus manager for this context.
 	public FocusManager FocusManager => mFocusManager;
 
+	/// The cursor that should be displayed based on the hovered element.
+	/// The application is responsible for actually setting the system cursor.
+	public CursorType CurrentCursor => mInputManager?.HoveredElement?.EffectiveCursor ?? .Default;
+
 	/// The current viewport width.
 	public float ViewportWidth => mViewportWidth;
 
@@ -198,6 +205,19 @@ public class GUIContext
 	public bool HasService<T>() where T : class
 	{
 		return mServices.ContainsKey(typeof(T));
+	}
+
+	// === Clipboard ===
+
+	/// The registered clipboard service.
+	/// Returns null if no clipboard has been registered.
+	public IClipboard Clipboard => mClipboard;
+
+	/// Registers a clipboard implementation.
+	/// The clipboard is not owned by the context - the caller retains ownership.
+	public void RegisterClipboard(IClipboard clipboard)
+	{
+		mClipboard = clipboard;
 	}
 
 	// === Element Registry ===

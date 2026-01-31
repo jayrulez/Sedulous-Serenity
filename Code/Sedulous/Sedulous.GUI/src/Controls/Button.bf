@@ -210,7 +210,7 @@ public class Button : ContentControl
 		// Get state-appropriate colors
 		let bgColor = GetStateBackground();
 		let borderColor = GetStateBorderColor();
-		let cornerRadius = CornerRadius > 0 ? CornerRadius : 4; // Default rounded corners for buttons
+		let cornerRadius = CornerRadius >= 0 ? CornerRadius : 4; // Default rounded corners for buttons (use negative to get default)
 
 		// Draw background
 		if (bgColor.A > 0)

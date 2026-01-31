@@ -151,4 +151,5 @@ enum DemoType
 	case SplitPanel;
 	case DisplayControls;
 	case InteractiveControls;
+	case TextInput;
 }

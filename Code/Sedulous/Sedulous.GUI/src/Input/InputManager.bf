@@ -91,6 +91,18 @@ public class InputManager
 		{
 			let args = scope MouseButtonEventArgs(x, y, button);
 			InvokeMouseDown(hitElement, args);
+
+			// If clicked element is not focusable and didn't handle the event
+			// (e.g., Label focusing its target), clear focus
+			if (!hitElement.IsFocusable && !args.Handled)
+			{
+				mContext.FocusManager?.ClearFocus();
+			}
+		}
+		else
+		{
+			// Clicked on empty space - clear focus
+			mContext.FocusManager?.ClearFocus();
 		}
 	}
 

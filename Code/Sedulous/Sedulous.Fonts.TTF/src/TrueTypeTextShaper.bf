@@ -271,9 +271,9 @@ public class TrueTypeTextShaper : ITextShaper
 		if (startIdx >= endIdx)
 			return;
 
-		float ascent = font.Metrics.Ascent;
-		float descent = font.Metrics.Descent;
-		float rectHeight = ascent - descent;
+		// For single-line text, use full lineHeight as rect height
+		// Position at Y=0 relative to the text baseline position
+		float rectHeight = lineHeight;
 
 		// Track current line rectangle
 		float currentLineY = positions[startIdx].Y;
@@ -290,7 +290,8 @@ public class TrueTypeTextShaper : ITextShaper
 				// Emit rectangle for completed line
 				if (rectEndX > rectStartX)
 				{
-					let rect = Rect(rectStartX, currentLineY - ascent, rectEndX - rectStartX, rectHeight);
+					// Y=0 means top of the line (text is drawn from baseline which is offset by ascent)
+					let rect = Rect(rectStartX, currentLineY, rectEndX - rectStartX, rectHeight);
 					outRects.Add(rect);
 				}
 
@@ -305,7 +306,7 @@ public class TrueTypeTextShaper : ITextShaper
 		// Emit final rectangle
 		if (rectEndX > rectStartX)
 		{
-			let rect = Rect(rectStartX, currentLineY - ascent, rectEndX - rectStartX, rectHeight);
+			let rect = Rect(rectStartX, currentLineY, rectEndX - rectStartX, rectHeight);
 			outRects.Add(rect);
 		}
 	}
