@@ -1,0 +1,135 @@
+using System;
+using Sedulous.Mathematics;
+using Sedulous.Drawing;
+using Sedulous.Foundation.Core;
+
+namespace Sedulous.GUI;
+
+/// A clickable hyperlink text control.
+public class Hyperlink : Button
+{
+	private String mNavigateUri ~ delete _;
+	private EventAccessor<delegate void(Hyperlink, StringView)> mRequestNavigate = new .() ~ delete _;
+
+	/// Event raised when the hyperlink is clicked with a URI.
+	public EventAccessor<delegate void(Hyperlink, StringView)> RequestNavigate => mRequestNavigate;
+
+	/// Creates a new Hyperlink.
+	public this() : base()
+	{
+	}
+
+	/// Creates a new Hyperlink with text content.
+	public this(StringView text) : base(text)
+	{
+	}
+
+	/// Creates a new Hyperlink with text and URI.
+	public this(StringView text, StringView uri) : base(text)
+	{
+		NavigateUri = uri;
+	}
+
+	/// The control type name for theming.
+	protected override StringView ControlTypeName => "Hyperlink";
+
+	/// The URI to navigate to when clicked.
+	public StringView NavigateUri
+	{
+		get => mNavigateUri ?? "";
+		set
+		{
+			if (mNavigateUri == null)
+				mNavigateUri = new String(value);
+			else
+				mNavigateUri.Set(value);
+		}
+	}
+
+	/// Called when the hyperlink is clicked.
+	protected override void OnClick()
+	{
+		// Raise navigation event with URI
+		if (mNavigateUri != null && !mNavigateUri.IsEmpty)
+			mRequestNavigate.[Friend]Invoke(this, mNavigateUri);
+
+		// Call base for command and click event
+		base.OnClick();
+	}
+
+	/// Gets the foreground color for hyperlink states.
+	protected override Color GetStateForeground()
+	{
+		let baseColor = GetHyperlinkColor();
+		switch (CurrentState)
+		{
+		case .Disabled:
+			return Palette.ComputeDisabled(baseColor);
+		case .Pressed:
+			return GetVisitedColor();
+		case .Hover:
+			return baseColor.Interpolate(Color.White, 0.2f);
+		default:
+			return baseColor;
+		}
+	}
+
+	/// Gets the hyperlink color (blue by default).
+	protected Color GetHyperlinkColor()
+	{
+		if (let theme = Context?.Theme)
+			return theme.Palette.Accent;
+		return Color(0, 102, 204, 255); // Standard blue link color
+	}
+
+	/// Gets the visited color (purple by default).
+	protected Color GetVisitedColor()
+	{
+		return Color(128, 0, 128, 255); // Purple
+	}
+
+	/// Renders the hyperlink.
+	protected override void RenderOverride(DrawContext ctx)
+	{
+		let bounds = ArrangedBounds;
+
+		// Hyperlinks typically have transparent background
+		// Just render the content with underline
+
+		// Draw content (text)
+		Content?.Render(ctx);
+
+		// Draw underline on hover
+		if (IsHovered || IsFocused)
+		{
+			let underlineColor = GetStateForeground();
+			let underlineY = bounds.Bottom - 2;
+			ctx.DrawLine(
+				.(bounds.X, underlineY),
+				.(bounds.Right, underlineY),
+				underlineColor,
+				1
+			);
+		}
+
+		// Draw focus indicator
+		if (IsFocused)
+		{
+			let focusColor = FocusBorderColor;
+			let focusThickness = FocusBorderThickness;
+			let focusBounds = RectangleF(
+				bounds.X - focusThickness - 2,
+				bounds.Y - focusThickness,
+				bounds.Width + (focusThickness + 2) * 2,
+				bounds.Height + focusThickness * 2
+			);
+			ctx.DrawRect(focusBounds, focusColor, focusThickness);
+		}
+	}
+
+	/// Gets the background color - transparent for hyperlinks.
+	protected override Color GetStateBackground()
+	{
+		return Color.Transparent;
+	}
+}

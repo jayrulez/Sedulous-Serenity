@@ -142,7 +142,8 @@ public class ContentControl : Control
 			mContent.Render(ctx);
 	}
 
-	/// Hit test: test content first, then self.
+	/// Hit test: check bounds and return self (content is part of this control).
+	/// Content is considered visual decoration, not a separate interactive element.
 	public override UIElement HitTest(Vector2 point)
 	{
 		if (Visibility != .Visible)
@@ -151,13 +152,7 @@ public class ContentControl : Control
 		if (!ArrangedBounds.Contains(point.X, point.Y))
 			return null;
 
-		if (mContent != null)
-		{
-			let hit = mContent.HitTest(point);
-			if (hit != null)
-				return hit;
-		}
-
+		// Content is part of this control - return self, not the content
 		return this;
 	}
 

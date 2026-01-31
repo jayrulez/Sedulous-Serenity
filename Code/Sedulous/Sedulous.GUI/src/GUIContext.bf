@@ -288,11 +288,11 @@ public class GUIContext
 		mDeltaTime = deltaTime;
 		mTotalTime = totalTime;
 
-		// Update layout
-		UpdateLayout();
-
-		// Process any pending mutations
+		// Process any pending mutations first (add/remove children)
 		mMutationQueue.Process(this);
+
+		// Update layout after mutations are applied
+		UpdateLayout();
 	}
 
 	// === Rendering ===

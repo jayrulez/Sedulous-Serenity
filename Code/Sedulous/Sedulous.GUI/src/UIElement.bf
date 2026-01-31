@@ -221,11 +221,12 @@ public abstract class UIElement
 	{
 		get
 		{
+			let effectivePadding = GetEffectivePadding();
 			return RectangleF(
-				mArrangedBounds.X + mPadding.Left,
-				mArrangedBounds.Y + mPadding.Top,
-				mArrangedBounds.Width - mPadding.TotalHorizontal,
-				mArrangedBounds.Height - mPadding.TotalVertical
+				mArrangedBounds.X + effectivePadding.Left,
+				mArrangedBounds.Y + effectivePadding.Top,
+				mArrangedBounds.Width - effectivePadding.TotalHorizontal,
+				mArrangedBounds.Height - effectivePadding.TotalVertical
 			);
 		}
 	}
@@ -359,6 +360,13 @@ public abstract class UIElement
 		mContext?.InvalidateLayout();
 	}
 
+	/// Gets the effective padding for layout calculations.
+	/// Override in subclasses to provide padding from themes or other sources.
+	protected virtual Thickness GetEffectivePadding()
+	{
+		return mPadding;
+	}
+
 	/// Measures the element given the available constraints.
 	/// Returns the desired size.
 	public DesiredSize Measure(SizeConstraints constraints)
@@ -382,10 +390,13 @@ public abstract class UIElement
 		height = Math.Clamp(height, Math.Max(mMinHeight, marginConstraints.MinHeight),
 			Math.Min(mMaxHeight, marginConstraints.MaxHeight));
 
+		// Get effective padding (may come from theme in Control subclasses)
+		let effectivePadding = GetEffectivePadding();
+
 		// Create content constraints
 		let contentConstraints = SizeConstraints.FromMaximum(
-			width - mPadding.TotalHorizontal,
-			height - mPadding.TotalVertical
+			width - effectivePadding.TotalHorizontal,
+			height - effectivePadding.TotalVertical
 		);
 
 		// Let subclass measure its content
@@ -393,9 +404,9 @@ public abstract class UIElement
 
 		// Add padding back
 		if (mWidth.IsAuto)
-			width = contentSize.Width + mPadding.TotalHorizontal;
+			width = contentSize.Width + effectivePadding.TotalHorizontal;
 		if (mHeight.IsAuto)
-			height = contentSize.Height + mPadding.TotalVertical;
+			height = contentSize.Height + effectivePadding.TotalVertical;
 
 		// Apply min/max again
 		width = Math.Clamp(width, mMinWidth, mMaxWidth);
@@ -435,9 +446,10 @@ public abstract class UIElement
 		float actualWidth = mDesiredSize.Width - mMargin.TotalHorizontal;
 		float actualHeight = mDesiredSize.Height - mMargin.TotalVertical;
 
-		if (mHorizontalAlignment == .Stretch)
+		// Only stretch if the dimension is not explicitly fixed
+		if (mHorizontalAlignment == .Stretch && !mWidth.IsFixed)
 			actualWidth = marginRect.Width;
-		if (mVerticalAlignment == .Stretch)
+		if (mVerticalAlignment == .Stretch && !mHeight.IsFixed)
 			actualHeight = marginRect.Height;
 
 		// Apply min/max

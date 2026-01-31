@@ -51,6 +51,7 @@ public class LightTheme : ITheme
 			BorderColor = Color(200, 200, 200, 255),
 			BorderThickness = 1,
 			CornerRadius = 4,
+			Padding = .(10, 4, 10, 4),
 			Hover = .() { Background = Color(230, 230, 230, 255) },
 			Pressed = .() { Background = Color(210, 210, 210, 255) },
 			Focused = .() { BorderColor = mPalette.Accent }
@@ -126,6 +127,82 @@ public class LightTheme : ITheme
 			BorderColor = Color.Transparent,
 			BorderThickness = 0,
 			CornerRadius = 4
+		};
+
+		// RepeatButton style (same as Button)
+		mStyles[new String("RepeatButton")] = .()
+		{
+			Background = Color(240, 240, 240, 255),
+			Foreground = mPalette.Text,
+			BorderColor = Color(200, 200, 200, 255),
+			BorderThickness = 1,
+			CornerRadius = 4,
+			Padding = .(10, 4, 10, 4),
+			Hover = .() { Background = Color(230, 230, 230, 255) },
+			Pressed = .() { Background = Color(210, 210, 210, 255) },
+			Focused = .() { BorderColor = mPalette.Accent }
+		};
+
+		// ToggleButton style
+		mStyles[new String("ToggleButton")] = .()
+		{
+			Background = Color(240, 240, 240, 255),
+			Foreground = mPalette.Text,
+			BorderColor = Color(200, 200, 200, 255),
+			BorderThickness = 1,
+			CornerRadius = 4,
+			Padding = .(10, 4, 10, 4),
+			Hover = .() { Background = Color(230, 230, 230, 255) },
+			Pressed = .() { Background = Color(210, 210, 210, 255) },
+			Focused = .() { BorderColor = mPalette.Accent }
+		};
+
+		// CheckBox style
+		mStyles[new String("CheckBox")] = .()
+		{
+			Background = mPalette.Surface,
+			Foreground = mPalette.Text,
+			BorderColor = Color(150, 150, 150, 255),
+			BorderThickness = 2,
+			CornerRadius = 3,
+			Hover = .() { BorderColor = Color(100, 100, 100, 255) },
+			Focused = .() { BorderColor = mPalette.Accent }
+		};
+
+		// RadioButton style
+		mStyles[new String("RadioButton")] = .()
+		{
+			Background = mPalette.Surface,
+			Foreground = mPalette.Text,
+			BorderColor = Color(150, 150, 150, 255),
+			BorderThickness = 2,
+			CornerRadius = 0, // Circles don't use corner radius
+			Hover = .() { BorderColor = Color(100, 100, 100, 255) },
+			Focused = .() { BorderColor = mPalette.Accent }
+		};
+
+		// ToggleSwitch style
+		mStyles[new String("ToggleSwitch")] = .()
+		{
+			Background = Color(200, 200, 200, 255),  // Track off color
+			Foreground = mPalette.Text,
+			BorderColor = Color(180, 180, 180, 255),
+			BorderThickness = 1,
+			CornerRadius = 12,
+			Hover = .() { BorderColor = Color(150, 150, 150, 255) },
+			Focused = .() { BorderColor = mPalette.Accent }
+		};
+
+		// Hyperlink style
+		mStyles[new String("Hyperlink")] = .()
+		{
+			Background = Color.Transparent,
+			Foreground = mPalette.Accent,
+			BorderColor = Color.Transparent,
+			BorderThickness = 0,
+			CornerRadius = 0,
+			Padding = .(2, 2, 2, 2),
+			Hover = .() { Foreground = Color(0, 120, 215, 255) }  // Darker accent
 		};
 	}
 

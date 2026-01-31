@@ -35,6 +35,7 @@ public abstract class Control : UIElement
 	private Color? mBorderColor;
 	private float? mBorderThickness;
 	private float mCornerRadius = 0;
+	private Thickness? mControlPadding;
 
 	// Focus visual - null means use theme
 	private Color? mFocusBorderColor;
@@ -161,6 +162,27 @@ public abstract class Control : UIElement
 	{
 		get => mCornerRadius;
 		set => mCornerRadius = value;
+	}
+
+	/// Padding (space inside the control). Set to override theme.
+	/// Falls back to theme-defined padding for the control type.
+	public new Thickness Padding
+	{
+		get => mControlPadding ?? GetThemeStyle().Padding;
+		set
+		{
+			mControlPadding = value;
+			base.Padding = value;
+		}
+	}
+
+	/// Gets the effective padding, using theme default if not explicitly set.
+	protected override Thickness GetEffectivePadding()
+	{
+		if (mControlPadding.HasValue)
+			return mControlPadding.Value;
+
+		return GetThemeStyle().Padding;
 	}
 
 	/// Focus indicator border color. Set to override theme.

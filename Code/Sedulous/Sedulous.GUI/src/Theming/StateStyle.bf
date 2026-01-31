@@ -12,6 +12,7 @@ public struct StateStyle
 	public Color? BorderColor;
 	public float? BorderThickness;
 	public float? CornerRadius;
+	public Thickness? Padding;
 
 	/// Creates an empty state style (all values inherit).
 	public static StateStyle Empty => .();
@@ -33,6 +34,7 @@ public struct ControlStyle
 	public Color BorderColor;
 	public float BorderThickness;
 	public float CornerRadius;
+	public Thickness Padding;
 
 	// State overrides
 	public StateStyle Hover;
@@ -109,6 +111,24 @@ public struct ControlStyle
 			return Focused.BorderThickness ?? BorderThickness + 1;
 		default:
 			return BorderThickness;
+		}
+	}
+
+	/// Gets the effective padding for the given state.
+	public Thickness GetPadding(ControlState state)
+	{
+		switch (state)
+		{
+		case .Hover:
+			return Hover.Padding ?? Padding;
+		case .Pressed:
+			return Pressed.Padding ?? Padding;
+		case .Disabled:
+			return Disabled.Padding ?? Padding;
+		case .Focused:
+			return Focused.Padding ?? Padding;
+		default:
+			return Padding;
 		}
 	}
 }

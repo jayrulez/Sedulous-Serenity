@@ -132,8 +132,9 @@ class Phase5Tests
 
 		Test.Assert(!control.IsFocused, "Control should not be focused initially");
 
-		// Simulate click on label
-		ctx.ProcessMouseDown(50, 75, .Left);  // Click on label area
+		// Move mouse over label and click
+		ctx.InputManager.ProcessMouseMove(50, 15);  // Click within label bounds (label is 100x30 at 0,0)
+		ctx.ProcessMouseDown(50, 15, .Left);
 
 		Test.Assert(control.IsFocused, "Control should be focused after clicking label");
 
@@ -393,7 +394,7 @@ class Phase5Tests
 	public static void ServiceRegistry_RegisterAndGet()
 	{
 		let ctx = scope GUIContext();
-		let service = new TestService();
+		let service = scope TestService();
 
 		ctx.RegisterService<TestService>(service);
 
@@ -415,7 +416,7 @@ class Phase5Tests
 
 		Test.Assert(!ctx.HasService<TestService>(), "Service should not exist initially");
 
-		let service = new TestService();
+		let service = scope TestService();
 		ctx.RegisterService<TestService>(service);
 
 		Test.Assert(ctx.HasService<TestService>(), "Service should exist after registration");
