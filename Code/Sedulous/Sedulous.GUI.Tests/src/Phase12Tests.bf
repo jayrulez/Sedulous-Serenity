@@ -354,4 +354,233 @@ class Phase12Tests
 		Test.Assert(button.ContextMenu != null);
 		Test.Assert(button.ContextMenu.ItemCount == 1);
 	}
+
+	// === DragDropEffects Tests ===
+
+	[Test]
+	public static void DragDropEffectsValues()
+	{
+		Test.Assert((int)DragDropEffects.None == 0);
+		Test.Assert((int)DragDropEffects.Copy == 1);
+		Test.Assert((int)DragDropEffects.Move == 2);
+		Test.Assert((int)DragDropEffects.Link == 4);
+		Test.Assert(DragDropEffects.All == (.Copy | .Move | .Link));
+	}
+
+	[Test]
+	public static void DragDropEffectsCombinations()
+	{
+		let copyMove = DragDropEffects.Copy | .Move;
+		Test.Assert(copyMove.HasFlag(.Copy));
+		Test.Assert(copyMove.HasFlag(.Move));
+		Test.Assert(!copyMove.HasFlag(.Link));
+	}
+
+	// === DragData Tests ===
+
+	[Test]
+	public static void DragDataDefaultProperties()
+	{
+		let data = scope DragData("test/format");
+		Test.Assert(data.Format == "test/format");
+	}
+
+	[Test]
+	public static void DragDataSetAndGetData()
+	{
+		let data = scope DragData("text/plain");
+		let testString = scope String("Test Value");
+		data.SetData("text/plain", testString);
+
+		Test.Assert(data.HasFormat("text/plain"));
+		Test.Assert(!data.HasFormat("text/html"));
+
+		let retrieved = data.GetData("text/plain");
+		Test.Assert(retrieved == testString);
+	}
+
+	[Test]
+	public static void DragDataMultipleFormats()
+	{
+		let data = scope DragData("text/plain");
+		let text1 = scope String("Plain text");
+		let text2 = scope String("HTML text");
+
+		data.SetData("text/plain", text1);
+		data.SetData("text/html", text2);
+
+		Test.Assert(data.HasFormat("text/plain"));
+		Test.Assert(data.HasFormat("text/html"));
+		Test.Assert(data.GetData("text/plain") == text1);
+		Test.Assert(data.GetData("text/html") == text2);
+	}
+
+	// === TextDragData Tests ===
+
+	[Test]
+	public static void TextDragDataCreation()
+	{
+		let data = scope TextDragData("Hello World");
+		Test.Assert(data.Format == DragDataFormats.Text);
+		Test.Assert(data.HasFormat(DragDataFormats.Text));
+		Test.Assert(data.Text == "Hello World");
+	}
+
+	[Test]
+	public static void TextDragDataGetText()
+	{
+		let data = scope TextDragData("Original Text");
+		Test.Assert(data.Text == "Original Text");
+	}
+
+	// === ElementDragData Tests ===
+
+	[Test]
+	public static void ElementDragDataCreation()
+	{
+		let button = scope Button("Test");
+		let data = scope ElementDragData(button);
+
+		Test.Assert(data.Format == DragDataFormats.UIElement);
+		Test.Assert(data.HasFormat(DragDataFormats.UIElement));
+		Test.Assert(data.GetElement() == button);
+	}
+
+	// === DragEventArgs Tests ===
+
+	[Test]
+	public static void DragEventArgsCreation()
+	{
+		let data = scope DragData("test");
+		let args = scope DragEventArgs(data, .(100, 200), .Copy | .Move);
+
+		Test.Assert(args.Data == data);
+		Test.Assert(args.Position.X == 100);
+		Test.Assert(args.Position.Y == 200);
+		Test.Assert(args.AllowedEffects == (.Copy | .Move));
+		Test.Assert(args.Effect == .None);
+		Test.Assert(!args.Handled);
+	}
+
+	[Test]
+	public static void DragEventArgsIsEffectAllowed()
+	{
+		let data = scope DragData("test");
+		let args = scope DragEventArgs(data, .(0, 0), .Copy | .Move);
+
+		Test.Assert(args.IsEffectAllowed(.Copy));
+		Test.Assert(args.IsEffectAllowed(.Move));
+		Test.Assert(!args.IsEffectAllowed(.Link));
+	}
+
+	[Test]
+	public static void DragEventArgsSetEffect()
+	{
+		let data = scope DragData("test");
+		let args = scope DragEventArgs(data, .(0, 0), .All);
+
+		args.Effect = .Move;
+		Test.Assert(args.Effect == .Move);
+
+		args.Effect = .Copy;
+		Test.Assert(args.Effect == .Copy);
+	}
+
+	// === DragAdorner Tests ===
+
+	[Test]
+	public static void DragAdornerDefaultProperties()
+	{
+		let adorner = scope DragAdorner();
+		Test.Assert(adorner.Effect == .None);
+		Test.Assert(adorner.IsVisible == true);
+		Test.Assert(adorner.Label == null);
+		Test.Assert(adorner.Size.X == 64);
+		Test.Assert(adorner.Size.Y == 32);
+	}
+
+	[Test]
+	public static void DragAdornerSetLabel()
+	{
+		let adorner = scope DragAdorner();
+		adorner.SetLabel("Test Label");
+		Test.Assert(adorner.Label != null);
+		Test.Assert(adorner.Label == "Test Label");
+
+		adorner.SetLabel("New Label");
+		Test.Assert(adorner.Label == "New Label");
+	}
+
+	[Test]
+	public static void DragAdornerReset()
+	{
+		let adorner = scope DragAdorner();
+		adorner.Position = .(100, 200);
+		adorner.Effect = .Move;
+		adorner.SetLabel("Test");
+		adorner.Size = .(200, 100);
+		adorner.IsVisible = false;
+
+		adorner.Reset();
+
+		Test.Assert(adorner.Position == .Zero);
+		Test.Assert(adorner.Effect == .None);
+		Test.Assert(adorner.Label == null);
+		Test.Assert(adorner.Size.X == 64);
+		Test.Assert(adorner.Size.Y == 32);
+		Test.Assert(adorner.IsVisible == true);
+	}
+
+	// === DragDropManager Tests ===
+
+	[Test]
+	public static void DragDropManagerDefaultProperties()
+	{
+		let context = scope GUIContext();
+		let manager = context.DragDropManager;
+
+		Test.Assert(manager != null);
+		Test.Assert(manager.IsDragging == false);
+		Test.Assert(manager.IsDragPending == false);
+		Test.Assert(manager.DragData == null);
+		Test.Assert(manager.DragSource == null);
+		Test.Assert(manager.CurrentDropTarget == null);
+		Test.Assert(manager.CurrentEffect == .None);
+	}
+
+	[Test]
+	public static void DragDropManagerDragThreshold()
+	{
+		let context = scope GUIContext();
+		let manager = context.DragDropManager;
+
+		Test.Assert(manager.DragThreshold == 4.0f);  // Default
+
+		manager.DragThreshold = 8.0f;
+		Test.Assert(manager.DragThreshold == 8.0f);
+
+		// Minimum threshold is 1
+		manager.DragThreshold = 0.0f;
+		Test.Assert(manager.DragThreshold == 1.0f);
+	}
+
+	[Test]
+	public static void DragDropManagerAdorner()
+	{
+		let context = scope GUIContext();
+		let manager = context.DragDropManager;
+
+		Test.Assert(manager.Adorner != null);
+		Test.Assert(manager.Adorner.IsVisible == true);
+	}
+
+	// === DragDataFormats Tests ===
+
+	[Test]
+	public static void DragDataFormatsConstants()
+	{
+		Test.Assert(DragDataFormats.Text == "text/plain");
+		Test.Assert(DragDataFormats.FilePath == "application/file-path");
+		Test.Assert(DragDataFormats.UIElement == "application/ui-element");
+	}
 }

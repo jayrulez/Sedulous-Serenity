@@ -91,6 +91,9 @@ public class GUIContext
 	// Modal manager
 	private ModalManager mModalManager ~ delete _;
 
+	// Drag drop manager
+	private DragDropManager mDragDropManager ~ delete _;
+
 	/// Creates a new GUIContext.
 	public this()
 	{
@@ -100,9 +103,11 @@ public class GUIContext
 		mPopupLayer.OnAttachedToContext(this);
 		mTooltipService = new TooltipService(this);
 		mModalManager = new ModalManager(this);
+		mDragDropManager = new DragDropManager(this);
 
 		// Register services for access via GetService<T>()
 		RegisterService(mModalManager);
+		RegisterService(mDragDropManager);
 	}
 
 	/// The current theme.
@@ -190,6 +195,9 @@ public class GUIContext
 
 	/// The modal manager for managing modal dialogs.
 	public ModalManager ModalManager => mModalManager;
+
+	/// The drag drop manager for this context.
+	public DragDropManager DragDropManager => mDragDropManager;
 
 	/// UI scale factor (default 1.0). Affects all layout and rendering.
 	/// Valid range: 0.5 to 3.0
@@ -376,6 +384,9 @@ public class GUIContext
 		if (mPopupLayer.HasPopups)
 			mPopupLayer.Render(ctx);
 
+		// Render drag adorner on top of everything
+		mDragDropManager?.Render(ctx);
+
 		// Debug visualization
 		if (mDebugSettings.ShowLayoutBounds || mDebugSettings.ShowMargins ||
 			mDebugSettings.ShowPadding || mDebugSettings.ShowFocused ||
@@ -551,6 +562,7 @@ public class GUIContext
 	{
 		mInputManager?.OnElementDeleted(element);
 		mFocusManager?.OnElementDeleted(element);
+		mDragDropManager?.OnElementDeleted(element);
 	}
 
 	// === Input Processing ===

@@ -74,6 +74,9 @@ class GUISandboxApp : RHISampleApp
 	// PopupDialog demo instance (has state)
 	private PopupDialogDemo mPopupDialogDemo ~ delete _;
 
+	// DragDrop demo instance (has state)
+	private DragDropDemo mDragDropDemo ~ delete _;
+
 	// Clipboard adapter
 	private ShellClipboardAdapter mClipboard ~ delete _;
 
@@ -154,6 +157,7 @@ class GUISandboxApp : RHISampleApp
 		Console.WriteLine("  B: List Controls (Phase 9)");
 		Console.WriteLine("  C: Tab & Navigation Controls (Phase 10)");
 		Console.WriteLine("  D: Tree & Hierarchical Controls (Phase 11)");
+		Console.WriteLine("  E: Popup & Dialog (Phase 12a) | F: Drag and Drop (Phase 12b)");
 		Console.WriteLine("  T: Toggle theme | Tab: Navigate focus | F2: Debug");
 		Console.WriteLine("  Ctrl +/-: Adjust UI scale");
 		Console.WriteLine("  ESC: Exit");
@@ -250,6 +254,13 @@ class GUISandboxApp : RHISampleApp
 			mPopupDialogDemo = null;
 		}
 
+		// Clean up DragDrop demo when switching away
+		if (demo != .DragDrop && mDragDropDemo != null)
+		{
+			delete mDragDropDemo;
+			mDragDropDemo = null;
+		}
+
 		// Create new demo
 		switch (demo)
 		{
@@ -297,6 +308,10 @@ class GUISandboxApp : RHISampleApp
 			if (mPopupDialogDemo == null)
 				mPopupDialogDemo = new PopupDialogDemo();
 			mDemoRoot = mPopupDialogDemo.CreateDemo(mGUIContext);
+		case .DragDrop:
+			if (mDragDropDemo == null)
+				mDragDropDemo = new DragDropDemo();
+			mDemoRoot = mDragDropDemo.CreateDemo(mGUIContext);
 		}
 
 		mGUIContext.RootElement = mDemoRoot;
@@ -345,6 +360,8 @@ class GUISandboxApp : RHISampleApp
 				SwitchDemo(.TreeView);
 			if (keyboard.IsKeyPressed(.E))
 				SwitchDemo(.PopupDialog);
+			if (keyboard.IsKeyPressed(.F))
+				SwitchDemo(.DragDrop);
 		}
 
 		// UI Scale with Ctrl+/Ctrl-
@@ -691,6 +708,7 @@ class GUISandboxApp : RHISampleApp
 		case .TabNavigation: return "Tab Navigation";
 		case .TreeView: return "Tree & Hierarchical";
 		case .PopupDialog: return "Popup & Dialog";
+		case .DragDrop: return "Drag and Drop";
 		}
 	}
 

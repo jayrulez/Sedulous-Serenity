@@ -29,6 +29,13 @@ public class InputManager
 	{
 		mLastMousePosition = .(x, y);
 
+		// Update drag operation if in progress
+		let dragManager = mContext.DragDropManager;
+		if (dragManager != null && (dragManager.IsDragging || dragManager.IsDragPending))
+		{
+			dragManager.UpdateDrag(.(x, y));
+		}
+
 		// If there's a capture, route to captured element
 		let captured = mContext.FocusManager?.CapturedElement;
 		if (captured != null)
@@ -110,6 +117,14 @@ public class InputManager
 	public void ProcessMouseUp(float x, float y, MouseButton button, KeyModifiers modifiers = .None)
 	{
 		mLastMousePosition = .(x, y);
+
+		// End drag operation if left button released while dragging
+		let dragManager = mContext.DragDropManager;
+		if (button == .Left && dragManager != null && (dragManager.IsDragging || dragManager.IsDragPending))
+		{
+			dragManager.EndDrag(.(x, y));
+			return;  // Drag handled the mouse up
+		}
 
 		// If there's a capture, route to captured element
 		let captured = mContext.FocusManager?.CapturedElement;
