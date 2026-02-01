@@ -240,10 +240,31 @@ public class ScrollViewer : ContentControl
 
 	protected override DesiredSize MeasureOverride(SizeConstraints constraints)
 	{
-		// Measure content with infinite constraints to get its full desired size
+		// Measure content - use infinite constraints only in directions where scrolling is enabled
 		if (Content != null && Content.Visibility != .Collapsed)
 		{
-			let contentConstraints = SizeConstraints(0, 0, SizeConstraints.Infinity, SizeConstraints.Infinity);
+			// When scrolling is disabled in a direction, constrain content to available space
+			// This allows WrapPanel and similar controls to wrap properly
+			float contentMaxWidth = SizeConstraints.Infinity;
+			float contentMaxHeight = SizeConstraints.Infinity;
+
+			if (mHorizontalScrollBarVisibility == .Disabled)
+			{
+				// No horizontal scrolling - constrain width (accounting for potential vertical scrollbar)
+				contentMaxWidth = constraints.MaxWidth != SizeConstraints.Infinity
+					? constraints.MaxWidth - (mVerticalScrollBarVisibility != .Disabled && mVerticalScrollBarVisibility != .Hidden ? mScrollBarThickness : 0)
+					: SizeConstraints.Infinity;
+			}
+
+			if (mVerticalScrollBarVisibility == .Disabled)
+			{
+				// No vertical scrolling - constrain height (accounting for potential horizontal scrollbar)
+				contentMaxHeight = constraints.MaxHeight != SizeConstraints.Infinity
+					? constraints.MaxHeight - (mHorizontalScrollBarVisibility != .Disabled && mHorizontalScrollBarVisibility != .Hidden ? mScrollBarThickness : 0)
+					: SizeConstraints.Infinity;
+			}
+
+			let contentConstraints = SizeConstraints(0, 0, contentMaxWidth, contentMaxHeight);
 			let contentSize = Content.Measure(contentConstraints);
 			mExtentWidth = contentSize.Width;
 			mExtentHeight = contentSize.Height;

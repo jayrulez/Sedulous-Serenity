@@ -388,6 +388,52 @@ public class LightTheme : ITheme
 			Padding = .(4, 2, 4, 2),
 			Hover = .() { Background = Color(230, 230, 230, 255) }
 		};
+
+		// TreeView style
+		mStyles[new String("TreeView")] = .()
+		{
+			Background = Color(255, 255, 255, 255),
+			Foreground = mPalette.Text,
+			BorderColor = mPalette.Border,
+			BorderThickness = 1,
+			CornerRadius = 4,
+			Focused = .() { BorderColor = mPalette.Accent }
+		};
+
+		// TreeViewItem style
+		mStyles[new String("TreeViewItem")] = .()
+		{
+			Background = Color.Transparent,
+			Foreground = mPalette.Text,
+			BorderColor = Color.Transparent,
+			BorderThickness = 0,
+			CornerRadius = 0,
+			Padding = .(4, 2, 4, 2),
+			Hover = .() { Background = Color(230, 230, 230, 255) }
+		};
+
+		// TileView style
+		mStyles[new String("TileView")] = .()
+		{
+			Background = Color(255, 255, 255, 255),
+			Foreground = mPalette.Text,
+			BorderColor = mPalette.Border,
+			BorderThickness = 1,
+			CornerRadius = 4,
+			Focused = .() { BorderColor = mPalette.Accent }
+		};
+
+		// TileViewItem style
+		mStyles[new String("TileViewItem")] = .()
+		{
+			Background = Color.Transparent,
+			Foreground = mPalette.Text,
+			BorderColor = Color.Transparent,
+			BorderThickness = 0,
+			CornerRadius = 4,
+			Padding = .(4, 4, 4, 4),
+			Hover = .() { Background = Color(230, 230, 230, 255) }
+		};
 	}
 
 	public StringView Name => "Light";

@@ -155,4 +155,5 @@ enum DemoType
 	case Scrolling;
 	case ListControls;
 	case TabNavigation;
+	case TreeView;
 }

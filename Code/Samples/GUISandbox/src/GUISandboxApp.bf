@@ -68,6 +68,9 @@ class GUISandboxApp : RHISampleApp
 	// Tab navigation demo instance (has state)
 	private TabNavigationDemo mTabNavigationDemo ~ delete _;
 
+	// TreeView demo instance (has state)
+	private TreeViewDemo mTreeViewDemo ~ delete _;
+
 	// Clipboard adapter
 	private ShellClipboardAdapter mClipboard ~ delete _;
 
@@ -136,7 +139,7 @@ class GUISandboxApp : RHISampleApp
 		// Initialize GUI
 		InitializeGUI();
 
-		Console.WriteLine("GUISandbox Phase 3, 4, 5, 6 & 7 initialized.");
+		Console.WriteLine("GUISandbox Phase 3-11 initialized.");
 		Console.WriteLine("  0: Focus & Theme demo (Phase 3)");
 		Console.WriteLine("  1-6: Layout demos (Phase 4)");
 		Console.WriteLine("    1: StackPanel  2: Grid  3: Canvas");
@@ -147,6 +150,7 @@ class GUISandboxApp : RHISampleApp
 		Console.WriteLine("  A: Scrolling & Range Controls (Phase 8)");
 		Console.WriteLine("  B: List Controls (Phase 9)");
 		Console.WriteLine("  C: Tab & Navigation Controls (Phase 10)");
+		Console.WriteLine("  D: Tree & Hierarchical Controls (Phase 11)");
 		Console.WriteLine("  T: Toggle theme | Tab: Navigate focus | F2: Debug");
 		Console.WriteLine("  Ctrl +/-: Adjust UI scale");
 		Console.WriteLine("  ESC: Exit");
@@ -229,6 +233,13 @@ class GUISandboxApp : RHISampleApp
 			mTabNavigationDemo = null;
 		}
 
+		// Clean up TreeView demo when switching away
+		if (demo != .TreeView && mTreeViewDemo != null)
+		{
+			delete mTreeViewDemo;
+			mTreeViewDemo = null;
+		}
+
 		// Create new demo
 		switch (demo)
 		{
@@ -268,6 +279,10 @@ class GUISandboxApp : RHISampleApp
 			if (mTabNavigationDemo == null)
 				mTabNavigationDemo = new TabNavigationDemo();
 			mDemoRoot = mTabNavigationDemo.CreateDemo();
+		case .TreeView:
+			if (mTreeViewDemo == null)
+				mTreeViewDemo = new TreeViewDemo();
+			mDemoRoot = mTreeViewDemo.CreateDemo(mDemoCheckerboard);
 		}
 
 		mGUIContext.RootElement = mDemoRoot;
@@ -312,6 +327,8 @@ class GUISandboxApp : RHISampleApp
 				SwitchDemo(.ListControls);
 			if (keyboard.IsKeyPressed(.C))
 				SwitchDemo(.TabNavigation);
+			if (keyboard.IsKeyPressed(.D))
+				SwitchDemo(.TreeView);
 		}
 
 		// UI Scale with Ctrl+/Ctrl-
@@ -656,6 +673,7 @@ class GUISandboxApp : RHISampleApp
 		case .Scrolling: return "Scrolling";
 		case .ListControls: return "List Controls";
 		case .TabNavigation: return "Tab Navigation";
+		case .TreeView: return "Tree & Hierarchical";
 		}
 	}
 
