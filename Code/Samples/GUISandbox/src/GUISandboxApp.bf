@@ -71,6 +71,9 @@ class GUISandboxApp : RHISampleApp
 	// TreeView demo instance (has state)
 	private TreeViewDemo mTreeViewDemo ~ delete _;
 
+	// PopupDialog demo instance (has state)
+	private PopupDialogDemo mPopupDialogDemo ~ delete _;
+
 	// Clipboard adapter
 	private ShellClipboardAdapter mClipboard ~ delete _;
 
@@ -240,6 +243,13 @@ class GUISandboxApp : RHISampleApp
 			mTreeViewDemo = null;
 		}
 
+		// Clean up PopupDialog demo when switching away
+		if (demo != .PopupDialog && mPopupDialogDemo != null)
+		{
+			delete mPopupDialogDemo;
+			mPopupDialogDemo = null;
+		}
+
 		// Create new demo
 		switch (demo)
 		{
@@ -283,6 +293,10 @@ class GUISandboxApp : RHISampleApp
 			if (mTreeViewDemo == null)
 				mTreeViewDemo = new TreeViewDemo();
 			mDemoRoot = mTreeViewDemo.CreateDemo(mDemoCheckerboard);
+		case .PopupDialog:
+			if (mPopupDialogDemo == null)
+				mPopupDialogDemo = new PopupDialogDemo();
+			mDemoRoot = mPopupDialogDemo.CreateDemo(mGUIContext);
 		}
 
 		mGUIContext.RootElement = mDemoRoot;
@@ -297,8 +311,8 @@ class GUISandboxApp : RHISampleApp
 		let modifiers = InputMapping.MapModifiers(keyboard.Modifiers);
 
 		// Switch demos with number keys (only when not typing in a text control)
-		// Skip demo switching when a textbox has focus
-		bool textControlFocused = mCurrentDemo == .TextInput && mGUIContext.FocusManager?.FocusedElement != null;
+		// Skip demo switching when a TextBox has focus (any demo, including dialogs)
+		bool textControlFocused = mGUIContext.FocusManager?.FocusedElement is TextBox;
 		if (!textControlFocused)
 		{
 			if (keyboard.IsKeyPressed(.Num0) || keyboard.IsKeyPressed(.Keypad0))
@@ -329,6 +343,8 @@ class GUISandboxApp : RHISampleApp
 				SwitchDemo(.TabNavigation);
 			if (keyboard.IsKeyPressed(.D))
 				SwitchDemo(.TreeView);
+			if (keyboard.IsKeyPressed(.E))
+				SwitchDemo(.PopupDialog);
 		}
 
 		// UI Scale with Ctrl+/Ctrl-
@@ -674,6 +690,7 @@ class GUISandboxApp : RHISampleApp
 		case .ListControls: return "List Controls";
 		case .TabNavigation: return "Tab Navigation";
 		case .TreeView: return "Tree & Hierarchical";
+		case .PopupDialog: return "Popup & Dialog";
 		}
 	}
 

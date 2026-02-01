@@ -41,6 +41,12 @@ public abstract class Control : UIElement
 	private Color? mFocusBorderColor;
 	private float? mFocusBorderThickness;
 
+	// Tooltip text
+	private String mTooltipText ~ delete _;
+
+	// Context menu (owned by the control)
+	private ContextMenu mContextMenu ~ delete _;
+
 	/// Creates a Control with focus enabled by default.
 	public this()
 	{
@@ -199,6 +205,32 @@ public abstract class Control : UIElement
 		set => mFocusBorderThickness = value;
 	}
 
+	/// Tooltip text shown when hovering over this control.
+	public StringView TooltipText
+	{
+		get => mTooltipText ?? "";
+		set
+		{
+			if (mTooltipText == null)
+				mTooltipText = new String(value);
+			else
+				mTooltipText.Set(value);
+		}
+	}
+
+	/// The context menu shown on right-click.
+	/// The control takes ownership and will delete the menu.
+	public ContextMenu ContextMenu
+	{
+		get => mContextMenu;
+		set
+		{
+			if (mContextMenu != null)
+				delete mContextMenu;
+			mContextMenu = value;
+		}
+	}
+
 	/// Updates the current control state based on flags.
 	protected void UpdateControlState()
 	{
@@ -334,6 +366,41 @@ public abstract class Control : UIElement
 			// Request focus when clicked
 			if (IsFocusable)
 				Context?.FocusManager?.SetFocus(this);
+		}
+		else if (e.Button == .Right && IsEffectivelyEnabled && Context != null)
+		{
+			// Find context menu - check this control and ancestors
+			ContextMenu menu = mContextMenu;
+			UIElement menuOwner = this;
+
+			if (menu == null)
+			{
+				// Search up parent chain for a context menu
+				var parent = Parent;
+				while (parent != null && menu == null)
+				{
+					if (let parentControl = parent as Control)
+					{
+						if (parentControl.ContextMenu != null)
+						{
+							menu = parentControl.ContextMenu;
+							menuOwner = parentControl;
+							break;
+						}
+					}
+					parent = parent.Parent;
+				}
+			}
+
+			if (menu != null)
+			{
+				// Attach context menu to context if needed
+				if (menu.Context == null)
+					menu.OnAttachedToContext(Context);
+				// Show context menu on right-click
+				menu.Show(menuOwner, .(e.ScreenX, e.ScreenY));
+				e.Handled = true;
+			}
 		}
 		base.OnMouseDown(e);
 	}

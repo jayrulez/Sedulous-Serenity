@@ -147,6 +147,14 @@ public class InputManager
 		// Handle Tab navigation (but not Ctrl+Tab which controls use for tab cycling)
 		if (key == .Tab && !modifiers.HasFlag(.Ctrl))
 		{
+			// If modal is active, use modal's focus trapping
+			if (mContext.ModalManager?.HasModal == true)
+			{
+				if (mContext.ModalManager.HandleTabNavigation(modifiers.HasFlag(.Shift)))
+					return;
+			}
+
+			// Normal Tab navigation
 			if (modifiers.HasFlag(.Shift))
 				mContext.FocusManager?.FocusPrevious();
 			else

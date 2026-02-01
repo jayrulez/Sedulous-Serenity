@@ -89,6 +89,13 @@ public class PopupLayer : Container
 				if (let popupOwner = owner as IPopupOwner)
 					popupOwner.OnPopupClosed(popup);
 
+				// Also notify popup itself if it implements IPopupOwner (for Flyout, etc.)
+				if (popup != owner)
+				{
+					if (let popupSelf = popup as IPopupOwner)
+						popupSelf.OnPopupClosed(popup);
+				}
+
 				delete info;
 				InvalidateLayout();
 				break;
@@ -109,6 +116,13 @@ public class PopupLayer : Container
 			// Notify owner if it implements IPopupOwner
 			if (let popupOwner = owner as IPopupOwner)
 				popupOwner.OnPopupClosed(popup);
+
+			// Also notify popup itself if it implements IPopupOwner
+			if (popup != owner)
+			{
+				if (let popupSelf = popup as IPopupOwner)
+					popupSelf.OnPopupClosed(popup);
+			}
 
 			delete info;
 		}
@@ -132,6 +146,13 @@ public class PopupLayer : Container
 				// Notify owner if it implements IPopupOwner
 				if (let popupOwner = owner as IPopupOwner)
 					popupOwner.OnPopupClosed(popup);
+
+				// Also notify popup itself if it implements IPopupOwner
+				if (popup != owner)
+				{
+					if (let popupSelf = popup as IPopupOwner)
+						popupSelf.OnPopupClosed(popup);
+				}
 
 				delete info;
 			}
@@ -179,18 +200,10 @@ public class PopupLayer : Container
 			let popup = info.Popup;
 			let hitResult = popup.HitTest(point);
 
-			// If click is outside this popup
+			// If click is outside this popup, close it
+			// (clicks on the owner also close the popup - the owner can handle re-opening if needed)
 			if (hitResult == null)
 			{
-				// Also check if click is on the owner (don't close if clicking owner)
-				if (info.Owner != null)
-				{
-					let ownerHit = info.Owner.HitTest(point);
-					if (ownerHit != null)
-						continue;  // Click on owner, don't close
-				}
-
-				// Close this popup
 				ClosePopup(popup);
 				return true;
 			}

@@ -85,6 +85,12 @@ public class GUIContext
 	// Popup layer (for dropdowns, menus, tooltips)
 	private PopupLayer mPopupLayer = new .() ~ delete _;
 
+	// Tooltip service
+	private TooltipService mTooltipService ~ delete _;
+
+	// Modal manager
+	private ModalManager mModalManager ~ delete _;
+
 	/// Creates a new GUIContext.
 	public this()
 	{
@@ -92,6 +98,11 @@ public class GUIContext
 		mFocusManager = new FocusManager(this);
 		mTheme = new DarkTheme();
 		mPopupLayer.OnAttachedToContext(this);
+		mTooltipService = new TooltipService(this);
+		mModalManager = new ModalManager(this);
+
+		// Register services for access via GetService<T>()
+		RegisterService(mModalManager);
 	}
 
 	/// The current theme.
@@ -173,6 +184,12 @@ public class GUIContext
 
 	/// The popup layer for showing dropdowns, menus, and tooltips.
 	public PopupLayer PopupLayer => mPopupLayer;
+
+	/// The tooltip service for managing tooltip display.
+	public TooltipService TooltipService => mTooltipService;
+
+	/// The modal manager for managing modal dialogs.
+	public ModalManager ModalManager => mModalManager;
 
 	/// UI scale factor (default 1.0). Affects all layout and rendering.
 	/// Valid range: 0.5 to 3.0
@@ -327,6 +344,9 @@ public class GUIContext
 
 		// Update layout after mutations are applied
 		UpdateLayout();
+
+		// Update tooltip service (show/hide based on hover timing)
+		mTooltipService?.Update(totalTime);
 	}
 
 	// === Rendering ===
@@ -345,6 +365,9 @@ public class GUIContext
 		}
 
 		mRootElement.Render(ctx);
+
+		// Render modal backdrop if needed
+		mModalManager?.RenderBackdrop(ctx);
 
 		// Render popups on top
 		if (mPopupLayer.HasPopups)
@@ -536,15 +559,19 @@ public class GUIContext
 		let scaledX = x / mScaleFactor;
 		let scaledY = y / mScaleFactor;
 
-		// Handle click-outside-to-close for popups
-		if (mPopupLayer.HasPopups && button == .Left)
+		// Handle click-outside-to-close for popups (both LMB and RMB)
+		if (mPopupLayer.HasPopups)
 		{
 			let point = Vector2(scaledX, scaledY);
 			if (mPopupLayer.HandleClickOutside(point))
 			{
-				// A popup was closed - don't process further
-				// (prevents the click from being processed by underlying elements)
-				return;
+				// A popup was closed
+				if (button == .Left)
+				{
+					// For LMB, don't process further (prevents click from going to underlying elements)
+					return;
+				}
+				// For RMB, continue processing so a new context menu can open
 			}
 		}
 

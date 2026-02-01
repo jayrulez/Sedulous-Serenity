@@ -156,4 +156,5 @@ enum DemoType
 	case ListControls;
 	case TabNavigation;
 	case TreeView;
+	case PopupDialog;
 }
