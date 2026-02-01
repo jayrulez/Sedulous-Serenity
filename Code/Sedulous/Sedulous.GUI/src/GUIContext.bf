@@ -82,12 +82,16 @@ public class GUIContext
 	// UI scaling
 	private float mScaleFactor = 1.0f;
 
+	// Popup layer (for dropdowns, menus, tooltips)
+	private PopupLayer mPopupLayer = new .() ~ delete _;
+
 	/// Creates a new GUIContext.
 	public this()
 	{
 		mInputManager = new InputManager(this);
 		mFocusManager = new FocusManager(this);
 		mTheme = new DarkTheme();
+		mPopupLayer.OnAttachedToContext(this);
 	}
 
 	/// The current theme.
@@ -166,6 +170,9 @@ public class GUIContext
 
 	/// Debug visualization settings.
 	public ref DebugSettings DebugSettings => ref mDebugSettings;
+
+	/// The popup layer for showing dropdowns, menus, and tooltips.
+	public PopupLayer PopupLayer => mPopupLayer;
 
 	/// UI scale factor (default 1.0). Affects all layout and rendering.
 	/// Valid range: 0.5 to 3.0
@@ -295,6 +302,13 @@ public class GUIContext
 		let viewport = RectangleF(0, 0, scaledWidth, scaledHeight);
 		mRootElement.Arrange(viewport);
 
+		// Layout popup layer (uses full viewport)
+		if (mPopupLayer.HasPopups)
+		{
+			mPopupLayer.Measure(constraints);
+			mPopupLayer.Arrange(viewport);
+		}
+
 		mLayoutDirty = false;
 	}
 
@@ -331,6 +345,10 @@ public class GUIContext
 		}
 
 		mRootElement.Render(ctx);
+
+		// Render popups on top
+		if (mPopupLayer.HasPopups)
+			mPopupLayer.Render(ctx);
 
 		// Debug visualization
 		if (mDebugSettings.ShowLayoutBounds || mDebugSettings.ShowMargins ||
@@ -444,14 +462,23 @@ public class GUIContext
 	/// Returns the topmost element at that position, or null.
 	public UIElement HitTest(float x, float y)
 	{
-		if (mRootElement == null)
-			return null;
-
 		// Inverse-scale input coordinates to match layout coordinates
 		let scaledX = x / mScaleFactor;
 		let scaledY = y / mScaleFactor;
+		let point = Vector2(scaledX, scaledY);
 
-		return mRootElement.HitTest(.(scaledX, scaledY));
+		// Check popup layer first (popups are always on top)
+		if (mPopupLayer.HasPopups)
+		{
+			let popupHit = mPopupLayer.HitTest(point);
+			if (popupHit != null)
+				return popupHit;
+		}
+
+		if (mRootElement == null)
+			return null;
+
+		return mRootElement.HitTest(point);
 	}
 
 	/// Performs hit testing at the given logical coordinates.
@@ -459,10 +486,20 @@ public class GUIContext
 	/// Returns the topmost element at that position, or null.
 	public UIElement HitTestLogical(float x, float y)
 	{
+		let point = Vector2(x, y);
+
+		// Check popup layer first (popups are always on top)
+		if (mPopupLayer.HasPopups)
+		{
+			let popupHit = mPopupLayer.HitTest(point);
+			if (popupHit != null)
+				return popupHit;
+		}
+
 		if (mRootElement == null)
 			return null;
 
-		return mRootElement.HitTest(.(x, y));
+		return mRootElement.HitTest(point);
 	}
 
 	// === Deletion ===
@@ -494,16 +531,31 @@ public class GUIContext
 
 	/// Process a mouse button down event.
 	/// Coordinates are automatically inverse-scaled by the ScaleFactor.
-	public void ProcessMouseDown(float x, float y, MouseButton button)
+	public void ProcessMouseDown(float x, float y, MouseButton button, KeyModifiers modifiers = .None)
 	{
-		mInputManager?.ProcessMouseDown(x / mScaleFactor, y / mScaleFactor, button);
+		let scaledX = x / mScaleFactor;
+		let scaledY = y / mScaleFactor;
+
+		// Handle click-outside-to-close for popups
+		if (mPopupLayer.HasPopups && button == .Left)
+		{
+			let point = Vector2(scaledX, scaledY);
+			if (mPopupLayer.HandleClickOutside(point))
+			{
+				// A popup was closed - don't process further
+				// (prevents the click from being processed by underlying elements)
+				return;
+			}
+		}
+
+		mInputManager?.ProcessMouseDown(scaledX, scaledY, button, modifiers);
 	}
 
 	/// Process a mouse button up event.
 	/// Coordinates are automatically inverse-scaled by the ScaleFactor.
-	public void ProcessMouseUp(float x, float y, MouseButton button)
+	public void ProcessMouseUp(float x, float y, MouseButton button, KeyModifiers modifiers = .None)
 	{
-		mInputManager?.ProcessMouseUp(x / mScaleFactor, y / mScaleFactor, button);
+		mInputManager?.ProcessMouseUp(x / mScaleFactor, y / mScaleFactor, button, modifiers);
 	}
 
 	/// Process a mouse wheel event.

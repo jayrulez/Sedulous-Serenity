@@ -273,6 +273,52 @@ public class LightTheme : ITheme
 			CornerRadius = 0,
 			Hover = .() { Background = Color(200, 200, 200, 255) }
 		};
+
+		// ItemsControl style
+		mStyles[new String("ItemsControl")] = .()
+		{
+			Background = mPalette.Surface,
+			Foreground = mPalette.Text,
+			BorderColor = mPalette.Border,
+			BorderThickness = 1,
+			CornerRadius = 0
+		};
+
+		// ListBox style
+		mStyles[new String("ListBox")] = .()
+		{
+			Background = mPalette.Surface,
+			Foreground = mPalette.Text,
+			BorderColor = mPalette.Border,
+			BorderThickness = 1,
+			CornerRadius = 4,
+			Focused = .() { BorderColor = mPalette.Accent }
+		};
+
+		// ListBoxItem style
+		mStyles[new String("ListBoxItem")] = .()
+		{
+			Background = Color.Transparent,
+			Foreground = mPalette.Text,
+			BorderColor = Color.Transparent,
+			BorderThickness = 0,
+			CornerRadius = 0,
+			Padding = .(8, 4, 8, 4),
+			Hover = .() { Background = Color(230, 230, 230, 255) }
+		};
+
+		// ComboBox style
+		mStyles[new String("ComboBox")] = .()
+		{
+			Background = mPalette.Surface,
+			Foreground = mPalette.Text,
+			BorderColor = mPalette.Border,
+			BorderThickness = 1,
+			CornerRadius = 4,
+			Padding = .(8, 4, 8, 4),
+			Hover = .() { BorderColor = Color(150, 150, 150, 255) },
+			Focused = .() { BorderColor = mPalette.Accent }
+		};
 	}
 
 	public StringView Name => "Light";

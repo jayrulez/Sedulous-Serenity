@@ -73,7 +73,7 @@ public class InputManager
 	}
 
 	/// Process a mouse button down event.
-	public void ProcessMouseDown(float x, float y, MouseButton button)
+	public void ProcessMouseDown(float x, float y, MouseButton button, KeyModifiers modifiers = .None)
 	{
 		mLastMousePosition = .(x, y);
 
@@ -81,7 +81,7 @@ public class InputManager
 		let captured = mContext.FocusManager?.CapturedElement;
 		if (captured != null)
 		{
-			let args = scope MouseButtonEventArgs(x, y, button);
+			let args = scope MouseButtonEventArgs(x, y, button, modifiers);
 			InvokeMouseDown(captured, args);
 			return;
 		}
@@ -89,7 +89,7 @@ public class InputManager
 		let hitElement = mContext.HitTestLogical(x, y);
 		if (hitElement != null)
 		{
-			let args = scope MouseButtonEventArgs(x, y, button);
+			let args = scope MouseButtonEventArgs(x, y, button, modifiers);
 			InvokeMouseDown(hitElement, args);
 
 			// If clicked element is not focusable and didn't handle the event
@@ -107,7 +107,7 @@ public class InputManager
 	}
 
 	/// Process a mouse button up event.
-	public void ProcessMouseUp(float x, float y, MouseButton button)
+	public void ProcessMouseUp(float x, float y, MouseButton button, KeyModifiers modifiers = .None)
 	{
 		mLastMousePosition = .(x, y);
 
@@ -115,7 +115,7 @@ public class InputManager
 		let captured = mContext.FocusManager?.CapturedElement;
 		if (captured != null)
 		{
-			let args = scope MouseButtonEventArgs(x, y, button);
+			let args = scope MouseButtonEventArgs(x, y, button, modifiers);
 			InvokeMouseUp(captured, args);
 			return;
 		}
@@ -123,7 +123,7 @@ public class InputManager
 		let hitElement = mContext.HitTestLogical(x, y);
 		if (hitElement != null)
 		{
-			let args = scope MouseButtonEventArgs(x, y, button);
+			let args = scope MouseButtonEventArgs(x, y, button, modifiers);
 			InvokeMouseUp(hitElement, args);
 		}
 	}

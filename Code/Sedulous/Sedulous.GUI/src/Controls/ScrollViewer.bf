@@ -47,11 +47,13 @@ public class ScrollViewer : ContentControl
 
 		mHorizontalScrollBar.Scroll.Subscribe(new (sb, value) => {
 			mHorizontalOffset = value;
+			InvalidateLayout();
 			mScrollChanged.[Friend]Invoke(this);
 		});
 
 		mVerticalScrollBar.Scroll.Subscribe(new (sb, value) => {
 			mVerticalOffset = value;
+			InvalidateLayout();
 			mScrollChanged.[Friend]Invoke(this);
 		});
 	}
@@ -70,6 +72,7 @@ public class ScrollViewer : ContentControl
 			{
 				mHorizontalOffset = clamped;
 				mHorizontalScrollBar.Value = clamped;
+				InvalidateLayout();
 				mScrollChanged.[Friend]Invoke(this);
 			}
 		}
@@ -86,6 +89,7 @@ public class ScrollViewer : ContentControl
 			{
 				mVerticalOffset = clamped;
 				mVerticalScrollBar.Value = clamped;
+				InvalidateLayout();
 				mScrollChanged.[Friend]Invoke(this);
 			}
 		}
@@ -493,6 +497,33 @@ public class ScrollViewer : ContentControl
 		}
 
 		return this;
+	}
+
+	/// Hit tests only the scrollbars, not the content.
+	/// Used by ItemsControl to allow scrollbar interaction while handling content input itself.
+	public UIElement HitTestScrollBars(Vector2 point)
+	{
+		if (Visibility != .Visible)
+			return null;
+
+		if (!ArrangedBounds.Contains(point.X, point.Y))
+			return null;
+
+		// Check scrollbars only
+		if (mShowHorizontalScrollBar)
+		{
+			let hit = mHorizontalScrollBar.HitTest(point);
+			if (hit != null)
+				return hit;
+		}
+		if (mShowVerticalScrollBar)
+		{
+			let hit = mVerticalScrollBar.HitTest(point);
+			if (hit != null)
+				return hit;
+		}
+
+		return null;
 	}
 
 	// === Visual Children ===
