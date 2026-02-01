@@ -144,8 +144,8 @@ public class InputManager
 	/// Process a key down event.
 	public void ProcessKeyDown(KeyCode key, KeyModifiers modifiers)
 	{
-		// Handle Tab navigation
-		if (key == .Tab)
+		// Handle Tab navigation (but not Ctrl+Tab which controls use for tab cycling)
+		if (key == .Tab && !modifiers.HasFlag(.Ctrl))
 		{
 			if (modifiers.HasFlag(.Shift))
 				mContext.FocusManager?.FocusPrevious();

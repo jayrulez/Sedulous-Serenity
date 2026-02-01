@@ -65,6 +65,9 @@ class GUISandboxApp : RHISampleApp
 	// List controls demo instance (has state)
 	private ListControlsDemo mListControlsDemo ~ delete _;
 
+	// Tab navigation demo instance (has state)
+	private TabNavigationDemo mTabNavigationDemo ~ delete _;
+
 	// Clipboard adapter
 	private ShellClipboardAdapter mClipboard ~ delete _;
 
@@ -143,6 +146,7 @@ class GUISandboxApp : RHISampleApp
 		Console.WriteLine("  9: Text Input Controls (Phase 7)");
 		Console.WriteLine("  A: Scrolling & Range Controls (Phase 8)");
 		Console.WriteLine("  B: List Controls (Phase 9)");
+		Console.WriteLine("  C: Tab & Navigation Controls (Phase 10)");
 		Console.WriteLine("  T: Toggle theme | Tab: Navigate focus | F2: Debug");
 		Console.WriteLine("  Ctrl +/-: Adjust UI scale");
 		Console.WriteLine("  ESC: Exit");
@@ -211,6 +215,20 @@ class GUISandboxApp : RHISampleApp
 			mScrollingDemo = null;
 		}
 
+		// Clean up list controls demo when switching away
+		if (demo != .ListControls && mListControlsDemo != null)
+		{
+			delete mListControlsDemo;
+			mListControlsDemo = null;
+		}
+
+		// Clean up tab navigation demo when switching away
+		if (demo != .TabNavigation && mTabNavigationDemo != null)
+		{
+			delete mTabNavigationDemo;
+			mTabNavigationDemo = null;
+		}
+
 		// Create new demo
 		switch (demo)
 		{
@@ -246,6 +264,10 @@ class GUISandboxApp : RHISampleApp
 			if (mListControlsDemo == null)
 				mListControlsDemo = new ListControlsDemo();
 			mDemoRoot = mListControlsDemo.CreateDemo();
+		case .TabNavigation:
+			if (mTabNavigationDemo == null)
+				mTabNavigationDemo = new TabNavigationDemo();
+			mDemoRoot = mTabNavigationDemo.CreateDemo();
 		}
 
 		mGUIContext.RootElement = mDemoRoot;
@@ -288,6 +310,8 @@ class GUISandboxApp : RHISampleApp
 				SwitchDemo(.Scrolling);
 			if (keyboard.IsKeyPressed(.B))
 				SwitchDemo(.ListControls);
+			if (keyboard.IsKeyPressed(.C))
+				SwitchDemo(.TabNavigation);
 		}
 
 		// UI Scale with Ctrl+/Ctrl-
@@ -631,6 +655,7 @@ class GUISandboxApp : RHISampleApp
 		case .TextInput: return "Text Input";
 		case .Scrolling: return "Scrolling";
 		case .ListControls: return "List Controls";
+		case .TabNavigation: return "Tab Navigation";
 		}
 	}
 

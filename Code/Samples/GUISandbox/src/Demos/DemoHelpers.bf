@@ -154,4 +154,5 @@ enum DemoType
 	case TextInput;
 	case Scrolling;
 	case ListControls;
+	case TabNavigation;
 }

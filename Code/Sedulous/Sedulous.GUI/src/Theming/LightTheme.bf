@@ -319,6 +319,75 @@ public class LightTheme : ITheme
 			Hover = .() { BorderColor = Color(150, 150, 150, 255) },
 			Focused = .() { BorderColor = mPalette.Accent }
 		};
+
+		// TabControl style
+		mStyles[new String("TabControl")] = .()
+		{
+			Background = Color(245, 245, 245, 255),
+			Foreground = mPalette.Text,
+			BorderColor = mPalette.Border,
+			BorderThickness = 1,
+			CornerRadius = 0,
+			Focused = .() { BorderColor = mPalette.Accent }
+		};
+
+		// TabItem style
+		mStyles[new String("TabItem")] = .()
+		{
+			Background = Color(230, 230, 230, 255),
+			Foreground = mPalette.Text,
+			BorderColor = Color.Transparent,
+			BorderThickness = 0,
+			CornerRadius = 0,
+			Padding = .(12, 6, 12, 6),
+			Hover = .() { Background = Color(220, 220, 220, 255) }
+		};
+
+		// Expander style
+		mStyles[new String("Expander")] = .()
+		{
+			Background = Color(250, 250, 250, 255),
+			Foreground = mPalette.Text,
+			BorderColor = mPalette.Border,
+			BorderThickness = 1,
+			CornerRadius = 4,
+			Hover = .() { Background = Color(245, 245, 245, 255) },
+			Focused = .() { BorderColor = mPalette.Accent }
+		};
+
+		// GroupBox style
+		mStyles[new String("GroupBox")] = .()
+		{
+			Background = Color.Transparent,
+			Foreground = mPalette.Text,
+			BorderColor = mPalette.Border,
+			BorderThickness = 1,
+			CornerRadius = 0,
+			Padding = .(8, 8, 8, 8)
+		};
+
+		// Breadcrumb style
+		mStyles[new String("Breadcrumb")] = .()
+		{
+			Background = Color.Transparent,
+			Foreground = mPalette.TextSecondary,
+			BorderColor = Color.Transparent,
+			BorderThickness = 0,
+			CornerRadius = 0,
+			Focused = .() { BorderColor = mPalette.Accent }
+		};
+
+		// BreadcrumbItem style
+		mStyles[new String("BreadcrumbItem")] = .()
+		{
+			Background = Color.Transparent,
+			Foreground = mPalette.Accent,
+			BorderColor = Color.Transparent,
+			BorderThickness = 0,
+			CornerRadius = 2,
+			Padding = .(4, 2, 4, 2),
+			Hover = .() { Background = Color(230, 230, 230, 255) }
+		};
 	}
 
 	public StringView Name => "Light";
