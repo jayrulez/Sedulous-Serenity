@@ -77,6 +77,9 @@ class GUISandboxApp : RHISampleApp
 	// DragDrop demo instance (has state)
 	private DragDropDemo mDragDropDemo ~ delete _;
 
+	// MenuToolbar demo instance (has state)
+	private MenuToolbarDemo mMenuToolbarDemo ~ delete _;
+
 	// Clipboard adapter
 	private ShellClipboardAdapter mClipboard ~ delete _;
 
@@ -158,6 +161,7 @@ class GUISandboxApp : RHISampleApp
 		Console.WriteLine("  C: Tab & Navigation Controls (Phase 10)");
 		Console.WriteLine("  D: Tree & Hierarchical Controls (Phase 11)");
 		Console.WriteLine("  E: Popup & Dialog (Phase 12a) | F: Drag and Drop (Phase 12b)");
+		Console.WriteLine("  G: Menu & Toolbar (Phase 13)");
 		Console.WriteLine("  T: Toggle theme | Tab: Navigate focus | F2: Debug");
 		Console.WriteLine("  Ctrl +/-: Adjust UI scale");
 		Console.WriteLine("  ESC: Exit");
@@ -261,6 +265,13 @@ class GUISandboxApp : RHISampleApp
 			mDragDropDemo = null;
 		}
 
+		// Clean up MenuToolbar demo when switching away
+		if (demo != .MenuToolbar && mMenuToolbarDemo != null)
+		{
+			delete mMenuToolbarDemo;
+			mMenuToolbarDemo = null;
+		}
+
 		// Create new demo
 		switch (demo)
 		{
@@ -312,6 +323,10 @@ class GUISandboxApp : RHISampleApp
 			if (mDragDropDemo == null)
 				mDragDropDemo = new DragDropDemo();
 			mDemoRoot = mDragDropDemo.CreateDemo(mGUIContext);
+		case .MenuToolbar:
+			if (mMenuToolbarDemo == null)
+				mMenuToolbarDemo = new MenuToolbarDemo();
+			mDemoRoot = mMenuToolbarDemo.CreateDemo(mGUIContext);
 		}
 
 		mGUIContext.RootElement = mDemoRoot;
@@ -327,8 +342,10 @@ class GUISandboxApp : RHISampleApp
 
 		// Switch demos with number keys (only when not typing in a text control)
 		// Skip demo switching when a TextBox has focus (any demo, including dialogs)
+		// Skip when Alt is held (reserved for menu accelerators)
 		bool textControlFocused = mGUIContext.FocusManager?.FocusedElement is TextBox;
-		if (!textControlFocused)
+		bool altHeld = modifiers.HasFlag(.Alt);
+		if (!textControlFocused && !altHeld)
 		{
 			if (keyboard.IsKeyPressed(.Num0) || keyboard.IsKeyPressed(.Keypad0))
 				SwitchDemo(.FocusAndTheme);
@@ -362,6 +379,8 @@ class GUISandboxApp : RHISampleApp
 				SwitchDemo(.PopupDialog);
 			if (keyboard.IsKeyPressed(.F))
 				SwitchDemo(.DragDrop);
+			if (keyboard.IsKeyPressed(.G))
+				SwitchDemo(.MenuToolbar);
 		}
 
 		// UI Scale with Ctrl+/Ctrl-
@@ -440,6 +459,41 @@ class GUISandboxApp : RHISampleApp
 			ForwardKeyIfPressed(keyboard, .X, modifiers);
 			ForwardKeyIfPressed(keyboard, .Z, modifiers);
 			ForwardKeyIfPressed(keyboard, .Y, modifiers);
+		}
+
+		// Forward Alt key for menu accelerators
+		ForwardKeyIfPressed(keyboard, .LeftAlt, modifiers);
+		ForwardKeyIfPressed(keyboard, .RightAlt, modifiers);
+
+		// Forward Alt+letter for menu accelerators
+		if (modifiers.HasFlag(.Alt))
+		{
+			ForwardKeyIfPressed(keyboard, .A, modifiers);
+			ForwardKeyIfPressed(keyboard, .B, modifiers);
+			ForwardKeyIfPressed(keyboard, .C, modifiers);
+			ForwardKeyIfPressed(keyboard, .D, modifiers);
+			ForwardKeyIfPressed(keyboard, .E, modifiers);
+			ForwardKeyIfPressed(keyboard, .F, modifiers);
+			ForwardKeyIfPressed(keyboard, .G, modifiers);
+			ForwardKeyIfPressed(keyboard, .H, modifiers);
+			ForwardKeyIfPressed(keyboard, .I, modifiers);
+			ForwardKeyIfPressed(keyboard, .J, modifiers);
+			ForwardKeyIfPressed(keyboard, .K, modifiers);
+			ForwardKeyIfPressed(keyboard, .L, modifiers);
+			ForwardKeyIfPressed(keyboard, .M, modifiers);
+			ForwardKeyIfPressed(keyboard, .N, modifiers);
+			ForwardKeyIfPressed(keyboard, .O, modifiers);
+			ForwardKeyIfPressed(keyboard, .P, modifiers);
+			ForwardKeyIfPressed(keyboard, .Q, modifiers);
+			ForwardKeyIfPressed(keyboard, .R, modifiers);
+			ForwardKeyIfPressed(keyboard, .S, modifiers);
+			ForwardKeyIfPressed(keyboard, .T, modifiers);
+			ForwardKeyIfPressed(keyboard, .U, modifiers);
+			ForwardKeyIfPressed(keyboard, .V, modifiers);
+			ForwardKeyIfPressed(keyboard, .W, modifiers);
+			ForwardKeyIfPressed(keyboard, .X, modifiers);
+			ForwardKeyIfPressed(keyboard, .Y, modifiers);
+			ForwardKeyIfPressed(keyboard, .Z, modifiers);
 		}
 
 		// Generate text input for printable keys as fallback
@@ -620,6 +674,16 @@ class GUISandboxApp : RHISampleApp
 		}
 	}
 
+	/// Override to handle Escape key - let GUI handle it first (for closing menus, dialogs, etc.)
+	protected override bool OnEscapePressed()
+	{
+		// Forward Escape to the GUI first
+		if (mGUIContext.ProcessKeyDown(.Escape, .None))
+			return true;  // GUI handled it (menu closed, etc.) - don't exit app
+
+		return false;  // GUI didn't handle it - let base class exit app
+	}
+
 	protected override void OnUpdate(float deltaTime, float totalTime)
 	{
 		mFrameDelta = deltaTime;
@@ -709,6 +773,7 @@ class GUISandboxApp : RHISampleApp
 		case .TreeView: return "Tree & Hierarchical";
 		case .PopupDialog: return "Popup & Dialog";
 		case .DragDrop: return "Drag and Drop";
+		case .MenuToolbar: return "Menu & Toolbar";
 		}
 	}
 

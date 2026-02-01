@@ -1,0 +1,104 @@
+using System;
+using Sedulous.Mathematics;
+using Sedulous.Drawing;
+
+namespace Sedulous.GUI;
+
+/// Display modes for toolbar buttons.
+public enum ToolBarButtonDisplayMode
+{
+	/// Show only the icon.
+	IconOnly,
+	/// Show only the text.
+	TextOnly,
+	/// Show icon and text side by side.
+	IconAndText
+}
+
+/// A flat-styled button for use in toolbars.
+/// Has transparent background by default, shows border only on hover.
+///
+/// ## Icon Support (Future Enhancement)
+///
+/// Currently supports text-only buttons. For icon support, consider these approaches:
+///
+/// **Approach 1: Use ContentControl directly (works today)**
+/// Since ToolBarButton extends Button (a ContentControl), set any content:
+/// ```
+/// let btn = new ToolBarButton();
+/// btn.Content = new Image(iconTexture);  // Icon only
+/// // Or combine icon + text with a StackPanel
+/// ```
+///
+/// **Approach 2: Add Icon property + DisplayMode (recommended for future)**
+/// Add an Icon property that accepts a texture/image source. The button would
+/// internally create the appropriate content layout based on DisplayMode:
+/// - IconOnly: Just the icon
+/// - TextOnly: Just text (current behavior)
+/// - IconAndText: Horizontal StackPanel with icon and text
+///
+/// **Approach 3: Factory methods on ToolBar**
+/// Add convenience methods like AddIconButton(), AddTextButton(), AddIconTextButton()
+/// to the ToolBar container class.
+///
+public class ToolBarButton : Button
+{
+	private ToolBarButtonDisplayMode mDisplayMode = .TextOnly;
+
+	/// Creates a new ToolBarButton.
+	public this() : base()
+	{
+	}
+
+	/// Creates a new ToolBarButton with text.
+	public this(StringView text) : base(text)
+	{
+	}
+
+	/// Gets the button text (from TextBlock content).
+	public StringView Text
+	{
+		get
+		{
+			if (let textBlock = Content as TextBlock)
+				return textBlock.Text;
+			return "";
+		}
+	}
+
+	/// The control type name for theming.
+	protected override StringView ControlTypeName => "ToolBarButton";
+
+	/// The display mode for this button.
+	public ToolBarButtonDisplayMode DisplayMode
+	{
+		get => mDisplayMode;
+		set
+		{
+			if (mDisplayMode != value)
+			{
+				mDisplayMode = value;
+				InvalidateLayout();
+			}
+		}
+	}
+
+	/// Renders the button with flat toolbar styling.
+	protected override void RenderOverride(DrawContext ctx)
+	{
+		let bounds = ArrangedBounds;
+
+		// Only show background on hover/pressed
+		if (IsHovered || IsPressed)
+		{
+			let bgColor = IsPressed ? Color(60, 120, 200, 255) : Color(80, 80, 80, 255);
+			ctx.FillRect(bounds, bgColor);
+
+			// Border on hover
+			ctx.DrawRect(bounds, Color(100, 100, 100, 255), 1);
+		}
+
+		// Render content (text)
+		Content?.Render(ctx);
+	}
+}

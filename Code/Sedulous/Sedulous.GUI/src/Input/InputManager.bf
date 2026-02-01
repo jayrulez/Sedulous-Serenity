@@ -157,7 +157,8 @@ public class InputManager
 	}
 
 	/// Process a key down event.
-	public void ProcessKeyDown(KeyCode key, KeyModifiers modifiers)
+	/// Returns true if the event was handled.
+	public bool ProcessKeyDown(KeyCode key, KeyModifiers modifiers)
 	{
 		// Handle Tab navigation (but not Ctrl+Tab which controls use for tab cycling)
 		if (key == .Tab && !modifiers.HasFlag(.Ctrl))
@@ -166,7 +167,7 @@ public class InputManager
 			if (mContext.ModalManager?.HasModal == true)
 			{
 				if (mContext.ModalManager.HandleTabNavigation(modifiers.HasFlag(.Shift)))
-					return;
+					return true;
 			}
 
 			// Normal Tab navigation
@@ -174,7 +175,15 @@ public class InputManager
 				mContext.FocusManager?.FocusPrevious();
 			else
 				mContext.FocusManager?.FocusNext();
-			return;
+			return true;
+		}
+
+		// Handle Alt key and Alt+letter for accelerators (global - works without control focused)
+		if (key == .LeftAlt || key == .RightAlt || modifiers.HasFlag(.Alt))
+		{
+			// Try to route to any IAcceleratorHandler in the visual tree
+			if (TryRouteToAcceleratorHandlers(key, modifiers))
+				return true;
 		}
 
 		// Route to focused element
@@ -183,18 +192,60 @@ public class InputManager
 		{
 			let args = scope KeyEventArgs(key, modifiers);
 			InvokeKeyDown(focused, args);
+			return args.Handled;
 		}
+
+		return false;
+	}
+
+	/// Attempts to route an accelerator key event to handlers in the visual tree.
+	/// Returns true if a handler processed the event.
+	private bool TryRouteToAcceleratorHandlers(KeyCode key, KeyModifiers modifiers)
+	{
+		if (mContext.RootElement == null)
+			return false;
+
+		// Find and try accelerator handlers in the visual tree
+		return TryAcceleratorHandlers(mContext.RootElement, key, modifiers);
+	}
+
+	/// Recursively searches for IAcceleratorHandler implementers and tries to handle the key.
+	private bool TryAcceleratorHandlers(UIElement element, KeyCode key, KeyModifiers modifiers)
+	{
+		// Check if this element implements IAcceleratorHandler
+		if (let handler = element as IAcceleratorHandler)
+		{
+			if (handler.HandleAccelerator(key, modifiers))
+				return true;
+		}
+
+		// Recurse to children
+		let childCount = element.VisualChildCount;
+		for (int i = 0; i < childCount; i++)
+		{
+			let child = element.GetVisualChild(i);
+			if (child != null)
+			{
+				if (TryAcceleratorHandlers(child, key, modifiers))
+					return true;
+			}
+		}
+
+		return false;
 	}
 
 	/// Process a key up event.
-	public void ProcessKeyUp(KeyCode key, KeyModifiers modifiers)
+	/// Returns true if the event was handled.
+	public bool ProcessKeyUp(KeyCode key, KeyModifiers modifiers)
 	{
 		let focused = mContext.FocusManager?.FocusedElement;
 		if (focused != null)
 		{
 			let args = scope KeyEventArgs(key, modifiers);
 			InvokeKeyUp(focused, args);
+			return args.Handled;
 		}
+		return false;
 	}
 
 	/// Process a text input event.

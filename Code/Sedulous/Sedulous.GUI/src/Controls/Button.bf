@@ -28,7 +28,9 @@ public class Button : ContentControl
 	/// Creates a new Button with text content.
 	public this(StringView text) : this()
 	{
-		Content = new TextBlock(text);
+		let textBlock = new TextBlock(text);
+		textBlock.TextAlignment = .Center;
+		Content = textBlock;
 	}
 
 	/// The control type name for theming.

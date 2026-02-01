@@ -615,15 +615,17 @@ public class GUIContext
 	}
 
 	/// Process a key down event.
-	public void ProcessKeyDown(KeyCode key, KeyModifiers modifiers = .None)
+	/// Returns true if the event was handled by the GUI.
+	public bool ProcessKeyDown(KeyCode key, KeyModifiers modifiers = .None)
 	{
-		mInputManager?.ProcessKeyDown(key, modifiers);
+		return mInputManager?.ProcessKeyDown(key, modifiers) ?? false;
 	}
 
 	/// Process a key up event.
-	public void ProcessKeyUp(KeyCode key, KeyModifiers modifiers = .None)
+	/// Returns true if the event was handled by the GUI.
+	public bool ProcessKeyUp(KeyCode key, KeyModifiers modifiers = .None)
 	{
-		mInputManager?.ProcessKeyUp(key, modifiers);
+		return mInputManager?.ProcessKeyUp(key, modifiers) ?? false;
 	}
 
 	/// Process a text input event.

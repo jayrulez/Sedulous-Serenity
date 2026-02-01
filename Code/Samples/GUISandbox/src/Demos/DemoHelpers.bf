@@ -158,4 +158,5 @@ enum DemoType
 	case TreeView;
 	case PopupDialog;
 	case DragDrop;
+	case MenuToolbar;
 }
