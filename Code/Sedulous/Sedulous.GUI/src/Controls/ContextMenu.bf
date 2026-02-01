@@ -20,6 +20,11 @@ public class ContextMenu : Control, IPopupOwner
 	private ContextMenu mOpenSubmenu ~ delete _;
 	private MenuItem mSubmenuOwner;
 
+	// Hover tracking for submenu auto-open
+	private MenuItem mHoveredItem;
+	private double mHoverStartTime = -1;
+	private float mSubmenuOpenDelay = 0.25f;  // 250ms delay before opening submenu
+
 	// Events
 	private EventAccessor<delegate void(ContextMenu)> mOpened = new .() ~ delete _;
 	private EventAccessor<delegate void(ContextMenu)> mClosed = new .() ~ delete _;
@@ -153,9 +158,49 @@ public class ContextMenu : Control, IPopupOwner
 		mItems.Add(item);
 		mItemsPanel.AddChild(item);
 
-		// Note: Click handlers for auto-close are not set here.
-		// The ContextMenu handles closing when items are clicked via
-		// mouse event handling directly.
+		// Set parent menu reference for submenu notifications
+		if (let menuItem = item as MenuItem)
+			menuItem.ParentMenu = this;
+	}
+
+	/// Called by MenuItem when mouse enters it. Used to track hover for submenu auto-open.
+	public void OnItemHovered(MenuItem item)
+	{
+		if (item == mHoveredItem)
+			return;  // Same item, no change
+
+		mHoveredItem = item;
+
+		// If hovering over a different item, close any open submenu that's not for this item
+		if (mSubmenuOwner != null && mSubmenuOwner != item)
+		{
+			CloseSubmenu();
+		}
+
+		// Start hover timer if item has sub-items
+		if (item.HasSubItems)
+		{
+			mHoverStartTime = Context?.TotalTime ?? -1;
+		}
+		else
+		{
+			mHoverStartTime = -1;
+		}
+	}
+
+	/// Updates the context menu (checks hover timer for submenu auto-open).
+	public void Update(double totalTime)
+	{
+		// Check if we should auto-open a submenu
+		if (mHoveredItem != null && mHoverStartTime >= 0 && mSubmenuOwner != mHoveredItem)
+		{
+			let elapsed = (float)(totalTime - mHoverStartTime);
+			if (elapsed >= mSubmenuOpenDelay)
+			{
+				OpenSubmenuFor(mHoveredItem);
+				mHoverStartTime = -1;  // Don't re-trigger
+			}
+		}
 	}
 
 	private void CloseSubmenu()
@@ -192,6 +237,36 @@ public class ContextMenu : Control, IPopupOwner
 				newItem.IsChecked = menuItem.IsChecked;
 				newItem.Command = menuItem.Command;
 				newItem.CommandParameter = menuItem.CommandParameter;
+
+				// Forward click event to the original item and close the menu chain
+				let originalItem = menuItem;
+				let parentMenu = this;
+				newItem.Click.Subscribe(new [=](clickedItem) => {
+					// Sync checkable state back to original
+					if (originalItem.IsCheckable)
+						originalItem.IsChecked = clickedItem.IsChecked;
+					// Activate the original item (fires its Click event and command)
+					originalItem.Activate();
+					// Defer menu closure to avoid deleting this handler while it's executing
+					// Use QueueAction to close after the current event handling completes
+					if (parentMenu.Context != null)
+						parentMenu.Context.QueueAction(new () => parentMenu.Hide());
+					else
+						parentMenu.Hide();
+				});
+
+				// Recursively handle nested submenus
+				if (menuItem.HasSubItems)
+				{
+					for (int j = 0; j < menuItem.SubItemCount; j++)
+					{
+						let nestedItem = menuItem.GetSubItem(j);
+						if (let nestedMenuItem = nestedItem as MenuItem)
+							newItem.AddItem(nestedMenuItem.Text);
+						else if (nestedItem is MenuSeparator)
+							newItem.AddSeparator();
+					}
+				}
 			}
 			else if (subItem is MenuSeparator)
 			{
@@ -202,6 +277,9 @@ public class ContextMenu : Control, IPopupOwner
 		// Position submenu to the right of the parent item
 		let itemBounds = item.ArrangedBounds;
 		let submenuPos = Vector2(ArrangedBounds.Right - 2, itemBounds.Y);
+
+		// Need to attach to context before showing
+		mOpenSubmenu.OnAttachedToContext(Context);
 		mOpenSubmenu.Show(this, submenuPos);
 		mSubmenuOwner = item;
 	}

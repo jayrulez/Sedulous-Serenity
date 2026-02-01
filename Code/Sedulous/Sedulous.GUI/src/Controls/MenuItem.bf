@@ -33,6 +33,9 @@ public class MenuItem : Control
 	// Internal state
 	private bool mIsHighlighted = false;
 
+	// Parent menu reference for submenu notifications
+	private ContextMenu mParentMenu;
+
 	// Events
 	private EventAccessor<delegate void(MenuItem)> mClick = new .() ~ delete _;
 
@@ -143,6 +146,13 @@ public class MenuItem : Control
 
 	/// Whether this item is currently highlighted.
 	public bool IsHighlighted => mIsHighlighted;
+
+	/// Sets the parent context menu (used internally for submenu notifications).
+	public ContextMenu ParentMenu
+	{
+		get => mParentMenu;
+		set => mParentMenu = value;
+	}
 
 	/// Event fired when the item is clicked.
 	public EventAccessor<delegate void(MenuItem)> Click => mClick;
@@ -317,6 +327,9 @@ public class MenuItem : Control
 	{
 		mIsHighlighted = true;
 		base.OnMouseEnter(e);
+
+		// Notify parent menu that this item is being hovered
+		mParentMenu?.OnItemHovered(this);
 	}
 
 	protected override void OnMouseLeave(MouseEventArgs e)

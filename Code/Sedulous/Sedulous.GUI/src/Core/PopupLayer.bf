@@ -50,6 +50,17 @@ public class PopupLayer : Container
 	/// Number of active popups.
 	public int PopupCount => mPopups.Count;
 
+	/// Updates all active popups (for timers, animations, etc.).
+	public void Update(double totalTime)
+	{
+		for (let info in mPopups)
+		{
+			// Update context menus for submenu hover timing
+			if (let contextMenu = info.Popup as ContextMenu)
+				contextMenu.Update(totalTime);
+		}
+	}
+
 	/// Shows a popup anchored to the specified bounds.
 	/// The popup will be positioned below the anchor if space permits, otherwise above.
 	public void ShowPopup(UIElement popup, UIElement owner, RectangleF anchorBounds, bool closeOnClickOutside = true)
@@ -188,27 +199,35 @@ public class PopupLayer : Container
 	}
 
 	/// Handles click outside popup - returns true if a popup was closed.
+	/// Closes entire menu chains when clicking outside (not just the topmost popup).
 	public bool HandleClickOutside(Vector2 point)
 	{
-		// Check from topmost popup down
-		for (int i = mPopups.Count - 1; i >= 0; i--)
+		if (mPopups.Count == 0)
+			return false;
+
+		// First, check if click is inside ANY popup
+		for (let info in mPopups)
 		{
-			let info = mPopups[i];
-			if (!info.CloseOnClickOutside)
-				continue;
-
-			let popup = info.Popup;
-			let hitResult = popup.HitTest(point);
-
-			// If click is outside this popup, close it
-			// (clicks on the owner also close the popup - the owner can handle re-opening if needed)
-			if (hitResult == null)
-			{
-				ClosePopup(popup);
-				return true;
-			}
+			let hitResult = info.Popup.HitTest(point);
+			if (hitResult != null)
+				return false;  // Click is inside a popup, don't close anything
 		}
-		return false;
+
+		// Click is outside all popups - close all that have CloseOnClickOutside
+		// We need to collect them first since ClosePopup modifies the list
+		List<UIElement> toClose = scope .();
+		for (let info in mPopups)
+		{
+			if (info.CloseOnClickOutside)
+				toClose.Add(info.Popup);
+		}
+
+		for (let popup in toClose)
+		{
+			ClosePopup(popup);
+		}
+
+		return toClose.Count > 0;
 	}
 
 	// === Layout ===

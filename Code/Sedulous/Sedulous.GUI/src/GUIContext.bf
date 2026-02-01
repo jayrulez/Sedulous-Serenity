@@ -347,6 +347,9 @@ public class GUIContext
 
 		// Update tooltip service (show/hide based on hover timing)
 		mTooltipService?.Update(totalTime);
+
+		// Update active popups (context menu submenu timers, etc.)
+		mPopupLayer.Update(totalTime);
 	}
 
 	// === Rendering ===
@@ -533,6 +536,13 @@ public class GUIContext
 	public void QueueDelete(UIElement element)
 	{
 		mMutationQueue.QueueDelete(element);
+	}
+
+	/// Queues an action to be executed at the end of the frame.
+	/// Useful for deferring operations that would cause use-after-free if executed immediately.
+	public void QueueAction(delegate void() action)
+	{
+		mMutationQueue.QueueAction(action);
 	}
 
 	/// Called when an element is about to be deleted.

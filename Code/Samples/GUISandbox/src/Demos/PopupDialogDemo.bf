@@ -192,6 +192,32 @@ class PopupDialogDemo
 
 		contextMenu.AddSeparator();
 
+		// Submenu demonstration - Edit submenu with nested items
+		let editSubmenu = contextMenu.AddItem("Edit");
+		let undoItem = editSubmenu.AddItem("Undo");
+		undoItem.ShortcutText = "Ctrl+Z";
+		undoItem.Click.Subscribe(new (item) => {
+			mStatusLabel.Text = "Undo clicked!";
+		});
+		let redoItem = editSubmenu.AddItem("Redo");
+		redoItem.ShortcutText = "Ctrl+Y";
+		redoItem.Click.Subscribe(new (item) => {
+			mStatusLabel.Text = "Redo clicked!";
+		});
+		editSubmenu.AddSeparator();
+		let findItem = editSubmenu.AddItem("Find");
+		findItem.ShortcutText = "Ctrl+F";
+		findItem.Click.Subscribe(new (item) => {
+			mStatusLabel.Text = "Find clicked!";
+		});
+		let replaceItem = editSubmenu.AddItem("Replace");
+		replaceItem.ShortcutText = "Ctrl+H";
+		replaceItem.Click.Subscribe(new (item) => {
+			mStatusLabel.Text = "Replace clicked!";
+		});
+
+		contextMenu.AddSeparator();
+
 		let deleteItem = contextMenu.AddItem("Delete");
 		deleteItem.Click.Subscribe(new (item) => {
 			mStatusLabel.Text = "Delete clicked!";

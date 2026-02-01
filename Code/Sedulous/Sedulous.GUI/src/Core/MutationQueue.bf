@@ -30,6 +30,7 @@ public struct Mutation
 public class MutationQueue
 {
 	private List<Mutation> mPending = new .() ~ delete _;
+	private List<delegate void()> mQueuedActions = new .() ~ DeleteContainerAndItems!(_);
 	private bool mProcessing = false;
 
 	/// Whether mutations are currently being processed.
@@ -81,6 +82,14 @@ public class MutationQueue
 			Child = null,
 			DeleteAfterRemove = true
 		});
+	}
+
+	/// Queue an action to be executed at the end of the frame.
+	/// Useful for deferring operations that would cause use-after-free if executed immediately.
+	public void QueueAction(delegate void() action)
+	{
+		if (action != null)
+			mQueuedActions.Add(action);
 	}
 
 	/// Process all pending mutations.
@@ -147,6 +156,15 @@ public class MutationQueue
 		}
 
 		mPending.Clear();
+
+		// Execute queued actions after mutations are processed
+		for (let action in mQueuedActions)
+		{
+			action();
+			delete action;
+		}
+		mQueuedActions.Clear();
+
 		mProcessing = false;
 	}
 
@@ -154,5 +172,7 @@ public class MutationQueue
 	public void Clear()
 	{
 		mPending.Clear();
+		DeleteContainerAndItems!(mQueuedActions);
+		mQueuedActions = new .();
 	}
 }
