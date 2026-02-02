@@ -9,7 +9,7 @@ namespace Sedulous.GUI;
 /// Supports overflow handling when items don't fit.
 public class ToolBar : Control
 {
-	private List<UIElement> mItems = new .() ~ delete _;  // References only, not owned
+	private List<UIElement> mItems = new .() ~ delete _;  // Owns items added via AddButton/AddToggleButton/AddSeparator
 	private StackPanel mItemsPanel ~ delete _;
 	private Orientation mOrientation = .Horizontal;
 
@@ -138,12 +138,13 @@ public class ToolBar : Control
 		return null;
 	}
 
-	/// Clears all items from the toolbar.
+	/// Clears all items from the toolbar (deletes owned items).
 	public void ClearItems()
 	{
 		for (let item in mItems)
 			mItemsPanel.RemoveChild(item, deleteAfterRemove: false);
-		mItems.Clear();
+		DeleteContainerAndItems!(mItems);
+		mItems = new .();
 		mOverflowItems.Clear();
 		InvalidateLayout();
 	}

@@ -80,6 +80,9 @@ class GUISandboxApp : RHISampleApp
 	// MenuToolbar demo instance (has state)
 	private MenuToolbarDemo mMenuToolbarDemo ~ delete _;
 
+	// Docking demo instance (has state)
+	private DockingDemo mDockingDemo ~ delete _;
+
 	// Clipboard adapter
 	private ShellClipboardAdapter mClipboard ~ delete _;
 
@@ -161,7 +164,7 @@ class GUISandboxApp : RHISampleApp
 		Console.WriteLine("  C: Tab & Navigation Controls (Phase 10)");
 		Console.WriteLine("  D: Tree & Hierarchical Controls (Phase 11)");
 		Console.WriteLine("  E: Popup & Dialog (Phase 12a) | F: Drag and Drop (Phase 12b)");
-		Console.WriteLine("  G: Menu & Toolbar (Phase 13)");
+		Console.WriteLine("  G: Menu & Toolbar (Phase 13) | H: Docking (Phase 14)");
 		Console.WriteLine("  T: Toggle theme | Tab: Navigate focus | F2: Debug");
 		Console.WriteLine("  Ctrl +/-: Adjust UI scale");
 		Console.WriteLine("  ESC: Exit");
@@ -272,6 +275,13 @@ class GUISandboxApp : RHISampleApp
 			mMenuToolbarDemo = null;
 		}
 
+		// Clean up Docking demo when switching away
+		if (demo != .Docking && mDockingDemo != null)
+		{
+			delete mDockingDemo;
+			mDockingDemo = null;
+		}
+
 		// Create new demo
 		switch (demo)
 		{
@@ -327,6 +337,10 @@ class GUISandboxApp : RHISampleApp
 			if (mMenuToolbarDemo == null)
 				mMenuToolbarDemo = new MenuToolbarDemo();
 			mDemoRoot = mMenuToolbarDemo.CreateDemo(mGUIContext);
+		case .Docking:
+			if (mDockingDemo == null)
+				mDockingDemo = new DockingDemo();
+			mDemoRoot = mDockingDemo.CreateDemo(mGUIContext);
 		}
 
 		mGUIContext.RootElement = mDemoRoot;
@@ -381,6 +395,8 @@ class GUISandboxApp : RHISampleApp
 				SwitchDemo(.DragDrop);
 			if (keyboard.IsKeyPressed(.G))
 				SwitchDemo(.MenuToolbar);
+			if (keyboard.IsKeyPressed(.H))
+				SwitchDemo(.Docking);
 		}
 
 		// UI Scale with Ctrl+/Ctrl-
@@ -774,6 +790,7 @@ class GUISandboxApp : RHISampleApp
 		case .PopupDialog: return "Popup & Dialog";
 		case .DragDrop: return "Drag and Drop";
 		case .MenuToolbar: return "Menu & Toolbar";
+		case .Docking: return "Docking";
 		}
 	}
 

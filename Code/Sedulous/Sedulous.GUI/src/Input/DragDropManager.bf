@@ -256,16 +256,11 @@ public class DragDropManager
 	private UIElement FindDropTarget(UIElement hitElement)
 	{
 		// Walk up the tree to find an IDropTarget
+		// Note: We don't skip the drag source - CanAcceptDrop handles rejection.
+		// This allows tab reordering where the source and target are the same DockTabGroup.
 		var current = hitElement;
 		while (current != null)
 		{
-			// Skip the drag source itself
-			if (current == mDragSource.TryResolve())
-			{
-				current = current.Parent;
-				continue;
-			}
-
 			if (let target = current as IDropTarget)
 			{
 				// Check if this target can accept the drag data

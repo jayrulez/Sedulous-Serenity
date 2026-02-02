@@ -159,4 +159,5 @@ enum DemoType
 	case PopupDialog;
 	case DragDrop;
 	case MenuToolbar;
+	case Docking;
 }

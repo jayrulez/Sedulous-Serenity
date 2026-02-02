@@ -438,12 +438,20 @@ class Phase12Tests
 	[Test]
 	public static void ElementDragDataCreation()
 	{
-		let button = scope Button("Test");
+		// ElementHandle requires a GUIContext to resolve elements
+		let context = scope GUIContext();
+		let button = new Button("Test");
+		context.RootElement = button;
+
 		let data = scope ElementDragData(button);
 
 		Test.Assert(data.Format == DragDataFormats.UIElement);
 		Test.Assert(data.HasFormat(DragDataFormats.UIElement));
 		Test.Assert(data.GetElement() == button);
+
+		// Clean up: detach and delete button before context is destroyed
+		context.RootElement = null;
+		delete button;
 	}
 
 	// === DragEventArgs Tests ===
