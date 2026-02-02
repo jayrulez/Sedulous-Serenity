@@ -422,17 +422,112 @@ public class DockManager : Control, IDropTarget
 		else
 		{
 			// Check floating windows
-			for (int i = 0; i < mFloatingWindows.Count; i++)
+			RemovePanelFromFloatingWindow(panel);
+		}
+	}
+
+	/// Removes a panel from its floating window (if any) without deleting the panel.
+	/// Returns true if the panel was found and removed from a floating window.
+	public bool RemovePanelFromFloatingWindow(DockablePanel panel)
+	{
+		for (int i = 0; i < mFloatingWindows.Count; i++)
+		{
+			if (mFloatingWindows[i].Panel == panel)
 			{
-				if (mFloatingWindows[i].Panel == panel)
-				{
-					let floatWindow = mFloatingWindows[i];
-					mFloatingWindows.RemoveAt(i);
-					delete floatWindow;
-					break;
-				}
+				let floatWindow = mFloatingWindows[i];
+				floatWindow.Panel = null;  // Detach panel without deleting it
+				mFloatingWindows.RemoveAt(i);
+				delete floatWindow;
+				return true;
 			}
 		}
+		return false;
+	}
+
+	/// Removes a floating window from the list and schedules it for deletion.
+	/// Safe to call from within the window's event handlers.
+	public void RemoveFloatingWindow(FloatingWindow window)
+	{
+		for (int i = 0; i < mFloatingWindows.Count; i++)
+		{
+			if (mFloatingWindows[i] == window)
+			{
+				mFloatingWindows.RemoveAt(i);
+
+				// Use context's deferred deletion so ElementHandles properly see it as deleted
+				if (Context != null)
+					Context.MutationQueue.QueueDelete(window);
+				else
+					delete window;  // Fallback if no context
+
+				return;
+			}
+		}
+	}
+
+	// === Floating Window Drag Support ===
+
+	/// Finds the DockTabGroup under a point and updates its drag feedback.
+	/// Returns the group and drop zone if found, null otherwise.
+	public (DockTabGroup group, DockPosition zone)? UpdateFloatingDragTarget(Vector2 point)
+	{
+		// Clear feedback from all groups first
+		ClearAllFloatingDragFeedback(mRootNode);
+
+		// Find and update the group under the cursor
+		let group = FindTabGroupAt(mRootNode, point);
+		if (group != null)
+		{
+			let zone = group.UpdateFloatingDragFeedback(point);
+			if (zone != null)
+				return (group, zone.Value);
+		}
+		return null;
+	}
+
+	/// Clears floating drag feedback from all DockTabGroups.
+	public void ClearAllFloatingDragFeedback()
+	{
+		ClearAllFloatingDragFeedback(mRootNode);
+	}
+
+	private void ClearAllFloatingDragFeedback(Control node)
+	{
+		if (node == null)
+			return;
+
+		if (let group = node as DockTabGroup)
+		{
+			group.ClearFloatingDragFeedback();
+		}
+		else if (let split = node as DockSplit)
+		{
+			ClearAllFloatingDragFeedback(split.First);
+			ClearAllFloatingDragFeedback(split.Second);
+		}
+	}
+
+	private DockTabGroup FindTabGroupAt(Control node, Vector2 point)
+	{
+		if (node == null)
+			return null;
+
+		if (let group = node as DockTabGroup)
+		{
+			if (group.ArrangedBounds.Contains(point.X, point.Y))
+				return group;
+		}
+		else if (let split = node as DockSplit)
+		{
+			// Check both children
+			let first = FindTabGroupAt(split.First, point);
+			if (first != null)
+				return first;
+			let second = FindTabGroupAt(split.Second, point);
+			if (second != null)
+				return second;
+		}
+		return null;
 	}
 
 	/// Cleans up empty tab groups and collapses unnecessary splits.
@@ -593,6 +688,28 @@ public class DockManager : Control, IDropTarget
 		mShowingIndicators = false;
 		mZoneIndicator.Hide();
 		mDropTargetIndicator.Hide();
+
+		// If drop wasn't handled and it's a dock panel, check if we should float it
+		if (!args.Handled && args.Data?.Format == DockPanelDragDataFormat.DockPanel)
+		{
+			let panelData = args.Data as DockPanelDragData;
+			if (panelData != null && panelData.Panel != null)
+			{
+				// Drop outside any valid target - float the panel
+				let panel = panelData.Panel;
+				let dropPos = args.Position;
+
+				// Remove from source group
+				if (panelData.SourceGroup != null)
+				{
+					panelData.SourceGroup.RemovePanel(panel);
+					CleanupEmptyNodes();
+				}
+
+				// Float at drop position with reasonable default size
+				FloatPanelAt(panel, dropPos, .(300, 200));
+			}
+		}
 	}
 
 	// === Layout ===
@@ -612,6 +729,12 @@ public class DockManager : Control, IDropTarget
 		if (mRootNode != null)
 		{
 			mRootNode.Arrange(contentBounds);
+		}
+
+		// Arrange floating windows (they position themselves but need Arrange called for layout)
+		for (let floatWindow in mFloatingWindows)
+		{
+			floatWindow.Arrange(floatWindow.WindowBounds);
 		}
 	}
 
@@ -709,11 +832,16 @@ public class DockManager : Control, IDropTarget
 
 		let panel = panelData.Panel;
 
-		// Remove from source group
+		// Remove from source (either tab group or floating window)
 		if (panelData.SourceGroup != null)
 		{
 			panelData.SourceGroup.RemovePanel(panel);
 			CleanupEmptyNodes();
+		}
+		else
+		{
+			// May be from a floating window
+			RemovePanelFromFloatingWindow(panel);
 		}
 
 		// Dock at the target position
@@ -757,6 +885,16 @@ public class DockManager : Control, IDropTarget
 	{
 		if (Visibility != .Visible)
 			return null;
+
+		// Check floating windows first (they're rendered on top)
+		// Note: check in reverse order so topmost windows are hit first
+		for (int i = mFloatingWindows.Count - 1; i >= 0; i--)
+		{
+			let floatWindow = mFloatingWindows[i];
+			let hit = floatWindow.HitTest(point);
+			if (hit != null)
+				return hit;
+		}
 
 		if (!ArrangedBounds.Contains(point.X, point.Y))
 			return null;

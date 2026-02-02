@@ -9,7 +9,7 @@ namespace Sedulous.GUI;
 public class FloatingWindow : Control
 {
 	private DockManager mManager;
-	private DockablePanel mPanel ~ delete _;
+	private DockablePanel mPanel /*~ delete _*/;
 	private Vector2 mPosition;
 	private Vector2 mSize = .(300, 200);
 
@@ -24,6 +24,10 @@ public class FloatingWindow : Control
 	private RectangleF mResizeStartBounds;
 	private const float ResizeBorderSize = 6;
 	private const float MinWindowSize = 100;
+
+	// Re-docking state
+	private DockPosition? mPendingDockPosition = null;
+	private DockTabGroup mPendingTargetGroup = null;  // Target group for per-panel docking
 
 	private enum ResizeEdge
 	{
@@ -169,6 +173,51 @@ public class FloatingWindow : Control
 		{
 			mPosition = .(e.ScreenX - mDragOffset.X, e.ScreenY - mDragOffset.Y);
 			InvalidateLayout();
+
+			// Update dock zone indicators while dragging
+			if (mManager != null)
+			{
+				let zoneIndicator = mManager.[Friend]mZoneIndicator;
+				let dropIndicator = mManager.[Friend]mDropTargetIndicator;
+				let pos = Vector2(e.ScreenX, e.ScreenY);
+
+				// First, check for per-group drop targets (tab groups)
+				let groupTarget = mManager.UpdateFloatingDragTarget(pos);
+				if (groupTarget != null)
+				{
+					// We have a per-group target - show drop preview
+					let group = groupTarget.Value.group;
+					let zone = groupTarget.Value.zone;
+
+					// Calculate drop bounds based on group and zone
+					let dropBounds = CalculateGroupDropBounds(group, zone);
+					dropIndicator.Show(dropBounds, zone);
+					mPendingTargetGroup = group;
+					mPendingDockPosition = zone;
+
+					// Clear global zone hover
+					zoneIndicator.UpdateHover(.(-1000, -1000));
+				}
+				else
+				{
+					// No per-group target, check global zone indicator
+					mPendingTargetGroup = null;
+
+					let hoveredZone = zoneIndicator.UpdateHover(pos);
+					if (hoveredZone != null)
+					{
+						let targetBounds = mManager.[Friend]CalculateDropBounds(hoveredZone.Value);
+						dropIndicator.Show(targetBounds, hoveredZone.Value);
+						mPendingDockPosition = hoveredZone;
+					}
+					else
+					{
+						dropIndicator.Hide();
+						mPendingDockPosition = null;
+					}
+				}
+			}
+
 			e.Handled = true;
 		}
 		else if (mIsResizing)
@@ -202,11 +251,34 @@ public class FloatingWindow : Control
 			return;
 		}
 
+		// Check close button - handle directly without going through events
+		if (mPanel != null && mPanel.IsPointOnCloseButton(point))
+		{
+			// Close this floating window
+			if (mManager != null)
+				mManager.RemoveFloatingWindow(this);
+			e.Handled = true;
+			return;
+		}
+
 		// Check title bar for dragging
 		if (mPanel != null && mPanel.TitleBarBounds.Contains(point.X, point.Y))
 		{
 			mIsDragging = true;
 			mDragOffset = .(point.X - mPosition.X, point.Y - mPosition.Y);
+			mPendingDockPosition = null;
+
+			// Show dock zone indicators while dragging
+			if (mManager != null)
+			{
+				let center = Vector2(
+					mManager.ArrangedBounds.X + mManager.ArrangedBounds.Width / 2,
+					mManager.ArrangedBounds.Y + mManager.ArrangedBounds.Height / 2
+				);
+				mManager.[Friend]mZoneIndicator.Show(center);
+				mManager.[Friend]mShowingIndicators = true;
+			}
+
 			if (Context != null)
 				Context.FocusManager?.SetCapture(this);
 			e.Handled = true;
@@ -219,9 +291,69 @@ public class FloatingWindow : Control
 
 		if (e.Button == .Left)
 		{
-			if (mIsDragging || mIsResizing)
+			if (mIsDragging)
 			{
+				// Release capture FIRST before any cleanup
+				if (Context != null)
+					Context.FocusManager?.ReleaseCapture();
+
+				// Hide dock indicators and clear feedback
+				if (mManager != null)
+				{
+					mManager.[Friend]mZoneIndicator.Hide();
+					mManager.[Friend]mDropTargetIndicator.Hide();
+					mManager.[Friend]mShowingIndicators = false;
+					mManager.ClearAllFloatingDragFeedback();
+				}
+
 				mIsDragging = false;
+
+				// Capture pending dock info before clearing
+				let targetGroup = mPendingTargetGroup;
+				let dockPos = mPendingDockPosition;
+				mPendingTargetGroup = null;
+				mPendingDockPosition = null;
+
+				// Check if we should dock
+				let shouldDock = dockPos != null && mManager != null && mPanel != null;
+				if (shouldDock)
+				{
+					let panel = mPanel;
+					let zone = dockPos.Value;
+
+					// Remove panel from this floating window (without deleting it)
+					mPanel = null;
+
+					// Dock the panel
+					if (targetGroup != null)
+					{
+						// Per-group docking
+						if (zone == .Center)
+						{
+							// Add as tab to the group
+							targetGroup.AddPanel(panel);
+						}
+						else
+						{
+							// Edge docking - create split relative to the group
+							mManager.DockPanelRelativeToGroup(panel, targetGroup, zone);
+						}
+					}
+					else
+					{
+						// Global docking (to entire layout)
+						mManager.DockPanel(panel, zone);
+					}
+
+					// Remove this floating window (deferred deletion)
+					// IMPORTANT: Don't access any instance members after this call
+					mManager.RemoveFloatingWindow(this);
+				}
+
+				e.Handled = true;
+			}
+			else if (mIsResizing)
+			{
 				mIsResizing = false;
 				if (Context != null)
 					Context.FocusManager?.ReleaseCapture();
@@ -254,6 +386,28 @@ public class FloatingWindow : Control
 	private bool IsMouseOverResizeEdge(Vector2 point)
 	{
 		return GetResizeEdge(point) != .None;
+	}
+
+	/// Calculates drop preview bounds for a group and zone.
+	private RectangleF CalculateGroupDropBounds(DockTabGroup group, DockPosition zone)
+	{
+		let bounds = group.ArrangedBounds;
+
+		switch (zone)
+		{
+		case .Top:
+			return .(bounds.X, bounds.Y, bounds.Width, bounds.Height * 0.5f);
+		case .Bottom:
+			return .(bounds.X, bounds.Y + bounds.Height * 0.5f, bounds.Width, bounds.Height * 0.5f);
+		case .Left:
+			return .(bounds.X, bounds.Y, bounds.Width * 0.5f, bounds.Height);
+		case .Right:
+			return .(bounds.X + bounds.Width * 0.5f, bounds.Y, bounds.Width * 0.5f, bounds.Height);
+		case .Center:
+			return bounds;
+		default:
+			return bounds;
+		}
 	}
 
 	private void HandleResize(Vector2 currentPos)
@@ -320,7 +474,24 @@ public class FloatingWindow : Control
 		if (!bounds.Contains(point.X, point.Y))
 			return null;
 
-		// Check panel content first
+		// Check resize edges first - FloatingWindow handles these
+		if (GetResizeEdge(point) != .None)
+			return this;
+
+		// Check title bar
+		if (mPanel != null && mPanel.TitleBarBounds.Contains(point.X, point.Y))
+		{
+			// FloatingWindow handles close button directly (avoids event callback issues)
+			if (mPanel.IsPointOnCloseButton(point))
+				return this;
+			// Let panel handle other buttons (pin)
+			if (mPanel.IsPointOnTitleBarButton(point))
+				return mPanel;
+			// FloatingWindow handles window dragging for non-button areas
+			return this;
+		}
+
+		// Check panel content (not title bar)
 		if (mPanel != null)
 		{
 			let hit = mPanel.HitTest(point);

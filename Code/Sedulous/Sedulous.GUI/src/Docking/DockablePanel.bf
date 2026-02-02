@@ -145,6 +145,22 @@ public class DockablePanel : Control, IDragSource, IDropTarget
 	/// The title bar bounds (for drag detection).
 	public RectangleF TitleBarBounds => mTitleBarBounds;
 
+	/// Returns true if the point is over a title bar button (close or pin).
+	public bool IsPointOnTitleBarButton(Vector2 point)
+	{
+		if (mIsCloseable && mCloseBounds.Contains(point.X, point.Y))
+			return true;
+		if (mIsPinnable && mPinBounds.Contains(point.X, point.Y))
+			return true;
+		return false;
+	}
+
+	/// Returns true if the point is specifically over the close button.
+	public bool IsPointOnCloseButton(Vector2 point)
+	{
+		return mIsCloseable && mCloseBounds.Contains(point.X, point.Y);
+	}
+
 	// === Context ===
 
 	public override void OnAttachedToContext(GUIContext context)
@@ -375,9 +391,10 @@ public class DockablePanel : Control, IDragSource, IDropTarget
 				mDragPending = true;
 				mDragStartPos = point;
 
-				if (Context != null && Context.DragDropManager != null && ParentGroup != null)
+				if (Context != null && Context.DragDropManager != null)
 				{
-					let tabIndex = ParentGroup.[Friend]mPanels.IndexOf(this);
+					// ParentGroup may be null for floating panels - that's OK
+					int tabIndex = ParentGroup != null ? ParentGroup.[Friend]mPanels.IndexOf(this) : -1;
 					let dragData = new DockPanelDragData(this, ParentGroup, tabIndex);
 					Context.DragDropManager.BeginPotentialDrag(this, dragData, .Move, point);
 				}

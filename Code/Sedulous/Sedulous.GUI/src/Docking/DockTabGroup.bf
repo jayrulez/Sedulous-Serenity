@@ -755,7 +755,7 @@ public class DockTabGroup : Control, IDragSource, IDropTarget
 				return;
 			}
 
-			// Remove from source group first
+			// Remove from source (either tab group or floating window)
 			if (panelData.SourceGroup != null)
 			{
 				panelData.SourceGroup.RemovePanel(panel);
@@ -763,6 +763,11 @@ public class DockTabGroup : Control, IDragSource, IDropTarget
 				// When source == this (multi-panel case), defer cleanup until after the dock
 				if (panelData.SourceGroup != this)
 					manager.CleanupEmptyNodes();
+			}
+			else
+			{
+				// May be from a floating window
+				manager.RemovePanelFromFloatingWindow(panel);
 			}
 
 			// Dock relative to this group
@@ -804,8 +809,8 @@ public class DockTabGroup : Control, IDragSource, IDropTarget
 			return;
 		}
 
-		// Center drop - add panel from different group
-		// Remove from source group
+		// Center drop - add panel from different group or floating window
+		// Remove from source
 		if (panelData.SourceGroup != null)
 		{
 			panelData.SourceGroup.RemovePanel(panel);
@@ -813,6 +818,11 @@ public class DockTabGroup : Control, IDragSource, IDropTarget
 			// Clean up empty groups and collapsed splits
 			if (manager != null)
 				manager.CleanupEmptyNodes();
+		}
+		else if (manager != null)
+		{
+			// May be from a floating window
+			manager.RemovePanelFromFloatingWindow(panel);
 		}
 
 		// Add to this group at insert position
@@ -822,6 +832,29 @@ public class DockTabGroup : Control, IDragSource, IDropTarget
 			AddPanel(panel);
 
 		args.Handled = true;
+	}
+
+	// === Floating Window Drag Support ===
+
+	/// Updates drop zone feedback for floating window drag (bypasses drag-drop system).
+	/// Returns the calculated drop zone if point is within this group's bounds, null otherwise.
+	public DockPosition? UpdateFloatingDragFeedback(Vector2 point)
+	{
+		if (!ArrangedBounds.Contains(point.X, point.Y))
+		{
+			mDropZone = null;
+			return null;
+		}
+
+		mDropZone = CalculateDropZone(point);
+		return mDropZone;
+	}
+
+	/// Clears floating window drag feedback.
+	public void ClearFloatingDragFeedback()
+	{
+		mDropZone = null;
+		mDropInsertIndex = -1;
 	}
 
 	// === Visual Children ===
