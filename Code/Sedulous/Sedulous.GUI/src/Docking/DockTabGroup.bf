@@ -227,6 +227,10 @@ public class DockTabGroup : Control, IDragSource, IDropTarget
 		{
 			RemovePanelAt(index);
 			mPanelClosed.[Friend]Invoke(this, panel);
+
+			// Clean up empty groups after panel close
+			if (Manager != null)
+				Manager.CleanupEmptyNodes();
 		}
 	}
 

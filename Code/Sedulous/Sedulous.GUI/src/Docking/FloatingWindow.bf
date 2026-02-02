@@ -185,15 +185,24 @@ public class FloatingWindow : Control
 				let groupTarget = mManager.UpdateFloatingDragTarget(pos);
 				if (groupTarget != null)
 				{
-					// We have a per-group target - show drop preview
+					// We have a per-group target
 					let group = groupTarget.Value.group;
 					let zone = groupTarget.Value.zone;
 
-					// Calculate drop bounds based on group and zone
-					let dropBounds = CalculateGroupDropBounds(group, zone);
-					dropIndicator.Show(dropBounds, zone);
 					mPendingTargetGroup = group;
 					mPendingDockPosition = zone;
+
+					// For edge zones, the group renders its own highlight - hide the drop indicator
+					// For center zone (tabbing), show the drop indicator since group doesn't render anything
+					if (zone == .Center)
+					{
+						let dropBounds = CalculateGroupDropBounds(group, zone);
+						dropIndicator.Show(dropBounds, zone);
+					}
+					else
+					{
+						dropIndicator.Hide();
+					}
 
 					// Clear global zone hover
 					zoneIndicator.UpdateHover(.(-1000, -1000));
