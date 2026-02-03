@@ -1,0 +1,6 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.Mathematics" = "*", "Sedulous.RHI" = "*", SampleFramework = "*", "Nuklear-Beef" = "*"}
+
+[Project]
+Name = "NuklearSample"
+StartupObject = "NuklearSample.Program"
