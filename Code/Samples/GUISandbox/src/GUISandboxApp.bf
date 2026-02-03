@@ -83,6 +83,9 @@ class GUISandboxApp : RHISampleApp
 	// Docking demo instance (has state)
 	private DockingDemo mDockingDemo ~ delete _;
 
+	// DataDisplay demo instance (has state)
+	private DataDisplayDemo mDataDisplayDemo ~ delete _;
+
 	// Clipboard adapter
 	private ShellClipboardAdapter mClipboard ~ delete _;
 
@@ -165,6 +168,7 @@ class GUISandboxApp : RHISampleApp
 		Console.WriteLine("  D: Tree & Hierarchical Controls (Phase 11)");
 		Console.WriteLine("  E: Popup & Dialog (Phase 12a) | F: Drag and Drop (Phase 12b)");
 		Console.WriteLine("  G: Menu & Toolbar (Phase 13) | H: Docking (Phase 14)");
+		Console.WriteLine("  I: Data Display (Phase 15)");
 		Console.WriteLine("  T: Toggle theme | Tab: Navigate focus | F2: Debug");
 		Console.WriteLine("  Ctrl +/-: Adjust UI scale");
 		Console.WriteLine("  ESC: Exit");
@@ -282,6 +286,13 @@ class GUISandboxApp : RHISampleApp
 			mDockingDemo = null;
 		}
 
+		// Clean up DataDisplay demo when switching away
+		if (demo != .DataDisplay && mDataDisplayDemo != null)
+		{
+			delete mDataDisplayDemo;
+			mDataDisplayDemo = null;
+		}
+
 		// Create new demo
 		switch (demo)
 		{
@@ -341,6 +352,10 @@ class GUISandboxApp : RHISampleApp
 			if (mDockingDemo == null)
 				mDockingDemo = new DockingDemo();
 			mDemoRoot = mDockingDemo.CreateDemo(mGUIContext);
+		case .DataDisplay:
+			if (mDataDisplayDemo == null)
+				mDataDisplayDemo = new DataDisplayDemo();
+			mDemoRoot = mDataDisplayDemo.CreateDemo();
 		}
 
 		mGUIContext.RootElement = mDemoRoot;
@@ -397,6 +412,8 @@ class GUISandboxApp : RHISampleApp
 				SwitchDemo(.MenuToolbar);
 			if (keyboard.IsKeyPressed(.H))
 				SwitchDemo(.Docking);
+			if (keyboard.IsKeyPressed(.I))
+				SwitchDemo(.DataDisplay);
 		}
 
 		// UI Scale with Ctrl+/Ctrl-
@@ -791,6 +808,7 @@ class GUISandboxApp : RHISampleApp
 		case .DragDrop: return "Drag and Drop";
 		case .MenuToolbar: return "Menu & Toolbar";
 		case .Docking: return "Docking";
+		case .DataDisplay: return "Data Display";
 		}
 	}
 

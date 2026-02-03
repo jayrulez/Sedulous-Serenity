@@ -160,4 +160,5 @@ enum DemoType
 	case DragDrop;
 	case MenuToolbar;
 	case Docking;
+	case DataDisplay;
 }
