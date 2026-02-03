@@ -27,7 +27,7 @@ public static class Easings
     /// </summary>
     public static readonly EasingFunction EaseOutLinear = (t) => 
     { 
-        return 1f - t; 
+        return t; 
     };
 
     /// <summary>
@@ -54,7 +54,7 @@ public static class Easings
     public static readonly EasingFunction EaseInOutCubic = (t) =>
     {
 		var t;
-        t /= 2f;
+        t *= 2f;
         if (t < 1f)
         {
             return 0.5f * t * t * t;
@@ -85,7 +85,7 @@ public static class Easings
     public static readonly EasingFunction EaseInOutQuadratic = (t) =>
     {
 		var t;
-        t /= 2f;
+        t *= 2f;
         if (t < 1f)
         {
             return 0.5f * t * t;
@@ -108,7 +108,7 @@ public static class Easings
     public static readonly EasingFunction EaseOutQuartic = (t) =>
     {
 		var t;
-        t--;
+        t -= 1f;
         return -1f * (t * t * t * t - 1);
     };
 
@@ -118,11 +118,12 @@ public static class Easings
     public static readonly EasingFunction EaseInOutQuartic = (t) =>
     {
 		var t;
-        t /= 2f;
+        t *= 2f;
         if (t < 1f)
         {
             return 0.5f * t * t * t * t;
         }
+        t -= 2f;
         return -0.5f * (t * t * t * t - 2);
     };
 
@@ -141,7 +142,7 @@ public static class Easings
     {
 		var t;
         t -= 1f;
-        return (t * t * t * t + 1);
+        return (t * t * t * t * t + 1);
     };
 
     /// <summary>
@@ -150,7 +151,7 @@ public static class Easings
     public static readonly EasingFunction EaseInOutQuintic = (t) =>
     {
 		var t;
-        t /= 2f;
+        t *= 2f;
         if (t < 1)
         {
             return 0.5f * t * t * t * t * t;
@@ -172,7 +173,7 @@ public static class Easings
     /// </summary>
     public static readonly EasingFunction EaseOutSin = (t) =>
     {
-        return +1f * (float)Math.Sin(t * (Math.PI_f / 2.0));
+        return (float)Math.Sin(t * (Math.PI_f / 2.0));
     };
 
     /// <summary>
@@ -188,6 +189,7 @@ public static class Easings
     /// </summary>
     public static readonly EasingFunction EaseInExponential = (t) =>
     {
+        if (t == 0) return 0f;
         return (float)Math.Pow(2, 10 * (t - 1));
     };
 
@@ -196,6 +198,7 @@ public static class Easings
     /// </summary>
     public static readonly EasingFunction EaseOutExponential = (t) =>
     {
+        if (t == 1) return 1f;
         return (float)-Math.Pow(2, -10 * t) + 1f;
     };
 
@@ -204,8 +207,10 @@ public static class Easings
     /// </summary>
     public static readonly EasingFunction EaseInOutExponential = (t) =>
     {
+        if (t == 0) return 0f;
+        if (t == 1) return 1f;
 		var t;
-        t /= 2f;
+        t *= 2f;
         if (t < 1)
         {
             return 0.5f * (float)Math.Pow(2, 10 * (t - 1));
@@ -238,11 +243,12 @@ public static class Easings
     public static readonly EasingFunction EaseInOutCircular = (t) =>
     {
 		var t;
-        t /= 2f;
+        t *= 2f;
         if (t < 1)
         {
             return -0.5f * ((float)Math.Sqrt(1 - t * t) - 1);
         }
+        t -= 2f;
         return 0.5f * ((float)Math.Sqrt(1 - t * t) + 1);
     };
 
@@ -274,13 +280,13 @@ public static class Easings
 		var t;
         const float s = 1.70158f;
         const float s2 = s * 1.525f;
-        t /= 2f;
+        t *= 2f;
         if (t < 1)
         {
-            return 0.5f * (t * t * ((s2 + 1) * t - s));
+            return 0.5f * (t * t * ((s2 + 1) * t - s2));
         }
         t -= 2f;
-        return 0.5f * t * t * ((s2 + 1) * t + s) + 2;
+        return 0.5f * (t * t * ((s2 + 1) * t + s2) + 2);
     };
 
     /// <summary>
@@ -288,13 +294,13 @@ public static class Easings
     /// </summary>
     public static readonly EasingFunction EaseInElastic = (t) =>
     {
-		var t;
-        var s = 1.70158;
-        if (t == 0) return 0f;
+		if (t == 0) return 0f;
         if (t == 1) return 1f;
-        s = (0.3 / (2.0 * Math.PI_f) * Math.Asin(1.0));
+        var t;
+        const float p = 0.3f;
+        const float s = p / 4f;
         t -= 1f;
-        return -(float)(Math.Pow(2, 10 * t) * Math.Sin((t - s) * (2.0 * Math.PI_f) / 0.3));
+        return -(float)(Math.Pow(2, 10 * t) * Math.Sin((t - s) * (2.0 * Math.PI_f) / p));
     };
 
     /// <summary>
@@ -302,11 +308,11 @@ public static class Easings
     /// </summary>
     public static readonly EasingFunction EaseOutElastic = (t) =>
     {
-        var s = 1.70158;
         if (t == 0) return 0f;
         if (t == 1) return 1f;
-        s = (0.3 / (2.0 * Math.PI_f) * Math.Asin(1.0));
-        return (float)((Math.Pow(2, -10 * t) * Math.Sin((t - s) * (2.0 * Math.PI_f) / 0.3)) + 1.0);
+        const float p = 0.3f;
+        const float s = p / 4f;
+        return (float)(Math.Pow(2, -10 * t) * Math.Sin((t - s) * (2.0 * Math.PI_f) / p) + 1.0);
     };
 
     /// <summary>
@@ -314,13 +320,12 @@ public static class Easings
     /// </summary>
     public static readonly EasingFunction EaseInOutElastic = (t) =>
     {
-		var t;
-        var s = 1.70158;
-        if (t == 0) return 0f;
+		if (t == 0) return 0f;
         if (t == 1) return 1f;
-        var p = 0.3 * 1.5;
+        var t;
         t *= 2f;
-        s = (p / (2.0 * Math.PI_f) * Math.Asin(1.0));
+        const float p = 0.3f * 1.5f;
+        const float s = p / 4f;
         if (t < 1)
         {
             t -= 1f;

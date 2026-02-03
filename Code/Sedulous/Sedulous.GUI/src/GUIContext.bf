@@ -94,6 +94,9 @@ public class GUIContext
 	// Drag drop manager
 	private DragDropManager mDragDropManager ~ delete _;
 
+	// Animation manager
+	private AnimationManager mAnimationManager ~ delete _;
+
 	/// Creates a new GUIContext.
 	public this()
 	{
@@ -104,10 +107,12 @@ public class GUIContext
 		mTooltipService = new TooltipService(this);
 		mModalManager = new ModalManager(this);
 		mDragDropManager = new DragDropManager(this);
+		mAnimationManager = new AnimationManager(this);
 
 		// Register services for access via GetService<T>()
 		RegisterService(mModalManager);
 		RegisterService(mDragDropManager);
+		RegisterService(mAnimationManager);
 	}
 
 	/// The current theme.
@@ -198,6 +203,9 @@ public class GUIContext
 
 	/// The drag drop manager for this context.
 	public DragDropManager DragDropManager => mDragDropManager;
+
+	/// The animation manager for this context.
+	public AnimationManager AnimationManager => mAnimationManager;
 
 	/// UI scale factor (default 1.0). Affects all layout and rendering.
 	/// Valid range: 0.5 to 3.0
@@ -358,6 +366,9 @@ public class GUIContext
 
 		// Update active popups (context menu submenu timers, etc.)
 		mPopupLayer.Update(totalTime);
+
+		// Update animations
+		mAnimationManager?.Update(deltaTime);
 	}
 
 	// === Rendering ===

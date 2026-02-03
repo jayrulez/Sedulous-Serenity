@@ -86,6 +86,9 @@ class GUISandboxApp : RHISampleApp
 	// DataDisplay demo instance (has state)
 	private DataDisplayDemo mDataDisplayDemo ~ delete _;
 
+	// Animation demo instance (has state)
+	private AnimationDemo mAnimationDemo ~ delete _;
+
 	// Clipboard adapter
 	private ShellClipboardAdapter mClipboard ~ delete _;
 
@@ -168,7 +171,7 @@ class GUISandboxApp : RHISampleApp
 		Console.WriteLine("  D: Tree & Hierarchical Controls (Phase 11)");
 		Console.WriteLine("  E: Popup & Dialog (Phase 12a) | F: Drag and Drop (Phase 12b)");
 		Console.WriteLine("  G: Menu & Toolbar (Phase 13) | H: Docking (Phase 14)");
-		Console.WriteLine("  I: Data Display (Phase 15)");
+		Console.WriteLine("  I: Data Display (Phase 15) | J: Animation (Phase 16)");
 		Console.WriteLine("  T: Toggle theme | Tab: Navigate focus | F2: Debug");
 		Console.WriteLine("  Ctrl +/-: Adjust UI scale");
 		Console.WriteLine("  ESC: Exit");
@@ -293,6 +296,13 @@ class GUISandboxApp : RHISampleApp
 			mDataDisplayDemo = null;
 		}
 
+		// Clean up Animation demo when switching away
+		if (demo != .Animation && mAnimationDemo != null)
+		{
+			delete mAnimationDemo;
+			mAnimationDemo = null;
+		}
+
 		// Create new demo
 		switch (demo)
 		{
@@ -356,6 +366,10 @@ class GUISandboxApp : RHISampleApp
 			if (mDataDisplayDemo == null)
 				mDataDisplayDemo = new DataDisplayDemo();
 			mDemoRoot = mDataDisplayDemo.CreateDemo();
+		case .Animation:
+			if (mAnimationDemo == null)
+				mAnimationDemo = new AnimationDemo();
+			mDemoRoot = mAnimationDemo.CreateDemo();
 		}
 
 		mGUIContext.RootElement = mDemoRoot;
@@ -414,6 +428,8 @@ class GUISandboxApp : RHISampleApp
 				SwitchDemo(.Docking);
 			if (keyboard.IsKeyPressed(.I))
 				SwitchDemo(.DataDisplay);
+			if (keyboard.IsKeyPressed(.J))
+				SwitchDemo(.Animation);
 		}
 
 		// UI Scale with Ctrl+/Ctrl-
@@ -809,6 +825,7 @@ class GUISandboxApp : RHISampleApp
 		case .MenuToolbar: return "Menu & Toolbar";
 		case .Docking: return "Docking";
 		case .DataDisplay: return "Data Display";
+		case .Animation: return "Animation";
 		}
 	}
 

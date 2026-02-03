@@ -161,4 +161,5 @@ enum DemoType
 	case MenuToolbar;
 	case Docking;
 	case DataDisplay;
+	case Animation;
 }
