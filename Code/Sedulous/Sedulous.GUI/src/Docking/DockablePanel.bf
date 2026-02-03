@@ -324,6 +324,7 @@ public class DockablePanel : Control, IDragSource, IDropTarget
 
 	private void RenderPinButton(DrawContext ctx, RectangleF bounds, Color color, bool isPinned)
 	{
+		// todo?
 		// Draw pin icon (simplified)
 		let cx = bounds.X + bounds.Width / 2;
 		let cy = bounds.Y + bounds.Height / 2;

@@ -131,6 +131,7 @@ public class WrapPanel : Panel
 		// First pass: calculate line cross sizes
 		// Second pass: arrange children
 		// (For simplicity, we'll do it in one pass with dynamic line sizing)
+		// todo?
 
 		for (let child in Children)
 		{

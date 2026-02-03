@@ -127,6 +127,7 @@ public class DragAdorner
 
 		if (!effectText.IsEmpty)
 		{
+			// todo
 			// Simple text rendering (position to the right of icon)
 			// The actual text rendering would use the font system
 		}
