@@ -1,7 +1,7 @@
 namespace TowerDefense.UI;
 
 using System;
-using Sedulous.UI;
+using Sedulous.GUI;
 using Sedulous.Drawing;
 using Sedulous.Mathematics;
 using Sedulous.Foundation.Core;
@@ -83,22 +83,20 @@ class MainMenu
 		centerPanel.AddChild(buttonPanel);
 
 		// Play button
-		mPlayButton = new Button();
-		mPlayButton.Width = 200;
-		mPlayButton.Height = 50;
+		mPlayButton = new Button("PLAY");
+		mPlayButton.Width = .Fixed(200);
+		mPlayButton.Height = .Fixed(50);
 		mPlayButton.Background = Color(50, 150, 50);
-		mPlayButton.ContentText = "PLAY";
 		mPlayButton.Click.Subscribe(new (btn) => {
 			mOnPlay.[Friend]Invoke();
 		});
 		buttonPanel.AddChild(mPlayButton);
 
 		// Quit button
-		mQuitButton = new Button();
-		mQuitButton.Width = 200;
-		mQuitButton.Height = 50;
+		mQuitButton = new Button("QUIT");
+		mQuitButton.Width = .Fixed(200);
+		mQuitButton.Height = .Fixed(50);
 		mQuitButton.Background = Color(150, 50, 50);
-		mQuitButton.ContentText = "QUIT";
 		mQuitButton.Click.Subscribe(new (btn) => {
 			mOnQuit.[Friend]Invoke();
 		});

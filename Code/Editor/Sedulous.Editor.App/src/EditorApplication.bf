@@ -5,10 +5,11 @@ using System.Collections;
 using System.IO;
 using Sedulous.AppFramework;
 using Sedulous.Editor.Core;
-using Sedulous.UI;
+using Sedulous.GUI;
 using Sedulous.Foundation.Core;
 using Sedulous.Logging.Abstractions;
 using Sedulous.Mathematics;
+using Sedulous.GUI;
 
 /// Editor application configuration.
 public struct EditorConfig
@@ -151,7 +152,7 @@ public class EditorApplication : Application
 		return true;
 	}
 
-	protected override void OnUISetup(UIContext context)
+	protected override void OnUISetup(GUIContext context)
 	{
 		mEditorLogger.LogDebug("Setting up editor UI...");
 
@@ -220,8 +221,8 @@ public class EditorApplication : Application
 
 		// Clean up UI - must happen before UIContext is deleted
 		// Clear root first to avoid stale references
-		if (mUIContext != null)
-			mUIContext.RootElement = null;
+		if (mGUIContext != null)
+			mGUIContext.RootElement = null;
 
 		// Delete UI elements
 		if (mProjectManagerView != null)
@@ -248,7 +249,7 @@ public class EditorApplication : Application
 		mConsolePanel = null;
 
 		// Clean up theme (UIContext doesn't delete services in destructor)
-		if (mUIContext.GetService<ITheme>() case .Ok(let theme))
+		if (mGUIContext.GetService<ITheme>() case .Ok(let theme))
 			delete theme;
 
 		// Clean up core systems
@@ -315,7 +316,7 @@ public class EditorApplication : Application
 			mAssetBrowser.SetDatabase(mProject.AssetDatabase, mProject.RootPath);
 		}
 
-		mUIContext.RootElement = mDockManager;
+		mGUIContext.RootElement = mDockManager;
 		mShowingProjectManager = false;
 	}
 
@@ -328,7 +329,7 @@ public class EditorApplication : Application
 		// Refresh the project list
 		mProjectManagerView.RefreshProjectList();
 
-		mUIContext.RootElement = mProjectManagerView;
+		mGUIContext.RootElement = mProjectManagerView;
 		mShowingProjectManager = true;
 	}
 
@@ -365,27 +366,27 @@ public class EditorApplication : Application
 		overlay.Background = Color(0, 0, 0, 128); // Semi-transparent backdrop
 		overlay.AddChild(mNewProjectDialog);
 
-		mUIContext.RootElement = overlay;
-		mUIContext.SetFocus(mNewProjectDialog.NameInput);
+		mGUIContext.RootElement = overlay;
+		mGUIContext.FocusManager?.SetFocus(mNewProjectDialog.NameInput);
 	}
 
 	/// Hide the new project dialog.
 	private void HideNewProjectDialog()
 	{
 		// Remove dialog from overlay but don't delete it (we reuse it)
-		if (mUIContext.RootElement is Grid)
+		if (mGUIContext.RootElement is Grid)
 		{
-			let overlay = mUIContext.RootElement as Grid;
-			// Use DetachChildren to remove without deleting (we reuse the dialog)
-			overlay.DetachChildren();
-			// Switch root element first, then defer delete the overlay
-			mUIContext.RootElement = mProjectManagerView;
-			mUIContext.DeferDelete(overlay);
+			let overlay = mGUIContext.RootElement as Grid;
+			// Use ClearChildren(false) to remove without deleting (we reuse the dialog)
+			overlay.ClearChildren(false);
+			// Switch root element first, then queue delete the overlay
+			mGUIContext.RootElement = mProjectManagerView;
+			mGUIContext.QueueDelete(overlay);
 			return;
 		}
 
 		// Return to project manager
-		mUIContext.RootElement = mProjectManagerView;
+		mGUIContext.RootElement = mProjectManagerView;
 	}
 
 	// ===== Project Management =====
@@ -560,19 +561,19 @@ public class EditorApplication : Application
 		mProjectPanel = new DockablePanel();
 		mProjectPanel.Title = "Project";
 		mProjectPanel.Width = .Fixed(250);
-		mProjectPanel.PanelContent = CreateProjectBrowserContent();
+		mProjectPanel.Content = CreateProjectBrowserContent();
 
 		// Properties panel
 		mPropertiesPanel = new DockablePanel();
 		mPropertiesPanel.Title = "Properties";
 		mPropertiesPanel.Width = .Fixed(300);
-		mPropertiesPanel.PanelContent = CreatePropertiesContent();
+		mPropertiesPanel.Content = CreatePropertiesContent();
 
 		// Console panel
 		mConsolePanel = new DockablePanel();
 		mConsolePanel.Title = "Console";
 		mConsolePanel.Height = .Fixed(200);
-		mConsolePanel.PanelContent = CreateConsoleContent();
+		mConsolePanel.Content = CreateConsoleContent();
 	}
 
 	private void SetupDefaultLayout()
@@ -591,16 +592,14 @@ public class EditorApplication : Application
 		mDocumentTabs.Width = .Fill;
 		mDocumentTabs.Height = .Fill;
 
-		mDockManager.CenterContent = mDocumentTabs;
+		// Add document tabs as center content (wrapped in a panel)
+		let centerPanel = new DockablePanel("Documents", mDocumentTabs);
+		mDockManager.AddPanel(centerPanel);
 
-		// Dock panels
-		mDockManager.LeftWidth = 250;
-		mDockManager.RightWidth = 300;
-		mDockManager.BottomHeight = 200;
-
-		mDockManager.Dock(mProjectPanel, .Left);
-		mDockManager.Dock(mPropertiesPanel, .Right);
-		mDockManager.Dock(mConsolePanel, .Bottom);
+		// Dock panels around the center
+		mDockManager.DockPanel(mProjectPanel, .Left);
+		mDockManager.DockPanel(mPropertiesPanel, .Right);
+		mDockManager.DockPanel(mConsolePanel, .Bottom);
 	}
 
 	private UIElement CreateProjectBrowserContent()

@@ -2,8 +2,8 @@ namespace Sedulous.Framework.UI;
 
 using System;
 using Sedulous.Framework.Scenes;
-using Sedulous.UI;
-using Sedulous.UI.Shell;
+using Sedulous.GUI;
+using Sedulous.GUI.Shell;
 using Sedulous.Drawing.Renderer;
 using Sedulous.Drawing;
 using Sedulous.RHI;
@@ -12,11 +12,11 @@ using Sedulous.Shaders;
 using Sedulous.Mathematics;
 
 /// A world-space UI panel rendered to a texture and displayed as a sprite in 3D.
-/// Each panel owns its own UIContext, DrawingRenderer, and render texture.
+/// Each panel owns its own GUIContext, DrawingRenderer, and render texture.
 public class WorldUIPanel
 {
 	// UI rendering
-	private UIContext mUIContext ~ delete _;
+	private GUIContext mGUIContext ~ delete _;
 	private DrawContext mDrawContext ~ delete _;
 	private DrawingRenderer mDrawingRenderer;
 	private ITheme mTheme ~ delete _;
@@ -44,8 +44,8 @@ public class WorldUIPanel
 
 	private static int32 sNextPanelId = 0;
 
-	/// The panel's UIContext for building UI element trees.
-	public UIContext UIContext => mUIContext;
+	/// The panel's GUIContext for building UI element trees.
+	public GUIContext GUIContext => mGUIContext;
 
 	/// Whether this panel needs re-rendering.
 	public bool IsDirty
@@ -134,11 +134,11 @@ public class WorldUIPanel
 		mPassName.AppendF("WorldUIPass_{}", panelId);
 
 		// Create UI context
-		mUIContext = new UIContext();
-		mUIContext.SetViewportSize((float)pixelWidth, (float)pixelHeight);
-		mUIContext.RegisterService<IFontService>(fontService);
-		mTheme = new DefaultTheme();
-		mUIContext.RegisterService<ITheme>(mTheme);
+		mGUIContext = new GUIContext();
+		mGUIContext.SetViewportSize((float)pixelWidth, (float)pixelHeight);
+		mGUIContext.RegisterService<IFontService>(fontService);
+		mTheme = new DarkTheme();
+		mGUIContext.RegisterService<ITheme>(mTheme);
 
 		// Create draw context
 		mDrawContext = new DrawContext(fontService);

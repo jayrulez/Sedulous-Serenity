@@ -7,7 +7,7 @@ using Sedulous.Editor.Core;
 /// Registers scene asset handler and provides scene-related menu items.
 class SceneEditorModule : IEditorModule
 {
-	private SceneAssetHandler mHandler ~ delete _;
+	private SceneAssetHandler mHandler /*~ delete _*/;
 
 	public StringView Name => "Scene Editor";
 

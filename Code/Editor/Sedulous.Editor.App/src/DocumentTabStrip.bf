@@ -2,7 +2,7 @@ namespace Sedulous.Editor.App;
 
 using System;
 using System.Collections;
-using Sedulous.UI;
+using Sedulous.GUI;
 using Sedulous.Mathematics;
 using Sedulous.Editor.Core;
 using Sedulous.Foundation.Core;
@@ -36,7 +36,7 @@ public class DocumentTab : Control
 			if (mIsSelected != value)
 			{
 				mIsSelected = value;
-				InvalidateVisual();
+				// Visual update happens automatically on next render
 			}
 		}
 	}
@@ -54,17 +54,18 @@ public class DocumentTab : Control
 	{
 		mTitle.Clear();
 		mDocument.GetTitle(mTitle);
-		InvalidateMeasure();
+		InvalidateLayout();
 	}
 
-	protected override DesiredSize MeasureContent(SizeConstraints constraints)
+	protected override DesiredSize MeasureOverride(SizeConstraints constraints)
 	{
 		let fontService = GetFontService();
 		float textWidth = cTabMinWidth;
+		let fontSize = Context?.Theme?.DefaultFontSize ?? 14f;
 
 		if (fontService != null)
 		{
-			let cachedFont = fontService.GetFont(FontFamily, FontSize);
+			let cachedFont = fontService.GetFont(fontSize);
 			if (cachedFont != null)
 			{
 				textWidth = cachedFont.Font.MeasureString(mTitle);
@@ -76,32 +77,40 @@ public class DocumentTab : Control
 		return .(width, cTabHeight);
 	}
 
-	protected override void OnRender(DrawContext drawContext)
+	protected override void RenderOverride(DrawContext drawContext)
 	{
-		let theme = GetTheme();
-		let bounds = Bounds;
+		let theme = Context?.Theme;
+		let bounds = ArrangedBounds;
+		let fontSize = theme?.DefaultFontSize ?? 14f;
+
+		// Tab colors (hardcoded dark theme colors)
+		let tabSelected = Color(45, 45, 48);
+		let tabHover = Color(62, 62, 64);
+		let tabBackground = Color(37, 37, 38);
+		let borderCol = Color(60, 60, 60);
+		let textColor = Color(220, 220, 220);
+		let closeNormal = Color(150, 150, 150);
+		let closeHover = Color(255, 100, 100);
 
 		// Background
 		Color bgColor;
 		if (mIsSelected)
-			bgColor = theme?.GetColor("TabSelected") ?? Color(45, 45, 48);
-		else if (IsMouseOver)
-			bgColor = theme?.GetColor("TabHover") ?? Color(62, 62, 64);
+			bgColor = tabSelected;
+		else if (IsHovered)
+			bgColor = tabHover;
 		else
-			bgColor = theme?.GetColor("TabBackground") ?? Color(37, 37, 38);
+			bgColor = tabBackground;
 
 		drawContext.FillRect(bounds, bgColor);
 
 		// Bottom border (selected tabs connect to content)
 		if (!mIsSelected)
 		{
-			let borderColor = theme?.GetColor("Border") ?? Color(60, 60, 60);
-			drawContext.FillRect(.(bounds.X, bounds.Bottom - 1, bounds.Width, 1), borderColor);
+			drawContext.FillRect(.(bounds.X, bounds.Bottom - 1, bounds.Width, 1), borderCol);
 		}
 
 		// Separator between tabs
-		let separatorColor = theme?.GetColor("TabSeparator") ?? Color(60, 60, 60);
-		drawContext.FillRect(.(bounds.Right - 1, bounds.Y + 4, 1, bounds.Height - 8), separatorColor);
+		drawContext.FillRect(.(bounds.Right - 1, bounds.Y + 4, 1, bounds.Height - 8), borderCol);
 
 		// Close button bounds (right side)
 		mCloseButtonBounds = RectangleF(
@@ -112,13 +121,13 @@ public class DocumentTab : Control
 		);
 
 		// Draw text
-		let foreground = Foreground ?? theme?.GetColor("Foreground") ?? Color(220, 220, 220);
+		let foreground = Foreground.A > 0 ? Foreground : textColor;
 		let textBounds = RectangleF(bounds.X + cPadding, bounds.Y, bounds.Width - cPadding * 2 - cCloseButtonSize - 4, bounds.Height);
 
 		let fontService = GetFontService();
 		if (fontService != null)
 		{
-			let cachedFont = fontService.GetFont(FontFamily, FontSize);
+			let cachedFont = fontService.GetFont(fontSize);
 			if (cachedFont != null)
 			{
 				let font = cachedFont.Font;
@@ -159,13 +168,9 @@ public class DocumentTab : Control
 		}
 
 		// Close button
-		if (IsMouseOver || mIsSelected)
+		if (IsHovered || mIsSelected)
 		{
-			Color closeColor;
-			if (mIsCloseHovered)
-				closeColor = theme?.GetColor("CloseButtonHover") ?? Color(255, 100, 100);
-			else
-				closeColor = theme?.GetColor("CloseButton") ?? Color(150, 150, 150);
+			let closeColor = mIsCloseHovered ? closeHover : closeNormal;
 
 			// Draw X
 			let cx = mCloseButtonBounds.X + mCloseButtonBounds.Width / 2;
@@ -177,50 +182,49 @@ public class DocumentTab : Control
 		}
 	}
 
-	protected override void OnMouseMoveRouted(MouseEventArgs args)
+	protected override void OnMouseMove(MouseEventArgs e)
 	{
-		base.OnMouseMoveRouted(args);
+		base.OnMouseMove(e);
 
 		let wasCloseHovered = mIsCloseHovered;
-		mIsCloseHovered = mCloseButtonBounds.Contains(args.ScreenX, args.ScreenY);
+		mIsCloseHovered = mCloseButtonBounds.Contains(e.ScreenX, e.ScreenY);
 
-		if (wasCloseHovered != mIsCloseHovered)
-			InvalidateVisual();
+		// Visual update happens automatically on next render
 	}
 
-	protected override void OnMouseLeave()
+	protected override void OnMouseLeave(MouseEventArgs e)
 	{
-		base.OnMouseLeave();
+		base.OnMouseLeave(e);
 		if (mIsCloseHovered)
 		{
 			mIsCloseHovered = false;
-			InvalidateVisual();
+			// Visual update happens automatically on next render
 		}
 	}
 
-	protected override void OnMouseDownRouted(MouseButtonEventArgs args)
+	protected override void OnMouseDown(MouseButtonEventArgs e)
 	{
-		base.OnMouseDownRouted(args);
+		base.OnMouseDown(e);
 
-		if (args.Button == .Left)
+		if (e.Button == .Left)
 		{
 			// Check close button
-			if (mCloseButtonBounds.Contains(args.ScreenX, args.ScreenY))
+			if (mCloseButtonBounds.Contains(e.ScreenX, e.ScreenY))
 			{
 				mOwner.RequestCloseTab(this);
-				args.Handled = true;
+				e.Handled = true;
 				return;
 			}
 
 			// Select tab
 			mOwner.SelectTab(this);
-			args.Handled = true;
+			e.Handled = true;
 		}
-		else if (args.Button == .Middle)
+		else if (e.Button == .Middle)
 		{
 			// Middle-click to close
 			mOwner.RequestCloseTab(this);
-			args.Handled = true;
+			e.Handled = true;
 		}
 	}
 
@@ -309,7 +313,7 @@ public class DocumentTabStrip : Border
 		mTabsScroller.Content = mTabsPanel;
 		tabBar.Child = mTabsScroller;
 		mainPanel.AddChild(tabBar);
-		mainPanel.SetDock(tabBar, .Top);
+		DockPanelProperties.SetDock(tabBar, .Top);
 
 		// Content area (fills remaining space)
 		mContentArea = new Grid();
@@ -365,7 +369,7 @@ public class DocumentTabStrip : Border
 		// Hide empty label
 		mEmptyLabel.Visibility = .Collapsed;
 
-		InvalidateMeasure();
+		InvalidateLayout();
 	}
 
 	private void RemoveTab(IAssetDocument document)
@@ -399,7 +403,7 @@ public class DocumentTabStrip : Border
 			mEmptyLabel.Visibility = .Visible;
 
 		mTabClosed.[Friend]Invoke(null);
-		InvalidateMeasure();
+		InvalidateLayout();
 	}
 
 	/// Select a tab.

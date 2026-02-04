@@ -9,8 +9,8 @@ using Sedulous.RHI;
 using Sedulous.RHI.HLSLShaderCompiler;
 using Sedulous.Models;
 using Sedulous.Models.GLTF;
-using Sedulous.UI;
 using Sedulous.Drawing;
+using Sedulous.GUI;
 
 /// Uniform buffer for model rendering
 [CRepr]
@@ -131,6 +131,8 @@ class GLTFViewerApp : Application
 	// Depth buffer
 	private Sedulous.RHI.ITexture mDepthTexture;
 	private ITextureView mDepthTextureView;
+
+	private StackPanel mUIRoot;
 
 	// Model path (can be set via command line or UI)
 	private String mModelPath = new .() ~ delete _;
@@ -706,29 +708,29 @@ class GLTFViewerApp : Application
 		return true;
 	}
 
-	protected override void OnUISetup(UIContext context)
+	protected override void OnUISetup(GUIContext context)
 	{
 		// Create root layout - a simple StackPanel in the top-left corner
-		let root = new StackPanel();
-		root.Orientation = .Vertical;
-		root.Spacing = 5;
-		root.Margin = .(10, 10, 10, 10);
-		root.HorizontalAlignment = .Left;
-		root.VerticalAlignment = .Top;
-		root.Background = Color(30, 30, 35, 200);
-		root.Padding = .(10, 10, 10, 10);
+		mUIRoot = new StackPanel();
+		mUIRoot.Orientation = .Vertical;
+		mUIRoot.Spacing = 5;
+		mUIRoot.Margin = .(10, 10, 10, 10);
+		mUIRoot.HorizontalAlignment = .Left;
+		mUIRoot.VerticalAlignment = .Top;
+		mUIRoot.Background = Color(30, 30, 35, 200);
+		mUIRoot.Padding = .(10, 10, 10, 10);
 
 		// Title label
 		let titleLabel = new Label("GLTF Viewer");
-		root.AddChild(titleLabel);
+		mUIRoot.AddChild(titleLabel);
 
 		// Help label
 		let helpLabel = new Label("LMB: Rotate | RMB: Pan | Scroll: Zoom");
 		helpLabel.FontSize = 12;
-		root.AddChild(helpLabel);
+		mUIRoot.AddChild(helpLabel);
 
 		// Set as root element
-		context.RootElement = root;
+		context.RootElement = mUIRoot;
 	}
 
 	protected override void OnKeyDown(Sedulous.Shell.Input.KeyCode key)
@@ -764,6 +766,8 @@ class GLTFViewerApp : Application
 		if (mVertShader != null) delete mVertShader;
 		if (mDepthTextureView != null) delete mDepthTextureView;
 		if (mDepthTexture != null) delete mDepthTexture;
+
+		delete mUIRoot;
 	}
 }
 

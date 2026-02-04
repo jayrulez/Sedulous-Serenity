@@ -1,7 +1,7 @@
 namespace Sedulous.Editor.App;
 
 using System;
-using Sedulous.UI;
+using Sedulous.GUI;
 using Sedulous.Mathematics;
 using Sedulous.Shell;
 using Sedulous.Foundation.Core;
@@ -96,11 +96,10 @@ public class NewProjectDialog : Border
 		let folderRow = new DockPanel();
 		folderRow.Width = .Fill;
 
-		mBrowseBtn = new Button();
-		mBrowseBtn.ContentText = "Browse...";
+		mBrowseBtn = new Button("Browse...");
 		mBrowseBtn.Padding = .(12, 6, 12, 6);
 		mBrowseBtn.Click.Subscribe(new (sender) => OnBrowseClicked());
-		folderRow.SetDock(mBrowseBtn, .Right);
+		DockPanelProperties.SetDock(mBrowseBtn, .Right);
 		folderRow.AddChild(mBrowseBtn);
 
 		mFolderPathInput = new TextBox();
@@ -129,16 +128,14 @@ public class NewProjectDialog : Border
 		let buttonsContainer = new StackPanel();
 		buttonsContainer.Orientation = .Horizontal;
 		buttonsContainer.Spacing = 10;
-		buttonRow.SetDock(buttonsContainer, .Right);
+		DockPanelProperties.SetDock(buttonsContainer, .Right);
 
-		mCancelBtn = new Button();
-		mCancelBtn.ContentText = "Cancel";
+		mCancelBtn = new Button("Cancel");
 		mCancelBtn.Padding = .(16, 8, 16, 8);
 		mCancelBtn.Click.Subscribe(new (sender) => OnCancelClicked());
 		buttonsContainer.AddChild(mCancelBtn);
 
-		mCreateBtn = new Button();
-		mCreateBtn.ContentText = "Create";
+		mCreateBtn = new Button("Create");
 		mCreateBtn.Padding = .(16, 8, 16, 8);
 		mCreateBtn.Click.Subscribe(new (sender) => OnCreateClicked());
 		buttonsContainer.AddChild(mCreateBtn);

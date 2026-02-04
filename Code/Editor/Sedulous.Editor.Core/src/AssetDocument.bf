@@ -1,7 +1,7 @@
 namespace Sedulous.Editor.Core;
 
 using System;
-using Sedulous.UI;
+using Sedulous.GUI;
 
 /// Base class for asset documents.
 abstract class AssetDocument : IAssetDocument

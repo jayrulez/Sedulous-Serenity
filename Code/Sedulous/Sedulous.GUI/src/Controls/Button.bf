@@ -8,7 +8,7 @@ namespace Sedulous.GUI;
 /// A clickable button control that can execute commands or raise click events.
 public class Button : ContentControl
 {
-	private ICommand mCommand;
+	private GUICommand mCommand;
 	private Object mCommandParameter;
 	private bool mIsDefault;
 	private bool mIsCancel;
@@ -37,7 +37,7 @@ public class Button : ContentControl
 	protected override StringView ControlTypeName => "Button";
 
 	/// The command to execute when clicked.
-	public ICommand Command
+	public GUICommand Command
 	{
 		get => mCommand;
 		set

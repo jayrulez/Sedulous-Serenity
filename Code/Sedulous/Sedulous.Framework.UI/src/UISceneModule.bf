@@ -8,7 +8,8 @@ using Sedulous.Render;
 using Sedulous.RHI;
 using Sedulous.Mathematics;
 using Sedulous.Shell.Input;
-using Sedulous.UI.Shell;
+using Sedulous.GUI;
+using Sedulous.GUI.Shell;
 
 /// Component marking an entity as having a world-space UI panel.
 /// The actual panel data is managed internally by UISceneModule.
@@ -120,10 +121,10 @@ class UISceneModule : SceneModule
 	{
 		mTotalTime += deltaTime;
 
-		// Update all panel UIContexts
+		// Update all panel GUIContexts
 		for (let panel in mPanels)
 		{
-			panel.UIContext.Update(deltaTime, (double)mTotalTime);
+			panel.GUIContext.Update(deltaTime, (double)mTotalTime);
 		}
 	}
 
@@ -253,7 +254,7 @@ class UISceneModule : SceneModule
 		if (mHoveredPanel != null && mHoveredPanel != closestPanel)
 		{
 			// Move mouse outside panel bounds to trigger leave events
-			mHoveredPanel.UIContext.ProcessMouseMove(-1, -1, .None);
+			mHoveredPanel.GUIContext.ProcessMouseMove(-1, -1);
 			mHoveredPanel.MarkDirty();
 		}
 		mHoveredPanel = closestPanel;
@@ -261,10 +262,10 @@ class UISceneModule : SceneModule
 		// Route input to closest hit panel
 		if (closestPanel != null)
 		{
-			let mods = keyboard != null ? InputMapping.MapModifiers(keyboard.Modifiers) : Sedulous.UI.KeyModifiers.None;
+			let mods = keyboard != null ? InputMapping.MapModifiers(keyboard.Modifiers) : Sedulous.GUI.KeyModifiers.None;
 
 			// Mouse movement
-			closestPanel.UIContext.ProcessMouseMove(closestLocalX, closestLocalY, mods);
+			closestPanel.GUIContext.ProcessMouseMove(closestLocalX, closestLocalY);
 
 			// Mouse buttons
 			RouteWorldMouseButton(closestPanel, mouse, .Left, closestLocalX, closestLocalY, mods);
@@ -273,19 +274,19 @@ class UISceneModule : SceneModule
 
 			// Scroll
 			if (mouse.ScrollX != 0 || mouse.ScrollY != 0)
-				closestPanel.UIContext.ProcessMouseWheel(mouse.ScrollX, mouse.ScrollY, closestLocalX, closestLocalY, mods);
+				closestPanel.GUIContext.ProcessMouseWheel(closestLocalX, closestLocalY, mouse.ScrollY, mods);
 
 			closestPanel.MarkDirty();
 		}
 	}
 
-	private void RouteWorldMouseButton(WorldUIPanel panel, IMouse mouse, Sedulous.Shell.Input.MouseButton shellButton, float x, float y, Sedulous.UI.KeyModifiers mods)
+	private void RouteWorldMouseButton(WorldUIPanel panel, IMouse mouse, Sedulous.Shell.Input.MouseButton shellButton, float x, float y, Sedulous.GUI.KeyModifiers mods)
 	{
 		let uiButton = InputMapping.MapMouseButton(shellButton);
 		if (mouse.IsButtonPressed(shellButton))
-			panel.UIContext.ProcessMouseDown(uiButton, x, y, mods);
+			panel.GUIContext.ProcessMouseDown(x, y, uiButton, mods);
 		else if (mouse.IsButtonReleased(shellButton))
-			panel.UIContext.ProcessMouseUp(uiButton, x, y, mods);
+			panel.GUIContext.ProcessMouseUp(x, y, uiButton, mods);
 	}
 
 	private static Ray ScreenPointToRay(float screenX, float screenY, CameraProxy* camera, uint32 viewportWidth, uint32 viewportHeight)

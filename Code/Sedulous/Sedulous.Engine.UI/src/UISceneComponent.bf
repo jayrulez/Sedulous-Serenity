@@ -12,15 +12,15 @@ using Sedulous.RHI;
 using Sedulous.Renderer;
 using Sedulous.Serialization;
 using Sedulous.Drawing;
-using Sedulous.UI;
-using Sedulous.UI.Shell;
+using Sedulous.GUI;
+using Sedulous.GUI.Shell;
 using Sedulous.Drawing.Renderer;
 using Sedulous.Shaders;
 
-// Use UI types explicitly to avoid ambiguity with Shell types
-typealias UIKeyCode = Sedulous.UI.KeyCode;
-typealias UIKeyModifiers = Sedulous.UI.KeyModifiers;
-typealias UIMouseButton = Sedulous.UI.MouseButton;
+// Use GUI types explicitly to avoid ambiguity with Shell types
+typealias GUIKeyCode = Sedulous.GUI.KeyCode;
+typealias GUIKeyModifiers = Sedulous.GUI.KeyModifiers;
+typealias GUIMouseButton = Sedulous.GUI.MouseButton;
 
 /// Scene component that manages screen-space overlay UI for a scene.
 /// Owns a UIContext for the main UI tree, DrawContext for building geometry,
@@ -31,7 +31,7 @@ class UISceneComponent : ISceneComponent
 	private Scene mScene;
 
 	// UI system
-	private UIContext mUIContext ~ delete _;
+	private GUIContext mGUIContext ~ delete _;
 	private DrawContext mDrawContext ~ delete _;
 
 	// GPU rendering
@@ -60,21 +60,21 @@ class UISceneComponent : ISceneComponent
 	private bool mInputServiceWarningLogged = false;
 
 	// Cursor state
-	private Sedulous.UI.CursorType mLastCursor = .Default;
+	private Sedulous.GUI.CursorType mLastCursor = .Default;
 
 	// ==================== Properties ====================
 
-	/// Gets the UI context for this scene.
-	public UIContext UIContext => mUIContext;
+	/// Gets the GUI context for this scene.
+	public GUIContext GUIContext => mGUIContext;
 
 	/// Gets the root element of the UI tree.
 	public UIElement RootElement
 	{
-		get => mUIContext?.RootElement;
+		get => mGUIContext?.RootElement;
 		set
 		{
-			if (mUIContext != null)
-				mUIContext.RootElement = value;
+			if (mGUIContext != null)
+				mGUIContext.RootElement = value;
 		}
 	}
 
@@ -96,8 +96,8 @@ class UISceneComponent : ISceneComponent
 	{
 		mScene = scene;
 
-		// Create UI context
-		mUIContext = new UIContext();
+		// Create GUI context
+		mGUIContext = new GUIContext();
 
 		// DrawContext is created in InitializeRendering when font service is available
 	}
@@ -122,7 +122,7 @@ class UISceneComponent : ISceneComponent
 
 	public void OnUpdate(float deltaTime)
 	{
-		if (mUIContext == null)
+		if (mGUIContext == null)
 			return;
 
 		// Route input from InputService
@@ -130,11 +130,9 @@ class UISceneComponent : ISceneComponent
 
 		// Get total time from system if available
 		double totalTime = 0;
-		if (mUIContext.SystemServices != null)
-			totalTime = mUIContext.SystemServices.CurrentTime;
 
-		// Update UI context (layout, animations, etc.)
-		mUIContext.Update(deltaTime, totalTime);
+		// Update GUI context (layout, animations, etc.)
+		mGUIContext.Update(deltaTime, totalTime);
 
 		// Update world-space UI components
 		for (let component in mWorldUIComponents)
@@ -211,8 +209,8 @@ class UISceneComponent : ISceneComponent
 			mWidth = width;
 			mHeight = height;
 
-			if (mUIContext != null)
-				mUIContext.SetViewportSize((float)width, (float)height);
+			if (mGUIContext != null)
+				mGUIContext.SetViewportSize((float)width, (float)height);
 		}
 	}
 
@@ -310,14 +308,14 @@ class UISceneComponent : ISceneComponent
 	/// Note: When using RenderGraph, this is called automatically by AddUIPass.
 	public void PrepareGPU(int32 frameIndex)
 	{
-		if (!mRenderingInitialized || mUIContext == null || mDrawingRenderer == null)
+		if (!mRenderingInitialized || mGUIContext == null || mDrawingRenderer == null)
 			return;
 
 		// Clear the draw context
 		mDrawContext.Clear();
 
 		// Render UI to draw context
-		mUIContext.Render(mDrawContext);
+		mGUIContext.Render(mDrawContext);
 
 		// Get the batch and prepare for GPU
 		let batch = mDrawContext.GetBatch();
@@ -346,72 +344,72 @@ class UISceneComponent : ISceneComponent
 	private float mLastMouseY;
 
 	/// Routes mouse move events to the UI.
-	public void OnMouseMove(float x, float y, UIKeyModifiers modifiers = .None)
+	public void OnMouseMove(float x, float y, GUIKeyModifiers modifiers = .None)
 	{
-		if (mUIContext == null)
+		if (mGUIContext == null)
 			return;
 
 		mLastMouseX = x;
 		mLastMouseY = y;
-		mUIContext.InputManager?.ProcessMouseMove(x, y, modifiers);
+		mGUIContext.ProcessMouseMove(x, y);
 	}
 
 	/// Routes mouse button press events to the UI.
-	public void OnMouseDown(UIMouseButton button, float x, float y, UIKeyModifiers modifiers = .None)
+	public void OnMouseDown(GUIMouseButton button, float x, float y, GUIKeyModifiers modifiers = .None)
 	{
-		if (mUIContext == null)
+		if (mGUIContext == null)
 			return;
 
 		mLastMouseX = x;
 		mLastMouseY = y;
-		mUIContext.InputManager?.ProcessMouseDown(button, x, y, modifiers);
+		mGUIContext.ProcessMouseDown(x, y, button, modifiers);
 	}
 
 	/// Routes mouse button release events to the UI.
-	public void OnMouseUp(UIMouseButton button, float x, float y, UIKeyModifiers modifiers = .None)
+	public void OnMouseUp(GUIMouseButton button, float x, float y, GUIKeyModifiers modifiers = .None)
 	{
-		if (mUIContext == null)
+		if (mGUIContext == null)
 			return;
 
 		mLastMouseX = x;
 		mLastMouseY = y;
-		mUIContext.InputManager?.ProcessMouseUp(button, x, y, modifiers);
+		mGUIContext.ProcessMouseUp(x, y, button, modifiers);
 	}
 
 	/// Routes mouse wheel events to the UI.
-	public void OnMouseWheel(float deltaX, float deltaY, UIKeyModifiers modifiers = .None)
+	public void OnMouseWheel(float deltaX, float deltaY, GUIKeyModifiers modifiers = .None)
 	{
-		if (mUIContext == null)
+		if (mGUIContext == null)
 			return;
 
-		mUIContext.InputManager?.ProcessMouseWheel(deltaX, deltaY, mLastMouseX, mLastMouseY, modifiers);
+		mGUIContext.ProcessMouseWheel(mLastMouseX, mLastMouseY, deltaY, modifiers);
 	}
 
 	/// Routes key down events to the UI.
-	public void OnKeyDown(UIKeyCode key, int32 scanCode = 0, UIKeyModifiers modifiers = .None, bool isRepeat = false)
+	public void OnKeyDown(GUIKeyCode key, int32 scanCode = 0, GUIKeyModifiers modifiers = .None, bool isRepeat = false)
 	{
-		if (mUIContext == null)
+		if (mGUIContext == null)
 			return;
 
-		mUIContext.InputManager?.ProcessKeyDown(key, scanCode, modifiers, isRepeat);
+		mGUIContext.ProcessKeyDown(key, modifiers);
 	}
 
 	/// Routes key up events to the UI.
-	public void OnKeyUp(UIKeyCode key, int32 scanCode = 0, UIKeyModifiers modifiers = .None)
+	public void OnKeyUp(GUIKeyCode key, int32 scanCode = 0, GUIKeyModifiers modifiers = .None)
 	{
-		if (mUIContext == null)
+		if (mGUIContext == null)
 			return;
 
-		mUIContext.InputManager?.ProcessKeyUp(key, scanCode, modifiers);
+		mGUIContext.ProcessKeyUp(key, modifiers);
 	}
 
 	/// Routes text input events to the UI.
 	public void OnTextInput(char32 character)
 	{
-		if (mUIContext == null)
+		if (mGUIContext == null)
 			return;
 
-		mUIContext.InputManager?.ProcessTextInput(character);
+		mGUIContext.ProcessTextInput(character);
 	}
 
 	// ==================== Automatic Input Routing ====================
@@ -493,18 +491,18 @@ class UISceneComponent : ISceneComponent
 	/// Updates the shell cursor based on the UI element under the mouse.
 	private void UpdateCursor(IMouse mouse)
 	{
-		Sedulous.UI.CursorType uiCursor = .Default;
+		Sedulous.GUI.CursorType uiCursor = .Default;
 
 		// Check screen-space UI first (ignore transparent root element)
-		let screenHitElement = mUIContext?.HitTest(mouse.X, mouse.Y);
-		if (screenHitElement != null && screenHitElement != mUIContext.RootElement)
+		let screenHitElement = mGUIContext?.HitTest(mouse.X, mouse.Y);
+		if (screenHitElement != null && screenHitElement != mGUIContext.RootElement)
 		{
-			uiCursor = mUIContext.CurrentCursor;
+			uiCursor = mGUIContext.CurrentCursor;
 		}
-		else if (mHoveredWorldUI != null && mHoveredWorldUI.UIContext != null)
+		else if (mHoveredWorldUI != null && mHoveredWorldUI.GUIContext != null)
 		{
 			// Use world UI cursor if hovering over one
-			uiCursor = mHoveredWorldUI.UIContext.CurrentCursor;
+			uiCursor = mHoveredWorldUI.GUIContext.CurrentCursor;
 		}
 
 		if (uiCursor != mLastCursor)
@@ -515,7 +513,7 @@ class UISceneComponent : ISceneComponent
 	}
 
 	/// Routes keyboard input for common UI keys.
-	private void RouteKeyboard(IKeyboard keyboard, UIKeyModifiers mods)
+	private void RouteKeyboard(IKeyboard keyboard, GUIKeyModifiers mods)
 	{
 		// Check all mappable keys
 		Sedulous.Shell.Input.KeyCode[?] keysToCheck = .(
@@ -572,7 +570,7 @@ class UISceneComponent : ISceneComponent
 
 	/// Routes input to world-space UI components via raycasting.
 	/// Called automatically during RouteInput after screen-space UI.
-	private void RouteWorldUIInput(IMouse mouse, IKeyboard keyboard, UIKeyModifiers mods)
+	private void RouteWorldUIInput(IMouse mouse, IKeyboard keyboard, GUIKeyModifiers mods)
 	{
 		// Skip if no world UI components
 		if (mWorldUIComponents.Count == 0)
@@ -628,7 +626,7 @@ class UISceneComponent : ISceneComponent
 			if (mHoveredWorldUI != null)
 			{
 				// Send mouse leave event
-				mHoveredWorldUI.UIContext?.InputManager?.ProcessMouseMove(-1, -1, mods);
+				mHoveredWorldUI.GUIContext?.ProcessMouseMove(-1, -1);
 			}
 
 			mHoveredWorldUI = closestHit;
@@ -638,48 +636,48 @@ class UISceneComponent : ISceneComponent
 		if (mHoveredWorldUI != null)
 		{
 			mWorldUILocalPos = closestLocalPos;
-			let worldUIContext = mHoveredWorldUI.UIContext;
-			if (worldUIContext == null)
+			let worldGUIContext = mHoveredWorldUI.GUIContext;
+			if (worldGUIContext == null)
 				return;
 
 			// Route mouse movement
-			worldUIContext.InputManager?.ProcessMouseMove(closestLocalPos.X, closestLocalPos.Y, mods);
+			worldGUIContext.ProcessMouseMove(closestLocalPos.X, closestLocalPos.Y);
 
 			// Route mouse buttons
 			if (mouse.IsButtonPressed(.Left))
 			{
 				mFocusedWorldUI = mHoveredWorldUI;  // Click gives focus
-				worldUIContext.InputManager?.ProcessMouseDown(.Left, closestLocalPos.X, closestLocalPos.Y, mods);
+				worldGUIContext.ProcessMouseDown(closestLocalPos.X, closestLocalPos.Y, .Left, mods);
 			}
 			if (mouse.IsButtonReleased(.Left))
-				worldUIContext.InputManager?.ProcessMouseUp(.Left, closestLocalPos.X, closestLocalPos.Y, mods);
+				worldGUIContext.ProcessMouseUp(closestLocalPos.X, closestLocalPos.Y, .Left, mods);
 
 			if (mouse.IsButtonPressed(.Right))
-				worldUIContext.InputManager?.ProcessMouseDown(.Right, closestLocalPos.X, closestLocalPos.Y, mods);
+				worldGUIContext.ProcessMouseDown(closestLocalPos.X, closestLocalPos.Y, .Right, mods);
 			if (mouse.IsButtonReleased(.Right))
-				worldUIContext.InputManager?.ProcessMouseUp(.Right, closestLocalPos.X, closestLocalPos.Y, mods);
+				worldGUIContext.ProcessMouseUp(closestLocalPos.X, closestLocalPos.Y, .Right, mods);
 
 			if (mouse.IsButtonPressed(.Middle))
-				worldUIContext.InputManager?.ProcessMouseDown(.Middle, closestLocalPos.X, closestLocalPos.Y, mods);
+				worldGUIContext.ProcessMouseDown(closestLocalPos.X, closestLocalPos.Y, .Middle, mods);
 			if (mouse.IsButtonReleased(.Middle))
-				worldUIContext.InputManager?.ProcessMouseUp(.Middle, closestLocalPos.X, closestLocalPos.Y, mods);
+				worldGUIContext.ProcessMouseUp(closestLocalPos.X, closestLocalPos.Y, .Middle, mods);
 
 			// Route scroll wheel
-			if (mouse.ScrollX != 0 || mouse.ScrollY != 0)
-				worldUIContext.InputManager?.ProcessMouseWheel(mouse.ScrollX, mouse.ScrollY, closestLocalPos.X, closestLocalPos.Y, mods);
+			if (mouse.ScrollY != 0)
+				worldGUIContext.ProcessMouseWheel(closestLocalPos.X, closestLocalPos.Y, mouse.ScrollY, mods);
 		}
 
 		// Route keyboard to focused world UI
 		if (mFocusedWorldUI != null)
 		{
-			let focusedContext = mFocusedWorldUI.UIContext;
+			let focusedContext = mFocusedWorldUI.GUIContext;
 			if (focusedContext != null)
 				RouteKeyboardToContext(keyboard, mods, focusedContext);
 		}
 	}
 
-	/// Routes keyboard input to a specific UIContext.
-	private void RouteKeyboardToContext(IKeyboard keyboard, UIKeyModifiers mods, UIContext targetContext)
+	/// Routes keyboard input to a specific GUIContext.
+	private void RouteKeyboardToContext(IKeyboard keyboard, GUIKeyModifiers mods, GUIContext targetContext)
 	{
 		Sedulous.Shell.Input.KeyCode[?] keysToCheck = .(
 			.A, .B, .C, .D, .E, .F, .G, .H, .I, .J, .K, .L, .M,
@@ -693,9 +691,9 @@ class UISceneComponent : ISceneComponent
 		for (let shellKey in keysToCheck)
 		{
 			if (keyboard.IsKeyPressed(shellKey))
-				targetContext.InputManager?.ProcessKeyDown(InputMapping.MapKey(shellKey), 0, mods, false);
+				targetContext.ProcessKeyDown(InputMapping.MapKey(shellKey), mods);
 			if (keyboard.IsKeyReleased(shellKey))
-				targetContext.InputManager?.ProcessKeyUp(InputMapping.MapKey(shellKey), 0, mods);
+				targetContext.ProcessKeyUp(InputMapping.MapKey(shellKey), mods);
 		}
 	}
 

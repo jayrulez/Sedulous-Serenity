@@ -6,12 +6,12 @@ using Sedulous.Engine.Core;
 using Sedulous.Mathematics;
 using Sedulous.Serialization;
 using Sedulous.Drawing;
-using Sedulous.UI;
 using Sedulous.Drawing.Renderer;
 using Sedulous.Shaders;
 
 // Explicit RHI imports to avoid ambiguity with Drawing.ITexture
 using Sedulous.RHI;
+using Sedulous.GUI;
 typealias RHITexture = Sedulous.RHI.ITexture;
 typealias RHITextureView = Sedulous.RHI.ITextureView;
 
@@ -33,7 +33,7 @@ class UIComponent : IEntityComponent
 	private UISceneComponent mUIScene;
 
 	// UI system (each entity has its own UI tree)
-	private UIContext mUIContext ~ delete _;
+	private GUIContext mUIContext ~ delete _;
 	private DrawContext mDrawContext ~ delete _;
 
 	// GPU rendering
@@ -64,8 +64,8 @@ class UIComponent : IEntityComponent
 
 	// ==================== Properties ====================
 
-	/// Gets the UI context for this component.
-	public UIContext UIContext => mUIContext;
+	/// Gets the GUI context for this component.
+	public GUIContext GUIContext => mUIContext;
 
 	/// Gets the root element of the UI tree.
 	public UIElement RootElement
@@ -121,7 +121,7 @@ class UIComponent : IEntityComponent
 		mEntity = entity;
 
 		// Create UI context
-		mUIContext = new UIContext();
+		mUIContext = new GUIContext();
 
 		// DrawContext is created in InitializeRendering when font service is available
 
@@ -157,10 +157,8 @@ class UIComponent : IEntityComponent
 
 		// Get total time from system if available
 		double totalTime = 0;
-		if (mUIContext.SystemServices != null)
-			totalTime = mUIContext.SystemServices.CurrentTime;
 
-		// Update UI context (layout, animations, etc.)
+		// Update GUI context (layout, animations, etc.)
 		mUIContext.Update(deltaTime, totalTime);
 	}
 
@@ -480,15 +478,15 @@ class UIComponent : IEntityComponent
 			return;
 
 		// Route as mouse move
-		mUIContext.InputManager?.ProcessMouseMove(localPos.X, localPos.Y);
+		mUIContext.ProcessMouseMove(localPos.X, localPos.Y);
 
 		// If button specified, route as click
 		if (button.HasValue)
 		{
 			if (pressed)
-				mUIContext.InputManager?.ProcessMouseDown(button.Value, localPos.X, localPos.Y);
+				mUIContext.ProcessMouseDown(localPos.X, localPos.Y, button.Value, .None);
 			else
-				mUIContext.InputManager?.ProcessMouseUp(button.Value, localPos.X, localPos.Y);
+				mUIContext.ProcessMouseUp(localPos.X, localPos.Y, button.Value, .None);
 		}
 	}
 }

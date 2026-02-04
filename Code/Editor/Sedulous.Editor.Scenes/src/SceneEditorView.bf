@@ -2,7 +2,7 @@ namespace Sedulous.Editor.Scenes;
 
 using System;
 using System.Collections;
-using Sedulous.UI;
+using Sedulous.GUI;
 using Sedulous.Drawing;
 using Sedulous.Mathematics;
 using Sedulous.Editor.Core;
@@ -233,13 +233,13 @@ class SceneEditorView : Control
 		return .(constraints.MaxWidth, constraints.MaxHeight);
 	}
 
-	protected override void OnRender(DrawContext ctx)
+	protected override void RenderOverride(DrawContext ctx)
 	{
-		let bounds = Bounds;
+		let bounds = ArrangedBounds;
 
 		// Draw background
-		if (Background.HasValue)
-			ctx.FillRect(bounds, Background.Value);
+		if (Background.A > 0)
+			ctx.FillRect(bounds, Background);
 
 		// Draw placeholder content
 		DrawViewportInfo(ctx, bounds);
@@ -310,27 +310,27 @@ class SceneEditorView : Control
 		ctx.DrawLine(.(originX, originY), .(originX + axisLength * 0.7f, originY - axisLength * 0.7f), Color(60, 60, 220), 2.0f);
 	}
 
-	protected override void OnMouseDown(int button, float localX, float localY)
+	protected override void OnMouseDown(MouseButtonEventArgs e)
 	{
-		if (button == 2) // Right button
+		if (e.Button == .Right)
 		{
 			mIsOrbiting = true;
-			mLastMouseX = localX;
-			mLastMouseY = localY;
-			Context?.SetFocus(this);
+			mLastMouseX = e.LocalX;
+			mLastMouseY = e.LocalY;
+			Context?.FocusManager?.SetFocus(this);
 		}
-		else if (button == 1) // Middle button
+		else if (e.Button == .Middle)
 		{
 			mIsPanning = true;
-			mLastMouseX = localX;
-			mLastMouseY = localY;
-			Context?.SetFocus(this);
+			mLastMouseX = e.LocalX;
+			mLastMouseY = e.LocalY;
+			Context?.FocusManager?.SetFocus(this);
 		}
-		else if (button == 0) // Left button
+		else if (e.Button == .Left)
 		{
 			// TODO: Check for gizmo hit first
 			// Then do picking
-			let entityId = PickEntity(localX, localY);
+			let entityId = PickEntity(e.LocalX, e.LocalY);
 			if (entityId != default)
 			{
 				// TODO: Check for shift key for multi-select
@@ -342,82 +342,75 @@ class SceneEditorView : Control
 			}
 		}
 
-		base.OnMouseDown(button, localX, localY);
+		base.OnMouseDown(e);
 	}
 
-	protected override void OnMouseUp(int button, float localX, float localY)
+	protected override void OnMouseUp(MouseButtonEventArgs e)
 	{
-		if (button == 2) // Right button
+		if (e.Button == .Right)
 		{
 			mIsOrbiting = false;
 		}
-		else if (button == 1) // Middle button
+		else if (e.Button == .Middle)
 		{
 			mIsPanning = false;
 		}
 
-		base.OnMouseUp(button, localX, localY);
+		base.OnMouseUp(e);
 	}
 
-	protected override void OnMouseMove(float localX, float localY)
+	protected override void OnMouseMove(MouseEventArgs e)
 	{
 		if (mIsOrbiting)
 		{
-			let deltaX = localX - mLastMouseX;
-			let deltaY = localY - mLastMouseY;
+			let deltaX = e.LocalX - mLastMouseX;
+			let deltaY = e.LocalY - mLastMouseY;
 			mCamera.Orbit(-deltaX * mCamera.RotationSensitivity, -deltaY * mCamera.RotationSensitivity);
-			mLastMouseX = localX;
-			mLastMouseY = localY;
-			InvalidateVisual();
+			mLastMouseX = e.LocalX;
+			mLastMouseY = e.LocalY;
+			// Visual update happens automatically on next render
 		}
 		else if (mIsPanning)
 		{
-			let deltaX = localX - mLastMouseX;
-			let deltaY = localY - mLastMouseY;
+			let deltaX = e.LocalX - mLastMouseX;
+			let deltaY = e.LocalY - mLastMouseY;
 			mCamera.Pan(-deltaX, deltaY);
-			mLastMouseX = localX;
-			mLastMouseY = localY;
-			InvalidateVisual();
+			mLastMouseX = e.LocalX;
+			mLastMouseY = e.LocalY;
+			// Visual update happens automatically on next render
 		}
 
-		base.OnMouseMove(localX, localY);
+		base.OnMouseMove(e);
 	}
 
-	protected override void OnMouseWheel(float deltaX, float deltaY)
+	protected override void OnMouseWheel(MouseWheelEventArgs e)
 	{
-		mCamera.Zoom(deltaY * 0.5f);
-		InvalidateVisual();
-		base.OnMouseWheel(deltaX, deltaY);
+		mCamera.Zoom(e.DeltaY * 0.5f);
+		// Visual update happens automatically on next render
+		base.OnMouseWheel(e);
 	}
 
-	protected override void OnKeyDown(KeyCode key, KeyModifiers modifiers)
+	protected override void OnKeyDown(KeyEventArgs e)
 	{
-		switch (key)
+		switch (e.Key)
 		{
 		case .F:
 			FocusOnSelection();
-			InvalidateVisual();
 		case .W:
 			mGizmoMode = .Translate;
-			InvalidateVisual();
 		case .E:
 			mGizmoMode = .Rotate;
-			InvalidateVisual();
 		case .R:
 			mGizmoMode = .Scale;
-			InvalidateVisual();
 		case .Q:
 			mGizmoMode = .None;
-			InvalidateVisual();
 		case .G:
 			mShowGrid = !mShowGrid;
-			InvalidateVisual();
 		case .X:
 			mGizmoSpace = (mGizmoSpace == .World) ? .Local : .World;
-			InvalidateVisual();
 		default:
 		}
 
-		base.OnKeyDown(key, modifiers);
+		base.OnKeyDown(e);
 	}
 }

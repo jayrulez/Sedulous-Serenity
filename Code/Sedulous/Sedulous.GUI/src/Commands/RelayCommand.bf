@@ -5,7 +5,7 @@ namespace Sedulous.GUI;
 
 /// A command implementation that delegates to provided functions.
 /// This is the most common way to create commands in application code.
-public class RelayCommand : ICommand
+public class RelayCommand : GUICommand
 {
 	private delegate void() mExecute;
 	private delegate bool() mCanExecute;
@@ -54,7 +54,7 @@ public class RelayCommand : ICommand
 }
 
 /// A command implementation that delegates to provided functions with a parameter.
-public class RelayCommand<T> : ICommand where T : class
+public class RelayCommand<T> : GUICommand where T : class
 {
 	private delegate void(T) mExecute;
 	private delegate bool(T) mCanExecute;

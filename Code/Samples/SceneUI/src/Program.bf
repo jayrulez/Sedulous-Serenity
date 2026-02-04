@@ -9,7 +9,7 @@ using Sedulous.RHI.Vulkan;
 using Sedulous.Shell;
 using Sedulous.Shell.SDL3;
 using Sedulous.Shell.Input;
-using Sedulous.UI;
+using Sedulous.GUI;
 using Sedulous.Fonts;
 using Sedulous.Drawing.Fonts;
 using Sedulous.Framework.Runtime;
@@ -92,7 +92,7 @@ class SceneUISample : Application
 	private OrbitFlyCamera mCamera ~ delete _;
 
 	// UI roots
-	private Canvas mUIRoot ~ delete _;
+	private Canvas mUIRoot;
 
 	// UI elements
 	private TextBlock mFpsLabel;
@@ -612,10 +612,11 @@ class SceneUISample : Application
 
 		// Create main canvas
 		mUIRoot = new Canvas();
-		mUIRoot.Background = null;
+		mUIRoot.Background = .Transparent;
 
 		// Create info panel in top-left
 		let infoPanel = new StackPanel();
+		infoPanel.Background = .(128, 128, 128, 255);
 		infoPanel.Orientation = .Vertical;
 		infoPanel.Margin = .(10, 10, 0, 0);
 		infoPanel.HorizontalAlignment = .Left;
@@ -645,7 +646,7 @@ class SceneUISample : Application
 
 		// Animation buttons (based on actual animation count)
 		mAnimationButtonPanel = new StackPanel();
-		mAnimationButtonPanel.Orientation = .Horizontal;
+		mAnimationButtonPanel.Orientation = .Vertical;
 		mAnimationButtonPanel.Margin = .(0, 5, 0, 0);
 
 		let animCount = mFoxResource?.Animations?.Count ?? 0;
@@ -667,7 +668,7 @@ class SceneUISample : Application
 		mUIRoot.AddChild(infoPanel);
 
 		// Set UI root
-		mUISubsystem.UIContext.RootElement = mUIRoot;
+		mUISubsystem.GUIContext.RootElement = mUIRoot;
 
 		Console.WriteLine("UI created");
 	}
@@ -880,6 +881,8 @@ class SceneUISample : Application
 			delete mFoxMaterialResource;
 			mFoxMaterialResource = null;
 		}
+
+		delete mUIRoot;
 
 		if(mFontService != null)
 		{

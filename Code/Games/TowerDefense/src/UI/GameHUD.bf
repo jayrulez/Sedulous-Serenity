@@ -2,7 +2,7 @@ namespace TowerDefense.UI;
 
 using System;
 using System.Collections;
-using Sedulous.UI;
+using Sedulous.GUI;
 using Sedulous.Drawing;
 using Sedulous.Mathematics;
 using Sedulous.Foundation.Core;
@@ -108,6 +108,9 @@ class GameHUD
 		// Grid as root - allows full-screen overlays on top of HUD
 		mRoot = new Grid();
 		mRoot.Background = Color.Transparent;
+		// Add explicit Star row/column so Grid stretches to fill viewport
+		mRoot.RowDefinitions.Add(new .() { Height = .Star });
+		mRoot.ColumnDefinitions.Add(new .() { Width = .Star });
 
 		// DockPanel for HUD elements (stretches to fill Grid)
 		mHudPanel = new DockPanel();
@@ -120,9 +123,9 @@ class GameHUD
 		// === Top Bar (Money, Lives, Wave) ===
 		let topBar = new Border();
 		topBar.Background = Color(20, 25, 30, 220);
-		topBar.Height = 50;
+		topBar.Height = .Fixed(50);
 		topBar.Padding = Thickness(20, 10, 20, 10);
-		mHudPanel.SetDock(topBar, .Top);
+		DockPanelProperties.SetDock(topBar, .Top);
 
 		let topBarContent = new StackPanel();
 		topBarContent.Orientation = .Horizontal;
@@ -195,8 +198,7 @@ class GameHUD
 
 		// Start Wave button (right side of top bar)
 		{
-			mStartWaveButton = new Button();
-			mStartWaveButton.ContentText = "Start Wave";
+			mStartWaveButton = new Button("Start Wave");
 			mStartWaveButton.Padding = Thickness(15, 8, 15, 8);
 			mStartWaveButton.Background = Color(50, 150, 50);
 			mStartWaveButton.HorizontalAlignment = .Right;
@@ -213,26 +215,23 @@ class GameHUD
 			speedPanel.Spacing = 4;
 			speedPanel.Margin = Thickness(20, 0, 0, 0);
 
-			mSpeed1xButton = new Button();
-			mSpeed1xButton.ContentText = "1x";
-			mSpeed1xButton.Width = 40;
+			mSpeed1xButton = new Button("1x");
+			mSpeed1xButton.Width = .Fixed(40);
 			mSpeed1xButton.Padding = Thickness(8, 6, 8, 6);
 			mSpeed1xButton.Background = Color(80, 80, 80);
-			mSpeed1xButton.BorderThickness = Thickness(2);  // Selected by default
+			mSpeed1xButton.BorderThickness = 2;  // Selected by default
 			mSpeed1xButton.Click.Subscribe(new (btn) => { SetSpeed(1.0f); });
 			speedPanel.AddChild(mSpeed1xButton);
 
-			mSpeed2xButton = new Button();
-			mSpeed2xButton.ContentText = "2x";
-			mSpeed2xButton.Width = 40;
+			mSpeed2xButton = new Button("2x");
+			mSpeed2xButton.Width = .Fixed(40);
 			mSpeed2xButton.Padding = Thickness(8, 6, 8, 6);
 			mSpeed2xButton.Background = Color(80, 80, 80);
 			mSpeed2xButton.Click.Subscribe(new (btn) => { SetSpeed(2.0f); });
 			speedPanel.AddChild(mSpeed2xButton);
 
-			mSpeed3xButton = new Button();
-			mSpeed3xButton.ContentText = "3x";
-			mSpeed3xButton.Width = 40;
+			mSpeed3xButton = new Button("3x");
+			mSpeed3xButton.Width = .Fixed(40);
 			mSpeed3xButton.Padding = Thickness(8, 6, 8, 6);
 			mSpeed3xButton.Background = Color(80, 80, 80);
 			mSpeed3xButton.Click.Subscribe(new (btn) => { SetSpeed(3.0f); });
@@ -246,9 +245,9 @@ class GameHUD
 		// === Bottom Tower Selection Panel ===
 		let bottomPanel = new Border();
 		bottomPanel.Background = Color(20, 25, 30, 220);
-		bottomPanel.Height = 80;
+		bottomPanel.Height = .Fixed(80);
 		bottomPanel.Padding = Thickness(20, 10, 20, 10);
-		mHudPanel.SetDock(bottomPanel, .Bottom);
+		DockPanelProperties.SetDock(bottomPanel, .Bottom);
 
 		mTowerPanel = new StackPanel();
 		mTowerPanel.Orientation = .Horizontal;
@@ -289,8 +288,7 @@ class GameHUD
 		mGameOverText.HorizontalAlignment = .Center;
 		gameOverContent.AddChild(mGameOverText);
 
-		let gameOverRestartBtn = new Button();
-		gameOverRestartBtn.ContentText = "Restart";
+		let gameOverRestartBtn = new Button("Restart");
 		gameOverRestartBtn.Padding = Thickness(30, 15, 30, 15);
 		gameOverRestartBtn.HorizontalAlignment = .Center;
 		gameOverRestartBtn.Click.Subscribe(new (btn) => {
@@ -298,8 +296,7 @@ class GameHUD
 		});
 		gameOverContent.AddChild(gameOverRestartBtn);
 
-		let gameOverMenuBtn = new Button();
-		gameOverMenuBtn.ContentText = "Main Menu";
+		let gameOverMenuBtn = new Button("Main Menu");
 		gameOverMenuBtn.Padding = Thickness(30, 15, 30, 15);
 		gameOverMenuBtn.HorizontalAlignment = .Center;
 		gameOverMenuBtn.Background = Color(80, 80, 100);
@@ -331,8 +328,7 @@ class GameHUD
 		mVictoryText.HorizontalAlignment = .Center;
 		victoryContent.AddChild(mVictoryText);
 
-		let victoryRestartBtn = new Button();
-		victoryRestartBtn.ContentText = "Play Again";
+		let victoryRestartBtn = new Button("Play Again");
 		victoryRestartBtn.Padding = Thickness(30, 15, 30, 15);
 		victoryRestartBtn.HorizontalAlignment = .Center;
 		victoryRestartBtn.Click.Subscribe(new (btn) => {
@@ -340,8 +336,7 @@ class GameHUD
 		});
 		victoryContent.AddChild(victoryRestartBtn);
 
-		let victoryMenuBtn = new Button();
-		victoryMenuBtn.ContentText = "Main Menu";
+		let victoryMenuBtn = new Button("Main Menu");
 		victoryMenuBtn.Padding = Thickness(30, 15, 30, 15);
 		victoryMenuBtn.HorizontalAlignment = .Center;
 		victoryMenuBtn.Background = Color(80, 80, 100);
@@ -380,8 +375,7 @@ class GameHUD
 		pauseHint.HorizontalAlignment = .Center;
 		pauseContent.AddChild(pauseHint);
 
-		let resumeBtn = new Button();
-		resumeBtn.ContentText = "Resume";
+		let resumeBtn = new Button("Resume");
 		resumeBtn.Padding = Thickness(30, 15, 30, 15);
 		resumeBtn.HorizontalAlignment = .Center;
 		resumeBtn.Click.Subscribe(new (btn) => {
@@ -411,10 +405,9 @@ class GameHUD
 		musicRow.HorizontalAlignment = .Center;
 		volumeSection.AddChild(musicRow);
 
-		let musicDownBtn = new Button();
-		musicDownBtn.ContentText = "-";
-		musicDownBtn.Width = 30;
-		musicDownBtn.Height = 30;
+		let musicDownBtn = new Button("-");
+		musicDownBtn.Width = .Fixed(30);
+		musicDownBtn.Height = .Fixed(30);
 		musicDownBtn.Click.Subscribe(new (btn) => {
 			mMusicVolume = Math.Max(0.0f, mMusicVolume - 0.1f);
 			UpdateVolumeLabels();
@@ -423,17 +416,16 @@ class GameHUD
 		musicRow.AddChild(musicDownBtn);
 
 		mMusicVolumeLabel = new TextBlock();
-		mMusicVolumeLabel.Text = "Music: 50%";
+		mMusicVolumeLabel.Text = scope $"Music: {(int32)(mMusicVolume * 100 + 0.5f)}%";
 		mMusicVolumeLabel.Foreground = Color.White;
 		mMusicVolumeLabel.FontSize = 14;
-		mMusicVolumeLabel.Width = 100;
+		mMusicVolumeLabel.Width = .Fixed(100);
 		mMusicVolumeLabel.HorizontalAlignment = .Center;
 		musicRow.AddChild(mMusicVolumeLabel);
 
-		let musicUpBtn = new Button();
-		musicUpBtn.ContentText = "+";
-		musicUpBtn.Width = 30;
-		musicUpBtn.Height = 30;
+		let musicUpBtn = new Button("+");
+		musicUpBtn.Width = .Fixed(30);
+		musicUpBtn.Height = .Fixed(30);
 		musicUpBtn.Click.Subscribe(new (btn) => {
 			mMusicVolume = Math.Min(1.0f, mMusicVolume + 0.1f);
 			UpdateVolumeLabels();
@@ -448,10 +440,9 @@ class GameHUD
 		sfxRow.HorizontalAlignment = .Center;
 		volumeSection.AddChild(sfxRow);
 
-		let sfxDownBtn = new Button();
-		sfxDownBtn.ContentText = "-";
-		sfxDownBtn.Width = 30;
-		sfxDownBtn.Height = 30;
+		let sfxDownBtn = new Button("-");
+		sfxDownBtn.Width = .Fixed(30);
+		sfxDownBtn.Height = .Fixed(30);
 		sfxDownBtn.Click.Subscribe(new (btn) => {
 			mSFXVolume = Math.Max(0.0f, mSFXVolume - 0.1f);
 			UpdateVolumeLabels();
@@ -460,17 +451,16 @@ class GameHUD
 		sfxRow.AddChild(sfxDownBtn);
 
 		mSFXVolumeLabel = new TextBlock();
-		mSFXVolumeLabel.Text = "SFX: 70%";
+		mSFXVolumeLabel.Text = scope $"SFX: {(int32)(mSFXVolume * 100 + 0.5f)}%";
 		mSFXVolumeLabel.Foreground = Color.White;
 		mSFXVolumeLabel.FontSize = 14;
-		mSFXVolumeLabel.Width = 100;
+		mSFXVolumeLabel.Width = .Fixed(100);
 		mSFXVolumeLabel.HorizontalAlignment = .Center;
 		sfxRow.AddChild(mSFXVolumeLabel);
 
-		let sfxUpBtn = new Button();
-		sfxUpBtn.ContentText = "+";
-		sfxUpBtn.Width = 30;
-		sfxUpBtn.Height = 30;
+		let sfxUpBtn = new Button("+");
+		sfxUpBtn.Width = .Fixed(30);
+		sfxUpBtn.Height = .Fixed(30);
 		sfxUpBtn.Click.Subscribe(new (btn) => {
 			mSFXVolume = Math.Min(1.0f, mSFXVolume + 0.1f);
 			UpdateVolumeLabels();
@@ -479,8 +469,7 @@ class GameHUD
 		sfxRow.AddChild(sfxUpBtn);
 
 		// Main Menu button at bottom of pause screen
-		let pauseMenuBtn = new Button();
-		pauseMenuBtn.ContentText = "Main Menu";
+		let pauseMenuBtn = new Button("Main Menu");
 		pauseMenuBtn.Padding = Thickness(30, 15, 30, 15);
 		pauseMenuBtn.HorizontalAlignment = .Center;
 		pauseMenuBtn.Margin = Thickness(0, 20, 0, 0);
@@ -559,8 +548,7 @@ class GameHUD
 		infoContent.AddChild(separator2);
 
 		// Upgrade button
-		mUpgradeButton = new Button();
-		mUpgradeButton.ContentText = "Upgrade $0";
+		mUpgradeButton = new Button("Upgrade $0");
 		mUpgradeButton.Padding = Thickness(20, 10, 20, 10);
 		mUpgradeButton.Background = Color(50, 150, 50);
 		mUpgradeButton.HorizontalAlignment = .Center;
@@ -578,8 +566,7 @@ class GameHUD
 		infoContent.AddChild(mTowerInfoSellPrice);
 
 		// Sell button
-		mSellButton = new Button();
-		mSellButton.ContentText = "Sell Tower";
+		mSellButton = new Button("Sell Tower");
 		mSellButton.Padding = Thickness(20, 10, 20, 10);
 		mSellButton.Background = Color(180, 50, 50);
 		mSellButton.HorizontalAlignment = .Center;
@@ -594,8 +581,8 @@ class GameHUD
 	private void CreateTowerButton(int32 index, StringView name, StringView cost, Color color)
 	{
 		let btn = new Button();
-		btn.Width = 100;
-		btn.Height = 60;
+		btn.Width = .Fixed(100);
+		btn.Height = .Fixed(60);
 		btn.Background = color;
 
 		let content = new StackPanel();
@@ -637,9 +624,9 @@ class GameHUD
 		{
 			let btn = mTowerButtons[i];
 			if (i == index)
-				btn.BorderThickness = Thickness(3);
+				btn.BorderThickness = 3;
 			else
-				btn.BorderThickness = Thickness(0);
+				btn.BorderThickness = 0;
 		}
 
 		mSelectedTowerIndex = index;
@@ -685,7 +672,8 @@ class GameHUD
 	/// Sets the Start Wave button text.
 	public void SetStartWaveText(StringView text)
 	{
-		mStartWaveButton.ContentText = text;
+		if (let textBlock = mStartWaveButton.Content as TextBlock)
+			textBlock.Text = text;
 	}
 
 	/// Shows the game over overlay.
@@ -727,7 +715,7 @@ class GameHUD
 	{
 		mSelectedTowerIndex = -1;
 		for (let btn in mTowerButtons)
-			btn.BorderThickness = Thickness(0);
+			btn.BorderThickness = 0;
 	}
 
 	/// Shows the tower info panel with the given tower's stats.
@@ -746,14 +734,16 @@ class GameHUD
 		// Upgrade button
 		if (tower.CanUpgrade)
 		{
-			mUpgradeButton.ContentText = scope:: $"Upgrade ${tower.GetUpgradeCost()}";
+			if (let textBlock = mUpgradeButton.Content as TextBlock)
+				textBlock.Text = scope:: $"Upgrade ${tower.GetUpgradeCost()}";
 			mUpgradeButton.IsEnabled = true;
 			mUpgradeButton.Background = Color(50, 150, 50);
 			mUpgradeButton.Visibility = .Visible;
 		}
 		else
 		{
-			mUpgradeButton.ContentText = "MAX LEVEL";
+			if (let textBlock = mUpgradeButton.Content as TextBlock)
+				textBlock.Text = "MAX LEVEL";
 			mUpgradeButton.IsEnabled = false;
 			mUpgradeButton.Background = Color(80, 80, 80);
 			mUpgradeButton.Visibility = .Visible;
@@ -795,9 +785,9 @@ class GameHUD
 		mCurrentSpeed = speed;
 
 		// Update button visuals (border indicates selection)
-		mSpeed1xButton.BorderThickness = (speed == 1.0f) ? Thickness(2) : Thickness(0);
-		mSpeed2xButton.BorderThickness = (speed == 2.0f) ? Thickness(2) : Thickness(0);
-		mSpeed3xButton.BorderThickness = (speed == 3.0f) ? Thickness(2) : Thickness(0);
+		mSpeed1xButton.BorderThickness = (speed == 1.0f) ? 2 : 0;
+		mSpeed2xButton.BorderThickness = (speed == 2.0f) ? 2 : 0;
+		mSpeed3xButton.BorderThickness = (speed == 3.0f) ? 2 : 0;
 
 		mOnSpeedChanged.[Friend]Invoke(speed);
 	}

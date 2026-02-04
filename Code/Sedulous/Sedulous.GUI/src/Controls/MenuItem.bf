@@ -19,7 +19,7 @@ public class MenuItem : Control
 	private TextBlock mShortcutBlock ~ delete _;
 
 	// Command binding
-	private ICommand mCommand;
+	private GUICommand mCommand;
 	private Object mCommandParameter;
 
 	// Checkable state
@@ -141,7 +141,7 @@ public class MenuItem : Control
 	}
 
 	/// The command to execute when clicked.
-	public ICommand Command
+	public GUICommand Command
 	{
 		get => mCommand;
 		set => mCommand = value;

@@ -52,8 +52,8 @@ public class WorldSpaceUIFeature : RenderFeatureBase
 
 			// Build UI geometry for this panel
 			panel.PanelDrawContext.Clear();
-			panel.UIContext.SetViewportSize((float)panel.PixelWidth, (float)panel.PixelHeight);
-			panel.UIContext.Render(panel.PanelDrawContext);
+			panel.GUIContext.SetViewportSize((float)panel.PixelWidth, (float)panel.PixelHeight);
+			panel.GUIContext.Render(panel.PanelDrawContext);
 			let batch = panel.PanelDrawContext.GetBatch();
 			if (batch == null || batch.Commands.Count == 0)
 			{

@@ -11,7 +11,7 @@ using Sedulous.Framework.Audio;
 using Sedulous.Framework.Input;
 using Sedulous.Framework.UI;
 using Sedulous.Fonts;
-using Sedulous.UI;
+using Sedulous.GUI;
 using Sedulous.RHI;
 using Sedulous.Shell;
 using Sedulous.Render;
@@ -118,8 +118,8 @@ class FrameworkSandboxApp : Application
 	private const float WallHeight = 2.0f;
 	private const float WallThickness = 0.5f;
 
-	private Canvas mUIRoot ~ delete _;
-	private StackPanel mWorldSpaceUIRoot ~ delete _;
+	private Canvas mUIRoot;
+	private StackPanel mWorldSpaceUIRoot;
 
 	public this(IShell shell, IDevice device, IBackend backend)
 		: base(shell, device, backend)
@@ -1313,15 +1313,14 @@ class FrameworkSandboxApp : Application
 					panelInfo.FontSize = 12;
 					mWorldSpaceUIRoot.AddChild(panelInfo);
 
-					let panelBtn = new Button();
-					panelBtn.ContentText = "Click Me";
-					panelBtn.Width = 100;
+					let panelBtn = new Button("Click Me");
+					panelBtn.Width = .Fixed(100);
 					panelBtn.Click.Subscribe(new (btn) => {
 						panel.MarkDirty();
 					});
 					mWorldSpaceUIRoot.AddChild(panelBtn);
 
-					panel.UIContext.RootElement = mWorldSpaceUIRoot;
+					panel.GUIContext.RootElement = mWorldSpaceUIRoot;
 					panel.MarkDirty();
 					Console.WriteLine("  Created world-space UI panel");
 				}
@@ -1413,18 +1412,16 @@ class FrameworkSandboxApp : Application
 		panel.AddChild(title);
 
 		// Spawn toggle button
-		let spawnBtn = new Button();
-		spawnBtn.ContentText = "Toggle Spawn";
-		spawnBtn.Width = 150;
+		let spawnBtn = new Button("Toggle Spawn");
+		spawnBtn.Width = .Fixed(150);
 		spawnBtn.Click.Subscribe(new (btn) => {
 			mSpawningEnabled = !mSpawningEnabled;
 		});
 		panel.AddChild(spawnBtn);
 
 		// Physics debug toggle
-		let debugBtn = new Button();
-		debugBtn.ContentText = "Toggle Debug Draw";
-		debugBtn.Width = 150;
+		let debugBtn = new Button("Toggle Debug Draw");
+		debugBtn.Width = .Fixed(150);
 		debugBtn.Click.Subscribe(new (btn) => {
 			if (let physicsModule = mMainScene?.GetModule<PhysicsSceneModule>())
 				physicsModule.DebugDrawEnabled = !physicsModule.DebugDrawEnabled;
@@ -1442,7 +1439,7 @@ class FrameworkSandboxApp : Application
 		roughSlider.Minimum = 0;
 		roughSlider.Maximum = 100;
 		roughSlider.Value = 95;
-		roughSlider.Width = 150;
+		roughSlider.Width = .Fixed(150);
 		roughSlider.ValueChanged.Subscribe(new (slider, value) => {
 			if (mSphereMaterial != null)
 				mSphereMaterial.SetFloat("Roughness", (float)value / 100.0f);
@@ -1460,7 +1457,7 @@ class FrameworkSandboxApp : Application
 		metalSlider.Minimum = 0;
 		metalSlider.Maximum = 100;
 		metalSlider.Value = 0;
-		metalSlider.Width = 150;
+		metalSlider.Width = .Fixed(150);
 		metalSlider.ValueChanged.Subscribe(new (slider, value) => {
 			if (mSphereMaterial != null)
 				mSphereMaterial.SetFloat("Metallic", (float)value / 100.0f);
@@ -1468,9 +1465,9 @@ class FrameworkSandboxApp : Application
 		panel.AddChild(metalSlider);
 
 		mUIRoot.AddChild(panel);
-		mUIRoot.SetLeft(panel, 10);
-		mUIRoot.SetTop(panel, 150);
-		mUISubsystem.UIContext.RootElement = mUIRoot;
+		CanvasProperties.SetLeft(panel, 10);
+		CanvasProperties.SetTop(panel, 150);
+		mUISubsystem.GUIContext.RootElement = mUIRoot;
 
 		Console.WriteLine("UI overlay created");
 	}
@@ -1878,6 +1875,10 @@ class FrameworkSandboxApp : Application
 		{
 			delete mFontService;
 		}
+
+		
+		delete mUIRoot;
+		delete mWorldSpaceUIRoot;
 
 		// Shutdown render system (not owned by context)
 		if (mRenderSystem != null)

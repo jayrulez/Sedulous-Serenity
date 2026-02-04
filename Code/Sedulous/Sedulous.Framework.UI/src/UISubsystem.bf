@@ -5,8 +5,8 @@ using System.Collections;
 using Sedulous.Framework.Core;
 using Sedulous.Framework.Scenes;
 using Sedulous.Framework.Input;
-using Sedulous.UI;
-using Sedulous.UI.Shell;
+using Sedulous.GUI;
+using Sedulous.GUI.Shell;
 using Sedulous.Drawing.Renderer;
 using Sedulous.Drawing;
 using Sedulous.RHI;
@@ -17,7 +17,7 @@ using Sedulous.Mathematics;
 using Sedulous.Profiler;
 
 /// UI subsystem for managing user interface.
-/// Owns a global UIContext for screen-space UI overlays.
+/// Owns a global GUIContext for screen-space UI overlays.
 /// Implements ISceneAware to automatically create UISceneModule for each scene.
 public class UISubsystem : Subsystem, ISceneAware
 {
@@ -25,7 +25,7 @@ public class UISubsystem : Subsystem, ISceneAware
 	public override int32 UpdateOrder => 400;
 
 	// Core UI
-	private UIContext mUIContext;
+	private GUIContext mGUIContext;
 	private DrawContext mDrawContext;
 	private DrawingRenderer mDrawingRenderer;
 
@@ -55,7 +55,7 @@ public class UISubsystem : Subsystem, ISceneAware
 	private delegate void(StringView) mTextInputDelegate;
 
 	/// The global UI context for screen-space overlays.
-	public UIContext UIContext => mUIContext;
+	public GUIContext GUIContext => mGUIContext;
 
 	/// The UI renderer.
 	public DrawingRenderer DrawingRenderer => mDrawingRenderer;
@@ -90,16 +90,16 @@ public class UISubsystem : Subsystem, ISceneAware
 		{
 			mTotalTime += deltaTime;
 			RouteMouseInput();
-			mUIContext.Update(deltaTime, (double)mTotalTime);
+			mGUIContext.Update(deltaTime, (double)mTotalTime);
 
 			// Check if screen-space UI consumed input
 			// Ignore transparent root element - only block if a real child element is hit
-			bool screenUIConsumed = mUIContext.FocusedElement != null;
+			bool screenUIConsumed = mGUIContext.FocusManager?.FocusedElement != null;
 			if (!screenUIConsumed && mInputSubsystem?.InputManager?.Mouse != null)
 			{
 				let mouse = mInputSubsystem.InputManager.Mouse;
-				let hitElement = mUIContext.HitTest(mouse.X, mouse.Y);
-				screenUIConsumed = hitElement != null && hitElement != mUIContext.RootElement;
+				let hitElement = mGUIContext.HitTest(mouse.X, mouse.Y);
+				screenUIConsumed = hitElement != null && hitElement != mGUIContext.RootElement;
 			}
 
 			if (screenUIConsumed)
@@ -160,10 +160,10 @@ public class UISubsystem : Subsystem, ISceneAware
 			mClipboardAdapter = null;
 		}
 
-		if (mUIContext != null)
+		if (mGUIContext != null)
 		{
-			delete mUIContext;
-			mUIContext = null;
+			delete mGUIContext;
+			mGUIContext = null;
 		}
 
 		if (mKeyEventDelegate != null)
@@ -190,7 +190,7 @@ public class UISubsystem : Subsystem, ISceneAware
 		mDevice = device;
 		mFrameCount = frameCount;
 		mRenderSystem = renderSystem;
-		mUIContext = new UIContext();
+		mGUIContext = new GUIContext();
 
 		mDrawingRenderer = new DrawingRenderer();
 		if (mDrawingRenderer.Initialize(device, targetFormat, frameCount, renderSystem?.ShaderSystem) case .Err)
@@ -201,17 +201,17 @@ public class UISubsystem : Subsystem, ISceneAware
 		}
 
 		mDrawContext = new DrawContext(mFontService);
-		mUIContext.RegisterService<IFontService>(mFontService);
+		mGUIContext.RegisterService<IFontService>(mFontService);
 
 		// Create and register default theme
-		mTheme = new DefaultTheme();
-		mUIContext.RegisterService<ITheme>(mTheme);
+		mTheme = new DarkTheme();
+		mGUIContext.RegisterService<ITheme>(mTheme);
 
 		// Set up clipboard from shell
 		if (shell.Clipboard != null)
 		{
 			mClipboardAdapter = new ShellClipboardAdapter(shell.Clipboard);
-			mUIContext.RegisterClipboard(mClipboardAdapter);
+			mGUIContext.RegisterClipboard(mClipboardAdapter);
 		}
 
 		// Register world-space UI feature with the render system
@@ -232,16 +232,16 @@ public class UISubsystem : Subsystem, ISceneAware
 		mViewportWidth = width;
 		mViewportHeight = height;
 
-		if (!mRenderingInitialized || mUIContext.RootElement == null)
+		if (!mRenderingInitialized || mGUIContext.RootElement == null)
 			return;
 
 		using (SProfiler.Begin("UI.RenderScreen"))
 		{
-			mUIContext.SetViewportSize((float)width, (float)height);
+			mGUIContext.SetViewportSize((float)width, (float)height);
 
 			// Build geometry
 			mDrawContext.Clear();
-			mUIContext.Render(mDrawContext);
+			mGUIContext.Render(mDrawContext);
 			let batch = mDrawContext.GetBatch();
 			if (batch == null || batch.Commands.Count == 0)
 				return;
@@ -289,14 +289,14 @@ public class UISubsystem : Subsystem, ISceneAware
 			return;
 
 		let keyboard = inputManager.Keyboard;
-		let mods = keyboard != null ? InputMapping.MapModifiers(keyboard.Modifiers) : Sedulous.UI.KeyModifiers.None;
+		let mods = keyboard != null ? InputMapping.MapModifiers(keyboard.Modifiers) : Sedulous.GUI.KeyModifiers.None;
 
 		let mx = mouse.X;
 		let my = mouse.Y;
 
 		// Mouse movement
 		if (mouse.DeltaX != 0 || mouse.DeltaY != 0)
-			mUIContext.ProcessMouseMove(mx, my, mods);
+			mGUIContext.ProcessMouseMove(mx, my);
 
 		// Mouse buttons
 		CheckMouseButton(mouse, .Left, mx, my, mods);
@@ -305,17 +305,17 @@ public class UISubsystem : Subsystem, ISceneAware
 
 		// Scroll
 		if (mouse.ScrollX != 0 || mouse.ScrollY != 0)
-			mUIContext.ProcessMouseWheel(mouse.ScrollX, mouse.ScrollY, mx, my, mods);
+			mGUIContext.ProcessMouseWheel(mx, my, mouse.ScrollY, mods);
 		}
 	}
 
-	private void CheckMouseButton(IMouse mouse, Sedulous.Shell.Input.MouseButton shellButton, float x, float y, Sedulous.UI.KeyModifiers mods)
+	private void CheckMouseButton(IMouse mouse, Sedulous.Shell.Input.MouseButton shellButton, float x, float y, Sedulous.GUI.KeyModifiers mods)
 	{
 		let uiButton = InputMapping.MapMouseButton(shellButton);
 		if (mouse.IsButtonPressed(shellButton))
-			mUIContext.ProcessMouseDown(uiButton, x, y, mods);
+			mGUIContext.ProcessMouseDown(x, y, uiButton, mods);
 		else if (mouse.IsButtonReleased(shellButton))
-			mUIContext.ProcessMouseUp(uiButton, x, y, mods);
+			mGUIContext.ProcessMouseUp(x, y, uiButton, mods);
 	}
 
 	private void UpdateCursor()
@@ -332,13 +332,13 @@ public class UISubsystem : Subsystem, ISceneAware
 			return;
 
 		// Check world panels first - if a world panel is hovered, use its cursor
-		var cursor = Sedulous.UI.CursorType.Default;
+		var cursor = Sedulous.GUI.CursorType.Default;
 		bool worldPanelHovered = false;
 		for (let module in mSceneModules)
 		{
 			if (module.HoveredPanel != null)
 			{
-				cursor = module.HoveredPanel.UIContext.CurrentCursor;
+				cursor = module.HoveredPanel.GUIContext.CurrentCursor;
 				worldPanelHovered = true;
 				break;
 			}
@@ -346,7 +346,7 @@ public class UISubsystem : Subsystem, ISceneAware
 
 		// If no world panel is hovered, use screen-space UI cursor
 		if (!worldPanelHovered)
-			cursor = mUIContext.CurrentCursor;
+			cursor = mGUIContext.CurrentCursor;
 
 		let shellCursor = InputMapping.MapCursor(cursor);
 		mouse.Cursor = shellCursor;
@@ -401,12 +401,12 @@ public class UISubsystem : Subsystem, ISceneAware
 
 		let uiKey = InputMapping.MapKey(key);
 		let keyboard = mInputSubsystem?.InputManager?.Keyboard;
-		let mods = keyboard != null ? InputMapping.MapModifiers(keyboard.Modifiers) : Sedulous.UI.KeyModifiers.None;
+		let mods = keyboard != null ? InputMapping.MapModifiers(keyboard.Modifiers) : Sedulous.GUI.KeyModifiers.None;
 
 		if (down)
-			mUIContext.ProcessKeyDown(uiKey, 0, mods, false);
+			mGUIContext.ProcessKeyDown(uiKey, mods);
 		else
-			mUIContext.ProcessKeyUp(uiKey, 0, mods);
+			mGUIContext.ProcessKeyUp(uiKey, mods);
 	}
 
 	private void OnTextInput(StringView text)
@@ -415,7 +415,7 @@ public class UISubsystem : Subsystem, ISceneAware
 			return;
 
 		for (let c in text.DecodedChars)
-			mUIContext.ProcessTextInput(c);
+			mGUIContext.ProcessTextInput(c);
 	}
 
 	// ==================== World Panel Input ====================

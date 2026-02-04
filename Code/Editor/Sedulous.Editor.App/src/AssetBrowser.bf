@@ -3,7 +3,7 @@ namespace Sedulous.Editor.App;
 using System;
 using System.Collections;
 using System.IO;
-using Sedulous.UI;
+using Sedulous.GUI;
 using Sedulous.Mathematics;
 using Sedulous.Editor.Core;
 using Sedulous.Foundation.Core;
@@ -78,7 +78,7 @@ public class AssetBrowser : Border
 	public void RefreshFolderTree()
 	{
 		// Delete String tags before clearing (folder paths are stored as String tags)
-		ClearTreeItemTags(mFolderTree.RootItems);
+		ClearTreeItemTags(mFolderTree);
 		mFolderTree.ClearItems();
 
 		if (mRootPath.IsEmpty)
@@ -102,7 +102,7 @@ public class AssetBrowser : Border
 		if (mViewMode == .Tiles)
 		{
 			// Delete String tags before clearing (folder paths are stored as String tags)
-			ClearTileItemTags(mAssetTiles.Items);
+			ClearTileItemTags(mAssetTiles);
 			mAssetTiles.ClearItems();
 		}
 		else
@@ -134,8 +134,8 @@ public class AssetBrowser : Border
 			}
 			else
 			{
-				let item = mAssetList.AddItem(entry.Name);
-				item.Tag = entry;
+				// For ListBox, store AssetEntry directly as the item
+				mAssetList.AddItem(entry);
 			}
 		}
 
@@ -199,29 +199,28 @@ public class AssetBrowser : Border
 		mToolbar.AddChild(spacer);
 
 		// View toggle button
-		mViewToggleBtn = new Button();
-		mViewToggleBtn.ContentText = "Tiles";
+		mViewToggleBtn = new Button("Tiles");
 		mViewToggleBtn.Width = .Fixed(50);
 		mViewToggleBtn.Height = .Fixed(22);
 		mViewToggleBtn.Click.Subscribe(new (sender) => ToggleViewMode());
 		mToolbar.AddChild(mViewToggleBtn);
 
 		mainPanel.AddChild(mToolbar);
-		mainPanel.SetDock(mToolbar, .Top);
+		DockPanelProperties.SetDock(mToolbar, .Top);
 
 		// Split panel: folder tree | asset view
 		mSplitPanel = new SplitPanel();
 		mSplitPanel.Width = .Fill;
 		mSplitPanel.Height = .Fill;
 		mSplitPanel.Orientation = .Horizontal;
-		mSplitPanel.SplitterPosition = 180;
+		mSplitPanel.SplitRatio = 0.25f; // 25% for folder tree, 75% for assets
 
-		// Folder tree
+		// Folder tree (first child = left/top)
 		mFolderTree = new TreeView();
 		mFolderTree.Width = .Fill;
 		mFolderTree.Height = .Fill;
-		mFolderTree.SelectionChanged.Subscribe(new (tree, item) => OnFolderSelected(item));
-		mSplitPanel.Panel1 = mFolderTree;
+		mFolderTree.SelectionChanged.Subscribe(new (tree) => OnFolderSelected(tree.SelectedItem));
+		mSplitPanel.AddChild(mFolderTree);
 
 		// Asset view panel (switches between tiles and list)
 		let assetViewPanel = new Grid();
@@ -234,8 +233,8 @@ public class AssetBrowser : Border
 		mAssetTiles.Height = .Fill;
 		mAssetTiles.TileWidth = 80;
 		mAssetTiles.TileHeight = 90;
-		mAssetTiles.SelectionChanged.Subscribe(new (view, item) => OnAssetSelected(item));
-		mAssetTiles.ItemDoubleClick.Subscribe(new (view, item) => OnAssetDoubleClick(item));
+		mAssetTiles.SelectionChanged.Subscribe(new (view) => OnAssetSelected(view.SelectedItem));
+		// TODO: Implement double-click handling for TileView (not available in Sedulous.GUI)
 		assetViewPanel.AddChild(mAssetTiles);
 
 		// List view (hidden initially)
@@ -243,10 +242,11 @@ public class AssetBrowser : Border
 		mAssetList.Width = .Fill;
 		mAssetList.Height = .Fill;
 		mAssetList.Visibility = .Collapsed;
-		mAssetList.SelectionChanged.Subscribe(new (list, oldIdx, newIdx) => OnListAssetSelected());
+		mAssetList.SelectionChanged.Subscribe(new (list) => OnListAssetSelected());
 		assetViewPanel.AddChild(mAssetList);
 
-		mSplitPanel.Panel2 = assetViewPanel;
+		// Second child = right/bottom
+		mSplitPanel.AddChild(assetViewPanel);
 
 		mainPanel.AddChild(mSplitPanel);
 
@@ -296,10 +296,13 @@ public class AssetBrowser : Border
 	private void SelectFolderInTree(StringView path)
 	{
 		// Find and select the folder item in the tree
-		for (let item in mFolderTree.RootItems)
+		for (int i = 0; i < mFolderTree.ItemCount; i++)
 		{
-			if (SelectFolderInTreeRecursive(item, path))
-				break;
+			if (let item = mFolderTree.GetItem(i))
+			{
+				if (SelectFolderInTreeRecursive(item, path))
+					break;
+			}
 		}
 	}
 
@@ -309,15 +312,19 @@ public class AssetBrowser : Border
 		{
 			if (folderPath.Equals(path, .OrdinalIgnoreCase))
 			{
-				mFolderTree.SelectAndScrollTo(item);
+				mFolderTree.SelectedItem = item;
+				mFolderTree.ScrollIntoView(item);
 				return true;
 			}
 		}
 
-		for (let child in item.Children)
+		for (int i = 0; i < item.ChildCount; i++)
 		{
-			if (SelectFolderInTreeRecursive(child, path))
-				return true;
+			if (let child = item.GetChild(i))
+			{
+				if (SelectFolderInTreeRecursive(child, path))
+					return true;
+			}
 		}
 
 		return false;
@@ -370,7 +377,8 @@ public class AssetBrowser : Border
 		if (item == null)
 			return;
 
-		if (let entry = item.Tag as AssetEntry)
+		// ListBox stores AssetEntry directly as the item
+		if (let entry = item as AssetEntry)
 		{
 			mAssetSelectedEvent.[Friend]Invoke(entry);
 		}
@@ -387,12 +395,14 @@ public class AssetBrowser : Border
 		if (mViewMode == .Tiles)
 		{
 			mViewMode = .List;
-			mViewToggleBtn.ContentText = "List";
+			if (let textBlock = mViewToggleBtn.Content as TextBlock)
+				textBlock.Text = "List";
 		}
 		else
 		{
 			mViewMode = .Tiles;
-			mViewToggleBtn.ContentText = "Tiles";
+			if (let textBlock = mViewToggleBtn.Content as TextBlock)
+				textBlock.Text = "Tiles";
 		}
 
 		UpdateViewMode();
@@ -415,26 +425,40 @@ public class AssetBrowser : Border
 	}
 
 	/// Clears String tags from tree view items (recursive).
-	private void ClearTreeItemTags(List<TreeViewItem> items)
+	private void ClearTreeItemTags(TreeView tree)
 	{
-		for (let item in items)
+		for (int i = 0; i < tree.ItemCount; i++)
 		{
-			if (let str = item.Tag as String)
-				delete str;
-			item.Tag = null;
-			ClearTreeItemTags(item.Children);
+			if (let item = tree.GetItem(i))
+				ClearTreeItemTagsRecursive(item);
+		}
+	}
+
+	private void ClearTreeItemTagsRecursive(TreeViewItem item)
+	{
+		if (let str = item.Tag as String)
+			delete str;
+		item.Tag = null;
+
+		for (int i = 0; i < item.ChildCount; i++)
+		{
+			if (let child = item.GetChild(i))
+				ClearTreeItemTagsRecursive(child);
 		}
 	}
 
 	/// Clears String tags from tile view items.
-	private void ClearTileItemTags(List<TileViewItem> items)
+	private void ClearTileItemTags(TileView tileView)
 	{
-		for (let item in items)
+		for (int i = 0; i < tileView.ItemCount; i++)
 		{
-			// Only delete String tags (folder paths), not AssetEntry references
-			if (let str = item.Tag as String)
-				delete str;
-			item.Tag = null;
+			if (let item = tileView.GetItem(i))
+			{
+				// Only delete String tags (folder paths), not AssetEntry references
+				if (let str = item.Tag as String)
+					delete str;
+				item.Tag = null;
+			}
 		}
 	}
 }

@@ -1,7 +1,7 @@
 namespace Sedulous.Editor.Core;
 
 using System;
-using Sedulous.UI;
+using Sedulous.GUI;
 
 /// Interface for asset documents (open assets being edited).
 interface IAssetDocument : IDisposable

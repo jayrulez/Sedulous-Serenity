@@ -25,7 +25,7 @@ using Sedulous.Audio.Decoders;
 using Sedulous.Drawing.Fonts;
 using Sedulous.Fonts;
 using Sedulous.Fonts.TTF;
-using Sedulous.UI;
+using Sedulous.GUI;
 using TowerDefense.Data;
 using TowerDefense.Maps;
 using TowerDefense.Enemies;
@@ -72,9 +72,9 @@ class TowerDefenseGame : Application
 	// UI
 	private FontService mFontService;
 	private GameTheme mGameTheme ~ delete _;
-	private MainMenu mMainMenu ~ delete _;
+	private MainMenu mMainMenu;
 	private LevelSelect mLevelSelect ~ delete _;
-	private GameHUD mGameHUD ~ delete _;
+	private GameHUD mGameHUD;
 
 	// Audio backend
 	private AudioDecoderFactory mDecoderFactory ~ delete _;
@@ -311,7 +311,7 @@ class TowerDefenseGame : Application
 
 		// Use GameTheme for dark UI with light text
 		mGameTheme = new GameTheme();
-		mUISubsystem.UIContext.RegisterService<ITheme>(mGameTheme);
+		mUISubsystem.GUIContext.RegisterService<ITheme>(mGameTheme);
 
 		// Create main menu, level select, and game HUD
 		mMainMenu = new MainMenu();
@@ -319,12 +319,12 @@ class TowerDefenseGame : Application
 		mGameHUD = new GameHUD();
 
 		// Start with main menu as root
-		mUISubsystem.UIContext.RootElement = mMainMenu.RootElement;
+		mUISubsystem.GUIContext.RootElement = mMainMenu.RootElement;
 
 		// Wire up main menu events
 		mMainMenu.OnPlay.Subscribe(new () => {
 			// Show level selection
-			mUISubsystem.UIContext.RootElement = mLevelSelect.RootElement;
+			mUISubsystem.GUIContext.RootElement = mLevelSelect.RootElement;
 		});
 		mMainMenu.OnQuit.Subscribe(new () => {
 			Exit();
@@ -335,7 +335,7 @@ class TowerDefenseGame : Application
 			StartGame(levelIndex);
 		});
 		mLevelSelect.OnBack.Subscribe(new () => {
-			mUISubsystem.UIContext.RootElement = mMainMenu.RootElement;
+			mUISubsystem.GUIContext.RootElement = mMainMenu.RootElement;
 		});
 
 		// Wire up HUD events
@@ -358,7 +358,7 @@ class TowerDefenseGame : Application
 			mTowerFactory?.ClearAll();
 			mParticleEffects?.Clear();
 			mGameState = .MainMenu;
-			mUISubsystem.UIContext.RootElement = mMainMenu.RootElement;
+			mUISubsystem.GUIContext.RootElement = mMainMenu.RootElement;
 		});
 		mGameHUD.OnSellTower.Subscribe(new () => {
 			if (mSelectedPlacedTower.IsValid)
@@ -912,7 +912,7 @@ class TowerDefenseGame : Application
 		Console.WriteLine($"\n=== STARTING GAME (Level {levelIndex + 1}) ===\n");
 
 		// Switch UI to game HUD
-		mUISubsystem.UIContext.RootElement = mGameHUD.RootElement;
+		mUISubsystem.GUIContext.RootElement = mGameHUD.RootElement;
 		mGameHUD.HideOverlays();
 
 		LoadMap(levelIndex);
@@ -1230,6 +1230,10 @@ class TowerDefenseGame : Application
 
 		// Clean up UI (FontService is owned by UISubsystem)
 		delete mFontService;
+
+		delete mGameHUD;
+		delete mMainMenu;
+		//delete mLevelSelect;
 
 		// Clean up materials
 		delete mPreviewValidMat;

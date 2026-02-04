@@ -5,7 +5,7 @@ namespace Sedulous.GUI;
 
 /// Interface for commands that can be executed and have enabled state.
 /// Commands decouple UI controls from the actions they trigger.
-public interface ICommand
+public interface GUICommand
 {
 	/// Executes the command with an optional parameter.
 	void Execute(Object parameter = null);

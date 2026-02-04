@@ -1,7 +1,7 @@
 namespace TowerDefense.UI;
 
 using System;
-using Sedulous.UI;
+using Sedulous.GUI;
 using Sedulous.Drawing;
 using Sedulous.Mathematics;
 using Sedulous.Foundation.Core;
@@ -84,11 +84,10 @@ class LevelSelect
 		centerPanel.AddChild(spacer2);
 
 		// Back button
-		let backButton = new Button();
-		backButton.Width = 150;
-		backButton.Height = 40;
+		let backButton = new Button("BACK");
+		backButton.Width = .Fixed(150);
+		backButton.Height = .Fixed(40);
 		backButton.Background = Color(100, 60, 60);
-		backButton.ContentText = "BACK";
 		backButton.Click.Subscribe(new (btn) => {
 			mOnBack.[Friend]Invoke();
 		});
@@ -98,8 +97,8 @@ class LevelSelect
 	private void CreateLevelButton(StackPanel parent, int32 levelIndex, StringView name, StringView description, Color color, bool enabled = true)
 	{
 		let button = new Button();
-		button.Width = 300;
-		button.Height = 70;
+		button.Width = .Fixed(300);
+		button.Height = .Fixed(70);
 		button.Background = color;
 		button.IsEnabled = enabled;
 

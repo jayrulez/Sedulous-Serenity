@@ -3,7 +3,7 @@ namespace Sedulous.Editor.Scenes;
 using System;
 using System.Collections;
 using Sedulous.Editor.Core;
-using Sedulous.UI;
+using Sedulous.GUI;
 using Sedulous.Mathematics;
 
 /// Document for editing scene assets.
@@ -55,21 +55,21 @@ class SceneAssetDocument : IAssetDocument
 		// Create split panel: hierarchy tree | viewport
 		let splitPanel = new SplitPanel();
 		splitPanel.Orientation = .Horizontal;
-		splitPanel.SplitterPosition = 200;
+		splitPanel.SplitRatio = 0.2f; // 20% for hierarchy, 80% for viewport
 		splitPanel.Width = .Fill;
 		splitPanel.Height = .Fill;
 
-		// Left: Scene hierarchy
+		// Left: Scene hierarchy (first child)
 		mHierarchyPanel = new SceneHierarchyPanel(this);
 		mHierarchyPanel.Width = .Fill;
 		mHierarchyPanel.Height = .Fill;
-		splitPanel.Panel1 = mHierarchyPanel;
+		splitPanel.AddChild(mHierarchyPanel);
 
-		// Right: Scene editor viewport
+		// Right: Scene editor viewport (second child)
 		mEditorView = new SceneEditorView(this);
 		mEditorView.Width = .Fill;
 		mEditorView.Height = .Fill;
-		splitPanel.Panel2 = mEditorView;
+		splitPanel.AddChild(mEditorView);
 
 		mContentRoot = splitPanel;
 		return splitPanel;

@@ -2,7 +2,7 @@ namespace Sedulous.Editor.Scenes;
 
 using System;
 using System.Collections;
-using Sedulous.UI;
+using Sedulous.GUI;
 using Sedulous.Mathematics;
 
 /// Panel displaying scene entity hierarchy as a tree.
@@ -39,22 +39,21 @@ class SceneHierarchyPanel : Border
 		mToolbar.Spacing = 4;
 		mToolbar.Background = Color(45, 45, 48);
 
-		mAddEntityBtn = new Button();
-		mAddEntityBtn.ContentText = "+ Entity";
+		mAddEntityBtn = new Button("+ Entity");
 		mAddEntityBtn.Width = .Fixed(70);
 		mAddEntityBtn.Height = .Fixed(22);
 		mAddEntityBtn.Click.Subscribe(new (sender) => OnAddEntity());
 		mToolbar.AddChild(mAddEntityBtn);
 
 		mainPanel.AddChild(mToolbar);
-		mainPanel.SetDock(mToolbar, .Top);
+		DockPanelProperties.SetDock(mToolbar, .Top);
 
 		// Tree view for hierarchy
 		mTreeView = new TreeView();
 		mTreeView.Width = .Fill;
 		mTreeView.Height = .Fill;
-		mTreeView.SelectionChanged.Subscribe(new (tree, item) => OnSelectionChanged(item));
-		mTreeView.ItemDoubleClick.Subscribe(new (tree, item) => OnItemDoubleClick(item));
+		mTreeView.SelectionChanged.Subscribe(new (tree) => OnSelectionChanged(tree.SelectedItem));
+		// TODO: Implement double-click handling for TreeView (not available in Sedulous.GUI)
 
 		mainPanel.AddChild(mTreeView);
 

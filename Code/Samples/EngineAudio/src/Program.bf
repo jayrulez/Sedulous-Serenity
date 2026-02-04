@@ -7,11 +7,11 @@ using Sedulous.Mathematics;
 using Sedulous.RHI;
 using SampleFramework;
 using Sedulous.Drawing;
-using Sedulous.UI;
+using Sedulous.GUI;
 using Sedulous.Drawing.Fonts;
 using Sedulous.Drawing.Renderer;
 using Sedulous.Shell.Input;
-using Sedulous.UI.Shell;
+using Sedulous.GUI.Shell;
 using Sedulous.Audio;
 using Sedulous.Audio.SDL3;
 using Sedulous.Audio.Decoders;
@@ -45,7 +45,7 @@ class EngineAudioSample : RHISampleApp
 	private bool mIsPlaying = false;
 
 	// UI System
-	private UIContext mUIContext ~ delete _;
+	private GUIContext mUIContext ~ delete _;
 	private ShellClipboardAdapter mClipboard ~ delete _;
 	private FontService mFontService;
 	private DarkTheme mTheme;
@@ -158,7 +158,7 @@ class EngineAudioSample : RHISampleApp
 
 	private bool InitializeUI()
 	{
-		mUIContext = new UIContext();
+		mUIContext = new GUIContext();
 		mUIContext.DebugSettings.ShowLayoutBounds = false;
 
 		mClipboard = new ShellClipboardAdapter(mShell.Clipboard);
@@ -168,9 +168,6 @@ class EngineAudioSample : RHISampleApp
 
 		mTheme = new DarkTheme();
 		mUIContext.RegisterService<ITheme>(mTheme);
-
-		mTooltipService = new TooltipService();
-		mUIContext.RegisterService<ITooltipService>(mTooltipService);
 
 		mUIContext.SetViewportSize((float)SwapChain.Width, (float)SwapChain.Height);
 
@@ -196,7 +193,7 @@ class EngineAudioSample : RHISampleApp
 		let header = new Border();
 		header.Background = Color(40, 40, 55, 255);
 		header.Padding = Thickness(20, 15, 20, 15);
-		mUIRoot.SetDock(header, .Top);
+		DockPanelProperties.SetDock(header, .Top);
 
 		let headerContent = new StackPanel();
 		headerContent.Orientation = .Vertical;
@@ -220,7 +217,7 @@ class EngineAudioSample : RHISampleApp
 		let controlsBar = new Border();
 		controlsBar.Background = Color(35, 35, 50, 255);
 		controlsBar.Padding = Thickness(20, 10, 20, 10);
-		mUIRoot.SetDock(controlsBar, .Bottom);
+		DockPanelProperties.SetDock(controlsBar, .Bottom);
 
 		let controls = new StackPanel();
 		controls.Orientation = .Horizontal;
@@ -229,15 +226,13 @@ class EngineAudioSample : RHISampleApp
 		controlsBar.Child = controls;
 
 		// Play/Pause button
-		mPlayPauseButton = new Button();
-		mPlayPauseButton.ContentText = "Play";
+		mPlayPauseButton = new Button("Play");
 		mPlayPauseButton.Padding = Thickness(20, 8, 20, 8);
 		mPlayPauseButton.Click.Subscribe(new (sender) => TogglePlayPause());
 		controls.AddChild(mPlayPauseButton);
 
 		// Stop button
-		let stopBtn = new Button();
-		stopBtn.ContentText = "Stop";
+		let stopBtn = new Button("Stop");
 		stopBtn.Padding = Thickness(20, 8, 20, 8);
 		stopBtn.Click.Subscribe(new (sender) => StopPlayback());
 		controls.AddChild(stopBtn);
@@ -248,8 +243,7 @@ class EngineAudioSample : RHISampleApp
 		controls.AddChild(sep);
 
 		// Volume down
-		let volDown = new Button();
-		volDown.ContentText = "-";
+		let volDown = new Button("-");
 		volDown.Padding = Thickness(12, 8, 12, 8);
 		volDown.Click.Subscribe(new (sender) => AdjustVolume(-0.1f));
 		controls.AddChild(volDown);
@@ -264,8 +258,7 @@ class EngineAudioSample : RHISampleApp
 		controls.AddChild(mVolumeLabel);
 
 		// Volume up
-		let volUp = new Button();
-		volUp.ContentText = "+";
+		let volUp = new Button("+");
 		volUp.Padding = Thickness(12, 8, 12, 8);
 		volUp.Click.Subscribe(new (sender) => AdjustVolume(0.1f));
 		controls.AddChild(volUp);
@@ -320,8 +313,7 @@ class EngineAudioSample : RHISampleApp
 			let track = mTracks[i];
 			let trackIndex = i;
 
-			let trackBtn = new Button();
-			trackBtn.ContentText = track.Name;
+			let trackBtn = new Button(track.Name);
 			trackBtn.Padding = Thickness(10, 6, 10, 6);
 			trackBtn.HorizontalAlignment = .Stretch;
 			trackBtn.Click.Subscribe(new (sender) => { this.SelectTrack(trackIndex); });
@@ -382,7 +374,7 @@ class EngineAudioSample : RHISampleApp
 			mCurrentSource.Volume = mVolume;
 			mCurrentSource.Play(track.Clip);
 			mIsPlaying = true;
-			mPlayPauseButton.ContentText = "Pause";
+			if (let textBlock = mPlayPauseButton.Content as TextBlock) textBlock.Text = "Pause";
 		}
 	}
 
@@ -400,13 +392,13 @@ class EngineAudioSample : RHISampleApp
 		{
 			mCurrentSource.Pause();
 			mIsPlaying = false;
-			mPlayPauseButton.ContentText = "Play";
+			if (let textBlock = mPlayPauseButton.Content as TextBlock) textBlock.Text = "Play";
 		}
 		else
 		{
 			mCurrentSource.Resume();
 			mIsPlaying = true;
-			mPlayPauseButton.ContentText = "Pause";
+			if (let textBlock = mPlayPauseButton.Content as TextBlock) textBlock.Text = "Pause";
 		}
 	}
 
@@ -419,7 +411,7 @@ class EngineAudioSample : RHISampleApp
 			mCurrentSource = null;
 		}
 		mIsPlaying = false;
-		mPlayPauseButton.ContentText = "Play";
+		if (let textBlock = mPlayPauseButton.Content as TextBlock) textBlock.Text = "Play";
 	}
 
 	private void AdjustVolume(float delta)
@@ -442,7 +434,7 @@ class EngineAudioSample : RHISampleApp
 		if (mCurrentSource != null && mCurrentSource.State == .Stopped && mIsPlaying)
 		{
 			mIsPlaying = false;
-			mPlayPauseButton.ContentText = "Play";
+			if (let textBlock = mPlayPauseButton.Content as TextBlock) textBlock.Text = "Play";
 		}
 
 		// Process UI input
@@ -462,13 +454,13 @@ class EngineAudioSample : RHISampleApp
 
 		// Mouse buttons
 		if (mouse.IsButtonPressed(.Left))
-			mUIContext.ProcessMouseDown(.Left, mouse.X, mouse.Y);
+			mUIContext.ProcessMouseDown(mouse.X, mouse.Y, .Left, .None);
 		if (mouse.IsButtonReleased(.Left))
-			mUIContext.ProcessMouseUp(.Left, mouse.X, mouse.Y);
+			mUIContext.ProcessMouseUp(mouse.X, mouse.Y, .Left, .None);
 
 		// Mouse wheel
-		if (mouse.ScrollX != 0 || mouse.ScrollY != 0)
-			mUIContext.ProcessMouseWheel(mouse.ScrollX, mouse.ScrollY, mouse.X, mouse.Y);
+		if (mouse.ScrollY != 0)
+			mUIContext.ProcessMouseWheel(mouse.X, mouse.Y, mouse.ScrollY, .None);
 
 		// Keyboard
 		if (kb.IsKeyPressed(.Space))

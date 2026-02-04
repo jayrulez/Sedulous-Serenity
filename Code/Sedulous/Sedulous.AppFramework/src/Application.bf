@@ -11,9 +11,9 @@ using Sedulous.RHI;
 using Sedulous.RHI.Vulkan;
 using Sedulous.Drawing;
 using Sedulous.Fonts;
-using Sedulous.UI;
+using Sedulous.GUI;
 using Sedulous.Drawing.Renderer;
-using Sedulous.UI.Shell;
+using Sedulous.GUI.Shell;
 using Sedulous.Drawing.Fonts;
 using Sedulous.Shaders;
 
@@ -21,8 +21,8 @@ using Sedulous.Shaders;
 typealias RHITexture = Sedulous.RHI.ITexture;
 typealias DrawingTexture = Sedulous.Drawing.IImageData;
 typealias ShellKeyCode = Sedulous.Shell.Input.KeyCode;
-typealias UIKeyCode = Sedulous.UI.KeyCode;
-typealias UIKeyModifiers = Sedulous.UI.KeyModifiers;
+typealias GUIKeyCode = Sedulous.GUI.KeyCode;
+typealias GUIKeyModifiers = Sedulous.GUI.KeyModifiers;
 
 /// Configuration for an application.
 public struct ApplicationConfig
@@ -56,7 +56,7 @@ public abstract class Application
 	protected ICommandBuffer[MAX_FRAMES_IN_FLIGHT] mCommandBuffers;
 
 	// UI system
-	protected UIContext mUIContext;
+	protected GUIContext mGUIContext;
 	protected DrawingRenderer mDrawingRenderer;
 	protected DrawContext mDrawContext;
 
@@ -105,7 +105,7 @@ public abstract class Application
 	public ISwapChain SwapChain => mSwapChain;
 	public IWindow Window => mWindow;
 	public IShell Shell => mShell;
-	public UIContext UIContext => mUIContext;
+	public GUIContext GUIContext => mGUIContext;
 	public float DeltaTime => mDeltaTime;
 	public float TotalTime => mTotalTime;
 	public StringView AssetDirectory => mAssetDirectory;
@@ -132,7 +132,7 @@ public abstract class Application
 	protected virtual bool OnInitialize() => true;
 
 	/// Called to set up the UI tree. Override to build your UI.
-	protected virtual void OnUISetup(UIContext context) { }
+	protected virtual void OnUISetup(GUIContext context) { }
 
 	/// Called each frame for game logic.
 	/// Do NOT write to per-frame GPU buffers here - use OnPrepareFrame instead.
@@ -196,7 +196,7 @@ public abstract class Application
 			UpdateCursor(mShell.InputManager.Mouse);
 
 			// Update UI
-			mUIContext.Update(mDeltaTime, (double)mTotalTime);
+			mGUIContext.Update(mDeltaTime, (double)mTotalTime);
 
 			// Application update
 			OnUpdate(mDeltaTime);
@@ -372,7 +372,7 @@ public abstract class Application
 		}
 
 		// Let derived class setup UI
-		OnUISetup(mUIContext);
+		OnUISetup(mGUIContext);
 
 		Console.WriteLine(scope $"{mConfig.Title} running. Press Escape to exit.");
 		return true;
@@ -404,11 +404,11 @@ public abstract class Application
 		// Create clipboard adapter
 		mClipboard = new ShellClipboardAdapter(mShell.Clipboard);
 
-		// Create UI context
-		mUIContext = new UIContext();
-		mUIContext.RegisterClipboard(mClipboard);
-		mUIContext.RegisterService<IFontService>(mFontService);
-		mUIContext.SetViewportSize((float)mSwapChain.Width, (float)mSwapChain.Height);
+		// Create GUI context
+		mGUIContext = new GUIContext();
+		mGUIContext.RegisterClipboard(mClipboard);
+		mGUIContext.RegisterService<IFontService>(mFontService);
+		mGUIContext.SetViewportSize((float)mSwapChain.Width, (float)mSwapChain.Height);
 
 		// Subscribe to text input events
 		mTextInputDelegate = new => OnTextInput;
@@ -456,37 +456,37 @@ public abstract class Application
 	{
 		let keyboard = mShell.InputManager.Keyboard;
 		let mouse = mShell.InputManager.Mouse;
-		let mods = GetUIModifiers(keyboard);
+		let mods = GetGUIModifiers(keyboard);
 
 		// Mouse position
-		mUIContext.ProcessMouseMove(mouse.X, mouse.Y, mods);
+		mGUIContext.ProcessMouseMove(mouse.X, mouse.Y);
 
-		// Mouse buttons - pass x, y, modifiers
+		// Mouse buttons - GUI uses (x, y, button, mods) order
 		if (mouse.IsButtonPressed(.Left))
-			mUIContext.ProcessMouseDown(.Left, mouse.X, mouse.Y, mods);
+			mGUIContext.ProcessMouseDown(mouse.X, mouse.Y, .Left, mods);
 		if (mouse.IsButtonReleased(.Left))
-			mUIContext.ProcessMouseUp(.Left, mouse.X, mouse.Y, mods);
+			mGUIContext.ProcessMouseUp(mouse.X, mouse.Y, .Left, mods);
 		if (mouse.IsButtonPressed(.Right))
-			mUIContext.ProcessMouseDown(.Right, mouse.X, mouse.Y, mods);
+			mGUIContext.ProcessMouseDown(mouse.X, mouse.Y, .Right, mods);
 		if (mouse.IsButtonReleased(.Right))
-			mUIContext.ProcessMouseUp(.Right, mouse.X, mouse.Y, mods);
+			mGUIContext.ProcessMouseUp(mouse.X, mouse.Y, .Right, mods);
 		if (mouse.IsButtonPressed(.Middle))
-			mUIContext.ProcessMouseDown(.Middle, mouse.X, mouse.Y, mods);
+			mGUIContext.ProcessMouseDown(mouse.X, mouse.Y, .Middle, mods);
 		if (mouse.IsButtonReleased(.Middle))
-			mUIContext.ProcessMouseUp(.Middle, mouse.X, mouse.Y, mods);
+			mGUIContext.ProcessMouseUp(mouse.X, mouse.Y, .Middle, mods);
 
-		// Mouse wheel
-		if (mouse.ScrollX != 0 || mouse.ScrollY != 0)
-			mUIContext.ProcessMouseWheel(mouse.ScrollX, mouse.ScrollY, mouse.X, mouse.Y, mods);
+		// Mouse wheel - GUI uses single delta
+		if (mouse.ScrollY != 0)
+			mGUIContext.ProcessMouseWheel(mouse.X, mouse.Y, mouse.ScrollY, mods);
 
 		// Keyboard - route to UI
 		for (int key = 0; key < (int)ShellKeyCode.Count; key++)
 		{
 			let shellKey = (ShellKeyCode)key;
-			let uiKey = MapKeyCode(shellKey);
+			let guiKey = MapKeyCode(shellKey);
 			if (keyboard.IsKeyPressed(shellKey))
 			{
-				mUIContext.ProcessKeyDown(uiKey, 0, mods);
+				mGUIContext.ProcessKeyDown(guiKey, mods);
 
 				// Fallback text input from key presses (when SDL_StartTextInput not called)
 				// Skip when Ctrl or Alt are held - those are shortcuts, not text input
@@ -494,23 +494,23 @@ public abstract class Application
 				{
 					let c = InputMapping.KeyToChar(shellKey, mods.HasFlag(.Shift));
 					if (c != '\0')
-						mUIContext.ProcessTextInput(c);
+						mGUIContext.ProcessTextInput(c);
 				}
 			}
 			if (keyboard.IsKeyReleased(shellKey))
-				mUIContext.ProcessKeyUp(uiKey, 0, mods);
+				mGUIContext.ProcessKeyUp(guiKey, mods);
 		}
 	}
 
 	private void OnTextInput(StringView text)
 	{
 		for (let c in text.DecodedChars)
-			mUIContext.ProcessTextInput(c);
+			mGUIContext.ProcessTextInput(c);
 	}
 
-	private UIKeyModifiers GetUIModifiers(Sedulous.Shell.Input.IKeyboard keyboard)
+	private GUIKeyModifiers GetGUIModifiers(Sedulous.Shell.Input.IKeyboard keyboard)
 	{
-		UIKeyModifiers mods = .None;
+		GUIKeyModifiers mods = .None;
 		if (keyboard.IsKeyDown(.LeftShift) || keyboard.IsKeyDown(.RightShift))
 			mods |= .Shift;
 		if (keyboard.IsKeyDown(.LeftCtrl) || keyboard.IsKeyDown(.RightCtrl))
@@ -520,18 +520,18 @@ public abstract class Application
 		return mods;
 	}
 
-	private static UIKeyCode MapKeyCode(ShellKeyCode shellKey)
+	private static GUIKeyCode MapKeyCode(ShellKeyCode shellKey)
 	{
 		return InputMapping.MapKey(shellKey);
 	}
 
 	private void UpdateCursor(Sedulous.Shell.Input.IMouse mouse)
 	{
-		let uiCursor = mUIContext.CurrentCursor;
-		if (uiCursor != mLastUICursor)
+		let guiCursor = mGUIContext.CurrentCursor;
+		if (guiCursor != mLastUICursor)
 		{
-			mLastUICursor = uiCursor;
-			mouse.Cursor = InputMapping.MapCursor(uiCursor);
+			mLastUICursor = guiCursor;
+			mouse.Cursor = InputMapping.MapCursor(guiCursor);
 		}
 	}
 
@@ -558,7 +558,7 @@ public abstract class Application
 
 		// Build UI draw commands
 		mDrawContext.Clear();
-		mUIContext.Render(mDrawContext);
+		mGUIContext.Render(mDrawContext);
 
 		// Prepare UI renderer
 		mDrawingRenderer.UpdateProjection(mSwapChain.Width, mSwapChain.Height, frameIndex);
@@ -637,8 +637,8 @@ public abstract class Application
 			return;
 		}
 
-		// Update UI context size
-		mUIContext.SetViewportSize((float)mSwapChain.Width, (float)mSwapChain.Height);
+		// Update GUI context size
+		mGUIContext.SetViewportSize((float)mSwapChain.Width, (float)mSwapChain.Height);
 
 		// Notify derived class
 		OnResize(mSwapChain.Width, mSwapChain.Height);
@@ -673,9 +673,9 @@ public abstract class Application
 			delete mDrawingRenderer;
 		}
 
-		// UI context (owns font service and clipboard)
-		if (mUIContext != null)
-			delete mUIContext;
+		// GUI context (owns font service and clipboard)
+		if (mGUIContext != null)
+			delete mGUIContext;
 
 		// Draw context
 		if (mDrawContext != null)

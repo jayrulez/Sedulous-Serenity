@@ -6,7 +6,7 @@ using Sedulous.Engine.Core;
 using Sedulous.Engine.Renderer;
 using Sedulous.Engine.Input;
 using Sedulous.RHI;
-using Sedulous.UI;
+using Sedulous.GUI;
 using Sedulous.Drawing;
 using Sedulous.Mathematics;
 using Sedulous.Shaders;
@@ -86,7 +86,7 @@ class UIService : ContextService
 	{
 		for (let component in mSceneComponents)
 		{
-			component.UIContext.Scale = contentScale;
+			component.GUIContext.ScaleFactor = contentScale;
 		}
 	}
 
@@ -158,14 +158,14 @@ class UIService : ContextService
 			return;
 		}
 
-		// Register services with UIContext
-		let uiContext = uiComponent.UIContext;
+		// Register services with GUIContext
+		let guiContext = uiComponent.GUIContext;
 		if (mFontService != null)
-			uiContext.RegisterService<IFontService>(mFontService);
+			guiContext.RegisterService<IFontService>(mFontService);
 		if (mTheme != null)
-			uiContext.RegisterService<ITheme>(mTheme);
+			guiContext.RegisterService<ITheme>(mTheme);
 		if (mClipboard != null)
-			uiContext.RegisterClipboard(mClipboard);
+			guiContext.RegisterClipboard(mClipboard);
 
 		mContext?.Logger?.LogDebug("UIService: Added UISceneComponent to scene '{}'", scene.Name);
 	}

@@ -2,7 +2,7 @@ namespace Sedulous.Editor.App;
 
 using System;
 using System.Collections;
-using Sedulous.UI;
+using Sedulous.GUI;
 using Sedulous.Mathematics;
 using Sedulous.Editor.Core;
 using Sedulous.Foundation.Core;
@@ -73,16 +73,14 @@ public class ProjectManagerView : Border
 		buttonRow.Spacing = 15;
 		buttonRow.HorizontalAlignment = .Center;
 
-		mNewProjectBtn = new Button();
-		mNewProjectBtn.ContentText = "New Project";
+		mNewProjectBtn = new Button("New Project");
 		mNewProjectBtn.Padding = .(20, 12, 20, 12);
 		mNewProjectBtn.Click.Subscribe(new (sender) => {
 			mNewProjectRequested.[Friend]Invoke();
 		});
 		buttonRow.AddChild(mNewProjectBtn);
 
-		mOpenProjectBtn = new Button();
-		mOpenProjectBtn.ContentText = "Open Project";
+		mOpenProjectBtn = new Button("Open Project");
 		mOpenProjectBtn.Padding = .(20, 12, 20, 12);
 		mOpenProjectBtn.Click.Subscribe(new (sender) => {
 			mOpenProjectRequested.[Friend]Invoke();
@@ -194,39 +192,38 @@ class ProjectListItem : Border
 		content.AddChild(info);
 
 		// Remove button (right side)
-		let removeBtn = new Button();
-		removeBtn.ContentText = "X";
+		let removeBtn = new Button("X");
 		removeBtn.Padding = .(8, 4, 8, 4);
 		removeBtn.Click.Subscribe(new (sender) => {
 			mRemoveRequested.[Friend]Invoke(mProject);
 		});
-		content.SetDock(removeBtn, .Right);
+		DockPanelProperties.SetDock(removeBtn, .Right);
 		content.AddChild(removeBtn);
 
 		Child = content;
 	}
 
-	protected override void OnMouseDownRouted(MouseButtonEventArgs args)
+	protected override void OnMouseDown(MouseButtonEventArgs e)
 	{
-		base.OnMouseDownRouted(args);
+		base.OnMouseDown(e);
 
 		// Left click selects the project (if not on remove button)
-		if (args.Button == .Left && !args.Handled)
+		if (e.Button == .Left && !e.Handled)
 		{
 			mSelected.[Friend]Invoke(mProject);
-			args.Handled = true;
+			e.Handled = true;
 		}
 	}
 
-	protected override void OnMouseEnter()
+	protected override void OnMouseEnter(MouseEventArgs e)
 	{
-		base.OnMouseEnter();
+		base.OnMouseEnter(e);
 		Background = Color(60, 60, 70);
 	}
 
-	protected override void OnMouseLeave()
+	protected override void OnMouseLeave(MouseEventArgs e)
 	{
-		base.OnMouseLeave();
+		base.OnMouseLeave(e);
 		Background = Color(50, 50, 55);
 	}
 }
