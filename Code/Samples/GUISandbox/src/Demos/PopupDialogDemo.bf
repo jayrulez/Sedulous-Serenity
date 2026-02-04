@@ -39,6 +39,9 @@ class PopupDialogDemo
 		// Flyout section
 		CreateFlyoutSection();
 
+		// Standalone Popup section
+		CreatePopupSection();
+
 		// MessageBox section
 		CreateMessageBoxSection();
 
@@ -396,6 +399,159 @@ class PopupDialogDemo
 		buttonRow.AddChild(topFlyoutBtn);
 
 		section.AddChild(buttonRow);
+		mRoot.AddChild(section);
+	}
+
+	private void CreatePopupSection()
+	{
+		let section = new StackPanel();
+		section.Orientation = .Vertical;
+		section.Spacing = 10;
+		section.Background = Color(40, 40, 40, 255);
+		section.Padding = .(15, 15, 15, 15);
+
+		let header = new TextBlock("Standalone Popup - Various placements and behaviors");
+		header.FontSize = 16;
+		section.AddChild(header);
+
+		let buttonRow = new StackPanel();
+		buttonRow.Orientation = .Horizontal;
+		buttonRow.Spacing = 10;
+
+		// Bottom placement popup (context from anchor)
+		let bottomPopupBtn = new Button("Popup Bottom");
+		bottomPopupBtn.Click.Subscribe(new (b) => {
+			let popup = new Popup();
+
+			let content = new StackPanel();
+			content.Orientation = .Vertical;
+			content.Spacing = 8;
+			content.Padding = .(10, 10, 10, 10);
+
+			let label = new TextBlock("Bottom Popup");
+			content.AddChild(label);
+
+			let closeBtn = new Button("Close");
+			closeBtn.Click.Subscribe(new (cb) => popup.Close());
+			content.AddChild(closeBtn);
+
+			popup.Content = content;
+			popup.OpenAt(b, .Bottom);  // Gets context from anchor
+
+			popup.Closed.Subscribe(new (p) => {
+				mStatusLabel.Text = "Bottom popup closed";
+				p.Content = null;
+				mContext.QueueDelete(p);
+			});
+		});
+		buttonRow.AddChild(bottomPopupBtn);
+
+		// Top placement popup (context from anchor)
+		let topPopupBtn = new Button("Popup Top");
+		topPopupBtn.Click.Subscribe(new (b) => {
+			let popup = new Popup();
+
+			let content = new TextBlock("Top Popup!");
+			content.Padding = .(10, 10, 10, 10);
+			popup.Content = content;
+			popup.OpenAt(b, .Top);  // Gets context from anchor
+
+			popup.Closed.Subscribe(new (p) => {
+				mStatusLabel.Text = "Top popup closed";
+				p.Content = null;
+				mContext.QueueDelete(p);
+			});
+		});
+		buttonRow.AddChild(topPopupBtn);
+
+		// Absolute position popup (pass context explicitly)
+		let absolutePopupBtn = new Button("Popup at (100, 200)");
+		absolutePopupBtn.Click.Subscribe(new (b) => {
+			let popup = new Popup();
+
+			let content = new StackPanel();
+			content.Orientation = .Vertical;
+			content.Spacing = 5;
+			content.Padding = .(10, 10, 10, 10);
+
+			let label = new TextBlock("Popup at absolute position");
+			content.AddChild(label);
+
+			let posLabel = new TextBlock("Position: (100, 200)");
+			posLabel.Foreground = Color(150, 150, 150, 255);
+			content.AddChild(posLabel);
+
+			popup.Content = content;
+			popup.OpenAt(mContext, 100, 200);  // Pass context for absolute position
+
+			popup.Closed.Subscribe(new (p) => {
+				mStatusLabel.Text = "Absolute popup closed";
+				p.Content = null;
+				mContext.QueueDelete(p);
+			});
+		});
+		buttonRow.AddChild(absolutePopupBtn);
+
+		// Mouse position popup (pass context explicitly)
+		let mousePopupBtn = new Button("Popup at Mouse");
+		mousePopupBtn.Click.Subscribe(new (b) => {
+			let popup = new Popup();
+
+			let content = new TextBlock("Popup at mouse position!");
+			content.Padding = .(10, 10, 10, 10);
+			popup.Content = content;
+			popup.OpenAtMouse(mContext);  // Pass context for mouse position
+
+			popup.Closed.Subscribe(new (p) => {
+				mStatusLabel.Text = "Mouse popup closed";
+				p.Content = null;
+				mContext.QueueDelete(p);
+			});
+		});
+		buttonRow.AddChild(mousePopupBtn);
+
+		section.AddChild(buttonRow);
+
+		// Second row for behavior options
+		let behaviorRow = new StackPanel();
+		behaviorRow.Orientation = .Horizontal;
+		behaviorRow.Spacing = 10;
+
+		// Popup that doesn't close on click outside (context from anchor)
+		let stickyPopupBtn = new Button("Sticky Popup");
+		stickyPopupBtn.TooltipText = "This popup only closes via the button";
+		stickyPopupBtn.Click.Subscribe(new (b) => {
+			let popup = new Popup();
+			popup.Behavior = .CloseOnEscape;  // Only ESC closes, not click outside
+
+			let content = new StackPanel();
+			content.Orientation = .Vertical;
+			content.Spacing = 8;
+			content.Padding = .(10, 10, 10, 10);
+
+			let label = new TextBlock("Sticky Popup");
+			content.AddChild(label);
+
+			let info = new TextBlock("Click outside won't close this.\nUse button or ESC key.");
+			info.Foreground = Color(150, 150, 150, 255);
+			content.AddChild(info);
+
+			let closeBtn = new Button("Close Me");
+			closeBtn.Click.Subscribe(new (cb) => popup.Close());
+			content.AddChild(closeBtn);
+
+			popup.Content = content;
+			popup.OpenAt(b, .Bottom);  // Gets context from anchor
+
+			popup.Closed.Subscribe(new (p) => {
+				mStatusLabel.Text = "Sticky popup closed";
+				p.Content = null;
+				mContext.QueueDelete(p);
+			});
+		});
+		behaviorRow.AddChild(stickyPopupBtn);
+
+		section.AddChild(behaviorRow);
 		mRoot.AddChild(section);
 	}
 

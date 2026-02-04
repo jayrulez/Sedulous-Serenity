@@ -33,6 +33,7 @@ public class MutationQueue
 {
 	private List<Mutation> mPending = new .() ~ delete _;
 	private List<delegate void()> mQueuedActions = new .() ~ DeleteContainerAndItems!(_);
+	private HashSet<UIElementId> mDeletedThisFrame = new .() ~ delete _;
 	private bool mProcessing = false;
 
 	/// Whether mutations are currently being processed.
@@ -142,10 +143,27 @@ public class MutationQueue
 				}
 
 			case .DeleteElement:
-				// Look up element by ID to verify it still exists (not already deleted)
-				let target = context.GetElementById(mutation.TargetId);
+				// Skip if already deleted this frame
+				if (mDeletedThisFrame.Contains(mutation.TargetId))
+					continue;
+
+				// Look up element by ID to verify it still exists in registry
+				var target = context.GetElementById(mutation.TargetId);
+
+				// If not found in registry but we have a valid reference marked for deletion,
+				// use the direct reference. This handles the case where the element was removed
+				// from the tree (e.g., popup closed) but deletion was deferred.
+				// Safe because we track deleted IDs to avoid dangling pointer access.
+				if (target == null && mutation.Target != null)
+				{
+					target = mutation.Target;
+				}
+
 				if (target != null)
 				{
+					// Track this ID as deleted to prevent double-deletion
+					mDeletedThisFrame.Add(mutation.TargetId);
+
 					// Notify context so input/focus managers can clear references
 					context.OnElementDeleted(mutation.TargetId);
 
@@ -169,6 +187,7 @@ public class MutationQueue
 		}
 
 		mPending.Clear();
+		mDeletedThisFrame.Clear();
 
 		// Execute queued actions after mutations are processed
 		for (let action in mQueuedActions)
@@ -185,6 +204,7 @@ public class MutationQueue
 	public void Clear()
 	{
 		mPending.Clear();
+		mDeletedThisFrame.Clear();
 		DeleteContainerAndItems!(mQueuedActions);
 		mQueuedActions = new .();
 	}

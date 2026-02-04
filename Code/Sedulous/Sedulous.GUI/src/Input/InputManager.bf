@@ -11,6 +11,19 @@ public class InputManager
 	private ElementHandle<UIElement> mHoveredElement;
 	private Vector2 mLastMousePosition;
 
+	// Double-click tracking
+	private double mLastClickTime;
+	private float mLastClickX;
+	private float mLastClickY;
+	private MouseButton mLastClickButton;
+	private int32 mClickCount;
+
+	/// Maximum time between clicks for a double/multi-click (in seconds).
+	public const double DoubleClickTime = 0.5;
+
+	/// Maximum distance between clicks for a double/multi-click (in pixels).
+	public const float DoubleClickDistance = 4.0f;
+
 	/// Creates an InputManager for the specified context.
 	public this(GUIContext context)
 	{
@@ -84,11 +97,36 @@ public class InputManager
 	{
 		mLastMousePosition = .(x, y);
 
+		// Calculate click count for double/multi-click detection
+		let currentTime = mContext.TotalTime;
+		let timeSinceLastClick = currentTime - mLastClickTime;
+		let dx = x - mLastClickX;
+		let dy = y - mLastClickY;
+		let distance = Math.Sqrt(dx * dx + dy * dy);
+
+		if (button == mLastClickButton &&
+			timeSinceLastClick < DoubleClickTime &&
+			distance < DoubleClickDistance)
+		{
+			mClickCount++;
+		}
+		else
+		{
+			mClickCount = 1;
+		}
+
+		// Update tracking state
+		mLastClickTime = currentTime;
+		mLastClickX = x;
+		mLastClickY = y;
+		mLastClickButton = button;
+
 		// If there's a capture, route to captured element
 		let captured = mContext.FocusManager?.CapturedElement;
 		if (captured != null)
 		{
 			let args = scope MouseButtonEventArgs(x, y, button, modifiers);
+			args.ClickCount = mClickCount;
 			InvokeMouseDown(captured, args);
 			return;
 		}
@@ -97,6 +135,7 @@ public class InputManager
 		if (hitElement != null)
 		{
 			let args = scope MouseButtonEventArgs(x, y, button, modifiers);
+			args.ClickCount = mClickCount;
 			InvokeMouseDown(hitElement, args);
 
 			// If clicked element is not focusable and didn't handle the event
