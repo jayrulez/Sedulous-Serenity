@@ -19,12 +19,17 @@ public class RadioButton : ToggleButton
 	}
 
 	/// Creates a new RadioButton with text content.
-	public this(StringView text) : base(text)
+	public this(StringView text) : base()
 	{
+		// Create TextBlock with left alignment (not center like Button)
+		let textBlock = new TextBlock(text);
+		textBlock.TextAlignment = .Left;
+		textBlock.VerticalAlignment = .Center;
+		Content = textBlock;
 	}
 
 	/// Creates a new RadioButton with text and group name.
-	public this(StringView text, StringView groupName) : base(text)
+	public this(StringView text, StringView groupName) : this(text)
 	{
 		GroupName = groupName;
 	}

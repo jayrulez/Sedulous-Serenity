@@ -16,8 +16,13 @@ public class CheckBox : ToggleButton
 	}
 
 	/// Creates a new CheckBox with text content.
-	public this(StringView text) : base(text)
+	public this(StringView text) : base()
 	{
+		// Create TextBlock with left alignment (not center like Button)
+		let textBlock = new TextBlock(text);
+		textBlock.TextAlignment = .Left;
+		textBlock.VerticalAlignment = .Center;
+		Content = textBlock;
 	}
 
 	public override void OnAttachedToContext(GUIContext context)
