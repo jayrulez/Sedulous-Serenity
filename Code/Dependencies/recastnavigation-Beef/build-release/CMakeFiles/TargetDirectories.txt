@@ -1,0 +1,8 @@
+D:/Dev/Beef/Sedulous-Serenity/Code/Dependencies/recastnavigation-Beef/build-release/CMakeFiles/Recast-c.dir
+D:/Dev/Beef/Sedulous-Serenity/Code/Dependencies/recastnavigation-Beef/build-release/CMakeFiles/Detour-c.dir
+D:/Dev/Beef/Sedulous-Serenity/Code/Dependencies/recastnavigation-Beef/build-release/CMakeFiles/DetourCrowd-c.dir
+D:/Dev/Beef/Sedulous-Serenity/Code/Dependencies/recastnavigation-Beef/build-release/CMakeFiles/DetourTileCache-c.dir
+D:/Dev/Beef/Sedulous-Serenity/Code/Dependencies/recastnavigation-Beef/build-release/CMakeFiles/DebugUtils-c.dir
+D:/Dev/Beef/Sedulous-Serenity/Code/Dependencies/recastnavigation-Beef/build-release/CMakeFiles/INSTALL.dir
+D:/Dev/Beef/Sedulous-Serenity/Code/Dependencies/recastnavigation-Beef/build-release/CMakeFiles/ALL_BUILD.dir
+D:/Dev/Beef/Sedulous-Serenity/Code/Dependencies/recastnavigation-Beef/build-release/CMakeFiles/ZERO_CHECK.dir
