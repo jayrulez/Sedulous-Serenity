@@ -1,0 +1,359 @@
+namespace Sedulous.Framework.Navigation;
+
+using System;
+using System.Collections;
+using Sedulous.Framework.Scenes;
+using Sedulous.Framework.Render;
+using Sedulous.Mathematics;
+using Sedulous.Render;
+using recastnavigation_Beef;
+
+/// Scene module that manages navigation agents and obstacles for entities.
+/// Created automatically by NavigationSubsystem for each scene.
+class NavigationSceneModule : SceneModule
+{
+	private NavigationSubsystem mSubsystem;
+	private NavWorld mNavWorld;
+	private Scene mScene;
+
+	// Persistent geometry for TileCache (dynamic obstacle support)
+	private InputGeometry mTileCacheGeometry ~ delete _;
+
+	// Debug drawing
+	private bool mDebugDrawEnabled = false;
+	private duDebugDrawHandle mDebugDraw;
+
+	/// Creates a NavigationSceneModule with the given world.
+	public this(NavigationSubsystem subsystem, NavWorld navWorld)
+	{
+		mSubsystem = subsystem;
+		mNavWorld = navWorld;
+	}
+
+	public ~this()
+	{
+		if (mDebugDraw != null)
+		{
+			duDestroyDebugDraw(mDebugDraw);
+			mDebugDraw = null;
+		}
+	}
+
+	/// Gets the navigation subsystem.
+	public NavigationSubsystem Subsystem => mSubsystem;
+
+	/// Gets the NavWorld for this scene.
+	public NavWorld NavWorld => mNavWorld;
+
+	/// Gets or sets whether navigation debug drawing is enabled.
+	public bool DebugDrawEnabled
+	{
+		get => mDebugDrawEnabled;
+		set => mDebugDrawEnabled = value;
+	}
+
+	// ==================== Agent Management ====================
+
+	/// Adds a navigation agent for an entity.
+	/// Returns the agent index, or -1 on failure.
+	public int32 AddAgent(EntityId entity, float[3] position, in CrowdAgentParams @params)
+	{
+		if (mScene == null || mNavWorld == null)
+			return -1;
+
+		int32 agentIndex = mNavWorld.AddAgent(position, @params);
+		if (agentIndex < 0)
+			return -1;
+
+		mScene.SetComponent<NavAgentComponent>(entity, .() {
+			AgentIndex = agentIndex,
+			SyncToTransform = true
+		});
+
+		return agentIndex;
+	}
+
+	/// Removes the navigation agent for an entity.
+	public void RemoveAgent(EntityId entity)
+	{
+		if (mScene == null || mNavWorld == null)
+			return;
+
+		if (let agent = mScene.GetComponent<NavAgentComponent>(entity))
+		{
+			if (agent.AgentIndex >= 0)
+			{
+				mNavWorld.RemoveAgent(agent.AgentIndex);
+				agent.AgentIndex = -1;
+			}
+		}
+	}
+
+	// ==================== Obstacle Management ====================
+
+	/// Adds a dynamic obstacle for an entity.
+	/// Returns the obstacle ID, or -1 on failure.
+	public int32 AddObstacle(EntityId entity, float[3] position, float radius, float height)
+	{
+		if (mScene == null || mNavWorld == null)
+			return -1;
+
+		int32 obstacleId = mNavWorld.AddObstacle(position, radius, height);
+		if (obstacleId < 0)
+			return -1;
+
+		mScene.SetComponent<NavObstacleComponent>(entity, .() {
+			ObstacleId = obstacleId,
+			Radius = radius,
+			Height = height
+		});
+
+		return obstacleId;
+	}
+
+	/// Removes the dynamic obstacle for an entity.
+	public void RemoveObstacle(EntityId entity)
+	{
+		if (mScene == null || mNavWorld == null)
+			return;
+
+		if (let obstacle = mScene.GetComponent<NavObstacleComponent>(entity))
+		{
+			if (obstacle.ObstacleId >= 0)
+			{
+				mNavWorld.RemoveObstacle(obstacle.ObstacleId);
+				obstacle.ObstacleId = -1;
+			}
+		}
+	}
+
+	// ==================== High-Level Operations ====================
+
+	/// Builds a navigation mesh from the provided geometry and applies it to this scene's NavWorld.
+	/// Returns true if the navmesh was built and set successfully.
+	public bool BuildNavMesh(IInputGeometryProvider geometry, in NavMeshBuildConfig config)
+	{
+		if (mNavWorld == null)
+			return false;
+
+		let result = NavMeshBuilder.BuildSingle(geometry, config);
+		defer delete result;
+
+		if (!result.Success || result.NavMesh == null)
+		{
+			if (result.ErrorMessage != null)
+				Console.WriteLine(scope $"NavMesh build failed: {result.ErrorMessage}");
+			else
+				Console.WriteLine("NavMesh build failed: unknown error");
+			return false;
+		}
+
+		Console.WriteLine(scope $"NavMesh built: {result.Stats.PolyCount} polys, {result.Stats.VertexCount} verts");
+		mNavWorld.SetNavMesh(result.NavMesh);
+
+		// Transfer ownership to NavWorld
+		result.NavMesh = null;
+
+		// Initialize TileCache for dynamic obstacle support
+		if (mTileCacheGeometry != null)
+			delete mTileCacheGeometry;
+		mTileCacheGeometry = new InputGeometry(
+			Span<float>(geometry.Vertices, geometry.VertexCount * 3),
+			Span<int32>(geometry.Triangles, geometry.TriangleCount * 3));
+
+		let bounds = geometry.Bounds;
+		float[3] bmin = .(bounds.Min.X, bounds.Min.Y, bounds.Min.Z);
+		float[3] bmax = .(bounds.Max.X, bounds.Max.Y, bounds.Max.Z);
+		mNavWorld.InitTileCache(mTileCacheGeometry, config, bmin, bmax);
+
+		return true;
+	}
+
+	/// Sets the move target for an entity's agent to the given world position.
+	/// Returns true if the target was set successfully.
+	public bool RequestMoveTarget(EntityId entity, float[3] targetPos)
+	{
+		if (mScene == null || mNavWorld == null)
+			return false;
+
+		if (let agent = mScene.GetComponent<NavAgentComponent>(entity))
+		{
+			if (agent.AgentIndex >= 0)
+				return mNavWorld.RequestMoveTarget(agent.AgentIndex, targetPos);
+		}
+		return false;
+	}
+
+	/// Finds a path between two world positions.
+	/// Returns true if a path was found, with waypoints as [x,y,z,...] in outWaypoints.
+	public bool FindPath(float[3] start, float[3] end, List<float> outWaypoints)
+	{
+		if (mNavWorld == null)
+			return false;
+		return mNavWorld.FindPath(start, end, outWaypoints);
+	}
+
+	/// Gets the current position of an entity's crowd agent.
+	/// Returns true if the agent was found and position retrieved.
+	public bool GetAgentPosition(EntityId entity, out float[3] position)
+	{
+		position = default;
+		if (mScene == null || mNavWorld == null)
+			return false;
+
+		let crowd = mNavWorld.Crowd;
+		if (crowd == null)
+			return false;
+
+		if (let agent = mScene.GetComponent<NavAgentComponent>(entity))
+		{
+			if (agent.AgentIndex >= 0)
+			{
+				if (crowd.IsAgentActive(agent.AgentIndex))
+				{
+					crowd.GetAgentPosition(agent.AgentIndex, out position);
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	// ==================== SceneModule Lifecycle ====================
+
+	public override void OnSceneCreate(Scene scene)
+	{
+		mScene = scene;
+	}
+
+	public override void OnSceneDestroy(Scene scene)
+	{
+		mScene = null;
+	}
+
+	public override void FixedUpdate(Scene scene, float fixedDeltaTime)
+	{
+		if (mNavWorld == null)
+			return;
+
+		// Step crowd simulation and process obstacle updates
+		mNavWorld.Update(fixedDeltaTime);
+	}
+
+	public override void Update(Scene scene, float deltaTime)
+	{
+		if (mNavWorld == null || mScene == null)
+			return;
+
+		// Sync agent positions to entity transforms
+		SyncAgentTransforms(scene);
+	}
+
+	public override void PostUpdate(Scene scene, float deltaTime)
+	{
+		if (!mDebugDrawEnabled || mNavWorld == null || mScene == null)
+			return;
+
+		DrawDebug(scene);
+	}
+
+	public override void OnEntityDestroyed(Scene scene, EntityId entity)
+	{
+		if (mNavWorld == null)
+			return;
+
+		// Clean up agent
+		if (let agent = scene.GetComponent<NavAgentComponent>(entity))
+		{
+			if (agent.AgentIndex >= 0)
+			{
+				mNavWorld.RemoveAgent(agent.AgentIndex);
+				agent.AgentIndex = -1;
+			}
+		}
+
+		// Clean up obstacle
+		if (let obstacle = scene.GetComponent<NavObstacleComponent>(entity))
+		{
+			if (obstacle.ObstacleId >= 0)
+			{
+				mNavWorld.RemoveObstacle(obstacle.ObstacleId);
+				obstacle.ObstacleId = -1;
+			}
+		}
+	}
+
+	// ==================== Private ====================
+
+	private void SyncAgentTransforms(Scene scene)
+	{
+		let crowd = mNavWorld.Crowd;
+		if (crowd == null)
+			return;
+
+		for (let (entity, agent) in scene.Query<NavAgentComponent>())
+		{
+			if (!agent.SyncToTransform || agent.AgentIndex < 0)
+				continue;
+
+			if (!crowd.IsAgentActive(agent.AgentIndex))
+				continue;
+
+			float[3] pos;
+			crowd.GetAgentPosition(agent.AgentIndex, out pos);
+
+			var transform = scene.GetTransform(entity);
+			transform.Position = Vector3(pos[0], pos[1], pos[2]);
+			scene.SetTransform(entity, transform);
+		}
+	}
+
+	private void DrawDebug(Scene scene)
+	{
+		let renderModule = scene.GetModule<RenderSceneModule>();
+		if (renderModule == null)
+			return;
+
+		let renderSystem = renderModule.Subsystem?.RenderSystem;
+		if (renderSystem == null)
+			return;
+
+		let debugFeature = renderSystem.GetFeature<DebugRenderFeature>();
+		if (debugFeature == null)
+			return;
+
+		let navMesh = mNavWorld.NavMesh;
+		if (navMesh == null)
+			return;
+
+		// Use recastnavigation debug draw functions
+		// For now, just draw agent positions as crosses
+		let crowd = mNavWorld.Crowd;
+		if (crowd != null)
+		{
+			int32 agentCount = crowd.AgentCount;
+			for (int32 i = 0; i < agentCount; i++)
+			{
+				if (!crowd.IsAgentActive(i))
+					continue;
+
+				float[3] pos;
+				crowd.GetAgentPosition(i, out pos);
+
+				let position = Vector3(pos[0], pos[1], pos[2]);
+				let color = Color(0, 255, 0, 255);
+
+				// Draw a cross at agent position
+				debugFeature.AddLine(position - Vector3(0.3f, 0, 0), position + Vector3(0.3f, 0, 0), color);
+				debugFeature.AddLine(position - Vector3(0, 0, 0.3f), position + Vector3(0, 0, 0.3f), color);
+				debugFeature.AddLine(position, position + Vector3(0, 1.0f, 0), color);
+
+				// Draw velocity
+				float[3] vel;
+				crowd.GetAgentVelocity(i, out vel);
+				let velEnd = position + Vector3(vel[0], vel[1], vel[2]) * 0.5f;
+				debugFeature.AddLine(position, velEnd, Color(255, 255, 0, 255));
+			}
+		}
+	}
+}

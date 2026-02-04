@@ -1,0 +1,5 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.Framework.Core" = "*", "Sedulous.Framework.Scenes" = "*", "Sedulous.Framework.Render" = "*", "Sedulous.Framework.Physics" = "*", "Sedulous.Mathematics" = "*", "Sedulous.Render" = "*", corlib = "*", recastnavigation-Beef = "*"}
+
+[Project]
+Name = "Sedulous.Framework.Navigation"
