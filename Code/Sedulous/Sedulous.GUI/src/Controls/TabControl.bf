@@ -33,6 +33,21 @@ public class TabControl : Control
 		IsTabStop = true;
 	}
 
+	public override void OnAttachedToContext(GUIContext context)
+	{
+		base.OnAttachedToContext(context);
+		ApplyThemeDefaults();
+		for (let tab in mTabs)
+			tab.OnAttachedToContext(context);
+	}
+
+	/// Applies theme defaults for tab control dimensions.
+	private void ApplyThemeDefaults()
+	{
+		let theme = Context?.Theme;
+		mTabStripSize = theme?.TabStripHeight ?? 30;
+	}
+
 	/// The control type name for theming.
 	protected override StringView ControlTypeName => "TabControl";
 
@@ -259,13 +274,6 @@ public class TabControl : Control
 
 	// === Context ===
 
-	public override void OnAttachedToContext(GUIContext context)
-	{
-		base.OnAttachedToContext(context);
-		for (let tab in mTabs)
-			tab.OnAttachedToContext(context);
-	}
-
 	public override void OnDetachedFromContext()
 	{
 		for (let tab in mTabs)
@@ -410,11 +418,12 @@ public class TabControl : Control
 			contentAreaBounds = .(bounds.X, bounds.Y, bounds.Width - 100, bounds.Height);
 		}
 
-		let contentBg = Background.A > 0 ? Background : Color(45, 45, 45, 255);
+		let palette = Context?.Theme?.Palette ?? Palette();
+		let contentBg = Background.A > 0 ? Background : (palette.Surface.A > 0 ? palette.Surface : Color(45, 45, 45, 255));
 		ctx.FillRect(contentAreaBounds, contentBg);
 
 		// Draw tab strip background
-		let stripBg = Color(35, 35, 35, 255);
+		let stripBg = palette.Background.A > 0 ? palette.Background : Color(35, 35, 35, 255);
 		RectangleF tabStripBounds;
 		switch (mTabStripPlacement)
 		{
@@ -439,7 +448,7 @@ public class TabControl : Control
 		}
 
 		// Draw border between tab strip and content
-		let borderColor = Color(80, 80, 80, 255);
+		let borderColor = palette.Border.A > 0 ? palette.Border : Color(80, 80, 80, 255);
 		switch (mTabStripPlacement)
 		{
 		case .Top:

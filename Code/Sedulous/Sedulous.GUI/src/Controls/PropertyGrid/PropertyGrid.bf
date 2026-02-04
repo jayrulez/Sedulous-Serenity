@@ -83,6 +83,9 @@ public class PropertyCategory
 /// A control for editing object properties with category grouping.
 public class PropertyGrid : Control
 {
+	/// Fallback ratio for estimating character width when no font metrics available.
+	private const float FallbackCharWidthRatio = 0.6f;
+
 	// Properties organized by category
 	private List<PropertyItem> mProperties = new .() ~ DeleteContainerAndItems!(_);
 	private List<PropertyCategory> mCategories = new .() ~ DeleteContainerAndItems!(_);
@@ -110,6 +113,26 @@ public class PropertyGrid : Control
 	private ScrollBar mVerticalScrollBar ~ delete _;
 	private bool mShowScrollBar = false;
 	private float mScrollBarThickness = 12;
+
+	// Theme colors (computed from palette)
+	private Color mBackgroundColor;
+	private Color mBorderColor;
+	private Color mSplitterColor;
+	private Color mCategoryBackgroundColor;
+	private Color mCategoryHoverColor;
+	private Color mCategoryTextColor;
+	private Color mCategoryIndicatorColor;
+	private Color mCategoryBorderColor;
+	private Color mPropertyBackgroundColor;
+	private Color mPropertyHoverColor;
+	private Color mPropertyNameColor;
+	private Color mPropertyValueColor;
+	private Color mPropertyBorderColor;
+	private Color mCursorColor;
+	private Color mCheckboxBackgroundColor;
+	private Color mCheckboxBorderColor;
+	private Color mCheckmarkColor;
+	private Color mDropdownArrowColor;
 
 	// Events
 	private EventAccessor<delegate void(PropertyGrid, PropertyItem)> mPropertyChanged = new .() ~ delete _;
@@ -259,6 +282,47 @@ public class PropertyGrid : Control
 	{
 		base.OnAttachedToContext(context);
 		mVerticalScrollBar.OnAttachedToContext(context);
+		ApplyThemeDefaults();
+	}
+
+	private void ApplyThemeDefaults()
+	{
+		let theme = Context?.Theme;
+		let palette = theme?.Palette ?? Palette();
+
+		let bgColor = palette.Background.A > 0 ? palette.Background : Color(35, 35, 35, 255);
+		let surfaceColor = palette.Surface.A > 0 ? palette.Surface : Color(45, 45, 45, 255);
+		let borderColor = palette.Border.A > 0 ? palette.Border : Color(60, 60, 60, 255);
+		let textColor = palette.Text.A > 0 ? palette.Text : Color(220, 220, 220, 255);
+		let successColor = palette.Success.A > 0 ? palette.Success : Color(100, 180, 100, 255);
+
+		// Main background and border
+		mBackgroundColor = bgColor;
+		mBorderColor = borderColor;
+		mSplitterColor = Palette.Lighten(bgColor, 0.05f);
+
+		// Category colors
+		mCategoryBackgroundColor = surfaceColor;
+		mCategoryHoverColor = Palette.ComputeHover(surfaceColor);
+		mCategoryTextColor = textColor;
+		mCategoryIndicatorColor = Palette.Darken(textColor, 0.15f);
+		mCategoryBorderColor = Palette.Lighten(bgColor, 0.08f);
+
+		// Property colors
+		mPropertyBackgroundColor = Palette.Darken(surfaceColor, 0.05f);
+		mPropertyHoverColor = surfaceColor;
+		mPropertyNameColor = Palette.Darken(textColor, 0.15f);
+		mPropertyValueColor = textColor;
+		mPropertyBorderColor = surfaceColor;
+		mCursorColor = textColor;
+
+		// Checkbox colors
+		mCheckboxBackgroundColor = Palette.Darken(surfaceColor, 0.03f);
+		mCheckboxBorderColor = borderColor;
+		mCheckmarkColor = successColor;
+
+		// Dropdown arrow
+		mDropdownArrowColor = Palette.Darken(textColor, 0.25f);
 	}
 
 	public override void OnDetachedFromContext()
@@ -341,7 +405,7 @@ public class PropertyGrid : Control
 		if (mShowScrollBar) contentWidth -= mScrollBarThickness;
 
 		// Background
-		ctx.FillRect(bounds, Color(35, 35, 35, 255));
+		ctx.FillRect(bounds, mBackgroundColor);
 
 		// Clip content
 		let contentBounds = RectangleF(bounds.X, bounds.Y, contentWidth, bounds.Height);
@@ -389,20 +453,20 @@ public class PropertyGrid : Control
 
 		// Splitter line
 		let splitterX = bounds.X + mNameColumnWidth;
-		ctx.DrawLine(.(splitterX, bounds.Y), .(splitterX, bounds.Bottom), Color(50, 50, 50, 255), 1);
+		ctx.DrawLine(.(splitterX, bounds.Y), .(splitterX, bounds.Bottom), mSplitterColor, 1);
 
 		// Scrollbar
 		if (mShowScrollBar)
 			mVerticalScrollBar.Render(ctx);
 
 		// Border
-		ctx.DrawRect(bounds, Color(60, 60, 60, 255), 1);
+		ctx.DrawRect(bounds, mBorderColor, 1);
 	}
 
 	private void RenderCategory(DrawContext ctx, RectangleF bounds, PropertyCategory category, bool isHovered)
 	{
 		// Background
-		let bgColor = isHovered ? Color(50, 50, 50, 255) : Color(45, 45, 45, 255);
+		let bgColor = isHovered ? mCategoryHoverColor : mCategoryBackgroundColor;
 		ctx.FillRect(bounds, bgColor);
 
 		// Clip text to name column width so it doesn't extend past splitter
@@ -411,27 +475,27 @@ public class PropertyGrid : Control
 
 		// Expand/collapse indicator
 		let indicator = category.IsExpanded ? "▼" : "►";
-		ctx.DrawText(indicator, 10, .(bounds.X + 6, bounds.Y + (mCategoryHeight - 10) / 2), Color(180, 180, 180, 255));
+		ctx.DrawText(indicator, 10, .(bounds.X + 6, bounds.Y + (mCategoryHeight - 10) / 2), mCategoryIndicatorColor);
 
 		// Category name
-		ctx.DrawText(category.Name, 12, .(bounds.X + 20, bounds.Y + (mCategoryHeight - 12) / 2), Color(200, 200, 200, 255));
+		ctx.DrawText(category.Name, 12, .(bounds.X + 20, bounds.Y + (mCategoryHeight - 12) / 2), mCategoryTextColor);
 
 		ctx.PopClip();
 
 		// Bottom border
-		ctx.DrawLine(.(bounds.X, bounds.Bottom - 1), .(bounds.Right, bounds.Bottom - 1), Color(55, 55, 55, 255), 1);
+		ctx.DrawLine(.(bounds.X, bounds.Bottom - 1), .(bounds.Right, bounds.Bottom - 1), mCategoryBorderColor, 1);
 	}
 
 	private void RenderProperty(DrawContext ctx, RectangleF bounds, PropertyItem prop, bool isHovered, bool isEditing)
 	{
 		// Background
-		let bgColor = isHovered ? Color(45, 45, 45, 255) : Color(38, 38, 38, 255);
+		let bgColor = isHovered ? mPropertyHoverColor : mPropertyBackgroundColor;
 		ctx.FillRect(bounds, bgColor);
 
 		// Property name
 		let nameBounds = RectangleF(bounds.X, bounds.Y, mNameColumnWidth, mRowHeight);
 		ctx.PushClipRect(nameBounds);
-		ctx.DrawText(prop.Name, 12, .(bounds.X + 8, bounds.Y + (mRowHeight - 12) / 2), Color(180, 180, 180, 255));
+		ctx.DrawText(prop.Name, 12, .(bounds.X + 8, bounds.Y + (mRowHeight - 12) / 2), mPropertyNameColor);
 		ctx.PopClip();
 
 		// Property value
@@ -439,7 +503,7 @@ public class PropertyGrid : Control
 		RenderPropertyValue(ctx, valueBounds, prop, isEditing);
 
 		// Bottom border
-		ctx.DrawLine(.(bounds.X, bounds.Bottom - 1), .(bounds.Right, bounds.Bottom - 1), Color(45, 45, 45, 255), 1);
+		ctx.DrawLine(.(bounds.X, bounds.Bottom - 1), .(bounds.Right, bounds.Bottom - 1), mPropertyBorderColor, 1);
 	}
 
 	private void RenderPropertyValue(DrawContext ctx, RectangleF bounds, PropertyItem prop, bool isEditing)
@@ -458,17 +522,16 @@ public class PropertyGrid : Control
 	private void RenderTextValue(DrawContext ctx, RectangleF bounds, PropertyItem prop, bool isEditing)
 	{
 		let text = isEditing ? mEditBuffer : prop.DisplayValue;
-		let textColor = Color(220, 220, 220, 255);
 		let fontSize = 12.0f;
-		ctx.DrawText(text, fontSize, .(bounds.X, bounds.Y + (mRowHeight - fontSize) / 2), textColor);
+		ctx.DrawText(text, fontSize, .(bounds.X, bounds.Y + (mRowHeight - fontSize) / 2), mPropertyValueColor);
 
 		if (isEditing)
 		{
 			// Cursor position using font measurement
 			let cachedFont = GetCachedFont(fontSize);
-			let textWidth = cachedFont?.Font.MeasureString(text) ?? (text.Length * fontSize * 0.6f);
+			let textWidth = cachedFont?.Font.MeasureString(text) ?? (text.Length * fontSize * FallbackCharWidthRatio);
 			let cursorX = bounds.X + textWidth;
-			ctx.DrawLine(.(cursorX, bounds.Y + 3), .(cursorX, bounds.Bottom - 3), Color(255, 255, 255, 255), 1);
+			ctx.DrawLine(.(cursorX, bounds.Y + 3), .(cursorX, bounds.Bottom - 3), mCursorColor, 1);
 		}
 	}
 
@@ -488,15 +551,15 @@ public class PropertyGrid : Control
 		let checkY = bounds.Y + (mRowHeight - checkSize) / 2;
 		let checkBounds = RectangleF(checkX, checkY, checkSize, checkSize);
 
-		ctx.FillRect(checkBounds, Color(50, 50, 50, 255));
-		ctx.DrawRect(checkBounds, Color(80, 80, 80, 255), 1);
+		ctx.FillRect(checkBounds, mCheckboxBackgroundColor);
+		ctx.DrawRect(checkBounds, mCheckboxBorderColor, 1);
 
 		if (isChecked)
 		{
 			let cx = checkBounds.X + checkBounds.Width / 2;
 			let cy = checkBounds.Y + checkBounds.Height / 2;
-			ctx.DrawLine(.(cx - 4, cy), .(cx - 1, cy + 3), Color(100, 180, 100, 255), 2);
-			ctx.DrawLine(.(cx - 1, cy + 3), .(cx + 4, cy - 3), Color(100, 180, 100, 255), 2);
+			ctx.DrawLine(.(cx - 4, cy), .(cx - 1, cy + 3), mCheckmarkColor, 2);
+			ctx.DrawLine(.(cx - 1, cy + 3), .(cx + 4, cy - 3), mCheckmarkColor, 2);
 		}
 	}
 
@@ -504,10 +567,10 @@ public class PropertyGrid : Control
 	{
 		// Current value with dropdown indicator
 		let text = prop.DisplayValue;
-		ctx.DrawText(text, 12, .(bounds.X, bounds.Y + (mRowHeight - 12) / 2), Color(220, 220, 220, 255));
+		ctx.DrawText(text, 12, .(bounds.X, bounds.Y + (mRowHeight - 12) / 2), mPropertyValueColor);
 
 		// Dropdown arrow
-		ctx.DrawText("▼", 8, .(bounds.Right - 16, bounds.Y + (mRowHeight - 8) / 2), Color(150, 150, 150, 255));
+		ctx.DrawText("▼", 8, .(bounds.Right - 16, bounds.Y + (mRowHeight - 8) / 2), mDropdownArrowColor);
 	}
 
 	// === Input ===

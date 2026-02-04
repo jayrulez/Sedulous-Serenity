@@ -212,7 +212,8 @@ public class Button : ContentControl
 		// Get state-appropriate colors
 		let bgColor = GetStateBackground();
 		let borderColor = GetStateBorderColor();
-		let cornerRadius = CornerRadius >= 0 ? CornerRadius : 4; // Default rounded corners for buttons (use negative to get default)
+		let defaultRadius = Context?.Theme?.DefaultCornerRadius ?? 4;
+		let cornerRadius = CornerRadius >= 0 ? CornerRadius : defaultRadius; // Default rounded corners for buttons (use negative to get default)
 
 		// Draw background
 		if (bgColor.A > 0)
@@ -251,11 +252,11 @@ public class Button : ContentControl
 		switch (CurrentState)
 		{
 		case .Disabled:
-			return baseColor.Interpolate(Color(128, 128, 128, 255), 0.5f);
+			return Palette.ComputeDisabled(baseColor);
 		case .Pressed:
-			return baseColor.Interpolate(Color.Black, 0.2f);
+			return Palette.ComputePressed(baseColor);
 		case .Hover:
-			return baseColor.Interpolate(Color.White, 0.1f);
+			return Palette.ComputeHover(baseColor);
 		default:
 			return baseColor;
 		}

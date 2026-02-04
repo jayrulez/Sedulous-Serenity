@@ -11,7 +11,7 @@ public class StatusBar : Control
 {
 	private List<StatusBarItem> mItems = new .() ~ DeleteContainerAndItems!(_);
 	private bool mShowSeparators = true;
-	private Color mSeparatorColor = Color(80, 80, 80, 255);
+	private Color mSeparatorColor;
 	private float mSeparatorWidth = 1;
 
 	/// Creates a new StatusBar.
@@ -19,6 +19,22 @@ public class StatusBar : Control
 	{
 		IsFocusable = false;
 		IsTabStop = false;
+		mSeparatorColor = Color(80, 80, 80, 255);  // Default, will be updated by theme
+	}
+
+	public override void OnAttachedToContext(GUIContext context)
+	{
+		base.OnAttachedToContext(context);
+		ApplyThemeDefaults();
+		for (let item in mItems)
+			item.OnAttachedToContext(context);
+	}
+
+	/// Applies theme defaults for status bar styling.
+	private void ApplyThemeDefaults()
+	{
+		let palette = Context?.Theme?.Palette ?? Palette();
+		mSeparatorColor = palette.Border.A > 0 ? palette.Border : Color(80, 80, 80, 255);
 	}
 
 	/// The control type name for theming.
@@ -227,12 +243,6 @@ public class StatusBar : Control
 		return null;
 	}
 
-	public override void OnAttachedToContext(GUIContext context)
-	{
-		base.OnAttachedToContext(context);
-		for (let item in mItems)
-			item.OnAttachedToContext(context);
-	}
 
 	public override void OnDetachedFromContext()
 	{

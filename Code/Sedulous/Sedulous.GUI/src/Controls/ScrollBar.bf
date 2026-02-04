@@ -43,6 +43,19 @@ public class ScrollBar : Control
 		mOrientation = orientation;
 	}
 
+	public override void OnAttachedToContext(GUIContext context)
+	{
+		base.OnAttachedToContext(context);
+		ApplyThemeDefaults();
+	}
+
+	/// Applies theme defaults for scrollbar dimensions.
+	private void ApplyThemeDefaults()
+	{
+		let theme = Context?.Theme;
+		mThickness = theme?.ScrollBarThickness ?? 16;
+	}
+
 	/// The control type name for theming.
 	protected override StringView ControlTypeName => "ScrollBar";
 
@@ -158,7 +171,10 @@ public class ScrollBar : Control
 			if (mTrackColor.HasValue)
 				return mTrackColor.Value;
 			let style = GetThemeStyle();
-			return style.Background.A > 0 ? style.Background : Color(40, 40, 40, 255);
+			if (style.Background.A > 0)
+				return style.Background;
+			let palette = Context?.Theme?.Palette ?? Palette();
+			return palette.Background.A > 0 ? palette.Background : Color(40, 40, 40, 255);
 		}
 		set => mTrackColor = value;
 	}
@@ -170,7 +186,11 @@ public class ScrollBar : Control
 		{
 			if (mThumbColor.HasValue)
 				return mThumbColor.Value;
-			return Color(100, 100, 100, 255);
+			let style = GetThemeStyle();
+			if (style.Foreground.A > 0)
+				return style.Foreground;
+			let palette = Context?.Theme?.Palette ?? Palette();
+			return palette.Surface.A > 0 ? palette.Surface : Color(100, 100, 100, 255);
 		}
 		set => mThumbColor = value;
 	}

@@ -13,19 +13,32 @@ public class Tooltip : ContentControl
 	/// Creates a new Tooltip.
 	public this()
 	{
-		// Tooltips have default styling
-		Background = Color(50, 50, 50, 240);
-		Foreground = Color(220, 220, 220, 255);
-		Padding = .(8, 4, 8, 4);
-
-		// Use inherited properties with tooltip-specific defaults
-		CornerRadius = 4;
-		base.BorderColor = Color(100, 100, 100, 255);
-		base.BorderThickness = 1;
-
 		// Don't stretch to fill container - size to content
 		HorizontalAlignment = .Left;
 		VerticalAlignment = .Top;
+	}
+
+	/// Applies theme-based styling on attach.
+	public override void OnAttachedToContext(GUIContext context)
+	{
+		base.OnAttachedToContext(context);
+		ApplyThemeDefaults();
+	}
+
+	/// Applies default tooltip styling from theme.
+	private void ApplyThemeDefaults()
+	{
+		let style = GetThemeStyle();
+		let theme = Context?.Theme;
+		let palette = theme?.Palette ?? Palette();
+
+		// Apply style properties, with sensible fallbacks for tooltip appearance
+		Background = style.Background.A > 0 ? style.Background : Color(palette.Surface.R, palette.Surface.G, palette.Surface.B, 240);
+		Foreground = style.Foreground.A > 0 ? style.Foreground : palette.Text;
+		Padding = style.Padding.Left > 0 || style.Padding.Top > 0 ? style.Padding : .(8, 4, 8, 4);
+		CornerRadius = style.CornerRadius > 0 ? style.CornerRadius : (theme?.DefaultCornerRadius ?? 4);
+		base.BorderColor = style.BorderColor.A > 0 ? style.BorderColor : palette.Border;
+		base.BorderThickness = style.BorderThickness > 0 ? style.BorderThickness : 1;
 	}
 
 	/// Creates a new Tooltip with text.

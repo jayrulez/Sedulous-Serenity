@@ -42,6 +42,20 @@ public class Slider : Control
 		Cursor = .Pointer;
 	}
 
+	public override void OnAttachedToContext(GUIContext context)
+	{
+		base.OnAttachedToContext(context);
+		ApplyThemeDefaults();
+	}
+
+	/// Applies theme defaults for slider dimensions.
+	private void ApplyThemeDefaults()
+	{
+		let theme = Context?.Theme;
+		mTrackThickness = theme?.SliderTrackThickness ?? 4;
+		mThumbSize = theme?.SliderThumbSize ?? 16;
+	}
+
 	/// The control type name for theming.
 	protected override StringView ControlTypeName => "Slider";
 
@@ -157,7 +171,10 @@ public class Slider : Control
 			if (mTrackColor.HasValue)
 				return mTrackColor.Value;
 			let style = GetThemeStyle();
-			return style.Background.A > 0 ? style.Background : Color(60, 60, 60, 255);
+			if (style.Background.A > 0)
+				return style.Background;
+			let palette = Context?.Theme?.Palette ?? Palette();
+			return palette.Surface.A > 0 ? palette.Surface : Color(60, 60, 60, 255);
 		}
 		set => mTrackColor = value;
 	}
@@ -169,9 +186,8 @@ public class Slider : Control
 		{
 			if (mThumbColor.HasValue)
 				return mThumbColor.Value;
-			if (Context?.Theme != null)
-				return Context.Theme.Palette.Accent;
-			return Color(0, 120, 215, 255);
+			let palette = Context?.Theme?.Palette ?? Palette();
+			return palette.Accent.A > 0 ? palette.Accent : Color(0, 120, 215, 255);
 		}
 		set => mThumbColor = value;
 	}

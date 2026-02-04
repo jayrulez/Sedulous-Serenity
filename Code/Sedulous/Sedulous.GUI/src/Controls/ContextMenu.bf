@@ -496,6 +496,22 @@ public class ContextMenu : Control, IPopupOwner
 	{
 		base.OnAttachedToContext(context);
 		mItemsPanel.OnAttachedToContext(context);
+		ApplyThemeDefaults();
+	}
+
+	/// Applies default context menu styling from theme.
+	private void ApplyThemeDefaults()
+	{
+		let style = GetThemeStyle();
+		let theme = Context?.Theme;
+		let palette = theme?.Palette ?? Palette();
+
+		// Apply style properties
+		Background = style.Background.A > 0 ? style.Background : palette.Surface;
+		mMenuBorderColor = style.BorderColor.A > 0 ? style.BorderColor : palette.Border;
+		mMenuBorderThickness = style.BorderThickness > 0 ? style.BorderThickness : 1;
+		mCornerRadius = style.CornerRadius > 0 ? style.CornerRadius : (theme?.DefaultCornerRadius ?? 4);
+		Padding = style.Padding.Left > 0 || style.Padding.Top > 0 ? style.Padding : .(4, 4, 4, 4);
 	}
 
 	public override void OnDetachedFromContext()

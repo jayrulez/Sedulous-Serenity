@@ -79,7 +79,7 @@ class AnimationBaseTests
 	public static void AnimationCompletes()
 	{
 		let context = scope GUIContext();
-		let panel = new Panel();
+		let panel = scope Panel();
 		context.RootElement = panel;
 
 		let anim = scope TestAnimation();
@@ -95,7 +95,7 @@ class AnimationBaseTests
 	public static void AnimationProgressUpdates()
 	{
 		let context = scope GUIContext();
-		let panel = new Panel();
+		let panel = scope Panel();
 		context.RootElement = panel;
 
 		let anim = scope TestAnimation();
@@ -111,7 +111,7 @@ class AnimationBaseTests
 	public static void AnimationDelayWorks()
 	{
 		let context = scope GUIContext();
-		let panel = new Panel();
+		let panel = scope Panel();
 		context.RootElement = panel;
 
 		let anim = scope TestAnimation();
@@ -132,7 +132,7 @@ class AnimationBaseTests
 	public static void AnimationLoops()
 	{
 		let context = scope GUIContext();
-		let panel = new Panel();
+		let panel = scope Panel();
 		context.RootElement = panel;
 
 		let anim = scope TestAnimation();
@@ -150,7 +150,7 @@ class AnimationBaseTests
 	public static void AnimationAutoReverse()
 	{
 		let context = scope GUIContext();
-		let panel = new Panel();
+		let panel = scope Panel();
 		context.RootElement = panel;
 
 		let anim = scope TestAnimation();
@@ -173,7 +173,7 @@ class AnimationBaseTests
 	public static void AnimationSetTarget()
 	{
 		let context = scope GUIContext();
-		let panel = new Panel();
+		let panel = scope Panel();
 		context.RootElement = panel;
 
 		let anim = scope TestAnimation();
@@ -460,7 +460,7 @@ class AnimationManagerTests
 	public static void AnimationManagerStopAllFor()
 	{
 		let context = scope GUIContext();
-		let panel = new Panel();
+		let panel = scope Panel();
 		context.RootElement = panel;
 		let manager = context.AnimationManager;
 
@@ -584,7 +584,7 @@ class StoryboardTests
 	public static void StoryboardCompletes()
 	{
 		let context = scope GUIContext();
-		let panel = new Panel();
+		let panel = scope Panel();
 		context.RootElement = panel;
 
 		let sb = scope Storyboard();
@@ -601,7 +601,7 @@ class StoryboardTests
 	public static void StoryboardSequencesAnimations()
 	{
 		let context = scope GUIContext();
-		let panel = new Panel();
+		let panel = scope Panel();
 		context.RootElement = panel;
 
 		let sb = scope Storyboard();

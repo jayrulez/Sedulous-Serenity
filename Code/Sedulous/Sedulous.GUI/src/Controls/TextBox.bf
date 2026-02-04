@@ -10,6 +10,10 @@ namespace Sedulous.GUI;
 /// A single-line text input control.
 public class TextBox : Control
 {
+	/// Fallback ratio for estimating character width when no font metrics available.
+	/// Based on typical monospace font proportions (width ~60% of height).
+	private const float FallbackCharWidthRatio = 0.6f;
+
 	// Text editing behavior
 	private TextEditingBehavior mEditor = new .() ~ delete _;
 
@@ -243,13 +247,11 @@ public class TextBox : Control
 		}
 		else if (mPlaceholder != null && mPlaceholder.Length > 0 && !IsFocused)
 		{
-			// Draw placeholder in dimmed color
-			let placeholderColor = Color(
-				GetStateForeground().R / 2,
-				GetStateForeground().G / 2,
-				GetStateForeground().B / 2,
-				128
-			);
+			// Draw placeholder in secondary text color
+			let palette = Context?.Theme?.Palette ?? Palette();
+			let placeholderColor = palette.TextSecondary.A > 0
+				? Color(palette.TextSecondary.R, palette.TextSecondary.G, palette.TextSecondary.B, 180)
+				: Color(GetStateForeground().R / 2, GetStateForeground().G / 2, GetStateForeground().B / 2, 128);
 			let drawBounds = RectangleF(textX, textY, bounds.Width + mScrollOffset, lineHeight);
 			ctx.DrawText(mPlaceholder, font, atlas, atlasTexture, drawBounds, .Left, .Top, placeholderColor);
 		}
@@ -290,13 +292,13 @@ public class TextBox : Control
 			return cachedFont.Shaper.GetCursorPosition(cachedFont.Font, mGlyphPositions, charIndex);
 		}
 
-		// Fallback: estimate position
+		// Fallback: estimate position using font measurement or approximation
 		if (charIndex == 0)
 			return 0;
 
 		let text = scope String();
 		text.Append(mEditor.Text, 0, Math.Min(charIndex, (int32)mEditor.Text.Length));
-		return cachedFont?.Font.MeasureString(text) ?? (charIndex * FontSize * 0.6f);
+		return cachedFont?.Font.MeasureString(text) ?? (charIndex * FontSize * FallbackCharWidthRatio);
 	}
 
 	private void UpdateScrollOffset(CachedFont cachedFont, float viewWidth)
@@ -333,11 +335,22 @@ public class TextBox : Control
 			return result.InsertionIndex;
 		}
 
-		// Fallback: estimate character index
+		// Fallback: estimate character index using font measurement or approximation
 		if (mEditor.Text.Length == 0)
 			return 0;
 
-		let charWidth = FontSize * 0.6f;
+		// Try to get actual average character width from font
+		float charWidth;
+		if (cachedFont?.Font != null)
+		{
+			let totalWidth = cachedFont.Font.MeasureString(mEditor.Text);
+			charWidth = totalWidth / mEditor.Text.Length;
+		}
+		else
+		{
+			charWidth = FontSize * FallbackCharWidthRatio;
+		}
+
 		let index = (int32)(x / charWidth);
 		return (int32)Math.Clamp(index, 0, mEditor.Text.Length);
 	}

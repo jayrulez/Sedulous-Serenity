@@ -120,9 +120,8 @@ public class ProgressBar : Control
 			if (mFillColor.HasValue)
 				return mFillColor.Value;
 			// Default: use accent color from theme palette
-			if (Context?.Theme != null)
-				return Context.Theme.Palette.Accent;
-			return Color(0, 120, 215, 255); // Default blue
+			let palette = Context?.Theme?.Palette ?? Palette();
+			return palette.Accent.A > 0 ? palette.Accent : Color(0, 120, 215, 255);
 		}
 		set => mFillColor = value;
 	}

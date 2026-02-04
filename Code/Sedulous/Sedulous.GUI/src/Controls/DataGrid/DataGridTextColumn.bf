@@ -30,11 +30,16 @@ public class DataGridTextColumn : DataGridColumn
 	}
 
 	/// Renders the cell as text.
-	public override void RenderCell(DrawContext ctx, RectangleF bounds, Object cellValue, bool isSelected, bool isHovered)
+	public override void RenderCell(DrawContext ctx, RectangleF bounds, Object cellValue, bool isSelected, bool isHovered, DataGrid grid = null)
 	{
+		// Get theme colors from grid's context
+		let palette = grid?.Context?.Theme?.Palette ?? Palette();
+		let textColor = isSelected
+			? (palette.Text.A > 0 ? palette.Text : Color(255, 255, 255, 255))
+			: (palette.Text.A > 0 ? palette.Text : Color(220, 220, 220, 255));
+
 		let text = cellValue?.ToString(.. scope String()) ?? "";
 		let fontSize = 12.0f;
-		let textColor = isSelected ? Color(255, 255, 255, 255) : Color(220, 220, 220, 255);
 		let textX = bounds.X + 4;
 		let textY = bounds.Y + (bounds.Height - fontSize) / 2;
 

@@ -10,6 +10,11 @@ namespace Sedulous.GUI;
 /// Label can display either text (via ContentText) or a UIElement (via Content).
 public class Label : ContentControl
 {
+	/// Fallback ratio for estimating character width when no font metrics available.
+	private const float FallbackCharWidthRatio = 0.6f;
+	/// Fallback ratio for line height when no font metrics available.
+	private const float FallbackLineHeightRatio = 1.2f;
+
 	private String mContentText ~ delete _;
 	private ElementHandle<UIElement> mTarget;
 	private float? mFontSize;
@@ -127,9 +132,9 @@ public class Label : ContentControl
 			else
 			{
 				// Fallback measurement when no font available
-				let charWidth = fontSize * 0.6f;
+				let charWidth = fontSize * FallbackCharWidthRatio;
 				textWidth = mContentText.Length * charWidth;
-				lineHeight = fontSize * 1.2f;
+				lineHeight = fontSize * FallbackLineHeightRatio;
 			}
 
 			// Update cache
@@ -184,8 +189,8 @@ public class Label : ContentControl
 		if (Context?.DebugSettings.ShowLayoutBounds ?? false)
 		{
 			let fontSize = FontSize;
-			let textWidth = mContentText.Length * fontSize * 0.6f;
-			let textHeight = fontSize * 1.2f;
+			let textWidth = mContentText.Length * fontSize * FallbackCharWidthRatio;
+			let textHeight = fontSize * FallbackLineHeightRatio;
 			ctx.FillRect(.(bounds.X, bounds.Y, textWidth, textHeight), Color(foreground.R, foreground.G, foreground.B, 40));
 		}
 		#endif

@@ -29,6 +29,20 @@ public class RadioButton : ToggleButton
 		GroupName = groupName;
 	}
 
+	public override void OnAttachedToContext(GUIContext context)
+	{
+		base.OnAttachedToContext(context);
+		ApplyThemeDefaults();
+	}
+
+	/// Applies theme defaults for radio button dimensions.
+	private void ApplyThemeDefaults()
+	{
+		let theme = Context?.Theme;
+		mCircleSize = theme?.RadioButtonSize ?? 18;
+		mCircleSpacing = theme?.RadioButtonSpacing ?? 8;
+	}
+
 	/// The control type name for theming.
 	protected override StringView ControlTypeName => "RadioButton";
 

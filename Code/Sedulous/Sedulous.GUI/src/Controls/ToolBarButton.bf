@@ -88,14 +88,20 @@ public class ToolBarButton : Button
 	{
 		let bounds = ArrangedBounds;
 
+		// Get theme colors
+		let palette = Context?.Theme?.Palette ?? Palette();
+		let surfaceColor = palette.Surface.A > 0 ? palette.Surface : Color(45, 45, 45, 255);
+		let accentColor = palette.Accent.A > 0 ? palette.Accent : Color(60, 120, 200, 255);
+		let borderColor = palette.Border.A > 0 ? palette.Border : Color(100, 100, 100, 255);
+
 		// Only show background on hover/pressed
 		if (IsHovered || IsPressed)
 		{
-			let bgColor = IsPressed ? Color(60, 120, 200, 255) : Color(80, 80, 80, 255);
+			let bgColor = IsPressed ? accentColor : Palette.ComputeHover(surfaceColor);
 			ctx.FillRect(bounds, bgColor);
 
 			// Border on hover
-			ctx.DrawRect(bounds, Color(100, 100, 100, 255), 1);
+			ctx.DrawRect(bounds, borderColor, 1);
 		}
 
 		// Render content (text)

@@ -122,7 +122,10 @@ public class StatusBarItem : Control
 		// Hover highlight for clickable items
 		if (mIsClickable && IsHovered)
 		{
-			ctx.FillRect(ArrangedBounds, Color(80, 80, 80, 128));
+			let palette = Context?.Theme?.Palette ?? Palette();
+			let surfaceColor = palette.Surface.A > 0 ? palette.Surface : Color(45, 45, 45, 255);
+			let hoverColor = Palette.ComputeHover(surfaceColor);
+			ctx.FillRect(ArrangedBounds, Color(hoverColor.R, hoverColor.G, hoverColor.B, 128));
 		}
 
 		// Text

@@ -8,6 +8,9 @@ namespace Sedulous.GUI;
 /// Contains a dropdown menu that opens when clicked.
 public class MenuBarItem : Control, IPopupOwner
 {
+	/// Fallback ratio for estimating character width when no font metrics available.
+	private const float FallbackCharWidthRatio = 0.6f;
+
 	private String mText ~ delete _;
 	private String mDisplayText ~ delete _;  // Text without '&' marker
 	private TextBlock mTextBlock ~ delete _;
@@ -237,38 +240,63 @@ public class MenuBarItem : Control, IPopupOwner
 	{
 		let bounds = ArrangedBounds;
 
+		// Get theme colors
+		let palette = Context?.Theme?.Palette ?? Palette();
+		let surfaceColor = palette.Surface.A > 0 ? palette.Surface : Color(45, 45, 45, 255);
+		let accentColor = palette.Accent.A > 0 ? palette.Accent : Color(60, 120, 200, 255);
+		let textColor = palette.Text.A > 0 ? palette.Text : Color(255, 255, 255, 255);
+
 		// Background on hover or when dropdown open
 		if (mIsSelected || IsHovered || mIsDropdownOpen)
 		{
-			let highlightColor = mIsDropdownOpen ? Color(60, 120, 200, 255) : Color(80, 80, 80, 255);
+			let highlightColor = mIsDropdownOpen ? accentColor : Palette.ComputeHover(surfaceColor);
 			ctx.FillRect(bounds, highlightColor);
 		}
 
-		// Text color
-		let textColor = (mIsSelected || IsHovered || mIsDropdownOpen) ? Color(255, 255, 255, 255) : Foreground;
-		mTextBlock.Foreground = textColor;
+		// Text color - use bright text when highlighted
+		let currentTextColor = (mIsSelected || IsHovered || mIsDropdownOpen) ? textColor : Foreground;
+		mTextBlock.Foreground = currentTextColor;
 		mTextBlock.Render(ctx);
 
 		// Draw accelerator underline when Alt mode is active
 		if (mParentMenu != null && mParentMenu.[Friend]mIsAltModeActive && mAcceleratorIndex >= 0)
 		{
-			RenderAcceleratorUnderline(ctx);
+			RenderAcceleratorUnderline(ctx, currentTextColor);
 		}
 	}
 
-	private void RenderAcceleratorUnderline(DrawContext ctx)
+	private void RenderAcceleratorUnderline(DrawContext ctx, Color textColor)
 	{
 		// Get the position of the accelerator character and draw underline
-		// This is approximate - would need font metrics for precision
 		let textBounds = mTextBlock.ArrangedBounds;
 		let fontSize = mTextBlock.FontSize;
-		let charWidth = fontSize * 0.6f;  // Approximate character width
 
-		let underlineX = textBounds.X + mAcceleratorIndex * charWidth;
+		// Try to use actual font measurement for accurate positioning
+		float underlineX, underlineWidth;
+		let fontService = mTextBlock.[Friend]GetFontService();
+		let cachedFont = fontService != null ? mTextBlock.[Friend]GetCachedFont() : null;
+
+		if (cachedFont?.Font != null && mDisplayText != null && mAcceleratorIndex < mDisplayText.Length)
+		{
+			// Measure text up to accelerator position for accurate X
+			let prefix = scope String();
+			prefix.Append(mDisplayText, 0, mAcceleratorIndex);
+			underlineX = textBounds.X + cachedFont.Font.MeasureString(prefix);
+
+			// Measure the accelerator character for width
+			let accelChar = scope String();
+			accelChar.Append(mDisplayText[mAcceleratorIndex]);
+			underlineWidth = cachedFont.Font.MeasureString(accelChar);
+		}
+		else
+		{
+			// Fallback: approximate using character width estimate
+			let charWidth = fontSize * FallbackCharWidthRatio;
+			underlineX = textBounds.X + mAcceleratorIndex * charWidth;
+			underlineWidth = charWidth;
+		}
+
 		let underlineY = textBounds.Y + fontSize;
-		let underlineWidth = charWidth;
-
-		let textColor = (mIsSelected || IsHovered || mIsDropdownOpen) ? Color(255, 255, 255, 255) : Foreground;
 		ctx.DrawLine(.(underlineX, underlineY), .(underlineX + underlineWidth, underlineY), textColor, 1);
 	}
 

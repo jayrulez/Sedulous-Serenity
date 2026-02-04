@@ -20,6 +20,21 @@ public class ToolBarSeparator : Control
 		IsTabStop = false;
 	}
 
+	public override void OnAttachedToContext(GUIContext context)
+	{
+		base.OnAttachedToContext(context);
+		ApplyThemeDefaults();
+	}
+
+	/// Applies theme defaults for toolbar separator.
+	private void ApplyThemeDefaults()
+	{
+		let theme = Context?.Theme;
+		let palette = theme?.Palette ?? Palette();
+		mThickness = theme?.SeparatorThickness ?? 1;
+		mLineColor = palette.Border.A > 0 ? palette.Border : Color(80, 80, 80, 255);
+	}
+
 	/// The control type name for theming.
 	protected override StringView ControlTypeName => "ToolBarSeparator";
 

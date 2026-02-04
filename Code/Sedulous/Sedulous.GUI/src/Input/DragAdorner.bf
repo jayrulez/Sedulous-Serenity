@@ -32,6 +32,15 @@ public class DragAdorner
 	/// Text/icon color.
 	public Color ForegroundColor = Color(220, 220, 220, 255);
 
+	/// Error/no-drop icon color.
+	public Color ErrorColor = Color(200, 60, 60, 255);
+
+	/// Copy icon color (success).
+	public Color CopyColor = Color(60, 180, 60, 255);
+
+	/// Link icon color.
+	public Color LinkColor = Color(60, 120, 200, 255);
+
 	/// Optional text label to display.
 	public String Label ~ delete _;
 
@@ -41,6 +50,17 @@ public class DragAdorner
 	/// Creates a new DragAdorner.
 	public this()
 	{
+	}
+
+	/// Applies theme colors from a palette.
+	public void ApplyTheme(Palette palette)
+	{
+		BackgroundColor = Color(palette.Surface.R, palette.Surface.G, palette.Surface.B, 220);
+		BorderColor = palette.Border;
+		ForegroundColor = palette.Text;
+		ErrorColor = palette.Error;
+		CopyColor = palette.Success;
+		LinkColor = palette.Primary;
 	}
 
 	/// Renders the adorner.
@@ -87,15 +107,15 @@ public class DragAdorner
 			let cx = iconX + iconSize / 2;
 			let cy = iconY + iconSize / 2;
 			let r = iconSize / 2 - 2;
-			ctx.DrawCircle(.(cx, cy), r, Color(200, 60, 60), 2);
-			ctx.DrawLine(.(cx - r * 0.7f, cy - r * 0.7f), .(cx + r * 0.7f, cy + r * 0.7f), Color(200, 60, 60), 2);
+			ctx.DrawCircle(.(cx, cy), r, ErrorColor, 2);
+			ctx.DrawLine(.(cx - r * 0.7f, cy - r * 0.7f), .(cx + r * 0.7f, cy + r * 0.7f), ErrorColor, 2);
 
 		case .Copy:
 			// Plus sign for copy
 			let midX = iconX + iconSize / 2;
 			let midY = iconY + iconSize / 2;
-			ctx.DrawLine(.(midX, iconY + 2), .(midX, iconY + iconSize - 2), Color(60, 180, 60), 2);
-			ctx.DrawLine(.(iconX + 2, midY), .(iconX + iconSize - 2, midY), Color(60, 180, 60), 2);
+			ctx.DrawLine(.(midX, iconY + 2), .(midX, iconY + iconSize - 2), CopyColor, 2);
+			ctx.DrawLine(.(iconX + 2, midY), .(iconX + iconSize - 2, midY), CopyColor, 2);
 
 		case .Move:
 			// Arrow for move
@@ -107,8 +127,8 @@ public class DragAdorner
 		case .Link:
 			// Chain link icon (two overlapping circles)
 			let r = iconSize / 4;
-			ctx.DrawCircle(.(iconX + iconSize / 3, iconY + iconSize / 2), r, Color(60, 120, 200), 2);
-			ctx.DrawCircle(.(iconX + iconSize * 2 / 3, iconY + iconSize / 2), r, Color(60, 120, 200), 2);
+			ctx.DrawCircle(.(iconX + iconSize / 3, iconY + iconSize / 2), r, LinkColor, 2);
+			ctx.DrawCircle(.(iconX + iconSize * 2 / 3, iconY + iconSize / 2), r, LinkColor, 2);
 
 		default:
 			break;
@@ -148,6 +168,13 @@ public class DragAdorner
 		}
 		Size = .(64, 32);
 		Offset = .(8, 8);
+		// Reset colors to defaults
+		BackgroundColor = Color(50, 50, 50, 220);
+		BorderColor = Color(100, 100, 100, 255);
+		ForegroundColor = Color(220, 220, 220, 255);
+		ErrorColor = Color(200, 60, 60, 255);
+		CopyColor = Color(60, 180, 60, 255);
+		LinkColor = Color(60, 120, 200, 255);
 	}
 
 	/// Sets a text label for the adorner.

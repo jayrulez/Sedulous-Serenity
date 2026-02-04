@@ -321,6 +321,22 @@ public class ComboBox : Control, IPopupOwner
 		base.OnAttachedToContext(context);
 		mSelectedText.OnAttachedToContext(context);
 		mDropDownContainer.OnAttachedToContext(context);
+		ApplyThemeDefaults();
+	}
+
+	/// Applies default combo box styling from theme.
+	private void ApplyThemeDefaults()
+	{
+		let theme = Context?.Theme;
+		let palette = theme?.Palette ?? Palette();
+
+		// Apply theme dimensions
+		mDropDownButtonWidth = theme?.ComboBoxDropDownButtonWidth ?? 20;
+		mDropDownMaxHeight = theme?.ComboBoxDropDownMaxHeight ?? 200;
+
+		// Apply dropdown container styling
+		mDropDownContainer.BorderBrush = palette.Border;
+		mDropDownContainer.Background = palette.Surface;
 	}
 
 	public override void OnDetachedFromContext()

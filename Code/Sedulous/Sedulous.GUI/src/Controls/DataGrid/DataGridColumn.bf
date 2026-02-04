@@ -99,27 +99,38 @@ public abstract class DataGridColumn
 
 	/// Renders the cell content.
 	/// Override for custom cell rendering.
-	public virtual void RenderCell(DrawContext ctx, RectangleF bounds, Object cellValue, bool isSelected, bool isHovered)
+	public virtual void RenderCell(DrawContext ctx, RectangleF bounds, Object cellValue, bool isSelected, bool isHovered, DataGrid grid = null)
 	{
+		// Get theme colors from grid's context
+		let palette = grid?.Context?.Theme?.Palette ?? Palette();
+		let textColor = isSelected
+			? (palette.Text.A > 0 ? palette.Text : Color(255, 255, 255, 255))
+			: (palette.Text.A > 0 ? palette.Text : Color(220, 220, 220, 255));
+
 		// Default: render as text
 		let text = cellValue?.ToString(.. scope String()) ?? "";
 		let fontSize = 12.0f;
-		let textColor = isSelected ? Color(255, 255, 255, 255) : Color(220, 220, 220, 255);
 		let textX = bounds.X + 4;
 		let textY = bounds.Y + (bounds.Height - fontSize) / 2;
 		ctx.DrawText(text, fontSize, .(textX, textY), textColor);
 	}
 
 	/// Renders the column header.
-	public virtual void RenderHeader(DrawContext ctx, RectangleF bounds, bool isHovered)
+	public virtual void RenderHeader(DrawContext ctx, RectangleF bounds, bool isHovered, DataGrid grid = null)
 	{
+		// Get theme colors from grid's context
+		let palette = grid?.Context?.Theme?.Palette ?? Palette();
+		let surfaceColor = palette.Surface.A > 0 ? palette.Surface : Color(45, 45, 45, 255);
+		let textColor = palette.Text.A > 0 ? palette.Text : Color(220, 220, 220, 255);
+		let borderColor = palette.Border.A > 0 ? palette.Border : Color(60, 60, 60, 255);
+		let accentColor = palette.Accent.A > 0 ? palette.Accent : Color(150, 180, 220, 255);
+
 		// Header background
-		let bgColor = isHovered ? Color(55, 55, 55, 255) : Color(45, 45, 45, 255);
+		let bgColor = isHovered ? Palette.ComputeHover(surfaceColor) : surfaceColor;
 		ctx.FillRect(bounds, bgColor);
 
 		// Header text
 		let fontSize = 12.0f;
-		let textColor = Color(220, 220, 220, 255);
 		let textX = bounds.X + 4;
 		let textY = bounds.Y + (bounds.Height - fontSize) / 2;
 		ctx.DrawText(mHeader ?? "", fontSize, .(textX, textY), textColor);
@@ -130,11 +141,11 @@ public abstract class DataGridColumn
 			let indicatorX = bounds.Right - 16;
 			let indicatorY = bounds.Y + bounds.Height / 2;
 			let indicator = mSortDirection == .Ascending ? "▲" : "▼";
-			ctx.DrawText(indicator, 10, .(indicatorX, indicatorY - 5), Color(150, 180, 220, 255));
+			ctx.DrawText(indicator, 10, .(indicatorX, indicatorY - 5), accentColor);
 		}
 
 		// Right border
-		ctx.DrawLine(.(bounds.Right - 1, bounds.Y), .(bounds.Right - 1, bounds.Bottom), Color(60, 60, 60, 255), 1);
+		ctx.DrawLine(.(bounds.Right - 1, bounds.Y), .(bounds.Right - 1, bounds.Bottom), borderColor, 1);
 	}
 
 	/// Compares two cell values for sorting.

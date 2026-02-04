@@ -34,8 +34,15 @@ public class DataGridCheckBoxColumn : DataGridColumn
 	}
 
 	/// Renders the cell as a checkbox.
-	public override void RenderCell(DrawContext ctx, RectangleF bounds, Object cellValue, bool isSelected, bool isHovered)
+	public override void RenderCell(DrawContext ctx, RectangleF bounds, Object cellValue, bool isSelected, bool isHovered, DataGrid grid = null)
 	{
+		// Get theme colors from grid's context
+		let palette = grid?.Context?.Theme?.Palette ?? Palette();
+		let surfaceColor = palette.Surface.A > 0 ? palette.Surface : Color(50, 50, 50, 255);
+		let accentColor = palette.Accent.A > 0 ? palette.Accent : Color(100, 150, 220, 255);
+		let borderColor = palette.Border.A > 0 ? palette.Border : Color(80, 80, 80, 255);
+		let successColor = palette.Success.A > 0 ? palette.Success : Color(100, 180, 100, 255);
+
 		let isChecked = GetBoolValue(cellValue);
 
 		// Center the checkbox in the cell
@@ -45,22 +52,21 @@ public class DataGridCheckBoxColumn : DataGridColumn
 		let checkBounds = RectangleF(checkX, checkY, checkSize, checkSize);
 
 		// Checkbox background
-		let bgColor = isHovered ? Color(60, 60, 60, 255) : Color(50, 50, 50, 255);
+		let bgColor = isHovered ? Palette.ComputeHover(surfaceColor) : surfaceColor;
 		ctx.FillRect(checkBounds, bgColor);
 
 		// Checkbox border
-		let borderColor = isSelected ? Color(100, 150, 220, 255) : Color(80, 80, 80, 255);
-		ctx.DrawRect(checkBounds, borderColor, 1);
+		let checkBorderColor = isSelected ? accentColor : borderColor;
+		ctx.DrawRect(checkBounds, checkBorderColor, 1);
 
 		// Checkmark if checked
 		if (isChecked)
 		{
-			let checkColor = Color(100, 180, 100, 255);
 			// Draw a simple checkmark
 			let cx = checkBounds.X + checkBounds.Width / 2;
 			let cy = checkBounds.Y + checkBounds.Height / 2;
-			ctx.DrawLine(.(cx - 4, cy), .(cx - 1, cy + 3), checkColor, 2);
-			ctx.DrawLine(.(cx - 1, cy + 3), .(cx + 4, cy - 3), checkColor, 2);
+			ctx.DrawLine(.(cx - 4, cy), .(cx - 1, cy + 3), successColor, 2);
+			ctx.DrawLine(.(cx - 1, cy + 3), .(cx + 4, cy - 3), successColor, 2);
 		}
 	}
 

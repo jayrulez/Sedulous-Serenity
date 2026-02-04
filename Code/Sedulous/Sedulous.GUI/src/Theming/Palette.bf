@@ -14,9 +14,13 @@ public struct Palette
 	public Color Background;
 	public Color Surface;
 	public Color Error;
+	public Color Warning;
+	public Color Success;
 	public Color Text;
 	public Color TextSecondary;
 	public Color Border;
+	public Color Link;
+	public Color LinkVisited;
 
 	/// Computes a hover color by lightening the input.
 	public static Color ComputeHover(Color baseColor)

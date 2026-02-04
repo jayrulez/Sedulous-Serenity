@@ -23,6 +23,21 @@ public class ToggleSwitch : ToggleButton
 	{
 	}
 
+	public override void OnAttachedToContext(GUIContext context)
+	{
+		base.OnAttachedToContext(context);
+		ApplyThemeDefaults();
+	}
+
+	/// Applies theme defaults for toggle switch dimensions.
+	private void ApplyThemeDefaults()
+	{
+		let theme = Context?.Theme;
+		mTrackWidth = theme?.ToggleSwitchTrackWidth ?? 44;
+		mTrackHeight = theme?.ToggleSwitchTrackHeight ?? 24;
+		mKnobSize = theme?.ToggleSwitchKnobSize ?? 20;
+	}
+
 	/// The control type name for theming.
 	protected override StringView ControlTypeName => "ToggleSwitch";
 
@@ -160,15 +175,16 @@ public class ToggleSwitch : ToggleButton
 	/// Gets the knob color.
 	private Color GetKnobColor()
 	{
-		let baseColor = Color(255, 255, 255, 255);
+		let palette = Context?.Theme?.Palette ?? Palette();
+		let baseColor = palette.Surface.A > 0 ? palette.Surface : Color(255, 255, 255, 255);
 		switch (CurrentState)
 		{
 		case .Disabled:
 			return Palette.ComputeDisabled(baseColor);
 		case .Pressed:
-			return Color(240, 240, 240, 255);
+			return Palette.ComputePressed(baseColor);
 		case .Hover:
-			return Color(250, 250, 250, 255);
+			return Palette.ComputeHover(baseColor);
 		default:
 			return baseColor;
 		}

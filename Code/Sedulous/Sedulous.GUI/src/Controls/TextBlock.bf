@@ -10,6 +10,12 @@ namespace Sedulous.GUI;
 /// TextBlock is a leaf control that cannot have children.
 public class TextBlock : Control
 {
+	/// Fallback ratio for estimating character width when no font metrics available.
+	/// Based on typical proportional font characteristics (width ~60% of height).
+	private const float FallbackCharWidthRatio = 0.6f;
+	/// Fallback ratio for line height when no font metrics available.
+	private const float FallbackLineHeightRatio = 1.2f;
+
 	private String mText ~ delete _;
 	private Sedulous.Fonts.TextAlignment mTextAlignment = .Left;
 	private TextWrapping mTextWrapping = .NoWrap;
@@ -159,9 +165,9 @@ public class TextBlock : Control
 			else
 			{
 				// Fallback measurement when no font available
-				let charWidth = fontSize * 0.6f;
+				let charWidth = fontSize * FallbackCharWidthRatio;
 				textWidth = mText.Length * charWidth;
-				lineHeight = fontSize * 1.2f;
+				lineHeight = fontSize * FallbackLineHeightRatio;
 			}
 
 			// Update cache
@@ -246,8 +252,8 @@ public class TextBlock : Control
 		if (Context?.DebugSettings.ShowLayoutBounds ?? false)
 		{
 			let fontSize = FontSize;
-			let textWidth = mText.Length * fontSize * 0.6f;
-			let textHeight = fontSize * 1.2f;
+			let textWidth = mText.Length * fontSize * FallbackCharWidthRatio;
+			let textHeight = fontSize * FallbackLineHeightRatio;
 			var x = bounds.X;
 			if (mTextAlignment == .Center)
 				x = bounds.X + (bounds.Width - textWidth) / 2;

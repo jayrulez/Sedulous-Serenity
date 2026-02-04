@@ -20,6 +20,20 @@ public class CheckBox : ToggleButton
 	{
 	}
 
+	public override void OnAttachedToContext(GUIContext context)
+	{
+		base.OnAttachedToContext(context);
+		ApplyThemeDefaults();
+	}
+
+	/// Applies theme defaults for checkbox dimensions.
+	private void ApplyThemeDefaults()
+	{
+		let theme = Context?.Theme;
+		mBoxSize = theme?.CheckBoxSize ?? 18;
+		mBoxSpacing = theme?.CheckBoxSpacing ?? 8;
+	}
+
 	/// The control type name for theming.
 	protected override StringView ControlTypeName => "CheckBox";
 
@@ -89,7 +103,7 @@ public class CheckBox : ToggleButton
 		let checkColor = GetStateForeground();
 
 		// Draw checkbox background
-		let cornerRadius = 3f;
+		let cornerRadius = style.CornerRadius > 0 ? style.CornerRadius : (Context?.Theme?.DefaultCornerRadius ?? 3f);
 		if (bgColor.A > 0)
 		{
 			ctx.FillRoundedRect(boxRect, cornerRadius, bgColor);

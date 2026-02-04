@@ -50,14 +50,45 @@ public class MenuItem : Control
 	{
 		IsFocusable = false;  // Menu navigation handles focus
 		IsTabStop = false;
-		Background = Color(0, 0, 0, 0);  // Transparent by default
-		Foreground = Color(220, 220, 220, 255);
-		Padding = .(8, 4, 8, 4);
+		Background = Color.Transparent;  // Transparent by default
 		mSubItems = new .();
 
 		// Create text block for main text
 		mTextBlock = new TextBlock("");
+	}
+
+	/// Applies theme-based styling on attach.
+	public override void OnAttachedToContext(GUIContext context)
+	{
+		base.OnAttachedToContext(context);
+		mTextBlock.OnAttachedToContext(context);
+		mShortcutBlock?.OnAttachedToContext(context);
+		ApplyThemeDefaults();
+	}
+
+	/// Applies default menu item styling from theme.
+	private void ApplyThemeDefaults()
+	{
+		let style = GetThemeStyle();
+		let theme = Context?.Theme;
+		let palette = theme?.Palette ?? Palette();
+
+		// Apply style properties
+		Foreground = style.Foreground.A > 0 ? style.Foreground : palette.Text;
+		Padding = style.Padding.Left > 0 || style.Padding.Top > 0 ? style.Padding : .(8, 4, 8, 4);
+
+		// Apply theme dimensions
+		mHeight = theme?.MenuItemHeight ?? 24;
+		mCheckWidth = theme?.MenuCheckWidth ?? 20;
+		mArrowWidth = theme?.MenuArrowWidth ?? 16;
+		mShortcutGap = theme?.MenuShortcutGap ?? 24;
+
+		// Update text block foreground
 		mTextBlock.Foreground = Foreground;
+
+		// Update shortcut block if present
+		if (mShortcutBlock != null)
+			mShortcutBlock.Foreground = palette.TextSecondary;
 	}
 
 	/// Creates a new MenuItem with text.
@@ -98,7 +129,9 @@ public class MenuItem : Control
 			if (mShortcutBlock == null)
 			{
 				mShortcutBlock = new TextBlock(value);
-				mShortcutBlock.Foreground = Color(150, 150, 150, 255);
+				// Use theme TextSecondary if available
+				let palette = Context?.Theme?.Palette ?? Palette();
+				mShortcutBlock.Foreground = palette.TextSecondary.A > 0 ? palette.TextSecondary : Color(150, 150, 150, 255);
 			}
 			else
 			{
@@ -263,7 +296,11 @@ public class MenuItem : Control
 		// Draw highlight background if highlighted or pressed
 		if (mIsHighlighted || IsPressed)
 		{
-			let highlightColor = Color(60, 120, 200, 255);
+			let theme = Context?.Theme;
+			var highlightColor = theme?.SelectionColor ?? Color(60, 120, 200, 255);
+			// Make selection fully opaque for menu items
+			if (highlightColor.A < 200)
+				highlightColor = Color(highlightColor.R, highlightColor.G, highlightColor.B, 255);
 			ctx.FillRect(bounds, highlightColor);
 		}
 
@@ -279,7 +316,8 @@ public class MenuItem : Control
 		}
 
 		// Render text block
-		mTextBlock.Foreground = mIsHighlighted ? Color(255, 255, 255, 255) : Foreground;
+		let textPalette = Context?.Theme?.Palette ?? Palette();
+		mTextBlock.Foreground = mIsHighlighted ? textPalette.Text : Foreground;
 		mTextBlock.Render(ctx);
 
 		// Render shortcut text
@@ -292,7 +330,8 @@ public class MenuItem : Control
 		if (HasSubItems)
 		{
 			let arrowX = bounds.Right - Padding.Right - mArrowWidth / 2;
-			let arrowColor = mIsHighlighted ? Color(255, 255, 255, 255) : Color(180, 180, 180, 255);
+			let palette = Context?.Theme?.Palette ?? Palette();
+			let arrowColor = mIsHighlighted ? palette.Text : palette.TextSecondary;
 			// Draw a simple ">" arrow
 			ctx.DrawLine(.(arrowX - 3, centerY - 4), .(arrowX + 2, centerY), arrowColor, 1.5f);
 			ctx.DrawLine(.(arrowX + 2, centerY), .(arrowX - 3, centerY + 4), arrowColor, 1.5f);
@@ -349,13 +388,6 @@ public class MenuItem : Control
 	}
 
 	// === Lifecycle ===
-
-	public override void OnAttachedToContext(GUIContext context)
-	{
-		base.OnAttachedToContext(context);
-		mTextBlock.OnAttachedToContext(context);
-		mShortcutBlock?.OnAttachedToContext(context);
-	}
 
 	public override void OnDetachedFromContext()
 	{

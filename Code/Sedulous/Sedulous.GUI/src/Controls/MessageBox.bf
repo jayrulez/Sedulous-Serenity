@@ -46,8 +46,9 @@ public static class MessageBox
 
 		// Warning icon (represented as colored text for now)
 		let icon = new TextBlock("!");
-		icon.FontSize = 24;
-		icon.Foreground = Color(255, 200, 0, 255);  // Yellow warning color
+		let theme = context.Theme;
+		icon.FontSize = theme?.MessageBoxIconSize ?? 24;
+		icon.Foreground = theme?.Palette.Warning ?? Color(255, 200, 0, 255);
 		icon.VerticalAlignment = .Center;
 		content.AddChild(icon);
 
@@ -79,8 +80,9 @@ public static class MessageBox
 
 		// Error icon (represented as colored text for now)
 		let icon = new TextBlock("X");
-		icon.FontSize = 24;
-		icon.Foreground = Color(220, 50, 50, 255);  // Red error color
+		let theme = context.Theme;
+		icon.FontSize = theme?.MessageBoxIconSize ?? 24;
+		icon.Foreground = theme?.Palette.Error ?? Color(220, 50, 50, 255);
 		icon.VerticalAlignment = .Center;
 		content.AddChild(icon);
 
@@ -113,8 +115,9 @@ public static class MessageBox
 
 		// Question icon
 		let icon = new TextBlock("?");
-		icon.FontSize = 24;
-		icon.Foreground = Color(100, 150, 255, 255);  // Blue question color
+		let theme = context.Theme;
+		icon.FontSize = theme?.MessageBoxIconSize ?? 24;
+		icon.Foreground = theme?.Palette.Primary ?? Color(100, 150, 255, 255);
 		icon.VerticalAlignment = .Center;
 		content.AddChild(icon);
 

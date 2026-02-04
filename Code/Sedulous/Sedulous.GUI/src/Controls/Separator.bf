@@ -26,6 +26,19 @@ public class Separator : Control
 		mOrientation = orientation;
 	}
 
+	public override void OnAttachedToContext(GUIContext context)
+	{
+		base.OnAttachedToContext(context);
+		ApplyThemeDefaults();
+	}
+
+	/// Applies theme defaults for separator thickness.
+	private void ApplyThemeDefaults()
+	{
+		let theme = Context?.Theme;
+		mThickness = theme?.SeparatorThickness ?? 1;
+	}
+
 	/// The control type name for theming.
 	protected override StringView ControlTypeName => "Separator";
 

@@ -81,15 +81,17 @@ public class Hyperlink : Button
 	/// Gets the hyperlink color (blue by default).
 	protected Color GetHyperlinkColor()
 	{
-		if (let theme = Context?.Theme)
-			return theme.Palette.Accent;
-		return Color(0, 102, 204, 255); // Standard blue link color
+		let palette = Context?.Theme?.Palette ?? Palette();
+		// Prefer Link color if set, otherwise Accent, otherwise fallback
+		return palette.Link.A > 0 ? palette.Link :
+			(palette.Accent.A > 0 ? palette.Accent : Color(0, 102, 204, 255));
 	}
 
 	/// Gets the visited color (purple by default).
 	protected Color GetVisitedColor()
 	{
-		return Color(128, 0, 128, 255); // Purple
+		let palette = Context?.Theme?.Palette ?? Palette();
+		return palette.LinkVisited.A > 0 ? palette.LinkVisited : Color(128, 0, 128, 255);
 	}
 
 	/// Renders the hyperlink.

@@ -85,7 +85,8 @@ public class Splitter : Control
 		{
 			if (mGripColor.HasValue)
 				return mGripColor.Value;
-			return Color(100, 100, 100, 255);
+			let palette = Context?.Theme?.Palette ?? Palette();
+			return palette.Border.A > 0 ? palette.Border : Color(100, 100, 100, 255);
 		}
 		set => mGripColor = value;
 	}
@@ -172,7 +173,10 @@ public class Splitter : Control
 		// Draw background
 		var bgColor = GetStateBackground();
 		if (bgColor.A == 0)
-			bgColor = Color(50, 50, 50, 255); // Default dark background
+		{
+			let palette = Context?.Theme?.Palette ?? Palette();
+			bgColor = palette.Surface.A > 0 ? palette.Surface : Color(50, 50, 50, 255);
+		}
 
 		// Lighten when hovered or dragging
 		if (mIsDragging)

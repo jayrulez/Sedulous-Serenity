@@ -229,7 +229,8 @@ public class Expander : ContentControl
 		let arrowX = bounds.X + 8;
 		let arrowY = bounds.Y + (mHeaderHeight - arrowSize) / 2;
 
-		let foreground = Foreground.A > 0 ? Foreground : Color(200, 200, 200, 255);
+		let palette = Context?.Theme?.Palette ?? Palette();
+		let foreground = Foreground.A > 0 ? Foreground : (palette.Text.A > 0 ? palette.Text : Color(200, 200, 200, 255));
 
 		if (mIsExpanded)
 		{
@@ -257,7 +258,7 @@ public class Expander : ContentControl
 			mHeader.Render(ctx);
 
 		// Draw border around entire control
-		let borderColor = Color(80, 80, 80, 255);
+		let borderColor = palette.Border.A > 0 ? palette.Border : Color(80, 80, 80, 255);
 
 		// Top border
 		ctx.DrawLine(.(bounds.X, bounds.Y), .(bounds.Right, bounds.Y), borderColor, 1);

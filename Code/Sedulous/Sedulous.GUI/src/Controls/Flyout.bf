@@ -51,6 +51,34 @@ public class Flyout : ContentControl, IPopupOwner
 		VerticalAlignment = .Top;
 	}
 
+	public override void OnAttachedToContext(GUIContext context)
+	{
+		base.OnAttachedToContext(context);
+		ApplyThemeDefaults();
+	}
+
+	/// Applies theme defaults for flyout styling.
+	private void ApplyThemeDefaults()
+	{
+		let theme = Context?.Theme;
+		let palette = theme?.Palette ?? Palette();
+		let style = GetThemeStyle();
+
+		// Apply surface/background colors from theme
+		if (palette.Surface.A > 0)
+			Background = palette.Surface;
+		if (palette.Text.A > 0)
+			Foreground = palette.Text;
+
+		// Border from theme
+		mFlyoutBorderColor = palette.Border.A > 0 ? palette.Border : Color(80, 80, 80, 255);
+		mFlyoutBorderThickness = style.BorderThickness > 0 ? style.BorderThickness : 1;
+
+		// Corner radius from theme
+		if (theme != null && theme.DefaultCornerRadius > 0)
+			CornerRadius = theme.DefaultCornerRadius;
+	}
+
 	/// Event fired when the flyout is closed (either programmatically or by clicking outside).
 	public EventAccessor<delegate void(Flyout)> Closed => mClosed;
 

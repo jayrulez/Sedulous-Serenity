@@ -53,22 +53,28 @@ public class ToolBarToggleButton : ToggleButton
 	{
 		let bounds = ArrangedBounds;
 
+		// Get theme colors
+		let palette = Context?.Theme?.Palette ?? Palette();
+		let surfaceColor = palette.Surface.A > 0 ? palette.Surface : Color(45, 45, 45, 255);
+		let accentColor = palette.Accent.A > 0 ? palette.Accent : Color(60, 120, 200, 255);
+		let borderColor = palette.Border.A > 0 ? palette.Border : Color(100, 100, 100, 255);
+
 		// Background when checked, hovered, or pressed
 		if (IsChecked || IsHovered || IsPressed)
 		{
 			Color bgColor;
 			if (IsPressed)
-				bgColor = Color(60, 120, 200, 255);
+				bgColor = accentColor;
 			else if (IsChecked)
-				bgColor = Color(60, 100, 160, 255);  // Slightly different for checked state
+				bgColor = Palette.Darken(accentColor, 0.15f);  // Slightly darker for checked state
 			else
-				bgColor = Color(80, 80, 80, 255);
+				bgColor = Palette.ComputeHover(surfaceColor);
 
 			ctx.FillRect(bounds, bgColor);
 
 			// Border
-			let borderColor = IsChecked ? Color(80, 140, 200, 255) : Color(100, 100, 100, 255);
-			ctx.DrawRect(bounds, borderColor, 1);
+			let checkedBorderColor = IsChecked ? Palette.Lighten(accentColor, 0.2f) : borderColor;
+			ctx.DrawRect(bounds, checkedBorderColor, 1);
 		}
 
 		// Render content (text)

@@ -273,14 +273,19 @@ public class TreeViewItem : Control, ISelectable
 		let bounds = ArrangedBounds;
 		let indent = mIndentLevel * cIndentWidth;
 
-		// Get colors
-		let foreground = Foreground.A > 0 ? Foreground : Color(200, 200, 200, 255);
+		// Get colors from theme
+		let palette = Context?.Theme?.Palette ?? Palette();
+		let foreground = Foreground.A > 0 ? Foreground : (palette.Text.A > 0 ? palette.Text : Color(200, 200, 200, 255));
 		Color bgColor = Color.Transparent;
 
 		if (mIsSelected)
-			bgColor = Color(0, 120, 215, 255);  // Selection blue
+		{
+			let selectionColor = Context?.Theme?.SelectionColor ?? Color(100, 149, 237, 100);
+			// Make selection fully opaque for tree items
+			bgColor = selectionColor.A < 200 ? Color(selectionColor.R, selectionColor.G, selectionColor.B, 255) : selectionColor;
+		}
 		else if (mIsHovered)
-			bgColor = Color(60, 60, 60, 255);   // Hover gray
+			bgColor = Palette.ComputeHover(palette.Surface.A > 0 ? palette.Surface : Color(45, 45, 45, 255));
 
 		// Draw background
 		if (bgColor.A > 0)

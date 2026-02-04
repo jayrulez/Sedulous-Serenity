@@ -21,9 +21,13 @@ public class LightTheme : ITheme
 			Background = Color(250, 250, 250, 255), // Near white
 			Surface = Color(255, 255, 255, 255),   // White
 			Error = Color(211, 47, 47, 255),       // Red
+			Warning = Color(255, 152, 0, 255),     // Orange
+			Success = Color(76, 175, 80, 255),     // Green
 			Text = Color(33, 33, 33, 255),         // Near black
 			TextSecondary = Color(117, 117, 117, 255), // Gray
-			Border = Color(200, 200, 200, 255)     // Light gray
+			Border = Color(200, 200, 200, 255),    // Light gray
+			Link = Color(0, 102, 204, 255),        // Standard link blue
+			LinkVisited = Color(128, 0, 128, 255)  // Purple
 		};
 
 		// Define control styles
@@ -32,6 +36,29 @@ public class LightTheme : ITheme
 
 	private void InitializeStyles()
 	{
+		// Precompute derived colors (using fully qualified type to avoid conflict with property)
+		let buttonBase = Color(240, 240, 240, 255);
+		let buttonHover = Sedulous.GUI.Palette.Darken(buttonBase, 0.04f);
+		let buttonPressed = Sedulous.GUI.Palette.Darken(buttonBase, 0.12f);
+		let hoverBorder = Sedulous.GUI.Palette.Darken(mPalette.Border, 0.25f);
+		let separatorBorder = Sedulous.GUI.Palette.Lighten(mPalette.Border, 0.1f);
+		let checkBorder = Sedulous.GUI.Palette.Darken(mPalette.Border, 0.25f);
+		let checkHoverBorder = Sedulous.GUI.Palette.Darken(checkBorder, 0.25f);
+		let toggleBase = mPalette.Border;
+		let toggleBorder = Sedulous.GUI.Palette.Darken(toggleBase, 0.1f);
+		let toggleHoverBorder = Sedulous.GUI.Palette.Darken(toggleBase, 0.25f);
+		let hyperlinkHover = Sedulous.GUI.Palette.Darken(mPalette.Accent, 0.15f);
+		let scrollTrack = Sedulous.GUI.Palette.Lighten(mPalette.Border, 0.18f);
+		let scrollThumb = Sedulous.GUI.Palette.Darken(mPalette.Border, 0.1f);
+		let scrollThumbHover = Sedulous.GUI.Palette.Darken(scrollThumb, 0.12f);
+		let splitterBase = Sedulous.GUI.Palette.Lighten(mPalette.Border, 0.1f);
+		let splitterHover = Sedulous.GUI.Palette.Darken(splitterBase, 0.1f);
+		let splitterGrip = Sedulous.GUI.Palette.Darken(mPalette.Border, 0.2f);
+		let itemHover = Sedulous.GUI.Palette.Darken(mPalette.Surface, 0.1f);
+		let tabItemBase = Sedulous.GUI.Palette.Darken(mPalette.Surface, 0.1f);
+		let tabItemHover = Sedulous.GUI.Palette.Darken(tabItemBase, 0.04f);
+		let expanderHover = Sedulous.GUI.Palette.Darken(mPalette.Background, 0.02f);
+
 		// Default control style
 		mStyles[new String("Control")] = .()
 		{
@@ -46,14 +73,14 @@ public class LightTheme : ITheme
 		// Button style
 		mStyles[new String("Button")] = .()
 		{
-			Background = Color(240, 240, 240, 255),
+			Background = buttonBase,
 			Foreground = mPalette.Text,
-			BorderColor = Color(200, 200, 200, 255),
+			BorderColor = mPalette.Border,
 			BorderThickness = 1,
 			CornerRadius = 4,
 			Padding = .(10, 4, 10, 4),
-			Hover = .() { Background = Color(230, 230, 230, 255) },
-			Pressed = .() { Background = Color(210, 210, 210, 255) },
+			Hover = .() { Background = buttonHover },
+			Pressed = .() { Background = buttonPressed },
 			Focused = .() { BorderColor = mPalette.Accent }
 		};
 
@@ -76,7 +103,7 @@ public class LightTheme : ITheme
 			BorderThickness = 1,
 			CornerRadius = 4,
 			Padding = .(6, 4, 6, 4),
-			Hover = .() { BorderColor = Color(150, 150, 150, 255) },
+			Hover = .() { BorderColor = hoverBorder },
 			Focused = .() { BorderColor = mPalette.Accent }
 		};
 
@@ -89,7 +116,7 @@ public class LightTheme : ITheme
 			BorderThickness = 1,
 			CornerRadius = 4,
 			Padding = .(6, 4, 6, 4),
-			Hover = .() { BorderColor = Color(150, 150, 150, 255) },
+			Hover = .() { BorderColor = hoverBorder },
 			Focused = .() { BorderColor = mPalette.Accent }
 		};
 
@@ -102,7 +129,7 @@ public class LightTheme : ITheme
 			BorderThickness = 1,
 			CornerRadius = 4,
 			Padding = .(4, 2, 4, 2),
-			Hover = .() { BorderColor = Color(150, 150, 150, 255) },
+			Hover = .() { BorderColor = hoverBorder },
 			Focused = .() { BorderColor = mPalette.Accent }
 		};
 
@@ -141,7 +168,7 @@ public class LightTheme : ITheme
 		{
 			Background = Color.Transparent,
 			Foreground = mPalette.Text,
-			BorderColor = Color(220, 220, 220, 255),  // Subtle line color
+			BorderColor = separatorBorder,  // Subtle line color
 			BorderThickness = 1,
 			CornerRadius = 0
 		};
@@ -159,28 +186,28 @@ public class LightTheme : ITheme
 		// RepeatButton style (same as Button)
 		mStyles[new String("RepeatButton")] = .()
 		{
-			Background = Color(240, 240, 240, 255),
+			Background = buttonBase,
 			Foreground = mPalette.Text,
-			BorderColor = Color(200, 200, 200, 255),
+			BorderColor = mPalette.Border,
 			BorderThickness = 1,
 			CornerRadius = 4,
 			Padding = .(10, 4, 10, 4),
-			Hover = .() { Background = Color(230, 230, 230, 255) },
-			Pressed = .() { Background = Color(210, 210, 210, 255) },
+			Hover = .() { Background = buttonHover },
+			Pressed = .() { Background = buttonPressed },
 			Focused = .() { BorderColor = mPalette.Accent }
 		};
 
 		// ToggleButton style
 		mStyles[new String("ToggleButton")] = .()
 		{
-			Background = Color(240, 240, 240, 255),
+			Background = buttonBase,
 			Foreground = mPalette.Text,
-			BorderColor = Color(200, 200, 200, 255),
+			BorderColor = mPalette.Border,
 			BorderThickness = 1,
 			CornerRadius = 4,
 			Padding = .(10, 4, 10, 4),
-			Hover = .() { Background = Color(230, 230, 230, 255) },
-			Pressed = .() { Background = Color(210, 210, 210, 255) },
+			Hover = .() { Background = buttonHover },
+			Pressed = .() { Background = buttonPressed },
 			Focused = .() { BorderColor = mPalette.Accent }
 		};
 
@@ -189,10 +216,10 @@ public class LightTheme : ITheme
 		{
 			Background = mPalette.Surface,
 			Foreground = mPalette.Text,
-			BorderColor = Color(150, 150, 150, 255),
+			BorderColor = checkBorder,
 			BorderThickness = 2,
 			CornerRadius = 3,
-			Hover = .() { BorderColor = Color(100, 100, 100, 255) },
+			Hover = .() { BorderColor = checkHoverBorder },
 			Focused = .() { BorderColor = mPalette.Accent }
 		};
 
@@ -201,22 +228,22 @@ public class LightTheme : ITheme
 		{
 			Background = mPalette.Surface,
 			Foreground = mPalette.Text,
-			BorderColor = Color(150, 150, 150, 255),
+			BorderColor = checkBorder,
 			BorderThickness = 2,
 			CornerRadius = 0, // Circles don't use corner radius
-			Hover = .() { BorderColor = Color(100, 100, 100, 255) },
+			Hover = .() { BorderColor = checkHoverBorder },
 			Focused = .() { BorderColor = mPalette.Accent }
 		};
 
 		// ToggleSwitch style
 		mStyles[new String("ToggleSwitch")] = .()
 		{
-			Background = Color(200, 200, 200, 255),  // Track off color
+			Background = toggleBase,  // Track off color
 			Foreground = mPalette.Text,
-			BorderColor = Color(180, 180, 180, 255),
+			BorderColor = toggleBorder,
 			BorderThickness = 1,
 			CornerRadius = 12,
-			Hover = .() { BorderColor = Color(150, 150, 150, 255) },
+			Hover = .() { BorderColor = toggleHoverBorder },
 			Focused = .() { BorderColor = mPalette.Accent }
 		};
 
@@ -229,7 +256,7 @@ public class LightTheme : ITheme
 			BorderThickness = 0,
 			CornerRadius = 0,
 			Padding = .(2, 2, 2, 2),
-			Hover = .() { Foreground = Color(0, 120, 215, 255) }  // Darker accent
+			Hover = .() { Foreground = hyperlinkHover }  // Darker accent
 		};
 
 		// Slider style
@@ -245,12 +272,12 @@ public class LightTheme : ITheme
 		// ScrollBar style
 		mStyles[new String("ScrollBar")] = .()
 		{
-			Background = Color(235, 235, 235, 255),  // Track color
-			Foreground = Color(180, 180, 180, 255),  // Thumb color
+			Background = scrollTrack,  // Track color
+			Foreground = scrollThumb,  // Thumb color
 			BorderColor = Color.Transparent,
 			BorderThickness = 0,
 			CornerRadius = 0,
-			Hover = .() { Foreground = Color(160, 160, 160, 255) }
+			Hover = .() { Foreground = scrollThumbHover }
 		};
 
 		// ScrollViewer style
@@ -266,12 +293,12 @@ public class LightTheme : ITheme
 		// Splitter style
 		mStyles[new String("Splitter")] = .()
 		{
-			Background = Color(220, 220, 220, 255),
-			Foreground = Color(160, 160, 160, 255),  // Grip color
+			Background = splitterBase,
+			Foreground = splitterGrip,  // Grip color
 			BorderColor = Color.Transparent,
 			BorderThickness = 0,
 			CornerRadius = 0,
-			Hover = .() { Background = Color(200, 200, 200, 255) }
+			Hover = .() { Background = splitterHover }
 		};
 
 		// ItemsControl style
@@ -304,7 +331,7 @@ public class LightTheme : ITheme
 			BorderThickness = 0,
 			CornerRadius = 0,
 			Padding = .(8, 4, 8, 4),
-			Hover = .() { Background = Color(230, 230, 230, 255) }
+			Hover = .() { Background = itemHover }
 		};
 
 		// ComboBox style
@@ -316,7 +343,7 @@ public class LightTheme : ITheme
 			BorderThickness = 1,
 			CornerRadius = 4,
 			Padding = .(8, 4, 8, 4),
-			Hover = .() { BorderColor = Color(150, 150, 150, 255) },
+			Hover = .() { BorderColor = hoverBorder },
 			Focused = .() { BorderColor = mPalette.Accent }
 		};
 
@@ -334,24 +361,24 @@ public class LightTheme : ITheme
 		// TabItem style
 		mStyles[new String("TabItem")] = .()
 		{
-			Background = Color(230, 230, 230, 255),
+			Background = tabItemBase,
 			Foreground = mPalette.Text,
 			BorderColor = Color.Transparent,
 			BorderThickness = 0,
 			CornerRadius = 0,
 			Padding = .(12, 6, 12, 6),
-			Hover = .() { Background = Color(220, 220, 220, 255) }
+			Hover = .() { Background = tabItemHover }
 		};
 
 		// Expander style
 		mStyles[new String("Expander")] = .()
 		{
-			Background = Color(250, 250, 250, 255),
+			Background = mPalette.Background,
 			Foreground = mPalette.Text,
 			BorderColor = mPalette.Border,
 			BorderThickness = 1,
 			CornerRadius = 4,
-			Hover = .() { Background = Color(245, 245, 245, 255) },
+			Hover = .() { Background = expanderHover },
 			Focused = .() { BorderColor = mPalette.Accent }
 		};
 
@@ -386,7 +413,7 @@ public class LightTheme : ITheme
 			BorderThickness = 0,
 			CornerRadius = 2,
 			Padding = .(4, 2, 4, 2),
-			Hover = .() { Background = Color(230, 230, 230, 255) }
+			Hover = .() { Background = itemHover }
 		};
 
 		// TreeView style
@@ -409,7 +436,7 @@ public class LightTheme : ITheme
 			BorderThickness = 0,
 			CornerRadius = 0,
 			Padding = .(4, 2, 4, 2),
-			Hover = .() { Background = Color(230, 230, 230, 255) }
+			Hover = .() { Background = itemHover }
 		};
 
 		// TileView style
@@ -432,7 +459,7 @@ public class LightTheme : ITheme
 			BorderThickness = 0,
 			CornerRadius = 4,
 			Padding = .(4, 4, 4, 4),
-			Hover = .() { Background = Color(230, 230, 230, 255) }
+			Hover = .() { Background = itemHover }
 		};
 	}
 
@@ -468,4 +495,26 @@ public class LightTheme : ITheme
 	public float FocusIndicatorThickness => 2;
 	public Color SelectionColor => Color(33, 150, 243, 80);
 	public float DefaultFontSize => 14;
+
+	// Control dimensions
+	public float MenuItemHeight => 24;
+	public float MenuCheckWidth => 20;
+	public float MenuArrowWidth => 16;
+	public float MenuShortcutGap => 24;
+	public float TabStripHeight => 30;
+	public float ScrollBarThickness => 16;
+	public float SliderTrackThickness => 4;
+	public float SliderThumbSize => 16;
+	public float CheckBoxSize => 18;
+	public float CheckBoxSpacing => 8;
+	public float RadioButtonSize => 18;
+	public float RadioButtonSpacing => 8;
+	public float ToggleSwitchTrackWidth => 44;
+	public float ToggleSwitchTrackHeight => 24;
+	public float ToggleSwitchKnobSize => 20;
+	public float SeparatorThickness => 1;
+	public float DefaultCornerRadius => 4;
+	public float ComboBoxDropDownButtonWidth => 20;
+	public float ComboBoxDropDownMaxHeight => 200;
+	public float MessageBoxIconSize => 24;
 }

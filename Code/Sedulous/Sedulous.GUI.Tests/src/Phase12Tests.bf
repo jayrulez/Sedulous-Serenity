@@ -12,7 +12,9 @@ class Phase12Tests
 	[Test]
 	public static void TooltipDefaultProperties()
 	{
+		let ctx = scope GUIContext();
 		let tooltip = scope Tooltip();
+		ctx.RootElement = tooltip;  // Trigger OnAttachedToContext and ApplyThemeDefaults
 		Test.Assert(tooltip.Text == "");
 		Test.Assert(tooltip.CornerRadius == 4);
 		Test.Assert(tooltip.BorderThickness == 1);

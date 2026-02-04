@@ -355,15 +355,20 @@ class Phase14Tests
 	{
 		let manager = new DockManager();
 		defer delete manager;
-		Test.Assert(manager.RootNode != null);
+		// RootNode starts null until first panel is docked
+		Test.Assert(manager.RootNode == null);
 		Test.Assert(manager.IsFocusable == false);
 	}
 
 	[Test]
-	public static void DockManagerInitialRootIsTabGroup()
+	public static void DockManagerCreatesRootOnFirstDock()
 	{
 		let manager = new DockManager();
 		defer delete manager;
+		Test.Assert(manager.RootNode == null);
+		let panel = scope DockablePanel("Test");
+		manager.AddPanel(panel);
+		// After adding a panel, root should be a DockTabGroup
 		Test.Assert(manager.RootNode is DockTabGroup);
 	}
 

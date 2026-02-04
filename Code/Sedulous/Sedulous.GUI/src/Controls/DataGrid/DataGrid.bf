@@ -48,11 +48,37 @@ public class DataGrid : Control
 	private EventAccessor<delegate void(DataGrid)> mSelectionChanged = new .() ~ delete _;
 	private EventAccessor<delegate void(DataGrid, DataGridColumn)> mSortChanged = new .() ~ delete _;
 
+	// Theme colors (computed from palette)
+	private Color mBackgroundColor;
+	private Color mBorderColor;
+	private Color mHeaderBackgroundColor;
+	private Color mHeaderBorderColor;
+	private Color mRowBackgroundColor;
+	private Color mRowAlternateColor;
+	private Color mRowHoverColor;
+	private Color mSelectionColor;
+	private Color mSelectionBorderColor;
+	private Color mCellBorderColor;
+	private Color mRowBorderColor;
+
 	/// Creates a new DataGrid.
 	public this()
 	{
 		IsFocusable = true;
 		IsTabStop = true;
+
+		// Initialize default colors (will be updated by ApplyThemeDefaults)
+		mBackgroundColor = Color(30, 30, 30, 255);
+		mBorderColor = Color(60, 60, 60, 255);
+		mHeaderBackgroundColor = Color(40, 40, 40, 255);
+		mHeaderBorderColor = Color(60, 60, 60, 255);
+		mRowBackgroundColor = Color(30, 30, 30, 255);
+		mRowAlternateColor = Color(35, 35, 35, 255);
+		mRowHoverColor = Color(45, 45, 45, 255);
+		mSelectionColor = Color(50, 80, 120, 255);
+		mSelectionBorderColor = Color(80, 120, 180, 200);
+		mCellBorderColor = Color(50, 50, 50, 255);
+		mRowBorderColor = Color(45, 45, 45, 255);
 
 		mVerticalScrollBar = new ScrollBar(.Vertical);
 		mVerticalScrollBar.Thickness = mScrollBarThickness;
@@ -289,8 +315,39 @@ public class DataGrid : Control
 	public override void OnAttachedToContext(GUIContext context)
 	{
 		base.OnAttachedToContext(context);
+		ApplyThemeDefaults();
 		mVerticalScrollBar.OnAttachedToContext(context);
 		mHorizontalScrollBar.OnAttachedToContext(context);
+	}
+
+	/// Applies theme defaults for DataGrid styling.
+	private void ApplyThemeDefaults()
+	{
+		let theme = Context?.Theme;
+		let palette = theme?.Palette ?? Palette();
+
+		// Background colors from palette
+		let bgColor = palette.Background.A > 0 ? palette.Background : Color(30, 30, 30, 255);
+		let surfaceColor = palette.Surface.A > 0 ? palette.Surface : Color(45, 45, 45, 255);
+		let borderColor = palette.Border.A > 0 ? palette.Border : Color(60, 60, 60, 255);
+
+		mBackgroundColor = bgColor;
+		mBorderColor = borderColor;
+		mHeaderBackgroundColor = Palette.Lighten(bgColor, 0.05f);
+		mHeaderBorderColor = borderColor;
+		mRowBackgroundColor = bgColor;
+		mRowAlternateColor = Palette.Lighten(bgColor, 0.03f);
+		mRowHoverColor = Palette.ComputeHover(surfaceColor);
+		mCellBorderColor = Palette.Lighten(bgColor, 0.08f);
+		mRowBorderColor = Palette.Lighten(bgColor, 0.06f);
+
+		// Selection colors from theme
+		let selColor = theme?.SelectionColor ?? palette.Accent;
+		if (selColor.A > 0)
+		{
+			mSelectionColor = selColor;
+			mSelectionBorderColor = Palette.Lighten(selColor, 0.2f);
+		}
 	}
 
 	public override void OnDetachedFromContext()
@@ -383,7 +440,7 @@ public class DataGrid : Control
 		let bounds = ArrangedBounds;
 
 		// Background
-		ctx.FillRect(bounds, Color(30, 30, 30, 255));
+		ctx.FillRect(bounds, mBackgroundColor);
 
 		// Calculate viewport
 		float viewportWidth = bounds.Width;
@@ -409,13 +466,13 @@ public class DataGrid : Control
 			mHorizontalScrollBar.Render(ctx);
 
 		// Border
-		ctx.DrawRect(bounds, Color(60, 60, 60, 255), 1);
+		ctx.DrawRect(bounds, mBorderColor, 1);
 	}
 
 	private void RenderHeader(DrawContext ctx, RectangleF headerBounds)
 	{
 		// Header background
-		ctx.FillRect(headerBounds, Color(40, 40, 40, 255));
+		ctx.FillRect(headerBounds, mHeaderBackgroundColor);
 
 		// Clip to header bounds
 		ctx.PushClipRect(headerBounds);
@@ -427,7 +484,7 @@ public class DataGrid : Control
 			let colBounds = RectangleF(x, headerBounds.Y, col.Width, mHeaderHeight);
 
 			let isHovered = mHoveringHeader && mHoveredColumnIndex == i;
-			col.RenderHeader(ctx, colBounds, isHovered);
+			col.RenderHeader(ctx, colBounds, isHovered, this);
 
 			x += col.Width;
 		}
@@ -435,7 +492,7 @@ public class DataGrid : Control
 		ctx.PopClip();
 
 		// Header bottom border
-		ctx.DrawLine(.(headerBounds.X, headerBounds.Bottom - 1), .(headerBounds.Right, headerBounds.Bottom - 1), Color(60, 60, 60, 255), 1);
+		ctx.DrawLine(.(headerBounds.X, headerBounds.Bottom - 1), .(headerBounds.Right, headerBounds.Bottom - 1), mHeaderBorderColor, 1);
 	}
 
 	private void RenderRows(DrawContext ctx, RectangleF rowsBounds)
@@ -475,19 +532,19 @@ public class DataGrid : Control
 		// Row background
 		Color bgColor;
 		if (isSelected)
-			bgColor = Color(50, 80, 120, 255);
+			bgColor = mSelectionColor;
 		else if (isHovered)
-			bgColor = Color(45, 45, 45, 255);
+			bgColor = mRowHoverColor;
 		else if (displayIndex % 2 == 1)
-			bgColor = Color(35, 35, 35, 255);  // Alternating row color
+			bgColor = mRowAlternateColor;
 		else
-			bgColor = Color(30, 30, 30, 255);
+			bgColor = mRowBackgroundColor;
 
 		ctx.FillRect(rowBounds, bgColor);
 
 		// Focus indicator
 		if (isFocused)
-			ctx.DrawRect(rowBounds, Color(80, 120, 180, 200), 1);
+			ctx.DrawRect(rowBounds, mSelectionBorderColor, 1);
 
 		// Render cells
 		float x = rowBounds.X - mHorizontalOffset;
@@ -499,10 +556,10 @@ public class DataGrid : Control
 			// Only render if visible
 			if (cellBounds.Right > rowBounds.X && cellBounds.X < rowBounds.Right)
 			{
-				col.RenderCell(ctx, cellBounds, cellValue, isSelected, isHovered);
+				col.RenderCell(ctx, cellBounds, cellValue, isSelected, isHovered, this);
 
 				// Cell border
-				ctx.DrawLine(.(cellBounds.Right - 1, cellBounds.Y), .(cellBounds.Right - 1, cellBounds.Bottom), Color(50, 50, 50, 255), 1);
+				ctx.DrawLine(.(cellBounds.Right - 1, cellBounds.Y), .(cellBounds.Right - 1, cellBounds.Bottom), mCellBorderColor, 1);
 			}
 
 			// Delete boxed values (not Strings which are owned elsewhere)
@@ -513,7 +570,7 @@ public class DataGrid : Control
 		}
 
 		// Row bottom border
-		ctx.DrawLine(.(rowBounds.X, rowBounds.Bottom - 1), .(rowBounds.Right, rowBounds.Bottom - 1), Color(45, 45, 45, 255), 1);
+		ctx.DrawLine(.(rowBounds.X, rowBounds.Bottom - 1), .(rowBounds.Right, rowBounds.Bottom - 1), mRowBorderColor, 1);
 	}
 
 	// === Input ===

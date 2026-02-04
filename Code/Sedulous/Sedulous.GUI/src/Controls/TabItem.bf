@@ -213,6 +213,11 @@ public class TabItem : ContentControl, ISelectable
 	/// Render the tab header (called by TabControl).
 	public void RenderHeader(DrawContext ctx, RectangleF bounds, bool isHovered)
 	{
+		// Get theme colors for fallbacks
+		let palette = Context?.Theme?.Palette ?? Palette();
+		let surfaceColor = palette.Surface.A > 0 ? palette.Surface : Color(45, 45, 45, 255);
+		let textColor = palette.Text.A > 0 ? palette.Text : Color(200, 200, 200, 255);
+
 		// Draw background based on state
 		Color bgColor;
 		if (mIsSelected)
@@ -221,11 +226,11 @@ public class TabItem : ContentControl, ISelectable
 		}
 		else if (isHovered)
 		{
-			bgColor = Palette.ComputeHover(Background.A > 0 ? Background : Color(45, 45, 45, 255));
+			bgColor = Palette.ComputeHover(Background.A > 0 ? Background : surfaceColor);
 		}
 		else
 		{
-			bgColor = Background.A > 0 ? Background : Color(60, 60, 60, 255);
+			bgColor = Background.A > 0 ? Background : Palette.Lighten(surfaceColor, 0.1f);
 		}
 
 		ctx.FillRect(bounds, bgColor);
@@ -243,7 +248,7 @@ public class TabItem : ContentControl, ISelectable
 			let closeBounds = RectangleF(closeX, closeY, closeSize, closeSize);
 
 			// Draw X
-			let foreground = Foreground.A > 0 ? Foreground : Color(200, 200, 200, 255);
+			let foreground = Foreground.A > 0 ? Foreground : textColor;
 			let padding = 4f;
 			ctx.DrawLine(
 				.(closeBounds.X + padding, closeBounds.Y + padding),

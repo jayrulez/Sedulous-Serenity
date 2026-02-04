@@ -18,7 +18,22 @@ public class MenuSeparator : Control
 	{
 		IsFocusable = false;
 		IsTabStop = false;
-		Background = Color(0, 0, 0, 0);  // Transparent
+		Background = Color.Transparent;
+	}
+
+	public override void OnAttachedToContext(GUIContext context)
+	{
+		base.OnAttachedToContext(context);
+		ApplyThemeDefaults();
+	}
+
+	/// Applies theme defaults for menu separator.
+	private void ApplyThemeDefaults()
+	{
+		let theme = Context?.Theme;
+		let palette = theme?.Palette ?? Palette();
+		mLineThickness = theme?.SeparatorThickness ?? 1;
+		mLineColor = palette.Border.A > 0 ? palette.Border : Color(80, 80, 80, 255);
 	}
 
 	/// The control type name for theming.

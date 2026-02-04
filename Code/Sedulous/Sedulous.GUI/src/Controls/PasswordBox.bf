@@ -10,6 +10,9 @@ namespace Sedulous.GUI;
 /// A single-line password input control that masks characters.
 public class PasswordBox : Control
 {
+	/// Fallback ratio for estimating character width when no font metrics available.
+	private const float FallbackCharWidthRatio = 0.6f;
+
 	// Text editing behavior
 	private TextEditingBehavior mEditor = new .() ~ delete _;
 
@@ -269,8 +272,8 @@ public class PasswordBox : Control
 			return cachedFont.Shaper.GetCursorPosition(cachedFont.Font, mGlyphPositions, charIndex);
 		}
 
-		// Fallback: estimate using masked char width
-		let charWidth = cachedFont?.Font.MeasureString(".") ?? (FontSize * 0.6f);
+		// Fallback: estimate using masked char width (measure single char or use fallback ratio)
+		let charWidth = cachedFont?.Font.MeasureString(".") ?? (FontSize * FallbackCharWidthRatio);
 		return charIndex * charWidth;
 	}
 
@@ -304,8 +307,8 @@ public class PasswordBox : Control
 			return result.InsertionIndex;
 		}
 
-		// Fallback: estimate character index
-		let charWidth = cachedFont?.Font.MeasureString(".") ?? (FontSize * 0.6f);
+		// Fallback: estimate character index using masked char width
+		let charWidth = cachedFont?.Font.MeasureString(".") ?? (FontSize * FallbackCharWidthRatio);
 		let index = (int32)(x / charWidth);
 		return (int32)Math.Clamp(index, 0, mEditor.Text.Length);
 	}

@@ -32,16 +32,22 @@ public class Dialog : Control
 	private float mMinWidth = 300;
 	private float mMinHeight = 120;
 	private float mCornerRadius = 6;
-	private Color mTitleBackground = Color(35, 35, 35, 255);
-	private Color mTitleForeground = Color(220, 220, 220, 255);
+	private Color mTitleBackground;
+	private Color mTitleForeground;
+	private Color mBorderColor;
 
 	/// Creates a new Dialog.
 	public this()
 	{
 		IsFocusable = true;
 		IsTabStop = false;
+
+		// Set default colors (will be updated by ApplyThemeDefaults)
 		Background = Color(50, 50, 50, 255);
 		Foreground = Color(220, 220, 220, 255);
+		mTitleBackground = Color(35, 35, 35, 255);
+		mTitleForeground = Color(220, 220, 220, 255);
+		mBorderColor = Color(80, 80, 80, 255);
 
 		// Create title block
 		mTitleBlock = new TextBlock("");
@@ -273,8 +279,7 @@ public class Dialog : Control
 		mButtonRow.Render(ctx);
 
 		// Draw border
-		let borderColor = Color(80, 80, 80, 255);
-		ctx.DrawRoundedRect(bounds, mCornerRadius, borderColor, 1);
+		ctx.DrawRoundedRect(bounds, mCornerRadius, mBorderColor, 1);
 	}
 
 	// === Input ===
@@ -368,9 +373,36 @@ public class Dialog : Control
 	public override void OnAttachedToContext(GUIContext context)
 	{
 		base.OnAttachedToContext(context);
+		ApplyThemeDefaults();
 		mTitleBlock.OnAttachedToContext(context);
 		mButtonRow.OnAttachedToContext(context);
 		mContent?.OnAttachedToContext(context);
+	}
+
+	/// Applies theme defaults for dialog styling.
+	private void ApplyThemeDefaults()
+	{
+		let theme = Context?.Theme;
+		let palette = theme?.Palette ?? Palette();
+
+		// Apply surface/background colors from theme
+		if (palette.Surface.A > 0)
+			Background = palette.Surface;
+		if (palette.Text.A > 0)
+			Foreground = palette.Text;
+
+		// Title bar uses darker background
+		mTitleBackground = palette.Background.A > 0
+			? palette.Background
+			: Sedulous.GUI.Palette.Darken(Background, 0.2f);
+		mTitleForeground = Foreground;
+		mBorderColor = palette.Border.A > 0 ? palette.Border : Color(80, 80, 80, 255);
+
+		// Corner radius from theme
+		mCornerRadius = theme?.DefaultCornerRadius ?? 6;
+
+		// Update title block colors
+		mTitleBlock.Foreground = mTitleForeground;
 	}
 
 	public override void OnDetachedFromContext()
