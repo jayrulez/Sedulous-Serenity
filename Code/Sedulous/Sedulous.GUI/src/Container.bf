@@ -79,14 +79,11 @@ public abstract class Container : UIElement
 		mChildren.RemoveAt(index);
 		child.SetParent(null);
 
-		if (Context != null)
-			child.OnDetachedFromContext();
-
 		if (deleteAfterRemove)
 		{
 			if (Context != null)
 			{
-				// Use deferred deletion to prevent use-after-free
+				// Queue for deferred deletion - MutationQueue will handle unregistration
 				Context.MutationQueue.QueueDelete(child);
 			}
 			else
@@ -94,6 +91,12 @@ public abstract class Container : UIElement
 				// Not attached to context, safe to delete immediately
 				delete child;
 			}
+		}
+		else
+		{
+			// Just removing, not deleting - unregister now
+			if (Context != null)
+				child.OnDetachedFromContext();
 		}
 
 		InvalidateLayout();
@@ -139,13 +142,11 @@ public abstract class Container : UIElement
 		for (let child in mChildren)
 		{
 			child.SetParent(null);
-			if (Context != null)
-				child.OnDetachedFromContext();
 			if (deleteAll)
 			{
 				if (Context != null)
 				{
-					// Use deferred deletion to prevent use-after-free
+					// Queue for deferred deletion - MutationQueue will handle unregistration
 					Context.MutationQueue.QueueDelete(child);
 				}
 				else
@@ -153,6 +154,12 @@ public abstract class Container : UIElement
 					// Not attached to context, safe to delete immediately
 					delete child;
 				}
+			}
+			else
+			{
+				// Just removing, not deleting - unregister now
+				if (Context != null)
+					child.OnDetachedFromContext();
 			}
 		}
 		mChildren.Clear();

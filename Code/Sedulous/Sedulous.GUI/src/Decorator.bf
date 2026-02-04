@@ -31,8 +31,7 @@ public class Decorator : Control
 				oldChild.SetParent(null);
 				if (Context != null)
 				{
-					oldChild.OnDetachedFromContext();
-					// Use deferred deletion to prevent use-after-free
+					// Queue for deferred deletion - MutationQueue will handle unregistration
 					Context.MutationQueue.QueueDelete(oldChild);
 				}
 				else

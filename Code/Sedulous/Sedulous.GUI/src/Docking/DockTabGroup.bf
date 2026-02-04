@@ -861,6 +861,45 @@ public class DockTabGroup : Control, IDragSource, IDropTarget
 		mDropInsertIndex = -1;
 	}
 
+	// === Child Detachment ===
+
+	/// Override to support polymorphic child detachment.
+	/// Called by MutationQueue when deleting a panel.
+	public override UIElement TryDetachChild(UIElement child)
+	{
+		if (let panel = child as DockablePanel)
+		{
+			let index = mPanels.IndexOf(panel);
+			if (index >= 0)
+			{
+				mPanels.RemoveAt(index);
+				panel.ParentGroup = null;
+				panel.SetParent(null);
+				if (Context != null)
+					panel.OnDetachedFromContext();
+
+				// Adjust selection
+				if (mPanels.Count == 0)
+				{
+					mSelectedIndex = -1;
+					mEmpty.[Friend]Invoke(this);
+				}
+				else if (mSelectedIndex >= mPanels.Count)
+				{
+					mSelectedIndex = mPanels.Count - 1;
+				}
+				else if (mSelectedIndex == index && mSelectedIndex > 0)
+				{
+					mSelectedIndex--;
+				}
+
+				InvalidateLayout();
+				return panel;
+			}
+		}
+		return null;
+	}
+
 	// === Visual Children ===
 
 	public override int VisualChildCount => mPanels.Count > 0 ? 1 : 0;

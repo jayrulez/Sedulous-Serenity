@@ -55,6 +55,14 @@ public abstract class UIElement
 		mId = UIElementId.Generate();
 	}
 
+	/// Destructor - ensures element is unregistered from context.
+	public ~this()
+	{
+		// Unregister from context if still registered
+		// This handles cases where children are deleted via parent's destructor
+		mContext?.UnregisterElement(mId);
+	}
+
 	/// The unique identifier for this element.
 	public UIElementId Id => mId;
 
@@ -595,7 +603,7 @@ public abstract class UIElement
 	/// (Public for access from GUIContext; not intended for external use)
 	public virtual void OnDetachedFromContext()
 	{
-		mContext?.UnregisterElement(this);
+		mContext?.UnregisterElement(this.Id);
 		mContext = null;
 	}
 

@@ -30,8 +30,7 @@ public class ContentControl : Control
 				oldContent.SetParent(null);
 				if (Context != null)
 				{
-					oldContent.OnDetachedFromContext();
-					// Use deferred deletion to prevent use-after-free
+					// Queue for deferred deletion - MutationQueue will handle unregistration
 					Context.MutationQueue.QueueDelete(oldContent);
 				}
 				else

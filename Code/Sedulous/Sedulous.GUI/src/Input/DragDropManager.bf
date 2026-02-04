@@ -218,9 +218,9 @@ public class DragDropManager
 	}
 
 	/// Called when an element is deleted.
-	public void OnElementDeleted(UIElement element)
+	public void OnElementDeleted(UIElementId elementId)
 	{
-		if (mDragSource.Id == element.Id || mCurrentDropTarget.Id == element.Id)
+		if (mDragSource.Id == elementId || mCurrentDropTarget.Id == elementId)
 		{
 			CancelDrag();
 		}

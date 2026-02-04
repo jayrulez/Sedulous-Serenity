@@ -273,10 +273,18 @@ public class GUIContext
 
 	/// Unregisters an element from the registry.
 	/// Called automatically when elements are detached or deleted.
-	public void UnregisterElement(UIElement element)
+	public void UnregisterElement(UIElementId elementId)
+	{
+		mElementRegistry.Remove(elementId);
+	}
+
+	/// Unregisters an element from the registry.
+	/// Children are handled automatically by their destructors when the parent is deleted.
+	public void UnregisterElementTree(UIElement element)
 	{
 		if (element == null)
 			return;
+
 		mElementRegistry.Remove(element.Id);
 	}
 
@@ -569,11 +577,11 @@ public class GUIContext
 
 	/// Called when an element is about to be deleted.
 	/// Notifies input and focus managers to clear references.
-	public void OnElementDeleted(UIElement element)
+	public void OnElementDeleted(UIElementId elementId)
 	{
-		mInputManager?.OnElementDeleted(element);
-		mFocusManager?.OnElementDeleted(element);
-		mDragDropManager?.OnElementDeleted(element);
+		mInputManager?.OnElementDeleted(elementId);
+		mFocusManager?.OnElementDeleted(elementId);
+		mDragDropManager?.OnElementDeleted(elementId);
 	}
 
 	// === Input Processing ===

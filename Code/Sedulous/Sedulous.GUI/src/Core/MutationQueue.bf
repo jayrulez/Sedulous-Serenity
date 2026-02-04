@@ -19,7 +19,9 @@ public struct Mutation
 {
 	public MutationType Type;
 	public UIElement Target;
+	public UIElementId TargetId;
 	public UIElement Child;
+	public UIElementId ChildId;
 	public bool DeleteAfterRemove;
 }
 
@@ -47,7 +49,9 @@ public class MutationQueue
 		{
 			Type = .AddChild,
 			Target = parent,
+			TargetId = parent.Id,
 			Child = child,
+			ChildId = child.Id,
 			DeleteAfterRemove = false
 		});
 	}
@@ -60,7 +64,9 @@ public class MutationQueue
 		{
 			Type = .RemoveChild,
 			Target = parent,
+			TargetId = parent.Id,
 			Child = child,
+			ChildId = child.Id,
 			DeleteAfterRemove = deleteAfterRemove
 		});
 	}
@@ -79,6 +85,7 @@ public class MutationQueue
 		{
 			Type = .DeleteElement,
 			Target = element,
+			TargetId = element.Id,
 			Child = null,
 			DeleteAfterRemove = true
 		});
@@ -103,54 +110,60 @@ public class MutationQueue
 
 		for (let mutation in mPending)
 		{
-			// Skip if target is already pending deletion (except for DeleteElement)
-			if (mutation.Type != .DeleteElement && mutation.Target.IsPendingDeletion)
-				continue;
-
 			switch (mutation.Type)
 			{
 			case .AddChild:
+				// Look up elements by ID to verify they still exist
+				let addParent = context.GetElementById(mutation.TargetId);
+				let addChild = context.GetElementById(mutation.ChildId);
 				// Skip if child is already pending deletion
-				if (mutation.Child != null && !mutation.Child.IsPendingDeletion)
+				if (addParent != null && addChild != null && !addChild.IsPendingDeletion)
 				{
-					mutation.Target.TryAddChild(mutation.Child);
+					addParent.TryAddChild(addChild);
 				}
 
 			case .RemoveChild:
-				if (mutation.Child != null)
+				// Look up elements by ID to verify they still exist
+				let parent = context.GetElementById(mutation.TargetId);
+				let child = context.GetElementById(mutation.ChildId);
+				if (parent != null && child != null)
 				{
-					// Detach the child from its parent
-					let detached = mutation.Target.TryDetachChild(mutation.Child);
+					// Detach the child from its parent (this unregisters via OnDetachedFromContext)
+					let detached = parent.TryDetachChild(child);
 
 					// If deletion requested and detachment succeeded
 					if (mutation.DeleteAfterRemove && detached != null)
 					{
-						context.OnElementDeleted(detached);
-						context.UnregisterElement(detached);
+						context.OnElementDeleted(mutation.ChildId);
+						// Note: UnregisterElementTree not needed here because DetachChild
+						// already called OnDetachedFromContext which unregisters recursively
 						delete detached;
 					}
 				}
 
 			case .DeleteElement:
-				if (mutation.Target != null)
+				// Look up element by ID to verify it still exists (not already deleted)
+				let target = context.GetElementById(mutation.TargetId);
+				if (target != null)
 				{
 					// Notify context so input/focus managers can clear references
-					context.OnElementDeleted(mutation.Target);
+					context.OnElementDeleted(mutation.TargetId);
 
 					// Clear root element reference if this is the root
-					if (context.[Friend]mRootElement == mutation.Target)
+					if (context.[Friend]mRootElement == target)
 					{
 						context.[Friend]mRootElement = null;
 					}
 
 					// Remove from parent if any
-					if (mutation.Target.Parent != null)
+					if (target.Parent != null)
 					{
-						mutation.Target.DetachFromParent();
+						target.DetachFromParent();
 					}
 
-					context.UnregisterElement(mutation.Target);
-					delete mutation.Target;
+					// Unregister the element and all its descendants before deletion
+					context.UnregisterElementTree(target);
+					delete target;
 				}
 			}
 		}

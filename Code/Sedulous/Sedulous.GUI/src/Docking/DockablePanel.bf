@@ -77,15 +77,36 @@ public class DockablePanel : Control, IDragSource, IDropTarget
 		get => mContent;
 		set
 		{
+			if (mContent == value)
+				return;
+
+			// Detach and delete old content
 			if (mContent != null)
 			{
-				mContent.SetParent(null);
-				mContent.OnDetachedFromContext();
-				delete mContent;
+				let oldContent = mContent;
+				mContent = null;
+
+				oldContent.SetParent(null);
+				if (Context != null)
+				{
+					// Queue for deferred deletion - MutationQueue will handle unregistration
+					Context.MutationQueue.QueueDelete(oldContent);
+				}
+				else
+				{
+					// Not attached to context, safe to delete immediately
+					delete oldContent;
+				}
 			}
+
 			mContent = value;
+
+			// Attach new content
 			if (mContent != null)
 			{
+				// If content has a parent, detach from it first
+				mContent.DetachFromParent();
+
 				mContent.SetParent(this);
 				if (Context != null)
 					mContent.OnAttachedToContext(Context);
@@ -521,6 +542,28 @@ public class DockablePanel : Control, IDragSource, IDropTarget
 		}
 
 		return this;
+	}
+
+	// === Child Detachment ===
+
+	/// Override to support polymorphic child detachment.
+	/// Called by MutationQueue when deleting content.
+	public override UIElement TryDetachChild(UIElement child)
+	{
+		if (child == mContent)
+		{
+			let result = mContent;
+			mContent = null;
+			if (result != null)
+			{
+				result.SetParent(null);
+				if (Context != null)
+					result.OnDetachedFromContext();
+			}
+			InvalidateLayout();
+			return result;
+		}
+		return null;
 	}
 
 	// === Visual Children ===

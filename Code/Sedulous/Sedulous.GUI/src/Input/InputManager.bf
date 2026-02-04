@@ -261,9 +261,9 @@ public class InputManager
 
 	/// Called when an element is about to be deleted.
 	/// Clears hover state if necessary.
-	public void OnElementDeleted(UIElement element)
+	public void OnElementDeleted(UIElementId elementId)
 	{
-		if (mHoveredElement.Id == element.Id)
+		if (mHoveredElement.Id == elementId)
 			mHoveredElement = .Invalid;
 	}
 

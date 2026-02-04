@@ -374,6 +374,39 @@ public class DockSplit : Control
 		return this;
 	}
 
+	// === Child Detachment ===
+
+	/// Override to support polymorphic child detachment.
+	/// Called by MutationQueue when deleting a child element.
+	public override UIElement TryDetachChild(UIElement child)
+	{
+		if (child == mFirst)
+		{
+			let result = mFirst;
+			mFirst = null;
+			if (result != null)
+			{
+				ClearChildParent(result);
+				if (Context != null)
+					result.OnDetachedFromContext();
+			}
+			return result;
+		}
+		if (child == mSecond)
+		{
+			let result = mSecond;
+			mSecond = null;
+			if (result != null)
+			{
+				ClearChildParent(result);
+				if (Context != null)
+					result.OnDetachedFromContext();
+			}
+			return result;
+		}
+		return null;
+	}
+
 	// === Visual Children ===
 
 	public override int VisualChildCount

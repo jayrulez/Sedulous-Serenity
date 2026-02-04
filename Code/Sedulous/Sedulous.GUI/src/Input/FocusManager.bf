@@ -154,11 +154,11 @@ public class FocusManager
 
 	/// Called when an element is about to be deleted.
 	/// Clears focus/capture if they reference the element.
-	public void OnElementDeleted(UIElement element)
+	public void OnElementDeleted(UIElementId elementId)
 	{
-		if (mFocusedElement.Id == element.Id)
+		if (mFocusedElement.Id == elementId)
 			mFocusedElement = .Invalid;
-		if (mCapturedElement.Id == element.Id)
+		if (mCapturedElement.Id == elementId)
 			mCapturedElement = .Invalid;
 	}
 }

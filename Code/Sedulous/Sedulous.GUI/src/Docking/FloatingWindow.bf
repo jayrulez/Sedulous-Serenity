@@ -511,6 +511,27 @@ public class FloatingWindow : Control
 		return this;
 	}
 
+	// === Child Detachment ===
+
+	/// Override to support polymorphic child detachment.
+	/// Called by MutationQueue when deleting the panel.
+	public override UIElement TryDetachChild(UIElement child)
+	{
+		if (child == mPanel)
+		{
+			let result = mPanel;
+			mPanel = null;
+			if (result != null)
+			{
+				result.SetParent(null);
+				if (Context != null)
+					result.OnDetachedFromContext();
+			}
+			return result;
+		}
+		return null;
+	}
+
 	// === Visual Children ===
 
 	public override int VisualChildCount => mPanel != null ? 1 : 0;
