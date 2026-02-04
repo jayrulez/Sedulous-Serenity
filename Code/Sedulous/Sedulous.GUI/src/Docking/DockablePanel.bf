@@ -18,7 +18,7 @@ public class DockablePanel : Control, IDragSource, IDropTarget
 	private bool mIsPinHovered = false;
 
 	// Title bar layout
-	private float mTitleBarHeight = 24;
+	private float mTitleBarHeight = 24;  // Default, updated from theme
 	private RectangleF mTitleBarBounds;
 	private RectangleF mCloseBounds;
 	private RectangleF mPinBounds;
@@ -187,6 +187,9 @@ public class DockablePanel : Control, IDragSource, IDropTarget
 	public override void OnAttachedToContext(GUIContext context)
 	{
 		base.OnAttachedToContext(context);
+		// Update title bar height from theme
+		if (context?.Theme != null)
+			mTitleBarHeight = context.Theme.DockPanelTitleBarHeight;
 		if (mContent != null)
 			mContent.OnAttachedToContext(context);
 	}
@@ -284,31 +287,38 @@ public class DockablePanel : Control, IDragSource, IDropTarget
 
 	protected override void RenderOverride(DrawContext ctx)
 	{
+		// Get theme styles
+		let headerStyle = Context?.Theme?.GetControlStyle("DockablePanelHeader") ?? GetThemeStyle();
+		let panelStyle = GetThemeStyle();
+
 		// Only render title bar if it should be shown
 		if (ShouldShowTitleBar)
 		{
 			// Title bar background
-			let titleBarColor = Color(50, 50, 50, 255);
-			ctx.FillRect(mTitleBarBounds, titleBarColor);
+			ctx.FillRect(mTitleBarBounds, headerStyle.Background);
 
 			// Title text - vertically centered
-			let fontSize = 12.0f;
-			let titleColor = Color(220, 220, 220, 255);
-			let textX = mTitleBarBounds.X + 8;
+			let fontSize = Context?.Theme?.DockFontSize ?? 12.0f;
+			let padding = Context?.Theme?.DockTabPadding ?? 8.0f;
+			let textX = mTitleBarBounds.X + padding;
 			let textY = mTitleBarBounds.Y + (mTitleBarHeight - fontSize) / 2;
-			ctx.DrawText(mTitle ?? "", fontSize, .(textX, textY), titleColor);
+			ctx.DrawText(mTitle ?? "", fontSize, .(textX, textY), headerStyle.Foreground);
 
-			// Close button
+			// Close button - use error color for hover
 			if (mIsCloseable)
 			{
-				let closeColor = mIsCloseHovered ? Color(200, 60, 60, 255) : Color(120, 120, 120, 255);
+				let errorColor = Context?.Theme?.Palette.Error ?? Color(200, 60, 60, 255);
+				let normalColor = Color(headerStyle.Foreground.R, headerStyle.Foreground.G, headerStyle.Foreground.B, 120);
+				let closeColor = mIsCloseHovered ? errorColor : normalColor;
 				RenderCloseButton(ctx, mCloseBounds, closeColor);
 			}
 
-			// Pin button
+			// Pin button - use accent color for hover
 			if (mIsPinnable)
 			{
-				let pinColor = mIsPinHovered ? Color(100, 150, 255, 255) : Color(120, 120, 120, 255);
+				let accentColor = Context?.Theme?.Palette.Accent ?? Color(100, 150, 255, 255);
+				let normalColor = Color(headerStyle.Foreground.R, headerStyle.Foreground.G, headerStyle.Foreground.B, 120);
+				let pinColor = mIsPinHovered ? accentColor : normalColor;
 				RenderPinButton(ctx, mPinBounds, pinColor, mIsPinned);
 			}
 
@@ -316,12 +326,12 @@ public class DockablePanel : Control, IDragSource, IDropTarget
 			ctx.DrawLine(
 				.(mTitleBarBounds.X, mTitleBarBounds.Bottom),
 				.(mTitleBarBounds.Right, mTitleBarBounds.Bottom),
-				Color(80, 80, 80, 255), 1
+				headerStyle.BorderColor, 1
 			);
 		}
 
-		// Content background
-		let contentBg = Background.A > 0 ? Background : Color(40, 40, 40, 255);
+		// Content background - use explicit Background if set, otherwise theme style
+		let contentBg = Background.A > 0 ? Background : panelStyle.Background;
 		ctx.FillRect(mContentBounds, contentBg);
 
 		// Render content

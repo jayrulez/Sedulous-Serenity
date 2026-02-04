@@ -102,10 +102,13 @@ public abstract class DataGridColumn
 	public virtual void RenderCell(DrawContext ctx, RectangleF bounds, Object cellValue, bool isSelected, bool isHovered, DataGrid grid = null)
 	{
 		// Get theme colors from grid's context
-		let palette = grid?.Context?.Theme?.Palette ?? Palette();
-		let textColor = isSelected
-			? (palette.Text.A > 0 ? palette.Text : Color(255, 255, 255, 255))
-			: (palette.Text.A > 0 ? palette.Text : Color(220, 220, 220, 255));
+		let theme = grid?.Context?.Theme;
+		let cellStyle = theme?.GetControlStyle("DataGridCell") ?? ControlStyle();
+		let palette = theme?.Palette ?? Palette();
+
+		// Use style foreground if available, else fallback to palette text
+		let defaultTextColor = Color(220, 220, 220, 255);
+		let textColor = cellStyle.Foreground.A > 0 ? cellStyle.Foreground : (palette.Text.A > 0 ? palette.Text : defaultTextColor);
 
 		// Default: render as text
 		let text = cellValue?.ToString(.. scope String()) ?? "";
@@ -119,14 +122,24 @@ public abstract class DataGridColumn
 	public virtual void RenderHeader(DrawContext ctx, RectangleF bounds, bool isHovered, DataGrid grid = null)
 	{
 		// Get theme colors from grid's context
-		let palette = grid?.Context?.Theme?.Palette ?? Palette();
-		let surfaceColor = palette.Surface.A > 0 ? palette.Surface : Color(45, 45, 45, 255);
-		let textColor = palette.Text.A > 0 ? palette.Text : Color(220, 220, 220, 255);
-		let borderColor = palette.Border.A > 0 ? palette.Border : Color(60, 60, 60, 255);
-		let accentColor = palette.Accent.A > 0 ? palette.Accent : Color(150, 180, 220, 255);
+		let theme = grid?.Context?.Theme;
+		let headerStyle = theme?.GetControlStyle("DataGridHeader") ?? ControlStyle();
+		let palette = theme?.Palette ?? Palette();
+
+		// Fallback colors
+		let defaultBgColor = Color(45, 45, 45, 255);
+		let defaultTextColor = Color(220, 220, 220, 255);
+		let defaultBorderColor = Color(60, 60, 60, 255);
+		let defaultAccentColor = Color(150, 180, 220, 255);
+
+		// Get colors from theme style with fallbacks
+		let baseBgColor = headerStyle.Background.A > 0 ? headerStyle.Background : defaultBgColor;
+		let textColor = headerStyle.Foreground.A > 0 ? headerStyle.Foreground : (palette.Text.A > 0 ? palette.Text : defaultTextColor);
+		let borderColor = headerStyle.BorderColor.A > 0 ? headerStyle.BorderColor : defaultBorderColor;
+		let accentColor = palette.Accent.A > 0 ? palette.Accent : defaultAccentColor;
 
 		// Header background
-		let bgColor = isHovered ? Palette.ComputeHover(surfaceColor) : surfaceColor;
+		let bgColor = isHovered ? (headerStyle.Hover.Background ?? Palette.ComputeHover(baseBgColor)) : baseBgColor;
 		ctx.FillRect(bounds, bgColor);
 
 		// Header text

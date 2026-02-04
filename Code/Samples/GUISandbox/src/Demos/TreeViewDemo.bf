@@ -39,7 +39,6 @@ class TreeViewDemo
 
 		// Instructions
 		let instructions = new TextBlock("TreeView: Up/Down navigate, Left/Right expand/collapse, Home/End, Space/Enter toggle\nTileView: Arrow keys navigate grid, Home/End for first/last");
-		instructions.Foreground = Color(150, 150, 150, 255);
 		mRoot.AddChild(instructions);
 
 		return mRoot;
@@ -50,8 +49,7 @@ class TreeViewDemo
 		let section = new StackPanel();
 		section.Orientation = .Vertical;
 		section.Spacing = 10;
-		section.Background = Color(40, 40, 40, 255);
-		section.Padding = .(15, 15, 15, 15);
+				section.Padding = .(15, 15, 15, 15);
 
 		let header = new TextBlock("TreeView - Hierarchical Data");
 		header.FontSize = 16;
@@ -103,7 +101,6 @@ class TreeViewDemo
 
 		// Status label
 		mTreeStatusLabel = new TextBlock("Click an item to select");
-		mTreeStatusLabel.Foreground = Color(150, 150, 150, 255);
 
 		mTreeView.SelectionChanged.Subscribe(new (tv) => {
 			if (tv.SelectedItem != null)
@@ -131,8 +128,7 @@ class TreeViewDemo
 		let section = new StackPanel();
 		section.Orientation = .Vertical;
 		section.Spacing = 10;
-		section.Background = Color(40, 40, 40, 255);
-		section.Padding = .(15, 15, 15, 15);
+				section.Padding = .(15, 15, 15, 15);
 
 		let header = new TextBlock("TileView - Icon Grid (Content-based tiles with Image + TextBlock)");
 		header.FontSize = 16;
@@ -183,7 +179,6 @@ class TreeViewDemo
 
 		// Status label
 		mTileStatusLabel = new TextBlock("Click a tile to select");
-		mTileStatusLabel.Foreground = Color(150, 150, 150, 255);
 
 		mTileView.SelectionChanged.Subscribe(new (tv) => {
 			if (tv.SelectedItem != null)

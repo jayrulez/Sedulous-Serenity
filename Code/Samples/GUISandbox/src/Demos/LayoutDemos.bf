@@ -10,7 +10,6 @@ static class LayoutDemos
 	{
 		let container = new Panel();
 		container.Margin = .(50, 80, 50, 50);
-		container.Background = Color(30, 30, 35, 255);
 
 		let vStack = new StackPanel();
 		vStack.Orientation = .Vertical;
@@ -89,7 +88,6 @@ static class LayoutDemos
 	{
 		let grid = new Grid();
 		grid.Margin = .(50, 80, 50, 50);
-		grid.Background = Color(30, 30, 35, 255);
 
 		let col1 = new ColumnDefinition();
 		col1.Width = GridLength.Pixels(100);
@@ -157,7 +155,6 @@ static class LayoutDemos
 	{
 		let container = new Panel();
 		container.Margin = .(50, 80, 50, 50);
-		container.Background = Color(30, 30, 35, 255);
 
 		let canvas = new Canvas();
 
@@ -211,7 +208,6 @@ static class LayoutDemos
 	{
 		let dock = new DockPanel();
 		dock.Margin = .(50, 80, 50, 50);
-		dock.Background = Color(30, 30, 35, 255);
 		dock.LastChildFill = true;
 
 		let header = new ColorBox(Color(80, 80, 140, 255), "Header (Top)");
@@ -244,7 +240,6 @@ static class LayoutDemos
 	{
 		let container = new Panel();
 		container.Margin = .(50, 80, 50, 50);
-		container.Background = Color(30, 30, 35, 255);
 
 		let wrap = new WrapPanel();
 		wrap.Orientation = .Horizontal;

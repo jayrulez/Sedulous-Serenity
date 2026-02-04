@@ -21,7 +21,6 @@ class DockingDemo
 		mContext = context;
 
 		mRoot = new DockPanel();
-		mRoot.Background = Color(35, 35, 35, 255);
 		mRoot.Padding = .(0, 70, 0, 0);  // Top padding for overlay text
 
 		// Create button bar at top
@@ -47,7 +46,6 @@ class DockingDemo
 		bar.Orientation = .Horizontal;
 		bar.Spacing = 8;
 		bar.Padding = .(10, 10, 10, 10);
-		bar.Background = Color(45, 45, 45, 255);
 
 		// Add panel buttons
 		let addCenterBtn = new Button();
@@ -83,13 +81,11 @@ class DockingDemo
 		// Separator
 		let separator = new Border();
 		separator.Width = 1;
-		separator.Background = Color(80, 80, 80, 255);
 		separator.Margin = .(8, 4, 8, 4);
 		bar.AddChild(separator);
 
 		// Info label
 		let info = new TextBlock("Click buttons to add panels. Close panels with X button.");
-		info.Foreground = Color(150, 150, 150, 255);
 		info.VerticalAlignment = .Center;
 		bar.AddChild(info);
 
@@ -162,11 +158,9 @@ class DockingDemo
 
 		let labelText = new TextBlock(label);
 		labelText.Width = 80;
-		labelText.Foreground = Color(150, 150, 150, 255);
 		row.AddChild(labelText);
 
 		let valueText = new TextBlock(value);
-		valueText.Foreground = Color(200, 200, 200, 255);
 		row.AddChild(valueText);
 
 		parent.AddChild(row);
@@ -195,7 +189,9 @@ class DockingDemo
 	private void AddTreeItem(StackPanel parent, StringView text, int level)
 	{
 		let item = new TextBlock(text);
-		item.Foreground = level == 0 ? Color(120, 180, 220, 255) : Color(180, 180, 180, 255);
+		// Root items use accent color, children use default text color
+		if (level == 0)
+			item.Foreground = Color(100, 160, 220, 255);  // Keep accent color for hierarchy
 		parent.AddChild(item);
 	}
 
@@ -267,12 +263,10 @@ class DockingDemo
 
 		let label = new TextBlock(title);
 		label.FontSize = 16;
-		label.Foreground = Color(180, 180, 180, 255);
 		label.HorizontalAlignment = .Center;
 		panel.AddChild(label);
 
 		let desc = new TextBlock("Drag splitters to resize");
-		desc.Foreground = Color(120, 120, 120, 255);
 		desc.HorizontalAlignment = .Center;
 		panel.AddChild(desc);
 

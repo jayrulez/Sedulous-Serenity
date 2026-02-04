@@ -61,6 +61,8 @@ class MainShell
 	public void Create()
 	{
 		mRoot = new DockPanel();
+		// Set root background to theme's Background color for proper base layer
+		mRoot.Background = mContext.Theme.Palette.Background;
 
 		// Create header bar
 		let header = CreateHeader();
@@ -77,29 +79,27 @@ class MainShell
 	}
 
 	/// Creates the header bar with theme/scale controls and demo selector.
-	private Panel CreateHeader()
+	private Border CreateHeader()
 	{
-		let header = new Panel();
+		let header = new Border();
 		header.Height = 50;
-		header.Background = Color(40, 42, 48, 255);
+		// Header uses SurfaceVariant for slight elevation from main content
 
 		let layout = new StackPanel();
 		layout.Orientation = .Horizontal;
 		layout.VerticalAlignment = .Center;
 		layout.Margin = .(10, 0, 10, 0);
-		header.AddChild(layout);
+		header.Child = layout;
 
 		// Title
 		let title = new TextBlock("Sedulous.GUI Sandbox");
 		title.FontSize = 18;
-		title.Foreground = Color(220, 220, 220, 255);
 		title.VerticalAlignment = .Center;
 		title.Margin = .(0, 0, 30, 0);
 		layout.AddChild(title);
 
 		// Demo selector
 		let demoLabel = new TextBlock("Demo:");
-		demoLabel.Foreground = Color(160, 160, 160, 255);
 		demoLabel.VerticalAlignment = .Center;
 		demoLabel.Margin = .(0, 0, 8, 0);
 		layout.AddChild(demoLabel);
@@ -115,7 +115,6 @@ class MainShell
 
 		// Theme selector
 		let themeLabel = new TextBlock("Theme:");
-		themeLabel.Foreground = Color(160, 160, 160, 255);
 		themeLabel.VerticalAlignment = .Center;
 		themeLabel.Margin = .(0, 0, 8, 0);
 		layout.AddChild(themeLabel);
@@ -144,7 +143,6 @@ class MainShell
 
 		// Scale selector
 		let scaleLabel = new TextBlock("Scale:");
-		scaleLabel.Foreground = Color(160, 160, 160, 255);
 		scaleLabel.VerticalAlignment = .Center;
 		scaleLabel.Margin = .(0, 0, 8, 0);
 		layout.AddChild(scaleLabel);
@@ -178,7 +176,8 @@ class MainShell
 		layout.AddChild(spacer);
 
 		mFpsDisplay = new TextBlock("FPS: --");
-		mFpsDisplay.Foreground = Color(100, 255, 100, 255);
+		// Keep green for FPS - it's an intentional highlight color
+		mFpsDisplay.Foreground = Color(50, 180, 50, 255);
 		mFpsDisplay.VerticalAlignment = .Center;
 		mFpsDisplay.Margin = .(0, 0, 10, 0);
 		layout.AddChild(mFpsDisplay);
@@ -264,6 +263,10 @@ class MainShell
 		case .Game:
 			mContext.Theme = new GameTheme();
 		}
+
+		// Update root background to match the new theme
+		if (mRoot != null)
+			mRoot.Background = mContext.Theme.Palette.Background;
 	}
 
 	private void OnScaleChanged(float scale)

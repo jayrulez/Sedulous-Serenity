@@ -14,7 +14,7 @@ public class DockTabGroup : Control, IDragSource, IDropTarget
 	private List<DockablePanel> mPanels = new .() ~ delete _;  // Panels NOT owned - creator is responsible for deletion
 	private int mSelectedIndex = -1;
 	private int mHoveredTabIndex = -1;
-	private float mTabHeight = 24;
+	private float mTabHeight = 24;  // Default, updated from theme
 	private List<RectangleF> mTabBounds = new .() ~ delete _;
 
 	// Drag state
@@ -239,6 +239,9 @@ public class DockTabGroup : Control, IDragSource, IDropTarget
 	public override void OnAttachedToContext(GUIContext context)
 	{
 		base.OnAttachedToContext(context);
+		// Update tab height from theme
+		if (context?.Theme != null)
+			mTabHeight = context.Theme.DockTabHeight;
 		for (let panel in mPanels)
 			panel.OnAttachedToContext(context);
 	}
@@ -319,12 +322,16 @@ public class DockTabGroup : Control, IDragSource, IDropTarget
 
 	protected override void RenderOverride(DrawContext ctx)
 	{
+		// Get theme styles
+		let groupStyle = GetThemeStyle();
+		let accentColor = Context?.Theme?.Palette.Accent ?? Color(60, 120, 200, 255);
+
 		if (mPanels.Count == 0)
 		{
 			// Empty group - show placeholder
 			let bounds = ArrangedBounds;
-			ctx.FillRect(bounds, Color(35, 35, 35, 255));
-			ctx.DrawText("Empty", 12, .(bounds.X + bounds.Width / 2 - 20, bounds.Y + bounds.Height / 2), Color(100, 100, 100, 255));
+			ctx.FillRect(bounds, groupStyle.Background);
+			ctx.DrawText("Empty", 12, .(bounds.X + bounds.Width / 2 - 20, bounds.Y + bounds.Height / 2), groupStyle.Foreground);
 			return;
 		}
 
@@ -332,7 +339,7 @@ public class DockTabGroup : Control, IDragSource, IDropTarget
 		{
 			// Render tab strip background
 			let tabStripBounds = RectangleF(ArrangedBounds.X, ArrangedBounds.Y, ArrangedBounds.Width, mTabHeight);
-			ctx.FillRect(tabStripBounds, Color(35, 35, 35, 255));
+			ctx.FillRect(tabStripBounds, groupStyle.Background);
 
 			// Render tabs
 			for (int i = 0; i < mTabBounds.Count && i < mPanels.Count; i++)
@@ -349,7 +356,7 @@ public class DockTabGroup : Control, IDragSource, IDropTarget
 			ctx.DrawLine(
 				.(ArrangedBounds.X, ArrangedBounds.Y + mTabHeight),
 				.(ArrangedBounds.Right, ArrangedBounds.Y + mTabHeight),
-				Color(80, 80, 80, 255), 1
+				groupStyle.BorderColor, 1
 			);
 
 			// Draw drop insert indicator
@@ -363,7 +370,7 @@ public class DockTabGroup : Control, IDragSource, IDropTarget
 				else
 					indicatorX = ArrangedBounds.X;
 
-				ctx.FillRect(.(indicatorX - 1, ArrangedBounds.Y + 2, 3, mTabHeight - 4), Color(60, 180, 255, 255));
+				ctx.FillRect(.(indicatorX - 1, ArrangedBounds.Y + 2, 3, mTabHeight - 4), accentColor);
 			}
 		}
 
@@ -377,34 +384,38 @@ public class DockTabGroup : Control, IDragSource, IDropTarget
 		if (mDropZone != null && mDropZone != .Center)
 		{
 			let edgeBounds = CalculateEdgeZoneBounds(mDropZone.Value);
-			ctx.FillRect(edgeBounds, Color(60, 120, 200, 80));
-			ctx.DrawRect(edgeBounds, Color(60, 120, 200, 180), 2);
+			ctx.FillRect(edgeBounds, Color(accentColor.R, accentColor.G, accentColor.B, 80));
+			ctx.DrawRect(edgeBounds, Color(accentColor.R, accentColor.G, accentColor.B, 180), 2);
 		}
 	}
 
 	private void RenderTab(DrawContext ctx, RectangleF bounds, StringView title, bool isSelected, bool isHovered, bool isCloseable)
 	{
+		// Get tab style from theme
+		let tabStyle = Context?.Theme?.GetControlStyle("DockTab") ?? GetThemeStyle();
+
 		// Tab background
 		Color bgColor;
 		if (isSelected)
-			bgColor = Color(50, 50, 50, 255);
+			bgColor = tabStyle.Pressed.Background ?? tabStyle.Background;
 		else if (isHovered)
-			bgColor = Color(45, 45, 45, 255);
+			bgColor = tabStyle.Hover.Background ?? tabStyle.Background;
 		else
-			bgColor = Color(38, 38, 38, 255);
+			bgColor = tabStyle.Background;
 
 		ctx.FillRect(bounds, bgColor);
 
 		// Tab border (selected tabs have a colored top border)
 		if (isSelected)
 		{
-			ctx.FillRect(.(bounds.X, bounds.Y, bounds.Width, 2), Color(60, 120, 200, 255));
+			ctx.FillRect(.(bounds.X, bounds.Y, bounds.Width, 2), tabStyle.BorderColor);
 		}
 
 		// Tab text - vertically centered
-		let fontSize = 12.0f;
-		let textColor = isSelected ? Color(255, 255, 255, 255) : Color(180, 180, 180, 255);
-		let textX = bounds.X + 8;
+		let fontSize = Context?.Theme?.DockFontSize ?? 12.0f;
+		let padding = Context?.Theme?.DockTabPadding ?? 8.0f;
+		let textColor = isSelected ? (tabStyle.Pressed.Foreground ?? tabStyle.Foreground) : tabStyle.Foreground;
+		let textX = bounds.X + padding;
 		let textY = bounds.Y + (mTabHeight - fontSize) / 2;
 		ctx.DrawText(title, fontSize, .(textX, textY), textColor);
 
@@ -414,10 +425,10 @@ public class DockTabGroup : Control, IDragSource, IDropTarget
 			let closeSize = 12.0f;
 			let closeX = bounds.Right - closeSize - 4;
 			let closeY = bounds.Y + (mTabHeight - closeSize) / 2;
-			let closeColor = Color(150, 150, 150, 255);
-			let padding = 2.0f;
-			ctx.DrawLine(.(closeX + padding, closeY + padding), .(closeX + closeSize - padding, closeY + closeSize - padding), closeColor, 1);
-			ctx.DrawLine(.(closeX + closeSize - padding, closeY + padding), .(closeX + padding, closeY + closeSize - padding), closeColor, 1);
+			let closeColor = Color(tabStyle.Foreground.R, tabStyle.Foreground.G, tabStyle.Foreground.B, 150);
+			let closePadding = 2.0f;
+			ctx.DrawLine(.(closeX + closePadding, closeY + closePadding), .(closeX + closeSize - closePadding, closeY + closeSize - closePadding), closeColor, 1);
+			ctx.DrawLine(.(closeX + closeSize - closePadding, closeY + closePadding), .(closeX + closePadding, closeY + closeSize - closePadding), closeColor, 1);
 		}
 	}
 

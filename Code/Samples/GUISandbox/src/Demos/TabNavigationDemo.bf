@@ -46,8 +46,7 @@ class TabNavigationDemo
 		let section = new StackPanel();
 		section.Orientation = .Vertical;
 		section.Spacing = 10;
-		section.Background = Color(40, 40, 40, 255);
-		section.Padding = .(15, 15, 15, 15);
+				section.Padding = .(15, 15, 15, 15);
 
 		let header = new TextBlock("Breadcrumb Navigation");
 		header.FontSize = 16;
@@ -60,7 +59,6 @@ class TabNavigationDemo
 		breadcrumb.AddItem("MyApp", "/documents/projects/myapp");
 
 		mBreadcrumbLabel = new TextBlock("Click an item to navigate (removes subsequent items)");
-		mBreadcrumbLabel.Foreground = Color(150, 150, 150, 255);
 
 		breadcrumb.ItemClicked.Subscribe(new (bc, item) => {
 			// Navigate to clicked item (removes items after it)
@@ -80,8 +78,7 @@ class TabNavigationDemo
 		let section = new StackPanel();
 		section.Orientation = .Vertical;
 		section.Spacing = 10;
-		section.Background = Color(40, 40, 40, 255);
-		section.Padding = .(15, 15, 15, 15);
+				section.Padding = .(15, 15, 15, 15);
 
 		let header = new TextBlock("TabControl");
 		header.FontSize = 16;
@@ -158,7 +155,6 @@ class TabNavigationDemo
 
 		// Instructions
 		let instructions = new TextBlock("Ctrl+Tab to cycle tabs, click X to close closeable tabs");
-		instructions.Foreground = Color(150, 150, 150, 255);
 		section.AddChild(instructions);
 
 		mRoot.AddChild(section);
@@ -169,8 +165,7 @@ class TabNavigationDemo
 		let section = new StackPanel();
 		section.Orientation = .Vertical;
 		section.Spacing = 10;
-		section.Background = Color(40, 40, 40, 255);
-		section.Padding = .(15, 15, 15, 15);
+				section.Padding = .(15, 15, 15, 15);
 
 		let header = new TextBlock("Expander");
 		header.FontSize = 16;
@@ -206,7 +201,6 @@ class TabNavigationDemo
 
 		// Instructions
 		let instructions = new TextBlock("Click header to toggle, or use keyboard: Space/Enter, Left/Right arrows");
-		instructions.Foreground = Color(150, 150, 150, 255);
 		section.AddChild(instructions);
 
 		mRoot.AddChild(section);
@@ -217,8 +211,7 @@ class TabNavigationDemo
 		let section = new StackPanel();
 		section.Orientation = .Vertical;
 		section.Spacing = 10;
-		section.Background = Color(40, 40, 40, 255);
-		section.Padding = .(15, 15, 15, 15);
+				section.Padding = .(15, 15, 15, 15);
 
 		let header = new TextBlock("GroupBox");
 		header.FontSize = 16;

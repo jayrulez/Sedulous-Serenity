@@ -40,7 +40,6 @@ class ListControlsDemo
 		let section = new StackPanel();
 		section.Orientation = .Vertical;
 		section.Spacing = 10;
-		section.Background = Color(40, 40, 40, 255);
 		section.Padding = .(15, 15, 15, 15);
 
 		let header = new TextBlock("ListBox - Selection Modes");
@@ -64,7 +63,6 @@ class ListControlsDemo
 		singleList.SelectionMode = .Single;
 		singleList.Width = 200;
 		singleList.Height = 150;
-		singleList.Background = Color(30, 30, 30, 255);
 
 		// Add items (control owns the strings internally)
 		singleList.AddText("Apple");
@@ -105,7 +103,6 @@ class ListControlsDemo
 		multiList.SelectionMode = .Extended;
 		multiList.Width = 200;
 		multiList.Height = 150;
-		multiList.Background = Color(30, 30, 30, 255);
 
 		// Add items
 		multiList.AddText("Red");
@@ -144,7 +141,6 @@ class ListControlsDemo
 
 		// Instructions
 		let instructions = new TextBlock("Keyboard: Up/Down to navigate, Home/End, Ctrl+A to select all");
-		instructions.Foreground = Color(150, 150, 150, 255);
 		section.AddChild(instructions);
 
 		mRoot.AddChild(section);
@@ -155,7 +151,6 @@ class ListControlsDemo
 		let section = new StackPanel();
 		section.Orientation = .Vertical;
 		section.Spacing = 10;
-		section.Background = Color(40, 40, 40, 255);
 		section.Padding = .(15, 15, 15, 15);
 
 		let header = new TextBlock("ComboBox");
@@ -195,7 +190,6 @@ class ListControlsDemo
 
 		// Instructions
 		let instructions = new TextBlock("Click to open dropdown, arrow keys when open to navigate");
-		instructions.Foreground = Color(150, 150, 150, 255);
 		section.AddChild(instructions);
 
 		mRoot.AddChild(section);

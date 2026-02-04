@@ -30,18 +30,15 @@ class AnimationDemo
 		mainPanel.Width = 1200;
 		mainPanel.Height = 650;
 		mainPanel.Margin = .(20, 70, 20, 20);
-		mainPanel.Background = Color(30, 30, 35, 255);
 
 		// Title
 		let title = new TextBlock("Animation System Demo (Phase 16)");
-		title.Foreground = Color.White;
 		title.FontSize = 20;
 		title.Margin = .(10, 10, 10, 5);
 		mainPanel.AddChild(title);
 
 		// Status label
 		mStatusLabel = new TextBlock("Click buttons to trigger animations");
-		mStatusLabel.Foreground = Color(180, 180, 180, 255);
 		mStatusLabel.FontSize = 14;
 		mStatusLabel.Margin = .(10, 0, 10, 10);
 		mainPanel.AddChild(mStatusLabel);
@@ -128,10 +125,9 @@ class AnimationDemo
 		let section = CreateSection("Slide Animations");
 
 		// Container for the sliding panel (tall enough for vertical slides)
-		let container = new Panel();
+		let container = new Border();
 		container.Width = 340;
 		container.Height = 120;
-		container.Background = Color(40, 40, 50, 255);
 		container.Margin = .(10, 5, 10, 5);
 		section.AddChild(container);
 
@@ -141,7 +137,7 @@ class AnimationDemo
 		mSlidePanel.Height = 60;
 		mSlidePanel.Background = Color(220, 150, 100, 255);
 		mSlidePanel.Margin = .(10, 10, 10, 10);
-		container.AddChild(mSlidePanel);
+		container.Child = mSlidePanel;
 
 		// Buttons
 		let buttonRow = new StackPanel();
@@ -255,10 +251,9 @@ class AnimationDemo
 		let section = CreateSection("Easing Functions");
 
 		// Container
-		let container = new Panel();
+		let container = new Border();
 		container.Width = 340;
 		container.Height = 60;
-		container.Background = Color(40, 40, 50, 255);
 		container.Margin = .(10, 5, 10, 5);
 		section.AddChild(container);
 
@@ -268,7 +263,7 @@ class AnimationDemo
 		mEasingPanel.Height = 40;
 		mEasingPanel.Background = Color(200, 180, 100, 255);
 		mEasingPanel.Margin = .(10, 10, 10, 10);
-		container.AddChild(mEasingPanel);
+		container.Child = mEasingPanel;
 
 		// Buttons
 		let buttonRow = new StackPanel();
@@ -374,7 +369,6 @@ class AnimationDemo
 
 		// Description
 		let desc = new TextBlock("Fade in -> Slide -> Color change");
-		desc.Foreground = Color(150, 150, 150, 255);
 		desc.FontSize = 12;
 		desc.Margin = .(10, 5, 10, 5);
 		section.AddChild(desc);
@@ -533,12 +527,10 @@ class AnimationDemo
 	{
 		let section = new StackPanel();
 		section.Orientation = .Vertical;
-		section.Background = Color(45, 45, 55, 255);
 		section.Margin = .(5, 5, 5, 5);
 		section.Padding = .(5, 5, 5, 5);
 
 		let label = new TextBlock(title);
-		label.Foreground = Color(220, 220, 220, 255);
 		label.FontSize = 14;
 		label.Margin = .(5, 5, 5, 5);
 		section.AddChild(label);

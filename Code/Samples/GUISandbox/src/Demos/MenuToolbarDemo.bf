@@ -23,7 +23,6 @@ class MenuToolbarDemo
 		mContext = context;
 
 		mRoot = new DockPanel();
-		mRoot.Background = Color(35, 35, 35, 255);
 		mRoot.Padding = .(0, 70, 0, 0);  // Top padding for overlay text
 
 		// Create menu bar at top
@@ -51,7 +50,6 @@ class MenuToolbarDemo
 	private Menu CreateMenuBar()
 	{
 		let menuBar = new Menu();
-		menuBar.Background = Color(45, 45, 45, 255);
 		menuBar.Padding = .(4, 2, 4, 2);
 
 		// File menu
@@ -146,7 +144,6 @@ class MenuToolbarDemo
 	private ToolBar CreateToolBar()
 	{
 		let toolbar = new ToolBar();
-		toolbar.Background = Color(50, 50, 50, 255);
 		toolbar.Padding = .(4, 4, 4, 4);
 
 		// File operations
@@ -219,7 +216,6 @@ class MenuToolbarDemo
 	private StatusBar CreateStatusBar()
 	{
 		let statusBar = new StatusBar();
-		statusBar.Background = Color(40, 40, 40, 255);
 		statusBar.Padding = .(8, 4, 8, 4);
 
 		// Main status message (flexible)
@@ -251,24 +247,20 @@ class MenuToolbarDemo
 		// Title
 		let title = new TextBlock("Menu & Toolbar Demo");
 		title.FontSize = 24;
-		title.Foreground = Color(200, 200, 200, 255);
 		panel.AddChild(title);
 
 		// Description
 		let desc = new TextBlock("This demo showcases the Menu, ToolBar, and StatusBar controls.");
-		desc.Foreground = Color(150, 150, 150, 255);
 		panel.AddChild(desc);
 
 		// Instructions panel
 		let instructions = new StackPanel();
 		instructions.Orientation = .Vertical;
 		instructions.Spacing = 8;
-		instructions.Background = Color(45, 45, 45, 255);
 		instructions.Padding = .(15, 15, 15, 15);
 
 		let instructionsTitle = new TextBlock("Instructions:");
 		instructionsTitle.FontSize = 16;
-		instructionsTitle.Foreground = Color(180, 180, 180, 255);
 		instructions.AddChild(instructionsTitle);
 
 		AddInstruction(instructions, "- Click menu items (File, Edit, View, Help) to open dropdown menus");
@@ -290,7 +282,7 @@ class MenuToolbarDemo
 
 		let featuresTitle = new TextBlock("Controls demonstrated:");
 		featuresTitle.FontSize = 14;
-		featuresTitle.Foreground = Color(120, 180, 220, 255);
+		featuresTitle.Foreground = Color(100, 160, 220, 255);  // Keep accent color for title
 		features.AddChild(featuresTitle);
 
 		AddFeature(features, "Menu - Horizontal menu bar with Alt-key accelerators");
@@ -310,14 +302,12 @@ class MenuToolbarDemo
 	private void AddInstruction(StackPanel parent, StringView text)
 	{
 		let label = new TextBlock(text);
-		label.Foreground = Color(140, 140, 140, 255);
 		parent.AddChild(label);
 	}
 
 	private void AddFeature(StackPanel parent, StringView text)
 	{
 		let label = new TextBlock(text);
-		label.Foreground = Color(160, 160, 160, 255);
 		label.FontSize = 12;
 		parent.AddChild(label);
 	}

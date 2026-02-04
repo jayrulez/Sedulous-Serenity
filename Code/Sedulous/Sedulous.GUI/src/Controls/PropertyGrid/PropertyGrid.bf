@@ -282,47 +282,61 @@ public class PropertyGrid : Control
 	{
 		base.OnAttachedToContext(context);
 		mVerticalScrollBar.OnAttachedToContext(context);
-		ApplyThemeDefaults();
 	}
 
-	private void ApplyThemeDefaults()
+	/// Gets current theme colors for rendering (called each frame to support theme changes).
+	private void GetThemeColors(
+		out Color backgroundColor, out Color borderColor, out Color splitterColor,
+		out Color categoryBgColor, out Color categoryHoverColor, out Color categoryTextColor,
+		out Color categoryIndicatorColor, out Color categoryBorderColor,
+		out Color propertyBgColor, out Color propertyHoverColor, out Color propertyNameColor,
+		out Color propertyValueColor, out Color propertyBorderColor, out Color cursorColor,
+		out Color checkboxBgColor, out Color checkboxBorderColor, out Color checkmarkColor,
+		out Color dropdownArrowColor)
 	{
 		let theme = Context?.Theme;
 		let palette = theme?.Palette ?? Palette();
 
-		let bgColor = palette.Background.A > 0 ? palette.Background : Color(35, 35, 35, 255);
-		let surfaceColor = palette.Surface.A > 0 ? palette.Surface : Color(45, 45, 45, 255);
-		let borderColor = palette.Border.A > 0 ? palette.Border : Color(60, 60, 60, 255);
-		let textColor = palette.Text.A > 0 ? palette.Text : Color(220, 220, 220, 255);
-		let successColor = palette.Success.A > 0 ? palette.Success : Color(100, 180, 100, 255);
+		// Get theme styles
+		let gridStyle = theme?.GetControlStyle("PropertyGrid") ?? ControlStyle();
+		let categoryStyle = theme?.GetControlStyle("PropertyGridCategory") ?? ControlStyle();
+		let propertyStyle = theme?.GetControlStyle("PropertyGridProperty") ?? ControlStyle();
 
-		// Main background and border
-		mBackgroundColor = bgColor;
-		mBorderColor = borderColor;
-		mSplitterColor = Palette.Lighten(bgColor, 0.05f);
+		// Fallback colors
+		let defaultBgColor = Color(35, 35, 35, 255);
+		let defaultTextColor = Color(220, 220, 220, 255);
+		let defaultBorderColor = Color(60, 60, 60, 255);
+		let defaultSuccessColor = Color(100, 180, 100, 255);
 
-		// Category colors
-		mCategoryBackgroundColor = surfaceColor;
-		mCategoryHoverColor = Palette.ComputeHover(surfaceColor);
-		mCategoryTextColor = textColor;
-		mCategoryIndicatorColor = Palette.Darken(textColor, 0.15f);
-		mCategoryBorderColor = Palette.Lighten(bgColor, 0.08f);
+		// Main background and border from theme style
+		backgroundColor = gridStyle.Background.A > 0 ? gridStyle.Background : defaultBgColor;
+		borderColor = gridStyle.BorderColor.A > 0 ? gridStyle.BorderColor : defaultBorderColor;
+		splitterColor = Palette.Lighten(backgroundColor, 0.05f);
 
-		// Property colors
-		mPropertyBackgroundColor = Palette.Darken(surfaceColor, 0.05f);
-		mPropertyHoverColor = surfaceColor;
-		mPropertyNameColor = Palette.Darken(textColor, 0.15f);
-		mPropertyValueColor = textColor;
-		mPropertyBorderColor = surfaceColor;
-		mCursorColor = textColor;
+		// Category colors from theme style
+		categoryBgColor = categoryStyle.Background.A > 0 ? categoryStyle.Background : Palette.Lighten(backgroundColor, 0.1f);
+		categoryHoverColor = categoryStyle.Hover.Background ?? Palette.ComputeHover(categoryBgColor);
+		let categoryFg = categoryStyle.Foreground.A > 0 ? categoryStyle.Foreground : (palette.Text.A > 0 ? palette.Text : defaultTextColor);
+		categoryTextColor = categoryFg;
+		categoryIndicatorColor = Palette.Darken(categoryFg, 0.15f);
+		categoryBorderColor = categoryStyle.BorderColor.A > 0 ? categoryStyle.BorderColor : Palette.Lighten(backgroundColor, 0.08f);
+
+		// Property colors from theme style
+		propertyBgColor = propertyStyle.Background.A > 0 ? propertyStyle.Background : Palette.Darken(categoryBgColor, 0.05f);
+		propertyHoverColor = propertyStyle.Hover.Background ?? Palette.ComputeHover(propertyBgColor);
+		let propertyFg = propertyStyle.Foreground.A > 0 ? propertyStyle.Foreground : (palette.Text.A > 0 ? palette.Text : defaultTextColor);
+		propertyNameColor = Palette.Darken(propertyFg, 0.15f);
+		propertyValueColor = propertyFg;
+		propertyBorderColor = propertyStyle.BorderColor.A > 0 ? propertyStyle.BorderColor : categoryBgColor;
+		cursorColor = propertyFg;
 
 		// Checkbox colors
-		mCheckboxBackgroundColor = Palette.Darken(surfaceColor, 0.03f);
-		mCheckboxBorderColor = borderColor;
-		mCheckmarkColor = successColor;
+		checkboxBgColor = Palette.Darken(propertyBgColor, 0.03f);
+		checkboxBorderColor = borderColor;
+		checkmarkColor = palette.Success.A > 0 ? palette.Success : defaultSuccessColor;
 
 		// Dropdown arrow
-		mDropdownArrowColor = Palette.Darken(textColor, 0.25f);
+		dropdownArrowColor = Palette.Darken(propertyFg, 0.25f);
 	}
 
 	public override void OnDetachedFromContext()
@@ -400,6 +414,16 @@ public class PropertyGrid : Control
 
 	protected override void RenderOverride(DrawContext ctx)
 	{
+		// Get current theme colors
+		GetThemeColors(
+			out mBackgroundColor, out mBorderColor, out mSplitterColor,
+			out mCategoryBackgroundColor, out mCategoryHoverColor, out mCategoryTextColor,
+			out mCategoryIndicatorColor, out mCategoryBorderColor,
+			out mPropertyBackgroundColor, out mPropertyHoverColor, out mPropertyNameColor,
+			out mPropertyValueColor, out mPropertyBorderColor, out mCursorColor,
+			out mCheckboxBackgroundColor, out mCheckboxBorderColor, out mCheckmarkColor,
+			out mDropdownArrowColor);
+
 		let bounds = ArrangedBounds;
 		float contentWidth = bounds.Width;
 		if (mShowScrollBar) contentWidth -= mScrollBarThickness;

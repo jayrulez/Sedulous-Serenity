@@ -47,12 +47,10 @@ class PopupDialogDemo
 
 		// Status label
 		mStatusLabel = new TextBlock("Hover over controls for tooltips, right-click for context menu");
-		mStatusLabel.Foreground = Color(150, 150, 150, 255);
 		mRoot.AddChild(mStatusLabel);
 
 		// Instructions
 		let instructions = new TextBlock("Tooltips: Hover 0.5s to show | Context Menu: Right-click | Dialog: Click buttons | ESC closes dialogs/menus");
-		instructions.Foreground = Color(120, 120, 120, 255);
 		mRoot.AddChild(instructions);
 
 		return mRoot;
@@ -63,8 +61,7 @@ class PopupDialogDemo
 		let section = new StackPanel();
 		section.Orientation = .Vertical;
 		section.Spacing = 10;
-		section.Background = Color(40, 40, 40, 255);
-		section.Padding = .(15, 15, 15, 15);
+				section.Padding = .(15, 15, 15, 15);
 
 		let header = new TextBlock("Tooltips - Hover over controls (placement: Mouse)");
 		header.FontSize = 16;
@@ -154,8 +151,7 @@ class PopupDialogDemo
 		let section = new StackPanel();
 		section.Orientation = .Vertical;
 		section.Spacing = 10;
-		section.Background = Color(40, 40, 40, 255);
-		section.Padding = .(15, 15, 15, 15);
+				section.Padding = .(15, 15, 15, 15);
 
 		let header = new TextBlock("Context Menu - Right-click the panel below");
 		header.FontSize = 16;
@@ -163,7 +159,6 @@ class PopupDialogDemo
 
 		// Panel with context menu
 		let panel = new Border();
-		panel.Background = Color(60, 60, 60, 255);
 		panel.Width = .Fixed(300);
 		panel.Height = .Fixed(100);
 
@@ -246,8 +241,7 @@ class PopupDialogDemo
 		let section = new StackPanel();
 		section.Orientation = .Vertical;
 		section.Spacing = 10;
-		section.Background = Color(40, 40, 40, 255);
-		section.Padding = .(15, 15, 15, 15);
+				section.Padding = .(15, 15, 15, 15);
 
 		let header = new TextBlock("Dialogs - Click buttons to open");
 		header.FontSize = 16;
@@ -327,8 +321,7 @@ class PopupDialogDemo
 		let section = new StackPanel();
 		section.Orientation = .Vertical;
 		section.Spacing = 10;
-		section.Background = Color(40, 40, 40, 255);
-		section.Padding = .(15, 15, 15, 15);
+				section.Padding = .(15, 15, 15, 15);
 
 		let header = new TextBlock("Flyouts - Lightweight popups (click outside to close)");
 		header.FontSize = 16;
@@ -407,8 +400,7 @@ class PopupDialogDemo
 		let section = new StackPanel();
 		section.Orientation = .Vertical;
 		section.Spacing = 10;
-		section.Background = Color(40, 40, 40, 255);
-		section.Padding = .(15, 15, 15, 15);
+				section.Padding = .(15, 15, 15, 15);
 
 		let header = new TextBlock("Standalone Popup - Various placements and behaviors");
 		header.FontSize = 16;
@@ -478,7 +470,6 @@ class PopupDialogDemo
 			content.AddChild(label);
 
 			let posLabel = new TextBlock("Position: (100, 200)");
-			posLabel.Foreground = Color(150, 150, 150, 255);
 			content.AddChild(posLabel);
 
 			popup.Content = content;
@@ -533,7 +524,6 @@ class PopupDialogDemo
 			content.AddChild(label);
 
 			let info = new TextBlock("Click outside won't close this.\nUse button or ESC key.");
-			info.Foreground = Color(150, 150, 150, 255);
 			content.AddChild(info);
 
 			let closeBtn = new Button("Close Me");
@@ -560,8 +550,7 @@ class PopupDialogDemo
 		let section = new StackPanel();
 		section.Orientation = .Vertical;
 		section.Spacing = 10;
-		section.Background = Color(40, 40, 40, 255);
-		section.Padding = .(15, 15, 15, 15);
+				section.Padding = .(15, 15, 15, 15);
 
 		let header = new TextBlock("Message Boxes - Pre-built dialogs");
 		header.FontSize = 16;

@@ -90,4 +90,18 @@ public interface ITheme
 
 	/// Gets the default icon size for message boxes.
 	float MessageBoxIconSize { get; }
+
+	// === Docking System Dimensions ===
+
+	/// Gets the dock panel title bar height.
+	float DockPanelTitleBarHeight { get; }
+
+	/// Gets the dock tab strip height.
+	float DockTabHeight { get; }
+
+	/// Gets the dock panel/tab font size.
+	float DockFontSize { get; }
+
+	/// Gets the dock tab text padding from left edge.
+	float DockTabPadding { get; }
 }

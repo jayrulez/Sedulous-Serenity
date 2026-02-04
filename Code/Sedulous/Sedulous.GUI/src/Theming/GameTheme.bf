@@ -88,7 +88,57 @@ public class GameTheme : ITheme
 		// Panel style
 		mStyles[new String("Panel")] = .()
 		{
-			Background = mPalette.Surface,
+			Background = Color.Transparent,
+			Foreground = mPalette.Text,
+			BorderColor = Color.Transparent,
+			BorderThickness = 0,
+			CornerRadius = 0
+		};
+
+		// StackPanel style (layout container - transparent)
+		mStyles[new String("StackPanel")] = .()
+		{
+			Background = Color.Transparent,
+			Foreground = mPalette.Text,
+			BorderColor = Color.Transparent,
+			BorderThickness = 0,
+			CornerRadius = 0
+		};
+
+		// DockPanel style (layout container - transparent)
+		mStyles[new String("DockPanel")] = .()
+		{
+			Background = Color.Transparent,
+			Foreground = mPalette.Text,
+			BorderColor = Color.Transparent,
+			BorderThickness = 0,
+			CornerRadius = 0
+		};
+
+		// Canvas style (layout container - transparent)
+		mStyles[new String("Canvas")] = .()
+		{
+			Background = Color.Transparent,
+			Foreground = mPalette.Text,
+			BorderColor = Color.Transparent,
+			BorderThickness = 0,
+			CornerRadius = 0
+		};
+
+		// WrapPanel style (layout container - transparent)
+		mStyles[new String("WrapPanel")] = .()
+		{
+			Background = Color.Transparent,
+			Foreground = mPalette.Text,
+			BorderColor = Color.Transparent,
+			BorderThickness = 0,
+			CornerRadius = 0
+		};
+
+		// Grid style (layout container - transparent)
+		mStyles[new String("Grid")] = .()
+		{
+			Background = Color.Transparent,
 			Foreground = mPalette.Text,
 			BorderColor = Color.Transparent,
 			BorderThickness = 0,
@@ -462,6 +512,113 @@ public class GameTheme : ITheme
 			Padding = .(6, 6, 6, 6),
 			Hover = .() { Background = itemHover, BorderColor = mPalette.Accent }
 		};
+
+		// DockablePanel style
+		mStyles[new String("DockablePanel")] = .()
+		{
+			Background = Color(38, 42, 52, 255),  // Content background
+			Foreground = mPalette.Text,
+			BorderColor = mPalette.Border,
+			BorderThickness = 0,
+			CornerRadius = 0
+		};
+
+		// DockablePanelHeader style (title bar)
+		mStyles[new String("DockablePanelHeader")] = .()
+		{
+			Background = Color(45, 50, 60, 255),  // Title bar background
+			Foreground = mPalette.Text,  // Warm white/parchment
+			BorderColor = mPalette.Border,  // Steel gray
+			BorderThickness = 1,
+			CornerRadius = 0
+		};
+
+		// DockTabGroup style
+		mStyles[new String("DockTabGroup")] = .()
+		{
+			Background = Color(30, 34, 42, 255),  // Tab strip background
+			Foreground = mPalette.TextSecondary,  // Empty text
+			BorderColor = mPalette.Border,  // Tab strip bottom border
+			BorderThickness = 1,
+			CornerRadius = 0
+		};
+
+		// DockTab style
+		mStyles[new String("DockTab")] = .()
+		{
+			Background = Color(35, 40, 48, 255),  // Normal tab
+			Foreground = mPalette.TextSecondary,  // Normal text
+			BorderColor = mPalette.Accent,  // Gold selected tab top border
+			BorderThickness = 2,
+			CornerRadius = 0,
+			Hover = .() { Background = Color(42, 47, 55, 255) },
+			Pressed = .() { Background = Color(50, 55, 65, 255), Foreground = mPalette.Text }  // Selected state
+		};
+
+		// DataGrid style
+		mStyles[new String("DataGrid")] = .()
+		{
+			Background = Color(25, 28, 35, 255),  // Dark slate background
+			Foreground = mPalette.Text,
+			BorderColor = mPalette.Border,
+			BorderThickness = 2,
+			CornerRadius = 6
+		};
+
+		// DataGridHeader style
+		mStyles[new String("DataGridHeader")] = .()
+		{
+			Background = Color(38, 42, 52, 255),  // Slate header background
+			Foreground = mPalette.Text,
+			BorderColor = Color(55, 60, 70, 255),
+			BorderThickness = 1,
+			CornerRadius = 0,
+			Hover = .() { Background = Color(48, 53, 65, 255) }
+		};
+
+		// DataGridCell style (for rows)
+		mStyles[new String("DataGridCell")] = .()
+		{
+			Background = Color(25, 28, 35, 255),  // Row background
+			Foreground = mPalette.Text,
+			BorderColor = Color(40, 44, 54, 255),  // Cell border
+			BorderThickness = 1,
+			CornerRadius = 0,
+			Hover = .() { Background = Color(38, 42, 52, 255) },
+			Pressed = .() { Background = Color(80, 65, 40, 255) }  // Gold-tinted selection
+		};
+
+		// PropertyGrid style
+		mStyles[new String("PropertyGrid")] = .()
+		{
+			Background = Color(25, 28, 35, 255),
+			Foreground = mPalette.Text,
+			BorderColor = mPalette.Border,
+			BorderThickness = 2,
+			CornerRadius = 6
+		};
+
+		// PropertyGridCategory style
+		mStyles[new String("PropertyGridCategory")] = .()
+		{
+			Background = Color(38, 42, 52, 255),  // Category header background
+			Foreground = mPalette.Text,
+			BorderColor = Color(50, 55, 65, 255),
+			BorderThickness = 1,
+			CornerRadius = 0,
+			Hover = .() { Background = Color(48, 53, 65, 255) }
+		};
+
+		// PropertyGridProperty style
+		mStyles[new String("PropertyGridProperty")] = .()
+		{
+			Background = Color(28, 32, 40, 255),  // Property row background
+			Foreground = mPalette.Text,
+			BorderColor = Color(35, 40, 48, 255),
+			BorderThickness = 1,
+			CornerRadius = 0,
+			Hover = .() { Background = Color(38, 42, 52, 255) }
+		};
 	}
 
 	public StringView Name => "Game";
@@ -518,4 +675,10 @@ public class GameTheme : ITheme
 	public float ComboBoxDropDownButtonWidth => 24;
 	public float ComboBoxDropDownMaxHeight => 240;
 	public float MessageBoxIconSize => 32;
+
+	// Docking system dimensions (slightly larger for game UI)
+	public float DockPanelTitleBarHeight => 28;
+	public float DockTabHeight => 28;
+	public float DockFontSize => 13;
+	public float DockTabPadding => 10;
 }

@@ -29,12 +29,10 @@ class DragDropDemo
 
 		// Instructions
 		let instructions = new TextBlock("Drag items from the left panel to the right panel or trash.");
-		instructions.Foreground = Color(150, 150, 150, 255);
 		mRoot.AddChild(instructions);
 
 		// Status label (create early so panels can reference it)
 		mStatusLabel = new TextBlock("Drag an item to begin...");
-		mStatusLabel.Foreground = Color(150, 150, 150, 255);
 
 		// Main content area with two panels
 		let contentRow = new StackPanel();
@@ -63,13 +61,11 @@ class DragDropDemo
 		let section = new StackPanel();
 		section.Orientation = .Vertical;
 		section.Spacing = 8;
-		section.Background = Color(40, 40, 40, 255);
 		section.Padding = .(15, 15, 15, 15);
 		section.Width = .Fixed(200);
 
 		let header = new TextBlock("Drag Source");
 		header.FontSize = 14;
-		header.Foreground = Color(180, 180, 180, 255);
 		section.AddChild(header);
 
 		// Add draggable items
@@ -115,9 +111,8 @@ class DraggableItem : Control, IDragSource
 	{
 		mText = new String(text);
 		mTextBlock = new TextBlock(text);
-		mTextBlock.Foreground = Color(220, 220, 220, 255);
 
-		Background = Color(60, 80, 100, 255);
+		Background = Color(60, 80, 100, 255);  // Keep distinct color for draggable items
 		Padding = .(12, 8, 12, 8);
 	}
 
@@ -230,12 +225,11 @@ class DropTargetPanel : Panel, IDropTarget
 
 	public this()
 	{
-		Background = Color(40, 50, 40, 255);
+		Background = Color(40, 70, 40, 255);  // Keep distinct color for drop target
 		Padding = .(15, 15, 15, 15);
 
 		let header = new TextBlock("Drop Here");
 		header.FontSize = 14;
-		header.Foreground = Color(150, 180, 150, 255);
 		AddChild(header);
 	}
 
@@ -278,7 +272,6 @@ class DropTargetPanel : Panel, IDropTarget
 				if (let draggable = element as DraggableItem)
 				{
 					let newItem = new TextBlock(scope $"Dropped: {draggable.[Friend]mText}");
-					newItem.Foreground = Color(200, 220, 200, 255);
 					newItem.Padding = .(8, 4, 8, 4);
 					AddChild(newItem);
 				}
@@ -323,12 +316,11 @@ class TrashDropZone : Control, IDropTarget
 
 	public this()
 	{
-		Background = Color(60, 40, 40, 255);
+		Background = Color(80, 40, 40, 255);  // Keep distinct color for trash zone
 		Padding = .(15, 15, 15, 15);
 
 		mLabel = new TextBlock("Trash");
 		mLabel.FontSize = 14;
-		mLabel.Foreground = Color(180, 150, 150, 255);
 		mLabel.HorizontalAlignment = .Center;
 		mLabel.VerticalAlignment = .Center;
 	}

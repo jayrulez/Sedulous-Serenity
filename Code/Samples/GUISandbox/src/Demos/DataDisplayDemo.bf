@@ -65,7 +65,6 @@ class DataDisplayDemo
 		let section = new StackPanel();
 		section.Orientation = .Vertical;
 		section.Spacing = 10;
-		section.Background = Color(40, 40, 40, 255);
 		section.Padding = .(15, 15, 15, 15);
 
 		let header = new TextBlock("DataGrid - Sortable, Resizable Columns");
@@ -151,7 +150,6 @@ class DataDisplayDemo
 
 		// Instructions
 		let instructions = new TextBlock("Click headers to sort | Drag header edges to resize | Ctrl+click for multi-select | Shift+click for range");
-		instructions.Foreground = Color(150, 150, 150, 255);
 		section.AddChild(instructions);
 
 		mRoot.AddChild(section);
@@ -176,7 +174,6 @@ class DataDisplayDemo
 		let section = new StackPanel();
 		section.Orientation = .Vertical;
 		section.Spacing = 10;
-		section.Background = Color(40, 40, 40, 255);
 		section.Padding = .(15, 15, 15, 15);
 
 		let header = new TextBlock("PropertyGrid - Object Property Editor");
@@ -237,7 +234,6 @@ class DataDisplayDemo
 
 		// Instructions
 		let instructions = new TextBlock("Click categories to expand/collapse | Click values to edit | Drag splitter to resize columns");
-		instructions.Foreground = Color(150, 150, 150, 255);
 		section.AddChild(instructions);
 
 		mRoot.AddChild(section);

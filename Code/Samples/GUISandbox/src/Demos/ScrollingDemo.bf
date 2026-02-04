@@ -47,8 +47,7 @@ class ScrollingDemo
 		let section = new StackPanel();
 		section.Orientation = .Vertical;
 		section.Spacing = 10;
-		section.Background = Color(40, 40, 40, 255);
-		section.Padding = .(15, 15, 15, 15);
+				section.Padding = .(15, 15, 15, 15);
 
 		let header = new TextBlock("Sliders");
 		header.FontSize = 16;
@@ -141,8 +140,7 @@ class ScrollingDemo
 		let section = new StackPanel();
 		section.Orientation = .Vertical;
 		section.Spacing = 10;
-		section.Background = Color(40, 40, 40, 255);
-		section.Padding = .(15, 15, 15, 15);
+				section.Padding = .(15, 15, 15, 15);
 
 		let header = new TextBlock("ScrollViewer");
 		header.FontSize = 16;
@@ -222,8 +220,7 @@ class ScrollingDemo
 		let section = new StackPanel();
 		section.Orientation = .Vertical;
 		section.Spacing = 10;
-		section.Background = Color(40, 40, 40, 255);
-		section.Padding = .(15, 15, 15, 15);
+				section.Padding = .(15, 15, 15, 15);
 
 		let header = new TextBlock("Splitter (drag the bar to resize)");
 		header.FontSize = 16;

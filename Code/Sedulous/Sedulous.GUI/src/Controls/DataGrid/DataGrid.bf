@@ -315,34 +315,42 @@ public class DataGrid : Control
 	public override void OnAttachedToContext(GUIContext context)
 	{
 		base.OnAttachedToContext(context);
-		ApplyThemeDefaults();
 		mVerticalScrollBar.OnAttachedToContext(context);
 		mHorizontalScrollBar.OnAttachedToContext(context);
 	}
 
-	/// Applies theme defaults for DataGrid styling.
-	private void ApplyThemeDefaults()
+	/// Gets current theme colors for rendering (called each frame to support theme changes).
+	private void GetThemeColors()
 	{
 		let theme = Context?.Theme;
 		let palette = theme?.Palette ?? Palette();
 
-		// Background colors from palette
-		let bgColor = palette.Background.A > 0 ? palette.Background : Color(30, 30, 30, 255);
-		let surfaceColor = palette.Surface.A > 0 ? palette.Surface : Color(45, 45, 45, 255);
-		let borderColor = palette.Border.A > 0 ? palette.Border : Color(60, 60, 60, 255);
+		// Get theme styles
+		let gridStyle = theme?.GetControlStyle("DataGrid") ?? ControlStyle();
+		let headerStyle = theme?.GetControlStyle("DataGridHeader") ?? ControlStyle();
+		let cellStyle = theme?.GetControlStyle("DataGridCell") ?? ControlStyle();
 
-		mBackgroundColor = bgColor;
-		mBorderColor = borderColor;
-		mHeaderBackgroundColor = Palette.Lighten(bgColor, 0.05f);
-		mHeaderBorderColor = borderColor;
-		mRowBackgroundColor = bgColor;
-		mRowAlternateColor = Palette.Lighten(bgColor, 0.03f);
-		mRowHoverColor = Palette.ComputeHover(surfaceColor);
-		mCellBorderColor = Palette.Lighten(bgColor, 0.08f);
-		mRowBorderColor = Palette.Lighten(bgColor, 0.06f);
+		// Fallback colors
+		let defaultBgColor = Color(30, 30, 30, 255);
+		let defaultBorderColor = Color(60, 60, 60, 255);
 
-		// Selection colors from theme
-		let selColor = theme?.SelectionColor ?? palette.Accent;
+		// Main grid colors from theme style
+		mBackgroundColor = gridStyle.Background.A > 0 ? gridStyle.Background : defaultBgColor;
+		mBorderColor = gridStyle.BorderColor.A > 0 ? gridStyle.BorderColor : defaultBorderColor;
+
+		// Header colors from theme style
+		mHeaderBackgroundColor = headerStyle.Background.A > 0 ? headerStyle.Background : Palette.Lighten(mBackgroundColor, 0.05f);
+		mHeaderBorderColor = headerStyle.BorderColor.A > 0 ? headerStyle.BorderColor : mBorderColor;
+
+		// Row colors from theme style
+		mRowBackgroundColor = cellStyle.Background.A > 0 ? cellStyle.Background : mBackgroundColor;
+		mRowAlternateColor = Palette.Lighten(mRowBackgroundColor, 0.03f);
+		mRowHoverColor = cellStyle.Hover.Background ?? Palette.ComputeHover(mRowBackgroundColor);
+		mCellBorderColor = cellStyle.BorderColor.A > 0 ? cellStyle.BorderColor : Palette.Lighten(mBackgroundColor, 0.08f);
+		mRowBorderColor = Palette.Lighten(mBackgroundColor, 0.06f);
+
+		// Selection colors from theme style (Pressed state) or theme
+		let selColor = cellStyle.Pressed.Background ?? theme?.SelectionColor ?? palette.Accent;
 		if (selColor.A > 0)
 		{
 			mSelectionColor = selColor;
@@ -437,6 +445,9 @@ public class DataGrid : Control
 
 	protected override void RenderOverride(DrawContext ctx)
 	{
+		// Get current theme colors
+		GetThemeColors();
+
 		let bounds = ArrangedBounds;
 
 		// Background

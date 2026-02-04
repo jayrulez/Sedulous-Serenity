@@ -87,7 +87,57 @@ public class LightTheme : ITheme
 		// Panel style
 		mStyles[new String("Panel")] = .()
 		{
-			Background = mPalette.Surface,
+			Background = Color.Transparent,
+			Foreground = mPalette.Text,
+			BorderColor = Color.Transparent,
+			BorderThickness = 0,
+			CornerRadius = 0
+		};
+
+		// StackPanel style (layout container - transparent)
+		mStyles[new String("StackPanel")] = .()
+		{
+			Background = Color.Transparent,
+			Foreground = mPalette.Text,
+			BorderColor = Color.Transparent,
+			BorderThickness = 0,
+			CornerRadius = 0
+		};
+
+		// DockPanel style (layout container - transparent)
+		mStyles[new String("DockPanel")] = .()
+		{
+			Background = Color.Transparent,
+			Foreground = mPalette.Text,
+			BorderColor = Color.Transparent,
+			BorderThickness = 0,
+			CornerRadius = 0
+		};
+
+		// Canvas style (layout container - transparent)
+		mStyles[new String("Canvas")] = .()
+		{
+			Background = Color.Transparent,
+			Foreground = mPalette.Text,
+			BorderColor = Color.Transparent,
+			BorderThickness = 0,
+			CornerRadius = 0
+		};
+
+		// WrapPanel style (layout container - transparent)
+		mStyles[new String("WrapPanel")] = .()
+		{
+			Background = Color.Transparent,
+			Foreground = mPalette.Text,
+			BorderColor = Color.Transparent,
+			BorderThickness = 0,
+			CornerRadius = 0
+		};
+
+		// Grid style (layout container - transparent)
+		mStyles[new String("Grid")] = .()
+		{
+			Background = Color.Transparent,
 			Foreground = mPalette.Text,
 			BorderColor = Color.Transparent,
 			BorderThickness = 0,
@@ -461,6 +511,113 @@ public class LightTheme : ITheme
 			Padding = .(4, 4, 4, 4),
 			Hover = .() { Background = itemHover }
 		};
+
+		// DockablePanel style
+		mStyles[new String("DockablePanel")] = .()
+		{
+			Background = Color(245, 245, 245, 255),  // Content background
+			Foreground = mPalette.Text,
+			BorderColor = mPalette.Border,
+			BorderThickness = 0,
+			CornerRadius = 0
+		};
+
+		// DockablePanelHeader style (title bar)
+		mStyles[new String("DockablePanelHeader")] = .()
+		{
+			Background = Color(230, 230, 230, 255),  // Title bar background
+			Foreground = Color(50, 50, 50, 255),  // Title text
+			BorderColor = Color(200, 200, 200, 255),  // Bottom border
+			BorderThickness = 1,
+			CornerRadius = 0
+		};
+
+		// DockTabGroup style
+		mStyles[new String("DockTabGroup")] = .()
+		{
+			Background = Color(240, 240, 240, 255),  // Tab strip background
+			Foreground = mPalette.TextSecondary,  // Empty text
+			BorderColor = Color(200, 200, 200, 255),  // Tab strip bottom border
+			BorderThickness = 1,
+			CornerRadius = 0
+		};
+
+		// DockTab style
+		mStyles[new String("DockTab")] = .()
+		{
+			Background = Color(235, 235, 235, 255),  // Normal tab
+			Foreground = Color(80, 80, 80, 255),  // Normal text
+			BorderColor = mPalette.Accent,  // Selected tab top border
+			BorderThickness = 2,
+			CornerRadius = 0,
+			Hover = .() { Background = Color(225, 225, 225, 255) },
+			Pressed = .() { Background = Color(255, 255, 255, 255), Foreground = Color(33, 33, 33, 255) }  // Selected state
+		};
+
+		// DataGrid style
+		mStyles[new String("DataGrid")] = .()
+		{
+			Background = Color(255, 255, 255, 255),  // White background
+			Foreground = mPalette.Text,
+			BorderColor = mPalette.Border,
+			BorderThickness = 1,
+			CornerRadius = 0
+		};
+
+		// DataGridHeader style
+		mStyles[new String("DataGridHeader")] = .()
+		{
+			Background = Color(245, 245, 245, 255),  // Light gray header
+			Foreground = mPalette.Text,
+			BorderColor = Color(220, 220, 220, 255),
+			BorderThickness = 1,
+			CornerRadius = 0,
+			Hover = .() { Background = Color(235, 235, 235, 255) }
+		};
+
+		// DataGridCell style (for rows)
+		mStyles[new String("DataGridCell")] = .()
+		{
+			Background = Color(255, 255, 255, 255),  // White row background
+			Foreground = mPalette.Text,
+			BorderColor = Color(235, 235, 235, 255),  // Light cell border
+			BorderThickness = 1,
+			CornerRadius = 0,
+			Hover = .() { Background = Color(245, 245, 245, 255) },
+			Pressed = .() { Background = Color(200, 220, 250, 255) }  // Light blue selection
+		};
+
+		// PropertyGrid style
+		mStyles[new String("PropertyGrid")] = .()
+		{
+			Background = Color(255, 255, 255, 255),
+			Foreground = mPalette.Text,
+			BorderColor = mPalette.Border,
+			BorderThickness = 1,
+			CornerRadius = 0
+		};
+
+		// PropertyGridCategory style
+		mStyles[new String("PropertyGridCategory")] = .()
+		{
+			Background = Color(240, 240, 240, 255),  // Light gray category header
+			Foreground = mPalette.Text,
+			BorderColor = Color(220, 220, 220, 255),
+			BorderThickness = 1,
+			CornerRadius = 0,
+			Hover = .() { Background = Color(230, 230, 230, 255) }
+		};
+
+		// PropertyGridProperty style
+		mStyles[new String("PropertyGridProperty")] = .()
+		{
+			Background = Color(252, 252, 252, 255),  // Near-white property row
+			Foreground = mPalette.Text,
+			BorderColor = Color(240, 240, 240, 255),
+			BorderThickness = 1,
+			CornerRadius = 0,
+			Hover = .() { Background = Color(245, 245, 245, 255) }
+		};
 	}
 
 	public StringView Name => "Light";
@@ -517,4 +674,10 @@ public class LightTheme : ITheme
 	public float ComboBoxDropDownButtonWidth => 20;
 	public float ComboBoxDropDownMaxHeight => 200;
 	public float MessageBoxIconSize => 24;
+
+	// Docking system dimensions
+	public float DockPanelTitleBarHeight => 24;
+	public float DockTabHeight => 24;
+	public float DockFontSize => 12;
+	public float DockTabPadding => 8;
 }
