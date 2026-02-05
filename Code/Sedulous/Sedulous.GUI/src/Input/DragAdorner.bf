@@ -90,6 +90,7 @@ public class DragAdorner
 		// Label text (if any)
 		if (Label != null && !Label.IsEmpty)
 		{
+			// todo
 			// Text would go here - for now just draw the effect icon
 		}
 	}
