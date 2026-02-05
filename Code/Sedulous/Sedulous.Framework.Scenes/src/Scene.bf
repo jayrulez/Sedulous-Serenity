@@ -3,11 +3,14 @@ namespace Sedulous.Framework.Scenes;
 using System;
 using System.Collections;
 using Sedulous.Mathematics;
+using Sedulous.Serialization;
 using Sedulous.Framework.Scenes.Internal;
+
+using static Sedulous.Mathematics.MathSerializerExtensions;
 
 /// A data-oriented scene containing entities, transforms, and components.
 /// The scene is the single source of truth and owns all entity data.
-public class Scene : IDisposable
+public class Scene : IDisposable, ISerializable
 {
 	// ========== Entity Storage ==========
 	private List<uint32> mGenerations = new .() ~ delete _;
@@ -18,6 +21,9 @@ public class Scene : IDisposable
 	// ========== Transform Storage ==========
 	private List<TransformData> mTransforms = new .() ~ delete _;
 	private Dictionary<uint32, List<EntityId>> mChildren = new .() ~ DeleteDictionaryAndValues!(_);
+
+	// ========== Entity Names ==========
+	private Dictionary<uint32, String> mEntityNames = new .() ~ DeleteDictionaryAndValues!(_);
 
 	// ========== Component Storage ==========
 	private Dictionary<Type, IComponentStorage> mComponentStorages = new .() ~ DeleteDictionaryAndValues!(_);
@@ -46,6 +52,138 @@ public class Scene : IDisposable
 	public this(StringView name)
 	{
 		mName = new String(name);
+	}
+
+	/// Parameterless constructor for deserialization.
+	public this()
+	{
+		mName = new String();
+	}
+
+	// ==================== Serialization ====================
+
+	public int32 SerializationVersion => 1;
+
+	public SerializationResult Serialize(Serializer s)
+	{
+		int32 sceneVersion = SerializationVersion;
+		s.Int32("sceneVersion", ref sceneVersion);
+
+		s.String("sceneName", mName);
+
+		// Entities + transforms + hierarchy
+		if (s.IsWriting)
+			SerializeEntitiesWrite(s);
+		else
+			SerializeEntitiesRead(s);
+
+		// Phase 3: components
+
+		return .Ok;
+	}
+
+	private void SerializeEntitiesWrite(Serializer s)
+	{
+		int32 entityCount = mActiveCount;
+		s.Int32("entityCount", ref entityCount);
+
+		// Build mapping from slot index to serialized index
+		let slotToSerializedIndex = scope Dictionary<uint32, int32>();
+		int32 serializedIndex = 0;
+		for (int i = 0; i < mEntityActive.Count; i++)
+		{
+			if (mEntityActive[i])
+			{
+				slotToSerializedIndex[(uint32)i] = serializedIndex;
+				serializedIndex++;
+			}
+		}
+
+		s.BeginObject("entities");
+		serializedIndex = 0;
+		for (int i = 0; i < mEntityActive.Count; i++)
+		{
+			if (!mEntityActive[i])
+				continue;
+
+			s.BeginObject(scope $"e{serializedIndex}");
+
+			// Name
+			let nameStr = scope String();
+			if (mEntityNames.TryGetValue((uint32)i, let name))
+				nameStr.Set(name);
+			s.String("name", nameStr);
+
+			// Transform
+			var position = mTransforms[i].Local.Position;
+			var rotation = mTransforms[i].Local.Rotation;
+			var scale = mTransforms[i].Local.Scale;
+			s.Vector3("position", ref position);
+			s.Quaternion("rotation", ref rotation);
+			s.Vector3("scale", ref scale);
+
+			// Parent reference
+			let parentId = mTransforms[i].Parent;
+			int32 parentIndex = -1;
+			if (parentId.IsValid && slotToSerializedIndex.TryGetValue(parentId.Index, let mappedIndex))
+				parentIndex = mappedIndex;
+			s.Int32("parent", ref parentIndex);
+
+			s.EndObject();
+			serializedIndex++;
+		}
+		s.EndObject();
+	}
+
+	private void SerializeEntitiesRead(Serializer s)
+	{
+		int32 entityCount = 0;
+		s.Int32("entityCount", ref entityCount);
+
+		let loadedEntities = scope List<EntityId>();
+		let parentIndices = scope List<int32>();
+
+		s.BeginObject("entities");
+		for (int32 i = 0; i < entityCount; i++)
+		{
+			s.BeginObject(scope $"e{i}");
+
+			// Name
+			let nameStr = scope String();
+			s.String("name", nameStr);
+
+			// Transform
+			var position = Vector3.Zero;
+			var rotation = Quaternion.Identity;
+			var scale = Vector3(1, 1, 1);
+			s.Vector3("position", ref position);
+			s.Quaternion("rotation", ref rotation);
+			s.Vector3("scale", ref scale);
+
+			// Parent reference
+			int32 parentIndex = -1;
+			s.Int32("parent", ref parentIndex);
+
+			s.EndObject();
+
+			// Create entity and apply data
+			let entity = CreateEntity();
+			SetTransform(entity, .(position, rotation, scale));
+			if (!nameStr.IsEmpty)
+				SetName(entity, nameStr);
+
+			loadedEntities.Add(entity);
+			parentIndices.Add(parentIndex);
+		}
+		s.EndObject();
+
+		// Second pass: resolve parent references
+		for (int i = 0; i < loadedEntities.Count; i++)
+		{
+			let parentIdx = parentIndices[i];
+			if (parentIdx >= 0 && parentIdx < loadedEntities.Count)
+				SetParent(loadedEntities[i], loadedEntities[parentIdx]);
+		}
 	}
 
 	/// Disposes the scene and all its resources.
@@ -162,6 +300,13 @@ public class Scene : IDisposable
 		if (parentId.IsValid && mChildren.TryGetValue(parentId.Index, let parentChildren))
 			parentChildren.Remove(entity);
 
+		// Remove name
+		if (mEntityNames.TryGetValue(entity.Index, let entityName))
+		{
+			delete entityName;
+			mEntityNames.Remove(entity.Index);
+		}
+
 		// Remove all components
 		for (let storage in mComponentStorages.Values)
 			storage.OnEntityDestroyed(entity);
@@ -171,6 +316,116 @@ public class Scene : IDisposable
 		mGenerations[index]++;
 		mFreeList.Add((int32)entity.Index);
 		mActiveCount--;
+	}
+
+	// ==================== Entity Names ====================
+
+	/// Sets the name of an entity. Pass empty string to remove the name.
+	public void SetName(EntityId entity, StringView name)
+	{
+		if (!IsValid(entity))
+			return;
+
+		if (name.IsEmpty)
+		{
+			if (mEntityNames.TryGetValue(entity.Index, let existing))
+			{
+				delete existing;
+				mEntityNames.Remove(entity.Index);
+			}
+			return;
+		}
+
+		if (mEntityNames.TryGetValue(entity.Index, let existing))
+		{
+			existing.Set(name);
+		}
+		else
+		{
+			mEntityNames[entity.Index] = new String(name);
+		}
+	}
+
+	/// Gets the name of an entity. Returns empty StringView if unnamed.
+	public StringView GetName(EntityId entity)
+	{
+		if (!IsValid(entity))
+			return default;
+		if (mEntityNames.TryGetValue(entity.Index, let name))
+			return name;
+		return default;
+	}
+
+	/// Finds the first entity with the given name.
+	public EntityId FindByName(StringView name)
+	{
+		for (let (index, entityName) in mEntityNames)
+		{
+			if (entityName == name && mEntityActive[(int)index])
+				return EntityId(index, mGenerations[(int)index]);
+		}
+		return .Invalid;
+	}
+
+	/// Finds all entities with the given name.
+	public void FindAllByName(StringView name, List<EntityId> results)
+	{
+		for (let (index, entityName) in mEntityNames)
+		{
+			if (entityName == name && mEntityActive[(int)index])
+				results.Add(EntityId(index, mGenerations[(int)index]));
+		}
+	}
+
+	/// Finds an entity by hierarchical path (e.g. "Parent/Child/Grandchild").
+	public EntityId FindByPath(StringView path)
+	{
+		EntityId current = .Invalid;
+
+		for (let segment in path.Split('/'))
+		{
+			if (segment.IsEmpty)
+				continue;
+
+			if (!current.IsValid)
+			{
+				// Search root entities (no parent)
+				bool found = false;
+				for (let (index, entityName) in mEntityNames)
+				{
+					if (entityName == segment && mEntityActive[(int)index] &&
+						!mTransforms[(int)index].Parent.IsValid)
+					{
+						current = EntityId(index, mGenerations[(int)index]);
+						found = true;
+						break;
+					}
+				}
+				if (!found)
+					return .Invalid;
+			}
+			else
+			{
+				// Search children of current entity
+				bool found = false;
+				if (mChildren.TryGetValue(current.Index, let children))
+				{
+					for (let childId in children)
+					{
+						if (IsValid(childId) && mEntityNames.TryGetValue(childId.Index, let childName) && childName == segment)
+						{
+							current = childId;
+							found = true;
+							break;
+						}
+					}
+				}
+				if (!found)
+					return .Invalid;
+			}
+		}
+
+		return current;
 	}
 
 	// ==================== Transform Management ====================

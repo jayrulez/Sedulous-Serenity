@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Diagnostics;
+using System.Reflection;
 using Sedulous.Serialization;
 
 namespace Sedulous.Resources;
@@ -12,6 +13,7 @@ abstract class Resource : IResource, ISerializable
 	private int32 mRefCount = 0;
 	private Guid mId;
 	private String mName = new .() ~ delete _;
+	private String mResourceType = new .() ~ delete _;
 
 	/// Gets or sets the unique identifier.
 	public Guid Id
@@ -27,12 +29,16 @@ abstract class Resource : IResource, ISerializable
 		set { mName.Set(value); }
 	}
 
+	/// Gets the resource file type identifier (fully qualified class name).
+	public StringView ResourceType => mResourceType;
+
 	/// Gets the current reference count.
 	public int RefCount => mRefCount;
 
 	public this()
 	{
 		mId = Guid.Create();
+		GetType().GetFullName(mResourceType);
 	}
 
 	public ~this()
@@ -81,7 +87,19 @@ abstract class Resource : IResource, ISerializable
 	/// Serializes the resource.
 	public virtual SerializationResult Serialize(Serializer s)
 	{
-		// Serialize base resource data
+		// Serialize resource type
+		if (s.IsWriting)
+		{
+			s.String("_type", mResourceType);
+		}
+		else
+		{
+			let fileType = scope String();
+			s.String("_type", fileType);
+			if (fileType != mResourceType)
+				return .InvalidData;
+		}
+
 		var version = SerializationVersion;
 		s.Version(ref version);
 
@@ -89,11 +107,11 @@ abstract class Resource : IResource, ISerializable
 		let guidStr = scope String();
 		if (s.IsWriting)
 			mId.ToString(guidStr);
-		s.String("id", guidStr);
+		s.String("_id", guidStr);
 		if (s.IsReading)
 			mId = Guid.Parse(guidStr).GetValueOrDefault();
 
-		s.String("name", mName);
+		s.String("_name", mName);
 
 		return OnSerialize(s);
 	}

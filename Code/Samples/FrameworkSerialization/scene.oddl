@@ -1,0 +1,48 @@
+string %_type {"Sedulous.Framework.Scenes.SceneResource"}
+int32 %_version {1}
+string %_id {"b5f0a4bf-e17c-42f8-9e8d-2fad2f69f6fb"}
+string %_name {"SerializationTest"}
+int32 %sceneVersion {1}
+string %sceneName {"SerializationTest"}
+int32 %entityCount {3}
+Obj_ %entities {
+	Obj_ %e0 {
+		string %name {"Root"}
+		float[3] %position {
+			{0, 0, 0}
+		}
+		float[4] %rotation {
+			{0, 0, 0, 1}
+		}
+		float[3] %scale {
+			{1, 1, 1}
+		}
+		int32 %parent {-1}
+	}
+	Obj_ %e1 {
+		string %name {"Child"}
+		float[3] %position {
+			{2, 1, 0}
+		}
+		float[4] %rotation {
+			{0, 0, 0, 1}
+		}
+		float[3] %scale {
+			{1, 1, 1}
+		}
+		int32 %parent {0}
+	}
+	Obj_ %e2 {
+		string %name {"OtherRoot"}
+		float[3] %position {
+			{-3, 0, 5}
+		}
+		float[4] %rotation {
+			{0, 0, 0, 1}
+		}
+		float[3] %scale {
+			{1, 1, 1}
+		}
+		int32 %parent {-1}
+	}
+}
