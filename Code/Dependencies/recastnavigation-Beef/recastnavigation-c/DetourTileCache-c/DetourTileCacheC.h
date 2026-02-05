@@ -198,6 +198,9 @@ DETOURTILECACHE_C_API void C_dtDestroyTileCacheCompressor(dtTileCacheCompressorH
 /* Default allocator (uses dtAlloc/dtFree) */
 DETOURTILECACHE_C_API dtTileCacheAllocHandle C_dtCreateDefaultTileCacheAlloc(void);
 
+/* Default passthrough compressor (no compression, for simple use cases) */
+DETOURTILECACHE_C_API dtTileCacheCompressorHandle C_dtCreateDefaultTileCacheCompressor(void);
+
 /* Tile cache layer building */
 DETOURTILECACHE_C_API C_dtStatus C_dtBuildTileCacheLayer(dtTileCacheCompressorHandle comp,
     C_dtTileCacheLayerHeader* header, const unsigned char* heights, const unsigned char* areas,

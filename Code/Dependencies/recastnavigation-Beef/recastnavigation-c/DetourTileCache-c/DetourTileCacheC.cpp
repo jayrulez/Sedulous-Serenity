@@ -56,6 +56,30 @@ public:
     }
 };
 
+/* Default passthrough compressor (no compression) */
+class dtTileCachePassthroughCompressor : public dtTileCacheCompressor {
+public:
+    virtual int maxCompressedSize(const int bufferSize) {
+        return bufferSize;
+    }
+
+    virtual dtStatus compress(const unsigned char* buffer, const int bufferSize,
+                             unsigned char* compressed, const int maxCompressedSize, int* compressedSize) {
+        if (bufferSize > maxCompressedSize) return DT_FAILURE;
+        memcpy(compressed, buffer, bufferSize);
+        *compressedSize = bufferSize;
+        return DT_SUCCESS;
+    }
+
+    virtual dtStatus decompress(const unsigned char* compressed, const int compressedSize,
+                               unsigned char* buffer, const int maxBufferSize, int* bufferSize) {
+        if (compressedSize > maxBufferSize) return DT_FAILURE;
+        memcpy(buffer, compressed, compressedSize);
+        *bufferSize = compressedSize;
+        return DT_SUCCESS;
+    }
+};
+
 extern "C" {
 
 /* Tile cache management */
@@ -227,6 +251,11 @@ DETOURTILECACHE_C_API void C_dtDestroyTileCacheCompressor(dtTileCacheCompressorH
 /* Default allocator */
 DETOURTILECACHE_C_API dtTileCacheAllocHandle C_dtCreateDefaultTileCacheAlloc(void) {
     return reinterpret_cast<dtTileCacheAllocHandle>(new dtTileCacheAlloc());
+}
+
+/* Default passthrough compressor */
+DETOURTILECACHE_C_API dtTileCacheCompressorHandle C_dtCreateDefaultTileCacheCompressor(void) {
+    return reinterpret_cast<dtTileCacheCompressorHandle>(new dtTileCachePassthroughCompressor());
 }
 
 /* Tile cache layer building */

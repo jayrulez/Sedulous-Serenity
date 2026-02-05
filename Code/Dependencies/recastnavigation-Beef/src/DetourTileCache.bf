@@ -225,6 +225,10 @@ static
 	[CLink]
 	public static extern dtTileCacheAllocHandle C_dtCreateDefaultTileCacheAlloc();
 
+	/* Default passthrough compressor */
+	[CLink]
+	public static extern dtTileCacheCompressorHandle C_dtCreateDefaultTileCacheCompressor();
+
 	/* Tile cache layer building */
 	[CLink]
 	public static extern dtStatus C_dtBuildTileCacheLayer(dtTileCacheCompressorHandle comp,
@@ -264,6 +268,7 @@ static
 	public static dtTileCacheCompressorHandle dtCreateTileCacheCompressor(dtTileCacheMaxCompressedSizeFunc maxSizeFunc, dtTileCacheCompressFunc compressFunc, dtTileCacheDecompressFunc decompressFunc) => C_dtCreateTileCacheCompressor(maxSizeFunc, compressFunc, decompressFunc);
 	public static void dtDestroyTileCacheCompressor(dtTileCacheCompressorHandle comp) => C_dtDestroyTileCacheCompressor(comp);
 	public static dtTileCacheAllocHandle dtCreateDefaultTileCacheAlloc() => C_dtCreateDefaultTileCacheAlloc();
+	public static dtTileCacheCompressorHandle dtCreateDefaultTileCacheCompressor() => C_dtCreateDefaultTileCacheCompressor();
 	public static dtStatus dtBuildTileCacheLayer(dtTileCacheCompressorHandle comp, dtTileCacheLayerHeader* header, uint8* heights, uint8* areas, uint8* cons, uint8** outData, int32* outDataSize) => C_dtBuildTileCacheLayer(comp, header, heights, areas, cons, outData, outDataSize);
 	public static int32 dtTileCacheHeaderSwapEndian(uint8* data, int32 dataSize) => C_dtTileCacheHeaderSwapEndian(data, dataSize);
 }
