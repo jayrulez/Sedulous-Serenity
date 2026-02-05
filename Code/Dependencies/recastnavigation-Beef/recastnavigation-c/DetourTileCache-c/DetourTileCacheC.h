@@ -126,7 +126,7 @@ typedef struct C_dtTileCacheObstacleInfo {
     C_dtObstacleOrientedBox orientedBox;
 } C_dtTileCacheObstacleInfo;
 
-/* Callback function types for custom allocator/compressor */
+/* Callback function types for custom allocator/compressor/mesh process */
 typedef void* (*C_dtTileCacheAllocFunc)(size_t size);
 typedef void (*C_dtTileCacheFreeFunc)(void* ptr);
 typedef int (*C_dtTileCacheMaxCompressedSizeFunc)(int bufferSize);
@@ -134,6 +134,7 @@ typedef C_dtStatus (*C_dtTileCacheCompressFunc)(const unsigned char* buffer, int
     unsigned char* compressed, int maxCompressedSize, int* compressedSize);
 typedef C_dtStatus (*C_dtTileCacheDecompressFunc)(const unsigned char* compressed, int compressedSize,
     unsigned char* buffer, int maxBufferSize, int* bufferSize);
+typedef void (*C_dtTileCacheMeshProcessFunc)(int polyCount, unsigned char* polyAreas, unsigned short* polyFlags);
 
 /* Tile cache management */
 DETOURTILECACHE_C_API dtTileCacheHandle C_dtAllocTileCache(void);
@@ -200,6 +201,14 @@ DETOURTILECACHE_C_API dtTileCacheAllocHandle C_dtCreateDefaultTileCacheAlloc(voi
 
 /* Default passthrough compressor (no compression, for simple use cases) */
 DETOURTILECACHE_C_API dtTileCacheCompressorHandle C_dtCreateDefaultTileCacheCompressor(void);
+
+/* Custom mesh process creation */
+DETOURTILECACHE_C_API dtTileCacheMeshProcessHandle C_dtCreateTileCacheMeshProcess(
+    C_dtTileCacheMeshProcessFunc processFunc);
+DETOURTILECACHE_C_API void C_dtDestroyTileCacheMeshProcess(dtTileCacheMeshProcessHandle proc);
+
+/* Default mesh process that sets all walkable polys to flag 1 */
+DETOURTILECACHE_C_API dtTileCacheMeshProcessHandle C_dtCreateDefaultTileCacheMeshProcess(void);
 
 /* Tile cache layer building */
 DETOURTILECACHE_C_API C_dtStatus C_dtBuildTileCacheLayer(dtTileCacheCompressorHandle comp,

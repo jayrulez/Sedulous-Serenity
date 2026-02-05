@@ -281,6 +281,20 @@ class NavigationDemo
 		return true;
 	}
 
+	/// Call this each frame to update dynamic path visualization.
+	public void Update()
+	{
+		// Update path visualization from first agent to target
+		if (mHasTarget && mDrawPaths && mAgentEntities.Count > 0)
+		{
+			float[3] agentPos;
+			if (mNavModule.GetAgentPosition(mAgentEntities[0], out agentPos))
+			{
+				mNavModule.FindPath(agentPos, mLastClickTarget, mPathWaypoints);
+			}
+		}
+	}
+
 	public void DrawDebug(DebugRenderFeature debug, RenderView view)
 	{
 		DrawAgents(debug);

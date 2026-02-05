@@ -130,6 +130,7 @@ function dtStatus dtTileCacheCompressFunc(uint8* buffer, int32 bufferSize,
 	uint8* compressed, int32 maxCompressedSize, int32* compressedSize);
 function dtStatus dtTileCacheDecompressFunc(uint8* compressed, int32 compressedSize,
 	uint8* buffer, int32 maxBufferSize, int32* bufferSize);
+function void dtTileCacheMeshProcessFunc(int32 polyCount, uint8* polyAreas, uint16* polyFlags);
 
 /* Functions */
 static
@@ -229,6 +230,17 @@ static
 	[CLink]
 	public static extern dtTileCacheCompressorHandle C_dtCreateDefaultTileCacheCompressor();
 
+	/* Custom mesh process creation */
+	[CLink]
+	public static extern dtTileCacheMeshProcessHandle C_dtCreateTileCacheMeshProcess(
+		dtTileCacheMeshProcessFunc processFunc);
+	[CLink]
+	public static extern void C_dtDestroyTileCacheMeshProcess(dtTileCacheMeshProcessHandle proc);
+
+	/* Default mesh process */
+	[CLink]
+	public static extern dtTileCacheMeshProcessHandle C_dtCreateDefaultTileCacheMeshProcess();
+
 	/* Tile cache layer building */
 	[CLink]
 	public static extern dtStatus C_dtBuildTileCacheLayer(dtTileCacheCompressorHandle comp,
@@ -269,6 +281,9 @@ static
 	public static void dtDestroyTileCacheCompressor(dtTileCacheCompressorHandle comp) => C_dtDestroyTileCacheCompressor(comp);
 	public static dtTileCacheAllocHandle dtCreateDefaultTileCacheAlloc() => C_dtCreateDefaultTileCacheAlloc();
 	public static dtTileCacheCompressorHandle dtCreateDefaultTileCacheCompressor() => C_dtCreateDefaultTileCacheCompressor();
+	public static dtTileCacheMeshProcessHandle dtCreateTileCacheMeshProcess(dtTileCacheMeshProcessFunc processFunc) => C_dtCreateTileCacheMeshProcess(processFunc);
+	public static void dtDestroyTileCacheMeshProcess(dtTileCacheMeshProcessHandle proc) => C_dtDestroyTileCacheMeshProcess(proc);
+	public static dtTileCacheMeshProcessHandle dtCreateDefaultTileCacheMeshProcess() => C_dtCreateDefaultTileCacheMeshProcess();
 	public static dtStatus dtBuildTileCacheLayer(dtTileCacheCompressorHandle comp, dtTileCacheLayerHeader* header, uint8* heights, uint8* areas, uint8* cons, uint8** outData, int32* outDataSize) => C_dtBuildTileCacheLayer(comp, header, heights, areas, cons, outData, outDataSize);
 	public static int32 dtTileCacheHeaderSwapEndian(uint8* data, int32 dataSize) => C_dtTileCacheHeaderSwapEndian(data, dataSize);
 }

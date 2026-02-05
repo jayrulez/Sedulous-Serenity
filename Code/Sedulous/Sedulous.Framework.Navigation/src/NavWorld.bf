@@ -74,6 +74,47 @@ class NavWorld
 		}
 	}
 
+	/// Sets the navigation mesh and TileCache together (for tiled builds with dynamic obstacle support).
+	public void SetNavMeshWithTileCache(NavMesh navMesh, TileCache tileCache)
+	{
+		// Clean up old state
+		if (mCrowd != null)
+		{
+			delete mCrowd;
+			mCrowd = null;
+		}
+		if (mQuery != null)
+		{
+			delete mQuery;
+			mQuery = null;
+		}
+		if (mTileCache != null)
+		{
+			delete mTileCache;
+			mTileCache = null;
+		}
+		if (mNavMesh != null)
+			delete mNavMesh;
+
+		mNavMesh = navMesh;
+		mTileCache = tileCache;
+
+		if (mNavMesh != null)
+		{
+			// Initialize query
+			mQuery = new NavMeshQuery();
+			mQuery.Init(mNavMesh);
+
+			// Initialize crowd
+			mCrowd = new CrowdManager();
+			mCrowd.Init(mNavMesh, mMaxAgents);
+		}
+
+		// Connect TileCache to NavMesh
+		if (mTileCache != null)
+			mTileCache.SetNavMesh(mNavMesh);
+	}
+
 	/// Adds a crowd agent at the given position.
 	/// Returns the agent index, or -1 on failure.
 	public int32 AddAgent(float[3] position, in CrowdAgentParams @params)
@@ -110,22 +151,8 @@ class NavWorld
 		return mCrowd.RequestMoveTarget(agentIndex, nearestRef, nearestPoint);
 	}
 
-	/// Initializes the TileCache for dynamic obstacle support.
-	/// Must be called after SetNavMesh with the same geometry and config used to build the navmesh.
-	public void InitTileCache(IInputGeometryProvider geometry, in NavMeshBuildConfig config, float[3] worldBMin, float[3] worldBMax)
-	{
-		if (mNavMesh == null)
-			return;
-
-		if (mTileCache != null)
-		{
-			delete mTileCache;
-			mTileCache = null;
-		}
-
-		mTileCache = new TileCache();
-		mTileCache.Init(mNavMesh, geometry, config, worldBMin, worldBMax);
-	}
+	/// Returns whether this NavWorld has TileCache support for dynamic obstacles.
+	public bool HasTileCacheSupport => mTileCache != null;
 
 	/// Adds a cylindrical obstacle at the given position.
 	/// Returns the obstacle ID, or -1 on failure.

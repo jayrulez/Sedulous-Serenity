@@ -370,6 +370,7 @@ class FrameworkNavigationApp : Application
 		}
 
 		UpdateCamera();
+		mNavDemo?.Update();
 	}
 
 	private void UpdateCamera()

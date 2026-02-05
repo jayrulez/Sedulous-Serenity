@@ -16,9 +16,6 @@ class NavigationSceneModule : SceneModule
 	private NavWorld mNavWorld;
 	private Scene mScene;
 
-	// Persistent geometry for TileCache (dynamic obstacle support)
-	private InputGeometry mTileCacheGeometry ~ delete _;
-
 	// Debug drawing
 	private bool mDebugDrawEnabled = false;
 	private duDebugDrawHandle mDebugDraw;
@@ -130,8 +127,43 @@ class NavigationSceneModule : SceneModule
 	// ==================== High-Level Operations ====================
 
 	/// Builds a navigation mesh from the provided geometry and applies it to this scene's NavWorld.
+	/// Uses tiled building with TileCache for dynamic obstacle support.
 	/// Returns true if the navmesh was built and set successfully.
 	public bool BuildNavMesh(IInputGeometryProvider geometry, in NavMeshBuildConfig config)
+	{
+		if (mNavWorld == null)
+			return false;
+
+		// Use tiled builder for dynamic obstacle support
+		var tiledConfig = config;
+		if (tiledConfig.TileSize <= 0)
+			tiledConfig.TileSize = 48; // Default tile size
+
+		let result = NavMeshBuilder.BuildTiled(geometry, tiledConfig);
+		defer delete result;
+
+		if (!result.Success || result.NavMesh == null)
+		{
+			if (result.ErrorMessage != null)
+				Console.WriteLine(scope $"NavMesh build failed: {result.ErrorMessage}");
+			else
+				Console.WriteLine("NavMesh build failed: unknown error");
+			return false;
+		}
+
+		Console.WriteLine(scope $"NavMesh built: {result.Stats.PolyCount} polys, {result.Stats.TileCount} tiles");
+
+		// Transfer ownership to NavWorld (with TileCache for dynamic obstacles)
+		mNavWorld.SetNavMeshWithTileCache(result.NavMesh, result.TileCache);
+		result.NavMesh = null;
+		result.TileCache = null;
+
+		return true;
+	}
+
+	/// Builds a simple single-tile navigation mesh (no dynamic obstacle support).
+	/// Use BuildNavMesh for dynamic obstacle support.
+	public bool BuildNavMeshSimple(IInputGeometryProvider geometry, in NavMeshBuildConfig config)
 	{
 		if (mNavWorld == null)
 			return false;
@@ -153,18 +185,6 @@ class NavigationSceneModule : SceneModule
 
 		// Transfer ownership to NavWorld
 		result.NavMesh = null;
-
-		// Initialize TileCache for dynamic obstacle support
-		if (mTileCacheGeometry != null)
-			delete mTileCacheGeometry;
-		mTileCacheGeometry = new InputGeometry(
-			Span<float>(geometry.Vertices, geometry.VertexCount * 3),
-			Span<int32>(geometry.Triangles, geometry.TriangleCount * 3));
-
-		let bounds = geometry.Bounds;
-		float[3] bmin = .(bounds.Min.X, bounds.Min.Y, bounds.Min.Z);
-		float[3] bmax = .(bounds.Max.X, bounds.Max.Y, bounds.Max.Z);
-		mNavWorld.InitTileCache(mTileCacheGeometry, config, bmin, bmax);
 
 		return true;
 	}

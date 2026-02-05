@@ -8,7 +8,8 @@ class TileCache
 {
 	private dtTileCacheHandle mHandle;
 	private dtTileCacheAllocHandle mAlloc;
-	private dtTileCacheCompressorHandle mCompressor;
+	private TileCacheCompressor mCompressor ~ delete _;
+	private TileCacheMeshProcess mMeshProcess ~ delete _;
 	private bool mOwnsHandle;
 	private NavMesh mNavMesh;
 
@@ -17,6 +18,8 @@ class TileCache
 	{
 		mHandle = dtAllocTileCache();
 		mAlloc = dtCreateDefaultTileCacheAlloc();
+		mCompressor = new TileCacheCompressor();
+		mMeshProcess = new TileCacheMeshProcess();
 		mOwnsHandle = true;
 	}
 
@@ -41,18 +44,40 @@ class TileCache
 				dtDestroyTileCacheAlloc(mAlloc);
 				mAlloc = null;
 			}
-			if (mCompressor != null)
-			{
-				dtDestroyTileCacheCompressor(mCompressor);
-				mCompressor = null;
-			}
 		}
 	}
 
 	/// Gets the underlying handle.
 	public dtTileCacheHandle Handle => mHandle;
 
-	/// Initializes the tile cache.
+	/// Gets the compressor handle.
+	public dtTileCacheCompressorHandle CompressorHandle => mCompressor?.Handle;
+
+	/// Gets the mesh process handle.
+	public dtTileCacheMeshProcessHandle MeshProcessHandle => mMeshProcess?.Handle;
+
+	/// Gets the allocator handle.
+	public dtTileCacheAllocHandle AllocHandle => mAlloc;
+
+	/// Sets the navmesh reference (for Update calls).
+	public void SetNavMesh(NavMesh navMesh)
+	{
+		mNavMesh = navMesh;
+	}
+
+	/// Initializes the tile cache with explicit parameters.
+	public NavStatus Init(dtTileCacheParams* tcParams)
+	{
+		if (mHandle == null)
+			return .Failure;
+
+		let compHandle = mCompressor != null ? mCompressor.Handle : null;
+		let procHandle = mMeshProcess != null ? mMeshProcess.Handle : null;
+		let status = dtTileCacheInit(mHandle, tcParams, mAlloc, compHandle, procHandle);
+		return StatusHelper.FromDtStatus(status);
+	}
+
+	/// Initializes the tile cache from config.
 	public NavStatus Init(NavMesh navMesh, IInputGeometryProvider geometry, in NavMeshBuildConfig config,
 		float[3] worldBMin, float[3] worldBMax)
 	{
@@ -75,7 +100,40 @@ class TileCache
 		tcParams.maxTiles = 1024;
 		tcParams.maxObstacles = 128;
 
-		let status = dtTileCacheInit(mHandle, &tcParams, mAlloc, mCompressor, null);
+		let compHandle = mCompressor != null ? mCompressor.Handle : null;
+		let procHandle = mMeshProcess != null ? mMeshProcess.Handle : null;
+		let status = dtTileCacheInit(mHandle, &tcParams, mAlloc, compHandle, procHandle);
+		return StatusHelper.FromDtStatus(status);
+	}
+
+	/// Adds a compressed tile to the cache.
+	public NavStatus AddTile(uint8* data, int32 dataSize, uint8 flags, out dtCompressedTileRef result)
+	{
+		result = 0;
+		if (mHandle == null)
+			return .Failure;
+
+		let status = dtTileCacheAddTile(mHandle, data, dataSize, flags, &result);
+		return StatusHelper.FromDtStatus(status);
+	}
+
+	/// Builds navmesh tiles at the specified grid location.
+	public NavStatus BuildNavMeshTilesAt(int32 tx, int32 ty, NavMesh navMesh)
+	{
+		if (mHandle == null || navMesh == null)
+			return .Failure;
+
+		let status = dtTileCacheBuildNavMeshTilesAt(mHandle, tx, ty, navMesh.Handle);
+		return StatusHelper.FromDtStatus(status);
+	}
+
+	/// Builds a specific navmesh tile from a compressed tile reference.
+	public NavStatus BuildNavMeshTile(dtCompressedTileRef @ref, NavMesh navMesh)
+	{
+		if (mHandle == null || navMesh == null)
+			return .Failure;
+
+		let status = dtTileCacheBuildNavMeshTile(mHandle, @ref, navMesh.Handle);
 		return StatusHelper.FromDtStatus(status);
 	}
 

@@ -6,6 +6,7 @@
 #include "DetourTileCache.h"
 #include "DetourTileCacheBuilder.h"
 #include "DetourNavMesh.h"
+#include "DetourNavMeshBuilder.h"
 #include "DetourAlloc.h"
 #include <string.h>
 
@@ -77,6 +78,34 @@ public:
         memcpy(buffer, compressed, compressedSize);
         *bufferSize = compressedSize;
         return DT_SUCCESS;
+    }
+};
+
+/* Custom mesh process wrapper */
+class dtTileCacheMeshProcessC : public dtTileCacheMeshProcess {
+    C_dtTileCacheMeshProcessFunc m_processFunc;
+public:
+    dtTileCacheMeshProcessC(C_dtTileCacheMeshProcessFunc processFunc)
+        : m_processFunc(processFunc) {}
+
+    virtual void process(dtNavMeshCreateParams* params, unsigned char* polyAreas, unsigned short* polyFlags) {
+        if (m_processFunc) {
+            m_processFunc(params->polyCount, polyAreas, polyFlags);
+        }
+    }
+};
+
+/* Default mesh process that sets walkable polys to flag 1 */
+class dtTileCacheDefaultMeshProcess : public dtTileCacheMeshProcess {
+public:
+    virtual void process(dtNavMeshCreateParams* params, unsigned char* polyAreas, unsigned short* polyFlags) {
+        // Set all polygons to walkable (flag 1)
+        for (int i = 0; i < params->polyCount; ++i) {
+            // Keep area as-is, but set flag to 1 for walkable
+            if (polyAreas[i] != DT_TILECACHE_NULL_AREA) {
+                polyFlags[i] = 1; // Walkable flag
+            }
+        }
     }
 };
 
@@ -256,6 +285,21 @@ DETOURTILECACHE_C_API dtTileCacheAllocHandle C_dtCreateDefaultTileCacheAlloc(voi
 /* Default passthrough compressor */
 DETOURTILECACHE_C_API dtTileCacheCompressorHandle C_dtCreateDefaultTileCacheCompressor(void) {
     return reinterpret_cast<dtTileCacheCompressorHandle>(new dtTileCachePassthroughCompressor());
+}
+
+/* Custom mesh process creation */
+DETOURTILECACHE_C_API dtTileCacheMeshProcessHandle C_dtCreateTileCacheMeshProcess(
+    C_dtTileCacheMeshProcessFunc processFunc) {
+    return reinterpret_cast<dtTileCacheMeshProcessHandle>(new dtTileCacheMeshProcessC(processFunc));
+}
+
+DETOURTILECACHE_C_API void C_dtDestroyTileCacheMeshProcess(dtTileCacheMeshProcessHandle proc) {
+    delete reinterpret_cast<dtTileCacheMeshProcessC*>(proc);
+}
+
+/* Default mesh process */
+DETOURTILECACHE_C_API dtTileCacheMeshProcessHandle C_dtCreateDefaultTileCacheMeshProcess(void) {
+    return reinterpret_cast<dtTileCacheMeshProcessHandle>(new dtTileCacheDefaultMeshProcess());
 }
 
 /* Tile cache layer building */
