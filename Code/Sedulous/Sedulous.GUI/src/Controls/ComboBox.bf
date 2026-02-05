@@ -14,6 +14,7 @@ public class ComboBox : Control, IPopupOwner
 
 	// Dropdown
 	private bool mIsDropDownOpen = false;
+	private bool mIsSyncingSelection = false;  // Suppresses close during OpenDropDown selection sync
 	private ListBox mDropDownList;  // Owned by mDropDownContainer as its Child
 	private float mDropDownMaxHeight = 200;
 	private Border mDropDownContainer ~ delete _;
@@ -218,10 +219,13 @@ public class ComboBox : Control, IPopupOwner
 		if (mIsDropDownOpen || Context == null)
 			return;
 
-		mIsDropDownOpen = true;
-
-		// Sync selection to list
+		// Sync selection to list (suppress close during sync)
+		mIsSyncingSelection = true;
 		mDropDownList.SelectedIndex = mSelectedIndex;
+		mIsSyncingSelection = false;
+
+		// Set open flag after sync so CloseDropDown() is also guarded by ordering
+		mIsDropDownOpen = true;
 
 		// Show popup anchored to this control
 		Context.PopupLayer.ShowPopup(mDropDownContainer, this, ArrangedBounds, true);
@@ -310,8 +314,9 @@ public class ComboBox : Control, IPopupOwner
 			mSelectionChanged.[Friend]Invoke(this);
 		}
 
-		// Close dropdown after selection
-		CloseDropDown();
+		// Close dropdown after selection (but not during initial sync in OpenDropDown)
+		if (!mIsSyncingSelection)
+			CloseDropDown();
 	}
 
 	// === Context ===
