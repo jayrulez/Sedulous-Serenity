@@ -10,108 +10,7 @@ using Sedulous.Render;
 using Sedulous.Resources;
 using Sedulous.RHI;
 using Sedulous.Materials;
-
-/// Component for entities with a static mesh.
-/// Set the Mesh field and the framework handles GPU upload automatically.
-/// Note: ResourceHandle uses manual ref counting. Call AddRef() when copying,
-/// Release() when removing/replacing.
-struct MeshRendererComponent
-{
-	/// The mesh resource handle. Set this to change the mesh.
-	/// Create with ResourceHandle<StaticMeshResource>(resource) which calls AddRef().
-	/// Call Release() when removing or replacing the mesh.
-	public ResourceHandle<StaticMeshResource> Mesh;
-	/// The material to use for rendering. Can be set before or after the mesh.
-	public MaterialInstance Material;
-	/// Whether this renderer is enabled.
-	public bool Enabled;
-
-	public static MeshRendererComponent Default => .() {
-		Mesh = default,
-		Material = null,
-		Enabled = true
-	};
-}
-
-/// Component for entities with a skinned mesh.
-/// Set the Mesh field and the framework handles GPU upload automatically.
-/// Note: ResourceHandle uses manual ref counting. Call AddRef() when copying,
-/// Release() when removing/replacing.
-struct SkinnedMeshRendererComponent
-{
-	/// The skinned mesh resource handle. Set this to change the mesh.
-	/// Create with ResourceHandle<SkinnedMeshResource>(resource) which calls AddRef().
-	/// Call Release() when removing or replacing the mesh.
-	public ResourceHandle<SkinnedMeshResource> Mesh;
-	/// The material to use for rendering. Can be set before or after the mesh.
-	public MaterialInstance Material;
-	/// Whether this renderer is enabled.
-	public bool Enabled;
-
-	public static SkinnedMeshRendererComponent Default => .() {
-		Mesh = default,
-		Material = null,
-		Enabled = true
-	};
-}
-
-/// Component for camera entities.
-struct CameraComponent
-{
-	/// Whether this camera is active.
-	public bool Active;
-	/// Whether this is the main camera.
-	public bool IsMainCamera;
-
-	public static CameraComponent Default => .() {
-		Active = true,
-		IsMainCamera = false
-	};
-}
-
-/// Component for light entities.
-struct LightComponent
-{
-	/// Whether this light is enabled.
-	public bool Enabled;
-
-	public static LightComponent Default => .() {
-		Enabled = true
-	};
-}
-
-/// Component for particle emitter entities.
-struct ParticleEmitterComponent
-{
-	/// Whether this emitter is enabled.
-	public bool Enabled;
-
-	public static ParticleEmitterComponent Default => .() {
-		Enabled = true
-	};
-}
-
-/// Component for sprite entities.
-struct SpriteComponent
-{
-	/// Whether this sprite is enabled.
-	public bool Enabled;
-
-	public static SpriteComponent Default => .() {
-		Enabled = true
-	};
-}
-
-/// Component for trail emitter entities.
-struct TrailEmitterComponent
-{
-	/// Whether this trail emitter is enabled.
-	public bool Enabled;
-
-	public static TrailEmitterComponent Default => .() {
-		Enabled = true
-	};
-}
+using Sedulous.Serialization;
 
 /// Scene module that manages render proxies and syncs entity transforms to the render world.
 /// Created automatically by RenderSubsystem for each scene.
@@ -160,6 +59,13 @@ class RenderSceneModule : SceneModule
 	public override void OnSceneCreate(Scene scene)
 	{
 		mScene = scene;
+		scene.RegisterComponentSerializer<MeshRendererComponent>();
+		scene.RegisterComponentSerializer<SkinnedMeshRendererComponent>();
+		scene.RegisterComponentSerializer<CameraComponent>();
+		scene.RegisterComponentSerializer<LightComponent>();
+		scene.RegisterComponentSerializer<ParticleEmitterComponent>();
+		scene.RegisterComponentSerializer<SpriteComponent>();
+		scene.RegisterComponentSerializer<TrailEmitterComponent>();
 	}
 
 	public override void OnSceneDestroy(Scene scene)
@@ -380,7 +286,7 @@ class RenderSceneModule : SceneModule
 			}
 		}
 
-		// Sync camera transforms
+		// Sync cameras (auto-create proxy from component data if missing)
 		for (let (entity, camera) in scene.Query<CameraComponent>())
 		{
 			if (!camera.Active)
@@ -391,7 +297,26 @@ class RenderSceneModule : SceneModule
 				proxyHandle = existingProxy;
 
 			if (!proxyHandle.IsValid)
-				continue;
+			{
+				// Auto-create proxy from component data (e.g., loaded from file)
+				let wm = scene.GetWorldMatrix(entity);
+				let pos = wm.Translation;
+				let fwd = Vector3.Normalize(.(wm.M31, wm.M32, wm.M33));
+				let up = Vector3.Normalize(.(wm.M21, wm.M22, wm.M23));
+				let target = pos + fwd;
+
+				switch (camera.Projection)
+				{
+				case .Perspective:
+					proxyHandle = mWorld.CreatePerspectiveCamera(pos, target, up, camera.FieldOfView, camera.AspectRatio, camera.NearPlane, camera.FarPlane);
+				case .Orthographic:
+					proxyHandle = mWorld.CreateOrthographicCamera(pos, target, up, camera.OrthoWidth, camera.OrthoHeight, camera.NearPlane, camera.FarPlane);
+				}
+				mCameraProxies[entity] = proxyHandle;
+
+				if (camera.IsMainCamera)
+					mWorld.SetMainCamera(proxyHandle);
+			}
 
 			let worldMatrix = scene.GetWorldMatrix(entity);
 			if (let proxy = mWorld.GetCamera(proxyHandle))
@@ -404,7 +329,7 @@ class RenderSceneModule : SceneModule
 			}
 		}
 
-		// Sync light transforms
+		// Sync lights (auto-create proxy from component data if missing)
 		for (let (entity, light) in scene.Query<LightComponent>())
 		{
 			if (!light.Enabled)
@@ -415,18 +340,45 @@ class RenderSceneModule : SceneModule
 				proxyHandle = existingProxy;
 
 			if (!proxyHandle.IsValid)
-				continue;
+			{
+				// Auto-create proxy from component data (e.g., loaded from file)
+				let wm = scene.GetWorldMatrix(entity);
+				let pos = wm.Translation;
+				let dir = Vector3.Normalize(.(wm.M31, wm.M32, wm.M33));
 
+				switch (light.Type)
+				{
+				case .Directional:
+					proxyHandle = mWorld.CreateDirectionalLight(dir, light.Color, light.Intensity);
+				case .Point:
+					proxyHandle = mWorld.CreatePointLight(pos, light.Color, light.Intensity, light.Range);
+				case .Spot:
+					proxyHandle = mWorld.CreateSpotLight(pos, dir, light.Color, light.Intensity, light.Range, light.InnerConeAngle, light.OuterConeAngle);
+				default:
+					continue;
+				}
+				mLightProxies[entity] = proxyHandle;
+			}
+
+			// Sync all properties from component to proxy
 			let worldMatrix = scene.GetWorldMatrix(entity);
 			if (let proxy = mWorld.GetLight(proxyHandle))
 			{
 				proxy.Position = worldMatrix.Translation;
-				// Extract forward direction for directional/spot lights
 				proxy.Direction = Vector3.Normalize(.(worldMatrix.M31, worldMatrix.M32, worldMatrix.M33));
+				proxy.Color = light.Color;
+				proxy.Intensity = light.Intensity;
+				proxy.Range = light.Range;
+				proxy.InnerConeAngle = light.InnerConeAngle;
+				proxy.OuterConeAngle = light.OuterConeAngle;
+				proxy.CastsShadows = light.CastsShadows;
+				proxy.ShadowBias = light.ShadowBias;
+				proxy.ShadowNormalBias = light.ShadowNormalBias;
+				proxy.LayerMask = light.LayerMask;
 			}
 		}
 
-		// Sync particle emitter transforms
+		// Sync particle emitters (auto-create proxy from component data if missing)
 		for (let (entity, emitter) in scene.Query<ParticleEmitterComponent>())
 		{
 			if (!emitter.Enabled)
@@ -437,13 +389,59 @@ class RenderSceneModule : SceneModule
 				proxyHandle = existingProxy;
 
 			if (!proxyHandle.IsValid)
-				continue;
+			{
+				proxyHandle = mWorld.CreateParticleEmitter();
+				mParticleEmitterProxies[entity] = proxyHandle;
+
+				// Create CPU emitter if needed
+				if (emitter.Backend == .CPU)
+				{
+					let device = mSubsystem.RenderSystem?.Device;
+					if (device != null)
+					{
+						if (let proxy = mWorld.GetParticleEmitter(proxyHandle))
+							proxy.CPUEmitter = new CPUParticleEmitter(device, (int32)emitter.MaxParticles);
+					}
+				}
+			}
 
 			let worldMatrix = scene.GetWorldMatrix(entity);
-			mWorld.SetParticleEmitterPosition(proxyHandle, worldMatrix.Translation);
+			if (let proxy = mWorld.GetParticleEmitter(proxyHandle))
+			{
+				proxy.Position = worldMatrix.Translation;
+				proxy.Backend = emitter.Backend;
+				proxy.SimulationSpace = emitter.SimulationSpace;
+				proxy.BlendMode = emitter.BlendMode;
+				proxy.RenderMode = emitter.RenderMode;
+				proxy.MaxParticles = emitter.MaxParticles;
+				proxy.SpawnRate = emitter.SpawnRate;
+				proxy.ParticleLifetime = emitter.ParticleLifetime;
+				proxy.BurstCount = emitter.BurstCount;
+				proxy.BurstInterval = emitter.BurstInterval;
+				proxy.BurstCycles = emitter.BurstCycles;
+				proxy.StartSize = emitter.StartSize;
+				proxy.EndSize = emitter.EndSize;
+				proxy.StartColor = emitter.StartColor;
+				proxy.EndColor = emitter.EndColor;
+				proxy.InitialVelocity = emitter.InitialVelocity;
+				proxy.VelocityRandomness = emitter.VelocityRandomness;
+				proxy.GravityMultiplier = emitter.GravityMultiplier;
+				proxy.Drag = emitter.Drag;
+				proxy.VelocityInheritance = emitter.VelocityInheritance;
+				proxy.SoftParticleDistance = emitter.SoftParticleDistance;
+				proxy.StretchFactor = emitter.StretchFactor;
+				proxy.SortParticles = emitter.SortParticles;
+				proxy.Lit = emitter.Lit;
+				proxy.AtlasColumns = emitter.AtlasColumns;
+				proxy.AtlasRows = emitter.AtlasRows;
+				proxy.AtlasFPS = emitter.AtlasFPS;
+				proxy.AtlasLoop = emitter.AtlasLoop;
+				proxy.LayerMask = emitter.LayerMask;
+				proxy.IsEnabled = true;
+			}
 		}
 
-		// Sync sprite transforms
+		// Sync sprites (auto-create proxy from component data if missing)
 		for (let (entity, sprite) in scene.Query<SpriteComponent>())
 		{
 			if (!sprite.Enabled)
@@ -454,10 +452,59 @@ class RenderSceneModule : SceneModule
 				proxyHandle = existingProxy;
 
 			if (!proxyHandle.IsValid)
-				continue;
+			{
+				proxyHandle = mWorld.CreateSprite();
+				mSpriteProxies[entity] = proxyHandle;
+			}
 
 			let worldMatrix = scene.GetWorldMatrix(entity);
-			mWorld.SetSpritePosition(proxyHandle, worldMatrix.Translation);
+			if (let proxy = mWorld.GetSprite(proxyHandle))
+			{
+				proxy.Position = worldMatrix.Translation;
+				proxy.Size = sprite.Size;
+				proxy.Color = .(sprite.Color.X, sprite.Color.Y, sprite.Color.Z, sprite.Color.W);
+				proxy.UVRect = sprite.UVRect;
+				proxy.LayerMask = sprite.LayerMask;
+			}
+		}
+
+		// Sync trail emitters (auto-create proxy from component data if missing)
+		for (let (entity, trail) in scene.Query<TrailEmitterComponent>())
+		{
+			if (!trail.Enabled)
+				continue;
+
+			TrailEmitterProxyHandle proxyHandle = .Invalid;
+			if (mTrailEmitterProxies.TryGetValue(entity, var existingProxy))
+				proxyHandle = existingProxy;
+
+			if (!proxyHandle.IsValid)
+			{
+				proxyHandle = mWorld.CreateTrailEmitter();
+				mTrailEmitterProxies[entity] = proxyHandle;
+
+				// Create trail emitter object
+				let device = mSubsystem.RenderSystem?.Device;
+				if (device != null)
+				{
+					if (let proxy = mWorld.GetTrailEmitter(proxyHandle))
+						proxy.Emitter = new TrailEmitter(device, trail.MaxPoints);
+				}
+			}
+
+			if (let proxy = mWorld.GetTrailEmitter(proxyHandle))
+			{
+				proxy.BlendMode = trail.BlendMode;
+				proxy.MaxPoints = trail.MaxPoints;
+				proxy.Lifetime = trail.Lifetime;
+				proxy.WidthStart = trail.WidthStart;
+				proxy.WidthEnd = trail.WidthEnd;
+				proxy.MinVertexDistance = trail.MinVertexDistance;
+				proxy.Color = trail.Color;
+				proxy.SoftParticleDistance = trail.SoftParticleDistance;
+				proxy.LayerMask = trail.LayerMask;
+				proxy.IsEnabled = true;
+			}
 		}
 	}
 
@@ -672,13 +719,18 @@ class RenderSceneModule : SceneModule
 		// Store in internal tracking
 		mCameraProxies[entity] = handle;
 
-		// Ensure component exists
+		// Ensure component exists and populate all fields
 		var comp = mScene.GetComponent<CameraComponent>(entity);
 		if (comp == null)
 		{
 			mScene.SetComponent<CameraComponent>(entity, .Default);
 			comp = mScene.GetComponent<CameraComponent>(entity);
 		}
+		comp.Projection = .Perspective;
+		comp.FieldOfView = fov;
+		comp.AspectRatio = aspectRatio;
+		comp.NearPlane = nearPlane;
+		comp.FarPlane = farPlane;
 		comp.Active = true;
 
 		return handle;
@@ -701,13 +753,19 @@ class RenderSceneModule : SceneModule
 		// Store in internal tracking
 		mCameraProxies[entity] = handle;
 
-		// Ensure component exists
+		// Ensure component exists and populate all fields
 		var comp = mScene.GetComponent<CameraComponent>(entity);
 		if (comp == null)
 		{
 			mScene.SetComponent<CameraComponent>(entity, .Default);
 			comp = mScene.GetComponent<CameraComponent>(entity);
 		}
+		comp.Projection = .Orthographic;
+		comp.OrthoWidth = width;
+		comp.OrthoHeight = height;
+		comp.AspectRatio = width / height;
+		comp.NearPlane = nearPlane;
+		comp.FarPlane = farPlane;
 		comp.Active = true;
 
 		return handle;
@@ -765,13 +823,16 @@ class RenderSceneModule : SceneModule
 		// Store in internal tracking
 		mLightProxies[entity] = handle;
 
-		// Ensure component exists
+		// Ensure component exists and populate all fields
 		var comp = mScene.GetComponent<LightComponent>(entity);
 		if (comp == null)
 		{
 			mScene.SetComponent<LightComponent>(entity, .Default);
 			comp = mScene.GetComponent<LightComponent>(entity);
 		}
+		comp.Type = .Directional;
+		comp.Color = color;
+		comp.Intensity = intensity;
 		comp.Enabled = true;
 
 		return handle;
@@ -791,13 +852,17 @@ class RenderSceneModule : SceneModule
 		// Store in internal tracking
 		mLightProxies[entity] = handle;
 
-		// Ensure component exists
+		// Ensure component exists and populate all fields
 		var comp = mScene.GetComponent<LightComponent>(entity);
 		if (comp == null)
 		{
 			mScene.SetComponent<LightComponent>(entity, .Default);
 			comp = mScene.GetComponent<LightComponent>(entity);
 		}
+		comp.Type = .Point;
+		comp.Color = color;
+		comp.Intensity = intensity;
+		comp.Range = range;
 		comp.Enabled = true;
 
 		return handle;
@@ -818,13 +883,19 @@ class RenderSceneModule : SceneModule
 		// Store in internal tracking
 		mLightProxies[entity] = handle;
 
-		// Ensure component exists
+		// Ensure component exists and populate all fields
 		var comp = mScene.GetComponent<LightComponent>(entity);
 		if (comp == null)
 		{
 			mScene.SetComponent<LightComponent>(entity, .Default);
 			comp = mScene.GetComponent<LightComponent>(entity);
 		}
+		comp.Type = .Spot;
+		comp.Color = color;
+		comp.Intensity = intensity;
+		comp.Range = range;
+		comp.InnerConeAngle = innerAngle;
+		comp.OuterConeAngle = outerAngle;
 		comp.Enabled = true;
 
 		return handle;
@@ -833,6 +904,12 @@ class RenderSceneModule : SceneModule
 	/// Sets light color and intensity.
 	public void SetLightColor(EntityId entity, Vector3 color, float intensity)
 	{
+		if (let comp = mScene?.GetComponent<LightComponent>(entity))
+		{
+			comp.Color = color;
+			comp.Intensity = intensity;
+		}
+
 		if (mLightProxies.TryGetValue(entity, let proxyHandle))
 		{
 			if (proxyHandle.IsValid)
@@ -868,7 +945,7 @@ class RenderSceneModule : SceneModule
 
 	// ==================== Particle Emitter API ====================
 
-	/// Creates a particle emitter for an entity.
+	/// Creates a particle emitter for an entity (GPU backend).
 	public ParticleEmitterProxyHandle CreateParticleEmitter(EntityId entity)
 	{
 		if (mScene == null || mWorld == null)
@@ -879,13 +956,14 @@ class RenderSceneModule : SceneModule
 		// Store in internal tracking
 		mParticleEmitterProxies[entity] = handle;
 
-		// Ensure component exists
+		// Ensure component exists and populate fields
 		var comp = mScene.GetComponent<ParticleEmitterComponent>(entity);
 		if (comp == null)
 		{
 			mScene.SetComponent<ParticleEmitterComponent>(entity, .Default);
 			comp = mScene.GetComponent<ParticleEmitterComponent>(entity);
 		}
+		comp.Backend = .GPU;
 		comp.Enabled = true;
 
 		let worldMatrix = mScene.GetWorldMatrix(entity);
@@ -928,6 +1006,8 @@ class RenderSceneModule : SceneModule
 			mScene.SetComponent<ParticleEmitterComponent>(entity, .Default);
 			comp = mScene.GetComponent<ParticleEmitterComponent>(entity);
 		}
+		comp.Backend = .CPU;
+		comp.MaxParticles = (uint32)maxParticles;
 		comp.Enabled = true;
 
 		// Configure for CPU backend
@@ -957,7 +1037,7 @@ class RenderSceneModule : SceneModule
 		// Store in internal tracking
 		mSpriteProxies[entity] = handle;
 
-		// Ensure component exists
+		// Ensure component exists with defaults
 		var comp = mScene.GetComponent<SpriteComponent>(entity);
 		if (comp == null)
 		{
@@ -965,6 +1045,15 @@ class RenderSceneModule : SceneModule
 			comp = mScene.GetComponent<SpriteComponent>(entity);
 		}
 		comp.Enabled = true;
+
+		// Sync defaults to proxy
+		if (let proxy = mWorld.GetSprite(handle))
+		{
+			proxy.Size = comp.Size;
+			proxy.Color = .(comp.Color.X, comp.Color.Y, comp.Color.Z, comp.Color.W);
+			proxy.UVRect = comp.UVRect;
+			proxy.LayerMask = comp.LayerMask;
+		}
 
 		let worldMatrix = mScene.GetWorldMatrix(entity);
 		mWorld.SetSpritePosition(handle, worldMatrix.Translation);
@@ -991,6 +1080,12 @@ class RenderSceneModule : SceneModule
 			if (proxyHandle.IsValid)
 				mWorld.SetSpriteSize(proxyHandle, size);
 		}
+		// Sync to component
+		if (mScene != null)
+		{
+			if (let comp = mScene.GetComponent<SpriteComponent>(entity))
+				comp.Size = size;
+		}
 	}
 
 	/// Sets sprite color.
@@ -1000,6 +1095,12 @@ class RenderSceneModule : SceneModule
 		{
 			if (proxyHandle.IsValid)
 				mWorld.SetSpriteColor(proxyHandle, color);
+		}
+		// Sync to component (convert uint8 0-255 to float 0-1)
+		if (mScene != null)
+		{
+			if (let comp = mScene.GetComponent<SpriteComponent>(entity))
+				comp.Color = .((float)color.R / 255.0f, (float)color.G / 255.0f, (float)color.B / 255.0f, (float)color.A / 255.0f);
 		}
 	}
 
@@ -1030,13 +1131,14 @@ class RenderSceneModule : SceneModule
 		// Store in internal tracking
 		mTrailEmitterProxies[entity] = handle;
 
-		// Ensure component exists
+		// Ensure component exists with defaults
 		var comp = mScene.GetComponent<TrailEmitterComponent>(entity);
 		if (comp == null)
 		{
 			mScene.SetComponent<TrailEmitterComponent>(entity, .Default);
 			comp = mScene.GetComponent<TrailEmitterComponent>(entity);
 		}
+		comp.MaxPoints = maxPoints;
 		comp.Enabled = true;
 
 		// Configure proxy and create the emitter

@@ -668,4 +668,15 @@ class OpenDDLSerializer : Serializer
 			return false;
 		return FindChildByName(name) != null;
 	}
+
+	public override void GetFieldNames(List<String> outNames)
+	{
+		if (IsWriting || mCurrentStructure == null)
+			return;
+		for (let child in mCurrentStructure.Children)
+		{
+			if (child.StructureName.Length > 0)
+				outNames.Add(new String(child.StructureName));
+		}
+	}
 }

@@ -8,62 +8,7 @@ using Sedulous.Mathematics;
 using Sedulous.Physics;
 using Sedulous.Render;
 using Sedulous.Profiler;
-
-/// Component for entities with physics bodies.
-/// Exposes serializable physics properties that sync with the physics world.
-/// The actual body handle is managed internally by PhysicsSceneModule.
-struct RigidBodyComponent
-{
-	/// Body type (Dynamic, Kinematic, Static).
-	public BodyType BodyType;
-	/// Mass of the body (only applies to dynamic bodies).
-	public float Mass;
-	/// Linear damping coefficient.
-	public float LinearDamping;
-	/// Angular damping coefficient.
-	public float AngularDamping;
-	/// Friction coefficient.
-	public float Friction;
-	/// Restitution (bounciness) coefficient.
-	public float Restitution;
-	/// Gravity multiplier (0 = no gravity, 1 = normal gravity).
-	public float GravityFactor;
-	/// Whether the body is enabled in the simulation.
-	public bool Enabled;
-
-	public static RigidBodyComponent Default => .() {
-		BodyType = .Dynamic,
-		Mass = 1.0f,
-		LinearDamping = 0.0f,
-		AngularDamping = 0.05f,
-		Friction = 0.2f,
-		Restitution = 0.0f,
-		GravityFactor = 1.0f,
-		Enabled = true
-	};
-}
-
-/// Shape type for debug drawing.
-enum DebugShapeType
-{
-	None,
-	Box,
-	Sphere,
-	Capsule,
-	Cylinder
-}
-
-/// Component storing shape info for debug drawing.
-struct PhysicsDebugShapeComponent
-{
-	public DebugShapeType ShapeType;
-	public Vector3 HalfExtents;  // Box: half extents, Sphere: (radius, 0, 0), Capsule/Cylinder: (radius, halfHeight, 0)
-
-	public static PhysicsDebugShapeComponent Default => .() {
-		ShapeType = .None,
-		HalfExtents = .Zero
-	};
-}
+using Sedulous.Serialization;
 
 /// Scene module that manages physics bodies for entities.
 /// Created automatically by PhysicsSubsystem for each scene.
@@ -154,6 +99,8 @@ class PhysicsSceneModule : SceneModule
 	public override void OnSceneCreate(Scene scene)
 	{
 		mScene = scene;
+		scene.RegisterComponentSerializer<RigidBodyComponent>();
+		scene.RegisterComponentSerializer<PhysicsDebugShapeComponent>();
 	}
 
 	public override void OnSceneDestroy(Scene scene)

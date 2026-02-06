@@ -31,6 +31,9 @@ public class Scene : IDisposable, ISerializable
 	// ========== Component Serializers ==========
 	private List<IComponentSerializer> mComponentSerializers = new .() ~ DeleteContainerAndItems!(_);
 
+	// ========== Missing Component Data ==========
+	private List<MissingComponentData> mMissingComponents = new .() ~ DeleteContainerAndItems!(_);
+
 	// ========== Modules ==========
 	private List<ISceneModule> mModules = new .() ~ DeleteContainerAndItems!(_);
 
@@ -195,11 +198,18 @@ public class Scene : IDisposable, ISerializable
 
 	private void SerializeComponentsWrite(Serializer s, Dictionary<uint32, int32> entityIndexMap)
 	{
-		if (mComponentSerializers.Count == 0)
+		if (mComponentSerializers.Count == 0 && mMissingComponents.Count == 0)
 			return;
 		s.BeginObject("components");
 		for (let serializer in mComponentSerializers)
 			serializer.Write(this, s, entityIndexMap);
+
+		// Write preserved unknown component data
+		for (let missingData in mMissingComponents)
+		{
+			let missingSerializer = scope MissingComponentSerializer(missingData);
+			missingSerializer.Write(this, s, entityIndexMap);
+		}
 		s.EndObject();
 	}
 
@@ -208,22 +218,60 @@ public class Scene : IDisposable, ISerializable
 		if (!s.HasField("components"))
 			return;
 		s.BeginObject("components");
+
+		// Read known components
 		for (let serializer in mComponentSerializers)
 		{
 			if (s.HasField(serializer.TypeName))
 				serializer.Read(this, s, loadedEntities);
 		}
+
+		// Discover and preserve unknown component types
+		let allFieldNames = scope List<String>();
+		s.GetFieldNames(allFieldNames);
+		defer { for (let name in allFieldNames) delete name; }
+
+		for (let fieldName in allFieldNames)
+		{
+			bool known = false;
+			for (let serializer in mComponentSerializers)
+			{
+				if (serializer.TypeName == fieldName)
+				{
+					known = true;
+					break;
+				}
+			}
+
+			if (!known)
+			{
+				let missingData = new MissingComponentData(fieldName);
+				let missingSerializer = scope MissingComponentSerializer(missingData);
+				missingSerializer.Read(this, s, loadedEntities);
+				mMissingComponents.Add(missingData);
+			}
+		}
+
 		s.EndObject();
 	}
 
 	/// Registers a component serializer for type T.
 	/// Call this before serializing/deserializing to enable component roundtripping.
+	/// Duplicate registrations (same type name) are silently ignored.
 	public void RegisterComponentSerializer<T>() where T : struct, ISerializableComponent
 	{
+		let typeName = scope String();
+		typeof(T).GetName(typeName);
+		for (let existing in mComponentSerializers)
+		{
+			if (existing.TypeName == typeName)
+				return;
+		}
 		mComponentSerializers.Add(new ComponentSerializer<T>());
 	}
 
 	/// Registers a custom component serializer.
+	/// Duplicate registrations (same type name) are silently ignored; the duplicate is deleted.
 	/// WORKAROUND: This overload exists because SceneResource can't use a lambda
 	/// to call RegisterComponentSerializer<T>() due to a Beef compiler bug with
 	/// generic constraints in cross-project lambdas. SceneResource instead stores
@@ -232,6 +280,14 @@ public class Scene : IDisposable, ISerializable
 	/// When fixed, this overload can be removed if no longer needed.
 	public void RegisterComponentSerializer(IComponentSerializer serializer)
 	{
+		for (let existing in mComponentSerializers)
+		{
+			if (existing.TypeName == serializer.TypeName)
+			{
+				delete serializer;
+				return;
+			}
+		}
 		mComponentSerializers.Add(serializer);
 	}
 

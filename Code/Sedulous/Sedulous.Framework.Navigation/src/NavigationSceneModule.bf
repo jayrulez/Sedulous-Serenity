@@ -64,7 +64,15 @@ class NavigationSceneModule : SceneModule
 
 		mScene.SetComponent<NavAgentComponent>(entity, .() {
 			AgentIndex = agentIndex,
-			SyncToTransform = true
+			SyncToTransform = true,
+			Radius = @params.Radius,
+			Height = @params.Height,
+			MaxAcceleration = @params.MaxAcceleration,
+			MaxSpeed = @params.MaxSpeed,
+			CollisionQueryRange = @params.CollisionQueryRange,
+			PathOptimizationRange = @params.PathOptimizationRange,
+			SeparationWeight = @params.SeparationWeight,
+			ObstacleAvoidanceType = @params.ObstacleAvoidanceType
 		});
 
 		return agentIndex;
@@ -244,6 +252,8 @@ class NavigationSceneModule : SceneModule
 	public override void OnSceneCreate(Scene scene)
 	{
 		mScene = scene;
+		scene.RegisterComponentSerializer<NavAgentComponent>();
+		scene.RegisterComponentSerializer<NavObstacleComponent>();
 	}
 
 	public override void OnSceneDestroy(Scene scene)
@@ -264,6 +274,9 @@ class NavigationSceneModule : SceneModule
 	{
 		if (mNavWorld == null || mScene == null)
 			return;
+
+		// Auto-create agents for deserialized components
+		AutoCreateAgents(scene);
 
 		// Sync agent positions to entity transforms
 		SyncAgentTransforms(scene);
@@ -304,6 +317,25 @@ class NavigationSceneModule : SceneModule
 	}
 
 	// ==================== Private ====================
+
+	private void AutoCreateAgents(Scene scene)
+	{
+		if (mNavWorld.NavMesh == null || mNavWorld.Crowd == null)
+			return;
+
+		for (let (entity, agent) in scene.Query<NavAgentComponent>())
+		{
+			if (agent.AgentIndex >= 0)
+				continue; // Already has an agent
+
+			let transform = scene.GetTransform(entity);
+			float[3] pos = .(transform.Position.X, transform.Position.Y, transform.Position.Z);
+			let @params = agent.ToCrowdAgentParams();
+			int32 agentIndex = mNavWorld.AddAgent(pos, @params);
+			if (agentIndex >= 0)
+				agent.AgentIndex = agentIndex;
+		}
+	}
 
 	private void SyncAgentTransforms(Scene scene)
 	{

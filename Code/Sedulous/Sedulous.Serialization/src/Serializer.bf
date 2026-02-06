@@ -218,6 +218,11 @@ abstract class Serializer
 	/// Only meaningful during deserialization.
 	public abstract bool HasField(StringView name);
 
+	/// Gets the names of all child fields/objects in the current scope.
+	/// Only meaningful during deserialization; does nothing in write mode.
+	/// Caller owns the allocated String objects in outNames.
+	public abstract void GetFieldNames(List<String> outNames);
+
 	/// Serializes a version number for the current object.
 	/// Should be called at the start of Serialize() for versioned types.
 	public SerializationResult Version(ref int32 version)

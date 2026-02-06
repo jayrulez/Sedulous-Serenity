@@ -10,14 +10,7 @@ using Sedulous.Mathematics;
 using Sedulous.Shell.Input;
 using Sedulous.GUI;
 using Sedulous.GUI.Shell;
-
-/// Component marking an entity as having a world-space UI panel.
-/// The actual panel data is managed internally by UISceneModule.
-struct WorldUIComponent
-{
-	/// Whether this UI panel is enabled.
-	public bool Enabled;
-}
+using Sedulous.Serialization;
 
 /// Scene module that manages world-space UI panels for a scene.
 /// Created automatically by UISubsystem for each scene.
@@ -64,7 +57,14 @@ class UISceneModule : SceneModule
 
 		// Set component on entity
 		if (mScene != null)
-			mScene.SetComponent<WorldUIComponent>(entity, .() { Enabled = true });
+			mScene.SetComponent<WorldUIComponent>(entity, .() {
+				Enabled = true,
+				PixelWidth = pixelWidth,
+				PixelHeight = pixelHeight,
+				PanelWidth = worldWidth,
+				PanelHeight = worldHeight,
+				IsInteractive = false
+			});
 
 		// Set initial position from entity transform
 		if (mScene != null && mScene.IsValid(entity))
@@ -115,6 +115,7 @@ class UISceneModule : SceneModule
 	public override void OnSceneCreate(Scene scene)
 	{
 		mScene = scene;
+		scene.RegisterComponentSerializer<WorldUIComponent>();
 	}
 
 	public override void Update(Scene scene, float deltaTime)
@@ -130,6 +131,31 @@ class UISceneModule : SceneModule
 
 	public override void PostUpdate(Scene scene, float deltaTime)
 	{
+		// Auto-create panels for deserialized WorldUIComponents
+		for (let (entity, uiComp) in scene.Query<WorldUIComponent>())
+		{
+			if (!uiComp.Enabled || uiComp.PixelWidth == 0 || uiComp.PixelHeight == 0)
+				continue;
+
+			// Check if panel already exists for this entity
+			bool hasPanel = false;
+			for (let panel in mPanels)
+			{
+				if (panel.Entity == entity)
+				{
+					hasPanel = true;
+					break;
+				}
+			}
+
+			if (!hasPanel)
+			{
+				let panel = CreateWorldUI(entity, uiComp.PixelWidth, uiComp.PixelHeight, uiComp.PanelWidth, uiComp.PanelHeight);
+				if (panel != null)
+					panel.IsInteractive = uiComp.IsInteractive;
+			}
+		}
+
 		let renderModule = scene.GetModule<RenderSceneModule>();
 		let world = renderModule?.World;
 

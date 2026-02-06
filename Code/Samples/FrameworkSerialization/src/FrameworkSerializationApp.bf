@@ -84,6 +84,8 @@ class FrameworkSerializationApp : Application
 			// Load existing scene resource from file with component types registered
 			mSceneResource = new SceneResource();
 			mSceneResource.RegisterComponentType<TestComponent>();
+			mSceneResource.RegisterComponentType<LightComponent>();
+			mSceneResource.RegisterComponentType<CameraComponent>();
 			switch (mSceneResource.Load(SceneFilePath))
 			{
 			case .Ok:
@@ -113,6 +115,8 @@ class FrameworkSerializationApp : Application
 		// Create scene resource with test entities and components
 		mSceneResource = SceneResource.CreateEmpty("SerializationTest");
 		mSceneResource.RegisterComponentType<TestComponent>();
+		mSceneResource.RegisterComponentType<LightComponent>();
+		mSceneResource.RegisterComponentType<CameraComponent>();
 		let scene = mSceneResource.Scene;
 
 		// Root entity at origin with component
@@ -131,6 +135,36 @@ class FrameworkSerializationApp : Application
 		let otherRoot = scene.CreateEntity();
 		scene.SetName(otherRoot, "OtherRoot");
 		scene.SetTransform(otherRoot, .(.(- 3, 0, 5)));
+
+		// Lights with full configuration data
+		let dirLight = scene.CreateEntity();
+		scene.SetName(dirLight, "DirectionalLight");
+		scene.SetTransform(dirLight, .(.(0, 10, 0), Quaternion.CreateFromAxisAngle(.(1, 0, 0), -0.8f)));
+		scene.SetComponent<LightComponent>(dirLight, .() {
+			Type = .Directional, Color = .(1.0f, 0.95f, 0.8f), Intensity = 2.0f,
+			Enabled = true, ShadowBias = 0.005f, ShadowNormalBias = 0.02f, LayerMask = 0xFFFFFFFF
+		});
+		scene.SetComponent<CameraComponent>(dirLight, .() { Active = false, IsMainCamera = false,
+			Projection = .Perspective, FieldOfView = Math.PI_f / 4.0f, AspectRatio = 16.0f / 9.0f,
+			NearPlane = 0.1f, FarPlane = 1000.0f, OrthoWidth = 10.0f, OrthoHeight = 10.0f
+		});
+
+		let pointLight = scene.CreateEntity();
+		scene.SetName(pointLight, "PointLight");
+		scene.SetTransform(pointLight, .(.(3, 2, -1)));
+		scene.SetComponent<LightComponent>(pointLight, .() {
+			Type = .Point, Color = .(1.0f, 0.8f, 0.6f), Intensity = 5.0f, Range = 15.0f,
+			Enabled = true, ShadowBias = 0.005f, ShadowNormalBias = 0.02f, LayerMask = 0xFFFFFFFF
+		});
+
+		let spotLight = scene.CreateEntity();
+		scene.SetName(spotLight, "SpotLight");
+		scene.SetTransform(spotLight, .(.(- 2, 5, 3), Quaternion.CreateFromAxisAngle(.(1, 0, 0), -1.2f)));
+		scene.SetComponent<LightComponent>(spotLight, .() {
+			Type = .Spot, Color = .(0.8f, 0.8f, 1.0f), Intensity = 8.0f, Range = 20.0f,
+			InnerConeAngle = Math.PI_f / 8.0f, OuterConeAngle = Math.PI_f / 4.0f,
+			Enabled = true, ShadowBias = 0.005f, ShadowNormalBias = 0.02f, LayerMask = 0xFFFFFFFF
+		});
 
 		// Save to file
 		switch (mSceneResource.SaveToFile(SceneFilePath))
@@ -153,6 +187,16 @@ class FrameworkSerializationApp : Application
 		{
 			let name = scene.GetName(entity);
 			Console.WriteLine($"  {name}: Speed={comp.Speed}, Health={comp.Health}, Active={comp.Active}");
+		}
+		for (let (entity, comp) in scene.Query<LightComponent>())
+		{
+			let name = scene.GetName(entity);
+			Console.WriteLine($"  {name}: Light(Type={comp.Type}, Color=({comp.Color.X:.2},{comp.Color.Y:.2},{comp.Color.Z:.2}), Intensity={comp.Intensity}, Range={comp.Range}, Enabled={comp.Enabled})");
+		}
+		for (let (entity, comp) in scene.Query<CameraComponent>())
+		{
+			let name = scene.GetName(entity);
+			Console.WriteLine($"  {name}: Camera(Projection={comp.Projection}, FOV={comp.FieldOfView:.2}, Near={comp.NearPlane}, Far={comp.FarPlane}, Active={comp.Active}, IsMain={comp.IsMainCamera})");
 		}
 	}
 

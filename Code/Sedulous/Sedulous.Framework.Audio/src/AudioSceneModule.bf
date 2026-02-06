@@ -5,43 +5,7 @@ using System.Collections;
 using Sedulous.Audio;
 using Sedulous.Framework.Scenes;
 using Sedulous.Mathematics;
-
-/// Component for entities that emit sounds.
-struct AudioSourceComponent
-{
-	/// Active audio source (owned by AudioSceneModule).
-	public IAudioSource Source;
-	/// Clip to play (reference, not owned).
-	public AudioClip Clip;
-	/// Volume (0.0 to 1.0).
-	public float Volume;
-	/// Whether this is a 3D (spatial) sound.
-	public bool Spatial;
-	/// Whether sound should loop.
-	public bool Loop;
-	/// Whether to auto-play on creation.
-	public bool AutoPlay;
-
-	public static AudioSourceComponent Default => .() {
-		Source = null,
-		Clip = null,
-		Volume = 1.0f,
-		Spatial = true,
-		Loop = false,
-		AutoPlay = false
-	};
-}
-
-/// Component marking an entity as the audio listener (typically the camera).
-struct AudioListenerComponent
-{
-	/// Whether this listener is active.
-	public bool Active;
-
-	public static AudioListenerComponent Default => .() {
-		Active = true
-	};
-}
+using Sedulous.Serialization;
 
 /// Scene module that manages audio sources for entities.
 /// Created automatically by AudioSubsystem for each scene.
@@ -62,6 +26,8 @@ class AudioSceneModule : SceneModule
 	public override void OnSceneCreate(Scene scene)
 	{
 		mScene = scene;
+		scene.RegisterComponentSerializer<AudioSourceComponent>();
+		scene.RegisterComponentSerializer<AudioListenerComponent>();
 	}
 
 	public override void OnSceneDestroy(Scene scene)
@@ -93,10 +59,16 @@ class AudioSceneModule : SceneModule
 			if (audioSource.Source == null)
 				continue;
 
+			// Sync audio properties from component
+			audioSource.Source.Volume = audioSource.Volume * mSubsystem.EffectiveSFXVolume;
+			audioSource.Source.Pitch = audioSource.Pitch;
+
 			if (audioSource.Spatial)
 			{
 				let transform = scene.GetTransform(entity);
 				audioSource.Source.Position = transform.Position;
+				audioSource.Source.MinDistance = audioSource.MinDistance;
+				audioSource.Source.MaxDistance = audioSource.MaxDistance;
 			}
 		}
 	}
@@ -145,6 +117,9 @@ class AudioSceneModule : SceneModule
 
 		source.Volume = volume * mSubsystem.EffectiveSFXVolume;
 		source.Loop = loop;
+		source.Pitch = audioSource.Pitch;
+		source.MinDistance = audioSource.MinDistance;
+		source.MaxDistance = audioSource.MaxDistance;
 
 		if (spatial)
 		{

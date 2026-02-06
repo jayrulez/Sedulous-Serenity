@@ -5,23 +5,7 @@ using System.Collections;
 using Sedulous.Animation;
 using Sedulous.Framework.Scenes;
 using Sedulous.Mathematics;
-
-/// Component for entities with skeletal animation.
-struct SkeletalAnimationComponent
-{
-	/// The animation player for this entity.
-	public AnimationPlayer Player;
-	/// The skeleton reference.
-	public Skeleton Skeleton;
-	/// Whether the animation is playing.
-	public bool Playing;
-
-	public static SkeletalAnimationComponent Default => .() {
-		Player = null,
-		Skeleton = null,
-		Playing = false
-	};
-}
+using Sedulous.Serialization;
 
 /// Scene module that manages entity animations.
 /// Created automatically by AnimationSubsystem for each scene.
@@ -49,6 +33,7 @@ class AnimationSceneModule : SceneModule
 	public override void OnSceneCreate(Scene scene)
 	{
 		mScene = scene;
+		scene.RegisterComponentSerializer<SkeletalAnimationComponent>();
 	}
 
 	public override void OnSceneDestroy(Scene scene)

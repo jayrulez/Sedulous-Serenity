@@ -846,4 +846,19 @@ class XmlSerializer : Serializer
 
 		return FindChildByName(name) != null;
 	}
+
+	public override void GetFieldNames(List<String> outNames)
+	{
+		if (IsWriting || mCurrentElement == null)
+			return;
+		for (let child in mCurrentElement.Children)
+		{
+			if (let elem = child as XmlElement)
+			{
+				let name = elem.GetAttribute("name");
+				if (name.Length > 0)
+					outNames.Add(new String(name));
+			}
+		}
+	}
 }
