@@ -86,15 +86,15 @@ public class GPUResourceManager : IDisposable
 	// ========================================================================
 
 	/// Uploads a static mesh to the GPU.
+	/// Supports both indexed and non-indexed meshes.
 	public Result<GPUMeshHandle> UploadMesh(StaticMesh mesh)
 	{
-		if (mesh == null || mesh.Vertices == null || mesh.Indices == null)
+		if (mesh == null || mesh.Vertices == null)
 			return .Err;
 
 		let vertices = mesh.Vertices;
-		let indices = mesh.Indices;
 
-		if (vertices.VertexCount == 0 || indices.IndexCount == 0)
+		if (vertices.VertexCount == 0)
 			return .Err;
 
 		// Allocate slot
@@ -134,32 +134,42 @@ public class GPUResourceManager : IDisposable
 			return .Err;
 		}
 
-		// Create index buffer
-		let indexSize = indices.Format == .UInt16 ? 2 : 4;
-		let indexDataSize = (uint64)(indices.IndexCount * indexSize);
-		var ibDesc = BufferDescriptor()
-		{
-			Size = indexDataSize,
-			Usage = .Index | .CopyDst
-		};
+		// Create index buffer (if mesh has indices)
+		let indices = mesh.Indices;
+		let hasIndices = indices != null && indices.IndexCount > 0;
 
-		if (mDevice.CreateBuffer(&ibDesc) case .Ok(let ib))
+		if (hasIndices)
 		{
-			gpuMesh.IndexBuffer = ib;
-			mDevice.Queue.WriteBuffer(ib, 0, Span<uint8>(indices.GetRawData(), (int)indexDataSize));
+			let indexSize = indices.Format == .UInt16 ? 2 : 4;
+			let indexDataSize = (uint64)(indices.IndexCount * indexSize);
+			var ibDesc = BufferDescriptor()
+			{
+				Size = indexDataSize,
+				Usage = .Index | .CopyDst
+			};
+
+			if (mDevice.CreateBuffer(&ibDesc) case .Ok(let ib))
+			{
+				gpuMesh.IndexBuffer = ib;
+				mDevice.Queue.WriteBuffer(ib, 0, Span<uint8>(indices.GetRawData(), (int)indexDataSize));
+			}
+			else
+			{
+				delete gpuMesh.VertexBuffer;
+				gpuMesh.VertexBuffer = null;
+				return .Err;
+			}
 		}
 		else
 		{
-			delete gpuMesh.VertexBuffer;
-			gpuMesh.VertexBuffer = null;
-			return .Err;
+			gpuMesh.IndexBuffer = null;
 		}
 
 		// Set mesh properties
 		gpuMesh.VertexCount = (uint32)vertices.VertexCount;
-		gpuMesh.IndexCount = (uint32)indices.IndexCount;
+		gpuMesh.IndexCount = hasIndices ? (uint32)indices.IndexCount : 0;
 		gpuMesh.VertexStride = (uint32)vertices.VertexSize;
-		gpuMesh.IndexFormat = indices.Format == .UInt16 ? .UInt16 : .UInt32;
+		gpuMesh.IndexFormat = hasIndices && indices.Format == .UInt16 ? .UInt16 : .UInt32;
 		gpuMesh.Bounds = mesh.GetBounds();
 		gpuMesh.RefCount = 1;
 		gpuMesh.Generation = generation;
@@ -183,12 +193,12 @@ public class GPUResourceManager : IDisposable
 		}
 		else
 		{
-			// Single submesh for entire mesh
+			// Single submesh for entire mesh - use vertex count for non-indexed meshes
 			gpuMesh.SubMeshes = new GPUSubMesh[1];
 			gpuMesh.SubMeshes[0] = .()
 			{
 				IndexStart = 0,
-				IndexCount = gpuMesh.IndexCount,
+				IndexCount = hasIndices ? gpuMesh.IndexCount : gpuMesh.VertexCount,
 				BaseVertex = 0,
 				MaterialSlot = 0
 			};
