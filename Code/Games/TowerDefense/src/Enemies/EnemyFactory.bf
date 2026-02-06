@@ -139,7 +139,7 @@ class EnemyFactory
 		mScene.SetComponent<MeshRendererComponent>(entity, .Default);
 		var meshComp = mScene.GetComponent<MeshRendererComponent>(entity);
 		meshComp.Mesh = ResourceHandle<StaticMeshResource>(mEnemyMesh);
-		meshComp.Material = GetOrCreateMaterial(definition.Color);
+		meshComp.MaterialInstance = GetOrCreateMaterial(definition.Color);
 
 		// Create enemy data (replaces component)
 		let enemyData = new EnemyData();

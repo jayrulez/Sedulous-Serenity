@@ -237,7 +237,7 @@ class FrameworkNavigationApp : Application
 			mMainScene.SetComponent<MeshRendererComponent>(mFloorEntity, .Default);
 			var comp = mMainScene.GetComponent<MeshRendererComponent>(mFloorEntity);
 			comp.Mesh = ResourceHandle<StaticMeshResource>(mPlaneResource);
-			comp.Material = mFloorMaterial ?? defaultMaterialInstance;
+			comp.MaterialInstance = mFloorMaterial ?? defaultMaterialInstance;
 			if (physicsModule != null)
 				physicsModule.CreatePlaneBody(mFloorEntity, .(0, 1, 0), 0.0f);
 		}
@@ -279,7 +279,7 @@ class FrameworkNavigationApp : Application
 		var comp = mMainScene.GetComponent<MeshRendererComponent>(entity);
 		comp.Mesh = ResourceHandle<StaticMeshResource>(mCubeResource);
 		let defaultMat = mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
-		comp.Material = mWallMaterial ?? defaultMat;
+		comp.MaterialInstance = mWallMaterial ?? defaultMat;
 	}
 
 	private void CreateUI()

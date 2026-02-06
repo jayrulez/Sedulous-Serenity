@@ -118,7 +118,7 @@ class MapBuilder
 		mScene.SetComponent<MeshRendererComponent>(entity, .Default);
 		var meshComp = mScene.GetComponent<MeshRendererComponent>(entity);
 		meshComp.Mesh = ResourceHandle<StaticMeshResource>(mTileMesh);
-		meshComp.Material = GetMaterialForTileType(tileType);
+		meshComp.MaterialInstance = GetMaterialForTileType(tileType);
 
 		mTileEntities.Add(entity);
 	}

@@ -10,6 +10,7 @@ using Sedulous.Render;
 using Sedulous.Resources;
 using Sedulous.RHI;
 using Sedulous.Materials;
+using Sedulous.Materials.Resources;
 using Sedulous.Serialization;
 
 /// Scene module that manages render proxies and syncs entity transforms to the render world.
@@ -70,15 +71,21 @@ class RenderSceneModule : SceneModule
 
 	public override void OnSceneDestroy(Scene scene)
 	{
-		// Release mesh resource handles on all components
+		// Release mesh resource handles and refs on all components
 		for (let (entity, meshComp) in scene.Query<MeshRendererComponent>())
 		{
 			meshComp.Mesh.Release();
+			meshComp.Material.Release();
+			meshComp.MeshRef.Dispose();
+			meshComp.MaterialRef.Dispose();
 		}
 
 		for (let (entity, skinnedComp) in scene.Query<SkinnedMeshRendererComponent>())
 		{
 			skinnedComp.Mesh.Release();
+			skinnedComp.Material.Release();
+			skinnedComp.MeshRef.Dispose();
+			skinnedComp.MaterialRef.Dispose();
 		}
 
 		// Release cached GPU meshes
@@ -116,6 +123,9 @@ class RenderSceneModule : SceneModule
 	{
 		if (mScene == null || mWorld == null)
 			return;
+
+		// Resolve deserialized resource references
+		ResolveResourceRefs(scene);
 
 		// Process static mesh components - detect changes and handle GPU upload
 		for (let (entity, mesh) in scene.Query<MeshRendererComponent>())
@@ -164,13 +174,13 @@ class RenderSceneModule : SceneModule
 				MaterialInstance currentMaterial = null;
 				mEntityMaterialBinding.TryGetValue(entity, out currentMaterial);
 
-				if (mesh.Material != currentMaterial)
+				if (mesh.MaterialInstance != currentMaterial)
 				{
 					// Material changed - update binding and apply to proxy
-					if (mesh.Material != null)
+					if (mesh.MaterialInstance != null)
 					{
-						mWorld.SetMeshMaterial(proxyHandle, mesh.Material);
-						mEntityMaterialBinding[entity] = mesh.Material;
+						mWorld.SetMeshMaterial(proxyHandle, mesh.MaterialInstance);
+						mEntityMaterialBinding[entity] = mesh.MaterialInstance;
 					}
 					else
 					{
@@ -234,13 +244,13 @@ class RenderSceneModule : SceneModule
 				MaterialInstance currentMaterial = null;
 				mEntitySkinnedMaterialBinding.TryGetValue(entity, out currentMaterial);
 
-				if (mesh.Material != currentMaterial)
+				if (mesh.MaterialInstance != currentMaterial)
 				{
 					// Material changed - update binding and apply to proxy
-					if (mesh.Material != null)
+					if (mesh.MaterialInstance != null)
 					{
-						mWorld.SetSkinnedMeshMaterial(proxyHandle, mesh.Material);
-						mEntitySkinnedMaterialBinding[entity] = mesh.Material;
+						mWorld.SetSkinnedMeshMaterial(proxyHandle, mesh.MaterialInstance);
+						mEntitySkinnedMaterialBinding[entity] = mesh.MaterialInstance;
 					}
 					else
 					{
@@ -513,10 +523,13 @@ class RenderSceneModule : SceneModule
 		if (mWorld == null)
 			return;
 
-		// Clean up mesh component - release resource handle
+		// Clean up mesh component - release resource handles and refs
 		if (let meshComp = scene.GetComponent<MeshRendererComponent>(entity))
 		{
 			meshComp.Mesh.Release();
+			meshComp.Material.Release();
+			meshComp.MeshRef.Dispose();
+			meshComp.MaterialRef.Dispose();
 		}
 
 		// Clean up mesh proxy (from internal tracking)
@@ -527,10 +540,13 @@ class RenderSceneModule : SceneModule
 			mMeshProxies.Remove(entity);
 		}
 
-		// Clean up skinned mesh component - release resource handle
+		// Clean up skinned mesh component - release resource handles and refs
 		if (let skinnedComp = scene.GetComponent<SkinnedMeshRendererComponent>(entity))
 		{
 			skinnedComp.Mesh.Release();
+			skinnedComp.Material.Release();
+			skinnedComp.MeshRef.Dispose();
+			skinnedComp.MaterialRef.Dispose();
 		}
 
 		// Clean up skinned mesh proxy (from internal tracking)
@@ -586,6 +602,67 @@ class RenderSceneModule : SceneModule
 		mEntitySkinnedMeshBinding.Remove(entity);
 		mEntityMaterialBinding.Remove(entity);
 		mEntitySkinnedMaterialBinding.Remove(entity);
+	}
+
+	// ==================== Resource Resolution ====================
+
+	/// Resolves deserialized ResourceRef fields to loaded ResourceHandles.
+	/// Called once per frame in PostUpdate; only resolves refs that haven't been loaded yet.
+	private void ResolveResourceRefs(Scene scene)
+	{
+		let resourceSystem = mSubsystem.Context?.Resources;
+		if (resourceSystem == null)
+			return;
+
+		// Resolve static mesh components
+		for (let (entity, mesh) in scene.Query<MeshRendererComponent>())
+		{
+			// Resolve mesh ref
+			if (mesh.MeshRef.IsValid && !mesh.Mesh.IsValid)
+			{
+				let result = resourceSystem.LoadByRef<StaticMeshResource>(mesh.MeshRef);
+				if (result case .Ok(let handle))
+					mesh.Mesh = handle;
+			}
+
+			// Resolve material ref
+			if (mesh.MaterialRef.IsValid && !mesh.Material.IsValid)
+			{
+				let result = resourceSystem.LoadByRef<MaterialResource>(mesh.MaterialRef);
+				if (result case .Ok(let handle))
+				{
+					mesh.Material = handle;
+					// Create MaterialInstance from the loaded MaterialResource
+					if (handle.Resource?.Material != null && mesh.MaterialInstance == null)
+						mesh.MaterialInstance = new MaterialInstance(handle.Resource.Material);
+				}
+			}
+		}
+
+		// Resolve skinned mesh components
+		for (let (entity, mesh) in scene.Query<SkinnedMeshRendererComponent>())
+		{
+			// Resolve mesh ref
+			if (mesh.MeshRef.IsValid && !mesh.Mesh.IsValid)
+			{
+				let result = resourceSystem.LoadByRef<SkinnedMeshResource>(mesh.MeshRef);
+				if (result case .Ok(let handle))
+					mesh.Mesh = handle;
+			}
+
+			// Resolve material ref
+			if (mesh.MaterialRef.IsValid && !mesh.Material.IsValid)
+			{
+				let result = resourceSystem.LoadByRef<MaterialResource>(mesh.MaterialRef);
+				if (result case .Ok(let handle))
+				{
+					mesh.Material = handle;
+					// Create MaterialInstance from the loaded MaterialResource
+					if (handle.Resource?.Material != null && mesh.MaterialInstance == null)
+						mesh.MaterialInstance = new MaterialInstance(handle.Resource.Material);
+				}
+			}
+		}
 	}
 
 	// ==================== Mesh API ====================

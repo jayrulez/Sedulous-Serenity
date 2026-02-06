@@ -42,7 +42,7 @@ class Arena
 		mScene.SetComponent<MeshRendererComponent>(mFloorEntity, .Default);
 		var comp = mScene.GetComponent<MeshRendererComponent>(mFloorEntity);
 		comp.Mesh = ResourceHandle<StaticMeshResource>(planeResource);
-		comp.Material = mat;
+		comp.MaterialInstance = mat;
 		mPhysicsModule.CreatePlaneBody(mFloorEntity, .(0, 1, 0), 0.0f);
 	}
 
@@ -77,7 +77,7 @@ class Arena
 		mScene.SetComponent<MeshRendererComponent>(entity, .Default);
 		var comp = mScene.GetComponent<MeshRendererComponent>(entity);
 		comp.Mesh = ResourceHandle<StaticMeshResource>(cubeResource);
-		comp.Material = mat;
+		comp.MaterialInstance = mat;
 
 		var descriptor = PhysicsBodyDescriptor();
 		descriptor.BodyType = .Static;

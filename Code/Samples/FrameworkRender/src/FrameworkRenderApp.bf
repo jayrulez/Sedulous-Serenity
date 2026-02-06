@@ -217,7 +217,7 @@ class FrameworkRenderApp : Application
 			mMainScene.SetComponent<MeshRendererComponent>(mFloorEntity, .Default);
 			var comp = mMainScene.GetComponent<MeshRendererComponent>(mFloorEntity);
 			comp.Mesh = ResourceHandle<StaticMeshResource>(mPlaneResource);
-			comp.Material = mFloorMaterial ?? defaultMaterial;
+			comp.MaterialInstance = mFloorMaterial ?? defaultMaterial;
 		}
 
 		// Create camera
@@ -320,11 +320,11 @@ class FrameworkRenderApp : Application
 				let color = HSVtoRGB(hue, 0.8f, 0.9f);
 				uniqueMat.SetColor("BaseColor", .(color.X, color.Y, color.Z, 1.0f));
 				mUniqueMaterials.Add(uniqueMat);
-				comp.Material = uniqueMat;
+				comp.MaterialInstance = uniqueMat;
 			}
 			else
 			{
-				comp.Material = mSharedSphereMaterial ?? defaultMaterial;
+				comp.MaterialInstance = mSharedSphereMaterial ?? defaultMaterial;
 			}
 		}
 
@@ -369,11 +369,11 @@ class FrameworkRenderApp : Application
 				let color = HSVtoRGB(hue, 0.8f, 0.9f);
 				uniqueMat.SetColor("BaseColor", .(color.X, color.Y, color.Z, 1.0f));
 				mUniqueMaterials.Add(uniqueMat);
-				comp.Material = uniqueMat;
+				comp.MaterialInstance = uniqueMat;
 			}
 			else
 			{
-				comp.Material = mSharedSphereMaterial ?? defaultMaterial;
+				comp.MaterialInstance = mSharedSphereMaterial ?? defaultMaterial;
 			}
 		}
 

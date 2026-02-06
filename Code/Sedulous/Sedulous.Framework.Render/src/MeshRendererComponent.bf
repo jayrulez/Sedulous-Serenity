@@ -3,8 +3,11 @@ namespace Sedulous.Framework.Render;
 using Sedulous.Framework.Scenes;
 using Sedulous.Geometry.Resources;
 using Sedulous.Materials;
+using Sedulous.Materials.Resources;
 using Sedulous.Resources;
 using Sedulous.Serialization;
+using static Sedulous.Resources.ResourceSerializerExtensions;
+
 
 /// Component for entities with a static mesh.
 /// Set the Mesh field and the framework handles GPU upload automatically.
@@ -12,29 +15,40 @@ using Sedulous.Serialization;
 /// Release() when removing/replacing.
 struct MeshRendererComponent : ISerializableComponent
 {
-	/// The mesh resource handle. Set this to change the mesh.
-	/// Create with ResourceHandle<StaticMeshResource>(resource) which calls AddRef().
-	/// Call Release() when removing or replacing the mesh.
+	/// The mesh resource handle (runtime, not serialized).
 	public ResourceHandle<StaticMeshResource> Mesh;
-	/// The material to use for rendering. Can be set before or after the mesh.
-	public MaterialInstance Material;
+	/// Serializable reference to the mesh resource.
+	public ResourceRef MeshRef;
+	/// The material resource handle (runtime, not serialized).
+	public ResourceHandle<MaterialResource> Material;
+	/// Serializable reference to the material resource.
+	public ResourceRef MaterialRef;
+	/// The material instance for rendering (runtime, created from MaterialResource).
+	public MaterialInstance MaterialInstance;
 	/// Whether this renderer is enabled.
 	public bool Enabled;
 
-	public int32 SerializationVersion => 1;
+	public int32 SerializationVersion => 2;
 
 	public SerializationResult Serialize(Serializer s) mut
 	{
 		var version = SerializationVersion;
 		s.Version(ref version);
-		// TODO: Serialize Mesh (resource path) and Material when resource serialization is implemented
+		if (version >= 2)
+		{
+			s.ResourceRef("mesh", ref MeshRef);
+			s.ResourceRef("material", ref MaterialRef);
+		}
 		s.Bool("enabled", ref Enabled);
 		return .Ok;
 	}
 
 	public static MeshRendererComponent Default => .() {
 		Mesh = default,
-		Material = null,
+		MeshRef = .(),
+		Material = default,
+		MaterialRef = .(),
+		MaterialInstance = null,
 		Enabled = true
 	};
 }

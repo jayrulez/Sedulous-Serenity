@@ -358,7 +358,7 @@ class SceneUISample : Application
 		mScene.SetComponent<MeshRendererComponent>(mGroundEntity, .Default);
 		var comp = mScene.GetComponent<MeshRendererComponent>(mGroundEntity);
 		comp.Mesh = ResourceHandle<StaticMeshResource>(mPlaneResource);
-		comp.Material = mGroundMaterialInstance ?? defaultMaterial;
+		comp.MaterialInstance = mGroundMaterialInstance ?? defaultMaterial;
 
 		Console.WriteLine("  Created ground plane");
 	}
@@ -459,7 +459,7 @@ class SceneUISample : Application
 		mScene.SetComponent<SkinnedMeshRendererComponent>(mFoxEntity, .Default);
 		var comp = mScene.GetComponent<SkinnedMeshRendererComponent>(mFoxEntity);
 		comp.Mesh = ResourceHandle<SkinnedMeshResource>(mFoxResource);
-		comp.Material = mFoxMaterialInstance ?? mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
+		comp.MaterialInstance = mFoxMaterialInstance ?? mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
 
 		// Setup animation
 		if (animModule != null && mFoxResource.Skeleton != null)

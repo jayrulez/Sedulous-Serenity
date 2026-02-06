@@ -409,7 +409,7 @@ class FrameworkSandboxApp : Application
 			mMainScene.SetComponent<MeshRendererComponent>(mFloorEntity, .Default);
 			var comp = mMainScene.GetComponent<MeshRendererComponent>(mFloorEntity);
 			comp.Mesh = ResourceHandle<StaticMeshResource>(mPlaneResource);
-			comp.Material = mFloorMaterial ?? defaultMaterial;
+			comp.MaterialInstance = mFloorMaterial ?? defaultMaterial;
 
 			// Infinite plane at Y=0 facing up
 			if (physicsModule != null)
@@ -460,7 +460,7 @@ class FrameworkSandboxApp : Application
 			mMainScene.SetComponent<MeshRendererComponent>(mCubeEntity, .Default);
 			var comp = mMainScene.GetComponent<MeshRendererComponent>(mCubeEntity);
 			comp.Mesh = ResourceHandle<StaticMeshResource>(mCubeResource);
-			comp.Material = mCubeMaterial ?? defaultMaterial;
+			comp.MaterialInstance = mCubeMaterial ?? defaultMaterial;
 
 			// Add kinematic physics body (controlled by gameplay, not physics simulation)
 			if (physicsModule != null)
@@ -498,7 +498,7 @@ class FrameworkSandboxApp : Application
 				mMainScene.SetComponent<MeshRendererComponent>(entity, .Default);
 				var comp = mMainScene.GetComponent<MeshRendererComponent>(entity);
 				comp.Mesh = ResourceHandle<StaticMeshResource>(mSphereResource);
-				comp.Material = mSphereMaterial ?? defaultMaterial;
+				comp.MaterialInstance = mSphereMaterial ?? defaultMaterial;
 
 				// Add dynamic physics body - will fall and bounce
 				physicsModule.CreateSphereBody(entity, 0.3f, .Dynamic, ObjectRestitution);
@@ -1648,7 +1648,7 @@ class FrameworkSandboxApp : Application
 		var comp = mMainScene.GetComponent<MeshRendererComponent>(entity);
 		comp.Mesh = ResourceHandle<StaticMeshResource>(mSphereResource);
 		let defaultMaterial = mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
-		comp.Material = mSphereMaterial ?? defaultMaterial;
+		comp.MaterialInstance = mSphereMaterial ?? defaultMaterial;
 
 		physicsModule.CreateSphereBody(entity, 0.3f, .Dynamic, ObjectRestitution);
 		mSpawnCount++;
