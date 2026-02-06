@@ -28,6 +28,9 @@ public class Scene : IDisposable, ISerializable
 	// ========== Component Storage ==========
 	private Dictionary<Type, IComponentStorage> mComponentStorages = new .() ~ DeleteDictionaryAndValues!(_);
 
+	// ========== Component Serializers ==========
+	private List<IComponentSerializer> mComponentSerializers = new .() ~ DeleteContainerAndItems!(_);
+
 	// ========== Modules ==========
 	private List<ISceneModule> mModules = new .() ~ DeleteContainerAndItems!(_);
 
@@ -71,30 +74,35 @@ public class Scene : IDisposable, ISerializable
 
 		s.String("sceneName", mName);
 
-		// Entities + transforms + hierarchy
+		// Entities + transforms + hierarchy + components
 		if (s.IsWriting)
-			SerializeEntitiesWrite(s);
+		{
+			let entityIndexMap = scope Dictionary<uint32, int32>();
+			SerializeEntitiesWrite(s, entityIndexMap);
+			SerializeComponentsWrite(s, entityIndexMap);
+		}
 		else
-			SerializeEntitiesRead(s);
-
-		// Phase 3: components
+		{
+			let loadedEntities = scope List<EntityId>();
+			SerializeEntitiesRead(s, loadedEntities);
+			SerializeComponentsRead(s, loadedEntities);
+		}
 
 		return .Ok;
 	}
 
-	private void SerializeEntitiesWrite(Serializer s)
+	private void SerializeEntitiesWrite(Serializer s, Dictionary<uint32, int32> outEntityIndexMap)
 	{
 		int32 entityCount = mActiveCount;
 		s.Int32("entityCount", ref entityCount);
 
 		// Build mapping from slot index to serialized index
-		let slotToSerializedIndex = scope Dictionary<uint32, int32>();
 		int32 serializedIndex = 0;
 		for (int i = 0; i < mEntityActive.Count; i++)
 		{
 			if (mEntityActive[i])
 			{
-				slotToSerializedIndex[(uint32)i] = serializedIndex;
+				outEntityIndexMap[(uint32)i] = serializedIndex;
 				serializedIndex++;
 			}
 		}
@@ -125,7 +133,7 @@ public class Scene : IDisposable, ISerializable
 			// Parent reference
 			let parentId = mTransforms[i].Parent;
 			int32 parentIndex = -1;
-			if (parentId.IsValid && slotToSerializedIndex.TryGetValue(parentId.Index, let mappedIndex))
+			if (parentId.IsValid && outEntityIndexMap.TryGetValue(parentId.Index, let mappedIndex))
 				parentIndex = mappedIndex;
 			s.Int32("parent", ref parentIndex);
 
@@ -135,12 +143,11 @@ public class Scene : IDisposable, ISerializable
 		s.EndObject();
 	}
 
-	private void SerializeEntitiesRead(Serializer s)
+	private void SerializeEntitiesRead(Serializer s, List<EntityId> outLoadedEntities)
 	{
 		int32 entityCount = 0;
 		s.Int32("entityCount", ref entityCount);
 
-		let loadedEntities = scope List<EntityId>();
 		let parentIndices = scope List<int32>();
 
 		s.BeginObject("entities");
@@ -172,18 +179,60 @@ public class Scene : IDisposable, ISerializable
 			if (!nameStr.IsEmpty)
 				SetName(entity, nameStr);
 
-			loadedEntities.Add(entity);
+			outLoadedEntities.Add(entity);
 			parentIndices.Add(parentIndex);
 		}
 		s.EndObject();
 
 		// Second pass: resolve parent references
-		for (int i = 0; i < loadedEntities.Count; i++)
+		for (int i = 0; i < outLoadedEntities.Count; i++)
 		{
 			let parentIdx = parentIndices[i];
-			if (parentIdx >= 0 && parentIdx < loadedEntities.Count)
-				SetParent(loadedEntities[i], loadedEntities[parentIdx]);
+			if (parentIdx >= 0 && parentIdx < outLoadedEntities.Count)
+				SetParent(outLoadedEntities[i], outLoadedEntities[parentIdx]);
 		}
+	}
+
+	private void SerializeComponentsWrite(Serializer s, Dictionary<uint32, int32> entityIndexMap)
+	{
+		if (mComponentSerializers.Count == 0)
+			return;
+		s.BeginObject("components");
+		for (let serializer in mComponentSerializers)
+			serializer.Write(this, s, entityIndexMap);
+		s.EndObject();
+	}
+
+	private void SerializeComponentsRead(Serializer s, List<EntityId> loadedEntities)
+	{
+		if (!s.HasField("components"))
+			return;
+		s.BeginObject("components");
+		for (let serializer in mComponentSerializers)
+		{
+			if (s.HasField(serializer.TypeName))
+				serializer.Read(this, s, loadedEntities);
+		}
+		s.EndObject();
+	}
+
+	/// Registers a component serializer for type T.
+	/// Call this before serializing/deserializing to enable component roundtripping.
+	public void RegisterComponentSerializer<T>() where T : struct, ISerializableComponent
+	{
+		mComponentSerializers.Add(new ComponentSerializer<T>());
+	}
+
+	/// Registers a custom component serializer.
+	/// WORKAROUND: This overload exists because SceneResource can't use a lambda
+	/// to call RegisterComponentSerializer<T>() due to a Beef compiler bug with
+	/// generic constraints in cross-project lambdas. SceneResource instead stores
+	/// prototype serializers and passes clones via CreateNew().
+	/// See BeefBugs/GenericLambdaCrossProject/ for repro.
+	/// When fixed, this overload can be removed if no longer needed.
+	public void RegisterComponentSerializer(IComponentSerializer serializer)
+	{
+		mComponentSerializers.Add(serializer);
 	}
 
 	/// Disposes the scene and all its resources.

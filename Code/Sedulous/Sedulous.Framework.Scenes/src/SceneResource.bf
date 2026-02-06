@@ -4,6 +4,7 @@ using Sedulous.Resources;
 using Sedulous.Serialization;
 using Sedulous.Serialization.OpenDDL;
 using Sedulous.OpenDDL;
+using System.Collections;
 
 namespace Sedulous.Framework.Scenes;
 
@@ -12,6 +13,7 @@ class SceneResource : Resource
 {
 	private Scene mScene;
 	private bool mOwnsScene;
+	private List<IComponentSerializer> mSerializerPrototypes = new .() ~ DeleteContainerAndItems!(_);
 
 	/// The underlying scene.
 	public Scene Scene => mScene;
@@ -47,8 +49,10 @@ class SceneResource : Resource
 		}
 		else
 		{
-			// Reading
+			// Reading - create component serializers on the new scene before deserializing
 			let scene = new Scene();
+			for (let proto in mSerializerPrototypes)
+				scene.RegisterComponentSerializer(proto.CreateNew());
 			scene.Serialize(s);
 
 			mScene = scene;
@@ -97,6 +101,42 @@ class SceneResource : Resource
 		}
 
 		return .Ok(resource);
+	}
+
+	/// Registers a component type for serialization.
+	/// Stores a prototype serializer for creating copies during load.
+	/// Also registers on the current scene (if any).
+	public void RegisterComponentType<T>() where T : struct, ISerializableComponent
+	{
+		// WORKAROUND: Uses prototype + CreateNew() instead of a lambda calling
+		// scene.RegisterComponentSerializer<T>() due to Beef compiler bug with
+		// generic constraints in cross-project lambdas.
+		// See BeefBugs/GenericLambdaCrossProject/ for repro.
+		let serializer = new ComponentSerializer<T>();
+		mSerializerPrototypes.Add(serializer);
+		if (mScene != null)
+			mScene.RegisterComponentSerializer(serializer.CreateNew());
+	}
+
+	/// Loads a scene resource from a file (instance method).
+	/// Register component types before calling this.
+	public Result<void> Load(StringView path)
+	{
+		let text = scope String();
+		if (File.ReadAllText(path, text) case .Err)
+			return .Err;
+
+		let doc = scope SerializerDataDescription();
+		if (doc.ParseText(text) != .Ok)
+			return .Err;
+
+		let reader = OpenDDLSerializer.CreateReader(doc);
+		defer delete reader;
+
+		if (Serialize(reader) case .InvalidData)
+			return .Err;
+
+		return .Ok;
 	}
 
 	/// Creates an empty scene resource with the given name.

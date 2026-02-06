@@ -1,0 +1,5 @@
+FileVersion = 1
+
+[Project]
+Name = "BeefSandbox"
+StartupObject = "BeefSandbox.Program"

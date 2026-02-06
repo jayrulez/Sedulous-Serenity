@@ -81,13 +81,15 @@ class FrameworkSerializationApp : Application
 	{
 		if (File.Exists(SceneFilePath))
 		{
-			// Load existing scene resource from file
-			switch (SceneResource.LoadFromFile(SceneFilePath))
+			// Load existing scene resource from file with component types registered
+			mSceneResource = new SceneResource();
+			mSceneResource.RegisterComponentType<TestComponent>();
+			switch (mSceneResource.Load(SceneFilePath))
 			{
-			case .Ok(let resource):
-				mSceneResource = resource;
+			case .Ok:
 				let loadedScene = mSceneResource.Scene;
 				Console.WriteLine($"Loaded scene from file: {loadedScene.Name} ({loadedScene.EntityCount} entities)");
+				PrintComponentData(loadedScene);
 
 				// Create a managed scene with the loaded name
 				mMainScene = mSceneSubsystem.CreateScene(loadedScene.Name);
@@ -95,6 +97,8 @@ class FrameworkSerializationApp : Application
 
 			case .Err:
 				Console.WriteLine("ERROR: Failed to load scene from file, creating new one");
+				delete mSceneResource;
+				mSceneResource = null;
 				CreateAndSaveScene();
 			}
 		}
@@ -106,21 +110,24 @@ class FrameworkSerializationApp : Application
 
 	private void CreateAndSaveScene()
 	{
-		// Create scene resource with test entities
+		// Create scene resource with test entities and components
 		mSceneResource = SceneResource.CreateEmpty("SerializationTest");
+		mSceneResource.RegisterComponentType<TestComponent>();
 		let scene = mSceneResource.Scene;
 
-		// Root entity at origin
+		// Root entity at origin with component
 		let root = scene.CreateEntity();
 		scene.SetName(root, "Root");
+		scene.SetComponent<TestComponent>(root, .() { Speed = 5.0f, Health = 100, Active = true });
 
-		// Child entity parented to root
+		// Child entity parented to root with component
 		let child = scene.CreateEntity();
 		scene.SetName(child, "Child");
 		scene.SetTransform(child, .(.(2, 1, 0)));
 		scene.SetParent(child, root);
+		scene.SetComponent<TestComponent>(child, .() { Speed = 2.5f, Health = 50, Active = false });
 
-		// Another root entity
+		// Another root entity (no component - tests sparse serialization)
 		let otherRoot = scene.CreateEntity();
 		scene.SetName(otherRoot, "OtherRoot");
 		scene.SetTransform(otherRoot, .(.(- 3, 0, 5)));
@@ -130,6 +137,7 @@ class FrameworkSerializationApp : Application
 		{
 		case .Ok:
 			Console.WriteLine($"Created and saved scene: {scene.Name} ({scene.EntityCount} entities)");
+			PrintComponentData(scene);
 		case .Err:
 			Console.WriteLine("ERROR: Failed to save scene to file");
 		}
@@ -137,6 +145,15 @@ class FrameworkSerializationApp : Application
 		// Create managed scene
 		mMainScene = mSceneSubsystem.CreateScene(mSceneResource.Scene.Name);
 		mSceneSubsystem.SetActiveScene(mMainScene);
+	}
+
+	private void PrintComponentData(Scene scene)
+	{
+		for (let (entity, comp) in scene.Query<TestComponent>())
+		{
+			let name = scene.GetName(entity);
+			Console.WriteLine($"  {name}: Speed={comp.Speed}, Health={comp.Health}, Active={comp.Active}");
+		}
 	}
 
 	protected override void OnInput()

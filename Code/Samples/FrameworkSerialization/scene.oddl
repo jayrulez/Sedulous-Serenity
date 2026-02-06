@@ -1,6 +1,6 @@
 string %_type {"Sedulous.Framework.Scenes.SceneResource"}
 int32 %_version {1}
-string %_id {"b5f0a4bf-e17c-42f8-9e8d-2fad2f69f6fb"}
+string %_id {"8dd705ee-16e7-4d0a-983b-a18b14108470"}
 string %_name {"SerializationTest"}
 int32 %sceneVersion {1}
 string %sceneName {"SerializationTest"}
@@ -44,5 +44,24 @@ Obj_ %entities {
 			{1, 1, 1}
 		}
 		int32 %parent {-1}
+	}
+}
+Obj_ %components {
+	Obj_ %TestComponent {
+		int32 %count {2}
+		Obj_ %c0 {
+			int32 %entity {0}
+			int32 %_version {1}
+			float %speed {5}
+			int32 %health {100}
+			bool %active {true}
+		}
+		Obj_ %c1 {
+			int32 %entity {1}
+			int32 %_version {1}
+			float %speed {2.5}
+			int32 %health {50}
+			bool %active {false}
+		}
 	}
 }
