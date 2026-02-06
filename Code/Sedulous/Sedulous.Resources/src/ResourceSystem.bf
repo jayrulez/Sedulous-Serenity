@@ -15,6 +15,7 @@ class ResourceSystem
 	private readonly Monitor mManagersMonitor = new .() ~ delete _;
 	private readonly Dictionary<Type, IResourceManager> mManagers = new .() ~ delete _;
 	private readonly ResourceCache mCache = new .() ~ delete _;
+	private readonly List<IResourceRegistry> mRegistries = new .() ~ delete _;
 
 	/// Gets the resource cache.
 	public ResourceCache Cache => mCache;
@@ -85,6 +86,25 @@ class ResourceSystem
 			{
 				mManagers.Remove(type);
 			}
+		}
+	}
+
+	/// Adds a resource registry for GUID-to-path resolution.
+	public void AddRegistry(IResourceRegistry registry)
+	{
+		using (mManagersMonitor.Enter())
+		{
+			if (!mRegistries.Contains(registry))
+				mRegistries.Add(registry);
+		}
+	}
+
+	/// Removes a resource registry.
+	public void RemoveRegistry(IResourceRegistry registry)
+	{
+		using (mManagersMonitor.Enter())
+		{
+			mRegistries.Remove(registry);
 		}
 	}
 
@@ -201,5 +221,83 @@ class ResourceSystem
 		}
 
 		resource.Release();
+	}
+
+	/// Loads a resource by reference (GUID + path).
+	/// Resolution order:
+	///   1. Cache by GUID string
+	///   2. Cache by path
+	///   3. Registry GUID-to-path resolution (if path missing)
+	///   4. Load from file by resolved path
+	///   5. After successful load, also cache by GUID for future lookups
+	public Result<ResourceHandle<T>, ResourceLoadError> LoadByRef<T>(ResourceRef resourceRef) where T : IResource
+	{
+		// 1. Try cache by GUID
+		if (resourceRef.HasId)
+		{
+			let guidStr = scope String();
+			resourceRef.Id.ToString(guidStr);
+			var key = ResourceCacheKey(guidStr, typeof(T));
+			defer key.Dispose();
+			let handle = mCache.Get(key);
+			if (handle.IsValid)
+				return ResourceHandle<T>((T)handle.Resource);
+		}
+
+		// 2. Try cache by path
+		if (resourceRef.HasPath)
+		{
+			var key = ResourceCacheKey(resourceRef.Path, typeof(T));
+			defer key.Dispose();
+			let handle = mCache.Get(key);
+			if (handle.IsValid)
+				return ResourceHandle<T>((T)handle.Resource);
+		}
+
+		// 3. Resolve path from ID via registries (if path missing)
+		String resolvedPath = resourceRef.HasPath ? resourceRef.Path : null;
+		String tempPath = null;
+		defer { delete tempPath; }
+
+		if (resolvedPath == null && resourceRef.HasId)
+		{
+			tempPath = new String();
+			if (ResolvePathFromId(resourceRef.Id, tempPath))
+				resolvedPath = tempPath;
+		}
+
+		// 4. Load by path
+		if (resolvedPath != null && resolvedPath.Length > 0)
+		{
+			let result = LoadResource<T>(resolvedPath);
+			if (result case .Ok(let handle))
+			{
+				// Also cache by GUID for future ID-based lookups
+				if (resourceRef.HasId)
+				{
+					let guidStr = scope String();
+					resourceRef.Id.ToString(guidStr);
+					var guidKey = ResourceCacheKey(guidStr, typeof(T));
+					mCache.Set(guidKey, ResourceHandle<IResource>(handle.Resource));
+				}
+			}
+			return result;
+		}
+
+		return .Err(.NotFound);
+	}
+
+	/// Resolves a GUID to a path by querying all registered registries.
+	private bool ResolvePathFromId(Guid id, String outPath)
+	{
+		using (mManagersMonitor.Enter())
+		{
+			for (let registry in mRegistries)
+			{
+				if (registry.TryResolvePath(id, outPath))
+					return true;
+			}
+			return false;
+		}
 	}
 }
