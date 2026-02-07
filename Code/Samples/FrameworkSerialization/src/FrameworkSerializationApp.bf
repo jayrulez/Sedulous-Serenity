@@ -21,7 +21,9 @@ using Sedulous.Models.GLTF;
 using Sedulous.Imaging;
 using Sedulous.Materials.Resources;
 using Sedulous.Textures.Resources;
+using Sedulous.Animation;
 using Sedulous.Animation.Resources;
+using System.Collections;
 
 class FrameworkSerializationApp : Application
 {
@@ -64,12 +66,18 @@ class FrameworkSerializationApp : Application
 	private String mCachedStaticMeshPath ~ delete _;
 	private String mCachedMaterialPath ~ delete _;
 	private String mCachedSkeletonPath ~ delete _;
-	private String mCachedAnimationPath ~ delete _;
 	private Guid mCachedSkinnedMeshId;
 	private Guid mCachedStaticMeshId;
 	private Guid mCachedMaterialId;
 	private Guid mCachedSkeletonId;
-	private Guid mCachedAnimationId;
+
+	// All animation resource refs (for cycling)
+	private List<ResourceRef> mAnimationRefs = new .() ~ { for (var r in _) r.Dispose(); delete _; };
+
+	// Runtime animation cycling state
+	private List<ResourceHandle<AnimationClipResource>> mLoadedAnimClips = new .() ~ { for (var h in _) h.Release(); delete _; };
+	private int mCurrentAnimIndex = 0;
+	private EntityId mFoxEntity;
 
 	public this(IShell shell, IDevice device, IBackend backend) : base(shell, device, backend)
 	{
@@ -99,6 +107,9 @@ class FrameworkSerializationApp : Application
 		// Import and cache assets, then create/load scene
 		ImportAndCacheAssets();
 		LoadOrCreateScene();
+
+		// Load all animation clips for runtime cycling
+		SetupAnimationCycling();
 	}
 
 	private void InitializeRenderSystem()
@@ -349,13 +360,10 @@ class FrameworkSerializationApp : Application
 		for (let animation in result.Animations)
 		{
 			RegisterResource(animation, cacheDir, "animation");
-			// Capture first animation for fox entity creation
-			if (mCachedAnimationPath == null)
-			{
-				mCachedAnimationPath = new String();
-				mCachedAnimationPath.AppendF("{}/{}.animation", cacheDir, animation.Name);
-				mCachedAnimationId = animation.Id;
-			}
+			// Capture all animations for cycling
+			let animPath = scope String();
+			animPath.AppendF("{}/{}.animation", cacheDir, animation.Name);
+			mAnimationRefs.Add(ResourceRef(animation.Id, animPath));
 		}
 	}
 
@@ -404,10 +412,11 @@ class FrameworkSerializationApp : Application
 				mCachedSkeletonPath = new String(filePath);
 				mRegistry.TryResolveId(filePath, out mCachedSkeletonId);
 			}
-			else if (filePath.EndsWith(".animation") && mCachedAnimationPath == null)
+			else if (filePath.EndsWith(".animation"))
 			{
-				mCachedAnimationPath = new String(filePath);
-				mRegistry.TryResolveId(filePath, out mCachedAnimationId);
+				Guid animId = .();
+				mRegistry.TryResolveId(filePath, out animId);
+				mAnimationRefs.Add(ResourceRef(animId, filePath));
 			}
 		}
 	}
@@ -561,17 +570,19 @@ class FrameworkSerializationApp : Application
 		scene.SetComponent<SkinnedMeshRendererComponent>(foxEntity, foxComp);
 
 		// Add skeletal animation component with resource refs
-		if (mCachedSkeletonPath != null && mCachedAnimationPath != null)
+		if (mCachedSkeletonPath != null && mAnimationRefs.Count > 0)
 		{
+			let firstAnim = mAnimationRefs[0];
 			var animComp = SkeletalAnimationComponent.Default;
 			animComp.SkeletonRef = ResourceRef(mCachedSkeletonId, mCachedSkeletonPath);
-			animComp.AnimationClipRef = ResourceRef(mCachedAnimationId, mCachedAnimationPath);
+			animComp.AnimationClipRef = ResourceRef(firstAnim.Id, firstAnim.Path);
 			animComp.Playing = true;
 			animComp.Loop = true;
 			scene.SetComponent<SkeletalAnimationComponent>(foxEntity, animComp);
 
 			Console.WriteLine($"    SkeletonRef: id={mCachedSkeletonId}, path={mCachedSkeletonPath}");
-			Console.WriteLine($"    AnimClipRef: id={mCachedAnimationId}, path={mCachedAnimationPath}");
+			Console.WriteLine($"    AnimClipRef: id={firstAnim.Id}, path={firstAnim.Path}");
+			Console.WriteLine($"    Available animations: {mAnimationRefs.Count}");
 		}
 
 		Console.WriteLine("  Created Fox (skinned) entity with ResourceRefs:");
@@ -604,6 +615,58 @@ class FrameworkSerializationApp : Application
 		Console.WriteLine($"    MeshRef: id={mCachedStaticMeshId}, path={mCachedStaticMeshPath}");
 		if (mCachedMaterialPath != null)
 			Console.WriteLine($"    MaterialRef: id={mCachedMaterialId}, path={mCachedMaterialPath}");
+	}
+
+	// ==================== Animation Cycling ====================
+
+	/// Loads all animation clips and finds the fox entity for runtime animation cycling.
+	private void SetupAnimationCycling()
+	{
+		if (mMainScene == null || mAnimationRefs.Count == 0)
+			return;
+
+		// Find the fox entity
+		mFoxEntity = mMainScene.FindByName("Fox");
+		if (!mMainScene.IsValid(mFoxEntity))
+			return;
+
+		// Load all animation clips via ResourceSystem
+		for (let animRef in mAnimationRefs)
+		{
+			if (mContext.Resources.LoadByRef<AnimationClipResource>(animRef) case .Ok(let handle))
+				mLoadedAnimClips.Add(handle);
+		}
+
+		if (mLoadedAnimClips.Count > 0)
+		{
+			Console.WriteLine($"\nAnimation cycling ready (press T to cycle):");
+			for (int i = 0; i < mLoadedAnimClips.Count; i++)
+			{
+				let name = mLoadedAnimClips[i].Resource?.Clip?.Name ?? "?";
+				Console.WriteLine($"  [{i}] {name}{(i == 0 ? " (active)" : "")}");
+			}
+		}
+	}
+
+	/// Cycles to the next animation clip on the fox entity.
+	private void CycleAnimation()
+	{
+		if (mMainScene == null || mLoadedAnimClips.Count <= 1)
+			return;
+
+		if (!mMainScene.IsValid(mFoxEntity))
+			return;
+
+		if (let animModule = mMainScene.GetModule<AnimationSceneModule>())
+		{
+			mCurrentAnimIndex = (mCurrentAnimIndex + 1) % mLoadedAnimClips.Count;
+			let clipResource = mLoadedAnimClips[mCurrentAnimIndex].Resource;
+			if (clipResource?.Clip != null)
+			{
+				animModule.Play(mFoxEntity, clipResource.Clip, true);
+				Console.WriteLine($"Animation: [{mCurrentAnimIndex}] {clipResource.Clip.Name}");
+			}
+		}
 	}
 
 	// ==================== Printing ====================
@@ -657,6 +720,9 @@ class FrameworkSerializationApp : Application
 
 		if (keyboard.IsKeyPressed(.Escape))
 			Exit();
+
+		if (keyboard.IsKeyPressed(.T))
+			CycleAnimation();
 
 		mCamera.HandleInput(keyboard, mouse, mDeltaTime);
 	}
