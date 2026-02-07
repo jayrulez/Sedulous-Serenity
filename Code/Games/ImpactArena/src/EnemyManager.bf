@@ -107,6 +107,7 @@ class EnemyManager
 		var comp = mScene.GetComponent<MeshRendererComponent>(entity);
 		comp.Mesh = ResourceHandle<StaticMeshResource>(mSphereResource);
 		comp.MaterialInstance = mat;
+		comp.MaterialInstance?.AddRef();
 
 		var descriptor = PhysicsBodyDescriptor();
 		descriptor.BodyType = .Dynamic;

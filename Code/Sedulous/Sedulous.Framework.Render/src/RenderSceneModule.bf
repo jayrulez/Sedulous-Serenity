@@ -90,7 +90,7 @@ class RenderSceneModule : SceneModule
 			meshComp.MaterialRef.Dispose();
 			if (meshComp.MaterialInstance != null)
 			{
-				delete meshComp.MaterialInstance;
+				meshComp.MaterialInstance.ReleaseRef();
 				meshComp.MaterialInstance = null;
 			}
 		}
@@ -103,7 +103,7 @@ class RenderSceneModule : SceneModule
 			skinnedComp.MaterialRef.Dispose();
 			if (skinnedComp.MaterialInstance != null)
 			{
-				delete skinnedComp.MaterialInstance;
+				skinnedComp.MaterialInstance.ReleaseRef();
 				skinnedComp.MaterialInstance = null;
 			}
 		}
@@ -651,7 +651,7 @@ class RenderSceneModule : SceneModule
 			meshComp.MaterialRef.Dispose();
 			if(meshComp.MaterialInstance != null)
 			{
-				delete meshComp.MaterialInstance;
+				meshComp.MaterialInstance.ReleaseRef();
 				meshComp.MaterialInstance = null;
 			}
 		}
@@ -673,7 +673,7 @@ class RenderSceneModule : SceneModule
 			skinnedComp.MaterialRef.Dispose();
 			if(skinnedComp.MaterialInstance != null)
 			{
-				delete skinnedComp.MaterialInstance;
+				skinnedComp.MaterialInstance.ReleaseRef();
 				skinnedComp.MaterialInstance = null;
 			}
 		}

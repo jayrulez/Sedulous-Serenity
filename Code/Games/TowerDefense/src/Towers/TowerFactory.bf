@@ -49,7 +49,7 @@ class TowerFactory
 	// Material instances (keyed by color)
 	private Dictionary<uint32, MaterialInstance> mMaterialCache = new .() ~ {
 		for (let mat in _.Values)
-			delete mat;
+			mat.ReleaseRef();
 		delete _;
 	};
 
@@ -166,6 +166,7 @@ class TowerFactory
 		var meshComp = mScene.GetComponent<MeshRendererComponent>(entity);
 		meshComp.Mesh = ResourceHandle<StaticMeshResource>(mTowerMesh);
 		meshComp.MaterialInstance = GetOrCreateMaterial(definition.Color);
+		meshComp.MaterialInstance?.AddRef();
 
 		// Create tower data (replaces component)
 		let towerData = new TowerData();
@@ -253,6 +254,7 @@ class TowerFactory
 		var meshComp = mScene.GetComponent<MeshRendererComponent>(entity);
 		meshComp.Mesh = ResourceHandle<StaticMeshResource>(mProjectileMesh);
 		meshComp.MaterialInstance = GetOrCreateMaterial(color);
+		meshComp.MaterialInstance?.AddRef();
 
 		// Create projectile data (replaces component)
 		let projData = new ProjectileData();

@@ -359,6 +359,7 @@ class SceneUISample : Application
 		var comp = mScene.GetComponent<MeshRendererComponent>(mGroundEntity);
 		comp.Mesh = ResourceHandle<StaticMeshResource>(mPlaneResource);
 		comp.MaterialInstance = mGroundMaterialInstance ?? defaultMaterial;
+		comp.MaterialInstance?.AddRef();
 
 		Console.WriteLine("  Created ground plane");
 	}
@@ -460,6 +461,7 @@ class SceneUISample : Application
 		var comp = mScene.GetComponent<SkinnedMeshRendererComponent>(mFoxEntity);
 		comp.Mesh = ResourceHandle<SkinnedMeshResource>(mFoxResource);
 		comp.MaterialInstance = mFoxMaterialInstance ?? mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
+		comp.MaterialInstance?.AddRef();
 
 		// Setup animation
 		if (animModule != null && mFoxResource.Skeleton != null)
@@ -866,12 +868,12 @@ class SceneUISample : Application
 		// Delete material instances before RenderSystem (they reference GPU resources)
 		if (mFoxMaterialInstance != null)
 		{
-			delete mFoxMaterialInstance;
+			mFoxMaterialInstance.ReleaseRef();
 			mFoxMaterialInstance = null;
 		}
 		if (mGroundMaterialInstance != null)
 		{
-			delete mGroundMaterialInstance;
+			mGroundMaterialInstance.ReleaseRef();
 			mGroundMaterialInstance = null;
 		}
 

@@ -42,9 +42,9 @@ class FrameworkRenderApp : Application
 	private StaticMeshResource mPlaneResource /*~ delete _*/;
 
 	// Materials
-	private MaterialInstance mFloorMaterial ~ delete _;
-	private MaterialInstance mSharedSphereMaterial ~ delete _;
-	private List<MaterialInstance> mUniqueMaterials = new .() ~ DeleteContainerAndItems!(_);
+	private MaterialInstance mFloorMaterial ~ _?.ReleaseRef();
+	private MaterialInstance mSharedSphereMaterial ~ _?.ReleaseRef();
+	private List<MaterialInstance> mUniqueMaterials = new .() ~ { for (let m in _) m.ReleaseRef(); delete _; };
 
 	// Entities
 	private EntityId mFloorEntity;
@@ -218,6 +218,7 @@ class FrameworkRenderApp : Application
 			var comp = mMainScene.GetComponent<MeshRendererComponent>(mFloorEntity);
 			comp.Mesh = ResourceHandle<StaticMeshResource>(mPlaneResource);
 			comp.MaterialInstance = mFloorMaterial ?? defaultMaterial;
+			comp.MaterialInstance?.AddRef();
 		}
 
 		// Create camera
@@ -321,10 +322,12 @@ class FrameworkRenderApp : Application
 				uniqueMat.SetColor("BaseColor", .(color.X, color.Y, color.Z, 1.0f));
 				mUniqueMaterials.Add(uniqueMat);
 				comp.MaterialInstance = uniqueMat;
+				comp.MaterialInstance?.AddRef();
 			}
 			else
 			{
 				comp.MaterialInstance = mSharedSphereMaterial ?? defaultMaterial;
+				comp.MaterialInstance?.AddRef();
 			}
 		}
 
@@ -350,8 +353,10 @@ class FrameworkRenderApp : Application
 
 		Console.WriteLine("Switching to {} materials...", mUseUniqueMaterials ? "unique" : "shared");
 
-		// Clear existing unique materials
-		DeleteContainerAndItems!(mUniqueMaterials);
+		// Release old unique materials (components still hold refs, so this drops list ownership)
+		for (let m in mUniqueMaterials)
+			m.ReleaseRef();
+		delete mUniqueMaterials;
 		mUniqueMaterials = new .();
 
 		// Update all sphere materials
@@ -362,6 +367,7 @@ class FrameworkRenderApp : Application
 			if (comp == null)
 				continue;
 
+			comp.MaterialInstance?.ReleaseRef();
 			if (mUseUniqueMaterials && baseMaterial != null)
 			{
 				let uniqueMat = new MaterialInstance(baseMaterial);
@@ -370,10 +376,12 @@ class FrameworkRenderApp : Application
 				uniqueMat.SetColor("BaseColor", .(color.X, color.Y, color.Z, 1.0f));
 				mUniqueMaterials.Add(uniqueMat);
 				comp.MaterialInstance = uniqueMat;
+				comp.MaterialInstance?.AddRef();
 			}
 			else
 			{
 				comp.MaterialInstance = mSharedSphereMaterial ?? defaultMaterial;
+				comp.MaterialInstance?.AddRef();
 			}
 		}
 

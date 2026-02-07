@@ -45,7 +45,7 @@ class MaterialSystem : IDisposable
 
 	/// Default PBR material (for meshes without assigned materials).
 	private Material mDefaultMaterial ~ delete _;
-	private MaterialInstance mDefaultMaterialInstance ~ delete _;
+	private MaterialInstance mDefaultMaterialInstance ~ _?.ReleaseRef();
 
 	/// Cached default material bind group layout (owned by mLayoutCache, not deleted here).
 	private IBindGroupLayout mDefaultMaterialLayout;

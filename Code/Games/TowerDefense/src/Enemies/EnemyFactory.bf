@@ -35,7 +35,7 @@ class EnemyFactory
 	// Material instances for different enemy types (keyed by color)
 	private Dictionary<uint32, MaterialInstance> mMaterialCache = new .() ~ {
 		for (let mat in _.Values)
-			delete mat;
+			mat.ReleaseRef();
 		delete _;
 	};
 
@@ -140,6 +140,7 @@ class EnemyFactory
 		var meshComp = mScene.GetComponent<MeshRendererComponent>(entity);
 		meshComp.Mesh = ResourceHandle<StaticMeshResource>(mEnemyMesh);
 		meshComp.MaterialInstance = GetOrCreateMaterial(definition.Color);
+		meshComp.MaterialInstance?.AddRef();
 
 		// Create enemy data (replaces component)
 		let enemyData = new EnemyData();

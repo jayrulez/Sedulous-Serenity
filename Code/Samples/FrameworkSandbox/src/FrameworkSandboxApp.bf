@@ -58,9 +58,9 @@ class FrameworkSandboxApp : Application
 	private StaticMeshResource mCubeResource /*~ delete _*/;
 	private StaticMeshResource mPlaneResource /*~ delete _*/;
 	private StaticMeshResource mSphereResource /*~ delete _*/;
-	private MaterialInstance mCubeMaterial ~ delete _;
-	private MaterialInstance mFloorMaterial ~ delete _;
-	private MaterialInstance mSphereMaterial ~ delete _;
+	private MaterialInstance mCubeMaterial ~ _?.ReleaseRef();
+	private MaterialInstance mFloorMaterial ~ _?.ReleaseRef();
+	private MaterialInstance mSphereMaterial ~ _?.ReleaseRef();
 
 	// Entities
 	private EntityId mFloorEntity;
@@ -410,6 +410,7 @@ class FrameworkSandboxApp : Application
 			var comp = mMainScene.GetComponent<MeshRendererComponent>(mFloorEntity);
 			comp.Mesh = ResourceHandle<StaticMeshResource>(mPlaneResource);
 			comp.MaterialInstance = mFloorMaterial ?? defaultMaterial;
+			comp.MaterialInstance?.AddRef();
 
 			// Infinite plane at Y=0 facing up
 			if (physicsModule != null)
@@ -461,6 +462,7 @@ class FrameworkSandboxApp : Application
 			var comp = mMainScene.GetComponent<MeshRendererComponent>(mCubeEntity);
 			comp.Mesh = ResourceHandle<StaticMeshResource>(mCubeResource);
 			comp.MaterialInstance = mCubeMaterial ?? defaultMaterial;
+			comp.MaterialInstance?.AddRef();
 
 			// Add kinematic physics body (controlled by gameplay, not physics simulation)
 			if (physicsModule != null)
@@ -499,6 +501,7 @@ class FrameworkSandboxApp : Application
 				var comp = mMainScene.GetComponent<MeshRendererComponent>(entity);
 				comp.Mesh = ResourceHandle<StaticMeshResource>(mSphereResource);
 				comp.MaterialInstance = mSphereMaterial ?? defaultMaterial;
+				comp.MaterialInstance?.AddRef();
 
 				// Add dynamic physics body - will fall and bounce
 				physicsModule.CreateSphereBody(entity, 0.3f, .Dynamic, ObjectRestitution);
@@ -1649,6 +1652,7 @@ class FrameworkSandboxApp : Application
 		comp.Mesh = ResourceHandle<StaticMeshResource>(mSphereResource);
 		let defaultMaterial = mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
 		comp.MaterialInstance = mSphereMaterial ?? defaultMaterial;
+		comp.MaterialInstance?.AddRef();
 
 		physicsModule.CreateSphereBody(entity, 0.3f, .Dynamic, ObjectRestitution);
 		mSpawnCount++;

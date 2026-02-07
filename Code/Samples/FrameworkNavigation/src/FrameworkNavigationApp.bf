@@ -50,8 +50,8 @@ class FrameworkNavigationApp : Application
 	// Meshes
 	private StaticMeshResource mPlaneResource /*~ delete _*/;
 	private StaticMeshResource mCubeResource /*~ delete _*/;
-	private MaterialInstance mFloorMaterial ~ delete _;
-	private MaterialInstance mWallMaterial ~ delete _;
+	private MaterialInstance mFloorMaterial ~ _?.ReleaseRef();
+	private MaterialInstance mWallMaterial ~ _?.ReleaseRef();
 
 	// Camera
 	private OrbitFlyCamera mCamera ~ delete _;
@@ -238,6 +238,7 @@ class FrameworkNavigationApp : Application
 			var comp = mMainScene.GetComponent<MeshRendererComponent>(mFloorEntity);
 			comp.Mesh = ResourceHandle<StaticMeshResource>(mPlaneResource);
 			comp.MaterialInstance = mFloorMaterial ?? defaultMaterialInstance;
+			comp.MaterialInstance?.AddRef();
 			if (physicsModule != null)
 				physicsModule.CreatePlaneBody(mFloorEntity, .(0, 1, 0), 0.0f);
 		}
@@ -280,6 +281,7 @@ class FrameworkNavigationApp : Application
 		comp.Mesh = ResourceHandle<StaticMeshResource>(mCubeResource);
 		let defaultMat = mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
 		comp.MaterialInstance = mWallMaterial ?? defaultMat;
+		comp.MaterialInstance?.AddRef();
 	}
 
 	private void CreateUI()

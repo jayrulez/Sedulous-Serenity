@@ -1121,16 +1121,16 @@ class ImpactArenaGame : Application
 		delete mDrawContext;
 		delete mFontService;
 
-		delete mFloorMat;
-		delete mWallMat;
-		delete mPlayerMat;
-		delete mGruntMat;
-		delete mBruteMat;
-		delete mDasherMat;
-		delete mHealthPickupMat;
-		delete mSpeedPickupMat;
-		delete mShockPickupMat;
-		delete mEmpPickupMat;
+		mFloorMat?.ReleaseRef();
+		mWallMat?.ReleaseRef();
+		mPlayerMat?.ReleaseRef();
+		mGruntMat?.ReleaseRef();
+		mBruteMat?.ReleaseRef();
+		mDasherMat?.ReleaseRef();
+		mHealthPickupMat?.ReleaseRef();
+		mSpeedPickupMat?.ReleaseRef();
+		mShockPickupMat?.ReleaseRef();
+		mEmpPickupMat?.ReleaseRef();
 
 		if (mBgMusicSource != null)
 			mAudioSubsystem.AudioSystem.DestroySource(mBgMusicSource);

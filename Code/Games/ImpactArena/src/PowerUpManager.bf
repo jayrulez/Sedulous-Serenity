@@ -160,6 +160,7 @@ class PowerUpManager
 		var comp = mScene.GetComponent<MeshRendererComponent>(entity);
 		comp.Mesh = ResourceHandle<StaticMeshResource>(mSphereResource);
 		comp.MaterialInstance = mat;
+		comp.MaterialInstance?.AddRef();
 
 		// Ambient glow particles
 		Vector4 glowColor;

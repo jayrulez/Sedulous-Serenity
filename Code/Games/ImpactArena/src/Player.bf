@@ -78,6 +78,7 @@ class Player
 		var comp = mScene.GetComponent<MeshRendererComponent>(mEntity);
 		comp.Mesh = ResourceHandle<StaticMeshResource>(sphereMesh);
 		comp.MaterialInstance = mat;
+		comp.MaterialInstance?.AddRef();
 
 		// Create physics body constrained to XZ plane
 		var descriptor = PhysicsBodyDescriptor();

@@ -47,7 +47,7 @@ struct PropertyOverrideMask
 
 /// Instance of a material with overridable properties.
 /// Tracks dirty state for efficient GPU buffer updates.
-class MaterialInstance : IDisposable
+class MaterialInstance : RefCounted, IDisposable
 {
 	/// The base material (not owned).
 	private Material mMaterial;

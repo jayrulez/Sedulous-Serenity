@@ -44,8 +44,8 @@ class RenderSandboxApp : Application
 	private List<LightProxyHandle> mPointLights = new .() ~ delete _;
 
 	// Materials
-	private MaterialInstance mCubeMaterial ~ delete _;
-	private MaterialInstance mTransparentMaterial ~ delete _;
+	private MaterialInstance mCubeMaterial ~ _?.ReleaseRef();
+	private MaterialInstance mTransparentMaterial ~ _?.ReleaseRef();
 
 	// Animated mesh (Fox model)
 	private AnimatedMeshComponent mFoxComponent ~ delete _;
@@ -53,9 +53,9 @@ class RenderSandboxApp : Application
 	private LoadedModel mFoxModel;
 	private bool mFoxModelOwned = false;
 	private int32 mCurrentFoxAnimation = 0;
-	private MaterialInstance mFoxMaterial ~ delete _;
+	private MaterialInstance mFoxMaterial ~ _?.ReleaseRef();
 	private Material mFoxUnlitBaseMaterial ~ delete _;
-	private MaterialInstance mFoxUnlitMaterial ~ delete _;
+	private MaterialInstance mFoxUnlitMaterial ~ _?.ReleaseRef();
 	private GPUTextureHandle mFoxTextureHandle;
 
 	// Camera mode

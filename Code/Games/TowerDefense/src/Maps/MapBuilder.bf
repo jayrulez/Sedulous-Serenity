@@ -26,12 +26,12 @@ class MapBuilder
 	private StaticMeshResource mTileMesh;
 
 	// Materials for different tile types
-	private MaterialInstance mGrassMaterial ~ delete _;
-	private MaterialInstance mPathMaterial ~ delete _;
-	private MaterialInstance mWaterMaterial ~ delete _;
-	private MaterialInstance mBlockedMaterial ~ delete _;
-	private MaterialInstance mSpawnMaterial ~ delete _;
-	private MaterialInstance mExitMaterial ~ delete _;
+	private MaterialInstance mGrassMaterial ~ _?.ReleaseRef();
+	private MaterialInstance mPathMaterial ~ _?.ReleaseRef();
+	private MaterialInstance mWaterMaterial ~ _?.ReleaseRef();
+	private MaterialInstance mBlockedMaterial ~ _?.ReleaseRef();
+	private MaterialInstance mSpawnMaterial ~ _?.ReleaseRef();
+	private MaterialInstance mExitMaterial ~ _?.ReleaseRef();
 
 	// Created tile entities (for cleanup)
 	private List<EntityId> mTileEntities = new .() ~ delete _;
@@ -119,6 +119,7 @@ class MapBuilder
 		var meshComp = mScene.GetComponent<MeshRendererComponent>(entity);
 		meshComp.Mesh = ResourceHandle<StaticMeshResource>(mTileMesh);
 		meshComp.MaterialInstance = GetMaterialForTileType(tileType);
+		meshComp.MaterialInstance?.AddRef();
 
 		mTileEntities.Add(entity);
 	}
