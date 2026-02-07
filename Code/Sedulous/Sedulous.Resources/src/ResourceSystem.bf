@@ -145,6 +145,7 @@ class ResourceSystem
 		{
 			String id = scope $"{resource.Id.ToString(.. scope .()):X}";
 			var key = ResourceCacheKey(id, typeof(T));
+			defer key.Dispose();
 			mCache.Set(key, handle);
 		}
 

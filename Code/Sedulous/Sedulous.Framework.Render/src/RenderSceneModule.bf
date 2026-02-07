@@ -39,6 +39,9 @@ class RenderSceneModule : SceneModule
 	private Dictionary<EntityId, MaterialInstance> mEntityMaterialBinding = new .() ~ delete _;
 	private Dictionary<EntityId, MaterialInstance> mEntitySkinnedMaterialBinding = new .() ~ delete _;
 
+	// Track which texture resource is currently bound to each sprite entity's proxy
+	private Dictionary<EntityId, TextureResource> mEntitySpriteTextureBinding = new .() ~ delete _;
+
 	// Track loaded texture resource refs per entity (for releasing on destroy)
 	private Dictionary<EntityId, List<TextureResource>> mEntityTextureRefs = new .() ~ { for (var kv in _) delete kv.value; delete _; };
 
@@ -105,6 +108,12 @@ class RenderSceneModule : SceneModule
 			}
 		}
 
+		for (let (entity, sprite) in scene.Query<SpriteComponent>())
+		{
+			sprite.Texture.Release();
+			sprite.TextureRef.Dispose();
+		}
+
 		// Release cached GPU meshes
 		let gpuManager = mSubsystem.RenderSystem?.ResourceManager;
 		let frameNumber = mSubsystem.RenderSystem?.FrameNumber ?? 0;
@@ -137,6 +146,7 @@ class RenderSceneModule : SceneModule
 		mEntitySkinnedMeshBinding.Clear();
 		mEntityMaterialBinding.Clear();
 		mEntitySkinnedMaterialBinding.Clear();
+		mEntitySpriteTextureBinding.Clear();
 		mMeshProxies.Clear();
 		mSkinnedMeshProxies.Clear();
 		mCameraProxies.Clear();
@@ -528,6 +538,46 @@ class RenderSceneModule : SceneModule
 				proxy.UVRect = sprite.UVRect;
 				proxy.LayerMask = sprite.LayerMask;
 			}
+
+			// Check if texture resource has changed
+			let texResource = sprite.Texture.Resource;
+			TextureResource currentTexBinding = null;
+			mEntitySpriteTextureBinding.TryGetValue(entity, out currentTexBinding);
+
+			if (texResource != currentTexBinding)
+			{
+				if (texResource != null && texResource.Image != null)
+				{
+					// Upload texture to GPU (using shared cache)
+					ITextureView view = null;
+					let gpuManager = mSubsystem.RenderSystem?.ResourceManager;
+					if (gpuManager != null)
+					{
+						if (mTextureCache.TryGetValue(texResource, var gpuHandle))
+						{
+							view = gpuManager.GetTextureView(gpuHandle);
+						}
+						else
+						{
+							let image = texResource.Image;
+							let gpuFormat = ConvertPixelFormat(image.Format);
+							let texData = TextureData.Create2D(image.Data.Ptr, (uint64)image.Data.Length, image.Width, image.Height, gpuFormat);
+							if (gpuManager.UploadTexture(texData) case .Ok(let newHandle))
+							{
+								mTextureCache[texResource] = newHandle;
+								view = gpuManager.GetTextureView(newHandle);
+							}
+						}
+					}
+					if (view != null && proxyHandle.IsValid)
+						mWorld.SetSpriteTexture(proxyHandle, view);
+					mEntitySpriteTextureBinding[entity] = texResource;
+				}
+				else if (texResource == null && currentTexBinding != null)
+				{
+					mEntitySpriteTextureBinding.Remove(entity);
+				}
+			}
 		}
 
 		// Sync trail emitters (auto-create proxy from component data if missing)
@@ -643,6 +693,13 @@ class RenderSceneModule : SceneModule
 			mParticleEmitterProxies.Remove(entity);
 		}
 
+		// Clean up sprite component - release resource handles and refs
+		if (let spriteComp = scene.GetComponent<SpriteComponent>(entity))
+		{
+			spriteComp.Texture.Release();
+			spriteComp.TextureRef.Dispose();
+		}
+
 		// Clean up sprite proxy (from internal tracking)
 		if (mSpriteProxies.TryGetValue(entity, let spriteProxy))
 		{
@@ -659,11 +716,12 @@ class RenderSceneModule : SceneModule
 			mTrailEmitterProxies.Remove(entity);
 		}
 
-		// Clean up entity mesh and material bindings
+		// Clean up entity mesh, material, and texture bindings
 		mEntityMeshBinding.Remove(entity);
 		mEntitySkinnedMeshBinding.Remove(entity);
 		mEntityMaterialBinding.Remove(entity);
 		mEntitySkinnedMaterialBinding.Remove(entity);
+		mEntitySpriteTextureBinding.Remove(entity);
 
 		// Release texture resource refs loaded for this entity
 		if (mEntityTextureRefs.TryGetValue(entity, let texList))
@@ -738,6 +796,17 @@ class RenderSceneModule : SceneModule
 						ResolveTextureRefs(entity, resourceSystem, handle.Resource, mesh.MaterialInstance);
 					}
 				}
+			}
+		}
+
+		// Resolve sprite components
+		for (let (entity, sprite) in scene.Query<SpriteComponent>())
+		{
+			if (sprite.TextureRef.IsValid && !sprite.Texture.IsValid)
+			{
+				let result = resourceSystem.LoadByRef<TextureResource>(sprite.TextureRef);
+				if (result case .Ok(let handle))
+					sprite.Texture = handle;
 			}
 		}
 	}

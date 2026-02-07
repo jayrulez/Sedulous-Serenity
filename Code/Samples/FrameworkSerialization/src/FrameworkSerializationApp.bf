@@ -79,6 +79,9 @@ class FrameworkSerializationApp : Application
 	private int mCurrentAnimIndex = 0;
 	private EntityId mFoxEntity;
 
+	// Checkerboard texture for sprite (procedurally generated, not saved to file)
+	private ResourceHandle<TextureResource> mCheckerboardTexture /*~ _.Release()*/;
+
 	public this(IShell shell, IDevice device, IBackend backend) : base(shell, device, backend)
 	{
 		mCamera = new .();
@@ -106,7 +109,11 @@ class FrameworkSerializationApp : Application
 
 		// Import and cache assets, then create/load scene
 		ImportAndCacheAssets();
+		CreateCheckerboardTexture();
 		LoadOrCreateScene();
+
+		// Assign procedural textures to loaded entities
+		SetupSpriteTexture();
 
 		// Load all animation clips for runtime cycling
 		SetupAnimationCycling();
@@ -476,6 +483,7 @@ class FrameworkSerializationApp : Application
 		resource.RegisterComponentType<SkinnedMeshRendererComponent>();
 		resource.RegisterComponentType<MeshRendererComponent>();
 		resource.RegisterComponentType<SkeletalAnimationComponent>();
+		resource.RegisterComponentType<SpriteComponent>();
 	}
 
 	private void CreateAndSaveScene()
@@ -523,6 +531,9 @@ class FrameworkSerializationApp : Application
 		// Fox entities with resource references (serializable)
 		CreateFoxEntity(scene);
 		CreateStaticFoxEntity(scene);
+
+		// Sprite entity with procedural checkerboard texture
+		CreateSpriteEntity(scene);
 
 		// Save to file and register in registry
 		String scenePath = scope .();
@@ -615,6 +626,62 @@ class FrameworkSerializationApp : Application
 		Console.WriteLine($"    MeshRef: id={mCachedStaticMeshId}, path={mCachedStaticMeshPath}");
 		if (mCachedMaterialPath != null)
 			Console.WriteLine($"    MaterialRef: id={mCachedMaterialId}, path={mCachedMaterialPath}");
+	}
+
+	// ==================== Sprite ====================
+
+	/// Creates a checkerboard texture procedurally and adds it to the resource system.
+	private void CreateCheckerboardTexture()
+	{
+		uint32 size = 64;
+		uint32 tileSize = 8;
+		let image = new Image(size, size, .RGBA8);
+
+		for (uint32 y = 0; y < size; y++)
+		{
+			for (uint32 x = 0; x < size; x++)
+			{
+				let isWhite = ((x / tileSize) + (y / tileSize)) % 2 == 0;
+				image.SetPixel(x, y, isWhite ? Color(255, 255, 255, 255) : Color(80, 80, 80, 255));
+			}
+		}
+
+		let texResource = new TextureResource(image, true);
+		texResource.SetupForSprite();
+
+		if (mContext.Resources.AddResource<TextureResource>(texResource) case .Ok(let handle))
+		{
+			mCheckerboardTexture = handle;
+			Console.WriteLine("  Created checkerboard texture (64x64, 8px tiles)");
+		}
+	}
+
+	private void CreateSpriteEntity(Scene scene)
+	{
+		let entity = scene.CreateEntity();
+		scene.SetName(entity, "Sprite");
+		scene.SetTransform(entity, .(.(0, 3, 0)));
+
+		var comp = SpriteComponent.Default;
+		comp.Size = .(2, 2);
+		scene.SetComponent<SpriteComponent>(entity, comp);
+
+		Console.WriteLine("  Created Sprite entity at (0, 3, 0)");
+	}
+
+	/// Assigns the procedural checkerboard texture to the sprite entity.
+	/// Runs after scene load/create since the texture handle is runtime-only (not serialized).
+	private void SetupSpriteTexture()
+	{
+		if (mMainScene == null || !mCheckerboardTexture.IsValid)
+			return;
+
+		let entity = mMainScene.FindByName("Sprite");
+		if (!mMainScene.IsValid(entity))
+			return;
+
+		if (let comp = mMainScene.GetComponent<SpriteComponent>(entity))
+			comp.Texture = mCheckerboardTexture;
 	}
 
 	// ==================== Animation Cycling ====================
