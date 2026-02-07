@@ -112,10 +112,26 @@ class SceneResource : Resource
 		// scene.RegisterComponentSerializer<T>() due to Beef compiler bug with
 		// generic constraints in cross-project lambdas.
 		// See BeefBugs/GenericLambdaCrossProject/ for repro.
-		let serializer = new ComponentSerializer<T>();
+		RegisterComponentSerializer(new ComponentSerializer<T>());
+	}
+
+	/// Registers a component serializer prototype directly.
+	/// Used by SceneResourceManager to pass pre-created serializer prototypes.
+	public void RegisterComponentSerializer(IComponentSerializer serializer)
+	{
 		mSerializerPrototypes.Add(serializer);
 		if (mScene != null)
 			mScene.RegisterComponentSerializer(serializer.CreateNew());
+	}
+
+	/// Takes the scene from this resource, transferring ownership to the caller.
+	/// After this call, Scene returns null and the resource no longer owns it.
+	public Scene TakeScene()
+	{
+		let scene = mScene;
+		mScene = null;
+		mOwnsScene = false;
+		return scene;
 	}
 
 	/// Loads a scene resource from a file (instance method).

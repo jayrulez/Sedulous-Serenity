@@ -3,6 +3,8 @@ using System.Collections;
 using Sedulous.Models;
 using Sedulous.Mathematics;
 using Sedulous.Materials;
+using Sedulous.Resources;
+using Sedulous.Textures.Resources;
 
 namespace Sedulous.Geometry.Tooling;
 
@@ -67,7 +69,8 @@ static class MaterialConverter
 
 	/// Creates a Materials.Resources.MaterialResource from a ModelMaterial.
 	/// Uses the new Sedulous.Materials system.
-	public static Sedulous.Materials.Resources.MaterialResource ConvertToNew(ModelMaterial modelMat, Model model)
+	/// importedTextures contains already-imported TextureResources (with assigned GUIDs).
+	public static Sedulous.Materials.Resources.MaterialResource ConvertToNew(ModelMaterial modelMat, Model model, List<TextureResource> importedTextures)
 	{
 		if (modelMat == null)
 			return null;
@@ -104,34 +107,48 @@ static class MaterialConverter
 		let matRes = new Sedulous.Materials.Resources.MaterialResource(mat, true);
 		matRes.Name.Set(modelMat.Name);
 
-		// Set texture paths (names match Materials.CreatePBR)
+		// Set texture references (names match Materials.CreatePBR)
 		if (model != null)
 		{
-			SetNewTextureSlot(matRes, "AlbedoMap", model, modelMat.BaseColorTextureIndex);
-			SetNewTextureSlot(matRes, "NormalMap", model, modelMat.NormalTextureIndex);
-			SetNewTextureSlot(matRes, "MetallicRoughnessMap", model, modelMat.MetallicRoughnessTextureIndex);
-			SetNewTextureSlot(matRes, "OcclusionMap", model, modelMat.OcclusionTextureIndex);
-			SetNewTextureSlot(matRes, "EmissiveMap", model, modelMat.EmissiveTextureIndex);
+			SetNewTextureSlot(matRes, "AlbedoMap", model, modelMat.BaseColorTextureIndex, importedTextures);
+			SetNewTextureSlot(matRes, "NormalMap", model, modelMat.NormalTextureIndex, importedTextures);
+			SetNewTextureSlot(matRes, "MetallicRoughnessMap", model, modelMat.MetallicRoughnessTextureIndex, importedTextures);
+			SetNewTextureSlot(matRes, "OcclusionMap", model, modelMat.OcclusionTextureIndex, importedTextures);
+			SetNewTextureSlot(matRes, "EmissiveMap", model, modelMat.EmissiveTextureIndex, importedTextures);
 		}
 
 		return matRes;
 	}
 
-	/// Helper to set texture path in new MaterialResource from model texture index.
-	private static void SetNewTextureSlot(Sedulous.Materials.Resources.MaterialResource matRes, StringView slot, Model model, int32 textureIndex)
+	/// Helper to set texture ResourceRef in new MaterialResource from model texture index.
+	/// Uses the imported TextureResource's GUID and name to build the resource path.
+	private static void SetNewTextureSlot(Sedulous.Materials.Resources.MaterialResource matRes, StringView slot, Model model, int32 textureIndex, List<TextureResource> importedTextures)
 	{
 		if (textureIndex >= 0 && textureIndex < model.Textures.Count)
 		{
-			let tex = model.Textures[textureIndex];
+			// Use the imported TextureResource's name and GUID (the resource name
+			// has already been stripped of the source file extension by TextureConverter)
+			Guid texGuid = .();
 			String texPath = scope .();
-			if (!tex.Name.IsEmpty)
-				texPath.Set(tex.Name);
-			else if (!tex.Uri.IsEmpty)
-				texPath.Set(tex.Uri);
+			if (importedTextures != null && textureIndex < importedTextures.Count)
+			{
+				let importedTex = importedTextures[textureIndex];
+				texGuid = importedTex.Id;
+				texPath.AppendF("{}.texture", importedTex.Name);
+			}
 			else
-				texPath.Set(scope $"texture_{textureIndex}");
+			{
+				// Fallback when no imported textures available
+				let tex = model.Textures[textureIndex];
+				if (!tex.Name.IsEmpty)
+					texPath.Set(tex.Name);
+				else if (!tex.Uri.IsEmpty)
+					texPath.Set(tex.Uri);
+				else
+					texPath.AppendF("texture_{}", textureIndex);
+			}
 
-			matRes.SetTexturePath(slot, texPath);
+			matRes.SetTextureRef(slot, ResourceRef(texGuid, texPath));
 		}
 	}
 }

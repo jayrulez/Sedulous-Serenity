@@ -183,6 +183,7 @@ class ResourceSystem
 		if (cacheIfLoaded)
 		{
 			var key = ResourceCacheKey(path, typeof(T));
+			defer key.Dispose();
 			mCache.Set(key, handle);
 		}
 
@@ -227,9 +228,10 @@ class ResourceSystem
 	/// Resolution order:
 	///   1. Cache by GUID string
 	///   2. Cache by path
-	///   3. Registry GUID-to-path resolution (if path missing)
-	///   4. Load from file by resolved path
-	///   5. After successful load, also cache by GUID for future lookups
+	///   3. Registry GUID-to-path resolution (preferred, gives full path)
+	///   4. Fall back to ref path if registry didn't resolve
+	///   5. Load from file by resolved path
+	///   6. After successful load, also cache by GUID for future lookups
 	public Result<ResourceHandle<T>, ResourceLoadError> LoadByRef<T>(ResourceRef resourceRef) where T : IResource
 	{
 		// 1. Try cache by GUID
@@ -254,17 +256,21 @@ class ResourceSystem
 				return ResourceHandle<T>((T)handle.Resource);
 		}
 
-		// 3. Resolve path from ID via registries (if path missing)
-		String resolvedPath = resourceRef.HasPath ? resourceRef.Path : null;
+		// 3. Resolve path: prefer registry (full path) over ref path (may be relative)
+		String resolvedPath = null;
 		String tempPath = null;
 		defer { delete tempPath; }
 
-		if (resolvedPath == null && resourceRef.HasId)
+		if (resourceRef.HasId)
 		{
 			tempPath = new String();
 			if (ResolvePathFromId(resourceRef.Id, tempPath))
 				resolvedPath = tempPath;
 		}
+
+		// Fall back to ref path if registry lookup didn't resolve
+		if (resolvedPath == null && resourceRef.HasPath)
+			resolvedPath = resourceRef.Path;
 
 		// 4. Load by path
 		if (resolvedPath != null && resolvedPath.Length > 0)
@@ -278,6 +284,7 @@ class ResourceSystem
 					let guidStr = scope String();
 					resourceRef.Id.ToString(guidStr);
 					var guidKey = ResourceCacheKey(guidStr, typeof(T));
+					defer guidKey.Dispose();
 					mCache.Set(guidKey, ResourceHandle<IResource>(handle.Resource));
 				}
 			}

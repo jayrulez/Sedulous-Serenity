@@ -11,14 +11,17 @@ class StaticMeshResourceManager : ResourceManager<StaticMeshResource>
 {
 	protected override Result<StaticMeshResource, ResourceLoadError> LoadFromFile(StringView path)
 	{
-		// Mesh loading from file requires model loading (GLTF, OBJ, etc.)
-		// Use Sedulous.Models and Sedulous.Geometry.Tooling for that
-		return .Err(.NotSupported);
+		switch (StaticMeshResource.LoadFromFile(path))
+		{
+		case .Ok(let resource):
+			return .Ok(resource);
+		case .Err:
+			return .Err(.ReadError);
+		}
 	}
 
 	protected override Result<StaticMeshResource, ResourceLoadError> LoadFromMemory(MemoryStream memory)
 	{
-		// Not implemented - use model loaders
 		return .Err(.NotSupported);
 	}
 

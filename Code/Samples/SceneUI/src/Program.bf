@@ -383,7 +383,7 @@ class SceneUISample : Application
 			let imageLoader = scope SDLImageLoader();
 			let importOptions = new ModelImportOptions();
 			importOptions.BasePath.Set(basePath);
-			importOptions.Flags = .SkinnedMeshes | .Animations | .Materials | .Textures;
+			importOptions.Flags = .Skeletons | .SkinnedMeshes | .Animations | .Materials | .Textures;
 
 			let importer = scope ModelImporter(importOptions, imageLoader);
 			let result = importer.Import(model);
@@ -481,14 +481,14 @@ class SceneUISample : Application
 		if (mFoxMaterialResource == null || mFoxMaterialInstance == null)
 			return;
 
-		let texPath = mFoxMaterialResource.GetTexturePath(slotName);
-		if (texPath.IsEmpty)
+		let texRef = mFoxMaterialResource.GetTextureRef(slotName);
+		if (!texRef.IsValid)
 			return;
 
 		String fullTexPath = scope .();
 		fullTexPath.Append(basePath);
 		fullTexPath.Append("/");
-		fullTexPath.Append(texPath);
+		fullTexPath.Append(texRef.Path);
 
 		let imageLoader = scope SDLImageLoader();
 		if (imageLoader.LoadFromFile(fullTexPath) case .Ok(let loadInfo))
@@ -506,7 +506,7 @@ class SceneUISample : Application
 				if (view != null)
 				{
 					mFoxMaterialInstance.SetTexture("AlbedoMap", view);
-					Console.WriteLine($"  Loaded texture '{slotName}': {texPath}");
+					Console.WriteLine($"  Loaded texture '{slotName}': {texRef.Path}");
 				}
 			}
 		}

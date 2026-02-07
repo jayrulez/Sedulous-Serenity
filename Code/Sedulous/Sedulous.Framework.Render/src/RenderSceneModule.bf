@@ -11,6 +11,8 @@ using Sedulous.Resources;
 using Sedulous.RHI;
 using Sedulous.Materials;
 using Sedulous.Materials.Resources;
+using Sedulous.Textures.Resources;
+using Sedulous.Imaging;
 using Sedulous.Serialization;
 
 /// Scene module that manages render proxies and syncs entity transforms to the render world.
@@ -24,6 +26,7 @@ class RenderSceneModule : SceneModule
 	// Cache: resource -> GPU handle (shared across entities using same resource)
 	private Dictionary<StaticMeshResource, GPUMeshHandle> mStaticMeshCache = new .() ~ delete _;
 	private Dictionary<SkinnedMeshResource, GPUMeshHandle> mSkinnedMeshCache = new .() ~ delete _;
+	private Dictionary<TextureResource, GPUTextureHandle> mTextureCache = new .() ~ delete _;
 
 	// Track which mesh resource is currently bound to each entity's proxy
 	// Used to detect when the mesh changes and needs re-upload
@@ -34,6 +37,9 @@ class RenderSceneModule : SceneModule
 	// Used to detect when the material changes and needs to be updated
 	private Dictionary<EntityId, MaterialInstance> mEntityMaterialBinding = new .() ~ delete _;
 	private Dictionary<EntityId, MaterialInstance> mEntitySkinnedMaterialBinding = new .() ~ delete _;
+
+	// Track loaded texture resource refs per entity (for releasing on destroy)
+	private Dictionary<EntityId, List<TextureResource>> mEntityTextureRefs = new .() ~ { for (var kv in _) delete kv.value; delete _; };
 
 	// Track proxy handles per entity (internal, not exposed on components)
 	private Dictionary<EntityId, MeshProxyHandle> mMeshProxies = new .() ~ delete _;
@@ -78,6 +84,11 @@ class RenderSceneModule : SceneModule
 			meshComp.Material.Release();
 			meshComp.MeshRef.Dispose();
 			meshComp.MaterialRef.Dispose();
+			if (meshComp.MaterialInstance != null)
+			{
+				delete meshComp.MaterialInstance;
+				meshComp.MaterialInstance = null;
+			}
 		}
 
 		for (let (entity, skinnedComp) in scene.Query<SkinnedMeshRendererComponent>())
@@ -86,6 +97,11 @@ class RenderSceneModule : SceneModule
 			skinnedComp.Material.Release();
 			skinnedComp.MeshRef.Dispose();
 			skinnedComp.MaterialRef.Dispose();
+			if (skinnedComp.MaterialInstance != null)
+			{
+				delete skinnedComp.MaterialInstance;
+				skinnedComp.MaterialInstance = null;
+			}
 		}
 
 		// Release cached GPU meshes
@@ -99,10 +115,23 @@ class RenderSceneModule : SceneModule
 
 			for (let handle in mSkinnedMeshCache.Values)
 				gpuManager.ReleaseMesh(handle, frameNumber);
+
+			for (let handle in mTextureCache.Values)
+				gpuManager.ReleaseTexture(handle, frameNumber);
 		}
+
+		// Release texture resource refs for all entities
+		for (var kv in mEntityTextureRefs)
+		{
+			for (let texRes in kv.value)
+				texRes.ReleaseRef();
+			delete kv.value;
+		}
+		mEntityTextureRefs.Clear();
 
 		mStaticMeshCache.Clear();
 		mSkinnedMeshCache.Clear();
+		mTextureCache.Clear();
 		mEntityMeshBinding.Clear();
 		mEntitySkinnedMeshBinding.Clear();
 		mEntityMaterialBinding.Clear();
@@ -530,6 +559,11 @@ class RenderSceneModule : SceneModule
 			meshComp.Material.Release();
 			meshComp.MeshRef.Dispose();
 			meshComp.MaterialRef.Dispose();
+			if(meshComp.MaterialInstance != null)
+			{
+				delete meshComp.MaterialInstance;
+				meshComp.MaterialInstance = null;
+			}
 		}
 
 		// Clean up mesh proxy (from internal tracking)
@@ -547,6 +581,11 @@ class RenderSceneModule : SceneModule
 			skinnedComp.Material.Release();
 			skinnedComp.MeshRef.Dispose();
 			skinnedComp.MaterialRef.Dispose();
+			if(skinnedComp.MaterialInstance != null)
+			{
+				delete skinnedComp.MaterialInstance;
+				skinnedComp.MaterialInstance = null;
+			}
 		}
 
 		// Clean up skinned mesh proxy (from internal tracking)
@@ -602,6 +641,15 @@ class RenderSceneModule : SceneModule
 		mEntitySkinnedMeshBinding.Remove(entity);
 		mEntityMaterialBinding.Remove(entity);
 		mEntitySkinnedMaterialBinding.Remove(entity);
+
+		// Release texture resource refs loaded for this entity
+		if (mEntityTextureRefs.TryGetValue(entity, let texList))
+		{
+			for (let texRes in texList)
+				texRes.ReleaseRef();
+			delete texList;
+			mEntityTextureRefs.Remove(entity);
+		}
 	}
 
 	// ==================== Resource Resolution ====================
@@ -632,9 +680,12 @@ class RenderSceneModule : SceneModule
 				if (result case .Ok(let handle))
 				{
 					mesh.Material = handle;
-					// Create MaterialInstance from the loaded MaterialResource
+					// Create MaterialInstance and resolve texture refs
 					if (handle.Resource?.Material != null && mesh.MaterialInstance == null)
+					{
 						mesh.MaterialInstance = new MaterialInstance(handle.Resource.Material);
+						ResolveTextureRefs(entity, resourceSystem, handle.Resource, mesh.MaterialInstance);
+					}
 				}
 			}
 		}
@@ -657,11 +708,93 @@ class RenderSceneModule : SceneModule
 				if (result case .Ok(let handle))
 				{
 					mesh.Material = handle;
-					// Create MaterialInstance from the loaded MaterialResource
+					// Create MaterialInstance and resolve texture refs
 					if (handle.Resource?.Material != null && mesh.MaterialInstance == null)
+					{
 						mesh.MaterialInstance = new MaterialInstance(handle.Resource.Material);
+						ResolveTextureRefs(entity, resourceSystem, handle.Resource, mesh.MaterialInstance);
+					}
 				}
 			}
+		}
+	}
+
+	/// Resolves texture references from a MaterialResource and sets them on a MaterialInstance.
+	/// Loads each TextureResource via the ResourceSystem, uploads to GPU, and binds to the material.
+	/// Tracks loaded texture refs per entity for cleanup on entity destroy.
+	private void ResolveTextureRefs(EntityId entity, ResourceSystem resourceSystem, MaterialResource matResource, MaterialInstance matInstance)
+	{
+		let gpuManager = mSubsystem.RenderSystem?.ResourceManager;
+		if (gpuManager == null)
+			return;
+
+		for (var kv in matResource.TextureRefs)
+		{
+			let slotName = kv.key;
+			let texRef = kv.value;
+
+			if (!texRef.IsValid)
+				continue;
+
+			// Load the TextureResource via ResourceSystem (uses GUID → registry → file)
+			// The returned handle has already called AddRef on the resource.
+			if (resourceSystem.LoadByRef<TextureResource>(texRef) case .Ok(let texHandle))
+			{
+				let texResource = texHandle.Resource;
+				if (texResource?.Image == null)
+					continue;
+
+				// Track the loaded resource ref for this entity (released on entity destroy)
+				if (!mEntityTextureRefs.ContainsKey(entity))
+					mEntityTextureRefs[entity] = new List<TextureResource>();
+				mEntityTextureRefs[entity].Add(texResource);
+
+				// Check texture cache first
+				ITextureView view = null;
+				if (mTextureCache.TryGetValue(texResource, var gpuHandle))
+				{
+					view = gpuManager.GetTextureView(gpuHandle);
+				}
+				else
+				{
+					// Upload image to GPU
+					let image = texResource.Image;
+					let gpuFormat = ConvertPixelFormat(image.Format);
+					let texData = TextureData.Create2D(image.Data.Ptr, (uint64)image.Data.Length, image.Width, image.Height, gpuFormat);
+
+					if (gpuManager.UploadTexture(texData) case .Ok(let newHandle))
+					{
+						mTextureCache[texResource] = newHandle;
+						view = gpuManager.GetTextureView(newHandle);
+					}
+				}
+
+				if (view != null)
+					matInstance.SetTexture(slotName, view);
+			}
+		}
+	}
+
+	/// Converts Image.PixelFormat to RHI TextureFormat for GPU upload.
+	private static TextureFormat ConvertPixelFormat(Image.PixelFormat format)
+	{
+		switch (format)
+		{
+		case .R8:       return .R8Unorm;
+		case .RG8:      return .RG8Unorm;
+		case .RGB8:     return .RGBA8Unorm;   // GPU doesn't support 3-channel; SDLImageLoader always converts to RGBA8
+		case .RGBA8:    return .RGBA8Unorm;
+		case .BGR8:     return .BGRA8Unorm;
+		case .BGRA8:    return .BGRA8Unorm;
+		case .R16F:     return .R16Float;
+		case .RG16F:    return .RG16Float;
+		case .RGB16F:   return .RGBA16Float;
+		case .RGBA16F:  return .RGBA16Float;
+		case .R32F:     return .R32Float;
+		case .RG32F:    return .RG32Float;
+		case .RGB32F:   return .RGBA32Float;
+		case .RGBA32F:  return .RGBA32Float;
+		default:        return .RGBA8Unorm;
 		}
 	}
 

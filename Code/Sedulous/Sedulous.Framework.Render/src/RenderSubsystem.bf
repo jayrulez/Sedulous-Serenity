@@ -6,6 +6,7 @@ using Sedulous.Framework.Core;
 using Sedulous.Framework.Scenes;
 using Sedulous.Geometry.Resources;
 using Sedulous.Render;
+using Sedulous.Materials.Resources;
 using Sedulous.Textures.Resources;
 
 /// Render subsystem that manages rendering and integrates with Sedulous.Render.
@@ -25,6 +26,7 @@ public class RenderSubsystem : Subsystem, ISceneAware
 	// Resource managers
 	private StaticMeshResourceManager mStaticMeshManager;
 	private SkinnedMeshResourceManager mSkinnedMeshManager;
+	private MaterialResourceManager mMaterialManager;
 	private TextureResourceManager mTextureManager;
 
 	// ==================== Construction ====================
@@ -49,6 +51,9 @@ public class RenderSubsystem : Subsystem, ISceneAware
 	/// Gets the skinned mesh resource manager.
 	public SkinnedMeshResourceManager SkinnedMeshManager => mSkinnedMeshManager;
 
+	/// Gets the material resource manager.
+	public MaterialResourceManager MaterialManager => mMaterialManager;
+
 	/// Gets the texture resource manager.
 	public TextureResourceManager TextureManager => mTextureManager;
 
@@ -69,10 +74,12 @@ public class RenderSubsystem : Subsystem, ISceneAware
 		// Create and register resource managers with the resource system
 		mStaticMeshManager = new StaticMeshResourceManager();
 		mSkinnedMeshManager = new SkinnedMeshResourceManager();
+		mMaterialManager = new MaterialResourceManager();
 		mTextureManager = new TextureResourceManager();
 
 		Context.Resources.AddResourceManager(mStaticMeshManager);
 		Context.Resources.AddResourceManager(mSkinnedMeshManager);
+		Context.Resources.AddResourceManager(mMaterialManager);
 		Context.Resources.AddResourceManager(mTextureManager);
 	}
 
@@ -98,6 +105,12 @@ public class RenderSubsystem : Subsystem, ISceneAware
 			Context.Resources.RemoveResourceManager(mSkinnedMeshManager);
 			delete mSkinnedMeshManager;
 			mSkinnedMeshManager = null;
+		}
+		if (mMaterialManager != null)
+		{
+			Context.Resources.RemoveResourceManager(mMaterialManager);
+			delete mMaterialManager;
+			mMaterialManager = null;
 		}
 		if (mTextureManager != null)
 		{

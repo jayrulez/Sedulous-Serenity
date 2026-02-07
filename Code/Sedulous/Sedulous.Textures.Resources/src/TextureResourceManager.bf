@@ -11,7 +11,15 @@ class TextureResourceManager : ResourceManager<TextureResource>
 {
 	protected override Result<TextureResource, ResourceLoadError> LoadFromFile(StringView path)
 	{
-		// Load image using the factory
+		// Handle .texture binary files (saved by TextureResource.SaveToFile)
+		if (path.EndsWith(".texture"))
+		{
+			if (TextureResource.LoadFromFile(path) case .Ok(let resource))
+				return .Ok(resource);
+			return .Err(.ReadError);
+		}
+
+		// Load standard image files via ImageLoaderFactory
 		if (ImageLoaderFactory.LoadImage(path) case .Ok(let image))
 		{
 			let resource = new TextureResource(image, true);

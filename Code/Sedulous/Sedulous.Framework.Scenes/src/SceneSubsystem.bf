@@ -63,6 +63,13 @@ public class SceneSubsystem : Subsystem
 		return mSceneManager.CreateScene(name);
 	}
 
+	/// Adds an existing scene (e.g. loaded from a SceneResource) to the manager.
+	/// Notifies ISceneAware subsystems. The manager takes ownership.
+	public Scene AddScene(Scene scene)
+	{
+		return mSceneManager.AddScene(scene);
+	}
+
 	/// Gets a scene by name.
 	public Scene GetScene(StringView name)
 	{

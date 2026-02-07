@@ -11,14 +11,17 @@ class SkinnedMeshResourceManager : ResourceManager<SkinnedMeshResource>
 {
 	protected override Result<SkinnedMeshResource, ResourceLoadError> LoadFromFile(StringView path)
 	{
-		// Skinned mesh loading from file requires model loading (GLTF, etc.)
-		// Use Sedulous.Models and Sedulous.Geometry.Tooling for that
-		return .Err(.NotSupported);
+		switch (SkinnedMeshResource.LoadFromFile(path))
+		{
+		case .Ok(let resource):
+			return .Ok(resource);
+		case .Err:
+			return .Err(.ReadError);
+		}
 	}
 
 	protected override Result<SkinnedMeshResource, ResourceLoadError> LoadFromMemory(MemoryStream memory)
 	{
-		// Not implemented - use model loaders
 		return .Err(.NotSupported);
 	}
 

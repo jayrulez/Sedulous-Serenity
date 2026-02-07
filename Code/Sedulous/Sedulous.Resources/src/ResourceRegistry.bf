@@ -2,6 +2,7 @@ namespace Sedulous.Resources;
 
 using System;
 using System.Collections;
+using System.IO;
 using System.Threading;
 
 /// Default implementation of IResourceRegistry using in-memory dictionaries.
@@ -27,6 +28,7 @@ class ResourceRegistry : IResourceRegistry
 			}
 
 			let pathStr = new String(path);
+			pathStr.Replace('\\', '/');
 			mIdToPath[id] = pathStr;
 			mPathToId[pathStr] = id; // Shares the same String object
 		}
@@ -84,5 +86,54 @@ class ResourceRegistry : IResourceRegistry
 			outId = .();
 			return false;
 		}
+	}
+
+	/// Saves the registry to a text file. Format: one "guid=path" per line.
+	public Result<void> SaveToFile(StringView filePath)
+	{
+		using (mMonitor.Enter())
+		{
+			let stream = scope StreamWriter();
+			if (stream.Create(filePath) case .Err)
+				return .Err;
+
+			for (let kv in mIdToPath)
+			{
+				let guidStr = scope String();
+				kv.key.ToString(guidStr);
+				stream.WriteLine(scope $"{guidStr}={kv.value}");
+			}
+
+			return .Ok;
+		}
+	}
+
+	/// Loads the registry from a text file. Appends to existing entries.
+	public Result<void> LoadFromFile(StringView filePath)
+	{
+		let stream = scope StreamReader();
+		if (stream.Open(filePath) case .Err)
+			return .Err;
+
+		let line = scope String();
+		while (stream.ReadLine(line) case .Ok)
+		{
+			defer { line.Clear(); }
+
+			if (line.IsEmpty)
+				continue;
+
+			let eqIdx = line.IndexOf('=');
+			if (eqIdx <= 0)
+				continue;
+
+			let guidStr = StringView(line, 0, eqIdx);
+			let path = StringView(line, eqIdx + 1);
+
+			if (Guid.Parse(guidStr) case .Ok(let guid))
+				Register(guid, path);
+		}
+
+		return .Ok;
 	}
 }

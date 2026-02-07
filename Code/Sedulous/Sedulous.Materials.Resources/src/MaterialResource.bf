@@ -8,6 +8,8 @@ using Sedulous.Serialization;
 using Sedulous.Serialization.OpenDDL;
 using Sedulous.OpenDDL;
 
+using static Sedulous.Resources.ResourceSerializerExtensions;
+
 namespace Sedulous.Materials.Resources;
 
 /// CPU-side material resource for serialization.
@@ -20,9 +22,16 @@ class MaterialResource : Resource
 	private Material mMaterial;
 	private bool mOwnsMaterial;
 
-	/// Texture paths (slot name -> path).
-	/// At runtime, these paths are resolved to actual textures.
-	public Dictionary<String, String> TexturePaths = new .() ~ DeleteDictionaryAndKeysAndValues!(_);
+	/// Texture references (slot name -> ResourceRef with GUID + path).
+	/// At runtime, these refs are resolved to actual texture resources via the registry.
+	public Dictionary<String, ResourceRef> TextureRefs = new .() ~ {
+		for (var kv in _)
+		{
+			delete kv.key;
+			kv.value.Dispose();
+		}
+		delete _;
+	};
 
 	/// The wrapped material.
 	public Material Material => mMaterial;
@@ -54,22 +63,37 @@ class MaterialResource : Resource
 		mOwnsMaterial = ownsMaterial;
 	}
 
-	/// Sets a texture path for a slot.
-	public void SetTexturePath(StringView slot, StringView path)
+	/// Sets a texture reference for a slot.
+	public void SetTextureRef(StringView slot, ResourceRef @ref)
 	{
-		let slotKey = scope String(slot);
-		if (TexturePaths.TryGetValue(slotKey, let existing))
-			existing.Set(path);
-		else
-			TexturePaths[new String(slot)] = new String(path);
+		// Remove old entry if exists (need to clean up owned key + ref path)
+		for (var kv in TextureRefs)
+		{
+			if (StringView(kv.key) == slot)
+			{
+				let oldKey = kv.key;
+				let oldPath = kv.value.Path;
+				@kv.Remove();
+				delete oldKey;
+				delete oldPath;
+				break;
+			}
+		}
+		TextureRefs[new String(slot)] = @ref;
 	}
 
-	/// Gets a texture path for a slot.
-	public StringView GetTexturePath(StringView slot)
+	/// Sets a texture path for a slot (convenience — creates a ResourceRef with empty GUID).
+	public void SetTexturePath(StringView slot, StringView path)
 	{
-		if (TexturePaths.TryGetValue(scope String(slot), let path))
-			return path;
-		return "";
+		SetTextureRef(slot, ResourceRef(.(), path));
+	}
+
+	/// Gets the texture reference for a slot.
+	public ResourceRef GetTextureRef(StringView slot)
+	{
+		if (TextureRefs.TryGetValue(scope String(slot), let @ref))
+			return @ref;
+		return .();
 	}
 
 	// ---- Serialization ----
@@ -91,13 +115,8 @@ class MaterialResource : Resource
 			int32 shaderFlags = (int32)mMaterial.ShaderFlags;
 			s.Int32("shaderFlags", ref shaderFlags);
 
-			// Write pipeline config (material-relevant fields only)
-			int32 blendMode = (int32)mMaterial.PipelineConfig.BlendMode;
-			int32 depthMode = (int32)mMaterial.PipelineConfig.DepthMode;
-			int32 cullMode = (int32)mMaterial.PipelineConfig.CullMode;
-			s.Int32("blendMode", ref blendMode);
-			s.Int32("depthMode", ref depthMode);
-			s.Int32("cullMode", ref cullMode);
+			// Write full pipeline config
+			SerializePipelineConfig(s, mMaterial.PipelineConfig);
 
 			// Write property definitions
 			int32 propCount = (int32)mMaterial.PropertyCount;
@@ -135,18 +154,18 @@ class MaterialResource : Resource
 				s.FixedFloatArray("uniformData", (float*)uniformData.Ptr, (int32)floatCount);
 			}
 
-			// Write texture paths
-			int32 texCount = (int32)TexturePaths.Count;
+			// Write texture refs
+			int32 texCount = (int32)TextureRefs.Count;
 			s.Int32("textureCount", ref texCount);
 
 			int32 idx = 0;
-			for (let kv in TexturePaths)
+			for (var kv in TextureRefs)
 			{
 				s.BeginObject(scope $"tex{idx}");
 				String slot = scope String(kv.key);
-				String path = scope String(kv.value);
 				s.String("slot", slot);
-				s.String("path", path);
+				var texRef = kv.value;
+				s.ResourceRef("texture", ref texRef);
 				s.EndObject();
 				idx++;
 			}
@@ -163,20 +182,16 @@ class MaterialResource : Resource
 			int32 shaderFlags = 0;
 			s.Int32("shaderFlags", ref shaderFlags);
 
-			// Read pipeline config
-			int32 blendMode = 0, depthMode = 0, cullMode = 0;
-			s.Int32("blendMode", ref blendMode);
-			s.Int32("depthMode", ref depthMode);
-			s.Int32("cullMode", ref cullMode);
-
 			// Create material
 			let mat = new Material();
 			mat.Name.Set(materialName);
 			mat.ShaderName.Set(shaderName);
 			mat.ShaderFlags = (.)shaderFlags;
-			mat.PipelineConfig.BlendMode = (.)blendMode;
-			mat.PipelineConfig.DepthMode = (.)depthMode;
-			mat.PipelineConfig.CullMode = (.)cullMode;
+
+			// Read full pipeline config
+			var pipelineConfig = PipelineConfig();
+			DeserializePipelineConfig(s, ref pipelineConfig);
+			mat.PipelineConfig = pipelineConfig;
 
 			// Read property definitions
 			int32 propCount = 0;
@@ -215,7 +230,7 @@ class MaterialResource : Resource
 
 			SetMaterial(mat, true);
 
-			// Read texture paths
+			// Read texture refs
 			int32 texCount = 0;
 			s.Int32("textureCount", ref texCount);
 
@@ -223,15 +238,105 @@ class MaterialResource : Resource
 			{
 				s.BeginObject(scope $"tex{i}");
 				String slot = scope String();
-				String path = scope String();
 				s.String("slot", slot);
-				s.String("path", path);
-				TexturePaths[new String(slot)] = new String(path);
+				var texRef = ResourceRef();
+				s.ResourceRef("texture", ref texRef);
+				TextureRefs[new String(slot)] = texRef;
 				s.EndObject();
 			}
 		}
 
 		return .Ok;
+	}
+
+	// ---- Pipeline Config Serialization ----
+
+	private void SerializePipelineConfig(Serializer s, PipelineConfig config)
+	{
+		s.BeginObject("pipelineConfig");
+
+		int32 vertexLayout = (int32)config.VertexLayout;
+		int32 topology = (int32)config.Topology;
+		int32 cullMode = (int32)config.CullMode;
+		int32 frontFace = (int32)config.FrontFace;
+		int32 fillMode = (int32)config.FillMode;
+		int32 blendMode = (int32)config.BlendMode;
+		int32 colorWriteMask = (int32)config.ColorWriteMask;
+		int32 depthMode = (int32)config.DepthMode;
+		int32 depthCompare = (int32)config.DepthCompare;
+		int32 depthFormat = (int32)config.DepthFormat;
+		int32 depthBias = (int32)config.DepthBias;
+		float depthBiasSlopeScale = config.DepthBiasSlopeScale;
+		int32 colorFormat = (int32)config.ColorFormat;
+		int32 colorTargetCount = (int32)config.ColorTargetCount;
+		int32 sampleCount = (int32)config.SampleCount;
+		int32 depthOnly = config.DepthOnly ? 1 : 0;
+
+		s.Int32("vertexLayout", ref vertexLayout);
+		s.Int32("topology", ref topology);
+		s.Int32("cullMode", ref cullMode);
+		s.Int32("frontFace", ref frontFace);
+		s.Int32("fillMode", ref fillMode);
+		s.Int32("blendMode", ref blendMode);
+		s.Int32("colorWriteMask", ref colorWriteMask);
+		s.Int32("depthMode", ref depthMode);
+		s.Int32("depthCompare", ref depthCompare);
+		s.Int32("depthFormat", ref depthFormat);
+		s.Int32("depthBias", ref depthBias);
+		s.Float("depthBiasSlopeScale", ref depthBiasSlopeScale);
+		s.Int32("colorFormat", ref colorFormat);
+		s.Int32("colorTargetCount", ref colorTargetCount);
+		s.Int32("sampleCount", ref sampleCount);
+		s.Int32("depthOnly", ref depthOnly);
+
+		s.EndObject();
+	}
+
+	private void DeserializePipelineConfig(Serializer s, ref PipelineConfig config)
+	{
+		s.BeginObject("pipelineConfig");
+
+		int32 vertexLayout = 0, topology = 0, cullMode = 0, frontFace = 0, fillMode = 0;
+		int32 blendMode = 0, colorWriteMask = 0, depthMode = 0, depthCompare = 0;
+		int32 depthFormat = 0, depthBias = 0, colorFormat = 0;
+		int32 colorTargetCount = 0, sampleCount = 0, depthOnly = 0;
+		float depthBiasSlopeScale = 0;
+
+		s.Int32("vertexLayout", ref vertexLayout);
+		s.Int32("topology", ref topology);
+		s.Int32("cullMode", ref cullMode);
+		s.Int32("frontFace", ref frontFace);
+		s.Int32("fillMode", ref fillMode);
+		s.Int32("blendMode", ref blendMode);
+		s.Int32("colorWriteMask", ref colorWriteMask);
+		s.Int32("depthMode", ref depthMode);
+		s.Int32("depthCompare", ref depthCompare);
+		s.Int32("depthFormat", ref depthFormat);
+		s.Int32("depthBias", ref depthBias);
+		s.Float("depthBiasSlopeScale", ref depthBiasSlopeScale);
+		s.Int32("colorFormat", ref colorFormat);
+		s.Int32("colorTargetCount", ref colorTargetCount);
+		s.Int32("sampleCount", ref sampleCount);
+		s.Int32("depthOnly", ref depthOnly);
+
+		config.VertexLayout = (.)vertexLayout;
+		config.Topology = (.)topology;
+		config.CullMode = (.)cullMode;
+		config.FrontFace = (.)frontFace;
+		config.FillMode = (.)fillMode;
+		config.BlendMode = (.)blendMode;
+		config.ColorWriteMask = (.)colorWriteMask;
+		config.DepthMode = (.)depthMode;
+		config.DepthCompare = (.)depthCompare;
+		config.DepthFormat = (.)depthFormat;
+		config.DepthBias = (int16)depthBias;
+		config.DepthBiasSlopeScale = depthBiasSlopeScale;
+		config.ColorFormat = (.)colorFormat;
+		config.ColorTargetCount = (uint8)colorTargetCount;
+		config.SampleCount = (uint8)sampleCount;
+		config.DepthOnly = depthOnly != 0;
+
+		s.EndObject();
 	}
 
 	/// Save to file.

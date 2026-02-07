@@ -53,6 +53,14 @@ public class SceneManager : IDisposable
 	public Scene CreateScene(StringView name)
 	{
 		let scene = new Scene(name);
+		return AddScene(scene);
+	}
+
+	/// Adds an existing scene to the manager and transitions it to Active.
+	/// Fires OnSceneLoaded so ISceneAware subsystems (RenderSubsystem, etc.) get notified.
+	/// The manager takes ownership of the scene (will delete on unload).
+	public Scene AddScene(Scene scene)
+	{
 		mScenes.Add(scene);
 		scene.SetState(.Loading);
 		scene.SetState(.Active);

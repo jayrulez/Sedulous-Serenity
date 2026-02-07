@@ -80,6 +80,9 @@ class Material
 	/// Property definitions.
 	private List<MaterialPropertyDef> mProperties = new .() ~ delete _;
 
+	/// Owned property name strings (indexed by property index).
+	private List<String> mPropertyNames = new .() ~ DeleteContainerAndItems!(_);
+
 	/// Property name to index lookup.
 	private Dictionary<StringView, int> mPropertyIndices = new .() ~ delete _;
 
@@ -127,11 +130,20 @@ class Material
 	}
 
 	/// Adds a property definition.
+	/// The name is cloned so the caller's string doesn't need to outlive the material.
 	public void AddProperty(MaterialPropertyDef prop)
 	{
 		let index = mProperties.Count;
-		mProperties.Add(prop);
-		mPropertyIndices[prop.Name] = index;
+
+		// Clone the name so Material owns it
+		let ownedName = new String(prop.Name);
+		mPropertyNames.Add(ownedName);
+
+		// Update the property def to point to the owned name
+		var ownedProp = prop;
+		ownedProp.Name = ownedName;
+		mProperties.Add(ownedProp);
+		mPropertyIndices[StringView(ownedName)] = index;
 
 		// Update uniform size if needed
 		if (prop.IsUniform)

@@ -8,6 +8,7 @@ using Sedulous.Imaging;
 using Sedulous.Renderer;
 using Sedulous.Animation.Resources;
 using Sedulous.Geometry.Resources;
+using Sedulous.Resources;
 
 namespace Sedulous.Geometry.Tooling;
 
@@ -26,6 +27,9 @@ class ModelImporter
 	}
 
 	/// Import resources from a loaded model.
+	/// Order: Skeletons → Textures → Materials → StaticMeshes → SkinnedMeshes → Animations
+	/// Textures are imported before materials so materials can reference them via ResourceRef.
+	/// Skeletons are imported before skinned meshes so meshes can reference them via ResourceRef.
 	public ModelImportResult Import(Model model)
 	{
 		let result = new ModelImportResult();
@@ -36,37 +40,37 @@ class ModelImporter
 			return result;
 		}
 
-		// Import skeletons first (needed for skinned meshes)
+		// 1. Skeletons first (needed by skinned meshes for SkeletonRef)
 		if (mOptions.Flags.HasFlag(.Skeletons))
 		{
 			ImportSkeletons(model, result);
 		}
 
-		// Import meshes
-		if (mOptions.Flags.HasFlag(.Meshes))
-		{
-			ImportStaticMeshes(model, result);
-		}
-
-		// Import skinned meshes
-		if (mOptions.Flags.HasFlag(.SkinnedMeshes))
-		{
-			ImportSkinnedMeshes(model, result);
-		}
-
-		// Import textures
+		// 2. Textures (needed by materials for texture ResourceRefs)
 		if (mOptions.Flags.HasFlag(.Textures))
 		{
 			ImportTextures(model, result);
 		}
 
-		// Import materials
+		// 3. Materials (can now reference imported textures by GUID)
 		if (mOptions.Flags.HasFlag(.Materials))
 		{
 			ImportMaterials(model, result);
 		}
 
-		// Import standalone animations
+		// 4. Static meshes
+		if (mOptions.Flags.HasFlag(.Meshes))
+		{
+			ImportStaticMeshes(model, result);
+		}
+
+		// 5. Skinned meshes (reference skeletons via SkeletonRef, no embedded data)
+		if (mOptions.Flags.HasFlag(.SkinnedMeshes))
+		{
+			ImportSkinnedMeshes(model, result);
+		}
+
+		// 6. Standalone animations
 		if (mOptions.Flags.HasFlag(.Animations))
 		{
 			ImportAnimations(model, result);
@@ -112,20 +116,6 @@ class ModelImporter
 		{
 			let modelMesh = model.Meshes[meshIdx];
 
-			// Check if this mesh has skinning data - if so, skip (handled by ImportSkinnedMeshes)
-			bool hasSkinning = false;
-			for (let element in modelMesh.VertexElements)
-			{
-				if (element.Semantic == .Joints || element.Semantic == .Weights)
-				{
-					hasSkinning = true;
-					break;
-				}
-			}
-
-			if (hasSkinning)
-				continue;
-
 			let mesh = ModelMeshConverter.ConvertToStaticMesh(modelMesh);
 			if (mesh == null)
 			{
@@ -133,7 +123,14 @@ class ModelImporter
 				continue;
 			}
 
-			// Apply scale if needed
+			// Bake the mesh node's world transform into vertices.
+			// GLTF nodes carry TRS transforms that position/scale the mesh in the scene.
+			// Skinned meshes get this via inverse bind matrices at runtime, but static
+			// meshes need it baked in at import time.
+			let nodeTransform = ComputeMeshNodeWorldTransform(model, (int32)meshIdx);
+			ApplyTransform(mesh, nodeTransform);
+
+			// Apply additional user scale if needed
 			if (mOptions.Scale != 1.0f)
 			{
 				ApplyScale(mesh, mOptions.Scale);
@@ -186,18 +183,11 @@ class ModelImporter
 					let skinnedMeshRes = new SkinnedMeshResource(conversionResult.Mesh, true);
 					skinnedMeshRes.Name.Set(modelMesh.Name);
 
-					// Create skeleton for this skinned mesh (each owns its own copy to avoid ref count issues)
-					let skeleton = SkeletonConverter.CreateFromSkin(model, skin);
-					if (skeleton != null)
+					// Set SkeletonRef to the matching imported skeleton (by skin index)
+					if (skinIdx < result.Skeletons.Count)
 					{
-						skinnedMeshRes.SetSkeleton(skeleton, true);
-					}
-
-					// Import animations if requested
-					if (mOptions.Flags.HasFlag(.Animations) && model.Animations.Count > 0)
-					{
-						let animations = AnimationConverter.ConvertAll(model, conversionResult.NodeToBoneMapping);
-						skinnedMeshRes.SetAnimations(animations, true);
+						let skeletonRes = result.Skeletons[skinIdx];
+						skinnedMeshRes.SkeletonRef = ResourceRef(skeletonRes.Id, skeletonRes.Name);
 					}
 
 					result.SkinnedMeshes.Add(skinnedMeshRes);
@@ -242,8 +232,8 @@ class ModelImporter
 			else
 				result.AddWarning(scope $"Failed to convert material '{modelMat.Name}' (legacy)");
 
-			// Create new MaterialResource
-			let newMatRes = MaterialConverter.ConvertToNew(modelMat, model);
+			// Create new MaterialResource (with texture ResourceRefs from imported textures)
+			let newMatRes = MaterialConverter.ConvertToNew(modelMat, model, result.Textures);
 			if (newMatRes != null)
 				result.NewMaterials.Add(newMatRes);
 			else
@@ -327,6 +317,67 @@ class ModelImporter
 		}
 
 		return null;
+	}
+
+	/// Finds the first node that references the given mesh index and computes its world transform.
+	/// Traverses the parent chain to accumulate transforms from the full hierarchy.
+	private Matrix ComputeMeshNodeWorldTransform(Model model, int32 meshIndex)
+	{
+		// Find the first node that references this mesh
+		int32 nodeIndex = -1;
+		for (let bone in model.Bones)
+		{
+			if (bone.MeshIndex == meshIndex)
+			{
+				nodeIndex = bone.Index;
+				break;
+			}
+		}
+
+		if (nodeIndex < 0)
+			return Matrix.Identity;
+
+		// Walk up the parent chain, accumulating transforms
+		Matrix worldTransform = Matrix.Identity;
+		int32 current = nodeIndex;
+		while (current >= 0 && current < model.Bones.Count)
+		{
+			let bone = model.Bones[current];
+			bone.UpdateLocalTransform();
+			worldTransform = worldTransform * bone.LocalTransform;
+			current = bone.ParentIndex;
+		}
+
+		return worldTransform;
+	}
+
+	private void ApplyTransform(StaticMesh mesh, Matrix transform)
+	{
+		if (mesh.Vertices == null)
+			return;
+
+		// Extract the normal matrix (inverse transpose of upper 3x3) for transforming normals/tangents
+		Matrix normalMatrix;
+		Matrix.Invert(transform, out normalMatrix);
+		normalMatrix = Matrix.Transpose(normalMatrix);
+
+		for (int32 i = 0; i < mesh.Vertices.VertexCount; i++)
+		{
+			// Transform position
+			var pos = mesh.GetPosition(i);
+			pos = Vector3.Transform(pos, transform);
+			mesh.SetPosition(i, pos);
+
+			// Transform normal
+			var normal = mesh.GetNormal(i);
+			normal = Vector3.Normalize(Vector3.TransformNormal(normal, normalMatrix));
+			mesh.SetNormal(i, normal);
+
+			// Transform tangent
+			var tangent = mesh.GetTangent(i);
+			tangent = Vector3.Normalize(Vector3.TransformNormal(tangent, normalMatrix));
+			mesh.SetTangent(i, tangent);
+		}
 	}
 
 	private void ApplyScale(StaticMesh mesh, float scale)

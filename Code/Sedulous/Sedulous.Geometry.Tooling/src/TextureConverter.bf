@@ -35,7 +35,7 @@ static class TextureConverter
 			return null;
 
 		let textureRes = new TextureResource(image, true);
-		textureRes.Name.Set(modelTexture.Name.IsEmpty ? modelTexture.Uri : modelTexture.Name);
+		SetTextureName(textureRes, modelTexture);
 		textureRes.SetupFor3D();
 
 		return textureRes;
@@ -84,10 +84,23 @@ static class TextureConverter
 			return null;
 
 		let textureRes = new TextureResource(image, true);
-		textureRes.Name.Set(modelTexture.Name.IsEmpty ? modelTexture.Uri : modelTexture.Name);
+		SetTextureName(textureRes, modelTexture);
 		textureRes.SetupFor3D();
 
 		return textureRes;
+	}
+
+	/// Sets the texture resource name from the model texture, stripping file extensions
+	/// since the saved resource contains raw pixel data, not the original image format.
+	private static void SetTextureName(TextureResource textureRes, ModelTexture modelTexture)
+	{
+		let rawName = modelTexture.Name.IsEmpty ? StringView(modelTexture.Uri) : StringView(modelTexture.Name);
+		// Strip file extension (e.g., "Texture.png" → "Texture")
+		let dotIdx = rawName.LastIndexOf('.');
+		if (dotIdx > 0)
+			textureRes.Name.Set(rawName[0..<dotIdx]);
+		else
+			textureRes.Name.Set(rawName);
 	}
 
 	/// Converts TexturePixelFormat to Image.PixelFormat.
