@@ -63,9 +63,13 @@ class FrameworkSerializationApp : Application
 	private String mCachedSkinnedMeshPath ~ delete _;
 	private String mCachedStaticMeshPath ~ delete _;
 	private String mCachedMaterialPath ~ delete _;
+	private String mCachedSkeletonPath ~ delete _;
+	private String mCachedAnimationPath ~ delete _;
 	private Guid mCachedSkinnedMeshId;
 	private Guid mCachedStaticMeshId;
 	private Guid mCachedMaterialId;
+	private Guid mCachedSkeletonId;
+	private Guid mCachedAnimationId;
 
 	public this(IShell shell, IDevice device, IBackend backend) : base(shell, device, backend)
 	{
@@ -292,7 +296,16 @@ class FrameworkSerializationApp : Application
 	private void BuildRegistryFromResult(ModelImportResult result, StringView cacheDir)
 	{
 		for (let skeleton in result.Skeletons)
+		{
 			RegisterResource(skeleton, cacheDir, "skeleton");
+			// Capture first skeleton for fox entity creation
+			if (mCachedSkeletonPath == null)
+			{
+				mCachedSkeletonPath = new String();
+				mCachedSkeletonPath.AppendF("{}/{}.skeleton", cacheDir, skeleton.Name);
+				mCachedSkeletonId = skeleton.Id;
+			}
+		}
 
 		for (let texture in result.Textures)
 			RegisterResource(texture, cacheDir, "texture");
@@ -334,7 +347,16 @@ class FrameworkSerializationApp : Application
 		}
 
 		for (let animation in result.Animations)
+		{
 			RegisterResource(animation, cacheDir, "animation");
+			// Capture first animation for fox entity creation
+			if (mCachedAnimationPath == null)
+			{
+				mCachedAnimationPath = new String();
+				mCachedAnimationPath.AppendF("{}/{}.animation", cacheDir, animation.Name);
+				mCachedAnimationId = animation.Id;
+			}
+		}
 	}
 
 	private void RegisterResource(IResource resource, StringView cacheDir, StringView @extension)
@@ -354,7 +376,7 @@ class FrameworkSerializationApp : Application
 		if (!Directory.Exists(cacheDir))
 			return;
 
-		// Scan for first .skinnedmesh, .mesh, and .mat files
+		// Scan for first .skinnedmesh, .mesh, .mat, .skeleton, and .animation files
 		for (let entry in Directory.EnumerateFiles(cacheDir))
 		{
 			let filePath = scope String();
@@ -376,6 +398,16 @@ class FrameworkSerializationApp : Application
 			{
 				mCachedMaterialPath = new String(filePath);
 				mRegistry.TryResolveId(filePath, out mCachedMaterialId);
+			}
+			else if (filePath.EndsWith(".skeleton") && mCachedSkeletonPath == null)
+			{
+				mCachedSkeletonPath = new String(filePath);
+				mRegistry.TryResolveId(filePath, out mCachedSkeletonId);
+			}
+			else if (filePath.EndsWith(".animation") && mCachedAnimationPath == null)
+			{
+				mCachedAnimationPath = new String(filePath);
+				mRegistry.TryResolveId(filePath, out mCachedAnimationId);
 			}
 		}
 	}
@@ -434,6 +466,7 @@ class FrameworkSerializationApp : Application
 		resource.RegisterComponentType<CameraComponent>();
 		resource.RegisterComponentType<SkinnedMeshRendererComponent>();
 		resource.RegisterComponentType<MeshRendererComponent>();
+		resource.RegisterComponentType<SkeletalAnimationComponent>();
 	}
 
 	private void CreateAndSaveScene()
@@ -527,6 +560,20 @@ class FrameworkSerializationApp : Application
 		foxComp.Enabled = true;
 		scene.SetComponent<SkinnedMeshRendererComponent>(foxEntity, foxComp);
 
+		// Add skeletal animation component with resource refs
+		if (mCachedSkeletonPath != null && mCachedAnimationPath != null)
+		{
+			var animComp = SkeletalAnimationComponent.Default;
+			animComp.SkeletonRef = ResourceRef(mCachedSkeletonId, mCachedSkeletonPath);
+			animComp.AnimationClipRef = ResourceRef(mCachedAnimationId, mCachedAnimationPath);
+			animComp.Playing = true;
+			animComp.Loop = true;
+			scene.SetComponent<SkeletalAnimationComponent>(foxEntity, animComp);
+
+			Console.WriteLine($"    SkeletonRef: id={mCachedSkeletonId}, path={mCachedSkeletonPath}");
+			Console.WriteLine($"    AnimClipRef: id={mCachedAnimationId}, path={mCachedAnimationPath}");
+		}
+
 		Console.WriteLine("  Created Fox (skinned) entity with ResourceRefs:");
 		Console.WriteLine($"    MeshRef: id={mCachedSkinnedMeshId}, path={mCachedSkinnedMeshPath}");
 		if (mCachedMaterialPath != null)
@@ -591,6 +638,13 @@ class FrameworkSerializationApp : Application
 			let meshValid = comp.MeshRef.IsValid;
 			let matValid = comp.MaterialRef.IsValid;
 			Console.WriteLine($"  {name}: Mesh(MeshRef.valid={meshValid}, MaterialRef.valid={matValid}, Enabled={comp.Enabled})");
+		}
+		for (let (entity, comp) in scene.Query<SkeletalAnimationComponent>())
+		{
+			let name = scene.GetName(entity);
+			let skelValid = comp.SkeletonRef.IsValid;
+			let clipValid = comp.AnimationClipRef.IsValid;
+			Console.WriteLine($"  {name}: Animation(SkeletonRef.valid={skelValid}, AnimClipRef.valid={clipValid}, Playing={comp.Playing}, Loop={comp.Loop})");
 		}
 	}
 

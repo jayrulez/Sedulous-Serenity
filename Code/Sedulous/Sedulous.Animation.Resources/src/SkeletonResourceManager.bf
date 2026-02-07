@@ -11,7 +11,13 @@ class SkeletonResourceManager : ResourceManager<SkeletonResource>
 {
 	protected override Result<SkeletonResource, ResourceLoadError> LoadFromFile(StringView path)
 	{
-		// Skeleton files aren't typically loaded directly - they come from model conversion
+		if (path.EndsWith(".skeleton"))
+		{
+			if (SkeletonResource.LoadFromFile(path) case .Ok(let resource))
+				return .Ok(resource);
+			return .Err(.ReadError);
+		}
+
 		return .Err(.NotSupported);
 	}
 

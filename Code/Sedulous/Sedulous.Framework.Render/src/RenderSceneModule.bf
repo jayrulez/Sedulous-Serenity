@@ -2,6 +2,7 @@ namespace Sedulous.Framework.Render;
 
 using System;
 using System.Collections;
+using Sedulous.Animation.Resources;
 using Sedulous.Framework.Animation;
 using Sedulous.Framework.Scenes;
 using Sedulous.Geometry.Resources;
@@ -288,23 +289,45 @@ class RenderSceneModule : SceneModule
 				}
 			}
 
-			// Sync transform
+			// Sync transform and handle bone buffer
 			if (proxyHandle.IsValid)
 			{
 				let worldMatrix = scene.GetWorldMatrix(entity);
 				mWorld.SetSkinnedMeshTransform(proxyHandle, worldMatrix);
 
-				// Upload bone matrices if this entity has animation
+				// Ensure bone buffer and upload bone matrices from animation component
 				if (let animComp = scene.GetComponent<SkeletalAnimationComponent>(entity))
 				{
-					if (animComp.Player != null)
+					let skeleton = animComp.SkeletonRes.Resource?.Skeleton;
+					if (skeleton != null)
 					{
 						if (let proxy = mWorld.GetSkinnedMesh(proxyHandle))
 						{
-							if (proxy.BoneBufferHandle.IsValid)
+							let gpuManager = mSubsystem.RenderSystem?.ResourceManager;
+							if (gpuManager != null)
 							{
-								let gpuManager = mSubsystem.RenderSystem?.ResourceManager;
-								if (gpuManager != null)
+								// Create or recreate bone buffer if needed (skeleton changed or not yet created)
+								let newBoneCount = (uint16)skeleton.BoneCount;
+								if (!proxy.BoneBufferHandle.IsValid || proxy.BoneCount != newBoneCount)
+								{
+									// Release old bone buffer if bone count changed
+									if (proxy.BoneBufferHandle.IsValid)
+									{
+										let frameNumber = mSubsystem.RenderSystem?.FrameNumber ?? 0;
+										gpuManager.ReleaseBoneBuffer(proxy.BoneBufferHandle, frameNumber);
+										proxy.BoneBufferHandle = .Invalid;
+										proxy.BoneCount = 0;
+									}
+
+									if (gpuManager.CreateBoneBuffer(newBoneCount) case .Ok(let boneHandle))
+									{
+										proxy.BoneBufferHandle = boneHandle;
+										proxy.BoneCount = newBoneCount;
+									}
+								}
+
+								// Upload bone matrices if playing
+								if (animComp.Player != null && proxy.BoneBufferHandle.IsValid)
 								{
 									let currentMatrices = animComp.Player.GetSkinningMatrices();
 									let prevMatrices = animComp.Player.GetPrevSkinningMatrices();
@@ -831,6 +854,7 @@ class RenderSceneModule : SceneModule
 	}
 
 	/// Internal: Uploads skinned mesh resource to GPU (if not cached) and sets mesh data on proxy.
+	/// Bone buffer is created separately when the skeleton becomes available (from SkeletalAnimationComponent).
 	private void UploadAndSetSkinnedMeshData(EntityId entity, SkinnedMeshProxyHandle proxyHandle, SkinnedMeshResource resource)
 	{
 		if (resource == null || resource.Mesh == null || !proxyHandle.IsValid)
@@ -854,16 +878,11 @@ class RenderSceneModule : SceneModule
 				return;
 		}
 
-		// Create bone buffer for this instance
-		let skeleton = resource.Skeleton;
-		if (skeleton == null)
-			return;
-
-		let boneCount = (uint16)skeleton.BoneCount;
-		let gpuManager = mSubsystem.RenderSystem?.ResourceManager;
-		if (gpuManager.CreateBoneBuffer(boneCount) case .Ok(let boneHandle))
+		// Set mesh data on proxy (bone buffer created later when skeleton is available)
+		if (let proxy = mWorld?.GetSkinnedMesh(proxyHandle))
 		{
-			mWorld?.SetSkinnedMeshData(proxyHandle, gpuMeshHandle, boneHandle, resource.Mesh.Bounds, boneCount);
+			proxy.MeshHandle = gpuMeshHandle;
+			proxy.SetLocalBounds(resource.Mesh.Bounds);
 		}
 	}
 

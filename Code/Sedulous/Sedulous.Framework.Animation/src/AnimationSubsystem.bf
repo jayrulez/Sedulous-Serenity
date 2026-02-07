@@ -3,6 +3,7 @@ namespace Sedulous.Framework.Animation;
 using System;
 using System.Collections;
 using Sedulous.Animation;
+using Sedulous.Animation.Resources;
 using Sedulous.Framework.Core;
 using Sedulous.Framework.Scenes;
 
@@ -16,6 +17,10 @@ public class AnimationSubsystem : Subsystem, ISceneAware
 
 	private AnimationSystem mAnimationSystem ~ delete _;
 
+	// Resource managers
+	private SkeletonResourceManager mSkeletonManager;
+	private AnimationClipResourceManager mAnimationClipManager;
+
 	// ==================== Construction ====================
 
 	public this()
@@ -28,14 +33,39 @@ public class AnimationSubsystem : Subsystem, ISceneAware
 	/// Gets the underlying animation system.
 	public AnimationSystem AnimationSystem => mAnimationSystem;
 
+	/// Gets the skeleton resource manager.
+	public SkeletonResourceManager SkeletonManager => mSkeletonManager;
+
+	/// Gets the animation clip resource manager.
+	public AnimationClipResourceManager AnimationClipManager => mAnimationClipManager;
+
 	// ==================== Subsystem Lifecycle ====================
 
 	protected override void OnInit()
 	{
+		// Create and register resource managers with the resource system
+		mSkeletonManager = new SkeletonResourceManager();
+		mAnimationClipManager = new AnimationClipResourceManager();
+
+		Context.Resources.AddResourceManager(mSkeletonManager);
+		Context.Resources.AddResourceManager(mAnimationClipManager);
 	}
 
 	protected override void OnShutdown()
 	{
+		// Unregister and clean up resource managers
+		if (mSkeletonManager != null)
+		{
+			Context.Resources.RemoveResourceManager(mSkeletonManager);
+			delete mSkeletonManager;
+			mSkeletonManager = null;
+		}
+		if (mAnimationClipManager != null)
+		{
+			Context.Resources.RemoveResourceManager(mAnimationClipManager);
+			delete mAnimationClipManager;
+			mAnimationClipManager = null;
+		}
 	}
 
 	public override void Update(float deltaTime)

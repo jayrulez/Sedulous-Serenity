@@ -1,33 +1,54 @@
 namespace Sedulous.Framework.Animation;
 
 using Sedulous.Animation;
+using Sedulous.Animation.Resources;
 using Sedulous.Framework.Scenes;
+using Sedulous.Resources;
 using Sedulous.Serialization;
+
+using static Sedulous.Resources.ResourceSerializerExtensions;
 
 /// Component for entities with skeletal animation.
 struct SkeletalAnimationComponent : ISerializableComponent
 {
-	/// The animation player for this entity.
+	/// The animation player for this entity (runtime, not serialized).
 	public AnimationPlayer Player;
-	/// The skeleton reference.
-	public Skeleton Skeleton;
+	/// The skeleton resource handle (runtime, not serialized).
+	public ResourceHandle<SkeletonResource> SkeletonRes;
+	/// Serializable reference to the skeleton resource.
+	public ResourceRef SkeletonRef;
+	/// The animation clip resource handle (runtime, not serialized).
+	public ResourceHandle<AnimationClipResource> AnimationClipRes;
+	/// Serializable reference to the animation clip resource.
+	public ResourceRef AnimationClipRef;
 	/// Whether the animation is playing.
 	public bool Playing;
+	/// Whether the animation should loop.
+	public bool Loop;
 
-	public int32 SerializationVersion => 1;
+	public int32 SerializationVersion => 2;
 
 	public SerializationResult Serialize(Serializer s) mut
 	{
 		var version = SerializationVersion;
 		s.Version(ref version);
-		// TODO: Serialize Player and Skeleton when resource serialization is implemented
+		if (version >= 2)
+		{
+			s.ResourceRef("skeleton", ref SkeletonRef);
+			s.ResourceRef("animationClip", ref AnimationClipRef);
+			s.Bool("loop", ref Loop);
+		}
 		s.Bool("playing", ref Playing);
 		return .Ok;
 	}
 
 	public static SkeletalAnimationComponent Default => .() {
 		Player = null,
-		Skeleton = null,
-		Playing = false
+		SkeletonRes = default,
+		SkeletonRef = .(),
+		AnimationClipRes = default,
+		AnimationClipRef = .(),
+		Playing = false,
+		Loop = true
 	};
 }

@@ -3,8 +3,10 @@ namespace Sedulous.Framework.Animation;
 using System;
 using System.Collections;
 using Sedulous.Animation;
+using Sedulous.Animation.Resources;
 using Sedulous.Framework.Scenes;
 using Sedulous.Mathematics;
+using Sedulous.Resources;
 using Sedulous.Serialization;
 
 /// Scene module that manages entity animations.
@@ -38,6 +40,15 @@ class AnimationSceneModule : SceneModule
 
 	public override void OnSceneDestroy(Scene scene)
 	{
+		// Release resource handles and refs on all animation components
+		for (let (entity, anim) in scene.Query<SkeletalAnimationComponent>())
+		{
+			anim.SkeletonRes.Release();
+			anim.AnimationClipRes.Release();
+			anim.SkeletonRef.Dispose();
+			anim.AnimationClipRef.Dispose();
+		}
+
 		// Clean up all animation players
 		for (let (_, player) in mPlayers)
 			delete player;
@@ -47,6 +58,9 @@ class AnimationSceneModule : SceneModule
 
 	public override void Update(Scene scene, float deltaTime)
 	{
+		// Resolve deserialized resource references
+		ResolveResourceRefs(scene);
+
 		// Update all animation players
 		for (let (entity, anim) in scene.Query<SkeletalAnimationComponent>())
 		{
@@ -59,12 +73,67 @@ class AnimationSceneModule : SceneModule
 
 	public override void OnEntityDestroyed(Scene scene, EntityId entity)
 	{
+		// Release resource handles and refs on the component
+		if (let anim = scene.GetComponent<SkeletalAnimationComponent>(entity))
+		{
+			anim.SkeletonRes.Release();
+			anim.AnimationClipRes.Release();
+			anim.SkeletonRef.Dispose();
+			anim.AnimationClipRef.Dispose();
+		}
+
 		// Clean up animation player
 		let key = PackEntityId(entity);
 		if (mPlayers.TryGetValue(key, let player))
 		{
 			mPlayers.Remove(key);
 			delete player;
+		}
+	}
+
+	// ==================== Resource Resolution ====================
+
+	/// Resolves deserialized ResourceRef fields to loaded ResourceHandles.
+	/// When both skeleton and animation clip are loaded, sets up the AnimationPlayer.
+	private void ResolveResourceRefs(Scene scene)
+	{
+		let resourceSystem = mSubsystem.Context?.Resources;
+		if (resourceSystem == null)
+			return;
+
+		for (let (entity, anim) in scene.Query<SkeletalAnimationComponent>())
+		{
+			// Resolve skeleton ref
+			if (anim.SkeletonRef.IsValid && !anim.SkeletonRes.IsValid)
+			{
+				let result = resourceSystem.LoadByRef<SkeletonResource>(anim.SkeletonRef);
+				if (result case .Ok(let handle))
+					anim.SkeletonRes = handle;
+			}
+
+			// Resolve animation clip ref
+			if (anim.AnimationClipRef.IsValid && !anim.AnimationClipRes.IsValid)
+			{
+				let result = resourceSystem.LoadByRef<AnimationClipResource>(anim.AnimationClipRef);
+				if (result case .Ok(let handle))
+					anim.AnimationClipRes = handle;
+			}
+
+			// Set up animation player when both resources are loaded and no player exists yet
+			if (anim.Player == null && anim.SkeletonRes.IsValid && anim.AnimationClipRes.IsValid)
+			{
+				let skeleton = anim.SkeletonRes.Resource?.Skeleton;
+				let clip = anim.AnimationClipRes.Resource?.Clip;
+				if (skeleton != null && clip != null)
+				{
+					let player = SetupAnimation(entity, skeleton);
+					if (player != null && anim.Playing)
+					{
+						clip.IsLooping = anim.Loop;
+						player.Play(clip);
+					}
+				}
+			}
 		}
 	}
 
@@ -98,8 +167,6 @@ class AnimationSceneModule : SceneModule
 		}
 
 		anim.Player = player;
-		anim.Skeleton = skeleton;
-		anim.Playing = false;
 
 		return player;
 	}
@@ -117,6 +184,7 @@ class AnimationSceneModule : SceneModule
 				clip.IsLooping = loop;
 				anim.Player.Play(clip);
 				anim.Playing = true;
+				anim.Loop = loop;
 			}
 		}
 	}
