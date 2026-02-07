@@ -30,24 +30,21 @@ struct TrailEmitterComponent : ISerializableComponent
 	/// Whether this trail emitter is enabled.
 	public bool Enabled;
 
-	public int32 SerializationVersion => 2;
+	public int32 SerializationVersion => 1;
 
 	public SerializationResult Serialize(Serializer s) mut
 	{
 		var version = SerializationVersion;
 		s.Version(ref version);
-		if (version >= 2)
-		{
-			s.Enum<ParticleBlendMode>("blendMode", ref BlendMode);
-			s.Int32("maxPoints", ref MaxPoints);
-			s.Float("lifetime", ref Lifetime);
-			s.Float("widthStart", ref WidthStart);
-			s.Float("widthEnd", ref WidthEnd);
-			s.Float("minVertexDistance", ref MinVertexDistance);
-			s.FixedFloatArray("color", &Color.X, 4);
-			s.Float("softParticleDistance", ref SoftParticleDistance);
-			s.UInt32("layerMask", ref LayerMask);
-		}
+		s.Enum<ParticleBlendMode>("blendMode", ref BlendMode);
+		s.Int32("maxPoints", ref MaxPoints);
+		s.Float("lifetime", ref Lifetime);
+		s.Float("widthStart", ref WidthStart);
+		s.Float("widthEnd", ref WidthEnd);
+		s.Float("minVertexDistance", ref MinVertexDistance);
+		s.FixedFloatArray("color", &Color.X, 4);
+		s.Float("softParticleDistance", ref SoftParticleDistance);
+		s.UInt32("layerMask", ref LayerMask);
 		s.Bool("enabled", ref Enabled);
 		return .Ok;
 	}

@@ -484,6 +484,7 @@ class FrameworkSerializationApp : Application
 		resource.RegisterComponentType<MeshRendererComponent>();
 		resource.RegisterComponentType<SkeletalAnimationComponent>();
 		resource.RegisterComponentType<SpriteComponent>();
+		resource.RegisterComponentType<ParticleEmitterComponent>();
 	}
 
 	private void CreateAndSaveScene()
@@ -534,6 +535,10 @@ class FrameworkSerializationApp : Application
 
 		// Sprite entity with procedural checkerboard texture
 		CreateSpriteEntity(scene);
+
+		// Particle emitters
+		CreateFireEmitter(scene);
+		CreateSmokeEmitter(scene);
 
 		// Save to file and register in registry
 		String scenePath = scope .();
@@ -682,6 +687,60 @@ class FrameworkSerializationApp : Application
 
 		if (let comp = mMainScene.GetComponent<SpriteComponent>(entity))
 			comp.Texture = mCheckerboardTexture;
+	}
+
+	// ==================== Particles ====================
+
+	private void CreateFireEmitter(Scene scene)
+	{
+		let entity = scene.CreateEntity();
+		scene.SetName(entity, "Fire");
+		scene.SetTransform(entity, .(.(-3, 0, 0)));
+
+		var comp = ParticleEmitterComponent.Default;
+		comp.Backend = .CPU;
+		comp.BlendMode = .Additive;
+		comp.MaxParticles = 500;
+		comp.SpawnRate = 60.0f;
+		comp.ParticleLifetime = 1.0f;
+		comp.StartSize = .(0.3f, 0.3f);
+		comp.EndSize = .(0.05f, 0.05f);
+		comp.StartColor = .(1.0f, 0.6f, 0.1f, 1.0f);  // Orange
+		comp.EndColor = .(1.0f, 0.1f, 0.0f, 0.0f);     // Red, fade out
+		comp.InitialVelocity = .(0, 2.0f, 0);
+		comp.VelocityRandomness = .(0.4f, 0.3f, 0.4f);
+		comp.GravityMultiplier = -0.3f;  // Slight upward push
+		comp.Drag = 1.0f;
+		comp.SortParticles = false;
+		scene.SetComponent<ParticleEmitterComponent>(entity, comp);
+
+		Console.WriteLine("  Created Fire particle emitter at (-3, 0, 0)");
+	}
+
+	private void CreateSmokeEmitter(Scene scene)
+	{
+		let entity = scene.CreateEntity();
+		scene.SetName(entity, "Smoke");
+		scene.SetTransform(entity, .(.(-3, 1.0f, 0)));
+
+		var comp = ParticleEmitterComponent.Default;
+		comp.Backend = .CPU;
+		comp.BlendMode = .Alpha;
+		comp.MaxParticles = 300;
+		comp.SpawnRate = 15.0f;
+		comp.ParticleLifetime = 3.0f;
+		comp.StartSize = .(0.2f, 0.2f);
+		comp.EndSize = .(1.0f, 1.0f);
+		comp.StartColor = .(0.4f, 0.4f, 0.4f, 0.6f);  // Gray, semi-transparent
+		comp.EndColor = .(0.3f, 0.3f, 0.3f, 0.0f);     // Fade out
+		comp.InitialVelocity = .(0, 0.8f, 0);
+		comp.VelocityRandomness = .(0.3f, 0.2f, 0.3f);
+		comp.GravityMultiplier = -0.1f;  // Slight upward drift
+		comp.Drag = 0.5f;
+		comp.SortParticles = true;
+		scene.SetComponent<ParticleEmitterComponent>(entity, comp);
+
+		Console.WriteLine("  Created Smoke particle emitter at (-3, 1, 0)");
 	}
 
 	// ==================== Animation Cycling ====================

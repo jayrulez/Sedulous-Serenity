@@ -508,6 +508,23 @@ class RenderSceneModule : SceneModule
 				proxy.AtlasRows = emitter.AtlasRows;
 				proxy.AtlasFPS = emitter.AtlasFPS;
 				proxy.AtlasLoop = emitter.AtlasLoop;
+				// Curves
+				proxy.SizeOverLifetime = emitter.SizeOverLifetime;
+				proxy.ColorOverLifetime = emitter.ColorOverLifetime;
+				proxy.SpeedOverLifetime = emitter.SpeedOverLifetime;
+				proxy.AlphaOverLifetime = emitter.AlphaOverLifetime;
+				proxy.RotationSpeedOverLifetime = emitter.RotationSpeedOverLifetime;
+				// Force modules
+				proxy.ForceModules = emitter.ForceModules;
+				// LOD
+				proxy.LODStartDistance = emitter.LODStartDistance;
+				proxy.LODCullDistance = emitter.LODCullDistance;
+				proxy.LODMinRateMultiplier = emitter.LODMinRateMultiplier;
+				// Lifetime variance
+				proxy.LifetimeVarianceMin = emitter.LifetimeVarianceMin;
+				proxy.LifetimeVarianceMax = emitter.LifetimeVarianceMax;
+				// Trail
+				proxy.Trail = emitter.Trail;
 				proxy.LayerMask = emitter.LayerMask;
 				proxy.IsEnabled = true;
 			}
