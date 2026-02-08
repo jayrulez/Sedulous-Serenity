@@ -16,6 +16,7 @@ using Sedulous.Renderer;
 using Sedulous.Logging.Abstractions;
 using Sedulous.Logging.Debug;
 using SampleFramework;
+using Sedulous.Animation;
 using Sedulous.Geometry.Resources;
 
 /// Demonstrates Unlit materials vs PBR materials.
@@ -40,6 +41,8 @@ class RendererUnlitSample : RHISampleApp
 
 	// Fox resources
 	private SkinnedMeshResource mFoxResource ~ delete _;
+	private ModelImportResult mImportResult ~ delete _;
+	private Skeleton mSkeleton; // non-owning, from import result
 	private GPUTextureHandle mFoxTexture = .Invalid;
 	private MaterialInstanceHandle mFoxPBRMaterial = .Invalid;
 	private MaterialInstanceHandle mFoxUnlitMaterial = .Invalid;
@@ -138,7 +141,7 @@ class RendererUnlitSample : RHISampleApp
 			if (ResourceSerializer.LoadSkinnedMeshBundle(cachedPath) case .Ok(let resource))
 			{
 				mFoxResource = resource;
-				Console.WriteLine($"  Loaded: {mFoxResource.Mesh.VertexCount} vertices, {mFoxResource.Skeleton?.BoneCount ?? 0} bones, {mFoxResource.AnimationCount} animations");
+				Console.WriteLine($"  Loaded from cache: {mFoxResource.Mesh.VertexCount} vertices");
 			}
 			else
 			{
@@ -170,7 +173,7 @@ class RendererUnlitSample : RHISampleApp
 			let imageLoader = scope SDLImageLoader();
 			let importer = scope ModelImporter(importOptions, imageLoader);
 			let importResult = importer.Import(foxModel);
-			defer delete importResult;
+			mImportResult = importResult;
 
 			if (!importResult.Success || importResult.SkinnedMeshes.Count == 0)
 			{
@@ -182,14 +185,16 @@ class RendererUnlitSample : RHISampleApp
 
 			// Take ownership of the first skinned mesh
 			mFoxResource = importResult.TakeSkinnedMesh(0);
-			Console.WriteLine($"  Imported: {mFoxResource.Mesh.VertexCount} vertices, {mFoxResource.Skeleton?.BoneCount ?? 0} bones, {mFoxResource.AnimationCount} animations");
+			if (importResult.Skeletons.Count > 0)
+				mSkeleton = importResult.Skeletons[0].Skeleton;
+			Console.WriteLine($"  Imported: {mFoxResource.Mesh.VertexCount} vertices, {mSkeleton?.BoneCount ?? 0} bones, {importResult.Animations.Count} animations");
 
 			// Save to cache for next time
 			let cacheDir = Path.GetDirectoryPath(cachedPath, .. scope .());
 			if (!Directory.Exists(cacheDir))
 				Directory.CreateDirectory(cacheDir);
 
-			if (ResourceSerializer.SaveSkinnedMeshBundle(mFoxResource, cachedPath) case .Ok)
+			if (mFoxResource.SaveToFile(cachedPath) case .Ok)
 				Console.WriteLine($"  Saved to cache: {cachedPath}");
 		}
 
@@ -438,11 +443,12 @@ class RendererUnlitSample : RHISampleApp
 				let meshComponent = new SkinnedMeshComponent();
 				foxEntity.AddComponent(meshComponent);
 
-				if (mFoxResource.Skeleton != null)
-					meshComponent.SetSkeleton(mFoxResource.Skeleton, false);
+				if (mSkeleton != null)
+					meshComponent.SetSkeleton(mSkeleton, false);
 
-				for (let clip in mFoxResource.Animations)
-					meshComponent.AddAnimationClip(clip);
+				if (mImportResult != null)
+					for (let animRes in mImportResult.Animations)
+						meshComponent.AddAnimationClip(animRes.Clip);
 
 				meshComponent.SetMesh(mFoxResource.Mesh);
 				meshComponent.SetMaterial(mFoxPBRMaterial);
@@ -463,11 +469,12 @@ class RendererUnlitSample : RHISampleApp
 				let skinnedRenderer = new SkinnedMeshComponent();
 				foxEntity.AddComponent(skinnedRenderer);
 
-				if (mFoxResource.Skeleton != null)
-					skinnedRenderer.SetSkeleton(mFoxResource.Skeleton, false);
+				if (mSkeleton != null)
+					skinnedRenderer.SetSkeleton(mSkeleton, false);
 
-				for (let clip in mFoxResource.Animations)
-					skinnedRenderer.AddAnimationClip(clip);
+				if (mImportResult != null)
+					for (let animRes in mImportResult.Animations)
+						skinnedRenderer.AddAnimationClip(animRes.Clip);
 
 				skinnedRenderer.SetMesh(mFoxResource.Mesh);
 				skinnedRenderer.SetMaterial(mFoxUnlitMaterial);
@@ -490,11 +497,12 @@ class RendererUnlitSample : RHISampleApp
 				let skinnedRenderer = new SkinnedMeshComponent();
 				foxEntity.AddComponent(skinnedRenderer);
 
-				if (mFoxResource.Skeleton != null)
-					skinnedRenderer.SetSkeleton(mFoxResource.Skeleton, false);
+				if (mSkeleton != null)
+					skinnedRenderer.SetSkeleton(mSkeleton, false);
 
-				for (let clip in mFoxResource.Animations)
-					skinnedRenderer.AddAnimationClip(clip);
+				if (mImportResult != null)
+					for (let animRes in mImportResult.Animations)
+						skinnedRenderer.AddAnimationClip(animRes.Clip);
 
 				skinnedRenderer.SetMesh(mFoxResource.Mesh);
 				// No material assigned - uses default gray PBR

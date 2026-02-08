@@ -17,6 +17,7 @@ using Sedulous.Imaging;
 using SampleFramework;
 using Sedulous.Logging.Debug;
 using Sedulous.Geometry.Tooling;
+using Sedulous.Animation;
 using Sedulous.Geometry.Resources;
 
 /// Demonstrates Framework.Core integration with Framework.Renderer.
@@ -58,6 +59,8 @@ class RendererIntegratedSample : RHISampleApp
 
 	// Fox (skinned mesh) resources
 	private SkinnedMeshResource mFoxResource ~ delete _;
+	private ModelImportResult mImportResult ~ delete _;
+	private Skeleton mSkeleton; // non-owning, from import result
 	private Entity mFoxEntity;
 	private int32 mCurrentAnimIndex = 0;
 
@@ -843,7 +846,7 @@ class RendererIntegratedSample : RHISampleApp
 			if (ResourceSerializer.LoadSkinnedMeshBundle(cachedPath) case .Ok(let resource))
 			{
 				mFoxResource = resource;
-				Console.WriteLine($"  Loaded: {mFoxResource.Mesh.VertexCount} vertices, {mFoxResource.Skeleton?.BoneCount ?? 0} bones, {mFoxResource.AnimationCount} animations");
+				Console.WriteLine($"  Loaded from cache: {mFoxResource.Mesh.VertexCount} vertices");
 			}
 			else
 			{
@@ -875,7 +878,7 @@ class RendererIntegratedSample : RHISampleApp
 			let imageLoader = scope SDLImageLoader();
 			let importer = scope ModelImporter(importOptions, imageLoader);
 			let importResult = importer.Import(foxModel);
-			defer delete importResult;
+			mImportResult = importResult;
 
 			if (!importResult.Success || importResult.SkinnedMeshes.Count == 0)
 			{
@@ -887,14 +890,16 @@ class RendererIntegratedSample : RHISampleApp
 
 			// Take ownership of the first skinned mesh
 			mFoxResource = importResult.TakeSkinnedMesh(0);
-			Console.WriteLine($"  Imported: {mFoxResource.Mesh.VertexCount} vertices, {mFoxResource.Skeleton?.BoneCount ?? 0} bones, {mFoxResource.AnimationCount} animations");
+			if (importResult.Skeletons.Count > 0)
+				mSkeleton = importResult.Skeletons[0].Skeleton;
+			Console.WriteLine($"  Imported: {mFoxResource.Mesh.VertexCount} vertices, {mSkeleton?.BoneCount ?? 0} bones, {importResult.Animations.Count} animations");
 
 			// Save to cache for next time
 			let cacheDir = Path.GetDirectoryPath(cachedPath, .. scope .());
 			if (!Directory.Exists(cacheDir))
 				Directory.CreateDirectory(cacheDir);
 
-			if (ResourceSerializer.SaveSkinnedMeshBundle(mFoxResource, cachedPath) case .Ok)
+			if (mFoxResource.SaveToFile(cachedPath) case .Ok)
 				Console.WriteLine($"  Saved to cache: {cachedPath}");
 		}
 
@@ -911,13 +916,14 @@ class RendererIntegratedSample : RHISampleApp
 		let meshComponent = new SkinnedMeshComponent();
 		mFoxEntity.AddComponent(meshComponent);
 
-		// Use the resource's skeleton directly (shared, not owned)
-		if (mFoxResource.Skeleton != null)
-			meshComponent.SetSkeleton(mFoxResource.Skeleton);
+		// Use the skeleton directly (shared, not owned)
+		if (mSkeleton != null)
+			meshComponent.SetSkeleton(mSkeleton);
 
-		// Add animation clips from resource (shared references)
-		for (let clip in mFoxResource.Animations)
-			meshComponent.AddAnimationClip(clip);
+		// Add animation clips from import result (shared references)
+		if (mImportResult != null)
+			for (let animRes in mImportResult.Animations)
+				meshComponent.AddAnimationClip(animRes.Clip);
 
 		// Set the mesh (triggers GPU upload)
 		meshComponent.SetMesh(mFoxResource.Mesh);

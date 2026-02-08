@@ -70,6 +70,8 @@ class SceneUISample : Application
 
 	// Fox resources (deleted in OnShutdown before RenderSystem)
 	private SkinnedMeshResource mFoxResource;
+	private ModelImportResult mImportResult;
+	private Skeleton mSkeleton; // non-owning, from import result
 	private Sedulous.Materials.Resources.MaterialResource mFoxMaterialResource;
 
 	// Materials (deleted in OnShutdown before RenderSystem)
@@ -389,14 +391,17 @@ class SceneUISample : Application
 
 			let importer = scope ModelImporter(importOptions, imageLoader);
 			let result = importer.Import(model);
-			defer delete result;
+			mImportResult = result;
 
 			if (result.SkinnedMeshes.Count > 0)
 			{
 				mFoxResource = result.SkinnedMeshes[0];
 				result.SkinnedMeshes.RemoveAt(0); // Take ownership
 
-				Console.WriteLine($"  Imported: {mFoxResource.Mesh.VertexCount} vertices, {mFoxResource.Skeleton?.BoneCount ?? 0} bones, {mFoxResource.Animations?.Count ?? 0} animations");
+				if (result.Skeletons.Count > 0)
+					mSkeleton = result.Skeletons[0].Skeleton;
+
+				Console.WriteLine($"  Imported: {mFoxResource.Mesh.VertexCount} vertices, {mSkeleton?.BoneCount ?? 0} bones, {result.Animations.Count} animations");
 			}
 
 			// Get material resource if available
@@ -466,13 +471,13 @@ class SceneUISample : Application
 		comp.MaterialCount = 1;
 
 		// Setup animation
-		if (animModule != null && mFoxResource.Skeleton != null)
+		if (animModule != null && mSkeleton != null)
 		{
-			let player = animModule.SetupAnimation(mFoxEntity, mFoxResource.Skeleton);
-			if (player != null && mFoxResource.Animations != null && mFoxResource.Animations.Count > 0)
+			let player = animModule.SetupAnimation(mFoxEntity, mSkeleton);
+			if (player != null && mImportResult != null && mImportResult.Animations.Count > 0)
 			{
 				// Play first animation
-				animModule.Play(mFoxEntity, mFoxResource.Animations[0], true);
+				animModule.Play(mFoxEntity, mImportResult.Animations[0].Clip, true);
 				Console.WriteLine("  Playing animation 0");
 			}
 		}
@@ -653,7 +658,7 @@ class SceneUISample : Application
 		mAnimationButtonPanel.Orientation = .Vertical;
 		mAnimationButtonPanel.Margin = .(0, 5, 0, 0);
 
-		let animCount = mFoxResource?.Animations?.Count ?? 0;
+		let animCount = mImportResult?.Animations?.Count ?? 0;
 		for (int i = 0; i < animCount; i++)
 		{
 			let btn = new Button(scope $"Anim {i}");
@@ -680,12 +685,12 @@ class SceneUISample : Application
 	private void PlayAnimation(int index)
 	{
 		let animModule = mScene?.GetModule<AnimationSceneModule>();
-		if (animModule != null && mFoxEntity.IsValid && mFoxResource?.Animations != null)
+		if (animModule != null && mFoxEntity.IsValid && mImportResult?.Animations != null)
 		{
-			let animCount = mFoxResource.Animations.Count;
+			let animCount = mImportResult.Animations.Count;
 			if (index >= 0 && index < animCount)
 			{
-				animModule.Play(mFoxEntity, mFoxResource.Animations[index], true);
+				animModule.Play(mFoxEntity, mImportResult.Animations[index].Clip, true);
 				mCurrentAnimIndex = index;
 				mAnimationLabel.Text = scope $"Animation: {index}";
 			}
@@ -884,6 +889,18 @@ class SceneUISample : Application
 		{
 			delete mFoxMaterialResource;
 			mFoxMaterialResource = null;
+		}
+
+		// Delete fox resource and import result
+		if (mFoxResource != null)
+		{
+			delete mFoxResource;
+			mFoxResource = null;
+		}
+		if (mImportResult != null)
+		{
+			delete mImportResult;
+			mImportResult = null;
 		}
 
 		delete mUIRoot;

@@ -494,7 +494,7 @@ class RenderSandboxApp : Application
 	private void LoadAnimatedModel()
 	{
 		// Load Fox model
-		let foxPath = scope $"{AssetDirectory}/Samples/Models/Fox/glTF/Fox.gltf";
+		let foxPath = scope $"{AssetDirectory}/samples/models/Fox/glTF/Fox.gltf";
 		Console.WriteLine("Loading Fox model from: {}", foxPath);
 
 		if (ModelLoader.Load(foxPath) case .Ok(let loaded))

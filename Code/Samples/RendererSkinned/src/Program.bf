@@ -15,6 +15,7 @@ using Sedulous.Animation;
 using Sedulous.Shell.Input;
 using SampleFramework;
 using Sedulous.Geometry.Resources;
+using Sedulous.Animation.Resources;
 
 /// Skinned mesh sample demonstrating:
 /// - GLTF skeletal mesh loading (Fox)
@@ -31,6 +32,8 @@ class RendererSkinnedSample : RHISampleApp
 	// Fox (skinned mesh) resources
 	private Model mFoxModel;
 	private SkinnedMeshResource mFoxResource ~ delete _;
+	private ModelImportResult mImportResult ~ delete _;
+	private Skeleton mSkeleton; // non-owning, from import result
 	private GPUSkinnedMeshHandle mFoxGPUMesh;
 	private ITexture mFoxTexture;
 	private ITextureView mFoxTextureView;
@@ -162,19 +165,20 @@ class RendererSkinnedSample : RHISampleApp
 		}
 
 		// Cycle through Fox animations
-		if (mFoxAnimPlayer != null && mFoxResource != null && mFoxResource.AnimationCount > 0)
+		if (mFoxAnimPlayer != null && mImportResult != null && mImportResult.Animations.Count > 0)
 		{
+			let animCount = (int32)mImportResult.Animations.Count;
 			if (keyboard.IsKeyPressed(.Right) || keyboard.IsKeyPressed(.Period))
 			{
-				mCurrentAnimIndex = (mCurrentAnimIndex + 1) % (int32)mFoxResource.AnimationCount;
-				mFoxAnimPlayer.Play(mFoxResource.Animations[mCurrentAnimIndex]);
-				Console.WriteLine(scope $"Playing animation: {mFoxResource.Animations[mCurrentAnimIndex].Name}");
+				mCurrentAnimIndex = (mCurrentAnimIndex + 1) % animCount;
+				mFoxAnimPlayer.Play(mImportResult.Animations[mCurrentAnimIndex].Clip);
+				Console.WriteLine(scope $"Playing animation: {mImportResult.Animations[mCurrentAnimIndex].Clip.Name}");
 			}
 			if (keyboard.IsKeyPressed(.Left) || keyboard.IsKeyPressed(.Comma))
 			{
-				mCurrentAnimIndex = (mCurrentAnimIndex - 1 + (int32)mFoxResource.AnimationCount) % (int32)mFoxResource.AnimationCount;
-				mFoxAnimPlayer.Play(mFoxResource.Animations[mCurrentAnimIndex]);
-				Console.WriteLine(scope $"Playing animation: {mFoxResource.Animations[mCurrentAnimIndex].Name}");
+				mCurrentAnimIndex = (mCurrentAnimIndex - 1 + animCount) % animCount;
+				mFoxAnimPlayer.Play(mImportResult.Animations[mCurrentAnimIndex].Clip);
+				Console.WriteLine(scope $"Playing animation: {mImportResult.Animations[mCurrentAnimIndex].Clip.Name}");
 			}
 		}
 	}
@@ -280,7 +284,7 @@ class RendererSkinnedSample : RHISampleApp
 			let imageLoader = scope SDLImageLoader();
 			let importer = scope ModelImporter(importOptions, imageLoader);
 			let importResult = importer.Import(mFoxModel);
-			defer delete importResult;
+			mImportResult = importResult;
 
 			if (!importResult.Success)
 			{
@@ -322,7 +326,12 @@ class RendererSkinnedSample : RHISampleApp
 			if (importResult.SkinnedMeshes.Count > 0)
 			{
 				mFoxResource = importResult.TakeSkinnedMesh(0);
-				Console.WriteLine(scope $"Fox resource: {mFoxResource.Mesh.VertexCount} vertices, {mFoxResource.Skeleton?.BoneCount ?? 0} bones, {mFoxResource.AnimationCount} animations");
+
+				// Extract skeleton from import result
+				if (importResult.Skeletons.Count > 0)
+					mSkeleton = importResult.Skeletons[0].Skeleton;
+
+				Console.WriteLine(scope $"Fox resource: {mFoxResource.Mesh.VertexCount} vertices, {mSkeleton?.BoneCount ?? 0} bones, {importResult.Animations.Count} animations");
 
 				// Also save as bundle for faster loading next time
 				//if (ResourceSerializer.SaveSkinnedMeshBundle(mFoxResource, cachedPath) case .Ok)
@@ -338,11 +347,11 @@ class RendererSkinnedSample : RHISampleApp
 		}
 
 		// Create AnimationPlayer and start playing
-		if (mFoxResource?.Skeleton != null && mFoxResource.AnimationCount > 0)
+		if (mSkeleton != null && mImportResult != null && mImportResult.Animations.Count > 0)
 		{
-			mFoxAnimPlayer = mFoxResource.CreatePlayer();
-			mFoxAnimPlayer.Play(mFoxResource.Animations[0]);
-			Console.WriteLine(scope $"Fox animation player started: {mFoxResource.Animations[0].Name}");
+			mFoxAnimPlayer = new AnimationPlayer(mSkeleton);
+			mFoxAnimPlayer.Play(mImportResult.Animations[0].Clip);
+			Console.WriteLine(scope $"Fox animation player started: {mImportResult.Animations[0].Clip.Name}");
 		}
 
 		// Load texture - try model's embedded data first (if loaded from GLTF)

@@ -16,6 +16,7 @@ using Sedulous.Renderer;
 using Sedulous.Logging.Abstractions;
 using Sedulous.Logging.Debug;
 using SampleFramework;
+using Sedulous.Animation;
 using Sedulous.Geometry.Resources;
 
 /// Demonstrates the Material System integration.
@@ -42,6 +43,8 @@ class RendererMaterialsSample : RHISampleApp
 	// Fox (skinned mesh) resources
 	private Model mFoxModel ~ delete _;
 	private SkinnedMeshResource mFoxResource ~ delete _;
+	private ModelImportResult mImportResult ~ delete _;
+	private Skeleton mSkeleton; // non-owning, from import result
 	private Entity mFoxEntity;
 	private MaterialInstanceHandle mFoxMaterialInstance = .Invalid;
 	private GPUTextureHandle mFoxTexture = .Invalid;
@@ -152,7 +155,7 @@ class RendererMaterialsSample : RHISampleApp
 		let imageLoader = scope SDLImageLoader();
 		let importer = scope ModelImporter(importOptions, imageLoader);
 		let importResult = importer.Import(mFoxModel);
-		defer delete importResult;
+		mImportResult = importResult;
 
 		if (!importResult.Success)
 		{
@@ -168,7 +171,9 @@ class RendererMaterialsSample : RHISampleApp
 		if (importResult.SkinnedMeshes.Count > 0)
 		{
 			mFoxResource = importResult.TakeSkinnedMesh(0);
-			Console.WriteLine(scope $"Fox resource: {mFoxResource.Mesh.VertexCount} vertices, {mFoxResource.Skeleton?.BoneCount ?? 0} bones, {mFoxResource.AnimationCount} animations");
+			if (importResult.Skeletons.Count > 0)
+				mSkeleton = importResult.Skeletons[0].Skeleton;
+			Console.WriteLine(scope $"Fox resource: {mFoxResource.Mesh.VertexCount} vertices, {mSkeleton?.BoneCount ?? 0} bones, {importResult.Animations.Count} animations");
 		}
 		else
 		{
@@ -389,11 +394,13 @@ class RendererMaterialsSample : RHISampleApp
 			mFoxEntity.AddComponent(skinnedMeshComp);
 
 			// Set skeleton first (required before SetMesh)
-			skinnedMeshComp.SetSkeleton(mFoxResource.Skeleton, false);  // Don't take ownership
+			if (mSkeleton != null)
+				skinnedMeshComp.SetSkeleton(mSkeleton, false);  // Don't take ownership
 
 			// Add animation clips
-			for (let clip in mFoxResource.Animations)
-				skinnedMeshComp.AddAnimationClip(clip);
+			if (mImportResult != null)
+				for (let animRes in mImportResult.Animations)
+					skinnedMeshComp.AddAnimationClip(animRes.Clip);
 
 			// Set the mesh (uploads to GPU)
 			skinnedMeshComp.SetMesh(mFoxResource.Mesh);
@@ -403,7 +410,7 @@ class RendererMaterialsSample : RHISampleApp
 				skinnedMeshComp.SetMaterial(mFoxMaterialInstance);
 
 			// Start playing the first animation (if any)
-			if (mFoxResource.AnimationCount > 0)
+			if (mImportResult != null && mImportResult.Animations.Count > 0)
 				skinnedMeshComp.PlayAnimation(0, true);
 
 			Console.WriteLine("Fox entity created with PBR material");

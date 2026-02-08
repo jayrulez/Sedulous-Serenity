@@ -16,6 +16,7 @@ using Sedulous.Renderer;
 using Sedulous.Logging.Abstractions;
 using Sedulous.Logging.Debug;
 using SampleFramework;
+using Sedulous.Animation;
 using Sedulous.Geometry.Resources;
 
 /// Demonstrates the asset cache system.
@@ -49,6 +50,8 @@ class RendererAssetSample : RHISampleApp
 	// Fox resources
 	private Model mFoxModel ~ delete _;
 	private SkinnedMeshResource mFoxResource ~ delete _;
+	private ModelImportResult mImportResult ~ delete _;
+	private Skeleton mSkeleton; // non-owning, from import result
 	private MaterialResource mFoxMaterialResource ~ delete _;
 	private GPUTextureHandle mFoxTexture = .Invalid;
 
@@ -141,7 +144,7 @@ class RendererAssetSample : RHISampleApp
 			{
 				mFoxResource = resource;
 				mLoadedFromCache = true;
-				Console.WriteLine($"  Loaded from cache: {mFoxResource.Mesh.VertexCount} vertices, {mFoxResource.Skeleton?.BoneCount ?? 0} bones, {mFoxResource.AnimationCount} animations");
+				Console.WriteLine($"  Loaded from cache: {mFoxResource.Mesh.VertexCount} vertices");
 				return true;
 			}
 			else
@@ -178,7 +181,7 @@ class RendererAssetSample : RHISampleApp
 		let imageLoader = scope SDLImageLoader();
 		let importer = scope ModelImporter(importOptions, imageLoader);
 		let importResult = importer.Import(mFoxModel);
-		defer delete importResult;
+		mImportResult = importResult;
 
 		if (!importResult.Success)
 		{
@@ -206,7 +209,9 @@ class RendererAssetSample : RHISampleApp
 
 		// Take ownership of the first skinned mesh
 		mFoxResource = importResult.TakeSkinnedMesh(0);
-		Console.WriteLine($"  Imported: {mFoxResource.Mesh.VertexCount} vertices, {mFoxResource.Skeleton?.BoneCount ?? 0} bones, {mFoxResource.AnimationCount} animations");
+		if (importResult.Skeletons.Count > 0)
+			mSkeleton = importResult.Skeletons[0].Skeleton;
+		Console.WriteLine($"  Imported: {mFoxResource.Mesh.VertexCount} vertices, {mSkeleton?.BoneCount ?? 0} bones, {importResult.Animations.Count} animations");
 
 		// Take ownership of the first material (if any)
 		if (importResult.Materials.Count > 0)
@@ -423,11 +428,12 @@ class RendererAssetSample : RHISampleApp
 			let skinnedMeshComponent = new SkinnedMeshComponent();
 			foxEntity.AddComponent(skinnedMeshComponent);
 
-			if (mFoxResource.Skeleton != null)
-				skinnedMeshComponent.SetSkeleton(mFoxResource.Skeleton, false);
+			if (mSkeleton != null)
+				skinnedMeshComponent.SetSkeleton(mSkeleton, false);
 
-			for (let clip in mFoxResource.Animations)
-				skinnedMeshComponent.AddAnimationClip(clip);
+			if (mImportResult != null)
+				for (let animRes in mImportResult.Animations)
+					skinnedMeshComponent.AddAnimationClip(animRes.Clip);
 
 			skinnedMeshComponent.SetMesh(mFoxResource.Mesh);
 			skinnedMeshComponent.SetMaterial(mFoxMaterial);
