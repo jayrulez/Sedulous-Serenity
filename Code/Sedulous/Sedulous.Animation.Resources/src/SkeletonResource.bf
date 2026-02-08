@@ -107,6 +107,9 @@ class SkeletonResource : Resource
 					Vector3 bindScale = bone.LocalBindPose.Scale;
 					s.Vector3("bindScale", ref bindScale);
 
+					Matrix rootCorrection = bone.RootCorrection;
+					s.Matrix4x4("rootCorrection", ref rootCorrection);
+
 					s.EndObject();
 				}
 
@@ -146,6 +149,9 @@ class SkeletonResource : Resource
 					Vector3 bindScale = .(1, 1, 1);
 					s.Vector3("bindScale", ref bindScale);
 
+					Matrix rootCorrection = .Identity;
+					s.Matrix4x4("rootCorrection", ref rootCorrection);
+
 					// Set up the bone using the new API
 					let bone = skeleton.Bones[i];
 					bone.Name.Set(boneName);
@@ -153,6 +159,7 @@ class SkeletonResource : Resource
 					bone.ParentIndex = parentIdx;
 					bone.InverseBindPose = inverseBindMatrix;
 					bone.LocalBindPose = Transform(bindTranslation, bindRotation, bindScale);
+					bone.RootCorrection = rootCorrection;
 
 					s.EndObject();
 				}

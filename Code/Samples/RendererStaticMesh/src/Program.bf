@@ -205,10 +205,10 @@ class RendererStaticMeshSample : RHISampleApp
 	private bool LoadGltfModel()
 	{
 		mDuckModel = new Model();
-		let loader = scope GltfLoader();
+		GltfModels.Initialize();
 
 		let modelPath = GetAssetPath("samples/models/Duck/glTF/Duck.gltf", .. scope .());
-		let result = loader.Load(modelPath, mDuckModel);
+		let result = ModelLoaderFactory.LoadModel(modelPath, mDuckModel);
 		if (result != .Ok)
 		{
 			Console.WriteLine(scope $"Failed to load Duck model: {result}");

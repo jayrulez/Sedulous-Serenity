@@ -151,9 +151,9 @@ class RendererUnlitSample : RHISampleApp
 		{
 			Console.WriteLine("Importing Fox from GLTF...");
 			let foxModel = scope Model();
-			let loader = scope GltfLoader();
+			GltfModels.Initialize();
 
-			let result = loader.Load(gltfPath, foxModel);
+			let result = ModelLoaderFactory.LoadModel(gltfPath, foxModel);
 			if (result != .Ok)
 			{
 				Console.WriteLine($"  Failed to load Fox model: {result}");

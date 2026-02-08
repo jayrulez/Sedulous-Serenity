@@ -4,40 +4,46 @@ using Sedulous.Framework.Scenes;
 using Sedulous.Geometry.Resources;
 using Sedulous.Materials;
 using Sedulous.Materials.Resources;
+using Sedulous.Render;
 using Sedulous.Resources;
 using Sedulous.Serialization;
+using System;
 
 using static Sedulous.Resources.ResourceSerializerExtensions;
 
 /// Component for entities with a skinned mesh.
 /// Set the Mesh field and the framework handles GPU upload automatically.
-/// Note: ResourceHandle uses manual ref counting. Call AddRef() when copying,
-/// Release() when removing/replacing.
+/// Supports up to MaxMaterialsPerMesh material slots for multi-submesh rendering.
 struct SkinnedMeshRendererComponent : ISerializableComponent
 {
 	/// The skinned mesh resource handle (runtime, not serialized).
 	public ResourceHandle<SkinnedMeshResource> Mesh;
 	/// Serializable reference to the mesh resource.
 	public ResourceRef MeshRef;
-	/// The material resource handle (runtime, not serialized).
-	public ResourceHandle<MaterialResource> Material;
-	/// Serializable reference to the material resource.
-	public ResourceRef MaterialRef;
-	/// The material instance for rendering (runtime, created from MaterialResource).
-	public MaterialInstance MaterialInstance;
+	/// Number of active material slots.
+	public int32 MaterialCount;
+	/// Serializable references to material resources (one per submesh slot).
+	public ResourceRef[RenderConfig.MaxMaterialsPerMesh] MaterialRefs;
+	/// Material resource handles (runtime, not serialized).
+	public ResourceHandle<MaterialResource>[RenderConfig.MaxMaterialsPerMesh] Materials;
+	/// Material instances for rendering (runtime, created from MaterialResource).
+	public MaterialInstance[RenderConfig.MaxMaterialsPerMesh] MaterialInstances;
 	/// Whether this renderer is enabled.
 	public bool Enabled;
 
-	public int32 SerializationVersion => 2;
+	public int32 SerializationVersion => 3;
 
 	public SerializationResult Serialize(Serializer s) mut
 	{
 		var version = SerializationVersion;
 		s.Version(ref version);
-		if (version >= 2)
+		s.ResourceRef("mesh", ref MeshRef);
+		s.Int32("materialCount", ref MaterialCount);
+		for (int32 i = 0; i < MaterialCount; i++)
 		{
-			s.ResourceRef("mesh", ref MeshRef);
-			s.ResourceRef("material", ref MaterialRef);
+			let name = scope String();
+			name.AppendF("material{}", i);
+			s.ResourceRef(name, ref MaterialRefs[i]);
 		}
 		s.Bool("enabled", ref Enabled);
 		return .Ok;
@@ -46,9 +52,10 @@ struct SkinnedMeshRendererComponent : ISerializableComponent
 	public static SkinnedMeshRendererComponent Default => .() {
 		Mesh = default,
 		MeshRef = .(),
-		Material = default,
-		MaterialRef = .(),
-		MaterialInstance = null,
+		MaterialCount = 0,
+		MaterialRefs = .(),
+		Materials = .(),
+		MaterialInstances = .(),
 		Enabled = true
 	};
 }

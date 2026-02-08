@@ -361,7 +361,7 @@ public class ForwardTransparentFeature : RenderFeatureBase
 					{
 						ProxyHandle = cmd.MeshHandle,
 						MeshHandle = proxy.MeshHandle,
-						Material = proxy.Material,
+						Material = proxy.Materials[0],
 						DistanceSquared = distSq
 					});
 				}
@@ -403,63 +403,71 @@ public class ForwardTransparentFeature : RenderFeatureBase
 		for (let sortedDraw in mSortedDraws)
 		{
 			// Verify proxy still exists (mesh data stored in sortedDraw)
-			if (world.GetMesh(sortedDraw.ProxyHandle) != null)
+			let proxy = world.GetMesh(sortedDraw.ProxyHandle);
+			if (proxy != null)
 			{
 				if (let mesh = Renderer.ResourceManager.GetMesh(sortedDraw.MeshHandle))
 				{
-					// Get material instance (use default if none assigned)
-					MaterialInstance material = sortedDraw.Material ?? defaultMaterialInstance;
-
-					// Get pipelines from cache for this material
-					let backPipeline = GetPipelineForMaterial(material, shadowsEnabled, true);
-					let frontPipeline = GetPipelineForMaterial(material, shadowsEnabled, false);
-
-					// Get material bind group
-					IBindGroup materialBindGroup = null;
-					if (material != null && materialSystem != null)
-					{
-						if (materialSystem.PrepareInstance(material) case .Ok(let bindGroup))
-							materialBindGroup = bindGroup;
-					}
-
 					// Bind scene bind group with dynamic offset for this object's transforms
 					uint32[1] dynamicOffsets = .((uint32)(sortedDraw.ObjectIndex * (int32)AlignedObjectUniformSize));
 
-					// Bind vertex/index buffers
+					// Bind vertex/index buffers (shared across submeshes)
 					encoder.SetVertexBuffer(0, mesh.VertexBuffer, 0);
 					if (mesh.IndexBuffer != null)
 						encoder.SetIndexBuffer(mesh.IndexBuffer, mesh.IndexFormat);
 
-					// Pass 1: Render back faces (interior)
-					if (backPipeline != null)
+					if (mesh.SubMeshes != null)
 					{
-						encoder.SetPipeline(backPipeline);
-						encoder.SetBindGroup(0, sceneBindGroup, dynamicOffsets);
-						if (materialBindGroup != null)
-							encoder.SetBindGroup(1, materialBindGroup, default);
+						for (let sub in mesh.SubMeshes)
+						{
+							// Resolve material for this submesh's material slot
+							let matSlot = (int32)sub.MaterialSlot;
+							MaterialInstance material = null;
+							if (matSlot < proxy.MaterialCount)
+								material = proxy.Materials[matSlot];
+							if (material == null && proxy.MaterialCount > 0)
+								material = proxy.Materials[0];
+							if (material == null)
+								material = defaultMaterialInstance;
 
-						if (mesh.IndexBuffer != null)
-							encoder.DrawIndexed(mesh.IndexCount, 1, 0, 0, 0);
-						else
-							encoder.Draw(mesh.VertexCount, 1, 0, 0);
+							// Get pipelines from cache for this material
+							let backPipeline = GetPipelineForMaterial(material, shadowsEnabled, true);
+							let frontPipeline = GetPipelineForMaterial(material, shadowsEnabled, false);
+
+							// Get material bind group
+							IBindGroup materialBindGroup = null;
+							if (material != null && materialSystem != null)
+							{
+								if (materialSystem.PrepareInstance(material) case .Ok(let bindGroup))
+									materialBindGroup = bindGroup;
+							}
+
+							// Pass 1: Render back faces (interior)
+							if (backPipeline != null)
+							{
+								encoder.SetPipeline(backPipeline);
+								encoder.SetBindGroup(0, sceneBindGroup, dynamicOffsets);
+								if (materialBindGroup != null)
+									encoder.SetBindGroup(1, materialBindGroup, default);
+
+								encoder.DrawIndexed(sub.IndexCount, 1, sub.IndexStart, sub.BaseVertex, 0);
+							}
+
+							// Pass 2: Render front faces (exterior)
+							if (frontPipeline != null)
+							{
+								encoder.SetPipeline(frontPipeline);
+								encoder.SetBindGroup(0, sceneBindGroup, dynamicOffsets);
+								if (materialBindGroup != null)
+									encoder.SetBindGroup(1, materialBindGroup, default);
+
+								encoder.DrawIndexed(sub.IndexCount, 1, sub.IndexStart, sub.BaseVertex, 0);
+							}
+
+							Renderer.Stats.DrawCalls += 2;
+							Renderer.Stats.TransparentDrawCalls += 2;
+						}
 					}
-
-					// Pass 2: Render front faces (exterior)
-					if (frontPipeline != null)
-					{
-						encoder.SetPipeline(frontPipeline);
-						encoder.SetBindGroup(0, sceneBindGroup, dynamicOffsets);
-						if (materialBindGroup != null)
-							encoder.SetBindGroup(1, materialBindGroup, default);
-
-						if (mesh.IndexBuffer != null)
-							encoder.DrawIndexed(mesh.IndexCount, 1, 0, 0, 0);
-						else
-							encoder.Draw(mesh.VertexCount, 1, 0, 0);
-					}
-
-					Renderer.Stats.DrawCalls += 2;
-					Renderer.Stats.TransparentDrawCalls += 2;
 				}
 			}
 		}

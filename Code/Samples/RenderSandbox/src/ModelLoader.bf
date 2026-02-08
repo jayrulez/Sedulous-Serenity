@@ -48,10 +48,10 @@ public static class ModelLoader
 	public static Result<LoadedModel> Load(StringView path, int32 skinIndex = 0)
 	{
 		// Load GLTF
-		let loader = scope GltfLoader();
+		GltfModels.Initialize();
 		let model = new Model();
 
-		let result = loader.Load(path, model);
+		let result = ModelLoaderFactory.LoadModel(path, model);
 		if (result != .Ok)
 		{
 			delete model;

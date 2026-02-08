@@ -93,8 +93,17 @@ static class ModelMeshConverter
 			}
 		}
 
-		// Add default submesh
-		mesh.AddSubMesh(SubMesh(0, modelMesh.IndexCount));
+		// Create SubMeshes from ModelMeshParts (preserves per-primitive material indices)
+		if (modelMesh.Parts != null && modelMesh.Parts.Count > 0)
+		{
+			for (let part in modelMesh.Parts)
+				mesh.AddSubMesh(SubMesh(part.IndexStart, part.IndexCount, part.MaterialIndex));
+		}
+		else
+		{
+			// Fallback: single submesh covering entire mesh
+			mesh.AddSubMesh(SubMesh(0, modelMesh.IndexCount));
+		}
 
 		return mesh;
 	}
@@ -174,6 +183,18 @@ static class ModelMeshConverter
 				for (int32 i = 0; i < modelMesh.IndexCount; i++)
 					skinnedMesh.AddIndex((uint32)indices[i]);
 			}
+		}
+
+		// Create SubMeshes from ModelMeshParts (preserves per-primitive material indices)
+		if (modelMesh.Parts != null && modelMesh.Parts.Count > 0)
+		{
+			for (let part in modelMesh.Parts)
+				skinnedMesh.AddSubMesh(SubMesh(part.IndexStart, part.IndexCount, part.MaterialIndex));
+		}
+		else
+		{
+			// Fallback: single submesh covering entire mesh
+			skinnedMesh.AddSubMesh(SubMesh(0, modelMesh.IndexCount));
 		}
 
 		skinnedMesh.CalculateBounds();

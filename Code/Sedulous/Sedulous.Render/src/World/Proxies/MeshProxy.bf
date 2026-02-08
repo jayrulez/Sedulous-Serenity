@@ -40,8 +40,11 @@ public struct MeshProxy
 	/// Handle to the GPU mesh data.
 	public GPUMeshHandle MeshHandle;
 
-	/// Material instance for rendering.
-	public MaterialInstance Material;
+	/// Material instances for rendering (one per submesh slot).
+	public MaterialInstance[RenderConfig.MaxMaterialsPerMesh] Materials;
+
+	/// Number of active material slots.
+	public int32 MaterialCount;
 
 	/// World transform matrix.
 	public Matrix WorldMatrix;
@@ -137,7 +140,8 @@ public struct MeshProxy
 	public void Reset() mut
 	{
 		MeshHandle = .Invalid;
-		Material = null;
+		Materials = .();
+		MaterialCount = 0;
 		WorldMatrix = .Identity;
 		PrevWorldMatrix = .Identity;
 		NormalMatrix = .Identity;

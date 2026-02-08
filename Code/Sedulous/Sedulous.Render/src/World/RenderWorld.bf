@@ -208,14 +208,25 @@ public class RenderWorld : IDisposable
 		}
 	}
 
-	/// Sets mesh material.
-	public void SetMeshMaterial(MeshProxyHandle handle, MaterialInstance material)
+	/// Sets mesh material for a specific slot.
+	public void SetMeshMaterial(MeshProxyHandle handle, int32 slot, MaterialInstance material)
 	{
 		if (let proxy = mMeshProxies.Get(handle.Handle))
 		{
-			proxy.Material = material;
-			mMeshesDirty = true;
+			if (slot >= 0 && slot < RenderConfig.MaxMaterialsPerMesh)
+			{
+				proxy.Materials[slot] = material;
+				if (slot >= proxy.MaterialCount)
+					proxy.MaterialCount = slot + 1;
+				mMeshesDirty = true;
+			}
 		}
+	}
+
+	/// Sets mesh material (slot 0 convenience overload).
+	public void SetMeshMaterial(MeshProxyHandle handle, MaterialInstance material)
+	{
+		SetMeshMaterial(handle, 0, material);
 	}
 
 	/// Sets mesh flags.
@@ -297,14 +308,25 @@ public class RenderWorld : IDisposable
 		}
 	}
 
-	/// Sets skinned mesh material.
-	public void SetSkinnedMeshMaterial(SkinnedMeshProxyHandle handle, MaterialInstance material)
+	/// Sets skinned mesh material for a specific slot.
+	public void SetSkinnedMeshMaterial(SkinnedMeshProxyHandle handle, int32 slot, MaterialInstance material)
 	{
 		if (let proxy = GetSkinnedMesh(handle))
 		{
-			proxy.Material = material;
-			mSkinnedMeshesDirty = true;
+			if (slot >= 0 && slot < RenderConfig.MaxMaterialsPerMesh)
+			{
+				proxy.Materials[slot] = material;
+				if (slot >= proxy.MaterialCount)
+					proxy.MaterialCount = slot + 1;
+				mSkinnedMeshesDirty = true;
+			}
 		}
+	}
+
+	/// Sets skinned mesh material (slot 0 convenience overload).
+	public void SetSkinnedMeshMaterial(SkinnedMeshProxyHandle handle, MaterialInstance material)
+	{
+		SetSkinnedMeshMaterial(handle, 0, material);
 	}
 
 	/// Sets skinned mesh flags.

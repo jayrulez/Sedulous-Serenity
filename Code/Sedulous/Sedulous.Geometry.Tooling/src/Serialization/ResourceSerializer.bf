@@ -201,16 +201,22 @@ static class ResourceSerializer
 		return .Ok;
 	}
 
-	private static void SanitizePath(String path)
+	public static void SanitizePath(String path)
 	{
 		// Replace invalid filename characters
-		/*for (int i = 0; i < path.Length; i++)
+		for (int i = 0; i < path.Length; i++)
 		{
 			char8 c = path[i];
-			if (c == '<' || c == '>' || c == ':' || c == '"' || c == '|' || c == '?' || c == '*')
+			if (c == '<'
+				|| c == '>'
+				//|| c == ':'
+				|| c == '"'
+				|| c == '|'
+				|| c == '?'
+				|| c == '*')
 			{
 				path[i] = '_';
 			}
-		}*/
+		}
 	}
 }

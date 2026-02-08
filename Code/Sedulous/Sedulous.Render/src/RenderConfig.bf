@@ -62,6 +62,9 @@ static class RenderConfig
 	/// Maximum bone count for skinned meshes.
 	public const int32 MaxBonesPerMesh = 256;
 
+	/// Maximum material slots per mesh (for multi-material submeshes).
+	public const int32 MaxMaterialsPerMesh = 8;
+
 	/// Maximum particle count per emitter.
 	public const int32 MaxParticlesPerEmitter = 65536;
 

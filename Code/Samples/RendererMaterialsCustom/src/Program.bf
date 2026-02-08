@@ -149,10 +149,10 @@ class RendererMaterialsCustomSample : RHISampleApp
 	private bool LoadFox()
 	{
 		mFoxModel = new Model();
-		let loader = scope GltfLoader();
+		GltfModels.Initialize();
 
 		let gltfPath = GetAssetPath("samples/models/Fox/glTF/Fox.gltf", .. scope .());
-		let result = loader.Load(gltfPath, mFoxModel);
+		let result = ModelLoaderFactory.LoadModel(gltfPath, mFoxModel);
 		if (result != .Ok)
 		{
 			Console.WriteLine(scope $"Failed to load Fox model: {result}");

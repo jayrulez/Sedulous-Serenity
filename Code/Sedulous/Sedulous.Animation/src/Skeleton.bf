@@ -237,8 +237,9 @@ public class Skeleton
 		}
 		else
 		{
-			// Root bone - local is world
-			outWorldPoses[boneIndex] = localMatrix;
+			// Root bone - apply RootCorrection to include missing ancestor transforms
+			// (e.g. FBX coordinate conversion from Z-up to Y-up)
+			outWorldPoses[boneIndex] = localMatrix * bone.RootCorrection;
 		}
 	}
 

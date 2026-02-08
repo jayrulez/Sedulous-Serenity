@@ -1217,62 +1217,70 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 				let cmd = commands[batch.CommandStart + i];
 
-				// Get mesh proxy to access material
+				// Get mesh proxy to access materials
 				MeshProxy* proxy = null;
 				if (cmd.MeshHandle.IsValid)
 					proxy = world.GetMesh(cmd.MeshHandle);
 
-				// Get material instance (use default if none assigned)
-				MaterialInstance material = proxy?.Material ?? defaultMaterialInstance;
-
-				// Get pipeline for this material from cache
-				let pipeline = GetPipelineForMaterial(material, shadowsEnabled, false);
-				if (pipeline == null)
-				{
-					objectIndex++;
-					continue; // Skip if pipeline can't be created
-				}
-
-				if (pipeline != currentPipeline)
-				{
-					encoder.SetPipeline(pipeline);
-					currentPipeline = pipeline;
-				}
-
-				// Bind material if changed
-				if (material != currentMaterial && material != null && materialSystem != null)
-				{
-					// Prepare material instance (ensures bind group is ready)
-					if (materialSystem.PrepareInstance(material) case .Ok(let bindGroup))
-					{
-						encoder.SetBindGroup(1, bindGroup, default);
-						currentMaterial = material;
-					}
-				}
-
 				// Bind scene bind group with dynamic offset for this object's transforms
 				let sceneBindGroup = mSceneBindGroups[frameIndex];
-				if (sceneBindGroup != null)
-				{
-					uint32[1] dynamicOffsets = .((uint32)(objectIndex * (int32)AlignedObjectUniformSize));
-					encoder.SetBindGroup(0, sceneBindGroup, dynamicOffsets);
-				}
 
-				// Get mesh data
+				// Get mesh data and draw per-submesh
 				if (let mesh = Renderer.ResourceManager.GetMesh(cmd.GPUMesh))
 				{
-					// Bind vertex/index buffers
+					// Bind vertex/index buffers (shared across submeshes)
 					encoder.SetVertexBuffer(0, mesh.VertexBuffer, 0);
 					if (mesh.IndexBuffer != null)
 						encoder.SetIndexBuffer(mesh.IndexBuffer, mesh.IndexFormat);
 
-					if (mesh.IndexBuffer != null)
-						encoder.DrawIndexed(mesh.IndexCount, 1, 0, 0, 0);
-					else
-						encoder.Draw(mesh.VertexCount, 1, 0, 0);
+					if (mesh.SubMeshes != null)
+					{
+						for (let sub in mesh.SubMeshes)
+						{
+							// Resolve material for this submesh's material slot
+							let matSlot = (int32)sub.MaterialSlot;
+							MaterialInstance material = null;
+							if (proxy != null && matSlot < proxy.MaterialCount)
+								material = proxy.Materials[matSlot];
+							if (material == null && proxy != null && proxy.MaterialCount > 0)
+								material = proxy.Materials[0];
+							if (material == null)
+								material = defaultMaterialInstance;
 
-					Renderer.Stats.DrawCalls++;
-					Renderer.Stats.TriangleCount += (int32)(mesh.IndexCount / 3);
+							// Get pipeline for this material from cache
+							let pipeline = GetPipelineForMaterial(material, shadowsEnabled, false);
+							if (pipeline == null)
+								continue;
+
+							if (pipeline != currentPipeline)
+							{
+								encoder.SetPipeline(pipeline);
+								currentPipeline = pipeline;
+							}
+
+							// Bind material if changed
+							if (material != currentMaterial && material != null && materialSystem != null)
+							{
+								if (materialSystem.PrepareInstance(material) case .Ok(let bindGroup))
+								{
+									encoder.SetBindGroup(1, bindGroup, default);
+									currentMaterial = material;
+								}
+							}
+
+							// Bind scene bind group with dynamic offset
+							if (sceneBindGroup != null)
+							{
+								uint32[1] dynamicOffsets = .((uint32)(objectIndex * (int32)AlignedObjectUniformSize));
+								encoder.SetBindGroup(0, sceneBindGroup, dynamicOffsets);
+							}
+
+							encoder.DrawIndexed(sub.IndexCount, 1, sub.IndexStart, sub.BaseVertex, 0);
+
+							Renderer.Stats.DrawCalls++;
+							Renderer.Stats.TriangleCount += (int32)(sub.IndexCount / 3);
+						}
+					}
 				}
 
 				objectIndex++;
@@ -1312,7 +1320,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 				let cmd = skinnedCommands[batch.CommandStart + i];
 
-				// Get skinned mesh proxy for material
+				// Get skinned mesh proxy for materials
 				SkinnedMeshProxy* proxy = null;
 				if (cmd.MeshHandle.IsValid)
 					proxy = world.GetSkinnedMesh(cmd.MeshHandle);
@@ -1320,41 +1328,8 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				if (proxy == null)
 					continue;
 
-				// Get material instance
-				MaterialInstance material = proxy.Material ?? defaultMaterialInstance;
-
-				// Get pipeline for this material from cache
-				let pipeline = GetPipelineForMaterial(material, shadowsEnabled, false);
-				if (pipeline == null)
-				{
-					objectIndex++;
-					continue; // Skip if pipeline can't be created
-				}
-
-				if (pipeline != currentPipeline)
-				{
-					encoder.SetPipeline(pipeline);
-					currentPipeline = pipeline;
-				}
-
-				// Bind material if changed
-				if (material != currentMaterial && material != null && materialSystem != null)
-				{
-					if (materialSystem.PrepareInstance(material) case .Ok(let bindGroup))
-					{
-						encoder.SetBindGroup(1, bindGroup, default);
-						currentMaterial = material;
-					}
-				}
-
-				// Upload object uniforms for this skinned mesh
-				// Note: Skinned mesh uniforms should have been prepared by PrepareSkinnedObjectUniforms
+				// Bind scene bind group with dynamic offset
 				let sceneBindGroup = mSceneBindGroups[frameIndex];
-				if (sceneBindGroup != null)
-				{
-					uint32[1] dynamicOffsets = .((uint32)(objectIndex * (int32)AlignedObjectUniformSize));
-					encoder.SetBindGroup(0, sceneBindGroup, dynamicOffsets);
-				}
 
 				// Get the skinned vertex buffer from the skinning feature
 				let skinnedVertexBuffer = skinningFeature.GetSkinnedVertexBuffer(cmd.MeshHandle);
@@ -1363,21 +1338,57 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 					// Bind the skinned vertex buffer (post-transform)
 					encoder.SetVertexBuffer(0, skinnedVertexBuffer, 0);
 
-					// Get mesh for index buffer (indices don't change with skinning)
+					// Get mesh for index buffer and submeshes (indices don't change with skinning)
 					if (let mesh = Renderer.ResourceManager.GetMesh(cmd.GPUMesh))
 					{
 						if (mesh.IndexBuffer != null)
-						{
 							encoder.SetIndexBuffer(mesh.IndexBuffer, mesh.IndexFormat);
-							encoder.DrawIndexed(mesh.IndexCount, 1, 0, 0, 0);
-						}
-						else
-						{
-							encoder.Draw(mesh.VertexCount, 1, 0, 0);
-						}
 
-						Renderer.Stats.DrawCalls++;
-						Renderer.Stats.TriangleCount += (int32)((mesh.IndexCount > 0 ? mesh.IndexCount : mesh.VertexCount) / 3);
+						if (mesh.SubMeshes != null)
+						{
+							for (let sub in mesh.SubMeshes)
+							{
+								// Resolve material for this submesh's material slot
+								let matSlot = (int32)sub.MaterialSlot;
+								MaterialInstance material = null;
+								if (matSlot < proxy.MaterialCount)
+									material = proxy.Materials[matSlot];
+								if (material == null && proxy.MaterialCount > 0)
+									material = proxy.Materials[0];
+								if (material == null)
+									material = defaultMaterialInstance;
+
+								let pipeline = GetPipelineForMaterial(material, shadowsEnabled, false);
+								if (pipeline == null)
+									continue;
+
+								if (pipeline != currentPipeline)
+								{
+									encoder.SetPipeline(pipeline);
+									currentPipeline = pipeline;
+								}
+
+								if (material != currentMaterial && material != null && materialSystem != null)
+								{
+									if (materialSystem.PrepareInstance(material) case .Ok(let bindGroup))
+									{
+										encoder.SetBindGroup(1, bindGroup, default);
+										currentMaterial = material;
+									}
+								}
+
+								if (sceneBindGroup != null)
+								{
+									uint32[1] dynamicOffsets = .((uint32)(objectIndex * (int32)AlignedObjectUniformSize));
+									encoder.SetBindGroup(0, sceneBindGroup, dynamicOffsets);
+								}
+
+								encoder.DrawIndexed(sub.IndexCount, 1, sub.IndexStart, sub.BaseVertex, 0);
+
+								Renderer.Stats.DrawCalls++;
+								Renderer.Stats.TriangleCount += (int32)(sub.IndexCount / 3);
+							}
+						}
 					}
 				}
 

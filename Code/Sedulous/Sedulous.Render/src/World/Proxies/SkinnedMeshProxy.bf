@@ -40,8 +40,11 @@ public struct SkinnedMeshProxy
 	/// Handle to the GPU bone transform buffer.
 	public GPUBoneBufferHandle BoneBufferHandle;
 
-	/// Material instance for rendering.
-	public MaterialInstance Material;
+	/// Material instances for rendering (one per submesh slot).
+	public MaterialInstance[RenderConfig.MaxMaterialsPerMesh] Materials;
+
+	/// Number of active material slots.
+	public int32 MaterialCount;
 
 	/// World transform matrix (root transform).
 	public Matrix WorldMatrix;
@@ -165,7 +168,8 @@ public struct SkinnedMeshProxy
 	{
 		MeshHandle = .Invalid;
 		BoneBufferHandle = .Invalid;
-		Material = null;
+		Materials = .();
+		MaterialCount = 0;
 		WorldMatrix = .Identity;
 		PrevWorldMatrix = .Identity;
 		NormalMatrix = .Identity;

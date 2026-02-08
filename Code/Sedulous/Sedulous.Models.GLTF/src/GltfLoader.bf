@@ -8,20 +8,11 @@ using cgltf_Beef;
 
 namespace Sedulous.Models.GLTF;
 
-/// Result of GLTF loading
-public enum GltfResult
-{
-	Ok,
-	FileNotFound,
-	ParseError,
-	InvalidFormat,
-	UnsupportedVersion,
-	BufferLoadError
-}
-
 /// Loads GLTF and GLB model files using cgltf
-public class GltfLoader
+public class GltfLoader : IModelLoader
 {
+	private static StringView[?] sSupportedExtensions = .(".gltf", ".glb");
+
 	private cgltf_data* mData;
 	private String mBasePath ~ delete _;
 
@@ -39,8 +30,22 @@ public class GltfLoader
 		}
 	}
 
+	/// File extensions this loader supports.
+	public Span<StringView> SupportedExtensions => .(&sSupportedExtensions, sSupportedExtensions.Count);
+
+	/// Check if this loader supports the given file extension.
+	public bool SupportsExtension(StringView fileExtension)
+	{
+		for (let ext in sSupportedExtensions)
+		{
+			if (fileExtension.Equals(ext, true))
+				return true;
+		}
+		return false;
+	}
+
 	/// Load a GLTF or GLB file
-	public GltfResult Load(StringView path, Model model)
+	public ModelLoadResult Load(StringView path, Model model)
 	{
 		// Free previous data
 		if (mData != null)
@@ -99,6 +104,8 @@ public class GltfLoader
 
 			if (mat.name != null)
 				material.SetName(StringView(mat.name));
+			else
+				material.SetName(scope $"texture_{i}");
 
 			// PBR Metallic Roughness
 			if (mat.has_pbr_metallic_roughness != 0)
@@ -176,6 +183,8 @@ public class GltfLoader
 
 			if (tex.name != null)
 				texture.SetName(StringView(tex.name));
+			else if(tex.image?.name != null)
+				texture.SetName(StringView(tex.image.name));
 
 			if (tex.sampler != null)
 				texture.SamplerIndex = (int32)cgltf_sampler_index(mData, tex.sampler);
@@ -244,6 +253,8 @@ public class GltfLoader
 
 			sampler.WrapS = WrapModeFromCgltf(samp.wrap_s);
 			sampler.WrapT = WrapModeFromCgltf(samp.wrap_t);
+			sampler.MinFilter = MinFilterFromCgltf(samp.min_filter);
+			sampler.MagFilter = MagFilterFromCgltf(samp.min_filter);
 
 			model.AddSampler(sampler);
 		}
@@ -336,6 +347,30 @@ public class GltfLoader
 		}
 	}
 
+	private static TextureMinFilter MinFilterFromCgltf(cgltf_filter_type filter)
+	{
+		switch(filter)
+		{
+			case .cgltf_filter_type_nearest: return .Nearest;
+			case .cgltf_filter_type_linear: return .Linear;
+			case .cgltf_filter_type_nearest_mipmap_nearest: return .NearestMipmapNearest;
+			case .cgltf_filter_type_linear_mipmap_nearest: return .LinearMipmapNearest;
+			case .cgltf_filter_type_nearest_mipmap_linear: return .NearestMipmapLinear;
+			case .cgltf_filter_type_linear_mipmap_linear: return .LinearMipmapLinear;
+			case .cgltf_filter_type_undefined: return .Nearest;
+		}
+	}
+
+	public static TextureMagFilter MagFilterFromCgltf(cgltf_filter_type filter)
+	{
+		switch(filter)
+		{
+			case .cgltf_filter_type_nearest, .cgltf_filter_type_nearest_mipmap_nearest, .cgltf_filter_type_nearest_mipmap_linear: return .Nearest;
+			case .cgltf_filter_type_linear, .cgltf_filter_type_linear_mipmap_nearest, .cgltf_filter_type_linear_mipmap_linear: return .Linear;
+			case .cgltf_filter_type_undefined: return .Nearest;
+		}
+	}
+
 	private void LoadMeshes(Model model)
 	{
 		for (int i = 0; i < (int)mData.meshes_count; i++)
@@ -346,70 +381,29 @@ public class GltfLoader
 			if (meshData.name != null)
 				mesh.SetName(StringView(meshData.name));
 
-			// Process primitives
-			for (int p = 0; p < (int)meshData.primitives_count; p++)
-			{
-				let prim = &meshData.primitives[p];
-
-				if (p == 0)
-				{
-					// First primitive sets up the mesh format
-					LoadPrimitive(prim, mesh);
-				}
-
-				// Add mesh part for each primitive
-				int32 materialIndex = -1;
-				if (prim.material != null)
-					materialIndex = (int32)cgltf_material_index(mData, prim.material);
-
-				if (prim.indices != null)
-				{
-					int32 indexStart = 0; // TODO: Track offset for merged primitives
-					int32 indexCount = (int32)prim.indices.count;
-					mesh.AddPart(ModelMeshPart(indexStart, indexCount, materialIndex));
-				}
-			}
+			if (meshData.primitives_count > 0)
+				LoadMeshPrimitives(meshData, mesh);
 
 			mesh.CalculateBounds();
 			model.AddMesh(mesh);
 		}
 	}
 
-	private void LoadPrimitive(cgltf_primitive* prim, ModelMesh mesh)
+	/// Loads all primitives of a GLTF mesh, merging their vertex/index data into one ModelMesh.
+	/// Each primitive becomes a ModelMeshPart with correct index offsets and material index.
+	private void LoadMeshPrimitives(cgltf_mesh* meshData, ModelMesh mesh)
 	{
-		// Find accessors
-		cgltf_accessor* positionAccessor = null;
-		cgltf_accessor* normalAccessor = null;
-		cgltf_accessor* texCoordAccessor = null;
-		cgltf_accessor* tangentAccessor = null;
-		cgltf_accessor* jointsAccessor = null;
-		cgltf_accessor* weightsAccessor = null;
+		let firstPrim = &meshData.primitives[0];
 
-		for (int a = 0; a < (int)prim.attributes_count; a++)
+		// Phase 1: Detect skinning from first primitive and setup vertex format
+		bool isSkinned = false;
+		for (int a = 0; a < (int)firstPrim.attributes_count; a++)
 		{
-			let attr = &prim.attributes[a];
-			switch (attr.type)
-			{
-			case .cgltf_attribute_type_position: positionAccessor = attr.data;
-			case .cgltf_attribute_type_normal: normalAccessor = attr.data;
-			case .cgltf_attribute_type_texcoord:
-				if (attr.index == 0) texCoordAccessor = attr.data;
-			case .cgltf_attribute_type_tangent: tangentAccessor = attr.data;
-			case .cgltf_attribute_type_joints:
-				if (attr.index == 0) jointsAccessor = attr.data;
-			case .cgltf_attribute_type_weights:
-				if (attr.index == 0) weightsAccessor = attr.data;
-			default:
-			}
+			let attr = &firstPrim.attributes[a];
+			if (attr.type == .cgltf_attribute_type_joints && attr.index == 0)
+				isSkinned = true;
 		}
 
-		if (positionAccessor == null)
-			return;
-
-		int32 vertexCount = (int32)positionAccessor.count;
-		bool isSkinned = jointsAccessor != null && weightsAccessor != null;
-
-		// Setup vertex format
 		int32 stride = 0;
 		int32 positionOffset = stride;
 		stride += sizeof(Vector3);
@@ -444,96 +438,182 @@ public class GltfLoader
 			mesh.AddVertexElement(VertexElement(.Weights, .Float4, weightsOffset));
 		}
 
-		// Allocate vertex buffer
-		mesh.AllocateVertices(vertexCount, stride);
+		// Phase 2: Count total vertices and indices across all primitives
+		int32 totalVertexCount = 0;
+		int32 totalIndexCount = 0;
+		for (int p = 0; p < (int)meshData.primitives_count; p++)
+		{
+			let prim = &meshData.primitives[p];
+			for (int a = 0; a < (int)prim.attributes_count; a++)
+			{
+				if (prim.attributes[a].type == .cgltf_attribute_type_position)
+				{
+					totalVertexCount += (int32)prim.attributes[a].data.count;
+					break;
+				}
+			}
+			if (prim.indices != null)
+				totalIndexCount += (int32)prim.indices.count;
+		}
+
+		if (totalVertexCount == 0)
+			return;
+
+		// Phase 3: Allocate buffers for all primitives combined
+		bool use32Bit = totalIndexCount > 65535 || totalVertexCount > 65535;
+		mesh.AllocateVertices(totalVertexCount, stride);
+		mesh.AllocateIndices(totalIndexCount, use32Bit);
+
 		uint8* vertexData = mesh.GetVertexData();
+		uint8* indexData = mesh.GetIndexData();
 
-		// Fill vertex data
-		for (int32 v = 0; v < vertexCount; v++)
+		// Phase 4: Load each primitive's data at correct offset
+		int32 vertexOffset = 0;
+		int32 indexOffset = 0;
+
+		for (int p = 0; p < (int)meshData.primitives_count; p++)
 		{
-			uint8* vertex = vertexData + v * stride;
+			let prim = &meshData.primitives[p];
 
-			// Position
-			float[3] pos = .();
-			cgltf_accessor_read_float(positionAccessor, (.)v, &pos, 3);
-			*(Vector3*)(vertex + positionOffset) = .(pos[0], pos[1], pos[2]);
+			// Find accessors for this primitive
+			cgltf_accessor* positionAccessor = null;
+			cgltf_accessor* normalAccessor = null;
+			cgltf_accessor* texCoordAccessor = null;
+			cgltf_accessor* colorAccessor = null;
+			cgltf_accessor* tangentAccessor = null;
+			cgltf_accessor* jointsAccessor = null;
+			cgltf_accessor* weightsAccessor = null;
 
-			// Normal
-			if (normalAccessor != null)
+			for (int a = 0; a < (int)prim.attributes_count; a++)
 			{
-				float[3] normal = .();
-				cgltf_accessor_read_float(normalAccessor, (.)v, &normal, 3);
-				*(Vector3*)(vertex + normalOffset) = .(normal[0], normal[1], normal[2]);
-			}
-			else
-			{
-				*(Vector3*)(vertex + normalOffset) = .(0, 1, 0);
-			}
-
-			// TexCoord
-			if (texCoordAccessor != null)
-			{
-				float[2] uv = .();
-				cgltf_accessor_read_float(texCoordAccessor, (.)v, &uv, 2);
-				*(Vector2*)(vertex + texCoordOffset) = .(uv[0], uv[1]);
-			}
-
-			// Color (default white)
-			*(uint32*)(vertex + colorOffset) = 0xFFFFFFFF;
-
-			// Tangent
-			if (tangentAccessor != null)
-			{
-				float[4] tangent = .();
-				cgltf_accessor_read_float(tangentAccessor, (.)v, &tangent, 4);
-				*(Vector3*)(vertex + tangentOffset) = .(tangent[0], tangent[1], tangent[2]);
-			}
-			else
-			{
-				*(Vector3*)(vertex + tangentOffset) = .(1, 0, 0);
+				let attr = &prim.attributes[a];
+				switch (attr.type)
+				{
+				case .cgltf_attribute_type_position: positionAccessor = attr.data;
+				case .cgltf_attribute_type_normal: normalAccessor = attr.data;
+				case .cgltf_attribute_type_texcoord:
+					if (attr.index == 0) texCoordAccessor = attr.data;
+				case .cgltf_attribute_type_color:
+					if (attr.index == 0) colorAccessor = attr.data;
+				case .cgltf_attribute_type_tangent: tangentAccessor = attr.data;
+				case .cgltf_attribute_type_joints:
+					if (attr.index == 0) jointsAccessor = attr.data;
+				case .cgltf_attribute_type_weights:
+					if (attr.index == 0) weightsAccessor = attr.data;
+				default:
+				}
 			}
 
-			// Skinning data
-			if (isSkinned)
-			{
-				uint32[4] joints = .();
-				cgltf_accessor_read_uint(jointsAccessor, (.)v, &joints, 4);
-				*(uint16[4]*)(vertex + jointsOffset) = .((uint16)joints[0], (uint16)joints[1], (uint16)joints[2], (uint16)joints[3]);
+			if (positionAccessor == null)
+				continue;
 
-				float[4] weights = .();
-				cgltf_accessor_read_float(weightsAccessor, (.)v, &weights, 4);
-				*(Vector4*)(vertex + weightsOffset) = .(weights[0], weights[1], weights[2], weights[3]);
+			int32 primVertexCount = (int32)positionAccessor.count;
+
+			// Fill vertex data at offset
+			for (int32 v = 0; v < primVertexCount; v++)
+			{
+				uint8* vertex = vertexData + (vertexOffset + v) * stride;
+
+				// Position
+				float[3] pos = .();
+				cgltf_accessor_read_float(positionAccessor, (.)v, &pos, 3);
+				*(Vector3*)(vertex + positionOffset) = .(pos[0], pos[1], pos[2]);
+
+				// Normal
+				if (normalAccessor != null)
+				{
+					float[3] normal = .();
+					cgltf_accessor_read_float(normalAccessor, (.)v, &normal, 3);
+					*(Vector3*)(vertex + normalOffset) = .(normal[0], normal[1], normal[2]);
+				}
+				else
+				{
+					*(Vector3*)(vertex + normalOffset) = .(0, 1, 0);
+				}
+
+				// TexCoord
+				if (texCoordAccessor != null)
+				{
+					float[2] uv = .();
+					cgltf_accessor_read_float(texCoordAccessor, (.)v, &uv, 2);
+					*(Vector2*)(vertex + texCoordOffset) = .(uv[0], uv[1]);
+				}
+
+				// Color
+				if (colorAccessor != null)
+				{
+					float[4] color = .(1, 1, 1, 1);
+					cgltf_accessor_read_float(colorAccessor, (.)v, &color, 4);
+					uint8 cr = (uint8)Math.Clamp(color[0] * 255.0f, 0, 255);
+					uint8 cg = (uint8)Math.Clamp(color[1] * 255.0f, 0, 255);
+					uint8 cb = (uint8)Math.Clamp(color[2] * 255.0f, 0, 255);
+					uint8 ca = (uint8)Math.Clamp(color[3] * 255.0f, 0, 255);
+					*(uint32*)(vertex + colorOffset) = (uint32)cr | ((uint32)cg << 8) | ((uint32)cb << 16) | ((uint32)ca << 24);
+				}
+				else
+				{
+					*(uint32*)(vertex + colorOffset) = 0xFFFFFFFF;
+				}
+
+				// Tangent
+				if (tangentAccessor != null)
+				{
+					float[4] tangent = .();
+					cgltf_accessor_read_float(tangentAccessor, (.)v, &tangent, 4);
+					*(Vector3*)(vertex + tangentOffset) = .(tangent[0], tangent[1], tangent[2]);
+				}
+				else
+				{
+					*(Vector3*)(vertex + tangentOffset) = .(1, 0, 0);
+				}
+
+				// Skinning data
+				if (isSkinned && jointsAccessor != null && weightsAccessor != null)
+				{
+					uint32[4] joints = .();
+					cgltf_accessor_read_uint(jointsAccessor, (.)v, &joints, 4);
+					*(uint16[4]*)(vertex + jointsOffset) = .((uint16)joints[0], (uint16)joints[1], (uint16)joints[2], (uint16)joints[3]);
+
+					float[4] weights = .();
+					cgltf_accessor_read_float(weightsAccessor, (.)v, &weights, 4);
+					*(Vector4*)(vertex + weightsOffset) = .(weights[0], weights[1], weights[2], weights[3]);
+				}
 			}
+
+			// Fill index data at offset (indices must be remapped by vertexOffset)
+			int32 primIndexCount = 0;
+			if (prim.indices != null)
+			{
+				primIndexCount = (int32)prim.indices.count;
+
+				if (use32Bit)
+				{
+					uint32* indices = (uint32*)(indexData + indexOffset * 4);
+					for (int32 idx = 0; idx < primIndexCount; idx++)
+						indices[idx] = (uint32)cgltf_accessor_read_index(prim.indices, (.)idx) + (uint32)vertexOffset;
+				}
+				else
+				{
+					uint16* indices = (uint16*)(indexData + indexOffset * 2);
+					for (int32 idx = 0; idx < primIndexCount; idx++)
+						indices[idx] = (uint16)((uint32)cgltf_accessor_read_index(prim.indices, (.)idx) + (uint32)vertexOffset);
+				}
+			}
+
+			// Add mesh part with correct offset
+			int32 materialIndex = -1;
+			if (prim.material != null)
+				materialIndex = (int32)cgltf_material_index(mData, prim.material);
+
+			if (primIndexCount > 0)
+				mesh.AddPart(ModelMeshPart(indexOffset, primIndexCount, materialIndex));
+
+			vertexOffset += primVertexCount;
+			indexOffset += primIndexCount;
 		}
 
-		// Load indices
-		if (prim.indices != null)
-		{
-			int32 indexCount = (int32)prim.indices.count;
-			bool use32Bit = indexCount > 65535 || vertexCount > 65535;
-
-			mesh.AllocateIndices(indexCount, use32Bit);
-
-			if (use32Bit)
-			{
-				let indices = new uint32[indexCount];
-				for (int32 i = 0; i < indexCount; i++)
-					indices[i] = (uint32)cgltf_accessor_read_index(prim.indices, (.)i);
-				mesh.SetIndexData(indices);
-				delete indices;
-			}
-			else
-			{
-				let indices = new uint16[indexCount];
-				for (int32 i = 0; i < indexCount; i++)
-					indices[i] = (uint16)cgltf_accessor_read_index(prim.indices, (.)i);
-				mesh.SetIndexData(indices);
-				delete indices;
-			}
-		}
-
-		// Set topology
-		switch (prim.type)
+		// Set topology from first primitive
+		switch (firstPrim.type)
 		{
 		case .cgltf_primitive_type_triangles: mesh.SetTopology(.Triangles);
 		case .cgltf_primitive_type_triangle_strip: mesh.SetTopology(.TriangleStrip);

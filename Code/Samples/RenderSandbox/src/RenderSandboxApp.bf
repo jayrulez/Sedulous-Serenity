@@ -317,7 +317,8 @@ class RenderSandboxApp : Application
 		if (let proxy = mWorld.GetMesh(mFloorProxy))
 		{
 			proxy.MeshHandle = mPlaneMeshHandle;
-			proxy.Material = defaultMaterial;
+			proxy.Materials[0] = defaultMaterial;
+			proxy.MaterialCount = 1;
 			proxy.SetLocalBounds(BoundingBox(Vector3(-5, 0, -5), Vector3(5, 0.01f, 5)));
 			proxy.SetTransformImmediate(.Identity);
 			proxy.Flags = .DefaultOpaque;
@@ -336,7 +337,8 @@ class RenderSandboxApp : Application
 				if (let proxy = mWorld.GetMesh(cubeProxy))
 				{
 					proxy.MeshHandle = mCubeMeshHandle;
-					proxy.Material = mCubeMaterial ?? defaultMaterial;
+					proxy.Materials[0] = mCubeMaterial ?? defaultMaterial;
+					proxy.MaterialCount = 1;
 					proxy.SetLocalBounds(BoundingBox(Vector3(-0.5f, -0.5f, -0.5f), Vector3(0.5f, 0.5f, 0.5f)));
 
 					let position = Vector3(
@@ -357,7 +359,8 @@ class RenderSandboxApp : Application
 			if (let proxy = mWorld.GetMesh(cubeProxy))
 			{
 				proxy.MeshHandle = mCubeMeshHandle;
-				proxy.Material = mCubeMaterial ?? defaultMaterial;
+				proxy.Materials[0] = mCubeMaterial ?? defaultMaterial;
+				proxy.MaterialCount = 1;
 				proxy.SetLocalBounds(BoundingBox(Vector3(-0.5f, -0.5f, -0.5f), Vector3(0.5f, 0.5f, 0.5f)));
 
 				// Position cube at center, on the floor (Y=0.5 so bottom touches Y=0 floor)
@@ -374,7 +377,8 @@ class RenderSandboxApp : Application
 			if (let proxy = mWorld.GetMesh(transparentProxy))
 			{
 				proxy.MeshHandle = mCubeMeshHandle;
-				proxy.Material = mTransparentMaterial;
+				proxy.Materials[0] = mTransparentMaterial;
+				proxy.MaterialCount = 1;
 				proxy.SetLocalBounds(BoundingBox(Vector3(-0.5f, -0.5f, -0.5f), Vector3(0.5f, 0.5f, 0.5f)));
 
 				// Position at corner of the plane for better visibility
@@ -552,7 +556,8 @@ class RenderSandboxApp : Application
 							{
 								proxy.MeshHandle = gpuMeshHandle;
 								proxy.BoneBufferHandle = boneBufferHandle;
-								proxy.Material = mFoxMaterial ?? mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
+								proxy.Materials[0] = mFoxMaterial ?? mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
+								proxy.MaterialCount = 1;
 								proxy.SetLocalBounds(skinnedMesh.Bounds);
 								proxy.BoneCount = boneCount;
 
@@ -598,7 +603,8 @@ class RenderSandboxApp : Application
 								{
 									proxy2.MeshHandle = gpuMeshHandle;
 									proxy2.BoneBufferHandle = boneBufferHandle2;
-									proxy2.Material = mFoxUnlitMaterial ?? mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
+									proxy2.Materials[0] = mFoxUnlitMaterial ?? mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
+									proxy2.MaterialCount = 1;
 									proxy2.SetLocalBounds(skinnedMesh.Bounds);
 									proxy2.BoneCount = boneCount;
 

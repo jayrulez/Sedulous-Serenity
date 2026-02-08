@@ -192,8 +192,8 @@ public class VisibilityResolver
 				// Select LOD
 				let lodLevel = SelectLOD(distSq);
 
-				// Generate sort key (material-based for now)
-				let sortKey = GenerateSortKey(proxy.Material, distSq);
+				// Generate sort key (material-based for now, uses slot 0)
+				let sortKey = GenerateSortKey(proxy.Materials[0], distSq);
 
 				mVisibleMeshes.Add(.()
 				{
@@ -229,7 +229,7 @@ public class VisibilityResolver
 				let center = (bounds.Min + bounds.Max) * 0.5f;
 				let distSq = Vector3.DistanceSquared(cameraPos, center);
 				let lodLevel = SelectLOD(distSq);
-				let sortKey = GenerateSortKey(proxy.Material, distSq);
+				let sortKey = GenerateSortKey(proxy.Materials[0], distSq);
 
 				mVisibleSkinnedMeshes.Add(.()
 				{

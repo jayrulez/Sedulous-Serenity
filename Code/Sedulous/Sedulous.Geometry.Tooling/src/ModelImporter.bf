@@ -17,6 +17,10 @@ class ModelImporter
 {
 	private ModelImportOptions mOptions ~ delete _;
 	private ImageLoader mImageLoader;
+	/// Maps each skin index to the skeleton result index in result.Skeletons.
+	/// Duplicate skins map to the same skeleton index as their first occurrence.
+	/// -1 means skeleton creation failed for that skin.
+	private List<int32> mSkinToSkeletonIdx = new .() ~ delete _;
 
 	/// Create an importer with the given options and image loader.
 	/// The importer does NOT take ownership of the image loader.
@@ -81,16 +85,55 @@ class ModelImporter
 
 	private void ImportSkeletons(Model model, ModelImportResult result)
 	{
+
+		mSkinToSkeletonIdx.Clear();
+
 		for (int skinIdx = 0; skinIdx < model.Skins.Count; skinIdx++)
 		{
 			let skin = model.Skins[skinIdx];
 
+	
+			// Check if this skin is a duplicate of an earlier one (same joint node indices)
+			int duplicateOf = -1;
+			for (int prevIdx = 0; prevIdx < skinIdx; prevIdx++)
+			{
+				let prevSkin = model.Skins[prevIdx];
+				if (prevSkin.Joints.Count == skin.Joints.Count)
+				{
+					bool same = true;
+					for (int j = 0; j < skin.Joints.Count; j++)
+					{
+						if (skin.Joints[j] != prevSkin.Joints[j])
+						{
+							same = false;
+							break;
+						}
+					}
+					if (same)
+					{
+						duplicateOf = prevIdx;
+						break;
+					}
+				}
+			}
+
+			if (duplicateOf >= 0)
+			{
+				// Map this skin to the same skeleton as the original
+				mSkinToSkeletonIdx.Add(mSkinToSkeletonIdx[duplicateOf]);
+					continue;
+			}
+
 			let skeleton = SkeletonConverter.CreateFromSkin(model, skin);
 			if (skeleton == null)
 			{
+				mSkinToSkeletonIdx.Add(-1);
 				result.AddWarning(scope $"Failed to create skeleton from skin {skinIdx}");
 				continue;
 			}
+
+			let skeletonResultIdx = (int32)result.Skeletons.Count;
+			mSkinToSkeletonIdx.Add(skeletonResultIdx);
 
 			let skeletonRes = new SkeletonResource(skeleton, true);
 
@@ -105,13 +148,17 @@ class ModelImporter
 				name.AppendF("skeleton_{}", skinIdx);
 			}
 			skeletonRes.Name.Set(name);
-
+	
 			result.Skeletons.Add(skeletonRes);
 		}
 	}
 
 	private void ImportStaticMeshes(Model model, ModelImportResult result)
 	{
+		// Convert each ModelMesh to a StaticMesh with transform baked in
+		let convertedMeshes = scope List<StaticMesh>();
+		String firstName = scope .();
+
 		for (int meshIdx = 0; meshIdx < model.Meshes.Count; meshIdx++)
 		{
 			let modelMesh = model.Meshes[meshIdx];
@@ -123,39 +170,73 @@ class ModelImporter
 				continue;
 			}
 
-			// Bake the mesh node's world transform into vertices.
-			// GLTF nodes carry TRS transforms that position/scale the mesh in the scene.
-			// Skinned meshes get this via inverse bind matrices at runtime, but static
-			// meshes need it baked in at import time.
+			// Bake the mesh node's world transform into vertices
 			let nodeTransform = ComputeMeshNodeWorldTransform(model, (int32)meshIdx);
 			ApplyTransform(mesh, nodeTransform);
 
-			// Apply additional user scale if needed
 			if (mOptions.Scale != 1.0f)
-			{
 				ApplyScale(mesh, mOptions.Scale);
-			}
 
-			let meshRes = new StaticMeshResource(mesh, true);
-			meshRes.Name.Set(modelMesh.Name);
+			if (firstName.IsEmpty)
+				firstName.Set(modelMesh.Name);
 
-			result.StaticMeshes.Add(meshRes);
+			convertedMeshes.Add(mesh);
 		}
+
+		if (convertedMeshes.Count == 0)
+			return;
+
+		// Merge all static meshes into one resource
+		StaticMesh mergedMesh;
+		if (convertedMeshes.Count == 1)
+		{
+			mergedMesh = convertedMeshes[0];
+		}
+		else
+		{
+			mergedMesh = MergeStaticMeshes(convertedMeshes);
+			// Delete source meshes (merged mesh has its own data)
+			for (let m in convertedMeshes)
+				delete m;
+		}
+
+		let meshRes = new StaticMeshResource(mergedMesh, true);
+		meshRes.Name.Set(firstName);
+		result.StaticMeshes.Add(meshRes);
 	}
 
 	private void ImportSkinnedMeshes(Model model, ModelImportResult result)
 	{
-		// Group meshes by skin
+
+		// Track which skeleton indices we've already produced a skinned mesh for.
+		// Duplicate skins map to the same skeleton, so we skip the second occurrence.
+		let processedSkeletons = scope HashSet<int32>();
+
 		for (int skinIdx = 0; skinIdx < model.Skins.Count; skinIdx++)
 		{
-			let skin = model.Skins[skinIdx];
+			let skeletonIdx = (skinIdx < mSkinToSkeletonIdx.Count) ? mSkinToSkeletonIdx[skinIdx] : -1;
 
-			// Find meshes that use this skin
+			if (skeletonIdx < 0)
+			{
+					continue;
+			}
+
+			if (!processedSkeletons.Add(skeletonIdx))
+			{
+					continue;
+			}
+
+			let skin = model.Skins[skinIdx];
+	
+			// Convert all meshes that use this skin
+			let convertedMeshes = scope List<SkinnedMesh>();
+			int32[] nodeToBoneMapping = null;
+			String firstName = scope .();
+
 			for (int meshIdx = 0; meshIdx < model.Meshes.Count; meshIdx++)
 			{
 				let modelMesh = model.Meshes[meshIdx];
 
-				// Check if mesh has skinning data
 				bool hasSkinning = false;
 				for (let element in modelMesh.VertexElements)
 				{
@@ -169,35 +250,165 @@ class ModelImporter
 				if (!hasSkinning)
 					continue;
 
-				// Convert the mesh
 				if (ModelMeshConverter.ConvertToSkinnedMesh(modelMesh, skin) case .Ok(var conversionResult))
 				{
-					defer conversionResult.Dispose();
-
-					// Apply scale if needed
 					if (mOptions.Scale != 1.0f)
-					{
 						ApplyScaleSkinned(conversionResult.Mesh, mOptions.Scale);
-					}
 
-					let skinnedMeshRes = new SkinnedMeshResource(conversionResult.Mesh, true);
-					skinnedMeshRes.Name.Set(modelMesh.Name);
+					if (firstName.IsEmpty)
+						firstName.Set(modelMesh.Name);
 
-					// Set SkeletonRef to the matching imported skeleton (by skin index)
-					if (skinIdx < result.Skeletons.Count)
-					{
-						let skeletonRes = result.Skeletons[skinIdx];
-						skinnedMeshRes.SkeletonRef = ResourceRef(skeletonRes.Id, skeletonRes.Name);
-					}
+					convertedMeshes.Add(conversionResult.Mesh);
 
-					result.SkinnedMeshes.Add(skinnedMeshRes);
+					// Keep the first node-to-bone mapping for animation import
+					if (nodeToBoneMapping == null)
+						nodeToBoneMapping = conversionResult.NodeToBoneMapping;
+					else
+						delete conversionResult.NodeToBoneMapping;
 				}
 				else
 				{
 					result.AddWarning(scope $"Failed to convert skinned mesh '{modelMesh.Name}'");
 				}
 			}
+
+			if (convertedMeshes.Count == 0)
+			{
+				delete nodeToBoneMapping;
+				continue;
+			}
+
+			// Merge all skinned meshes for this skin into one resource
+			SkinnedMesh mergedMesh;
+			if (convertedMeshes.Count == 1)
+			{
+				mergedMesh = convertedMeshes[0];
+			}
+			else
+			{
+				mergedMesh = MergeSkinnedMeshes(convertedMeshes);
+				for (let m in convertedMeshes)
+					delete m;
+			}
+
+			let skinnedMeshRes = new SkinnedMeshResource(mergedMesh, true);
+			skinnedMeshRes.Name.Set(firstName);
+
+			// Link to skeleton
+			if (skeletonIdx < result.Skeletons.Count)
+			{
+				let skeletonRes = result.Skeletons[skeletonIdx];
+				skinnedMeshRes.SkeletonRef = ResourceRef(skeletonRes.Id, skeletonRes.Name);
+			}
+
+	
+			result.SkinnedMeshes.Add(skinnedMeshRes);
+
+			delete nodeToBoneMapping;
 		}
+	}
+
+	/// Merges multiple StaticMeshes into a single mesh with SubMeshes preserved.
+	private StaticMesh MergeStaticMeshes(List<StaticMesh> meshes)
+	{
+		// Calculate totals
+		int32 totalVertices = 0;
+		int32 totalIndices = 0;
+		for (let m in meshes)
+		{
+			totalVertices += m.Vertices?.VertexCount ?? 0;
+			totalIndices += m.Indices?.IndexCount ?? 0;
+		}
+
+		let merged = new StaticMesh();
+		merged.SetupCommonVertexFormat();
+		merged.Vertices.Resize(totalVertices);
+		merged.Indices.Resize(totalIndices);
+
+		int32 vertexOffset = 0;
+		int32 indexOffset = 0;
+
+		for (let src in meshes)
+		{
+			let srcVertCount = src.Vertices?.VertexCount ?? 0;
+			let srcIdxCount = src.Indices?.IndexCount ?? 0;
+
+			// Copy vertices
+			for (int32 i = 0; i < srcVertCount; i++)
+			{
+				merged.SetPosition(vertexOffset + i, src.GetPosition(i));
+				merged.SetNormal(vertexOffset + i, src.GetNormal(i));
+				merged.SetUV(vertexOffset + i, src.GetUV(i));
+				merged.SetColor(vertexOffset + i, src.GetColor(i));
+				merged.SetTangent(vertexOffset + i, src.GetTangent(i));
+			}
+
+			// Copy indices (remapped by vertexOffset)
+			for (int32 i = 0; i < srcIdxCount; i++)
+			{
+				let idx = src.Indices.GetIndex(i);
+				merged.Indices.SetIndex(indexOffset + i, idx + (uint32)vertexOffset);
+			}
+
+			// Copy SubMeshes (adjusting startIndex by indexOffset)
+			if (src.SubMeshes != null)
+			{
+				for (let sub in src.SubMeshes)
+					merged.AddSubMesh(SubMesh(indexOffset + sub.startIndex, sub.indexCount, sub.materialIndex, sub.primitiveType));
+			}
+
+			vertexOffset += srcVertCount;
+			indexOffset += srcIdxCount;
+		}
+
+		return merged;
+	}
+
+	/// Merges multiple SkinnedMeshes into a single mesh with SubMeshes preserved.
+	private SkinnedMesh MergeSkinnedMeshes(List<SkinnedMesh> meshes)
+	{
+		// Calculate totals
+		int32 totalVertices = 0;
+		int32 totalIndices = 0;
+		for (let m in meshes)
+		{
+			totalVertices += m.VertexCount;
+			totalIndices += m.IndexCount;
+		}
+
+		let merged = new SkinnedMesh();
+		merged.ResizeVertices(totalVertices);
+		merged.ReserveIndices(totalIndices);
+
+		int32 vertexOffset = 0;
+		int32 indexOffset = 0;
+
+		for (let src in meshes)
+		{
+			// Copy vertices
+			for (int32 i = 0; i < src.VertexCount; i++)
+				merged.SetVertex(vertexOffset + i, src.GetVertex(i));
+
+			// Copy indices (remapped by vertexOffset)
+			for (int32 i = 0; i < src.IndexCount; i++)
+			{
+				let idx = src.Indices.GetIndex(i);
+				merged.Indices.SetIndex(indexOffset + i, idx + (uint32)vertexOffset);
+			}
+
+			// Copy SubMeshes (adjusting startIndex by indexOffset)
+			if (src.SubMeshes != null)
+			{
+				for (let sub in src.SubMeshes)
+					merged.AddSubMesh(SubMesh(indexOffset + sub.startIndex, sub.indexCount, sub.materialIndex, sub.primitiveType));
+			}
+
+			vertexOffset += src.VertexCount;
+			indexOffset += src.IndexCount;
+		}
+
+		merged.CalculateBounds();
+		return merged;
 	}
 
 	private void ImportTextures(Model model, ModelImportResult result)

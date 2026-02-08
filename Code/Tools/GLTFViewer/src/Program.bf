@@ -105,7 +105,6 @@ class GLTFViewerApp : Application
 {
 	// Model data
 	private Model mModel ~ delete _;
-	private GltfLoader mLoader ~ delete _;
 	private List<GPUMesh> mGPUMeshes = new .() ~ DeleteContainerAndItems!(_);
 
 	// Camera
@@ -149,7 +148,7 @@ class GLTFViewerApp : Application
 
 	protected override bool OnInitialize()
 	{
-		mLoader = new GltfLoader();
+		GltfModels.Initialize();
 		mModel = new Model();
 
 		if (!CreateRenderResources())
@@ -543,7 +542,7 @@ class GLTFViewerApp : Application
 		delete mModel;
 		mModel = new Model();
 
-		let result = mLoader.Load(path, mModel);
+		let result = ModelLoaderFactory.LoadModel(path, mModel);
 		if (result != .Ok)
 		{
 			Console.WriteLine(scope $"Failed to load model: {path}");

@@ -469,7 +469,7 @@ public class DrawBatcher
 			return null;
 
 		if (let proxy = mWorld.GetMesh(cmd.MeshHandle))
-			return proxy.Material;
+			return proxy.Materials[0];
 
 		return null;
 	}
@@ -480,7 +480,7 @@ public class DrawBatcher
 			return null;
 
 		if (let proxy = mWorld.GetSkinnedMesh(cmd.MeshHandle))
-			return proxy.Material;
+			return proxy.Materials[0];
 
 		return null;
 	}

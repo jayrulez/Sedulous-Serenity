@@ -34,10 +34,7 @@ class RenderSceneModule : SceneModule
 	private Dictionary<EntityId, StaticMeshResource> mEntityMeshBinding = new .() ~ delete _;
 	private Dictionary<EntityId, SkinnedMeshResource> mEntitySkinnedMeshBinding = new .() ~ delete _;
 
-	// Track which material is currently bound to each entity's proxy
-	// Used to detect when the material changes and needs to be updated
-	private Dictionary<EntityId, MaterialInstance> mEntityMaterialBinding = new .() ~ delete _;
-	private Dictionary<EntityId, MaterialInstance> mEntitySkinnedMaterialBinding = new .() ~ delete _;
+	// (Material binding is tracked directly on proxies — no per-entity dictionary needed)
 
 	// Track which texture resource is currently bound to each sprite entity's proxy
 	private Dictionary<EntityId, TextureResource> mEntitySpriteTextureBinding = new .() ~ delete _;
@@ -85,26 +82,32 @@ class RenderSceneModule : SceneModule
 		for (let (entity, meshComp) in scene.Query<MeshRendererComponent>())
 		{
 			meshComp.Mesh.Release();
-			meshComp.Material.Release();
 			meshComp.MeshRef.Dispose();
-			meshComp.MaterialRef.Dispose();
-			if (meshComp.MaterialInstance != null)
+			for (int32 i = 0; i < meshComp.MaterialCount; i++)
 			{
-				meshComp.MaterialInstance.ReleaseRef();
-				meshComp.MaterialInstance = null;
+				meshComp.Materials[i].Release();
+				meshComp.MaterialRefs[i].Dispose();
+				if (meshComp.MaterialInstances[i] != null)
+				{
+					meshComp.MaterialInstances[i].ReleaseRef();
+					meshComp.MaterialInstances[i] = null;
+				}
 			}
 		}
 
 		for (let (entity, skinnedComp) in scene.Query<SkinnedMeshRendererComponent>())
 		{
 			skinnedComp.Mesh.Release();
-			skinnedComp.Material.Release();
 			skinnedComp.MeshRef.Dispose();
-			skinnedComp.MaterialRef.Dispose();
-			if (skinnedComp.MaterialInstance != null)
+			for (int32 i = 0; i < skinnedComp.MaterialCount; i++)
 			{
-				skinnedComp.MaterialInstance.ReleaseRef();
-				skinnedComp.MaterialInstance = null;
+				skinnedComp.Materials[i].Release();
+				skinnedComp.MaterialRefs[i].Dispose();
+				if (skinnedComp.MaterialInstances[i] != null)
+				{
+					skinnedComp.MaterialInstances[i].ReleaseRef();
+					skinnedComp.MaterialInstances[i] = null;
+				}
 			}
 		}
 
@@ -144,8 +147,6 @@ class RenderSceneModule : SceneModule
 		mTextureCache.Clear();
 		mEntityMeshBinding.Clear();
 		mEntitySkinnedMeshBinding.Clear();
-		mEntityMaterialBinding.Clear();
-		mEntitySkinnedMaterialBinding.Clear();
 		mEntitySpriteTextureBinding.Clear();
 		mMeshProxies.Clear();
 		mSkinnedMeshProxies.Clear();
@@ -208,23 +209,15 @@ class RenderSceneModule : SceneModule
 				}
 			}
 
-			// Check if material has changed
+			// Sync materials to proxy (compare against proxy to avoid unnecessary dirty marking)
 			if (proxyHandle.IsValid)
 			{
-				MaterialInstance currentMaterial = null;
-				mEntityMaterialBinding.TryGetValue(entity, out currentMaterial);
-
-				if (mesh.MaterialInstance != currentMaterial)
+				if (let proxy = mWorld.GetMesh(proxyHandle))
 				{
-					// Material changed - update binding and apply to proxy
-					if (mesh.MaterialInstance != null)
+					for (int32 i = 0; i < mesh.MaterialCount; i++)
 					{
-						mWorld.SetMeshMaterial(proxyHandle, mesh.MaterialInstance);
-						mEntityMaterialBinding[entity] = mesh.MaterialInstance;
-					}
-					else
-					{
-						mEntityMaterialBinding.Remove(entity);
+						if (mesh.MaterialInstances[i] != proxy.Materials[i])
+							mWorld.SetMeshMaterial(proxyHandle, i, mesh.MaterialInstances[i]);
 					}
 				}
 			}
@@ -278,23 +271,15 @@ class RenderSceneModule : SceneModule
 				}
 			}
 
-			// Check if material has changed
+			// Sync materials to proxy (compare against proxy to avoid unnecessary dirty marking)
 			if (proxyHandle.IsValid)
 			{
-				MaterialInstance currentMaterial = null;
-				mEntitySkinnedMaterialBinding.TryGetValue(entity, out currentMaterial);
-
-				if (mesh.MaterialInstance != currentMaterial)
+				if (let proxy = mWorld.GetSkinnedMesh(proxyHandle))
 				{
-					// Material changed - update binding and apply to proxy
-					if (mesh.MaterialInstance != null)
+					for (int32 i = 0; i < mesh.MaterialCount; i++)
 					{
-						mWorld.SetSkinnedMeshMaterial(proxyHandle, mesh.MaterialInstance);
-						mEntitySkinnedMaterialBinding[entity] = mesh.MaterialInstance;
-					}
-					else
-					{
-						mEntitySkinnedMaterialBinding.Remove(entity);
+						if (mesh.MaterialInstances[i] != proxy.Materials[i])
+							mWorld.SetSkinnedMeshMaterial(proxyHandle, i, mesh.MaterialInstances[i]);
 					}
 				}
 			}
@@ -646,13 +631,16 @@ class RenderSceneModule : SceneModule
 		if (let meshComp = scene.GetComponent<MeshRendererComponent>(entity))
 		{
 			meshComp.Mesh.Release();
-			meshComp.Material.Release();
 			meshComp.MeshRef.Dispose();
-			meshComp.MaterialRef.Dispose();
-			if(meshComp.MaterialInstance != null)
+			for (int32 i = 0; i < meshComp.MaterialCount; i++)
 			{
-				meshComp.MaterialInstance.ReleaseRef();
-				meshComp.MaterialInstance = null;
+				meshComp.Materials[i].Release();
+				meshComp.MaterialRefs[i].Dispose();
+				if (meshComp.MaterialInstances[i] != null)
+				{
+					meshComp.MaterialInstances[i].ReleaseRef();
+					meshComp.MaterialInstances[i] = null;
+				}
 			}
 		}
 
@@ -668,13 +656,16 @@ class RenderSceneModule : SceneModule
 		if (let skinnedComp = scene.GetComponent<SkinnedMeshRendererComponent>(entity))
 		{
 			skinnedComp.Mesh.Release();
-			skinnedComp.Material.Release();
 			skinnedComp.MeshRef.Dispose();
-			skinnedComp.MaterialRef.Dispose();
-			if(skinnedComp.MaterialInstance != null)
+			for (int32 i = 0; i < skinnedComp.MaterialCount; i++)
 			{
-				skinnedComp.MaterialInstance.ReleaseRef();
-				skinnedComp.MaterialInstance = null;
+				skinnedComp.Materials[i].Release();
+				skinnedComp.MaterialRefs[i].Dispose();
+				if (skinnedComp.MaterialInstances[i] != null)
+				{
+					skinnedComp.MaterialInstances[i].ReleaseRef();
+					skinnedComp.MaterialInstances[i] = null;
+				}
 			}
 		}
 
@@ -736,8 +727,6 @@ class RenderSceneModule : SceneModule
 		// Clean up entity mesh, material, and texture bindings
 		mEntityMeshBinding.Remove(entity);
 		mEntitySkinnedMeshBinding.Remove(entity);
-		mEntityMaterialBinding.Remove(entity);
-		mEntitySkinnedMaterialBinding.Remove(entity);
 		mEntitySpriteTextureBinding.Remove(entity);
 
 		// Release texture resource refs loaded for this entity
@@ -771,18 +760,21 @@ class RenderSceneModule : SceneModule
 					mesh.Mesh = handle;
 			}
 
-			// Resolve material ref
-			if (mesh.MaterialRef.IsValid && !mesh.Material.IsValid)
+			// Resolve material refs (per slot)
+			for (int32 i = 0; i < mesh.MaterialCount; i++)
 			{
-				let result = resourceSystem.LoadByRef<MaterialResource>(mesh.MaterialRef);
-				if (result case .Ok(let handle))
+				if (mesh.MaterialRefs[i].IsValid && !mesh.Materials[i].IsValid)
 				{
-					mesh.Material = handle;
-					// Create MaterialInstance and resolve texture refs
-					if (handle.Resource?.Material != null && mesh.MaterialInstance == null)
+					let result = resourceSystem.LoadByRef<MaterialResource>(mesh.MaterialRefs[i]);
+					if (result case .Ok(let handle))
 					{
-						mesh.MaterialInstance = new MaterialInstance(handle.Resource.Material);
-						ResolveTextureRefs(entity, resourceSystem, handle.Resource, mesh.MaterialInstance);
+						mesh.Materials[i] = handle;
+						// Create MaterialInstance and resolve texture refs
+						if (handle.Resource?.Material != null && mesh.MaterialInstances[i] == null)
+						{
+							mesh.MaterialInstances[i] = new MaterialInstance(handle.Resource.Material);
+							ResolveTextureRefs(entity, resourceSystem, handle.Resource, mesh.MaterialInstances[i]);
+						}
 					}
 				}
 			}
@@ -799,18 +791,21 @@ class RenderSceneModule : SceneModule
 					mesh.Mesh = handle;
 			}
 
-			// Resolve material ref
-			if (mesh.MaterialRef.IsValid && !mesh.Material.IsValid)
+			// Resolve material refs (per slot)
+			for (int32 i = 0; i < mesh.MaterialCount; i++)
 			{
-				let result = resourceSystem.LoadByRef<MaterialResource>(mesh.MaterialRef);
-				if (result case .Ok(let handle))
+				if (mesh.MaterialRefs[i].IsValid && !mesh.Materials[i].IsValid)
 				{
-					mesh.Material = handle;
-					// Create MaterialInstance and resolve texture refs
-					if (handle.Resource?.Material != null && mesh.MaterialInstance == null)
+					let result = resourceSystem.LoadByRef<MaterialResource>(mesh.MaterialRefs[i]);
+					if (result case .Ok(let handle))
 					{
-						mesh.MaterialInstance = new MaterialInstance(handle.Resource.Material);
-						ResolveTextureRefs(entity, resourceSystem, handle.Resource, mesh.MaterialInstance);
+						mesh.Materials[i] = handle;
+						// Create MaterialInstance and resolve texture refs
+						if (handle.Resource?.Material != null && mesh.MaterialInstances[i] == null)
+						{
+							mesh.MaterialInstances[i] = new MaterialInstance(handle.Resource.Material);
+							ResolveTextureRefs(entity, resourceSystem, handle.Resource, mesh.MaterialInstances[i]);
+						}
 					}
 				}
 			}

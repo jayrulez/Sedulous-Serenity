@@ -21,6 +21,12 @@ public class Bone
 	/// Inverse bind pose matrix (transforms from model space to bone space).
 	public Matrix InverseBindPose;
 
+	/// Correction matrix for root bones to include missing ancestor transforms.
+	/// For skeleton root bones whose model ancestors are not part of the skeleton
+	/// (e.g. FBX coordinate conversion nodes), this captures those transforms.
+	/// Identity for non-root bones or when no correction is needed.
+	public Matrix RootCorrection;
+
 	/// Child bone indices.
 	public int32[] Children ~ delete _;
 
@@ -29,6 +35,7 @@ public class Bone
 		Name = new .();
 		LocalBindPose = .Identity;
 		InverseBindPose = .Identity;
+		RootCorrection = .Identity;
 	}
 
 	public this(StringView name, int32 index, int32 parentIndex = -1)
@@ -38,6 +45,7 @@ public class Bone
 		ParentIndex = parentIndex;
 		LocalBindPose = .Identity;
 		InverseBindPose = .Identity;
+		RootCorrection = .Identity;
 	}
 }
 

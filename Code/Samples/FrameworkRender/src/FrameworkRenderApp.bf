@@ -217,8 +217,9 @@ class FrameworkRenderApp : Application
 			mMainScene.SetComponent<MeshRendererComponent>(mFloorEntity, .Default);
 			var comp = mMainScene.GetComponent<MeshRendererComponent>(mFloorEntity);
 			comp.Mesh = ResourceHandle<StaticMeshResource>(mPlaneResource);
-			comp.MaterialInstance = mFloorMaterial ?? defaultMaterial;
-			comp.MaterialInstance?.AddRef();
+			comp.MaterialInstances[0] = mFloorMaterial ?? defaultMaterial;
+			comp.MaterialInstances[0]?.AddRef();
+			comp.MaterialCount = 1;
 		}
 
 		// Create camera
@@ -321,13 +322,15 @@ class FrameworkRenderApp : Application
 				let color = HSVtoRGB(hue, 0.8f, 0.9f);
 				uniqueMat.SetColor("BaseColor", .(color.X, color.Y, color.Z, 1.0f));
 				mUniqueMaterials.Add(uniqueMat);
-				comp.MaterialInstance = uniqueMat;
-				comp.MaterialInstance?.AddRef();
+				comp.MaterialInstances[0] = uniqueMat;
+				comp.MaterialInstances[0]?.AddRef();
+				comp.MaterialCount = 1;
 			}
 			else
 			{
-				comp.MaterialInstance = mSharedSphereMaterial ?? defaultMaterial;
-				comp.MaterialInstance?.AddRef();
+				comp.MaterialInstances[0] = mSharedSphereMaterial ?? defaultMaterial;
+				comp.MaterialInstances[0]?.AddRef();
+				comp.MaterialCount = 1;
 			}
 		}
 
@@ -367,7 +370,7 @@ class FrameworkRenderApp : Application
 			if (comp == null)
 				continue;
 
-			comp.MaterialInstance?.ReleaseRef();
+			comp.MaterialInstances[0]?.ReleaseRef();
 			if (mUseUniqueMaterials && baseMaterial != null)
 			{
 				let uniqueMat = new MaterialInstance(baseMaterial);
@@ -375,13 +378,15 @@ class FrameworkRenderApp : Application
 				let color = HSVtoRGB(hue, 0.8f, 0.9f);
 				uniqueMat.SetColor("BaseColor", .(color.X, color.Y, color.Z, 1.0f));
 				mUniqueMaterials.Add(uniqueMat);
-				comp.MaterialInstance = uniqueMat;
-				comp.MaterialInstance?.AddRef();
+				comp.MaterialInstances[0] = uniqueMat;
+				comp.MaterialInstances[0]?.AddRef();
+				if (comp.MaterialCount < 1) comp.MaterialCount = 1;
 			}
 			else
 			{
-				comp.MaterialInstance = mSharedSphereMaterial ?? defaultMaterial;
-				comp.MaterialInstance?.AddRef();
+				comp.MaterialInstances[0] = mSharedSphereMaterial ?? defaultMaterial;
+				comp.MaterialInstances[0]?.AddRef();
+				if (comp.MaterialCount < 1) comp.MaterialCount = 1;
 			}
 		}
 

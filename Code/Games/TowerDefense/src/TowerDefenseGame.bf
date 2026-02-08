@@ -483,8 +483,9 @@ class TowerDefenseGame : Application
 		mScene.SetComponent<MeshRendererComponent>(mTowerPreview, .Default);
 		var meshComp = mScene.GetComponent<MeshRendererComponent>(mTowerPreview);
 		meshComp.Mesh = ResourceHandle<StaticMeshResource>(mCubeResource);
-		meshComp.MaterialInstance = mPreviewValidMat;
-		meshComp.MaterialInstance?.AddRef();
+		meshComp.MaterialInstances[0] = mPreviewValidMat;
+		meshComp.MaterialInstances[0]?.AddRef();
+		meshComp.MaterialCount = 1;
 
 		Console.WriteLine("Tower preview created");
 	}
@@ -1080,9 +1081,10 @@ class TowerDefenseGame : Application
 		{
 			mPreviewValid = canPlace;
 			var meshComp = mScene.GetComponent<MeshRendererComponent>(mTowerPreview);
-			meshComp.MaterialInstance?.ReleaseRef();
-			meshComp.MaterialInstance = canPlace ? mPreviewValidMat : mPreviewInvalidMat;
-			meshComp.MaterialInstance?.AddRef();
+			meshComp.MaterialInstances[0]?.ReleaseRef();
+			meshComp.MaterialInstances[0] = canPlace ? mPreviewValidMat : mPreviewInvalidMat;
+			meshComp.MaterialInstances[0]?.AddRef();
+			if (meshComp.MaterialCount < 1) meshComp.MaterialCount = 1;
 		}
 	}
 

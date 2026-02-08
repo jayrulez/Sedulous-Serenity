@@ -358,8 +358,9 @@ class SceneUISample : Application
 		mScene.SetComponent<MeshRendererComponent>(mGroundEntity, .Default);
 		var comp = mScene.GetComponent<MeshRendererComponent>(mGroundEntity);
 		comp.Mesh = ResourceHandle<StaticMeshResource>(mPlaneResource);
-		comp.MaterialInstance = mGroundMaterialInstance ?? defaultMaterial;
-		comp.MaterialInstance?.AddRef();
+		comp.MaterialInstances[0] = mGroundMaterialInstance ?? defaultMaterial;
+		comp.MaterialInstances[0]?.AddRef();
+		comp.MaterialCount = 1;
 
 		Console.WriteLine("  Created ground plane");
 	}
@@ -376,8 +377,8 @@ class SceneUISample : Application
 		GetAssetPath(GLTF_BASE_REL_PATH, basePath);
 
 		let model = new Model();
-		let loader = scope GltfLoader();
-		if (loader.Load(gltfPath, model) == .Ok)
+		GltfModels.Initialize();
+		if (ModelLoaderFactory.LoadModel(gltfPath, model) == .Ok)
 		{
 			defer delete model;
 
@@ -460,8 +461,9 @@ class SceneUISample : Application
 		mScene.SetComponent<SkinnedMeshRendererComponent>(mFoxEntity, .Default);
 		var comp = mScene.GetComponent<SkinnedMeshRendererComponent>(mFoxEntity);
 		comp.Mesh = ResourceHandle<SkinnedMeshResource>(mFoxResource);
-		comp.MaterialInstance = mFoxMaterialInstance ?? mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
-		comp.MaterialInstance?.AddRef();
+		comp.MaterialInstances[0] = mFoxMaterialInstance ?? mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
+		comp.MaterialInstances[0]?.AddRef();
+		comp.MaterialCount = 1;
 
 		// Setup animation
 		if (animModule != null && mFoxResource.Skeleton != null)

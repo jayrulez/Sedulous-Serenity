@@ -165,8 +165,9 @@ class TowerFactory
 		mScene.SetComponent<MeshRendererComponent>(entity, .Default);
 		var meshComp = mScene.GetComponent<MeshRendererComponent>(entity);
 		meshComp.Mesh = ResourceHandle<StaticMeshResource>(mTowerMesh);
-		meshComp.MaterialInstance = GetOrCreateMaterial(definition.Color);
-		meshComp.MaterialInstance?.AddRef();
+		meshComp.MaterialInstances[0] = GetOrCreateMaterial(definition.Color);
+		meshComp.MaterialInstances[0]?.AddRef();
+		meshComp.MaterialCount = 1;
 
 		// Create tower data (replaces component)
 		let towerData = new TowerData();
@@ -253,8 +254,9 @@ class TowerFactory
 		mScene.SetComponent<MeshRendererComponent>(entity, .Default);
 		var meshComp = mScene.GetComponent<MeshRendererComponent>(entity);
 		meshComp.Mesh = ResourceHandle<StaticMeshResource>(mProjectileMesh);
-		meshComp.MaterialInstance = GetOrCreateMaterial(color);
-		meshComp.MaterialInstance?.AddRef();
+		meshComp.MaterialInstances[0] = GetOrCreateMaterial(color);
+		meshComp.MaterialInstances[0]?.AddRef();
+		meshComp.MaterialCount = 1;
 
 		// Create projectile data (replaces component)
 		let projData = new ProjectileData();

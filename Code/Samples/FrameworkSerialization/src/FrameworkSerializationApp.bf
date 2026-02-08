@@ -18,6 +18,7 @@ using Sedulous.Geometry.Resources;
 using Sedulous.Geometry.Tooling;
 using Sedulous.Models;
 using Sedulous.Models.GLTF;
+using Sedulous.Models.FBX;
 using Sedulous.Imaging;
 using Sedulous.Materials.Resources;
 using Sedulous.Textures.Resources;
@@ -27,8 +28,10 @@ using System.Collections;
 
 class FrameworkSerializationApp : Application
 {
-	private const StringView GLTF_REL_PATH = "samples/models/Fox/glTF/Fox.gltf";
-	private const StringView GLTF_BASE_REL_PATH = "samples/models/Fox/glTF";
+	private const StringView GLTF_MODEL_PATH = "samples/models/UltimateMonsters/Blob/glTF/GreenBlob.gltf";
+	private const StringView GLTF_BASE_PATH = "samples/models/UltimateMonsters/Blob/glTF";
+	private const StringView FBX_MODEL_PATH = "samples/models/UltimateMonsters/Blob/FBX/GreenBlob.fbx";
+	private const StringView FBX_BASE_PATH = "samples/models/UltimateMonsters/Blob/FBX";
 	private const StringView CACHE_REL_PATH = "cache";
 
 	// Framework
@@ -61,23 +64,35 @@ class FrameworkSerializationApp : Application
 	// Asset registry
 	private ResourceRegistry mRegistry = new .() ~ delete _;
 
-	// Cached resource info (populated during import, used to create fox entities)
-	private String mCachedSkinnedMeshPath ~ delete _;
-	private String mCachedStaticMeshPath ~ delete _;
-	private String mCachedMaterialPath ~ delete _;
-	private String mCachedSkeletonPath ~ delete _;
-	private Guid mCachedSkinnedMeshId;
-	private Guid mCachedStaticMeshId;
-	private Guid mCachedMaterialId;
-	private Guid mCachedSkeletonId;
+	// Cached resource info for GLTF import (populated during import)
+	private String mGltfSkinnedMeshPath ~ delete _;
+	private String mGltfStaticMeshPath ~ delete _;
+	private String mGltfSkeletonPath ~ delete _;
+	private Guid mGltfSkinnedMeshId;
+	private Guid mGltfStaticMeshId;
+	private Guid mGltfSkeletonId;
 
-	// All animation resource refs (for cycling)
-	private List<ResourceRef> mAnimationRefs = new .() ~ { for (var r in _) r.Dispose(); delete _; };
+	// Cached resource info for FBX import (populated during import)
+	private String mFbxSkinnedMeshPath ~ delete _;
+	private String mFbxStaticMeshPath ~ delete _;
+	private String mFbxSkeletonPath ~ delete _;
+	private Guid mFbxSkinnedMeshId;
+	private Guid mFbxStaticMeshId;
+	private Guid mFbxSkeletonId;
+
+	// Material refs (multiple per model for multi-submesh support)
+	private List<ResourceRef> mGltfMaterialRefs = new .() ~ { for (var r in _) r.Dispose(); delete _; };
+	private List<ResourceRef> mFbxMaterialRefs = new .() ~ { for (var r in _) r.Dispose(); delete _; };
+
+	// All animation resource refs (for cycling - GLTF animations)
+	private List<ResourceRef> mGltfAnimationRefs = new .() ~ { for (var r in _) r.Dispose(); delete _; };
+	// FBX animation refs
+	private List<ResourceRef> mFbxAnimationRefs = new .() ~ { for (var r in _) r.Dispose(); delete _; };
 
 	// Runtime animation cycling state
 	private List<ResourceHandle<AnimationClipResource>> mLoadedAnimClips = new .() ~ { for (var h in _) h.Release(); delete _; };
 	private int mCurrentAnimIndex = 0;
-	private EntityId mFoxEntity;
+	private EntityId mGltfEntity;
 
 	// Checkerboard texture for sprite (procedurally generated, not saved to file)
 	private ResourceHandle<TextureResource> mCheckerboardTexture /*~ _.Release()*/;
@@ -202,6 +217,10 @@ class FrameworkSerializationApp : Application
 
 	private void ImportAndCacheAssets()
 	{
+		// Initialize model loaders
+		GltfModels.Initialize();
+		FbxModels.Initialize();
+
 		String cacheDir = scope .();
 		GetAssetPath(CACHE_REL_PATH, cacheDir);
 
@@ -216,7 +235,7 @@ class FrameworkSerializationApp : Application
 			if (mRegistry.LoadFromFile(registryPath) case .Ok)
 			{
 				Console.WriteLine($"Loaded registry from cache: {mRegistry.Count} entries");
-				// Recover cached paths for fox entity creation (in case scene file was deleted)
+				// Recover cached paths for entity creation (in case scene file was deleted)
 				RecoverCachedPaths(cacheDir);
 			}
 			else
@@ -225,8 +244,27 @@ class FrameworkSerializationApp : Application
 
 		if (mRegistry.Count == 0)
 		{
-			// No cache - import from GLTF and save
-			ImportFoxModel(cacheDir, registryPath);
+			// No cache - import same model via both GLTF and FBX for comparison
+			ImportModel(GLTF_MODEL_PATH, GLTF_BASE_PATH, "greenblob_gltf", cacheDir,
+				ref mGltfSkinnedMeshPath, ref mGltfSkinnedMeshId,
+				ref mGltfStaticMeshPath, ref mGltfStaticMeshId,
+				mGltfMaterialRefs,
+				ref mGltfSkeletonPath, ref mGltfSkeletonId,
+				mGltfAnimationRefs);
+
+			ImportModel(FBX_MODEL_PATH, FBX_BASE_PATH, "greenblob_fbx", cacheDir,
+				ref mFbxSkinnedMeshPath, ref mFbxSkinnedMeshId,
+				ref mFbxStaticMeshPath, ref mFbxStaticMeshId,
+				mFbxMaterialRefs,
+				ref mFbxSkeletonPath, ref mFbxSkeletonId,
+				mFbxAnimationRefs);
+
+			// Save registry
+			Directory.CreateDirectory(cacheDir);
+			if (mRegistry.SaveToFile(registryPath) case .Ok)
+				Console.WriteLine($"  Registry saved: {mRegistry.Count} entries");
+			else
+				Console.WriteLine("  WARNING: Failed to save registry file");
 		}
 
 		// Register the registry with the resource system
@@ -238,22 +276,26 @@ class FrameworkSerializationApp : Application
 		Console.WriteLine();
 	}
 
-	private void ImportFoxModel(StringView cacheDir, StringView registryPath)
+	private void ImportModel(StringView modelRelPath, StringView baseRelPath, StringView subfolder, StringView cacheDir,
+		ref String skinnedMeshPath, ref Guid skinnedMeshId,
+		ref String staticMeshPath, ref Guid staticMeshId,
+		List<ResourceRef> materialRefs,
+		ref String skeletonPath, ref Guid skeletonId,
+		List<ResourceRef> animationRefs)
 	{
-		String gltfPath = scope .();
-		GetAssetPath(GLTF_REL_PATH, gltfPath);
+		String modelPath = scope .();
+		GetAssetPath(modelRelPath, modelPath);
 
 		String basePath = scope .();
-		GetAssetPath(GLTF_BASE_REL_PATH, basePath);
+		GetAssetPath(baseRelPath, basePath);
 
-		Console.WriteLine($"Importing Fox model from: {gltfPath}");
+		Console.WriteLine($"Importing model from: {modelPath}");
 
-		// Load GLTF
+		// Load model via factory (auto-selects GLTF or FBX loader by extension)
 		let model = new Model();
-		let loader = scope GltfLoader();
-		if (loader.Load(gltfPath, model) != .Ok)
+		if (ModelLoaderFactory.LoadModel(modelPath, model) != .Ok)
 		{
-			Console.WriteLine("ERROR: Failed to load Fox GLTF");
+			Console.WriteLine($"ERROR: Failed to load model: {modelPath}");
 			delete model;
 			return;
 		}
@@ -291,9 +333,13 @@ class FrameworkSerializationApp : Application
 				Console.WriteLine($"    - {warn}");
 		}
 
-		// Save all resources to cache directory
-		Console.WriteLine($"\nSaving resources to: {cacheDir}");
-		if (ResourceSerializer.SaveImportResult(result, cacheDir) case .Ok)
+		// Save all resources to model-specific cache subdirectory
+		let modelCacheDir = scope String();
+		modelCacheDir.AppendF("{}/{}", cacheDir, subfolder);
+		Directory.CreateDirectory(modelCacheDir);
+
+		Console.WriteLine($"\nSaving resources to: {modelCacheDir}");
+		if (ResourceSerializer.SaveImportResult(result, modelCacheDir) case .Ok)
 			Console.WriteLine("  Resources saved successfully");
 		else
 		{
@@ -302,26 +348,30 @@ class FrameworkSerializationApp : Application
 		}
 
 		// Build registry from import result
-		BuildRegistryFromResult(result, cacheDir);
-
-		// Save registry
-		if (mRegistry.SaveToFile(registryPath) case .Ok)
-			Console.WriteLine($"  Registry saved: {mRegistry.Count} entries");
-		else
-			Console.WriteLine("  WARNING: Failed to save registry file");
+		BuildRegistryFromResult(result, modelCacheDir,
+			ref skinnedMeshPath, ref skinnedMeshId,
+			ref staticMeshPath, ref staticMeshId,
+			materialRefs,
+			ref skeletonPath, ref skeletonId,
+			animationRefs);
 	}
 
-	private void BuildRegistryFromResult(ModelImportResult result, StringView cacheDir)
+	private void BuildRegistryFromResult(ModelImportResult result, StringView cacheDir,
+		ref String skinnedMeshPath, ref Guid skinnedMeshId,
+		ref String staticMeshPath, ref Guid staticMeshId,
+		List<ResourceRef> materialRefs,
+		ref String skeletonPath, ref Guid skeletonId,
+		List<ResourceRef> animationRefs)
 	{
 		for (let skeleton in result.Skeletons)
 		{
 			RegisterResource(skeleton, cacheDir, "skeleton");
-			// Capture first skeleton for fox entity creation
-			if (mCachedSkeletonPath == null)
+			if (skeletonPath == null)
 			{
-				mCachedSkeletonPath = new String();
-				mCachedSkeletonPath.AppendF("{}/{}.skeleton", cacheDir, skeleton.Name);
-				mCachedSkeletonId = skeleton.Id;
+				skeletonPath = new String();
+				skeletonPath.AppendF("{}/{}.skeleton", cacheDir, skeleton.Name);
+				ResourceSerializer.SanitizePath(skeletonPath);
+				skeletonId = skeleton.Id;
 			}
 		}
 
@@ -331,46 +381,54 @@ class FrameworkSerializationApp : Application
 		for (let material in result.NewMaterials)
 		{
 			RegisterResource(material, cacheDir, "mat");
-			// Capture first material for fox entity creation
-			if (mCachedMaterialPath == null)
+			if (materialRefs != null)
 			{
-				mCachedMaterialPath = new String();
-				mCachedMaterialPath.AppendF("{}/{}.mat", cacheDir, material.Name);
-				mCachedMaterialId = material.Id;
+				let matPath = scope String();
+				matPath.AppendF("{}/{}.mat", cacheDir, material.Name);
+				ResourceSerializer.SanitizePath(matPath);
+				materialRefs.Add(ResourceRef(material.Id, matPath));
 			}
 		}
 
 		for (let mesh in result.SkinnedMeshes)
 		{
 			RegisterResource(mesh, cacheDir, "skinnedmesh");
-			// Capture first skinned mesh for fox entity creation
-			if (mCachedSkinnedMeshPath == null)
+			if (skinnedMeshPath == null)
 			{
-				mCachedSkinnedMeshPath = new String();
-				mCachedSkinnedMeshPath.AppendF("{}/{}.skinnedmesh", cacheDir, mesh.Name);
-				mCachedSkinnedMeshId = mesh.Id;
+				skinnedMeshPath = new String();
+				skinnedMeshPath.AppendF("{}/{}.skinnedmesh", cacheDir, mesh.Name);
+				ResourceSerializer.SanitizePath(skinnedMeshPath);
+				skinnedMeshId = mesh.Id;
 			}
 		}
 
 		for (let mesh in result.StaticMeshes)
 		{
 			RegisterResource(mesh, cacheDir, "mesh");
-			// Capture first static mesh for fox entity creation
-			if (mCachedStaticMeshPath == null)
+			if (staticMeshPath == null)
 			{
-				mCachedStaticMeshPath = new String();
-				mCachedStaticMeshPath.AppendF("{}/{}.mesh", cacheDir, mesh.Name);
-				mCachedStaticMeshId = mesh.Id;
+				staticMeshPath = new String();
+				staticMeshPath.AppendF("{}/{}.mesh", cacheDir, mesh.Name);
+				ResourceSerializer.SanitizePath(staticMeshPath);
+				staticMeshId = mesh.Id;
 			}
 		}
 
-		for (let animation in result.Animations)
+		if (animationRefs != null)
 		{
-			RegisterResource(animation, cacheDir, "animation");
-			// Capture all animations for cycling
-			let animPath = scope String();
-			animPath.AppendF("{}/{}.animation", cacheDir, animation.Name);
-			mAnimationRefs.Add(ResourceRef(animation.Id, animPath));
+			for (let animation in result.Animations)
+			{
+				RegisterResource(animation, cacheDir, "animation");
+				let animPath = scope String();
+				animPath.AppendF("{}/{}.animation", cacheDir, animation.Name);
+				ResourceSerializer.SanitizePath(animPath);
+				animationRefs.Add(ResourceRef(animation.Id, animPath));
+			}
+		}
+		else
+		{
+			for (let animation in result.Animations)
+				RegisterResource(animation, cacheDir, "animation");
 		}
 	}
 
@@ -378,52 +436,80 @@ class FrameworkSerializationApp : Application
 	{
 		let path = scope String();
 		path.AppendF("{}/{}.{}", cacheDir, resource.Name, @extension);
+		ResourceSerializer.SanitizePath(path);
 		mRegistry.Register(resource.Id, path);
 	}
 
-	/// Recovers cached resource paths by scanning the cache directory.
+	/// Recovers cached resource paths by scanning the cache subdirectories.
 	/// Used when the registry was loaded from file (so we didn't import).
 	private void RecoverCachedPaths(StringView cacheDir)
 	{
-		if (mCachedSkinnedMeshPath != null)
+		if (mGltfSkinnedMeshPath != null)
 			return; // Already populated
 
-		if (!Directory.Exists(cacheDir))
+		// Recover GLTF import paths
+		let gltfDir = scope String();
+		gltfDir.AppendF("{}/greenblob_gltf", cacheDir);
+		RecoverModelPaths(gltfDir,
+			ref mGltfSkinnedMeshPath, ref mGltfSkinnedMeshId,
+			ref mGltfStaticMeshPath, ref mGltfStaticMeshId,
+			mGltfMaterialRefs,
+			ref mGltfSkeletonPath, ref mGltfSkeletonId,
+			mGltfAnimationRefs);
+
+		// Recover FBX import paths
+		let fbxDir = scope String();
+		fbxDir.AppendF("{}/greenblob_fbx", cacheDir);
+		RecoverModelPaths(fbxDir,
+			ref mFbxSkinnedMeshPath, ref mFbxSkinnedMeshId,
+			ref mFbxStaticMeshPath, ref mFbxStaticMeshId,
+			mFbxMaterialRefs,
+			ref mFbxSkeletonPath, ref mFbxSkeletonId,
+			mFbxAnimationRefs);
+	}
+
+	private void RecoverModelPaths(StringView dir,
+		ref String skinnedMeshPath, ref Guid skinnedMeshId,
+		ref String staticMeshPath, ref Guid staticMeshId,
+		List<ResourceRef> materialRefs,
+		ref String skeletonPath, ref Guid skeletonId,
+		List<ResourceRef> animationRefs)
+	{
+		if (!Directory.Exists(dir))
 			return;
 
-		// Scan for first .skinnedmesh, .mesh, .mat, .skeleton, and .animation files
-		for (let entry in Directory.EnumerateFiles(cacheDir))
+		for (let entry in Directory.EnumerateFiles(dir))
 		{
 			let filePath = scope String();
 			entry.GetFilePath(filePath);
-			// Normalize separators to match registry format
 			filePath.Replace('\\', '/');
 
-			if (filePath.EndsWith(".skinnedmesh") && mCachedSkinnedMeshPath == null)
+			if (filePath.EndsWith(".skinnedmesh") && skinnedMeshPath == null)
 			{
-				mCachedSkinnedMeshPath = new String(filePath);
-				mRegistry.TryResolveId(filePath, out mCachedSkinnedMeshId);
+				skinnedMeshPath = new String(filePath);
+				mRegistry.TryResolveId(filePath, out skinnedMeshId);
 			}
-			else if (filePath.EndsWith(".mesh") && mCachedStaticMeshPath == null)
+			else if (filePath.EndsWith(".mesh") && staticMeshPath == null)
 			{
-				mCachedStaticMeshPath = new String(filePath);
-				mRegistry.TryResolveId(filePath, out mCachedStaticMeshId);
+				staticMeshPath = new String(filePath);
+				mRegistry.TryResolveId(filePath, out staticMeshId);
 			}
-			else if (filePath.EndsWith(".mat") && mCachedMaterialPath == null)
+			else if (filePath.EndsWith(".mat") && materialRefs != null)
 			{
-				mCachedMaterialPath = new String(filePath);
-				mRegistry.TryResolveId(filePath, out mCachedMaterialId);
+				Guid matId = .();
+				mRegistry.TryResolveId(filePath, out matId);
+				materialRefs.Add(ResourceRef(matId, filePath));
 			}
-			else if (filePath.EndsWith(".skeleton") && mCachedSkeletonPath == null)
+			else if (filePath.EndsWith(".skeleton") && skeletonPath == null)
 			{
-				mCachedSkeletonPath = new String(filePath);
-				mRegistry.TryResolveId(filePath, out mCachedSkeletonId);
+				skeletonPath = new String(filePath);
+				mRegistry.TryResolveId(filePath, out skeletonId);
 			}
-			else if (filePath.EndsWith(".animation"))
+			else if (filePath.EndsWith(".animation") && animationRefs != null)
 			{
 				Guid animId = .();
 				mRegistry.TryResolveId(filePath, out animId);
-				mAnimationRefs.Add(ResourceRef(animId, filePath));
+				animationRefs.Add(ResourceRef(animId, filePath));
 			}
 		}
 	}
@@ -529,9 +615,24 @@ class FrameworkSerializationApp : Application
 			Enabled = true, ShadowBias = 0.005f, ShadowNormalBias = 0.02f, LayerMask = 0xFFFFFFFF
 		});
 
-		// Fox entities with resource references (serializable)
-		CreateFoxEntity(scene);
-		CreateStaticFoxEntity(scene);
+		// Model entities - GLTF and FBX imports side by side for comparison
+		CreateSkinnedEntity(scene, "GreenBlob_GLTF", .(- 1, 0, 0),
+			mGltfSkinnedMeshPath, mGltfSkinnedMeshId,
+			mGltfMaterialRefs,
+			mGltfSkeletonPath, mGltfSkeletonId,
+			mGltfAnimationRefs);
+		CreateStaticEntity(scene, "GreenBlob_GLTF_Static", .(- 3, 0, 0),
+			mGltfStaticMeshPath, mGltfStaticMeshId,
+			mGltfMaterialRefs);
+
+		CreateSkinnedEntity(scene, "GreenBlob_FBX", .(1, 0, 0),
+			mFbxSkinnedMeshPath, mFbxSkinnedMeshId,
+			mFbxMaterialRefs,
+			mFbxSkeletonPath, mFbxSkeletonId,
+			mFbxAnimationRefs);
+		CreateStaticEntity(scene, "GreenBlob_FBX_Static", .(3, 0, 0),
+			mFbxStaticMeshPath, mFbxStaticMeshId,
+			mFbxMaterialRefs);
 
 		// Sprite entity with procedural checkerboard texture
 		CreateSpriteEntity(scene);
@@ -564,73 +665,92 @@ class FrameworkSerializationApp : Application
 		mSceneSubsystem.SetActiveScene(mMainScene);
 	}
 
-	private void CreateFoxEntity(Scene scene)
+	private void CreateSkinnedEntity(Scene scene, StringView name, Vector3 position,
+		String skinnedMeshPath, Guid skinnedMeshId,
+		List<ResourceRef> materialRefs,
+		String skeletonPath, Guid skeletonId,
+		List<ResourceRef> animationRefs)
 	{
-		if (mCachedSkinnedMeshPath == null)
+		if (skinnedMeshPath == null)
 		{
-			Console.WriteLine("  WARNING: No cached skinned mesh available, skipping fox entity");
+			Console.WriteLine($"  WARNING: No cached skinned mesh for '{name}', skipping");
 			return;
 		}
 
-		// Create fox entity with ResourceRef-based component
-		// Fox model vertices are in a large coordinate space (~78 units tall), scale down to match scene
-		let foxEntity = scene.CreateEntity();
-		scene.SetName(foxEntity, "Fox");
-		scene.SetTransform(foxEntity, .(.Zero, .Identity, .(0.02f, 0.02f, 0.02f)));
+		let entity = scene.CreateEntity();
+		scene.SetName(entity, name);
+		scene.SetTransform(entity, .(position));
 
-		var foxComp = SkinnedMeshRendererComponent.Default;
-		foxComp.MeshRef = ResourceRef(mCachedSkinnedMeshId, mCachedSkinnedMeshPath);
-		if (mCachedMaterialPath != null)
-			foxComp.MaterialRef = ResourceRef(mCachedMaterialId, mCachedMaterialPath);
-		foxComp.Enabled = true;
-		scene.SetComponent<SkinnedMeshRendererComponent>(foxEntity, foxComp);
+		var comp = SkinnedMeshRendererComponent.Default;
+		comp.MeshRef = ResourceRef(skinnedMeshId, skinnedMeshPath);
+		if (materialRefs != null && materialRefs.Count > 0)
+		{
+			let count = Math.Min((int32)materialRefs.Count, RenderConfig.MaxMaterialsPerMesh);
+			comp.MaterialCount = count;
+			for (int32 i = 0; i < count; i++)
+				comp.MaterialRefs[i] = ResourceRef(materialRefs[i].Id, materialRefs[i].Path);
+		}
+		comp.Enabled = true;
+		scene.SetComponent<SkinnedMeshRendererComponent>(entity, comp);
 
 		// Add skeletal animation component with resource refs
-		if (mCachedSkeletonPath != null && mAnimationRefs.Count > 0)
+		if (skeletonPath != null && animationRefs != null && animationRefs.Count > 0)
 		{
-			let firstAnim = mAnimationRefs[0];
+			let firstAnim = animationRefs[0];
 			var animComp = SkeletalAnimationComponent.Default;
-			animComp.SkeletonRef = ResourceRef(mCachedSkeletonId, mCachedSkeletonPath);
+			animComp.SkeletonRef = ResourceRef(skeletonId, skeletonPath);
 			animComp.AnimationClipRef = ResourceRef(firstAnim.Id, firstAnim.Path);
 			animComp.Playing = true;
 			animComp.Loop = true;
-			scene.SetComponent<SkeletalAnimationComponent>(foxEntity, animComp);
+			scene.SetComponent<SkeletalAnimationComponent>(entity, animComp);
 
-			Console.WriteLine($"    SkeletonRef: id={mCachedSkeletonId}, path={mCachedSkeletonPath}");
+			Console.WriteLine($"    SkeletonRef: id={skeletonId}, path={skeletonPath}");
 			Console.WriteLine($"    AnimClipRef: id={firstAnim.Id}, path={firstAnim.Path}");
-			Console.WriteLine($"    Available animations: {mAnimationRefs.Count}");
+			Console.WriteLine($"    Available animations: {animationRefs.Count}");
 		}
 
-		Console.WriteLine("  Created Fox (skinned) entity with ResourceRefs:");
-		Console.WriteLine($"    MeshRef: id={mCachedSkinnedMeshId}, path={mCachedSkinnedMeshPath}");
-		if (mCachedMaterialPath != null)
-			Console.WriteLine($"    MaterialRef: id={mCachedMaterialId}, path={mCachedMaterialPath}");
+		Console.WriteLine($"  Created '{name}' (skinned) entity with ResourceRefs:");
+		Console.WriteLine($"    MeshRef: id={skinnedMeshId}, path={skinnedMeshPath}");
+		if (materialRefs != null)
+		{
+			for (int32 i = 0; i < materialRefs.Count && i < RenderConfig.MaxMaterialsPerMesh; i++)
+				Console.WriteLine($"    MaterialRefs[{i}]: id={materialRefs[i].Id}, path={materialRefs[i].Path}");
+		}
 	}
 
-	private void CreateStaticFoxEntity(Scene scene)
+	private void CreateStaticEntity(Scene scene, StringView name, Vector3 position,
+		String staticMeshPath, Guid staticMeshId,
+		List<ResourceRef> materialRefs)
 	{
-		if (mCachedStaticMeshPath == null)
+		if (staticMeshPath == null)
 		{
-			Console.WriteLine("  WARNING: No cached static mesh available, skipping static fox entity");
+			Console.WriteLine($"  WARNING: No cached static mesh for '{name}', skipping");
 			return;
 		}
 
-		// Create a second fox entity using static mesh (offset to the side)
-		let foxEntity = scene.CreateEntity();
-		scene.SetName(foxEntity, "FoxStatic");
-		scene.SetTransform(foxEntity, .(.(3, 0, 0), .Identity, .(0.02f, 0.02f, 0.02f)));
+		let entity = scene.CreateEntity();
+		scene.SetName(entity, name);
+		scene.SetTransform(entity, .(position));
 
 		var meshComp = MeshRendererComponent.Default;
-		meshComp.MeshRef = ResourceRef(mCachedStaticMeshId, mCachedStaticMeshPath);
-		if (mCachedMaterialPath != null)
-			meshComp.MaterialRef = ResourceRef(mCachedMaterialId, mCachedMaterialPath);
+		meshComp.MeshRef = ResourceRef(staticMeshId, staticMeshPath);
+		if (materialRefs != null && materialRefs.Count > 0)
+		{
+			let count = Math.Min((int32)materialRefs.Count, RenderConfig.MaxMaterialsPerMesh);
+			meshComp.MaterialCount = count;
+			for (int32 i = 0; i < count; i++)
+				meshComp.MaterialRefs[i] = ResourceRef(materialRefs[i].Id, materialRefs[i].Path);
+		}
 		meshComp.Enabled = true;
-		scene.SetComponent<MeshRendererComponent>(foxEntity, meshComp);
+		scene.SetComponent<MeshRendererComponent>(entity, meshComp);
 
-		Console.WriteLine("  Created FoxStatic entity with ResourceRefs:");
-		Console.WriteLine($"    MeshRef: id={mCachedStaticMeshId}, path={mCachedStaticMeshPath}");
-		if (mCachedMaterialPath != null)
-			Console.WriteLine($"    MaterialRef: id={mCachedMaterialId}, path={mCachedMaterialPath}");
+		Console.WriteLine($"  Created '{name}' (static) entity with ResourceRefs:");
+		Console.WriteLine($"    MeshRef: id={staticMeshId}, path={staticMeshPath}");
+		if (materialRefs != null)
+		{
+			for (int32 i = 0; i < materialRefs.Count && i < RenderConfig.MaxMaterialsPerMesh; i++)
+				Console.WriteLine($"    MaterialRefs[{i}]: id={materialRefs[i].Id}, path={materialRefs[i].Path}");
+		}
 	}
 
 	// ==================== Sprite ====================
@@ -745,19 +865,19 @@ class FrameworkSerializationApp : Application
 
 	// ==================== Animation Cycling ====================
 
-	/// Loads all animation clips and finds the fox entity for runtime animation cycling.
+	/// Loads all animation clips and finds the GLTF entity for runtime animation cycling.
 	private void SetupAnimationCycling()
 	{
-		if (mMainScene == null || mAnimationRefs.Count == 0)
+		if (mMainScene == null || mGltfAnimationRefs.Count == 0)
 			return;
 
-		// Find the fox entity
-		mFoxEntity = mMainScene.FindByName("Fox");
-		if (!mMainScene.IsValid(mFoxEntity))
+		// Find the GLTF skinned entity
+		mGltfEntity = mMainScene.FindByName("GreenBlob_GLTF");
+		if (!mMainScene.IsValid(mGltfEntity))
 			return;
 
 		// Load all animation clips via ResourceSystem
-		for (let animRef in mAnimationRefs)
+		for (let animRef in mGltfAnimationRefs)
 		{
 			if (mContext.Resources.LoadByRef<AnimationClipResource>(animRef) case .Ok(let handle))
 				mLoadedAnimClips.Add(handle);
@@ -780,7 +900,7 @@ class FrameworkSerializationApp : Application
 		if (mMainScene == null || mLoadedAnimClips.Count <= 1)
 			return;
 
-		if (!mMainScene.IsValid(mFoxEntity))
+		if (!mMainScene.IsValid(mGltfEntity))
 			return;
 
 		if (let animModule = mMainScene.GetModule<AnimationSceneModule>())
@@ -789,7 +909,7 @@ class FrameworkSerializationApp : Application
 			let clipResource = mLoadedAnimClips[mCurrentAnimIndex].Resource;
 			if (clipResource?.Clip != null)
 			{
-				animModule.Play(mFoxEntity, clipResource.Clip, true);
+				animModule.Play(mGltfEntity, clipResource.Clip, true);
 				Console.WriteLine($"Animation: [{mCurrentAnimIndex}] {clipResource.Clip.Name}");
 			}
 		}
@@ -818,15 +938,15 @@ class FrameworkSerializationApp : Application
 		{
 			let name = scene.GetName(entity);
 			let meshValid = comp.MeshRef.IsValid;
-			let matValid = comp.MaterialRef.IsValid;
-			Console.WriteLine($"  {name}: SkinnedMesh(MeshRef.valid={meshValid}, MaterialRef.valid={matValid}, Enabled={comp.Enabled})");
+			let matValid = comp.MaterialRefs[0].IsValid;
+			Console.WriteLine($"  {name}: SkinnedMesh(MeshRef.valid={meshValid}, MaterialRefs[0].valid={matValid}, Enabled={comp.Enabled}, MaterialCount={comp.MaterialCount})");
 		}
 		for (let (entity, comp) in scene.Query<MeshRendererComponent>())
 		{
 			let name = scene.GetName(entity);
 			let meshValid = comp.MeshRef.IsValid;
-			let matValid = comp.MaterialRef.IsValid;
-			Console.WriteLine($"  {name}: Mesh(MeshRef.valid={meshValid}, MaterialRef.valid={matValid}, Enabled={comp.Enabled})");
+			let matValid = comp.MaterialRefs[0].IsValid;
+			Console.WriteLine($"  {name}: Mesh(MeshRef.valid={meshValid}, MaterialRefs[0].valid={matValid}, Enabled={comp.Enabled}, MaterialCount={comp.MaterialCount})");
 		}
 		for (let (entity, comp) in scene.Query<SkeletalAnimationComponent>())
 		{

@@ -106,16 +106,14 @@ class AnimationSceneModule : SceneModule
 			// Resolve skeleton ref
 			if (anim.SkeletonRef.IsValid && !anim.SkeletonRes.IsValid)
 			{
-				let result = resourceSystem.LoadByRef<SkeletonResource>(anim.SkeletonRef);
-				if (result case .Ok(let handle))
+				if (resourceSystem.LoadByRef<SkeletonResource>(anim.SkeletonRef) case .Ok(let handle))
 					anim.SkeletonRes = handle;
 			}
 
 			// Resolve animation clip ref
 			if (anim.AnimationClipRef.IsValid && !anim.AnimationClipRes.IsValid)
 			{
-				let result = resourceSystem.LoadByRef<AnimationClipResource>(anim.AnimationClipRef);
-				if (result case .Ok(let handle))
+				if (resourceSystem.LoadByRef<AnimationClipResource>(anim.AnimationClipRef) case .Ok(let handle))
 					anim.AnimationClipRes = handle;
 			}
 

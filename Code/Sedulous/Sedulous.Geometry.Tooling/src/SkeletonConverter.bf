@@ -57,6 +57,23 @@ static class SkeletonConverter
 			bone.ParentIndex = parentSkinJointIdx;
 			bone.InverseBindPose = ibm;
 			bone.LocalBindPose = Transform(modelBone.Translation, modelBone.Rotation, modelBone.Scale);
+
+			// For root bones in the skeleton, compute missing ancestor transforms.
+			// This captures transforms of model ancestors not in the skeleton
+			// (e.g. FBX coordinate conversion nodes from Z-up to Y-up).
+			if (parentSkinJointIdx == -1 && modelBone.ParentIndex >= 0)
+			{
+				Matrix rootCorrection = .Identity;
+				int32 current = modelBone.ParentIndex;
+				while (current >= 0 && current < model.Bones.Count)
+				{
+					let ancestor = model.Bones[current];
+					ancestor.UpdateLocalTransform();
+					rootCorrection = rootCorrection * ancestor.LocalTransform;
+					current = ancestor.ParentIndex;
+				}
+				bone.RootCorrection = rootCorrection;
+			}
 		}
 
 		// Build skeleton hierarchy data
