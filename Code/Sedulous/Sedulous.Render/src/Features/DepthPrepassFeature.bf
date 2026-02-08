@@ -587,14 +587,22 @@ public class DepthPrepassFeature : RenderFeatureBase
 				if (mesh.IndexBuffer != null)
 				{
 					encoder.SetIndexBuffer(mesh.IndexBuffer, mesh.IndexFormat);
-					encoder.DrawIndexed(mesh.IndexCount, (uint32)group.InstanceCount, 0, 0, 0);
+
+					if (mesh.SubMeshes != null)
+					{
+						for (let sub in mesh.SubMeshes)
+						{
+							encoder.DrawIndexed(sub.IndexCount, (uint32)group.InstanceCount, sub.IndexStart, sub.BaseVertex, 0);
+							Renderer.Stats.DrawCalls++;
+						}
+					}
 				}
 				else
 				{
 					encoder.Draw(mesh.VertexCount, (uint32)group.InstanceCount, 0, 0);
+					Renderer.Stats.DrawCalls++;
 				}
 
-				Renderer.Stats.DrawCalls++;
 				Renderer.Stats.InstanceCount += group.InstanceCount;
 			}
 		}
@@ -638,15 +646,22 @@ public class DepthPrepassFeature : RenderFeatureBase
 
 					// Bind vertex/index buffers
 					encoder.SetVertexBuffer(0, mesh.VertexBuffer, 0);
-					if (mesh.IndexBuffer != null)
+
+					if (mesh.IndexBuffer != null && mesh.SubMeshes != null)
+					{
 						encoder.SetIndexBuffer(mesh.IndexBuffer, mesh.IndexFormat);
-
-					if (mesh.IndexBuffer != null)
-						encoder.DrawIndexed(mesh.IndexCount, 1, 0, 0, 0);
-					else
+						for (let sub in mesh.SubMeshes)
+						{
+							encoder.DrawIndexed(sub.IndexCount, 1, sub.IndexStart, sub.BaseVertex, 0);
+							Renderer.Stats.DrawCalls++;
+						}
+					}
+					else if (mesh.IndexBuffer == null)
+					{
 						encoder.Draw(mesh.VertexCount, 1, 0, 0);
+						Renderer.Stats.DrawCalls++;
+					}
 
-					Renderer.Stats.DrawCalls++;
 					objectIndex++;
 				}
 			}
@@ -700,17 +715,20 @@ public class DepthPrepassFeature : RenderFeatureBase
 				// Get original mesh for index buffer (indices don't change with skinning)
 				if (let mesh = Renderer.ResourceManager.GetMesh(cmd.GPUMesh))
 				{
-					if (mesh.IndexBuffer != null)
+					if (mesh.IndexBuffer != null && mesh.SubMeshes != null)
 					{
 						encoder.SetIndexBuffer(mesh.IndexBuffer, mesh.IndexFormat);
-						encoder.DrawIndexed(mesh.IndexCount, 1, 0, 0, 0);
+						for (let sub in mesh.SubMeshes)
+						{
+							encoder.DrawIndexed(sub.IndexCount, 1, sub.IndexStart, sub.BaseVertex, 0);
+							Renderer.Stats.DrawCalls++;
+						}
 					}
-					else
+					else if (mesh.IndexBuffer == null)
 					{
 						encoder.Draw(mesh.VertexCount, 1, 0, 0);
+						Renderer.Stats.DrawCalls++;
 					}
-
-					Renderer.Stats.DrawCalls++;
 				}
 
 				objectIndex++;

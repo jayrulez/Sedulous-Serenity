@@ -1459,17 +1459,21 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 					// Bind vertex/index buffers and draw
 					encoder.SetVertexBuffer(0, mesh.VertexBuffer, 0);
-					if (mesh.IndexBuffer != null)
+					if (mesh.IndexBuffer != null && mesh.SubMeshes != null)
 					{
 						encoder.SetIndexBuffer(mesh.IndexBuffer, mesh.IndexFormat);
-						encoder.DrawIndexed(mesh.IndexCount, 1, 0, 0, 0);
+						for (let sub in mesh.SubMeshes)
+						{
+							encoder.DrawIndexed(sub.IndexCount, 1, sub.IndexStart, sub.BaseVertex, 0);
+							Renderer.Stats.ShadowDrawCalls++;
+						}
 					}
-					else
+					else if (mesh.IndexBuffer == null)
 					{
 						encoder.Draw(mesh.VertexCount, 1, 0, 0);
+						Renderer.Stats.ShadowDrawCalls++;
 					}
 
-					Renderer.Stats.ShadowDrawCalls++;
 					objectIndex++;
 				}
 			}
@@ -1518,17 +1522,20 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				// Get original mesh for index buffer
 				if (let mesh = Renderer.ResourceManager.GetMesh(proxy.MeshHandle))
 				{
-					if (mesh.IndexBuffer != null)
+					if (mesh.IndexBuffer != null && mesh.SubMeshes != null)
 					{
 						encoder.SetIndexBuffer(mesh.IndexBuffer, mesh.IndexFormat);
-						encoder.DrawIndexed(mesh.IndexCount, 1, 0, 0, 0);
+						for (let sub in mesh.SubMeshes)
+						{
+							encoder.DrawIndexed(sub.IndexCount, 1, sub.IndexStart, sub.BaseVertex, 0);
+							Renderer.Stats.ShadowDrawCalls++;
+						}
 					}
-					else
+					else if (mesh.IndexBuffer == null)
 					{
 						encoder.Draw(mesh.VertexCount, 1, 0, 0);
+						Renderer.Stats.ShadowDrawCalls++;
 					}
-
-					Renderer.Stats.ShadowDrawCalls++;
 				}
 
 				objectIndex++;
