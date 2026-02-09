@@ -447,19 +447,9 @@ class RenderSceneModule : SceneModule
 
 			if (!proxyHandle.IsValid)
 			{
-				proxyHandle = mWorld.CreateParticleEmitter();
+				let device = mSubsystem.RenderSystem?.Device;
+				proxyHandle = mWorld.CreateParticleEmitter(device, emitter.Backend, (int32)emitter.MaxParticles);
 				mParticleEmitterProxies[entity] = proxyHandle;
-
-				// Create CPU emitter if needed
-				if (emitter.Backend == .CPU)
-				{
-					let device = mSubsystem.RenderSystem?.Device;
-					if (device != null)
-					{
-						if (let proxy = mWorld.GetParticleEmitter(proxyHandle))
-							proxy.CPUEmitter = new CPUParticleEmitter(device, (int32)emitter.MaxParticles);
-					}
-				}
 			}
 
 			let worldMatrix = scene.GetWorldMatrix(entity);
@@ -1261,7 +1251,7 @@ class RenderSceneModule : SceneModule
 		if (mScene == null || mWorld == null)
 			return .Invalid;
 
-		let handle = mWorld.CreateParticleEmitter();
+		let handle = mWorld.CreateParticleEmitter(backend: .GPU);
 
 		// Store in internal tracking
 		mParticleEmitterProxies[entity] = handle;
@@ -1304,7 +1294,7 @@ class RenderSceneModule : SceneModule
 		if (device == null)
 			return .Invalid;
 
-		let handle = mWorld.CreateParticleEmitter();
+		let handle = mWorld.CreateParticleEmitter(device, .CPU, maxParticles);
 
 		// Store in internal tracking
 		mParticleEmitterProxies[entity] = handle;
@@ -1319,14 +1309,6 @@ class RenderSceneModule : SceneModule
 		comp.Backend = .CPU;
 		comp.MaxParticles = (uint32)maxParticles;
 		comp.Enabled = true;
-
-		// Configure for CPU backend
-		if (let proxy = mWorld.GetParticleEmitter(handle))
-		{
-			proxy.Backend = .CPU;
-			proxy.MaxParticles = (uint32)maxParticles;
-			proxy.CPUEmitter = new CPUParticleEmitter(device, maxParticles);
-		}
 
 		let worldMatrix = mScene.GetWorldMatrix(entity);
 		mWorld.SetParticleEmitterPosition(handle, worldMatrix.Translation);

@@ -447,7 +447,7 @@ class RenderSandboxApp : Application
 	private void CreateParticles()
 	{
 		// Create smoke emitter (grey, rising slowly, fading out)
-		mSmokeEmitter = mWorld.CreateParticleEmitter();
+		mSmokeEmitter = mWorld.CreateParticleEmitter(mDevice);
 		if (let smoke = mWorld.GetParticleEmitter(mSmokeEmitter))
 		{
 			smoke.Position = .(-2.0f, 0.0f, 0.0f); // Left side of scene
@@ -469,7 +469,7 @@ class RenderSandboxApp : Application
 		Console.WriteLine("Created smoke particle emitter");
 
 		// Create fire emitter (orange/yellow, rising fast, bright)
-		mFireEmitter = mWorld.CreateParticleEmitter();
+		mFireEmitter = mWorld.CreateParticleEmitter(mDevice);
 		if (let fire = mWorld.GetParticleEmitter(mFireEmitter))
 		{
 			fire.Position = .(2.0f, 0.0f, 0.0f); // Right side of scene

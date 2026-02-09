@@ -82,22 +82,18 @@ class ParticleEffects
 	{
 		mEffectCounter++;
 
-		// Create the emitter in RenderWorld
-		let handle = mRenderWorld.CreateParticleEmitter();
-
-		// Create CPUEmitter for CPU-based particle simulation
-		// Use max particles based on burst count with some headroom
+		// Create the emitter in RenderWorld with CPU backend
 		let maxParticles = Math.Max((int32)emitterConfig.BurstCount * 2, 100);
-		let cpuEmitter = new CPUParticleEmitter(mDevice, maxParticles);
+		let handle = mRenderWorld.CreateParticleEmitter(mDevice, .CPU, maxParticles);
 
-		// Apply the configuration to the proxy and set CPUEmitter
-		// RenderWorld handles deferred deletion of CPUEmitter when DestroyParticleEmitter is called
+		// Apply the configuration to the proxy (CPUEmitter already created by CreateParticleEmitter)
 		if (let proxy = mRenderWorld.GetParticleEmitter(handle))
 		{
+			let cpuEmitter = proxy.CPUEmitter; // Save before overwrite
 			*proxy = emitterConfig;
 			proxy.Backend = .CPU;
 			proxy.MaxParticles = (uint32)maxParticles;
-			proxy.CPUEmitter = cpuEmitter;
+			proxy.CPUEmitter = cpuEmitter; // Restore
 		}
 
 		mActiveHandles.Add(handle);
