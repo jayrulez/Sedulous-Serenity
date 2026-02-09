@@ -235,9 +235,9 @@ public class ForwardTransparentFeature : RenderFeatureBase
 		if (opaqueFeature == null)
 			return;
 
-		// Get shadow renderer to check current shadow state
-		let shadowRenderer = opaqueFeature.[Friend]mShadowRenderer;
-		let shadowsEnabled = shadowRenderer?.EnableShadows ?? false;
+		// Use shadow passes active state (not just EnableShadows) to avoid binding
+		// an uninitialized shadow map when shadow passes haven't run yet
+		let shadowsEnabled = opaqueFeature.[Friend]mShadowPassesActive;
 
 		// Check if bind group exists and shadow state hasn't changed
 		if (mSceneBindGroups[frameIndex] != null)
@@ -295,7 +295,7 @@ public class ForwardTransparentFeature : RenderFeatureBase
 		entries[5] = BindGroupEntry.Buffer(6, lightIndexBuffer, 0, (uint64)(lighting.ClusterGrid.Config.MaxLightsPerCluster * lighting.ClusterGrid.Config.TotalClusters * 4));
 
 		// Get shadow resources (shadowsEnabled already computed at function start)
-		let shadowData = shadowRenderer?.GetShadowShaderData() ?? .();
+		let shadowData = opaqueFeature.[Friend]mShadowRenderer?.GetShadowShaderData() ?? .();
 		let materialSystem = Renderer.MaterialSystem;
 
 		// b5: Shadow uniforms
@@ -389,9 +389,9 @@ public class ForwardTransparentFeature : RenderFeatureBase
 		if (sceneBindGroup == null)
 			return;
 
-		// Get shadow state from opaque feature
+		// Get shadow state from opaque feature (use active state, not just enabled)
 		let opaqueFeature = Renderer.GetFeature<ForwardOpaqueFeature>();
-		let shadowsEnabled = opaqueFeature?.[Friend]mShadowRenderer?.EnableShadows ?? false;
+		let shadowsEnabled = opaqueFeature?.[Friend]mShadowPassesActive ?? false;
 
 		// Get material system for binding materials
 		let materialSystem = Renderer.MaterialSystem;

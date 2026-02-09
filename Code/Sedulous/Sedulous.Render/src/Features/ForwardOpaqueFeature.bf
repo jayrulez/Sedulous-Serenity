@@ -39,6 +39,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 	// Lighting system
 	private LightingSystem mLighting ~ delete _;
 	private ShadowRenderer mShadowRenderer ~ delete _;
+	private bool mShadowPassesActive = false; // Whether shadow passes actually ran this frame
 
 	// Bind groups (per-frame for multi-buffering)
 	private IBindGroupLayout mSceneBindGroupLayout ~ delete _;
@@ -709,6 +710,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 	private void AddShadowPasses(RenderGraph graph, RenderWorld world, VisibilityResolver visibility, RenderView view, int32 frameIndex, out RGResourceHandle outShadowMapHandle)
 	{
 		outShadowMapHandle = .Invalid;
+		mShadowPassesActive = false;
 
 		if (!mShadowRenderer.EnableShadows)
 			return;
@@ -737,6 +739,8 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 		if (shadowPasses.Count == 0)
 			return;
+
+		mShadowPassesActive = true;
 
 		// Upload all shadow uniforms BEFORE adding passes (avoid WriteBuffer during render pass)
 		PrepareShadowUniforms(world, visibility, shadowPasses, frameIndex);
@@ -970,8 +974,9 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 	private void CreateSceneBindGroup(int32 frameIndex)
 	{
-		// Check current shadow state
-		let shadowsEnabled = mShadowRenderer?.EnableShadows ?? false;
+		// Use shadow map only when shadow passes actually ran this frame
+		// (EnableShadows may be true but no shadow-casting light found yet)
+		let shadowsEnabled = mShadowPassesActive;
 
 		// Check if bind group exists and shadow state hasn't changed
 		// If shadow state changed, we need to recreate with correct shadow map (real or dummy)
@@ -1106,7 +1111,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 	private void ExecuteInstancedForwardPass(IRenderPassEncoder encoder, RenderWorld world, DepthPrepassFeature depthFeature, int32 frameIndex, ref MaterialInstance currentMaterial)
 	{
 		// Get shadow state for pipeline selection
-		let shadowsEnabled = mShadowRenderer?.EnableShadows ?? false;
+		let shadowsEnabled = mShadowPassesActive;
 
 		// Track current pipeline to minimize state changes
 		IRenderPipeline currentPipeline = null;
@@ -1190,7 +1195,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 	private void ExecuteNonInstancedForwardPass(IRenderPassEncoder encoder, RenderWorld world, DepthPrepassFeature depthFeature, int32 frameIndex, ref int32 objectIndex, ref MaterialInstance currentMaterial)
 	{
 		// Get shadow state for pipeline selection
-		let shadowsEnabled = mShadowRenderer?.EnableShadows ?? false;
+		let shadowsEnabled = mShadowPassesActive;
 
 		// Track current pipeline to minimize state changes
 		IRenderPipeline currentPipeline = null;
@@ -1334,7 +1339,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			return;
 
 		// Get shadow state for pipeline selection
-		let shadowsEnabled = mShadowRenderer?.EnableShadows ?? false;
+		let shadowsEnabled = mShadowPassesActive;
 
 		// Track current pipeline to minimize state changes
 		IRenderPipeline currentPipeline = null;
