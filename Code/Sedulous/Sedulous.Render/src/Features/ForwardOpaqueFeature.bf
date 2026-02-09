@@ -1228,13 +1228,12 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				// Get mesh data and draw per-submesh
 				if (let mesh = Renderer.ResourceManager.GetMesh(cmd.GPUMesh))
 				{
-					// Bind vertex/index buffers (shared across submeshes)
 					encoder.SetVertexBuffer(0, mesh.VertexBuffer, 0);
-					if (mesh.IndexBuffer != null)
+
+					if (mesh.IndexBuffer != null && mesh.SubMeshes != null)
+					{
 						encoder.SetIndexBuffer(mesh.IndexBuffer, mesh.IndexFormat);
 
-					if (mesh.SubMeshes != null)
-					{
 						for (let sub in mesh.SubMeshes)
 						{
 							// Resolve material for this submesh's material slot
@@ -1279,6 +1278,45 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 							Renderer.Stats.DrawCalls++;
 							Renderer.Stats.TriangleCount += (int32)(sub.IndexCount / 3);
+						}
+					}
+					else if (mesh.IndexBuffer == null)
+					{
+						// Non-indexed mesh — use first material slot
+						MaterialInstance material = null;
+						if (proxy != null && proxy.MaterialCount > 0)
+							material = proxy.Materials[0];
+						if (material == null)
+							material = defaultMaterialInstance;
+
+						let pipeline = GetPipelineForMaterial(material, shadowsEnabled, false);
+						if (pipeline != null)
+						{
+							if (pipeline != currentPipeline)
+							{
+								encoder.SetPipeline(pipeline);
+								currentPipeline = pipeline;
+							}
+
+							if (material != currentMaterial && material != null && materialSystem != null)
+							{
+								if (materialSystem.PrepareInstance(material) case .Ok(let bindGroup))
+								{
+									encoder.SetBindGroup(1, bindGroup, default);
+									currentMaterial = material;
+								}
+							}
+
+							if (sceneBindGroup != null)
+							{
+								uint32[1] dynamicOffsets = .((uint32)(objectIndex * (int32)AlignedObjectUniformSize));
+								encoder.SetBindGroup(0, sceneBindGroup, dynamicOffsets);
+							}
+
+							encoder.Draw(mesh.VertexCount, 1, 0, 0);
+
+							Renderer.Stats.DrawCalls++;
+							Renderer.Stats.TriangleCount += (int32)(mesh.VertexCount / 3);
 						}
 					}
 				}
@@ -1341,11 +1379,10 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 					// Get mesh for index buffer and submeshes (indices don't change with skinning)
 					if (let mesh = Renderer.ResourceManager.GetMesh(cmd.GPUMesh))
 					{
-						if (mesh.IndexBuffer != null)
+						if (mesh.IndexBuffer != null && mesh.SubMeshes != null)
+						{
 							encoder.SetIndexBuffer(mesh.IndexBuffer, mesh.IndexFormat);
 
-						if (mesh.SubMeshes != null)
-						{
 							for (let sub in mesh.SubMeshes)
 							{
 								// Resolve material for this submesh's material slot
@@ -1387,6 +1424,45 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 								Renderer.Stats.DrawCalls++;
 								Renderer.Stats.TriangleCount += (int32)(sub.IndexCount / 3);
+							}
+						}
+						else if (mesh.IndexBuffer == null)
+						{
+							// Non-indexed skinned mesh — use first material slot
+							MaterialInstance material = null;
+							if (proxy.MaterialCount > 0)
+								material = proxy.Materials[0];
+							if (material == null)
+								material = defaultMaterialInstance;
+
+							let pipeline = GetPipelineForMaterial(material, shadowsEnabled, false);
+							if (pipeline != null)
+							{
+								if (pipeline != currentPipeline)
+								{
+									encoder.SetPipeline(pipeline);
+									currentPipeline = pipeline;
+								}
+
+								if (material != currentMaterial && material != null && materialSystem != null)
+								{
+									if (materialSystem.PrepareInstance(material) case .Ok(let bindGroup))
+									{
+										encoder.SetBindGroup(1, bindGroup, default);
+										currentMaterial = material;
+									}
+								}
+
+								if (sceneBindGroup != null)
+								{
+									uint32[1] dynamicOffsets = .((uint32)(objectIndex * (int32)AlignedObjectUniformSize));
+									encoder.SetBindGroup(0, sceneBindGroup, dynamicOffsets);
+								}
+
+								encoder.Draw(mesh.VertexCount, 1, 0, 0);
+
+								Renderer.Stats.DrawCalls++;
+								Renderer.Stats.TriangleCount += (int32)(mesh.VertexCount / 3);
 							}
 						}
 					}
