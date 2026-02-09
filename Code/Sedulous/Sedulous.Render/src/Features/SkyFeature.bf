@@ -100,13 +100,16 @@ public class SkyFeature : RenderFeatureBase
 	private IRenderPipeline mSkyPipeline ~ delete _;
 	private IBuffer[RenderConfig.FrameBufferCount] mSkyParamsBuffers;
 	private IBindGroupLayout mSkyBindGroupLayout ~ delete _;
-	private IBindGroup[RenderConfig.FrameBufferCount] mSkyBindGroups;
+	private IBindGroup[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mSkyBindGroups;
 
 	// Full-screen quad mesh (kept for potential future use, shader uses SV_VertexID)
 	private IBuffer mFullscreenQuadVB ~ delete _;
 
 	/// Gets the current frame index for multi-buffering.
 	private int32 FrameIndex => Renderer.RenderFrameContext?.FrameIndex ?? 0;
+
+	/// Gets the bind group index accounting for the active view.
+	private int32 GetBindGroupIndex(int32 frameIndex) => frameIndex * RenderConfig.MaxViews + (Renderer.RenderFrameContext?.ActiveViewIndex ?? 0);
 
 	/// Feature name.
 	public override StringView Name => "Sky";
@@ -268,7 +271,10 @@ public class SkyFeature : RenderFeatureBase
 				delete mSkyParamsBuffers[i];
 				mSkyParamsBuffers[i] = null;
 			}
+		}
 
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
+		{
 			if (mSkyBindGroups[i] != null)
 			{
 				delete mSkyBindGroups[i];
@@ -710,7 +716,7 @@ public class SkyFeature : RenderFeatureBase
 		mMode = .EnvironmentMap;
 
 		// Force bind group recreation on next frame
-		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
 		{
 			if (mSkyBindGroups[i] != null)
 			{
@@ -722,7 +728,7 @@ public class SkyFeature : RenderFeatureBase
 		return .Ok;
 	}
 
-	/// Ensures the sky bind group exists for the current frame.
+	/// Ensures the sky bind group exists for the current frame and view.
 	private void EnsureSkyBindGroup(int32 frameIndex)
 	{
 		let skyParamsBuffer = mSkyParamsBuffers[frameIndex];
@@ -742,11 +748,13 @@ public class SkyFeature : RenderFeatureBase
 		if (mEnvSampler == null || mFallbackCubemapView == null)
 			return;
 
+		let bindGroupIndex = GetBindGroupIndex(frameIndex);
+
 		// Delete old bind group if exists
-		if (mSkyBindGroups[frameIndex] != null)
+		if (mSkyBindGroups[bindGroupIndex] != null)
 		{
-			delete mSkyBindGroups[frameIndex];
-			mSkyBindGroups[frameIndex] = null;
+			delete mSkyBindGroups[bindGroupIndex];
+			mSkyBindGroups[bindGroupIndex] = null;
 		}
 
 		// Pick active cubemap view (user env map or fallback)
@@ -768,7 +776,7 @@ public class SkyFeature : RenderFeatureBase
 		};
 
 		if (Renderer.Device.CreateBindGroup(&desc) case .Ok(let bg))
-			mSkyBindGroups[frameIndex] = bg;
+			mSkyBindGroups[bindGroupIndex] = bg;
 	}
 
 	private void UpdateSkyParams(int32 frameIndex)
@@ -807,15 +815,15 @@ public class SkyFeature : RenderFeatureBase
 		if (mSkyPipeline == null)
 			return;
 
-		// Set viewport
+		// Set viewport — render to per-view SceneColor texture at (0,0), not swapchain offset
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0.0f, 1.0f);
 		encoder.SetScissorRect(0, 0, view.Width, view.Height);
 
 		// Bind pipeline
 		encoder.SetPipeline(mSkyPipeline);
 
-		// Bind resources using current frame's bind group
-		let skyBindGroup = mSkyBindGroups[frameIndex];
+		// Bind resources using current frame and view's bind group
+		let skyBindGroup = mSkyBindGroups[GetBindGroupIndex(frameIndex)];
 		if (skyBindGroup != null)
 			encoder.SetBindGroup(0, skyBindGroup, default);
 

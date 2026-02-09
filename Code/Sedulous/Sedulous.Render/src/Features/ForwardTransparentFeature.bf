@@ -29,14 +29,17 @@ public class ForwardTransparentFeature : RenderFeatureBase
 
 	// Object uniform buffers for transparent objects (per-frame for multi-buffering)
 	private IBuffer[RenderConfig.FrameBufferCount] mObjectUniformBuffers;
-	private IBindGroup[RenderConfig.FrameBufferCount] mSceneBindGroups;
-	private bool[RenderConfig.FrameBufferCount] mSceneBindGroupShadowState; // Track shadow state for runtime toggling
+	private IBindGroup[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mSceneBindGroups;
+	private bool[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mSceneBindGroupShadowState; // Track shadow state for runtime toggling
 	private const uint64 ObjectUniformAlignment = 256;
 	private const uint64 AlignedObjectUniformSize = ((ObjectUniforms.Size + ObjectUniformAlignment - 1) / ObjectUniformAlignment) * ObjectUniformAlignment;
 	private static int32 MaxTransparentObjects => RenderConfig.MaxTransparentObjectsPerFrame;
 
 	/// Gets the current frame index for multi-buffering.
 	private int32 FrameIndex => Renderer.RenderFrameContext?.FrameIndex ?? 0;
+
+	/// Gets the bind group index accounting for the active view.
+	private int32 GetBindGroupIndex(int32 frameIndex) => frameIndex * RenderConfig.MaxViews + (Renderer.RenderFrameContext?.ActiveViewIndex ?? 0);
 
 	protected override Result<void> OnInitialize()
 	{
@@ -142,7 +145,10 @@ public class ForwardTransparentFeature : RenderFeatureBase
 				delete mObjectUniformBuffers[i];
 				mObjectUniformBuffers[i] = null;
 			}
+		}
 
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
+		{
 			if (mSceneBindGroups[i] != null)
 			{
 				delete mSceneBindGroups[i];
@@ -239,15 +245,17 @@ public class ForwardTransparentFeature : RenderFeatureBase
 		// an uninitialized shadow map when shadow passes haven't run yet
 		let shadowsEnabled = opaqueFeature.[Friend]mShadowPassesActive;
 
+		let bindGroupIndex = GetBindGroupIndex(frameIndex);
+
 		// Check if bind group exists and shadow state hasn't changed
-		if (mSceneBindGroups[frameIndex] != null)
+		if (mSceneBindGroups[bindGroupIndex] != null)
 		{
-			if (mSceneBindGroupShadowState[frameIndex] == shadowsEnabled)
+			if (mSceneBindGroupShadowState[bindGroupIndex] == shadowsEnabled)
 				return; // State unchanged, keep existing bind group
 
 			// Shadow state changed - delete old bind group so we can recreate
-			delete mSceneBindGroups[frameIndex];
-			mSceneBindGroups[frameIndex] = null;
+			delete mSceneBindGroups[bindGroupIndex];
+			mSceneBindGroups[bindGroupIndex] = null;
 		}
 
 		// Get scene bind group layout from opaque feature
@@ -265,8 +273,9 @@ public class ForwardTransparentFeature : RenderFeatureBase
 		let objectUniformBuffer = mObjectUniformBuffers[frameIndex];
 		let lightingBuffer = lighting.LightBuffer?.GetUniformBuffer(frameIndex);
 		let lightDataBuffer = lighting.LightBuffer?.GetLightDataBuffer(frameIndex);
-		let clusterInfoBuffer = lighting.ClusterGrid?.GetClusterLightInfoBuffer(frameIndex);
-		let lightIndexBuffer = lighting.ClusterGrid?.GetLightIndexBuffer(frameIndex);
+		let viewIndex = Renderer.RenderFrameContext?.ActiveViewIndex ?? 0;
+		let clusterInfoBuffer = lighting.ClusterGrid?.GetClusterLightInfoBuffer(frameIndex, viewIndex);
+		let lightIndexBuffer = lighting.ClusterGrid?.GetLightIndexBuffer(frameIndex, viewIndex);
 
 		if (cameraBuffer == null || objectUniformBuffer == null ||
 			lightingBuffer == null || lightDataBuffer == null ||
@@ -331,8 +340,8 @@ public class ForwardTransparentFeature : RenderFeatureBase
 
 		if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bg))
 		{
-			mSceneBindGroups[frameIndex] = bg;
-			mSceneBindGroupShadowState[frameIndex] = shadowsEnabled; // Track state for runtime toggling
+			mSceneBindGroups[bindGroupIndex] = bg;
+			mSceneBindGroupShadowState[bindGroupIndex] = shadowsEnabled; // Track state for runtime toggling
 		}
 	}
 
@@ -380,12 +389,12 @@ public class ForwardTransparentFeature : RenderFeatureBase
 
 	private void ExecuteTransparentPass(IRenderPassEncoder encoder, RenderWorld world, RenderView view, int32 frameIndex)
 	{
-		// Set viewport
+		// Set viewport — render to per-view SceneColor texture at (0,0), not swapchain offset
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0.0f, 1.0f);
 		encoder.SetScissorRect(0, 0, view.Width, view.Height);
 
 		// Check we have a valid scene bind group for current frame
-		let sceneBindGroup = mSceneBindGroups[frameIndex];
+		let sceneBindGroup = mSceneBindGroups[GetBindGroupIndex(frameIndex)];
 		if (sceneBindGroup == null)
 			return;
 

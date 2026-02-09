@@ -22,8 +22,14 @@ public interface IRenderFeature
 	/// Called once when the feature is unregistered.
 	void Shutdown();
 
+	/// Prepares shared frame data (visibility, uniforms, lighting).
+	/// Called once per frame before per-view AddPasses calls.
+	/// Only needed for multi-view rendering; single-view path may skip this.
+	void PrepareFrame(Span<RenderView> views, RenderWorld world, int32 frameIndex);
+
 	/// Adds render passes to the graph for the current frame.
 	/// Called each frame after BeginFrame and before Compile.
+	/// In multi-view mode, called once per view.
 	void AddPasses(RenderGraph graph, RenderView view, RenderWorld world);
 }
 
@@ -72,6 +78,11 @@ public abstract class RenderFeatureBase : IRenderFeature
 		OnShutdown();
 		mInitialized = false;
 		mRenderer = null;
+	}
+
+	/// Default: no shared frame preparation needed.
+	public virtual void PrepareFrame(Span<RenderView> views, RenderWorld world, int32 frameIndex)
+	{
 	}
 
 	/// Called to add passes - must be overridden.

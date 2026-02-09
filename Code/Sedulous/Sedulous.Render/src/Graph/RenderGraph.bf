@@ -87,6 +87,7 @@ public class RenderGraph : IDisposable
 	private List<PassHandle> mExecutionOrder = new .() ~ delete _;
 
 	// Frame state
+	private int32 mFrameIndex;
 	private bool mIsBuilding = false;
 	private bool mIsCompiled = false;
 
@@ -126,6 +127,8 @@ public class RenderGraph : IDisposable
 	/// used for deferred resource deletion (safe after fence wait in AcquireNextImage).
 	public void BeginFrame(int32 frameIndex)
 	{
+		mFrameIndex = frameIndex;
+
 		// Flush deferred deletions for this frame slot.
 		// These resources were used in the previous command buffer for this slot,
 		// which has now completed (fence was waited on in AcquireNextImage).
@@ -437,6 +440,62 @@ public class RenderGraph : IDisposable
 	public void EndFrame()
 	{
 		mIsCompiled = false;
+	}
+
+	/// Resets the graph for the next view within the same frame.
+	/// Clears passes and resource tracking but defers transient texture deletion
+	/// until the frame's command buffer has completed (via the deferred deletion queue).
+	public void ResetForNextView()
+	{
+		// Delete pass objects (callbacks, attachment lists, etc.)
+		for (let pass in mPasses)
+			delete pass;
+		mPasses.Clear();
+
+		// Handle transient resources: defer-delete them (GPU textures stay alive
+		// until this frame slot's fence is waited on in the next BeginFrame)
+		for (int i = 0; i < mResources.Count; i++)
+		{
+			let resource = mResources[i];
+			if (resource == null)
+				continue;
+
+			if (resource.IsTransient)
+			{
+				// Remove name mapping
+				for (let kv in mResourceNames)
+				{
+					if (kv.value.Index == (uint32)i)
+					{
+						let key = kv.key;
+						mResourceNames.Remove(key);
+						delete key;
+						break;
+					}
+				}
+
+				// Defer deletion (textures pooled when frame slot reused)
+				mDeferredDeletions[mFrameIndex].Add(resource);
+				mResources[i] = null;
+				mFreeSlots.Add((int32)i);
+			}
+			else
+			{
+				// Reset tracking for imported resources (keep layout tracking)
+				resource.RefCount = 0;
+				resource.FirstWriter = .Invalid;
+				resource.LastReader = .Invalid;
+			}
+		}
+
+		mExecutionOrder.Clear();
+		mPresentTargets.Clear();
+		for (let dr in mDeferredReads) delete dr;
+		mDeferredReads.Clear();
+		// Keep mTextureLayouts — layout state persists across views within a frame
+		mIsBuilding = true;
+		mIsCompiled = false;
+		CulledPassCount = 0;
 	}
 
 	// ========================================================================

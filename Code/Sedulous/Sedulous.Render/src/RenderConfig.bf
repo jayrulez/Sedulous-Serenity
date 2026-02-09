@@ -9,6 +9,9 @@ static class RenderConfig
 	/// Number of frames to buffer for multi-buffering.
 	public const int32 FrameBufferCount = 2;
 
+	/// Maximum number of simultaneous views (split-screen).
+	public const int32 MaxViews = 4;
+
 	// ==================== Object Limits ====================
 
 	/// Maximum opaque objects per frame.

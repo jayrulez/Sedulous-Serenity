@@ -24,8 +24,8 @@ public class SpriteFeature : RenderFeatureBase
 	private ITextureView mDefaultTextureView ~ delete _;
 	private ISampler mDefaultSampler ~ delete _;
 
-	// Per-frame bind groups cached per texture per frame
-	private List<TextureBindGroupEntry>[RenderConfig.FrameBufferCount] mBindGroupCache;
+	// Per-frame/view bind groups cached per texture
+	private List<TextureBindGroupEntry>[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mBindGroupCache;
 
 	// Sprite batch data
 	private List<SpriteBatch> mBatches = new .() ~ delete _;
@@ -37,9 +37,14 @@ public class SpriteFeature : RenderFeatureBase
 	// Per-frame view dimensions
 	private uint32 mViewWidth;
 	private uint32 mViewHeight;
+	private float mViewportX;
+	private float mViewportY;
 
 	// Max sprites per frame
 	private const int32 MaxSprites = 8192;
+
+	/// Gets the bind group index accounting for the active view.
+	private int32 GetBindGroupIndex(int32 frameIndex) => frameIndex * RenderConfig.MaxViews + (Renderer.RenderFrameContext?.ActiveViewIndex ?? 0);
 
 	/// Feature name.
 	public override StringView Name => "Sprites";
@@ -71,13 +76,13 @@ public class SpriteFeature : RenderFeatureBase
 
 	private void InitBindGroupCache()
 	{
-		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
+		for (int i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
 			mBindGroupCache[i] = new .();
 	}
 
 	private void CleanupBindGroupCache()
 	{
-		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
+		for (int i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
 		{
 			if (mBindGroupCache[i] != null)
 			{
@@ -338,6 +343,8 @@ public class SpriteFeature : RenderFeatureBase
 
 		mViewWidth = view.Width;
 		mViewHeight = view.Height;
+		mViewportX = view.ViewportX;
+		mViewportY = view.ViewportY;
 
 		graph.AddGraphicsPass("SpriteRender")
 			.WriteColor(colorHandle, .Load, .Store)
@@ -353,12 +360,14 @@ public class SpriteFeature : RenderFeatureBase
 		if (mViewWidth == 0 || mViewHeight == 0)
 			return;
 
+		// Render to per-view SceneColor texture at (0,0), not swapchain offset
 		encoder.SetViewport(0, 0, (float)mViewWidth, (float)mViewHeight, 0.0f, 1.0f);
 		encoder.SetScissorRect(0, 0, mViewWidth, mViewHeight);
 
 		encoder.SetPipeline(mRenderPipeline);
 
 		let frameIndex = Renderer.RenderFrameContext.FrameIndex;
+		let bindGroupIndex = GetBindGroupIndex(frameIndex);
 		let instanceBuffer = mInstanceBuffers[frameIndex];
 		if (instanceBuffer == null)
 			return;
@@ -367,7 +376,7 @@ public class SpriteFeature : RenderFeatureBase
 
 		for (let batch in mBatches)
 		{
-			let bindGroup = GetOrCreateBindGroup(batch.TextureView, frameIndex);
+			let bindGroup = GetOrCreateBindGroup(batch.TextureView, bindGroupIndex);
 			if (bindGroup == null)
 				continue;
 
@@ -378,9 +387,9 @@ public class SpriteFeature : RenderFeatureBase
 		}
 	}
 
-	private IBindGroup GetOrCreateBindGroup(ITextureView textureView, int32 frameIndex)
+	private IBindGroup GetOrCreateBindGroup(ITextureView textureView, int32 bindGroupIndex)
 	{
-		let cache = mBindGroupCache[frameIndex];
+		let cache = mBindGroupCache[bindGroupIndex];
 
 		// Linear search (few unique textures per frame)
 		for (let entry in cache)
@@ -389,7 +398,7 @@ public class SpriteFeature : RenderFeatureBase
 				return entry.BindGroup;
 		}
 
-		let cameraBuffer = Renderer.RenderFrameContext?.GetSceneUniformBuffer(frameIndex);
+		let cameraBuffer = Renderer.RenderFrameContext?.SceneUniformBuffer;
 		if (cameraBuffer == null || mBindGroupLayout == null || mDefaultSampler == null)
 			return null;
 

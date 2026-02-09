@@ -163,6 +163,15 @@ public class RenderView
 	/// Whether this view renders to the swap chain.
 	public bool IsSwapChainTarget = true;
 
+	/// Viewport X offset within the swapchain (for split-screen).
+	public uint32 ViewportX = 0;
+
+	/// Viewport Y offset within the swapchain (for split-screen).
+	public uint32 ViewportY = 0;
+
+	/// View slot index (0 to MaxViews-1).
+	public int32 ViewIndex = 0;
+
 	/// Updates computed matrices from camera parameters.
 	public void UpdateMatrices(bool flipProjection = false)
 	{
@@ -275,6 +284,34 @@ public class RenderView
 		}
 
 		return true;
+	}
+
+	/// Configures views for split-screen layout.
+	/// @param views The views to configure.
+	/// @param swapWidth Total swapchain width.
+	/// @param swapHeight Total swapchain height.
+	/// @param horizontal If true, side-by-side layout; otherwise top-bottom.
+	public static void SetupSplitScreen(Span<RenderView> views, uint32 swapWidth, uint32 swapHeight, bool horizontal = false)
+	{
+		let count = (int32)views.Length;
+		for (int32 i = 0; i < count; i++)
+		{
+			views[i].ViewIndex = i;
+			if (horizontal)
+			{
+				views[i].ViewportX = (uint32)(i * (int32)swapWidth / count);
+				views[i].ViewportY = 0;
+				views[i].Width = swapWidth / (uint32)count;
+				views[i].Height = swapHeight;
+			}
+			else
+			{
+				views[i].ViewportX = 0;
+				views[i].ViewportY = (uint32)(i * (int32)swapHeight / count);
+				views[i].Width = swapWidth;
+				views[i].Height = swapHeight / (uint32)count;
+			}
+		}
 	}
 
 	/// Tests if a bounding sphere is visible in the frustum.

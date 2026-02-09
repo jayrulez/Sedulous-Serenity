@@ -365,11 +365,75 @@ public class RenderSystem : IDisposable
 
 			// Upload scene uniforms
 			using (SProfiler.Begin("UploadUniforms"))
+			{
 				mRenderFrameContext.UploadSceneUniforms();
+				mRenderFrameContext.SaveViewProjection();
+			}
 
 			// Execute the render graph
 			using (SProfiler.Begin("Graph.Execute"))
 				return mRenderGraph.Execute(commandEncoder);
+		}
+	}
+
+	/// Renders multiple views in a single frame (split-screen).
+	/// Call between BeginFrame() and EndFrame().
+	/// Replaces the SetCamera → BuildRenderGraph → Execute sequence for multi-view.
+	public Result<void> RenderViews(Span<RenderView> views, ICommandEncoder encoder)
+	{
+		using (SProfiler.Begin("Render.RenderViews"))
+		{
+			if (!mInitialized || mActiveWorld == null || views.Length == 0)
+				return .Err;
+
+			mRenderFrameContext.SetViewCount((int32)views.Length);
+
+			// Sort features if needed
+			if (!mFeaturesSorted) { SortFeatures(); mFeaturesSorted = true; }
+
+			let frameIndex = mRenderFrameContext.FrameIndex;
+
+			// Phase 1: PrepareFrame (shared data, once)
+			using (SProfiler.Begin("Features.PrepareFrame"))
+			{
+				for (let feature in mSortedFeatures)
+					feature.PrepareFrame(views, mActiveWorld, frameIndex);
+			}
+
+			// Phase 2: Per-view rendering
+			for (int32 i = 0; i < (int32)views.Length; i++)
+			{
+				let view = views[i];
+				mRenderFrameContext.SetActiveView(i);
+
+				using (SProfiler.Begin("View.SetCamera"))
+				{
+					SetCamera(view.CameraPosition, view.CameraForward, view.CameraUp,
+						view.FieldOfView, view.AspectRatio, view.NearPlane, view.FarPlane,
+						view.Width, view.Height);
+				}
+
+				using (SProfiler.Begin("View.BuildGraph"))
+				{
+					if (BuildRenderGraph(view) case .Err)
+						continue;
+				}
+
+				using (SProfiler.Begin("View.Execute"))
+				{
+					mRenderFrameContext.UploadSceneUniforms();
+					mRenderFrameContext.SaveViewProjection();
+					mRenderGraph.Execute(encoder);
+				}
+
+				// Reset graph for next view (if not the last)
+				if (i < (int32)views.Length - 1)
+					mRenderGraph.ResetForNextView();
+			}
+
+			// Reset active view for EndFrame
+			mRenderFrameContext.SetActiveView(0);
+			return .Ok;
 		}
 	}
 

@@ -15,8 +15,8 @@ public class GPUParticleSystem
 	// Compute bind group (does not reference per-frame camera buffer)
 	public IBindGroup ComputeBindGroup ~ delete _;
 
-	// Per-frame render bind groups (reference per-frame camera uniform buffer)
-	public IBindGroup[RenderConfig.FrameBufferCount] RenderBindGroups ~ { for (let bg in _) delete bg; };
+	// Per-frame/view render bind groups (reference per-view camera uniform buffer)
+	public IBindGroup[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] RenderBindGroups ~ { for (let bg in _) delete bg; };
 
 	public uint32 MaxParticles;
 	public uint32 ActiveCount;

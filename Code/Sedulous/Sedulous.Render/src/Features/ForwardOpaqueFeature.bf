@@ -41,9 +41,9 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 	private ShadowRenderer mShadowRenderer ~ delete _;
 	private bool mShadowPassesActive = false; // Whether shadow passes actually ran this frame
 
-	// Bind groups (per-frame for multi-buffering)
+	// Bind groups (per-frame, per-view for multi-buffering)
 	private IBindGroupLayout mSceneBindGroupLayout ~ delete _;
-	private IBindGroup[RenderConfig.FrameBufferCount] mSceneBindGroups;
+	private IBindGroup[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mSceneBindGroups;
 
 	// Object uniform buffers (per-frame for multi-buffering)
 	private IBuffer[RenderConfig.FrameBufferCount] mObjectUniformBuffers;
@@ -67,13 +67,16 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 	private ITextureView mDummyShadowMapArrayView ~ delete _;
 
 	// Track shadow state when bind groups were created (for runtime toggling)
-	private bool[RenderConfig.FrameBufferCount] mSceneBindGroupShadowState;
+	private bool[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mSceneBindGroupShadowState;
 
 	/// Feature name.
 	public override StringView Name => "ForwardOpaque";
 
 	/// Gets the current frame index for multi-buffering.
 	private int32 FrameIndex => Renderer.RenderFrameContext?.FrameIndex ?? 0;
+
+	/// Gets bind group array index for current frame and active view.
+	private int32 GetBindGroupIndex(int32 frameIndex) => frameIndex * RenderConfig.MaxViews + (Renderer.RenderFrameContext?.ActiveViewIndex ?? 0);
 
 	/// Gets the lighting system.
 	public LightingSystem Lighting => mLighting;
@@ -487,15 +490,19 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 	{
 		// Pipeline cache is cleaned up by destructor (~ delete _)
 
-		// Clean up per-frame resources
-		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
+		// Clean up per-frame, per-view bind groups
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
 		{
 			if (mSceneBindGroups[i] != null)
 			{
 				delete mSceneBindGroups[i];
 				mSceneBindGroups[i] = null;
 			}
+		}
 
+		// Clean up per-frame resources (not per-view)
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
+		{
 			if (mObjectUniformBuffers[i] != null)
 			{
 				delete mObjectUniformBuffers[i];
@@ -528,6 +535,35 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			mShadowRenderer.Dispose();
 	}
 
+	/// Prepares shared frame data: lighting, shadows, object uniforms.
+	/// Called once per frame before per-view AddPasses calls.
+	public override void PrepareFrame(Span<RenderView> views, RenderWorld world, int32 frameIndex)
+	{
+		using (SProfiler.Begin("ForwardOpaque.PrepareFrame"))
+		{
+			let depthFeature = Renderer.GetFeature<DepthPrepassFeature>();
+			if (depthFeature == null)
+				return;
+
+			// Update lighting shared data from main view (cluster grid, light data, uniforms)
+			let mainView = views[0];
+			using (SProfiler.Begin("UpdateLighting"))
+				UpdateLighting(world, depthFeature.Visibility, mainView, frameIndex);
+
+			// Cull lights per-view (each view needs its own cluster assignments
+			// because light positions in view space differ per camera)
+			using (SProfiler.Begin("CullLightsPerView"))
+			{
+				for (int32 i = 0; i < (int32)views.Length; i++)
+					mLighting.ClusterGrid.CullLightsCPU(world, depthFeature.Visibility, views[i].ViewMatrix, frameIndex, i);
+			}
+
+			// Upload object uniforms (shared across views)
+			using (SProfiler.Begin("PrepareObjectUniforms"))
+				PrepareObjectUniforms(depthFeature, frameIndex);
+		}
+	}
+
 	public override void AddPasses(RenderGraph graph, RenderView view, RenderWorld world)
 	{
 		using (SProfiler.Begin("ForwardOpaque.AddPasses"))
@@ -544,36 +580,49 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 			// Create HDR color buffer
 			let colorDesc = TextureResourceDesc(view.Width, view.Height, .RGBA16Float, .RenderTarget | .Sampled);
-
 			let colorHandle = graph.CreateTexture("SceneColor", colorDesc);
 
-			// Capture frame index for consistent multi-buffering
 			let frameIndex = FrameIndex;
 
-			// Update lighting
-			using (SProfiler.Begin("UpdateLighting"))
-				UpdateLighting(world, depthFeature.Visibility, view, frameIndex);
+			// Single-view path: do lighting/uniforms here if PrepareFrame wasn't called
+			if (Renderer.RenderFrameContext.ViewCount <= 1)
+			{
+				using (SProfiler.Begin("UpdateLighting"))
+					UpdateLighting(world, depthFeature.Visibility, view, frameIndex);
 
-			// Add shadow passes and get shadow map handle for automatic barrier
+				// Cull lights for this single view
+				mLighting.ClusterGrid.CullLightsCPU(world, depthFeature.Visibility, view.ViewMatrix, frameIndex);
+
+				using (SProfiler.Begin("PrepareObjectUniforms"))
+					PrepareObjectUniforms(depthFeature, frameIndex);
+			}
+
+			// Shadow passes: only for first view (shadow maps shared across views)
 			RGResourceHandle shadowMapHandle = .Invalid;
-			using (SProfiler.Begin("AddShadowPasses"))
-				AddShadowPasses(graph, world, depthFeature.Visibility, view, frameIndex, out shadowMapHandle);
+			if (view.ViewIndex == 0)
+			{
+				using (SProfiler.Begin("AddShadowPasses"))
+					AddShadowPasses(graph, world, depthFeature.Visibility, view, frameIndex, out shadowMapHandle);
+			}
+			else if (mShadowPassesActive)
+			{
+				// Import already-rendered shadow map for barrier tracking
+				let cascadedShadowMap = mShadowRenderer.CascadedShadows?.ShadowMapArray;
+				let cascadedShadowMapView = mShadowRenderer.CascadedShadows?.ShadowMapArrayView;
+				if (cascadedShadowMap != null && cascadedShadowMapView != null)
+					shadowMapHandle = graph.ImportTexture("ShadowMap", cascadedShadowMap, cascadedShadowMapView);
+			}
 
-			// Create/update scene bind group for current frame (needs to be done each frame for frame-specific resources)
-			CreateSceneBindGroup(frameIndex); // todo jayrulez: look into who we need this per frame.
-
-			// Upload object uniforms BEFORE the render pass
-			using (SProfiler.Begin("PrepareObjectUniforms"))
-				PrepareObjectUniforms(depthFeature, frameIndex);
+			// Create/update scene bind group for current frame+view
+			CreateSceneBindGroup(frameIndex);
 
 			// Add forward opaque pass
-			// ReadTexture on shadow map triggers automatic barrier: DepthStencil -> ShaderReadOnly
 			var passBuilder = graph.AddGraphicsPass("ForwardOpaque")
 				.WriteColor(colorHandle, .Clear, .Store, .(0.0f, 0.0f, 0.0f, 1.0f))
 				.ReadDepth(depthHandle)
 				.NeverCull();
 
-			// Add shadow map as read dependency if available (triggers automatic barrier)
+			// Add shadow map as read dependency if available
 			if (shadowMapHandle.IsValid)
 				passBuilder.ReadTexture(shadowMapHandle);
 
@@ -702,9 +751,8 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		mLighting.LightBuffer.UploadLightData(frameIndex);
 		mLighting.LightBuffer.UploadUniforms(frameIndex);
 
-		// Perform light culling (CPU fallback for now)
-		// Pass view matrix to transform light positions to view space for cluster testing
-		mLighting.ClusterGrid.CullLightsCPU(world, visibility, view.ViewMatrix, frameIndex);
+		// Note: CullLightsCPU is called separately per-view (in PrepareFrame or AddPasses)
+		// because cluster light assignments depend on each view's camera matrix.
 	}
 
 	private void AddShadowPasses(RenderGraph graph, RenderWorld world, VisibilityResolver visibility, RenderView view, int32 frameIndex, out RGResourceHandle outShadowMapHandle)
@@ -974,20 +1022,19 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 	private void CreateSceneBindGroup(int32 frameIndex)
 	{
+		let bgIndex = GetBindGroupIndex(frameIndex);
+
 		// Use shadow map only when shadow passes actually ran this frame
-		// (EnableShadows may be true but no shadow-casting light found yet)
 		let shadowsEnabled = mShadowPassesActive;
 
 		// Check if bind group exists and shadow state hasn't changed
-		// If shadow state changed, we need to recreate with correct shadow map (real or dummy)
-		if (mSceneBindGroups[frameIndex] != null)
+		if (mSceneBindGroups[bgIndex] != null)
 		{
-			if (mSceneBindGroupShadowState[frameIndex] == shadowsEnabled)
-				return; // State unchanged, keep existing bind group
+			if (mSceneBindGroupShadowState[bgIndex] == shadowsEnabled)
+				return;
 
-			// Shadow state changed - delete old bind group so we can recreate
-			delete mSceneBindGroups[frameIndex];
-			mSceneBindGroups[frameIndex] = null;
+			delete mSceneBindGroups[bgIndex];
+			mSceneBindGroups[bgIndex] = null;
 		}
 
 		// Need all resources to be valid - use frame-specific buffers
@@ -995,8 +1042,9 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		let objectBuffer = mObjectUniformBuffers[frameIndex];
 		let lightingBuffer = mLighting?.LightBuffer?.GetUniformBuffer(frameIndex);
 		let lightDataBuffer = mLighting?.LightBuffer?.GetLightDataBuffer(frameIndex);
-		let clusterInfoBuffer = mLighting?.ClusterGrid?.GetClusterLightInfoBuffer(frameIndex);
-		let lightIndexBuffer = mLighting?.ClusterGrid?.GetLightIndexBuffer(frameIndex);
+		let viewIndex = Renderer.RenderFrameContext?.ActiveViewIndex ?? 0;
+		let clusterInfoBuffer = mLighting?.ClusterGrid?.GetClusterLightInfoBuffer(frameIndex, viewIndex);
+		let lightIndexBuffer = mLighting?.ClusterGrid?.GetLightIndexBuffer(frameIndex, viewIndex);
 
 		// Check required resources
 		if (cameraBuffer == null || objectBuffer == null ||
@@ -1066,8 +1114,8 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 		if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bg))
 		{
-			mSceneBindGroups[frameIndex] = bg;
-			mSceneBindGroupShadowState[frameIndex] = shadowsEnabled; // Track state for runtime toggling
+			mSceneBindGroups[bgIndex] = bg;
+			mSceneBindGroupShadowState[bgIndex] = shadowsEnabled;
 		}
 	}
 
@@ -1075,7 +1123,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 	{
 		using (SProfiler.Begin("ForwardOpaque.Execute"))
 		{
-			// Set viewport
+			// Set viewport — render to per-view SceneColor texture at (0,0), not swapchain offset
 			encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0.0f, 1.0f);
 			encoder.SetScissorRect(0, 0, view.Width, view.Height);
 
@@ -1129,7 +1177,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		let batcher = depthFeature.Batcher;
 
 		// Get scene bind group for later binding (after pipeline is set)
-		let sceneBindGroup = mSceneBindGroups[frameIndex];
+		let sceneBindGroup = mSceneBindGroups[GetBindGroupIndex(frameIndex)];
 
 		// Render opaque instance groups
 		for (let group in batcher.OpaqueInstanceGroups)
@@ -1228,7 +1276,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 					proxy = world.GetMesh(cmd.MeshHandle);
 
 				// Bind scene bind group with dynamic offset for this object's transforms
-				let sceneBindGroup = mSceneBindGroups[frameIndex];
+				let sceneBindGroup = mSceneBindGroups[GetBindGroupIndex(frameIndex)];
 
 				// Get mesh data and draw per-submesh
 				if (let mesh = Renderer.ResourceManager.GetMesh(cmd.GPUMesh))
@@ -1372,7 +1420,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 					continue;
 
 				// Bind scene bind group with dynamic offset
-				let sceneBindGroup = mSceneBindGroups[frameIndex];
+				let sceneBindGroup = mSceneBindGroups[GetBindGroupIndex(frameIndex)];
 
 				// Get the skinned vertex buffer from the skinning feature
 				let skinnedVertexBuffer = skinningFeature.GetSkinnedVertexBuffer(cmd.MeshHandle);

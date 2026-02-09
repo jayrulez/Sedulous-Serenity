@@ -21,8 +21,8 @@ public class FinalOutputFeature : RenderFeatureBase
 	private IBindGroupLayout mBlitBindGroupLayout ~ delete _;
 	private ISampler mLinearSampler ~ delete _;
 
-	// Per-frame bind groups - recreated each frame since scene color is a transient resource
-	private IBindGroup[RenderConfig.FrameBufferCount] mBlitBindGroups;
+	// Per-frame, per-view bind groups - recreated each frame since scene color is a transient resource
+	private IBindGroup[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mBlitBindGroups;
 
 	// Swapchain reference (set each frame)
 	private ISwapChain mSwapChain;
@@ -151,7 +151,7 @@ public class FinalOutputFeature : RenderFeatureBase
 
 	protected override void OnShutdown()
 	{
-		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
+		for (int i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
 		{
 			if (mBlitBindGroups[i] != null)
 			{
@@ -173,43 +173,53 @@ public class FinalOutputFeature : RenderFeatureBase
 		// Import swapchain as render target
 		let swapchainHandle = graph.ImportTexture("Swapchain", mSwapChain.CurrentTexture, mSwapChain.CurrentTextureView);
 
+		// First view clears the swapchain, subsequent views load (preserving previous view's output)
+		let isFirstView = (Renderer.RenderFrameContext?.ActiveViewIndex ?? 0) == 0;
+		LoadOp loadOp = isFirstView ? .Clear : .Load;
+
 		// Check for post-processed output first, then fall back to scene color
 		var sourceHandle = Renderer.PostProcessOutput;
 		if (!sourceHandle.IsValid)
 			sourceHandle = graph.GetResource("SceneColor");
 
+		// Capture viewport info for the blit callback
+		uint32 vpX = view.ViewportX;
+		uint32 vpY = view.ViewportY;
+		uint32 vpW = view.Width;
+		uint32 vpH = view.Height;
+
 		if (sourceHandle.IsValid && mBlitPipeline != null)
 		{
-			// Full mode: blit source (post-processed or scene color) to swapchain
-			// Capture the graph and handle for use in the execute callback
+			// Full mode: blit source to swapchain
 			RenderGraph graphRef = graph;
 			RGResourceHandle colorHandle = sourceHandle;
 
 			graph.AddGraphicsPass("FinalOutput")
 				.ReadTexture(sourceHandle)
-				.WriteColor(swapchainHandle, .Clear, .Store, .(1.0f, 0.0f, 1.0f, 1.0f))
+				.WriteColor(swapchainHandle, loadOp, .Store, .(0.0f, 0.0f, 0.0f, 1.0f))
 				.NeverCull()
 				.SetExecuteCallback(new [=](encoder) => {
-					// Get texture view INSIDE the callback - after the graph has allocated resources
 					let sceneColorView = graphRef.GetTextureView(colorHandle);
-					ExecuteBlitPass(encoder, sceneColorView);
+					ExecuteBlitPass(encoder, sceneColorView, vpX, vpY, vpW, vpH);
 				});
 		}
 		else
 		{
-			// Minimal mode: just clear swapchain to a test color (magenta for visibility)
-			// The render pass LoadOp.Clear handles the actual clear - no execute callback needed
+			// Minimal mode: just clear swapchain
 			graph.AddGraphicsPass("FinalOutput_Clear")
-				.WriteColor(swapchainHandle, .Clear, .Store, .(1.0f, 0.0f, 1.0f, 1.0f))
+				.WriteColor(swapchainHandle, loadOp, .Store, .(1.0f, 0.0f, 1.0f, 1.0f))
 				.NeverCull();
 		}
 
-		// Mark swapchain for Present layout transition at end of frame
-		graph.MarkForPresent(swapchainHandle);
+		// Mark swapchain for Present layout transition only after the last view renders.
+		// Earlier views leave the swapchain in ColorAttachment so subsequent views can render to it.
+		let isLastView = (Renderer.RenderFrameContext?.ActiveViewIndex ?? 0) >= (Renderer.RenderFrameContext?.ViewCount ?? 1) - 1;
+		if (isLastView)
+			graph.MarkForPresent(swapchainHandle);
 	}
 
 	/// Executes the blit pass (called by render graph).
-	private void ExecuteBlitPass(IRenderPassEncoder encoder, ITextureView sceneColorView)
+	private void ExecuteBlitPass(IRenderPassEncoder encoder, ITextureView sceneColorView, uint32 vpX, uint32 vpY, uint32 vpW, uint32 vpH)
 	{
 		if (mSwapChain == null || mBlitPipeline == null)
 			return;
@@ -220,14 +230,15 @@ public class FinalOutputFeature : RenderFeatureBase
 			return;
 		}
 
-		// Recreate bind group for current frame slot only.
-		// Only the current frame's fence has been waited, so only its bind group is safe to free.
+		// Recreate bind group for current frame+view slot.
 		let frameIndex = Renderer.RenderFrameContext?.FrameIndex ?? 0;
+		let viewIndex = Renderer.RenderFrameContext?.ActiveViewIndex ?? 0;
+		let bgIndex = frameIndex * RenderConfig.MaxViews + viewIndex;
 
-		if (mBlitBindGroups[frameIndex] != null)
+		if (mBlitBindGroups[bgIndex] != null)
 		{
-			delete mBlitBindGroups[frameIndex];
-			mBlitBindGroups[frameIndex] = null;
+			delete mBlitBindGroups[bgIndex];
+			mBlitBindGroups[bgIndex] = null;
 		}
 
 		// Create new bind group with current scene color
@@ -244,17 +255,17 @@ public class FinalOutputFeature : RenderFeatureBase
 		};
 
 		if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bg))
-			mBlitBindGroups[frameIndex] = bg;
+			mBlitBindGroups[bgIndex] = bg;
 
-		// Set viewport and scissor
-		encoder.SetViewport(0, 0, mSwapChain.Width, mSwapChain.Height, 0, 1);
-		encoder.SetScissorRect(0, 0, mSwapChain.Width, mSwapChain.Height);
+		// Set viewport and scissor to this view's region
+		encoder.SetViewport((float)vpX, (float)vpY, (float)vpW, (float)vpH, 0, 1);
+		encoder.SetScissorRect((int32)vpX, (int32)vpY, vpW, vpH);
 
 		// Draw fullscreen blit if bind group is ready
-		if (mBlitBindGroups[frameIndex] != null)
+		if (mBlitBindGroups[bgIndex] != null)
 		{
 			encoder.SetPipeline(mBlitPipeline);
-			encoder.SetBindGroup(0, mBlitBindGroups[frameIndex], default);
+			encoder.SetBindGroup(0, mBlitBindGroups[bgIndex], default);
 			encoder.Draw(3, 1, 0, 0);
 			Renderer.Stats.DrawCalls++;
 		}

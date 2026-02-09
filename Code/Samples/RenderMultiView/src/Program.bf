@@ -30,7 +30,7 @@ class Program
 
 		let settings = ApplicationSettings()
 		{
-			Title = "Render Multi-View - Camera Switching",
+			Title = "Render Multi-View - Split Screen",
 			Width = 1280, Height = 720, EnableDepth = true,
 			ClearColor = .(0.1f, 0.1f, 0.15f, 1.0f)
 		};

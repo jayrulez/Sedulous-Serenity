@@ -67,25 +67,30 @@ public class ParticleFeature : RenderFeatureBase
 	// Per-frame view dimensions
 	private uint32 mViewWidth;
 	private uint32 mViewHeight;
+	private float mViewportX;
+	private float mViewportY;
 
-	// Per-frame CPU emitter bind groups (per-emitter, per-frame)
-	private Dictionary<ParticleEmitterProxyHandle, IBindGroup>[RenderConfig.FrameBufferCount] mCPURenderBindGroups;
+	// Per-frame/view CPU emitter bind groups (per-emitter, per-frame, per-view)
+	private Dictionary<ParticleEmitterProxyHandle, IBindGroup>[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mCPURenderBindGroups;
 
-	// Per-frame bind groups for standalone trails (uses default texture, same layout)
-	private IBindGroup[RenderConfig.FrameBufferCount] mTrailBindGroups;
+	// Per-frame/view bind groups for standalone trails (uses default texture, same layout)
+	private IBindGroup[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mTrailBindGroups;
 
 	// RNG for sub-emitter probability checks
 	private Random mSubEmitterRandom = new .() ~ delete _;
 
+	/// Gets the bind group index accounting for the active view.
+	private int32 GetBindGroupIndex(int32 frameIndex) => frameIndex * RenderConfig.MaxViews + (Renderer.RenderFrameContext?.ActiveViewIndex ?? 0);
+
 	private void InitCPUBindGroupDicts()
 	{
-		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
+		for (int i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
 			mCPURenderBindGroups[i] = new .();
 	}
 
 	private void CleanupCPUBindGroupDicts()
 	{
-		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
+		for (int i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
 		{
 			if (mCPURenderBindGroups[i] != null)
 			{
@@ -546,7 +551,7 @@ public class ParticleFeature : RenderFeatureBase
 
 		CleanupCPUBindGroupDicts();
 
-		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
+		for (int i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
 		{
 			if (mTrailBindGroups[i] != null)
 			{
@@ -725,6 +730,8 @@ public class ParticleFeature : RenderFeatureBase
 
 		mViewWidth = view.Width;
 		mViewHeight = view.Height;
+		mViewportX = view.ViewportX;
+		mViewportY = view.ViewportY;
 
 		// Single render pass for all particles (both backends)
 		graph.AddGraphicsPass("ParticleRender")
@@ -913,6 +920,7 @@ public class ParticleFeature : RenderFeatureBase
 		if (viewWidth == 0 || viewHeight == 0)
 			return;
 
+		// Render to per-view SceneColor texture at (0,0), not swapchain offset
 		encoder.SetViewport(0, 0, (float)viewWidth, (float)viewHeight, 0.0f, 1.0f);
 		encoder.SetScissorRect(0, 0, viewWidth, viewHeight);
 
@@ -989,16 +997,18 @@ public class ParticleFeature : RenderFeatureBase
 
 	private IBindGroup GetOrCreateGPURenderBindGroup(GPUParticleSystem system, int32 frameIndex, ITextureView depthView)
 	{
+		let bindGroupIndex = GetBindGroupIndex(frameIndex);
+
 		// Check if existing bind group is still valid
-		if (system.RenderBindGroups[frameIndex] != null)
-			return system.RenderBindGroups[frameIndex];
+		if (system.RenderBindGroups[bindGroupIndex] != null)
+			return system.RenderBindGroups[bindGroupIndex];
 
 		if (mGPURenderBindGroupLayout == null || mDefaultParticleTextureView == null || mDefaultSampler == null)
 			return null;
 		if (depthView == null || mEmitterParamsBuffer == null)
 			return null;
 
-		let cameraBuffer = Renderer.RenderFrameContext?.GetSceneUniformBuffer(frameIndex);
+		let cameraBuffer = Renderer.RenderFrameContext?.SceneUniformBuffer;
 		if (cameraBuffer == null)
 			return null;
 
@@ -1023,7 +1033,7 @@ public class ParticleFeature : RenderFeatureBase
 		switch (Renderer.Device.CreateBindGroup(&renderBgDesc))
 		{
 		case .Ok(let bg):
-			system.RenderBindGroups[frameIndex] = bg;
+			system.RenderBindGroups[bindGroupIndex] = bg;
 			return bg;
 		case .Err:
 			return null;
@@ -1037,7 +1047,7 @@ public class ParticleFeature : RenderFeatureBase
 			return;
 
 		let frameIndex = Renderer.RenderFrameContext.FrameIndex;
-		let frameDict = mCPURenderBindGroups[frameIndex];
+		let frameDict = mCPURenderBindGroups[GetBindGroupIndex(frameIndex)];
 
 		for (let handle in mActiveCPUEmitters)
 		{
@@ -1098,7 +1108,7 @@ public class ParticleFeature : RenderFeatureBase
 			return;
 
 		let frameIndex = Renderer.RenderFrameContext.FrameIndex;
-		let frameDict = mCPURenderBindGroups[frameIndex];
+		let frameDict = mCPURenderBindGroups[GetBindGroupIndex(frameIndex)];
 
 		for (let handle in mActiveCPUEmitters)
 		{
@@ -1165,12 +1175,13 @@ public class ParticleFeature : RenderFeatureBase
 			return;
 
 		let frameIndex = Renderer.RenderFrameContext.FrameIndex;
+		let bindGroupIndex = GetBindGroupIndex(frameIndex);
 
-		// Ensure per-frame bind group exists
-		if (mTrailBindGroups[frameIndex] == null)
+		// Ensure per-frame/view bind group exists
+		if (mTrailBindGroups[bindGroupIndex] == null)
 		{
-			mTrailBindGroups[frameIndex] = CreateTrailBindGroup(depthView);
-			if (mTrailBindGroups[frameIndex] == null)
+			mTrailBindGroups[bindGroupIndex] = CreateTrailBindGroup(depthView);
+			if (mTrailBindGroups[bindGroupIndex] == null)
 				return;
 		}
 
@@ -1206,7 +1217,7 @@ public class ParticleFeature : RenderFeatureBase
 			int32 emitterIndex = 0;
 			mTrailParamIndices.TryGetValue(handle, out emitterIndex);
 			uint32[1] dynamicOffsets = .((uint32)((int64)emitterIndex * (int64)EmitterParamAlignment));
-			encoder.SetBindGroup(0, mTrailBindGroups[frameIndex], dynamicOffsets);
+			encoder.SetBindGroup(0, mTrailBindGroups[bindGroupIndex], dynamicOffsets);
 			encoder.SetVertexBuffer(0, trailBuffer, 0);
 			encoder.Draw((uint32)vertexCount, 1, 0, 0);
 			Renderer.Stats.DrawCalls++;
@@ -1363,34 +1374,39 @@ public class ParticleFeature : RenderFeatureBase
 
 	private void InvalidateRenderBindGroups(int32 frameIndex)
 	{
-		// Only invalidate the current frame's bind groups.
+		// Only invalidate the current frame's bind groups (for all views).
 		// The other frame slot's bind groups may still be in use by the GPU
 		// (its fence hasn't been waited yet).
 
-		// Clear GPU particle render bind groups for this frame
-		for (let kv in mGPUParticleSystems)
+		for (int32 viewIdx = 0; viewIdx < RenderConfig.MaxViews; viewIdx++)
 		{
-			let system = kv.value;
-			if (system.RenderBindGroups[frameIndex] != null)
+			let bindGroupIndex = frameIndex * RenderConfig.MaxViews + viewIdx;
+
+			// Clear GPU particle render bind groups for this frame/view
+			for (let kv in mGPUParticleSystems)
 			{
-				delete system.RenderBindGroups[frameIndex];
-				system.RenderBindGroups[frameIndex] = null;
+				let system = kv.value;
+				if (system.RenderBindGroups[bindGroupIndex] != null)
+				{
+					delete system.RenderBindGroups[bindGroupIndex];
+					system.RenderBindGroups[bindGroupIndex] = null;
+				}
 			}
-		}
 
-		// Clear CPU particle render bind groups for this frame
-		if (mCPURenderBindGroups[frameIndex] != null)
-		{
-			for (let kv in mCPURenderBindGroups[frameIndex])
-				delete kv.value;
-			mCPURenderBindGroups[frameIndex].Clear();
-		}
+			// Clear CPU particle render bind groups for this frame/view
+			if (mCPURenderBindGroups[bindGroupIndex] != null)
+			{
+				for (let kv in mCPURenderBindGroups[bindGroupIndex])
+					delete kv.value;
+				mCPURenderBindGroups[bindGroupIndex].Clear();
+			}
 
-		// Clear standalone trail bind group for this frame
-		if (mTrailBindGroups[frameIndex] != null)
-		{
-			delete mTrailBindGroups[frameIndex];
-			mTrailBindGroups[frameIndex] = null;
+			// Clear standalone trail bind group for this frame/view
+			if (mTrailBindGroups[bindGroupIndex] != null)
+			{
+				delete mTrailBindGroups[bindGroupIndex];
+				mTrailBindGroups[bindGroupIndex] = null;
+			}
 		}
 	}
 

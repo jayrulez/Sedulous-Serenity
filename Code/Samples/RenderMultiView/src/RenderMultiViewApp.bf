@@ -10,11 +10,9 @@ using Sedulous.Render;
 using Sedulous.Geometry;
 using Sedulous.Materials;
 
-/// Multi-view demo demonstrating multiple camera viewpoints.
-/// Switches between a player-controlled camera and an auto-orbiting camera.
-/// Note: True split-screen rendering requires multi-view render graph support
-/// which is planned for a future update. This sample demonstrates camera
-/// management and switching as a foundation for that feature.
+/// Multi-view split-screen demo.
+/// Renders two simultaneous camera views: a player-controlled camera
+/// and an auto-orbiting camera, using the multi-view render pipeline.
 class RenderMultiViewApp : Application
 {
 	private const int32 GRID_SIZE = 5;
@@ -22,7 +20,10 @@ class RenderMultiViewApp : Application
 	// Render system
 	private RenderSystem mRenderSystem ~ delete _;
 	private RenderWorld mWorld ~ delete _;
-	private RenderView mView ~ delete _;
+
+	// Two views for split-screen
+	private RenderView mPlayerView ~ delete _;
+	private RenderView mOrbitView ~ delete _;
 
 	// Render features
 	private DepthPrepassFeature mDepthFeature;
@@ -52,8 +53,8 @@ class RenderMultiViewApp : Application
 	private float mOrbitHeight = 10.0f;
 	private float mOrbitSpeed = 0.5f;
 
-	// Current active camera
-	private bool mUseOrbitCamera = false;
+	// Split-screen layout
+	private bool mHorizontalSplit = true;
 
 	public this(IShell shell, IDevice device, IBackend backend)
 		: base(shell, device, backend)
@@ -72,12 +73,18 @@ class RenderMultiViewApp : Application
 		mWorld = mRenderSystem.CreateWorld();
 		mRenderSystem.SetActiveWorld(mWorld);
 
-		mView = new RenderView();
-		mView.Width = mSwapChain.Width;
-		mView.Height = mSwapChain.Height;
-		mView.FieldOfView = Math.PI_f / 4.0f;
-		mView.NearPlane = 0.1f;
-		mView.FarPlane = 500.0f;
+		// Create two views for split-screen
+		mPlayerView = new RenderView();
+		mPlayerView.Name.Set("Player");
+		mPlayerView.FieldOfView = Math.PI_f / 4.0f;
+		mPlayerView.NearPlane = 0.1f;
+		mPlayerView.FarPlane = 500.0f;
+
+		mOrbitView = new RenderView();
+		mOrbitView.Name.Set("Orbit");
+		mOrbitView.FieldOfView = Math.PI_f / 4.0f;
+		mOrbitView.NearPlane = 0.1f;
+		mOrbitView.FarPlane = 500.0f;
 
 		RegisterFeatures();
 		CreateMeshes();
@@ -89,9 +96,9 @@ class RenderMultiViewApp : Application
 		mWorld.Exposure = 1.0f;
 
 		Console.WriteLine("Render Multi-View initialized");
-		Console.WriteLine("  Camera switching demo (split-screen planned for future)");
-		Console.WriteLine("  Space: toggle Player/Orbit camera");
-		Console.WriteLine("  WASD/QE: move (player cam), +/-: orbit speed");
+		Console.WriteLine("  True split-screen: Player (left) + Orbit (right)");
+		Console.WriteLine("  Space: toggle horizontal/vertical split");
+		Console.WriteLine("  WASD/QE: move player camera, +/-: orbit speed");
 		Console.WriteLine("  Tab: capture mouse, Shift: fast, ESC: exit");
 	}
 
@@ -235,11 +242,11 @@ class RenderMultiViewApp : Application
 			mouse.Visible = !mMouseCaptured;
 		}
 
-		// Toggle camera
+		// Toggle split layout
 		if (keyboard.IsKeyPressed(.Space))
 		{
-			mUseOrbitCamera = !mUseOrbitCamera;
-			Console.WriteLine(mUseOrbitCamera ? "Orbit camera active" : "Player camera active");
+			mHorizontalSplit = !mHorizontalSplit;
+			Console.WriteLine(mHorizontalSplit ? "Horizontal split (side-by-side)" : "Vertical split (top-bottom)");
 		}
 
 		// Orbit speed control
@@ -255,7 +262,7 @@ class RenderMultiViewApp : Application
 		}
 
 		// Player camera look
-		if (!mUseOrbitCamera && (mMouseCaptured || mouse.IsButtonDown(.Right)))
+		if (mMouseCaptured || mouse.IsButtonDown(.Right))
 		{
 			mPlayerYaw += mouse.DeltaX * 0.003f;
 			mPlayerPitch -= mouse.DeltaY * 0.003f;
@@ -274,55 +281,51 @@ class RenderMultiViewApp : Application
 			mOrbitAngle -= Math.PI_f * 2.0f;
 
 		// Player camera movement
-		if (!mUseOrbitCamera)
-		{
-			float speed = (keyboard.IsKeyDown(.LeftShift) ? 30.0f : 15.0f) * dt;
-			float cosP = Math.Cos(mPlayerPitch);
-			Vector3 forward = .(cosP * Math.Sin(mPlayerYaw), Math.Sin(mPlayerPitch), cosP * Math.Cos(mPlayerYaw));
-			Vector3 right = Vector3.Normalize(Vector3.Cross(forward, .(0, 1, 0)));
-			Vector3 move = .Zero;
-			if (keyboard.IsKeyDown(.W)) move += forward;
-			if (keyboard.IsKeyDown(.S)) move -= forward;
-			if (keyboard.IsKeyDown(.D)) move += right;
-			if (keyboard.IsKeyDown(.A)) move -= right;
-			if (keyboard.IsKeyDown(.E)) move += .(0, 1, 0);
-			if (keyboard.IsKeyDown(.Q)) move -= .(0, 1, 0);
-			if (move.LengthSquared() > 0) mPlayerPosition += Vector3.Normalize(move) * speed;
-		}
+		float speed = (keyboard.IsKeyDown(.LeftShift) ? 30.0f : 15.0f) * dt;
+		float cosP = Math.Cos(mPlayerPitch);
+		Vector3 forward = .(cosP * Math.Sin(mPlayerYaw), Math.Sin(mPlayerPitch), cosP * Math.Cos(mPlayerYaw));
+		Vector3 right = Vector3.Normalize(Vector3.Cross(forward, .(0, 1, 0)));
+		Vector3 move = .Zero;
+		if (keyboard.IsKeyDown(.W)) move += forward;
+		if (keyboard.IsKeyDown(.S)) move -= forward;
+		if (keyboard.IsKeyDown(.D)) move += right;
+		if (keyboard.IsKeyDown(.A)) move -= right;
+		if (keyboard.IsKeyDown(.E)) move += .(0, 1, 0);
+		if (keyboard.IsKeyDown(.Q)) move -= .(0, 1, 0);
+		if (move.LengthSquared() > 0) mPlayerPosition += Vector3.Normalize(move) * speed;
 
-		// Set view based on active camera
-		if (mUseOrbitCamera)
-		{
-			let orbitX = Math.Cos(mOrbitAngle) * mOrbitRadius;
-			let orbitZ = Math.Sin(mOrbitAngle) * mOrbitRadius;
-			let orbitPos = Vector3(orbitX, mOrbitHeight, orbitZ);
-			let lookTarget = Vector3(0, 4, 0);
-			let orbitForward = Vector3.Normalize(lookTarget - orbitPos);
+		// Configure split-screen layout
+		RenderView[2] views = .(mPlayerView, mOrbitView);
+		RenderView.SetupSplitScreen(views, mSwapChain.Width, mSwapChain.Height, mHorizontalSplit);
 
-			mView.CameraPosition = orbitPos;
-			mView.CameraForward = orbitForward;
-		}
-		else
-		{
-			float cosP = Math.Cos(mPlayerPitch);
-			let playerForward = Vector3.Normalize(.(cosP * Math.Sin(mPlayerYaw), Math.Sin(mPlayerPitch), cosP * Math.Cos(mPlayerYaw)));
-			mView.CameraPosition = mPlayerPosition;
-			mView.CameraForward = playerForward;
-		}
+		// Update player view camera
+		float cosP2 = Math.Cos(mPlayerPitch);
+		let playerForward = Vector3.Normalize(.(cosP2 * Math.Sin(mPlayerYaw), Math.Sin(mPlayerPitch), cosP2 * Math.Cos(mPlayerYaw)));
+		mPlayerView.CameraPosition = mPlayerPosition;
+		mPlayerView.CameraForward = playerForward;
+		mPlayerView.CameraUp = .(0, 1, 0);
+		mPlayerView.UpdateMatrices(mDevice.FlipProjectionRequired);
 
-		mView.CameraUp = .(0, 1, 0);
-		mView.Width = mSwapChain.Width;
-		mView.Height = mSwapChain.Height;
-		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
+		// Update orbit view camera
+		let orbitX = Math.Cos(mOrbitAngle) * mOrbitRadius;
+		let orbitZ = Math.Sin(mOrbitAngle) * mOrbitRadius;
+		let orbitPos = Vector3(orbitX, mOrbitHeight, orbitZ);
+		let lookTarget = Vector3(0, 4, 0);
+		let orbitForward = Vector3.Normalize(lookTarget - orbitPos);
+		mOrbitView.CameraPosition = orbitPos;
+		mOrbitView.CameraForward = orbitForward;
+		mOrbitView.CameraUp = .(0, 1, 0);
+		mOrbitView.UpdateMatrices(mDevice.FlipProjectionRequired);
 	}
 
 	protected override bool OnRenderFrame(RenderContext render)
 	{
 		mRenderSystem.BeginFrame((float)render.Frame.TotalTime, (float)render.Frame.DeltaTime);
 		if (mFinalOutputFeature != null) mFinalOutputFeature.SetSwapChain(render.SwapChain);
-		mRenderSystem.SetCamera(mView.CameraPosition, mView.CameraForward, .(0, 1, 0),
-			mView.FieldOfView, mView.AspectRatio, mView.NearPlane, mView.FarPlane, mView.Width, mView.Height);
-		if (mRenderSystem.BuildRenderGraph(mView) case .Ok) mRenderSystem.Execute(render.Encoder);
+
+		RenderView[] views = scope .(mPlayerView, mOrbitView);
+		mRenderSystem.RenderViews(views, render.Encoder);
+
 		mRenderSystem.EndFrame();
 		return true;
 	}

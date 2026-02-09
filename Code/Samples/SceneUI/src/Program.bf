@@ -885,7 +885,7 @@ class SceneUISample : Application
 		// Delete material resource
 		if (mFoxMaterialResource != null)
 		{
-			delete mFoxMaterialResource;
+			mFoxMaterialResource?.ReleaseRef();
 			mFoxMaterialResource = null;
 		}
 

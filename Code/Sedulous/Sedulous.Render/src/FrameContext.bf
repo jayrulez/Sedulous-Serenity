@@ -63,17 +63,24 @@ class RenderFrameContext : IDisposable
 	/// Time since last frame.
 	private float mDeltaTime;
 
-	/// Per-frame scene uniform buffers (triple-buffered).
-	private IBuffer[RenderConfig.FrameBufferCount] mSceneUniformBuffers ~ { for (let b in _) delete b; };
+	/// Per-frame, per-view scene uniform buffers.
+	/// Indexed as [frameIndex * MaxViews + viewIndex].
+	private IBuffer[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mSceneUniformBuffers ~ { for (let b in _) delete b; };
 
 	/// Current scene uniform data.
 	private SceneUniforms mSceneUniforms;
 
-	/// Previous frame's view-projection matrix for motion vectors.
-	private Matrix mPrevViewProjection = .Identity;
+	/// Previous frame's view-projection matrices (per-view, for motion vectors).
+	private Matrix[RenderConfig.MaxViews] mPrevViewProjections;
 
 	/// Whether scene uniforms are dirty and need upload.
 	private bool mSceneUniformsDirty = true;
+
+	/// Currently active view index (0 to MaxViews-1).
+	private int32 mActiveViewIndex = 0;
+
+	/// Number of active views this frame.
+	private int32 mViewCount = 1;
 
 	/// Current frame index (for multi-buffering).
 	public int32 FrameIndex => mFrameIndex;
@@ -90,11 +97,30 @@ class RenderFrameContext : IDisposable
 	/// Current scene uniforms.
 	public ref SceneUniforms SceneUniforms => ref mSceneUniforms;
 
-	/// Scene uniform buffer for current frame.
-	public IBuffer SceneUniformBuffer => mSceneUniformBuffers[mFrameIndex];
+	/// Currently active view index.
+	public int32 ActiveViewIndex => mActiveViewIndex;
 
-	/// Scene uniform buffer for a specific frame index.
-	public IBuffer GetSceneUniformBuffer(int32 frameIdx) => mSceneUniformBuffers[frameIdx];
+	/// Number of active views this frame.
+	public int32 ViewCount => mViewCount;
+
+	/// Scene uniform buffer for current frame and active view.
+	public IBuffer SceneUniformBuffer => mSceneUniformBuffers[mFrameIndex * RenderConfig.MaxViews + mActiveViewIndex];
+
+	/// Scene uniform buffer for a specific frame index and active view.
+	public IBuffer GetSceneUniformBuffer(int32 frameIdx) => mSceneUniformBuffers[frameIdx * RenderConfig.MaxViews + mActiveViewIndex];
+
+	/// Sets the active view index for per-view buffer selection.
+	public void SetActiveView(int32 viewIndex)
+	{
+		mActiveViewIndex = Math.Clamp(viewIndex, 0, RenderConfig.MaxViews - 1);
+		mSceneUniformsDirty = true;
+	}
+
+	/// Sets the number of active views this frame.
+	public void SetViewCount(int32 count)
+	{
+		mViewCount = Math.Clamp(count, 1, RenderConfig.MaxViews);
+	}
 
 	/// Initializes the frame context.
 	public Result<void> Initialize(IDevice device)
@@ -102,9 +128,9 @@ class RenderFrameContext : IDisposable
 		mDevice = device;
 		mSceneUniforms = .Identity;
 
-		// Create triple-buffered scene uniform buffers
+		// Create per-frame, per-view scene uniform buffers
 		// Use Upload memory for CPU mapping (avoids command buffer for writes)
-		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
 		{
 			var desc = BufferDescriptor()
 			{
@@ -119,6 +145,10 @@ class RenderFrameContext : IDisposable
 				return .Err;
 		}
 
+		// Initialize per-view prev VP matrices
+		for (int32 i = 0; i < RenderConfig.MaxViews; i++)
+			mPrevViewProjections[i] = .Identity;
+
 		return .Ok;
 	}
 
@@ -129,6 +159,11 @@ class RenderFrameContext : IDisposable
 		mFrameIndex = (int32)(frameNumber % RenderConfig.FrameBufferCount);
 		mTotalTime = totalTime;
 		mDeltaTime = deltaTime;
+
+		// Reset view state to single-view defaults each frame.
+		// RenderViews() will override these for multi-view rendering.
+		mActiveViewIndex = 0;
+		mViewCount = 1;
 
 		// Update time in scene uniforms
 		mSceneUniforms.Time = totalTime;
@@ -149,9 +184,6 @@ class RenderFrameContext : IDisposable
 		uint32 screenHeight,
 		bool flipProjection = false)
 	{
-		// Store previous VP for motion vectors
-		mPrevViewProjection = mSceneUniforms.ViewProjectionMatrix;
-
 		// Build view matrix
 		let target = position + forward;
 		mSceneUniforms.ViewMatrix = Matrix.CreateLookAt(position, target, up);
@@ -171,8 +203,8 @@ class RenderFrameContext : IDisposable
 		Matrix.Invert(mSceneUniforms.ViewMatrix, out mSceneUniforms.InverseViewMatrix);
 		Matrix.Invert(mSceneUniforms.ProjectionMatrix, out mSceneUniforms.InverseProjectionMatrix);
 
-		// Previous frame VP
-		mSceneUniforms.PrevViewProjectionMatrix = mPrevViewProjection;
+		// Previous frame VP (per-view)
+		mSceneUniforms.PrevViewProjectionMatrix = mPrevViewProjections[mActiveViewIndex];
 
 		// Camera parameters
 		mSceneUniforms.CameraPosition = position;
@@ -195,9 +227,6 @@ class RenderFrameContext : IDisposable
 		uint32 screenWidth,
 		uint32 screenHeight)
 	{
-		// Store previous VP for motion vectors
-		mPrevViewProjection = mSceneUniforms.ViewProjectionMatrix;
-
 		mSceneUniforms.ViewMatrix = viewMatrix;
 		mSceneUniforms.ProjectionMatrix = projectionMatrix;
 		mSceneUniforms.ViewProjectionMatrix = viewMatrix * projectionMatrix;
@@ -205,7 +234,7 @@ class RenderFrameContext : IDisposable
 		Matrix.Invert(viewMatrix, out mSceneUniforms.InverseViewMatrix);
 		Matrix.Invert(projectionMatrix, out mSceneUniforms.InverseProjectionMatrix);
 
-		mSceneUniforms.PrevViewProjectionMatrix = mPrevViewProjection;
+		mSceneUniforms.PrevViewProjectionMatrix = mPrevViewProjections[mActiveViewIndex];
 		mSceneUniforms.CameraPosition = cameraPosition;
 		mSceneUniforms.CameraForward = cameraForward;
 		mSceneUniforms.NearPlane = nearPlane;
@@ -221,7 +250,7 @@ class RenderFrameContext : IDisposable
 		if (!mSceneUniformsDirty)
 			return;
 
-		let buffer = mSceneUniformBuffers[mFrameIndex];
+		let buffer = mSceneUniformBuffers[mFrameIndex * RenderConfig.MaxViews + mActiveViewIndex];
 		// Use Map/Unmap to avoid command buffer creation
 		if (let ptr = buffer.Map())
 		{
@@ -234,11 +263,16 @@ class RenderFrameContext : IDisposable
 		mSceneUniformsDirty = false;
 	}
 
+	/// Saves the current view-projection for next frame's motion vectors.
+	/// Call this after uploading scene uniforms for each view.
+	public void SaveViewProjection()
+	{
+		mPrevViewProjections[mActiveViewIndex] = mSceneUniforms.ViewProjectionMatrix;
+	}
+
 	/// Ends the current frame.
 	public void EndFrame()
 	{
-		// Store view-projection for next frame's motion vectors
-		mPrevViewProjection = mSceneUniforms.ViewProjectionMatrix;
 	}
 
 	public void Dispose()
