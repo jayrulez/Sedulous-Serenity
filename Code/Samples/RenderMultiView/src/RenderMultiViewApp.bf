@@ -38,7 +38,7 @@ class RenderMultiViewApp : Application
 	private List<MaterialInstance> mMaterials = new .() ~ { for (let m in _) m?.ReleaseRef(); delete _; };
 
 	// Lights
-	private LightProxyHandle mSunLight;
+	private LightProxyHandle mSunLight = .Invalid;
 
 	// Player camera state
 	private Vector3 mPlayerPosition = .(0, 10, 25);

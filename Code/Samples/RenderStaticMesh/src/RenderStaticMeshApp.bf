@@ -39,7 +39,7 @@ class RenderStaticMeshApp : Application
 	private MaterialInstance mMaterial ~ _?.ReleaseRef();
 
 	// Lighting
-	private LightProxyHandle mSunLight;
+	private LightProxyHandle mSunLight = .Invalid;
 
 	// Camera
 	private Vector3 mCameraPosition = .(0, 1, 3);

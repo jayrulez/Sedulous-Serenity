@@ -50,7 +50,7 @@ class RenderSkinnedApp : Application
 	private GPUMeshHandle mFloorMeshHandle;
 
 	// Lights
-	private LightProxyHandle mSunLight;
+	private LightProxyHandle mSunLight = .Invalid;
 
 	// Camera
 	private Vector3 mCameraPosition = .(0, 50, 150);

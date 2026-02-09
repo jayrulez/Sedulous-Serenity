@@ -35,7 +35,7 @@ class RenderParticlesApp : Application
 	private ParticleEmitterProxyHandle mSmokeEmitter;
 
 	// Lights
-	private LightProxyHandle mSunLight;
+	private LightProxyHandle mSunLight = .Invalid;
 
 	// Camera
 	private Vector3 mCameraPosition = .(0, 3, 8);

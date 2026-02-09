@@ -32,7 +32,7 @@ class RenderSceneApp : Application
 	private MaterialInstance[5] mCubeMaterials;
 
 	// Lights
-	private LightProxyHandle mSunLight;
+	private LightProxyHandle mSunLight = .Invalid;
 	private List<LightProxyHandle> mPointLights = new .() ~ delete _;
 
 	// Camera

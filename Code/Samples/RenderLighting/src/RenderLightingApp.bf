@@ -32,7 +32,7 @@ class RenderLightingApp : Application
 	private MeshProxyHandle mFloorProxy;
 
 	// Lights
-	private LightProxyHandle mSunLight;
+	private LightProxyHandle mSunLight = .Invalid;
 	private List<LightProxyHandle> mPointLights = new .() ~ delete _;
 
 	// Materials

@@ -47,7 +47,7 @@ class RenderMaterialsApp : Application
 	private GPUTextureHandle mFoxTextureHandle;
 
 	// Lights
-	private LightProxyHandle mSunLight;
+	private LightProxyHandle mSunLight = .Invalid;
 	private List<LightProxyHandle> mPointLights = new .() ~ delete _;
 	private float mLightYaw = 0.5f;
 	private float mLightPitch = -0.7f;

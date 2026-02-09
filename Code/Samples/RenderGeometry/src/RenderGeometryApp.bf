@@ -34,7 +34,7 @@ class RenderGeometryApp : Application
 	private MaterialInstance mBlueMaterial ~ _?.ReleaseRef();
 
 	// Lighting
-	private LightProxyHandle mSunLight;
+	private LightProxyHandle mSunLight = .Invalid;
 
 	// Camera
 	private Vector3 mCameraPosition = .(0, 2, 8);

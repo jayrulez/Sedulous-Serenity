@@ -40,7 +40,7 @@ class RenderSandboxApp : Application
 	private GPUMeshHandle mPlaneMeshHandle;
 	private List<MeshProxyHandle> mCubeProxies = new .() ~ delete _;
 	private MeshProxyHandle mFloorProxy;
-	private LightProxyHandle mSunLight;
+	private LightProxyHandle mSunLight = .Invalid;
 	private List<LightProxyHandle> mPointLights = new .() ~ delete _;
 
 	// Materials

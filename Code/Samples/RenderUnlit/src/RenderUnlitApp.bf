@@ -49,7 +49,7 @@ class RenderUnlitApp : Application
 	private AnimationPlayer[FOX_COUNT] mPlayers ~ { for (let p in _) delete p; };
 
 	// Lights
-	private LightProxyHandle mSunLight;
+	private LightProxyHandle mSunLight = .Invalid;
 	private float mLightYaw = 0.5f;
 	private float mLightPitch = -0.7f;
 

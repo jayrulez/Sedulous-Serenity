@@ -32,7 +32,7 @@ class RenderPBRApp : Application
 	private MaterialInstance mSphereMaterial ~ _?.ReleaseRef();
 
 	// Lights
-	private LightProxyHandle mSunLight;
+	private LightProxyHandle mSunLight = .Invalid;
 
 	// Camera
 	private Vector3 mCameraPosition = .(0, 0, 4);

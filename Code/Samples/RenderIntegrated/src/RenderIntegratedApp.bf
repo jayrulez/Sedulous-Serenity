@@ -108,7 +108,7 @@ class RenderIntegratedApp : Application
 	private float mTrailAngle = 0;
 
 	// Lights
-	private LightProxyHandle mSunLight;
+	private LightProxyHandle mSunLight = .Invalid;
 	private float mLightYaw = 0.5f;
 	private float mLightPitch = -0.7f;
 	private float mLightIntensity = 2.0f;
@@ -277,8 +277,8 @@ class RenderIntegratedApp : Application
 	private void CreateLights()
 	{
 		UpdateSunLight();
-		if (mForwardFeature?.ShadowRenderer != null)
-			mForwardFeature.ShadowRenderer.EnableShadows = true;
+		/*if (mForwardFeature?.ShadowRenderer != null)
+			mForwardFeature.ShadowRenderer.EnableShadows = true;*/
 
 		// 8 random point lights
 		Random rng = scope .(12345);
