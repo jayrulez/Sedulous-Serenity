@@ -116,7 +116,7 @@ public class RenderSystem : IDisposable
 	/// Initializes the render system.
 	public Result<void> Initialize(
 		IDevice device,
-		StringView shaderPath = default,
+		Span<StringView> shaderPaths = default,
 		TextureFormat colorFormat = .BGRA8UnormSrgb,
 		TextureFormat depthFormat = .Depth24PlusStencil8)
 	{
@@ -149,10 +149,10 @@ public class RenderSystem : IDisposable
 			return .Err;
 
 		// Initialize shader system
-		if (!shaderPath.IsEmpty)
+		if (shaderPaths.Length > 0)
 		{
 			mShaderSystem = new NewShaderSystem();
-			if (mShaderSystem.Initialize(device, scope StringView[](shaderPath)) case .Err)
+			if (mShaderSystem.Initialize(device, shaderPaths) case .Err)
 				return .Err;
 		}
 

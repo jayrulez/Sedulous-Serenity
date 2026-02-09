@@ -171,7 +171,7 @@ class SceneUISample : Application
 	private void InitializeRenderSystem()
 	{
 		mRenderSystem = new RenderSystem();
-		if (mRenderSystem.Initialize(mDevice, scope $"{AssetDirectory}/Render/Shaders", .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
+		if (mRenderSystem.Initialize(mDevice, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
 		{
 			Console.WriteLine("ERROR: Failed to initialize RenderSystem");
 			return;
@@ -894,7 +894,7 @@ class SceneUISample : Application
 		// Delete fox resource and import result
 		if (mFoxResource != null)
 		{
-			delete mFoxResource;
+			mFoxResource?.ReleaseRef();
 			mFoxResource = null;
 		}
 		if (mImportResult != null)

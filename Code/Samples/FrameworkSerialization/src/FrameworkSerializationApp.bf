@@ -32,6 +32,8 @@ class FrameworkSerializationApp : Application
 	private const StringView GLTF_BASE_PATH = "samples/models/UltimateMonsters/Blob/glTF";
 	private const StringView FBX_MODEL_PATH = "samples/models/UltimateMonsters/Blob/FBX/GreenBlob.fbx";
 	private const StringView FBX_BASE_PATH = "samples/models/UltimateMonsters/Blob/FBX";
+	private const StringView FOX_MODEL_PATH = "samples/models/Fox/glTF/Fox.gltf";
+	private const StringView FOX_BASE_PATH = "samples/models/Fox/glTF";
 	private const StringView CACHE_REL_PATH = "cache";
 
 	// Framework
@@ -80,14 +82,25 @@ class FrameworkSerializationApp : Application
 	private Guid mFbxStaticMeshId;
 	private Guid mFbxSkeletonId;
 
+	// Cached resource info for Fox import (populated during import)
+	private String mFoxSkinnedMeshPath ~ delete _;
+	private String mFoxStaticMeshPath ~ delete _;
+	private String mFoxSkeletonPath ~ delete _;
+	private Guid mFoxSkinnedMeshId;
+	private Guid mFoxStaticMeshId;
+	private Guid mFoxSkeletonId;
+
 	// Material refs (multiple per model for multi-submesh support)
 	private List<ResourceRef> mGltfMaterialRefs = new .() ~ { for (var r in _) r.Dispose(); delete _; };
 	private List<ResourceRef> mFbxMaterialRefs = new .() ~ { for (var r in _) r.Dispose(); delete _; };
+	private List<ResourceRef> mFoxMaterialRefs = new .() ~ { for (var r in _) r.Dispose(); delete _; };
 
 	// All animation resource refs (for cycling - GLTF animations)
 	private List<ResourceRef> mGltfAnimationRefs = new .() ~ { for (var r in _) r.Dispose(); delete _; };
 	// FBX animation refs
 	private List<ResourceRef> mFbxAnimationRefs = new .() ~ { for (var r in _) r.Dispose(); delete _; };
+	// Fox animation refs
+	private List<ResourceRef> mFoxAnimationRefs = new .() ~ { for (var r in _) r.Dispose(); delete _; };
 
 	// Runtime animation cycling state
 	private List<ResourceHandle<AnimationClipResource>> mLoadedAnimClips = new .() ~ { for (var h in _) h.Release(); delete _; };
@@ -137,7 +150,7 @@ class FrameworkSerializationApp : Application
 	private void InitializeRenderSystem()
 	{
 		mRenderSystem = new RenderSystem();
-		if (mRenderSystem.Initialize(mDevice, scope $"{AssetDirectory}/Render/Shaders", .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
+		if (mRenderSystem.Initialize(mDevice, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
 		{
 			Console.WriteLine("ERROR: Failed to initialize RenderSystem");
 			return;
@@ -258,6 +271,13 @@ class FrameworkSerializationApp : Application
 				mFbxMaterialRefs,
 				ref mFbxSkeletonPath, ref mFbxSkeletonId,
 				mFbxAnimationRefs);
+
+			ImportModel(FOX_MODEL_PATH, FOX_BASE_PATH, "fox_gltf", cacheDir,
+				ref mFoxSkinnedMeshPath, ref mFoxSkinnedMeshId,
+				ref mFoxStaticMeshPath, ref mFoxStaticMeshId,
+				mFoxMaterialRefs,
+				ref mFoxSkeletonPath, ref mFoxSkeletonId,
+				mFoxAnimationRefs);
 
 			// Save registry
 			Directory.CreateDirectory(cacheDir);
@@ -466,6 +486,16 @@ class FrameworkSerializationApp : Application
 			mFbxMaterialRefs,
 			ref mFbxSkeletonPath, ref mFbxSkeletonId,
 			mFbxAnimationRefs);
+
+		// Recover Fox import paths
+		let foxDir = scope String();
+		foxDir.AppendF("{}/fox_gltf", cacheDir);
+		RecoverModelPaths(foxDir,
+			ref mFoxSkinnedMeshPath, ref mFoxSkinnedMeshId,
+			ref mFoxStaticMeshPath, ref mFoxStaticMeshId,
+			mFoxMaterialRefs,
+			ref mFoxSkeletonPath, ref mFoxSkeletonId,
+			mFoxAnimationRefs);
 	}
 
 	private void RecoverModelPaths(StringView dir,
@@ -633,6 +663,23 @@ class FrameworkSerializationApp : Application
 		CreateStaticEntity(scene, "GreenBlob_FBX_Static", .(3, 0, 0),
 			mFbxStaticMeshPath, mFbxStaticMeshId,
 			mFbxMaterialRefs);
+
+		// Fox model - testing skinned mesh through same pipeline (scaled down, fox is ~100 units tall)
+		CreateSkinnedEntity(scene, "Fox_GLTF", .(5, 0, 0),
+			mFoxSkinnedMeshPath, mFoxSkinnedMeshId,
+			mFoxMaterialRefs,
+			mFoxSkeletonPath, mFoxSkeletonId,
+			mFoxAnimationRefs);
+		let foxSkinnedEntity = scene.FindByName("Fox_GLTF");
+		if (scene.IsValid(foxSkinnedEntity))
+			scene.SetTransform(foxSkinnedEntity, .(.(5, 0, 0), .Identity, .(0.04f, 0.04f, 0.04f)));
+
+		CreateStaticEntity(scene, "Fox_GLTF_Static", .(7, 0, 0),
+			mFoxStaticMeshPath, mFoxStaticMeshId,
+			mFoxMaterialRefs);
+		let foxStaticEntity = scene.FindByName("Fox_GLTF_Static");
+		if (scene.IsValid(foxStaticEntity))
+			scene.SetTransform(foxStaticEntity, .(.(7, 0, 0), .Identity, .(0.04f, 0.04f, 0.04f)));
 
 		// Sprite entity with procedural checkerboard texture
 		CreateSpriteEntity(scene);
