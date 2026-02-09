@@ -43,7 +43,7 @@ static class TextureConverter
 
 	/// Creates a TextureResource from a ModelTexture with fallback to file loading.
 	/// Uses the provided ImageLoader for external textures.
-	public static TextureResource Convert(ModelTexture modelTexture, ImageLoader imageLoader, StringView basePath)
+	public static TextureResource Convert(ModelTexture modelTexture, StringView basePath)
 	{
 		if (modelTexture == null)
 			return null;
@@ -61,7 +61,7 @@ static class TextureConverter
 			image = new Image((uint32)modelTexture.Width, (uint32)modelTexture.Height, format, data);
 		}
 		// Fallback to loading from file if we have a URI
-		else if (!modelTexture.Uri.IsEmpty && imageLoader != null)
+		else if (!modelTexture.Uri.IsEmpty)
 		{
 			let fullPath = scope $"{Directory.GetCurrentDirectory(.. scope .())}/";
 			if (!basePath.IsEmpty)
@@ -73,10 +73,9 @@ static class TextureConverter
 			fullPath.Append(modelTexture.Uri);
 			fullPath.Replace('/', Path.DirectorySeparatorChar);
 
-			if (imageLoader.LoadFromFile(fullPath) case .Ok(var loadInfo))
+			if (ImageLoaderFactory.LoadImage(fullPath) case .Ok(var loadedImage))
 			{
-				defer loadInfo.Dispose();
-				image = new Image(loadInfo.Width, loadInfo.Height, loadInfo.Format, loadInfo.Data);
+				image = loadedImage;
 			}
 		}
 

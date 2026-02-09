@@ -178,8 +178,7 @@ class RendererAssetSample : RHISampleApp
 		importOptions.Flags = .SkinnedMeshes | .Skeletons | .Animations | .Textures | .Materials;
 		importOptions.BasePath.Set(gltfBasePath);
 
-		let imageLoader = scope SDLImageLoader();
-		let importer = scope ModelImporter(importOptions, imageLoader);
+		let importer = scope ModelImporter(importOptions);
 		let importResult = importer.Import(mFoxModel);
 		mImportResult = importResult;
 
@@ -305,12 +304,11 @@ class RendererAssetSample : RHISampleApp
 						{
 							// Load from original file
 							Console.WriteLine($"Loading texture from: {originalTexturePath}");
-							let imageLoader = scope SDLImageLoader();
-							if (imageLoader.LoadFromFile(originalTexturePath) case .Ok(var loadInfo))
+							if (ImageLoaderFactory.LoadImage(originalTexturePath) case .Ok(var image))
 							{
-								defer loadInfo.Dispose();
+								defer delete image;
 								mFoxTexture = mRendererService.ResourceManager.CreateTextureFromData(
-									loadInfo.Width, loadInfo.Height, .RGBA8Unorm, .(loadInfo.Data.Ptr, loadInfo.Data.Count));
+									image.Width, image.Height, .RGBA8Unorm, .(image.Data.Ptr, image.Data.Length));
 								if (mFoxTexture.IsValid)
 									inst.SetTexture("albedoMap", mFoxTexture);
 							}
@@ -346,12 +344,11 @@ class RendererAssetSample : RHISampleApp
 					else
 					{
 						Console.WriteLine($"Loading texture from: {originalTexturePath}");
-						let imageLoader = scope SDLImageLoader();
-						if (imageLoader.LoadFromFile(originalTexturePath) case .Ok(var loadInfo))
+						if (ImageLoaderFactory.LoadImage(originalTexturePath) case .Ok(var image))
 						{
-							defer loadInfo.Dispose();
+							defer delete image;
 							mFoxTexture = mRendererService.ResourceManager.CreateTextureFromData(
-								loadInfo.Width, loadInfo.Height, .RGBA8Unorm, .(loadInfo.Data.Ptr, loadInfo.Data.Count));
+								image.Width, image.Height, .RGBA8Unorm, .(image.Data.Ptr, image.Data.Length));
 							if (mFoxTexture.IsValid)
 								inst.SetTexture("albedoMap", mFoxTexture);
 						}

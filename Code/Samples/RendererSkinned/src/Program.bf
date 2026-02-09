@@ -281,8 +281,7 @@ class RendererSkinnedSample : RHISampleApp
 			let gltfBasePath = GetAssetPath("samples/models/Fox/glTF", .. scope .());
 			importOptions.BasePath.Set(gltfBasePath);
 
-			let imageLoader = scope SDLImageLoader();
-			let importer = scope ModelImporter(importOptions, imageLoader);
+			let importer = scope ModelImporter(importOptions);
 			let importResult = importer.Import(mFoxModel);
 			mImportResult = importResult;
 
@@ -396,20 +395,19 @@ class RendererSkinnedSample : RHISampleApp
 		if (!textureLoaded)
 		{
 			let texPath = GetAssetPath("samples/models/Fox/glTF/Texture.png", .. scope .());
-			let imageLoader = scope SDLImageLoader();
-			if (imageLoader.LoadFromFile(texPath) case .Ok(var loadInfo))
+			if (ImageLoaderFactory.LoadImage(texPath) case .Ok(var image))
 			{
-				defer loadInfo.Dispose();
-				Console.WriteLine(scope $"Fox texture: {loadInfo.Width}x{loadInfo.Height}");
+				defer delete image;
+				Console.WriteLine(scope $"Fox texture: {image.Width}x{image.Height}");
 
-				TextureDescriptor texDesc = .Texture2D(loadInfo.Width, loadInfo.Height, .RGBA8Unorm, .Sampled | .CopyDst);
+				TextureDescriptor texDesc = .Texture2D(image.Width, image.Height, .RGBA8Unorm, .Sampled | .CopyDst);
 				if (Device.CreateTexture(&texDesc) case .Ok(let texture))
 				{
 					mFoxTexture = texture;
 
-					TextureDataLayout layout = .() { Offset = 0, BytesPerRow = loadInfo.Width * 4, RowsPerImage = loadInfo.Height };
-					Extent3D size = .(loadInfo.Width, loadInfo.Height, 1);
-					Span<uint8> data = .(loadInfo.Data.Ptr, loadInfo.Data.Count);
+					TextureDataLayout layout = .() { Offset = 0, BytesPerRow = image.Width * 4, RowsPerImage = image.Height };
+					Extent3D size = .(image.Width, image.Height, 1);
+					Span<uint8> data = .(image.Data.Ptr, image.Data.Length);
 					Device.Queue.WriteTexture(mFoxTexture, data, &layout, &size, 0, 0);
 
 					TextureViewDescriptor viewDesc = .() { Format = .RGBA8Unorm, Dimension = .Texture2D, MipLevelCount = 1, ArrayLayerCount = 1 };

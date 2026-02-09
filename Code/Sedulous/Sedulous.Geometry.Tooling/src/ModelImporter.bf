@@ -16,7 +16,6 @@ namespace Sedulous.Geometry.Tooling;
 class ModelImporter
 {
 	private ModelImportOptions mOptions ~ delete _;
-	private ImageLoader mImageLoader;
 	/// Maps each skin index to the skeleton result index in result.Skeletons.
 	/// Duplicate skins map to the same skeleton index as their first occurrence.
 	/// -1 means skeleton creation failed for that skin.
@@ -24,10 +23,9 @@ class ModelImporter
 
 	/// Create an importer with the given options and image loader.
 	/// The importer does NOT take ownership of the image loader.
-	public this(ModelImportOptions options, ImageLoader imageLoader = null)
+	public this(ModelImportOptions options)
 	{
 		mOptions = options;
-		mImageLoader = imageLoader;
 	}
 
 	/// Import resources from a loaded model.
@@ -418,7 +416,7 @@ class ModelImporter
 			let modelTex = model.Textures[texIdx];
 
 			// Use TextureConverter which handles decoded pixel data
-			let textureRes = TextureConverter.Convert(modelTex, mImageLoader, mOptions.BasePath);
+			let textureRes = TextureConverter.Convert(modelTex, mOptions.BasePath);
 
 			if (textureRes == null)
 			{
@@ -504,13 +502,9 @@ class ModelImporter
 
 	private Image LoadImageFromMemory(Span<uint8> data)
 	{
-		if (mImageLoader == null)
-			return null;
-
-		if (mImageLoader.LoadFromMemory(data) case .Ok(var loadInfo))
+		if (ImageLoaderFactory.LoadImageFromMemory(data) case .Ok(var image))
 		{
-			defer loadInfo.Dispose();
-			return new Image(loadInfo.Width, loadInfo.Height, loadInfo.Format, loadInfo.Data);
+			return image;
 		}
 
 		return null;
@@ -518,13 +512,9 @@ class ModelImporter
 
 	private Image LoadImageFromFile(StringView path)
 	{
-		if (mImageLoader == null)
-			return null;
-
-		if (mImageLoader.LoadFromFile(path) case .Ok(var loadInfo))
+		if (ImageLoaderFactory.LoadImage(path) case .Ok(var image))
 		{
-			defer loadInfo.Dispose();
-			return new Image(loadInfo.Width, loadInfo.Height, loadInfo.Format, loadInfo.Data);
+			return image;
 		}
 
 		return null;

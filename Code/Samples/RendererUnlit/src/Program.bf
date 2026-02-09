@@ -170,8 +170,7 @@ class RendererUnlitSample : RHISampleApp
 			importOptions.Flags = .SkinnedMeshes | .Skeletons | .Animations | .Textures | .Materials;
 			importOptions.BasePath.Set(gltfBasePath);
 
-			let imageLoader = scope SDLImageLoader();
-			let importer = scope ModelImporter(importOptions, imageLoader);
+			let importer = scope ModelImporter(importOptions);
 			let importResult = importer.Import(foxModel);
 			mImportResult = importResult;
 
@@ -204,14 +203,13 @@ class RendererUnlitSample : RHISampleApp
 
 		if (resourceManager != null)
 		{
-			let imageLoader = scope SDLImageLoader();
-			if (imageLoader.LoadFromFile(texPath) case .Ok(var loadInfo))
+			if (ImageLoaderFactory.LoadImage(texPath) case .Ok(var image))
 			{
-				defer loadInfo.Dispose();
-				Console.WriteLine($"Fox texture: {loadInfo.Width}x{loadInfo.Height}");
+				defer delete image;
+				Console.WriteLine($"Fox texture: {image.Width}x{image.Height}");
 
 				mFoxTexture = resourceManager.CreateTextureFromData(
-					loadInfo.Width, loadInfo.Height, .RGBA8Unorm, .(loadInfo.Data.Ptr, loadInfo.Data.Count));
+					image.Width, image.Height, .RGBA8Unorm, .(image.Data.Ptr, image.Data.Length));
 
 				if (mFoxTexture.IsValid)
 					Console.WriteLine("Fox texture uploaded to GPU");

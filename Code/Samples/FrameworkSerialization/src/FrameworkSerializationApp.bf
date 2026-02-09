@@ -326,8 +326,7 @@ class FrameworkSerializationApp : Application
 		importOptions.BasePath.Set(basePath);
 		importOptions.Flags = .Skeletons | .Meshes | .SkinnedMeshes | .Animations | .Materials | .Textures;
 
-		let imageLoader = scope SDLImageLoader();
-		let importer = scope ModelImporter(importOptions, imageLoader);
+		let importer = scope ModelImporter(importOptions);
 		let result = importer.Import(model);
 		defer delete result;
 

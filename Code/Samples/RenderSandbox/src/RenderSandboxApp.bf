@@ -1320,6 +1320,8 @@ class RenderSandboxApp : Application
 	{
 		Console.WriteLine("\n=== Shutting Down ===");
 
+		mWorld?.Dispose();
+
 		// Release mesh handles
 		if (mCubeMeshHandle.IsValid)
 			mRenderSystem.ResourceManager.ReleaseMesh(mCubeMeshHandle, mRenderSystem.FrameNumber);

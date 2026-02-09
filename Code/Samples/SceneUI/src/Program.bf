@@ -384,12 +384,11 @@ class SceneUISample : Application
 		{
 			defer delete model;
 
-			let imageLoader = scope SDLImageLoader();
 			let importOptions = new ModelImportOptions();
 			importOptions.BasePath.Set(basePath);
 			importOptions.Flags = .Skeletons | .SkinnedMeshes | .Animations | .Materials | .Textures;
 
-			let importer = scope ModelImporter(importOptions, imageLoader);
+			let importer = scope ModelImporter(importOptions);
 			let result = importer.Import(model);
 			mImportResult = result;
 
@@ -499,14 +498,13 @@ class SceneUISample : Application
 		fullTexPath.Append("/");
 		fullTexPath.Append(texRef.Path);
 
-		let imageLoader = scope SDLImageLoader();
-		if (imageLoader.LoadFromFile(fullTexPath) case .Ok(let loadInfo))
+		if (ImageLoaderFactory.LoadImage(fullTexPath) case .Ok(let image))
 		{
-			defer { var li = loadInfo; li.Dispose(); }
+			defer delete image;
 
 			// Convert to texture data
-			let format = ConvertPixelFormat(loadInfo.Format);
-			let texData = TextureData.Create2D(loadInfo.Data.Ptr, (uint64)loadInfo.Data.Count, loadInfo.Width, loadInfo.Height, format);
+			let format = ConvertPixelFormat(image.Format);
+			let texData = TextureData.Create2D(image.Data.Ptr, (uint64)image.Data.Length, image.Width, image.Height, format);
 
 			if (mRenderSystem.ResourceManager.UploadTexture(texData) case .Ok(let texHandle))
 			{

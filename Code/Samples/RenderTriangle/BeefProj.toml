@@ -1,0 +1,6 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Shaders" = "*", "Sedulous.Mathematics" = "*", "Sedulous.Framework.Runtime" = "*", "Sedulous.Render" = "*"}
+
+[Project]
+Name = "RenderTriangle"
+StartupObject = "RenderTriangle.Program"
