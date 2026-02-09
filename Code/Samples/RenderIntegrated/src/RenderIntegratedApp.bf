@@ -277,8 +277,8 @@ class RenderIntegratedApp : Application
 	private void CreateLights()
 	{
 		UpdateSunLight();
-		/*if (mForwardFeature?.ShadowRenderer != null)
-			mForwardFeature.ShadowRenderer.EnableShadows = true;*/
+		if (mForwardFeature?.ShadowRenderer != null)
+			mForwardFeature.ShadowRenderer.EnableShadows = true;
 
 		// 8 random point lights
 		Random rng = scope .(12345);

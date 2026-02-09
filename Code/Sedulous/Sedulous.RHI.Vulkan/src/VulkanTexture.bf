@@ -40,9 +40,9 @@ class VulkanTexture : ITexture
 		mOwnsImage = true;
 		if (descriptor.Label.Ptr != null && descriptor.Label.Length > 0)
 			mDebugName = new String(descriptor.Label);
-		//else
-		//	Runtime.FatalError();
 		CreateImage(descriptor);
+		if (mDebugName != null && mImage != default)
+			mDevice.SetDebugName(mImage.Handle, .VK_OBJECT_TYPE_IMAGE, mDebugName);
 	}
 
 	/// Creates a texture wrapper around an existing VkImage (e.g., from swap chain).

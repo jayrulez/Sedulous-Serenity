@@ -77,15 +77,9 @@ public static class VulkanNative
 
 		void* funcPtr = null;
 
-		if (sKnownInstanceCommands.FindIndex(scope (entry) =>
-			{
-				return entry.Name == scope .(name);
-			}) != -1)
+		if (instance != null && vkGetInstanceProcAddr_ptr != null)
 		{
-			if (instance != null && vkGetInstanceProcAddr_ptr != null)
-			{
-				funcPtr = vkGetInstanceProcAddr_ptr(instance.Value, name.Ptr);
-			}
+			funcPtr = vkGetInstanceProcAddr_ptr(instance.Value, name.Ptr);
 		}
 
 		if (funcPtr != null)

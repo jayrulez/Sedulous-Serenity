@@ -12,12 +12,14 @@ class VulkanRenderPassEncoder : IRenderPassEncoder
 	private VkCommandBuffer mCommandBuffer;
 	private VulkanRenderPipeline mCurrentPipeline;
 	private bool mEnded;
+	private bool mHasDebugLabel;
 
-	public this(VulkanDevice device, VkCommandBuffer commandBuffer)
+	public this(VulkanDevice device, VkCommandBuffer commandBuffer, bool hasDebugLabel = false)
 	{
 		mDevice = device;
 		mCommandBuffer = commandBuffer;
 		mEnded = false;
+		mHasDebugLabel = hasDebugLabel;
 	}
 
 	public void SetPipeline(IRenderPipeline pipeline)
@@ -169,6 +171,8 @@ class VulkanRenderPassEncoder : IRenderPassEncoder
 			return;
 
 		VulkanNative.vkCmdEndRenderPass(mCommandBuffer);
+		if (mHasDebugLabel)
+			mDevice.CmdEndLabel(mCommandBuffer);
 		mEnded = true;
 	}
 }

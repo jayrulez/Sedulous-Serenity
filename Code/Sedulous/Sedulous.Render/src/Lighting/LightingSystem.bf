@@ -118,7 +118,7 @@ public class LightingSystem : IDisposable
 		mClusterGrid.CreateBindGroups(mLightBuffer);
 
 		// Begin compute pass for GPU light culling
-		let computePass = encoder.BeginComputePass();
+		let computePass = encoder.BeginComputePass("Light Clustering");
 		if (computePass != null)
 		{
 			// Build cluster AABBs on GPU (only if view changed - handled internally)

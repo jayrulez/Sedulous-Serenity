@@ -11,12 +11,14 @@ class VulkanComputePassEncoder : IComputePassEncoder
 	private VkCommandBuffer mCommandBuffer;
 	private VulkanComputePipeline mCurrentPipeline;
 	private bool mEnded;
+	private bool mHasDebugLabel;
 
-	public this(VulkanDevice device, VkCommandBuffer commandBuffer)
+	public this(VulkanDevice device, VkCommandBuffer commandBuffer, bool hasDebugLabel = false)
 	{
 		mDevice = device;
 		mCommandBuffer = commandBuffer;
 		mEnded = false;
+		mHasDebugLabel = hasDebugLabel;
 	}
 
 	public void SetPipeline(IComputePipeline pipeline)
@@ -76,8 +78,8 @@ class VulkanComputePassEncoder : IComputePassEncoder
 		if (mEnded)
 			return;
 
-		// Compute passes don't have an explicit end in Vulkan
-		// Just mark as ended to prevent further commands
+		if (mHasDebugLabel)
+			mDevice.CmdEndLabel(mCommandBuffer);
 		mEnded = true;
 	}
 }

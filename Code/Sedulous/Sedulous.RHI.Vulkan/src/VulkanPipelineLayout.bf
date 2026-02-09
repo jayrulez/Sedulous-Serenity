@@ -17,6 +17,8 @@ class VulkanPipelineLayout : IPipelineLayout
 		mDevice = device;
 		mPipelineLayout = default;  // Explicitly initialize before Vulkan call
 		CreatePipelineLayout(descriptor);
+		if (mPipelineLayout != default && descriptor.Label.Ptr != null && descriptor.Label.Length > 0)
+			mDevice.SetDebugName(mPipelineLayout.Handle, .VK_OBJECT_TYPE_PIPELINE_LAYOUT, descriptor.Label);
 	}
 
 	public ~this()

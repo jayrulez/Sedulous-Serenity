@@ -15,12 +15,14 @@ class VulkanDevice : IDevice
 	private QueueFamilyIndices mQueueFamilyIndices;
 	private VulkanDescriptorPool mDescriptorPool;
 	private VulkanCommandPool mCommandPool;
+	private bool mDebugUtilsEnabled;
 
 	private static char8*[?] sDeviceExtensions = .("VK_KHR_swapchain");
 
 	public this(VulkanAdapter adapter)
 	{
 		mAdapter = adapter;
+		mDebugUtilsEnabled = adapter.Backend.DebugUtilsEnabled;
 		CreateDevice();
 
 		if (mDevice != default)
@@ -266,6 +268,40 @@ class VulkanDevice : IDevice
 		{
 			VulkanNative.vkDeviceWaitIdle(mDevice);
 		}
+	}
+
+	/// Sets a debug name on a Vulkan object for RenderDoc visibility.
+	public void SetDebugName(uint64 objectHandle, VkObjectType objectType, StringView name)
+	{
+		if (!mDebugUtilsEnabled || name.IsEmpty)
+			return;
+
+		VkDebugUtilsObjectNameInfoEXT nameInfo = .();
+		nameInfo.objectType = objectType;
+		nameInfo.objectHandle = objectHandle;
+		nameInfo.pObjectName = name.ToScopeCStr!();
+		VulkanNative.vkSetDebugUtilsObjectNameEXT(mDevice, &nameInfo);
+	}
+
+	/// Begins a debug label region on a command buffer.
+	public void CmdBeginLabel(VkCommandBuffer cmdBuffer, StringView label)
+	{
+		if (!mDebugUtilsEnabled || label.IsEmpty)
+			return;
+
+		VkDebugUtilsLabelEXT labelInfo = .();
+		labelInfo.pLabelName = label.ToScopeCStr!();
+		labelInfo.color = .(1, 1, 1, 1);
+		VulkanNative.vkCmdBeginDebugUtilsLabelEXT(cmdBuffer, &labelInfo);
+	}
+
+	/// Ends a debug label region on a command buffer.
+	public void CmdEndLabel(VkCommandBuffer cmdBuffer)
+	{
+		if (!mDebugUtilsEnabled)
+			return;
+
+		VulkanNative.vkCmdEndDebugUtilsLabelEXT(cmdBuffer);
 	}
 
 	private void CreateDevice()

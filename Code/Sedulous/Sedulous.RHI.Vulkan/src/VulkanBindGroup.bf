@@ -20,6 +20,8 @@ class VulkanBindGroup : IBindGroup
 		mPool = pool;
 		mLayout = descriptor.Layout as VulkanBindGroupLayout;
 		CreateDescriptorSet(descriptor);
+		if (mDescriptorSet != default && descriptor.Label.Ptr != null && descriptor.Label.Length > 0)
+			mDevice.SetDebugName(mDescriptorSet.Handle, .VK_OBJECT_TYPE_DESCRIPTOR_SET, descriptor.Label);
 	}
 
 	public ~this()

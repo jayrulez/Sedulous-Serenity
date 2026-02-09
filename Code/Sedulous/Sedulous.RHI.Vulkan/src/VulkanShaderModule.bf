@@ -14,6 +14,8 @@ class VulkanShaderModule : IShaderModule
 	{
 		mDevice = device;
 		CreateShaderModule(descriptor);
+		if (mShaderModule != default && descriptor.Label.Ptr != null && descriptor.Label.Length > 0)
+			mDevice.SetDebugName(mShaderModule.Handle, .VK_OBJECT_TYPE_SHADER_MODULE, descriptor.Label);
 	}
 
 	public ~this()

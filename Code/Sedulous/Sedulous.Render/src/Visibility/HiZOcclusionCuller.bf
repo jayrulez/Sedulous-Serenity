@@ -215,7 +215,7 @@ public class HiZOcclusionCuller : IDisposable
 		EnsureCullBindGroup();
 
 		// Start compute pass
-		if (let computeEncoder = encoder.BeginComputePass())
+		if (let computeEncoder = encoder.BeginComputePass("HiZ Occlusion"))
 		{
 			// Set pipeline and bind group
 			computeEncoder.SetPipeline(mCullPipeline);

@@ -129,17 +129,19 @@ class VulkanCommandEncoder : ICommandEncoder
 				pClearValues = clearValues.Ptr
 			};
 
+		mDevice.CmdBeginLabel(mCommandBuffer, descriptor.Label);
 		VulkanNative.vkCmdBeginRenderPass(mCommandBuffer, &renderPassInfo, .VK_SUBPASS_CONTENTS_INLINE);
 
-		return new VulkanRenderPassEncoder(mDevice, mCommandBuffer);
+		return new VulkanRenderPassEncoder(mDevice, mCommandBuffer, !descriptor.Label.IsEmpty);
 	}
 
-	public IComputePassEncoder BeginComputePass()
+	public IComputePassEncoder BeginComputePass(StringView label = default)
 	{
 		if (!mIsRecording || mFinished)
 			return null;
 
-		return new VulkanComputePassEncoder(mDevice, mCommandBuffer);
+		mDevice.CmdBeginLabel(mCommandBuffer, label);
+		return new VulkanComputePassEncoder(mDevice, mCommandBuffer, !label.IsEmpty);
 	}
 
 	public void CopyBufferToBuffer(IBuffer source, uint64 sourceOffset, IBuffer destination, uint64 destinationOffset, uint64 size)

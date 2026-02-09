@@ -1,3 +1,4 @@
+using System;
 namespace Sedulous.RHI;
 
 /// Texture layout for pipeline barriers.
@@ -30,7 +31,7 @@ interface ICommandEncoder
 	IRenderPassEncoder BeginRenderPass(RenderPassDescriptor* descriptor);
 
 	/// Begins a compute pass.
-	IComputePassEncoder BeginComputePass();
+	IComputePassEncoder BeginComputePass(StringView label = default);
 
 	/// Copies data from one buffer to another.
 	void CopyBufferToBuffer(IBuffer source, uint64 sourceOffset, IBuffer destination, uint64 destinationOffset, uint64 size);

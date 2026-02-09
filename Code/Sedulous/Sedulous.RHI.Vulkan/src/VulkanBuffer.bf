@@ -26,6 +26,8 @@ class VulkanBuffer : IBuffer
 		if (descriptor.Label.Ptr != null && descriptor.Label.Length > 0)
 			mDebugName = new String(descriptor.Label);
 		CreateBuffer(descriptor);
+		if (mDebugName != null && mBuffer != default)
+			mDevice.SetDebugName(mBuffer.Handle, .VK_OBJECT_TYPE_BUFFER, mDebugName);
 	}
 
 	public ~this()

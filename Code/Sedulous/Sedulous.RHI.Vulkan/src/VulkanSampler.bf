@@ -18,6 +18,8 @@ class VulkanSampler : ISampler
 		if (descriptor.Label.Ptr != null && descriptor.Label.Length > 0)
 			mDebugName = new String(descriptor.Label);
 		CreateSampler(descriptor);
+		if (mDebugName != null && mSampler != default)
+			mDevice.SetDebugName(mSampler.Handle, .VK_OBJECT_TYPE_SAMPLER, mDebugName);
 	}
 
 	public ~this()

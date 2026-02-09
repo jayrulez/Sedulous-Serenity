@@ -793,6 +793,8 @@ public class RenderGraph : IDisposable
 
 		// Build render pass descriptor
 		var rpDesc = RenderPassDescriptor();
+		if(!String.IsNullOrEmpty(pass.Name))
+			rpDesc.Label = pass.Name;
 		rpDesc.ColorAttachments = .(&colorAttachments[0], colorAttachmentCount);
 
 		// Depth attachment
@@ -834,7 +836,7 @@ public class RenderGraph : IDisposable
 
 	private Result<void> ExecuteComputePass(RenderPass pass, ICommandEncoder commandEncoder)
 	{
-		let encoder = commandEncoder.BeginComputePass();
+		let encoder = commandEncoder.BeginComputePass(pass.Name);
 		if (encoder == null)
 			return .Err;
 		defer delete encoder;

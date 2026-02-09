@@ -22,6 +22,8 @@ class VulkanBindGroupLayout : IBindGroupLayout
 		for (let entry in descriptor.Entries)
 			mEntries.Add(entry);
 		CreateDescriptorSetLayout(descriptor);
+		if (mDescriptorSetLayout != default && descriptor.Label.Ptr != null && descriptor.Label.Length > 0)
+			mDevice.SetDebugName(mDescriptorSetLayout.Handle, .VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, descriptor.Label);
 	}
 
 	public ~this()

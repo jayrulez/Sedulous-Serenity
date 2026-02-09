@@ -22,6 +22,8 @@ class VulkanRenderPipeline : IRenderPipeline
 		mRenderPass = renderPass;
 		mOwnsRenderPass = renderPass == default;
 		CreatePipeline(descriptor);
+		if (mPipeline != default && descriptor.Label.Ptr != null && descriptor.Label.Length > 0)
+			mDevice.SetDebugName(mPipeline.Handle, .VK_OBJECT_TYPE_PIPELINE, descriptor.Label);
 	}
 
 	public ~this()

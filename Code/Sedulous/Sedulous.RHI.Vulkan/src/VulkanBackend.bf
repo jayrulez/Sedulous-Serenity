@@ -62,6 +62,9 @@ class VulkanBackend : IBackend
 	/// Returns true if the backend initialized successfully.
 	public bool IsInitialized => mInstance != default;
 
+	/// Returns true if VK_EXT_debug_utils is available.
+	public bool DebugUtilsEnabled => mDebugUtilsEnabled;
+
 	public void EnumerateAdapters(List<IAdapter> adapters)
 	{
 		// Enumerate physical devices if not already done
@@ -234,10 +237,13 @@ class VulkanBackend : IBackend
 			additionalFunctions.Add("vkDestroyDebugUtilsMessengerEXT");
 			additionalFunctions.Add("vkSubmitDebugUtilsMessageEXT");
 			additionalFunctions.Add("vkSetDebugUtilsObjectNameEXT");
+			additionalFunctions.Add("vkCmdBeginDebugUtilsLabelEXT");
+			additionalFunctions.Add("vkCmdEndDebugUtilsLabelEXT");
 		}
 
 		VulkanNative.LoadInstanceFunctions(mInstance, flags, additionalFunctions, scope (func) =>
 			{
+				Console.WriteLine(scope $"Failed to load: {func}");
 				// Failed to load function
 			}).IgnoreError();
 
