@@ -40,7 +40,7 @@ public class RenderSystem : IDisposable
 	private RenderGraph mRenderGraph ~ delete _;
 	private TransientResourcePool mTransientPool ~ delete _;
 	private GPUResourceManager mResourceManager ~ delete _;
-	private NewShaderSystem mShaderSystem ~ delete _;
+	private ShaderSystem mShaderSystem ~ delete _;
 	private MaterialSystem mMaterialSystem ~ delete _;
 	private RenderPipelineCache mPipelineCache ~ delete _;
 
@@ -83,7 +83,7 @@ public class RenderSystem : IDisposable
 	public GPUResourceManager ResourceManager => mResourceManager;
 
 	/// Gets the shader system.
-	public NewShaderSystem ShaderSystem => mShaderSystem;
+	public ShaderSystem ShaderSystem => mShaderSystem;
 
 	/// Gets the material system.
 	public MaterialSystem MaterialSystem => mMaterialSystem;
@@ -151,7 +151,7 @@ public class RenderSystem : IDisposable
 		// Initialize shader system
 		if (shaderPaths.Length > 0)
 		{
-			mShaderSystem = new NewShaderSystem();
+			mShaderSystem = new ShaderSystem();
 			if (mShaderSystem.Initialize(device, shaderPaths) case .Err)
 				return .Err;
 		}

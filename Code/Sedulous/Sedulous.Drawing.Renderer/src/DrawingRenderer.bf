@@ -51,7 +51,7 @@ public class DrawingRenderer : IDisposable
 	private IDevice mDevice;
 	private int32 mFrameCount;
 	private TextureFormat mTargetFormat;
-	private NewShaderSystem mShaderSystem;  // Borrowed, not owned
+	private ShaderSystem mShaderSystem;  // Borrowed, not owned
 
 	// Standard pipeline (per-vertex)
 	private IShaderModule mVertShader;
@@ -130,7 +130,7 @@ public class DrawingRenderer : IDisposable
 		IDevice device,
 		TextureFormat targetFormat,
 		int32 frameCount,
-		NewShaderSystem shaderSystem)
+		ShaderSystem shaderSystem)
 	{
 		using (SProfiler.Begin("DrawingRenderer.Initialize"))
 		{

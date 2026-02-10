@@ -36,7 +36,7 @@ class GUISandboxApp : RHISampleApp
 	private DrawingRenderer mDrawingRenderer;
 
 	// Shader system
-	private NewShaderSystem mShaderSystem;
+	private ShaderSystem mShaderSystem;
 
 	// FPS tracking
 	private int mFrameCount = 0;
@@ -89,7 +89,7 @@ class GUISandboxApp : RHISampleApp
 		}
 
 		// Initialize shader system
-		mShaderSystem = new NewShaderSystem();
+		mShaderSystem = new ShaderSystem();
 		String shaderPath = scope .();
 		GetAssetPath("Render/shaders", shaderPath);
 		if (mShaderSystem.Initialize(Device, scope StringView[](shaderPath)) case .Err)

@@ -45,7 +45,7 @@ class UISandboxSample : RHISampleApp
 	private DrawingRenderer mDrawingRenderer;
 
 	// Shader system
-	private NewShaderSystem mShaderSystem;
+	private ShaderSystem mShaderSystem;
 
 	// MSAA resources
 	private const uint32 MSAA_SAMPLES = 4;
@@ -92,7 +92,7 @@ class UISandboxSample : RHISampleApp
 			return false;
 
 		// Initialize shader system
-		mShaderSystem = new NewShaderSystem();
+		mShaderSystem = new ShaderSystem();
 		String shaderPath = scope .();
 		GetAssetPath("Render/shaders", shaderPath);
 		if (mShaderSystem.Initialize(Device, scope StringView[](shaderPath)) case .Err)

@@ -4,16 +4,14 @@ using System;
 using System.Collections;
 using Sedulous.RHI;
 using Dxc_Beef;
-using Sedulous.RHI.HLSLShaderCompiler;
-
 /// Shader compilation target format.
-/*enum ShaderTarget
+enum ShaderTarget
 {
 	/// SPIRV bytecode (Vulkan).
 	SPIRV,
 	/// DXIL bytecode (Direct3D 12).
 	DXIL
-}*/
+}
 
 /// Result of shader compilation.
 struct CompilationResult : IDisposable

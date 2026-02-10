@@ -118,7 +118,7 @@ public class WorldUIPanel
 	/// - panelWidth/Height: World-space size in units
 	/// - frameCount: Number of in-flight frames for triple-buffering
 	/// - shaderSystem: Shader system for loading drawing shaders
-	public this(IDevice device, IFontService fontService, uint32 pixelWidth, uint32 pixelHeight, float panelWidth, float panelHeight, int32 frameCount, NewShaderSystem shaderSystem)
+	public this(IDevice device, IFontService fontService, uint32 pixelWidth, uint32 pixelHeight, float panelWidth, float panelHeight, int32 frameCount, ShaderSystem shaderSystem)
 	{
 		mFontService = fontService;
 		mPixelWidth = pixelWidth;

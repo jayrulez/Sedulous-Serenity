@@ -12,7 +12,7 @@ public class HiZOcclusionCuller : IDisposable
 {
 	// GPU resources
 	private IDevice mDevice;
-	private NewShaderSystem mShaderSystem;
+	private ShaderSystem mShaderSystem;
 	private ITexture mHiZPyramid;
 	private ITextureView[16] mHiZMipViews;
 	private ITextureView[16] mHiZMipStorageViews; // Storage views for compute writes
@@ -65,7 +65,7 @@ public class HiZOcclusionCuller : IDisposable
 	public bool GPUCullAvailable => mCullPipeline != null;
 
 	/// Initializes the Hi-Z culler with the given dimensions.
-	public Result<void> Initialize(IDevice device, uint32 width, uint32 height, NewShaderSystem shaderSystem = null)
+	public Result<void> Initialize(IDevice device, uint32 width, uint32 height, ShaderSystem shaderSystem = null)
 	{
 		mDevice = device;
 		mShaderSystem = shaderSystem;

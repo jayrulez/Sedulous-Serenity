@@ -64,7 +64,7 @@ public abstract class Application
 	protected FontService mFontService;
 
 	// Shader system
-	protected NewShaderSystem mShaderSystem;
+	protected ShaderSystem mShaderSystem;
 
 	// Timing
 	protected Stopwatch mStopwatch = new .() ~ delete _;
@@ -419,7 +419,7 @@ public abstract class Application
 
 	private bool InitializeShaderSystem()
 	{
-		mShaderSystem = new NewShaderSystem();
+		mShaderSystem = new ShaderSystem();
 		let shaderPath = GetAssetPath("Render/shaders", .. scope .());
 		if (mShaderSystem.Initialize(mDevice, scope StringView[](shaderPath)) case .Err)
 		{

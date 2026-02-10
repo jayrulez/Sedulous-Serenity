@@ -3,7 +3,7 @@ namespace SampleFramework;
 using System;
 using System.IO;
 using Sedulous.RHI;
-using Sedulous.RHI.HLSLShaderCompiler;
+using Sedulous.Shaders;
 
 /// Binding shift configuration for SPIRV compilation.
 /// Default values use VulkanBindingShifts constants for automatic separation.
@@ -47,29 +47,26 @@ static class ShaderUtils
 		ShaderStage stage,
 		BindingShifts shifts = .())
 	{
-		let compiler = scope HLSLCompiler();
-		if (!compiler.IsInitialized)
+		let compiler = scope ShaderCompiler();
+		if (compiler.Initialize() case .Err)
 			return .Err;
 
-		ShaderCompileOptions options = .();
-		options.EntryPoint = entryPoint;
-		options.Stage = stage;
-		options.Target = .SPIRV;
-		options.ConstantBufferShift = shifts.ConstantBuffer;
-		options.TextureShift = shifts.Texture;
-		options.SamplerShift = shifts.Sampler;
-		options.UAVShift = shifts.UAV;
+		compiler.ConstantBufferShift = shifts.ConstantBuffer;
+		compiler.TextureShift = shifts.Texture;
+		compiler.SamplerShift = shifts.Sampler;
+		compiler.UAVShift = shifts.UAV;
 
-		let result = compiler.Compile(source, options);
-		defer delete result;
+		let key = ShaderVariantKey("inline", stage, .None);
+		var result = compiler.Compile(source, key, .SPIRV, entryPoint);
+		defer result.Dispose();
 
 		if (!result.Success)
 		{
-			Console.WriteLine(scope $"Shader compilation failed: {result.Errors}");
+			Console.WriteLine(scope $"Shader compilation failed: {result.Messages}");
 			return .Err;
 		}
 
-		ShaderModuleDescriptor desc = .(result.Bytecode);
+		ShaderModuleDescriptor desc = .(.(result.Bytecode, result.Bytecode.Count));
 		if (device.CreateShaderModule(&desc) case .Ok(let module))
 			return .Ok(module);
 

@@ -6,7 +6,7 @@ using System.Collections;
 using Sedulous.AppFramework;
 using Sedulous.Mathematics;
 using Sedulous.RHI;
-using Sedulous.RHI.HLSLShaderCompiler;
+using Sedulous.Shaders;
 using Sedulous.Models;
 using Sedulous.Models.GLTF;
 using Sedulous.Drawing;
@@ -234,8 +234,8 @@ class GLTFViewerApp : Application
 
 	private bool CompileShaders()
 	{
-		let compiler = scope HLSLCompiler();
-		if (!compiler.IsInitialized)
+		let compiler = scope ShaderCompiler();
+		if (compiler.Initialize() case .Err)
 			return false;
 
 		String vertSource = """
@@ -336,46 +336,32 @@ class GLTFViewerApp : Application
 			""";
 
 		// Compile vertex shader
-		ShaderCompileOptions vertOptions = .();
-		vertOptions.EntryPoint = "main";
-		vertOptions.Stage = .Vertex;
-		vertOptions.Target = .SPIRV;
-		vertOptions.ConstantBufferShift = VulkanBindingShifts.SHIFT_B;
-		vertOptions.TextureShift = VulkanBindingShifts.SHIFT_T;
-		vertOptions.SamplerShift = VulkanBindingShifts.SHIFT_S;
-
-		let vertResult = compiler.Compile(vertSource, vertOptions);
-		defer delete vertResult;
+		let vertKey = ShaderVariantKey("model", .Vertex, .None);
+		var vertResult = compiler.Compile(vertSource, vertKey, .SPIRV, "main");
+		defer vertResult.Dispose();
 		if (!vertResult.Success)
 		{
-			Console.WriteLine(scope $"Vertex shader error: {vertResult.Errors}");
+			Console.WriteLine(scope $"Vertex shader error: {vertResult.Messages}");
 			return false;
 		}
 
-		ShaderModuleDescriptor vertDesc = .(vertResult.Bytecode);
+		ShaderModuleDescriptor vertDesc = .(.(vertResult.Bytecode, vertResult.Bytecode.Count));
 		if (Device.CreateShaderModule(&vertDesc) case .Ok(let vs))
 			mVertShader = vs;
 		else
 			return false;
 
 		// Compile fragment shader
-		ShaderCompileOptions fragOptions = .();
-		fragOptions.EntryPoint = "main";
-		fragOptions.Stage = .Fragment;
-		fragOptions.Target = .SPIRV;
-		fragOptions.ConstantBufferShift = VulkanBindingShifts.SHIFT_B;
-		fragOptions.TextureShift = VulkanBindingShifts.SHIFT_T;
-		fragOptions.SamplerShift = VulkanBindingShifts.SHIFT_S;
-
-		let fragResult = compiler.Compile(fragSource, fragOptions);
-		defer delete fragResult;
+		let fragKey = ShaderVariantKey("model", .Fragment, .None);
+		var fragResult = compiler.Compile(fragSource, fragKey, .SPIRV, "main");
+		defer fragResult.Dispose();
 		if (!fragResult.Success)
 		{
-			Console.WriteLine(scope $"Fragment shader error: {fragResult.Errors}");
+			Console.WriteLine(scope $"Fragment shader error: {fragResult.Messages}");
 			return false;
 		}
 
-		ShaderModuleDescriptor fragDesc = .(fragResult.Bytecode);
+		ShaderModuleDescriptor fragDesc = .(.(fragResult.Bytecode, fragResult.Bytecode.Count));
 		if (Device.CreateShaderModule(&fragDesc) case .Ok(let fs))
 			mFragShader = fs;
 		else

@@ -157,10 +157,10 @@ public class ClusterGrid : IDisposable
 	public bool GPUCullingAvailable => mGPUCullingAvailable;
 
 	// Shader system reference (not owned)
-	private NewShaderSystem mShaderSystem;
+	private ShaderSystem mShaderSystem;
 
 	/// Initializes the cluster grid.
-	public Result<void> Initialize(IDevice device, ClusterGridConfig config = .Default, NewShaderSystem shaderSystem = null)
+	public Result<void> Initialize(IDevice device, ClusterGridConfig config = .Default, ShaderSystem shaderSystem = null)
 	{
 		mDevice = device;
 		mConfig = config;

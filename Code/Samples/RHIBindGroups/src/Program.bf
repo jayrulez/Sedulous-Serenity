@@ -3,7 +3,6 @@ namespace RHIBindGroups;
 using System;
 using Sedulous.Mathematics;
 using Sedulous.RHI;
-using Sedulous.RHI.HLSLShaderCompiler;
 using SampleFramework;
 
 /// Vertex structure
@@ -166,57 +165,17 @@ class BindGroupsSample : RHISampleApp
 
 	private bool CreateBindGroups()
 	{
-		// Load shaders with space0 and space1 for the two descriptor sets
-		ShaderCompileOptions vertOptions = .();
-		vertOptions.EntryPoint = "main";
-		vertOptions.Stage = .Vertex;
-		vertOptions.Target = .SPIRV;
-		vertOptions.DescriptorSet = 0;  // Will handle both sets
-
-		let compiler = scope HLSLCompiler();
-		if (!compiler.IsInitialized)
-			return false;
-
 		// Compile vertex shader
-		String vertSource = scope .();
-		if (!ShaderUtils.ReadTextFile("shaders/bindgroups.vert.hlsl", vertSource))
+		if (ShaderUtils.LoadShader(Device, "shaders/bindgroups.vert.hlsl", "main", .Vertex) case .Ok(let vs))
+			mVertShader = vs;
+		else
 			return false;
-
-		let vertResult = compiler.Compile(vertSource, vertOptions);
-		defer delete vertResult;
-		if (!vertResult.Success)
-		{
-			Console.WriteLine(scope $"Vertex shader compilation failed: {vertResult.Errors}");
-			return false;
-		}
-
-		ShaderModuleDescriptor vertDesc = .(vertResult.Bytecode);
-		if (Device.CreateShaderModule(&vertDesc) not case .Ok(let vs))
-			return false;
-		mVertShader = vs;
 
 		// Compile fragment shader
-		String fragSource = scope .();
-		if (!ShaderUtils.ReadTextFile("shaders/bindgroups.frag.hlsl", fragSource))
+		if (ShaderUtils.LoadShader(Device, "shaders/bindgroups.frag.hlsl", "main", .Fragment) case .Ok(let fs))
+			mFragShader = fs;
+		else
 			return false;
-
-		ShaderCompileOptions fragOptions = .();
-		fragOptions.EntryPoint = "main";
-		fragOptions.Stage = .Fragment;
-		fragOptions.Target = .SPIRV;
-
-		let fragResult = compiler.Compile(fragSource, fragOptions);
-		defer delete fragResult;
-		if (!fragResult.Success)
-		{
-			Console.WriteLine(scope $"Fragment shader compilation failed: {fragResult.Errors}");
-			return false;
-		}
-
-		ShaderModuleDescriptor fragDesc = .(fragResult.Bytecode);
-		if (Device.CreateShaderModule(&fragDesc) not case .Ok(let fs))
-			return false;
-		mFragShader = fs;
 
 		Console.WriteLine("Shaders compiled");
 

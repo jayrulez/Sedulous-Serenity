@@ -24,7 +24,7 @@ class DrawingSandboxSample : RHISampleApp
 	private DrawingRenderer mDrawingRenderer;
 
 	// Shader system
-	private NewShaderSystem mShaderSystem;
+	private ShaderSystem mShaderSystem;
 
 	// Font size used for labels
 	private const float FONT_SIZE = 20;
@@ -53,7 +53,7 @@ class DrawingSandboxSample : RHISampleApp
 			return false;
 
 		// Initialize shader system
-		mShaderSystem = new NewShaderSystem();
+		mShaderSystem = new ShaderSystem();
 		String shaderPath = scope .();
 		GetAssetPath("Render/shaders", shaderPath);
 		if (mShaderSystem.Initialize(Device, scope StringView[](shaderPath)) case .Err)

@@ -4,12 +4,11 @@ using System;
 using System.IO;
 using System.Collections;
 using Sedulous.RHI;
-using Sedulous.RHI.HLSLShaderCompiler;
 
 /// Main shader system facade.
 /// Handles shader loading, compilation, and caching.
 /// Three-tier lookup: memory cache → disk cache → compile from source.
-class NewShaderSystem : IDisposable
+class ShaderSystem : IDisposable
 {
 	private ShaderCompiler mCompiler ~ delete _;
 	private ShaderCache mCache ~ delete _;
@@ -311,6 +310,3 @@ class NewShaderSystem : IDisposable
 		mCompiler = null;
 	}
 }
-
-/// Type alias for backward compatibility with Sedulous.Shaders.
-//typealias ShaderLibrary = ShaderSystem;

@@ -88,11 +88,11 @@ enum PipelineVariantFlags : uint32
 class RenderPipelineCache
 {
 	private IDevice mDevice;
-	private NewShaderSystem mShaderSystem;
+	private ShaderSystem mShaderSystem;
 	private Dictionary<int, IRenderPipeline> mPipelineCache = new .() ~ DeleteDictionaryAndValues!(_);
 	private Dictionary<int, IPipelineLayout> mLayoutCache = new .() ~ DeleteDictionaryAndValues!(_);
 
-	public this(IDevice device, NewShaderSystem shaderSystem)
+	public this(IDevice device, ShaderSystem shaderSystem)
 	{
 		mDevice = device;
 		mShaderSystem = shaderSystem;

@@ -61,7 +61,7 @@ class EngineAudioSample : RHISampleApp
 	private DrawingRenderer mDrawingRenderer;
 
 	// Shader system
-	private NewShaderSystem mShaderSystem;
+	private ShaderSystem mShaderSystem;
 
 	// UI Elements (for updating)
 	private TextBlock mNowPlayingLabel;
@@ -90,7 +90,7 @@ class EngineAudioSample : RHISampleApp
 			return false;
 
 		// Initialize shader system
-		mShaderSystem = new NewShaderSystem();
+		mShaderSystem = new ShaderSystem();
 		String shaderPath = scope .();
 		GetAssetPath("Render/shaders", shaderPath);
 		if (mShaderSystem.Initialize(Device, scope StringView[](shaderPath)) case .Err)

@@ -41,7 +41,7 @@ public class LightingSystem : IDisposable
 	public bool IsInitialized => mDevice != null && mClusterGrid != null && mLightBuffer != null;
 
 	/// Initializes the lighting system.
-	public Result<void> Initialize(IDevice device, ClusterGridConfig clusterConfig = .Default, NewShaderSystem shaderSystem = null)
+	public Result<void> Initialize(IDevice device, ClusterGridConfig clusterConfig = .Default, ShaderSystem shaderSystem = null)
 	{
 		mDevice = device;
 
