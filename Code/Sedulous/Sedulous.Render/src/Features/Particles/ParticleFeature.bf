@@ -106,7 +106,8 @@ public class ParticleFeature : RenderFeatureBase
 	/// Particles render after transparent.
 	public override void GetDependencies(List<StringView> outDependencies)
 	{
-		outDependencies.Add("ForwardTransparent");
+		outDependencies.Add("ForwardOpaque");
+		//outDependencies.Add("ForwardTransparent");
 	}
 
 	protected override Result<void> OnInitialize()
