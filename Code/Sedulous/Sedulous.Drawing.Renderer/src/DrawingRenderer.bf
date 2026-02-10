@@ -95,6 +95,7 @@ public class DrawingRenderer : IDisposable
 		public Sedulous.RHI.ITexture GpuTexture;
 		public ITextureView GpuTextureView;
 		public IBindGroup[] BindGroups;
+		public bool IsExternal;  // If true, we don't own the GPU resources
 
 		public void Dispose(int32 frameCount)
 		{
@@ -104,8 +105,12 @@ public class DrawingRenderer : IDisposable
 					if (BindGroups[i] != null) delete BindGroups[i];
 				delete BindGroups;
 			}
-			if (GpuTextureView != null) delete GpuTextureView;
-			if (GpuTexture != null) delete GpuTexture;
+			// Only delete GPU resources if we own them
+			if (!IsExternal)
+			{
+				if (GpuTextureView != null) delete GpuTextureView;
+				if (GpuTexture != null) delete GpuTexture;
+			}
 		}
 	}
 
@@ -259,6 +264,75 @@ public class DrawingRenderer : IDisposable
 			delete cached;
 		}
 		mTextureCache.Clear();
+	}
+
+	/// Register an external GPU texture for use with an IImageData reference.
+	/// This allows render targets or other externally-created textures to be used in 2D drawing.
+	/// The caller owns the GPU texture and view - the renderer will not delete them.
+	/// Call UnregisterExternalTexture when done to remove from cache.
+	public void RegisterExternalTexture(Sedulous.Drawing.IImageData imageRef, ITextureView gpuTextureView)
+	{
+		if (imageRef == null || gpuTextureView == null)
+			return;
+
+		// Check if already registered
+		for (let cached in mTextureCache)
+		{
+			if (cached.SourceTexture == imageRef)
+			{
+				// Update existing entry
+				if (!cached.IsExternal)
+				{
+					// Was previously an owned texture, clean it up
+					if (cached.GpuTextureView != null) delete cached.GpuTextureView;
+					if (cached.GpuTexture != null) delete cached.GpuTexture;
+				}
+				cached.GpuTextureView = gpuTextureView;
+				cached.GpuTexture = null;  // External - we don't track the texture itself
+				cached.IsExternal = true;
+				// Invalidate bind groups so they get recreated
+				if (cached.BindGroups != null)
+				{
+					for (int i = 0; i < mFrameCount; i++)
+					{
+						if (cached.BindGroups[i] != null)
+						{
+							delete cached.BindGroups[i];
+							cached.BindGroups[i] = null;
+						}
+					}
+				}
+				return;
+			}
+		}
+
+		// Create new cache entry
+		let cached = new CachedTexture();
+		cached.SourceTexture = imageRef;
+		cached.GpuTexture = null;
+		cached.GpuTextureView = gpuTextureView;
+		cached.BindGroups = new IBindGroup[mFrameCount];
+		cached.IsExternal = true;
+		mTextureCache.Add(cached);
+	}
+
+	/// Unregister an external texture from the cache.
+	public void UnregisterExternalTexture(Sedulous.Drawing.IImageData imageRef)
+	{
+		if (imageRef == null)
+			return;
+
+		for (int i = 0; i < mTextureCache.Count; i++)
+		{
+			if (mTextureCache[i].SourceTexture == imageRef)
+			{
+				let cached = mTextureCache[i];
+				cached.Dispose(mFrameCount);
+				delete cached;
+				mTextureCache.RemoveAt(i);
+				return;
+			}
+		}
 	}
 
 	/// Prepare batch data for standard (per-vertex) rendering.

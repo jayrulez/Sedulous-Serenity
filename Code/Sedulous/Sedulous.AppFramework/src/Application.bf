@@ -157,6 +157,9 @@ public abstract class Application
 	/// Called when the window is resized.
 	protected virtual void OnResize(uint32 width, uint32 height) { }
 
+	/// Called when a file is dropped onto the window.
+	protected virtual void OnFileDrop(StringView path) { }
+
 	//==========================================================================
 	// Main Entry Point
 	//==========================================================================
@@ -188,6 +191,9 @@ public abstract class Application
 
 			// Process key events
 			ProcessKeyEvents();
+
+			// Process file drops
+			ProcessFileDrops();
 
 			// Route input to UI
 			ProcessUIInput();
@@ -449,6 +455,17 @@ public abstract class Application
 				OnKeyDown(keyCode);
 			if (mShell.InputManager.Keyboard.IsKeyReleased(keyCode))
 				OnKeyUp(keyCode);
+		}
+	}
+
+	private void ProcessFileDrops()
+	{
+		let inputManager = mShell.InputManager;
+		for (int i = 0; i < inputManager.DroppedFileCount; i++)
+		{
+			let path = inputManager.GetDroppedFile(i);
+			if (path.Length > 0)
+				OnFileDrop(path);
 		}
 	}
 

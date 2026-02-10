@@ -12,6 +12,7 @@ class SDL3InputManager : IInputManager
 	private SDL3Mouse mMouse = new .() ~ delete _;
 	private SDL3Touch mTouch = new .() ~ delete _;
 	private List<SDL3Gamepad> mGamepads = new .() ~ DeleteContainerAndItems!(_);
+	private List<String> mDroppedFiles = new .() ~ DeleteContainerAndItems!(_);
 
 	public const int MaxGamepads = 8;
 
@@ -19,6 +20,7 @@ class SDL3InputManager : IInputManager
 	public IMouse Mouse => mMouse;
 	public ITouch Touch => mTouch;
 	public int GamepadCount => mGamepads.Count;
+	public int DroppedFileCount => mDroppedFiles.Count;
 
 	public this()
 	{
@@ -36,6 +38,13 @@ class SDL3InputManager : IInputManager
 		return null;
 	}
 
+	public StringView GetDroppedFile(int index)
+	{
+		if (index >= 0 && index < mDroppedFiles.Count)
+			return mDroppedFiles[index];
+		return default;
+	}
+
 	public void Update()
 	{
 		// Frame update is handled by BeginFrame calls
@@ -48,6 +57,9 @@ class SDL3InputManager : IInputManager
 		mMouse.BeginFrame();
 		for (let gamepad in mGamepads)
 			gamepad.BeginFrame();
+
+		// Clear dropped files from previous frame
+		ClearAndDeleteItems(mDroppedFiles);
 	}
 
 	/// Sets the focus window for mouse relative mode.
@@ -96,6 +108,9 @@ class SDL3InputManager : IInputManager
 
 		case .SDL_EVENT_GAMEPAD_AXIS_MOTION:
 			HandleGamepadAxis(&e.gaxis);
+
+		case .SDL_EVENT_DROP_FILE:
+			HandleFileDrop(&e.drop);
 
 		default:
 		}
@@ -147,6 +162,15 @@ class SDL3InputManager : IInputManager
 				gamepad.HandleAxisEvent(e);
 				break;
 			}
+		}
+	}
+
+	private void HandleFileDrop(SDL_DropEvent* e)
+	{
+		if (e.data != null)
+		{
+			let path = new String(StringView(e.data));
+			mDroppedFiles.Add(path);
 		}
 	}
 

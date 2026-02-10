@@ -21,6 +21,13 @@ public interface IInputManager
 	/// Returns null if the index is out of range.
 	IGamepad GetGamepad(int index);
 
+	/// Gets the number of files dropped this frame.
+	int DroppedFileCount { get; }
+
+	/// Gets a dropped file path by index.
+	/// Returns null if index is out of range.
+	StringView GetDroppedFile(int index);
+
 	/// Updates input state. Called once per frame after processing events.
 	void Update();
 }
