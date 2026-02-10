@@ -552,8 +552,7 @@ class RenderSceneModule : SceneModule
 						else
 						{
 							let image = texResource.Image;
-							let gpuFormat = ConvertPixelFormat(image.Format);
-							let texData = TextureData.Create2D(image.Data.Ptr, (uint64)image.Data.Length, image.Width, image.Height, gpuFormat);
+							let texData = TextureData.FromImage(image);
 							if (gpuManager.UploadTexture(texData) case .Ok(let newHandle))
 							{
 								mTextureCache[texResource] = newHandle;
@@ -853,8 +852,7 @@ class RenderSceneModule : SceneModule
 				{
 					// Upload image to GPU
 					let image = texResource.Image;
-					let gpuFormat = ConvertPixelFormat(image.Format);
-					let texData = TextureData.Create2D(image.Data.Ptr, (uint64)image.Data.Length, image.Width, image.Height, gpuFormat);
+					let texData = TextureData.FromImage(image);
 
 					if (gpuManager.UploadTexture(texData) case .Ok(let newHandle))
 					{
@@ -866,29 +864,6 @@ class RenderSceneModule : SceneModule
 				if (view != null)
 					matInstance.SetTexture(slotName, view);
 			}
-		}
-	}
-
-	/// Converts Image.PixelFormat to RHI TextureFormat for GPU upload.
-	private static TextureFormat ConvertPixelFormat(Image.PixelFormat format)
-	{
-		switch (format)
-		{
-		case .R8:       return .R8Unorm;
-		case .RG8:      return .RG8Unorm;
-		case .RGB8:     return .RGBA8Unorm;   // GPU doesn't support 3-channel; SDLImageLoader always converts to RGBA8
-		case .RGBA8:    return .RGBA8Unorm;
-		case .BGR8:     return .BGRA8Unorm;
-		case .BGRA8:    return .BGRA8Unorm;
-		case .R16F:     return .R16Float;
-		case .RG16F:    return .RG16Float;
-		case .RGB16F:   return .RGBA16Float;
-		case .RGBA16F:  return .RGBA16Float;
-		case .R32F:     return .R32Float;
-		case .RG32F:    return .RG32Float;
-		case .RGB32F:   return .RGBA32Float;
-		case .RGBA32F:  return .RGBA32Float;
-		default:        return .RGBA8Unorm;
 		}
 	}
 

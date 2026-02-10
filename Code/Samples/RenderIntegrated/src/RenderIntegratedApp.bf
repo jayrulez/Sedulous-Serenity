@@ -127,6 +127,8 @@ class RenderIntegratedApp : Application
 
 	protected override void OnInitialize(Sedulous.Framework.Core.Context context)
 	{
+		Sedulous.Imaging.SDL.SDLImageLoader.Initialize();
+
 		mRenderSystem = new RenderSystem();
 		if (mRenderSystem.Initialize(mDevice, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
 		{
@@ -1066,8 +1068,7 @@ class RenderIntegratedApp : Application
 				pixelData = &rgbaData[0];
 			}
 
-			let gpuFormat = ConvertPixelFormat(image.Format);
-			let texData = TextureData.Create2D(pixelData, (uint64)image.Width * (uint64)image.Height * 4, image.Width, image.Height, gpuFormat);
+			let texData = TextureData.Create2D(pixelData, (uint64)image.Width * (uint64)image.Height * 4, image.Width, image.Height, Sedulous.Textures.TextureFormatUtils.Convert(image.Format));
 			if (mRenderSystem.ResourceManager.UploadTexture(texData) case .Ok(let texHandle))
 				mFoxTextureHandle = texHandle;
 			delete rgbaData;
@@ -1310,28 +1311,6 @@ class RenderIntegratedApp : Application
 			mRenderSystem.Execute(render.Encoder);
 		mRenderSystem.EndFrame();
 		return true;
-	}
-
-	private static TextureFormat ConvertPixelFormat(Sedulous.Imaging.Image.PixelFormat format)
-	{
-		switch (format)
-		{
-		case .R8:       return .R8Unorm;
-		case .RG8:      return .RG8Unorm;
-		case .RGB8:     return .RGBA8Unorm;
-		case .RGBA8:    return .RGBA8Unorm;
-		case .BGR8:     return .BGRA8Unorm;
-		case .BGRA8:    return .BGRA8Unorm;
-		case .R16F:     return .R16Float;
-		case .RG16F:    return .RG16Float;
-		case .RGB16F:   return .RGBA16Float;
-		case .RGBA16F:  return .RGBA16Float;
-		case .R32F:     return .R32Float;
-		case .RG32F:    return .RG32Float;
-		case .RGB32F:   return .RGBA32Float;
-		case .RGBA32F:  return .RGBA32Float;
-		default:        return .RGBA8Unorm;
-		}
 	}
 
 	protected override void OnShutdown()

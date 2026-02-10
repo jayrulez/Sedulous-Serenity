@@ -9,12 +9,6 @@ public static class ImageLoaderFactory
 {
 	private static List<ImageLoader> sLoaders = new .() ~ DeleteContainerAndItems!(_);
 
-	static this()
-	{
-		// Register default loaders
-		RegisterLoader(new SDLImageLoader());
-	}
-
 	public static void RegisterLoader(ImageLoader loader)
 	{
 		sLoaders.Add(loader);

@@ -143,6 +143,8 @@ class TowerDefenseGame : Application
 
 	protected override void OnInitialize(Context context)
 	{
+		Sedulous.Imaging.SDL.SDLImageLoader.Initialize();
+
 		Console.WriteLine("=== Tower Defense - Framework Port ===");
 
 		FixedTimeStep = 1.0f / 60.0f;

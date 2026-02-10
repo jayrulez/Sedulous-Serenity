@@ -2,6 +2,8 @@ namespace Sedulous.Render;
 
 using System;
 using Sedulous.RHI;
+using Sedulous.Imaging;
+using Sedulous.Textures;
 
 /// Raw texture data for upload to GPU.
 /// The caller is responsible for providing correctly formatted pixel data.
@@ -107,6 +109,13 @@ public struct TextureData
 			BytesPerRow = 0,
 			RowsPerImage = 0
 		};
+	}
+
+	/// Creates texture data from an Image.
+	public static Self FromImage(Image image)
+	{
+		return Create2D(image.Data.Ptr, (uint64)image.Data.Length,
+			image.Width, image.Height, TextureFormatUtils.Convert(image.Format));
 	}
 
 	/// Gets bytes per pixel for a format.

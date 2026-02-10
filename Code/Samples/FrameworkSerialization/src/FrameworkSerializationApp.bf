@@ -125,6 +125,8 @@ class FrameworkSerializationApp : Application
 
 	protected override void OnInitialize(Context context)
 	{
+		Sedulous.Imaging.SDL.SDLImageLoader.Initialize();
+
 		Console.WriteLine("=== Framework Serialization Sample ===\n");
 
 		InitializeRenderSystem();
