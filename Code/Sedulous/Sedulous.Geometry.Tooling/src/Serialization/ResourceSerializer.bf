@@ -7,7 +7,6 @@ using Sedulous.OpenDDL;
 using Sedulous.Mathematics;
 using Sedulous.Geometry;
 using Sedulous.Imaging;
-using Sedulous.Renderer;
 using Sedulous.Animation.Resources;
 using Sedulous.Geometry.Resources;
 using Sedulous.Textures.Resources;
@@ -52,13 +51,13 @@ static class ResourceSerializer
 	}
 
 	/// Save a SkinnedMeshResource bundle to a file. Delegates to SkinnedMeshResource.SaveToFile.
-	public static Result<void> SaveSkinnedMeshBundle(SkinnedMeshResource resource, StringView path)
+	public static Result<void> SaveSkinnedMesh(SkinnedMeshResource resource, StringView path)
 	{
 		return resource?.SaveToFile(path) ?? .Err;
 	}
 
 	/// Load a SkinnedMeshResource bundle from a file. Delegates to SkinnedMeshResource.LoadFromFile.
-	public static Result<SkinnedMeshResource> LoadSkinnedMeshBundle(StringView path)
+	public static Result<SkinnedMeshResource> LoadSkinnedMesh(StringView path)
 	{
 		return SkinnedMeshResource.LoadFromFile(path);
 	}
@@ -87,28 +86,16 @@ static class ResourceSerializer
 		return AnimationClipResource.LoadFromFile(path);
 	}
 
-	/// Save a MaterialResource to a file (legacy Renderer system). Delegates to MaterialResource.SaveToFile.
-	public static Result<void> SaveMaterial(Sedulous.Renderer.MaterialResource material, StringView path)
-	{
-		return material?.SaveToFile(path) ?? .Err;
-	}
-
-	/// Load a MaterialResource from a file (legacy Renderer system). Delegates to MaterialResource.LoadFromFile.
-	public static Result<Sedulous.Renderer.MaterialResource> LoadMaterial(StringView path)
-	{
-		return Sedulous.Renderer.MaterialResource.LoadFromFile(path);
-	}
-
 	/// Save a MaterialResource to a file (new Materials system). Delegates to MaterialResource.SaveToFile.
-	public static Result<void> SaveNewMaterial(Sedulous.Materials.Resources.MaterialResource material, StringView path)
+	public static Result<void> SaveMaterial(MaterialResource material, StringView path)
 	{
 		return material?.SaveToFile(path) ?? .Err;
 	}
 
 	/// Load a MaterialResource from a file (new Materials system). Delegates to MaterialResource.LoadFromFile.
-	public static Result<Sedulous.Materials.Resources.MaterialResource> LoadNewMaterial(StringView path)
+	public static Result<MaterialResource> LoadMaterial(StringView path)
 	{
-		return Sedulous.Materials.Resources.MaterialResource.LoadFromFile(path);
+		return MaterialResource.LoadFromFile(path);
 	}
 
 	/// Save a TextureResource to a binary file. Delegates to TextureResource.SaveToFile.
@@ -150,7 +137,7 @@ static class ResourceSerializer
 			let path = scope String();
 			path.AppendF("{}/{}.skinnedmesh", outputDir, mesh.Name);
 			SanitizePath(path);
-			SaveSkinnedMeshBundle(mesh, path);
+			SaveSkinnedMesh(mesh, path);
 		}
 
 		// Save standalone skeletons
@@ -162,22 +149,13 @@ static class ResourceSerializer
 			SaveSkeleton(skeleton, path);
 		}
 
-		// Save legacy materials
+		// Save new materials
 		for (let material in result.Materials)
 		{
 			let path = scope String();
 			path.AppendF("{}/{}.material", outputDir, material.Name);
 			SanitizePath(path);
 			SaveMaterial(material, path);
-		}
-
-		// Save new materials
-		for (let material in result.NewMaterials)
-		{
-			let path = scope String();
-			path.AppendF("{}/{}.mat", outputDir, material.Name);
-			SanitizePath(path);
-			SaveNewMaterial(material, path);
 		}
 
 		// Save textures

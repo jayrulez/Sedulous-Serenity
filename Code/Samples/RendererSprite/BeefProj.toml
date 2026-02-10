@@ -1,6 +1,0 @@
-FileVersion = 1
-Dependencies = {corlib = "*", "SampleFramework" = "*", "Sedulous.Engine.Renderer" = "*"}
-
-[Project]
-Name = "RendererSprite"
-StartupObject = "RendererSprite.Program"

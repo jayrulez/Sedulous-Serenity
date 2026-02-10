@@ -333,7 +333,7 @@ class FrameworkSerializationApp : Application
 		Console.WriteLine($"  Imported: {result.TotalResourceCount} resources");
 		Console.WriteLine($"    Skeletons: {result.Skeletons.Count}");
 		Console.WriteLine($"    Textures: {result.Textures.Count}");
-		Console.WriteLine($"    NewMaterials: {result.NewMaterials.Count}");
+		Console.WriteLine($"    NewMaterials: {result.Materials.Count}");
 		Console.WriteLine($"    StaticMeshes: {result.StaticMeshes.Count}");
 		Console.WriteLine($"    SkinnedMeshes: {result.SkinnedMeshes.Count}");
 		Console.WriteLine($"    Animations: {result.Animations.Count}");
@@ -397,13 +397,13 @@ class FrameworkSerializationApp : Application
 		for (let texture in result.Textures)
 			RegisterResource(texture, cacheDir, "texture");
 
-		for (let material in result.NewMaterials)
+		for (let material in result.Materials)
 		{
 			RegisterResource(material, cacheDir, "mat");
 			if (materialRefs != null)
 			{
 				let matPath = scope String();
-				matPath.AppendF("{}/{}.mat", cacheDir, material.Name);
+				matPath.AppendF("{}/{}.material", cacheDir, material.Name);
 				ResourceSerializer.SanitizePath(matPath);
 				materialRefs.Add(ResourceRef(material.Id, matPath));
 			}
@@ -523,7 +523,7 @@ class FrameworkSerializationApp : Application
 				staticMeshPath = new String(filePath);
 				mRegistry.TryResolveId(filePath, out staticMeshId);
 			}
-			else if (filePath.EndsWith(".mat") && materialRefs != null)
+			else if (filePath.EndsWith(".material") && materialRefs != null)
 			{
 				Guid matId = .();
 				mRegistry.TryResolveId(filePath, out matId);

@@ -1,6 +1,0 @@
-FileVersion = 1
-Dependencies = {corlib = "*", SampleFramework = "*", "Sedulous.Renderer" = "*"}
-
-[Project]
-Name = "RendererParticles"
-StartupObject = "RendererParticles.Program"

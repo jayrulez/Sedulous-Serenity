@@ -22,11 +22,8 @@ class ModelImportResult : IDisposable
 	/// Imported textures.
 	public List<TextureResource> Textures = new .() ~ DeleteContainerAndItems!(_);
 
-	/// Imported materials (legacy Renderer system).
-	public List<Sedulous.Renderer.MaterialResource> Materials = new .() ~ DeleteContainerAndItems!(_);
-
 	/// Imported materials (new Materials system).
-	public List<Sedulous.Materials.Resources.MaterialResource> NewMaterials = new .() ~ DeleteContainerAndItems!(_);
+	public List<Sedulous.Materials.Resources.MaterialResource> Materials = new .() ~ DeleteContainerAndItems!(_);
 
 	/// Imported animation clips.
 	public List<AnimationClipResource> Animations = new .() ~ DeleteContainerAndItems!(_);
@@ -43,7 +40,7 @@ class ModelImportResult : IDisposable
 	/// Total number of resources imported.
 	public int TotalResourceCount =>
 		StaticMeshes.Count + SkinnedMeshes.Count + Skeletons.Count +
-		Textures.Count + Materials.Count + NewMaterials.Count + Animations.Count;
+		Textures.Count + Materials.Count + Animations.Count;
 
 	public void Dispose()
 	{

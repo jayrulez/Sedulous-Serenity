@@ -159,7 +159,7 @@ class RenderAssetApp : Application
 		if (File.Exists(cachePath))
 		{
 			Console.WriteLine("Checking cache...");
-			if (ResourceSerializer.LoadSkinnedMeshBundle(cachePath) case .Ok(let resource))
+			if (ResourceSerializer.LoadSkinnedMesh(cachePath) case .Ok(let resource))
 			{
 				Console.WriteLine($"  Mesh from cache: {resource.Mesh.VertexCount} vertices");
 				meshData = resource.Mesh;

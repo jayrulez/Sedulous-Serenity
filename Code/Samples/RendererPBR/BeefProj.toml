@@ -1,7 +1,0 @@
-FileVersion = 1
-Dependencies = {corlib = "*", "SampleFramework" = "*", "Sedulous.Engine.Renderer" = "*", "Sedulous.Geometry" = "*", "Sedulous.Imaging" = "*", "Sedulous.Shaders" = "*"}
-
-[Project]
-Name = "RendererPBR"
-TargetType = "BeefConsoleApplication"
-StartupObject = "RendererPBR.Program"

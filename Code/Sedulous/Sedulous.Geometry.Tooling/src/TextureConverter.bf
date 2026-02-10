@@ -1,7 +1,6 @@
 using System;
 using Sedulous.Models;
 using Sedulous.Imaging;
-using Sedulous.Renderer;
 using System.IO;
 using System.IO;
 using Sedulous.Textures.Resources;

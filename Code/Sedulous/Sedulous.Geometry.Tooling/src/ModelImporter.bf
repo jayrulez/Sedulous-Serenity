@@ -5,7 +5,6 @@ using Sedulous.Mathematics;
 using Sedulous.Geometry;
 using Sedulous.Models;
 using Sedulous.Imaging;
-using Sedulous.Renderer;
 using Sedulous.Animation.Resources;
 using Sedulous.Geometry.Resources;
 using Sedulous.Resources;
@@ -434,19 +433,12 @@ class ModelImporter
 		{
 			let modelMat = model.Materials[matIdx];
 
-			// Create legacy MaterialResource
-			let matRes = MaterialConverter.Convert(modelMat, model);
-			if (matRes != null)
-				result.Materials.Add(matRes);
-			else
-				result.AddWarning(scope $"Failed to convert material '{modelMat.Name}' (legacy)");
-
 			// Create new MaterialResource (with texture ResourceRefs from imported textures)
-			let newMatRes = MaterialConverter.ConvertToNew(modelMat, model, result.Textures);
-			if (newMatRes != null)
-				result.NewMaterials.Add(newMatRes);
+			let mat = MaterialConverter.ConvertToNew(modelMat, model, result.Textures);
+			if (mat != null)
+				result.Materials.Add(mat);
 			else
-				result.AddWarning(scope $"Failed to convert material '{modelMat.Name}' (new)");
+				result.AddWarning(scope $"Failed to convert material '{modelMat.Name}'");
 		}
 	}
 

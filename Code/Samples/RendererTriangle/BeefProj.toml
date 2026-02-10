@@ -1,6 +1,0 @@
-FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Mathematics" = "*", "Sedulous.RHI" = "*", "Sedulous.Engine.Renderer" = "*", "SampleFramework" = "*"}
-
-[Project]
-Name = "RendererTriangle"
-StartupObject = "RendererTriangle.Program"
