@@ -30,6 +30,11 @@ public class ModelMesh
 	private PrimitiveTopology mTopology = .Triangles;
 	private BoundingBox mBounds;
 
+	/// Whether the source data contained normals (vs. synthesized defaults)
+	private bool mHasNormals = false;
+	/// Whether the source data contained tangents (vs. synthesized defaults)
+	private bool mHasTangents = false;
+
 	public StringView Name => mName;
 	public int32 VertexCount => mVertexCount;
 	public int32 VertexStride => mVertexStride;
@@ -39,6 +44,10 @@ public class ModelMesh
 	public BoundingBox Bounds => mBounds;
 	public List<ModelMeshPart> Parts => mParts;
 	public List<VertexElement> VertexElements => mVertexElements;
+	/// Whether the source data contained normals
+	public bool HasNormals => mHasNormals;
+	/// Whether the source data contained tangents
+	public bool HasTangents => mHasTangents;
 
 	public this()
 	{
@@ -56,6 +65,18 @@ public class ModelMesh
 	public void SetTopology(PrimitiveTopology topology)
 	{
 		mTopology = topology;
+	}
+
+	/// Set whether source data contained normals
+	public void SetHasNormals(bool value)
+	{
+		mHasNormals = value;
+	}
+
+	/// Set whether source data contained tangents
+	public void SetHasTangents(bool value)
+	{
+		mHasTangents = value;
 	}
 
 	/// Add a vertex element descriptor

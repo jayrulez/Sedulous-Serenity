@@ -160,7 +160,7 @@ class ModelImporter
 		{
 			let modelMesh = model.Meshes[meshIdx];
 
-			let mesh = ModelMeshConverter.ConvertToStaticMesh(modelMesh);
+			let mesh = ModelMeshConverter.ConvertToStaticMesh(modelMesh, mOptions.GenerateNormals, mOptions.GenerateTangents);
 			if (mesh == null)
 			{
 				result.AddWarning(scope $"Failed to convert mesh '{modelMesh.Name}'");
@@ -247,7 +247,7 @@ class ModelImporter
 				if (!hasSkinning)
 					continue;
 
-				if (ModelMeshConverter.ConvertToSkinnedMesh(modelMesh, skin) case .Ok(var conversionResult))
+				if (ModelMeshConverter.ConvertToSkinnedMesh(modelMesh, skin, mOptions.GenerateNormals, mOptions.GenerateTangents) case .Ok(var conversionResult))
 				{
 					if (mOptions.Scale != 1.0f)
 						ApplyScaleSkinned(conversionResult.Mesh, mOptions.Scale);
@@ -467,7 +467,7 @@ class ModelImporter
 
 			if (hasSkinning)
 			{
-				if (ModelMeshConverter.ConvertToSkinnedMesh(modelMesh, skin) case .Ok(var conversionResult))
+				if (ModelMeshConverter.ConvertToSkinnedMesh(modelMesh, skin, mOptions.GenerateNormals, mOptions.GenerateTangents) case .Ok(var conversionResult))
 				{
 					nodeToBoneMapping = conversionResult.NodeToBoneMapping;
 					delete conversionResult.Mesh;  // Not needed here, only using the mapping

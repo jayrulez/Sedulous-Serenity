@@ -32,7 +32,9 @@ struct SkinnedMeshConversionResult : IDisposable
 static class ModelMeshConverter
 {
 	/// Converts a ModelMesh to a basic Mesh (non-skinned).
-	public static StaticMesh ConvertToStaticMesh(ModelMesh modelMesh)
+	/// @param generateMissingNormals If true and source had no normals, generate from geometry.
+	/// @param generateMissingTangents If true and source had no tangents, generate from geometry.
+	public static StaticMesh ConvertToStaticMesh(ModelMesh modelMesh, bool generateMissingNormals = true, bool generateMissingTangents = true)
 	{
 		if (modelMesh == null)
 			return null;
@@ -105,13 +107,21 @@ static class ModelMeshConverter
 			mesh.AddSubMesh(SubMesh(0, modelMesh.IndexCount));
 		}
 
+		// Generate normals/tangents if source data was missing
+		if (generateMissingNormals && !modelMesh.HasNormals)
+			mesh.GenerateNormals();
+		if (generateMissingTangents && !modelMesh.HasTangents)
+			mesh.GenerateTangents();
+
 		return mesh;
 	}
 
 	/// Converts a ModelMesh to a SkinnedMesh using the provided skin for joint mapping.
 	/// The resulting mesh has joint indices that directly match the skeleton bone ordering.
 	/// Returns the mesh and a node-to-bone mapping for animation channel remapping.
-	public static Result<SkinnedMeshConversionResult> ConvertToSkinnedMesh(ModelMesh modelMesh, ModelSkin skin)
+	/// @param generateMissingNormals If true and source had no normals, generate from geometry.
+	/// @param generateMissingTangents If true and source had no tangents, generate from geometry.
+	public static Result<SkinnedMeshConversionResult> ConvertToSkinnedMesh(ModelMesh modelMesh, ModelSkin skin, bool generateMissingNormals = true, bool generateMissingTangents = true)
 	{
 		if (modelMesh == null)
 			return .Err;
@@ -196,6 +206,12 @@ static class ModelMeshConverter
 			// Fallback: single submesh covering entire mesh
 			skinnedMesh.AddSubMesh(SubMesh(0, modelMesh.IndexCount));
 		}
+
+		// Generate normals/tangents if source data was missing
+		if (generateMissingNormals && !modelMesh.HasNormals)
+			skinnedMesh.GenerateNormals();
+		if (generateMissingTangents && !modelMesh.HasTangents)
+			skinnedMesh.GenerateTangents();
 
 		skinnedMesh.CalculateBounds();
 

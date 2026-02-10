@@ -395,14 +395,23 @@ public class GltfLoader : IModelLoader
 	{
 		let firstPrim = &meshData.primitives[0];
 
-		// Phase 1: Detect skinning from first primitive and setup vertex format
+		// Phase 1: Detect skinning and available attributes from first primitive
 		bool isSkinned = false;
+		bool hasNormals = false;
+		bool hasTangents = false;
 		for (int a = 0; a < (int)firstPrim.attributes_count; a++)
 		{
 			let attr = &firstPrim.attributes[a];
 			if (attr.type == .cgltf_attribute_type_joints && attr.index == 0)
 				isSkinned = true;
+			if (attr.type == .cgltf_attribute_type_normal)
+				hasNormals = true;
+			if (attr.type == .cgltf_attribute_type_tangent)
+				hasTangents = true;
 		}
+
+		mesh.SetHasNormals(hasNormals);
+		mesh.SetHasTangents(hasTangents);
 
 		int32 stride = 0;
 		int32 positionOffset = stride;

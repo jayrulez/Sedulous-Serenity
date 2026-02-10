@@ -31,6 +31,9 @@ public class FbxLoader : IModelLoader
 	/// Skin deformer typed_id → model skin index
 	private Dictionary<uint32, int32> mSkinIndexMap ~ delete _;
 
+	/// Tracks load options for use in mesh loading
+	private ufbx_load_opts mLoadOpts;
+
 	public this()
 	{
 		mBasePath = new String();
@@ -86,17 +89,17 @@ public class FbxLoader : IModelLoader
 		Path.GetDirectoryPath(path, mBasePath);
 
 		// Setup load options
-		ufbx_load_opts opts = .();
-		opts.target_axes = ufbx_axes_right_handed_y_up;
-		opts.target_unit_meters = 1.0;
-		opts.generate_missing_normals = true;
-		opts.clean_skin_weights = true;
-		opts.use_blender_pbr_material = true;
+		mLoadOpts = .();
+		mLoadOpts.target_axes = ufbx_axes_right_handed_y_up;
+		mLoadOpts.target_unit_meters = 1.0;
+		mLoadOpts.generate_missing_normals = true;
+		mLoadOpts.clean_skin_weights = true;
+		mLoadOpts.use_blender_pbr_material = true;
 
 		// Parse the file
 		ufbx_error error = .();
 		let pathStr = path.ToScopeCStr!();
-		mScene = ufbx_load_file(pathStr, &opts, &error);
+		mScene = ufbx_load_file(pathStr, &mLoadOpts, &error);
 
 		if (mScene == null)
 		{
@@ -446,7 +449,8 @@ public class FbxLoader : IModelLoader
 			bool isSkinned = fbxMesh.skin_deformers.count > 0;
 			ufbx_skin_deformer* skinDeformer = isSkinned ? fbxMesh.skin_deformers.data[0] : null;
 
-			// Check for UV and vertex color sets
+			// Check for available attributes
+			bool hasNormals = fbxMesh.vertex_normal.exists || mLoadOpts.generate_missing_normals;
 			bool hasUV = fbxMesh.uv_sets.count > 0 && fbxMesh.uv_sets.data[0].vertex_uv.exists;
 			bool hasTangent = fbxMesh.uv_sets.count > 0 && fbxMesh.uv_sets.data[0].vertex_tangent.exists;
 			bool hasColor = fbxMesh.color_sets.count > 0 && fbxMesh.color_sets.data[0].vertex_color.exists;
@@ -454,6 +458,9 @@ public class FbxLoader : IModelLoader
 			bool hasLegacyColor = fbxMesh.vertex_color.exists;
 			if (!hasColor && hasLegacyColor)
 				hasColor = true; // Use legacy field as fallback
+
+			mesh.SetHasNormals(hasNormals);
+			mesh.SetHasTangents(hasTangent);
 
 			// Setup vertex format (matching GltfLoader layout)
 			int32 stride = 0;

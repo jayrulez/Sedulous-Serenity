@@ -164,6 +164,172 @@ public class SkinnedMesh
 		mBounds = BoundingBox(min, max);
 	}
 
+	/// Generate smooth normals from geometry
+	public void GenerateNormals()
+	{
+		if (mVertices.Count == 0)
+			return;
+
+		bool hasIndices = mIndices != null && mIndices.IndexCount > 0;
+		int32 triangleCount = hasIndices ? mIndices.IndexCount / 3 : (int32)mVertices.Count / 3;
+
+		if (triangleCount == 0)
+			return;
+
+		// Initialize normals to zero
+		for (int32 i = 0; i < mVertices.Count; i++)
+		{
+			var v = mVertices[i];
+			v.Normal = .Zero;
+			mVertices[i] = v;
+		}
+
+		// Accumulate face normals for each triangle
+		for (int32 t = 0; t < triangleCount; t++)
+		{
+			int32 i0, i1, i2;
+			if (hasIndices)
+			{
+				i0 = (int32)mIndices.GetIndex(t * 3);
+				i1 = (int32)mIndices.GetIndex(t * 3 + 1);
+				i2 = (int32)mIndices.GetIndex(t * 3 + 2);
+			}
+			else
+			{
+				i0 = t * 3;
+				i1 = t * 3 + 1;
+				i2 = t * 3 + 2;
+			}
+
+			var v0 = mVertices[i0].Position;
+			var v1 = mVertices[i1].Position;
+			var v2 = mVertices[i2].Position;
+
+			// Calculate face normal from cross product of edges
+			var edge1 = v1 - v0;
+			var edge2 = v2 - v0;
+			var faceNormal = Vector3.Cross(edge1, edge2);
+
+			// Accumulate to each vertex
+			var vert0 = mVertices[i0];
+			var vert1 = mVertices[i1];
+			var vert2 = mVertices[i2];
+			vert0.Normal = vert0.Normal + faceNormal;
+			vert1.Normal = vert1.Normal + faceNormal;
+			vert2.Normal = vert2.Normal + faceNormal;
+			mVertices[i0] = vert0;
+			mVertices[i1] = vert1;
+			mVertices[i2] = vert2;
+		}
+
+		// Normalize all normals
+		for (int32 i = 0; i < mVertices.Count; i++)
+		{
+			var v = mVertices[i];
+			if (v.Normal.LengthSquared() > 0.0001f)
+				v.Normal = Vector3.Normalize(v.Normal);
+			else
+				v.Normal = Vector3.Up;
+			mVertices[i] = v;
+		}
+	}
+
+	/// Generate tangent vectors for normal mapping
+	public void GenerateTangents()
+	{
+		if (mVertices.Count == 0)
+			return;
+
+		bool hasIndices = mIndices != null && mIndices.IndexCount > 0;
+		int32 triangleCount = hasIndices ? mIndices.IndexCount / 3 : (int32)mVertices.Count / 3;
+
+		if (triangleCount == 0)
+			return;
+
+		// Initialize tangents to zero
+		for (int32 i = 0; i < mVertices.Count; i++)
+		{
+			var v = mVertices[i];
+			v.Tangent = .Zero;
+			mVertices[i] = v;
+		}
+
+		// Calculate tangents for each triangle
+		for (int32 t = 0; t < triangleCount; t++)
+		{
+			int32 i0, i1, i2;
+			if (hasIndices)
+			{
+				i0 = (int32)mIndices.GetIndex(t * 3);
+				i1 = (int32)mIndices.GetIndex(t * 3 + 1);
+				i2 = (int32)mIndices.GetIndex(t * 3 + 2);
+			}
+			else
+			{
+				i0 = t * 3;
+				i1 = t * 3 + 1;
+				i2 = t * 3 + 2;
+			}
+
+			var v0 = mVertices[i0];
+			var v1 = mVertices[i1];
+			var v2 = mVertices[i2];
+
+			var deltaPos1 = v1.Position - v0.Position;
+			var deltaPos2 = v2.Position - v0.Position;
+			var deltaUV1 = v1.TexCoord - v0.TexCoord;
+			var deltaUV2 = v2.TexCoord - v0.TexCoord;
+
+			float denominator = deltaUV1.X * deltaUV2.Y - deltaUV2.X * deltaUV1.Y;
+			Vector3 tangent = .Zero;
+			if (Math.Abs(denominator) > 0.0001f)
+			{
+				float r = 1.0f / denominator;
+				tangent = (deltaPos1 * deltaUV2.Y - deltaPos2 * deltaUV1.Y) * r;
+			}
+
+			v0.Tangent = v0.Tangent + tangent;
+			v1.Tangent = v1.Tangent + tangent;
+			v2.Tangent = v2.Tangent + tangent;
+			mVertices[i0] = v0;
+			mVertices[i1] = v1;
+			mVertices[i2] = v2;
+		}
+
+		// Normalize and orthogonalize tangents
+		for (int32 i = 0; i < mVertices.Count; i++)
+		{
+			var v = mVertices[i];
+			if (v.Tangent.LengthSquared() > 0.0001f)
+			{
+				// Gram-Schmidt orthogonalization
+				v.Tangent = v.Tangent - v.Normal * Vector3.Dot(v.Normal, v.Tangent);
+				if (v.Tangent.LengthSquared() > 0.0001f)
+					v.Tangent = Vector3.Normalize(v.Tangent);
+				else
+					v.Tangent = GenerateDefaultTangent(v.Normal);
+			}
+			else
+			{
+				v.Tangent = GenerateDefaultTangent(v.Normal);
+			}
+			mVertices[i] = v;
+		}
+	}
+
+	private static Vector3 GenerateDefaultTangent(Vector3 normal)
+	{
+		Vector3 tangent;
+		if (Math.Abs(normal.Y) < 0.9f)
+			tangent = Vector3.Cross(normal, Vector3.Up);
+		else
+			tangent = Vector3.Cross(normal, Vector3.Right);
+
+		if (tangent.LengthSquared() > 0.0001f)
+			return Vector3.Normalize(tangent);
+		return Vector3.Right;
+	}
+
 	/// Pack a color from Vector4 (0-1 range) to uint32
 	public static uint32 PackColor(Vector4 color)
 	{

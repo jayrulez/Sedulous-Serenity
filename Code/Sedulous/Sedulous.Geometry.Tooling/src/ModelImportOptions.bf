@@ -40,6 +40,9 @@ class ModelImportOptions
 	/// Scale factor to apply to all geometry.
 	public float Scale = 1.0f;
 
+	/// Whether to generate normals if not present.
+	public bool GenerateNormals = true;
+
 	/// Whether to generate tangents if not present.
 	public bool GenerateTangents = true;
 

@@ -170,10 +170,82 @@ public class StaticMesh
 		return mBounds;
 	}
 
+	/// Generate smooth normals from geometry
+	public void GenerateNormals()
+	{
+		if (mVertexBuffer == null || mVertexBuffer.VertexCount == 0 || mNormalOffset < 0)
+			return;
+
+		bool hasIndices = mIndexBuffer != null && mIndexBuffer.IndexCount > 0;
+		int32 triangleCount = hasIndices ? mIndexBuffer.IndexCount / 3 : mVertexBuffer.VertexCount / 3;
+
+		if (triangleCount == 0)
+			return;
+
+		// Initialize normals to zero
+		for (int32 i = 0; i < mVertexBuffer.VertexCount; i++)
+		{
+			SetNormal(i, Vector3.Zero);
+		}
+
+		// Accumulate face normals for each triangle
+		for (int32 t = 0; t < triangleCount; t++)
+		{
+			int32 i0, i1, i2;
+			if (hasIndices)
+			{
+				i0 = (int32)mIndexBuffer.GetIndex(t * 3);
+				i1 = (int32)mIndexBuffer.GetIndex(t * 3 + 1);
+				i2 = (int32)mIndexBuffer.GetIndex(t * 3 + 2);
+			}
+			else
+			{
+				i0 = t * 3;
+				i1 = t * 3 + 1;
+				i2 = t * 3 + 2;
+			}
+
+			var v0 = GetPosition(i0);
+			var v1 = GetPosition(i1);
+			var v2 = GetPosition(i2);
+
+			// Calculate face normal from cross product of edges
+			var edge1 = v1 - v0;
+			var edge2 = v2 - v0;
+			var faceNormal = Vector3.Cross(edge1, edge2);
+
+			// Accumulate to each vertex (weighting by face area is implicit in unnormalized cross product)
+			SetNormal(i0, GetNormal(i0) + faceNormal);
+			SetNormal(i1, GetNormal(i1) + faceNormal);
+			SetNormal(i2, GetNormal(i2) + faceNormal);
+		}
+
+		// Normalize all normals
+		for (int32 i = 0; i < mVertexBuffer.VertexCount; i++)
+		{
+			var normal = GetNormal(i);
+			if (normal.LengthSquared() > 0.0001f)
+			{
+				SetNormal(i, Vector3.Normalize(normal));
+			}
+			else
+			{
+				// Fallback for degenerate cases
+				SetNormal(i, Vector3.Up);
+			}
+		}
+	}
+
 	/// Generate tangent vectors for normal mapping
 	public void GenerateTangents()
 	{
-		if (mVertexBuffer == null || mVertexBuffer.VertexCount == 0 || mIndexBuffer == null || mIndexBuffer.IndexCount == 0 || mTangentOffset < 0)
+		if (mVertexBuffer == null || mVertexBuffer.VertexCount == 0 || mTangentOffset < 0)
+			return;
+
+		bool hasIndices = mIndexBuffer != null && mIndexBuffer.IndexCount > 0;
+		int32 triangleCount = hasIndices ? mIndexBuffer.IndexCount / 3 : mVertexBuffer.VertexCount / 3;
+
+		if (triangleCount == 0)
 			return;
 
 		// Initialize tangents to zero
@@ -183,13 +255,23 @@ public class StaticMesh
 		}
 
 		// Calculate tangents for each triangle
-		for (int32 i = 0; i < mIndexBuffer.IndexCount; i += 3)
+		for (int32 t = 0; t < triangleCount; t++)
 		{
-			uint32 i0 = mIndexBuffer.GetIndex(i);
-			uint32 i1 = mIndexBuffer.GetIndex(i + 1);
-			uint32 i2 = mIndexBuffer.GetIndex(i + 2);
+			int32 i0, i1, i2;
+			if (hasIndices)
+			{
+				i0 = (int32)mIndexBuffer.GetIndex(t * 3);
+				i1 = (int32)mIndexBuffer.GetIndex(t * 3 + 1);
+				i2 = (int32)mIndexBuffer.GetIndex(t * 3 + 2);
+			}
+			else
+			{
+				i0 = t * 3;
+				i1 = t * 3 + 1;
+				i2 = t * 3 + 2;
+			}
 
-			CalculateTriangleTangent((int32)i0, (int32)i1, (int32)i2);
+			CalculateTriangleTangent(i0, i1, i2);
 		}
 
 		// Normalize and orthogonalize tangents
