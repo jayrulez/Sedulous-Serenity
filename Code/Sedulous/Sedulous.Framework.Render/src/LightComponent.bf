@@ -65,7 +65,7 @@ struct LightComponent : ISerializableComponent
 		OuterConeAngle = Math.PI_f / 4.0f,
 		CastsShadows = false,
 		ShadowBias = 0.005f,
-		ShadowNormalBias = 0.02f,
+		ShadowNormalBias = 3.0f,
 		LayerMask = 0xFFFFFFFF,
 		Enabled = true
 	};

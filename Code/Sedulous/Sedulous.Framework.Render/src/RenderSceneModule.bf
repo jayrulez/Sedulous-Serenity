@@ -500,6 +500,11 @@ class RenderSceneModule : SceneModule
 				proxy.LifetimeVarianceMax = emitter.LifetimeVarianceMax;
 				// Trail
 				proxy.Trail = emitter.Trail;
+				// Emission shape (synced to CPUEmitter if present)
+				if (proxy.CPUEmitter != null)
+					proxy.CPUEmitter.Shape = emitter.Shape;
+				// Sub-emitter
+				proxy.SubEmitterOnly = emitter.SubEmitterOnly;
 				proxy.LayerMask = emitter.LayerMask;
 				proxy.IsEnabled = true;
 			}
@@ -1256,6 +1261,14 @@ class RenderSceneModule : SceneModule
 				return mWorld?.GetParticleEmitter(proxyHandle);
 		}
 		return null;
+	}
+
+	/// Gets the particle emitter proxy handle for an entity.
+	public ParticleEmitterProxyHandle GetParticleEmitterProxyHandle(EntityId entity)
+	{
+		if (mParticleEmitterProxies.TryGetValue(entity, let proxyHandle))
+			return proxyHandle;
+		return .Invalid;
 	}
 
 	/// Creates a CPU-simulated particle emitter for an entity.

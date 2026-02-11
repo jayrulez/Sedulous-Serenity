@@ -157,6 +157,12 @@ public class CascadedShadowMaps : IDisposable
 	/// Gets the configuration.
 	public CascadeConfig Config => mConfig;
 
+	/// Sets the normal bias (in texels) from per-light configuration.
+	public void SetNormalBias(float bias)
+	{
+		mConfig.NormalBias = bias;
+	}
+
 	/// Whether the shadow maps are initialized.
 	public bool IsInitialized => mDevice != null && mShadowMapArray != null;
 

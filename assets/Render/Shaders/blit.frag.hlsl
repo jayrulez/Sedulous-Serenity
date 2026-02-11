@@ -2,6 +2,14 @@
 // Simple texture copy with tone mapping
 // NOTE: Output goes to sRGB swapchain - GPU applies gamma automatically
 
+cbuffer BlitParams : register(b0)
+{
+    float Exposure;
+    float _Pad0;
+    float _Pad1;
+    float _Pad2;
+};
+
 Texture2D SourceTexture : register(t0);
 SamplerState LinearSampler : register(s0);
 
@@ -26,6 +34,9 @@ float4 main(FragmentInput input) : SV_Target
 {
     // Sample source texture (HDR linear)
     float4 color = SourceTexture.Sample(LinearSampler, input.TexCoord);
+
+    // Apply exposure before tone mapping
+    color.rgb *= Exposure;
 
     // Simple Reinhard tone mapping (HDR to LDR)
     // Output remains in linear space - sRGB target applies gamma

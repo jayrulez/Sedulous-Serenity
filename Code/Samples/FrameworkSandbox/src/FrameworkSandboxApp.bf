@@ -113,6 +113,17 @@ class FrameworkSandboxApp : Application
 	private float mSunYaw = 0.5f;
 	private float mSunPitch = -1.0f;
 
+	// Render scene module reference (for UI callbacks)
+	private RenderSceneModule mRenderModule;
+
+	// Floor color tracking (for per-channel slider updates)
+	private float mFloorR = 0.4f;
+	private float mFloorG = 0.4f;
+	private float mFloorB = 0.4f;
+
+	// Deferred proxy-only setup (sub-emitter linkage requires proxy handles)
+	private bool mNeedsSubEmitterSetup = true;
+
 	// Arena size
 	private const float ArenaHalfSize = 25.0f;
 	private const float WallHeight = 2.0f;
@@ -365,6 +376,7 @@ class FrameworkSandboxApp : Application
 
 		// Get render module for creating render components
 		let renderModule = mMainScene.GetModule<RenderSceneModule>();
+		mRenderModule = renderModule;
 		if (renderModule == null)
 		{
 			Console.WriteLine("ERROR: RenderSceneModule not found!");
@@ -529,9 +541,10 @@ class FrameworkSandboxApp : Application
 			if (handle.IsValid)
 				UpdateSunLight();
 
-			// Enable shadow casting on the sun
-			if (let proxy = renderModule.GetLightProxy(mSunEntity))
-				proxy.CastsShadows = true;
+			// Enable shadow casting on the sun (must set on component, not just proxy,
+			// because PostUpdate syncs component → proxy every frame)
+			if (let comp = mMainScene.GetComponent<LightComponent>(mSunEntity))
+				comp.CastsShadows = true;
 		}
 		Console.WriteLine("  Created sun light entity");
 
@@ -571,46 +584,35 @@ class FrameworkSandboxApp : Application
 			transform.Position = .(0.0f, 0.0f, -8.0f);
 			mMainScene.SetTransform(mFireEntity, transform);
 
-			let handle = renderModule.CreateCPUParticleEmitter(mFireEntity, 2000);
-			if (handle.IsValid)
-			{
-				if (let proxy = renderModule.GetParticleEmitterProxy(mFireEntity))
-				{
-					proxy.SpawnRate = 200.0f;
-					proxy.ParticleLifetime = 1.2f;
-					proxy.BlendMode = .Additive;
-					proxy.InitialVelocity = .(0.0f, 2.0f, 0.0f);
-					proxy.VelocityRandomness = .(0.5f, 0.3f, 0.5f);
-					proxy.GravityMultiplier = -0.3f;
-					proxy.Drag = 1.0f;
-					proxy.SortParticles = false;
-					proxy.LifetimeVarianceMin = 0.7f;
-					proxy.LifetimeVarianceMax = 1.3f;
-					proxy.IsEnabled = true;
-					proxy.IsEmitting = true;
-
-					// Color curve: bright yellow -> orange -> dark red -> transparent
-					proxy.ColorOverLifetime = .();
-					proxy.ColorOverLifetime.AddKey(0.0f, .(1.0f, 0.9f, 0.3f, 1.0f));
-					proxy.ColorOverLifetime.AddKey(0.2f, .(1.0f, 0.6f, 0.1f, 0.9f));
-					proxy.ColorOverLifetime.AddKey(0.6f, .(0.8f, 0.2f, 0.0f, 0.5f));
-					proxy.ColorOverLifetime.AddKey(1.0f, .(0.3f, 0.0f, 0.0f, 0.0f));
-
-					// Size curve: grows then shrinks
-					proxy.SizeOverLifetime = .();
-					proxy.SizeOverLifetime.AddKey(0.0f, .(0.05f, 0.05f));
-					proxy.SizeOverLifetime.AddKey(0.15f, .(0.18f, 0.18f));
-					proxy.SizeOverLifetime.AddKey(1.0f, .(0.02f, 0.02f));
-
-					// Slight turbulence for flickering
-					proxy.ForceModules.TurbulenceStrength = 1.5f;
-					proxy.ForceModules.TurbulenceFrequency = 3.0f;
-					proxy.ForceModules.TurbulenceSpeed = 2.0f;
-
-					if (proxy.CPUEmitter != null)
-						proxy.CPUEmitter.Shape = EmissionShape.Cone(0.3f, 0.1f);
-				}
-			}
+			var comp = ParticleEmitterComponent.Default;
+			comp.MaxParticles = 2000;
+			comp.SpawnRate = 200.0f;
+			comp.ParticleLifetime = 1.2f;
+			comp.BlendMode = .Additive;
+			comp.InitialVelocity = .(0.0f, 2.0f, 0.0f);
+			comp.VelocityRandomness = .(0.5f, 0.3f, 0.5f);
+			comp.GravityMultiplier = -0.3f;
+			comp.Drag = 1.0f;
+			comp.SortParticles = false;
+			comp.LifetimeVarianceMin = 0.7f;
+			comp.LifetimeVarianceMax = 1.3f;
+			comp.Shape = EmissionShape.Cone(0.3f, 0.1f);
+			// Color curve: bright yellow -> orange -> dark red -> transparent
+			comp.ColorOverLifetime = .();
+			comp.ColorOverLifetime.AddKey(0.0f, .(1.0f, 0.9f, 0.3f, 1.0f));
+			comp.ColorOverLifetime.AddKey(0.2f, .(1.0f, 0.6f, 0.1f, 0.9f));
+			comp.ColorOverLifetime.AddKey(0.6f, .(0.8f, 0.2f, 0.0f, 0.5f));
+			comp.ColorOverLifetime.AddKey(1.0f, .(0.3f, 0.0f, 0.0f, 0.0f));
+			// Size curve: grows then shrinks
+			comp.SizeOverLifetime = .();
+			comp.SizeOverLifetime.AddKey(0.0f, .(0.05f, 0.05f));
+			comp.SizeOverLifetime.AddKey(0.15f, .(0.18f, 0.18f));
+			comp.SizeOverLifetime.AddKey(1.0f, .(0.02f, 0.02f));
+			// Slight turbulence for flickering
+			comp.ForceModules.TurbulenceStrength = 1.5f;
+			comp.ForceModules.TurbulenceFrequency = 3.0f;
+			comp.ForceModules.TurbulenceSpeed = 2.0f;
+			mMainScene.SetComponent<ParticleEmitterComponent>(mFireEntity, comp);
 		}
 		Console.WriteLine("  Created fire particle emitter (curves + turbulence)");
 
@@ -621,47 +623,30 @@ class FrameworkSandboxApp : Application
 			transform.Position = .(0.0f, 0.8f, -8.0f);
 			mMainScene.SetTransform(mSmokeEntity, transform);
 
-			let handle = renderModule.CreateCPUParticleEmitter(mSmokeEntity, 1000);
-			if (handle.IsValid)
-			{
-				if (let proxy = renderModule.GetParticleEmitterProxy(mSmokeEntity))
-				{
-					proxy.SpawnRate = 30.0f;
-					proxy.ParticleLifetime = 4.0f;
-					proxy.BlendMode = .Alpha;
-					proxy.StartColor = .(0.4f, 0.4f, 0.4f, 0.5f);
-					proxy.EndColor = .(0.3f, 0.3f, 0.3f, 0.0f);
-					proxy.InitialVelocity = .(0.0f, 0.8f, 0.0f);
-					proxy.VelocityRandomness = .(0.3f, 0.1f, 0.3f);
-					proxy.GravityMultiplier = -0.1f;
-					proxy.Drag = 0.6f;
-					proxy.SortParticles = true;
-					proxy.Lit = true;
-					proxy.SoftParticleDistance = 0.5f;
-					proxy.LifetimeVarianceMin = 0.8f;
-					proxy.LifetimeVarianceMax = 1.5f;
-					proxy.IsEnabled = true;
-					proxy.IsEmitting = true;
-
-					// Size grows over lifetime
-					proxy.SizeOverLifetime = .Linear(.(0.08f, 0.08f), .(0.5f, 0.5f));
-
-					// Alpha fades after half lifetime
-					proxy.AlphaOverLifetime = .FadeOut(1.0f, 0.4f);
-
-					// Turbulence for organic drift
-					proxy.ForceModules.TurbulenceStrength = 0.6f;
-					proxy.ForceModules.TurbulenceFrequency = 1.0f;
-					proxy.ForceModules.TurbulenceSpeed = 0.4f;
-
-					// Gentle wind
-					proxy.ForceModules.WindForce = .(0.3f, 0, 0.1f);
-					proxy.ForceModules.WindTurbulence = 0.15f;
-
-					if (proxy.CPUEmitter != null)
-						proxy.CPUEmitter.Shape = EmissionShape.Cone(0.4f, 0.1f);
-				}
-			}
+			var comp = ParticleEmitterComponent.Default;
+			comp.SpawnRate = 30.0f;
+			comp.ParticleLifetime = 4.0f;
+			comp.BlendMode = .Alpha;
+			comp.StartColor = .(0.4f, 0.4f, 0.4f, 0.5f);
+			comp.EndColor = .(0.3f, 0.3f, 0.3f, 0.0f);
+			comp.InitialVelocity = .(0.0f, 0.8f, 0.0f);
+			comp.VelocityRandomness = .(0.3f, 0.1f, 0.3f);
+			comp.GravityMultiplier = -0.1f;
+			comp.Drag = 0.6f;
+			comp.SortParticles = true;
+			comp.Lit = true;
+			comp.SoftParticleDistance = 0.5f;
+			comp.LifetimeVarianceMin = 0.8f;
+			comp.LifetimeVarianceMax = 1.5f;
+			comp.Shape = EmissionShape.Cone(0.4f, 0.1f);
+			comp.SizeOverLifetime = .Linear(.(0.08f, 0.08f), .(0.5f, 0.5f));
+			comp.AlphaOverLifetime = .FadeOut(1.0f, 0.4f);
+			comp.ForceModules.TurbulenceStrength = 0.6f;
+			comp.ForceModules.TurbulenceFrequency = 1.0f;
+			comp.ForceModules.TurbulenceSpeed = 0.4f;
+			comp.ForceModules.WindForce = .(0.3f, 0, 0.1f);
+			comp.ForceModules.WindTurbulence = 0.15f;
+			mMainScene.SetComponent<ParticleEmitterComponent>(mSmokeEntity, comp);
 		}
 		Console.WriteLine("  Created smoke particle emitter (lit + turbulence + wind + alpha curve)");
 
@@ -672,39 +657,29 @@ class FrameworkSandboxApp : Application
 			transform.Position = .(-8.0f, 0.5f, -4.0f);
 			mMainScene.SetTransform(mSparksEntity, transform);
 
-			let handle = renderModule.CreateCPUParticleEmitter(mSparksEntity, 500);
-			if (handle.IsValid)
-			{
-				if (let proxy = renderModule.GetParticleEmitterProxy(mSparksEntity))
-				{
-					proxy.SpawnRate = 0; // No continuous spawn
-					proxy.BurstCount = 30;
-					proxy.BurstInterval = 2.0f; // Burst every 2 seconds
-					proxy.BurstCycles = 0; // Infinite bursts
-					proxy.ParticleLifetime = 1.5f;
-					proxy.BlendMode = .Additive;
-					proxy.RenderMode = .StretchedBillboard;
-					proxy.StretchFactor = 2.5f;
-					proxy.StartColor = .(1.0f, 0.8f, 0.3f, 1.0f);
-					proxy.EndColor = .(1.0f, 0.2f, 0.0f, 0.0f);
-					proxy.StartSize = .(0.02f, 0.02f);
-					proxy.EndSize = .(0.005f, 0.005f);
-					proxy.InitialVelocity = .(0.0f, 4.0f, 0.0f);
-					proxy.VelocityRandomness = .(2.5f, 2.0f, 2.5f);
-					proxy.GravityMultiplier = 2.0f;
-					proxy.Drag = 0.3f;
-					proxy.LifetimeVarianceMin = 0.4f;
-					proxy.LifetimeVarianceMax = 1.0f;
-					proxy.IsEnabled = true;
-					proxy.IsEmitting = true;
-
-					// Speed decays over lifetime
-					proxy.SpeedOverLifetime = .Linear(1.0f, 0.2f);
-
-					if (proxy.CPUEmitter != null)
-						proxy.CPUEmitter.Shape = EmissionShape.Sphere(0.05f, true);
-				}
-			}
+			var comp = ParticleEmitterComponent.Default;
+			comp.MaxParticles = 500;
+			comp.SpawnRate = 0;
+			comp.BurstCount = 30;
+			comp.BurstInterval = 2.0f;
+			comp.BurstCycles = 0;
+			comp.ParticleLifetime = 1.5f;
+			comp.BlendMode = .Additive;
+			comp.RenderMode = .StretchedBillboard;
+			comp.StretchFactor = 2.5f;
+			comp.StartColor = .(1.0f, 0.8f, 0.3f, 1.0f);
+			comp.EndColor = .(1.0f, 0.2f, 0.0f, 0.0f);
+			comp.StartSize = .(0.02f, 0.02f);
+			comp.EndSize = .(0.005f, 0.005f);
+			comp.InitialVelocity = .(0.0f, 4.0f, 0.0f);
+			comp.VelocityRandomness = .(2.5f, 2.0f, 2.5f);
+			comp.GravityMultiplier = 2.0f;
+			comp.Drag = 0.3f;
+			comp.LifetimeVarianceMin = 0.4f;
+			comp.LifetimeVarianceMax = 1.0f;
+			comp.Shape = EmissionShape.Sphere(0.05f, true);
+			comp.SpeedOverLifetime = .Linear(1.0f, 0.2f);
+			mMainScene.SetComponent<ParticleEmitterComponent>(mSparksEntity, comp);
 		}
 		Console.WriteLine("  Created sparks emitter (burst + stretched billboard + speed curve)");
 
@@ -715,50 +690,33 @@ class FrameworkSandboxApp : Application
 			transform.Position = .(8.0f, 1.5f, 0.0f);
 			mMainScene.SetTransform(mMagicEntity, transform);
 
-			let handle = renderModule.CreateCPUParticleEmitter(mMagicEntity, 1000);
-			if (handle.IsValid)
-			{
-				if (let proxy = renderModule.GetParticleEmitterProxy(mMagicEntity))
-				{
-					proxy.SpawnRate = 40.0f;
-					proxy.ParticleLifetime = 3.0f;
-					proxy.BlendMode = .Additive;
-					proxy.StartColor = .(0.3f, 0.5f, 1.0f, 0.8f);
-					proxy.EndColor = .(0.6f, 0.2f, 1.0f, 0.0f);
-					proxy.InitialVelocity = .Zero;
-					proxy.VelocityRandomness = .(0.3f, 0.3f, 0.3f);
-					proxy.GravityMultiplier = -0.15f;
-					proxy.Drag = 0.5f;
-					proxy.LifetimeVarianceMin = 0.8f;
-					proxy.LifetimeVarianceMax = 1.2f;
-					proxy.IsEnabled = true;
-					proxy.IsEmitting = true;
-
-					// Size pulses: small -> big -> small -> gone
-					proxy.SizeOverLifetime = .();
-					proxy.SizeOverLifetime.AddKey(0.0f, .(0.01f, 0.01f));
-					proxy.SizeOverLifetime.AddKey(0.25f, .(0.07f, 0.07f));
-					proxy.SizeOverLifetime.AddKey(0.5f, .(0.03f, 0.03f));
-					proxy.SizeOverLifetime.AddKey(0.75f, .(0.05f, 0.05f));
-					proxy.SizeOverLifetime.AddKey(1.0f, .(0.0f, 0.0f));
-
-					// Alpha fades out
-					proxy.AlphaOverLifetime = .FadeOut(1.0f, 0.7f);
-
-					// Vortex makes particles swirl
-					proxy.ForceModules.VortexStrength = 3.0f;
-					proxy.ForceModules.VortexAxis = .(0, 1, 0);
-					proxy.ForceModules.VortexCenter = .(8.0f, 1.5f, 0.0f);
-
-					// Attractor keeps them orbiting
-					proxy.ForceModules.AttractorStrength = 2.0f;
-					proxy.ForceModules.AttractorPosition = .(8.0f, 1.5f, 0.0f);
-					proxy.ForceModules.AttractorRadius = 2.0f;
-
-					if (proxy.CPUEmitter != null)
-						proxy.CPUEmitter.Shape = EmissionShape.Sphere(0.8f);
-				}
-			}
+			var comp = ParticleEmitterComponent.Default;
+			comp.SpawnRate = 40.0f;
+			comp.ParticleLifetime = 3.0f;
+			comp.BlendMode = .Additive;
+			comp.StartColor = .(0.3f, 0.5f, 1.0f, 0.8f);
+			comp.EndColor = .(0.6f, 0.2f, 1.0f, 0.0f);
+			comp.InitialVelocity = .Zero;
+			comp.VelocityRandomness = .(0.3f, 0.3f, 0.3f);
+			comp.GravityMultiplier = -0.15f;
+			comp.Drag = 0.5f;
+			comp.LifetimeVarianceMin = 0.8f;
+			comp.LifetimeVarianceMax = 1.2f;
+			comp.Shape = EmissionShape.Sphere(0.8f);
+			comp.SizeOverLifetime = .();
+			comp.SizeOverLifetime.AddKey(0.0f, .(0.01f, 0.01f));
+			comp.SizeOverLifetime.AddKey(0.25f, .(0.07f, 0.07f));
+			comp.SizeOverLifetime.AddKey(0.5f, .(0.03f, 0.03f));
+			comp.SizeOverLifetime.AddKey(0.75f, .(0.05f, 0.05f));
+			comp.SizeOverLifetime.AddKey(1.0f, .(0.0f, 0.0f));
+			comp.AlphaOverLifetime = .FadeOut(1.0f, 0.7f);
+			comp.ForceModules.VortexStrength = 3.0f;
+			comp.ForceModules.VortexAxis = .(0, 1, 0);
+			comp.ForceModules.VortexCenter = .(8.0f, 1.5f, 0.0f);
+			comp.ForceModules.AttractorStrength = 2.0f;
+			comp.ForceModules.AttractorPosition = .(8.0f, 1.5f, 0.0f);
+			comp.ForceModules.AttractorRadius = 2.0f;
+			mMainScene.SetComponent<ParticleEmitterComponent>(mMagicEntity, comp);
 		}
 		Console.WriteLine("  Created magic orb emitter (vortex + attractor + size curve)");
 
@@ -769,35 +727,24 @@ class FrameworkSandboxApp : Application
 			transform.Position = .(8.0f, 1.5f, 0.0f);
 			mMainScene.SetTransform(mMagicCoreEntity, transform);
 
-			let handle = renderModule.CreateCPUParticleEmitter(mMagicCoreEntity, 100);
-			if (handle.IsValid)
-			{
-				if (let proxy = renderModule.GetParticleEmitterProxy(mMagicCoreEntity))
-				{
-					proxy.SpawnRate = 15.0f;
-					proxy.ParticleLifetime = 1.0f;
-					proxy.BlendMode = .Additive;
-					proxy.StartColor = .(0.6f, 0.8f, 1.0f, 1.0f);
-					proxy.EndColor = .(0.4f, 0.5f, 1.0f, 0.0f);
-					proxy.InitialVelocity = .Zero;
-					proxy.VelocityRandomness = .(0.05f, 0.05f, 0.05f);
-					proxy.GravityMultiplier = 0;
-					proxy.Drag = 2.0f;
-					proxy.IsEnabled = true;
-					proxy.IsEmitting = true;
-
-					// Pulse size
-					proxy.SizeOverLifetime = .();
-					proxy.SizeOverLifetime.AddKey(0.0f, .(0.2f, 0.2f));
-					proxy.SizeOverLifetime.AddKey(0.5f, .(0.35f, 0.35f));
-					proxy.SizeOverLifetime.AddKey(1.0f, .(0.15f, 0.15f));
-
-					proxy.AlphaOverLifetime = .FadeOut(1.0f, 0.5f);
-
-					if (proxy.CPUEmitter != null)
-						proxy.CPUEmitter.Shape = EmissionShape.Sphere(0.1f);
-				}
-			}
+			var comp = ParticleEmitterComponent.Default;
+			comp.MaxParticles = 100;
+			comp.SpawnRate = 15.0f;
+			comp.ParticleLifetime = 1.0f;
+			comp.BlendMode = .Additive;
+			comp.StartColor = .(0.6f, 0.8f, 1.0f, 1.0f);
+			comp.EndColor = .(0.4f, 0.5f, 1.0f, 0.0f);
+			comp.InitialVelocity = .Zero;
+			comp.VelocityRandomness = .(0.05f, 0.05f, 0.05f);
+			comp.GravityMultiplier = 0;
+			comp.Drag = 2.0f;
+			comp.Shape = EmissionShape.Sphere(0.1f);
+			comp.SizeOverLifetime = .();
+			comp.SizeOverLifetime.AddKey(0.0f, .(0.2f, 0.2f));
+			comp.SizeOverLifetime.AddKey(0.5f, .(0.35f, 0.35f));
+			comp.SizeOverLifetime.AddKey(1.0f, .(0.15f, 0.15f));
+			comp.AlphaOverLifetime = .FadeOut(1.0f, 0.5f);
+			mMainScene.SetComponent<ParticleEmitterComponent>(mMagicCoreEntity, comp);
 		}
 
 		// Magic orb energy wisps (per-particle trails orbiting)
@@ -807,49 +754,36 @@ class FrameworkSandboxApp : Application
 			transform.Position = .(8.0f, 1.5f, 0.0f);
 			mMainScene.SetTransform(mMagicWispsEntity, transform);
 
-			let handle = renderModule.CreateCPUParticleEmitter(mMagicWispsEntity, 50);
-			if (handle.IsValid)
-			{
-				if (let proxy = renderModule.GetParticleEmitterProxy(mMagicWispsEntity))
-				{
-					proxy.SpawnRate = 5.0f;
-					proxy.ParticleLifetime = 4.0f;
-					proxy.BlendMode = .Additive;
-					proxy.StartColor = .(0.5f, 0.3f, 1.0f, 0.9f);
-					proxy.EndColor = .(0.8f, 0.4f, 1.0f, 0.0f);
-					proxy.StartSize = .(0.04f, 0.04f);
-					proxy.EndSize = .(0.01f, 0.01f);
-					proxy.InitialVelocity = .Zero;
-					proxy.VelocityRandomness = .(0.2f, 0.2f, 0.2f);
-					proxy.GravityMultiplier = 0;
-					proxy.Drag = 0.3f;
-					proxy.IsEnabled = true;
-					proxy.IsEmitting = true;
-
-					proxy.AlphaOverLifetime = .FadeOut(1.0f, 0.7f);
-
-					// Vortex + attractor keeps wisps orbiting
-					proxy.ForceModules.VortexStrength = 4.0f;
-					proxy.ForceModules.VortexAxis = .(0, 1, 0);
-					proxy.ForceModules.VortexCenter = .(8.0f, 1.5f, 0.0f);
-					proxy.ForceModules.AttractorStrength = 3.0f;
-					proxy.ForceModules.AttractorPosition = .(8.0f, 1.5f, 0.0f);
-					proxy.ForceModules.AttractorRadius = 1.5f;
-
-					// Per-particle trails
-					proxy.Trail.Enabled = true;
-					proxy.Trail.MaxPoints = 30;
-					proxy.Trail.RecordInterval = 0.03f;
-					proxy.Trail.Lifetime = 0.8f;
-					proxy.Trail.WidthStart = 0.03f;
-					proxy.Trail.WidthEnd = 0.0f;
-					proxy.Trail.MinVertexDistance = 0.02f;
-					proxy.Trail.UseParticleColor = true;
-
-					if (proxy.CPUEmitter != null)
-						proxy.CPUEmitter.Shape = EmissionShape.Sphere(1.0f);
-				}
-			}
+			var comp = ParticleEmitterComponent.Default;
+			comp.MaxParticles = 50;
+			comp.SpawnRate = 5.0f;
+			comp.ParticleLifetime = 4.0f;
+			comp.BlendMode = .Additive;
+			comp.StartColor = .(0.5f, 0.3f, 1.0f, 0.9f);
+			comp.EndColor = .(0.8f, 0.4f, 1.0f, 0.0f);
+			comp.StartSize = .(0.04f, 0.04f);
+			comp.EndSize = .(0.01f, 0.01f);
+			comp.InitialVelocity = .Zero;
+			comp.VelocityRandomness = .(0.2f, 0.2f, 0.2f);
+			comp.GravityMultiplier = 0;
+			comp.Drag = 0.3f;
+			comp.Shape = EmissionShape.Sphere(1.0f);
+			comp.AlphaOverLifetime = .FadeOut(1.0f, 0.7f);
+			comp.ForceModules.VortexStrength = 4.0f;
+			comp.ForceModules.VortexAxis = .(0, 1, 0);
+			comp.ForceModules.VortexCenter = .(8.0f, 1.5f, 0.0f);
+			comp.ForceModules.AttractorStrength = 3.0f;
+			comp.ForceModules.AttractorPosition = .(8.0f, 1.5f, 0.0f);
+			comp.ForceModules.AttractorRadius = 1.5f;
+			comp.Trail.Enabled = true;
+			comp.Trail.MaxPoints = 30;
+			comp.Trail.RecordInterval = 0.03f;
+			comp.Trail.Lifetime = 0.8f;
+			comp.Trail.WidthStart = 0.03f;
+			comp.Trail.WidthEnd = 0.0f;
+			comp.Trail.MinVertexDistance = 0.02f;
+			comp.Trail.UseParticleColor = true;
+			mMainScene.SetComponent<ParticleEmitterComponent>(mMagicWispsEntity, comp);
 		}
 		Console.WriteLine("  Created magic orb layers (core glow + wisps with trails)");
 
@@ -860,46 +794,34 @@ class FrameworkSandboxApp : Application
 			transform.Position = .(-8.0f, 2.0f, 8.0f);
 			mMainScene.SetTransform(mTrailEntity, transform);
 
-			let handle = renderModule.CreateCPUParticleEmitter(mTrailEntity, 200);
-			if (handle.IsValid)
-			{
-				if (let proxy = renderModule.GetParticleEmitterProxy(mTrailEntity))
-				{
-					proxy.SpawnRate = 8.0f;
-					proxy.ParticleLifetime = 3.0f;
-					proxy.BlendMode = .Additive;
-					proxy.RenderMode = .StretchedBillboard;
-					proxy.StretchFactor = 1.5f;
-					proxy.StartColor = .(1.0f, 0.6f, 0.2f, 1.0f);
-					proxy.EndColor = .(1.0f, 0.2f, 0.0f, 0.0f);
-					proxy.StartSize = .(0.06f, 0.06f);
-					proxy.EndSize = .(0.02f, 0.02f);
-					proxy.InitialVelocity = .(1.5f, 0.5f, 0.0f);
-					proxy.VelocityRandomness = .(0.3f, 0.3f, 0.3f);
-					proxy.GravityMultiplier = 0.3f;
-					proxy.Drag = 0.5f;
-					proxy.LifetimeVarianceMin = 0.8f;
-					proxy.LifetimeVarianceMax = 1.2f;
-					proxy.IsEnabled = true;
-					proxy.IsEmitting = true;
-
-					// Color fades to transparent
-					proxy.AlphaOverLifetime = .FadeOut(1.0f, 0.5f);
-
-					// Enable trails
-					proxy.Trail.Enabled = true;
-					proxy.Trail.MaxPoints = 20;
-					proxy.Trail.RecordInterval = 0.02f;
-					proxy.Trail.Lifetime = 1.5f;
-					proxy.Trail.WidthStart = 0.04f;
-					proxy.Trail.WidthEnd = 0.0f;
-					proxy.Trail.MinVertexDistance = 0.01f;
-					proxy.Trail.UseParticleColor = true;
-
-					if (proxy.CPUEmitter != null)
-						proxy.CPUEmitter.Shape = EmissionShape.Sphere(0.2f);
-				}
-			}
+			var comp = ParticleEmitterComponent.Default;
+			comp.MaxParticles = 200;
+			comp.SpawnRate = 8.0f;
+			comp.ParticleLifetime = 3.0f;
+			comp.BlendMode = .Additive;
+			comp.RenderMode = .StretchedBillboard;
+			comp.StretchFactor = 1.5f;
+			comp.StartColor = .(1.0f, 0.6f, 0.2f, 1.0f);
+			comp.EndColor = .(1.0f, 0.2f, 0.0f, 0.0f);
+			comp.StartSize = .(0.06f, 0.06f);
+			comp.EndSize = .(0.02f, 0.02f);
+			comp.InitialVelocity = .(1.5f, 0.5f, 0.0f);
+			comp.VelocityRandomness = .(0.3f, 0.3f, 0.3f);
+			comp.GravityMultiplier = 0.3f;
+			comp.Drag = 0.5f;
+			comp.LifetimeVarianceMin = 0.8f;
+			comp.LifetimeVarianceMax = 1.2f;
+			comp.Shape = EmissionShape.Sphere(0.2f);
+			comp.AlphaOverLifetime = .FadeOut(1.0f, 0.5f);
+			comp.Trail.Enabled = true;
+			comp.Trail.MaxPoints = 20;
+			comp.Trail.RecordInterval = 0.02f;
+			comp.Trail.Lifetime = 1.5f;
+			comp.Trail.WidthStart = 0.04f;
+			comp.Trail.WidthEnd = 0.0f;
+			comp.Trail.MinVertexDistance = 0.01f;
+			comp.Trail.UseParticleColor = true;
+			mMainScene.SetComponent<ParticleEmitterComponent>(mTrailEntity, comp);
 		}
 		Console.WriteLine("  Created trail comet emitter (stretched billboard + ribbon trails)");
 
@@ -911,79 +833,47 @@ class FrameworkSandboxApp : Application
 			transform.Position = .(12.0f, 0.0f, -10.0f);
 			mMainScene.SetTransform(mFireworkLauncherEntity, transform);
 
-			// First create the child "burst" emitter (SubEmitterOnly - only receives from parent)
-			let burstHandle = renderModule.CreateCPUParticleEmitter(mFireworkBurstEntity, 1000);
-			if (burstHandle.IsValid)
-			{
-				if (let burstProxy = renderModule.GetParticleEmitterProxy(mFireworkBurstEntity))
-				{
-					burstProxy.SubEmitterOnly = true;
-					burstProxy.SpawnRate = 0;
-					burstProxy.ParticleLifetime = 1.5f;
-					burstProxy.BlendMode = .Additive;
-					burstProxy.RenderMode = .StretchedBillboard;
-					burstProxy.StretchFactor = 2.0f;
-					burstProxy.StartColor = .(1.0f, 0.8f, 0.3f, 1.0f);
-					burstProxy.EndColor = .(1.0f, 0.2f, 0.0f, 0.0f);
-					burstProxy.StartSize = .(0.03f, 0.03f);
-					burstProxy.EndSize = .(0.005f, 0.005f);
-					burstProxy.InitialVelocity = .(0, 0, 0);
-					burstProxy.VelocityRandomness = .(3.0f, 3.0f, 3.0f);
-					burstProxy.GravityMultiplier = 1.5f;
-					burstProxy.Drag = 0.5f;
-					burstProxy.LifetimeVarianceMin = 0.5f;
-					burstProxy.LifetimeVarianceMax = 1.0f;
-					burstProxy.IsEnabled = true;
-					burstProxy.IsEmitting = true;
+			// Child "burst" emitter (SubEmitterOnly - only receives from parent)
+			var burstComp = ParticleEmitterComponent.Default;
+			burstComp.SubEmitterOnly = true;
+			burstComp.SpawnRate = 0;
+			burstComp.ParticleLifetime = 1.5f;
+			burstComp.BlendMode = .Additive;
+			burstComp.RenderMode = .StretchedBillboard;
+			burstComp.StretchFactor = 2.0f;
+			burstComp.StartColor = .(1.0f, 0.8f, 0.3f, 1.0f);
+			burstComp.EndColor = .(1.0f, 0.2f, 0.0f, 0.0f);
+			burstComp.StartSize = .(0.03f, 0.03f);
+			burstComp.EndSize = .(0.005f, 0.005f);
+			burstComp.InitialVelocity = .(0, 0, 0);
+			burstComp.VelocityRandomness = .(3.0f, 3.0f, 3.0f);
+			burstComp.GravityMultiplier = 1.5f;
+			burstComp.Drag = 0.5f;
+			burstComp.LifetimeVarianceMin = 0.5f;
+			burstComp.LifetimeVarianceMax = 1.0f;
+			burstComp.Shape = EmissionShape.Sphere(0.05f, true);
+			burstComp.AlphaOverLifetime = .FadeOut(1.0f, 0.6f);
+			burstComp.SpeedOverLifetime = .Linear(1.0f, 0.1f);
+			mMainScene.SetComponent<ParticleEmitterComponent>(mFireworkBurstEntity, burstComp);
 
-					burstProxy.AlphaOverLifetime = .FadeOut(1.0f, 0.6f);
-					burstProxy.SpeedOverLifetime = .Linear(1.0f, 0.1f);
-
-					if (burstProxy.CPUEmitter != null)
-						burstProxy.CPUEmitter.Shape = EmissionShape.Sphere(0.05f, true);
-				}
-			}
-
-			// Now create the parent "launcher" emitter
-			let launcherHandle = renderModule.CreateCPUParticleEmitter(mFireworkLauncherEntity, 50);
-			if (launcherHandle.IsValid)
-			{
-				if (let launcherProxy = renderModule.GetParticleEmitterProxy(mFireworkLauncherEntity))
-				{
-					launcherProxy.SpawnRate = 0;
-					launcherProxy.BurstCount = 1;
-					launcherProxy.BurstInterval = 2.5f;
-					launcherProxy.BurstCycles = 0;
-					launcherProxy.ParticleLifetime = 1.0f;
-					launcherProxy.BlendMode = .Additive;
-					launcherProxy.StartColor = .(1.0f, 1.0f, 0.8f, 1.0f);
-					launcherProxy.EndColor = .(1.0f, 0.8f, 0.4f, 0.5f);
-					launcherProxy.StartSize = .(0.08f, 0.08f);
-					launcherProxy.EndSize = .(0.04f, 0.04f);
-					launcherProxy.InitialVelocity = .(0, 6.0f, 0);
-					launcherProxy.VelocityRandomness = .(0.5f, 1.0f, 0.5f);
-					launcherProxy.GravityMultiplier = 0.5f;
-					launcherProxy.IsEnabled = true;
-					launcherProxy.IsEmitting = true;
-
-					// Sub-emitter: spawn 20 burst particles when launcher particle dies
-					launcherProxy.SubEmitterCount = 1;
-					launcherProxy.SubEmitters[0] = .()
-					{
-						Trigger = .OnDeath,
-						ChildEmitter = burstHandle,
-						SpawnCount = 20,
-						Probability = 1.0f,
-						InheritPosition = true,
-						InheritVelocity = true,
-						InheritColor = false,
-						VelocityInheritFactor = 0.3f
-					};
-
-					if (launcherProxy.CPUEmitter != null)
-						launcherProxy.CPUEmitter.Shape = EmissionShape.Point();
-				}
-			}
+			// Parent "launcher" emitter (sub-emitter linkage deferred to first update)
+			var launcherComp = ParticleEmitterComponent.Default;
+			launcherComp.MaxParticles = 50;
+			launcherComp.SpawnRate = 0;
+			launcherComp.BurstCount = 1;
+			launcherComp.BurstInterval = 2.5f;
+			launcherComp.BurstCycles = 0;
+			launcherComp.ParticleLifetime = 1.0f;
+			launcherComp.BlendMode = .Additive;
+			launcherComp.StartColor = .(1.0f, 1.0f, 0.8f, 1.0f);
+			launcherComp.EndColor = .(1.0f, 0.8f, 0.4f, 0.5f);
+			launcherComp.StartSize = .(0.08f, 0.08f);
+			launcherComp.EndSize = .(0.04f, 0.04f);
+			launcherComp.InitialVelocity = .(0, 6.0f, 0);
+			launcherComp.VelocityRandomness = .(0.5f, 1.0f, 0.5f);
+			launcherComp.GravityMultiplier = 0.5f;
+			launcherComp.Shape = EmissionShape.Point();
+			mMainScene.SetComponent<ParticleEmitterComponent>(mFireworkLauncherEntity, launcherComp);
 		}
 		Console.WriteLine("  Created firework sub-emitter (launcher + burst on death)");
 
@@ -994,45 +884,33 @@ class FrameworkSandboxApp : Application
 			transform.Position = .(8.0f, 0.1f, -8.0f);
 			mMainScene.SetTransform(mSteamEntity, transform);
 
-			let handle = renderModule.CreateCPUParticleEmitter(mSteamEntity, 500);
-			if (handle.IsValid)
-			{
-				if (let proxy = renderModule.GetParticleEmitterProxy(mSteamEntity))
-				{
-					proxy.SpawnRate = 30.0f;
-					proxy.ParticleLifetime = 3.0f;
-					proxy.BlendMode = .Alpha;
-					proxy.StartColor = .(1.0f, 1.0f, 1.0f, 0.4f);
-					proxy.EndColor = .(0.9f, 0.9f, 0.95f, 0.0f);
-					proxy.StartSize = .(0.2f, 0.2f);
-					proxy.EndSize = .(0.8f, 0.8f);
-					proxy.InitialVelocity = .(0, 2.5f, 0);
-					proxy.VelocityRandomness = .(0.3f, 0.5f, 0.3f);
-					proxy.GravityMultiplier = -0.2f;
-					proxy.Drag = 0.4f;
-					proxy.SoftParticleDistance = 1.0f;
-					proxy.SortParticles = true;
-					proxy.LifetimeVarianceMin = 0.7f;
-					proxy.LifetimeVarianceMax = 1.3f;
-					proxy.IsEnabled = true;
-					proxy.IsEmitting = true;
-
-					proxy.AlphaOverLifetime = .FadeOut(0.8f, 0.5f);
-
-					// Size grows over lifetime
-					proxy.SizeOverLifetime = .();
-					proxy.SizeOverLifetime.AddKey(0.0f, .(0.2f, 0.2f));
-					proxy.SizeOverLifetime.AddKey(0.5f, .(0.5f, 0.5f));
-					proxy.SizeOverLifetime.AddKey(1.0f, .(0.9f, 0.9f));
-
-					proxy.ForceModules.TurbulenceStrength = 1.2f;
-					proxy.ForceModules.TurbulenceFrequency = 0.8f;
-					proxy.ForceModules.TurbulenceSpeed = 0.8f;
-
-					if (proxy.CPUEmitter != null)
-						proxy.CPUEmitter.Shape = EmissionShape.Cone(0.35f, 0.1f);
-				}
-			}
+			var comp = ParticleEmitterComponent.Default;
+			comp.MaxParticles = 500;
+			comp.SpawnRate = 30.0f;
+			comp.ParticleLifetime = 3.0f;
+			comp.BlendMode = .Alpha;
+			comp.StartColor = .(1.0f, 1.0f, 1.0f, 0.4f);
+			comp.EndColor = .(0.9f, 0.9f, 0.95f, 0.0f);
+			comp.StartSize = .(0.2f, 0.2f);
+			comp.EndSize = .(0.8f, 0.8f);
+			comp.InitialVelocity = .(0, 2.5f, 0);
+			comp.VelocityRandomness = .(0.3f, 0.5f, 0.3f);
+			comp.GravityMultiplier = -0.2f;
+			comp.Drag = 0.4f;
+			comp.SoftParticleDistance = 1.0f;
+			comp.SortParticles = true;
+			comp.LifetimeVarianceMin = 0.7f;
+			comp.LifetimeVarianceMax = 1.3f;
+			comp.Shape = EmissionShape.Cone(0.35f, 0.1f);
+			comp.AlphaOverLifetime = .FadeOut(0.8f, 0.5f);
+			comp.SizeOverLifetime = .();
+			comp.SizeOverLifetime.AddKey(0.0f, .(0.2f, 0.2f));
+			comp.SizeOverLifetime.AddKey(0.5f, .(0.5f, 0.5f));
+			comp.SizeOverLifetime.AddKey(1.0f, .(0.9f, 0.9f));
+			comp.ForceModules.TurbulenceStrength = 1.2f;
+			comp.ForceModules.TurbulenceFrequency = 0.8f;
+			comp.ForceModules.TurbulenceSpeed = 0.8f;
+			mMainScene.SetComponent<ParticleEmitterComponent>(mSteamEntity, comp);
 		}
 		Console.WriteLine("  Created steam vent (soft particles + turbulence)");
 
@@ -1043,34 +921,25 @@ class FrameworkSandboxApp : Application
 			transform.Position = .(-12.0f, 0.5f, 0.0f);
 			mMainScene.SetTransform(mFountainEntity, transform);
 
-			let handle = renderModule.CreateCPUParticleEmitter(mFountainEntity, 800);
-			if (handle.IsValid)
-			{
-				if (let proxy = renderModule.GetParticleEmitterProxy(mFountainEntity))
-				{
-					proxy.SpawnRate = 120.0f;
-					proxy.ParticleLifetime = 2.0f;
-					proxy.BlendMode = .Alpha;
-					proxy.StartColor = .(0.5f, 0.7f, 1.0f, 0.8f);
-					proxy.EndColor = .(0.3f, 0.5f, 0.9f, 0.0f);
-					proxy.StartSize = .(0.06f, 0.06f);
-					proxy.EndSize = .(0.03f, 0.03f);
-					proxy.InitialVelocity = .(0, 10.0f, 0);
-					proxy.VelocityRandomness = .(1.0f, 1.5f, 1.0f);
-					proxy.GravityMultiplier = 2.5f;
-					proxy.Drag = 0.1f;
-					proxy.SortParticles = false;
-					proxy.LifetimeVarianceMin = 0.6f;
-					proxy.LifetimeVarianceMax = 1.0f;
-					proxy.IsEnabled = true;
-					proxy.IsEmitting = true;
-
-					proxy.AlphaOverLifetime = .FadeOut(1.0f, 0.6f);
-
-					if (proxy.CPUEmitter != null)
-						proxy.CPUEmitter.Shape = EmissionShape.Cone(0.15f, 0.05f);
-				}
-			}
+			var comp = ParticleEmitterComponent.Default;
+			comp.MaxParticles = 800;
+			comp.SpawnRate = 120.0f;
+			comp.ParticleLifetime = 2.0f;
+			comp.BlendMode = .Alpha;
+			comp.StartColor = .(0.5f, 0.7f, 1.0f, 0.8f);
+			comp.EndColor = .(0.3f, 0.5f, 0.9f, 0.0f);
+			comp.StartSize = .(0.06f, 0.06f);
+			comp.EndSize = .(0.03f, 0.03f);
+			comp.InitialVelocity = .(0, 10.0f, 0);
+			comp.VelocityRandomness = .(1.0f, 1.5f, 1.0f);
+			comp.GravityMultiplier = 2.5f;
+			comp.Drag = 0.1f;
+			comp.SortParticles = false;
+			comp.LifetimeVarianceMin = 0.6f;
+			comp.LifetimeVarianceMax = 1.0f;
+			comp.Shape = EmissionShape.Cone(0.15f, 0.05f);
+			comp.AlphaOverLifetime = .FadeOut(1.0f, 0.6f);
+			mMainScene.SetComponent<ParticleEmitterComponent>(mFountainEntity, comp);
 		}
 		Console.WriteLine("  Created water fountain (ballistic arc + gravity)");
 
@@ -1081,38 +950,27 @@ class FrameworkSandboxApp : Application
 			transform.Position = .(0.0f, 12.0f, 0.0f);
 			mMainScene.SetTransform(mSnowEntity, transform);
 
-			let handle = renderModule.CreateCPUParticleEmitter(mSnowEntity, 500);
-			if (handle.IsValid)
-			{
-				if (let proxy = renderModule.GetParticleEmitterProxy(mSnowEntity))
-				{
-					proxy.SpawnRate = 40.0f;
-					proxy.ParticleLifetime = 8.0f;
-					proxy.BlendMode = .Alpha;
-					proxy.StartColor = .(1.0f, 0.4f, 0.5f, 0.9f);
-					proxy.EndColor = .(0.9f, 0.3f, 0.4f, 0.0f);
-					proxy.StartSize = .(0.08f, 0.08f);
-					proxy.EndSize = .(0.12f, 0.12f);
-					proxy.InitialVelocity = .(0, -0.5f, 0);
-					proxy.VelocityRandomness = .(0.2f, 0.1f, 0.2f);
-					proxy.GravityMultiplier = 0.15f;
-					proxy.Drag = 2.0f;
-					proxy.SortParticles = false;
-					proxy.LifetimeVarianceMin = 0.7f;
-					proxy.LifetimeVarianceMax = 1.3f;
-					proxy.IsEnabled = true;
-					proxy.IsEmitting = true;
-
-					proxy.AlphaOverLifetime = .FadeOut(0.7f, 0.8f);
-
-					// Wind drift
-					proxy.ForceModules.WindForce = .(1.2f, 0.0f, 0.4f);
-					proxy.ForceModules.WindTurbulence = 0.6f;
-
-					if (proxy.CPUEmitter != null)
-						proxy.CPUEmitter.Shape = EmissionShape.Box(.(10.0f, 0.5f, 10.0f));
-				}
-			}
+			var comp = ParticleEmitterComponent.Default;
+			comp.MaxParticles = 500;
+			comp.SpawnRate = 40.0f;
+			comp.ParticleLifetime = 8.0f;
+			comp.BlendMode = .Alpha;
+			comp.StartColor = .(1.0f, 0.4f, 0.5f, 0.9f);
+			comp.EndColor = .(0.9f, 0.3f, 0.4f, 0.0f);
+			comp.StartSize = .(0.08f, 0.08f);
+			comp.EndSize = .(0.12f, 0.12f);
+			comp.InitialVelocity = .(0, -0.5f, 0);
+			comp.VelocityRandomness = .(0.2f, 0.1f, 0.2f);
+			comp.GravityMultiplier = 0.15f;
+			comp.Drag = 2.0f;
+			comp.SortParticles = false;
+			comp.LifetimeVarianceMin = 0.7f;
+			comp.LifetimeVarianceMax = 1.3f;
+			comp.Shape = EmissionShape.Box(.(10.0f, 0.5f, 10.0f));
+			comp.AlphaOverLifetime = .FadeOut(0.7f, 0.8f);
+			comp.ForceModules.WindForce = .(1.2f, 0.0f, 0.4f);
+			comp.ForceModules.WindTurbulence = 0.6f;
+			mMainScene.SetComponent<ParticleEmitterComponent>(mSnowEntity, comp);
 		}
 		Console.WriteLine("  Created cherry blossoms (box emission + wind drift)");
 
@@ -1123,49 +981,34 @@ class FrameworkSandboxApp : Application
 			transform.Position = .(12.0f, 1.5f, 5.0f);
 			mMainScene.SetTransform(mFairyDustEntity, transform);
 
-			let handle = renderModule.CreateCPUParticleEmitter(mFairyDustEntity, 200);
-			if (handle.IsValid)
-			{
-				if (let proxy = renderModule.GetParticleEmitterProxy(mFairyDustEntity))
-				{
-					proxy.SpawnRate = 20.0f;
-					proxy.ParticleLifetime = 4.0f;
-					proxy.BlendMode = .Additive;
-					proxy.StartColor = .(1.0f, 0.85f, 0.4f, 0.9f);
-					proxy.EndColor = .(1.0f, 0.6f, 0.2f, 0.0f);
-					proxy.InitialVelocity = .(0, 0.2f, 0);
-					proxy.VelocityRandomness = .(0.4f, 0.3f, 0.4f);
-					proxy.GravityMultiplier = -0.05f;
-					proxy.Drag = 0.5f;
-					proxy.SortParticles = false;
-					proxy.LifetimeVarianceMin = 0.6f;
-					proxy.LifetimeVarianceMax = 1.4f;
-					proxy.IsEnabled = true;
-					proxy.IsEmitting = true;
-
-					// Size pulses
-					proxy.SizeOverLifetime = .();
-					proxy.SizeOverLifetime.AddKey(0.0f, .(0.04f, 0.04f));
-					proxy.SizeOverLifetime.AddKey(0.3f, .(0.1f, 0.1f));
-					proxy.SizeOverLifetime.AddKey(0.7f, .(0.06f, 0.06f));
-					proxy.SizeOverLifetime.AddKey(1.0f, .(0.0f, 0.0f));
-
-					proxy.AlphaOverLifetime = .FadeOut(1.0f, 0.6f);
-
-					// Gentle turbulence for organic motion
-					proxy.ForceModules.TurbulenceStrength = 0.4f;
-					proxy.ForceModules.TurbulenceFrequency = 0.6f;
-					proxy.ForceModules.TurbulenceSpeed = 0.5f;
-
-					// Gentle vortex for swirling
-					proxy.ForceModules.VortexStrength = 0.8f;
-					proxy.ForceModules.VortexAxis = .(0, 1, 0);
-					proxy.ForceModules.VortexCenter = .(12.0f, 1.5f, 5.0f);
-
-					if (proxy.CPUEmitter != null)
-						proxy.CPUEmitter.Shape = EmissionShape.Sphere(2.5f);
-				}
-			}
+			var comp = ParticleEmitterComponent.Default;
+			comp.MaxParticles = 200;
+			comp.SpawnRate = 20.0f;
+			comp.ParticleLifetime = 4.0f;
+			comp.BlendMode = .Additive;
+			comp.StartColor = .(1.0f, 0.85f, 0.4f, 0.9f);
+			comp.EndColor = .(1.0f, 0.6f, 0.2f, 0.0f);
+			comp.InitialVelocity = .(0, 0.2f, 0);
+			comp.VelocityRandomness = .(0.4f, 0.3f, 0.4f);
+			comp.GravityMultiplier = -0.05f;
+			comp.Drag = 0.5f;
+			comp.SortParticles = false;
+			comp.LifetimeVarianceMin = 0.6f;
+			comp.LifetimeVarianceMax = 1.4f;
+			comp.Shape = EmissionShape.Sphere(2.5f);
+			comp.SizeOverLifetime = .();
+			comp.SizeOverLifetime.AddKey(0.0f, .(0.04f, 0.04f));
+			comp.SizeOverLifetime.AddKey(0.3f, .(0.1f, 0.1f));
+			comp.SizeOverLifetime.AddKey(0.7f, .(0.06f, 0.06f));
+			comp.SizeOverLifetime.AddKey(1.0f, .(0.0f, 0.0f));
+			comp.AlphaOverLifetime = .FadeOut(1.0f, 0.6f);
+			comp.ForceModules.TurbulenceStrength = 0.4f;
+			comp.ForceModules.TurbulenceFrequency = 0.6f;
+			comp.ForceModules.TurbulenceSpeed = 0.5f;
+			comp.ForceModules.VortexStrength = 0.8f;
+			comp.ForceModules.VortexAxis = .(0, 1, 0);
+			comp.ForceModules.VortexCenter = .(12.0f, 1.5f, 5.0f);
+			mMainScene.SetComponent<ParticleEmitterComponent>(mFairyDustEntity, comp);
 		}
 		Console.WriteLine("  Created fairy dust (turbulence + vortex + glow)");
 
@@ -1176,43 +1019,32 @@ class FrameworkSandboxApp : Application
 			transform.Position = .(-5.0f, 3.0f, 10.0f);
 			mMainScene.SetTransform(mTrailedSparksEntity, transform);
 
-			let handle = renderModule.CreateCPUParticleEmitter(mTrailedSparksEntity, 100);
-			if (handle.IsValid)
-			{
-				if (let proxy = renderModule.GetParticleEmitterProxy(mTrailedSparksEntity))
-				{
-					proxy.SpawnRate = 8.0f;
-					proxy.ParticleLifetime = 2.5f;
-					proxy.BlendMode = .Additive;
-					proxy.StartColor = .(1.0f, 0.8f, 0.2f, 1.0f);
-					proxy.EndColor = .(1.0f, 0.3f, 0.0f, 0.0f);
-					proxy.StartSize = .(0.06f, 0.06f);
-					proxy.EndSize = .(0.02f, 0.02f);
-					proxy.InitialVelocity = .(0, 5.0f, 0);
-					proxy.VelocityRandomness = .(3.0f, 2.0f, 3.0f);
-					proxy.GravityMultiplier = 1.5f;
-					proxy.Drag = 0.2f;
-					proxy.LifetimeVarianceMin = 0.6f;
-					proxy.LifetimeVarianceMax = 1.0f;
-					proxy.IsEnabled = true;
-					proxy.IsEmitting = true;
-
-					proxy.AlphaOverLifetime = .FadeOut(1.0f, 0.5f);
-
-					// Per-particle trails
-					proxy.Trail.Enabled = true;
-					proxy.Trail.MaxPoints = 15;
-					proxy.Trail.RecordInterval = 0.015f;
-					proxy.Trail.Lifetime = 0.6f;
-					proxy.Trail.WidthStart = 0.04f;
-					proxy.Trail.WidthEnd = 0.0f;
-					proxy.Trail.MinVertexDistance = 0.05f;
-					proxy.Trail.UseParticleColor = true;
-
-					if (proxy.CPUEmitter != null)
-						proxy.CPUEmitter.Shape = EmissionShape.Sphere(0.3f, true);
-				}
-			}
+			var comp = ParticleEmitterComponent.Default;
+			comp.MaxParticles = 100;
+			comp.SpawnRate = 8.0f;
+			comp.ParticleLifetime = 2.5f;
+			comp.BlendMode = .Additive;
+			comp.StartColor = .(1.0f, 0.8f, 0.2f, 1.0f);
+			comp.EndColor = .(1.0f, 0.3f, 0.0f, 0.0f);
+			comp.StartSize = .(0.06f, 0.06f);
+			comp.EndSize = .(0.02f, 0.02f);
+			comp.InitialVelocity = .(0, 5.0f, 0);
+			comp.VelocityRandomness = .(3.0f, 2.0f, 3.0f);
+			comp.GravityMultiplier = 1.5f;
+			comp.Drag = 0.2f;
+			comp.LifetimeVarianceMin = 0.6f;
+			comp.LifetimeVarianceMax = 1.0f;
+			comp.Shape = EmissionShape.Sphere(0.3f, true);
+			comp.AlphaOverLifetime = .FadeOut(1.0f, 0.5f);
+			comp.Trail.Enabled = true;
+			comp.Trail.MaxPoints = 15;
+			comp.Trail.RecordInterval = 0.015f;
+			comp.Trail.Lifetime = 0.6f;
+			comp.Trail.WidthStart = 0.04f;
+			comp.Trail.WidthEnd = 0.0f;
+			comp.Trail.MinVertexDistance = 0.05f;
+			comp.Trail.UseParticleColor = true;
+			mMainScene.SetComponent<ParticleEmitterComponent>(mTrailedSparksEntity, comp);
 		}
 		Console.WriteLine("  Created trailed sparks (gravity + per-particle trails)");
 
@@ -1223,48 +1055,33 @@ class FrameworkSandboxApp : Application
 			transform.Position = .(5.0f, 0.5f, 8.0f);
 			mMainScene.SetTransform(mHealingEntity, transform);
 
-			let handle = renderModule.CreateCPUParticleEmitter(mHealingEntity, 300);
-			if (handle.IsValid)
-			{
-				if (let proxy = renderModule.GetParticleEmitterProxy(mHealingEntity))
-				{
-					proxy.SpawnRate = 35.0f;
-					proxy.ParticleLifetime = 2.5f;
-					proxy.BlendMode = .Additive;
-					proxy.StartColor = .(0.2f, 1.0f, 0.4f, 0.9f);
-					proxy.EndColor = .(0.1f, 0.8f, 0.3f, 0.0f);
-					proxy.InitialVelocity = .(0, 0.5f, 0);
-					proxy.VelocityRandomness = .(0.5f, 0.3f, 0.5f);
-					proxy.GravityMultiplier = -0.1f;
-					proxy.Drag = 0.3f;
-					proxy.SortParticles = false;
-					proxy.LifetimeVarianceMin = 0.7f;
-					proxy.LifetimeVarianceMax = 1.2f;
-					proxy.IsEnabled = true;
-					proxy.IsEmitting = true;
-
-					// Size shrinks to nothing
-					proxy.SizeOverLifetime = .();
-					proxy.SizeOverLifetime.AddKey(0.0f, .(0.02f, 0.02f));
-					proxy.SizeOverLifetime.AddKey(0.2f, .(0.08f, 0.08f));
-					proxy.SizeOverLifetime.AddKey(1.0f, .(0.0f, 0.0f));
-
-					proxy.AlphaOverLifetime = .FadeOut(1.0f, 0.6f);
-
-					// Attractor pulls particles inward (spiral upward)
-					proxy.ForceModules.AttractorStrength = 2.5f;
-					proxy.ForceModules.AttractorPosition = .(5.0f, 1.5f, 8.0f);
-					proxy.ForceModules.AttractorRadius = 3.0f;
-
-					// Vortex for spiral motion
-					proxy.ForceModules.VortexStrength = 2.0f;
-					proxy.ForceModules.VortexAxis = .(0, 1, 0);
-					proxy.ForceModules.VortexCenter = .(5.0f, 0.5f, 8.0f);
-
-					if (proxy.CPUEmitter != null)
-						proxy.CPUEmitter.Shape = EmissionShape.Sphere(2.0f);
-				}
-			}
+			var comp = ParticleEmitterComponent.Default;
+			comp.MaxParticles = 300;
+			comp.SpawnRate = 35.0f;
+			comp.ParticleLifetime = 2.5f;
+			comp.BlendMode = .Additive;
+			comp.StartColor = .(0.2f, 1.0f, 0.4f, 0.9f);
+			comp.EndColor = .(0.1f, 0.8f, 0.3f, 0.0f);
+			comp.InitialVelocity = .(0, 0.5f, 0);
+			comp.VelocityRandomness = .(0.5f, 0.3f, 0.5f);
+			comp.GravityMultiplier = -0.1f;
+			comp.Drag = 0.3f;
+			comp.SortParticles = false;
+			comp.LifetimeVarianceMin = 0.7f;
+			comp.LifetimeVarianceMax = 1.2f;
+			comp.Shape = EmissionShape.Sphere(2.0f);
+			comp.SizeOverLifetime = .();
+			comp.SizeOverLifetime.AddKey(0.0f, .(0.02f, 0.02f));
+			comp.SizeOverLifetime.AddKey(0.2f, .(0.08f, 0.08f));
+			comp.SizeOverLifetime.AddKey(1.0f, .(0.0f, 0.0f));
+			comp.AlphaOverLifetime = .FadeOut(1.0f, 0.6f);
+			comp.ForceModules.AttractorStrength = 2.5f;
+			comp.ForceModules.AttractorPosition = .(5.0f, 1.5f, 8.0f);
+			comp.ForceModules.AttractorRadius = 3.0f;
+			comp.ForceModules.VortexStrength = 2.0f;
+			comp.ForceModules.VortexAxis = .(0, 1, 0);
+			comp.ForceModules.VortexCenter = .(5.0f, 0.5f, 8.0f);
+			mMainScene.SetComponent<ParticleEmitterComponent>(mHealingEntity, comp);
 		}
 		Console.WriteLine("  Created healing magic (green sparkles + attractor spiral)");
 
@@ -1470,6 +1287,140 @@ class FrameworkSandboxApp : Application
 		});
 		panel.AddChild(metalSlider);
 
+		// ==================== Scene Visuals ====================
+		let visualsHeader = new TextBlock();
+		visualsHeader.Text = "— Scene Visuals —";
+		visualsHeader.Foreground = Color(220, 200, 100);
+		panel.AddChild(visualsHeader);
+
+		// Exposure (0–200 → 0.0–2.0)
+		let expLabel = new TextBlock();
+		expLabel.Text = "Exposure";
+		expLabel.Foreground = Color(180, 180, 200);
+		panel.AddChild(expLabel);
+
+		let expSlider = new Slider();
+		expSlider.Minimum = 0;
+		expSlider.Maximum = 200;
+		expSlider.Value = 100;
+		expSlider.Width = .Fixed(150);
+		expSlider.ValueChanged.Subscribe(new (slider, value) => {
+			if (let world = mRenderModule?.World)
+				world.Exposure = (float)value / 100.0f;
+		});
+		panel.AddChild(expSlider);
+
+		// Ambient Intensity (0–100 → 0.0–1.0)
+		let ambLabel = new TextBlock();
+		ambLabel.Text = "Ambient Intensity";
+		ambLabel.Foreground = Color(180, 180, 200);
+		panel.AddChild(ambLabel);
+
+		let ambSlider = new Slider();
+		ambSlider.Minimum = 0;
+		ambSlider.Maximum = 100;
+		ambSlider.Value = 50;
+		ambSlider.Width = .Fixed(150);
+		ambSlider.ValueChanged.Subscribe(new (slider, value) => {
+			if (let world = mRenderModule?.World)
+				world.AmbientIntensity = (float)value / 100.0f;
+		});
+		panel.AddChild(ambSlider);
+
+		// Sun Intensity (0–500 → 0.0–5.0)
+		let sunLabel = new TextBlock();
+		sunLabel.Text = "Sun Intensity";
+		sunLabel.Foreground = Color(180, 180, 200);
+		panel.AddChild(sunLabel);
+
+		let sunSlider = new Slider();
+		sunSlider.Minimum = 0;
+		sunSlider.Maximum = 500;
+		sunSlider.Value = 200;
+		sunSlider.Width = .Fixed(150);
+		sunSlider.ValueChanged.Subscribe(new (slider, value) => {
+			if (let comp = mMainScene?.GetComponent<LightComponent>(mSunEntity))
+				comp.Intensity = (float)value / 100.0f;
+		});
+		panel.AddChild(sunSlider);
+
+		// Shadow Normal Bias (0–100 → 0.0–10.0)
+		let biasLabel = new TextBlock();
+		biasLabel.Text = "Shadow Normal Bias";
+		biasLabel.Foreground = Color(180, 180, 200);
+		panel.AddChild(biasLabel);
+
+		let biasSlider = new Slider();
+		biasSlider.Minimum = 0;
+		biasSlider.Maximum = 100;
+		biasSlider.Value = 30;
+		biasSlider.Width = .Fixed(150);
+		biasSlider.ValueChanged.Subscribe(new (slider, value) => {
+			if (let comp = mMainScene?.GetComponent<LightComponent>(mSunEntity))
+				comp.ShadowNormalBias = (float)value / 10.0f;
+		});
+		panel.AddChild(biasSlider);
+
+		// ==================== Floor Color ====================
+		let floorHeader = new TextBlock();
+		floorHeader.Text = "— Floor Color —";
+		floorHeader.Foreground = Color(220, 200, 100);
+		panel.AddChild(floorHeader);
+
+		// Floor R (0–100 → 0.0–1.0)
+		let floorRLabel = new TextBlock();
+		floorRLabel.Text = "R";
+		floorRLabel.Foreground = Color(220, 140, 140);
+		panel.AddChild(floorRLabel);
+
+		let floorRSlider = new Slider();
+		floorRSlider.Minimum = 0;
+		floorRSlider.Maximum = 100;
+		floorRSlider.Value = 40;
+		floorRSlider.Width = .Fixed(150);
+		floorRSlider.ValueChanged.Subscribe(new (slider, value) => {
+			mFloorR = (float)value / 100.0f;
+			if (mFloorMaterial != null)
+				mFloorMaterial.SetColor("BaseColor", .(mFloorR, mFloorG, mFloorB, 1.0f));
+		});
+		panel.AddChild(floorRSlider);
+
+		// Floor G (0–100 → 0.0–1.0)
+		let floorGLabel = new TextBlock();
+		floorGLabel.Text = "G";
+		floorGLabel.Foreground = Color(140, 220, 140);
+		panel.AddChild(floorGLabel);
+
+		let floorGSlider = new Slider();
+		floorGSlider.Minimum = 0;
+		floorGSlider.Maximum = 100;
+		floorGSlider.Value = 40;
+		floorGSlider.Width = .Fixed(150);
+		floorGSlider.ValueChanged.Subscribe(new (slider, value) => {
+			mFloorG = (float)value / 100.0f;
+			if (mFloorMaterial != null)
+				mFloorMaterial.SetColor("BaseColor", .(mFloorR, mFloorG, mFloorB, 1.0f));
+		});
+		panel.AddChild(floorGSlider);
+
+		// Floor B (0–100 → 0.0–1.0)
+		let floorBLabel = new TextBlock();
+		floorBLabel.Text = "B";
+		floorBLabel.Foreground = Color(140, 140, 220);
+		panel.AddChild(floorBLabel);
+
+		let floorBSlider = new Slider();
+		floorBSlider.Minimum = 0;
+		floorBSlider.Maximum = 100;
+		floorBSlider.Value = 40;
+		floorBSlider.Width = .Fixed(150);
+		floorBSlider.ValueChanged.Subscribe(new (slider, value) => {
+			mFloorB = (float)value / 100.0f;
+			if (mFloorMaterial != null)
+				mFloorMaterial.SetColor("BaseColor", .(mFloorR, mFloorG, mFloorB, 1.0f));
+		});
+		panel.AddChild(floorBSlider);
+
 		mUIRoot.AddChild(panel);
 		CanvasProperties.SetLeft(panel, 10);
 		CanvasProperties.SetTop(panel, 150);
@@ -1560,6 +1511,30 @@ class FrameworkSandboxApp : Application
 		{
 			let instantFps = 1.0f / mDeltaTime;
 			mSmoothedFps = mSmoothedFps * 0.95f + instantFps * 0.05f;
+		}
+
+		// Deferred sub-emitter linkage (proxy must exist first, created by PostUpdate)
+		if (mNeedsSubEmitterSetup)
+		{
+			let renderModule = mMainScene?.GetModule<RenderSceneModule>();
+			if (renderModule != null)
+			{
+				let burstHandle = renderModule.GetParticleEmitterProxyHandle(mFireworkBurstEntity);
+				let launcherProxy = renderModule.GetParticleEmitterProxy(mFireworkLauncherEntity);
+				if (burstHandle.IsValid && launcherProxy != null)
+				{
+					launcherProxy.SubEmitterCount = 1;
+					launcherProxy.SubEmitters[0] = .()
+					{
+						Trigger = .OnDeath,
+						ChildEmitter = burstHandle,
+						SpawnCount = 30,
+						Probability = 1.0f,
+						InheritPosition = true
+					};
+					mNeedsSubEmitterSetup = false;
+				}
+			}
 		}
 
 		// Spawn objects when enabled

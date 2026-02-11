@@ -60,16 +60,22 @@ struct ParticleEmitterComponent : ISerializableComponent
 	public float LifetimeVarianceMax;
 	// Trail
 	public TrailSettings Trail;
+	// Emission shape
+	public EmissionShape Shape;
+	// Sub-emitter
+	public bool SubEmitterOnly;
 	// General
 	public uint32 LayerMask;
 	public bool Enabled;
 
-	public int32 SerializationVersion => 1;
+	public int32 SerializationVersion => 2;
 
 	public SerializationResult Serialize(Serializer s) mut
 	{
 		var version = SerializationVersion;
 		s.Version(ref version);
+		if (version < 2)
+			return .Ok;
 		s.Enum<ParticleSimulationBackend>("backend", ref Backend);
 		s.Enum<ParticleSpace>("simulationSpace", ref SimulationSpace);
 		s.Enum<ParticleBlendMode>("blendMode", ref BlendMode);
@@ -122,6 +128,16 @@ struct ParticleEmitterComponent : ISerializableComponent
 		s.Float("trailMinVertexDistance", ref Trail.MinVertexDistance);
 		s.Bool("trailUseParticleColor", ref Trail.UseParticleColor);
 		s.FixedFloatArray("trailColor", &Trail.TrailColor.X, 4);
+		// Emission shape
+		var shapeType = (uint8)Shape.Type;
+		s.UInt8("shapeType", ref shapeType);
+		Shape.Type = (EmissionShapeType)shapeType;
+		s.FixedFloatArray("shapeSize", &Shape.Size.X, 3);
+		s.Float("shapeConeAngle", ref Shape.ConeAngle);
+		s.Float("shapeArc", ref Shape.Arc);
+		s.Bool("shapeEmitFromSurface", ref Shape.EmitFromSurface);
+		// Sub-emitter
+		s.Bool("subEmitterOnly", ref SubEmitterOnly);
 		// General
 		s.UInt32("layerMask", ref LayerMask);
 		s.Bool("enabled", ref Enabled);
@@ -194,6 +210,8 @@ struct ParticleEmitterComponent : ISerializableComponent
 		LifetimeVarianceMin = 1.0f,
 		LifetimeVarianceMax = 1.0f,
 		Trail = .Default(),
+		Shape = EmissionShape.Point(),
+		SubEmitterOnly = false,
 		LayerMask = 0xFFFFFFFF,
 		Enabled = true
 	};
