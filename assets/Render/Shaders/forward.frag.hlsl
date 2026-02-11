@@ -1,24 +1,21 @@
 // Forward PBR Fragment Shader
-// Physically-based rendering with clustered lighting
+// DebugMode (F key) isolates rendering stages:
+//   0 = Full rendering (PBR + IBL + shadows) — default
+//   1 = Flat albedo (no lighting)
+//   2 = World normals
+//   3 = View direction (V)
+//   4 = NdotV heatmap
+//   5 = Lambertian diffuse (first directional light only)
+//   6 = Lambertian + flat ambient (all clustered lights)
+//   7 = Full PBR direct (Cook-Torrance, no IBL)
+//   8 = PBR + IBL ambient (no shadows)
 #pragma pack_matrix(row_major)
 
 // Constants
 static const float PI = 3.14159265359;
 static const float EPSILON = 0.0001;
 
-// Camera uniform buffer
-cbuffer CameraUniforms : register(b0)
-{
-    float4x4 ViewMatrix;
-    float4x4 ProjectionMatrix;
-    float4x4 ViewProjectionMatrix;
-    float4x4 InvViewMatrix;
-    float4x4 InvProjectionMatrix;
-    float3 CameraPosition;
-    float NearPlane;
-    float3 CameraForward;
-    float FarPlane;
-};
+#include "scene_uniforms.hlsli"
 
 // Lighting uniforms
 // Layout MUST match LightingUniforms struct in LightBuffer.bf
@@ -32,7 +29,7 @@ cbuffer LightingUniforms : register(b3)
     uint ClusterDimensionZ;
     float2 ClusterScale;
     float2 ClusterBias;
-    uint DebugMode; // 0=normal, 1=cluster index, 2=light count, 3=diffuse only
+    uint DebugMode; // 0-8 progressive stages
     uint _Pad0;
     uint _Pad1;
     uint _Pad2;
@@ -56,19 +53,7 @@ cbuffer MaterialUniforms : register(b0, space1)
     float4 EmissiveColor;
 };
 
-// Light structure - MUST match GPULight in LightBuffer.bf
-struct Light
-{
-    float3 Position;
-    float Range;
-    float3 Direction;
-    float SpotAngleCos;    // cos(outer cone angle) for spot lights
-    float3 Color;
-    float Intensity;
-    uint Type;             // 0 = Directional, 1 = Point, 2 = Spot
-    int ShadowIndex;
-    float2 _Padding;
-};
+#include "light.hlsli"
 
 // Material textures (space1 = descriptor set 1 for materials)
 // Order MUST match MaterialBuilder.CreatePBR texture order:
@@ -94,9 +79,20 @@ cbuffer ShadowUniforms : register(b5)
     float4 CascadeSplits;
     uint CascadeCount;
     float ShadowBias;
+    float ShadowNormalBias;
+    uint _ShadowPad0;
     float2 ShadowMapSize;
+    float2 _ShadowPad1;
+    float4 ShadowLightDirection;   // xyz = normalized light direction
+    float4 CascadeTexelSizes;     // world-space texel size per cascade
 };
 #endif
+
+// IBL (Image-Based Lighting) resources
+TextureCube IrradianceMap : register(t8);
+TextureCube PrefilteredMap : register(t9);
+Texture2D BRDFLutTexture : register(t10);
+SamplerState IBLSampler : register(s2);
 
 // Material sampler (space1 = descriptor set 1 for materials)
 SamplerState LinearSampler : register(s0, space1);
@@ -116,7 +112,8 @@ struct FragmentInput
 #endif
 };
 
-// PBR Functions
+// ===================== PBR Functions =====================
+
 float DistributionGGX(float3 N, float3 H, float roughness)
 {
     float a = roughness * roughness;
@@ -157,10 +154,14 @@ float3 FresnelSchlick(float cosTheta, float3 F0)
     return F0 + (1.0 - F0) * pow(saturate(1.0 - cosTheta), 5.0);
 }
 
-// Cluster index calculation
-// ClusterScale.xy = screen-to-cluster scale (ClustersX/Width, ClustersY/Height)
-// ClusterBias.x = log depth scale (ClustersZ / log(far/near))
-// ClusterBias.y = log depth bias (-ClustersZ * log(near) / log(far/near))
+float3 FresnelSchlickRoughness(float cosTheta, float3 F0, float roughness)
+{
+    float3 maxF0 = max(float3(1.0 - roughness, 1.0 - roughness, 1.0 - roughness), F0);
+    return F0 + (maxF0 - F0) * pow(saturate(1.0 - cosTheta), 5.0);
+}
+
+// ===================== Utility Functions =====================
+
 uint GetClusterIndex(float2 screenPos, float viewZ)
 {
     uint clusterX = uint(screenPos.x * ClusterScale.x);
@@ -211,8 +212,12 @@ float SampleShadowMap(float3 worldPos, float3 N)
         }
     }
 
-    // Transform to shadow space
-    float4 shadowCoord = mul(float4(worldPos, 1.0), ShadowViewProjection[cascadeIndex]);
+    float3 lightDir = ShadowLightDirection.xyz;
+    float NdotL = saturate(dot(N, -lightDir));
+    float texelSize = CascadeTexelSizes[cascadeIndex];
+    float3 offsetPos = worldPos + N * (ShadowNormalBias * texelSize * (1.0 - NdotL));
+
+    float4 shadowCoord = mul(float4(offsetPos, 1.0), ShadowViewProjection[cascadeIndex]);
     shadowCoord.xyz /= shadowCoord.w;
 
     // Convert from NDC [-1,1] to texture UV [0,1]
@@ -231,27 +236,48 @@ float SampleShadowMap(float3 worldPos, float3 N)
     if (any(shadowCoord.xy < 0.0) || any(shadowCoord.xy > 1.0))
         return 1.0;
 
-    // PCF sampling with cascade array index
-    // Note: Shadow bias is applied via hardware depth bias during shadow map rendering,
-    // so we compare against shadowCoord.z directly (no shader bias subtraction needed)
+    shadowCoord.z -= ShadowBias;
+
     float shadow = 0.0;
-    float2 texelSize = 1.0 / ShadowMapSize;
-    for (int x = -1; x <= 1; x++)
+    float2 texelSizeUV = 1.0 / ShadowMapSize;
+    for (int x = -2; x <= 2; x++)
     {
-        for (int y = -1; y <= 1; y++)
+        for (int y = -2; y <= 2; y++)
         {
-            float2 offset = float2(x, y) * texelSize;
+            float2 offset = float2(x, y) * texelSizeUV;
             float3 sampleCoord = float3(shadowCoord.xy + offset, (float)cascadeIndex);
             shadow += ShadowMap.SampleCmpLevelZero(ShadowSampler, sampleCoord, shadowCoord.z);
         }
     }
-    return shadow / 9.0;
+    return shadow / 25.0;
 }
 #endif
 
+// ===================== Lighting Helpers =====================
+
+// Resolves light direction and attenuation for any light type.
+void ResolveLightVector(Light light, float3 worldPos, out float3 L, out float attenuation)
+{
+    if (light.Type == 0) // Directional
+    {
+        L = -light.Direction;
+        attenuation = 1.0;
+    }
+    else
+    {
+        float3 lightVec = light.Position - worldPos;
+        L = normalize(lightVec);
+        attenuation = GetAttenuation(light, worldPos);
+        if (light.Type == 2) // Spot
+            attenuation *= GetSpotFalloff(light, L);
+    }
+}
+
+// ===================== Main =====================
+
 float4 main(FragmentInput input) : SV_Target
 {
-    // Sample textures
+    // ===== Material sampling =====
     float4 albedo = AlbedoTexture.Sample(LinearSampler, input.TexCoord) * BaseColor;
 
 #ifdef ALPHA_TEST
@@ -259,14 +285,11 @@ float4 main(FragmentInput input) : SV_Target
         discard;
 #endif
 
-    float4 metallicRoughness = MetallicRoughnessTexture.Sample(LinearSampler, input.TexCoord);
-    float metallic = metallicRoughness.b * Metallic;
-    float roughness = metallicRoughness.g * Roughness;
-    float ao = OcclusionTexture.Sample(LinearSampler, input.TexCoord).r * AO;
+    // ----- Debug 1: Flat albedo (no lighting) -----
+    if (DebugMode == 1)
+        return float4(albedo.rgb, albedo.a);
 
-    float3 emissive = EmissiveTexture.Sample(LinearSampler, input.TexCoord).rgb * EmissiveColor.rgb;
-
-    // Get normal
+    // ===== Normal =====
     float3 N = normalize(input.WorldNormal);
 #ifdef NORMAL_MAP
     float3 normalSample = NormalTexture.Sample(LinearSampler, input.TexCoord).rgb * 2.0 - 1.0;
@@ -278,108 +301,181 @@ float4 main(FragmentInput input) : SV_Target
     N = normalize(mul(normalSample, TBN));
 #endif
 
+    // ----- Debug 2: World normals -----
+    if (DebugMode == 2)
+        return float4(N * 0.5 + 0.5, 1.0);
+
+    // ===== View direction =====
     float3 V = normalize(CameraPosition - input.WorldPosition);
-    float3 F0 = lerp(float3(0.04, 0.04, 0.04), albedo.rgb, metallic);
+    float NdotV = max(dot(N, V), 0.0);
 
-    // Ambient lighting
-    float3 ambient = AmbientColor * AmbientIntensity * albedo.rgb * ao;
-    float3 Lo = float3(0.0, 0.0, 0.0);
+    // ----- Debug 3: View direction (V) -----
+    if (DebugMode == 3)
+        return float4(V * 0.5 + 0.5, 1.0);
 
-    // Get cluster index
-    // Note: View-space Z is negative in front of camera (RH convention),
-    // but cluster slicing uses positive depth values, so we negate/abs
+    // ----- Debug 4: raw NdotV heatmap (green=positive, red=negative) -----
+    if (DebugMode == 4)
+    {
+        float rawNdotV = dot(N, V);
+        if (rawNdotV < -0.3) return float4(1.0, 0.0, 0.0, 1.0);
+        if (rawNdotV < -0.1) return float4(0.7, 0.0, 0.0, 1.0);
+        if (rawNdotV < 0.0)  return float4(0.4, 0.0, 0.0, 1.0);
+        if (rawNdotV < 0.1)  return float4(0.0, 0.4, 0.0, 1.0);
+        if (rawNdotV < 0.3)  return float4(0.0, 0.7, 0.0, 1.0);
+        return float4(0.0, 1.0, 0.0, 1.0);
+    }
+
+    // ----- Debug 5: Lambertian diffuse (first directional light only) -----
+    if (DebugMode == 5)
+    {
+        for (uint i = 0; i < LightCount; i++)
+        {
+            if (Lights[i].Type == 0)
+            {
+                float3 L = -Lights[i].Direction;
+                float NdotL = max(dot(N, L), 0.0);
+                return float4(albedo.rgb / PI * Lights[i].Color * Lights[i].Intensity * NdotL, 1.0);
+            }
+        }
+        return float4(0.0, 0.0, 0.0, 1.0);
+    }
+
+    // ===== Cluster lookup (needed for stages 4+) =====
     float viewZ = abs(mul(float4(input.WorldPosition, 1.0), ViewMatrix).z);
     uint clusterIndex = GetClusterIndex(input.Position.xy, viewZ);
     uint2 lightInfo = ClusterLightInfo[clusterIndex];
     uint lightOffset = lightInfo.x;
     uint lightCount = lightInfo.y;
 
-    // Debug visualization modes
-    if (DebugMode == 1)
+    // ----- Debug 6: Lambertian + flat ambient (all clustered lights) -----
+    if (DebugMode == 6)
     {
-        // Cluster index as color (XYZ mapped to RGB)
-        uint clusterX = uint(input.Position.x * ClusterScale.x);
-        uint clusterY = uint(input.Position.y * ClusterScale.y);
-        uint clusterZ = uint(max(0.0, log(viewZ) * ClusterBias.x + ClusterBias.y));
-        float3 debugColor = float3(
-            float(clusterX % ClusterDimensionX) / float(ClusterDimensionX),
-            float(clusterY % ClusterDimensionY) / float(ClusterDimensionY),
-            float(clusterZ % ClusterDimensionZ) / float(ClusterDimensionZ)
-        );
-        return float4(debugColor, 1.0);
-    }
-    else if (DebugMode == 2)
-    {
-        // Light count per cluster as heat map (black=0, blue=1, green=2-3, yellow=4-5, red=6+)
-        float t = saturate(float(lightCount) / 8.0);
-        float3 debugColor = float3(
-            saturate(t * 3.0 - 1.0),
-            saturate(t * 3.0) - saturate(t * 3.0 - 2.0),
-            saturate(1.0 - t * 3.0)
-        );
-        return float4(debugColor, 1.0);
+        float3 ambient = AmbientColor * AmbientIntensity * albedo.rgb;
+        float3 Lo = float3(0.0, 0.0, 0.0);
+        for (uint i = 0; i < lightCount; i++)
+        {
+            Light light = Lights[LightIndices[lightOffset + i]];
+            float3 L; float attenuation;
+            ResolveLightVector(light, input.WorldPosition, L, attenuation);
+            float NdotL = max(dot(N, L), 0.0);
+            Lo += albedo.rgb / PI * light.Color * light.Intensity * attenuation * NdotL;
+        }
+        return float4(ambient + Lo, 1.0);
     }
 
-    // Process lights in cluster
-    for (uint i = 0; i < lightCount; i++)
+    // ===== PBR material properties (needed for stages 5+) =====
+    float4 metallicRoughness = MetallicRoughnessTexture.Sample(LinearSampler, input.TexCoord);
+    float metallic = metallicRoughness.b * Metallic;
+    float roughness = metallicRoughness.g * Roughness;
+    float ao = OcclusionTexture.Sample(LinearSampler, input.TexCoord).r * AO;
+    float3 emissive = EmissiveTexture.Sample(LinearSampler, input.TexCoord).rgb * EmissiveColor.rgb;
+    float3 F0 = lerp(float3(0.04, 0.04, 0.04), albedo.rgb, metallic);
+
+    // ----- Debug 7: PBR direct lighting (Cook-Torrance, flat ambient, no IBL) -----
+    if (DebugMode == 7)
     {
-        uint lightIndex = LightIndices[lightOffset + i];
-        Light light = Lights[lightIndex];
-
-        float3 L;
-        float attenuation;
-
-        if (light.Type == 0) // Directional
+        float3 ambient = AmbientColor * AmbientIntensity * albedo.rgb * ao;
+        float3 Lo = float3(0.0, 0.0, 0.0);
+        for (uint i = 0; i < lightCount; i++)
         {
-            L = -light.Direction;
-            attenuation = 1.0;
-        }
-        else
-        {
-            float3 lightVec = light.Position - input.WorldPosition;
-            L = normalize(lightVec);
-            attenuation = GetAttenuation(light, input.WorldPosition);
+            Light light = Lights[LightIndices[lightOffset + i]];
+            float3 L; float attenuation;
+            ResolveLightVector(light, input.WorldPosition, L, attenuation);
+            float3 H = normalize(V + L);
+            float3 radiance = light.Color * light.Intensity * attenuation;
+            float NdotL = max(dot(N, L), 0.0);
 
-            if (light.Type == 2) // Spot
-            {
-                attenuation *= GetSpotFalloff(light, L);
-            }
-        }
-
-        float3 H = normalize(V + L);
-        float3 radiance = light.Color * light.Intensity * attenuation;
-
-        float NdotL = max(dot(N, L), 0.0);
-
-        if (DebugMode == 3)
-        {
-            // Diffuse only (no specular) for debugging beam artifacts
-            Lo += albedo.rgb / PI * radiance * NdotL;
-        }
-        else
-        {
-            // Cook-Torrance BRDF
             float NDF = DistributionGGX(N, H, roughness);
             float G = GeometrySmith(N, V, L, roughness);
             float3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);
-
-            float3 numerator = NDF * G * F;
-            float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + EPSILON;
-            float3 specular = numerator / denominator;
-
-            float3 kS = F;
-            float3 kD = (1.0 - kS) * (1.0 - metallic);
+            float3 specular = (NDF * G * F) / (4.0 * NdotV * NdotL + EPSILON);
+            float3 kD = (1.0 - F) * (1.0 - metallic);
 
             Lo += (kD * albedo.rgb / PI + specular) * radiance * NdotL;
         }
+        return float4(ambient + Lo + emissive, albedo.a);
     }
 
+    // ----- Debug 8: PBR + IBL (no shadows) -----
+    if (DebugMode == 8)
+    {
+        // IBL ambient
+        float3 F_ibl = FresnelSchlickRoughness(NdotV, F0, roughness);
+        float3 kD_ibl = (1.0 - F_ibl) * (1.0 - metallic);
+        float3 diffuseIBL = IrradianceMap.Sample(IBLSampler, N).rgb * albedo.rgb;
+        float3 R7 = reflect(-V, N);
+        float3 prefilteredColor = PrefilteredMap.SampleLevel(IBLSampler, R7, roughness * 4.0).rgb;
+        float2 envBRDF = BRDFLutTexture.Sample(IBLSampler, float2(NdotV, roughness)).rg;
+        float3 specularIBL = prefilteredColor * (F0 * envBRDF.x + envBRDF.y);
+        float3 ambient = (kD_ibl * diffuseIBL + specularIBL) * AmbientIntensity * ao;
+
+        // Direct lighting
+        float3 Lo = float3(0.0, 0.0, 0.0);
+        for (uint i = 0; i < lightCount; i++)
+        {
+            Light light = Lights[LightIndices[lightOffset + i]];
+            float3 L; float attenuation;
+            ResolveLightVector(light, input.WorldPosition, L, attenuation);
+            float3 H = normalize(V + L);
+            float3 radiance = light.Color * light.Intensity * attenuation;
+            float NdotL = max(dot(N, L), 0.0);
+
+            float NDF = DistributionGGX(N, H, roughness);
+            float G = GeometrySmith(N, V, L, roughness);
+            float3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);
+            float3 specular = (NDF * G * F) / (4.0 * NdotV * NdotL + EPSILON);
+            float3 kD = (1.0 - F) * (1.0 - metallic);
+
+            Lo += (kD * albedo.rgb / PI + specular) * radiance * NdotL;
+        }
+        return float4(ambient + Lo + emissive, albedo.a);
+    }
+
+    // ----- Default (mode 0): Full rendering (PBR + IBL + shadows) -----
+    {
+        // IBL ambient
+        float3 F_ibl = FresnelSchlickRoughness(NdotV, F0, roughness);
+        float3 kD_ibl = (1.0 - F_ibl) * (1.0 - metallic);
+        float3 diffuseIBL = IrradianceMap.Sample(IBLSampler, N).rgb * albedo.rgb;
+        float3 R8 = reflect(-V, N);
+        float3 prefilteredColor = PrefilteredMap.SampleLevel(IBLSampler, R8, roughness * 4.0).rgb;
+        float2 envBRDF = BRDFLutTexture.Sample(IBLSampler, float2(NdotV, roughness)).rg;
+        float3 specularIBL = prefilteredColor * (F0 * envBRDF.x + envBRDF.y);
+        float3 ambient = (kD_ibl * diffuseIBL + specularIBL) * AmbientIntensity * ao;
+
+        // Direct lighting with shadow separation
+        float3 shadowLit = float3(0.0, 0.0, 0.0);
+        float3 unshadowedLit = float3(0.0, 0.0, 0.0);
+        for (uint i = 0; i < lightCount; i++)
+        {
+            Light light = Lights[LightIndices[lightOffset + i]];
+            float3 L; float attenuation;
+            ResolveLightVector(light, input.WorldPosition, L, attenuation);
+            float3 H = normalize(V + L);
+            float3 radiance = light.Color * light.Intensity * attenuation;
+            float NdotL = max(dot(N, L), 0.0);
+
+            float NDF = DistributionGGX(N, H, roughness);
+            float G = GeometrySmith(N, V, L, roughness);
+            float3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);
+            float3 specular = (NDF * G * F) / (4.0 * NdotV * NdotL + EPSILON);
+            float3 kD = (1.0 - F) * (1.0 - metallic);
+            float3 lightContrib = (kD * albedo.rgb / PI + specular) * radiance * NdotL;
+
+            if (light.ShadowIndex >= 0)
+                shadowLit += lightContrib;
+            else
+                unshadowedLit += lightContrib;
+        }
+
+        float3 Lo;
 #ifdef RECEIVE_SHADOWS
-    float shadow = SampleShadowMap(input.WorldPosition, N);
-    Lo *= shadow;
+        float shadow = SampleShadowMap(input.WorldPosition, N);
+        Lo = shadowLit * shadow + unshadowedLit;
+#else
+        Lo = shadowLit + unshadowedLit;
 #endif
 
-    float3 color = ambient + Lo + emissive;
-
-    return float4(color, albedo.a);
+        return float4(ambient + Lo + emissive, albedo.a);
+    }
 }

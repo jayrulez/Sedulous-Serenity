@@ -2,18 +2,7 @@
 // Renders a fullscreen triangle for sky/atmosphere
 #pragma pack_matrix(row_major)
 
-cbuffer CameraUniforms : register(b0)
-{
-    float4x4 ViewMatrix;
-    float4x4 ProjectionMatrix;
-    float4x4 ViewProjectionMatrix;
-    float4x4 InvViewMatrix;
-    float4x4 InvProjectionMatrix;
-    float3 CameraPosition;
-    float NearPlane;
-    float3 CameraForward;
-    float FarPlane;
-};
+#include "scene_uniforms.hlsli"
 
 struct VertexOutput
 {

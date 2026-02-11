@@ -32,8 +32,8 @@ public struct CascadeConfig
 		CascadeCount = 4,
 		Resolution = 2048,
 		SplitLambda = 0.5f,
-		Bias = 0.005f,   // Shader-side bias for shadow comparison
-		NormalBias = 0.02f,
+		Bias = 0.0005f,  // Minimal depth comparison bias (hardware bias handles polygon slope)
+		NormalBias = 3.0f, // Normal offset in texels (scales with cascade texel size)
 		Softness = 1.0f
 	};
 }
@@ -59,15 +59,30 @@ public struct ShadowUniforms
 	/// Number of active cascades.
 	public uint32 CascadeCount;
 
-	/// Shadow bias.
+	/// Shadow depth bias for shadow comparison.
 	public float ShadowBias;
+
+	/// Normal offset in texels: receiver lookup offset along surface normal, scaled by cascade texel size.
+	public float ShadowNormalBias;
+
+	/// Padding for 16-byte row alignment.
+	public uint32 _Pad0;
 
 	/// Shadow map size (width, height) for PCF texel calculations.
 	public Vector2 ShadowMapSize;
 
+	/// Padding for 16-byte row alignment.
+	public Vector2 _Pad1;
+
+	/// Direction of the shadow-casting light (normalized, world space). W unused.
+	public Vector4 ShadowLightDirection;
+
+	/// World-space texel size for each cascade (for normal offset bias scaling).
+	public Vector4 CascadeTexelSizes;
+
 	/// Size of this struct in bytes.
-	/// 4 matrices (256) + splits (16) + count (4) + bias (4) + size (8) = 288
-	public static int Size => 4 * 64 + 16 + 4 + 4 + 8;
+	/// 4 matrices (256) + splits (16) + row[count+bias+normalbias+pad](16) + row[mapsize+pad](16) + lightdir(16) + texelsizes(16) = 336
+	public static int Size => 4 * 64 + 16 + 16 + 16 + 16 + 16;
 }
 
 /// Per-cascade data.
@@ -482,7 +497,15 @@ public class CascadedShadowMaps : IDisposable
 
 		uniforms.CascadeCount = mConfig.CascadeCount;
 		uniforms.ShadowBias = mConfig.Bias;
+		uniforms.ShadowNormalBias = mConfig.NormalBias;
 		uniforms.ShadowMapSize = Vector2((float)mConfig.Resolution, (float)mConfig.Resolution);
+		uniforms.ShadowLightDirection = Vector4(mLightDirection.X, mLightDirection.Y, mLightDirection.Z, 0);
+		uniforms.CascadeTexelSizes = Vector4(
+			mCascades[0].TexelSize,
+			mCascades[1].TexelSize,
+			mCascades[2].TexelSize,
+			mCascades[3].TexelSize
+		);
 
 		// Use Map/Unmap to avoid command buffer creation
 		if (let ptr = mShadowUniformBuffer.Map())

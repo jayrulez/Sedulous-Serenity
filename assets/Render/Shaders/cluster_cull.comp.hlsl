@@ -31,22 +31,7 @@ cbuffer LightingUniforms : register(b1)
     float2 _LightPadding;
 };
 
-// Light data structure (matches GPULight in Beef)
-struct Light
-{
-    float3 Position;
-    float Range;
-
-    float3 Direction;
-    float SpotAngleCos;
-
-    float3 Color;
-    float Intensity;
-
-    uint Type; // 0=Directional, 1=Point, 2=Spot, 3=Area
-    int ShadowIndex;
-    float2 _Padding;
-};
+#include "light.hlsli"
 
 // Cluster AABB structure
 struct ClusterAABB

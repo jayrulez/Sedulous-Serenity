@@ -31,6 +31,7 @@ public class ForwardTransparentFeature : RenderFeatureBase
 	private IBuffer[RenderConfig.FrameBufferCount] mObjectUniformBuffers;
 	private IBindGroup[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mSceneBindGroups;
 	private bool[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mSceneBindGroupShadowState; // Track shadow state for runtime toggling
+	private bool[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mSceneBindGroupIBLState;
 	private const uint64 ObjectUniformAlignment = 256;
 	private const uint64 AlignedObjectUniformSize = ((ObjectUniforms.Size + ObjectUniformAlignment - 1) / ObjectUniformAlignment) * ObjectUniformAlignment;
 	private static int32 MaxTransparentObjects => RenderConfig.MaxTransparentObjectsPerFrame;
@@ -245,15 +246,19 @@ public class ForwardTransparentFeature : RenderFeatureBase
 		// an uninitialized shadow map when shadow passes haven't run yet
 		let shadowsEnabled = opaqueFeature.[Friend]mShadowPassesActive;
 
+		// Check IBL state
+		let skyFeature = Renderer.GetFeature<SkyFeature>();
+		let hasRealIBL = skyFeature?.IrradianceMapView != null;
+
 		let bindGroupIndex = GetBindGroupIndex(frameIndex);
 
-		// Check if bind group exists and shadow state hasn't changed
+		// Check if bind group exists and state hasn't changed
 		if (mSceneBindGroups[bindGroupIndex] != null)
 		{
-			if (mSceneBindGroupShadowState[bindGroupIndex] == shadowsEnabled)
+			if (mSceneBindGroupShadowState[bindGroupIndex] == shadowsEnabled && mSceneBindGroupIBLState[bindGroupIndex] == hasRealIBL)
 				return; // State unchanged, keep existing bind group
 
-			// Shadow state changed - delete old bind group so we can recreate
+			// State changed - delete old bind group so we can recreate
 			delete mSceneBindGroups[bindGroupIndex];
 			mSceneBindGroups[bindGroupIndex] = null;
 		}
@@ -283,7 +288,7 @@ public class ForwardTransparentFeature : RenderFeatureBase
 			return;
 
 		// Build bind group entries (same structure as ForwardOpaqueFeature)
-		BindGroupEntry[9] entries = .();
+		BindGroupEntry[13] entries = .();
 
 		// b0: Camera uniforms
 		entries[0] = BindGroupEntry.Buffer(0, cameraBuffer, 0, SceneUniforms.Size);
@@ -330,6 +335,28 @@ public class ForwardTransparentFeature : RenderFeatureBase
 		else
 			return;
 
+		// IBL resources (t8: Irradiance, t9: Prefiltered, t10: BRDF LUT, s2: IBL Sampler)
+		ITextureView irradianceView = opaqueFeature.[Friend]mFallbackIrradianceCubemapView;
+		ITextureView prefilteredView = opaqueFeature.[Friend]mFallbackPrefilteredCubemapView;
+		ITextureView brdfLutView = opaqueFeature.[Friend]mFallbackBRDFLutView;
+		ISampler iblSampler = opaqueFeature.[Friend]mIBLSampler;
+
+		if (skyFeature != null)
+		{
+			if (skyFeature.IrradianceMapView != null) irradianceView = skyFeature.IrradianceMapView;
+			if (skyFeature.PrefilteredMapView != null) prefilteredView = skyFeature.PrefilteredMapView;
+			if (skyFeature.BRDFLutView != null) brdfLutView = skyFeature.BRDFLutView;
+			if (skyFeature.EnvironmentSampler != null) iblSampler = skyFeature.EnvironmentSampler;
+		}
+
+		if (irradianceView == null || prefilteredView == null || brdfLutView == null || iblSampler == null)
+			return;
+
+		entries[9] = BindGroupEntry.Texture(8, irradianceView);
+		entries[10] = BindGroupEntry.Texture(9, prefilteredView);
+		entries[11] = BindGroupEntry.Texture(10, brdfLutView);
+		entries[12] = BindGroupEntry.Sampler(2, iblSampler);
+
 		// Create bind group
 		BindGroupDescriptor bgDesc = .()
 		{
@@ -341,7 +368,8 @@ public class ForwardTransparentFeature : RenderFeatureBase
 		if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bg))
 		{
 			mSceneBindGroups[bindGroupIndex] = bg;
-			mSceneBindGroupShadowState[bindGroupIndex] = shadowsEnabled; // Track state for runtime toggling
+			mSceneBindGroupShadowState[bindGroupIndex] = shadowsEnabled;
+			mSceneBindGroupIBLState[bindGroupIndex] = hasRealIBL;
 		}
 	}
 

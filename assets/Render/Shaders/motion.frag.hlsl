@@ -14,19 +14,7 @@ cbuffer MaterialUniforms : register(b4)
 };
 #endif
 
-cbuffer CameraUniforms : register(b0)
-{
-    float4x4 ViewMatrix;
-    float4x4 ProjectionMatrix;
-    float4x4 ViewProjectionMatrix;
-    float4x4 PrevViewProjectionMatrix;
-    float3 CameraPosition;
-    float NearPlane;
-    float3 CameraForward;
-    float FarPlane;
-    float2 JitterOffset;
-    float2 PrevJitterOffset;
-};
+#include "scene_uniforms.hlsli"
 
 struct FragmentInput
 {
@@ -50,9 +38,7 @@ float2 main(FragmentInput input) : SV_Target
     float2 currentNDC = input.CurrentPos.xy / input.CurrentPos.w;
     float2 prevNDC = input.PrevPos.xy / input.PrevPos.w;
 
-    // Remove jitter
-    currentNDC -= JitterOffset;
-    prevNDC -= PrevJitterOffset;
+    // TODO: Add jitter offset support (requires extending SceneUniforms or separate cbuffer)
 
     // Motion vector is current - previous
     // Scaled to screen space (0-1 range)

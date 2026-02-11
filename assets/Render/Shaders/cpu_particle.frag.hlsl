@@ -2,23 +2,7 @@
 // Textured particles with soft depth fade and optional cluster-based lighting
 #pragma pack_matrix(row_major)
 
-// Camera uniforms (needed for view-Z computation and billboard normal)
-cbuffer CameraUniforms : register(b0)
-{
-    float4x4 ViewMatrix;
-    float4x4 ProjectionMatrix;
-    float4x4 ViewProjectionMatrix;
-    float4x4 InvViewMatrix;
-    float4x4 InvProjectionMatrix;
-    float4x4 PrevViewProjectionMatrix;
-    float3 CameraPosition;
-    float Time;
-    float3 CameraForward;
-    float DeltaTime;
-    float2 ScreenSize;
-    float CameraNearPlane;
-    float CameraFarPlane;
-};
+#include "scene_uniforms.hlsli"
 
 Texture2D ParticleTexture : register(t0);
 Texture2D DepthTexture : register(t1);
@@ -27,8 +11,8 @@ SamplerState LinearSampler : register(s0);
 cbuffer EmitterParams : register(b1)
 {
     float SoftDistance;
-    float NearPlane;
-    float FarPlane;
+    float DepthNearPlane;
+    float DepthFarPlane;
     float RenderMode;
     float StretchFactor;
     float Lit;              // 0 = unlit, 1 = lit
@@ -52,18 +36,7 @@ cbuffer LightingUniforms : register(b3)
     uint _LightPad2;
 };
 
-struct Light
-{
-    float3 Position;
-    float Range;
-    float3 Direction;
-    float SpotAngleCos;
-    float3 Color;
-    float Intensity;
-    uint Type;
-    int ShadowIndex;
-    float2 _LightPad;
-};
+#include "light.hlsli"
 
 StructuredBuffer<Light> Lights : register(t4);
 StructuredBuffer<uint2> ClusterLightInfo : register(t5);
@@ -190,8 +163,8 @@ float4 main(FragmentInput input) : SV_Target
     if (SoftDistance > 0.0)
     {
         float sceneDepth = DepthTexture.Load(int3(input.Position.xy, 0)).r;
-        float linearScene = LinearizeDepth(sceneDepth, NearPlane, FarPlane);
-        float linearFrag = LinearizeDepth(input.Position.z, NearPlane, FarPlane);
+        float linearScene = LinearizeDepth(sceneDepth, DepthNearPlane, DepthFarPlane);
+        float linearFrag = LinearizeDepth(input.Position.z, DepthNearPlane, DepthFarPlane);
         float softFade = saturate((linearScene - linearFrag) / SoftDistance);
         finalColor.a *= softFade;
     }

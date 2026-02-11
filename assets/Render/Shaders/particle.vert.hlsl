@@ -15,23 +15,7 @@ struct Particle
     float RotationSpeed;
 };
 
-// Must match SceneUniforms in FrameContext.bf
-cbuffer CameraUniforms : register(b0)
-{
-    float4x4 ViewMatrix;
-    float4x4 ProjectionMatrix;
-    float4x4 ViewProjectionMatrix;
-    float4x4 InvViewMatrix;
-    float4x4 InvProjectionMatrix;
-    float4x4 PrevViewProjectionMatrix;
-    float3 CameraPosition;
-    float Time;
-    float3 CameraForward;
-    float DeltaTime;
-    float2 ScreenSize;
-    float NearPlane;
-    float FarPlane;
-};
+#include "scene_uniforms.hlsli"
 
 StructuredBuffer<Particle> Particles : register(t0);
 StructuredBuffer<uint> AliveList : register(t1);

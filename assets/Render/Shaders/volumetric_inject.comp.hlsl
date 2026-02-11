@@ -2,19 +2,7 @@
 // Injects lighting and density into the froxel volume
 #pragma pack_matrix(row_major)
 
-// Light structure - MUST match GPULight in LightBuffer.bf and forward.frag.hlsl
-struct Light
-{
-    float3 Position;
-    float Range;
-    float3 Direction;
-    float SpotAngleCos;    // cos(outer cone angle) for spot lights
-    float3 Color;
-    float Intensity;
-    uint Type;             // 0 = Directional, 1 = Point, 2 = Spot
-    int ShadowIndex;
-    float2 _Padding;
-};
+#include "light.hlsli"
 
 cbuffer VolumetricParams : register(b0)
 {

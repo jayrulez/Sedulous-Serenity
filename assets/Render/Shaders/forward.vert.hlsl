@@ -2,37 +2,12 @@
 // Full vertex transformation with normal/tangent for PBR lighting
 #pragma pack_matrix(row_major)
 
-// Camera uniform buffer
-cbuffer CameraUniforms : register(b0)
-{
-    float4x4 ViewMatrix;
-    float4x4 ProjectionMatrix;
-    float4x4 ViewProjectionMatrix;
-    float4x4 InvViewMatrix;
-    float4x4 InvProjectionMatrix;
-    float3 CameraPosition;
-    float NearPlane;
-    float3 CameraForward;
-    float FarPlane;
-};
+#include "scene_uniforms.hlsli"
 
-// Per-object uniform buffer
-cbuffer ObjectUniforms : register(b1)
-{
-    float4x4 WorldMatrix;
-    float4x4 PrevWorldMatrix;
-    float4x4 NormalMatrix; // Transpose of inverse world matrix
-    uint ObjectID;
-    uint MaterialID;
-    float2 _Padding;
-};
+#include "object_uniforms.hlsli"
 
 #ifdef SKINNED
-// Bone transforms for skinned meshes
-cbuffer BoneUniforms : register(b2)
-{
-    float4x4 BoneMatrices[256];
-};
+#include "bone_uniforms.hlsli"
 #endif
 
 struct VertexInput

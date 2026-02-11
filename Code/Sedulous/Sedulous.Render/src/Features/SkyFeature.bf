@@ -91,6 +91,9 @@ public class SkyFeature : RenderFeatureBase
 	private ITexture mBRDFLut;
 	private ITextureView mBRDFLutView;
 
+	// Flag: true if environment map was set externally (HDRI), false if generated from colors
+	private bool mIsExternalEnvMap = false;
+
 	// Cubemap sampler and fallback
 	private ISampler mEnvSampler ~ delete _;
 	private ITexture mFallbackCubemap ~ delete _;
@@ -104,6 +107,15 @@ public class SkyFeature : RenderFeatureBase
 
 	// Full-screen quad mesh (kept for potential future use, shader uses SV_VertexID)
 	private IBuffer mFullscreenQuadVB ~ delete _;
+
+	// GPU IBL compute pipelines (lazily created on first HDRI use)
+	private IComputePipeline mEquirectToCubemapPipeline;
+	private IComputePipeline mIBLIrradiancePipeline;
+	private IComputePipeline mIBLPrefilterPipeline;
+	private IBindGroupLayout mEquirectBindGroupLayout;
+	private IBindGroupLayout mIBLConvolveBindGroupLayout;
+	private IPipelineLayout mEquirectPipelineLayout;
+	private IPipelineLayout mIBLConvolvePipelineLayout;
 
 	/// Gets the current frame index for multi-buffering.
 	private int32 FrameIndex => Renderer.RenderFrameContext?.FrameIndex ?? 0;
@@ -150,6 +162,9 @@ public class SkyFeature : RenderFeatureBase
 	/// Gets the BRDF LUT for IBL.
 	public ITextureView BRDFLutView => mBRDFLutView;
 
+	/// Gets the environment sampler for cubemap sampling.
+	public ISampler EnvironmentSampler => mEnvSampler;
+
 	protected override Result<void> OnInitialize()
 	{
 		// Create sky params buffer
@@ -171,6 +186,9 @@ public class SkyFeature : RenderFeatureBase
 		// Create sky pipeline
 		if (CreateSkyPipeline() case .Err)
 			return .Err;
+
+		// Generate IBL maps from default sky parameters
+		GenerateIBLMaps();
 
 		return .Ok;
 	}
@@ -293,6 +311,15 @@ public class SkyFeature : RenderFeatureBase
 		if (mPrefilteredMap != null) delete mPrefilteredMap;
 		if (mBRDFLutView != null) delete mBRDFLutView;
 		if (mBRDFLut != null) delete mBRDFLut;
+
+		// Clean up GPU IBL compute pipelines
+		if (mEquirectToCubemapPipeline != null) delete mEquirectToCubemapPipeline;
+		if (mIBLIrradiancePipeline != null) delete mIBLIrradiancePipeline;
+		if (mIBLPrefilterPipeline != null) delete mIBLPrefilterPipeline;
+		if (mEquirectBindGroupLayout != null) delete mEquirectBindGroupLayout;
+		if (mIBLConvolveBindGroupLayout != null) delete mIBLConvolveBindGroupLayout;
+		if (mEquirectPipelineLayout != null) delete mEquirectPipelineLayout;
+		if (mIBLConvolvePipelineLayout != null) delete mIBLConvolvePipelineLayout;
 	}
 
 	public override void AddPasses(RenderGraph graph, RenderView view, RenderWorld world)
@@ -352,11 +379,11 @@ public class SkyFeature : RenderFeatureBase
 		case .Err: return .Err;
 		}
 
-		// Generate irradiance and prefiltered maps
-		// This would use compute shaders for IBL preprocessing
-		GenerateIBLMaps();
-
+		mIsExternalEnvMap = true;
 		mMode = .EnvironmentMap;
+
+		// Generate IBL maps (skipped for external HDRI — needs GPU convolution)
+		GenerateIBLMaps();
 		return .Ok;
 	}
 
@@ -417,8 +444,8 @@ public class SkyFeature : RenderFeatureBase
 		TextureDescriptor desc = .()
 		{
 			Label = "BRDF LUT",
-			Width = 512,
-			Height = 512,
+			Width = (uint32)BRDFLutData.Width,
+			Height = (uint32)BRDFLutData.Height,
 			Depth = 1,
 			Format = .RG16Float,
 			MipLevelCount = 1,
@@ -447,64 +474,26 @@ public class SkyFeature : RenderFeatureBase
 		case .Err: return .Err;
 		}
 
-		// Generate BRDF LUT (CPU fallback)
-		GenerateBRDFLut();
+		// Upload pre-generated BRDF LUT data
+		UploadBRDFLut();
 
 		return .Ok;
 	}
 
-	/// Generates BRDF integration LUT for IBL.
-	/// This is a CPU fallback - a production implementation would use a compute shader.
-	private void GenerateBRDFLut()
+	/// Uploads pre-generated BRDF integration LUT from BRDFLutData.
+	/// The data was generated offline using GGX importance sampling with 1024 samples per texel.
+	private void UploadBRDFLut()
 	{
 		if (mBRDFLut == null)
 			return;
 
-		const int32 Size = 512;
-		uint16[] data = new uint16[Size * Size * 2]; // RG16Float = 2 uint16 per pixel
-		defer delete data;
-
-		// Generate BRDF integration values
-		for (int32 y = 0; y < Size; y++)
-		{
-			float roughness = (float)(y + 1) / (float)Size; // Avoid roughness = 0
-
-			for (int32 x = 0; x < Size; x++)
-			{
-				float NdotV = (float)(x + 1) / (float)Size; // Avoid NdotV = 0
-
-				// Simplified BRDF integration approximation
-				// In production, this would use importance sampling
-				float a = roughness * roughness;
-				float a2 = a * a;
-
-				// Approximate F0 scale and bias
-				float scale = 1.0f - Math.Pow(1.0f - NdotV, 5.0f);
-				float bias = Math.Pow(1.0f - NdotV, 5.0f);
-
-				// Roughness adjustment
-				scale *= (1.0f - a2 * 0.5f);
-				bias *= (1.0f - a * 0.3f);
-
-				// Clamp to valid range
-				scale = Math.Clamp(scale, 0.0f, 1.0f);
-				bias = Math.Clamp(bias, 0.0f, 1.0f);
-
-				// Convert to half-float (simplified - using full precision conversion)
-				int32 idx = (y * Size + x) * 2;
-				data[idx] = FloatToHalf(scale);
-				data[idx + 1] = FloatToHalf(bias);
-			}
-		}
-
-		// Upload to texture
 		var layout = TextureDataLayout()
 		{
-			BytesPerRow = (uint32)(Size * 4), // 2 * sizeof(uint16) per pixel
-			RowsPerImage = (uint32)Size
+			BytesPerRow = (uint32)(BRDFLutData.Width * 4), // RG16Float = 4 bytes per pixel
+			RowsPerImage = (uint32)BRDFLutData.Height
 		};
-		var writeSize = Extent3D((uint32)Size, (uint32)Size, 1);
-		Renderer.Device.Queue.WriteTexture(mBRDFLut, Span<uint8>((uint8*)data.Ptr, data.Count * 2), &layout, &writeSize);
+		var writeSize = Extent3D((uint32)BRDFLutData.Width, (uint32)BRDFLutData.Height, 1);
+		Renderer.Device.Queue.WriteTexture(mBRDFLut, Span<uint8>(&BRDFLutData.Data, BRDFLutData.DataSize), &layout, &writeSize);
 	}
 
 	/// Converts a float to half-precision (IEEE 754 binary16).
@@ -534,13 +523,854 @@ public class SkyFeature : RenderFeatureBase
 		return (uint16)(sign | ((uint32)exp << 10) | (mantissa >> 13));
 	}
 
+	/// Regenerates IBL maps from current sky parameters.
+	/// Call after changing sky mode or sky colors at runtime.
+	public void RegenerateIBL()
+	{
+		GenerateIBLMaps();
+	}
+
 	private void GenerateIBLMaps()
 	{
-		// IBL map generation would use compute shaders to:
-		// 1. Generate diffuse irradiance cubemap (convolution)
-		// 2. Generate prefiltered specular cubemap (roughness mips)
-		// For now, these are created as black textures and will be filled
-		// when SetEnvironmentMap is called with proper compute shader support.
+		if (mIsExternalEnvMap)
+		{
+			// IBL already generated by SetEnvironmentMapEquirect
+			return;
+		}
+
+		switch (mMode)
+		{
+		case .Procedural, .EnvironmentMap:
+			GenerateIBLMapsFromColors(mSkyParams.ZenithColor, mSkyParams.HorizonColor, mSkyParams.GroundColor);
+		case .SolidColor:
+			GenerateIBLMapsFromColors(mSkyParams.SolidColor, mSkyParams.SolidColor, mSkyParams.SolidColor);
+		}
+	}
+
+	private void GenerateIBLMapsFromColors(Vector3 topColor, Vector3 horizonColor, Vector3 groundColor)
+	{
+		GenerateIrradianceMap(topColor, horizonColor, groundColor);
+		GeneratePrefilteredMap(topColor, horizonColor, groundColor);
+	}
+
+	// ==================== GPU IBL Compute Pipeline ====================
+
+	/// Releases old environment and IBL maps.
+	private void ReleaseEnvironmentAndIBLMaps()
+	{
+		if (mOwnsEnvironmentMap)
+		{
+			if (mEnvironmentMapView != null) { delete mEnvironmentMapView; mEnvironmentMapView = null; }
+			if (mEnvironmentMap != null) { delete mEnvironmentMap; mEnvironmentMap = null; }
+		}
+		mOwnsEnvironmentMap = false;
+		if (mIrradianceMapView != null) { delete mIrradianceMapView; mIrradianceMapView = null; }
+		if (mIrradianceMap != null) { delete mIrradianceMap; mIrradianceMap = null; }
+		if (mPrefilteredMapView != null) { delete mPrefilteredMapView; mPrefilteredMapView = null; }
+		if (mPrefilteredMap != null) { delete mPrefilteredMap; mPrefilteredMap = null; }
+	}
+
+	/// Lazily creates compute pipelines for GPU IBL generation.
+	private Result<void> EnsureIBLComputePipelines()
+	{
+		if (mEquirectToCubemapPipeline != null)
+			return .Ok; // Already created
+
+		let shaderSystem = Renderer.ShaderSystem;
+		if (shaderSystem == null)
+			return .Err;
+
+		let device = Renderer.Device;
+
+		// --- Equirect-to-cubemap pipeline ---
+		let equirectShaderResult = shaderSystem.GetShader("equirect_to_cubemap", .Compute);
+		if (equirectShaderResult case .Err)
+			return .Err;
+		let equirectShader = equirectShaderResult.Value;
+
+		// Layout: b0 (uniform), t0 (Texture2D), s0 (sampler), u0 (RWTexture2DArray)
+		BindGroupLayoutEntry[4] equirectLayoutEntries = .(
+			BindGroupLayoutEntry.UniformBuffer(0, .Compute),
+			BindGroupLayoutEntry.SampledTexture(0, .Compute, .Texture2D),
+			BindGroupLayoutEntry.Sampler(0, .Compute),
+			.() { Binding = 0, Visibility = .Compute, Type = .StorageTextureReadWrite,
+				  StorageTextureFormat = .RGBA32Float, TextureViewDimension = .Texture2DArray }
+		);
+
+		BindGroupLayoutDescriptor equirectLayoutDesc = .() { Label = "Equirect IBL Layout", Entries = equirectLayoutEntries };
+		switch (device.CreateBindGroupLayout(&equirectLayoutDesc))
+		{
+		case .Ok(let layout): mEquirectBindGroupLayout = layout;
+		case .Err: return .Err;
+		}
+
+		IBindGroupLayout[1] equirectBGLayouts = .(mEquirectBindGroupLayout);
+		PipelineLayoutDescriptor equirectPLDesc = .(equirectBGLayouts);
+		switch (device.CreatePipelineLayout(&equirectPLDesc))
+		{
+		case .Ok(let layout): mEquirectPipelineLayout = layout;
+		case .Err: return .Err;
+		}
+
+		ComputePipelineDescriptor equirectPipelineDesc = .(mEquirectPipelineLayout, equirectShader.Module, "main");
+		switch (device.CreateComputePipeline(&equirectPipelineDesc))
+		{
+		case .Ok(let pipeline): mEquirectToCubemapPipeline = pipeline;
+		case .Err: return .Err;
+		}
+
+		// --- IBL convolve pipeline (shared layout for irradiance + prefilter) ---
+		// Layout: b0 (uniform), t0 (TextureCube), s0 (sampler), u0 (RWTexture2DArray)
+		BindGroupLayoutEntry[4] convolveLayoutEntries = .(
+			BindGroupLayoutEntry.UniformBuffer(0, .Compute),
+			BindGroupLayoutEntry.SampledTexture(0, .Compute, .TextureCube),
+			BindGroupLayoutEntry.Sampler(0, .Compute),
+			.() { Binding = 0, Visibility = .Compute, Type = .StorageTextureReadWrite,
+				  StorageTextureFormat = .RGBA32Float, TextureViewDimension = .Texture2DArray }
+		);
+
+		BindGroupLayoutDescriptor convolveLayoutDesc = .() { Label = "IBL Convolve Layout", Entries = convolveLayoutEntries };
+		switch (device.CreateBindGroupLayout(&convolveLayoutDesc))
+		{
+		case .Ok(let layout): mIBLConvolveBindGroupLayout = layout;
+		case .Err: return .Err;
+		}
+
+		IBindGroupLayout[1] convolveBGLayouts = .(mIBLConvolveBindGroupLayout);
+		PipelineLayoutDescriptor convolvePLDesc = .(convolveBGLayouts);
+		switch (device.CreatePipelineLayout(&convolvePLDesc))
+		{
+		case .Ok(let layout): mIBLConvolvePipelineLayout = layout;
+		case .Err: return .Err;
+		}
+
+		// Irradiance pipeline
+		let irrShaderResult = shaderSystem.GetShader("ibl_irradiance", .Compute);
+		if (irrShaderResult case .Err)
+			return .Err;
+
+		ComputePipelineDescriptor irrPipelineDesc = .(mIBLConvolvePipelineLayout, irrShaderResult.Value.Module, "main");
+		switch (device.CreateComputePipeline(&irrPipelineDesc))
+		{
+		case .Ok(let pipeline): mIBLIrradiancePipeline = pipeline;
+		case .Err: return .Err;
+		}
+
+		// Prefilter pipeline
+		let prefShaderResult = shaderSystem.GetShader("ibl_prefilter", .Compute);
+		if (prefShaderResult case .Err)
+			return .Err;
+
+		ComputePipelineDescriptor prefPipelineDesc = .(mIBLConvolvePipelineLayout, prefShaderResult.Value.Module, "main");
+		switch (device.CreateComputePipeline(&prefPipelineDesc))
+		{
+		case .Ok(let pipeline): mIBLPrefilterPipeline = pipeline;
+		case .Err: return .Err;
+		}
+
+		return .Ok;
+	}
+
+	/// CRepr params struct matching equirect_to_cubemap.comp.hlsl cbuffer
+	[CRepr]
+	private struct EquirectParams
+	{
+		public uint32 Resolution;
+		public uint32 _pad0;
+		public uint32 _pad1;
+		public uint32 _pad2;
+	}
+
+	/// CRepr params struct matching ibl_prefilter.comp.hlsl cbuffer
+	[CRepr]
+	private struct PrefilterParams
+	{
+		public uint32 Resolution;
+		public float Roughness;
+		public uint32 _pad0;
+		public uint32 _pad1;
+	}
+
+	/// Sets an equirectangular HDR panorama as the environment map.
+	/// Converts to cubemap and generates IBL maps via GPU compute shaders.
+	public Result<void> SetEnvironmentMapEquirect(TextureData equirectData, int32 cubemapResolution = 512)
+	{
+		// Ensure compute pipelines are ready
+		if (EnsureIBLComputePipelines() case .Err)
+			return .Err;
+
+		let device = Renderer.Device;
+
+		// Flush in-flight frames before destroying old resources
+		device.WaitIdle();
+
+		// Release old environment and IBL maps
+		ReleaseEnvironmentAndIBLMaps();
+
+		// Force sky bind group recreation
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
+		{
+			if (mSkyBindGroups[i] != null)
+			{
+				delete mSkyBindGroups[i];
+				mSkyBindGroups[i] = null;
+			}
+		}
+
+		// --- 1. Upload equirect image to temporary GPU texture ---
+		TextureDescriptor equirectTexDesc = .()
+		{
+			Label = "Equirect HDR",
+			Width = equirectData.Width,
+			Height = equirectData.Height,
+			Depth = 1,
+			Format = equirectData.Format,
+			MipLevelCount = 1,
+			ArrayLayerCount = 1,
+			SampleCount = 1,
+			Dimension = .Texture2D,
+			Usage = .Sampled | .CopyDst
+		};
+
+		ITexture equirectTexture = null;
+		switch (device.CreateTexture(&equirectTexDesc))
+		{
+		case .Ok(let tex): equirectTexture = tex;
+		case .Err: return .Err;
+		}
+		defer delete equirectTexture;
+
+		// Upload pixel data
+		uint32 bpp = TextureData.GetBytesPerPixel(equirectData.Format);
+		uint32 bytesPerRow = equirectData.BytesPerRow > 0 ? equirectData.BytesPerRow : equirectData.Width * bpp;
+		var equirectLayout = TextureDataLayout() { BytesPerRow = bytesPerRow, RowsPerImage = equirectData.Height };
+		var equirectSize = Extent3D(equirectData.Width, equirectData.Height, 1);
+		device.Queue.WriteTexture(equirectTexture, Span<uint8>(equirectData.Pixels, (int)equirectData.Size), &equirectLayout, &equirectSize);
+
+		TextureViewDescriptor equirectViewDesc = .() { Label = "Equirect View", Dimension = .Texture2D, Format = equirectData.Format };
+		ITextureView equirectView = null;
+		switch (device.CreateTextureView(equirectTexture, &equirectViewDesc))
+		{
+		case .Ok(let view): equirectView = view;
+		case .Err: return .Err;
+		}
+		defer delete equirectView;
+
+		// --- 2. Create output cubemaps ---
+		let cubeRes = (uint32)cubemapResolution;
+		const uint32 IrrSize = 32;
+		const uint32 PrefBase = 128;
+		const uint32 PrefMips = 5;
+
+		// Environment cubemap
+		TextureDescriptor envCubeDesc = .Cubemap(cubeRes, .RGBA32Float, .Storage | .Sampled);
+		switch (device.CreateTexture(&envCubeDesc))
+		{
+		case .Ok(let tex): mEnvironmentMap = tex;
+		case .Err: return .Err;
+		}
+		mOwnsEnvironmentMap = true;
+
+		// Irradiance cubemap
+		TextureDescriptor irrDesc = .Cubemap(IrrSize, .RGBA32Float, .Storage | .Sampled);
+		switch (device.CreateTexture(&irrDesc))
+		{
+		case .Ok(let tex): mIrradianceMap = tex;
+		case .Err: return .Err;
+		}
+
+		// Prefiltered cubemap with mip chain
+		TextureDescriptor prefDesc = .Cubemap(PrefBase, .RGBA32Float, .Storage | .Sampled, PrefMips);
+		switch (device.CreateTexture(&prefDesc))
+		{
+		case .Ok(let tex): mPrefilteredMap = tex;
+		case .Err: return .Err;
+		}
+
+		// --- 3. Create storage views (Texture2DArray for compute writes) ---
+		// Environment cubemap storage view (all 6 faces, mip 0)
+		TextureViewDescriptor envStorageViewDesc = .()
+		{
+			Label = "Env Cubemap Storage",
+			Format = .RGBA32Float,
+			Dimension = .Texture2DArray,
+			BaseMipLevel = 0, MipLevelCount = 1,
+			BaseArrayLayer = 0, ArrayLayerCount = 6
+		};
+		ITextureView envStorageView = null;
+		switch (device.CreateTextureView(mEnvironmentMap, &envStorageViewDesc))
+		{
+		case .Ok(let view): envStorageView = view;
+		case .Err: return .Err;
+		}
+
+		// Irradiance storage view
+		TextureViewDescriptor irrStorageViewDesc = .()
+		{
+			Label = "Irradiance Storage",
+			Format = .RGBA32Float,
+			Dimension = .Texture2DArray,
+			BaseMipLevel = 0, MipLevelCount = 1,
+			BaseArrayLayer = 0, ArrayLayerCount = 6
+		};
+		ITextureView irrStorageView = null;
+		switch (device.CreateTextureView(mIrradianceMap, &irrStorageViewDesc))
+		{
+		case .Ok(let view): irrStorageView = view;
+		case .Err: return .Err;
+		}
+
+		// Prefiltered storage views — one per mip level
+		ITextureView[PrefMips] prefStorageViews = default;
+		for (uint32 mip = 0; mip < PrefMips; mip++)
+		{
+			TextureViewDescriptor prefStorageViewDesc = .()
+			{
+				Label = "Prefilter Storage",
+				Format = .RGBA32Float,
+				Dimension = .Texture2DArray,
+				BaseMipLevel = mip, MipLevelCount = 1,
+				BaseArrayLayer = 0, ArrayLayerCount = 6
+			};
+			switch (device.CreateTextureView(mPrefilteredMap, &prefStorageViewDesc))
+			{
+			case .Ok(let view): prefStorageViews[mip] = view;
+			case .Err:
+				// Clean up already-created views
+				for (uint32 j = 0; j < mip; j++)
+					if (prefStorageViews[j] != null) delete prefStorageViews[j];
+				if (irrStorageView != null) delete irrStorageView;
+				if (envStorageView != null) delete envStorageView;
+				return .Err;
+			}
+		}
+
+		// Create TextureCube sampled view for environment cubemap (needed by irradiance/prefilter shaders)
+		TextureViewDescriptor envCubeViewDesc = .()
+		{
+			Label = "Env Cubemap View",
+			Format = .RGBA32Float,
+			Dimension = .TextureCube,
+			BaseMipLevel = 0, MipLevelCount = 1,
+			BaseArrayLayer = 0, ArrayLayerCount = 6
+		};
+		switch (device.CreateTextureView(mEnvironmentMap, &envCubeViewDesc))
+		{
+		case .Ok(let view): mEnvironmentMapView = view;
+		case .Err:
+			for (uint32 j = 0; j < PrefMips; j++)
+				if (prefStorageViews[j] != null) delete prefStorageViews[j];
+			if (irrStorageView != null) delete irrStorageView;
+			if (envStorageView != null) delete envStorageView;
+			return .Err;
+		}
+
+		// --- 4. Create params buffers ---
+		// Equirect params
+		EquirectParams equirectParams = .() { Resolution = cubeRes };
+		IBuffer equirectParamsBuf = null;
+		{
+			BufferDescriptor bufDesc = .() { Label = "Equirect Params", Size = sizeof(EquirectParams), Usage = .Uniform | .CopyDst };
+			switch (device.CreateBuffer(&bufDesc))
+			{
+			case .Ok(let buf): equirectParamsBuf = buf;
+			case .Err:
+				for (uint32 j = 0; j < PrefMips; j++) if (prefStorageViews[j] != null) delete prefStorageViews[j];
+				delete irrStorageView; delete envStorageView;
+				return .Err;
+			}
+			device.Queue.WriteBuffer(equirectParamsBuf, 0, Span<uint8>((uint8*)&equirectParams, sizeof(EquirectParams)));
+		}
+
+		// Prefilter params (one per mip)
+		IBuffer[PrefMips] prefParamsBufs = default;
+		for (uint32 mip = 0; mip < PrefMips; mip++)
+		{
+			uint32 mipSize = PrefBase >> mip;
+			float roughness = (float)mip / (float)(PrefMips - 1);
+			PrefilterParams prefParams = .() { Resolution = mipSize, Roughness = roughness };
+
+			BufferDescriptor bufDesc = .() { Label = "Prefilter Params", Size = sizeof(PrefilterParams), Usage = .Uniform | .CopyDst };
+			switch (device.CreateBuffer(&bufDesc))
+			{
+			case .Ok(let buf): prefParamsBufs[mip] = buf;
+			case .Err:
+				for (uint32 j = 0; j < mip; j++) if (prefParamsBufs[j] != null) delete prefParamsBufs[j];
+				delete equirectParamsBuf;
+				for (uint32 j = 0; j < PrefMips; j++) if (prefStorageViews[j] != null) delete prefStorageViews[j];
+				delete irrStorageView; delete envStorageView;
+				return .Err;
+			}
+			device.Queue.WriteBuffer(prefParamsBufs[mip], 0, Span<uint8>((uint8*)&prefParams, sizeof(PrefilterParams)));
+		}
+
+		// Irradiance needs a dummy params buffer (bind group layout requires b0)
+		EquirectParams irrParams = .() { Resolution = IrrSize };
+		IBuffer irrParamsBuf = null;
+		{
+			BufferDescriptor bufDesc = .() { Label = "Irradiance Params", Size = sizeof(EquirectParams), Usage = .Uniform | .CopyDst };
+			switch (device.CreateBuffer(&bufDesc))
+			{
+			case .Ok(let buf): irrParamsBuf = buf;
+			case .Err:
+				for (uint32 j = 0; j < PrefMips; j++) if (prefParamsBufs[j] != null) delete prefParamsBufs[j];
+				delete equirectParamsBuf;
+				for (uint32 j = 0; j < PrefMips; j++) if (prefStorageViews[j] != null) delete prefStorageViews[j];
+				delete irrStorageView; delete envStorageView;
+				return .Err;
+			}
+			device.Queue.WriteBuffer(irrParamsBuf, 0, Span<uint8>((uint8*)&irrParams, sizeof(EquirectParams)));
+		}
+
+		// --- 5. Create bind groups ---
+		// Equirect bind group
+		BindGroupEntry[4] equirectBGEntries = .(
+			BindGroupEntry.Buffer(0, equirectParamsBuf, 0, sizeof(EquirectParams)),
+			BindGroupEntry.Texture(0, equirectView),
+			BindGroupEntry.Sampler(0, mEnvSampler),
+			BindGroupEntry.Texture(0, envStorageView)
+		);
+		BindGroupDescriptor equirectBGDesc = .(mEquirectBindGroupLayout, equirectBGEntries);
+		equirectBGDesc.Label = "Equirect BG";
+
+		IBindGroup equirectBG = null;
+		switch (device.CreateBindGroup(&equirectBGDesc))
+		{
+		case .Ok(let bg): equirectBG = bg;
+		case .Err:
+			delete irrParamsBuf;
+			for (uint32 j = 0; j < PrefMips; j++) if (prefParamsBufs[j] != null) delete prefParamsBufs[j];
+			delete equirectParamsBuf;
+			for (uint32 j = 0; j < PrefMips; j++) if (prefStorageViews[j] != null) delete prefStorageViews[j];
+			delete irrStorageView; delete envStorageView;
+			return .Err;
+		}
+
+		// Irradiance bind group
+		BindGroupEntry[4] irrBGEntries = .(
+			BindGroupEntry.Buffer(0, irrParamsBuf, 0, sizeof(EquirectParams)),
+			BindGroupEntry.Texture(0, mEnvironmentMapView),
+			BindGroupEntry.Sampler(0, mEnvSampler),
+			BindGroupEntry.Texture(0, irrStorageView)
+		);
+		BindGroupDescriptor irrBGDesc = .(mIBLConvolveBindGroupLayout, irrBGEntries);
+		irrBGDesc.Label = "Irradiance BG";
+
+		IBindGroup irrBG = null;
+		switch (device.CreateBindGroup(&irrBGDesc))
+		{
+		case .Ok(let bg): irrBG = bg;
+		case .Err:
+			delete equirectBG;
+			delete irrParamsBuf;
+			for (uint32 j = 0; j < PrefMips; j++) if (prefParamsBufs[j] != null) delete prefParamsBufs[j];
+			delete equirectParamsBuf;
+			for (uint32 j = 0; j < PrefMips; j++) if (prefStorageViews[j] != null) delete prefStorageViews[j];
+			delete irrStorageView; delete envStorageView;
+			return .Err;
+		}
+
+		// Prefilter bind groups (one per mip)
+		IBindGroup[PrefMips] prefBGs = default;
+		for (uint32 mip = 0; mip < PrefMips; mip++)
+		{
+			BindGroupEntry[4] prefBGEntries = .(
+				BindGroupEntry.Buffer(0, prefParamsBufs[mip], 0, sizeof(PrefilterParams)),
+				BindGroupEntry.Texture(0, mEnvironmentMapView),
+				BindGroupEntry.Sampler(0, mEnvSampler),
+				BindGroupEntry.Texture(0, prefStorageViews[mip])
+			);
+			BindGroupDescriptor prefBGDesc = .(mIBLConvolveBindGroupLayout, prefBGEntries);
+			prefBGDesc.Label = "Prefilter BG";
+
+			switch (device.CreateBindGroup(&prefBGDesc))
+			{
+			case .Ok(let bg): prefBGs[mip] = bg;
+			case .Err:
+				for (uint32 j = 0; j < mip; j++) if (prefBGs[j] != null) delete prefBGs[j];
+				delete irrBG; delete equirectBG;
+				delete irrParamsBuf;
+				for (uint32 j = 0; j < PrefMips; j++) if (prefParamsBufs[j] != null) delete prefParamsBufs[j];
+				delete equirectParamsBuf;
+				for (uint32 j = 0; j < PrefMips; j++) if (prefStorageViews[j] != null) delete prefStorageViews[j];
+				delete irrStorageView; delete envStorageView;
+				return .Err;
+			}
+		}
+
+		// --- 6. Record and submit compute work ---
+		let encoder = device.CreateCommandEncoder();
+		if (encoder == null)
+		{
+			// Clean up everything
+			for (uint32 j = 0; j < PrefMips; j++) if (prefBGs[j] != null) delete prefBGs[j];
+			delete irrBG; delete equirectBG;
+			delete irrParamsBuf;
+			for (uint32 j = 0; j < PrefMips; j++) if (prefParamsBufs[j] != null) delete prefParamsBufs[j];
+			delete equirectParamsBuf;
+			for (uint32 j = 0; j < PrefMips; j++) if (prefStorageViews[j] != null) delete prefStorageViews[j];
+			delete irrStorageView; delete envStorageView;
+			return .Err;
+		}
+
+		// Transition output textures from Undefined → General for storage writes
+		encoder.TextureBarrier(mEnvironmentMap, .Undefined, .General);
+		encoder.TextureBarrier(mIrradianceMap, .Undefined, .General);
+		encoder.TextureBarrier(mPrefilteredMap, .Undefined, .General);
+
+		// Pass 1: Equirect → Cubemap
+		{
+			let pass = encoder.BeginComputePass("Equirect to Cubemap");
+			pass.SetPipeline(mEquirectToCubemapPipeline);
+			pass.SetBindGroup(0, equirectBG, default);
+			pass.Dispatch((cubeRes + 7) / 8, (cubeRes + 7) / 8, 6);
+			pass.End();
+			delete pass;
+		}
+
+		// Transition env cubemap: General (storage write) → ShaderReadOnly (sampled by irradiance/prefilter)
+		encoder.TextureBarrier(mEnvironmentMap, .General, .ShaderReadOnly);
+
+		// Pass 2: Irradiance convolution
+		{
+			let pass = encoder.BeginComputePass("IBL Irradiance");
+			pass.SetPipeline(mIBLIrradiancePipeline);
+			pass.SetBindGroup(0, irrBG, default);
+			pass.Dispatch(IrrSize / 8, IrrSize / 8, 6);
+			pass.End();
+			delete pass;
+		}
+
+		// Passes 3-7: Prefiltered convolution per mip
+		for (uint32 mip = 0; mip < PrefMips; mip++)
+		{
+			uint32 mipSize = PrefBase >> mip;
+			let pass = encoder.BeginComputePass("IBL Prefilter");
+			pass.SetPipeline(mIBLPrefilterPipeline);
+			pass.SetBindGroup(0, prefBGs[mip], default);
+			pass.Dispatch((mipSize + 7) / 8, (mipSize + 7) / 8, 6);
+			pass.End();
+			delete pass;
+		}
+
+		// Transition IBL outputs to ShaderReadOnly for rendering
+		encoder.TextureBarrier(mIrradianceMap, .General, .ShaderReadOnly);
+		encoder.TextureBarrier(mPrefilteredMap, .General, .ShaderReadOnly);
+
+		let cmdBuf = encoder.Finish();
+		delete encoder;
+		device.Queue.Submit(cmdBuf);
+		delete cmdBuf;
+		device.WaitIdle();
+
+		// --- 7. Create sampled views for IBL ---
+		// Irradiance cubemap view
+		TextureViewDescriptor irrCubeViewDesc = .()
+		{
+			Format = .RGBA32Float, Dimension = .TextureCube,
+			BaseMipLevel = 0, MipLevelCount = 1,
+			BaseArrayLayer = 0, ArrayLayerCount = 6
+		};
+		switch (device.CreateTextureView(mIrradianceMap, &irrCubeViewDesc))
+		{
+		case .Ok(let view): mIrradianceMapView = view;
+		case .Err:
+		}
+
+		// Prefiltered cubemap view (all mips)
+		TextureViewDescriptor prefCubeViewDesc = .()
+		{
+			Format = .RGBA32Float, Dimension = .TextureCube,
+			BaseMipLevel = 0, MipLevelCount = PrefMips,
+			BaseArrayLayer = 0, ArrayLayerCount = 6
+		};
+		switch (device.CreateTextureView(mPrefilteredMap, &prefCubeViewDesc))
+		{
+		case .Ok(let view): mPrefilteredMapView = view;
+		case .Err:
+		}
+
+		// --- 8. Clean up temporary resources ---
+		for (uint32 j = 0; j < PrefMips; j++) if (prefBGs[j] != null) delete prefBGs[j];
+		delete irrBG;
+		delete equirectBG;
+		delete irrParamsBuf;
+		for (uint32 j = 0; j < PrefMips; j++) if (prefParamsBufs[j] != null) delete prefParamsBufs[j];
+		delete equirectParamsBuf;
+		for (uint32 j = 0; j < PrefMips; j++) if (prefStorageViews[j] != null) delete prefStorageViews[j];
+		delete irrStorageView;
+		delete envStorageView;
+
+		// --- 9. Set state ---
+		mMode = .EnvironmentMap;
+		mIsExternalEnvMap = true;
+
+		return .Ok;
+	}
+
+	// ==================== IBL Helper Methods ====================
+
+	/// Computes world-space direction for a cubemap texel.
+	/// Face order: 0=+X, 1=-X, 2=+Y, 3=-Y, 4=+Z, 5=-Z
+	private static Vector3 CubemapTexelDirection(int32 face, int32 x, int32 y, int32 resolution)
+	{
+		float u = ((float)x + 0.5f) / (float)resolution * 2.0f - 1.0f;
+		float v = ((float)y + 0.5f) / (float)resolution * 2.0f - 1.0f;
+
+		Vector3 dir;
+		switch (face)
+		{
+		case 0: dir = .(1.0f, -v, -u);     // +X
+		case 1: dir = .(-1.0f, -v, u);     // -X
+		case 2: dir = .(u, 1.0f, v);       // +Y
+		case 3: dir = .(u, -1.0f, -v);     // -Y
+		case 4: dir = .(u, -v, 1.0f);      // +Z
+		default: dir = .(-u, -v, -1.0f);   // -Z
+		}
+		return Vector3.Normalize(dir);
+	}
+
+	/// Evaluates gradient sky color for any world direction.
+	private static Vector3 SampleGradientSky(Vector3 dir, Vector3 topColor, Vector3 horizonColor, Vector3 groundColor)
+	{
+		float elevation = dir.Y;
+		if (elevation > 0.0f)
+			return Vector3.Lerp(horizonColor, topColor, elevation);
+		else
+			return Vector3.Lerp(horizonColor, groundColor, -elevation);
+	}
+
+	/// GGX importance sampling — returns half-vector in tangent space (Z-up).
+	private static Vector3 ImportanceSampleGGX(float xi1, float xi2, float roughness)
+	{
+		float a = roughness * roughness;
+		float phi = 2.0f * Math.PI_f * xi1;
+		float cosTheta = Math.Sqrt((1.0f - xi2) / (1.0f + (a * a - 1.0f) * xi2));
+		float sinTheta = Math.Sqrt(1.0f - cosTheta * cosTheta);
+
+		return .(Math.Cos(phi) * sinTheta, Math.Sin(phi) * sinTheta, cosTheta);
+	}
+
+	/// Builds an orthonormal basis from N (assumed normalized).
+	private static void BuildTangentBasis(Vector3 N, out Vector3 T, out Vector3 B)
+	{
+		Vector3 up = (Math.Abs(N.Y) < 0.999f) ? Vector3(0, 1, 0) : Vector3(1, 0, 0);
+		T = Vector3.Normalize(Vector3.Cross(up, N));
+		B = Vector3.Cross(N, T);
+	}
+
+	/// Transforms a tangent-space vector to world space using the given basis.
+	private static Vector3 TangentToWorld(Vector3 v, Vector3 T, Vector3 B, Vector3 N)
+	{
+		return T * v.X + B * v.Y + N * v.Z;
+	}
+
+	/// Hammersley quasi-random sequence (low-discrepancy).
+	private static float RadicalInverseVdC(uint32 bits)
+	{
+		var bits;
+		bits = (bits << 16) | (bits >> 16);
+		bits = ((bits & 0x55555555) << 1) | ((bits & 0xAAAAAAAA) >> 1);
+		bits = ((bits & 0x33333333) << 2) | ((bits & 0xCCCCCCCC) >> 2);
+		bits = ((bits & 0x0F0F0F0F) << 4) | ((bits & 0xF0F0F0F0) >> 4);
+		bits = ((bits & 0x00FF00FF) << 8) | ((bits & 0xFF00FF00) >> 8);
+		return (float)bits * 2.3283064365386963e-10f;
+	}
+
+	// ==================== Irradiance Map Generation ====================
+
+	private Result<void> GenerateIrradianceMap(Vector3 topColor, Vector3 horizonColor, Vector3 groundColor)
+	{
+		const int32 IrrSize = 32;
+		const int32 NumSamplesAzi = 64;
+		const int32 NumSamplesElev = 16;
+		let totalSamples = NumSamplesAzi * NumSamplesElev;
+
+		// Release old
+		if (mIrradianceMapView != null) { delete mIrradianceMapView; mIrradianceMapView = null; }
+		if (mIrradianceMap != null) { delete mIrradianceMap; mIrradianceMap = null; }
+
+		// Create cubemap texture
+		TextureDescriptor texDesc = .Cubemap((uint32)IrrSize, .RGBA16Float, .Sampled | .CopyDst);
+		switch (Renderer.Device.CreateTexture(&texDesc))
+		{
+		case .Ok(let tex): mIrradianceMap = tex;
+		case .Err: return .Err;
+		}
+
+		// Generate and upload each face
+		int32 pixelsPerFace = IrrSize * IrrSize;
+		uint16[] faceData = new uint16[pixelsPerFace * 4]; // RGBA16Float = 4 x uint16
+		defer delete faceData;
+
+		for (int32 face = 0; face < 6; face++)
+		{
+			for (int32 y = 0; y < IrrSize; y++)
+			{
+				for (int32 x = 0; x < IrrSize; x++)
+				{
+					Vector3 N = CubemapTexelDirection(face, x, y, IrrSize);
+
+					// Build tangent frame
+					Vector3 T, B;
+					BuildTangentBasis(N, out T, out B);
+
+					// Hemisphere convolution with cosine weighting
+					Vector3 irradiance = .Zero;
+					for (int32 ei = 0; ei < NumSamplesElev; ei++)
+					{
+						float theta = Math.PI_f * 0.5f * ((float)ei + 0.5f) / (float)NumSamplesElev;
+						float cosTheta = Math.Cos(theta);
+						float sinTheta = Math.Sin(theta);
+
+						for (int32 ai = 0; ai < NumSamplesAzi; ai++)
+						{
+							float phi = 2.0f * Math.PI_f * (float)ai / (float)NumSamplesAzi;
+							// Sample direction in tangent space
+							Vector3 tsSample = .(Math.Cos(phi) * sinTheta, Math.Sin(phi) * sinTheta, cosTheta);
+							// Transform to world space
+							Vector3 sampleDir = TangentToWorld(tsSample, T, B, N);
+							Vector3 skyColor = SampleGradientSky(sampleDir, topColor, horizonColor, groundColor);
+							irradiance += skyColor * cosTheta * sinTheta;
+						}
+					}
+					irradiance = irradiance * (Math.PI_f / (float)totalSamples);
+
+					int32 idx = (y * IrrSize + x) * 4;
+					faceData[idx + 0] = FloatToHalf(irradiance.X);
+					faceData[idx + 1] = FloatToHalf(irradiance.Y);
+					faceData[idx + 2] = FloatToHalf(irradiance.Z);
+					faceData[idx + 3] = FloatToHalf(1.0f);
+				}
+			}
+
+			// Upload face
+			var layout = TextureDataLayout() { BytesPerRow = (uint32)(IrrSize * 8), RowsPerImage = (uint32)IrrSize };
+			var writeSize = Extent3D((uint32)IrrSize, (uint32)IrrSize, 1);
+			Renderer.Device.Queue.WriteTexture(mIrradianceMap, Span<uint8>((uint8*)faceData.Ptr, faceData.Count * 2), &layout, &writeSize, 0, (uint32)face);
+		}
+
+		// Create cubemap view
+		TextureViewDescriptor viewDesc = .()
+		{
+			Format = .RGBA16Float,
+			Dimension = .TextureCube,
+			BaseMipLevel = 0,
+			MipLevelCount = 1,
+			BaseArrayLayer = 0,
+			ArrayLayerCount = 6
+		};
+
+		switch (Renderer.Device.CreateTextureView(mIrradianceMap, &viewDesc))
+		{
+		case .Ok(let view): mIrradianceMapView = view;
+		case .Err: return .Err;
+		}
+
+		return .Ok;
+	}
+
+	// ==================== Prefiltered Specular Map Generation ====================
+
+	private Result<void> GeneratePrefilteredMap(Vector3 topColor, Vector3 horizonColor, Vector3 groundColor)
+	{
+		const int32 BaseSize = 128;
+		const uint32 MipLevels = 5;
+		const int32 NumSamples = 128;
+
+		// Release old
+		if (mPrefilteredMapView != null) { delete mPrefilteredMapView; mPrefilteredMapView = null; }
+		if (mPrefilteredMap != null) { delete mPrefilteredMap; mPrefilteredMap = null; }
+
+		// Create cubemap with mip chain
+		TextureDescriptor texDesc = .Cubemap((uint32)BaseSize, .RGBA16Float, .Sampled | .CopyDst, MipLevels);
+		switch (Renderer.Device.CreateTexture(&texDesc))
+		{
+		case .Ok(let tex): mPrefilteredMap = tex;
+		case .Err: return .Err;
+		}
+
+		// Allocate max-size buffer (for mip 0)
+		int32 maxPixels = BaseSize * BaseSize;
+		uint16[] faceData = new uint16[maxPixels * 4];
+		defer delete faceData;
+
+		for (uint32 mip = 0; mip < MipLevels; mip++)
+		{
+			int32 mipSize = BaseSize >> (int32)mip;
+			float roughness = (float)mip / (float)(MipLevels - 1);
+
+			for (int32 face = 0; face < 6; face++)
+			{
+				for (int32 y = 0; y < mipSize; y++)
+				{
+					for (int32 x = 0; x < mipSize; x++)
+					{
+						Vector3 N = CubemapTexelDirection(face, x, y, mipSize);
+						Vector3 R = N; // For prefiltering, assume V = R = N
+						Vector3 V = R;
+
+						Vector3 T, B;
+						BuildTangentBasis(N, out T, out B);
+
+						Vector3 prefilteredColor = .Zero;
+						float totalWeight = 0.0f;
+
+						for (int32 i = 0; i < NumSamples; i++)
+						{
+							// Hammersley sequence
+							float xi1 = (float)i / (float)NumSamples;
+							float xi2 = RadicalInverseVdC((uint32)i);
+
+							// Importance sample GGX
+							Vector3 H = TangentToWorld(ImportanceSampleGGX(xi1, xi2, roughness), T, B, N);
+							Vector3 L = H * (2.0f * Vector3.Dot(V, H)) - V;
+
+							float NdotL = Math.Max(Vector3.Dot(N, L), 0.0f);
+							if (NdotL > 0.0f)
+							{
+								Vector3 skyColor = SampleGradientSky(L, topColor, horizonColor, groundColor);
+								prefilteredColor += skyColor * NdotL;
+								totalWeight += NdotL;
+							}
+						}
+
+						if (totalWeight > 0.0f)
+							prefilteredColor = prefilteredColor * (1.0f / totalWeight);
+
+						int32 idx = (y * mipSize + x) * 4;
+						faceData[idx + 0] = FloatToHalf(prefilteredColor.X);
+						faceData[idx + 1] = FloatToHalf(prefilteredColor.Y);
+						faceData[idx + 2] = FloatToHalf(prefilteredColor.Z);
+						faceData[idx + 3] = FloatToHalf(1.0f);
+					}
+				}
+
+				// Upload face at this mip level
+				var layout = TextureDataLayout() { BytesPerRow = (uint32)(mipSize * 8), RowsPerImage = (uint32)mipSize };
+				var writeSize = Extent3D((uint32)mipSize, (uint32)mipSize, 1);
+				Renderer.Device.Queue.WriteTexture(mPrefilteredMap, Span<uint8>((uint8*)faceData.Ptr, mipSize * mipSize * 8), &layout, &writeSize, mip, (uint32)face);
+			}
+		}
+
+		// Create cubemap view with all mip levels
+		TextureViewDescriptor viewDesc = .()
+		{
+			Format = .RGBA16Float,
+			Dimension = .TextureCube,
+			BaseMipLevel = 0,
+			MipLevelCount = MipLevels,
+			BaseArrayLayer = 0,
+			ArrayLayerCount = 6
+		};
+
+		switch (Renderer.Device.CreateTextureView(mPrefilteredMap, &viewDesc))
+		{
+		case .Ok(let view): mPrefilteredMapView = view;
+		case .Err: return .Err;
+		}
+
+		return .Ok;
 	}
 
 	private Result<void> CreateEnvSamplerAndFallback()
@@ -605,9 +1435,9 @@ public class SkyFeature : RenderFeatureBase
 	public Result<void> CreateGradientSky(Color topColor, Color horizonColor, int32 resolution = 64)
 	{
 		Color groundColor = Color(
-			(uint8)(horizonColor.R / 3),
-			(uint8)(horizonColor.G / 3),
-			(uint8)(horizonColor.B / 3),
+			(uint8)(horizonColor.R / 2),
+			(uint8)(horizonColor.G / 2),
+			(uint8)(horizonColor.B / 2),
 			255
 		);
 		return CreateGradientSkyWithGround(topColor, horizonColor, groundColor, resolution);
@@ -724,6 +1554,27 @@ public class SkyFeature : RenderFeatureBase
 				mSkyBindGroups[i] = null;
 			}
 		}
+
+		// Store colors in linear space on sky params for IBL generation
+		mSkyParams.ZenithColor = .(
+			Math.Pow((float)topColor.R / 255.0f, 2.2f),
+			Math.Pow((float)topColor.G / 255.0f, 2.2f),
+			Math.Pow((float)topColor.B / 255.0f, 2.2f)
+		);
+		mSkyParams.HorizonColor = .(
+			Math.Pow((float)horizonColor.R / 255.0f, 2.2f),
+			Math.Pow((float)horizonColor.G / 255.0f, 2.2f),
+			Math.Pow((float)horizonColor.B / 255.0f, 2.2f)
+		);
+		mSkyParams.GroundColor = .(
+			Math.Pow((float)groundColor.R / 255.0f, 2.2f),
+			Math.Pow((float)groundColor.G / 255.0f, 2.2f),
+			Math.Pow((float)groundColor.B / 255.0f, 2.2f)
+		);
+		mIsExternalEnvMap = false;
+
+		// Generate IBL maps from sky colors
+		GenerateIBLMaps();
 
 		return .Ok;
 	}

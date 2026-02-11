@@ -2,22 +2,7 @@
 // Pre-computed ribbon vertices are passed directly (no billboarding needed)
 #pragma pack_matrix(row_major)
 
-cbuffer CameraUniforms : register(b0)
-{
-    float4x4 ViewMatrix;
-    float4x4 ProjectionMatrix;
-    float4x4 ViewProjectionMatrix;
-    float4x4 InvViewMatrix;
-    float4x4 InvProjectionMatrix;
-    float4x4 PrevViewProjectionMatrix;
-    float3 CameraPosition;
-    float Time;
-    float3 CameraForward;
-    float DeltaTime;
-    float2 ScreenSize;
-    float NearPlane;
-    float FarPlane;
-};
+#include "scene_uniforms.hlsli"
 
 // Per-vertex data (TrailVertex layout, per-vertex rate)
 struct VertexInput

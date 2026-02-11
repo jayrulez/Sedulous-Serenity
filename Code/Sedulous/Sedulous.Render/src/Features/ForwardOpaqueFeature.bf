@@ -69,6 +69,16 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 	// Track shadow state when bind groups were created (for runtime toggling)
 	private bool[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mSceneBindGroupShadowState;
 
+	// IBL fallback resources (used when SkyFeature has no IBL maps)
+	private ITexture mFallbackIrradianceCubemap ~ delete _;
+	private ITextureView mFallbackIrradianceCubemapView ~ delete _;
+	private ITexture mFallbackPrefilteredCubemap ~ delete _;
+	private ITextureView mFallbackPrefilteredCubemapView ~ delete _;
+	private ITexture mFallbackBRDFLut ~ delete _;
+	private ITextureView mFallbackBRDFLutView ~ delete _;
+	private ISampler mIBLSampler ~ delete _;
+	private bool[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mSceneBindGroupIBLState;
+
 	/// Feature name.
 	public override StringView Name => "ForwardOpaque";
 
@@ -121,6 +131,10 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 		// Create dummy shadow map for when shadows are disabled
 		if (CreateDummyShadowMap() case .Err)
+			return .Err;
+
+		// Create IBL fallback resources
+		if (CreateIBLFallbackResources() case .Err)
 			return .Err;
 
 		return .Ok;
@@ -336,8 +350,8 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				DepthWriteEnabled = true,
 				DepthCompare = .Less,
 				Format = .Depth32Float, // Match shadow map format
-				DepthBias = 4,          // Hardware depth bias to prevent shadow acne
-				DepthBiasSlopeScale = 4.0f
+				DepthBias = 2,          // Hardware depth bias (supplemented by receiver-side normal offset)
+				DepthBiasSlopeScale = 3.0f
 			},
 			Multisample = .()
 			{
@@ -484,6 +498,132 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			Renderer.Device.WaitIdle();
 			delete cmdBuffer;
 		}
+	}
+
+	private Result<void> CreateIBLFallbackResources()
+	{
+		// Create 1x1 fallback irradiance cubemap (white = neutral ambient)
+		{
+			TextureDescriptor texDesc = .Cubemap(1, .RGBA16Float, .Sampled | .CopyDst);
+			switch (Renderer.Device.CreateTexture(&texDesc))
+			{
+			case .Ok(let tex): mFallbackIrradianceCubemap = tex;
+			case .Err: return .Err;
+			}
+
+			uint16[4] whitePixel = .(0x3C00, 0x3C00, 0x3C00, 0x3C00); // 1.0 in half-float
+			TextureDataLayout layout = .() { BytesPerRow = 8, RowsPerImage = 1 };
+			Extent3D size = .(1, 1, 1);
+			for (uint32 face = 0; face < 6; face++)
+				Renderer.Device.Queue.WriteTexture(mFallbackIrradianceCubemap, Span<uint8>((uint8*)&whitePixel, 8), &layout, &size, 0, face);
+
+			TextureViewDescriptor viewDesc = .()
+			{
+				Format = .RGBA16Float,
+				Dimension = .TextureCube,
+				BaseMipLevel = 0,
+				MipLevelCount = 1,
+				BaseArrayLayer = 0,
+				ArrayLayerCount = 6
+			};
+
+			switch (Renderer.Device.CreateTextureView(mFallbackIrradianceCubemap, &viewDesc))
+			{
+			case .Ok(let view): mFallbackIrradianceCubemapView = view;
+			case .Err: return .Err;
+			}
+		}
+
+		// Create 1x1 fallback prefiltered cubemap (white = neutral specular)
+		{
+			TextureDescriptor texDesc = .Cubemap(1, .RGBA16Float, .Sampled | .CopyDst);
+			switch (Renderer.Device.CreateTexture(&texDesc))
+			{
+			case .Ok(let tex): mFallbackPrefilteredCubemap = tex;
+			case .Err: return .Err;
+			}
+
+			uint16[4] whitePixel = .(0x3C00, 0x3C00, 0x3C00, 0x3C00);
+			TextureDataLayout layout = .() { BytesPerRow = 8, RowsPerImage = 1 };
+			Extent3D size = .(1, 1, 1);
+			for (uint32 face = 0; face < 6; face++)
+				Renderer.Device.Queue.WriteTexture(mFallbackPrefilteredCubemap, Span<uint8>((uint8*)&whitePixel, 8), &layout, &size, 0, face);
+
+			TextureViewDescriptor viewDesc = .()
+			{
+				Format = .RGBA16Float,
+				Dimension = .TextureCube,
+				BaseMipLevel = 0,
+				MipLevelCount = 1,
+				BaseArrayLayer = 0,
+				ArrayLayerCount = 6
+			};
+
+			switch (Renderer.Device.CreateTextureView(mFallbackPrefilteredCubemap, &viewDesc))
+			{
+			case .Ok(let view): mFallbackPrefilteredCubemapView = view;
+			case .Err: return .Err;
+			}
+		}
+
+		// Create 1x1 fallback BRDF LUT (identity: scale=1.0, bias=0.0)
+		{
+			TextureDescriptor texDesc = .()
+			{
+				Label = "Fallback BRDF LUT",
+				Width = 1,
+				Height = 1,
+				Depth = 1,
+				Format = .RG16Float,
+				MipLevelCount = 1,
+				ArrayLayerCount = 1,
+				SampleCount = 1,
+				Dimension = .Texture2D,
+				Usage = .Sampled | .CopyDst
+			};
+
+			switch (Renderer.Device.CreateTexture(&texDesc))
+			{
+			case .Ok(let tex): mFallbackBRDFLut = tex;
+			case .Err: return .Err;
+			}
+
+			uint16[2] brdfPixel = .(0x3C00, 0x0000); // (1.0, 0.0) in half-float
+			TextureDataLayout layout = .() { BytesPerRow = 4, RowsPerImage = 1 };
+			Extent3D size = .(1, 1, 1);
+			Renderer.Device.Queue.WriteTexture(mFallbackBRDFLut, Span<uint8>((uint8*)&brdfPixel, 4), &layout, &size);
+
+			TextureViewDescriptor viewDesc = .()
+			{
+				Format = .RG16Float,
+				Dimension = .Texture2D
+			};
+
+			switch (Renderer.Device.CreateTextureView(mFallbackBRDFLut, &viewDesc))
+			{
+			case .Ok(let view): mFallbackBRDFLutView = view;
+			case .Err: return .Err;
+			}
+		}
+
+		// Create IBL sampler (linear min/mag/mip, clamp to edge)
+		{
+			SamplerDescriptor samplerDesc = .();
+			samplerDesc.MinFilter = .Linear;
+			samplerDesc.MagFilter = .Linear;
+			samplerDesc.MipmapFilter = .Linear;
+			samplerDesc.AddressModeU = .ClampToEdge;
+			samplerDesc.AddressModeV = .ClampToEdge;
+			samplerDesc.AddressModeW = .ClampToEdge;
+
+			switch (Renderer.Device.CreateSampler(&samplerDesc))
+			{
+			case .Ok(let sampler): mIBLSampler = sampler;
+			case .Err: return .Err;
+			}
+		}
+
+		return .Ok;
 	}
 
 	protected override void OnShutdown()
@@ -967,7 +1107,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		//                           t4=Lights, t5=ClusterLightInfo, t6=LightIndices (read-only StructuredBuffers),
 		//                           t7=ShadowMap, s1=ShadowSampler
 		// Use HLSL register numbers - RHI applies Vulkan shifts based on Type
-		BindGroupLayoutEntry[9] sceneEntries = .(
+		BindGroupLayoutEntry[13] sceneEntries = .(
 			.() { Binding = 0, Visibility = .Vertex | .Fragment, Type = .UniformBuffer }, // b0: Camera
 			.() { Binding = 1, Visibility = .Vertex, Type = .UniformBuffer, HasDynamicOffset = true }, // b1: ObjectUniforms (dynamic offset per-object)
 			.() { Binding = 3, Visibility = .Fragment, Type = .UniformBuffer },           // b3: Lighting uniforms
@@ -976,7 +1116,11 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			.() { Binding = 6, Visibility = .Fragment, Type = .StorageBuffer },           // t6: LightIndices (StructuredBuffer)
 			.() { Binding = 5, Visibility = .Fragment, Type = .UniformBuffer },           // b5: Shadow uniforms
 			.() { Binding = 7, Visibility = .Fragment, Type = .SampledTexture },          // t7: ShadowMap
-			.() { Binding = 1, Visibility = .Fragment, Type = .ComparisonSampler }        // s1: ShadowSampler
+			.() { Binding = 1, Visibility = .Fragment, Type = .ComparisonSampler },       // s1: ShadowSampler
+			BindGroupLayoutEntry.SampledTexture(8, .Fragment, .TextureCube),               // t8: Irradiance Map
+			BindGroupLayoutEntry.SampledTexture(9, .Fragment, .TextureCube),               // t9: Prefiltered Map
+			BindGroupLayoutEntry.SampledTexture(10, .Fragment, .Texture2D),                // t10: BRDF LUT
+			BindGroupLayoutEntry.Sampler(2, .Fragment)                                     // s2: IBL Sampler
 		);
 
 		BindGroupLayoutDescriptor sceneDesc = .()
@@ -1027,10 +1171,14 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		// Use shadow map only when shadow passes actually ran this frame
 		let shadowsEnabled = mShadowPassesActive;
 
-		// Check if bind group exists and shadow state hasn't changed
+		// Check IBL state
+		let skyFeature = Renderer.GetFeature<SkyFeature>();
+		let hasRealIBL = skyFeature?.IrradianceMapView != null;
+
+		// Check if bind group exists and state hasn't changed
 		if (mSceneBindGroups[bgIndex] != null)
 		{
-			if (mSceneBindGroupShadowState[bgIndex] == shadowsEnabled)
+			if (mSceneBindGroupShadowState[bgIndex] == shadowsEnabled && mSceneBindGroupIBLState[bgIndex] == hasRealIBL)
 				return;
 
 			delete mSceneBindGroups[bgIndex];
@@ -1056,7 +1204,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 		// Build bind group entries
 		// Note: Some shadow resources may be null - provide fallbacks or skip
-		BindGroupEntry[9] entries = .();
+		BindGroupEntry[13] entries = .();
 
 		// b0: Camera uniforms
 		entries[0] = BindGroupEntry.Buffer(0, cameraBuffer, 0, SceneUniforms.Size);
@@ -1104,6 +1252,28 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		else
 			return; // Can't create without sampler
 
+		// IBL resources (t8: Irradiance, t9: Prefiltered, t10: BRDF LUT, s2: IBL Sampler)
+		ITextureView irradianceView = mFallbackIrradianceCubemapView;
+		ITextureView prefilteredView = mFallbackPrefilteredCubemapView;
+		ITextureView brdfLutView = mFallbackBRDFLutView;
+		ISampler iblSampler = mIBLSampler;
+
+		if (skyFeature != null)
+		{
+			if (skyFeature.IrradianceMapView != null) irradianceView = skyFeature.IrradianceMapView;
+			if (skyFeature.PrefilteredMapView != null) prefilteredView = skyFeature.PrefilteredMapView;
+			if (skyFeature.BRDFLutView != null) brdfLutView = skyFeature.BRDFLutView;
+			if (skyFeature.EnvironmentSampler != null) iblSampler = skyFeature.EnvironmentSampler;
+		}
+
+		if (irradianceView == null || prefilteredView == null || brdfLutView == null || iblSampler == null)
+			return;
+
+		entries[9] = BindGroupEntry.Texture(8, irradianceView);
+		entries[10] = BindGroupEntry.Texture(9, prefilteredView);
+		entries[11] = BindGroupEntry.Texture(10, brdfLutView);
+		entries[12] = BindGroupEntry.Sampler(2, iblSampler);
+
 		// Create bind group
 		BindGroupDescriptor bgDesc = .()
 		{
@@ -1116,6 +1286,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		{
 			mSceneBindGroups[bgIndex] = bg;
 			mSceneBindGroupShadowState[bgIndex] = shadowsEnabled;
+			mSceneBindGroupIBLState[bgIndex] = hasRealIBL;
 		}
 	}
 

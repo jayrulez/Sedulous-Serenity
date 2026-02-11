@@ -111,8 +111,8 @@ public struct LightProxy
 		light.IsEnabled = true;
 		light.LayerMask = 0xFFFFFFFF;
 		light.ShadowIndex = -1;
-		light.ShadowBias = 0.005f;
-		light.ShadowNormalBias = 0.02f;
+		light.ShadowBias = 0.0005f;
+		light.ShadowNormalBias = 3.0f;
 		return light;
 	}
 
@@ -128,8 +128,8 @@ public struct LightProxy
 		light.IsEnabled = true;
 		light.LayerMask = 0xFFFFFFFF;
 		light.ShadowIndex = -1;
-		light.ShadowBias = 0.005f;
-		light.ShadowNormalBias = 0.02f;
+		light.ShadowBias = 0.0005f;
+		light.ShadowNormalBias = 3.0f;
 		return light;
 	}
 
@@ -148,8 +148,8 @@ public struct LightProxy
 		light.IsEnabled = true;
 		light.LayerMask = 0xFFFFFFFF;
 		light.ShadowIndex = -1;
-		light.ShadowBias = 0.005f;
-		light.ShadowNormalBias = 0.02f;
+		light.ShadowBias = 0.0005f;
+		light.ShadowNormalBias = 3.0f;
 		return light;
 	}
 
@@ -192,8 +192,8 @@ public struct LightProxy
 		AreaSize = .(1, 1);
 		AreaShape = .Rectangle;
 		ShadowIndex = -1;
-		ShadowBias = 0.005f;
-		ShadowNormalBias = 0.02f;
+		ShadowBias = 0.0005f;
+		ShadowNormalBias = 3.0f;
 		IsEnabled = false;
 		CastsShadows = false;
 		LayerMask = 0xFFFFFFFF;

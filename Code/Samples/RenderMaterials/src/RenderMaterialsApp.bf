@@ -49,11 +49,22 @@ class RenderMaterialsApp : Application
 	// Lights
 	private LightProxyHandle mSunLight = .Invalid;
 	private List<LightProxyHandle> mPointLights = new .() ~ delete _;
-	private float mLightYaw = 0.5f;
-	private float mLightPitch = -0.7f;
+	private float mLightYaw = 2.5f;
+	private float mLightPitch = -0.3f;
 
 	// Materials
 	private List<MaterialInstance> mMaterials = new .() ~ { for (let m in _) m?.ReleaseRef(); delete _; };
+
+	// Sphere rotation diagnostic
+	private List<MeshProxyHandle> mSphereHandles = new .() ~ delete _;
+	private List<Vector3> mSpherePositions = new .() ~ delete _;
+	private bool mRotateSpheres = false;
+	private float mSphereRotationAngle = 0.0f;
+	private bool mPointLightsEnabled = true;
+	private uint32 mDebugMode = 0;
+
+	// HDRI sky toggle
+	private bool mHDRIActive = false;
 
 	// Camera
 	private Vector3 mCameraPosition = .(0, 2, 10);
@@ -67,6 +78,7 @@ class RenderMaterialsApp : Application
 	protected override void OnInitialize(Sedulous.Framework.Core.Context context)
 	{
 		Sedulous.Imaging.SDL.SDLImageLoader.Initialize();
+		Sedulous.Imaging.STB.STBImageLoader.Initialize();
 
 		mRenderSystem = new RenderSystem();
 		if (mRenderSystem.Initialize(mDevice, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
@@ -87,14 +99,25 @@ class RenderMaterialsApp : Application
 		CreateLights();
 		LoadFoxModel();
 
-		mWorld.AmbientColor = .(0.03f, 0.03f, 0.03f);
-		mWorld.AmbientIntensity = 1.0f;
-		mWorld.Exposure = 1.0f;
+		// Create gradient sky for IBL (Image-Based Lighting)
+		mSkyFeature.CreateGradientSkyWithGround(
+			.(100, 150, 220, 255),   // top: blue sky
+			.(200, 210, 220, 255),   // horizon: pale blue-white
+			.(80, 70, 60, 255));     // ground: dark earth
+
+		mWorld.AmbientColor = .(0.15f, 0.15f, 0.18f);
+		mWorld.AmbientIntensity = 0.5f;
+		mWorld.Exposure = 0.5f;
 
 		Console.WriteLine("Render Materials initialized");
 		Console.WriteLine("  5x5 sphere grid: Metallic (left-right) x Roughness (front-back)");
 		Console.WriteLine("  WASD/QE: move, Right-click: look, ESC: exit");
 		Console.WriteLine("  Arrow keys: adjust light direction");
+		Console.WriteLine("  Space: toggle sphere Y-axis rotation");
+		Console.WriteLine("  P: toggle point fill lights");
+		Console.WriteLine("  F: cycle debug mode (0=full, 1=albedo, 2=normals, 3=V, 4=NdotV, 5=lambert, 6=lambert+amb, 7=PBR, 8=PBR+IBL)");
+		Console.WriteLine("  H: toggle shadow receiving");
+		Console.WriteLine("  I: toggle HDRI environment map");
 	}
 
 	private void RegisterFeatures()
@@ -175,6 +198,8 @@ class RenderMaterialsApp : Application
 					let pos = Vector3(col * spacing - offset, 0.5f, row * spacing - offset);
 					proxy.SetTransformImmediate(Matrix.CreateTranslation(pos));
 					proxy.Flags = .DefaultOpaque;
+					mSphereHandles.Add(sphere);
+					mSpherePositions.Add(pos);
 				}
 			}
 		}
@@ -183,7 +208,7 @@ class RenderMaterialsApp : Application
 	private void CreateLights()
 	{
 		let lightDir = GetLightDirection();
-		mSunLight = mWorld.CreateDirectionalLight(lightDir, .(1.0f, 1.0f, 1.0f), 3.0f);
+		mSunLight = mWorld.CreateDirectionalLight(lightDir, .(1.0f, 1.0f, 1.0f), 2.0f);
 		if (let light = mWorld.GetLight(mSunLight)) light.CastsShadows = true;
 		if (mForwardFeature?.ShadowRenderer != null) mForwardFeature.ShadowRenderer.EnableShadows = true;
 
@@ -412,6 +437,45 @@ class RenderMaterialsApp : Application
 		}
 	}
 
+	// ==================== HDRI Sky ====================
+
+	private void ToggleHDRI()
+	{
+		if (mHDRIActive)
+		{
+			// Switch back to gradient sky
+			mSkyFeature.CreateGradientSkyWithGround(
+				.(100, 150, 220, 255),   // top: blue sky
+				.(200, 210, 220, 255),   // horizon: pale blue-white
+				.(80, 70, 60, 255));     // ground: dark earth
+			mHDRIActive = false;
+			Console.WriteLine("Sky: Gradient");
+		}
+		else
+		{
+			// Load HDRI environment map
+			let hdrPath = scope $"{AssetDirectory}/Render/textures/environment/BlueSky.hdr";
+			if (ImageLoaderFactory.LoadImage(hdrPath) case .Ok(var image))
+			{
+				defer delete image;
+				let texData = TextureData.FromImage(image);
+				if (mSkyFeature.SetEnvironmentMapEquirect(texData) case .Ok)
+				{
+					mHDRIActive = true;
+					Console.WriteLine("Sky: HDRI ({}x{})", image.Width, image.Height);
+				}
+				else
+				{
+					Console.WriteLine("ERROR: Failed to set HDRI environment map");
+				}
+			}
+			else
+			{
+				Console.WriteLine("ERROR: Failed to load HDR image: {}", hdrPath);
+			}
+		}
+	}
+
 	// ==================== Input / Update / Render ====================
 
 	protected override void OnInput()
@@ -419,6 +483,32 @@ class RenderMaterialsApp : Application
 		let keyboard = mShell.InputManager.Keyboard;
 		let mouse = mShell.InputManager.Mouse;
 		if (keyboard.IsKeyPressed(.Escape)) Exit();
+		if (keyboard.IsKeyPressed(.Space)) { mRotateSpheres = !mRotateSpheres; Console.WriteLine("Sphere rotation: {}", mRotateSpheres ? "ON" : "OFF"); }
+		if (keyboard.IsKeyPressed(.P))
+		{
+			mPointLightsEnabled = !mPointLightsEnabled;
+			for (let handle in mPointLights)
+				if (let light = mWorld.GetLight(handle))
+					light.IsEnabled = mPointLightsEnabled;
+			Console.WriteLine("Point lights: {}", mPointLightsEnabled ? "ON" : "OFF");
+		}
+		if (keyboard.IsKeyPressed(.F))
+		{
+			mDebugMode = (mDebugMode + 1) % 9;
+			let names = String[9]("Full", "Flat Albedo", "World Normals", "View Dir", "NdotV", "Lambertian", "Lambert+Ambient", "PBR Direct", "PBR+IBL");
+			Console.WriteLine("Debug mode: {} ({})", mDebugMode, names[mDebugMode]);
+			if (mForwardFeature?.Lighting?.LightBuffer != null)
+				mForwardFeature.Lighting.LightBuffer.DebugMode = mDebugMode;
+		}
+		if (keyboard.IsKeyPressed(.H))
+		{
+			if (mForwardFeature?.ShadowRenderer != null)
+			{
+				mForwardFeature.ShadowRenderer.EnableShadows = !mForwardFeature.ShadowRenderer.EnableShadows;
+				Console.WriteLine("Shadows: {}", mForwardFeature.ShadowRenderer.EnableShadows ? "ON" : "OFF");
+			}
+		}
+		if (keyboard.IsKeyPressed(.I)) ToggleHDRI();
 		if (keyboard.IsKeyPressed(.Tab))
 		{ mMouseCaptured = !mMouseCaptured; mouse.RelativeMode = mMouseCaptured; mouse.Visible = !mMouseCaptured; }
 		if (mMouseCaptured || mouse.IsButtonDown(.Right))
@@ -451,6 +541,18 @@ class RenderMaterialsApp : Application
 		if (keyboard.IsKeyDown(.Down))  { mLightPitch += lightSpeed; lightChanged = true; }
 		mLightPitch = Math.Clamp(mLightPitch, -Math.PI_f * 0.45f, -0.1f);
 		if (lightChanged) UpdateLightDirection();
+
+		// Rotate spheres on Y axis (Space to toggle)
+		if (mRotateSpheres)
+		{
+			mSphereRotationAngle += dt * 0.5f;
+			let rotation = Matrix.CreateRotationY(mSphereRotationAngle);
+			for (int i = 0; i < mSphereHandles.Count; i++)
+			{
+				if (let proxy = mWorld.GetMesh(mSphereHandles[i]))
+					proxy.SetTransformImmediate(rotation * Matrix.CreateTranslation(mSpherePositions[i]));
+			}
+		}
 
 		// Update fox animation
 		if (mPlayer != null)

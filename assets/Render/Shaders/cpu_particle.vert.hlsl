@@ -3,30 +3,14 @@
 // Supports: Billboard, StretchedBillboard, HorizontalBillboard, VerticalBillboard
 #pragma pack_matrix(row_major)
 
-// Must match SceneUniforms in FrameContext.bf
-cbuffer CameraUniforms : register(b0)
-{
-    float4x4 ViewMatrix;
-    float4x4 ProjectionMatrix;
-    float4x4 ViewProjectionMatrix;
-    float4x4 InvViewMatrix;
-    float4x4 InvProjectionMatrix;
-    float4x4 PrevViewProjectionMatrix;
-    float3 CameraPosition;
-    float Time;
-    float3 CameraForward;
-    float DeltaTime;
-    float2 ScreenSize;
-    float CameraNearPlane;
-    float CameraFarPlane;
-};
+#include "scene_uniforms.hlsli"
 
 // Per-emitter params (shared with fragment shader, extended)
 cbuffer EmitterParams : register(b1)
 {
     float SoftDistance;
-    float NearPlane;
-    float FarPlane;
+    float DepthNearPlane;
+    float DepthFarPlane;
     float RenderMode;       // 0=Billboard, 1=Stretched, 2=Horizontal, 3=Vertical
     float StretchFactor;
     float Lit;              // 0 = unlit, 1 = lit (unused in vertex)

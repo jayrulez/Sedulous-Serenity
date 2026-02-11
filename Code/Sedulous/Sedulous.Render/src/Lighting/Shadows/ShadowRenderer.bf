@@ -177,11 +177,19 @@ public class ShadowRenderer : IDisposable
 				if (light.Type == .Directional && light.CastsShadows)
 				{
 					mMainDirectionalLight = visibleLight.Handle;
+					// Assign shadow index 0 (CSM) so the shader knows this light casts shadows
+					light.ShadowIndex = 0;
 					return;
 				}
 			}
 		}
 
+		// Clear shadow index on previous main light if it's no longer shadow-casting
+		if (mMainDirectionalLight.IsValid)
+		{
+			if (let light = world.GetLight(mMainDirectionalLight))
+				light.ShadowIndex = -1;
+		}
 		mMainDirectionalLight = .Invalid;
 	}
 

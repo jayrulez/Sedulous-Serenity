@@ -2,35 +2,12 @@
 // Calculates current and previous frame positions for TAA/motion blur
 #pragma pack_matrix(row_major)
 
-// Camera uniform buffer
-cbuffer CameraUniforms : register(b0)
-{
-    float4x4 ViewMatrix;
-    float4x4 ProjectionMatrix;
-    float4x4 ViewProjectionMatrix;
-    float4x4 PrevViewProjectionMatrix;
-    float3 CameraPosition;
-    float NearPlane;
-    float3 CameraForward;
-    float FarPlane;
-    float2 JitterOffset;
-    float2 PrevJitterOffset;
-};
+#include "scene_uniforms.hlsli"
 
-// Per-object uniform buffer
-cbuffer ObjectUniforms : register(b1)
-{
-    float4x4 WorldMatrix;
-    float4x4 PrevWorldMatrix;
-    uint ObjectID;
-    uint3 _Padding;
-};
+#include "object_uniforms.hlsli"
 
 #ifdef SKINNED
-cbuffer BoneUniforms : register(b2)
-{
-    float4x4 BoneMatrices[256];
-};
+#include "bone_uniforms.hlsli"
 
 cbuffer PrevBoneUniforms : register(b3)
 {
