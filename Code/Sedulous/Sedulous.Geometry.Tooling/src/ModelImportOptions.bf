@@ -55,6 +55,13 @@ class ModelImportOptions
 	/// Whether to merge meshes that share the same material.
 	public bool MergeMeshes = false;
 
+	/// Whether to recenter mesh vertices so the bounding box center is at the origin.
+	/// Useful for models whose origin is at the bottom instead of the center.
+	/// For static meshes, shifts all vertex positions.
+	/// For skinned meshes, shifts vertex positions and adjusts skeleton
+	/// InverseBindPose and RootCorrection matrices to preserve correct skinning.
+	public bool RecenterMeshes = false;
+
 	/// Maximum bones per vertex for skinned meshes.
 	public int32 MaxBonesPerVertex = 4;
 
