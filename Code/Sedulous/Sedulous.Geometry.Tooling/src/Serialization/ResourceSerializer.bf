@@ -181,6 +181,7 @@ static class ResourceSerializer
 
 	public static void SanitizePath(String path)
 	{
+		path.Replace("\\", "/");
 		// Replace invalid filename characters
 		for (int i = 0; i < path.Length; i++)
 		{
