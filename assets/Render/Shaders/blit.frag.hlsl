@@ -12,15 +12,15 @@ struct FragmentInput
 };
 
 // ACES filmic tone mapping curve
-// float3 ACESFilm(float3 x)
-// {
-//     float a = 2.51;
-//     float b = 0.03;
-//     float c = 2.43;
-//     float d = 0.59;
-//     float e = 0.14;
-//     return saturate((x * (a * x + b)) / (x * (c * x + d) + e));
-// }
+float3 ACESFilm(float3 x)
+{
+    float a = 2.51;
+    float b = 0.03;
+    float c = 2.43;
+    float d = 0.59;
+    float e = 0.14;
+    return saturate((x * (a * x + b)) / (x * (c * x + d) + e));
+}
 
 float4 main(FragmentInput input) : SV_Target
 {
@@ -29,13 +29,13 @@ float4 main(FragmentInput input) : SV_Target
 
     // Simple Reinhard tone mapping (HDR to LDR)
     // Output remains in linear space - sRGB target applies gamma
-    // color.rgb = color.rgb / (color.rgb + 1.0);
+    //color.rgb = color.rgb / (color.rgb + 1.0);
 
     // ACES alternative (more vibrant):
-    // color.rgb = ACESFilm(color.rgb);
+     color.rgb = ACESFilm(color.rgb);
 
     // Pass-through (clamp to LDR range)
-    color.rgb = saturate(color.rgb);
+    //color.rgb = saturate(color.rgb);
 
     return float4(color.rgb, 1.0);
 }
