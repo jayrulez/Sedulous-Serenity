@@ -741,7 +741,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 				let cmd = skinnedCommands[batch.CommandStart + i];
 
 				// Get the skinned vertex buffer from GPU skinning feature
-				let skinnedVertexBuffer = skinningFeature.GetSkinnedVertexBuffer(cmd.MeshHandle);
+				let skinnedVertexBuffer = skinningFeature.GetSkinnedVertexBuffer(world, cmd.MeshHandle);
 				if (skinnedVertexBuffer == null)
 					continue;
 

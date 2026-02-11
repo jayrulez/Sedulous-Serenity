@@ -124,6 +124,7 @@ class ModelViewerApp : Application
 
 	// Render features
 	private DepthPrepassFeature mDepthFeature;
+	private GPUSkinningFeature mSkinningFeature;
 	private ForwardOpaqueFeature mForwardFeature;
 	private SkyFeature mSkyFeature;
 	private DebugRenderFeature mDebugFeature;
@@ -143,15 +144,18 @@ class ModelViewerApp : Application
 	private float mLastMouseX;
 	private float mLastMouseY;
 
+	// Gizmo drag state (track start positions since UpdateDrag returns total delta)
+	private Vector3 mGizmoDragStartPos;
+	private Vector3 mCameraTargetDragStartPos;
+
 	// UI
 	private SplitPanel mRootPanel;
 	private StackPanel mSidePanel;
 	private Grid mViewportPanel;
 	private TabControl mTabControl;
-	private Grid mViewportContainer;
-	private ViewportControl mViewport;
+	private Grid mViewportContainer;  // Container for per-tab content and drop indicator
 	private Label mModelInfoLabel;
-	private Label mDropIndicator;
+	private Label mDropIndicator;  // Shown when no tabs
 
 	/// Gets the currently active tab, or null if no tabs exist.
 	private ModelTab ActiveTab => mActiveTabIndex >= 0 && mActiveTabIndex < (int32)mTabs.Count ? mTabs[mActiveTabIndex] : null;
@@ -198,6 +202,10 @@ class ModelViewerApp : Application
 
 	private void RegisterFeatures()
 	{
+		// GPU skinning for skeletal meshes (must run before depth prepass)
+		mSkinningFeature = new GPUSkinningFeature();
+		mRenderSystem.RegisterFeature(mSkinningFeature);
+
 		mDepthFeature = new DepthPrepassFeature();
 		mRenderSystem.RegisterFeature(mDepthFeature);
 
@@ -235,8 +243,12 @@ class ModelViewerApp : Application
 		let tab = new ModelTab(modelName, path);
 		delete modelName;
 
-		// Create world for this tab
+		// Wait for GPU to finish any pending work before creating new resources
+		Device.WaitIdle();
+
+		// Create world for this tab and set it active during setup
 		tab.CreateWorld(mRenderSystem);
+		mRenderSystem.SetActiveWorld(tab.World);
 
 		// Load model into tab
 		let result = ModelLoaderFactory.LoadModel(path, tab.Model);
@@ -253,6 +265,10 @@ class ModelViewerApp : Application
 		Console.WriteLine(scope $"  Materials: {tab.Model.Materials.Count}");
 		Console.WriteLine(scope $"  Bones: {tab.Model.Bones.Count}");
 
+		// Calculate model bounds for camera fitting
+		tab.Model.CalculateBounds();
+		Console.WriteLine(scope $"  Bounds: {tab.Model.Bounds.Min} to {tab.Model.Bounds.Max}");
+
 		// Get base path for texture loading
 		let basePath = scope String();
 		let lastSep = Math.Max(path.LastIndexOf('/'), path.LastIndexOf('\\'));
@@ -262,6 +278,7 @@ class ModelViewerApp : Application
 		// Use ModelImporter for conversion
 		let importOptions = new ModelImportOptions();
 		importOptions.BasePath.Set(basePath);
+		importOptions.RecenterMeshes = false;  // Place model at origin
 
 		// Determine if skinned or static
 		tab.IsSkinnedMesh = tab.Model.Bones.Count > 0 && tab.Model.Skins.Count > 0;
@@ -286,18 +303,21 @@ class ModelViewerApp : Application
 		// Upload and setup based on mesh type
 		if (tab.IsSkinnedMesh && importResult.SkinnedMeshes.Count > 0)
 		{
+			tab.MeshBounds = importResult.SkinnedMeshes[0].Mesh.Bounds;// setup internally takes mesh from result, so we must call this before setup
 			SetupSkinnedMesh(tab, importResult);
 		}
 		else if (importResult.StaticMeshes.Count > 0)
 		{
+			tab.MeshBounds = importResult.StaticMeshes[0].Mesh.GetBounds();// setup internally takes mesh from result, so we must call this before setup
 			SetupStaticMesh(tab, importResult);
 		}
+		Console.WriteLine(scope $"  GPU mesh bounds: {tab.MeshBounds.Min} to {tab.MeshBounds.Max}");
 
 		// Load texture
 		LoadTexture(tab, importResult, basePath);
 
-		// Fit camera to model
-		tab.Camera.FitToModel(tab.Model.Bounds);
+		// Fit camera to mesh bounds (uses recentered bounds from import)
+		tab.Camera.FitToModel(tab.MeshBounds);
 
 		// Add tab to list and UI
 		mTabs.Add(tab);
@@ -312,20 +332,32 @@ class ModelViewerApp : Application
 		let resource = importResult.TakeStaticMesh(0);
 		defer delete resource;
 
+		Console.WriteLine(scope $"  SetupStaticMesh: vertices={resource.Mesh.Vertices.VertexCount}, indices={resource.Mesh.Indices.IndexCount}");
+		Console.WriteLine(scope $"  Mesh bounds: {resource.Mesh.GetBounds().Min} to {resource.Mesh.GetBounds().Max}");
+
 		if (mRenderSystem.ResourceManager.UploadMesh(resource.Mesh) case .Ok(let handle))
 		{
 			tab.MeshHandle = handle;
+			Console.WriteLine(scope $"  Mesh uploaded: handle valid={handle.IsValid}");
 
 			tab.StaticMeshProxy = tab.World.CreateMesh();
+			Console.WriteLine(scope $"  Proxy created: valid={tab.StaticMeshProxy.IsValid}");
+
 			if (let proxy = tab.World.GetMesh(tab.StaticMeshProxy))
 			{
 				proxy.MeshHandle = tab.MeshHandle;
-				proxy.Materials[0] = mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
+				let defaultMat = mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
+				Console.WriteLine(scope $"  Default material: {defaultMat != null}");
+				proxy.Materials[0] = defaultMat;
 				proxy.MaterialCount = 1;
 				proxy.SetLocalBounds(resource.Mesh.GetBounds());
 				proxy.SetTransformImmediate(.Identity);
 				proxy.Flags = .DefaultOpaque;
 			}
+		}
+		else
+		{
+			Console.WriteLine("  ERROR: Failed to upload mesh!");
 		}
 	}
 
@@ -342,29 +374,45 @@ class ModelViewerApp : Application
 		let resource = importResult.TakeSkinnedMesh(0);
 		defer delete resource;
 
+		Console.WriteLine(scope $"  SetupSkinnedMesh: vertices={resource.Mesh.VertexCount}, indices={resource.Mesh.IndexCount}");
+		Console.WriteLine(scope $"  Mesh bounds: {resource.Mesh.Bounds.Min} to {resource.Mesh.Bounds.Max}");
+
 		if (mRenderSystem.ResourceManager.UploadMesh(resource.Mesh) case .Ok(let handle))
 		{
 			tab.MeshHandle = handle;
+			Console.WriteLine(scope $"  Mesh uploaded: handle valid={handle.IsValid}");
 
 			let boneCount = (uint16)(tab.Skeleton?.BoneCount ?? 0);
+			Console.WriteLine(scope $"  Bone count: {boneCount}");
 			if (boneCount > 0)
 			{
 				if (mRenderSystem.ResourceManager.CreateBoneBuffer(boneCount) case .Ok(let boneHandle))
+				{
 					tab.BoneBufferHandle = boneHandle;
+					Console.WriteLine(scope $"  Bone buffer created: valid={boneHandle.IsValid}");
+				}
+				else
+					Console.WriteLine("  ERROR: Failed to create bone buffer!");
 			}
 
 			tab.SkinnedMeshProxy = tab.World.CreateSkinnedMesh();
+			Console.WriteLine(scope $"  Proxy created: valid={tab.SkinnedMeshProxy.IsValid}");
+
 			if (let proxy = tab.World.GetSkinnedMesh(tab.SkinnedMeshProxy))
 			{
 				proxy.MeshHandle = tab.MeshHandle;
 				proxy.BoneBufferHandle = tab.BoneBufferHandle;
-				proxy.Materials[0] = mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
+				let defaultMat = mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
+				Console.WriteLine(scope $"  Default material: {defaultMat != null}");
+				proxy.Materials[0] = defaultMat;
 				proxy.MaterialCount = 1;
 				proxy.SetLocalBounds(resource.Mesh.Bounds);
 				proxy.BoneCount = boneCount;
 				proxy.SetTransformImmediate(.Identity);
 				proxy.Flags = .DefaultOpaque;
 			}
+			else
+				Console.WriteLine("  ERROR: Could not get proxy!");
 
 			// Play first animation
 			if (tab.Clips != null && tab.Clips.Count > 0 && tab.Player != null)
@@ -551,19 +599,59 @@ class ModelViewerApp : Application
 
 	private void AddTabToUI(ModelTab tab)
 	{
-		if (mTabControl == null)
+		if (mTabControl == null || mViewportContainer == null)
 			return;
 
 		let tabItem = mTabControl.AddTab(tab.Name);
 		tabItem.IsCloseable = true;
 
-		// Subscribe to close event - use the tab's stored index
+		// Subscribe to close event
 		tabItem.CloseRequested.Subscribe(new [&](item) => {
-			// Get the index before TabControl removes the tab
 			let index = (int32)item.Index;
 			if (index >= 0 && index < (int32)mTabs.Count)
-				CloseTab(index, false);  // Don't remove from TabControl - it handles that
+				CloseTab(index, false);
 		});
+
+		// Create per-tab content panel (Grid with toolbar + viewport)
+		tab.ContentPanel = new Grid();
+		tab.ContentPanel.RowDefinitions.Add(new .() { Height = .Auto });  // Row 0: Toolbar
+		tab.ContentPanel.RowDefinitions.Add(new .() { Height = .Star });  // Row 1: Viewport
+		tab.ContentPanel.ColumnDefinitions.Add(new .() { Width = .Star });
+		tab.ContentPanel.Visibility = .Collapsed;  // Hidden until switched to
+		mViewportContainer.AddChild(tab.ContentPanel);
+
+		// Create per-tab toolbar (row 0)
+		tab.Toolbar = new StackPanel();
+		tab.Toolbar.Orientation = .Horizontal;
+		tab.Toolbar.Background = Color(45, 45, 55, 255);
+		tab.Toolbar.Padding = .(4, 2, 4, 2);
+		GridProperties.SetRow(tab.Toolbar, 0);
+		tab.ContentPanel.AddChild(tab.Toolbar);
+
+		// Bounding box checkbox
+		tab.BoundingBoxCheck = new CheckBox("Bounds");
+		tab.BoundingBoxCheck.Margin = .(0, 0, 8, 0);
+		tab.BoundingBoxCheck.VerticalAlignment = .Center;
+		tab.Toolbar.AddChild(tab.BoundingBoxCheck);
+
+		// Focus camera button
+		let focusButton = new Button("Focus");
+		focusButton.Padding = .(8, 2, 8, 2);
+		focusButton.Margin = .(0, 0, 8, 0);
+		focusButton.VerticalAlignment = .Center;
+		focusButton.Click.Subscribe(new [&](btn) => {
+			FocusCameraOnModel();
+		});
+		tab.Toolbar.AddChild(focusButton);
+
+		// Create per-tab viewport (row 1)
+		tab.Viewport = new ViewportControl();
+		tab.Viewport.Initialize(Device, mDrawingRenderer);
+		tab.Viewport.Background = Color(40, 40, 50, 255);
+		tab.Viewport.HorizontalAlignment = .Stretch;
+		tab.Viewport.VerticalAlignment = .Stretch;
+		GridProperties.SetRow(tab.Viewport, 1);
+		tab.ContentPanel.AddChild(tab.Viewport);
 
 		// Update visibility
 		UpdateEmptyState();
@@ -574,11 +662,23 @@ class ModelViewerApp : Application
 		if (index < 0 || index >= (int32)mTabs.Count)
 			return;
 
+		// Wait for GPU to finish before switching worlds (prevents descriptor set errors)
+		Device.WaitIdle();
+
+		// Hide current tab's content panel
+		let oldTab = ActiveTab;
+		if (oldTab != null && oldTab.ContentPanel != null)
+			oldTab.ContentPanel.Visibility = .Collapsed;
+
 		mActiveTabIndex = index;
 		let tab = mTabs[index];
 
 		// Switch render world
 		mRenderSystem.SetActiveWorld(tab.World);
+
+		// Show new tab's content panel
+		if (tab.ContentPanel != null)
+			tab.ContentPanel.Visibility = .Visible;
 
 		// Update TabControl selection
 		if (mTabControl != null)
@@ -586,6 +686,20 @@ class ModelViewerApp : Application
 
 		// Update info label
 		UpdateModelInfoLabel();
+	}
+
+	/// Focuses the camera on the current model's bounding box.
+	private void FocusCameraOnModel()
+	{
+		let tab = ActiveTab;
+		if (tab == null || tab.Model == null)
+			return;
+
+		// Focus on bounds at model's current position
+		let offsetBounds = BoundingBox(
+			tab.MeshBounds.Min + tab.ModelOffset,
+			tab.MeshBounds.Max + tab.ModelOffset);
+		tab.Camera.FitToModel(offsetBounds);
 	}
 
 	private void CloseTab(int32 index, bool removeFromTabControl = true)
@@ -596,8 +710,14 @@ class ModelViewerApp : Application
 		// Wait for GPU
 		Device.WaitIdle();
 
-		// Clean up and remove tab
+		// Get the tab being closed
 		let tab = mTabs[index];
+
+		// Remove per-tab UI elements from container (don't delete - Destroy() handles that)
+		if (tab.ContentPanel != null && mViewportContainer != null)
+			mViewportContainer.RemoveChild(tab.ContentPanel, false);
+
+		// Clean up and remove tab
 		tab.Destroy(mRenderSystem);
 		delete tab;
 		mTabs.RemoveAt(index);
@@ -606,7 +726,7 @@ class ModelViewerApp : Application
 		if (removeFromTabControl)
 			mTabControl.RemoveTabAt(index);
 
-		// Adjust active index
+		// Adjust active index and switch to appropriate tab
 		if (mTabs.Count == 0)
 		{
 			mActiveTabIndex = -1;
@@ -615,12 +735,12 @@ class ModelViewerApp : Application
 		else if (mActiveTabIndex >= (int32)mTabs.Count)
 		{
 			mActiveTabIndex = (int32)mTabs.Count - 1;
-			mRenderSystem.SetActiveWorld(mTabs[mActiveTabIndex].World);
+			SwitchToTab(mActiveTabIndex);
 		}
 		else if (mActiveTabIndex == index)
 		{
-			// Switched away, reactivate
-			mRenderSystem.SetActiveWorld(mTabs[mActiveTabIndex].World);
+			// Same index, need to show the tab that slid into this position
+			SwitchToTab(mActiveTabIndex);
 		}
 
 		UpdateEmptyState();
@@ -680,22 +800,24 @@ class ModelViewerApp : Application
 	protected override void OnUpdate(float deltaTime)
 	{
 		let tab = ActiveTab;
-		if (tab == null)
+		if (tab == null || tab.Viewport == null)
 			return;
 
 		// Handle viewport camera controls
-		if (mViewport != null)
 		{
 			let mouse = Shell.InputManager.Mouse;
 			let keyboard = Shell.InputManager.Keyboard;
+			let viewport = tab.Viewport;
 
 			// Check if mouse is inside viewport bounds
-			let viewportBounds = mViewport.ArrangedBounds;
+			let viewportBounds = viewport.ArrangedBounds;
 			bool mouseInViewport = mouse.X >= viewportBounds.X && mouse.X < viewportBounds.Right &&
 								   mouse.Y >= viewportBounds.Y && mouse.Y < viewportBounds.Bottom;
 
 			// Track button state - only start drag/fly/pan if mouse is in viewport
-			if (mouse.IsButtonPressed(.Left) && mouseInViewport)
+			// Ctrl+LMB = orbit rotate, LMB alone = gizmo interaction
+			bool ctrlHeld = keyboard.IsKeyDown(.LeftCtrl) || keyboard.IsKeyDown(.RightCtrl);
+			if (mouse.IsButtonPressed(.Left) && mouseInViewport && ctrlHeld)
 			{
 				mIsDragging = true;
 				mLastMouseX = mouse.X;
@@ -743,7 +865,7 @@ class ModelViewerApp : Application
 				mLastMouseY = mouse.Y;
 
 				// WASD movement (only if viewport has focus to avoid conflict with text input)
-				if (mViewport.IsFocused || mouseInViewport)
+				if (viewport.IsFocused || mouseInViewport)
 				{
 					float moveSpeed = tab.Camera.Distance * 2.0f * deltaTime;
 					if (keyboard.IsKeyDown(.LeftShift) || keyboard.IsKeyDown(.RightShift))
@@ -779,9 +901,13 @@ class ModelViewerApp : Application
 			// Gizmo interaction (when not flying or panning)
 			if (mGizmo != null && !mIsFlying && !mIsPanning && tab.Model != null)
 			{
-				// Position gizmo at model center
-				let modelCenter = (tab.Model.Bounds.Min + tab.Model.Bounds.Max) * 0.5f;
-				mGizmo.Position = modelCenter;
+				// Position gizmo at model's current position (only when not dragging)
+				if (!mGizmo.IsDragging)
+				{
+					// Model center in local space + model offset = world position
+					let meshCenter = (tab.MeshBounds.Min + tab.MeshBounds.Max) * 0.5f;
+					mGizmo.Position = meshCenter + tab.ModelOffset;
+				}
 
 				// Scale gizmo based on distance from camera
 				mGizmo.Size = tab.Camera.Distance * 0.15f;
@@ -789,47 +915,80 @@ class ModelViewerApp : Application
 				// Get viewport bounds in screen space (reuse viewportBounds from above)
 				let vpX = viewportBounds.X;
 				let vpY = viewportBounds.Y;
-				let vpW = mViewport.RenderWidth;
-				let vpH = mViewport.RenderHeight;
+				let vpW = viewport.RenderWidth;
+				let vpH = viewport.RenderHeight;
 
 				// Convert window mouse position to viewport-local coordinates
 				float localMouseX = mouse.X - vpX;
 				float localMouseY = mouse.Y - vpY;
 
-				// Only interact if mouse is inside viewport
-				if (localMouseX >= 0 && localMouseX < vpW && localMouseY >= 0 && localMouseY < vpH)
+				// Only interact if mouse is inside viewport and dimensions are valid
+				if (localMouseX >= 0 && localMouseX < vpW && localMouseY >= 0 && localMouseY < vpH && vpW > 0 && vpH > 0)
 				{
+					// Compute projection matrix for picking (no Vulkan Y-flip - that's for rendering only)
+					// CreatePickRay handles the screen-to-NDC Y conversion internally
+					float aspectRatio = (float)vpW / (float)vpH;
+					let projMatrix = Matrix.CreatePerspectiveFieldOfView(
+						mView.FieldOfView, aspectRatio, mView.NearPlane, mView.FarPlane);
+
 					// Create pick ray
 					let pickRay = TranslateGizmo.CreatePickRay(
 						localMouseX, localMouseY, vpW, vpH,
-						tab.Camera.ViewMatrix, mView.ProjectionMatrix);
+						tab.Camera.ViewMatrix, projMatrix);
 
 					// Update hover
 					mGizmo.UpdateHover(pickRay, mGizmo.Size * 0.15f);
 
-					// Handle drag
-					if (mouse.IsButtonPressed(.Left) && mGizmo.HoveredAxis != .None)
+					// Handle drag start (LMB without Ctrl = gizmo, Ctrl+LMB = camera rotate)
+					// Note: ctrlHeld already defined in outer scope
+					if (mouse.IsButtonPressed(.Left) && mGizmo.HoveredAxis != .None && !ctrlHeld)
 					{
+						Console.WriteLine(scope $"BeginDrag: axis={mGizmo.HoveredAxis}, pos={mGizmo.Position}");
 						mGizmo.BeginDrag(pickRay);
 						mIsDragging = false;  // Prevent camera rotation while dragging gizmo
+						// Store start position (UpdateDrag returns total delta from start)
+						mGizmoDragStartPos = mGizmo.Position;
 					}
 
 					if (mGizmo.IsDragging)
 					{
 						let delta = mGizmo.UpdateDrag(pickRay);
-						// Move both model bounds and camera target together
-						// (For now we just move the camera target - model transform would need world matrix support)
-						tab.Camera.Target += delta;
-						mGizmo.Position += delta;
+						// Calculate new model offset
+						let newOffset = mGizmoDragStartPos + delta;
+
+						// Update mesh proxy transform to move the actual model
+						let transform = Matrix.CreateTranslation(newOffset);
+						if (tab.StaticMeshProxy.IsValid)
+						{
+							if (let proxy = tab.World.GetMesh(tab.StaticMeshProxy))
+								proxy.SetTransformImmediate(transform);
+						}
+						if (tab.SkinnedMeshProxy.IsValid)
+						{
+							if (let proxy = tab.World.GetSkinnedMesh(tab.SkinnedMeshProxy))
+								proxy.SetTransformImmediate(transform);
+						}
+
+						// Update gizmo to follow the model
+						mGizmo.Position = newOffset;
+
+						// Don't move camera - let the model move independently
+						// (Camera target stays where it was)
+
+						// Store the offset for later use
+						tab.ModelOffset = newOffset;
 					}
 				}
 
 				if (mouse.IsButtonReleased(.Left) && mGizmo.IsDragging)
+				{
+					Console.WriteLine(scope $"EndDrag: finalPos={mGizmo.Position}, startPos={mGizmoDragStartPos}, delta={mGizmo.Position - mGizmoDragStartPos}");
 					mGizmo.EndDrag();
+				}
 			}
 
 			// Cycle animations (require focus for keyboard input)
-			if (mViewport.IsFocused && tab.Clips != null && tab.Clips.Count > 0 && tab.Player != null)
+			if (viewport.IsFocused && tab.Clips != null && tab.Clips.Count > 0 && tab.Player != null)
 			{
 				bool changed = false;
 				if (keyboard.IsKeyPressed(.Right) || keyboard.IsKeyPressed(.Period))
@@ -862,25 +1021,35 @@ class ModelViewerApp : Application
 			{
 				let currentMatrices = tab.Player.GetSkinningMatrices();
 				let prevMatrices = tab.Player.GetPrevSkinningMatrices();
-				mRenderSystem.ResourceManager.UpdateBoneBuffer(
-					tab.BoneBufferHandle,
-					currentMatrices.Ptr,
-					prevMatrices.Ptr,
-					(uint16)tab.Skeleton.BoneCount
-				);
+				if (currentMatrices.Ptr != null && currentMatrices.Length > 0)
+				{
+					mRenderSystem.ResourceManager.UpdateBoneBuffer(
+						tab.BoneBufferHandle,
+						currentMatrices.Ptr,
+						prevMatrices.Ptr,
+						(uint16)tab.Skeleton.BoneCount
+					);
+				}
 			}
+		}
+		else if (tab.BoneBufferHandle.IsValid && tab.Skeleton != null)
+		{
+			// No animation player but have skeleton - upload identity matrices
+			// This shouldn't happen normally, but let's handle it
+			Console.WriteLine("WARNING: Skinned mesh has no animation player!");
 		}
 	}
 
 	protected override bool OnRender(ICommandEncoder encoder, int32 frameIndex)
 	{
 		let tab = ActiveTab;
+		let viewport = tab?.Viewport;
 
 		// Render the 3D viewport content
-		if (mViewport != null && mViewport.IsReady)
+		if (viewport != null && viewport.IsReady)
 		{
-			let width = mViewport.RenderWidth;
-			let height = mViewport.RenderHeight;
+			let width = viewport.RenderWidth;
+			let height = viewport.RenderHeight;
 
 			if (tab != null)
 			{
@@ -893,8 +1062,8 @@ class ModelViewerApp : Application
 				mView.UpdateMatrices(Device.FlipProjectionRequired);
 
 				// Set output target for our custom feature
-				mOutputFeature.SetOutputTarget(mViewport.ColorTexture, mViewport.ColorTargetView,
-					mViewport.DepthTexture, mViewport.DepthTargetView, width, height);
+				mOutputFeature.SetOutputTarget(viewport.ColorTexture, viewport.ColorTargetView,
+					viewport.DepthTexture, viewport.DepthTargetView, width, height);
 
 				// Render via RenderSystem
 				mRenderSystem.BeginFrame(TotalTime, DeltaTime);
@@ -907,6 +1076,15 @@ class ModelViewerApp : Application
 					mGizmo.Draw(mDebugFeature);
 				}
 
+				// Draw bounding box if enabled (offset by model position)
+				if (tab.BoundingBoxCheck != null && tab.BoundingBoxCheck.IsChecked && mDebugFeature != null && tab.Model != null)
+				{
+					let offsetBounds = BoundingBox(
+						tab.MeshBounds.Min + tab.ModelOffset,
+						tab.MeshBounds.Max + tab.ModelOffset);
+					mDebugFeature.AddBox(offsetBounds, Color(255, 200, 50, 255), .Overlay);
+				}
+
 				if (mRenderSystem.BuildRenderGraph(mView) case .Ok)
 					mRenderSystem.Execute(encoder);
 
@@ -915,14 +1093,14 @@ class ModelViewerApp : Application
 			else
 			{
 				// No active tab - just clear the viewport to a dark color
-				RenderPassColorAttachment[1] clearAttachments = .(.(mViewport.ColorTargetView)
+				RenderPassColorAttachment[1] clearAttachments = .(.(viewport.ColorTargetView)
 					{
 						LoadOp = .Clear,
 						StoreOp = .Store,
 						ClearValue = .(0.1f, 0.1f, 0.12f, 1.0f)
 					});
 				RenderPassDescriptor clearPassDesc = .(clearAttachments);
-				clearPassDesc.DepthStencilAttachment = .(mViewport.DepthTargetView)
+				clearPassDesc.DepthStencilAttachment = .(viewport.DepthTargetView)
 					{
 						DepthLoadOp = .Clear,
 						DepthStoreOp = .Store,
@@ -938,7 +1116,7 @@ class ModelViewerApp : Application
 			}
 
 			// Transition the viewport texture for UI sampling
-			encoder.TextureBarrier(mViewport.ColorTexture, .ColorAttachment, .ShaderReadOnly);
+			encoder.TextureBarrier(viewport.ColorTexture, .ColorAttachment, .ShaderReadOnly);
 		}
 
 		// Then render UI (default behavior renders to swap chain)
@@ -1039,10 +1217,10 @@ class ModelViewerApp : Application
 		help6.Foreground = Color(180, 180, 180, 255);
 		mSidePanel.AddChild(help6);
 
-		// Right side: Grid with tabs at top (row 0 auto), viewport fills remaining space (row 1 star)
+		// Right side: Grid with tabs (row 0), viewport container (row 1)
 		mViewportPanel = new Grid();
 		mViewportPanel.RowDefinitions.Add(new .() { Height = .Auto });  // Row 0: Tab control (auto height)
-		mViewportPanel.RowDefinitions.Add(new .() { Height = .Star });  // Row 1: Viewport (fills remaining)
+		mViewportPanel.RowDefinitions.Add(new .() { Height = .Star });  // Row 1: Per-tab content (fills remaining)
 		mViewportPanel.ColumnDefinitions.Add(new .() { Width = .Star });
 		mRootPanel.AddChild(mViewportPanel);
 
@@ -1058,25 +1236,14 @@ class ModelViewerApp : Application
 		});
 		mViewportPanel.AddChild(mTabControl);
 
-		// Subscribe to tab close events
-		// Note: We'll handle this when tabs are actually added
-
-		// Viewport container (row 1, Grid to allow overlay)
+		// Container for per-tab content panels and drop indicator (row 1)
 		mViewportContainer = new Grid();
 		mViewportContainer.RowDefinitions.Add(new .() { Height = .Star });
 		mViewportContainer.ColumnDefinitions.Add(new .() { Width = .Star });
 		GridProperties.SetRow(mViewportContainer, 1);
 		mViewportPanel.AddChild(mViewportContainer);
 
-		// 3D Viewport (fills remaining space)
-		mViewport = new ViewportControl();
-		mViewport.Initialize(Device, mDrawingRenderer);
-		mViewport.Background = Color(40, 40, 50, 255);
-		mViewport.HorizontalAlignment = .Stretch;
-		mViewport.VerticalAlignment = .Stretch;
-		mViewportContainer.AddChild(mViewport);
-
-		// Drop indicator overlay (shown when no model loaded)
+		// Drop indicator (shown when no tabs)
 		mDropIndicator = new Label("Drop a model here\n\nGLTF, GLB, FBX");
 		mDropIndicator.FontSize = 20;
 		mDropIndicator.Foreground = Color(150, 150, 160, 255);
@@ -1092,9 +1259,9 @@ class ModelViewerApp : Application
 
 	protected override void OnKeyDown(Sedulous.Shell.Input.KeyCode key)
 	{
-		let tab = ActiveTab;
-		if (key == .R && tab != null && tab.Model != null)
-			tab.Camera.FitToModel(tab.Model.Bounds);
+		// Reset/focus camera on model
+		if (key == .R)
+			FocusCameraOnModel();
 	}
 
 	protected override void OnFileDrop(StringView path)

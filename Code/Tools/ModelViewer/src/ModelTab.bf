@@ -8,6 +8,8 @@ using Sedulous.Render;
 using Sedulous.Materials;
 using Sedulous.Animation;
 using Sedulous.Animation.Resources;
+using Sedulous.GUI;
+using Sedulous.AppFramework;
 
 /// Represents a single model tab with its own world, resources, and camera state.
 class ModelTab
@@ -29,6 +31,18 @@ class ModelTab
 	public AnimationClip[] Clips ~ delete _;
 	public int32 CurrentClip;
 	public bool IsSkinnedMesh;
+
+	/// The actual GPU mesh bounds (may differ from Model.Bounds due to recentering)
+	public BoundingBox MeshBounds = .(.Zero, .Zero);
+
+	/// Current model position offset (for gizmo manipulation)
+	public Vector3 ModelOffset = .Zero;
+
+	/// Per-tab UI elements
+	public Grid ContentPanel;           // Container for toolbar + viewport
+	public StackPanel Toolbar;
+	public ViewportControl Viewport;
+	public CheckBox BoundingBoxCheck;
 
 	// GPU resources
 	public GPUMeshHandle MeshHandle = .Invalid;
@@ -137,6 +151,21 @@ class ModelTab
 		{
 			delete World;
 			World = null;
+		}
+
+		// Clean up UI elements (ContentPanel owns Toolbar, Viewport, BoundingBoxCheck as children)
+		// Note: ContentPanel must be removed from its parent before calling Destroy
+		if (ContentPanel != null)
+		{
+			// Use deferred deletion if attached to a context, otherwise delete directly
+			if (ContentPanel.Context != null)
+				ContentPanel.Context.MutationQueue.QueueDelete(ContentPanel);
+			else
+				delete ContentPanel;
+			ContentPanel = null;
+			Toolbar = null;
+			Viewport = null;
+			BoundingBoxCheck = null;
 		}
 	}
 }

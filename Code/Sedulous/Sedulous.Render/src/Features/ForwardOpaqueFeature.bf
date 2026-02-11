@@ -1608,7 +1608,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				let sceneBindGroup = mSceneBindGroups[GetBindGroupIndex(frameIndex)];
 
 				// Get the skinned vertex buffer from the skinning feature
-				let skinnedVertexBuffer = skinningFeature.GetSkinnedVertexBuffer(cmd.MeshHandle);
+				let skinnedVertexBuffer = skinningFeature.GetSkinnedVertexBuffer(world, cmd.MeshHandle);
 				if (skinnedVertexBuffer != null)
 				{
 					// Bind the skinned vertex buffer (post-transform)
@@ -1821,7 +1821,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 					continue;
 
 				// Get the skinned vertex buffer
-				let skinnedVertexBuffer = skinningFeature.GetSkinnedVertexBuffer(visibleMesh.Handle);
+				let skinnedVertexBuffer = skinningFeature.GetSkinnedVertexBuffer(world, visibleMesh.Handle);
 				if (skinnedVertexBuffer == null)
 					continue;
 

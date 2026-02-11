@@ -28,6 +28,27 @@ struct SkinningParams
 	public const uint32 Size = 16;
 }
 
+/// Composite key for skinning instances that includes both world and mesh handle.
+/// This is necessary because each RenderWorld has its own handle space.
+struct SkinningInstanceKey : IHashable
+{
+	public RenderWorld World;
+	public SkinnedMeshProxyHandle Handle;
+
+	public int GetHashCode()
+	{
+		// Combine world identity hash with handle hash
+		int worldHash = World != null ? (int)Internal.UnsafeCastToPtr(World) : 0;
+		int handleHash = Handle.GetHashCode();
+		return worldHash ^ (handleHash * 31);
+	}
+
+	public static bool operator==(Self lhs, Self rhs)
+	{
+		return lhs.World == rhs.World && lhs.Handle.Handle == rhs.Handle.Handle;
+	}
+}
+
 /// GPU skinning feature.
 /// Uses compute shaders to transform vertices by bone matrices.
 public class GPUSkinningFeature : RenderFeatureBase
@@ -36,8 +57,8 @@ public class GPUSkinningFeature : RenderFeatureBase
 	private IComputePipeline mSkinningPipeline ~ delete _;
 	private IBindGroupLayout mSkinningBindGroupLayout ~ delete _;
 
-	// Per-mesh skinning data
-	private Dictionary<SkinnedMeshProxyHandle, SkinningInstance> mSkinningInstances = new .() ~ {
+	// Per-mesh skinning data (keyed by world + handle to support multiple worlds)
+	private Dictionary<SkinningInstanceKey, SkinningInstance> mSkinningInstances = new .() ~ {
 		for (let kv in _)
 			delete kv.value;
 		delete _;
@@ -55,17 +76,19 @@ public class GPUSkinningFeature : RenderFeatureBase
 	/// Gets the skinned (transformed) vertex buffer for a skinned mesh.
 	/// This buffer contains the post-skinning vertices ready for rendering.
 	/// Returns null if no skinning instance exists for this mesh.
-	public IBuffer GetSkinnedVertexBuffer(SkinnedMeshProxyHandle handle)
+	public IBuffer GetSkinnedVertexBuffer(RenderWorld world, SkinnedMeshProxyHandle handle)
 	{
-		if (mSkinningInstances.TryGetValue(handle, let instance))
+		let key = SkinningInstanceKey() { World = world, Handle = handle };
+		if (mSkinningInstances.TryGetValue(key, let instance))
 			return instance.SkinnedVertexBuffer;
 		return null;
 	}
 
 	/// Gets the vertex count for a skinned mesh instance.
-	public int32 GetSkinnedVertexCount(SkinnedMeshProxyHandle handle)
+	public int32 GetSkinnedVertexCount(RenderWorld world, SkinnedMeshProxyHandle handle)
 	{
-		if (mSkinningInstances.TryGetValue(handle, let instance))
+		let key = SkinningInstanceKey() { World = world, Handle = handle };
+		if (mSkinningInstances.TryGetValue(key, let instance))
 			return instance.VertexCount;
 		return 0;
 	}
@@ -201,14 +224,15 @@ public class GPUSkinningFeature : RenderFeatureBase
 		{
 			if (let proxy = world.GetSkinnedMesh(handle))
 			{
-				// Get or create skinning instance
+				// Get or create skinning instance (keyed by world + handle)
+				let key = SkinningInstanceKey() { World = world, Handle = handle };
 				SkinningInstance instance;
-				if (!mSkinningInstances.TryGetValue(handle, out instance))
+				if (!mSkinningInstances.TryGetValue(key, out instance))
 				{
 					instance = CreateSkinningInstance(proxy);
 					if (instance == null)
 						continue;
-					mSkinningInstances[handle] = instance;
+					mSkinningInstances[key] = instance;
 				}
 
 				// Update bone transforms
