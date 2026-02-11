@@ -94,6 +94,9 @@ public class SkyFeature : RenderFeatureBase
 	// Flag: true if environment map was set externally (HDRI), false if generated from colors
 	private bool mIsExternalEnvMap = false;
 
+	// Incremented whenever IBL views change, so consumers can detect stale bind groups
+	private uint32 mIBLGeneration = 0;
+
 	// Cubemap sampler and fallback
 	private ISampler mEnvSampler ~ delete _;
 	private ITexture mFallbackCubemap ~ delete _;
@@ -164,6 +167,9 @@ public class SkyFeature : RenderFeatureBase
 
 	/// Gets the environment sampler for cubemap sampling.
 	public ISampler EnvironmentSampler => mEnvSampler;
+
+	/// Gets the IBL generation counter. Incremented whenever IBL views change.
+	public uint32 IBLGeneration => mIBLGeneration;
 
 	protected override Result<void> OnInitialize()
 	{
@@ -352,6 +358,9 @@ public class SkyFeature : RenderFeatureBase
 	/// Sets an HDRI environment map.
 	public Result<void> SetEnvironmentMap(ITexture envMap)
 	{
+		// Flush GPU and invalidate bind groups before destroying views
+		FlushAndInvalidateBindGroups();
+
 		// Release old maps
 		if (mOwnsEnvironmentMap)
 		{
@@ -549,8 +558,32 @@ public class SkyFeature : RenderFeatureBase
 
 	private void GenerateIBLMapsFromColors(Vector3 topColor, Vector3 horizonColor, Vector3 groundColor)
 	{
+		FlushAndInvalidateBindGroups();
 		GenerateIrradianceMap(topColor, horizonColor, groundColor);
 		GeneratePrefilteredMap(topColor, horizonColor, groundColor);
+		mIBLGeneration++;
+	}
+
+	/// Flushes in-flight GPU work and invalidates all bind groups that reference
+	/// sky/IBL views, so those views can be safely destroyed.
+	private void FlushAndInvalidateBindGroups()
+	{
+		Renderer.Device.WaitIdle();
+
+		// Invalidate sky bind groups (owned by this feature)
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
+		{
+			if (mSkyBindGroups[i] != null)
+			{
+				delete mSkyBindGroups[i];
+				mSkyBindGroups[i] = null;
+			}
+		}
+
+		// Invalidate scene bind groups in ForwardOpaqueFeature (references IBL views)
+		let forwardFeature = Renderer.GetFeature<ForwardOpaqueFeature>();
+		if (forwardFeature != null)
+			forwardFeature.InvalidateSceneBindGroups();
 	}
 
 	// ==================== GPU IBL Compute Pipeline ====================
@@ -701,21 +734,11 @@ public class SkyFeature : RenderFeatureBase
 
 		let device = Renderer.Device;
 
-		// Flush in-flight frames before destroying old resources
-		device.WaitIdle();
+		// Flush GPU and invalidate bind groups before destroying views
+		FlushAndInvalidateBindGroups();
 
 		// Release old environment and IBL maps
 		ReleaseEnvironmentAndIBLMaps();
-
-		// Force sky bind group recreation
-		for (int32 i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
-		{
-			if (mSkyBindGroups[i] != null)
-			{
-				delete mSkyBindGroups[i];
-				mSkyBindGroups[i] = null;
-			}
-		}
 
 		// --- 1. Upload equirect image to temporary GPU texture ---
 		TextureDescriptor equirectTexDesc = .()
@@ -1058,15 +1081,16 @@ public class SkyFeature : RenderFeatureBase
 		encoder.TextureBarrier(mPrefilteredMap, .General, .ShaderReadOnly);
 
 		let cmdBuf = encoder.Finish();
-		delete encoder;
+		defer delete encoder;
 		device.Queue.Submit(cmdBuf);
-		delete cmdBuf;
 		device.WaitIdle();
+		delete cmdBuf;
 
 		// --- 7. Create sampled views for IBL ---
 		// Irradiance cubemap view
 		TextureViewDescriptor irrCubeViewDesc = .()
 		{
+			Label = "Irradiance Cubemap View",
 			Format = .RGBA32Float, Dimension = .TextureCube,
 			BaseMipLevel = 0, MipLevelCount = 1,
 			BaseArrayLayer = 0, ArrayLayerCount = 6
@@ -1074,12 +1098,13 @@ public class SkyFeature : RenderFeatureBase
 		switch (device.CreateTextureView(mIrradianceMap, &irrCubeViewDesc))
 		{
 		case .Ok(let view): mIrradianceMapView = view;
-		case .Err:
+		case .Err: return .Err;
 		}
 
 		// Prefiltered cubemap view (all mips)
 		TextureViewDescriptor prefCubeViewDesc = .()
 		{
+			Label = "Prefiltered Cubemap View",
 			Format = .RGBA32Float, Dimension = .TextureCube,
 			BaseMipLevel = 0, MipLevelCount = PrefMips,
 			BaseArrayLayer = 0, ArrayLayerCount = 6
@@ -1087,7 +1112,7 @@ public class SkyFeature : RenderFeatureBase
 		switch (device.CreateTextureView(mPrefilteredMap, &prefCubeViewDesc))
 		{
 		case .Ok(let view): mPrefilteredMapView = view;
-		case .Err:
+		case .Err: return .Err;
 		}
 
 		// --- 8. Clean up temporary resources ---
@@ -1104,6 +1129,7 @@ public class SkyFeature : RenderFeatureBase
 		// --- 9. Set state ---
 		mMode = .EnvironmentMap;
 		mIsExternalEnvMap = true;
+		mIBLGeneration++;
 
 		return .Ok;
 	}
@@ -1446,6 +1472,9 @@ public class SkyFeature : RenderFeatureBase
 	/// Creates a procedural gradient sky cubemap with explicit ground color.
 	public Result<void> CreateGradientSkyWithGround(Color topColor, Color horizonColor, Color groundColor, int32 resolution = 64)
 	{
+		// Flush GPU and invalidate bind groups before destroying views
+		FlushAndInvalidateBindGroups();
+
 		// Release old owned environment map
 		if (mOwnsEnvironmentMap)
 		{
@@ -1544,16 +1573,6 @@ public class SkyFeature : RenderFeatureBase
 		}
 
 		mMode = .EnvironmentMap;
-
-		// Force bind group recreation on next frame
-		for (int32 i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
-		{
-			if (mSkyBindGroups[i] != null)
-			{
-				delete mSkyBindGroups[i];
-				mSkyBindGroups[i] = null;
-			}
-		}
 
 		// Store colors in linear space on sky params for IBL generation
 		mSkyParams.ZenithColor = .(

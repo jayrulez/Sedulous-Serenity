@@ -106,8 +106,8 @@ class RenderMaterialsApp : Application
 			.(80, 70, 60, 255));     // ground: dark earth
 
 		mWorld.AmbientColor = .(0.15f, 0.15f, 0.18f);
-		mWorld.AmbientIntensity = 0.5f;
-		mWorld.Exposure = 0.5f;
+		mWorld.AmbientIntensity = 0.1f;
+		mWorld.Exposure = 0.1f;
 
 		Console.WriteLine("Render Materials initialized");
 		Console.WriteLine("  5x5 sphere grid: Metallic (left-right) x Roughness (front-back)");

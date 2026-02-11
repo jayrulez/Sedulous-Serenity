@@ -94,6 +94,11 @@ class VulkanTextureView : ITextureView
 				}
 			};
 
-		VulkanNative.vkCreateImageView(mDevice.Device, &viewInfo, null, &mImageView);
+		let result = VulkanNative.vkCreateImageView(mDevice.Device, &viewInfo, null, &mImageView);
+		if (result != .VK_SUCCESS)
+		{
+			Console.WriteLine(scope $"[Error] vkCreateImageView failed: {result} (format={viewInfo.format}, viewType={viewInfo.viewType}, layers={viewInfo.subresourceRange.layerCount}, mips={viewInfo.subresourceRange.levelCount})");
+			mImageView = default;
+		}
 	}
 }

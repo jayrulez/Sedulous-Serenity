@@ -297,8 +297,8 @@ class VulkanCommandEncoder : ICommandEncoder
 			srcStage = .VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | .VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT | .VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 		case .ShaderReadOnly:
 			srcAccess = .VK_ACCESS_SHADER_READ_BIT;
-			// Include both vertex and fragment shader stages since textures can be sampled in either
-			srcStage = .VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | .VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+			// Include vertex, fragment, and compute shader stages since textures can be sampled in any
+			srcStage = .VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | .VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | .VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
 		case .TransferSrc:
 			srcAccess = .VK_ACCESS_TRANSFER_READ_BIT;
 			srcStage = .VK_PIPELINE_STAGE_TRANSFER_BIT;
@@ -331,8 +331,8 @@ class VulkanCommandEncoder : ICommandEncoder
 			dstStage = .VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | .VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT | .VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 		case .ShaderReadOnly:
 			dstAccess = .VK_ACCESS_SHADER_READ_BIT;
-			// Include both vertex and fragment shader stages since textures can be sampled in either
-			dstStage = .VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | .VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+			// Include vertex, fragment, and compute shader stages since textures can be sampled in any
+			dstStage = .VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | .VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | .VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
 		case .TransferSrc:
 			dstAccess = .VK_ACCESS_TRANSFER_READ_BIT;
 			dstStage = .VK_PIPELINE_STAGE_TRANSFER_BIT;

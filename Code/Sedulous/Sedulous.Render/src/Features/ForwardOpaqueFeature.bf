@@ -77,7 +77,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 	private ITexture mFallbackBRDFLut ~ delete _;
 	private ITextureView mFallbackBRDFLutView ~ delete _;
 	private ISampler mIBLSampler ~ delete _;
-	private bool[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mSceneBindGroupIBLState;
+	private uint32[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mSceneBindGroupIBLGeneration;
 
 	/// Feature name.
 	public override StringView Name => "ForwardOpaque";
@@ -93,6 +93,20 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 	/// Gets the shadow renderer.
 	public ShadowRenderer ShadowRenderer => mShadowRenderer;
+
+	/// Invalidates all cached scene bind groups so they are recreated next frame.
+	/// Call before destroying IBL views that scene bind groups may reference.
+	public void InvalidateSceneBindGroups()
+	{
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
+		{
+			if (mSceneBindGroups[i] != null)
+			{
+				delete mSceneBindGroups[i];
+				mSceneBindGroups[i] = null;
+			}
+		}
+	}
 
 	/// Depends on depth prepass and GPU skinning.
 	public override void GetDependencies(List<StringView> outDependencies)
@@ -1171,14 +1185,14 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		// Use shadow map only when shadow passes actually ran this frame
 		let shadowsEnabled = mShadowPassesActive;
 
-		// Check IBL state
+		// Check IBL state (generation counter detects view replacements, not just null transitions)
 		let skyFeature = Renderer.GetFeature<SkyFeature>();
-		let hasRealIBL = skyFeature?.IrradianceMapView != null;
+		let iblGeneration = skyFeature?.IBLGeneration ?? 0;
 
 		// Check if bind group exists and state hasn't changed
 		if (mSceneBindGroups[bgIndex] != null)
 		{
-			if (mSceneBindGroupShadowState[bgIndex] == shadowsEnabled && mSceneBindGroupIBLState[bgIndex] == hasRealIBL)
+			if (mSceneBindGroupShadowState[bgIndex] == shadowsEnabled && mSceneBindGroupIBLGeneration[bgIndex] == iblGeneration)
 				return;
 
 			delete mSceneBindGroups[bgIndex];
@@ -1286,7 +1300,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		{
 			mSceneBindGroups[bgIndex] = bg;
 			mSceneBindGroupShadowState[bgIndex] = shadowsEnabled;
-			mSceneBindGroupIBLState[bgIndex] = hasRealIBL;
+			mSceneBindGroupIBLGeneration[bgIndex] = iblGeneration;
 		}
 	}
 
