@@ -401,7 +401,7 @@ class FrameworkSerializationApp : Application
 
 		for (let material in result.Materials)
 		{
-			RegisterResource(material, cacheDir, "mat");
+			RegisterResource(material, cacheDir, "material");
 			if (materialRefs != null)
 			{
 				let matPath = scope String();
