@@ -2,6 +2,8 @@
 // Procedural atmosphere with Rayleigh/Mie scattering
 #pragma pack_matrix(row_major)
 
+#include "scene_uniforms.hlsli"
+
 static const float PI = 3.14159265359;
 static const float EARTH_RADIUS = 6371000.0;
 static const float ATMOSPHERE_HEIGHT = 100000.0;
@@ -25,7 +27,7 @@ cbuffer SkyUniforms : register(b1)
     float3 ZenithColor;
     float CloudCoverage;
     float3 HorizonColor;
-    float Time;
+    float SkyTime;
     float3 SolidColorValue;
     float SkyMode; // 0 = Procedural, 1 = SolidColor, 2 = EnvironmentMap
 };
@@ -36,8 +38,18 @@ SamplerState EnvSampler : register(s0);
 struct FragmentInput
 {
     float4 Position : SV_Position;
-    float3 ViewDir : TEXCOORD0;
+    float2 ClipXY : TEXCOORD0;
 };
+
+// Reconstruct world-space view direction per-pixel from clip coordinates
+float3 GetViewDirection(float2 clipXY)
+{
+    float4 clipPos = float4(clipXY, 1.0, 1.0);
+    float4 viewPos = mul(clipPos, InvProjectionMatrix);
+    viewPos.xyz /= viewPos.w;
+    float3 worldDir = mul(float4(viewPos.xyz, 0.0), InvViewMatrix).xyz;
+    return normalize(worldDir);
+}
 
 // Ray-sphere intersection
 float2 RaySphereIntersect(float3 rayOrigin, float3 rayDir, float3 sphereCenter, float sphereRadius)
@@ -130,6 +142,10 @@ float3 CalculateAtmosphere(float3 rayOrigin, float3 rayDir, float rayLength, flo
 
 float4 main(FragmentInput input) : SV_Target
 {
+    // Reconstruct view direction per-pixel (avoids interpolation artifacts
+    // from fullscreen triangle with non-linear perspective un-projection)
+    float3 viewDir = GetViewDirection(input.ClipXY);
+
     // Solid color mode
     if (SkyMode > 0.5 && SkyMode < 1.5)
     {
@@ -139,46 +155,52 @@ float4 main(FragmentInput input) : SV_Target
     // Environment map mode - sample cubemap
     if (SkyMode > 1.5)
     {
-        float3 dir = normalize(input.ViewDir);
-        float3 color = EnvironmentMap.Sample(EnvSampler, dir).rgb;
+        float3 color = EnvironmentMap.Sample(EnvSampler, viewDir).rgb;
         return float4(color, 1.0);
     }
 
-    float3 viewDir = normalize(input.ViewDir);
-
-    // Simple fallback if looking below horizon
-    if (viewDir.y < -0.01)
-    {
-        float t = -viewDir.y;
-        return float4(lerp(HorizonColor, GroundColor, t), 1.0);
-    }
+    // For below-horizon rays, clamp scatter direction to just above horizon
+    // so the scattering result is continuous at the horizon boundary
+    float3 scatterDir = viewDir;
+    scatterDir.y = max(scatterDir.y, 0.001);
+    scatterDir = normalize(scatterDir);
 
     // Ray origin at camera position above Earth surface
     float3 rayOrigin = float3(0.0, EARTH_RADIUS + 100.0, 0.0);
 
     // Intersect ray with atmosphere
-    float2 atmosphereIntersect = RaySphereIntersect(rayOrigin, viewDir, float3(0, 0, 0), ATMOSPHERE_RADIUS);
+    float2 atmosphereIntersect = RaySphereIntersect(rayOrigin, scatterDir, float3(0, 0, 0), ATMOSPHERE_RADIUS);
 
     if (atmosphereIntersect.y < 0.0)
         return float4(0.0, 0.0, 0.0, 1.0);
 
     // Check for earth intersection
-    float2 earthIntersect = RaySphereIntersect(rayOrigin, viewDir, float3(0, 0, 0), EARTH_RADIUS);
+    float2 earthIntersect = RaySphereIntersect(rayOrigin, scatterDir, float3(0, 0, 0), EARTH_RADIUS);
     float rayLength = earthIntersect.x > 0.0 ? earthIntersect.x : atmosphereIntersect.y;
 
     // Calculate atmosphere color
-    float3 color = CalculateAtmosphere(rayOrigin, viewDir, rayLength, SunDirection);
+    float3 color = CalculateAtmosphere(rayOrigin, scatterDir, rayLength, SunDirection);
 
-    // Add sun disc
-    float sunDot = dot(viewDir, SunDirection);
-    if (sunDot > 0.9995)
+    // Add sun disc (only above horizon)
+    if (viewDir.y >= 0.0)
     {
-        float sunFade = smoothstep(0.9995, 0.99975, sunDot);
-        color += SunColor * SunIntensity * sunFade * 50.0;
+        float sunDot = dot(viewDir, SunDirection);
+        if (sunDot > 0.9995)
+        {
+            float sunFade = smoothstep(0.9995, 0.99975, sunDot);
+            color += SunColor * SunIntensity * sunFade * 50.0;
+        }
     }
 
     // Exposure tone mapping
     color = 1.0 - exp(-color * ExposureValue);
+
+    // Blend to ground color below horizon (smooth transition over ~6 degrees)
+    if (viewDir.y < 0.0)
+    {
+        float t = saturate(-viewDir.y * 10.0);
+        color = lerp(color, GroundColor, t);
+    }
 
     return float4(color, 1.0);
 }

@@ -38,7 +38,7 @@ class RenderSkyApp : Application
 	private List<MaterialInstance> mMaterials = new .() ~ { for (let m in _) m?.ReleaseRef(); delete _; };
 
 	// Sky mode cycling
-	private enum SkyModeOption { Gradient, SolidColor, HDRI }
+	private enum SkyModeOption { Gradient, SolidColor, Procedural, HDRI }
 	private SkyModeOption mCurrentSkyMode = .Gradient;
 
 	// Camera
@@ -73,18 +73,16 @@ class RenderSkyApp : Application
 		CreateScene();
 		CreateLights();
 
-		// Start with gradient sky
-		SetGradientSky();
-
 		mWorld.AmbientColor = .(0.15f, 0.15f, 0.18f);
-		mWorld.AmbientIntensity = 0.1f;
-		mWorld.Exposure = 0.1f;
+
+		// Start with gradient sky (also sets exposure/ambient per mode)
+		SetGradientSky();
 
 		Console.WriteLine("Render Sky initialized");
 		Console.WriteLine("  5x5 sphere grid: Metallic (left-right) x Roughness (front-back)");
 		Console.WriteLine("  WASD/QE: move, Right-click: look, ESC: exit");
 		Console.WriteLine("  Arrow keys: adjust light direction");
-		Console.WriteLine("  T: cycle sky mode (Gradient / Solid Color / HDRI)");
+		Console.WriteLine("  T: cycle sky mode (Gradient / Solid Color / Procedural / HDRI)");
 	}
 
 	private void RegisterFeatures()
@@ -196,6 +194,8 @@ class RenderSkyApp : Application
 			.(100, 150, 220, 255),   // top: blue sky
 			.(200, 210, 220, 255),   // horizon: pale blue-white
 			.(80, 70, 60, 255));     // ground: dark earth
+		mWorld.AmbientIntensity = 0.1f;
+		mWorld.Exposure = 0.1f;
 	}
 
 	private void SetSolidColorSky()
@@ -203,6 +203,16 @@ class RenderSkyApp : Application
 		mSkyFeature.Mode = .SolidColor;
 		mSkyFeature.SolidColor = .(0.3f, 0.4f, 0.6f);
 		mSkyFeature.RegenerateIBL();
+		mWorld.AmbientIntensity = 0.3f;
+		mWorld.Exposure = 0.3f;
+	}
+
+	private void SetProceduralSky()
+	{
+		mSkyFeature.Mode = .Procedural;
+		mSkyFeature.RegenerateIBL();
+		mWorld.AmbientIntensity = 0.5f;
+		mWorld.Exposure = 0.5f;
 	}
 
 	private void SetHDRISky()
@@ -225,6 +235,8 @@ class RenderSkyApp : Application
 		{
 			Console.WriteLine("  ERROR: Failed to load HDR image: {}", hdrPath);
 		}
+		mWorld.AmbientIntensity = 0.5f;
+		mWorld.Exposure = 0.5f;
 	}
 
 	private void CycleSkyMode()
@@ -236,6 +248,10 @@ class RenderSkyApp : Application
 			SetSolidColorSky();
 			Console.WriteLine("Sky: Solid Color");
 		case .SolidColor:
+			mCurrentSkyMode = .Procedural;
+			SetProceduralSky();
+			Console.WriteLine("Sky: Procedural (atmospheric scattering)");
+		case .Procedural:
 			mCurrentSkyMode = .HDRI;
 			SetHDRISky();
 			Console.WriteLine("Sky: HDRI");
