@@ -42,31 +42,45 @@ public class TranslateGizmo
 	/// Creates a ray from camera through screen point.
 	/// screenX, screenY: Screen coordinates (0,0 = top-left)
 	/// width, height: Viewport dimensions
-	/// viewMatrix, projMatrix: Camera matrices
+	/// viewMatrix, projMatrix: Camera matrices (projMatrix should NOT have Vulkan Y-flip)
 	public static Ray CreatePickRay(float screenX, float screenY, uint32 width, uint32 height,
 		Matrix viewMatrix, Matrix projMatrix)
 	{
 		// Convert screen to NDC (-1 to 1)
 		float ndcX = (2.0f * screenX / (float)width) - 1.0f;
-		float ndcY = 1.0f - (2.0f * screenY / (float)height);  // Flip Y
+		float ndcY = 1.0f - (2.0f * screenY / (float)height);  // Flip Y (screen Y down -> NDC Y up)
 
 		// Create points at near and far planes
 		Vector4 nearPoint = .(ndcX, ndcY, 0.0f, 1.0f);
 		Vector4 farPoint = .(ndcX, ndcY, 1.0f, 1.0f);
 
-		// Unproject
-		let invViewProj = Matrix.Invert(viewMatrix * projMatrix);
+		// Unproject - use TryInvert to avoid divide by zero
+		Matrix invViewProj;
+		if (!Matrix.TryInvert(viewMatrix * projMatrix, out invViewProj))
+		{
+			// Matrix is degenerate, return a default forward ray
+			return .(.(0, 0, 0), .(0, 0, -1));
+		}
 
 		var nearWorld = Vector4.Transform(nearPoint, invViewProj);
 		var farWorld = Vector4.Transform(farPoint, invViewProj);
+
+		// Perspective divide - check for near-zero W
+		if (Math.Abs(nearWorld.W) < 0.0001f || Math.Abs(farWorld.W) < 0.0001f)
+			return .(.(0, 0, 0), .(0, 0, -1));
 
 		nearWorld /= nearWorld.W;
 		farWorld /= farWorld.W;
 
 		let position = Vector3(nearWorld.X, nearWorld.Y, nearWorld.Z);
-		let direction = Vector3.Normalize(Vector3(farWorld.X, farWorld.Y, farWorld.Z) - position);
+		let dir = Vector3(farWorld.X, farWorld.Y, farWorld.Z) - position;
 
-		return .(position, direction);
+		// Check for zero-length direction
+		let lenSq = dir.LengthSquared();
+		if (lenSq < 0.0001f)
+			return .(position, .(0, 0, -1));
+
+		return .(position, dir / Math.Sqrt(lenSq));
 	}
 
 	/// Updates the gizmo hover state based on mouse position.
@@ -116,8 +130,8 @@ public class TranslateGizmo
 		IsDragging = true;
 		mDragStartPosition = Position;
 
-		// Calculate initial hit point on the drag plane/line
-		mDragStartHitPoint = GetDragHitPoint(pickRay, SelectedAxis);
+		// Calculate initial hit point on the drag plane/line (use current position)
+		mDragStartHitPoint = GetDragHitPoint(pickRay, SelectedAxis, mDragStartPosition);
 
 		return true;
 	}
@@ -128,8 +142,9 @@ public class TranslateGizmo
 		if (!IsDragging || SelectedAxis == .None)
 			return .Zero;
 
-		// Get current hit point
-		let currentHitPoint = GetDragHitPoint(pickRay, SelectedAxis);
+		// Get current hit point using the ORIGINAL drag start position for plane calculation
+		// This prevents feedback loop where moving the gizmo moves the plane
+		let currentHitPoint = GetDragHitPoint(pickRay, SelectedAxis, mDragStartPosition);
 
 		// Calculate movement along the axis
 		let delta = currentHitPoint - mDragStartHitPoint;
@@ -259,7 +274,8 @@ public class TranslateGizmo
 	}
 
 	/// Gets the hit point on a plane for dragging.
-	private Vector3 GetDragHitPoint(Ray ray, GizmoAxis axis)
+	/// planeOrigin: The point the plane passes through (use fixed position during drag to avoid feedback)
+	private Vector3 GetDragHitPoint(Ray ray, GizmoAxis axis, Vector3 planeOrigin)
 	{
 		// For single-axis movement, we need to pick a plane that contains the axis
 		// and is most perpendicular to the view direction
@@ -290,15 +306,15 @@ public class TranslateGizmo
 		case .YZ:
 			planeNormal = .(1, 0, 0);
 		default:
-			return Position;
+			return planeOrigin;
 		}
 
 		// Ray-plane intersection
 		let denom = Vector3.Dot(planeNormal, ray.Direction);
 		if (Math.Abs(denom) < 0.0001f)
-			return Position;
+			return planeOrigin;
 
-		let t = Vector3.Dot(planeNormal, Position - ray.Position) / denom;
+		let t = Vector3.Dot(planeNormal, planeOrigin - ray.Position) / denom;
 		return ray.Position + ray.Direction * t;
 	}
 }
