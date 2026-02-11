@@ -11,7 +11,7 @@ struct FragmentInput
     float2 TexCoord : TEXCOORD0;
 };
 
-// ACES filmic tone mapping curve (Narkowicz 2015)
+// ACES filmic tone mapping curve
 float3 ACESFilm(float3 x)
 {
     float a = 2.51;
@@ -27,9 +27,15 @@ float4 main(FragmentInput input) : SV_Target
     // Sample source texture (HDR linear)
     float4 color = SourceTexture.Sample(LinearSampler, input.TexCoord);
 
-    // ACES filmic tone mapping (HDR to LDR)
+    // Simple Reinhard tone mapping (HDR to LDR)
     // Output remains in linear space - sRGB target applies gamma
-    color.rgb = ACESFilm(color.rgb);
+    //color.rgb = color.rgb / (color.rgb + 1.0);
+
+    // ACES alternative (more vibrant):
+     color.rgb = ACESFilm(color.rgb);
+
+    // Pass-through (clamp to LDR range)
+    //color.rgb = saturate(color.rgb);
 
     return float4(color.rgb, 1.0);
 }

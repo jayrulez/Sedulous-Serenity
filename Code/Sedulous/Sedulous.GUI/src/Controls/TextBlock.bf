@@ -116,6 +116,11 @@ public class TextBlock : Control
 		}
 	}
 
+	public void Set(StringView text)
+	{
+		this.Text = text;
+	}
+
 	/// Gets the font service from the context.
 	private IFontService GetFontService()
 	{

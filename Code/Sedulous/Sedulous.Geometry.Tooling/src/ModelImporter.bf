@@ -5,6 +5,7 @@ using Sedulous.Mathematics;
 using Sedulous.Geometry;
 using Sedulous.Models;
 using Sedulous.Imaging;
+using Sedulous.Animation;
 using Sedulous.Animation.Resources;
 using Sedulous.Geometry.Resources;
 using Sedulous.Resources;
@@ -174,6 +175,9 @@ class ModelImporter
 			if (mOptions.Scale != 1.0f)
 				ApplyScale(mesh, mOptions.Scale);
 
+			if (mOptions.RecenterMeshes)
+				RecenterStaticMesh(mesh);
+
 			if (firstName.IsEmpty)
 				firstName.Set(modelMesh.Name);
 
@@ -286,6 +290,15 @@ class ModelImporter
 				mergedMesh = MergeSkinnedMeshes(convertedMeshes);
 				for (let m in convertedMeshes)
 					delete m;
+			}
+
+			// Recenter mesh vertices and adjust skeleton to match
+			if (mOptions.RecenterMeshes)
+			{
+				Skeleton skeleton = null;
+				if (skeletonIdx >= 0 && skeletonIdx < result.Skeletons.Count)
+					skeleton = result.Skeletons[skeletonIdx].Skeleton;
+				RecenterSkinnedMesh(mergedMesh, skeleton);
 			}
 
 			let skinnedMeshRes = new SkinnedMeshResource(mergedMesh, true);
@@ -593,5 +606,75 @@ class ModelImporter
 			vertex.Position = vertex.Position * scale;
 			mesh.SetVertex(i, vertex);
 		}
+	}
+
+	/// Recenters a static mesh so the bounding box center is at the origin.
+	private void RecenterStaticMesh(StaticMesh mesh)
+	{
+		if (mesh.Vertices == null || mesh.Vertices.VertexCount == 0)
+			return;
+
+		let bounds = mesh.GetBounds();
+		let center = (bounds.Min + bounds.Max) * 0.5f;
+
+		// Skip if already centered (within tolerance)
+		if (center.LengthSquared() < 0.0001f)
+			return;
+
+		for (int32 i = 0; i < mesh.Vertices.VertexCount; i++)
+		{
+			var pos = mesh.GetPosition(i);
+			mesh.SetPosition(i, pos - center);
+		}
+	}
+
+	/// Recenters a skinned mesh so the bounding box center is at the origin.
+	/// Also adjusts the skeleton's InverseBindPose and RootCorrection matrices
+	/// so that skinning produces correctly centered output during animation.
+	private void RecenterSkinnedMesh(SkinnedMesh mesh, Skeleton skeleton)
+	{
+		if (mesh.VertexCount == 0)
+			return;
+
+		mesh.CalculateBounds();
+		let bounds = mesh.Bounds;
+		let center = (bounds.Min + bounds.Max) * 0.5f;
+
+		// Skip if already centered (within tolerance)
+		if (center.LengthSquared() < 0.0001f)
+			return;
+
+		// Shift all vertex positions
+		for (int32 i = 0; i < mesh.VertexCount; i++)
+		{
+			var vertex = mesh.GetVertex(i);
+			vertex.Position = vertex.Position - center;
+			mesh.SetVertex(i, vertex);
+		}
+
+		// Adjust skeleton so skinning remains correct after vertex shift.
+		// In row-major convention (point * matrix):
+		//   skinned = vertex * InvBindPose * WorldPose
+		//   Root WorldPose = localMatrix * RootCorrection
+		// After shift: (v-c) * T(c)*OldInvBind * OldWorldPose*T(-c) = OldResult - center
+		if (skeleton != null)
+		{
+			let offsetMatrix = Matrix.CreateTranslation(-center);
+			let invOffsetMatrix = Matrix.CreateTranslation(center);
+
+			for (let bone in skeleton.Bones)
+			{
+				if (bone == null) continue;
+
+				// Pre-multiply InverseBindPose by +center translation for all bones
+				bone.InverseBindPose = invOffsetMatrix * bone.InverseBindPose;
+
+				// Post-multiply RootCorrection by -center translation for root bones
+				if (bone.ParentIndex < 0)
+					bone.RootCorrection = bone.RootCorrection * offsetMatrix;
+			}
+		}
+
+		mesh.CalculateBounds();
 	}
 }
