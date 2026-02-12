@@ -40,6 +40,16 @@ struct BattleVFX
 	public String mText;
 }
 
+enum PlayerTurnPhase
+{
+	Idle,                // No active player input needed
+	ChoosingAction,      // Action buttons shown (Move/Attack/Skill/Wait)
+	SelectingMoveTarget, // Reachable cells highlighted, waiting for hex click
+	SelectingAttackTarget, // Attackable enemies highlighted, waiting for unit click
+	SelectingSkill,      // Skill list shown, waiting for skill button click
+	SelectingSkillTarget // Skill targets highlighted, waiting for unit click
+}
+
 /// Orchestrates the visual representation of a battle.
 /// Bridges BattleSimulation (pure logic) to the 3D scene.
 class BattleScene
@@ -88,12 +98,28 @@ class BattleScene
 	private bool mHasHoveredHex;
 	private int32 mHoveredUnitIndex = -1;
 
+	// Player turn state
+	private PlayerTurnPhase mPlayerPhase = .Idle;
+	private int32 mPlayerUnitIndex = -1;
+	private Force mPlayerForce = .Attacker;
+	private List<HexCoord> mReachableCells = new .();
+	private List<int32> mAttackableUnits = new .();
+	private List<int32> mUsableSkills = new .();
+	private int32 mSelectedSkillId = -1;
+	private List<int32> mSkillTargetUnits = new .();
+
 	public BattleCamera Camera => mCamera;
 	public bool IsAutoPlaying => mAutoPlay;
 	public BattleSimulation Simulation => mSimulation;
 	public HexCoord HoveredHex => mHoveredHex;
 	public bool HasHoveredHex => mHasHoveredHex;
 	public int32 HoveredUnitIndex => mHoveredUnitIndex;
+	public PlayerTurnPhase PlayerPhase => mPlayerPhase;
+	public int32 PlayerUnitIndex => mPlayerUnitIndex;
+	public bool IsPlayerTurn => mPlayerPhase != .Idle;
+	public List<HexCoord> ReachableCells => mReachableCells;
+	public List<int32> AttackableUnits => mAttackableUnits;
+	public List<int32> UsableSkills => mUsableSkills;
 
 	/// Initialize the battle scene with a simulation.
 	public void Initialize(
@@ -209,16 +235,42 @@ class BattleScene
 	}
 
 	/// Step the simulation once and queue events for animation.
+	/// If it's a player unit's turn (and auto-play is off), enters player input mode.
 	public void StepBattle()
 	{
 		if (mSimulation.IsFinished) return;
 		if (mSequencer.IsPlaying) return; // Wait for current animations to finish
+		if (mPlayerPhase != .Idle) return; // Don't step during player input
 
 		// Clean previous events
 		for (let e in mStepEvents) delete e;
 		mStepEvents.Clear();
 
-		mSimulation.Step(mStepEvents);
+		let unitIdx = mSimulation.BeginTurn(mStepEvents);
+		mSequencer.QueueEvents(mStepEvents);
+
+		if (unitIdx < 0) return; // Stun skip, draw, or finished
+
+		let unit = mSimulation.GetUnit(unitIdx);
+
+		// Player's turn (and auto-play is off)?
+		if (!mAutoPlay && unit.mForce == mPlayerForce)
+		{
+			mPlayerUnitIndex = unitIdx;
+			mPlayerPhase = .ChoosingAction;
+			ComputePlayerOptions();
+			// Focus camera on the player's unit
+			let view = GetUnitView(unitIdx);
+			if (view != null)
+				mCamera.FocusOnWorldPos(view.mWorldPos.X, view.mWorldPos.Z);
+			return; // Wait for player input
+		}
+
+		// AI turn — decide and execute immediately
+		for (let e in mStepEvents) delete e;
+		mStepEvents.Clear();
+		let action = BattleAI.DecideAction(mSimulation, unitIdx, mSimulation.Difficulty);
+		mSimulation.SubmitAction(action, mStepEvents);
 		mSequencer.QueueEvents(mStepEvents);
 	}
 
@@ -227,6 +279,13 @@ class BattleScene
 	{
 		mAutoPlay = !mAutoPlay;
 		mAutoStepTimer = 0;
+
+		// If toggling auto ON during player's turn, let AI take over
+		if (mAutoPlay && mPlayerPhase != .Idle)
+		{
+			let action = BattleAI.DecideAction(mSimulation, mPlayerUnitIndex, mSimulation.Difficulty);
+			SubmitPlayerAction(action);
+		}
 	}
 
 	/// Skip all remaining animations.
@@ -247,9 +306,109 @@ class BattleScene
 	{
 		mCamera.HandleInput(keyboard, mouse, dt);
 
-		// Space = step once (keep as keyboard shortcut)
-		if (keyboard.IsKeyPressed(.Space) && !mAutoPlay)
+		// Space = step once (keep as keyboard shortcut, only when not in player turn)
+		if (keyboard.IsKeyPressed(.Space) && !mAutoPlay && mPlayerPhase == .Idle)
 			StepBattle();
+	}
+
+	// --- Player turn actions ---
+
+	/// Compute what the player's unit can do this turn.
+	private void ComputePlayerOptions()
+	{
+		mSimulation.GetReachableCells(mPlayerUnitIndex, mReachableCells);
+		mSimulation.GetAttackableUnits(mPlayerUnitIndex, mAttackableUnits);
+		mSimulation.GetUsableSkills(mPlayerUnitIndex, mUsableSkills);
+	}
+
+	/// Player chose "Move" — enter move target selection.
+	public void PlayerSelectMove()
+	{
+		if (mPlayerPhase != .ChoosingAction) return;
+		mPlayerPhase = .SelectingMoveTarget;
+	}
+
+	/// Player chose "Attack" — enter attack target selection.
+	public void PlayerSelectAttack()
+	{
+		if (mPlayerPhase != .ChoosingAction) return;
+		mPlayerPhase = .SelectingAttackTarget;
+	}
+
+	/// Player chose "Skill" — enter skill list selection.
+	public void PlayerSelectSkill()
+	{
+		if (mPlayerPhase != .ChoosingAction) return;
+		mPlayerPhase = .SelectingSkill;
+	}
+
+	/// Player picked a specific skill — compute targets and enter target selection.
+	public void PlayerChooseSkill(int32 skillId)
+	{
+		if (mPlayerPhase != .SelectingSkill) return;
+		mSelectedSkillId = skillId;
+		mSimulation.GetSkillTargets(mPlayerUnitIndex, skillId, mSkillTargetUnits);
+		mPlayerPhase = .SelectingSkillTarget;
+	}
+
+	/// Player chose "Wait" — skip turn.
+	public void PlayerWait()
+	{
+		if (mPlayerPhase != .ChoosingAction) return;
+		SubmitPlayerAction(BattleAction.MakeWait(mPlayerUnitIndex));
+	}
+
+	/// Player clicked "Cancel" — go back to action choice.
+	public void PlayerCancelAction()
+	{
+		if (mPlayerPhase == .SelectingSkillTarget)
+			mPlayerPhase = .SelectingSkill;
+		else if (mPlayerPhase == .SelectingSkill || mPlayerPhase == .SelectingMoveTarget || mPlayerPhase == .SelectingAttackTarget)
+			mPlayerPhase = .ChoosingAction;
+	}
+
+	/// Player clicked a hex on the grid during a selection phase.
+	public void PlayerClickHex(HexCoord hex)
+	{
+		switch (mPlayerPhase)
+		{
+		case .SelectingMoveTarget:
+			if (mReachableCells.Contains(hex))
+				SubmitPlayerAction(BattleAction.MakeMove(mPlayerUnitIndex, hex));
+		case .SelectingAttackTarget:
+			for (let idx in mAttackableUnits)
+			{
+				let target = mSimulation.GetUnit(idx);
+				if (target != null && target.mPosition == hex)
+				{
+					SubmitPlayerAction(BattleAction.MakeAttack(mPlayerUnitIndex, idx));
+					break;
+				}
+			}
+		case .SelectingSkillTarget:
+			for (let idx in mSkillTargetUnits)
+			{
+				let target = mSimulation.GetUnit(idx);
+				if (target != null && target.mPosition == hex)
+				{
+					SubmitPlayerAction(BattleAction.MakeSkill(mPlayerUnitIndex, mSelectedSkillId, idx));
+					break;
+				}
+			}
+		default:
+		}
+	}
+
+	/// Submit the player's chosen action and return to idle.
+	private void SubmitPlayerAction(BattleAction action)
+	{
+		for (let e in mStepEvents) delete e;
+		mStepEvents.Clear();
+		mSimulation.SubmitAction(action, mStepEvents);
+		mSequencer.QueueEvents(mStepEvents);
+		mPlayerPhase = .Idle;
+		mPlayerUnitIndex = -1;
+		mSelectedSkillId = -1;
 	}
 
 	/// Update animations and auto-play.
@@ -358,6 +517,29 @@ class BattleScene
 				if (unit != null && unit.mAlive)
 					mGridRenderer.SetHighlight(unit.mPosition, .(255, 255, 100, 80));
 			}
+		}
+
+		// Player turn phase highlights
+		switch (mPlayerPhase)
+		{
+		case .SelectingMoveTarget:
+			for (let hex in mReachableCells)
+				mGridRenderer.SetHighlight(hex, .(50, 200, 100, 60)); // Green
+		case .SelectingAttackTarget:
+			for (let idx in mAttackableUnits)
+			{
+				let target = mSimulation.GetUnit(idx);
+				if (target != null)
+					mGridRenderer.SetHighlight(target.mPosition, .(255, 80, 80, 80)); // Red
+			}
+		case .SelectingSkillTarget:
+			for (let idx in mSkillTargetUnits)
+			{
+				let target = mSimulation.GetUnit(idx);
+				if (target != null)
+					mGridRenderer.SetHighlight(target.mPosition, .(100, 150, 255, 80)); // Blue
+			}
+		default:
 		}
 
 		// Hovered hex highlight (cyan/white)
@@ -615,6 +797,15 @@ class BattleScene
 			if (e.mText != null) delete e.mText;
 		delete mActiveEffects;
 		mActiveEffects = null;
+
+		delete mReachableCells;
+		mReachableCells = null;
+		delete mAttackableUnits;
+		mAttackableUnits = null;
+		delete mUsableSkills;
+		mUsableSkills = null;
+		delete mSkillTargetUnits;
+		mSkillTargetUnits = null;
 
 		// 6. Materials — ReleaseRef before mesh resources
 		mAttackerMaterial?.ReleaseRef();

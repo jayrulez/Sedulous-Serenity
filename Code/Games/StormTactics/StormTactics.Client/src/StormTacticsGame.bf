@@ -202,6 +202,26 @@ class StormTacticsGame : Application
 			mBattleScene?.SetSpeed(speed);
 		});
 
+		// Player action events
+		mBattleHUD.OnMoveSelected.Subscribe(new () => {
+			mBattleScene?.PlayerSelectMove();
+		});
+		mBattleHUD.OnAttackSelected.Subscribe(new () => {
+			mBattleScene?.PlayerSelectAttack();
+		});
+		mBattleHUD.OnSkillSelected.Subscribe(new () => {
+			mBattleScene?.PlayerSelectSkill();
+		});
+		mBattleHUD.OnWaitSelected.Subscribe(new () => {
+			mBattleScene?.PlayerWait();
+		});
+		mBattleHUD.OnCancelAction.Subscribe(new () => {
+			mBattleScene?.PlayerCancelAction();
+		});
+		mBattleHUD.OnSkillChosen.Subscribe(new (skillId) => {
+			mBattleScene?.PlayerChooseSkill(skillId);
+		});
+
 		Console.WriteLine("UI system initialized");
 	}
 
@@ -311,9 +331,18 @@ class StormTacticsGame : Application
 		if (keyboard.IsKeyPressed(.Escape))
 			Exit();
 
-		// Only forward input to battle scene if UI didn't consume it
-		if (mBattleScene != null && !(mInputSubsystem?.UIConsumedInput ?? false))
+		// Check if mouse is over an interactive UI element
+		let hitElement = mUISubsystem?.GUIContext?.HitTest(mouse.X, mouse.Y);
+		bool uiHovered = hitElement != null;
+
+		if (mBattleScene != null && !uiHovered)
+		{
 			mBattleScene.HandleInput(keyboard, mouse, mDeltaTime);
+
+			// Left click: forward to battle scene for hex selection
+			if (mouse.IsButtonPressed(.Left) && mBattleScene.IsPlayerTurn && mBattleScene.HasHoveredHex)
+				mBattleScene.PlayerClickHex(mBattleScene.HoveredHex);
+		}
 	}
 
 	protected override void OnUpdate(FrameContext frame)
@@ -324,10 +353,12 @@ class StormTacticsGame : Application
 		{
 			mBattleScene.Update(mDeltaTime);
 
-			// Update hover detection (use view-projection from last frame)
-			if (!(mInputSubsystem?.UIConsumedInput ?? false))
+			// Update hover detection — only when mouse is not over a UI element
+			let mouse = mShell.InputManager.Mouse;
+			let hitElement = mUISubsystem?.GUIContext?.HitTest(mouse.X, mouse.Y);
+			bool uiHovered = hitElement != null;
+			if (!uiHovered)
 			{
-				let mouse = mShell.InputManager.Mouse;
 				mBattleScene.UpdateHover(mouse.X, mouse.Y, mSwapChain.Width, mSwapChain.Height,
 					mRenderView.ViewProjectionMatrix);
 			}
@@ -410,6 +441,48 @@ class StormTacticsGame : Application
 
 		// Update auto-play state
 		mBattleHUD.SetAutoPlaying(mBattleScene.IsAutoPlaying);
+
+		// Update player turn phase UI
+		switch (mBattleScene.PlayerPhase)
+		{
+		case .ChoosingAction:
+			let canMove = mBattleScene.ReachableCells.Count > 0;
+			let canAttack = mBattleScene.AttackableUnits.Count > 0;
+			let hasSkills = mBattleScene.UsableSkills.Count > 0;
+			mBattleHUD.ShowActionPanel(canMove, canAttack, hasSkills);
+		case .SelectingMoveTarget:
+			mBattleHUD.ShowSelectingMode("Click a green tile to move");
+		case .SelectingAttackTarget:
+			mBattleHUD.ShowSelectingMode("Click an enemy to attack");
+		case .SelectingSkill:
+			// Build skill display list
+			{
+				let playerIdx = mBattleScene.PlayerUnitIndex;
+				let playerUnit = sim.GetUnit(playerIdx);
+				var skills = scope SkillDisplayInfo[playerUnit.mConfig.mSkillIds.Count];
+				int32 skillCount = 0;
+
+				for (let skillId in playerUnit.mConfig.mSkillIds)
+				{
+					let skillCfg = sim.Configs.GetSkill(skillId);
+					if (skillCfg == null) continue;
+					if (skillCfg.mMoment != .OnActionBegin) continue;
+
+					var info = SkillDisplayInfo();
+					info.mId = skillId;
+					info.mName = skillCfg.mName;
+					info.mCooldownLeft = playerUnit.mSkillCooldowns.ContainsKey(skillId) ? playerUnit.mSkillCooldowns[skillId] : 0;
+					info.mUsable = mBattleScene.UsableSkills.Contains(skillId);
+					if (skillCount < skills.Count)
+						skills[skillCount++] = info;
+				}
+				mBattleHUD.ShowSkillPanel(skills[0..<skillCount]);
+			}
+		case .SelectingSkillTarget:
+			mBattleHUD.ShowSelectingMode("Click a target for skill");
+		default:
+			mBattleHUD.HideActionPanel();
+		}
 
 		// Show battle result
 		if (sim.IsFinished)

@@ -7,6 +7,15 @@ using Sedulous.Foundation.Core;
 
 delegate void BattleActionDelegate();
 delegate void SpeedChangeDelegate(float speed);
+delegate void SkillSelectDelegate(int32 skillId);
+
+struct SkillDisplayInfo
+{
+	public int32 mId;
+	public StringView mName;
+	public int32 mCooldownLeft;
+	public bool mUsable;
+}
 
 /// Retained-mode battle HUD using Sedulous.GUI.
 /// Provides turn info, speed controls, unit info panels, and battle result overlay.
@@ -48,6 +57,21 @@ class BattleHUD
 	private TextBlock mResultText;
 	private Button mContinueButton;
 
+	// Action panel (player turn)
+	private Border mActionPanel;
+	private Button mMoveButton;
+	private Button mAttackButton;
+	private Button mSkillButton;
+	private Button mWaitButton;
+
+	// Skill selection panel
+	private Border mSkillPanel;
+	private StackPanel mSkillListPanel;
+
+	// Phase hint + cancel
+	private TextBlock mPhaseHintLabel;
+	private Button mCancelButton;
+
 	// State
 	private bool mIsAutoPlaying;
 	private float mCurrentSpeed = 1.0f;
@@ -59,12 +83,24 @@ class BattleHUD
 	private EventAccessor<BattleActionDelegate> mOnStep = new .() ~ delete _;
 	private EventAccessor<SpeedChangeDelegate> mOnSpeedChanged = new .() ~ delete _;
 	private EventAccessor<BattleActionDelegate> mOnContinue = new .() ~ delete _;
+	private EventAccessor<BattleActionDelegate> mOnMoveSelected = new .() ~ delete _;
+	private EventAccessor<BattleActionDelegate> mOnAttackSelected = new .() ~ delete _;
+	private EventAccessor<BattleActionDelegate> mOnSkillSelected = new .() ~ delete _;
+	private EventAccessor<BattleActionDelegate> mOnWaitSelected = new .() ~ delete _;
+	private EventAccessor<BattleActionDelegate> mOnCancelAction = new .() ~ delete _;
+	private EventAccessor<SkillSelectDelegate> mOnSkillChosen = new .() ~ delete _;
 
 	public EventAccessor<BattleActionDelegate> OnAutoToggle => mOnAutoToggle;
 	public EventAccessor<BattleActionDelegate> OnSkip => mOnSkip;
 	public EventAccessor<BattleActionDelegate> OnStep => mOnStep;
 	public EventAccessor<SpeedChangeDelegate> OnSpeedChanged => mOnSpeedChanged;
 	public EventAccessor<BattleActionDelegate> OnContinue => mOnContinue;
+	public EventAccessor<BattleActionDelegate> OnMoveSelected => mOnMoveSelected;
+	public EventAccessor<BattleActionDelegate> OnAttackSelected => mOnAttackSelected;
+	public EventAccessor<BattleActionDelegate> OnSkillSelected => mOnSkillSelected;
+	public EventAccessor<BattleActionDelegate> OnWaitSelected => mOnWaitSelected;
+	public EventAccessor<BattleActionDelegate> OnCancelAction => mOnCancelAction;
+	public EventAccessor<SkillSelectDelegate> OnSkillChosen => mOnSkillChosen;
 
 	public UIElement RootElement => mRoot;
 
@@ -77,19 +113,20 @@ class BattleHUD
 	{
 		// Grid as root — allows overlays on top of HUD
 		mRoot = new Grid();
-		mRoot.Background = Color.Transparent;
+		mRoot.IsHitTestVisible = false; // Pass-through: children are hittable, empty space is not
 		mRoot.RowDefinitions.Add(new .() { Height = .Star });
 		mRoot.ColumnDefinitions.Add(new .() { Width = .Star });
 
 		// DockPanel for HUD elements
 		mHudPanel = new DockPanel();
-		mHudPanel.Background = Color.Transparent;
+		mHudPanel.IsHitTestVisible = false; // Pass-through: children are hittable, empty space is not
 		mHudPanel.HorizontalAlignment = .Stretch;
 		mHudPanel.VerticalAlignment = .Stretch;
 		mHudPanel.LastChildFill = false;
 		mRoot.AddChild(mHudPanel);
 
 		BuildTopBar();
+		BuildActionPanel();
 		BuildBottomPanel();
 		BuildResultOverlay();
 	}
@@ -203,6 +240,93 @@ class BattleHUD
 
 		// Set initial speed highlight
 		SetSpeedHighlight(1.0f);
+	}
+
+	private void BuildActionPanel()
+	{
+		// Action panel — centered horizontally, above bottom panel
+		// Contains Move/Attack/Skill/Wait buttons + phase hint + cancel
+		mActionPanel = new Border();
+		mActionPanel.Background = Color(20, 25, 35, 230);
+		mActionPanel.Padding = Thickness(16, 10, 16, 10);
+		mActionPanel.HorizontalAlignment = .Center;
+		mActionPanel.VerticalAlignment = .Bottom;
+		mActionPanel.Margin = Thickness(0, 0, 0, 90); // Above bottom panel
+		mActionPanel.Visibility = .Collapsed;
+
+		let actionContent = new StackPanel();
+		actionContent.Orientation = .Vertical;
+		actionContent.Spacing = 8;
+		actionContent.HorizontalAlignment = .Center;
+		mActionPanel.Child = actionContent;
+
+		// Phase hint text
+		mPhaseHintLabel = new TextBlock("");
+		mPhaseHintLabel.Foreground = Color(200, 200, 220);
+		mPhaseHintLabel.FontSize = 14;
+		mPhaseHintLabel.TextAlignment = .Center;
+		mPhaseHintLabel.Visibility = .Collapsed;
+		actionContent.AddChild(mPhaseHintLabel);
+
+		// Button row
+		let buttonRow = new StackPanel();
+		buttonRow.Orientation = .Horizontal;
+		buttonRow.Spacing = 8;
+		buttonRow.HorizontalAlignment = .Center;
+
+		mMoveButton = new Button("Move");
+		mMoveButton.Padding = Thickness(16, 8, 16, 8);
+		mMoveButton.Click.Subscribe(new (btn) => {
+			mOnMoveSelected.[Friend]Invoke();
+		});
+		buttonRow.AddChild(mMoveButton);
+
+		mAttackButton = new Button("Attack");
+		mAttackButton.Padding = Thickness(16, 8, 16, 8);
+		mAttackButton.Click.Subscribe(new (btn) => {
+			mOnAttackSelected.[Friend]Invoke();
+		});
+		buttonRow.AddChild(mAttackButton);
+
+		mSkillButton = new Button("Skill");
+		mSkillButton.Padding = Thickness(16, 8, 16, 8);
+		mSkillButton.Click.Subscribe(new (btn) => {
+			mOnSkillSelected.[Friend]Invoke();
+		});
+		buttonRow.AddChild(mSkillButton);
+
+		mWaitButton = new Button("Wait");
+		mWaitButton.Padding = Thickness(16, 8, 16, 8);
+		mWaitButton.Click.Subscribe(new (btn) => {
+			mOnWaitSelected.[Friend]Invoke();
+		});
+		buttonRow.AddChild(mWaitButton);
+
+		mCancelButton = new Button("Cancel");
+		mCancelButton.Padding = Thickness(16, 8, 16, 8);
+		mCancelButton.Visibility = .Collapsed;
+		mCancelButton.Click.Subscribe(new (btn) => {
+			mOnCancelAction.[Friend]Invoke();
+		});
+		buttonRow.AddChild(mCancelButton);
+
+		actionContent.AddChild(buttonRow);
+
+		// Skill sub-panel (hidden by default)
+		mSkillPanel = new Border();
+		mSkillPanel.Background = Color(25, 30, 40, 240);
+		mSkillPanel.Padding = Thickness(8, 6, 8, 6);
+		mSkillPanel.Visibility = .Collapsed;
+
+		mSkillListPanel = new StackPanel();
+		mSkillListPanel.Orientation = .Vertical;
+		mSkillListPanel.Spacing = 4;
+		mSkillPanel.Child = mSkillListPanel;
+
+		actionContent.AddChild(mSkillPanel);
+
+		// Add to root grid (not dock panel — so it overlays freely)
+		mRoot.AddChild(mActionPanel);
 	}
 
 	private void BuildBottomPanel()
@@ -445,6 +569,81 @@ class BattleHUD
 			mAutoButton.Background = Color(60, 140, 60, 255);
 		else
 			mAutoButton.[Friend]mBackground = null; // Revert to theme default
+	}
+
+	// --- Action panel methods ---
+
+	public void ShowActionPanel(bool canMove, bool canAttack, bool hasSkills)
+	{
+		mActionPanel.Visibility = .Visible;
+		mMoveButton.Visibility = .Visible;
+		mAttackButton.Visibility = .Visible;
+		mSkillButton.Visibility = hasSkills ? .Visible : .Collapsed;
+		mWaitButton.Visibility = .Visible;
+		mCancelButton.Visibility = .Collapsed;
+		mSkillPanel.Visibility = .Collapsed;
+		mPhaseHintLabel.Visibility = .Collapsed;
+
+		// Dim buttons for unavailable actions
+		mMoveButton.[Friend]mBackground = canMove ? null : Color(60, 60, 60, 255);
+		mAttackButton.[Friend]mBackground = canAttack ? null : Color(60, 60, 60, 255);
+	}
+
+	public void HideActionPanel()
+	{
+		mActionPanel.Visibility = .Collapsed;
+	}
+
+	public void ShowSelectingMode(StringView hint)
+	{
+		mActionPanel.Visibility = .Visible;
+		mMoveButton.Visibility = .Collapsed;
+		mAttackButton.Visibility = .Collapsed;
+		mSkillButton.Visibility = .Collapsed;
+		mWaitButton.Visibility = .Collapsed;
+		mSkillPanel.Visibility = .Collapsed;
+		mCancelButton.Visibility = .Visible;
+
+		mPhaseHintLabel.Visibility = .Visible;
+		mPhaseHintLabel.Text = hint;
+	}
+
+	public void ShowSkillPanel(Span<SkillDisplayInfo> skills)
+	{
+		mActionPanel.Visibility = .Visible;
+		mMoveButton.Visibility = .Collapsed;
+		mAttackButton.Visibility = .Collapsed;
+		mSkillButton.Visibility = .Collapsed;
+		mWaitButton.Visibility = .Collapsed;
+		mCancelButton.Visibility = .Visible;
+		mPhaseHintLabel.Visibility = .Collapsed;
+
+		// Clear old skill buttons
+		mSkillListPanel.ClearChildren();
+		mSkillPanel.Visibility = .Visible;
+
+		for (let skill in skills)
+		{
+			let label = scope String();
+			label.AppendF("{}", skill.mName);
+			if (skill.mCooldownLeft > 0)
+				label.AppendF(" (CD: {})", skill.mCooldownLeft);
+			else
+				label.Append(" (Ready)");
+
+			let btn = new Button(label);
+			btn.Padding = Thickness(12, 6, 12, 6);
+			btn.HorizontalAlignment = .Stretch;
+
+			if (!skill.mUsable)
+				btn.[Friend]mBackground = Color(60, 60, 60, 255);
+
+			let capturedSkillId = skill.mId;
+			btn.Click.Subscribe(new (b) => {
+				mOnSkillChosen.[Friend]Invoke(capturedSkillId);
+			});
+			mSkillListPanel.AddChild(btn);
+		}
 	}
 
 	// --- Helpers ---

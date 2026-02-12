@@ -166,6 +166,82 @@ class BattleSimulation
 
 	public bool IsFinished => mState != .InProgress;
 
+	/// Get all hexes a unit can move to from their current position.
+	public void GetReachableCells(int32 unitIdx, List<HexCoord> outList)
+	{
+		outList.Clear();
+		let unit = mUnits[unitIdx];
+		if (!unit.mAlive) return;
+		let flying = unit.mConfig.mMoveType == .Flying;
+		mPathfinder.GetReachableCells(unit.mPosition, unit.mModifiedMoveRange, flying, outList);
+	}
+
+	/// Get indices of enemy units within attack range of the given unit.
+	public void GetAttackableUnits(int32 unitIdx, List<int32> outList)
+	{
+		outList.Clear();
+		let unit = mUnits[unitIdx];
+		if (!unit.mAlive) return;
+		for (int32 i = 0; i < (int32)mUnits.Count; i++)
+		{
+			let target = mUnits[i];
+			if (!target.mAlive || target.mForce == unit.mForce) continue;
+			if (unit.mPosition.DistanceTo(target.mPosition) <= unit.mModifiedAttackRange)
+				outList.Add(i);
+		}
+	}
+
+	/// Get IDs of skills the unit can actively use this turn (OnActionBegin, not on cooldown, not silenced).
+	public void GetUsableSkills(int32 unitIdx, List<int32> outSkillIds)
+	{
+		outSkillIds.Clear();
+		let unit = mUnits[unitIdx];
+		if (!unit.mAlive || unit.IsSilenced) return;
+		for (let skillId in unit.mConfig.mSkillIds)
+		{
+			let skill = mConfigs.GetSkill(skillId);
+			if (skill == null) continue;
+			if (skill.mMoment != .OnActionBegin) continue;
+			if (unit.IsSkillOnCooldown(skillId)) continue;
+			if (unit.IsSkillUsesExhausted(skillId, skill)) continue;
+			outSkillIds.Add(skillId);
+		}
+	}
+
+	/// Get indices of valid targets for a specific skill.
+	public void GetSkillTargets(int32 unitIdx, int32 skillId, List<int32> outTargets)
+	{
+		outTargets.Clear();
+		let unit = mUnits[unitIdx];
+		let skill = mConfigs.GetSkill(skillId);
+		if (skill == null || !unit.mAlive) return;
+
+		for (int32 i = 0; i < (int32)mUnits.Count; i++)
+		{
+			let target = mUnits[i];
+			if (!target.mAlive) continue;
+
+			switch (skill.mTarget)
+			{
+			case .SingleEnemy, .RandomEnemy:
+				if (target.mForce != unit.mForce)
+					outTargets.Add(i);
+			case .SingleAlly, .RandomAlly, .MostWoundedAlly:
+				if (target.mForce == unit.mForce)
+					outTargets.Add(i);
+			case .Self:
+				if (i == unitIdx)
+					outTargets.Add(i);
+			case .AllEnemies:
+				if (target.mForce != unit.mForce)
+					outTargets.Add(i);
+			case .AllAllies:
+				if (target.mForce == unit.mForce)
+					outTargets.Add(i);
+			}
+		}
+	}
+
 	// --- Turn order ---
 
 	/// Get the next unit to act (lowest action timer).
@@ -225,12 +301,14 @@ class BattleSimulation
 
 	// --- Stepping ---
 
-	/// Run one full turn: advance to next unit, get AI action, execute it.
-	/// Returns the events generated this step.
-	public void Step(List<BattleEvent> outEvents)
+	/// Begin a turn: advance to the next unit, tick buffs/cooldowns.
+	/// Returns the unit index that should act, or -1 if the turn was auto-handled
+	/// (stunned, draw, or battle already finished).
+	/// Events in outEvents include TurnStarted (caller owns them).
+	public int32 BeginTurn(List<BattleEvent> outEvents)
 	{
 		outEvents.Clear();
-		if (mState != .InProgress) return;
+		if (mState != .InProgress) return -1;
 
 		// Check max turns
 		if (mTurnCount >= BattleConstants.MAX_TURNS)
@@ -238,7 +316,7 @@ class BattleSimulation
 			mState = .Draw;
 			EmitEvent(.BattleEnded);
 			FlushEvents(outEvents);
-			return;
+			return -1;
 		}
 
 		let unitIdx = AdvanceToNextTurn();
@@ -247,7 +325,7 @@ class BattleSimulation
 			mState = .Draw;
 			EmitEvent(.BattleEnded);
 			FlushEvents(outEvents);
-			return;
+			return -1;
 		}
 
 		let unit = mUnits[unitIdx];
@@ -258,28 +336,45 @@ class BattleSimulation
 			unit.ResetActionTimer();
 			CheckBattleEnd();
 			FlushEvents(outEvents);
-			return;
+			return -1;
 		}
 
-		// Get action from AI
-		let action = BattleAI.DecideAction(this, unitIdx, mDifficulty);
-		mActionLog.Add(action);
+		FlushEvents(outEvents); // Contains TurnStarted event
+		return unitIdx;
+	}
+
+	/// Submit an action for the current unit. Call after BeginTurn() returns a valid unit index.
+	/// Executes the action, resets the timer, checks win/loss.
+	/// Events in outEvents include action results (caller owns them).
+	public void SubmitAction(BattleAction action, List<BattleEvent> outEvents)
+	{
+		outEvents.Clear();
+		let unit = mUnits[action.mUnitIndex];
 
 		Console.WriteLine("[STEP T{}] Unit {} '{}' at ({},{}) -> action={}",
-			mTurnCount, unitIdx, unit.mConfig.mName, unit.mPosition.Q, unit.mPosition.R, action.mType);
+			mTurnCount, action.mUnitIndex, unit.mConfig.mName, unit.mPosition.Q, unit.mPosition.R, action.mType);
 
+		mActionLog.Add(action);
 		ExecuteAction(action);
-
-		// Reset action timer
 		unit.ResetActionTimer();
-
-		// Check win/loss
 		CheckBattleEnd();
-
-		// Validate grid consistency after every step
 		ValidateGridConsistency();
-
 		FlushEvents(outEvents);
+	}
+
+	/// Run one full turn: advance to next unit, get AI action, execute it.
+	/// Convenience method that calls BeginTurn + AI + SubmitAction.
+	/// Returns the events generated this step (caller owns them).
+	public void Step(List<BattleEvent> outEvents)
+	{
+		let unitIdx = BeginTurn(outEvents);
+		if (unitIdx < 0) return;
+
+		let action = BattleAI.DecideAction(this, unitIdx, mDifficulty);
+
+		var actionEvents = scope List<BattleEvent>();
+		SubmitAction(action, actionEvents);
+		outEvents.AddRange(actionEvents);
 	}
 
 	/// Debug: validate that unit positions and grid occupancy are in sync.
