@@ -1,0 +1,15 @@
+FileVersion = 1
+
+[Project]
+Name = "StormTactics.Game"
+TargetType = "BeefLib"
+
+[Dependencies]
+corlib = "*"
+"StormTactics.Core" = "*"
+"StormTactics.Battle" = "*"
+"Sedulous.Foundation" = "*"
+"Sedulous.Mathematics" = "*"
+"Sedulous.Serialization" = "*"
+"Sedulous.Serialization.Xml" = "*"
+"Sedulous.Xml" = "*"

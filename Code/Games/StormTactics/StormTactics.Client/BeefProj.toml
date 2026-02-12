@@ -1,0 +1,6 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "StormTactics.Core" = "*", "StormTactics.Battle" = "*", "StormTactics.Game" = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Render" = "*", "Sedulous.Framework.Runtime" = "*", "Sedulous.Framework.Core" = "*", "Sedulous.Framework.Scenes" = "*", "Sedulous.Framework.Render" = "*", "Sedulous.Framework.UI" = "*", "Sedulous.Framework.Input" = "*", "Sedulous.Framework.Audio" = "*", "Sedulous.Audio.SDL3" = "*", "Sedulous.Audio.Decoders" = "*", "Sedulous.Profiler" = "*", "Sedulous.Resources" = "*", "Sedulous.Foundation" = "*", "Sedulous.Mathematics" = "*", "Sedulous.Serialization" = "*", "Sedulous.Serialization.Xml" = "*", "Sedulous.Xml" = "*", "Sedulous.Drawing" = "*", "Sedulous.Drawing.Fonts" = "*", "Sedulous.Fonts" = "*", "Sedulous.Fonts.TTF" = "*", "Sedulous.GUI" = "*", "Sedulous.Imaging.SDL" = "*", "Sedulous.Textures.Resources" = "*", "Sedulous.Materials" = "*", "Sedulous.Geometry" = "*", "Sedulous.Logging" = "*"}
+
+[Project]
+Name = "StormTactics.Client"
+StartupObject = "StormTactics.Client.Program"
