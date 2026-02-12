@@ -49,6 +49,9 @@ class BattleUnitView
 	private Vector3 mAttackTargetPos;
 	private Vector3 mAttackOriginPos;
 
+	// Facing
+	private Quaternion mFacingRotation = .Identity;
+
 	// Constants
 	private const float MOVE_SPEED = 4.0f; // hexes per second (tunable)
 	private const float ATTACK_DURATION = 0.4f;
@@ -78,9 +81,13 @@ class BattleUnitView
 
 		mEntityId = scene.CreateEntity();
 
-		// Position
+		// Position + initial facing
+		let initialAngle = (force == .Attacker) ? Math.PI_f * 0.5f : -Math.PI_f * 0.5f;
+		mFacingRotation = Quaternion.CreateFromAxisAngle(.(0, 1, 0), initialAngle);
+
 		var transform = scene.GetTransform(mEntityId);
 		transform.Position = mWorldPos;
+		transform.Rotation = mFacingRotation;
 		scene.SetTransform(mEntityId, transform);
 
 		// Mesh
@@ -103,6 +110,8 @@ class BattleUnitView
 		mTargetPos = .(wx, UNIT_HEIGHT * 0.5f, wz);
 		mMoveStartPos = mWorldPos;
 
+		UpdateFacing(mTargetPos);
+
 		let dist = Vector3.Distance(mWorldPos, mTargetPos);
 		mAnimDuration = dist / MOVE_SPEED;
 		if (mAnimDuration < 0.1f) mAnimDuration = 0.1f;
@@ -116,6 +125,7 @@ class BattleUnitView
 	{
 		mAttackOriginPos = mWorldPos;
 		mAttackTargetPos = targetWorldPos;
+		UpdateFacing(targetWorldPos);
 		mAnimTimer = 0;
 		mAnimDuration = ATTACK_DURATION;
 		mAnimState = .Attacking;
@@ -219,9 +229,10 @@ class BattleUnitView
 			// Nothing to do
 		}
 
-		// Apply position to entity
+		// Apply position + rotation to entity
 		var transform = scene.GetTransform(mEntityId);
 		transform.Position = mWorldPos;
+		transform.Rotation = mFacingRotation;
 
 		// Scale down during death
 		if (mAnimState == .Dying)
@@ -276,5 +287,59 @@ class BattleUnitView
 		unit.SoldierCount.ToString(countText);
 		let textPos = mWorldPos + Vector3(0, UNIT_HEIGHT + 0.15f, 0);
 		debugFeature.AddTextCentered(countText, textPos, .(255, 255, 255, 255), 0.008f, right, up);
+
+		// Buff/debuff icons
+		let buffCount = Math.Min((int32)unit.mBuffs.Count, 5);
+		if (buffCount > 0)
+		{
+			let buffY = mWorldPos.Y + UNIT_HEIGHT * 0.45f;
+			let buffSpacing = 0.12f;
+			let buffStartX = mWorldPos.X - (float)(buffCount - 1) * buffSpacing * 0.5f;
+
+			for (int32 b = 0; b < buffCount; b++)
+			{
+				let buff = unit.mBuffs[b];
+				let buffColor = GetBuffColor(buff.mConfig.mTag);
+				let buffPos = Vector3(buffStartX + (float)b * buffSpacing, buffY, mWorldPos.Z);
+				debugFeature.AddCircle(buffPos, 0.05f, .(0, 1, 0), buffColor, 8, .Overlay);
+			}
+		}
+	}
+
+	// --- Helpers ---
+
+	private void UpdateFacing(Vector3 targetWorldPos)
+	{
+		let dir = targetWorldPos - mWorldPos;
+		let lenSq = dir.X * dir.X + dir.Z * dir.Z;
+		if (lenSq > 0.001f)
+		{
+			let angle = Math.Atan2(dir.X, dir.Z);
+			mFacingRotation = Quaternion.CreateFromAxisAngle(.(0, 1, 0), angle);
+		}
+	}
+
+	private static Color GetBuffColor(BuffTag tag)
+	{
+		switch (tag)
+		{
+		case .Stun:        return .(255, 255, 0, 255);
+		case .Slow:        return .(0, 200, 255, 255);
+		case .Poison:      return .(160, 0, 200, 255);
+		case .Burn:        return .(255, 140, 0, 255);
+		case .Freeze:      return .(100, 180, 255, 255);
+		case .Silence:     return .(150, 150, 150, 255);
+		case .Charm:       return .(255, 100, 200, 255);
+		case .Shield:      return .(220, 220, 255, 255);
+		case .Regen:       return .(50, 255, 50, 255);
+		case .AttackUp:    return .(255, 80, 80, 255);
+		case .AttackDown:  return .(180, 50, 50, 255);
+		case .DefenseUp:   return .(80, 80, 255, 255);
+		case .DefenseDown: return .(50, 50, 180, 255);
+		case .SpeedUp:     return .(200, 255, 50, 255);
+		case .SpeedDown:   return .(120, 100, 50, 255);
+		case .Immune:      return .(255, 215, 0, 255);
+		default:           return .(200, 200, 200, 255);
+		}
 	}
 }

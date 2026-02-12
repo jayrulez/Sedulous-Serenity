@@ -12,6 +12,34 @@ using Sedulous.Resources;
 using StormTactics.Battle;
 using StormTactics.Core;
 
+struct FloatingNumber
+{
+	public Vector3 mPosition;
+	public float mTimer;
+	public float mDuration;
+	public int32 mValue;
+	public bool mIsHeal;
+	public bool mIsCritical;
+}
+
+enum BattleVFXType
+{
+	SkillCast,
+	BuffApply,
+	BuffRemove,
+	BattleResult
+}
+
+struct BattleVFX
+{
+	public BattleVFXType mType;
+	public Vector3 mPosition;
+	public float mTimer;
+	public float mDuration;
+	public Color mColor;
+	public String mText;
+}
+
 /// Orchestrates the visual representation of a battle.
 /// Bridges BattleSimulation (pure logic) to the 3D scene.
 class BattleScene
@@ -23,20 +51,20 @@ class BattleScene
 	private BattleSimulation mSimulation;
 
 	// Owned sub-systems
-	private HexGridRenderer mGridRenderer ~ delete _;
-	private BattleCamera mCamera ~ delete _;
-	private BattleAnimationSequencer mSequencer ~ delete _;
+	private HexGridRenderer mGridRenderer;
+	private BattleCamera mCamera;
+	private BattleAnimationSequencer mSequencer;
 
 	// Unit views
-	private List<BattleUnitView> mUnitViews = new .() ~ DeleteContainerAndItems!(_);
+	private List<BattleUnitView> mUnitViews = new .();
 
 	// Shared mesh resources for placeholders
-	private StaticMeshResource mAttackerMesh ~ _?.ReleaseRef();
-	private StaticMeshResource mDefenderMesh ~ _?.ReleaseRef();
+	private StaticMeshResource mAttackerMesh;
+	private StaticMeshResource mDefenderMesh;
 
 	// Materials
-	private MaterialInstance mAttackerMaterial ~ _?.ReleaseRef();
-	private MaterialInstance mDefenderMaterial ~ _?.ReleaseRef();
+	private MaterialInstance mAttackerMaterial;
+	private MaterialInstance mDefenderMaterial;
 
 	// Scene entities
 	private EntityId mSunEntity;
@@ -47,14 +75,25 @@ class BattleScene
 	private bool mAutoPlay;
 	private float mAutoStepTimer;
 	private float mAutoStepDelay = 0.1f; // Seconds between auto-steps
+	private float mSpeedMultiplier = 1.0f;
 	private bool mBattleStarted;
-	private List<BattleEvent> mStepEvents = new .() ~ { for (let e in _) delete e; delete _; };
+	private List<BattleEvent> mStepEvents = new .();
 
-	// HUD
-	private String mStatusText = new .() ~ delete _;
+	// Floating numbers & VFX
+	private List<FloatingNumber> mFloatingNumbers = new .();
+	private List<BattleVFX> mActiveEffects = new .();
+
+	// Hex hover detection
+	private HexCoord mHoveredHex;
+	private bool mHasHoveredHex;
+	private int32 mHoveredUnitIndex = -1;
 
 	public BattleCamera Camera => mCamera;
 	public bool IsAutoPlaying => mAutoPlay;
+	public BattleSimulation Simulation => mSimulation;
+	public HexCoord HoveredHex => mHoveredHex;
+	public bool HasHoveredHex => mHasHoveredHex;
+	public int32 HoveredUnitIndex => mHoveredUnitIndex;
 
 	/// Initialize the battle scene with a simulation.
 	public void Initialize(
@@ -127,9 +166,9 @@ class BattleScene
 
 		// Create sequencer
 		mSequencer = new BattleAnimationSequencer(mUnitViews, scene, hexSize);
+		mSequencer.OnEventStarted = new => OnSequencerEvent;
 
 		mBattleStarted = true;
-		mStatusText.Set("Battle ready. Space=Step, A=Auto, S=Skip");
 	}
 
 	/// Create materials for attacker and defender units.
@@ -181,9 +220,6 @@ class BattleScene
 
 		mSimulation.Step(mStepEvents);
 		mSequencer.QueueEvents(mStepEvents);
-
-		// Update status
-		UpdateStatusText();
 	}
 
 	/// Toggle auto-play mode.
@@ -191,7 +227,6 @@ class BattleScene
 	{
 		mAutoPlay = !mAutoPlay;
 		mAutoStepTimer = 0;
-		UpdateStatusText();
 	}
 
 	/// Skip all remaining animations.
@@ -203,30 +238,18 @@ class BattleScene
 	/// Set animation speed multiplier.
 	public void SetSpeed(float mult)
 	{
+		mSpeedMultiplier = mult;
 		mSequencer.SpeedMultiplier = mult;
 	}
 
-	/// Handle input.
+	/// Handle input (camera + keyboard shortcuts not handled by HUD).
 	public void HandleInput(Sedulous.Shell.Input.IKeyboard keyboard, Sedulous.Shell.Input.IMouse mouse, float dt)
 	{
 		mCamera.HandleInput(keyboard, mouse, dt);
 
-		// Space = step once
+		// Space = step once (keep as keyboard shortcut)
 		if (keyboard.IsKeyPressed(.Space) && !mAutoPlay)
 			StepBattle();
-
-		// A = toggle auto-play
-		if (keyboard.IsKeyPressed(.F))
-			ToggleAutoPlay();
-
-		// S = skip animations
-		if (keyboard.IsKeyPressed(.G))
-			SkipAnimations();
-
-		// 1/2/3 = speed control
-		if (keyboard.IsKeyPressed(.Num1)) SetSpeed(1.0f);
-		if (keyboard.IsKeyPressed(.Num2)) SetSpeed(2.0f);
-		if (keyboard.IsKeyPressed(.Num3)) SetSpeed(4.0f);
 	}
 
 	/// Update animations and auto-play.
@@ -234,25 +257,51 @@ class BattleScene
 	{
 		if (!mBattleStarted) return;
 
-		// Update camera
+		let scaledDt = dt * mSpeedMultiplier;
+
+		// Update camera (unscaled — camera should feel consistent)
 		mCamera.Update(dt);
 
-		// Update unit animations
+		// Update unit animations (scaled)
 		for (let view in mUnitViews)
 		{
 			if (view != null)
-				view.Update(mScene, dt);
+				view.Update(mScene, scaledDt);
 		}
 
-		// Update sequencer
+		// Update sequencer (applies its own multiplier internally, pass raw dt)
 		mSequencer.Update(dt);
 
-		// Auto-play: step when animations are done
+		// Update floating numbers (scaled)
+		for (int i = mFloatingNumbers.Count - 1; i >= 0; i--)
+		{
+			var num = mFloatingNumbers[i];
+			num.mTimer += scaledDt;
+			mFloatingNumbers[i] = num;
+			if (num.mTimer >= num.mDuration)
+				mFloatingNumbers.RemoveAt(i);
+		}
+
+		// Update VFX (scaled)
+		for (int i = mActiveEffects.Count - 1; i >= 0; i--)
+		{
+			var vfx = mActiveEffects[i];
+			vfx.mTimer += scaledDt;
+			mActiveEffects[i] = vfx;
+			if (vfx.mTimer >= vfx.mDuration)
+			{
+				if (vfx.mText != null)
+					delete vfx.mText;
+				mActiveEffects.RemoveAt(i);
+			}
+		}
+
+		// Auto-play: step when animations are done (scaled)
 		if (mAutoPlay && !mSimulation.IsFinished)
 		{
 			if (!mSequencer.IsPlaying)
 			{
-				mAutoStepTimer += dt;
+				mAutoStepTimer += scaledDt;
 				if (mAutoStepTimer >= mAutoStepDelay)
 				{
 					mAutoStepTimer = 0;
@@ -265,7 +314,6 @@ class BattleScene
 		if (mAutoPlay && mSimulation.IsFinished && !mSequencer.IsPlaying)
 		{
 			mAutoPlay = false;
-			UpdateStatusText();
 		}
 
 		// Focus camera on current active unit
@@ -281,8 +329,8 @@ class BattleScene
 		}
 	}
 
-	/// Draw debug overlay (HUD, health bars).
-	public void DrawOverlay(uint32 viewWidth, uint32 viewHeight)
+	/// Draw debug overlay (health bars, world-space VFX).
+	public void DrawOverlay()
 	{
 		if (mDebugFeature == null) return;
 
@@ -299,7 +347,7 @@ class BattleScene
 		// Draw grid overlays
 		mGridRenderer.DrawOverlays();
 
-		// Highlight current unit's hex
+		// Highlight current unit's hex and hovered hex
 		mGridRenderer.ClearHighlights();
 		if (!mSimulation.IsFinished)
 		{
@@ -312,101 +360,272 @@ class BattleScene
 			}
 		}
 
-		// Draw HUD
-		DrawHUD(viewWidth, viewHeight);
+		// Hovered hex highlight (cyan/white)
+		if (mHasHoveredHex)
+			mGridRenderer.SetHighlight(mHoveredHex, .(100, 220, 255, 60));
+
+		// Draw floating damage/heal numbers
+		DrawFloatingNumbers();
+
+		// Draw VFX
+		DrawVFX();
 	}
 
-	/// Draw the battle HUD.
-	private void DrawHUD(uint32 viewWidth, uint32 viewHeight)
+	// --- Event callback ---
+
+	private void OnSequencerEvent(BattleEvent ev)
 	{
-		let bgColor = Color(0, 0, 0, 180);
-		let white = Color(255, 255, 255, 255);
-		let yellow = Color(255, 255, 100, 255);
-		let cyan = Color(100, 255, 255, 255);
-		let green = Color(100, 255, 100, 255);
-		let red = Color(255, 100, 100, 255);
-
-		// Top-left: controls
-		mDebugFeature.AddRect2D(5, 5, 350, 90, bgColor);
-		mDebugFeature.AddText2D("STORM TACTICS - BATTLE", 15, 12, yellow, 1.3f);
-		mDebugFeature.AddText2D("Space:Step  F:Auto  G:Skip  1/2/3:Speed", 15, 32, white, 0.9f);
-		mDebugFeature.AddText2D("WASD:Pan  QE:Zoom  MMB:Rotate  Esc:Quit", 15, 48, white, 0.9f);
-		mDebugFeature.AddText2D(mStatusText, 15, 68, cyan, 1.0f);
-
-		// Top-right: battle stats
-		float panelX = (float)viewWidth - 200;
-		mDebugFeature.AddRect2D(panelX, 5, 195, 90, bgColor);
-
-		let turnText = scope String();
-		turnText.AppendF("Turn: {}", mSimulation.TurnCount);
-		mDebugFeature.AddText2D(turnText, panelX + 10, 12, white, 1.0f);
-
-		// Count alive units per side
-		int32 attackersAlive = 0, defendersAlive = 0;
-		for (int32 i = 0; i < mSimulation.UnitCount; i++)
+		switch (ev.mType)
 		{
-			let unit = mSimulation.GetUnit(i);
-			if (unit != null && unit.mAlive)
+		case .DamageDealt:
+			let dmgView = GetUnitView(ev.mTargetUnit);
+			if (dmgView != null)
 			{
-				if (unit.mForce == .Attacker) attackersAlive++;
-				else defendersAlive++;
+				var num = FloatingNumber();
+				num.mPosition = dmgView.mWorldPos + Vector3(0, 0.6f, 0);
+				num.mDuration = 1.2f;
+				num.mValue = ev.mValue;
+				num.mIsHeal = false;
+				num.mIsCritical = ev.mIsCritical;
+				mFloatingNumbers.Add(num);
 			}
-		}
 
-		let attackerText = scope String();
-		attackerText.AppendF("Attackers: {}", attackersAlive);
-		mDebugFeature.AddText2D(attackerText, panelX + 10, 32, red, 1.0f);
-
-		let defenderText = scope String();
-		defenderText.AppendF("Defenders: {}", defendersAlive);
-		mDebugFeature.AddText2D(defenderText, panelX + 10, 52, .(100, 150, 255, 255), 1.0f);
-
-		// Battle state
-		if (mSimulation.IsFinished)
-		{
-			let resultText = scope String();
-			switch (mSimulation.State)
+		case .HealApplied:
+			let healView = GetUnitView(ev.mTargetUnit);
+			if (healView != null)
 			{
-			case .AttackerWins: resultText.Set("ATTACKERS WIN!");
-			case .DefenderWins: resultText.Set("DEFENDERS WIN!");
-			case .Draw: resultText.Set("DRAW!");
-			default: resultText.Set("Battle Over");
+				var num = FloatingNumber();
+				num.mPosition = healView.mWorldPos + Vector3(0, 0.6f, 0);
+				num.mDuration = 1.2f;
+				num.mValue = ev.mValue;
+				num.mIsHeal = true;
+				mFloatingNumbers.Add(num);
 			}
-			mDebugFeature.AddText2D(resultText, panelX + 10, 72, green, 1.2f);
-		}
-		else if (mAutoPlay)
-		{
-			mDebugFeature.AddText2D("AUTO-PLAYING...", panelX + 10, 72, yellow, 1.0f);
+
+		case .SkillUsed:
+			let casterView = GetUnitView(ev.mSourceUnit);
+			if (casterView != null)
+			{
+				var vfx = BattleVFX();
+				vfx.mType = .SkillCast;
+				vfx.mPosition = casterView.mWorldPos;
+				vfx.mDuration = 0.5f;
+				vfx.mColor = .(255, 255, 100, 255);
+				mActiveEffects.Add(vfx);
+			}
+
+		case .BuffApplied:
+			let buffView = GetUnitView(ev.mTargetUnit >= 0 ? ev.mTargetUnit : ev.mSourceUnit);
+			if (buffView != null)
+			{
+				var vfx = BattleVFX();
+				vfx.mType = .BuffApply;
+				vfx.mPosition = buffView.mWorldPos;
+				vfx.mDuration = 0.4f;
+				// Green for positive buffs, red for negative (check via buff config if available)
+				vfx.mColor = .(50, 255, 100, 255);
+				mActiveEffects.Add(vfx);
+			}
+
+		case .BuffRemoved:
+			let debuffView = GetUnitView(ev.mSourceUnit);
+			if (debuffView != null)
+			{
+				var vfx = BattleVFX();
+				vfx.mType = .BuffRemove;
+				vfx.mPosition = debuffView.mWorldPos;
+				vfx.mDuration = 0.3f;
+				vfx.mColor = .(200, 200, 200, 255);
+				mActiveEffects.Add(vfx);
+			}
+
+		default:
 		}
 	}
 
-	/// Update the status text.
-	private void UpdateStatusText()
+	// --- Drawing helpers ---
+
+	private void DrawFloatingNumbers()
 	{
-		mStatusText.Clear();
-		if (mSimulation.IsFinished)
+		let right = Vector3(1, 0, 0);
+		let up = Vector3(0, 1, 0);
+
+		for (let num in mFloatingNumbers)
 		{
-			switch (mSimulation.State)
-			{
-			case .AttackerWins: mStatusText.Set("Battle complete: Attackers win!");
-			case .DefenderWins: mStatusText.Set("Battle complete: Defenders win!");
-			case .Draw: mStatusText.Set("Battle complete: Draw!");
-			default: mStatusText.Set("Battle complete");
-			}
-		}
-		else if (mAutoPlay)
-		{
-			mStatusText.AppendF("Auto-playing (x{})", mSequencer.SpeedMultiplier);
-		}
-		else
-		{
-			mStatusText.AppendF("Turn {} — Space to step", mSimulation.TurnCount);
+			let t = num.mTimer / num.mDuration;
+			let alpha = (uint8)(255 * (1.0f - t));
+			let yOffset = 0.5f + t * 1.5f;
+			let pos = num.mPosition + Vector3(0, yOffset, 0);
+
+			Color color;
+			if (num.mIsHeal)
+				color = .(50, 255, 50, alpha);
+			else
+				color = .(255, 50, 50, alpha);
+
+			let scale = num.mIsCritical ? 0.012f : 0.008f;
+
+			let text = scope String();
+			if (num.mIsHeal)
+				text.Append("+");
+			num.mValue.ToString(text);
+			if (num.mIsCritical)
+				text.Append("!");
+
+			mDebugFeature.AddTextCentered(text, pos, color, scale, right, up, .Overlay);
 		}
 	}
 
-	/// Clean up resources.
+	private void DrawVFX()
+	{
+		for (let vfx in mActiveEffects)
+		{
+			let t = vfx.mTimer / vfx.mDuration;
+
+			switch (vfx.mType)
+			{
+			case .SkillCast:
+				let radius = 0.2f + t * 0.6f;
+				let alpha = (uint8)(255 * (1.0f - t));
+				let color = Color(vfx.mColor.R, vfx.mColor.G, vfx.mColor.B, alpha);
+				mDebugFeature.AddCircle(vfx.mPosition, radius, .(0, 1, 0), color, 16, .DepthTest);
+
+			case .BuffApply:
+				let ringY = vfx.mPosition.Y + t * 0.8f;
+				let ringAlpha = (uint8)(255 * (1.0f - t));
+				let ringPos = Vector3(vfx.mPosition.X, ringY, vfx.mPosition.Z);
+				let ringColor = Color(vfx.mColor.R, vfx.mColor.G, vfx.mColor.B, ringAlpha);
+				mDebugFeature.AddCircle(ringPos, 0.4f, .(0, 1, 0), ringColor, 16, .DepthTest);
+
+			case .BuffRemove:
+				let shrinkRadius = 0.4f * (1.0f - t);
+				let shrinkAlpha = (uint8)(255 * (1.0f - t));
+				let shrinkColor = Color(vfx.mColor.R, vfx.mColor.G, vfx.mColor.B, shrinkAlpha);
+				mDebugFeature.AddCircle(vfx.mPosition, shrinkRadius, .(0, 1, 0), shrinkColor, 12, .DepthTest);
+
+			case .BattleResult:
+				// Handled by BattleHUD overlay
+			}
+		}
+	}
+
+	private BattleUnitView GetUnitView(int32 unitIdx)
+	{
+		if (unitIdx < 0 || unitIdx >= mUnitViews.Count) return null;
+		return mUnitViews[unitIdx];
+	}
+
+	// --- Hex hover detection ---
+
+	/// Update hover state from mouse position using the view-projection matrix.
+	public void UpdateHover(float mouseX, float mouseY, uint32 viewWidth, uint32 viewHeight, Matrix viewProjectionMatrix)
+	{
+		mHasHoveredHex = false;
+		mHoveredUnitIndex = -1;
+
+		if (viewWidth == 0 || viewHeight == 0) return;
+
+		// Convert screen position to NDC (-1..1)
+		// Vulkan projection (FlipProjectionRequired) already negates clip Y,
+		// so NDC Y matches screen space: -1 at top, +1 at bottom.
+		let ndcX = (mouseX / (float)viewWidth) * 2.0f - 1.0f;
+		let ndcY = (mouseY / (float)viewHeight) * 2.0f - 1.0f;
+
+		// Compute inverse view-projection
+		Matrix invVP;
+		if (!Matrix.TryInvert(viewProjectionMatrix, out invVP))
+			return;
+
+		// Unproject near and far points
+		let nearPoint = Vector4(ndcX, ndcY, 0.0f, 1.0f);
+		let farPoint = Vector4(ndcX, ndcY, 1.0f, 1.0f);
+
+		var nearWorld = Vector4.Transform(nearPoint, invVP);
+		var farWorld = Vector4.Transform(farPoint, invVP);
+
+		if (Math.Abs(nearWorld.W) < 0.0001f || Math.Abs(farWorld.W) < 0.0001f)
+			return;
+
+		// Perspective divide
+		let near3 = Vector3(nearWorld.X / nearWorld.W, nearWorld.Y / nearWorld.W, nearWorld.Z / nearWorld.W);
+		let far3 = Vector3(farWorld.X / farWorld.W, farWorld.Y / farWorld.W, farWorld.Z / farWorld.W);
+
+		// Ray-plane intersection with Y=0
+		let rayDir = far3 - near3;
+		if (Math.Abs(rayDir.Y) < 0.0001f)
+			return; // Ray parallel to ground
+
+		let t = -near3.Y / rayDir.Y;
+		if (t < 0) return; // Behind camera
+
+		let worldX = near3.X + rayDir.X * t;
+		let worldZ = near3.Z + rayDir.Z * t;
+
+		// Convert to hex coordinate
+		let hex = HexCoord.FromWorld(worldX, worldZ, mHexSize);
+
+		// Validate bounds
+		if (mSimulation.Grid.InBounds(hex))
+		{
+			mHoveredHex = hex;
+			mHasHoveredHex = true;
+
+			// Find unit at this hex
+			for (int32 i = 0; i < mSimulation.UnitCount; i++)
+			{
+				let unit = mSimulation.GetUnit(i);
+				if (unit != null && unit.mAlive && unit.mPosition.Equals(hex))
+				{
+					mHoveredUnitIndex = i;
+					break;
+				}
+			}
+		}
+	}
+
+	/// Clean up resources in dependency order.
 	public void Shutdown()
 	{
+		// 1. Sequencer — references mUnitViews
+		delete mSequencer;
+		mSequencer = null;
+
+		// 2. Unit views — hold scene entity references
+		DeleteContainerAndItems!(mUnitViews);
+		mUnitViews = null;
+
+		// 3. Grid renderer — has scene entities and render system refs
 		mGridRenderer?.Shutdown();
+		delete mGridRenderer;
+		mGridRenderer = null;
+
+		// 4. Camera — standalone
+		delete mCamera;
+		mCamera = null;
+
+		// 5. Data lists
+		for (let e in mStepEvents) delete e;
+		delete mStepEvents;
+		mStepEvents = null;
+
+		delete mFloatingNumbers;
+		mFloatingNumbers = null;
+
+		for (let e in mActiveEffects)
+			if (e.mText != null) delete e.mText;
+		delete mActiveEffects;
+		mActiveEffects = null;
+
+		// 6. Materials — ReleaseRef before mesh resources
+		mAttackerMaterial?.ReleaseRef();
+		mAttackerMaterial = null;
+		mDefenderMaterial?.ReleaseRef();
+		mDefenderMaterial = null;
+
+		// 7. Mesh resources — ReleaseRef
+		mAttackerMesh?.ReleaseRef();
+		mAttackerMesh = null;
+		mDefenderMesh?.ReleaseRef();
+		mDefenderMesh = null;
 	}
 }

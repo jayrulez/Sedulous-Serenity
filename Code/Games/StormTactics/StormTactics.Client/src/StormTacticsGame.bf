@@ -10,9 +10,15 @@ using Sedulous.Framework.Runtime;
 using Sedulous.Framework.Core;
 using Sedulous.Framework.Scenes;
 using Sedulous.Framework.Render;
+using Sedulous.Framework.Input;
+using Sedulous.Framework.UI;
 using Sedulous.Render;
 using Sedulous.Materials;
 using Sedulous.Profiler;
+using Sedulous.Drawing.Fonts;
+using Sedulous.Fonts;
+using Sedulous.Fonts.TTF;
+using Sedulous.GUI;
 using StormTactics.Battle;
 using StormTactics.Core;
 
@@ -21,11 +27,13 @@ class StormTacticsGame : Application
 	// Framework subsystems
 	private SceneSubsystem mSceneSubsystem;
 	private RenderSubsystem mRenderSubsystem;
+	private InputSubsystem mInputSubsystem;
+	private UISubsystem mUISubsystem;
 	private Scene mMainScene;
 
 	// Render system
-	private RenderSystem mRenderSystem ~ delete _;
-	private RenderView mRenderView ~ delete _;
+	private RenderSystem mRenderSystem;
+	private RenderView mRenderView;
 
 	// Render features
 	private DepthPrepassFeature mDepthFeature;
@@ -34,13 +42,18 @@ class StormTacticsGame : Application
 	private DebugRenderFeature mDebugFeature;
 	private FinalOutputFeature mFinalOutputFeature;
 
+	// UI
+	private FontService mFontService;
+	private GameTheme mGameTheme;
+	private BattleHUD mBattleHUD;
+
 	// Game state
 	private GameState mGameState = .Loading;
-	private BattleScene mBattleScene ~ delete _;
+	private BattleScene mBattleScene;
 
 	// Test battle data (for demo — will be replaced by proper game flow)
-	private ConfigDatabase mTestConfigs ~ delete _;
-	private BattleSimulation mTestSim ~ delete _;
+	private ConfigDatabase mTestConfigs;
+	private BattleSimulation mTestSim;
 
 	// Timing
 	private float mDeltaTime;
@@ -115,6 +128,11 @@ class StormTacticsGame : Application
 		mRenderSubsystem = new RenderSubsystem(mRenderSystem, takeOwnership: false);
 		context.RegisterSubsystem(mRenderSubsystem);
 
+		// Input subsystem
+		mInputSubsystem = new InputSubsystem();
+		mInputSubsystem.SetInputManager(mShell.InputManager);
+		context.RegisterSubsystem(mInputSubsystem);
+
 		Console.WriteLine("Subsystems registered");
 	}
 
@@ -129,8 +147,62 @@ class StormTacticsGame : Application
 		// Create a test battle for demo
 		CreateTestBattle();
 
+		// Initialize UI (after battle scene so we can wire events)
+		InitializeUI();
+
 		mGameState = .Battle;
 		Console.WriteLine("Storm Tactics initialized — entering battle demo");
+	}
+
+	private void InitializeUI()
+	{
+		// Initialize font service
+		mFontService = new FontService();
+		let fontPath = scope String();
+		GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", fontPath);
+
+		int32[6] fontSizes = .(14, 16, 18, 20, 24, 32);
+		for (let size in fontSizes)
+		{
+			FontLoadOptions options = .ExtendedLatin;
+			options.PixelHeight = size;
+			if (mFontService.LoadFont("Roboto", fontPath, options) case .Err)
+				Console.WriteLine("Failed to load font at size {}", size);
+		}
+
+		// Create and initialize UI subsystem
+		mUISubsystem = new UISubsystem(mFontService);
+		mContext.RegisterSubsystem(mUISubsystem);
+
+		if (mUISubsystem.InitializeRendering(mDevice, .BGRA8UnormSrgb, FrameConfig.MAX_FRAMES_IN_FLIGHT, mShell, mWindow, mRenderSystem) case .Err)
+		{
+			Console.WriteLine("Failed to initialize UI rendering");
+			return;
+		}
+
+		// Use GameTheme for dark UI with gold accents
+		mGameTheme = new GameTheme();
+		mUISubsystem.GUIContext.RegisterService<ITheme>(mGameTheme);
+
+		// Create battle HUD
+		mBattleHUD = new BattleHUD();
+		mUISubsystem.GUIContext.RootElement = mBattleHUD.RootElement;
+
+		// Wire HUD events
+		mBattleHUD.OnAutoToggle.Subscribe(new () => {
+			mBattleScene?.ToggleAutoPlay();
+		});
+		mBattleHUD.OnSkip.Subscribe(new () => {
+			mBattleScene?.SkipAnimations();
+		});
+		mBattleHUD.OnStep.Subscribe(new () => {
+			mBattleScene?.StepBattle();
+		});
+		mBattleHUD.OnSpeedChanged.Subscribe(new (speed) => {
+			mBattleScene?.SetSpeed(speed);
+		});
+
+		Console.WriteLine("UI system initialized");
 	}
 
 	/// Create a test battle with sample units for the demo.
@@ -239,7 +311,8 @@ class StormTacticsGame : Application
 		if (keyboard.IsKeyPressed(.Escape))
 			Exit();
 
-		if (mBattleScene != null)
+		// Only forward input to battle scene if UI didn't consume it
+		if (mBattleScene != null && !(mInputSubsystem?.UIConsumedInput ?? false))
 			mBattleScene.HandleInput(keyboard, mouse, mDeltaTime);
 	}
 
@@ -248,7 +321,109 @@ class StormTacticsGame : Application
 		mDeltaTime = (float)frame.DeltaTime;
 
 		if (mBattleScene != null)
+		{
 			mBattleScene.Update(mDeltaTime);
+
+			// Update hover detection (use view-projection from last frame)
+			if (!(mInputSubsystem?.UIConsumedInput ?? false))
+			{
+				let mouse = mShell.InputManager.Mouse;
+				mBattleScene.UpdateHover(mouse.X, mouse.Y, mSwapChain.Width, mSwapChain.Height,
+					mRenderView.ViewProjectionMatrix);
+			}
+		}
+
+		// Push battle state to HUD
+		UpdateHUD();
+	}
+
+	private void UpdateHUD()
+	{
+		if (mBattleHUD == null || mBattleScene == null) return;
+
+		let sim = mBattleScene.Simulation;
+		if (sim == null) return;
+
+		// Count alive units per side
+		int32 attackersAlive = 0, defendersAlive = 0;
+		for (int32 i = 0; i < sim.UnitCount; i++)
+		{
+			let unit = sim.GetUnit(i);
+			if (unit != null && unit.mAlive)
+			{
+				if (unit.mForce == .Attacker) attackersAlive++;
+				else defendersAlive++;
+			}
+		}
+
+		mBattleHUD.UpdateTurnInfo(sim.TurnCount, attackersAlive, defendersAlive);
+
+		// Update current unit info
+		let curIdx = sim.CurrentUnitIndex;
+		if (curIdx >= 0)
+		{
+			let unit = sim.GetUnit(curIdx);
+			if (unit != null && unit.mAlive)
+			{
+				let className = scope String();
+				unit.mConfig.mUnitClass.ToString(className);
+
+				mBattleHUD.UpdateCurrentUnit(
+					unit.mConfig.mName,
+					unit.mCurrentHP,
+					unit.mMaxHP,
+					className,
+					unit.mModifiedDamage,
+					unit.mModifiedDefense,
+					unit.mModifiedActionSpeed
+				);
+			}
+			else
+			{
+				mBattleHUD.ClearCurrentUnit();
+			}
+		}
+		else
+		{
+			mBattleHUD.ClearCurrentUnit();
+		}
+
+		// Update target info from hover
+		if (mBattleScene.HoveredUnitIndex >= 0)
+		{
+			let targetUnit = sim.GetUnit(mBattleScene.HoveredUnitIndex);
+			if (targetUnit != null && targetUnit.mAlive)
+			{
+				let targetClass = scope String();
+				targetUnit.mConfig.mUnitClass.ToString(targetClass);
+				mBattleHUD.UpdateTargetInfo(targetUnit.mConfig.mName, targetUnit.mCurrentHP, targetUnit.mMaxHP, targetClass);
+			}
+			else
+			{
+				mBattleHUD.ClearTargetInfo();
+			}
+		}
+		else
+		{
+			mBattleHUD.ClearTargetInfo();
+		}
+
+		// Update auto-play state
+		mBattleHUD.SetAutoPlaying(mBattleScene.IsAutoPlaying);
+
+		// Show battle result
+		if (sim.IsFinished)
+		{
+			let resultStr = scope String();
+			switch (sim.State)
+			{
+			case .AttackerWins: resultStr.Set("ATTACKERS WIN!");
+			case .DefenderWins: resultStr.Set("DEFENDERS WIN!");
+			case .Draw: resultStr.Set("DRAW!");
+			default: resultStr.Set("Battle Over");
+			}
+			mBattleHUD.ShowBattleResult(resultStr);
+		}
 	}
 
 	protected override bool OnRenderFrame(RenderContext render)
@@ -265,9 +440,9 @@ class StormTacticsGame : Application
 				mRenderSystem.SetActiveWorld(world);
 		}
 
-		// Draw battle overlays
+		// Draw battle overlays (world-space: health bars, floating numbers, VFX)
 		if (mBattleScene != null)
-			mBattleScene.DrawOverlay(mSwapChain.Width, mSwapChain.Height);
+			mBattleScene.DrawOverlay();
 
 		// Update camera from battle camera
 		if (mBattleScene != null)
@@ -279,13 +454,6 @@ class StormTacticsGame : Application
 			mRenderView.Width = mSwapChain.Width;
 			mRenderView.Height = mSwapChain.Height;
 			mRenderView.UpdateMatrices(mDevice.FlipProjectionRequired);
-
-			// Also update camera entity transform
-			if (mMainScene != null)
-			{
-				// Update camera entity for the scene's RenderSceneModule
-				// The RenderSceneModule reads the camera entity's transform
-			}
 
 			mRenderSystem.SetCamera(
 				mRenderView.CameraPosition,
@@ -305,6 +473,14 @@ class StormTacticsGame : Application
 			mRenderSystem.Execute(render.Encoder);
 
 		mRenderSystem.EndFrame();
+
+		// Render UI overlay on top of 3D scene
+		if (mUISubsystem != null)
+		{
+			mUISubsystem.RenderUI(render.Encoder, render.SwapChain.CurrentTextureView,
+				mSwapChain.Width, mSwapChain.Height, render.Frame.FrameIndex);
+		}
+
 		return true;
 	}
 
@@ -312,10 +488,39 @@ class StormTacticsGame : Application
 	{
 		Profiler.Shutdown();
 
-		mBattleScene?.Shutdown();
+		// Cleanup in dependency order:
+		// 1. HUD — before UISubsystem is torn down by context
+		delete mBattleHUD;
+		mBattleHUD = null;
 
+		// 2. Theme + font service — GUIContext doesn't take ownership
+		delete mGameTheme;
+		mGameTheme = null;
+		delete mFontService;
+		mFontService = null;
+
+		// 3. BattleScene — references render system, debug feature, simulation
+		mBattleScene?.Shutdown();
+		delete mBattleScene;
+		mBattleScene = null;
+
+		// 4. Simulation — references config database
+		delete mTestSim;
+		mTestSim = null;
+
+		// 5. Config data — standalone
+		delete mTestConfigs;
+		mTestConfigs = null;
+
+		// 6. Render view — standalone
+		delete mRenderView;
+		mRenderView = null;
+
+		// 7. Render system — owns features, must be last
 		if (mRenderSystem != null)
 			mRenderSystem.Shutdown();
+		delete mRenderSystem;
+		mRenderSystem = null;
 
 		Console.WriteLine("Storm Tactics shutting down");
 	}

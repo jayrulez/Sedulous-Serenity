@@ -32,8 +32,9 @@ class BattleAnimationSequencer
 	// Current event being processed
 	private int32 mCurrentEventIndex;
 
-	// Callback for when all events are done
+	// Callbacks
 	public bool IsPlaying => mState != .Idle || mEventQueue.Count > 0;
+	public delegate void(BattleEvent ev) OnEventStarted ~ delete _;
 
 	public float SpeedMultiplier { get => mSpeedMultiplier; set => mSpeedMultiplier = Math.Max(0.5f, value); }
 
@@ -135,6 +136,8 @@ class BattleAnimationSequencer
 	/// Start playing the visual for an event.
 	private void StartEvent(BattleEvent ev)
 	{
+		OnEventStarted?.Invoke(ev);
+
 		switch (ev.mType)
 		{
 		case .BattleStarted:
@@ -245,6 +248,8 @@ class BattleAnimationSequencer
 	/// Apply an event instantly (skip mode).
 	private void ApplyEventInstantly(BattleEvent ev)
 	{
+		OnEventStarted?.Invoke(ev);
+
 		switch (ev.mType)
 		{
 		case .UnitMoved:
