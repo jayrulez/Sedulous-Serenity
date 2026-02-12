@@ -26,6 +26,9 @@ using Sedulous.Textures.Resources;
 using Sedulous.Imaging;
 using Sedulous.Animation;
 using Sedulous.Animation.Resources;
+using Sedulous.Serialization;
+using Sedulous.Serialization.OpenDDL;
+using Sedulous.OpenDDL;
 using Sedulous.Profiler;
 using Sedulous.Drawing.Fonts;
 using Sedulous.Fonts;
@@ -109,6 +112,9 @@ class FrameworkAnimationApp : Application
 	private TextBlock mBlendTreeLabel;
 	private TextBlock mMultiLayerLabel;
 
+	// Property animation demo
+	private PropertyAnimationClip mSunAnimClip;
+
 	// UI-driven parameter values
 	private float mStateMachineSpeed = 0.0f;
 	private bool mStateMachineGrounded = true;
@@ -148,6 +154,7 @@ class FrameworkAnimationApp : Application
 		CreateMainScene();
 		CreateSceneObjects();
 		BuildAnimationGraphs();
+		SetupPropertyAnimationDemo();
 		CreateUI();
 
 		Console.WriteLine("\n=== Animation Graph Demo Ready ===");
@@ -825,6 +832,82 @@ class FrameworkAnimationApp : Application
 		mMultiLayerPlayer = animModule.SetupGraphAnimation(mMultiLayerEntity, mMultiLayerGraph, mSkeleton);
 	}
 
+	// ==================== Property Animation Demo ====================
+
+	private void SetupPropertyAnimationDemo()
+	{
+		let animModule = mMainScene.GetModule<AnimationSceneModule>();
+		if (animModule == null) return;
+
+		let cacheDir = scope String();
+		GetAssetPath(CACHE_REL_PATH, cacheDir);
+		Directory.CreateDirectory(cacheDir);
+
+		let clipPath = scope String();
+		clipPath.AppendF("{}/sun_cycle.propanimation", cacheDir);
+
+		if (File.Exists(clipPath))
+		{
+			// Load from file
+			if (PropertyAnimationClipResource.LoadFromFile(clipPath) case .Ok(let resource))
+			{
+				mSunAnimClip = resource.Clip;
+				// Take ownership away from resource so clip outlives it
+				resource.SetClip(null);
+				delete resource;
+				Console.WriteLine($"Loaded property animation from: {clipPath}");
+			}
+			else
+			{
+				Console.WriteLine("WARNING: Failed to load property animation, recreating...");
+				mSunAnimClip = CreateSunAnimationClip();
+				SaveSunAnimationClip(clipPath);
+			}
+		}
+		else
+		{
+			// Create and save
+			mSunAnimClip = CreateSunAnimationClip();
+			SaveSunAnimationClip(clipPath);
+		}
+
+		if (mSunAnimClip != null)
+		{
+			animModule.PlayPropertyAnimation(mSunEntity, mSunAnimClip, true);
+			Console.WriteLine("Property animation playing: sun rotation cycle (10s loop)");
+		}
+	}
+
+	private PropertyAnimationClip CreateSunAnimationClip()
+	{
+		let clip = new PropertyAnimationClip("SunCycle", 10.0f, true);
+
+		// Animate sun rotation: sweeping yaw over 10 seconds
+		let rotTrack = clip.AddQuaternionTrack("Transform.Rotation");
+		rotTrack.Easing = .Linear;
+
+		// Keyframes: rotate from one angle through a sweep and back
+		rotTrack.AddKeyframe(0.0f, Quaternion.CreateFromYawPitchRoll(0.8f, 0.6f, 0));
+		rotTrack.AddKeyframe(2.5f, Quaternion.CreateFromYawPitchRoll(1.6f, 0.8f, 0));
+		rotTrack.AddKeyframe(5.0f, Quaternion.CreateFromYawPitchRoll(2.4f, 0.6f, 0));
+		rotTrack.AddKeyframe(7.5f, Quaternion.CreateFromYawPitchRoll(1.6f, 0.4f, 0));
+		rotTrack.AddKeyframe(10.0f, Quaternion.CreateFromYawPitchRoll(0.8f, 0.6f, 0));
+
+		Console.WriteLine("Created property animation clip: SunCycle (5 keyframes, 10s)");
+		return clip;
+	}
+
+	private void SaveSunAnimationClip(StringView path)
+	{
+		let resource = new PropertyAnimationClipResource(mSunAnimClip);
+		defer delete resource;
+
+		if (resource.SaveToFile(path) case .Ok)
+			Console.WriteLine($"Saved property animation to: {path}");
+		else
+			Console.WriteLine("WARNING: Failed to save property animation");
+	}
+
 	// ==================== UI ====================
 
 	private void CreateUI()
@@ -1203,6 +1286,9 @@ class FrameworkAnimationApp : Application
 		delete mStateMachineGraph;
 		delete mBlendTreeGraph;
 		delete mMultiLayerGraph;
+
+		// Delete property animation clip (owned by us, not the resource)
+		delete mSunAnimClip;
 
 		// Shutdown render system (GPU idle, release features/GPU resources)
 		mRenderSystem?.Shutdown();
