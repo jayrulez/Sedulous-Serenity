@@ -188,7 +188,7 @@ class FrameworkNavigationApp : Application
 		// UI
 		mUISubsystem = new UISubsystem(mFontService);
 		context.RegisterSubsystem(mUISubsystem);
-		if (mUISubsystem.InitializeRendering(mDevice, .BGRA8UnormSrgb, 2, mShell, mRenderSystem) not case .Ok)
+		if (mUISubsystem.InitializeRendering(mDevice, .BGRA8UnormSrgb, 2, mShell, mWindow, mRenderSystem) not case .Ok)
 		{
 			Console.WriteLine("  - UISubsystem (render init failed)");
 		}

@@ -67,6 +67,10 @@ public class ShadowRenderer : IDisposable
 		{
 			if (let light = world.GetLight(mMainDirectionalLight))
 			{
+				// Apply per-light shadow normal bias to CSM config
+				if (light.ShadowNormalBias > 0)
+					mCascadedShadows.SetNormalBias(light.ShadowNormalBias);
+
 				mCascadedShadows.Update(camera, light.Direction);
 			}
 		}

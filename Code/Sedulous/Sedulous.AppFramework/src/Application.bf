@@ -88,6 +88,9 @@ public abstract class Application
 	// Text input delegate
 	private delegate void(StringView) mTextInputDelegate ~ delete _;
 
+	// Window event delegate (for DPI scaling)
+	private delegate void(IWindow, WindowEvent) mWindowEventDelegate ~ delete _;
+
 	// Cursor tracking
 	private CursorType mLastUICursor = .Default;
 
@@ -416,6 +419,18 @@ public abstract class Application
 		mGUIContext.RegisterService<IFontService>(mFontService);
 		mGUIContext.SetViewportSize((float)mSwapChain.Width, (float)mSwapChain.Height);
 
+		// Apply initial DPI scale from window
+		if (mWindow != null)
+		{
+			let scale = mWindow.ContentScale;
+			if (scale > 0)
+				mGUIContext.ScaleFactor = scale;
+		}
+
+		// Subscribe to window events for DPI changes
+		mWindowEventDelegate = new => OnWindowEvent;
+		mShell.WindowManager.OnWindowEvent.Subscribe(mWindowEventDelegate);
+
 		// Subscribe to text input events
 		mTextInputDelegate = new => OnTextInput;
 		mShell.InputManager.Keyboard.OnTextInput.Subscribe(mTextInputDelegate);
@@ -523,6 +538,25 @@ public abstract class Application
 	{
 		for (let c in text.DecodedChars)
 			mGUIContext.ProcessTextInput(c);
+	}
+
+	private void OnWindowEvent(IWindow window, WindowEvent evt)
+	{
+		if (window != mWindow)
+			return;
+
+		switch (evt.Type)
+		{
+		case .DisplayScaleChanged:
+			let scale = mWindow.ContentScale;
+			if (scale > 0 && mGUIContext != null)
+				mGUIContext.ScaleFactor = scale;
+		case .Resized:
+			HandleResize();
+		case .CloseRequested:
+			Exit();
+		default:
+		}
 	}
 
 	private GUIKeyModifiers GetGUIModifiers(Sedulous.Shell.Input.IKeyboard keyboard)

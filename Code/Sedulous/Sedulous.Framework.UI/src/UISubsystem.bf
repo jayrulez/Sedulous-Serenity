@@ -47,6 +47,10 @@ public class UISubsystem : Subsystem, ISceneAware
 	private IDevice mDevice;
 	private bool mRenderingInitialized;
 
+	// DPI scaling
+	private IWindow mWindow;
+	private delegate void(IWindow, WindowEvent) mWindowEventDelegate;
+
 	// Total time accumulator
 	private float mTotalTime;
 
@@ -178,6 +182,13 @@ public class UISubsystem : Subsystem, ISceneAware
 			mTextInputDelegate = null;
 		}
 
+		if (mWindowEventDelegate != null)
+		{
+			delete mWindowEventDelegate;
+			mWindowEventDelegate = null;
+		}
+
+		mWindow = null;
 		mRenderingInitialized = false;
 	}
 
@@ -185,11 +196,12 @@ public class UISubsystem : Subsystem, ISceneAware
 	/// Creates the DrawingRenderer, DrawContext, FontService, and default theme.
 	/// Automatically sets up clipboard from the shell.
 	/// If renderSystem is provided, registers the WorldSpaceUIFeature for world-space UI panels.
-	public Result<void> InitializeRendering(IDevice device, TextureFormat targetFormat, int32 frameCount, IShell shell, RenderSystem renderSystem = null)
+	public Result<void> InitializeRendering(IDevice device, TextureFormat targetFormat, int32 frameCount, IShell shell, IWindow window, RenderSystem renderSystem = null)
 	{
 		mDevice = device;
 		mFrameCount = frameCount;
 		mRenderSystem = renderSystem;
+		mWindow = window;
 		mGUIContext = new GUIContext();
 
 		mDrawingRenderer = new DrawingRenderer();
@@ -220,6 +232,18 @@ public class UISubsystem : Subsystem, ISceneAware
 			mWorldSpaceUIFeature = new WorldSpaceUIFeature();
 			renderSystem.RegisterFeature(mWorldSpaceUIFeature);
 		}
+
+		// Apply initial DPI scale from window
+		if (mWindow != null)
+		{
+			let scale = mWindow.ContentScale;
+			if (scale > 0)
+				mGUIContext.ScaleFactor = scale;
+		}
+
+		// Subscribe to window events for DPI changes
+		mWindowEventDelegate = new => OnWindowEvent;
+		shell.WindowManager.OnWindowEvent.Subscribe(mWindowEventDelegate);
 
 		mRenderingInitialized = true;
 		return .Ok;
@@ -416,6 +440,21 @@ public class UISubsystem : Subsystem, ISceneAware
 
 		for (let c in text.DecodedChars)
 			mGUIContext.ProcessTextInput(c);
+	}
+
+	// ==================== DPI Scaling ====================
+
+	private void OnWindowEvent(IWindow window, WindowEvent evt)
+	{
+		if (window != mWindow)
+			return;
+
+		if (evt.Type == .DisplayScaleChanged)
+		{
+			let scale = mWindow.ContentScale;
+			if (scale > 0 && mGUIContext != null)
+				mGUIContext.ScaleFactor = scale;
+		}
 	}
 
 	// ==================== World Panel Input ====================
