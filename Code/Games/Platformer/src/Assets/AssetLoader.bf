@@ -15,7 +15,7 @@ using Sedulous.Resources;
 using Sedulous.Logging.Abstractions;
 using Sedulous.Framework.Core;
 
-/// Imports glTF models from the PlatformerGameKit asset pack and builds a ResourceRegistry.
+/// Imports glTF models from the Kenney Platformer Kit asset pack and builds a ResourceRegistry.
 /// The Framework's RenderSceneModule will automatically resolve ResourceRefs and upload to GPU.
 class AssetLoader
 {
@@ -100,10 +100,10 @@ class AssetLoader
 	public void ImportAssets(Context context)
 	{
 		let registryPath = scope String();
-		registryPath.AppendF("{}/platformer/registry.txt", mCacheDir);
+		registryPath.AppendF("{}/kenney2/registry.txt", mCacheDir);
 
 		let cachePlatformer = scope String();
-		cachePlatformer.AppendF("{}/platformer", mCacheDir);
+		cachePlatformer.AppendF("{}/kenney2", mCacheDir);
 
 		// Check if cache exists
 		if (File.Exists(registryPath))
@@ -126,64 +126,68 @@ class AssetLoader
 			mLogger?.LogInformation("No cached registry found, importing fresh");
 		}
 
-		mLogger?.LogInformation("Importing models from PlatformerGameKit...");
+		mLogger?.LogInformation("Importing models from Kenney Platformer Kit...");
 		Directory.CreateDirectory(cachePlatformer);
 
 		let basePath = scope String();
-		basePath.AppendF("{}/samples/models/PlatformerGameKit", mAssetDir);
+		basePath.AppendF("{}/samples/models/kenney_platformer-kit/Models/GLB format", mAssetDir);
 
-		// Character (skinned with animations)
-		ImportSkinnedGltfModel(basePath, "Character/glTF/Character.gltf", "character", cachePlatformer);
+		// Characters (skinned with animations) - 5 playable characters
+		ImportSkinnedGltfModel(basePath, "character-oobi.glb", "character_oobi", cachePlatformer);
+		ImportSkinnedGltfModel(basePath, "character-oodi.glb", "character_oodi", cachePlatformer);
+		ImportSkinnedGltfModel(basePath, "character-ooli.glb", "character_ooli", cachePlatformer);
+		ImportSkinnedGltfModel(basePath, "character-oopi.glb", "character_oopi", cachePlatformer);
+		ImportSkinnedGltfModel(basePath, "character-oozi.glb", "character_oozi", cachePlatformer);
 
-		// Enemies (skinned with animations)
-		ImportSkinnedGltfModel(basePath, "Enemies/glTF/Enemy.gltf", "enemy_slime", cachePlatformer);
-		ImportSkinnedGltfModel(basePath, "Enemies/glTF/Bee.gltf", "enemy_bee", cachePlatformer);
-		ImportSkinnedGltfModel(basePath, "Enemies/glTF/Crab.gltf", "enemy_crab", cachePlatformer);
-		ImportSkinnedGltfModel(basePath, "Enemies/glTF/Skull.gltf", "enemy_skull", cachePlatformer);
+		// Enemies (skinned - reuse character models with different colors)
+		ImportSkinnedGltfModel(basePath, "character-oozi.glb", "enemy_slime", cachePlatformer);
+		ImportSkinnedGltfModel(basePath, "character-ooli.glb", "enemy_bee", cachePlatformer);
+		ImportSkinnedGltfModel(basePath, "character-oodi.glb", "enemy_crab", cachePlatformer);
+		ImportSkinnedGltfModel(basePath, "character-oobi.glb", "enemy_skull", cachePlatformer);
 
-		// Cubes (tiles)
-		ImportGltfModel(basePath, "Cubes/glTF/Cube_Grass_Single.gltf", "cube_grass", cachePlatformer);
-		ImportGltfModel(basePath, "Cubes/glTF/Cube_Dirt_Single.gltf", "cube_dirt", cachePlatformer);
-		ImportGltfModel(basePath, "Cubes/glTF/Cube_Bricks.gltf", "cube_brick", cachePlatformer);
-		ImportGltfModel(basePath, "Cubes/glTF/Cube_Crate.gltf", "cube_crate", cachePlatformer);
-		ImportGltfModel(basePath, "Cubes/glTF/Cube_Spikes.gltf", "cube_spike", cachePlatformer);
-		ImportGltfModel(basePath, "Cubes/glTF/Cube_Question.gltf", "cube_question", cachePlatformer);
-		ImportGltfModel(basePath, "Cubes/glTF/Cube_Exclamation.gltf", "cube_exclamation", cachePlatformer);
+		// Tiles (blocks) - all use full-size block variants for consistent grid sizing
+		ImportGltfModel(basePath, "block-grass.glb", "cube_grass", cachePlatformer);
+		ImportGltfModel(basePath, "block-snow.glb", "cube_dirt", cachePlatformer);
+		ImportGltfModel(basePath, "block-snow.glb", "cube_brick", cachePlatformer);
+		ImportGltfModel(basePath, "crate.glb", "cube_crate", cachePlatformer);
+		ImportGltfModel(basePath, "spike-block.glb", "cube_spike", cachePlatformer);
+		ImportGltfModel(basePath, "crate-item.glb", "cube_question", cachePlatformer);
+		ImportGltfModel(basePath, "crate-item-strong.glb", "cube_exclamation", cachePlatformer);
+
+		// Moving platform
+		ImportGltfModel(basePath, "block-moving.glb", "block_moving", cachePlatformer);
 
 		// Level mechanics
-		ImportGltfModel(basePath, "Level and Mechanics/glTF/Goal_Flag.gltf", "goal_flag", cachePlatformer);
-		ImportGltfModel(basePath, "Level and Mechanics/glTF/Door.gltf", "door", cachePlatformer);
-		ImportGltfModel(basePath, "Level and Mechanics/glTF/Bouncer.gltf", "bouncer", cachePlatformer);
-		ImportGltfModel(basePath, "Level and Mechanics/glTF/Spikes.gltf", "spikes", cachePlatformer);
-		ImportGltfModel(basePath, "Level and Mechanics/glTF/SpikyBall.gltf", "spikyball", cachePlatformer);
-		ImportGltfModel(basePath, "Level and Mechanics/glTF/Hazard_Saw.gltf", "saw", cachePlatformer);
-		ImportGltfModel(basePath, "Level and Mechanics/glTF/Cannon.gltf", "cannon", cachePlatformer);
-		ImportGltfModel(basePath, "Level and Mechanics/glTF/Cannonball.gltf", "cannonball", cachePlatformer);
-		ImportGltfModel(basePath, "Level and Mechanics/glTF/Lever.gltf", "lever", cachePlatformer);
-		ImportGltfModel(basePath, "Level and Mechanics/glTF/Chest.gltf", "chest", cachePlatformer);
-		ImportGltfModel(basePath, "Level and Mechanics/glTF/Arrow.gltf", "arrow", cachePlatformer);
+		ImportGltfModel(basePath, "flag.glb", "goal_flag", cachePlatformer);
+		ImportGltfModel(basePath, "door-open.glb", "door", cachePlatformer);
+		ImportGltfModel(basePath, "spring.glb", "bouncer", cachePlatformer);
+		ImportGltfModel(basePath, "trap-spikes.glb", "spikes", cachePlatformer);
+		ImportGltfModel(basePath, "bomb.glb", "spikyball", cachePlatformer);
+		ImportGltfModel(basePath, "saw.glb", "saw", cachePlatformer);
+		ImportGltfModel(basePath, "pipe.glb", "cannon", cachePlatformer);
+		ImportGltfModel(basePath, "bomb.glb", "cannonball", cachePlatformer);
+		ImportGltfModel(basePath, "lever.glb", "lever", cachePlatformer);
+		ImportGltfModel(basePath, "chest.glb", "chest", cachePlatformer);
+		ImportGltfModel(basePath, "arrow.glb", "arrow", cachePlatformer);
 
-		// Powerups and pickups
-		ImportGltfModel(basePath, "Powerups and Pickups/glTF/Coin.gltf", "coin", cachePlatformer);
-		ImportGltfModel(basePath, "Powerups and Pickups/glTF/Gem_Blue.gltf", "gem_blue", cachePlatformer);
-		ImportGltfModel(basePath, "Powerups and Pickups/glTF/Gem_Green.gltf", "gem_green", cachePlatformer);
-		ImportGltfModel(basePath, "Powerups and Pickups/glTF/Gem_Pink.gltf", "gem_pink", cachePlatformer);
-		ImportGltfModel(basePath, "Powerups and Pickups/glTF/Heart.gltf", "heart", cachePlatformer);
-		ImportGltfModel(basePath, "Powerups and Pickups/glTF/Key.gltf", "key", cachePlatformer);
-		ImportGltfModel(basePath, "Powerups and Pickups/glTF/Star.gltf", "star", cachePlatformer);
+		// Pickups
+		ImportGltfModel(basePath, "coin-gold.glb", "coin", cachePlatformer);
+		ImportGltfModel(basePath, "jewel.glb", "gem_blue", cachePlatformer);
+		ImportGltfModel(basePath, "jewel.glb", "gem_green", cachePlatformer);
+		ImportGltfModel(basePath, "jewel.glb", "gem_pink", cachePlatformer);
+		ImportGltfModel(basePath, "heart.glb", "heart", cachePlatformer);
+		ImportGltfModel(basePath, "key.glb", "key", cachePlatformer);
+		ImportGltfModel(basePath, "star.glb", "star", cachePlatformer);
 
-		// Nature
-		ImportGltfModel(basePath, "Nature/glTF/Tree.gltf", "tree", cachePlatformer);
-		ImportGltfModel(basePath, "Nature/glTF/Bush.gltf", "bush", cachePlatformer);
-		ImportGltfModel(basePath, "Nature/glTF/Rock_1.gltf", "rock1", cachePlatformer);
-		ImportGltfModel(basePath, "Nature/glTF/Rock_2.gltf", "rock2", cachePlatformer);
-		ImportGltfModel(basePath, "Nature/glTF/Cloud_1.gltf", "cloud1", cachePlatformer);
-		ImportGltfModel(basePath, "Nature/glTF/Cloud_2.gltf", "cloud2", cachePlatformer);
-		ImportGltfModel(basePath, "Nature/glTF/Cloud_3.gltf", "cloud3", cachePlatformer);
-		ImportGltfModel(basePath, "Nature/glTF/Grass_1.gltf", "grass1", cachePlatformer);
+		// Nature / decorations
+		ImportGltfModel(basePath, "tree.glb", "tree", cachePlatformer);
+		ImportGltfModel(basePath, "hedge.glb", "bush", cachePlatformer);
+		ImportGltfModel(basePath, "rocks.glb", "rock1", cachePlatformer);
+		ImportGltfModel(basePath, "stones.glb", "rock2", cachePlatformer);
+		ImportGltfModel(basePath, "grass.glb", "grass1", cachePlatformer);
 
 		// Save registry
-		Directory.CreateDirectory(scope String()..AppendF("{}/platformer", mCacheDir));
+		Directory.CreateDirectory(scope String()..AppendF("{}/kenney2", mCacheDir));
 		if (mRegistry.SaveToFile(registryPath) case .Ok)
 			mLogger?.LogInformation("Registry saved with {} entries", mRegistry.Count);
 		else
@@ -230,12 +234,18 @@ class AssetLoader
 		CreatePlaceholderModel(cachePlaceholder, "cube_question", .(0.9f, 0.8f, 0.1f, 1.0f));
 		CreatePlaceholderModel(cachePlaceholder, "cube_exclamation", .(0.9f, 0.8f, 0.1f, 1.0f));
 
-		// Character and enemies (will be used as static mesh fallback)
-		CreatePlaceholderModel(cachePlaceholder, "character", .(0.2f, 0.4f, 0.9f, 1.0f));
-		CreatePlaceholderModel(cachePlaceholder, "enemy_slime", .(0.4f, 0.8f, 0.1f, 1.0f));
-		CreatePlaceholderModel(cachePlaceholder, "enemy_bee", .(0.9f, 0.7f, 0.0f, 1.0f));
-		CreatePlaceholderModel(cachePlaceholder, "enemy_crab", .(0.9f, 0.2f, 0.1f, 1.0f));
-		CreatePlaceholderModel(cachePlaceholder, "enemy_skull", .(0.9f, 0.9f, 0.9f, 1.0f));
+		// Characters (5 playable - will be used as static mesh fallback)
+		CreatePlaceholderModel(cachePlaceholder, "character_oobi", .(0.5f, 0.2f, 0.7f, 1.0f));  // Purple
+		CreatePlaceholderModel(cachePlaceholder, "character_oodi", .(0.9f, 0.4f, 0.6f, 1.0f));  // Pink
+		CreatePlaceholderModel(cachePlaceholder, "character_ooli", .(0.9f, 0.6f, 0.2f, 1.0f));  // Orange
+		CreatePlaceholderModel(cachePlaceholder, "character_oopi", .(0.2f, 0.7f, 0.7f, 1.0f));  // Teal
+		CreatePlaceholderModel(cachePlaceholder, "character_oozi", .(0.6f, 0.4f, 0.2f, 1.0f));  // Brown
+
+		// Enemies
+		CreatePlaceholderModel(cachePlaceholder, "enemy_slime", .(0.6f, 0.4f, 0.2f, 1.0f));
+		CreatePlaceholderModel(cachePlaceholder, "enemy_bee", .(0.9f, 0.6f, 0.2f, 1.0f));
+		CreatePlaceholderModel(cachePlaceholder, "enemy_crab", .(0.9f, 0.4f, 0.6f, 1.0f));
+		CreatePlaceholderModel(cachePlaceholder, "enemy_skull", .(0.5f, 0.2f, 0.7f, 1.0f));
 
 		// Pickups
 		CreatePlaceholderModel(cachePlaceholder, "coin", .(1.0f, 0.85f, 0.0f, 1.0f));
@@ -259,14 +269,14 @@ class AssetLoader
 		CreatePlaceholderModel(cachePlaceholder, "chest", .(0.6f, 0.6f, 0.6f, 1.0f));
 		CreatePlaceholderModel(cachePlaceholder, "arrow", .(0.6f, 0.6f, 0.6f, 1.0f));
 
+		// Moving platform
+		CreatePlaceholderModel(cachePlaceholder, "block_moving", .(0.3f, 0.6f, 0.9f, 1.0f));
+
 		// Nature / decorations
 		CreatePlaceholderModel(cachePlaceholder, "tree", .(0.15f, 0.5f, 0.1f, 1.0f));
 		CreatePlaceholderModel(cachePlaceholder, "bush", .(0.15f, 0.5f, 0.1f, 1.0f));
 		CreatePlaceholderModel(cachePlaceholder, "rock1", .(0.5f, 0.5f, 0.5f, 1.0f));
 		CreatePlaceholderModel(cachePlaceholder, "rock2", .(0.5f, 0.5f, 0.5f, 1.0f));
-		CreatePlaceholderModel(cachePlaceholder, "cloud1", .(0.85f, 0.85f, 0.9f, 1.0f));
-		CreatePlaceholderModel(cachePlaceholder, "cloud2", .(0.85f, 0.85f, 0.9f, 1.0f));
-		CreatePlaceholderModel(cachePlaceholder, "cloud3", .(0.85f, 0.85f, 0.9f, 1.0f));
 		CreatePlaceholderModel(cachePlaceholder, "grass1", .(0.15f, 0.5f, 0.1f, 1.0f));
 
 		// Save registry
@@ -831,7 +841,7 @@ class AssetLoader
 		return false;
 	}
 
-	/// Gets the ResourceRef for a skinned mesh by its key name (e.g., "character", "enemy_slime").
+	/// Gets the ResourceRef for a skinned mesh by its key name (e.g., "character_oobi", "enemy_slime").
 	public bool GetSkinnedMeshRef(StringView key, out ResourceRef meshRef, out List<ResourceRef> materialRefs,
 		out ResourceRef skeletonRef, out List<ResourceRef> animationRefs)
 	{

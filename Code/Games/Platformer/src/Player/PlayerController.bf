@@ -33,6 +33,13 @@ class PlayerController
 	private PhysicsSceneModule mPhysicsModule;
 	private ILogger mLogger;
 
+	// Character skill multipliers (set from CharacterDefinition)
+	public float MoveSpeedMultiplier = 1.0f;
+	public float JumpMultiplier = 1.0f;
+	public int32 MaxHealth = 3;
+	public float InvincibilityMultiplier = 1.0f;
+	public int32 CoinMultiplier = 1;
+
 	// Input state (set externally each frame)
 	public float MoveInput;
 	public bool JumpPressed;
@@ -43,6 +50,26 @@ class PlayerController
 		mScene = scene;
 		mPhysicsModule = physicsModule;
 		mLogger = logger;
+	}
+
+	/// Apply character skill modifiers and set initial health on the player entity.
+	public void ApplyCharacterSkills(EntityId playerEntity, CharacterDefinition charDef)
+	{
+		MoveSpeedMultiplier = charDef.MoveSpeedMultiplier;
+		JumpMultiplier = charDef.JumpMultiplier;
+		MaxHealth = charDef.MaxHealth;
+		InvincibilityMultiplier = charDef.InvincibilityMultiplier;
+		CoinMultiplier = charDef.CoinMultiplier;
+
+		var player = mScene.GetComponent<PlayerComponent>(playerEntity);
+		if (player != null)
+		{
+			player.Health = MaxHealth;
+			mScene.SetComponent<PlayerComponent>(playerEntity, *player);
+		}
+
+		mLogger?.LogInformation("Character skills: speed={}x, jump={}x, hp={}, invincibility={}x, coins={}x",
+			MoveSpeedMultiplier, JumpMultiplier, MaxHealth, InvincibilityMultiplier, CoinMultiplier);
 	}
 
 	/// Update player physics for one fixed timestep.
@@ -61,7 +88,7 @@ class PlayerController
 			player.InvincibleTimer -= dt;
 
 		// Horizontal movement with acceleration
-		float targetVelX = MoveInput * MOVE_SPEED;
+		float targetVelX = MoveInput * MOVE_SPEED * MoveSpeedMultiplier;
 		if (Math.Abs(targetVelX) > 0.01f)
 		{
 			vel.X = MoveTowards(vel.X, targetVelX, ACCELERATION * dt);
@@ -75,7 +102,7 @@ class PlayerController
 		// Jump initiation
 		if (player.Grounded && JumpPressed)
 		{
-			vel.Y = JUMP_VELOCITY;
+			vel.Y = JUMP_VELOCITY * JumpMultiplier;
 			player.JumpTimer = JUMP_HOLD_TIME;
 			player.Grounded = false;
 			player.JumpHeld = true;
@@ -153,7 +180,7 @@ class PlayerController
 			return;
 
 		player.Health -= damage;
-		player.InvincibleTimer = INVINCIBLE_TIME;
+		player.InvincibleTimer = INVINCIBLE_TIME * InvincibilityMultiplier;
 		mLogger?.LogInformation("Player took {} damage, health now {}", damage, player.Health);
 
 		if (player.Health <= 0)
@@ -186,9 +213,9 @@ class PlayerController
 		switch (type)
 		{
 		case .Coin, .GemBlue, .GemGreen, .GemPink, .Star:
-			player.Coins += value;
+			player.Coins += value * CoinMultiplier;
 		case .Heart:
-			player.Health = Math.Min(player.Health + 1, 3);
+			player.Health = Math.Min(player.Health + 1, MaxHealth);
 			mLogger?.LogDebug("Player healed to {}", player.Health);
 		case .Key:
 			player.Keys++;

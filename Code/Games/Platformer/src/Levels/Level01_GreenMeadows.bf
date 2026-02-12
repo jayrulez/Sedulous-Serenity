@@ -12,35 +12,33 @@ static class Level01_GreenMeadows
 		level.Name.Set("Green Meadows");
 		level.AllocateTiles(40, 12);
 
-		// Build from bottom up (row 0 = bottom)
+		//              0000000000111111111122222222223333333333
+		//              0123456789012345678901234567890123456789
 		StringView[12] rows = .(
-			"DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",  // 0
-			"DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",  // 1
-			"DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",  // 2
-			"DDDD...............................DDDDDDDD",  // 3
-			"DDDD...............................DDDDDDDD",  // 4
-			"GGGG.........G.....G......GGGGG.GGGGGGGGGG",  // 5
-			"P.....GGGGG...GGG...GGGGG......GGGGGGGGGGG",  // 6
-			".......$$$..........................$.....F.",  // 7
-			"........................................T...",  // 8
-			".......................T.........T..........",  // 9
-			"........................................T...",  // 10
-			"..........................................."   // 11
+			"DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD", // 0  solid ground
+			"DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD", // 1  solid ground
+			"DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD", // 2  solid ground
+			"DDDD............................DDDDDDDD", // 3  underground
+			"GGGG..GGGGG..GGGG..GGGG..GGGGG..GGGGGGGG", // 4  grass surface
+			"P.....................................F.", // 5  player / goal
+			"........................................", // 6
+			"........................................", // 7
+			"........................................", // 8
+			"........................................", // 9
+			"........................................", // 10
+			"........................................"  // 11
 		);
 
 		for (int32 i = 0; i < 12; i++)
 			level.SetRow(i, rows[i]);
 
-		// Player spawn is set by 'P' in row 6, x=0
 		level.SpawnX = 0;
-		level.SpawnY = 6;
+		level.SpawnY = 5;
+		level.GoalX = 38;
+		level.GoalY = 5;
 
-		// Goal flag
-		level.GoalX = 37;
-		level.GoalY = 7;
-
-		// Enemies: one slime on the middle platform
-		level.Enemies.Add(EnemyPlacement(.Slime, 27, 6, 25, 30));
+		// Slime on the last platform
+		level.Enemies.Add(EnemyPlacement(.Slime, 35, 5, 33, 38));
 
 		return level;
 	}
@@ -48,26 +46,20 @@ static class Level01_GreenMeadows
 	/// Populates entity placements from the grid.
 	public static void PopulateEntities(LevelDefinition level, LevelBuilder builder)
 	{
-		// Coins above the first platform
-		builder.CreatePickupEntity(.Coin, level.GridToWorld(7, 7) + .(0, 0.3f, 0));
-		builder.CreatePickupEntity(.Coin, level.GridToWorld(8, 7) + .(0, 0.3f, 0));
-		builder.CreatePickupEntity(.Coin, level.GridToWorld(9, 7) + .(0, 0.3f, 0));
+		// Coins above the second platform
+		builder.CreatePickupEntity(.Coin, level.GridToWorld(7, 6) + .(0, 0.3f, 0));
+		builder.CreatePickupEntity(.Coin, level.GridToWorld(8, 6) + .(0, 0.3f, 0));
+		builder.CreatePickupEntity(.Coin, level.GridToWorld(9, 6) + .(0, 0.3f, 0));
 
 		// Coin near the end
-		builder.CreatePickupEntity(.Coin, level.GridToWorld(33, 7) + .(0, 0.3f, 0));
+		builder.CreatePickupEntity(.Coin, level.GridToWorld(34, 6) + .(0, 0.3f, 0));
 
 		// Trees (decorations behind the play area)
-		builder.CreateDecorationEntity("tree", level.GridToWorld(23, 9) + .(0, 0.5f, -3.0f), .(1.5f, 1.5f, 1.5f));
-		builder.CreateDecorationEntity("tree", level.GridToWorld(33, 9) + .(0, 0.5f, -3.0f), .(1.5f, 1.5f, 1.5f));
-		builder.CreateDecorationEntity("tree", level.GridToWorld(38, 8) + .(0, 0.5f, -3.0f), .(1.2f, 1.2f, 1.2f));
-		builder.CreateDecorationEntity("tree", level.GridToWorld(38, 10) + .(0, 0.5f, -3.0f), .(1.0f, 1.0f, 1.0f));
+		builder.CreateDecorationEntity("tree", level.GridToWorld(15, 8) + .(0, 0.5f, -3.0f), .(1.5f, 1.5f, 1.5f));
+		builder.CreateDecorationEntity("tree", level.GridToWorld(30, 8) + .(0, 0.5f, -3.0f), .(1.5f, 1.5f, 1.5f));
 
 		// Bushes
-		builder.CreateDecorationEntity("bush", level.GridToWorld(2, 6) + .(0, 0.5f, -2.0f), .(0.8f, 0.8f, 0.8f));
-		builder.CreateDecorationEntity("bush", level.GridToWorld(15, 6) + .(0, 0.5f, -2.0f), .(0.8f, 0.8f, 0.8f));
-
-		// Grass tufts
-		builder.CreateDecorationEntity("grass1", level.GridToWorld(5, 6) + .(0, 0.5f, 0.3f), .(0.5f, 0.5f, 0.5f));
-		builder.CreateDecorationEntity("grass1", level.GridToWorld(20, 6) + .(0, 0.5f, 0.3f), .(0.5f, 0.5f, 0.5f));
+		builder.CreateDecorationEntity("bush", level.GridToWorld(3, 5) + .(0, 0.5f, -2.0f), .(0.8f, 0.8f, 0.8f));
+		builder.CreateDecorationEntity("bush", level.GridToWorld(20, 5) + .(0, 0.5f, -2.0f), .(0.8f, 0.8f, 0.8f));
 	}
 }

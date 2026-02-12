@@ -58,7 +58,7 @@ class LevelBuilder
 	}
 
 	/// Builds the level from the given definition.
-	public void BuildLevel(LevelDefinition level)
+	public void BuildLevel(LevelDefinition level, StringView characterKey = "character_oopi")
 	{
 		ClearLevel();
 
@@ -97,8 +97,8 @@ class LevelBuilder
 
 		// Create player
 		let spawnPos = level.GridToWorld(level.SpawnX, level.SpawnY);
-		CreatePlayerEntity(.(spawnPos.X, spawnPos.Y + 0.5f, 0));
-		mLogger?.LogDebug("Player spawned at grid ({},{})", level.SpawnX, level.SpawnY);
+		CreatePlayerEntity(.(spawnPos.X, spawnPos.Y + 0.5f, 0), characterKey);
+		mLogger?.LogDebug("Player spawned at grid ({},{}) as '{}'", level.SpawnX, level.SpawnY, characterKey);
 
 		// Create goal flag
 		let goalPos = level.GridToWorld(level.GoalX, level.GoalY);
@@ -128,9 +128,6 @@ class LevelBuilder
 			let endPos = level.GridToWorld(hz.EndX, hz.EndY);
 			CreateMovingHazardEntity(hz.Type, startPos, endPos, hz.Speed);
 		}
-
-		// Add background clouds
-		AddBackgroundClouds(level);
 
 		mLogger?.LogInformation("Build complete - {} total entities ({} enemies, {} pickups, {} hazards, {} platforms, {} doors)",
 			mLevelEntities.Count, mEnemyEntities.Count, mPickupEntities.Count,
@@ -179,7 +176,7 @@ class LevelBuilder
 		mLevelEntities.Add(entity);
 	}
 
-	private void CreatePlayerEntity(Vector3 position)
+	private void CreatePlayerEntity(Vector3 position, StringView characterKey)
 	{
 		mPlayerEntity = mScene.CreateEntity();
 		mScene.SetName(mPlayerEntity, "Player");
@@ -191,7 +188,7 @@ class LevelBuilder
 		transform.Rotation = Quaternion.CreateFromAxisAngle(.(0, 1, 0), Math.PI_f / 2.0f);
 		mScene.SetTransform(mPlayerEntity, transform);
 
-		SetSkinnedMeshFromAsset(mPlayerEntity, "character");
+		SetSkinnedMeshFromAsset(mPlayerEntity, characterKey);
 
 		mScene.SetComponent<PlayerComponent>(mPlayerEntity, PlayerComponent.Default);
 
@@ -341,7 +338,7 @@ class LevelBuilder
 		transform.Scale = .(1.5f, 0.3f, 1.0f);
 		mScene.SetTransform(entity, transform);
 
-		SetMeshFromAsset(entity, "cube_grass");
+		SetMeshFromAsset(entity, "block_moving");
 
 		mScene.SetComponent<MovingPlatformComponent>(entity, MovingPlatformComponent.Create(startPos, endPos, speed));
 
@@ -401,25 +398,6 @@ class LevelBuilder
 		SetMeshFromAsset(entity, meshKey);
 
 		mLevelEntities.Add(entity);
-	}
-
-	private void AddBackgroundClouds(LevelDefinition level)
-	{
-		// Place a few clouds in the background at various heights
-		let levelWidth = level.Width * level.TileSize;
-		let cloudY = level.Height * level.TileSize + 3.0f;
-		let cloudZ = -8.0f; // Behind the play area
-
-		String[3] cloudKeys = .("cloud1", "cloud2", "cloud3");
-		float xStep = levelWidth / 5.0f;
-
-		for (int i = 0; i < 5; i++)
-		{
-			let x = xStep * (i + 0.5f);
-			let yOffset = (i % 3) * 1.5f;
-			let cloudKey = cloudKeys[i % 3];
-			CreateDecorationEntity(cloudKey, .(x, cloudY + yOffset, cloudZ), .(2.0f, 2.0f, 2.0f));
-		}
 	}
 
 	private void SetSkinnedMeshFromAsset(EntityId entity, StringView meshKey)

@@ -78,8 +78,12 @@ class PlatformerGame : Application
 	private FontService mFontService;
 	private Platformer.UI.GameTheme mGameTheme;
 	private MainMenu mMainMenu;
+	private CharacterSelect mCharacterSelect ~ delete _;
 	private LevelSelect mLevelSelect ~ delete _;
 	private GameHUD mGameHUD;
+
+	// Selected character
+	private CharacterType mSelectedCharacter = .Oopi;
 
 	// Input actions
 	private InputAction mMoveAction;
@@ -103,7 +107,7 @@ class PlatformerGame : Application
 	private int32 mPlayerAnimState = -1; // 0=Idle, 1=Run, 2=Jump, 3=Death
 
 	// Placeholder model toggle: true = use colored cubes, false = use real GLTF models
-	private const bool USE_PLACEHOLDER_MODELS = true;
+	private const bool USE_PLACEHOLDER_MODELS = false;
 
 	// Camera
 	private float mCameraX;
@@ -278,14 +282,17 @@ class PlatformerGame : Application
 
 		// Create UI screens
 		mMainMenu = new MainMenu();
+		mCharacterSelect = new CharacterSelect();
 		mLevelSelect = new LevelSelect();
 		mGameHUD = new GameHUD();
 
 		// Wire up events
 		mMainMenu.OnPlay.Subscribe(new => OnPlayClicked);
 		mMainMenu.OnQuit.Subscribe(new => OnQuitClicked);
+		mCharacterSelect.OnCharacterSelected.Subscribe(new => OnCharacterSelected);
+		mCharacterSelect.OnBack.Subscribe(new => OnBackToMenu);
 		mLevelSelect.OnLevelSelected.Subscribe(new => OnLevelSelected);
-		mLevelSelect.OnBack.Subscribe(new => OnBackToMenu);
+		mLevelSelect.OnBack.Subscribe(new => OnBackToCharacterSelect);
 		mGameHUD.OnResume.Subscribe(new => OnResumeClicked);
 		mGameHUD.OnRestart.Subscribe(new => OnRestartClicked);
 		mGameHUD.OnMainMenu.Subscribe(new => OnBackToMenu);
@@ -349,10 +356,10 @@ class PlatformerGame : Application
 		// Ambient lighting (set on the RenderWorld)
 		if (renderModule.World != null)
 		{
-			renderModule.World.AmbientColor = .(0.15f, 0.18f, 0.25f);
-			renderModule.World.AmbientIntensity = 1.2f;
+			renderModule.World.AmbientColor = .(0.04f, 0.05f, 0.08f);
+			renderModule.World.AmbientIntensity = 0.5f;
 			renderModule.World.Exposure = 1.0f;
-			mLogger.LogDebug("Ambient lighting configured (intensity=1.2, exposure=1.0)");
+			mLogger.LogDebug("Ambient lighting configured (intensity=0.5, exposure=1.0)");
 		}
 		else
 		{
@@ -377,7 +384,7 @@ class PlatformerGame : Application
 		// Directional light (sun)
 		mSunEntity = mScene.CreateEntity();
 		mScene.SetName(mSunEntity, "Sun");
-		renderModule.CreateDirectionalLight(mSunEntity, .(1.0f, 0.95f, 0.85f), 2.0f);
+		renderModule.CreateDirectionalLight(mSunEntity, .(1.0f, 0.95f, 0.85f), 1.5f);
 		var sunTransform = mScene.GetTransform(mSunEntity);
 		let lightDir = Vector3.Normalize(.(-0.3f, -1.0f, -0.5f));
 		sunTransform.Rotation = Quaternion.CreateFromAxisAngle(
@@ -483,6 +490,15 @@ class PlatformerGame : Application
 		{
 			mFlyCamera.HandleInput(keyboard, mShell.InputManager.Mouse, mDeltaTime);
 			return; // Don't process game input while flying
+		}
+
+		// Character select navigation (arrow keys + enter)
+		if (mGameState == .CharacterSelect)
+		{
+			mCharacterSelect.HandleInput(
+				keyboard.IsKeyPressed(.Left) || keyboard.IsKeyPressed(.A),
+				keyboard.IsKeyPressed(.Right) || keyboard.IsKeyPressed(.D),
+				keyboard.IsKeyPressed(.Return) || keyboard.IsKeyPressed(.Space));
 		}
 
 		// Buffer jump input so it's not lost between frames that skip FixedUpdate
@@ -999,10 +1015,14 @@ class PlatformerGame : Application
 		mLogger.LogDebug("Enemies: {}, MovingPlatforms: {}, MovingHazards: {}",
 			mCurrentLevel.Enemies.Count, mCurrentLevel.MovingPlatforms.Count, mCurrentLevel.MovingHazards.Count);
 
-		mLevelBuilder.BuildLevel(mCurrentLevel);
+		let charDef = CharacterDefinition.Get(mSelectedCharacter);
+		mLevelBuilder.BuildLevel(mCurrentLevel, charDef.ModelKey);
+
+		// Apply character skill modifiers
+		mPlayerController.ApplyCharacterSkills(mLevelBuilder.PlayerEntity, charDef);
 
 		// Preload player animation clips
-		PreloadPlayerAnimations();
+		PreloadPlayerAnimations(charDef.ModelKey);
 
 		// Populate pickups, decorations, etc.
 		PopulateLevelEntities(levelIndex);
@@ -1061,7 +1081,7 @@ class PlatformerGame : Application
 	// Animation Management
 	// =================================================================
 
-	private void PreloadPlayerAnimations()
+	private void PreloadPlayerAnimations(StringView characterKey = "character_oopi")
 	{
 		// Release previous handles
 		ReleaseAnimClipHandles();
@@ -1069,10 +1089,10 @@ class PlatformerGame : Application
 		mAnimModule = mScene.GetModule<AnimationSceneModule>();
 		mPlayerAnimState = -1;
 
-		mAnimClipIdle = LoadAnimClip("character", "Idle", 0);
-		mAnimClipRun = LoadAnimClip("character", "Run", 1);
-		mAnimClipJump = LoadAnimClip("character", "Jump_Idle", 2);
-		mAnimClipDeath = LoadAnimClip("character", "Death", 3);
+		mAnimClipIdle = LoadAnimClip(characterKey, "Idle", 0);
+		mAnimClipRun = LoadAnimClip(characterKey, "Run", 1);
+		mAnimClipJump = LoadAnimClip(characterKey, "Jump_Idle", 2);
+		mAnimClipDeath = LoadAnimClip(characterKey, "Death", 3);
 
 		int32 loaded = (mAnimClipIdle != null ? 1 : 0) + (mAnimClipRun != null ? 1 : 0) +
 			(mAnimClipJump != null ? 1 : 0) + (mAnimClipDeath != null ? 1 : 0);
@@ -1154,10 +1174,26 @@ class PlatformerGame : Application
 
 	private void OnPlayClicked()
 	{
-		mLogger.LogInformation("Play clicked -> LevelSelect");
+		mLogger.LogInformation("Play clicked -> CharacterSelect");
+		mGameState = .CharacterSelect;
+		ShowScreen(mCharacterSelect.RootElement);
+	}
+
+	private void OnCharacterSelected(CharacterType character)
+	{
+		mSelectedCharacter = character;
+		let def = CharacterDefinition.Get(character);
+		mLogger.LogInformation("Character selected: {} ({})", def.Name, def.SkillName);
 		mGameState = .LevelSelect;
 		mLevelSelect.SetUnlockedLevels(mUnlockedLevels);
 		ShowScreen(mLevelSelect.RootElement);
+	}
+
+	private void OnBackToCharacterSelect()
+	{
+		mLogger.LogInformation("Back to character select");
+		mGameState = .CharacterSelect;
+		ShowScreen(mCharacterSelect.RootElement);
 	}
 
 	private void OnQuitClicked()
