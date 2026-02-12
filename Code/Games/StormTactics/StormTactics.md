@@ -328,7 +328,8 @@ The interface layer for tactical combat.
 
 - [ ] **Battle results screen**
   - [x] Victory / Defeat / Draw banner (overlay with result text)
-  - [ ] Star rating (based on remaining HP, turns taken, units lost)
+  - [x] Star rating (based on remaining HP, turns taken, units lost)
+  - [x] Battle stats display (turns, survivors, kills, damage, healing)
   - [ ] EXP gained
   - [ ] Loot/rewards display
   - [x] "Continue" button

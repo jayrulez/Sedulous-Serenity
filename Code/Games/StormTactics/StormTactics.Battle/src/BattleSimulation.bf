@@ -31,6 +31,8 @@ class BattleResult
 	public int32 mTotalDamageDealt;
 	public int32 mTotalHealingDone;
 	public int32 mUnitsKilled;
+	public int32 mStarRating; // 0-3
+	public int32 mTotalAttackers; // Total attacker units at battle start
 }
 
 /// Pure-logic battle simulation with no rendering dependencies.
@@ -908,13 +910,33 @@ class BattleSimulation
 		result.mTotalHealingDone = mTotalHealingDone;
 		result.mUnitsKilled = mUnitsKilled;
 
+		int32 totalAttackers = 0;
 		for (let unit in mUnits)
 		{
+			if (unit.mForce == .Attacker) totalAttackers++;
 			if (!unit.mAlive) continue;
 			if (unit.mForce == .Attacker)
 				result.mSurvivingAttackers.Add(unit.mIndex);
 			else
 				result.mSurvivingDefenders.Add(unit.mIndex);
+		}
+		result.mTotalAttackers = totalAttackers;
+
+		// Star rating (attacker perspective)
+		if (mState == .AttackerWins)
+		{
+			let allAlive = result.mSurvivingAttackers.Count == totalAttackers;
+			let halfAlive = result.mSurvivingAttackers.Count >= (totalAttackers + 1) / 2;
+			if (allAlive && mTurnCount <= 20)
+				result.mStarRating = 3;
+			else if (halfAlive || mTurnCount <= 40)
+				result.mStarRating = 2;
+			else
+				result.mStarRating = 1;
+		}
+		else
+		{
+			result.mStarRating = 0;
 		}
 
 		return result;

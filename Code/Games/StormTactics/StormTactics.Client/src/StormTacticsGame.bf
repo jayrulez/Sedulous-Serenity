@@ -620,6 +620,9 @@ class StormTacticsGame : Application
 		// Show battle result
 		if (sim.IsFinished)
 		{
+			let result = sim.GetResult();
+			defer delete result;
+
 			let resultStr = scope String();
 			switch (sim.State)
 			{
@@ -628,7 +631,9 @@ class StormTacticsGame : Application
 			case .Draw: resultStr.Set("DRAW!");
 			default: resultStr.Set("Battle Over");
 			}
-			mBattleHUD.ShowBattleResult(resultStr);
+			mBattleHUD.ShowBattleResult(resultStr, result.mStarRating, result.mTotalTurns,
+				(int32)result.mSurvivingAttackers.Count, result.mTotalAttackers,
+				result.mTotalDamageDealt, result.mTotalHealingDone, result.mUnitsKilled);
 		}
 	}
 

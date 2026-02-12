@@ -70,6 +70,12 @@ class BattleHUD
 	// Battle result overlay
 	private Border mResultOverlay;
 	private TextBlock mResultText;
+	private TextBlock[3] mStarLabels;
+	private TextBlock mStatTurns;
+	private TextBlock mStatSurvivors;
+	private TextBlock mStatKills;
+	private TextBlock mStatDamage;
+	private TextBlock mStatHealing;
 	private Button mContinueButton;
 
 	// Action panel (player turn)
@@ -519,29 +525,107 @@ class BattleHUD
 		mResultOverlay.VerticalAlignment = .Stretch;
 		mResultOverlay.Visibility = .Collapsed;
 
-		let centerPanel = new StackPanel();
-		centerPanel.Orientation = .Vertical;
-		centerPanel.HorizontalAlignment = .Center;
-		centerPanel.VerticalAlignment = .Center;
-		centerPanel.Spacing = 20;
-		mResultOverlay.Child = centerPanel;
+		// Card container
+		let card = new Border();
+		card.Background = Color(18, 22, 32, 240);
+		card.Padding = Thickness(32, 24, 32, 24);
+		card.HorizontalAlignment = .Center;
+		card.VerticalAlignment = .Center;
+		card.Width = .Fixed(340);
+		mResultOverlay.Child = card;
 
+		let layout = new StackPanel();
+		layout.Orientation = .Vertical;
+		layout.Spacing = 16;
+		layout.HorizontalAlignment = .Center;
+		card.Child = layout;
+
+		// Result banner
 		mResultText = new TextBlock("VICTORY!");
 		mResultText.Foreground = Color(255, 215, 80);
 		mResultText.FontSize = 32;
 		mResultText.TextAlignment = .Center;
-		centerPanel.AddChild(mResultText);
+		mResultText.HorizontalAlignment = .Center;
+		layout.AddChild(mResultText);
 
+		// Star row — 3 individual stars
+		let starRow = new StackPanel();
+		starRow.Orientation = .Horizontal;
+		starRow.HorizontalAlignment = .Center;
+		starRow.Spacing = 8;
+
+		for (int32 i = 0; i < 3; i++)
+		{
+			let star = new TextBlock("\u{2606}");
+			star.FontSize = 28;
+			star.Foreground = Color(80, 80, 90);
+			mStarLabels[i] = star;
+			starRow.AddChild(star);
+		}
+		layout.AddChild(starRow);
+
+		// Divider
+		let divider = new Border();
+		divider.Background = Color(60, 65, 80);
+		divider.Height = .Fixed(1);
+		divider.HorizontalAlignment = .Stretch;
+		layout.AddChild(divider);
+
+		// Stats section
+		let statsPanel = new StackPanel();
+		statsPanel.Orientation = .Vertical;
+		statsPanel.Spacing = 6;
+		statsPanel.HorizontalAlignment = .Stretch;
+
+		mStatTurns = BuildStatRow(statsPanel, "Turns");
+		mStatSurvivors = BuildStatRow(statsPanel, "Survivors");
+		mStatKills = BuildStatRow(statsPanel, "Kills");
+		mStatDamage = BuildStatRow(statsPanel, "Damage Dealt");
+		mStatHealing = BuildStatRow(statsPanel, "Healing Done");
+
+		layout.AddChild(statsPanel);
+
+		// Divider
+		let divider2 = new Border();
+		divider2.Background = Color(60, 65, 80);
+		divider2.Height = .Fixed(1);
+		divider2.HorizontalAlignment = .Stretch;
+		layout.AddChild(divider2);
+
+		// Continue button
 		mContinueButton = new Button("Continue");
 		mContinueButton.Padding = Thickness(24, 10, 24, 10);
 		mContinueButton.HorizontalAlignment = .Center;
 		mContinueButton.Click.Subscribe(new (btn) => {
 			mOnContinue.[Friend]Invoke();
 		});
-		centerPanel.AddChild(mContinueButton);
+		layout.AddChild(mContinueButton);
 
 		// Add overlay directly to root grid (on top of HUD)
 		mRoot.AddChild(mResultOverlay);
+	}
+
+	/// Helper: creates a label + value row and returns the value TextBlock.
+	private TextBlock BuildStatRow(StackPanel parent, StringView labelText)
+	{
+		let row = new DockPanel();
+		row.HorizontalAlignment = .Stretch;
+		row.LastChildFill = false;
+
+		let label = new TextBlock(labelText);
+		label.Foreground = Color(150, 155, 170);
+		label.FontSize = 14;
+		DockPanelProperties.SetDock(label, .Left);
+		row.AddChild(label);
+
+		let value = new TextBlock("--");
+		value.Foreground = Color(230, 230, 240);
+		value.FontSize = 14;
+		DockPanelProperties.SetDock(value, .Right);
+		row.AddChild(value);
+
+		parent.AddChild(row);
+		return value;
 	}
 
 	// --- Public update methods ---
@@ -648,12 +732,44 @@ class BattleHUD
 		mTargetPanel.Visibility = .Collapsed;
 	}
 
-	public void ShowBattleResult(StringView result)
+	public void ShowBattleResult(StringView result, int32 stars, int32 turns, int32 surviving, int32 total,
+		int32 damageDealt, int32 healingDone, int32 unitsKilled)
 	{
 		if (mResultShown) return;
 		mResultShown = true;
 
 		mResultText.Text = result;
+
+		// Light up earned stars
+		let goldColor = Color(255, 215, 80);
+		let dimColor = Color(80, 80, 90);
+		for (int32 i = 0; i < 3; i++)
+		{
+			mStarLabels[i].Text = i < stars ? "\u{2605}" : "\u{2606}";
+			mStarLabels[i].Foreground = i < stars ? goldColor : dimColor;
+		}
+
+		// Populate stat values
+		let turnsStr = scope String();
+		turnsStr.AppendF("{}", turns);
+		mStatTurns.Text = turnsStr;
+
+		let survStr = scope String();
+		survStr.AppendF("{} / {}", surviving, total);
+		mStatSurvivors.Text = survStr;
+
+		let killsStr = scope String();
+		killsStr.AppendF("{}", unitsKilled);
+		mStatKills.Text = killsStr;
+
+		let dmgStr = scope String();
+		dmgStr.AppendF("{}", damageDealt);
+		mStatDamage.Text = dmgStr;
+
+		let healStr = scope String();
+		healStr.AppendF("{}", healingDone);
+		mStatHealing.Text = healStr;
+
 		mResultOverlay.Visibility = .Visible;
 	}
 
