@@ -1,0 +1,189 @@
+<root>
+  <array name="Items" count="10">
+    <!-- 201: Iron Defense - Positive, DefenseUp, 3 turns, +20% defense -->
+    <object>
+      <int32 name="Id">201</int32>
+      <string name="Name">Iron Defense</string>
+      <string name="Description">Hardens resolve, increasing defense by 20%.</string>
+      <string name="Icon">icon_buff_iron_defense</string>
+      <int32 name="Flag">0</int32>
+      <int32 name="Tag">12</int32>
+      <int32 name="Duration">3</int32>
+      <bool name="CanDispel">true</bool>
+      <float name="DotDamage">0</float>
+      <float name="HotHeal">0</float>
+      <array name="StatModifiers" count="1">
+        <object>
+          <int32 name="Attribute">2</int32>
+          <float name="FlatValue">0</float>
+          <float name="PercentValue">0.2</float>
+        </object>
+      </array>
+    </object>
+    <!-- 202: Shield Wall - Positive, Shield, 2 turns, +30 flat defense -->
+    <object>
+      <int32 name="Id">202</int32>
+      <string name="Name">Shield Wall</string>
+      <string name="Description">A protective barrier grants +30 defense.</string>
+      <string name="Icon">icon_buff_shield_wall</string>
+      <int32 name="Flag">0</int32>
+      <int32 name="Tag">8</int32>
+      <int32 name="Duration">2</int32>
+      <bool name="CanDispel">true</bool>
+      <float name="DotDamage">0</float>
+      <float name="HotHeal">0</float>
+      <array name="StatModifiers" count="1">
+        <object>
+          <int32 name="Attribute">2</int32>
+          <float name="FlatValue">30</float>
+          <float name="PercentValue">0</float>
+        </object>
+      </array>
+    </object>
+    <!-- 203: Battle Fury - Positive, AttackUp, 3 turns, +25% damage -->
+    <object>
+      <int32 name="Id">203</int32>
+      <string name="Name">Battle Fury</string>
+      <string name="Description">Surging adrenaline increases damage by 25%.</string>
+      <string name="Icon">icon_buff_battle_fury</string>
+      <int32 name="Flag">0</int32>
+      <int32 name="Tag">10</int32>
+      <int32 name="Duration">3</int32>
+      <bool name="CanDispel">true</bool>
+      <float name="DotDamage">0</float>
+      <float name="HotHeal">0</float>
+      <array name="StatModifiers" count="1">
+        <object>
+          <int32 name="Attribute">1</int32>
+          <float name="FlatValue">0</float>
+          <float name="PercentValue">0.25</float>
+        </object>
+      </array>
+    </object>
+    <!-- 204: Regeneration - Positive, Regen, 3 turns, HoT 50 -->
+    <object>
+      <int32 name="Id">204</int32>
+      <string name="Name">Regeneration</string>
+      <string name="Description">Healing energy restores 50 HP per turn.</string>
+      <string name="Icon">icon_buff_regen</string>
+      <int32 name="Flag">0</int32>
+      <int32 name="Tag">9</int32>
+      <int32 name="Duration">3</int32>
+      <bool name="CanDispel">true</bool>
+      <float name="DotDamage">0</float>
+      <float name="HotHeal">50</float>
+      <array name="StatModifiers" count="0">
+      </array>
+    </object>
+    <!-- 205: Speed Boost - Positive, SpeedUp, 2 turns, +30% speed -->
+    <object>
+      <int32 name="Id">205</int32>
+      <string name="Name">Speed Boost</string>
+      <string name="Description">Quickened reflexes increase action speed by 30%.</string>
+      <string name="Icon">icon_buff_speed</string>
+      <int32 name="Flag">0</int32>
+      <int32 name="Tag">14</int32>
+      <int32 name="Duration">2</int32>
+      <bool name="CanDispel">true</bool>
+      <float name="DotDamage">0</float>
+      <float name="HotHeal">0</float>
+      <array name="StatModifiers" count="1">
+        <object>
+          <int32 name="Attribute">3</int32>
+          <float name="FlatValue">0</float>
+          <float name="PercentValue">0.3</float>
+        </object>
+      </array>
+    </object>
+    <!-- 206: Burn - Negative, Burn, 3 turns, DoT 30 -->
+    <object>
+      <int32 name="Id">206</int32>
+      <string name="Name">Burn</string>
+      <string name="Description">Engulfed in flames, taking 30 damage per turn.</string>
+      <string name="Icon">icon_debuff_burn</string>
+      <int32 name="Flag">1</int32>
+      <int32 name="Tag">4</int32>
+      <int32 name="Duration">3</int32>
+      <bool name="CanDispel">true</bool>
+      <float name="DotDamage">30</float>
+      <float name="HotHeal">0</float>
+      <array name="StatModifiers" count="0">
+      </array>
+    </object>
+    <!-- 207: Poison - Negative, Poison, 4 turns, DoT 20 -->
+    <object>
+      <int32 name="Id">207</int32>
+      <string name="Name">Poison</string>
+      <string name="Description">Toxin courses through veins, dealing 20 damage per turn.</string>
+      <string name="Icon">icon_debuff_poison</string>
+      <int32 name="Flag">1</int32>
+      <int32 name="Tag">3</int32>
+      <int32 name="Duration">4</int32>
+      <bool name="CanDispel">true</bool>
+      <float name="DotDamage">20</float>
+      <float name="HotHeal">0</float>
+      <array name="StatModifiers" count="0">
+      </array>
+    </object>
+    <!-- 208: Freeze - Negative, Freeze, 1 turn, -50% speed -->
+    <object>
+      <int32 name="Id">208</int32>
+      <string name="Name">Freeze</string>
+      <string name="Description">Encased in ice, speed reduced by 50%.</string>
+      <string name="Icon">icon_debuff_freeze</string>
+      <int32 name="Flag">1</int32>
+      <int32 name="Tag">5</int32>
+      <int32 name="Duration">1</int32>
+      <bool name="CanDispel">true</bool>
+      <float name="DotDamage">0</float>
+      <float name="HotHeal">0</float>
+      <array name="StatModifiers" count="1">
+        <object>
+          <int32 name="Attribute">3</int32>
+          <float name="FlatValue">0</float>
+          <float name="PercentValue">-0.5</float>
+        </object>
+      </array>
+    </object>
+    <!-- 209: Slow - Negative, Slow, 2 turns, -30% speed -->
+    <object>
+      <int32 name="Id">209</int32>
+      <string name="Name">Slow</string>
+      <string name="Description">Movements become sluggish, speed reduced by 30%.</string>
+      <string name="Icon">icon_debuff_slow</string>
+      <int32 name="Flag">1</int32>
+      <int32 name="Tag">2</int32>
+      <int32 name="Duration">2</int32>
+      <bool name="CanDispel">true</bool>
+      <float name="DotDamage">0</float>
+      <float name="HotHeal">0</float>
+      <array name="StatModifiers" count="1">
+        <object>
+          <int32 name="Attribute">3</int32>
+          <float name="FlatValue">0</float>
+          <float name="PercentValue">-0.3</float>
+        </object>
+      </array>
+    </object>
+    <!-- 210: Vulnerability - Negative, DefenseDown, 3 turns, -25% defense -->
+    <object>
+      <int32 name="Id">210</int32>
+      <string name="Name">Vulnerability</string>
+      <string name="Description">Armor weakened, defense reduced by 25%.</string>
+      <string name="Icon">icon_debuff_vulnerability</string>
+      <int32 name="Flag">1</int32>
+      <int32 name="Tag">13</int32>
+      <int32 name="Duration">3</int32>
+      <bool name="CanDispel">true</bool>
+      <float name="DotDamage">0</float>
+      <float name="HotHeal">0</float>
+      <array name="StatModifiers" count="1">
+        <object>
+          <int32 name="Attribute">2</int32>
+          <float name="FlatValue">0</float>
+          <float name="PercentValue">-0.25</float>
+        </object>
+      </array>
+    </object>
+  </array>
+</root>

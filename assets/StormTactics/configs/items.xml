@@ -1,0 +1,72 @@
+<root>
+  <array name="Items" count="8">
+    <!-- Currency -->
+    <object>
+      <int32 name="Id">1001</int32>
+      <string name="Name">Gold Coin</string>
+      <string name="Description">Standard currency used for purchases and upgrades.</string>
+      <string name="Icon">icon_gold</string>
+      <int32 name="Type">2</int32>
+      <int32 name="StackMax">9999</int32>
+    </object>
+    <object>
+      <int32 name="Id">1002</int32>
+      <string name="Name">Gem</string>
+      <string name="Description">Premium currency for rare purchases.</string>
+      <string name="Icon">icon_gem</string>
+      <int32 name="Type">2</int32>
+      <int32 name="StackMax">9999</int32>
+    </object>
+    <!-- Materials -->
+    <object>
+      <int32 name="Id">1003</int32>
+      <string name="Name">Iron Ore</string>
+      <string name="Description">Used for crafting weapons and armor.</string>
+      <string name="Icon">icon_iron_ore</string>
+      <int32 name="Type">0</int32>
+      <int32 name="StackMax">999</int32>
+    </object>
+    <object>
+      <int32 name="Id">1004</int32>
+      <string name="Name">Magic Crystal</string>
+      <string name="Description">Used for enchanting equipment and upgrading mages.</string>
+      <string name="Icon">icon_magic_crystal</string>
+      <int32 name="Type">0</int32>
+      <int32 name="StackMax">999</int32>
+    </object>
+    <!-- Consumable -->
+    <object>
+      <int32 name="Id">1005</int32>
+      <string name="Name">HP Potion</string>
+      <string name="Description">Restores a small amount of HP before battle.</string>
+      <string name="Icon">icon_hp_potion</string>
+      <int32 name="Type">1</int32>
+      <int32 name="StackMax">99</int32>
+    </object>
+    <!-- Unit Shards -->
+    <object>
+      <int32 name="Id">1006</int32>
+      <string name="Name">Footman Shard</string>
+      <string name="Description">Collect shards to upgrade the Footman's star level.</string>
+      <string name="Icon">icon_shard_footman</string>
+      <int32 name="Type">3</int32>
+      <int32 name="StackMax">999</int32>
+    </object>
+    <object>
+      <int32 name="Id">1007</int32>
+      <string name="Name">Knight Shard</string>
+      <string name="Description">Collect shards to upgrade the Knight's star level.</string>
+      <string name="Icon">icon_shard_knight</string>
+      <int32 name="Type">3</int32>
+      <int32 name="StackMax">999</int32>
+    </object>
+    <object>
+      <int32 name="Id">1008</int32>
+      <string name="Name">Wizard Shard</string>
+      <string name="Description">Collect shards to upgrade the Wizard's star level.</string>
+      <string name="Icon">icon_shard_wizard</string>
+      <int32 name="Type">3</int32>
+      <int32 name="StackMax">999</int32>
+    </object>
+  </array>
+</root>

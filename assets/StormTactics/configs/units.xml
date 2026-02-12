@@ -1,0 +1,224 @@
+<root>
+  <array name="Items" count="10">
+    <!-- 1: Footman - Infantry, Human, Common, Physical melee -->
+    <object>
+      <int32 name="Id">1</int32>
+      <string name="Name">Footman</string>
+      <int32 name="Rarity">1</int32>
+      <int32 name="UnitClass">0</int32>
+      <int32 name="Race">0</int32>
+      <int32 name="SoldierHP">100</int32>
+      <int32 name="SoldierCount">10</int32>
+      <int32 name="Defense">20</int32>
+      <int32 name="SoldierDamage">15</int32>
+      <int32 name="DamageType">0</int32>
+      <bool name="IsRanged">false</bool>
+      <int32 name="AttackRange">1</int32>
+      <int32 name="AttackPattern">0</int32>
+      <int32 name="MoveType">0</int32>
+      <int32 name="MoveRange">2</int32>
+      <int32 name="ActionSpeed">80</int32>
+      <int32-array name="SkillIds" count="1">101</int32-array>
+      <string name="Icon">icon_footman</string>
+      <string name="ModelName">model_footman</string>
+    </object>
+    <!-- 2: Knight - Cavalry, Human, Rare, Physical melee, fast -->
+    <object>
+      <int32 name="Id">2</int32>
+      <string name="Name">Knight</string>
+      <int32 name="Rarity">3</int32>
+      <int32 name="UnitClass">1</int32>
+      <int32 name="Race">0</int32>
+      <int32 name="SoldierHP">150</int32>
+      <int32 name="SoldierCount">6</int32>
+      <int32 name="Defense">30</int32>
+      <int32 name="SoldierDamage">25</int32>
+      <int32 name="DamageType">0</int32>
+      <bool name="IsRanged">false</bool>
+      <int32 name="AttackRange">1</int32>
+      <int32 name="AttackPattern">0</int32>
+      <int32 name="MoveType">0</int32>
+      <int32 name="MoveRange">4</int32>
+      <int32 name="ActionSpeed">100</int32>
+      <int32-array name="SkillIds" count="2">103 110</int32-array>
+      <string name="Icon">icon_knight</string>
+      <string name="ModelName">model_knight</string>
+    </object>
+    <!-- 3: Archer - Ranged, Human, Common, Piercing ranged -->
+    <object>
+      <int32 name="Id">3</int32>
+      <string name="Name">Archer</string>
+      <int32 name="Rarity">1</int32>
+      <int32 name="UnitClass">2</int32>
+      <int32 name="Race">0</int32>
+      <int32 name="SoldierHP">80</int32>
+      <int32 name="SoldierCount">8</int32>
+      <int32 name="Defense">10</int32>
+      <int32 name="SoldierDamage">20</int32>
+      <int32 name="DamageType">1</int32>
+      <bool name="IsRanged">true</bool>
+      <int32 name="AttackRange">3</int32>
+      <int32 name="AttackPattern">0</int32>
+      <int32 name="MoveType">0</int32>
+      <int32 name="MoveRange">2</int32>
+      <int32 name="ActionSpeed">85</int32>
+      <int32-array name="SkillIds" count="1">104</int32-array>
+      <string name="Icon">icon_archer</string>
+      <string name="ModelName">model_archer</string>
+    </object>
+    <!-- 4: Wizard - Mage, Human, Rare, Magic ranged -->
+    <object>
+      <int32 name="Id">4</int32>
+      <string name="Name">Wizard</string>
+      <int32 name="Rarity">3</int32>
+      <int32 name="UnitClass">3</int32>
+      <int32 name="Race">0</int32>
+      <int32 name="SoldierHP">70</int32>
+      <int32 name="SoldierCount">5</int32>
+      <int32 name="Defense">8</int32>
+      <int32 name="SoldierDamage">35</int32>
+      <int32 name="DamageType">2</int32>
+      <bool name="IsRanged">true</bool>
+      <int32 name="AttackRange">3</int32>
+      <int32 name="AttackPattern">0</int32>
+      <int32 name="MoveType">0</int32>
+      <int32 name="MoveRange">2</int32>
+      <int32 name="ActionSpeed">75</int32>
+      <int32-array name="SkillIds" count="2">105 111</int32-array>
+      <string name="Icon">icon_wizard</string>
+      <string name="ModelName">model_wizard</string>
+    </object>
+    <!-- 5: Priest - Support, Divine, Uncommon, Magic ranged -->
+    <object>
+      <int32 name="Id">5</int32>
+      <string name="Name">Priest</string>
+      <int32 name="Rarity">2</int32>
+      <int32 name="UnitClass">4</int32>
+      <int32 name="Race">5</int32>
+      <int32 name="SoldierHP">60</int32>
+      <int32 name="SoldierCount">5</int32>
+      <int32 name="Defense">12</int32>
+      <int32 name="SoldierDamage">10</int32>
+      <int32 name="DamageType">2</int32>
+      <bool name="IsRanged">true</bool>
+      <int32 name="AttackRange">3</int32>
+      <int32 name="AttackPattern">0</int32>
+      <int32 name="MoveType">0</int32>
+      <int32 name="MoveRange">2</int32>
+      <int32 name="ActionSpeed">70</int32>
+      <int32-array name="SkillIds" count="2">106 107</int32-array>
+      <string name="Icon">icon_priest</string>
+      <string name="ModelName">model_priest</string>
+    </object>
+    <!-- 6: Catapult - Siege, Human, Epic, Physical AOE ranged -->
+    <object>
+      <int32 name="Id">6</int32>
+      <string name="Name">Catapult</string>
+      <int32 name="Rarity">4</int32>
+      <int32 name="UnitClass">5</int32>
+      <int32 name="Race">0</int32>
+      <int32 name="SoldierHP">200</int32>
+      <int32 name="SoldierCount">3</int32>
+      <int32 name="Defense">5</int32>
+      <int32 name="SoldierDamage">50</int32>
+      <int32 name="DamageType">0</int32>
+      <bool name="IsRanged">true</bool>
+      <int32 name="AttackRange">4</int32>
+      <int32 name="AttackPattern">5</int32>
+      <int32 name="MoveType">0</int32>
+      <int32 name="MoveRange">1</int32>
+      <int32 name="ActionSpeed">40</int32>
+      <int32-array name="SkillIds" count="0"></int32-array>
+      <string name="Icon">icon_catapult</string>
+      <string name="ModelName">model_catapult</string>
+    </object>
+    <!-- 7: Skeleton Warrior - Infantry, Undead, Common, Physical, Line2 -->
+    <object>
+      <int32 name="Id">7</int32>
+      <string name="Name">Skeleton Warrior</string>
+      <int32 name="Rarity">1</int32>
+      <int32 name="UnitClass">0</int32>
+      <int32 name="Race">1</int32>
+      <int32 name="SoldierHP">80</int32>
+      <int32 name="SoldierCount">12</int32>
+      <int32 name="Defense">15</int32>
+      <int32 name="SoldierDamage">12</int32>
+      <int32 name="DamageType">0</int32>
+      <bool name="IsRanged">false</bool>
+      <int32 name="AttackRange">1</int32>
+      <int32 name="AttackPattern">1</int32>
+      <int32 name="MoveType">0</int32>
+      <int32 name="MoveRange">2</int32>
+      <int32 name="ActionSpeed">70</int32>
+      <int32-array name="SkillIds" count="1">102</int32-array>
+      <string name="Icon">icon_skeleton</string>
+      <string name="ModelName">model_skeleton</string>
+    </object>
+    <!-- 8: Gryphon Rider - Cavalry, Beast, Epic, Piercing, Flying -->
+    <object>
+      <int32 name="Id">8</int32>
+      <string name="Name">Gryphon Rider</string>
+      <int32 name="Rarity">4</int32>
+      <int32 name="UnitClass">1</int32>
+      <int32 name="Race">2</int32>
+      <int32 name="SoldierHP">120</int32>
+      <int32 name="SoldierCount">4</int32>
+      <int32 name="Defense">18</int32>
+      <int32 name="SoldierDamage">30</int32>
+      <int32 name="DamageType">1</int32>
+      <bool name="IsRanged">false</bool>
+      <int32 name="AttackRange">1</int32>
+      <int32 name="AttackPattern">0</int32>
+      <int32 name="MoveType">1</int32>
+      <int32 name="MoveRange">5</int32>
+      <int32 name="ActionSpeed">110</int32>
+      <int32-array name="SkillIds" count="1">103</int32-array>
+      <string name="Icon">icon_gryphon</string>
+      <string name="ModelName">model_gryphon</string>
+    </object>
+    <!-- 9: Fire Elemental - Mage, Elemental, Rare, Magic, AroundSelf3 -->
+    <object>
+      <int32 name="Id">9</int32>
+      <string name="Name">Fire Elemental</string>
+      <int32 name="Rarity">3</int32>
+      <int32 name="UnitClass">3</int32>
+      <int32 name="Race">4</int32>
+      <int32 name="SoldierHP">90</int32>
+      <int32 name="SoldierCount">4</int32>
+      <int32 name="Defense">10</int32>
+      <int32 name="SoldierDamage">40</int32>
+      <int32 name="DamageType">2</int32>
+      <bool name="IsRanged">false</bool>
+      <int32 name="AttackRange">1</int32>
+      <int32 name="AttackPattern">3</int32>
+      <int32 name="MoveType">0</int32>
+      <int32 name="MoveRange">3</int32>
+      <int32 name="ActionSpeed">90</int32>
+      <int32-array name="SkillIds" count="1">105</int32-array>
+      <string name="Icon">icon_fire_elemental</string>
+      <string name="ModelName">model_fire_elemental</string>
+    </object>
+    <!-- 10: Shadow Assassin - Infantry, Demon, Legendary, Piercing, high speed -->
+    <object>
+      <int32 name="Id">10</int32>
+      <string name="Name">Shadow Assassin</string>
+      <int32 name="Rarity">5</int32>
+      <int32 name="UnitClass">0</int32>
+      <int32 name="Race">3</int32>
+      <int32 name="SoldierHP">60</int32>
+      <int32 name="SoldierCount">3</int32>
+      <int32 name="Defense">5</int32>
+      <int32 name="SoldierDamage">55</int32>
+      <int32 name="DamageType">1</int32>
+      <bool name="IsRanged">false</bool>
+      <int32 name="AttackRange">1</int32>
+      <int32 name="AttackPattern">0</int32>
+      <int32 name="MoveType">0</int32>
+      <int32 name="MoveRange">4</int32>
+      <int32 name="ActionSpeed">120</int32>
+      <int32-array name="SkillIds" count="2">103 114</int32-array>
+      <string name="Icon">icon_shadow_assassin</string>
+      <string name="ModelName">model_shadow_assassin</string>
+    </object>
+  </array>
+</root>

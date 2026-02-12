@@ -1,0 +1,762 @@
+namespace StormTactics.Battle;
+
+using System;
+using System.Collections;
+using StormTactics.Core;
+
+enum BattleState
+{
+	NotStarted,
+	InProgress,
+	AttackerWins,
+	DefenderWins,
+	Draw
+}
+
+enum AIDifficulty
+{
+	Easy,    // Random target, no skill usage
+	Normal,  // Focus fire, basic skill usage
+	Hard     // Optimal target selection, full skill/heal/buff priority
+}
+
+/// Result of a completed battle.
+class BattleResult
+{
+	public BattleState mOutcome;
+	public Force mWinner;
+	public int32 mTotalTurns;
+	public List<int32> mSurvivingAttackers = new .() ~ delete _;
+	public List<int32> mSurvivingDefenders = new .() ~ delete _;
+	public int32 mTotalDamageDealt;
+	public int32 mTotalHealingDone;
+	public int32 mUnitsKilled;
+}
+
+/// Pure-logic battle simulation with no rendering dependencies.
+/// Deterministic given the same inputs.
+class BattleSimulation
+{
+	private HexGrid mGrid ~ delete _;
+	private HexPathfinder mPathfinder ~ delete _;
+	private List<BattleUnit> mUnits = new .() ~ DeleteContainerAndItems!(_);
+	private List<BattleEvent> mEventQueue = new .() ~ DeleteContainerAndItems!(_);
+	private ConfigDatabase mConfigs;
+
+	private BattleState mState = .NotStarted;
+	private int32 mTurnCount;
+	private int32 mCurrentUnitIndex = -1;
+	private Random mRng ~ delete _;
+	private AIDifficulty mDifficulty = .Normal;
+
+	// --- Replay ---
+	private List<BattleAction> mActionLog = new .() ~ delete _;
+	private List<FormationSlot> mInitAttackers ~ { if (_ != null) DeleteContainerAndItems!(_); }
+	private List<FormationSlot> mInitDefenders ~ { if (_ != null) DeleteContainerAndItems!(_); }
+	private int32 mInitColumns;
+	private int32 mInitRows;
+	private int64 mInitSeed;
+
+	// --- Stats tracking ---
+	private int32 mTotalDamageDealt;
+	private int32 mTotalHealingDone;
+	private int32 mUnitsKilled;
+
+	public BattleState State => mState;
+	public int32 TurnCount => mTurnCount;
+	public HexGrid Grid => mGrid;
+	public int32 CurrentUnitIndex => mCurrentUnitIndex;
+	public AIDifficulty Difficulty { get => mDifficulty; set => mDifficulty = value; }
+	public ConfigDatabase Configs => mConfigs;
+	public Random Rng => mRng;
+
+	public this(ConfigDatabase configs)
+	{
+		mConfigs = configs;
+	}
+
+	// --- Initialization ---
+
+	public void Initialize(List<FormationSlot> attackers, List<FormationSlot> defenders,
+		int32 columns = BattleConstants.DEFAULT_COLUMNS, int32 rows = BattleConstants.DEFAULT_ROWS, int64 seed = 0)
+	{
+		mGrid = new HexGrid(columns, rows);
+		mPathfinder = new HexPathfinder(mGrid);
+		mRng = new Random(seed);
+		mTurnCount = 0;
+		mState = .InProgress;
+		mTotalDamageDealt = 0;
+		mTotalHealingDone = 0;
+		mUnitsKilled = 0;
+
+		// Store initial state for replay
+		mInitColumns = columns;
+		mInitRows = rows;
+		mInitSeed = seed;
+		mInitAttackers = new List<FormationSlot>();
+		for (let slot in attackers)
+		{
+			let copy = new FormationSlot();
+			copy.mUnitId = slot.mUnitId;
+			copy.mStarLevel = slot.mStarLevel;
+			copy.mGridX = slot.mGridX;
+			copy.mGridY = slot.mGridY;
+			mInitAttackers.Add(copy);
+		}
+		mInitDefenders = new List<FormationSlot>();
+		for (let slot in defenders)
+		{
+			let copy = new FormationSlot();
+			copy.mUnitId = slot.mUnitId;
+			copy.mStarLevel = slot.mStarLevel;
+			copy.mGridX = slot.mGridX;
+			copy.mGridY = slot.mGridY;
+			mInitDefenders.Add(copy);
+		}
+
+		// Place attackers on left side
+		for (let slot in attackers)
+		{
+			let config = mConfigs.GetUnit(slot.mUnitId);
+			if (config == null) continue;
+			let hex = HexCoord.FromOffset(slot.mGridX, slot.mGridY);
+			if (!mGrid.InBounds(hex)) continue;
+
+			let unit = new BattleUnit();
+			let idx = (int32)mUnits.Count;
+			unit.Initialize(idx, config, .Attacker, hex, slot.mGridX);
+			mUnits.Add(unit);
+			mGrid.SetOccupant(hex, idx);
+		}
+
+		// Place defenders on right side
+		for (let slot in defenders)
+		{
+			let config = mConfigs.GetUnit(slot.mUnitId);
+			if (config == null) continue;
+			let hex = HexCoord.FromOffset(slot.mGridX, slot.mGridY);
+			if (!mGrid.InBounds(hex)) continue;
+
+			let unit = new BattleUnit();
+			let idx = (int32)mUnits.Count;
+			unit.Initialize(idx, config, .Defender, hex, slot.mGridX);
+			mUnits.Add(unit);
+			mGrid.SetOccupant(hex, idx);
+		}
+
+		EmitEvent(.BattleStarted);
+	}
+
+	// --- Queries ---
+
+	public BattleUnit GetUnit(int32 index)
+	{
+		if (index >= 0 && index < mUnits.Count) return mUnits[index];
+		return null;
+	}
+
+	public int32 UnitCount => (int32)mUnits.Count;
+
+	public void GetAliveUnits(Force force, List<BattleUnit> outList)
+	{
+		for (let unit in mUnits)
+			if (unit.mAlive && unit.mForce == force)
+				outList.Add(unit);
+	}
+
+	public bool IsFinished => mState != .InProgress;
+
+	// --- Turn order ---
+
+	/// Get the next unit to act (lowest action timer).
+	public int32 GetNextUnit()
+	{
+		int32 bestIdx = -1;
+		float bestTime = float.MaxValue;
+
+		for (int32 i = 0; i < mUnits.Count; i++)
+		{
+			let unit = mUnits[i];
+			if (!unit.mAlive) continue;
+			if (unit.mActionTimer < bestTime ||
+				(unit.mActionTimer == bestTime && unit.mForce == .Defender)) // Defender wins ties
+			{
+				bestTime = unit.mActionTimer;
+				bestIdx = i;
+			}
+		}
+		return bestIdx;
+	}
+
+	/// Advance time to the next unit's turn and return that unit's index.
+	public int32 AdvanceToNextTurn()
+	{
+		let nextIdx = GetNextUnit();
+		if (nextIdx < 0) return -1;
+
+		let advanceTime = mUnits[nextIdx].mActionTimer;
+
+		// Subtract elapsed time from all units
+		for (let unit in mUnits)
+		{
+			if (unit.mAlive)
+				unit.mActionTimer -= advanceTime;
+		}
+
+		mCurrentUnitIndex = nextIdx;
+		mTurnCount++;
+
+		let unit = mUnits[nextIdx];
+		unit.OnTurnStart();
+
+		// Tick cooldowns
+		unit.TickCooldowns();
+
+		// Tick buffs (DoT/HoT + duration)
+		TickBuffs(nextIdx);
+
+		// Check if unit died from DoT
+		if (!unit.mAlive)
+			return AdvanceToNextTurn();
+
+		EmitEvent(.TurnStarted, nextIdx);
+		return nextIdx;
+	}
+
+	// --- Stepping ---
+
+	/// Run one full turn: advance to next unit, get AI action, execute it.
+	/// Returns the events generated this step.
+	public void Step(List<BattleEvent> outEvents)
+	{
+		outEvents.Clear();
+		if (mState != .InProgress) return;
+
+		// Check max turns
+		if (mTurnCount >= BattleConstants.MAX_TURNS)
+		{
+			mState = .Draw;
+			EmitEvent(.BattleEnded);
+			FlushEvents(outEvents);
+			return;
+		}
+
+		let unitIdx = AdvanceToNextTurn();
+		if (unitIdx < 0)
+		{
+			mState = .Draw;
+			EmitEvent(.BattleEnded);
+			FlushEvents(outEvents);
+			return;
+		}
+
+		let unit = mUnits[unitIdx];
+
+		// Stunned units skip their turn
+		if (unit.IsStunned)
+		{
+			unit.ResetActionTimer();
+			CheckBattleEnd();
+			FlushEvents(outEvents);
+			return;
+		}
+
+		// Get action from AI
+		let action = BattleAI.DecideAction(this, unitIdx, mDifficulty);
+		mActionLog.Add(action);
+		ExecuteAction(action);
+
+		// Reset action timer
+		unit.ResetActionTimer();
+
+		// Check win/loss
+		CheckBattleEnd();
+
+		FlushEvents(outEvents);
+	}
+
+	// --- Action execution ---
+
+	public void ExecuteAction(BattleAction action)
+	{
+		switch (action.mType)
+		{
+		case .Move:
+			ExecuteMove(action.mUnitIndex, action.mTargetHex);
+		case .Attack:
+			ExecuteAttack(action.mUnitIndex, action.mTargetUnit);
+		case .UseSkill:
+			ExecuteSkill(action.mUnitIndex, action.mSkillId, action.mTargetUnit);
+		case .Wait:
+			// Do nothing
+		}
+	}
+
+	private void ExecuteMove(int32 unitIdx, HexCoord dest)
+	{
+		let unit = mUnits[unitIdx];
+		let from = unit.mPosition;
+
+		let path = scope List<HexCoord>();
+		let flying = unit.mConfig.mMoveType == .Flying;
+		if (!mPathfinder.FindPath(from, dest, flying, path))
+			return;
+
+		// Validate path length against move range
+		if (path.Count - 1 > unit.mModifiedMoveRange)
+			return;
+
+		// Move unit
+		mGrid.ClearOccupant(from);
+		unit.mPosition = dest;
+		mGrid.SetOccupant(dest, unitIdx);
+
+		let evt = EmitEvent(.UnitMoved, unitIdx);
+		evt.mFromHex = from;
+		evt.mToHex = dest;
+	}
+
+	private void ExecuteAttack(int32 attackerIdx, int32 defenderIdx)
+	{
+		let attacker = mUnits[attackerIdx];
+		let defender = mUnits[defenderIdx];
+
+		if (!defender.mAlive) return;
+
+		// Check range
+		let dist = attacker.mPosition.DistanceTo(defender.mPosition);
+		if (dist > attacker.mModifiedAttackRange) return;
+
+		EmitEvent(.UnitAttacked, attackerIdx).mTargetUnit = defenderIdx;
+
+		// Trigger OnAttack skills
+		TriggerSkills(attackerIdx, .OnAttack, defenderIdx);
+
+		// Get targets from attack pattern
+		let targets = scope List<HexCoord>();
+		mGrid.GetAttackPatternCells(attacker.mPosition, defender.mPosition, attacker.mConfig.mAttackPattern, targets);
+
+		// Apply damage to all units in pattern
+		for (let hex in targets)
+		{
+			let occupant = mGrid.GetOccupant(hex);
+			if (occupant < 0) continue;
+			let target = mUnits[occupant];
+			if (!target.mAlive) continue;
+			if (target.mForce == attacker.mForce) continue; // Don't hit allies
+
+			let damage = CalculateDamage(attacker, target);
+			ApplyDamage(attackerIdx, occupant, damage, attacker.mConfig.mDamageType);
+		}
+
+		// Trigger OnHit skills on attacker
+		TriggerSkills(attackerIdx, .OnHit, defenderIdx);
+
+		// Counter-attack check
+		if (defender.mAlive && !defender.IsStunned)
+		{
+			TriggerSkills(defenderIdx, .OnDamaged, attackerIdx);
+		}
+	}
+
+	public void ExecuteSkill(int32 userIdx, int32 skillId, int32 targetIdx)
+	{
+		let user = mUnits[userIdx];
+		let skillConfig = mConfigs.GetSkill(skillId);
+		if (skillConfig == null) return;
+
+		if (user.IsSkillOnCooldown(skillId)) return;
+		if (user.IsSkillUsesExhausted(skillId, skillConfig)) return;
+
+		let evt = EmitEvent(.SkillUsed, userIdx);
+		evt.mSkillId = skillId;
+		evt.mTargetUnit = targetIdx;
+
+		for (let effect in skillConfig.mEffects)
+		{
+			switch (effect.mType)
+			{
+			case .Damage:
+				if (targetIdx >= 0 && targetIdx < mUnits.Count)
+				{
+					let target = mUnits[targetIdx];
+					if (target.mAlive)
+					{
+						let baseDmg = (int32)((float)(user.SoldierCount * user.mModifiedDamage) * effect.mValue);
+						ApplyDamage(userIdx, targetIdx, baseDmg, user.mConfig.mDamageType);
+					}
+				}
+
+			case .Heal:
+				let healTarget = targetIdx >= 0 ? targetIdx : userIdx;
+				if (healTarget < mUnits.Count)
+				{
+					let target = mUnits[healTarget];
+					if (target.mAlive)
+					{
+						let healed = target.Heal((int32)effect.mValue);
+						if (healed > 0)
+						{
+							mTotalHealingDone += healed;
+							let healEvt = EmitEvent(.HealApplied, userIdx);
+							healEvt.mTargetUnit = (.)healTarget;
+							healEvt.mValue = healed;
+						}
+					}
+				}
+
+			case .ApplyBuff:
+				if (effect.mBuffId != 0)
+				{
+					let buffTarget = targetIdx >= 0 ? targetIdx : userIdx;
+					ApplyBuff(buffTarget, effect.mBuffId, userIdx);
+				}
+
+			case .Dispel:
+				if (targetIdx >= 0 && targetIdx < mUnits.Count)
+					DispelBuffs(targetIdx, effect.mDispelCount, userIdx);
+
+			case .Summon:
+				// TODO: implement summon
+			case .Counter:
+				// Counter is handled passively via OnDamaged trigger
+			}
+		}
+
+		user.PutSkillOnCooldown(skillId, skillConfig.mCooldown);
+		user.RecordSkillUse(skillId);
+	}
+
+	// --- Damage calculation ---
+
+	public int32 CalculateDamage(BattleUnit attacker, BattleUnit defender)
+	{
+		// Raw damage based on soldier count
+		let rawDamage = (float)(attacker.SoldierCount * attacker.mModifiedDamage);
+
+		// Defense reduction based on damage type
+		float effectiveDefense = (float)defender.mModifiedDefense;
+
+		switch (attacker.mConfig.mDamageType)
+		{
+		case .Physical:
+			// Full defense applies
+		case .Piercing:
+			effectiveDefense *= (1.0f - BattleConstants.PIERCING_ARMOR_IGNORE);
+		case .Magic:
+			effectiveDefense *= (1.0f - BattleConstants.MAGIC_DEFENSE_IGNORE);
+		}
+
+		let defenseReduction = Math.Min(
+			effectiveDefense / (effectiveDefense + BattleConstants.DEFENSE_SCALE),
+			BattleConstants.MAX_DEFENSE_REDUCTION
+		);
+
+		let finalDamage = (int32)(rawDamage * (1.0f - defenseReduction));
+		return Math.Max(1, finalDamage); // Minimum 1 damage
+	}
+
+	private void ApplyDamage(int32 attackerIdx, int32 targetIdx, int32 damage, DamageType damageType)
+	{
+		let target = mUnits[targetIdx];
+		let actual = target.TakeDamage(damage);
+		mTotalDamageDealt += actual;
+
+		let evt = EmitEvent(.DamageDealt, attackerIdx);
+		evt.mTargetUnit = targetIdx;
+		evt.mValue = actual;
+		evt.mDamageType = damageType;
+
+		if (!target.mAlive)
+		{
+			mGrid.ClearOccupant(target.mPosition);
+			EmitEvent(.UnitDied, targetIdx);
+			mUnitsKilled++;
+			TriggerSkills(attackerIdx, .OnKill, targetIdx);
+			TriggerSkills(targetIdx, .OnDeath, attackerIdx);
+		}
+	}
+
+	// --- Buff system ---
+
+	public void ApplyBuff(int32 targetIdx, int32 buffId, int32 sourceIdx)
+	{
+		let target = mUnits[targetIdx];
+		let buffConfig = mConfigs.GetBuff(buffId);
+		if (buffConfig == null) return;
+		if (!target.mAlive) return;
+
+		// Immunity check
+		if (buffConfig.mFlag == .Negative && target.HasImmunity(buffConfig.mTag))
+			return;
+
+		// Stacking: same buff refreshes duration
+		for (let existing in target.mBuffs)
+		{
+			if (existing.mConfig.mId == buffId)
+			{
+				existing.mRemainingDuration = buffConfig.mDuration;
+				return;
+			}
+		}
+
+		let instance = new BuffInstance(buffConfig, sourceIdx);
+		target.mBuffs.Add(instance);
+		target.RecalculateStats();
+
+		let evt = EmitEvent(.BuffApplied, sourceIdx);
+		evt.mTargetUnit = targetIdx;
+		evt.mBuffId = buffId;
+	}
+
+	public void RemoveBuff(int32 targetIdx, BuffInstance buff)
+	{
+		let target = mUnits[targetIdx];
+		target.mBuffs.Remove(buff);
+		target.RecalculateStats();
+
+		let evt = EmitEvent(.BuffRemoved, targetIdx);
+		evt.mBuffId = buff.mConfig.mId;
+
+		delete buff;
+	}
+
+	private void DispelBuffs(int32 targetIdx, int32 count, int32 sourceIdx)
+	{
+		let target = mUnits[targetIdx];
+		var remaining = count;
+		let toRemove = scope List<BuffInstance>();
+
+		for (let buff in target.mBuffs)
+		{
+			if (remaining <= 0) break;
+			if (!buff.mConfig.mCanDispel) continue;
+
+			// Dispel positive buffs from enemies, negative buffs from allies
+			let sourceUnit = mUnits[sourceIdx];
+			if (target.mForce != sourceUnit.mForce && buff.mConfig.mFlag == .Positive)
+			{
+				toRemove.Add(buff);
+				remaining--;
+			}
+			else if (target.mForce == sourceUnit.mForce && buff.mConfig.mFlag == .Negative)
+			{
+				toRemove.Add(buff);
+				remaining--;
+			}
+		}
+
+		for (let buff in toRemove)
+			RemoveBuff(targetIdx, buff);
+	}
+
+	private void TickBuffs(int32 unitIdx)
+	{
+		let unit = mUnits[unitIdx];
+		let toRemove = scope List<BuffInstance>();
+
+		for (let buff in unit.mBuffs)
+		{
+			// Apply DoT
+			if (buff.mConfig.mDotDamage > 0 && unit.mAlive)
+			{
+				let dmg = (int32)buff.mConfig.mDotDamage;
+				let actual = unit.TakeDamage(dmg);
+				let evt = EmitEvent(.BuffTicked, unitIdx);
+				evt.mBuffId = buff.mConfig.mId;
+				evt.mValue = -actual;
+
+				if (!unit.mAlive)
+				{
+					mGrid.ClearOccupant(unit.mPosition);
+					EmitEvent(.UnitDied, unitIdx);
+				}
+			}
+
+			// Apply HoT
+			if (buff.mConfig.mHotHeal > 0 && unit.mAlive)
+			{
+				let healed = unit.Heal((int32)buff.mConfig.mHotHeal);
+				if (healed > 0)
+				{
+					let evt = EmitEvent(.BuffTicked, unitIdx);
+					evt.mBuffId = buff.mConfig.mId;
+					evt.mValue = healed;
+				}
+			}
+
+			// Tick duration
+			if (!buff.Tick())
+				toRemove.Add(buff);
+		}
+
+		for (let buff in toRemove)
+			RemoveBuff(unitIdx, buff);
+	}
+
+	// --- Skill triggers ---
+
+	private void TriggerSkills(int32 unitIdx, SkillMoment moment, int32 targetIdx)
+	{
+		let unit = mUnits[unitIdx];
+		if (!unit.mAlive) return;
+		if (unit.IsSilenced && moment != .Passive) return;
+
+		for (let skillId in unit.mConfig.mSkillIds)
+		{
+			let skillConfig = mConfigs.GetSkill(skillId);
+			if (skillConfig == null) continue;
+			if (skillConfig.mMoment != moment) continue;
+			if (unit.IsSkillOnCooldown(skillId)) continue;
+			if (unit.IsSkillUsesExhausted(skillId, skillConfig)) continue;
+
+			// Proc chance
+			if (skillConfig.mChance < 1.0f)
+			{
+				if (mRng.NextDouble() > skillConfig.mChance)
+					continue;
+			}
+
+			ExecuteSkill(unitIdx, skillId, targetIdx);
+		}
+	}
+
+	// --- Battle end check ---
+
+	private void CheckBattleEnd()
+	{
+		bool attackersAlive = false;
+		bool defendersAlive = false;
+
+		for (let unit in mUnits)
+		{
+			if (!unit.mAlive) continue;
+			if (unit.mForce == .Attacker) attackersAlive = true;
+			if (unit.mForce == .Defender) defendersAlive = true;
+			if (attackersAlive && defendersAlive) return; // Both alive, continue
+		}
+
+		if (!attackersAlive && !defendersAlive)
+			mState = .Draw;
+		else if (!attackersAlive)
+			mState = .DefenderWins;
+		else
+			mState = .AttackerWins;
+
+		let evt = EmitEvent(.BattleEnded);
+		evt.mWinner = mState == .AttackerWins ? .Attacker : .Defender;
+	}
+
+	// --- Event emission ---
+
+	private BattleEvent EmitEvent(BattleEventType type, int32 sourceUnit = -1)
+	{
+		let evt = new BattleEvent();
+		evt.mType = type;
+		evt.mSourceUnit = sourceUnit;
+		mEventQueue.Add(evt);
+		return evt;
+	}
+
+	private void FlushEvents(List<BattleEvent> outEvents)
+	{
+		for (let evt in mEventQueue)
+			outEvents.Add(evt);
+		mEventQueue.Clear(); // Ownership transferred to caller
+	}
+
+	// --- Result ---
+
+	/// Get the battle result. Only valid after IsFinished == true.
+	/// Caller owns the returned BattleResult.
+	public BattleResult GetResult()
+	{
+		let result = new BattleResult();
+		result.mOutcome = mState;
+		result.mWinner = mState == .AttackerWins ? .Attacker : .Defender;
+		result.mTotalTurns = mTurnCount;
+		result.mTotalDamageDealt = mTotalDamageDealt;
+		result.mTotalHealingDone = mTotalHealingDone;
+		result.mUnitsKilled = mUnitsKilled;
+
+		for (let unit in mUnits)
+		{
+			if (!unit.mAlive) continue;
+			if (unit.mForce == .Attacker)
+				result.mSurvivingAttackers.Add(unit.mIndex);
+			else
+				result.mSurvivingDefenders.Add(unit.mIndex);
+		}
+
+		return result;
+	}
+
+	// --- Replay ---
+
+	/// Get the recorded action log (for replay serialization).
+	public List<BattleAction> ActionLog => mActionLog;
+
+	/// Get initial setup parameters for replay reproduction.
+	public void GetReplaySetup(List<FormationSlot> outAttackers, List<FormationSlot> outDefenders,
+		out int32 columns, out int32 rows, out int64 seed)
+	{
+		columns = mInitColumns;
+		rows = mInitRows;
+		seed = mInitSeed;
+		if (mInitAttackers != null)
+			for (let s in mInitAttackers) outAttackers.Add(s);
+		if (mInitDefenders != null)
+			for (let s in mInitDefenders) outDefenders.Add(s);
+	}
+
+	/// Replay a battle from initial state + recorded actions.
+	/// Creates a new simulation, replays all actions, returns events.
+	public static BattleSimulation Replay(ConfigDatabase configs,
+		List<FormationSlot> attackers, List<FormationSlot> defenders,
+		int32 columns, int32 rows, int64 seed,
+		List<BattleAction> actions, List<BattleEvent> outAllEvents)
+	{
+		let sim = new BattleSimulation(configs);
+		sim.Initialize(attackers, defenders, columns, rows, seed);
+
+		let stepEvents = scope List<BattleEvent>();
+		for (let action in actions)
+		{
+			if (sim.IsFinished) break;
+
+			// Advance turn (same as Step but using recorded action)
+			if (sim.mTurnCount >= BattleConstants.MAX_TURNS)
+			{
+				sim.mState = .Draw;
+				sim.EmitEvent(.BattleEnded);
+				sim.FlushEvents(stepEvents);
+				for (let e in stepEvents) outAllEvents.Add(e);
+				stepEvents.Clear();
+				break;
+			}
+
+			let unitIdx = sim.AdvanceToNextTurn();
+			if (unitIdx < 0) break;
+
+			let unit = sim.GetUnit(unitIdx);
+			if (unit.IsStunned)
+			{
+				unit.ResetActionTimer();
+				sim.CheckBattleEnd();
+				sim.FlushEvents(stepEvents);
+				for (let e in stepEvents) outAllEvents.Add(e);
+				stepEvents.Clear();
+				continue;
+			}
+
+			sim.ExecuteAction(action);
+			unit.ResetActionTimer();
+			sim.CheckBattleEnd();
+			sim.FlushEvents(stepEvents);
+			for (let e in stepEvents) outAllEvents.Add(e);
+			stepEvents.Clear();
+		}
+
+		return sim;
+	}
+}

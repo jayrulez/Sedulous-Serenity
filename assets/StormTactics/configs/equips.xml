@@ -1,0 +1,94 @@
+<root>
+  <array name="Items" count="5">
+    <!-- Iron Sword - Weapon, Common, +5 flat damage -->
+    <object>
+      <int32 name="Id">301</int32>
+      <string name="Name">Iron Sword</string>
+      <string name="Description">A sturdy iron blade. Increases damage.</string>
+      <string name="Icon">icon_equip_iron_sword</string>
+      <int32 name="Slot">0</int32>
+      <int32 name="Rarity">1</int32>
+      <int32 name="RequiredLevel">1</int32>
+      <array name="StatBonuses" count="1">
+        <object>
+          <int32 name="Attribute">1</int32>
+          <float name="FlatValue">5</float>
+          <float name="PercentValue">0</float>
+        </object>
+      </array>
+    </object>
+    <!-- Steel Shield - Armor, Uncommon, +10 flat defense -->
+    <object>
+      <int32 name="Id">302</int32>
+      <string name="Name">Steel Shield</string>
+      <string name="Description">A reinforced shield. Increases defense.</string>
+      <string name="Icon">icon_equip_steel_shield</string>
+      <int32 name="Slot">1</int32>
+      <int32 name="Rarity">2</int32>
+      <int32 name="RequiredLevel">3</int32>
+      <array name="StatBonuses" count="1">
+        <object>
+          <int32 name="Attribute">2</int32>
+          <float name="FlatValue">10</float>
+          <float name="PercentValue">0</float>
+        </object>
+      </array>
+    </object>
+    <!-- Speed Ring - Accessory, Rare, +15% action speed -->
+    <object>
+      <int32 name="Id">303</int32>
+      <string name="Name">Speed Ring</string>
+      <string name="Description">A magical ring that quickens the wearer.</string>
+      <string name="Icon">icon_equip_speed_ring</string>
+      <int32 name="Slot">2</int32>
+      <int32 name="Rarity">3</int32>
+      <int32 name="RequiredLevel">5</int32>
+      <array name="StatBonuses" count="1">
+        <object>
+          <int32 name="Attribute">3</int32>
+          <float name="FlatValue">0</float>
+          <float name="PercentValue">0.15</float>
+        </object>
+      </array>
+    </object>
+    <!-- War Hammer - Weapon, Rare, +10 flat damage + 5% damage -->
+    <object>
+      <int32 name="Id">304</int32>
+      <string name="Name">War Hammer</string>
+      <string name="Description">A heavy weapon that crushes armor.</string>
+      <string name="Icon">icon_equip_war_hammer</string>
+      <int32 name="Slot">0</int32>
+      <int32 name="Rarity">3</int32>
+      <int32 name="RequiredLevel">5</int32>
+      <array name="StatBonuses" count="1">
+        <object>
+          <int32 name="Attribute">1</int32>
+          <float name="FlatValue">10</float>
+          <float name="PercentValue">0.05</float>
+        </object>
+      </array>
+    </object>
+    <!-- Dragon Plate - Armor, Epic, +25 flat defense + 10% HP -->
+    <object>
+      <int32 name="Id">305</int32>
+      <string name="Name">Dragon Plate</string>
+      <string name="Description">Armor forged from dragon scales. Greatly increases defense and HP.</string>
+      <string name="Icon">icon_equip_dragon_plate</string>
+      <int32 name="Slot">1</int32>
+      <int32 name="Rarity">4</int32>
+      <int32 name="RequiredLevel">10</int32>
+      <array name="StatBonuses" count="2">
+        <object>
+          <int32 name="Attribute">2</int32>
+          <float name="FlatValue">25</float>
+          <float name="PercentValue">0</float>
+        </object>
+        <object>
+          <int32 name="Attribute">0</int32>
+          <float name="FlatValue">0</float>
+          <float name="PercentValue">0.1</float>
+        </object>
+      </array>
+    </object>
+  </array>
+</root>

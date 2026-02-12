@@ -1,0 +1,333 @@
+<root>
+  <array name="Items" count="15">
+    <!-- 101: Iron Will - Passive, Self, permanent defense buff -->
+    <object>
+      <int32 name="Id">101</int32>
+      <string name="Name">Iron Will</string>
+      <string name="Description">Passive: Grants Iron Defense (+20% defense) at battle start.</string>
+      <string name="Icon">icon_skill_iron_will</string>
+      <int32 name="Moment">1</int32>
+      <int32 name="Target">0</int32>
+      <int32 name="Cooldown">0</int32>
+      <float name="Chance">1</float>
+      <int32 name="MaxUsesPerBattle">1</int32>
+      <array name="Effects" count="1">
+        <object>
+          <int32 name="Type">2</int32>
+          <float name="Value">0</float>
+          <int32 name="BuffId">201</int32>
+          <int32 name="SummonUnitId">0</int32>
+          <int32 name="DispelCount">0</int32>
+        </object>
+      </array>
+    </object>
+    <!-- 102: Counter Strike - OnDamaged, Self, 50% chance counter -->
+    <object>
+      <int32 name="Id">102</int32>
+      <string name="Name">Counter Strike</string>
+      <string name="Description">When damaged, 50% chance to counter-attack.</string>
+      <string name="Icon">icon_skill_counter</string>
+      <int32 name="Moment">5</int32>
+      <int32 name="Target">0</int32>
+      <int32 name="Cooldown">0</int32>
+      <float name="Chance">0.5</float>
+      <int32 name="MaxUsesPerBattle">0</int32>
+      <array name="Effects" count="1">
+        <object>
+          <int32 name="Type">5</int32>
+          <float name="Value">1</float>
+          <int32 name="BuffId">0</int32>
+          <int32 name="SummonUnitId">0</int32>
+          <int32 name="DispelCount">0</int32>
+        </object>
+      </array>
+    </object>
+    <!-- 103: Power Strike - OnAttack, SingleEnemy, 1.5x damage, cd=2 -->
+    <object>
+      <int32 name="Id">103</int32>
+      <string name="Name">Power Strike</string>
+      <string name="Description">A focused blow dealing 150% damage.</string>
+      <string name="Icon">icon_skill_power_strike</string>
+      <int32 name="Moment">3</int32>
+      <int32 name="Target">1</int32>
+      <int32 name="Cooldown">2</int32>
+      <float name="Chance">1</float>
+      <int32 name="MaxUsesPerBattle">0</int32>
+      <array name="Effects" count="1">
+        <object>
+          <int32 name="Type">0</int32>
+          <float name="Value">1.5</float>
+          <int32 name="BuffId">0</int32>
+          <int32 name="SummonUnitId">0</int32>
+          <int32 name="DispelCount">0</int32>
+        </object>
+      </array>
+    </object>
+    <!-- 104: Volley - OnAttack, AllEnemies, 0.6x damage, cd=3 -->
+    <object>
+      <int32 name="Id">104</int32>
+      <string name="Name">Volley</string>
+      <string name="Description">Rain arrows on all enemies for 60% damage each.</string>
+      <string name="Icon">icon_skill_volley</string>
+      <int32 name="Moment">3</int32>
+      <int32 name="Target">3</int32>
+      <int32 name="Cooldown">3</int32>
+      <float name="Chance">1</float>
+      <int32 name="MaxUsesPerBattle">0</int32>
+      <array name="Effects" count="1">
+        <object>
+          <int32 name="Type">0</int32>
+          <float name="Value">0.6</float>
+          <int32 name="BuffId">0</int32>
+          <int32 name="SummonUnitId">0</int32>
+          <int32 name="DispelCount">0</int32>
+        </object>
+      </array>
+    </object>
+    <!-- 105: Fireball - OnAttack, SingleEnemy, 2.0x magic damage + Burn, cd=3 -->
+    <object>
+      <int32 name="Id">105</int32>
+      <string name="Name">Fireball</string>
+      <string name="Description">Hurls a fireball for 200% magic damage and applies Burn.</string>
+      <string name="Icon">icon_skill_fireball</string>
+      <int32 name="Moment">3</int32>
+      <int32 name="Target">1</int32>
+      <int32 name="Cooldown">3</int32>
+      <float name="Chance">1</float>
+      <int32 name="MaxUsesPerBattle">0</int32>
+      <array name="Effects" count="2">
+        <object>
+          <int32 name="Type">0</int32>
+          <float name="Value">2</float>
+          <int32 name="BuffId">0</int32>
+          <int32 name="SummonUnitId">0</int32>
+          <int32 name="DispelCount">0</int32>
+        </object>
+        <object>
+          <int32 name="Type">2</int32>
+          <float name="Value">0</float>
+          <int32 name="BuffId">206</int32>
+          <int32 name="SummonUnitId">0</int32>
+          <int32 name="DispelCount">0</int32>
+        </object>
+      </array>
+    </object>
+    <!-- 106: Holy Light - OnActionBegin, MostWoundedAlly, heal 200 HP, cd=2 -->
+    <object>
+      <int32 name="Id">106</int32>
+      <string name="Name">Holy Light</string>
+      <string name="Description">Heals the most wounded ally for 200 HP.</string>
+      <string name="Icon">icon_skill_holy_light</string>
+      <int32 name="Moment">2</int32>
+      <int32 name="Target">5</int32>
+      <int32 name="Cooldown">2</int32>
+      <float name="Chance">1</float>
+      <int32 name="MaxUsesPerBattle">0</int32>
+      <array name="Effects" count="1">
+        <object>
+          <int32 name="Type">1</int32>
+          <float name="Value">200</float>
+          <int32 name="BuffId">0</int32>
+          <int32 name="SummonUnitId">0</int32>
+          <int32 name="DispelCount">0</int32>
+        </object>
+      </array>
+    </object>
+    <!-- 107: Mass Heal - OnActionBegin, AllAllies, heal 100 HP, cd=4 -->
+    <object>
+      <int32 name="Id">107</int32>
+      <string name="Name">Mass Heal</string>
+      <string name="Description">Restores 100 HP to all allies.</string>
+      <string name="Icon">icon_skill_mass_heal</string>
+      <int32 name="Moment">2</int32>
+      <int32 name="Target">4</int32>
+      <int32 name="Cooldown">4</int32>
+      <float name="Chance">1</float>
+      <int32 name="MaxUsesPerBattle">0</int32>
+      <array name="Effects" count="1">
+        <object>
+          <int32 name="Type">1</int32>
+          <float name="Value">100</float>
+          <int32 name="BuffId">0</int32>
+          <int32 name="SummonUnitId">0</int32>
+          <int32 name="DispelCount">0</int32>
+        </object>
+      </array>
+    </object>
+    <!-- 108: Shield Wall - OnBattleStart, AllAllies, applies Shield buff, max 1 use -->
+    <object>
+      <int32 name="Id">108</int32>
+      <string name="Name">Shield Wall</string>
+      <string name="Description">Raises a shield wall granting +30 defense to all allies at battle start.</string>
+      <string name="Icon">icon_skill_shield_wall</string>
+      <int32 name="Moment">1</int32>
+      <int32 name="Target">4</int32>
+      <int32 name="Cooldown">0</int32>
+      <float name="Chance">1</float>
+      <int32 name="MaxUsesPerBattle">1</int32>
+      <array name="Effects" count="1">
+        <object>
+          <int32 name="Type">2</int32>
+          <float name="Value">0</float>
+          <int32 name="BuffId">202</int32>
+          <int32 name="SummonUnitId">0</int32>
+          <int32 name="DispelCount">0</int32>
+        </object>
+      </array>
+    </object>
+    <!-- 109: Poison Arrow - OnAttack, SingleEnemy, 1.0x damage + Poison, cd=2 -->
+    <object>
+      <int32 name="Id">109</int32>
+      <string name="Name">Poison Arrow</string>
+      <string name="Description">Fires a poisoned arrow dealing normal damage and applying Poison.</string>
+      <string name="Icon">icon_skill_poison_arrow</string>
+      <int32 name="Moment">3</int32>
+      <int32 name="Target">1</int32>
+      <int32 name="Cooldown">2</int32>
+      <float name="Chance">1</float>
+      <int32 name="MaxUsesPerBattle">0</int32>
+      <array name="Effects" count="2">
+        <object>
+          <int32 name="Type">0</int32>
+          <float name="Value">1</float>
+          <int32 name="BuffId">0</int32>
+          <int32 name="SummonUnitId">0</int32>
+          <int32 name="DispelCount">0</int32>
+        </object>
+        <object>
+          <int32 name="Type">2</int32>
+          <float name="Value">0</float>
+          <int32 name="BuffId">207</int32>
+          <int32 name="SummonUnitId">0</int32>
+          <int32 name="DispelCount">0</int32>
+        </object>
+      </array>
+    </object>
+    <!-- 110: Charge - OnActionBegin, Self, speed boost buff, cd=3 -->
+    <object>
+      <int32 name="Id">110</int32>
+      <string name="Name">Charge</string>
+      <string name="Description">Surges forward with a burst of speed (+30% action speed).</string>
+      <string name="Icon">icon_skill_charge</string>
+      <int32 name="Moment">2</int32>
+      <int32 name="Target">0</int32>
+      <int32 name="Cooldown">3</int32>
+      <float name="Chance">1</float>
+      <int32 name="MaxUsesPerBattle">0</int32>
+      <array name="Effects" count="1">
+        <object>
+          <int32 name="Type">2</int32>
+          <float name="Value">0</float>
+          <int32 name="BuffId">205</int32>
+          <int32 name="SummonUnitId">0</int32>
+          <int32 name="DispelCount">0</int32>
+        </object>
+      </array>
+    </object>
+    <!-- 111: Frost Nova - OnAttack, AllEnemies, applies Freeze, cd=4 -->
+    <object>
+      <int32 name="Id">111</int32>
+      <string name="Name">Frost Nova</string>
+      <string name="Description">Unleashes a wave of frost, freezing all enemies.</string>
+      <string name="Icon">icon_skill_frost_nova</string>
+      <int32 name="Moment">3</int32>
+      <int32 name="Target">3</int32>
+      <int32 name="Cooldown">4</int32>
+      <float name="Chance">1</float>
+      <int32 name="MaxUsesPerBattle">0</int32>
+      <array name="Effects" count="1">
+        <object>
+          <int32 name="Type">2</int32>
+          <float name="Value">0</float>
+          <int32 name="BuffId">208</int32>
+          <int32 name="SummonUnitId">0</int32>
+          <int32 name="DispelCount">0</int32>
+        </object>
+      </array>
+    </object>
+    <!-- 112: Battle Cry - OnBattleStart, AllAllies, +25% damage buff, max 1 use -->
+    <object>
+      <int32 name="Id">112</int32>
+      <string name="Name">Battle Cry</string>
+      <string name="Description">A rallying cry boosts all allies' damage by 25% at battle start.</string>
+      <string name="Icon">icon_skill_battle_cry</string>
+      <int32 name="Moment">1</int32>
+      <int32 name="Target">4</int32>
+      <int32 name="Cooldown">0</int32>
+      <float name="Chance">1</float>
+      <int32 name="MaxUsesPerBattle">1</int32>
+      <array name="Effects" count="1">
+        <object>
+          <int32 name="Type">2</int32>
+          <float name="Value">0</float>
+          <int32 name="BuffId">203</int32>
+          <int32 name="SummonUnitId">0</int32>
+          <int32 name="DispelCount">0</int32>
+        </object>
+      </array>
+    </object>
+    <!-- 113: Dispel Magic - OnActionBegin, SingleEnemy, dispel 2 buffs, cd=3 -->
+    <object>
+      <int32 name="Id">113</int32>
+      <string name="Name">Dispel Magic</string>
+      <string name="Description">Strips up to 2 positive buffs from an enemy.</string>
+      <string name="Icon">icon_skill_dispel</string>
+      <int32 name="Moment">2</int32>
+      <int32 name="Target">1</int32>
+      <int32 name="Cooldown">3</int32>
+      <float name="Chance">1</float>
+      <int32 name="MaxUsesPerBattle">0</int32>
+      <array name="Effects" count="1">
+        <object>
+          <int32 name="Type">3</int32>
+          <float name="Value">0</float>
+          <int32 name="BuffId">0</int32>
+          <int32 name="SummonUnitId">0</int32>
+          <int32 name="DispelCount">2</int32>
+        </object>
+      </array>
+    </object>
+    <!-- 114: Death Strike - OnKill, Self, heal 30% max HP on kill -->
+    <object>
+      <int32 name="Id">114</int32>
+      <string name="Name">Death Strike</string>
+      <string name="Description">Killing an enemy heals for 30% of max HP.</string>
+      <string name="Icon">icon_skill_death_strike</string>
+      <int32 name="Moment">6</int32>
+      <int32 name="Target">0</int32>
+      <int32 name="Cooldown">0</int32>
+      <float name="Chance">1</float>
+      <int32 name="MaxUsesPerBattle">0</int32>
+      <array name="Effects" count="1">
+        <object>
+          <int32 name="Type">1</int32>
+          <float name="Value">0.3</float>
+          <int32 name="BuffId">0</int32>
+          <int32 name="SummonUnitId">0</int32>
+          <int32 name="DispelCount">0</int32>
+        </object>
+      </array>
+    </object>
+    <!-- 115: Taunt - OnActionBegin, AllEnemies, applies Slow, cd=3 -->
+    <object>
+      <int32 name="Id">115</int32>
+      <string name="Name">Taunt</string>
+      <string name="Description">Provokes all enemies, slowing them by 30%.</string>
+      <string name="Icon">icon_skill_taunt</string>
+      <int32 name="Moment">2</int32>
+      <int32 name="Target">3</int32>
+      <int32 name="Cooldown">3</int32>
+      <float name="Chance">1</float>
+      <int32 name="MaxUsesPerBattle">0</int32>
+      <array name="Effects" count="1">
+        <object>
+          <int32 name="Type">2</int32>
+          <float name="Value">0</float>
+          <int32 name="BuffId">209</int32>
+          <int32 name="SummonUnitId">0</int32>
+          <int32 name="DispelCount">0</int32>
+        </object>
+      </array>
+    </object>
+  </array>
+</root>

@@ -1,0 +1,54 @@
+<root>
+  <array name="Items" count="5">
+    <!-- HP Potion x5 for 100 gold -->
+    <object>
+      <int32 name="Id">401</int32>
+      <int32 name="ItemId">1005</int32>
+      <int32 name="Quantity">5</int32>
+      <int32 name="Cost">100</int32>
+      <int32 name="CurrencyType">0</int32>
+      <int32 name="PurchaseLimit">10</int32>
+      <int32 name="RefreshGroup">1</int32>
+    </object>
+    <!-- Iron Ore x10 for 200 gold -->
+    <object>
+      <int32 name="Id">402</int32>
+      <int32 name="ItemId">1003</int32>
+      <int32 name="Quantity">10</int32>
+      <int32 name="Cost">200</int32>
+      <int32 name="CurrencyType">0</int32>
+      <int32 name="PurchaseLimit">5</int32>
+      <int32 name="RefreshGroup">1</int32>
+    </object>
+    <!-- Magic Crystal x5 for 300 gold -->
+    <object>
+      <int32 name="Id">403</int32>
+      <int32 name="ItemId">1004</int32>
+      <int32 name="Quantity">5</int32>
+      <int32 name="Cost">300</int32>
+      <int32 name="CurrencyType">0</int32>
+      <int32 name="PurchaseLimit">3</int32>
+      <int32 name="RefreshGroup">1</int32>
+    </object>
+    <!-- Footman Shard x3 for 50 gems -->
+    <object>
+      <int32 name="Id">404</int32>
+      <int32 name="ItemId">1006</int32>
+      <int32 name="Quantity">3</int32>
+      <int32 name="Cost">50</int32>
+      <int32 name="CurrencyType">1</int32>
+      <int32 name="PurchaseLimit">1</int32>
+      <int32 name="RefreshGroup">2</int32>
+    </object>
+    <!-- Wizard Shard x3 for 80 gems -->
+    <object>
+      <int32 name="Id">405</int32>
+      <int32 name="ItemId">1008</int32>
+      <int32 name="Quantity">3</int32>
+      <int32 name="Cost">80</int32>
+      <int32 name="CurrencyType">1</int32>
+      <int32 name="PurchaseLimit">1</int32>
+      <int32 name="RefreshGroup">2</int32>
+    </object>
+  </array>
+</root>

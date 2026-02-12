@@ -1,0 +1,44 @@
+<root>
+  <array name="Items" count="4">
+    <!-- Footman star 2 -->
+    <object>
+      <int32 name="UnitId">1</int32>
+      <int32 name="StarLevel">2</int32>
+      <int32 name="ShardsRequired">10</int32>
+      <float name="HPMultiplier">1.2</float>
+      <float name="DamageMultiplier">1.1</float>
+      <float name="DefenseMultiplier">1.1</float>
+      <int32-array name="UnlockedSkillIds" count="1">102</int32-array>
+    </object>
+    <!-- Footman star 3 -->
+    <object>
+      <int32 name="UnitId">1</int32>
+      <int32 name="StarLevel">3</int32>
+      <int32 name="ShardsRequired">30</int32>
+      <float name="HPMultiplier">1.5</float>
+      <float name="DamageMultiplier">1.3</float>
+      <float name="DefenseMultiplier">1.2</float>
+      <int32-array name="UnlockedSkillIds" count="1">108</int32-array>
+    </object>
+    <!-- Knight star 2 -->
+    <object>
+      <int32 name="UnitId">2</int32>
+      <int32 name="StarLevel">2</int32>
+      <int32 name="ShardsRequired">20</int32>
+      <float name="HPMultiplier">1.2</float>
+      <float name="DamageMultiplier">1.2</float>
+      <float name="DefenseMultiplier">1.1</float>
+      <int32-array name="UnlockedSkillIds" count="1">112</int32-array>
+    </object>
+    <!-- Wizard star 2 -->
+    <object>
+      <int32 name="UnitId">4</int32>
+      <int32 name="StarLevel">2</int32>
+      <int32 name="ShardsRequired">20</int32>
+      <float name="HPMultiplier">1.1</float>
+      <float name="DamageMultiplier">1.3</float>
+      <float name="DefenseMultiplier">1</float>
+      <int32-array name="UnlockedSkillIds" count="1">111</int32-array>
+    </object>
+  </array>
+</root>

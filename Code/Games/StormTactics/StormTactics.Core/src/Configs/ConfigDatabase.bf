@@ -49,6 +49,19 @@ class ConfigDatabase
 		return null;
 	}
 
+	// --- Registration (for programmatic/test use) ---
+
+	/// Register a unit config. Takes ownership of the object.
+	public void RegisterUnit(UnitConfig config) { mUnits[config.mId] = config; }
+	public void RegisterSkill(SkillConfig config) { mSkills[config.mId] = config; }
+	public void RegisterBuff(BuffConfig config) { mBuffs[config.mId] = config; }
+	public void RegisterStage(StageConfig config) { mStages[config.mId] = config; }
+	public void RegisterItem(ItemConfig config) { mItems[config.mId] = config; }
+	public void RegisterEquip(EquipConfig config) { mEquips[config.mId] = config; }
+	public void RegisterShopItem(ShopItemConfig config) { mShopItems[config.mId] = config; }
+	public void RegisterHeroLevel(HeroLevelConfig config) { mHeroLevels[config.mLevel] = config; }
+	public void RegisterStarLevel(StarLevelConfig config) { mStarLevels.Add(config); }
+
 	// --- Loading ---
 
 	public Result<void> LoadAll(StringView basePath)

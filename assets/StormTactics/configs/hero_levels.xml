@@ -1,0 +1,34 @@
+<root>
+  <array name="Items" count="5">
+    <object>
+      <int32 name="Level">1</int32>
+      <int32 name="ExpRequired">0</int32>
+      <int32 name="MaxStamina">30</int32>
+      <int32 name="MaxFormationSlots">3</int32>
+    </object>
+    <object>
+      <int32 name="Level">2</int32>
+      <int32 name="ExpRequired">100</int32>
+      <int32 name="MaxStamina">35</int32>
+      <int32 name="MaxFormationSlots">3</int32>
+    </object>
+    <object>
+      <int32 name="Level">3</int32>
+      <int32 name="ExpRequired">300</int32>
+      <int32 name="MaxStamina">40</int32>
+      <int32 name="MaxFormationSlots">4</int32>
+    </object>
+    <object>
+      <int32 name="Level">4</int32>
+      <int32 name="ExpRequired">600</int32>
+      <int32 name="MaxStamina">45</int32>
+      <int32 name="MaxFormationSlots">4</int32>
+    </object>
+    <object>
+      <int32 name="Level">5</int32>
+      <int32 name="ExpRequired">1000</int32>
+      <int32 name="MaxStamina">50</int32>
+      <int32 name="MaxFormationSlots">5</int32>
+    </object>
+  </array>
+</root>
