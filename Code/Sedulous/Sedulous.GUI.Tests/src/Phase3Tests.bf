@@ -382,10 +382,11 @@ class Phase3Tests
 		let buttonStyle = theme.GetControlStyle("Button");
 		let panelStyle = theme.GetControlStyle("Panel");
 
-		// All should have backgrounds set
+		// Interactive controls should have opaque backgrounds
 		Test.Assert(controlStyle.Background.A > 0);
 		Test.Assert(buttonStyle.Background.A > 0);
-		Test.Assert(panelStyle.Background.A > 0);
+		// Panel is a layout container — transparent background is correct
+		Test.Assert(panelStyle.Background.A == 0);
 	}
 
 	// ========== LightTheme Specific Tests ==========
@@ -415,10 +416,11 @@ class Phase3Tests
 		let buttonStyle = theme.GetControlStyle("Button");
 		let panelStyle = theme.GetControlStyle("Panel");
 
-		// All should have backgrounds set
+		// Interactive controls should have opaque backgrounds
 		Test.Assert(controlStyle.Background.A > 0);
 		Test.Assert(buttonStyle.Background.A > 0);
-		Test.Assert(panelStyle.Background.A > 0);
+		// Panel is a layout container — transparent background is correct
+		Test.Assert(panelStyle.Background.A == 0);
 	}
 
 	// ========== Unknown Control Type Fallback ==========
