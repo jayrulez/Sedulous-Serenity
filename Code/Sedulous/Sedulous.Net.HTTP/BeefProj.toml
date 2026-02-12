@@ -1,0 +1,6 @@
+FileVersion = 1
+
+[Project]
+Name = "Sedulous.Net.HTTP"
+TargetType = "BeefLib"
+StartupObject = "Sedulous.Net.HTTP.Program"

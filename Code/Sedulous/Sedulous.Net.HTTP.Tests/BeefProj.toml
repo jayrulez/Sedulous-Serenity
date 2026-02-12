@@ -1,0 +1,6 @@
+FileVersion = 1
+
+[Project]
+Name = "Sedulous.Net.HTTP.Tests"
+TargetType = "BeefTest"
+StartupObject = "Sedulous.Net.HTTP.Tests.Program"
