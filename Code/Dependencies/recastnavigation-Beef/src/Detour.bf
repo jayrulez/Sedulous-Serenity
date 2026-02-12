@@ -29,7 +29,7 @@ static
 	public const uint32 DT_FAILURE = (1u << 31);
 	public const uint32 DT_SUCCESS = (1u << 30);
 	public const uint32 DT_IN_PROGRESS = (1u << 29);
-	public const uint32 DT_STATUS_DETAIL_MASK = 0x0ffffff;
+	public const uint32 DT_STATUS_DETAIL_MASK = 0x00ffffff;
 	public const uint32 DT_WRONG_MAGIC = (1 << 0);
 	public const uint32 DT_WRONG_VERSION = (1 << 1);
 	public const uint32 DT_OUT_OF_MEMORY = (1 << 2);
