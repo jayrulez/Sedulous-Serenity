@@ -15,17 +15,18 @@ struct VertexInput
     float3 Position : POSITION;
     float3 Normal : NORMAL;
     float2 TexCoord : TEXCOORD0;
+    float4 Color : COLOR0;      // Not used by depth shader, but must be declared for layout consistency
+    float4 Tangent : TANGENT;   // Not used by depth shader, but must be declared for layout consistency
 #ifdef SKINNED
     uint4 BoneIndices : BLENDINDICES;
     float4 BoneWeights : BLENDWEIGHT;
 #endif
 #ifdef INSTANCED
-    // Instance data: world matrix as 4 float4 rows
-    // DXC maps TEXCOORD3-6 to locations 5-8
-    float4 InstanceWorldRow0 : TEXCOORD3;
-    float4 InstanceWorldRow1 : TEXCOORD4;
-    float4 InstanceWorldRow2 : TEXCOORD5;
-    float4 InstanceWorldRow3 : TEXCOORD6;
+    // Instance data: world matrix as 4 float4 rows at locations 5-8 (after Color=3, Tangent=4)
+    float4 InstanceWorldRow0 : TEXCOORD5;
+    float4 InstanceWorldRow1 : TEXCOORD6;
+    float4 InstanceWorldRow2 : TEXCOORD7;
+    float4 InstanceWorldRow3 : TEXCOORD8;
 #endif
 };
 

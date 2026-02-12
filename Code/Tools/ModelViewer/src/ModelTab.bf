@@ -6,6 +6,7 @@ using Sedulous.Mathematics;
 using Sedulous.Models;
 using Sedulous.Render;
 using Sedulous.Materials;
+using Sedulous.Materials.Resources;
 using Sedulous.Animation;
 using Sedulous.Animation.Resources;
 using Sedulous.GUI;
@@ -35,6 +36,10 @@ class ModelTab
 	/// The actual GPU mesh bounds (may differ from Model.Bounds due to recentering)
 	public BoundingBox MeshBounds = .(.Zero, .Zero);
 
+	/// For skinned meshes: the mesh node's world transform (rotation/scale not baked into vertices)
+	/// This transform converts bounds from bind-pose space to world-oriented space.
+	public Matrix MeshNodeTransform = .Identity;
+
 	/// Current model position offset (for gizmo manipulation)
 	public Vector3 ModelOffset = .Zero;
 
@@ -44,13 +49,26 @@ class ModelTab
 	public ViewportControl Viewport;
 	public CheckBox BoundingBoxCheck;
 
+	// Animation toolbar (only for skinned meshes)
+	public StackPanel AnimationToolbar;
+	public ComboBox AnimationComboBox;
+	public Button PlayPauseButton;
+	public Button StopButton;
+	public Button ResetButton;
+
+	// Scale control
+	public Slider ScaleSlider;
+	public float ModelScale = 1.0f;
+
 	// GPU resources
 	public GPUMeshHandle MeshHandle = .Invalid;
 	public GPUBoneBufferHandle BoneBufferHandle = .Invalid;
-	public GPUTextureHandle TextureHandle = .Invalid;
+	public List<GPUTextureHandle> TextureHandles = new .() ~ delete _;
 	public MeshProxyHandle StaticMeshProxy = .Invalid;
 	public SkinnedMeshProxyHandle SkinnedMeshProxy = .Invalid;
-	public MaterialInstance Material ~ _?.ReleaseRef();
+	// MaterialResources own the Material objects; MaterialInstances reference them
+	public List<Sedulous.Materials.Resources.MaterialResource> MaterialResources = new .() ~ DeleteContainerAndItems!(_);
+	public List<MaterialInstance> MaterialInstances = new .() ~ { for (let m in _) m?.ReleaseRef(); delete _; };
 
 	// Per-tab camera state
 	public OrbitCamera Camera ~ delete _;
@@ -99,11 +117,12 @@ class ModelTab
 			renderSystem.ResourceManager.ReleaseBoneBuffer(BoneBufferHandle, renderSystem.FrameNumber);
 			BoneBufferHandle = .Invalid;
 		}
-		if (TextureHandle.IsValid)
+		for (let texHandle in TextureHandles)
 		{
-			renderSystem.ResourceManager.ReleaseTexture(TextureHandle, renderSystem.FrameNumber);
-			TextureHandle = .Invalid;
+			if (texHandle.IsValid)
+				renderSystem.ResourceManager.ReleaseTexture(texHandle, renderSystem.FrameNumber);
 		}
+		TextureHandles.Clear();
 
 		// Remove proxies from world
 		if (World != null)
@@ -127,8 +146,12 @@ class ModelTab
 		if (Clips != null) { delete Clips; Clips = null; }
 		CurrentClip = 0;
 
-		// Clear material
-		if (Material != null) { Material.ReleaseRef(); Material = null; }
+		// Clear materials (instances first, then resources that own the Material objects)
+		for (let mat in MaterialInstances)
+			mat?.ReleaseRef();
+		MaterialInstances.Clear();
+		DeleteContainerAndItems!(MaterialResources);
+		MaterialResources = new .();
 	}
 
 	/// Destroys the entire tab including world and all resources.
@@ -153,7 +176,7 @@ class ModelTab
 			World = null;
 		}
 
-		// Clean up UI elements (ContentPanel owns Toolbar, Viewport, BoundingBoxCheck as children)
+		// Clean up UI elements (ContentPanel owns all child UI as children)
 		// Note: ContentPanel must be removed from its parent before calling Destroy
 		if (ContentPanel != null)
 		{
@@ -166,6 +189,12 @@ class ModelTab
 			Toolbar = null;
 			Viewport = null;
 			BoundingBoxCheck = null;
+			AnimationToolbar = null;
+			AnimationComboBox = null;
+			PlayPauseButton = null;
+			StopButton = null;
+			ResetButton = null;
+			ScaleSlider = null;
 		}
 	}
 }

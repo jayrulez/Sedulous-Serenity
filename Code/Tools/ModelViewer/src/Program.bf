@@ -10,6 +10,7 @@ using Sedulous.Models;
 using Sedulous.Models.GLTF;
 using Sedulous.Models.FBX;
 using Sedulous.Drawing;
+using Sedulous.Drawing.Fonts;
 using Sedulous.GUI;
 using Sedulous.Render;
 using Sedulous.Materials;
@@ -153,9 +154,15 @@ class ModelViewerApp : Application
 	private StackPanel mSidePanel;
 	private Grid mViewportPanel;
 	private TabControl mTabControl;
-	private Grid mViewportContainer;  // Container for per-tab content and drop indicator
-	private Label mModelInfoLabel;
-	private Label mDropIndicator;  // Shown when no tabs
+	private Grid mViewportContainer; // Container for per-tab content and drop indicator
+	private TextBlock mModelInfoLabel;
+	private TextBlock mDropIndicator; // Shown when no tabs
+
+	// Icon images for animation controls
+	private OwnedImageData mPlayIcon ~ delete _;
+	private OwnedImageData mPauseIcon ~ delete _;
+	private OwnedImageData mStopIcon ~ delete _;
+	private OwnedImageData mResetIcon ~ delete _;
 
 	/// Gets the currently active tab, or null if no tabs exist.
 	private ModelTab ActiveTab => mActiveTabIndex >= 0 && mActiveTabIndex < (int32)mTabs.Count ? mTabs[mActiveTabIndex] : null;
@@ -196,8 +203,105 @@ class ModelViewerApp : Application
 		mView.PostProcess.EnableSSAO = false;
 
 		RegisterFeatures();
+		CreateAnimationIcons();
 
 		return true;
+	}
+
+	/// Creates the icon images for animation control buttons.
+	private void CreateAnimationIcons()
+	{
+		// Icon size (16x16 pixels, RGBA format)
+		const int SIZE = 16;
+
+		// Create play icon (right-pointing triangle)
+		{
+			uint8[] pixels = new uint8[SIZE * SIZE * 4];
+			for (int y = 0; y < SIZE; y++)
+			{
+				for (int x = 0; x < SIZE; x++)
+				{
+					int idx = (y * SIZE + x) * 4;
+					// Triangle: x >= (SIZE - y) / 2 && x >= y / 2 && x < SIZE - 2
+					float centerY = SIZE / 2.0f;
+					float distFromCenter = Math.Abs(y - centerY);
+					float triangleX = 2 + distFromCenter * 0.8f;
+					bool inside = x >= triangleX && x < SIZE - 3;
+					uint8 alpha = inside ? 255 : 0;
+					pixels[idx + 0] = 220;  // R
+					pixels[idx + 1] = 220;  // G
+					pixels[idx + 2] = 220;  // B
+					pixels[idx + 3] = alpha; // A
+				}
+			}
+			mPlayIcon = new OwnedImageData(SIZE, SIZE, .RGBA8, pixels);
+		}
+
+		// Create pause icon (two vertical bars)
+		{
+			uint8[] pixels = new uint8[SIZE * SIZE * 4];
+			for (int y = 0; y < SIZE; y++)
+			{
+				for (int x = 0; x < SIZE; x++)
+				{
+					int idx = (y * SIZE + x) * 4;
+					// Two bars: x in [3,6] or [9,12], y in [2,13]
+					bool bar1 = x >= 3 && x <= 5 && y >= 2 && y <= 13;
+					bool bar2 = x >= 10 && x <= 12 && y >= 2 && y <= 13;
+					uint8 alpha = (bar1 || bar2) ? 255 : 0;
+					pixels[idx + 0] = 220;
+					pixels[idx + 1] = 220;
+					pixels[idx + 2] = 220;
+					pixels[idx + 3] = alpha;
+				}
+			}
+			mPauseIcon = new OwnedImageData(SIZE, SIZE, .RGBA8, pixels);
+		}
+
+		// Create stop icon (square)
+		{
+			uint8[] pixels = new uint8[SIZE * SIZE * 4];
+			for (int y = 0; y < SIZE; y++)
+			{
+				for (int x = 0; x < SIZE; x++)
+				{
+					int idx = (y * SIZE + x) * 4;
+					// Square: x in [3,12], y in [3,12]
+					bool inside = x >= 3 && x <= 12 && y >= 3 && y <= 12;
+					uint8 alpha = inside ? 255 : 0;
+					pixels[idx + 0] = 220;
+					pixels[idx + 1] = 220;
+					pixels[idx + 2] = 220;
+					pixels[idx + 3] = alpha;
+				}
+			}
+			mStopIcon = new OwnedImageData(SIZE, SIZE, .RGBA8, pixels);
+		}
+
+		// Create reset icon (left-pointing triangle with bar)
+		{
+			uint8[] pixels = new uint8[SIZE * SIZE * 4];
+			for (int y = 0; y < SIZE; y++)
+			{
+				for (int x = 0; x < SIZE; x++)
+				{
+					int idx = (y * SIZE + x) * 4;
+					// Bar on left: x in [2,4], y in [2,13]
+					bool bar = x >= 2 && x <= 4 && y >= 2 && y <= 13;
+					// Triangle pointing left: mirror of play
+					float centerY = SIZE / 2.0f;
+					float distFromCenter = Math.Abs(y - centerY);
+					float triangleX = SIZE - 3 - distFromCenter * 0.8f;
+					bool triangle = x <= triangleX && x >= 6;
+					uint8 alpha = (bar || triangle) ? 255 : 0;
+					pixels[idx + 0] = 220;
+					pixels[idx + 1] = 220;
+					pixels[idx + 2] = 220;
+					pixels[idx + 3] = alpha;
+				}
+			}
+			mResetIcon = new OwnedImageData(SIZE, SIZE, .RGBA8, pixels);
+		}
 	}
 
 	private void RegisterFeatures()
@@ -267,7 +371,6 @@ class ModelViewerApp : Application
 
 		// Calculate model bounds for camera fitting
 		tab.Model.CalculateBounds();
-		Console.WriteLine(scope $"  Bounds: {tab.Model.Bounds.Min} to {tab.Model.Bounds.Max}");
 
 		// Get base path for texture loading
 		let basePath = scope String();
@@ -278,7 +381,7 @@ class ModelViewerApp : Application
 		// Use ModelImporter for conversion
 		let importOptions = new ModelImportOptions();
 		importOptions.BasePath.Set(basePath);
-		importOptions.RecenterMeshes = false;  // Place model at origin
+		importOptions.RecenterMeshes = false; // Place model at origin
 
 		// Determine if skinned or static
 		tab.IsSkinnedMesh = tab.Model.Bones.Count > 0 && tab.Model.Skins.Count > 0;
@@ -303,18 +406,26 @@ class ModelViewerApp : Application
 		// Upload and setup based on mesh type
 		if (tab.IsSkinnedMesh && importResult.SkinnedMeshes.Count > 0)
 		{
-			tab.MeshBounds = importResult.SkinnedMeshes[0].Mesh.Bounds;// setup internally takes mesh from result, so we must call this before setup
+			// For skinned meshes, the mesh node's transform (rotation/scale) is NOT baked into
+			// vertex data (unlike static meshes) because doing so would break skinning math.
+			// However, the bounds are calculated from these untransformed vertices, so they
+			// won't match the rendered orientation. Common case: FBX files with Z-up to Y-up
+			// rotation on the mesh node. We compute the mesh node's world transform and apply
+			// it to the bounds so they align with the rendered model.
+			let bindPoseBounds = importResult.SkinnedMeshes[0].Mesh.Bounds;
+			tab.MeshNodeTransform = ComputeMeshNodeWorldTransform(tab.Model, 0);
+			tab.MeshBounds = TransformBoundingBox(bindPoseBounds, tab.MeshNodeTransform);
+
 			SetupSkinnedMesh(tab, importResult);
 		}
 		else if (importResult.StaticMeshes.Count > 0)
 		{
-			tab.MeshBounds = importResult.StaticMeshes[0].Mesh.GetBounds();// setup internally takes mesh from result, so we must call this before setup
+			tab.MeshBounds = importResult.StaticMeshes[0].Mesh.GetBounds();
 			SetupStaticMesh(tab, importResult);
 		}
-		Console.WriteLine(scope $"  GPU mesh bounds: {tab.MeshBounds.Min} to {tab.MeshBounds.Max}");
 
-		// Load texture
-		LoadTexture(tab, importResult, basePath);
+		// Load textures and materials from import result
+		LoadTexturesAndMaterials(tab, importResult, basePath);
 
 		// Fit camera to mesh bounds (uses recentered bounds from import)
 		tab.Camera.FitToModel(tab.MeshBounds);
@@ -449,6 +560,68 @@ class ModelViewerApp : Application
 		tab.Player = new Sedulous.Animation.AnimationPlayer(tab.Skeleton);
 	}
 
+	/// Computes the world transform for the node that references the given mesh index.
+	/// This captures rotation/scale that's not baked into skinned mesh vertices.
+	private Matrix ComputeMeshNodeWorldTransform(Model model, int32 meshIndex)
+	{
+		// Find the first node that references this mesh
+		int32 nodeIndex = -1;
+		for (let bone in model.Bones)
+		{
+			if (bone.MeshIndex == meshIndex)
+			{
+				nodeIndex = bone.Index;
+				break;
+			}
+		}
+
+		if (nodeIndex < 0)
+			return .Identity;
+
+		// Walk up the parent chain, accumulating transforms
+		Matrix worldTransform = .Identity;
+		int32 current = nodeIndex;
+		while (current >= 0 && current < model.Bones.Count)
+		{
+			let bone = model.Bones[current];
+			bone.UpdateLocalTransform();
+			worldTransform = worldTransform * bone.LocalTransform;
+			current = bone.ParentIndex;
+		}
+
+		return worldTransform;
+	}
+
+	/// Transforms an AABB by a matrix, returning a new AABB that contains all transformed corners.
+	private BoundingBox TransformBoundingBox(BoundingBox bounds, Matrix transform)
+	{
+		// Transform all 8 corners of the bounding box
+		Vector3[8] corners = .(
+			.(bounds.Min.X, bounds.Min.Y, bounds.Min.Z),
+			.(bounds.Max.X, bounds.Min.Y, bounds.Min.Z),
+			.(bounds.Min.X, bounds.Max.Y, bounds.Min.Z),
+			.(bounds.Max.X, bounds.Max.Y, bounds.Min.Z),
+			.(bounds.Min.X, bounds.Min.Y, bounds.Max.Z),
+			.(bounds.Max.X, bounds.Min.Y, bounds.Max.Z),
+			.(bounds.Min.X, bounds.Max.Y, bounds.Max.Z),
+			.(bounds.Max.X, bounds.Max.Y, bounds.Max.Z)
+		);
+
+		// Transform first corner to initialize min/max
+		var newMin = Vector3.Transform(corners[0], transform);
+		var newMax = newMin;
+
+		// Transform remaining corners and expand bounds
+		for (int i = 1; i < 8; i++)
+		{
+			let transformed = Vector3.Transform(corners[i], transform);
+			newMin = Vector3.Min(newMin, transformed);
+			newMax = Vector3.Max(newMax, transformed);
+		}
+
+		return .(newMin, newMax);
+	}
+
 	private void ExtractAnimationsFromModel(ModelTab tab)
 	{
 		if (tab.Model == null || tab.Model.Animations.Count == 0 || tab.Model.Skins.Count == 0)
@@ -519,80 +692,115 @@ class ModelViewerApp : Application
 		}
 	}
 
-	private void LoadTexture(ModelTab tab, ModelImportResult importResult, StringView basePath)
+	private void LoadTexturesAndMaterials(ModelTab tab, ModelImportResult importResult, StringView basePath)
 	{
-		// Try to load texture from import result
-		if (importResult.Textures.Count > 0)
+		// Upload all textures from the import result
+		for (let texRes in importResult.Textures)
 		{
-			let texRes = importResult.Textures[0];
 			if (texRes.Image != null)
 			{
 				let texData = TextureData.FromImage(texRes.Image);
 				if (mRenderSystem.ResourceManager.UploadTexture(texData) case .Ok(let handle))
-				{
-					tab.TextureHandle = handle;
-					CreateMaterial(tab);
-					return;
-				}
+					tab.TextureHandles.Add(handle);
+				else
+					tab.TextureHandles.Add(.Invalid); // Keep index alignment
 			}
+			else
+				tab.TextureHandles.Add(.Invalid);
 		}
 
-		// Try loading textures from model materials
-		if (tab.Model.Materials.Count > 0)
+		// Create MaterialInstances from all imported materials
+		let materialSystem = mRenderSystem.MaterialSystem;
+		if (materialSystem == null)
+			return;
+
+		// Take ownership of materials from import result (move them to tab)
+		for (let matRes in importResult.Materials)
 		{
-			let mat = tab.Model.Materials[0];
-			if (mat.BaseColorTextureIndex >= 0 && mat.BaseColorTextureIndex < (int32)tab.Model.Textures.Count)
+			let material = matRes.Material;
+			if (material == null)
 			{
-				let modelTex = tab.Model.Textures[mat.BaseColorTextureIndex];
-				let texUri = modelTex.Uri;
+				tab.MaterialInstances.Add(null);
+				continue;
+			}
 
-				if (texUri.Length > 0)
+			// Create instance from the imported material
+			let instance = new MaterialInstance(material);
+
+			// Resolve texture references
+			for (var kv in matRes.TextureRefs)
+			{
+				let slot = kv.key;
+				let texRef = kv.value;
+
+				if (texRef.Path == null)
+					continue;
+
+				// Find the texture by matching path/name in importResult.Textures
+				for (int i = 0; i < importResult.Textures.Count; i++)
 				{
-					let texPath = scope String();
-					if (basePath.Length > 0)
-						texPath.AppendF("{}/{}", basePath, texUri);
-					else
-						texPath.Set(texUri);
-
-					if (ImageLoaderFactory.LoadImage(texPath) case .Ok(var image))
+					let texRes = importResult.Textures[i];
+					// Match by name or check if path contains the texture name
+					bool matches = (texRes.Name == texRef.Path) ||
+						(texRes.Name.Length > 0 && texRef.Path.Contains(texRes.Name));
+					if (matches)
 					{
-						defer delete image;
-						let texData = TextureData.FromImage(image);
-						if (mRenderSystem.ResourceManager.UploadTexture(texData) case .Ok(let handle))
+						if (i < tab.TextureHandles.Count && tab.TextureHandles[i].IsValid)
 						{
-							tab.TextureHandle = handle;
-							CreateMaterial(tab);
-							return;
+							if (let texView = mRenderSystem.ResourceManager.GetTextureView(tab.TextureHandles[i]))
+								instance.SetTexture(slot, texView);
 						}
+						break;
 					}
 				}
 			}
+
+			tab.MaterialInstances.Add(instance);
 		}
+
+		// Move MaterialResources from import result to tab (tab takes ownership)
+		for (let matRes in importResult.Materials)
+			tab.MaterialResources.Add(matRes);
+		importResult.Materials.Clear(); // Clear without deleting - tab now owns them
+
+		// If no materials were imported, create a default one
+		if (tab.MaterialInstances.Count == 0)
+		{
+			let baseMat = materialSystem.DefaultMaterial;
+			if (baseMat != null)
+			{
+				let instance = new MaterialInstance(baseMat);
+				instance.SetColor("BaseColor", .(1, 1, 1, 1));
+				instance.SetFloat("Metallic", 0.0f);
+				instance.SetFloat("Roughness", 0.5f);
+				tab.MaterialInstances.Add(instance);
+			}
+		}
+
+		// Assign materials to proxies
+		AssignMaterialsToProxy(tab);
 	}
 
-	private void CreateMaterial(ModelTab tab)
+	private void AssignMaterialsToProxy(ModelTab tab)
 	{
-		let baseMat = mRenderSystem.MaterialSystem?.DefaultMaterial;
-		if (baseMat != null)
+		let materialCount = Math.Min(tab.MaterialInstances.Count, RenderConfig.MaxMaterialsPerMesh);
+
+		if (tab.StaticMeshProxy.IsValid)
 		{
-			tab.Material = new MaterialInstance(baseMat);
-			tab.Material.SetColor("BaseColor", .(1, 1, 1, 1));
-			tab.Material.SetFloat("Metallic", 0.0f);
-			tab.Material.SetFloat("Roughness", 0.5f);
-
-			if (let texView = mRenderSystem.ResourceManager.GetTextureView(tab.TextureHandle))
-				tab.Material.SetTexture("AlbedoMap", texView);
-
-			// Update proxy material
-			if (tab.StaticMeshProxy.IsValid)
+			if (let proxy = tab.World.GetMesh(tab.StaticMeshProxy))
 			{
-				if (let proxy = tab.World.GetMesh(tab.StaticMeshProxy))
-					proxy.Materials[0] = tab.Material;
+				for (int32 i = 0; i < materialCount; i++)
+					proxy.Materials[i] = tab.MaterialInstances[i];
+				proxy.MaterialCount = (int32)materialCount;
 			}
-			if (tab.SkinnedMeshProxy.IsValid)
+		}
+		if (tab.SkinnedMeshProxy.IsValid)
+		{
+			if (let proxy = tab.World.GetSkinnedMesh(tab.SkinnedMeshProxy))
 			{
-				if (let proxy = tab.World.GetSkinnedMesh(tab.SkinnedMeshProxy))
-					proxy.Materials[0] = tab.Material;
+				for (int32 i = 0; i < materialCount; i++)
+					proxy.Materials[i] = tab.MaterialInstances[i];
+				proxy.MaterialCount = (int32)materialCount;
 			}
 		}
 	}
@@ -606,18 +814,20 @@ class ModelViewerApp : Application
 		tabItem.IsCloseable = true;
 
 		// Subscribe to close event
-		tabItem.CloseRequested.Subscribe(new [&](item) => {
-			let index = (int32)item.Index;
-			if (index >= 0 && index < (int32)mTabs.Count)
-				CloseTab(index, false);
-		});
+		tabItem.CloseRequested.Subscribe(new [&] (item) =>
+			{
+				let index = (int32)item.Index;
+				if (index >= 0 && index < (int32)mTabs.Count)
+					CloseTab(index, false);
+			});
 
-		// Create per-tab content panel (Grid with toolbar + viewport)
+		// Create per-tab content panel (Grid with toolbar + viewport + animation toolbar)
 		tab.ContentPanel = new Grid();
-		tab.ContentPanel.RowDefinitions.Add(new .() { Height = .Auto });  // Row 0: Toolbar
-		tab.ContentPanel.RowDefinitions.Add(new .() { Height = .Star });  // Row 1: Viewport
+		tab.ContentPanel.RowDefinitions.Add(new .() { Height = .Auto }); // Row 0: Top Toolbar
+		tab.ContentPanel.RowDefinitions.Add(new .() { Height = .Star }); // Row 1: Viewport
+		tab.ContentPanel.RowDefinitions.Add(new .() { Height = .Auto }); // Row 2: Animation Toolbar (skinned only)
 		tab.ContentPanel.ColumnDefinitions.Add(new .() { Width = .Star });
-		tab.ContentPanel.Visibility = .Collapsed;  // Hidden until switched to
+		tab.ContentPanel.Visibility = .Collapsed; // Hidden until switched to
 		mViewportContainer.AddChild(tab.ContentPanel);
 
 		// Create per-tab toolbar (row 0)
@@ -639,10 +849,48 @@ class ModelViewerApp : Application
 		focusButton.Padding = .(8, 2, 8, 2);
 		focusButton.Margin = .(0, 0, 8, 0);
 		focusButton.VerticalAlignment = .Center;
-		focusButton.Click.Subscribe(new [&](btn) => {
-			FocusCameraOnModel();
-		});
+		focusButton.Click.Subscribe(new [&] (btn) =>
+			{
+				FocusCameraOnModel();
+			});
 		tab.Toolbar.AddChild(focusButton);
+
+		// Separator before scale
+		let scaleSep = new Separator(.Vertical);
+		scaleSep.Height = 18;
+		scaleSep.Margin = .(4, 0, 4, 0);
+		tab.Toolbar.AddChild(scaleSep);
+
+		// Scale label
+		let scaleLabel = new Label("Scale:");
+		scaleLabel.VerticalAlignment = .Center;
+		scaleLabel.Margin = .(0, 0, 4, 0);
+		tab.Toolbar.AddChild(scaleLabel);
+
+		// Scale slider
+		tab.ScaleSlider = new Slider();
+		tab.ScaleSlider.Width = 100;
+		tab.ScaleSlider.Minimum = 0.1f;
+		tab.ScaleSlider.Maximum = 10.0f;
+		tab.ScaleSlider.Value = 1.0f;
+		tab.ScaleSlider.VerticalAlignment = .Center;
+		tab.ScaleSlider.TooltipText = "Model scale (0.1x - 10x)";
+		tab.Toolbar.AddChild(tab.ScaleSlider);
+
+		// Scale value label
+		let scaleValueLabel = new Label("1.0x");
+		scaleValueLabel.Width = 35;
+		scaleValueLabel.VerticalAlignment = .Center;
+		scaleValueLabel.Margin = .(4, 0, 0, 0);
+		tab.Toolbar.AddChild(scaleValueLabel);
+
+		// Subscribe to scale changes
+		tab.ScaleSlider.ValueChanged.Subscribe(new (slider, value) =>
+			{
+				tab.ModelScale = value;
+				scaleValueLabel.ContentText = scope:: $"{value:F1}x";
+				UpdateModelTransform(tab);
+			});
 
 		// Create per-tab viewport (row 1)
 		tab.Viewport = new ViewportControl();
@@ -653,8 +901,176 @@ class ModelViewerApp : Application
 		GridProperties.SetRow(tab.Viewport, 1);
 		tab.ContentPanel.AddChild(tab.Viewport);
 
+		// Create animation toolbar for skinned meshes (row 2)
+		if (tab.IsSkinnedMesh && tab.Clips != null && tab.Clips.Count > 0)
+		{
+			CreateAnimationToolbar(tab);
+		}
+
 		// Update visibility
 		UpdateEmptyState();
+	}
+
+	/// Creates the animation toolbar for skinned meshes.
+	private void CreateAnimationToolbar(ModelTab tab)
+	{
+		tab.AnimationToolbar = new StackPanel();
+		tab.AnimationToolbar.Orientation = .Horizontal;
+		tab.AnimationToolbar.Background = Color(40, 45, 50, 255);
+		tab.AnimationToolbar.Padding = .(4, 2, 4, 2);
+		tab.AnimationToolbar.Spacing = 8;
+		GridProperties.SetRow(tab.AnimationToolbar, 2);
+		tab.ContentPanel.AddChild(tab.AnimationToolbar);
+
+		// Animation label
+		let animLabel = new Label("Animation:");
+		animLabel.VerticalAlignment = .Center;
+		tab.AnimationToolbar.AddChild(animLabel);
+
+		// Animation ComboBox - measure text to determine width
+		tab.AnimationComboBox = new ComboBox();
+		tab.AnimationComboBox.VerticalAlignment = .Center;
+
+		// Calculate width based on longest animation name
+		float maxTextWidth = 100;  // Minimum width
+		if (mGUIContext != null)
+		{
+			if (mGUIContext.GetService<IFontService>() case .Ok(let fontService))
+			{
+				let cachedFont = fontService.GetFont(12);  // Default font size
+				if (cachedFont != null)
+				{
+					for (let clip in tab.Clips)
+					{
+						let textWidth = cachedFont.Font.MeasureString(clip.Name);
+						maxTextWidth = Math.Max(maxTextWidth, textWidth);
+					}
+				}
+			}
+		}
+		// Add padding for dropdown arrow and margins
+		tab.AnimationComboBox.Width = maxTextWidth + 40;
+
+		for (let clip in tab.Clips)
+			tab.AnimationComboBox.AddText(clip.Name);
+		tab.AnimationComboBox.SelectedIndex = 0;
+		tab.AnimationComboBox.SelectionChanged.Subscribe(new (cb) =>
+			{
+				OnAnimationSelected(tab, (int32)cb.SelectedIndex);
+			});
+		tab.AnimationToolbar.AddChild(tab.AnimationComboBox);
+
+		// Play/Pause button
+		tab.PlayPauseButton = CreateImageButton(mPlayIcon, "Play/Pause animation");
+		tab.PlayPauseButton.Click.Subscribe(new (btn) => OnPlayPause(tab));
+		tab.AnimationToolbar.AddChild(tab.PlayPauseButton);
+
+		// Stop button
+		tab.StopButton = CreateImageButton(mStopIcon, "Stop animation");
+		tab.StopButton.Click.Subscribe(new (btn) => OnStop(tab));
+		tab.AnimationToolbar.AddChild(tab.StopButton);
+
+		// Reset button
+		tab.ResetButton = CreateImageButton(mResetIcon, "Reset to beginning");
+		tab.ResetButton.Click.Subscribe(new (btn) => OnReset(tab));
+		tab.AnimationToolbar.AddChild(tab.ResetButton);
+
+		// Update button state
+		UpdatePlayPauseButton(tab);
+	}
+
+	/// Creates a button with an image icon.
+	private Button CreateImageButton(IImageData icon, StringView tooltip)
+	{
+		let btn = new Button();
+		let img = new Sedulous.GUI.Image(icon);
+		img.Stretch = .None;
+		img.HorizontalAlignment = .Center;
+		img.VerticalAlignment = .Center;
+		btn.Content = img;
+		btn.Width = 28;
+		btn.Height = 24;
+		btn.Padding = .(4, 2, 4, 2);
+		btn.VerticalAlignment = .Center;
+		btn.TooltipText = tooltip;
+		return btn;
+	}
+
+	/// Called when animation is selected from ComboBox.
+	private void OnAnimationSelected(ModelTab tab, int32 index)
+	{
+		if (tab.Player == null || tab.Clips == null || index < 0 || index >= (int32)tab.Clips.Count)
+			return;
+		tab.CurrentClip = index;
+		tab.Clips[index].IsLooping = true;
+		tab.Player.Play(tab.Clips[index]);
+		UpdatePlayPauseButton(tab);
+	}
+
+	/// Toggles play/pause on current animation.
+	private void OnPlayPause(ModelTab tab)
+	{
+		if (tab.Player == null) return;
+
+		if (tab.Player.State == .Playing)
+			tab.Player.Pause();
+		else if (tab.Player.State == .Paused)
+			tab.Player.Resume();
+		else if (tab.Clips != null && tab.Clips.Count > 0)
+		{
+			tab.Clips[tab.CurrentClip].IsLooping = true;
+			tab.Player.Play(tab.Clips[tab.CurrentClip]);
+		}
+		UpdatePlayPauseButton(tab);
+	}
+
+	/// Stops the current animation.
+	private void OnStop(ModelTab tab)
+	{
+		if (tab.Player != null)
+			tab.Player.Stop();
+		UpdatePlayPauseButton(tab);
+	}
+
+	/// Resets (restarts) the current animation.
+	private void OnReset(ModelTab tab)
+	{
+		if (tab.Player != null && tab.Clips != null && tab.CurrentClip < (int32)tab.Clips.Count)
+		{
+			tab.Clips[tab.CurrentClip].IsLooping = true;
+			tab.Player.Play(tab.Clips[tab.CurrentClip]);
+		}
+		UpdatePlayPauseButton(tab);
+	}
+
+	/// Updates the play/pause button icon based on player state.
+	private void UpdatePlayPauseButton(ModelTab tab)
+	{
+		if (tab.PlayPauseButton == null || tab.Player == null) return;
+
+		if (let img = tab.PlayPauseButton.Content as Sedulous.GUI.Image)
+		{
+			if (tab.Player.State == .Playing)
+				img.Source = mPauseIcon;
+			else
+				img.Source = mPlayIcon;
+		}
+	}
+
+	/// Updates the model transform with scale and offset.
+	private void UpdateModelTransform(ModelTab tab)
+	{
+		let transform = Matrix.CreateScale(tab.ModelScale) * Matrix.CreateTranslation(tab.ModelOffset);
+		if (tab.StaticMeshProxy.IsValid)
+		{
+			if (let proxy = tab.World.GetMesh(tab.StaticMeshProxy))
+				proxy.SetTransformImmediate(transform);
+		}
+		if (tab.SkinnedMeshProxy.IsValid)
+		{
+			if (let proxy = tab.World.GetSkinnedMesh(tab.SkinnedMeshProxy))
+				proxy.SetTransformImmediate(transform);
+		}
 	}
 
 	private void SwitchToTab(int32 index)
@@ -695,11 +1111,11 @@ class ModelViewerApp : Application
 		if (tab == null || tab.Model == null)
 			return;
 
-		// Focus on bounds at model's current position
-		let offsetBounds = BoundingBox(
-			tab.MeshBounds.Min + tab.ModelOffset,
-			tab.MeshBounds.Max + tab.ModelOffset);
-		tab.Camera.FitToModel(offsetBounds);
+		// Focus on scaled bounds at model's current position
+		let scaledBounds = BoundingBox(
+			tab.MeshBounds.Min * tab.ModelScale + tab.ModelOffset,
+			tab.MeshBounds.Max * tab.ModelScale + tab.ModelOffset);
+		tab.Camera.FitToModel(scaledBounds);
 	}
 
 	private void CloseTab(int32 index, bool removeFromTabControl = true)
@@ -794,7 +1210,7 @@ class ModelViewerApp : Application
 					info.AppendF("Animations: {}", tab.Clips.Count);
 			}
 		}
-		mModelInfoLabel.ContentText = info;
+		mModelInfoLabel.Text = info;
 	}
 
 	protected override void OnUpdate(float deltaTime)
@@ -809,15 +1225,25 @@ class ModelViewerApp : Application
 			let keyboard = Shell.InputManager.Keyboard;
 			let viewport = tab.Viewport;
 
-			// Check if mouse is inside viewport bounds
-			let viewportBounds = viewport.ArrangedBounds;
-			bool mouseInViewport = mouse.X >= viewportBounds.X && mouse.X < viewportBounds.Right &&
-								   mouse.Y >= viewportBounds.Y && mouse.Y < viewportBounds.Bottom;
+			// Account for UI scaling - convert screen coordinates to logical coordinates
+			let uiScale = mGUIContext?.ScaleFactor ?? 1.0f;
+			float scaledMouseX = mouse.X / uiScale;
+			float scaledMouseY = mouse.Y / uiScale;
 
-			// Track button state - only start drag/fly/pan if mouse is in viewport
+			// Check if mouse is inside viewport bounds (in logical coordinates)
+			let viewportBounds = viewport.ArrangedBounds;
+			bool mouseInViewport = scaledMouseX >= viewportBounds.X && scaledMouseX < viewportBounds.Right &&
+				scaledMouseY >= viewportBounds.Y && scaledMouseY < viewportBounds.Bottom;
+
+			// Check if mouse is over a UI element (popup, dropdown, etc.) - block input if so
+			// Note: HitTest expects screen coordinates, not scaled
+			let hitElement = mGUIContext?.HitTest(mouse.X, mouse.Y);
+			bool uiCaptured = hitElement != null && hitElement != viewport && hitElement != mRootPanel;
+
+			// Track button state - only start drag/fly/pan if mouse is in viewport and UI hasn't captured input
 			// Ctrl+LMB = orbit rotate, LMB alone = gizmo interaction
 			bool ctrlHeld = keyboard.IsKeyDown(.LeftCtrl) || keyboard.IsKeyDown(.RightCtrl);
-			if (mouse.IsButtonPressed(.Left) && mouseInViewport && ctrlHeld)
+			if (mouse.IsButtonPressed(.Left) && mouseInViewport && !uiCaptured && ctrlHeld)
 			{
 				mIsDragging = true;
 				mLastMouseX = mouse.X;
@@ -826,7 +1252,7 @@ class ModelViewerApp : Application
 			if (mouse.IsButtonReleased(.Left))
 				mIsDragging = false;
 
-			if (mouse.IsButtonPressed(.Right) && mouseInViewport)
+			if (mouse.IsButtonPressed(.Right) && mouseInViewport && !uiCaptured)
 			{
 				mIsFlying = true;
 				mLastMouseX = mouse.X;
@@ -835,7 +1261,7 @@ class ModelViewerApp : Application
 			if (mouse.IsButtonReleased(.Right))
 				mIsFlying = false;
 
-			if (mouse.IsButtonPressed(.Middle) && mouseInViewport)
+			if (mouse.IsButtonPressed(.Middle) && mouseInViewport && !uiCaptured)
 			{
 				mIsPanning = true;
 				mLastMouseX = mouse.X;
@@ -844,12 +1270,11 @@ class ModelViewerApp : Application
 			if (mouse.IsButtonReleased(.Middle))
 				mIsPanning = false;
 
-			// LMB: Orbit rotate
+			// LMB: Orbit rotate (horizontal only - no pitch to avoid accidental vertical rotation)
 			if (mIsDragging && !mIsFlying)
 			{
 				float deltaX = mouse.X - mLastMouseX;
-				float deltaY = mouse.Y - mLastMouseY;
-				tab.Camera.Rotate(-deltaX * 0.01f, -deltaY * 0.01f);
+				tab.Camera.Rotate(-deltaX * 0.01f, 0);
 				mLastMouseX = mouse.X;
 				mLastMouseY = mouse.Y;
 			}
@@ -869,7 +1294,7 @@ class ModelViewerApp : Application
 				{
 					float moveSpeed = tab.Camera.Distance * 2.0f * deltaTime;
 					if (keyboard.IsKeyDown(.LeftShift) || keyboard.IsKeyDown(.RightShift))
-						moveSpeed *= 3.0f;  // Sprint
+						moveSpeed *= 3.0f; // Sprint
 
 					float forward = 0, right = 0, up = 0;
 					if (keyboard.IsKeyDown(.W)) forward += 1;
@@ -894,12 +1319,12 @@ class ModelViewerApp : Application
 				mLastMouseY = mouse.Y;
 			}
 
-			// Scroll: Zoom
-			if (mouse.ScrollY != 0)
+			// Scroll: Zoom (only when mouse is in viewport and not over UI elements)
+			if (mouse.ScrollY != 0 && mouseInViewport && !uiCaptured)
 				tab.Camera.Zoom(mouse.ScrollY * tab.Camera.Distance * 0.1f);
 
-			// Gizmo interaction (when not flying or panning)
-			if (mGizmo != null && !mIsFlying && !mIsPanning && tab.Model != null)
+			// Gizmo interaction (when not flying or panning and not over UI)
+			if (mGizmo != null && !mIsFlying && !mIsPanning && !uiCaptured && tab.Model != null)
 			{
 				// Position gizmo at model's current position (only when not dragging)
 				if (!mGizmo.IsDragging)
@@ -912,15 +1337,16 @@ class ModelViewerApp : Application
 				// Scale gizmo based on distance from camera
 				mGizmo.Size = tab.Camera.Distance * 0.15f;
 
-				// Get viewport bounds in screen space (reuse viewportBounds from above)
+				// Get viewport bounds and render dimensions
+				// Both ArrangedBounds and RenderWidth/Height are in logical coordinates
 				let vpX = viewportBounds.X;
 				let vpY = viewportBounds.Y;
 				let vpW = viewport.RenderWidth;
 				let vpH = viewport.RenderHeight;
 
-				// Convert window mouse position to viewport-local coordinates
-				float localMouseX = mouse.X - vpX;
-				float localMouseY = mouse.Y - vpY;
+				// Convert scaled mouse position to viewport-local coordinates (all in logical space)
+				float localMouseX = scaledMouseX - vpX;
+				float localMouseY = scaledMouseY - vpY;
 
 				// Only interact if mouse is inside viewport and dimensions are valid
 				if (localMouseX >= 0 && localMouseX < vpW && localMouseY >= 0 && localMouseY < vpH && vpW > 0 && vpH > 0)
@@ -945,38 +1371,24 @@ class ModelViewerApp : Application
 					{
 						Console.WriteLine(scope $"BeginDrag: axis={mGizmo.HoveredAxis}, pos={mGizmo.Position}");
 						mGizmo.BeginDrag(pickRay);
-						mIsDragging = false;  // Prevent camera rotation while dragging gizmo
-						// Store start position (UpdateDrag returns total delta from start)
-						mGizmoDragStartPos = mGizmo.Position;
+						mIsDragging = false; // Prevent camera rotation while dragging gizmo
+						// Store start model offset (not gizmo position, which includes mesh center)
+						mGizmoDragStartPos = tab.ModelOffset;
 					}
 
 					if (mGizmo.IsDragging)
 					{
 						let delta = mGizmo.UpdateDrag(pickRay);
-						// Calculate new model offset
+						// Calculate new model offset from original offset + drag delta
 						let newOffset = mGizmoDragStartPos + delta;
 
-						// Update mesh proxy transform to move the actual model
-						let transform = Matrix.CreateTranslation(newOffset);
-						if (tab.StaticMeshProxy.IsValid)
-						{
-							if (let proxy = tab.World.GetMesh(tab.StaticMeshProxy))
-								proxy.SetTransformImmediate(transform);
-						}
-						if (tab.SkinnedMeshProxy.IsValid)
-						{
-							if (let proxy = tab.World.GetSkinnedMesh(tab.SkinnedMeshProxy))
-								proxy.SetTransformImmediate(transform);
-						}
-
-						// Update gizmo to follow the model
-						mGizmo.Position = newOffset;
-
-						// Don't move camera - let the model move independently
-						// (Camera target stays where it was)
-
-						// Store the offset for later use
+						// Store the offset and update transform (includes scale)
 						tab.ModelOffset = newOffset;
+						UpdateModelTransform(tab);
+
+						// Update gizmo to follow the model (gizmo is at mesh center + offset)
+						let meshCenter = (tab.MeshBounds.Min + tab.MeshBounds.Max) * 0.5f;
+						mGizmo.Position = meshCenter + newOffset;
 					}
 				}
 
@@ -1006,6 +1418,11 @@ class ModelViewerApp : Application
 					tab.Clips[tab.CurrentClip].IsLooping = true;
 					tab.Player.Play(tab.Clips[tab.CurrentClip]);
 					Console.WriteLine(scope $"Playing: {tab.Clips[tab.CurrentClip].Name}");
+
+					// Sync ComboBox selection
+					if (tab.AnimationComboBox != null)
+						tab.AnimationComboBox.SelectedIndex = tab.CurrentClip;
+					UpdatePlayPauseButton(tab);
 				}
 			}
 		}
@@ -1028,7 +1445,7 @@ class ModelViewerApp : Application
 						currentMatrices.Ptr,
 						prevMatrices.Ptr,
 						(uint16)tab.Skeleton.BoneCount
-					);
+						);
 				}
 			}
 		}
@@ -1079,10 +1496,11 @@ class ModelViewerApp : Application
 				// Draw bounding box if enabled (offset by model position)
 				if (tab.BoundingBoxCheck != null && tab.BoundingBoxCheck.IsChecked && mDebugFeature != null && tab.Model != null)
 				{
-					let offsetBounds = BoundingBox(
-						tab.MeshBounds.Min + tab.ModelOffset,
-						tab.MeshBounds.Max + tab.ModelOffset);
-					mDebugFeature.AddBox(offsetBounds, Color(255, 200, 50, 255), .Overlay);
+					// Apply scale (around origin) then offset to match the model transform
+					let scaledBounds = BoundingBox(
+						tab.MeshBounds.Min * tab.ModelScale + tab.ModelOffset,
+						tab.MeshBounds.Max * tab.ModelScale + tab.ModelOffset);
+					mDebugFeature.AddBox(scaledBounds, Color(255, 200, 50, 255), .Overlay);
 				}
 
 				if (mRenderSystem.BuildRenderGraph(mView) case .Ok)
@@ -1174,8 +1592,9 @@ class ModelViewerApp : Application
 		mSidePanel.AddChild(sep);
 
 		// Model info
-		mModelInfoLabel = new Label("No model loaded");
+		mModelInfoLabel = new TextBlock("No model loaded");
 		mModelInfoLabel.FontSize = 12;
+		mModelInfoLabel.TextWrapping = .Wrap;
 		mSidePanel.AddChild(mModelInfoLabel);
 
 		let sep2 = new Separator();
@@ -1219,8 +1638,8 @@ class ModelViewerApp : Application
 
 		// Right side: Grid with tabs (row 0), viewport container (row 1)
 		mViewportPanel = new Grid();
-		mViewportPanel.RowDefinitions.Add(new .() { Height = .Auto });  // Row 0: Tab control (auto height)
-		mViewportPanel.RowDefinitions.Add(new .() { Height = .Star });  // Row 1: Per-tab content (fills remaining)
+		mViewportPanel.RowDefinitions.Add(new .() { Height = .Auto }); // Row 0: Tab control (auto height)
+		mViewportPanel.RowDefinitions.Add(new .() { Height = .Star }); // Row 1: Per-tab content (fills remaining)
 		mViewportPanel.ColumnDefinitions.Add(new .() { Width = .Star });
 		mRootPanel.AddChild(mViewportPanel);
 
@@ -1230,10 +1649,11 @@ class ModelViewerApp : Application
 		mTabControl.Height = 30;
 		mTabControl.Visibility = .Collapsed;
 		GridProperties.SetRow(mTabControl, 0);
-		mTabControl.SelectionChanged.Subscribe(new (tc) => {
-			if (tc.SelectedIndex >= 0 && tc.SelectedIndex != mActiveTabIndex)
-				SwitchToTab((int32)tc.SelectedIndex);
-		});
+		mTabControl.SelectionChanged.Subscribe(new (tc) =>
+			{
+				if (tc.SelectedIndex >= 0 && tc.SelectedIndex != mActiveTabIndex)
+					SwitchToTab((int32)tc.SelectedIndex);
+			});
 		mViewportPanel.AddChild(mTabControl);
 
 		// Container for per-tab content panels and drop indicator (row 1)
@@ -1244,9 +1664,11 @@ class ModelViewerApp : Application
 		mViewportPanel.AddChild(mViewportContainer);
 
 		// Drop indicator (shown when no tabs)
-		mDropIndicator = new Label("Drop a model here\n\nGLTF, GLB, FBX");
+		mDropIndicator = new TextBlock("Drop a model here\n\nGLTF, GLB, FBX");
 		mDropIndicator.FontSize = 20;
 		mDropIndicator.Foreground = Color(150, 150, 160, 255);
+		mDropIndicator.TextWrapping = .Wrap;
+		mDropIndicator.TextAlignment = .Center;
 		mDropIndicator.HorizontalAlignment = .Center;
 		mDropIndicator.VerticalAlignment = .Center;
 		mViewportContainer.AddChild(mDropIndicator);

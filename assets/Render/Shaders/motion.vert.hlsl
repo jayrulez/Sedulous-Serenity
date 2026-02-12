@@ -20,6 +20,8 @@ struct VertexInput
     float3 Position : POSITION;
     float3 Normal : NORMAL;
     float2 TexCoord : TEXCOORD0;
+    float4 Color : COLOR0;
+    float4 Tangent : TANGENT;
 #ifdef SKINNED
     uint4 BoneIndices : BLENDINDICES;
     float4 BoneWeights : BLENDWEIGHT;

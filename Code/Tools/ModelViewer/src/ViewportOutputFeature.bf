@@ -10,11 +10,27 @@ using Sedulous.Render;
 /// Similar to FinalOutputFeature but outputs to an external texture instead of swapchain.
 public class ViewportOutputFeature : RenderFeatureBase
 {
+	/// GPU-packed blit parameters.
+	/// Layout MUST match blit.frag.hlsl BlitParams cbuffer.
+	[CRepr]
+	private struct BlitParams
+	{
+		public float Exposure;
+		public float _Pad0;
+		public float _Pad1;
+		public float _Pad2;
+
+		public static int Size => 16;
+	}
+
 	// Blit pipeline resources
 	private IRenderPipeline mBlitPipeline ~ delete _;
 	private IPipelineLayout mBlitPipelineLayout ~ delete _;
 	private IBindGroupLayout mBlitBindGroupLayout ~ delete _;
 	private ISampler mLinearSampler ~ delete _;
+
+	// Per-frame uniform buffers for blit params
+	private IBuffer[RenderConfig.FrameBufferCount] mBlitParamsBuffers;
 
 	// Per-frame bind groups
 	private IBindGroup[RenderConfig.FrameBufferCount] mBlitBindGroups;
@@ -24,6 +40,9 @@ public class ViewportOutputFeature : RenderFeatureBase
 	private ITextureView mColorTextureView;
 	private uint32 mWidth;
 	private uint32 mHeight;
+
+	// Current exposure value
+	private float mExposure = 1.0f;
 
 	/// Feature name.
 	public override StringView Name => "ViewportOutput";
@@ -63,6 +82,24 @@ public class ViewportOutputFeature : RenderFeatureBase
 		case .Err: return .Err;
 		}
 
+		// Create per-frame uniform buffers for blit params
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
+		{
+			BufferDescriptor bufDesc = .()
+			{
+				Label = "ViewportBlit Params",
+				Size = (uint64)BlitParams.Size,
+				Usage = .Uniform,
+				MemoryAccess = .Upload
+			};
+
+			switch (Renderer.Device.CreateBuffer(&bufDesc))
+			{
+			case .Ok(let buf): mBlitParamsBuffers[i] = buf;
+			case .Err: return .Err;
+			}
+		}
+
 		// Create blit pipeline
 		if (CreateBlitPipeline() case .Err)
 			return .Err;
@@ -83,10 +120,11 @@ public class ViewportOutputFeature : RenderFeatureBase
 
 		let (vertShader, fragShader) = shaderResult.Value;
 
-		// Create bind group layout: t0=source texture, s0=sampler
-		BindGroupLayoutEntry[2] layoutEntries = .(
-			.() { Binding = 0, Visibility = .Fragment, Type = .SampledTexture },
-			.() { Binding = 0, Visibility = .Fragment, Type = .Sampler }
+		// Create bind group layout: b0=blit params, t0=source texture, s0=sampler
+		BindGroupLayoutEntry[3] layoutEntries = .(
+			.() { Binding = 0, Visibility = .Fragment, Type = .UniformBuffer },  // b0
+			.() { Binding = 0, Visibility = .Fragment, Type = .SampledTexture }, // t0
+			.() { Binding = 0, Visibility = .Fragment, Type = .Sampler }         // s0
 		);
 
 		BindGroupLayoutDescriptor layoutDesc = .()
@@ -155,6 +193,11 @@ public class ViewportOutputFeature : RenderFeatureBase
 	{
 		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
+			if (mBlitParamsBuffers[i] != null)
+			{
+				delete mBlitParamsBuffers[i];
+				mBlitParamsBuffers[i] = null;
+			}
 			if (mBlitBindGroups[i] != null)
 			{
 				delete mBlitBindGroups[i];
@@ -175,6 +218,9 @@ public class ViewportOutputFeature : RenderFeatureBase
 		var sourceHandle = Renderer.PostProcessOutput;
 		if (!sourceHandle.IsValid)
 			sourceHandle = graph.GetResource("SceneColor");
+
+		// Update exposure from world
+		mExposure = world.Exposure;
 
 		if (sourceHandle.IsValid && mBlitPipeline != null)
 		{
@@ -222,8 +268,21 @@ public class ViewportOutputFeature : RenderFeatureBase
 			mBlitBindGroups[frameIndex] = null;
 		}
 
+		// Upload blit params (exposure) for this frame
+		let paramsBuffer = mBlitParamsBuffers[frameIndex];
+		if (paramsBuffer != null)
+		{
+			BlitParams blitParams = .() { Exposure = mExposure };
+			if (let ptr = paramsBuffer.Map())
+			{
+				Internal.MemCpy(ptr, &blitParams, BlitParams.Size);
+				paramsBuffer.Unmap();
+			}
+		}
+
 		// Create new bind group with current scene color
-		BindGroupEntry[2] entries = .(
+		BindGroupEntry[3] entries = .(
+			BindGroupEntry.Buffer(0, paramsBuffer, 0, (uint64)BlitParams.Size),
 			BindGroupEntry.Texture(0, sceneColorView),
 			BindGroupEntry.Sampler(0, mLinearSampler)
 		);

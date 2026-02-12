@@ -15,20 +15,18 @@ struct VertexInput
     float3 Position : POSITION;
     float3 Normal : NORMAL;
     float2 TexCoord : TEXCOORD0;
-#ifdef NORMAL_MAP
+    float4 Color : COLOR0;
     float4 Tangent : TANGENT;
-#endif
 #ifdef SKINNED
     uint4 BoneIndices : BLENDINDICES;
     float4 BoneWeights : BLENDWEIGHT;
 #endif
 #ifdef INSTANCED
-    // Instance data: world matrix as 4 float4 rows
-    // DXC maps TEXCOORD3-6 to locations 5-8
-    float4 InstanceWorldRow0 : TEXCOORD3;
-    float4 InstanceWorldRow1 : TEXCOORD4;
-    float4 InstanceWorldRow2 : TEXCOORD5;
-    float4 InstanceWorldRow3 : TEXCOORD6;
+    // Instance data: world matrix as 4 float4 rows at locations 5-8
+    float4 InstanceWorldRow0 : TEXCOORD5;
+    float4 InstanceWorldRow1 : TEXCOORD6;
+    float4 InstanceWorldRow2 : TEXCOORD7;
+    float4 InstanceWorldRow3 : TEXCOORD8;
 #endif
 };
 
@@ -45,6 +43,7 @@ struct VertexOutput
 #ifdef RECEIVE_SHADOWS
     float4 ShadowCoord : TEXCOORD5;
 #endif
+    float4 Color : COLOR0;
 };
 
 // Compute cofactor matrix (adjugate) of upper 3x3 for normal transformation
@@ -108,7 +107,7 @@ VertexOutput main(VertexInput input)
 #else
     float4 worldPos = mul(float4(localPos, 1.0), WorldMatrix);
     float3 worldNormal = normalize(mul(float4(localNormal, 0.0), NormalMatrix).xyz);
-#ifdef NORMAL_MAP
+#if defined(NORMAL_MAP)
     float3 worldTangent = normalize(mul(float4(localTangent, 0.0), NormalMatrix).xyz);
 #endif
 #endif
@@ -122,6 +121,8 @@ VertexOutput main(VertexInput input)
     output.WorldTangent = worldTangent;
     output.WorldBitangent = cross(output.WorldNormal, output.WorldTangent) * input.Tangent.w;
 #endif
+
+    output.Color = input.Color;
 
     return output;
 }

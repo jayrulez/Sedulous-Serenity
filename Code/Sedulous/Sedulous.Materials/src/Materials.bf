@@ -29,6 +29,10 @@ static class Materials
 	/// Creates a simple unlit material.
 	/// Uses simplified layout with only properties needed for unlit rendering.
 	/// Layout matches unlit.frag.hlsl: BaseColor(0), EmissiveColor(16), AlphaCutoff(32)
+	///
+	/// NOTE: To use vertex colors with the unlit shader, set ShaderFlags.VertexColors
+	/// on the material before creating the pipeline. The shader uses the VERTEX_COLORS
+	/// variant flag to enable vertex color output.
 	public static Material CreateUnlit(StringView name, String shaderName = null, ITextureView defaultAlbedo = null, ISampler defaultSampler = null)
 	{
 		return scope MaterialBuilder(name)

@@ -186,7 +186,7 @@ public class DocumentTab : Control
 	{
 		base.OnMouseMove(e);
 
-		let wasCloseHovered = mIsCloseHovered;
+		//let wasCloseHovered = mIsCloseHovered;
 		mIsCloseHovered = mCloseButtonBounds.Contains(e.ScreenX, e.ScreenY);
 
 		// Visual update happens automatically on next render

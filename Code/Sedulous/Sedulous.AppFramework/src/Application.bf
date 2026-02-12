@@ -89,7 +89,7 @@ public abstract class Application
 	private delegate void(StringView) mTextInputDelegate ~ delete _;
 
 	// Window event delegate (for DPI scaling)
-	private delegate void(IWindow, WindowEvent) mWindowEventDelegate ~ delete _;
+	private delegate void(IWindow, WindowEvent) mWindowEventDelegate /*~ delete _*/;
 
 	// Cursor tracking
 	private CursorType mLastUICursor = .Default;

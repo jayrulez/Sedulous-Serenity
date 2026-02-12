@@ -204,22 +204,24 @@ public class DepthPrepassFeature : RenderFeatureBase
 		let (vertShader, fragShader) = shaderPairResult.Value;
 
 		// Vertex layout for depth instancing:
-		// - Mesh buffer uses stride 48 (full Mesh format) but only declares Position/Normal/UV (what shader uses)
-		// - DXC assigns locations sequentially, so instance data starts at location 3 (after UV)
-		Sedulous.RHI.VertexAttribute[3] meshAttrs = .(
-			.(VertexFormat.Float3, 0, 0),   // Position
-			.(VertexFormat.Float3, 12, 1),  // Normal
-			.(VertexFormat.Float2, 24, 2)   // UV
+		// - Mesh buffer uses full Mesh format (48 bytes) with all attributes
+		// - Instance data starts at location 5 (after Color=3, Tangent=4)
+		Sedulous.RHI.VertexAttribute[5] meshAttrs = .(
+			.(VertexFormat.Float3, 0, 0),            // Position
+			.(VertexFormat.Float3, 12, 1),           // Normal
+			.(VertexFormat.Float2, 24, 2),           // UV
+			.(VertexFormat.UByte4Normalized, 32, 3), // Color
+			.(VertexFormat.Float3, 36, 4)            // Tangent
 		);
 		Sedulous.RHI.VertexAttribute[4] instanceAttrs = .(
-			.(VertexFormat.Float4, 0, 3),   // WorldRow0
-			.(VertexFormat.Float4, 16, 4),  // WorldRow1
-			.(VertexFormat.Float4, 32, 5),  // WorldRow2
-			.(VertexFormat.Float4, 48, 6)   // WorldRow3
+			.(VertexFormat.Float4, 0, 5),   // WorldRow0
+			.(VertexFormat.Float4, 16, 6),  // WorldRow1
+			.(VertexFormat.Float4, 32, 7),  // WorldRow2
+			.(VertexFormat.Float4, 48, 8)   // WorldRow3
 		);
 		VertexBufferLayout[2] vertexBuffers = .(
-			.(48, meshAttrs, .Vertex),              // Mesh buffer (stride 48, but only 3 attrs declared)
-			.(64, instanceAttrs, .Instance)         // Instance buffer
+			.(48, meshAttrs, .Vertex),
+			.(64, instanceAttrs, .Instance)
 		);
 
 		// Instanced depth pipeline descriptor

@@ -50,15 +50,13 @@ public static class VertexLayoutHelper
 
 	/// Instance data: 4 x float4 (world matrix rows) - for GPU instancing
 	/// Used as second vertex buffer with per-instance step rate
-	/// NOTE: DXC assigns locations SEQUENTIALLY based on struct order, not semantic index.
-	/// For a shader with Position, Normal, UV, TEXCOORD3-6:
-	///   - Position=0, Normal=1, UV=2, then instance at 3,4,5,6
-	/// Use CreateInstanceDataAttributes() to get attributes at correct starting location.
+	/// Instance data starts at location 5 (after Position=0, Normal=1, UV=2, Color=3, Tangent=4)
+	/// Use CreateInstanceDataAttributes() to get attributes at a custom starting location if needed.
 	public static VertexAttribute[4] InstanceDataAttributes = .(
-		.(VertexFormat.Float4, 0, 3),   // WorldRow0 (location 3)
-		.(VertexFormat.Float4, 16, 4),  // WorldRow1 (location 4)
-		.(VertexFormat.Float4, 32, 5),  // WorldRow2 (location 5)
-		.(VertexFormat.Float4, 48, 6)   // WorldRow3 (location 6)
+		.(VertexFormat.Float4, 0, 5),   // WorldRow0 (location 5)
+		.(VertexFormat.Float4, 16, 6),  // WorldRow1 (location 6)
+		.(VertexFormat.Float4, 32, 7),  // WorldRow2 (location 7)
+		.(VertexFormat.Float4, 48, 8)   // WorldRow3 (location 8)
 	);
 
 	/// Instance data stride (4 x float4 = 64 bytes).

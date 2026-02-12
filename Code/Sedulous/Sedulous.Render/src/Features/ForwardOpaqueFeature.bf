@@ -191,18 +191,21 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		// These layouts match what the shaders expect
 		if (instanced)
 		{
-			// Instanced: simplified mesh attrs + instance transforms
-			// This matches the instanced forward shader's vertex input
-			Sedulous.RHI.VertexAttribute[3] meshAttrs = .(
-				.(VertexFormat.Float3, 0, 0),   // Position
-				.(VertexFormat.Float3, 12, 1),  // Normal
-				.(VertexFormat.Float2, 24, 2)   // UV
+			// Instanced: full mesh attrs + instance transforms
+			// Mesh attributes match VertexLayoutHelper.MeshAttributes (48 bytes)
+			Sedulous.RHI.VertexAttribute[5] meshAttrs = .(
+				.(VertexFormat.Float3, 0, 0),            // Position
+				.(VertexFormat.Float3, 12, 1),           // Normal
+				.(VertexFormat.Float2, 24, 2),           // UV
+				.(VertexFormat.UByte4Normalized, 32, 3), // Color
+				.(VertexFormat.Float3, 36, 4)            // Tangent
 			);
+			// Instance data at locations 5-8 (after mesh attributes)
 			Sedulous.RHI.VertexAttribute[4] instanceAttrs = .(
-				.(VertexFormat.Float4, 0, 3),   // WorldRow0
-				.(VertexFormat.Float4, 16, 4),  // WorldRow1
-				.(VertexFormat.Float4, 32, 5),  // WorldRow2
-				.(VertexFormat.Float4, 48, 6)   // WorldRow3
+				.(VertexFormat.Float4, 0, 5),   // WorldRow0
+				.(VertexFormat.Float4, 16, 6),  // WorldRow1
+				.(VertexFormat.Float4, 32, 7),  // WorldRow2
+				.(VertexFormat.Float4, 48, 8)   // WorldRow3
 			);
 			VertexBufferLayout[2] vertexBuffers = .(
 				.(48, meshAttrs, .Vertex),

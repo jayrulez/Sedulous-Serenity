@@ -334,7 +334,7 @@ class VulkanBackend : IBackend
 
 			if(message.Contains("vkFreeDescriptorSets()") || message.Contains("can't be called on VkImageView"))
 			{
-				int x = 1;
+				//int x = 1;
 			}
 		}
 		return VkBool32.False;

@@ -110,6 +110,7 @@ struct FragmentInput
 #ifdef RECEIVE_SHADOWS
     float4 ShadowCoord : TEXCOORD5;
 #endif
+    float4 Color : COLOR0;
 };
 
 // ===================== PBR Functions =====================
@@ -278,7 +279,8 @@ void ResolveLightVector(Light light, float3 worldPos, out float3 L, out float at
 float4 main(FragmentInput input) : SV_Target
 {
     // ===== Material sampling =====
-    float4 albedo = AlbedoTexture.Sample(LinearSampler, input.TexCoord) * BaseColor;
+    // Combine texture, material base color, and vertex color
+    float4 albedo = AlbedoTexture.Sample(LinearSampler, input.TexCoord) * BaseColor * input.Color;
 
 #ifdef ALPHA_TEST
     if (albedo.a < AlphaCutoff)
