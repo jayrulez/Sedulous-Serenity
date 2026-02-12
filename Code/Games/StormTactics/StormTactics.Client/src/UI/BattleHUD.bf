@@ -84,6 +84,7 @@ class BattleHUD
 	private Button mAttackButton;
 	private Button mSkillButton;
 	private Button mWaitButton;
+	private Button mUndoButton;
 
 	// Skill selection panel
 	private Border mSkillPanel;
@@ -110,6 +111,7 @@ class BattleHUD
 	private EventAccessor<BattleActionDelegate> mOnSkillSelected = new .() ~ delete _;
 	private EventAccessor<BattleActionDelegate> mOnWaitSelected = new .() ~ delete _;
 	private EventAccessor<BattleActionDelegate> mOnCancelAction = new .() ~ delete _;
+	private EventAccessor<BattleActionDelegate> mOnUndoMove = new .() ~ delete _;
 	private EventAccessor<SkillSelectDelegate> mOnSkillChosen = new .() ~ delete _;
 
 	public EventAccessor<BattleActionDelegate> OnAutoToggle => mOnAutoToggle;
@@ -123,6 +125,7 @@ class BattleHUD
 	public EventAccessor<BattleActionDelegate> OnSkillSelected => mOnSkillSelected;
 	public EventAccessor<BattleActionDelegate> OnWaitSelected => mOnWaitSelected;
 	public EventAccessor<BattleActionDelegate> OnCancelAction => mOnCancelAction;
+	public EventAccessor<BattleActionDelegate> OnUndoMove => mOnUndoMove;
 	public EventAccessor<SkillSelectDelegate> OnSkillChosen => mOnSkillChosen;
 
 	public UIElement RootElement => mRoot;
@@ -370,6 +373,14 @@ class BattleHUD
 			mOnWaitSelected.[Friend]Invoke();
 		});
 		buttonRow.AddChild(mWaitButton);
+
+		mUndoButton = new Button("Undo Move");
+		mUndoButton.Padding = Thickness(16, 8, 16, 8);
+		mUndoButton.Visibility = .Collapsed;
+		mUndoButton.Click.Subscribe(new (btn) => {
+			mOnUndoMove.[Friend]Invoke();
+		});
+		buttonRow.AddChild(mUndoButton);
 
 		mCancelButton = new Button("Cancel");
 		mCancelButton.Padding = Thickness(16, 8, 16, 8);
@@ -792,19 +803,21 @@ class BattleHUD
 
 	// --- Action panel methods ---
 
-	public void ShowActionPanel(bool canMove, bool canAttack, bool hasSkills)
+	public void ShowActionPanel(bool canMove, bool canAttack, bool hasSkills, bool isPostMove = false)
 	{
 		mActionPanel.Visibility = .Visible;
-		mMoveButton.Visibility = .Visible;
+		mMoveButton.Visibility = isPostMove ? .Collapsed : .Visible;
 		mAttackButton.Visibility = .Visible;
 		mSkillButton.Visibility = hasSkills ? .Visible : .Collapsed;
 		mWaitButton.Visibility = .Visible;
+		mUndoButton.Visibility = isPostMove ? .Visible : .Collapsed;
 		mCancelButton.Visibility = .Collapsed;
 		mSkillPanel.Visibility = .Collapsed;
 		mPhaseHintLabel.Visibility = .Collapsed;
 
 		// Dim buttons for unavailable actions
-		mMoveButton.[Friend]mBackground = canMove ? null : Color(60, 60, 60, 255);
+		if (!isPostMove)
+			mMoveButton.[Friend]mBackground = canMove ? null : Color(60, 60, 60, 255);
 		mAttackButton.[Friend]mBackground = canAttack ? null : Color(60, 60, 60, 255);
 	}
 

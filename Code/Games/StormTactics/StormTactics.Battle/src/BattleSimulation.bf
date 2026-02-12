@@ -193,6 +193,21 @@ class BattleSimulation
 		}
 	}
 
+	/// Get indices of enemy units within attack range if the unit were at the given position.
+	public void GetAttackableUnitsFrom(int32 unitIdx, HexCoord fromPos, List<int32> outList)
+	{
+		outList.Clear();
+		let unit = mUnits[unitIdx];
+		if (!unit.mAlive) return;
+		for (int32 i = 0; i < (int32)mUnits.Count; i++)
+		{
+			let target = mUnits[i];
+			if (!target.mAlive || target.mForce == unit.mForce) continue;
+			if (fromPos.DistanceTo(target.mPosition) <= unit.mModifiedAttackRange)
+				outList.Add(i);
+		}
+	}
+
 	/// Get IDs of skills the unit can actively use this turn (OnActionBegin, not on cooldown, not silenced).
 	public void GetUsableSkills(int32 unitIdx, List<int32> outSkillIds)
 	{
@@ -490,6 +505,10 @@ class BattleSimulation
 
 	public void ExecuteAction(BattleAction action)
 	{
+		// Optional pre-move: move unit before executing the main action
+		if (action.mHasPreMove)
+			ExecuteMove(action.mUnitIndex, action.mPreMoveHex);
+
 		switch (action.mType)
 		{
 		case .Move:
@@ -499,7 +518,7 @@ class BattleSimulation
 		case .UseSkill:
 			ExecuteSkill(action.mUnitIndex, action.mSkillId, action.mTargetUnit);
 		case .Wait:
-			// Do nothing
+			// Do nothing (pre-move already handled above if present)
 		}
 	}
 

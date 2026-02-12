@@ -45,6 +45,7 @@ enum PlayerTurnPhase
 	Idle,                // No active player input needed
 	ChoosingAction,      // Action buttons shown (Move/Attack/Skill/Wait)
 	SelectingMoveTarget, // Reachable cells highlighted, waiting for hex click
+	PostMove,            // Unit has tentatively moved; choose Attack/Skill/Wait/Undo
 	SelectingAttackTarget, // Attackable enemies highlighted, waiting for unit click
 	SelectingSkill,      // Skill list shown, waiting for skill button click
 	SelectingSkillTarget // Skill targets highlighted, waiting for unit click
@@ -108,6 +109,12 @@ class BattleScene
 	private List<int32> mUsableSkills = new .();
 	private int32 mSelectedSkillId = -1;
 	private List<int32> mSkillTargetUnits = new .();
+
+	// Tentative move (PostMove state)
+	private bool mHasTentativeMove;
+	private HexCoord mTentativeMoveHex;
+	private HexCoord mPreMovePosition;   // Original position before tentative move
+	private Vector3 mPreMoveWorldPos;     // Original world position for visual undo
 
 	public BattleCamera Camera => mCamera;
 	public bool IsAutoPlaying => mAutoPlay;
@@ -285,6 +292,9 @@ class BattleScene
 		// If toggling auto ON during player's turn, let AI take over
 		if (mAutoPlay && mPlayerPhase != .Idle)
 		{
+			if (mHasTentativeMove)
+				ResetTentativeMove();
+			mHasTentativeMove = false;
 			let action = BattleAI.DecideAction(mSimulation, mPlayerUnitIndex, mSimulation.Difficulty);
 			SubmitPlayerAction(action);
 		}
@@ -340,14 +350,14 @@ class BattleScene
 	/// Player chose "Attack" — enter attack target selection.
 	public void PlayerSelectAttack()
 	{
-		if (mPlayerPhase != .ChoosingAction) return;
+		if (mPlayerPhase != .ChoosingAction && mPlayerPhase != .PostMove) return;
 		mPlayerPhase = .SelectingAttackTarget;
 	}
 
 	/// Player chose "Skill" — enter skill list selection.
 	public void PlayerSelectSkill()
 	{
-		if (mPlayerPhase != .ChoosingAction) return;
+		if (mPlayerPhase != .ChoosingAction && mPlayerPhase != .PostMove) return;
 		mPlayerPhase = .SelectingSkill;
 	}
 
@@ -360,20 +370,52 @@ class BattleScene
 		mPlayerPhase = .SelectingSkillTarget;
 	}
 
-	/// Player chose "Wait" — skip turn.
+	/// Player chose "Wait" — end turn (with optional pre-move).
 	public void PlayerWait()
 	{
-		if (mPlayerPhase != .ChoosingAction) return;
-		SubmitPlayerAction(BattleAction.MakeWait(mPlayerUnitIndex));
+		if (mPlayerPhase == .PostMove)
+		{
+			// Committed move + wait: submit compound action
+			ResetTentativeMove();
+			SubmitPlayerAction(BattleAction.MakeMoveAndWait(mPlayerUnitIndex, mTentativeMoveHex));
+		}
+		else if (mPlayerPhase == .ChoosingAction)
+		{
+			SubmitPlayerAction(BattleAction.MakeWait(mPlayerUnitIndex));
+		}
 	}
 
-	/// Player clicked "Cancel" — go back to action choice.
+	/// Player clicked "Undo" — revert tentative move and go back to ChoosingAction.
+	public void PlayerUndoMove()
+	{
+		if (!mHasTentativeMove) return;
+		ResetTentativeMove();
+		mHasTentativeMove = false;
+		mPlayerPhase = .ChoosingAction;
+		ComputePlayerOptions(); // Recompute from original position
+	}
+
+	/// Player clicked "Cancel" — go back one phase.
 	public void PlayerCancelAction()
 	{
 		if (mPlayerPhase == .SelectingSkillTarget)
 			mPlayerPhase = .SelectingSkill;
-		else if (mPlayerPhase == .SelectingSkill || mPlayerPhase == .SelectingMoveTarget || mPlayerPhase == .SelectingAttackTarget)
+		else if (mPlayerPhase == .SelectingSkill || mPlayerPhase == .SelectingAttackTarget)
+			mPlayerPhase = mHasTentativeMove ? .PostMove : .ChoosingAction;
+		else if (mPlayerPhase == .SelectingMoveTarget)
 			mPlayerPhase = .ChoosingAction;
+	}
+
+	/// Reset the unit view back to its pre-move position.
+	private void ResetTentativeMove()
+	{
+		if (!mHasTentativeMove) return;
+		let view = GetUnitView(mPlayerUnitIndex);
+		if (view != null)
+		{
+			view.mWorldPos = mPreMoveWorldPos;
+			view.mAnimState = .Idle;
+		}
 	}
 
 	/// Player clicked a hex on the grid during a selection phase.
@@ -383,27 +425,67 @@ class BattleScene
 		{
 		case .SelectingMoveTarget:
 			if (mReachableCells.Contains(hex))
-				SubmitPlayerAction(BattleAction.MakeMove(mPlayerUnitIndex, hex));
+			{
+				// Tentative move — don't submit yet, enter PostMove phase
+				let unit = mSimulation.GetUnit(mPlayerUnitIndex);
+				mPreMovePosition = unit.mPosition;
+				mTentativeMoveHex = hex;
+				mHasTentativeMove = true;
+
+				// Snap unit view to tentative position
+				let view = GetUnitView(mPlayerUnitIndex);
+				if (view != null)
+				{
+					mPreMoveWorldPos = view.mWorldPos;
+					let (wx, wz) = hex.ToWorld(mHexSize);
+					view.mWorldPos = .(wx, mPreMoveWorldPos.Y, wz);
+				}
+
+				// Recompute targets from tentative position
+				mSimulation.GetAttackableUnitsFrom(mPlayerUnitIndex, hex, mAttackableUnits);
+				mSimulation.GetUsableSkills(mPlayerUnitIndex, mUsableSkills);
+
+				mPlayerPhase = .PostMove;
+			}
+
 		case .SelectingAttackTarget:
 			for (let idx in mAttackableUnits)
 			{
 				let target = mSimulation.GetUnit(idx);
 				if (target != null && target.mPosition == hex)
 				{
-					SubmitPlayerAction(BattleAction.MakeAttack(mPlayerUnitIndex, idx));
+					if (mHasTentativeMove)
+					{
+						ResetTentativeMove();
+						SubmitPlayerAction(BattleAction.MakeMoveAndAttack(mPlayerUnitIndex, mTentativeMoveHex, idx));
+					}
+					else
+					{
+						SubmitPlayerAction(BattleAction.MakeAttack(mPlayerUnitIndex, idx));
+					}
 					break;
 				}
 			}
+
 		case .SelectingSkillTarget:
 			for (let idx in mSkillTargetUnits)
 			{
 				let target = mSimulation.GetUnit(idx);
 				if (target != null && target.mPosition == hex)
 				{
-					SubmitPlayerAction(BattleAction.MakeSkill(mPlayerUnitIndex, mSelectedSkillId, idx));
+					if (mHasTentativeMove)
+					{
+						ResetTentativeMove();
+						SubmitPlayerAction(BattleAction.MakeMoveAndSkill(mPlayerUnitIndex, mTentativeMoveHex, mSelectedSkillId, idx));
+					}
+					else
+					{
+						SubmitPlayerAction(BattleAction.MakeSkill(mPlayerUnitIndex, mSelectedSkillId, idx));
+					}
 					break;
 				}
 			}
+
 		default:
 		}
 	}
@@ -418,6 +500,7 @@ class BattleScene
 		mPlayerPhase = .Idle;
 		mPlayerUnitIndex = -1;
 		mSelectedSkillId = -1;
+		mHasTentativeMove = false;
 	}
 
 	/// Update animations and auto-play.
@@ -535,6 +618,17 @@ class BattleScene
 		case .SelectingMoveTarget:
 			for (let hex in mReachableCells)
 				mGridRenderer.SetHighlight(hex, .(50, 200, 100, 60)); // Green
+		case .PostMove:
+			// Highlight tentative position
+			if (mHasTentativeMove)
+				mGridRenderer.SetHighlight(mTentativeMoveHex, .(200, 200, 100, 80)); // Yellow
+			// Show attackable targets from tentative position
+			for (let idx in mAttackableUnits)
+			{
+				let target = mSimulation.GetUnit(idx);
+				if (target != null)
+					mGridRenderer.SetHighlight(target.mPosition, .(255, 80, 80, 60)); // Red
+			}
 		case .SelectingAttackTarget:
 			for (let idx in mAttackableUnits)
 			{

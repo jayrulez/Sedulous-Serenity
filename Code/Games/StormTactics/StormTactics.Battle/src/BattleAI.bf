@@ -42,7 +42,12 @@ static class BattleAI
 		if (attackTarget >= 0)
 			return BattleAction.MakeAttack(unitIdx, attackTarget);
 
-		// Move toward nearest enemy
+		// Try move + attack (move into range, then attack)
+		let moveAttack = FindMoveAndAttackTarget(sim, unit, targetForce);
+		if (moveAttack.targetIdx >= 0)
+			return BattleAction.MakeMoveAndAttack(unitIdx, moveAttack.moveHex, moveAttack.targetIdx);
+
+		// Just move toward nearest enemy
 		let moveTarget = FindBestMoveTarget(sim, unit, targetForce);
 		if (moveTarget.Q != unit.mPosition.Q || moveTarget.R != unit.mPosition.R)
 			return BattleAction.MakeMove(unitIdx, moveTarget);
@@ -61,7 +66,12 @@ static class BattleAI
 		if (attackTarget >= 0)
 			return BattleAction.MakeAttack(unitIdx, attackTarget);
 
-		// Move toward nearest enemy
+		// Try move + attack
+		let moveAttack = FindMoveAndAttackTarget(sim, unit, targetForce);
+		if (moveAttack.targetIdx >= 0)
+			return BattleAction.MakeMoveAndAttack(unitIdx, moveAttack.moveHex, moveAttack.targetIdx);
+
+		// Just move toward nearest enemy
 		let moveTarget = FindBestMoveTarget(sim, unit, targetForce);
 		if (moveTarget.Q != unit.mPosition.Q || moveTarget.R != unit.mPosition.R)
 			return BattleAction.MakeMove(unitIdx, moveTarget);
@@ -93,6 +103,11 @@ static class BattleAI
 		let attackTarget = FindBestAttackTarget(sim, unit, targetForce);
 		if (attackTarget >= 0)
 			return BattleAction.MakeAttack(unitIdx, attackTarget);
+
+		// Priority 3b: Move + attack
+		let moveAttack = FindMoveAndAttackTarget(sim, unit, targetForce);
+		if (moveAttack.targetIdx >= 0)
+			return BattleAction.MakeMoveAndAttack(unitIdx, moveAttack.moveHex, moveAttack.targetIdx);
 
 		// Priority 4: Move toward nearest enemy
 		let moveTarget = FindBestMoveTarget(sim, unit, targetForce);
@@ -317,5 +332,63 @@ static class BattleAI
 		}
 
 		return bestHex;
+	}
+
+	// =========================================================================
+	// Move + Attack (compound action)
+	// =========================================================================
+
+	struct MoveAttackResult
+	{
+		public HexCoord moveHex;
+		public int32 targetIdx;
+	}
+
+	/// Find a reachable hex from which the unit can attack an enemy.
+	/// Returns the best (moveHex, targetIdx) pair, or targetIdx = -1 if none found.
+	private static MoveAttackResult FindMoveAndAttackTarget(BattleSimulation sim, BattleUnit unit, Force targetForce)
+	{
+		var best = MoveAttackResult() { targetIdx = -1 };
+
+		let grid = sim.Grid;
+		let reachable = scope List<HexCoord>();
+		let pathfinder = scope HexPathfinder(grid);
+		let flying = unit.mConfig.mMoveType == .Flying;
+		pathfinder.GetReachableCells(unit.mPosition, unit.mModifiedMoveRange, flying, reachable);
+
+		int32 bestTargetHP = int32.MaxValue;
+		int32 bestTargetDist = int32.MaxValue;
+
+		for (let hex in reachable)
+		{
+			// Skip current position (already checked by direct attack)
+			if (hex.Q == unit.mPosition.Q && hex.R == unit.mPosition.R) continue;
+			// Skip occupied cells
+			let occupant = grid.GetOccupant(hex);
+			if (occupant >= 0) continue;
+
+			// Check which enemies are in attack range from this hex
+			for (int32 i = 0; i < sim.UnitCount; i++)
+			{
+				let target = sim.GetUnit(i);
+				if (target == null || !target.mAlive) continue;
+				if (target.mForce != targetForce) continue;
+
+				let dist = hex.DistanceTo(target.mPosition);
+				if (dist > unit.mModifiedAttackRange) continue;
+
+				// Prefer lowest HP target, then closest
+				if (target.mCurrentHP < bestTargetHP ||
+					(target.mCurrentHP == bestTargetHP && dist < bestTargetDist))
+				{
+					best.moveHex = hex;
+					best.targetIdx = i;
+					bestTargetHP = target.mCurrentHP;
+					bestTargetDist = dist;
+				}
+			}
+		}
+
+		return best;
 	}
 }

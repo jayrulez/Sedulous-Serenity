@@ -225,6 +225,9 @@ class StormTacticsGame : Application
 		mBattleHUD.OnCancelAction.Subscribe(new () => {
 			mBattleScene?.PlayerCancelAction();
 		});
+		mBattleHUD.OnUndoMove.Subscribe(new () => {
+			mBattleScene?.PlayerUndoMove();
+		});
 		mBattleHUD.OnSkillChosen.Subscribe(new (skillId) => {
 			mBattleScene?.PlayerChooseSkill(skillId);
 		});
@@ -582,6 +585,10 @@ class StormTacticsGame : Application
 				let canAttack = mBattleScene.AttackableUnits.Count > 0;
 				let hasSkills = mBattleScene.UsableSkills.Count > 0;
 				mBattleHUD.ShowActionPanel(canMove, canAttack, hasSkills);
+			case .PostMove:
+				let postCanAttack = mBattleScene.AttackableUnits.Count > 0;
+				let postHasSkills = mBattleScene.UsableSkills.Count > 0;
+				mBattleHUD.ShowActionPanel(false, postCanAttack, postHasSkills, isPostMove: true);
 			case .SelectingMoveTarget:
 				mBattleHUD.ShowSelectingMode("Click a green tile to move");
 			case .SelectingAttackTarget:

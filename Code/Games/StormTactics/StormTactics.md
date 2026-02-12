@@ -324,7 +324,8 @@ The interface layer for tactical combat.
   - [x] Attack action: show attackable targets → click target → resolve & animate
   - [x] Skill action: show skill panel → select skill → show valid targets → click → resolve
   - [x] Auto-battle toggle: AI controls player units
-  - [ ] Undo move (before committing attack)
+  - [x] Move + action in same turn (move then attack/skill/wait)
+  - [x] Undo move (before committing attack)
 
 - [ ] **Battle results screen**
   - [x] Victory / Defeat / Draw banner (overlay with result text)
