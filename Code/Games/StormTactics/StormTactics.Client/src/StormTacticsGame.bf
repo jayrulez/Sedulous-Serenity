@@ -2,6 +2,7 @@ namespace StormTactics.Client;
 
 using System;
 using System.Collections;
+using System.IO;
 using Sedulous.Shell;
 using Sedulous.Shell.Input;
 using Sedulous.RHI;
@@ -51,9 +52,12 @@ class StormTacticsGame : Application
 	private GameState mGameState = .Loading;
 	private BattleScene mBattleScene;
 
-	// Test battle data (for demo — will be replaced by proper game flow)
-	private ConfigDatabase mTestConfigs;
-	private BattleSimulation mTestSim;
+	// Config database (loaded from XML, persists across battles)
+	private ConfigDatabase mConfigs;
+
+	// Current battle (created/destroyed per stage)
+	private BattleSimulation mCurrentSim;
+	private int32 mCurrentStageId;
 
 	// HUD state tracking
 	private PlayerTurnPhase mLastPlayerPhase = .Idle;
@@ -148,17 +152,135 @@ class StormTacticsGame : Application
 		mMainScene = mSceneSubsystem.CreateScene("BattleScene");
 		mSceneSubsystem.SetActiveScene(mMainScene);
 
-		// Create a test battle for demo
-		CreateTestBattle();
+		// Load all configs from XML
+		LoadConfigs();
 
-		// Initialize UI (after battle scene so we can wire events)
+		// Initialize UI
 		InitializeUI();
 
-		// Start in deployment mode
+		// Start at stage selection
+		ShowStageSelect();
+		Console.WriteLine("Storm Tactics initialized — showing stage select");
+	}
+
+	/// Load all game configs from XML data files.
+	private void LoadConfigs()
+	{
+		mConfigs = new ConfigDatabase();
+		let configPath = scope String();
+		GetAssetPath("StormTactics/configs", configPath);
+
+		if (mConfigs.LoadAll(configPath) case .Err)
+		{
+			Console.WriteLine("ERROR: Failed to load configs from {}", configPath);
+			return;
+		}
+
+		mConfigs.Validate();
+		Console.WriteLine("Configs loaded from XML");
+	}
+
+	/// Show the stage selection screen.
+	private void ShowStageSelect()
+	{
+		// Destroy any existing battle
+		DestroyBattle();
+
+		mGameState = .Campaign;
+		mLastPlayerPhase = .Idle;
+
+		// Build stage info list from loaded configs
+		let stageList = scope List<StageDisplayInfo>();
+		for (let stage in mConfigs.Stages)
+		{
+			var info = StageDisplayInfo();
+			info.mId = stage.mId;
+			info.mName = stage.mName;
+			info.mDifficulty = stage.mDifficulty;
+			info.mEnemyCount = (int32)stage.mEnemyFormation.Count;
+			stageList.Add(info);
+		}
+
+		// Sort by ID for consistent display order
+		stageList.Sort(scope (a, b) => a.mId <=> b.mId);
+
+		mBattleHUD.ShowStageSelect(stageList);
+	}
+
+	/// Create a battle for the given stage.
+	private void CreateBattle(int32 stageId)
+	{
+		let stageConfig = mConfigs.GetStage(stageId);
+		if (stageConfig == null)
+		{
+			Console.WriteLine("ERROR: Stage {} not found", stageId);
+			return;
+		}
+
+		mCurrentStageId = stageId;
+
+		// Create a default player formation (first 5 units: Footman, Knight, Archer, Wizard, Priest)
+		let attackers = scope List<FormationSlot>();
+		int32[5] playerUnits = .(1, 2, 3, 4, 5);
+		int32 slotIdx = 0;
+		for (let unitId in playerUnits)
+		{
+			if (mConfigs.GetUnit(unitId) == null) continue;
+			let slot = scope :: FormationSlot();
+			slot.mUnitId = unitId;
+			// Arrange in a 2-column formation on the left
+			slot.mGridX = (int32)(slotIdx / 3); // Column 0-1
+			slot.mGridY = (int32)(slotIdx % 3); // Row 0-2
+			attackers.Add(slot);
+			slotIdx++;
+		}
+
+		// Determine grid size from stage enemy positions
+		int32 maxCol = 7, maxRow = 3;
+		for (let slot in stageConfig.mEnemyFormation)
+		{
+			if (slot.mGridX > maxCol) maxCol = slot.mGridX;
+			if (slot.mGridY > maxRow) maxRow = slot.mGridY;
+		}
+		let columns = Math.Max(maxCol + 1, 8);
+		let rows = Math.Max(maxRow + 1, 4);
+
+		// Create simulation
+		mCurrentSim = new BattleSimulation(mConfigs);
+		mCurrentSim.Initialize(attackers, stageConfig.mEnemyFormation, columns, rows, DateTime.Now.Ticks);
+		mCurrentSim.Difficulty = .Normal;
+
+		Console.WriteLine("Battle created: Stage '{}' — {}v{} on {}x{} grid",
+			stageConfig.mName, attackers.Count, stageConfig.mEnemyFormation.Count, columns, rows);
+
+		// Create the battle scene
+		let renderModule = mMainScene.GetModule<RenderSceneModule>();
+		mBattleScene = new BattleScene();
+		mBattleScene.Initialize(mMainScene, renderModule, mRenderSystem, mDebugFeature, mCurrentSim, 1.0f);
+
+		// Enter deployment mode
 		mBattleScene.EnterDeploymentMode();
+		mBattleHUD.HideStageSelect();
 		mBattleHUD.ShowDeploymentPanel();
+		mBattleHUD.ResetResultState();
 		mGameState = .BattlePrepare;
-		Console.WriteLine("Storm Tactics initialized — entering deployment phase");
+	}
+
+	/// Destroy the current battle (clean up between stages).
+	private void DestroyBattle()
+	{
+		if (mBattleScene != null)
+		{
+			mBattleScene.Shutdown();
+			delete mBattleScene;
+			mBattleScene = null;
+		}
+
+		if (mCurrentSim != null)
+		{
+			delete mCurrentSim;
+			mCurrentSim = null;
+		}
 	}
 
 	private void InitializeUI()
@@ -243,209 +365,14 @@ class StormTacticsGame : Application
 				Console.WriteLine("Deployment complete — battle started!");
 			}
 		});
+		mBattleHUD.OnStageSelected.Subscribe(new (stageId) => {
+			CreateBattle(stageId);
+		});
+		mBattleHUD.OnContinue.Subscribe(new () => {
+			ShowStageSelect();
+		});
 
 		Console.WriteLine("UI system initialized");
-	}
-
-	/// Create a test battle with sample units for the demo.
-	private void CreateTestBattle()
-	{
-		mTestConfigs = new ConfigDatabase();
-
-		// --- Register test units ---
-		// --- Register test buffs ---
-		let poisonBuff = new BuffConfig();
-		poisonBuff.mId = 1;
-		poisonBuff.mName.Set("Poison");
-		poisonBuff.mDescription.Set("Takes damage each turn");
-		poisonBuff.mFlag = .Negative;
-		poisonBuff.mTag = .Poison;
-		poisonBuff.mDuration = 3;
-		poisonBuff.mDotDamage = 15;
-		mTestConfigs.RegisterBuff(poisonBuff);
-
-		let defUpBuff = new BuffConfig();
-		defUpBuff.mId = 2;
-		defUpBuff.mName.Set("Shield Wall");
-		defUpBuff.mDescription.Set("Defense increased");
-		defUpBuff.mFlag = .Positive;
-		defUpBuff.mTag = .DefenseUp;
-		defUpBuff.mDuration = 3;
-		let defMod = new StatModifier();
-		defMod.mAttribute = .Defense;
-		defMod.mPercentValue = 0.5f; // +50% defense
-		defUpBuff.mStatModifiers.Add(defMod);
-		mTestConfigs.RegisterBuff(defUpBuff);
-
-		let atkUpBuff = new BuffConfig();
-		atkUpBuff.mId = 3;
-		atkUpBuff.mName.Set("Battle Cry");
-		atkUpBuff.mDescription.Set("Attack increased");
-		atkUpBuff.mFlag = .Positive;
-		atkUpBuff.mTag = .AttackUp;
-		atkUpBuff.mDuration = 2;
-		let atkMod = new StatModifier();
-		atkMod.mAttribute = .Damage;
-		atkMod.mPercentValue = 0.3f; // +30% damage
-		atkUpBuff.mStatModifiers.Add(atkMod);
-		mTestConfigs.RegisterBuff(atkUpBuff);
-
-		// --- Register test skills ---
-		// Warrior: Power Strike — high damage single enemy, 2-turn cooldown
-		let powerStrike = new SkillConfig();
-		powerStrike.mId = 1;
-		powerStrike.mName.Set("Power Strike");
-		powerStrike.mDescription.Set("A powerful blow dealing 150% damage");
-		powerStrike.mMoment = .OnActionBegin;
-		powerStrike.mTarget = .SingleEnemy;
-		powerStrike.mCooldown = 2;
-		let psEffect = new SkillEffect();
-		psEffect.mType = .Damage;
-		psEffect.mValue = 1.5f;
-		powerStrike.mEffects.Add(psEffect);
-		mTestConfigs.RegisterSkill(powerStrike);
-
-		// Archer: Poison Arrow — damage + poison, 3-turn cooldown
-		let poisonArrow = new SkillConfig();
-		poisonArrow.mId = 2;
-		poisonArrow.mName.Set("Poison Arrow");
-		poisonArrow.mDescription.Set("Deals damage and poisons the target");
-		poisonArrow.mMoment = .OnActionBegin;
-		poisonArrow.mTarget = .SingleEnemy;
-		poisonArrow.mCooldown = 3;
-		let paEffect1 = new SkillEffect();
-		paEffect1.mType = .Damage;
-		paEffect1.mValue = 1.0f;
-		poisonArrow.mEffects.Add(paEffect1);
-		let paEffect2 = new SkillEffect();
-		paEffect2.mType = .ApplyBuff;
-		paEffect2.mBuffId = 1; // Poison
-		poisonArrow.mEffects.Add(paEffect2);
-		mTestConfigs.RegisterSkill(poisonArrow);
-
-		// Mage: Heal — heal single ally, 2-turn cooldown
-		let heal = new SkillConfig();
-		heal.mId = 3;
-		heal.mName.Set("Heal");
-		heal.mDescription.Set("Restores HP to an ally");
-		heal.mMoment = .OnActionBegin;
-		heal.mTarget = .SingleAlly;
-		heal.mCooldown = 2;
-		let healEffect = new SkillEffect();
-		healEffect.mType = .Heal;
-		healEffect.mValue = 80;
-		heal.mEffects.Add(healEffect);
-		mTestConfigs.RegisterSkill(heal);
-
-		// Guardian: Shield Wall — self defense buff, 3-turn cooldown
-		let shieldWall = new SkillConfig();
-		shieldWall.mId = 4;
-		shieldWall.mName.Set("Shield Wall");
-		shieldWall.mDescription.Set("Raises defenses for 3 turns");
-		shieldWall.mMoment = .OnActionBegin;
-		shieldWall.mTarget = .Self;
-		shieldWall.mCooldown = 3;
-		let swEffect = new SkillEffect();
-		swEffect.mType = .ApplyBuff;
-		swEffect.mBuffId = 2; // DefenseUp
-		shieldWall.mEffects.Add(swEffect);
-		mTestConfigs.RegisterSkill(shieldWall);
-
-		// --- Register test units ---
-		let warrior = new UnitConfig();
-		warrior.mId = 1;
-		warrior.mName.Set("Warrior");
-		warrior.mUnitClass = .Infantry;
-		warrior.mSoldierHP = 120;
-		warrior.mSoldierCount = 4;
-		warrior.mSoldierDamage = 25;
-		warrior.mDefense = 12;
-		warrior.mAttackRange = 1;
-		warrior.mMoveRange = 2;
-		warrior.mActionSpeed = 80;
-		warrior.mDamageType = .Physical;
-		warrior.mModelName.Set("warrior");
-		warrior.mSkillIds.Add(1); // Power Strike
-		mTestConfigs.RegisterUnit(warrior);
-
-		let archer = new UnitConfig();
-		archer.mId = 2;
-		archer.mName.Set("Archer");
-		archer.mUnitClass = .Ranged;
-		archer.mSoldierHP = 80;
-		archer.mSoldierCount = 4;
-		archer.mSoldierDamage = 30;
-		archer.mDefense = 5;
-		archer.mAttackRange = 3;
-		archer.mMoveRange = 2;
-		archer.mActionSpeed = 90;
-		archer.mDamageType = .Physical;
-		archer.mIsRanged = true;
-		archer.mModelName.Set("archer");
-		archer.mSkillIds.Add(2); // Poison Arrow
-		mTestConfigs.RegisterUnit(archer);
-
-		let mage = new UnitConfig();
-		mage.mId = 3;
-		mage.mName.Set("Mage");
-		mage.mUnitClass = .Mage;
-		mage.mSoldierHP = 60;
-		mage.mSoldierCount = 3;
-		mage.mSoldierDamage = 40;
-		mage.mDefense = 3;
-		mage.mAttackRange = 2;
-		mage.mMoveRange = 1;
-		mage.mActionSpeed = 70;
-		mage.mDamageType = .Magic;
-		mage.mIsRanged = true;
-		mage.mModelName.Set("mage");
-		mage.mSkillIds.Add(3); // Heal
-		mTestConfigs.RegisterUnit(mage);
-
-		let tank = new UnitConfig();
-		tank.mId = 4;
-		tank.mName.Set("Guardian");
-		tank.mUnitClass = .Infantry;
-		tank.mSoldierHP = 200;
-		tank.mSoldierCount = 3;
-		tank.mSoldierDamage = 15;
-		tank.mDefense = 20;
-		tank.mAttackRange = 1;
-		tank.mMoveRange = 1;
-		tank.mActionSpeed = 60;
-		tank.mDamageType = .Physical;
-		tank.mModelName.Set("guardian");
-		tank.mSkillIds.Add(4); // Shield Wall
-		mTestConfigs.RegisterUnit(tank);
-
-		// --- Create formations ---
-		// Attackers on left side (columns 0-1)
-		let attackers = scope List<FormationSlot>();
-		let a1 = scope FormationSlot(); a1.mUnitId = 1; a1.mGridX = 0; a1.mGridY = 1;
-		let a2 = scope FormationSlot(); a2.mUnitId = 2; a2.mGridX = 1; a2.mGridY = 0;
-		let a3 = scope FormationSlot(); a3.mUnitId = 3; a3.mGridX = 1; a3.mGridY = 2;
-		let a4 = scope FormationSlot(); a4.mUnitId = 4; a4.mGridX = 0; a4.mGridY = 3;
-		attackers.Add(a1); attackers.Add(a2); attackers.Add(a3); attackers.Add(a4);
-
-		// Defenders on right side (columns 6-7)
-		let defenders = scope List<FormationSlot>();
-		let d1 = scope FormationSlot(); d1.mUnitId = 4; d1.mGridX = 7; d1.mGridY = 1;
-		let d2 = scope FormationSlot(); d2.mUnitId = 1; d2.mGridX = 6; d2.mGridY = 0;
-		let d3 = scope FormationSlot(); d3.mUnitId = 2; d3.mGridX = 6; d3.mGridY = 2;
-		let d4 = scope FormationSlot(); d4.mUnitId = 3; d4.mGridX = 7; d4.mGridY = 3;
-		defenders.Add(d1); defenders.Add(d2); defenders.Add(d3); defenders.Add(d4);
-
-		// Create simulation
-		mTestSim = new BattleSimulation(mTestConfigs);
-		mTestSim.Initialize(attackers, defenders, 8, 5, 42);
-		mTestSim.Difficulty = .Normal;
-
-		Console.WriteLine("Test battle created: 4v4 on 8x5 grid");
-
-		// Create the battle scene
-		let renderModule = mMainScene.GetModule<RenderSceneModule>();
-		mBattleScene = new BattleScene();
-		mBattleScene.Initialize(mMainScene, renderModule, mRenderSystem, mDebugFeature, mTestSim, 1.0f);
 	}
 
 	protected override void OnInput()
@@ -454,7 +381,14 @@ class StormTacticsGame : Application
 		let mouse = mShell.InputManager.Mouse;
 
 		if (keyboard.IsKeyPressed(.Escape))
-			Exit();
+		{
+			// Escape during battle returns to stage select; from stage select, exits
+			if (mGameState == .Campaign)
+				Exit();
+			else
+				ShowStageSelect();
+			return;
+		}
 
 		// Check if mouse is over an interactive UI element
 		let hitElement = mUISubsystem?.GUIContext?.HitTest(mouse.X, mouse.Y);
@@ -510,7 +444,7 @@ class StormTacticsGame : Application
 		let sim = mBattleScene.Simulation;
 		if (sim == null) return;
 
-		// During deployment, update hint and skip battle HUD
+		// During deployment, update hint and unit hover — skip rest of battle HUD
 		if (mBattleScene.IsDeploymentMode)
 		{
 			if (mBattleScene.DeploySelectedUnit >= 0)
@@ -527,6 +461,52 @@ class StormTacticsGame : Application
 			{
 				mBattleHUD.UpdateDeploymentHint("Click a unit to select, then click a hex to move or another unit to swap.");
 			}
+
+			// Show unit info on hover during deployment
+			if (mBattleScene.HoveredUnitIndex >= 0)
+			{
+				let hoveredUnit = sim.GetUnit(mBattleScene.HoveredUnitIndex);
+				if (hoveredUnit != null && hoveredUnit.mAlive)
+				{
+					let className = scope String();
+					hoveredUnit.mConfig.mUnitClass.ToString(className);
+
+					let forceTag = hoveredUnit.mForce == .Attacker ? " [ATK]" : " [DEF]";
+					let nameStr = scope String();
+					nameStr.AppendF("{}{}", hoveredUnit.mConfig.mName, forceTag);
+
+					mBattleHUD.UpdateCurrentUnit(
+						nameStr,
+						hoveredUnit.mCurrentHP,
+						hoveredUnit.mMaxHP,
+						className,
+						hoveredUnit.mModifiedDamage,
+						hoveredUnit.mModifiedDefense,
+						hoveredUnit.mModifiedActionSpeed
+					);
+				}
+				else
+				{
+					mBattleHUD.ClearCurrentUnit();
+				}
+			}
+			else
+			{
+				mBattleHUD.ClearCurrentUnit();
+			}
+
+			// Show unit counts in top bar during deployment
+			int32 atkCount = 0, defCount = 0;
+			for (int32 i = 0; i < sim.UnitCount; i++)
+			{
+				let unit = sim.GetUnit(i);
+				if (unit != null && unit.mAlive)
+				{
+					if (unit.mForce == .Attacker) atkCount++;
+					else defCount++;
+				}
+			}
+			mBattleHUD.UpdateTurnInfo(0, atkCount, defCount);
 			return;
 		}
 
@@ -675,9 +655,9 @@ class StormTacticsGame : Application
 			let resultStr = scope String();
 			switch (sim.State)
 			{
-			case .AttackerWins: resultStr.Set("ATTACKERS WIN!");
-			case .DefenderWins: resultStr.Set("DEFENDERS WIN!");
-			case .Draw: resultStr.Set("DRAW!");
+			case .AttackerWins: resultStr.Set("VICTORY!");
+			case .DefenderWins: resultStr.Set("DEFEAT");
+			case .Draw: resultStr.Set("DRAW");
 			default: resultStr.Set("Battle Over");
 			}
 			mBattleHUD.ShowBattleResult(resultStr, result.mStarRating, result.mTotalTurns,
@@ -759,24 +739,18 @@ class StormTacticsGame : Application
 		delete mFontService;
 		mFontService = null;
 
-		// 3. BattleScene — references render system, debug feature, simulation
-		mBattleScene?.Shutdown();
-		delete mBattleScene;
-		mBattleScene = null;
+		// 3. Battle scene + simulation
+		DestroyBattle();
 
-		// 4. Simulation — references config database
-		delete mTestSim;
-		mTestSim = null;
+		// 4. Config data — standalone
+		delete mConfigs;
+		mConfigs = null;
 
-		// 5. Config data — standalone
-		delete mTestConfigs;
-		mTestConfigs = null;
-
-		// 6. Render view — standalone
+		// 5. Render view — standalone
 		delete mRenderView;
 		mRenderView = null;
 
-		// 7. Render system — owns features, must be last
+		// 6. Render system — owns features, must be last
 		if (mRenderSystem != null)
 			mRenderSystem.Shutdown();
 		delete mRenderSystem;

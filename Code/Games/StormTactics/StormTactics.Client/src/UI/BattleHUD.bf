@@ -8,6 +8,15 @@ using Sedulous.Foundation.Core;
 delegate void BattleActionDelegate();
 delegate void SpeedChangeDelegate(float speed);
 delegate void SkillSelectDelegate(int32 skillId);
+delegate void StageSelectDelegate(int32 stageId);
+
+struct StageDisplayInfo
+{
+	public int32 mId;
+	public StringView mName;
+	public int32 mDifficulty;
+	public int32 mEnemyCount;
+}
 
 struct SkillDisplayInfo
 {
@@ -99,6 +108,10 @@ class BattleHUD
 	private TextBlock mDeployHintLabel;
 	private Button mStartBattleButton;
 
+	// Stage selection panel
+	private Border mStageSelectPanel;
+	private StackPanel mStageListPanel;
+
 	// State
 	private bool mIsAutoPlaying;
 	private float mCurrentSpeed = 1.0f;
@@ -118,6 +131,7 @@ class BattleHUD
 	private EventAccessor<BattleActionDelegate> mOnCancelAction = new .() ~ delete _;
 	private EventAccessor<BattleActionDelegate> mOnUndoMove = new .() ~ delete _;
 	private EventAccessor<BattleActionDelegate> mOnStartBattle = new .() ~ delete _;
+	private EventAccessor<StageSelectDelegate> mOnStageSelected = new .() ~ delete _;
 	private EventAccessor<SkillSelectDelegate> mOnSkillChosen = new .() ~ delete _;
 
 	public EventAccessor<BattleActionDelegate> OnAutoToggle => mOnAutoToggle;
@@ -133,6 +147,7 @@ class BattleHUD
 	public EventAccessor<BattleActionDelegate> OnCancelAction => mOnCancelAction;
 	public EventAccessor<BattleActionDelegate> OnUndoMove => mOnUndoMove;
 	public EventAccessor<BattleActionDelegate> OnStartBattle => mOnStartBattle;
+	public EventAccessor<StageSelectDelegate> OnStageSelected => mOnStageSelected;
 	public EventAccessor<SkillSelectDelegate> OnSkillChosen => mOnSkillChosen;
 
 	public UIElement RootElement => mRoot;
@@ -162,6 +177,7 @@ class BattleHUD
 		BuildTurnOrderBar();
 		BuildActionPanel();
 		BuildDeploymentPanel();
+		BuildStageSelectPanel();
 		BuildBottomPanel();
 		BuildResultOverlay();
 	}
@@ -448,6 +464,53 @@ class BattleHUD
 		content.AddChild(mStartBattleButton);
 
 		mRoot.AddChild(mDeployPanel);
+	}
+
+	private void BuildStageSelectPanel()
+	{
+		mStageSelectPanel = new Border();
+		mStageSelectPanel.Background = Color(0, 0, 0, 180);
+		mStageSelectPanel.HorizontalAlignment = .Stretch;
+		mStageSelectPanel.VerticalAlignment = .Stretch;
+		mStageSelectPanel.Visibility = .Collapsed;
+
+		// Card container
+		let card = new Border();
+		card.Background = Color(18, 22, 32, 240);
+		card.Padding = Thickness(32, 24, 32, 24);
+		card.HorizontalAlignment = .Center;
+		card.VerticalAlignment = .Center;
+		card.Width = .Fixed(400);
+		mStageSelectPanel.Child = card;
+
+		let layout = new StackPanel();
+		layout.Orientation = .Vertical;
+		layout.Spacing = 16;
+		layout.HorizontalAlignment = .Stretch;
+		card.Child = layout;
+
+		let title = new TextBlock("SELECT STAGE");
+		title.Foreground = Color(255, 215, 80);
+		title.FontSize = 24;
+		title.TextAlignment = .Center;
+		title.HorizontalAlignment = .Center;
+		layout.AddChild(title);
+
+		// Divider
+		let divider = new Border();
+		divider.Background = Color(60, 65, 80);
+		divider.Height = .Fixed(1);
+		divider.HorizontalAlignment = .Stretch;
+		layout.AddChild(divider);
+
+		// Stage list (populated dynamically)
+		mStageListPanel = new StackPanel();
+		mStageListPanel.Orientation = .Vertical;
+		mStageListPanel.Spacing = 8;
+		mStageListPanel.HorizontalAlignment = .Stretch;
+		layout.AddChild(mStageListPanel);
+
+		mRoot.AddChild(mStageSelectPanel);
 	}
 
 	private void BuildBottomPanel()
@@ -825,6 +888,12 @@ class BattleHUD
 		mResultOverlay.Visibility = .Visible;
 	}
 
+	public void ResetResultState()
+	{
+		mResultShown = false;
+		mResultOverlay.Visibility = .Collapsed;
+	}
+
 	public void SetAutoPlaying(bool isAuto)
 	{
 		mIsAutoPlaying = isAuto;
@@ -924,9 +993,8 @@ class BattleHUD
 	public void ShowDeploymentPanel()
 	{
 		mDeployPanel.Visibility = .Visible;
-		// Hide battle-specific controls during deployment
+		// Hide battle-specific controls during deployment (bottom panel stays for unit info)
 		mTurnOrderBar.Visibility = .Collapsed;
-		mBottomPanel.Visibility = .Collapsed;
 		mActionPanel.Visibility = .Collapsed;
 		mTitleLabel.Text = "DEPLOYMENT";
 	}
@@ -943,6 +1011,77 @@ class BattleHUD
 	public void UpdateDeploymentHint(StringView text)
 	{
 		mDeployHintLabel.Text = text;
+	}
+
+	// --- Stage selection methods ---
+
+	public void ShowStageSelect(Span<StageDisplayInfo> stages)
+	{
+		// Hide battle HUD
+		mHudPanel.Visibility = .Collapsed;
+		mActionPanel.Visibility = .Collapsed;
+		mDeployPanel.Visibility = .Collapsed;
+		mResultOverlay.Visibility = .Collapsed;
+
+		// Populate stage buttons
+		mStageListPanel.ClearChildren();
+		for (let stage in stages)
+		{
+			let stageBtn = new Border();
+			stageBtn.Background = Color(30, 35, 50, 255);
+			stageBtn.Padding = Thickness(16, 10, 16, 10);
+			stageBtn.HorizontalAlignment = .Stretch;
+
+			let row = new DockPanel();
+			row.HorizontalAlignment = .Stretch;
+			row.LastChildFill = false;
+			stageBtn.Child = row;
+
+			// Stage name (left)
+			let nameLabel = new TextBlock(stage.mName);
+			nameLabel.Foreground = Color(230, 230, 240);
+			nameLabel.FontSize = 16;
+			DockPanelProperties.SetDock(nameLabel, .Left);
+			row.AddChild(nameLabel);
+
+			// Difficulty + enemy count (right)
+			let infoStr = scope String();
+			infoStr.AppendF("Diff:{} | {}x", stage.mDifficulty, stage.mEnemyCount);
+			let infoLabel = new TextBlock(infoStr);
+			infoLabel.Foreground = Color(150, 155, 170);
+			infoLabel.FontSize = 14;
+			DockPanelProperties.SetDock(infoLabel, .Right);
+			row.AddChild(infoLabel);
+
+			// Make the whole border clickable via a transparent button overlay
+			let btn = new Button("");
+			btn.Background = Color(0, 0, 0, 0);
+			btn.HorizontalAlignment = .Stretch;
+			btn.VerticalAlignment = .Stretch;
+			btn.Padding = Thickness(0);
+			let capturedId = stage.mId;
+			btn.Click.Subscribe(new (b) => {
+				mOnStageSelected.[Friend]Invoke(capturedId);
+			});
+
+			// Wrap in a grid so button overlays the border content
+			let wrapper = new Grid();
+			wrapper.HorizontalAlignment = .Stretch;
+			wrapper.RowDefinitions.Add(new .() { Height = .Auto });
+			wrapper.ColumnDefinitions.Add(new .() { Width = .Star });
+			wrapper.AddChild(stageBtn);
+			wrapper.AddChild(btn);
+
+			mStageListPanel.AddChild(wrapper);
+		}
+
+		mStageSelectPanel.Visibility = .Visible;
+	}
+
+	public void HideStageSelect()
+	{
+		mStageSelectPanel.Visibility = .Collapsed;
+		mHudPanel.Visibility = .Visible;
 	}
 
 	// --- Helpers ---

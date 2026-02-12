@@ -229,7 +229,12 @@ class HexGridRenderer
 	/// Cleanup all entities and materials.
 	public void Shutdown()
 	{
-		// Entities are owned by the scene, which will clean them up
+		// Destroy tile entities from the scene
+		if (mScene != null)
+		{
+			for (let entry in mTileEntities)
+				mScene.DestroyEntity(entry.value);
+		}
 		mTileEntities.Clear();
 		mHighlights.Clear();
 	}

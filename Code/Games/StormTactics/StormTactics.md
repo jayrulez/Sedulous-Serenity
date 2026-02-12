@@ -251,7 +251,7 @@ Bring the battle to life with the Sedulous engine.
 - [x] **Application setup** (`StormTactics.Client`)
   - [x] Extend `Application` from Sedulous.Framework.Runtime
   - [x] Register required subsystems (Scene, Render)
-  - [x] Game state machine (Loading → Battle — basic with GameState enum)
+  - [x] Game state machine (Campaign → BattlePrepare → Battle → result → Campaign loop)
   - [ ] Asset loading pipeline (placeholder meshes for now)
   - [x] Frame update loop delegating to current game state
 
@@ -336,7 +336,7 @@ The interface layer for tactical combat.
   - [x] "Continue" button
 
 - [x] **Pre-battle (deployment) screen**
-  - [ ] Show enemy formation preview
+  - [x] Show enemy formation preview (red-highlighted defender hexes)
   - [x] Player's deployment grid (their side of the hex map)
   - [x] Click-to-select and click-to-swap/move units in deployment zone
   - [x] Unit info on hover (via bottom panel after battle starts; hint text during deploy)
@@ -417,11 +417,11 @@ The PvE content pipeline and campaign structure.
   - [ ] Chapter boss stages (special rewards)
 
 - [ ] **Stage system**
-  - [ ] Load stage config (enemy formation, battle map, rewards)
-  - [ ] Pre-battle screen with enemy preview
-  - [ ] Battle execution
+  - [x] Load stage config (enemy formation, battle map, rewards)
+  - [x] Pre-battle screen with enemy preview
+  - [x] Battle execution
   - [ ] Post-battle reward distribution
-  - [ ] Star rating calculation (3-star system)
+  - [x] Star rating calculation (3-star system)
   - [ ] First-clear bonus rewards
   - [ ] Stage sweep (auto-complete previously 3-starred stages for rewards)
 

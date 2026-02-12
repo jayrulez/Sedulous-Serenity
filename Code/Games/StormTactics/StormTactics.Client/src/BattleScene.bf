@@ -716,7 +716,7 @@ class BattleScene
 			let deployColumns = mSimulation.DeployColumns;
 			let grid = mSimulation.Grid;
 
-			// Highlight deployment zone
+			// Highlight deployment zone (attacker side)
 			for (int32 row = 0; row < grid.Rows; row++)
 			{
 				for (int32 col = 0; col < deployColumns; col++)
@@ -727,6 +727,14 @@ class BattleScene
 				}
 			}
 
+			// Highlight enemy (defender) positions with red
+			for (int32 i = 0; i < mSimulation.UnitCount; i++)
+			{
+				let unit = mSimulation.GetUnit(i);
+				if (unit != null && unit.mAlive && unit.mForce == .Defender)
+					mGridRenderer.SetHighlight(unit.mPosition, .(255, 80, 80, 50)); // Soft red
+			}
+
 			// Highlight selected unit
 			if (mDeploySelectedUnit >= 0)
 			{
@@ -734,6 +742,10 @@ class BattleScene
 				if (selUnit != null)
 					mGridRenderer.SetHighlight(selUnit.mPosition, .(255, 215, 80, 120)); // Gold
 			}
+
+			// Hovered hex highlight during deployment
+			if (mHasHoveredHex)
+				mGridRenderer.SetHighlight(mHoveredHex, .(100, 220, 255, 60));
 		}
 
 		if (!mDeploymentMode && !mSimulation.IsFinished)
@@ -1025,20 +1037,35 @@ class BattleScene
 		delete mSequencer;
 		mSequencer = null;
 
-		// 2. Unit views — hold scene entity references
+		// 2. Unit views — destroy entities from scene, then delete views
+		if (mUnitViews != null && mScene != null)
+		{
+			for (let view in mUnitViews)
+			{
+				if (view != null)
+					mScene.DestroyEntity(view.mEntityId);
+			}
+		}
 		DeleteContainerAndItems!(mUnitViews);
 		mUnitViews = null;
 
-		// 3. Grid renderer — has scene entities and render system refs
+		// 3. Grid renderer — destroy tile entities from scene
 		mGridRenderer?.Shutdown();
 		delete mGridRenderer;
 		mGridRenderer = null;
 
-		// 4. Camera — standalone
+		// 4. Destroy scene-level entities (sun, camera)
+		if (mScene != null)
+		{
+			mScene.DestroyEntity(mSunEntity);
+			mScene.DestroyEntity(mCameraEntity);
+		}
+
+		// 5. Camera — standalone
 		delete mCamera;
 		mCamera = null;
 
-		// 5. Data lists
+		// 6. Data lists
 		for (let e in mStepEvents) delete e;
 		delete mStepEvents;
 		mStepEvents = null;
@@ -1060,16 +1087,18 @@ class BattleScene
 		delete mSkillTargetUnits;
 		mSkillTargetUnits = null;
 
-		// 6. Materials — ReleaseRef before mesh resources
+		// 7. Materials — ReleaseRef before mesh resources
 		mAttackerMaterial?.ReleaseRef();
 		mAttackerMaterial = null;
 		mDefenderMaterial?.ReleaseRef();
 		mDefenderMaterial = null;
 
-		// 7. Mesh resources — ReleaseRef
+		// 8. Mesh resources — ReleaseRef
 		mAttackerMesh?.ReleaseRef();
 		mAttackerMesh = null;
 		mDefenderMesh?.ReleaseRef();
 		mDefenderMesh = null;
+
+		mScene = null;
 	}
 }
