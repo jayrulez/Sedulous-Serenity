@@ -83,6 +83,7 @@ class BattleScene
 	// Battle state
 	private float mHexSize;
 	private bool mAutoPlay;
+	private bool mAutoStep;
 	private float mAutoStepTimer;
 	private float mAutoStepDelay = 0.1f; // Seconds between auto-steps
 	private float mSpeedMultiplier = 1.0f;
@@ -110,6 +111,7 @@ class BattleScene
 
 	public BattleCamera Camera => mCamera;
 	public bool IsAutoPlaying => mAutoPlay;
+	public bool IsAutoStepping => mAutoStep;
 	public BattleSimulation Simulation => mSimulation;
 	public HexCoord HoveredHex => mHoveredHex;
 	public bool HasHoveredHex => mHasHoveredHex;
@@ -288,6 +290,13 @@ class BattleScene
 		}
 	}
 
+	/// Toggle auto-step mode (auto-advances turns but player still controls their units).
+	public void ToggleAutoStep()
+	{
+		mAutoStep = !mAutoStep;
+		mAutoStepTimer = 0;
+	}
+
 	/// Skip all remaining animations.
 	public void SkipAnimations()
 	{
@@ -456,7 +465,7 @@ class BattleScene
 		}
 
 		// Auto-play: step when animations are done (scaled)
-		if (mAutoPlay && !mSimulation.IsFinished)
+		if ((mAutoPlay || mAutoStep) && !mSimulation.IsFinished)
 		{
 			if (!mSequencer.IsPlaying)
 			{
@@ -470,9 +479,10 @@ class BattleScene
 		}
 
 		// Auto-stop when battle ends
-		if (mAutoPlay && mSimulation.IsFinished && !mSequencer.IsPlaying)
+		if ((mAutoPlay || mAutoStep) && mSimulation.IsFinished && !mSequencer.IsPlaying)
 		{
 			mAutoPlay = false;
+			mAutoStep = false;
 		}
 
 		// Focus camera on current active unit
@@ -594,6 +604,20 @@ class BattleScene
 				vfx.mDuration = 0.5f;
 				vfx.mColor = .(255, 255, 100, 255);
 				mActiveEffects.Add(vfx);
+			}
+			// Show VFX on target too (if different from caster)
+			if (ev.mTargetUnit >= 0 && ev.mTargetUnit != ev.mSourceUnit)
+			{
+				let targetView = GetUnitView(ev.mTargetUnit);
+				if (targetView != null)
+				{
+					var targetVfx = BattleVFX();
+					targetVfx.mType = .SkillCast;
+					targetVfx.mPosition = targetView.mWorldPos;
+					targetVfx.mDuration = 0.5f;
+					targetVfx.mColor = .(100, 255, 150, 255); // Green-ish for receiving end
+					mActiveEffects.Add(targetVfx);
+				}
 			}
 
 		case .BuffApplied:

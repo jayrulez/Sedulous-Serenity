@@ -312,17 +312,17 @@ The interface layer for tactical combat.
 - [x] **Battle HUD** (retained-mode UI via Sedulous.GUI / UISubsystem)
   - [ ] Turn order bar (portrait strip showing upcoming unit turns)
   - [x] Current unit info panel (name, HP bar, class, ATK/DEF/SPD stats)
-  - [ ] Action buttons (Move, Attack, Skill, Wait/End Turn)
-  - [ ] Skill selection panel (list active skills with cooldowns)
+  - [x] Action buttons (Move, Attack, Skill, Wait/End Turn)
+  - [x] Skill selection panel (list active skills with cooldowns)
   - [x] Target info panel (shows stats of hovered/targeted enemy)
   - [x] Battle speed controls (1x, 2x, 4x, Step, Auto, Skip)
   - [ ] Pause/settings button
 
-- [ ] **Player interaction flow**
-  - [ ] Player's turn: highlight active unit → show action buttons
-  - [ ] Move action: show reachable cells → click to move → animate
-  - [ ] Attack action: show attackable targets → click target → resolve & animate
-  - [ ] Skill action: show skill panel → select skill → show valid targets → click → resolve
+- [x] **Player interaction flow**
+  - [x] Player's turn: highlight active unit → show action buttons
+  - [x] Move action: show reachable cells → click to move → animate
+  - [x] Attack action: show attackable targets → click target → resolve & animate
+  - [x] Skill action: show skill panel → select skill → show valid targets → click → resolve
   - [x] Auto-battle toggle: AI controls player units
   - [ ] Undo move (before committing attack)
 

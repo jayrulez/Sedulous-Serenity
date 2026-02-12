@@ -34,6 +34,7 @@ class BattleHUD
 	private Button mSpeed2xButton;
 	private Button mSpeed4xButton;
 	private Button mAutoButton;
+	private Button mAutoStepButton;
 	private Button mSkipButton;
 	private Button mStepButton;
 
@@ -79,6 +80,7 @@ class BattleHUD
 
 	// Events
 	private EventAccessor<BattleActionDelegate> mOnAutoToggle = new .() ~ delete _;
+	private EventAccessor<BattleActionDelegate> mOnAutoStepToggle = new .() ~ delete _;
 	private EventAccessor<BattleActionDelegate> mOnSkip = new .() ~ delete _;
 	private EventAccessor<BattleActionDelegate> mOnStep = new .() ~ delete _;
 	private EventAccessor<SpeedChangeDelegate> mOnSpeedChanged = new .() ~ delete _;
@@ -91,6 +93,7 @@ class BattleHUD
 	private EventAccessor<SkillSelectDelegate> mOnSkillChosen = new .() ~ delete _;
 
 	public EventAccessor<BattleActionDelegate> OnAutoToggle => mOnAutoToggle;
+	public EventAccessor<BattleActionDelegate> OnAutoStepToggle => mOnAutoStepToggle;
 	public EventAccessor<BattleActionDelegate> OnSkip => mOnSkip;
 	public EventAccessor<BattleActionDelegate> OnStep => mOnStep;
 	public EventAccessor<SpeedChangeDelegate> OnSpeedChanged => mOnSpeedChanged;
@@ -219,6 +222,13 @@ class BattleHUD
 			mOnSpeedChanged.[Friend]Invoke(4.0f);
 		});
 		buttonPanel.AddChild(mSpeed4xButton);
+
+		mAutoStepButton = new Button("AutoStep");
+		mAutoStepButton.Padding = Thickness(10, 4, 10, 4);
+		mAutoStepButton.Click.Subscribe(new (btn) => {
+			mOnAutoStepToggle.[Friend]Invoke();
+		});
+		buttonPanel.AddChild(mAutoStepButton);
 
 		mAutoButton = new Button("Auto");
 		mAutoButton.Padding = Thickness(10, 4, 10, 4);
@@ -569,6 +579,14 @@ class BattleHUD
 			mAutoButton.Background = Color(60, 140, 60, 255);
 		else
 			mAutoButton.[Friend]mBackground = null; // Revert to theme default
+	}
+
+	public void SetAutoStepping(bool isAutoStep)
+	{
+		if (isAutoStep)
+			mAutoStepButton.Background = Color(60, 140, 180, 255);
+		else
+			mAutoStepButton.[Friend]mBackground = null;
 	}
 
 	// --- Action panel methods ---

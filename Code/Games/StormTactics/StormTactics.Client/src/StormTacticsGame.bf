@@ -55,6 +55,9 @@ class StormTacticsGame : Application
 	private ConfigDatabase mTestConfigs;
 	private BattleSimulation mTestSim;
 
+	// HUD state tracking
+	private PlayerTurnPhase mLastPlayerPhase = .Idle;
+
 	// Timing
 	private float mDeltaTime;
 
@@ -192,6 +195,9 @@ class StormTacticsGame : Application
 		mBattleHUD.OnAutoToggle.Subscribe(new () => {
 			mBattleScene?.ToggleAutoPlay();
 		});
+		mBattleHUD.OnAutoStepToggle.Subscribe(new () => {
+			mBattleScene?.ToggleAutoStep();
+		});
 		mBattleHUD.OnSkip.Subscribe(new () => {
 			mBattleScene?.SkipAnimations();
 		});
@@ -231,6 +237,105 @@ class StormTacticsGame : Application
 		mTestConfigs = new ConfigDatabase();
 
 		// --- Register test units ---
+		// --- Register test buffs ---
+		let poisonBuff = new BuffConfig();
+		poisonBuff.mId = 1;
+		poisonBuff.mName.Set("Poison");
+		poisonBuff.mDescription.Set("Takes damage each turn");
+		poisonBuff.mFlag = .Negative;
+		poisonBuff.mTag = .Poison;
+		poisonBuff.mDuration = 3;
+		poisonBuff.mDotDamage = 15;
+		mTestConfigs.RegisterBuff(poisonBuff);
+
+		let defUpBuff = new BuffConfig();
+		defUpBuff.mId = 2;
+		defUpBuff.mName.Set("Shield Wall");
+		defUpBuff.mDescription.Set("Defense increased");
+		defUpBuff.mFlag = .Positive;
+		defUpBuff.mTag = .DefenseUp;
+		defUpBuff.mDuration = 3;
+		let defMod = new StatModifier();
+		defMod.mAttribute = .Defense;
+		defMod.mPercentValue = 0.5f; // +50% defense
+		defUpBuff.mStatModifiers.Add(defMod);
+		mTestConfigs.RegisterBuff(defUpBuff);
+
+		let atkUpBuff = new BuffConfig();
+		atkUpBuff.mId = 3;
+		atkUpBuff.mName.Set("Battle Cry");
+		atkUpBuff.mDescription.Set("Attack increased");
+		atkUpBuff.mFlag = .Positive;
+		atkUpBuff.mTag = .AttackUp;
+		atkUpBuff.mDuration = 2;
+		let atkMod = new StatModifier();
+		atkMod.mAttribute = .Damage;
+		atkMod.mPercentValue = 0.3f; // +30% damage
+		atkUpBuff.mStatModifiers.Add(atkMod);
+		mTestConfigs.RegisterBuff(atkUpBuff);
+
+		// --- Register test skills ---
+		// Warrior: Power Strike — high damage single enemy, 2-turn cooldown
+		let powerStrike = new SkillConfig();
+		powerStrike.mId = 1;
+		powerStrike.mName.Set("Power Strike");
+		powerStrike.mDescription.Set("A powerful blow dealing 150% damage");
+		powerStrike.mMoment = .OnActionBegin;
+		powerStrike.mTarget = .SingleEnemy;
+		powerStrike.mCooldown = 2;
+		let psEffect = new SkillEffect();
+		psEffect.mType = .Damage;
+		psEffect.mValue = 1.5f;
+		powerStrike.mEffects.Add(psEffect);
+		mTestConfigs.RegisterSkill(powerStrike);
+
+		// Archer: Poison Arrow — damage + poison, 3-turn cooldown
+		let poisonArrow = new SkillConfig();
+		poisonArrow.mId = 2;
+		poisonArrow.mName.Set("Poison Arrow");
+		poisonArrow.mDescription.Set("Deals damage and poisons the target");
+		poisonArrow.mMoment = .OnActionBegin;
+		poisonArrow.mTarget = .SingleEnemy;
+		poisonArrow.mCooldown = 3;
+		let paEffect1 = new SkillEffect();
+		paEffect1.mType = .Damage;
+		paEffect1.mValue = 1.0f;
+		poisonArrow.mEffects.Add(paEffect1);
+		let paEffect2 = new SkillEffect();
+		paEffect2.mType = .ApplyBuff;
+		paEffect2.mBuffId = 1; // Poison
+		poisonArrow.mEffects.Add(paEffect2);
+		mTestConfigs.RegisterSkill(poisonArrow);
+
+		// Mage: Heal — heal single ally, 2-turn cooldown
+		let heal = new SkillConfig();
+		heal.mId = 3;
+		heal.mName.Set("Heal");
+		heal.mDescription.Set("Restores HP to an ally");
+		heal.mMoment = .OnActionBegin;
+		heal.mTarget = .SingleAlly;
+		heal.mCooldown = 2;
+		let healEffect = new SkillEffect();
+		healEffect.mType = .Heal;
+		healEffect.mValue = 80;
+		heal.mEffects.Add(healEffect);
+		mTestConfigs.RegisterSkill(heal);
+
+		// Guardian: Shield Wall — self defense buff, 3-turn cooldown
+		let shieldWall = new SkillConfig();
+		shieldWall.mId = 4;
+		shieldWall.mName.Set("Shield Wall");
+		shieldWall.mDescription.Set("Raises defenses for 3 turns");
+		shieldWall.mMoment = .OnActionBegin;
+		shieldWall.mTarget = .Self;
+		shieldWall.mCooldown = 3;
+		let swEffect = new SkillEffect();
+		swEffect.mType = .ApplyBuff;
+		swEffect.mBuffId = 2; // DefenseUp
+		shieldWall.mEffects.Add(swEffect);
+		mTestConfigs.RegisterSkill(shieldWall);
+
+		// --- Register test units ---
 		let warrior = new UnitConfig();
 		warrior.mId = 1;
 		warrior.mName.Set("Warrior");
@@ -244,6 +349,7 @@ class StormTacticsGame : Application
 		warrior.mActionSpeed = 80;
 		warrior.mDamageType = .Physical;
 		warrior.mModelName.Set("warrior");
+		warrior.mSkillIds.Add(1); // Power Strike
 		mTestConfigs.RegisterUnit(warrior);
 
 		let archer = new UnitConfig();
@@ -260,6 +366,7 @@ class StormTacticsGame : Application
 		archer.mDamageType = .Physical;
 		archer.mIsRanged = true;
 		archer.mModelName.Set("archer");
+		archer.mSkillIds.Add(2); // Poison Arrow
 		mTestConfigs.RegisterUnit(archer);
 
 		let mage = new UnitConfig();
@@ -276,6 +383,7 @@ class StormTacticsGame : Application
 		mage.mDamageType = .Magic;
 		mage.mIsRanged = true;
 		mage.mModelName.Set("mage");
+		mage.mSkillIds.Add(3); // Heal
 		mTestConfigs.RegisterUnit(mage);
 
 		let tank = new UnitConfig();
@@ -291,6 +399,7 @@ class StormTacticsGame : Application
 		tank.mActionSpeed = 60;
 		tank.mDamageType = .Physical;
 		tank.mModelName.Set("guardian");
+		tank.mSkillIds.Add(4); // Shield Wall
 		mTestConfigs.RegisterUnit(tank);
 
 		// --- Create formations ---
@@ -441,47 +550,54 @@ class StormTacticsGame : Application
 
 		// Update auto-play state
 		mBattleHUD.SetAutoPlaying(mBattleScene.IsAutoPlaying);
+		mBattleHUD.SetAutoStepping(mBattleScene.IsAutoStepping);
 
-		// Update player turn phase UI
-		switch (mBattleScene.PlayerPhase)
+		// Update player turn phase UI — only on phase transitions to avoid
+		// rebuilding dynamic UI (skill buttons) every frame
+		let currentPhase = mBattleScene.PlayerPhase;
+		if (currentPhase != mLastPlayerPhase)
 		{
-		case .ChoosingAction:
-			let canMove = mBattleScene.ReachableCells.Count > 0;
-			let canAttack = mBattleScene.AttackableUnits.Count > 0;
-			let hasSkills = mBattleScene.UsableSkills.Count > 0;
-			mBattleHUD.ShowActionPanel(canMove, canAttack, hasSkills);
-		case .SelectingMoveTarget:
-			mBattleHUD.ShowSelectingMode("Click a green tile to move");
-		case .SelectingAttackTarget:
-			mBattleHUD.ShowSelectingMode("Click an enemy to attack");
-		case .SelectingSkill:
-			// Build skill display list
+			mLastPlayerPhase = currentPhase;
+			switch (currentPhase)
 			{
-				let playerIdx = mBattleScene.PlayerUnitIndex;
-				let playerUnit = sim.GetUnit(playerIdx);
-				var skills = scope SkillDisplayInfo[playerUnit.mConfig.mSkillIds.Count];
-				int32 skillCount = 0;
-
-				for (let skillId in playerUnit.mConfig.mSkillIds)
+			case .ChoosingAction:
+				let canMove = mBattleScene.ReachableCells.Count > 0;
+				let canAttack = mBattleScene.AttackableUnits.Count > 0;
+				let hasSkills = mBattleScene.UsableSkills.Count > 0;
+				mBattleHUD.ShowActionPanel(canMove, canAttack, hasSkills);
+			case .SelectingMoveTarget:
+				mBattleHUD.ShowSelectingMode("Click a green tile to move");
+			case .SelectingAttackTarget:
+				mBattleHUD.ShowSelectingMode("Click an enemy to attack");
+			case .SelectingSkill:
+				// Build skill display list
 				{
-					let skillCfg = sim.Configs.GetSkill(skillId);
-					if (skillCfg == null) continue;
-					if (skillCfg.mMoment != .OnActionBegin) continue;
+					let playerIdx = mBattleScene.PlayerUnitIndex;
+					let playerUnit = sim.GetUnit(playerIdx);
+					var skills = scope SkillDisplayInfo[playerUnit.mConfig.mSkillIds.Count];
+					int32 skillCount = 0;
 
-					var info = SkillDisplayInfo();
-					info.mId = skillId;
-					info.mName = skillCfg.mName;
-					info.mCooldownLeft = playerUnit.mSkillCooldowns.ContainsKey(skillId) ? playerUnit.mSkillCooldowns[skillId] : 0;
-					info.mUsable = mBattleScene.UsableSkills.Contains(skillId);
-					if (skillCount < skills.Count)
-						skills[skillCount++] = info;
+					for (let skillId in playerUnit.mConfig.mSkillIds)
+					{
+						let skillCfg = sim.Configs.GetSkill(skillId);
+						if (skillCfg == null) continue;
+						if (skillCfg.mMoment != .OnActionBegin) continue;
+
+						var info = SkillDisplayInfo();
+						info.mId = skillId;
+						info.mName = skillCfg.mName;
+						info.mCooldownLeft = playerUnit.mSkillCooldowns.ContainsKey(skillId) ? playerUnit.mSkillCooldowns[skillId] : 0;
+						info.mUsable = mBattleScene.UsableSkills.Contains(skillId);
+						if (skillCount < skills.Count)
+							skills[skillCount++] = info;
+					}
+					mBattleHUD.ShowSkillPanel(skills[0..<skillCount]);
 				}
-				mBattleHUD.ShowSkillPanel(skills[0..<skillCount]);
+			case .SelectingSkillTarget:
+				mBattleHUD.ShowSelectingMode("Click a target for skill");
+			default:
+				mBattleHUD.HideActionPanel();
 			}
-		case .SelectingSkillTarget:
-			mBattleHUD.ShowSelectingMode("Click a target for skill");
-		default:
-			mBattleHUD.HideActionPanel();
 		}
 
 		// Show battle result
