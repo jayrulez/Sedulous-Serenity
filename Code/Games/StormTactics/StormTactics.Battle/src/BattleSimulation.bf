@@ -264,6 +264,46 @@ class BattleSimulation
 		return bestIdx;
 	}
 
+	/// Predict the next N unit turns without modifying simulation state.
+	/// Returns unit indices in predicted turn order.
+	public void PredictTurnOrder(int32 count, List<int32> outUnitIndices)
+	{
+		outUnitIndices.Clear();
+
+		// Snapshot current timers
+		var timers = scope float[mUnits.Count];
+		for (int32 i = 0; i < (int32)mUnits.Count; i++)
+			timers[i] = mUnits[i].mActionTimer;
+
+		for (int32 turn = 0; turn < count; turn++)
+		{
+			// Find unit with lowest timer
+			int32 nextIdx = -1;
+			float bestTime = float.MaxValue;
+			for (int32 i = 0; i < (int32)mUnits.Count; i++)
+			{
+				if (!mUnits[i].mAlive) continue;
+				if (timers[i] < bestTime ||
+					(timers[i] == bestTime && mUnits[i].mForce == .Defender))
+				{
+					bestTime = timers[i];
+					nextIdx = i;
+				}
+			}
+			if (nextIdx < 0) break;
+
+			outUnitIndices.Add(nextIdx);
+
+			// Advance all timers
+			for (int32 i = 0; i < (int32)mUnits.Count; i++)
+				if (mUnits[i].mAlive)
+					timers[i] -= bestTime;
+
+			// Reset acted unit's timer
+			timers[nextIdx] = (float)BattleConstants.TIME_UNIT / (float)mUnits[nextIdx].mModifiedActionSpeed;
+		}
+	}
+
 	/// Advance time to the next unit's turn and return that unit's index.
 	public int32 AdvanceToNextTurn()
 	{

@@ -57,6 +57,7 @@ class StormTacticsGame : Application
 
 	// HUD state tracking
 	private PlayerTurnPhase mLastPlayerPhase = .Idle;
+	private List<int32> mTurnOrderBuffer = new .() ~ delete _;
 
 	// Timing
 	private float mDeltaTime;
@@ -497,6 +498,22 @@ class StormTacticsGame : Application
 		}
 
 		mBattleHUD.UpdateTurnInfo(sim.TurnCount, attackersAlive, defendersAlive);
+
+		// Update turn order bar
+		if (!sim.IsFinished)
+		{
+			sim.PredictTurnOrder(12, mTurnOrderBuffer);
+			var entries = scope TurnOrderEntry[mTurnOrderBuffer.Count];
+			for (int32 i = 0; i < (int32)mTurnOrderBuffer.Count; i++)
+			{
+				let unitIdx = mTurnOrderBuffer[i];
+				let unit = sim.GetUnit(unitIdx);
+				entries[i].mName = unit.mConfig.mName;
+				entries[i].mIsAttacker = unit.mForce == .Attacker;
+				entries[i].mIsCurrent = (i == 0);
+			}
+			mBattleHUD.UpdateTurnOrder(entries);
+		}
 
 		// Update current unit info
 		let curIdx = sim.CurrentUnitIndex;

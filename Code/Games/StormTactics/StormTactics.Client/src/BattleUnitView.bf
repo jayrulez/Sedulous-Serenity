@@ -260,21 +260,29 @@ class BattleUnitView
 		// HP ratio
 		let hpRatio = (float)unit.mCurrentHP / (float)unit.mMaxHP;
 		let barWidth = 0.6f;
-		let barHeight = 0.06f;
+		let barHeight = 0.08f;
+		let barLines = 5; // Number of lines to fill the bar height
 
-		// Background bar (dark)
+		// Background bar (dark) — filled
 		let bgLeft = barPos - right * (barWidth * 0.5f);
 		let bgRight = barPos + right * (barWidth * 0.5f);
-		debugFeature.AddLine(bgLeft, bgRight, .(40, 40, 40, 200));
+		for (int j = 0; j < barLines; j++)
+		{
+			let yOff = up * (barHeight * (float)j / (float)(barLines - 1));
+			debugFeature.AddLine(bgLeft + yOff, bgRight + yOff, .(40, 40, 40, 200));
+		}
 
-		// HP bar (green to red based on HP)
+		// HP bar (green to red based on HP) — filled
 		let hpColor = Color(
 			(uint8)(255 * (1.0f - hpRatio)),
 			(uint8)(255 * hpRatio),
 			0, 255);
 		let hpRight = bgLeft + right * (barWidth * hpRatio);
-		debugFeature.AddLine(bgLeft + up * barHeight, hpRight + up * barHeight, hpColor);
-		debugFeature.AddLine(bgLeft, hpRight, hpColor);
+		for (int j = 0; j < barLines; j++)
+		{
+			let yOff = up * (barHeight * (float)j / (float)(barLines - 1));
+			debugFeature.AddLine(bgLeft + yOff, hpRight + yOff, hpColor);
+		}
 
 		// Flash effect
 		if (mFlashing)

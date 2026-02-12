@@ -310,7 +310,7 @@ The interface layer for tactical combat.
 ### Checklist
 
 - [x] **Battle HUD** (retained-mode UI via Sedulous.GUI / UISubsystem)
-  - [ ] Turn order bar (portrait strip showing upcoming unit turns)
+  - [x] Turn order bar (horizontal strip showing upcoming unit turns)
   - [x] Current unit info panel (name, HP bar, class, ATK/DEF/SPD stats)
   - [x] Action buttons (Move, Attack, Skill, Wait/End Turn)
   - [x] Skill selection panel (list active skills with cooldowns)

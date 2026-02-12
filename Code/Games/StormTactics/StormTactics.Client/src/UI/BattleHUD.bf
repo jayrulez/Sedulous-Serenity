@@ -17,6 +17,13 @@ struct SkillDisplayInfo
 	public bool mUsable;
 }
 
+struct TurnOrderEntry
+{
+	public StringView mName;
+	public bool mIsAttacker;
+	public bool mIsCurrent;
+}
+
 /// Retained-mode battle HUD using Sedulous.GUI.
 /// Provides turn info, speed controls, unit info panels, and battle result overlay.
 class BattleHUD
@@ -24,6 +31,13 @@ class BattleHUD
 	// Root layout
 	private Grid mRoot ~ delete _;
 	private DockPanel mHudPanel;
+
+	// Turn order bar
+	private Border mTurnOrderBar;
+	private StackPanel mTurnOrderPanel;
+	private const int32 TURN_ORDER_SLOTS = 12;
+	private Border[TURN_ORDER_SLOTS] mTurnOrderSlots;
+	private TextBlock[TURN_ORDER_SLOTS] mTurnOrderLabels;
 
 	// Top bar elements
 	private TextBlock mTitleLabel;
@@ -129,6 +143,7 @@ class BattleHUD
 		mRoot.AddChild(mHudPanel);
 
 		BuildTopBar();
+		BuildTurnOrderBar();
 		BuildActionPanel();
 		BuildBottomPanel();
 		BuildResultOverlay();
@@ -250,6 +265,44 @@ class BattleHUD
 
 		// Set initial speed highlight
 		SetSpeedHighlight(1.0f);
+	}
+
+	private void BuildTurnOrderBar()
+	{
+		mTurnOrderBar = new Border();
+		mTurnOrderBar.Background = Color(10, 12, 18, 200);
+		mTurnOrderBar.Height = .Fixed(30);
+		mTurnOrderBar.Padding = Thickness(8, 3, 8, 3);
+		DockPanelProperties.SetDock(mTurnOrderBar, .Top);
+
+		mTurnOrderPanel = new StackPanel();
+		mTurnOrderPanel.Orientation = .Horizontal;
+		mTurnOrderPanel.Spacing = 3;
+		mTurnOrderPanel.VerticalAlignment = .Center;
+		mTurnOrderBar.Child = mTurnOrderPanel;
+
+		// Pre-create fixed slots
+		for (int32 i = 0; i < TURN_ORDER_SLOTS; i++)
+		{
+			let slot = new Border();
+			slot.Width = .Fixed(70);
+			slot.Height = .Fixed(22);
+			slot.Padding = Thickness(4, 1, 4, 1);
+			slot.Visibility = .Collapsed;
+
+			let label = new TextBlock("");
+			label.FontSize = 11;
+			label.Foreground = Color(220, 220, 220);
+			label.TextAlignment = .Center;
+			label.VerticalAlignment = .Center;
+			slot.Child = label;
+
+			mTurnOrderSlots[i] = slot;
+			mTurnOrderLabels[i] = label;
+			mTurnOrderPanel.AddChild(slot);
+		}
+
+		mHudPanel.AddChild(mTurnOrderBar);
 	}
 
 	private void BuildActionPanel()
@@ -506,6 +559,38 @@ class BattleHUD
 		let defStr = scope String();
 		defStr.AppendF("DEF: {}", defendersAlive);
 		mDefenderLabel.Text = defStr;
+	}
+
+	public void UpdateTurnOrder(Span<TurnOrderEntry> entries)
+	{
+		for (int32 i = 0; i < TURN_ORDER_SLOTS; i++)
+		{
+			if (i < entries.Length)
+			{
+				let entry = entries[i];
+				mTurnOrderSlots[i].Visibility = .Visible;
+				mTurnOrderLabels[i].Text = entry.mName;
+
+				if (entry.mIsCurrent)
+				{
+					mTurnOrderSlots[i].Background = entry.mIsAttacker
+						? Color(180, 80, 60, 255)
+						: Color(60, 80, 180, 255);
+					mTurnOrderLabels[i].Foreground = Color(255, 255, 200);
+				}
+				else
+				{
+					mTurnOrderSlots[i].Background = entry.mIsAttacker
+						? Color(100, 40, 35, 200)
+						: Color(35, 45, 100, 200);
+					mTurnOrderLabels[i].Foreground = Color(200, 200, 210);
+				}
+			}
+			else
+			{
+				mTurnOrderSlots[i].Visibility = .Collapsed;
+			}
+		}
 	}
 
 	public void UpdateCurrentUnit(StringView name, int32 hp, int32 maxHp, StringView unitClass,
