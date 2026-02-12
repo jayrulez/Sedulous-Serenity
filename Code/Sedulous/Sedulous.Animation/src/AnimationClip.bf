@@ -135,6 +135,9 @@ public class AnimationClip
 	/// Scale tracks (one per animated bone).
 	public List<AnimationTrack<Vector3>> ScaleTracks = new .() ~ DeleteContainerAndItems!(_);
 
+	/// Animation events sorted by time.
+	public List<AnimationEvent> Events = new .() ~ DeleteContainerAndItems!(_);
+
 	public this()
 	{
 		Name = new .();
@@ -201,6 +204,69 @@ public class AnimationClip
 			track.SortKeyframes();
 		for (let track in ScaleTracks)
 			track.SortKeyframes();
+	}
+
+	/// Adds an animation event at the specified time.
+	public void AddEvent(float time, StringView name)
+	{
+		Events.Add(new AnimationEvent(time, name));
+	}
+
+	/// Sorts events by time. Call after adding all events.
+	public void SortEvents()
+	{
+		Events.Sort(scope (a, b) => a.Time <=> b.Time);
+	}
+
+	/// Fires events that were crossed between prevTime and currentTime (both in absolute seconds).
+	/// prevTime is the wrapped time from the previous frame.
+	/// currentTime is the raw time after advancing (may exceed Duration if looping).
+	public void FireEvents(float prevTime, float currentTime, AnimationEventHandler handler)
+	{
+		if (handler == null || Events.Count == 0 || Duration <= 0)
+			return;
+
+		// Only handle forward playback (currentTime >= prevTime or loop wrap)
+		if (currentTime > prevTime && currentTime <= Duration)
+		{
+			// Simple case: no wrap, fire events in (prevTime, currentTime]
+			for (let evt in Events)
+			{
+				if (evt.Time > prevTime && evt.Time <= currentTime)
+					handler(evt.Name, evt.Time);
+			}
+		}
+		else if (currentTime > Duration)
+		{
+			if (IsLooping)
+			{
+				// Looped past end: fire (prevTime, Duration] then [0, wrappedTime]
+				for (let evt in Events)
+				{
+					if (evt.Time > prevTime && evt.Time <= Duration)
+						handler(evt.Name, evt.Time);
+				}
+
+				var wrappedTime = currentTime;
+				while (wrappedTime >= Duration)
+					wrappedTime -= Duration;
+
+				for (let evt in Events)
+				{
+					if (evt.Time <= wrappedTime)
+						handler(evt.Name, evt.Time);
+				}
+			}
+			else
+			{
+				// Non-looping past end: fire remaining events up to Duration
+				for (let evt in Events)
+				{
+					if (evt.Time > prevTime && evt.Time <= Duration)
+						handler(evt.Name, evt.Time);
+				}
+			}
+		}
 	}
 
 	/// Computes the duration from the latest keyframe time.

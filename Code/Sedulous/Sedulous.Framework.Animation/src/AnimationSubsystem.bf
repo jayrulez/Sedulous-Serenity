@@ -20,6 +20,7 @@ public class AnimationSubsystem : Subsystem, ISceneAware
 	// Resource managers
 	private SkeletonResourceManager mSkeletonManager;
 	private AnimationClipResourceManager mAnimationClipManager;
+	private AnimationGraphResourceManager mAnimGraphManager;
 
 	// ==================== Construction ====================
 
@@ -39,6 +40,9 @@ public class AnimationSubsystem : Subsystem, ISceneAware
 	/// Gets the animation clip resource manager.
 	public AnimationClipResourceManager AnimationClipManager => mAnimationClipManager;
 
+	/// Gets the animation graph resource manager.
+	public AnimationGraphResourceManager AnimationGraphManager => mAnimGraphManager;
+
 	// ==================== Subsystem Lifecycle ====================
 
 	protected override void OnInit()
@@ -46,9 +50,11 @@ public class AnimationSubsystem : Subsystem, ISceneAware
 		// Create and register resource managers with the resource system
 		mSkeletonManager = new SkeletonResourceManager();
 		mAnimationClipManager = new AnimationClipResourceManager();
+		mAnimGraphManager = new AnimationGraphResourceManager();
 
 		Context.Resources.AddResourceManager(mSkeletonManager);
 		Context.Resources.AddResourceManager(mAnimationClipManager);
+		Context.Resources.AddResourceManager(mAnimGraphManager);
 	}
 
 	protected override void OnShutdown()
@@ -65,6 +71,12 @@ public class AnimationSubsystem : Subsystem, ISceneAware
 			Context.Resources.RemoveResourceManager(mAnimationClipManager);
 			delete mAnimationClipManager;
 			mAnimationClipManager = null;
+		}
+		if (mAnimGraphManager != null)
+		{
+			Context.Resources.RemoveResourceManager(mAnimGraphManager);
+			delete mAnimGraphManager;
+			mAnimGraphManager = null;
 		}
 	}
 

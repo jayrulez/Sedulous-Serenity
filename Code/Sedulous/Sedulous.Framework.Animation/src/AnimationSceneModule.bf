@@ -23,6 +23,13 @@ class AnimationSceneModule : SceneModule
 		delete _;
 	};
 
+	// Graph players owned by this module (one per graph-animated entity)
+	private Dictionary<uint64, AnimationGraphPlayer> mGraphPlayers = new .() ~ {
+		for (let entry in _)
+			delete entry.value;
+		delete _;
+	};
+
 	/// Creates an AnimationSceneModule linked to the given subsystem.
 	public this(AnimationSubsystem subsystem)
 	{
@@ -36,6 +43,7 @@ class AnimationSceneModule : SceneModule
 	{
 		mScene = scene;
 		scene.RegisterComponentSerializer<SkeletalAnimationComponent>();
+		scene.RegisterComponentSerializer<AnimationGraphComponent>();
 	}
 
 	public override void OnSceneDestroy(Scene scene)
@@ -49,10 +57,23 @@ class AnimationSceneModule : SceneModule
 			anim.AnimationClipRef.Dispose();
 		}
 
+		// Release resource handles and refs on all graph animation components
+		for (let (entity, graphAnim) in scene.Query<AnimationGraphComponent>())
+		{
+			graphAnim.SkeletonRes.Release();
+			graphAnim.SkeletonRef.Dispose();
+		}
+
 		// Clean up all animation players
 		for (let (_, player) in mPlayers)
 			delete player;
 		mPlayers.Clear();
+
+		// Clean up all graph players
+		for (let (_, player) in mGraphPlayers)
+			delete player;
+		mGraphPlayers.Clear();
+
 		mScene = null;
 	}
 
@@ -69,6 +90,25 @@ class AnimationSceneModule : SceneModule
 
 			anim.Player.Update(deltaTime);
 		}
+
+		// Resolve graph resource references
+		ResolveGraphResourceRefs(scene);
+
+		// Update all graph players
+		for (let (entity, graphAnim) in scene.Query<AnimationGraphComponent>())
+		{
+			if (graphAnim.Player == null || !graphAnim.Active)
+				continue;
+
+			graphAnim.Player.Update(deltaTime);
+
+			// Sync graph player output to standard animation player for render module
+			if (let anim = scene.GetComponent<SkeletalAnimationComponent>(entity))
+			{
+				if (anim.Player != null)
+					anim.Player.OverrideSkinningMatrices(graphAnim.Player.GetSkinningMatrices(), graphAnim.Player.GetPrevSkinningMatrices());
+			}
+		}
 	}
 
 	public override void OnEntityDestroyed(Scene scene, EntityId entity)
@@ -82,12 +122,26 @@ class AnimationSceneModule : SceneModule
 			anim.AnimationClipRef.Dispose();
 		}
 
+		// Release graph animation component resources
+		if (let graphAnim = scene.GetComponent<AnimationGraphComponent>(entity))
+		{
+			graphAnim.SkeletonRes.Release();
+			graphAnim.SkeletonRef.Dispose();
+		}
+
 		// Clean up animation player
 		let key = PackEntityId(entity);
 		if (mPlayers.TryGetValue(key, let player))
 		{
 			mPlayers.Remove(key);
 			delete player;
+		}
+
+		// Clean up graph player
+		if (mGraphPlayers.TryGetValue(key, let graphPlayer))
+		{
+			mGraphPlayers.Remove(key);
+			delete graphPlayer;
 		}
 	}
 
@@ -273,6 +327,86 @@ class AnimationSceneModule : SceneModule
 			return anim.Playing;
 
 		return false;
+	}
+
+	// ==================== Graph Animation Control ====================
+
+	/// Resolves deserialized ResourceRef fields on AnimationGraphComponents.
+	private void ResolveGraphResourceRefs(Scene scene)
+	{
+		let resourceSystem = mSubsystem.Context?.Resources;
+		if (resourceSystem == null)
+			return;
+
+		for (let (entity, graphAnim) in scene.Query<AnimationGraphComponent>())
+		{
+			// Resolve skeleton ref
+			if (graphAnim.SkeletonRef.IsValid && !graphAnim.SkeletonRes.IsValid)
+			{
+				if (resourceSystem.LoadByRef<SkeletonResource>(graphAnim.SkeletonRef) case .Ok(let handle))
+					graphAnim.SkeletonRes = handle;
+			}
+		}
+	}
+
+	/// Sets up an animation graph player for an entity.
+	/// The graph and skeleton must be provided; the player is created and stored.
+	public AnimationGraphPlayer SetupGraphAnimation(EntityId entity, AnimationGraph graph, Skeleton skeleton)
+	{
+		if (mScene == null || graph == null || skeleton == null)
+			return null;
+
+		let key = PackEntityId(entity);
+
+		// Remove existing graph player
+		if (mGraphPlayers.TryGetValue(key, let existing))
+		{
+			mGraphPlayers.Remove(key);
+			delete existing;
+		}
+
+		// Create new graph player
+		let player = new AnimationGraphPlayer(graph, skeleton);
+		mGraphPlayers[key] = player;
+
+		// Set up component
+		var graphAnim = mScene.GetComponent<AnimationGraphComponent>(entity);
+		if (graphAnim == null)
+		{
+			mScene.SetComponent<AnimationGraphComponent>(entity, .Default);
+			graphAnim = mScene.GetComponent<AnimationGraphComponent>(entity);
+		}
+
+		graphAnim.Player = player;
+		graphAnim.Graph = graph;
+
+		return player;
+	}
+
+	/// Gets the animation graph player for an entity.
+	public AnimationGraphPlayer GetGraphPlayer(EntityId entity)
+	{
+		if (mScene == null)
+			return null;
+
+		if (let graphAnim = mScene.GetComponent<AnimationGraphComponent>(entity))
+			return graphAnim.Player;
+
+		return null;
+	}
+
+	/// Gets the skinning matrices produced by an entity's graph player.
+	public Span<Matrix> GetGraphSkinningMatrices(EntityId entity)
+	{
+		if (mScene == null)
+			return .();
+
+		if (let graphAnim = mScene.GetComponent<AnimationGraphComponent>(entity))
+		{
+			if (graphAnim.Player != null)
+				return graphAnim.Player.GetSkinningMatrices();
+		}
+		return .();
 	}
 
 	// ==================== Private ====================

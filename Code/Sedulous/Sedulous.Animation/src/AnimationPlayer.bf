@@ -55,6 +55,12 @@ public class AnimationPlayer
 	/// Whether the skinning matrices have been updated this frame.
 	private bool mMatricesDirty = true;
 
+	/// Previous frame's playback time (for event detection).
+	private float mPrevTime;
+
+	/// Animation event callback (owned).
+	private AnimationEventHandler mEventHandler ~ delete _;
+
 	/// Creates an animation player for the specified skeleton.
 	public this(Skeleton skeleton)
 	{
@@ -74,7 +80,10 @@ public class AnimationPlayer
 	{
 		CurrentClip = clip;
 		if (restart)
+		{
 			CurrentTime = 0;
+			mPrevTime = 0;
+		}
 		State = .Playing;
 		mMatricesDirty = true;
 	}
@@ -84,6 +93,7 @@ public class AnimationPlayer
 	{
 		State = .Stopped;
 		CurrentTime = 0;
+		mPrevTime = 0;
 		CurrentClip = null;
 		ResetToBind();
 	}
@@ -100,6 +110,13 @@ public class AnimationPlayer
 	{
 		if (State == .Paused)
 			State = .Playing;
+	}
+
+	/// Sets the animation event handler. The player takes ownership of the delegate.
+	public void SetEventHandler(AnimationEventHandler handler)
+	{
+		delete mEventHandler;
+		mEventHandler = handler;
 	}
 
 	/// Resets all poses to the skeleton's bind pose.
@@ -126,34 +143,41 @@ public class AnimationPlayer
 		// Store previous matrices for motion blur
 		mSkinningMatrices.CopyTo(mPrevSkinningMatrices);
 
-		// Advance time
-		CurrentTime += deltaTime * Speed;
+		let prevTime = mPrevTime;
+
+		// Advance time (raw, before wrapping)
+		mCurrentTime += deltaTime * Speed;
+
+		// Fire events before wrapping (so we can detect loop crossings)
+		if (mEventHandler != null && CurrentClip.Events.Count > 0)
+			CurrentClip.FireEvents(prevTime, mCurrentTime, mEventHandler);
 
 		// Handle looping or clamping
 		if (CurrentClip.IsLooping)
 		{
 			if (CurrentClip.Duration > 0)
 			{
-				while (CurrentTime >= CurrentClip.Duration)
-					CurrentTime -= CurrentClip.Duration;
-				while (CurrentTime < 0)
-					CurrentTime += CurrentClip.Duration;
+				while (mCurrentTime >= CurrentClip.Duration)
+					mCurrentTime -= CurrentClip.Duration;
+				while (mCurrentTime < 0)
+					mCurrentTime += CurrentClip.Duration;
 			}
 		}
 		else
 		{
-			if (CurrentTime >= CurrentClip.Duration)
+			if (mCurrentTime >= CurrentClip.Duration)
 			{
-				CurrentTime = CurrentClip.Duration;
+				mCurrentTime = CurrentClip.Duration;
 				State = .Stopped;
 			}
-			else if (CurrentTime < 0)
+			else if (mCurrentTime < 0)
 			{
-				CurrentTime = 0;
+				mCurrentTime = 0;
 				State = .Stopped;
 			}
 		}
 
+		mPrevTime = mCurrentTime;
 		mMatricesDirty = true;
 	}
 
@@ -190,10 +214,28 @@ public class AnimationPlayer
 		return mPrevSkinningMatrices;
 	}
 
+	/// Overrides the skinning matrices directly (used by graph animation to push results).
+	public void OverrideSkinningMatrices(Span<Matrix> current, Span<Matrix> prev)
+	{
+		let count = Math.Min(current.Length, mSkinningMatrices.Count);
+		for (int i = 0; i < count; i++)
+			mSkinningMatrices[i] = current[i];
+		let prevCount = Math.Min(prev.Length, mPrevSkinningMatrices.Count);
+		for (int i = 0; i < prevCount; i++)
+			mPrevSkinningMatrices[i] = prev[i];
+		mMatricesDirty = false;
+	}
+
 	/// Gets the current local bone transforms.
 	public Span<Transform> GetLocalPoses()
 	{
 		return mLocalPoses;
+	}
+
+	/// Returns the current animation pose as a view.
+	public AnimationPose GetPose()
+	{
+		return .(mLocalPoses);
 	}
 
 	/// Sets a specific bone's local transform (for procedural animation).
