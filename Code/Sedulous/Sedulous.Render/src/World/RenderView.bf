@@ -136,17 +136,17 @@ public class RenderView
 	/// Far clipping plane.
 	public float FarPlane = 1000.0f;
 
-	/// Aspect ratio (width / height).
-	public float AspectRatio => (float)Width / (float)Height;
+	/// Aspect ratio (width / height). Returns 1.0 if height is zero.
+	public float AspectRatio => Height > 0 ? (float)Width / (float)Height : 1.0f;
 
 	/// View matrix (computed).
-	public Matrix ViewMatrix;
+	public Matrix ViewMatrix = .Identity;
 
 	/// Projection matrix (computed).
-	public Matrix ProjectionMatrix;
+	public Matrix ProjectionMatrix = .Identity;
 
 	/// View-projection matrix (computed).
-	public Matrix ViewProjectionMatrix;
+	public Matrix ViewProjectionMatrix = .Identity;
 
 	/// Frustum planes for culling (computed).
 	public Plane[6] FrustumPlanes;
@@ -262,7 +262,7 @@ public class RenderView
 	/// Advances the TAA jitter for the next frame.
 	public void AdvanceTAAJitter()
 	{
-		if (PostProcess.EnableTAA)
+		if (PostProcess.EnableTAA && Width > 0 && Height > 0)
 			TAAJitter.Advance(Width, Height);
 	}
 
