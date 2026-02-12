@@ -264,6 +264,10 @@ class BattleSimulation
 		// Get action from AI
 		let action = BattleAI.DecideAction(this, unitIdx, mDifficulty);
 		mActionLog.Add(action);
+
+		Console.WriteLine("[STEP T{}] Unit {} '{}' at ({},{}) -> action={}",
+			mTurnCount, unitIdx, unit.mConfig.mName, unit.mPosition.Q, unit.mPosition.R, action.mType);
+
 		ExecuteAction(action);
 
 		// Reset action timer
@@ -272,7 +276,77 @@ class BattleSimulation
 		// Check win/loss
 		CheckBattleEnd();
 
+		// Validate grid consistency after every step
+		ValidateGridConsistency();
+
 		FlushEvents(outEvents);
+	}
+
+	/// Debug: validate that unit positions and grid occupancy are in sync.
+	private void ValidateGridConsistency()
+	{
+		// Check that every alive unit's position is marked as occupied by that unit
+		for (int32 i = 0; i < mUnits.Count; i++)
+		{
+			let unit = mUnits[i];
+			if (!unit.mAlive) continue;
+
+			let occupant = mGrid.GetOccupant(unit.mPosition);
+			if (occupant != i)
+			{
+				Console.WriteLine("[VALIDATE-ERR] Unit {} '{}' at ({},{}) but grid says occupant={}!",
+					i, unit.mConfig.mName, unit.mPosition.Q, unit.mPosition.R, occupant);
+			}
+		}
+
+		// Check that every occupied cell has a corresponding alive unit
+		for (int32 row = 0; row < mGrid.Rows; row++)
+		{
+			for (int32 col = 0; col < mGrid.Columns; col++)
+			{
+				let hex = HexCoord.FromOffset(col, row);
+				let occupant = mGrid.GetOccupant(hex);
+				if (occupant >= 0)
+				{
+					if (occupant >= mUnits.Count)
+					{
+						Console.WriteLine("[VALIDATE-ERR] Grid ({},{}) has occupant {} but only {} units exist!",
+							hex.Q, hex.R, occupant, mUnits.Count);
+					}
+					else
+					{
+						let unit = mUnits[occupant];
+						if (!unit.mAlive)
+						{
+							Console.WriteLine("[VALIDATE-ERR] Grid ({},{}) occupied by dead unit {} '{}'!",
+								hex.Q, hex.R, occupant, unit.mConfig.mName);
+						}
+						else if (unit.mPosition != hex)
+						{
+							Console.WriteLine("[VALIDATE-ERR] Grid ({},{}) says unit {} '{}' but unit says ({},{})!",
+								hex.Q, hex.R, occupant, unit.mConfig.mName, unit.mPosition.Q, unit.mPosition.R);
+						}
+					}
+				}
+			}
+		}
+
+		// Check for duplicate positions among alive units
+		for (int32 i = 0; i < mUnits.Count; i++)
+		{
+			let a = mUnits[i];
+			if (!a.mAlive) continue;
+			for (int32 j = i + 1; j < mUnits.Count; j++)
+			{
+				let b = mUnits[j];
+				if (!b.mAlive) continue;
+				if (a.mPosition == b.mPosition)
+				{
+					Console.WriteLine("[VALIDATE-ERR] DOUBLE OCCUPANCY! Unit {} '{}' and unit {} '{}' both at ({},{})!",
+						i, a.mConfig.mName, j, b.mConfig.mName, a.mPosition.Q, a.mPosition.R);
+				}
+			}
+		}
 	}
 
 	// --- Action execution ---
@@ -297,14 +371,34 @@ class BattleSimulation
 		let unit = mUnits[unitIdx];
 		let from = unit.mPosition;
 
+		// Debug: check destination occupancy before pathfinding
+		let existingOccupant = mGrid.GetOccupant(dest);
+		if (existingOccupant >= 0 && existingOccupant != unitIdx)
+		{
+			Console.WriteLine("[MOVE-BLOCKED] Unit {} '{}' at ({},{}) wants ({},{}) but unit {} already there!",
+				unitIdx, unit.mConfig.mName, from.Q, from.R, dest.Q, dest.R, existingOccupant);
+			return;
+		}
+
 		let path = scope List<HexCoord>();
 		let flying = unit.mConfig.mMoveType == .Flying;
 		if (!mPathfinder.FindPath(from, dest, flying, path))
+		{
+			Console.WriteLine("[MOVE-NOPATH] Unit {} '{}' at ({},{}) no path to ({},{})",
+				unitIdx, unit.mConfig.mName, from.Q, from.R, dest.Q, dest.R);
 			return;
+		}
 
 		// Validate path length against move range
 		if (path.Count - 1 > unit.mModifiedMoveRange)
+		{
+			Console.WriteLine("[MOVE-RANGE] Unit {} '{}' path length {} > move range {}",
+				unitIdx, unit.mConfig.mName, path.Count - 1, unit.mModifiedMoveRange);
 			return;
+		}
+
+		Console.WriteLine("[MOVE] Unit {} '{}' ({},{}) -> ({},{})",
+			unitIdx, unit.mConfig.mName, from.Q, from.R, dest.Q, dest.R);
 
 		// Move unit
 		mGrid.ClearOccupant(from);

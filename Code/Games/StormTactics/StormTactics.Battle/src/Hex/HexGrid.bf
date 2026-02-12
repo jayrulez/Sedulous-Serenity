@@ -86,6 +86,14 @@ class HexGrid
 		let (col, row) = hex.ToOffset();
 		if (!InBounds(col, row)) return;
 		let idx = Index(col, row);
+
+		// Debug: detect double-occupancy
+		if (unitIndex >= 0 && mOccupants[idx] >= 0 && mOccupants[idx] != unitIndex)
+		{
+			Console.WriteLine("[GRID-COLLISION] Hex ({},{}) already has unit {}, trying to place unit {}!",
+				hex.Q, hex.R, mOccupants[idx], unitIndex);
+		}
+
 		mOccupants[idx] = unitIndex;
 		mStates[idx] = unitIndex >= 0 ? .Occupied : .Walkable;
 	}

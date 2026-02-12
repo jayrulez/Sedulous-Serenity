@@ -30,8 +30,8 @@ class HexPathfinder
 			return true;
 		}
 
-		// Goal must be passable to land on
-		if (!IsPassable(goal, flying))
+		// Goal must be unoccupied to land on (flying only helps traverse, not land)
+		if (!mGrid.IsPassable(goal))
 			return false;
 
 		let openSet = scope PriorityQueue();
@@ -108,15 +108,26 @@ class HexPathfinder
 				if (!mGrid.InBounds(neighbor))
 					continue;
 
-				if (!IsPassable(neighbor, flying))
-					continue;
+				// Flying units can traverse occupied cells but can't stop on them
+				if (flying)
+				{
+					if (!mGrid.IsPassableFlying(neighbor))
+						continue; // Blocked terrain stops even flyers
+				}
+				else
+				{
+					if (!mGrid.IsPassable(neighbor))
+						continue;
+				}
 
 				if (visited.ContainsKey(neighbor) && visited[neighbor] <= nextCost)
 					continue;
 
 				visited[neighbor] = nextCost;
 				queue.Add((neighbor, nextCost));
-				if (!outList.Contains(neighbor))
+
+				// Only add to reachable destinations if actually unoccupied (can land)
+				if (mGrid.IsPassable(neighbor) && !outList.Contains(neighbor))
 					outList.Add(neighbor);
 			}
 		}
