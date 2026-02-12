@@ -15,6 +15,7 @@ class AnimationSceneModule : SceneModule
 {
 	private AnimationSubsystem mSubsystem;
 	private Scene mScene;
+	private PropertyBinderRegistry mPropertyBinderRegistry;
 
 	// Animation players owned by this module (one per animated entity)
 	private Dictionary<uint64, AnimationPlayer> mPlayers = new .() ~ {
@@ -30,10 +31,18 @@ class AnimationSceneModule : SceneModule
 		delete _;
 	};
 
+	// Property animation players owned by this module (one per property-animated entity)
+	private Dictionary<uint64, PropertyAnimationPlayer> mPropertyPlayers = new .() ~ {
+		for (let entry in _)
+			delete entry.value;
+		delete _;
+	};
+
 	/// Creates an AnimationSceneModule linked to the given subsystem.
-	public this(AnimationSubsystem subsystem)
+	public this(AnimationSubsystem subsystem, PropertyBinderRegistry propertyBinderRegistry)
 	{
 		mSubsystem = subsystem;
+		mPropertyBinderRegistry = propertyBinderRegistry;
 	}
 
 	/// Gets the animation subsystem.
@@ -44,6 +53,7 @@ class AnimationSceneModule : SceneModule
 		mScene = scene;
 		scene.RegisterComponentSerializer<SkeletalAnimationComponent>();
 		scene.RegisterComponentSerializer<AnimationGraphComponent>();
+		scene.RegisterComponentSerializer<PropertyAnimationComponent>();
 	}
 
 	public override void OnSceneDestroy(Scene scene)
@@ -74,6 +84,11 @@ class AnimationSceneModule : SceneModule
 			delete player;
 		mGraphPlayers.Clear();
 
+		// Clean up all property animation players
+		for (let (_, player) in mPropertyPlayers)
+			delete player;
+		mPropertyPlayers.Clear();
+
 		mScene = null;
 	}
 
@@ -93,6 +108,15 @@ class AnimationSceneModule : SceneModule
 
 		// Resolve graph resource references
 		ResolveGraphResourceRefs(scene);
+
+		// Update all property animation players
+		for (let (entity, propAnim) in scene.Query<PropertyAnimationComponent>())
+		{
+			if (propAnim.Player == null || !propAnim.Playing)
+				continue;
+
+			propAnim.Player.Update(deltaTime);
+		}
 
 		// Update all graph players
 		for (let (entity, graphAnim) in scene.Query<AnimationGraphComponent>())
@@ -142,6 +166,13 @@ class AnimationSceneModule : SceneModule
 		{
 			mGraphPlayers.Remove(key);
 			delete graphPlayer;
+		}
+
+		// Clean up property animation player
+		if (mPropertyPlayers.TryGetValue(key, let propPlayer))
+		{
+			mPropertyPlayers.Remove(key);
+			delete propPlayer;
 		}
 	}
 
@@ -407,6 +438,105 @@ class AnimationSceneModule : SceneModule
 				return graphAnim.Player.GetSkinningMatrices();
 		}
 		return .();
+	}
+
+	// ==================== Property Animation Control ====================
+
+	/// Plays a property animation clip on an entity.
+	/// Creates a PropertyAnimationPlayer and PropertyAnimationComponent if needed.
+	public PropertyAnimationPlayer PlayPropertyAnimation(EntityId entity, PropertyAnimationClip clip, bool loop = false)
+	{
+		if (mScene == null || clip == null || mPropertyBinderRegistry == null)
+			return null;
+
+		clip.IsLooping = loop;
+
+		let key = PackEntityId(entity);
+
+		// Reuse or create player
+		PropertyAnimationPlayer player;
+		if (mPropertyPlayers.TryGetValue(key, let existing))
+		{
+			player = existing;
+		}
+		else
+		{
+			player = new PropertyAnimationPlayer(mScene, entity, mPropertyBinderRegistry);
+			mPropertyPlayers[key] = player;
+		}
+
+		player.Play(clip);
+
+		// Set up component
+		var propAnim = mScene.GetComponent<PropertyAnimationComponent>(entity);
+		if (propAnim == null)
+		{
+			mScene.SetComponent<PropertyAnimationComponent>(entity, .Default);
+			propAnim = mScene.GetComponent<PropertyAnimationComponent>(entity);
+		}
+
+		propAnim.Player = player;
+		propAnim.Playing = true;
+		propAnim.Speed = player.Speed;
+
+		return player;
+	}
+
+	/// Stops property animation on an entity.
+	public void StopPropertyAnimation(EntityId entity)
+	{
+		if (mScene == null)
+			return;
+
+		if (let propAnim = mScene.GetComponent<PropertyAnimationComponent>(entity))
+		{
+			if (propAnim.Player != null)
+			{
+				propAnim.Player.Stop();
+				propAnim.Playing = false;
+			}
+		}
+	}
+
+	/// Pauses property animation on an entity.
+	public void PausePropertyAnimation(EntityId entity)
+	{
+		if (mScene == null)
+			return;
+
+		if (let propAnim = mScene.GetComponent<PropertyAnimationComponent>(entity))
+		{
+			if (propAnim.Player != null)
+			{
+				propAnim.Player.Pause();
+				propAnim.Playing = false;
+			}
+		}
+	}
+
+	/// Resumes property animation on an entity.
+	public void ResumePropertyAnimation(EntityId entity)
+	{
+		if (mScene == null)
+			return;
+
+		if (let propAnim = mScene.GetComponent<PropertyAnimationComponent>(entity))
+		{
+			if (propAnim.Player != null)
+			{
+				propAnim.Player.Resume();
+				propAnim.Playing = true;
+			}
+		}
+	}
+
+	/// Gets the property animation player for an entity.
+	public PropertyAnimationPlayer GetPropertyAnimationPlayer(EntityId entity)
+	{
+		let key = PackEntityId(entity);
+		if (mPropertyPlayers.TryGetValue(key, let player))
+			return player;
+		return null;
 	}
 
 	// ==================== Private ====================

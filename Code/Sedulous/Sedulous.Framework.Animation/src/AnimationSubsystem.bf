@@ -21,6 +21,10 @@ public class AnimationSubsystem : Subsystem, ISceneAware
 	private SkeletonResourceManager mSkeletonManager;
 	private AnimationClipResourceManager mAnimationClipManager;
 	private AnimationGraphResourceManager mAnimGraphManager;
+	private PropertyAnimationClipResourceManager mPropertyAnimClipManager;
+
+	// Property animation
+	private PropertyBinderRegistry mPropertyBinderRegistry ~ delete _;
 
 	// ==================== Construction ====================
 
@@ -43,6 +47,12 @@ public class AnimationSubsystem : Subsystem, ISceneAware
 	/// Gets the animation graph resource manager.
 	public AnimationGraphResourceManager AnimationGraphManager => mAnimGraphManager;
 
+	/// Gets the property animation clip resource manager.
+	public PropertyAnimationClipResourceManager PropertyAnimationClipManager => mPropertyAnimClipManager;
+
+	/// Gets the property binder registry for registering custom property setters.
+	public PropertyBinderRegistry PropertyBinderRegistry => mPropertyBinderRegistry;
+
 	// ==================== Subsystem Lifecycle ====================
 
 	protected override void OnInit()
@@ -51,10 +61,15 @@ public class AnimationSubsystem : Subsystem, ISceneAware
 		mSkeletonManager = new SkeletonResourceManager();
 		mAnimationClipManager = new AnimationClipResourceManager();
 		mAnimGraphManager = new AnimationGraphResourceManager();
+		mPropertyAnimClipManager = new PropertyAnimationClipResourceManager();
 
 		Context.Resources.AddResourceManager(mSkeletonManager);
 		Context.Resources.AddResourceManager(mAnimationClipManager);
 		Context.Resources.AddResourceManager(mAnimGraphManager);
+		Context.Resources.AddResourceManager(mPropertyAnimClipManager);
+
+		// Create property binder registry with built-in Transform bindings
+		mPropertyBinderRegistry = new PropertyBinderRegistry();
 	}
 
 	protected override void OnShutdown()
@@ -78,6 +93,12 @@ public class AnimationSubsystem : Subsystem, ISceneAware
 			delete mAnimGraphManager;
 			mAnimGraphManager = null;
 		}
+		if (mPropertyAnimClipManager != null)
+		{
+			Context.Resources.RemoveResourceManager(mPropertyAnimClipManager);
+			delete mPropertyAnimClipManager;
+			mPropertyAnimClipManager = null;
+		}
 	}
 
 	public override void Update(float deltaTime)
@@ -89,7 +110,7 @@ public class AnimationSubsystem : Subsystem, ISceneAware
 
 	public void OnSceneCreated(Scene scene)
 	{
-		let module = new AnimationSceneModule(this);
+		let module = new AnimationSceneModule(this, mPropertyBinderRegistry);
 		scene.AddModule(module);
 	}
 
