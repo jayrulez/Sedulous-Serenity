@@ -113,7 +113,15 @@ class FrameworkAnimationApp : Application
 	private TextBlock mMultiLayerLabel;
 
 	// Property animation demo
+	private PropertyAnimationClipResource mSunAnimResource;
 	private PropertyAnimationClip mSunAnimClip;
+
+	// Cube property animation demo
+	private EntityId mCubeEntity;
+	private StaticMeshResource mCubeResource;
+	private MaterialInstance mCubeMaterial;
+	private PropertyAnimationClipResource mCubeAnimResource;
+	private PropertyAnimationClip mCubeAnimClip;
 
 	// UI-driven parameter values
 	private float mStateMachineSpeed = 0.0f;
@@ -486,6 +494,31 @@ class FrameworkAnimationApp : Application
 			comp.MaterialCount = 1;
 		}
 
+		// Animated cube
+		mCubeResource = StaticMeshResource.CreateCube(1.0f);
+		mCubeResource.AddRef();
+		if (baseMaterial != null)
+		{
+			mCubeMaterial = new MaterialInstance(baseMaterial);
+			mCubeMaterial.SetColor("BaseColor", .(0.2f, 0.5f, 0.9f, 1.0f));
+			mCubeMaterial.SetFloat("Roughness", 0.4f);
+			mCubeMaterial.SetFloat("Metallic", 0.6f);
+		}
+		mCubeEntity = mMainScene.CreateEntity();
+		{
+			mMainScene.SetComponent<MeshRendererComponent>(mCubeEntity, .Default);
+			var comp = mMainScene.GetComponent<MeshRendererComponent>(mCubeEntity);
+			comp.Mesh = ResourceHandle<StaticMeshResource>(mCubeResource);
+			let defaultMat = mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
+			comp.MaterialInstances[0] = mCubeMaterial ?? defaultMat;
+			comp.MaterialInstances[0]?.AddRef();
+			comp.MaterialCount = 1;
+
+			var transform = mMainScene.GetTransform(mCubeEntity);
+			transform.Position = .(5, 1, 0);
+			mMainScene.SetTransform(mCubeEntity, transform);
+		}
+
 		// Camera
 		mCameraEntity = mMainScene.CreateEntity();
 		renderModule.CreatePerspectiveCamera(mCameraEntity, Math.PI_f / 4.0f, (float)mSwapChain.Width / mSwapChain.Height, 0.1f, 100.0f);
@@ -498,7 +531,15 @@ class FrameworkAnimationApp : Application
 			var transform = mMainScene.GetTransform(mSunEntity);
 			transform.Rotation = Quaternion.CreateFromYawPitchRoll(0.8f, 0.6f, 0);
 			mMainScene.SetTransform(mSunEntity, transform);
+
+			// Enable shadow casting on the sun
+			if (let comp = mMainScene.GetComponent<LightComponent>(mSunEntity))
+				comp.CastsShadows = true;
 		}
+
+		// Enable shadow rendering
+		if (mForwardFeature?.ShadowRenderer != null)
+			mForwardFeature.ShadowRenderer.EnableShadows = true;
 
 		// Create 3 skinned mesh entities
 		if (mSkinnedMeshPath != null)
@@ -851,30 +892,61 @@ class FrameworkAnimationApp : Application
 			// Load from file
 			if (PropertyAnimationClipResource.LoadFromFile(clipPath) case .Ok(let resource))
 			{
+				mSunAnimResource = resource;
+				mSunAnimResource.AddRef();
 				mSunAnimClip = resource.Clip;
-				// Take ownership away from resource so clip outlives it
-				resource.SetClip(null);
-				delete resource;
 				Console.WriteLine($"Loaded property animation from: {clipPath}");
 			}
 			else
 			{
 				Console.WriteLine("WARNING: Failed to load property animation, recreating...");
 				mSunAnimClip = CreateSunAnimationClip();
-				SaveSunAnimationClip(clipPath);
+				SaveAnimationClip(mSunAnimClip, clipPath);
 			}
 		}
 		else
 		{
 			// Create and save
 			mSunAnimClip = CreateSunAnimationClip();
-			SaveSunAnimationClip(clipPath);
+			SaveAnimationClip(mSunAnimClip, clipPath);
 		}
 
 		if (mSunAnimClip != null)
 		{
 			animModule.PlayPropertyAnimation(mSunEntity, mSunAnimClip, true);
 			Console.WriteLine("Property animation playing: sun rotation cycle (10s loop)");
+		}
+
+		// Cube animation: load or create + save
+		let cubeClipPath = scope String();
+		cubeClipPath.AppendF("{}/cube_orbit.propanimation", cacheDir);
+
+		if (File.Exists(cubeClipPath))
+		{
+			if (PropertyAnimationClipResource.LoadFromFile(cubeClipPath) case .Ok(let resource))
+			{
+				mCubeAnimResource = resource;
+				mCubeAnimResource.AddRef();
+				mCubeAnimClip = resource.Clip;
+				Console.WriteLine($"Loaded cube animation from: {cubeClipPath}");
+			}
+			else
+			{
+				Console.WriteLine("WARNING: Failed to load cube animation, recreating...");
+				mCubeAnimClip = CreateCubeAnimationClip();
+				SaveAnimationClip(mCubeAnimClip, cubeClipPath);
+			}
+		}
+		else
+		{
+			mCubeAnimClip = CreateCubeAnimationClip();
+			SaveAnimationClip(mCubeAnimClip, cubeClipPath);
+		}
+
+		if (mCubeAnimClip != null)
+		{
+			animModule.PlayPropertyAnimation(mCubeEntity, mCubeAnimClip, true);
+			Console.WriteLine("Property animation playing: cube orbit (8s loop)");
 		}
 	}
 
@@ -897,9 +969,49 @@ class FrameworkAnimationApp : Application
 		return clip;
 	}
 
-	private void SaveSunAnimationClip(StringView path)
+	private PropertyAnimationClip CreateCubeAnimationClip()
 	{
-		let resource = new PropertyAnimationClipResource(mSunAnimClip);
+		let clip = new PropertyAnimationClip("CubeOrbit", 8.0f, true);
+
+		// Animate position: orbit around center at y=1.5
+		let posTrack = clip.AddVector3Track("Transform.Position");
+		posTrack.Easing = .Linear;
+		float radius = 5.0f;
+		float height = 1.5f;
+		int32 steps = 8;
+		for (int32 i = 0; i <= steps; i++)
+		{
+			float t = (float)i / steps * 8.0f;
+			float angle = (float)i / steps * Math.PI_f * 2.0f;
+			posTrack.AddKeyframe(t, Vector3(Math.Cos(angle) * radius, height, Math.Sin(angle) * radius));
+		}
+
+		// Animate rotation: continuous spin
+		let rotTrack = clip.AddQuaternionTrack("Transform.Rotation");
+		rotTrack.Easing = .Linear;
+		for (int32 i = 0; i <= steps; i++)
+		{
+			float t = (float)i / steps * 8.0f;
+			float angle = (float)i / steps * Math.PI_f * 2.0f;
+			rotTrack.AddKeyframe(t, Quaternion.CreateFromYawPitchRoll(angle, angle * 0.5f, 0));
+		}
+
+		// Animate scale: pulsing
+		let scaleTrack = clip.AddVector3Track("Transform.Scale");
+		scaleTrack.Easing = .EaseInOutCubic;
+		scaleTrack.AddKeyframe(0.0f, Vector3(1.0f, 1.0f, 1.0f));
+		scaleTrack.AddKeyframe(2.0f, Vector3(1.5f, 0.7f, 1.5f));
+		scaleTrack.AddKeyframe(4.0f, Vector3(0.7f, 1.5f, 0.7f));
+		scaleTrack.AddKeyframe(6.0f, Vector3(1.5f, 0.7f, 1.5f));
+		scaleTrack.AddKeyframe(8.0f, Vector3(1.0f, 1.0f, 1.0f));
+
+		Console.WriteLine("Created property animation clip: CubeOrbit (position + rotation + scale, 8s)");
+		return clip;
+	}
+
+	private void SaveAnimationClip(PropertyAnimationClip clip, StringView path)
+	{
+		let resource = new PropertyAnimationClipResource(clip);
 		defer delete resource;
 
 		if (resource.SaveToFile(path) case .Ok)
@@ -1279,16 +1391,26 @@ class FrameworkAnimationApp : Application
 			h.Release();
 		mSkeletonHandle.Release();
 
-		// Release material instance before render system shutdown
+		// Release material instances before render system shutdown
 		mFloorMaterial?.ReleaseRef();
+		mCubeMaterial?.ReleaseRef();
 
 		// Delete animation graphs (reference clips by pointer, don't own them)
 		delete mStateMachineGraph;
 		delete mBlendTreeGraph;
 		delete mMultiLayerGraph;
 
-		// Delete property animation clip (owned by us, not the resource)
-		delete mSunAnimClip;
+		// Release property animations: resource owns clip when loaded from file,
+		// otherwise we own the clip directly
+		if (mSunAnimResource != null)
+			mSunAnimResource.ReleaseRef();
+		else
+			delete mSunAnimClip;
+
+		if (mCubeAnimResource != null)
+			mCubeAnimResource.ReleaseRef();
+		else
+			delete mCubeAnimClip;
 
 		// Shutdown render system (GPU idle, release features/GPU resources)
 		mRenderSystem?.Shutdown();
@@ -1300,8 +1422,9 @@ class FrameworkAnimationApp : Application
 		// Delete camera
 		delete mCamera;
 
-		// Delete plane resource (CPU-side, after render system done with it)
+		// Delete mesh resources (CPU-side, after render system done with it)
 		mPlaneResource?.ReleaseRef();
+		mCubeResource?.ReleaseRef();
 
 		// Clean up clip data
 		for (let kv in mClipsByName)
