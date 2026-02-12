@@ -265,7 +265,7 @@ class PlatformerGame : Application
 		mUISubsystem = new UISubsystem(mFontService);
 		mContext.RegisterSubsystem(mUISubsystem);
 
-		if (mUISubsystem.InitializeRendering(mDevice, .BGRA8UnormSrgb, FrameConfig.MAX_FRAMES_IN_FLIGHT, mShell, mRenderSystem) case .Err)
+		if (mUISubsystem.InitializeRendering(mDevice, .BGRA8UnormSrgb, FrameConfig.MAX_FRAMES_IN_FLIGHT, mShell, mWindow, mRenderSystem) case .Err)
 		{
 			mLogger.LogError("Failed to initialize UI rendering! UI will not display.");
 			return;
