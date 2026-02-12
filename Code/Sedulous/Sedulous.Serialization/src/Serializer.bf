@@ -188,6 +188,10 @@ abstract class Serializer
 			list.Clear();
 			for (int32 i = 0; i < count; i++)
 			{
+				result = BeginObject("");
+				if (result != .Ok)
+					return result;
+
 				T item = new T();
 				result = item.Serialize(this);
 				if (result != .Ok)
@@ -196,14 +200,26 @@ abstract class Serializer
 					return result;
 				}
 				list.Add(item);
+
+				result = EndObject();
+				if (result != .Ok)
+					return result;
 			}
 		}
 		else
 		{
 			for (let item in list)
 			{
+				result = BeginObject("");
+				if (result != .Ok)
+					return result;
+
 				mCurrentVersion = item.SerializationVersion;
 				result = item.Serialize(this);
+				if (result != .Ok)
+					return result;
+
+				result = EndObject();
 				if (result != .Ok)
 					return result;
 			}

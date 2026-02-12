@@ -6,6 +6,65 @@ using Sedulous.Xml;
 
 namespace Sedulous.Serialization.Tests;
 
+/// Test class for ObjectList: an object containing a list of child objects.
+class ListContainerData : ISerializable
+{
+	public String Name = new .() ~ delete _;
+	public List<TestData> Items = new .() ~ DeleteContainerAndItems!(_);
+
+	public int32 SerializationVersion => 1;
+
+	public SerializationResult Serialize(Serializer s)
+	{
+		var result = s.String("Name", Name);
+		if (result != .Ok) return result;
+
+		result = s.ObjectList("Items", Items);
+		if (result != .Ok) return result;
+
+		return .Ok;
+	}
+}
+
+/// Test class for nested ObjectLists: parent with child list, where children also have sub-lists.
+class ParentWithNestedList : ISerializable
+{
+	public int32 Id;
+	public List<ChildWithSubList> Children = new .() ~ DeleteContainerAndItems!(_);
+
+	public int32 SerializationVersion => 1;
+
+	public SerializationResult Serialize(Serializer s)
+	{
+		var result = s.Int32("Id", ref Id);
+		if (result != .Ok) return result;
+
+		result = s.ObjectList("Children", Children);
+		if (result != .Ok) return result;
+
+		return .Ok;
+	}
+}
+
+class ChildWithSubList : ISerializable
+{
+	public String Label = new .() ~ delete _;
+	public List<TestData> SubItems = new .() ~ DeleteContainerAndItems!(_);
+
+	public int32 SerializationVersion => 1;
+
+	public SerializationResult Serialize(Serializer s)
+	{
+		var result = s.String("Label", Label);
+		if (result != .Ok) return result;
+
+		result = s.ObjectList("SubItems", SubItems);
+		if (result != .Ok) return result;
+
+		return .Ok;
+	}
+}
+
 class XmlSerializerTests
 {
 	[Test]
@@ -393,5 +452,324 @@ class XmlSerializerTests
 		Test.Assert(output.Contains("<int32"));
 		Test.Assert(output.Contains("name=\"testField\""));
 		Test.Assert(output.Contains("42"));
+	}
+
+	// ---- ObjectList Tests ----
+
+	[Test]
+	public static void TestRoundTripObjectList()
+	{
+		// Write a list of objects
+		let writer = XmlSerializer.CreateWriter();
+		defer delete writer;
+
+		List<TestData> writeList = scope .();
+		let item1 = scope TestData();
+		item1.IntValue = 10;
+		item1.FloatValue = 1.1f;
+		item1.StringValue.Set("alpha");
+		item1.BoolValue = true;
+		writeList.Add(item1);
+
+		let item2 = scope TestData();
+		item2.IntValue = 20;
+		item2.FloatValue = 2.2f;
+		item2.StringValue.Set("beta");
+		item2.BoolValue = false;
+		writeList.Add(item2);
+
+		let item3 = scope TestData();
+		item3.IntValue = 30;
+		item3.FloatValue = 3.3f;
+		item3.StringValue.Set("gamma");
+		item3.BoolValue = true;
+		writeList.Add(item3);
+
+		writer.ObjectList("Items", writeList);
+
+		let output = scope String();
+		writer.GetOutput(output);
+
+		// Parse and read back
+		let doc = scope XmlDocument();
+		Test.Assert(doc.Parse(output) == .Ok);
+
+		let reader = XmlSerializer.CreateReader(doc);
+		defer delete reader;
+
+		List<TestData> readList = scope .();
+		defer { for (let item in readList) delete item; }
+
+		Test.Assert(reader.ObjectList("Items", readList) == .Ok);
+
+		// Verify all 3 items read correctly
+		Test.Assert(readList.Count == 3);
+
+		Test.Assert(readList[0].IntValue == 10);
+		Test.Assert(readList[0].StringValue == "alpha");
+		Test.Assert(readList[0].BoolValue == true);
+
+		Test.Assert(readList[1].IntValue == 20);
+		Test.Assert(readList[1].StringValue == "beta");
+		Test.Assert(readList[1].BoolValue == false);
+
+		Test.Assert(readList[2].IntValue == 30);
+		Test.Assert(readList[2].StringValue == "gamma");
+		Test.Assert(readList[2].BoolValue == true);
+	}
+
+	[Test]
+	public static void TestObjectListWriteFormat()
+	{
+		// Verify that ObjectList writes <object> wrappers around each item
+		let writer = XmlSerializer.CreateWriter();
+		defer delete writer;
+
+		List<TestData> writeList = scope .();
+		let item1 = scope TestData();
+		item1.IntValue = 1;
+		item1.StringValue.Set("first");
+		writeList.Add(item1);
+
+		let item2 = scope TestData();
+		item2.IntValue = 2;
+		item2.StringValue.Set("second");
+		writeList.Add(item2);
+
+		writer.ObjectList("Items", writeList);
+
+		let output = scope String();
+		writer.GetOutput(output);
+
+		// Output should contain <array> with <object> children
+		Test.Assert(output.Contains("<array"));
+		Test.Assert(output.Contains("name=\"Items\""));
+		Test.Assert(output.Contains("<object>"));
+		Test.Assert(output.Contains("</object>"));
+	}
+
+	[Test]
+	public static void TestObjectListFromHandwrittenXml()
+	{
+		// Parse XML that matches the format used in StormTactics config files
+		let xml = """
+			<root>
+			  <array name="Items" count="3">
+			    <object>
+			      <int32 name="intValue">100</int32>
+			      <float name="floatValue">1.5</float>
+			      <string name="stringValue">warrior</string>
+			      <bool name="boolValue">true</bool>
+			    </object>
+			    <object>
+			      <int32 name="intValue">200</int32>
+			      <float name="floatValue">2.5</float>
+			      <string name="stringValue">mage</string>
+			      <bool name="boolValue">false</bool>
+			    </object>
+			    <object>
+			      <int32 name="intValue">300</int32>
+			      <float name="floatValue">3.5</float>
+			      <string name="stringValue">archer</string>
+			      <bool name="boolValue">true</bool>
+			    </object>
+			  </array>
+			</root>
+			""";
+
+		let doc = scope XmlDocument();
+		Test.Assert(doc.Parse(xml) == .Ok);
+
+		let reader = XmlSerializer.CreateReader(doc);
+		defer delete reader;
+
+		List<TestData> readList = scope .();
+		defer { for (let item in readList) delete item; }
+
+		Test.Assert(reader.ObjectList("Items", readList) == .Ok);
+		Test.Assert(readList.Count == 3);
+
+		Test.Assert(readList[0].IntValue == 100);
+		Test.Assert(readList[0].StringValue == "warrior");
+		Test.Assert(readList[0].BoolValue == true);
+
+		Test.Assert(readList[1].IntValue == 200);
+		Test.Assert(readList[1].StringValue == "mage");
+		Test.Assert(readList[1].BoolValue == false);
+
+		Test.Assert(readList[2].IntValue == 300);
+		Test.Assert(readList[2].StringValue == "archer");
+		Test.Assert(readList[2].BoolValue == true);
+	}
+
+	[Test]
+	public static void TestObjectListInsideObject()
+	{
+		// Round-trip an object that contains an ObjectList field
+		let writer = XmlSerializer.CreateWriter();
+		defer delete writer;
+
+		let container = scope ListContainerData();
+		container.Name.Set("my_list");
+
+		let item1 = new TestData();
+		item1.IntValue = 42;
+		item1.StringValue.Set("hello");
+		container.Items.Add(item1);
+
+		let item2 = new TestData();
+		item2.IntValue = 99;
+		item2.StringValue.Set("world");
+		container.Items.Add(item2);
+
+		ListContainerData writeData = container;
+		Test.Assert(writer.Object("data", ref writeData) == .Ok);
+
+		let output = scope String();
+		writer.GetOutput(output);
+
+		// Read back
+		let doc = scope XmlDocument();
+		Test.Assert(doc.Parse(output) == .Ok);
+
+		let reader = XmlSerializer.CreateReader(doc);
+		defer delete reader;
+
+		ListContainerData readData = null;
+		Test.Assert(reader.Object("data", ref readData) == .Ok);
+		defer delete readData;
+
+		Test.Assert(readData.Name == "my_list");
+		Test.Assert(readData.Items.Count == 2);
+		Test.Assert(readData.Items[0].IntValue == 42);
+		Test.Assert(readData.Items[0].StringValue == "hello");
+		Test.Assert(readData.Items[1].IntValue == 99);
+		Test.Assert(readData.Items[1].StringValue == "world");
+	}
+
+	[Test]
+	public static void TestNestedObjectLists()
+	{
+		// Round-trip: parent has ObjectList of children, each child has its own ObjectList
+		let writer = XmlSerializer.CreateWriter();
+		defer delete writer;
+
+		let parent = scope ParentWithNestedList();
+		parent.Id = 1;
+
+		let child1 = new ChildWithSubList();
+		child1.Label.Set("group_a");
+		let sub1 = new TestData();
+		sub1.IntValue = 10;
+		sub1.StringValue.Set("a1");
+		child1.SubItems.Add(sub1);
+		let sub2 = new TestData();
+		sub2.IntValue = 11;
+		sub2.StringValue.Set("a2");
+		child1.SubItems.Add(sub2);
+		parent.Children.Add(child1);
+
+		let child2 = new ChildWithSubList();
+		child2.Label.Set("group_b");
+		let sub3 = new TestData();
+		sub3.IntValue = 20;
+		sub3.StringValue.Set("b1");
+		child2.SubItems.Add(sub3);
+		parent.Children.Add(child2);
+
+		ParentWithNestedList writeData = parent;
+		Test.Assert(writer.Object("root", ref writeData) == .Ok);
+
+		let output = scope String();
+		writer.GetOutput(output);
+
+		// Read back
+		let doc = scope XmlDocument();
+		Test.Assert(doc.Parse(output) == .Ok);
+
+		let reader = XmlSerializer.CreateReader(doc);
+		defer delete reader;
+
+		ParentWithNestedList readData = null;
+		Test.Assert(reader.Object("root", ref readData) == .Ok);
+		defer delete readData;
+
+		Test.Assert(readData.Id == 1);
+		Test.Assert(readData.Children.Count == 2);
+
+		Test.Assert(readData.Children[0].Label == "group_a");
+		Test.Assert(readData.Children[0].SubItems.Count == 2);
+		Test.Assert(readData.Children[0].SubItems[0].IntValue == 10);
+		Test.Assert(readData.Children[0].SubItems[0].StringValue == "a1");
+		Test.Assert(readData.Children[0].SubItems[1].IntValue == 11);
+		Test.Assert(readData.Children[0].SubItems[1].StringValue == "a2");
+
+		Test.Assert(readData.Children[1].Label == "group_b");
+		Test.Assert(readData.Children[1].SubItems.Count == 1);
+		Test.Assert(readData.Children[1].SubItems[0].IntValue == 20);
+		Test.Assert(readData.Children[1].SubItems[0].StringValue == "b1");
+	}
+
+	[Test]
+	public static void TestObjectListEmpty()
+	{
+		// Round-trip an empty ObjectList
+		let writer = XmlSerializer.CreateWriter();
+		defer delete writer;
+
+		List<TestData> writeList = scope .();
+		writer.ObjectList("Items", writeList);
+
+		let output = scope String();
+		writer.GetOutput(output);
+
+		let doc = scope XmlDocument();
+		Test.Assert(doc.Parse(output) == .Ok);
+
+		let reader = XmlSerializer.CreateReader(doc);
+		defer delete reader;
+
+		List<TestData> readList = scope .();
+		defer { for (let item in readList) delete item; }
+
+		Test.Assert(reader.ObjectList("Items", readList) == .Ok);
+		Test.Assert(readList.Count == 0);
+	}
+
+	[Test]
+	public static void TestObjectListSingleItem()
+	{
+		// Round-trip an ObjectList with exactly one item
+		let writer = XmlSerializer.CreateWriter();
+		defer delete writer;
+
+		List<TestData> writeList = scope .();
+		let item = scope TestData();
+		item.IntValue = 77;
+		item.FloatValue = 7.7f;
+		item.StringValue.Set("single");
+		item.BoolValue = true;
+		writeList.Add(item);
+
+		writer.ObjectList("Items", writeList);
+
+		let output = scope String();
+		writer.GetOutput(output);
+
+		let doc = scope XmlDocument();
+		Test.Assert(doc.Parse(output) == .Ok);
+
+		let reader = XmlSerializer.CreateReader(doc);
+		defer delete reader;
+
+		List<TestData> readList = scope .();
+		defer { for (let item2 in readList) delete item2; }
+
+		Test.Assert(reader.ObjectList("Items", readList) == .Ok);
+		Test.Assert(readList.Count == 1);
+		Test.Assert(readList[0].IntValue == 77);
+		Test.Assert(Math.Abs(readList[0].FloatValue - 7.7f) < 0.001f);
+		Test.Assert(readList[0].StringValue == "single");
+		Test.Assert(readList[0].BoolValue == true);
 	}
 }

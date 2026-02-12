@@ -54,7 +54,7 @@ class NestedData : ISerializable
 	}
 }
 
-class SerializerTests
+class OpenDDLSerializerTests
 {
 	[Test]
 	public static void TestWritePrimitives()
@@ -312,5 +312,240 @@ class SerializerTests
 
 		Test.Assert(reader.HasField("myField"));
 		Test.Assert(!reader.HasField("otherField"));
+	}
+
+	// ---- ObjectList Tests ----
+
+	[Test]
+	public static void TestRoundTripObjectList()
+	{
+		// Write a list of objects
+		let writer = OpenDDLSerializer.CreateWriter();
+		defer delete writer;
+
+		List<TestData> writeList = scope .();
+		let item1 = scope TestData();
+		item1.IntValue = 10;
+		item1.FloatValue = 1.1f;
+		item1.StringValue.Set("alpha");
+		item1.BoolValue = true;
+		writeList.Add(item1);
+
+		let item2 = scope TestData();
+		item2.IntValue = 20;
+		item2.FloatValue = 2.2f;
+		item2.StringValue.Set("beta");
+		item2.BoolValue = false;
+		writeList.Add(item2);
+
+		let item3 = scope TestData();
+		item3.IntValue = 30;
+		item3.FloatValue = 3.3f;
+		item3.StringValue.Set("gamma");
+		item3.BoolValue = true;
+		writeList.Add(item3);
+
+		writer.ObjectList("Items", writeList);
+
+		let output = scope String();
+		writer.GetOutput(output);
+
+		// Parse and read back
+		let doc = scope SerializableDataDescription();
+		Test.Assert(doc.ParseText(output) == .Ok);
+
+		let reader = OpenDDLSerializer.CreateReader(doc);
+		defer delete reader;
+
+		List<TestData> readList = scope .();
+		defer { for (let item in readList) delete item; }
+
+		Test.Assert(reader.ObjectList("Items", readList) == .Ok);
+
+		// Verify all 3 items read correctly with distinct values
+		Test.Assert(readList.Count == 3);
+
+		Test.Assert(readList[0].IntValue == 10);
+		Test.Assert(readList[0].StringValue == "alpha");
+		Test.Assert(readList[0].BoolValue == true);
+
+		Test.Assert(readList[1].IntValue == 20);
+		Test.Assert(readList[1].StringValue == "beta");
+		Test.Assert(readList[1].BoolValue == false);
+
+		Test.Assert(readList[2].IntValue == 30);
+		Test.Assert(readList[2].StringValue == "gamma");
+		Test.Assert(readList[2].BoolValue == true);
+	}
+
+	[Test]
+	public static void TestObjectListInsideObject()
+	{
+		// Round-trip an object that contains an ObjectList field
+		let writer = OpenDDLSerializer.CreateWriter();
+		defer delete writer;
+
+		let container = scope ListContainerData();
+		container.Name.Set("my_list");
+
+		let item1 = new TestData();
+		item1.IntValue = 42;
+		item1.StringValue.Set("hello");
+		container.Items.Add(item1);
+
+		let item2 = new TestData();
+		item2.IntValue = 99;
+		item2.StringValue.Set("world");
+		container.Items.Add(item2);
+
+		ListContainerData writeData = container;
+		Test.Assert(writer.Object("data", ref writeData) == .Ok);
+
+		let output = scope String();
+		writer.GetOutput(output);
+
+		// Read back
+		let doc = scope SerializableDataDescription();
+		Test.Assert(doc.ParseText(output) == .Ok);
+
+		let reader = OpenDDLSerializer.CreateReader(doc);
+		defer delete reader;
+
+		ListContainerData readData = null;
+		Test.Assert(reader.Object("data", ref readData) == .Ok);
+		defer delete readData;
+
+		Test.Assert(readData.Name == "my_list");
+		Test.Assert(readData.Items.Count == 2);
+		Test.Assert(readData.Items[0].IntValue == 42);
+		Test.Assert(readData.Items[0].StringValue == "hello");
+		Test.Assert(readData.Items[1].IntValue == 99);
+		Test.Assert(readData.Items[1].StringValue == "world");
+	}
+
+	[Test]
+	public static void TestNestedObjectLists()
+	{
+		// Round-trip: parent has ObjectList of children, each child has its own ObjectList
+		let writer = OpenDDLSerializer.CreateWriter();
+		defer delete writer;
+
+		let parent = scope ParentWithNestedList();
+		parent.Id = 1;
+
+		let child1 = new ChildWithSubList();
+		child1.Label.Set("group_a");
+		let sub1 = new TestData();
+		sub1.IntValue = 10;
+		sub1.StringValue.Set("a1");
+		child1.SubItems.Add(sub1);
+		let sub2 = new TestData();
+		sub2.IntValue = 11;
+		sub2.StringValue.Set("a2");
+		child1.SubItems.Add(sub2);
+		parent.Children.Add(child1);
+
+		let child2 = new ChildWithSubList();
+		child2.Label.Set("group_b");
+		let sub3 = new TestData();
+		sub3.IntValue = 20;
+		sub3.StringValue.Set("b1");
+		child2.SubItems.Add(sub3);
+		parent.Children.Add(child2);
+
+		ParentWithNestedList writeData = parent;
+		Test.Assert(writer.Object("root", ref writeData) == .Ok);
+
+		let output = scope String();
+		writer.GetOutput(output);
+
+		// Read back
+		let doc = scope SerializableDataDescription();
+		Test.Assert(doc.ParseText(output) == .Ok);
+
+		let reader = OpenDDLSerializer.CreateReader(doc);
+		defer delete reader;
+
+		ParentWithNestedList readData = null;
+		Test.Assert(reader.Object("root", ref readData) == .Ok);
+		defer delete readData;
+
+		Test.Assert(readData.Id == 1);
+		Test.Assert(readData.Children.Count == 2);
+
+		Test.Assert(readData.Children[0].Label == "group_a");
+		Test.Assert(readData.Children[0].SubItems.Count == 2);
+		Test.Assert(readData.Children[0].SubItems[0].IntValue == 10);
+		Test.Assert(readData.Children[0].SubItems[0].StringValue == "a1");
+		Test.Assert(readData.Children[0].SubItems[1].IntValue == 11);
+		Test.Assert(readData.Children[0].SubItems[1].StringValue == "a2");
+
+		Test.Assert(readData.Children[1].Label == "group_b");
+		Test.Assert(readData.Children[1].SubItems.Count == 1);
+		Test.Assert(readData.Children[1].SubItems[0].IntValue == 20);
+		Test.Assert(readData.Children[1].SubItems[0].StringValue == "b1");
+	}
+
+	[Test]
+	public static void TestObjectListEmpty()
+	{
+		// Round-trip an empty ObjectList
+		let writer = OpenDDLSerializer.CreateWriter();
+		defer delete writer;
+
+		List<TestData> writeList = scope .();
+		writer.ObjectList("Items", writeList);
+
+		let output = scope String();
+		writer.GetOutput(output);
+
+		let doc = scope SerializableDataDescription();
+		Test.Assert(doc.ParseText(output) == .Ok);
+
+		let reader = OpenDDLSerializer.CreateReader(doc);
+		defer delete reader;
+
+		List<TestData> readList = scope .();
+		defer { for (let item in readList) delete item; }
+
+		Test.Assert(reader.ObjectList("Items", readList) == .Ok);
+		Test.Assert(readList.Count == 0);
+	}
+
+	[Test]
+	public static void TestObjectListSingleItem()
+	{
+		// Round-trip an ObjectList with exactly one item
+		let writer = OpenDDLSerializer.CreateWriter();
+		defer delete writer;
+
+		List<TestData> writeList = scope .();
+		let item = scope TestData();
+		item.IntValue = 77;
+		item.FloatValue = 7.7f;
+		item.StringValue.Set("single");
+		item.BoolValue = true;
+		writeList.Add(item);
+
+		writer.ObjectList("Items", writeList);
+
+		let output = scope String();
+		writer.GetOutput(output);
+
+		let doc = scope SerializableDataDescription();
+		Test.Assert(doc.ParseText(output) == .Ok);
+
+		let reader = OpenDDLSerializer.CreateReader(doc);
+		defer delete reader;
+
+		List<TestData> readList = scope .();
+		defer { for (let item2 in readList) delete item2; }
+
+		Test.Assert(reader.ObjectList("Items", readList) == .Ok);
+		Test.Assert(readList.Count == 1);
+		Test.Assert(readList[0].IntValue == 77);
+		Test.Assert(Math.Abs(readList[0].FloatValue - 7.7f) < 0.001f);
+		Test.Assert(readList[0].StringValue == "single");
+		Test.Assert(readList[0].BoolValue == true);
 	}
 }

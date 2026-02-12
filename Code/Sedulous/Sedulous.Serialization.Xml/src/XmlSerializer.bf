@@ -20,6 +20,7 @@ class XmlSerializer : Serializer
 	private XmlDocument mReadDocument;
 	private XmlElement mCurrentElement;
 	private List<XmlElement> mElementStack = new .() ~ delete _;
+	private List<int32> mUnnamedCursorStack = new .() ~ delete _;
 
 	private this()
 	{
@@ -49,6 +50,7 @@ class XmlSerializer : Serializer
 		serializer.mMode = .Read;
 		serializer.mReadDocument = document;
 		serializer.mCurrentElement = document.RootElement;
+		serializer.mUnnamedCursorStack.Add(0); // Initial scope cursor
 		return serializer;
 	}
 
@@ -97,12 +99,18 @@ class XmlSerializer : Serializer
 		if (mCurrentElement == null)
 			return null;
 
+		int32 skipCount = mUnnamedCursorStack.Count > 0 ? mUnnamedCursorStack.Back : 0;
+		int32 found = 0;
 		for (let child in mCurrentElement.Children)
 		{
 			if (let elem = child as XmlElement)
 			{
 				if (elem.TagName == tagName && !elem.HasAttribute("name"))
-					return elem;
+				{
+					if (found == skipCount)
+						return elem;
+					found++;
+				}
 			}
 		}
 		return null;
@@ -751,8 +759,10 @@ class XmlSerializer : Serializer
 			XmlElement element;
 			if (name.IsEmpty)
 			{
-				// Find next unnamed object
+				// Find next unnamed object and advance cursor
 				element = FindNextUnnamedChild("object");
+				if (mUnnamedCursorStack.Count > 0)
+					mUnnamedCursorStack.Back++;
 			}
 			else
 			{
@@ -764,6 +774,7 @@ class XmlSerializer : Serializer
 
 			mElementStack.Add(mCurrentElement);
 			mCurrentElement = element;
+			mUnnamedCursorStack.Add(0); // Push new cursor for child scope
 			return .Ok;
 		}
 	}
@@ -784,6 +795,8 @@ class XmlSerializer : Serializer
 				return .InvalidData;
 
 			mCurrentElement = mElementStack.PopBack();
+			if (mUnnamedCursorStack.Count > 0)
+				mUnnamedCursorStack.PopBack(); // Pop child scope cursor
 			return .Ok;
 		}
 	}
@@ -828,6 +841,7 @@ class XmlSerializer : Serializer
 
 			mElementStack.Add(mCurrentElement);
 			mCurrentElement = element;
+			mUnnamedCursorStack.Add(0); // Push cursor for array scope
 			return .Ok;
 		}
 	}

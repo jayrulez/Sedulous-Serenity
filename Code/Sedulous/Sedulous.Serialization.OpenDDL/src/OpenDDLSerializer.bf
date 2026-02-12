@@ -71,6 +71,24 @@ class OpenDDLSerializer : Serializer
 
 	// ---- Helper Methods ----
 
+	private Structure FindNextUnnamedChild()
+	{
+		if (mCurrentStructure == null)
+			return null;
+
+		int32 found = 0;
+		for (let child in mCurrentStructure.Children)
+		{
+			if (child.StructureName.IsEmpty)
+			{
+				if (found == mChildIndex)
+					return child;
+				found++;
+			}
+		}
+		return null;
+	}
+
 	private Structure FindChildByName(StringView name)
 	{
 		if (mCurrentStructure == null)
@@ -567,7 +585,19 @@ class OpenDDLSerializer : Serializer
 		}
 		else
 		{
-			let structure = FindChildByName(name);
+			Structure structure;
+			if (name.IsEmpty)
+			{
+				// Find the next unnamed child using the cursor
+				structure = FindNextUnnamedChild();
+				if (structure != null)
+					mChildIndex++;
+			}
+			else
+			{
+				structure = FindChildByName(name);
+			}
+
 			if (structure == null)
 				return .FieldNotFound;
 
