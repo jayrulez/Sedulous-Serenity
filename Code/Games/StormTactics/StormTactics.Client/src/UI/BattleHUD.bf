@@ -94,6 +94,11 @@ class BattleHUD
 	private TextBlock mPhaseHintLabel;
 	private Button mCancelButton;
 
+	// Deployment panel
+	private Border mDeployPanel;
+	private TextBlock mDeployHintLabel;
+	private Button mStartBattleButton;
+
 	// State
 	private bool mIsAutoPlaying;
 	private float mCurrentSpeed = 1.0f;
@@ -112,6 +117,7 @@ class BattleHUD
 	private EventAccessor<BattleActionDelegate> mOnWaitSelected = new .() ~ delete _;
 	private EventAccessor<BattleActionDelegate> mOnCancelAction = new .() ~ delete _;
 	private EventAccessor<BattleActionDelegate> mOnUndoMove = new .() ~ delete _;
+	private EventAccessor<BattleActionDelegate> mOnStartBattle = new .() ~ delete _;
 	private EventAccessor<SkillSelectDelegate> mOnSkillChosen = new .() ~ delete _;
 
 	public EventAccessor<BattleActionDelegate> OnAutoToggle => mOnAutoToggle;
@@ -126,6 +132,7 @@ class BattleHUD
 	public EventAccessor<BattleActionDelegate> OnWaitSelected => mOnWaitSelected;
 	public EventAccessor<BattleActionDelegate> OnCancelAction => mOnCancelAction;
 	public EventAccessor<BattleActionDelegate> OnUndoMove => mOnUndoMove;
+	public EventAccessor<BattleActionDelegate> OnStartBattle => mOnStartBattle;
 	public EventAccessor<SkillSelectDelegate> OnSkillChosen => mOnSkillChosen;
 
 	public UIElement RootElement => mRoot;
@@ -154,6 +161,7 @@ class BattleHUD
 		BuildTopBar();
 		BuildTurnOrderBar();
 		BuildActionPanel();
+		BuildDeploymentPanel();
 		BuildBottomPanel();
 		BuildResultOverlay();
 	}
@@ -407,6 +415,39 @@ class BattleHUD
 
 		// Add to root grid (not dock panel — so it overlays freely)
 		mRoot.AddChild(mActionPanel);
+	}
+
+	private void BuildDeploymentPanel()
+	{
+		mDeployPanel = new Border();
+		mDeployPanel.Background = Color(20, 25, 35, 230);
+		mDeployPanel.Padding = Thickness(20, 12, 20, 12);
+		mDeployPanel.HorizontalAlignment = .Center;
+		mDeployPanel.VerticalAlignment = .Bottom;
+		mDeployPanel.Margin = Thickness(0, 0, 0, 90); // Above bottom panel
+		mDeployPanel.Visibility = .Collapsed;
+
+		let content = new StackPanel();
+		content.Orientation = .Vertical;
+		content.Spacing = 10;
+		content.HorizontalAlignment = .Center;
+		mDeployPanel.Child = content;
+
+		mDeployHintLabel = new TextBlock("Click a unit to select, then click a hex to move or another unit to swap.");
+		mDeployHintLabel.Foreground = Color(200, 200, 220);
+		mDeployHintLabel.FontSize = 14;
+		mDeployHintLabel.TextAlignment = .Center;
+		content.AddChild(mDeployHintLabel);
+
+		mStartBattleButton = new Button("Start Battle");
+		mStartBattleButton.Padding = Thickness(24, 10, 24, 10);
+		mStartBattleButton.HorizontalAlignment = .Center;
+		mStartBattleButton.Click.Subscribe(new (btn) => {
+			mOnStartBattle.[Friend]Invoke();
+		});
+		content.AddChild(mStartBattleButton);
+
+		mRoot.AddChild(mDeployPanel);
 	}
 
 	private void BuildBottomPanel()
@@ -876,6 +917,32 @@ class BattleHUD
 			});
 			mSkillListPanel.AddChild(btn);
 		}
+	}
+
+	// --- Deployment panel methods ---
+
+	public void ShowDeploymentPanel()
+	{
+		mDeployPanel.Visibility = .Visible;
+		// Hide battle-specific controls during deployment
+		mTurnOrderBar.Visibility = .Collapsed;
+		mBottomPanel.Visibility = .Collapsed;
+		mActionPanel.Visibility = .Collapsed;
+		mTitleLabel.Text = "DEPLOYMENT";
+	}
+
+	public void HideDeploymentPanel()
+	{
+		mDeployPanel.Visibility = .Collapsed;
+		// Restore battle controls
+		mTurnOrderBar.Visibility = .Visible;
+		mBottomPanel.Visibility = .Visible;
+		mTitleLabel.Text = "STORM TACTICS";
+	}
+
+	public void UpdateDeploymentHint(StringView text)
+	{
+		mDeployHintLabel.Text = text;
 	}
 
 	// --- Helpers ---

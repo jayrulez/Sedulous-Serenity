@@ -167,6 +167,78 @@ class BattleSimulation
 	}
 
 	public bool IsFinished => mState != .InProgress;
+	public int32 DeployColumns => mInitColumns / 3; // Attacker deployment zone width
+
+	/// Swap the positions of two units (for pre-battle deployment).
+	/// Both units must be alive and belong to the same force.
+	public bool SwapUnitPositions(int32 idxA, int32 idxB)
+	{
+		if (idxA == idxB) return false;
+		let a = mUnits[idxA];
+		let b = mUnits[idxB];
+		if (!a.mAlive || !b.mAlive) return false;
+		if (a.mForce != b.mForce) return false;
+
+		let posA = a.mPosition;
+		let posB = b.mPosition;
+
+		// Update grid
+		mGrid.ClearOccupant(posA);
+		mGrid.ClearOccupant(posB);
+		a.mPosition = posB;
+		b.mPosition = posA;
+		mGrid.SetOccupant(posB, idxA);
+		mGrid.SetOccupant(posA, idxB);
+
+		// Update initial formation data for replay
+		UpdateInitFormation(a, posB);
+		UpdateInitFormation(b, posA);
+
+		return true;
+	}
+
+	/// Move a unit to an empty hex (for pre-battle deployment).
+	/// The unit must be alive and the destination must be empty and in bounds.
+	public bool MoveUnitToEmpty(int32 idx, HexCoord dest)
+	{
+		let unit = mUnits[idx];
+		if (!unit.mAlive) return false;
+		if (!mGrid.InBounds(dest)) return false;
+		if (mGrid.GetOccupant(dest) >= 0) return false;
+
+		let from = unit.mPosition;
+		mGrid.ClearOccupant(from);
+		unit.mPosition = dest;
+		mGrid.SetOccupant(dest, idx);
+
+		UpdateInitFormation(unit, dest);
+		return true;
+	}
+
+	/// Update the initial formation data to reflect a unit's new position.
+	private void UpdateInitFormation(BattleUnit unit, HexCoord newPos)
+	{
+		let (col, row) = newPos.ToOffset();
+		let formations = unit.mForce == .Attacker ? mInitAttackers : mInitDefenders;
+		if (formations == null) return;
+
+		// Find matching slot by unit index within the force
+		int32 forceIdx = 0;
+		for (int32 i = 0; i < (int32)mUnits.Count; i++)
+		{
+			if (mUnits[i].mForce != unit.mForce) continue;
+			if (i == unit.mIndex)
+			{
+				if (forceIdx < formations.Count)
+				{
+					formations[forceIdx].mGridX = col;
+					formations[forceIdx].mGridY = row;
+				}
+				break;
+			}
+			forceIdx++;
+		}
+	}
 
 	/// Get all hexes a unit can move to from their current position.
 	public void GetReachableCells(int32 unitIdx, List<HexCoord> outList)

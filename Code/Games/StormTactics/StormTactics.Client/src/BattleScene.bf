@@ -116,9 +116,14 @@ class BattleScene
 	private HexCoord mPreMovePosition;   // Original position before tentative move
 	private Vector3 mPreMoveWorldPos;     // Original world position for visual undo
 
+	// Deployment mode
+	private bool mDeploymentMode;
+	private int32 mDeploySelectedUnit = -1;
+
 	public BattleCamera Camera => mCamera;
 	public bool IsAutoPlaying => mAutoPlay;
 	public bool IsAutoStepping => mAutoStep;
+	public bool IsDeploymentMode => mDeploymentMode;
 	public BattleSimulation Simulation => mSimulation;
 	public HexCoord HoveredHex => mHoveredHex;
 	public bool HasHoveredHex => mHasHoveredHex;
@@ -206,6 +211,108 @@ class BattleScene
 		mBattleStarted = true;
 	}
 
+	/// Enter deployment mode — player can rearrange units before battle starts.
+	public void EnterDeploymentMode()
+	{
+		mDeploymentMode = true;
+		mDeploySelectedUnit = -1;
+	}
+
+	/// Start the battle (exit deployment mode).
+	public void StartBattle()
+	{
+		mDeploymentMode = false;
+		mDeploySelectedUnit = -1;
+	}
+
+	/// Handle a hex click during deployment mode.
+	/// Returns true if a swap/move occurred (views need updating).
+	public bool DeploymentClickHex(HexCoord hex)
+	{
+		if (!mDeploymentMode) return false;
+
+		let deployColumns = mSimulation.DeployColumns;
+
+		// Check which unit is at the clicked hex
+		int32 clickedUnit = -1;
+		for (int32 i = 0; i < mSimulation.UnitCount; i++)
+		{
+			let unit = mSimulation.GetUnit(i);
+			if (unit != null && unit.mAlive && unit.mPosition == hex)
+			{
+				clickedUnit = i;
+				break;
+			}
+		}
+
+		// No unit selected yet
+		if (mDeploySelectedUnit < 0)
+		{
+			// Select an attacker unit
+			if (clickedUnit >= 0)
+			{
+				let unit = mSimulation.GetUnit(clickedUnit);
+				if (unit.mForce == .Attacker)
+					mDeploySelectedUnit = clickedUnit;
+			}
+			return false;
+		}
+
+		// Already have a selection — act on click
+		if (clickedUnit == mDeploySelectedUnit)
+		{
+			// Clicked same unit: deselect
+			mDeploySelectedUnit = -1;
+			return false;
+		}
+
+		// Check if target hex is in deployment zone
+		let (col, _) = hex.ToOffset();
+		let inDeployZone = col < deployColumns;
+
+		if (clickedUnit >= 0)
+		{
+			let target = mSimulation.GetUnit(clickedUnit);
+			if (target.mForce == .Attacker)
+			{
+				// Swap two attacker units
+				if (mSimulation.SwapUnitPositions(mDeploySelectedUnit, clickedUnit))
+				{
+					UpdateUnitViewPosition(mDeploySelectedUnit);
+					UpdateUnitViewPosition(clickedUnit);
+					mDeploySelectedUnit = -1;
+					return true;
+				}
+			}
+		}
+		else if (inDeployZone && mSimulation.Grid.InBounds(hex))
+		{
+			// Move to empty hex in deployment zone
+			if (mSimulation.MoveUnitToEmpty(mDeploySelectedUnit, hex))
+			{
+				UpdateUnitViewPosition(mDeploySelectedUnit);
+				mDeploySelectedUnit = -1;
+				return true;
+			}
+		}
+
+		mDeploySelectedUnit = -1;
+		return false;
+	}
+
+	public int32 DeploySelectedUnit => mDeploySelectedUnit;
+
+	/// Update a unit view's world position to match its simulation position.
+	private void UpdateUnitViewPosition(int32 unitIdx)
+	{
+		let unit = mSimulation.GetUnit(unitIdx);
+		let view = GetUnitView(unitIdx);
+		if (unit == null || view == null) return;
+
+		let (wx, wz) = unit.mPosition.ToWorld(mHexSize);
+		view.mWorldPos = .(wx, view.mWorldPos.Y, wz);
+	}
+
 	/// Create materials for attacker and defender units.
 	private void CreateMaterials()
 	{
@@ -247,6 +354,7 @@ class BattleScene
 	/// If it's a player unit's turn (and auto-play is off), enters player input mode.
 	public void StepBattle()
 	{
+		if (mDeploymentMode) return; // Don't step during deployment
 		if (mSimulation.IsFinished) return;
 		if (mSequencer.IsPlaying) return; // Wait for current animations to finish
 		if (mPlayerPhase != .Idle) return; // Don't step during player input
@@ -601,7 +709,34 @@ class BattleScene
 
 		// Highlight current unit's hex and hovered hex
 		mGridRenderer.ClearHighlights();
-		if (!mSimulation.IsFinished)
+
+		// Deployment mode highlights
+		if (mDeploymentMode)
+		{
+			let deployColumns = mSimulation.DeployColumns;
+			let grid = mSimulation.Grid;
+
+			// Highlight deployment zone
+			for (int32 row = 0; row < grid.Rows; row++)
+			{
+				for (int32 col = 0; col < deployColumns; col++)
+				{
+					let hex = HexCoord.FromOffset(col, row);
+					if (grid.InBounds(hex))
+						mGridRenderer.SetHighlight(hex, .(50, 150, 255, 30)); // Soft blue
+				}
+			}
+
+			// Highlight selected unit
+			if (mDeploySelectedUnit >= 0)
+			{
+				let selUnit = mSimulation.GetUnit(mDeploySelectedUnit);
+				if (selUnit != null)
+					mGridRenderer.SetHighlight(selUnit.mPosition, .(255, 215, 80, 120)); // Gold
+			}
+		}
+
+		if (!mDeploymentMode && !mSimulation.IsFinished)
 		{
 			let curIdx = mSimulation.CurrentUnitIndex;
 			if (curIdx >= 0)

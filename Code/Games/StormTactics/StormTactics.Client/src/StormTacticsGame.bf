@@ -154,8 +154,11 @@ class StormTacticsGame : Application
 		// Initialize UI (after battle scene so we can wire events)
 		InitializeUI();
 
-		mGameState = .Battle;
-		Console.WriteLine("Storm Tactics initialized — entering battle demo");
+		// Start in deployment mode
+		mBattleScene.EnterDeploymentMode();
+		mBattleHUD.ShowDeploymentPanel();
+		mGameState = .BattlePrepare;
+		Console.WriteLine("Storm Tactics initialized — entering deployment phase");
 	}
 
 	private void InitializeUI()
@@ -230,6 +233,15 @@ class StormTacticsGame : Application
 		});
 		mBattleHUD.OnSkillChosen.Subscribe(new (skillId) => {
 			mBattleScene?.PlayerChooseSkill(skillId);
+		});
+		mBattleHUD.OnStartBattle.Subscribe(new () => {
+			if (mBattleScene != null && mBattleScene.IsDeploymentMode)
+			{
+				mBattleScene.StartBattle();
+				mBattleHUD.HideDeploymentPanel();
+				mGameState = .Battle;
+				Console.WriteLine("Deployment complete — battle started!");
+			}
 		});
 
 		Console.WriteLine("UI system initialized");
@@ -452,9 +464,19 @@ class StormTacticsGame : Application
 		{
 			mBattleScene.HandleInput(keyboard, mouse, mDeltaTime);
 
-			// Left click: forward to battle scene for hex selection
-			if (mouse.IsButtonPressed(.Left) && mBattleScene.IsPlayerTurn && mBattleScene.HasHoveredHex)
-				mBattleScene.PlayerClickHex(mBattleScene.HoveredHex);
+			if (mouse.IsButtonPressed(.Left) && mBattleScene.HasHoveredHex)
+			{
+				if (mBattleScene.IsDeploymentMode)
+				{
+					// Deployment: click to select/swap/move units
+					mBattleScene.DeploymentClickHex(mBattleScene.HoveredHex);
+				}
+				else if (mBattleScene.IsPlayerTurn)
+				{
+					// Battle: forward hex click for player action
+					mBattleScene.PlayerClickHex(mBattleScene.HoveredHex);
+				}
+			}
 		}
 	}
 
@@ -487,6 +509,26 @@ class StormTacticsGame : Application
 
 		let sim = mBattleScene.Simulation;
 		if (sim == null) return;
+
+		// During deployment, update hint and skip battle HUD
+		if (mBattleScene.IsDeploymentMode)
+		{
+			if (mBattleScene.DeploySelectedUnit >= 0)
+			{
+				let selUnit = sim.GetUnit(mBattleScene.DeploySelectedUnit);
+				if (selUnit != null)
+				{
+					let hint = scope String();
+					hint.AppendF("{} selected — click a hex to place or another unit to swap.", selUnit.mConfig.mName);
+					mBattleHUD.UpdateDeploymentHint(hint);
+				}
+			}
+			else
+			{
+				mBattleHUD.UpdateDeploymentHint("Click a unit to select, then click a hex to move or another unit to swap.");
+			}
+			return;
+		}
 
 		// Count alive units per side
 		int32 attackersAlive = 0, defendersAlive = 0;

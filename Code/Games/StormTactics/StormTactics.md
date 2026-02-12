@@ -335,13 +335,13 @@ The interface layer for tactical combat.
   - [ ] Loot/rewards display
   - [x] "Continue" button
 
-- [ ] **Pre-battle (deployment) screen**
+- [x] **Pre-battle (deployment) screen**
   - [ ] Show enemy formation preview
-  - [ ] Player's deployment grid (their side of the hex map)
-  - [ ] Drag-and-drop units from roster to deployment slots
-  - [ ] Unit info on hover/tap
+  - [x] Player's deployment grid (their side of the hex map)
+  - [x] Click-to-select and click-to-swap/move units in deployment zone
+  - [x] Unit info on hover (via bottom panel after battle starts; hint text during deploy)
   - [ ] Formation save/load
-  - [ ] "Start Battle" button
+  - [x] "Start Battle" button
   - [ ] Recommended power level indicator
 
 ---
