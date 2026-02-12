@@ -22,7 +22,20 @@ public class AnimationPlayer
 	public AnimationClip CurrentClip { get; private set; }
 
 	/// Current playback time in seconds.
-	public float CurrentTime { get; set; }
+	/// Setting this value marks the skinning matrices as dirty.
+	public float CurrentTime
+	{
+		get => mCurrentTime;
+		set
+		{
+			if (mCurrentTime != value)
+			{
+				mCurrentTime = value;
+				mMatricesDirty = true;
+			}
+		}
+	}
+	private float mCurrentTime;
 
 	/// Playback speed multiplier (1.0 = normal speed).
 	public float Speed = 1.0f;

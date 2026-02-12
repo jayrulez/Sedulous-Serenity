@@ -163,6 +163,9 @@ class ModelViewerApp : Application
 	private OwnedImageData mPauseIcon ~ delete _;
 	private OwnedImageData mStopIcon ~ delete _;
 	private OwnedImageData mResetIcon ~ delete _;
+	private OwnedImageData mSkeletonIcon ~ delete _;
+	private OwnedImageData mStepBackIcon ~ delete _;
+	private OwnedImageData mStepForwardIcon ~ delete _;
 
 	/// Gets the currently active tab, or null if no tabs exist.
 	private ModelTab ActiveTab => mActiveTabIndex >= 0 && mActiveTabIndex < (int32)mTabs.Count ? mTabs[mActiveTabIndex] : null;
@@ -222,11 +225,12 @@ class ModelViewerApp : Application
 				for (int x = 0; x < SIZE; x++)
 				{
 					int idx = (y * SIZE + x) * 4;
-					// Triangle: x >= (SIZE - y) / 2 && x >= y / 2 && x < SIZE - 2
+					// Mirror X for correct orientation
+					int mx = SIZE - 1 - x;
 					float centerY = SIZE / 2.0f;
 					float distFromCenter = Math.Abs(y - centerY);
 					float triangleX = 2 + distFromCenter * 0.8f;
-					bool inside = x >= triangleX && x < SIZE - 3;
+					bool inside = mx >= triangleX && mx < SIZE - 3;
 					uint8 alpha = inside ? 255 : 0;
 					pixels[idx + 0] = 220;  // R
 					pixels[idx + 1] = 220;  // G
@@ -245,9 +249,11 @@ class ModelViewerApp : Application
 				for (int x = 0; x < SIZE; x++)
 				{
 					int idx = (y * SIZE + x) * 4;
-					// Two bars: x in [3,6] or [9,12], y in [2,13]
-					bool bar1 = x >= 3 && x <= 5 && y >= 2 && y <= 13;
-					bool bar2 = x >= 10 && x <= 12 && y >= 2 && y <= 13;
+					// Mirror X for correct orientation
+					int mx = SIZE - 1 - x;
+					// Two bars
+					bool bar1 = mx >= 3 && mx <= 5 && y >= 2 && y <= 13;
+					bool bar2 = mx >= 10 && mx <= 12 && y >= 2 && y <= 13;
 					uint8 alpha = (bar1 || bar2) ? 255 : 0;
 					pixels[idx + 0] = 220;
 					pixels[idx + 1] = 220;
@@ -266,7 +272,7 @@ class ModelViewerApp : Application
 				for (int x = 0; x < SIZE; x++)
 				{
 					int idx = (y * SIZE + x) * 4;
-					// Square: x in [3,12], y in [3,12]
+					// Square is symmetric, no mirroring needed
 					bool inside = x >= 3 && x <= 12 && y >= 3 && y <= 12;
 					uint8 alpha = inside ? 255 : 0;
 					pixels[idx + 0] = 220;
@@ -286,13 +292,15 @@ class ModelViewerApp : Application
 				for (int x = 0; x < SIZE; x++)
 				{
 					int idx = (y * SIZE + x) * 4;
-					// Bar on left: x in [2,4], y in [2,13]
-					bool bar = x >= 2 && x <= 4 && y >= 2 && y <= 13;
-					// Triangle pointing left: mirror of play
+					// Mirror X for correct orientation
+					int mx = SIZE - 1 - x;
+					// Bar on left
+					bool bar = mx >= 2 && mx <= 4 && y >= 2 && y <= 13;
+					// Triangle pointing left
 					float centerY = SIZE / 2.0f;
 					float distFromCenter = Math.Abs(y - centerY);
 					float triangleX = SIZE - 3 - distFromCenter * 0.8f;
-					bool triangle = x <= triangleX && x >= 6;
+					bool triangle = mx <= triangleX && mx >= 6;
 					uint8 alpha = (bar || triangle) ? 255 : 0;
 					pixels[idx + 0] = 220;
 					pixels[idx + 1] = 220;
@@ -301,6 +309,100 @@ class ModelViewerApp : Application
 				}
 			}
 			mResetIcon = new OwnedImageData(SIZE, SIZE, .RGBA8, pixels);
+		}
+
+		// Create skeleton icon (stick figure bone shape)
+		{
+			uint8[] pixels = new uint8[SIZE * SIZE * 4];
+			for (int y = 0; y < SIZE; y++)
+			{
+				for (int x = 0; x < SIZE; x++)
+				{
+					int idx = (y * SIZE + x) * 4;
+					// Mirror X for correct orientation (skeleton is mostly symmetric anyway)
+					int mx = SIZE - 1 - x;
+					// Vertical spine: mx=7-8, y in [1,14]
+					bool spine = mx >= 7 && mx <= 8 && y >= 1 && y <= 14;
+					// Head (circle at top): distance from (7.5, 2) < 2
+					float dx = mx - 7.5f;
+					float dy = y - 2.5f;
+					bool head = (dx * dx + dy * dy) < 4;
+					// Shoulders: y=5, mx in [3,12]
+					bool shoulders = y >= 4 && y <= 5 && mx >= 3 && mx <= 12;
+					// Hips: y=10, mx in [4,11]
+					bool hips = y >= 9 && y <= 10 && mx >= 4 && mx <= 11;
+					// Left leg: diagonal from (5,10) to (2,14)
+					bool leftLeg = y >= 10 && y <= 14 && Math.Abs(mx - (5 - (y - 10) * 0.75f)) < 1.2f;
+					// Right leg: diagonal from (10,10) to (13,14)
+					bool rightLeg = y >= 10 && y <= 14 && Math.Abs(mx - (10 + (y - 10) * 0.75f)) < 1.2f;
+					// Left arm: diagonal from (5,5) to (2,8)
+					bool leftArm = y >= 5 && y <= 8 && Math.Abs(mx - (5 - (y - 5))) < 1.2f;
+					// Right arm: diagonal from (10,5) to (13,8)
+					bool rightArm = y >= 5 && y <= 8 && Math.Abs(mx - (10 + (y - 5))) < 1.2f;
+
+					bool inside = spine || head || shoulders || hips || leftLeg || rightLeg || leftArm || rightArm;
+					uint8 alpha = inside ? 255 : 0;
+					pixels[idx + 0] = 220;
+					pixels[idx + 1] = 180;  // Slightly yellow tint for bone
+					pixels[idx + 2] = 140;
+					pixels[idx + 3] = alpha;
+				}
+			}
+			mSkeletonIcon = new OwnedImageData(SIZE, SIZE, .RGBA8, pixels);
+		}
+
+		// Create step back icon (bar + left triangle)
+		{
+			uint8[] pixels = new uint8[SIZE * SIZE * 4];
+			for (int y = 0; y < SIZE; y++)
+			{
+				for (int x = 0; x < SIZE; x++)
+				{
+					int idx = (y * SIZE + x) * 4;
+					// Mirror X for correct orientation
+					int mx = SIZE - 1 - x;
+					// Bar on left
+					bool bar = mx >= 2 && mx <= 4 && y >= 3 && y <= 12;
+					// Triangle pointing left
+					float centerY = SIZE / 2.0f;
+					float distFromCenter = Math.Abs(y - centerY);
+					float triangleX = SIZE - 4 - distFromCenter * 0.7f;
+					bool triangle = mx <= triangleX && mx >= 6 && y >= 3 && y <= 12;
+					uint8 alpha = (bar || triangle) ? 255 : 0;
+					pixels[idx + 0] = 220;
+					pixels[idx + 1] = 220;
+					pixels[idx + 2] = 220;
+					pixels[idx + 3] = alpha;
+				}
+			}
+			mStepBackIcon = new OwnedImageData(SIZE, SIZE, .RGBA8, pixels);
+		}
+
+		// Create step forward icon (right triangle + bar) - mirror of step back
+		// Uses same shape logic as step back but WITHOUT mirroring to get opposite direction
+		{
+			uint8[] pixels = new uint8[SIZE * SIZE * 4];
+			for (int y = 0; y < SIZE; y++)
+			{
+				for (int x = 0; x < SIZE; x++)
+				{
+					int idx = (y * SIZE + x) * 4;
+					// No mirroring - use x directly (opposite of step back which uses mx)
+					// Bar on right: x in [11,13]
+					bool bar = x >= 11 && x <= 13 && y >= 3 && y <= 12;
+					// Triangle pointing right
+					float centerY = SIZE / 2.0f;
+					float distFromCenter = Math.Abs(y - centerY);
+					float triangleX = SIZE - 4 - distFromCenter * 0.7f;
+					bool triangle = x <= triangleX && x >= 6 && y >= 3 && y <= 12;
+					uint8 alpha = (bar || triangle) ? 255 : 0;
+					pixels[idx + 0] = 220;
+					pixels[idx + 1] = 220;
+					pixels[idx + 2] = 220;
+					pixels[idx + 3] = alpha;
+				}
+			}
+			mStepForwardIcon = new OwnedImageData(SIZE, SIZE, .RGBA8, pixels);
 		}
 	}
 
@@ -844,6 +946,13 @@ class ModelViewerApp : Application
 		tab.BoundingBoxCheck.VerticalAlignment = .Center;
 		tab.Toolbar.AddChild(tab.BoundingBoxCheck);
 
+		// Grid checkbox
+		tab.GridCheck = new CheckBox("Grid");
+		tab.GridCheck.Margin = .(0, 0, 8, 0);
+		tab.GridCheck.VerticalAlignment = .Center;
+		tab.GridCheck.IsChecked = true; // Default on
+		tab.Toolbar.AddChild(tab.GridCheck);
+
 		// Focus camera button
 		let focusButton = new Button("Focus");
 		focusButton.Padding = .(8, 2, 8, 2);
@@ -975,6 +1084,31 @@ class ModelViewerApp : Application
 		tab.ResetButton.Click.Subscribe(new (btn) => OnReset(tab));
 		tab.AnimationToolbar.AddChild(tab.ResetButton);
 
+		// Step back button
+		let stepBackBtn = CreateImageButton(mStepBackIcon, "Step back one frame");
+		stepBackBtn.Click.Subscribe(new (btn) => OnStepBack(tab));
+		tab.AnimationToolbar.AddChild(stepBackBtn);
+
+		// Step forward button
+		let stepForwardBtn = CreateImageButton(mStepForwardIcon, "Step forward one frame");
+		stepForwardBtn.Click.Subscribe(new (btn) => OnStepForward(tab));
+		tab.AnimationToolbar.AddChild(stepForwardBtn);
+
+		// Separator
+		let sep = new Separator(.Vertical);
+		sep.Height = 18;
+		sep.Margin = .(4, 0, 4, 0);
+		tab.AnimationToolbar.AddChild(sep);
+
+		// Skeleton visualization checkbox
+		tab.SkeletonCheck = new CheckBox();
+		let skelImg = new Sedulous.GUI.Image(mSkeletonIcon);
+		skelImg.Stretch = .None;
+		tab.SkeletonCheck.Content = skelImg;
+		tab.SkeletonCheck.VerticalAlignment = .Center;
+		tab.SkeletonCheck.TooltipText = "Show skeleton";
+		tab.AnimationToolbar.AddChild(tab.SkeletonCheck);
+
 		// Update button state
 		UpdatePlayPauseButton(tab);
 	}
@@ -1043,6 +1177,60 @@ class ModelViewerApp : Application
 		UpdatePlayPauseButton(tab);
 	}
 
+	/// Steps the animation back by one frame (1/30 second).
+	private void OnStepBack(ModelTab tab)
+	{
+		if (tab.Player == null || tab.Clips == null || tab.CurrentClip >= (int32)tab.Clips.Count)
+			return;
+
+		let clip = tab.Clips[tab.CurrentClip];
+
+		// If stopped, start the clip paused at current position
+		if (tab.Player.State == .Stopped)
+		{
+			clip.IsLooping = true;
+			tab.Player.Play(clip, false);
+			tab.Player.Pause();
+		}
+		else if (tab.Player.State == .Playing)
+		{
+			tab.Player.Pause();
+		}
+
+		// Step back by 1/30 second (typical frame time)
+		let frameTime = 1.0f / 30.0f;
+		tab.Player.CurrentTime = Math.Max(0, tab.Player.CurrentTime - frameTime);
+		tab.Player.Evaluate();
+		UpdatePlayPauseButton(tab);
+	}
+
+	/// Steps the animation forward by one frame (1/30 second).
+	private void OnStepForward(ModelTab tab)
+	{
+		if (tab.Player == null || tab.Clips == null || tab.CurrentClip >= (int32)tab.Clips.Count)
+			return;
+
+		let clip = tab.Clips[tab.CurrentClip];
+
+		// If stopped, start the clip paused at current position
+		if (tab.Player.State == .Stopped)
+		{
+			clip.IsLooping = true;
+			tab.Player.Play(clip, false);
+			tab.Player.Pause();
+		}
+		else if (tab.Player.State == .Playing)
+		{
+			tab.Player.Pause();
+		}
+
+		// Step forward by 1/30 second (typical frame time)
+		let frameTime = 1.0f / 30.0f;
+		tab.Player.CurrentTime = Math.Min(clip.Duration, tab.Player.CurrentTime + frameTime);
+		tab.Player.Evaluate();
+		UpdatePlayPauseButton(tab);
+	}
+
 	/// Updates the play/pause button icon based on player state.
 	private void UpdatePlayPauseButton(ModelTab tab)
 	{
@@ -1070,6 +1258,54 @@ class ModelViewerApp : Application
 		{
 			if (let proxy = tab.World.GetSkinnedMesh(tab.SkinnedMeshProxy))
 				proxy.SetTransformImmediate(transform);
+		}
+	}
+
+	/// Draws the skeleton for a skinned mesh using debug lines.
+	private void DrawSkeleton(ModelTab tab, DebugRenderFeature debug)
+	{
+		if (tab.Skeleton == null || tab.Player == null)
+			return;
+
+		let skeleton = tab.Skeleton;
+		let boneCount = skeleton.BoneCount;
+		if (boneCount == 0)
+			return;
+
+		// Get current bone poses from animation player
+		let localPoses = tab.Player.GetLocalPoses();
+
+		// Compute world poses
+		Span<Matrix> worldPoses = scope Matrix[boneCount];
+		skeleton.ComputeWorldPoses(localPoses, worldPoses);
+
+		// Apply model transform (scale + offset)
+		let modelTransform = Matrix.CreateScale(tab.ModelScale) * Matrix.CreateTranslation(tab.ModelOffset);
+
+		// Draw bones
+		let boneColor = Color(255, 200, 100, 255);
+		let jointColor = Color(255, 100, 100, 255);
+
+		for (int32 i = 0; i < boneCount; i++)
+		{
+			let bone = skeleton.GetBone(i);
+			if (bone == null)
+				continue;
+
+			// Get bone world position (translation component of world pose, transformed by model)
+			let boneWorldPose = worldPoses[i] * modelTransform;
+			let bonePos = Vector3(boneWorldPose.M41, boneWorldPose.M42, boneWorldPose.M43);
+
+			// Draw joint sphere
+			debug.AddSphere(bonePos, 0.02f * tab.ModelScale, jointColor, 8, .Overlay);
+
+			// Draw line to parent
+			if (bone.ParentIndex >= 0 && bone.ParentIndex < boneCount)
+			{
+				let parentWorldPose = worldPoses[bone.ParentIndex] * modelTransform;
+				let parentPos = Vector3(parentWorldPose.M41, parentWorldPose.M42, parentWorldPose.M43);
+				debug.AddLine(parentPos, bonePos, boneColor, .Overlay);
+			}
 		}
 	}
 
@@ -1329,8 +1565,8 @@ class ModelViewerApp : Application
 				// Position gizmo at model's current position (only when not dragging)
 				if (!mGizmo.IsDragging)
 				{
-					// Model center in local space + model offset = world position
-					let meshCenter = (tab.MeshBounds.Min + tab.MeshBounds.Max) * 0.5f;
+					// Model center in local space, scaled, plus model offset = world position
+					let meshCenter = (tab.MeshBounds.Min + tab.MeshBounds.Max) * 0.5f * tab.ModelScale;
 					mGizmo.Position = meshCenter + tab.ModelOffset;
 				}
 
@@ -1386,8 +1622,8 @@ class ModelViewerApp : Application
 						tab.ModelOffset = newOffset;
 						UpdateModelTransform(tab);
 
-						// Update gizmo to follow the model (gizmo is at mesh center + offset)
-						let meshCenter = (tab.MeshBounds.Min + tab.MeshBounds.Max) * 0.5f;
+						// Update gizmo to follow the model (gizmo is at scaled mesh center + offset)
+						let meshCenter = (tab.MeshBounds.Min + tab.MeshBounds.Max) * 0.5f * tab.ModelScale;
 						mGizmo.Position = meshCenter + newOffset;
 					}
 				}
@@ -1501,6 +1737,25 @@ class ModelViewerApp : Application
 						tab.MeshBounds.Min * tab.ModelScale + tab.ModelOffset,
 						tab.MeshBounds.Max * tab.ModelScale + tab.ModelOffset);
 					mDebugFeature.AddBox(scaledBounds, Color(255, 200, 50, 255), .Overlay);
+				}
+
+				// Draw floor grid if enabled
+				if (tab.GridCheck != null && tab.GridCheck.IsChecked && mDebugFeature != null)
+				{
+					// Grid at Y=0, sized based on model bounds
+					let gridSize = Math.Max(
+						Math.Max(Math.Abs(tab.MeshBounds.Max.X), Math.Abs(tab.MeshBounds.Min.X)),
+						Math.Max(Math.Abs(tab.MeshBounds.Max.Z), Math.Abs(tab.MeshBounds.Min.Z))
+					) * tab.ModelScale * 4.0f;
+					let gridCenter = Vector3(tab.ModelOffset.X, 0, tab.ModelOffset.Z);
+					mDebugFeature.AddGrid(gridCenter, Math.Max(gridSize, 10.0f), 20, Color(80, 80, 100, 255), .DepthTest);
+				}
+
+				// Draw skeleton if enabled (skinned meshes only)
+				if (tab.SkeletonCheck != null && tab.SkeletonCheck.IsChecked && mDebugFeature != null &&
+					tab.Skeleton != null && tab.Player != null)
+				{
+					DrawSkeleton(tab, mDebugFeature);
 				}
 
 				if (mRenderSystem.BuildRenderGraph(mView) case .Ok)

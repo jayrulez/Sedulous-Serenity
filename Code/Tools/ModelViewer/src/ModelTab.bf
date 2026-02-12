@@ -60,6 +60,10 @@ class ModelTab
 	public Slider ScaleSlider;
 	public float ModelScale = 1.0f;
 
+	// Visualization toggles
+	public CheckBox GridCheck;
+	public CheckBox SkeletonCheck;
+
 	// GPU resources
 	public GPUMeshHandle MeshHandle = .Invalid;
 	public GPUBoneBufferHandle BoneBufferHandle = .Invalid;
