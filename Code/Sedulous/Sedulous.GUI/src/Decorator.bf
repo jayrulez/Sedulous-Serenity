@@ -167,7 +167,7 @@ public class Decorator : Control
 				return hit;
 		}
 
-		return this;
+		return IsHitTestVisible ? this : null;
 	}
 
 	/// Whether focus is within this decorator or its child.

@@ -294,6 +294,6 @@ public abstract class Container : UIElement
 				return hit;
 		}
 
-		return this;
+		return IsHitTestVisible ? this : null;
 	}
 }

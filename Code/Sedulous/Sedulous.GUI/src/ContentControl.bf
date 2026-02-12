@@ -152,7 +152,7 @@ public class ContentControl : Control
 			return null;
 
 		// Content is part of this control - return self, not the content
-		return this;
+		return IsHitTestVisible ? this : null;
 	}
 
 	/// Whether focus is within this control or its content.

@@ -39,6 +39,7 @@ public abstract class UIElement
 	private Visibility mVisibility = .Visible;
 	private float mOpacity = 1.0f;
 	private bool mClipToBounds = false;
+	private bool mIsHitTestVisible = true;
 	private Matrix mRenderTransform = Matrix.Identity;
 	private Vector2 mRenderTransformOrigin = .(0.5f, 0.5f);
 	private CursorType mCursor = .Default;
@@ -275,6 +276,14 @@ public abstract class UIElement
 	{
 		get => mClipToBounds;
 		set => mClipToBounds = value;
+	}
+
+	/// Whether this element can be returned as a hit test result.
+	/// When false, the element itself is skipped but its children are still tested.
+	public bool IsHitTestVisible
+	{
+		get => mIsHitTestVisible;
+		set => mIsHitTestVisible = value;
 	}
 
 	/// The render transform applied to this element.
@@ -586,7 +595,7 @@ public abstract class UIElement
 		if (!mArrangedBounds.Contains(hitX, hitY))
 			return null;
 
-		return this;
+		return mIsHitTestVisible ? this : null;
 	}
 
 	// === Context Management ===
