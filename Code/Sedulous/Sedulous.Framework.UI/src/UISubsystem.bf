@@ -48,6 +48,7 @@ public class UISubsystem : Subsystem, ISceneAware
 	private bool mRenderingInitialized;
 
 	// DPI scaling
+	private IShell mShell;
 	private IWindow mWindow;
 	private delegate void(IWindow, WindowEvent) mWindowEventDelegate;
 
@@ -184,10 +185,12 @@ public class UISubsystem : Subsystem, ISceneAware
 
 		if (mWindowEventDelegate != null)
 		{
+			mShell?.WindowManager?.OnWindowEvent.Unsubscribe(mWindowEventDelegate, false);
 			delete mWindowEventDelegate;
 			mWindowEventDelegate = null;
 		}
 
+		mShell = null;
 		mWindow = null;
 		mRenderingInitialized = false;
 	}
@@ -201,6 +204,7 @@ public class UISubsystem : Subsystem, ISceneAware
 		mDevice = device;
 		mFrameCount = frameCount;
 		mRenderSystem = renderSystem;
+		mShell = shell;
 		mWindow = window;
 		mGUIContext = new GUIContext();
 
