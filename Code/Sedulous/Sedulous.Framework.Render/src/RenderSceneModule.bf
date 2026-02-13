@@ -39,6 +39,9 @@ class RenderSceneModule : SceneModule
 	// Track which texture resource is currently bound to each sprite entity's proxy
 	private Dictionary<EntityId, TextureResource> mEntitySpriteTextureBinding = new .() ~ delete _;
 
+	// Track which texture resource is currently bound to each decal entity's proxy
+	private Dictionary<EntityId, TextureResource> mEntityDecalTextureBinding = new .() ~ delete _;
+
 	// Track loaded texture resource refs per entity (for releasing on destroy)
 	private Dictionary<EntityId, List<TextureResource>> mEntityTextureRefs = new .() ~ { for (var kv in _) delete kv.value; delete _; };
 
@@ -49,6 +52,7 @@ class RenderSceneModule : SceneModule
 	private Dictionary<EntityId, LightProxyHandle> mLightProxies = new .() ~ delete _;
 	private Dictionary<EntityId, ParticleEmitterProxyHandle> mParticleEmitterProxies = new .() ~ delete _;
 	private Dictionary<EntityId, SpriteProxyHandle> mSpriteProxies = new .() ~ delete _;
+	private Dictionary<EntityId, DecalProxyHandle> mDecalProxies = new .() ~ delete _;
 	private Dictionary<EntityId, TrailEmitterProxyHandle> mTrailEmitterProxies = new .() ~ delete _;
 
 	/// Creates a RenderSceneModule linked to the given subsystem and render world.
@@ -73,6 +77,7 @@ class RenderSceneModule : SceneModule
 		scene.RegisterComponentSerializer<LightComponent>();
 		scene.RegisterComponentSerializer<ParticleEmitterComponent>();
 		scene.RegisterComponentSerializer<SpriteComponent>();
+		scene.RegisterComponentSerializer<DecalComponent>();
 		scene.RegisterComponentSerializer<TrailEmitterComponent>();
 	}
 
@@ -117,6 +122,12 @@ class RenderSceneModule : SceneModule
 			sprite.TextureRef.Dispose();
 		}
 
+		for (let (entity, decal) in scene.Query<DecalComponent>())
+		{
+			decal.Texture.Release();
+			decal.TextureRef.Dispose();
+		}
+
 		// Release cached GPU meshes
 		let gpuManager = mSubsystem.RenderSystem?.ResourceManager;
 		let frameNumber = mSubsystem.RenderSystem?.FrameNumber ?? 0;
@@ -148,12 +159,14 @@ class RenderSceneModule : SceneModule
 		mEntityMeshBinding.Clear();
 		mEntitySkinnedMeshBinding.Clear();
 		mEntitySpriteTextureBinding.Clear();
+		mEntityDecalTextureBinding.Clear();
 		mMeshProxies.Clear();
 		mSkinnedMeshProxies.Clear();
 		mCameraProxies.Clear();
 		mLightProxies.Clear();
 		mParticleEmitterProxies.Clear();
 		mSpriteProxies.Clear();
+		mDecalProxies.Clear();
 		mTrailEmitterProxies.Clear();
 
 		// Proxies are cleaned up when entities are destroyed or when RenderWorld is deleted
@@ -576,6 +589,81 @@ class RenderSceneModule : SceneModule
 			}
 		}
 
+		// Sync decals (auto-create proxy from component data if missing)
+		for (let (entity, decal) in scene.Query<DecalComponent>())
+		{
+			if (!decal.Enabled)
+				continue;
+
+			DecalProxyHandle proxyHandle = .Invalid;
+			if (mDecalProxies.TryGetValue(entity, var existingProxy))
+				proxyHandle = existingProxy;
+
+			if (!proxyHandle.IsValid)
+			{
+				proxyHandle = mWorld.CreateDecal();
+				mDecalProxies[entity] = proxyHandle;
+			}
+
+			let worldMatrix = scene.GetWorldMatrix(entity);
+			if (let proxy = mWorld.GetDecal(proxyHandle))
+			{
+				// Extract position and rotation from world matrix; scale comes from component
+				Vector3 entityScale;
+				Quaternion entityRotation;
+				Vector3 entityPosition;
+				worldMatrix.Decompose(out entityScale, out entityRotation, out entityPosition);
+
+				proxy.Position = entityPosition;
+				proxy.Rotation = entityRotation;
+				proxy.Scale = decal.Scale;
+				proxy.Color = decal.Color;
+				proxy.AngleFadeStart = decal.AngleFadeStart;
+				proxy.AngleFadeEnd = decal.AngleFadeEnd;
+				proxy.SortOrder = decal.SortOrder;
+				proxy.BlendMode = decal.BlendMode;
+			}
+
+			// Check if texture resource has changed
+			let texResource = decal.Texture.Resource;
+			TextureResource currentTexBinding = null;
+			mEntityDecalTextureBinding.TryGetValue(entity, out currentTexBinding);
+
+			if (texResource != currentTexBinding)
+			{
+				if (texResource != null && texResource.Image != null)
+				{
+					// Upload texture to GPU (using shared cache)
+					ITextureView view = null;
+					let gpuManager = mSubsystem.RenderSystem?.ResourceManager;
+					if (gpuManager != null)
+					{
+						if (mTextureCache.TryGetValue(texResource, var gpuHandle))
+						{
+							view = gpuManager.GetTextureView(gpuHandle);
+						}
+						else
+						{
+							let image = texResource.Image;
+							let texData = TextureData.FromImage(image);
+							if (gpuManager.UploadTexture(texData) case .Ok(let newHandle))
+							{
+								mTextureCache[texResource] = newHandle;
+								view = gpuManager.GetTextureView(newHandle);
+							}
+						}
+					}
+					if (view != null && proxyHandle.IsValid)
+						mWorld.SetDecalTexture(proxyHandle, view);
+					mEntityDecalTextureBinding[entity] = texResource;
+				}
+				else if (texResource == null && currentTexBinding != null)
+				{
+					mEntityDecalTextureBinding.Remove(entity);
+				}
+			}
+		}
+
 		// Sync trail emitters (auto-create proxy from component data if missing)
 		for (let (entity, trail) in scene.Query<TrailEmitterComponent>())
 		{
@@ -710,6 +798,21 @@ class RenderSceneModule : SceneModule
 			mSpriteProxies.Remove(entity);
 		}
 
+		// Clean up decal component - release resource handles and refs
+		if (let decalComp = scene.GetComponent<DecalComponent>(entity))
+		{
+			decalComp.Texture.Release();
+			decalComp.TextureRef.Dispose();
+		}
+
+		// Clean up decal proxy (from internal tracking)
+		if (mDecalProxies.TryGetValue(entity, let decalProxy))
+		{
+			if (decalProxy.IsValid)
+				mWorld.DestroyDecal(decalProxy);
+			mDecalProxies.Remove(entity);
+		}
+
 		// Clean up trail emitter proxy (from internal tracking)
 		if (mTrailEmitterProxies.TryGetValue(entity, let trailProxy))
 		{
@@ -722,6 +825,7 @@ class RenderSceneModule : SceneModule
 		mEntityMeshBinding.Remove(entity);
 		mEntitySkinnedMeshBinding.Remove(entity);
 		mEntitySpriteTextureBinding.Remove(entity);
+		mEntityDecalTextureBinding.Remove(entity);
 
 		// Release texture resource refs loaded for this entity
 		if (mEntityTextureRefs.TryGetValue(entity, let texList))
@@ -813,6 +917,17 @@ class RenderSceneModule : SceneModule
 				let result = resourceSystem.LoadByRef<TextureResource>(sprite.TextureRef);
 				if (result case .Ok(let handle))
 					sprite.Texture = handle;
+			}
+		}
+
+		// Resolve decal components
+		for (let (entity, decal) in scene.Query<DecalComponent>())
+		{
+			if (decal.TextureRef.IsValid && !decal.Texture.IsValid)
+			{
+				let result = resourceSystem.LoadByRef<TextureResource>(decal.TextureRef);
+				if (result case .Ok(let handle))
+					decal.Texture = handle;
 			}
 		}
 	}
@@ -1441,5 +1556,102 @@ class RenderSceneModule : SceneModule
 				return mWorld?.GetTrailEmitter(proxyHandle);
 		}
 		return null;
+	}
+
+	// ==================== Decal API ====================
+
+	/// Creates a decal for an entity.
+	public DecalProxyHandle CreateDecal(EntityId entity)
+	{
+		if (mScene == null || mWorld == null)
+			return .Invalid;
+
+		let handle = mWorld.CreateDecal();
+
+		// Store in internal tracking
+		mDecalProxies[entity] = handle;
+
+		// Ensure component exists with defaults
+		var comp = mScene.GetComponent<DecalComponent>(entity);
+		if (comp == null)
+		{
+			mScene.SetComponent<DecalComponent>(entity, .Default);
+			comp = mScene.GetComponent<DecalComponent>(entity);
+		}
+		comp.Enabled = true;
+
+		// Sync defaults to proxy
+		if (let proxy = mWorld.GetDecal(handle))
+		{
+			proxy.Scale = comp.Scale;
+			proxy.Color = comp.Color;
+			proxy.AngleFadeStart = comp.AngleFadeStart;
+			proxy.AngleFadeEnd = comp.AngleFadeEnd;
+			proxy.SortOrder = comp.SortOrder;
+			proxy.BlendMode = comp.BlendMode;
+		}
+
+		let worldMatrix = mScene.GetWorldMatrix(entity);
+		Vector3 entityScale;
+		Quaternion entityRotation;
+		Vector3 entityPosition;
+		worldMatrix.Decompose(out entityScale, out entityRotation, out entityPosition);
+		mWorld.SetDecalTransform(handle, entityPosition, entityRotation, comp.Scale);
+
+		return handle;
+	}
+
+	/// Gets the decal proxy for direct access.
+	public DecalProxy* GetDecalProxy(EntityId entity)
+	{
+		if (mDecalProxies.TryGetValue(entity, let proxyHandle))
+		{
+			if (proxyHandle.IsValid)
+				return mWorld?.GetDecal(proxyHandle);
+		}
+		return null;
+	}
+
+	/// Sets decal texture via resource handle. GPU upload happens automatically in PostUpdate.
+	public void SetDecalTexture(EntityId entity, ResourceHandle<TextureResource> texture)
+	{
+		if (mScene != null)
+		{
+			if (let comp = mScene.GetComponent<DecalComponent>(entity))
+				comp.Texture = texture;
+		}
+	}
+
+	/// Sets decal blend mode.
+	public void SetDecalBlendMode(EntityId entity, DecalBlendMode mode)
+	{
+		if (mDecalProxies.TryGetValue(entity, let proxyHandle))
+		{
+			if (proxyHandle.IsValid)
+				mWorld.SetDecalBlendMode(proxyHandle, mode);
+		}
+		if (mScene != null)
+		{
+			if (let comp = mScene.GetComponent<DecalComponent>(entity))
+				comp.BlendMode = mode;
+		}
+	}
+
+	/// Sets decal color.
+	public void SetDecalColor(EntityId entity, Vector4 color)
+	{
+		if (mDecalProxies.TryGetValue(entity, let proxyHandle))
+		{
+			if (proxyHandle.IsValid)
+			{
+				if (let proxy = mWorld.GetDecal(proxyHandle))
+					proxy.Color = color;
+			}
+		}
+		if (mScene != null)
+		{
+			if (let comp = mScene.GetComponent<DecalComponent>(entity))
+				comp.Color = color;
+		}
 	}
 }
