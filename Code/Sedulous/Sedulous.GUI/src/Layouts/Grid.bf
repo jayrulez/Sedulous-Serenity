@@ -289,6 +289,31 @@ public class Grid : Panel
 			}
 		}
 
+		// Second pass: re-measure all children with actual cell constraints.
+		// The first pass used unconstrained sizes (needed for Auto sizing), but children
+		// in Pixel/Star cells need to know their actual width/height constraints so they
+		// can make correct internal layout decisions (e.g. text wrapping, scroll constraining).
+		for (let child in Children)
+		{
+			if (child.Visibility == .Collapsed)
+				continue;
+
+			int row = Math.Min(GridProperties.GetRow(child), rowCount - 1);
+			int col = Math.Min(GridProperties.GetColumn(child), colCount - 1);
+			int rowSpan = Math.Min(GridProperties.GetRowSpan(child), rowCount - row);
+			int colSpan = Math.Min(GridProperties.GetColumnSpan(child), colCount - col);
+
+			float cellWidth = 0;
+			for (int c = col; c < col + colSpan; c++)
+				cellWidth += mColumnWidths[c];
+
+			float cellHeight = 0;
+			for (int r = row; r < row + rowSpan; r++)
+				cellHeight += mRowHeights[r];
+
+			child.Measure(SizeConstraints.FromMaximum(cellWidth, cellHeight));
+		}
+
 		// Calculate total size
 		float totalHeight = 0;
 		for (int r = 0; r < rowCount; r++)
