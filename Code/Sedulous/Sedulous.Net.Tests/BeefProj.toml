@@ -2,5 +2,5 @@ FileVersion = 1
 Dependencies = {corlib = "*", "Sedulous.Net" = "*"}
 
 [Project]
-Name = "Sedulous.Net.HTTP"
-TargetType = "BeefLib"
+Name = "Sedulous.Net.Tests"
+TargetType = "BeefTest"
