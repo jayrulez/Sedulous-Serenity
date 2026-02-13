@@ -6,7 +6,7 @@
 		<int32 name="Gems">3870</int32>
 		<int32 name="ArenaTokens">0</int32>
 		<int32 name="GuildTokens">0</int32>
-		<int32 name="Stamina">11</int32>
+		<int32 name="Stamina">23</int32>
 		<int64 name="LastStaminaTime">0</int64>
 		<int32 name="MaxStageClearedId">2</int32>
 		<array name="StageStars" count="2">

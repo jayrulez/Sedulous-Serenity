@@ -340,8 +340,8 @@ The interface layer for tactical combat.
   - [x] Player's deployment grid (their side of the hex map)
   - [x] Click-to-select and click-to-swap/move units in deployment zone
   - [x] Unit info on hover (via bottom panel after battle starts; hint text during deploy)
-  - [ ] Formation preset selection and roster add/remove during deployment
-  - [ ] Save current deployment as formation preset
+  - [x] Formation preset selection and roster add/remove during deployment
+  - [x] Save current deployment as formation preset
   - [x] "Start Battle" button
   - [ ] Recommended power level indicator
 
@@ -416,8 +416,8 @@ Everything outside of battle — the RPG progression layer. Uses XML save/load v
   - [x] Assign units to hex grid positions (2x4 deployment zone via `BattleConstants.DEPLOY_COLUMNS/DEPLOY_ROWS`)
   - [x] Formation slot limit scales with hero level (3→8 over levels 1→10)
   - [x] Preset tabs with create/switch, unit count display
-  - [ ] Formation preset selection during deployment (in progress)
-  - [ ] Save deployment as formation preset
+  - [x] Formation preset selection during deployment (in progress)
+  - [x] Save deployment as formation preset
 
 ---
 

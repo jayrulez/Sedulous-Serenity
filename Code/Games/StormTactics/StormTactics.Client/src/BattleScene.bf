@@ -725,6 +725,11 @@ class BattleScene
 	{
 		if (mDebugFeature == null) return;
 
+		// Billboard axes — text and bars always face the camera
+		let camForward = mCamera.Forward;
+		let crossRight = Vector3.Cross(camForward, Vector3(0, 1, 0));
+		let billboardRight = (crossRight.LengthSquared() > 0.001f) ? Vector3.Normalize(crossRight) : Vector3(1, 0, 0);
+
 		// Draw unit overlays (health bars, soldier counts)
 		for (int32 i = 0; i < mUnitViews.Count; i++)
 		{
@@ -732,7 +737,7 @@ class BattleScene
 			if (view == null || !view.mVisible) continue;
 
 			let unit = mSimulation.GetUnit(i);
-			view.DrawOverlay(mDebugFeature, unit);
+			view.DrawOverlay(mDebugFeature, unit, billboardRight);
 		}
 
 		// Draw grid overlays
@@ -829,7 +834,7 @@ class BattleScene
 			mGridRenderer.SetHighlight(mHoveredHex, .(100, 220, 255, 60));
 
 		// Draw floating damage/heal numbers
-		DrawFloatingNumbers();
+		DrawFloatingNumbers(billboardRight);
 
 		// Draw VFX
 		DrawVFX();
@@ -923,9 +928,9 @@ class BattleScene
 
 	// --- Drawing helpers ---
 
-	private void DrawFloatingNumbers()
+	private void DrawFloatingNumbers(Vector3 billboardRight)
 	{
-		let right = Vector3(1, 0, 0);
+		let right = billboardRight;
 		let up = Vector3(0, 1, 0);
 
 		for (let num in mFloatingNumbers)
@@ -941,7 +946,7 @@ class BattleScene
 			else
 				color = .(255, 50, 50, alpha);
 
-			let scale = num.mIsCritical ? 0.012f : 0.008f;
+			let scale = num.mIsCritical ? 1.2f : 0.8f;
 
 			let text = scope String();
 			if (num.mIsHeal)

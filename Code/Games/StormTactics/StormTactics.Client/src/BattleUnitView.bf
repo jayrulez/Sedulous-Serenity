@@ -248,13 +248,13 @@ class BattleUnitView
 	}
 
 	/// Draw debug overlays for this unit (health bar, etc.).
-	public void DrawOverlay(DebugRenderFeature debugFeature, BattleUnit unit)
+	public void DrawOverlay(DebugRenderFeature debugFeature, BattleUnit unit, Vector3 billboardRight)
 	{
 		if (!mVisible || debugFeature == null || unit == null || !unit.mAlive) return;
 
 		// Health bar above unit (in 3D space)
 		let barPos = mWorldPos + Vector3(0, UNIT_HEIGHT * 0.7f, 0);
-		let right = Vector3(1, 0, 0);
+		let right = billboardRight;
 		let up = Vector3(0, 1, 0);
 
 		// HP ratio
@@ -294,7 +294,7 @@ class BattleUnitView
 		let countText = scope String();
 		unit.SoldierCount.ToString(countText);
 		let textPos = mWorldPos + Vector3(0, UNIT_HEIGHT + 0.15f, 0);
-		debugFeature.AddTextCentered(countText, textPos, .(255, 255, 255, 255), 0.008f, right, up);
+		debugFeature.AddTextCentered(countText, textPos, .(255, 255, 255, 255), 0.6f, right, up);
 
 		// Buff/debuff icons
 		let buffCount = Math.Min((int32)unit.mBuffs.Count, 5);
