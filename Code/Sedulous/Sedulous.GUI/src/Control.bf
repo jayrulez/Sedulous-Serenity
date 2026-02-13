@@ -37,6 +37,9 @@ public abstract class Control : UIElement
 	private float mCornerRadius = -1; // -1 means "use control-specific default" (Button uses 4, others use 0)
 	private Thickness? mControlPadding;
 
+	// Image-based background - null means use theme or color fallback
+	private ImageBrush? mBackgroundImage;
+
 	// Focus visual - null means use theme
 	private Color? mFocusBorderColor;
 	private float? mFocusBorderThickness;
@@ -168,6 +171,14 @@ public abstract class Control : UIElement
 	{
 		get => mCornerRadius;
 		set => mCornerRadius = value;
+	}
+
+	/// Background image (nine-slice or stretched). Set to override theme.
+	/// When set, replaces both color-based background and border rendering.
+	public ImageBrush? BackgroundImage
+	{
+		get => mBackgroundImage;
+		set => mBackgroundImage = value;
 	}
 
 	/// Padding (space inside the control). Set to override theme.
@@ -304,10 +315,37 @@ public abstract class Control : UIElement
 		return BorderThickness;
 	}
 
+	/// Gets the background image for the current state.
+	/// Checks per-instance override first, then theme.
+	/// Returns null if no image is configured.
+	protected ImageBrush? GetStateBackgroundImage()
+	{
+		// Per-instance override with auto-tint modulation
+		if (mBackgroundImage.HasValue && mBackgroundImage.Value.IsValid)
+		{
+			var img = mBackgroundImage.Value;
+			img.Tint = ControlStyle.ModulateTint(img.Tint, mCurrentState);
+			return img;
+		}
+
+		// Theme-based image
+		return GetThemeStyle().GetBackgroundImage(mCurrentState);
+	}
+
 	/// Renders the control background and border.
 	protected virtual void RenderBackground(DrawContext ctx)
 	{
 		let bounds = ArrangedBounds;
+
+		// Try image-based background first
+		let bgImage = GetStateBackgroundImage();
+		if (bgImage.HasValue && bgImage.Value.IsValid)
+		{
+			ctx.DrawImageBrush(bgImage.Value, bounds);
+			return; // Image replaces both color fill and border
+		}
+
+		// Color-based fallback
 		let bgColor = GetStateBackground();
 		let borderColor = GetStateBorderColor();
 		let borderThickness = GetStateBorderThickness();

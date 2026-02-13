@@ -1,5 +1,6 @@
 using System;
 using Sedulous.Mathematics;
+using Sedulous.Drawing;
 
 namespace Sedulous.GUI;
 
@@ -13,6 +14,7 @@ public struct StateStyle
 	public float? BorderThickness;
 	public float? CornerRadius;
 	public Thickness? Padding;
+	public ImageBrush? BackgroundImage;
 
 	/// Creates an empty state style (all values inherit).
 	public static StateStyle Empty => .();
@@ -35,6 +37,7 @@ public struct ControlStyle
 	public float BorderThickness;
 	public float CornerRadius;
 	public Thickness Padding;
+	public ImageBrush? BackgroundImage;
 
 	// State overrides
 	public StateStyle Hover;
@@ -129,6 +132,54 @@ public struct ControlStyle
 			return Focused.Padding ?? Padding;
 		default:
 			return Padding;
+		}
+	}
+
+	/// Gets the effective background image for the given state.
+	/// If a per-state image is set, returns it directly.
+	/// If only a base image is set, applies automatic tint modulation for the state.
+	public ImageBrush? GetBackgroundImage(ControlState state)
+	{
+		// Check for per-state image override first
+		ImageBrush? stateImage;
+		switch (state)
+		{
+		case .Hover:    stateImage = Hover.BackgroundImage;
+		case .Pressed:  stateImage = Pressed.BackgroundImage;
+		case .Disabled: stateImage = Disabled.BackgroundImage;
+		case .Focused:  stateImage = Focused.BackgroundImage;
+		default:        stateImage = null;
+		}
+
+		// Per-state image takes priority (no auto-tint)
+		if (stateImage.HasValue)
+			return stateImage;
+
+		// Fall back to base image with automatic tint modulation
+		if (BackgroundImage.HasValue)
+		{
+			var img = BackgroundImage.Value;
+			img.Tint = ModulateTint(img.Tint, state);
+			return img;
+		}
+
+		return null;
+	}
+
+	/// Applies automatic tint modulation based on control state.
+	public static Color ModulateTint(Color tint, ControlState state)
+	{
+		switch (state)
+		{
+		case .Hover:
+			return Palette.Lighten(tint, 0.15f);
+		case .Pressed:
+			return Palette.Darken(tint, 0.15f);
+		case .Disabled:
+			let desaturated = Palette.Desaturate(tint, 0.5f);
+			return Color(desaturated.R, desaturated.G, desaturated.B, (uint8)(tint.A * 0.5f));
+		default:
+			return tint;
 		}
 	}
 }

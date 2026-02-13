@@ -640,6 +640,20 @@ public class DrawContext
 		mRasterizer.RasterizeNineSlice(transformed, srcRect, slices, texture.Width, texture.Height, mBatch.Vertices, mBatch.Indices, tint);
 	}
 
+	/// Draw an ImageBrush into a destination rectangle.
+	/// Uses 9-slice rendering if the brush has valid slices, otherwise stretches the image.
+	public void DrawImageBrush(ImageBrush brush, RectangleF destRect)
+	{
+		if (!brush.IsValid)
+			return;
+
+		let srcRect = RectangleF(0, 0, brush.Texture.Width, brush.Texture.Height);
+		if (brush.Slices.IsValid)
+			DrawNineSlice(brush.Texture, destRect, srcRect, brush.Slices, brush.Tint);
+		else
+			DrawImage(brush.Texture, destRect, srcRect, brush.Tint);
+	}
+
 	// === Sprites ===
 
 	/// Draw a sprite at a position

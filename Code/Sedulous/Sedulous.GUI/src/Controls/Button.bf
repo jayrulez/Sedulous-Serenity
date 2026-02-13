@@ -208,24 +208,33 @@ public class Button : ContentControl
 	protected override void RenderOverride(DrawContext ctx)
 	{
 		let bounds = ArrangedBounds;
-		let style = GetThemeStyle();
-
-		// Get state-appropriate colors
-		let bgColor = GetStateBackground();
-		let borderColor = GetStateBorderColor();
 		let defaultRadius = Context?.Theme?.DefaultCornerRadius ?? 4;
 		let cornerRadius = CornerRadius >= 0 ? CornerRadius : defaultRadius; // Default rounded corners for buttons (use negative to get default)
 
-		// Draw background
-		if (bgColor.A > 0)
+		// Try image-based background first
+		let bgImage = GetStateBackgroundImage();
+		if (bgImage.HasValue && bgImage.Value.IsValid)
 		{
-			ctx.FillRoundedRect(bounds, cornerRadius, bgColor);
+			ctx.DrawImageBrush(bgImage.Value, bounds);
 		}
-
-		// Draw border
-		if (style.BorderThickness > 0 && borderColor.A > 0)
+		else
 		{
-			ctx.DrawBorderRoundedRect(bounds, cornerRadius, borderColor, style.BorderThickness);
+			// Color-based fallback
+			let style = GetThemeStyle();
+			let bgColor = GetStateBackground();
+			let borderColor = GetStateBorderColor();
+
+			// Draw background
+			if (bgColor.A > 0)
+			{
+				ctx.FillRoundedRect(bounds, cornerRadius, bgColor);
+			}
+
+			// Draw border
+			if (style.BorderThickness > 0 && borderColor.A > 0)
+			{
+				ctx.DrawBorderRoundedRect(bounds, cornerRadius, borderColor, style.BorderThickness);
+			}
 		}
 
 		// Draw content
