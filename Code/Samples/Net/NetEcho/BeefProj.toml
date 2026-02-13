@@ -1,7 +1,6 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Net" = "*"}
+Dependencies = {corlib = "*", "Sedulous.Net" = "*", "Sedulous.Logging" = "*"}
 
 [Project]
 Name = "NetEcho"
-TargetType = "BeefConsoleApplication"
 StartupObject = "NetEcho.Program"

@@ -3,6 +3,8 @@ namespace NetEcho;
 using System;
 using System.Threading;
 using Sedulous.Net;
+using Sedulous.Logging.Abstractions;
+using Sedulous.Logging.Debug;
 
 /// TCP echo server + client demo.
 /// Demonstrates TcpListener, TcpClient, non-blocking Accept, SendAll/Recv.
@@ -10,7 +12,8 @@ class Program
 {
 	public static int Main(String[] args)
 	{
-		Console.WriteLine("=== TCP Echo Server Demo ===\n");
+		ILogger logger = scope DebugLogger(.Trace);
+		logger.LogTrace("=== TCP Echo Server Demo ===\n");
 
 		// Start the echo server
 		let listener = scope TcpListener();
@@ -18,11 +21,11 @@ class Program
 		{
 			let desc = scope String();
 			err.GetDescription(desc);
-			Console.WriteLine("Failed to start server: {}", desc);
+			logger.LogError("Failed to start server: {}", desc);
 			return 1;
 		}
 
-		Console.WriteLine("Server listening on 127.0.0.1:9100");
+		logger.LogTrace("Server listening on 127.0.0.1:9100");
 
 		// Connect a client
 		let client = scope TcpClient();
@@ -30,11 +33,11 @@ class Program
 		{
 			let desc = scope String();
 			connectErr.GetDescription(desc);
-			Console.WriteLine("Failed to connect: {}", desc);
+			logger.LogError("Failed to connect: {}", desc);
 			return 1;
 		}
 
-		Console.WriteLine("Client connected to server");
+		logger.LogTrace("Client connected to server");
 		Thread.Sleep(50);
 
 		// Accept the client on the server side
@@ -45,11 +48,11 @@ class Program
 		{
 		case .Ok(let sc):
 			serverClient = sc;
-			Console.WriteLine("Server accepted connection");
+			logger.LogTrace("Server accepted connection");
 		case .Err(let acceptErr):
 			let desc = scope String();
 			acceptErr.GetDescription(desc);
-			Console.WriteLine("Accept failed: {}", desc);
+			logger.LogError("Accept failed: {}", desc);
 			return 1;
 		}
 
@@ -61,10 +64,10 @@ class Program
 			// Client sends
 			if (client.SendAll(Span<uint8>((uint8*)msg.Ptr, msg.Length)) case .Err)
 			{
-				Console.WriteLine("Send failed");
+				logger.LogError("Send failed");
 				continue;
 			}
-			Console.WriteLine("Client sent: \"{}\"", msg);
+			logger.LogTrace("Client sent: \"{}\"", msg);
 
 			Thread.Sleep(50);
 
@@ -75,12 +78,12 @@ class Program
 			case .Ok(let received):
 				let recvStr = scope String();
 				recvStr.Append((char8*)&recvBuf, received);
-				Console.WriteLine("Server received: \"{}\"", recvStr);
+				logger.LogTrace("Server received: \"{}\"", recvStr);
 
 				// Echo back
 				serverClient.SendAll(Span<uint8>(&recvBuf, received));
 			case .Err:
-				Console.WriteLine("Recv failed");
+				logger.LogError("Recv failed");
 			}
 
 			Thread.Sleep(50);
@@ -92,9 +95,9 @@ class Program
 			case .Ok(let received):
 				let echoStr = scope String();
 				echoStr.Append((char8*)&echoBuf, received);
-				Console.WriteLine("Client got echo: \"{}\"\n", echoStr);
+				logger.LogTrace("Client got echo: \"{}\"\n", echoStr);
 			case .Err:
-				Console.WriteLine("Echo recv failed");
+				logger.LogError("Echo recv failed");
 			}
 		}
 
@@ -103,7 +106,7 @@ class Program
 		serverClient.Close();
 		listener.Stop();
 
-		Console.WriteLine("=== Done ===");
+		logger.LogTrace("=== Done ===");
 		return 0;
 	}
 }

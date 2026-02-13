@@ -1,7 +1,6 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Net" = "*", "Sedulous.Net.HTTP" = "*"}
+Dependencies = {corlib = "*", "Sedulous.Net" = "*", "Sedulous.Net.HTTP" = "*", "Sedulous.Logging" = "*"}
 
 [Project]
 Name = "NetWebSocket"
-TargetType = "BeefConsoleApplication"
 StartupObject = "NetWebSocket.Program"

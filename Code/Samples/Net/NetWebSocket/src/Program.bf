@@ -5,6 +5,8 @@ using System.Threading;
 using System.Collections;
 using Sedulous.Net;
 using Sedulous.Net.HTTP;
+using Sedulous.Logging.Abstractions;
+using Sedulous.Logging.Debug;
 
 /// WebSocket echo demo.
 /// Starts an HTTP server with WebSocket upgrade support, connects a client,
@@ -13,18 +15,19 @@ class Program
 {
 	public static int Main(String[] args)
 	{
-		Console.WriteLine("=== WebSocket Echo Demo ===\n");
+		ILogger logger = scope DebugLogger(.Trace);
+		logger.LogTrace("=== WebSocket Echo Demo ===\n");
 
 		let server = scope HttpServer();
 		let wsConnections = scope List<WebSocketConnection>();
-		defer { DeleteContainerAndItems!(wsConnections); }
+		defer { ClearAndDeleteItems!(wsConnections); }
 
 		// Configure WebSocket upgrade handler
 		server.OnWebSocketUpgrade = new [&](client, request) => {
 			let ws = new WebSocketConnection();
 			if (ws.AcceptUpgrade(client, request, true) case .Ok)
 			{
-				Console.WriteLine("[Server] WebSocket connection accepted");
+				logger.LogTrace("[Server] WebSocket connection accepted");
 				wsConnections.Add(ws);
 				return true;
 			}
@@ -43,11 +46,11 @@ class Program
 		{
 			let desc = scope String();
 			err.GetDescription(desc);
-			Console.WriteLine("Server start failed: {}", desc);
+			logger.LogError("Server start failed: {}", desc);
 			return 1;
 		}
 
-		Console.WriteLine("Server running on ws://127.0.0.1:9300\n");
+		logger.LogTrace("Server running on ws://127.0.0.1:9300\n");
 
 		// Server processing thread
 		var serverDone = false;
@@ -68,13 +71,13 @@ class Program
 						case .Text:
 							let text = scope String();
 							msg.GetText(text);
-							Console.WriteLine("[Server] Received text: \"{}\"", text);
+							logger.LogTrace("[Server] Received text: \"{}\"", text);
 							ws.SendText(text);
-							Console.WriteLine("[Server] Echoed text back");
+							logger.LogTrace("[Server] Echoed text back");
 						case .Binary:
-							Console.WriteLine("[Server] Received {} bytes binary", msg.Data.Count);
+							logger.LogTrace("[Server] Received {} bytes binary", msg.Data.Count);
 							ws.SendBinary(Span<uint8>(msg.Data.Ptr, msg.Data.Count));
-							Console.WriteLine("[Server] Echoed binary back");
+							logger.LogTrace("[Server] Echoed binary back");
 						default:
 						}
 						delete msg;
@@ -90,27 +93,27 @@ class Program
 
 		// Connect WebSocket client
 		let wsClient = scope WebSocketClient();
-		Console.WriteLine("[Client] Connecting...");
+		logger.LogTrace("[Client] Connecting...");
 
 		if (wsClient.Connect("127.0.0.1", 9300) case .Err(let connectErr))
 		{
 			let desc = scope String();
 			connectErr.GetDescription(desc);
-			Console.WriteLine("[Client] Connect failed: {}", desc);
+			logger.LogError("[Client] Connect failed: {}", desc);
 			serverDone = true;
 			serverThread.Join();
 			server.Stop();
 			return 1;
 		}
 
-		Console.WriteLine("[Client] Connected! State: {}\n", wsClient.State);
+		logger.LogTrace("[Client] Connected! State: {}\n", wsClient.State);
 
 		// Send text messages
 		StringView[?] messages = .("Hello WebSocket!", "Testing 1 2 3", "Beef networking is cool!");
 
 		for (let msg in messages)
 		{
-			Console.WriteLine("[Client] Sending: \"{}\"", msg);
+			logger.LogTrace("[Client] Sending: \"{}\"", msg);
 			wsClient.SendText(msg);
 			Thread.Sleep(200);
 
@@ -119,17 +122,17 @@ class Program
 			{
 				let text = scope String();
 				reply.GetText(text);
-				Console.WriteLine("[Client] Got echo: \"{}\"\n", text);
+				logger.LogTrace("[Client] Got echo: \"{}\"\n", text);
 				delete reply;
 			}
 			else
 			{
-				Console.WriteLine("[Client] No reply yet\n");
+				logger.LogTrace("[Client] No reply yet\n");
 			}
 		}
 
 		// Send binary data
-		Console.WriteLine("[Client] Sending 16 bytes of binary data");
+		logger.LogTrace("[Client] Sending 16 bytes of binary data");
 		uint8[16] binData = default;
 		for (int i = 0; i < 16; i++)
 			binData[i] = (uint8)(i * 17);
@@ -139,21 +142,21 @@ class Program
 		let binReply = wsClient.Receive();
 		if (binReply != null)
 		{
-			Console.WriteLine("[Client] Got {} bytes binary echo", binReply.Data.Count);
+			logger.LogTrace("[Client] Got {} bytes binary echo", binReply.Data.Count);
 			delete binReply;
 		}
 
 		// Close
-		Console.WriteLine("\n[Client] Closing connection...");
+		logger.LogTrace("\n[Client] Closing connection...");
 		wsClient.Close();
-		Console.WriteLine("[Client] State: {}", wsClient.State);
+		logger.LogTrace("[Client] State: {}", wsClient.State);
 
 		// Cleanup
 		serverDone = true;
 		serverThread.Join();
 		server.Stop();
 
-		Console.WriteLine("\n=== Done ===");
+		logger.LogTrace("\n=== Done ===");
 		return 0;
 	}
 }
