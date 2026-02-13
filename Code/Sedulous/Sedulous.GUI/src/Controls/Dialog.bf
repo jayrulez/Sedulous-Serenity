@@ -250,24 +250,36 @@ public class Dialog : Control
 	{
 		let bounds = ArrangedBounds;
 
-		// Draw dialog background with rounded corners
-		if (Background.A > 0)
+		// Try image-based background first (replaces entire frame)
+		let bgImage = GetStateBackgroundImage();
+		if (bgImage.HasValue && bgImage.Value.IsValid)
 		{
-			ctx.FillRoundedRect(bounds, mCornerRadius, Background);
+			ctx.DrawImageBrush(bgImage.Value, bounds);
 		}
+		else
+		{
+			// Draw dialog background with rounded corners
+			if (Background.A > 0)
+			{
+				ctx.FillRoundedRect(bounds, mCornerRadius, Background);
+			}
 
-		// Draw title bar background
-		let titleBounds = RectangleF(bounds.X, bounds.Y, bounds.Width, mTitleBarHeight);
-		ctx.FillRoundedRect(
-			RectangleF(titleBounds.X, titleBounds.Y, titleBounds.Width, titleBounds.Height + mCornerRadius),
-			mCornerRadius,
-			mTitleBackground
-		);
-		// Cover the bottom corners of the title bar
-		ctx.FillRect(
-			RectangleF(titleBounds.X, titleBounds.Bottom - mCornerRadius, titleBounds.Width, mCornerRadius),
-			mTitleBackground
-		);
+			// Draw title bar background
+			let titleBounds = RectangleF(bounds.X, bounds.Y, bounds.Width, mTitleBarHeight);
+			ctx.FillRoundedRect(
+				RectangleF(titleBounds.X, titleBounds.Y, titleBounds.Width, titleBounds.Height + mCornerRadius),
+				mCornerRadius,
+				mTitleBackground
+			);
+			// Cover the bottom corners of the title bar
+			ctx.FillRect(
+				RectangleF(titleBounds.X, titleBounds.Bottom - mCornerRadius, titleBounds.Width, mCornerRadius),
+				mTitleBackground
+			);
+
+			// Draw border
+			ctx.DrawRoundedRect(bounds, mCornerRadius, mBorderColor, 1);
+		}
 
 		// Render title
 		mTitleBlock.Render(ctx);
@@ -277,9 +289,6 @@ public class Dialog : Control
 
 		// Render button row
 		mButtonRow.Render(ctx);
-
-		// Draw border
-		ctx.DrawRoundedRect(bounds, mCornerRadius, mBorderColor, 1);
 	}
 
 	// === Input ===

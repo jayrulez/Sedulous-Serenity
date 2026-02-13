@@ -43,12 +43,12 @@ These have custom `RenderOverride()` that doesn't call `RenderBackground()`.
 Each needs its own image integration:
 
 ### High Priority (common in game UI)
-- [ ] ProgressBar — track background image + fill image (partial nine-slice for fill amount)
-- [ ] Slider — track image + thumb image (per-state)
-- [ ] ScrollBar — track image + thumb image (per-state)
-- [ ] Dialog — frame/window image (nine-slice border)
-- [ ] Popup — frame image
-- [ ] Tooltip — frame image
+- [x] ProgressBar — TrackImage + FillImage properties
+- [x] Slider — TrackImage + ThumbImage properties (with state tint modulation on thumb)
+- [x] ScrollBar — TrackImage + ThumbImage properties (with state tint modulation on thumb)
+- [x] Dialog — BackgroundImage support (replaces frame + title bar + border)
+- [x] Popup — BackgroundImage support (replaces background + border, shadow preserved)
+- [x] Tooltip — BackgroundImage support (replaces background + border)
 
 ### Medium Priority
 - [ ] CheckBox — indicator box image (checked/unchecked/indeterminate states)

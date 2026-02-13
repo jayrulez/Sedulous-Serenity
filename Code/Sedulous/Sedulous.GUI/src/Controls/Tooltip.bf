@@ -107,29 +107,39 @@ public class Tooltip : ContentControl
 	protected override void RenderOverride(DrawContext ctx)
 	{
 		let bounds = ArrangedBounds;
-		let cornerRadius = CornerRadius;
-		let borderColor = BorderColor;
-		let borderThickness = BorderThickness;
 
-		// Draw background with rounded corners
-		if (Background.A > 0)
+		// Try image-based background first (replaces background + border)
+		let bgImage = GetStateBackgroundImage();
+		if (bgImage.HasValue && bgImage.Value.IsValid)
 		{
-			if (cornerRadius > 0)
-				ctx.FillRoundedRect(bounds, cornerRadius, Background);
-			else
-				ctx.FillRect(bounds, Background);
+			ctx.DrawImageBrush(bgImage.Value, bounds);
+		}
+		else
+		{
+			let cornerRadius = CornerRadius;
+			let borderColor = BorderColor;
+			let borderThickness = BorderThickness;
+
+			// Draw background with rounded corners
+			if (Background.A > 0)
+			{
+				if (cornerRadius > 0)
+					ctx.FillRoundedRect(bounds, cornerRadius, Background);
+				else
+					ctx.FillRect(bounds, Background);
+			}
+
+			// Draw border
+			if (borderColor.A > 0 && borderThickness > 0)
+			{
+				if (cornerRadius > 0)
+					ctx.DrawRoundedRect(bounds, cornerRadius, borderColor, borderThickness);
+				else
+					ctx.DrawRect(bounds, borderColor, borderThickness);
+			}
 		}
 
 		// Render content
 		Content?.Render(ctx);
-
-		// Draw border
-		if (borderColor.A > 0 && borderThickness > 0)
-		{
-			if (cornerRadius > 0)
-				ctx.DrawRoundedRect(bounds, cornerRadius, borderColor, borderThickness);
-			else
-				ctx.DrawRect(bounds, borderColor, borderThickness);
-		}
 	}
 }

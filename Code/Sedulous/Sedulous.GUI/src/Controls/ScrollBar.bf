@@ -22,6 +22,8 @@ public class ScrollBar : Control
 	private float mThickness = 16;
 	private Color? mTrackColor;
 	private Color? mThumbColor;
+	private ImageBrush? mTrackImage;
+	private ImageBrush? mThumbImage;
 
 	// Interaction state
 	private bool mIsDragging = false;
@@ -195,6 +197,20 @@ public class ScrollBar : Control
 		set => mThumbColor = value;
 	}
 
+	/// Image for the track background (replaces color-based track).
+	public ImageBrush? TrackImage
+	{
+		get => mTrackImage;
+		set => mTrackImage = value;
+	}
+
+	/// Image for the thumb (replaces color-based thumb).
+	public ImageBrush? ThumbImage
+	{
+		get => mThumbImage;
+		set => mThumbImage = value;
+	}
+
 	/// Event fired when scroll position changes.
 	public EventAccessor<delegate void(ScrollBar, float)> Scroll => mScroll;
 
@@ -231,22 +247,39 @@ public class ScrollBar : Control
 		let bounds = ArrangedBounds;
 
 		// Draw track
-		ctx.FillRect(bounds, TrackColor);
+		if (mTrackImage.HasValue && mTrackImage.Value.IsValid)
+			ctx.DrawImageBrush(mTrackImage.Value, bounds);
+		else
+			ctx.FillRect(bounds, TrackColor);
 
 		// Draw thumb if scrolling is needed
 		if (IsScrollNeeded)
 		{
 			let thumbRect = GetThumbRect(bounds);
-			var thumbColor = ThumbColor;
 
-			// Adjust color based on state
-			if (mIsDragging)
-				thumbColor = thumbColor.Interpolate(Color.White, 0.2f);
-			else if (IsHovered && IsMouseOverThumb(thumbRect))
-				thumbColor = thumbColor.Interpolate(Color.White, 0.1f);
+			if (mThumbImage.HasValue && mThumbImage.Value.IsValid)
+			{
+				var img = mThumbImage.Value;
+				// Apply state tint modulation
+				if (mIsDragging)
+					img.Tint = Palette.Lighten(img.Tint, 0.15f);
+				else if (IsHovered && IsMouseOverThumb(thumbRect))
+					img.Tint = Palette.Lighten(img.Tint, 0.10f);
+				ctx.DrawImageBrush(img, thumbRect);
+			}
+			else
+			{
+				var thumbColor = ThumbColor;
 
-			let cornerRadius = Math.Min(thumbRect.Width, thumbRect.Height) / 2;
-			ctx.FillRoundedRect(thumbRect, cornerRadius, thumbColor);
+				// Adjust color based on state
+				if (mIsDragging)
+					thumbColor = thumbColor.Interpolate(Color.White, 0.2f);
+				else if (IsHovered && IsMouseOverThumb(thumbRect))
+					thumbColor = thumbColor.Interpolate(Color.White, 0.1f);
+
+				let cornerRadius = Math.Min(thumbRect.Width, thumbRect.Height) / 2;
+				ctx.FillRoundedRect(thumbRect, cornerRadius, thumbColor);
+			}
 		}
 	}
 

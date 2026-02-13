@@ -290,18 +290,27 @@ public class Popup : ContentControl, IPopupOwner
 	{
 		let bounds = ArrangedBounds;
 
-		// Shadow
+		// Shadow (drawn regardless of image mode)
 		let shadowOffset = 4.0f;
 		ctx.FillRect(.(bounds.X + shadowOffset, bounds.Y + shadowOffset, bounds.Width, bounds.Height),
 			Color(0, 0, 0, 60));
 
-		// Background
-		let bgColor = Background.A > 0 ? Background : Color(50, 50, 55, 255);
-		ctx.FillRect(bounds, bgColor);
+		// Try image-based background first (replaces background + border)
+		let bgImage = GetStateBackgroundImage();
+		if (bgImage.HasValue && bgImage.Value.IsValid)
+		{
+			ctx.DrawImageBrush(bgImage.Value, bounds);
+		}
+		else
+		{
+			// Background
+			let bgColor = Background.A > 0 ? Background : Color(50, 50, 55, 255);
+			ctx.FillRect(bounds, bgColor);
 
-		// Border
-		let borderColor = BorderColor.A > 0 ? BorderColor : Color(80, 80, 90, 255);
-		ctx.DrawRect(bounds, borderColor, BorderThickness > 0 ? BorderThickness : 1);
+			// Border
+			let borderColor = BorderColor.A > 0 ? BorderColor : Color(80, 80, 90, 255);
+			ctx.DrawRect(bounds, borderColor, BorderThickness > 0 ? BorderThickness : 1);
+		}
 
 		// Render content
 		if (HasContent)

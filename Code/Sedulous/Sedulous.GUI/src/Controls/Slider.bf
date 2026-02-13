@@ -22,6 +22,8 @@ public class Slider : Control
 	private Color? mTrackColor;
 	private Color? mThumbColor;
 	private Color? mFillColor;
+	private ImageBrush? mTrackImage;
+	private ImageBrush? mThumbImage;
 
 	// Ticks
 	private float mTickFrequency = 0; // 0 = no ticks
@@ -205,6 +207,20 @@ public class Slider : Control
 		set => mFillColor = value;
 	}
 
+	/// Image for the track background (replaces color-based track).
+	public ImageBrush? TrackImage
+	{
+		get => mTrackImage;
+		set => mTrackImage = value;
+	}
+
+	/// Image for the thumb (replaces color-based thumb).
+	public ImageBrush? ThumbImage
+	{
+		get => mThumbImage;
+		set => mThumbImage = value;
+	}
+
 	/// Tick mark frequency (0 = no ticks).
 	public float TickFrequency
 	{
@@ -266,7 +282,10 @@ public class Slider : Control
 
 		// Draw track background
 		let trackRadius = mTrackThickness / 2;
-		ctx.FillRoundedRect(trackRect, trackRadius, TrackColor);
+		if (mTrackImage.HasValue && mTrackImage.Value.IsValid)
+			ctx.DrawImageBrush(mTrackImage.Value, trackRect);
+		else
+			ctx.FillRoundedRect(trackRect, trackRadius, TrackColor);
 
 		// Draw filled portion
 		RenderFill(ctx, trackRect, thumbCenter, trackRadius);
@@ -352,14 +371,6 @@ public class Slider : Control
 
 	private void RenderThumb(DrawContext ctx, Vector2 center)
 	{
-		var thumbColor = ThumbColor;
-
-		// Adjust color based on state
-		if (mIsDragging)
-			thumbColor = thumbColor.Interpolate(Color.Black, 0.2f);
-		else if (IsHovered)
-			thumbColor = thumbColor.Interpolate(Color.White, 0.1f);
-
 		let thumbRect = RectangleF(
 			center.X - mThumbSize / 2,
 			center.Y - mThumbSize / 2,
@@ -367,7 +378,28 @@ public class Slider : Control
 			mThumbSize
 		);
 
-		ctx.FillRoundedRect(thumbRect, mThumbSize / 2, thumbColor);
+		if (mThumbImage.HasValue && mThumbImage.Value.IsValid)
+		{
+			var img = mThumbImage.Value;
+			// Apply state tint modulation
+			if (mIsDragging)
+				img.Tint = Palette.Darken(img.Tint, 0.15f);
+			else if (IsHovered)
+				img.Tint = Palette.Lighten(img.Tint, 0.10f);
+			ctx.DrawImageBrush(img, thumbRect);
+		}
+		else
+		{
+			var thumbColor = ThumbColor;
+
+			// Adjust color based on state
+			if (mIsDragging)
+				thumbColor = thumbColor.Interpolate(Color.Black, 0.2f);
+			else if (IsHovered)
+				thumbColor = thumbColor.Interpolate(Color.White, 0.1f);
+
+			ctx.FillRoundedRect(thumbRect, mThumbSize / 2, thumbColor);
+		}
 	}
 
 	private void RenderTicks(DrawContext ctx, RectangleF bounds)

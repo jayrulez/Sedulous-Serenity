@@ -16,6 +16,8 @@ public class ProgressBar : Control
 	private Orientation mOrientation = .Horizontal;
 	private Color? mTrackColor;
 	private Color? mFillColor;
+	private ImageBrush? mTrackImage;
+	private ImageBrush? mFillImage;
 
 	// Indeterminate animation state
 	private const float IndeterminateWidth = 0.3f;  // Width of the moving indicator as fraction of track
@@ -126,6 +128,20 @@ public class ProgressBar : Control
 		set => mFillColor = value;
 	}
 
+	/// Image for the track background (replaces color-based track).
+	public ImageBrush? TrackImage
+	{
+		get => mTrackImage;
+		set => mTrackImage = value;
+	}
+
+	/// Image for the fill bar (replaces color-based fill).
+	public ImageBrush? FillImage
+	{
+		get => mFillImage;
+		set => mFillImage = value;
+	}
+
 	// Note: CornerRadius is inherited from Control
 
 	/// Gets the progress as a value from 0 to 1.
@@ -164,23 +180,29 @@ public class ProgressBar : Control
 	protected override void RenderOverride(DrawContext ctx)
 	{
 		let bounds = ArrangedBounds;
-		let trackColor = TrackColor;
-		let fillColor = FillColor;
 
 		// Draw track (background)
-		if (CornerRadius > 0)
-			ctx.FillRoundedRect(bounds, CornerRadius, trackColor);
+		if (mTrackImage.HasValue && mTrackImage.Value.IsValid)
+		{
+			ctx.DrawImageBrush(mTrackImage.Value, bounds);
+		}
 		else
-			ctx.FillRect(bounds, trackColor);
+		{
+			let trackColor = TrackColor;
+			if (CornerRadius > 0)
+				ctx.FillRoundedRect(bounds, CornerRadius, trackColor);
+			else
+				ctx.FillRect(bounds, trackColor);
+		}
 
 		// Draw fill
 		if (mIsIndeterminate)
 		{
-			RenderIndeterminate(ctx, bounds, fillColor);
+			RenderIndeterminate(ctx, bounds, FillColor);
 		}
 		else
 		{
-			RenderDeterminate(ctx, bounds, fillColor);
+			RenderDeterminate(ctx, bounds, FillColor);
 		}
 	}
 
@@ -204,10 +226,17 @@ public class ProgressBar : Control
 			fillRect = .(bounds.X, bounds.Bottom - fillHeight, bounds.Width, fillHeight);
 		}
 
-		if (CornerRadius > 0)
-			ctx.FillRoundedRect(fillRect, CornerRadius, fillColor);
+		if (mFillImage.HasValue && mFillImage.Value.IsValid)
+		{
+			ctx.DrawImageBrush(mFillImage.Value, fillRect);
+		}
 		else
-			ctx.FillRect(fillRect, fillColor);
+		{
+			if (CornerRadius > 0)
+				ctx.FillRoundedRect(fillRect, CornerRadius, fillColor);
+			else
+				ctx.FillRect(fillRect, fillColor);
+		}
 	}
 
 	/// Renders indeterminate (animated) progress.
@@ -257,9 +286,16 @@ public class ProgressBar : Control
 			}
 		}
 
-		if (CornerRadius > 0)
-			ctx.FillRoundedRect(fillRect, CornerRadius, fillColor);
+		if (mFillImage.HasValue && mFillImage.Value.IsValid)
+		{
+			ctx.DrawImageBrush(mFillImage.Value, fillRect);
+		}
 		else
-			ctx.FillRect(fillRect, fillColor);
+		{
+			if (CornerRadius > 0)
+				ctx.FillRoundedRect(fillRect, CornerRadius, fillColor);
+			else
+				ctx.FillRect(fillRect, fillColor);
+		}
 	}
 }
