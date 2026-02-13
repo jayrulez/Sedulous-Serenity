@@ -35,6 +35,7 @@ public class ComboBox : Control, IPopupOwner
 	{
 		IsFocusable = true;
 		IsTabStop = true;
+		Cursor = .Pointer;
 
 		// Setup selected text display
 		mSelectedText.SetParent(this);

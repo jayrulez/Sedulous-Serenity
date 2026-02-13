@@ -23,6 +23,7 @@ public class Button : ContentControl
 		// Buttons are focusable and respond to keyboard
 		IsFocusable = true;
 		IsTabStop = true;
+		Cursor = .Pointer;
 	}
 
 	/// Creates a new Button with text content.

@@ -156,6 +156,14 @@ static class InputMapping
 		case .ResizeNS:   return .ResizeNS;
 		case .ResizeNWSE: return .ResizeNWSE;
 		case .ResizeNESW: return .ResizeNESW;
+		case .ResizeNW:   return .ResizeNW;
+		case .ResizeN:    return .ResizeN;
+		case .ResizeNE:   return .ResizeNE;
+		case .ResizeE:    return .ResizeE;
+		case .ResizeSE:   return .ResizeSE;
+		case .ResizeS:    return .ResizeS;
+		case .ResizeSW:   return .ResizeSW;
+		case .ResizeW:    return .ResizeW;
 		}
 	}
 

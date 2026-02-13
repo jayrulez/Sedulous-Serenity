@@ -26,5 +26,21 @@ public enum CursorType
 	/// Diagonal resize cursor (NW-SE).
 	ResizeNWSE,
 	/// Diagonal resize cursor (NE-SW).
-	ResizeNESW
+	ResizeNESW,
+	/// Resize cursor for top-left corner.
+	ResizeNW,
+	/// Resize cursor for top edge.
+	ResizeN,
+	/// Resize cursor for top-right corner.
+	ResizeNE,
+	/// Resize cursor for right edge.
+	ResizeE,
+	/// Resize cursor for bottom-right corner.
+	ResizeSE,
+	/// Resize cursor for bottom edge.
+	ResizeS,
+	/// Resize cursor for bottom-left corner.
+	ResizeSW,
+	/// Resize cursor for left edge.
+	ResizeW
 }

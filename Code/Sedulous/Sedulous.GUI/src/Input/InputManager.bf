@@ -132,6 +132,13 @@ public class InputManager
 		}
 
 		let hitElement = mContext.HitTestLogical(x, y);
+
+		// Refresh hover state to match the hit test result.
+		// ProcessMouseMove (which normally maintains hover) only runs when
+		// the mouse physically moves. Without this, hover can become stale
+		// between clicks, causing Button.OnMouseUp's IsHovered check to fail.
+		UpdateHover(x, y, hitElement);
+
 		if (hitElement != null)
 		{
 			let args = scope MouseButtonEventArgs(x, y, button, modifiers);
@@ -175,6 +182,7 @@ public class InputManager
 		}
 
 		let hitElement = mContext.HitTestLogical(x, y);
+		UpdateHover(x, y, hitElement);
 		if (hitElement != null)
 		{
 			let args = scope MouseButtonEventArgs(x, y, button, modifiers);
@@ -304,6 +312,32 @@ public class InputManager
 	{
 		if (mHoveredElement.Id == elementId)
 			mHoveredElement = .Invalid;
+	}
+
+	// === Hover state management ===
+
+	/// Updates hover enter/leave state to match the given hit element.
+	/// Called from ProcessMouseDown/Up to keep IsHovered current even
+	/// when the mouse hasn't physically moved (no ProcessMouseMove call).
+	private void UpdateHover(float x, float y, UIElement hitElement)
+	{
+		let currentHovered = mHoveredElement.TryResolve();
+		if (hitElement != currentHovered)
+		{
+			if (currentHovered != null)
+			{
+				let leaveArgs = scope MouseEventArgs(x, y);
+				InvokeMouseLeave(currentHovered, leaveArgs);
+			}
+
+			mHoveredElement = hitElement;
+
+			if (hitElement != null)
+			{
+				let enterArgs = scope MouseEventArgs(x, y);
+				InvokeMouseEnter(hitElement, enterArgs);
+			}
+		}
 	}
 
 	// === Internal event invocation ===
