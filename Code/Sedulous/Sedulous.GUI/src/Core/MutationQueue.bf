@@ -104,7 +104,7 @@ public class MutationQueue
 	/// Called at the end of each frame by GUIContext.
 	public void Process(GUIContext context)
 	{
-		if (mPending.Count == 0)
+		if (mPending.Count == 0 && mQueuedActions.Count == 0)
 			return;
 
 		mProcessing = true;
