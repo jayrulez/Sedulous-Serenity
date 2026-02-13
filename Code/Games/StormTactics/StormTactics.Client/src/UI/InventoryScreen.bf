@@ -353,9 +353,8 @@ class InventoryScreen
 		else
 			mDetailSellPrice.Visibility = .Collapsed;
 
-		// Use button: show for consumables that don't need a target
-		bool canUse = mCachedInvMgr != null && mCachedInvMgr.CanUseItem(mSelectedItemId)
-			&& !mCachedInvMgr.ItemNeedsTarget(mSelectedItemId);
+		// Use button: show for all consumables (target selection handled by caller)
+		bool canUse = mCachedInvMgr != null && mCachedInvMgr.CanUseItem(mSelectedItemId);
 		mUseButton.Visibility = canUse ? .Visible : .Collapsed;
 
 		// Sell button: show for sellable items

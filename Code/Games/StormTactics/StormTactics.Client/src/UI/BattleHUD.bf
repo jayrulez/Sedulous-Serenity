@@ -44,6 +44,8 @@ struct RosterUnitInfo
 	public StringView mName;
 	public UnitClass mUnitClass;
 	public Rarity mRarity;
+	public int32 mLevel;
+	public int32 mStarLevel;
 	public bool mIsDeployed;
 	public int32 mHP;
 	public int32 mDamage;
@@ -829,7 +831,7 @@ class BattleHUD
 
 		for (int32 i = 0; i < 3; i++)
 		{
-			let star = new TextBlock("\u{2606}");
+			let star = new TextBlock("-");
 			star.FontSize = 28;
 			star.Foreground = Color(80, 80, 90);
 			mStarLabels[i] = star;
@@ -1055,7 +1057,7 @@ class BattleHUD
 		let dimColor = Color(80, 80, 90);
 		for (int32 i = 0; i < 3; i++)
 		{
-			mStarLabels[i].Text = i < stars ? "\u{2605}" : "\u{2606}";
+			mStarLabels[i].Text = i < stars ? "*" : "-";
 			mStarLabels[i].Foreground = i < stars ? goldColor : dimColor;
 		}
 
@@ -1092,7 +1094,7 @@ class BattleHUD
 	}
 
 	/// Show rewards in the result overlay. Call after ShowBattleResult.
-	public void ShowRewards(int32 gold, int32 exp, Span<RewardDisplayInfo> items)
+	public void ShowRewards(int32 gold, int32 exp, int32 gems, bool isFirstClear, Span<RewardDisplayInfo> items)
 	{
 		mRewardsPanel.Visibility = .Visible;
 
@@ -1105,6 +1107,25 @@ class BattleHUD
 		mRewardExpLabel.Text = expStr;
 
 		mRewardItemsPanel.ClearChildren();
+
+		if (gems > 0)
+		{
+			let gemStr = scope String();
+			gemStr.AppendF("Gems: +{}", gems);
+			let gemLabel = new TextBlock(gemStr);
+			gemLabel.Foreground = Color(200, 120, 255);
+			gemLabel.FontSize = 13;
+			mRewardItemsPanel.AddChild(gemLabel);
+		}
+
+		if (isFirstClear)
+		{
+			let fcLabel = new TextBlock("FIRST CLEAR BONUS!");
+			fcLabel.Foreground = Color(100, 200, 255);
+			fcLabel.FontSize = 13;
+			mRewardItemsPanel.AddChild(fcLabel);
+		}
+
 		for (let item in items)
 		{
 			let itemStr = scope String();
@@ -1285,13 +1306,16 @@ class BattleHUD
 			infoCol.Spacing = 1;
 			infoCol.VerticalAlignment = .Center;
 
-			let nameLabel = new TextBlock(info.mName);
+			let nameStr = scope String();
+			nameStr.AppendF("{} Lv.{}", info.mName, info.mLevel);
+			let nameLabel = new TextBlock(nameStr);
 			nameLabel.Foreground = info.mIsDeployed ? Color(150, 220, 150) : Color(220, 220, 230);
 			nameLabel.FontSize = 13;
 			infoCol.AddChild(nameLabel);
 
-			// Class + deployed indicator
+			// Class + star + deployed indicator
 			let detailStr = scope String();
+			detailStr.AppendF("{}* ", info.mStarLevel);
 			info.mUnitClass.ToString(detailStr);
 			if (info.mIsDeployed) detailStr.Append("  [D]");
 			let detailLabel = new TextBlock(detailStr);

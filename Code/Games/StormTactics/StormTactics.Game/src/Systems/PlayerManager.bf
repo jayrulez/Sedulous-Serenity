@@ -190,6 +190,22 @@ class PlayerManager
 	/// Get best star rating for a stage.
 	public int32 GetBestStars(int32 stageId) => mSave.GetBestStars(stageId);
 
+	/// Get sweep count for a stage.
+	public int32 GetSweepCount(int32 stageId) => mSave.GetSweepCount(stageId);
+
+	/// Check if a stage can be swept (has sweeps remaining).
+	public bool CanSweep(int32 stageId)
+	{
+		let stage = mConfigs.GetStage(stageId);
+		if (stage == null) return false;
+		if (GetBestStars(stageId) < 3) return false;
+		if (stage.mSweepLimit > 0 && mSave.GetSweepCount(stageId) >= stage.mSweepLimit) return false;
+		return true;
+	}
+
+	/// Increment sweep count for a stage.
+	public void IncrementSweepCount(int32 stageId) => mSave.IncrementSweepCount(stageId);
+
 	// --- Formation Slots ---
 
 	/// Get max formation slots for current hero level.

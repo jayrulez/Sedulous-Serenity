@@ -13,6 +13,10 @@ class StageConfig : ISerializable
 	public int32 mStaminaCost = 6;
 	public int32 mRecommendedPower;
 	public int32 mUnlockStageId; // Previous stage that must be cleared (0 = none)
+	public bool mIsBoss; // Chapter boss stage (special rewards, visual indicator)
+	public int32 mFirstClearGold; // Bonus gold on first clear (0 = none)
+	public int32 mFirstClearGems; // Bonus gems on first clear (0 = none)
+	public int32 mSweepLimit = 3; // Max sweeps per day (0 = unlimited)
 	public List<FormationSlot> mEnemyFormation = new .() ~ DeleteContainerAndItems!(_);
 	public List<RewardEntry> mRewards = new .() ~ DeleteContainerAndItems!(_);
 
@@ -27,6 +31,10 @@ class StageConfig : ISerializable
 		s.Int32("StaminaCost", ref mStaminaCost);
 		s.Int32("RecommendedPower", ref mRecommendedPower);
 		s.Int32("UnlockStageId", ref mUnlockStageId);
+		s.Bool("IsBoss", ref mIsBoss);
+		s.Int32("FirstClearGold", ref mFirstClearGold);
+		s.Int32("FirstClearGems", ref mFirstClearGems);
+		s.Int32("SweepLimit", ref mSweepLimit);
 		s.ObjectList("EnemyFormation", mEnemyFormation);
 		s.ObjectList("Rewards", mRewards);
 		return .Ok;

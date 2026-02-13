@@ -376,10 +376,7 @@ class RosterScreen
 			infoCol.AddChild(nameLabel);
 
 			let subStr = scope String();
-			subStr.AppendF("Lv.{} | ", owned.mLevel);
-			for (int32 s = 0; s < owned.mStarLevel; s++)
-				subStr.Append("\u{2605}");
-			subStr.AppendF(" | PWR:{}", stats.mPower);
+			subStr.AppendF("Lv.{} | {}* | PWR:{}", owned.mLevel, owned.mStarLevel, stats.mPower);
 
 			let subLabel = new TextBlock(subStr);
 			subLabel.Foreground = Color(140, 140, 160);
@@ -458,10 +455,7 @@ class RosterScreen
 
 		// Stars
 		let starStr = scope String();
-		for (int32 i = 0; i < owned.mStarLevel; i++)
-			starStr.Append("\u{2605}");
-		for (int32 i = owned.mStarLevel; i < 5; i++)
-			starStr.Append("\u{2606}");
+		starStr.AppendF("{}/5 Stars", owned.mStarLevel);
 		mDetailStars.Text = starStr;
 
 		// Level + EXP

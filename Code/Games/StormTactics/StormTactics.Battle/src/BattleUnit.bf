@@ -12,6 +12,8 @@ class BattleUnit
 	public UnitConfig mConfig;
 	public Force mForce;
 	public int32 mFormationSlot;
+	public int32 mLevel = 1;        // Display-only: unit level
+	public int32 mStarLevel = 1;    // Display-only: star level
 
 	// --- Position ---
 	public HexCoord mPosition;

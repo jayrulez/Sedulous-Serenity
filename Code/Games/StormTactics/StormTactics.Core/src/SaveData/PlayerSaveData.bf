@@ -104,6 +104,27 @@ class PlayerSaveData : ISerializable
 		mStageStars.Add(entry);
 	}
 
+	/// Get sweep count for a stage.
+	public int32 GetSweepCount(int32 stageId)
+	{
+		for (let ss in mStageStars)
+			if (ss.mStageId == stageId) return ss.mSweepCount;
+		return 0;
+	}
+
+	/// Increment sweep count for a stage.
+	public void IncrementSweepCount(int32 stageId)
+	{
+		for (let ss in mStageStars)
+		{
+			if (ss.mStageId == stageId)
+			{
+				ss.mSweepCount++;
+				return;
+			}
+		}
+	}
+
 	/// Find owned unit data by unit config ID. Returns null if not owned.
 	public OwnedUnitData GetOwnedUnit(int32 unitId)
 	{

@@ -1,302 +1,386 @@
 <root>
-  <array name="Items" count="5">
-    <!-- Stage 1: Plains of Dawn -->
+  <array name="Items" count="15">
+    <!-- ===== CHAPTER 1: The Verdant March ===== -->
+
+    <!-- Stage 1: Plains of Dawn — easy intro, 2 enemies -->
     <object>
       <int32 name="Id">1</int32>
       <string name="Name">Plains of Dawn</string>
       <int32 name="Chapter">1</int32>
       <int32 name="Difficulty">1</int32>
-      <int32 name="StaminaCost">6</int32>
+      <int32 name="StaminaCost">4</int32>
       <int32 name="RecommendedPower">100</int32>
       <int32 name="UnlockStageId">0</int32>
-      <array name="EnemyFormation" count="5">
-        <object>
-          <int32 name="UnitId">1</int32>
-          <int32 name="StarLevel">1</int32>
-          <int32 name="GridX">5</int32>
-          <int32 name="GridY">0</int32>
-        </object>
-        <object>
-          <int32 name="UnitId">1</int32>
-          <int32 name="StarLevel">1</int32>
-          <int32 name="GridX">5</int32>
-          <int32 name="GridY">1</int32>
-        </object>
-        <object>
-          <int32 name="UnitId">1</int32>
-          <int32 name="StarLevel">1</int32>
-          <int32 name="GridX">5</int32>
-          <int32 name="GridY">2</int32>
-        </object>
-        <object>
-          <int32 name="UnitId">3</int32>
-          <int32 name="StarLevel">1</int32>
-          <int32 name="GridX">6</int32>
-          <int32 name="GridY">0</int32>
-        </object>
-        <object>
-          <int32 name="UnitId">3</int32>
-          <int32 name="StarLevel">1</int32>
-          <int32 name="GridX">6</int32>
-          <int32 name="GridY">1</int32>
-        </object>
+      <bool name="IsBoss">false</bool>
+      <int32 name="FirstClearGold">200</int32>
+      <int32 name="FirstClearGems">10</int32>
+      <array name="EnemyFormation" count="2">
+        <object><int32 name="UnitId">1</int32><int32 name="StarLevel">1</int32><int32 name="GridX">5</int32><int32 name="GridY">0</int32></object>
+        <object><int32 name="UnitId">3</int32><int32 name="StarLevel">1</int32><int32 name="GridX">5</int32><int32 name="GridY">2</int32></object>
       </array>
       <array name="Rewards" count="2">
-        <object>
-          <int32 name="ItemId">1001</int32>
-          <int32 name="Quantity">100</int32>
-          <float name="DropChance">1</float>
-        </object>
-        <object>
-          <int32 name="ItemId">1003</int32>
-          <int32 name="Quantity">5</int32>
-          <float name="DropChance">1</float>
-        </object>
+        <object><int32 name="ItemId">1001</int32><int32 name="Quantity">100</int32><float name="DropChance">1</float></object>
+        <object><int32 name="ItemId">1003</int32><int32 name="Quantity">5</int32><float name="DropChance">1</float></object>
       </array>
     </object>
-    <!-- Stage 2: Forest Ambush -->
+
+    <!-- Stage 2: Forest Ambush — 3 enemies -->
     <object>
       <int32 name="Id">2</int32>
       <string name="Name">Forest Ambush</string>
       <int32 name="Chapter">1</int32>
       <int32 name="Difficulty">2</int32>
-      <int32 name="StaminaCost">6</int32>
+      <int32 name="StaminaCost">4</int32>
       <int32 name="RecommendedPower">200</int32>
       <int32 name="UnlockStageId">1</int32>
-      <array name="EnemyFormation" count="6">
-        <object>
-          <int32 name="UnitId">7</int32>
-          <int32 name="StarLevel">1</int32>
-          <int32 name="GridX">4</int32>
-          <int32 name="GridY">0</int32>
-        </object>
-        <object>
-          <int32 name="UnitId">7</int32>
-          <int32 name="StarLevel">1</int32>
-          <int32 name="GridX">4</int32>
-          <int32 name="GridY">1</int32>
-        </object>
-        <object>
-          <int32 name="UnitId">7</int32>
-          <int32 name="StarLevel">1</int32>
-          <int32 name="GridX">5</int32>
-          <int32 name="GridY">0</int32>
-        </object>
-        <object>
-          <int32 name="UnitId">7</int32>
-          <int32 name="StarLevel">1</int32>
-          <int32 name="GridX">5</int32>
-          <int32 name="GridY">1</int32>
-        </object>
-        <object>
-          <int32 name="UnitId">3</int32>
-          <int32 name="StarLevel">1</int32>
-          <int32 name="GridX">6</int32>
-          <int32 name="GridY">0</int32>
-        </object>
-        <object>
-          <int32 name="UnitId">4</int32>
-          <int32 name="StarLevel">1</int32>
-          <int32 name="GridX">6</int32>
-          <int32 name="GridY">2</int32>
-        </object>
+      <bool name="IsBoss">false</bool>
+      <int32 name="FirstClearGold">250</int32>
+      <int32 name="FirstClearGems">10</int32>
+      <array name="EnemyFormation" count="3">
+        <object><int32 name="UnitId">7</int32><int32 name="StarLevel">1</int32><int32 name="GridX">5</int32><int32 name="GridY">0</int32></object>
+        <object><int32 name="UnitId">7</int32><int32 name="StarLevel">1</int32><int32 name="GridX">5</int32><int32 name="GridY">1</int32></object>
+        <object><int32 name="UnitId">3</int32><int32 name="StarLevel">1</int32><int32 name="GridX">6</int32><int32 name="GridY">1</int32></object>
       </array>
       <array name="Rewards" count="2">
-        <object>
-          <int32 name="ItemId">1001</int32>
-          <int32 name="Quantity">150</int32>
-          <float name="DropChance">1</float>
-        </object>
-        <object>
-          <int32 name="ItemId">1004</int32>
-          <int32 name="Quantity">3</int32>
-          <float name="DropChance">1</float>
-        </object>
+        <object><int32 name="ItemId">1001</int32><int32 name="Quantity">150</int32><float name="DropChance">1</float></object>
+        <object><int32 name="ItemId">1004</int32><int32 name="Quantity">3</int32><float name="DropChance">1</float></object>
       </array>
     </object>
-    <!-- Stage 3: River Crossing -->
+
+    <!-- Stage 3: River Crossing — 4 enemies -->
     <object>
       <int32 name="Id">3</int32>
       <string name="Name">River Crossing</string>
       <int32 name="Chapter">1</int32>
       <int32 name="Difficulty">3</int32>
-      <int32 name="StaminaCost">8</int32>
+      <int32 name="StaminaCost">6</int32>
       <int32 name="RecommendedPower">350</int32>
       <int32 name="UnlockStageId">2</int32>
-      <array name="EnemyFormation" count="6">
-        <object>
-          <int32 name="UnitId">2</int32>
-          <int32 name="StarLevel">1</int32>
-          <int32 name="GridX">4</int32>
-          <int32 name="GridY">0</int32>
-        </object>
-        <object>
-          <int32 name="UnitId">2</int32>
-          <int32 name="StarLevel">1</int32>
-          <int32 name="GridX">4</int32>
-          <int32 name="GridY">2</int32>
-        </object>
-        <object>
-          <int32 name="UnitId">3</int32>
-          <int32 name="StarLevel">1</int32>
-          <int32 name="GridX">5</int32>
-          <int32 name="GridY">0</int32>
-        </object>
-        <object>
-          <int32 name="UnitId">3</int32>
-          <int32 name="StarLevel">1</int32>
-          <int32 name="GridX">5</int32>
-          <int32 name="GridY">1</int32>
-        </object>
-        <object>
-          <int32 name="UnitId">3</int32>
-          <int32 name="StarLevel">1</int32>
-          <int32 name="GridX">5</int32>
-          <int32 name="GridY">2</int32>
-        </object>
-        <object>
-          <int32 name="UnitId">5</int32>
-          <int32 name="StarLevel">1</int32>
-          <int32 name="GridX">6</int32>
-          <int32 name="GridY">1</int32>
-        </object>
+      <bool name="IsBoss">false</bool>
+      <int32 name="FirstClearGold">300</int32>
+      <int32 name="FirstClearGems">15</int32>
+      <array name="EnemyFormation" count="4">
+        <object><int32 name="UnitId">1</int32><int32 name="StarLevel">1</int32><int32 name="GridX">4</int32><int32 name="GridY">0</int32></object>
+        <object><int32 name="UnitId">1</int32><int32 name="StarLevel">1</int32><int32 name="GridX">4</int32><int32 name="GridY">2</int32></object>
+        <object><int32 name="UnitId">3</int32><int32 name="StarLevel">1</int32><int32 name="GridX">5</int32><int32 name="GridY">1</int32></object>
+        <object><int32 name="UnitId">5</int32><int32 name="StarLevel">1</int32><int32 name="GridX">6</int32><int32 name="GridY">1</int32></object>
       </array>
       <array name="Rewards" count="2">
-        <object>
-          <int32 name="ItemId">1001</int32>
-          <int32 name="Quantity">200</int32>
-          <float name="DropChance">1</float>
-        </object>
-        <object>
-          <int32 name="ItemId">1006</int32>
-          <int32 name="Quantity">5</int32>
-          <float name="DropChance">0.8</float>
-        </object>
+        <object><int32 name="ItemId">1001</int32><int32 name="Quantity">200</int32><float name="DropChance">1</float></object>
+        <object><int32 name="ItemId">1006</int32><int32 name="Quantity">5</int32><float name="DropChance">0.8</float></object>
       </array>
     </object>
-    <!-- Stage 4: Dark Citadel -->
+
+    <!-- Stage 4: Hilltop Siege — 4 enemies -->
     <object>
       <int32 name="Id">4</int32>
+      <string name="Name">Hilltop Siege</string>
+      <int32 name="Chapter">1</int32>
+      <int32 name="Difficulty">4</int32>
+      <int32 name="StaminaCost">6</int32>
+      <int32 name="RecommendedPower">450</int32>
+      <int32 name="UnlockStageId">3</int32>
+      <bool name="IsBoss">false</bool>
+      <int32 name="FirstClearGold">350</int32>
+      <int32 name="FirstClearGems">15</int32>
+      <array name="EnemyFormation" count="4">
+        <object><int32 name="UnitId">1</int32><int32 name="StarLevel">1</int32><int32 name="GridX">4</int32><int32 name="GridY">0</int32></object>
+        <object><int32 name="UnitId">1</int32><int32 name="StarLevel">1</int32><int32 name="GridX">4</int32><int32 name="GridY">2</int32></object>
+        <object><int32 name="UnitId">4</int32><int32 name="StarLevel">1</int32><int32 name="GridX">5</int32><int32 name="GridY">1</int32></object>
+        <object><int32 name="UnitId">5</int32><int32 name="StarLevel">1</int32><int32 name="GridX">6</int32><int32 name="GridY">1</int32></object>
+      </array>
+      <array name="Rewards" count="2">
+        <object><int32 name="ItemId">1001</int32><int32 name="Quantity">250</int32><float name="DropChance">1</float></object>
+        <object><int32 name="ItemId">1003</int32><int32 name="Quantity">10</int32><float name="DropChance">0.9</float></object>
+      </array>
+    </object>
+
+    <!-- Stage 5: Warden's Keep (BOSS) — 5 enemies -->
+    <object>
+      <int32 name="Id">5</int32>
+      <string name="Name">Warden's Keep</string>
+      <int32 name="Chapter">1</int32>
+      <int32 name="Difficulty">5</int32>
+      <int32 name="StaminaCost">8</int32>
+      <int32 name="RecommendedPower">600</int32>
+      <int32 name="UnlockStageId">4</int32>
+      <bool name="IsBoss">true</bool>
+      <int32 name="FirstClearGold">500</int32>
+      <int32 name="FirstClearGems">30</int32>
+      <array name="EnemyFormation" count="5">
+        <object><int32 name="UnitId">2</int32><int32 name="StarLevel">1</int32><int32 name="GridX">4</int32><int32 name="GridY">0</int32></object>
+        <object><int32 name="UnitId">2</int32><int32 name="StarLevel">1</int32><int32 name="GridX">4</int32><int32 name="GridY">2</int32></object>
+        <object><int32 name="UnitId">7</int32><int32 name="StarLevel">1</int32><int32 name="GridX">5</int32><int32 name="GridY">0</int32></object>
+        <object><int32 name="UnitId">7</int32><int32 name="StarLevel">1</int32><int32 name="GridX">5</int32><int32 name="GridY">2</int32></object>
+        <object><int32 name="UnitId">5</int32><int32 name="StarLevel">1</int32><int32 name="GridX">6</int32><int32 name="GridY">1</int32></object>
+      </array>
+      <array name="Rewards" count="3">
+        <object><int32 name="ItemId">1001</int32><int32 name="Quantity">400</int32><float name="DropChance">1</float></object>
+        <object><int32 name="ItemId">1006</int32><int32 name="Quantity">10</int32><float name="DropChance">1</float></object>
+        <object><int32 name="ItemId">1002</int32><int32 name="Quantity">30</int32><float name="DropChance">1</float></object>
+      </array>
+    </object>
+
+    <!-- ===== CHAPTER 2: The Dark Frontier ===== -->
+
+    <!-- Stage 6: Dark Citadel — 5 enemies -->
+    <object>
+      <int32 name="Id">6</int32>
       <string name="Name">Dark Citadel</string>
       <int32 name="Chapter">2</int32>
       <int32 name="Difficulty">5</int32>
-      <int32 name="StaminaCost">10</int32>
-      <int32 name="RecommendedPower">500</int32>
-      <int32 name="UnlockStageId">3</int32>
-      <array name="EnemyFormation" count="6">
-        <object>
-          <int32 name="UnitId">7</int32>
-          <int32 name="StarLevel">1</int32>
-          <int32 name="GridX">4</int32>
-          <int32 name="GridY">0</int32>
-        </object>
-        <object>
-          <int32 name="UnitId">7</int32>
-          <int32 name="StarLevel">1</int32>
-          <int32 name="GridX">4</int32>
-          <int32 name="GridY">1</int32>
-        </object>
-        <object>
-          <int32 name="UnitId">7</int32>
-          <int32 name="StarLevel">1</int32>
-          <int32 name="GridX">4</int32>
-          <int32 name="GridY">2</int32>
-        </object>
-        <object>
-          <int32 name="UnitId">9</int32>
-          <int32 name="StarLevel">1</int32>
-          <int32 name="GridX">5</int32>
-          <int32 name="GridY">0</int32>
-        </object>
-        <object>
-          <int32 name="UnitId">9</int32>
-          <int32 name="StarLevel">1</int32>
-          <int32 name="GridX">5</int32>
-          <int32 name="GridY">2</int32>
-        </object>
-        <object>
-          <int32 name="UnitId">10</int32>
-          <int32 name="StarLevel">1</int32>
-          <int32 name="GridX">6</int32>
-          <int32 name="GridY">1</int32>
-        </object>
+      <int32 name="StaminaCost">8</int32>
+      <int32 name="RecommendedPower">700</int32>
+      <int32 name="UnlockStageId">5</int32>
+      <bool name="IsBoss">false</bool>
+      <int32 name="FirstClearGold">400</int32>
+      <int32 name="FirstClearGems">15</int32>
+      <array name="EnemyFormation" count="5">
+        <object><int32 name="UnitId">7</int32><int32 name="StarLevel">1</int32><int32 name="GridX">4</int32><int32 name="GridY">0</int32></object>
+        <object><int32 name="UnitId">7</int32><int32 name="StarLevel">1</int32><int32 name="GridX">4</int32><int32 name="GridY">2</int32></object>
+        <object><int32 name="UnitId">9</int32><int32 name="StarLevel">1</int32><int32 name="GridX">5</int32><int32 name="GridY">0</int32></object>
+        <object><int32 name="UnitId">9</int32><int32 name="StarLevel">1</int32><int32 name="GridX">5</int32><int32 name="GridY">2</int32></object>
+        <object><int32 name="UnitId">10</int32><int32 name="StarLevel">1</int32><int32 name="GridX">6</int32><int32 name="GridY">1</int32></object>
       </array>
       <array name="Rewards" count="2">
-        <object>
-          <int32 name="ItemId">1001</int32>
-          <int32 name="Quantity">300</int32>
-          <float name="DropChance">1</float>
-        </object>
-        <object>
-          <int32 name="ItemId">1008</int32>
-          <int32 name="Quantity">3</int32>
-          <float name="DropChance">0.7</float>
-        </object>
+        <object><int32 name="ItemId">1001</int32><int32 name="Quantity">300</int32><float name="DropChance">1</float></object>
+        <object><int32 name="ItemId">1008</int32><int32 name="Quantity">3</int32><float name="DropChance">0.7</float></object>
       </array>
     </object>
-    <!-- Stage 5: Sky Fortress -->
+
+    <!-- Stage 7: Ruined Passage — 5 enemies -->
     <object>
-      <int32 name="Id">5</int32>
-      <string name="Name">Sky Fortress</string>
+      <int32 name="Id">7</int32>
+      <string name="Name">Ruined Passage</string>
+      <int32 name="Chapter">2</int32>
+      <int32 name="Difficulty">6</int32>
+      <int32 name="StaminaCost">8</int32>
+      <int32 name="RecommendedPower">800</int32>
+      <int32 name="UnlockStageId">6</int32>
+      <bool name="IsBoss">false</bool>
+      <int32 name="FirstClearGold">450</int32>
+      <int32 name="FirstClearGems">15</int32>
+      <array name="EnemyFormation" count="5">
+        <object><int32 name="UnitId">8</int32><int32 name="StarLevel">1</int32><int32 name="GridX">4</int32><int32 name="GridY">0</int32></object>
+        <object><int32 name="UnitId">8</int32><int32 name="StarLevel">1</int32><int32 name="GridX">4</int32><int32 name="GridY">2</int32></object>
+        <object><int32 name="UnitId">3</int32><int32 name="StarLevel">1</int32><int32 name="GridX">5</int32><int32 name="GridY">1</int32></object>
+        <object><int32 name="UnitId">4</int32><int32 name="StarLevel">1</int32><int32 name="GridX">6</int32><int32 name="GridY">0</int32></object>
+        <object><int32 name="UnitId">5</int32><int32 name="StarLevel">1</int32><int32 name="GridX">6</int32><int32 name="GridY">1</int32></object>
+      </array>
+      <array name="Rewards" count="2">
+        <object><int32 name="ItemId">1001</int32><int32 name="Quantity">350</int32><float name="DropChance">1</float></object>
+        <object><int32 name="ItemId">1004</int32><int32 name="Quantity">5</int32><float name="DropChance">0.8</float></object>
+      </array>
+    </object>
+
+    <!-- Stage 8: Cursed Graveyard — 5 enemies -->
+    <object>
+      <int32 name="Id">8</int32>
+      <string name="Name">Cursed Graveyard</string>
+      <int32 name="Chapter">2</int32>
+      <int32 name="Difficulty">7</int32>
+      <int32 name="StaminaCost">10</int32>
+      <int32 name="RecommendedPower">950</int32>
+      <int32 name="UnlockStageId">7</int32>
+      <bool name="IsBoss">false</bool>
+      <int32 name="FirstClearGold">500</int32>
+      <int32 name="FirstClearGems">20</int32>
+      <array name="EnemyFormation" count="5">
+        <object><int32 name="UnitId">9</int32><int32 name="StarLevel">1</int32><int32 name="GridX">4</int32><int32 name="GridY">0</int32></object>
+        <object><int32 name="UnitId">9</int32><int32 name="StarLevel">1</int32><int32 name="GridX">4</int32><int32 name="GridY">2</int32></object>
+        <object><int32 name="UnitId">7</int32><int32 name="StarLevel">1</int32><int32 name="GridX">5</int32><int32 name="GridY">1</int32></object>
+        <object><int32 name="UnitId">6</int32><int32 name="StarLevel">1</int32><int32 name="GridX">6</int32><int32 name="GridY">0</int32></object>
+        <object><int32 name="UnitId">5</int32><int32 name="StarLevel">1</int32><int32 name="GridX">6</int32><int32 name="GridY">1</int32></object>
+      </array>
+      <array name="Rewards" count="2">
+        <object><int32 name="ItemId">1001</int32><int32 name="Quantity">400</int32><float name="DropChance">1</float></object>
+        <object><int32 name="ItemId">1007</int32><int32 name="Quantity">3</int32><float name="DropChance">0.7</float></object>
+      </array>
+    </object>
+
+    <!-- Stage 9: Shadow Gate — 5 enemies -->
+    <object>
+      <int32 name="Id">9</int32>
+      <string name="Name">Shadow Gate</string>
       <int32 name="Chapter">2</int32>
       <int32 name="Difficulty">8</int32>
+      <int32 name="StaminaCost">10</int32>
+      <int32 name="RecommendedPower">1100</int32>
+      <int32 name="UnlockStageId">8</int32>
+      <bool name="IsBoss">false</bool>
+      <int32 name="FirstClearGold">550</int32>
+      <int32 name="FirstClearGems">20</int32>
+      <array name="EnemyFormation" count="5">
+        <object><int32 name="UnitId">2</int32><int32 name="StarLevel">1</int32><int32 name="GridX">4</int32><int32 name="GridY">0</int32></object>
+        <object><int32 name="UnitId">2</int32><int32 name="StarLevel">1</int32><int32 name="GridX">4</int32><int32 name="GridY">2</int32></object>
+        <object><int32 name="UnitId">10</int32><int32 name="StarLevel">1</int32><int32 name="GridX">5</int32><int32 name="GridY">1</int32></object>
+        <object><int32 name="UnitId">8</int32><int32 name="StarLevel">1</int32><int32 name="GridX">6</int32><int32 name="GridY">0</int32></object>
+        <object><int32 name="UnitId">5</int32><int32 name="StarLevel">1</int32><int32 name="GridX">6</int32><int32 name="GridY">1</int32></object>
+      </array>
+      <array name="Rewards" count="2">
+        <object><int32 name="ItemId">1001</int32><int32 name="Quantity">450</int32><float name="DropChance">1</float></object>
+        <object><int32 name="ItemId">1008</int32><int32 name="Quantity">5</int32><float name="DropChance">0.8</float></object>
+      </array>
+    </object>
+
+    <!-- Stage 10: Sky Fortress (BOSS) — 6 enemies -->
+    <object>
+      <int32 name="Id">10</int32>
+      <string name="Name">Sky Fortress</string>
+      <int32 name="Chapter">2</int32>
+      <int32 name="Difficulty">10</int32>
       <int32 name="StaminaCost">12</int32>
-      <int32 name="RecommendedPower">800</int32>
-      <int32 name="UnlockStageId">4</int32>
+      <int32 name="RecommendedPower">1300</int32>
+      <int32 name="UnlockStageId">9</int32>
+      <bool name="IsBoss">true</bool>
+      <int32 name="FirstClearGold">800</int32>
+      <int32 name="FirstClearGems">50</int32>
       <array name="EnemyFormation" count="6">
-        <object>
-          <int32 name="UnitId">8</int32>
-          <int32 name="StarLevel">1</int32>
-          <int32 name="GridX">4</int32>
-          <int32 name="GridY">0</int32>
-        </object>
-        <object>
-          <int32 name="UnitId">8</int32>
-          <int32 name="StarLevel">1</int32>
-          <int32 name="GridX">4</int32>
-          <int32 name="GridY">2</int32>
-        </object>
-        <object>
-          <int32 name="UnitId">6</int32>
-          <int32 name="StarLevel">1</int32>
-          <int32 name="GridX">6</int32>
-          <int32 name="GridY">0</int32>
-        </object>
-        <object>
-          <int32 name="UnitId">6</int32>
-          <int32 name="StarLevel">1</int32>
-          <int32 name="GridX">6</int32>
-          <int32 name="GridY">2</int32>
-        </object>
-        <object>
-          <int32 name="UnitId">2</int32>
-          <int32 name="StarLevel">1</int32>
-          <int32 name="GridX">5</int32>
-          <int32 name="GridY">1</int32>
-        </object>
-        <object>
-          <int32 name="UnitId">5</int32>
-          <int32 name="StarLevel">1</int32>
-          <int32 name="GridX">6</int32>
-          <int32 name="GridY">1</int32>
-        </object>
+        <object><int32 name="UnitId">8</int32><int32 name="StarLevel">1</int32><int32 name="GridX">4</int32><int32 name="GridY">0</int32></object>
+        <object><int32 name="UnitId">8</int32><int32 name="StarLevel">1</int32><int32 name="GridX">4</int32><int32 name="GridY">2</int32></object>
+        <object><int32 name="UnitId">6</int32><int32 name="StarLevel">1</int32><int32 name="GridX">5</int32><int32 name="GridY">0</int32></object>
+        <object><int32 name="UnitId">2</int32><int32 name="StarLevel">1</int32><int32 name="GridX">5</int32><int32 name="GridY">1</int32></object>
+        <object><int32 name="UnitId">10</int32><int32 name="StarLevel">1</int32><int32 name="GridX">6</int32><int32 name="GridY">1</int32></object>
+        <object><int32 name="UnitId">5</int32><int32 name="StarLevel">1</int32><int32 name="GridX">6</int32><int32 name="GridY">0</int32></object>
       </array>
       <array name="Rewards" count="3">
-        <object>
-          <int32 name="ItemId">1001</int32>
-          <int32 name="Quantity">500</int32>
-          <float name="DropChance">1</float>
-        </object>
-        <object>
-          <int32 name="ItemId">1007</int32>
-          <int32 name="Quantity">5</int32>
-          <float name="DropChance">0.6</float>
-        </object>
-        <object>
-          <int32 name="ItemId">1002</int32>
-          <int32 name="Quantity">50</int32>
-          <float name="DropChance">1</float>
-        </object>
+        <object><int32 name="ItemId">1001</int32><int32 name="Quantity">600</int32><float name="DropChance">1</float></object>
+        <object><int32 name="ItemId">1007</int32><int32 name="Quantity">8</int32><float name="DropChance">1</float></object>
+        <object><int32 name="ItemId">1002</int32><int32 name="Quantity">50</int32><float name="DropChance">1</float></object>
+      </array>
+    </object>
+
+    <!-- ===== CHAPTER 3: The Burning Wastes ===== -->
+
+    <!-- Stage 11: Scorched Plains — 6 enemies -->
+    <object>
+      <int32 name="Id">11</int32>
+      <string name="Name">Scorched Plains</string>
+      <int32 name="Chapter">3</int32>
+      <int32 name="Difficulty">10</int32>
+      <int32 name="StaminaCost">12</int32>
+      <int32 name="RecommendedPower">1500</int32>
+      <int32 name="UnlockStageId">10</int32>
+      <bool name="IsBoss">false</bool>
+      <int32 name="FirstClearGold">600</int32>
+      <int32 name="FirstClearGems">20</int32>
+      <array name="EnemyFormation" count="6">
+        <object><int32 name="UnitId">9</int32><int32 name="StarLevel">1</int32><int32 name="GridX">4</int32><int32 name="GridY">0</int32></object>
+        <object><int32 name="UnitId">9</int32><int32 name="StarLevel">1</int32><int32 name="GridX">4</int32><int32 name="GridY">2</int32></object>
+        <object><int32 name="UnitId">10</int32><int32 name="StarLevel">1</int32><int32 name="GridX">5</int32><int32 name="GridY">0</int32></object>
+        <object><int32 name="UnitId">10</int32><int32 name="StarLevel">1</int32><int32 name="GridX">5</int32><int32 name="GridY">2</int32></object>
+        <object><int32 name="UnitId">6</int32><int32 name="StarLevel">1</int32><int32 name="GridX">6</int32><int32 name="GridY">0</int32></object>
+        <object><int32 name="UnitId">5</int32><int32 name="StarLevel">1</int32><int32 name="GridX">6</int32><int32 name="GridY">1</int32></object>
+      </array>
+      <array name="Rewards" count="2">
+        <object><int32 name="ItemId">1001</int32><int32 name="Quantity">500</int32><float name="DropChance">1</float></object>
+        <object><int32 name="ItemId">1008</int32><int32 name="Quantity">5</int32><float name="DropChance">0.8</float></object>
+      </array>
+    </object>
+
+    <!-- Stage 12: Molten Rift — 6 enemies -->
+    <object>
+      <int32 name="Id">12</int32>
+      <string name="Name">Molten Rift</string>
+      <int32 name="Chapter">3</int32>
+      <int32 name="Difficulty">12</int32>
+      <int32 name="StaminaCost">12</int32>
+      <int32 name="RecommendedPower">1700</int32>
+      <int32 name="UnlockStageId">11</int32>
+      <bool name="IsBoss">false</bool>
+      <int32 name="FirstClearGold">700</int32>
+      <int32 name="FirstClearGems">25</int32>
+      <array name="EnemyFormation" count="6">
+        <object><int32 name="UnitId">8</int32><int32 name="StarLevel">1</int32><int32 name="GridX">4</int32><int32 name="GridY">0</int32></object>
+        <object><int32 name="UnitId">8</int32><int32 name="StarLevel">1</int32><int32 name="GridX">4</int32><int32 name="GridY">2</int32></object>
+        <object><int32 name="UnitId">2</int32><int32 name="StarLevel">1</int32><int32 name="GridX">5</int32><int32 name="GridY">0</int32></object>
+        <object><int32 name="UnitId">2</int32><int32 name="StarLevel">1</int32><int32 name="GridX">5</int32><int32 name="GridY">2</int32></object>
+        <object><int32 name="UnitId">10</int32><int32 name="StarLevel">1</int32><int32 name="GridX">6</int32><int32 name="GridY">0</int32></object>
+        <object><int32 name="UnitId">5</int32><int32 name="StarLevel">1</int32><int32 name="GridX">6</int32><int32 name="GridY">1</int32></object>
+      </array>
+      <array name="Rewards" count="2">
+        <object><int32 name="ItemId">1001</int32><int32 name="Quantity">550</int32><float name="DropChance">1</float></object>
+        <object><int32 name="ItemId">1007</int32><int32 name="Quantity">5</int32><float name="DropChance">0.7</float></object>
+      </array>
+    </object>
+
+    <!-- Stage 13: Ashen Stronghold — 6 enemies -->
+    <object>
+      <int32 name="Id">13</int32>
+      <string name="Name">Ashen Stronghold</string>
+      <int32 name="Chapter">3</int32>
+      <int32 name="Difficulty">14</int32>
+      <int32 name="StaminaCost">14</int32>
+      <int32 name="RecommendedPower">2000</int32>
+      <int32 name="UnlockStageId">12</int32>
+      <bool name="IsBoss">false</bool>
+      <int32 name="FirstClearGold">800</int32>
+      <int32 name="FirstClearGems">25</int32>
+      <array name="EnemyFormation" count="6">
+        <object><int32 name="UnitId">2</int32><int32 name="StarLevel">1</int32><int32 name="GridX">4</int32><int32 name="GridY">0</int32></object>
+        <object><int32 name="UnitId">2</int32><int32 name="StarLevel">1</int32><int32 name="GridX">4</int32><int32 name="GridY">2</int32></object>
+        <object><int32 name="UnitId">10</int32><int32 name="StarLevel">1</int32><int32 name="GridX">5</int32><int32 name="GridY">0</int32></object>
+        <object><int32 name="UnitId">10</int32><int32 name="StarLevel">1</int32><int32 name="GridX">5</int32><int32 name="GridY">2</int32></object>
+        <object><int32 name="UnitId">6</int32><int32 name="StarLevel">1</int32><int32 name="GridX">6</int32><int32 name="GridY">0</int32></object>
+        <object><int32 name="UnitId">5</int32><int32 name="StarLevel">1</int32><int32 name="GridX">6</int32><int32 name="GridY">1</int32></object>
+      </array>
+      <array name="Rewards" count="2">
+        <object><int32 name="ItemId">1001</int32><int32 name="Quantity">600</int32><float name="DropChance">1</float></object>
+        <object><int32 name="ItemId">1006</int32><int32 name="Quantity">15</int32><float name="DropChance">0.9</float></object>
+      </array>
+    </object>
+
+    <!-- Stage 14: Ember Canyon — 6 enemies -->
+    <object>
+      <int32 name="Id">14</int32>
+      <string name="Name">Ember Canyon</string>
+      <int32 name="Chapter">3</int32>
+      <int32 name="Difficulty">16</int32>
+      <int32 name="StaminaCost">14</int32>
+      <int32 name="RecommendedPower">2300</int32>
+      <int32 name="UnlockStageId">13</int32>
+      <bool name="IsBoss">false</bool>
+      <int32 name="FirstClearGold">900</int32>
+      <int32 name="FirstClearGems">30</int32>
+      <array name="EnemyFormation" count="6">
+        <object><int32 name="UnitId">9</int32><int32 name="StarLevel">1</int32><int32 name="GridX">4</int32><int32 name="GridY">0</int32></object>
+        <object><int32 name="UnitId">9</int32><int32 name="StarLevel">1</int32><int32 name="GridX">4</int32><int32 name="GridY">2</int32></object>
+        <object><int32 name="UnitId">10</int32><int32 name="StarLevel">1</int32><int32 name="GridX">5</int32><int32 name="GridY">1</int32></object>
+        <object><int32 name="UnitId">7</int32><int32 name="StarLevel">1</int32><int32 name="GridX">5</int32><int32 name="GridY">0</int32></object>
+        <object><int32 name="UnitId">6</int32><int32 name="StarLevel">1</int32><int32 name="GridX">6</int32><int32 name="GridY">0</int32></object>
+        <object><int32 name="UnitId">5</int32><int32 name="StarLevel">1</int32><int32 name="GridX">6</int32><int32 name="GridY">1</int32></object>
+      </array>
+      <array name="Rewards" count="2">
+        <object><int32 name="ItemId">1001</int32><int32 name="Quantity">700</int32><float name="DropChance">1</float></object>
+        <object><int32 name="ItemId">1008</int32><int32 name="Quantity">8</int32><float name="DropChance">0.8</float></object>
+      </array>
+    </object>
+
+    <!-- Stage 15: Inferno Throne (BOSS) — 7 enemies -->
+    <object>
+      <int32 name="Id">15</int32>
+      <string name="Name">Inferno Throne</string>
+      <int32 name="Chapter">3</int32>
+      <int32 name="Difficulty">20</int32>
+      <int32 name="StaminaCost">16</int32>
+      <int32 name="RecommendedPower">2800</int32>
+      <int32 name="UnlockStageId">14</int32>
+      <bool name="IsBoss">true</bool>
+      <int32 name="FirstClearGold">1500</int32>
+      <int32 name="FirstClearGems">100</int32>
+      <array name="EnemyFormation" count="7">
+        <object><int32 name="UnitId">2</int32><int32 name="StarLevel">1</int32><int32 name="GridX">4</int32><int32 name="GridY">0</int32></object>
+        <object><int32 name="UnitId">2</int32><int32 name="StarLevel">1</int32><int32 name="GridX">4</int32><int32 name="GridY">2</int32></object>
+        <object><int32 name="UnitId">10</int32><int32 name="StarLevel">1</int32><int32 name="GridX">5</int32><int32 name="GridY">0</int32></object>
+        <object><int32 name="UnitId">10</int32><int32 name="StarLevel">1</int32><int32 name="GridX">5</int32><int32 name="GridY">2</int32></object>
+        <object><int32 name="UnitId">8</int32><int32 name="StarLevel">1</int32><int32 name="GridX">5</int32><int32 name="GridY">1</int32></object>
+        <object><int32 name="UnitId">8</int32><int32 name="StarLevel">1</int32><int32 name="GridX">6</int32><int32 name="GridY">0</int32></object>
+        <object><int32 name="UnitId">5</int32><int32 name="StarLevel">1</int32><int32 name="GridX">6</int32><int32 name="GridY">1</int32></object>
+      </array>
+      <array name="Rewards" count="3">
+        <object><int32 name="ItemId">1001</int32><int32 name="Quantity">1000</int32><float name="DropChance">1</float></object>
+        <object><int32 name="ItemId">1007</int32><int32 name="Quantity">15</int32><float name="DropChance">1</float></object>
+        <object><int32 name="ItemId">1002</int32><int32 name="Quantity">100</int32><float name="DropChance">1</float></object>
       </array>
     </object>
   </array>

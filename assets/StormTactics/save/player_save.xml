@@ -1,59 +1,91 @@
 <root>
 	<object name="PlayerData">
-		<int32 name="HeroLevel">2</int32>
-		<int32 name="HeroExp">90</int32>
-		<int32 name="Gold">640</int32>
-		<int32 name="Gems">3870</int32>
+		<int32 name="HeroLevel">5</int32>
+		<int32 name="HeroExp">990</int32>
+		<int32 name="Gold">51375</int32>
+		<int32 name="Gems">3950</int32>
 		<int32 name="ArenaTokens">0</int32>
 		<int32 name="GuildTokens">0</int32>
-		<int32 name="Stamina">16</int32>
-		<int64 name="LastStaminaTime">1770971082</int64>
-		<int32 name="MaxStageClearedId">2</int32>
-		<array name="StageStars" count="2">
+		<int32 name="Stamina">116</int32>
+		<int64 name="LastStaminaTime">1771025145</int64>
+		<int32 name="MaxStageClearedId">5</int32>
+		<array name="StageStars" count="5">
 			<object>
 				<int32 name="StageId">1</int32>
-				<int32 name="Stars">2</int32>
+				<int32 name="Stars">3</int32>
 			</object>
 			<object>
 				<int32 name="StageId">2</int32>
 				<int32 name="Stars">2</int32>
 			</object>
+			<object>
+				<int32 name="StageId">3</int32>
+				<int32 name="Stars">2</int32>
+			</object>
+			<object>
+				<int32 name="StageId">4</int32>
+				<int32 name="Stars">2</int32>
+			</object>
+			<object>
+				<int32 name="StageId">5</int32>
+				<int32 name="Stars">1</int32>
+			</object>
 		</array>
-		<array name="OwnedUnits" count="8">
+		<array name="OwnedUnits" count="10">
 			<object>
 				<int32 name="UnitId">1</int32>
 				<int32 name="StarLevel">2</int32>
-				<int32 name="Shards">5</int32>
-				<int32 name="Level">1</int32>
+				<int32 name="Shards">15</int32>
+				<int32 name="Level">6</int32>
 				<int32 name="Exp">0</int32>
-				<int32 name="EquipWeaponId">0</int32>
+				<int32 name="EquipWeaponId">6</int32>
 				<int32 name="EquipArmorId">0</int32>
+				<int32 name="EquipAccessoryId">5</int32>
+			</object>
+			<object>
+				<int32 name="UnitId">2</int32>
+				<int32 name="StarLevel">2</int32>
+				<int32 name="Shards">45</int32>
+				<int32 name="Level">7</int32>
+				<int32 name="Exp">400</int32>
+				<int32 name="EquipWeaponId">2</int32>
+				<int32 name="EquipArmorId">3</int32>
 				<int32 name="EquipAccessoryId">0</int32>
 			</object>
 			<object>
 				<int32 name="UnitId">3</int32>
-				<int32 name="StarLevel">1</int32>
-				<int32 name="Shards">20</int32>
-				<int32 name="Level">1</int32>
-				<int32 name="Exp">0</int32>
+				<int32 name="StarLevel">2</int32>
+				<int32 name="Shards">10</int32>
+				<int32 name="Level">6</int32>
+				<int32 name="Exp">100</int32>
+				<int32 name="EquipWeaponId">1</int32>
+				<int32 name="EquipArmorId">4</int32>
+				<int32 name="EquipAccessoryId">0</int32>
+			</object>
+			<object>
+				<int32 name="UnitId">4</int32>
+				<int32 name="StarLevel">2</int32>
+				<int32 name="Shards">45</int32>
+				<int32 name="Level">7</int32>
+				<int32 name="Exp">400</int32>
 				<int32 name="EquipWeaponId">0</int32>
 				<int32 name="EquipArmorId">0</int32>
 				<int32 name="EquipAccessoryId">0</int32>
 			</object>
 			<object>
 				<int32 name="UnitId">5</int32>
-				<int32 name="StarLevel">1</int32>
+				<int32 name="StarLevel">2</int32>
 				<int32 name="Shards">0</int32>
-				<int32 name="Level">1</int32>
-				<int32 name="Exp">0</int32>
+				<int32 name="Level">8</int32>
+				<int32 name="Exp">100</int32>
 				<int32 name="EquipWeaponId">0</int32>
 				<int32 name="EquipArmorId">0</int32>
 				<int32 name="EquipAccessoryId">0</int32>
 			</object>
 			<object>
-				<int32 name="UnitId">8</int32>
+				<int32 name="UnitId">6</int32>
 				<int32 name="StarLevel">1</int32>
-				<int32 name="Shards">120</int32>
+				<int32 name="Shards">60</int32>
 				<int32 name="Level">1</int32>
 				<int32 name="Exp">0</int32>
 				<int32 name="EquipWeaponId">0</int32>
@@ -63,7 +95,7 @@
 			<object>
 				<int32 name="UnitId">9</int32>
 				<int32 name="StarLevel">1</int32>
-				<int32 name="Shards">15</int32>
+				<int32 name="Shards">45</int32>
 				<int32 name="Level">1</int32>
 				<int32 name="Exp">0</int32>
 				<int32 name="EquipWeaponId">0</int32>
@@ -71,19 +103,9 @@
 				<int32 name="EquipAccessoryId">0</int32>
 			</object>
 			<object>
-				<int32 name="UnitId">2</int32>
+				<int32 name="UnitId">10</int32>
 				<int32 name="StarLevel">1</int32>
-				<int32 name="Shards">15</int32>
-				<int32 name="Level">1</int32>
-				<int32 name="Exp">0</int32>
-				<int32 name="EquipWeaponId">0</int32>
-				<int32 name="EquipArmorId">0</int32>
-				<int32 name="EquipAccessoryId">0</int32>
-			</object>
-			<object>
-				<int32 name="UnitId">4</int32>
-				<int32 name="StarLevel">2</int32>
-				<int32 name="Shards">10</int32>
+				<int32 name="Shards">0</int32>
 				<int32 name="Level">1</int32>
 				<int32 name="Exp">0</int32>
 				<int32 name="EquipWeaponId">0</int32>
@@ -93,7 +115,17 @@
 			<object>
 				<int32 name="UnitId">7</int32>
 				<int32 name="StarLevel">1</int32>
-				<int32 name="Shards">10</int32>
+				<int32 name="Shards">5</int32>
+				<int32 name="Level">1</int32>
+				<int32 name="Exp">0</int32>
+				<int32 name="EquipWeaponId">0</int32>
+				<int32 name="EquipArmorId">0</int32>
+				<int32 name="EquipAccessoryId">0</int32>
+			</object>
+			<object>
+				<int32 name="UnitId">8</int32>
+				<int32 name="StarLevel">1</int32>
+				<int32 name="Shards">0</int32>
 				<int32 name="Level">1</int32>
 				<int32 name="Exp">0</int32>
 				<int32 name="EquipWeaponId">0</int32>
@@ -101,118 +133,187 @@
 				<int32 name="EquipAccessoryId">0</int32>
 			</object>
 		</array>
-		<array name="Inventory" count="6">
-			<object>
-				<int32 name="ItemId">1005</int32>
-				<int32 name="Quantity">50</int32>
-			</object>
+		<array name="Inventory" count="10">
 			<object>
 				<int32 name="ItemId">1003</int32>
-				<int32 name="Quantity">55</int32>
-			</object>
-			<object>
-				<int32 name="ItemId">1006</int32>
-				<int32 name="Quantity">3</int32>
+				<int32 name="Quantity">165</int32>
 			</object>
 			<object>
 				<int32 name="ItemId">1004</int32>
-				<int32 name="Quantity">18</int32>
+				<int32 name="Quantity">60</int32>
+			</object>
+			<object>
+				<int32 name="ItemId">1005</int32>
+				<int32 name="Quantity">69</int32>
+			</object>
+			<object>
+				<int32 name="ItemId">1006</int32>
+				<int32 name="Quantity">48</int32>
+			</object>
+			<object>
+				<int32 name="ItemId">1007</int32>
+				<int32 name="Quantity">30</int32>
 			</object>
 			<object>
 				<int32 name="ItemId">1008</int32>
-				<int32 name="Quantity">1</int32>
+				<int32 name="Quantity">33</int32>
+			</object>
+			<object>
+				<int32 name="ItemId">1009</int32>
+				<int32 name="Quantity">10</int32>
+			</object>
+			<object>
+				<int32 name="ItemId">1012</int32>
+				<int32 name="Quantity">49</int32>
 			</object>
 			<object>
 				<int32 name="ItemId">1001</int32>
-				<int32 name="Quantity">250</int32>
+				<int32 name="Quantity">2700</int32>
+			</object>
+			<object>
+				<int32 name="ItemId">1002</int32>
+				<int32 name="Quantity">30</int32>
 			</object>
 		</array>
-		<array name="OwnedEquips" count="0"/>
-		<int32 name="NextEquipInstanceId">1</int32>
+		<array name="OwnedEquips" count="6">
+			<object>
+				<int32 name="InstanceId">1</int32>
+				<int32 name="EquipId">301</int32>
+				<int32 name="EnhanceLevel">0</int32>
+			</object>
+			<object>
+				<int32 name="InstanceId">2</int32>
+				<int32 name="EquipId">301</int32>
+				<int32 name="EnhanceLevel">0</int32>
+			</object>
+			<object>
+				<int32 name="InstanceId">3</int32>
+				<int32 name="EquipId">302</int32>
+				<int32 name="EnhanceLevel">0</int32>
+			</object>
+			<object>
+				<int32 name="InstanceId">4</int32>
+				<int32 name="EquipId">302</int32>
+				<int32 name="EnhanceLevel">0</int32>
+			</object>
+			<object>
+				<int32 name="InstanceId">5</int32>
+				<int32 name="EquipId">303</int32>
+				<int32 name="EnhanceLevel">0</int32>
+			</object>
+			<object>
+				<int32 name="InstanceId">6</int32>
+				<int32 name="EquipId">304</int32>
+				<int32 name="EnhanceLevel">0</int32>
+			</object>
+		</array>
+		<int32 name="NextEquipInstanceId">7</int32>
 		<array name="FormationPresets" count="4">
 			<object>
 				<string name="Name">Default</string>
-				<array name="Slots" count="3">
+				<array name="Slots" count="5">
 					<object>
-						<int32 name="UnitId">9</int32>
+						<int32 name="UnitId">1</int32>
 						<int32 name="GridX">0</int32>
 						<int32 name="GridY">0</int32>
 					</object>
 					<object>
-						<int32 name="UnitId">4</int32>
+						<int32 name="UnitId">2</int32>
 						<int32 name="GridX">0</int32>
 						<int32 name="GridY">1</int32>
 					</object>
 					<object>
-						<int32 name="UnitId">7</int32>
+						<int32 name="UnitId">3</int32>
 						<int32 name="GridX">0</int32>
 						<int32 name="GridY">2</int32>
+					</object>
+					<object>
+						<int32 name="UnitId">4</int32>
+						<int32 name="GridX">1</int32>
+						<int32 name="GridY">0</int32>
+					</object>
+					<object>
+						<int32 name="UnitId">5</int32>
+						<int32 name="GridX">1</int32>
+						<int32 name="GridY">1</int32>
 					</object>
 				</array>
 			</object>
 			<object>
 				<string name="Name">Preset 2</string>
-				<array name="Slots" count="3">
+				<array name="Slots" count="5">
 					<object>
 						<int32 name="UnitId">1</int32>
-						<int32 name="GridX">1</int32>
-						<int32 name="GridY">0</int32>
-					</object>
-					<object>
-						<int32 name="UnitId">3</int32>
 						<int32 name="GridX">0</int32>
 						<int32 name="GridY">0</int32>
 					</object>
 					<object>
-						<int32 name="UnitId">5</int32>
+						<int32 name="UnitId">2</int32>
+						<int32 name="GridX">1</int32>
+						<int32 name="GridY">1</int32>
+					</object>
+					<object>
+						<int32 name="UnitId">3</int32>
 						<int32 name="GridX">0</int32>
 						<int32 name="GridY">2</int32>
 					</object>
-				</array>
-			</object>
-			<object>
-				<string name="Name">Preset 3</string>
-				<array name="Slots" count="3">
-					<object>
-						<int32 name="UnitId">1</int32>
-						<int32 name="GridX">0</int32>
-						<int32 name="GridY">0</int32>
-					</object>
-					<object>
-						<int32 name="UnitId">3</int32>
-						<int32 name="GridX">1</int32>
-						<int32 name="GridY">0</int32>
-					</object>
-					<object>
-						<int32 name="UnitId">5</int32>
-						<int32 name="GridX">0</int32>
-						<int32 name="GridY">1</int32>
-					</object>
-				</array>
-			</object>
-			<object>
-				<string name="Name">Preset 4</string>
-				<array name="Slots" count="3">
 					<object>
 						<int32 name="UnitId">4</int32>
 						<int32 name="GridX">0</int32>
 						<int32 name="GridY">3</int32>
 					</object>
 					<object>
-						<int32 name="UnitId">9</int32>
+						<int32 name="UnitId">5</int32>
+						<int32 name="GridX">1</int32>
+						<int32 name="GridY">2</int32>
+					</object>
+				</array>
+			</object>
+			<object>
+				<string name="Name">Preset 3</string>
+				<array name="Slots" count="5">
+					<object>
+						<int32 name="UnitId">1</int32>
 						<int32 name="GridX">0</int32>
+						<int32 name="GridY">0</int32>
+					</object>
+					<object>
+						<int32 name="UnitId">2</int32>
+						<int32 name="GridX">1</int32>
 						<int32 name="GridY">1</int32>
 					</object>
 					<object>
 						<int32 name="UnitId">3</int32>
 						<int32 name="GridX">0</int32>
-						<int32 name="GridY">0</int32>
+						<int32 name="GridY">2</int32>
+					</object>
+					<object>
+						<int32 name="UnitId">4</int32>
+						<int32 name="GridX">0</int32>
+						<int32 name="GridY">3</int32>
+					</object>
+					<object>
+						<int32 name="UnitId">5</int32>
+						<int32 name="GridX">1</int32>
+						<int32 name="GridY">3</int32>
 					</object>
 				</array>
 			</object>
+			<object>
+				<string name="Name">Preset 4</string>
+				<array name="Slots" count="0"/>
+			</object>
 		</array>
-		<int32 name="ActiveFormationIndex">3</int32>
+		<int32 name="ActiveFormationIndex">2</int32>
 		<array name="ShopPurchases" count="5">
+			<object>
+				<int32 name="ShopItemId">403</int32>
+				<int32 name="PurchaseCount">3</int32>
+			</object>
+			<object>
+				<int32 name="ShopItemId">404</int32>
+				<int32 name="PurchaseCount">1</int32>
+			</object>
 			<object>
 				<int32 name="ShopItemId">401</int32>
 				<int32 name="PurchaseCount">10</int32>
@@ -222,23 +323,16 @@
 				<int32 name="PurchaseCount">5</int32>
 			</object>
 			<object>
-				<int32 name="ShopItemId">404</int32>
-				<int32 name="PurchaseCount">1</int32>
-			</object>
-			<object>
-				<int32 name="ShopItemId">403</int32>
-				<int32 name="PurchaseCount">3</int32>
-			</object>
-			<object>
 				<int32 name="ShopItemId">405</int32>
 				<int32 name="PurchaseCount">1</int32>
 			</object>
 		</array>
-		<int64 name="LastShopRefreshTime">1770969582</int64>
-		<int32 name="GachaPityCounter">22</int32>
+		<int64 name="LastShopRefreshTime">1771017432</int64>
+		<int32 name="GachaPityCounter">10</int32>
 		<object name="GameSettings">
-			<bool name="InvertCameraPan">true</bool>
+			<bool name="InvertCameraPan">false</bool>
 			<bool name="AutoStepDefault">true</bool>
+			<bool name="AutoBattleDefault">true</bool>
 			<int32 name="DefaultBattleSpeed">2</int32>
 		</object>
 	</object>

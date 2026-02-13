@@ -32,24 +32,49 @@ class SaveManager
 		}
 	}
 
-	/// Create a fresh save with starter units: Footman (1), Archer (3), Priest (5).
+	/// Create a fresh save with generous starting resources for testing.
 	public void CreateNewSave()
 	{
 		delete mSaveData;
 		mSaveData = new PlayerSaveData();
 
-		// Starter roster
-		int32[3] starterIds = .(1, 3, 5);
+		// Generous starting resources
+		mSaveData.mHeroLevel = 5;
+		mSaveData.mGold = 50000;
+		mSaveData.mGems = 10000;
+		mSaveData.mStamina = 200;
+
+		// Starter roster: 5 units at level 5, star 2
+		int32[5] starterIds = .(1, 2, 3, 4, 5); // Footman, Knight, Archer, Wizard, Priest
 		for (let unitId in starterIds)
 		{
 			let unit = new OwnedUnitData();
 			unit.mUnitId = unitId;
-			unit.mStarLevel = 1;
-			unit.mLevel = 1;
+			unit.mStarLevel = 2;
+			unit.mLevel = 5;
 			mSaveData.mOwnedUnits.Add(unit);
 		}
 
-		// Default formation preset with starters
+		// Starting equipment
+		AddStarterEquip(301); // Iron Sword
+		AddStarterEquip(301); // Iron Sword (second)
+		AddStarterEquip(302); // Steel Shield
+		AddStarterEquip(302); // Steel Shield (second)
+		AddStarterEquip(303); // Speed Ring
+		AddStarterEquip(304); // War Hammer
+
+		// Starting inventory
+		AddStarterItem(1003, 50);   // Iron Ore
+		AddStarterItem(1004, 30);   // Magic Crystal
+		AddStarterItem(1005, 20);   // Stamina Potion
+		AddStarterItem(1006, 30);   // Footman Shard
+		AddStarterItem(1007, 30);   // Knight Shard
+		AddStarterItem(1008, 30);   // Wizard Shard
+		AddStarterItem(1009, 20);   // EXP Potion (Small)
+		AddStarterItem(1010, 10);   // EXP Potion (Large)
+		AddStarterItem(1012, 50);   // Enhancement Stone
+
+		// Default formation preset with 5 starters
 		let preset = new FormationPreset();
 		preset.mName.Set("Default");
 
@@ -65,6 +90,22 @@ class SaveManager
 		}
 		mSaveData.mFormationPresets.Add(preset);
 		mSaveData.mActiveFormationIndex = 0;
+	}
+
+	private void AddStarterEquip(int32 equipId)
+	{
+		let equip = new OwnedEquipData();
+		equip.mInstanceId = mSaveData.mNextEquipInstanceId++;
+		equip.mEquipId = equipId;
+		mSaveData.mOwnedEquips.Add(equip);
+	}
+
+	private void AddStarterItem(int32 itemId, int32 quantity)
+	{
+		let slot = new InventorySlot();
+		slot.mItemId = itemId;
+		slot.mQuantity = quantity;
+		mSaveData.mInventory.Add(slot);
 	}
 
 	/// Save current data to disk.

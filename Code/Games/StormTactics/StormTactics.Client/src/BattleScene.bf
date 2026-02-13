@@ -125,9 +125,10 @@ class BattleScene
 	public bool IsAutoStepping => mAutoStep;
 
 	/// Apply user settings as defaults for this battle.
-	public void ApplySettings(bool autoStep, float speedMultiplier, bool invertCameraPan)
+	public void ApplySettings(bool autoStep, bool autoPlay, float speedMultiplier, bool invertCameraPan)
 	{
 		mAutoStep = autoStep;
+		mAutoPlay = autoPlay;
 		mSpeedMultiplier = speedMultiplier;
 		if (mCamera != null)
 			mCamera.InvertPan = invertCameraPan;

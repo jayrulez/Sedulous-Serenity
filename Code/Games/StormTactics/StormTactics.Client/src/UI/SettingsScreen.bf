@@ -19,6 +19,8 @@ class SettingsScreen
 	private TextBlock mCameraPanValue;
 	private Button mAutoStepToggle;
 	private TextBlock mAutoStepValue;
+	private Button mAutoBattleToggle;
+	private TextBlock mAutoBattleValue;
 	private Button mBattleSpeedToggle;
 	private TextBlock mBattleSpeedValue;
 
@@ -130,6 +132,21 @@ class SettingsScreen
 			}
 		});
 
+		(mAutoBattleToggle, mAutoBattleValue) = AddToggleRow(centerPanel, "Auto-Battle Default", "OFF");
+		mAutoBattleToggle.Click.Subscribe(new (btn) => {
+			if (mSettings != null)
+			{
+				mSettings.mAutoBattleDefault = !mSettings.mAutoBattleDefault;
+				if (mRoot.Context != null)
+				{
+					mRoot.Context.MutationQueue.QueueAction(new () => {
+						RefreshValues();
+						mOnChanged.[Friend]Invoke();
+					});
+				}
+			}
+		});
+
 		(mBattleSpeedToggle, mBattleSpeedValue) = AddToggleRow(centerPanel, "Default Battle Speed", "1x");
 		mBattleSpeedToggle.Click.Subscribe(new (btn) => {
 			if (mSettings != null)
@@ -219,6 +236,7 @@ class SettingsScreen
 
 		mCameraPanValue.Text = mSettings.mInvertCameraPan ? "Inverted" : "Normal";
 		mAutoStepValue.Text = mSettings.mAutoStepDefault ? "ON" : "OFF";
+		mAutoBattleValue.Text = mSettings.mAutoBattleDefault ? "ON" : "OFF";
 
 		let speedStr = scope String();
 		speedStr.AppendF("{}x", mSettings.mDefaultBattleSpeed);

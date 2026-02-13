@@ -9,7 +9,9 @@ class RewardResult
 {
 	public int32 mGoldGained;
 	public int32 mExpGained;
+	public int32 mGemsGained;
 	public int32 mLevelsGained;
+	public bool mIsFirstClear;
 	public List<ItemRewardInfo> mItems = new .() ~ DeleteContainerAndItems!(_);
 }
 
@@ -44,18 +46,90 @@ class RewardProcessor
 		let stage = mConfigs.GetStage(stageId);
 		if (stage == null) return result;
 
+		// Check if this is first clear (no stars recorded yet)
+		let previousBest = mPlayerMgr.GetBestStars(stageId);
+		result.mIsFirstClear = (previousBest == 0);
+
 		// Base gold reward: difficulty * 50 + star bonus
 		int32 baseGold = stage.mDifficulty * 50 + starRating * 20;
-		mPlayerMgr.AddGold(baseGold);
 		result.mGoldGained = baseGold;
 
 		// Base EXP reward: difficulty * 30
 		int32 baseExp = stage.mDifficulty * 30;
-		result.mLevelsGained = mPlayerMgr.AddHeroExp(baseExp);
 		result.mExpGained = baseExp;
+
+		// First-clear bonus
+		if (result.mIsFirstClear)
+		{
+			if (stage.mFirstClearGold > 0)
+				result.mGoldGained += stage.mFirstClearGold;
+			if (stage.mFirstClearGems > 0)
+				result.mGemsGained += stage.mFirstClearGems;
+		}
+
+		// Apply gold, gems, EXP
+		mPlayerMgr.AddGold(result.mGoldGained);
+		if (result.mGemsGained > 0)
+			mPlayerMgr.AddGems(result.mGemsGained);
+		result.mLevelsGained = mPlayerMgr.AddHeroExp(result.mExpGained);
 
 		// Record stage clear
 		mPlayerMgr.RecordStageClear(stageId, starRating);
+
+		// Item rewards with drop chance
+		for (let reward in stage.mRewards)
+		{
+			float roll = (float)mRng.NextDouble();
+			if (roll <= reward.mDropChance)
+			{
+				int32 added = mInventoryMgr.AddItem(reward.mItemId, reward.mQuantity);
+				if (added > 0)
+				{
+					let info = new ItemRewardInfo();
+					info.mItemId = reward.mItemId;
+					info.mQuantity = added;
+
+					let itemConfig = mConfigs.GetItem(reward.mItemId);
+					if (itemConfig != null)
+						info.mItemName.Set(itemConfig.mName);
+					else
+						info.mItemName.AppendF("Item #{}", reward.mItemId);
+
+					result.mItems.Add(info);
+				}
+			}
+		}
+
+		return result;
+	}
+
+	/// Sweep a 3-starred stage: spend stamina, grant rewards without battle.
+	/// Returns null if stage is not sweepable (not 3-starred or not enough stamina).
+	/// Caller owns the returned RewardResult.
+	public RewardResult SweepStage(int32 stageId)
+	{
+		let stage = mConfigs.GetStage(stageId);
+		if (stage == null) return null;
+
+		// Must be 3-starred and have sweeps remaining
+		if (!mPlayerMgr.CanSweep(stageId)) return null;
+
+		// Must have enough stamina
+		if (!mPlayerMgr.TrySpendStamina(stage.mStaminaCost)) return null;
+
+		// Increment sweep count
+		mPlayerMgr.IncrementSweepCount(stageId);
+
+		// Grant same rewards as a 3-star clear (no first-clear bonus since already cleared)
+		let result = new RewardResult();
+
+		int32 baseGold = stage.mDifficulty * 50 + 3 * 20;
+		result.mGoldGained = baseGold;
+		mPlayerMgr.AddGold(baseGold);
+
+		int32 baseExp = stage.mDifficulty * 30;
+		result.mExpGained = baseExp;
+		result.mLevelsGained = mPlayerMgr.AddHeroExp(baseExp);
 
 		// Item rewards with drop chance
 		for (let reward in stage.mRewards)

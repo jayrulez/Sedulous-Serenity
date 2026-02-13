@@ -427,22 +427,22 @@ The PvE content pipeline and campaign structure.
 
 ### Checklist
 
-- [ ] **Campaign map screen**
-  - [ ] Chapter/world selection
-  - [ ] Stage nodes connected by paths (linear or branching)
-  - [ ] Stage difficulty and star rating display
-  - [ ] Locked/unlocked state based on progression
-  - [ ] Stage info popup (enemies, rewards, stamina cost)
-  - [ ] Chapter boss stages (special rewards)
+- [x] **Campaign map screen**
+  - [x] Chapter/world selection (3 chapters: The Verdant March, The Dark Frontier, The Burning Wastes)
+  - [x] Stage nodes with linear unlock progression (15 stages, 5 per chapter)
+  - [x] Stage difficulty and star rating display (filled/empty stars)
+  - [x] Locked/unlocked state based on progression (grayed out with LOCKED label)
+  - [x] Stage info popup (enemies, rewards, stamina cost, recommended power, first-clear bonus)
+  - [x] Chapter boss stages (stages 5, 10, 15 — orange highlight, [BOSS] tag, extra rewards)
 
-- [ ] **Stage system**
+- [x] **Stage system**
   - [x] Load stage config (enemy formation, battle map, rewards)
   - [x] Pre-battle screen with enemy preview
   - [x] Battle execution
-  - [ ] Post-battle reward distribution
+  - [x] Post-battle reward distribution (gold, EXP, gems, items with drop chance)
   - [x] Star rating calculation (3-star system)
-  - [ ] First-clear bonus rewards
-  - [ ] Stage sweep (auto-complete previously 3-starred stages for rewards)
+  - [x] First-clear bonus rewards (bonus gold + gems on first clear, tracked via star history)
+  - [x] Stage sweep (auto-complete 3-starred stages for rewards, spends stamina)
 
 - [ ] **Special PvE modes**
   - [ ] **Tower/Dungeon** — sequential floors with increasing difficulty, no healing between floors, rewards per floor
@@ -450,9 +450,9 @@ The PvE content pipeline and campaign structure.
   - [ ] **Boss rush** — single powerful boss with special mechanics
   - [ ] **Crusade/Gauntlet** — fight waves with persistent HP across battles
 
-- [ ] **Difficulty & scaling**
-  - [ ] Enemy stat scaling per chapter/stage
-  - [ ] Recommended power level per stage
+- [x] **Difficulty & scaling**
+  - [x] Enemy stat scaling per chapter/stage (15 stages with difficulty 1-20, recommended power 100-2800)
+  - [x] Recommended power level per stage (displayed in campaign screen and info popup)
   - [ ] Hard mode unlock after clearing normal
 
 ---

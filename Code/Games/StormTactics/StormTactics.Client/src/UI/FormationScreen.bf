@@ -12,6 +12,7 @@ using StormTactics.Battle;
 
 delegate void FormationBackDelegate();
 delegate void FormationSaveDelegate();
+delegate void FormationMessageDelegate(StringView message);
 
 /// Formation management screen: preset tabs, unit list, hex grid placement.
 class FormationScreen
@@ -45,9 +46,11 @@ class FormationScreen
 	// Events
 	private EventAccessor<FormationBackDelegate> mOnBack = new .() ~ delete _;
 	private EventAccessor<FormationSaveDelegate> mOnSave = new .() ~ delete _;
+	private EventAccessor<FormationMessageDelegate> mOnMessage = new .() ~ delete _;
 
 	public EventAccessor<FormationBackDelegate> OnBack => mOnBack;
 	public EventAccessor<FormationSaveDelegate> OnSave => mOnSave;
+	public EventAccessor<FormationMessageDelegate> OnMessage => mOnMessage;
 	public UIElement RootElement => mRoot;
 
 	// References kept for refresh
@@ -230,7 +233,12 @@ class FormationScreen
 
 			// If adding a new unit, check the slot limit
 			if (!alreadyInFormation && preset.mSlots.Count >= mMaxFormationSlots)
+			{
+				let msg = scope String();
+				msg.AppendF("Formation full! Max {} units.", mMaxFormationSlots);
+				mOnMessage.[Friend]Invoke(msg);
 				return;
+			}
 
 			if (alreadyInFormation)
 				mFormationMgr.MoveUnitInPreset(mActivePresetIndex, mSelectedUnitId, gridX, gridY);
@@ -334,13 +342,22 @@ class FormationScreen
 			infoCol.IsHitTestVisible = false;
 
 			let nameStr = scope String();
-			nameStr.Set(config.mName);
+			nameStr.AppendF("{} Lv.{}", config.mName, owned.mLevel);
 			if (inFormation) nameStr.Append(" [F]");
 
 			let nameLabel = new TextBlock(nameStr);
 			nameLabel.Foreground = inFormation ? Color(150, 220, 150) : Color(200, 200, 210);
 			nameLabel.FontSize = 13;
 			infoCol.AddChild(nameLabel);
+
+			// Star + class line
+			let classStr = scope String();
+			classStr.AppendF("{}* ", owned.mStarLevel);
+			config.mUnitClass.ToString(classStr);
+			let classLabel = new TextBlock(classStr);
+			classLabel.Foreground = Color(130, 130, 150);
+			classLabel.FontSize = 11;
+			infoCol.AddChild(classLabel);
 
 			if (mRosterMgr != null)
 			{
