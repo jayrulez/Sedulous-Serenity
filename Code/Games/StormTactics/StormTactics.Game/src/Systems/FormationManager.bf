@@ -15,6 +15,16 @@ class FormationManager
 	{
 		mSave = save;
 		mConfigs = configs;
+
+		// Ensure all preset slots exist up to the maximum
+		while (mSave.mFormationPresets.Count < BattleConstants.MAX_FORMATION_PRESETS)
+		{
+			let preset = new FormationPreset();
+			let name = scope String();
+			name.AppendF("Preset {}", mSave.mFormationPresets.Count + 1);
+			preset.mName.Set(name);
+			mSave.mFormationPresets.Add(preset);
+		}
 	}
 
 	/// Get the currently active formation preset. Returns null if none.

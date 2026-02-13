@@ -373,8 +373,8 @@ class StormTacticsGame : Application
 			return;
 		}
 
-		// Spend stamina
-		if (!mPlayerManager.TrySpendStamina(stageConfig.mStaminaCost))
+		// Check stamina availability (but don't spend yet — spend when battle starts)
+		if (mSaveManager.SaveData.mStamina < stageConfig.mStaminaCost)
 		{
 			Console.WriteLine("Not enough stamina for stage {} (need {}, have {})",
 				stageId, stageConfig.mStaminaCost, mSaveManager.SaveData.mStamina);
@@ -663,6 +663,11 @@ class StormTacticsGame : Application
 		mBattleHUD.OnStartBattle.Subscribe(new () => {
 			if (mBattleScene != null && mBattleScene.IsDeploymentMode)
 			{
+				// Spend stamina now that battle is actually starting
+				let stageConfig = mConfigs.GetStage(mCurrentStageId);
+				if (stageConfig != null)
+					mPlayerManager.TrySpendStamina(stageConfig.mStaminaCost);
+
 				mBattleScene.StartBattle();
 				mBattleHUD.HideDeploymentPanel();
 				mGameState = .Battle;
@@ -675,8 +680,8 @@ class StormTacticsGame : Application
 		mBattleHUD.OnRosterUnitSelected.Subscribe(new (unitId) => {
 			OnDeployRosterUnitClicked(unitId);
 		});
-		mBattleHUD.OnSaveFormation.Subscribe(new () => {
-			OnDeploySaveFormation();
+		mBattleHUD.OnSaveFormation.Subscribe(new (presetIndex) => {
+			OnDeploySaveFormation(presetIndex);
 		});
 		mBattleHUD.OnRemoveUnit.Subscribe(new () => {
 			OnDeployRemoveUnit();
@@ -706,14 +711,16 @@ class StormTacticsGame : Application
 			return;
 		}
 
+		// Always process keyboard input for camera/shortcuts
+		if (mBattleScene != null)
+			mBattleScene.HandleInput(keyboard, mouse, mDeltaTime);
+
 		// Check if mouse is over an interactive UI element
 		let hitElement = mUISubsystem?.GUIContext?.HitTest(mouse.X, mouse.Y);
 		bool uiHovered = hitElement != null;
 
 		if (mBattleScene != null && !uiHovered)
 		{
-			mBattleScene.HandleInput(keyboard, mouse, mDeltaTime);
-
 			if (mouse.IsButtonPressed(.Left) && mBattleScene.HasHoveredHex)
 			{
 				if (mBattleScene.IsDeploymentMode)
@@ -844,7 +851,8 @@ class StormTacticsGame : Application
 			}
 			mBattleHUD.UpdateTurnInfo(0, atkCount, defCount);
 
-			// Update preset tabs
+			// Update preset tabs and save targets
+			if (mDeployRosterDirty)
 			{
 				let activeIdx = mSaveManager.SaveData.mActiveFormationIndex;
 				let count = mFormationManager.PresetCount;
@@ -858,6 +866,7 @@ class StormTacticsGame : Application
 						names[i] = "?";
 				}
 				mBattleHUD.UpdateDeployPresetTabs(count, activeIdx, names);
+				mBattleHUD.UpdateDeploySaveTargets(count, names);
 			}
 
 			// Update roster sidebar (rebuild only when dirty)
@@ -865,8 +874,8 @@ class StormTacticsGame : Application
 			{
 				mDeployRosterDirty = false;
 
-				// Build set of deployed unit IDs
-				let deployedIds = scope HashSet<int32>();
+				// Build list of deployed unit IDs
+				let deployedIds = scope List<int32>();
 				for (int32 i = 0; i < sim.UnitCount; i++)
 				{
 					let unit = sim.GetUnit(i);
@@ -885,6 +894,8 @@ class StormTacticsGame : Application
 					var info = RosterUnitInfo();
 					info.mUnitId = owned.mUnitId;
 					info.mName = config.mName;
+					info.mUnitClass = config.mUnitClass;
+					info.mRarity = config.mRarity;
 					info.mIsDeployed = deployedIds.Contains(owned.mUnitId);
 					if (rosterCount < rosterInfos.Count)
 						rosterInfos[rosterCount++] = info;
@@ -1129,8 +1140,8 @@ class StormTacticsGame : Application
 		if (mDeployRosterSelectedUnitId < 0) return;
 
 		let deployColumns = mCurrentSim.DeployColumns;
-		let (col, _) = hex.ToOffset();
-		if (col >= deployColumns) return; // Must be in deploy zone
+		let (targetCol, targetRow) = hex.ToOffset();
+		if (targetCol >= deployColumns) return; // Must be in deploy zone
 		if (!mCurrentSim.Grid.InBounds(hex)) return;
 
 		// Build current attacker list from simulation
@@ -1153,16 +1164,12 @@ class StormTacticsGame : Application
 		int32 occupantIdx = -1;
 		for (int32 i = 0; i < (int32)attackers.Count; i++)
 		{
-			let (ox, oy) = HexCoord.FromOffset(attackers[i].mGridX, attackers[i].mGridY).ToOffset();
-			if (ox == col && oy == hex.ToOffset().1)
+			if (attackers[i].mGridX == targetCol && attackers[i].mGridY == targetRow)
 			{
 				occupantIdx = i;
 				break;
 			}
 		}
-
-		let targetCol = col;
-		let targetRow = hex.ToOffset().1;
 
 		if (existingIdx >= 0)
 		{
@@ -1243,20 +1250,19 @@ class StormTacticsGame : Application
 		Console.WriteLine("[Deploy] Removed unit {}", removeId);
 	}
 
-	/// Save the current deployment as the active formation preset.
-	private void OnDeploySaveFormation()
+	/// Save the current deployment to a specific formation preset.
+	private void OnDeploySaveFormation(int32 presetIndex)
 	{
 		if (mCurrentSim == null) return;
 
-		let activeIdx = mSaveManager.SaveData.mActiveFormationIndex;
 		let deployed = scope List<FormationSlot>();
 		mCurrentSim.GetDeployedAttackers(deployed);
 		defer { for (let s in deployed) delete s; }
 
-		mFormationManager.OverwritePreset(activeIdx, deployed);
+		mFormationManager.OverwritePreset(presetIndex, deployed);
 		mSaveManager.Save();
 
-		Console.WriteLine("[Deploy] Saved deployment as preset {} ({} units)", activeIdx, deployed.Count);
+		Console.WriteLine("[Deploy] Saved deployment as preset {} ({} units)", presetIndex, deployed.Count);
 	}
 
 	protected override bool OnRenderFrame(RenderContext render)

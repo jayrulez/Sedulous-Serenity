@@ -50,6 +50,7 @@ class ShopScreen
 
 		mRoot.RowDefinitions.Add(new .() { Height = .Pixels(48) }); // Top bar
 		mRoot.RowDefinitions.Add(new .() { Height = .Star });       // Content
+		mRoot.ColumnDefinitions.Add(new .() { Width = .Star });     // Full width
 
 		BuildTopBar();
 		BuildItemList();
@@ -156,23 +157,34 @@ class ShopScreen
 			card.Padding = Thickness(12, 8, 12, 8);
 			card.HorizontalAlignment = .Stretch;
 
-			let row = new StackPanel();
-			row.Orientation = .Horizontal;
-			row.Spacing = 12;
+			let row = new DockPanel();
+			row.LastChildFill = true;
 			row.VerticalAlignment = .Center;
 			card.Child = row;
 
-			// Icon
+			// Icon (left)
 			let iconImg = new Image(icon);
 			iconImg.Width = .Fixed(40);
 			iconImg.Height = .Fixed(40);
 			iconImg.Stretch = .UniformToFill;
+			iconImg.Margin = Thickness(0, 0, 12, 0);
+			DockPanelProperties.SetDock(iconImg, .Left);
 			row.AddChild(iconImg);
 
-			// Info column
+			// Price + limit + buy button column (right)
+			let buyCol = new StackPanel();
+			buyCol.Orientation = .Vertical;
+			buyCol.Spacing = 4;
+			buyCol.HorizontalAlignment = .Right;
+			buyCol.VerticalAlignment = .Center;
+			buyCol.Margin = Thickness(12, 0, 0, 0);
+			DockPanelProperties.SetDock(buyCol, .Right);
+
+			// Info column (fills remaining space)
 			let infoCol = new StackPanel();
 			infoCol.Orientation = .Vertical;
 			infoCol.Spacing = 2;
+			infoCol.VerticalAlignment = .Center;
 
 			let nameStr = scope String();
 			nameStr.AppendF("{}", itemConfig.mName);
@@ -189,19 +201,8 @@ class ShopScreen
 			descLabel.FontSize = 12;
 			infoCol.AddChild(descLabel);
 
-			row.AddChild(infoCol);
-
-			// Spacer (push price/button to right)
-			let spacer = new Border();
-			spacer.HorizontalAlignment = .Stretch;
-			row.AddChild(spacer);
-
-			// Price + limit + buy button column
-			let buyCol = new StackPanel();
-			buyCol.Orientation = .Vertical;
-			buyCol.Spacing = 4;
-			buyCol.HorizontalAlignment = .Right;
-			buyCol.VerticalAlignment = .Center;
+			// Populate buyCol before adding children to DockPanel
+			// (docked children must be added before the fill child)
 
 			// Price label
 			let currStr = scope String();
@@ -253,7 +254,9 @@ class ShopScreen
 				buyCol.AddChild(buyBtn);
 			}
 
+			// Add docked children first, then fill child last
 			row.AddChild(buyCol);
+			row.AddChild(infoCol);
 			mItemListPanel.AddChild(card);
 		}
 	}

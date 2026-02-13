@@ -60,6 +60,7 @@ class GachaScreen
 
 		mRoot.RowDefinitions.Add(new .() { Height = .Pixels(48) }); // Top bar
 		mRoot.RowDefinitions.Add(new .() { Height = .Star });       // Content
+		mRoot.ColumnDefinitions.Add(new .() { Width = .Star });     // Full width
 
 		BuildTopBar();
 		BuildMainContent();

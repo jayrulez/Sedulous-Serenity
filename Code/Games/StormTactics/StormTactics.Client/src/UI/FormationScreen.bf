@@ -20,7 +20,6 @@ class FormationScreen
 
 	// Preset tabs
 	private StackPanel mPresetTabPanel;
-	private Button mNewPresetBtn ~ { mPresetTabPanel?.RemoveChild(_, false); delete _; };
 
 	// Unit list (left)
 	private StackPanel mUnitListPanel;
@@ -131,26 +130,6 @@ class FormationScreen
 		mPresetTabPanel.Spacing = 6;
 		mPresetTabPanel.VerticalAlignment = .Center;
 		tabBar.Child = mPresetTabPanel;
-
-		mNewPresetBtn = new Button("+");
-		mNewPresetBtn.Padding = Thickness(10, 2, 10, 2);
-		mNewPresetBtn.Click.Subscribe(new (btn) => {
-			if (mFormationMgr != null && mFormationMgr.PresetCount < BattleConstants.MAX_FORMATION_PRESETS)
-			{
-				let name = scope String();
-				name.AppendF("Preset {}", mFormationMgr.PresetCount + 1);
-				if (mFormationMgr.CreatePreset(name))
-				{
-					mActivePresetIndex = mFormationMgr.PresetCount - 1;
-					mFormationMgr.SetActivePreset(mActivePresetIndex);
-					// Defer tree rebuild — this button is in the panel being cleared
-					if (mRoot.Context != null)
-						mRoot.Context.MutationQueue.QueueAction(new () => { RefreshAll(); });
-					else
-						RefreshAll();
-				}
-			}
-		});
 
 		mRoot.AddChild(tabBar);
 	}
@@ -283,8 +262,6 @@ class FormationScreen
 
 	private void RefreshPresetTabs()
 	{
-		// Detach persistent button before clearing to prevent it from being queued for deletion
-		mPresetTabPanel.RemoveChild(mNewPresetBtn, false);
 		mPresetTabPanel.ClearChildren();
 
 		for (int32 i = 0; i < mFormationMgr.PresetCount; i++)
@@ -308,10 +285,6 @@ class FormationScreen
 			});
 			mPresetTabPanel.AddChild(tab);
 		}
-
-		// Only show "+" button if under the preset limit
-		if (mFormationMgr.PresetCount < BattleConstants.MAX_FORMATION_PRESETS)
-			mPresetTabPanel.AddChild(mNewPresetBtn);
 	}
 
 	private void RefreshUnitList()

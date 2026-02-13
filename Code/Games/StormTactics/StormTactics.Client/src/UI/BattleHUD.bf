@@ -1,9 +1,12 @@
 namespace StormTactics.Client;
 
 using System;
+using System.Collections;
 using Sedulous.GUI;
 using Sedulous.Mathematics;
+using Sedulous.Drawing;
 using Sedulous.Foundation.Core;
+using StormTactics.Core;
 
 delegate void BattleActionDelegate();
 delegate void SpeedChangeDelegate(float speed);
@@ -39,6 +42,8 @@ struct RosterUnitInfo
 {
 	public int32 mUnitId;
 	public StringView mName;
+	public UnitClass mUnitClass;
+	public Rarity mRarity;
 	public bool mIsDeployed;
 }
 
@@ -141,6 +146,10 @@ class BattleHUD
 	private Button mSaveFormationButton;
 	private Button mRemoveUnitButton;
 
+	// Save-to-preset panel (shown when Save Formation is clicked)
+	private Border mDeploySavePanel;
+	private StackPanel mDeploySaveListPanel;
+
 	// Stage selection panel
 	private Border mStageSelectPanel;
 	private StackPanel mStageListPanel;
@@ -149,6 +158,9 @@ class BattleHUD
 	private bool mIsAutoPlaying;
 	private float mCurrentSpeed = 1.0f;
 	private bool mResultShown;
+
+	// Icon cache for roster cards (keyed by unit ID, caller-owned OwnedImageData)
+	private Dictionary<int32, OwnedImageData> mIconCache = new .() ~ { for (let v in _.Values) delete v; delete _; };
 
 	// Events
 	private EventAccessor<BattleActionDelegate> mOnAutoToggle = new .() ~ delete _;
@@ -166,7 +178,7 @@ class BattleHUD
 	private EventAccessor<BattleActionDelegate> mOnStartBattle = new .() ~ delete _;
 	private EventAccessor<PresetSelectDelegate> mOnPresetSelected = new .() ~ delete _;
 	private EventAccessor<DeployUnitDelegate> mOnRosterUnitSelected = new .() ~ delete _;
-	private EventAccessor<BattleActionDelegate> mOnSaveFormation = new .() ~ delete _;
+	private EventAccessor<PresetSelectDelegate> mOnSaveFormation = new .() ~ delete _;
 	private EventAccessor<BattleActionDelegate> mOnRemoveUnit = new .() ~ delete _;
 	private EventAccessor<StageSelectDelegate> mOnStageSelected = new .() ~ delete _;
 	private EventAccessor<SkillSelectDelegate> mOnSkillChosen = new .() ~ delete _;
@@ -186,7 +198,7 @@ class BattleHUD
 	public EventAccessor<BattleActionDelegate> OnStartBattle => mOnStartBattle;
 	public EventAccessor<PresetSelectDelegate> OnPresetSelected => mOnPresetSelected;
 	public EventAccessor<DeployUnitDelegate> OnRosterUnitSelected => mOnRosterUnitSelected;
-	public EventAccessor<BattleActionDelegate> OnSaveFormation => mOnSaveFormation;
+	public EventAccessor<PresetSelectDelegate> OnSaveFormation => mOnSaveFormation;
 	public EventAccessor<BattleActionDelegate> OnRemoveUnit => mOnRemoveUnit;
 	public EventAccessor<StageSelectDelegate> OnStageSelected => mOnStageSelected;
 	public EventAccessor<SkillSelectDelegate> OnSkillChosen => mOnSkillChosen;
@@ -476,38 +488,44 @@ class BattleHUD
 
 	private void BuildDeploymentPanel()
 	{
+		// Deploy panel sits between top bar (44px) and bottom panel (80px).
+		// Uses a Grid so the center area (3D scene) passes input through.
 		mDeployPanel = new Border();
-		mDeployPanel.Background = Color(0, 0, 0, 0); // Transparent — children provide backgrounds
+		mDeployPanel.IsHitTestVisible = false; // Pass-through: children handle their own hits
 		mDeployPanel.HorizontalAlignment = .Stretch;
 		mDeployPanel.VerticalAlignment = .Stretch;
+		mDeployPanel.Margin = Thickness(0, 44, 0, 80); // Below top bar, above bottom panel
 		mDeployPanel.Visibility = .Collapsed;
 
-		let layout = new DockPanel();
-		layout.LastChildFill = false;
-		layout.HorizontalAlignment = .Stretch;
-		layout.VerticalAlignment = .Stretch;
-		mDeployPanel.Child = layout;
+		let grid = new Grid();
+		grid.IsHitTestVisible = false; // Pass-through
+		grid.RowDefinitions.Add(new .() { Height = .Pixels(36) });  // Preset tabs
+		grid.RowDefinitions.Add(new .() { Height = .Star });        // Main area
+		grid.RowDefinitions.Add(new .() { Height = .Auto });        // Action bar
+		grid.ColumnDefinitions.Add(new .() { Width = .Pixels(200) }); // Roster sidebar
+		grid.ColumnDefinitions.Add(new .() { Width = .Star });        // Center (pass-through)
+		mDeployPanel.Child = grid;
 
-		// --- Top: Preset tab bar ---
+		// --- Row 0: Preset tab bar (spans both columns) ---
 		let presetBar = new Border();
 		presetBar.Background = Color(16, 18, 28, 240);
 		presetBar.Padding = Thickness(8, 4, 8, 4);
-		presetBar.Height = .Fixed(36);
-		DockPanelProperties.SetDock(presetBar, .Top);
+		GridProperties.SetRow(presetBar, 0);
+		GridProperties.SetColumnSpan(presetBar, 2);
 
 		mDeployPresetTabPanel = new StackPanel();
 		mDeployPresetTabPanel.Orientation = .Horizontal;
 		mDeployPresetTabPanel.Spacing = 6;
 		mDeployPresetTabPanel.VerticalAlignment = .Center;
 		presetBar.Child = mDeployPresetTabPanel;
-		layout.AddChild(presetBar);
+		grid.AddChild(presetBar);
 
-		// --- Left: Roster sidebar ---
+		// --- Row 1, Col 0: Roster sidebar ---
 		mDeployRosterPanel = new Border();
 		mDeployRosterPanel.Background = Color(16, 18, 28, 240);
-		mDeployRosterPanel.Width = .Fixed(200);
 		mDeployRosterPanel.Padding = Thickness(6, 6, 6, 6);
-		DockPanelProperties.SetDock(mDeployRosterPanel, .Left);
+		GridProperties.SetRow(mDeployRosterPanel, 1);
+		GridProperties.SetColumn(mDeployRosterPanel, 0);
 
 		let rosterLayout = new StackPanel();
 		rosterLayout.Orientation = .Vertical;
@@ -530,27 +548,35 @@ class BattleHUD
 		mDeployRosterListPanel.Spacing = 3;
 		mDeployRosterScroll.Content = mDeployRosterListPanel;
 
-		layout.AddChild(mDeployRosterPanel);
+		grid.AddChild(mDeployRosterPanel);
 
-		// --- Bottom: Action bar ---
+		// --- Row 1, Col 1: Center area — EMPTY, input passes through to 3D scene ---
+
+		// --- Row 2: Action bar (spans both columns) ---
 		let actionBar = new Border();
 		actionBar.Background = Color(20, 25, 35, 230);
 		actionBar.Padding = Thickness(16, 8, 16, 8);
-		actionBar.HorizontalAlignment = .Stretch;
-		DockPanelProperties.SetDock(actionBar, .Bottom);
+		GridProperties.SetRow(actionBar, 2);
+		GridProperties.SetColumnSpan(actionBar, 2);
 
 		let actionContent = new StackPanel();
-		actionContent.Orientation = .Horizontal;
-		actionContent.Spacing = 12;
+		actionContent.Orientation = .Vertical;
+		actionContent.Spacing = 6;
 		actionContent.HorizontalAlignment = .Center;
-		actionContent.VerticalAlignment = .Center;
 		actionBar.Child = actionContent;
 
-		mDeployHintLabel = new TextBlock("Click a unit to select, then click a hex to place.");
+		// Main action row
+		let actionRow = new StackPanel();
+		actionRow.Orientation = .Horizontal;
+		actionRow.Spacing = 12;
+		actionRow.HorizontalAlignment = .Center;
+		actionContent.AddChild(actionRow);
+
+		mDeployHintLabel = new TextBlock("Select a unit from roster or grid to deploy.");
 		mDeployHintLabel.Foreground = Color(200, 200, 220);
 		mDeployHintLabel.FontSize = 13;
 		mDeployHintLabel.VerticalAlignment = .Center;
-		actionContent.AddChild(mDeployHintLabel);
+		actionRow.AddChild(mDeployHintLabel);
 
 		mRemoveUnitButton = new Button("Remove Unit");
 		mRemoveUnitButton.Padding = Thickness(12, 6, 12, 6);
@@ -558,23 +584,37 @@ class BattleHUD
 		mRemoveUnitButton.Click.Subscribe(new (btn) => {
 			mOnRemoveUnit.[Friend]Invoke();
 		});
-		actionContent.AddChild(mRemoveUnitButton);
+		actionRow.AddChild(mRemoveUnitButton);
 
 		mSaveFormationButton = new Button("Save Formation");
 		mSaveFormationButton.Padding = Thickness(12, 6, 12, 6);
 		mSaveFormationButton.Click.Subscribe(new (btn) => {
-			mOnSaveFormation.[Friend]Invoke();
+			// Toggle save target panel
+			mDeploySavePanel.Visibility = (mDeploySavePanel.Visibility == .Visible) ? .Collapsed : .Visible;
 		});
-		actionContent.AddChild(mSaveFormationButton);
+		actionRow.AddChild(mSaveFormationButton);
 
 		mStartBattleButton = new Button("Start Battle");
 		mStartBattleButton.Padding = Thickness(16, 8, 16, 8);
 		mStartBattleButton.Click.Subscribe(new (btn) => {
 			mOnStartBattle.[Friend]Invoke();
 		});
-		actionContent.AddChild(mStartBattleButton);
+		actionRow.AddChild(mStartBattleButton);
 
-		layout.AddChild(actionBar);
+		// Save-to-preset panel (hidden by default)
+		mDeploySavePanel = new Border();
+		mDeploySavePanel.Background = Color(25, 30, 40, 240);
+		mDeploySavePanel.Padding = Thickness(8, 6, 8, 6);
+		mDeploySavePanel.HorizontalAlignment = .Center;
+		mDeploySavePanel.Visibility = .Collapsed;
+
+		mDeploySaveListPanel = new StackPanel();
+		mDeploySaveListPanel.Orientation = .Horizontal;
+		mDeploySaveListPanel.Spacing = 6;
+		mDeploySavePanel.Child = mDeploySaveListPanel;
+		actionContent.AddChild(mDeploySavePanel);
+
+		grid.AddChild(actionBar);
 
 		mRoot.AddChild(mDeployPanel);
 	}
@@ -1179,6 +1219,7 @@ class BattleHUD
 	public void HideDeploymentPanel()
 	{
 		mDeployPanel.Visibility = .Collapsed;
+		mDeploySavePanel.Visibility = .Collapsed;
 		// Restore battle controls
 		mTurnOrderBar.Visibility = .Visible;
 		mBottomPanel.Visibility = .Visible;
@@ -1217,46 +1258,103 @@ class BattleHUD
 		for (let info in units)
 		{
 			let unitId = info.mUnitId;
+			let icon = GetOrCreateIcon(unitId, info.mUnitClass, info.mRarity);
 
-			let card = new Border();
-			card.Background = info.mIsDeployed ? Color(30, 45, 35, 255) : Color(25, 30, 45, 255);
-			card.Padding = Thickness(6, 4, 6, 4);
-			card.HorizontalAlignment = .Stretch;
+			// Card content: icon left, info right
+			let cardRow = new StackPanel();
+			cardRow.Orientation = .Horizontal;
+			cardRow.Spacing = 8;
+			cardRow.VerticalAlignment = .Center;
+			cardRow.IsHitTestVisible = false;
 
-			let nameStr = scope String();
-			nameStr.Set(info.mName);
-			if (info.mIsDeployed) nameStr.Append(" [D]");
+			// Unit icon
+			let iconImg = new Image(icon);
+			iconImg.Width = .Fixed(40);
+			iconImg.Height = .Fixed(40);
+			iconImg.Stretch = .UniformToFill;
+			cardRow.AddChild(iconImg);
 
-			let nameLabel = new TextBlock(nameStr);
-			nameLabel.Foreground = info.mIsDeployed ? Color(150, 220, 150) : Color(200, 200, 210);
+			// Info column
+			let infoCol = new StackPanel();
+			infoCol.Orientation = .Vertical;
+			infoCol.Spacing = 1;
+			infoCol.VerticalAlignment = .Center;
+
+			let nameLabel = new TextBlock(info.mName);
+			nameLabel.Foreground = info.mIsDeployed ? Color(150, 220, 150) : Color(220, 220, 230);
 			nameLabel.FontSize = 13;
-			nameLabel.IsHitTestVisible = false;
-			card.Child = nameLabel;
+			infoCol.AddChild(nameLabel);
 
-			let clickBtn = new Button();
-			clickBtn.Background = Color(0, 0, 0, 0);
-			clickBtn.HorizontalAlignment = .Stretch;
-			clickBtn.VerticalAlignment = .Stretch;
-			clickBtn.Padding = Thickness(0);
-			clickBtn.Click.Subscribe(new (b) => {
+			// Class + deployed indicator
+			let detailStr = scope String();
+			info.mUnitClass.ToString(detailStr);
+			if (info.mIsDeployed) detailStr.Append("  [D]");
+			let detailLabel = new TextBlock(detailStr);
+			detailLabel.Foreground = info.mIsDeployed ? Color(100, 170, 100) : Color(130, 130, 150);
+			detailLabel.FontSize = 11;
+			infoCol.AddChild(detailLabel);
+
+			cardRow.AddChild(infoCol);
+
+			// Button wrapping the card
+			let btn = new Button();
+			btn.Padding = Thickness(6, 4, 6, 4);
+			btn.HorizontalAlignment = .Stretch;
+			btn.[Friend]mBackground = info.mIsDeployed ? Color(30, 45, 35, 255) : Color(25, 30, 45, 255);
+			btn.Content = cardRow;
+			btn.Click.Subscribe(new (b) => {
 				mOnRosterUnitSelected.[Friend]Invoke(unitId);
 			});
 
-			let wrapper = new Grid();
-			wrapper.HorizontalAlignment = .Stretch;
-			wrapper.RowDefinitions.Add(new .() { Height = .Auto });
-			wrapper.ColumnDefinitions.Add(new .() { Width = .Star });
-			wrapper.AddChild(card);
-			wrapper.AddChild(clickBtn);
-
-			mDeployRosterListPanel.AddChild(wrapper);
+			mDeployRosterListPanel.AddChild(btn);
 		}
+	}
+
+	private OwnedImageData GetOrCreateIcon(int32 unitId, UnitClass unitClass, Rarity rarity)
+	{
+		if (mIconCache.TryGetValue(unitId, let existing))
+			return existing;
+
+		let icon = IconGenerator.GenerateUnitIcon(unitClass, rarity);
+		mIconCache[unitId] = icon;
+		return icon;
 	}
 
 	/// Toggle visibility of the "Remove Unit" button during deployment.
 	public void ShowRemoveUnitButton(bool show)
 	{
 		mRemoveUnitButton.Visibility = show ? .Visible : .Collapsed;
+	}
+
+	/// Update the save-to-preset target buttons.
+	public void UpdateDeploySaveTargets(int32 presetCount, Span<StringView> presetNames)
+	{
+		mDeploySaveListPanel.ClearChildren();
+
+		let label = new TextBlock("Save to:");
+		label.Foreground = Color(200, 200, 220);
+		label.FontSize = 13;
+		label.VerticalAlignment = .Center;
+		mDeploySaveListPanel.AddChild(label);
+
+		for (int32 i = 0; i < presetCount && i < presetNames.Length; i++)
+		{
+			let idx = i;
+			let btn = new Button(presetNames[i]);
+			btn.Padding = Thickness(10, 4, 10, 4);
+			btn.Click.Subscribe(new (b) => {
+				mOnSaveFormation.[Friend]Invoke(idx);
+				mDeploySavePanel.Visibility = .Collapsed;
+			});
+			mDeploySaveListPanel.AddChild(btn);
+		}
+
+		let cancelBtn = new Button("Cancel");
+		cancelBtn.Padding = Thickness(10, 4, 10, 4);
+		cancelBtn.Click.Subscribe(new (b) => {
+			mDeploySavePanel.Visibility = .Collapsed;
+		});
+		mDeploySaveListPanel.AddChild(cancelBtn);
 	}
 
 	// --- Stage selection methods ---
