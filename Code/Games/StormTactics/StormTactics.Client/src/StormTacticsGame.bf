@@ -22,6 +22,7 @@ using Sedulous.Fonts.TTF;
 using Sedulous.GUI;
 using StormTactics.Battle;
 using StormTactics.Core;
+using StormTactics.Game;
 
 class StormTacticsGame : Application
 {
@@ -47,6 +48,13 @@ class StormTacticsGame : Application
 	private FontService mFontService;
 	private GameTheme mGameTheme;
 	private BattleHUD mBattleHUD;
+	private CityHubScreen mCityHubScreen;
+	private RosterScreen mRosterScreen;
+	private InventoryScreen mInventoryScreen;
+	private EquipSelectPopup mEquipSelectPopup;
+	private ShopScreen mShopScreen;
+	private GachaScreen mGachaScreen;
+	private FormationScreen mFormationScreen;
 
 	// Game state
 	private GameState mGameState = .Loading;
@@ -55,13 +63,29 @@ class StormTacticsGame : Application
 	// Config database (loaded from XML, persists across battles)
 	private ConfigDatabase mConfigs;
 
+	// Metagame systems
+	private SaveManager mSaveManager;
+	private PlayerManager mPlayerManager;
+	private InventoryManager mInventoryManager;
+	private RewardProcessor mRewardProcessor;
+	private RosterManager mRosterManager;
+	private EquipmentManager mEquipmentManager;
+	private ShopManager mShopManager;
+	private GachaManager mGachaManager;
+	private FormationManager mFormationManager;
+
 	// Current battle (created/destroyed per stage)
 	private BattleSimulation mCurrentSim;
 	private int32 mCurrentStageId;
+	private bool mRewardsProcessed;
 
 	// HUD state tracking
 	private PlayerTurnPhase mLastPlayerPhase = .Idle;
 	private List<int32> mTurnOrderBuffer = new .() ~ delete _;
+
+	// Deployment roster state
+	private int32 mDeployRosterSelectedUnitId = -1;
+	private bool mDeployRosterDirty;
 
 	// Timing
 	private float mDeltaTime;
@@ -155,12 +179,60 @@ class StormTacticsGame : Application
 		// Load all configs from XML
 		LoadConfigs();
 
+		// Initialize metagame systems
+		InitializeMetagame();
+
 		// Initialize UI
 		InitializeUI();
 
-		// Start at stage selection
-		ShowStageSelect();
-		Console.WriteLine("Storm Tactics initialized — showing stage select");
+		// Start at city hub
+		ShowCityHub();
+		Console.WriteLine("Storm Tactics initialized — showing city hub");
+	}
+
+	/// Initialize save/progression/inventory/reward systems.
+	private void InitializeMetagame()
+	{
+		// Save manager — handles load/save to XML file
+		mSaveManager = new SaveManager();
+		let savePath = scope String();
+		GetAssetPath("", savePath);
+		mSaveManager.Initialize(savePath);
+
+		// Player manager — EXP, stamina, currencies, stage tracking
+		mPlayerManager = new PlayerManager();
+		mPlayerManager.Initialize(mSaveManager.SaveData, mConfigs);
+
+		// Inventory manager — item add/remove with stacking
+		mInventoryManager = new InventoryManager();
+		mInventoryManager.Initialize(mSaveManager.SaveData, mConfigs);
+
+		// Equipment manager — equip/unequip, stat bonuses
+		mEquipmentManager = new EquipmentManager();
+		mEquipmentManager.Initialize(mSaveManager.SaveData, mConfigs);
+
+		// Roster manager — unit ownership, star upgrades, effective stats
+		mRosterManager = new RosterManager();
+		mRosterManager.Initialize(mSaveManager.SaveData, mConfigs);
+		mRosterManager.SetEquipmentManager(mEquipmentManager);
+
+		// Shop manager — purchase logic, limits
+		mShopManager = new ShopManager();
+		mShopManager.Initialize(mSaveManager.SaveData, mConfigs, mPlayerManager, mInventoryManager);
+
+		// Formation manager — preset management
+		mFormationManager = new FormationManager();
+		mFormationManager.Initialize(mSaveManager.SaveData, mConfigs);
+
+		// Gacha manager — summoning, pity system
+		mGachaManager = new GachaManager();
+		mGachaManager.Initialize(mSaveManager.SaveData, mConfigs, mPlayerManager, mRosterManager);
+
+		// Reward processor — post-battle reward calculation
+		mRewardProcessor = new RewardProcessor();
+		mRewardProcessor.Initialize(mPlayerManager, mInventoryManager, mConfigs);
+
+		Console.WriteLine("Metagame systems initialized");
 	}
 
 	/// Load all game configs from XML data files.
@@ -180,6 +252,80 @@ class StormTacticsGame : Application
 		Console.WriteLine("Configs loaded from XML");
 	}
 
+	/// Show the city hub screen.
+	private void ShowCityHub()
+	{
+		DestroyBattle();
+		mGameState = .City;
+		mLastPlayerPhase = .Idle;
+
+		// Switch UI root to city hub
+		if (mCityHubScreen != null)
+		{
+			mUISubsystem.GUIContext.RootElement = mCityHubScreen.RootElement;
+			UpdateCityHubInfo();
+		}
+
+		// Auto-save when returning to city
+		mSaveManager.Save();
+	}
+
+	/// Update city hub player info display.
+	private void UpdateCityHubInfo()
+	{
+		if (mCityHubScreen == null) return;
+		let save = mSaveManager.SaveData;
+		mCityHubScreen.UpdatePlayerInfo(
+			save.mHeroLevel,
+			save.mHeroExp,
+			mPlayerManager.ExpToNextLevel,
+			save.mGold,
+			save.mGems,
+			save.mStamina,
+			mPlayerManager.MaxStamina
+		);
+	}
+
+	/// Show the unit roster screen.
+	private void ShowRoster()
+	{
+		mGameState = .UnitManagement;
+		mUISubsystem.GUIContext.RootElement = mRosterScreen.RootElement;
+		mRosterScreen.Refresh(mSaveManager.SaveData, mConfigs, mRosterManager, mEquipmentManager);
+	}
+
+	/// Show the inventory screen.
+	private void ShowInventory()
+	{
+		mGameState = .Inventory;
+		mUISubsystem.GUIContext.RootElement = mInventoryScreen.RootElement;
+		mInventoryScreen.Refresh(mSaveManager.SaveData, mConfigs);
+	}
+
+	/// Show the shop screen.
+	private void ShowShop()
+	{
+		mGameState = .City; // Reuse City state for shop
+		mUISubsystem.GUIContext.RootElement = mShopScreen.RootElement;
+		mShopScreen.Refresh(mSaveManager.SaveData, mConfigs, mShopManager);
+	}
+
+	/// Show the formation screen.
+	private void ShowFormation()
+	{
+		mGameState = .Formation;
+		mUISubsystem.GUIContext.RootElement = mFormationScreen.RootElement;
+		mFormationScreen.Show(mSaveManager.SaveData, mConfigs, mFormationManager, mPlayerManager.MaxFormationSlots);
+	}
+
+	/// Show the gacha screen.
+	private void ShowGacha()
+	{
+		mGameState = .Gacha;
+		mUISubsystem.GUIContext.RootElement = mGachaScreen.RootElement;
+		mGachaScreen.Refresh(mSaveManager.SaveData);
+	}
+
 	/// Show the stage selection screen.
 	private void ShowStageSelect()
 	{
@@ -188,6 +334,9 @@ class StormTacticsGame : Application
 
 		mGameState = .Campaign;
 		mLastPlayerPhase = .Idle;
+
+		// Switch UI root to battle HUD (which hosts stage select)
+		mUISubsystem.GUIContext.RootElement = mBattleHUD.RootElement;
 
 		// Build stage info list from loaded configs
 		let stageList = scope List<StageDisplayInfo>();
@@ -217,22 +366,58 @@ class StormTacticsGame : Application
 			return;
 		}
 
-		mCurrentStageId = stageId;
-
-		// Create a default player formation (first 5 units: Footman, Knight, Archer, Wizard, Priest)
-		let attackers = scope List<FormationSlot>();
-		int32[5] playerUnits = .(1, 2, 3, 4, 5);
-		int32 slotIdx = 0;
-		for (let unitId in playerUnits)
+		// Check stage unlock
+		if (!mPlayerManager.IsStageUnlocked(stageId))
 		{
-			if (mConfigs.GetUnit(unitId) == null) continue;
-			let slot = scope :: FormationSlot();
-			slot.mUnitId = unitId;
-			// Arrange in a 2-column formation on the left
-			slot.mGridX = (int32)(slotIdx / 3); // Column 0-1
-			slot.mGridY = (int32)(slotIdx % 3); // Row 0-2
-			attackers.Add(slot);
-			slotIdx++;
+			Console.WriteLine("Stage {} is locked", stageId);
+			return;
+		}
+
+		// Spend stamina
+		if (!mPlayerManager.TrySpendStamina(stageConfig.mStaminaCost))
+		{
+			Console.WriteLine("Not enough stamina for stage {} (need {}, have {})",
+				stageId, stageConfig.mStaminaCost, mSaveManager.SaveData.mStamina);
+			return;
+		}
+
+		mCurrentStageId = stageId;
+		mRewardsProcessed = false;
+
+		// Build player formation from active formation preset (or fallback to owned units)
+		let attackers = scope List<FormationSlot>();
+		let save = mSaveManager.SaveData;
+
+		if (save.mFormationPresets.Count > 0 && save.mActiveFormationIndex < (int32)save.mFormationPresets.Count)
+		{
+			let preset = save.mFormationPresets[save.mActiveFormationIndex];
+			for (let fSlot in preset.mSlots)
+			{
+				if (mConfigs.GetUnit(fSlot.mUnitId) == null) continue;
+				if (save.GetOwnedUnit(fSlot.mUnitId) == null) continue;
+				let slot = scope :: FormationSlot();
+				slot.mUnitId = fSlot.mUnitId;
+				slot.mGridX = fSlot.mGridX;
+				slot.mGridY = fSlot.mGridY;
+				attackers.Add(slot);
+			}
+		}
+
+		// Fallback: if no valid formation, use all owned units
+		if (attackers.Count == 0)
+		{
+			int32 slotIdx = 0;
+			for (let owned in save.mOwnedUnits)
+			{
+				if (mConfigs.GetUnit(owned.mUnitId) == null) continue;
+				let slot = scope :: FormationSlot();
+				slot.mUnitId = owned.mUnitId;
+				slot.mGridX = (int32)(slotIdx / 3);
+				slot.mGridY = (int32)(slotIdx % 3);
+				attackers.Add(slot);
+				slotIdx++;
+				if (slotIdx >= mPlayerManager.MaxFormationSlots) break;
+			}
 		}
 
 		// Determine grid size from stage enemy positions
@@ -242,8 +427,8 @@ class StormTacticsGame : Application
 			if (slot.mGridX > maxCol) maxCol = slot.mGridX;
 			if (slot.mGridY > maxRow) maxRow = slot.mGridY;
 		}
-		let columns = Math.Max(maxCol + 1, 8);
-		let rows = Math.Max(maxRow + 1, 4);
+		let columns = Math.Max(maxCol + 1, BattleConstants.MIN_COLUMNS);
+		let rows = Math.Max(maxRow + 1, BattleConstants.MIN_ROWS);
 
 		// Create simulation
 		mCurrentSim = new BattleSimulation(mConfigs);
@@ -263,6 +448,8 @@ class StormTacticsGame : Application
 		mBattleHUD.HideStageSelect();
 		mBattleHUD.ShowDeploymentPanel();
 		mBattleHUD.ResetResultState();
+		mDeployRosterSelectedUnitId = -1;
+		mDeployRosterDirty = true;
 		mGameState = .BattlePrepare;
 	}
 
@@ -313,9 +500,126 @@ class StormTacticsGame : Application
 		mGameTheme = new GameTheme();
 		mUISubsystem.GUIContext.RegisterService<ITheme>(mGameTheme);
 
-		// Create battle HUD
+		// Create battle HUD (root element set later when entering battle/stage select)
 		mBattleHUD = new BattleHUD();
-		mUISubsystem.GUIContext.RootElement = mBattleHUD.RootElement;
+
+		// Create city hub screen
+		mCityHubScreen = new CityHubScreen();
+
+		// Create roster screen
+		mRosterScreen = new RosterScreen();
+		mRosterScreen.OnBack.Subscribe(new () => {
+			ShowCityHub();
+		});
+		mRosterScreen.OnStarUp.Subscribe(new (unitId) => {
+			if (mRosterManager.TryStarUp(unitId))
+			{
+				mRosterScreen.Refresh(mSaveManager.SaveData, mConfigs, mRosterManager, mEquipmentManager);
+				mSaveManager.Save();
+			}
+		});
+		mRosterScreen.OnEquipSlot.Subscribe(new (unitId, slot) => {
+			mEquipSelectPopup.Show(mUISubsystem.GUIContext, unitId, slot, mSaveManager.SaveData, mConfigs, mEquipmentManager);
+		});
+
+		// Create equip select popup
+		mEquipSelectPopup = new EquipSelectPopup();
+		mEquipSelectPopup.OnEquipSelected.Subscribe(new (equipInstanceId) => {
+			let unitId = mEquipSelectPopup.TargetUnitId;
+			let slot = mEquipSelectPopup.TargetSlot;
+			if (unitId >= 0)
+			{
+				if (equipInstanceId == 0)
+				{
+					mEquipmentManager.Unequip(unitId, slot);
+				}
+				else
+				{
+					mEquipmentManager.Equip(unitId, equipInstanceId, slot);
+				}
+				mRosterScreen.Refresh(mSaveManager.SaveData, mConfigs, mRosterManager, mEquipmentManager);
+				mSaveManager.Save();
+			}
+		});
+		mEquipSelectPopup.OnClose.Subscribe(new () => {
+			// Popup handles its own removal from PopupLayer
+		});
+
+		// Create inventory screen
+		mInventoryScreen = new InventoryScreen();
+		mInventoryScreen.OnBack.Subscribe(new () => {
+			ShowCityHub();
+		});
+
+		// Create shop screen
+		mShopScreen = new ShopScreen();
+		mShopScreen.OnBack.Subscribe(new () => {
+			ShowCityHub();
+		});
+		mShopScreen.OnBuy.Subscribe(new (shopItemId) => {
+			if (mShopManager.TryPurchase(shopItemId))
+			{
+				mShopScreen.Refresh(mSaveManager.SaveData, mConfigs, mShopManager);
+				mSaveManager.Save();
+			}
+		});
+
+		// Create gacha screen
+		mGachaScreen = new GachaScreen();
+		mGachaScreen.OnBack.Subscribe(new () => {
+			ShowCityHub();
+		});
+		mGachaScreen.OnPullSingle.Subscribe(new () => {
+			let result = mGachaManager.PullSingle();
+			if (result != null)
+			{
+				mGachaScreen.ShowSingleResult(result, mConfigs);
+				mGachaScreen.Refresh(mSaveManager.SaveData);
+				mSaveManager.Save();
+				delete result;
+			}
+		});
+		mGachaScreen.OnPullMulti.Subscribe(new () => {
+			let results = mGachaManager.PullMulti();
+			if (results.Count > 0)
+			{
+				mGachaScreen.ShowMultiResults(results, mConfigs);
+				mGachaScreen.Refresh(mSaveManager.SaveData);
+				mSaveManager.Save();
+			}
+			for (let r in results) delete r;
+			delete results;
+		});
+
+		// Create formation screen
+		mFormationScreen = new FormationScreen();
+		mFormationScreen.OnBack.Subscribe(new () => {
+			ShowCityHub();
+		});
+		mFormationScreen.OnSave.Subscribe(new () => {
+			mSaveManager.Save();
+			ShowCityHub();
+		});
+
+		// Wire city hub navigation events
+		mCityHubScreen.OnCampaign.Subscribe(new () => {
+			ShowStageSelect();
+		});
+		mCityHubScreen.OnRoster.Subscribe(new () => {
+			ShowRoster();
+		});
+		mCityHubScreen.OnInventory.Subscribe(new () => {
+			ShowInventory();
+		});
+		mCityHubScreen.OnFormation.Subscribe(new () => {
+			ShowFormation();
+		});
+		mCityHubScreen.OnShop.Subscribe(new () => {
+			ShowShop();
+		});
+		mCityHubScreen.OnGacha.Subscribe(new () => {
+			ShowGacha();
+		});
 
 		// Wire HUD events
 		mBattleHUD.OnAutoToggle.Subscribe(new () => {
@@ -365,11 +669,23 @@ class StormTacticsGame : Application
 				Console.WriteLine("Deployment complete — battle started!");
 			}
 		});
+		mBattleHUD.OnPresetSelected.Subscribe(new (presetIndex) => {
+			OnDeployPresetSelected(presetIndex);
+		});
+		mBattleHUD.OnRosterUnitSelected.Subscribe(new (unitId) => {
+			OnDeployRosterUnitClicked(unitId);
+		});
+		mBattleHUD.OnSaveFormation.Subscribe(new () => {
+			OnDeploySaveFormation();
+		});
+		mBattleHUD.OnRemoveUnit.Subscribe(new () => {
+			OnDeployRemoveUnit();
+		});
 		mBattleHUD.OnStageSelected.Subscribe(new (stageId) => {
 			CreateBattle(stageId);
 		});
 		mBattleHUD.OnContinue.Subscribe(new () => {
-			ShowStageSelect();
+			ShowCityHub();
 		});
 
 		Console.WriteLine("UI system initialized");
@@ -382,11 +698,11 @@ class StormTacticsGame : Application
 
 		if (keyboard.IsKeyPressed(.Escape))
 		{
-			// Escape during battle returns to stage select; from stage select, exits
-			if (mGameState == .Campaign)
+			// Escape from city exits; from battle/stage select returns to city
+			if (mGameState == .City)
 				Exit();
 			else
-				ShowStageSelect();
+				ShowCityHub();
 			return;
 		}
 
@@ -402,8 +718,17 @@ class StormTacticsGame : Application
 			{
 				if (mBattleScene.IsDeploymentMode)
 				{
-					// Deployment: click to select/swap/move units
-					mBattleScene.DeploymentClickHex(mBattleScene.HoveredHex);
+					if (mDeployRosterSelectedUnitId >= 0)
+					{
+						// Roster unit selected — place on grid
+						OnDeployPlaceRosterUnit(mBattleScene.HoveredHex);
+					}
+					else
+					{
+						// No roster selection — existing swap/move behavior
+						mBattleScene.DeploymentClickHex(mBattleScene.HoveredHex);
+					}
+					mDeployRosterDirty = true;
 				}
 				else if (mBattleScene.IsPlayerTurn)
 				{
@@ -447,19 +772,30 @@ class StormTacticsGame : Application
 		// During deployment, update hint and unit hover — skip rest of battle HUD
 		if (mBattleScene.IsDeploymentMode)
 		{
-			if (mBattleScene.DeploySelectedUnit >= 0)
+			// Update hint text
+			if (mDeployRosterSelectedUnitId >= 0)
+			{
+				let config = mConfigs.GetUnit(mDeployRosterSelectedUnitId);
+				if (config != null)
+				{
+					let hint = scope String();
+					hint.AppendF("{} selected — click a deploy hex to place.", config.mName);
+					mBattleHUD.UpdateDeploymentHint(hint);
+				}
+			}
+			else if (mBattleScene.DeploySelectedUnit >= 0)
 			{
 				let selUnit = sim.GetUnit(mBattleScene.DeploySelectedUnit);
 				if (selUnit != null)
 				{
 					let hint = scope String();
-					hint.AppendF("{} selected — click a hex to place or another unit to swap.", selUnit.mConfig.mName);
+					hint.AppendF("{} selected — click a hex to move or another unit to swap.", selUnit.mConfig.mName);
 					mBattleHUD.UpdateDeploymentHint(hint);
 				}
 			}
 			else
 			{
-				mBattleHUD.UpdateDeploymentHint("Click a unit to select, then click a hex to move or another unit to swap.");
+				mBattleHUD.UpdateDeploymentHint("Select a unit from roster or grid to deploy.");
 			}
 
 			// Show unit info on hover during deployment
@@ -507,6 +843,58 @@ class StormTacticsGame : Application
 				}
 			}
 			mBattleHUD.UpdateTurnInfo(0, atkCount, defCount);
+
+			// Update preset tabs
+			{
+				let activeIdx = mSaveManager.SaveData.mActiveFormationIndex;
+				let count = mFormationManager.PresetCount;
+				var names = scope StringView[count];
+				for (int32 i = 0; i < count; i++)
+				{
+					let preset = mFormationManager.GetPreset(i);
+					if (preset != null)
+						names[i] = preset.mName;
+					else
+						names[i] = "?";
+				}
+				mBattleHUD.UpdateDeployPresetTabs(count, activeIdx, names);
+			}
+
+			// Update roster sidebar (rebuild only when dirty)
+			if (mDeployRosterDirty)
+			{
+				mDeployRosterDirty = false;
+
+				// Build set of deployed unit IDs
+				let deployedIds = scope HashSet<int32>();
+				for (int32 i = 0; i < sim.UnitCount; i++)
+				{
+					let unit = sim.GetUnit(i);
+					if (unit != null && unit.mAlive && unit.mForce == .Attacker)
+						deployedIds.Add(unit.mConfig.mId);
+				}
+
+				// Build roster info from owned units
+				let save = mSaveManager.SaveData;
+				var rosterInfos = scope RosterUnitInfo[save.mOwnedUnits.Count];
+				int32 rosterCount = 0;
+				for (let owned in save.mOwnedUnits)
+				{
+					let config = mConfigs.GetUnit(owned.mUnitId);
+					if (config == null) continue;
+					var info = RosterUnitInfo();
+					info.mUnitId = owned.mUnitId;
+					info.mName = config.mName;
+					info.mIsDeployed = deployedIds.Contains(owned.mUnitId);
+					if (rosterCount < rosterInfos.Count)
+						rosterInfos[rosterCount++] = info;
+				}
+				mBattleHUD.UpdateDeployRoster(rosterInfos[0..<rosterCount]);
+			}
+
+			// Toggle "Remove Unit" button based on grid selection
+			mBattleHUD.ShowRemoveUnitButton(mBattleScene.DeploySelectedUnit >= 0);
+
 			return;
 		}
 
@@ -663,7 +1051,212 @@ class StormTacticsGame : Application
 			mBattleHUD.ShowBattleResult(resultStr, result.mStarRating, result.mTotalTurns,
 				(int32)result.mSurvivingAttackers.Count, result.mTotalAttackers,
 				result.mTotalDamageDealt, result.mTotalHealingDone, result.mUnitsKilled);
+
+			// Process rewards once on victory
+			if (!mRewardsProcessed && sim.State == .AttackerWins)
+			{
+				mRewardsProcessed = true;
+				let rewards = mRewardProcessor.ProcessStageRewards(mCurrentStageId, result.mStarRating);
+				defer delete rewards;
+
+				// Build display info for HUD
+				var rewardInfos = scope RewardDisplayInfo[rewards.mItems.Count];
+				for (int32 i = 0; i < (int32)rewards.mItems.Count; i++)
+				{
+					rewardInfos[i].mName = rewards.mItems[i].mItemName;
+					rewardInfos[i].mQuantity = rewards.mItems[i].mQuantity;
+				}
+
+				mBattleHUD.ShowRewards(rewards.mGoldGained, rewards.mExpGained, rewardInfos);
+				mSaveManager.Save();
+
+				Console.WriteLine("[Rewards] +{} gold, +{} EXP, {} items",
+					rewards.mGoldGained, rewards.mExpGained, rewards.mItems.Count);
+			}
 		}
+	}
+
+	// --- Deployment event handlers ---
+
+	/// Handle preset tab selection during deployment.
+	private void OnDeployPresetSelected(int32 presetIndex)
+	{
+		if (mBattleScene == null || mCurrentSim == null) return;
+
+		mFormationManager.SetActivePreset(presetIndex);
+		mSaveManager.SaveData.mActiveFormationIndex = presetIndex;
+
+		// Build attacker list from selected preset
+		let preset = mFormationManager.GetPreset(presetIndex);
+		let attackers = scope List<FormationSlot>();
+
+		if (preset != null)
+		{
+			let save = mSaveManager.SaveData;
+			for (let fSlot in preset.mSlots)
+			{
+				if (mConfigs.GetUnit(fSlot.mUnitId) == null) continue;
+				if (save.GetOwnedUnit(fSlot.mUnitId) == null) continue;
+				let slot = scope :: FormationSlot();
+				slot.mUnitId = fSlot.mUnitId;
+				slot.mGridX = fSlot.mGridX;
+				slot.mGridY = fSlot.mGridY;
+				attackers.Add(slot);
+			}
+		}
+
+		mCurrentSim.RedeployAttackers(attackers);
+		mBattleScene.RebuildUnitViews();
+		mDeployRosterSelectedUnitId = -1;
+		mDeployRosterDirty = true;
+
+		Console.WriteLine("[Deploy] Switched to preset {} — {} attackers", presetIndex, attackers.Count);
+	}
+
+	/// Handle roster unit click during deployment.
+	private void OnDeployRosterUnitClicked(int32 unitId)
+	{
+		if (unitId == mDeployRosterSelectedUnitId)
+			mDeployRosterSelectedUnitId = -1; // Deselect
+		else
+			mDeployRosterSelectedUnitId = unitId;
+	}
+
+	/// Place a roster-selected unit onto the deployment grid.
+	private void OnDeployPlaceRosterUnit(HexCoord hex)
+	{
+		if (mBattleScene == null || mCurrentSim == null) return;
+		if (mDeployRosterSelectedUnitId < 0) return;
+
+		let deployColumns = mCurrentSim.DeployColumns;
+		let (col, _) = hex.ToOffset();
+		if (col >= deployColumns) return; // Must be in deploy zone
+		if (!mCurrentSim.Grid.InBounds(hex)) return;
+
+		// Build current attacker list from simulation
+		let attackers = scope List<FormationSlot>();
+		mCurrentSim.GetDeployedAttackers(attackers);
+		defer { for (let s in attackers) delete s; }
+
+		// Check if the roster unit is already deployed
+		int32 existingIdx = -1;
+		for (int32 i = 0; i < (int32)attackers.Count; i++)
+		{
+			if (attackers[i].mUnitId == mDeployRosterSelectedUnitId)
+			{
+				existingIdx = i;
+				break;
+			}
+		}
+
+		// Check if target hex is occupied by a different unit
+		int32 occupantIdx = -1;
+		for (int32 i = 0; i < (int32)attackers.Count; i++)
+		{
+			let (ox, oy) = HexCoord.FromOffset(attackers[i].mGridX, attackers[i].mGridY).ToOffset();
+			if (ox == col && oy == hex.ToOffset().1)
+			{
+				occupantIdx = i;
+				break;
+			}
+		}
+
+		let targetCol = col;
+		let targetRow = hex.ToOffset().1;
+
+		if (existingIdx >= 0)
+		{
+			// Already deployed — move to target hex
+			if (occupantIdx >= 0 && occupantIdx != existingIdx)
+			{
+				// Target occupied by different unit — remove occupant
+				delete attackers[occupantIdx];
+				attackers.RemoveAt(occupantIdx);
+				// Adjust existingIdx if it was after removed
+				if (existingIdx > occupantIdx) existingIdx--;
+			}
+			attackers[existingIdx].mGridX = targetCol;
+			attackers[existingIdx].mGridY = targetRow;
+		}
+		else
+		{
+			// Not deployed — check slot limit
+			if (attackers.Count >= mPlayerManager.MaxFormationSlots)
+			{
+				mDeployRosterSelectedUnitId = -1;
+				return;
+			}
+
+			// Remove occupant if target hex is occupied
+			if (occupantIdx >= 0)
+			{
+				delete attackers[occupantIdx];
+				attackers.RemoveAt(occupantIdx);
+			}
+
+			// Add new unit
+			let slot = new FormationSlot();
+			slot.mUnitId = mDeployRosterSelectedUnitId;
+			slot.mGridX = targetCol;
+			slot.mGridY = targetRow;
+			attackers.Add(slot);
+		}
+
+		mCurrentSim.RedeployAttackers(attackers);
+		mBattleScene.RebuildUnitViews();
+		mDeployRosterSelectedUnitId = -1;
+		mDeployRosterDirty = true;
+	}
+
+	/// Remove the grid-selected unit during deployment.
+	private void OnDeployRemoveUnit()
+	{
+		if (mBattleScene == null || mCurrentSim == null) return;
+
+		let selIdx = mBattleScene.DeploySelectedUnit;
+		if (selIdx < 0) return;
+
+		let selUnit = mCurrentSim.GetUnit(selIdx);
+		if (selUnit == null || !selUnit.mAlive || selUnit.mForce != .Attacker) return;
+
+		// Build attacker list excluding the selected unit
+		let attackers = scope List<FormationSlot>();
+		mCurrentSim.GetDeployedAttackers(attackers);
+		defer { for (let s in attackers) delete s; }
+
+		// Find and remove the selected unit's ID
+		let removeId = selUnit.mConfig.mId;
+		for (int32 i = 0; i < (int32)attackers.Count; i++)
+		{
+			if (attackers[i].mUnitId == removeId)
+			{
+				delete attackers[i];
+				attackers.RemoveAt(i);
+				break;
+			}
+		}
+
+		mCurrentSim.RedeployAttackers(attackers);
+		mBattleScene.RebuildUnitViews();
+		mDeployRosterDirty = true;
+
+		Console.WriteLine("[Deploy] Removed unit {}", removeId);
+	}
+
+	/// Save the current deployment as the active formation preset.
+	private void OnDeploySaveFormation()
+	{
+		if (mCurrentSim == null) return;
+
+		let activeIdx = mSaveManager.SaveData.mActiveFormationIndex;
+		let deployed = scope List<FormationSlot>();
+		mCurrentSim.GetDeployedAttackers(deployed);
+		defer { for (let s in deployed) delete s; }
+
+		mFormationManager.OverwritePreset(activeIdx, deployed);
+		mSaveManager.Save();
+
+		Console.WriteLine("[Deploy] Saved deployment as preset {} ({} units)", activeIdx, deployed.Count);
 	}
 
 	protected override bool OnRenderFrame(RenderContext render)
@@ -729,9 +1322,23 @@ class StormTacticsGame : Application
 		Profiler.Shutdown();
 
 		// Cleanup in dependency order:
-		// 1. HUD — before UISubsystem is torn down by context
+		// 1. UI screens — before UISubsystem is torn down by context
+		delete mFormationScreen;
+		mFormationScreen = null;
+		delete mGachaScreen;
+		mGachaScreen = null;
+		delete mShopScreen;
+		mShopScreen = null;
+		delete mEquipSelectPopup;
+		mEquipSelectPopup = null;
+		delete mInventoryScreen;
+		mInventoryScreen = null;
+		delete mRosterScreen;
+		mRosterScreen = null;
 		delete mBattleHUD;
 		mBattleHUD = null;
+		delete mCityHubScreen;
+		mCityHubScreen = null;
 
 		// 2. Theme + font service — GUIContext doesn't take ownership
 		delete mGameTheme;
@@ -742,15 +1349,36 @@ class StormTacticsGame : Application
 		// 3. Battle scene + simulation
 		DestroyBattle();
 
-		// 4. Config data — standalone
+		// 4. Metagame systems — save before exit
+		mSaveManager?.Save();
+		delete mRewardProcessor;
+		mRewardProcessor = null;
+		delete mRosterManager;
+		mRosterManager = null;
+		delete mFormationManager;
+		mFormationManager = null;
+		delete mGachaManager;
+		mGachaManager = null;
+		delete mShopManager;
+		mShopManager = null;
+		delete mEquipmentManager;
+		mEquipmentManager = null;
+		delete mInventoryManager;
+		mInventoryManager = null;
+		delete mPlayerManager;
+		mPlayerManager = null;
+		delete mSaveManager;
+		mSaveManager = null;
+
+		// 5. Config data — standalone
 		delete mConfigs;
 		mConfigs = null;
 
-		// 5. Render view — standalone
+		// 6. Render view — standalone
 		delete mRenderView;
 		mRenderView = null;
 
-		// 6. Render system — owns features, must be last
+		// 7. Render system — owns features, must be last
 		if (mRenderSystem != null)
 			mRenderSystem.Shutdown();
 		delete mRenderSystem;

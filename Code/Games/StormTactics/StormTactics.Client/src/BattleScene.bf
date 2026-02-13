@@ -302,6 +302,37 @@ class BattleScene
 
 	public int32 DeploySelectedUnit => mDeploySelectedUnit;
 
+	/// Rebuild all unit views after RedeployAttackers() changed the unit list.
+	/// Destroys existing views/entities, recreates from simulation, rebuilds sequencer.
+	public void RebuildUnitViews()
+	{
+		// 1. Destroy all existing views (entities + view objects)
+		if (mUnitViews != null && mScene != null)
+		{
+			for (let view in mUnitViews)
+			{
+				if (view != null)
+					mScene.DestroyEntity(view.mEntityId);
+			}
+		}
+		DeleteContainerAndItems!(mUnitViews);
+		mUnitViews = new List<BattleUnitView>();
+
+		// 2. Recreate unit views from current simulation state
+		CreateUnitViews();
+
+		// 3. Rebuild sequencer — transfer OnEventStarted delegate
+		let existingDelegate = mSequencer.OnEventStarted;
+		mSequencer.OnEventStarted = null; // Prevent delete in destructor
+		delete mSequencer;
+		mSequencer = new BattleAnimationSequencer(mUnitViews, mScene, mHexSize);
+		mSequencer.OnEventStarted = existingDelegate;
+		mSequencer.SpeedMultiplier = mSpeedMultiplier;
+
+		// 4. Reset deployment selection
+		mDeploySelectedUnit = -1;
+	}
+
 	/// Update a unit view's world position to match its simulation position.
 	private void UpdateUnitViewPosition(int32 unitIdx)
 	{

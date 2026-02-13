@@ -13,5 +13,8 @@ enum GameState : int32
 	UnitManagement = 8,
 	Arena = 9,
 	Guild = 10,
-	Settings = 11
+	Settings = 11,
+	Inventory = 12,
+	Gacha = 13,
+	Formation = 14
 }

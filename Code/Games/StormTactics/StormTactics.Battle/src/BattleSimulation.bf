@@ -167,7 +167,95 @@ class BattleSimulation
 	}
 
 	public bool IsFinished => mState != .InProgress;
-	public int32 DeployColumns => mInitColumns / 3; // Attacker deployment zone width
+	public int32 DeployColumns => mInitColumns / BattleConstants.DEPLOY_DIVISOR;
+
+	/// Rebuild all attacker units from a new formation while preserving defenders.
+	/// Used during deployment when the player switches formations or adds/removes units.
+	public void RedeployAttackers(List<FormationSlot> newAttackers)
+	{
+		// 1. Collect defender BattleUnit objects (don't delete them)
+		let defenders = scope List<BattleUnit>();
+		for (let unit in mUnits)
+		{
+			if (unit.mForce == .Defender)
+				defenders.Add(unit);
+		}
+
+		// 2. Clear grid occupants for all units
+		for (let unit in mUnits)
+		{
+			if (unit.mAlive)
+				mGrid.ClearOccupant(unit.mPosition);
+		}
+
+		// 3. Delete attacker BattleUnits only
+		for (let unit in mUnits)
+		{
+			if (unit.mForce == .Attacker)
+				delete unit;
+		}
+
+		// 4. Clear mUnits list (defenders still alive, just removed from list)
+		mUnits.Clear();
+
+		// 5. Create new attacker BattleUnits from newAttackers list
+		for (let slot in newAttackers)
+		{
+			let config = mConfigs.GetUnit(slot.mUnitId);
+			if (config == null) continue;
+			let hex = HexCoord.FromOffset(slot.mGridX, slot.mGridY);
+			if (!mGrid.InBounds(hex)) continue;
+
+			let unit = new BattleUnit();
+			let idx = (int32)mUnits.Count;
+			unit.Initialize(idx, config, .Attacker, hex, slot.mGridX);
+			mUnits.Add(unit);
+			mGrid.SetOccupant(hex, idx);
+		}
+
+		// 6. Re-add defender units with updated mIndex values
+		for (let defUnit in defenders)
+		{
+			let idx = (int32)mUnits.Count;
+			defUnit.mIndex = idx;
+			mUnits.Add(defUnit);
+			if (defUnit.mAlive)
+				mGrid.SetOccupant(defUnit.mPosition, idx);
+		}
+
+		// 7. Update mInitAttackers (delete old, copy new)
+		if (mInitAttackers != null)
+			DeleteContainerAndItems!(mInitAttackers);
+		mInitAttackers = new List<FormationSlot>();
+		for (let slot in newAttackers)
+		{
+			let copy = new FormationSlot();
+			copy.mUnitId = slot.mUnitId;
+			copy.mStarLevel = slot.mStarLevel;
+			copy.mGridX = slot.mGridX;
+			copy.mGridY = slot.mGridY;
+			mInitAttackers.Add(copy);
+		}
+
+		// 8. Validate consistency
+		ValidateGridConsistency();
+	}
+
+	/// Export current alive attacker positions as FormationSlot objects.
+	/// Caller owns the returned items.
+	public void GetDeployedAttackers(List<FormationSlot> outSlots)
+	{
+		for (let unit in mUnits)
+		{
+			if (unit.mForce != .Attacker || !unit.mAlive) continue;
+			let (col, row) = unit.mPosition.ToOffset();
+			let slot = new FormationSlot();
+			slot.mUnitId = unit.mConfig.mId;
+			slot.mGridX = col;
+			slot.mGridY = row;
+			outSlots.Add(slot);
+		}
+	}
 
 	/// Swap the positions of two units (for pre-battle deployment).
 	/// Both units must be alive and belong to the same force.

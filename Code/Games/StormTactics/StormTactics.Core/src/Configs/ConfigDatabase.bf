@@ -38,6 +38,7 @@ class ConfigDatabase
 	public Dictionary<int32, StageConfig>.ValueEnumerator Stages => mStages.Values;
 	public Dictionary<int32, ItemConfig>.ValueEnumerator Items => mItems.Values;
 	public Dictionary<int32, EquipConfig>.ValueEnumerator Equips => mEquips.Values;
+	public Dictionary<int32, ShopItemConfig>.ValueEnumerator ShopItems => mShopItems.Values;
 
 	public StarLevelConfig GetStarLevel(int32 unitId, int32 starLevel)
 	{

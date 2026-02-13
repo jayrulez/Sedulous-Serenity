@@ -327,20 +327,21 @@ The interface layer for tactical combat.
   - [x] Move + action in same turn (move then attack/skill/wait)
   - [x] Undo move (before committing attack)
 
-- [ ] **Battle results screen**
+- [x] **Battle results screen**
   - [x] Victory / Defeat / Draw banner (overlay with result text)
   - [x] Star rating (based on remaining HP, turns taken, units lost)
   - [x] Battle stats display (turns, survivors, kills, damage, healing)
-  - [ ] EXP gained
-  - [ ] Loot/rewards display
-  - [x] "Continue" button
+  - [x] EXP gained (shown in rewards section)
+  - [x] Loot/rewards display (gold, EXP, item drops)
+  - [x] "Continue" button (returns to city hub)
 
 - [x] **Pre-battle (deployment) screen**
   - [x] Show enemy formation preview (red-highlighted defender hexes)
   - [x] Player's deployment grid (their side of the hex map)
   - [x] Click-to-select and click-to-swap/move units in deployment zone
   - [x] Unit info on hover (via bottom panel after battle starts; hint text during deploy)
-  - [ ] Formation save/load
+  - [ ] Formation preset selection and roster add/remove during deployment
+  - [ ] Save current deployment as formation preset
   - [x] "Start Battle" button
   - [ ] Recommended power level indicator
 
@@ -348,57 +349,75 @@ The interface layer for tactical combat.
 
 ## Phase 6: Metagame Systems
 
-Everything outside of battle — the RPG progression layer.
+Everything outside of battle — the RPG progression layer. Uses XML save/load via `SaveManager`. City hub is the central navigation screen. Placeholder icons generated programmatically via `IconGenerator` (64x64 RGBA8 `OwnedImageData`).
 
 ### Checklist
 
-- [ ] **Player profile system**
-  - [ ] Player level and EXP
-  - [ ] Stamina/vigor system (regenerates over time, spent to enter battles)
-  - [ ] Currency tracking (gold, gems/diamonds, other currencies)
-  - [ ] Player name and avatar
+- [x] **Save system** (`SaveManager`, `PlayerSaveData`)
+  - [x] XML save/load via `XmlSerializer` to `{AssetDir}/StormTactics/save/player_save.xml`
+  - [x] Auto-save on return to city hub and on exit
+  - [x] New game initialization with starter units (Footman, Archer, Priest)
 
-- [ ] **Unit collection / card system**
-  - [ ] Unit roster (all owned units)
-  - [ ] Unit shard collection (duplicates become shards)
-  - [ ] Star-level upgrade: spend shards to promote (1★ → 2★ → ... → 5★)
-  - [ ] Per-star stat scaling and skill unlocks
+- [x] **Player profile system** (`PlayerManager`)
+  - [x] Player level and EXP with level-up
+  - [ ] Stamina system (spent to enter battles, scales with hero level (todo: should regenerate over time))
+  - [x] Currency tracking (gold, gems)
+  - [x] Stage unlock and clear tracking with star ratings
+
+- [x] **City hub screen** (`CityHubScreen`)
+  - [x] Player info bar (level, EXP, gold, gems, stamina)
+  - [x] Navigation grid: Campaign, Roster, Inventory, Formation, Shop, Gacha
+  - [x] Central screen — all metagame screens navigate back to city
+
+- [x] **Reward processing** (`RewardProcessor`)
+  - [x] Post-battle rewards (gold, EXP, item drops with chance)
+  - [x] Rewards displayed on battle result overlay
+  - [x] Stage clear tracking and star recording
+
+- [x] **Unit collection / roster** (`RosterManager`, `RosterScreen`)
+  - [x] Unit roster with scrollable card list and detail panel
+  - [x] Unit shard collection (gacha duplicates → shards)
+  - [ ] Star-level upgrade: spend shards to promote (1★ → 5★) (todo: skill unlock)
+  - [x] Per-star stat scaling via `StarLevelConfig` multipliers
   - [ ] Unit level system (gain EXP from battles or consumables)
-  - [ ] Unit detail view (stats, skills, equipment, star progress)
+  - [ ] Unit detail view (icon, stats, star display, star-up button, shard progress, (todo: skills, equipment))
 
-- [ ] **Equipment system**
-  - [ ] Equipment slots per unit (weapon, armor, accessory — or similar)
-  - [ ] Equip / unequip
+- [x] **Equipment system** (`EquipmentManager`, `EquipSelectPopup`)
+  - [x] Equipment slots per unit (Weapon, Armor, Accessory)
+  - [x] Equip / unequip via modal popup (Sedulous.GUI `Popup` class)
   - [ ] Equipment enhancement (spend gold + materials to increase level)
-  - [ ] Equipment stat bonuses applied to unit
-  - [ ] Equipment rarity tiers
+  - [x] Equipment stat bonuses applied to effective stats
+  - [x] Equipment rarity tiers (shown in roster detail view)
 
-- [ ] **Inventory / bag system**
-  - [ ] Item storage with stack counts
+- [x] **Inventory / bag system** (`InventoryManager`, `InventoryScreen`)
+  - [x] Item storage with stack counts
   - [ ] Item usage (consumables: EXP potions, stamina refills, etc.)
-  - [ ] Item acquisition (battle rewards, shop, mail)
+  - [x] Item acquisition (battle rewards, shop, mail)
   - [ ] Item sell/discard
+  - [x] Grid layout with icons, selected item detail panel
 
-- [ ] **Gacha / card draw system**
-  - [ ] Single draw and multi-draw (10x)
-  - [ ] Draw costs (premium currency or tickets)
-  - [ ] Rarity probability tables
-  - [ ] Pity system (guaranteed rare after N draws)
-  - [ ] Draw animation
-  - [ ] Result display (new unit highlight)
+- [x] **Gacha / card draw system** (`GachaManager`, `GachaScreen`)
+  - [x] Single draw (300 gems) and multi-draw 10x (2700 gems)
+  - [x] Rarity probability tables (3% Legendary, 12% Epic, 35% Rare, 50% Common)
+  - [x] Pity system (guaranteed Legendary at 90 pulls)
+  - [x] Duplicate handling (existing unit → shards)
+  - [x] Result display with rarity borders, "NEW!" or shard count
+  - [ ] Draw animation (currently instant)
 
-- [ ] **Shop system**
-  - [ ] Multiple shop tabs (general, equipment, special)
-  - [ ] Buy items with gold or premium currency
-  - [ ] Purchase limits (daily/weekly)
+- [x] **Shop system** (`ShopManager`, `ShopScreen`)
+  - [x] Item listings with costs, Buy buttons, currency display
+  - [x] Buy items with gold or gems
+  - [ ] Purchase limits with sold-out dimming (todo: daily/weekly)
   - [ ] Shop refresh timer
   - [ ] Featured/promoted items
 
-- [ ] **Formation management**
-  - [ ] Save multiple formation presets
-  - [ ] Assign units to formation slots
-  - [ ] Formation slot unlocking (based on player level)
-  - [ ] Quick-swap formations
+- [x] **Formation management** (`FormationManager`, `FormationScreen`)
+  - [x] Save multiple formation presets (max 4 via `MAX_FORMATION_PRESETS`)
+  - [x] Assign units to hex grid positions (2x4 deployment zone via `BattleConstants.DEPLOY_COLUMNS/DEPLOY_ROWS`)
+  - [x] Formation slot limit scales with hero level (3→8 over levels 1→10)
+  - [x] Preset tabs with create/switch, unit count display
+  - [ ] Formation preset selection during deployment (in progress)
+  - [ ] Save deployment as formation preset
 
 ---
 
