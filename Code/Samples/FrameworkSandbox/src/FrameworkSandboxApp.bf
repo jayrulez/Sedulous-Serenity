@@ -51,7 +51,7 @@ class FrameworkSandboxApp : Application
 	private ParticleFeature mParticleFeature;
 	private SpriteFeature mSpriteFeature;
 	private SkyFeature mSkyFeature;
-	private DebugRenderFeature mDebugFeature;
+	private OverlayRenderFeature mOverlayFeature;
 	private FinalOutputFeature mFinalOutputFeature;
 
 	// Mesh resources
@@ -277,9 +277,9 @@ class FrameworkSandboxApp : Application
 		}
 
 		// Debug render (for physics debug draw)
-		mDebugFeature = new DebugRenderFeature();
-		if (mRenderSystem.RegisterFeature(mDebugFeature) case .Ok)
-			Console.WriteLine("Registered: DebugRenderFeature");
+		mOverlayFeature = new OverlayRenderFeature();
+		if (mRenderSystem.RegisterFeature(mOverlayFeature) case .Ok)
+			Console.WriteLine("Registered: OverlayRenderFeature");
 
 		// Final output
 		mFinalOutputFeature = new FinalOutputFeature();
@@ -1690,7 +1690,7 @@ class FrameworkSandboxApp : Application
 		}
 
 		// Draw debug HUD
-		if (mDebugFeature != null)
+		if (mOverlayFeature != null)
 		{
 			let bgColor = Color(0, 0, 0, 180);
 			let brightBlue = Color(100, 180, 255, 255);
@@ -1707,19 +1707,19 @@ class FrameworkSandboxApp : Application
 			let camUp = Vector3.Normalize(Vector3.Cross(camRight, camFwd));
 
 			// Label particle emitters with per-effect colors (matching RendererIntegrated style)
-			mDebugFeature.AddText("FIRE + SMOKE", .(0.0f, 3.5f, -8.0f), Color(255, 150, 50, 255), 1.5f, camRight, camUp, .Overlay);
-			mDebugFeature.AddText("SPARKS", .(-8.0f, 3.0f, -4.0f), Color(255, 255, 100, 255), 1.5f, camRight, camUp, .Overlay);
-			mDebugFeature.AddText("MAGIC ORB", .(8.0f, 4.0f, 0.0f), Color(150, 100, 255, 255), 1.5f, camRight, camUp, .Overlay);
-			mDebugFeature.AddText("TRAIL COMET", .(-8.0f, 4.5f, 8.0f), Color(255, 200, 50, 255), 1.5f, camRight, camUp, .Overlay);
-			mDebugFeature.AddText("FIREWORK", .(12.0f, 4.0f, -10.0f), Color(255, 255, 100, 255), 1.5f, camRight, camUp, .Overlay);
-			mDebugFeature.AddText("STEAM", .(8.0f, 3.5f, -8.0f), Color(200, 200, 255, 255), 1.5f, camRight, camUp, .Overlay);
-			mDebugFeature.AddText("FOUNTAIN", .(-12.0f, 4.0f, 0.0f), Color(100, 180, 255, 255), 1.5f, camRight, camUp, .Overlay);
-			mDebugFeature.AddText("FAIRY DUST", .(12.0f, 4.0f, 5.0f), Color(255, 220, 100, 255), 1.5f, camRight, camUp, .Overlay);
-			mDebugFeature.AddText("TRAILED SPARKS", .(-5.0f, 5.5f, 10.0f), Color(255, 180, 50, 255), 1.5f, camRight, camUp, .Overlay);
-			mDebugFeature.AddText("HEALING", .(5.0f, 3.5f, 8.0f), Color(50, 255, 100, 255), 1.5f, camRight, camUp, .Overlay);
-			mDebugFeature.AddText("SWORD TRAIL", .(-12.0f, 4.5f, 8.0f), Color(180, 150, 255, 255), 1.5f, camRight, camUp, .Overlay);
-			mDebugFeature.AddText("CHERRY BLOSSOMS", .(0.0f, 13.0f, 0.0f), Color(255, 130, 150, 255), 1.5f, camRight, camUp, .Overlay);
-			mDebugFeature.AddText("WORLD UI", .(0.0f, 4.8f, -3.0f), Color(180, 220, 255, 255), 1.5f, camRight, camUp, .Overlay);
+			mOverlayFeature.AddText("FIRE + SMOKE", .(0.0f, 3.5f, -8.0f), Color(255, 150, 50, 255), 1.5f, camRight, camUp, .Overlay);
+			mOverlayFeature.AddText("SPARKS", .(-8.0f, 3.0f, -4.0f), Color(255, 255, 100, 255), 1.5f, camRight, camUp, .Overlay);
+			mOverlayFeature.AddText("MAGIC ORB", .(8.0f, 4.0f, 0.0f), Color(150, 100, 255, 255), 1.5f, camRight, camUp, .Overlay);
+			mOverlayFeature.AddText("TRAIL COMET", .(-8.0f, 4.5f, 8.0f), Color(255, 200, 50, 255), 1.5f, camRight, camUp, .Overlay);
+			mOverlayFeature.AddText("FIREWORK", .(12.0f, 4.0f, -10.0f), Color(255, 255, 100, 255), 1.5f, camRight, camUp, .Overlay);
+			mOverlayFeature.AddText("STEAM", .(8.0f, 3.5f, -8.0f), Color(200, 200, 255, 255), 1.5f, camRight, camUp, .Overlay);
+			mOverlayFeature.AddText("FOUNTAIN", .(-12.0f, 4.0f, 0.0f), Color(100, 180, 255, 255), 1.5f, camRight, camUp, .Overlay);
+			mOverlayFeature.AddText("FAIRY DUST", .(12.0f, 4.0f, 5.0f), Color(255, 220, 100, 255), 1.5f, camRight, camUp, .Overlay);
+			mOverlayFeature.AddText("TRAILED SPARKS", .(-5.0f, 5.5f, 10.0f), Color(255, 180, 50, 255), 1.5f, camRight, camUp, .Overlay);
+			mOverlayFeature.AddText("HEALING", .(5.0f, 3.5f, 8.0f), Color(50, 255, 100, 255), 1.5f, camRight, camUp, .Overlay);
+			mOverlayFeature.AddText("SWORD TRAIL", .(-12.0f, 4.5f, 8.0f), Color(180, 150, 255, 255), 1.5f, camRight, camUp, .Overlay);
+			mOverlayFeature.AddText("CHERRY BLOSSOMS", .(0.0f, 13.0f, 0.0f), Color(255, 130, 150, 255), 1.5f, camRight, camUp, .Overlay);
+			mOverlayFeature.AddText("WORLD UI", .(0.0f, 4.8f, -3.0f), Color(180, 220, 255, 255), 1.5f, camRight, camUp, .Overlay);
 
 			// Draw directional light direction (matching RendererIntegrated)
 			{
@@ -1730,8 +1730,8 @@ class FrameworkSandboxApp : Application
 					{
 						Vector3 sunOrigin = .(0, 8, 0);
 						Vector3 sunEnd = sunOrigin + light.Direction * 5.0f;
-						mDebugFeature.AddArrow(sunOrigin, sunEnd, Color.Yellow, 0.3f, .Overlay);
-						mDebugFeature.AddSphere(sunOrigin, 0.3f, Color.Yellow, 8, .Overlay);
+						mOverlayFeature.AddArrow(sunOrigin, sunEnd, Color.Yellow, 0.3f, .Overlay);
+						mOverlayFeature.AddSphere(sunOrigin, 0.3f, Color.Yellow, 8, .Overlay);
 					}
 				}
 			}
@@ -1741,52 +1741,52 @@ class FrameworkSandboxApp : Application
 			let brightOrange = Color(255, 180, 100, 255);
 
 			// ===== TOP LEFT: Instructions =====
-			mDebugFeature.AddRect2D(5, 5, 400, 137, bgColor);
-			mDebugFeature.AddText2D("FRAMEWORK SANDBOX", 15, 12, brightYellow, 1.5f);
+			mOverlayFeature.AddRect2D(5, 5, 400, 137, bgColor);
+			mOverlayFeature.AddText2D("FRAMEWORK SANDBOX", 15, 12, brightYellow, 1.5f);
 
 			if (mCamera.CurrentMode == .Orbital)
-				mDebugFeature.AddText2D("ORBITAL: WASD rotate, Q/E zoom, RMB drag", 15, 35, white, 1.0f);
+				mOverlayFeature.AddText2D("ORBITAL: WASD rotate, Q/E zoom, RMB drag", 15, 35, white, 1.0f);
 			else
-				mDebugFeature.AddText2D("FLY: WASD move, Q/E up/down, RMB look", 15, 35, white, 1.0f);
+				mOverlayFeature.AddText2D("FLY: WASD move, Q/E up/down, RMB look", 15, 35, white, 1.0f);
 
-			mDebugFeature.AddText2D("Tab: Toggle camera    `: Back to orbital", 15, 52, white, 1.0f);
-			mDebugFeature.AddText2D("Arrow keys: Rotate sun light", 15, 69, white, 1.0f);
-			mDebugFeature.AddText2D("Space: Spawn objects  F: Debug draw", 15, 86, white, 1.0f);
-			mDebugFeature.AddText2D("P: Profiler           ESC: Exit", 15, 103, white, 1.0f);
+			mOverlayFeature.AddText2D("Tab: Toggle camera    `: Back to orbital", 15, 52, white, 1.0f);
+			mOverlayFeature.AddText2D("Arrow keys: Rotate sun light", 15, 69, white, 1.0f);
+			mOverlayFeature.AddText2D("Space: Spawn objects  F: Debug draw", 15, 86, white, 1.0f);
+			mOverlayFeature.AddText2D("P: Profiler           ESC: Exit", 15, 103, white, 1.0f);
 
 			// ===== TOP RIGHT: Stats =====
 			float panelX = (float)mRenderView.Width - 220;
-			mDebugFeature.AddRect2D(panelX, 5, 215, 135, bgColor);
+			mOverlayFeature.AddRect2D(panelX, 5, 215, 135, bgColor);
 
 			// FPS
 			let fpsText = scope String();
 			((int32)Math.Round(mSmoothedFps)).ToString(fpsText);
-			mDebugFeature.AddText2D("FPS:", panelX + 10, 12, brightBlue, 1.5f);
-			mDebugFeature.AddText2DRight(fpsText, 10, 12, brightCyan, 1.5f);
+			mOverlayFeature.AddText2D("FPS:", panelX + 10, 12, brightBlue, 1.5f);
+			mOverlayFeature.AddText2DRight(fpsText, 10, 12, brightCyan, 1.5f);
 
 			// Object count
 			let countText = scope String();
 			mSpawnCount.ToString(countText);
-			mDebugFeature.AddText2D("Objects:", panelX + 10, 35, brightBlue, 1.5f);
-			mDebugFeature.AddText2DRight(countText, 10, 35, brightCyan, 1.5f);
+			mOverlayFeature.AddText2D("Objects:", panelX + 10, 35, brightBlue, 1.5f);
+			mOverlayFeature.AddText2DRight(countText, 10, 35, brightCyan, 1.5f);
 
 			// Spawn status
 			let spawnStatus = mSpawningEnabled ? "ON" : "OFF";
 			let spawnColor = mSpawningEnabled ? brightGreen : brightBlue;
-			mDebugFeature.AddText2D("Spawn:", panelX + 10, 58, brightBlue, 1.5f);
-			mDebugFeature.AddText2DRight(spawnStatus, 10, 58, spawnColor, 1.5f);
+			mOverlayFeature.AddText2D("Spawn:", panelX + 10, 58, brightBlue, 1.5f);
+			mOverlayFeature.AddText2DRight(spawnStatus, 10, 58, spawnColor, 1.5f);
 
 			// Debug draw status
 			let debugStatus = mPhysicsDebugDraw ? "ON" : "OFF";
 			let debugColor = mPhysicsDebugDraw ? brightGreen : brightBlue;
-			mDebugFeature.AddText2D("Debug:", panelX + 10, 81, brightBlue, 1.5f);
-			mDebugFeature.AddText2DRight(debugStatus, 10, 81, debugColor, 1.5f);
+			mOverlayFeature.AddText2D("Debug:", panelX + 10, 81, brightBlue, 1.5f);
+			mOverlayFeature.AddText2DRight(debugStatus, 10, 81, debugColor, 1.5f);
 
 			// Camera mode
 			let camMode = (mCamera.CurrentMode == .Orbital) ? "ORBITAL" : "FLYTHROUGH";
 			let camColor = (mCamera.CurrentMode == .Orbital) ? brightGreen : brightOrange;
-			mDebugFeature.AddText2D("Camera:", panelX + 10, 104, brightBlue, 1.2f);
-			mDebugFeature.AddText2DRight(camMode, 10, 104, camColor, 1.2f);
+			mOverlayFeature.AddText2D("Camera:", panelX + 10, 104, brightBlue, 1.2f);
+			mOverlayFeature.AddText2DRight(camMode, 10, 104, camColor, 1.2f);
 		}
 
 		// Set camera

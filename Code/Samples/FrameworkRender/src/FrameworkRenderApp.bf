@@ -34,7 +34,7 @@ class FrameworkRenderApp : Application
 	private DepthPrepassFeature mDepthFeature;
 	private ForwardOpaqueFeature mForwardFeature;
 	private SkyFeature mSkyFeature;
-	private DebugRenderFeature mDebugFeature;
+	private OverlayRenderFeature mOverlayFeature;
 	private FinalOutputFeature mFinalOutputFeature;
 
 	// Mesh resources
@@ -158,8 +158,8 @@ class FrameworkRenderApp : Application
 		mSkyFeature = new SkyFeature();
 		mRenderSystem.RegisterFeature(mSkyFeature);
 
-		mDebugFeature = new DebugRenderFeature();
-		mRenderSystem.RegisterFeature(mDebugFeature);
+		mOverlayFeature = new OverlayRenderFeature();
+		mRenderSystem.RegisterFeature(mOverlayFeature);
 
 		mFinalOutputFeature = new FinalOutputFeature();
 		mRenderSystem.RegisterFeature(mFinalOutputFeature);
@@ -514,7 +514,7 @@ class FrameworkRenderApp : Application
 
 	private void DrawDebugHUD()
 	{
-		if (mDebugFeature == null)
+		if (mOverlayFeature == null)
 			return;
 
 		let bgColor = Color(0, 0, 0, 200);
@@ -526,50 +526,50 @@ class FrameworkRenderApp : Application
 		let brightOrange = Color(255, 180, 100, 255);
 
 		// ===== TOP LEFT: Instructions =====
-		mDebugFeature.AddRect2D(5, 5, 400, 120, bgColor);
-		mDebugFeature.AddText2D("SPHERE STRESS TEST", 15, 12, brightYellow, 1.5f);
+		mOverlayFeature.AddRect2D(5, 5, 400, 120, bgColor);
+		mOverlayFeature.AddText2D("SPHERE STRESS TEST", 15, 12, brightYellow, 1.5f);
 
 		if (mCamera.CurrentMode == .Orbital)
 		{
-			mDebugFeature.AddText2D("ORBITAL: WASD rotate, Q/E zoom", 15, 35, white, 1.0f);
+			mOverlayFeature.AddText2D("ORBITAL: WASD rotate, Q/E zoom", 15, 35, white, 1.0f);
 		}
 		else
 		{
-			mDebugFeature.AddText2D("FLY: WASD move, Q/E up/down, Mouse look", 15, 35, white, 1.0f);
+			mOverlayFeature.AddText2D("FLY: WASD move, Q/E up/down, Mouse look", 15, 35, white, 1.0f);
 		}
 
-		mDebugFeature.AddText2D("Tab: Toggle camera    `: Back to orbital", 15, 52, white, 1.0f);
-		mDebugFeature.AddText2D("Space: Add 8,000 spheres", 15, 69, white, 1.0f);
-		mDebugFeature.AddText2D("M: Toggle materials   P: Profiler", 15, 86, white, 1.0f);
-		mDebugFeature.AddText2D("ESC: Release mouse / Exit", 15, 103, white, 1.0f);
+		mOverlayFeature.AddText2D("Tab: Toggle camera    `: Back to orbital", 15, 52, white, 1.0f);
+		mOverlayFeature.AddText2D("Space: Add 8,000 spheres", 15, 69, white, 1.0f);
+		mOverlayFeature.AddText2D("M: Toggle materials   P: Profiler", 15, 86, white, 1.0f);
+		mOverlayFeature.AddText2D("ESC: Release mouse / Exit", 15, 103, white, 1.0f);
 
 		// ===== TOP RIGHT: Stats =====
 		float panelX = (float)mRenderView.Width - 220;
-		mDebugFeature.AddRect2D(panelX, 5, 215, 135, bgColor);
+		mOverlayFeature.AddRect2D(panelX, 5, 215, 135, bgColor);
 
 		// FPS
 		let fpsText = scope String();
 		((int32)Math.Round(mSmoothedFps)).ToString(fpsText);
-		mDebugFeature.AddText2D("FPS:", panelX + 10, 12, brightBlue, 1.5f);
-		mDebugFeature.AddText2DRight(fpsText, 10, 12, brightCyan, 1.5f);
+		mOverlayFeature.AddText2D("FPS:", panelX + 10, 12, brightBlue, 1.5f);
+		mOverlayFeature.AddText2DRight(fpsText, 10, 12, brightCyan, 1.5f);
 
 		// Frame time
 		let frameTimeText = scope String();
 		frameTimeText.AppendF("{0:F2} ms", mFrameTimeMs);
-		mDebugFeature.AddText2D("Frame:", panelX + 10, 35, brightBlue, 1.5f);
-		mDebugFeature.AddText2DRight(frameTimeText, 10, 35, brightCyan, 1.5f);
+		mOverlayFeature.AddText2D("Frame:", panelX + 10, 35, brightBlue, 1.5f);
+		mOverlayFeature.AddText2DRight(frameTimeText, 10, 35, brightCyan, 1.5f);
 
 		// Object count
 		let countText = scope String();
 		mSphereEntities.Count.ToString(countText);
-		mDebugFeature.AddText2D("Spheres:", panelX + 10, 58, brightBlue, 1.5f);
-		mDebugFeature.AddText2DRight(countText, 10, 58, brightCyan, 1.5f);
+		mOverlayFeature.AddText2D("Spheres:", panelX + 10, 58, brightBlue, 1.5f);
+		mOverlayFeature.AddText2DRight(countText, 10, 58, brightCyan, 1.5f);
 
 		// Material mode
 		let matMode = mUseUniqueMaterials ? "UNIQUE" : "SHARED";
 		let matColor = mUseUniqueMaterials ? brightYellow : brightGreen;
-		mDebugFeature.AddText2D("Materials:", panelX + 10, 81, brightBlue, 1.5f);
-		mDebugFeature.AddText2DRight(matMode, 10, 81, matColor, 1.5f);
+		mOverlayFeature.AddText2D("Materials:", panelX + 10, 81, brightBlue, 1.5f);
+		mOverlayFeature.AddText2DRight(matMode, 10, 81, matColor, 1.5f);
 
 		// Material count
 		let matCountText = scope String();
@@ -577,14 +577,14 @@ class FrameworkRenderApp : Application
 			mUniqueMaterials.Count.ToString(matCountText);
 		else
 			matCountText.Set("1");
-		mDebugFeature.AddText2D("Mat Count:", panelX + 10, 98, brightBlue, 1.2f);
-		mDebugFeature.AddText2DRight(matCountText, 10, 98, brightCyan, 1.2f);
+		mOverlayFeature.AddText2D("Mat Count:", panelX + 10, 98, brightBlue, 1.2f);
+		mOverlayFeature.AddText2DRight(matCountText, 10, 98, brightCyan, 1.2f);
 
 		// Camera mode
 		let camMode = (mCamera.CurrentMode == .Orbital) ? "ORBITAL" : "FLYTHROUGH";
 		let camColor = (mCamera.CurrentMode == .Orbital) ? brightGreen : brightOrange;
-		mDebugFeature.AddText2D("Camera:", panelX + 10, 118, brightBlue, 1.2f);
-		mDebugFeature.AddText2DRight(camMode, 10, 118, camColor, 1.2f);
+		mOverlayFeature.AddText2D("Camera:", panelX + 10, 118, brightBlue, 1.2f);
+		mOverlayFeature.AddText2DRight(camMode, 10, 118, camColor, 1.2f);
 	}
 
 	private void PrintProfilerStats()

@@ -153,7 +153,7 @@ class PhysicsSceneModule : SceneModule
 		if (!mDebugDrawEnabled || mPhysicsWorld == null || mScene == null)
 			return;
 
-		// Get RenderSceneModule to access DebugRenderFeature
+		// Get RenderSceneModule to access OverlayRenderFeature
 		let renderModule = scene.GetModule<RenderSceneModule>();
 		if (renderModule == null)
 			return;
@@ -162,8 +162,8 @@ class PhysicsSceneModule : SceneModule
 		if (renderSystem == null)
 			return;
 
-		let debugFeature = renderSystem.GetFeature<DebugRenderFeature>();
-		if (debugFeature == null)
+		let overlayFeature = renderSystem.GetFeature<OverlayRenderFeature>();
+		if (overlayFeature == null)
 			return;
 
 		// Draw debug shapes for all physics bodies
@@ -199,22 +199,22 @@ class PhysicsSceneModule : SceneModule
 			switch (debugShape.ShapeType)
 			{
 			case .Box:
-				DrawOrientedBox(debugFeature, position, rotation, debugShape.HalfExtents, color);
+				DrawOrientedBox(overlayFeature, position, rotation, debugShape.HalfExtents, color);
 
 			case .Sphere:
 				let radius = debugShape.HalfExtents.X;
-				debugFeature.AddSphere(position, radius, color);
+				overlayFeature.AddSphere(position, radius, color);
 
 			case .Capsule:
 				let radius = debugShape.HalfExtents.X;
 				let halfHeight = debugShape.HalfExtents.Y;
 				let height = (halfHeight + radius) * 2.0f;
-				debugFeature.AddCapsule(position, radius, height, color);
+				overlayFeature.AddCapsule(position, radius, height, color);
 
 			case .Cylinder:
 				let radius = debugShape.HalfExtents.X;
 				let halfHeight = debugShape.HalfExtents.Y;
-				debugFeature.AddCylinder(position, radius, halfHeight * 2.0f, color);
+				overlayFeature.AddCylinder(position, radius, halfHeight * 2.0f, color);
 
 			case .None:
 				// Skip
@@ -661,7 +661,7 @@ class PhysicsSceneModule : SceneModule
 		}
 	}
 
-	private void DrawOrientedBox(DebugRenderFeature debugFeature, Vector3 position, Quaternion rotation, Vector3 halfExtents, Color color)
+	private void DrawOrientedBox(OverlayRenderFeature overlayFeature, Vector3 position, Quaternion rotation, Vector3 halfExtents, Color color)
 	{
 		// 8 corners in local space
 		Vector3[8] localCorners = .(
@@ -683,21 +683,21 @@ class PhysicsSceneModule : SceneModule
 		}
 
 		// Bottom face (Y = min)
-		debugFeature.AddLine(worldCorners[0], worldCorners[1], color);
-		debugFeature.AddLine(worldCorners[1], worldCorners[2], color);
-		debugFeature.AddLine(worldCorners[2], worldCorners[3], color);
-		debugFeature.AddLine(worldCorners[3], worldCorners[0], color);
+		overlayFeature.AddLine(worldCorners[0], worldCorners[1], color);
+		overlayFeature.AddLine(worldCorners[1], worldCorners[2], color);
+		overlayFeature.AddLine(worldCorners[2], worldCorners[3], color);
+		overlayFeature.AddLine(worldCorners[3], worldCorners[0], color);
 
 		// Top face (Y = max)
-		debugFeature.AddLine(worldCorners[4], worldCorners[5], color);
-		debugFeature.AddLine(worldCorners[5], worldCorners[6], color);
-		debugFeature.AddLine(worldCorners[6], worldCorners[7], color);
-		debugFeature.AddLine(worldCorners[7], worldCorners[4], color);
+		overlayFeature.AddLine(worldCorners[4], worldCorners[5], color);
+		overlayFeature.AddLine(worldCorners[5], worldCorners[6], color);
+		overlayFeature.AddLine(worldCorners[6], worldCorners[7], color);
+		overlayFeature.AddLine(worldCorners[7], worldCorners[4], color);
 
 		// Vertical edges
-		debugFeature.AddLine(worldCorners[0], worldCorners[4], color);
-		debugFeature.AddLine(worldCorners[1], worldCorners[5], color);
-		debugFeature.AddLine(worldCorners[2], worldCorners[6], color);
-		debugFeature.AddLine(worldCorners[3], worldCorners[7], color);
+		overlayFeature.AddLine(worldCorners[0], worldCorners[4], color);
+		overlayFeature.AddLine(worldCorners[1], worldCorners[5], color);
+		overlayFeature.AddLine(worldCorners[2], worldCorners[6], color);
+		overlayFeature.AddLine(worldCorners[3], worldCorners[7], color);
 	}
 }

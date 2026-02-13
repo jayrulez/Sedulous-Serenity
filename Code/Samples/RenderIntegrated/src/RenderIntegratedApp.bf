@@ -40,7 +40,7 @@ class RenderIntegratedApp : Application
 	private ForwardTransparentFeature mTransparentFeature;
 	private ParticleFeature mParticleFeature;
 	private SpriteFeature mSpriteFeature;
-	private DebugRenderFeature mDebugFeature;
+	private OverlayRenderFeature mOverlayFeature;
 	private SkyFeature mSkyFeature;
 	private FinalOutputFeature mFinalOutputFeature;
 
@@ -190,8 +190,8 @@ class RenderIntegratedApp : Application
 		mSkyFeature = new SkyFeature();
 		mRenderSystem.RegisterFeature(mSkyFeature);
 
-		mDebugFeature = new DebugRenderFeature();
-		mRenderSystem.RegisterFeature(mDebugFeature);
+		mOverlayFeature = new OverlayRenderFeature();
+		mRenderSystem.RegisterFeature(mOverlayFeature);
 
 		mFinalOutputFeature = new FinalOutputFeature();
 		mRenderSystem.RegisterFeature(mFinalOutputFeature);
@@ -1217,19 +1217,19 @@ class RenderIntegratedApp : Application
 
 	private void UpdateDebugDrawing(float totalTime, float dt)
 	{
-		if (mDebugFeature == null) return;
+		if (mOverlayFeature == null) return;
 
 		// FPS counter
 		let fps = (dt > 0) ? (1.0f / dt) : 0;
 		let fpsText = scope String();
 		fpsText.AppendF("FPS: {0:0.0}", fps);
-		mDebugFeature.AddText2D(fpsText, 10, 10, .(255, 255, 0, 255), 2.0f);
+		mOverlayFeature.AddText2D(fpsText, 10, 10, .(255, 255, 0, 255), 2.0f);
 
 		// Ground grid
-		mDebugFeature.AddGrid(.(0, 0.01f, 0), 20, 10, .(128, 128, 128, 80));
+		mOverlayFeature.AddGrid(.(0, 0.01f, 0), 20, 10, .(128, 128, 128, 80));
 
 		// Axes at origin
-		mDebugFeature.AddAxes(.(0, 0.05f, 0), 2.0f);
+		mOverlayFeature.AddAxes(.(0, 0.05f, 0), 2.0f);
 
 		// Light direction arrow
 		float cosLP = Math.Cos(mLightPitch);
@@ -1240,15 +1240,15 @@ class RenderIntegratedApp : Application
 		));
 		let lightStart = Vector3(0, 5, 0);
 		let lightEnd = lightStart + lightDir * 5.0f;
-		mDebugFeature.AddLine(lightStart, lightEnd, .(255, 255, 0, 255));
+		mOverlayFeature.AddLine(lightStart, lightEnd, .(255, 255, 0, 255));
 
 		// Wireframe box around fox
-		mDebugFeature.AddBox(BoundingBox(Vector3(13.5f, 0, -1.5f), Vector3(16.5f, 3.0f, 1.5f)), .(255, 0, 255, 255));
+		mOverlayFeature.AddBox(BoundingBox(Vector3(13.5f, 0, -1.5f), Vector3(16.5f, 3.0f, 1.5f)), .(255, 0, 255, 255));
 
 		// Wireframe sphere at particle effects
-		mDebugFeature.AddSphere(.(0, 1.5f, -15), 1.0f, .(255, 100, 0, 200), 12);  // Fire
-		mDebugFeature.AddSphere(.(-12, 2, -8), 1.0f, .(100, 180, 255, 200), 12);   // Fountain
-		mDebugFeature.AddSphere(.(12, 2.5f, 0), 1.0f, .(150, 100, 255, 200), 12);  // Sparkle
+		mOverlayFeature.AddSphere(.(0, 1.5f, -15), 1.0f, .(255, 100, 0, 200), 12);  // Fire
+		mOverlayFeature.AddSphere(.(-12, 2, -8), 1.0f, .(100, 180, 255, 200), 12);   // Fountain
+		mOverlayFeature.AddSphere(.(12, 2.5f, 0), 1.0f, .(150, 100, 255, 200), 12);  // Sparkle
 
 		// Animated marker at trail head
 		float trailRadius = 3.0f;
@@ -1258,7 +1258,7 @@ class RenderIntegratedApp : Application
 			3.0f + trailHeight,
 			15.0f + Math.Sin(mTrailAngle) * trailRadius
 		);
-		mDebugFeature.AddSphere(trailPos, 0.15f, .(0, 255, 255, 255), 8);
+		mOverlayFeature.AddSphere(trailPos, 0.15f, .(0, 255, 255, 255), 8);
 
 		// Compute camera right/up for billboarded text
 		let cameraRight = Vector3.Normalize(Vector3.Cross(mCameraForward, .(0, 1, 0)));
@@ -1277,26 +1277,26 @@ class RenderIntegratedApp : Application
 			let center = pos + .(0, size * 0.5f, 0);
 
 			// Vertical line
-			mDebugFeature.AddLine(top, bottom, color);
+			mOverlayFeature.AddLine(top, bottom, color);
 
 			// Cross at center
-			mDebugFeature.AddLine(center + .(size, 0, 0), center - .(size, 0, 0), color);
-			mDebugFeature.AddLine(center + .(0, 0, size), center - .(0, 0, size), color);
+			mOverlayFeature.AddLine(center + .(size, 0, 0), center - .(size, 0, 0), color);
+			mOverlayFeature.AddLine(center + .(0, 0, size), center - .(0, 0, size), color);
 
 			// Connect to top and bottom to form diamond shape
-			mDebugFeature.AddLine(top, center + .(size, 0, 0), color);
-			mDebugFeature.AddLine(top, center - .(size, 0, 0), color);
-			mDebugFeature.AddLine(top, center + .(0, 0, size), color);
-			mDebugFeature.AddLine(top, center - .(0, 0, size), color);
+			mOverlayFeature.AddLine(top, center + .(size, 0, 0), color);
+			mOverlayFeature.AddLine(top, center - .(size, 0, 0), color);
+			mOverlayFeature.AddLine(top, center + .(0, 0, size), color);
+			mOverlayFeature.AddLine(top, center - .(0, 0, size), color);
 
-			mDebugFeature.AddLine(bottom, center + .(size, 0, 0), color);
-			mDebugFeature.AddLine(bottom, center - .(size, 0, 0), color);
-			mDebugFeature.AddLine(bottom, center + .(0, 0, size), color);
-			mDebugFeature.AddLine(bottom, center - .(0, 0, size), color);
+			mOverlayFeature.AddLine(bottom, center + .(size, 0, 0), color);
+			mOverlayFeature.AddLine(bottom, center - .(size, 0, 0), color);
+			mOverlayFeature.AddLine(bottom, center + .(0, 0, size), color);
+			mOverlayFeature.AddLine(bottom, center - .(0, 0, size), color);
 
 			// Text label above marker
 			let textPos = top + .(0, 0.3f, 0);
-			mDebugFeature.AddTextCentered(label.Name, textPos, color, 1.5f, cameraRight, cameraUp);
+			mOverlayFeature.AddTextCentered(label.Name, textPos, color, 1.5f, cameraRight, cameraUp);
 		}
 	}
 

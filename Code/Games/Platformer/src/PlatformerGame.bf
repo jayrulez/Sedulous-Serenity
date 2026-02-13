@@ -47,7 +47,7 @@ class PlatformerGame : Application
 	private ForwardOpaqueFeature mForwardFeature;
 	private ForwardTransparentFeature mTransparentFeature;
 	private ParticleFeature mParticleFeature;
-	private DebugRenderFeature mDebugFeature;
+	private OverlayRenderFeature mOverlayFeature;
 	private FinalOutputFeature mFinalOutputFeature;
 
 	// Subsystems
@@ -180,8 +180,8 @@ class PlatformerGame : Application
 		mParticleFeature = new ParticleFeature();
 		mRenderSystem.RegisterFeature(mParticleFeature);
 
-		mDebugFeature = new DebugRenderFeature();
-		mRenderSystem.RegisterFeature(mDebugFeature);
+		mOverlayFeature = new OverlayRenderFeature();
+		mRenderSystem.RegisterFeature(mOverlayFeature);
 
 		mFinalOutputFeature = new FinalOutputFeature();
 		mRenderSystem.RegisterFeature(mFinalOutputFeature);

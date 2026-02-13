@@ -18,7 +18,7 @@ class HexGridRenderer
 {
 	private Scene mScene;
 	private RenderSystem mRenderSystem;
-	private DebugRenderFeature mDebugFeature;
+	private OverlayRenderFeature mOverlayFeature;
 	private HexGrid mGrid;
 	private float mHexSize;
 
@@ -38,11 +38,11 @@ class HexGridRenderer
 	private static readonly Color NEUTRAL_TILE_COLOR = .(40, 40, 40, 255);
 	private static readonly Color GRID_LINE_COLOR = .(80, 80, 80, 255);
 
-	public this(Scene scene, RenderSystem renderSystem, DebugRenderFeature debugFeature)
+	public this(Scene scene, RenderSystem renderSystem, OverlayRenderFeature overlayFeature)
 	{
 		mScene = scene;
 		mRenderSystem = renderSystem;
-		mDebugFeature = debugFeature;
+		mOverlayFeature = overlayFeature;
 	}
 
 	/// Create the hex grid visual from a battle grid.
@@ -136,7 +136,7 @@ class HexGridRenderer
 	/// Must be called every frame before render.
 	public void DrawOverlays()
 	{
-		if (mDebugFeature == null || mGrid == null) return;
+		if (mOverlayFeature == null || mGrid == null) return;
 
 		for (int32 row = 0; row < mGrid.Rows; row++)
 		{
@@ -172,7 +172,7 @@ class HexGridRenderer
 			let x1 = cx + size * Math.Cos(angle1);
 			let z1 = cz + size * Math.Sin(angle1);
 
-			mDebugFeature.AddLine(.(x0, y, z0), .(x1, y, z1), color, .DepthTest);
+			mOverlayFeature.AddLine(.(x0, y, z0), .(x1, y, z1), color, .DepthTest);
 		}
 	}
 
@@ -190,7 +190,7 @@ class HexGridRenderer
 			let v0 = Vector3(cx + size * Math.Cos(angle0), y, cz + size * Math.Sin(angle0));
 			let v1 = Vector3(cx + size * Math.Cos(angle1), y, cz + size * Math.Sin(angle1));
 
-			mDebugFeature.AddTriangle(center, v0, v1, color, .DepthTest);
+			mOverlayFeature.AddTriangle(center, v0, v1, color, .DepthTest);
 		}
 	}
 

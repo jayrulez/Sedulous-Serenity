@@ -41,7 +41,7 @@ class StormTacticsGame : Application
 	private DepthPrepassFeature mDepthFeature;
 	private ForwardOpaqueFeature mForwardFeature;
 	private SkyFeature mSkyFeature;
-	private DebugRenderFeature mDebugFeature;
+	private OverlayRenderFeature mOverlayFeature;
 	private FinalOutputFeature mFinalOutputFeature;
 
 	// UI
@@ -145,8 +145,8 @@ class StormTacticsGame : Application
 			mSkyFeature.CreateGradientSky(zenith, horizon, 32);
 		}
 
-		mDebugFeature = new DebugRenderFeature();
-		mRenderSystem.RegisterFeature(mDebugFeature);
+		mOverlayFeature = new OverlayRenderFeature();
+		mRenderSystem.RegisterFeature(mOverlayFeature);
 
 		mFinalOutputFeature = new FinalOutputFeature();
 		mRenderSystem.RegisterFeature(mFinalOutputFeature);
@@ -441,7 +441,7 @@ class StormTacticsGame : Application
 		// Create the battle scene
 		let renderModule = mMainScene.GetModule<RenderSceneModule>();
 		mBattleScene = new BattleScene();
-		mBattleScene.Initialize(mMainScene, renderModule, mRenderSystem, mDebugFeature, mCurrentSim, 1.0f);
+		mBattleScene.Initialize(mMainScene, renderModule, mRenderSystem, mOverlayFeature, mCurrentSim, 1.0f);
 
 		// Enter deployment mode
 		mBattleScene.EnterDeploymentMode();

@@ -13,7 +13,7 @@ class NavigationDemo
 {
 	private Scene mScene;
 	private NavigationSceneModule mNavModule;
-	private DebugRenderFeature mDebugFeature;
+	private OverlayRenderFeature mOverlayFeature;
 	private float mArenaHalfSize;
 
 	// Agent tracking
@@ -53,11 +53,11 @@ class NavigationDemo
 	public int32 ObstacleCount => (int32)mObstacleEntities.Count;
 	public bool IsObstacleMode => mObstacleMode;
 
-	public void Initialize(Scene scene, NavigationSceneModule navModule, DebugRenderFeature debugFeature, float arenaHalfSize, bool flipProjection)
+	public void Initialize(Scene scene, NavigationSceneModule navModule, OverlayRenderFeature overlayFeature, float arenaHalfSize, bool flipProjection)
 	{
 		mScene = scene;
 		mNavModule = navModule;
-		mDebugFeature = debugFeature;
+		mOverlayFeature = overlayFeature;
 		mArenaHalfSize = arenaHalfSize;
 		mFlipProjection = flipProjection;
 
@@ -295,20 +295,20 @@ class NavigationDemo
 		}
 	}
 
-	public void DrawDebug(DebugRenderFeature debug, RenderView view)
+	public void DrawDebug(OverlayRenderFeature overlay, RenderView view)
 	{
-		DrawAgents(debug);
+		DrawAgents(overlay);
 
 		if (mDrawPaths && mPathWaypoints.Count >= 6)
-			DrawPath(debug);
+			DrawPath(overlay);
 
-		DrawObstacles(debug);
+		DrawObstacles(overlay);
 
 		if (mHasTarget)
-			DrawTarget(debug);
+			DrawTarget(overlay);
 	}
 
-	private void DrawAgents(DebugRenderFeature debug)
+	private void DrawAgents(OverlayRenderFeature overlay)
 	{
 		let crowd = mNavModule.NavWorld?.Crowd;
 		if (crowd == null) return;
@@ -323,7 +323,7 @@ class NavigationDemo
 			let center = Vector3(pos[0], pos[1] + 0.9f, pos[2]);
 
 			// Agent body cylinder
-			debug.AddCylinder(center, 0.5f, 1.8f, color, 12);
+			overlay.AddCylinder(center, 0.5f, 1.8f, color, 12);
 
 			// Velocity direction arrow
 			if (let agentComp = mScene.GetComponent<NavAgentComponent>(mAgentEntities[i]))
@@ -340,26 +340,26 @@ class NavigationDemo
 							pos[0] + vel[0] * 0.5f,
 							pos[1] + 0.5f,
 							pos[2] + vel[2] * 0.5f);
-						debug.AddArrow(arrowStart, arrowEnd, Color(255, 255, 0, 255), 0.15f);
+						overlay.AddArrow(arrowStart, arrowEnd, Color(255, 255, 0, 255), 0.15f);
 					}
 				}
 			}
 		}
 	}
 
-	private void DrawPath(DebugRenderFeature debug)
+	private void DrawPath(OverlayRenderFeature overlay)
 	{
 		let pathColor = Color(0, 255, 100, 200);
 		for (int32 i = 0; i + 5 < (int32)mPathWaypoints.Count; i += 3)
 		{
 			let from = Vector3(mPathWaypoints[i], mPathWaypoints[i + 1] + 0.1f, mPathWaypoints[i + 2]);
 			let to = Vector3(mPathWaypoints[i + 3], mPathWaypoints[i + 4] + 0.1f, mPathWaypoints[i + 5]);
-			debug.AddLine(from, to, pathColor);
-			debug.AddCross(to, 0.15f, pathColor);
+			overlay.AddLine(from, to, pathColor);
+			overlay.AddCross(to, 0.15f, pathColor);
 		}
 	}
 
-	private void DrawObstacles(DebugRenderFeature debug)
+	private void DrawObstacles(OverlayRenderFeature overlay)
 	{
 		let obstColor = Color(255, 100, 50, 200);
 		for (let entity in mObstacleEntities)
@@ -368,19 +368,19 @@ class NavigationDemo
 			{
 				let transform = mScene.GetTransform(entity);
 				let pos = transform.Position;
-				debug.AddCylinder(
+				overlay.AddCylinder(
 					pos + Vector3(0, obstacle.Height * 0.5f, 0),
 					obstacle.Radius, obstacle.Height, obstColor, 12);
 			}
 		}
 	}
 
-	private void DrawTarget(DebugRenderFeature debug)
+	private void DrawTarget(OverlayRenderFeature overlay)
 	{
 		let targetColor = Color(255, 255, 255, 180);
 		let pos = Vector3(mLastClickTarget[0], 0.05f, mLastClickTarget[2]);
-		debug.AddCircle(pos, 0.5f, .(0, 1, 0), targetColor, 24);
-		debug.AddCross(pos, 0.3f, targetColor);
+		overlay.AddCircle(pos, 0.5f, .(0, 1, 0), targetColor, 24);
+		overlay.AddCross(pos, 0.3f, targetColor);
 	}
 
 	// ==================== Geometry Helpers ====================

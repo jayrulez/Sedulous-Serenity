@@ -37,7 +37,7 @@ class ImpactArenaGame : Application
 	private ForwardOpaqueFeature mForwardFeature;
 	private ForwardTransparentFeature mTransparentFeature;
 	private ParticleFeature mParticleFeature;
-	private DebugRenderFeature mDebugFeature;
+	private OverlayRenderFeature mOverlayFeature;
 	private FinalOutputFeature mFinalOutputFeature;
 
 	// Subsystems
@@ -192,8 +192,8 @@ class ImpactArenaGame : Application
 		mParticleFeature = new ParticleFeature();
 		mRenderSystem.RegisterFeature(mParticleFeature);
 
-		mDebugFeature = new DebugRenderFeature();
-		mRenderSystem.RegisterFeature(mDebugFeature);
+		mOverlayFeature = new OverlayRenderFeature();
+		mRenderSystem.RegisterFeature(mOverlayFeature);
 
 		mFinalOutputFeature = new FinalOutputFeature();
 		mRenderSystem.RegisterFeature(mFinalOutputFeature);
@@ -993,7 +993,7 @@ class ImpactArenaGame : Application
 		}
 
 		// 3D Debug overlays (sun gizmo, arena boundary lines)
-		if (mDebugFeature != null)
+		if (mOverlayFeature != null)
 		{
 			// Sun light direction gizmo (G to toggle)
 			if (mShowGizmo)
@@ -1005,8 +1005,8 @@ class ImpactArenaGame : Application
 					{
 						Vector3 sunOrigin = .(0, 8, 0); // Elevated above arena center
 						Vector3 sunEnd = sunOrigin + lightProxy.Direction * 5.0f;
-						mDebugFeature.AddArrow(sunOrigin, sunEnd, Color.Yellow, 0.3f, .Overlay);
-						mDebugFeature.AddSphere(sunOrigin, 0.3f, Color.Yellow, 8, .Overlay);
+						mOverlayFeature.AddArrow(sunOrigin, sunEnd, Color.Yellow, 0.3f, .Overlay);
+						mOverlayFeature.AddSphere(sunOrigin, 0.3f, Color.Yellow, 8, .Overlay);
 					}
 				}
 			}
@@ -1036,13 +1036,13 @@ class ImpactArenaGame : Application
 					let t0 = -hs + (float)s * segLen;
 					let t1 = t0 + segLen;
 					// North edge (Z = -hs)
-					mDebugFeature.AddLine(.(t0, y, -hs), .(t1, y, -hs), lineColor, .Overlay);
+					mOverlayFeature.AddLine(.(t0, y, -hs), .(t1, y, -hs), lineColor, .Overlay);
 					// South edge (Z = +hs)
-					mDebugFeature.AddLine(.(t0, y, hs), .(t1, y, hs), lineColor, .Overlay);
+					mOverlayFeature.AddLine(.(t0, y, hs), .(t1, y, hs), lineColor, .Overlay);
 					// West edge (X = -hs)
-					mDebugFeature.AddLine(.(-hs, y, t0), .(-hs, y, t1), lineColor, .Overlay);
+					mOverlayFeature.AddLine(.(-hs, y, t0), .(-hs, y, t1), lineColor, .Overlay);
 					// East edge (X = +hs)
-					mDebugFeature.AddLine(.(hs, y, t0), .(hs, y, t1), lineColor, .Overlay);
+					mOverlayFeature.AddLine(.(hs, y, t0), .(hs, y, t1), lineColor, .Overlay);
 				}
 			}
 		}

@@ -182,26 +182,26 @@ public class TranslateGizmo
 	}
 
 	/// Draws the gizmo using the debug render feature.
-	public void Draw(DebugRenderFeature debug)
+	public void Draw(OverlayRenderFeature overlay)
 	{
 		let axisLength = Size;
 		let headSize = Size * 0.15f;
 
 		// X axis (red)
 		let colorX = GetAxisColor(.X);
-		debug.AddArrow(Position, Position + .(axisLength, 0, 0), colorX, headSize, .Overlay);
+		overlay.AddArrow(Position, Position + .(axisLength, 0, 0), colorX, headSize, .Overlay);
 
 		// Y axis (green)
 		let colorY = GetAxisColor(.Y);
-		debug.AddArrow(Position, Position + .(0, axisLength, 0), colorY, headSize, .Overlay);
+		overlay.AddArrow(Position, Position + .(0, axisLength, 0), colorY, headSize, .Overlay);
 
 		// Z axis (blue)
 		let colorZ = GetAxisColor(.Z);
-		debug.AddArrow(Position, Position + .(0, 0, axisLength), colorZ, headSize, .Overlay);
+		overlay.AddArrow(Position, Position + .(0, 0, axisLength), colorZ, headSize, .Overlay);
 
 		// Draw small center box
 		let centerSize = Size * 0.08f;
-		debug.AddFilledBox(
+		overlay.AddFilledBox(
 			BoundingBox(Position - .(centerSize, centerSize, centerSize), Position + .(centerSize, centerSize, centerSize)),
 			.(200, 200, 200, 255),
 			.Overlay

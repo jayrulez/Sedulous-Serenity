@@ -6,8 +6,8 @@ using Sedulous.RHI;
 using Sedulous.Mathematics;
 using Sedulous.DebugFont;
 
-/// Render mode for debug primitives.
-public enum DebugRenderMode
+/// Render mode for overlay primitives.
+public enum OverlayRenderMode
 {
 	/// Depth-tested, integrates with scene geometry.
 	DepthTest,
@@ -15,11 +15,11 @@ public enum DebugRenderMode
 	Overlay
 }
 
-/// Debug render feature for drawing lines, triangles, and text.
-/// Provides immediate-mode debug drawing API that integrates with the render graph.
-public class DebugRenderFeature : RenderFeatureBase
+/// Overlay render feature for drawing lines, triangles, and text.
+/// Provides immediate-mode drawing API that integrates with the render graph.
+public class OverlayRenderFeature : RenderFeatureBase
 {
-	private static int32 MAX_VERTICES => RenderConfig.MaxDebugVertices;
+	private static int32 MAX_VERTICES => RenderConfig.MaxOverlayVertices;
 
 	// Pipelines
 	private IRenderPipeline mLinePipelineDepth ~ delete _;
@@ -208,7 +208,7 @@ public class DebugRenderFeature : RenderFeatureBase
 	// ==================== Line/Triangle Drawing ====================
 
 	/// Adds a line to the batch.
-	public void AddLine(Vector3 start, Vector3 end, Color color, DebugRenderMode mode = .DepthTest)
+	public void AddLine(Vector3 start, Vector3 end, Color color, OverlayRenderMode mode = .DepthTest)
 	{
 		let list = (mode == .DepthTest) ? mLineVerticesDepth : mLineVerticesOverlay;
 		list.Add(.(start, color));
@@ -216,7 +216,7 @@ public class DebugRenderFeature : RenderFeatureBase
 	}
 
 	/// Adds a triangle to the batch.
-	public void AddTriangle(Vector3 v0, Vector3 v1, Vector3 v2, Color color, DebugRenderMode mode = .DepthTest)
+	public void AddTriangle(Vector3 v0, Vector3 v1, Vector3 v2, Color color, OverlayRenderMode mode = .DepthTest)
 	{
 		let list = (mode == .DepthTest) ? mTriVerticesDepth : mTriVerticesOverlay;
 		list.Add(.(v0, color));
@@ -225,7 +225,7 @@ public class DebugRenderFeature : RenderFeatureBase
 	}
 
 	/// Adds a quad (two triangles) to the batch.
-	public void AddQuad(Vector3 v0, Vector3 v1, Vector3 v2, Vector3 v3, Color color, DebugRenderMode mode = .DepthTest)
+	public void AddQuad(Vector3 v0, Vector3 v1, Vector3 v2, Vector3 v3, Color color, OverlayRenderMode mode = .DepthTest)
 	{
 		AddTriangle(v0, v1, v2, color, mode);
 		AddTriangle(v0, v2, v3, color, mode);
@@ -234,7 +234,7 @@ public class DebugRenderFeature : RenderFeatureBase
 	// ==================== Shape Helpers ====================
 
 	/// Draws a wireframe box.
-	public void AddBox(BoundingBox bounds, Color color, DebugRenderMode mode = .DepthTest)
+	public void AddBox(BoundingBox bounds, Color color, OverlayRenderMode mode = .DepthTest)
 	{
 		let min = bounds.Min;
 		let max = bounds.Max;
@@ -269,13 +269,13 @@ public class DebugRenderFeature : RenderFeatureBase
 	}
 
 	/// Draws a wireframe box from center and half-extents.
-	public void AddBox(Vector3 center, Vector3 halfExtents, Color color, DebugRenderMode mode = .DepthTest)
+	public void AddBox(Vector3 center, Vector3 halfExtents, Color color, OverlayRenderMode mode = .DepthTest)
 	{
 		AddBox(BoundingBox(center - halfExtents, center + halfExtents), color, mode);
 	}
 
 	/// Draws a wireframe sphere approximation.
-	public void AddSphere(Vector3 center, float radius, Color color, int segments = 16, DebugRenderMode mode = .DepthTest)
+	public void AddSphere(Vector3 center, float radius, Color color, int segments = 16, OverlayRenderMode mode = .DepthTest)
 	{
 		let step = Math.PI_f * 2.0f / (float)segments;
 
@@ -314,13 +314,13 @@ public class DebugRenderFeature : RenderFeatureBase
 	}
 
 	/// Draws a wireframe sphere from BoundingSphere.
-	public void AddSphere(BoundingSphere sphere, Color color, int segments = 16, DebugRenderMode mode = .DepthTest)
+	public void AddSphere(BoundingSphere sphere, Color color, int segments = 16, OverlayRenderMode mode = .DepthTest)
 	{
 		AddSphere(sphere.Center, sphere.Radius, color, segments, mode);
 	}
 
 	/// Draws a coordinate axis at the given position.
-	public void AddAxes(Vector3 position, float size = 1.0f, DebugRenderMode mode = .DepthTest)
+	public void AddAxes(Vector3 position, float size = 1.0f, OverlayRenderMode mode = .DepthTest)
 	{
 		AddLine(position, position + .(size, 0, 0), Color.Red, mode);
 		AddLine(position, position + .(0, size, 0), Color.Green, mode);
@@ -328,7 +328,7 @@ public class DebugRenderFeature : RenderFeatureBase
 	}
 
 	/// Draws coordinate axes with custom rotation.
-	public void AddAxes(Vector3 position, Matrix rotation, float size = 1.0f, DebugRenderMode mode = .DepthTest)
+	public void AddAxes(Vector3 position, Matrix rotation, float size = 1.0f, OverlayRenderMode mode = .DepthTest)
 	{
 		let right = Vector3.TransformNormal(.(1, 0, 0), rotation);
 		let up = Vector3.TransformNormal(.(0, 1, 0), rotation);
@@ -340,7 +340,7 @@ public class DebugRenderFeature : RenderFeatureBase
 	}
 
 	/// Draws a frustum outline.
-	public void AddFrustum(Matrix viewProjection, Color color, DebugRenderMode mode = .DepthTest)
+	public void AddFrustum(Matrix viewProjection, Color color, OverlayRenderMode mode = .DepthTest)
 	{
 		let invVP = Matrix.Invert(viewProjection);
 
@@ -381,7 +381,7 @@ public class DebugRenderFeature : RenderFeatureBase
 	}
 
 	/// Draws a grid on the XZ plane.
-	public void AddGrid(Vector3 center, float size, int divisions, Color color, DebugRenderMode mode = .DepthTest)
+	public void AddGrid(Vector3 center, float size, int divisions, Color color, OverlayRenderMode mode = .DepthTest)
 	{
 		let halfSize = size * 0.5f;
 		let step = size / (float)divisions;
@@ -407,7 +407,7 @@ public class DebugRenderFeature : RenderFeatureBase
 	}
 
 	/// Draws an arrow from start to end.
-	public void AddArrow(Vector3 start, Vector3 end, Color color, float headSize = 0.1f, DebugRenderMode mode = .DepthTest)
+	public void AddArrow(Vector3 start, Vector3 end, Color color, float headSize = 0.1f, OverlayRenderMode mode = .DepthTest)
 	{
 		AddLine(start, end, color, mode);
 
@@ -436,13 +436,13 @@ public class DebugRenderFeature : RenderFeatureBase
 	}
 
 	/// Draws a ray from origin in a direction.
-	public void AddRay(Vector3 origin, Vector3 direction, Color color, DebugRenderMode mode = .DepthTest)
+	public void AddRay(Vector3 origin, Vector3 direction, Color color, OverlayRenderMode mode = .DepthTest)
 	{
 		AddLine(origin, origin + direction, color, mode);
 	}
 
 	/// Draws a 3D cross at a position.
-	public void AddCross(Vector3 center, float size, Color color, DebugRenderMode mode = .DepthTest)
+	public void AddCross(Vector3 center, float size, Color color, OverlayRenderMode mode = .DepthTest)
 	{
 		float halfSize = size * 0.5f;
 		AddLine(center - .(halfSize, 0, 0), center + .(halfSize, 0, 0), color, mode);
@@ -451,7 +451,7 @@ public class DebugRenderFeature : RenderFeatureBase
 	}
 
 	/// Draws a filled (solid) box.
-	public void AddFilledBox(BoundingBox bounds, Color color, DebugRenderMode mode = .DepthTest)
+	public void AddFilledBox(BoundingBox bounds, Color color, OverlayRenderMode mode = .DepthTest)
 	{
 		let min = bounds.Min;
 		let max = bounds.Max;
@@ -480,7 +480,7 @@ public class DebugRenderFeature : RenderFeatureBase
 	}
 
 	/// Draws a wireframe capsule (cylinder with hemisphere caps).
-	public void AddCapsule(Vector3 center, float radius, float height, Color color, int segments = 16, DebugRenderMode mode = .DepthTest)
+	public void AddCapsule(Vector3 center, float radius, float height, Color color, int segments = 16, OverlayRenderMode mode = .DepthTest)
 	{
 		float halfHeight = height * 0.5f - radius;
 		Vector3 top = center + .(0, halfHeight, 0);
@@ -544,7 +544,7 @@ public class DebugRenderFeature : RenderFeatureBase
 	}
 
 	/// Draws a wireframe cylinder.
-	public void AddCylinder(Vector3 center, float radius, float height, Color color, int segments = 16, DebugRenderMode mode = .DepthTest)
+	public void AddCylinder(Vector3 center, float radius, float height, Color color, int segments = 16, OverlayRenderMode mode = .DepthTest)
 	{
 		float halfHeight = height * 0.5f;
 		Vector3 top = center + .(0, halfHeight, 0);
@@ -575,7 +575,7 @@ public class DebugRenderFeature : RenderFeatureBase
 	}
 
 	/// Draws a wireframe cone.
-	public void AddCone(Vector3 apex, Vector3 direction, float length, float angle, Color color, int segments = 16, DebugRenderMode mode = .DepthTest)
+	public void AddCone(Vector3 apex, Vector3 direction, float length, float angle, Color color, int segments = 16, OverlayRenderMode mode = .DepthTest)
 	{
 		Vector3 dirNorm = Vector3.Normalize(direction);
 		Vector3 baseCenter = apex + dirNorm * length;
@@ -605,7 +605,7 @@ public class DebugRenderFeature : RenderFeatureBase
 	}
 
 	/// Draws a circle on the specified plane.
-	public void AddCircle(Vector3 center, float radius, Vector3 normal, Color color, int segments = 32, DebugRenderMode mode = .DepthTest)
+	public void AddCircle(Vector3 center, float radius, Vector3 normal, Color color, int segments = 32, OverlayRenderMode mode = .DepthTest)
 	{
 		Vector3 up = Math.Abs(normal.Y) < 0.99f ? Vector3.UnitY : Vector3.UnitX;
 		Vector3 right = Vector3.Normalize(Vector3.Cross(up, normal));
@@ -628,7 +628,7 @@ public class DebugRenderFeature : RenderFeatureBase
 
 	/// Adds 3D text to the batch.
 	/// The text is rendered as billboards facing the camera.
-	public void AddText(StringView text, Vector3 position, Color color, float scale, Vector3 right, Vector3 up, DebugRenderMode mode = .DepthTest)
+	public void AddText(StringView text, Vector3 position, Color color, float scale, Vector3 right, Vector3 up, OverlayRenderMode mode = .DepthTest)
 	{
 		if (mFontTexture == null)
 			return;
@@ -670,7 +670,7 @@ public class DebugRenderFeature : RenderFeatureBase
 	}
 
 	/// Adds 3D text centered at the given position.
-	public void AddTextCentered(StringView text, Vector3 position, Color color, float scale, Vector3 right, Vector3 up, DebugRenderMode mode = .DepthTest)
+	public void AddTextCentered(StringView text, Vector3 position, Color color, float scale, Vector3 right, Vector3 up, OverlayRenderMode mode = .DepthTest)
 	{
 		let charWorldWidth = scale * 0.1f;
 		let charWorldHeight = scale * 0.1f;
@@ -1060,7 +1060,7 @@ public class DebugRenderFeature : RenderFeatureBase
 		let shaderPair = shaderSystem.GetShaderPair("debug", .None);
 		if (shaderPair case .Err)
 		{
-			Console.WriteLine("[DebugRenderFeature] Failed to load debug shaders");
+			Console.WriteLine("[OverlayRenderFeature] Failed to load debug shaders");
 			return;
 		}
 
@@ -1327,7 +1327,7 @@ public class DebugRenderFeature : RenderFeatureBase
 		let shaderPair = shaderSystem.GetShaderPair("debug_text", .None);
 		if (shaderPair case .Err)
 		{
-			Console.WriteLine("[DebugRenderFeature] Failed to load debug_text shaders");
+			Console.WriteLine("[OverlayRenderFeature] Failed to load debug_text shaders");
 			return;
 		}
 
@@ -1490,12 +1490,12 @@ public class DebugRenderFeature : RenderFeatureBase
 
 		if (vertShader case .Err)
 		{
-			Console.WriteLine("[DebugRenderFeature] Failed to load debug_text_2d vertex shader");
+			Console.WriteLine("[OverlayRenderFeature] Failed to load debug_text_2d vertex shader");
 			return;
 		}
 		if (fragShader case .Err)
 		{
-			Console.WriteLine("[DebugRenderFeature] Failed to load debug_text fragment shader");
+			Console.WriteLine("[OverlayRenderFeature] Failed to load debug_text fragment shader");
 			return;
 		}
 

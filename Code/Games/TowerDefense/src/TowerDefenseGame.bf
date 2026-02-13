@@ -47,7 +47,7 @@ class TowerDefenseGame : Application
 	private ForwardOpaqueFeature mForwardFeature;
 	private ForwardTransparentFeature mTransparentFeature;
 	private ParticleFeature mParticleFeature;
-	private DebugRenderFeature mDebugFeature;
+	private OverlayRenderFeature mOverlayFeature;
 	private FinalOutputFeature mFinalOutputFeature;
 
 	// Subsystems
@@ -184,8 +184,8 @@ class TowerDefenseGame : Application
 		mParticleFeature = new ParticleFeature();
 		mRenderSystem.RegisterFeature(mParticleFeature);
 
-		mDebugFeature = new DebugRenderFeature();
-		mRenderSystem.RegisterFeature(mDebugFeature);
+		mOverlayFeature = new OverlayRenderFeature();
+		mRenderSystem.RegisterFeature(mOverlayFeature);
 
 		mFinalOutputFeature = new FinalOutputFeature();
 		mRenderSystem.RegisterFeature(mFinalOutputFeature);
@@ -807,7 +807,7 @@ class TowerDefenseGame : Application
 
 	private void DrawDebugVisuals()
 	{
-		if (mDebugFeature == null || mGameState == .MainMenu)
+		if (mOverlayFeature == null || mGameState == .MainMenu)
 			return;
 
 		// Draw enemy health bars
@@ -841,7 +841,7 @@ class TowerDefenseGame : Application
 			let halfHeight = barHeight * 0.5f;
 
 			// Background
-			mDebugFeature.AddQuad(
+			mOverlayFeature.AddQuad(
 				.(pos.X - halfWidth, barY, pos.Z - halfHeight),
 				.(pos.X + halfWidth, barY, pos.Z - halfHeight),
 				.(pos.X + halfWidth, barY, pos.Z + halfHeight),
@@ -854,7 +854,7 @@ class TowerDefenseGame : Application
 			uint8 r = (uint8)(255 * (1.0f - healthPct));
 			uint8 g = (uint8)(255 * healthPct);
 
-			mDebugFeature.AddQuad(
+			mOverlayFeature.AddQuad(
 				.(fgStartX, barY + 0.01f, pos.Z - halfHeight * 0.8f),
 				.(fgStartX + fgWidth, barY + 0.01f, pos.Z - halfHeight * 0.8f),
 				.(fgStartX + fgWidth, barY + 0.01f, pos.Z + halfHeight * 0.8f),
@@ -905,7 +905,7 @@ class TowerDefenseGame : Application
 			float a1 = (i + 1) * angleStep;
 			Vector3 p0 = .(center.X + Math.Cos(a0) * radius, y, center.Z + Math.Sin(a0) * radius);
 			Vector3 p1 = .(center.X + Math.Cos(a1) * radius, y, center.Z + Math.Sin(a1) * radius);
-			mDebugFeature.AddLine(p0, p1, color, .Overlay);
+			mOverlayFeature.AddLine(p0, p1, color, .Overlay);
 		}
 	}
 

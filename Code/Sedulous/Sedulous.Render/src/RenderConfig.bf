@@ -20,8 +20,8 @@ static class RenderConfig
 	/// Maximum transparent objects per frame.
 	public const int32 MaxTransparentObjectsPerFrame = 256;
 
-	/// Maximum debug vertices for debug rendering.
-	public const int32 MaxDebugVertices = 65536;
+	/// Maximum vertices for overlay rendering.
+	public const int32 MaxOverlayVertices = 65536;
 
 	// ==================== Lighting ====================
 

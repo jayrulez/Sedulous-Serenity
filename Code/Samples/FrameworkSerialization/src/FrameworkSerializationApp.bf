@@ -53,7 +53,7 @@ class FrameworkSerializationApp : Application
 	private ParticleFeature mParticleFeature;
 	private SpriteFeature mSpriteFeature;
 	private SkyFeature mSkyFeature;
-	private DebugRenderFeature mDebugFeature;
+	private OverlayRenderFeature mOverlayFeature;
 	private FinalOutputFeature mFinalOutputFeature;
 
 	// Camera
@@ -205,8 +205,8 @@ class FrameworkSerializationApp : Application
 		}
 
 		// Debug render
-		mDebugFeature = new DebugRenderFeature();
-		mRenderSystem.RegisterFeature(mDebugFeature);
+		mOverlayFeature = new OverlayRenderFeature();
+		mRenderSystem.RegisterFeature(mOverlayFeature);
 
 		// Final output
 		mFinalOutputFeature = new FinalOutputFeature();

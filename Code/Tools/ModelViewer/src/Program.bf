@@ -128,7 +128,7 @@ class ModelViewerApp : Application
 	private GPUSkinningFeature mSkinningFeature;
 	private ForwardOpaqueFeature mForwardFeature;
 	private SkyFeature mSkyFeature;
-	private DebugRenderFeature mDebugFeature;
+	private OverlayRenderFeature mOverlayFeature;
 	private ViewportOutputFeature mOutputFeature;
 
 	// Gizmo
@@ -422,8 +422,8 @@ class ModelViewerApp : Application
 		mRenderSystem.RegisterFeature(mSkyFeature);
 
 		// Debug rendering for gizmos
-		mDebugFeature = new DebugRenderFeature();
-		mRenderSystem.RegisterFeature(mDebugFeature);
+		mOverlayFeature = new OverlayRenderFeature();
+		mRenderSystem.RegisterFeature(mOverlayFeature);
 
 		// Custom output feature for viewport rendering
 		mOutputFeature = new ViewportOutputFeature();
@@ -1261,8 +1261,8 @@ class ModelViewerApp : Application
 		}
 	}
 
-	/// Draws the skeleton for a skinned mesh using debug lines.
-	private void DrawSkeleton(ModelTab tab, DebugRenderFeature debug)
+	/// Draws the skeleton for a skinned mesh using overlay lines.
+	private void DrawSkeleton(ModelTab tab, OverlayRenderFeature overlay)
 	{
 		if (tab.Skeleton == null || tab.Player == null)
 			return;
@@ -1297,14 +1297,14 @@ class ModelViewerApp : Application
 			let bonePos = Vector3(boneWorldPose.M41, boneWorldPose.M42, boneWorldPose.M43);
 
 			// Draw joint sphere
-			debug.AddSphere(bonePos, 0.02f * tab.ModelScale, jointColor, 8, .Overlay);
+			overlay.AddSphere(bonePos, 0.02f * tab.ModelScale, jointColor, 8, .Overlay);
 
 			// Draw line to parent
 			if (bone.ParentIndex >= 0 && bone.ParentIndex < boneCount)
 			{
 				let parentWorldPose = worldPoses[bone.ParentIndex] * modelTransform;
 				let parentPos = Vector3(parentWorldPose.M41, parentWorldPose.M42, parentWorldPose.M43);
-				debug.AddLine(parentPos, bonePos, boneColor, .Overlay);
+				overlay.AddLine(parentPos, bonePos, boneColor, .Overlay);
 			}
 		}
 	}
@@ -1723,24 +1723,24 @@ class ModelViewerApp : Application
 				mRenderSystem.SetCamera(tab.Camera.Position, tab.Camera.Forward, .(0, 1, 0),
 					mView.FieldOfView, mView.AspectRatio, mView.NearPlane, mView.FarPlane, width, height);
 
-				// Draw gizmo (before BuildRenderGraph so debug feature can pick it up)
-				if (mGizmo != null && mDebugFeature != null && tab.Model != null)
+				// Draw gizmo (before BuildRenderGraph so overlay feature can pick it up)
+				if (mGizmo != null && mOverlayFeature != null && tab.Model != null)
 				{
-					mGizmo.Draw(mDebugFeature);
+					mGizmo.Draw(mOverlayFeature);
 				}
 
 				// Draw bounding box if enabled (offset by model position)
-				if (tab.BoundingBoxCheck != null && tab.BoundingBoxCheck.IsChecked && mDebugFeature != null && tab.Model != null)
+				if (tab.BoundingBoxCheck != null && tab.BoundingBoxCheck.IsChecked && mOverlayFeature != null && tab.Model != null)
 				{
 					// Apply scale (around origin) then offset to match the model transform
 					let scaledBounds = BoundingBox(
 						tab.MeshBounds.Min * tab.ModelScale + tab.ModelOffset,
 						tab.MeshBounds.Max * tab.ModelScale + tab.ModelOffset);
-					mDebugFeature.AddBox(scaledBounds, Color(255, 200, 50, 255), .Overlay);
+					mOverlayFeature.AddBox(scaledBounds, Color(255, 200, 50, 255), .Overlay);
 				}
 
 				// Draw floor grid if enabled
-				if (tab.GridCheck != null && tab.GridCheck.IsChecked && mDebugFeature != null)
+				if (tab.GridCheck != null && tab.GridCheck.IsChecked && mOverlayFeature != null)
 				{
 					// Grid at Y=0, sized based on model bounds
 					let gridSize = Math.Max(
@@ -1748,14 +1748,14 @@ class ModelViewerApp : Application
 						Math.Max(Math.Abs(tab.MeshBounds.Max.Z), Math.Abs(tab.MeshBounds.Min.Z))
 					) * tab.ModelScale * 4.0f;
 					let gridCenter = Vector3(tab.ModelOffset.X, 0, tab.ModelOffset.Z);
-					mDebugFeature.AddGrid(gridCenter, Math.Max(gridSize, 10.0f), 20, Color(80, 80, 100, 255), .DepthTest);
+					mOverlayFeature.AddGrid(gridCenter, Math.Max(gridSize, 10.0f), 20, Color(80, 80, 100, 255), .DepthTest);
 				}
 
 				// Draw skeleton if enabled (skinned meshes only)
-				if (tab.SkeletonCheck != null && tab.SkeletonCheck.IsChecked && mDebugFeature != null &&
+				if (tab.SkeletonCheck != null && tab.SkeletonCheck.IsChecked && mOverlayFeature != null &&
 					tab.Skeleton != null && tab.Player != null)
 				{
-					DrawSkeleton(tab, mDebugFeature);
+					DrawSkeleton(tab, mOverlayFeature);
 				}
 
 				if (mRenderSystem.BuildRenderGraph(mView) case .Ok)

@@ -22,7 +22,7 @@ class RenderShadowApp : Application
 	private DepthPrepassFeature mDepthFeature;
 	private ForwardOpaqueFeature mForwardFeature;
 	private SkyFeature mSkyFeature;
-	private DebugRenderFeature mDebugFeature;
+	private OverlayRenderFeature mOverlayFeature;
 	private FinalOutputFeature mFinalOutputFeature;
 
 	// Meshes
@@ -100,9 +100,9 @@ class RenderShadowApp : Application
 		if (mRenderSystem.RegisterFeature(mSkyFeature) case .Err)
 			Console.WriteLine("Warning: Failed to register SkyFeature");
 
-		mDebugFeature = new DebugRenderFeature();
-		if (mRenderSystem.RegisterFeature(mDebugFeature) case .Err)
-			Console.WriteLine("Warning: Failed to register DebugRenderFeature");
+		mOverlayFeature = new OverlayRenderFeature();
+		if (mRenderSystem.RegisterFeature(mOverlayFeature) case .Err)
+			Console.WriteLine("Warning: Failed to register OverlayRenderFeature");
 
 		mFinalOutputFeature = new FinalOutputFeature();
 		if (mRenderSystem.RegisterFeature(mFinalOutputFeature) case .Err)
@@ -225,7 +225,7 @@ class RenderShadowApp : Application
 
 	private void UpdateDebugDrawing()
 	{
-		if (mDebugFeature == null)
+		if (mOverlayFeature == null)
 			return;
 
 		let lightDir = Vector3.Normalize(.(
@@ -237,23 +237,23 @@ class RenderShadowApp : Application
 
 		// XYZ axes at gizmo origin
 		let axisLength = 1.5f;
-		mDebugFeature.AddLine(lightStart, lightStart + Vector3(axisLength, 0, 0), .(255, 0, 0, 255), .Overlay);
-		mDebugFeature.AddLine(lightStart, lightStart + Vector3(0, axisLength, 0), .(0, 255, 0, 255), .Overlay);
-		mDebugFeature.AddLine(lightStart, lightStart + Vector3(0, 0, axisLength), .(0, 0, 255, 255), .Overlay);
+		mOverlayFeature.AddLine(lightStart, lightStart + Vector3(axisLength, 0, 0), .(255, 0, 0, 255), .Overlay);
+		mOverlayFeature.AddLine(lightStart, lightStart + Vector3(0, axisLength, 0), .(0, 255, 0, 255), .Overlay);
+		mOverlayFeature.AddLine(lightStart, lightStart + Vector3(0, 0, axisLength), .(0, 0, 255, 255), .Overlay);
 
 		// Yellow line for light direction
 		let lightEnd = lightStart + lightDir * 5.0f;
 		let arrowColor = Color(255, 255, 0, 255);
-		mDebugFeature.AddLine(lightStart, lightEnd, arrowColor, .Overlay);
+		mOverlayFeature.AddLine(lightStart, lightEnd, arrowColor, .Overlay);
 
 		// Arrow head
 		let right = Vector3.Normalize(Vector3.Cross(lightDir, Vector3.Up));
 		let up = Vector3.Normalize(Vector3.Cross(right, lightDir));
 		let arrowSize = 0.3f;
-		mDebugFeature.AddLine(lightEnd, lightEnd - lightDir * arrowSize + right * arrowSize * 0.5f, arrowColor, .Overlay);
-		mDebugFeature.AddLine(lightEnd, lightEnd - lightDir * arrowSize - right * arrowSize * 0.5f, arrowColor, .Overlay);
-		mDebugFeature.AddLine(lightEnd, lightEnd - lightDir * arrowSize + up * arrowSize * 0.5f, arrowColor, .Overlay);
-		mDebugFeature.AddLine(lightEnd, lightEnd - lightDir * arrowSize - up * arrowSize * 0.5f, arrowColor, .Overlay);
+		mOverlayFeature.AddLine(lightEnd, lightEnd - lightDir * arrowSize + right * arrowSize * 0.5f, arrowColor, .Overlay);
+		mOverlayFeature.AddLine(lightEnd, lightEnd - lightDir * arrowSize - right * arrowSize * 0.5f, arrowColor, .Overlay);
+		mOverlayFeature.AddLine(lightEnd, lightEnd - lightDir * arrowSize + up * arrowSize * 0.5f, arrowColor, .Overlay);
+		mOverlayFeature.AddLine(lightEnd, lightEnd - lightDir * arrowSize - up * arrowSize * 0.5f, arrowColor, .Overlay);
 	}
 
 	protected override void OnUpdate(FrameContext frame)

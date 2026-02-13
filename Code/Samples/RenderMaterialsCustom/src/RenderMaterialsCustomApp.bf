@@ -30,7 +30,7 @@ class RenderMaterialsCustomApp : Application
 	private DepthPrepassFeature mDepthFeature;
 	private ForwardOpaqueFeature mForwardFeature;
 	private SkyFeature mSkyFeature;
-	private DebugRenderFeature mDebugFeature;
+	private OverlayRenderFeature mOverlayFeature;
 	private FinalOutputFeature mFinalOutputFeature;
 
 	// Meshes
@@ -114,8 +114,8 @@ class RenderMaterialsCustomApp : Application
 		mSkyFeature = new SkyFeature();
 		mRenderSystem.RegisterFeature(mSkyFeature);
 
-		mDebugFeature = new DebugRenderFeature();
-		mRenderSystem.RegisterFeature(mDebugFeature);
+		mOverlayFeature = new OverlayRenderFeature();
+		mRenderSystem.RegisterFeature(mOverlayFeature);
 
 		mFinalOutputFeature = new FinalOutputFeature();
 		mRenderSystem.RegisterFeature(mFinalOutputFeature);
@@ -559,21 +559,21 @@ class RenderMaterialsCustomApp : Application
 
 	private void UpdateDebugDrawing(float dt)
 	{
-		if (mDebugFeature == null) return;
+		if (mOverlayFeature == null) return;
 
 		// FPS
 		let fps = (dt > 0) ? (1.0f / dt) : 0;
 		let fpsText = scope String();
 		fpsText.AppendF("FPS: {0:0.0}", fps);
-		mDebugFeature.AddText2D(fpsText, 10, 10, .(255, 255, 0, 255), 2.0f);
+		mOverlayFeature.AddText2D(fpsText, 10, 10, .(255, 255, 0, 255), 2.0f);
 
 		// Light direction visualization
 		let lightDir = GetLightDirection();
 		let lightStart = Vector3(0, 5, 0);
 		let lightEnd = lightStart + lightDir * 5.0f;
 
-		mDebugFeature.AddAxes(lightStart, 1.5f, .Overlay);
-		mDebugFeature.AddLine(lightStart, lightEnd, .(255, 255, 0, 255), .Overlay);
+		mOverlayFeature.AddAxes(lightStart, 1.5f, .Overlay);
+		mOverlayFeature.AddLine(lightStart, lightEnd, .(255, 255, 0, 255), .Overlay);
 
 		// Arrow head
 		let arrowRight = Vector3.Normalize(Vector3.Cross(lightDir, Vector3.Up));
@@ -581,10 +581,10 @@ class RenderMaterialsCustomApp : Application
 		let arrowSize = 0.3f;
 		let arrowColor = Color(255, 128, 0, 255);
 
-		mDebugFeature.AddLine(lightEnd, lightEnd - lightDir * arrowSize + arrowRight * arrowSize * 0.5f, arrowColor, .Overlay);
-		mDebugFeature.AddLine(lightEnd, lightEnd - lightDir * arrowSize - arrowRight * arrowSize * 0.5f, arrowColor, .Overlay);
-		mDebugFeature.AddLine(lightEnd, lightEnd - lightDir * arrowSize + arrowUp * arrowSize * 0.5f, arrowColor, .Overlay);
-		mDebugFeature.AddLine(lightEnd, lightEnd - lightDir * arrowSize - arrowUp * arrowSize * 0.5f, arrowColor, .Overlay);
+		mOverlayFeature.AddLine(lightEnd, lightEnd - lightDir * arrowSize + arrowRight * arrowSize * 0.5f, arrowColor, .Overlay);
+		mOverlayFeature.AddLine(lightEnd, lightEnd - lightDir * arrowSize - arrowRight * arrowSize * 0.5f, arrowColor, .Overlay);
+		mOverlayFeature.AddLine(lightEnd, lightEnd - lightDir * arrowSize + arrowUp * arrowSize * 0.5f, arrowColor, .Overlay);
+		mOverlayFeature.AddLine(lightEnd, lightEnd - lightDir * arrowSize - arrowUp * arrowSize * 0.5f, arrowColor, .Overlay);
 	}
 
 	protected override bool OnRenderFrame(RenderContext render)

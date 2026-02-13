@@ -248,9 +248,9 @@ class BattleUnitView
 	}
 
 	/// Draw debug overlays for this unit (health bar, etc.).
-	public void DrawOverlay(DebugRenderFeature debugFeature, BattleUnit unit, Vector3 billboardRight)
+	public void DrawOverlay(OverlayRenderFeature overlayFeature, BattleUnit unit, Vector3 billboardRight)
 	{
-		if (!mVisible || debugFeature == null || unit == null || !unit.mAlive) return;
+		if (!mVisible || overlayFeature == null || unit == null || !unit.mAlive) return;
 
 		// Health bar above unit (in 3D space)
 		let barPos = mWorldPos + Vector3(0, UNIT_HEIGHT * 0.7f, 0);
@@ -269,7 +269,7 @@ class BattleUnitView
 		for (int j = 0; j < barLines; j++)
 		{
 			let yOff = up * (barHeight * (float)j / (float)(barLines - 1));
-			debugFeature.AddLine(bgLeft + yOff, bgRight + yOff, .(40, 40, 40, 200));
+			overlayFeature.AddLine(bgLeft + yOff, bgRight + yOff, .(40, 40, 40, 200));
 		}
 
 		// HP bar (green to red based on HP) — filled
@@ -281,20 +281,20 @@ class BattleUnitView
 		for (int j = 0; j < barLines; j++)
 		{
 			let yOff = up * (barHeight * (float)j / (float)(barLines - 1));
-			debugFeature.AddLine(bgLeft + yOff, hpRight + yOff, hpColor);
+			overlayFeature.AddLine(bgLeft + yOff, hpRight + yOff, hpColor);
 		}
 
 		// Flash effect
 		if (mFlashing)
 		{
-			debugFeature.AddSphere(mWorldPos, UNIT_RADIUS * 1.5f, mFlashColor, 8);
+			overlayFeature.AddSphere(mWorldPos, UNIT_RADIUS * 1.5f, mFlashColor, 8);
 		}
 
 		// Soldier count text
 		let countText = scope String();
 		unit.SoldierCount.ToString(countText);
 		let textPos = mWorldPos + Vector3(0, UNIT_HEIGHT + 0.15f, 0);
-		debugFeature.AddTextCentered(countText, textPos, .(255, 255, 255, 255), 0.6f, right, up);
+		overlayFeature.AddTextCentered(countText, textPos, .(255, 255, 255, 255), 0.6f, right, up);
 
 		// Buff/debuff icons
 		let buffCount = Math.Min((int32)unit.mBuffs.Count, 5);
@@ -309,7 +309,7 @@ class BattleUnitView
 				let buff = unit.mBuffs[b];
 				let buffColor = GetBuffColor(buff.mConfig.mTag);
 				let buffPos = Vector3(buffStartX + (float)b * buffSpacing, buffY, mWorldPos.Z);
-				debugFeature.AddCircle(buffPos, 0.05f, .(0, 1, 0), buffColor, 8, .Overlay);
+				overlayFeature.AddCircle(buffPos, 0.05f, .(0, 1, 0), buffColor, 8, .Overlay);
 			}
 		}
 	}

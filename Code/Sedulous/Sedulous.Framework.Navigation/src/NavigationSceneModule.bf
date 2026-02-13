@@ -370,8 +370,8 @@ class NavigationSceneModule : SceneModule
 		if (renderSystem == null)
 			return;
 
-		let debugFeature = renderSystem.GetFeature<DebugRenderFeature>();
-		if (debugFeature == null)
+		let overlayFeature = renderSystem.GetFeature<OverlayRenderFeature>();
+		if (overlayFeature == null)
 			return;
 
 		let navMesh = mNavWorld.NavMesh;
@@ -396,15 +396,15 @@ class NavigationSceneModule : SceneModule
 				let color = Color(0, 255, 0, 255);
 
 				// Draw a cross at agent position
-				debugFeature.AddLine(position - Vector3(0.3f, 0, 0), position + Vector3(0.3f, 0, 0), color);
-				debugFeature.AddLine(position - Vector3(0, 0, 0.3f), position + Vector3(0, 0, 0.3f), color);
-				debugFeature.AddLine(position, position + Vector3(0, 1.0f, 0), color);
+				overlayFeature.AddLine(position - Vector3(0.3f, 0, 0), position + Vector3(0.3f, 0, 0), color);
+				overlayFeature.AddLine(position - Vector3(0, 0, 0.3f), position + Vector3(0, 0, 0.3f), color);
+				overlayFeature.AddLine(position, position + Vector3(0, 1.0f, 0), color);
 
 				// Draw velocity
 				float[3] vel;
 				crowd.GetAgentVelocity(i, out vel);
 				let velEnd = position + Vector3(vel[0], vel[1], vel[2]) * 0.5f;
-				debugFeature.AddLine(position, velEnd, Color(255, 255, 0, 255));
+				overlayFeature.AddLine(position, velEnd, Color(255, 255, 0, 255));
 			}
 		}
 	}

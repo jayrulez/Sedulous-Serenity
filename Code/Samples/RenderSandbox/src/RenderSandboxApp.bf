@@ -28,7 +28,7 @@ class RenderSandboxApp : Application
 	private ParticleFeature mParticleFeature;
 	private VolumetricFogFeature mVolumetricFogFeature;
 	private GPUSkinningFeature mSkinningFeature;
-	private DebugRenderFeature mDebugFeature;
+	private OverlayRenderFeature mOverlayFeature;
 	private FinalOutputFeature mFinalOutputFeature;
 
 	// Particle emitters
@@ -232,11 +232,11 @@ class RenderSandboxApp : Application
 			Console.WriteLine("Registered: VolumetricFogFeature");
 
 		// Debug rendering (lines, shapes, text)
-		mDebugFeature = new DebugRenderFeature();
-		if (mRenderSystem.RegisterFeature(mDebugFeature) case .Err)
-			Console.WriteLine("Warning: Failed to register DebugRenderFeature");
+		mOverlayFeature = new OverlayRenderFeature();
+		if (mRenderSystem.RegisterFeature(mOverlayFeature) case .Err)
+			Console.WriteLine("Warning: Failed to register OverlayRenderFeature");
 		else
-			Console.WriteLine("Registered: DebugRenderFeature");
+			Console.WriteLine("Registered: OverlayRenderFeature");
 
 		// Final output (blits scene to swapchain)
 		mFinalOutputFeature = new FinalOutputFeature();
@@ -1127,11 +1127,11 @@ class RenderSandboxApp : Application
 
 	private void DrawDebugLights()
 	{
-		if (mDebugFeature == null)
+		if (mOverlayFeature == null)
 			return;
 
 		// Clear previous frame's debug primitives
-		mDebugFeature.BeginFrame();
+		mOverlayFeature.BeginFrame();
 
 		// Draw directional light direction
 		if (let light = mWorld.GetLight(mSunLight))
@@ -1141,10 +1141,10 @@ class RenderSandboxApp : Application
 			Vector3 sunEnd = sunOrigin + light.Direction * 5.0f;
 
 			// Arrow showing light direction (yellow)
-			mDebugFeature.AddArrow(sunOrigin, sunEnd, Color.Yellow, 0.3f, .Overlay);
+			mOverlayFeature.AddArrow(sunOrigin, sunEnd, Color.Yellow, 0.3f, .Overlay);
 
 			// Add a small sun icon (circle)
-			mDebugFeature.AddSphere(sunOrigin, 0.3f, Color.Yellow, 8, .Overlay);
+			mOverlayFeature.AddSphere(sunOrigin, 0.3f, Color.Yellow, 8, .Overlay);
 		}
 
 		// Draw point light positions
@@ -1160,13 +1160,13 @@ class RenderSandboxApp : Application
 			if (let light = mWorld.GetLight(mPointLights[i]))
 			{
 				// Draw sphere at light position showing its range
-				mDebugFeature.AddSphere(light.Position, 0.2f, lightColors[i], 8, .Overlay);
+				mOverlayFeature.AddSphere(light.Position, 0.2f, lightColors[i], 8, .Overlay);
 
 				// Draw cross at light position
-				mDebugFeature.AddCross(light.Position, 0.5f, lightColors[i], .Overlay);
+				mOverlayFeature.AddCross(light.Position, 0.5f, lightColors[i], .Overlay);
 
 				// Draw range indicator (faint circle on XZ plane)
-				mDebugFeature.AddCircle(
+				mOverlayFeature.AddCircle(
 					.(light.Position.X, 0.01f, light.Position.Z),
 					light.Range,
 					.(0, 1, 0),
@@ -1178,7 +1178,7 @@ class RenderSandboxApp : Application
 		}
 
 		// Draw coordinate axes at origin
-		mDebugFeature.AddAxes(.(0, 0.01f, 0), 1.0f, .DepthTest);
+		mOverlayFeature.AddAxes(.(0, 0.01f, 0), 1.0f, .DepthTest);
 	}
 
 	protected override void OnUpdate(FrameContext frame)

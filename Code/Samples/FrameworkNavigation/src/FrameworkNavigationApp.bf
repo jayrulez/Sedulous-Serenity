@@ -44,7 +44,7 @@ class FrameworkNavigationApp : Application
 	// Render features
 	private DepthPrepassFeature mDepthFeature;
 	private ForwardOpaqueFeature mForwardFeature;
-	private DebugRenderFeature mDebugFeature;
+	private OverlayRenderFeature mOverlayFeature;
 	private FinalOutputFeature mFinalOutputFeature;
 
 	// Meshes
@@ -101,7 +101,7 @@ class FrameworkNavigationApp : Application
 		// Initialize navigation demo after scene is set up
 		mNavDemo = new NavigationDemo();
 		let navModule = mMainScene.GetModule<NavigationSceneModule>();
-		mNavDemo.Initialize(mMainScene, navModule, mDebugFeature, ArenaHalfSize, mDevice.FlipProjectionRequired);
+		mNavDemo.Initialize(mMainScene, navModule, mOverlayFeature, ArenaHalfSize, mDevice.FlipProjectionRequired);
 
 		CreateUI();
 
@@ -139,8 +139,8 @@ class FrameworkNavigationApp : Application
 		mForwardFeature = new ForwardOpaqueFeature();
 		mRenderSystem.RegisterFeature(mForwardFeature);
 
-		mDebugFeature = new DebugRenderFeature();
-		mRenderSystem.RegisterFeature(mDebugFeature);
+		mOverlayFeature = new OverlayRenderFeature();
+		mRenderSystem.RegisterFeature(mOverlayFeature);
 
 		mFinalOutputFeature = new FinalOutputFeature();
 		mRenderSystem.RegisterFeature(mFinalOutputFeature);
@@ -408,8 +408,8 @@ class FrameworkNavigationApp : Application
 		}
 
 		// Navigation debug draw
-		if (mNavDemo != null && mDebugFeature != null)
-			mNavDemo.DrawDebug(mDebugFeature, mRenderView);
+		if (mNavDemo != null && mOverlayFeature != null)
+			mNavDemo.DrawDebug(mOverlayFeature, mRenderView);
 
 		// HUD
 		DrawHUD();
@@ -442,7 +442,7 @@ class FrameworkNavigationApp : Application
 
 	private void DrawHUD()
 	{
-		if (mDebugFeature == null) return;
+		if (mOverlayFeature == null) return;
 
 		let bgColor = Color(0, 0, 0, 180);
 		let white = Color(255, 255, 255, 255);
@@ -453,43 +453,43 @@ class FrameworkNavigationApp : Application
 		let brightOrange = Color(255, 180, 100, 255);
 
 		// Top-left: Instructions
-		mDebugFeature.AddRect2D(5, 5, 370, 120, bgColor);
-		mDebugFeature.AddText2D("NAVIGATION DEMO", 15, 12, brightYellow, 1.5f);
+		mOverlayFeature.AddRect2D(5, 5, 370, 120, bgColor);
+		mOverlayFeature.AddText2D("NAVIGATION DEMO", 15, 12, brightYellow, 1.5f);
 
 		if (mCamera.CurrentMode == .Orbital)
-			mDebugFeature.AddText2D("ORBITAL: WASD rotate, Q/E zoom, RMB drag", 15, 35, white, 1.0f);
+			mOverlayFeature.AddText2D("ORBITAL: WASD rotate, Q/E zoom, RMB drag", 15, 35, white, 1.0f);
 		else
-			mDebugFeature.AddText2D("FLY: WASD move, Q/E up/down, RMB look", 15, 35, white, 1.0f);
+			mOverlayFeature.AddText2D("FLY: WASD move, Q/E up/down, RMB look", 15, 35, white, 1.0f);
 
-		mDebugFeature.AddText2D("LMB: Move agents / Place obstacle", 15, 52, white, 1.0f);
-		mDebugFeature.AddText2D("1-4: Agents/Obstacles   N/V: Toggles", 15, 69, white, 1.0f);
-		mDebugFeature.AddText2D("Tab: Camera   P: Profiler   ESC: Exit", 15, 86, white, 1.0f);
+		mOverlayFeature.AddText2D("LMB: Move agents / Place obstacle", 15, 52, white, 1.0f);
+		mOverlayFeature.AddText2D("1-4: Agents/Obstacles   N/V: Toggles", 15, 69, white, 1.0f);
+		mOverlayFeature.AddText2D("Tab: Camera   P: Profiler   ESC: Exit", 15, 86, white, 1.0f);
 
 		// Top-right: Stats
 		float panelX = (float)mRenderView.Width - 200;
-		mDebugFeature.AddRect2D(panelX, 5, 195, 105, bgColor);
+		mOverlayFeature.AddRect2D(panelX, 5, 195, 105, bgColor);
 
 		let fpsText = scope String();
 		((int32)Math.Round(mSmoothedFps)).ToString(fpsText);
-		mDebugFeature.AddText2D("FPS:", panelX + 10, 12, brightBlue, 1.5f);
-		mDebugFeature.AddText2DRight(fpsText, 10, 12, brightCyan, 1.5f);
+		mOverlayFeature.AddText2D("FPS:", panelX + 10, 12, brightBlue, 1.5f);
+		mOverlayFeature.AddText2DRight(fpsText, 10, 12, brightCyan, 1.5f);
 
 		if (mNavDemo != null)
 		{
 			let agentText = scope String();
 			mNavDemo.AgentCount.ToString(agentText);
-			mDebugFeature.AddText2D("Agents:", panelX + 10, 35, brightBlue, 1.2f);
-			mDebugFeature.AddText2DRight(agentText, 10, 35, brightCyan, 1.2f);
+			mOverlayFeature.AddText2D("Agents:", panelX + 10, 35, brightBlue, 1.2f);
+			mOverlayFeature.AddText2DRight(agentText, 10, 35, brightCyan, 1.2f);
 
 			let obstText = scope String();
 			mNavDemo.ObstacleCount.ToString(obstText);
-			mDebugFeature.AddText2D("Obstacles:", panelX + 10, 55, brightBlue, 1.2f);
-			mDebugFeature.AddText2DRight(obstText, 10, 55, brightCyan, 1.2f);
+			mOverlayFeature.AddText2D("Obstacles:", panelX + 10, 55, brightBlue, 1.2f);
+			mOverlayFeature.AddText2DRight(obstText, 10, 55, brightCyan, 1.2f);
 
 			let modeText = mNavDemo.IsObstacleMode ? "OBSTACLE" : "MOVE";
 			let modeColor = mNavDemo.IsObstacleMode ? brightOrange : brightGreen;
-			mDebugFeature.AddText2D("Mode:", panelX + 10, 78, brightBlue, 1.2f);
-			mDebugFeature.AddText2DRight(modeText, 10, 78, modeColor, 1.2f);
+			mOverlayFeature.AddText2D("Mode:", panelX + 10, 78, brightBlue, 1.2f);
+			mOverlayFeature.AddText2DRight(modeText, 10, 78, modeColor, 1.2f);
 		}
 	}
 

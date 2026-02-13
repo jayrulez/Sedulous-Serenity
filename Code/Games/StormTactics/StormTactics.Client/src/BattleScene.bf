@@ -58,7 +58,7 @@ class BattleScene
 	// References (not owned)
 	private Scene mScene;
 	private RenderSystem mRenderSystem;
-	private DebugRenderFeature mDebugFeature;
+	private OverlayRenderFeature mOverlayFeature;
 	private BattleSimulation mSimulation;
 
 	// Owned sub-systems
@@ -140,13 +140,13 @@ class BattleScene
 		Scene scene,
 		RenderSceneModule renderModule,
 		RenderSystem renderSystem,
-		DebugRenderFeature debugFeature,
+		OverlayRenderFeature overlayFeature,
 		BattleSimulation simulation,
 		float hexSize)
 	{
 		mScene = scene;
 		mRenderSystem = renderSystem;
-		mDebugFeature = debugFeature;
+		mOverlayFeature = overlayFeature;
 		mSimulation = simulation;
 		mHexSize = hexSize;
 
@@ -161,7 +161,7 @@ class BattleScene
 		CreateMaterials();
 
 		// Create hex grid renderer
-		mGridRenderer = new HexGridRenderer(scene, renderSystem, debugFeature);
+		mGridRenderer = new HexGridRenderer(scene, renderSystem, overlayFeature);
 		mGridRenderer.Initialize(simulation.Grid, hexSize, simulation.Grid.Columns / 3);
 
 		// Create camera
@@ -723,7 +723,7 @@ class BattleScene
 	/// Draw debug overlay (health bars, world-space VFX).
 	public void DrawOverlay()
 	{
-		if (mDebugFeature == null) return;
+		if (mOverlayFeature == null) return;
 
 		// Billboard axes — text and bars always face the camera
 		let camForward = mCamera.Forward;
@@ -737,7 +737,7 @@ class BattleScene
 			if (view == null || !view.mVisible) continue;
 
 			let unit = mSimulation.GetUnit(i);
-			view.DrawOverlay(mDebugFeature, unit, billboardRight);
+			view.DrawOverlay(mOverlayFeature, unit, billboardRight);
 		}
 
 		// Draw grid overlays
@@ -955,7 +955,7 @@ class BattleScene
 			if (num.mIsCritical)
 				text.Append("!");
 
-			mDebugFeature.AddTextCentered(text, pos, color, scale, right, up, .Overlay);
+			mOverlayFeature.AddTextCentered(text, pos, color, scale, right, up, .Overlay);
 		}
 	}
 
@@ -971,20 +971,20 @@ class BattleScene
 				let radius = 0.2f + t * 0.6f;
 				let alpha = (uint8)(255 * (1.0f - t));
 				let color = Color(vfx.mColor.R, vfx.mColor.G, vfx.mColor.B, alpha);
-				mDebugFeature.AddCircle(vfx.mPosition, radius, .(0, 1, 0), color, 16, .DepthTest);
+				mOverlayFeature.AddCircle(vfx.mPosition, radius, .(0, 1, 0), color, 16, .DepthTest);
 
 			case .BuffApply:
 				let ringY = vfx.mPosition.Y + t * 0.8f;
 				let ringAlpha = (uint8)(255 * (1.0f - t));
 				let ringPos = Vector3(vfx.mPosition.X, ringY, vfx.mPosition.Z);
 				let ringColor = Color(vfx.mColor.R, vfx.mColor.G, vfx.mColor.B, ringAlpha);
-				mDebugFeature.AddCircle(ringPos, 0.4f, .(0, 1, 0), ringColor, 16, .DepthTest);
+				mOverlayFeature.AddCircle(ringPos, 0.4f, .(0, 1, 0), ringColor, 16, .DepthTest);
 
 			case .BuffRemove:
 				let shrinkRadius = 0.4f * (1.0f - t);
 				let shrinkAlpha = (uint8)(255 * (1.0f - t));
 				let shrinkColor = Color(vfx.mColor.R, vfx.mColor.G, vfx.mColor.B, shrinkAlpha);
-				mDebugFeature.AddCircle(vfx.mPosition, shrinkRadius, .(0, 1, 0), shrinkColor, 12, .DepthTest);
+				mOverlayFeature.AddCircle(vfx.mPosition, shrinkRadius, .(0, 1, 0), shrinkColor, 12, .DepthTest);
 
 			case .BattleResult:
 				// Handled by BattleHUD overlay
