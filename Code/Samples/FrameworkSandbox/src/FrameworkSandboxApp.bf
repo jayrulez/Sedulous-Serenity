@@ -26,6 +26,8 @@ using Sedulous.Audio.SDL3;
 using Sedulous.Framework.Physics;
 using Sedulous.Profiler;
 using Sedulous.Drawing.Fonts;
+using Sedulous.Imaging;
+using Sedulous.Textures.Resources;
 
 namespace FrameworkSandbox;
 
@@ -50,6 +52,7 @@ class FrameworkSandboxApp : Application
 	private ForwardTransparentFeature mTransparentFeature;
 	private ParticleFeature mParticleFeature;
 	private SpriteFeature mSpriteFeature;
+	private DecalFeature mDecalFeature;
 	private SkyFeature mSkyFeature;
 	private OverlayRenderFeature mOverlayFeature;
 	private FinalOutputFeature mFinalOutputFeature;
@@ -61,6 +64,9 @@ class FrameworkSandboxApp : Application
 	private MaterialInstance mCubeMaterial ~ _?.ReleaseRef();
 	private MaterialInstance mFloorMaterial ~ _?.ReleaseRef();
 	private MaterialInstance mSphereMaterial ~ _?.ReleaseRef();
+
+	// Decal resources
+	private TextureResource mDecalTextureResource ~ _.ReleaseRef();
 
 	// Entities
 	private EntityId mFloorEntity;
@@ -85,6 +91,8 @@ class FrameworkSandboxApp : Application
 	private EntityId mTrailedSparksEntity;
 	private EntityId mHealingEntity;
 	private EntityId mSpriteEntity;
+	private EntityId mDecalEntity1;
+	private EntityId mDecalEntity2;
 	private EntityId mWorldUIPanelEntity;
 
 	// Trail emitters
@@ -262,6 +270,11 @@ class FrameworkSandboxApp : Application
 		mSpriteFeature = new SpriteFeature();
 		if (mRenderSystem.RegisterFeature(mSpriteFeature) case .Ok)
 			Console.WriteLine("Registered: SpriteFeature");
+
+		// Decals
+		mDecalFeature = new DecalFeature();
+		if (mRenderSystem.RegisterFeature(mDecalFeature) case .Ok)
+			Console.WriteLine("Registered: DecalFeature");
 
 		// Sky (gradient environment map)
 		mSkyFeature = new SkyFeature();
@@ -1104,6 +1117,79 @@ class FrameworkSandboxApp : Application
 			}
 		}
 		Console.WriteLine("  Created test sprite");
+
+		// Create procedural decal texture (64x64 soft circle)
+		{
+			const int32 TexSize = 64;
+			let pixels = new uint8[TexSize * TexSize * 4];
+			let center = (float)TexSize / 2.0f;
+			let radius = center - 2.0f;
+			for (int32 y = 0; y < TexSize; y++)
+			{
+				for (int32 x = 0; x < TexSize; x++)
+				{
+					let dx = (float)x + 0.5f - center;
+					let dy = (float)y + 0.5f - center;
+					let dist = Math.Sqrt(dx * dx + dy * dy);
+					let alpha = Math.Clamp(1.0f - (dist / radius), 0.0f, 1.0f);
+					let idx = (y * TexSize + x) * 4;
+					pixels[idx + 0] = 255;  // R
+					pixels[idx + 1] = 255;  // G
+					pixels[idx + 2] = 255;  // B
+					pixels[idx + 3] = (uint8)(alpha * alpha * 255.0f);  // A (quadratic falloff)
+				}
+			}
+			let image = new Sedulous.Imaging.Image((uint32)TexSize, (uint32)TexSize, .RGBA8, pixels);
+			delete pixels;
+			mDecalTextureResource = new TextureResource(image, true);
+			mDecalTextureResource.AddRef();
+			mDecalTextureResource.WrapU = .ClampToEdge;
+			mDecalTextureResource.WrapV = .ClampToEdge;
+			mDecalTextureResource.GenerateMipmaps = false;
+		}
+
+		// Create decal entities
+		mDecalEntity1 = mMainScene.CreateEntity();
+		{
+			var transform = mMainScene.GetTransform(mDecalEntity1);
+			transform.Position = .(0.0f, 0.01f, 0.0f);
+			mMainScene.SetTransform(mDecalEntity1, transform);
+
+			let handle = renderModule.CreateDecal(mDecalEntity1);
+			if (handle.IsValid)
+			{
+				if (let comp = mMainScene.GetComponent<DecalComponent>(mDecalEntity1))
+				{
+					comp.Scale = .(3.0f, 2.0f, 3.0f);
+					comp.Color = .(1.0f, 0.3f, 0.2f, 0.8f);  // Red-ish tint
+					comp.BlendMode = .Alpha;
+					comp.SortOrder = 0;
+					comp.Texture = ResourceHandle<TextureResource>(mDecalTextureResource);
+				}
+			}
+		}
+		Console.WriteLine("  Created floor decal (alpha, red)");
+
+		mDecalEntity2 = mMainScene.CreateEntity();
+		{
+			var transform = mMainScene.GetTransform(mDecalEntity2);
+			transform.Position = .(2.0f, 0.01f, -2.0f);
+			mMainScene.SetTransform(mDecalEntity2, transform);
+
+			let handle = renderModule.CreateDecal(mDecalEntity2);
+			if (handle.IsValid)
+			{
+				if (let comp = mMainScene.GetComponent<DecalComponent>(mDecalEntity2))
+				{
+					comp.Scale = .(2.0f, 1.0f, 2.0f);
+					comp.Color = .(1.0f, 0.9f, 0.2f, 1.0f);  // Yellow tint
+					comp.BlendMode = .Additive;
+					comp.SortOrder = 1;
+					comp.Texture = ResourceHandle<TextureResource>(mDecalTextureResource);
+				}
+			}
+		}
+		Console.WriteLine("  Created glow decal (additive, yellow)");
 
 		// Create world-space UI panel (floating in 3D)
 		{
