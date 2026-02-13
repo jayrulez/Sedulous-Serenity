@@ -9,6 +9,7 @@
       <int32 name="CurrencyType">0</int32>
       <int32 name="PurchaseLimit">10</int32>
       <int32 name="RefreshGroup">1</int32>
+      <bool name="Featured">false</bool>
     </object>
     <!-- Iron Ore x10 for 200 gold -->
     <object>
@@ -19,8 +20,9 @@
       <int32 name="CurrencyType">0</int32>
       <int32 name="PurchaseLimit">5</int32>
       <int32 name="RefreshGroup">1</int32>
+      <bool name="Featured">false</bool>
     </object>
-    <!-- Magic Crystal x5 for 300 gold -->
+    <!-- Magic Crystal x5 for 300 gold — FEATURED -->
     <object>
       <int32 name="Id">403</int32>
       <int32 name="ItemId">1004</int32>
@@ -29,8 +31,9 @@
       <int32 name="CurrencyType">0</int32>
       <int32 name="PurchaseLimit">3</int32>
       <int32 name="RefreshGroup">1</int32>
+      <bool name="Featured">true</bool>
     </object>
-    <!-- Footman Shard x3 for 50 gems -->
+    <!-- Footman Shard x3 for 50 gems — FEATURED -->
     <object>
       <int32 name="Id">404</int32>
       <int32 name="ItemId">1006</int32>
@@ -39,6 +42,7 @@
       <int32 name="CurrencyType">1</int32>
       <int32 name="PurchaseLimit">1</int32>
       <int32 name="RefreshGroup">2</int32>
+      <bool name="Featured">true</bool>
     </object>
     <!-- Wizard Shard x3 for 80 gems -->
     <object>
@@ -49,6 +53,7 @@
       <int32 name="CurrencyType">1</int32>
       <int32 name="PurchaseLimit">1</int32>
       <int32 name="RefreshGroup">2</int32>
+      <bool name="Featured">false</bool>
     </object>
   </array>
 </root>

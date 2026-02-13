@@ -12,6 +12,7 @@ class ShopItemConfig : ISerializable
 	public CurrencyType mCurrencyType;
 	public int32 mPurchaseLimit; // 0 = unlimited
 	public int32 mRefreshGroup;  // Items in the same group refresh together
+	public bool mFeatured;       // Highlighted in the shop UI
 
 	public int32 SerializationVersion => 1;
 
@@ -24,6 +25,7 @@ class ShopItemConfig : ISerializable
 		s.Enum("CurrencyType", ref mCurrencyType);
 		s.Int32("PurchaseLimit", ref mPurchaseLimit);
 		s.Int32("RefreshGroup", ref mRefreshGroup);
+		s.Bool("Featured", ref mFeatured);
 		return .Ok;
 	}
 }

@@ -3,9 +3,11 @@ namespace StormTactics.Game;
 using System;
 using StormTactics.Core;
 
-/// Manages shop purchases, currency spending, and purchase limits.
+/// Manages shop purchases, currency spending, purchase limits, and daily refresh.
 class ShopManager
 {
+	public const int64 SHOP_REFRESH_SECONDS = 86400; // 24 hours
+
 	private PlayerSaveData mSave;
 	private ConfigDatabase mConfigs;
 	private PlayerManager mPlayerMgr;
@@ -17,6 +19,55 @@ class ShopManager
 		mConfigs = configs;
 		mPlayerMgr = playerMgr;
 		mInvMgr = invMgr;
+	}
+
+	/// Check and apply daily shop refresh if enough time has passed.
+	/// Call on game load and when entering the shop screen.
+	public bool CheckRefresh()
+	{
+		let now = GetCurrentTimestamp();
+
+		if (mSave.mLastShopRefreshTime == 0)
+		{
+			mSave.mLastShopRefreshTime = now;
+			return false;
+		}
+
+		let elapsed = now - mSave.mLastShopRefreshTime;
+		if (elapsed >= SHOP_REFRESH_SECONDS)
+		{
+			RefreshShop();
+			mSave.mLastShopRefreshTime = now;
+			return true;
+		}
+
+		return false;
+	}
+
+	/// Force-refresh the shop: reset all purchase counts.
+	public void RefreshShop()
+	{
+		for (let record in mSave.mShopPurchases)
+			delete record;
+		mSave.mShopPurchases.Clear();
+		Console.WriteLine("[Shop] Shop refreshed - all purchase counts reset");
+	}
+
+	/// Seconds until the next automatic shop refresh. Returns 0 if refresh is due.
+	public int32 SecondsUntilRefresh
+	{
+		get
+		{
+			if (mSave.mLastShopRefreshTime == 0) return 0;
+			let now = GetCurrentTimestamp();
+			let elapsed = now - mSave.mLastShopRefreshTime;
+			return (int32)Math.Max(0, SHOP_REFRESH_SECONDS - elapsed);
+		}
+	}
+
+	private static int64 GetCurrentTimestamp()
+	{
+		return DateTime.UtcNow.ToFileTime() / 10000000 - 11644473600;
 	}
 
 	/// Check if a shop item can be purchased.

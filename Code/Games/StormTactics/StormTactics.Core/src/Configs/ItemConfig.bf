@@ -11,6 +11,9 @@ class ItemConfig : ISerializable
 	public String mIcon = new .() ~ delete _;
 	public ItemType mType;
 	public int32 mStackMax = 999;
+	public ConsumableEffect mConsumableEffect;
+	public int32 mEffectValue;
+	public int32 mSellPrice;
 
 	public int32 SerializationVersion => 1;
 
@@ -22,6 +25,9 @@ class ItemConfig : ISerializable
 		s.String("Icon", mIcon);
 		s.Enum("Type", ref mType);
 		s.Int32("StackMax", ref mStackMax);
+		s.Enum("ConsumableEffect", ref mConsumableEffect);
+		s.Int32("EffectValue", ref mEffectValue);
+		s.Int32("SellPrice", ref mSellPrice);
 		return .Ok;
 	}
 }

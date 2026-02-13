@@ -10,6 +10,8 @@ using StormTactics.Core;
 using StormTactics.Game;
 
 delegate void InventoryBackDelegate();
+delegate void InventoryUseDelegate(int32 itemId);
+delegate void InventorySellDelegate(int32 itemId);
 
 /// Inventory screen: grid of item slots on left, selected item detail on right.
 class InventoryScreen
@@ -25,8 +27,11 @@ class InventoryScreen
 	private TextBlock mDetailType;
 	private TextBlock mDetailDesc;
 	private TextBlock mDetailQuantity;
+	private TextBlock mDetailSellPrice;
 	private Image mDetailIcon;
 	private TextBlock mNoSelectionLabel;
+	private Button mUseButton;
+	private Button mSellButton;
 
 	// State
 	private int32 mSelectedItemId = -1;
@@ -35,10 +40,15 @@ class InventoryScreen
 	// Cached references for deferred refresh from click handlers
 	private PlayerSaveData mCachedSave;
 	private ConfigDatabase mCachedConfigs;
+	private InventoryManager mCachedInvMgr;
 
 	// Events
 	private EventAccessor<InventoryBackDelegate> mOnBack = new .() ~ delete _;
+	private EventAccessor<InventoryUseDelegate> mOnUse = new .() ~ delete _;
+	private EventAccessor<InventorySellDelegate> mOnSell = new .() ~ delete _;
 	public EventAccessor<InventoryBackDelegate> OnBack => mOnBack;
+	public EventAccessor<InventoryUseDelegate> OnUse => mOnUse;
+	public EventAccessor<InventorySellDelegate> OnSell => mOnSell;
 	public UIElement RootElement => mRoot;
 
 	public this()
@@ -179,14 +189,51 @@ class InventoryScreen
 		mDetailQuantity.Visibility = .Collapsed;
 		layout.AddChild(mDetailQuantity);
 
+		mDetailSellPrice = new TextBlock("");
+		mDetailSellPrice.Foreground = Color(255, 215, 80);
+		mDetailSellPrice.FontSize = 13;
+		mDetailSellPrice.TextAlignment = .Center;
+		mDetailSellPrice.Visibility = .Collapsed;
+		layout.AddChild(mDetailSellPrice);
+
+		// Action buttons
+		let buttonPanel = new StackPanel();
+		buttonPanel.Orientation = .Horizontal;
+		buttonPanel.Spacing = 8;
+		buttonPanel.HorizontalAlignment = .Center;
+		buttonPanel.Margin = Thickness(0, 8, 0, 0);
+		layout.AddChild(buttonPanel);
+
+		mUseButton = new Button("Use");
+		mUseButton.Padding = Thickness(20, 6, 20, 6);
+		mUseButton.Visibility = .Collapsed;
+		mUseButton.Click.Subscribe(new (btn) => {
+			let itemId = mSelectedItemId;
+			if (mRoot.Context != null)
+				mRoot.Context.MutationQueue.QueueAction(new () => { mOnUse.[Friend]Invoke(itemId); });
+		});
+		buttonPanel.AddChild(mUseButton);
+
+		mSellButton = new Button("Sell");
+		mSellButton.Padding = Thickness(20, 6, 20, 6);
+		mSellButton.Visibility = .Collapsed;
+		mSellButton.Click.Subscribe(new (btn) => {
+			let itemId = mSelectedItemId;
+			if (mRoot.Context != null)
+				mRoot.Context.MutationQueue.QueueAction(new () => { mOnSell.[Friend]Invoke(itemId); });
+		});
+		buttonPanel.AddChild(mSellButton);
+
 		mRoot.AddChild(detailBorder);
 	}
 
 	/// Refresh the inventory display.
-	public void Refresh(PlayerSaveData save, ConfigDatabase configs)
+	public void Refresh(PlayerSaveData save, ConfigDatabase configs, InventoryManager invMgr = null)
 	{
 		mCachedSave = save;
 		mCachedConfigs = configs;
+		if (invMgr != null)
+			mCachedInvMgr = invMgr;
 		mItemGrid.ClearChildren();
 
 		for (let slot in save.mInventory)
@@ -233,7 +280,6 @@ class InventoryScreen
 			clickBtn.Padding = Thickness(0);
 			clickBtn.Click.Subscribe(new (btn) => {
 				mSelectedItemId = itemId;
-				// Defer full refresh — updates detail panel + selection highlight
 				if (mRoot.Context != null)
 				{
 					mRoot.Context.MutationQueue.QueueAction(new () => {
@@ -268,6 +314,9 @@ class InventoryScreen
 			mDetailType.Visibility = .Collapsed;
 			mDetailDesc.Visibility = .Collapsed;
 			mDetailQuantity.Visibility = .Collapsed;
+			mDetailSellPrice.Visibility = .Collapsed;
+			mUseButton.Visibility = .Collapsed;
+			mSellButton.Visibility = .Collapsed;
 			return;
 		}
 
@@ -292,6 +341,26 @@ class InventoryScreen
 		let qtyStr = scope String();
 		qtyStr.AppendF("Quantity: {}", slot.mQuantity);
 		mDetailQuantity.Text = qtyStr;
+
+		// Sell price
+		if (config.mSellPrice > 0 && config.mType != .Currency)
+		{
+			let sellStr = scope String();
+			sellStr.AppendF("Sell: {} gold each", config.mSellPrice);
+			mDetailSellPrice.Text = sellStr;
+			mDetailSellPrice.Visibility = .Visible;
+		}
+		else
+			mDetailSellPrice.Visibility = .Collapsed;
+
+		// Use button: show for consumables that don't need a target
+		bool canUse = mCachedInvMgr != null && mCachedInvMgr.CanUseItem(mSelectedItemId)
+			&& !mCachedInvMgr.ItemNeedsTarget(mSelectedItemId);
+		mUseButton.Visibility = canUse ? .Visible : .Collapsed;
+
+		// Sell button: show for sellable items
+		bool canSell = mCachedInvMgr != null && mCachedInvMgr.CanSellItem(mSelectedItemId);
+		mSellButton.Visibility = canSell ? .Visible : .Collapsed;
 	}
 
 	private OwnedImageData GetOrCreateItemIcon(ItemConfig config)

@@ -62,7 +62,7 @@ Foundation layer — define all the data structures and the config loading pipel
   - [x] `DamageType` — Physical, Piercing, Magic
   - [x] `MoveType` — Land, Flying
   - [x] `UnitRace` — Human, Undead, Beast, Demon, Elemental, Divine
-  - [x] `UnitClass` — Infantry, Cavalry, Ranged, Mage, Support, Siege
+  - [x] `UnitClass` — Tank, Striker, Ranger, Caster, Healer, Siege
   - [x] `Rarity` — Common (1), Uncommon (2), Rare (3), Epic (4), Legendary (5)
   - [x] `AttackPattern` — Point, Line2, Line3, AroundSelf3, AroundSelfAll, AroundTarget, AllEnemies
   - [x] `BuffFlag` — Positive, Negative
@@ -360,7 +360,7 @@ Everything outside of battle — the RPG progression layer. Uses XML save/load v
 
 - [x] **Player profile system** (`PlayerManager`)
   - [x] Player level and EXP with level-up
-  - [ ] Stamina system (spent to enter battles, scales with hero level (todo: should regenerate over time))
+  - [x] Stamina system (spent to enter battles, scales with hero level, regenerates over time)
   - [x] Currency tracking (gold, gems)
   - [x] Stage unlock and clear tracking with star ratings
 
@@ -377,23 +377,23 @@ Everything outside of battle — the RPG progression layer. Uses XML save/load v
 - [x] **Unit collection / roster** (`RosterManager`, `RosterScreen`)
   - [x] Unit roster with scrollable card list and detail panel
   - [x] Unit shard collection (gacha duplicates → shards)
-  - [ ] Star-level upgrade: spend shards to promote (1★ → 5★) (todo: skill unlock)
+  - [x] Star-level upgrade: spend shards to promote (1★ → 5★) with skill unlock
   - [x] Per-star stat scaling via `StarLevelConfig` multipliers
-  - [ ] Unit level system (gain EXP from battles or consumables)
-  - [ ] Unit detail view (icon, stats, star display, star-up button, shard progress, (todo: skills, equipment))
+  - [x] Unit level system (gain EXP from battles or consumables, +2% stats/level)
+  - [x] Unit detail view (icon, stats, star display, star-up button, shard progress, EXP, equipment with enhancement level)
 
 - [x] **Equipment system** (`EquipmentManager`, `EquipSelectPopup`)
   - [x] Equipment slots per unit (Weapon, Armor, Accessory)
   - [x] Equip / unequip via modal popup (Sedulous.GUI `Popup` class)
-  - [ ] Equipment enhancement (spend gold + materials to increase level)
+  - [x] Equipment enhancement (spend gold + Enhancement Stones, +10% per level, max +10)
   - [x] Equipment stat bonuses applied to effective stats
   - [x] Equipment rarity tiers (shown in roster detail view)
 
 - [x] **Inventory / bag system** (`InventoryManager`, `InventoryScreen`)
   - [x] Item storage with stack counts
-  - [ ] Item usage (consumables: EXP potions, stamina refills, etc.)
+  - [x] Item usage (consumables: EXP potions, stamina refills, gold chests)
   - [x] Item acquisition (battle rewards, shop, mail)
-  - [ ] Item sell/discard
+  - [x] Item sell for gold
   - [x] Grid layout with icons, selected item detail panel
 
 - [x] **Gacha / card draw system** (`GachaManager`, `GachaScreen`)
@@ -402,14 +402,14 @@ Everything outside of battle — the RPG progression layer. Uses XML save/load v
   - [x] Pity system (guaranteed Legendary at 90 pulls)
   - [x] Duplicate handling (existing unit → shards)
   - [x] Result display with rarity borders, "NEW!" or shard count
-  - [ ] Draw animation (currently instant)
+  - [x] Draw animation (sequential card reveal with skip button)
 
 - [x] **Shop system** (`ShopManager`, `ShopScreen`)
   - [x] Item listings with costs, Buy buttons, currency display
   - [x] Buy items with gold or gems
-  - [ ] Purchase limits with sold-out dimming (todo: daily/weekly)
-  - [ ] Shop refresh timer
-  - [ ] Featured/promoted items
+  - [x] Purchase limits with sold-out dimming and daily refresh reset
+  - [x] Shop refresh timer (24h cycle, displayed in top bar)
+  - [x] Featured/promoted items (gold highlight, sorted to top with FEATURED header)
 
 - [x] **Formation management** (`FormationManager`, `FormationScreen`)
   - [x] Save multiple formation presets (max 4 via `MAX_FORMATION_PRESETS`)
@@ -549,7 +549,11 @@ The main non-combat screen where players manage everything.
   - [ ] Lifetime achievements (collect N units, reach stage X, etc.)
   - [ ] Achievement reward claims
 
-- [ ] **Settings**
+- [ ] **Settings** (basic settings screen implemented: `SettingsScreen`, `GameSettings`)
+  - [x] Camera pan mode (normal/inverted)
+  - [x] Auto-step enemy turns default (on/off)
+  - [x] Default battle speed (1x/2x/4x)
+  - [x] Settings persistence in save data
   - [ ] Audio volume (music, SFX)
   - [ ] Graphics quality
   - [ ] Notification preferences
@@ -671,9 +675,21 @@ Visual and feel improvements.
 
 ---
 
-## Networking Needs (For Future Plan)
+## Networking
 
-These are the networking requirements identified from the game design. No implementation is needed now, but the architecture should account for these.
+Networking requirements and available engine libraries for the `StormTactics.Server` project.
+
+### Available Libraries
+
+- **`Sedulous.Net`** — Low-level networking: `TcpClient`/`TcpListener` (non-blocking), `UdpSocket`, `NetBuffer` (big-endian binary serialization), `DnsResolver`, `Base64`, `SHA1`.
+- **`Sedulous.Net.HTTP`** — HTTP/1.1 server with game-loop-friendly `Update()`, route registration (`Get`/`Post`), WebSocket upgrade via `OnWebSocketUpgrade` delegate. Also: `HttpClient` (blocking), `WebSocketClient` and `WebSocketConnection` (both non-blocking with `Receive()`).
+
+### Planned Architecture
+
+- **HTTP endpoints** for request/response operations: auth, player data, shop, gacha, inventory, formations.
+- **WebSocket** for persistent real-time connections: battle sync, arena matchmaking, chat, presence.
+- **`HttpServer.Update()`** called each frame in server game loop — no separate thread needed for HTTP/WebSocket handling.
+- **`NetBuffer`** for binary packet serialization over WebSocket (efficient, big-endian).
 
 ### Server-Authoritative Systems
 - **Battle simulation:** Server must re-simulate or validate battles to prevent cheating. The deterministic `BattleSimulation` class enables this.

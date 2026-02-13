@@ -13,7 +13,7 @@ delegate void GachaBackDelegate();
 delegate void GachaPullSingleDelegate();
 delegate void GachaPullMultiDelegate();
 
-/// Gacha summoning screen: portal visual, pull buttons, result display.
+/// Gacha summoning screen: portal visual, pull buttons, result display with reveal animation.
 class GachaScreen
 {
 	private Grid mRoot ~ delete _;
@@ -32,6 +32,18 @@ class GachaScreen
 	private Border mResultsOverlay;
 	private StackPanel mResultsPanel;
 	private Button mResultsCloseBtn;
+	private Button mResultsSkipBtn;
+	private TextBlock mRevealCountLabel;
+
+	// Animation state
+	private List<Border> mResultCards = new .() ~ delete _;
+	private int32 mRevealedCount;
+	private int32 mTotalResults;
+	private float mRevealTimer;
+	private bool mIsAnimating;
+	private const float REVEAL_DELAY_SINGLE = 0.5f;
+	private const float REVEAL_DELAY_MULTI = 0.3f;
+	private float mCurrentRevealDelay;
 
 	// State
 	private Dictionary<int32, OwnedImageData> mIconCache = new .() ~ { for (let v in _.Values) delete v; delete _; };
@@ -242,6 +254,14 @@ class GachaScreen
 		resultTitle.TextAlignment = .Center;
 		layout.AddChild(resultTitle);
 
+		// Reveal counter (e.g. "3 / 10")
+		mRevealCountLabel = new TextBlock("");
+		mRevealCountLabel.Foreground = Color(150, 150, 170);
+		mRevealCountLabel.FontSize = 13;
+		mRevealCountLabel.TextAlignment = .Center;
+		mRevealCountLabel.Visibility = .Collapsed;
+		layout.AddChild(mRevealCountLabel);
+
 		let div = new Border();
 		div.Background = Color(60, 65, 80);
 		div.Height = .Fixed(1);
@@ -260,13 +280,28 @@ class GachaScreen
 		mResultsPanel.Spacing = 6;
 		scroll.Content = mResultsPanel;
 
+		// Button row
+		let btnRow = new StackPanel();
+		btnRow.Orientation = .Horizontal;
+		btnRow.Spacing = 16;
+		btnRow.HorizontalAlignment = .Center;
+
+		mResultsSkipBtn = new Button("Skip");
+		mResultsSkipBtn.Padding = Thickness(20, 8, 20, 8);
+		mResultsSkipBtn.Click.Subscribe(new (btn) => {
+			RevealAll();
+		});
+		btnRow.AddChild(mResultsSkipBtn);
+
 		mResultsCloseBtn = new Button("Continue");
 		mResultsCloseBtn.Padding = Thickness(24, 8, 24, 8);
-		mResultsCloseBtn.HorizontalAlignment = .Center;
 		mResultsCloseBtn.Click.Subscribe(new (btn) => {
 			mResultsOverlay.Visibility = .Collapsed;
+			mIsAnimating = false;
 		});
-		layout.AddChild(mResultsCloseBtn);
+		btnRow.AddChild(mResultsCloseBtn);
+
+		layout.AddChild(btnRow);
 
 		mRoot.AddChild(mResultsOverlay);
 	}
@@ -283,24 +318,106 @@ class GachaScreen
 		mPityLabel.Text = pityStr;
 	}
 
-	/// Show results of a single pull.
+	/// Show results of a single pull with reveal animation.
 	public void ShowSingleResult(GachaResult result, ConfigDatabase configs)
 	{
 		mResultsPanel.ClearChildren();
-		AddResultCard(result, configs);
+		mResultCards.Clear();
+		mTotalResults = 1;
+		mRevealedCount = 0;
+		mRevealTimer = 0;
+		mCurrentRevealDelay = REVEAL_DELAY_SINGLE;
+
+		AddResultCard(result, configs, hidden: true);
+
 		mResultsOverlay.Visibility = .Visible;
+		mResultsCloseBtn.Visibility = .Collapsed;
+		mResultsSkipBtn.Visibility = .Visible;
+		mRevealCountLabel.Visibility = .Collapsed;
+		mIsAnimating = true;
 	}
 
-	/// Show results of a multi-pull.
+	/// Show results of a multi-pull with sequential reveal animation.
 	public void ShowMultiResults(List<GachaResult> results, ConfigDatabase configs)
 	{
 		mResultsPanel.ClearChildren();
+		mResultCards.Clear();
+		mTotalResults = (int32)results.Count;
+		mRevealedCount = 0;
+		mRevealTimer = 0;
+		mCurrentRevealDelay = REVEAL_DELAY_MULTI;
+
 		for (let result in results)
-			AddResultCard(result, configs);
+			AddResultCard(result, configs, hidden: true);
+
 		mResultsOverlay.Visibility = .Visible;
+		mResultsCloseBtn.Visibility = .Collapsed;
+		mResultsSkipBtn.Visibility = .Visible;
+		mRevealCountLabel.Visibility = .Visible;
+		UpdateRevealCount();
+		mIsAnimating = true;
 	}
 
-	private void AddResultCard(GachaResult result, ConfigDatabase configs)
+	/// Call each frame to advance the reveal animation.
+	public void Update(float dt)
+	{
+		if (!mIsAnimating) return;
+		if (mRevealedCount >= mTotalResults) return;
+
+		mRevealTimer += dt;
+		if (mRevealTimer >= mCurrentRevealDelay)
+		{
+			mRevealTimer -= mCurrentRevealDelay;
+			RevealNext();
+		}
+	}
+
+	private void RevealNext()
+	{
+		if (mRevealedCount >= mTotalResults) return;
+
+		if (mRevealedCount < (int32)mResultCards.Count)
+			mResultCards[mRevealedCount].Visibility = .Visible;
+
+		mRevealedCount++;
+		UpdateRevealCount();
+
+		if (mRevealedCount >= mTotalResults)
+			OnRevealComplete();
+	}
+
+	private void RevealAll()
+	{
+		while (mRevealedCount < mTotalResults && mRevealedCount < (int32)mResultCards.Count)
+		{
+			mResultCards[mRevealedCount].Visibility = .Visible;
+			mRevealedCount++;
+		}
+		UpdateRevealCount();
+		OnRevealComplete();
+	}
+
+	private void OnRevealComplete()
+	{
+		mIsAnimating = false;
+		mResultsCloseBtn.Visibility = .Visible;
+		mResultsSkipBtn.Visibility = .Collapsed;
+	}
+
+	private void UpdateRevealCount()
+	{
+		if (mTotalResults <= 1)
+		{
+			mRevealCountLabel.Visibility = .Collapsed;
+			return;
+		}
+
+		let str = scope String();
+		str.AppendF("{} / {}", mRevealedCount, mTotalResults);
+		mRevealCountLabel.Text = str;
+	}
+
+	private void AddResultCard(GachaResult result, ConfigDatabase configs, bool hidden)
 	{
 		let config = configs.GetUnit(result.mUnitId);
 
@@ -308,6 +425,8 @@ class GachaScreen
 		card.Background = GetRarityBgColor(result.mRarity);
 		card.Padding = Thickness(10, 6, 10, 6);
 		card.HorizontalAlignment = .Stretch;
+		if (hidden)
+			card.Visibility = .Collapsed;
 
 		let row = new StackPanel();
 		row.Orientation = .Horizontal;
@@ -353,6 +472,7 @@ class GachaScreen
 
 		row.AddChild(infoCol);
 		mResultsPanel.AddChild(card);
+		mResultCards.Add(card);
 	}
 
 	private Color GetRarityBgColor(Rarity rarity)

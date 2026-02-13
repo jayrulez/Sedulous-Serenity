@@ -35,19 +35,19 @@ static class IconGenerator
 	{
 		switch (unitClass)
 		{
-		case .Infantry:
+		case .Tank:
 			topR = 140; topG = 80;  topB = 60;   // Brown
 			botR = 90;  botG = 50;  botB = 35;
-		case .Cavalry:
+		case .Striker:
 			topR = 60;  topG = 100; topB = 160;  // Steel blue
 			botR = 40;  botG = 65;  botB = 105;
-		case .Ranged:
+		case .Ranger:
 			topR = 60;  topG = 140; topB = 60;   // Forest green
 			botR = 35;  botG = 90;  botB = 35;
-		case .Mage:
+		case .Caster:
 			topR = 120; topG = 60;  topB = 160;  // Purple
 			botR = 75;  botG = 35;  botB = 105;
-		case .Support:
+		case .Healer:
 			topR = 200; topG = 180; topB = 80;   // Gold/yellow
 			botR = 140; botG = 120; botB = 50;
 		case .Siege:

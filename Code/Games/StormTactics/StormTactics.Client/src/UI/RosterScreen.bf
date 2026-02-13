@@ -464,9 +464,13 @@ class RosterScreen
 			starStr.Append("\u{2606}");
 		mDetailStars.Text = starStr;
 
-		// Level
+		// Level + EXP
 		let lvlStr = scope String();
-		lvlStr.AppendF("Level {}", owned.mLevel);
+		let expNeeded = roster.GetUnitExpToNextLevel(mSelectedUnitId);
+		if (expNeeded > 0)
+			lvlStr.AppendF("Level {}  (EXP: {}/{})", owned.mLevel, owned.mExp, expNeeded);
+		else
+			lvlStr.AppendF("Level {} (MAX)", owned.mLevel);
 		mDetailLevel.Text = lvlStr;
 
 		// Stats
@@ -545,7 +549,11 @@ class RosterScreen
 			let config = configs.GetEquip(equip.mEquipId);
 			if (config != null)
 			{
-				label.Text = config.mName;
+				let nameStr = scope String();
+				nameStr.Append(config.mName);
+				if (equip.mEnhanceLevel > 0)
+					nameStr.AppendF(" +{}", equip.mEnhanceLevel);
+				label.Text = nameStr;
 				label.Foreground = Color(200, 200, 220);
 				return;
 			}

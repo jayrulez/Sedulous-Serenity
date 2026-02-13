@@ -54,6 +54,7 @@ class FormationScreen
 	private PlayerSaveData mSave;
 	private ConfigDatabase mConfigs;
 	private FormationManager mFormationMgr;
+	private RosterManager mRosterMgr;
 
 	public this()
 	{
@@ -71,7 +72,7 @@ class FormationScreen
 		mRoot.RowDefinitions.Add(new .() { Height = .Pixels(36) });  // Preset tabs
 		mRoot.RowDefinitions.Add(new .() { Height = .Star });        // Content
 
-		mRoot.ColumnDefinitions.Add(new .() { Width = .Pixels(220) }); // Unit list
+		mRoot.ColumnDefinitions.Add(new .() { Width = .Pixels(280) }); // Unit list
 		mRoot.ColumnDefinitions.Add(new .() { Width = .Star });         // Grid area
 
 		BuildTopBar();
@@ -242,11 +243,12 @@ class FormationScreen
 	}
 
 	/// Initialize references and refresh.
-	public void Show(PlayerSaveData save, ConfigDatabase configs, FormationManager formationMgr, int32 maxSlots)
+	public void Show(PlayerSaveData save, ConfigDatabase configs, FormationManager formationMgr, int32 maxSlots, RosterManager rosterMgr = null)
 	{
 		mSave = save;
 		mConfigs = configs;
 		mFormationMgr = formationMgr;
+		mRosterMgr = rosterMgr;
 		mMaxFormationSlots = maxSlots;
 		mActivePresetIndex = save.mActiveFormationIndex;
 		mSelectedUnitId = -1;
@@ -326,6 +328,11 @@ class FormationScreen
 			iconImg.IsHitTestVisible = false;
 			row.AddChild(iconImg);
 
+			let infoCol = new StackPanel();
+			infoCol.Orientation = .Vertical;
+			infoCol.Spacing = 1;
+			infoCol.IsHitTestVisible = false;
+
 			let nameStr = scope String();
 			nameStr.Set(config.mName);
 			if (inFormation) nameStr.Append(" [F]");
@@ -333,8 +340,20 @@ class FormationScreen
 			let nameLabel = new TextBlock(nameStr);
 			nameLabel.Foreground = inFormation ? Color(150, 220, 150) : Color(200, 200, 210);
 			nameLabel.FontSize = 13;
-			nameLabel.IsHitTestVisible = false;
-			row.AddChild(nameLabel);
+			infoCol.AddChild(nameLabel);
+
+			if (mRosterMgr != null)
+			{
+				let stats = mRosterMgr.GetEffectiveStats(unitId);
+				let statsStr = scope String();
+				statsStr.AppendF("HP:{} ATK:{} DEF:{} SPD:{}", stats.mHP, stats.mDamage, stats.mDefense, stats.mActionSpeed);
+				let statsLabel = new TextBlock(statsStr);
+				statsLabel.Foreground = Color(110, 120, 140);
+				statsLabel.FontSize = 10;
+				infoCol.AddChild(statsLabel);
+			}
+
+			row.AddChild(infoCol);
 
 			// Click overlay
 			let clickBtn = new Button();

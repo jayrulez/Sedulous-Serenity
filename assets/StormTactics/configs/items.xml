@@ -1,5 +1,5 @@
 <root>
-  <array name="Items" count="8">
+  <array name="Items" count="12">
     <!-- Currency -->
     <object>
       <int32 name="Id">1001</int32>
@@ -8,6 +8,7 @@
       <string name="Icon">icon_gold</string>
       <int32 name="Type">2</int32>
       <int32 name="StackMax">9999</int32>
+      <int32 name="SellPrice">0</int32>
     </object>
     <object>
       <int32 name="Id">1002</int32>
@@ -16,6 +17,7 @@
       <string name="Icon">icon_gem</string>
       <int32 name="Type">2</int32>
       <int32 name="StackMax">9999</int32>
+      <int32 name="SellPrice">0</int32>
     </object>
     <!-- Materials -->
     <object>
@@ -25,6 +27,7 @@
       <string name="Icon">icon_iron_ore</string>
       <int32 name="Type">0</int32>
       <int32 name="StackMax">999</int32>
+      <int32 name="SellPrice">10</int32>
     </object>
     <object>
       <int32 name="Id">1004</int32>
@@ -33,15 +36,52 @@
       <string name="Icon">icon_magic_crystal</string>
       <int32 name="Type">0</int32>
       <int32 name="StackMax">999</int32>
+      <int32 name="SellPrice">25</int32>
     </object>
-    <!-- Consumable -->
+    <!-- Consumables -->
     <object>
       <int32 name="Id">1005</int32>
-      <string name="Name">HP Potion</string>
-      <string name="Description">Restores a small amount of HP before battle.</string>
-      <string name="Icon">icon_hp_potion</string>
+      <string name="Name">Stamina Potion</string>
+      <string name="Description">Restores 10 stamina points.</string>
+      <string name="Icon">icon_stamina_potion</string>
       <int32 name="Type">1</int32>
       <int32 name="StackMax">99</int32>
+      <int32 name="ConsumableEffect">1</int32>
+      <int32 name="EffectValue">10</int32>
+      <int32 name="SellPrice">50</int32>
+    </object>
+    <object>
+      <int32 name="Id">1009</int32>
+      <string name="Name">EXP Potion (Small)</string>
+      <string name="Description">Grants 100 EXP to a unit.</string>
+      <string name="Icon">icon_exp_potion_s</string>
+      <int32 name="Type">1</int32>
+      <int32 name="StackMax">99</int32>
+      <int32 name="ConsumableEffect">2</int32>
+      <int32 name="EffectValue">100</int32>
+      <int32 name="SellPrice">30</int32>
+    </object>
+    <object>
+      <int32 name="Id">1010</int32>
+      <string name="Name">EXP Potion (Large)</string>
+      <string name="Description">Grants 500 EXP to a unit.</string>
+      <string name="Icon">icon_exp_potion_l</string>
+      <int32 name="Type">1</int32>
+      <int32 name="StackMax">99</int32>
+      <int32 name="ConsumableEffect">2</int32>
+      <int32 name="EffectValue">500</int32>
+      <int32 name="SellPrice">120</int32>
+    </object>
+    <object>
+      <int32 name="Id">1011</int32>
+      <string name="Name">Gold Chest</string>
+      <string name="Description">Open to receive 500 gold.</string>
+      <string name="Icon">icon_gold_chest</string>
+      <int32 name="Type">1</int32>
+      <int32 name="StackMax">99</int32>
+      <int32 name="ConsumableEffect">3</int32>
+      <int32 name="EffectValue">500</int32>
+      <int32 name="SellPrice">100</int32>
     </object>
     <!-- Unit Shards -->
     <object>
@@ -51,6 +91,7 @@
       <string name="Icon">icon_shard_footman</string>
       <int32 name="Type">3</int32>
       <int32 name="StackMax">999</int32>
+      <int32 name="SellPrice">5</int32>
     </object>
     <object>
       <int32 name="Id">1007</int32>
@@ -59,6 +100,7 @@
       <string name="Icon">icon_shard_knight</string>
       <int32 name="Type">3</int32>
       <int32 name="StackMax">999</int32>
+      <int32 name="SellPrice">5</int32>
     </object>
     <object>
       <int32 name="Id">1008</int32>
@@ -67,6 +109,17 @@
       <string name="Icon">icon_shard_wizard</string>
       <int32 name="Type">3</int32>
       <int32 name="StackMax">999</int32>
+      <int32 name="SellPrice">5</int32>
+    </object>
+    <!-- Enhancement Materials -->
+    <object>
+      <int32 name="Id">1012</int32>
+      <string name="Name">Enhancement Stone</string>
+      <string name="Description">Used to enhance equipment. Increases equipment stats.</string>
+      <string name="Icon">icon_enhance_stone</string>
+      <int32 name="Type">0</int32>
+      <int32 name="StackMax">999</int32>
+      <int32 name="SellPrice">15</int32>
     </object>
   </array>
 </root>

@@ -45,6 +45,11 @@ struct RosterUnitInfo
 	public UnitClass mUnitClass;
 	public Rarity mRarity;
 	public bool mIsDeployed;
+	public int32 mHP;
+	public int32 mDamage;
+	public int32 mDefense;
+	public int32 mSpeed;
+	public int32 mPower;
 }
 
 struct RewardDisplayInfo
@@ -502,7 +507,7 @@ class BattleHUD
 		grid.RowDefinitions.Add(new .() { Height = .Pixels(36) });  // Preset tabs
 		grid.RowDefinitions.Add(new .() { Height = .Star });        // Main area
 		grid.RowDefinitions.Add(new .() { Height = .Auto });        // Action bar
-		grid.ColumnDefinitions.Add(new .() { Width = .Pixels(200) }); // Roster sidebar
+		grid.ColumnDefinitions.Add(new .() { Width = .Pixels(260) }); // Roster sidebar
 		grid.ColumnDefinitions.Add(new .() { Width = .Star });        // Center (pass-through)
 		mDeployPanel.Child = grid;
 
@@ -1293,6 +1298,14 @@ class BattleHUD
 			detailLabel.Foreground = info.mIsDeployed ? Color(100, 170, 100) : Color(130, 130, 150);
 			detailLabel.FontSize = 11;
 			infoCol.AddChild(detailLabel);
+
+			// Stats line
+			let statsStr = scope String();
+			statsStr.AppendF("HP:{} ATK:{} DEF:{} SPD:{}", info.mHP, info.mDamage, info.mDefense, info.mSpeed);
+			let statsLabel = new TextBlock(statsStr);
+			statsLabel.Foreground = Color(110, 120, 140);
+			statsLabel.FontSize = 10;
+			infoCol.AddChild(statsLabel);
 
 			cardRow.AddChild(infoCol);
 

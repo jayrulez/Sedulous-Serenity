@@ -21,7 +21,7 @@ class BattleSimulationTests
 		config.mId = id;
 		config.mName.Set(name);
 		config.mRarity = .Common;
-		config.mUnitClass = .Infantry;
+		config.mUnitClass = .Tank;
 		config.mRace = .Human;
 		config.mSoldierHP = soldierHP;
 		config.mSoldierCount = count;

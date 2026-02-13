@@ -55,6 +55,7 @@ class StormTacticsGame : Application
 	private ShopScreen mShopScreen;
 	private GachaScreen mGachaScreen;
 	private FormationScreen mFormationScreen;
+	private SettingsScreen mSettingsScreen;
 
 	// Game state
 	private GameState mGameState = .Loading;
@@ -207,7 +208,7 @@ class StormTacticsGame : Application
 		mInventoryManager = new InventoryManager();
 		mInventoryManager.Initialize(mSaveManager.SaveData, mConfigs);
 
-		// Equipment manager — equip/unequip, stat bonuses
+		// Equipment manager — equip/unequip, stat bonuses, enhancement
 		mEquipmentManager = new EquipmentManager();
 		mEquipmentManager.Initialize(mSaveManager.SaveData, mConfigs);
 
@@ -216,7 +217,11 @@ class StormTacticsGame : Application
 		mRosterManager.Initialize(mSaveManager.SaveData, mConfigs);
 		mRosterManager.SetEquipmentManager(mEquipmentManager);
 
-		// Shop manager — purchase logic, limits
+		// Wire cross-manager dependencies
+		mInventoryManager.SetManagers(mPlayerManager, mRosterManager);
+		mEquipmentManager.SetManagers(mPlayerManager, mInventoryManager);
+
+		// Shop manager — purchase logic, limits, daily refresh
 		mShopManager = new ShopManager();
 		mShopManager.Initialize(mSaveManager.SaveData, mConfigs, mPlayerManager, mInventoryManager);
 
@@ -231,6 +236,10 @@ class StormTacticsGame : Application
 		// Reward processor — post-battle reward calculation
 		mRewardProcessor = new RewardProcessor();
 		mRewardProcessor.Initialize(mPlayerManager, mInventoryManager, mConfigs);
+
+		// Process stamina regen from offline time and check shop refresh
+		mPlayerManager.UpdateStaminaRegen();
+		mShopManager.CheckRefresh();
 
 		Console.WriteLine("Metagame systems initialized");
 	}
@@ -258,6 +267,9 @@ class StormTacticsGame : Application
 		DestroyBattle();
 		mGameState = .City;
 		mLastPlayerPhase = .Idle;
+
+		// Process stamina regen from elapsed time
+		mPlayerManager.UpdateStaminaRegen();
 
 		// Switch UI root to city hub
 		if (mCityHubScreen != null)
@@ -299,13 +311,14 @@ class StormTacticsGame : Application
 	{
 		mGameState = .Inventory;
 		mUISubsystem.GUIContext.RootElement = mInventoryScreen.RootElement;
-		mInventoryScreen.Refresh(mSaveManager.SaveData, mConfigs);
+		mInventoryScreen.Refresh(mSaveManager.SaveData, mConfigs, mInventoryManager);
 	}
 
 	/// Show the shop screen.
 	private void ShowShop()
 	{
 		mGameState = .City; // Reuse City state for shop
+		mShopManager.CheckRefresh();
 		mUISubsystem.GUIContext.RootElement = mShopScreen.RootElement;
 		mShopScreen.Refresh(mSaveManager.SaveData, mConfigs, mShopManager);
 	}
@@ -315,7 +328,7 @@ class StormTacticsGame : Application
 	{
 		mGameState = .Formation;
 		mUISubsystem.GUIContext.RootElement = mFormationScreen.RootElement;
-		mFormationScreen.Show(mSaveManager.SaveData, mConfigs, mFormationManager, mPlayerManager.MaxFormationSlots);
+		mFormationScreen.Show(mSaveManager.SaveData, mConfigs, mFormationManager, mPlayerManager.MaxFormationSlots, mRosterManager);
 	}
 
 	/// Show the gacha screen.
@@ -324,6 +337,14 @@ class StormTacticsGame : Application
 		mGameState = .Gacha;
 		mUISubsystem.GUIContext.RootElement = mGachaScreen.RootElement;
 		mGachaScreen.Refresh(mSaveManager.SaveData);
+	}
+
+	/// Show the settings screen.
+	private void ShowSettings()
+	{
+		mGameState = .Settings;
+		mUISubsystem.GUIContext.RootElement = mSettingsScreen.RootElement;
+		mSettingsScreen.Refresh(mSaveManager.SaveData.mGameSettings);
 	}
 
 	/// Show the stage selection screen.
@@ -443,6 +464,10 @@ class StormTacticsGame : Application
 		mBattleScene = new BattleScene();
 		mBattleScene.Initialize(mMainScene, renderModule, mRenderSystem, mOverlayFeature, mCurrentSim, 1.0f);
 
+		// Apply user settings to battle scene
+		let settings = mSaveManager.SaveData.mGameSettings;
+		mBattleScene.ApplySettings(settings.mAutoStepDefault, (float)settings.mDefaultBattleSpeed, settings.mInvertCameraPan);
+
 		// Enter deployment mode
 		mBattleScene.EnterDeploymentMode();
 		mBattleHUD.HideStageSelect();
@@ -550,6 +575,20 @@ class StormTacticsGame : Application
 		mInventoryScreen.OnBack.Subscribe(new () => {
 			ShowCityHub();
 		});
+		mInventoryScreen.OnUse.Subscribe(new (itemId) => {
+			if (mInventoryManager.UseItem(itemId))
+			{
+				mInventoryScreen.Refresh(mSaveManager.SaveData, mConfigs, mInventoryManager);
+				mSaveManager.Save();
+			}
+		});
+		mInventoryScreen.OnSell.Subscribe(new (itemId) => {
+			if (mInventoryManager.SellItem(itemId) > 0)
+			{
+				mInventoryScreen.Refresh(mSaveManager.SaveData, mConfigs, mInventoryManager);
+				mSaveManager.Save();
+			}
+		});
 
 		// Create shop screen
 		mShopScreen = new ShopScreen();
@@ -601,6 +640,16 @@ class StormTacticsGame : Application
 			ShowCityHub();
 		});
 
+		// Create settings screen
+		mSettingsScreen = new SettingsScreen();
+		mSettingsScreen.OnBack.Subscribe(new () => {
+			mSaveManager.Save();
+			ShowCityHub();
+		});
+		mSettingsScreen.OnChanged.Subscribe(new () => {
+			mSaveManager.Save();
+		});
+
 		// Wire city hub navigation events
 		mCityHubScreen.OnCampaign.Subscribe(new () => {
 			ShowStageSelect();
@@ -619,6 +668,9 @@ class StormTacticsGame : Application
 		});
 		mCityHubScreen.OnGacha.Subscribe(new () => {
 			ShowGacha();
+		});
+		mCityHubScreen.OnSettings.Subscribe(new () => {
+			ShowSettings();
 		});
 
 		// Wire HUD events
@@ -749,6 +801,10 @@ class StormTacticsGame : Application
 	protected override void OnUpdate(FrameContext frame)
 	{
 		mDeltaTime = (float)frame.DeltaTime;
+
+		// Update gacha reveal animation
+		if (mGameState == .Gacha)
+			mGachaScreen.Update(mDeltaTime);
 
 		if (mBattleScene != null)
 		{
@@ -897,6 +953,12 @@ class StormTacticsGame : Application
 					info.mUnitClass = config.mUnitClass;
 					info.mRarity = config.mRarity;
 					info.mIsDeployed = deployedIds.Contains(owned.mUnitId);
+					let stats = mRosterManager.GetEffectiveStats(owned.mUnitId);
+					info.mHP = stats.mHP;
+					info.mDamage = stats.mDamage;
+					info.mDefense = stats.mDefense;
+					info.mSpeed = stats.mActionSpeed;
+					info.mPower = stats.mPower;
 					if (rosterCount < rosterInfos.Count)
 						rosterInfos[rosterCount++] = info;
 				}
@@ -1329,6 +1391,8 @@ class StormTacticsGame : Application
 
 		// Cleanup in dependency order:
 		// 1. UI screens — before UISubsystem is torn down by context
+		delete mSettingsScreen;
+		mSettingsScreen = null;
 		delete mFormationScreen;
 		mFormationScreen = null;
 		delete mGachaScreen;

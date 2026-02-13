@@ -31,6 +31,9 @@ class BattleCamera
 	private float mZoomSpeed = 5.0f;
 	private float mRotateSpeed = 2.0f;
 
+	// Settings
+	private bool mInvertPan;
+
 	// Computed camera vectors
 	private Vector3 mPosition;
 	private Vector3 mForward;
@@ -39,6 +42,7 @@ class BattleCamera
 	public Vector3 Forward => mForward;
 	public Vector3 Target => mTarget;
 	public float Distance => mDistance;
+	public bool InvertPan { get => mInvertPan; set mut => mInvertPan = value; }
 
 	public this()
 	{
@@ -69,15 +73,23 @@ class BattleCamera
 		mIsTransitioning = true;
 	}
 
+	/// Smoothly zoom to a target distance.
+	public void ZoomTo(float distance)
+	{
+		mSmoothDistance = Math.Clamp(distance, mMinDistance, mMaxDistance);
+		mIsTransitioning = true;
+	}
+
 	/// Handle input for camera control.
 	public void HandleInput(IKeyboard keyboard, IMouse mouse, float dt)
 	{
 		// Pan with WASD
 		float panX = 0, panZ = 0;
-		if (keyboard.IsKeyDown(.W)) panZ -= 1;
-		if (keyboard.IsKeyDown(.S)) panZ += 1;
-		if (keyboard.IsKeyDown(.A)) panX -= 1;
-		if (keyboard.IsKeyDown(.D)) panX += 1;
+		float sign = mInvertPan ? -1.0f : 1.0f;
+		if (keyboard.IsKeyDown(.W)) panZ += sign;
+		if (keyboard.IsKeyDown(.S)) panZ -= sign;
+		if (keyboard.IsKeyDown(.A)) panX += sign;
+		if (keyboard.IsKeyDown(.D)) panX -= sign;
 
 		if (panX != 0 || panZ != 0)
 		{
@@ -124,9 +136,11 @@ class BattleCamera
 			mTarget = Vector3.Lerp(mTarget, mSmoothTarget, alpha);
 			mDistance = mDistance + (mSmoothDistance - mDistance) * alpha;
 
-			if (Vector3.Distance(mTarget, mSmoothTarget) < 0.01f)
+			if (Vector3.Distance(mTarget, mSmoothTarget) < 0.01f &&
+				Math.Abs(mDistance - mSmoothDistance) < 0.01f)
 			{
 				mTarget = mSmoothTarget;
+				mDistance = mSmoothDistance;
 				mIsTransitioning = false;
 			}
 		}

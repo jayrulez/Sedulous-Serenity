@@ -84,7 +84,7 @@ class BattleScene
 	// Battle state
 	private float mHexSize;
 	private bool mAutoPlay;
-	private bool mAutoStep;
+	private bool mAutoStep = true;
 	private float mAutoStepTimer;
 	private float mAutoStepDelay = 0.1f; // Seconds between auto-steps
 	private float mSpeedMultiplier = 1.0f;
@@ -123,6 +123,15 @@ class BattleScene
 	public BattleCamera Camera => mCamera;
 	public bool IsAutoPlaying => mAutoPlay;
 	public bool IsAutoStepping => mAutoStep;
+
+	/// Apply user settings as defaults for this battle.
+	public void ApplySettings(bool autoStep, float speedMultiplier, bool invertCameraPan)
+	{
+		mAutoStep = autoStep;
+		mSpeedMultiplier = speedMultiplier;
+		if (mCamera != null)
+			mCamera.InvertPan = invertCameraPan;
+	}
 	public bool IsDeploymentMode => mDeploymentMode;
 	public BattleSimulation Simulation => mSimulation;
 	public HexCoord HoveredHex => mHoveredHex;
@@ -216,6 +225,10 @@ class BattleScene
 	{
 		mDeploymentMode = true;
 		mDeploySelectedUnit = -1;
+
+		// Zoom out slightly to show the full grid during deployment
+		if (mCamera != null)
+			mCamera.ZoomTo(mCamera.Distance + 5.0f);
 	}
 
 	/// Start the battle (exit deployment mode).
@@ -223,6 +236,10 @@ class BattleScene
 	{
 		mDeploymentMode = false;
 		mDeploySelectedUnit = -1;
+
+		// Zoom back in for battle
+		if (mCamera != null)
+			mCamera.ZoomTo(mCamera.Distance - 5.0f);
 	}
 
 	/// Handle a hex click during deployment mode.

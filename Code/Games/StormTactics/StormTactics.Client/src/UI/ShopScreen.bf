@@ -20,6 +20,7 @@ class ShopScreen
 	// Top bar
 	private TextBlock mGoldLabel;
 	private TextBlock mGemsLabel;
+	private TextBlock mRefreshLabel;
 
 	// Item list
 	private StackPanel mItemListPanel;
@@ -99,6 +100,13 @@ class ShopScreen
 		mGemsLabel.FontSize = 14;
 		currencyPanel.AddChild(mGemsLabel);
 
+		mRefreshLabel = new TextBlock("");
+		mRefreshLabel.Foreground = Color(120, 180, 120);
+		mRefreshLabel.FontSize = 12;
+		mRefreshLabel.Margin = Thickness(16, 0, 0, 0);
+		mRefreshLabel.VerticalAlignment = .Center;
+		currencyPanel.AddChild(mRefreshLabel);
+
 		content.AddChild(currencyPanel);
 
 		mRoot.AddChild(topBar);
@@ -136,13 +144,68 @@ class ShopScreen
 		gemsStr.AppendF("Gems: {}", save.mGems);
 		mGemsLabel.Text = gemsStr;
 
-		// Rebuild item list
+		// Refresh timer
+		let refreshSecs = shopMgr.SecondsUntilRefresh;
+		if (refreshSecs > 0)
+		{
+			let hours = refreshSecs / 3600;
+			let mins = (refreshSecs % 3600) / 60;
+			let refreshStr = scope String();
+			refreshStr.AppendF("Refresh: {}h {}m", hours, mins);
+			mRefreshLabel.Text = refreshStr;
+		}
+		else
+			mRefreshLabel.Text = "Refreshed!";
+
+		// Rebuild item list — featured items first
 		mItemListPanel.ClearChildren();
 
-		for (let shopConfig in configs.ShopItems)
+		// Sort: featured first, then by ID
+		let sortedItems = scope List<ShopItemConfig>();
+		for (let item in configs.ShopItems)
+			sortedItems.Add(item);
+		sortedItems.Sort(scope (a, b) => {
+			if (a.mFeatured != b.mFeatured)
+				return a.mFeatured ? -1 : 1;
+			return a.mId <=> b.mId;
+		});
+
+		bool addedFeaturedHeader = false;
+		bool addedRegularHeader = false;
+
+		for (let shopConfig in sortedItems)
 		{
 			let itemConfig = configs.GetItem(shopConfig.mItemId);
 			if (itemConfig == null) continue;
+
+			// Section headers
+			if (shopConfig.mFeatured && !addedFeaturedHeader)
+			{
+				addedFeaturedHeader = true;
+				let header = new TextBlock("FEATURED");
+				header.Foreground = Color(255, 200, 40);
+				header.FontSize = 16;
+				header.Margin = Thickness(0, 4, 0, 4);
+				mItemListPanel.AddChild(header);
+			}
+			else if (!shopConfig.mFeatured && !addedRegularHeader)
+			{
+				addedRegularHeader = true;
+				if (addedFeaturedHeader)
+				{
+					let div = new Border();
+					div.Background = Color(60, 65, 80);
+					div.Height = .Fixed(1);
+					div.HorizontalAlignment = .Stretch;
+					div.Margin = Thickness(0, 8, 0, 4);
+					mItemListPanel.AddChild(div);
+				}
+				let header = new TextBlock("ALL ITEMS");
+				header.Foreground = Color(160, 160, 180);
+				header.FontSize = 14;
+				header.Margin = Thickness(0, 0, 0, 4);
+				mItemListPanel.AddChild(header);
+			}
 
 			bool soldOut = shopMgr.IsSoldOut(shopConfig.mId);
 			bool canBuy = shopMgr.CanPurchase(shopConfig.mId);
@@ -151,9 +214,14 @@ class ShopScreen
 
 			let icon = GetOrCreateIcon(itemConfig);
 
-			// Row card
+			// Row card — featured items get a gold-tinted background
 			let card = new Border();
-			card.Background = soldOut ? Color(20, 20, 28, 200) : Color(25, 30, 48, 255);
+			if (soldOut)
+				card.Background = Color(20, 20, 28, 200);
+			else if (shopConfig.mFeatured)
+				card.Background = Color(40, 35, 20, 255);
+			else
+				card.Background = Color(25, 30, 48, 255);
 			card.Padding = Thickness(12, 8, 12, 8);
 			card.HorizontalAlignment = .Stretch;
 
@@ -192,7 +260,12 @@ class ShopScreen
 				nameStr.AppendF(" x{}", shopConfig.mQuantity);
 
 			let nameLabel = new TextBlock(nameStr);
-			nameLabel.Foreground = soldOut ? Color(80, 80, 90) : Color(220, 220, 230);
+			if (soldOut)
+				nameLabel.Foreground = Color(80, 80, 90);
+			else if (shopConfig.mFeatured)
+				nameLabel.Foreground = Color(255, 220, 100);
+			else
+				nameLabel.Foreground = Color(220, 220, 230);
 			nameLabel.FontSize = 15;
 			infoCol.AddChild(nameLabel);
 

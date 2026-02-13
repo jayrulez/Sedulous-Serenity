@@ -3,16 +3,29 @@ namespace StormTactics.Game;
 using System;
 using StormTactics.Core;
 
-/// Manages equipping/unequipping gear and calculating stat bonuses.
+/// Manages equipping/unequipping gear, enhancement, and calculating stat bonuses.
 class EquipmentManager
 {
+	public const int32 MAX_ENHANCE_LEVEL = 10;
+	public const int32 ENHANCE_STONE_ITEM_ID = 1012;
+	public const int32 ENHANCE_STONES_PER_LEVEL = 3;
+
 	private PlayerSaveData mSave;
 	private ConfigDatabase mConfigs;
+	private PlayerManager mPlayerMgr;
+	private InventoryManager mInvMgr;
 
 	public void Initialize(PlayerSaveData save, ConfigDatabase configs)
 	{
 		mSave = save;
 		mConfigs = configs;
+	}
+
+	/// Set manager references for enhancement costs.
+	public void SetManagers(PlayerManager playerMgr, InventoryManager invMgr)
+	{
+		mPlayerMgr = playerMgr;
+		mInvMgr = invMgr;
 	}
 
 	/// Equip an owned equip (by instance ID) to a unit in the given slot.
@@ -115,14 +128,17 @@ class EquipmentManager
 			let config = mConfigs.GetEquip(equip.mEquipId);
 			if (config == null) continue;
 
+			// Enhancement multiplier: +10% per enhance level
+			let enhanceMult = 1.0f + (float)equip.mEnhanceLevel * 0.1f;
+
 			for (let mod in config.mStatBonuses)
 			{
 				switch (mod.mAttribute)
 				{
-				case .HP:          hpFlat += mod.mFlatValue; hpPct += mod.mPercentValue;
-				case .Damage:      dmgFlat += mod.mFlatValue; dmgPct += mod.mPercentValue;
-				case .Defense:     defFlat += mod.mFlatValue; defPct += mod.mPercentValue;
-				case .ActionSpeed: spdFlat += mod.mFlatValue; spdPct += mod.mPercentValue;
+				case .HP:          hpFlat += mod.mFlatValue * enhanceMult; hpPct += mod.mPercentValue * enhanceMult;
+				case .Damage:      dmgFlat += mod.mFlatValue * enhanceMult; dmgPct += mod.mPercentValue * enhanceMult;
+				case .Defense:     defFlat += mod.mFlatValue * enhanceMult; defPct += mod.mPercentValue * enhanceMult;
+				case .ActionSpeed: spdFlat += mod.mFlatValue * enhanceMult; spdPct += mod.mPercentValue * enhanceMult;
 				default:
 				}
 			}
@@ -142,5 +158,49 @@ class EquipmentManager
 		mSave.mOwnedEquips.Add(equip);
 
 		return instanceId;
+	}
+
+	// --- Enhancement ---
+
+	/// Get the gold cost to enhance an equip at its current level.
+	public int32 GetEnhanceCost(int32 equipInstanceId)
+	{
+		let equip = mSave.GetOwnedEquip(equipInstanceId);
+		if (equip == null || equip.mEnhanceLevel >= MAX_ENHANCE_LEVEL) return 0;
+
+		// Gold cost scales: 100 * (currentLevel + 1)
+		return 100 * (equip.mEnhanceLevel + 1);
+	}
+
+	/// Check if an equip can be enhanced right now.
+	public bool CanEnhance(int32 equipInstanceId)
+	{
+		let equip = mSave.GetOwnedEquip(equipInstanceId);
+		if (equip == null || equip.mEnhanceLevel >= MAX_ENHANCE_LEVEL) return false;
+		if (mPlayerMgr == null || mInvMgr == null) return false;
+
+		let goldCost = GetEnhanceCost(equipInstanceId);
+		if (mSave.mGold < goldCost) return false;
+		if (!mInvMgr.HasItem(ENHANCE_STONE_ITEM_ID, ENHANCE_STONES_PER_LEVEL)) return false;
+
+		return true;
+	}
+
+	/// Try to enhance an equip. Costs gold + Enhancement Stones.
+	/// Returns true if successful.
+	public bool TryEnhance(int32 equipInstanceId)
+	{
+		if (!CanEnhance(equipInstanceId)) return false;
+
+		let equip = mSave.GetOwnedEquip(equipInstanceId);
+		if (equip == null) return false;
+
+		let goldCost = GetEnhanceCost(equipInstanceId);
+		if (!mPlayerMgr.TrySpendGold(goldCost)) return false;
+		mInvMgr.RemoveItem(ENHANCE_STONE_ITEM_ID, ENHANCE_STONES_PER_LEVEL);
+
+		equip.mEnhanceLevel++;
+		Console.WriteLine("[Equipment] Enhanced equip {} to +{}", equipInstanceId, equip.mEnhanceLevel);
+		return true;
 	}
 }

@@ -18,6 +18,9 @@ struct EffectiveStats
 /// Manages the player's unit roster: ownership, shards, star upgrades, and effective stats.
 class RosterManager
 {
+	public const int32 MAX_UNIT_LEVEL = 30;
+	public const int32 BASE_EXP_PER_LEVEL = 100; // EXP to reach level 2; scales linearly
+
 	private PlayerSaveData mSave;
 	private ConfigDatabase mConfigs;
 	private EquipmentManager mEquipMgr;
@@ -102,7 +105,79 @@ class RosterManager
 		return owned.mShards >= starConfig.mShardsRequired;
 	}
 
-	/// Calculate effective stats for a unit, factoring in star multipliers and equipment.
+	// --- Unit Leveling ---
+
+	/// Get EXP required to reach the next level from the given level.
+	public static int32 ExpForLevel(int32 level)
+	{
+		return BASE_EXP_PER_LEVEL * level; // Level 1→2 = 100, Level 2→3 = 200, etc.
+	}
+
+	/// Add EXP to a unit and process level-ups. Returns number of levels gained.
+	public int32 AddUnitExp(int32 unitId, int32 amount)
+	{
+		if (amount <= 0) return 0;
+
+		let owned = mSave.GetOwnedUnit(unitId);
+		if (owned == null) return 0;
+		if (owned.mLevel >= MAX_UNIT_LEVEL) return 0;
+
+		owned.mExp += amount;
+		int32 levelsGained = 0;
+
+		while (owned.mLevel < MAX_UNIT_LEVEL)
+		{
+			let required = ExpForLevel(owned.mLevel);
+			if (owned.mExp >= required)
+			{
+				owned.mExp -= required;
+				owned.mLevel++;
+				levelsGained++;
+			}
+			else
+				break;
+		}
+
+		// Cap EXP at 0 if max level
+		if (owned.mLevel >= MAX_UNIT_LEVEL)
+			owned.mExp = 0;
+
+		if (levelsGained > 0)
+			Console.WriteLine("[Roster] Unit {} leveled up to {}", unitId, owned.mLevel);
+
+		return levelsGained;
+	}
+
+	/// Get EXP needed for a unit's next level. Returns 0 if at max level.
+	public int32 GetUnitExpToNextLevel(int32 unitId)
+	{
+		let owned = mSave.GetOwnedUnit(unitId);
+		if (owned == null || owned.mLevel >= MAX_UNIT_LEVEL) return 0;
+		return ExpForLevel(owned.mLevel);
+	}
+
+	// --- Skill Unlock ---
+
+	/// Get all skill IDs unlocked for a unit at its current star level.
+	/// Collects skills from all star configs up to and including current star.
+	public void GetUnlockedSkills(int32 unitId, System.Collections.List<int32> outSkillIds)
+	{
+		let owned = mSave.GetOwnedUnit(unitId);
+		if (owned == null) return;
+
+		for (int32 star = 1; star <= owned.mStarLevel; star++)
+		{
+			let starConfig = mConfigs.GetStarLevel(unitId, star);
+			if (starConfig != null)
+			{
+				for (let skillId in starConfig.mUnlockedSkillIds)
+					if (!outSkillIds.Contains(skillId))
+						outSkillIds.Add(skillId);
+			}
+		}
+	}
+
+	/// Calculate effective stats for a unit, factoring in level, star multipliers and equipment.
 	public EffectiveStats GetEffectiveStats(int32 unitId)
 	{
 		var stats = EffectiveStats();
@@ -132,6 +207,15 @@ class RosterManager
 					damage *= starConfig.mDamageMultiplier;
 					defense *= starConfig.mDefenseMultiplier;
 				}
+			}
+
+			// Unit level scaling: +2% per level above 1
+			if (owned.mLevel > 1)
+			{
+				let levelBonus = 1.0f + (float)(owned.mLevel - 1) * 0.02f;
+				hp *= levelBonus;
+				damage *= levelBonus;
+				defense *= levelBonus;
 			}
 		}
 

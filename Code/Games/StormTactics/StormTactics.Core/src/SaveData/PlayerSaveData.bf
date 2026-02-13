@@ -36,9 +36,13 @@ class PlayerSaveData : ISerializable
 
 	// Shop
 	public List<ShopPurchaseRecord> mShopPurchases = new .() ~ DeleteContainerAndItems!(_);
+	public int64 mLastShopRefreshTime;
 
 	// Gacha
 	public int32 mGachaPityCounter;
+
+	// Settings
+	public GameSettings mGameSettings = new .() ~ delete _;
 
 	public int32 SerializationVersion => 1;
 
@@ -65,7 +69,9 @@ class PlayerSaveData : ISerializable
 		s.Int32("ActiveFormationIndex", ref mActiveFormationIndex);
 
 		s.ObjectList("ShopPurchases", mShopPurchases);
+		s.Int64("LastShopRefreshTime", ref mLastShopRefreshTime);
 		s.Int32("GachaPityCounter", ref mGachaPityCounter);
+		s.Object("GameSettings", ref mGameSettings);
 
 		return .Ok;
 	}

@@ -2,12 +2,12 @@
 	<object name="PlayerData">
 		<int32 name="HeroLevel">2</int32>
 		<int32 name="HeroExp">90</int32>
-		<int32 name="Gold">630</int32>
+		<int32 name="Gold">640</int32>
 		<int32 name="Gems">3870</int32>
 		<int32 name="ArenaTokens">0</int32>
 		<int32 name="GuildTokens">0</int32>
-		<int32 name="Stamina">23</int32>
-		<int64 name="LastStaminaTime">0</int64>
+		<int32 name="Stamina">16</int32>
+		<int64 name="LastStaminaTime">1770971082</int64>
 		<int32 name="MaxStageClearedId">2</int32>
 		<array name="StageStars" count="2">
 			<object>
@@ -22,8 +22,8 @@
 		<array name="OwnedUnits" count="8">
 			<object>
 				<int32 name="UnitId">1</int32>
-				<int32 name="StarLevel">1</int32>
-				<int32 name="Shards">15</int32>
+				<int32 name="StarLevel">2</int32>
+				<int32 name="Shards">5</int32>
 				<int32 name="Level">1</int32>
 				<int32 name="Exp">0</int32>
 				<int32 name="EquipWeaponId">0</int32>
@@ -82,8 +82,8 @@
 			</object>
 			<object>
 				<int32 name="UnitId">4</int32>
-				<int32 name="StarLevel">1</int32>
-				<int32 name="Shards">30</int32>
+				<int32 name="StarLevel">2</int32>
+				<int32 name="Shards">10</int32>
 				<int32 name="Level">1</int32>
 				<int32 name="Exp">0</int32>
 				<int32 name="EquipWeaponId">0</int32>
@@ -120,7 +120,7 @@
 			</object>
 			<object>
 				<int32 name="ItemId">1008</int32>
-				<int32 name="Quantity">3</int32>
+				<int32 name="Quantity">1</int32>
 			</object>
 			<object>
 				<int32 name="ItemId">1001</int32>
@@ -134,17 +134,17 @@
 				<string name="Name">Default</string>
 				<array name="Slots" count="3">
 					<object>
-						<int32 name="UnitId">1</int32>
+						<int32 name="UnitId">9</int32>
 						<int32 name="GridX">0</int32>
 						<int32 name="GridY">0</int32>
 					</object>
 					<object>
-						<int32 name="UnitId">3</int32>
+						<int32 name="UnitId">4</int32>
 						<int32 name="GridX">0</int32>
 						<int32 name="GridY">1</int32>
 					</object>
 					<object>
-						<int32 name="UnitId">2</int32>
+						<int32 name="UnitId">7</int32>
 						<int32 name="GridX">0</int32>
 						<int32 name="GridY">2</int32>
 					</object>
@@ -211,7 +211,7 @@
 				</array>
 			</object>
 		</array>
-		<int32 name="ActiveFormationIndex">0</int32>
+		<int32 name="ActiveFormationIndex">3</int32>
 		<array name="ShopPurchases" count="5">
 			<object>
 				<int32 name="ShopItemId">401</int32>
@@ -234,6 +234,12 @@
 				<int32 name="PurchaseCount">1</int32>
 			</object>
 		</array>
+		<int64 name="LastShopRefreshTime">1770969582</int64>
 		<int32 name="GachaPityCounter">22</int32>
+		<object name="GameSettings">
+			<bool name="InvertCameraPan">true</bool>
+			<bool name="AutoStepDefault">true</bool>
+			<int32 name="DefaultBattleSpeed">2</int32>
+		</object>
 	</object>
 </root>

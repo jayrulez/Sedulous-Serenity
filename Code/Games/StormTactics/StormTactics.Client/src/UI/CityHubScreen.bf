@@ -29,6 +29,7 @@ class CityHubScreen
 	private Button mFormationButton;
 	private Button mShopButton;
 	private Button mGachaButton;
+	private Button mSettingsButton;
 
 	// Events
 	private EventAccessor<HubNavigationDelegate> mOnCampaign = new .() ~ delete _;
@@ -37,6 +38,7 @@ class CityHubScreen
 	private EventAccessor<HubNavigationDelegate> mOnFormation = new .() ~ delete _;
 	private EventAccessor<HubNavigationDelegate> mOnShop = new .() ~ delete _;
 	private EventAccessor<HubNavigationDelegate> mOnGacha = new .() ~ delete _;
+	private EventAccessor<HubNavigationDelegate> mOnSettings = new .() ~ delete _;
 
 	public EventAccessor<HubNavigationDelegate> OnCampaign => mOnCampaign;
 	public EventAccessor<HubNavigationDelegate> OnRoster => mOnRoster;
@@ -44,6 +46,7 @@ class CityHubScreen
 	public EventAccessor<HubNavigationDelegate> OnFormation => mOnFormation;
 	public EventAccessor<HubNavigationDelegate> OnShop => mOnShop;
 	public EventAccessor<HubNavigationDelegate> OnGacha => mOnGacha;
+	public EventAccessor<HubNavigationDelegate> OnSettings => mOnSettings;
 
 	public UIElement RootElement => mRoot;
 
@@ -218,6 +221,17 @@ class CityHubScreen
 		row2.AddChild(mGachaButton);
 
 		centerPanel.AddChild(row2);
+
+		let row3 = new StackPanel();
+		row3.Orientation = .Horizontal;
+		row3.Spacing = 16;
+		row3.HorizontalAlignment = .Center;
+
+		mSettingsButton = CreateNavButton("Settings", "Game options", Color(120, 130, 150));
+		mSettingsButton.Click.Subscribe(new (btn) => { mOnSettings.[Friend]Invoke(); });
+		row3.AddChild(mSettingsButton);
+
+		centerPanel.AddChild(row3);
 
 		parent.AddChild(centerPanel);
 	}

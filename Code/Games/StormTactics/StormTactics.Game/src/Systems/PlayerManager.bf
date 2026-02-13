@@ -6,6 +6,8 @@ using StormTactics.Core;
 /// Manages hero level/EXP, stamina, currencies, and stage unlock tracking.
 class PlayerManager
 {
+	public const int32 STAMINA_REGEN_SECONDS = 300; // 5 minutes per stamina point
+
 	private PlayerSaveData mSave;
 	private ConfigDatabase mConfigs;
 
@@ -80,6 +82,57 @@ class PlayerManager
 	public void AddStamina(int32 amount)
 	{
 		mSave.mStamina = Math.Min(mSave.mStamina + amount, MaxStamina);
+	}
+
+	/// Process stamina regeneration based on elapsed real time.
+	/// Call on game load and periodically during gameplay.
+	public void UpdateStaminaRegen()
+	{
+		let now = GetCurrentTimestamp();
+
+		// First-time init
+		if (mSave.mLastStaminaTime == 0)
+		{
+			mSave.mLastStaminaTime = now;
+			return;
+		}
+
+		if (mSave.mStamina >= MaxStamina)
+		{
+			mSave.mLastStaminaTime = now;
+			return;
+		}
+
+		let elapsed = now - mSave.mLastStaminaTime;
+		if (elapsed <= 0) return;
+
+		let regenPoints = (int32)(elapsed / STAMINA_REGEN_SECONDS);
+		if (regenPoints > 0)
+		{
+			let oldStamina = mSave.mStamina;
+			mSave.mStamina = Math.Min(mSave.mStamina + regenPoints, MaxStamina);
+			// Only consume the time for the points actually regenerated
+			let consumed = mSave.mStamina - oldStamina;
+			mSave.mLastStaminaTime += (int64)(consumed * STAMINA_REGEN_SECONDS);
+		}
+	}
+
+	/// Seconds until next stamina point regenerates. Returns 0 if stamina is full.
+	public int32 SecondsUntilNextStamina
+	{
+		get
+		{
+			if (mSave.mStamina >= MaxStamina) return 0;
+			let now = GetCurrentTimestamp();
+			let elapsed = now - mSave.mLastStaminaTime;
+			return (int32)Math.Max(0, STAMINA_REGEN_SECONDS - elapsed);
+		}
+	}
+
+	/// Get current unix timestamp in seconds.
+	private static int64 GetCurrentTimestamp()
+	{
+		return DateTime.UtcNow.ToFileTime() / 10000000 - 11644473600;
 	}
 
 	// --- Currencies ---
