@@ -82,6 +82,7 @@ class StormTacticsGame : Application
 	private BattleSimulation mCurrentSim;
 	private int32 mCurrentStageId;
 	private bool mRewardsProcessed;
+	private bool mCurrentBattleHardMode;
 
 	// HUD state tracking
 	private PlayerTurnPhase mLastPlayerPhase = .Idle;
@@ -365,7 +366,7 @@ class StormTacticsGame : Application
 	}
 
 	/// Create a battle for the given stage.
-	private void CreateBattle(int32 stageId)
+	private void CreateBattle(int32 stageId, bool isHardMode = false)
 	{
 		let stageConfig = mConfigs.GetStage(stageId);
 		if (stageConfig == null)
@@ -390,6 +391,7 @@ class StormTacticsGame : Application
 		}
 
 		mCurrentStageId = stageId;
+		mCurrentBattleHardMode = isHardMode;
 		mRewardsProcessed = false;
 
 		// Build player formation from active formation preset (or fallback to owned units)
@@ -441,11 +443,19 @@ class StormTacticsGame : Application
 		// Create simulation
 		mCurrentSim = new BattleSimulation(mConfigs);
 		mCurrentSim.Initialize(attackers, stageConfig.mEnemyFormation, columns, rows, DateTime.Now.Ticks);
-		mCurrentSim.Difficulty = .Normal;
+		if (isHardMode)
+		{
+			mCurrentSim.ApplyDefenderScaling(1.5f, 1.5f, 1.5f);
+			mCurrentSim.Difficulty = .Hard;
+		}
+		else
+		{
+			mCurrentSim.Difficulty = .Normal;
+		}
 		StampUnitLevels();
 
-		Console.WriteLine("Battle created: Stage '{}' — {}v{} on {}x{} grid",
-			stageConfig.mName, attackers.Count, stageConfig.mEnemyFormation.Count, columns, rows);
+		Console.WriteLine("Battle created: Stage '{}'{} — {}v{} on {}x{} grid",
+			stageConfig.mName, isHardMode ? " [HARD]" : "", attackers.Count, stageConfig.mEnemyFormation.Count, columns, rows);
 
 		// Create the battle scene
 		let renderModule = mMainScene.GetModule<RenderSceneModule>();
@@ -706,14 +716,14 @@ class StormTacticsGame : Application
 		mCampaignScreen.OnBack.Subscribe(new () => {
 			ShowCityHub();
 		});
-		mCampaignScreen.OnStageSelected.Subscribe(new (stageId) => {
+		mCampaignScreen.OnStageSelected.Subscribe(new (stageId, isHardMode) => {
 			// Switch to battle HUD and create battle
 			mUISubsystem.GUIContext.RootElement = mBattleHUD.RootElement;
 			mBattleHUD.ResetResultState();
-			CreateBattle(stageId);
+			CreateBattle(stageId, isHardMode);
 		});
-		mCampaignScreen.OnSweep.Subscribe(new (stageId) => {
-			OnSweepStage(stageId);
+		mCampaignScreen.OnSweep.Subscribe(new (stageId, isHardMode) => {
+			OnSweepStage(stageId, isHardMode);
 		});
 
 		// Wire city hub navigation events
@@ -1245,7 +1255,7 @@ class StormTacticsGame : Application
 			if (!mRewardsProcessed && sim.State == .AttackerWins)
 			{
 				mRewardsProcessed = true;
-				let rewards = mRewardProcessor.ProcessStageRewards(mCurrentStageId, result.mStarRating);
+				let rewards = mRewardProcessor.ProcessStageRewards(mCurrentStageId, result.mStarRating, mCurrentBattleHardMode);
 				defer delete rewards;
 
 				// Build display info for HUD
@@ -1439,14 +1449,15 @@ class StormTacticsGame : Application
 	}
 
 	/// Handle sweep stage from campaign screen.
-	private void OnSweepStage(int32 stageId)
+	private void OnSweepStage(int32 stageId, bool isHardMode = false)
 	{
-		let result = mRewardProcessor.SweepStage(stageId);
+		let result = mRewardProcessor.SweepStage(stageId, isHardMode);
 		if (result == null)
 		{
-			if (mPlayerManager.GetBestStars(stageId) < 3)
+			int32 stars = isHardMode ? mPlayerManager.GetHardStars(stageId) : mPlayerManager.GetBestStars(stageId);
+			if (stars < 3)
 				ShowToast("Need 3 stars to sweep!");
-			else if (!mPlayerManager.CanSweep(stageId))
+			else if (isHardMode ? !mPlayerManager.CanSweepHard(stageId) : !mPlayerManager.CanSweep(stageId))
 				ShowToast("No sweeps remaining!");
 			else
 				ShowToast("Not enough stamina!");
@@ -1454,8 +1465,8 @@ class StormTacticsGame : Application
 		}
 		defer delete result;
 
-		Console.WriteLine("[Campaign] Swept stage {} — +{}G +{}EXP {} items",
-			stageId, result.mGoldGained, result.mExpGained, result.mItems.Count);
+		Console.WriteLine("[Campaign] Swept stage {}{} — +{}G +{}EXP {} items",
+			stageId, isHardMode ? " (HARD)" : "", result.mGoldGained, result.mExpGained, result.mItems.Count);
 
 		mSaveManager.Save();
 
@@ -1469,7 +1480,7 @@ class StormTacticsGame : Application
 		}
 
 		// Show results in the popup
-		let sweepCount = mSaveManager.SaveData.GetSweepCount(stageId);
+		let sweepCount = isHardMode ? mSaveManager.SaveData.GetHardSweepCount(stageId) : mSaveManager.SaveData.GetSweepCount(stageId);
 		let sweepLimit = stageConfig != null ? stageConfig.mSweepLimit : 0;
 		mCampaignScreen.ShowSweepResults(
 			result.mGoldGained,

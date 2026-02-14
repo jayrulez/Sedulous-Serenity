@@ -125,6 +125,55 @@ class PlayerSaveData : ISerializable
 		}
 	}
 
+	// --- Hard mode accessors ---
+
+	/// Get best hard mode star rating for a stage. Returns 0 if never cleared on hard.
+	public int32 GetHardStars(int32 stageId)
+	{
+		for (let ss in mStageStars)
+			if (ss.mStageId == stageId) return ss.mHardStars;
+		return 0;
+	}
+
+	/// Record a hard mode stage clear with star rating. Updates if better.
+	public void RecordHardClear(int32 stageId, int32 stars)
+	{
+		for (let ss in mStageStars)
+		{
+			if (ss.mStageId == stageId)
+			{
+				if (stars > ss.mHardStars)
+					ss.mHardStars = stars;
+				return;
+			}
+		}
+		let entry = new StageStar();
+		entry.mStageId = stageId;
+		entry.mHardStars = stars;
+		mStageStars.Add(entry);
+	}
+
+	/// Get hard mode sweep count for a stage.
+	public int32 GetHardSweepCount(int32 stageId)
+	{
+		for (let ss in mStageStars)
+			if (ss.mStageId == stageId) return ss.mHardSweepCount;
+		return 0;
+	}
+
+	/// Increment hard mode sweep count for a stage.
+	public void IncrementHardSweepCount(int32 stageId)
+	{
+		for (let ss in mStageStars)
+		{
+			if (ss.mStageId == stageId)
+			{
+				ss.mHardSweepCount++;
+				return;
+			}
+		}
+	}
+
 	/// Find owned unit data by unit config ID. Returns null if not owned.
 	public OwnedUnitData GetOwnedUnit(int32 unitId)
 	{

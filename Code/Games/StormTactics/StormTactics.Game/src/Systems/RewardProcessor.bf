@@ -39,7 +39,7 @@ class RewardProcessor
 
 	/// Process rewards for completing a stage. Returns the reward summary for display.
 	/// Caller owns the returned RewardResult.
-	public RewardResult ProcessStageRewards(int32 stageId, int32 starRating)
+	public RewardResult ProcessStageRewards(int32 stageId, int32 starRating, bool isHardMode = false)
 	{
 		let result = new RewardResult();
 
@@ -47,15 +47,19 @@ class RewardProcessor
 		if (stage == null) return result;
 
 		// Check if this is first clear (no stars recorded yet)
-		let previousBest = mPlayerMgr.GetBestStars(stageId);
+		let previousBest = isHardMode ? mPlayerMgr.GetHardStars(stageId) : mPlayerMgr.GetBestStars(stageId);
 		result.mIsFirstClear = (previousBest == 0);
 
-		// Base gold reward: difficulty * 50 + star bonus
+		// Base gold reward: difficulty * 50 + star bonus (1.5x for hard mode)
 		int32 baseGold = stage.mDifficulty * 50 + starRating * 20;
+		if (isHardMode)
+			baseGold = (int32)((float)baseGold * 1.5f);
 		result.mGoldGained = baseGold;
 
-		// Base EXP reward: difficulty * 30
+		// Base EXP reward: difficulty * 30 (1.5x for hard mode)
 		int32 baseExp = stage.mDifficulty * 30;
+		if (isHardMode)
+			baseExp = (int32)((float)baseExp * 1.5f);
 		result.mExpGained = baseExp;
 
 		// First-clear bonus
@@ -74,7 +78,10 @@ class RewardProcessor
 		result.mLevelsGained = mPlayerMgr.AddHeroExp(result.mExpGained);
 
 		// Record stage clear
-		mPlayerMgr.RecordStageClear(stageId, starRating);
+		if (isHardMode)
+			mPlayerMgr.RecordHardClear(stageId, starRating);
+		else
+			mPlayerMgr.RecordStageClear(stageId, starRating);
 
 		// Item rewards with drop chance
 		for (let reward in stage.mRewards)
@@ -106,28 +113,42 @@ class RewardProcessor
 	/// Sweep a 3-starred stage: spend stamina, grant rewards without battle.
 	/// Returns null if stage is not sweepable (not 3-starred or not enough stamina).
 	/// Caller owns the returned RewardResult.
-	public RewardResult SweepStage(int32 stageId)
+	public RewardResult SweepStage(int32 stageId, bool isHardMode = false)
 	{
 		let stage = mConfigs.GetStage(stageId);
 		if (stage == null) return null;
 
 		// Must be 3-starred and have sweeps remaining
-		if (!mPlayerMgr.CanSweep(stageId)) return null;
+		if (isHardMode)
+		{
+			if (!mPlayerMgr.CanSweepHard(stageId)) return null;
+		}
+		else
+		{
+			if (!mPlayerMgr.CanSweep(stageId)) return null;
+		}
 
 		// Must have enough stamina
 		if (!mPlayerMgr.TrySpendStamina(stage.mStaminaCost)) return null;
 
 		// Increment sweep count
-		mPlayerMgr.IncrementSweepCount(stageId);
+		if (isHardMode)
+			mPlayerMgr.IncrementHardSweepCount(stageId);
+		else
+			mPlayerMgr.IncrementSweepCount(stageId);
 
 		// Grant same rewards as a 3-star clear (no first-clear bonus since already cleared)
 		let result = new RewardResult();
 
 		int32 baseGold = stage.mDifficulty * 50 + 3 * 20;
+		if (isHardMode)
+			baseGold = (int32)((float)baseGold * 1.5f);
 		result.mGoldGained = baseGold;
 		mPlayerMgr.AddGold(baseGold);
 
 		int32 baseExp = stage.mDifficulty * 30;
+		if (isHardMode)
+			baseExp = (int32)((float)baseExp * 1.5f);
 		result.mExpGained = baseExp;
 		result.mLevelsGained = mPlayerMgr.AddHeroExp(baseExp);
 

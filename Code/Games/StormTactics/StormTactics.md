@@ -453,7 +453,7 @@ The PvE content pipeline and campaign structure.
 - [x] **Difficulty & scaling**
   - [x] Enemy stat scaling per chapter/stage (15 stages with difficulty 1-20, recommended power 100-2800)
   - [x] Recommended power level per stage (displayed in campaign screen and info popup)
-  - [ ] Hard mode unlock after clearing normal
+  - [x] Hard mode unlock after clearing normal (1.5x enemy stats, Hard AI, 1.5x rewards, sequential unlock)
 
 ---
 

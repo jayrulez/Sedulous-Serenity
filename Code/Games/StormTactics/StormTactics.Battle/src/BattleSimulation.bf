@@ -149,6 +149,21 @@ class BattleSimulation
 		EmitEvent(.BattleStarted);
 	}
 
+	/// Apply stat scaling to all defender units (for hard mode).
+	/// Call after Initialize(). HP is scaled and reset to max; damage/defense use persistent scale factors.
+	public void ApplyDefenderScaling(float hpMult, float damageMult, float defenseMult)
+	{
+		for (let unit in mUnits)
+		{
+			if (unit.mForce != .Defender) continue;
+			unit.mMaxHP = (int32)((float)unit.mMaxHP * hpMult);
+			unit.mCurrentHP = unit.mMaxHP;
+			unit.mDamageScale = damageMult;
+			unit.mDefenseScale = defenseMult;
+			unit.RecalculateStats();
+		}
+	}
+
 	// --- Queries ---
 
 	public BattleUnit GetUnit(int32 index)

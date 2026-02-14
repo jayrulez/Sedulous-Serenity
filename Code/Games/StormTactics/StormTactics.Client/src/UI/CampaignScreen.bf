@@ -10,8 +10,8 @@ using StormTactics.Core;
 using StormTactics.Game;
 
 delegate void CampaignBackDelegate();
-delegate void CampaignStageDelegate(int32 stageId);
-delegate void CampaignSweepDelegate(int32 stageId);
+delegate void CampaignStageDelegate(int32 stageId, bool isHardMode);
+delegate void CampaignSweepDelegate(int32 stageId, bool isHardMode);
 
 struct CampaignStageInfo
 {
@@ -29,6 +29,9 @@ struct CampaignStageInfo
 	public int32 mFirstClearGems;
 	public int32 mSweepLimit;
 	public int32 mSweepCount;
+	public bool mHardUnlocked;   // Whether hard mode is available
+	public int32 mHardStars;     // Hard mode best stars (0-3)
+	public int32 mHardSweepCount;
 }
 
 /// Campaign screen with chapter tabs, stage nodes, info popup, and sweep.
@@ -39,6 +42,10 @@ class CampaignScreen
 	// Chapter tabs
 	private StackPanel mChapterTabPanel;
 	private int32 mActiveChapter = 1;
+
+	// Difficulty toggle
+	private Button mNormalModeBtn;
+	private Button mHardModeBtn;
 
 	// Player info bar
 	private TextBlock mStaminaLabel;
@@ -74,6 +81,7 @@ class CampaignScreen
 	private List<CampaignStageInfo> mStages = new .() ~ delete _;
 	private int32 mPlayerStamina;
 	private int32 mMaxStamina;
+	private bool mHardMode = false;
 
 	// Events
 	private EventAccessor<CampaignBackDelegate> mOnBack = new .() ~ delete _;
@@ -168,11 +176,53 @@ class CampaignScreen
 		tabBar.Padding = Thickness(8, 4, 8, 4);
 		GridProperties.SetRow(tabBar, 1);
 
+		let tabBarContent = new DockPanel();
+		tabBarContent.LastChildFill = false;
+		tabBarContent.HorizontalAlignment = .Stretch;
+		tabBarContent.VerticalAlignment = .Center;
+		tabBar.Child = tabBarContent;
+
 		mChapterTabPanel = new StackPanel();
 		mChapterTabPanel.Orientation = .Horizontal;
 		mChapterTabPanel.Spacing = 6;
 		mChapterTabPanel.VerticalAlignment = .Center;
-		tabBar.Child = mChapterTabPanel;
+		DockPanelProperties.SetDock(mChapterTabPanel, .Left);
+		tabBarContent.AddChild(mChapterTabPanel);
+
+		// Difficulty toggle (right side)
+		let diffToggle = new StackPanel();
+		diffToggle.Orientation = .Horizontal;
+		diffToggle.Spacing = 4;
+		diffToggle.VerticalAlignment = .Center;
+		DockPanelProperties.SetDock(diffToggle, .Right);
+
+		mNormalModeBtn = new Button("NORMAL");
+		mNormalModeBtn.Padding = Thickness(10, 2, 10, 2);
+		mNormalModeBtn.Click.Subscribe(new (btn) => {
+			if (mHardMode)
+			{
+				mHardMode = false;
+				if (mRoot.Context != null)
+					mRoot.Context.MutationQueue.QueueAction(new () => { RefreshDifficultyToggle(); RefreshStageList(); });
+				else { RefreshDifficultyToggle(); RefreshStageList(); }
+			}
+		});
+		diffToggle.AddChild(mNormalModeBtn);
+
+		mHardModeBtn = new Button("HARD");
+		mHardModeBtn.Padding = Thickness(10, 2, 10, 2);
+		mHardModeBtn.Click.Subscribe(new (btn) => {
+			if (!mHardMode)
+			{
+				mHardMode = true;
+				if (mRoot.Context != null)
+					mRoot.Context.MutationQueue.QueueAction(new () => { RefreshDifficultyToggle(); RefreshStageList(); });
+				else { RefreshDifficultyToggle(); RefreshStageList(); }
+			}
+		});
+		diffToggle.AddChild(mHardModeBtn);
+
+		tabBarContent.AddChild(diffToggle);
 
 		mRoot.AddChild(tabBar);
 	}
@@ -286,7 +336,7 @@ class CampaignScreen
 		mInfoSweepBtn.Visibility = .Collapsed;
 		mInfoSweepBtn.Click.Subscribe(new (btn) => {
 			if (mInfoStageId >= 0)
-				mOnSweep.[Friend]Invoke(mInfoStageId);
+				mOnSweep.[Friend]Invoke(mInfoStageId, mHardMode);
 		});
 		btnRow.AddChild(mInfoSweepBtn);
 
@@ -295,7 +345,7 @@ class CampaignScreen
 		mInfoBattleBtn.Click.Subscribe(new (btn) => {
 			if (mInfoStageId >= 0)
 			{
-				mOnStageSelected.[Friend]Invoke(mInfoStageId);
+				mOnStageSelected.[Friend]Invoke(mInfoStageId, mHardMode);
 				mInfoPopup.Close();
 			}
 		});
@@ -370,6 +420,9 @@ class CampaignScreen
 			info.mFirstClearGems = stage.mFirstClearGems;
 			info.mSweepLimit = stage.mSweepLimit;
 			info.mSweepCount = save.GetSweepCount(stage.mId);
+			info.mHardUnlocked = playerMgr.IsHardModeUnlocked(stage.mId);
+			info.mHardStars = save.GetHardStars(stage.mId);
+			info.mHardSweepCount = save.GetHardSweepCount(stage.mId);
 			mStages.Add(info);
 		}
 
@@ -389,9 +442,18 @@ class CampaignScreen
 		RefreshStageList();
 	}
 
+	private void RefreshDifficultyToggle()
+	{
+		if (mNormalModeBtn != null)
+			mNormalModeBtn.[Friend]mBackground = mHardMode ? Color(40, 42, 55, 255) : Color(60, 70, 100, 255);
+		if (mHardModeBtn != null)
+			mHardModeBtn.[Friend]mBackground = mHardMode ? Color(100, 50, 50, 255) : Color(40, 42, 55, 255);
+	}
+
 	private void RefreshChapterTabs()
 	{
 		mChapterTabPanel.ClearChildren();
+		RefreshDifficultyToggle();
 
 		// Collect unique chapters
 		let chapters = scope List<int32>();
@@ -441,10 +503,16 @@ class CampaignScreen
 
 			let stageId = stage.mId;
 
+			// Determine locked/stars based on current difficulty mode
+			bool isLocked = mHardMode ? !stage.mHardUnlocked : stage.mIsLocked;
+			int32 displayStars = mHardMode ? stage.mHardStars : stage.mBestStars;
+
 			// Stage card
 			let card = new Border();
-			if (stage.mIsLocked)
+			if (isLocked)
 				card.Background = Color(20, 22, 30, 255);
+			else if (mHardMode)
+				card.Background = stage.mIsBoss ? Color(50, 20, 20, 255) : Color(40, 25, 35, 255);
 			else if (stage.mIsBoss)
 				card.Background = Color(40, 25, 20, 255);
 			else
@@ -463,13 +531,16 @@ class CampaignScreen
 			leftCol.Spacing = 2;
 			DockPanelProperties.SetDock(leftCol, .Left);
 
-			// Name row with boss tag
+			// Name row with boss/hard tags
 			let nameStr = scope String();
 			nameStr.Set(stage.mName);
 			if (stage.mIsBoss) nameStr.Append("  [BOSS]");
+			if (mHardMode) nameStr.Append("  [HARD]");
 			let nameLabel = new TextBlock(nameStr);
-			if (stage.mIsLocked)
+			if (isLocked)
 				nameLabel.Foreground = Color(80, 80, 90);
+			else if (mHardMode)
+				nameLabel.Foreground = Color(255, 120, 120);
 			else if (stage.mIsBoss)
 				nameLabel.Foreground = Color(255, 150, 80);
 			else
@@ -481,7 +552,7 @@ class CampaignScreen
 			let infoStr = scope String();
 			infoStr.AppendF("Diff:{} | STA:{} | {}x enemies | PWR:{}", stage.mDifficulty, stage.mStaminaCost, stage.mEnemyCount, stage.mRecommendedPower);
 			let infoLabel = new TextBlock(infoStr);
-			infoLabel.Foreground = stage.mIsLocked ? Color(60, 60, 70) : Color(130, 135, 150);
+			infoLabel.Foreground = isLocked ? Color(60, 60, 70) : Color(130, 135, 150);
 			infoLabel.FontSize = 12;
 			leftCol.AddChild(infoLabel);
 
@@ -494,9 +565,9 @@ class CampaignScreen
 			rightCol.VerticalAlignment = .Center;
 			DockPanelProperties.SetDock(rightCol, .Right);
 
-			if (stage.mIsLocked)
+			if (isLocked)
 			{
-				let lockLabel = new TextBlock("LOCKED");
+				let lockLabel = new TextBlock(mHardMode ? "CLEAR NORMAL" : "LOCKED");
 				lockLabel.Foreground = Color(100, 60, 60);
 				lockLabel.FontSize = 14;
 				lockLabel.TextAlignment = .Right;
@@ -506,18 +577,18 @@ class CampaignScreen
 			{
 				// Star display
 				let starStr = scope String();
-				if (stage.mBestStars > 0)
-					starStr.AppendF("{}/3 Stars", stage.mBestStars);
+				if (displayStars > 0)
+					starStr.AppendF("{}/3 Stars", displayStars);
 				else
 					starStr.Set("No Stars");
 				let starLabel = new TextBlock(starStr);
-				starLabel.Foreground = stage.mBestStars > 0 ? Color(255, 215, 80) : Color(80, 80, 90);
+				starLabel.Foreground = displayStars > 0 ? Color(255, 215, 80) : Color(80, 80, 90);
 				starLabel.FontSize = 14;
 				starLabel.TextAlignment = .Right;
 				rightCol.AddChild(starLabel);
 
 				// First clear indicator
-				if (stage.mBestStars == 0 && (stage.mFirstClearGold > 0 || stage.mFirstClearGems > 0))
+				if (displayStars == 0 && (stage.mFirstClearGold > 0 || stage.mFirstClearGems > 0))
 				{
 					let fcStr = scope String();
 					fcStr.Append("1st:");
@@ -536,7 +607,7 @@ class CampaignScreen
 			row.AddChild(rightCol);
 
 			// Click overlay (only if not locked)
-			if (!stage.mIsLocked)
+			if (!isLocked)
 			{
 				let btn = new Button();
 				btn.Background = Color(0, 0, 0, 0);
@@ -575,7 +646,16 @@ class CampaignScreen
 		}
 		if (!found) return;
 
-		mInfoName.Text = info.mName;
+		// Determine stars/sweep based on current difficulty mode
+		int32 displayStars = mHardMode ? info.mHardStars : info.mBestStars;
+		int32 displaySweepCount = mHardMode ? info.mHardSweepCount : info.mSweepCount;
+
+		let nameStr = scope String();
+		nameStr.Set(info.mName);
+		if (mHardMode) nameStr.Append(" [HARD]");
+		mInfoName.Text = nameStr;
+		mInfoName.Foreground = mHardMode ? Color(255, 120, 120) : Color(255, 215, 80);
+
 		mSweepResultsPanel.ClearChildren();
 		mSweepResultsPanel.Visibility = .Collapsed;
 		mSweepCount = 0;
@@ -584,6 +664,7 @@ class CampaignScreen
 		let diffStr = scope String();
 		diffStr.AppendF("{}", info.mDifficulty);
 		if (info.mIsBoss) diffStr.Append("  [BOSS]");
+		if (mHardMode) diffStr.Append("  (1.5x stats)");
 		mInfoDifficulty.Text = diffStr;
 
 		let staStr = scope String();
@@ -604,9 +685,9 @@ class CampaignScreen
 
 		// Stars
 		let starStr = scope String();
-		if (info.mBestStars > 0)
+		if (displayStars > 0)
 		{
-			starStr.AppendF("{}/3", info.mBestStars);
+			starStr.AppendF("{}/3", displayStars);
 			mInfoStars.Foreground = Color(255, 215, 80);
 		}
 		else
@@ -617,15 +698,15 @@ class CampaignScreen
 		mInfoStars.Text = starStr;
 
 		// Sweep info
-		if (info.mBestStars >= 3)
+		if (displayStars >= 3)
 		{
 			let sweepStr = scope String();
 			if (info.mSweepLimit > 0)
-				sweepStr.AppendF("{}/{}", info.mSweepCount, info.mSweepLimit);
+				sweepStr.AppendF("{}/{}", displaySweepCount, info.mSweepLimit);
 			else
-				sweepStr.AppendF("{} (unlimited)", info.mSweepCount);
+				sweepStr.AppendF("{} (unlimited)", displaySweepCount);
 			mInfoSweepInfo.Text = sweepStr;
-			mInfoSweepInfo.Foreground = (info.mSweepLimit > 0 && info.mSweepCount >= info.mSweepLimit)
+			mInfoSweepInfo.Foreground = (info.mSweepLimit > 0 && displaySweepCount >= info.mSweepLimit)
 				? Color(255, 100, 100) : Color(230, 230, 240);
 		}
 		else
@@ -635,7 +716,7 @@ class CampaignScreen
 		}
 
 		// First clear
-		if (info.mBestStars == 0 && (info.mFirstClearGold > 0 || info.mFirstClearGems > 0))
+		if (displayStars == 0 && (info.mFirstClearGold > 0 || info.mFirstClearGems > 0))
 		{
 			let fcStr = scope String();
 			if (info.mFirstClearGold > 0)
@@ -645,7 +726,7 @@ class CampaignScreen
 			mInfoFirstClear.Text = fcStr;
 			mInfoFirstClear.Foreground = Color(100, 200, 255);
 		}
-		else if (info.mBestStars > 0)
+		else if (displayStars > 0)
 		{
 			mInfoFirstClear.Text = "Claimed";
 			mInfoFirstClear.Foreground = Color(100, 150, 100);
@@ -663,9 +744,16 @@ class CampaignScreen
 			let stageConfig = mConfigs.GetStage(stageId);
 			if (stageConfig != null)
 			{
-				// Base gold/exp
+				// Base gold/exp (show 1.5x for hard mode)
+				int32 baseGold = stageConfig.mDifficulty * 50;
+				int32 baseExp = stageConfig.mDifficulty * 30;
+				if (mHardMode)
+				{
+					baseGold = (int32)((float)baseGold * 1.5f);
+					baseExp = (int32)((float)baseExp * 1.5f);
+				}
 				let baseStr = scope String();
-				baseStr.AppendF("Gold: ~{} | EXP: ~{}", stageConfig.mDifficulty * 50, stageConfig.mDifficulty * 30);
+				baseStr.AppendF("Gold: ~{} | EXP: ~{}", baseGold, baseExp);
 				let baseLabel = new TextBlock(baseStr);
 				baseLabel.Foreground = Color(200, 200, 210);
 				baseLabel.FontSize = 13;
@@ -693,7 +781,7 @@ class CampaignScreen
 		}
 
 		// Show sweep button only for 3-starred stages with sweeps remaining
-		bool canSweep = info.mBestStars >= 3 && (info.mSweepLimit == 0 || info.mSweepCount < info.mSweepLimit);
+		bool canSweep = displayStars >= 3 && (info.mSweepLimit == 0 || displaySweepCount < info.mSweepLimit);
 		mInfoSweepBtn.Visibility = canSweep ? .Visible : .Collapsed;
 
 		// Enable battle button

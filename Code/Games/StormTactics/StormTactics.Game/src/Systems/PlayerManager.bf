@@ -206,6 +206,50 @@ class PlayerManager
 	/// Increment sweep count for a stage.
 	public void IncrementSweepCount(int32 stageId) => mSave.IncrementSweepCount(stageId);
 
+	// --- Hard Mode ---
+
+	/// Check if hard mode is unlocked for a stage.
+	/// Requires: normal mode of this stage cleared + previous stage's hard mode cleared (sequential).
+	public bool IsHardModeUnlocked(int32 stageId)
+	{
+		let stage = mConfigs.GetStage(stageId);
+		if (stage == null) return false;
+
+		// Must have cleared this stage on normal
+		if (GetBestStars(stageId) <= 0) return false;
+
+		// First stage in its chain (no prerequisite) — just needs normal clear
+		if (stage.mUnlockStageId == 0) return true;
+
+		// Otherwise, the prerequisite stage's hard mode must also be cleared
+		return GetHardStars(stage.mUnlockStageId) > 0;
+	}
+
+	/// Record a hard mode stage clear with star rating.
+	public void RecordHardClear(int32 stageId, int32 stars)
+	{
+		mSave.RecordHardClear(stageId, stars);
+	}
+
+	/// Get best hard mode star rating for a stage.
+	public int32 GetHardStars(int32 stageId) => mSave.GetHardStars(stageId);
+
+	/// Check if a stage can be swept on hard mode (has 3 hard stars and sweeps remaining).
+	public bool CanSweepHard(int32 stageId)
+	{
+		let stage = mConfigs.GetStage(stageId);
+		if (stage == null) return false;
+		if (GetHardStars(stageId) < 3) return false;
+		if (stage.mSweepLimit > 0 && mSave.GetHardSweepCount(stageId) >= stage.mSweepLimit) return false;
+		return true;
+	}
+
+	/// Get hard mode sweep count for a stage.
+	public int32 GetHardSweepCount(int32 stageId) => mSave.GetHardSweepCount(stageId);
+
+	/// Increment hard mode sweep count for a stage.
+	public void IncrementHardSweepCount(int32 stageId) => mSave.IncrementHardSweepCount(stageId);
+
 	// --- Formation Slots ---
 
 	/// Get max formation slots for current hero level.

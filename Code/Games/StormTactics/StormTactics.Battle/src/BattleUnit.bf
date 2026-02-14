@@ -40,6 +40,10 @@ class BattleUnit
 	public int32 mModifiedMoveRange;
 	public int32 mModifiedAttackRange;
 
+	// --- Difficulty scaling (applied to defenders in hard mode) ---
+	public float mDamageScale = 1.0f;
+	public float mDefenseScale = 1.0f;
+
 	// --- Per-turn counters ---
 	public int32 mCounterAttacksThisTurn;
 
@@ -151,8 +155,8 @@ class BattleUnit
 			}
 		}
 
-		mModifiedDamage = Math.Max(0, (int32)((float)(mConfig.mSoldierDamage + damageFlat) * damageMult));
-		mModifiedDefense = Math.Max(0, (int32)((float)(mConfig.mDefense + defenseFlat) * defenseMult));
+		mModifiedDamage = Math.Max(0, (int32)((float)(mConfig.mSoldierDamage + damageFlat) * damageMult * mDamageScale));
+		mModifiedDefense = Math.Max(0, (int32)((float)(mConfig.mDefense + defenseFlat) * defenseMult * mDefenseScale));
 		mModifiedActionSpeed = Math.Max(1, (int32)((float)(mConfig.mActionSpeed + speedFlat) * speedMult));
 		mModifiedMoveRange = Math.Max(0, (int32)((float)(mConfig.mMoveRange + moveRangeFlat) * moveRangeMult));
 		mModifiedAttackRange = Math.Max(1, (int32)((float)(mConfig.mAttackRange + attackRangeFlat) * attackRangeMult));

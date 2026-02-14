@@ -1,34 +1,49 @@
 <root>
 	<object name="PlayerData">
-		<int32 name="HeroLevel">5</int32>
-		<int32 name="HeroExp">990</int32>
-		<int32 name="Gold">51375</int32>
-		<int32 name="Gems">3950</int32>
+		<int32 name="HeroLevel">6</int32>
+		<int32 name="HeroExp">35</int32>
+		<int32 name="Gold">51710</int32>
+		<int32 name="Gems">3960</int32>
 		<int32 name="ArenaTokens">0</int32>
 		<int32 name="GuildTokens">0</int32>
-		<int32 name="Stamina">116</int32>
-		<int64 name="LastStaminaTime">1771025145</int64>
+		<int32 name="Stamina">112</int32>
+		<int64 name="LastStaminaTime">1771035919</int64>
 		<int32 name="MaxStageClearedId">5</int32>
 		<array name="StageStars" count="5">
 			<object>
 				<int32 name="StageId">1</int32>
 				<int32 name="Stars">3</int32>
+				<int32 name="SweepCount">0</int32>
+				<int32 name="HardStars">2</int32>
+				<int32 name="HardSweepCount">0</int32>
 			</object>
 			<object>
 				<int32 name="StageId">2</int32>
 				<int32 name="Stars">2</int32>
+				<int32 name="SweepCount">0</int32>
+				<int32 name="HardStars">0</int32>
+				<int32 name="HardSweepCount">0</int32>
 			</object>
 			<object>
 				<int32 name="StageId">3</int32>
 				<int32 name="Stars">2</int32>
+				<int32 name="SweepCount">0</int32>
+				<int32 name="HardStars">0</int32>
+				<int32 name="HardSweepCount">0</int32>
 			</object>
 			<object>
 				<int32 name="StageId">4</int32>
 				<int32 name="Stars">2</int32>
+				<int32 name="SweepCount">0</int32>
+				<int32 name="HardStars">0</int32>
+				<int32 name="HardSweepCount">0</int32>
 			</object>
 			<object>
 				<int32 name="StageId">5</int32>
 				<int32 name="Stars">1</int32>
+				<int32 name="SweepCount">0</int32>
+				<int32 name="HardStars">0</int32>
+				<int32 name="HardSweepCount">0</int32>
 			</object>
 		</array>
 		<array name="OwnedUnits" count="10">
@@ -136,7 +151,7 @@
 		<array name="Inventory" count="10">
 			<object>
 				<int32 name="ItemId">1003</int32>
-				<int32 name="Quantity">165</int32>
+				<int32 name="Quantity">170</int32>
 			</object>
 			<object>
 				<int32 name="ItemId">1004</int32>
@@ -168,7 +183,7 @@
 			</object>
 			<object>
 				<int32 name="ItemId">1001</int32>
-				<int32 name="Quantity">2700</int32>
+				<int32 name="Quantity">2800</int32>
 			</object>
 			<object>
 				<int32 name="ItemId">1002</int32>
