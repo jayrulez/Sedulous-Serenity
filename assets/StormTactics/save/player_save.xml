@@ -1,19 +1,19 @@
 <root>
 	<object name="PlayerData">
 		<int32 name="HeroLevel">6</int32>
-		<int32 name="HeroExp">35</int32>
-		<int32 name="Gold">51710</int32>
-		<int32 name="Gems">3960</int32>
+		<int32 name="HeroExp">385</int32>
+		<int32 name="Gold">52480</int32>
+		<int32 name="Gems">3970</int32>
 		<int32 name="ArenaTokens">0</int32>
 		<int32 name="GuildTokens">0</int32>
-		<int32 name="Stamina">112</int32>
-		<int64 name="LastStaminaTime">1771035919</int64>
+		<int32 name="Stamina">96</int32>
+		<int64 name="LastStaminaTime">1771041741</int64>
 		<int32 name="MaxStageClearedId">5</int32>
 		<array name="StageStars" count="5">
 			<object>
 				<int32 name="StageId">1</int32>
 				<int32 name="Stars">3</int32>
-				<int32 name="SweepCount">0</int32>
+				<int32 name="SweepCount">3</int32>
 				<int32 name="HardStars">2</int32>
 				<int32 name="HardSweepCount">0</int32>
 			</object>
@@ -151,11 +151,11 @@
 		<array name="Inventory" count="10">
 			<object>
 				<int32 name="ItemId">1003</int32>
-				<int32 name="Quantity">170</int32>
+				<int32 name="Quantity">185</int32>
 			</object>
 			<object>
 				<int32 name="ItemId">1004</int32>
-				<int32 name="Quantity">60</int32>
+				<int32 name="Quantity">63</int32>
 			</object>
 			<object>
 				<int32 name="ItemId">1005</int32>
@@ -183,7 +183,7 @@
 			</object>
 			<object>
 				<int32 name="ItemId">1001</int32>
-				<int32 name="Quantity">2800</int32>
+				<int32 name="Quantity">3250</int32>
 			</object>
 			<object>
 				<int32 name="ItemId">1002</int32>
@@ -319,7 +319,7 @@
 				<array name="Slots" count="0"/>
 			</object>
 		</array>
-		<int32 name="ActiveFormationIndex">2</int32>
+		<int32 name="ActiveFormationIndex">0</int32>
 		<array name="ShopPurchases" count="5">
 			<object>
 				<int32 name="ShopItemId">403</int32>
@@ -344,6 +344,9 @@
 		</array>
 		<int64 name="LastShopRefreshTime">1771017432</int64>
 		<int32 name="GachaPityCounter">10</int32>
+		<int64 name="LastDailyChallengeTime">1771040520</int64>
+		<int32 name="DailyChallengeDay">20498</int32>
+		<int32 name="DailyChallengesCompleted">2</int32>
 		<object name="GameSettings">
 			<bool name="InvertCameraPan">false</bool>
 			<bool name="AutoStepDefault">true</bool>

@@ -57,6 +57,7 @@ class StormTacticsGame : Application
 	private FormationScreen mFormationScreen;
 	private SettingsScreen mSettingsScreen;
 	private CampaignScreen mCampaignScreen;
+	private DailyChallengeScreen mDailyChallengeScreen;
 	private ToastNotification mToast;
 	private UnitSelectPopup mUnitSelectPopup;
 
@@ -77,12 +78,14 @@ class StormTacticsGame : Application
 	private ShopManager mShopManager;
 	private GachaManager mGachaManager;
 	private FormationManager mFormationManager;
+	private DailyChallengeManager mDailyChallengeManager;
 
 	// Current battle (created/destroyed per stage)
 	private BattleSimulation mCurrentSim;
 	private int32 mCurrentStageId;
 	private bool mRewardsProcessed;
 	private bool mCurrentBattleHardMode;
+	private int32 mCurrentChallengeIndex = -1; // -1 = not a challenge battle
 
 	// HUD state tracking
 	private PlayerTurnPhase mLastPlayerPhase = .Idle;
@@ -241,6 +244,10 @@ class StormTacticsGame : Application
 		mRewardProcessor = new RewardProcessor();
 		mRewardProcessor.Initialize(mPlayerManager, mInventoryManager, mConfigs);
 
+		// Daily challenge manager — rotating restricted battles
+		mDailyChallengeManager = new DailyChallengeManager();
+		mDailyChallengeManager.Initialize(mSaveManager.SaveData, mConfigs);
+
 		// Process stamina regen from offline time and check shop refresh
 		mPlayerManager.UpdateStaminaRegen();
 		mShopManager.CheckRefresh();
@@ -365,6 +372,16 @@ class StormTacticsGame : Application
 		mCampaignScreen.Show(mConfigs, mPlayerManager, mSaveManager.SaveData);
 	}
 
+	/// Show the daily challenge screen.
+	private void ShowDailyChallenges()
+	{
+		DestroyBattle();
+		mDailyChallengeManager.CheckDailyReset();
+		mGameState = .DailyChallenge;
+		mUISubsystem.GUIContext.RootElement = mDailyChallengeScreen.RootElement;
+		mDailyChallengeScreen.Show(mDailyChallengeManager);
+	}
+
 	/// Create a battle for the given stage.
 	private void CreateBattle(int32 stageId, bool isHardMode = false)
 	{
@@ -392,6 +409,7 @@ class StormTacticsGame : Application
 
 		mCurrentStageId = stageId;
 		mCurrentBattleHardMode = isHardMode;
+		mCurrentChallengeIndex = -1; // Not a challenge battle
 		mRewardsProcessed = false;
 
 		// Build player formation from active formation preset (or fallback to owned units)
@@ -467,6 +485,112 @@ class StormTacticsGame : Application
 		mBattleScene.ApplySettings(settings.mAutoStepDefault, settings.mAutoBattleDefault, (float)settings.mDefaultBattleSpeed, settings.mInvertCameraPan);
 
 		// Enter deployment mode
+		mBattleScene.EnterDeploymentMode();
+		mBattleHUD.ShowDeploymentPanel();
+		mBattleHUD.ResetResultState();
+		mDeployRosterSelectedUnitId = -1;
+		mDeployRosterDirty = true;
+		mGameState = .BattlePrepare;
+	}
+
+	/// Create a battle for a daily challenge.
+	private void CreateChallengeBattle(int32 challengeIndex)
+	{
+		if (mDailyChallengeManager.IsChallengeCompleted(challengeIndex))
+		{
+			ShowToast("Already completed today!");
+			return;
+		}
+
+		let tmpl = mDailyChallengeManager.GetChallenge(challengeIndex);
+		if (tmpl == null) return;
+
+		let stageConfig = mConfigs.GetStage(tmpl.mStageId);
+		if (stageConfig == null)
+		{
+			Console.WriteLine("ERROR: Challenge stage {} not found", tmpl.mStageId);
+			return;
+		}
+
+		mCurrentChallengeIndex = challengeIndex;
+		mCurrentStageId = tmpl.mStageId;
+		mCurrentBattleHardMode = false;
+		mRewardsProcessed = false;
+
+		// Build player formation from active preset, filtered by challenge restriction
+		let attackers = scope List<FormationSlot>();
+		let save = mSaveManager.SaveData;
+
+		if (save.mFormationPresets.Count > 0 && save.mActiveFormationIndex < (int32)save.mFormationPresets.Count)
+		{
+			let preset = save.mFormationPresets[save.mActiveFormationIndex];
+			for (let fSlot in preset.mSlots)
+			{
+				let unitConfig = mConfigs.GetUnit(fSlot.mUnitId);
+				if (unitConfig == null) continue;
+				if (save.GetOwnedUnit(fSlot.mUnitId) == null) continue;
+				if (!mDailyChallengeManager.IsUnitAllowed(challengeIndex, unitConfig)) continue;
+				let slot = scope :: FormationSlot();
+				slot.mUnitId = fSlot.mUnitId;
+				slot.mGridX = fSlot.mGridX;
+				slot.mGridY = fSlot.mGridY;
+				attackers.Add(slot);
+			}
+		}
+
+		// Fallback: use all owned units that pass the restriction
+		if (attackers.Count == 0)
+		{
+			int32 slotIdx = 0;
+			for (let owned in save.mOwnedUnits)
+			{
+				let unitConfig = mConfigs.GetUnit(owned.mUnitId);
+				if (unitConfig == null) continue;
+				if (!mDailyChallengeManager.IsUnitAllowed(challengeIndex, unitConfig)) continue;
+				let slot = scope :: FormationSlot();
+				slot.mUnitId = owned.mUnitId;
+				slot.mGridX = (int32)(slotIdx / 3);
+				slot.mGridY = (int32)(slotIdx % 3);
+				attackers.Add(slot);
+				slotIdx++;
+				if (slotIdx >= mPlayerManager.MaxFormationSlots) break;
+			}
+		}
+
+		// Grid sizing from stage enemy positions
+		int32 maxCol = 7, maxRow = 3;
+		for (let slot in stageConfig.mEnemyFormation)
+		{
+			if (slot.mGridX > maxCol) maxCol = slot.mGridX;
+			if (slot.mGridY > maxRow) maxRow = slot.mGridY;
+		}
+		let columns = Math.Max(maxCol + 1, BattleConstants.MIN_COLUMNS);
+		let rows = Math.Max(maxRow + 1, BattleConstants.MIN_ROWS);
+
+		// Create simulation
+		mCurrentSim = new BattleSimulation(mConfigs);
+		mCurrentSim.Initialize(attackers, stageConfig.mEnemyFormation, columns, rows, DateTime.Now.Ticks);
+
+		// Apply difficulty scaling
+		if (tmpl.mDifficultyScale > 1.0f)
+			mCurrentSim.ApplyDefenderScaling(tmpl.mDifficultyScale, tmpl.mDifficultyScale, tmpl.mDifficultyScale);
+
+		mCurrentSim.Difficulty = .Normal;
+		StampUnitLevels();
+
+		Console.WriteLine("Challenge battle created: '{}' — {}v{} on {}x{} grid (x{} difficulty)",
+			tmpl.mName, attackers.Count, stageConfig.mEnemyFormation.Count, columns, rows, tmpl.mDifficultyScale);
+
+		// Create battle scene
+		let renderModule = mMainScene.GetModule<RenderSceneModule>();
+		mBattleScene = new BattleScene();
+		mBattleScene.Initialize(mMainScene, renderModule, mRenderSystem, mOverlayFeature, mCurrentSim, 1.0f);
+
+		let settings = mSaveManager.SaveData.mGameSettings;
+		mBattleScene.ApplySettings(settings.mAutoStepDefault, settings.mAutoBattleDefault, (float)settings.mDefaultBattleSpeed, settings.mInvertCameraPan);
+
+		// Switch to battle HUD and enter deployment
+		mUISubsystem.GUIContext.RootElement = mBattleHUD.RootElement;
 		mBattleScene.EnterDeploymentMode();
 		mBattleHUD.ShowDeploymentPanel();
 		mBattleHUD.ResetResultState();
@@ -726,9 +850,21 @@ class StormTacticsGame : Application
 			OnSweepStage(stageId, isHardMode);
 		});
 
+		// Create daily challenge screen
+		mDailyChallengeScreen = new DailyChallengeScreen();
+		mDailyChallengeScreen.OnBack.Subscribe(new () => {
+			ShowCityHub();
+		});
+		mDailyChallengeScreen.OnStartChallenge.Subscribe(new (index) => {
+			CreateChallengeBattle(index);
+		});
+
 		// Wire city hub navigation events
 		mCityHubScreen.OnCampaign.Subscribe(new () => {
 			ShowStageSelect();
+		});
+		mCityHubScreen.OnChallenges.Subscribe(new () => {
+			ShowDailyChallenges();
 		});
 		mCityHubScreen.OnRoster.Subscribe(new () => {
 			ShowRoster();
@@ -808,10 +944,30 @@ class StormTacticsGame : Application
 					return;
 				}
 
-				// Spend stamina now that battle is actually starting
-				let stageConfig = mConfigs.GetStage(mCurrentStageId);
-				if (stageConfig != null)
-					mPlayerManager.TrySpendStamina(stageConfig.mStaminaCost);
+				// For challenge battles, validate all deployed units pass restriction
+				if (mCurrentChallengeIndex >= 0)
+				{
+					for (int32 i = 0; i < mCurrentSim.UnitCount; i++)
+					{
+						let unit = mCurrentSim.GetUnit(i);
+						if (unit != null && unit.mAlive && unit.mForce == .Attacker)
+						{
+							if (!mDailyChallengeManager.IsUnitAllowed(mCurrentChallengeIndex, unit.mConfig))
+							{
+								ShowToast("Some units don't meet the challenge restriction!");
+								return;
+							}
+						}
+					}
+					// No stamina cost for challenges
+				}
+				else
+				{
+					// Spend stamina now that battle is actually starting
+					let stageConfig = mConfigs.GetStage(mCurrentStageId);
+					if (stageConfig != null)
+						mPlayerManager.TrySpendStamina(stageConfig.mStaminaCost);
+				}
 
 				mBattleScene.StartBattle();
 				mBattleHUD.HideDeploymentPanel();
@@ -832,7 +988,13 @@ class StormTacticsGame : Application
 			OnDeployRemoveUnit();
 		});
 		mBattleHUD.OnContinue.Subscribe(new () => {
-			ShowStageSelect();
+			if (mCurrentChallengeIndex >= 0)
+			{
+				mCurrentChallengeIndex = -1;
+				ShowDailyChallenges();
+			}
+			else
+				ShowStageSelect();
 		});
 
 		// Toast notification
@@ -921,6 +1083,10 @@ class StormTacticsGame : Application
 		// Update gacha reveal animation
 		if (mGameState == .Gacha)
 			mGachaScreen.Update(mDeltaTime);
+
+		// Update daily challenge timer
+		if (mGameState == .DailyChallenge)
+			mDailyChallengeScreen.UpdateTimer(mDailyChallengeManager.SecondsUntilReset);
 
 		if (mBattleScene != null)
 		{
@@ -1066,6 +1232,9 @@ class StormTacticsGame : Application
 				{
 					let config = mConfigs.GetUnit(owned.mUnitId);
 					if (config == null) continue;
+					// Filter by challenge restriction
+					if (mCurrentChallengeIndex >= 0 && !mDailyChallengeManager.IsUnitAllowed(mCurrentChallengeIndex, config))
+						continue;
 					var info = RosterUnitInfo();
 					info.mUnitId = owned.mUnitId;
 					info.mName = config.mName;
@@ -1255,22 +1424,47 @@ class StormTacticsGame : Application
 			if (!mRewardsProcessed && sim.State == .AttackerWins)
 			{
 				mRewardsProcessed = true;
-				let rewards = mRewardProcessor.ProcessStageRewards(mCurrentStageId, result.mStarRating, mCurrentBattleHardMode);
-				defer delete rewards;
 
-				// Build display info for HUD
-				var rewardInfos = scope RewardDisplayInfo[rewards.mItems.Count];
-				for (int32 i = 0; i < (int32)rewards.mItems.Count; i++)
+				if (mCurrentChallengeIndex >= 0)
 				{
-					rewardInfos[i].mName = rewards.mItems[i].mItemName;
-					rewardInfos[i].mQuantity = rewards.mItems[i].mQuantity;
+					// Challenge rewards — flat gold/exp/gems
+					let tmpl = mDailyChallengeManager.GetChallenge(mCurrentChallengeIndex);
+					if (tmpl != null)
+					{
+						mPlayerManager.AddGold(tmpl.mGoldReward);
+						if (tmpl.mGemReward > 0)
+							mPlayerManager.AddGems(tmpl.mGemReward);
+						mPlayerManager.AddHeroExp(tmpl.mExpReward);
+						mDailyChallengeManager.MarkCompleted(mCurrentChallengeIndex);
+						mSaveManager.Save();
+
+						var emptyRewards = scope RewardDisplayInfo[0];
+						mBattleHUD.ShowRewards(tmpl.mGoldReward, tmpl.mExpReward, tmpl.mGemReward, false, emptyRewards);
+
+						Console.WriteLine("[Challenge] Completed '{}' — +{} gold, +{} EXP, +{} gems",
+							tmpl.mName, tmpl.mGoldReward, tmpl.mExpReward, tmpl.mGemReward);
+					}
 				}
+				else
+				{
+					// Campaign rewards
+					let rewards = mRewardProcessor.ProcessStageRewards(mCurrentStageId, result.mStarRating, mCurrentBattleHardMode);
+					defer delete rewards;
 
-				mBattleHUD.ShowRewards(rewards.mGoldGained, rewards.mExpGained, rewards.mGemsGained, rewards.mIsFirstClear, rewardInfos);
-				mSaveManager.Save();
+					// Build display info for HUD
+					var rewardInfos = scope RewardDisplayInfo[rewards.mItems.Count];
+					for (int32 i = 0; i < (int32)rewards.mItems.Count; i++)
+					{
+						rewardInfos[i].mName = rewards.mItems[i].mItemName;
+						rewardInfos[i].mQuantity = rewards.mItems[i].mQuantity;
+					}
 
-				Console.WriteLine("[Rewards] +{} gold, +{} EXP, {} items",
-					rewards.mGoldGained, rewards.mExpGained, rewards.mItems.Count);
+					mBattleHUD.ShowRewards(rewards.mGoldGained, rewards.mExpGained, rewards.mGemsGained, rewards.mIsFirstClear, rewardInfos);
+					mSaveManager.Save();
+
+					Console.WriteLine("[Rewards] +{} gold, +{} EXP, {} items",
+						rewards.mGoldGained, rewards.mExpGained, rewards.mItems.Count);
+				}
 			}
 		}
 	}
@@ -1294,8 +1488,12 @@ class StormTacticsGame : Application
 			let save = mSaveManager.SaveData;
 			for (let fSlot in preset.mSlots)
 			{
-				if (mConfigs.GetUnit(fSlot.mUnitId) == null) continue;
+				let unitConfig = mConfigs.GetUnit(fSlot.mUnitId);
+				if (unitConfig == null) continue;
 				if (save.GetOwnedUnit(fSlot.mUnitId) == null) continue;
+				// Filter by challenge restriction
+				if (mCurrentChallengeIndex >= 0 && !mDailyChallengeManager.IsUnitAllowed(mCurrentChallengeIndex, unitConfig))
+					continue;
 				let slot = scope :: FormationSlot();
 				slot.mUnitId = fSlot.mUnitId;
 				slot.mGridX = fSlot.mGridX;
@@ -1575,6 +1773,8 @@ class StormTacticsGame : Application
 		mSettingsScreen = null;
 		delete mCampaignScreen;
 		mCampaignScreen = null;
+		delete mDailyChallengeScreen;
+		mDailyChallengeScreen = null;
 		delete mFormationScreen;
 		mFormationScreen = null;
 		delete mGachaScreen;
@@ -1607,6 +1807,8 @@ class StormTacticsGame : Application
 
 		// 4. Metagame systems — save before exit
 		mSaveManager?.Save();
+		delete mDailyChallengeManager;
+		mDailyChallengeManager = null;
 		delete mRewardProcessor;
 		mRewardProcessor = null;
 		delete mRosterManager;

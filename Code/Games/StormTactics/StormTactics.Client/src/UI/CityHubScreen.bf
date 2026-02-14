@@ -24,6 +24,7 @@ class CityHubScreen
 
 	// Navigation buttons
 	private Button mCampaignButton;
+	private Button mChallengesButton;
 	private Button mRosterButton;
 	private Button mInventoryButton;
 	private Button mFormationButton;
@@ -33,6 +34,7 @@ class CityHubScreen
 
 	// Events
 	private EventAccessor<HubNavigationDelegate> mOnCampaign = new .() ~ delete _;
+	private EventAccessor<HubNavigationDelegate> mOnChallenges = new .() ~ delete _;
 	private EventAccessor<HubNavigationDelegate> mOnRoster = new .() ~ delete _;
 	private EventAccessor<HubNavigationDelegate> mOnInventory = new .() ~ delete _;
 	private EventAccessor<HubNavigationDelegate> mOnFormation = new .() ~ delete _;
@@ -41,6 +43,7 @@ class CityHubScreen
 	private EventAccessor<HubNavigationDelegate> mOnSettings = new .() ~ delete _;
 
 	public EventAccessor<HubNavigationDelegate> OnCampaign => mOnCampaign;
+	public EventAccessor<HubNavigationDelegate> OnChallenges => mOnChallenges;
 	public EventAccessor<HubNavigationDelegate> OnRoster => mOnRoster;
 	public EventAccessor<HubNavigationDelegate> OnInventory => mOnInventory;
 	public EventAccessor<HubNavigationDelegate> OnFormation => mOnFormation;
@@ -192,6 +195,10 @@ class CityHubScreen
 		mCampaignButton = CreateNavButton("Campaign", "Battle through stages", Color(180, 80, 60));
 		mCampaignButton.Click.Subscribe(new (btn) => { mOnCampaign.[Friend]Invoke(); });
 		row1.AddChild(mCampaignButton);
+
+		mChallengesButton = CreateNavButton("Challenges", "Daily battles", Color(200, 120, 40));
+		mChallengesButton.Click.Subscribe(new (btn) => { mOnChallenges.[Friend]Invoke(); });
+		row1.AddChild(mChallengesButton);
 
 		mRosterButton = CreateNavButton("Roster", "Manage your units", Color(60, 140, 180));
 		mRosterButton.Click.Subscribe(new (btn) => { mOnRoster.[Friend]Invoke(); });

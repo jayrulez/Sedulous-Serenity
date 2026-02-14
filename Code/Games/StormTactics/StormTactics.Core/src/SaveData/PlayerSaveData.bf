@@ -41,6 +41,11 @@ class PlayerSaveData : ISerializable
 	// Gacha
 	public int32 mGachaPityCounter;
 
+	// Daily challenges
+	public int64 mLastDailyChallengeTime;
+	public int32 mDailyChallengeDay;
+	public int32 mDailyChallengesCompleted; // Bitmask: bit 0/1/2 = challenge 1/2/3
+
 	// Settings
 	public GameSettings mGameSettings = new .() ~ delete _;
 
@@ -71,6 +76,9 @@ class PlayerSaveData : ISerializable
 		s.ObjectList("ShopPurchases", mShopPurchases);
 		s.Int64("LastShopRefreshTime", ref mLastShopRefreshTime);
 		s.Int32("GachaPityCounter", ref mGachaPityCounter);
+		s.Int64("LastDailyChallengeTime", ref mLastDailyChallengeTime);
+		s.Int32("DailyChallengeDay", ref mDailyChallengeDay);
+		s.Int32("DailyChallengesCompleted", ref mDailyChallengesCompleted);
 		s.Object("GameSettings", ref mGameSettings);
 
 		return .Ok;

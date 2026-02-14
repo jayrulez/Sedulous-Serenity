@@ -16,5 +16,6 @@ enum GameState : int32
 	Settings = 11,
 	Inventory = 12,
 	Gacha = 13,
-	Formation = 14
+	Formation = 14,
+	DailyChallenge = 15
 }
