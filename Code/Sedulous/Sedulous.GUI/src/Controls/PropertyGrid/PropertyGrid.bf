@@ -114,6 +114,13 @@ public class PropertyGrid : Control
 	private bool mShowScrollBar = false;
 	private float mScrollBarThickness = 12;
 
+	// Image support
+	private ImageBrush? mGridBackgroundImage;
+	private ImageBrush? mCategoryImage;
+	private ImageBrush? mCategoryHoverImage;
+	private ImageBrush? mPropertyImage;
+	private ImageBrush? mPropertyHoverImage;
+
 	// Theme colors (computed from palette)
 	private Color mBackgroundColor;
 	private Color mBorderColor;
@@ -167,6 +174,41 @@ public class PropertyGrid : Control
 	{
 		get => mNameColumnWidth;
 		set { mNameColumnWidth = Math.Max(50, value); InvalidateLayout(); }
+	}
+
+	/// Image for the grid background (replaces background fill + border).
+	public ImageBrush? GridBackgroundImage
+	{
+		get => mGridBackgroundImage;
+		set => mGridBackgroundImage = value;
+	}
+
+	/// Image for category header backgrounds.
+	public ImageBrush? CategoryImage
+	{
+		get => mCategoryImage;
+		set => mCategoryImage = value;
+	}
+
+	/// Image for hovered category header backgrounds.
+	public ImageBrush? CategoryHoverImage
+	{
+		get => mCategoryHoverImage;
+		set => mCategoryHoverImage = value;
+	}
+
+	/// Image for property row backgrounds.
+	public ImageBrush? PropertyImage
+	{
+		get => mPropertyImage;
+		set => mPropertyImage = value;
+	}
+
+	/// Image for hovered property row backgrounds.
+	public ImageBrush? PropertyHoverImage
+	{
+		get => mPropertyHoverImage;
+		set => mPropertyHoverImage = value;
 	}
 
 	/// Event fired when a property value changes.
@@ -429,7 +471,10 @@ public class PropertyGrid : Control
 		if (mShowScrollBar) contentWidth -= mScrollBarThickness;
 
 		// Background
-		ctx.FillRect(bounds, mBackgroundColor);
+		if (mGridBackgroundImage.HasValue && mGridBackgroundImage.Value.IsValid)
+			ctx.DrawImageBrush(mGridBackgroundImage.Value, bounds);
+		else
+			ctx.FillRect(bounds, mBackgroundColor);
 
 		// Clip content
 		let contentBounds = RectangleF(bounds.X, bounds.Y, contentWidth, bounds.Height);
@@ -483,15 +528,29 @@ public class PropertyGrid : Control
 		if (mShowScrollBar)
 			mVerticalScrollBar.Render(ctx);
 
-		// Border
-		ctx.DrawRect(bounds, mBorderColor, 1);
+		// Border (skip when using grid background image)
+		if (!mGridBackgroundImage.HasValue || !mGridBackgroundImage.Value.IsValid)
+			ctx.DrawRect(bounds, mBorderColor, 1);
 	}
 
 	private void RenderCategory(DrawContext ctx, RectangleF bounds, PropertyCategory category, bool isHovered)
 	{
 		// Background
-		let bgColor = isHovered ? mCategoryHoverColor : mCategoryBackgroundColor;
-		ctx.FillRect(bounds, bgColor);
+		let hoverImg = isHovered ? mCategoryHoverImage : (ImageBrush?)null;
+		let normalImg = mCategoryImage;
+		let catImage = hoverImg.HasValue && hoverImg.Value.IsValid ? hoverImg : normalImg;
+		if (catImage.HasValue && catImage.Value.IsValid)
+		{
+			var img = catImage.Value;
+			if (isHovered && (!mCategoryHoverImage.HasValue || !mCategoryHoverImage.Value.IsValid))
+				img.Tint = Palette.Lighten(img.Tint, 0.10f);
+			ctx.DrawImageBrush(img, bounds);
+		}
+		else
+		{
+			let bgColor = isHovered ? mCategoryHoverColor : mCategoryBackgroundColor;
+			ctx.FillRect(bounds, bgColor);
+		}
 
 		// Clip text to name column width so it doesn't extend past splitter
 		let textClipBounds = RectangleF(bounds.X, bounds.Y, mNameColumnWidth, bounds.Height);
@@ -513,8 +572,21 @@ public class PropertyGrid : Control
 	private void RenderProperty(DrawContext ctx, RectangleF bounds, PropertyItem prop, bool isHovered, bool isEditing)
 	{
 		// Background
-		let bgColor = isHovered ? mPropertyHoverColor : mPropertyBackgroundColor;
-		ctx.FillRect(bounds, bgColor);
+		let hoverImg = isHovered ? mPropertyHoverImage : (ImageBrush?)null;
+		let normalImg = mPropertyImage;
+		let propImage = hoverImg.HasValue && hoverImg.Value.IsValid ? hoverImg : normalImg;
+		if (propImage.HasValue && propImage.Value.IsValid)
+		{
+			var img = propImage.Value;
+			if (isHovered && (!mPropertyHoverImage.HasValue || !mPropertyHoverImage.Value.IsValid))
+				img.Tint = Palette.Lighten(img.Tint, 0.10f);
+			ctx.DrawImageBrush(img, bounds);
+		}
+		else
+		{
+			let bgColor = isHovered ? mPropertyHoverColor : mPropertyBackgroundColor;
+			ctx.FillRect(bounds, bgColor);
+		}
 
 		// Property name
 		let nameBounds = RectangleF(bounds.X, bounds.Y, mNameColumnWidth, mRowHeight);

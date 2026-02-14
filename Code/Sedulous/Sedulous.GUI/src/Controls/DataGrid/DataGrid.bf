@@ -48,6 +48,12 @@ public class DataGrid : Control
 	private EventAccessor<delegate void(DataGrid)> mSelectionChanged = new .() ~ delete _;
 	private EventAccessor<delegate void(DataGrid, DataGridColumn)> mSortChanged = new .() ~ delete _;
 
+	// Image support
+	private ImageBrush? mGridBackgroundImage;
+	private ImageBrush? mHeaderImage;
+	private ImageBrush? mRowSelectionImage;
+	private ImageBrush? mRowHoverImage;
+
 	// Theme colors (computed from palette)
 	private Color mBackgroundColor;
 	private Color mBorderColor;
@@ -142,6 +148,34 @@ public class DataGrid : Control
 
 	/// Event fired when selection changes.
 	public EventAccessor<delegate void(DataGrid)> SelectionChanged => mSelectionChanged;
+
+	/// Image for the grid background (replaces background fill + border).
+	public ImageBrush? GridBackgroundImage
+	{
+		get => mGridBackgroundImage;
+		set => mGridBackgroundImage = value;
+	}
+
+	/// Image for the header row background.
+	public ImageBrush? HeaderImage
+	{
+		get => mHeaderImage;
+		set => mHeaderImage = value;
+	}
+
+	/// Image for selected row backgrounds.
+	public ImageBrush? RowSelectionImage
+	{
+		get => mRowSelectionImage;
+		set => mRowSelectionImage = value;
+	}
+
+	/// Image for hovered row backgrounds.
+	public ImageBrush? RowHoverImage
+	{
+		get => mRowHoverImage;
+		set => mRowHoverImage = value;
+	}
 
 	/// Event fired when sort changes.
 	public EventAccessor<delegate void(DataGrid, DataGridColumn)> SortChanged => mSortChanged;
@@ -451,7 +485,10 @@ public class DataGrid : Control
 		let bounds = ArrangedBounds;
 
 		// Background
-		ctx.FillRect(bounds, mBackgroundColor);
+		if (mGridBackgroundImage.HasValue && mGridBackgroundImage.Value.IsValid)
+			ctx.DrawImageBrush(mGridBackgroundImage.Value, bounds);
+		else
+			ctx.FillRect(bounds, mBackgroundColor);
 
 		// Calculate viewport
 		float viewportWidth = bounds.Width;
@@ -476,14 +513,18 @@ public class DataGrid : Control
 		if (mShowHorizontalScrollBar)
 			mHorizontalScrollBar.Render(ctx);
 
-		// Border
-		ctx.DrawRect(bounds, mBorderColor, 1);
+		// Border (skip when using grid background image)
+		if (!mGridBackgroundImage.HasValue || !mGridBackgroundImage.Value.IsValid)
+			ctx.DrawRect(bounds, mBorderColor, 1);
 	}
 
 	private void RenderHeader(DrawContext ctx, RectangleF headerBounds)
 	{
 		// Header background
-		ctx.FillRect(headerBounds, mHeaderBackgroundColor);
+		if (mHeaderImage.HasValue && mHeaderImage.Value.IsValid)
+			ctx.DrawImageBrush(mHeaderImage.Value, headerBounds);
+		else
+			ctx.FillRect(headerBounds, mHeaderBackgroundColor);
 
 		// Clip to header bounds
 		ctx.PushClipRect(headerBounds);
@@ -502,8 +543,9 @@ public class DataGrid : Control
 
 		ctx.PopClip();
 
-		// Header bottom border
-		ctx.DrawLine(.(headerBounds.X, headerBounds.Bottom - 1), .(headerBounds.Right, headerBounds.Bottom - 1), mHeaderBorderColor, 1);
+		// Header bottom border (skip when using header image)
+		if (!mHeaderImage.HasValue || !mHeaderImage.Value.IsValid)
+			ctx.DrawLine(.(headerBounds.X, headerBounds.Bottom - 1), .(headerBounds.Right, headerBounds.Bottom - 1), mHeaderBorderColor, 1);
 	}
 
 	private void RenderRows(DrawContext ctx, RectangleF rowsBounds)
@@ -541,17 +583,32 @@ public class DataGrid : Control
 		let isFocused = mFocusedIndex == dataIndex && IsFocused;
 
 		// Row background
-		Color bgColor;
-		if (isSelected)
-			bgColor = mSelectionColor;
-		else if (isHovered)
-			bgColor = mRowHoverColor;
-		else if (displayIndex % 2 == 1)
-			bgColor = mRowAlternateColor;
-		else
-			bgColor = mRowBackgroundColor;
+		bool drewImage = false;
+		if (isSelected && mRowSelectionImage.HasValue && mRowSelectionImage.Value.IsValid)
+		{
+			ctx.DrawImageBrush(mRowSelectionImage.Value, rowBounds);
+			drewImage = true;
+		}
+		else if (isHovered && mRowHoverImage.HasValue && mRowHoverImage.Value.IsValid)
+		{
+			ctx.DrawImageBrush(mRowHoverImage.Value, rowBounds);
+			drewImage = true;
+		}
 
-		ctx.FillRect(rowBounds, bgColor);
+		if (!drewImage)
+		{
+			Color bgColor;
+			if (isSelected)
+				bgColor = mSelectionColor;
+			else if (isHovered)
+				bgColor = mRowHoverColor;
+			else if (displayIndex % 2 == 1)
+				bgColor = mRowAlternateColor;
+			else
+				bgColor = mRowBackgroundColor;
+
+			ctx.FillRect(rowBounds, bgColor);
+		}
 
 		// Focus indicator
 		if (isFocused)

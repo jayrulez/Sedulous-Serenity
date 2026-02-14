@@ -22,6 +22,7 @@ public abstract class DataGridColumn
 	private bool mCanResize = true;
 	private bool mCanSort = true;
 	private SortDirection? mSortDirection = null;
+	private ImageBrush? mHeaderCellImage;
 
 	/// The column header text.
 	public StringView Header
@@ -87,6 +88,13 @@ public abstract class DataGridColumn
 		set => mSortDirection = value;
 	}
 
+	/// Image for the header cell background (replaces color fill).
+	public ImageBrush? HeaderCellImage
+	{
+		get => mHeaderCellImage;
+		set => mHeaderCellImage = value;
+	}
+
 	/// Creates a new column with the given header.
 	public this(StringView header)
 	{
@@ -139,8 +147,18 @@ public abstract class DataGridColumn
 		let accentColor = palette.Accent.A > 0 ? palette.Accent : defaultAccentColor;
 
 		// Header background
-		let bgColor = isHovered ? (headerStyle.Hover.Background ?? Palette.ComputeHover(baseBgColor)) : baseBgColor;
-		ctx.FillRect(bounds, bgColor);
+		if (mHeaderCellImage.HasValue && mHeaderCellImage.Value.IsValid)
+		{
+			var img = mHeaderCellImage.Value;
+			if (isHovered)
+				img.Tint = Palette.Lighten(img.Tint, 0.10f);
+			ctx.DrawImageBrush(img, bounds);
+		}
+		else
+		{
+			let bgColor = isHovered ? (headerStyle.Hover.Background ?? Palette.ComputeHover(baseBgColor)) : baseBgColor;
+			ctx.FillRect(bounds, bgColor);
+		}
 
 		// Header text
 		let fontSize = 12.0f;
