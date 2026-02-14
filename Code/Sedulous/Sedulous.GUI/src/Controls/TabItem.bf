@@ -15,6 +15,10 @@ public class TabItem : ContentControl, ISelectable
 	private bool mIsCloseable = false;
 	private int mIndex = -1;
 
+	// Image support
+	private ImageBrush? mActiveTabImage;
+	private ImageBrush? mInactiveTabImage;
+
 	// Events
 	private EventAccessor<delegate void(TabItem)> mCloseRequested = new .() ~ delete _;
 
@@ -117,6 +121,20 @@ public class TabItem : ContentControl, ISelectable
 	/// Event fired when the close button is clicked.
 	public EventAccessor<delegate void(TabItem)> CloseRequested => mCloseRequested;
 
+	/// Image for the active (selected) tab header background.
+	public ImageBrush? ActiveTabImage
+	{
+		get => mActiveTabImage;
+		set => mActiveTabImage = value;
+	}
+
+	/// Image for the inactive (unselected) tab header background.
+	public ImageBrush? InactiveTabImage
+	{
+		get => mInactiveTabImage;
+		set => mInactiveTabImage = value;
+	}
+
 	/// Gets the selection background color from theme.
 	protected Color SelectionBackground
 	{
@@ -218,22 +236,34 @@ public class TabItem : ContentControl, ISelectable
 		let surfaceColor = palette.Surface.A > 0 ? palette.Surface : Color(45, 45, 45, 255);
 		let textColor = palette.Text.A > 0 ? palette.Text : Color(200, 200, 200, 255);
 
-		// Draw background based on state
-		Color bgColor;
-		if (mIsSelected)
+		// Try image-based tab header first
+		ImageBrush? tabImage = mIsSelected ? mActiveTabImage : mInactiveTabImage;
+		if (tabImage.HasValue && tabImage.Value.IsValid)
 		{
-			bgColor = SelectionBackground;
-		}
-		else if (isHovered)
-		{
-			bgColor = Palette.ComputeHover(Background.A > 0 ? Background : surfaceColor);
+			var img = tabImage.Value;
+			if (isHovered && !mIsSelected)
+				img.Tint = Palette.Lighten(img.Tint, 0.10f);
+			ctx.DrawImageBrush(img, bounds);
 		}
 		else
 		{
-			bgColor = Background.A > 0 ? Background : Palette.Lighten(surfaceColor, 0.1f);
-		}
+			// Draw background based on state
+			Color bgColor;
+			if (mIsSelected)
+			{
+				bgColor = SelectionBackground;
+			}
+			else if (isHovered)
+			{
+				bgColor = Palette.ComputeHover(Background.A > 0 ? Background : surfaceColor);
+			}
+			else
+			{
+				bgColor = Background.A > 0 ? Background : Palette.Lighten(surfaceColor, 0.1f);
+			}
 
-		ctx.FillRect(bounds, bgColor);
+			ctx.FillRect(bounds, bgColor);
+		}
 
 		// Draw header content
 		if (mHeader != null)

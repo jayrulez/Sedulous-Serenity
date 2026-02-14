@@ -51,14 +51,14 @@ Each needs its own image integration:
 - [x] Tooltip — BackgroundImage support (replaces background + border)
 
 ### Medium Priority
-- [ ] CheckBox — indicator box image (checked/unchecked/indeterminate states)
-- [ ] RadioButton — indicator circle image (selected/unselected states)
-- [ ] ToggleSwitch — track image + knob image (on/off states)
-- [ ] ListBoxItem — selected/hover row background image
-- [ ] TreeViewItem — selected/hover row background image + expander arrow image
-- [ ] TileViewItem — tile background image
-- [ ] TabItem (TabControl tabs) — active/inactive tab image
-- [ ] ComboBox dropdown arrow — arrow image instead of drawn triangle
+- [x] CheckBox — indicator box image (checked/unchecked/indeterminate states)
+- [x] RadioButton — indicator circle image (selected/unselected states)
+- [x] ToggleSwitch — track image + knob image (on/off states)
+- [x] ListBoxItem — selected/hover row background image
+- [x] TreeViewItem — selected/hover row background image + expander arrow image
+- [x] TileViewItem — tile background image
+- [x] TabItem (TabControl tabs) — active/inactive tab image
+- [x] ComboBox dropdown arrow — arrow image instead of drawn triangle
 
 ### Lower Priority (less visible in game UI)
 - [ ] MenuItem — hover/selected row image

@@ -33,6 +33,12 @@ public class TreeViewItem : Control, ISelectable
 	// Hover state (set by parent TreeView)
 	internal bool mIsHovered = false;
 
+	// Image support
+	private ImageBrush? mSelectionImage;
+	private ImageBrush? mHoverImage;
+	private ImageBrush? mExpandedArrowImage;
+	private ImageBrush? mCollapsedArrowImage;
+
 	/// Creates a new TreeViewItem.
 	public this()
 	{
@@ -110,6 +116,34 @@ public class TreeViewItem : Control, ISelectable
 	{
 		get => mTag;
 		set => mTag = value;
+	}
+
+	/// Image for selected row background.
+	public ImageBrush? SelectionImage
+	{
+		get => mSelectionImage;
+		set => mSelectionImage = value;
+	}
+
+	/// Image for hovered row background.
+	public ImageBrush? HoverImage
+	{
+		get => mHoverImage;
+		set => mHoverImage = value;
+	}
+
+	/// Image for the expanded state arrow (replaces drawn triangle).
+	public ImageBrush? ExpandedArrowImage
+	{
+		get => mExpandedArrowImage;
+		set => mExpandedArrowImage = value;
+	}
+
+	/// Image for the collapsed state arrow (replaces drawn triangle).
+	public ImageBrush? CollapsedArrowImage
+	{
+		get => mCollapsedArrowImage;
+		set => mCollapsedArrowImage = value;
 	}
 
 	// === Child Management ===
@@ -276,20 +310,30 @@ public class TreeViewItem : Control, ISelectable
 		// Get colors from theme
 		let palette = Context?.Theme?.Palette ?? Palette();
 		let foreground = Foreground.A > 0 ? Foreground : (palette.Text.A > 0 ? palette.Text : Color(200, 200, 200, 255));
-		Color bgColor = Color.Transparent;
 
-		if (mIsSelected)
+		// Draw background (image or color)
+		if (mIsSelected && mSelectionImage.HasValue && mSelectionImage.Value.IsValid)
 		{
-			let selectionColor = Context?.Theme?.SelectionColor ?? Color(100, 149, 237, 100);
-			// Make selection fully opaque for tree items
-			bgColor = selectionColor.A < 200 ? Color(selectionColor.R, selectionColor.G, selectionColor.B, 255) : selectionColor;
+			ctx.DrawImageBrush(mSelectionImage.Value, bounds);
 		}
-		else if (mIsHovered)
-			bgColor = Palette.ComputeHover(palette.Surface.A > 0 ? palette.Surface : Color(45, 45, 45, 255));
+		else if (mIsHovered && !mIsSelected && mHoverImage.HasValue && mHoverImage.Value.IsValid)
+		{
+			ctx.DrawImageBrush(mHoverImage.Value, bounds);
+		}
+		else
+		{
+			Color bgColor = Color.Transparent;
+			if (mIsSelected)
+			{
+				let selectionColor = Context?.Theme?.SelectionColor ?? Color(100, 149, 237, 100);
+				bgColor = selectionColor.A < 200 ? Color(selectionColor.R, selectionColor.G, selectionColor.B, 255) : selectionColor;
+			}
+			else if (mIsHovered)
+				bgColor = Palette.ComputeHover(palette.Surface.A > 0 ? palette.Surface : Color(45, 45, 45, 255));
 
-		// Draw background
-		if (bgColor.A > 0)
-			ctx.FillRect(bounds, bgColor);
+			if (bgColor.A > 0)
+				ctx.FillRect(bounds, bgColor);
+		}
 
 		// Draw expander arrow (if has children)
 		if (HasChildren)
@@ -297,8 +341,15 @@ public class TreeViewItem : Control, ISelectable
 			let arrowSize = 10f;
 			let arrowX = bounds.X + indent + 4;
 			let arrowY = bounds.Y + (cItemHeight - arrowSize) / 2;
+			let arrowRect = RectangleF(arrowX, arrowY, arrowSize, arrowSize);
 
-			if (mIsExpanded)
+			// Try image-based arrow first
+			ImageBrush? arrowImage = mIsExpanded ? mExpandedArrowImage : mCollapsedArrowImage;
+			if (arrowImage.HasValue && arrowImage.Value.IsValid)
+			{
+				ctx.DrawImageBrush(arrowImage.Value, arrowRect);
+			}
+			else if (mIsExpanded)
 			{
 				// Down arrow (expanded)
 				Vector2[3] arrowPoints = .(

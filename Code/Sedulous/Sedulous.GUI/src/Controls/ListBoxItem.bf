@@ -10,6 +10,8 @@ public class ListBoxItem : ContentControl, ISelectable
 {
 	private bool mIsSelected = false;
 	private int mIndex = -1;
+	private ImageBrush? mSelectionImage;
+	private ImageBrush? mHoverImage;
 
 	/// Creates a new ListBoxItem.
 	public this()
@@ -60,14 +62,40 @@ public class ListBoxItem : ContentControl, ISelectable
 		}
 	}
 
+	/// Image for the selected row background.
+	public ImageBrush? SelectionImage
+	{
+		get => mSelectionImage;
+		set => mSelectionImage = value;
+	}
+
+	/// Image for the hovered row background.
+	public ImageBrush? HoverImage
+	{
+		get => mHoverImage;
+		set => mHoverImage = value;
+	}
+
 	/// Renders the item with selection highlight if selected.
 	protected override void RenderOverride(DrawContext ctx)
 	{
 		let bounds = ArrangedBounds;
 
-		// Draw background with state (selected or hover)
-		let bgColor = GetStateBackground();
-		ctx.FillRect(bounds, bgColor);
+		// Try image-based backgrounds first
+		if (mIsSelected && mSelectionImage.HasValue && mSelectionImage.Value.IsValid)
+		{
+			ctx.DrawImageBrush(mSelectionImage.Value, bounds);
+		}
+		else if (!mIsSelected && IsHoveredByParent && mHoverImage.HasValue && mHoverImage.Value.IsValid)
+		{
+			ctx.DrawImageBrush(mHoverImage.Value, bounds);
+		}
+		else
+		{
+			// Draw background with state (selected or hover)
+			let bgColor = GetStateBackground();
+			ctx.FillRect(bounds, bgColor);
+		}
 
 		// Draw content
 		Content?.Render(ctx);

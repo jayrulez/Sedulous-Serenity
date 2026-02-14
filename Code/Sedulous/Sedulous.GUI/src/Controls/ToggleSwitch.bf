@@ -11,6 +11,8 @@ public class ToggleSwitch : ToggleButton
 	private float mTrackHeight = 24;
 	private float mKnobSize = 20;
 	private float mAnimationProgress = 0; // 0 = off position, 1 = on position
+	private ImageBrush? mTrackImage;
+	private ImageBrush? mKnobImage;
 
 	/// Creates a new ToggleSwitch.
 	public this() : base()
@@ -60,6 +62,20 @@ public class ToggleSwitch : ToggleButton
 	{
 		get => mKnobSize;
 		set => mKnobSize = Math.Max(12, value);
+	}
+
+	/// Image for the track background (replaces color-based track).
+	public ImageBrush? TrackImage
+	{
+		get => mTrackImage;
+		set => mTrackImage = value;
+	}
+
+	/// Image for the knob (replaces color-based knob).
+	public ImageBrush? KnobImage
+	{
+		get => mKnobImage;
+		set => mKnobImage = value;
 	}
 
 	/// Called when IsChecked changes.
@@ -115,19 +131,29 @@ public class ToggleSwitch : ToggleButton
 		let trackRect = RectangleF(bounds.X, trackY, mTrackWidth, mTrackHeight);
 		let trackRadius = mTrackHeight / 2;
 
-		// Interpolate track color based on animation progress
-		let offColor = GetTrackOffColor();
-		let onColor = GetCheckedBackground();
-		let trackColor = offColor.Interpolate(onColor, mAnimationProgress);
-
 		// Draw track
-		ctx.FillRoundedRect(trackRect, trackRadius, trackColor);
-
-		// Draw track border
-		let borderColor = GetStateBorderColor();
-		if (borderColor.A > 0)
+		if (mTrackImage.HasValue && mTrackImage.Value.IsValid)
 		{
-			ctx.DrawRoundedRect(trackRect, trackRadius, borderColor, 1);
+			var img = mTrackImage.Value;
+			// Interpolate tint between normal and checked-state tint
+			if (IsChecked)
+				img.Tint = Palette.Lighten(img.Tint, 0.1f);
+			ctx.DrawImageBrush(img, trackRect);
+		}
+		else
+		{
+			// Interpolate track color based on animation progress
+			let offColor = GetTrackOffColor();
+			let onColor = GetCheckedBackground();
+			let trackColor = offColor.Interpolate(onColor, mAnimationProgress);
+			ctx.FillRoundedRect(trackRect, trackRadius, trackColor);
+
+			// Draw track border
+			let borderColor = GetStateBorderColor();
+			if (borderColor.A > 0)
+			{
+				ctx.DrawRoundedRect(trackRect, trackRadius, borderColor, 1);
+			}
 		}
 
 		// Calculate knob position
@@ -136,15 +162,26 @@ public class ToggleSwitch : ToggleButton
 		let knobMaxX = trackRect.Right - mKnobSize - knobPadding;
 		let knobX = knobMinX + (knobMaxX - knobMinX) * mAnimationProgress;
 		let knobY = trackRect.Y + knobPadding;
+		let knobRect = RectangleF(knobX, knobY, mKnobSize, mKnobSize);
 		let knobRadius = mKnobSize / 2;
 
-		// Draw knob shadow
-		let shadowColor = Color(0, 0, 0, 40);
-		ctx.FillCircle(.(knobX + knobRadius + 1, knobY + knobRadius + 1), knobRadius, shadowColor);
-
 		// Draw knob
-		let knobColor = GetKnobColor();
-		ctx.FillCircle(.(knobX + knobRadius, knobY + knobRadius), knobRadius, knobColor);
+		if (mKnobImage.HasValue && mKnobImage.Value.IsValid)
+		{
+			var img = mKnobImage.Value;
+			img.Tint = ControlStyle.ModulateTint(img.Tint, CurrentState);
+			ctx.DrawImageBrush(img, knobRect);
+		}
+		else
+		{
+			// Draw knob shadow
+			let shadowColor = Color(0, 0, 0, 40);
+			ctx.FillCircle(.(knobX + knobRadius + 1, knobY + knobRadius + 1), knobRadius, shadowColor);
+
+			// Draw knob
+			let knobColor = GetKnobColor();
+			ctx.FillCircle(.(knobX + knobRadius, knobY + knobRadius), knobRadius, knobColor);
+		}
 
 		// Draw content (label text)
 		Content?.Render(ctx);

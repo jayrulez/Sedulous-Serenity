@@ -22,6 +22,7 @@ public class ComboBox : Control, IPopupOwner
 	// Display
 	private TextBlock mSelectedText = new .() ~ delete _;
 	private float mDropDownButtonWidth = 20;
+	private ImageBrush? mArrowImage;
 
 	// Events
 	private EventAccessor<delegate void(ComboBox)> mSelectionChanged = new .() ~ delete _;
@@ -117,6 +118,13 @@ public class ComboBox : Control, IPopupOwner
 
 	/// Event fired when dropdown opens or closes.
 	public EventAccessor<delegate void(ComboBox, bool)> DropDownStateChanged => mDropDownStateChanged;
+
+	/// Image for the dropdown arrow (replaces drawn triangle).
+	public ImageBrush? ArrowImage
+	{
+		get => mArrowImage;
+		set => mArrowImage = value;
+	}
 
 	// === Item Management ===
 
@@ -416,20 +424,30 @@ public class ComboBox : Control, IPopupOwner
 		let buttonX = bounds.Right - mDropDownButtonWidth;
 		let buttonBounds = RectangleF(buttonX, bounds.Y, mDropDownButtonWidth, bounds.Height);
 
-		// Dropdown arrow
-		let arrowSize = 8f;
-		let arrowX = buttonBounds.X + (buttonBounds.Width - arrowSize) / 2;
-		let arrowY = buttonBounds.Y + (buttonBounds.Height - arrowSize / 2) / 2;
+		// Try image-based arrow first
+		if (mArrowImage.HasValue && mArrowImage.Value.IsValid)
+		{
+			var img = mArrowImage.Value;
+			img.Tint = ControlStyle.ModulateTint(img.Tint, CurrentState);
+			ctx.DrawImageBrush(img, buttonBounds);
+		}
+		else
+		{
+			// Dropdown arrow
+			let arrowSize = 8f;
+			let arrowX = buttonBounds.X + (buttonBounds.Width - arrowSize) / 2;
+			let arrowY = buttonBounds.Y + (buttonBounds.Height - arrowSize / 2) / 2;
 
-		let foreground = GetStateForeground();
+			let foreground = GetStateForeground();
 
-		// Draw simple triangle arrow using polygon
-		Vector2[3] arrowPoints = .(
-			.(arrowX, arrowY),
-			.(arrowX + arrowSize, arrowY),
-			.(arrowX + arrowSize / 2, arrowY + arrowSize / 2)
-		);
-		ctx.FillPolygon(arrowPoints, foreground);
+			// Draw simple triangle arrow using polygon
+			Vector2[3] arrowPoints = .(
+				.(arrowX, arrowY),
+				.(arrowX + arrowSize, arrowY),
+				.(arrowX + arrowSize / 2, arrowY + arrowSize / 2)
+			);
+			ctx.FillPolygon(arrowPoints, foreground);
+		}
 	}
 
 	// === Input ===

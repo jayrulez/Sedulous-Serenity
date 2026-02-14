@@ -12,6 +12,8 @@ public class RadioButton : ToggleButton
 	private String mGroupName ~ delete _;
 	private float mCircleSize = 18;
 	private float mCircleSpacing = 8;
+	private ImageBrush? mUnselectedImage;
+	private ImageBrush? mSelectedImage;
 
 	/// Creates a new RadioButton.
 	public this() : base()
@@ -77,6 +79,20 @@ public class RadioButton : ToggleButton
 	{
 		get => mCircleSpacing;
 		set => mCircleSpacing = Math.Max(0, value);
+	}
+
+	/// Image for the unselected radio indicator.
+	public ImageBrush? UnselectedImage
+	{
+		get => mUnselectedImage;
+		set => mUnselectedImage = value;
+	}
+
+	/// Image for the selected radio indicator (includes inner dot in the texture).
+	public ImageBrush? SelectedImage
+	{
+		get => mSelectedImage;
+		set => mSelectedImage = value;
 	}
 
 	/// Called when the button is clicked.
@@ -174,28 +190,39 @@ public class RadioButton : ToggleButton
 		let centerY = circleRect.Y + mCircleSize / 2;
 		let outerRadius = mCircleSize / 2;
 
-		// Get colors based on state
-		let bgColor = GetStateBackground();
-		let borderColor = GetStateBorderColor();
-		let dotColor = IsChecked ? GetCheckedBackground() : Color.Transparent;
-
-		// Draw outer circle background
-		if (bgColor.A > 0)
+		// Try image-based indicator first
+		ImageBrush? indicatorImage = IsChecked ? mSelectedImage : mUnselectedImage;
+		if (indicatorImage.HasValue && indicatorImage.Value.IsValid)
 		{
-			ctx.FillCircle(.(centerX, centerY), outerRadius, bgColor);
+			var img = indicatorImage.Value;
+			img.Tint = ControlStyle.ModulateTint(img.Tint, CurrentState);
+			ctx.DrawImageBrush(img, circleRect);
 		}
-
-		// Draw outer circle border
-		if (style.BorderThickness > 0 && borderColor.A > 0)
+		else
 		{
-			ctx.DrawCircle(.(centerX, centerY), outerRadius - style.BorderThickness / 2, borderColor, style.BorderThickness);
-		}
+			// Get colors based on state
+			let bgColor = GetStateBackground();
+			let borderColor = GetStateBorderColor();
 
-		// Draw inner dot if checked
-		if (IsChecked)
-		{
-			let innerRadius = outerRadius * 0.45f;
-			ctx.FillCircle(.(centerX, centerY), innerRadius, dotColor);
+			// Draw outer circle background
+			if (bgColor.A > 0)
+			{
+				ctx.FillCircle(.(centerX, centerY), outerRadius, bgColor);
+			}
+
+			// Draw outer circle border
+			if (style.BorderThickness > 0 && borderColor.A > 0)
+			{
+				ctx.DrawCircle(.(centerX, centerY), outerRadius - style.BorderThickness / 2, borderColor, style.BorderThickness);
+			}
+
+			// Draw inner dot if checked
+			if (IsChecked)
+			{
+				let dotColor = GetCheckedBackground();
+				let innerRadius = outerRadius * 0.45f;
+				ctx.FillCircle(.(centerX, centerY), innerRadius, dotColor);
+			}
 		}
 
 		// Draw content (label text)

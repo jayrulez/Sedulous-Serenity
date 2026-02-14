@@ -20,6 +20,10 @@ public class TileViewItem : ContentControl, ISelectable
 	// Hover state (set by parent TileView)
 	internal bool mIsHovered = false;
 
+	// Image support
+	private ImageBrush? mSelectionImage;
+	private ImageBrush? mHoverImage;
+
 	/// Creates a new TileViewItem.
 	public this()
 	{
@@ -53,6 +57,20 @@ public class TileViewItem : ContentControl, ISelectable
 	{
 		get => mTag;
 		set => mTag = value;
+	}
+
+	/// Image for the selected tile background.
+	public ImageBrush? SelectionImage
+	{
+		get => mSelectionImage;
+		set => mSelectionImage = value;
+	}
+
+	/// Image for the hovered tile background.
+	public ImageBrush? HoverImage
+	{
+		get => mHoverImage;
+		set => mHoverImage = value;
 	}
 
 	// === Layout ===
@@ -89,37 +107,48 @@ public class TileViewItem : ContentControl, ISelectable
 	{
 		let bounds = ArrangedBounds;
 
-		// Get theme colors
-		let theme = Context?.Theme;
-		let palette = theme?.Palette ?? Palette();
-		let selectionColor = theme?.SelectionColor ?? palette.Accent;
-
-		// Get colors for selection/hover state
-		Color bgColor = Color.Transparent;
-		Color borderColor = Color.Transparent;
-
-		if (mIsSelected)
+		// Try image-based backgrounds first
+		if (mIsSelected && mSelectionImage.HasValue && mSelectionImage.Value.IsValid)
 		{
-			bgColor = selectionColor.A > 0 ? selectionColor : Color(0, 120, 215, 255);
-			borderColor = bgColor;
+			ctx.DrawImageBrush(mSelectionImage.Value, bounds);
 		}
-		else if (mIsHovered)
+		else if (mIsHovered && !mIsSelected && mHoverImage.HasValue && mHoverImage.Value.IsValid)
 		{
-			// Use surface color with hover computation, or fallback
-			let baseColor = palette.Surface.A > 0 ? palette.Surface : Color(45, 45, 45, 255);
-			bgColor = Palette.ComputeHover(baseColor);
-			borderColor = palette.Border.A > 0 ? palette.Border : Color(80, 80, 80, 255);
+			ctx.DrawImageBrush(mHoverImage.Value, bounds);
 		}
+		else
+		{
+			// Get theme colors
+			let theme = Context?.Theme;
+			let palette = theme?.Palette ?? Palette();
+			let selectionColor = theme?.SelectionColor ?? palette.Accent;
 
-		// Draw background
-		if (bgColor.A > 0)
-			ctx.FillRect(bounds, bgColor);
+			// Get colors for selection/hover state
+			Color bgColor = Color.Transparent;
+			Color borderColor = Color.Transparent;
+
+			if (mIsSelected)
+			{
+				bgColor = selectionColor.A > 0 ? selectionColor : Color(0, 120, 215, 255);
+				borderColor = bgColor;
+			}
+			else if (mIsHovered)
+			{
+				let baseColor = palette.Surface.A > 0 ? palette.Surface : Color(45, 45, 45, 255);
+				bgColor = Palette.ComputeHover(baseColor);
+				borderColor = palette.Border.A > 0 ? palette.Border : Color(80, 80, 80, 255);
+			}
+
+			// Draw background
+			if (bgColor.A > 0)
+				ctx.FillRect(bounds, bgColor);
+
+			// Draw border
+			if (borderColor.A > 0)
+				ctx.DrawRect(bounds, borderColor, 1);
+		}
 
 		// Render content
 		Content?.Render(ctx);
-
-		// Draw border
-		if (borderColor.A > 0)
-			ctx.DrawRect(bounds, borderColor, 1);
 	}
 }

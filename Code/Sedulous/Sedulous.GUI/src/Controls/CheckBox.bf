@@ -9,6 +9,9 @@ public class CheckBox : ToggleButton
 {
 	private float mBoxSize = 18;
 	private float mBoxSpacing = 8;
+	private ImageBrush? mUncheckedImage;
+	private ImageBrush? mCheckedImage;
+	private ImageBrush? mIndeterminateImage;
 
 	/// Creates a new CheckBox.
 	public this() : base()
@@ -54,6 +57,27 @@ public class CheckBox : ToggleButton
 	{
 		get => mBoxSpacing;
 		set => mBoxSpacing = Math.Max(0, value);
+	}
+
+	/// Image for the unchecked indicator box.
+	public ImageBrush? UncheckedImage
+	{
+		get => mUncheckedImage;
+		set => mUncheckedImage = value;
+	}
+
+	/// Image for the checked indicator box (includes checkmark in the texture).
+	public ImageBrush? CheckedImage
+	{
+		get => mCheckedImage;
+		set => mCheckedImage = value;
+	}
+
+	/// Image for the indeterminate indicator box.
+	public ImageBrush? IndeterminateImage
+	{
+		get => mIndeterminateImage;
+		set => mIndeterminateImage = value;
 	}
 
 	/// Measures the checkbox with its indicator and content.
@@ -102,28 +126,39 @@ public class CheckBox : ToggleButton
 		let boxY = bounds.Y + (bounds.Height - mBoxSize) / 2;
 		let boxRect = RectangleF(bounds.X, boxY, mBoxSize, mBoxSize);
 
-		// Get colors based on state
-		let bgColor = IsChecked ? GetCheckedBackground() : GetStateBackground();
-		let borderColor = GetStateBorderColor();
-		let checkColor = GetStateForeground();
-
-		// Draw checkbox background
-		let cornerRadius = style.CornerRadius > 0 ? style.CornerRadius : (Context?.Theme?.DefaultCornerRadius ?? 3f);
-		if (bgColor.A > 0)
+		// Try image-based indicator first
+		ImageBrush? indicatorImage = IsChecked ? mCheckedImage : mUncheckedImage;
+		if (indicatorImage.HasValue && indicatorImage.Value.IsValid)
 		{
-			ctx.FillRoundedRect(boxRect, cornerRadius, bgColor);
+			var img = indicatorImage.Value;
+			img.Tint = ControlStyle.ModulateTint(img.Tint, CurrentState);
+			ctx.DrawImageBrush(img, boxRect);
 		}
-
-		// Draw checkbox border
-		if (style.BorderThickness > 0 && borderColor.A > 0)
+		else
 		{
-			ctx.DrawBorderRoundedRect(boxRect, cornerRadius, borderColor, style.BorderThickness);
-		}
+			// Get colors based on state
+			let bgColor = IsChecked ? GetCheckedBackground() : GetStateBackground();
+			let borderColor = GetStateBorderColor();
 
-		// Draw checkmark if checked
-		if (IsChecked)
-		{
-			DrawCheckmark(ctx, boxRect, checkColor);
+			// Draw checkbox background
+			let cornerRadius = style.CornerRadius > 0 ? style.CornerRadius : (Context?.Theme?.DefaultCornerRadius ?? 3f);
+			if (bgColor.A > 0)
+			{
+				ctx.FillRoundedRect(boxRect, cornerRadius, bgColor);
+			}
+
+			// Draw checkbox border
+			if (style.BorderThickness > 0 && borderColor.A > 0)
+			{
+				ctx.DrawBorderRoundedRect(boxRect, cornerRadius, borderColor, style.BorderThickness);
+			}
+
+			// Draw checkmark if checked
+			if (IsChecked)
+			{
+				let checkColor = GetStateForeground();
+				DrawCheckmark(ctx, boxRect, checkColor);
+			}
 		}
 
 		// Draw content (label text)
@@ -132,6 +167,7 @@ public class CheckBox : ToggleButton
 		// Draw focus indicator around checkbox
 		if (IsFocused)
 		{
+			let cornerRadius = style.CornerRadius > 0 ? style.CornerRadius : (Context?.Theme?.DefaultCornerRadius ?? 3f);
 			let focusColor = FocusBorderColor;
 			let focusThickness = FocusBorderThickness;
 			let focusBounds = RectangleF(
