@@ -20,6 +20,7 @@ public class MenuBarItem : Control, IPopupOwner
 	private bool mIsSelected = false;
 	private bool mIsDropdownOpen = false;
 	private Menu mParentMenu;
+	private ImageBrush? mHighlightImage;
 
 	/// Creates a new MenuBarItem.
 	public this()
@@ -75,6 +76,13 @@ public class MenuBarItem : Control, IPopupOwner
 	{
 		get => mParentMenu;
 		set => mParentMenu = value;
+	}
+
+	/// Image for the hover/active background.
+	public ImageBrush? HighlightImage
+	{
+		get => mHighlightImage;
+		set => mHighlightImage = value;
 	}
 
 	/// Adds a menu item to the dropdown.
@@ -249,8 +257,15 @@ public class MenuBarItem : Control, IPopupOwner
 		// Background on hover or when dropdown open
 		if (mIsSelected || IsHovered || mIsDropdownOpen)
 		{
-			let highlightColor = mIsDropdownOpen ? accentColor : Palette.ComputeHover(surfaceColor);
-			ctx.FillRect(bounds, highlightColor);
+			if (mHighlightImage.HasValue && mHighlightImage.Value.IsValid)
+			{
+				ctx.DrawImageBrush(mHighlightImage.Value, bounds);
+			}
+			else
+			{
+				let highlightColor = mIsDropdownOpen ? accentColor : Palette.ComputeHover(surfaceColor);
+				ctx.FillRect(bounds, highlightColor);
+			}
 		}
 
 		// Text color - use bright text when highlighted

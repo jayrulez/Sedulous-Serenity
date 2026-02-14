@@ -10,6 +10,7 @@ public class GroupBox : ContentControl
 	// Header/title (displayed in top border)
 	private UIElement mHeader ~ delete _;
 	private float mHeaderPadding = 8;  // Horizontal padding around header in border
+	private ImageBrush? mFrameImage;
 
 	/// Creates a new GroupBox.
 	public this()
@@ -24,6 +25,13 @@ public class GroupBox : ContentControl
 
 	/// The control type name for theming.
 	protected override StringView ControlTypeName => "GroupBox";
+
+	/// Image for the group box frame (replaces border drawing).
+	public ImageBrush? FrameImage
+	{
+		get => mFrameImage;
+		set => mFrameImage = value;
+	}
 
 	/// The header/title content displayed in the top border.
 	public UIElement Header
@@ -183,82 +191,58 @@ public class GroupBox : ContentControl
 	{
 		let bounds = ArrangedBounds;
 
-		// Calculate header dimensions and position based on where header was actually arranged
-		float headerWidth = 0;
-		float headerHeight = 0;
-		float headerLeft = 0;
-		float headerCenterY = 0;
-		if (mHeader != null)
+		// Try image-based frame first
+		if (mFrameImage.HasValue && mFrameImage.Value.IsValid)
 		{
-			headerWidth = mHeader.DesiredSize.Width;
-			headerHeight = mHeader.DesiredSize.Height;
-			headerLeft = mHeader.ArrangedBounds.X;
-			headerCenterY = mHeader.ArrangedBounds.Y + headerHeight / 2;
-		}
-
-		// Border line is at the vertical center of the header
-		let borderTop = mHeader != null ? headerCenterY : bounds.Y;
-		let borderBounds = RectangleF(bounds.X, borderTop, bounds.Width, bounds.Bottom - borderTop);
-
-		// Draw background (inside border)
-		if (Background.A > 0)
-			ctx.FillRect(borderBounds, Background);
-
-		// Draw border with gap for header
-		let borderColor = BorderColor.A > 0 ? BorderColor : Color(80, 80, 80, 255);
-		let thickness = BorderThickness > 0 ? BorderThickness : 1;
-
-		// Gap surrounds the header with small padding
-		let gapPadding = 4.0f;
-		let headerGapStart = headerLeft - gapPadding;
-		let headerGapEnd = headerLeft + headerWidth + gapPadding;
-
-		// Top border (with gap)
-		if (headerWidth > 0)
-		{
-			// Left of header
-			ctx.DrawLine(
-				.(bounds.X, borderTop),
-				.(headerGapStart, borderTop),
-				borderColor, thickness
-			);
-			// Right of header
-			ctx.DrawLine(
-				.(headerGapEnd, borderTop),
-				.(bounds.Right, borderTop),
-				borderColor, thickness
-			);
+			ctx.DrawImageBrush(mFrameImage.Value, bounds);
 		}
 		else
 		{
-			// No header, full top line
-			ctx.DrawLine(
-				.(bounds.X, borderTop),
-				.(bounds.Right, borderTop),
-				borderColor, thickness
-			);
+			// Calculate header dimensions and position based on where header was actually arranged
+			float headerWidth = 0;
+			float headerHeight = 0;
+			float headerLeft = 0;
+			float headerCenterY = 0;
+			if (mHeader != null)
+			{
+				headerWidth = mHeader.DesiredSize.Width;
+				headerHeight = mHeader.DesiredSize.Height;
+				headerLeft = mHeader.ArrangedBounds.X;
+				headerCenterY = mHeader.ArrangedBounds.Y + headerHeight / 2;
+			}
+
+			// Border line is at the vertical center of the header
+			let borderTop = mHeader != null ? headerCenterY : bounds.Y;
+			let borderBounds = RectangleF(bounds.X, borderTop, bounds.Width, bounds.Bottom - borderTop);
+
+			// Draw background (inside border)
+			if (Background.A > 0)
+				ctx.FillRect(borderBounds, Background);
+
+			// Draw border with gap for header
+			let borderColor = BorderColor.A > 0 ? BorderColor : Color(80, 80, 80, 255);
+			let thickness = BorderThickness > 0 ? BorderThickness : 1;
+
+			let gapPadding = 4.0f;
+			let headerGapStart = headerLeft - gapPadding;
+			let headerGapEnd = headerLeft + headerWidth + gapPadding;
+
+			// Top border (with gap)
+			if (headerWidth > 0)
+			{
+				ctx.DrawLine(.(bounds.X, borderTop), .(headerGapStart, borderTop), borderColor, thickness);
+				ctx.DrawLine(.(headerGapEnd, borderTop), .(bounds.Right, borderTop), borderColor, thickness);
+			}
+			else
+			{
+				ctx.DrawLine(.(bounds.X, borderTop), .(bounds.Right, borderTop), borderColor, thickness);
+			}
+
+			// Right, bottom, left borders
+			ctx.DrawLine(.(bounds.Right - thickness / 2, borderTop), .(bounds.Right - thickness / 2, bounds.Bottom), borderColor, thickness);
+			ctx.DrawLine(.(bounds.Right, bounds.Bottom - thickness / 2), .(bounds.X, bounds.Bottom - thickness / 2), borderColor, thickness);
+			ctx.DrawLine(.(bounds.X + thickness / 2, bounds.Bottom), .(bounds.X + thickness / 2, borderTop), borderColor, thickness);
 		}
-
-		// Right border
-		ctx.DrawLine(
-			.(bounds.Right - thickness / 2, borderTop),
-			.(bounds.Right - thickness / 2, bounds.Bottom),
-			borderColor, thickness
-		);
-
-		// Bottom border
-		ctx.DrawLine(
-			.(bounds.Right, bounds.Bottom - thickness / 2),
-			.(bounds.X, bounds.Bottom - thickness / 2),
-			borderColor, thickness
-		);
-
-		// Left border
-		ctx.DrawLine(
-			.(bounds.X + thickness / 2, bounds.Bottom),
-			.(bounds.X + thickness / 2, borderTop),
-			borderColor, thickness
-		);
 
 		// Draw header
 		if (mHeader != null)

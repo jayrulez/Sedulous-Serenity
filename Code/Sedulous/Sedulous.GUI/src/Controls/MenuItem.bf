@@ -44,6 +44,7 @@ public class MenuItem : Control
 	private float mCheckWidth = 20;
 	private float mArrowWidth = 16;
 	private float mShortcutGap = 24;
+	private ImageBrush? mHighlightImage;
 
 	/// Creates a new MenuItem.
 	public this()
@@ -190,6 +191,13 @@ public class MenuItem : Control
 	/// Event fired when the item is clicked.
 	public EventAccessor<delegate void(MenuItem)> Click => mClick;
 
+	/// Image for the hover/selected row background.
+	public ImageBrush? HighlightImage
+	{
+		get => mHighlightImage;
+		set => mHighlightImage = value;
+	}
+
 	/// Adds a sub-item to this menu item.
 	public MenuItem AddItem(StringView text)
 	{
@@ -296,12 +304,18 @@ public class MenuItem : Control
 		// Draw highlight background if highlighted or pressed
 		if (mIsHighlighted || IsPressed)
 		{
-			let theme = Context?.Theme;
-			var highlightColor = theme?.SelectionColor ?? Color(60, 120, 200, 255);
-			// Make selection fully opaque for menu items
-			if (highlightColor.A < 200)
-				highlightColor = Color(highlightColor.R, highlightColor.G, highlightColor.B, 255);
-			ctx.FillRect(bounds, highlightColor);
+			if (mHighlightImage.HasValue && mHighlightImage.Value.IsValid)
+			{
+				ctx.DrawImageBrush(mHighlightImage.Value, bounds);
+			}
+			else
+			{
+				let theme = Context?.Theme;
+				var highlightColor = theme?.SelectionColor ?? Color(60, 120, 200, 255);
+				if (highlightColor.A < 200)
+					highlightColor = Color(highlightColor.R, highlightColor.G, highlightColor.B, 255);
+				ctx.FillRect(bounds, highlightColor);
+			}
 		}
 
 		// Draw checkmark if checkable and checked

@@ -17,6 +17,7 @@ public class Splitter : Control
 	private Color? mGripColor;
 	private bool mShowGrip = true;
 	private int mGripLines = 3;
+	private ImageBrush? mGripImage;
 
 	// Interaction state
 	private bool mIsDragging = false;
@@ -105,6 +106,13 @@ public class Splitter : Control
 		set => mGripLines = Math.Max(0, value);
 	}
 
+	/// Image for the splitter grip (replaces background + grip dots).
+	public ImageBrush? GripImage
+	{
+		get => mGripImage;
+		set => mGripImage = value;
+	}
+
 	/// Minimum offset constraint for dragging.
 	public float MinOffset
 	{
@@ -170,26 +178,38 @@ public class Splitter : Control
 	{
 		let bounds = ArrangedBounds;
 
-		// Draw background
-		var bgColor = GetStateBackground();
-		if (bgColor.A == 0)
+		// Try image-based grip first
+		if (mGripImage.HasValue && mGripImage.Value.IsValid)
 		{
-			let palette = Context?.Theme?.Palette ?? Palette();
-			bgColor = palette.Surface.A > 0 ? palette.Surface : Color(50, 50, 50, 255);
+			var img = mGripImage.Value;
+			if (mIsDragging)
+				img.Tint = Palette.Lighten(img.Tint, 0.15f);
+			else if (IsHovered)
+				img.Tint = Palette.Lighten(img.Tint, 0.08f);
+			ctx.DrawImageBrush(img, bounds);
 		}
-
-		// Lighten when hovered or dragging
-		if (mIsDragging)
-			bgColor = bgColor.Interpolate(Color.White, 0.15f);
-		else if (IsHovered)
-			bgColor = bgColor.Interpolate(Color.White, 0.08f);
-
-		ctx.FillRect(bounds, bgColor);
-
-		// Draw grip
-		if (mShowGrip && mGripLines > 0)
+		else
 		{
-			RenderGrip(ctx, bounds);
+			// Draw background
+			var bgColor = GetStateBackground();
+			if (bgColor.A == 0)
+			{
+				let palette = Context?.Theme?.Palette ?? Palette();
+				bgColor = palette.Surface.A > 0 ? palette.Surface : Color(50, 50, 50, 255);
+			}
+
+			if (mIsDragging)
+				bgColor = bgColor.Interpolate(Color.White, 0.15f);
+			else if (IsHovered)
+				bgColor = bgColor.Interpolate(Color.White, 0.08f);
+
+			ctx.FillRect(bounds, bgColor);
+
+			// Draw grip
+			if (mShowGrip && mGripLines > 0)
+			{
+				RenderGrip(ctx, bounds);
+			}
 		}
 	}
 

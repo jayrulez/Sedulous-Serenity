@@ -11,6 +11,7 @@ public class BreadcrumbItem : ContentControl
 	private int mIndex = -1;
 	private bool mIsLast = false;
 	private bool mIsHovered = false;
+	private ImageBrush? mSegmentImage;
 
 	/// Creates a new BreadcrumbItem.
 	public this()
@@ -62,6 +63,13 @@ public class BreadcrumbItem : ContentControl
 		set => mIsHovered = value;
 	}
 
+	/// Image for the breadcrumb segment background.
+	public ImageBrush? SegmentImage
+	{
+		get => mSegmentImage;
+		set => mSegmentImage = value;
+	}
+
 	// === Rendering ===
 
 	protected override void RenderOverride(DrawContext ctx)
@@ -71,15 +79,24 @@ public class BreadcrumbItem : ContentControl
 		// Draw hover background
 		if (mIsHovered && !mIsLast)
 		{
-			let hoverBg = Palette.ComputeHover(Background.A > 0 ? Background : Color(45, 45, 45, 255));
-			ctx.FillRect(bounds, hoverBg);
+			if (mSegmentImage.HasValue && mSegmentImage.Value.IsValid)
+			{
+				var img = mSegmentImage.Value;
+				img.Tint = Palette.Lighten(img.Tint, 0.10f);
+				ctx.DrawImageBrush(img, bounds);
+			}
+			else
+			{
+				let hoverBg = Palette.ComputeHover(Background.A > 0 ? Background : Color(45, 45, 45, 255));
+				ctx.FillRect(bounds, hoverBg);
+			}
+		}
+		else if (mSegmentImage.HasValue && mSegmentImage.Value.IsValid)
+		{
+			ctx.DrawImageBrush(mSegmentImage.Value, bounds);
 		}
 
-		// Render content with appropriate styling
-		if (Content != null)
-		{
-			// Last item might be styled differently (bold, different color)
-			Content.Render(ctx);
-		}
+		// Render content
+		Content?.Render(ctx);
 	}
 }

@@ -13,6 +13,7 @@ public class StatusBarItem : Control
 	private TextBlock mTextBlock ~ delete _;
 	private bool mIsClickable = false;
 	private bool mIsFlexible = false;  // Whether this item stretches to fill available space
+	private ImageBrush? mBackgroundImage;
 
 	// Click event
 	private EventAccessor<delegate void(StatusBarItem)> mClick = new .() ~ delete _;
@@ -73,6 +74,13 @@ public class StatusBarItem : Control
 	/// Event fired when the item is clicked (if IsClickable is true).
 	public EventAccessor<delegate void(StatusBarItem)> Click => mClick;
 
+	/// Image for the item background.
+	public ImageBrush? ItemBackgroundImage
+	{
+		get => mBackgroundImage;
+		set => mBackgroundImage = value;
+	}
+
 	// Input handling
 
 	protected override void OnMouseDown(MouseButtonEventArgs e)
@@ -119,9 +127,17 @@ public class StatusBarItem : Control
 
 	protected override void RenderOverride(DrawContext ctx)
 	{
-		// Hover highlight for clickable items
-		if (mIsClickable && IsHovered)
+		// Try image-based background first
+		if (mBackgroundImage.HasValue && mBackgroundImage.Value.IsValid)
 		{
+			var img = mBackgroundImage.Value;
+			if (mIsClickable && IsHovered)
+				img.Tint = Palette.Lighten(img.Tint, 0.10f);
+			ctx.DrawImageBrush(img, ArrangedBounds);
+		}
+		else if (mIsClickable && IsHovered)
+		{
+			// Hover highlight for clickable items
 			let palette = Context?.Theme?.Palette ?? Palette();
 			let surfaceColor = palette.Surface.A > 0 ? palette.Surface : Color(45, 45, 45, 255);
 			let hoverColor = Palette.ComputeHover(surfaceColor);

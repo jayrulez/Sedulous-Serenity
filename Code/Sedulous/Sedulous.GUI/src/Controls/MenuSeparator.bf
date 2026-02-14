@@ -12,6 +12,7 @@ public class MenuSeparator : Control
 	private Color mLineColor = Color(80, 80, 80, 255);
 	private float mMarginLeft = 8;
 	private float mMarginRight = 8;
+	private ImageBrush? mDividerImage;
 
 	/// Creates a new MenuSeparator.
 	public this()
@@ -53,6 +54,13 @@ public class MenuSeparator : Control
 		set => mLineThickness = value;
 	}
 
+	/// Image for the divider (replaces drawn line).
+	public ImageBrush? DividerImage
+	{
+		get => mDividerImage;
+		set => mDividerImage = value;
+	}
+
 	// === Layout ===
 
 	protected override DesiredSize MeasureOverride(SizeConstraints constraints)
@@ -66,12 +74,17 @@ public class MenuSeparator : Control
 	protected override void RenderOverride(DrawContext ctx)
 	{
 		let bounds = ArrangedBounds;
-		let centerY = bounds.Y + bounds.Height / 2;
 
-		// Draw horizontal line
-		let startX = bounds.X + mMarginLeft;
-		let endX = bounds.Right - mMarginRight;
-
-		ctx.DrawLine(.(startX, centerY), .(endX, centerY), mLineColor, mLineThickness);
+		if (mDividerImage.HasValue && mDividerImage.Value.IsValid)
+		{
+			ctx.DrawImageBrush(mDividerImage.Value, bounds);
+		}
+		else
+		{
+			let centerY = bounds.Y + bounds.Height / 2;
+			let startX = bounds.X + mMarginLeft;
+			let endX = bounds.Right - mMarginRight;
+			ctx.DrawLine(.(startX, centerY), .(endX, centerY), mLineColor, mLineThickness);
+		}
 	}
 }

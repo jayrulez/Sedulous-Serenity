@@ -44,6 +44,7 @@ public enum ToolBarButtonDisplayMode
 public class ToolBarButton : Button
 {
 	private ToolBarButtonDisplayMode mDisplayMode = .TextOnly;
+	private ImageBrush? mButtonImage;
 
 	/// Creates a new ToolBarButton.
 	public this() : base()
@@ -83,25 +84,43 @@ public class ToolBarButton : Button
 		}
 	}
 
+	/// Image for the button background (per-state via auto-tint).
+	public ImageBrush? ButtonImage
+	{
+		get => mButtonImage;
+		set => mButtonImage = value;
+	}
+
 	/// Renders the button with flat toolbar styling.
 	protected override void RenderOverride(DrawContext ctx)
 	{
 		let bounds = ArrangedBounds;
 
-		// Get theme colors
-		let palette = Context?.Theme?.Palette ?? Palette();
-		let surfaceColor = palette.Surface.A > 0 ? palette.Surface : Color(45, 45, 45, 255);
-		let accentColor = palette.Accent.A > 0 ? palette.Accent : Color(60, 120, 200, 255);
-		let borderColor = palette.Border.A > 0 ? palette.Border : Color(100, 100, 100, 255);
-
-		// Only show background on hover/pressed
-		if (IsHovered || IsPressed)
+		// Try image-based background first
+		if (mButtonImage.HasValue && mButtonImage.Value.IsValid)
 		{
-			let bgColor = IsPressed ? accentColor : Palette.ComputeHover(surfaceColor);
-			ctx.FillRect(bounds, bgColor);
+			if (IsHovered || IsPressed)
+			{
+				var img = mButtonImage.Value;
+				img.Tint = ControlStyle.ModulateTint(img.Tint, CurrentState);
+				ctx.DrawImageBrush(img, bounds);
+			}
+		}
+		else
+		{
+			// Get theme colors
+			let palette = Context?.Theme?.Palette ?? Palette();
+			let surfaceColor = palette.Surface.A > 0 ? palette.Surface : Color(45, 45, 45, 255);
+			let accentColor = palette.Accent.A > 0 ? palette.Accent : Color(60, 120, 200, 255);
+			let borderColor = palette.Border.A > 0 ? palette.Border : Color(100, 100, 100, 255);
 
-			// Border on hover
-			ctx.DrawRect(bounds, borderColor, 1);
+			// Only show background on hover/pressed
+			if (IsHovered || IsPressed)
+			{
+				let bgColor = IsPressed ? accentColor : Palette.ComputeHover(surfaceColor);
+				ctx.FillRect(bounds, bgColor);
+				ctx.DrawRect(bounds, borderColor, 1);
+			}
 		}
 
 		// Render content (text)

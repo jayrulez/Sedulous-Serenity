@@ -61,18 +61,18 @@ Each needs its own image integration:
 - [x] ComboBox dropdown arrow — arrow image instead of drawn triangle
 
 ### Lower Priority (less visible in game UI)
-- [ ] MenuItem — hover/selected row image
-- [ ] MenuBarItem — hover image
-- [ ] MenuSeparator — divider image
-- [ ] ToolBarButton — button image (per-state)
-- [ ] ToolBarToggleButton — toggle image (per-state)
-- [ ] ToolBarSeparator — divider image
-- [ ] Splitter — grip image
-- [ ] GroupBox — frame image
-- [ ] BreadcrumbItem — segment image
-- [ ] StatusBarItem — item background image
-- [ ] Separator — line image
-- [ ] RepeatButton — same as Button (may already work via ContentControl)
+- [x] MenuItem — hover/selected row image (HighlightImage)
+- [x] MenuBarItem — hover image (HighlightImage)
+- [x] MenuSeparator — divider image (DividerImage)
+- [x] ToolBarButton — button image per-state (ButtonImage)
+- [x] ToolBarToggleButton — toggle image per-state (ButtonImage)
+- [x] ToolBarSeparator — divider image (DividerImage)
+- [x] Splitter — grip image (GripImage)
+- [x] GroupBox — frame image (FrameImage)
+- [x] BreadcrumbItem — segment image (SegmentImage)
+- [x] StatusBarItem — item background image (ItemBackgroundImage)
+- [x] Separator — line image (LineImage)
+- [x] RepeatButton — works via base Button (already has image support)
 
 ### Docking System (Deferred — tooling-specific)
 - [ ] DockablePanel — panel frame image

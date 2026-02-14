@@ -12,6 +12,7 @@ public class ToolBarSeparator : Control
 	private float mThickness = 1;
 	private float mMargin = 4;
 	private Color mLineColor = Color(80, 80, 80, 255);
+	private ImageBrush? mDividerImage;
 
 	/// Creates a new ToolBarSeparator.
 	public this()
@@ -88,6 +89,13 @@ public class ToolBarSeparator : Control
 		set => mLineColor = value;
 	}
 
+	/// Image for the divider (replaces drawn line).
+	public ImageBrush? DividerImage
+	{
+		get => mDividerImage;
+		set => mDividerImage = value;
+	}
+
 	protected override DesiredSize MeasureOverride(SizeConstraints constraints)
 	{
 		if (mOrientation == .Vertical)
@@ -106,15 +114,17 @@ public class ToolBarSeparator : Control
 	{
 		let bounds = ArrangedBounds;
 
-		if (mOrientation == .Vertical)
+		if (mDividerImage.HasValue && mDividerImage.Value.IsValid)
 		{
-			// Vertical line for horizontal toolbar
+			ctx.DrawImageBrush(mDividerImage.Value, bounds);
+		}
+		else if (mOrientation == .Vertical)
+		{
 			let x = bounds.X + bounds.Width / 2;
 			ctx.DrawLine(.(x, bounds.Y + mMargin), .(x, bounds.Bottom - mMargin), mLineColor, mThickness);
 		}
 		else
 		{
-			// Horizontal line for vertical toolbar
 			let y = bounds.Y + bounds.Height / 2;
 			ctx.DrawLine(.(bounds.X + mMargin, y), .(bounds.Right - mMargin, y), mLineColor, mThickness);
 		}

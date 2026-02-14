@@ -11,6 +11,7 @@ public class Separator : Control
 	private Orientation mOrientation = .Horizontal;
 	private float mThickness = 1;
 	private Color? mLineColor;
+	private ImageBrush? mLineImage;
 
 	/// Creates a new Separator.
 	public this()
@@ -77,6 +78,13 @@ public class Separator : Control
 		set => mLineColor = value;
 	}
 
+	/// Image for the separator line (replaces color-based line).
+	public ImageBrush? LineImage
+	{
+		get => mLineImage;
+		set => mLineImage = value;
+	}
+
 	/// Measures the separator.
 	protected override DesiredSize MeasureOverride(SizeConstraints constraints)
 	{
@@ -102,20 +110,24 @@ public class Separator : Control
 	protected override void RenderOverride(DrawContext ctx)
 	{
 		let bounds = ArrangedBounds;
-		let color = LineColor;
 
+		if (mLineImage.HasValue && mLineImage.Value.IsValid)
+		{
+			ctx.DrawImageBrush(mLineImage.Value, bounds);
+			return;
+		}
+
+		let color = LineColor;
 		if (color.A == 0)
 			return;
 
 		switch (mOrientation)
 		{
 		case .Horizontal:
-			// Draw horizontal line centered vertically
 			let y = bounds.Y + (bounds.Height - mThickness) / 2;
 			ctx.FillRect(.(bounds.X, y, bounds.Width, mThickness), color);
 
 		case .Vertical:
-			// Draw vertical line centered horizontally
 			let x = bounds.X + (bounds.Width - mThickness) / 2;
 			ctx.FillRect(.(x, bounds.Y, mThickness, bounds.Height), color);
 		}
