@@ -447,7 +447,7 @@ The PvE content pipeline and campaign structure.
 - [ ] **Special PvE modes**
   - [ ] **Tower/Dungeon** — sequential floors with increasing difficulty, no healing between floors, rewards per floor
   - [x] **Daily challenges** — rotating class/damage-type/race-restricted battles (12 templates, 3 per day, daily reset, deployment filtering)
-  - [ ] **Boss rush** — single powerful boss with special mechanics
+  - [x] **Boss rush** — single powerful boss with special mechanics
   - [ ] **Crusade/Gauntlet** — fight waves with persistent HP across battles
 
 - [x] **Difficulty & scaling**

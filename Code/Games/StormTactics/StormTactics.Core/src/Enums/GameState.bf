@@ -17,5 +17,6 @@ enum GameState : int32
 	Inventory = 12,
 	Gacha = 13,
 	Formation = 14,
-	DailyChallenge = 15
+	DailyChallenge = 15,
+	BossRush = 16
 }

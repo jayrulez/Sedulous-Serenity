@@ -1,13 +1,13 @@
 <root>
 	<object name="PlayerData">
-		<int32 name="HeroLevel">6</int32>
-		<int32 name="HeroExp">385</int32>
-		<int32 name="Gold">52480</int32>
-		<int32 name="Gems">3970</int32>
+		<int32 name="HeroLevel">7</int32>
+		<int32 name="HeroExp">35</int32>
+		<int32 name="Gold">54180</int32>
+		<int32 name="Gems">4030</int32>
 		<int32 name="ArenaTokens">0</int32>
 		<int32 name="GuildTokens">0</int32>
 		<int32 name="Stamina">96</int32>
-		<int64 name="LastStaminaTime">1771041741</int64>
+		<int64 name="LastStaminaTime">1771050886</int64>
 		<int32 name="MaxStageClearedId">5</int32>
 		<array name="StageStars" count="5">
 			<object>
@@ -347,6 +347,7 @@
 		<int64 name="LastDailyChallengeTime">1771040520</int64>
 		<int32 name="DailyChallengeDay">20498</int32>
 		<int32 name="DailyChallengesCompleted">2</int32>
+		<int32 name="BossesDefeated">5</int32>
 		<object name="GameSettings">
 			<bool name="InvertCameraPan">false</bool>
 			<bool name="AutoStepDefault">true</bool>

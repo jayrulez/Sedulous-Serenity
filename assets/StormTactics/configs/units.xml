@@ -1,5 +1,5 @@
 <root>
-  <array name="Items" count="10">
+  <array name="Items" count="13">
     <!-- 1: Footman - Infantry, Human, Common, Physical melee -->
     <object>
       <int32 name="Id">1</int32>
@@ -219,6 +219,72 @@
       <int32-array name="SkillIds" count="2">103 114</int32-array>
       <string name="Icon">icon_shadow_assassin</string>
       <string name="ModelName">model_shadow_assassin</string>
+    </object>
+    <!-- Boss 9001: Iron Golem - Infantry, Elemental, Legendary, Physical melee, very tanky -->
+    <object>
+      <int32 name="Id">9001</int32>
+      <string name="Name">Iron Golem</string>
+      <int32 name="Rarity">5</int32>
+      <int32 name="UnitClass">0</int32>
+      <int32 name="Race">4</int32>
+      <int32 name="SoldierHP">3000</int32>
+      <int32 name="SoldierCount">1</int32>
+      <int32 name="Defense">80</int32>
+      <int32 name="SoldierDamage">60</int32>
+      <int32 name="DamageType">0</int32>
+      <bool name="IsRanged">false</bool>
+      <int32 name="AttackRange">1</int32>
+      <int32 name="AttackPattern">0</int32>
+      <int32 name="MoveType">0</int32>
+      <int32 name="MoveRange">2</int32>
+      <int32 name="ActionSpeed">50</int32>
+      <int32-array name="SkillIds" count="2">9001 9002</int32-array>
+      <string name="Icon">icon_boss_golem</string>
+      <string name="ModelName">model_boss_golem</string>
+    </object>
+    <!-- Boss 9002: Shadow Reaper - Infantry, Undead, Legendary, Piercing melee, fast -->
+    <object>
+      <int32 name="Id">9002</int32>
+      <string name="Name">Shadow Reaper</string>
+      <int32 name="Rarity">5</int32>
+      <int32 name="UnitClass">0</int32>
+      <int32 name="Race">1</int32>
+      <int32 name="SoldierHP">1500</int32>
+      <int32 name="SoldierCount">1</int32>
+      <int32 name="Defense">20</int32>
+      <int32 name="SoldierDamage">120</int32>
+      <int32 name="DamageType">1</int32>
+      <bool name="IsRanged">false</bool>
+      <int32 name="AttackRange">1</int32>
+      <int32 name="AttackPattern">0</int32>
+      <int32 name="MoveType">0</int32>
+      <int32 name="MoveRange">4</int32>
+      <int32 name="ActionSpeed">130</int32>
+      <int32-array name="SkillIds" count="2">9003 9004</int32-array>
+      <string name="Icon">icon_boss_reaper</string>
+      <string name="ModelName">model_boss_reaper</string>
+    </object>
+    <!-- Boss 9003: Archmage - Mage, Human, Legendary, Magic ranged, AoE caster -->
+    <object>
+      <int32 name="Id">9003</int32>
+      <string name="Name">Archmage</string>
+      <int32 name="Rarity">5</int32>
+      <int32 name="UnitClass">3</int32>
+      <int32 name="Race">0</int32>
+      <int32 name="SoldierHP">2500</int32>
+      <int32 name="SoldierCount">1</int32>
+      <int32 name="Defense">40</int32>
+      <int32 name="SoldierDamage">90</int32>
+      <int32 name="DamageType">2</int32>
+      <bool name="IsRanged">true</bool>
+      <int32 name="AttackRange">3</int32>
+      <int32 name="AttackPattern">0</int32>
+      <int32 name="MoveType">0</int32>
+      <int32 name="MoveRange">2</int32>
+      <int32 name="ActionSpeed">90</int32>
+      <int32-array name="SkillIds" count="2">9005 9006</int32-array>
+      <string name="Icon">icon_boss_archmage</string>
+      <string name="ModelName">model_boss_archmage</string>
     </object>
   </array>
 </root>

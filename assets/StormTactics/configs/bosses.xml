@@ -1,0 +1,64 @@
+<root>
+  <array name="Items" count="3">
+    <!-- Boss 1: Iron Golem — tanky, slow, enrages at 50% HP -->
+    <object>
+      <int32 name="Id">1</int32>
+      <string name="Name">Iron Golem</string>
+      <string name="Description">A massive construct of living stone. Nearly indestructible.</string>
+      <string name="MechanicHint">Enrages at 50% HP</string>
+      <int32 name="UnitId">9001</int32>
+      <float name="HPScale">1</float>
+      <float name="DamageScale">1</float>
+      <float name="DefenseScale">1</float>
+      <array name="Phases" count="1">
+        <object>
+          <float name="HPThreshold">0.5</float>
+          <int32 name="BuffId">9001</int32>
+        </object>
+      </array>
+      <int32 name="GoldReward">500</int32>
+      <int32 name="ExpReward">350</int32>
+      <int32 name="FirstClearGems">25</int32>
+    </object>
+    <!-- Boss 2: Shadow Reaper — fast assassin, frenzy at 30% HP -->
+    <object>
+      <int32 name="Id">2</int32>
+      <string name="Name">Shadow Reaper</string>
+      <string name="Description">Death incarnate, striking from the shadows.</string>
+      <string name="MechanicHint">Enters frenzy at 30% HP</string>
+      <int32 name="UnitId">9002</int32>
+      <float name="HPScale">1</float>
+      <float name="DamageScale">1</float>
+      <float name="DefenseScale">1</float>
+      <array name="Phases" count="1">
+        <object>
+          <float name="HPThreshold">0.3</float>
+          <int32 name="BuffId">9002</int32>
+        </object>
+      </array>
+      <int32 name="GoldReward">600</int32>
+      <int32 name="ExpReward">400</int32>
+      <int32 name="FirstClearGems">30</int32>
+    </object>
+    <!-- Boss 3: Archmage — magic caster, arcane surge at 50% HP -->
+    <object>
+      <int32 name="Id">3</int32>
+      <string name="Name">Archmage</string>
+      <string name="Description">Master of arcane destruction.</string>
+      <string name="MechanicHint">Arcane surge at 50% HP</string>
+      <int32 name="UnitId">9003</int32>
+      <float name="HPScale">1</float>
+      <float name="DamageScale">1</float>
+      <float name="DefenseScale">1</float>
+      <array name="Phases" count="1">
+        <object>
+          <float name="HPThreshold">0.5</float>
+          <int32 name="BuffId">9003</int32>
+        </object>
+      </array>
+      <int32 name="GoldReward">700</int32>
+      <int32 name="ExpReward">450</int32>
+      <int32 name="FirstClearGems">35</int32>
+    </object>
+  </array>
+</root>

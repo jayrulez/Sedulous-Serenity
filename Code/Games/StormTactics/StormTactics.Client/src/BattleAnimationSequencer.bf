@@ -239,6 +239,11 @@ class BattleAnimationSequencer
 			mState = .Processing;
 			mWaitTimer = 0.3f;
 
+		case .BossPhase:
+			// Boss entered a new phase — brief dramatic pause
+			mState = .Processing;
+			mWaitTimer = 0.5f;
+
 		case .BattleEnded:
 			mState = .Processing;
 			mWaitTimer = 1.0f;

@@ -30,6 +30,7 @@ class CityHubScreen
 	private Button mFormationButton;
 	private Button mShopButton;
 	private Button mGachaButton;
+	private Button mBossRushButton;
 	private Button mSettingsButton;
 
 	// Events
@@ -40,6 +41,7 @@ class CityHubScreen
 	private EventAccessor<HubNavigationDelegate> mOnFormation = new .() ~ delete _;
 	private EventAccessor<HubNavigationDelegate> mOnShop = new .() ~ delete _;
 	private EventAccessor<HubNavigationDelegate> mOnGacha = new .() ~ delete _;
+	private EventAccessor<HubNavigationDelegate> mOnBossRush = new .() ~ delete _;
 	private EventAccessor<HubNavigationDelegate> mOnSettings = new .() ~ delete _;
 
 	public EventAccessor<HubNavigationDelegate> OnCampaign => mOnCampaign;
@@ -49,6 +51,7 @@ class CityHubScreen
 	public EventAccessor<HubNavigationDelegate> OnFormation => mOnFormation;
 	public EventAccessor<HubNavigationDelegate> OnShop => mOnShop;
 	public EventAccessor<HubNavigationDelegate> OnGacha => mOnGacha;
+	public EventAccessor<HubNavigationDelegate> OnBossRush => mOnBossRush;
 	public EventAccessor<HubNavigationDelegate> OnSettings => mOnSettings;
 
 	public UIElement RootElement => mRoot;
@@ -226,6 +229,10 @@ class CityHubScreen
 		mGachaButton = CreateNavButton("Summon", "Draw new units", Color(160, 80, 200));
 		mGachaButton.Click.Subscribe(new (btn) => { mOnGacha.[Friend]Invoke(); });
 		row2.AddChild(mGachaButton);
+
+		mBossRushButton = CreateNavButton("Boss Rush", "Fight powerful bosses", Color(180, 40, 40));
+		mBossRushButton.Click.Subscribe(new (btn) => { mOnBossRush.[Friend]Invoke(); });
+		row2.AddChild(mBossRushButton);
 
 		centerPanel.AddChild(row2);
 

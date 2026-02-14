@@ -1,5 +1,5 @@
 <root>
-  <array name="Items" count="10">
+  <array name="Items" count="16">
     <!-- 201: Iron Defense - Positive, DefenseUp, 3 turns, +20% defense -->
     <object>
       <int32 name="Id">201</int32>
@@ -182,6 +182,136 @@
           <int32 name="Attribute">2</int32>
           <float name="FlatValue">0</float>
           <float name="PercentValue">-0.25</float>
+        </object>
+      </array>
+    </object>
+    <!-- Boss buff 9001: Enrage (Iron Golem phase) - Permanent, +50% damage, +30% speed, undispellable -->
+    <object>
+      <int32 name="Id">9001</int32>
+      <string name="Name">Enrage</string>
+      <string name="Description">The golem's rage makes it faster and deadlier.</string>
+      <string name="Icon">icon_buff_enrage</string>
+      <int32 name="Flag">0</int32>
+      <int32 name="Tag">10</int32>
+      <int32 name="Duration">0</int32>
+      <bool name="CanDispel">false</bool>
+      <float name="DotDamage">0</float>
+      <float name="HotHeal">0</float>
+      <array name="StatModifiers" count="2">
+        <object>
+          <int32 name="Attribute">1</int32>
+          <float name="FlatValue">0</float>
+          <float name="PercentValue">0.5</float>
+        </object>
+        <object>
+          <int32 name="Attribute">3</int32>
+          <float name="FlatValue">0</float>
+          <float name="PercentValue">0.3</float>
+        </object>
+      </array>
+    </object>
+    <!-- Boss buff 9002: Frenzy (Shadow Reaper phase) - Permanent, +100% damage, -50% defense, undispellable -->
+    <object>
+      <int32 name="Id">9002</int32>
+      <string name="Name">Frenzy</string>
+      <string name="Description">Abandons all defense for devastating attacks.</string>
+      <string name="Icon">icon_buff_frenzy</string>
+      <int32 name="Flag">0</int32>
+      <int32 name="Tag">10</int32>
+      <int32 name="Duration">0</int32>
+      <bool name="CanDispel">false</bool>
+      <float name="DotDamage">0</float>
+      <float name="HotHeal">0</float>
+      <array name="StatModifiers" count="2">
+        <object>
+          <int32 name="Attribute">1</int32>
+          <float name="FlatValue">0</float>
+          <float name="PercentValue">1</float>
+        </object>
+        <object>
+          <int32 name="Attribute">2</int32>
+          <float name="FlatValue">0</float>
+          <float name="PercentValue">-0.5</float>
+        </object>
+      </array>
+    </object>
+    <!-- Boss buff 9003: Arcane Surge (Archmage phase) - Permanent, +50% damage, +50% speed, undispellable -->
+    <object>
+      <int32 name="Id">9003</int32>
+      <string name="Name">Arcane Surge</string>
+      <string name="Description">Arcane power surges through the mage, amplifying all abilities.</string>
+      <string name="Icon">icon_buff_arcane_surge</string>
+      <int32 name="Flag">0</int32>
+      <int32 name="Tag">10</int32>
+      <int32 name="Duration">0</int32>
+      <bool name="CanDispel">false</bool>
+      <float name="DotDamage">0</float>
+      <float name="HotHeal">0</float>
+      <array name="StatModifiers" count="2">
+        <object>
+          <int32 name="Attribute">1</int32>
+          <float name="FlatValue">0</float>
+          <float name="PercentValue">0.5</float>
+        </object>
+        <object>
+          <int32 name="Attribute">3</int32>
+          <float name="FlatValue">0</float>
+          <float name="PercentValue">0.5</float>
+        </object>
+      </array>
+    </object>
+    <!-- Boss buff 9004: Fortify (Iron Golem skill) - 3 turns, +50% defense -->
+    <object>
+      <int32 name="Id">9004</int32>
+      <string name="Name">Fortify</string>
+      <string name="Description">Stone body hardens, increasing defense by 50%.</string>
+      <string name="Icon">icon_buff_fortify</string>
+      <int32 name="Flag">0</int32>
+      <int32 name="Tag">12</int32>
+      <int32 name="Duration">3</int32>
+      <bool name="CanDispel">true</bool>
+      <float name="DotDamage">0</float>
+      <float name="HotHeal">0</float>
+      <array name="StatModifiers" count="1">
+        <object>
+          <int32 name="Attribute">2</int32>
+          <float name="FlatValue">0</float>
+          <float name="PercentValue">0.5</float>
+        </object>
+      </array>
+    </object>
+    <!-- Boss buff 9005: Deadly Poison (Shadow Reaper skill) - 3 turns, 50 DoT -->
+    <object>
+      <int32 name="Id">9005</int32>
+      <string name="Name">Deadly Poison</string>
+      <string name="Description">A lethal toxin dealing 50 damage per turn.</string>
+      <string name="Icon">icon_debuff_deadly_poison</string>
+      <int32 name="Flag">1</int32>
+      <int32 name="Tag">3</int32>
+      <int32 name="Duration">3</int32>
+      <bool name="CanDispel">true</bool>
+      <float name="DotDamage">50</float>
+      <float name="HotHeal">0</float>
+      <array name="StatModifiers" count="0">
+      </array>
+    </object>
+    <!-- Boss buff 9006: Magic Shield (Archmage skill) - 3 turns, +100% defense -->
+    <object>
+      <int32 name="Id">9006</int32>
+      <string name="Name">Magic Shield</string>
+      <string name="Description">A powerful arcane barrier doubling defense.</string>
+      <string name="Icon">icon_buff_magic_shield</string>
+      <int32 name="Flag">0</int32>
+      <int32 name="Tag">8</int32>
+      <int32 name="Duration">3</int32>
+      <bool name="CanDispel">true</bool>
+      <float name="DotDamage">0</float>
+      <float name="HotHeal">0</float>
+      <array name="StatModifiers" count="1">
+        <object>
+          <int32 name="Attribute">2</int32>
+          <float name="FlatValue">0</float>
+          <float name="PercentValue">1</float>
         </object>
       </array>
     </object>

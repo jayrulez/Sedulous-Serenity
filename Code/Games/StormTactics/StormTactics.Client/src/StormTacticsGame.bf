@@ -58,6 +58,7 @@ class StormTacticsGame : Application
 	private SettingsScreen mSettingsScreen;
 	private CampaignScreen mCampaignScreen;
 	private DailyChallengeScreen mDailyChallengeScreen;
+	private BossRushScreen mBossRushScreen;
 	private ToastNotification mToast;
 	private UnitSelectPopup mUnitSelectPopup;
 
@@ -79,6 +80,7 @@ class StormTacticsGame : Application
 	private GachaManager mGachaManager;
 	private FormationManager mFormationManager;
 	private DailyChallengeManager mDailyChallengeManager;
+	private BossRushManager mBossRushManager;
 
 	// Current battle (created/destroyed per stage)
 	private BattleSimulation mCurrentSim;
@@ -86,6 +88,7 @@ class StormTacticsGame : Application
 	private bool mRewardsProcessed;
 	private bool mCurrentBattleHardMode;
 	private int32 mCurrentChallengeIndex = -1; // -1 = not a challenge battle
+	private int32 mCurrentBossIndex = -1;      // -1 = not a boss battle
 
 	// HUD state tracking
 	private PlayerTurnPhase mLastPlayerPhase = .Idle;
@@ -248,6 +251,10 @@ class StormTacticsGame : Application
 		mDailyChallengeManager = new DailyChallengeManager();
 		mDailyChallengeManager.Initialize(mSaveManager.SaveData, mConfigs);
 
+		// Boss rush manager — powerful bosses with phase transitions
+		mBossRushManager = new BossRushManager();
+		mBossRushManager.Initialize(mSaveManager.SaveData, mConfigs);
+
 		// Process stamina regen from offline time and check shop refresh
 		mPlayerManager.UpdateStaminaRegen();
 		mShopManager.CheckRefresh();
@@ -382,6 +389,15 @@ class StormTacticsGame : Application
 		mDailyChallengeScreen.Show(mDailyChallengeManager);
 	}
 
+	/// Show the boss rush selection screen.
+	private void ShowBossRush()
+	{
+		DestroyBattle();
+		mGameState = .BossRush;
+		mUISubsystem.GUIContext.RootElement = mBossRushScreen.RootElement;
+		mBossRushScreen.Show(mBossRushManager);
+	}
+
 	/// Create a battle for the given stage.
 	private void CreateBattle(int32 stageId, bool isHardMode = false)
 	{
@@ -410,6 +426,7 @@ class StormTacticsGame : Application
 		mCurrentStageId = stageId;
 		mCurrentBattleHardMode = isHardMode;
 		mCurrentChallengeIndex = -1; // Not a challenge battle
+		mCurrentBossIndex = -1;     // Not a boss battle
 		mRewardsProcessed = false;
 
 		// Build player formation from active formation preset (or fallback to owned units)
@@ -580,6 +597,111 @@ class StormTacticsGame : Application
 
 		Console.WriteLine("Challenge battle created: '{}' — {}v{} on {}x{} grid (x{} difficulty)",
 			tmpl.mName, attackers.Count, stageConfig.mEnemyFormation.Count, columns, rows, tmpl.mDifficultyScale);
+
+		// Create battle scene
+		let renderModule = mMainScene.GetModule<RenderSceneModule>();
+		mBattleScene = new BattleScene();
+		mBattleScene.Initialize(mMainScene, renderModule, mRenderSystem, mOverlayFeature, mCurrentSim, 1.0f);
+
+		let settings = mSaveManager.SaveData.mGameSettings;
+		mBattleScene.ApplySettings(settings.mAutoStepDefault, settings.mAutoBattleDefault, (float)settings.mDefaultBattleSpeed, settings.mInvertCameraPan);
+
+		// Switch to battle HUD and enter deployment
+		mUISubsystem.GUIContext.RootElement = mBattleHUD.RootElement;
+		mBattleScene.EnterDeploymentMode();
+		mBattleHUD.ShowDeploymentPanel();
+		mBattleHUD.ResetResultState();
+		mDeployRosterSelectedUnitId = -1;
+		mDeployRosterDirty = true;
+		mGameState = .BattlePrepare;
+	}
+
+	/// Create a battle for a boss rush encounter.
+	private void CreateBossBattle(int32 bossIndex)
+	{
+		let tmpl = mBossRushManager.GetBoss(bossIndex);
+		if (tmpl == null) return;
+
+		mCurrentBossIndex = bossIndex;
+		mCurrentChallengeIndex = -1;
+		mCurrentStageId = 0;
+		mCurrentBattleHardMode = false;
+		mRewardsProcessed = false;
+
+		// Build player formation from active preset (no restrictions for bosses)
+		let attackers = scope List<FormationSlot>();
+		let save = mSaveManager.SaveData;
+
+		if (save.mFormationPresets.Count > 0 && save.mActiveFormationIndex < (int32)save.mFormationPresets.Count)
+		{
+			let preset = save.mFormationPresets[save.mActiveFormationIndex];
+			for (let fSlot in preset.mSlots)
+			{
+				if (mConfigs.GetUnit(fSlot.mUnitId) == null) continue;
+				if (save.GetOwnedUnit(fSlot.mUnitId) == null) continue;
+				let slot = scope :: FormationSlot();
+				slot.mUnitId = fSlot.mUnitId;
+				slot.mGridX = fSlot.mGridX;
+				slot.mGridY = fSlot.mGridY;
+				attackers.Add(slot);
+			}
+		}
+
+		// Fallback: use all owned units
+		if (attackers.Count == 0)
+		{
+			int32 slotIdx = 0;
+			for (let owned in save.mOwnedUnits)
+			{
+				if (mConfigs.GetUnit(owned.mUnitId) == null) continue;
+				let slot = scope :: FormationSlot();
+				slot.mUnitId = owned.mUnitId;
+				slot.mGridX = (int32)(slotIdx / 3);
+				slot.mGridY = (int32)(slotIdx % 3);
+				attackers.Add(slot);
+				slotIdx++;
+				if (slotIdx >= mPlayerManager.MaxFormationSlots) break;
+			}
+		}
+
+		// Enemy formation: single boss unit at center-right of grid
+		let defenders = scope List<FormationSlot>();
+		let bossSlot = scope :: FormationSlot();
+		bossSlot.mUnitId = tmpl.mUnitId;
+		bossSlot.mGridX = 6;
+		bossSlot.mGridY = 1;
+		defenders.Add(bossSlot);
+
+		// Create simulation
+		mCurrentSim = new BattleSimulation(mConfigs);
+		mCurrentSim.Initialize(attackers, defenders, BattleConstants.DEFAULT_COLUMNS, BattleConstants.DEFAULT_ROWS, DateTime.Now.Ticks);
+
+		// Apply boss scaling
+		if (tmpl.mHPScale != 1.0f || tmpl.mDamageScale != 1.0f || tmpl.mDefenseScale != 1.0f)
+			mCurrentSim.ApplyDefenderScaling(tmpl.mHPScale, tmpl.mDamageScale, tmpl.mDefenseScale);
+
+		mCurrentSim.Difficulty = .Hard;
+		StampUnitLevels();
+
+		// Set boss phase transitions — find the boss unit index in the simulation
+		int32 bossUnitIdx = -1;
+		for (int32 i = 0; i < mCurrentSim.UnitCount; i++)
+		{
+			let unit = mCurrentSim.GetUnit(i);
+			if (unit != null && unit.mForce == .Defender && unit.mConfig.mId == tmpl.mUnitId)
+			{
+				bossUnitIdx = i;
+				break;
+			}
+		}
+		if (bossUnitIdx >= 0)
+		{
+			mBossRushManager.ResetPhases(bossIndex);
+			mCurrentSim.SetBossPhases(bossUnitIdx, tmpl.mPhases);
+		}
+
+		Console.WriteLine("Boss battle created: '{}' — {}v1 on default grid",
+			tmpl.mName, attackers.Count);
 
 		// Create battle scene
 		let renderModule = mMainScene.GetModule<RenderSceneModule>();
@@ -859,12 +981,24 @@ class StormTacticsGame : Application
 			CreateChallengeBattle(index);
 		});
 
+		// Create boss rush screen
+		mBossRushScreen = new BossRushScreen();
+		mBossRushScreen.OnBack.Subscribe(new () => {
+			ShowCityHub();
+		});
+		mBossRushScreen.OnStartBoss.Subscribe(new (index) => {
+			CreateBossBattle(index);
+		});
+
 		// Wire city hub navigation events
 		mCityHubScreen.OnCampaign.Subscribe(new () => {
 			ShowStageSelect();
 		});
 		mCityHubScreen.OnChallenges.Subscribe(new () => {
 			ShowDailyChallenges();
+		});
+		mCityHubScreen.OnBossRush.Subscribe(new () => {
+			ShowBossRush();
 		});
 		mCityHubScreen.OnRoster.Subscribe(new () => {
 			ShowRoster();
@@ -961,6 +1095,10 @@ class StormTacticsGame : Application
 					}
 					// No stamina cost for challenges
 				}
+				else if (mCurrentBossIndex >= 0)
+				{
+					// No stamina cost for boss rush
+				}
 				else
 				{
 					// Spend stamina now that battle is actually starting
@@ -988,7 +1126,12 @@ class StormTacticsGame : Application
 			OnDeployRemoveUnit();
 		});
 		mBattleHUD.OnContinue.Subscribe(new () => {
-			if (mCurrentChallengeIndex >= 0)
+			if (mCurrentBossIndex >= 0)
+			{
+				mCurrentBossIndex = -1;
+				ShowBossRush();
+			}
+			else if (mCurrentChallengeIndex >= 0)
 			{
 				mCurrentChallengeIndex = -1;
 				ShowDailyChallenges();
@@ -1425,7 +1568,33 @@ class StormTacticsGame : Application
 			{
 				mRewardsProcessed = true;
 
-				if (mCurrentChallengeIndex >= 0)
+				if (mCurrentBossIndex >= 0)
+				{
+					// Boss rush rewards — gold/exp always, gems on first clear only
+					let bossTmpl = mBossRushManager.GetBoss(mCurrentBossIndex);
+					if (bossTmpl != null)
+					{
+						bool isFirstClear = !mBossRushManager.IsBossDefeated(mCurrentBossIndex);
+						mPlayerManager.AddGold(bossTmpl.mGoldReward);
+						mPlayerManager.AddHeroExp(bossTmpl.mExpReward);
+						int32 gemsAwarded = 0;
+						if (isFirstClear && bossTmpl.mFirstClearGems > 0)
+						{
+							mPlayerManager.AddGems(bossTmpl.mFirstClearGems);
+							gemsAwarded = bossTmpl.mFirstClearGems;
+						}
+						if (isFirstClear)
+							mBossRushManager.MarkBossDefeated(mCurrentBossIndex);
+						mSaveManager.Save();
+
+						var emptyRewards = scope RewardDisplayInfo[0];
+						mBattleHUD.ShowRewards(bossTmpl.mGoldReward, bossTmpl.mExpReward, gemsAwarded, isFirstClear, emptyRewards);
+
+						Console.WriteLine("[Boss Rush] Defeated '{}'{} — +{} gold, +{} EXP, +{} gems",
+							bossTmpl.mName, isFirstClear ? " (FIRST CLEAR)" : "", bossTmpl.mGoldReward, bossTmpl.mExpReward, gemsAwarded);
+					}
+				}
+				else if (mCurrentChallengeIndex >= 0)
 				{
 					// Challenge rewards — flat gold/exp/gems
 					let tmpl = mDailyChallengeManager.GetChallenge(mCurrentChallengeIndex);
@@ -1773,6 +1942,8 @@ class StormTacticsGame : Application
 		mSettingsScreen = null;
 		delete mCampaignScreen;
 		mCampaignScreen = null;
+		delete mBossRushScreen;
+		mBossRushScreen = null;
 		delete mDailyChallengeScreen;
 		mDailyChallengeScreen = null;
 		delete mFormationScreen;
@@ -1807,6 +1978,8 @@ class StormTacticsGame : Application
 
 		// 4. Metagame systems — save before exit
 		mSaveManager?.Save();
+		delete mBossRushManager;
+		mBossRushManager = null;
 		delete mDailyChallengeManager;
 		mDailyChallengeManager = null;
 		delete mRewardProcessor;

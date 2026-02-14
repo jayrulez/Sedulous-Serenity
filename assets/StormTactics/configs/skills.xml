@@ -1,5 +1,5 @@
 <root>
-  <array name="Items" count="15">
+  <array name="Items" count="21">
     <!-- 101: Iron Will - Passive, Self, permanent defense buff -->
     <object>
       <int32 name="Id">101</int32>
@@ -324,6 +324,139 @@
           <int32 name="Type">2</int32>
           <float name="Value">0</float>
           <int32 name="BuffId">209</int32>
+          <int32 name="SummonUnitId">0</int32>
+          <int32 name="DispelCount">0</int32>
+        </object>
+      </array>
+    </object>
+    <!-- Boss skill 9001: Ground Slam - OnAttack, SingleEnemy, 2.0x damage, cd=3 -->
+    <object>
+      <int32 name="Id">9001</int32>
+      <string name="Name">Ground Slam</string>
+      <string name="Description">Slams the ground with tremendous force for 200% damage.</string>
+      <string name="Icon">icon_skill_ground_slam</string>
+      <int32 name="Moment">3</int32>
+      <int32 name="Target">1</int32>
+      <int32 name="Cooldown">3</int32>
+      <float name="Chance">1</float>
+      <int32 name="MaxUsesPerBattle">0</int32>
+      <array name="Effects" count="1">
+        <object>
+          <int32 name="Type">0</int32>
+          <float name="Value">2</float>
+          <int32 name="BuffId">0</int32>
+          <int32 name="SummonUnitId">0</int32>
+          <int32 name="DispelCount">0</int32>
+        </object>
+      </array>
+    </object>
+    <!-- Boss skill 9002: Fortify - OnActionBegin, Self, apply defense buff, cd=5 -->
+    <object>
+      <int32 name="Id">9002</int32>
+      <string name="Name">Fortify</string>
+      <string name="Description">Hardens stone body, increasing defense by 50% for 3 turns.</string>
+      <string name="Icon">icon_skill_fortify</string>
+      <int32 name="Moment">2</int32>
+      <int32 name="Target">0</int32>
+      <int32 name="Cooldown">5</int32>
+      <float name="Chance">1</float>
+      <int32 name="MaxUsesPerBattle">0</int32>
+      <array name="Effects" count="1">
+        <object>
+          <int32 name="Type">2</int32>
+          <float name="Value">0</float>
+          <int32 name="BuffId">9004</int32>
+          <int32 name="SummonUnitId">0</int32>
+          <int32 name="DispelCount">0</int32>
+        </object>
+      </array>
+    </object>
+    <!-- Boss skill 9003: Death Strike - OnAttack, SingleEnemy, 2.5x damage + Poison DoT, cd=4 -->
+    <object>
+      <int32 name="Id">9003</int32>
+      <string name="Name">Death Strike</string>
+      <string name="Description">A lethal strike dealing 250% damage and applying deadly poison.</string>
+      <string name="Icon">icon_skill_death_strike_boss</string>
+      <int32 name="Moment">3</int32>
+      <int32 name="Target">1</int32>
+      <int32 name="Cooldown">4</int32>
+      <float name="Chance">1</float>
+      <int32 name="MaxUsesPerBattle">0</int32>
+      <array name="Effects" count="2">
+        <object>
+          <int32 name="Type">0</int32>
+          <float name="Value">2.5</float>
+          <int32 name="BuffId">0</int32>
+          <int32 name="SummonUnitId">0</int32>
+          <int32 name="DispelCount">0</int32>
+        </object>
+        <object>
+          <int32 name="Type">2</int32>
+          <float name="Value">0</float>
+          <int32 name="BuffId">9005</int32>
+          <int32 name="SummonUnitId">0</int32>
+          <int32 name="DispelCount">0</int32>
+        </object>
+      </array>
+    </object>
+    <!-- Boss skill 9004: Lifedrain - OnHit, Self, heal 30% of damage dealt, 40% chance -->
+    <object>
+      <int32 name="Id">9004</int32>
+      <string name="Name">Lifedrain</string>
+      <string name="Description">Each hit has a 40% chance to drain life, healing for 30% of max HP.</string>
+      <string name="Icon">icon_skill_lifedrain</string>
+      <int32 name="Moment">4</int32>
+      <int32 name="Target">0</int32>
+      <int32 name="Cooldown">0</int32>
+      <float name="Chance">0.4</float>
+      <int32 name="MaxUsesPerBattle">0</int32>
+      <array name="Effects" count="1">
+        <object>
+          <int32 name="Type">1</int32>
+          <float name="Value">0.3</float>
+          <int32 name="BuffId">0</int32>
+          <int32 name="SummonUnitId">0</int32>
+          <int32 name="DispelCount">0</int32>
+        </object>
+      </array>
+    </object>
+    <!-- Boss skill 9005: Arcane Blast - OnAttack, AllEnemies, 1.2x damage, cd=5 -->
+    <object>
+      <int32 name="Id">9005</int32>
+      <string name="Name">Arcane Blast</string>
+      <string name="Description">Unleashes a devastating arcane explosion hitting all enemies for 120% damage.</string>
+      <string name="Icon">icon_skill_arcane_blast</string>
+      <int32 name="Moment">3</int32>
+      <int32 name="Target">3</int32>
+      <int32 name="Cooldown">5</int32>
+      <float name="Chance">1</float>
+      <int32 name="MaxUsesPerBattle">0</int32>
+      <array name="Effects" count="1">
+        <object>
+          <int32 name="Type">0</int32>
+          <float name="Value">1.2</float>
+          <int32 name="BuffId">0</int32>
+          <int32 name="SummonUnitId">0</int32>
+          <int32 name="DispelCount">0</int32>
+        </object>
+      </array>
+    </object>
+    <!-- Boss skill 9006: Magic Shield - OnActionBegin, Self, +100% defense buff for 3 turns, cd=6 -->
+    <object>
+      <int32 name="Id">9006</int32>
+      <string name="Name">Magic Shield</string>
+      <string name="Description">Conjures a powerful barrier, doubling defense for 3 turns.</string>
+      <string name="Icon">icon_skill_magic_shield</string>
+      <int32 name="Moment">2</int32>
+      <int32 name="Target">0</int32>
+      <int32 name="Cooldown">6</int32>
+      <float name="Chance">1</float>
+      <int32 name="MaxUsesPerBattle">0</int32>
+      <array name="Effects" count="1">
+        <object>
+          <int32 name="Type">2</int32>
+          <float name="Value">0</float>
+          <int32 name="BuffId">9006</int32>
           <int32 name="SummonUnitId">0</int32>
           <int32 name="DispelCount">0</int32>
         </object>

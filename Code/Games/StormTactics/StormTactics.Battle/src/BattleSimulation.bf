@@ -64,6 +64,10 @@ class BattleSimulation
 	private int32 mTotalHealingDone;
 	private int32 mUnitsKilled;
 
+	// --- Boss phase transitions ---
+	private int32 mBossUnitIndex = -1;
+	private List<BossPhase> mBossPhases; // Borrowed reference, not owned
+
 	public BattleState State => mState;
 	public int32 TurnCount => mTurnCount;
 	public HexGrid Grid => mGrid;
@@ -899,6 +903,36 @@ class BattleSimulation
 			mUnitsKilled++;
 			TriggerSkills(attackerIdx, .OnKill, targetIdx);
 			TriggerSkills(targetIdx, .OnDeath, attackerIdx);
+		}
+
+		CheckBossPhases();
+	}
+
+	/// Set boss phase data. Call after Initialize(). Phases are not owned.
+	public void SetBossPhases(int32 bossUnitIdx, List<BossPhase> phases)
+	{
+		mBossUnitIndex = bossUnitIdx;
+		mBossPhases = phases;
+	}
+
+	/// Check if any boss phase thresholds have been crossed.
+	private void CheckBossPhases()
+	{
+		if (mBossUnitIndex < 0 || mBossPhases == null) return;
+		let boss = mUnits[mBossUnitIndex];
+		if (!boss.mAlive) return;
+
+		float hpRatio = (float)boss.mCurrentHP / (float)boss.mMaxHP;
+		for (let phase in mBossPhases)
+		{
+			if (phase.mTriggered) continue;
+			if (hpRatio <= phase.mHPThreshold)
+			{
+				phase.mTriggered = true;
+				ApplyBuff(mBossUnitIndex, phase.mBuffId, mBossUnitIndex);
+				let phaseEvt = EmitEvent(.BossPhase, mBossUnitIndex);
+				phaseEvt.mBuffId = phase.mBuffId;
+			}
 		}
 	}
 

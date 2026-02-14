@@ -19,6 +19,7 @@ class ConfigDatabase
 	private Dictionary<int32, EquipConfig> mEquips = new .() ~ DeleteDictionaryAndValues!(_);
 	private Dictionary<int32, ShopItemConfig> mShopItems = new .() ~ DeleteDictionaryAndValues!(_);
 	private Dictionary<int32, HeroLevelConfig> mHeroLevels = new .() ~ DeleteDictionaryAndValues!(_);
+	private Dictionary<int32, BossTemplate> mBosses = new .() ~ DeleteDictionaryAndValues!(_);
 	private List<StarLevelConfig> mStarLevels = new .() ~ DeleteContainerAndItems!(_);
 
 	// --- Accessors ---
@@ -30,6 +31,7 @@ class ConfigDatabase
 	public ItemConfig GetItem(int32 id) => mItems.GetValueOrDefault(id);
 	public EquipConfig GetEquip(int32 id) => mEquips.GetValueOrDefault(id);
 	public ShopItemConfig GetShopItem(int32 id) => mShopItems.GetValueOrDefault(id);
+	public BossTemplate GetBoss(int32 id) => mBosses.GetValueOrDefault(id);
 	public HeroLevelConfig GetHeroLevel(int32 level) => mHeroLevels.GetValueOrDefault(level);
 
 	public Dictionary<int32, UnitConfig>.ValueEnumerator Units => mUnits.Values;
@@ -39,6 +41,7 @@ class ConfigDatabase
 	public Dictionary<int32, ItemConfig>.ValueEnumerator Items => mItems.Values;
 	public Dictionary<int32, EquipConfig>.ValueEnumerator Equips => mEquips.Values;
 	public Dictionary<int32, ShopItemConfig>.ValueEnumerator ShopItems => mShopItems.Values;
+	public Dictionary<int32, BossTemplate>.ValueEnumerator Bosses => mBosses.Values;
 
 	public StarLevelConfig GetStarLevel(int32 unitId, int32 starLevel)
 	{
@@ -75,6 +78,7 @@ class ConfigDatabase
 		Try!(LoadConfigList<EquipConfig>(basePath, "equips.xml", mEquips, scope (c) => c.mId));
 		Try!(LoadConfigList<ShopItemConfig>(basePath, "shop.xml", mShopItems, scope (c) => c.mId));
 		Try!(LoadConfigList<HeroLevelConfig>(basePath, "hero_levels.xml", mHeroLevels, scope (c) => c.mLevel));
+		Try!(LoadConfigList<BossTemplate>(basePath, "bosses.xml", mBosses, scope (c) => c.mId));
 		Try!(LoadObjectList<StarLevelConfig>(basePath, "star_levels.xml", mStarLevels));
 		return .Ok;
 	}

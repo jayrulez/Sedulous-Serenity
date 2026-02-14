@@ -20,6 +20,7 @@ enum BattleEventType
 	SkillUsed,
 	CounterAttack,
 	UnitSummoned,
+	BossPhase,
 	BattleEnded
 }
 
