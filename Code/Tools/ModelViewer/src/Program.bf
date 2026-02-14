@@ -733,9 +733,17 @@ class ModelViewerApp : Application
 		}
 
 		let skin = tab.Model.Skins[0];
-		Dictionary<int32, int32> boneToJoint = scope .();
-		for (int32 j = 0; j < (int32)skin.Joints.Count; j++)
-			boneToJoint[skin.Joints[j]] = j;
+
+		// Use the skeleton converter's mapping which includes non-joint ancestor nodes.
+		// This preserves animation channels on ancestor nodes (e.g. root motion on the
+		// Armature node) that would otherwise be silently dropped.
+		let nodeToBone = Sedulous.Geometry.Tooling.SkeletonConverter.CreateNodeToBoneMapping(tab.Model, skin);
+		if (nodeToBone == null)
+		{
+			tab.Clips = new AnimationClip[0];
+			return;
+		}
+		defer delete nodeToBone;
 
 		for (int i = 0; i < tab.Model.Animations.Count; i++)
 		{
@@ -744,8 +752,12 @@ class ModelViewerApp : Application
 
 			for (let channel in modelAnim.Channels)
 			{
-				int32 jointIndex;
-				if (!boneToJoint.TryGetValue(channel.TargetBone, out jointIndex))
+				let nodeIdx = channel.TargetBone;
+				if (nodeIdx < 0 || nodeIdx >= nodeToBone.Count)
+					continue;
+
+				let boneIdx = nodeToBone[nodeIdx];
+				if (boneIdx < 0)
 					continue;
 
 				let interp = ConvertInterpolation(channel.Interpolation);
@@ -753,17 +765,17 @@ class ModelViewerApp : Application
 				switch (channel.Path)
 				{
 				case .Translation:
-					let track = clip.GetOrCreatePositionTrack(jointIndex);
+					let track = clip.GetOrCreatePositionTrack(boneIdx);
 					track.Interpolation = interp;
 					for (let kf in channel.Keyframes)
 						track.AddKeyframe(kf.Time, Vector3(kf.Value.X, kf.Value.Y, kf.Value.Z));
 				case .Rotation:
-					let track = clip.GetOrCreateRotationTrack(jointIndex);
+					let track = clip.GetOrCreateRotationTrack(boneIdx);
 					track.Interpolation = interp;
 					for (let kf in channel.Keyframes)
 						track.AddKeyframe(kf.Time, Quaternion(kf.Value.X, kf.Value.Y, kf.Value.Z, kf.Value.W));
 				case .Scale:
-					let track = clip.GetOrCreateScaleTrack(jointIndex);
+					let track = clip.GetOrCreateScaleTrack(boneIdx);
 					track.Interpolation = interp;
 					for (let kf in channel.Keyframes)
 						track.AddKeyframe(kf.Time, Vector3(kf.Value.X, kf.Value.Y, kf.Value.Z));

@@ -92,6 +92,8 @@ public class FbxLoader : IModelLoader
 		mLoadOpts = .();
 		mLoadOpts.target_axes = ufbx_axes_right_handed_y_up;
 		mLoadOpts.target_unit_meters = 1.0;
+		mLoadOpts.space_conversion = .UFBX_SPACE_CONVERSION_MODIFY_GEOMETRY;
+		mLoadOpts.geometry_transform_handling = .UFBX_GEOMETRY_TRANSFORM_HANDLING_MODIFY_GEOMETRY_NO_FALLBACK;
 		mLoadOpts.generate_missing_normals = true;
 		mLoadOpts.clean_skin_weights = true;
 		mLoadOpts.use_blender_pbr_material = true;
@@ -109,6 +111,9 @@ public class FbxLoader : IModelLoader
 				return .UnsupportedVersion;
 			return .ParseError;
 		}
+
+		// With MODIFY_GEOMETRY, ufbx converts everything to Y-up already.
+		model.OriginalUpAxis = .PositiveY;
 
 		// Convert to Model
 		LoadMaterials(model);
@@ -949,150 +954,108 @@ public class FbxLoader : IModelLoader
 			if (stack.element.name.data != null && stack.element.name.length > 0)
 				animation.SetName(StringView(stack.element.name.data, (int)stack.element.name.length));
 
-			// Process each layer
-			for (int li = 0; li < (int)stack.layers.count; li++)
+			// Bake the animation — this pre-computes T/R/S keyframes per node
+			// in the target coordinate system (Y-up), handling Euler-to-quaternion
+			// conversion and layer blending automatically.
+			ufbx_bake_opts bakeOpts = .();
+			bakeOpts.resample_rate = 30.0;
+			bakeOpts.minimum_sample_rate = 30.0;
+			bakeOpts.max_keyframe_segments = 1024;
+
+			ufbx_error bakeError = .();
+			let bakedAnim = ufbx_bake_anim(mScene, stack.anim, &bakeOpts, &bakeError);
+			if (bakedAnim == null)
 			{
-				let layer = stack.layers.data[li];
+				delete animation;
+				continue;
+			}
 
-				// Process animated properties
-				for (int pi = 0; pi < (int)layer.anim_props.count; pi++)
+			for (int ni = 0; ni < (int)bakedAnim.nodes.count; ni++)
+			{
+				let bakedNode = &bakedAnim.nodes.data[ni];
+
+				// Map baked node to our bone index
+				if (!mNodeToBoneIndex.TryGetValue(bakedNode.typed_id, let boneIdx))
+					continue;
+
+				// Translation channel
+				if (bakedNode.translation_keys.count > 0 && !bakedNode.constant_translation)
 				{
-					let animProp = &layer.anim_props.data[pi];
-
-					// Only process node transforms
-					if (animProp.element == null || animProp.element.type != .UFBX_ELEMENT_NODE)
-						continue;
-
-					// Get target bone
-					if (!mNodeToBoneIndex.TryGetValue(animProp.element.typed_id, let boneIdx))
-						continue;
-
-					// Map property name to animation path
-					let propName = StringView(animProp.prop_name.data, (int)animProp.prop_name.length);
-
-					AnimationPath path;
-					if (propName == "Lcl Translation")
-						path = .Translation;
-					else if (propName == "Lcl Rotation")
-						path = .Rotation;
-					else if (propName == "Lcl Scaling")
-						path = .Scale;
-					else
-						continue;
-
-					let animValue = animProp.anim_value;
-					if (animValue == null)
-						continue;
-
 					let channel = new AnimationChannel();
 					channel.TargetBone = boneIdx;
-					channel.Path = path;
+					channel.Path = .Translation;
+					channel.Interpolation = DetectInterpolation(bakedNode.translation_keys);
 
-					// Get node for rotation order
-					let node = (ufbx_node*)animProp.element;
-
-					// Collect unique keyframe times from all curves
-					let times = scope List<double>();
-					for (int ci = 0; ci < 3; ci++)
+					for (int ki = 0; ki < (int)bakedNode.translation_keys.count; ki++)
 					{
-						let curve = animValue.curves[ci];
-						if (curve == null) continue;
-
-						for (int ki = 0; ki < (int)curve.keyframes.count; ki++)
-						{
-							let kf = &curve.keyframes.data[ki];
-							// Insert in sorted order, skip duplicates
-							bool found = false;
-							for (let t in times)
-							{
-								if (Math.Abs(t - kf.time) < 0.0001)
-								{
-									found = true;
-									break;
-								}
-							}
-							if (!found)
-							{
-								// Find insertion point
-								int insertAt = times.Count;
-								for (int ti = 0; ti < times.Count; ti++)
-								{
-									if (times[ti] > kf.time)
-									{
-										insertAt = ti;
-										break;
-									}
-								}
-								times.Insert(insertAt, kf.time);
-							}
-						}
+						let key = &bakedNode.translation_keys.data[ki];
+						channel.AddKeyframe((float)key.time, .((float)key.value.x, (float)key.value.y, (float)key.value.z, 0));
 					}
+					animation.AddChannel(channel);
+				}
 
-					// Determine interpolation from curves
-					AnimationInterpolation interp = .Linear;
-					bool hasConstant = false;
-					bool hasCubic = false;
-					for (int ci = 0; ci < 3; ci++)
+				// Rotation channel
+				if (bakedNode.rotation_keys.count > 0 && !bakedNode.constant_rotation)
+				{
+					let channel = new AnimationChannel();
+					channel.TargetBone = boneIdx;
+					channel.Path = .Rotation;
+					channel.Interpolation = DetectInterpolation(bakedNode.rotation_keys);
+
+					for (int ki = 0; ki < (int)bakedNode.rotation_keys.count; ki++)
 					{
-						let curve = animValue.curves[ci];
-						if (curve == null) continue;
-						for (int ki = 0; ki < (int)curve.keyframes.count; ki++)
-						{
-							let kfInterp = curve.keyframes.data[ki].interpolation;
-							if (kfInterp == .UFBX_INTERPOLATION_CONSTANT_PREV || kfInterp == .UFBX_INTERPOLATION_CONSTANT_NEXT)
-								hasConstant = true;
-							else if (kfInterp == .UFBX_INTERPOLATION_CUBIC)
-								hasCubic = true;
-						}
+						let key = &bakedNode.rotation_keys.data[ki];
+						channel.AddKeyframe((float)key.time, .((float)key.value.x, (float)key.value.y, (float)key.value.z, (float)key.value.w));
 					}
-					if (hasConstant && !hasCubic)
-						interp = .Step;
-					else if (hasCubic)
-						interp = .CubicSpline;
-					channel.Interpolation = interp;
+					animation.AddChannel(channel);
+				}
 
-					// Sample keyframes
-					for (let time in times)
+				// Scale channel
+				if (bakedNode.scale_keys.count > 0 && !bakedNode.constant_scale)
+				{
+					let channel = new AnimationChannel();
+					channel.TargetBone = boneIdx;
+					channel.Path = .Scale;
+					channel.Interpolation = DetectInterpolation(bakedNode.scale_keys);
+
+					for (int ki = 0; ki < (int)bakedNode.scale_keys.count; ki++)
 					{
-						// Evaluate each curve at this time
-						double vx = animValue.default_value.x;
-						double vy = animValue.default_value.y;
-						double vz = animValue.default_value.z;
-
-						if (animValue.curves[0] != null)
-							vx = ufbx_evaluate_curve(animValue.curves[0], time, animValue.default_value.x);
-						if (animValue.curves[1] != null)
-							vy = ufbx_evaluate_curve(animValue.curves[1], time, animValue.default_value.y);
-						if (animValue.curves[2] != null)
-							vz = ufbx_evaluate_curve(animValue.curves[2], time, animValue.default_value.z);
-
-						Vector4 value = .Zero;
-
-						switch (path)
-						{
-						case .Translation, .Scale:
-							value = .((float)vx, (float)vy, (float)vz, 0);
-
-						case .Rotation:
-							// ufbx rotation values are Euler angles in degrees
-							let euler = ufbx_vec3() { x = vx, y = vy, z = vz };
-							let quat = ufbx_euler_to_quat(euler, node.rotation_order);
-							value = .((float)quat.x, (float)quat.y, (float)quat.z, (float)quat.w);
-
-						case .Weights:
-							value.X = (float)vx;
-						}
-
-						channel.AddKeyframe((float)time, value);
+						let key = &bakedNode.scale_keys.data[ki];
+						channel.AddKeyframe((float)key.time, .((float)key.value.x, (float)key.value.y, (float)key.value.z, 0));
 					}
-
 					animation.AddChannel(channel);
 				}
 			}
 
+			ufbx_free_baked_anim(bakedAnim);
+
 			animation.CalculateDuration();
 			model.AddAnimation(animation);
 		}
+	}
+
+	/// Detect interpolation mode from baked vec3 keyframe flags.
+	private AnimationInterpolation DetectInterpolation(ufbx_baked_vec3_list keys)
+	{
+		for (int i = 0; i < (int)keys.count; i++)
+		{
+			let flags = keys.data[i].flags;
+			if (flags.HasFlag(.UFBX_BAKED_KEY_STEP_LEFT) || flags.HasFlag(.UFBX_BAKED_KEY_STEP_RIGHT))
+				return .Step;
+		}
+		return .Linear;
+	}
+
+	/// Detect interpolation mode from baked quaternion keyframe flags.
+	private AnimationInterpolation DetectInterpolation(ufbx_baked_quat_list keys)
+	{
+		for (int i = 0; i < (int)keys.count; i++)
+		{
+			let flags = keys.data[i].flags;
+			if (flags.HasFlag(.UFBX_BAKED_KEY_STEP_LEFT) || flags.HasFlag(.UFBX_BAKED_KEY_STEP_RIGHT))
+				return .Step;
+		}
+		return .Linear;
 	}
 
 	// ===== Matrix Conversion =====

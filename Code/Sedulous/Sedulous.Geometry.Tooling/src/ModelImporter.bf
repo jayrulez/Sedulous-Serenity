@@ -460,47 +460,25 @@ class ModelImporter
 		if (model.Animations.Count == 0 || model.Skins.Count == 0)
 			return;
 
-		// Use the first skin to get node-to-bone mapping
+		// Get node-to-bone mapping from the skeleton converter (includes ancestor nodes
+		// so that root motion animation channels on non-joint ancestors are preserved)
 		let skin = model.Skins[0];
-		let modelMesh = model.Meshes.Count > 0 ? model.Meshes[0] : null;
+		let nodeToBoneMapping = SkeletonConverter.CreateNodeToBoneMapping(model, skin);
+		if (nodeToBoneMapping == null)
+			return;
+		defer delete nodeToBoneMapping;
 
-		// We need to find a mesh with skinning data to get the node-to-bone mapping
-		int32[] nodeToBoneMapping = null;
-		if (modelMesh != null)
+		for (let modelAnim in model.Animations)
 		{
-			bool hasSkinning = false;
-			for (let element in modelMesh.VertexElements)
+			let clip = AnimationConverter.Convert(modelAnim, nodeToBoneMapping);
+			if (clip != null)
 			{
-				if (element.Semantic == .Joints)
-				{
-					hasSkinning = true;
-					break;
-				}
+				let animRes = new AnimationClipResource(clip, true);
+				result.Animations.Add(animRes);
 			}
-
-			if (hasSkinning)
+			else
 			{
-				if (ModelMeshConverter.ConvertToSkinnedMesh(modelMesh, skin, mOptions.GenerateNormals, mOptions.GenerateTangents) case .Ok(var conversionResult))
-				{
-					nodeToBoneMapping = conversionResult.NodeToBoneMapping;
-					delete conversionResult.Mesh;  // Not needed here, only using the mapping
-					defer { conversionResult.Dispose(); }
-
-					// Convert each animation to a resource
-					for (let modelAnim in model.Animations)
-					{
-						let clip = AnimationConverter.Convert(modelAnim, nodeToBoneMapping);
-						if (clip != null)
-						{
-							let animRes = new AnimationClipResource(clip, true);
-							result.Animations.Add(animRes);
-						}
-						else
-						{
-							result.AddWarning(scope $"Failed to convert animation '{modelAnim.Name}'");
-						}
-					}
-				}
+				result.AddWarning(scope $"Failed to convert animation '{modelAnim.Name}'");
 			}
 		}
 	}

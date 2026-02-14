@@ -4,6 +4,17 @@ using Sedulous.Mathematics;
 
 namespace Sedulous.Models;
 
+/// The up axis of a coordinate system, as reported by the source file.
+public enum CoordinateAxis
+{
+	PositiveX,
+	NegativeX,
+	PositiveY,
+	NegativeY,
+	PositiveZ,
+	NegativeZ,
+}
+
 /// A complete 3D model with meshes, materials, skeleton, and animations
 public class Model
 {
@@ -20,6 +31,11 @@ public class Model
 
 	/// Index of the root bone (-1 if no hierarchy)
 	public int32 RootBoneIndex = -1;
+
+	/// The original up axis of the source file's coordinate system.
+	/// Loaders set this so tooling can apply corrections during conversion.
+	/// Default is Y-up (no correction needed for GLTF or already-converted files).
+	public CoordinateAxis OriginalUpAxis = .PositiveY;
 
 	public StringView Name => mName;
 	public List<ModelMesh> Meshes => mMeshes;

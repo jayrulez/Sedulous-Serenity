@@ -81,6 +81,9 @@ public class GltfLoader : IModelLoader
 			return .InvalidFormat;
 		}
 
+		// GLTF is always Y-up per specification
+		model.OriginalUpAxis = .PositiveY;
+
 		// Convert to Model
 		LoadMaterials(model);
 		LoadTextures(model);
