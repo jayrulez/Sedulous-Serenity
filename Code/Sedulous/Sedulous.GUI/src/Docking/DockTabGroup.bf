@@ -17,6 +17,11 @@ public class DockTabGroup : Control, IDragSource, IDropTarget
 	private float mTabHeight = 24;  // Default, updated from theme
 	private List<RectangleF> mTabBounds = new .() ~ delete _;
 
+	// Image support
+	private ImageBrush? mTabStripImage;
+	private ImageBrush? mActiveTabImage;
+	private ImageBrush? mInactiveTabImage;
+
 	// Drag state
 	private int mDragTabIndex = -1;
 	private bool mDragPending = false;
@@ -107,6 +112,27 @@ public class DockTabGroup : Control, IDragSource, IDropTarget
 				InvalidateLayout();
 			}
 		}
+	}
+
+	/// Image for the tab strip background.
+	public ImageBrush? TabStripImage
+	{
+		get => mTabStripImage;
+		set => mTabStripImage = value;
+	}
+
+	/// Image for the active (selected) tab.
+	public ImageBrush? ActiveTabImage
+	{
+		get => mActiveTabImage;
+		set => mActiveTabImage = value;
+	}
+
+	/// Image for inactive (unselected) tabs.
+	public ImageBrush? InactiveTabImage
+	{
+		get => mInactiveTabImage;
+		set => mInactiveTabImage = value;
 	}
 
 	/// Event fired when a panel is closed.
@@ -339,7 +365,21 @@ public class DockTabGroup : Control, IDragSource, IDropTarget
 		{
 			// Render tab strip background
 			let tabStripBounds = RectangleF(ArrangedBounds.X, ArrangedBounds.Y, ArrangedBounds.Width, mTabHeight);
-			ctx.FillRect(tabStripBounds, groupStyle.Background);
+			if (mTabStripImage.HasValue && mTabStripImage.Value.IsValid)
+			{
+				ctx.DrawImageBrush(mTabStripImage.Value, tabStripBounds);
+			}
+			else
+			{
+				ctx.FillRect(tabStripBounds, groupStyle.Background);
+
+				// Tab strip bottom border (skip when using strip image)
+				ctx.DrawLine(
+					.(ArrangedBounds.X, ArrangedBounds.Y + mTabHeight),
+					.(ArrangedBounds.Right, ArrangedBounds.Y + mTabHeight),
+					groupStyle.BorderColor, 1
+				);
+			}
 
 			// Render tabs
 			for (int i = 0; i < mTabBounds.Count && i < mPanels.Count; i++)
@@ -351,13 +391,6 @@ public class DockTabGroup : Control, IDragSource, IDropTarget
 
 				RenderTab(ctx, tabBounds, panel.Title, isSelected, isHovered, panel.IsCloseable);
 			}
-
-			// Tab strip bottom border
-			ctx.DrawLine(
-				.(ArrangedBounds.X, ArrangedBounds.Y + mTabHeight),
-				.(ArrangedBounds.Right, ArrangedBounds.Y + mTabHeight),
-				groupStyle.BorderColor, 1
-			);
 
 			// Draw drop insert indicator
 			if (mDropInsertIndex >= 0)
@@ -394,21 +427,33 @@ public class DockTabGroup : Control, IDragSource, IDropTarget
 		// Get tab style from theme
 		let tabStyle = Context?.Theme?.GetControlStyle("DockTab") ?? GetThemeStyle();
 
-		// Tab background
-		Color bgColor;
-		if (isSelected)
-			bgColor = tabStyle.Pressed.Background ?? tabStyle.Background;
-		else if (isHovered)
-			bgColor = tabStyle.Hover.Background ?? tabStyle.Background;
-		else
-			bgColor = tabStyle.Background;
-
-		ctx.FillRect(bounds, bgColor);
-
-		// Tab border (selected tabs have a colored top border)
-		if (isSelected)
+		// Try image-based tab rendering
+		let tabImage = isSelected ? mActiveTabImage : mInactiveTabImage;
+		if (tabImage.HasValue && tabImage.Value.IsValid)
 		{
-			ctx.FillRect(.(bounds.X, bounds.Y, bounds.Width, 2), tabStyle.BorderColor);
+			var img = tabImage.Value;
+			if (!isSelected && isHovered)
+				img.Tint = Palette.Lighten(img.Tint, 0.10f);
+			ctx.DrawImageBrush(img, bounds);
+		}
+		else
+		{
+			// Tab background
+			Color bgColor;
+			if (isSelected)
+				bgColor = tabStyle.Pressed.Background ?? tabStyle.Background;
+			else if (isHovered)
+				bgColor = tabStyle.Hover.Background ?? tabStyle.Background;
+			else
+				bgColor = tabStyle.Background;
+
+			ctx.FillRect(bounds, bgColor);
+
+			// Tab border (selected tabs have a colored top border)
+			if (isSelected)
+			{
+				ctx.FillRect(.(bounds.X, bounds.Y, bounds.Width, 2), tabStyle.BorderColor);
+			}
 		}
 
 		// Tab text - vertically centered

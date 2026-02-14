@@ -17,6 +17,9 @@ public class FloatingWindow : Control
 	private bool mIsDragging = false;
 	private Vector2 mDragOffset;
 
+	// Image support
+	private ImageBrush? mFrameImage;
+
 	// Resize state
 	private bool mIsResizing = false;
 	private ResizeEdge mResizeEdge = .None;
@@ -90,6 +93,13 @@ public class FloatingWindow : Control
 		}
 	}
 
+	/// Image for the window frame (replaces background + border, shadow preserved).
+	public ImageBrush? FrameImage
+	{
+		get => mFrameImage;
+		set => mFrameImage = value;
+	}
+
 	/// The bounds of this floating window.
 	public RectangleF WindowBounds => .(mPosition.X, mPosition.Y, mSize.X, mSize.Y);
 
@@ -132,16 +142,24 @@ public class FloatingWindow : Control
 	{
 		let bounds = WindowBounds;
 
-		// Window shadow
+		// Window shadow (always drawn)
 		let shadowOffset = 4.0f;
 		ctx.FillRect(.(bounds.X + shadowOffset, bounds.Y + shadowOffset, bounds.Width, bounds.Height),
 			Color(0, 0, 0, 60));
 
-		// Window background
-		ctx.FillRect(bounds, Color(45, 45, 45, 255));
+		// Window frame
+		if (mFrameImage.HasValue && mFrameImage.Value.IsValid)
+		{
+			ctx.DrawImageBrush(mFrameImage.Value, bounds);
+		}
+		else
+		{
+			// Window background
+			ctx.FillRect(bounds, Color(45, 45, 45, 255));
 
-		// Window border
-		ctx.DrawRect(bounds, Color(80, 80, 80, 255), 1);
+			// Window border
+			ctx.DrawRect(bounds, Color(80, 80, 80, 255), 1);
+		}
 
 		// Render panel content
 		if (mPanel != null)

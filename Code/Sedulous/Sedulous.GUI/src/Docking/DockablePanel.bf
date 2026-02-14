@@ -24,6 +24,10 @@ public class DockablePanel : Control, IDragSource, IDropTarget
 	private RectangleF mPinBounds;
 	private RectangleF mContentBounds;
 
+	// Image support
+	private ImageBrush? mFrameImage;
+	private ImageBrush? mTitleBarImage;
+
 	// Drag state
 	private bool mDragPending = false;
 	private Vector2 mDragStartPos;
@@ -141,6 +145,20 @@ public class DockablePanel : Control, IDragSource, IDropTarget
 				mPinToggled.[Friend]Invoke(this);
 			}
 		}
+	}
+
+	/// Image for the entire panel frame (replaces background + border).
+	public ImageBrush? FrameImage
+	{
+		get => mFrameImage;
+		set => mFrameImage = value;
+	}
+
+	/// Image for the title bar area.
+	public ImageBrush? TitleBarImage
+	{
+		get => mTitleBarImage;
+		set => mTitleBarImage = value;
 	}
 
 	/// Height of the title bar.
@@ -291,12 +309,45 @@ public class DockablePanel : Control, IDragSource, IDropTarget
 		let headerStyle = Context?.Theme?.GetControlStyle("DockablePanelHeader") ?? GetThemeStyle();
 		let panelStyle = GetThemeStyle();
 
-		// Only render title bar if it should be shown
+		// Try frame image for the entire panel
+		if (mFrameImage.HasValue && mFrameImage.Value.IsValid)
+		{
+			ctx.DrawImageBrush(mFrameImage.Value, ArrangedBounds);
+		}
+		else
+		{
+			// Only render title bar if it should be shown
+			if (ShouldShowTitleBar)
+			{
+				// Title bar background
+				if (mTitleBarImage.HasValue && mTitleBarImage.Value.IsValid)
+				{
+					ctx.DrawImageBrush(mTitleBarImage.Value, mTitleBarBounds);
+				}
+				else
+				{
+					ctx.FillRect(mTitleBarBounds, headerStyle.Background);
+				}
+
+				// Title bar bottom border (skip when using title bar image)
+				if (!mTitleBarImage.HasValue || !mTitleBarImage.Value.IsValid)
+				{
+					ctx.DrawLine(
+						.(mTitleBarBounds.X, mTitleBarBounds.Bottom),
+						.(mTitleBarBounds.Right, mTitleBarBounds.Bottom),
+						headerStyle.BorderColor, 1
+					);
+				}
+			}
+
+			// Content background - use explicit Background if set, otherwise theme style
+			let contentBg = Background.A > 0 ? Background : panelStyle.Background;
+			ctx.FillRect(mContentBounds, contentBg);
+		}
+
+		// Title bar text and buttons (always rendered on top of any image)
 		if (ShouldShowTitleBar)
 		{
-			// Title bar background
-			ctx.FillRect(mTitleBarBounds, headerStyle.Background);
-
 			// Title text - vertically centered
 			let fontSize = Context?.Theme?.DockFontSize ?? 12.0f;
 			let padding = Context?.Theme?.DockTabPadding ?? 8.0f;
@@ -321,18 +372,7 @@ public class DockablePanel : Control, IDragSource, IDropTarget
 				let pinColor = mIsPinHovered ? accentColor : normalColor;
 				RenderPinButton(ctx, mPinBounds, pinColor, mIsPinned);
 			}
-
-			// Title bar bottom border
-			ctx.DrawLine(
-				.(mTitleBarBounds.X, mTitleBarBounds.Bottom),
-				.(mTitleBarBounds.Right, mTitleBarBounds.Bottom),
-				headerStyle.BorderColor, 1
-			);
 		}
-
-		// Content background - use explicit Background if set, otherwise theme style
-		let contentBg = Background.A > 0 ? Background : panelStyle.Background;
-		ctx.FillRect(mContentBounds, contentBg);
 
 		// Render content
 		if (mContent != null && mContent.Visibility != .Collapsed)

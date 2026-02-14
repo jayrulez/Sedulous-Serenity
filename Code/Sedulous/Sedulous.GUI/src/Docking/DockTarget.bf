@@ -13,6 +13,7 @@ public class DockTarget : Control
 	private bool mIsVisible = false;
 	private Color mHighlightColor = Color(60, 120, 200, 100);
 	private Color mBorderColor = Color(60, 120, 200, 200);
+	private ImageBrush? mOverlayImage;
 
 	/// Creates a new DockTarget.
 	public this()
@@ -60,6 +61,13 @@ public class DockTarget : Control
 		set => mBorderColor = value;
 	}
 
+	/// Image for the overlay (replaces highlight fill + border).
+	public ImageBrush? OverlayImage
+	{
+		get => mOverlayImage;
+		set => mOverlayImage = value;
+	}
+
 	/// Shows the target at the specified bounds.
 	public void Show(RectangleF bounds, DockPosition position)
 	{
@@ -93,11 +101,18 @@ public class DockTarget : Control
 		if (!mIsVisible || mTargetBounds.Width <= 0 || mTargetBounds.Height <= 0)
 			return;
 
-		// Fill with semi-transparent highlight
-		ctx.FillRect(mTargetBounds, mHighlightColor);
+		if (mOverlayImage.HasValue && mOverlayImage.Value.IsValid)
+		{
+			ctx.DrawImageBrush(mOverlayImage.Value, mTargetBounds);
+		}
+		else
+		{
+			// Fill with semi-transparent highlight
+			ctx.FillRect(mTargetBounds, mHighlightColor);
 
-		// Draw border
-		ctx.DrawRect(mTargetBounds, mBorderColor, 2);
+			// Draw border
+			ctx.DrawRect(mTargetBounds, mBorderColor, 2);
+		}
 	}
 
 	// === Hit Testing ===
@@ -131,6 +146,8 @@ public class DockZoneIndicator : Control
 	private Color mButtonHoverColor = Color(60, 120, 200, 220);
 	private Color mButtonBorderColor = Color(100, 100, 100, 255);
 	private Color mArrowColor = Color(200, 200, 200, 255);
+	private ImageBrush? mButtonImage;
+	private ImageBrush? mButtonHoverImage;
 
 	/// Creates a new DockZoneIndicator.
 	public this()
@@ -148,6 +165,20 @@ public class DockZoneIndicator : Control
 
 	/// The currently hovered zone, or null.
 	public DockPosition? HoveredZone => mHoveredZone;
+
+	/// Image for zone buttons (normal state).
+	public ImageBrush? ButtonImage
+	{
+		get => mButtonImage;
+		set => mButtonImage = value;
+	}
+
+	/// Image for zone buttons (hovered state).
+	public ImageBrush? ButtonHoverImage
+	{
+		get => mButtonHoverImage;
+		set => mButtonHoverImage = value;
+	}
 
 	/// Shows the indicator centered at the specified position.
 	public void Show(Vector2 center)
@@ -229,11 +260,21 @@ public class DockZoneIndicator : Control
 	private void RenderButton(DrawContext ctx, RectangleF bounds, DockPosition position)
 	{
 		let isHovered = mHoveredZone == position;
-		let bgColor = isHovered ? mButtonHoverColor : mButtonColor;
 
 		// Button background
-		ctx.FillRect(bounds, bgColor);
-		ctx.DrawRect(bounds, mButtonBorderColor, 1);
+		let hoverImg = isHovered ? mButtonHoverImage : (ImageBrush?)null;
+		let normalImg = mButtonImage;
+		let btnImage = hoverImg.HasValue && hoverImg.Value.IsValid ? hoverImg : normalImg;
+		if (btnImage.HasValue && btnImage.Value.IsValid)
+		{
+			ctx.DrawImageBrush(btnImage.Value, bounds);
+		}
+		else
+		{
+			let bgColor = isHovered ? mButtonHoverColor : mButtonColor;
+			ctx.FillRect(bounds, bgColor);
+			ctx.DrawRect(bounds, mButtonBorderColor, 1);
+		}
 
 		// Arrow/icon
 		let cx = bounds.X + bounds.Width / 2;

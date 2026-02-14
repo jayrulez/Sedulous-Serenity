@@ -75,12 +75,12 @@ Each needs its own image integration:
 - [x] RepeatButton — works via base Button (already has image support)
 
 ### Docking System (Deferred — tooling-specific)
-- [ ] DockablePanel — panel frame image
-- [ ] DockablePanelHeader — title bar image
-- [ ] DockTabGroup — tab strip image
-- [ ] DockTab — tab image (active/inactive)
-- [ ] FloatingWindow — window frame image
-- [ ] DockTarget/DockSplit — overlay images
+- [x] DockablePanel — panel frame image (FrameImage)
+- [x] DockablePanelHeader — title bar image (TitleBarImage)
+- [x] DockTabGroup — tab strip image (TabStripImage)
+- [x] DockTab — tab image (active/inactive) (ActiveTabImage/InactiveTabImage)
+- [x] FloatingWindow — window frame image (FrameImage)
+- [x] DockTarget/DockSplit — overlay images (DockTarget.OverlayImage, DockZoneIndicator.ButtonImage/ButtonHoverImage, DockSplit needs no changes)
 
 ### Data Controls (Deferred — tooling-specific)
 - [ ] DataGrid — grid background image
