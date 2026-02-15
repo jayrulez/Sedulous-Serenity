@@ -166,6 +166,7 @@ class ModelViewerApp : Application
 	private OwnedImageData mSkeletonIcon ~ delete _;
 	private OwnedImageData mStepBackIcon ~ delete _;
 	private OwnedImageData mStepForwardIcon ~ delete _;
+	private OwnedImageData mLoopIcon ~ delete _;
 
 	/// Gets the currently active tab, or null if no tabs exist.
 	private ModelTab ActiveTab => mActiveTabIndex >= 0 && mActiveTabIndex < (int32)mTabs.Count ? mTabs[mActiveTabIndex] : null;
@@ -404,6 +405,53 @@ class ModelViewerApp : Application
 			}
 			mStepForwardIcon = new OwnedImageData(SIZE, SIZE, .RGBA8, pixels);
 		}
+
+		// Create loop icon (circular arrows)
+		{
+			uint8[] pixels = new uint8[SIZE * SIZE * 4];
+			float centerX = SIZE / 2.0f;
+			float centerY = SIZE / 2.0f;
+			float outerR = 6.0f;
+			float innerR = 3.5f;
+
+			for (int y = 0; y < SIZE; y++)
+			{
+				for (int x = 0; x < SIZE; x++)
+				{
+					int idx = (y * SIZE + x) * 4;
+					float dx = x - centerX;
+					float dy = y - centerY;
+					float dist = Math.Sqrt(dx * dx + dy * dy);
+
+					// Ring (circular path)
+					bool ring = dist >= innerR && dist <= outerR;
+
+					// Cut gaps for arrow heads (at top-right and bottom-left)
+					float angle = Math.Atan2(dy, dx);
+					bool topRightGap = angle > -0.8f && angle < 0.3f;
+					bool bottomLeftGap = angle > 2.3f || angle < -2.8f;
+					ring = ring && !topRightGap && !bottomLeftGap;
+
+					// Arrow head at top-right (pointing clockwise/down-right)
+					bool arrow1 = x >= 10 && x <= 14 && y >= 3 && y <= 7 &&
+						(Math.Abs((x - 12) + (y - 5)) < 2.0f || Math.Abs((x - 12) - (y - 5)) < 2.0f) &&
+						(x + y) >= 15;
+
+					// Arrow head at bottom-left (pointing clockwise/up-left)
+					bool arrow2 = x >= 1 && x <= 5 && y >= 8 && y <= 12 &&
+						(Math.Abs((x - 3) + (y - 10)) < 2.0f || Math.Abs((x - 3) - (y - 10)) < 2.0f) &&
+						(x + y) <= 15;
+
+					bool inside = ring || arrow1 || arrow2;
+					uint8 alpha = inside ? 255 : 0;
+					pixels[idx + 0] = 220;
+					pixels[idx + 1] = 220;
+					pixels[idx + 2] = 220;
+					pixels[idx + 3] = alpha;
+				}
+			}
+			mLoopIcon = new OwnedImageData(SIZE, SIZE, .RGBA8, pixels);
+		}
 	}
 
 	private void RegisterFeatures()
@@ -627,10 +675,10 @@ class ModelViewerApp : Application
 			else
 				Console.WriteLine("  ERROR: Could not get proxy!");
 
-			// Play first animation
+			// Play first animation (looping defaults to off)
 			if (tab.Clips != null && tab.Clips.Count > 0 && tab.Player != null)
 			{
-				tab.Clips[0].IsLooping = true;
+				tab.Clips[0].IsLooping = false;
 				tab.Player.Play(tab.Clips[0]);
 				Console.WriteLine(scope $"  Playing: {tab.Clips[0].Name}");
 			}
@@ -1106,6 +1154,17 @@ class ModelViewerApp : Application
 		stepForwardBtn.Click.Subscribe(new (btn) => OnStepForward(tab));
 		tab.AnimationToolbar.AddChild(stepForwardBtn);
 
+		// Loop toggle checkbox
+		tab.LoopCheck = new CheckBox();
+		let loopImg = new Sedulous.GUI.Image(mLoopIcon);
+		loopImg.Stretch = .None;
+		tab.LoopCheck.Content = loopImg;
+		tab.LoopCheck.VerticalAlignment = .Center;
+		tab.LoopCheck.IsChecked = false; // Default off
+		tab.LoopCheck.TooltipText = "Loop animation";
+		tab.LoopCheck.Checked.Subscribe(new (cb, isChecked) => OnLoopToggled(tab, isChecked));
+		tab.AnimationToolbar.AddChild(tab.LoopCheck);
+
 		// Separator
 		let sep = new Separator(.Vertical);
 		sep.Height = 18;
@@ -1148,7 +1207,8 @@ class ModelViewerApp : Application
 		if (tab.Player == null || tab.Clips == null || index < 0 || index >= (int32)tab.Clips.Count)
 			return;
 		tab.CurrentClip = index;
-		tab.Clips[index].IsLooping = true;
+		let isLooping = tab.LoopCheck?.IsChecked ?? false;
+		tab.Clips[index].IsLooping = isLooping;
 		tab.Player.Play(tab.Clips[index]);
 		UpdatePlayPauseButton(tab);
 	}
@@ -1164,7 +1224,8 @@ class ModelViewerApp : Application
 			tab.Player.Resume();
 		else if (tab.Clips != null && tab.Clips.Count > 0)
 		{
-			tab.Clips[tab.CurrentClip].IsLooping = true;
+			let isLooping = tab.LoopCheck?.IsChecked ?? false;
+			tab.Clips[tab.CurrentClip].IsLooping = isLooping;
 			tab.Player.Play(tab.Clips[tab.CurrentClip]);
 		}
 		UpdatePlayPauseButton(tab);
@@ -1183,10 +1244,21 @@ class ModelViewerApp : Application
 	{
 		if (tab.Player != null && tab.Clips != null && tab.CurrentClip < (int32)tab.Clips.Count)
 		{
-			tab.Clips[tab.CurrentClip].IsLooping = true;
+			let isLooping = tab.LoopCheck?.IsChecked ?? false;
+			tab.Clips[tab.CurrentClip].IsLooping = isLooping;
 			tab.Player.Play(tab.Clips[tab.CurrentClip]);
 		}
 		UpdatePlayPauseButton(tab);
+	}
+
+	/// Called when loop toggle is changed.
+	private void OnLoopToggled(ModelTab tab, bool isLooping)
+	{
+		if (tab.Clips == null || tab.CurrentClip >= (int32)tab.Clips.Count)
+			return;
+
+		// Update the current clip's looping state
+		tab.Clips[tab.CurrentClip].IsLooping = isLooping;
 	}
 
 	/// Steps the animation back by one frame (1/30 second).
@@ -1200,7 +1272,8 @@ class ModelViewerApp : Application
 		// If stopped, start the clip paused at current position
 		if (tab.Player.State == .Stopped)
 		{
-			clip.IsLooping = true;
+			let isLooping = tab.LoopCheck?.IsChecked ?? false;
+			clip.IsLooping = isLooping;
 			tab.Player.Play(clip, false);
 			tab.Player.Pause();
 		}
@@ -1227,7 +1300,8 @@ class ModelViewerApp : Application
 		// If stopped, start the clip paused at current position
 		if (tab.Player.State == .Stopped)
 		{
-			clip.IsLooping = true;
+			let isLooping = tab.LoopCheck?.IsChecked ?? false;
+			clip.IsLooping = isLooping;
 			tab.Player.Play(clip, false);
 			tab.Player.Pause();
 		}
@@ -1663,7 +1737,8 @@ class ModelViewerApp : Application
 				}
 				if (changed)
 				{
-					tab.Clips[tab.CurrentClip].IsLooping = true;
+					let isLooping = tab.LoopCheck?.IsChecked ?? false;
+					tab.Clips[tab.CurrentClip].IsLooping = isLooping;
 					tab.Player.Play(tab.Clips[tab.CurrentClip]);
 					Console.WriteLine(scope $"Playing: {tab.Clips[tab.CurrentClip].Name}");
 
