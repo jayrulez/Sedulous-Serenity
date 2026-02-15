@@ -20,6 +20,8 @@ class ConfigDatabase
 	private Dictionary<int32, ShopItemConfig> mShopItems = new .() ~ DeleteDictionaryAndValues!(_);
 	private Dictionary<int32, HeroLevelConfig> mHeroLevels = new .() ~ DeleteDictionaryAndValues!(_);
 	private Dictionary<int32, BossTemplate> mBosses = new .() ~ DeleteDictionaryAndValues!(_);
+	private Dictionary<int32, TowerFloorConfig> mTowerFloors = new .() ~ DeleteDictionaryAndValues!(_);
+	private Dictionary<int32, CrusadeWaveConfig> mCrusadeWaves = new .() ~ DeleteDictionaryAndValues!(_);
 	private List<StarLevelConfig> mStarLevels = new .() ~ DeleteContainerAndItems!(_);
 
 	// --- Accessors ---
@@ -32,6 +34,8 @@ class ConfigDatabase
 	public EquipConfig GetEquip(int32 id) => mEquips.GetValueOrDefault(id);
 	public ShopItemConfig GetShopItem(int32 id) => mShopItems.GetValueOrDefault(id);
 	public BossTemplate GetBoss(int32 id) => mBosses.GetValueOrDefault(id);
+	public TowerFloorConfig GetTowerFloor(int32 id) => mTowerFloors.GetValueOrDefault(id);
+	public CrusadeWaveConfig GetCrusadeWave(int32 id) => mCrusadeWaves.GetValueOrDefault(id);
 	public HeroLevelConfig GetHeroLevel(int32 level) => mHeroLevels.GetValueOrDefault(level);
 
 	public Dictionary<int32, UnitConfig>.ValueEnumerator Units => mUnits.Values;
@@ -42,6 +46,8 @@ class ConfigDatabase
 	public Dictionary<int32, EquipConfig>.ValueEnumerator Equips => mEquips.Values;
 	public Dictionary<int32, ShopItemConfig>.ValueEnumerator ShopItems => mShopItems.Values;
 	public Dictionary<int32, BossTemplate>.ValueEnumerator Bosses => mBosses.Values;
+	public Dictionary<int32, TowerFloorConfig>.ValueEnumerator TowerFloors => mTowerFloors.Values;
+	public Dictionary<int32, CrusadeWaveConfig>.ValueEnumerator CrusadeWaves => mCrusadeWaves.Values;
 
 	public StarLevelConfig GetStarLevel(int32 unitId, int32 starLevel)
 	{
@@ -79,6 +85,8 @@ class ConfigDatabase
 		Try!(LoadConfigList<ShopItemConfig>(basePath, "shop.xml", mShopItems, scope (c) => c.mId));
 		Try!(LoadConfigList<HeroLevelConfig>(basePath, "hero_levels.xml", mHeroLevels, scope (c) => c.mLevel));
 		Try!(LoadConfigList<BossTemplate>(basePath, "bosses.xml", mBosses, scope (c) => c.mId));
+		Try!(LoadConfigList<TowerFloorConfig>(basePath, "tower.xml", mTowerFloors, scope (c) => c.mId));
+		Try!(LoadConfigList<CrusadeWaveConfig>(basePath, "crusade.xml", mCrusadeWaves, scope (c) => c.mId));
 		Try!(LoadObjectList<StarLevelConfig>(basePath, "star_levels.xml", mStarLevels));
 		return .Ok;
 	}

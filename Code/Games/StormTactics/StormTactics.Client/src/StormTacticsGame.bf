@@ -59,6 +59,8 @@ class StormTacticsGame : Application
 	private CampaignScreen mCampaignScreen;
 	private DailyChallengeScreen mDailyChallengeScreen;
 	private BossRushScreen mBossRushScreen;
+	private TowerScreen mTowerScreen;
+	private CrusadeScreen mCrusadeScreen;
 	private ToastNotification mToast;
 	private UnitSelectPopup mUnitSelectPopup;
 
@@ -81,6 +83,8 @@ class StormTacticsGame : Application
 	private FormationManager mFormationManager;
 	private DailyChallengeManager mDailyChallengeManager;
 	private BossRushManager mBossRushManager;
+	private TowerManager mTowerManager;
+	private CrusadeManager mCrusadeManager;
 
 	// Current battle (created/destroyed per stage)
 	private BattleSimulation mCurrentSim;
@@ -89,6 +93,8 @@ class StormTacticsGame : Application
 	private bool mCurrentBattleHardMode;
 	private int32 mCurrentChallengeIndex = -1; // -1 = not a challenge battle
 	private int32 mCurrentBossIndex = -1;      // -1 = not a boss battle
+	private int32 mCurrentTowerFloor = -1;     // -1 = not a tower battle
+	private int32 mCurrentCrusadeWave = -1;    // -1 = not a crusade battle
 
 	// HUD state tracking
 	private PlayerTurnPhase mLastPlayerPhase = .Idle;
@@ -255,6 +261,14 @@ class StormTacticsGame : Application
 		mBossRushManager = new BossRushManager();
 		mBossRushManager.Initialize(mSaveManager.SaveData, mConfigs);
 
+		// Tower manager — sequential floors with persistent HP, daily reset
+		mTowerManager = new TowerManager();
+		mTowerManager.Initialize(mSaveManager.SaveData, mConfigs);
+
+		// Crusade manager — sequential waves with persistent HP, weekly reset
+		mCrusadeManager = new CrusadeManager();
+		mCrusadeManager.Initialize(mSaveManager.SaveData, mConfigs);
+
 		// Process stamina regen from offline time and check shop refresh
 		mPlayerManager.UpdateStaminaRegen();
 		mShopManager.CheckRefresh();
@@ -398,6 +412,26 @@ class StormTacticsGame : Application
 		mBossRushScreen.Show(mBossRushManager);
 	}
 
+	/// Show the tower floor selection screen.
+	private void ShowTower()
+	{
+		DestroyBattle();
+		mTowerManager.CheckDailyReset();
+		mGameState = .Tower;
+		mUISubsystem.GUIContext.RootElement = mTowerScreen.RootElement;
+		mTowerScreen.Show(mTowerManager);
+	}
+
+	/// Show the crusade wave selection screen.
+	private void ShowCrusade()
+	{
+		DestroyBattle();
+		mCrusadeManager.CheckWeeklyReset();
+		mGameState = .Crusade;
+		mUISubsystem.GUIContext.RootElement = mCrusadeScreen.RootElement;
+		mCrusadeScreen.Show(mCrusadeManager);
+	}
+
 	/// Create a battle for the given stage.
 	private void CreateBattle(int32 stageId, bool isHardMode = false)
 	{
@@ -425,8 +459,10 @@ class StormTacticsGame : Application
 
 		mCurrentStageId = stageId;
 		mCurrentBattleHardMode = isHardMode;
-		mCurrentChallengeIndex = -1; // Not a challenge battle
-		mCurrentBossIndex = -1;     // Not a boss battle
+		mCurrentChallengeIndex = -1;
+		mCurrentBossIndex = -1;
+		mCurrentTowerFloor = -1;
+		mCurrentCrusadeWave = -1;
 		mRewardsProcessed = false;
 
 		// Build player formation from active formation preset (or fallback to owned units)
@@ -721,6 +757,216 @@ class StormTacticsGame : Application
 		mGameState = .BattlePrepare;
 	}
 
+	/// Create a battle for a tower floor.
+	private void CreateTowerBattle(int32 floorIndex)
+	{
+		let floor = mTowerManager.GetFloor(floorIndex);
+		if (floor == null) return;
+
+		mCurrentTowerFloor = floorIndex;
+		mCurrentCrusadeWave = -1;
+		mCurrentChallengeIndex = -1;
+		mCurrentBossIndex = -1;
+		mCurrentStageId = 0;
+		mCurrentBattleHardMode = false;
+		mRewardsProcessed = false;
+
+		// Build player formation, filtering out dead units
+		let attackers = scope List<FormationSlot>();
+		let save = mSaveManager.SaveData;
+
+		if (save.mFormationPresets.Count > 0 && save.mActiveFormationIndex < (int32)save.mFormationPresets.Count)
+		{
+			let preset = save.mFormationPresets[save.mActiveFormationIndex];
+			for (let fSlot in preset.mSlots)
+			{
+				if (mConfigs.GetUnit(fSlot.mUnitId) == null) continue;
+				if (save.GetOwnedUnit(fSlot.mUnitId) == null) continue;
+				if (mTowerManager.IsUnitDead(fSlot.mUnitId)) continue;
+				let slot = scope :: FormationSlot();
+				slot.mUnitId = fSlot.mUnitId;
+				slot.mGridX = fSlot.mGridX;
+				slot.mGridY = fSlot.mGridY;
+				attackers.Add(slot);
+			}
+		}
+
+		if (attackers.Count == 0)
+		{
+			int32 slotIdx = 0;
+			for (let owned in save.mOwnedUnits)
+			{
+				if (mConfigs.GetUnit(owned.mUnitId) == null) continue;
+				if (mTowerManager.IsUnitDead(owned.mUnitId)) continue;
+				let slot = scope :: FormationSlot();
+				slot.mUnitId = owned.mUnitId;
+				slot.mGridX = (int32)(slotIdx / 3);
+				slot.mGridY = (int32)(slotIdx % 3);
+				attackers.Add(slot);
+				slotIdx++;
+				if (slotIdx >= mPlayerManager.MaxFormationSlots) break;
+			}
+		}
+
+		// Grid sizing from floor enemy positions
+		int32 maxCol = 7, maxRow = 3;
+		for (let slot in floor.mEnemyFormation)
+		{
+			if (slot.mGridX > maxCol) maxCol = slot.mGridX;
+			if (slot.mGridY > maxRow) maxRow = slot.mGridY;
+		}
+		let columns = Math.Max(maxCol + 1, BattleConstants.MIN_COLUMNS);
+		let rows = Math.Max(maxRow + 1, BattleConstants.MIN_ROWS);
+
+		// Create simulation
+		mCurrentSim = new BattleSimulation(mConfigs);
+		mCurrentSim.Initialize(attackers, floor.mEnemyFormation, columns, rows, DateTime.Now.Ticks);
+
+		if (floor.mDifficultyScale > 1.0f)
+			mCurrentSim.ApplyDefenderScaling(floor.mDifficultyScale, floor.mDifficultyScale, floor.mDifficultyScale);
+
+		mCurrentSim.Difficulty = .Normal;
+		StampUnitLevels();
+		RestorePersistentHP();
+
+		Console.WriteLine("Tower battle created: '{}' — {}v{} on {}x{} grid (x{} difficulty)",
+			floor.mName, attackers.Count, floor.mEnemyFormation.Count, columns, rows, floor.mDifficultyScale);
+
+		// Create battle scene
+		let renderModule = mMainScene.GetModule<RenderSceneModule>();
+		mBattleScene = new BattleScene();
+		mBattleScene.Initialize(mMainScene, renderModule, mRenderSystem, mOverlayFeature, mCurrentSim, 1.0f);
+
+		let settings = mSaveManager.SaveData.mGameSettings;
+		mBattleScene.ApplySettings(settings.mAutoStepDefault, settings.mAutoBattleDefault, (float)settings.mDefaultBattleSpeed, settings.mInvertCameraPan);
+
+		// Switch to battle HUD and enter deployment
+		mUISubsystem.GUIContext.RootElement = mBattleHUD.RootElement;
+		mBattleScene.EnterDeploymentMode();
+		mBattleHUD.ShowDeploymentPanel();
+		mBattleHUD.ResetResultState();
+		mDeployRosterSelectedUnitId = -1;
+		mDeployRosterDirty = true;
+		mGameState = .BattlePrepare;
+	}
+
+	/// Create a battle for a crusade wave.
+	private void CreateCrusadeBattle(int32 waveIndex)
+	{
+		let wave = mCrusadeManager.GetWave(waveIndex);
+		if (wave == null) return;
+
+		let stageConfig = mCrusadeManager.GetWaveStage(waveIndex);
+		if (stageConfig == null)
+		{
+			Console.WriteLine("ERROR: Crusade wave {} references missing stage {}", waveIndex, wave.mStageId);
+			return;
+		}
+
+		mCurrentCrusadeWave = waveIndex;
+		mCurrentTowerFloor = -1;
+		mCurrentChallengeIndex = -1;
+		mCurrentBossIndex = -1;
+		mCurrentStageId = 0;
+		mCurrentBattleHardMode = false;
+		mRewardsProcessed = false;
+
+		// Build player formation, filtering unavailable units (dead or pool exceeded)
+		let attackers = scope List<FormationSlot>();
+		let save = mSaveManager.SaveData;
+
+		if (save.mFormationPresets.Count > 0 && save.mActiveFormationIndex < (int32)save.mFormationPresets.Count)
+		{
+			let preset = save.mFormationPresets[save.mActiveFormationIndex];
+			for (let fSlot in preset.mSlots)
+			{
+				if (mConfigs.GetUnit(fSlot.mUnitId) == null) continue;
+				if (save.GetOwnedUnit(fSlot.mUnitId) == null) continue;
+				if (!mCrusadeManager.IsUnitAvailable(fSlot.mUnitId)) continue;
+				let slot = scope :: FormationSlot();
+				slot.mUnitId = fSlot.mUnitId;
+				slot.mGridX = fSlot.mGridX;
+				slot.mGridY = fSlot.mGridY;
+				attackers.Add(slot);
+			}
+		}
+
+		if (attackers.Count == 0)
+		{
+			int32 slotIdx = 0;
+			for (let owned in save.mOwnedUnits)
+			{
+				if (mConfigs.GetUnit(owned.mUnitId) == null) continue;
+				if (!mCrusadeManager.IsUnitAvailable(owned.mUnitId)) continue;
+				let slot = scope :: FormationSlot();
+				slot.mUnitId = owned.mUnitId;
+				slot.mGridX = (int32)(slotIdx / 3);
+				slot.mGridY = (int32)(slotIdx % 3);
+				attackers.Add(slot);
+				slotIdx++;
+				if (slotIdx >= mPlayerManager.MaxFormationSlots) break;
+			}
+		}
+
+		// Build defender formation, filtering out dead enemies from previous attempts
+		let defenders = scope List<FormationSlot>();
+		for (int32 fi = 0; fi < (int32)stageConfig.mEnemyFormation.Count; fi++)
+		{
+			if (mCrusadeManager.IsDefenderDead(fi)) continue;
+			let src = stageConfig.mEnemyFormation[fi];
+			let slot = scope :: FormationSlot();
+			slot.mUnitId = src.mUnitId;
+			slot.mStarLevel = src.mStarLevel;
+			slot.mGridX = src.mGridX;
+			slot.mGridY = src.mGridY;
+			defenders.Add(slot);
+		}
+
+		// Grid sizing from defender positions
+		int32 maxCol = 7, maxRow = 3;
+		for (let slot in defenders)
+		{
+			if (slot.mGridX > maxCol) maxCol = slot.mGridX;
+			if (slot.mGridY > maxRow) maxRow = slot.mGridY;
+		}
+		let columns = Math.Max(maxCol + 1, BattleConstants.MIN_COLUMNS);
+		let rows = Math.Max(maxRow + 1, BattleConstants.MIN_ROWS);
+
+		// Create simulation
+		mCurrentSim = new BattleSimulation(mConfigs);
+		mCurrentSim.Initialize(attackers, defenders, columns, rows, DateTime.Now.Ticks);
+
+		if (wave.mDifficultyScale > 1.0f)
+			mCurrentSim.ApplyDefenderScaling(wave.mDifficultyScale, wave.mDifficultyScale, wave.mDifficultyScale);
+
+		mCurrentSim.Difficulty = .Normal;
+		StampUnitLevels();
+		RestorePersistentHP();
+
+		// Restore defender HP from previous attempts
+		mCrusadeManager.RestoreDefenderHP(mCurrentSim);
+
+		Console.WriteLine("Crusade battle created: '{}' (stage {}) — {}v{} on {}x{} grid (x{} difficulty)",
+			wave.mName, wave.mStageId, attackers.Count, defenders.Count, columns, rows, wave.mDifficultyScale);
+
+		// Create battle scene
+		let renderModule = mMainScene.GetModule<RenderSceneModule>();
+		mBattleScene = new BattleScene();
+		mBattleScene.Initialize(mMainScene, renderModule, mRenderSystem, mOverlayFeature, mCurrentSim, 1.0f);
+
+		let settings = mSaveManager.SaveData.mGameSettings;
+		mBattleScene.ApplySettings(settings.mAutoStepDefault, settings.mAutoBattleDefault, (float)settings.mDefaultBattleSpeed, settings.mInvertCameraPan);
+
+		// Switch to battle HUD and enter deployment
+		mUISubsystem.GUIContext.RootElement = mBattleHUD.RootElement;
+		mBattleScene.EnterDeploymentMode();
+		mBattleHUD.ShowDeploymentPanel();
+		mBattleHUD.ResetResultState();
+		mDeployRosterSelectedUnitId = -1;
+		mDeployRosterDirty = true;
+		mGameState = .BattlePrepare;
+	}
+
 	/// Destroy the current battle (clean up between stages).
 	private void DestroyBattle()
 	{
@@ -990,6 +1236,24 @@ class StormTacticsGame : Application
 			CreateBossBattle(index);
 		});
 
+		// Create tower screen
+		mTowerScreen = new TowerScreen();
+		mTowerScreen.OnBack.Subscribe(new () => {
+			ShowCityHub();
+		});
+		mTowerScreen.OnStartFloor.Subscribe(new (index) => {
+			CreateTowerBattle(index);
+		});
+
+		// Create crusade screen
+		mCrusadeScreen = new CrusadeScreen();
+		mCrusadeScreen.OnBack.Subscribe(new () => {
+			ShowCityHub();
+		});
+		mCrusadeScreen.OnStartWave.Subscribe(new (index) => {
+			CreateCrusadeBattle(index);
+		});
+
 		// Wire city hub navigation events
 		mCityHubScreen.OnCampaign.Subscribe(new () => {
 			ShowStageSelect();
@@ -999,6 +1263,12 @@ class StormTacticsGame : Application
 		});
 		mCityHubScreen.OnBossRush.Subscribe(new () => {
 			ShowBossRush();
+		});
+		mCityHubScreen.OnTower.Subscribe(new () => {
+			ShowTower();
+		});
+		mCityHubScreen.OnCrusade.Subscribe(new () => {
+			ShowCrusade();
 		});
 		mCityHubScreen.OnRoster.Subscribe(new () => {
 			ShowRoster();
@@ -1095,9 +1365,9 @@ class StormTacticsGame : Application
 					}
 					// No stamina cost for challenges
 				}
-				else if (mCurrentBossIndex >= 0)
+				else if (mCurrentBossIndex >= 0 || mCurrentTowerFloor >= 0 || mCurrentCrusadeWave >= 0)
 				{
-					// No stamina cost for boss rush
+					// No stamina cost for boss rush, tower, or crusade
 				}
 				else
 				{
@@ -1126,7 +1396,17 @@ class StormTacticsGame : Application
 			OnDeployRemoveUnit();
 		});
 		mBattleHUD.OnContinue.Subscribe(new () => {
-			if (mCurrentBossIndex >= 0)
+			if (mCurrentTowerFloor >= 0)
+			{
+				mCurrentTowerFloor = -1;
+				ShowTower();
+			}
+			else if (mCurrentCrusadeWave >= 0)
+			{
+				mCurrentCrusadeWave = -1;
+				ShowCrusade();
+			}
+			else if (mCurrentBossIndex >= 0)
 			{
 				mCurrentBossIndex = -1;
 				ShowBossRush();
@@ -1149,6 +1429,16 @@ class StormTacticsGame : Application
 	private void ShowToast(StringView message)
 	{
 		mToast.Show(mUISubsystem.GUIContext, message);
+	}
+
+	/// Re-apply persistent HP from tower/crusade managers after redeployment.
+	private void RestorePersistentHP()
+	{
+		if (mCurrentSim == null) return;
+		if (mCurrentTowerFloor >= 0)
+			mTowerManager.RestoreHP(mCurrentSim);
+		else if (mCurrentCrusadeWave >= 0)
+			mCrusadeManager.RestoreHP(mCurrentSim);
 	}
 
 	/// Stamp display-only level/star data on BattleUnits from player save data.
@@ -1230,6 +1520,12 @@ class StormTacticsGame : Application
 		// Update daily challenge timer
 		if (mGameState == .DailyChallenge)
 			mDailyChallengeScreen.UpdateTimer(mDailyChallengeManager.SecondsUntilReset);
+
+		// Update tower/crusade timers
+		if (mGameState == .Tower)
+			mTowerScreen.UpdateTimer(mTowerManager.SecondsUntilReset);
+		if (mGameState == .Crusade)
+			mCrusadeScreen.UpdateTimer(mCrusadeManager.SecondsUntilReset);
 
 		if (mBattleScene != null)
 		{
@@ -1377,6 +1673,11 @@ class StormTacticsGame : Application
 					if (config == null) continue;
 					// Filter by challenge restriction
 					if (mCurrentChallengeIndex >= 0 && !mDailyChallengeManager.IsUnitAllowed(mCurrentChallengeIndex, config))
+						continue;
+					// Filter unavailable units in tower/crusade
+					if (mCurrentTowerFloor >= 0 && mTowerManager.IsUnitDead(owned.mUnitId))
+						continue;
+					if (mCurrentCrusadeWave >= 0 && !mCrusadeManager.IsUnitAvailable(owned.mUnitId))
 						continue;
 					var info = RosterUnitInfo();
 					info.mUnitId = owned.mUnitId;
@@ -1563,8 +1864,73 @@ class StormTacticsGame : Application
 				(int32)result.mSurvivingAttackers.Count, result.mTotalAttackers,
 				result.mTotalDamageDealt, result.mTotalHealingDone, result.mUnitsKilled);
 
-			// Process rewards once on victory
-			if (!mRewardsProcessed && sim.State == .AttackerWins)
+			// Process tower/crusade results (both victory and defeat)
+			if (!mRewardsProcessed && mCurrentTowerFloor >= 0)
+			{
+				mRewardsProcessed = true;
+				let floor = mTowerManager.GetFloor(mCurrentTowerFloor);
+				if (floor != null)
+				{
+					if (sim.State == .AttackerWins)
+					{
+						mTowerManager.CaptureHP(sim);
+						mTowerManager.AdvanceFloor();
+						mPlayerManager.AddGold(floor.mGoldReward);
+						mPlayerManager.AddHeroExp(floor.mExpReward);
+						if (floor.mGemReward > 0)
+							mPlayerManager.AddGems(floor.mGemReward);
+
+						var emptyRewards = scope RewardDisplayInfo[0];
+						mBattleHUD.ShowRewards(floor.mGoldReward, floor.mExpReward, floor.mGemReward, false, emptyRewards);
+
+						Console.WriteLine("[Tower] Cleared floor {} '{}' — +{} gold, +{} EXP, +{} gems",
+							mCurrentTowerFloor + 1, floor.mName, floor.mGoldReward, floor.mExpReward, floor.mGemReward);
+					}
+					else
+					{
+						mTowerManager.ClearHP();
+						Console.WriteLine("[Tower] Defeated on floor {} — run ended", mCurrentTowerFloor + 1);
+					}
+					mSaveManager.Save();
+				}
+			}
+			else if (!mRewardsProcessed && mCurrentCrusadeWave >= 0)
+			{
+				mRewardsProcessed = true;
+				let wave = mCrusadeManager.GetWave(mCurrentCrusadeWave);
+				if (wave != null)
+				{
+					if (sim.State == .AttackerWins)
+					{
+						// Victory: save attacker HP, clear defender HP, advance wave
+						mCrusadeManager.MergeCaptureHP(sim);
+						mCrusadeManager.ClearDefenderHP();
+						mCrusadeManager.AdvanceWave();
+						mPlayerManager.AddGold(wave.mGoldReward);
+						mPlayerManager.AddHeroExp(wave.mExpReward);
+						if (wave.mGemReward > 0)
+							mPlayerManager.AddGems(wave.mGemReward);
+
+						var emptyRewards = scope RewardDisplayInfo[0];
+						mBattleHUD.ShowRewards(wave.mGoldReward, wave.mExpReward, wave.mGemReward, false, emptyRewards);
+
+						Console.WriteLine("[Crusade] Cleared wave {} '{}' — +{} gold, +{} EXP, +{} gems",
+							mCurrentCrusadeWave + 1, wave.mName, wave.mGoldReward, wave.mExpReward, wave.mGemReward);
+					}
+					else
+					{
+						// Defeat: save attacker state (dead=0, survivors keep HP) + save defender HP
+						mCrusadeManager.MergeCaptureHP(sim);
+						mCrusadeManager.CaptureDefenderHP(sim);
+						Console.WriteLine("[Crusade] Defeated on wave {} — retry with remaining units ({}/{} pool used)",
+							mCurrentCrusadeWave + 1, mCrusadeManager.UsedUnitCount, mCrusadeManager.MaxUnitPool);
+					}
+					mSaveManager.Save();
+				}
+			}
+
+			// Process rewards once on victory (non-tower/crusade modes)
+			else if (!mRewardsProcessed && sim.State == .AttackerWins)
 			{
 				mRewardsProcessed = true;
 
@@ -1663,6 +2029,11 @@ class StormTacticsGame : Application
 				// Filter by challenge restriction
 				if (mCurrentChallengeIndex >= 0 && !mDailyChallengeManager.IsUnitAllowed(mCurrentChallengeIndex, unitConfig))
 					continue;
+				// Filter unavailable units in tower/crusade
+				if (mCurrentTowerFloor >= 0 && mTowerManager.IsUnitDead(fSlot.mUnitId))
+					continue;
+				if (mCurrentCrusadeWave >= 0 && !mCrusadeManager.IsUnitAvailable(fSlot.mUnitId))
+					continue;
 				let slot = scope :: FormationSlot();
 				slot.mUnitId = fSlot.mUnitId;
 				slot.mGridX = fSlot.mGridX;
@@ -1673,6 +2044,7 @@ class StormTacticsGame : Application
 
 		mCurrentSim.RedeployAttackers(attackers);
 		StampUnitLevels();
+		RestorePersistentHP();
 		mBattleScene.RebuildUnitViews();
 		mDeployRosterSelectedUnitId = -1;
 		mDeployRosterDirty = true;
@@ -1774,6 +2146,7 @@ class StormTacticsGame : Application
 
 		mCurrentSim.RedeployAttackers(attackers);
 		StampUnitLevels();
+		RestorePersistentHP();
 		mBattleScene.RebuildUnitViews();
 		mDeployRosterSelectedUnitId = -1;
 		mDeployRosterDirty = true;
@@ -1809,6 +2182,7 @@ class StormTacticsGame : Application
 
 		mCurrentSim.RedeployAttackers(attackers);
 		StampUnitLevels();
+		RestorePersistentHP();
 		mBattleScene.RebuildUnitViews();
 		mDeployRosterDirty = true;
 
@@ -1942,6 +2316,10 @@ class StormTacticsGame : Application
 		mSettingsScreen = null;
 		delete mCampaignScreen;
 		mCampaignScreen = null;
+		delete mCrusadeScreen;
+		mCrusadeScreen = null;
+		delete mTowerScreen;
+		mTowerScreen = null;
 		delete mBossRushScreen;
 		mBossRushScreen = null;
 		delete mDailyChallengeScreen;
@@ -1978,6 +2356,10 @@ class StormTacticsGame : Application
 
 		// 4. Metagame systems — save before exit
 		mSaveManager?.Save();
+		delete mCrusadeManager;
+		mCrusadeManager = null;
+		delete mTowerManager;
+		mTowerManager = null;
 		delete mBossRushManager;
 		mBossRushManager = null;
 		delete mDailyChallengeManager;

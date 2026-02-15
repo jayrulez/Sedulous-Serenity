@@ -31,6 +31,8 @@ class CityHubScreen
 	private Button mShopButton;
 	private Button mGachaButton;
 	private Button mBossRushButton;
+	private Button mTowerButton;
+	private Button mCrusadeButton;
 	private Button mSettingsButton;
 
 	// Events
@@ -42,6 +44,8 @@ class CityHubScreen
 	private EventAccessor<HubNavigationDelegate> mOnShop = new .() ~ delete _;
 	private EventAccessor<HubNavigationDelegate> mOnGacha = new .() ~ delete _;
 	private EventAccessor<HubNavigationDelegate> mOnBossRush = new .() ~ delete _;
+	private EventAccessor<HubNavigationDelegate> mOnTower = new .() ~ delete _;
+	private EventAccessor<HubNavigationDelegate> mOnCrusade = new .() ~ delete _;
 	private EventAccessor<HubNavigationDelegate> mOnSettings = new .() ~ delete _;
 
 	public EventAccessor<HubNavigationDelegate> OnCampaign => mOnCampaign;
@@ -52,6 +56,8 @@ class CityHubScreen
 	public EventAccessor<HubNavigationDelegate> OnShop => mOnShop;
 	public EventAccessor<HubNavigationDelegate> OnGacha => mOnGacha;
 	public EventAccessor<HubNavigationDelegate> OnBossRush => mOnBossRush;
+	public EventAccessor<HubNavigationDelegate> OnTower => mOnTower;
+	public EventAccessor<HubNavigationDelegate> OnCrusade => mOnCrusade;
 	public EventAccessor<HubNavigationDelegate> OnSettings => mOnSettings;
 
 	public UIElement RootElement => mRoot;
@@ -240,6 +246,14 @@ class CityHubScreen
 		row3.Orientation = .Horizontal;
 		row3.Spacing = 16;
 		row3.HorizontalAlignment = .Center;
+
+		mTowerButton = CreateNavButton("Tower", "Climb 10 floors", Color(140, 100, 60));
+		mTowerButton.Click.Subscribe(new (btn) => { mOnTower.[Friend]Invoke(); });
+		row3.AddChild(mTowerButton);
+
+		mCrusadeButton = CreateNavButton("Crusade", "Survive 15 waves", Color(60, 120, 140));
+		mCrusadeButton.Click.Subscribe(new (btn) => { mOnCrusade.[Friend]Invoke(); });
+		row3.AddChild(mCrusadeButton);
 
 		mSettingsButton = CreateNavButton("Settings", "Game options", Color(120, 130, 150));
 		mSettingsButton.Click.Subscribe(new (btn) => { mOnSettings.[Friend]Invoke(); });

@@ -49,6 +49,14 @@ class PlayerSaveData : ISerializable
 	// Boss Rush
 	public int32 mBossesDefeated; // Bitmask: bit N = boss index N first-cleared
 
+	// Tower
+	public int32 mTowerDay;
+	public int32 mTowerFloor;         // Highest floor cleared (0 = not started)
+
+	// Crusade
+	public int32 mCrusadeWeek;
+	public int32 mCrusadeWave;        // Highest wave cleared (0 = not started)
+
 	// Settings
 	public GameSettings mGameSettings = new .() ~ delete _;
 
@@ -83,6 +91,10 @@ class PlayerSaveData : ISerializable
 		s.Int32("DailyChallengeDay", ref mDailyChallengeDay);
 		s.Int32("DailyChallengesCompleted", ref mDailyChallengesCompleted);
 		s.Int32("BossesDefeated", ref mBossesDefeated);
+		s.Int32("TowerDay", ref mTowerDay);
+		s.Int32("TowerFloor", ref mTowerFloor);
+		s.Int32("CrusadeWeek", ref mCrusadeWeek);
+		s.Int32("CrusadeWave", ref mCrusadeWave);
 		s.Object("GameSettings", ref mGameSettings);
 
 		return .Ok;

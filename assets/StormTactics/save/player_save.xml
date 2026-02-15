@@ -1,13 +1,13 @@
 <root>
 	<object name="PlayerData">
 		<int32 name="HeroLevel">7</int32>
-		<int32 name="HeroExp">35</int32>
-		<int32 name="Gold">54180</int32>
-		<int32 name="Gems">4030</int32>
+		<int32 name="HeroExp">485</int32>
+		<int32 name="Gold">52180</int32>
+		<int32 name="Gems">1210</int32>
 		<int32 name="ArenaTokens">0</int32>
 		<int32 name="GuildTokens">0</int32>
 		<int32 name="Stamina">96</int32>
-		<int64 name="LastStaminaTime">1771050886</int64>
+		<int64 name="LastStaminaTime">1771156347</int64>
 		<int32 name="MaxStageClearedId">5</int32>
 		<array name="StageStars" count="5">
 			<object>
@@ -51,8 +51,8 @@
 				<int32 name="UnitId">1</int32>
 				<int32 name="StarLevel">2</int32>
 				<int32 name="Shards">15</int32>
-				<int32 name="Level">6</int32>
-				<int32 name="Exp">0</int32>
+				<int32 name="Level">7</int32>
+				<int32 name="Exp">100</int32>
 				<int32 name="EquipWeaponId">6</int32>
 				<int32 name="EquipArmorId">0</int32>
 				<int32 name="EquipAccessoryId">5</int32>
@@ -60,7 +60,7 @@
 			<object>
 				<int32 name="UnitId">2</int32>
 				<int32 name="StarLevel">2</int32>
-				<int32 name="Shards">45</int32>
+				<int32 name="Shards">60</int32>
 				<int32 name="Level">7</int32>
 				<int32 name="Exp">400</int32>
 				<int32 name="EquipWeaponId">2</int32>
@@ -70,9 +70,9 @@
 			<object>
 				<int32 name="UnitId">3</int32>
 				<int32 name="StarLevel">2</int32>
-				<int32 name="Shards">10</int32>
+				<int32 name="Shards">20</int32>
 				<int32 name="Level">6</int32>
-				<int32 name="Exp">100</int32>
+				<int32 name="Exp">400</int32>
 				<int32 name="EquipWeaponId">1</int32>
 				<int32 name="EquipArmorId">4</int32>
 				<int32 name="EquipAccessoryId">0</int32>
@@ -80,7 +80,7 @@
 			<object>
 				<int32 name="UnitId">4</int32>
 				<int32 name="StarLevel">2</int32>
-				<int32 name="Shards">45</int32>
+				<int32 name="Shards">60</int32>
 				<int32 name="Level">7</int32>
 				<int32 name="Exp">400</int32>
 				<int32 name="EquipWeaponId">0</int32>
@@ -100,7 +100,7 @@
 			<object>
 				<int32 name="UnitId">6</int32>
 				<int32 name="StarLevel">1</int32>
-				<int32 name="Shards">60</int32>
+				<int32 name="Shards">120</int32>
 				<int32 name="Level">1</int32>
 				<int32 name="Exp">0</int32>
 				<int32 name="EquipWeaponId">0</int32>
@@ -110,7 +110,7 @@
 			<object>
 				<int32 name="UnitId">9</int32>
 				<int32 name="StarLevel">1</int32>
-				<int32 name="Shards">45</int32>
+				<int32 name="Shards">75</int32>
 				<int32 name="Level">1</int32>
 				<int32 name="Exp">0</int32>
 				<int32 name="EquipWeaponId">0</int32>
@@ -130,7 +130,7 @@
 			<object>
 				<int32 name="UnitId">7</int32>
 				<int32 name="StarLevel">1</int32>
-				<int32 name="Shards">5</int32>
+				<int32 name="Shards">10</int32>
 				<int32 name="Level">1</int32>
 				<int32 name="Exp">0</int32>
 				<int32 name="EquipWeaponId">0</int32>
@@ -140,7 +140,7 @@
 			<object>
 				<int32 name="UnitId">8</int32>
 				<int32 name="StarLevel">1</int32>
-				<int32 name="Shards">0</int32>
+				<int32 name="Shards">30</int32>
 				<int32 name="Level">1</int32>
 				<int32 name="Exp">0</int32>
 				<int32 name="EquipWeaponId">0</int32>
@@ -148,22 +148,22 @@
 				<int32 name="EquipAccessoryId">0</int32>
 			</object>
 		</array>
-		<array name="Inventory" count="10">
+		<array name="Inventory" count="9">
 			<object>
 				<int32 name="ItemId">1003</int32>
-				<int32 name="Quantity">185</int32>
+				<int32 name="Quantity">235</int32>
 			</object>
 			<object>
 				<int32 name="ItemId">1004</int32>
-				<int32 name="Quantity">63</int32>
+				<int32 name="Quantity">78</int32>
 			</object>
 			<object>
 				<int32 name="ItemId">1005</int32>
-				<int32 name="Quantity">69</int32>
+				<int32 name="Quantity">99</int32>
 			</object>
 			<object>
 				<int32 name="ItemId">1006</int32>
-				<int32 name="Quantity">48</int32>
+				<int32 name="Quantity">51</int32>
 			</object>
 			<object>
 				<int32 name="ItemId">1007</int32>
@@ -171,11 +171,7 @@
 			</object>
 			<object>
 				<int32 name="ItemId">1008</int32>
-				<int32 name="Quantity">33</int32>
-			</object>
-			<object>
-				<int32 name="ItemId">1009</int32>
-				<int32 name="Quantity">10</int32>
+				<int32 name="Quantity">36</int32>
 			</object>
 			<object>
 				<int32 name="ItemId">1012</int32>
@@ -342,12 +338,16 @@
 				<int32 name="PurchaseCount">1</int32>
 			</object>
 		</array>
-		<int64 name="LastShopRefreshTime">1771017432</int64>
-		<int32 name="GachaPityCounter">10</int32>
-		<int64 name="LastDailyChallengeTime">1771040520</int64>
-		<int32 name="DailyChallengeDay">20498</int32>
-		<int32 name="DailyChallengesCompleted">2</int32>
+		<int64 name="LastShopRefreshTime">1771151490</int64>
+		<int32 name="GachaPityCounter">20</int32>
+		<int64 name="LastDailyChallengeTime">1771151490</int64>
+		<int32 name="DailyChallengeDay">20499</int32>
+		<int32 name="DailyChallengesCompleted">0</int32>
 		<int32 name="BossesDefeated">5</int32>
+		<int32 name="TowerDay">20499</int32>
+		<int32 name="TowerFloor">3</int32>
+		<int32 name="CrusadeWeek">2928</int32>
+		<int32 name="CrusadeWave">5</int32>
 		<object name="GameSettings">
 			<bool name="InvertCameraPan">false</bool>
 			<bool name="AutoStepDefault">true</bool>
