@@ -71,6 +71,27 @@ class StormTacticsGame : Application
 	// Config database (loaded from XML, persists across battles)
 	private ConfigDatabase mConfigs;
 
+	// Server mode (default: on)
+	private bool mServerMode = true;
+	private String mServerHost = new .("127.0.0.1") ~ delete _;
+	private uint16 mServerPort = 8080;
+	private ServerSaveManager mServerSaveManager;
+	private LoginScreen mLoginScreen;
+
+	/// Enable server mode with the specified host and port.
+	public void SetServerMode(StringView host, uint16 port)
+	{
+		mServerMode = true;
+		mServerHost.Set(host);
+		mServerPort = port;
+	}
+
+	/// Disable server mode (use local saves).
+	public void SetLocalMode()
+	{
+		mServerMode = false;
+	}
+
 	// Metagame systems
 	private SaveManager mSaveManager;
 	private PlayerManager mPlayerManager;
@@ -196,41 +217,83 @@ class StormTacticsGame : Application
 		// Load all configs from XML
 		LoadConfigs();
 
-		// Initialize metagame systems
-		InitializeMetagame();
-
-		// Initialize UI
+		// Initialize UI first (needed for login screen in server mode)
 		InitializeUI();
 
-		// Start at city hub
-		ShowCityHub();
-		Console.WriteLine("Storm Tactics initialized — showing city hub");
+		if (mServerMode)
+		{
+			// Server mode: show login screen, defer metagame init until auth
+			mServerSaveManager = new ServerSaveManager();
+			mServerSaveManager.Initialize(mServerHost, mServerPort);
+
+			mLoginScreen = new LoginScreen();
+			mLoginScreen.SetCallbacks(mServerSaveManager);
+			mLoginScreen.OnLoginSuccess.Subscribe(new () =>
+			{
+				// Auth succeeded — now initialize metagame with server data
+				InitializeMetagame();
+				ShowCityHub();
+				Console.WriteLine("Storm Tactics initialized — logged in to server");
+			});
+
+			mUISubsystem.GUIContext.RootElement = mLoginScreen.RootElement;
+			Console.WriteLine("Storm Tactics initialized — showing login screen");
+		}
+		else
+		{
+			// Local mode: initialize metagame and go straight to city hub
+			InitializeMetagame();
+			ShowCityHub();
+			Console.WriteLine("Storm Tactics initialized — showing city hub");
+		}
+	}
+
+	/// Get the active PlayerSaveData from whichever save system is in use.
+	private PlayerSaveData GetSaveData()
+	{
+		if (mServerMode)
+			return mServerSaveManager.SaveData;
+		return mSaveManager.SaveData;
+	}
+
+	/// Save via whichever save system is active.
+	private void DoSave()
+	{
+		if (mServerMode)
+			mServerSaveManager.Save();
+		else
+			mSaveManager?.Save();
 	}
 
 	/// Initialize save/progression/inventory/reward systems.
 	private void InitializeMetagame()
 	{
-		// Save manager — handles load/save to XML file
-		mSaveManager = new SaveManager();
-		let savePath = scope String();
-		GetAssetPath("", savePath);
-		mSaveManager.Initialize(savePath);
+		if (!mServerMode)
+		{
+			// Local save manager — handles load/save to XML file
+			mSaveManager = new SaveManager();
+			let savePath = scope String();
+			GetAssetPath("", savePath);
+			mSaveManager.Initialize(savePath);
+		}
+
+		let saveData = GetSaveData();
 
 		// Player manager — EXP, stamina, currencies, stage tracking
 		mPlayerManager = new PlayerManager();
-		mPlayerManager.Initialize(mSaveManager.SaveData, mConfigs);
+		mPlayerManager.Initialize(saveData, mConfigs);
 
 		// Inventory manager — item add/remove with stacking
 		mInventoryManager = new InventoryManager();
-		mInventoryManager.Initialize(mSaveManager.SaveData, mConfigs);
+		mInventoryManager.Initialize(saveData, mConfigs);
 
 		// Equipment manager — equip/unequip, stat bonuses, enhancement
 		mEquipmentManager = new EquipmentManager();
-		mEquipmentManager.Initialize(mSaveManager.SaveData, mConfigs);
+		mEquipmentManager.Initialize(saveData, mConfigs);
 
 		// Roster manager — unit ownership, star upgrades, effective stats
 		mRosterManager = new RosterManager();
-		mRosterManager.Initialize(mSaveManager.SaveData, mConfigs);
+		mRosterManager.Initialize(saveData, mConfigs);
 		mRosterManager.SetEquipmentManager(mEquipmentManager);
 
 		// Wire cross-manager dependencies
@@ -239,15 +302,15 @@ class StormTacticsGame : Application
 
 		// Shop manager — purchase logic, limits, daily refresh
 		mShopManager = new ShopManager();
-		mShopManager.Initialize(mSaveManager.SaveData, mConfigs, mPlayerManager, mInventoryManager);
+		mShopManager.Initialize(saveData, mConfigs, mPlayerManager, mInventoryManager);
 
 		// Formation manager — preset management
 		mFormationManager = new FormationManager();
-		mFormationManager.Initialize(mSaveManager.SaveData, mConfigs);
+		mFormationManager.Initialize(saveData, mConfigs);
 
 		// Gacha manager — summoning, pity system
 		mGachaManager = new GachaManager();
-		mGachaManager.Initialize(mSaveManager.SaveData, mConfigs, mPlayerManager, mRosterManager);
+		mGachaManager.Initialize(saveData, mConfigs, mPlayerManager, mRosterManager);
 
 		// Reward processor — post-battle reward calculation
 		mRewardProcessor = new RewardProcessor();
@@ -255,19 +318,19 @@ class StormTacticsGame : Application
 
 		// Daily challenge manager — rotating restricted battles
 		mDailyChallengeManager = new DailyChallengeManager();
-		mDailyChallengeManager.Initialize(mSaveManager.SaveData, mConfigs);
+		mDailyChallengeManager.Initialize(saveData, mConfigs);
 
 		// Boss rush manager — powerful bosses with phase transitions
 		mBossRushManager = new BossRushManager();
-		mBossRushManager.Initialize(mSaveManager.SaveData, mConfigs);
+		mBossRushManager.Initialize(saveData, mConfigs);
 
 		// Tower manager — sequential floors with persistent HP, daily reset
 		mTowerManager = new TowerManager();
-		mTowerManager.Initialize(mSaveManager.SaveData, mConfigs);
+		mTowerManager.Initialize(saveData, mConfigs);
 
 		// Crusade manager — sequential waves with persistent HP, weekly reset
 		mCrusadeManager = new CrusadeManager();
-		mCrusadeManager.Initialize(mSaveManager.SaveData, mConfigs);
+		mCrusadeManager.Initialize(saveData, mConfigs);
 
 		// Process stamina regen from offline time and check shop refresh
 		mPlayerManager.UpdateStaminaRegen();
@@ -311,14 +374,14 @@ class StormTacticsGame : Application
 		}
 
 		// Auto-save when returning to city
-		mSaveManager.Save();
+		DoSave();
 	}
 
 	/// Update city hub player info display.
 	private void UpdateCityHubInfo()
 	{
 		if (mCityHubScreen == null) return;
-		let save = mSaveManager.SaveData;
+		let save = GetSaveData();
 		mCityHubScreen.UpdatePlayerInfo(
 			save.mHeroLevel,
 			save.mHeroExp,
@@ -335,7 +398,7 @@ class StormTacticsGame : Application
 	{
 		mGameState = .UnitManagement;
 		mUISubsystem.GUIContext.RootElement = mRosterScreen.RootElement;
-		mRosterScreen.Refresh(mSaveManager.SaveData, mConfigs, mRosterManager, mEquipmentManager);
+		mRosterScreen.Refresh(GetSaveData(), mConfigs, mRosterManager, mEquipmentManager);
 	}
 
 	/// Show the inventory screen.
@@ -343,7 +406,7 @@ class StormTacticsGame : Application
 	{
 		mGameState = .Inventory;
 		mUISubsystem.GUIContext.RootElement = mInventoryScreen.RootElement;
-		mInventoryScreen.Refresh(mSaveManager.SaveData, mConfigs, mInventoryManager);
+		mInventoryScreen.Refresh(GetSaveData(), mConfigs, mInventoryManager);
 	}
 
 	/// Show the shop screen.
@@ -352,7 +415,7 @@ class StormTacticsGame : Application
 		mGameState = .City; // Reuse City state for shop
 		mShopManager.CheckRefresh();
 		mUISubsystem.GUIContext.RootElement = mShopScreen.RootElement;
-		mShopScreen.Refresh(mSaveManager.SaveData, mConfigs, mShopManager);
+		mShopScreen.Refresh(GetSaveData(), mConfigs, mShopManager);
 	}
 
 	/// Show the formation screen.
@@ -360,7 +423,7 @@ class StormTacticsGame : Application
 	{
 		mGameState = .Formation;
 		mUISubsystem.GUIContext.RootElement = mFormationScreen.RootElement;
-		mFormationScreen.Show(mSaveManager.SaveData, mConfigs, mFormationManager, mPlayerManager.MaxFormationSlots, mRosterManager);
+		mFormationScreen.Show(GetSaveData(), mConfigs, mFormationManager, mPlayerManager.MaxFormationSlots, mRosterManager);
 	}
 
 	/// Show the gacha screen.
@@ -368,7 +431,7 @@ class StormTacticsGame : Application
 	{
 		mGameState = .Gacha;
 		mUISubsystem.GUIContext.RootElement = mGachaScreen.RootElement;
-		mGachaScreen.Refresh(mSaveManager.SaveData);
+		mGachaScreen.Refresh(GetSaveData());
 	}
 
 	/// Show the settings screen.
@@ -376,7 +439,7 @@ class StormTacticsGame : Application
 	{
 		mGameState = .Settings;
 		mUISubsystem.GUIContext.RootElement = mSettingsScreen.RootElement;
-		mSettingsScreen.Refresh(mSaveManager.SaveData.mGameSettings);
+		mSettingsScreen.Refresh(GetSaveData().mGameSettings);
 	}
 
 	/// Show the campaign screen with chapter tabs and stage selection.
@@ -390,7 +453,7 @@ class StormTacticsGame : Application
 
 		// Switch UI root to campaign screen
 		mUISubsystem.GUIContext.RootElement = mCampaignScreen.RootElement;
-		mCampaignScreen.Show(mConfigs, mPlayerManager, mSaveManager.SaveData);
+		mCampaignScreen.Show(mConfigs, mPlayerManager, GetSaveData());
 	}
 
 	/// Show the daily challenge screen.
@@ -450,10 +513,10 @@ class StormTacticsGame : Application
 		}
 
 		// Check stamina availability (but don't spend yet — spend when battle starts)
-		if (mSaveManager.SaveData.mStamina < stageConfig.mStaminaCost)
+		if (GetSaveData().mStamina < stageConfig.mStaminaCost)
 		{
 			Console.WriteLine("Not enough stamina for stage {} (need {}, have {})",
-				stageId, stageConfig.mStaminaCost, mSaveManager.SaveData.mStamina);
+				stageId, stageConfig.mStaminaCost, GetSaveData().mStamina);
 			return;
 		}
 
@@ -467,7 +530,7 @@ class StormTacticsGame : Application
 
 		// Build player formation from active formation preset (or fallback to owned units)
 		let attackers = scope List<FormationSlot>();
-		let save = mSaveManager.SaveData;
+		let save = GetSaveData();
 
 		if (save.mFormationPresets.Count > 0 && save.mActiveFormationIndex < (int32)save.mFormationPresets.Count)
 		{
@@ -534,7 +597,7 @@ class StormTacticsGame : Application
 		mBattleScene.Initialize(mMainScene, renderModule, mRenderSystem, mOverlayFeature, mCurrentSim, 1.0f);
 
 		// Apply user settings to battle scene
-		let settings = mSaveManager.SaveData.mGameSettings;
+		let settings = GetSaveData().mGameSettings;
 		mBattleScene.ApplySettings(settings.mAutoStepDefault, settings.mAutoBattleDefault, (float)settings.mDefaultBattleSpeed, settings.mInvertCameraPan);
 
 		// Enter deployment mode
@@ -572,7 +635,7 @@ class StormTacticsGame : Application
 
 		// Build player formation from active preset, filtered by challenge restriction
 		let attackers = scope List<FormationSlot>();
-		let save = mSaveManager.SaveData;
+		let save = GetSaveData();
 
 		if (save.mFormationPresets.Count > 0 && save.mActiveFormationIndex < (int32)save.mFormationPresets.Count)
 		{
@@ -639,7 +702,7 @@ class StormTacticsGame : Application
 		mBattleScene = new BattleScene();
 		mBattleScene.Initialize(mMainScene, renderModule, mRenderSystem, mOverlayFeature, mCurrentSim, 1.0f);
 
-		let settings = mSaveManager.SaveData.mGameSettings;
+		let settings = GetSaveData().mGameSettings;
 		mBattleScene.ApplySettings(settings.mAutoStepDefault, settings.mAutoBattleDefault, (float)settings.mDefaultBattleSpeed, settings.mInvertCameraPan);
 
 		// Switch to battle HUD and enter deployment
@@ -666,7 +729,7 @@ class StormTacticsGame : Application
 
 		// Build player formation from active preset (no restrictions for bosses)
 		let attackers = scope List<FormationSlot>();
-		let save = mSaveManager.SaveData;
+		let save = GetSaveData();
 
 		if (save.mFormationPresets.Count > 0 && save.mActiveFormationIndex < (int32)save.mFormationPresets.Count)
 		{
@@ -744,7 +807,7 @@ class StormTacticsGame : Application
 		mBattleScene = new BattleScene();
 		mBattleScene.Initialize(mMainScene, renderModule, mRenderSystem, mOverlayFeature, mCurrentSim, 1.0f);
 
-		let settings = mSaveManager.SaveData.mGameSettings;
+		let settings = GetSaveData().mGameSettings;
 		mBattleScene.ApplySettings(settings.mAutoStepDefault, settings.mAutoBattleDefault, (float)settings.mDefaultBattleSpeed, settings.mInvertCameraPan);
 
 		// Switch to battle HUD and enter deployment
@@ -773,7 +836,7 @@ class StormTacticsGame : Application
 
 		// Build player formation, filtering out dead units
 		let attackers = scope List<FormationSlot>();
-		let save = mSaveManager.SaveData;
+		let save = GetSaveData();
 
 		if (save.mFormationPresets.Count > 0 && save.mActiveFormationIndex < (int32)save.mFormationPresets.Count)
 		{
@@ -837,7 +900,7 @@ class StormTacticsGame : Application
 		mBattleScene = new BattleScene();
 		mBattleScene.Initialize(mMainScene, renderModule, mRenderSystem, mOverlayFeature, mCurrentSim, 1.0f);
 
-		let settings = mSaveManager.SaveData.mGameSettings;
+		let settings = GetSaveData().mGameSettings;
 		mBattleScene.ApplySettings(settings.mAutoStepDefault, settings.mAutoBattleDefault, (float)settings.mDefaultBattleSpeed, settings.mInvertCameraPan);
 
 		// Switch to battle HUD and enter deployment
@@ -873,7 +936,7 @@ class StormTacticsGame : Application
 
 		// Build player formation, filtering unavailable units (dead or pool exceeded)
 		let attackers = scope List<FormationSlot>();
-		let save = mSaveManager.SaveData;
+		let save = GetSaveData();
 
 		if (save.mFormationPresets.Count > 0 && save.mActiveFormationIndex < (int32)save.mFormationPresets.Count)
 		{
@@ -954,7 +1017,7 @@ class StormTacticsGame : Application
 		mBattleScene = new BattleScene();
 		mBattleScene.Initialize(mMainScene, renderModule, mRenderSystem, mOverlayFeature, mCurrentSim, 1.0f);
 
-		let settings = mSaveManager.SaveData.mGameSettings;
+		let settings = GetSaveData().mGameSettings;
 		mBattleScene.ApplySettings(settings.mAutoStepDefault, settings.mAutoBattleDefault, (float)settings.mDefaultBattleSpeed, settings.mInvertCameraPan);
 
 		// Switch to battle HUD and enter deployment
@@ -1028,8 +1091,8 @@ class StormTacticsGame : Application
 		mRosterScreen.OnStarUp.Subscribe(new (unitId) => {
 			if (mRosterManager.TryStarUp(unitId))
 			{
-				mRosterScreen.Refresh(mSaveManager.SaveData, mConfigs, mRosterManager, mEquipmentManager);
-				mSaveManager.Save();
+				mRosterScreen.Refresh(GetSaveData(), mConfigs, mRosterManager, mEquipmentManager);
+				DoSave();
 			}
 			else
 			{
@@ -1038,7 +1101,7 @@ class StormTacticsGame : Application
 					ShowToast("Already at max star level!");
 				else
 				{
-					let owned = mSaveManager.SaveData.GetOwnedUnit(unitId);
+					let owned = GetSaveData().GetOwnedUnit(unitId);
 					let have = owned != null ? owned.mShards : 0;
 					let msg = scope String();
 					msg.AppendF("Need {} shards (have {})", shardsNeeded, have);
@@ -1047,7 +1110,7 @@ class StormTacticsGame : Application
 			}
 		});
 		mRosterScreen.OnEquipSlot.Subscribe(new (unitId, slot) => {
-			mEquipSelectPopup.Show(mUISubsystem.GUIContext, unitId, slot, mSaveManager.SaveData, mConfigs, mEquipmentManager);
+			mEquipSelectPopup.Show(mUISubsystem.GUIContext, unitId, slot, GetSaveData(), mConfigs, mEquipmentManager);
 		});
 
 		// Create equip select popup
@@ -1065,8 +1128,8 @@ class StormTacticsGame : Application
 				{
 					mEquipmentManager.Equip(unitId, equipInstanceId, slot);
 				}
-				mRosterScreen.Refresh(mSaveManager.SaveData, mConfigs, mRosterManager, mEquipmentManager);
-				mSaveManager.Save();
+				mRosterScreen.Refresh(GetSaveData(), mConfigs, mRosterManager, mEquipmentManager);
+				DoSave();
 			}
 		});
 		mEquipSelectPopup.OnClose.Subscribe(new () => {
@@ -1085,14 +1148,14 @@ class StormTacticsGame : Application
 				let itemConfig = mConfigs.GetItem(itemId);
 				let title = scope String();
 				title.AppendF("Use {}", itemConfig != null ? itemConfig.mName : "Item");
-				mUnitSelectPopup.Show(mUISubsystem.GUIContext, itemId, title, mSaveManager.SaveData, mConfigs);
+				mUnitSelectPopup.Show(mUISubsystem.GUIContext, itemId, title, GetSaveData(), mConfigs);
 				return;
 			}
 
 			if (mInventoryManager.UseItem(itemId))
 			{
-				mInventoryScreen.Refresh(mSaveManager.SaveData, mConfigs, mInventoryManager);
-				mSaveManager.Save();
+				mInventoryScreen.Refresh(GetSaveData(), mConfigs, mInventoryManager);
+				DoSave();
 			}
 			else
 			{
@@ -1106,8 +1169,8 @@ class StormTacticsGame : Application
 		mInventoryScreen.OnSell.Subscribe(new (itemId) => {
 			if (mInventoryManager.SellItem(itemId) > 0)
 			{
-				mInventoryScreen.Refresh(mSaveManager.SaveData, mConfigs, mInventoryManager);
-				mSaveManager.Save();
+				mInventoryScreen.Refresh(GetSaveData(), mConfigs, mInventoryManager);
+				DoSave();
 			}
 		});
 
@@ -1117,8 +1180,8 @@ class StormTacticsGame : Application
 			let itemId = mUnitSelectPopup.ItemId;
 			if (mInventoryManager.UseItem(itemId, unitId))
 			{
-				mInventoryScreen.Refresh(mSaveManager.SaveData, mConfigs, mInventoryManager);
-				mSaveManager.Save();
+				mInventoryScreen.Refresh(GetSaveData(), mConfigs, mInventoryManager);
+				DoSave();
 				let config = mConfigs.GetItem(itemId);
 				let msg = scope String();
 				msg.AppendF("Used {} on unit", config != null ? StringView(config.mName) : "item");
@@ -1136,8 +1199,8 @@ class StormTacticsGame : Application
 		mShopScreen.OnBuy.Subscribe(new (shopItemId) => {
 			if (mShopManager.TryPurchase(shopItemId))
 			{
-				mShopScreen.Refresh(mSaveManager.SaveData, mConfigs, mShopManager);
-				mSaveManager.Save();
+				mShopScreen.Refresh(GetSaveData(), mConfigs, mShopManager);
+				DoSave();
 			}
 			else
 			{
@@ -1159,8 +1222,8 @@ class StormTacticsGame : Application
 			if (result != null)
 			{
 				mGachaScreen.ShowSingleResult(result, mConfigs);
-				mGachaScreen.Refresh(mSaveManager.SaveData);
-				mSaveManager.Save();
+				mGachaScreen.Refresh(GetSaveData());
+				DoSave();
 				delete result;
 			}
 			else
@@ -1171,8 +1234,8 @@ class StormTacticsGame : Application
 			if (results.Count > 0)
 			{
 				mGachaScreen.ShowMultiResults(results, mConfigs);
-				mGachaScreen.Refresh(mSaveManager.SaveData);
-				mSaveManager.Save();
+				mGachaScreen.Refresh(GetSaveData());
+				DoSave();
 			}
 			else
 				ShowToast("Not enough gems for 10x pull!");
@@ -1186,7 +1249,7 @@ class StormTacticsGame : Application
 			ShowCityHub();
 		});
 		mFormationScreen.OnSave.Subscribe(new () => {
-			mSaveManager.Save();
+			DoSave();
 			ShowCityHub();
 		});
 		mFormationScreen.OnMessage.Subscribe(new (msg) => {
@@ -1196,11 +1259,11 @@ class StormTacticsGame : Application
 		// Create settings screen
 		mSettingsScreen = new SettingsScreen();
 		mSettingsScreen.OnBack.Subscribe(new () => {
-			mSaveManager.Save();
+			DoSave();
 			ShowCityHub();
 		});
 		mSettingsScreen.OnChanged.Subscribe(new () => {
-			mSaveManager.Save();
+			DoSave();
 		});
 
 		// Create campaign screen
@@ -1445,7 +1508,7 @@ class StormTacticsGame : Application
 	private void StampUnitLevels()
 	{
 		if (mCurrentSim == null) return;
-		let save = mSaveManager.SaveData;
+		let save = GetSaveData();
 		for (int32 i = 0; i < mCurrentSim.UnitCount; i++)
 		{
 			let unit = mCurrentSim.GetUnit(i);
@@ -1634,7 +1697,7 @@ class StormTacticsGame : Application
 			// Update preset tabs and save targets
 			if (mDeployRosterDirty)
 			{
-				let activeIdx = mSaveManager.SaveData.mActiveFormationIndex;
+				let activeIdx = GetSaveData().mActiveFormationIndex;
 				let count = mFormationManager.PresetCount;
 				var names = scope StringView[count];
 				for (int32 i = 0; i < count; i++)
@@ -1664,7 +1727,7 @@ class StormTacticsGame : Application
 				}
 
 				// Build roster info from owned units
-				let save = mSaveManager.SaveData;
+				let save = GetSaveData();
 				var rosterInfos = scope RosterUnitInfo[save.mOwnedUnits.Count];
 				int32 rosterCount = 0;
 				for (let owned in save.mOwnedUnits)
@@ -1891,7 +1954,7 @@ class StormTacticsGame : Application
 						mTowerManager.ClearHP();
 						Console.WriteLine("[Tower] Defeated on floor {} — run ended", mCurrentTowerFloor + 1);
 					}
-					mSaveManager.Save();
+					DoSave();
 				}
 			}
 			else if (!mRewardsProcessed && mCurrentCrusadeWave >= 0)
@@ -1925,7 +1988,7 @@ class StormTacticsGame : Application
 						Console.WriteLine("[Crusade] Defeated on wave {} — retry with remaining units ({}/{} pool used)",
 							mCurrentCrusadeWave + 1, mCrusadeManager.UsedUnitCount, mCrusadeManager.MaxUnitPool);
 					}
-					mSaveManager.Save();
+					DoSave();
 				}
 			}
 
@@ -1951,7 +2014,7 @@ class StormTacticsGame : Application
 						}
 						if (isFirstClear)
 							mBossRushManager.MarkBossDefeated(mCurrentBossIndex);
-						mSaveManager.Save();
+						DoSave();
 
 						var emptyRewards = scope RewardDisplayInfo[0];
 						mBattleHUD.ShowRewards(bossTmpl.mGoldReward, bossTmpl.mExpReward, gemsAwarded, isFirstClear, emptyRewards);
@@ -1971,7 +2034,7 @@ class StormTacticsGame : Application
 							mPlayerManager.AddGems(tmpl.mGemReward);
 						mPlayerManager.AddHeroExp(tmpl.mExpReward);
 						mDailyChallengeManager.MarkCompleted(mCurrentChallengeIndex);
-						mSaveManager.Save();
+						DoSave();
 
 						var emptyRewards = scope RewardDisplayInfo[0];
 						mBattleHUD.ShowRewards(tmpl.mGoldReward, tmpl.mExpReward, tmpl.mGemReward, false, emptyRewards);
@@ -1995,7 +2058,7 @@ class StormTacticsGame : Application
 					}
 
 					mBattleHUD.ShowRewards(rewards.mGoldGained, rewards.mExpGained, rewards.mGemsGained, rewards.mIsFirstClear, rewardInfos);
-					mSaveManager.Save();
+					DoSave();
 
 					Console.WriteLine("[Rewards] +{} gold, +{} EXP, {} items",
 						rewards.mGoldGained, rewards.mExpGained, rewards.mItems.Count);
@@ -2012,7 +2075,7 @@ class StormTacticsGame : Application
 		if (mBattleScene == null || mCurrentSim == null) return;
 
 		mFormationManager.SetActivePreset(presetIndex);
-		mSaveManager.SaveData.mActiveFormationIndex = presetIndex;
+		GetSaveData().mActiveFormationIndex = presetIndex;
 
 		// Build attacker list from selected preset
 		let preset = mFormationManager.GetPreset(presetIndex);
@@ -2020,7 +2083,7 @@ class StormTacticsGame : Application
 
 		if (preset != null)
 		{
-			let save = mSaveManager.SaveData;
+			let save = GetSaveData();
 			for (let fSlot in preset.mSlots)
 			{
 				let unitConfig = mConfigs.GetUnit(fSlot.mUnitId);
@@ -2209,7 +2272,7 @@ class StormTacticsGame : Application
 		Console.WriteLine("[Campaign] Swept stage {}{} — +{}G +{}EXP {} items",
 			stageId, isHardMode ? " (HARD)" : "", result.mGoldGained, result.mExpGained, result.mItems.Count);
 
-		mSaveManager.Save();
+		DoSave();
 
 		// Build item display info
 		let stageConfig = mConfigs.GetStage(stageId);
@@ -2221,7 +2284,7 @@ class StormTacticsGame : Application
 		}
 
 		// Show results in the popup
-		let sweepCount = isHardMode ? mSaveManager.SaveData.GetHardSweepCount(stageId) : mSaveManager.SaveData.GetSweepCount(stageId);
+		let sweepCount = isHardMode ? GetSaveData().GetHardSweepCount(stageId) : GetSaveData().GetSweepCount(stageId);
 		let sweepLimit = stageConfig != null ? stageConfig.mSweepLimit : 0;
 		mCampaignScreen.ShowSweepResults(
 			result.mGoldGained,
@@ -2229,7 +2292,7 @@ class StormTacticsGame : Application
 			itemInfos,
 			sweepCount,
 			sweepLimit,
-			mSaveManager.SaveData.mStamina
+			GetSaveData().mStamina
 		);
 	}
 
@@ -2243,7 +2306,7 @@ class StormTacticsGame : Application
 		defer { for (let s in deployed) delete s; }
 
 		mFormationManager.OverwritePreset(presetIndex, deployed);
-		mSaveManager.Save();
+		DoSave();
 
 		Console.WriteLine("[Deploy] Saved deployment as preset {} ({} units)", presetIndex, deployed.Count);
 	}
@@ -2344,6 +2407,8 @@ class StormTacticsGame : Application
 		mToast = null;
 		delete mUnitSelectPopup;
 		mUnitSelectPopup = null;
+		delete mLoginScreen;
+		mLoginScreen = null;
 
 		// 2. Theme + font service — GUIContext doesn't take ownership
 		delete mGameTheme;
@@ -2355,7 +2420,7 @@ class StormTacticsGame : Application
 		DestroyBattle();
 
 		// 4. Metagame systems — save before exit
-		mSaveManager?.Save();
+		DoSave();
 		delete mCrusadeManager;
 		mCrusadeManager = null;
 		delete mTowerManager;
@@ -2382,6 +2447,8 @@ class StormTacticsGame : Application
 		mPlayerManager = null;
 		delete mSaveManager;
 		mSaveManager = null;
+		delete mServerSaveManager;
+		mServerSaveManager = null;
 
 		// 5. Config data — standalone
 		delete mConfigs;

@@ -25,7 +25,8 @@ StormTactics/
 ├── StormTactics.Battle/         # Battle simulation (deterministic, no rendering)
 ├── StormTactics.Game/           # Game systems (progression, inventory, economy)
 ├── StormTactics.Client/         # Client app (rendering, UI, input, audio)
-└── StormTactics.Server/         # (Future) Authoritative server
+├── StormTactics.Server/         # Server library (auth, sessions, player data, routes)
+└── StormTactics.ServerApp/      # Standalone server executable
 ```
 
 **Separation principle:** The battle simulation (`StormTactics.Battle`) must be pure logic with zero rendering dependencies. This allows:
@@ -444,11 +445,11 @@ The PvE content pipeline and campaign structure.
   - [x] First-clear bonus rewards (bonus gold + gems on first clear, tracked via star history)
   - [x] Stage sweep (auto-complete 3-starred stages for rewards, spends stamina)
 
-- [ ] **Special PvE modes**
-  - [ ] **Tower/Dungeon** — sequential floors with increasing difficulty, no healing between floors, rewards per floor
+- [x] **Special PvE modes**
+  - [x] **Tower/Dungeon** — sequential floors with increasing difficulty, no healing between floors, rewards per floor
   - [x] **Daily challenges** — rotating class/damage-type/race-restricted battles (12 templates, 3 per day, daily reset, deployment filtering)
   - [x] **Boss rush** — single powerful boss with special mechanics
-  - [ ] **Crusade/Gauntlet** — fight waves with persistent HP across battles
+  - [x] **Crusade/Gauntlet** — fight waves with persistent HP across battles, attrition-based unit pool (20 max), enemy HP persists on defeat
 
 - [x] **Difficulty & scaling**
   - [x] Enemy stat scaling per chapter/stage (15 stages with difficulty 1-20, recommended power 100-2800)
@@ -457,7 +458,50 @@ The PvE content pipeline and campaign structure.
 
 ---
 
-## Phase 8: PvP Arena
+## Phase 8: Server Foundation & Auth
+
+Standalone game server with HTTP-based auth, session management, and player data sync. Client connects to server for login/register and save data persistence.
+
+### Checklist
+
+- [x] **Server project setup**
+  - [x] `StormTactics.Server` (BeefLib) — server logic
+  - [x] `StormTactics.ServerApp` (ConsoleApp) — server executable
+  - [x] Registered in `BeefSpace.toml`
+
+- [x] **Auth system**
+  - [x] `PasswordHasher` — SHA1 salt+hash, verify
+  - [x] `AccountData` — username, passwordHash, salt, playerId (ISerializable)
+  - [x] `AuthManager` — register/login, accounts.xml persistence
+  - [x] `Session` / `SessionManager` — in-memory Bearer token sessions with expiry
+
+- [x] **Player data persistence**
+  - [x] `PlayerDataStore` — per-player XML file I/O at `server_data/players/{id}.xml`
+  - [x] Serialize/deserialize `PlayerSaveData` to/from XML for HTTP transport
+  - [x] New player creation with starter data (same as local `SaveManager`)
+
+- [x] **REST API routes**
+  - [x] `POST /api/auth/register` — create account + initial player data
+  - [x] `POST /api/auth/login` — authenticate, return session token
+  - [x] `GET /api/player/data` — return player data as XML (Bearer auth)
+  - [x] `POST /api/player/save` — persist player data from XML body (Bearer auth)
+  - [x] `JsonHelper` — minimal flat JSON builder/parser for auth responses
+
+- [x] **Server executable**
+  - [x] `GameServer` — wraps HttpServer, owns all components, registers routes
+  - [x] `ServerConfig` — port, data dir, session timeout
+  - [x] `Program.bf` — CLI with `--port` and `--data-dir` args, main update loop
+
+- [x] **Client integration**
+  - [x] `ServerSaveManager` — HTTP client for auth + player data sync
+  - [x] `LoginScreen` — username/password UI with login/register buttons
+  - [x] Server mode default (use `--local` for local saves)
+  - [x] `DoSave()` abstraction replacing all direct save calls
+  - [x] `GetSaveData()` helper for transparent server/local data access
+
+---
+
+## Phase 9: PvP Arena
 
 Player-versus-player competitive mode.
 
@@ -483,7 +527,7 @@ Player-versus-player competitive mode.
 
 ---
 
-## Phase 9: Social & Guild Systems
+## Phase 10: Social & Guild Systems
 
 Community and social features.
 
@@ -522,7 +566,7 @@ Community and social features.
 
 ---
 
-## Phase 10: City/Base Hub
+## Phase 11: City/Base Hub
 
 The main non-combat screen where players manage everything.
 
@@ -562,7 +606,7 @@ The main non-combat screen where players manage everything.
 
 ---
 
-## Phase 11: Tutorial & New Player Experience
+## Phase 12: Tutorial & New Player Experience
 
 Guided onboarding to teach game mechanics.
 
@@ -587,7 +631,7 @@ Guided onboarding to teach game mechanics.
 
 ---
 
-## Phase 12: Audio
+## Phase 13: Audio
 
 Sound design integration.
 
@@ -614,7 +658,7 @@ Sound design integration.
 
 ---
 
-## Phase 13: Save/Load & Persistence
+## Phase 14: Save/Load & Persistence
 
 Local persistence (pre-networking).
 
@@ -645,7 +689,7 @@ Local persistence (pre-networking).
 
 ---
 
-## Phase 14: Polish & Juice
+## Phase 15: Polish & Juice
 
 Visual and feel improvements.
 
