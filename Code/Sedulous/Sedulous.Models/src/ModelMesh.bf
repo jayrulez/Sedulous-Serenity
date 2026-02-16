@@ -173,6 +173,108 @@ public class ModelMesh
 		mBounds = bounds;
 	}
 
+	/// Converts a non-skinned mesh into a skinned one by adding uniform bone weighting.
+	/// All vertices are assigned to a single joint with weight 1.0.
+	/// Expands vertex buffer by 24 bytes/vertex (UShort4 joints + Float4 weights).
+	public void AddUniformSkinning(int32 jointIndex)
+	{
+		// Skip if mesh already has joint data
+		for (let element in mVertexElements)
+			if (element.Semantic == .Joints)
+				return;
+
+		if (mVertexData == null || mVertexCount == 0)
+			return;
+
+		int32 oldStride = mVertexStride;
+		int32 newStride = oldStride + 24; // +8 (UShort4) +16 (Float4)
+		let newData = new uint8[mVertexCount * newStride];
+
+		for (int32 i = 0; i < mVertexCount; i++)
+		{
+			int32 srcOffset = i * oldStride;
+			int32 dstOffset = i * newStride;
+
+			// Copy existing vertex data
+			Internal.MemCpy(&newData[dstOffset], &mVertexData[srcOffset], oldStride);
+
+			// Write joints: uint16[4] = (jointIndex, 0, 0, 0)
+			uint16* joints = (uint16*)&newData[dstOffset + oldStride];
+			joints[0] = (uint16)jointIndex;
+			joints[1] = 0;
+			joints[2] = 0;
+			joints[3] = 0;
+
+			// Write weights: float[4] = (1, 0, 0, 0)
+			float* weights = (float*)&newData[dstOffset + oldStride + 8];
+			weights[0] = 1.0f;
+			weights[1] = 0.0f;
+			weights[2] = 0.0f;
+			weights[3] = 0.0f;
+		}
+
+		delete mVertexData;
+		mVertexData = newData;
+		mVertexStride = newStride;
+
+		mVertexElements.Add(VertexElement(.Joints, .UShort4, oldStride));
+		mVertexElements.Add(VertexElement(.Weights, .Float4, oldStride + 8));
+	}
+
+	/// Scales vertex positions by a non-uniform scale vector.
+	public void ScalePositions(Vector3 scale)
+	{
+		int32 posOffset = -1;
+		for (let element in mVertexElements)
+		{
+			if (element.Semantic == .Position)
+			{
+				posOffset = element.Offset;
+				break;
+			}
+		}
+		if (posOffset < 0 || mVertexData == null)
+			return;
+
+		for (int32 i = 0; i < mVertexCount; i++)
+		{
+			int32 offset = i * mVertexStride + posOffset;
+			Vector3* pos = (Vector3*)&mVertexData[offset];
+			pos.X *= scale.X;
+			pos.Y *= scale.Y;
+			pos.Z *= scale.Z;
+		}
+	}
+
+	/// Remaps vertex joint indices using the provided mapping array.
+	/// remap[oldJointIndex] = newJointIndex.
+	public void RemapJointIndices(int32[] remap)
+	{
+		int32 jointsOffset = -1;
+		for (let element in mVertexElements)
+		{
+			if (element.Semantic == .Joints)
+			{
+				jointsOffset = element.Offset;
+				break;
+			}
+		}
+		if (jointsOffset < 0 || mVertexData == null)
+			return;
+
+		for (int32 i = 0; i < mVertexCount; i++)
+		{
+			int32 offset = i * mVertexStride + jointsOffset;
+			uint16* joints = (uint16*)&mVertexData[offset];
+			for (int j = 0; j < 4; j++)
+			{
+				let oldIdx = (int32)joints[j];
+				if (oldIdx >= 0 && oldIdx < remap.Count)
+					joints[j] = (uint16)remap[oldIdx];
+			}
+		}
+	}
+
 	/// Calculate bounds from position data
 	public void CalculateBounds()
 	{

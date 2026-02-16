@@ -29,7 +29,7 @@ class ModelImporter
 	}
 
 	/// Import resources from a loaded model.
-	/// Order: Skeletons → Textures → Materials → StaticMeshes → SkinnedMeshes → Animations
+	/// Order: Preprocess → Skeletons → Textures → Materials → StaticMeshes → SkinnedMeshes → Animations
 	/// Textures are imported before materials so materials can reference them via ResourceRef.
 	/// Skeletons are imported before skinned meshes so meshes can reference them via ResourceRef.
 	public ModelImportResult Import(Model model)
@@ -41,6 +41,12 @@ class ModelImporter
 			result.AddError("Model is null");
 			return result;
 		}
+
+		// 0a. Promote rigid bone attachments to skinned meshes (before skeleton creation)
+		PreprocessRigidAttachments(model);
+
+		// 0b. Merge skins that share the same bone hierarchy into one
+		MergeRelatedSkins(model);
 
 		// 1. Skeletons first (needed by skinned meshes for SkeletonRef)
 		if (mOptions.Flags.HasFlag(.Skeletons))
@@ -79,6 +85,218 @@ class ModelImporter
 		}
 
 		return result;
+	}
+
+	/// Promotes rigid meshes attached to skeleton bones into skinned meshes.
+	/// For each bone with a mesh but no skin, walks up the parent chain to find
+	/// the nearest ancestor that belongs to a skin. If found, adds the bone as
+	/// a new joint in that skin and gives the mesh uniform bone weighting.
+	/// Must be called BEFORE ImportSkeletons so new joints are included naturally.
+	private void PreprocessRigidAttachments(Model model)
+	{
+		for (let bone in model.Bones)
+		{
+			if (bone.MeshIndex < 0 || bone.SkinIndex >= 0)
+				continue; // No mesh, or already skinned
+
+			let mesh = model.Meshes[bone.MeshIndex];
+
+			// Skip if mesh already has joint data
+			bool hasJoints = false;
+			for (let element in mesh.VertexElements)
+			{
+				if (element.Semantic == .Joints)
+				{
+					hasJoints = true;
+					break;
+				}
+			}
+			if (hasJoints)
+				continue;
+
+			// Walk up parent chain to find nearest ancestor in any skin's joint list
+			int32 foundSkinIdx = -1;
+			int32 ancestorJointIdx = -1;
+			FindAncestorSkinJoint(model, bone.ParentIndex, out foundSkinIdx, out ancestorJointIdx);
+
+			if (foundSkinIdx < 0)
+				continue;
+
+			let skin = model.Skins[foundSkinIdx];
+
+			// Add this bone as a new joint in the skin with Identity IBM
+			skin.AddJoint(bone.Index, .Identity);
+			let newJointIndex = (int32)(skin.Joints.Count - 1);
+
+			// Bake the bone's local scale into vertex positions so the mesh is in
+			// the same coordinate space as other skinned meshes (e.g., meters).
+			// Without this, rigid attachment vertices may be in different units
+			// (e.g., cm) while the skeleton is in meters, causing mismatched bounds.
+			let boneScale = bone.Scale;
+			if (boneScale.X != 1.0f || boneScale.Y != 1.0f || boneScale.Z != 1.0f)
+			{
+				mesh.ScalePositions(boneScale);
+				bone.Scale = .(1, 1, 1);
+				bone.UpdateLocalTransform();
+			}
+
+			// Convert the mesh to a skinned mesh with uniform weighting to the new joint
+			mesh.AddUniformSkinning(newJointIndex);
+
+			// Mark the bone as belonging to this skin
+			bone.SkinIndex = (int32)foundSkinIdx;
+		}
+	}
+
+	/// Walks up the parent chain from startNodeIdx to find a skin that shares
+	/// the same bone hierarchy. Checks if any ancestor is a joint in a skin OR
+	/// is an ancestor of any skin's joints (i.e., a common parent node like "Bip001"
+	/// that isn't itself weighted but is the root of the skeleton hierarchy).
+	private void FindAncestorSkinJoint(Model model, int32 startNodeIdx, out int32 outSkinIdx, out int32 outJointIdx)
+	{
+		outSkinIdx = -1;
+		outJointIdx = -1;
+
+		for (int32 skinIdx = 0; skinIdx < (int32)model.Skins.Count; skinIdx++)
+		{
+			let skin = model.Skins[skinIdx];
+
+			// Build set of all ancestors of this skin's joints (including the joints themselves)
+			let skinTree = scope HashSet<int32>();
+			for (let jointNodeIdx in skin.Joints)
+			{
+				int32 node = jointNodeIdx;
+				while (node >= 0 && node < model.Bones.Count)
+				{
+					if (!skinTree.Add(node))
+						break;
+					node = model.Bones[node].ParentIndex;
+				}
+			}
+
+			// Walk up from startNodeIdx and check if any ancestor is in the skin's tree
+			int32 current = startNodeIdx;
+			while (current >= 0 && current < model.Bones.Count)
+			{
+				if (skinTree.Contains(current))
+				{
+					outSkinIdx = skinIdx;
+					// Check if the matched node is actually a joint (for logging)
+					for (int32 jointIdx = 0; jointIdx < (int32)skin.Joints.Count; jointIdx++)
+					{
+						if (skin.Joints[jointIdx] == current)
+						{
+							outJointIdx = jointIdx;
+							break;
+						}
+					}
+					return;
+				}
+				current = model.Bones[current].ParentIndex;
+			}
+		}
+	}
+
+	/// Merges skins that share the same bone hierarchy into the largest skin.
+	/// This ensures meshes skinned to different subsets of the same skeleton
+	/// (e.g., body + weapon) end up in one SkinnedMeshResource with one skeleton.
+	private void MergeRelatedSkins(Model model)
+	{
+		if (model.Skins.Count <= 1)
+			return;
+
+		// Find the largest skin (by joint count) — this is the merge target
+		int32 targetSkinIdx = 0;
+		for (int32 i = 1; i < (int32)model.Skins.Count; i++)
+		{
+			if (model.Skins[i].Joints.Count > model.Skins[targetSkinIdx].Joints.Count)
+				targetSkinIdx = i;
+		}
+
+		let targetSkin = model.Skins[targetSkinIdx];
+
+		for (int32 skinIdx = 0; skinIdx < (int32)model.Skins.Count; skinIdx++)
+		{
+			if (skinIdx == targetSkinIdx)
+				continue;
+
+			let skin = model.Skins[skinIdx];
+
+			if (!SkinsShareHierarchy(model, skin, targetSkin))
+				continue;
+
+			// Build remapping: skin joint index → targetSkin joint index
+			let remap = scope int32[skin.Joints.Count];
+			for (int32 j = 0; j < (int32)skin.Joints.Count; j++)
+			{
+				let boneIdx = skin.Joints[j];
+
+				// Check if this bone is already in targetSkin
+				int32 existingIdx = -1;
+				for (int32 k = 0; k < (int32)targetSkin.Joints.Count; k++)
+				{
+					if (targetSkin.Joints[k] == boneIdx)
+					{
+						existingIdx = k;
+						break;
+					}
+				}
+
+				if (existingIdx >= 0)
+				{
+					remap[j] = existingIdx;
+				}
+				else
+				{
+					targetSkin.AddJoint(boneIdx, skin.InverseBindMatrices[j]);
+					remap[j] = (int32)(targetSkin.Joints.Count - 1);
+				}
+			}
+
+			// Remap mesh joint indices and update bone SkinIndex for all meshes using this skin
+			for (let bone in model.Bones)
+			{
+				if (bone.SkinIndex == skinIdx && bone.MeshIndex >= 0)
+				{
+					let mesh = model.Meshes[bone.MeshIndex];
+					mesh.RemapJointIndices(remap);
+					bone.SkinIndex = targetSkinIdx;
+				}
+			}
+		}
+	}
+
+	/// Checks if two skins share the same bone hierarchy by walking up
+	/// ancestor chains. Returns true if any ancestor of skinA's joints
+	/// overlaps with any ancestor of skinB's joints.
+	private bool SkinsShareHierarchy(Model model, ModelSkin skinA, ModelSkin skinB)
+	{
+		// Collect all ancestors of skinB's joints (including the joints themselves)
+		let ancestorsB = scope HashSet<int32>();
+		for (let jointNodeIdx in skinB.Joints)
+		{
+			int32 current = jointNodeIdx;
+			while (current >= 0 && current < model.Bones.Count)
+			{
+				if (!ancestorsB.Add(current))
+					break;
+				current = model.Bones[current].ParentIndex;
+			}
+		}
+
+		// Check if any of skinA's joints or their ancestors overlap
+		for (let jointNodeIdx in skinA.Joints)
+		{
+			int32 current = jointNodeIdx;
+			while (current >= 0 && current < model.Bones.Count)
+			{
+				if (ancestorsB.Contains(current))
+					return true;
+				current = model.Bones[current].ParentIndex;
+			}
+		}
+
+		return false;
 	}
 
 	private void ImportSkeletons(Model model, ModelImportResult result)
@@ -208,6 +426,15 @@ class ModelImporter
 
 	private void ImportSkinnedMeshes(Model model, ModelImportResult result)
 	{
+		// Build meshIdx → skinIdx mapping from bones so we can filter meshes by skin
+		let meshToSkin = scope int32[model.Meshes.Count];
+		for (int i = 0; i < meshToSkin.Count; i++)
+			meshToSkin[i] = -1;
+		for (let bone in model.Bones)
+		{
+			if (bone.MeshIndex >= 0 && bone.MeshIndex < meshToSkin.Count && bone.SkinIndex >= 0)
+				meshToSkin[bone.MeshIndex] = bone.SkinIndex;
+		}
 
 		// Track which skeleton indices we've already produced a skinned mesh for.
 		// Duplicate skins map to the same skeleton, so we skip the second occurrence.
@@ -218,24 +445,24 @@ class ModelImporter
 			let skeletonIdx = (skinIdx < mSkinToSkeletonIdx.Count) ? mSkinToSkeletonIdx[skinIdx] : -1;
 
 			if (skeletonIdx < 0)
-			{
-					continue;
-			}
+				continue;
 
 			if (!processedSkeletons.Add(skeletonIdx))
-			{
-					continue;
-			}
+				continue;
 
 			let skin = model.Skins[skinIdx];
-	
-			// Convert all meshes that use this skin
+
+			// Convert meshes that belong to this skin
 			let convertedMeshes = scope List<SkinnedMesh>();
 			int32[] nodeToBoneMapping = null;
 			String firstName = scope .();
 
 			for (int meshIdx = 0; meshIdx < model.Meshes.Count; meshIdx++)
 			{
+				// Only include meshes whose owning bone's SkinIndex matches this skin
+				if (meshToSkin[meshIdx] != (int32)skinIdx)
+					continue;
+
 				let modelMesh = model.Meshes[meshIdx];
 
 				bool hasSkinning = false;

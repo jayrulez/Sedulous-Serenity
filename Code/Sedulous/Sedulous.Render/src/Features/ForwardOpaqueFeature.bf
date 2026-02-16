@@ -1480,9 +1480,9 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 							// Resolve material for this submesh's material slot
 							let matSlot = (int32)sub.MaterialSlot;
 							MaterialInstance material = null;
-							if (proxy != null && matSlot < proxy.MaterialCount)
+							if (proxy != null && matSlot >= 0 && matSlot < proxy.MaterialCount)
 								material = proxy.Materials[matSlot];
-							if (material == null && proxy != null && proxy.MaterialCount > 0)
+							if (material == null && matSlot >= 0 && proxy != null && proxy.MaterialCount > 0)
 								material = proxy.Materials[0];
 							if (material == null)
 								material = defaultMaterialInstance;
@@ -1629,9 +1629,9 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 								// Resolve material for this submesh's material slot
 								let matSlot = (int32)sub.MaterialSlot;
 								MaterialInstance material = null;
-								if (matSlot < proxy.MaterialCount)
+								if (matSlot >= 0 && matSlot < proxy.MaterialCount)
 									material = proxy.Materials[matSlot];
-								if (material == null && proxy.MaterialCount > 0)
+								if (material == null && matSlot >= 0 && proxy.MaterialCount > 0)
 									material = proxy.Materials[0];
 								if (material == null)
 									material = defaultMaterialInstance;

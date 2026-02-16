@@ -317,9 +317,11 @@ public class FbxLoader : IModelLoader
 				if (tex.relative_filename.data != null && tex.relative_filename.length > 0)
 					relPath = StringView(tex.relative_filename.data, (int)tex.relative_filename.length);
 
+/*
 				StringView absFilename = default;
 				if (tex.filename.data != null && tex.filename.length > 0)
 					absFilename = StringView(tex.filename.data, (int)tex.filename.length);
+*/
 
 				Image loadedImage = null;
 
