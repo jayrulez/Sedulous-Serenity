@@ -1,0 +1,9 @@
+FileVersion = 1
+Dependencies = {corlib = "*", BJSON = "*"}
+
+[Project]
+Name = "BJSON.Example"
+StartupObject = "BJSON.Example.Program"
+
+[Configs.Debug.Win64]
+BeefLibType = "DynamicDebug"

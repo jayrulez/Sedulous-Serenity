@@ -1,0 +1,54 @@
+FileVersion = 1
+Projects = {BJSON = {Path = "BJSON"}, "BJSON.Test" = {Path = "BJSON.Test"}, "BJSON.Example" = {Path = "BJSON.Example"}, "BJSON.SchemaCodeGen" = {Path = "BJSON.SchemaCodeGen"}, "BJSON.SchemaCodeGenTest" = {Path = "BJSON.SchemaCodeGenTest"}}
+
+[Workspace]
+StartupProject = "BJSON.SchemaCodeGen"
+
+[Configs.Debug.Win64]
+BfSIMDSetting = "SSE41"
+
+[Configs.Debug.Win32]
+BfSIMDSetting = "SSE41"
+
+[Configs.Release.Win32]
+BfSIMDSetting = "SSE41"
+
+[Configs.Release.Win64]
+BfSIMDSetting = "AVX2"
+BfOptimizationLevel = "O3"
+
+[Configs.Paranoid.Win32]
+BfSIMDSetting = "SSE41"
+
+[Configs.Paranoid.Win64]
+BfSIMDSetting = "SSE41"
+
+[Configs.Test.Win32]
+BfSIMDSetting = "SSE41"
+
+[Configs.Test.Win64]
+Toolset = "LLVM"
+BfSIMDSetting = "SSE41"
+ArithmeticCheck = true
+
+[Configs.TestRelease.Win32]
+Toolset = "Microsoft"
+BfSIMDSetting = "SSE41"
+BfOptimizationLevel = "O0"
+LTOType = "None"
+AllocType = "Debug"
+RuntimeChecks = true
+EmitDynamicCastCheck = true
+EnableObjectDebugFlags = true
+EmitObjectAccessCheck = true
+EnableRealtimeLeakCheck = true
+AllowHotSwapping = true
+IncrementalBuild = true
+COptimizationLevel = "O0"
+ConfigSelections = {BJSON = {Config = "Test"}, "BJSON.Test" = {Config = "Test"}}
+
+[Configs.TestRelease.Win64]
+BfSIMDSetting = "AVX2"
+BfOptimizationLevel = "O3"
+COptimizationLevel = "O0"
+ConfigSelections = {BJSON = {Config = "Test"}, "BJSON.Test" = {Config = "Test"}}
