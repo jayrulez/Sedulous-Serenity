@@ -55,6 +55,7 @@ class ModelTab
 	public Button PlayPauseButton;
 	public Button StopButton;
 	public Button ResetButton;
+	public CheckBox LoopCheck;
 
 	// Scale control
 	public Slider ScaleSlider;
