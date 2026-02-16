@@ -53,12 +53,8 @@ class GUISandboxApp : RHISampleApp
 	// Cursor tracking
 	private Sedulous.GUI.CursorType mLastCursor = .Default;
 
-	// Key repeat tracking
-	private Sedulous.Shell.Input.KeyCode mHeldKey = .Unknown;
-	private float mKeyHoldTime = 0;
-	private const float KeyRepeatDelay = 0.4f;
-	private const float KeyRepeatRate = 0.03f;
-	private float mLastRepeatTime = 0;
+	// Input helper for polling-based keyboard/mouse routing
+	private GUIInputHelper mInputHelper = new .() ~ delete _;
 	private float mFrameDelta = 0;
 
 	public this() : base(.()
@@ -157,172 +153,16 @@ class GUISandboxApp : RHISampleApp
 		let keyboard = mShell.InputManager.Keyboard;
 		let mouse = mShell.InputManager.Mouse;
 
-		// Get modifiers using InputMapping
-		let modifiers = InputMapping.MapModifiers(keyboard.Modifiers);
-
 		// Toggle debug overlay with F2
 		if (keyboard.IsKeyPressed(.F2))
-		{
 			mMainShell.ToggleDebugMode();
-		}
 
-		// Route mouse input to GUI
-		float mouseX = mouse.X;
-		float mouseY = mouse.Y;
-		mGUIContext.ProcessMouseMove(mouseX, mouseY);
+		// Route mouse and keyboard input to GUI via shared helper
+		GUIInputHelper.ProcessMouseInput(mouse, keyboard, mGUIContext);
+		mInputHelper.ProcessKeyboardInput(keyboard, mGUIContext, mFrameDelta);
 
-		// Update cursor based on hovered element
+		// Update cursor
 		UpdateCursor(mouse);
-
-		if (mouse.IsButtonPressed(.Left))
-			mGUIContext.ProcessMouseDown(mouseX, mouseY, .Left, modifiers);
-		if (mouse.IsButtonReleased(.Left))
-			mGUIContext.ProcessMouseUp(mouseX, mouseY, .Left, modifiers);
-
-		if (mouse.IsButtonPressed(.Right))
-			mGUIContext.ProcessMouseDown(mouseX, mouseY, .Right, modifiers);
-		if (mouse.IsButtonReleased(.Right))
-			mGUIContext.ProcessMouseUp(mouseX, mouseY, .Right, modifiers);
-
-		// Forward mouse wheel to GUI
-		if (mouse.ScrollY != 0)
-			mGUIContext.ProcessMouseWheel(mouseX, mouseY, mouse.ScrollY, modifiers);
-
-		// Forward navigation and editing keys to GUI
-		ForwardKeyIfPressed(keyboard, .Tab, modifiers);
-		ForwardKeyIfPressed(keyboard, .Left, modifiers);
-		ForwardKeyIfPressed(keyboard, .Right, modifiers);
-		ForwardKeyIfPressed(keyboard, .Up, modifiers);
-		ForwardKeyIfPressed(keyboard, .Down, modifiers);
-		ForwardKeyIfPressed(keyboard, .Home, modifiers);
-		ForwardKeyIfPressed(keyboard, .End, modifiers);
-		ForwardKeyIfPressed(keyboard, .PageUp, modifiers);
-		ForwardKeyIfPressed(keyboard, .PageDown, modifiers);
-		ForwardKeyIfPressed(keyboard, .Backspace, modifiers);
-		ForwardKeyIfPressed(keyboard, .Delete, modifiers);
-		ForwardKeyIfPressed(keyboard, .Return, modifiers);
-
-		// Forward Ctrl+key shortcuts
-		if (modifiers.HasFlag(.Ctrl))
-		{
-			ForwardKeyIfPressed(keyboard, .A, modifiers);
-			ForwardKeyIfPressed(keyboard, .C, modifiers);
-			ForwardKeyIfPressed(keyboard, .V, modifiers);
-			ForwardKeyIfPressed(keyboard, .X, modifiers);
-			ForwardKeyIfPressed(keyboard, .Z, modifiers);
-			ForwardKeyIfPressed(keyboard, .Y, modifiers);
-		}
-
-		// Forward Alt key for menu accelerators
-		ForwardKeyIfPressed(keyboard, .LeftAlt, modifiers);
-		ForwardKeyIfPressed(keyboard, .RightAlt, modifiers);
-
-		// Forward Alt+letter for menu accelerators
-		if (modifiers.HasFlag(.Alt))
-		{
-			ForwardAllLetterKeys(keyboard, modifiers);
-		}
-
-		// Generate text input for printable keys
-		if (!modifiers.HasFlag(.Ctrl) && !modifiers.HasFlag(.Alt))
-		{
-			ForwardAllTextInput(keyboard, modifiers);
-		}
-
-		// Handle key repeat for held keys
-		HandleKeyRepeat(keyboard, modifiers);
-	}
-
-	private void ForwardAllLetterKeys(Sedulous.Shell.Input.IKeyboard keyboard, Sedulous.GUI.KeyModifiers modifiers)
-	{
-		Sedulous.Shell.Input.KeyCode[?] letters = .(
-			.A, .B, .C, .D, .E, .F, .G, .H, .I, .J, .K, .L, .M,
-			.N, .O, .P, .Q, .R, .S, .T, .U, .V, .W, .X, .Y, .Z
-		);
-		for (let key in letters)
-			ForwardKeyIfPressed(keyboard, key, modifiers);
-	}
-
-	private void ForwardAllTextInput(Sedulous.Shell.Input.IKeyboard keyboard, Sedulous.GUI.KeyModifiers modifiers)
-	{
-		Sedulous.Shell.Input.KeyCode[?] printableKeys = .(
-			.A, .B, .C, .D, .E, .F, .G, .H, .I, .J, .K, .L, .M,
-			.N, .O, .P, .Q, .R, .S, .T, .U, .V, .W, .X, .Y, .Z,
-			.Num0, .Num1, .Num2, .Num3, .Num4, .Num5, .Num6, .Num7, .Num8, .Num9,
-			.Space, .Minus, .Equals, .LeftBracket, .RightBracket, .Backslash,
-			.Semicolon, .Apostrophe, .Grave, .Comma, .Period, .Slash,
-			.Keypad0, .Keypad1, .Keypad2, .Keypad3, .Keypad4, .Keypad5,
-			.Keypad6, .Keypad7, .Keypad8, .Keypad9, .KeypadPeriod,
-			.KeypadDivide, .KeypadMultiply, .KeypadMinus, .KeypadPlus
-		);
-		for (let key in printableKeys)
-			ForwardTextInputIfPressed(keyboard, key, modifiers);
-	}
-
-	/// Handles key repeat for held keys.
-	private void HandleKeyRepeat(Sedulous.Shell.Input.IKeyboard keyboard, Sedulous.GUI.KeyModifiers modifiers)
-	{
-		Sedulous.Shell.Input.KeyCode[?] repeatableKeys = .(
-			.Backspace, .Delete, .Left, .Right, .Up, .Down, .Home, .End,
-			.A, .B, .C, .D, .E, .F, .G, .H, .I, .J, .K, .L, .M,
-			.N, .O, .P, .Q, .R, .S, .T, .U, .V, .W, .X, .Y, .Z,
-			.Num0, .Num1, .Num2, .Num3, .Num4, .Num5, .Num6, .Num7, .Num8, .Num9,
-			.Space, .Minus, .Equals, .LeftBracket, .RightBracket, .Backslash,
-			.Semicolon, .Apostrophe, .Grave, .Comma, .Period, .Slash,
-			.Keypad0, .Keypad1, .Keypad2, .Keypad3, .Keypad4, .Keypad5,
-			.Keypad6, .Keypad7, .Keypad8, .Keypad9, .KeypadPeriod,
-			.KeypadDivide, .KeypadMultiply, .KeypadMinus, .KeypadPlus
-		);
-
-		for (let key in repeatableKeys)
-		{
-			if (keyboard.IsKeyPressed(key))
-			{
-				mHeldKey = key;
-				mKeyHoldTime = 0;
-				mLastRepeatTime = 0;
-				return;
-			}
-		}
-
-		if (mHeldKey != .Unknown)
-		{
-			if (keyboard.IsKeyDown(mHeldKey))
-			{
-				mKeyHoldTime += mFrameDelta;
-
-				if (mKeyHoldTime >= KeyRepeatDelay)
-				{
-					mLastRepeatTime += mFrameDelta;
-					while (mLastRepeatTime >= KeyRepeatRate)
-					{
-						mLastRepeatTime -= KeyRepeatRate;
-
-						let guiKey = InputMapping.MapKey(mHeldKey);
-
-						if (mHeldKey == .Backspace || mHeldKey == .Delete ||
-							mHeldKey == .Left || mHeldKey == .Right ||
-							mHeldKey == .Up || mHeldKey == .Down ||
-							mHeldKey == .Home || mHeldKey == .End)
-						{
-							mGUIContext.InputManager.ProcessKeyDown(guiKey, modifiers);
-						}
-						else if (!modifiers.HasFlag(.Ctrl) && !modifiers.HasFlag(.Alt))
-						{
-							let c = InputMapping.KeyToChar(mHeldKey, modifiers.HasFlag(.Shift));
-							if (c != '\0')
-								mGUIContext.InputManager.ProcessTextInput(c);
-						}
-					}
-				}
-			}
-			else
-			{
-				mHeldKey = .Unknown;
-				mKeyHoldTime = 0;
-				mLastRepeatTime = 0;
-			}
-		}
 	}
 
 	/// Updates the mouse cursor based on the hovered UI element.
@@ -333,25 +173,6 @@ class GUISandboxApp : RHISampleApp
 		{
 			mLastCursor = guiCursor;
 			mouse.Cursor = InputMapping.MapCursor(guiCursor);
-		}
-	}
-
-	private void ForwardKeyIfPressed(Sedulous.Shell.Input.IKeyboard keyboard, Sedulous.Shell.Input.KeyCode shellKey, Sedulous.GUI.KeyModifiers modifiers)
-	{
-		if (keyboard.IsKeyPressed(shellKey))
-		{
-			let guiKey = InputMapping.MapKey(shellKey);
-			mGUIContext.InputManager.ProcessKeyDown(guiKey, modifiers);
-		}
-	}
-
-	private void ForwardTextInputIfPressed(Sedulous.Shell.Input.IKeyboard keyboard, Sedulous.Shell.Input.KeyCode shellKey, Sedulous.GUI.KeyModifiers modifiers)
-	{
-		if (keyboard.IsKeyPressed(shellKey))
-		{
-			let c = InputMapping.KeyToChar(shellKey, modifiers.HasFlag(.Shift));
-			if (c != '\0')
-				mGUIContext.InputManager.ProcessTextInput(c);
 		}
 	}
 

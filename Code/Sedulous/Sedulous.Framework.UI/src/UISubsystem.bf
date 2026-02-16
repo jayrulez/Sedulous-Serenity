@@ -432,7 +432,10 @@ public class UISubsystem : Subsystem, ISceneAware
 		let mods = keyboard != null ? InputMapping.MapModifiers(keyboard.Modifiers) : Sedulous.GUI.KeyModifiers.None;
 
 		if (down)
+		{
 			mGUIContext.ProcessKeyDown(uiKey, mods);
+			InputMapping.ForwardKeyAsTextInput(key, mods, mGUIContext);
+		}
 		else
 			mGUIContext.ProcessKeyUp(uiKey, mods);
 	}

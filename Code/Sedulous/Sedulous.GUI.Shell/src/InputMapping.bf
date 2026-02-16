@@ -1,5 +1,7 @@
 namespace Sedulous.GUI.Shell;
 
+using Sedulous.GUI;
+
 /// Utility class for mapping Shell input types to GUI input types.
 static class InputMapping
 {
@@ -165,6 +167,19 @@ static class InputMapping
 		case .ResizeSW:   return .ResizeSW;
 		case .ResizeW:    return .ResizeW;
 		}
+	}
+
+	/// Converts a key-down event to text input if the key is printable.
+	/// Call this alongside ProcessKeyDown to provide text input from key events
+	/// when OS text input events are unavailable.
+	public static void ForwardKeyAsTextInput(Sedulous.Shell.Input.KeyCode shellKey, Sedulous.GUI.KeyModifiers mods, GUIContext context)
+	{
+		if (mods.HasFlag(.Ctrl) || mods.HasFlag(.Alt))
+			return;
+
+		let c = KeyToChar(shellKey, mods.HasFlag(.Shift));
+		if (c != '\0')
+			context.ProcessTextInput(c);
 	}
 
 	/// Converts a shell key code to a printable character.
