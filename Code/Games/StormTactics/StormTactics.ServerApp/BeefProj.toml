@@ -1,0 +1,17 @@
+FileVersion = 1
+
+[Project]
+Name = "StormTactics.ServerApp"
+TargetType = "BeefConsoleApplication"
+StartupObject = "StormTactics.ServerApp.Program"
+
+[Dependencies]
+corlib = "*"
+"StormTactics.Server" = "*"
+"StormTactics.Core" = "*"
+"Sedulous.Foundation" = "*"
+"Sedulous.Net" = "*"
+"Sedulous.Net.HTTP" = "*"
+"Sedulous.Serialization" = "*"
+"Sedulous.Serialization.Xml" = "*"
+"Sedulous.Xml" = "*"

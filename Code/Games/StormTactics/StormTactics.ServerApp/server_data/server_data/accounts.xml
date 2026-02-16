@@ -1,0 +1,11 @@
+<root>
+	<array name="Accounts" count="1">
+		<object>
+			<string name="Username">robert</string>
+			<string name="PasswordHash">07b600875f56e729d2e5b36cbf9ac595de27eb66</string>
+			<string name="Salt">a21ada7a485ba6fc59698fa74b85685d</string>
+			<string name="PlayerId">705fe812-b302-4dcb-9487-f3478f535749</string>
+			<int64 name="CreatedAt">1771214529</int64>
+		</object>
+	</array>
+</root>

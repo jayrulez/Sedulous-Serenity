@@ -1,0 +1,15 @@
+FileVersion = 1
+
+[Project]
+Name = "StormTactics.Server"
+TargetType = "BeefLib"
+
+[Dependencies]
+corlib = "*"
+"StormTactics.Core" = "*"
+"Sedulous.Foundation" = "*"
+"Sedulous.Net" = "*"
+"Sedulous.Net.HTTP" = "*"
+"Sedulous.Serialization" = "*"
+"Sedulous.Serialization.Xml" = "*"
+"Sedulous.Xml" = "*"
