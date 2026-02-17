@@ -11,6 +11,7 @@ using Sedulous.Animation;
 using Sedulous.Animation.Resources;
 using Sedulous.GUI;
 using Sedulous.AppFramework;
+using Tools.Common;
 
 /// Represents a single model tab with its own world, resources, and camera state.
 class ModelTab
