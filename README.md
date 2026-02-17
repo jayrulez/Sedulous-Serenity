@@ -109,3 +109,5 @@ All renderer samples use consistent controls:
 ## License
 
 See individual library licenses in their respective directories.
+
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/jayrulez/Sedulous-Serenity)
