@@ -15,6 +15,7 @@ class SceneTab
 	// Identity
 	public String Name ~ delete _;
 	public String FilePath ~ delete _;  // null = unsaved
+	public Guid ResourceId;  // Stable across saves; only changes on Save As to new location
 
 	// Scene (owned by SceneSubsystem's SceneManager)
 	public Scene Scene;
@@ -35,6 +36,7 @@ class SceneTab
 	public this(StringView name)
 	{
 		Name = new String(name);
+		ResourceId = Guid.Create();
 		Camera = new OrbitCamera();
 		Camera.Distance = 15.0f;
 		Camera.Pitch = 0.5f;

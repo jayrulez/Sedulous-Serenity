@@ -115,16 +115,16 @@ class SceneTab
 
 ### Checklist
 
-- [ ] `NewScene()`: Create SceneTab, call `mSceneSubsystem.CreateScene(name)`, add default directional light entity + camera entity, add tab to TabControl, switch to it
-- [ ] `OpenScene(path)`: Create SceneResource, register component serializers (MeshRenderer, SkinnedMeshRenderer, Camera, Light, Sprite, ParticleEmitter, Decal, Trail), load from file, take scene into SceneSubsystem, create tab
-- [ ] `SaveScene(tab)`: Create SceneResource wrapping tab's scene, register serializers, call SaveToFile. If no filePath, prompt (text input dialog or hardcoded test path initially)
-- [ ] `SaveSceneAs(tab)`: Always prompts for path
-- [ ] `CloseTab(index)`: Prompt if dirty, unload scene from SceneSubsystem, remove tab, adjust active index
-- [ ] Tab switching: Set `mRenderSystem.SetActiveWorld(mRenderSubsystem.GetWorld(tab.Scene))`
-- [ ] File menu wiring: New → `NewScene()`, Save → `SaveScene()`, Save As → `SaveSceneAs()`, Close → `CloseTab()`
-- [ ] File drop support: `OnFileDrop()` opens .scene files
-- [ ] Tab close button on each TabItem
-- [ ] Dirty tracking: Mark dirty on any entity/component modification
+- [x] `NewScene()`: Create SceneTab, call `mSceneSubsystem.CreateScene(name)`, add default directional light entity + camera entity, add tab to TabControl, switch to it
+- [x] `OpenScene(path)`: Create SceneResource, register component serializers (MeshRenderer, SkinnedMeshRenderer, Camera, Light, Sprite, ParticleEmitter, Decal, Trail), load from file, take scene into SceneSubsystem, create tab
+- [x] `SaveScene(tab)`: Create SceneResource wrapping tab's scene, register serializers, call SaveToFile. If no filePath, prompt (text input dialog or hardcoded test path initially)
+- [x] `SaveSceneAs(tab)`: Always prompts for path
+- [x] `CloseTab(index)`: Prompt if dirty, unload scene from SceneSubsystem, remove tab, adjust active index
+- [x] Tab switching: Set `mRenderSystem.SetActiveWorld(mRenderSubsystem.GetWorld(tab.Scene))`
+- [x] File menu wiring: New → `NewScene()`, Save → `SaveScene()`, Save As → `SaveSceneAs()`, Close → `CloseTab()`
+- [x] File drop support: `OnFileDrop()` opens .scene files
+- [x] Tab close button on each TabItem
+- [x] Dirty tracking: Mark dirty on any entity/component modification
 
 ### Files
 - **Modify**: `src/Program.bf`, `src/SceneTab.bf`

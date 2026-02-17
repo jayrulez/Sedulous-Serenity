@@ -8,7 +8,10 @@ using Tools.Common;
 using System.Collections;
 using Sedulous.GUI;
 using System;
+using System.IO;
 using Sedulous.Mathematics;
+using Sedulous.Shell;
+using Sedulous.Framework.Animation;
 namespace SceneEditor;
 
 /// Scene Editor Application
@@ -261,12 +264,19 @@ class SceneEditorApp : Application
 		newItem.ShortcutText = "Ctrl+N";
 		newItem.Click.Subscribe(new (item) => { NewScene(); });
 
-		fileMenu.AddDropdownItem("&Open...");  // TODO: file dialog
+		let openItem = fileMenu.AddDropdownItem("&Open...");
+		openItem.ShortcutText = "Ctrl+O";
+		openItem.Click.Subscribe(new (item) => { ShowOpenDialog(); });
 
 		fileMenu.AddDropdownSeparator();
 
-		fileMenu.AddDropdownItem("&Save");  // TODO: SaveScene
-		fileMenu.AddDropdownItem("Save &As...");  // TODO: SaveSceneAs
+		let saveItem = fileMenu.AddDropdownItem("&Save");
+		saveItem.ShortcutText = "Ctrl+S";
+		saveItem.Click.Subscribe(new (item) => { SaveScene(); });
+
+		let saveAsItem = fileMenu.AddDropdownItem("Save &As...");
+		saveAsItem.ShortcutText = "Ctrl+Shift+S";
+		saveAsItem.Click.Subscribe(new (item) => { SaveSceneAs(); });
 
 		fileMenu.AddDropdownSeparator();
 
@@ -287,6 +297,20 @@ class SceneEditorApp : Application
 	}
 
 	// ==================== Scene / Tab Management ====================
+
+	private static StringView[?] sSceneFilter = .("Scene Files|scene");
+
+	/// Registers all known component types on a SceneResource for serialization.
+	private void RegisterComponentTypes(SceneResource resource)
+	{
+		resource.RegisterComponentType<LightComponent>();
+		resource.RegisterComponentType<CameraComponent>();
+		resource.RegisterComponentType<MeshRendererComponent>();
+		resource.RegisterComponentType<SkinnedMeshRendererComponent>();
+		resource.RegisterComponentType<SkeletalAnimationComponent>();
+		resource.RegisterComponentType<SpriteComponent>();
+		resource.RegisterComponentType<ParticleEmitterComponent>();
+	}
 
 	private void NewScene()
 	{
@@ -320,9 +344,141 @@ class SceneEditorApp : Application
 		}
 
 		// Add tab to list and UI
+		tab.MarkDirty();
 		mTabs.Add(tab);
 		AddTabToUI(tab);
 		SwitchToTab((int32)mTabs.Count - 1);
+	}
+
+	/// Shows a native Open File dialog for .scene files.
+	private void ShowOpenDialog()
+	{
+		Shell.Dialogs.ShowOpenFileDialog(new (paths) =>
+			{
+				for (let path in paths)
+					OpenScene(path);
+			}, sSceneFilter, default, false, Window);
+	}
+
+	/// Opens a scene from a file path.
+	private void OpenScene(StringView path)
+	{
+		// Check if already open
+		for (let tab in mTabs)
+		{
+			if (tab.FilePath != null && StringView(tab.FilePath) == path)
+			{
+				SwitchToTab((int32)@tab.Index);
+				return;
+			}
+		}
+
+		let resource = new SceneResource();
+		RegisterComponentTypes(resource);
+
+		if (resource.Load(path) case .Err)
+		{
+			Console.WriteLine(scope $"ERROR: Failed to load scene from '{path}'");
+			delete resource;
+			return;
+		}
+
+		let resourceId = resource.Id;
+		let scene = resource.TakeScene();
+		delete resource;
+
+		// Register scene with SceneSubsystem (fires ISceneAware → RenderSubsystem creates RenderWorld)
+		mSceneSubsystem.AddScene(scene);
+
+		// Create tab
+		let name = Path.GetFileNameWithoutExtension(path, .. scope .());
+		let tab = new SceneTab(name);
+		tab.ResourceId = resourceId;
+		tab.Scene = scene;
+		tab.SetFilePath(path);
+
+		mTabs.Add(tab);
+		AddTabToUI(tab);
+		SwitchToTab((int32)mTabs.Count - 1);
+	}
+
+	/// Saves the active scene. If it has no file path, falls through to SaveAs.
+	private void SaveScene()
+	{
+		let tab = ActiveTab;
+		if (tab == null)
+			return;
+
+		if (tab.FilePath != null)
+			SaveSceneToFile(tab, tab.FilePath);
+		else
+			SaveSceneAs();
+	}
+
+	/// Shows a native Save File dialog, then saves.
+	/// If the scene already has a file path (re-saving to new location), assigns a new resource ID.
+	private void SaveSceneAs()
+	{
+		let tab = ActiveTab;
+		if (tab == null)
+			return;
+
+		Shell.Dialogs.ShowSaveFileDialog(new (paths) =>
+			{
+				if (paths.Length > 0 && paths[0].Length > 0)
+				{
+					let savePath = scope String(paths[0]);
+
+					// Ensure .scene extension
+					if (!savePath.EndsWith(".scene", .OrdinalIgnoreCase))
+						savePath.Append(".scene");
+
+					// New resource ID if saving an existing scene to a different location
+					if (tab.FilePath != null)
+						tab.ResourceId = Guid.Create();
+
+					SaveSceneToFile(tab, savePath);
+				}
+			}, sSceneFilter, default, Window);
+	}
+
+	/// Writes the scene to disk and updates tab state.
+	private void SaveSceneToFile(SceneTab tab, StringView path)
+	{
+		let resource = new SceneResource(tab.Scene, false);
+		resource.Id = tab.ResourceId;
+		RegisterComponentTypes(resource);
+
+		if (resource.SaveToFile(path) case .Err)
+		{
+			Console.WriteLine(scope $"ERROR: Failed to save scene to '{path}'");
+			delete resource;
+			return;
+		}
+
+		delete resource;
+
+		tab.SetFilePath(path);
+		tab.ClearDirty();
+
+		// Update tab name and title
+		let name = Path.GetFileNameWithoutExtension(path, .. scope .());
+		if (tab.Name != null)
+			tab.Name.Set(name);
+
+		// Find tab index and update title in TabControl
+		let tabIndex = (int32)mTabs.IndexOf(tab);
+		UpdateTabTitle(tabIndex);
+
+		Console.WriteLine(scope $"Scene saved to '{path}'");
+	}
+
+	/// Handles file drop events (opens .scene files).
+	protected override void OnFileDrop(StringView path)
+	{
+		let ext = Path.GetExtension(path, .. scope .());
+		if (ext.Equals(".scene", .OrdinalIgnoreCase))
+			OpenScene(path);
 	}
 
 	private void AddTabToUI(SceneTab tab)
@@ -330,7 +486,8 @@ class SceneEditorApp : Application
 		if (mTabControl == null || mViewportContainer == null)
 			return;
 
-		let tabItem = mTabControl.AddTab(tab.Name);
+		let title = GetTabTitle(tab, .. scope .());
+		let tabItem = mTabControl.AddTab(title);
 		tabItem.IsCloseable = true;
 		tabItem.CloseRequested.Subscribe(new (item) =>
 			{
@@ -437,6 +594,27 @@ class SceneEditorApp : Application
 
 		if (mTabControl != null)
 			mTabControl.Visibility = hasScenes ? .Visible : .Collapsed;
+	}
+
+	/// Builds a tab title string with dirty indicator.
+	private void GetTabTitle(SceneTab tab, String outTitle)
+	{
+		if (tab.IsDirty)
+			outTitle.Append("*");
+		outTitle.Append(tab.Name);
+	}
+
+	/// Updates the TabControl title for a specific tab index.
+	private void UpdateTabTitle(int32 index)
+	{
+		if (mTabControl == null || index < 0 || index >= (int32)mTabs.Count)
+			return;
+
+		let tab = mTabs[index];
+		let title = GetTabTitle(tab, .. scope .());
+		let tabItem = mTabControl.GetTab(index);
+		if (tabItem != null)
+			tabItem.Header = new TextBlock(title);
 	}
 
 	// ==================== Update ====================
