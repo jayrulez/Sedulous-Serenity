@@ -42,7 +42,7 @@ class BattleCamera
 	public Vector3 Forward => mForward;
 	public Vector3 Target => mTarget;
 	public float Distance => mDistance;
-	public bool InvertPan { get => mInvertPan; set mut => mInvertPan = value; }
+	public bool InvertPan { get => mInvertPan; set => mInvertPan = value; }
 
 	public this()
 	{
