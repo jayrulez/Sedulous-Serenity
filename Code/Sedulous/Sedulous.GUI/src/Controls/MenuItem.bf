@@ -396,6 +396,7 @@ public class MenuItem : Control
 		if (e.Button == .Left && !HasSubItems)
 		{
 			Activate();
+			mParentMenu?.Hide();
 			e.Handled = true;
 		}
 		base.OnMouseUp(e);

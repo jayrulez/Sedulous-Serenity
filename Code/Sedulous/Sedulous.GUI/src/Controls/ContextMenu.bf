@@ -52,6 +52,11 @@ public class ContextMenu : Control, IPopupOwner
 		mItemsPanel.Spacing = 0;
 	}
 
+	public ~this()
+	{
+
+	}
+
 	/// The control type name for theming.
 	protected override StringView ControlTypeName => "ContextMenu";
 

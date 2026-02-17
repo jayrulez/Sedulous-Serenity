@@ -97,6 +97,16 @@ public class GUIContext
 	// Animation manager
 	private AnimationManager mAnimationManager ~ delete _;
 
+	public ~this()
+	{
+		// Close all popups before field destructors run.
+		// PopupLayer extends Container whose mChildren uses DeleteContainerAndItems.
+		// Popup elements are owned by their creators in the UI tree, not by PopupLayer.
+		// CloseAllPopups() removes them from the children list (without deleting them)
+		// so Container's destructor won't double-delete them.
+		mPopupLayer.CloseAllPopups();
+	}
+
 	/// Creates a new GUIContext.
 	public this()
 	{
