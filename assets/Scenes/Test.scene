@@ -4,7 +4,7 @@ string %_id {"461441d8-9c43-4e5d-829b-2483a7e901a7"}
 string %_name {""}
 int32 %sceneVersion {1}
 string %sceneName {"Scene 1"}
-int32 %entityCount {5}
+int32 %entityCount {6}
 Obj_ %entities {
 	Obj_ %e0 {
 		string %name {"Sunlight"}
@@ -61,7 +61,7 @@ Obj_ %entities {
 	Obj_ %e4 {
 		string %name {"MyEntity"}
 		float[3] %position {
-			{0, 0, 0}
+			{-0.222518563, 1.53998661, 2.85917187}
 		}
 		float[4] %rotation {
 			{0, 0, 0, 1}
@@ -71,10 +71,23 @@ Obj_ %entities {
 		}
 		int32 %parent {1}
 	}
+	Obj_ %e5 {
+		string %name {"Spot Light"}
+		float[3] %position {
+			{0, 0, 2.08443642}
+		}
+		float[4] %rotation {
+			{0, 0, 0, 1}
+		}
+		float[3] %scale {
+			{1, 1, 1}
+		}
+		int32 %parent {-1}
+	}
 }
 Obj_ %components {
 	Obj_ %LightComponent {
-		int32 %count {2}
+		int32 %count {3}
 		Obj_ %c0 {
 			int32 %entity {0}
 			int32 %_version {2}
@@ -104,6 +117,23 @@ Obj_ %components {
 			float %innerConeAngle {0.392699093}
 			float %outerConeAngle {0.785398185}
 			bool %castsShadows {true}
+			float %shadowBias {0.00499999989}
+			float %shadowNormalBias {3}
+			uint32 %layerMask {4294967295}
+			bool %enabled {true}
+		}
+		Obj_ %c2 {
+			int32 %entity {5}
+			int32 %_version {2}
+			int32 %type {2}
+			float[3] %color {
+				{1, 1, 1}
+			}
+			float %intensity {1}
+			float %range {15}
+			float %innerConeAngle {0.300000012}
+			float %outerConeAngle {0.5}
+			bool %castsShadows {false}
 			float %shadowBias {0.00499999989}
 			float %shadowNormalBias {3}
 			uint32 %layerMask {4294967295}

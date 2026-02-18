@@ -179,6 +179,28 @@ class HierarchyPanel
 			AddEntityToTree(entity, null);
 	}
 
+	/// Updates the display name of a specific entity in the tree without rebuilding.
+	public void RefreshEntityName(EntityId entity)
+	{
+		if (mCurrentTab?.Scene == null)
+			return;
+
+		for (let (item, itemEntity) in mItemToEntity)
+		{
+			if (itemEntity == entity)
+			{
+				let name = mCurrentTab.Scene.GetName(entity);
+				let displayName = scope String();
+				if (name.IsEmpty)
+					displayName.AppendF("Entity_{}", entity.Index);
+				else
+					displayName.Set(name);
+				item.Text = displayName;
+				break;
+			}
+		}
+	}
+
 	/// Recursively adds an entity and its children to the tree.
 	private void AddEntityToTree(EntityId entity, TreeViewItem parent)
 	{
@@ -371,7 +393,7 @@ class HierarchyPanel
 		return newEntity;
 	}
 
-	private void CopyComponent<T>(Scene scene, EntityId src, EntityId dst) where T : struct
+	private void CopyComponent<T>(Scene scene, EntityId src, EntityId dst) where T : struct, IComponent
 	{
 		let comp = scene.GetComponent<T>(src);
 		if (comp != null)

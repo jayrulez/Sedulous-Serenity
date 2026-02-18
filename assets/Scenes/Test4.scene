@@ -1,10 +1,10 @@
 string %_type {"Sedulous.Framework.Scenes.SceneResource"}
 int32 %_version {1}
-string %_id {"a97b620f-dd87-4fed-9ef9-01d451947a14"}
+string %_id {"8d326240-b073-43fe-841a-113d1e5302a4"}
 string %_name {""}
 int32 %sceneVersion {1}
-string %sceneName {"Scene 2"}
-int32 %entityCount {1}
+string %sceneName {"Scene 1"}
+int32 %entityCount {4}
 Obj_ %entities {
 	Obj_ %e0 {
 		string %name {"Directional Light"}
@@ -19,16 +19,96 @@ Obj_ %entities {
 		}
 		int32 %parent {-1}
 	}
+	Obj_ %e1 {
+		string %name {"MainCamera"}
+		float[3] %position {
+			{0, 0, 0}
+		}
+		float[4] %rotation {
+			{0, 0, 0, 1}
+		}
+		float[3] %scale {
+			{1, 1, 1}
+		}
+		int32 %parent {-1}
+	}
+	Obj_ %e2 {
+		string %name {"Cube"}
+		float[3] %position {
+			{-1.19209291E-08, 0, 0}
+		}
+		float[4] %rotation {
+			{0.0174524058, 0, 0, 0.99984771}
+		}
+		float[3] %scale {
+			{3.0999999, 2.79999995, 4.30000019}
+		}
+		int32 %parent {-1}
+	}
+	Obj_ %e3 {
+		string %name {"Entity"}
+		float[3] %position {
+			{-0.300000012, 0.300000012, 0.100000001}
+		}
+		float[4] %rotation {
+			{0.00523583638, 0.00698116422, -3.65536253E-05, 0.999961913}
+		}
+		float[3] %scale {
+			{1, 1, 1}
+		}
+		int32 %parent {1}
+	}
 }
 Obj_ %components {
 	Obj_ %LightComponent {
-		int32 %count {0}
+		int32 %count {1}
+		Obj_ %c0 {
+			int32 %entity {0}
+			int32 %_version {2}
+			int32 %type {0}
+			float[3] %color {
+				{1, 1.38777878E-16, 1.38777878E-16}
+			}
+			float %intensity {2.5}
+			float %range {10}
+			float %innerConeAngle {0.392699093}
+			float %outerConeAngle {0.785398185}
+			bool %castsShadows {true}
+			float %shadowBias {0.00499999989}
+			float %shadowNormalBias {3}
+			uint32 %layerMask {4294967295}
+			bool %enabled {true}
+		}
 	}
 	Obj_ %CameraComponent {
-		int32 %count {0}
+		int32 %count {1}
+		Obj_ %c0 {
+			int32 %entity {1}
+			int32 %_version {2}
+			int32 %projection {1}
+			float %fieldOfView {0}
+			float %aspectRatio {0}
+			float %nearPlane {0}
+			float %farPlane {0}
+			float %orthoWidth {0}
+			float %orthoHeight {0}
+			int32 %priority {0}
+			bool %active {true}
+			bool %isMainCamera {true}
+		}
 	}
 	Obj_ %MeshRendererComponent {
-		int32 %count {0}
+		int32 %count {1}
+		Obj_ %c0 {
+			int32 %entity {2}
+			int32 %_version {3}
+			Obj_ %mesh {
+				string %_id {"00000000-0000-0000-0000-000000000000"}
+				string %path {""}
+			}
+			int32 %materialCount {0}
+			bool %enabled {true}
+		}
 	}
 	Obj_ %SkinnedMeshRendererComponent {
 		int32 %count {0}

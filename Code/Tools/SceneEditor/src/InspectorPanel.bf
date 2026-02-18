@@ -2,9 +2,11 @@ namespace SceneEditor;
 
 using System;
 using System.Collections;
+using System.Reflection;
 using Sedulous.Mathematics;
 using Sedulous.GUI;
 using Sedulous.Framework.Scenes;
+using Sedulous.Resources;
 
 /// Encapsulates the inspector panel showing selected entity properties.
 class InspectorPanel
@@ -17,6 +19,10 @@ class InspectorPanel
 	// Current state
 	private SceneTab mCurrentTab;
 	private EntityId mCurrentEntity = .Invalid;
+
+	// Component type discovery
+	private static List<Type> sComponentTypes ~ delete _;
+	private ContextMenu mAddComponentMenu ~ delete _;
 
 	// Callbacks
 	public delegate void() OnPropertyChanged ~ delete _;
@@ -36,6 +42,7 @@ class InspectorPanel
 		mRoot = new Grid();
 		mRoot.RowDefinitions.Add(new .() { Height = .Auto });  // header
 		mRoot.RowDefinitions.Add(new .() { Height = .Star });  // property grid
+		mRoot.RowDefinitions.Add(new .() { Height = .Auto });  // add component button
 		mRoot.ColumnDefinitions.Add(new .() { Width = .Star });
 		mRoot.Background = Color(30, 30, 38, 255);
 
@@ -59,7 +66,25 @@ class InspectorPanel
 					OnPropertyChanged?.Invoke();
 				}
 			});
+		// Context menu for component category headers (Remove Component)
+		let categoryMenu = new ContextMenu();
+		mPropertyGrid.ContextMenu = categoryMenu;
+		mPropertyGrid.ContextMenuOpening.Subscribe(new (args) =>
+			{
+				if (!ShouldShowCategoryContextMenu())
+					args.Cancel = true;
+				else
+					BuildCategoryContextMenu(args.Menu);
+			});
 		mRoot.AddChild(mPropertyGrid);
+
+		// Add Component button
+		let addCompBtn = new Button();
+		addCompBtn.Content = new TextBlock("Add Component");
+		addCompBtn.Margin = .(6, 4, 6, 6);
+		addCompBtn.Click.Subscribe(new (btn) => ShowAddComponentMenu(btn));
+		GridProperties.SetRow(addCompBtn, 2);
+		mRoot.AddChild(addCompBtn);
 	}
 
 	// ==================== Selection ====================
@@ -114,8 +139,23 @@ class InspectorPanel
 
 	// ==================== Property Building ====================
 
+	/// Discovers all types with [Component] attribute. Called once on first use.
+	private static void DiscoverComponentTypes()
+	{
+		if (sComponentTypes != null)
+			return;
+
+		sComponentTypes = new List<Type>();
+		for (let type in Type.Types)
+		{
+			if (type.IsStruct && type.HasCustomAttribute<ComponentAttribute>())
+				sComponentTypes.Add(type);
+		}
+	}
+
 	private void BuildPropertiesForEntity(SceneTab tab, EntityId entity)
 	{
+		DiscoverComponentTypes();
 		mPropertyGrid.Clear();
 
 		let scene = tab.Scene;
@@ -130,6 +170,13 @@ class InspectorPanel
 
 		// Transform properties
 		AddTransformProperties(scene, entity);
+
+		// Component properties via reflection
+		for (let compType in sComponentTypes)
+		{
+			if (scene.HasComponent(entity, compType))
+				AddComponentProperties(scene, entity, compType);
+		}
 	}
 
 	private void AddNameProperty(Scene scene, EntityId entity)
@@ -148,128 +195,331 @@ class InspectorPanel
 
 	private void AddTransformProperties(Scene scene, EntityId entity)
 	{
-		// Position X/Y/Z
-		mPropertyGrid.AddFloatProperty("Position X", "Transform",
-			new () => { return new box scene.GetTransform(entity).Position.X; },
-			new (val) =>
-			{
-				if (let f = val as float?)
-				{
-					var pos = scene.GetTransform(entity).Position;
-					pos.X = f;
-					scene.SetPosition(entity, pos);
-				}
-			});
+		// Position
+		let posItem = new Vector3PropertyItem("Position",
+			new () => scene.GetTransform(entity).Position,
+			new (v) => scene.SetPosition(entity, v));
+		posItem.SetCategory("Transform");
+		mPropertyGrid.AddItem(posItem);
 
-		mPropertyGrid.AddFloatProperty("Position Y", "Transform",
-			new () => { return new box scene.GetTransform(entity).Position.Y; },
-			new (val) =>
-			{
-				if (let f = val as float?)
-				{
-					var pos = scene.GetTransform(entity).Position;
-					pos.Y = f;
-					scene.SetPosition(entity, pos);
-				}
-			});
+		// Rotation (Euler degrees)
+		let rotItem = new Vector3PropertyItem("Rotation",
+			new () => QuaternionToEulerDegrees(scene.GetTransform(entity).Rotation),
+			new (v) => scene.SetRotation(entity, EulerDegreesToQuaternion(v)));
+		rotItem.SetCategory("Transform");
+		mPropertyGrid.AddItem(rotItem);
 
-		mPropertyGrid.AddFloatProperty("Position Z", "Transform",
-			new () => { return new box scene.GetTransform(entity).Position.Z; },
-			new (val) =>
-			{
-				if (let f = val as float?)
-				{
-					var pos = scene.GetTransform(entity).Position;
-					pos.Z = f;
-					scene.SetPosition(entity, pos);
-				}
-			});
+		// Scale
+		let scaleItem = new Vector3PropertyItem("Scale",
+			new () => scene.GetTransform(entity).Scale,
+			new (v) => scene.SetScale(entity, v));
+		scaleItem.SetCategory("Transform");
+		mPropertyGrid.AddItem(scaleItem);
+	}
 
-		// Rotation as Euler degrees
-		mPropertyGrid.AddFloatProperty("Rotation X", "Transform",
+	// ==================== Component Properties (Reflection) ====================
+
+	/// Gets a display-friendly name for a component type (e.g., "LightComponent" → "Light").
+	private static void GetComponentDisplayName(Type type, String outName)
+	{
+		let typeName = type.GetName(.. scope .());
+		if (typeName.EndsWith("Component"))
+			outName.Append(typeName, 0, typeName.Length - 9);
+		else
+			outName.Append(typeName);
+	}
+
+	/// Adds properties for a component using reflection over its [Property]-tagged fields.
+	private void AddComponentProperties(Scene scene, EntityId entity, Type compType)
+	{
+		let category = GetComponentDisplayName(compType, .. scope .());
+		let dataPtr = scene.GetComponentRaw(entity, compType);
+		if (dataPtr == null)
+			return;
+
+		for (let field in compType.GetFields(.Instance | .Public))
+		{
+			// Only show fields marked with [Property]
+			if (!field.HasCustomAttribute<PropertyAttribute>())
+				continue;
+
+			let fieldType = field.FieldType;
+
+			if (fieldType == typeof(float))
+			{
+				AddReflectedFloatProperty(scene, entity, compType, field, category);
+			}
+			else if (fieldType == typeof(bool))
+			{
+				AddReflectedBoolProperty(scene, entity, compType, field, category);
+			}
+			else if (fieldType == typeof(int32))
+			{
+				AddReflectedIntProperty(scene, entity, compType, field, category);
+			}
+			else if (fieldType == typeof(uint32))
+			{
+				AddReflectedUIntProperty(scene, entity, compType, field, category);
+			}
+			else if (fieldType.IsEnum)
+			{
+				AddReflectedEnumProperty(scene, entity, compType, field, category);
+			}
+			else if (fieldType == typeof(Vector2))
+			{
+				AddReflectedVector2Property(scene, entity, compType, field, category);
+			}
+			else if (fieldType == typeof(Vector3))
+			{
+				AddReflectedVector3Property(scene, entity, compType, field, category);
+			}
+			else if (fieldType == typeof(Vector4))
+			{
+				AddReflectedVector4Property(scene, entity, compType, field, category);
+			}
+			else if (fieldType == typeof(ResourceRef))
+			{
+				AddReflectedResourceRefProperty(scene, entity, compType, field, category);
+			}
+		}
+	}
+
+	private void AddReflectedFloatProperty(Scene scene, EntityId entity, Type compType, FieldInfo field, StringView category)
+	{
+		let offset = field.MemberOffset;
+		mPropertyGrid.AddFloatProperty(field.Name, category,
 			new () =>
 			{
-				let euler = QuaternionToEulerDegrees(scene.GetTransform(entity).Rotation);
-				return new box euler.X;
+				let ptr = scene.GetComponentRaw(entity, compType);
+				if (ptr == null) return new box 0.0f;
+				return new box *((float*)((uint8*)ptr + offset));
 			},
-			new (val) =>
+			new (obj) =>
 			{
-				if (let f = val as float?)
+				if (let f = obj as float?)
 				{
-					var euler = QuaternionToEulerDegrees(scene.GetTransform(entity).Rotation);
-					euler.X = f;
-					scene.SetRotation(entity, EulerDegreesToQuaternion(euler));
+					let ptr = scene.GetComponentRaw(entity, compType);
+					if (ptr != null)
+					{
+						*((float*)((uint8*)ptr + offset)) = f;
+						scene.SetComponentRaw(entity, compType, ptr);
+					}
 				}
 			});
+	}
 
-		mPropertyGrid.AddFloatProperty("Rotation Y", "Transform",
+	private void AddReflectedBoolProperty(Scene scene, EntityId entity, Type compType, FieldInfo field, StringView category)
+	{
+		let offset = field.MemberOffset;
+		mPropertyGrid.AddBoolProperty(field.Name, category,
 			new () =>
 			{
-				let euler = QuaternionToEulerDegrees(scene.GetTransform(entity).Rotation);
-				return new box euler.Y;
+				let ptr = scene.GetComponentRaw(entity, compType);
+				if (ptr == null) return new box false;
+				return new box *((bool*)((uint8*)ptr + offset));
 			},
-			new (val) =>
+			new (obj) =>
 			{
-				if (let f = val as float?)
+				if (let b = obj as bool?)
 				{
-					var euler = QuaternionToEulerDegrees(scene.GetTransform(entity).Rotation);
-					euler.Y = f;
-					scene.SetRotation(entity, EulerDegreesToQuaternion(euler));
+					let ptr = scene.GetComponentRaw(entity, compType);
+					if (ptr != null)
+					{
+						*((bool*)((uint8*)ptr + offset)) = b;
+						scene.SetComponentRaw(entity, compType, ptr);
+					}
 				}
 			});
+	}
 
-		mPropertyGrid.AddFloatProperty("Rotation Z", "Transform",
+	private void AddReflectedIntProperty(Scene scene, EntityId entity, Type compType, FieldInfo field, StringView category)
+	{
+		let offset = field.MemberOffset;
+		mPropertyGrid.AddIntProperty(field.Name, category,
 			new () =>
 			{
-				let euler = QuaternionToEulerDegrees(scene.GetTransform(entity).Rotation);
-				return new box euler.Z;
+				let ptr = scene.GetComponentRaw(entity, compType);
+				if (ptr == null) return new box (int)0;
+				return new box (int)*((int32*)((uint8*)ptr + offset));
 			},
-			new (val) =>
+			new (obj) =>
 			{
-				if (let f = val as float?)
+				if (let i = obj as int?)
 				{
-					var euler = QuaternionToEulerDegrees(scene.GetTransform(entity).Rotation);
-					euler.Z = f;
-					scene.SetRotation(entity, EulerDegreesToQuaternion(euler));
+					let ptr = scene.GetComponentRaw(entity, compType);
+					if (ptr != null)
+					{
+						*((int32*)((uint8*)ptr + offset)) = (int32)i;
+						scene.SetComponentRaw(entity, compType, ptr);
+					}
 				}
 			});
+	}
 
-		// Scale X/Y/Z
-		mPropertyGrid.AddFloatProperty("Scale X", "Transform",
-			new () => { return new box scene.GetTransform(entity).Scale.X; },
-			new (val) =>
+	private void AddReflectedUIntProperty(Scene scene, EntityId entity, Type compType, FieldInfo field, StringView category)
+	{
+		let offset = field.MemberOffset;
+		mPropertyGrid.AddIntProperty(field.Name, category,
+			new () =>
 			{
-				if (let f = val as float?)
+				let ptr = scene.GetComponentRaw(entity, compType);
+				if (ptr == null) return new box (int)0;
+				return new box (int)*((uint32*)((uint8*)ptr + offset));
+			},
+			new (obj) =>
+			{
+				if (let i = obj as int?)
 				{
-					var scale = scene.GetTransform(entity).Scale;
-					scale.X = f;
-					scene.SetScale(entity, scale);
+					let ptr = scene.GetComponentRaw(entity, compType);
+					if (ptr != null)
+					{
+						*((uint32*)((uint8*)ptr + offset)) = (uint32)i;
+						scene.SetComponentRaw(entity, compType, ptr);
+					}
 				}
 			});
+	}
 
-		mPropertyGrid.AddFloatProperty("Scale Y", "Transform",
-			new () => { return new box scene.GetTransform(entity).Scale.Y; },
-			new (val) =>
-			{
-				if (let f = val as float?)
-				{
-					var scale = scene.GetTransform(entity).Scale;
-					scale.Y = f;
-					scene.SetScale(entity, scale);
-				}
-			});
+	private void AddReflectedEnumProperty(Scene scene, EntityId entity, Type compType, FieldInfo field, StringView category)
+	{
+		let enumType = field.FieldType;
+		let offset = field.MemberOffset;
+		let enumSize = enumType.Size;
 
-		mPropertyGrid.AddFloatProperty("Scale Z", "Transform",
-			new () => { return new box scene.GetTransform(entity).Scale.Z; },
-			new (val) =>
+		// Collect enum value names
+		let names = scope List<StringView>();
+		for (var e in Enum.GetEnumerator(enumType))
+			names.Add(e.name);
+
+		let nameSpan = scope StringView[names.Count];
+		for (let i < names.Count)
+			nameSpan[i] = names[i];
+
+		let item = new EnumPropertyItem(field.Name, nameSpan,
+			new () =>
 			{
-				if (let f = val as float?)
+				let ptr = scene.GetComponentRaw(entity, compType);
+				if (ptr == null) return new String("???");
+				let fieldPtr = (uint8*)ptr + offset;
+				int64 rawVal = 0;
+				Internal.MemCpy(&rawVal, fieldPtr, enumSize);
+				for (var e in Enum.GetEnumerator(enumType))
 				{
-					var scale = scene.GetTransform(entity).Scale;
-					scale.Z = f;
-					scene.SetScale(entity, scale);
+					if (e.value == rawVal)
+						return new String(e.name);
+				}
+				return new String("???");
+			},
+			new (name) =>
+			{
+				let ptr = scene.GetComponentRaw(entity, compType);
+				if (ptr == null) return;
+				let fieldPtr = (uint8*)ptr + offset;
+				for (var e in Enum.GetEnumerator(enumType))
+				{
+					if (StringView(e.name) == name)
+					{
+						var val = e.value;
+						Internal.MemCpy(fieldPtr, &val, enumSize);
+						scene.SetComponentRaw(entity, compType, ptr);
+						return;
+					}
 				}
 			});
+		item.SetCategory(category);
+		mPropertyGrid.AddItem(item);
+	}
+
+	private void AddReflectedVector2Property(Scene scene, EntityId entity, Type compType, FieldInfo field, StringView category)
+	{
+		let offset = field.MemberOffset;
+		let item = new Vector2PropertyItem(field.Name,
+			new () =>
+			{
+				let ptr = scene.GetComponentRaw(entity, compType);
+				if (ptr == null) return .Zero;
+				return *((Vector2*)((uint8*)ptr + offset));
+			},
+			new (v) =>
+			{
+				let ptr = scene.GetComponentRaw(entity, compType);
+				if (ptr != null)
+				{
+					*((Vector2*)((uint8*)ptr + offset)) = v;
+					scene.SetComponentRaw(entity, compType, ptr);
+				}
+			});
+		item.SetCategory(category);
+		mPropertyGrid.AddItem(item);
+	}
+
+	private void AddReflectedVector3Property(Scene scene, EntityId entity, Type compType, FieldInfo field, StringView category)
+	{
+		let offset = field.MemberOffset;
+		let item = new Vector3PropertyItem(field.Name,
+			new () =>
+			{
+				let ptr = scene.GetComponentRaw(entity, compType);
+				if (ptr == null) return .Zero;
+				return *((Vector3*)((uint8*)ptr + offset));
+			},
+			new (v) =>
+			{
+				let ptr = scene.GetComponentRaw(entity, compType);
+				if (ptr != null)
+				{
+					*((Vector3*)((uint8*)ptr + offset)) = v;
+					scene.SetComponentRaw(entity, compType, ptr);
+				}
+			});
+		item.SetCategory(category);
+		mPropertyGrid.AddItem(item);
+	}
+
+	private void AddReflectedVector4Property(Scene scene, EntityId entity, Type compType, FieldInfo field, StringView category)
+	{
+		let offset = field.MemberOffset;
+		let item = new Vector4PropertyItem(field.Name,
+			new () =>
+			{
+				let ptr = scene.GetComponentRaw(entity, compType);
+				if (ptr == null) return .Zero;
+				return *((Vector4*)((uint8*)ptr + offset));
+			},
+			new (v) =>
+			{
+				let ptr = scene.GetComponentRaw(entity, compType);
+				if (ptr != null)
+				{
+					*((Vector4*)((uint8*)ptr + offset)) = v;
+					scene.SetComponentRaw(entity, compType, ptr);
+				}
+			});
+		item.SetCategory(category);
+		mPropertyGrid.AddItem(item);
+	}
+
+	private void AddReflectedResourceRefProperty(Scene scene, EntityId entity, Type compType, FieldInfo field, StringView category)
+	{
+		let offset = field.MemberOffset;
+		// Read-only display of the resource path (asset picker will come later)
+		mPropertyGrid.AddStringProperty(field.Name, category,
+			new () =>
+			{
+				let ptr = scene.GetComponentRaw(entity, compType);
+				if (ptr == null) return new String("(none)");
+				let resRef = (ResourceRef*)((uint8*)ptr + offset);
+				if (resRef.HasPath)
+					return new String(resRef.Path);
+				else if (resRef.HasId)
+				{
+					let idStr = new String();
+					resRef.Id.ToString(idStr);
+					return idStr;
+				}
+				return new String("(none)");
+			},
+			null);  // Read-only for now — asset picker in future phase
 	}
 
 	// ==================== Euler <-> Quaternion ====================
@@ -304,5 +554,141 @@ class InspectorPanel
 	{
 		let toRad = Math.PI_f / 180.0f;
 		return Quaternion.CreateFromYawPitchRoll(degrees.Y * toRad, degrees.X * toRad, degrees.Z * toRad);
+	}
+
+	// ==================== Add / Remove Component ====================
+
+	/// Checks whether the context menu should open for the currently hovered category.
+	private bool ShouldShowCategoryContextMenu()
+	{
+		let hoveredName = mPropertyGrid.HoveredCategoryName;
+		if (hoveredName == null)
+			return false;
+
+		let categoryName = hoveredName.Value;
+		if (categoryName == "Transform" || categoryName == "Entity")
+			return false;
+
+		// Check that a matching component type exists
+		DiscoverComponentTypes();
+		for (let compType in sComponentTypes)
+		{
+			let displayName = GetComponentDisplayName(compType, .. scope .());
+			if (displayName == categoryName)
+				return true;
+		}
+		return false;
+	}
+
+	/// Populates the category context menu with a Remove item.
+	private void BuildCategoryContextMenu(ContextMenu menu)
+	{
+		menu.ClearItems();
+
+		let categoryName = mPropertyGrid.HoveredCategoryName.Value;
+
+		DiscoverComponentTypes();
+		for (let compType in sComponentTypes)
+		{
+			let displayName = GetComponentDisplayName(compType, .. scope .());
+			if (displayName == categoryName)
+			{
+				let removeItem = menu.AddItem(scope $"Remove {categoryName}");
+				let capturedType = compType;
+				removeItem.Click.Subscribe(new (mi) =>
+					{
+						RemoveComponentFromSelected(capturedType);
+					});
+				break;
+			}
+		}
+	}
+
+	private void ShowAddComponentMenu(Button btn)
+	{
+		DiscoverComponentTypes();
+
+		if (mCurrentTab == null || !mCurrentEntity.IsValid)
+			return;
+
+		let scene = mCurrentTab.Scene;
+		if (scene == null)
+			return;
+
+		// Rebuild menu each time (components may have changed)
+		if (mAddComponentMenu != null)
+			delete mAddComponentMenu;
+		mAddComponentMenu = new ContextMenu();
+
+		bool anyAdded = false;
+		for (let compType in sComponentTypes)
+		{
+			if (!scene.HasComponent(mCurrentEntity, compType))
+			{
+				let displayName = GetComponentDisplayName(compType, .. scope .());
+				let menuItem = mAddComponentMenu.AddItem(displayName);
+				let capturedType = compType;
+				menuItem.Click.Subscribe(new (mi) =>
+					{
+						AddComponentToSelected(capturedType);
+					});
+				anyAdded = true;
+			}
+		}
+
+		if (!anyAdded)
+		{
+			let item = mAddComponentMenu.AddItem("(all components present)");
+			item.IsEnabled = false;
+		}
+
+		if (mAddComponentMenu.Context == null)
+			mAddComponentMenu.OnAttachedToContext(btn.Context);
+
+		let bounds = btn.ArrangedBounds;
+		mAddComponentMenu.Show(btn, .(bounds.X, bounds.Bottom));
+	}
+
+	private void AddComponentToSelected(Type compType)
+	{
+		if (mCurrentTab == null || !mCurrentEntity.IsValid)
+			return;
+
+		let scene = mCurrentTab.Scene;
+		if (scene == null)
+			return;
+
+		scene.AddDefaultComponent(mCurrentEntity, compType);
+		mCurrentTab.MarkDirty();
+
+		// Force rebuild inspector
+		let entity = mCurrentEntity;
+		mCurrentEntity = .Invalid;
+		BuildPropertiesForEntity(mCurrentTab, entity);
+		mCurrentEntity = entity;
+
+		OnPropertyChanged?.Invoke();
+	}
+
+	/// Removes a component type from the currently selected entity.
+	public void RemoveComponentFromSelected(Type compType)
+	{
+		if (mCurrentTab == null || !mCurrentEntity.IsValid)
+			return;
+
+		let scene = mCurrentTab.Scene;
+		if (scene == null)
+			return;
+
+		scene.RemoveComponent(mCurrentEntity, compType);
+		mCurrentTab.MarkDirty();
+
+		// Force rebuild inspector
+		let entity = mCurrentEntity;
+		mCurrentEntity = .Invalid;
+		BuildPropertiesForEntity(mCurrentTab, entity);
+		mCurrentEntity = entity;
+
+		OnPropertyChanged?.Invoke();
 	}
 }

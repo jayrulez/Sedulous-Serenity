@@ -625,8 +625,9 @@ class SceneEditorApp : Application
 		let tabIndex = (int32)mTabs.IndexOf(tab);
 		UpdateTabTitle(tabIndex);
 
-		// Rebuild hierarchy in case entity name changed
-		mHierarchyPanel.RebuildHierarchy();
+		// Update entity name in hierarchy (lightweight, no rebuild)
+		if (tab.SelectedEntities.Count > 0)
+			mHierarchyPanel.RefreshEntityName(tab.SelectedEntities[0]);
 	}
 
 	// ==================== Keyboard Shortcuts ====================
@@ -669,7 +670,8 @@ class SceneEditorApp : Application
 			return;
 
 		let entity = tab.SelectedEntities[0];
-		let pos = tab.Scene.GetTransform(entity).Position;
+		var transform = tab.Scene.GetTransform(entity);
+		let pos = transform.Position;
 		tab.Camera.FocusOn(pos);
 	}
 

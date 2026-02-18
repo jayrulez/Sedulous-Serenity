@@ -236,40 +236,40 @@ PropertyGrid uses getter/setter delegates. Transform shows Position (X/Y/Z), Rot
 
 **Goal**: Add/remove components on entities. Edit component properties in inspector.
 
-### Component type registry
-Maps component types to metadata: display name, category, has/add/remove delegates, and a `BuildProperties` delegate that populates PropertyGrid.
+### Component discovery via reflection
+Instead of a manual ComponentTypeRegistry, components are discovered automatically at runtime via `[Component]` attribute on structs. Fields tagged with `[Property]` are shown in the inspector. The inspector uses `Type.Types` enumeration + `HasCustomAttribute<ComponentAttribute>()` for discovery, and `GetFields(.Instance | .Public)` + `HasCustomAttribute<PropertyAttribute>()` for field enumeration. Raw pointer access (`Scene.GetComponentRaw`/`SetComponentRaw`) enables editing arbitrary component types without generic specialization.
 
 ### Custom property editors
 PropertyGrid stays in Sedulous.GUI as a generic control. Engine-specific property types are supported by subclassing `PropertyItem`:
 
-- `PropertyItem` gets a virtual `CreateEditorControl()` method that returns the editor `Control` for the value column
-- Built-in types (Float, String, Bool, Enum) use the existing default editors
-- Engine-specific types subclass PropertyItem and override `CreateEditorControl()`:
-  - `Vector3PropertyItem` — single row with 3 labeled X/Y/Z float fields
-  - `ColorPropertyItem` — color swatch + picker
-  - `AssetRefPropertyItem` — path display + browse button
+- `PropertyItem` gets a virtual `CreateEditorControl()` method that returns the editor `UIElement` for the value column
+- Built-in types (Float, String, Bool) use the existing default procedural editors
+- Custom PropertyItem subclasses override `CreateEditorControl()`:
+  - `Vector2PropertyItem` / `Vector3PropertyItem` / `Vector4PropertyItem` — single row with N `NumericUpDown` controls in an equal-column `Grid`
+  - `EnumPropertyItem` — `ComboBox` dropdown instead of click-to-cycle
+  - `ColorPropertyItem` — color swatch + picker (future)
+  - `AssetRefPropertyItem` — path display + browse button (future)
 - PropertyGrid calls the virtual method and doesn't need to know about engine types
 - New property types can be added anywhere in the codebase by subclassing PropertyItem
-- `PropertyGrid.AddProperty(PropertyItem)` accepts pre-built custom items
+- `PropertyGrid.AddItem(PropertyItem)` accepts pre-built custom items
 
 ### Checklist
 
-- [ ] Add virtual `CreateEditorControl()` to PropertyItem in Sedulous.GUI
-- [ ] Create `src/ComponentTypeRegistry.bf` with `ComponentTypeInfo` struct + registration for all known types
-- [ ] "Add Component" button at bottom of inspector → dropdown of available types (excluding already-present ones)
-- [ ] Remove component: Right-click on component category header → "Remove Component"
-- [ ] Property builders per component:
-  - **LightComponent**: Type (enum), Color (3 floats), Intensity, Range, InnerConeAngle, OuterConeAngle, CastsShadows, Enabled
-  - **CameraComponent**: ProjectionType (enum), FieldOfView, NearPlane, FarPlane, Priority, Enabled
-  - **MeshRendererComponent**: MeshRef path (read-only), MaterialCount, MaterialRef paths (read-only), Enabled
-  - **SkinnedMeshRendererComponent**: Same as MeshRenderer + SkeletonRef
-  - **SpriteComponent**: SpriteSize, Color, Enabled
-- [ ] Inspector shows Transform first, then each component in collapsible category
-- [ ] Component property changes auto-sync to render via RenderSceneModule
+- [x] Add virtual `CreateEditorControl()` to PropertyItem in Sedulous.GUI
+- [x] `[Component]` and `[Property]` attributes for reflection-based discovery (replaces manual ComponentTypeRegistry)
+- [x] "Add Component" button at bottom of inspector → dropdown of available types (excluding already-present ones)
+- [x] Remove component: Right-click on component category header → "Remove Component"
+- [x] Property editors for reflected field types: float, bool, int32, uint32, enum (ComboBox), Vector2/3/4 (NumericUpDown grids), ResourceRef (read-only path), String
+- [x] All components annotated: Light, Camera, MeshRenderer, SkinnedMeshRenderer, Sprite, ParticleEmitter, TrailEmitter, Decal, RigidBody, NavAgent, NavObstacle, AudioSource, AudioListener, SkeletalAnimation, PropertyAnimation, AnimationGraph, PhysicsDebugShape, WorldUI
+- [x] Inspector shows Transform first, then each component in collapsible category
+- [ ] ColorPropertyItem — color swatch + picker for Vector3/Vector4 color fields
+- [ ] AssetRefPropertyItem — path display + browse button for ResourceRef fields
+- [ ] Component property changes auto-sync to render via RenderSceneModule (needs verification)
 
 ### Files
-- **Create**: `src/ComponentTypeRegistry.bf`, custom PropertyItem subclasses
-- **Modify**: `Sedulous.GUI/src/Controls/PropertyGrid/PropertyGrid.bf` (add virtual + AddProperty(PropertyItem)), `src/InspectorPanel.bf`, `src/Program.bf`
+- **Created**: `src/VectorPropertyItems.bf` (Vector2/3/4PropertyItem), `src/EnumPropertyItem.bf`
+- **Created (framework)**: `Components/ComponentAttribute.bf`, `Components/PropertyAttribute.bf`, `Components/IComponent.bf`
+- **Modified**: `Sedulous.GUI/src/Controls/PropertyGrid/PropertyGrid.bf` (virtual + AddItem + pseudo-child infra), `src/InspectorPanel.bf`, `Scene.bf`, `ComponentStorage.bf`, `IComponentStorage.bf`, all component structs
 
 ---
 
