@@ -61,6 +61,12 @@ class OrbitCamera
 		Pitch = 0.3f;
 	}
 
+	/// Moves the camera target to focus on a point, keeping current orientation.
+	public void FocusOn(Vector3 point)
+	{
+		Target = point;
+	}
+
 	/// Gets the right vector (perpendicular to forward and up).
 	public Vector3 Right
 	{

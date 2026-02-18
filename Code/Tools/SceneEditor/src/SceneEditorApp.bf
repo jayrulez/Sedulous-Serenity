@@ -48,6 +48,9 @@ class SceneEditorApp : Application
 	private float mLastMouseX;
 	private float mLastMouseY;
 
+	// Gizmo drag state
+	private Vector3 mGizmoDragStartPos;
+
 	// UI panels
 	private DockPanel mRootPanel;     // root element (we own this — GUIContext only references it)
 	private SplitPanel mOuterSplit;   // left (hierarchy) | right (center+inspector)
@@ -641,6 +644,8 @@ class SceneEditorApp : Application
 		case .F2:
 			mHierarchyPanel.BeginRename();
 
+		case .F:
+			if (!ctrlHeld) FocusOnSelected();
 		case .N:
 			if (ctrlHeld) NewScene();
 		case .O:
@@ -653,6 +658,19 @@ class SceneEditorApp : Application
 
 		default:
 		}
+	}
+
+	// ==================== Focus ====================
+
+	private void FocusOnSelected()
+	{
+		let tab = ActiveTab;
+		if (tab == null || tab.SelectedEntities.Count == 0)
+			return;
+
+		let entity = tab.SelectedEntities[0];
+		let pos = tab.Scene.GetTransform(entity).Position;
+		tab.Camera.FocusOn(pos);
 	}
 
 	// ==================== Update ====================
@@ -669,11 +687,11 @@ class SceneEditorApp : Application
 		if (tab == null || tab.Viewport == null)
 			return;
 
-		// Handle camera controls
-		HandleCameraInput(tab, deltaTime);
+		// Handle camera + gizmo + picking input
+		HandleViewportInput(tab, deltaTime);
 	}
 
-	private void HandleCameraInput(SceneTab tab, float deltaTime)
+	private void HandleViewportInput(SceneTab tab, float deltaTime)
 	{
 		let mouse = Shell.InputManager.Mouse;
 		let keyboard = Shell.InputManager.Keyboard;
@@ -690,8 +708,80 @@ class SceneEditorApp : Application
 		let hitElement = mGUIContext?.HitTest(mouse.X, mouse.Y);
 		bool uiCaptured = hitElement != null && hitElement != viewport && hitElement != mOuterSplit;
 
-		// Ctrl+LMB = orbit rotate
 		bool ctrlHeld = keyboard.IsKeyDown(.LeftCtrl) || keyboard.IsKeyDown(.RightCtrl);
+
+		// === Pick ray (used by gizmo and entity picking) ===
+		float localMouseX = scaledMouseX - viewportBounds.X;
+		float localMouseY = scaledMouseY - viewportBounds.Y;
+		uint32 vpW = (uint32)viewport.RenderWidth;
+		uint32 vpH = (uint32)viewport.RenderHeight;
+
+		// Projection without Vulkan Y-flip for picking
+		float aspectRatio = vpW > 0 && vpH > 0 ? (float)vpW / (float)vpH : 1.0f;
+		let projMatrix = Matrix.CreatePerspectiveFieldOfView(
+			mView.FieldOfView, aspectRatio, mView.NearPlane, mView.FarPlane);
+		let pickRay = TranslateGizmo.CreatePickRay(
+			localMouseX, localMouseY, vpW, vpH,
+			tab.Camera.ViewMatrix, projMatrix);
+
+		// === Gizmo interaction ===
+		bool hasSelection = tab.SelectedEntities.Count > 0;
+
+		if (hasSelection && !mGizmo.IsDragging)
+		{
+			// Position gizmo at selected entity
+			let entity = tab.SelectedEntities[0];
+			mGizmo.Position = tab.Scene.GetTransform(entity).Position;
+			mGizmo.UpdateHover(pickRay, mGizmo.Size * 0.15f);
+		}
+
+		// Begin gizmo drag (LMB on hovered axis, without Ctrl)
+		if (mouse.IsButtonPressed(.Left) && mouseInViewport && !uiCaptured && !ctrlHeld
+			&& hasSelection && mGizmo.HoveredAxis != .None)
+		{
+			mGizmo.BeginDrag(pickRay);
+			mIsDragging = false;  // Prevent camera orbit during gizmo drag
+			mGizmoDragStartPos = tab.Scene.GetTransform(tab.SelectedEntities[0]).Position;
+		}
+
+		// Update gizmo drag
+		if (mGizmo.IsDragging)
+		{
+			let delta = mGizmo.UpdateDrag(pickRay);
+			let newPos = mGizmoDragStartPos + delta;
+			let entity = tab.SelectedEntities[0];
+			tab.Scene.SetPosition(entity, newPos);
+			mGizmo.Position = newPos;
+			tab.MarkDirty();
+
+			// Live-update inspector
+			mInspectorPanel.RefreshForSelection(tab);
+		}
+
+		// End gizmo drag
+		if (mouse.IsButtonReleased(.Left) && mGizmo.IsDragging)
+		{
+			mGizmo.EndDrag();
+			let tabIndex = (int32)mTabs.IndexOf(tab);
+			UpdateTabTitle(tabIndex);
+		}
+
+		// === Entity picking (LMB click without Ctrl, not on gizmo) ===
+		if (mouse.IsButtonPressed(.Left) && mouseInViewport && !uiCaptured && !ctrlHeld
+			&& !mGizmo.IsDragging && mGizmo.HoveredAxis == .None)
+		{
+			let pickedEntity = PickEntity(tab, pickRay);
+			tab.SelectedEntities.Clear();
+			if (pickedEntity.IsValid)
+				tab.SelectedEntities.Add(pickedEntity);
+
+			mHierarchyPanel.SelectEntity(pickedEntity);
+			mInspectorPanel.RefreshForSelection(tab);
+		}
+
+		// === Camera controls ===
+
+		// Ctrl+LMB = orbit rotate
 		if (mouse.IsButtonPressed(.Left) && mouseInViewport && !uiCaptured && ctrlHeld)
 		{
 			mIsDragging = true;
@@ -722,7 +812,7 @@ class SceneEditorApp : Application
 			mIsPanning = false;
 
 		// Orbit rotate
-		if (mIsDragging && !mIsFlying)
+		if (mIsDragging && !mIsFlying && !mGizmo.IsDragging)
 		{
 			float deltaX = mouse.X - mLastMouseX;
 			tab.Camera.Rotate(-deltaX * 0.01f, 0);
@@ -773,6 +863,48 @@ class SceneEditorApp : Application
 			tab.Camera.Zoom(mouse.ScrollY * tab.Camera.Distance * 0.1f);
 	}
 
+	// ==================== Entity Picking ====================
+
+	/// Picks the closest entity under the pick ray using proxy spheres.
+	private EntityId PickEntity(SceneTab tab, Ray pickRay)
+	{
+		let scene = tab.Scene;
+		if (scene == null)
+			return .Invalid;
+
+		float closestDist = float.MaxValue;
+		EntityId closestEntity = .Invalid;
+
+		scene.ForEachEntity(scope [&](entity) =>
+			{
+				let transform = scene.GetTransform(entity);
+				let pos = transform.Position;
+
+				// Use a proxy sphere at the entity position for picking
+				// Scale radius by entity scale for mesh entities
+				float radius = 0.5f;
+
+				// Ray-sphere intersection
+				let oc = pickRay.Position - pos;
+				let a = Vector3.Dot(pickRay.Direction, pickRay.Direction);
+				let b = 2.0f * Vector3.Dot(oc, pickRay.Direction);
+				let c = Vector3.Dot(oc, oc) - radius * radius;
+				let discriminant = b * b - 4 * a * c;
+
+				if (discriminant >= 0)
+				{
+					let t = (-b - Math.Sqrt(discriminant)) / (2.0f * a);
+					if (t > 0 && t < closestDist)
+					{
+						closestDist = t;
+						closestEntity = entity;
+					}
+				}
+			});
+
+		return closestEntity;
+	}
+
 	// ==================== Render ====================
 
 	protected override bool OnRender(ICommandEncoder encoder, int32 frameIndex)
@@ -808,6 +940,22 @@ class SceneEditorApp : Application
 				if (mOverlayFeature != null)
 				{
 					mOverlayFeature.AddGrid(.(0, 0, 0), 20.0f, 20, Color(80, 80, 100, 255), .DepthTest);
+
+					// Draw selection highlight
+					if (tab.SelectedEntities.Count > 0)
+					{
+						let entity = tab.SelectedEntities[0];
+						let pos = tab.Scene.GetTransform(entity).Position;
+						let halfSize = 0.5f;
+						let selBounds = BoundingBox(
+							pos - .(halfSize, halfSize, halfSize),
+							pos + .(halfSize, halfSize, halfSize));
+						mOverlayFeature.AddBox(selBounds, Color(255, 200, 50, 255), .Overlay);
+					}
+
+					// Draw gizmo
+					if (tab.SelectedEntities.Count > 0)
+						mGizmo.Draw(mOverlayFeature);
 				}
 
 				if (mRenderSystem.BuildRenderGraph(mView) case .Ok)

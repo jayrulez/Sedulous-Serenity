@@ -182,7 +182,7 @@ PropertyGrid uses getter/setter delegates. Transform shows Position (X/Y/Z), Rot
   - Rotation: `Quaternion.ToEulerAngles()` → degrees for display, `Quaternion.CreateFromYawPitchRoll()` on set
 - [x] Selection change triggers inspector rebuild
 - [x] Inspector clears when selection empty
-- [ ] Inspector reflects gizmo manipulation in real-time (deferred to Phase 5 — requires gizmo integration)
+- [x] Inspector reflects gizmo manipulation in real-time (implemented in Phase 5)
 - [x] Integrate into right panel of SceneEditorApp
 
 ### Files
@@ -210,22 +210,22 @@ PropertyGrid uses getter/setter delegates. Transform shows Position (X/Y/Z), Rot
 
 ### Checklist
 
-- [ ] Port camera input handling from ModelViewer's OnUpdate, operating on `tab.Camera`
-- [ ] Entity picking on LMB click (without Ctrl):
+- [x] Port camera input handling from ModelViewer's OnUpdate, operating on `tab.Camera`
+- [x] Entity picking on LMB click (without Ctrl):
   - Build pick ray from mouse pos + camera matrices
   - Test against mesh entities' world-space bounds
   - Test against light/camera entities using proxy spheres
   - Select closest hit, update selection, refresh hierarchy + inspector
-- [ ] Click on empty space deselects
-- [ ] TranslateGizmo integration:
+- [x] Click on empty space deselects
+- [x] TranslateGizmo integration:
   - Position at selected entity's world position
   - Gizmo hover/drag checks before entity picking
   - On drag delta → update entity position via `scene.SetPosition()`
   - RenderSceneModule auto-syncs to render proxy
-- [ ] F key: Focus camera on selected entity
-- [ ] Grid rendering via OverlayRenderFeature at Y=0
-- [ ] Selection highlight: Wireframe box around selected entity bounds
-- [ ] Gizmo drawing via OverlayRenderFeature
+- [x] F key: Focus camera on selected entity
+- [x] Grid rendering via OverlayRenderFeature at Y=0
+- [x] Selection highlight: Wireframe box around selected entity bounds
+- [x] Gizmo drawing via OverlayRenderFeature
 
 ### Files
 - **Modify**: `src/Program.bf`, `src/SceneTab.bf`

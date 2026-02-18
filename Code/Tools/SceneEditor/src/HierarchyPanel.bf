@@ -420,9 +420,15 @@ class HierarchyPanel
 		OnSelectionChanged?.Invoke(mCurrentTab.SelectedEntities);
 	}
 
-	/// Selects an entity in the tree by EntityId.
+	/// Selects an entity in the tree by EntityId, or clears selection if Invalid.
 	public void SelectEntity(EntityId entity)
 	{
+		if (!entity.IsValid)
+		{
+			mTreeView.SelectedItem = null;
+			return;
+		}
+
 		for (let (item, eid) in mItemToEntity)
 		{
 			if (eid == entity)
