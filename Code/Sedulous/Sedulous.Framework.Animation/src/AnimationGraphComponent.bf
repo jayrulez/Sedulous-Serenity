@@ -10,6 +10,7 @@ using Sedulous.Serialization;
 using static Sedulous.Resources.ResourceSerializerExtensions;
 
 /// Component for entities using an animation graph for complex animation blending.
+[Component]
 struct AnimationGraphComponent : ISerializableComponent
 {
 	/// The animation graph player for this entity (runtime, not serialized).

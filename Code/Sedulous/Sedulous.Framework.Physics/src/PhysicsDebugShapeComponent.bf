@@ -16,10 +16,11 @@ enum DebugShapeType
 }
 
 /// Component storing shape info for debug drawing.
+[Component]
 struct PhysicsDebugShapeComponent : ISerializableComponent
 {
-	public DebugShapeType ShapeType;
-	public Vector3 HalfExtents;  // Box: half extents, Sphere: (radius, 0, 0), Capsule/Cylinder: (radius, halfHeight, 0)
+	[Property] public DebugShapeType ShapeType;
+	[Property] public Vector3 HalfExtents;  // Box: half extents, Sphere: (radius, 0, 0), Capsule/Cylinder: (radius, halfHeight, 0)
 
 	public void Dispose() mut { }
 

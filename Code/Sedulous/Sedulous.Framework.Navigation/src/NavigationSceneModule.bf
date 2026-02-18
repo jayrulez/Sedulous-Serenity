@@ -252,8 +252,6 @@ class NavigationSceneModule : SceneModule
 	public override void OnSceneCreate(Scene scene)
 	{
 		mScene = scene;
-		scene.RegisterComponentSerializer<NavAgentComponent>();
-		scene.RegisterComponentSerializer<NavObstacleComponent>();
 	}
 
 	public override void OnSceneDestroy(Scene scene)

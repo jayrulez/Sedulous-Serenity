@@ -96,11 +96,15 @@ class PhysicsSceneModule : SceneModule
 		set => mDebugColorKinematic = value;
 	}
 
+	// ==================== Scene Lifecycle ====================
+
 	public override void OnSceneCreate(Scene scene)
 	{
 		mScene = scene;
-		scene.RegisterComponentSerializer<RigidBodyComponent>();
-		scene.RegisterComponentSerializer<PhysicsDebugShapeComponent>();
+
+		// Apply physics settings from scene (populated during deserialization, or defaults for new scenes)
+		if (let settings = scene.GetModuleSettings<PhysicsModuleSettings>())
+			mCollisionSteps = settings.CollisionSteps;
 	}
 
 	public override void OnSceneDestroy(Scene scene)

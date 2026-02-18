@@ -26,8 +26,6 @@ class AudioSceneModule : SceneModule
 	public override void OnSceneCreate(Scene scene)
 	{
 		mScene = scene;
-		scene.RegisterComponentSerializer<AudioSourceComponent>();
-		scene.RegisterComponentSerializer<AudioListenerComponent>();
 	}
 
 	public override void OnSceneDestroy(Scene scene)

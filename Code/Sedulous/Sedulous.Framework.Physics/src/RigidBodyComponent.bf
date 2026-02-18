@@ -8,24 +8,25 @@ using Sedulous.Serialization;
 /// Component for entities with physics bodies.
 /// Exposes serializable physics properties that sync with the physics world.
 /// The actual body handle is managed internally by PhysicsSceneModule.
+[Component]
 struct RigidBodyComponent : ISerializableComponent
 {
 	/// Body type (Dynamic, Kinematic, Static).
-	public BodyType BodyType;
+	[Property] public BodyType BodyType;
 	/// Mass of the body (only applies to dynamic bodies).
-	public float Mass;
+	[Property] public float Mass;
 	/// Linear damping coefficient.
-	public float LinearDamping;
+	[Property] public float LinearDamping;
 	/// Angular damping coefficient.
-	public float AngularDamping;
+	[Property] public float AngularDamping;
 	/// Friction coefficient.
-	public float Friction;
+	[Property] public float Friction;
 	/// Restitution (bounciness) coefficient.
-	public float Restitution;
+	[Property] public float Restitution;
 	/// Gravity multiplier (0 = no gravity, 1 = normal gravity).
-	public float GravityFactor;
+	[Property] public float GravityFactor;
 	/// Whether the body is enabled in the simulation.
-	public bool Enabled;
+	[Property] public bool Enabled;
 
 	public void Dispose() mut { }
 

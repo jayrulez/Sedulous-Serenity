@@ -5,6 +5,7 @@ using Sedulous.Framework.Scenes;
 using Sedulous.Serialization;
 
 /// Component marking an entity as the audio listener (typically the camera).
+[Component]
 struct AudioListenerComponent : ISerializableComponent
 {
 	/// Whether this listener is active.

@@ -5,6 +5,7 @@ using Sedulous.Framework.Scenes;
 using Sedulous.Serialization;
 
 /// Component for entities with property animation.
+[Component]
 struct PropertyAnimationComponent : ISerializableComponent
 {
 	/// The property animation player for this entity (runtime, not serialized).

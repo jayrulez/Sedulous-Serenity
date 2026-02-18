@@ -8,6 +8,7 @@ using Sedulous.Serialization;
 
 /// Component for trail emitter entities.
 /// Stores trail configuration for serialization and proxy creation.
+[Component]
 struct TrailEmitterComponent : ISerializableComponent
 {
 	/// Blend mode for trail rendering.

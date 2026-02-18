@@ -13,7 +13,6 @@ class SceneResource : Resource
 {
 	private Scene mScene;
 	private bool mOwnsScene;
-	private List<IComponentSerializer> mSerializerPrototypes = new .() ~ DeleteContainerAndItems!(_);
 
 	/// The underlying scene.
 	public Scene Scene => mScene;
@@ -49,10 +48,8 @@ class SceneResource : Resource
 		}
 		else
 		{
-			// Reading - create component serializers on the new scene before deserializing
+			// Scene auto-registers all [Component] serializers in its constructor
 			let scene = new Scene();
-			for (let proto in mSerializerPrototypes)
-				scene.RegisterComponentSerializer(proto.CreateNew());
 			scene.Serialize(s);
 
 			mScene = scene;
@@ -103,27 +100,6 @@ class SceneResource : Resource
 		return .Ok(resource);
 	}
 
-	/// Registers a component type for serialization.
-	/// Stores a prototype serializer for creating copies during load.
-	/// Also registers on the current scene (if any).
-	public void RegisterComponentType<T>() where T : struct, ISerializableComponent
-	{
-		// WORKAROUND: Uses prototype + CreateNew() instead of a lambda calling
-		// scene.RegisterComponentSerializer<T>() due to Beef compiler bug with
-		// generic constraints in cross-project lambdas.
-		// See BeefBugs/GenericLambdaCrossProject/ for repro.
-		RegisterComponentSerializer(new ComponentSerializer<T>());
-	}
-
-	/// Registers a component serializer prototype directly.
-	/// Used by SceneResourceManager to pass pre-created serializer prototypes.
-	public void RegisterComponentSerializer(IComponentSerializer serializer)
-	{
-		mSerializerPrototypes.Add(serializer);
-		if (mScene != null)
-			mScene.RegisterComponentSerializer(serializer.CreateNew());
-	}
-
 	/// Takes the scene from this resource, transferring ownership to the caller.
 	/// After this call, Scene returns null and the resource no longer owns it.
 	public Scene TakeScene()
@@ -135,7 +111,6 @@ class SceneResource : Resource
 	}
 
 	/// Loads a scene resource from a file (instance method).
-	/// Register component types before calling this.
 	public Result<void> Load(StringView path)
 	{
 		let text = scope String();

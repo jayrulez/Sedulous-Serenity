@@ -14,8 +14,6 @@ using Sedulous.Materials;
 using Sedulous.Materials.Resources;
 using Sedulous.Textures.Resources;
 using Sedulous.Imaging;
-using Sedulous.Serialization;
-
 /// Scene module that manages render proxies and syncs entity transforms to the render world.
 /// Created automatically by RenderSubsystem for each scene.
 class RenderSceneModule : SceneModule
@@ -68,17 +66,19 @@ class RenderSceneModule : SceneModule
 	/// Gets the render world for this scene.
 	public RenderWorld World => mWorld;
 
+	// ==================== Scene Lifecycle ====================
+
 	public override void OnSceneCreate(Scene scene)
 	{
 		mScene = scene;
-		scene.RegisterComponentSerializer<MeshRendererComponent>();
-		scene.RegisterComponentSerializer<SkinnedMeshRendererComponent>();
-		scene.RegisterComponentSerializer<CameraComponent>();
-		scene.RegisterComponentSerializer<LightComponent>();
-		scene.RegisterComponentSerializer<ParticleEmitterComponent>();
-		scene.RegisterComponentSerializer<SpriteComponent>();
-		scene.RegisterComponentSerializer<DecalComponent>();
-		scene.RegisterComponentSerializer<TrailEmitterComponent>();
+
+		// Apply render settings from scene (populated during deserialization, or defaults for new scenes)
+		if (let settings = scene.GetModuleSettings<RenderModuleSettings>())
+		{
+			mWorld.AmbientColor = settings.AmbientColor;
+			mWorld.AmbientIntensity = settings.AmbientIntensity;
+			mWorld.Exposure = settings.Exposure;
+		}
 	}
 
 	public override void OnSceneDestroy(Scene scene)

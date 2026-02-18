@@ -1,13 +1,31 @@
 namespace Sedulous.Framework.Scenes;
 
 using System;
+using System.Reflection;
 
 /// Marks a struct as a scene component, enabling runtime reflection and discovery.
 /// Component structs decorated with this attribute can be automatically discovered
 /// by tools (e.g., scene editors) via Type enumeration, and their fields can be
 /// inspected and edited at runtime via reflection.
-/// ReflectUser = .NonStaticFields causes all instance fields to be reflected automatically.
-[AttributeUsage(.Struct, .ReflectAttribute, ReflectUser = .NonStaticFields)]
-struct ComponentAttribute : Attribute
+///
+/// For types that also implement ISerializableComponent, a static factory method
+/// (__CreateSerializer) is generated at compile time via IOnTypeInit. Scene uses
+/// this to auto-register component serializers without manual per-type calls.
+[AttributeUsage(.Struct, .ReflectAttribute, ReflectUser = .NonStaticFields | .StaticMethods)]
+struct ComponentAttribute : Attribute, IOnTypeInit
 {
+	[Comptime]
+	public void OnTypeInit(Type type, Self* prev)
+	{
+		if (type.IsSubtypeOf(typeof(ISerializableComponent)))
+		{
+			Compiler.EmitTypeBody(type, """
+				[Reflect]
+				public static Object __CreateSerializer()
+				{
+					return new ComponentSerializer<Self>();
+				}
+			""");
+		}
+	}
 }

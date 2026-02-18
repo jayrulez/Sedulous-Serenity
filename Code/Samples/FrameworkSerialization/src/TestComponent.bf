@@ -4,6 +4,7 @@ using System;
 using Sedulous.Serialization;
 using Sedulous.Framework.Scenes;
 
+[Component]
 struct TestComponent : ISerializableComponent
 {
 	public float Speed;

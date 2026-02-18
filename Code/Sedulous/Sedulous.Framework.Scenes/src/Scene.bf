@@ -4,6 +4,7 @@ using System;
 using System.Collections;
 using Sedulous.Mathematics;
 using Sedulous.Serialization;
+using System.Reflection;
 using Sedulous.Framework.Scenes.Internal;
 
 using static Sedulous.Mathematics.MathSerializerExtensions;
@@ -37,6 +38,10 @@ public class Scene : IDisposable, ISerializable
 	// ========== Modules ==========
 	private List<ISceneModule> mModules = new .() ~ DeleteContainerAndItems!(_);
 
+	// ========== Module Settings ==========
+	private Dictionary<Type, ISerializable> mModuleSettings = new .() ~ { for (let v in _.Values) delete v; delete _; };
+	private static List<Type> sSettingsTypes ~ delete _;
+
 	// ========== Deferred Commands ==========
 	private List<EntityId> mPendingDestructions = new .() ~ delete _;
 	private bool mIsUpdating = false;
@@ -58,12 +63,16 @@ public class Scene : IDisposable, ISerializable
 	public this(StringView name)
 	{
 		mName = new String(name);
+		CreateModuleSettings();
+		RegisterDiscoveredSerializers();
 	}
 
 	/// Parameterless constructor for deserialization.
 	public this()
 	{
 		mName = new String();
+		CreateModuleSettings();
+		RegisterDiscoveredSerializers();
 	}
 
 	// ==================== Serialization ====================
@@ -77,18 +86,20 @@ public class Scene : IDisposable, ISerializable
 
 		s.String("sceneName", mName);
 
-		// Entities + transforms + hierarchy + components
+		// Entities + transforms + hierarchy + components + modules
 		if (s.IsWriting)
 		{
 			let entityIndexMap = scope Dictionary<uint32, int32>();
 			SerializeEntitiesWrite(s, entityIndexMap);
 			SerializeComponentsWrite(s, entityIndexMap);
+			SerializeModulesWrite(s);
 		}
 		else
 		{
 			let loadedEntities = scope List<EntityId>();
 			SerializeEntitiesRead(s, loadedEntities);
 			SerializeComponentsRead(s, loadedEntities);
+			SerializeModulesRead(s);
 		}
 
 		return .Ok;
@@ -255,6 +266,146 @@ public class Scene : IDisposable, ISerializable
 		s.EndObject();
 	}
 
+	private void SerializeModulesWrite(Serializer s)
+	{
+		if (mModuleSettings.Count == 0)
+			return;
+
+		s.BeginObject("modules");
+		for (let (type, settings) in mModuleSettings)
+		{
+			if (type.GetCustomAttribute<ModuleSettingsAttribute>() case .Ok(let attr))
+			{
+				s.BeginObject(attr.Name);
+				settings.Serialize(s);
+				s.EndObject();
+			}
+		}
+		s.EndObject();
+	}
+
+	private void SerializeModulesRead(Serializer s)
+	{
+		if (!s.HasField("modules"))
+			return;
+
+		s.BeginObject("modules");
+		for (let (type, settings) in mModuleSettings)
+		{
+			if (type.GetCustomAttribute<ModuleSettingsAttribute>() case .Ok(let attr))
+			{
+				if (s.HasField(attr.Name))
+				{
+					s.BeginObject(attr.Name);
+					settings.Serialize(s);
+					s.EndObject();
+				}
+			}
+		}
+		s.EndObject();
+	}
+
+	// ==================== Module Settings ====================
+
+	/// Discovers all types with [ModuleSettings] attribute. Called once.
+	private static void DiscoverSettingsTypes()
+	{
+		if (sSettingsTypes != null)
+			return;
+
+		sSettingsTypes = new List<Type>();
+		for (let type in Type.Types)
+		{
+			if (type.IsObject && type.HasCustomAttribute<ModuleSettingsAttribute>())
+				sSettingsTypes.Add(type);
+		}
+	}
+
+	/// Creates instances of all discovered [ModuleSettings] types.
+	private void CreateModuleSettings()
+	{
+		DiscoverSettingsTypes();
+		for (let type in sSettingsTypes)
+		{
+			if (type.CreateObject() case .Ok(let obj))
+			{
+				if (let serializable = obj as ISerializable)
+					mModuleSettings[type] = serializable;
+				else
+					delete obj;
+			}
+		}
+	}
+
+	/// Gets the discovered settings types (for editor reflection).
+	public static List<Type> SettingsTypes
+	{
+		get
+		{
+			DiscoverSettingsTypes();
+			return sSettingsTypes;
+		}
+	}
+
+	/// Gets module settings by type.
+	public T GetModuleSettings<T>() where T : class, ISerializable
+	{
+		if (mModuleSettings.TryGetValue(typeof(T), let settings))
+			return (T)settings;
+		return null;
+	}
+
+	/// Gets module settings by runtime type.
+	public ISerializable GetModuleSettings(Type type)
+	{
+		if (mModuleSettings.TryGetValue(type, let settings))
+			return settings;
+		return null;
+	}
+
+	// ==================== Component Serializer Auto-Discovery ====================
+
+	private static List<Type> sSerializableComponentTypes ~ delete _;
+
+	/// Discovers all struct types with [Component] that implement ISerializableComponent. Called once.
+	private static void DiscoverSerializableComponentTypes()
+	{
+		if (sSerializableComponentTypes != null)
+			return;
+
+		sSerializableComponentTypes = new List<Type>();
+		for (let type in Type.Types)
+		{
+			if (type.IsStruct && type.HasCustomAttribute<ComponentAttribute>() && type.IsSubtypeOf(typeof(ISerializableComponent)))
+				sSerializableComponentTypes.Add(type);
+		}
+	}
+
+	/// Registers serializers for all discovered [Component] + ISerializableComponent types.
+	/// Calls the comptime-generated __CreateSerializer() factory method on each type.
+	private void RegisterDiscoveredSerializers()
+	{
+		DiscoverSerializableComponentTypes();
+		for (let type in sSerializableComponentTypes)
+		{
+			for (let method in type.GetMethods(.Static | .Public))
+			{
+				if (method.Name == "__CreateSerializer")
+				{
+					if (method.Invoke(Variant(), .()) case .Ok(var result))
+					{
+						let obj = result.Get<Object>();
+						if (let serializer = obj as IComponentSerializer)
+							RegisterComponentSerializer(serializer);
+						else if (obj != null)
+							delete obj;
+					}
+					break;
+				}
+			}
+		}
+	}
+
 	/// Registers a component serializer for type T.
 	/// Call this before serializing/deserializing to enable component roundtripping.
 	/// Duplicate registrations (same type name) are silently ignored.
@@ -272,12 +423,6 @@ public class Scene : IDisposable, ISerializable
 
 	/// Registers a custom component serializer.
 	/// Duplicate registrations (same type name) are silently ignored; the duplicate is deleted.
-	/// WORKAROUND: This overload exists because SceneResource can't use a lambda
-	/// to call RegisterComponentSerializer<T>() due to a Beef compiler bug with
-	/// generic constraints in cross-project lambdas. SceneResource instead stores
-	/// prototype serializers and passes clones via CreateNew().
-	/// See BeefBugs/GenericLambdaCrossProject/ for repro.
-	/// When fixed, this overload can be removed if no longer needed.
 	public void RegisterComponentSerializer(IComponentSerializer serializer)
 	{
 		for (let existing in mComponentSerializers)

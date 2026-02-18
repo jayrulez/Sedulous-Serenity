@@ -51,9 +51,6 @@ class AnimationSceneModule : SceneModule
 	public override void OnSceneCreate(Scene scene)
 	{
 		mScene = scene;
-		scene.RegisterComponentSerializer<SkeletalAnimationComponent>();
-		scene.RegisterComponentSerializer<AnimationGraphComponent>();
-		scene.RegisterComponentSerializer<PropertyAnimationComponent>();
 	}
 
 	public override void OnSceneDestroy(Scene scene)

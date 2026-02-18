@@ -18,11 +18,6 @@ class ComponentSerializer<T> : IComponentSerializer where T : struct, ISerializa
 		typeof(T).GetName(mTypeName);
 	}
 
-	public IComponentSerializer CreateNew()
-	{
-		return new ComponentSerializer<T>();
-	}
-
 	public SerializationResult Write(Scene scene, Serializer s, Dictionary<uint32, int32> entityIndexMap)
 	{
 		// Collect components with their serialized entity indices

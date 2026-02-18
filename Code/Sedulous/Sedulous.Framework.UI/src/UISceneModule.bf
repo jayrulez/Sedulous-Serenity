@@ -115,7 +115,6 @@ class UISceneModule : SceneModule
 	public override void OnSceneCreate(Scene scene)
 	{
 		mScene = scene;
-		scene.RegisterComponentSerializer<WorldUIComponent>();
 	}
 
 	public override void Update(Scene scene, float deltaTime)

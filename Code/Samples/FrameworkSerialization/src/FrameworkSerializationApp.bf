@@ -560,9 +560,8 @@ class FrameworkSerializationApp : Application
 
 		if (File.Exists(scenePath))
 		{
-			// Load existing scene resource from file with component types registered
+			// Load existing scene resource from file (component serializers auto-registered)
 			mSceneResource = new SceneResource();
-			RegisterSceneComponentTypes(mSceneResource);
 			switch (mSceneResource.Load(scenePath))
 			{
 			case .Ok:
@@ -592,23 +591,10 @@ class FrameworkSerializationApp : Application
 		outPath.Append("/scene.oddl");
 	}
 
-	private void RegisterSceneComponentTypes(SceneResource resource)
-	{
-		resource.RegisterComponentType<TestComponent>();
-		resource.RegisterComponentType<LightComponent>();
-		resource.RegisterComponentType<CameraComponent>();
-		resource.RegisterComponentType<SkinnedMeshRendererComponent>();
-		resource.RegisterComponentType<MeshRendererComponent>();
-		resource.RegisterComponentType<SkeletalAnimationComponent>();
-		resource.RegisterComponentType<SpriteComponent>();
-		resource.RegisterComponentType<ParticleEmitterComponent>();
-	}
-
 	private void CreateAndSaveScene()
 	{
 		// Create scene resource with test entities and components
 		mSceneResource = SceneResource.CreateEmpty("SerializationTest");
-		RegisterSceneComponentTypes(mSceneResource);
 		let scene = mSceneResource.Scene;
 
 		// Root entity at origin with component

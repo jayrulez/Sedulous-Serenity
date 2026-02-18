@@ -18,11 +18,6 @@ class MissingComponentSerializer : IComponentSerializer
 		mData = data;
 	}
 
-	public IComponentSerializer CreateNew()
-	{
-		return new MissingComponentSerializer(mData);
-	}
-
 	public SerializationResult Write(Scene scene, Serializer s, Dictionary<uint32, int32> entityIndexMap)
 	{
 		if (mData.Entries.Count == 0)

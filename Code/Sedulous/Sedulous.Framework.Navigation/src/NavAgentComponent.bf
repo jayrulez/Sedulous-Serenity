@@ -8,6 +8,7 @@ using recastnavigation_Beef;
 /// Component for entities with navigation agents.
 /// The AgentIndex references the agent in the CrowdManager owned by NavWorld.
 /// Configuration fields mirror CrowdAgentParams for serialization/deserialization.
+[Component]
 struct NavAgentComponent : ISerializableComponent
 {
 	/// Index of this agent in the CrowdManager (runtime-only, not serialized).

@@ -6,6 +6,7 @@ using Sedulous.Serialization;
 
 /// Component for entities that represent dynamic navigation obstacles.
 /// The ObstacleId references the obstacle in the TileCache owned by NavWorld.
+[Component]
 struct NavObstacleComponent : ISerializableComponent
 {
 	/// ID of this obstacle in the TileCache.

@@ -6,6 +6,7 @@ using Sedulous.Framework.Scenes;
 using Sedulous.Serialization;
 
 /// Component for entities that emit sounds.
+[Component]
 struct AudioSourceComponent : ISerializableComponent
 {
 	/// Active audio source (owned by AudioSceneModule).

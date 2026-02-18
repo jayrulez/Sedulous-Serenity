@@ -6,6 +6,7 @@ using Sedulous.Serialization;
 
 /// Component marking an entity as having a world-space UI panel.
 /// Stores panel dimensions for serialization so panels can be recreated on load.
+[Component]
 struct WorldUIComponent : ISerializableComponent
 {
 	/// Whether this UI panel is enabled.
