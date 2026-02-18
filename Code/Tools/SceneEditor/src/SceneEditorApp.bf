@@ -53,7 +53,7 @@ class SceneEditorApp : Application
 	private SplitPanel mOuterSplit;   // left (hierarchy) | right (center+inspector)
 	private SplitPanel mInnerSplit;   // center (viewport+tabs) | right (inspector)
 	private HierarchyPanel mHierarchyPanel ~ delete _;
-	private StackPanel mInspectorPanel;
+	private InspectorPanel mInspectorPanel ~ delete _;
 	private Grid mViewportPanel;
 	private TabControl mTabControl;
 	private Grid mViewportContainer;
@@ -210,27 +210,10 @@ class SceneEditorApp : Application
 		mDropIndicator.VerticalAlignment = .Center;
 		mViewportContainer.AddChild(mDropIndicator);
 
-		// Right: Inspector panel placeholder
-		mInspectorPanel = new StackPanel();
-		mInspectorPanel.Orientation = .Vertical;
-		mInspectorPanel.Background = Color(30, 30, 38, 255);
-		mInspectorPanel.Padding = .(6, 6, 6, 6);
-		mInspectorPanel.Spacing = 4;
-		mInnerSplit.AddChild(mInspectorPanel);
-
-		let inspLabel = new Label("Inspector");
-		inspLabel.FontSize = 14;
-		inspLabel.Foreground = Color(180, 180, 200, 255);
-		mInspectorPanel.AddChild(inspLabel);
-
-		let inspSep = new Separator();
-		inspSep.Margin = .(0, 2, 0, 4);
-		mInspectorPanel.AddChild(inspSep);
-
-		let inspPlaceholder = new Label("No selection");
-		inspPlaceholder.FontSize = 11;
-		inspPlaceholder.Foreground = Color(120, 120, 140, 255);
-		mInspectorPanel.AddChild(inspPlaceholder);
+		// Right: Inspector panel
+		mInspectorPanel = new InspectorPanel();
+		mInspectorPanel.OnPropertyChanged = new => OnInspectorPropertyChanged;
+		mInnerSplit.AddChild(mInspectorPanel.Root);
 
 		context.RootElement = mRootPanel;
 		UpdateEmptyState();
@@ -526,8 +509,9 @@ class SceneEditorApp : Application
 		if (mTabControl != null)
 			mTabControl.SelectedIndex = index;
 
-		// Refresh hierarchy for the new tab
+		// Refresh hierarchy and inspector for the new tab
 		mHierarchyPanel.SetTab(tab);
+		mInspectorPanel.RefreshForSelection(tab);
 	}
 
 	private void CloseTab(int32 index, bool removeFromTabControl)
@@ -560,6 +544,7 @@ class SceneEditorApp : Application
 			mActiveTabIndex = -1;
 			mRenderSystem.SetActiveWorld(null);
 			mHierarchyPanel.Clear();
+			mInspectorPanel.Clear();
 		}
 		else if (mActiveTabIndex >= (int32)mTabs.Count)
 		{
@@ -610,7 +595,11 @@ class SceneEditorApp : Application
 
 	private void OnHierarchySelectionChanged(List<EntityId> entities)
 	{
-		// TODO Phase 4: Refresh inspector panel for the selected entity
+		let tab = ActiveTab;
+		if (tab != null)
+			mInspectorPanel.RefreshForSelection(tab);
+		else
+			mInspectorPanel.Clear();
 	}
 
 	private void OnHierarchyStructureChanged()
@@ -622,6 +611,19 @@ class SceneEditorApp : Application
 		tab.MarkDirty();
 		let tabIndex = (int32)mTabs.IndexOf(tab);
 		UpdateTabTitle(tabIndex);
+	}
+
+	private void OnInspectorPropertyChanged()
+	{
+		let tab = ActiveTab;
+		if (tab == null)
+			return;
+
+		let tabIndex = (int32)mTabs.IndexOf(tab);
+		UpdateTabTitle(tabIndex);
+
+		// Rebuild hierarchy in case entity name changed
+		mHierarchyPanel.RebuildHierarchy();
 	}
 
 	// ==================== Keyboard Shortcuts ====================

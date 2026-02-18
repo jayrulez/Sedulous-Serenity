@@ -48,9 +48,8 @@ public class PropertyItem
 			if (value != null)
 			{
 				value.ToString(DisplayValue);
-				// Delete boxed value types (not Strings which are owned elsewhere)
-				if (!(value is String))
-					delete value;
+				// Getter always returns owned values — caller is responsible for cleanup
+				delete value;
 			}
 		}
 	}

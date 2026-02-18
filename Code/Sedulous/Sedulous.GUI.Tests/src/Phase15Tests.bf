@@ -329,7 +329,7 @@ class PropertyGridTests
 		let grid = scope PropertyGrid();
 		String value = scope .("Test");
 		let prop = grid.AddStringProperty("Text", "General",
-			new () => value,
+			new () => new String(value),
 			new (val) => { });
 		Test.Assert(prop.Type == .String);
 		Test.Assert(prop.Getter != null);
@@ -372,7 +372,7 @@ class PropertyGridTests
 		String value = scope .("Normal");
 		let prop = grid.AddEnumProperty("Mode", "Settings",
 			StringView[?]("Normal", "Fast", "Quality"),
-			new () => value,
+			new () => new String(value),
 			new (val) => { });
 		Test.Assert(prop.Type == .Enum);
 		Test.Assert(prop.EnumValues != null);

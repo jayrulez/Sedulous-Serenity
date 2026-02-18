@@ -188,7 +188,7 @@ class DataDisplayDemo
 
 		// Add properties in different categories
 		propGrid.AddStringProperty("Name", "General",
-			new () => mSampleName,
+			new () => new String(mSampleName),
 			new (val) => {
 				if (let str = val as String)
 					mSampleName.Set(str);
@@ -217,7 +217,7 @@ class DataDisplayDemo
 
 		propGrid.AddEnumProperty("Mode", "Settings",
 			StringView[?]("Normal", "Fast", "Quality"),
-			new () => mSampleMode,
+			new () => new String(mSampleMode),
 			new (val) => {
 				if (let str = val as String)
 					mSampleMode.Set(str);

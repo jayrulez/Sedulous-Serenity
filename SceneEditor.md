@@ -173,17 +173,17 @@ PropertyGrid uses getter/setter delegates. Transform shows Position (X/Y/Z), Rot
 
 ### Checklist
 
-- [ ] Create `src/InspectorPanel.bf` - encapsulates PropertyGrid + component sections
+- [x] Create `src/InspectorPanel.bf` - encapsulates PropertyGrid + component sections
   - `RefreshForSelection(SceneTab)`: If no selection → clear, show "No Selection". If entity selected → build property items
   - Entity name: Editable string field at top
   - "Transform" category: Position X/Y/Z (Float), Rotation X/Y/Z as degrees (Float), Scale X/Y/Z (Float)
   - Getters read from `scene.GetTransform(entity)`
   - Setters call `scene.SetPosition()` / `scene.SetRotation()` / `scene.SetScale()`
   - Rotation: `Quaternion.ToEulerAngles()` → degrees for display, `Quaternion.CreateFromYawPitchRoll()` on set
-- [ ] Selection change triggers inspector rebuild
-- [ ] Inspector clears when selection empty
-- [ ] Inspector reflects gizmo manipulation in real-time (reads live scene data)
-- [ ] Integrate into right panel of SceneEditorApp
+- [x] Selection change triggers inspector rebuild
+- [x] Inspector clears when selection empty
+- [ ] Inspector reflects gizmo manipulation in real-time (deferred to Phase 5 — requires gizmo integration)
+- [x] Integrate into right panel of SceneEditorApp
 
 ### Files
 - **Create**: `src/InspectorPanel.bf`
@@ -239,8 +239,22 @@ PropertyGrid uses getter/setter delegates. Transform shows Position (X/Y/Z), Rot
 ### Component type registry
 Maps component types to metadata: display name, category, has/add/remove delegates, and a `BuildProperties` delegate that populates PropertyGrid.
 
+### Custom property editors
+PropertyGrid stays in Sedulous.GUI as a generic control. Engine-specific property types are supported by subclassing `PropertyItem`:
+
+- `PropertyItem` gets a virtual `CreateEditorControl()` method that returns the editor `Control` for the value column
+- Built-in types (Float, String, Bool, Enum) use the existing default editors
+- Engine-specific types subclass PropertyItem and override `CreateEditorControl()`:
+  - `Vector3PropertyItem` — single row with 3 labeled X/Y/Z float fields
+  - `ColorPropertyItem` — color swatch + picker
+  - `AssetRefPropertyItem` — path display + browse button
+- PropertyGrid calls the virtual method and doesn't need to know about engine types
+- New property types can be added anywhere in the codebase by subclassing PropertyItem
+- `PropertyGrid.AddProperty(PropertyItem)` accepts pre-built custom items
+
 ### Checklist
 
+- [ ] Add virtual `CreateEditorControl()` to PropertyItem in Sedulous.GUI
 - [ ] Create `src/ComponentTypeRegistry.bf` with `ComponentTypeInfo` struct + registration for all known types
 - [ ] "Add Component" button at bottom of inspector → dropdown of available types (excluding already-present ones)
 - [ ] Remove component: Right-click on component category header → "Remove Component"
@@ -254,8 +268,8 @@ Maps component types to metadata: display name, category, has/add/remove delegat
 - [ ] Component property changes auto-sync to render via RenderSceneModule
 
 ### Files
-- **Create**: `src/ComponentTypeRegistry.bf`
-- **Modify**: `src/InspectorPanel.bf`, `src/Program.bf`
+- **Create**: `src/ComponentTypeRegistry.bf`, custom PropertyItem subclasses
+- **Modify**: `Sedulous.GUI/src/Controls/PropertyGrid/PropertyGrid.bf` (add virtual + AddProperty(PropertyItem)), `src/InspectorPanel.bf`, `src/Program.bf`
 
 ---
 

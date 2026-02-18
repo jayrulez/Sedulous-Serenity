@@ -7,7 +7,7 @@ string %sceneName {"Scene 1"}
 int32 %entityCount {5}
 Obj_ %entities {
 	Obj_ %e0 {
-		string %name {"Sun"}
+		string %name {"Sunlight"}
 		float[3] %position {
 			{0, 10, 0}
 		}
