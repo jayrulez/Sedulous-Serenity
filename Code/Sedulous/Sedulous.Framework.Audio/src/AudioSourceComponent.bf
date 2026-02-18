@@ -1,5 +1,6 @@
 namespace Sedulous.Framework.Audio;
 
+using System;
 using Sedulous.Audio;
 using Sedulous.Framework.Scenes;
 using Sedulous.Serialization;
@@ -25,6 +26,8 @@ struct AudioSourceComponent : ISerializableComponent
 	public float MinDistance;
 	/// Maximum distance for spatial attenuation.
 	public float MaxDistance;
+
+	public void Dispose() mut { }
 
 	public int32 SerializationVersion => 2;
 

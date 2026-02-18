@@ -1,5 +1,6 @@
 namespace Sedulous.Framework.Navigation;
 
+using System;
 using Sedulous.Framework.Scenes;
 using Sedulous.Serialization;
 using recastnavigation_Beef;
@@ -30,6 +31,8 @@ struct NavAgentComponent : ISerializableComponent
 	public float SeparationWeight;
 	/// Obstacle avoidance quality type (0-3).
 	public uint8 ObstacleAvoidanceType;
+
+	public void Dispose() mut { }
 
 	public int32 SerializationVersion => 2;
 

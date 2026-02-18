@@ -1,5 +1,6 @@
 namespace Sedulous.Framework.Animation;
 
+using System;
 using Sedulous.Animation;
 using Sedulous.Animation.Resources;
 using Sedulous.Framework.Scenes;
@@ -9,6 +10,7 @@ using Sedulous.Serialization;
 using static Sedulous.Resources.ResourceSerializerExtensions;
 
 /// Component for entities with skeletal animation.
+[Component]
 struct SkeletalAnimationComponent : ISerializableComponent
 {
 	/// The animation player for this entity (runtime, not serialized).
@@ -16,15 +18,17 @@ struct SkeletalAnimationComponent : ISerializableComponent
 	/// The skeleton resource handle (runtime, not serialized).
 	public ResourceHandle<SkeletonResource> SkeletonRes;
 	/// Serializable reference to the skeleton resource.
-	public ResourceRef SkeletonRef;
+	[Property] public ResourceRef SkeletonRef;
 	/// The animation clip resource handle (runtime, not serialized).
 	public ResourceHandle<AnimationClipResource> AnimationClipRes;
 	/// Serializable reference to the animation clip resource.
-	public ResourceRef AnimationClipRef;
+	[Property] public ResourceRef AnimationClipRef;
 	/// Whether the animation is playing.
-	public bool Playing;
+	[Property] public bool Playing;
 	/// Whether the animation should loop.
-	public bool Loop;
+	[Property] public bool Loop;
+
+	public void Dispose() mut { }
 
 	public int32 SerializationVersion => 2;
 

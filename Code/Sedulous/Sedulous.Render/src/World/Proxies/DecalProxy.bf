@@ -5,6 +5,7 @@ using Sedulous.Mathematics;
 using Sedulous.RHI;
 
 /// Blend mode for decal rendering.
+[Reflect]
 public enum DecalBlendMode
 {
 	/// Standard alpha blending.

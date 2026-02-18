@@ -1,5 +1,6 @@
 namespace Sedulous.Framework.Physics;
 
+using System;
 using Sedulous.Framework.Scenes;
 using Sedulous.Physics;
 using Sedulous.Serialization;
@@ -25,6 +26,8 @@ struct RigidBodyComponent : ISerializableComponent
 	public float GravityFactor;
 	/// Whether the body is enabled in the simulation.
 	public bool Enabled;
+
+	public void Dispose() mut { }
 
 	public int32 SerializationVersion => 1;
 

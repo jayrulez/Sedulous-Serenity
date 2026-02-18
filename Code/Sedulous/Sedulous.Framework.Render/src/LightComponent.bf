@@ -8,30 +8,33 @@ using Sedulous.Serialization;
 
 /// Component for light entities.
 /// Stores the full light configuration needed to create and update a render proxy.
+[Component]
 struct LightComponent : ISerializableComponent
 {
 	/// The type of light (Directional, Point, Spot, Area).
-	public LightType Type;
+	[Property] public LightType Type;
 	/// Light color (linear RGB).
-	public Vector3 Color;
+	[Property] public Vector3 Color;
 	/// Light intensity (lumens for point/spot, lux for directional).
-	public float Intensity;
+	[Property] public float Intensity;
 	/// Light range (for point/spot lights).
-	public float Range;
+	[Property] public float Range;
 	/// Inner cone angle in radians (spot lights only).
-	public float InnerConeAngle;
+	[Property] public float InnerConeAngle;
 	/// Outer cone angle in radians (spot lights only).
-	public float OuterConeAngle;
+	[Property] public float OuterConeAngle;
 	/// Whether this light casts shadows.
-	public bool CastsShadows;
+	[Property] public bool CastsShadows;
 	/// Shadow bias.
-	public float ShadowBias;
+	[Property] public float ShadowBias;
 	/// Shadow normal bias.
-	public float ShadowNormalBias;
+	[Property] public float ShadowNormalBias;
 	/// Render layer mask.
-	public uint32 LayerMask;
+	[Property] public uint32 LayerMask;
 	/// Whether this light is enabled.
-	public bool Enabled;
+	[Property] public bool Enabled;
+
+	public void Dispose() mut { }
 
 	public int32 SerializationVersion => 2;
 

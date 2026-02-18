@@ -10,6 +10,8 @@ struct TestComponent : ISerializableComponent
 	public int32 Health;
 	public bool Active;
 
+	public void Dispose() mut { }
+
 	public int32 SerializationVersion => 1;
 
 	public this()

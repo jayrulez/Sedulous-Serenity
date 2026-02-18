@@ -4,6 +4,7 @@ using System;
 using Sedulous.Mathematics;
 
 /// Camera projection type.
+[Reflect]
 public enum ProjectionType : uint8
 {
 	/// Perspective projection (3D).

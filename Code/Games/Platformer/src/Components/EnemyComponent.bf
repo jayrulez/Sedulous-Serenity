@@ -1,10 +1,14 @@
 namespace Platformer.Components;
 
+using System;
 using Sedulous.Mathematics;
 using Platformer.Data;
+using Sedulous.Framework.Scenes;
 
-struct EnemyComponent
+struct EnemyComponent : IComponent
 {
+	public void Dispose() mut { }
+
 	/// Enemy type determines behavior.
 	public EnemyType Type;
 	/// Whether this enemy is alive.

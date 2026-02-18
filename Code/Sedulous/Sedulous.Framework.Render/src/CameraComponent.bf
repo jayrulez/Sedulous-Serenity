@@ -7,28 +7,31 @@ using Sedulous.Serialization;
 
 /// Component for camera entities.
 /// Stores the full camera configuration needed to create and update a render proxy.
+[Component]
 struct CameraComponent : ISerializableComponent
 {
 	/// Projection type (Perspective or Orthographic).
-	public ProjectionType Projection;
+	[Property] public ProjectionType Projection;
 	/// Field of view in radians (for perspective).
-	public float FieldOfView;
+	[Property] public float FieldOfView;
 	/// Aspect ratio (width / height).
-	public float AspectRatio;
+	[Property] public float AspectRatio;
 	/// Near clipping plane distance.
-	public float NearPlane;
+	[Property] public float NearPlane;
 	/// Far clipping plane distance.
-	public float FarPlane;
+	[Property] public float FarPlane;
 	/// Orthographic width (for orthographic projection).
-	public float OrthoWidth;
+	[Property] public float OrthoWidth;
 	/// Orthographic height (for orthographic projection).
-	public float OrthoHeight;
+	[Property] public float OrthoHeight;
 	/// Render priority (higher = rendered first for multi-camera setups).
-	public int32 Priority;
+	[Property] public int32 Priority;
 	/// Whether this camera is active.
-	public bool Active;
+	[Property] public bool Active;
 	/// Whether this is the main camera.
-	public bool IsMainCamera;
+	[Property] public bool IsMainCamera;
+
+	public void Dispose() mut { }
 
 	public int32 SerializationVersion => 2;
 

@@ -5,19 +5,22 @@ using Sedulous.Framework.Scenes;
 using Sedulous.Mathematics;
 
 // Example components for testing (pure data structs)
-struct HealthComponent
+struct HealthComponent : IComponent
 {
+	public void Dispose() mut { }
 	public float Current;
 	public float Max;
 }
 
-struct VelocityComponent
+struct VelocityComponent : IComponent
 {
+	public void Dispose() mut { }
 	public Vector3 Value;
 }
 
-struct TagComponent
+struct TagComponent : IComponent
 {
+	public void Dispose() mut { }
 	public int32 Tag;
 }
 

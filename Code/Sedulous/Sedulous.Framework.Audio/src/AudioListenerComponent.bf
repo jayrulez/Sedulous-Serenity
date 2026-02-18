@@ -1,5 +1,6 @@
 namespace Sedulous.Framework.Audio;
 
+using System;
 using Sedulous.Framework.Scenes;
 using Sedulous.Serialization;
 
@@ -8,6 +9,8 @@ struct AudioListenerComponent : ISerializableComponent
 {
 	/// Whether this listener is active.
 	public bool Active;
+
+	public void Dispose() mut { }
 
 	public int32 SerializationVersion => 1;
 

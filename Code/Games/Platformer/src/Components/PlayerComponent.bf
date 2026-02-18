@@ -1,9 +1,13 @@
 namespace Platformer.Components;
 
+using System;
 using Sedulous.Mathematics;
+using Sedulous.Framework.Scenes;
 
-struct PlayerComponent
+struct PlayerComponent : IComponent
 {
+	public void Dispose() mut { }
+
 	/// Current health (max 3).
 	public int32 Health = 3;
 	/// Total coins collected.

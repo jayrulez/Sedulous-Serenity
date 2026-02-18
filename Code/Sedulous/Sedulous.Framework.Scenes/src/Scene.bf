@@ -755,7 +755,7 @@ public class Scene : IDisposable, ISerializable
 	// ==================== Component Management ====================
 
 	/// Gets or creates storage for a component type.
-	private ComponentStorage<T> GetStorage<T>() where T : struct
+	private ComponentStorage<T> GetStorage<T>() where T : struct, IComponent
 	{
 		let type = typeof(T);
 		if (mComponentStorages.TryGetValue(type, let storage))
@@ -767,7 +767,7 @@ public class Scene : IDisposable, ISerializable
 	}
 
 	/// Adds or replaces a component on an entity.
-	public void SetComponent<T>(EntityId entity, T component) where T : struct
+	public void SetComponent<T>(EntityId entity, T component) where T : struct, IComponent
 	{
 		if (!IsValid(entity))
 			return;
@@ -775,7 +775,7 @@ public class Scene : IDisposable, ISerializable
 	}
 
 	/// Gets a pointer to a component (null if entity doesn't have it).
-	public T* GetComponent<T>(EntityId entity) where T : struct
+	public T* GetComponent<T>(EntityId entity) where T : struct, IComponent
 	{
 		if (!IsValid(entity))
 			return null;
@@ -783,14 +783,14 @@ public class Scene : IDisposable, ISerializable
 	}
 
 	/// Gets a reference to a component (asserts if not found).
-	public ref T GetComponentRef<T>(EntityId entity) where T : struct
+	public ref T GetComponentRef<T>(EntityId entity) where T : struct, IComponent
 	{
 		Runtime.Assert(IsValid(entity), "Invalid entity");
 		return ref GetStorage<T>().GetRef(entity);
 	}
 
 	/// Checks if an entity has a component.
-	public bool HasComponent<T>(EntityId entity) where T : struct
+	public bool HasComponent<T>(EntityId entity) where T : struct, IComponent
 	{
 		if (!IsValid(entity))
 			return false;
@@ -801,7 +801,7 @@ public class Scene : IDisposable, ISerializable
 	}
 
 	/// Removes a component from an entity.
-	public void RemoveComponent<T>(EntityId entity) where T : struct
+	public void RemoveComponent<T>(EntityId entity) where T : struct, IComponent
 	{
 		if (!IsValid(entity))
 			return;
@@ -811,9 +811,65 @@ public class Scene : IDisposable, ISerializable
 	}
 
 	/// Returns an enumerator over all entities with a specific component.
-	public ComponentStorage<T>.ComponentEnumerator Query<T>() where T : struct
+	public ComponentStorage<T>.ComponentEnumerator Query<T>() where T : struct, IComponent
 	{
 		return GetStorage<T>().GetEnumerator();
+	}
+
+	// ==================== Runtime Type Component Access ====================
+
+	/// Checks if an entity has a component of the given runtime type.
+	public bool HasComponent(EntityId entity, Type type)
+	{
+		if (!IsValid(entity))
+			return false;
+		if (!mComponentStorages.TryGetValue(type, let storage))
+			return false;
+		return storage.Has(entity);
+	}
+
+	/// Gets a raw pointer to a component by runtime type (null if not present).
+	public void* GetComponentRaw(EntityId entity, Type type)
+	{
+		if (!IsValid(entity))
+			return null;
+		if (!mComponentStorages.TryGetValue(type, let storage))
+			return null;
+		return storage.GetRaw(entity);
+	}
+
+	/// Sets a component from raw data by runtime type.
+	public void SetComponentRaw(EntityId entity, Type type, void* data)
+	{
+		if (!IsValid(entity))
+			return;
+		if (mComponentStorages.TryGetValue(type, let storage))
+			storage.SetRaw(entity, data);
+	}
+
+	/// Removes a component by runtime type, disposing owned resources first.
+	public void RemoveComponent(EntityId entity, Type type)
+	{
+		if (!IsValid(entity))
+			return;
+		if (mComponentStorages.TryGetValue(type, let storage))
+			storage.DisposeAndRemove(entity);
+	}
+
+	/// Adds a default-initialized component by runtime type.
+	/// Creates the storage if it doesn't exist yet.
+	public void AddDefaultComponent(EntityId entity, Type type)
+	{
+		if (!IsValid(entity))
+			return;
+		if (mComponentStorages.TryGetValue(type, let storage))
+			storage.AddDefault(entity);
+	}
+
+	/// Gets all component types that have storage registered in this scene.
+	public Dictionary<Type, IComponentStorage>.KeyEnumerator GetComponentTypes()
+	{
+		return mComponentStorages.Keys;
 	}
 
 	// ==================== Module Management ====================

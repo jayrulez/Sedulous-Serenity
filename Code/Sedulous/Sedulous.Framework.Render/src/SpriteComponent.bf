@@ -1,5 +1,6 @@
 namespace Sedulous.Framework.Render;
 
+using System;
 using Sedulous.Framework.Scenes;
 using Sedulous.Mathematics;
 using Sedulous.Resources;
@@ -9,22 +10,28 @@ using static Sedulous.Resources.ResourceSerializerExtensions;
 
 /// Component for sprite entities.
 /// Stores sprite configuration for serialization and proxy creation.
+[Component]
 struct SpriteComponent : ISerializableComponent
 {
 	/// Billboard size (width, height).
-	public Vector2 Size;
+	[Property] public Vector2 Size;
 	/// Tint color (RGBA).
-	public Vector4 Color;
+	[Property] public Vector4 Color;
 	/// UV rect for atlas sub-region (minU, minV, maxU, maxV).
-	public Vector4 UVRect;
+	[Property] public Vector4 UVRect;
 	/// Render layer mask.
-	public uint32 LayerMask;
+	[Property] public uint32 LayerMask;
 	/// Whether this sprite is enabled.
-	public bool Enabled;
+	[Property] public bool Enabled;
 	/// The texture resource handle (runtime, not serialized).
 	public ResourceHandle<TextureResource> Texture;
 	/// Serializable reference to the texture resource.
-	public ResourceRef TextureRef;
+	[Property] public ResourceRef TextureRef;
+
+	public void Dispose() mut
+	{
+		TextureRef.Dispose();
+	}
 
 	public int32 SerializationVersion => 1;
 

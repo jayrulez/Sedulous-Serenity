@@ -1,6 +1,8 @@
 namespace Platformer.Components;
 
+using System;
 using Sedulous.Mathematics;
+using Sedulous.Framework.Scenes;
 
 enum HazardType
 {
@@ -14,8 +16,10 @@ enum HazardType
 	Cannon
 }
 
-struct HazardComponent
+struct HazardComponent : IComponent
 {
+	public void Dispose() mut { }
+
 	/// Type of hazard.
 	public HazardType Type;
 	/// Damage dealt to the player.

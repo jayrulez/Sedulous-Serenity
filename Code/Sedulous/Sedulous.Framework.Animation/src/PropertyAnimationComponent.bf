@@ -1,5 +1,6 @@
 namespace Sedulous.Framework.Animation;
 
+using System;
 using Sedulous.Framework.Scenes;
 using Sedulous.Serialization;
 
@@ -12,6 +13,8 @@ struct PropertyAnimationComponent : ISerializableComponent
 	public bool Playing;
 	/// Playback speed multiplier.
 	public float Speed;
+
+	public void Dispose() mut { }
 
 	public int32 SerializationVersion => 1;
 

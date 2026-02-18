@@ -1,5 +1,6 @@
 namespace Sedulous.Framework.Animation;
 
+using System;
 using Sedulous.Animation;
 using Sedulous.Animation.Resources;
 using Sedulous.Framework.Scenes;
@@ -25,6 +26,8 @@ struct AnimationGraphComponent : ISerializableComponent
 
 	/// Whether the graph is actively evaluating.
 	public bool Active;
+
+	public void Dispose() mut { }
 
 	public int32 SerializationVersion => 1;
 

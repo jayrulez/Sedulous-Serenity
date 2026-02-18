@@ -4,6 +4,7 @@ using System;
 using Sedulous.Mathematics;
 
 /// Light types supported by the renderer.
+[Reflect]
 public enum LightType : uint8
 {
 	/// Directional light (sun, moon).

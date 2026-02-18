@@ -1,9 +1,13 @@
 namespace Platformer.Components;
 
+using System;
 using Sedulous.Mathematics;
+using Sedulous.Framework.Scenes;
 
-struct MovingPlatformComponent
+struct MovingPlatformComponent : IComponent
 {
+	public void Dispose() mut { }
+
 	/// Start position.
 	public Vector3 PointA;
 	/// End position.

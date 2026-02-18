@@ -6,7 +6,7 @@ using System.Collections;
 /// Type-safe storage for components of type T.
 /// Uses sparse storage with entity index as key for efficient lookup.
 /// Tracks generation to detect stale entity references.
-class ComponentStorage<T> : IComponentStorage where T : struct
+class ComponentStorage<T> : IComponentStorage where T : struct, IComponent
 {
 	/// Maps entity index to component data.
 	private Dictionary<uint32, T> mComponents = new .() ~ delete _;
@@ -58,17 +58,48 @@ class ComponentStorage<T> : IComponentStorage where T : struct
 		mGenerations.Remove(entity.Index);
 	}
 
-	/// Called when an entity is destroyed.
-	public void OnEntityDestroyed(EntityId entity)
+	/// Disposes the component and then removes it.
+	public void DisposeAndRemove(EntityId entity)
 	{
+		if (mComponents.ContainsKey(entity.Index))
+			mComponents[entity.Index].Dispose();
 		Remove(entity);
 	}
 
-	/// Clears all components.
+	/// Called when an entity is destroyed.
+	public void OnEntityDestroyed(EntityId entity)
+	{
+		DisposeAndRemove(entity);
+	}
+
+	/// Clears all components, disposing each first.
 	public void Clear()
 	{
+		for (var pair in mComponents)
+			pair.value.Dispose();
 		mComponents.Clear();
 		mGenerations.Clear();
+	}
+
+	/// Gets a raw pointer to the component data for an entity.
+	public void* GetRaw(EntityId entity)
+	{
+		let ptr = Get(entity);
+		if (ptr == null)
+			return null;
+		return (void*)ptr;
+	}
+
+	/// Sets a component from raw data.
+	public void SetRaw(EntityId entity, void* data)
+	{
+		Set(entity, *(T*)data);
+	}
+
+	/// Adds a default-initialized component for an entity.
+	public void AddDefault(EntityId entity)
+	{
+		Set(entity, default);
 	}
 
 	/// Gets an enumerator over all entities with this component.

@@ -6,6 +6,7 @@ using Sedulous.Materials;
 using Sedulous.RHI;
 
 /// Particle simulation space.
+[Reflect]
 public enum ParticleSpace : uint8
 {
 	/// Particles simulate in world space.
@@ -16,6 +17,7 @@ public enum ParticleSpace : uint8
 }
 
 /// Particle blend mode.
+[Reflect]
 public enum ParticleBlendMode : uint8
 {
 	/// Standard alpha blending.
@@ -32,6 +34,7 @@ public enum ParticleBlendMode : uint8
 }
 
 /// Particle rendering mode.
+[Reflect]
 public enum ParticleRenderMode : uint8
 {
 	/// Camera-facing billboards.

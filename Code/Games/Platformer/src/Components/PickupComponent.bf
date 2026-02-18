@@ -1,9 +1,13 @@
 namespace Platformer.Components;
 
+using System;
 using Platformer.Data;
+using Sedulous.Framework.Scenes;
 
-struct PickupComponent
+struct PickupComponent : IComponent
 {
+	public void Dispose() mut { }
+
 	/// What type of pickup this is.
 	public PickupType Type;
 	/// Whether this pickup has been collected.

@@ -1,5 +1,6 @@
 namespace Sedulous.Framework.Navigation;
 
+using System;
 using Sedulous.Framework.Scenes;
 using Sedulous.Serialization;
 
@@ -13,6 +14,8 @@ struct NavObstacleComponent : ISerializableComponent
 	public float Radius;
 	/// Obstacle cylinder height.
 	public float Height;
+
+	public void Dispose() mut { }
 
 	public int32 SerializationVersion => 1;
 

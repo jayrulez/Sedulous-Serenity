@@ -1,5 +1,6 @@
 namespace Sedulous.Framework.UI;
 
+using System;
 using Sedulous.Framework.Scenes;
 using Sedulous.Serialization;
 
@@ -19,6 +20,8 @@ struct WorldUIComponent : ISerializableComponent
 	public float PanelHeight;
 	/// Whether this panel receives mouse input.
 	public bool IsInteractive;
+
+	public void Dispose() mut { }
 
 	public int32 SerializationVersion => 2;
 

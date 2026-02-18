@@ -4,6 +4,7 @@ using System;
 
 /// Serializable reference to a resource: GUID for identity + path for file resolution.
 /// The Path string is owned by this struct. Call Dispose() to free it.
+[Reflect(.NonStaticFields)]
 struct ResourceRef : IDisposable
 {
 	public Guid Id;

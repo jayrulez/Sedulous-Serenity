@@ -8,65 +8,68 @@ using Sedulous.Serialization;
 
 /// Component for particle emitter entities.
 /// Stores the core particle emitter configuration for serialization and proxy creation.
+[Component]
 struct ParticleEmitterComponent : ISerializableComponent
 {
 	// Simulation
-	public ParticleSimulationBackend Backend;
-	public ParticleSpace SimulationSpace;
-	public ParticleBlendMode BlendMode;
-	public ParticleRenderMode RenderMode;
-	public uint32 MaxParticles;
+	[Property] public ParticleSimulationBackend Backend;
+	[Property] public ParticleSpace SimulationSpace;
+	[Property] public ParticleBlendMode BlendMode;
+	[Property] public ParticleRenderMode RenderMode;
+	[Property] public uint32 MaxParticles;
 	// Emission
-	public float SpawnRate;
-	public float ParticleLifetime;
-	public int32 BurstCount;
-	public float BurstInterval;
-	public int32 BurstCycles;
+	[Property] public float SpawnRate;
+	[Property] public float ParticleLifetime;
+	[Property] public int32 BurstCount;
+	[Property] public float BurstInterval;
+	[Property] public int32 BurstCycles;
 	// Size & color
-	public Vector2 StartSize;
-	public Vector2 EndSize;
-	public Vector4 StartColor;
-	public Vector4 EndColor;
+	[Property] public Vector2 StartSize;
+	[Property] public Vector2 EndSize;
+	[Property] public Vector4 StartColor;
+	[Property] public Vector4 EndColor;
 	// Motion
-	public Vector3 InitialVelocity;
-	public Vector3 VelocityRandomness;
-	public float GravityMultiplier;
-	public float Drag;
-	public float VelocityInheritance;
+	[Property] public Vector3 InitialVelocity;
+	[Property] public Vector3 VelocityRandomness;
+	[Property] public float GravityMultiplier;
+	[Property] public float Drag;
+	[Property] public float VelocityInheritance;
 	// Rendering
-	public float SoftParticleDistance;
-	public float StretchFactor;
-	public bool SortParticles;
-	public bool Lit;
+	[Property] public float SoftParticleDistance;
+	[Property] public float StretchFactor;
+	[Property] public bool SortParticles;
+	[Property] public bool Lit;
 	// Atlas
-	public int32 AtlasColumns;
-	public int32 AtlasRows;
-	public float AtlasFPS;
-	public bool AtlasLoop;
-	// Curves over lifetime
+	[Property] public int32 AtlasColumns;
+	[Property] public int32 AtlasRows;
+	[Property] public float AtlasFPS;
+	[Property] public bool AtlasLoop;
+	// Curves over lifetime (complex types, no [Property] — need custom editors)
 	public ParticleCurveVector2 SizeOverLifetime;
 	public ParticleCurveColor ColorOverLifetime;
 	public ParticleCurveFloat SpeedOverLifetime;
 	public ParticleCurveFloat AlphaOverLifetime;
 	public ParticleCurveFloat RotationSpeedOverLifetime;
-	// Force modules
+	// Force modules (complex struct, no [Property])
 	public ParticleForceModules ForceModules;
 	// LOD
-	public float LODStartDistance;
-	public float LODCullDistance;
-	public float LODMinRateMultiplier;
+	[Property] public float LODStartDistance;
+	[Property] public float LODCullDistance;
+	[Property] public float LODMinRateMultiplier;
 	// Lifetime variance
-	public float LifetimeVarianceMin;
-	public float LifetimeVarianceMax;
-	// Trail
+	[Property] public float LifetimeVarianceMin;
+	[Property] public float LifetimeVarianceMax;
+	// Trail (nested struct, no [Property])
 	public TrailSettings Trail;
-	// Emission shape
+	// Emission shape (nested struct, no [Property])
 	public EmissionShape Shape;
 	// Sub-emitter
-	public bool SubEmitterOnly;
+	[Property] public bool SubEmitterOnly;
 	// General
-	public uint32 LayerMask;
-	public bool Enabled;
+	[Property] public uint32 LayerMask;
+	[Property] public bool Enabled;
+
+	public void Dispose() mut { }
 
 	public int32 SerializationVersion => 2;
 

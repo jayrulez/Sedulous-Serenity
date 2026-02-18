@@ -5,8 +5,9 @@ using Sedulous.Framework.Scenes;
 namespace FrameworkSandbox;
 
 /// Example component for custom game data - makes entity spin.
-struct SpinComponent
+struct SpinComponent : IComponent
 {
+	public void Dispose() mut { }
 	public float Speed;
 	public float CurrentAngle;
 
@@ -17,8 +18,9 @@ struct SpinComponent
 }
 
 /// Example component for bobbing up and down.
-struct BobComponent
+struct BobComponent : IComponent
 {
+	public void Dispose() mut { }
 	public float Speed;
 	public float Amplitude;
 	public float BaseY;

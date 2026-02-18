@@ -1,5 +1,6 @@
 namespace Sedulous.Framework.Render;
 
+using System;
 using Sedulous.Framework.Scenes;
 using Sedulous.Mathematics;
 using Sedulous.Render;
@@ -29,6 +30,8 @@ struct TrailEmitterComponent : ISerializableComponent
 	public uint32 LayerMask;
 	/// Whether this trail emitter is enabled.
 	public bool Enabled;
+
+	public void Dispose() mut { }
 
 	public int32 SerializationVersion => 1;
 

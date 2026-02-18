@@ -14,12 +14,13 @@ using static Sedulous.Resources.ResourceSerializerExtensions;
 /// Component for entities with a static mesh.
 /// Set the Mesh field and the framework handles GPU upload automatically.
 /// Supports up to MaxMaterialsPerMesh material slots for multi-submesh rendering.
+[Component]
 struct MeshRendererComponent : ISerializableComponent
 {
 	/// The mesh resource handle (runtime, not serialized).
 	public ResourceHandle<StaticMeshResource> Mesh;
 	/// Serializable reference to the mesh resource.
-	public ResourceRef MeshRef;
+	[Property] public ResourceRef MeshRef;
 	/// Number of active material slots.
 	public int32 MaterialCount;
 	/// Serializable references to material resources (one per submesh slot).
@@ -29,7 +30,14 @@ struct MeshRendererComponent : ISerializableComponent
 	/// Material instances for rendering (runtime, created from MaterialResource).
 	public MaterialInstance[RenderConfig.MaxMaterialsPerMesh] MaterialInstances;
 	/// Whether this renderer is enabled.
-	public bool Enabled;
+	[Property] public bool Enabled;
+
+	public void Dispose() mut
+	{
+		MeshRef.Dispose();
+		for (int32 i = 0; i < MaterialRefs.Count; i++)
+			MaterialRefs[i].Dispose();
+	}
 
 	public int32 SerializationVersion => 3;
 

@@ -11,26 +11,32 @@ using static Sedulous.Resources.ResourceSerializerExtensions;
 
 /// Component for decal entities.
 /// Stores decal configuration for serialization and proxy creation.
+[Component]
 struct DecalComponent : ISerializableComponent
 {
 	/// Scale of the decal volume (width, height, depth of the projection box).
-	public Vector3 Scale;
+	[Property] public Vector3 Scale;
 	/// Tint color (RGBA, A = opacity).
-	public Vector4 Color;
+	[Property] public Vector4 Color;
 	/// Angle (in radians) where fade starts (0 = facing surface).
-	public float AngleFadeStart;
+	[Property] public float AngleFadeStart;
 	/// Angle (in radians) where fade ends (fully transparent).
-	public float AngleFadeEnd;
+	[Property] public float AngleFadeEnd;
 	/// Render order for sorting (lower = rendered first).
-	public int32 SortOrder;
+	[Property] public int32 SortOrder;
 	/// Blend mode for this decal.
-	public DecalBlendMode BlendMode;
+	[Property] public DecalBlendMode BlendMode;
 	/// Whether this decal is enabled.
-	public bool Enabled;
+	[Property] public bool Enabled;
 	/// The texture resource handle (runtime, not serialized).
 	public ResourceHandle<TextureResource> Texture;
 	/// Serializable reference to the texture resource.
-	public ResourceRef TextureRef;
+	[Property] public ResourceRef TextureRef;
+
+	public void Dispose() mut
+	{
+		TextureRef.Dispose();
+	}
 
 	public int32 SerializationVersion => 1;
 
