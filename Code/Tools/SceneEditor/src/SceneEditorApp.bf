@@ -52,7 +52,7 @@ class SceneEditorApp : Application
 	private DockPanel mRootPanel;     // root element (we own this — GUIContext only references it)
 	private SplitPanel mOuterSplit;   // left (hierarchy) | right (center+inspector)
 	private SplitPanel mInnerSplit;   // center (viewport+tabs) | right (inspector)
-	private StackPanel mHierarchyPanel;
+	private HierarchyPanel mHierarchyPanel ~ delete _;
 	private StackPanel mInspectorPanel;
 	private Grid mViewportPanel;
 	private TabControl mTabControl;
@@ -158,27 +158,11 @@ class SceneEditorApp : Application
 		mOuterSplit.SplitterSize = 6;
 		mRootPanel.AddChild(mOuterSplit);
 
-		// Left: Hierarchy panel placeholder
-		mHierarchyPanel = new StackPanel();
-		mHierarchyPanel.Orientation = .Vertical;
-		mHierarchyPanel.Background = Color(30, 30, 38, 255);
-		mHierarchyPanel.Padding = .(6, 6, 6, 6);
-		mHierarchyPanel.Spacing = 4;
-		mOuterSplit.AddChild(mHierarchyPanel);
-
-		let hierLabel = new Label("Hierarchy");
-		hierLabel.FontSize = 14;
-		hierLabel.Foreground = Color(180, 180, 200, 255);
-		mHierarchyPanel.AddChild(hierLabel);
-
-		let hierSep = new Separator();
-		hierSep.Margin = .(0, 2, 0, 4);
-		mHierarchyPanel.AddChild(hierSep);
-
-		let hierPlaceholder = new Label("No scene loaded");
-		hierPlaceholder.FontSize = 11;
-		hierPlaceholder.Foreground = Color(120, 120, 140, 255);
-		mHierarchyPanel.AddChild(hierPlaceholder);
+		// Left: Hierarchy panel
+		mHierarchyPanel = new HierarchyPanel();
+		mHierarchyPanel.OnSelectionChanged = new => OnHierarchySelectionChanged;
+		mHierarchyPanel.OnStructureChanged = new => OnHierarchyStructureChanged;
+		mOuterSplit.AddChild(mHierarchyPanel.Root);
 
 		// Inner split: viewport+tabs | inspector
 		mInnerSplit = new SplitPanel();
@@ -323,21 +307,22 @@ class SceneEditorApp : Application
 		// Create scene via SceneSubsystem (fires ISceneAware → RenderSubsystem creates RenderWorld)
 		tab.Scene = mSceneSubsystem.CreateScene(name);
 
-		// Add a default directional light entity
+		// Add a default directional light entity with LightComponent
 		let lightEntity = tab.Scene.CreateEntity();
 		tab.Scene.SetName(lightEntity, "Directional Light");
 		tab.Scene.SetPosition(lightEntity, .(0, 10, 0));
 		tab.Scene.SetRotation(lightEntity, Quaternion.CreateFromYawPitchRoll(0.5f, -1.0f, 0));
 
+		var light = LightComponent.Default;
+		light.Type = .Directional;
+		light.Intensity = 2.5f;
+		light.CastsShadows = true;
+		tab.Scene.SetComponent<LightComponent>(lightEntity, light);
+
 		// Set up default environment on the RenderWorld
 		let world = mRenderSubsystem.GetWorld(tab.Scene);
 		if (world != null)
 		{
-			// Create a directional light in the RenderWorld
-			world.CreateDirectionalLight(
-				Vector3.Normalize(.(0.5f, -1.0f, 0.3f)),
-				.(1.0f, 1.0f, 0.95f), 2.5f);
-
 			world.AmbientColor = .(0.15f, 0.15f, 0.2f);
 			world.AmbientIntensity = 0.5f;
 			world.Exposure = 1.0f;
@@ -540,6 +525,9 @@ class SceneEditorApp : Application
 
 		if (mTabControl != null)
 			mTabControl.SelectedIndex = index;
+
+		// Refresh hierarchy for the new tab
+		mHierarchyPanel.SetTab(tab);
 	}
 
 	private void CloseTab(int32 index, bool removeFromTabControl)
@@ -571,6 +559,7 @@ class SceneEditorApp : Application
 		{
 			mActiveTabIndex = -1;
 			mRenderSystem.SetActiveWorld(null);
+			mHierarchyPanel.Clear();
 		}
 		else if (mActiveTabIndex >= (int32)mTabs.Count)
 		{
@@ -615,6 +604,53 @@ class SceneEditorApp : Application
 		let tabItem = mTabControl.GetTab(index);
 		if (tabItem != null)
 			tabItem.Header = new TextBlock(title);
+	}
+
+	// ==================== Hierarchy Callbacks ====================
+
+	private void OnHierarchySelectionChanged(List<EntityId> entities)
+	{
+		// TODO Phase 4: Refresh inspector panel for the selected entity
+	}
+
+	private void OnHierarchyStructureChanged()
+	{
+		let tab = ActiveTab;
+		if (tab == null)
+			return;
+
+		tab.MarkDirty();
+		let tabIndex = (int32)mTabs.IndexOf(tab);
+		UpdateTabTitle(tabIndex);
+	}
+
+	// ==================== Keyboard Shortcuts ====================
+
+	protected override void OnKeyDown(ShellKeyCode key)
+	{
+		let keyboard = Shell.InputManager.Keyboard;
+		bool ctrlHeld = keyboard.IsKeyDown(.LeftCtrl) || keyboard.IsKeyDown(.RightCtrl);
+		bool shiftHeld = keyboard.IsKeyDown(.LeftShift) || keyboard.IsKeyDown(.RightShift);
+
+		switch (key)
+		{
+		case .Delete:
+			mHierarchyPanel.DeleteSelectedEntity();
+		case .F2:
+			mHierarchyPanel.BeginRename();
+
+		case .N:
+			if (ctrlHeld) NewScene();
+		case .O:
+			if (ctrlHeld) ShowOpenDialog();
+		case .S:
+			if (ctrlHeld && shiftHeld)
+				SaveSceneAs();
+			else if (ctrlHeld)
+				SaveScene();
+
+		default:
+		}
 	}
 
 	// ==================== Update ====================

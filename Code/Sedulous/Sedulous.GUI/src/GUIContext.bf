@@ -99,6 +99,10 @@ public class GUIContext
 
 	public ~this()
 	{
+		// Process any pending mutations (e.g., queued deletes from ClearItems)
+		// so they don't leak. This must happen before field destructors delete the queue.
+		mMutationQueue.Process(this);
+
 		// Close all popups before field destructors run.
 		// PopupLayer extends Container whose mChildren uses DeleteContainerAndItems.
 		// Popup elements are owned by their creators in the UI tree, not by PopupLayer.

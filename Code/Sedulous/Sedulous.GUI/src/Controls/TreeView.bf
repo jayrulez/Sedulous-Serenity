@@ -22,10 +22,16 @@ public class TreeView : Control
 	private int mFocusedIndex = -1;
 	private int mHoveredIndex = -1;
 
+	// Inline editing
+	private bool mIsEditable = false;
+	private TextBox mEditTextBox ~ delete _;
+	private TreeViewItem mEditingItem;
+
 	// Events
 	private EventAccessor<delegate void(TreeView)> mSelectionChanged = new .() ~ delete _;
 	private EventAccessor<delegate void(TreeView, TreeViewItem)> mItemExpanded = new .() ~ delete _;
 	private EventAccessor<delegate void(TreeView, TreeViewItem)> mItemCollapsed = new .() ~ delete _;
+	private EventAccessor<delegate void(TreeView, TreeViewItem, StringView)> mItemRenamed = new .() ~ delete _;
 
 	/// Creates a new TreeView.
 	public this()
@@ -45,9 +51,18 @@ public class TreeView : Control
 		mScrollViewer.Content = mItemsPanel;
 	}
 
-	/// Destructor - clean up panel before items are deleted.
+	/// Destructor - clean up panel and edit state before items are deleted.
 	public ~this()
 	{
+		// Cancel any active edit without committing
+		if (mEditTextBox != null)
+		{
+			mEditingItem = null;
+			mEditTextBox.OnDetachedFromContext();
+			delete mEditTextBox;
+			mEditTextBox = null;
+		}
+
 		// Remove items from panel without deleting them (they're owned by mRootItems)
 		mItemsPanel?.ClearChildren(deleteAll: false);
 	}
@@ -66,6 +81,10 @@ public class TreeView : Control
 		{
 			if (mSelectedItem != value)
 			{
+				// Cancel any active edit
+				if (mEditingItem != null)
+					EndEdit(false);
+
 				// Deselect old item
 				if (mSelectedItem != null)
 					mSelectedItem.IsSelected = false;
@@ -96,6 +115,19 @@ public class TreeView : Control
 
 	/// Event fired when an item is collapsed.
 	public EventAccessor<delegate void(TreeView, TreeViewItem)> ItemCollapsed => mItemCollapsed;
+
+	/// Whether items can be renamed inline (F2 to start editing).
+	public bool IsEditable
+	{
+		get => mIsEditable;
+		set => mIsEditable = value;
+	}
+
+	/// Whether an item is currently being edited.
+	public bool IsEditing => mEditingItem != null;
+
+	/// Event fired when an item is renamed (tree, item, newText).
+	public EventAccessor<delegate void(TreeView, TreeViewItem, StringView)> ItemRenamed => mItemRenamed;
 
 	// === Item Management ===
 
@@ -154,6 +186,8 @@ public class TreeView : Control
 	/// Removes all items.
 	public void ClearItems()
 	{
+		if (mEditingItem != null)
+			EndEdit(false);
 		SelectedItem = null;
 
 		// Remove from panel first (without deleting, we own them)
@@ -183,6 +217,134 @@ public class TreeView : Control
 		if (index < 0 || index >= mRootItems.Count)
 			return null;
 		return mRootItems[index];
+	}
+
+	// === Inline Editing ===
+
+	/// Begins inline editing of the selected item.
+	public void BeginEdit()
+	{
+		if (!mIsEditable || mSelectedItem == null || mEditingItem != null)
+			return;
+
+		BeginEditItem(mSelectedItem);
+	}
+
+	/// Begins inline editing of a specific item.
+	private void BeginEditItem(TreeViewItem item)
+	{
+		if (Context == null)
+			return;
+
+		mEditingItem = item;
+
+		// Create and configure TextBox
+		if (mEditTextBox != null)
+			delete mEditTextBox;
+
+		mEditTextBox = new EditTextBox(this, item.Text);
+		mEditTextBox.SetParent(this);
+		mEditTextBox.OnAttachedToContext(Context);
+		mEditTextBox.FontSize = 14;
+		mEditTextBox.Padding = .(2, 2, 2, 2);
+
+		// Select all text for easy replacement
+		mEditTextBox.SelectAll();
+
+		// Position the TextBox over the item's text area
+		PositionEditTextBox();
+
+		// Set focus to the TextBox
+		Context.FocusManager?.SetFocus(mEditTextBox);
+	}
+
+	/// TextBox subclass that routes Enter/Escape/LostFocus back to the owning TreeView.
+	private class EditTextBox : TextBox
+	{
+		private TreeView mOwner;
+
+		public this(TreeView owner, StringView text) : base(text)
+		{
+			mOwner = owner;
+		}
+
+		protected override void OnKeyDown(KeyEventArgs e)
+		{
+			if (e.Key == .Return)
+			{
+				mOwner.EndEdit(true);
+				e.Handled = true;
+				return;
+			}
+			else if (e.Key == .Escape)
+			{
+				mOwner.EndEdit(false);
+				e.Handled = true;
+				return;
+			}
+			base.OnKeyDown(e);
+		}
+
+		protected override void OnLostFocus(FocusEventArgs e)
+		{
+			base.OnLostFocus(e);
+			if (mOwner.mEditingItem != null)
+				mOwner.EndEdit(true);
+		}
+	}
+
+	/// Positions the edit TextBox over the editing item's text area.
+	private void PositionEditTextBox()
+	{
+		if (mEditTextBox == null || mEditingItem == null)
+			return;
+
+		let itemIndex = mVisibleItems.IndexOf(mEditingItem);
+		if (itemIndex < 0)
+		{
+			EndEdit(false);
+			return;
+		}
+
+		let treeBounds = ArrangedBounds;
+		let indent = mEditingItem.IndentLevel * TreeViewItem.IndentWidth;
+		let textX = treeBounds.X + indent + TreeViewItem.ExpanderSize + 4;
+		let itemY = treeBounds.Y + itemIndex * TreeViewItem.ItemHeight - mScrollViewer.VerticalOffset;
+
+		let editBounds = RectangleF(textX, itemY, treeBounds.Right - textX, TreeViewItem.ItemHeight);
+
+		mEditTextBox.Measure(.Unconstrained);
+		mEditTextBox.Arrange(editBounds);
+	}
+
+	/// Ends inline editing, optionally committing the new text.
+	public void EndEdit(bool commit)
+	{
+		if (mEditingItem == null)
+			return;
+
+		if (commit && mEditTextBox != null)
+		{
+			let newText = mEditTextBox.Text;
+			if (newText != mEditingItem.Text)
+			{
+				mEditingItem.Text = newText;
+				mItemRenamed.[Friend]Invoke(this, mEditingItem, newText);
+			}
+		}
+
+		// Clean up
+		if (mEditTextBox != null)
+		{
+			mEditTextBox.OnDetachedFromContext();
+			delete mEditTextBox;
+			mEditTextBox = null;
+		}
+
+		mEditingItem = null;
+
+		// Return focus to the TreeView
+		Context?.FocusManager?.SetFocus(this);
 	}
 
 	// === Tree Operations ===
@@ -336,6 +498,13 @@ public class TreeView : Control
 
 		// Render scroll viewer (which renders items)
 		mScrollViewer.Render(ctx);
+
+		// Render edit TextBox on top of the item
+		if (mEditTextBox != null && mEditingItem != null)
+		{
+			PositionEditTextBox();
+			mEditTextBox.Render(ctx);
+		}
 
 		// Draw border
 		let borderColor = BorderColor.A > 0 ? BorderColor : Color(80, 80, 80, 255);
@@ -546,6 +715,10 @@ public class TreeView : Control
 
 		if (!ArrangedBounds.Contains(point.X, point.Y))
 			return null;
+
+		// If editing, check if the click is on the TextBox
+		if (mEditTextBox != null && mEditTextBox.ArrangedBounds.Contains(point.X, point.Y))
+			return mEditTextBox;
 
 		// Only return scrollbars - we handle all content input ourselves
 		let scrollbarHit = mScrollViewer.HitTestScrollBars(point);

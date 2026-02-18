@@ -394,4 +394,7 @@ public class TreeViewItem : Control, ISelectable
 
 	/// Gets the indent width constant.
 	public static float IndentWidth => cIndentWidth;
+
+	/// Gets the expander area width constant.
+	public static float ExpanderSize => cExpanderSize;
 }

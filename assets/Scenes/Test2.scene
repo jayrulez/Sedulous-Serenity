@@ -1,0 +1,51 @@
+string %_type {"Sedulous.Framework.Scenes.SceneResource"}
+int32 %_version {1}
+string %_id {"2ed84afa-e8cb-486d-bda4-f977a331ec1a"}
+string %_name {""}
+int32 %sceneVersion {1}
+string %sceneName {"Scene 2"}
+int32 %entityCount {1}
+Obj_ %entities {
+	Obj_ %e0 {
+		string %name {"Directional Light"}
+		float[3] %position {
+			{0, 10, 0}
+		}
+		float[4] %rotation {
+			{-0.464521378, 0.217117399, 0.118611783, 0.85030061}
+		}
+		float[3] %scale {
+			{1, 1, 1}
+		}
+		int32 %parent {-1}
+	}
+}
+Obj_ %components {
+	Obj_ %LightComponent {
+		int32 %count {0}
+	}
+	Obj_ %CameraComponent {
+		int32 %count {0}
+	}
+	Obj_ %MeshRendererComponent {
+		int32 %count {0}
+	}
+	Obj_ %SkinnedMeshRendererComponent {
+		int32 %count {0}
+	}
+	Obj_ %SkeletalAnimationComponent {
+		int32 %count {0}
+	}
+	Obj_ %SpriteComponent {
+		int32 %count {0}
+	}
+	Obj_ %ParticleEmitterComponent {
+		int32 %count {0}
+	}
+	Obj_ %DecalComponent {
+		int32 %count {0}
+	}
+	Obj_ %TrailEmitterComponent {
+		int32 %count {0}
+	}
+}

@@ -140,23 +140,23 @@ Hierarchy rebuilds from Scene data. Root entities (parent == Invalid) are top-le
 
 ### Checklist
 
-- [ ] Create `src/HierarchyPanel.bf` - encapsulates TreeView + toolbar
+- [x] Create `src/HierarchyPanel.bf` - encapsulates TreeView + toolbar
   - `RebuildHierarchy(SceneTab)`: Clear tree, iterate root entities, recursively add children as nested TreeViewItems, show entity name (or "Entity_N" if unnamed)
   - Toolbar: "+" button → Add Entity submenu (Empty, Directional Light, Point Light, Spot Light, Camera)
   - Delete key → destroy selected entity + children, rebuild tree
   - Selection sync: TreeView.SelectionChanged → update `tab.SelectedEntities`
   - Right-click context menu: Add Child, Delete, Duplicate, Rename
-  - Rename: Double-click or F2 → inline TextBox, commit → `scene.SetName()`
-  - Duplicate: Copy entity + transform + all components to new entity
-- [ ] "Add Entity" creates entity with appropriate default components:
+  - Rename: F2 or context menu → inline TextBox on TreeViewItem, Enter commits, Escape cancels
+  - Duplicate: Copy entity + transform + all components + children recursively to new entity
+- [x] "Add Entity" creates entity with appropriate default components:
   - Empty: Just transform
   - Directional Light: Transform + LightComponent(.Directional)
   - Point Light: Transform + LightComponent(.Point)
   - Spot Light: Transform + LightComponent(.Spot)
   - Camera: Transform + CameraComponent
-- [ ] Hierarchy refreshes on tab switch
-- [ ] Hierarchy auto-rebuilds after any structural change (add/delete/reparent)
-- [ ] Integrate into left panel of SceneEditorApp
+- [x] Hierarchy refreshes on tab switch
+- [x] Hierarchy auto-rebuilds after any structural change (add/delete/reparent)
+- [x] Integrate into left panel of SceneEditorApp
 
 ### Files
 - **Create**: `src/HierarchyPanel.bf`
