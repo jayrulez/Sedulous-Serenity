@@ -18,6 +18,12 @@ public class PropertyItem
 	public delegate void(Object) Setter ~ delete _;
 	public List<String> EnumValues ~ DeleteContainerAndItems!(_);
 
+	/// Cached editor control (owned by this item).
+	public UIElement EditorControl ~ delete _;
+
+	/// Back-reference to the owning PropertyGrid (non-owning).
+	public PropertyGrid OwnerGrid;
+
 	public this(StringView name, PropertyType type)
 	{
 		Name = new String(name);
@@ -41,6 +47,8 @@ public class PropertyItem
 
 	public void UpdateDisplayValue()
 	{
+		if (EditorControl != null) { RefreshEditorControl(); return; }
+
 		DisplayValue.Clear();
 		if (Getter != null)
 		{
@@ -53,6 +61,12 @@ public class PropertyItem
 			}
 		}
 	}
+
+	/// Virtual factory — return null to use built-in procedural rendering.
+	public virtual UIElement CreateEditorControl() => null;
+
+	/// Called by RefreshValues() to push getter data into the editor.
+	public virtual void RefreshEditorControl() {}
 }
 
 /// Property types for PropertyGrid.
@@ -88,6 +102,9 @@ public class PropertyGrid : Control
 	// Properties organized by category
 	private List<PropertyItem> mProperties = new .() ~ DeleteContainerAndItems!(_);
 	private List<PropertyCategory> mCategories = new .() ~ DeleteContainerAndItems!(_);
+
+	// Non-owning cache of editor controls (rebuilt by RebuildCategories)
+	private List<UIElement> mEditorControls = new .() ~ delete _;
 
 	// Layout
 	private float mRowHeight = 22;
@@ -213,6 +230,17 @@ public class PropertyGrid : Control
 	/// Event fired when a property value changes.
 	public EventAccessor<delegate void(PropertyGrid, PropertyItem)> PropertyChanged => mPropertyChanged;
 
+	/// Gets the name of the currently hovered category, or null if none.
+	public StringView? HoveredCategoryName
+	{
+		get
+		{
+			if (mHoveredCategoryIndex >= 0 && mHoveredCategoryIndex < mCategories.Count)
+				return mCategories[mHoveredCategoryIndex].Name;
+			return null;
+		}
+	}
+
 	/// Adds a property to the grid.
 	public PropertyItem AddProperty(StringView name, PropertyType type, StringView category = "General")
 	{
@@ -276,9 +304,35 @@ public class PropertyGrid : Control
 		return prop;
 	}
 
+	/// Public method for custom property items to notify value changes.
+	public void NotifyPropertyChanged(PropertyItem item)
+	{
+		mPropertyChanged.[Friend]Invoke(this, item);
+	}
+
+	/// Adds a pre-constructed PropertyItem (transfers ownership).
+	public void AddItem(PropertyItem item)
+	{
+		item.OwnerGrid = this;
+		let ctrl = item.CreateEditorControl();
+		if (ctrl != null)
+		{
+			item.EditorControl = ctrl;
+			ctrl.SetParent(this);
+			if (Context != null)
+				ctrl.OnAttachedToContext(Context);
+		}
+		mProperties.Add(item);
+		RebuildCategories();
+	}
+
 	/// Clears all properties.
 	public void Clear()
 	{
+		for (let prop in mProperties)
+			if (prop.EditorControl != null && Context != null)
+				prop.EditorControl.OnDetachedFromContext();
+		mEditorControls.Clear();
 		DeleteContainerAndItems!(mProperties);
 		mProperties = new .();
 		DeleteContainerAndItems!(mCategories);
@@ -314,6 +368,12 @@ public class PropertyGrid : Control
 			category.Properties.Add(prop);
 		}
 
+		// Rebuild editor control cache
+		mEditorControls.Clear();
+		for (let prop in mProperties)
+			if (prop.EditorControl != null)
+				mEditorControls.Add(prop.EditorControl);
+
 		InvalidateLayout();
 	}
 
@@ -323,6 +383,8 @@ public class PropertyGrid : Control
 	{
 		base.OnAttachedToContext(context);
 		mVerticalScrollBar.OnAttachedToContext(context);
+		for (let ctrl in mEditorControls)
+			ctrl.OnAttachedToContext(context);
 	}
 
 	/// Gets current theme colors for rendering (called each frame to support theme changes).
@@ -382,6 +444,8 @@ public class PropertyGrid : Control
 
 	public override void OnDetachedFromContext()
 	{
+		for (let ctrl in mEditorControls)
+			ctrl.OnDetachedFromContext();
 		mVerticalScrollBar.OnDetachedFromContext();
 		base.OnDetachedFromContext();
 	}
@@ -437,6 +501,51 @@ public class PropertyGrid : Control
 		}
 
 		mVerticalOffset = Math.Clamp(mVerticalOffset, 0, Math.Max(0, totalHeight - viewportHeight));
+
+		ArrangeEditorControls(contentBounds);
+	}
+
+	/// Positions editor controls at their value column rects.
+	private void ArrangeEditorControls(RectangleF contentBounds)
+	{
+		if (mEditorControls.Count == 0) return;
+
+		float contentWidth = contentBounds.Width;
+		if (mShowScrollBar) contentWidth -= mScrollBarThickness;
+
+		float y = contentBounds.Y - mVerticalOffset;
+
+		for (let cat in mCategories)
+		{
+			y += mCategoryHeight;
+
+			if (cat.IsExpanded)
+			{
+				for (let prop in cat.Properties)
+				{
+					if (prop.EditorControl != null)
+					{
+						let valueBounds = RectangleF(
+							contentBounds.X + mNameColumnWidth + 2,
+							y + 1,
+							contentWidth - mNameColumnWidth - 4,
+							mRowHeight - 2
+						);
+						prop.EditorControl.Measure(SizeConstraints.Exact(valueBounds.Width, valueBounds.Height));
+						prop.EditorControl.Arrange(valueBounds);
+					}
+					y += mRowHeight;
+				}
+			}
+			else
+			{
+				for (let prop in cat.Properties)
+				{
+					if (prop.EditorControl != null)
+						prop.EditorControl.Arrange(.(0, 0, 0, 0));
+				}
+			}
+		}
 	}
 
 	private float CalculateTotalHeight()
@@ -593,9 +702,17 @@ public class PropertyGrid : Control
 		ctx.DrawText(prop.Name, 12, .(bounds.X + 8, bounds.Y + (mRowHeight - 12) / 2), mPropertyNameColor);
 		ctx.PopClip();
 
-		// Property value
-		let valueBounds = RectangleF(bounds.X + mNameColumnWidth + 4, bounds.Y, bounds.Width - mNameColumnWidth - 4, mRowHeight);
-		RenderPropertyValue(ctx, valueBounds, prop, isEditing);
+		if (prop.EditorControl != null)
+		{
+			// Custom editor renders at its arranged position
+			prop.EditorControl.Render(ctx);
+		}
+		else
+		{
+			// Property value (built-in procedural rendering)
+			let valueBounds = RectangleF(bounds.X + mNameColumnWidth + 4, bounds.Y, bounds.Width - mNameColumnWidth - 4, mRowHeight);
+			RenderPropertyValue(ctx, valueBounds, prop, isEditing);
+		}
 
 		// Bottom border
 		ctx.DrawLine(.(bounds.X, bounds.Bottom - 1), .(bounds.Right, bounds.Bottom - 1), mPropertyBorderColor, 1);
@@ -777,11 +894,11 @@ public class PropertyGrid : Control
 			return;
 		}
 
-		// Property click
+		// Property click (skip properties with custom editors)
 		if (mHoveredPropertyIndex >= 0)
 		{
 			let prop = GetPropertyByGlobalIndex(mHoveredPropertyIndex);
-			if (prop != null)
+			if (prop != null && prop.EditorControl == null)
 			{
 				HandlePropertyClick(prop, point);
 			}
@@ -988,16 +1105,25 @@ public class PropertyGrid : Control
 			if (hit != null) return hit;
 		}
 
+		// Delegate to editor controls
+		for (let ctrl in mEditorControls)
+		{
+			let hit = ctrl.HitTest(point);
+			if (hit != null) return hit;
+		}
+
 		return this;
 	}
 
 	// === Visual Children ===
 
-	public override int VisualChildCount => 1;
+	public override int VisualChildCount => 1 + mEditorControls.Count;
 
 	public override UIElement GetVisualChild(int index)
 	{
 		if (index == 0) return mVerticalScrollBar;
+		let i = index - 1;
+		if (i < mEditorControls.Count) return mEditorControls[i];
 		return null;
 	}
 }

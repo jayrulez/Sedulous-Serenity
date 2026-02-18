@@ -235,6 +235,18 @@ public class FocusEventArgs : InputEventArgs
 	}
 }
 
+/// Event arguments for context menu opening events.
+/// Set Cancel to true to prevent the context menu from being shown.
+public class ContextMenuEventArgs
+{
+	/// The context menu that is about to be shown.
+	public ContextMenu Menu;
+	/// The control that owns the context menu.
+	public Control Owner;
+	/// Set to true to prevent the context menu from opening.
+	public bool Cancel;
+}
+
 /// Indicates whether the event should bubble up the tree.
 public enum RoutingStrategy
 {

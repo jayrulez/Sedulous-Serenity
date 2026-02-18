@@ -1,6 +1,7 @@
 using System;
 using Sedulous.Mathematics;
 using Sedulous.Drawing;
+using Sedulous.Foundation.Core;
 
 namespace Sedulous.GUI;
 
@@ -49,6 +50,7 @@ public abstract class Control : UIElement
 
 	// Context menu (owned by the control)
 	private ContextMenu mContextMenu ~ delete _;
+	private EventAccessor<delegate void(ContextMenuEventArgs)> mContextMenuOpening = new .() ~ delete _;
 
 	/// Creates a Control with focus enabled by default.
 	public this()
@@ -242,6 +244,9 @@ public abstract class Control : UIElement
 		}
 	}
 
+	/// Event fired before a context menu is shown. Set Cancel to true to prevent it.
+	public EventAccessor<delegate void(ContextMenuEventArgs)> ContextMenuOpening => mContextMenuOpening;
+
 	/// Updates the current control state based on flags.
 	protected void UpdateControlState()
 	{
@@ -432,11 +437,21 @@ public abstract class Control : UIElement
 
 			if (menu != null)
 			{
-				// Attach context menu to context if needed
-				if (menu.Context == null)
-					menu.OnAttachedToContext(Context);
-				// Show context menu on right-click
-				menu.Show(menuOwner, .(e.ScreenX, e.ScreenY));
+				// Fire ContextMenuOpening event to allow cancellation
+				let args = scope ContextMenuEventArgs();
+				args.Menu = menu;
+				args.Owner = menuOwner as Control;
+				args.Cancel = false;
+				mContextMenuOpening.[Friend]Invoke(args);
+
+				if (!args.Cancel)
+				{
+					// Attach context menu to context if needed
+					if (menu.Context == null)
+						menu.OnAttachedToContext(Context);
+					// Show context menu on right-click
+					menu.Show(menuOwner, .(e.ScreenX, e.ScreenY));
+				}
 				e.Handled = true;
 			}
 		}

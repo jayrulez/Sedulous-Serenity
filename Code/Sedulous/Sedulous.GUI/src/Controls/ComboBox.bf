@@ -376,8 +376,9 @@ public class ComboBox : Control, IPopupOwner
 		mDropDownList.Measure(SizeConstraints.Unconstrained);
 		let listDesired = mDropDownList.DesiredSize;
 
-		// Dropdown height is clamped to max
-		let dropdownHeight = Math.Min(listDesired.Height, mDropDownMaxHeight);
+		// Dropdown height is clamped to max (account for container border)
+		let borderExtra = mDropDownContainer.BorderThickness.TotalVertical;
+		let dropdownHeight = Math.Min(listDesired.Height + borderExtra, mDropDownMaxHeight);
 		mDropDownContainer.Height = dropdownHeight;
 		mDropDownContainer.Width = Math.Max(listDesired.Width, constraints.MaxWidth != SizeConstraints.Infinity ? constraints.MaxWidth : 150);
 

@@ -131,7 +131,7 @@ public class ContextMenu : Control, IPopupOwner
 		mOpened.[Friend]Invoke(this);
 
 		// Request focus
-		Context.FocusManager?.SetFocus(this);
+		Context?.FocusManager?.SetFocus(this);
 	}
 
 	/// Hides the context menu.
