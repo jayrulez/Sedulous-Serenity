@@ -113,6 +113,9 @@ public class PropertyGrid : Control
 	private float mVerticalOffset = 0;
 	private float mSplitterWidth = 4;
 
+	// Batch update (suspends RebuildCategories during bulk adds)
+	private bool mIsBatchUpdate = false;
+
 	// State
 	private int mHoveredPropertyIndex = -1;
 	private int mHoveredCategoryIndex = -1;
@@ -342,6 +345,19 @@ public class PropertyGrid : Control
 		InvalidateLayout();
 	}
 
+	/// Suspends category rebuilds during bulk property additions.
+	public void BeginUpdate()
+	{
+		mIsBatchUpdate = true;
+	}
+
+	/// Resumes category rebuilds and performs a single rebuild.
+	public void EndUpdate()
+	{
+		mIsBatchUpdate = false;
+		RebuildCategories();
+	}
+
 	/// Refreshes all property values from their getters.
 	public void RefreshValues()
 	{
@@ -352,6 +368,9 @@ public class PropertyGrid : Control
 	/// Rebuilds the category structure.
 	private void RebuildCategories()
 	{
+		if (mIsBatchUpdate)
+			return;
+
 		DeleteContainerAndItems!(mCategories);
 		mCategories = new .();
 

@@ -7,6 +7,7 @@ using Sedulous.Mathematics;
 using Sedulous.Shaders;
 
 /// Sky rendering mode.
+[Reflect]
 public enum SkyMode
 {
 	/// Procedural sky using Preetham/Hosek model.

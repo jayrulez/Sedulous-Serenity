@@ -1,10 +1,10 @@
 string %_type {"Sedulous.Framework.Scenes.SceneResource"}
 int32 %_version {1}
-string %_id {"1f2b032a-0498-45b7-ba12-5c5450372f80"}
+string %_id {"e659b039-6121-4e1a-81ed-680a720fa58e"}
 string %_name {""}
 int32 %sceneVersion {1}
 string %sceneName {"Scene 1"}
-int32 %entityCount {3}
+int32 %entityCount {1}
 Obj_ %entities {
 	Obj_ %e0 {
 		string %name {"Directional Light"}
@@ -19,50 +19,10 @@ Obj_ %entities {
 		}
 		int32 %parent {-1}
 	}
-	Obj_ %e1 {
-		string %name {"Camera"}
-		float[3] %position {
-			{0, 0, 0}
-		}
-		float[4] %rotation {
-			{0, 0, 0, 1}
-		}
-		float[3] %scale {
-			{1, 1, 1}
-		}
-		int32 %parent {-1}
-	}
-	Obj_ %e2 {
-		string %name {"Entity"}
-		float[3] %position {
-			{0, 0, 0}
-		}
-		float[4] %rotation {
-			{0, 0, 0, 1}
-		}
-		float[3] %scale {
-			{1, 1, 1}
-		}
-		int32 %parent {-1}
-	}
 }
 Obj_ %components {
 	Obj_ %CameraComponent {
-		int32 %count {1}
-		Obj_ %c0 {
-			int32 %entity {1}
-			int32 %_version {2}
-			int32 %projection {0}
-			float %fieldOfView {0.785398185}
-			float %aspectRatio {1.77777779}
-			float %nearPlane {0.100000001}
-			float %farPlane {1000}
-			float %orthoWidth {10}
-			float %orthoHeight {10}
-			int32 %priority {0}
-			bool %active {true}
-			bool %isMainCamera {true}
-		}
+		int32 %count {0}
 	}
 	Obj_ %SpriteComponent {
 		int32 %count {0}
@@ -77,16 +37,7 @@ Obj_ %components {
 		int32 %count {0}
 	}
 	Obj_ %MeshRendererComponent {
-		int32 %count {1}
-		Obj_ %c0 {
-			int32 %entity {2}
-			int32 %_version {3}
-			Obj_ %mesh {
-				string %_id {"00000000-0000-0000-0000-000000000000"}
-			}
-			int32 %materialCount {0}
-			bool %enabled {true}
-		}
+		int32 %count {0}
 	}
 	Obj_ %TrailEmitterComponent {
 		int32 %count {0}
@@ -133,9 +84,30 @@ Obj_ %modules {
 	}
 	Obj_ %RenderSceneModule {
 		float[3] %ambientColor {
-			{1, 1, 0}
+			{1, 1, 1}
 		}
-		float %ambientIntensity {0.5}
-		float %exposure {0.5}
+		float %ambientIntensity {1}
+		float %exposure {1}
+		int32 %skyMode {1}
+		float[3] %sunDirection {
+			{-0.50507623, 0.808121979, 0.30304575}
+		}
+		float %sunIntensity {20}
+		float[3] %sunColor {
+			{1, 0.949999988, 0.899999976}
+		}
+		float %atmosphereDensity {1}
+		float[3] %zenithColor {
+			{0.300000012, 0.5, 0.850000024}
+		}
+		float[3] %horizonColor {
+			{0.800000012, 0.850000024, 0.899999976}
+		}
+		float[3] %groundColor {
+			{0.300000012, 0.25, 0.200000003}
+		}
+		float[3] %solidSkyColor {
+			{0.528999984, 0.808000028, 0.921999991}
+		}
 	}
 }

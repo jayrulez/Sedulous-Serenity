@@ -409,7 +409,7 @@ float4 main(FragmentInput input) : SV_Target
         float3 prefilteredColor = PrefilteredMap.SampleLevel(IBLSampler, R7, roughness * 4.0).rgb;
         float2 envBRDF = BRDFLutTexture.Sample(IBLSampler, float2(NdotV, roughness)).rg;
         float3 specularIBL = prefilteredColor * (F0 * envBRDF.x + envBRDF.y);
-        float3 ambient = (kD_ibl * diffuseIBL + specularIBL) * AmbientIntensity * ao;
+        float3 ambient = (kD_ibl * diffuseIBL + specularIBL + AmbientColor * albedo.rgb) * AmbientIntensity * ao;
 
         // Direct lighting
         float3 Lo = float3(0.0, 0.0, 0.0);
@@ -443,7 +443,7 @@ float4 main(FragmentInput input) : SV_Target
         float3 prefilteredColor = PrefilteredMap.SampleLevel(IBLSampler, R8, roughness * 4.0).rgb;
         float2 envBRDF = BRDFLutTexture.Sample(IBLSampler, float2(NdotV, roughness)).rg;
         float3 specularIBL = prefilteredColor * (F0 * envBRDF.x + envBRDF.y);
-        float3 ambient = (kD_ibl * diffuseIBL + specularIBL) * AmbientIntensity * ao;
+        float3 ambient = (kD_ibl * diffuseIBL + specularIBL + AmbientColor * albedo.rgb) * AmbientIntensity * ao;
 
         // Direct lighting with shadow separation
         float3 shadowLit = float3(0.0, 0.0, 0.0);

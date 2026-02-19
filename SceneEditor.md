@@ -279,16 +279,24 @@ PropertyGrid stays in Sedulous.GUI as a generic control. Engine-specific propert
 
 ### Checklist
 
-- [ ] When selection empty, inspector shows "Scene Settings":
-  - Scene name (editable)
+- [x] When selection empty, inspector shows "Scene Settings":
+  - Scene name (read-only)
   - Ambient Color (3 floats)
-  - Ambient Intensity (float slider)
-  - Exposure (float slider)
-- [ ] Properties map to `mRenderSubsystem.GetWorld(tab.Scene).AmbientColor` / `.AmbientIntensity` / `.Exposure`
-- [ ] Changes apply immediately to viewport
+  - Ambient Intensity (float)
+  - Exposure (float)
+- [x] Properties map to `mRenderSubsystem.GetWorld(tab.Scene).AmbientColor` / `.AmbientIntensity` / `.Exposure`
+- [x] Changes apply immediately to viewport
+- [x] Reflection-based `[ModuleSettings]` system — any module settings class auto-discovered and shown in inspector
+- [x] Physics settings (Collision Steps) also displayed via `PhysicsModuleSettings`
+- [x] Module settings serialized in `.scene` files (persist across save/load)
+- [x] `[Component]` auto-discovery via comptime `__CreateSerializer` — eliminates manual serializer registration
+- [x] `AlwaysIncludeUser` on `ComponentAttribute` and `ModuleSettingsAttribute` — no manual `[AlwaysInclude]` needed
 
 ### Files
-- **Modify**: `src/InspectorPanel.bf`
+- **Modified**: `src/InspectorPanel.bf`, `src/SceneEditorApp.bf`, `BeefProj.toml`
+- **Created**: `Sedulous.Framework.Scenes/src/Components/ComponentAttribute.bf`, `ModuleSettingsAttribute.bf`, `PropertyAttribute.bf`
+- **Created**: `Sedulous.Framework.Render/src/RenderModuleSettings.bf`, `Sedulous.Framework.Physics/src/PhysicsModuleSettings.bf`
+- **Modified**: `Sedulous.Framework.Scenes/src/Scene.bf` (module settings + component auto-discovery)
 
 ---
 

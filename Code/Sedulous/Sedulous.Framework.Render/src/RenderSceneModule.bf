@@ -78,6 +78,21 @@ class RenderSceneModule : SceneModule
 			mWorld.AmbientColor = settings.AmbientColor;
 			mWorld.AmbientIntensity = settings.AmbientIntensity;
 			mWorld.Exposure = settings.Exposure;
+
+			// Apply sky settings
+			if (let skyFeature = mSubsystem.RenderSystem?.GetFeature<SkyFeature>())
+			{
+				skyFeature.Mode = settings.SkyMode;
+				var skyParams = ref skyFeature.SkyParams;
+				skyParams.SunDirection = settings.SunDirection;
+				skyParams.SunIntensity = settings.SunIntensity;
+				skyParams.SunColor = settings.SunColor;
+				skyParams.AtmosphereDensity = settings.AtmosphereDensity;
+				skyParams.ZenithColor = settings.ZenithColor;
+				skyParams.HorizonColor = settings.HorizonColor;
+				skyParams.GroundColor = settings.GroundColor;
+				skyParams.SolidColor = settings.SolidSkyColor;
+			}
 		}
 	}
 

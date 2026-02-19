@@ -182,6 +182,8 @@ class InspectorPanel
 		if (scene == null)
 			return;
 
+		mPropertyGrid.BeginUpdate();
+
 		// Scene name (read-only)
 		mPropertyGrid.AddStringProperty("Name", "Scene",
 			new () => new String(scene.Name),
@@ -197,6 +199,8 @@ class InspectorPanel
 					AddModuleSettingsProperties(settings, settingsType, attr.DisplayName);
 			}
 		}
+
+		mPropertyGrid.EndUpdate();
 	}
 
 	/// Adds properties for a module settings class using reflection over its [Property]-tagged fields.
@@ -279,6 +283,42 @@ class InspectorPanel
 				item.SetCategory(category);
 				mPropertyGrid.AddItem(item);
 			}
+			else if (fieldType.IsEnum)
+			{
+				let enumType = fieldType;
+				let enumSize = enumType.Size;
+
+				let names = scope List<StringView>();
+				for (var e in Enum.GetEnumerator(enumType))
+					names.Add(e.name);
+
+				let item = new EnumPropertyItem(field.Name, names,
+					new () =>
+					{
+						int64 rawVal = 0;
+						Internal.MemCpy(&rawVal, (uint8*)objPtr + offset, enumSize);
+						for (var e in Enum.GetEnumerator(enumType))
+						{
+							if (e.value == rawVal)
+								return new String(e.name);
+						}
+						return new String("???");
+					},
+					new (name) =>
+					{
+						for (var e in Enum.GetEnumerator(enumType))
+						{
+							if (StringView(e.name) == name)
+							{
+								var val = e.value;
+								Internal.MemCpy((uint8*)objPtr + offset, &val, enumSize);
+								return;
+							}
+						}
+					});
+				item.SetCategory(category);
+				mPropertyGrid.AddItem(item);
+			}
 		}
 	}
 
@@ -289,7 +329,7 @@ class InspectorPanel
 		if (scene == null)
 			return;
 
-		// Render settings -> RenderWorld
+		// Render settings -> RenderWorld + SkyFeature
 		if (let settings = scene.GetModuleSettings<RenderModuleSettings>())
 		{
 			let world = mRenderSubsystem?.GetWorld(scene);
@@ -298,6 +338,20 @@ class InspectorPanel
 				world.AmbientColor = settings.AmbientColor;
 				world.AmbientIntensity = settings.AmbientIntensity;
 				world.Exposure = settings.Exposure;
+			}
+
+			if (let skyFeature = mRenderSubsystem?.RenderSystem?.GetFeature<SkyFeature>())
+			{
+				skyFeature.Mode = settings.SkyMode;
+				var skyParams = ref skyFeature.SkyParams;
+				skyParams.SunDirection = settings.SunDirection;
+				skyParams.SunIntensity = settings.SunIntensity;
+				skyParams.SunColor = settings.SunColor;
+				skyParams.AtmosphereDensity = settings.AtmosphereDensity;
+				skyParams.ZenithColor = settings.ZenithColor;
+				skyParams.HorizonColor = settings.HorizonColor;
+				skyParams.GroundColor = settings.GroundColor;
+				skyParams.SolidColor = settings.SolidSkyColor;
 			}
 		}
 
