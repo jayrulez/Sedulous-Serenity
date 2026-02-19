@@ -14,7 +14,7 @@ using static Sedulous.Mathematics.MathSerializerExtensions;
 class RenderModuleSettings : ISerializable
 {
 	// Ambient lighting
-	[Property] public Vector3 AmbientColor = .(0.15f, 0.15f, 0.2f);
+	[Property(.Color)] public Vector3 AmbientColor = .(0.15f, 0.15f, 0.2f);
 	[Property] public float AmbientIntensity = 0.5f;
 	[Property] public float Exposure = 1.0f;
 
@@ -22,12 +22,12 @@ class RenderModuleSettings : ISerializable
 	[Property] public SkyMode SkyMode = .Procedural;
 	[Property] public Vector3 SunDirection = Vector3.Normalize(.(-0.5f, 0.8f, 0.3f));
 	[Property] public float SunIntensity = 20.0f;
-	[Property] public Vector3 SunColor = .(1.0f, 0.95f, 0.9f);
+	[Property(.Color)] public Vector3 SunColor = .(1.0f, 0.95f, 0.9f);
 	[Property] public float AtmosphereDensity = 1.0f;
-	[Property] public Vector3 ZenithColor = .(0.3f, 0.5f, 0.85f);
-	[Property] public Vector3 HorizonColor = .(0.8f, 0.85f, 0.9f);
-	[Property] public Vector3 GroundColor = .(0.3f, 0.25f, 0.2f);
-	[Property] public Vector3 SolidSkyColor = .(0.529f, 0.808f, 0.922f);
+	[Property(.Color)] public Vector3 ZenithColor = .(0.3f, 0.5f, 0.85f);
+	[Property(.Color)] public Vector3 HorizonColor = .(0.8f, 0.85f, 0.9f);
+	[Property(.Color)] public Vector3 GroundColor = .(0.3f, 0.25f, 0.2f);
+	[Property(.Color)] public Vector3 SolidSkyColor = .(0.529f, 0.808f, 0.922f);
 
 	public int32 SerializationVersion => 1;
 

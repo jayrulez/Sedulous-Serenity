@@ -210,20 +210,21 @@ class InspectorPanel
 
 		for (let field in settingsType.GetFields(.Instance | .Public))
 		{
-			if (!field.HasCustomAttribute<PropertyAttribute>())
+			if (field.GetCustomAttribute<PropertyAttribute>() case .Err)
 				continue;
 
+			let attr = field.GetCustomAttribute<PropertyAttribute>().Get();
 			let fieldType = field.FieldType;
 			let offset = field.MemberOffset;
 
 			if (fieldType == typeof(float))
 			{
 				mPropertyGrid.AddFloatProperty(field.Name, category,
-					new [=objPtr, =offset]() =>
+					new () =>
 					{
 						return new box *((float*)((uint8*)objPtr + offset));
 					},
-					new [=objPtr, =offset](val) =>
+					new (val) =>
 					{
 						if (let f = val as float?)
 							*((float*)((uint8*)objPtr + offset)) = f;
@@ -232,11 +233,11 @@ class InspectorPanel
 			else if (fieldType == typeof(int32))
 			{
 				mPropertyGrid.AddIntProperty(field.Name, category,
-					new [=objPtr, =offset]() =>
+					new () =>
 					{
 						return new box (int)*((int32*)((uint8*)objPtr + offset));
 					},
-					new [=objPtr, =offset](val) =>
+					new (val) =>
 					{
 						if (let i = val as int?)
 							*((int32*)((uint8*)objPtr + offset)) = (int32)i;
@@ -245,24 +246,38 @@ class InspectorPanel
 			else if (fieldType == typeof(bool))
 			{
 				mPropertyGrid.AddBoolProperty(field.Name, category,
-					new [=objPtr, =offset]() =>
+					new () =>
 					{
 						return new box *((bool*)((uint8*)objPtr + offset));
 					},
-					new [=objPtr, =offset](val) =>
+					new (val) =>
 					{
 						if (let b = val as bool?)
 							*((bool*)((uint8*)objPtr + offset)) = b;
 					});
 			}
-			else if (fieldType == typeof(Vector3))
+			else if (fieldType == typeof(Vector3) && attr.Editor == .Color)
 			{
-				let item = new Vector3PropertyItem(field.Name,
-					new [=objPtr, =offset]() =>
+				let item = new ColorPropertyItem(field.Name,
+					new () =>
 					{
 						return *((Vector3*)((uint8*)objPtr + offset));
 					},
-					new [=objPtr, =offset](v) =>
+					new (v) =>
+					{
+						*((Vector3*)((uint8*)objPtr + offset)) = v;
+					});
+				item.SetCategory(category);
+				mPropertyGrid.AddItem(item);
+			}
+			else if (fieldType == typeof(Vector3))
+			{
+				let item = new Vector3PropertyItem(field.Name,
+					new () =>
+					{
+						return *((Vector3*)((uint8*)objPtr + offset));
+					},
+					new (v) =>
 					{
 						*((Vector3*)((uint8*)objPtr + offset)) = v;
 					});
@@ -272,11 +287,11 @@ class InspectorPanel
 			else if (fieldType == typeof(Vector4))
 			{
 				let item = new Vector4PropertyItem(field.Name,
-					new [=objPtr, =offset]() =>
+					new () =>
 					{
 						return *((Vector4*)((uint8*)objPtr + offset));
 					},
-					new [=objPtr, =offset](v) =>
+					new (v) =>
 					{
 						*((Vector4*)((uint8*)objPtr + offset)) = v;
 					});

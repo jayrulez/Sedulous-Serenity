@@ -88,7 +88,7 @@ Obj_ %modules {
 		}
 		float %ambientIntensity {1}
 		float %exposure {1}
-		int32 %skyMode {1}
+		int32 %skyMode {2}
 		float[3] %sunDirection {
 			{-0.50507623, 0.808121979, 0.30304575}
 		}
@@ -98,16 +98,16 @@ Obj_ %modules {
 		}
 		float %atmosphereDensity {1}
 		float[3] %zenithColor {
-			{0.300000012, 0.5, 0.850000024}
+			{0.866666675, 0.0612924881, 0.410288006}
 		}
 		float[3] %horizonColor {
-			{0.800000012, 0.850000024, 0.899999976}
+			{1, 0, 0.899999976}
 		}
 		float[3] %groundColor {
-			{0.300000012, 0.25, 0.200000003}
+			{0.872222185, 0.449993789, 0.0277656503}
 		}
 		float[3] %solidSkyColor {
-			{0.528999984, 0.808000028, 0.921999991}
+			{0.889468849, 0.261843145, 0.911111116}
 		}
 	}
 }
