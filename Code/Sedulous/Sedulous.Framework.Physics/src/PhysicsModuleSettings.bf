@@ -2,6 +2,7 @@ namespace Sedulous.Framework.Physics;
 
 using Sedulous.Serialization;
 using Sedulous.Framework.Scenes;
+using System;
 
 /// Persistent settings for the physics scene module.
 /// Auto-discovered by Scene and serialized in .scene files.
@@ -11,6 +12,8 @@ class PhysicsModuleSettings : ISerializable
 	[Property] public int32 CollisionSteps = 1;
 
 	public int32 SerializationVersion => 1;
+
+	public this(){}
 
 	public SerializationResult Serialize(Serializer s)
 	{

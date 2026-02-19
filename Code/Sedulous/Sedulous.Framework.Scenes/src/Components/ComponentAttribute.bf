@@ -11,13 +11,13 @@ using System.Reflection;
 /// For types that also implement ISerializableComponent, a static factory method
 /// (__CreateSerializer) is generated at compile time via IOnTypeInit. Scene uses
 /// this to auto-register component serializers without manual per-type calls.
-[AttributeUsage(.Struct, .ReflectAttribute, ReflectUser = .NonStaticFields | .StaticMethods)]
+[AttributeUsage(.Struct, .ReflectAttribute, ReflectUser = .All, AlwaysIncludeUser = .AssumeInstantiated | .IncludeAllMethods)]
 struct ComponentAttribute : Attribute, IOnTypeInit
 {
 	[Comptime]
 	public void OnTypeInit(Type type, Self* prev)
 	{
-		if (type.IsSubtypeOf(typeof(ISerializableComponent)))
+		if (type.ImplementsInterface(typeof(ISerializableComponent)))
 		{
 			Compiler.EmitTypeBody(type, """
 				[Reflect]

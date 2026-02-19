@@ -3,6 +3,7 @@ namespace Sedulous.Framework.Render;
 using Sedulous.Mathematics;
 using Sedulous.Serialization;
 using Sedulous.Framework.Scenes;
+using System;
 
 using static Sedulous.Mathematics.MathSerializerExtensions;
 
@@ -16,6 +17,11 @@ class RenderModuleSettings : ISerializable
 	[Property] public float Exposure = 1.0f;
 
 	public int32 SerializationVersion => 1;
+
+	public this()
+	{
+
+	}
 
 	public SerializationResult Serialize(Serializer s)
 	{

@@ -7,7 +7,7 @@ using System;
 /// and their data persists in .scene files.
 /// The name parameter is used as the serialization key in the file.
 /// The displayName parameter is used as the category label in the editor inspector.
-[AttributeUsage(.Class, .ReflectAttribute, ReflectUser = .NonStaticFields | .DefaultConstructor)]
+[AttributeUsage(.Class, .ReflectAttribute, ReflectUser = .NonStaticFields | .Constructors | .All, AlwaysIncludeUser = .AssumeInstantiated)]
 struct ModuleSettingsAttribute : Attribute
 {
 	public String Name;

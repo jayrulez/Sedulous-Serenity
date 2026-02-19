@@ -376,7 +376,7 @@ public class Scene : IDisposable, ISerializable
 		sSerializableComponentTypes = new List<Type>();
 		for (let type in Type.Types)
 		{
-			if (type.IsStruct && type.HasCustomAttribute<ComponentAttribute>() && type.IsSubtypeOf(typeof(ISerializableComponent)))
+			if (type.IsStruct && type.HasCustomAttribute<ComponentAttribute>() && type.ImplementsInterface(typeof(ISerializableComponent)))
 				sSerializableComponentTypes.Add(type);
 		}
 	}
@@ -392,7 +392,7 @@ public class Scene : IDisposable, ISerializable
 			{
 				if (method.Name == "__CreateSerializer")
 				{
-					if (method.Invoke(Variant(), .()) case .Ok(var result))
+					if (method.Invoke(Variant()) case .Ok(var result))
 					{
 						let obj = result.Get<Object>();
 						if (let serializer = obj as IComponentSerializer)
