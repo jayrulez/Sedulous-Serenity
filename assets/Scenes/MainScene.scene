@@ -1,0 +1,22 @@
+string %_type {"Sedulous.Framework.Scenes.SceneResource"}
+int32 %_version {1}
+string %_id {"55135bb1-170f-4fb2-88a4-7c73c0f3f799"}
+string %_name {""}
+int32 %sceneVersion {1}
+string %sceneName {"Scene 1"}
+int32 %entityCount {1}
+Obj_ %entities {
+	Obj_ %e0 {
+		string %name {"Directional Light"}
+		float[3] %position {
+			{0, 10, 0}
+		}
+		float[4] %rotation {
+			{-0.464521378, 0.217117399, 0.118611783, 0.85030061}
+		}
+		float[3] %scale {
+			{1, 1, 1}
+		}
+		int32 %parent {-1}
+	}
+}

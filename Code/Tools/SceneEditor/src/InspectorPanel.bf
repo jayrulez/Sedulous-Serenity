@@ -6,7 +6,11 @@ using System.Reflection;
 using Sedulous.Mathematics;
 using Sedulous.GUI;
 using Sedulous.Framework.Scenes;
+using Sedulous.Framework.Render;
+using Sedulous.Framework.Physics;
+using Sedulous.Render;
 using Sedulous.Resources;
+using Sedulous.Serialization;
 
 /// Encapsulates the inspector panel showing selected entity properties.
 class InspectorPanel
@@ -19,6 +23,10 @@ class InspectorPanel
 	// Current state
 	private SceneTab mCurrentTab;
 	private EntityId mCurrentEntity = .Invalid;
+	private bool mShowingSceneSettings = false;
+
+	// Render access
+	private RenderSubsystem mRenderSubsystem;
 
 	// Component type discovery
 	private static List<Type> sComponentTypes ~ delete _;
@@ -30,8 +38,9 @@ class InspectorPanel
 	/// The root UI element to add to the layout.
 	public Grid Root => mRoot;
 
-	public this()
+	public this(RenderSubsystem renderSubsystem)
 	{
+		mRenderSubsystem = renderSubsystem;
 		BuildUI();
 	}
 
@@ -63,6 +72,8 @@ class InspectorPanel
 				if (mCurrentTab != null)
 				{
 					mCurrentTab.MarkDirty();
+					if (mShowingSceneSettings)
+						SyncModuleSettingsToRuntime(mCurrentTab);
 					OnPropertyChanged?.Invoke();
 				}
 			});
@@ -94,12 +105,34 @@ class InspectorPanel
 	{
 		mCurrentTab = tab;
 
-		if (tab == null || tab.SelectedEntities.Count == 0)
+		if (tab == null)
 		{
 			mCurrentEntity = .Invalid;
+			mShowingSceneSettings = false;
 			mPropertyGrid.Clear();
 			mHeaderLabel.ContentText = "Inspector";
 			return;
+		}
+
+		if (tab.SelectedEntities.Count == 0)
+		{
+			// No entity selected — show scene settings
+			mCurrentEntity = .Invalid;
+			if (mShowingSceneSettings)
+			{
+				mPropertyGrid.RefreshValues();
+				return;
+			}
+			mShowingSceneSettings = true;
+			BuildSceneSettings(tab);
+			return;
+		}
+
+		// Entity selected — switch out of scene settings mode if needed
+		if (mShowingSceneSettings)
+		{
+			mShowingSceneSettings = false;
+			mCurrentEntity = .Invalid;  // Force rebuild
 		}
 
 		let entity = tab.SelectedEntities[0];
@@ -133,8 +166,148 @@ class InspectorPanel
 	{
 		mCurrentTab = null;
 		mCurrentEntity = .Invalid;
+		mShowingSceneSettings = false;
 		mPropertyGrid.Clear();
 		mHeaderLabel.ContentText = "Inspector";
+	}
+
+	// ==================== Scene Settings ====================
+
+	private void BuildSceneSettings(SceneTab tab)
+	{
+		mPropertyGrid.Clear();
+		mHeaderLabel.ContentText = "Scene Settings";
+
+		let scene = tab.Scene;
+		if (scene == null)
+			return;
+
+		// Scene name (read-only)
+		mPropertyGrid.AddStringProperty("Name", "Scene",
+			new () => new String(scene.Name),
+			null);
+
+		// Module settings via reflection
+		for (let settingsType in Scene.SettingsTypes)
+		{
+			if (settingsType.GetCustomAttribute<ModuleSettingsAttribute>() case .Ok(let attr))
+			{
+				let settings = scene.GetModuleSettings(settingsType);
+				if (settings != null)
+					AddModuleSettingsProperties(settings, settingsType, attr.DisplayName);
+			}
+		}
+	}
+
+	/// Adds properties for a module settings class using reflection over its [Property]-tagged fields.
+	private void AddModuleSettingsProperties(ISerializable settings, Type settingsType, StringView category)
+	{
+		let objPtr = Internal.UnsafeCastToPtr(settings);
+
+		for (let field in settingsType.GetFields(.Instance | .Public))
+		{
+			if (!field.HasCustomAttribute<PropertyAttribute>())
+				continue;
+
+			let fieldType = field.FieldType;
+			let offset = field.MemberOffset;
+
+			if (fieldType == typeof(float))
+			{
+				mPropertyGrid.AddFloatProperty(field.Name, category,
+					new [=objPtr, =offset]() =>
+					{
+						return new box *((float*)((uint8*)objPtr + offset));
+					},
+					new [=objPtr, =offset](val) =>
+					{
+						if (let f = val as float?)
+							*((float*)((uint8*)objPtr + offset)) = f;
+					});
+			}
+			else if (fieldType == typeof(int32))
+			{
+				mPropertyGrid.AddIntProperty(field.Name, category,
+					new [=objPtr, =offset]() =>
+					{
+						return new box (int)*((int32*)((uint8*)objPtr + offset));
+					},
+					new [=objPtr, =offset](val) =>
+					{
+						if (let i = val as int?)
+							*((int32*)((uint8*)objPtr + offset)) = (int32)i;
+					});
+			}
+			else if (fieldType == typeof(bool))
+			{
+				mPropertyGrid.AddBoolProperty(field.Name, category,
+					new [=objPtr, =offset]() =>
+					{
+						return new box *((bool*)((uint8*)objPtr + offset));
+					},
+					new [=objPtr, =offset](val) =>
+					{
+						if (let b = val as bool?)
+							*((bool*)((uint8*)objPtr + offset)) = b;
+					});
+			}
+			else if (fieldType == typeof(Vector3))
+			{
+				let item = new Vector3PropertyItem(field.Name,
+					new [=objPtr, =offset]() =>
+					{
+						return *((Vector3*)((uint8*)objPtr + offset));
+					},
+					new [=objPtr, =offset](v) =>
+					{
+						*((Vector3*)((uint8*)objPtr + offset)) = v;
+					});
+				item.SetCategory(category);
+				mPropertyGrid.AddItem(item);
+			}
+			else if (fieldType == typeof(Vector4))
+			{
+				let item = new Vector4PropertyItem(field.Name,
+					new [=objPtr, =offset]() =>
+					{
+						return *((Vector4*)((uint8*)objPtr + offset));
+					},
+					new [=objPtr, =offset](v) =>
+					{
+						*((Vector4*)((uint8*)objPtr + offset)) = v;
+					});
+				item.SetCategory(category);
+				mPropertyGrid.AddItem(item);
+			}
+		}
+	}
+
+	/// Pushes module settings values to the runtime systems for live preview.
+	private void SyncModuleSettingsToRuntime(SceneTab tab)
+	{
+		let scene = tab.Scene;
+		if (scene == null)
+			return;
+
+		// Render settings -> RenderWorld
+		if (let settings = scene.GetModuleSettings<RenderModuleSettings>())
+		{
+			let world = mRenderSubsystem?.GetWorld(scene);
+			if (world != null)
+			{
+				world.AmbientColor = settings.AmbientColor;
+				world.AmbientIntensity = settings.AmbientIntensity;
+				world.Exposure = settings.Exposure;
+			}
+		}
+
+		// Physics settings -> module
+		if (let settings = scene.GetModuleSettings<PhysicsModuleSettings>())
+		{
+			let module = scene.GetModule<PhysicsSceneModule>();
+			if (module != null)
+				module.CollisionSteps = settings.CollisionSteps;
+		}
 	}
 
 	// ==================== Property Building ====================

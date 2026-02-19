@@ -11,7 +11,6 @@ using System;
 using System.IO;
 using Sedulous.Mathematics;
 using Sedulous.Shell;
-using Sedulous.Framework.Animation;
 namespace SceneEditor;
 
 /// Scene Editor Application
@@ -214,7 +213,7 @@ class SceneEditorApp : Application
 		mViewportContainer.AddChild(mDropIndicator);
 
 		// Right: Inspector panel
-		mInspectorPanel = new InspectorPanel();
+		mInspectorPanel = new InspectorPanel(mRenderSubsystem);
 		mInspectorPanel.OnPropertyChanged = new => OnInspectorPropertyChanged;
 		mInnerSplit.AddChild(mInspectorPanel.Root);
 
@@ -270,18 +269,6 @@ class SceneEditorApp : Application
 
 	private static StringView[?] sSceneFilter = .("Scene Files|scene");
 
-	/// Registers all known component types on a SceneResource for serialization.
-	private void RegisterComponentTypes(SceneResource resource)
-	{
-		resource.RegisterComponentType<LightComponent>();
-		resource.RegisterComponentType<CameraComponent>();
-		resource.RegisterComponentType<MeshRendererComponent>();
-		resource.RegisterComponentType<SkinnedMeshRendererComponent>();
-		resource.RegisterComponentType<SkeletalAnimationComponent>();
-		resource.RegisterComponentType<SpriteComponent>();
-		resource.RegisterComponentType<ParticleEmitterComponent>();
-	}
-
 	private void NewScene()
 	{
 		// Generate a unique name
@@ -305,14 +292,8 @@ class SceneEditorApp : Application
 		light.CastsShadows = true;
 		tab.Scene.SetComponent<LightComponent>(lightEntity, light);
 
-		// Set up default environment on the RenderWorld
-		let world = mRenderSubsystem.GetWorld(tab.Scene);
-		if (world != null)
-		{
-			world.AmbientColor = .(0.15f, 0.15f, 0.2f);
-			world.AmbientIntensity = 0.5f;
-			world.Exposure = 1.0f;
-		}
+		// Default environment comes from RenderModuleSettings defaults,
+		// applied by RenderSceneModule.OnSceneCreate during CreateScene above.
 
 		// Add tab to list and UI
 		tab.MarkDirty();
@@ -345,7 +326,6 @@ class SceneEditorApp : Application
 		}
 
 		let resource = new SceneResource();
-		RegisterComponentTypes(resource);
 
 		if (resource.Load(path) case .Err)
 		{
@@ -358,7 +338,9 @@ class SceneEditorApp : Application
 		let scene = resource.TakeScene();
 		delete resource;
 
-		// Register scene with SceneSubsystem (fires ISceneAware → RenderSubsystem creates RenderWorld)
+		// Register scene with SceneSubsystem (fires ISceneAware → RenderSubsystem creates RenderWorld).
+		// Module settings were already populated during deserialization above.
+		// Modules read from settings in OnSceneCreate when they are added here.
 		mSceneSubsystem.AddScene(scene);
 
 		// Create tab
@@ -418,7 +400,6 @@ class SceneEditorApp : Application
 	{
 		let resource = new SceneResource(tab.Scene, false);
 		resource.Id = tab.ResourceId;
-		RegisterComponentTypes(resource);
 
 		if (resource.SaveToFile(path) case .Err)
 		{
