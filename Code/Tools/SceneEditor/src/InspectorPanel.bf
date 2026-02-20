@@ -11,6 +11,8 @@ using Sedulous.Framework.Physics;
 using Sedulous.Render;
 using Sedulous.Resources;
 using Sedulous.Serialization;
+using Sedulous.Shell;
+using System.IO;
 
 /// Encapsulates the inspector panel showing selected entity properties.
 class InspectorPanel
@@ -28,6 +30,12 @@ class InspectorPanel
 	// Render access
 	private RenderSubsystem mRenderSubsystem;
 
+	// Project/resource context
+	private String mProjectDirectory ~ delete _;
+	private List<ResourceRegistry> mRegistries;  // non-owning reference
+	private IDialogService mDialogs;
+	private IWindow mWindow;
+
 	// Component type discovery
 	private static List<Type> sComponentTypes ~ delete _;
 	private ContextMenu mAddComponentMenu ~ delete _;
@@ -38,10 +46,25 @@ class InspectorPanel
 	/// The root UI element to add to the layout.
 	public Grid Root => mRoot;
 
-	public this(RenderSubsystem renderSubsystem)
+	public this(RenderSubsystem renderSubsystem, List<ResourceRegistry> registries, IDialogService dialogs, IWindow window)
 	{
 		mRenderSubsystem = renderSubsystem;
+		mRegistries = registries;
+		mDialogs = dialogs;
+		mWindow = window;
 		BuildUI();
+	}
+
+	/// Updates the project directory used for resource browsing.
+	public void SetProjectDirectory(StringView path)
+	{
+		if (mProjectDirectory != null)
+			delete mProjectDirectory;
+
+		if (path.Length > 0)
+			mProjectDirectory = new String(path);
+		else
+			mProjectDirectory = null;
 	}
 
 	// ==================== UI Construction ====================
@@ -780,24 +803,129 @@ class InspectorPanel
 	private void AddReflectedResourceRefProperty(Scene scene, EntityId entity, Type compType, FieldInfo field, StringView category)
 	{
 		let offset = field.MemberOffset;
-		// Read-only display of the resource path (asset picker will come later)
-		mPropertyGrid.AddStringProperty(field.Name, category,
+		let filter = GetResourceFilter(compType, field.Name);
+
+		let item = new ResourceRefPropertyItem(field.Name,
+			// pathGetter: get current display path
+			new (outPath) =>
+			{
+				let ptr = scene.GetComponentRaw(entity, compType);
+				if (ptr == null) { outPath.Set("(none)"); return; }
+				let resRef = (ResourceRef*)((uint8*)ptr + offset);
+				if (resRef.HasPath)
+					outPath.Set(resRef.Path);
+				else if (resRef.HasId)
+					resRef.Id.ToString(outPath);
+				else
+					outPath.Set("(none)");
+			},
+			// onBrowse: open file dialog and set the ref
+			new () =>
+			{
+				let filters = scope StringView[](filter);
+				let defaultPath = scope String();
+				if (mProjectDirectory != null)
+					defaultPath.Set(mProjectDirectory);
+
+				mDialogs?.ShowOpenFileDialog(new (paths) =>
+					{
+						if (paths.Length == 0 || paths[0].Length == 0)
+							return;
+
+						let selectedPath = scope String(paths[0]);
+						selectedPath.Replace('\\', '/');
+
+						// Resolve GUID from registries
+						Guid resolvedId = default;
+						if (mRegistries != null)
+						{
+							for (let registry in mRegistries)
+							{
+								if (registry.TryResolveId(selectedPath, out resolvedId))
+									break;
+							}
+						}
+
+						// Set the ResourceRef on the component
+						let ptr = scene.GetComponentRaw(entity, compType);
+						if (ptr == null) return;
+						let resRefPtr = (ResourceRef*)((uint8*)ptr + offset);
+
+						// Dispose old path string
+						if (resRefPtr.Path != null)
+							delete resRefPtr.Path;
+
+						// Set new values
+						resRefPtr.Id = resolvedId;
+						resRefPtr.Path = new String(selectedPath);
+
+						scene.SetComponentRaw(entity, compType, ptr);
+
+						if (mCurrentTab != null)
+						{
+							mCurrentTab.MarkDirty();
+							OnPropertyChanged?.Invoke();
+						}
+
+						// Force rebuild to refresh the property item
+						ForceRebuild();
+					}, filters, defaultPath, false, mWindow);
+			},
+			// onClear: clear the resource ref
 			new () =>
 			{
 				let ptr = scene.GetComponentRaw(entity, compType);
-				if (ptr == null) return new String("(none)");
-				let resRef = (ResourceRef*)((uint8*)ptr + offset);
-				if (resRef.HasPath)
-					return new String(resRef.Path);
-				else if (resRef.HasId)
+				if (ptr == null) return;
+				let resRefPtr = (ResourceRef*)((uint8*)ptr + offset);
+
+				// Dispose old path string
+				if (resRefPtr.Path != null)
+					delete resRefPtr.Path;
+
+				// Clear
+				resRefPtr.Id = default;
+				resRefPtr.Path = null;
+
+				scene.SetComponentRaw(entity, compType, ptr);
+
+				if (mCurrentTab != null)
 				{
-					let idStr = new String();
-					resRef.Id.ToString(idStr);
-					return idStr;
+					mCurrentTab.MarkDirty();
+					OnPropertyChanged?.Invoke();
 				}
-				return new String("(none)");
-			},
-			null);  // Read-only for now — asset picker in future phase
+			});
+		item.SetCategory(category);
+		mPropertyGrid.AddItem(item);
+	}
+
+	/// Returns a file dialog filter string for resource browsing.
+	/// TODO: Use explicit resource extension from [Property] attribute instead of listing all types.
+	private static StringView GetResourceFilter(Type compType, StringView fieldName)
+	{
+		// let compName = compType.GetName(.. scope .());
+		// let lowerComp = scope String(compName);
+		// lowerComp.ToLower();
+		//
+		// let lowerField = scope String(fieldName);
+		// lowerField.ToLower();
+		//
+		// // Check component type first for mesh disambiguation
+		// if (lowerField.Contains("mesh"))
+		// {
+		// 	if (lowerComp.Contains("skinnedmesh"))
+		// 		return "Skinned Mesh Files|skinnedmesh";
+		// 	return "Mesh Files|mesh";
+		// }
+		// if (lowerField.Contains("material"))
+		// 	return "Material Files|material";
+		// if (lowerField.Contains("texture"))
+		// 	return "Texture Files|texture";
+		// if (lowerField.Contains("skeleton"))
+		// 	return "Skeleton Files|skeleton";
+		// if (lowerField.Contains("animation"))
+		// 	return "Animation Files|animation";
+
+		return "Resources|mesh;skinnedmesh;material;texture;skeleton;animation";
 	}
 
 	// ==================== Euler <-> Quaternion ====================

@@ -1007,7 +1007,29 @@ public class Scene : IDisposable, ISerializable
 	{
 		if (!IsValid(entity))
 			return;
-		if (mComponentStorages.TryGetValue(type, let storage))
+
+		if (!mComponentStorages.TryGetValue(type, var storage))
+		{
+			// Create storage using comptime-generated __CreateStorage() factory
+			for (let method in type.GetMethods(.Static | .Public))
+			{
+				if (method.Name == "__CreateStorage")
+				{
+					if (method.Invoke(Variant()) case .Ok(var result))
+					{
+						let obj = result.Get<Object>();
+						if (let newStorage = obj as IComponentStorage)
+						{
+							mComponentStorages[type] = newStorage;
+							storage = newStorage;
+						}
+					}
+					break;
+				}
+			}
+		}
+
+		if (storage != null)
 			storage.AddDefault(entity);
 	}
 

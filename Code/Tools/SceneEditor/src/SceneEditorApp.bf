@@ -3,7 +3,9 @@ using Sedulous.AppFramework;
 using Sedulous.Framework.Core;
 using Sedulous.Framework.Scenes;
 using Sedulous.Framework.Render;
+using Sedulous.Framework.Animation;
 using Sedulous.Render;
+using Sedulous.Resources;
 using Tools.Common;
 using System.Collections;
 using Sedulous.GUI;
@@ -52,12 +54,17 @@ class SceneEditorApp : Application
 	// Gizmo drag state
 	private Transform mGizmoDragOldTransform;
 
+	// Project / Resources
+	private String mProjectDirectory ~ delete _;
+	private List<ResourceRegistry> mRegistries = new .() ~ DeleteContainerAndItems!(_);
+
 	// UI panels
 	private DockPanel mRootPanel;     // root element (we own this — GUIContext only references it)
 	private SplitPanel mOuterSplit;   // left (hierarchy) | right (center+inspector)
 	private SplitPanel mInnerSplit;   // center (viewport+tabs) | right (inspector)
 	private HierarchyPanel mHierarchyPanel ~ delete _;
 	private InspectorPanel mInspectorPanel ~ delete _;
+	private AssetBrowserPanel mAssetBrowserPanel ~ delete _;
 	private Grid mViewportPanel;
 	private TabControl mTabControl;
 	private Grid mViewportContainer;
@@ -119,6 +126,10 @@ class SceneEditorApp : Application
 		mRenderSubsystem = new RenderSubsystem(mRenderSystem, false);
 		mContext.RegisterSubsystem(mRenderSubsystem);
 
+		// Animation subsystem (registers skeleton/animation resource managers, adds AnimationSceneModule to scenes)
+		let animSubsystem = new AnimationSubsystem();
+		mContext.RegisterSubsystem(animSubsystem);
+
 		mContext.Startup();
 
 		return true;
@@ -146,6 +157,80 @@ class SceneEditorApp : Application
 
 		mGizmo = new TranslateGizmo();
 		mGizmo.Size = 1.0f;
+	}
+
+	// ==================== Project Directory ====================
+
+	/// Shows a native folder dialog to select a project directory.
+	private void ShowProjectDialog()
+	{
+		let defaultPath = scope String();
+		if (mProjectDirectory != null)
+			defaultPath.Set(mProjectDirectory);
+
+		Shell.Dialogs.ShowFolderDialog(new (paths) =>
+			{
+				if (paths.Length > 0 && paths[0].Length > 0)
+					SetProjectDirectory(paths[0]);
+			}, defaultPath, Window);
+	}
+
+	/// Sets the project directory, loads registries, and refreshes the asset browser.
+	private void SetProjectDirectory(StringView path)
+	{
+		// Store path
+		if (mProjectDirectory != null)
+			delete mProjectDirectory;
+		mProjectDirectory = new String(path);
+
+		// Unload previous registries
+		for (let registry in mRegistries)
+		{
+			mContext.Resources.RemoveRegistry(registry);
+			delete registry;
+		}
+		mRegistries.Clear();
+
+		// Scan for registry.txt files and load them
+		FindAndLoadRegistries(path);
+
+		// Notify panels
+		mAssetBrowserPanel?.SetProjectDirectory(path);
+		mInspectorPanel?.SetProjectDirectory(path);
+
+		Console.WriteLine(scope $"Project directory set: {path}");
+		UpdateStatusBar();
+	}
+
+	/// Recursively finds and loads registry.txt files from a directory.
+	private void FindAndLoadRegistries(StringView directory)
+	{
+		// Check for registry.txt in this directory
+		let registryPath = scope String();
+		Path.InternalCombine(registryPath, directory, "registry.txt");
+
+		if (File.Exists(registryPath))
+		{
+			let registry = new ResourceRegistry();
+			if (registry.LoadFromFile(registryPath) case .Ok)
+			{
+				mContext.Resources.AddRegistry(registry);
+				mRegistries.Add(registry);
+				Console.WriteLine(scope $"  Loaded registry: {registryPath} ({registry.Count} entries)");
+			}
+			else
+			{
+				Console.WriteLine(scope $"  WARNING: Failed to load registry: {registryPath}");
+				delete registry;
+			}
+		}
+
+		// Recurse into subdirectories
+		for (let entry in Directory.EnumerateDirectories(directory))
+		{
+			let subDir = entry.GetFilePath(.. scope .());
+			FindAndLoadRegistries(subDir);
+		}
 	}
 
 	// ==================== UI Setup ====================
@@ -179,11 +264,24 @@ class SceneEditorApp : Application
 		mOuterSplit.SplitterSize = 6;
 		mRootPanel.AddChild(mOuterSplit);
 
-		// Left: Hierarchy panel
+		// Left: Hierarchy + Asset Browser in vertical split
+		let leftSplit = new SplitPanel();
+		leftSplit.Orientation = .Vertical;
+		leftSplit.SplitRatio = 0.55f;
+		leftSplit.MinFirstSize = 100;
+		leftSplit.MinSecondSize = 100;
+		leftSplit.SplitterSize = 6;
+
 		mHierarchyPanel = new HierarchyPanel();
 		mHierarchyPanel.OnSelectionChanged = new => OnHierarchySelectionChanged;
 		mHierarchyPanel.OnStructureChanged = new => OnHierarchyStructureChanged;
-		mOuterSplit.AddChild(mHierarchyPanel.Root);
+		leftSplit.AddChild(mHierarchyPanel.Root);
+
+		mAssetBrowserPanel = new AssetBrowserPanel();
+		mAssetBrowserPanel.OnFileSelected = new => OnAssetSelected;
+		leftSplit.AddChild(mAssetBrowserPanel.Root);
+
+		mOuterSplit.AddChild(leftSplit);
 
 		// Inner split: viewport+tabs | inspector
 		mInnerSplit = new SplitPanel();
@@ -232,7 +330,7 @@ class SceneEditorApp : Application
 		mViewportContainer.AddChild(mDropIndicator);
 
 		// Right: Inspector panel
-		mInspectorPanel = new InspectorPanel(mRenderSubsystem);
+		mInspectorPanel = new InspectorPanel(mRenderSubsystem, mRegistries, Shell.Dialogs, Window);
 		mInspectorPanel.OnPropertyChanged = new => OnInspectorPropertyChanged;
 		mInnerSplit.AddChild(mInspectorPanel.Root);
 
@@ -255,6 +353,9 @@ class SceneEditorApp : Application
 		let openItem = fileMenu.AddDropdownItem("&Open...");
 		openItem.ShortcutText = "Ctrl+O";
 		openItem.Click.Subscribe(new (item) => { ShowOpenDialog(); });
+
+		let openProjectItem = fileMenu.AddDropdownItem("Open &Project...");
+		openProjectItem.Click.Subscribe(new (item) => { ShowProjectDialog(); });
 
 		fileMenu.AddDropdownSeparator();
 
@@ -523,7 +624,8 @@ class SceneEditorApp : Application
 		mActiveTabIndex = index;
 		let tab = mTabs[index];
 
-		// Switch render world
+		// Switch active scene and render world
+		mSceneSubsystem.SetActiveScene(tab.Scene);
 		let world = mRenderSubsystem.GetWorld(tab.Scene);
 		mRenderSystem.SetActiveWorld(world);
 
@@ -615,6 +717,14 @@ class SceneEditorApp : Application
 		let tabItem = mTabControl.GetTab(index);
 		if (tabItem != null)
 			tabItem.Header = new TextBlock(title);
+	}
+
+	// ==================== Asset Browser Callbacks ====================
+
+	private void OnAssetSelected(StringView path)
+	{
+		let filename = Path.GetFileName(path, .. scope .());
+		mSelectionItem.Text = scope $"Asset: {filename}";
 	}
 
 	// ==================== Hierarchy Callbacks ====================
@@ -856,8 +966,11 @@ class SceneEditorApp : Application
 		{
 			// Position gizmo at selected entity
 			let entity = tab.SelectedEntities[0];
-			mGizmo.Position = tab.Scene.GetTransform(entity).Position;
-			mGizmo.UpdateHover(pickRay, mGizmo.Size * 0.15f);
+			if (tab.Scene.IsValid(entity))
+			{
+				mGizmo.Position = tab.Scene.GetTransform(entity).Position;
+				mGizmo.UpdateHover(pickRay, mGizmo.Size * 0.15f);
+			}
 		}
 
 		// Begin gizmo drag (LMB on hovered axis, without Ctrl)
@@ -1075,7 +1188,7 @@ class SceneEditorApp : Application
 					mOverlayFeature.AddGrid(.(0, 0, 0), 20.0f, 20, Color(80, 80, 100, 255), .DepthTest);
 
 					// Draw selection highlight
-					if (tab.SelectedEntities.Count > 0)
+					if (tab.SelectedEntities.Count > 0 && tab.Scene.IsValid(tab.SelectedEntities[0]))
 					{
 						let entity = tab.SelectedEntities[0];
 						let pos = tab.Scene.GetTransform(entity).Position;
@@ -1131,6 +1244,10 @@ class SceneEditorApp : Application
 		// Close all tabs (unloads scenes from subsystem, destroys per-tab UI)
 		while (mTabs.Count > 0)
 			CloseTab(0, false);
+
+		// Unregister resource registries before context shutdown
+		for (let registry in mRegistries)
+			mContext.Resources.RemoveRegistry(registry);
 
 		// Shutdown Framework Context (shuts down subsystems including RenderSubsystem)
 		if (mContext != null)

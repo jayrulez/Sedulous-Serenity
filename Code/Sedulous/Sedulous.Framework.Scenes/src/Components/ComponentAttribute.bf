@@ -17,6 +17,15 @@ struct ComponentAttribute : Attribute, IOnTypeInit
 	[Comptime]
 	public void OnTypeInit(Type type, Self* prev)
 	{
+		// Generate storage factory for all component types
+		Compiler.EmitTypeBody(type, """
+			[Reflect]
+			public static IComponentStorage __CreateStorage()
+			{
+				return new ComponentStorage<Self>();
+			}
+		""");
+
 		if (type.ImplementsInterface(typeof(ISerializableComponent)))
 		{
 			Compiler.EmitTypeBody(type, """
