@@ -97,7 +97,25 @@ class AnimationSceneModule : SceneModule
 		// Update all animation players
 		for (let (entity, anim) in scene.Query<SkeletalAnimationComponent>())
 		{
-			if (anim.Player == null || !anim.Playing)
+			if (anim.Player == null)
+				continue;
+
+			// Detect Playing toggled on: player exists but isn't currently playing a clip
+			if (anim.Playing && anim.Player.State != PlaybackState.Playing)
+			{
+				let clip = anim.AnimationClipRes.Resource?.Clip;
+				if (clip != null)
+				{
+					clip.IsLooping = anim.Loop;
+					anim.Player.Play(clip);
+				}
+			}
+
+			// Sync Loop property to the clip
+			if (anim.Player.CurrentClip != null)
+				anim.Player.CurrentClip.IsLooping = anim.Loop;
+
+			if (!anim.Playing)
 				continue;
 
 			anim.Player.Update(deltaTime);
