@@ -4,7 +4,7 @@ string %_id {"e659b039-6121-4e1a-81ed-680a720fa58e"}
 string %_name {""}
 int32 %sceneVersion {1}
 string %sceneName {"Scene 1"}
-int32 %entityCount {1}
+int32 %entityCount {3}
 Obj_ %entities {
 	Obj_ %e0 {
 		string %name {"Directional Light"}
@@ -13,6 +13,32 @@ Obj_ %entities {
 		}
 		float[4] %rotation {
 			{-0.464521378, 0.217117399, 0.118611783, 0.85030061}
+		}
+		float[3] %scale {
+			{1, 1, 1}
+		}
+		int32 %parent {-1}
+	}
+	Obj_ %e1 {
+		string %name {"Entity"}
+		float[3] %position {
+			{0, 0, 0}
+		}
+		float[4] %rotation {
+			{0, 0, 0, 1}
+		}
+		float[3] %scale {
+			{1, 1, 1}
+		}
+		int32 %parent {-1}
+	}
+	Obj_ %e2 {
+		string %name {"Entity"}
+		float[3] %position {
+			{0, 0, 0}
+		}
+		float[4] %rotation {
+			{0, 0, 0, 1}
 		}
 		float[3] %scale {
 			{1, 1, 1}
@@ -88,7 +114,7 @@ Obj_ %modules {
 		}
 		float %ambientIntensity {1}
 		float %exposure {1}
-		int32 %skyMode {2}
+		int32 %skyMode {0}
 		float[3] %sunDirection {
 			{-0.50507623, 0.808121979, 0.30304575}
 		}
@@ -104,7 +130,7 @@ Obj_ %modules {
 			{1, 0, 0.899999976}
 		}
 		float[3] %groundColor {
-			{0.872222185, 0.449993789, 0.0277656503}
+			{0.666666627, 0.562462866, 0.458259165}
 		}
 		float[3] %solidSkyColor {
 			{0.889468849, 0.261843145, 0.911111116}

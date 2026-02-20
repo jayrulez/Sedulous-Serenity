@@ -33,6 +33,9 @@ class SceneTab
 	// Dirty tracking
 	public bool IsDirty = false;
 
+	// Undo/Redo
+	public CommandHistory History = new .() ~ delete _;
+
 	public this(StringView name)
 	{
 		Name = new String(name);

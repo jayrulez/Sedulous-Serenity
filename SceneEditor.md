@@ -291,12 +291,23 @@ PropertyGrid stays in Sedulous.GUI as a generic control. Engine-specific propert
 - [x] Module settings serialized in `.scene` files (persist across save/load)
 - [x] `[Component]` auto-discovery via comptime `__CreateSerializer` — eliminates manual serializer registration
 - [x] `AlwaysIncludeUser` on `ComponentAttribute` and `ModuleSettingsAttribute` — no manual `[AlwaysInclude]` needed
+- [x] Sky settings (SkyMode, sun, atmosphere, zenith/horizon/ground colors) on RenderModuleSettings with live sync to SkyFeature
+- [x] `PropertyEditorHint` on `[Property]` attribute — `[Property(.Color)]` for color fields
+- [x] ColorPropertyItem with color swatch + RGB spinners
+- [x] HSV color picker popup (Flyout with ColorPickerPanel) — click swatch to open
+- [x] Enum property support via `EnumPropertyItem` with `Enum.GetEnumerator` reflection
+- [x] PropertyGrid `BeginUpdate`/`EndUpdate` batch mechanism to prevent deleted-category crash
+- [x] Fix ambient lighting in forward shader — `AmbientColor` now contributes as additive flat fill in default rendering path
 
 ### Files
 - **Modified**: `src/InspectorPanel.bf`, `src/SceneEditorApp.bf`, `BeefProj.toml`
 - **Created**: `Sedulous.Framework.Scenes/src/Components/ComponentAttribute.bf`, `ModuleSettingsAttribute.bf`, `PropertyAttribute.bf`
 - **Created**: `Sedulous.Framework.Render/src/RenderModuleSettings.bf`, `Sedulous.Framework.Physics/src/PhysicsModuleSettings.bf`
+- **Created**: `src/ColorPropertyItem.bf`, `src/ColorPickerPanel.bf`
 - **Modified**: `Sedulous.Framework.Scenes/src/Scene.bf` (module settings + component auto-discovery)
+- **Modified**: `Sedulous.GUI/PropertyGrid.bf` (BeginUpdate/EndUpdate)
+- **Modified**: `Sedulous.Render/SkyFeature.bf` ([Reflect] on SkyMode enum)
+- **Modified**: `assets/Render/Shaders/forward.frag.hlsl` (ambient color fix)
 
 ---
 
@@ -306,25 +317,32 @@ PropertyGrid stays in Sedulous.GUI as a generic control. Engine-specific propert
 
 ### Checklist
 
-- [ ] Implement `ICommand` + `CommandHistory` (Execute/Undo with old/new value capture)
-- [ ] Per-tab CommandHistory on SceneTab
-- [ ] Command types: SetTransform, CreateEntity, DestroyEntity, SetComponent, AddComponent, RemoveComponent
-- [ ] Wrap all modifications in commands
-- [ ] Keyboard shortcuts:
-  - Ctrl+Z / Ctrl+Y: Undo / Redo
-  - Ctrl+S / Ctrl+Shift+S: Save / Save As
-  - Ctrl+N: New Scene
-  - Delete: Delete selected
-  - Ctrl+D: Duplicate selected
-  - F: Focus camera
-- [ ] Multi-select: Ctrl+click toggle, Shift+click range in hierarchy
-- [ ] Status bar: Entity count, selected count, dirty indicator
-- [ ] Drag-and-drop reparenting in hierarchy (if TreeView supports it)
-- [ ] W/E/R: Switch gizmo mode (Translate only initially; Rotate/Scale gizmos future work)
+- [x] Implement `IEditorCommand` + `CommandHistory` (Execute/Undo/Push with old/new value capture)
+- [x] Per-tab CommandHistory on SceneTab
+- [x] Command types: SetTransformCommand, SetNameCommand, CreateEntityCommand, DestroyEntityCommand
+- [x] Wrap hierarchy mutations in commands (AddEntity, DeleteEntity, DuplicateEntity, Rename)
+- [x] Wrap inspector transform/name changes in commands (Position, Rotation, Scale, Name)
+- [x] Wrap gizmo drag in SetTransformCommand (capture old on drag start, push on drag end)
+- [x] Keyboard shortcuts:
+  - [x] Ctrl+Z / Ctrl+Y: Undo / Redo
+  - [x] Ctrl+S / Ctrl+Shift+S: Save / Save As (existing)
+  - [x] Ctrl+N / Ctrl+O: New / Open Scene (existing)
+  - [x] Delete: Delete selected (existing, now multi-select aware)
+  - [x] Ctrl+D: Duplicate selected
+  - [x] F / F2: Focus camera / Rename (existing)
+- [x] Edit menu with Undo/Redo/Duplicate/Delete
+- [x] Multi-select: Ctrl+Click toggle, Shift+Click range in TreeView + HierarchyPanel
+- [x] Multi-select delete applies to all selected entities
+- [x] Inspector shows "{N} entities selected" for multi-select
+- [x] Status bar: Entity count, selection info, gizmo mode, dirty indicator
+- [x] W/E/R: Switch gizmo mode (Translate functional; Rotate/Scale placeholder stubs)
+- [ ] Drag-and-drop reparenting in hierarchy — deferred (no TreeView DnD support)
+- [ ] Component property undo commands — deferred (SetComponent/AddComponent/RemoveComponent)
 
 ### Files
-- **Create**: `src/Commands.bf`
-- **Modify**: `src/Program.bf`, `src/SceneTab.bf`, `src/HierarchyPanel.bf`, `src/InspectorPanel.bf`
+- **Created**: `src/Commands.bf` (IEditorCommand, CommandHistory, 4 command types)
+- **Modified**: `src/SceneTab.bf` (CommandHistory field), `src/HierarchyPanel.bf` (command wrapping, multi-select delete, public DuplicateSelected), `src/InspectorPanel.bf` (transform/name command wrapping, multi-select header), `src/SceneEditorApp.bf` (undo/redo, Edit menu, status bar, gizmo mode, Ctrl+D/Z/Y/W/E/R)
+- **Modified**: `Sedulous.GUI/Controls/TreeView.bf` (MultiSelect, SelectedItems, Ctrl+Click toggle, Shift+Click range)
 
 ---
 

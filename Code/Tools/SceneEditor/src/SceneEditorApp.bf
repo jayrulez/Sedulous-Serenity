@@ -34,6 +34,8 @@ class SceneEditorApp : Application
 	private ViewportOutputFeature mOutputFeature;
 
 	// Gizmo
+	private enum GizmoMode { Translate, Rotate, Scale }
+	private GizmoMode mGizmoMode = .Translate;
 	private TranslateGizmo mGizmo ~ delete _;
 
 	// Tabs
@@ -48,7 +50,7 @@ class SceneEditorApp : Application
 	private float mLastMouseY;
 
 	// Gizmo drag state
-	private Vector3 mGizmoDragStartPos;
+	private Transform mGizmoDragOldTransform;
 
 	// UI panels
 	private DockPanel mRootPanel;     // root element (we own this — GUIContext only references it)
@@ -60,6 +62,13 @@ class SceneEditorApp : Application
 	private TabControl mTabControl;
 	private Grid mViewportContainer;
 	private TextBlock mDropIndicator;
+
+	// Status bar
+	private StatusBar mStatusBar;
+	private StatusBarItem mEntityCountItem;
+	private StatusBarItem mSelectionItem;
+	private StatusBarItem mGizmoModeItem;
+	private StatusBarItem mDirtyItem;
 
 	/// Gets the currently active tab, or null if no tabs exist.
 	private SceneTab ActiveTab => mActiveTabIndex >= 0 && mActiveTabIndex < (int32)mTabs.Count ? mTabs[mActiveTabIndex] : null;
@@ -150,6 +159,16 @@ class SceneEditorApp : Application
 		let menuBar = CreateMenuBar();
 		DockPanelProperties.SetDock(menuBar, .Top);
 		mRootPanel.AddChild(menuBar);
+
+		// Status bar at bottom
+		mStatusBar = new StatusBar();
+		mStatusBar.Padding = .(6, 2, 6, 2);
+		mEntityCountItem = mStatusBar.AddFixedItem("Entities: 0", 120);
+		mSelectionItem = mStatusBar.AddFlexibleItem("");
+		mGizmoModeItem = mStatusBar.AddFixedItem("Translate (W)", 120);
+		mDirtyItem = mStatusBar.AddFixedItem("", 100);
+		DockPanelProperties.SetDock(mStatusBar, .Bottom);
+		mRootPanel.AddChild(mStatusBar);
 
 		// Outer split: hierarchy | (viewport + inspector)
 		mOuterSplit = new SplitPanel();
@@ -261,6 +280,27 @@ class SceneEditorApp : Application
 		let exitItem = fileMenu.AddDropdownItem("E&xit");
 		exitItem.ShortcutText = "Alt+F4";
 		exitItem.Click.Subscribe(new (item) => { Exit(); });
+
+		// Edit menu
+		let editMenu = menuBar.AddItem("&Edit");
+
+		let undoItem = editMenu.AddDropdownItem("&Undo");
+		undoItem.ShortcutText = "Ctrl+Z";
+		undoItem.Click.Subscribe(new (item) => { UndoAction(); });
+
+		let redoItem = editMenu.AddDropdownItem("&Redo");
+		redoItem.ShortcutText = "Ctrl+Y";
+		redoItem.Click.Subscribe(new (item) => { RedoAction(); });
+
+		editMenu.AddDropdownSeparator();
+
+		let dupItem = editMenu.AddDropdownItem("&Duplicate");
+		dupItem.ShortcutText = "Ctrl+D";
+		dupItem.Click.Subscribe(new (item) => { mHierarchyPanel.DuplicateSelected(); });
+
+		let deleteItem = editMenu.AddDropdownItem("De&lete");
+		deleteItem.ShortcutText = "Delete";
+		deleteItem.Click.Subscribe(new (item) => { mHierarchyPanel.DeleteSelectedEntity(); });
 
 		return menuBar;
 	}
@@ -423,6 +463,7 @@ class SceneEditorApp : Application
 		UpdateTabTitle(tabIndex);
 
 		Console.WriteLine(scope $"Scene saved to '{path}'");
+		UpdateStatusBar();
 	}
 
 	/// Handles file drop events (opens .scene files).
@@ -496,6 +537,7 @@ class SceneEditorApp : Application
 		// Refresh hierarchy and inspector for the new tab
 		mHierarchyPanel.SetTab(tab);
 		mInspectorPanel.RefreshForSelection(tab);
+		UpdateStatusBar();
 	}
 
 	private void CloseTab(int32 index, bool removeFromTabControl)
@@ -584,6 +626,7 @@ class SceneEditorApp : Application
 			mInspectorPanel.RefreshForSelection(tab);
 		else
 			mInspectorPanel.Clear();
+		UpdateStatusBar();
 	}
 
 	private void OnHierarchyStructureChanged()
@@ -595,6 +638,7 @@ class SceneEditorApp : Application
 		tab.MarkDirty();
 		let tabIndex = (int32)mTabs.IndexOf(tab);
 		UpdateTabTitle(tabIndex);
+		UpdateStatusBar();
 	}
 
 	private void OnInspectorPropertyChanged()
@@ -605,6 +649,7 @@ class SceneEditorApp : Application
 
 		let tabIndex = (int32)mTabs.IndexOf(tab);
 		UpdateTabTitle(tabIndex);
+		UpdateStatusBar();
 
 		// Update entity name in hierarchy (lightweight, no rebuild)
 		if (tab.SelectedEntities.Count > 0)
@@ -638,6 +683,21 @@ class SceneEditorApp : Application
 			else if (ctrlHeld)
 				SaveScene();
 
+		case .Z:
+			if (ctrlHeld) UndoAction();
+		case .Y:
+			if (ctrlHeld) RedoAction();
+		case .D:
+			if (ctrlHeld) mHierarchyPanel.DuplicateSelected();
+
+		// Gizmo mode switching (only when not flying — W/S used for movement)
+		case .W:
+			if (!ctrlHeld && !mIsFlying) SetGizmoMode(.Translate);
+		case .E:
+			if (!ctrlHeld && !mIsFlying) SetGizmoMode(.Rotate);
+		case .R:
+			if (!ctrlHeld && !mIsFlying) SetGizmoMode(.Scale);
+
 		default:
 		}
 	}
@@ -654,6 +714,88 @@ class SceneEditorApp : Application
 		var transform = tab.Scene.GetTransform(entity);
 		let pos = transform.Position;
 		tab.Camera.FocusOn(pos);
+	}
+
+	// ==================== Gizmo Mode ====================
+
+	private void SetGizmoMode(GizmoMode mode)
+	{
+		mGizmoMode = mode;
+		UpdateStatusBar();
+	}
+
+	// ==================== Status Bar ====================
+
+	private void UpdateStatusBar()
+	{
+		let tab = ActiveTab;
+
+		if (tab == null || tab.Scene == null)
+		{
+			mEntityCountItem.Text = "Entities: 0";
+			mSelectionItem.Text = "";
+			mDirtyItem.Text = "";
+			return;
+		}
+
+		// Entity count
+		int32 entityCount = 0;
+		tab.Scene.ForEachEntity(scope [&](e) => { entityCount++; });
+		mEntityCountItem.Text = scope $"Entities: {entityCount}";
+
+		// Selection info
+		if (tab.SelectedEntities.Count == 0)
+			mSelectionItem.Text = "";
+		else if (tab.SelectedEntities.Count == 1)
+		{
+			let name = tab.Scene.GetName(tab.SelectedEntities[0]);
+			mSelectionItem.Text = scope $"Selected: {name}";
+		}
+		else
+			mSelectionItem.Text = scope $"Selected: {tab.SelectedEntities.Count} entities";
+
+		// Gizmo mode
+		switch (mGizmoMode)
+		{
+		case .Translate: mGizmoModeItem.Text = "Translate (W)";
+		case .Rotate: mGizmoModeItem.Text = "Rotate (E)";
+		case .Scale: mGizmoModeItem.Text = "Scale (R)";
+		}
+
+		// Dirty indicator
+		mDirtyItem.Text = tab.IsDirty ? "*Modified" : "";
+	}
+
+	// ==================== Undo/Redo ====================
+
+	private void UndoAction()
+	{
+		let tab = ActiveTab;
+		if (tab == null || !tab.History.CanUndo) return;
+		tab.History.Undo();
+		tab.MarkDirty();
+		RefreshAfterUndoRedo(tab);
+	}
+
+	private void RedoAction()
+	{
+		let tab = ActiveTab;
+		if (tab == null || !tab.History.CanRedo) return;
+		tab.History.Redo();
+		tab.MarkDirty();
+		RefreshAfterUndoRedo(tab);
+	}
+
+	private void RefreshAfterUndoRedo(SceneTab tab)
+	{
+		// Clear selection since entity IDs may have changed
+		tab.SelectedEntities.Clear();
+		mHierarchyPanel.SelectEntity(.Invalid);
+		mHierarchyPanel.RebuildHierarchy();
+		mInspectorPanel.RefreshForSelection(tab);
+		let tabIndex = (int32)mTabs.IndexOf(tab);
+		UpdateTabTitle(tabIndex);
+		UpdateStatusBar();
 	}
 
 	// ==================== Update ====================
@@ -724,14 +866,14 @@ class SceneEditorApp : Application
 		{
 			mGizmo.BeginDrag(pickRay);
 			mIsDragging = false;  // Prevent camera orbit during gizmo drag
-			mGizmoDragStartPos = tab.Scene.GetTransform(tab.SelectedEntities[0]).Position;
+			mGizmoDragOldTransform = tab.Scene.GetTransform(tab.SelectedEntities[0]);
 		}
 
 		// Update gizmo drag
 		if (mGizmo.IsDragging)
 		{
 			let delta = mGizmo.UpdateDrag(pickRay);
-			let newPos = mGizmoDragStartPos + delta;
+			let newPos = mGizmoDragOldTransform.Position + delta;
 			let entity = tab.SelectedEntities[0];
 			tab.Scene.SetPosition(entity, newPos);
 			mGizmo.Position = newPos;
@@ -745,6 +887,13 @@ class SceneEditorApp : Application
 		if (mouse.IsButtonReleased(.Left) && mGizmo.IsDragging)
 		{
 			mGizmo.EndDrag();
+
+			// Push undo command for the completed drag
+			let entity = tab.SelectedEntities[0];
+			let newTransform = tab.Scene.GetTransform(entity);
+			let cmd = new SetTransformCommand(tab.Scene, entity, mGizmoDragOldTransform, newTransform);
+			tab.History.Push(cmd);
+
 			let tabIndex = (int32)mTabs.IndexOf(tab);
 			UpdateTabTitle(tabIndex);
 		}
@@ -760,6 +909,7 @@ class SceneEditorApp : Application
 
 			mHierarchyPanel.SelectEntity(pickedEntity);
 			mInspectorPanel.RefreshForSelection(tab);
+			UpdateStatusBar();
 		}
 
 		// === Camera controls ===

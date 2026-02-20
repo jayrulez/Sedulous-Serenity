@@ -84,6 +84,7 @@ class HierarchyPanel
 		mTreeView = new TreeView();
 		mTreeView.Padding = .(2, 2, 2, 2);
 		mTreeView.IsEditable = true;
+		mTreeView.MultiSelect = true;
 		GridProperties.SetRow(mTreeView, 1);
 		mTreeView.SelectionChanged.Subscribe(new (tv) => OnTreeSelectionChanged());
 		mTreeView.ItemRenamed.Subscribe(new (tv, item, newText) => OnItemRenamed(item, newText));
@@ -126,7 +127,7 @@ class HierarchyPanel
 		menu.AddSeparator();
 
 		let duplicateItem = menu.AddItem("Duplicate");
-		duplicateItem.Click.Subscribe(new (mi) => DuplicateSelectedEntity());
+		duplicateItem.Click.Subscribe(new (mi) => DuplicateSelected());
 
 		let renameItem = menu.AddItem("Rename");
 		renameItem.Click.Subscribe(new (mi) => RenameSelectedEntity());
@@ -289,6 +290,10 @@ class HierarchyPanel
 		if (parent.IsValid)
 			scene.SetParent(entity, parent);
 
+		// Track for undo (entity already created with components above)
+		let cmd = new CreateEntityCommand(scene, entity, scene.GetName(entity));
+		mCurrentTab.History.Push(cmd);
+
 		mCurrentTab.MarkDirty();
 		RebuildHierarchy();
 
@@ -310,20 +315,29 @@ class HierarchyPanel
 
 	// ==================== Entity Deletion ====================
 
-	/// Deletes the currently selected entity and its children.
+	/// Deletes all currently selected entities and their children.
 	public void DeleteSelectedEntity()
 	{
 		if (mCurrentTab?.Scene == null)
 			return;
 
-		let selectedItem = mTreeView.SelectedItem;
-		if (selectedItem == null)
+		// Collect entities to delete from selection
+		let toDelete = scope List<EntityId>();
+		for (let item in mTreeView.SelectedItems)
+		{
+			if (mItemToEntity.TryGetValue(item, let entity))
+				toDelete.Add(entity);
+		}
+
+		if (toDelete.Count == 0)
 			return;
 
-		if (!mItemToEntity.TryGetValue(selectedItem, let entity))
-			return;
+		for (let entity in toDelete)
+		{
+			let cmd = new DestroyEntityCommand(mCurrentTab.Scene, entity);
+			mCurrentTab.History.Execute(cmd);
+		}
 
-		mCurrentTab.Scene.DestroyEntity(entity);
 		mCurrentTab.MarkDirty();
 		RebuildHierarchy();
 		OnStructureChanged?.Invoke();
@@ -331,7 +345,7 @@ class HierarchyPanel
 
 	// ==================== Entity Duplication ====================
 
-	private void DuplicateSelectedEntity()
+	public void DuplicateSelected()
 	{
 		if (mCurrentTab?.Scene == null)
 			return;
@@ -348,6 +362,10 @@ class HierarchyPanel
 		// Duplicate the entity and all children recursively
 		let parent = scene.GetParent(srcEntity);
 		let newEntity = DuplicateEntityRecursive(scene, srcEntity, parent);
+
+		// Track for undo (entity already created with components above)
+		let cmd = new CreateEntityCommand(scene, newEntity, scene.GetName(newEntity));
+		mCurrentTab.History.Push(cmd);
 
 		mCurrentTab.MarkDirty();
 		RebuildHierarchy();
@@ -421,7 +439,10 @@ class HierarchyPanel
 		if (!mItemToEntity.TryGetValue(item, let entity))
 			return;
 
-		mCurrentTab.Scene.SetName(entity, newText);
+		let oldName = mCurrentTab.Scene.GetName(entity);
+		let cmd = new SetNameCommand(mCurrentTab.Scene, entity, oldName, newText);
+		mCurrentTab.History.Execute(cmd);
+
 		mCurrentTab.MarkDirty();
 		OnStructureChanged?.Invoke();
 	}
@@ -435,9 +456,11 @@ class HierarchyPanel
 
 		mCurrentTab.SelectedEntities.Clear();
 
-		let selectedItem = mTreeView.SelectedItem;
-		if (selectedItem != null && mItemToEntity.TryGetValue(selectedItem, let entity))
-			mCurrentTab.SelectedEntities.Add(entity);
+		for (let item in mTreeView.SelectedItems)
+		{
+			if (mItemToEntity.TryGetValue(item, let entity))
+				mCurrentTab.SelectedEntities.Add(entity);
+		}
 
 		OnSelectionChanged?.Invoke(mCurrentTab.SelectedEntities);
 	}

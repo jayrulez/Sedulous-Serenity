@@ -135,6 +135,18 @@ class InspectorPanel
 			mCurrentEntity = .Invalid;  // Force rebuild
 		}
 
+		// Multi-select: show info message instead of properties
+		if (tab.SelectedEntities.Count > 1)
+		{
+			if (mCurrentEntity != .Invalid || mShowingSceneSettings)
+			{
+				mPropertyGrid.Clear();
+				mCurrentEntity = .Invalid;
+			}
+			mHeaderLabel.ContentText = scope $"{tab.SelectedEntities.Count} entities selected";
+			return;
+		}
+
 		let entity = tab.SelectedEntities[0];
 
 		// Only rebuild if entity changed
@@ -429,7 +441,13 @@ class InspectorPanel
 			{
 				if (let str = val as String)
 				{
-					scene.SetName(entity, str);
+					let oldName = scene.GetName(entity);
+					if (oldName != str)
+					{
+						let cmd = new SetNameCommand(scene, entity, oldName, str);
+						mCurrentTab?.History.Push(cmd);
+						scene.SetName(entity, str);
+					}
 					mHeaderLabel.ContentText = str;
 				}
 			});
@@ -440,21 +458,39 @@ class InspectorPanel
 		// Position
 		let posItem = new Vector3PropertyItem("Position",
 			new () => scene.GetTransform(entity).Position,
-			new (v) => scene.SetPosition(entity, v));
+			new (v) =>
+			{
+				let oldTransform = scene.GetTransform(entity);
+				scene.SetPosition(entity, v);
+				let newTransform = scene.GetTransform(entity);
+				mCurrentTab?.History.Push(new SetTransformCommand(scene, entity, oldTransform, newTransform));
+			});
 		posItem.SetCategory("Transform");
 		mPropertyGrid.AddItem(posItem);
 
 		// Rotation (Euler degrees)
 		let rotItem = new Vector3PropertyItem("Rotation",
 			new () => QuaternionToEulerDegrees(scene.GetTransform(entity).Rotation),
-			new (v) => scene.SetRotation(entity, EulerDegreesToQuaternion(v)));
+			new (v) =>
+			{
+				let oldTransform = scene.GetTransform(entity);
+				scene.SetRotation(entity, EulerDegreesToQuaternion(v));
+				let newTransform = scene.GetTransform(entity);
+				mCurrentTab?.History.Push(new SetTransformCommand(scene, entity, oldTransform, newTransform));
+			});
 		rotItem.SetCategory("Transform");
 		mPropertyGrid.AddItem(rotItem);
 
 		// Scale
 		let scaleItem = new Vector3PropertyItem("Scale",
 			new () => scene.GetTransform(entity).Scale,
-			new (v) => scene.SetScale(entity, v));
+			new (v) =>
+			{
+				let oldTransform = scene.GetTransform(entity);
+				scene.SetScale(entity, v);
+				let newTransform = scene.GetTransform(entity);
+				mCurrentTab?.History.Push(new SetTransformCommand(scene, entity, oldTransform, newTransform));
+			});
 		scaleItem.SetCategory("Transform");
 		mPropertyGrid.AddItem(scaleItem);
 	}
