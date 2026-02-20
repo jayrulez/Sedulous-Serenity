@@ -582,6 +582,10 @@ class InspectorPanel
 			{
 				AddReflectedResourceRefProperty(scene, entity, compType, field, category);
 			}
+			else if (IsResourceRefArrayType(fieldType))
+			{
+				AddReflectedResourceRefArrayProperty(scene, entity, compType, field, category);
+			}
 		}
 	}
 
@@ -896,6 +900,203 @@ class InspectorPanel
 			});
 		item.SetCategory(category);
 		mPropertyGrid.AddItem(item);
+	}
+
+	// ==================== ResourceRefArray Support ====================
+
+	/// Checks if a type is a ResourceRefArray<N> by inspecting its fields.
+	private static bool IsResourceRefArrayType(Type type)
+	{
+		if (!type.IsStruct) return false;
+		bool hasCount = false;
+		bool hasRefs = false;
+		for (let f in type.GetFields(.Instance | .Public))
+		{
+			if (f.Name == "Count" && f.FieldType == typeof(int32))
+				hasCount = true;
+			if (f.Name == "Refs" && f.FieldType.IsSizedArray &&
+				f.FieldType.UnderlyingType == typeof(ResourceRef))
+				hasRefs = true;
+		}
+		return hasCount && hasRefs;
+	}
+
+	/// Gets the inner layout info for a ResourceRefArray type.
+	private static bool GetResourceRefArrayLayout(Type arrayType, out int countOffset, out int refsOffset, out int refSize, out int capacity)
+	{
+		countOffset = 0;
+		refsOffset = 0;
+		refSize = typeof(ResourceRef).Size;
+		capacity = 0;
+
+		for (let f in arrayType.GetFields(.Instance | .Public))
+		{
+			if (f.Name == "Count" && f.FieldType == typeof(int32))
+				countOffset = f.MemberOffset;
+			if (f.Name == "Refs" && f.FieldType.IsSizedArray)
+			{
+				refsOffset = f.MemberOffset;
+				capacity = (int)(f.FieldType.Size / refSize);
+			}
+		}
+		return capacity > 0;
+	}
+
+	private void AddReflectedResourceRefArrayProperty(Scene scene, EntityId entity, Type compType, FieldInfo field, StringView category)
+	{
+		let fieldOffset = field.MemberOffset;
+		let arrayType = field.FieldType;
+
+		int countOffset, refsOffset, refSize, capacity;
+		if (!GetResourceRefArrayLayout(arrayType, out countOffset, out refsOffset, out refSize, out capacity))
+			return;
+
+		let filter = GetResourceFilter(compType, field.Name);
+
+		// Read current count
+		let compPtr = scene.GetComponentRaw(entity, compType);
+		if (compPtr == null)
+			return;
+		let arrayBase = (uint8*)compPtr + fieldOffset;
+		let count = *((int32*)(arrayBase + countOffset));
+
+		// Add a property item for each existing ref
+		for (int32 i = 0; i < count; i++)
+		{
+			let elemOffset = fieldOffset + refsOffset + i * refSize;
+			let elemLabel = scope:: String();
+			elemLabel.AppendF("{}[{}]", field.Name, i);
+			let capturedIndex = i;
+
+			let item = new ResourceRefPropertyItem(elemLabel,
+				// pathGetter
+				new (outPath) =>
+				{
+					let ptr = scene.GetComponentRaw(entity, compType);
+					if (ptr == null) { outPath.Set("(none)"); return; }
+					let resRef = (ResourceRef*)((uint8*)ptr + elemOffset);
+					if (resRef.HasPath)
+						outPath.Set(resRef.Path);
+					else if (resRef.HasId)
+						resRef.Id.ToString(outPath);
+					else
+						outPath.Set("(none)");
+				},
+				// onBrowse
+				new () =>
+				{
+					let filters = scope StringView[](filter);
+					let defaultPath = scope String();
+					if (mProjectDirectory != null)
+						defaultPath.Set(mProjectDirectory);
+
+					mDialogs?.ShowOpenFileDialog(new (paths) =>
+						{
+							if (paths.Length == 0 || paths[0].Length == 0)
+								return;
+
+							let selectedPath = scope String(paths[0]);
+							selectedPath.Replace('\\', '/');
+
+							Guid resolvedId = default;
+							if (mRegistries != null)
+							{
+								for (let registry in mRegistries)
+								{
+									if (registry.TryResolveId(selectedPath, out resolvedId))
+										break;
+								}
+							}
+
+							let ptr = scene.GetComponentRaw(entity, compType);
+							if (ptr == null) return;
+							let resRefPtr = (ResourceRef*)((uint8*)ptr + elemOffset);
+
+							if (resRefPtr.Path != null)
+								delete resRefPtr.Path;
+
+							resRefPtr.Id = resolvedId;
+							resRefPtr.Path = new String(selectedPath);
+
+							scene.SetComponentRaw(entity, compType, ptr);
+
+							if (mCurrentTab != null)
+							{
+								mCurrentTab.MarkDirty();
+								OnPropertyChanged?.Invoke();
+							}
+
+							ForceRebuild();
+						}, filters, defaultPath, false, mWindow);
+				},
+				// onClear: remove this element from the array (shift down)
+				new () =>
+				{
+					let ptr = scene.GetComponentRaw(entity, compType);
+					if (ptr == null) return;
+					let aBase = (uint8*)ptr + fieldOffset;
+					let currentCount = (int32*)((uint8*)aBase + countOffset);
+					let refsBase = (uint8*)aBase + refsOffset;
+
+					// Dispose this ref
+					let refPtr = (ResourceRef*)(refsBase + capturedIndex * refSize);
+					refPtr.Dispose();
+
+					// Shift remaining elements down
+					for (int32 j = capturedIndex; j < *currentCount - 1; j++)
+					{
+						let dst = (ResourceRef*)(refsBase + j * refSize);
+						let src = (ResourceRef*)(refsBase + (j + 1) * refSize);
+						*dst = *src;
+					}
+
+					// Zero the last slot and decrement count
+					let lastSlot = (ResourceRef*)(refsBase + (*currentCount - 1) * refSize);
+					*lastSlot = .();
+					(*currentCount)--;
+
+					scene.SetComponentRaw(entity, compType, ptr);
+
+					if (mCurrentTab != null)
+					{
+						mCurrentTab.MarkDirty();
+						OnPropertyChanged?.Invoke();
+					}
+
+					ForceRebuild();
+				});
+			item.SetCategory(category);
+			mPropertyGrid.AddItem(item);
+		}
+
+		// Add [+] button to add a new ref slot (if under capacity)
+		if (count < capacity)
+		{
+			let addItem = new ButtonPropertyItem(scope:: String()..AppendF("{} [+]", field.Name),
+				new () =>
+				{
+					let ptr = scene.GetComponentRaw(entity, compType);
+					if (ptr == null) return;
+					let aBase = (uint8*)ptr + fieldOffset;
+					let currentCount = (int32*)((uint8*)aBase + countOffset);
+
+					if (*currentCount < (int32)capacity)
+					{
+						(*currentCount)++;
+						scene.SetComponentRaw(entity, compType, ptr);
+
+						if (mCurrentTab != null)
+						{
+							mCurrentTab.MarkDirty();
+							OnPropertyChanged?.Invoke();
+						}
+
+						ForceRebuild();
+					}
+				});
+			addItem.SetCategory(category);
+			mPropertyGrid.AddItem(addItem);
+		}
 	}
 
 	/// Returns a file dialog filter string for resource browsing.
