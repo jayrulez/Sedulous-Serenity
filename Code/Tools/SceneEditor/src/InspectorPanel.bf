@@ -850,6 +850,10 @@ class InspectorPanel
 							}
 						}
 
+						// Fallback: read GUID from resource file
+						if (resolvedId == default)
+							TryReadResourceId(selectedPath, out resolvedId);
+
 						// Set the ResourceRef on the component
 						let ptr = scene.GetComponentRaw(entity, compType);
 						if (ptr == null) return;
@@ -1007,6 +1011,10 @@ class InspectorPanel
 										break;
 								}
 							}
+
+							// Fallback: read GUID from resource file
+							if (resolvedId == default)
+								TryReadResourceId(selectedPath, out resolvedId);
 
 							let ptr = scene.GetComponentRaw(entity, compType);
 							if (ptr == null) return;
@@ -1297,5 +1305,39 @@ class InspectorPanel
 		mCurrentEntity = entity;
 
 		OnPropertyChanged?.Invoke();
+	}
+
+	/// Tries to read the resource GUID from a resource file by searching for the _id field.
+	/// Works for OpenDDL-serialized resources (mesh, material, skeleton, animation clip).
+	private static bool TryReadResourceId(StringView path, out Guid id)
+	{
+		id = default;
+
+		let fileText = scope String();
+		if (File.ReadAllText(path, fileText) case .Err)
+			return false;
+
+		// Search for OpenDDL pattern: string %_id {"<guid>"}
+		let idMarker = "string %_id {\"";
+		let markerIdx = fileText.IndexOf(idMarker);
+		if (markerIdx < 0)
+			return false;
+
+		let guidStart = markerIdx + idMarker.Length;
+		let guidEnd = fileText.IndexOf('"', guidStart);
+		if (guidEnd <= guidStart)
+			return false;
+
+		let guidStr = StringView(fileText, guidStart, guidEnd - guidStart);
+		if (Guid.Parse(guidStr) case .Ok(let guid))
+		{
+			if (guid != default)
+			{
+				id = guid;
+				return true;
+			}
+		}
+
+		return false;
 	}
 }

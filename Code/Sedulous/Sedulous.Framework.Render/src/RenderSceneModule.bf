@@ -865,28 +865,48 @@ class RenderSceneModule : SceneModule
 		// Resolve static mesh components
 		for (let (entity, mesh) in scene.Query<MeshRendererComponent>())
 		{
-			// Resolve mesh ref
-			if (mesh.MeshRef.IsValid && !mesh.Mesh.IsValid)
+			// Resolve mesh ref (load new or reload on ref change)
+			if (mesh.MeshRef.IsValid)
 			{
-				let result = resourceSystem.LoadByRef<StaticMeshResource>(mesh.MeshRef);
-				if (result case .Ok(let handle))
-					mesh.Mesh = handle;
+				bool needsLoad = !mesh.Mesh.IsValid;
+				if (!needsLoad && mesh.MeshRef.HasId && mesh.Mesh.Resource != null && mesh.Mesh.Resource.Id != mesh.MeshRef.Id)
+				{
+					mesh.Mesh.Release();
+					needsLoad = true;
+				}
+				if (needsLoad)
+				{
+					if (resourceSystem.LoadByRef<StaticMeshResource>(mesh.MeshRef) case .Ok(let handle))
+						mesh.Mesh = handle;
+				}
 			}
 
-			// Resolve material refs (per slot)
+			// Resolve material refs (per slot, reload on ref change)
 			for (int32 i = 0; i < mesh.MaterialRefs.Count; i++)
 			{
-				if (mesh.MaterialRefs[i].IsValid && !mesh.Materials[i].IsValid)
+				if (mesh.MaterialRefs[i].IsValid)
 				{
-					let result = resourceSystem.LoadByRef<MaterialResource>(mesh.MaterialRefs[i]);
-					if (result case .Ok(let handle))
+					bool needsLoad = !mesh.Materials[i].IsValid;
+					if (!needsLoad && mesh.MaterialRefs[i].HasId && mesh.Materials[i].Resource != null && mesh.Materials[i].Resource.Id != mesh.MaterialRefs[i].Id)
 					{
-						mesh.Materials[i] = handle;
-						// Create MaterialInstance and resolve texture refs
-						if (handle.Resource?.Material != null && mesh.MaterialInstances[i] == null)
+						mesh.Materials[i].Release();
+						if (mesh.MaterialInstances[i] != null)
 						{
-							mesh.MaterialInstances[i] = new MaterialInstance(handle.Resource.Material);
-							ResolveTextureRefs(entity, resourceSystem, handle.Resource, mesh.MaterialInstances[i]);
+							mesh.MaterialInstances[i].ReleaseRef();
+							mesh.MaterialInstances[i] = null;
+						}
+						needsLoad = true;
+					}
+					if (needsLoad)
+					{
+						if (resourceSystem.LoadByRef<MaterialResource>(mesh.MaterialRefs[i]) case .Ok(let handle))
+						{
+							mesh.Materials[i] = handle;
+							if (handle.Resource?.Material != null && mesh.MaterialInstances[i] == null)
+							{
+								mesh.MaterialInstances[i] = new MaterialInstance(handle.Resource.Material);
+								ResolveTextureRefs(entity, resourceSystem, handle.Resource, mesh.MaterialInstances[i]);
+							}
 						}
 					}
 				}
@@ -896,28 +916,48 @@ class RenderSceneModule : SceneModule
 		// Resolve skinned mesh components
 		for (let (entity, mesh) in scene.Query<SkinnedMeshRendererComponent>())
 		{
-			// Resolve mesh ref
-			if (mesh.MeshRef.IsValid && !mesh.Mesh.IsValid)
+			// Resolve mesh ref (load new or reload on ref change)
+			if (mesh.MeshRef.IsValid)
 			{
-				let result = resourceSystem.LoadByRef<SkinnedMeshResource>(mesh.MeshRef);
-				if (result case .Ok(let handle))
-					mesh.Mesh = handle;
+				bool needsLoad = !mesh.Mesh.IsValid;
+				if (!needsLoad && mesh.MeshRef.HasId && mesh.Mesh.Resource != null && mesh.Mesh.Resource.Id != mesh.MeshRef.Id)
+				{
+					mesh.Mesh.Release();
+					needsLoad = true;
+				}
+				if (needsLoad)
+				{
+					if (resourceSystem.LoadByRef<SkinnedMeshResource>(mesh.MeshRef) case .Ok(let handle))
+						mesh.Mesh = handle;
+				}
 			}
 
-			// Resolve material refs (per slot)
+			// Resolve material refs (per slot, reload on ref change)
 			for (int32 i = 0; i < mesh.MaterialRefs.Count; i++)
 			{
-				if (mesh.MaterialRefs[i].IsValid && !mesh.Materials[i].IsValid)
+				if (mesh.MaterialRefs[i].IsValid)
 				{
-					let result = resourceSystem.LoadByRef<MaterialResource>(mesh.MaterialRefs[i]);
-					if (result case .Ok(let handle))
+					bool needsLoad = !mesh.Materials[i].IsValid;
+					if (!needsLoad && mesh.MaterialRefs[i].HasId && mesh.Materials[i].Resource != null && mesh.Materials[i].Resource.Id != mesh.MaterialRefs[i].Id)
 					{
-						mesh.Materials[i] = handle;
-						// Create MaterialInstance and resolve texture refs
-						if (handle.Resource?.Material != null && mesh.MaterialInstances[i] == null)
+						mesh.Materials[i].Release();
+						if (mesh.MaterialInstances[i] != null)
 						{
-							mesh.MaterialInstances[i] = new MaterialInstance(handle.Resource.Material);
-							ResolveTextureRefs(entity, resourceSystem, handle.Resource, mesh.MaterialInstances[i]);
+							mesh.MaterialInstances[i].ReleaseRef();
+							mesh.MaterialInstances[i] = null;
+						}
+						needsLoad = true;
+					}
+					if (needsLoad)
+					{
+						if (resourceSystem.LoadByRef<MaterialResource>(mesh.MaterialRefs[i]) case .Ok(let handle))
+						{
+							mesh.Materials[i] = handle;
+							if (handle.Resource?.Material != null && mesh.MaterialInstances[i] == null)
+							{
+								mesh.MaterialInstances[i] = new MaterialInstance(handle.Resource.Material);
+								ResolveTextureRefs(entity, resourceSystem, handle.Resource, mesh.MaterialInstances[i]);
+							}
 						}
 					}
 				}
@@ -927,22 +967,38 @@ class RenderSceneModule : SceneModule
 		// Resolve sprite components
 		for (let (entity, sprite) in scene.Query<SpriteComponent>())
 		{
-			if (sprite.TextureRef.IsValid && !sprite.Texture.IsValid)
+			if (sprite.TextureRef.IsValid)
 			{
-				let result = resourceSystem.LoadByRef<TextureResource>(sprite.TextureRef);
-				if (result case .Ok(let handle))
-					sprite.Texture = handle;
+				bool needsLoad = !sprite.Texture.IsValid;
+				if (!needsLoad && sprite.TextureRef.HasId && sprite.Texture.Resource != null && sprite.Texture.Resource.Id != sprite.TextureRef.Id)
+				{
+					sprite.Texture.Release();
+					needsLoad = true;
+				}
+				if (needsLoad)
+				{
+					if (resourceSystem.LoadByRef<TextureResource>(sprite.TextureRef) case .Ok(let handle))
+						sprite.Texture = handle;
+				}
 			}
 		}
 
 		// Resolve decal components
 		for (let (entity, decal) in scene.Query<DecalComponent>())
 		{
-			if (decal.TextureRef.IsValid && !decal.Texture.IsValid)
+			if (decal.TextureRef.IsValid)
 			{
-				let result = resourceSystem.LoadByRef<TextureResource>(decal.TextureRef);
-				if (result case .Ok(let handle))
-					decal.Texture = handle;
+				bool needsLoad = !decal.Texture.IsValid;
+				if (!needsLoad && decal.TextureRef.HasId && decal.Texture.Resource != null && decal.Texture.Resource.Id != decal.TextureRef.Id)
+				{
+					decal.Texture.Release();
+					needsLoad = true;
+				}
+				if (needsLoad)
+				{
+					if (resourceSystem.LoadByRef<TextureResource>(decal.TextureRef) case .Ok(let handle))
+						decal.Texture = handle;
+				}
 			}
 		}
 	}

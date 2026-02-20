@@ -203,32 +203,59 @@ class AnimationSceneModule : SceneModule
 
 		for (let (entity, anim) in scene.Query<SkeletalAnimationComponent>())
 		{
-			// Resolve skeleton ref
-			if (anim.SkeletonRef.IsValid && !anim.SkeletonRes.IsValid)
+			bool skeletonChanged = false;
+			bool clipChanged = false;
+
+			// Resolve skeleton ref (load new or reload on ref change)
+			if (anim.SkeletonRef.IsValid)
 			{
-				if (resourceSystem.LoadByRef<SkeletonResource>(anim.SkeletonRef) case .Ok(let handle))
-					anim.SkeletonRes = handle;
+				bool needsLoad = !anim.SkeletonRes.IsValid;
+				if (!needsLoad && anim.SkeletonRef.HasId && anim.SkeletonRes.Resource != null && anim.SkeletonRes.Resource.Id != anim.SkeletonRef.Id)
+				{
+					anim.SkeletonRes.Release();
+					needsLoad = true;
+					skeletonChanged = true;
+				}
+				if (needsLoad)
+				{
+					if (resourceSystem.LoadByRef<SkeletonResource>(anim.SkeletonRef) case .Ok(let handle))
+						anim.SkeletonRes = handle;
+				}
 			}
 
-			// Resolve animation clip ref
-			if (anim.AnimationClipRef.IsValid && !anim.AnimationClipRes.IsValid)
+			// Resolve animation clip ref (load new or reload on ref change)
+			if (anim.AnimationClipRef.IsValid)
 			{
-				if (resourceSystem.LoadByRef<AnimationClipResource>(anim.AnimationClipRef) case .Ok(let handle))
-					anim.AnimationClipRes = handle;
+				bool needsLoad = !anim.AnimationClipRes.IsValid;
+				if (!needsLoad && anim.AnimationClipRef.HasId && anim.AnimationClipRes.Resource != null && anim.AnimationClipRes.Resource.Id != anim.AnimationClipRef.Id)
+				{
+					anim.AnimationClipRes.Release();
+					needsLoad = true;
+					clipChanged = true;
+				}
+				if (needsLoad)
+				{
+					if (resourceSystem.LoadByRef<AnimationClipResource>(anim.AnimationClipRef) case .Ok(let handle))
+						anim.AnimationClipRes = handle;
+				}
 			}
 
 			// Set up animation player when both resources are loaded and no player exists yet
-			if (anim.Player == null && anim.SkeletonRes.IsValid && anim.AnimationClipRes.IsValid)
+			// Also re-setup if skeleton or clip changed
+			if (anim.SkeletonRes.IsValid && anim.AnimationClipRes.IsValid)
 			{
-				let skeleton = anim.SkeletonRes.Resource?.Skeleton;
-				let clip = anim.AnimationClipRes.Resource?.Clip;
-				if (skeleton != null && clip != null)
+				if (anim.Player == null || skeletonChanged || clipChanged)
 				{
-					let player = SetupAnimation(entity, skeleton);
-					if (player != null && anim.Playing)
+					let skeleton = anim.SkeletonRes.Resource?.Skeleton;
+					let clip = anim.AnimationClipRes.Resource?.Clip;
+					if (skeleton != null && clip != null)
 					{
-						clip.IsLooping = anim.Loop;
-						player.Play(clip);
+						let player = SetupAnimation(entity, skeleton);
+						if (player != null && anim.Playing)
+						{
+							clip.IsLooping = anim.Loop;
+							player.Play(clip);
+						}
 					}
 				}
 			}
@@ -386,11 +413,20 @@ class AnimationSceneModule : SceneModule
 
 		for (let (entity, graphAnim) in scene.Query<AnimationGraphComponent>())
 		{
-			// Resolve skeleton ref
-			if (graphAnim.SkeletonRef.IsValid && !graphAnim.SkeletonRes.IsValid)
+			// Resolve skeleton ref (load new or reload on ref change)
+			if (graphAnim.SkeletonRef.IsValid)
 			{
-				if (resourceSystem.LoadByRef<SkeletonResource>(graphAnim.SkeletonRef) case .Ok(let handle))
-					graphAnim.SkeletonRes = handle;
+				bool needsLoad = !graphAnim.SkeletonRes.IsValid;
+				if (!needsLoad && graphAnim.SkeletonRef.HasId && graphAnim.SkeletonRes.Resource != null && graphAnim.SkeletonRes.Resource.Id != graphAnim.SkeletonRef.Id)
+				{
+					graphAnim.SkeletonRes.Release();
+					needsLoad = true;
+				}
+				if (needsLoad)
+				{
+					if (resourceSystem.LoadByRef<SkeletonResource>(graphAnim.SkeletonRef) case .Ok(let handle))
+						graphAnim.SkeletonRes = handle;
+				}
 			}
 		}
 	}
