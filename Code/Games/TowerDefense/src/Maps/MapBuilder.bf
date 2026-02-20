@@ -120,7 +120,7 @@ class MapBuilder
 		meshComp.Mesh = ResourceHandle<StaticMeshResource>(mTileMesh);
 		meshComp.MaterialInstances[0] = GetMaterialForTileType(tileType);
 		meshComp.MaterialInstances[0]?.AddRef();
-		meshComp.MaterialCount = 1;
+		meshComp.MaterialRefs.Count = 1;
 
 		mTileEntities.Add(entity);
 	}

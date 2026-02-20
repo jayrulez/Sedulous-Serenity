@@ -239,7 +239,7 @@ class FrameworkNavigationApp : Application
 			comp.Mesh = ResourceHandle<StaticMeshResource>(mPlaneResource);
 			comp.MaterialInstances[0] = mFloorMaterial ?? defaultMaterialInstance;
 			comp.MaterialInstances[0]?.AddRef();
-			comp.MaterialCount = 1;
+			comp.MaterialRefs.Count = 1;
 			if (physicsModule != null)
 				physicsModule.CreatePlaneBody(mFloorEntity, .(0, 1, 0), 0.0f);
 		}
@@ -283,7 +283,7 @@ class FrameworkNavigationApp : Application
 		let defaultMat = mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
 		comp.MaterialInstances[0] = mWallMaterial ?? defaultMat;
 		comp.MaterialInstances[0]?.AddRef();
-		comp.MaterialCount = 1;
+		comp.MaterialRefs.Count = 1;
 	}
 
 	private void CreateUI()

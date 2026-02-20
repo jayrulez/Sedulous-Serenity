@@ -167,7 +167,7 @@ class TowerFactory
 		meshComp.Mesh = ResourceHandle<StaticMeshResource>(mTowerMesh);
 		meshComp.MaterialInstances[0] = GetOrCreateMaterial(definition.Color);
 		meshComp.MaterialInstances[0]?.AddRef();
-		meshComp.MaterialCount = 1;
+		meshComp.MaterialRefs.Count = 1;
 
 		// Create tower data (replaces component)
 		let towerData = new TowerData();
@@ -256,7 +256,7 @@ class TowerFactory
 		meshComp.Mesh = ResourceHandle<StaticMeshResource>(mProjectileMesh);
 		meshComp.MaterialInstances[0] = GetOrCreateMaterial(color);
 		meshComp.MaterialInstances[0]?.AddRef();
-		meshComp.MaterialCount = 1;
+		meshComp.MaterialRefs.Count = 1;
 
 		// Create projectile data (replaces component)
 		let projData = new ProjectileData();

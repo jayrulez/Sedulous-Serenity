@@ -66,7 +66,7 @@ static class RenderConfig
 	public const int32 MaxBonesPerMesh = 256;
 
 	/// Maximum material slots per mesh (for multi-material submeshes).
-	public const int32 MaxMaterialsPerMesh = 8;
+	public const int MaxMaterialsPerMesh = 8;
 
 	/// Maximum particle count per emitter.
 	public const int32 MaxParticlesPerEmitter = 65536;

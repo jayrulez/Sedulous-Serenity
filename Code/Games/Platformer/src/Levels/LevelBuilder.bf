@@ -414,8 +414,8 @@ class LevelBuilder
 
 			if (materialRefs != null && materialRefs.Count > 0)
 			{
-				comp.MaterialCount = (int32)Math.Min(materialRefs.Count, RenderConfig.MaxMaterialsPerMesh);
-				for (int32 i = 0; i < comp.MaterialCount; i++)
+				comp.MaterialRefs.Count = (int32)Math.Min(materialRefs.Count, RenderConfig.MaxMaterialsPerMesh);
+				for (int32 i = 0; i < comp.MaterialRefs.Count; i++)
 					comp.MaterialRefs[i] = ResourceRef(materialRefs[i].Id, materialRefs[i].Path);
 			}
 
@@ -463,8 +463,8 @@ class LevelBuilder
 
 			if (materialRefs != null && materialRefs.Count > 0)
 			{
-				comp.MaterialCount = (int32)Math.Min(materialRefs.Count, RenderConfig.MaxMaterialsPerMesh);
-				for (int32 i = 0; i < comp.MaterialCount; i++)
+				comp.MaterialRefs.Count = (int32)Math.Min(materialRefs.Count, RenderConfig.MaxMaterialsPerMesh);
+				for (int32 i = 0; i < comp.MaterialRefs.Count; i++)
 					comp.MaterialRefs[i] = ResourceRef(materialRefs[i].Id, materialRefs[i].Path);
 			}
 

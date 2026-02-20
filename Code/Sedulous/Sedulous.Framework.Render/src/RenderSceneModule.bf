@@ -103,7 +103,7 @@ class RenderSceneModule : SceneModule
 		{
 			meshComp.Mesh.Release();
 			meshComp.MeshRef.Dispose();
-			for (int32 i = 0; i < meshComp.MaterialCount; i++)
+			for (int32 i = 0; i < meshComp.MaterialRefs.Count; i++)
 			{
 				meshComp.Materials[i].Release();
 				meshComp.MaterialRefs[i].Dispose();
@@ -119,7 +119,7 @@ class RenderSceneModule : SceneModule
 		{
 			skinnedComp.Mesh.Release();
 			skinnedComp.MeshRef.Dispose();
-			for (int32 i = 0; i < skinnedComp.MaterialCount; i++)
+			for (int32 i = 0; i < skinnedComp.MaterialRefs.Count; i++)
 			{
 				skinnedComp.Materials[i].Release();
 				skinnedComp.MaterialRefs[i].Dispose();
@@ -242,7 +242,7 @@ class RenderSceneModule : SceneModule
 			{
 				if (let proxy = mWorld.GetMesh(proxyHandle))
 				{
-					for (int32 i = 0; i < mesh.MaterialCount; i++)
+					for (int32 i = 0; i < mesh.MaterialRefs.Count; i++)
 					{
 						if (mesh.MaterialInstances[i] != proxy.Materials[i])
 							mWorld.SetMeshMaterial(proxyHandle, i, mesh.MaterialInstances[i]);
@@ -304,7 +304,7 @@ class RenderSceneModule : SceneModule
 			{
 				if (let proxy = mWorld.GetSkinnedMesh(proxyHandle))
 				{
-					for (int32 i = 0; i < mesh.MaterialCount; i++)
+					for (int32 i = 0; i < mesh.MaterialRefs.Count; i++)
 					{
 						if (mesh.MaterialInstances[i] != proxy.Materials[i])
 							mWorld.SetSkinnedMeshMaterial(proxyHandle, i, mesh.MaterialInstances[i]);
@@ -729,7 +729,7 @@ class RenderSceneModule : SceneModule
 		{
 			meshComp.Mesh.Release();
 			meshComp.MeshRef.Dispose();
-			for (int32 i = 0; i < meshComp.MaterialCount; i++)
+			for (int32 i = 0; i < meshComp.MaterialRefs.Count; i++)
 			{
 				meshComp.Materials[i].Release();
 				meshComp.MaterialRefs[i].Dispose();
@@ -754,7 +754,7 @@ class RenderSceneModule : SceneModule
 		{
 			skinnedComp.Mesh.Release();
 			skinnedComp.MeshRef.Dispose();
-			for (int32 i = 0; i < skinnedComp.MaterialCount; i++)
+			for (int32 i = 0; i < skinnedComp.MaterialRefs.Count; i++)
 			{
 				skinnedComp.Materials[i].Release();
 				skinnedComp.MaterialRefs[i].Dispose();
@@ -874,7 +874,7 @@ class RenderSceneModule : SceneModule
 			}
 
 			// Resolve material refs (per slot)
-			for (int32 i = 0; i < mesh.MaterialCount; i++)
+			for (int32 i = 0; i < mesh.MaterialRefs.Count; i++)
 			{
 				if (mesh.MaterialRefs[i].IsValid && !mesh.Materials[i].IsValid)
 				{
@@ -905,7 +905,7 @@ class RenderSceneModule : SceneModule
 			}
 
 			// Resolve material refs (per slot)
-			for (int32 i = 0; i < mesh.MaterialCount; i++)
+			for (int32 i = 0; i < mesh.MaterialRefs.Count; i++)
 			{
 				if (mesh.MaterialRefs[i].IsValid && !mesh.Materials[i].IsValid)
 				{

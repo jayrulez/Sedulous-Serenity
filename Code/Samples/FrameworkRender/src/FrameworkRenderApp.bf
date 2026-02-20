@@ -219,7 +219,7 @@ class FrameworkRenderApp : Application
 			comp.Mesh = ResourceHandle<StaticMeshResource>(mPlaneResource);
 			comp.MaterialInstances[0] = mFloorMaterial ?? defaultMaterial;
 			comp.MaterialInstances[0]?.AddRef();
-			comp.MaterialCount = 1;
+			comp.MaterialRefs.Count = 1;
 		}
 
 		// Create camera
@@ -324,13 +324,13 @@ class FrameworkRenderApp : Application
 				mUniqueMaterials.Add(uniqueMat);
 				comp.MaterialInstances[0] = uniqueMat;
 				comp.MaterialInstances[0]?.AddRef();
-				comp.MaterialCount = 1;
+				comp.MaterialRefs.Count = 1;
 			}
 			else
 			{
 				comp.MaterialInstances[0] = mSharedSphereMaterial ?? defaultMaterial;
 				comp.MaterialInstances[0]?.AddRef();
-				comp.MaterialCount = 1;
+				comp.MaterialRefs.Count = 1;
 			}
 		}
 
@@ -380,13 +380,13 @@ class FrameworkRenderApp : Application
 				mUniqueMaterials.Add(uniqueMat);
 				comp.MaterialInstances[0] = uniqueMat;
 				comp.MaterialInstances[0]?.AddRef();
-				if (comp.MaterialCount < 1) comp.MaterialCount = 1;
+				if (comp.MaterialRefs.Count < 1) comp.MaterialRefs.Count = 1;
 			}
 			else
 			{
 				comp.MaterialInstances[0] = mSharedSphereMaterial ?? defaultMaterial;
 				comp.MaterialInstances[0]?.AddRef();
-				if (comp.MaterialCount < 1) comp.MaterialCount = 1;
+				if (comp.MaterialRefs.Count < 1) comp.MaterialRefs.Count = 1;
 			}
 		}
 

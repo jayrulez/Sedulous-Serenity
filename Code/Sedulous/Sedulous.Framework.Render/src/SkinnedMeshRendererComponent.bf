@@ -21,10 +21,8 @@ struct SkinnedMeshRendererComponent : ISerializableComponent
 	public ResourceHandle<SkinnedMeshResource> Mesh;
 	/// Serializable reference to the mesh resource.
 	[Property] public ResourceRef MeshRef;
-	/// Number of active material slots.
-	public int32 MaterialCount;
 	/// Serializable references to material resources (one per submesh slot).
-	public ResourceRef[RenderConfig.MaxMaterialsPerMesh] MaterialRefs;
+	[Property] public ResourceRefArray<const RenderConfig.MaxMaterialsPerMesh> MaterialRefs;
 	/// Material resource handles (runtime, not serialized).
 	public ResourceHandle<MaterialResource>[RenderConfig.MaxMaterialsPerMesh] Materials;
 	/// Material instances for rendering (runtime, created from MaterialResource).
@@ -35,8 +33,7 @@ struct SkinnedMeshRendererComponent : ISerializableComponent
 	public void Dispose() mut
 	{
 		MeshRef.Dispose();
-		for (int32 i = 0; i < MaterialRefs.Count; i++)
-			MaterialRefs[i].Dispose();
+		MaterialRefs.Dispose();
 	}
 
 	public int32 SerializationVersion => 3;
@@ -46,13 +43,7 @@ struct SkinnedMeshRendererComponent : ISerializableComponent
 		var version = SerializationVersion;
 		s.Version(ref version);
 		s.ResourceRef("mesh", ref MeshRef);
-		s.Int32("materialCount", ref MaterialCount);
-		for (int32 i = 0; i < MaterialCount; i++)
-		{
-			let name = scope String();
-			name.AppendF("material{}", i);
-			s.ResourceRef(name, ref MaterialRefs[i]);
-		}
+		s.ResourceRefArray("materials", ref MaterialRefs);
 		s.Bool("enabled", ref Enabled);
 		return .Ok;
 	}
@@ -60,7 +51,6 @@ struct SkinnedMeshRendererComponent : ISerializableComponent
 	public static SkinnedMeshRendererComponent Default => .() {
 		Mesh = default,
 		MeshRef = .(),
-		MaterialCount = 0,
 		MaterialRefs = .(),
 		Materials = .(),
 		MaterialInstances = .(),

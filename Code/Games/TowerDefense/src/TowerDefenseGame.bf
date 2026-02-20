@@ -487,7 +487,7 @@ class TowerDefenseGame : Application
 		meshComp.Mesh = ResourceHandle<StaticMeshResource>(mCubeResource);
 		meshComp.MaterialInstances[0] = mPreviewValidMat;
 		meshComp.MaterialInstances[0]?.AddRef();
-		meshComp.MaterialCount = 1;
+		meshComp.MaterialRefs.Count = 1;
 
 		Console.WriteLine("Tower preview created");
 	}
@@ -1086,7 +1086,7 @@ class TowerDefenseGame : Application
 			meshComp.MaterialInstances[0]?.ReleaseRef();
 			meshComp.MaterialInstances[0] = canPlace ? mPreviewValidMat : mPreviewInvalidMat;
 			meshComp.MaterialInstances[0]?.AddRef();
-			if (meshComp.MaterialCount < 1) meshComp.MaterialCount = 1;
+			if (meshComp.MaterialRefs.Count < 1) meshComp.MaterialRefs.Count = 1;
 		}
 	}
 

@@ -719,8 +719,8 @@ class FrameworkSerializationApp : Application
 		comp.MeshRef = ResourceRef(skinnedMeshId, skinnedMeshPath);
 		if (materialRefs != null && materialRefs.Count > 0)
 		{
-			let count = Math.Min((int32)materialRefs.Count, RenderConfig.MaxMaterialsPerMesh);
-			comp.MaterialCount = count;
+			let count = Math.Min((int32)materialRefs.Count, (int32)RenderConfig.MaxMaterialsPerMesh);
+			comp.MaterialRefs.Count = count;
 			for (int32 i = 0; i < count; i++)
 				comp.MaterialRefs[i] = ResourceRef(materialRefs[i].Id, materialRefs[i].Path);
 		}
@@ -770,8 +770,8 @@ class FrameworkSerializationApp : Application
 		meshComp.MeshRef = ResourceRef(staticMeshId, staticMeshPath);
 		if (materialRefs != null && materialRefs.Count > 0)
 		{
-			let count = Math.Min((int32)materialRefs.Count, RenderConfig.MaxMaterialsPerMesh);
-			meshComp.MaterialCount = count;
+			let count = Math.Min((int32)materialRefs.Count, (int32)RenderConfig.MaxMaterialsPerMesh);
+			meshComp.MaterialRefs.Count = count;
 			for (int32 i = 0; i < count; i++)
 				meshComp.MaterialRefs[i] = ResourceRef(materialRefs[i].Id, materialRefs[i].Path);
 		}
@@ -973,14 +973,14 @@ class FrameworkSerializationApp : Application
 			let name = scene.GetName(entity);
 			let meshValid = comp.MeshRef.IsValid;
 			let matValid = comp.MaterialRefs[0].IsValid;
-			Console.WriteLine($"  {name}: SkinnedMesh(MeshRef.valid={meshValid}, MaterialRefs[0].valid={matValid}, Enabled={comp.Enabled}, MaterialCount={comp.MaterialCount})");
+			Console.WriteLine($"  {name}: SkinnedMesh(MeshRef.valid={meshValid}, MaterialRefs[0].valid={matValid}, Enabled={comp.Enabled}, MaterialCount={comp.MaterialRefs.Count})");
 		}
 		for (let (entity, comp) in scene.Query<MeshRendererComponent>())
 		{
 			let name = scene.GetName(entity);
 			let meshValid = comp.MeshRef.IsValid;
 			let matValid = comp.MaterialRefs[0].IsValid;
-			Console.WriteLine($"  {name}: Mesh(MeshRef.valid={meshValid}, MaterialRefs[0].valid={matValid}, Enabled={comp.Enabled}, MaterialCount={comp.MaterialCount})");
+			Console.WriteLine($"  {name}: Mesh(MeshRef.valid={meshValid}, MaterialRefs[0].valid={matValid}, Enabled={comp.Enabled}, MaterialCount={comp.MaterialRefs.Count})");
 		}
 		for (let (entity, comp) in scene.Query<SkeletalAnimationComponent>())
 		{

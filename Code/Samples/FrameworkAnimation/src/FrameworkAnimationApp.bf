@@ -491,7 +491,7 @@ class FrameworkAnimationApp : Application
 			let defaultMat = mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
 			comp.MaterialInstances[0] = mFloorMaterial ?? defaultMat;
 			comp.MaterialInstances[0]?.AddRef();
-			comp.MaterialCount = 1;
+			comp.MaterialRefs.Count = 1;
 		}
 
 		// Animated cube
@@ -512,7 +512,7 @@ class FrameworkAnimationApp : Application
 			let defaultMat = mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
 			comp.MaterialInstances[0] = mCubeMaterial ?? defaultMat;
 			comp.MaterialInstances[0]?.AddRef();
-			comp.MaterialCount = 1;
+			comp.MaterialRefs.Count = 1;
 
 			var transform = mMainScene.GetTransform(mCubeEntity);
 			transform.Position = .(5, 1, 0);
@@ -561,8 +561,8 @@ class FrameworkAnimationApp : Application
 		// Add skinned mesh component
 		var meshComp = SkinnedMeshRendererComponent.Default;
 		meshComp.MeshRef = ResourceRef(mSkinnedMeshId, mSkinnedMeshPath);
-		meshComp.MaterialCount = (int32)Math.Min(mMaterialRefs.Count, 8);
-		for (int32 i = 0; i < meshComp.MaterialCount; i++)
+		meshComp.MaterialRefs.Count = (int32)Math.Min(mMaterialRefs.Count, 8);
+		for (int32 i = 0; i < meshComp.MaterialRefs.Count; i++)
 			meshComp.MaterialRefs[i] = ResourceRef(mMaterialRefs[i].Id, mMaterialRefs[i].Path);
 		mMainScene.SetComponent<SkinnedMeshRendererComponent>(entity, meshComp);
 

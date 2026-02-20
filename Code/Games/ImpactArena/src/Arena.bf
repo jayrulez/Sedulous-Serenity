@@ -44,7 +44,7 @@ class Arena
 		comp.Mesh = ResourceHandle<StaticMeshResource>(planeResource);
 		comp.MaterialInstances[0] = mat;
 		comp.MaterialInstances[0]?.AddRef();
-		comp.MaterialCount = 1;
+		comp.MaterialRefs.Count = 1;
 		mPhysicsModule.CreatePlaneBody(mFloorEntity, .(0, 1, 0), 0.0f);
 	}
 
@@ -81,7 +81,7 @@ class Arena
 		comp.Mesh = ResourceHandle<StaticMeshResource>(cubeResource);
 		comp.MaterialInstances[0] = mat;
 		comp.MaterialInstances[0]?.AddRef();
-		comp.MaterialCount = 1;
+		comp.MaterialRefs.Count = 1;
 
 		var descriptor = PhysicsBodyDescriptor();
 		descriptor.BodyType = .Static;

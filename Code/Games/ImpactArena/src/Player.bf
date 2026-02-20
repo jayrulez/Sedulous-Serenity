@@ -79,7 +79,7 @@ class Player
 		comp.Mesh = ResourceHandle<StaticMeshResource>(sphereMesh);
 		comp.MaterialInstances[0] = mat;
 		comp.MaterialInstances[0]?.AddRef();
-		comp.MaterialCount = 1;
+		comp.MaterialRefs.Count = 1;
 
 		// Create physics body constrained to XZ plane
 		var descriptor = PhysicsBodyDescriptor();

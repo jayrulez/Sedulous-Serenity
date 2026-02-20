@@ -107,13 +107,13 @@ class HexGridRenderer
 					mTileMaterials[key] = mat;
 					comp.MaterialInstances[0] = mat;
 					comp.MaterialInstances[0].AddRef();
-					comp.MaterialCount = 1;
+					comp.MaterialRefs.Count = 1;
 				}
 				else if (defaultMaterial != null)
 				{
 					comp.MaterialInstances[0] = defaultMaterial;
 					comp.MaterialInstances[0].AddRef();
-					comp.MaterialCount = 1;
+					comp.MaterialRefs.Count = 1;
 				}
 			}
 		}

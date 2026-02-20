@@ -108,7 +108,7 @@ class EnemyManager
 		comp.Mesh = ResourceHandle<StaticMeshResource>(mSphereResource);
 		comp.MaterialInstances[0] = mat;
 		comp.MaterialInstances[0]?.AddRef();
-		comp.MaterialCount = 1;
+		comp.MaterialRefs.Count = 1;
 
 		var descriptor = PhysicsBodyDescriptor();
 		descriptor.BodyType = .Dynamic;

@@ -18,6 +18,24 @@ static class ResourceSerializerExtensions
 		return .Ok;
 	}
 
+	/// Serializes a ResourceRefArray as a nested object with a count and indexed refs.
+	public static SerializationResult ResourceRefArray<TCapacity>(this Serializer s, StringView name, ref ResourceRefArray<TCapacity> value) where TCapacity : const int
+	{
+		var result = s.BeginObject(name);
+		if (result != .Ok)
+			return result;
+
+		s.Int32("count", ref value.Count);
+		for (int32 i = 0; i < value.Count; i++)
+		{
+			let elemName = scope String();
+			elemName.AppendF("ref{}", i);
+			s.ResourceRef(elemName, ref value.Refs[i]);
+		}
+
+		return s.EndObject();
+	}
+
 	/// Serializes a ResourceRef as a nested object with "_id" and "path" fields.
 	public static SerializationResult ResourceRef(this Serializer s, StringView name, ref ResourceRef value)
 	{

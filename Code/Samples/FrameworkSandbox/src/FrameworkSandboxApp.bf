@@ -436,7 +436,7 @@ class FrameworkSandboxApp : Application
 			comp.Mesh = ResourceHandle<StaticMeshResource>(mPlaneResource);
 			comp.MaterialInstances[0] = mFloorMaterial ?? defaultMaterial;
 			comp.MaterialInstances[0]?.AddRef();
-			comp.MaterialCount = 1;
+			comp.MaterialRefs.Count = 1;
 
 			// Infinite plane at Y=0 facing up
 			if (physicsModule != null)
@@ -489,7 +489,7 @@ class FrameworkSandboxApp : Application
 			comp.Mesh = ResourceHandle<StaticMeshResource>(mCubeResource);
 			comp.MaterialInstances[0] = mCubeMaterial ?? defaultMaterial;
 			comp.MaterialInstances[0]?.AddRef();
-			comp.MaterialCount = 1;
+			comp.MaterialRefs.Count = 1;
 
 			// Add kinematic physics body (controlled by gameplay, not physics simulation)
 			if (physicsModule != null)
@@ -529,7 +529,7 @@ class FrameworkSandboxApp : Application
 				comp.Mesh = ResourceHandle<StaticMeshResource>(mSphereResource);
 				comp.MaterialInstances[0] = mSphereMaterial ?? defaultMaterial;
 				comp.MaterialInstances[0]?.AddRef();
-				comp.MaterialCount = 1;
+				comp.MaterialRefs.Count = 1;
 
 				// Add dynamic physics body - will fall and bounce
 				physicsModule.CreateSphereBody(entity, 0.3f, .Dynamic, ObjectRestitution);
@@ -1717,7 +1717,7 @@ class FrameworkSandboxApp : Application
 		let defaultMaterial = mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
 		comp.MaterialInstances[0] = mSphereMaterial ?? defaultMaterial;
 		comp.MaterialInstances[0]?.AddRef();
-		comp.MaterialCount = 1;
+		comp.MaterialRefs.Count = 1;
 
 		physicsModule.CreateSphereBody(entity, 0.3f, .Dynamic, ObjectRestitution);
 		mSpawnCount++;

@@ -99,7 +99,7 @@ class BattleUnitView
 		{
 			comp.MaterialInstances[0] = material;
 			comp.MaterialInstances[0].AddRef();
-			comp.MaterialCount = 1;
+			comp.MaterialRefs.Count = 1;
 		}
 	}
 
