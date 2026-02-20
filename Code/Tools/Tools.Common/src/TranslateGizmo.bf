@@ -30,14 +30,14 @@ public class TranslateGizmo
 	private Vector3 mDragStartPosition;
 	private Vector3 mDragStartHitPoint;
 
-	// Colors
-	private static readonly Color sColorX = Color(220, 50, 50, 255);
-	private static readonly Color sColorY = Color(50, 220, 50, 255);
-	private static readonly Color sColorZ = Color(50, 100, 220, 255);
-	private static readonly Color sColorXHover = Color(255, 150, 150, 255);
-	private static readonly Color sColorYHover = Color(150, 255, 150, 255);
-	private static readonly Color sColorZHover = Color(150, 180, 255, 255);
-	private static readonly Color sColorSelected = Color(255, 255, 100, 255);
+	// Colors (shared across gizmo types)
+	public static readonly Color sColorX = Color(220, 50, 50, 255);
+	public static readonly Color sColorY = Color(50, 220, 50, 255);
+	public static readonly Color sColorZ = Color(50, 100, 220, 255);
+	public static readonly Color sColorXHover = Color(255, 150, 150, 255);
+	public static readonly Color sColorYHover = Color(150, 255, 150, 255);
+	public static readonly Color sColorZHover = Color(150, 180, 255, 255);
+	public static readonly Color sColorSelected = Color(255, 255, 100, 255);
 
 	/// Creates a ray from camera through screen point.
 	/// screenX, screenY: Screen coordinates (0,0 = top-left)
@@ -235,7 +235,7 @@ public class TranslateGizmo
 	}
 
 	/// Calculates the closest distance from a ray to an axis line segment.
-	private float RayAxisDistance(Ray ray, Vector3 axisOrigin, Vector3 axisDir, float axisLength)
+	public static float RayAxisDistance(Ray ray, Vector3 axisOrigin, Vector3 axisDir, float axisLength)
 	{
 		// Find closest points between two lines
 		let d1 = ray.Direction;
@@ -275,7 +275,7 @@ public class TranslateGizmo
 
 	/// Gets the hit point on a plane for dragging.
 	/// planeOrigin: The point the plane passes through (use fixed position during drag to avoid feedback)
-	private Vector3 GetDragHitPoint(Ray ray, GizmoAxis axis, Vector3 planeOrigin)
+	public static Vector3 GetDragHitPoint(Ray ray, GizmoAxis axis, Vector3 planeOrigin)
 	{
 		// For single-axis movement, we need to pick a plane that contains the axis
 		// and is most perpendicular to the view direction

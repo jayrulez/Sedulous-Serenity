@@ -6,6 +6,7 @@ using Sedulous.Framework.Render;
 using Sedulous.Framework.Animation;
 using Sedulous.Render;
 using Sedulous.Resources;
+using Sedulous.Geometry.Resources;
 using Tools.Common;
 using System.Collections;
 using Sedulous.GUI;
@@ -39,6 +40,8 @@ class SceneEditorApp : Application
 	private enum GizmoMode { Translate, Rotate, Scale }
 	private GizmoMode mGizmoMode = .Translate;
 	private TranslateGizmo mGizmo ~ delete _;
+	private RotateGizmo mRotateGizmo ~ delete _;
+	private ScaleGizmo mScaleGizmo ~ delete _;
 
 	// Tabs
 	private List<SceneTab> mTabs ~ DeleteContainerAndItems!(_);
@@ -157,6 +160,10 @@ class SceneEditorApp : Application
 
 		mGizmo = new TranslateGizmo();
 		mGizmo.Size = 1.0f;
+		mRotateGizmo = new RotateGizmo();
+		mRotateGizmo.Size = 1.0f;
+		mScaleGizmo = new ScaleGizmo();
+		mScaleGizmo.Size = 1.0f;
 	}
 
 	// ==================== Project Directory ====================
@@ -961,45 +968,86 @@ class SceneEditorApp : Application
 
 		// === Gizmo interaction ===
 		bool hasSelection = tab.SelectedEntities.Count > 0;
+		bool anyGizmoDragging = mGizmo.IsDragging || mRotateGizmo.IsDragging || mScaleGizmo.IsDragging;
+		GizmoAxis activeHoveredAxis = .None;
 
-		if (hasSelection && !mGizmo.IsDragging)
+		if (hasSelection && !anyGizmoDragging)
 		{
-			// Position gizmo at selected entity
+			// Position all gizmos at selected entity
 			let entity = tab.SelectedEntities[0];
 			if (tab.Scene.IsValid(entity))
 			{
-				mGizmo.Position = tab.Scene.GetTransform(entity).Position;
-				mGizmo.UpdateHover(pickRay, mGizmo.Size * 0.15f);
+				let entityPos = tab.Scene.GetTransform(entity).Position;
+				mGizmo.Position = entityPos;
+				mRotateGizmo.Position = entityPos;
+				mScaleGizmo.Position = entityPos;
+
+				// Update hover on the active gizmo only
+				switch (mGizmoMode)
+				{
+				case .Translate:
+					mGizmo.UpdateHover(pickRay, mGizmo.Size * 0.15f);
+					activeHoveredAxis = mGizmo.HoveredAxis;
+				case .Rotate:
+					mRotateGizmo.UpdateHover(pickRay, mRotateGizmo.Size * 0.15f);
+					activeHoveredAxis = mRotateGizmo.HoveredAxis;
+				case .Scale:
+					mScaleGizmo.UpdateHover(pickRay, mScaleGizmo.Size * 0.15f);
+					activeHoveredAxis = mScaleGizmo.HoveredAxis;
+				}
 			}
 		}
 
 		// Begin gizmo drag (LMB on hovered axis, without Ctrl)
 		if (mouse.IsButtonPressed(.Left) && mouseInViewport && !uiCaptured && !ctrlHeld
-			&& hasSelection && mGizmo.HoveredAxis != .None)
+			&& hasSelection && activeHoveredAxis != .None)
 		{
-			mGizmo.BeginDrag(pickRay);
+			switch (mGizmoMode)
+			{
+			case .Translate: mGizmo.BeginDrag(pickRay);
+			case .Rotate: mRotateGizmo.BeginDrag(pickRay);
+			case .Scale: mScaleGizmo.BeginDrag(pickRay);
+			}
 			mIsDragging = false;  // Prevent camera orbit during gizmo drag
 			mGizmoDragOldTransform = tab.Scene.GetTransform(tab.SelectedEntities[0]);
 		}
 
 		// Update gizmo drag
-		if (mGizmo.IsDragging)
+		anyGizmoDragging = mGizmo.IsDragging || mRotateGizmo.IsDragging || mScaleGizmo.IsDragging;
+		if (anyGizmoDragging)
 		{
-			let delta = mGizmo.UpdateDrag(pickRay);
-			let newPos = mGizmoDragOldTransform.Position + delta;
 			let entity = tab.SelectedEntities[0];
-			tab.Scene.SetPosition(entity, newPos);
-			mGizmo.Position = newPos;
-			tab.MarkDirty();
 
-			// Live-update inspector
+			switch (mGizmoMode)
+			{
+			case .Translate:
+				let delta = mGizmo.UpdateDrag(pickRay);
+				let newPos = mGizmoDragOldTransform.Position + delta;
+				tab.Scene.SetPosition(entity, newPos);
+				mGizmo.Position = newPos;
+			case .Rotate:
+				let deltaRot = mRotateGizmo.UpdateDrag(pickRay);
+				let newRot = deltaRot * mGizmoDragOldTransform.Rotation;
+				tab.Scene.SetRotation(entity, newRot);
+			case .Scale:
+				let scaleFactor = mScaleGizmo.UpdateDrag(pickRay);
+				let newScale = mGizmoDragOldTransform.Scale * scaleFactor;
+				tab.Scene.SetScale(entity, newScale);
+			}
+
+			tab.MarkDirty();
 			mInspectorPanel.RefreshForSelection(tab);
 		}
 
 		// End gizmo drag
-		if (mouse.IsButtonReleased(.Left) && mGizmo.IsDragging)
+		if (mouse.IsButtonReleased(.Left) && anyGizmoDragging)
 		{
-			mGizmo.EndDrag();
+			switch (mGizmoMode)
+			{
+			case .Translate: mGizmo.EndDrag();
+			case .Rotate: mRotateGizmo.EndDrag();
+			case .Scale: mScaleGizmo.EndDrag();
+			}
 
 			// Push undo command for the completed drag
 			let entity = tab.SelectedEntities[0];
@@ -1013,7 +1061,7 @@ class SceneEditorApp : Application
 
 		// === Entity picking (LMB click without Ctrl, not on gizmo) ===
 		if (mouse.IsButtonPressed(.Left) && mouseInViewport && !uiCaptured && !ctrlHeld
-			&& !mGizmo.IsDragging && mGizmo.HoveredAxis == .None)
+			&& !anyGizmoDragging && activeHoveredAxis == .None)
 		{
 			let pickedEntity = PickEntity(tab, pickRay);
 			tab.SelectedEntities.Clear();
@@ -1058,7 +1106,8 @@ class SceneEditorApp : Application
 			mIsPanning = false;
 
 		// Orbit rotate
-		if (mIsDragging && !mIsFlying && !mGizmo.IsDragging)
+		bool gizmoActive = mGizmo.IsDragging || mRotateGizmo.IsDragging || mScaleGizmo.IsDragging;
+		if (mIsDragging && !mIsFlying && !gizmoActive)
 		{
 			float deltaX = mouse.X - mLastMouseX;
 			tab.Camera.Rotate(-deltaX * 0.01f, 0);
@@ -1187,21 +1236,43 @@ class SceneEditorApp : Application
 				{
 					mOverlayFeature.AddGrid(.(0, 0, 0), 20.0f, 20, Color(80, 80, 100, 255), .DepthTest);
 
-					// Draw selection highlight
+					// Draw selection highlight (OBB using actual mesh bounds)
 					if (tab.SelectedEntities.Count > 0 && tab.Scene.IsValid(tab.SelectedEntities[0]))
 					{
 						let entity = tab.SelectedEntities[0];
-						let pos = tab.Scene.GetTransform(entity).Position;
-						let halfSize = 0.5f;
-						let selBounds = BoundingBox(
-							pos - .(halfSize, halfSize, halfSize),
-							pos + .(halfSize, halfSize, halfSize));
-						mOverlayFeature.AddBox(selBounds, Color(255, 200, 50, 255), .Overlay);
+						let transform = tab.Scene.GetTransform(entity);
+						let worldMatrix = transform.ToMatrix();
+
+						// Get mesh local bounds, or default 1x1x1 for non-mesh entities
+						BoundingBox localBounds = .(Vector3(-0.5f, -0.5f, -0.5f), Vector3(0.5f, 0.5f, 0.5f));
+						if (let meshComp = tab.Scene.GetComponent<MeshRendererComponent>(entity))
+						{
+							if (meshComp.Mesh.IsValid)
+								if (let resource = meshComp.Mesh.Resource)
+									if (resource.Mesh != null)
+										localBounds = resource.Mesh.GetBounds();
+						}
+						else if (let skinnedComp = tab.Scene.GetComponent<SkinnedMeshRendererComponent>(entity))
+						{
+							if (skinnedComp.Mesh.IsValid)
+								if (let resource = skinnedComp.Mesh.Resource)
+									if (resource.Mesh != null)
+										localBounds = resource.Mesh.Bounds;
+						}
+
+						mOverlayFeature.AddTransformedBox(localBounds, worldMatrix, Color(255, 200, 50, 255), .Overlay);
 					}
 
-					// Draw gizmo
+					// Draw active gizmo
 					if (tab.SelectedEntities.Count > 0)
-						mGizmo.Draw(mOverlayFeature);
+					{
+						switch (mGizmoMode)
+						{
+						case .Translate: mGizmo.Draw(mOverlayFeature);
+						case .Rotate: mRotateGizmo.Draw(mOverlayFeature);
+						case .Scale: mScaleGizmo.Draw(mOverlayFeature);
+						}
+					}
 				}
 
 				if (mRenderSystem.BuildRenderGraph(mView) case .Ok)
