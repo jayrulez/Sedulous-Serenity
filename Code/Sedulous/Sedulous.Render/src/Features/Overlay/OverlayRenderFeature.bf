@@ -274,6 +274,42 @@ public class OverlayRenderFeature : RenderFeatureBase
 		AddBox(BoundingBox(center - halfExtents, center + halfExtents), color, mode);
 	}
 
+	/// Draws a wireframe oriented bounding box (local AABB transformed by world matrix).
+	public void AddTransformedBox(BoundingBox localBounds, Matrix worldMatrix, Color color, OverlayRenderMode mode = .DepthTest)
+	{
+		let min = localBounds.Min;
+		let max = localBounds.Max;
+
+		// Transform 8 corners
+		Vector3[8] c;
+		c[0] = Vector3.Transform(.(min.X, min.Y, min.Z), worldMatrix);
+		c[1] = Vector3.Transform(.(max.X, min.Y, min.Z), worldMatrix);
+		c[2] = Vector3.Transform(.(min.X, max.Y, min.Z), worldMatrix);
+		c[3] = Vector3.Transform(.(max.X, max.Y, min.Z), worldMatrix);
+		c[4] = Vector3.Transform(.(min.X, min.Y, max.Z), worldMatrix);
+		c[5] = Vector3.Transform(.(max.X, min.Y, max.Z), worldMatrix);
+		c[6] = Vector3.Transform(.(min.X, max.Y, max.Z), worldMatrix);
+		c[7] = Vector3.Transform(.(max.X, max.Y, max.Z), worldMatrix);
+
+		// Bottom face
+		AddLine(c[0], c[1], color, mode);
+		AddLine(c[1], c[5], color, mode);
+		AddLine(c[5], c[4], color, mode);
+		AddLine(c[4], c[0], color, mode);
+
+		// Top face
+		AddLine(c[2], c[3], color, mode);
+		AddLine(c[3], c[7], color, mode);
+		AddLine(c[7], c[6], color, mode);
+		AddLine(c[6], c[2], color, mode);
+
+		// Vertical edges
+		AddLine(c[0], c[2], color, mode);
+		AddLine(c[1], c[3], color, mode);
+		AddLine(c[5], c[7], color, mode);
+		AddLine(c[4], c[6], color, mode);
+	}
+
 	/// Draws a wireframe sphere approximation.
 	public void AddSphere(Vector3 center, float radius, Color color, int segments = 16, OverlayRenderMode mode = .DepthTest)
 	{
