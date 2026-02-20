@@ -19,6 +19,8 @@ public class TreeView : Control
 
 	// Selection state
 	private TreeViewItem mSelectedItem;
+	private List<TreeViewItem> mSelectedItems = new .() ~ delete _;  // All selected items (references only)
+	private bool mMultiSelect = false;
 	private int mFocusedIndex = -1;
 	private int mHoveredIndex = -1;
 
@@ -73,28 +75,30 @@ public class TreeView : Control
 	/// Number of root items.
 	public int ItemCount => mRootItems.Count;
 
-	/// The currently selected item.
+	/// The currently selected item (primary selection).
+	/// Setting this clears multi-selection and selects only the specified item.
 	public TreeViewItem SelectedItem
 	{
 		get => mSelectedItem;
 		set
 		{
-			if (mSelectedItem != value)
+			if (mSelectedItem != value || mSelectedItems.Count > 1)
 			{
 				// Cancel any active edit
 				if (mEditingItem != null)
 					EndEdit(false);
 
-				// Deselect old item
-				if (mSelectedItem != null)
-					mSelectedItem.IsSelected = false;
+				// Deselect all items
+				ClearSelectionVisuals();
 
 				mSelectedItem = value;
+				mSelectedItems.Clear();
 
 				// Select new item
 				if (mSelectedItem != null)
 				{
 					mSelectedItem.IsSelected = true;
+					mSelectedItems.Add(mSelectedItem);
 					mFocusedIndex = mVisibleItems.IndexOf(mSelectedItem);
 				}
 				else
@@ -106,6 +110,16 @@ public class TreeView : Control
 			}
 		}
 	}
+
+	/// Whether multi-select is enabled (Ctrl+Click toggle, Shift+Click range).
+	public bool MultiSelect
+	{
+		get => mMultiSelect;
+		set => mMultiSelect = value;
+	}
+
+	/// All currently selected items (read-only reference list).
+	public List<TreeViewItem> SelectedItems => mSelectedItems;
 
 	/// Event fired when selection changes.
 	public EventAccessor<delegate void(TreeView)> SelectionChanged => mSelectionChanged;
@@ -160,9 +174,16 @@ public class TreeView : Control
 		if (index < 0)
 			return;
 
-		// Clear selection if removing selected item
+		// Remove from multi-selection if present
+		item.IsSelected = false;
+		mSelectedItems.Remove(item);
+
+		// Clear primary selection if removing selected item
 		if (mSelectedItem == item || IsDescendantOf(mSelectedItem, item))
-			SelectedItem = null;
+		{
+			mSelectedItem = mSelectedItems.Count > 0 ? mSelectedItems[mSelectedItems.Count - 1] : null;
+			mFocusedIndex = mSelectedItem != null ? mVisibleItems.IndexOf(mSelectedItem) : -1;
+		}
 
 		// Remove from panel first (without deleting, we own it)
 		mItemsPanel.ClearChildren(deleteAll: false);
@@ -188,7 +209,10 @@ public class TreeView : Control
 	{
 		if (mEditingItem != null)
 			EndEdit(false);
-		SelectedItem = null;
+		ClearSelectionVisuals();
+		mSelectedItems.Clear();
+		mSelectedItem = null;
+		mFocusedIndex = -1;
 
 		// Remove from panel first (without deleting, we own them)
 		mItemsPanel.ClearChildren(deleteAll: false);
@@ -396,6 +420,74 @@ public class TreeView : Control
 			mItemCollapsed.[Friend]Invoke(this, item);
 	}
 
+	// === Multi-Select Helpers ===
+
+	/// Clears the IsSelected visual on all selected items.
+	private void ClearSelectionVisuals()
+	{
+		for (let item in mSelectedItems)
+			item.IsSelected = false;
+	}
+
+	/// Toggles an item in/out of the multi-selection.
+	private void ToggleItemSelection(TreeViewItem item)
+	{
+		if (mEditingItem != null)
+			EndEdit(false);
+
+		let idx = mSelectedItems.IndexOf(item);
+		if (idx >= 0)
+		{
+			// Deselect
+			item.IsSelected = false;
+			mSelectedItems.RemoveAt(idx);
+
+			// Update primary selection
+			mSelectedItem = mSelectedItems.Count > 0 ? mSelectedItems[mSelectedItems.Count - 1] : null;
+		}
+		else
+		{
+			// Add to selection
+			item.IsSelected = true;
+			mSelectedItems.Add(item);
+			mSelectedItem = item;
+		}
+
+		mFocusedIndex = mSelectedItem != null ? mVisibleItems.IndexOf(mSelectedItem) : -1;
+		mSelectionChanged.[Friend]Invoke(this);
+	}
+
+	/// Selects a range from the focused index to the target item.
+	private void RangeSelect(TreeViewItem targetItem)
+	{
+		if (mEditingItem != null)
+			EndEdit(false);
+
+		let targetIndex = mVisibleItems.IndexOf(targetItem);
+		if (targetIndex < 0) return;
+
+		let anchorIndex = mFocusedIndex >= 0 ? mFocusedIndex : 0;
+
+		// Clear existing selection
+		ClearSelectionVisuals();
+		mSelectedItems.Clear();
+
+		// Select range
+		let startIdx = Math.Min(anchorIndex, targetIndex);
+		let endIdx = Math.Max(anchorIndex, targetIndex);
+		for (int i = startIdx; i <= endIdx; i++)
+		{
+			let item = mVisibleItems[i];
+			item.IsSelected = true;
+			mSelectedItems.Add(item);
+		}
+
+		// Primary is the target
+		mSelectedItem = targetItem;
+		// Keep focused index at the anchor (don't update mFocusedIndex)
+		mSelectionChanged.[Friend]Invoke(this);
+	}
+
 	// === Internal ===
 
 	/// Checks if target is a descendant of ancestor.
@@ -573,9 +665,19 @@ public class TreeView : Control
 				{
 					item.IsExpanded = !item.IsExpanded;
 				}
+				else if (mMultiSelect && e.HasModifier(.Ctrl))
+				{
+					// Ctrl+Click: toggle item in multi-selection
+					ToggleItemSelection(item);
+				}
+				else if (mMultiSelect && e.HasModifier(.Shift))
+				{
+					// Shift+Click: range select
+					RangeSelect(item);
+				}
 				else
 				{
-					// Select the item
+					// Normal click: select single item
 					SelectedItem = item;
 				}
 
