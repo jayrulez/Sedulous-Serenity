@@ -1950,11 +1950,9 @@ class ModelViewerApp : Application
 		// Wait for GPU to finish all work
 		Device?.WaitIdle();
 
-		// Clean up all tabs
-		for (let tab in mTabs)
-		{
-			tab.Destroy(mRenderSystem);
-		}
+		// Close all tabs properly (destroys render resources, deletes tab objects)
+		while (mTabs.Count > 0)
+			CloseTab(0, false);
 
 		// Shutdown render system (this cleans up features, pipelines, etc.)
 		mRenderSystem?.Shutdown();
@@ -1963,7 +1961,7 @@ class ModelViewerApp : Application
 		if (mView != null) { delete mView; mView = null; }
 		if (mRenderSystem != null) { delete mRenderSystem; mRenderSystem = null; }
 
-		// Clean up UI (after render system since viewport uses it)
+		// Clean up UI last — GUIContext only references it, doesn't own it
 		delete mRootPanel;
 	}
 }
