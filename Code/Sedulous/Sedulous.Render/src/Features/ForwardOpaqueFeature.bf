@@ -1363,6 +1363,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 		// Get batcher data
 		let batcher = depthFeature.Batcher;
+		let commands = batcher.DrawCommands;
 
 		// Get scene bind group for later binding (after pipeline is set)
 		let sceneBindGroup = mSceneBindGroups[GetBindGroupIndex(frameIndex)];
@@ -1373,37 +1374,6 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			if (group.InstanceCount == 0)
 				continue;
 
-			// Get material for this group (all instances in group share the same material)
-			MaterialInstance material = group.Material ?? defaultMaterialInstance;
-
-			// Get pipeline for this material from cache
-			let pipeline = GetPipelineForMaterial(material, shadowsEnabled, true);
-			if (pipeline == null)
-				continue; // Skip if pipeline can't be created
-
-			if (pipeline != currentPipeline)
-			{
-				encoder.SetPipeline(pipeline);
-				currentPipeline = pipeline;
-
-				// Rebind scene bind group after pipeline change (descriptor sets must be bound after pipeline)
-				if (sceneBindGroup != null)
-				{
-					uint32[1] dynamicOffsets = .(0);
-					encoder.SetBindGroup(0, sceneBindGroup, dynamicOffsets);
-				}
-			}
-
-			// Bind material if changed
-			if (material != currentMaterial && material != null && materialSystem != null)
-			{
-				if (materialSystem.PrepareInstance(material) case .Ok(let bindGroup))
-				{
-					encoder.SetBindGroup(1, bindGroup, default);
-					currentMaterial = material;
-				}
-			}
-
 			// Get mesh data
 			if (let mesh = Renderer.ResourceManager.GetMesh(group.GPUMesh))
 			{
@@ -1411,19 +1381,110 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				encoder.SetVertexBuffer(0, mesh.VertexBuffer, 0);
 				encoder.SetVertexBuffer(1, instanceBuffer, (uint64)(group.InstanceStart * (int32)InstanceData.Size));
 
-				if (mesh.IndexBuffer != null)
+				// Get the mesh proxy for per-submesh material lookup
+				MeshProxy* proxy = null;
+				if (group.CommandStart < commands.Length)
 				{
+					let cmd = commands[group.CommandStart];
+					if (cmd.MeshHandle.IsValid)
+						proxy = world.GetMesh(cmd.MeshHandle);
+				}
+
+				if (mesh.IndexBuffer != null && mesh.SubMeshes != null && mesh.SubMeshes.Count > 1)
+				{
+					// Per-submesh rendering: each submesh may have a different material
 					encoder.SetIndexBuffer(mesh.IndexBuffer, mesh.IndexFormat);
-					encoder.DrawIndexed(mesh.IndexCount, (uint32)group.InstanceCount, 0, 0, 0);
+
+					for (let sub in mesh.SubMeshes)
+					{
+						// Resolve material for this submesh's material slot
+						let matSlot = (int32)sub.MaterialSlot;
+						MaterialInstance material = null;
+						if (proxy != null && matSlot >= 0 && matSlot < proxy.MaterialCount)
+							material = proxy.Materials[matSlot];
+						if (material == null && proxy != null && proxy.MaterialCount > 0)
+							material = proxy.Materials[0];
+						if (material == null)
+							material = defaultMaterialInstance;
+
+						// Get pipeline for this material
+						let pipeline = GetPipelineForMaterial(material, shadowsEnabled, true);
+						if (pipeline == null)
+							continue;
+
+						if (pipeline != currentPipeline)
+						{
+							encoder.SetPipeline(pipeline);
+							currentPipeline = pipeline;
+
+							if (sceneBindGroup != null)
+							{
+								uint32[1] dynamicOffsets = .(0);
+								encoder.SetBindGroup(0, sceneBindGroup, dynamicOffsets);
+							}
+						}
+
+						// Bind material if changed
+						if (material != currentMaterial && material != null && materialSystem != null)
+						{
+							if (materialSystem.PrepareInstance(material) case .Ok(let bindGroup))
+							{
+								encoder.SetBindGroup(1, bindGroup, default);
+								currentMaterial = material;
+							}
+						}
+
+						encoder.DrawIndexed(sub.IndexCount, (uint32)group.InstanceCount, sub.IndexStart, sub.BaseVertex, 0);
+
+						Renderer.Stats.DrawCalls++;
+						Renderer.Stats.InstanceCount += group.InstanceCount;
+						Renderer.Stats.TriangleCount += (int32)(sub.IndexCount / 3) * group.InstanceCount;
+					}
 				}
 				else
 				{
-					encoder.Draw(mesh.VertexCount, (uint32)group.InstanceCount, 0, 0);
-				}
+					// Single submesh or no submeshes: draw entire mesh with group material
+					MaterialInstance material = group.Material ?? defaultMaterialInstance;
 
-				Renderer.Stats.DrawCalls++;
-				Renderer.Stats.InstanceCount += group.InstanceCount;
-				Renderer.Stats.TriangleCount += (int32)(mesh.IndexCount / 3) * group.InstanceCount;
+					let pipeline = GetPipelineForMaterial(material, shadowsEnabled, true);
+					if (pipeline == null)
+						continue;
+
+					if (pipeline != currentPipeline)
+					{
+						encoder.SetPipeline(pipeline);
+						currentPipeline = pipeline;
+
+						if (sceneBindGroup != null)
+						{
+							uint32[1] dynamicOffsets = .(0);
+							encoder.SetBindGroup(0, sceneBindGroup, dynamicOffsets);
+						}
+					}
+
+					if (material != currentMaterial && material != null && materialSystem != null)
+					{
+						if (materialSystem.PrepareInstance(material) case .Ok(let bindGroup))
+						{
+							encoder.SetBindGroup(1, bindGroup, default);
+							currentMaterial = material;
+						}
+					}
+
+					if (mesh.IndexBuffer != null)
+					{
+						encoder.SetIndexBuffer(mesh.IndexBuffer, mesh.IndexFormat);
+						encoder.DrawIndexed(mesh.IndexCount, (uint32)group.InstanceCount, 0, 0, 0);
+					}
+					else
+					{
+						encoder.Draw(mesh.VertexCount, (uint32)group.InstanceCount, 0, 0);
+					}
+
+					Renderer.Stats.DrawCalls++;
+					Renderer.Stats.InstanceCount += group.InstanceCount;
+					Renderer.Stats.TriangleCount += (int32)(mesh.IndexCount / 3) * group.InstanceCount;
+				}
 			}
 		}
 	}

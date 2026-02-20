@@ -490,7 +490,9 @@ class MaterialSystem : IDisposable
 
 		// Add uniform buffer if present
 		if (mUniformBuffers.TryGetValue(instance, let buffer))
+		{
 			entries.Add(.Buffer(0, buffer, 0, material.UniformDataSize));
+		}
 
 		// Add textures and samplers
 		int textureBinding = 0;
