@@ -14,6 +14,7 @@ using Sedulous.Drawing.Fonts;
 using Sedulous.GUI;
 using Sedulous.Render;
 using Sedulous.Materials;
+using Sedulous.Materials.Resources;
 using Sedulous.Geometry;
 using Sedulous.Geometry.Tooling;
 using Sedulous.Animation;
@@ -761,21 +762,67 @@ class ModelViewerApp : Application
 		}
 	}
 
+	private static AddressMode SamplerAddressModeToRHI(SamplerAddressMode mode)
+	{
+		switch (mode)
+		{
+		case .Repeat:       return .Repeat;
+		case .MirrorRepeat: return .MirrorRepeat;
+		case .ClampToEdge:  return .ClampToEdge;
+		case .ClampToBorder: return .ClampToBorder;
+		}
+	}
+
+	/// Converts SamplerMinFilter to RHI FilterMode for min and mipmap filters.
+	private static (FilterMode minFilter, FilterMode mipmapFilter) MinFilterToRHI(SamplerMinFilter filter)
+	{
+		switch (filter)
+		{
+		case .Nearest:              return (.Nearest, .Nearest);
+		case .Linear:               return (.Linear, .Nearest);
+		case .NearestMipmapNearest: return (.Nearest, .Nearest);
+		case .LinearMipmapNearest:  return (.Linear, .Nearest);
+		case .NearestMipmapLinear:  return (.Nearest, .Linear);
+		case .LinearMipmapLinear:   return (.Linear, .Linear);
+		}
+	}
+
+	private static FilterMode MagFilterToRHI(SamplerMagFilter filter)
+	{
+		switch (filter)
+		{
+		case .Nearest: return .Nearest;
+		case .Linear:  return .Linear;
+		}
+	}
+
 	private void LoadTexturesAndMaterials(ModelTab tab, ModelImportResult importResult, StringView basePath)
 	{
+		Console.WriteLine($"[ModelViewer] Loading {importResult.Textures.Count} textures, {importResult.Materials.Count} materials");
+
 		// Upload all textures from the import result
-		for (let texRes in importResult.Textures)
+		for (int t = 0; t < importResult.Textures.Count; t++)
 		{
+			let texRes = importResult.Textures[t];
 			if (texRes.Image != null)
 			{
 				let texData = TextureData.FromImage(texRes.Image);
 				if (mRenderSystem.ResourceManager.UploadTexture(texData) case .Ok(let handle))
+				{
+					Console.WriteLine($"[ModelViewer]   Texture[{t}] \"{texRes.Name}\": uploaded OK (image {texRes.Image.Width}x{texRes.Image.Height} fmt={texRes.Image.Format})");
 					tab.TextureHandles.Add(handle);
+				}
 				else
+				{
+					Console.WriteLine($"[ModelViewer]   Texture[{t}] \"{texRes.Name}\": UPLOAD FAILED");
 					tab.TextureHandles.Add(.Invalid); // Keep index alignment
+				}
 			}
 			else
+			{
+				Console.WriteLine($"[ModelViewer]   Texture[{t}] \"{texRes.Name}\": no image data");
 				tab.TextureHandles.Add(.Invalid);
+			}
 		}
 
 		// Create MaterialInstances from all imported materials
@@ -784,14 +831,18 @@ class ModelViewerApp : Application
 			return;
 
 		// Take ownership of materials from import result (move them to tab)
-		for (let matRes in importResult.Materials)
+		for (int m = 0; m < importResult.Materials.Count; m++)
 		{
+			let matRes = importResult.Materials[m];
 			let material = matRes.Material;
 			if (material == null)
 			{
+				Console.WriteLine($"[ModelViewer]   Material[{m}]: null material, skipping");
 				tab.MaterialInstances.Add(null);
 				continue;
 			}
+
+			Console.WriteLine($"[ModelViewer]   Material[{m}] \"{matRes.Name}\": shader=\"{material.ShaderName}\" texRefs={matRes.TextureRefs.Count}");
 
 			// Create instance from the imported material
 			let instance = new MaterialInstance(material);
@@ -803,9 +854,13 @@ class ModelViewerApp : Application
 				let texRef = kv.value;
 
 				if (texRef.Path == null)
+				{
+					Console.WriteLine($"[ModelViewer]     Slot \"{slot}\": null path, skipping");
 					continue;
+				}
 
 				// Find the texture by matching path/name in importResult.Textures
+				bool found = false;
 				for (int i = 0; i < importResult.Textures.Count; i++)
 				{
 					let texRes = importResult.Textures[i];
@@ -817,12 +872,31 @@ class ModelViewerApp : Application
 						if (i < tab.TextureHandles.Count && tab.TextureHandles[i].IsValid)
 						{
 							if (let texView = mRenderSystem.ResourceManager.GetTextureView(tab.TextureHandles[i]))
+							{
 								instance.SetTexture(slot, texView);
+								Console.WriteLine($"[ModelViewer]     Slot \"{slot}\": matched texture[{i}] \"{texRes.Name}\" -> BOUND");
+							}
+							else
+								Console.WriteLine($"[ModelViewer]     Slot \"{slot}\": matched texture[{i}] \"{texRes.Name}\" -> NO VIEW");
 						}
+						else
+							Console.WriteLine($"[ModelViewer]     Slot \"{slot}\": matched texture[{i}] \"{texRes.Name}\" -> INVALID HANDLE");
+						found = true;
 						break;
 					}
 				}
+
+				if (!found)
+					Console.WriteLine($"[ModelViewer]     Slot \"{slot}\": NO MATCH for path \"{texRef.Path}\" (searched {importResult.Textures.Count} textures)");
 			}
+
+			// Apply sampler settings from material resource
+			let addressU = SamplerAddressModeToRHI(matRes.WrapU);
+			let addressV = SamplerAddressModeToRHI(matRes.WrapV);
+			let (minFilter, mipmapFilter) = MinFilterToRHI(matRes.MinFilter);
+			let magFilter = MagFilterToRHI(matRes.MagFilter);
+			let sampler = materialSystem.GetOrCreateSampler(addressU, addressV, minFilter, magFilter, mipmapFilter);
+			instance.SetSampler("MainSampler", sampler);
 
 			tab.MaterialInstances.Add(instance);
 		}

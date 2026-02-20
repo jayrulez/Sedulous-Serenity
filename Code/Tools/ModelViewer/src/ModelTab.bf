@@ -102,8 +102,8 @@ class ModelTab
 
 		// Set environment
 		World.AmbientColor = .(0.1f, 0.1f, 0.15f);
-		World.AmbientIntensity = 0.5f;
-		World.Exposure = 1.0f;
+		World.AmbientIntensity = 0.4f;
+		World.Exposure = 0.5f;
 	}
 
 	/// Clears all model resources from this tab.

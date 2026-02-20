@@ -257,9 +257,21 @@ public class GltfLoader : IModelLoader
 			sampler.WrapS = WrapModeFromCgltf(samp.wrap_s);
 			sampler.WrapT = WrapModeFromCgltf(samp.wrap_t);
 			sampler.MinFilter = MinFilterFromCgltf(samp.min_filter);
-			sampler.MagFilter = MagFilterFromCgltf(samp.min_filter);
+			sampler.MagFilter = MagFilterFromCgltf(samp.mag_filter);
 
 			model.AddSampler(sampler);
+		}
+
+		// Ensure all textures have a valid sampler.
+		// Per glTF spec, textures without an explicit sampler default to Repeat wrapping.
+		for (let texture in model.Textures)
+		{
+			if (texture.SamplerIndex < 0)
+			{
+				// Add a default glTF sampler (Repeat/Repeat) and assign it
+				TextureSampler defaultSampler = .(); // Defaults: WrapS=Repeat, WrapT=Repeat
+				texture.SamplerIndex = model.AddSampler(defaultSampler);
+			}
 		}
 	}
 
@@ -402,6 +414,7 @@ public class GltfLoader : IModelLoader
 		bool isSkinned = false;
 		bool hasNormals = false;
 		bool hasTangents = false;
+		bool hasTexCoords = false;
 		for (int a = 0; a < (int)firstPrim.attributes_count; a++)
 		{
 			let attr = &firstPrim.attributes[a];
@@ -411,6 +424,8 @@ public class GltfLoader : IModelLoader
 				hasNormals = true;
 			if (attr.type == .cgltf_attribute_type_tangent)
 				hasTangents = true;
+			if (attr.type == .cgltf_attribute_type_texcoord && attr.index == 0)
+				hasTexCoords = true;
 		}
 
 		mesh.SetHasNormals(hasNormals);

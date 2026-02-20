@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Tools.Common" = "*", "Sedulous.AppFramework" = "*", "Sedulous.Models" = "*", "Sedulous.Models.GLTF" = "*", "Sedulous.Models.FBX" = "*", "Sedulous.RHI" = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Mathematics" = "*", "Sedulous.Drawing" = "*", "Sedulous.Render" = "*", "Sedulous.Materials" = "*", "Sedulous.Geometry" = "*", "Sedulous.Geometry.Tooling" = "*", "Sedulous.Animation" = "*", "Sedulous.Animation.Resources" = "*", "Sedulous.Textures" = "*", "Sedulous.Textures.Resources" = "*", "Sedulous.Imaging" = "*", "Sedulous.Imaging.SDL" = "*"}
+Dependencies = {corlib = "*", "Tools.Common" = "*", "Sedulous.AppFramework" = "*", "Sedulous.Models" = "*", "Sedulous.Models.GLTF" = "*", "Sedulous.Models.FBX" = "*", "Sedulous.RHI" = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Mathematics" = "*", "Sedulous.Drawing" = "*", "Sedulous.Render" = "*", "Sedulous.Materials" = "*", "Sedulous.Materials.Resources" = "*", "Sedulous.Geometry" = "*", "Sedulous.Geometry.Tooling" = "*", "Sedulous.Animation" = "*", "Sedulous.Animation.Resources" = "*", "Sedulous.Textures" = "*", "Sedulous.Textures.Resources" = "*", "Sedulous.Imaging" = "*", "Sedulous.Imaging.SDL" = "*"}
 
 [Project]
 Name = "ModelViewer"

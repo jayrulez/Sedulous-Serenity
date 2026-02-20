@@ -22,6 +22,14 @@ class MaterialResource : Resource
 	private Material mMaterial;
 	private bool mOwnsMaterial;
 
+	/// Sampler wrap modes for this material.
+	public SamplerAddressMode WrapU = .Repeat;
+	public SamplerAddressMode WrapV = .Repeat;
+
+	/// Sampler filter modes for this material.
+	public SamplerMinFilter MinFilter = .LinearMipmapLinear;
+	public SamplerMagFilter MagFilter = .Linear;
+
 	/// Texture references (slot name -> ResourceRef with GUID + path).
 	/// At runtime, these refs are resolved to actual texture resources via the registry.
 	public Dictionary<String, ResourceRef> TextureRefs = new .() ~ {
@@ -115,6 +123,16 @@ class MaterialResource : Resource
 			int32 shaderFlags = (int32)mMaterial.ShaderFlags;
 			s.Int32("shaderFlags", ref shaderFlags);
 
+			// Write sampler settings
+			int32 wrapU = (int32)WrapU;
+			int32 wrapV = (int32)WrapV;
+			int32 minFilter = (int32)MinFilter;
+			int32 magFilter = (int32)MagFilter;
+			s.Int32("wrapU", ref wrapU);
+			s.Int32("wrapV", ref wrapV);
+			s.Int32("minFilter", ref minFilter);
+			s.Int32("magFilter", ref magFilter);
+
 			// Write full pipeline config
 			SerializePipelineConfig(s, mMaterial.PipelineConfig);
 
@@ -181,6 +199,19 @@ class MaterialResource : Resource
 			// Read shader flags
 			int32 shaderFlags = 0;
 			s.Int32("shaderFlags", ref shaderFlags);
+
+			// Read sampler settings
+			int32 wrapU = 0, wrapV = 0;
+			int32 minFilter = (int32)SamplerMinFilter.LinearMipmapLinear;
+			int32 magFilter = (int32)SamplerMagFilter.Linear;
+			s.Int32("wrapU", ref wrapU);
+			s.Int32("wrapV", ref wrapV);
+			s.Int32("minFilter", ref minFilter);
+			s.Int32("magFilter", ref magFilter);
+			WrapU = (SamplerAddressMode)wrapU;
+			WrapV = (SamplerAddressMode)wrapV;
+			MinFilter = (SamplerMinFilter)minFilter;
+			MagFilter = (SamplerMagFilter)magFilter;
 
 			// Create material
 			let mat = new Material();

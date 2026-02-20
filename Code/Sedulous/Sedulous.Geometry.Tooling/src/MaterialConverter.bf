@@ -4,6 +4,7 @@ using Sedulous.Models;
 using Sedulous.Mathematics;
 using Sedulous.Materials;
 using Sedulous.Resources;
+using Sedulous.Materials.Resources;
 using Sedulous.Textures.Resources;
 
 namespace Sedulous.Geometry.Tooling;
@@ -51,6 +52,21 @@ static class MaterialConverter
 		let matRes = new Sedulous.Materials.Resources.MaterialResource(mat, true);
 		matRes.Name.Set(modelMat.Name);
 
+		// Read sampler wrap modes from the base color texture (primary sampler)
+		if (model != null && modelMat.BaseColorTextureIndex >= 0 && modelMat.BaseColorTextureIndex < model.Textures.Count)
+		{
+			let tex = model.Textures[modelMat.BaseColorTextureIndex];
+			if (tex.SamplerIndex >= 0 && tex.SamplerIndex < model.Samplers.Count)
+			{
+				let sampler = model.Samplers[tex.SamplerIndex];
+				matRes.WrapU = WrapToAddressMode(sampler.WrapS);
+				matRes.WrapV = WrapToAddressMode(sampler.WrapT);
+				matRes.MinFilter = MinFilterToSampler(sampler.MinFilter);
+				matRes.MagFilter = MagFilterToSampler(sampler.MagFilter);
+			}
+			// else: no explicit sampler means default (Repeat), which is WrapU=0, WrapV=0
+		}
+
 		// Set texture references (names match Materials.CreatePBR)
 		if (model != null)
 		{
@@ -62,6 +78,41 @@ static class MaterialConverter
 		}
 
 		return matRes;
+	}
+
+	/// Converts TextureWrap (from Models) to SamplerAddressMode (for MaterialResource).
+	private static SamplerAddressMode WrapToAddressMode(TextureWrap wrap)
+	{
+		switch (wrap)
+		{
+		case .Repeat:         return .Repeat;
+		case .MirroredRepeat: return .MirrorRepeat;
+		case .ClampToEdge:    return .ClampToEdge;
+		}
+	}
+
+	/// Converts TextureMinFilter (from Models) to SamplerMinFilter (for MaterialResource).
+	private static SamplerMinFilter MinFilterToSampler(TextureMinFilter filter)
+	{
+		switch (filter)
+		{
+		case .Nearest:              return .Nearest;
+		case .Linear:               return .Linear;
+		case .NearestMipmapNearest: return .NearestMipmapNearest;
+		case .LinearMipmapNearest:  return .LinearMipmapNearest;
+		case .NearestMipmapLinear:  return .NearestMipmapLinear;
+		case .LinearMipmapLinear:   return .LinearMipmapLinear;
+		}
+	}
+
+	/// Converts TextureMagFilter (from Models) to SamplerMagFilter (for MaterialResource).
+	private static SamplerMagFilter MagFilterToSampler(TextureMagFilter filter)
+	{
+		switch (filter)
+		{
+		case .Nearest: return .Nearest;
+		case .Linear:  return .Linear;
+		}
 	}
 
 	/// Helper to set texture ResourceRef in new MaterialResource from model texture index.

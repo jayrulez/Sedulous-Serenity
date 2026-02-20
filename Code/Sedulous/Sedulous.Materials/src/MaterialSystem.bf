@@ -43,6 +43,13 @@ class MaterialSystem : IDisposable
 	private ITextureView mBlackTextureView ~ delete _;
 	private ITextureView mDepthTextureView ~ delete _;
 
+	/// Cached samplers keyed by (AddressModeU, AddressModeV).
+	private Dictionary<int, ISampler> mSamplerCache = new .() ~ {
+		for (let kv in _)
+			delete kv.value;
+		delete _;
+	};
+
 	/// Default PBR material (for meshes without assigned materials).
 	private Material mDefaultMaterial ~ delete _;
 	private MaterialInstance mDefaultMaterialInstance ~ _?.ReleaseRef();
@@ -248,6 +255,37 @@ class MaterialSystem : IDisposable
 	public void Dispose()
 	{
 		ClearCache();
+	}
+
+	/// Gets or creates a sampler with the specified settings.
+	/// Caches samplers by their combined settings to avoid duplicates.
+	public ISampler GetOrCreateSampler(AddressMode addressU, AddressMode addressV,
+		FilterMode minFilter = .Linear, FilterMode magFilter = .Linear, FilterMode mipmapFilter = .Linear)
+	{
+		let key = (int)addressU
+			| ((int)addressV << 4)
+			| ((int)minFilter << 8)
+			| ((int)magFilter << 12)
+			| ((int)mipmapFilter << 16);
+
+		if (mSamplerCache.TryGetValue(key, let cached))
+			return cached;
+
+		SamplerDescriptor desc = .();
+		desc.AddressModeU = addressU;
+		desc.AddressModeV = addressV;
+		desc.AddressModeW = .Repeat;
+		desc.MinFilter = minFilter;
+		desc.MagFilter = magFilter;
+		desc.MipmapFilter = mipmapFilter;
+
+		if (mDevice.CreateSampler(&desc) case .Ok(let sampler))
+		{
+			mSamplerCache[key] = sampler;
+			return sampler;
+		}
+
+		return mDefaultSampler;
 	}
 
 	// ===== Private Methods =====
