@@ -96,14 +96,14 @@ class ModelTab
 		// Set up default lighting
 		SunLight = World.CreateDirectionalLight(
 			Vector3.Normalize(.(0.5f, -1.0f, 0.3f)),
-			.(1.0f, 1.0f, 0.95f), 2.5f);
+			.(1.0f, 1.0f, 0.95f), 1.5f);
 
-		FillLight = World.CreatePointLight(.(0, 30, 30), .(0.6f, 0.7f, 1.0f), 3.0f, 60.0f);
+		FillLight = World.CreatePointLight(.(0, 30, 30), .(0.6f, 0.7f, 1.0f), 1.5f, 60.0f);
 
 		// Set environment
 		World.AmbientColor = .(0.1f, 0.1f, 0.15f);
-		World.AmbientIntensity = 0.4f;
-		World.Exposure = 0.5f;
+		World.AmbientIntensity = 0.6f;
+		World.Exposure = 1.0f;
 	}
 
 	/// Clears all model resources from this tab.

@@ -94,6 +94,7 @@ class ModelViewerApp : Application
 	{
 		// Initialize image and model loaders
 		Sedulous.Imaging.SDL.SDLImageLoader.Initialize();
+		Sedulous.Imaging.STB.STBImageLoader.Initialize(); // Required for HDR image loading
 		GltfModels.Initialize();
 		FbxModels.Initialize();
 
@@ -390,6 +391,29 @@ class ModelViewerApp : Application
 		mGizmo.Size = 1.0f;
 	}
 
+	/// Loads an HDRI environment map into a tab's world for IBL reflections.
+	private void LoadHDRIEnvironment(ModelTab tab)
+	{
+		let hdrPath = scope $"{AssetDirectory}/Render/textures/environment/BlueSky.hdr";
+		if (ImageLoaderFactory.LoadImage(hdrPath) case .Ok(var image))
+		{
+			defer delete image;
+			let texData = TextureData.FromImage(image);
+			if (mSkyFeature.SetEnvironmentMapEquirect(texData) case .Ok)
+				Console.WriteLine("  HDRI environment loaded ({}x{})", image.Width, image.Height);
+			else
+				Console.WriteLine("  WARNING: Failed to set HDRI environment map");
+		}
+		else
+		{
+			Console.WriteLine("  WARNING: Failed to load HDR image: {}", hdrPath);
+		}
+
+		// Adjust lighting for HDRI (IBL provides ambient lighting)
+		tab.World.AmbientIntensity = 0.5f;
+		tab.World.Exposure = 0.5f;
+	}
+
 	/// Loads a model and creates a new tab for it.
 	public void LoadModel(StringView path)
 	{
@@ -411,6 +435,9 @@ class ModelViewerApp : Application
 		// Create world for this tab and set it active during setup
 		tab.CreateWorld(mRenderSystem);
 		mRenderSystem.SetActiveWorld(tab.World);
+
+		// Load HDRI environment map for IBL reflections
+		LoadHDRIEnvironment(tab);
 
 		// Load model into tab
 		let result = ModelLoaderFactory.LoadModel(path, tab.Model);
