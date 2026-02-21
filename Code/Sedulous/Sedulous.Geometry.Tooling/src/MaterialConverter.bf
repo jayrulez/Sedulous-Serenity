@@ -3,6 +3,7 @@ using System.Collections;
 using Sedulous.Models;
 using Sedulous.Mathematics;
 using Sedulous.Materials;
+using Sedulous.Shaders;
 using Sedulous.Resources;
 using Sedulous.Materials.Resources;
 using Sedulous.Textures.Resources;
@@ -47,6 +48,13 @@ static class MaterialConverter
 		}
 
 		mat.PipelineConfig.CullMode = modelMat.DoubleSided ? .None : .Back;
+
+		// Enable normal mapping if the model has a normal texture
+		if (modelMat.NormalTextureIndex >= 0)
+		{
+			mat.ShaderFlags |= .NormalMap;
+			mat.PipelineConfig.ShaderFlags |= .NormalMap;
+		}
 
 		// Create resource wrapper
 		let matRes = new Sedulous.Materials.Resources.MaterialResource(mat, true);
