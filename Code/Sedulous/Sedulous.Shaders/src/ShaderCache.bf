@@ -3,6 +3,7 @@ namespace Sedulous.Shaders;
 using System;
 using System.IO;
 using System.Collections;
+using Sedulous.RHI;
 
 /// Caches compiled shader bytecode in memory and on disk.
 /// Three-tier lookup: memory cache → disk cache → compile.
@@ -18,6 +19,8 @@ class ShaderCache : IDisposable
 	/// Path to disk cache directory.
 	private String mCachePath ~ delete _;
 
+	private readonly IDevice mDevice = null;
+
 	/// Whether disk caching is enabled.
 	public bool DiskCacheEnabled => mCachePath != null && !mCachePath.IsEmpty;
 
@@ -26,6 +29,11 @@ class ShaderCache : IDisposable
 
 	/// Target format for disk cache.
 	public ShaderTarget Target = .SPIRV;
+
+	public this(IDevice device)
+	{
+		mDevice = device;
+	}
 
 	/// Sets the disk cache directory path.
 	/// Creates the directory if it doesn't exist.
@@ -79,7 +87,7 @@ class ShaderCache : IDisposable
 		if (File.ReadAll(fullPath, bytecode) case .Err)
 			return .Err;
 
-		let module = new ShaderModule(key, bytecode);
+		let module = new ShaderModule(key, bytecode, mDevice);
 
 		// Also add to memory cache
 		mMemoryCache[key] = module;

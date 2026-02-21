@@ -85,7 +85,7 @@ class ShaderSystem : IDisposable
 			delete mCache;
 			mCache = null;
 		}
-		mCache = new ShaderCache();
+		mCache = new ShaderCache(device);
 		mCache.Target = Target;
 
 		if (!cachePath.IsEmpty)

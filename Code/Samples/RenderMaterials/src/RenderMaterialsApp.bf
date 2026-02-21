@@ -81,7 +81,7 @@ class RenderMaterialsApp : Application
 		Sedulous.Imaging.STB.STBImageLoader.Initialize();
 
 		mRenderSystem = new RenderSystem();
-		if (mRenderSystem.Initialize(mDevice, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
+		if (mRenderSystem.Initialize(mDevice, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null, .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
 		{ Console.WriteLine("ERROR: Failed to initialize RenderSystem"); return; }
 
 		mWorld = mRenderSystem.CreateWorld();

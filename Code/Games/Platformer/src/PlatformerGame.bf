@@ -148,7 +148,7 @@ class PlatformerGame : Application
 	{
 		mLogger.LogInformation("Initializing RenderSystem...");
 		mRenderSystem = new RenderSystem();
-		if (mRenderSystem.Initialize(mDevice, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"),
+		if (mRenderSystem.Initialize(mDevice, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null,
 			.BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
 		{
 			mLogger.LogError("Failed to initialize RenderSystem! Rendering will not work.");

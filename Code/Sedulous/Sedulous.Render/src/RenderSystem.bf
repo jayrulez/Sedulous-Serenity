@@ -117,6 +117,7 @@ public class RenderSystem : IDisposable
 	public Result<void> Initialize(
 		IDevice device,
 		Span<StringView> shaderPaths = default,
+		StringView? shaderCachePath = null,
 		TextureFormat colorFormat = .BGRA8UnormSrgb,
 		TextureFormat depthFormat = .Depth24PlusStencil8)
 	{
@@ -154,6 +155,11 @@ public class RenderSystem : IDisposable
 			mShaderSystem = new ShaderSystem();
 			if (mShaderSystem.Initialize(device, shaderPaths) case .Err)
 				return .Err;
+
+			if(shaderCachePath != null)
+			{
+				mShaderSystem.SetCachePath(shaderCachePath.Value);
+			}
 		}
 
 		// Initialize material system

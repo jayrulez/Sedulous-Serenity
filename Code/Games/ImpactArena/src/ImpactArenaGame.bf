@@ -168,7 +168,7 @@ class ImpactArenaGame : Application
 	private void InitializeRenderSystem()
 	{
 		mRenderSystem = new RenderSystem();
-		if (mRenderSystem.Initialize(mDevice, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"),
+		if (mRenderSystem.Initialize(mDevice, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null,
 			.BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
 			return;
 

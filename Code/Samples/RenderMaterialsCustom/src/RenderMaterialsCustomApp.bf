@@ -71,7 +71,7 @@ class RenderMaterialsCustomApp : Application
 		Sedulous.Imaging.SDL.SDLImageLoader.Initialize();
 
 		mRenderSystem = new RenderSystem();
-		if (mRenderSystem.Initialize(mDevice, scope StringView[](scope $"{AssetDirectory}/Render/Shaders", "shaders"), .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
+		if (mRenderSystem.Initialize(mDevice, scope StringView[](scope $"{AssetDirectory}/Render/Shaders", "shaders"), null, .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
 		{ Console.WriteLine("ERROR: Failed to initialize RenderSystem"); return; }
 
 		mWorld = mRenderSystem.CreateWorld();

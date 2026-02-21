@@ -101,7 +101,7 @@ class ModelViewerApp : Application
 		// Initialize render system
 		let shaderPaths = scope StringView[](scope $"{AssetDirectory}/Render/Shaders");
 		mRenderSystem = new RenderSystem();
-		if (mRenderSystem.Initialize(Device, shaderPaths, .RGBA8Unorm, .Depth24PlusStencil8) case .Err)
+		if (mRenderSystem.Initialize(Device, shaderPaths, scope $"{AssetDirectory}/cache/Shaders", .RGBA8Unorm, .Depth24PlusStencil8) case .Err)
 		{
 			Console.WriteLine("ERROR: Failed to initialize RenderSystem");
 			return false;
