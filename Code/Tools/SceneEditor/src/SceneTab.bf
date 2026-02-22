@@ -25,6 +25,10 @@ class SceneTab
 
 	// Per-tab UI elements
 	public Grid ContentPanel;
+	public StackPanel Toolbar;
+	public Button TranslateButton;
+	public Button RotateButton;
+	public Button ScaleButton;
 	public ViewportControl Viewport;
 
 	// Selection state
@@ -75,6 +79,10 @@ class SceneTab
 			else
 				delete ContentPanel;
 			ContentPanel = null;
+			Toolbar = null;
+			TranslateButton = null;
+			RotateButton = null;
+			ScaleButton = null;
 			Viewport = null;
 		}
 	}

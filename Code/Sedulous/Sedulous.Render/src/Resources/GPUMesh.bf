@@ -104,6 +104,11 @@ public class GPUMesh
 			delete IndexBuffer;
 			IndexBuffer = null;
 		}
+		if (SubMeshes != null)
+		{
+			delete SubMeshes;
+			SubMeshes = null;
+		}
 		IsActive = false;
 	}
 }

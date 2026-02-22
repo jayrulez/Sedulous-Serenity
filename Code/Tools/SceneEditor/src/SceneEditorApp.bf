@@ -61,6 +61,10 @@ class SceneEditorApp : Application
 	private String mProjectDirectory ~ delete _;
 	private List<ResourceRegistry> mRegistries = new .() ~ DeleteContainerAndItems!(_);
 
+	// Recent projects
+	private String mRecentProjectsPath ~ delete _;
+	private List<String> mRecentProjects = new .() ~ DeleteContainerAndItems!(_);
+
 	// UI panels
 	private DockPanel mRootPanel;     // root element (we own this — GUIContext only references it)
 	private SplitPanel mOuterSplit;   // left (hierarchy) | right (center+inspector)
@@ -73,8 +77,19 @@ class SceneEditorApp : Application
 	private Grid mViewportContainer;
 	private TextBlock mDropIndicator;
 
+	// Menu items (for enable/disable)
+	private MenuItem mNewSceneItem;
+	private MenuItem mOpenSceneItem;
+	private MenuItem mSaveItem;
+	private MenuItem mSaveAsItem;
+
+	// Startup project picker
+	private Grid mProjectPickerPanel;
+	private List<String> mPickerCapturedPaths ~ DeleteContainerAndItems!(_);
+
 	// Status bar
 	private StatusBar mStatusBar;
+	private StatusBarItem mProjectItem;
 	private StatusBarItem mEntityCountItem;
 	private StatusBarItem mSelectionItem;
 	private StatusBarItem mGizmoModeItem;
@@ -82,6 +97,9 @@ class SceneEditorApp : Application
 
 	/// Gets the currently active tab, or null if no tabs exist.
 	private SceneTab ActiveTab => mActiveTabIndex >= 0 && mActiveTabIndex < (int32)mTabs.Count ? mTabs[mActiveTabIndex] : null;
+
+	/// Whether a project directory is loaded.
+	private bool HasProject => mProjectDirectory != null;
 
 	public this() : base(.()
 		{
@@ -135,6 +153,11 @@ class SceneEditorApp : Application
 
 		mContext.Startup();
 
+		// Load recent projects list
+		mRecentProjectsPath = new String();
+		Path.InternalCombine(mRecentProjectsPath, AssetDirectory, "cache", "recent_projects.txt");
+		LoadRecentProjects();
+
 		return true;
 	}
 
@@ -185,6 +208,9 @@ class SceneEditorApp : Application
 	/// Sets the project directory, loads registries, and refreshes the asset browser.
 	private void SetProjectDirectory(StringView path)
 	{
+		// Remove startup picker if showing
+		RemoveProjectPicker();
+
 		// Store path
 		if (mProjectDirectory != null)
 			delete mProjectDirectory;
@@ -201,9 +227,15 @@ class SceneEditorApp : Application
 		// Scan for registry.txt files and load them
 		FindAndLoadRegistries(path);
 
+		// Add to recent projects
+		AddToRecentProjects(path);
+
 		// Notify panels
 		mAssetBrowserPanel?.SetProjectDirectory(path);
 		mInspectorPanel?.SetProjectDirectory(path);
+
+		// Enable scene operations
+		UpdateMenuState();
 
 		Console.WriteLine(scope $"Project directory set: {path}");
 		UpdateStatusBar();
@@ -240,6 +272,191 @@ class SceneEditorApp : Application
 		}
 	}
 
+	// ==================== Recent Projects ====================
+
+	private void LoadRecentProjects()
+	{
+		ClearAndDeleteItems!(mRecentProjects);
+
+		if (mRecentProjectsPath == null || !File.Exists(mRecentProjectsPath))
+			return;
+
+		let text = scope String();
+		if (File.ReadAllText(mRecentProjectsPath, text) case .Err)
+			return;
+
+		for (let line in text.Split('\n'))
+		{
+			let trimmed = scope String(line);
+			trimmed.Trim();
+			if (trimmed.IsEmpty)
+				continue;
+
+			// Skip paths that no longer exist
+			if (Directory.Exists(trimmed))
+				mRecentProjects.Add(new String(trimmed));
+		}
+	}
+
+	private void SaveRecentProjects()
+	{
+		if (mRecentProjectsPath == null)
+			return;
+
+		let output = scope String();
+		for (let path in mRecentProjects)
+		{
+			output.Append(path);
+			output.Append('\n');
+		}
+
+		File.WriteAllText(mRecentProjectsPath, output).IgnoreError();
+	}
+
+	private void AddToRecentProjects(StringView path)
+	{
+		// Remove if already in list
+		for (int i = mRecentProjects.Count - 1; i >= 0; i--)
+		{
+			if (StringView(mRecentProjects[i]).Equals(path, true))
+			{
+				delete mRecentProjects[i];
+				mRecentProjects.RemoveAt(i);
+			}
+		}
+
+		// Insert at front
+		mRecentProjects.Insert(0, new String(path));
+
+		// Cap at 10
+		while (mRecentProjects.Count > 10)
+		{
+			delete mRecentProjects[mRecentProjects.Count - 1];
+			mRecentProjects.RemoveAt(mRecentProjects.Count - 1);
+		}
+
+		SaveRecentProjects();
+	}
+
+	/// Enables/disables scene-related menu items based on whether a project is loaded.
+	private void UpdateMenuState()
+	{
+		let enabled = HasProject;
+		if (mNewSceneItem != null) mNewSceneItem.IsEnabled = enabled;
+		if (mOpenSceneItem != null) mOpenSceneItem.IsEnabled = enabled;
+		if (mSaveItem != null) mSaveItem.IsEnabled = enabled;
+		if (mSaveAsItem != null) mSaveAsItem.IsEnabled = enabled;
+	}
+
+	// ==================== Project Picker ====================
+
+	private void ShowProjectPicker()
+	{
+		if (mRecentProjects.Count == 0)
+		{
+			ShowProjectDialog();
+			return;
+		}
+
+		// Build picker UI
+		mProjectPickerPanel = new Grid();
+		mProjectPickerPanel.HorizontalAlignment = .Center;
+		mProjectPickerPanel.VerticalAlignment = .Center;
+		mProjectPickerPanel.Width = .Fixed(400);
+
+		// Use a stack panel for vertical layout
+		let stack = new StackPanel();
+		stack.Orientation = .Vertical;
+		stack.Spacing = 8;
+		mProjectPickerPanel.AddChild(stack);
+
+		// Title
+		let title = new TextBlock("Select a Project");
+		title.FontSize = 20;
+		title.Foreground = Color(200, 200, 220, 255);
+		title.HorizontalAlignment = .Center;
+		title.Margin = .(0, 0, 0, 12);
+		stack.AddChild(title);
+
+		// Recent project buttons
+		if (mPickerCapturedPaths != null)
+			DeleteContainerAndItems!(mPickerCapturedPaths);
+		mPickerCapturedPaths = new List<String>();
+
+		for (let projectPath in mRecentProjects)
+		{
+			let folderName = Path.GetFileName(projectPath, .. scope .());
+
+			let btn = new Button();
+			btn.Content = new TextBlock(folderName);
+			btn.HorizontalAlignment = .Stretch;
+			btn.Height = .Fixed(36);
+			btn.Margin = .(0, 2, 0, 2);
+
+			// Keep a reference for cleanup; capture pointer for lambda
+			let capturedPath = new String(projectPath);
+			mPickerCapturedPaths.Add(capturedPath);
+
+			btn.Click.Subscribe(new (b) =>
+				{
+					// Copy before SetProjectDirectory deletes the picker
+					let pathCopy = scope String(capturedPath);
+					SetProjectDirectory(pathCopy);
+				});
+
+			stack.AddChild(btn);
+		}
+
+		// Separator
+		let sep = new Border();
+		sep.Height = .Fixed(1);
+		sep.Background = Color(80, 80, 100, 255);
+		sep.Margin = .(0, 8, 0, 8);
+		stack.AddChild(sep);
+
+		// Browse button
+		let browseBtn = new Button();
+		browseBtn.Content = new TextBlock("Browse...");
+		browseBtn.HorizontalAlignment = .Stretch;
+		browseBtn.Height = .Fixed(36);
+		browseBtn.Click.Subscribe(new (b) =>
+			{
+				ShowProjectDialog();
+			});
+		stack.AddChild(browseBtn);
+
+		// Add to viewport container (replaces drop indicator)
+		if (mDropIndicator != null)
+			mDropIndicator.Visibility = .Collapsed;
+		mViewportContainer.AddChild(mProjectPickerPanel);
+	}
+
+	private void RemoveProjectPicker()
+	{
+		if (mProjectPickerPanel == null)
+			return;
+
+		if (mViewportContainer != null)
+		{
+			mViewportContainer.RemoveChild(mProjectPickerPanel, false);
+			// Use deferred deletion since this may be called during button click handling
+			if (mProjectPickerPanel.Context != null)
+				mProjectPickerPanel.Context.MutationQueue.QueueDelete(mProjectPickerPanel);
+			else
+				delete mProjectPickerPanel;
+		}
+		mProjectPickerPanel = null;
+
+		// Clean up captured path strings
+		if (mPickerCapturedPaths != null)
+		{
+			DeleteContainerAndItems!(mPickerCapturedPaths);
+			mPickerCapturedPaths = null;
+		}
+
+		UpdateEmptyState();
+	}
+
 	// ==================== UI Setup ====================
 
 	protected override void OnUISetup(GUIContext context)
@@ -255,6 +472,7 @@ class SceneEditorApp : Application
 		// Status bar at bottom
 		mStatusBar = new StatusBar();
 		mStatusBar.Padding = .(6, 2, 6, 2);
+		mProjectItem = mStatusBar.AddFixedItem("No project", 200);
 		mEntityCountItem = mStatusBar.AddFixedItem("Entities: 0", 120);
 		mSelectionItem = mStatusBar.AddFlexibleItem("");
 		mGizmoModeItem = mStatusBar.AddFixedItem("Translate (W)", 120);
@@ -326,7 +544,7 @@ class SceneEditorApp : Application
 		GridProperties.SetRow(mViewportContainer, 1);
 		mViewportPanel.AddChild(mViewportContainer);
 
-		// Drop indicator / empty state
+		// Drop indicator / empty state (shown after project is loaded but no scenes open)
 		mDropIndicator = new TextBlock("File > New Scene\nto get started");
 		mDropIndicator.FontSize = 18;
 		mDropIndicator.Foreground = Color(120, 120, 140, 255);
@@ -343,6 +561,9 @@ class SceneEditorApp : Application
 
 		context.RootElement = mRootPanel;
 		UpdateEmptyState();
+
+		// Show project picker on startup
+		ShowProjectPicker();
 	}
 
 	private Menu CreateMenuBar()
@@ -353,26 +574,30 @@ class SceneEditorApp : Application
 		// File menu
 		let fileMenu = menuBar.AddItem("&File");
 
-		let newItem = fileMenu.AddDropdownItem("&New Scene");
-		newItem.ShortcutText = "Ctrl+N";
-		newItem.Click.Subscribe(new (item) => { NewScene(); });
+		mNewSceneItem = fileMenu.AddDropdownItem("&New Scene");
+		mNewSceneItem.ShortcutText = "Ctrl+N";
+		mNewSceneItem.IsEnabled = false;
+		mNewSceneItem.Click.Subscribe(new (item) => { NewScene(); });
 
-		let openItem = fileMenu.AddDropdownItem("&Open...");
-		openItem.ShortcutText = "Ctrl+O";
-		openItem.Click.Subscribe(new (item) => { ShowOpenDialog(); });
+		mOpenSceneItem = fileMenu.AddDropdownItem("&Open...");
+		mOpenSceneItem.ShortcutText = "Ctrl+O";
+		mOpenSceneItem.IsEnabled = false;
+		mOpenSceneItem.Click.Subscribe(new (item) => { ShowOpenDialog(); });
 
 		let openProjectItem = fileMenu.AddDropdownItem("Open &Project...");
 		openProjectItem.Click.Subscribe(new (item) => { ShowProjectDialog(); });
 
 		fileMenu.AddDropdownSeparator();
 
-		let saveItem = fileMenu.AddDropdownItem("&Save");
-		saveItem.ShortcutText = "Ctrl+S";
-		saveItem.Click.Subscribe(new (item) => { SaveScene(); });
+		mSaveItem = fileMenu.AddDropdownItem("&Save");
+		mSaveItem.ShortcutText = "Ctrl+S";
+		mSaveItem.IsEnabled = false;
+		mSaveItem.Click.Subscribe(new (item) => { SaveScene(); });
 
-		let saveAsItem = fileMenu.AddDropdownItem("Save &As...");
-		saveAsItem.ShortcutText = "Ctrl+Shift+S";
-		saveAsItem.Click.Subscribe(new (item) => { SaveSceneAs(); });
+		mSaveAsItem = fileMenu.AddDropdownItem("Save &As...");
+		mSaveAsItem.ShortcutText = "Ctrl+Shift+S";
+		mSaveAsItem.IsEnabled = false;
+		mSaveAsItem.Click.Subscribe(new (item) => { SaveSceneAs(); });
 
 		fileMenu.AddDropdownSeparator();
 
@@ -419,6 +644,9 @@ class SceneEditorApp : Application
 
 	private void NewScene()
 	{
+		if (!HasProject)
+			return;
+
 		// Generate a unique name
 		let name = scope String();
 		name.AppendF("Scene {}", mTabs.Count + 1);
@@ -453,6 +681,9 @@ class SceneEditorApp : Application
 	/// Shows a native Open File dialog for .scene files.
 	private void ShowOpenDialog()
 	{
+		if (!HasProject)
+			return;
+
 		Shell.Dialogs.ShowOpenFileDialog(new (paths) =>
 			{
 				for (let path in paths)
@@ -577,6 +808,9 @@ class SceneEditorApp : Application
 	/// Handles file drop events (opens .scene files).
 	protected override void OnFileDrop(StringView path)
 	{
+		if (!HasProject)
+			return;
+
 		let ext = Path.GetExtension(path, .. scope .());
 		if (ext.Equals(".scene", .OrdinalIgnoreCase))
 			OpenScene(path);
@@ -597,12 +831,43 @@ class SceneEditorApp : Application
 					CloseTab(index, false);
 			});
 
-		// Create per-tab content panel
+		// Create per-tab content panel (toolbar + viewport)
 		tab.ContentPanel = new Grid();
-		tab.ContentPanel.RowDefinitions.Add(new .() { Height = .Star });
+		tab.ContentPanel.RowDefinitions.Add(new .() { Height = .Auto });  // Row 0: toolbar
+		tab.ContentPanel.RowDefinitions.Add(new .() { Height = .Star });  // Row 1: viewport
 		tab.ContentPanel.ColumnDefinitions.Add(new .() { Width = .Star });
 		tab.ContentPanel.Visibility = .Collapsed;
 		mViewportContainer.AddChild(tab.ContentPanel);
+
+		// Toolbar
+		tab.Toolbar = new StackPanel();
+		tab.Toolbar.Orientation = .Horizontal;
+		tab.Toolbar.Background = Color(45, 45, 55, 255);
+		tab.Toolbar.Padding = .(4, 2, 4, 2);
+		tab.Toolbar.Spacing = 2;
+		GridProperties.SetRow(tab.Toolbar, 0);
+		tab.ContentPanel.AddChild(tab.Toolbar);
+
+		// Gizmo mode buttons
+		tab.TranslateButton = new Button();
+		tab.TranslateButton.Content = new TextBlock("Translate (W)");
+		tab.TranslateButton.Padding = .(8, 4, 8, 4);
+		tab.TranslateButton.Click.Subscribe(new (b) => { SetGizmoMode(.Translate); });
+		tab.Toolbar.AddChild(tab.TranslateButton);
+
+		tab.RotateButton = new Button();
+		tab.RotateButton.Content = new TextBlock("Rotate (E)");
+		tab.RotateButton.Padding = .(8, 4, 8, 4);
+		tab.RotateButton.Click.Subscribe(new (b) => { SetGizmoMode(.Rotate); });
+		tab.Toolbar.AddChild(tab.RotateButton);
+
+		tab.ScaleButton = new Button();
+		tab.ScaleButton.Content = new TextBlock("Scale (R)");
+		tab.ScaleButton.Padding = .(8, 4, 8, 4);
+		tab.ScaleButton.Click.Subscribe(new (b) => { SetGizmoMode(.Scale); });
+		tab.Toolbar.AddChild(tab.ScaleButton);
+
+		UpdateToolbarHighlight(tab);
 
 		// Create per-tab viewport
 		tab.Viewport = new ViewportControl();
@@ -610,7 +875,7 @@ class SceneEditorApp : Application
 		tab.Viewport.Background = Color(40, 40, 50, 255);
 		tab.Viewport.HorizontalAlignment = .Stretch;
 		tab.Viewport.VerticalAlignment = .Stretch;
-		GridProperties.SetRow(tab.Viewport, 0);
+		GridProperties.SetRow(tab.Viewport, 1);
 		tab.ContentPanel.AddChild(tab.Viewport);
 
 		UpdateEmptyState();
@@ -636,6 +901,9 @@ class SceneEditorApp : Application
 		let world = mRenderSubsystem.GetWorld(tab.Scene);
 		mRenderSystem.SetActiveWorld(world);
 
+		// Restore this scene's sky/ambient settings to the global SkyFeature
+		SyncSceneSettingsToRuntime(tab.Scene);
+
 		// Show new tab
 		if (tab.ContentPanel != null)
 			tab.ContentPanel.Visibility = .Visible;
@@ -646,6 +914,7 @@ class SceneEditorApp : Application
 		// Refresh hierarchy and inspector for the new tab
 		mHierarchyPanel.SetTab(tab);
 		mInspectorPanel.RefreshForSelection(tab);
+		UpdateToolbarHighlight(tab);
 		UpdateStatusBar();
 	}
 
@@ -697,9 +966,10 @@ class SceneEditorApp : Application
 	private void UpdateEmptyState()
 	{
 		let hasScenes = mTabs.Count > 0;
+		let showDropIndicator = !hasScenes && mProjectPickerPanel == null;
 
 		if (mDropIndicator != null)
-			mDropIndicator.Visibility = hasScenes ? .Collapsed : .Visible;
+			mDropIndicator.Visibility = showDropIndicator ? .Visible : .Collapsed;
 
 		if (mTabControl != null)
 			mTabControl.Visibility = hasScenes ? .Visible : .Collapsed;
@@ -730,6 +1000,13 @@ class SceneEditorApp : Application
 
 	private void OnAssetSelected(StringView path)
 	{
+		let ext = Path.GetExtension(path, .. scope .());
+		if (ext.Equals(".scene", .OrdinalIgnoreCase))
+		{
+			OpenScene(path);
+			return;
+		}
+
 		let filename = Path.GetFileName(path, .. scope .());
 		mSelectionItem.Text = scope $"Asset: {filename}";
 	}
@@ -791,13 +1068,13 @@ class SceneEditorApp : Application
 		case .F:
 			if (!ctrlHeld) FocusOnSelected();
 		case .N:
-			if (ctrlHeld) NewScene();
+			if (ctrlHeld && HasProject) NewScene();
 		case .O:
-			if (ctrlHeld) ShowOpenDialog();
+			if (ctrlHeld && HasProject) ShowOpenDialog();
 		case .S:
-			if (ctrlHeld && shiftHeld)
+			if (ctrlHeld && shiftHeld && HasProject)
 				SaveSceneAs();
-			else if (ctrlHeld)
+			else if (ctrlHeld && HasProject)
 				SaveScene();
 
 		case .Z:
@@ -838,13 +1115,76 @@ class SceneEditorApp : Application
 	private void SetGizmoMode(GizmoMode mode)
 	{
 		mGizmoMode = mode;
+		if (let tab = ActiveTab)
+			UpdateToolbarHighlight(tab);
 		UpdateStatusBar();
+	}
+
+	/// Highlights the active gizmo button and dims the others.
+	private void UpdateToolbarHighlight(SceneTab tab)
+	{
+		let activeColor = Color(70, 110, 180, 255);
+		let inactiveColor = Color.Transparent;
+
+		if (tab.TranslateButton != null)
+			tab.TranslateButton.Background = mGizmoMode == .Translate ? activeColor : inactiveColor;
+		if (tab.RotateButton != null)
+			tab.RotateButton.Background = mGizmoMode == .Rotate ? activeColor : inactiveColor;
+		if (tab.ScaleButton != null)
+			tab.ScaleButton.Background = mGizmoMode == .Scale ? activeColor : inactiveColor;
+	}
+
+	// ==================== Scene/World Sync ====================
+
+	/// Syncs a scene's RenderModuleSettings to the global SkyFeature and its RenderWorld.
+	/// Must be called when switching tabs so each scene's sky/ambient settings are restored.
+	private void SyncSceneSettingsToRuntime(Scene scene)
+	{
+		if (scene == null)
+			return;
+
+		if (let settings = scene.GetModuleSettings<RenderModuleSettings>())
+		{
+			let world = mRenderSubsystem?.GetWorld(scene);
+			if (world != null)
+			{
+				world.AmbientColor = settings.AmbientColor;
+				world.AmbientIntensity = settings.AmbientIntensity;
+				world.Exposure = settings.Exposure;
+			}
+
+			if (mSkyFeature != null)
+			{
+				mSkyFeature.Mode = settings.SkyMode;
+				var skyParams = ref mSkyFeature.SkyParams;
+				skyParams.SunDirection = settings.SunDirection;
+				skyParams.SunIntensity = settings.SunIntensity;
+				skyParams.SunColor = settings.SunColor;
+				skyParams.AtmosphereDensity = settings.AtmosphereDensity;
+				skyParams.ZenithColor = settings.ZenithColor;
+				skyParams.HorizonColor = settings.HorizonColor;
+				skyParams.GroundColor = settings.GroundColor;
+				skyParams.SolidColor = settings.SolidSkyColor;
+				mSkyFeature.RegenerateIBL();
+			}
+		}
 	}
 
 	// ==================== Status Bar ====================
 
 	private void UpdateStatusBar()
 	{
+		// Project info
+		if (mProjectDirectory != null)
+		{
+			let projectName = Path.GetFileName(mProjectDirectory, .. scope .());
+			mProjectItem.Text = scope $"Project: {projectName}";
+		}
+		else
+		{
+			mProjectItem.Text = "No project";
+		}
+
 		let tab = ActiveTab;
 
 		if (tab == null || tab.Scene == null)
