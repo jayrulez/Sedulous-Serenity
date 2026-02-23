@@ -69,6 +69,9 @@ class GUISandboxApp : RHISampleApp
 
 	protected override bool OnInitialize()
 	{
+		// Initialize image loader (must be before any image loading)
+		Sedulous.Imaging.SDL.SDLImageLoader.Initialize();
+
 		// Initialize fonts
 		mFontService = new FontService();
 
@@ -143,7 +146,7 @@ class GUISandboxApp : RHISampleApp
 		mGUIContext.RegisterService<IFontService>(mFontService);
 
 		// Create main shell
-		mMainShell = new MainShell(mGUIContext, mDemoCheckerboard, mDemoGradient);
+		mMainShell = new MainShell(mGUIContext, mDemoCheckerboard, mDemoGradient, AssetDirectory);
 		mMainShell.Create();
 		mGUIContext.RootElement = mMainShell.Root;
 	}

@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Mathematics" = "*", "Sedulous.Imaging" = "*", "Sedulous.RHI" = "*", SampleFramework = "*", "Sedulous.Drawing" = "*", "Sedulous.Fonts" = "*", "Sedulous.GUI" = "*", "Sedulous.GUI.Shell" = "*", "Sedulous.Drawing.Fonts" = "*", "Sedulous.Drawing.Renderer" = "*", "Sedulous.Shell" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Shaders" = "*"}
+Dependencies = {corlib = "*", "Sedulous.Mathematics" = "*", "Sedulous.Imaging" = "*", "Sedulous.Imaging.SDL" = "*", "Sedulous.RHI" = "*", SampleFramework = "*", "Sedulous.Drawing" = "*", "Sedulous.Fonts" = "*", "Sedulous.GUI" = "*", "Sedulous.GUI.Shell" = "*", "Sedulous.Drawing.Fonts" = "*", "Sedulous.Drawing.Renderer" = "*", "Sedulous.Shell" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Shaders" = "*"}
 
 [Project]
 Name = "GUISandbox"

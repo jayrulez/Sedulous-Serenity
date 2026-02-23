@@ -46,11 +46,21 @@ class MainShell
 	private OwnedImageData mCheckerboard;
 	private OwnedImageData mGradient;
 
-	public this(GUIContext context, OwnedImageData checkerboard, OwnedImageData gradient)
+	// Asset directory for theme loading
+	private String mAssetDirectory = new .() ~ delete _;
+
+	// Breeze theme radio button
+	private RadioButton mBreezeThemeRadio;
+
+	// Current Breeze theme reference (null if not active)
+	private BreezeTheme mBreezeTheme;
+
+	public this(GUIContext context, OwnedImageData checkerboard, OwnedImageData gradient, StringView assetDirectory)
 	{
 		mContext = context;
 		mCheckerboard = checkerboard;
 		mGradient = gradient;
+		mAssetDirectory.Set(assetDirectory);
 	}
 
 	public UIElement Root => mRoot;
@@ -137,9 +147,16 @@ class MainShell
 		mGameThemeRadio = new RadioButton("Game");
 		mGameThemeRadio.GroupName = "Theme";
 		mGameThemeRadio.VerticalAlignment = .Center;
-		mGameThemeRadio.Margin = .(0, 0, 30, 0);
+		mGameThemeRadio.Margin = .(0, 0, 8, 0);
 		mGameThemeRadio.Checked.Subscribe(new (rb, isChecked) => { if (isChecked) OnThemeChanged(.Game); });
 		layout.AddChild(mGameThemeRadio);
+
+		mBreezeThemeRadio = new RadioButton("Breeze");
+		mBreezeThemeRadio.GroupName = "Theme";
+		mBreezeThemeRadio.VerticalAlignment = .Center;
+		mBreezeThemeRadio.Margin = .(0, 0, 30, 0);
+		mBreezeThemeRadio.Checked.Subscribe(new (rb, isChecked) => { if (isChecked) OnThemeChanged(.Breeze); });
+		layout.AddChild(mBreezeThemeRadio);
 
 		// Scale selector
 		let scaleLabel = new TextBlock("Scale:");
@@ -258,15 +275,25 @@ class MainShell
 		{
 		case .Dark:
 			mContext.Theme = new DarkTheme();
+			mBreezeTheme = null;
 		case .Light:
 			mContext.Theme = new LightTheme();
+			mBreezeTheme = null;
 		case .Game:
 			mContext.Theme = new GameTheme();
+			mBreezeTheme = null;
+		case .Breeze:
+			let breeze = new BreezeTheme(mAssetDirectory);
+			mContext.Theme = breeze;
+			mBreezeTheme = breeze;
 		}
 
 		// Update root background to match the new theme
 		if (mRoot != null)
 			mRoot.Background = mContext.Theme.Palette.Background;
+
+		// Apply/clear per-instance image properties across the visual tree
+		ApplyPerInstanceImages(mRoot);
 	}
 
 	private void OnScaleChanged(float scale)
@@ -309,7 +336,13 @@ class MainShell
 		mCurrentDemo = CreateDemo(demo);
 
 		if (mCurrentDemo != null)
+		{
 			mContentArea.AddChild(mCurrentDemo);
+
+			// Apply per-instance images if Breeze theme is active
+			if (mBreezeTheme != null)
+				ApplyPerInstanceImages(mCurrentDemo);
+		}
 
 		// Update combo box selection if needed
 		if (mDemoSelector != null)
@@ -492,6 +525,67 @@ class MainShell
 		}
 	}
 
+	/// Recursively applies or clears per-instance image properties on all controls in the tree.
+	/// When Breeze theme is active, sets CheckedImage, ThumbImage, etc. from the theme.
+	/// When any other theme is active, clears those properties so fallback rendering is used.
+	private void ApplyPerInstanceImages(UIElement element)
+	{
+		if (element == null)
+			return;
+
+		if (let control = element as Control)
+		{
+			if (mBreezeTheme != null)
+				mBreezeTheme.ApplyToControl(control);
+			else
+				ClearPerInstanceImages(control);
+		}
+
+		let childCount = element.VisualChildCount;
+		for (int i = 0; i < childCount; i++)
+		{
+			let child = element.GetVisualChild(i);
+			if (child != null)
+				ApplyPerInstanceImages(child);
+		}
+	}
+
+	/// Clears per-instance image properties on a control (used when switching away from Breeze).
+	private static void ClearPerInstanceImages(Control control)
+	{
+		if (let cb = control as CheckBox)
+		{
+			cb.CheckedImage = null;
+			cb.UncheckedImage = null;
+		}
+		else if (let rb = control as RadioButton)
+		{
+			rb.SelectedImage = null;
+			rb.UnselectedImage = null;
+		}
+		else if (let pb = control as ProgressBar)
+		{
+			pb.FillImage = null;
+		}
+		else if (let sb = control as ScrollBar)
+		{
+			sb.ThumbImage = null;
+		}
+		else if (let slider = control as Slider)
+		{
+			slider.ThumbImage = null;
+		}
+		else if (let combo = control as ComboBox)
+		{
+			combo.ArrowImage = null;
+		}
+		else if (let lbi = control as ListBoxItem)
+		{
+			lbi.SelectionImage = null;
+			lbi.HoverImage = null;
+		}
+	}
+
 	/// Toggles debug mode.
 	public void ToggleDebugMode()
 	{
@@ -504,5 +598,6 @@ enum ThemeType
 {
 	Dark,
 	Light,
-	Game
+	Game,
+	Breeze
 }
