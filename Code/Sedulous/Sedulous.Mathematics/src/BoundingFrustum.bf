@@ -63,7 +63,7 @@ struct BoundingFrustum : IEquatable<BoundingFrustum>, IEquatable, IHashable
     {
         for (var plane in planes)
         {
-            var dot = plane.Normal.X * point.X + plane.Normal.Y * point.Y + plane.Normal.Z + point.Z;
+            var dot = plane.Normal.X * point.X + plane.Normal.Y * point.Y + plane.Normal.Z * point.Z;
             if (MathUtil.IsApproximatelyGreaterThan(dot + plane.D, 0.0f))
                 return ContainmentType.Disjoint;
         }
@@ -79,7 +79,7 @@ struct BoundingFrustum : IEquatable<BoundingFrustum>, IEquatable, IHashable
     {
         for (var plane in planes)
         {
-            var dot = plane.Normal.X * point.X + plane.Normal.Y * point.Y + plane.Normal.Z + point.Z;
+            var dot = plane.Normal.X * point.X + plane.Normal.Y * point.Y + plane.Normal.Z * point.Z;
             if (MathUtil.IsApproximatelyGreaterThan(dot + plane.D, 0.0f))
             {
                 result = ContainmentType.Disjoint;
