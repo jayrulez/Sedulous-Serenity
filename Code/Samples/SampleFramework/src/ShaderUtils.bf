@@ -66,7 +66,7 @@ static class ShaderUtils
 			return .Err;
 		}
 
-		ShaderModuleDescriptor desc = .(.(result.Bytecode, result.Bytecode.Count));
+		ShaderModuleDescriptor desc = .(result.Bytecode);
 		if (device.CreateShaderModule(&desc) case .Ok(let module))
 			return .Ok(module);
 
