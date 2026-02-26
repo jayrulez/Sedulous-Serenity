@@ -1,6 +1,6 @@
 namespace Sedulous.Physics;
 
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Descriptor for creating a point constraint (ball-and-socket joint).
 /// A point constraint connects two bodies at a single point, allowing rotation but not translation.

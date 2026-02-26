@@ -2,7 +2,7 @@ namespace TowerDefense.Data;
 
 using System;
 using System.Collections;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Definition of a tower defense map.
 /// Contains grid layout, enemy path waypoints, and game settings.

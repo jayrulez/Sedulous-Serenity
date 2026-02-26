@@ -1,7 +1,7 @@
 namespace TowerDefense.Data;
 
 using Sedulous.Framework.Scenes;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using TowerDefense.Components;
 
 /// Delegate for enemy exit events.

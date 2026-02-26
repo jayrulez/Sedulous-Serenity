@@ -2,7 +2,7 @@ namespace Sedulous.Animation;
 
 using System;
 using System.Collections;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Per-layer runtime state tracking for the animation graph player.
 class AnimationGraphLayerRuntime

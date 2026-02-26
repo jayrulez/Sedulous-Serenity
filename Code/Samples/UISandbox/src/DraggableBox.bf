@@ -1,6 +1,6 @@
 using Sedulous.UI;
 using System;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 namespace UISandbox;
 
 /// Draggable box that can be dragged to drop targets.

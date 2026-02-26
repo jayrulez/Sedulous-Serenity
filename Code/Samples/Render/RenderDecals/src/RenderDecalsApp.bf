@@ -2,7 +2,7 @@ namespace RenderDecals;
 
 using System;
 using System.Collections;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.RHI;
 using Sedulous.Shell;
 using Sedulous.Framework.Runtime;

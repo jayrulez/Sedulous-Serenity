@@ -3,7 +3,7 @@ namespace Tools.Common;
 using System;
 using System.Collections;
 using Sedulous.RHI;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Render;
 
 /// Custom render feature that blits rendered content to a viewport texture.

@@ -1,7 +1,7 @@
 namespace Tools.Common;
 
 using System;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Render;
 
 /// Represents which axis or plane of the gizmo is selected.

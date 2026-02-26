@@ -1,6 +1,6 @@
 using System;
 using System.Collections;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Drawing;
 using Sedulous.Fonts;
 using Sedulous.Foundation.Core;

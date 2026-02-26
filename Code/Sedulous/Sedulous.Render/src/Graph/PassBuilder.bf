@@ -2,7 +2,7 @@ namespace Sedulous.Render;
 
 using System;
 using Sedulous.RHI;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Fluent builder for configuring render passes.
 public struct PassBuilder

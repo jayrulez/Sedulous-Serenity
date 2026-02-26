@@ -1,7 +1,7 @@
 using System;
 using System.Collections;
 using Sedulous.Models;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Materials;
 using Sedulous.Shaders;
 using Sedulous.Resources;

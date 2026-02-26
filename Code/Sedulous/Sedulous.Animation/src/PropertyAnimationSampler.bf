@@ -1,7 +1,7 @@
 namespace Sedulous.Animation;
 
 using System;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Samples property animation tracks at specific times, applying easing.
 public static class PropertyAnimationSampler

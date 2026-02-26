@@ -1,7 +1,7 @@
 namespace Tools.Common;
 
 using System;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Simple orbit camera with fly mode support.
 class OrbitCamera

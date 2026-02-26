@@ -1,6 +1,6 @@
 namespace Sedulous.Render;
 
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.RHI;
 
 /// Proxy for a sprite in the render world.

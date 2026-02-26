@@ -1,4 +1,4 @@
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Audio;
 
 namespace Sedulous.Audio.SDL3;

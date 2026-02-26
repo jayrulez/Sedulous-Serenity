@@ -1,7 +1,7 @@
 namespace SceneEditor;
 
 using System;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.GUI;
 
 /// PropertyItem for Vector2 fields with inline NumericUpDown editors.

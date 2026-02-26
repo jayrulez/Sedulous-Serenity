@@ -2,7 +2,7 @@ namespace Sedulous.Render;
 
 using System;
 using Sedulous.RHI;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Materials;
 
 /// Visibility and rendering flags for mesh proxies.

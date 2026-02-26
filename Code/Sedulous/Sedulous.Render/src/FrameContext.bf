@@ -2,7 +2,7 @@ namespace Sedulous.Render;
 
 using System;
 using Sedulous.RHI;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Per-frame uniform data matching common.hlsli SceneUniforms (b0, space0).
 [CRepr]

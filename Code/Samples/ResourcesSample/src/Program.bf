@@ -1,6 +1,6 @@
 using System;
 using System.IO;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.OpenDDL;
 using Sedulous.Resources;
 using Sedulous.Serialization;

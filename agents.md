@@ -51,13 +51,13 @@ Third-party bindings used by the framework:
 | Layer | Library | Status | Description |
 |-------|---------|--------|-------------|
 | **Foundation** | Sedulous.Foundation | Complete | Type extensions, Contract assertions, EventAccessor |
-| | Sedulous.Collections | Complete | Custom collections (FixedList) |
-| | Sedulous.Logging | Complete | Logging abstractions |
-| | Sedulous.Mathematics | Complete | Vector, Matrix, Quaternion, BoundingBox, Color |
+| | Sedulous.Foundation.Collections | Complete | Custom collections (FixedList) |
+| | Sedulous.Foundation.Logging | Complete | Logging abstractions |
+| | Sedulous.Foundation.Mathematics | Complete | Vector, Matrix, Quaternion, BoundingBox, Color |
 | | Sedulous.OpenDDL | Complete | OpenDDL parser and writer |
 | **Serialization** | Sedulous.Serialization | Complete | Abstract serialization framework |
 | | Sedulous.Serialization.OpenDDL | Complete | OpenDDL serializer implementation |
-| | Sedulous.Mathematics.Serialization | Complete | Math type serialization extensions |
+| | Sedulous.Foundation.Mathematics.Serialization | Complete | Math type serialization extensions |
 | **Assets** | Sedulous.Imaging | Complete | Image loading/manipulation |
 | | Sedulous.Geometry | Complete | Mesh creation, VertexBuffer, IndexBuffer, SkinnedMesh |
 | | Sedulous.Models | Complete | Model representation with bones, materials, animations |
@@ -489,7 +489,7 @@ class MySample : RHISampleApp
 
 **Project:** `Sedulous.Engine.Renderer`
 
-**Dependencies:** corlib, Sedulous.Foundation, Sedulous.Mathematics, Sedulous.Logging, Sedulous.RHI, Sedulous.Resources, Sedulous.Geometry, Sedulous.Imaging
+**Dependencies:** corlib, Sedulous.Foundation, Sedulous.Foundation.Mathematics, Sedulous.Foundation.Logging, Sedulous.RHI, Sedulous.Resources, Sedulous.Geometry, Sedulous.Imaging
 
 **Note:** No dependency on Sedulous.Models. The renderer defines its own mesh/material representations. CPU assets come from Sedulous.Geometry (Mesh) and Sedulous.Imaging (Image).
 

@@ -3,7 +3,7 @@ namespace Sedulous.Render;
 using System;
 using System.Collections;
 using Sedulous.RHI;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Type of render pass.
 public enum RenderPassType : uint8

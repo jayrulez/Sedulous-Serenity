@@ -2,7 +2,7 @@ namespace Platformer.UI;
 
 using System;
 using Sedulous.GUI;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Foundation.Core;
 
 delegate void LevelSelectedDelegate(int32 levelIndex);

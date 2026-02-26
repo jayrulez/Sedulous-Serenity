@@ -3,7 +3,7 @@ namespace Sedulous.Editor.Scenes;
 using System;
 using System.Collections;
 using Sedulous.GUI;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Panel displaying scene entity hierarchy as a tree.
 class SceneHierarchyPanel : Border

@@ -5,10 +5,10 @@ using Sedulous.Geometry;
 using Sedulous.Serialization;
 using Sedulous.Serialization.OpenDDL;
 using Sedulous.OpenDDL;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Animation;
 
-using static Sedulous.Mathematics.MathSerializerExtensions;
+using static Sedulous.Foundation.Mathematics.MathSerializerExtensions;
 
 namespace Sedulous.Animation.Resources;
 

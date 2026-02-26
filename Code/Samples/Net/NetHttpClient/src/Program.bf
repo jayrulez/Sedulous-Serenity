@@ -4,8 +4,8 @@ using System;
 using System.Threading;
 using Sedulous.Net;
 using Sedulous.Net.HTTP;
-using Sedulous.Logging.Abstractions;
-using Sedulous.Logging.Debug;
+using Sedulous.Foundation.Logging.Abstractions;
+using Sedulous.Foundation.Logging.Debug;
 
 /// HTTP client/server demo.
 /// Starts a local HttpServer with routes, then makes requests using HttpClient.

@@ -1,6 +1,6 @@
 namespace Sedulous.Physics;
 
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Result of a ray cast hit.
 struct RayCastResult

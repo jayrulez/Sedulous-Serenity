@@ -2,7 +2,7 @@ namespace ImpactArena;
 
 using System;
 using Sedulous.Drawing;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 class HUD
 {

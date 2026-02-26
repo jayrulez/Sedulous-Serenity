@@ -2,7 +2,7 @@ namespace Sedulous.Animation;
 
 using System;
 using System.Collections;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Handle to an animation instance.
 public struct AnimatedMeshHandle : IHashable

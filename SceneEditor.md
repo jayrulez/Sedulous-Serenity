@@ -50,7 +50,7 @@ The editor camera is NOT a scene entity -- it drives the RenderView directly (sa
 
 ### Checklist
 
-- [x] Create `Code/Tools/Tools.Common/BeefProj.toml` (Library, namespace `Tools.Common`, deps: `Sedulous.Mathematics`, `Sedulous.Render`, `Sedulous.RHI`)
+- [x] Create `Code/Tools/Tools.Common/BeefProj.toml` (Library, namespace `Tools.Common`, deps: `Sedulous.Foundation.Mathematics`, `Sedulous.Render`, `Sedulous.RHI`)
 - [x] Create `src/OrbitCamera.bf` - move class, change namespace
 - [x] Create `src/TranslateGizmo.bf` - move class + enum, change namespace
 - [x] Create `src/ViewportOutputFeature.bf` - move class, change namespace
@@ -86,7 +86,7 @@ class SceneTab
 ### Checklist
 
 - [x] Create `Code/Tools/SceneEditor/BeefProj.toml`
-  - Deps: `Tools.Common`, `Sedulous.AppFramework`, `Sedulous.RHI`, `Sedulous.RHI.Vulkan`, `Sedulous.Shell.SDL3`, `Sedulous.Mathematics`, `Sedulous.Render`, `Sedulous.Materials`, `Sedulous.Materials.Resources`, `Sedulous.Geometry.Resources`, `Sedulous.Textures.Resources`, `Sedulous.Framework.Core`, `Sedulous.Framework.Scenes`, `Sedulous.Framework.Render`, `Sedulous.Framework.Animation`, `Sedulous.Imaging`, `Sedulous.Imaging.SDL`, `Sedulous.Serialization`, `Sedulous.Serialization.OpenDDL`, `Sedulous.OpenDDL`, `Sedulous.Profiler`, `Sedulous.GUI`
+  - Deps: `Tools.Common`, `Sedulous.AppFramework`, `Sedulous.RHI`, `Sedulous.RHI.Vulkan`, `Sedulous.Shell.SDL3`, `Sedulous.Foundation.Mathematics`, `Sedulous.Render`, `Sedulous.Materials`, `Sedulous.Materials.Resources`, `Sedulous.Geometry.Resources`, `Sedulous.Textures.Resources`, `Sedulous.Framework.Core`, `Sedulous.Framework.Scenes`, `Sedulous.Framework.Render`, `Sedulous.Framework.Animation`, `Sedulous.Imaging`, `Sedulous.Imaging.SDL`, `Sedulous.Serialization`, `Sedulous.Serialization.OpenDDL`, `Sedulous.OpenDDL`, `Sedulous.Profiler`, `Sedulous.GUI`
   - StartupObject: `SceneEditor.Program`
 - [x] Create `src/SceneTab.bf` - per-tab state class
 - [x] Create `src/Program.bf` - `SceneEditorApp : Application` with:

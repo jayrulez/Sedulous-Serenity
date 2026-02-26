@@ -3,7 +3,7 @@ namespace Sedulous.Framework.Core;
 using System;
 using System.Collections;
 using Sedulous.Jobs;
-using Sedulous.Logging.Abstractions;
+using Sedulous.Foundation.Logging.Abstractions;
 using Sedulous.Profiler;
 using Sedulous.Resources;
 

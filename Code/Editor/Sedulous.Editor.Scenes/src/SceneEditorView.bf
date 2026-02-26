@@ -4,7 +4,7 @@ using System;
 using System.Collections;
 using Sedulous.GUI;
 using Sedulous.Drawing;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Editor.Core;
 
 /// Camera mode for the scene editor.

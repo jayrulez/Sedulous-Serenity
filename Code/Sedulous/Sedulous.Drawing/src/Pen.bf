@@ -1,4 +1,4 @@
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 namespace Sedulous.Drawing;
 
@@ -43,9 +43,9 @@ public class Pen
 	}
 
 	// Common predefined pens - use fully qualified type to avoid conflict with Color field
-	public static Pen Black(float thickness = 1.0f) => new .(Sedulous.Mathematics.Color.Black, thickness);
-	public static Pen White(float thickness = 1.0f) => new .(Sedulous.Mathematics.Color.White, thickness);
-	public static Pen Red(float thickness = 1.0f) => new .(Sedulous.Mathematics.Color.Red, thickness);
-	public static Pen Green(float thickness = 1.0f) => new .(Sedulous.Mathematics.Color.Green, thickness);
-	public static Pen Blue(float thickness = 1.0f) => new .(Sedulous.Mathematics.Color.Blue, thickness);
+	public static Pen Black(float thickness = 1.0f) => new .(Sedulous.Foundation.Mathematics.Color.Black, thickness);
+	public static Pen White(float thickness = 1.0f) => new .(Sedulous.Foundation.Mathematics.Color.White, thickness);
+	public static Pen Red(float thickness = 1.0f) => new .(Sedulous.Foundation.Mathematics.Color.Red, thickness);
+	public static Pen Green(float thickness = 1.0f) => new .(Sedulous.Foundation.Mathematics.Color.Green, thickness);
+	public static Pen Blue(float thickness = 1.0f) => new .(Sedulous.Foundation.Mathematics.Color.Blue, thickness);
 }

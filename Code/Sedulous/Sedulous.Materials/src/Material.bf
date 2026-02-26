@@ -3,7 +3,7 @@ namespace Sedulous.Materials;
 using System;
 using System.Collections;
 using Sedulous.RHI;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Shaders;
 
 /// Property type for material parameters.

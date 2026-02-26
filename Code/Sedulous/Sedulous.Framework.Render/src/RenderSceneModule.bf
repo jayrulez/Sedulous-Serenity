@@ -6,7 +6,7 @@ using Sedulous.Animation.Resources;
 using Sedulous.Framework.Animation;
 using Sedulous.Framework.Scenes;
 using Sedulous.Geometry.Resources;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Render;
 using Sedulous.Resources;
 using Sedulous.RHI;

@@ -1,7 +1,7 @@
 namespace Sedulous.Render;
 
 using System;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Light types supported by the renderer.
 [Reflect]

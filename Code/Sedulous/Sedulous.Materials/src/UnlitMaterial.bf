@@ -1,6 +1,6 @@
 namespace Sedulous.Materials;
 
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.RHI;
 
 /// Strongly-typed wrapper for Unlit material instances.

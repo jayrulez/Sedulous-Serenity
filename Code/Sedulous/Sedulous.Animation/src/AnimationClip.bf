@@ -2,7 +2,7 @@ namespace Sedulous.Animation;
 
 using System;
 using System.Collections;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Interpolation mode for animation keyframes.
 public enum InterpolationMode

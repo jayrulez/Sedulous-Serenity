@@ -3,7 +3,7 @@ namespace FrameworkAnimation;
 using System;
 using System.IO;
 using System.Collections;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Framework.Runtime;
 using Sedulous.Framework.Core;
 using Sedulous.Framework.Scenes;

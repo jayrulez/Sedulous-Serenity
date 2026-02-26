@@ -52,13 +52,13 @@ public class PropertyAnimationTrack<T> : PropertyAnimationTrackBase
 		{
 			if (typeof(T) == typeof(float))
 				return .Float;
-			if (typeof(T) == typeof(Sedulous.Mathematics.Vector2))
+			if (typeof(T) == typeof(Sedulous.Foundation.Mathematics.Vector2))
 				return .Vector2;
-			if (typeof(T) == typeof(Sedulous.Mathematics.Vector3))
+			if (typeof(T) == typeof(Sedulous.Foundation.Mathematics.Vector3))
 				return .Vector3;
-			if (typeof(T) == typeof(Sedulous.Mathematics.Vector4))
+			if (typeof(T) == typeof(Sedulous.Foundation.Mathematics.Vector4))
 				return .Vector4;
-			if (typeof(T) == typeof(Sedulous.Mathematics.Quaternion))
+			if (typeof(T) == typeof(Sedulous.Foundation.Mathematics.Quaternion))
 				return .Quaternion;
 			return .Float;
 		}

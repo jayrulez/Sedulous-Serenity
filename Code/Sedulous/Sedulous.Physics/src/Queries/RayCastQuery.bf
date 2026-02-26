@@ -1,6 +1,6 @@
 namespace Sedulous.Physics;
 
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Input for a ray cast query.
 struct RayCastQuery

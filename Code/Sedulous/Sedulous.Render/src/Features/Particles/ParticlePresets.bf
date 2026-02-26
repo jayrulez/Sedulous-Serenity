@@ -1,7 +1,7 @@
 namespace Sedulous.Render;
 
 using System;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Factory presets for common particle effects.
 public static class ParticlePresets

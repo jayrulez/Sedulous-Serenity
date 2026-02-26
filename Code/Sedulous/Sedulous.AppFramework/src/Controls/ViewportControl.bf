@@ -1,7 +1,7 @@
 namespace Sedulous.AppFramework;
 
 using System;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Drawing;
 using Sedulous.Drawing.Renderer;
 using Sedulous.RHI;

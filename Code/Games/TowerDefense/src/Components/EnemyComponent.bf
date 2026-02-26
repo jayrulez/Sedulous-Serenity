@@ -2,7 +2,7 @@ namespace TowerDefense.Components;
 
 using System;
 using System.Collections;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using TowerDefense.Data;
 
 /// Simple data class for enemy info used in callbacks.

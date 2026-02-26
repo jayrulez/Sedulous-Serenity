@@ -2,7 +2,7 @@ namespace Sedulous.Render;
 
 using System;
 using Sedulous.RHI;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Handle to a GPU mesh.
 public struct GPUMeshHandle : IHashable

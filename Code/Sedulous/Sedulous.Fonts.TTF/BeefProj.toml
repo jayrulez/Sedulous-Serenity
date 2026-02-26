@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Foundation" = "*", "Sedulous.Mathematics" = "*", "Sedulous.Logging" = "*", "Sedulous.Imaging" = "*", "Sedulous.Fonts" = "*", "stb_truetype-Beef" = "*"}
+Dependencies = {corlib = "*", "Sedulous.Foundation" = "*", "Sedulous.Foundation.Mathematics" = "*", "Sedulous.Foundation.Logging" = "*", "Sedulous.Imaging" = "*", "Sedulous.Fonts" = "*", "stb_truetype-Beef" = "*"}
 
 [Project]
 Name = "Sedulous.Fonts.TTF"

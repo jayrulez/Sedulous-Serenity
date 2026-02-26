@@ -2,7 +2,7 @@ namespace Sedulous.Render;
 
 using System;
 using Sedulous.RHI;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Shaders;
 
 /// GPU parameters for fog application (must match fog_apply.frag.hlsl).

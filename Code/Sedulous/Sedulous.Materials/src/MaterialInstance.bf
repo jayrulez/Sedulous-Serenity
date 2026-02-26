@@ -3,7 +3,7 @@ namespace Sedulous.Materials;
 using System;
 using System.Collections;
 using Sedulous.RHI;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Tracks which properties have been overridden in a material instance.
 struct PropertyOverrideMask

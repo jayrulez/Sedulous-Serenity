@@ -6,11 +6,11 @@ using Sedulous.Geometry;
 using Sedulous.Serialization;
 using Sedulous.Serialization.OpenDDL;
 using Sedulous.OpenDDL;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Animation;
 using Sedulous.Animation.Resources;
 
-using static Sedulous.Mathematics.MathSerializerExtensions;
+using static Sedulous.Foundation.Mathematics.MathSerializerExtensions;
 using static Sedulous.Resources.ResourceSerializerExtensions;
 
 namespace Sedulous.Geometry.Resources;

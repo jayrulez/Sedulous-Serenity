@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 using System.Collections;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Models;
 using Sedulous.Imaging;
 using cgltf_Beef;

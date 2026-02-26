@@ -1,7 +1,7 @@
 namespace Sedulous.Animation;
 
 using System;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Samples animation clips at specific times to produce bone transforms.
 public static class AnimationSampler

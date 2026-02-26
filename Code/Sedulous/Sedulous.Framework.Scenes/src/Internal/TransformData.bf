@@ -1,6 +1,6 @@
 namespace Sedulous.Framework.Scenes.Internal;
 
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Internal transform data including hierarchy information and cached matrices.
 /// This is stored in scene arrays and not directly exposed to users.

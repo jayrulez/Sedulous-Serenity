@@ -2,7 +2,7 @@ namespace ModelViewer;
 
 using System;
 using System.Collections;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Models;
 using Sedulous.Render;
 using Sedulous.Materials;

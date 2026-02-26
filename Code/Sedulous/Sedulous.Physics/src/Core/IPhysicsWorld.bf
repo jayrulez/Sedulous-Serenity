@@ -2,7 +2,7 @@ namespace Sedulous.Physics;
 
 using System;
 using System.Collections;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Main physics simulation interface.
 /// Manages bodies, shapes, constraints, and simulation stepping.

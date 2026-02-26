@@ -1,7 +1,7 @@
 namespace Sedulous.Animation.Tests;
 
 using System;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 class EasingTypeTests
 {

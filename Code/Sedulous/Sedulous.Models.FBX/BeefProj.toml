@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Models" = "*", "ufbx-Beef" = "*", "Sedulous.Mathematics" = "*", "Sedulous.Imaging" = "*"}
+Dependencies = {corlib = "*", "Sedulous.Models" = "*", "ufbx-Beef" = "*", "Sedulous.Foundation.Mathematics" = "*", "Sedulous.Imaging" = "*"}
 
 [Project]
 Name = "Sedulous.Models.FBX"

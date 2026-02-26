@@ -6,7 +6,7 @@ using Sedulous.Framework.Scenes;
 using Sedulous.Framework.Render;
 using Sedulous.Render;
 using Sedulous.RHI;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Shell.Input;
 using Sedulous.GUI;
 using Sedulous.GUI.Shell;

@@ -2,7 +2,7 @@ namespace Sedulous.Animation;
 
 using System;
 using System.Collections;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Serialization;
 
 /// An animation clip that animates arbitrary properties via string-identified tracks.

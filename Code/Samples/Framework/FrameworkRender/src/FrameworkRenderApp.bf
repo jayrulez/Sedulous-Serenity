@@ -1,6 +1,6 @@
 using System;
 using System.Collections;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Framework.Runtime;
 using Sedulous.Framework.Core;
 using Sedulous.Framework.Scenes;

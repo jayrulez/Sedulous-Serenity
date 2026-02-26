@@ -3,7 +3,7 @@ namespace StormTactics.Client;
 using System;
 using System.Collections;
 using Sedulous.GUI;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Foundation.Core;
 using StormTactics.Core;
 using StormTactics.Game;

@@ -1,10 +1,10 @@
 using System;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 namespace Sedulous.GUI;
 
 /// Convenience wrapper for easing functions.
-/// Re-exports Sedulous.Mathematics.Easings with GUI-friendly names.
+/// Re-exports Sedulous.Foundation.Mathematics.Easings with GUI-friendly names.
 public static class Easing
 {
 	// Linear

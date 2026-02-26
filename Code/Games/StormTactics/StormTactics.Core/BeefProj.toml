@@ -7,7 +7,7 @@ TargetType = "BeefLib"
 [Dependencies]
 corlib = "*"
 "Sedulous.Foundation" = "*"
-"Sedulous.Mathematics" = "*"
+"Sedulous.Foundation.Mathematics" = "*"
 "Sedulous.Serialization" = "*"
 "Sedulous.Serialization.Xml" = "*"
 "Sedulous.Xml" = "*"

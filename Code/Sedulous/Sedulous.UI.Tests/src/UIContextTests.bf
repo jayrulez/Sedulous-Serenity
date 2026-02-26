@@ -36,7 +36,7 @@ class TestElement : CompositeControl
 		return base.MeasureOverride(constraints);
 	}
 
-	protected override void ArrangeOverride(Sedulous.Mathematics.RectangleF contentBounds)
+	protected override void ArrangeOverride(Sedulous.Foundation.Mathematics.RectangleF contentBounds)
 	{
 		ArrangeCallCount++;
 		base.ArrangeOverride(contentBounds);

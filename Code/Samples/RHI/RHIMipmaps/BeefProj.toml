@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Mathematics" = "*", "Sedulous.Imaging" = "*", "Sedulous.RHI" = "*", "SampleFramework" = "*"}
+Dependencies = {corlib = "*", "Sedulous.Foundation.Mathematics" = "*", "Sedulous.Imaging" = "*", "Sedulous.RHI" = "*", "SampleFramework" = "*"}
 
 [Project]
 Name = "RHIMipmaps"

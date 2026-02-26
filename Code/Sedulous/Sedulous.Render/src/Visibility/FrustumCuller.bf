@@ -2,7 +2,7 @@ namespace Sedulous.Render;
 
 using System;
 using System.Collections;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Result of a frustum culling test.
 public enum CullResult : uint8

@@ -2,7 +2,7 @@ using System;
 using System.Collections;
 using Sedulous.Physics;
 using Sedulous.Physics.Jolt;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 namespace Sedulous.Physics.Tests;
 

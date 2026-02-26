@@ -2,7 +2,7 @@ namespace SceneEditor;
 
 using System;
 using System.Collections;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Render;
 using Sedulous.GUI;
 using Sedulous.AppFramework;

@@ -4,7 +4,7 @@ using System;
 using System.Collections;
 using Sedulous.RHI;
 using Sedulous.Geometry;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Pending deletion entry.
 struct PendingDeletion

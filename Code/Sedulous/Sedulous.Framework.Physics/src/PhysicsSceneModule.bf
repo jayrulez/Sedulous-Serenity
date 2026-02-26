@@ -4,7 +4,7 @@ using System;
 using System.Collections;
 using Sedulous.Framework.Scenes;
 using Sedulous.Framework.Render;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Physics;
 using Sedulous.Render;
 using Sedulous.Profiler;

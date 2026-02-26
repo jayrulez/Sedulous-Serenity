@@ -1,7 +1,7 @@
 namespace Sedulous.Render;
 
 using System;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// A float value that can be a constant or a random range.
 [CRepr]

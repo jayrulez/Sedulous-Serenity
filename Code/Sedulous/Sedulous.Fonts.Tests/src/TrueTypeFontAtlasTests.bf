@@ -123,45 +123,4 @@ class TrueTypeFontAtlasTests
 			}
 		}
 	}
-
-	[Test]
-	static void TestAtlasToImage()
-	{
-		let fontPath = GetAvailableSystemFont();
-		if (fontPath.IsEmpty)
-			return;
-
-		TrueTypeFonts.Initialize();
-		defer TrueTypeFonts.Shutdown();
-
-		if (FontLoaderFactory.LoadFont(fontPath, .Default) case .Ok(let font))
-		{
-			defer delete (Object)font;
-
-			if (FontLoaderFactory.CreateAtlas(font, .Default) case .Ok(let atlas))
-			{
-				defer delete (Object)atlas;
-
-				let image = atlas.ToImage();
-				defer delete image;
-
-				Test.Assert(image.Width == atlas.Width);
-				Test.Assert(image.Height == atlas.Height);
-				Test.Assert(image.Format == .R8);
-
-				// Check that some pixels are non-zero (glyphs were rendered)
-				let data = image.Data;
-				bool hasNonZero = false;
-				for (let pixel in data)
-				{
-					if (pixel > 0)
-					{
-						hasNonZero = true;
-						break;
-					}
-				}
-				Test.Assert(hasNonZero);
-			}
-		}
-	}
 }

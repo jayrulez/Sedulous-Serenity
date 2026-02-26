@@ -1,4 +1,4 @@
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 namespace UISandbox;
 
 /// Wrapper class for Color to allow storing in DragData.

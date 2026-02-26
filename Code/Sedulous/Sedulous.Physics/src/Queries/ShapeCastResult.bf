@@ -1,6 +1,6 @@
 namespace Sedulous.Physics;
 
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Result of a shape cast hit.
 struct ShapeCastResult

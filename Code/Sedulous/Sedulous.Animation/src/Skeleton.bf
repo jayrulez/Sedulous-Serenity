@@ -2,7 +2,7 @@ namespace Sedulous.Animation;
 
 using System;
 using System.Collections;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Represents a skeletal hierarchy used for animation.
 public class Skeleton

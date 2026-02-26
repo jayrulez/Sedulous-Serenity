@@ -7,7 +7,7 @@ TargetType = "BeefTest"
 [Dependencies]
 corlib = "*"
 "Sedulous.Jobs" = "*"
-"Sedulous.Mathematics" = "*"
+"Sedulous.Foundation.Mathematics" = "*"
 "Sedulous.OpenDDL" = "*"
 "Sedulous.Resources" = "*"
 "Sedulous.Serialization" = "*"

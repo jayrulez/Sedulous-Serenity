@@ -1,7 +1,7 @@
 namespace Platformer.Components;
 
 using System;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Framework.Scenes;
 
 enum HazardType

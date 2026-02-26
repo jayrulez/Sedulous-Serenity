@@ -1,7 +1,7 @@
 namespace Sedulous.Render;
 
 using System;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Trigger event for sub-emitter spawning.
 public enum SubEmitterTrigger : uint8

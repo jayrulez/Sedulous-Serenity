@@ -3,7 +3,7 @@ namespace Sedulous.Physics.Jolt;
 using System;
 using System.Collections;
 using joltc_Beef;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Physics;
 
 /// Jolt Physics implementation of IPhysicsWorld.

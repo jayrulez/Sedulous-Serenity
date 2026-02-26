@@ -1,6 +1,6 @@
 namespace Sedulous.Physics;
 
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Descriptor for creating a distance constraint.
 /// A distance constraint maintains a fixed distance between two points.

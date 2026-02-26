@@ -1,6 +1,6 @@
 namespace Sedulous.Animation;
 
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Serializable easing type enum mapping 1:1 to Easings.* functions.
 public enum EasingType : int32

@@ -1,5 +1,4 @@
 using System;
-using Sedulous.Imaging;
 
 namespace Sedulous.Fonts;
 
@@ -29,9 +28,6 @@ public interface IFontAtlas
 
 	/// Check if atlas contains a specific codepoint
 	bool Contains(int32 codepoint);
-
-	/// Convert atlas to an Image for GPU upload
-	Image ToImage();
 
 	/// Get UV coordinates for a solid white pixel (for drawing lines, rects, etc.)
 	/// Returns (u, v) normalized texture coordinates

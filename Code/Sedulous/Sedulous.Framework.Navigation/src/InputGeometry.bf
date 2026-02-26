@@ -1,7 +1,7 @@
 namespace Sedulous.Framework.Navigation;
 
 using System;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Interface for input geometry providers.
 interface IInputGeometryProvider

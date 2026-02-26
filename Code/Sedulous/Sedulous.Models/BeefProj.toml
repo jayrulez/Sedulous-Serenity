@@ -6,4 +6,4 @@ TargetType = "BeefLib"
 
 [Dependencies]
 corlib = "*"
-"Sedulous.Mathematics" = "*"
+"Sedulous.Foundation.Mathematics" = "*"

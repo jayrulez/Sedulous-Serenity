@@ -2,12 +2,12 @@ namespace Sedulous.Framework.Scenes;
 
 using System;
 using System.Collections;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Serialization;
 using System.Reflection;
 using Sedulous.Framework.Scenes.Internal;
 
-using static Sedulous.Mathematics.MathSerializerExtensions;
+using static Sedulous.Foundation.Mathematics.MathSerializerExtensions;
 
 /// A data-oriented scene containing entities, transforms, and components.
 /// The scene is the single source of truth and owns all entity data.

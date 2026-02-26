@@ -1,7 +1,7 @@
 using System;
 using Sedulous.Audio;
 using Sedulous.Audio.SDL3;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 namespace Sedulous.Audio.Tests;
 

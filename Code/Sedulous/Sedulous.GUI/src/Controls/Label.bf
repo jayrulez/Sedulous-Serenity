@@ -1,5 +1,5 @@
 using System;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Drawing;
 using Sedulous.Fonts;
 

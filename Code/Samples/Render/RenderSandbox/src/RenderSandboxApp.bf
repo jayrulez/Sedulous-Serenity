@@ -1,4 +1,4 @@
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Framework.Runtime;
 using Sedulous.RHI;
 using Sedulous.Shell;

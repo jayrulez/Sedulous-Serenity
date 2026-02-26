@@ -1,7 +1,7 @@
 namespace StormTactics.Client;
 
 using Sedulous.GUI;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Drawing;
 using System;
 

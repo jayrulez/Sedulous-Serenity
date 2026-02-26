@@ -2,8 +2,8 @@ namespace Platformer.Enemies;
 
 using System;
 using System.Collections;
-using Sedulous.Mathematics;
-using Sedulous.Logging.Abstractions;
+using Sedulous.Foundation.Mathematics;
+using Sedulous.Foundation.Logging.Abstractions;
 using Sedulous.Framework.Core;
 using Sedulous.Framework.Scenes;
 using Platformer.Components;

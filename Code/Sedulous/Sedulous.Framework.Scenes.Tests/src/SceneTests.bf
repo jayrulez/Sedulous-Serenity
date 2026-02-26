@@ -2,7 +2,7 @@ namespace Sedulous.Framework.Scenes.Tests;
 
 using System;
 using Sedulous.Framework.Scenes;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 // Example components for testing (pure data structs)
 struct HealthComponent : IComponent

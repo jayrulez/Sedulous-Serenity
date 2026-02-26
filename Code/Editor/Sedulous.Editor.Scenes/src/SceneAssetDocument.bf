@@ -4,7 +4,7 @@ using System;
 using System.Collections;
 using Sedulous.Editor.Core;
 using Sedulous.GUI;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Document for editing scene assets.
 class SceneAssetDocument : IAssetDocument

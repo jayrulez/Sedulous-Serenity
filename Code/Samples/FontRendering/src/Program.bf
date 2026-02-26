@@ -3,7 +3,7 @@ namespace FontRendering;
 using System;
 using System.Collections;
 using System.IO;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Imaging;
 using Sedulous.RHI;
 using SampleFramework;

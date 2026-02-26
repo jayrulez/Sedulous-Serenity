@@ -6,7 +6,7 @@ TargetType = "BeefLib"
 
 [Dependencies]
 corlib = "*"
-"Sedulous.Mathematics" = "*"
+"Sedulous.Foundation.Mathematics" = "*"
 "Sedulous.Models" = "*"
 "Sedulous.Imaging" = "*"
 "cgltf-Beef" = "*"

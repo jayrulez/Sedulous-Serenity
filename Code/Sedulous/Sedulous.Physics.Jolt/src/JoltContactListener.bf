@@ -2,7 +2,7 @@ namespace Sedulous.Physics.Jolt;
 
 using System;
 using joltc_Beef;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Physics;
 
 /// Internal wrapper for JPH_ContactListener that forwards events to IContactListener.

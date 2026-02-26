@@ -2,7 +2,7 @@ namespace Sedulous.Render;
 
 using System;
 using System.Collections;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.RHI;
 
 /// CPU particle emitter - handles simulation, sorting, and vertex buffer upload.

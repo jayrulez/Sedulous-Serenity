@@ -12,7 +12,7 @@ using System.Collections;
 using Sedulous.GUI;
 using System;
 using System.IO;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Shell;
 namespace SceneEditor;
 

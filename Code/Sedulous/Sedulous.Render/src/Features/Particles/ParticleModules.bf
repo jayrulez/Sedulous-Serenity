@@ -1,7 +1,7 @@
 namespace Sedulous.Render;
 
 using System;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Force modules that can be applied to particles during simulation.
 /// All fields default to 0 (inactive). Set non-zero values to enable.

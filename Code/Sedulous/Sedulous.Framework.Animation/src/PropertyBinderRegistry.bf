@@ -2,7 +2,7 @@ namespace Sedulous.Framework.Animation;
 
 using System;
 using System.Collections;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Framework.Scenes;
 
 // ---- Delegate types for property setters ----

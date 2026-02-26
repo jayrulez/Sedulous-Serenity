@@ -2,7 +2,7 @@ namespace Sedulous.Editor.App;
 
 using System;
 using Sedulous.GUI;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Shell;
 using Sedulous.Foundation.Core;
 

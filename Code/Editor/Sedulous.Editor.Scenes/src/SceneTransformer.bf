@@ -422,9 +422,9 @@ class RuntimeEntityData
 	public String Name = new .() ~ delete _;
 	public Guid EntityId;
 	public Guid ParentId;
-	public Sedulous.Mathematics.Vector3 Position;
-	public Sedulous.Mathematics.Vector3 Rotation;
-	public Sedulous.Mathematics.Vector3 Scale = .(1, 1, 1);
+	public Sedulous.Foundation.Mathematics.Vector3 Position;
+	public Sedulous.Foundation.Mathematics.Vector3 Rotation;
+	public Sedulous.Foundation.Mathematics.Vector3 Scale = .(1, 1, 1);
 	public List<RuntimeComponentData> Components = new .() ~ DeleteContainerAndItems!(_);
 	public List<Guid> ChildIds = new .() ~ delete _;
 }

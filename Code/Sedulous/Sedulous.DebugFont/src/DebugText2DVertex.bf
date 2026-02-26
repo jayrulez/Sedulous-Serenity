@@ -1,7 +1,7 @@
 namespace Sedulous.DebugFont;
 
 using System;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Vertex format for 2D screen-space debug text (position + texcoord + color).
 [CRepr]

@@ -2,7 +2,7 @@ namespace Sedulous.Render;
 
 using System;
 using System.Collections;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Materials;
 
 /// A single draw command for a mesh.

@@ -1,7 +1,7 @@
 namespace Sedulous.Animation;
 
 using System;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Represents a single bone in a skeleton hierarchy.
 public class Bone

@@ -1,7 +1,7 @@
 namespace TowerDefense.Maps;
 
 using System;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using TowerDefense.Data;
 
 /// First map: Grasslands

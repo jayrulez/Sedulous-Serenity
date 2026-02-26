@@ -2,7 +2,7 @@ namespace Sedulous.Editor.Core;
 
 using System;
 using System.Collections;
-using Sedulous.Logging.Abstractions;
+using Sedulous.Foundation.Logging.Abstractions;
 using Sedulous.Foundation.Core;
 
 /// A log entry stored by the editor logger.

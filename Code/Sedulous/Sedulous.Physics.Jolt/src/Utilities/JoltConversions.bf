@@ -1,7 +1,7 @@
 namespace Sedulous.Physics.Jolt;
 
 using joltc_Beef;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Utility class for converting between Sedulous and Jolt types.
 static class JoltConversions

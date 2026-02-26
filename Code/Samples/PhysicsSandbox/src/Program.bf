@@ -2,7 +2,7 @@ namespace PhysicsSandbox;
 
 using System;
 using System.Collections;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Physics;
 using Sedulous.Physics.Jolt;
 

@@ -1,7 +1,7 @@
 using System;
 using System.Collections;
 using Sedulous.Drawing;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 namespace Sedulous.UI;
 

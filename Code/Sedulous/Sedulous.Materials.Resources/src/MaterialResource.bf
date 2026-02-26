@@ -3,7 +3,7 @@ using System.IO;
 using System.Collections;
 using Sedulous.Resources;
 using Sedulous.Materials;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Serialization;
 using Sedulous.Serialization.OpenDDL;
 using Sedulous.OpenDDL;

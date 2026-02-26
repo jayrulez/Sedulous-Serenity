@@ -3,7 +3,7 @@ namespace Platformer.Assets;
 using System;
 using System.IO;
 using System.Collections;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Geometry;
 using Sedulous.Geometry.Resources;
 using Sedulous.Materials;
@@ -12,7 +12,7 @@ using Sedulous.Models;
 using Sedulous.Models.GLTF;
 using Sedulous.Geometry.Tooling;
 using Sedulous.Resources;
-using Sedulous.Logging.Abstractions;
+using Sedulous.Foundation.Logging.Abstractions;
 using Sedulous.Framework.Core;
 
 /// Imports glTF models from the Kenney Platformer Kit asset pack and builds a ResourceRegistry.

@@ -1,7 +1,7 @@
 namespace Sedulous.Framework.Runtime;
 
 using System;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Shell.Input;
 
 /// Reusable orbital/flythrough camera controller.

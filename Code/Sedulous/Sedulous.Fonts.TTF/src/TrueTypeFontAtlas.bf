@@ -168,15 +168,4 @@ public class TrueTypeFontAtlas : IFontAtlas
 
 		return pc.x1 > pc.x0 && pc.y1 > pc.y0;
 	}
-
-	public Image ToImage()
-	{
-		let image = new Image(mWidth, mHeight, .R8);
-
-		// Copy pixel data directly
-		let destData = image.Data;
-		Internal.MemCpy(destData.Ptr, mPixelData.Ptr, mPixelData.Count);
-
-		return image;
-	}
 }

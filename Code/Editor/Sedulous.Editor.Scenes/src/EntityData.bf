@@ -2,7 +2,7 @@ namespace Sedulous.Editor.Scenes;
 
 using System;
 using System.Collections;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Serializable entity representation for scene assets.
 public class EntityData

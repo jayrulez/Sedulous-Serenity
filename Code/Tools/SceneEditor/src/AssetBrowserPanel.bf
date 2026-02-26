@@ -4,7 +4,7 @@ using System;
 using System.IO;
 using System.Collections;
 using Sedulous.GUI;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// File browser panel for the project directory, showing available resources.
 class AssetBrowserPanel

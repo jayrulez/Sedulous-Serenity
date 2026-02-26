@@ -3,7 +3,7 @@ namespace TowerDefense.UI;
 using System;
 using Sedulous.GUI;
 using Sedulous.Drawing;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Foundation.Core;
 
 /// Delegate for level selection events.

@@ -1,6 +1,6 @@
 using System;
 using Sedulous.Geometry;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 namespace Sedulous.Geometry.Tests;
 

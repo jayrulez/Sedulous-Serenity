@@ -1,7 +1,7 @@
 namespace GUISandbox;
 
 using System;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.GUI;
 
 /// Phase 6: Interactive Controls Demo

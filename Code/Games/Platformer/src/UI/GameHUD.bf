@@ -3,7 +3,7 @@ namespace Platformer.UI;
 using System;
 using Sedulous.GUI;
 using Sedulous.Foundation.Core;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 delegate void HUDActionDelegate();
 

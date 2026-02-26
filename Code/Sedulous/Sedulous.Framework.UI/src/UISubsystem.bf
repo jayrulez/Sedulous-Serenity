@@ -13,7 +13,7 @@ using Sedulous.RHI;
 using Sedulous.Render;
 using Sedulous.Shell;
 using Sedulous.Shell.Input;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Profiler;
 
 /// UI subsystem for managing user interface.

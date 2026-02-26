@@ -1,7 +1,7 @@
 namespace RenderSandbox;
 
 using System;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Render;
 using Sedulous.Animation;
 

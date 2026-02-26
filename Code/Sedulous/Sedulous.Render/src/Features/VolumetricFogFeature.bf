@@ -3,7 +3,7 @@ namespace Sedulous.Render;
 using System;
 using System.Collections;
 using Sedulous.RHI;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Shaders;
 
 /// GPU parameters for inject pass (must match volumetric_inject.comp.hlsl cbuffer VolumetricParams)

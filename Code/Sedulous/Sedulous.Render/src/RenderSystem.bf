@@ -5,7 +5,7 @@ using System.Collections;
 using Sedulous.RHI;
 using Sedulous.Shaders;
 using Sedulous.Materials;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Profiler;
 
 /// Statistics for a single frame.

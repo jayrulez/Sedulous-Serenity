@@ -1,7 +1,7 @@
 namespace Tools.Common;
 
 using System;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Render;
 
 /// A 3D rotation gizmo for rotating objects around axes.

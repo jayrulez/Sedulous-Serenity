@@ -1,7 +1,7 @@
 namespace Sedulous.RHI;
 
 using System;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Describes a color attachment in a render pass.
 struct RenderPassColorAttachment

@@ -1,7 +1,7 @@
 using System;
 using System.Threading;
 using System.Collections;
-using Sedulous.Logging.Debug;
+using Sedulous.Foundation.Logging.Debug;
 
 namespace Sedulous.Jobs.Tests;
 

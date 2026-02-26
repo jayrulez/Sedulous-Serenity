@@ -2,7 +2,7 @@ namespace Sedulous.Framework.Input;
 
 using System;
 using Sedulous.Shell.Input;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Which gamepad stick to use.
 enum GamepadStick

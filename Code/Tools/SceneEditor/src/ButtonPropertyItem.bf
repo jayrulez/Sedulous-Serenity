@@ -2,7 +2,7 @@ namespace SceneEditor;
 
 using System;
 using Sedulous.GUI;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// PropertyItem that displays a clickable button in the value column.
 class ButtonPropertyItem : PropertyItem

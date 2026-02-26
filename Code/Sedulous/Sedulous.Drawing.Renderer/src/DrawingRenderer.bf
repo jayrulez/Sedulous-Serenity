@@ -5,7 +5,7 @@ using System.Collections;
 using Sedulous.RHI;
 using Sedulous.Shaders;
 using Sedulous.Drawing;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Profiler;
 
 /// Uniform buffer data for projection matrix.

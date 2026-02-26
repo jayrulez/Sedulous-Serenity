@@ -4,7 +4,7 @@ using System;
 using System.IO;
 using System.Collections;
 using Sedulous.AppFramework;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.RHI;
 using Sedulous.Models;
 using Sedulous.Models.GLTF;

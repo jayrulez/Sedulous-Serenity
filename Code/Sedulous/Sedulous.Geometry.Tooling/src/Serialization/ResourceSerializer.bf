@@ -4,7 +4,7 @@ using System.Collections;
 using Sedulous.Serialization;
 using Sedulous.Serialization.OpenDDL;
 using Sedulous.OpenDDL;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Geometry;
 using Sedulous.Imaging;
 using Sedulous.Animation.Resources;

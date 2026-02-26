@@ -6,7 +6,7 @@ using System.Diagnostics;
 using System.IO;
 using Sedulous.Shell;
 using Sedulous.Shell.SDL3;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.RHI;
 using Sedulous.RHI.Vulkan;
 using Sedulous.Shell.Input;

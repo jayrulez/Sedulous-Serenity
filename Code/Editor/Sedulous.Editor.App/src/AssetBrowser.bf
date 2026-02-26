@@ -4,7 +4,7 @@ using System;
 using System.Collections;
 using System.IO;
 using Sedulous.GUI;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Editor.Core;
 using Sedulous.Foundation.Core;
 

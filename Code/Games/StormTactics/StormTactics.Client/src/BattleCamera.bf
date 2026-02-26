@@ -1,7 +1,7 @@
 namespace StormTactics.Client;
 
 using System;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Shell.Input;
 
 /// Camera controller for the battle view.

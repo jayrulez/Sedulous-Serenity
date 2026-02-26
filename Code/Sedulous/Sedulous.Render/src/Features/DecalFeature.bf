@@ -3,7 +3,7 @@ namespace Sedulous.Render;
 using System;
 using System.Collections;
 using Sedulous.RHI;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Shaders;
 
 /// Uniform data for a single decal (256-byte aligned for dynamic uniform offset).

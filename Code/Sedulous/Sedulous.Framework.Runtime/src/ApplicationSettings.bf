@@ -1,5 +1,5 @@
 using Sedulous.RHI;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using System;
 
 namespace Sedulous.Framework.Runtime;

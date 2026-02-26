@@ -3,7 +3,7 @@ namespace SceneEditor;
 using System;
 using System.IO;
 using Sedulous.GUI;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// PropertyItem for ResourceRef fields with browse and clear buttons.
 class ResourceRefPropertyItem : PropertyItem

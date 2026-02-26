@@ -1,6 +1,6 @@
 namespace Sedulous.Physics;
 
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Physics body proxy struct storing synchronized data.
 /// Similar to StaticMeshProxy in the Renderer.

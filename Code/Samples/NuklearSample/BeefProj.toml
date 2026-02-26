@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Mathematics" = "*", "Sedulous.RHI" = "*", SampleFramework = "*", "Nuklear-Beef" = "*"}
+Dependencies = {corlib = "*", "Sedulous.Foundation.Mathematics" = "*", "Sedulous.RHI" = "*", SampleFramework = "*", "Nuklear-Beef" = "*"}
 
 [Project]
 Name = "NuklearSample"

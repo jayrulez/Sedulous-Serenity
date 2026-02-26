@@ -2,7 +2,7 @@ namespace Sedulous.Framework.Render;
 
 using System;
 using Sedulous.Framework.Scenes;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Render;
 using Sedulous.Resources;
 using Sedulous.Serialization;

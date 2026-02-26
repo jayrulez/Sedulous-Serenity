@@ -15,7 +15,7 @@ The physics system is organized into three main libraries:
 ```beef
 using Sedulous.Physics;
 using Sedulous.Physics.Jolt;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 // Create physics world
 PhysicsWorldDescriptor worldDesc = .Default;

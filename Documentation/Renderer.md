@@ -890,7 +890,7 @@ The particle system provides CPU-driven simulation with GPU rendering, supportin
 
 ```beef
 using Sedulous.Renderer;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 // Create particle system with default config
 let particles = new ParticleSystem(device, maxParticles: 1000);

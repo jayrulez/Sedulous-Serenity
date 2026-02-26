@@ -2,7 +2,7 @@ namespace Sedulous.Animation;
 
 using System;
 using System.Collections;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// An entry in a 2D blend tree, mapping a 2D position to a clip.
 struct BlendTree2DEntry

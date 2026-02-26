@@ -1,7 +1,7 @@
 namespace Sedulous.Physics;
 
 using System;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Descriptor for creating a physics character controller.
 struct CharacterDescriptor

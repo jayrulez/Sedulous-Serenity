@@ -3,7 +3,7 @@ namespace Sedulous.Materials;
 using System;
 using System.Collections;
 using Sedulous.RHI;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Manages materials, material instances, and their GPU resources.
 /// Generates bind group layouts from material property definitions.

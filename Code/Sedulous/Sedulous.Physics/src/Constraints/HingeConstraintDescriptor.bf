@@ -1,7 +1,7 @@
 namespace Sedulous.Physics;
 
 using System;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Descriptor for creating a hinge constraint.
 /// A hinge constraint allows rotation around a single axis.

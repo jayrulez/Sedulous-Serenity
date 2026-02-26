@@ -2,7 +2,7 @@ namespace Platformer.Data;
 
 using System;
 using System.Collections;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Platformer.Components;
 
 /// Describes an enemy placement in a level.

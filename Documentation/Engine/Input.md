@@ -517,7 +517,7 @@ Code/Sedulous/Sedulous.Engine.Input/
 corlib = "*"
 Sedulous.Engine.Core = "*"
 Sedulous.Shell = "*"
-Sedulous.Mathematics = "*"
+Sedulous.Foundation.Mathematics = "*"
 Sedulous.Serialization = "*"
 ```
 

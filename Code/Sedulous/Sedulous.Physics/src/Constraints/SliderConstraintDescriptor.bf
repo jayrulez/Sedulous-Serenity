@@ -1,7 +1,7 @@
 namespace Sedulous.Physics;
 
 using System;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Descriptor for creating a slider constraint.
 /// A slider constraint allows translation along a single axis.

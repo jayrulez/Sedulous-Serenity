@@ -1,6 +1,6 @@
 using System;
 using System.Collections;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Drawing;
 using Sedulous.Fonts;
 using Sedulous.Foundation.Core;
@@ -309,7 +309,7 @@ public class NumericUpDown : Control
 
 	// === Hit Testing ===
 
-	public override UIElement HitTest(Sedulous.Mathematics.Vector2 point)
+	public override UIElement HitTest(Sedulous.Foundation.Mathematics.Vector2 point)
 	{
 		if (Visibility != .Visible)
 			return null;

@@ -2,7 +2,7 @@ namespace ImpactArena;
 
 using System;
 using System.Collections;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 using Sedulous.Render;
 using Sedulous.Framework.Scenes;
 using Sedulous.Framework.Render;

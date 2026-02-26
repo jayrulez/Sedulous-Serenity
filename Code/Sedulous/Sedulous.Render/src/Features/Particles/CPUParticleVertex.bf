@@ -1,7 +1,7 @@
 namespace Sedulous.Render;
 
 using System;
-using Sedulous.Mathematics;
+using Sedulous.Foundation.Mathematics;
 
 /// Vertex data uploaded to GPU for CPU-simulated particles.
 /// Used as instance data (one per particle, step rate = per instance).
