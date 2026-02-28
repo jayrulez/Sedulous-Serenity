@@ -4,6 +4,7 @@ using System;
 using Sedulous.RHI;
 using Sedulous.Foundation.Mathematics;
 using Sedulous.Shaders;
+using Sedulous.RenderGraph;
 
 /// GPU parameters for fog application (must match fog_apply.frag.hlsl).
 [CRepr]

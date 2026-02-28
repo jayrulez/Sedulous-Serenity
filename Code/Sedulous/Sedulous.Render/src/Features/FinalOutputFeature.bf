@@ -5,6 +5,7 @@ using System.Collections;
 using Sedulous.RHI;
 using Sedulous.Foundation.Mathematics;
 using Sedulous.Shaders;
+using Sedulous.RenderGraph;
 
 /// Final output render feature.
 /// Blits the scene color to the swapchain for presentation.

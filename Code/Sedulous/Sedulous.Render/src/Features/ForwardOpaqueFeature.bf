@@ -7,6 +7,7 @@ using Sedulous.Foundation.Mathematics;
 using Sedulous.Shaders;
 using Sedulous.Materials;
 using Sedulous.Profiler;
+using Sedulous.RenderGraph;
 
 /// Per-object uniform data matching forward.vert.hlsl ObjectUniforms (b1, space0).
 [CRepr]

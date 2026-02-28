@@ -3,6 +3,7 @@ namespace Sedulous.Engine.UI;
 using System;
 using System.Collections;
 using Sedulous.Render;
+using Sedulous.RenderGraph;
 using Sedulous.RHI;
 using Sedulous.Drawing;
 using Sedulous.Foundation.Mathematics;

@@ -6,6 +6,7 @@ using Sedulous.RHI;
 using Sedulous.Foundation.Mathematics;
 using Sedulous.Shaders;
 using Sedulous.Materials;
+using Sedulous.RenderGraph;
 
 /// Camera uniforms for motion vector pass (must match motion.vert.hlsl CameraUniforms).
 [CRepr]

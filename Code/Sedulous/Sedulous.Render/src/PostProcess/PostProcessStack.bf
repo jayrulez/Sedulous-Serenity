@@ -3,6 +3,7 @@ namespace Sedulous.Render;
 using System;
 using System.Collections;
 using Sedulous.RHI;
+using Sedulous.RenderGraph;
 
 /// Manages a chain of post-processing effects with ping-pong render targets.
 /// Effects are executed in priority order, each reading from the previous result.

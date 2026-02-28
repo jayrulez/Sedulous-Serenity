@@ -5,6 +5,7 @@ using System.Collections;
 using Sedulous.RHI;
 using Sedulous.Foundation.Mathematics;
 using Sedulous.Shaders;
+using Sedulous.RenderGraph;
 
 /// GPU parameters for inject pass (must match volumetric_inject.comp.hlsl cbuffer VolumetricParams)
 [CRepr]

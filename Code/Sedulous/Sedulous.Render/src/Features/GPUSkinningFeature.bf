@@ -5,6 +5,7 @@ using System.Collections;
 using Sedulous.RHI;
 using Sedulous.Foundation.Mathematics;
 using Sedulous.Shaders;
+using Sedulous.RenderGraph;
 
 /// GPU bone transform buffer for a single skinned mesh.
 [CRepr]

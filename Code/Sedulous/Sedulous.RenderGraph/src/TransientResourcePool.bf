@@ -1,4 +1,4 @@
-namespace Sedulous.Render;
+namespace Sedulous.RenderGraph;
 
 using System;
 using System.Collections;
@@ -101,16 +101,17 @@ class TransientBufferRing
 public class TransientResourcePool : IDisposable
 {
 	private IDevice mDevice;
+	private RenderGraphConfig mConfig;
 	private int32 mCurrentFrameIndex;
 
-	// Triple-buffered uniform buffers
-	private TransientBufferRing[RenderConfig.FrameBufferCount] mUniformBuffers;
+	// Triple-buffered uniform buffers (sized by config.FrameBufferCount)
+	private TransientBufferRing[] mUniformBuffers ~ { for (let b in _) { b.Shutdown(); delete b; } delete _; };
 
 	// Triple-buffered vertex/index staging buffers
-	private TransientBufferRing[RenderConfig.FrameBufferCount] mVertexBuffers;
+	private TransientBufferRing[] mVertexBuffers ~ { for (let b in _) { b.Shutdown(); delete b; } delete _; };
 
 	// Triple-buffered storage buffers
-	private TransientBufferRing[RenderConfig.FrameBufferCount] mStorageBuffers;
+	private TransientBufferRing[] mStorageBuffers ~ { for (let b in _) { b.Shutdown(); delete b; } delete _; };
 
 	/// Gets the device.
 	public IDevice Device => mDevice;
@@ -119,31 +120,35 @@ public class TransientResourcePool : IDisposable
 	public int32 FrameIndex => mCurrentFrameIndex;
 
 	/// Initializes the pool.
-	public Result<void> Initialize(IDevice device)
+	public Result<void> Initialize(IDevice device, RenderGraphConfig config)
 	{
 		mDevice = device;
+		mConfig = config;
 
 		// Create uniform buffer rings
-		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
+		mUniformBuffers = new TransientBufferRing[config.FrameBufferCount];
+		for (int32 i = 0; i < config.FrameBufferCount; i++)
 		{
 			mUniformBuffers[i] = new TransientBufferRing();
-			if (mUniformBuffers[i].Initialize(device, RenderConfig.TransientBufferPoolSize, .Uniform) case .Err)
+			if (mUniformBuffers[i].Initialize(device, config.TransientBufferPoolSize, .Uniform) case .Err)
 				return .Err;
 		}
 
 		// Create vertex buffer rings
-		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
+		mVertexBuffers = new TransientBufferRing[config.FrameBufferCount];
+		for (int32 i = 0; i < config.FrameBufferCount; i++)
 		{
 			mVertexBuffers[i] = new TransientBufferRing();
-			if (mVertexBuffers[i].Initialize(device, RenderConfig.TransientBufferPoolSize, .Vertex | .Index) case .Err)
+			if (mVertexBuffers[i].Initialize(device, config.TransientBufferPoolSize, .Vertex | .Index) case .Err)
 				return .Err;
 		}
 
 		// Create storage buffer rings
-		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
+		mStorageBuffers = new TransientBufferRing[config.FrameBufferCount];
+		for (int32 i = 0; i < config.FrameBufferCount; i++)
 		{
 			mStorageBuffers[i] = new TransientBufferRing();
-			if (mStorageBuffers[i].Initialize(device, RenderConfig.TransientBufferPoolSize, .Storage) case .Err)
+			if (mStorageBuffers[i].Initialize(device, config.TransientBufferPoolSize, .Storage) case .Err)
 				return .Err;
 		}
 
@@ -255,23 +260,5 @@ public class TransientResourcePool : IDisposable
 
 	public void Dispose()
 	{
-		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
-		{
-			if (mUniformBuffers[i] != null)
-			{
-				mUniformBuffers[i].Shutdown();
-				delete mUniformBuffers[i];
-			}
-			if (mVertexBuffers[i] != null)
-			{
-				mVertexBuffers[i].Shutdown();
-				delete mVertexBuffers[i];
-			}
-			if (mStorageBuffers[i] != null)
-			{
-				mStorageBuffers[i].Shutdown();
-				delete mStorageBuffers[i];
-			}
-		}
 	}
 }

@@ -2,6 +2,7 @@ namespace Sedulous.Render;
 
 using System;
 using Sedulous.RHI;
+using Sedulous.RenderGraph;
 
 /// Interface for post-processing effects.
 /// Effects are executed in order, reading from the previous result and writing to the next target.

@@ -2,6 +2,7 @@ namespace Sedulous.Render;
 
 using System;
 using System.Collections;
+using Sedulous.RenderGraph;
 
 /// Interface for modular render features.
 /// Each feature is a self-contained rendering module that adds passes to the render graph.

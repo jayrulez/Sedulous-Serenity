@@ -6,6 +6,7 @@ using Sedulous.RHI;
 using Sedulous.Foundation.Mathematics;
 using Sedulous.Shaders;
 using Sedulous.Profiler;
+using Sedulous.RenderGraph;
 
 /// Unified particle render feature.
 /// Supports both GPU compute and CPU simulation backends.

@@ -5,6 +5,7 @@ using System.Collections;
 using Sedulous.RHI;
 using Sedulous.Foundation.Mathematics;
 using Sedulous.Render;
+using Sedulous.RenderGraph;
 
 /// Custom render feature that blits rendered content to a viewport texture.
 /// Similar to FinalOutputFeature but outputs to an external texture instead of swapchain.

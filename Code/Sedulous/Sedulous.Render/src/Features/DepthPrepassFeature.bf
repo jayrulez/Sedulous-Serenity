@@ -7,6 +7,7 @@ using Sedulous.Foundation.Mathematics;
 using Sedulous.Shaders;
 using Sedulous.Materials;
 using Sedulous.Profiler;
+using Sedulous.RenderGraph;
 
 /// Depth prepass render feature.
 /// Renders depth-only for all opaque geometry to enable:

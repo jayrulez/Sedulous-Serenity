@@ -5,6 +5,7 @@ using System.Collections;
 using Sedulous.RHI;
 using Sedulous.Foundation.Mathematics;
 using Sedulous.Shaders;
+using Sedulous.RenderGraph;
 
 /// Sprite render feature - renders camera-facing billboarded quads batched by texture.
 public class SpriteFeature : RenderFeatureBase

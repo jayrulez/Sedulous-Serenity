@@ -7,6 +7,7 @@ using Sedulous.Shaders;
 using Sedulous.Materials;
 using Sedulous.Foundation.Mathematics;
 using Sedulous.Profiler;
+using Sedulous.RenderGraph;
 
 /// Statistics for a single frame.
 public struct RenderStats
@@ -137,11 +138,16 @@ public class RenderSystem : IDisposable
 			return .Err;
 
 		// Initialize render graph
-		mRenderGraph = new RenderGraph(device);
+		let graphConfig = RenderGraphConfig()
+		{
+			FrameBufferCount = RenderConfig.FrameBufferCount,
+			TransientBufferPoolSize = RenderConfig.TransientBufferPoolSize
+		};
+		mRenderGraph = new RenderGraph(device, graphConfig);
 
 		// Initialize transient resource pool
 		mTransientPool = new TransientResourcePool();
-		if (mTransientPool.Initialize(device) case .Err)
+		if (mTransientPool.Initialize(device, graphConfig) case .Err)
 			return .Err;
 
 		// Initialize GPU resource manager

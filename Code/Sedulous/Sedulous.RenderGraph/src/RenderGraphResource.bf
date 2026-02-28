@@ -1,4 +1,4 @@
-namespace Sedulous.Render;
+namespace Sedulous.RenderGraph;
 
 using System;
 using Sedulous.RHI;

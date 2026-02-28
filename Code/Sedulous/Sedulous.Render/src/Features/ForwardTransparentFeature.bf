@@ -6,6 +6,7 @@ using Sedulous.RHI;
 using Sedulous.Foundation.Mathematics;
 using Sedulous.Shaders;
 using Sedulous.Materials;
+using Sedulous.RenderGraph;
 
 /// Forward transparent render feature.
 /// Renders all transparent geometry with back-to-front sorting.

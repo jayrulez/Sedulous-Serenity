@@ -1,4 +1,4 @@
-namespace Sedulous.Render;
+namespace Sedulous.RenderGraph;
 
 using System;
 using System.Collections;
@@ -76,6 +76,7 @@ public class RenderGraph : IDisposable
 	private const bool DebugLogLayouts = false;
 
 	private IDevice mDevice;
+	private RenderGraphConfig mConfig;
 
 	// Resources - uses slot-based system where removed resources leave null holes
 	private List<RenderGraphResource> mResources = new .() ~ DeleteContainerAndItems!(_);
@@ -102,10 +103,10 @@ public class RenderGraph : IDisposable
 	// Allows a feature to declare "pass X reads resource Y" before that pass exists.
 	private List<DeferredRead> mDeferredReads = new .() ~ DeleteContainerAndItems!(_);
 
-	// Deferred deletion queues per frame slot.
+	// Deferred deletion queues per frame slot (sized by config.FrameBufferCount).
 	// Transient resources are pushed here instead of being deleted immediately,
 	// and flushed the next time the same frame slot is reused (after fence wait).
-	private List<RenderGraphResource>[RenderConfig.FrameBufferCount] mDeferredDeletions;
+	private List<RenderGraphResource>[] mDeferredDeletions ~ { for (let l in _) { DeleteContainerAndItems!(l); } delete _; };
 
 	// Transient texture pool: GPU textures cached between frames to avoid re-creation.
 	private List<PooledTexture> mTexturePool = new .() ~ DeleteContainerAndItems!(_);
@@ -115,10 +116,12 @@ public class RenderGraph : IDisposable
 	public int32 ResourceCount => (int32)mResources.Count;
 	public int32 CulledPassCount { get; private set; }
 
-	public this(IDevice device)
+	public this(IDevice device, RenderGraphConfig config)
 	{
 		mDevice = device;
-		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
+		mConfig = config;
+		mDeferredDeletions = new List<RenderGraphResource>[config.FrameBufferCount];
+		for (int i = 0; i < config.FrameBufferCount; i++)
 			mDeferredDeletions[i] = new List<RenderGraphResource>();
 	}
 
@@ -1165,10 +1168,13 @@ public class RenderGraph : IDisposable
 	public void Dispose()
 	{
 		// Flush all deferred deletion queues on shutdown
-		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
+		for (int i = 0; i < mConfig.FrameBufferCount; i++)
 		{
 			FlushDeferredDeletions((int32)i);
 			delete mDeferredDeletions[i];
 		}
+		// Prevent destructor from double-deleting
+		delete mDeferredDeletions;
+		mDeferredDeletions = null;
 	}
 }

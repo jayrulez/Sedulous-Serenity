@@ -8,6 +8,7 @@ using Sedulous.Shaders;
 using Sedulous.Shell;
 using Sedulous.Engine.Runtime;
 using Sedulous.Render;
+using Sedulous.RenderGraph;
 
 /// Vertex structure with position and color.
 [CRepr]
@@ -58,7 +59,7 @@ class RenderTriangleApp : Application
 	protected override void OnInitialize(Sedulous.Engine.Core.Context context)
 	{
 		// Create render graph
-		mRenderGraph = new RenderGraph(mDevice);
+		mRenderGraph = new RenderGraph(mDevice, .());
 
 		if (!CreateBuffers())
 		{
