@@ -4,6 +4,7 @@ using System;
 using System.Collections;
 using Sedulous.RHI;
 using Dxc_Beef;
+using System.Diagnostics;
 /// Shader compilation target format.
 enum ShaderTarget
 {
@@ -325,8 +326,10 @@ class ShaderCompiler : IDisposable
 		if (!compileResult.Success)
 		{
 			// Log error
-			if (!compileResult.Messages.IsEmpty)
+			if (!compileResult.Messages.IsEmpty){
 				Console.WriteLine("Shader compilation failed: {}", compileResult.Messages);
+				Debug.WriteLine("Shader compilation failed: {}", compileResult.Messages);
+			}
 			return .Err;
 		}
 
