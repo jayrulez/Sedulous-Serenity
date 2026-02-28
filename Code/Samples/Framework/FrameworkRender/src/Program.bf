@@ -58,7 +58,8 @@ class Program
 			Width = 1366,
 			Height = 768,
 			EnableDepth = true,
-			ClearColor = .(0.02f, 0.02f, 0.05f, 1.0f)
+			ClearColor = .(0.02f, 0.02f, 0.05f, 1.0f),
+			PresentMode = .Fifo
 		};
 
 		let app = scope FrameworkRenderApp(shell, device, backend);

@@ -80,14 +80,15 @@ class VulkanDescriptorPool
 
 	private void CreateDescriptorPool()
 	{
-		VkDescriptorPoolSize[7] poolSizes = .(
+		VkDescriptorPoolSize[?] poolSizes = .(
 			.() { type = .VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, descriptorCount = sDefaultUniformBuffers },
 			.() { type = .VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, descriptorCount = sDefaultStorageBuffers },
 			.() { type = .VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorCount = sDefaultSampledImages },
 			.() { type = .VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorCount = sDefaultStorageImages },
 			.() { type = .VK_DESCRIPTOR_TYPE_SAMPLER, descriptorCount = sDefaultSamplers },
 			.() { type = .VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, descriptorCount = sDefaultCombinedImageSamplers },
-			.() { type = .VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, descriptorCount = sDefaultUniformBuffers }
+			.() { type = .VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, descriptorCount = sDefaultUniformBuffers },
+			.() { type = .VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, descriptorCount = sDefaultStorageBuffers }
 		);
 
 		VkDescriptorPoolCreateInfo poolInfo = .()

@@ -3,3 +3,4 @@ Dependencies = {corlib = "*", "Sedulous.Foundation" = "*"}
 
 [Project]
 Name = "Sedulous.Foundation.Mathematics"
+TargetType = "BeefLib"
