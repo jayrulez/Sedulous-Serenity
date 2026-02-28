@@ -106,7 +106,7 @@ public class RenderGraph : IDisposable
 	// Deferred deletion queues per frame slot (sized by config.FrameBufferCount).
 	// Transient resources are pushed here instead of being deleted immediately,
 	// and flushed the next time the same frame slot is reused (after fence wait).
-	private List<RenderGraphResource>[] mDeferredDeletions ~ { for (let l in _) { DeleteContainerAndItems!(l); } delete _; };
+	private List<RenderGraphResource>[] mDeferredDeletions ~ { if (_ != null) { for (let l in _) { DeleteContainerAndItems!(l); } delete _; } };
 
 	// Transient texture pool: GPU textures cached between frames to avoid re-creation.
 	private List<PooledTexture> mTexturePool = new .() ~ DeleteContainerAndItems!(_);

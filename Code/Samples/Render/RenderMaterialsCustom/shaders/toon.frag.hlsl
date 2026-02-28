@@ -6,69 +6,10 @@ static const float EPSILON = 0.0001;
 
 // ==================== Scene Bind Group (space0) ====================
 
-// Camera uniform buffer
-cbuffer CameraUniforms : register(b0)
-{
-    float4x4 ViewMatrix;
-    float4x4 ProjectionMatrix;
-    float4x4 ViewProjectionMatrix;
-    float4x4 InvViewMatrix;
-    float4x4 InvProjectionMatrix;
-    float3 CameraPosition;
-    float NearPlane;
-    float3 CameraForward;
-    float FarPlane;
-};
-
-// Lighting uniforms — layout matches LightingUniforms in LightBuffer.bf
-cbuffer LightingUniforms : register(b3)
-{
-    float3 AmbientColor;
-    float AmbientIntensity;
-    uint LightCount;
-    uint ClusterDimensionX;
-    uint ClusterDimensionY;
-    uint ClusterDimensionZ;
-    float2 ClusterScale;
-    float2 ClusterBias;
-    uint DebugMode;
-    uint _Pad0;
-    uint _Pad1;
-    uint _Pad2;
-};
-
-// Light structure — matches GPULight in LightBuffer.bf
-struct Light
-{
-    float3 Position;
-    float Range;
-    float3 Direction;
-    float SpotAngleCos;
-    float3 Color;
-    float Intensity;
-    uint Type;             // 0 = Directional, 1 = Point, 2 = Spot
-    int ShadowIndex;
-    float2 _Padding;
-};
-
-// Clustered lighting buffers
-StructuredBuffer<Light> Lights : register(t4);
-StructuredBuffer<uint2> ClusterLightInfo : register(t5);
-StructuredBuffer<uint> LightIndices : register(t6);
-
-#ifdef RECEIVE_SHADOWS
-Texture2DArray ShadowMap : register(t7);
-SamplerComparisonState ShadowSampler : register(s1);
-
-cbuffer ShadowUniforms : register(b5)
-{
-    float4x4 ShadowViewProjection[4];
-    float4 CascadeSplits;
-    uint CascadeCount;
-    float ShadowBias;
-    float2 ShadowMapSize;
-};
-#endif
+#include "scene_uniforms.hlsli"
+#include "light.hlsli"
+#include "lighting_uniforms.hlsli"
+#include "shadow_uniforms.hlsli"
 
 // ==================== Material Bind Group (space1) ====================
 
@@ -95,9 +36,11 @@ struct FragmentInput
     float3 WorldPosition : TEXCOORD0;
     float3 WorldNormal : TEXCOORD1;
     float2 TexCoord : TEXCOORD2;
-#ifdef RECEIVE_SHADOWS
-    float4 ShadowCoord : TEXCOORD5;
+#ifdef NORMAL_MAP
+    float3 WorldTangent : TEXCOORD3;
+    float3 WorldBitangent : TEXCOORD4;
 #endif
+    float4 Color : COLOR0;
 };
 
 // ==================== Toon Shading Functions ====================
@@ -155,50 +98,6 @@ float GetSpotFalloff(Light light, float3 L)
     float cosInner = lerp(1.0, cosOuter, 0.8);
     return saturate((cosAngle - cosOuter) / max(cosInner - cosOuter, EPSILON));
 }
-
-// ==================== Shadow ====================
-
-#ifdef RECEIVE_SHADOWS
-float SampleShadowMap(float3 worldPos, float3 N)
-{
-    float viewZ = abs(mul(float4(worldPos, 1.0), ViewMatrix).z);
-
-    uint cascadeIndex = CascadeCount - 1;
-    for (uint i = 0; i < CascadeCount; i++)
-    {
-        if (viewZ < CascadeSplits[i])
-        {
-            cascadeIndex = i;
-            break;
-        }
-    }
-
-    float4 shadowCoord = mul(float4(worldPos, 1.0), ShadowViewProjection[cascadeIndex]);
-    shadowCoord.xyz /= shadowCoord.w;
-    shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;
-    shadowCoord.z = saturate(shadowCoord.z);
-
-#if !defined(VULKAN)
-    shadowCoord.y = 1.0 - shadowCoord.y;
-#endif
-
-    if (any(shadowCoord.xy < 0.0) || any(shadowCoord.xy > 1.0))
-        return 1.0;
-
-    float shadow = 0.0;
-    float2 texelSize = 1.0 / ShadowMapSize;
-    for (int x = -1; x <= 1; x++)
-    {
-        for (int y = -1; y <= 1; y++)
-        {
-            float2 offset = float2(x, y) * texelSize;
-            float3 sampleCoord = float3(shadowCoord.xy + offset, (float)cascadeIndex);
-            shadow += ShadowMap.SampleCmpLevelZero(ShadowSampler, sampleCoord, shadowCoord.z);
-        }
-    }
-    return shadow / 9.0;
-}
-#endif
 
 // ==================== Main ====================
 

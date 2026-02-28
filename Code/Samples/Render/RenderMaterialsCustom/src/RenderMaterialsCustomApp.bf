@@ -135,6 +135,7 @@ class RenderMaterialsCustomApp : Application
 		mToonMaterial = scope MaterialBuilder("ToonMaterial")
 			.Shader("toon")
 			.VertexLayout(.Mesh)
+			.Flags(.DefaultOpaque)
 			.Color("BaseColor", .(1, 1, 1, 1))
 			.Color("ShadowColor", .(0.3f, 0.1f, 0.1f, 1))
 			.Color("RimColor", .(1, 0.9f, 0.8f, 1))
@@ -257,8 +258,10 @@ class RenderMaterialsCustomApp : Application
 	{
 		let lightDir = GetLightDirection();
 		mSunLight = mWorld.CreateDirectionalLight(lightDir, .(1.0f, 0.98f, 0.95f), 2.5f);
-		if (let light = mWorld.GetLight(mSunLight)) light.CastsShadows = true;
-		if (mForwardFeature?.ShadowRenderer != null) mForwardFeature.ShadowRenderer.EnableShadows = true;
+		if (let light = mWorld.GetLight(mSunLight))
+			light.CastsShadows = true;
+		if (mForwardFeature?.ShadowRenderer != null)
+			mForwardFeature.ShadowRenderer.EnableShadows = true;
 
 		// Fill light
 		mWorld.CreatePointLight(.(-5, 3, 5), .(0.4f, 0.5f, 0.6f), 3.0f, 20.0f);
