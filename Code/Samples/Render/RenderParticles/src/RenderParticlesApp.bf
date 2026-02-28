@@ -98,13 +98,13 @@ class RenderParticlesApp : Application
 		if (mRenderSystem.RegisterFeature(mTransparentFeature) case .Err)
 			Console.WriteLine("Warning: Failed to register ForwardTransparentFeature");
 
-		mParticleFeature = new ParticleFeature();
-		if (mRenderSystem.RegisterFeature(mParticleFeature) case .Err)
-			Console.WriteLine("Warning: Failed to register ParticleFeature");
-
 		mSkyFeature = new SkyFeature();
 		if (mRenderSystem.RegisterFeature(mSkyFeature) case .Err)
 			Console.WriteLine("Warning: Failed to register SkyFeature");
+
+		mParticleFeature = new ParticleFeature();
+		if (mRenderSystem.RegisterFeature(mParticleFeature) case .Err)
+			Console.WriteLine("Warning: Failed to register ParticleFeature");
 
 		mFinalOutputFeature = new FinalOutputFeature();
 		if (mRenderSystem.RegisterFeature(mFinalOutputFeature) case .Err)

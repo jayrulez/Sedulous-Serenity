@@ -4,9 +4,12 @@ using Sedulous.RHI;
 using Sedulous.Shell;
 using Sedulous.Render;
 using Sedulous.Geometry;
+using Sedulous.Geometry.Tooling;
 using Sedulous.Materials;
 using Sedulous.Animation;
 using Sedulous.Models;
+using Sedulous.Models.GLTF;
+using Sedulous.Imaging;
 using System;
 using System.Collections;
 
@@ -50,8 +53,8 @@ class RenderSandboxApp : Application
 	// Animated mesh (Fox model)
 	private AnimatedMeshComponent mFoxComponent ~ delete _;
 	private AnimatedMeshComponent mFoxUnlitComponent ~ delete _;
-	private LoadedModel mFoxModel;
-	private bool mFoxModelOwned = false;
+	private ModelImportResult mFoxImportResult ~ delete _;
+	private Model mFoxSourceModel ~ delete _;
 	private int32 mCurrentFoxAnimation = 0;
 	private MaterialInstance mFoxMaterial ~ _?.ReleaseRef();
 	private Material mFoxUnlitBaseMaterial ~ delete _;
@@ -98,6 +101,9 @@ class RenderSandboxApp : Application
 
 	protected override void OnInitialize(Sedulous.Engine.Core.Context context)
 	{
+		// Initialize image loader for file-referenced textures
+		Sedulous.Imaging.SDL.SDLImageLoader.Initialize();
+
 		Console.WriteLine("=== Sedulous.Render Sandbox ===");
 		Console.WriteLine("Testing render feature infrastructure\n");
 
@@ -497,265 +503,194 @@ class RenderSandboxApp : Application
 		let foxPath = scope $"{AssetDirectory}/samples/models/Fox/glTF/Fox.gltf";
 		Console.WriteLine("Loading Fox model from: {}", foxPath);
 
-		if (ModelLoader.Load(foxPath) case .Ok(let loaded))
+		// Load GLTF
+		GltfModels.Initialize();
+		mFoxSourceModel = new Model();
+		if (ModelLoaderFactory.LoadModel(foxPath, mFoxSourceModel) != .Ok)
 		{
-			mFoxModel = loaded;
-			mFoxModelOwned = true;
-			Console.WriteLine("Loaded Fox model:");
-			Console.WriteLine("  Skeleton: {} bones", mFoxModel.Skeleton?.BoneCount ?? 0);
-			Console.WriteLine("  Animations: {} clips", mFoxModel.Clips.Count);
-			for (int i < mFoxModel.Clips.Count)
-			{
-				Console.WriteLine("    [{}] {}: {:.2}s", i, mFoxModel.Clips[i].Name, mFoxModel.Clips[i].Duration);
-			}
+			Console.WriteLine("WARNING: Failed to load Fox model");
+			delete mFoxSourceModel;
+			mFoxSourceModel = null;
+			return;
+		}
 
-			// Get the mesh for this skinned model
-			let meshIndex = ModelLoader.GetSkinnedMeshIndex(mFoxModel.Model, mFoxModel.SkinIndex);
-			if (meshIndex >= 0 && meshIndex < mFoxModel.Model.Meshes.Count)
-			{
-				let modelMesh = mFoxModel.Model.Meshes[meshIndex];
-				Console.WriteLine("  Mesh: {} vertices, {} indices", modelMesh.VertexCount, modelMesh.IndexCount);
+		// Import using ModelImporter (handles skeleton, animations, mesh, textures)
+		let importOptions = new ModelImportOptions();
+		importOptions.Flags = .SkinnedMeshes | .Skeletons | .Animations | .Textures;
+		// Set base path for resolving texture file references
+		let lastSlash = foxPath.LastIndexOf('/');
+		if (lastSlash >= 0)
+			importOptions.BasePath.Set(StringView(foxPath, 0, lastSlash));
 
-				// Convert to skinned mesh using the working converter from Geometry.Tooling
-				let skin = mFoxModel.Model.Skins[mFoxModel.SkinIndex];
-				if (Sedulous.Geometry.Tooling.ModelMeshConverter.ConvertToSkinnedMesh(modelMesh, skin) case .Ok(var conversionResult))
+		let importer = scope ModelImporter(importOptions);
+		mFoxImportResult = importer.Import(mFoxSourceModel);
+
+		if (!mFoxImportResult.Success)
+		{
+			Console.WriteLine("ERROR: Model import failed");
+			for (let err in mFoxImportResult.Errors)
+				Console.WriteLine("  {}", err);
+			return;
+		}
+
+		for (let warn in mFoxImportResult.Warnings)
+			Console.WriteLine("  Warning: {}", warn);
+
+		if (mFoxImportResult.SkinnedMeshes.Count == 0 || mFoxImportResult.Skeletons.Count == 0)
+		{
+			Console.WriteLine("ERROR: No skinned meshes or skeletons found");
+			return;
+		}
+
+		let skeleton = mFoxImportResult.Skeletons[0].Skeleton;
+		let skinnedMesh = mFoxImportResult.SkinnedMeshes[0].Mesh;
+
+		Console.WriteLine("Loaded Fox model:");
+		Console.WriteLine("  Skeleton: {} bones", skeleton.BoneCount);
+		Console.WriteLine("  Animations: {} clips", mFoxImportResult.Animations.Count);
+		for (int i < mFoxImportResult.Animations.Count)
+			Console.WriteLine("    [{}] {}: {:.2}s", i, mFoxImportResult.Animations[i].Clip.Name, mFoxImportResult.Animations[i].Clip.Duration);
+		Console.WriteLine("  Textures: {} found", mFoxImportResult.Textures.Count);
+		Console.WriteLine("  Mesh: {} vertices", skinnedMesh.VertexCount);
+
+		// Upload mesh to GPU
+		if (mRenderSystem.ResourceManager.UploadMesh(skinnedMesh) case .Ok(let gpuMeshHandle))
+		{
+			Console.WriteLine("  Uploaded skinned mesh to GPU");
+
+			// Create bone buffer
+			let boneCount = (uint16)skeleton.BoneCount;
+			if (mRenderSystem.ResourceManager.CreateBoneBuffer(boneCount) case .Ok(let boneBufferHandle))
+			{
+				Console.WriteLine("  Created bone buffer for {} bones", boneCount);
+
+				// Create animated mesh component
+				mFoxComponent = new AnimatedMeshComponent();
+				mFoxComponent.Skeleton = skeleton; // Owned by mFoxImportResult
+				mFoxComponent.GPUMesh = gpuMeshHandle;
+				mFoxComponent.BoneBuffer = boneBufferHandle;
+
+				// Build clips array from import result (clips owned by AnimationClipResources)
+				let clipCount = mFoxImportResult.Animations.Count;
+				mFoxComponent.Clips = new AnimationClip[clipCount];
+				for (int i < clipCount)
+					mFoxComponent.Clips[i] = mFoxImportResult.Animations[i].Clip;
+
+				// Initialize animation player
+				mFoxComponent.InitializePlayer();
+
+				// Load albedo texture from import result
+				LoadFoxTexture();
+
+				// Create skinned mesh proxy in render world
+				mFoxComponent.MeshProxy = mWorld.CreateSkinnedMesh();
+				if (let proxy = mWorld.GetSkinnedMesh(mFoxComponent.MeshProxy))
 				{
-					defer conversionResult.Dispose();
-					let skinnedMesh = conversionResult.Mesh;
-					defer delete skinnedMesh;
+					proxy.MeshHandle = gpuMeshHandle;
+					proxy.BoneBufferHandle = boneBufferHandle;
+					proxy.Materials[0] = mFoxMaterial ?? mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
+					proxy.MaterialCount = 1;
+					proxy.SetLocalBounds(skinnedMesh.Bounds);
+					proxy.BoneCount = boneCount;
 
-					// Upload to GPU
-					if (mRenderSystem.ResourceManager.UploadMesh(skinnedMesh) case .Ok(let gpuMeshHandle))
-					{
-						Console.WriteLine("  Uploaded skinned mesh to GPU");
-
-						// Create bone buffer
-						let boneCount = (uint16)mFoxModel.Skeleton.BoneCount;
-						if (mRenderSystem.ResourceManager.CreateBoneBuffer(boneCount) case .Ok(let boneBufferHandle))
-						{
-							Console.WriteLine("  Created bone buffer for {} bones", boneCount);
-
-							// Create animated mesh component
-							mFoxComponent = new AnimatedMeshComponent();
-							mFoxComponent.Skeleton = mFoxModel.Skeleton;
-							mFoxModel.Skeleton = null; // Transfer ownership
-							mFoxComponent.Clips = mFoxModel.Clips;
-							mFoxModel.Clips = null; // Transfer ownership
-							mFoxComponent.GPUMesh = gpuMeshHandle;
-							mFoxComponent.BoneBuffer = boneBufferHandle;
-
-							// Initialize animation player
-							mFoxComponent.InitializePlayer();
-
-							// Load albedo texture from model
-							LoadFoxTexture(modelMesh);
-
-							// Create skinned mesh proxy in render world
-							mFoxComponent.MeshProxy = mWorld.CreateSkinnedMesh();
-							if (let proxy = mWorld.GetSkinnedMesh(mFoxComponent.MeshProxy))
-							{
-								proxy.MeshHandle = gpuMeshHandle;
-								proxy.BoneBufferHandle = boneBufferHandle;
-								proxy.Materials[0] = mFoxMaterial ?? mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
-								proxy.MaterialCount = 1;
-								proxy.SetLocalBounds(skinnedMesh.Bounds);
-								proxy.BoneCount = boneCount;
-
-								// Position the fox on the floor, scaled down (fox model is quite large)
-								// Place in corner away from cube grid
-								let scale = 0.02f;
-								let transform = Matrix.CreateScale(scale) * Matrix.CreateTranslation(4.0f, 0, 3.0f);
-								mFoxComponent.Transform = transform;
-								proxy.SetTransformImmediate(transform);
-								proxy.Flags = .DefaultOpaque;
-							}
-
-							// Play the first animation (Survey/look around)
-							if (mFoxComponent.Clips.Count > 0)
-							{
-								mFoxComponent.PlayAnimation(0, true);
-								Console.WriteLine("  Playing animation: {}", mFoxComponent.Clips[0].Name);
-							}
-
-							Console.WriteLine("Fox animated mesh created successfully");
-
-							// Create second fox with unlit material
-							if (mRenderSystem.ResourceManager.CreateBoneBuffer(boneCount) case .Ok(let boneBufferHandle2))
-							{
-								mFoxUnlitComponent = new AnimatedMeshComponent();
-								// Temporarily set skeleton to initialize player, then clear to avoid double-delete
-								mFoxUnlitComponent.Skeleton = mFoxComponent.Skeleton;
-								mFoxUnlitComponent.InitializePlayer();
-								mFoxUnlitComponent.Skeleton = null; // Clear - first component owns it
-								// Note: Clips not set - we'll play animation via first component's clips
-								mFoxUnlitComponent.GPUMesh = gpuMeshHandle; // Share GPU mesh
-								mFoxUnlitComponent.BoneBuffer = boneBufferHandle2;
-
-								// Create unlit material with the fox texture
-								mFoxUnlitBaseMaterial = Materials.CreateUnlit("fox_unlit");
-								mFoxUnlitMaterial = new MaterialInstance(mFoxUnlitBaseMaterial);
-								if (let texView = mRenderSystem.ResourceManager.GetTextureView(mFoxTextureHandle))
-									mFoxUnlitMaterial.SetTexture("AlbedoMap", texView);
-
-								// Create skinned mesh proxy for unlit fox
-								mFoxUnlitComponent.MeshProxy = mWorld.CreateSkinnedMesh();
-								if (let proxy2 = mWorld.GetSkinnedMesh(mFoxUnlitComponent.MeshProxy))
-								{
-									proxy2.MeshHandle = gpuMeshHandle;
-									proxy2.BoneBufferHandle = boneBufferHandle2;
-									proxy2.Materials[0] = mFoxUnlitMaterial ?? mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
-									proxy2.MaterialCount = 1;
-									proxy2.SetLocalBounds(skinnedMesh.Bounds);
-									proxy2.BoneCount = boneCount;
-
-									// Position unlit fox on opposite side
-									let unlitTransform = Matrix.CreateScale(0.02f) * Matrix.CreateTranslation(-4.0f, 0, 3.0f);
-									mFoxUnlitComponent.Transform = unlitTransform;
-									proxy2.SetTransformImmediate(unlitTransform);
-									proxy2.Flags = .DefaultOpaque;
-								}
-
-								// Play same animation (use first component's clips array)
-								if (mFoxComponent.Clips.Count > 0)
-								{
-									mFoxComponent.Clips[0].IsLooping = true;
-									mFoxUnlitComponent.Player.Play(mFoxComponent.Clips[0]);
-								}
-
-								Console.WriteLine("Unlit Fox created successfully");
-							}
-						}
-						else
-						{
-							Console.WriteLine("ERROR: Failed to create bone buffer");
-							mRenderSystem.ResourceManager.ReleaseMesh(gpuMeshHandle, mRenderSystem.FrameNumber);
-						}
-					}
-					else
-					{
-						Console.WriteLine("ERROR: Failed to upload skinned mesh");
-					}
+					// Position the fox on the floor, scaled down (fox model is quite large)
+					let scale = 0.02f;
+					let transform = Matrix.CreateScale(scale) * Matrix.CreateTranslation(4.0f, 0, 3.0f);
+					mFoxComponent.Transform = transform;
+					proxy.SetTransformImmediate(transform);
+					proxy.Flags = .DefaultOpaque;
 				}
-				else
+
+				// Play the first animation
+				if (mFoxComponent.Clips.Count > 0)
 				{
-					Console.WriteLine("ERROR: Failed to convert mesh to skinned format");
+					mFoxComponent.PlayAnimation(0, true);
+					Console.WriteLine("  Playing animation: {}", mFoxComponent.Clips[0].Name);
+				}
+
+				Console.WriteLine("Fox animated mesh created successfully");
+
+				// Create second fox with unlit material
+				if (mRenderSystem.ResourceManager.CreateBoneBuffer(boneCount) case .Ok(let boneBufferHandle2))
+				{
+					mFoxUnlitComponent = new AnimatedMeshComponent();
+					// Temporarily set skeleton to initialize player, then clear
+					mFoxUnlitComponent.Skeleton = skeleton;
+					mFoxUnlitComponent.InitializePlayer();
+					mFoxUnlitComponent.Skeleton = null;
+					mFoxUnlitComponent.GPUMesh = gpuMeshHandle; // Share GPU mesh
+					mFoxUnlitComponent.BoneBuffer = boneBufferHandle2;
+
+					// Create unlit material with the fox texture
+					mFoxUnlitBaseMaterial = Materials.CreateUnlit("fox_unlit");
+					mFoxUnlitMaterial = new MaterialInstance(mFoxUnlitBaseMaterial);
+					if (let texView = mRenderSystem.ResourceManager.GetTextureView(mFoxTextureHandle))
+						mFoxUnlitMaterial.SetTexture("AlbedoMap", texView);
+
+					// Create skinned mesh proxy for unlit fox
+					mFoxUnlitComponent.MeshProxy = mWorld.CreateSkinnedMesh();
+					if (let proxy2 = mWorld.GetSkinnedMesh(mFoxUnlitComponent.MeshProxy))
+					{
+						proxy2.MeshHandle = gpuMeshHandle;
+						proxy2.BoneBufferHandle = boneBufferHandle2;
+						proxy2.Materials[0] = mFoxUnlitMaterial ?? mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
+						proxy2.MaterialCount = 1;
+						proxy2.SetLocalBounds(skinnedMesh.Bounds);
+						proxy2.BoneCount = boneCount;
+
+						let unlitTransform = Matrix.CreateScale(0.02f) * Matrix.CreateTranslation(-4.0f, 0, 3.0f);
+						mFoxUnlitComponent.Transform = unlitTransform;
+						proxy2.SetTransformImmediate(unlitTransform);
+						proxy2.Flags = .DefaultOpaque;
+					}
+
+					// Play same animation
+					if (mFoxComponent.Clips.Count > 0)
+					{
+						mFoxComponent.Clips[0].IsLooping = true;
+						mFoxUnlitComponent.Player.Play(mFoxComponent.Clips[0]);
+					}
+
+					Console.WriteLine("Unlit Fox created successfully");
 				}
 			}
 			else
 			{
-				Console.WriteLine("ERROR: Could not find skinned mesh in model");
+				Console.WriteLine("ERROR: Failed to create bone buffer");
+				mRenderSystem.ResourceManager.ReleaseMesh(gpuMeshHandle, mRenderSystem.FrameNumber);
 			}
 		}
 		else
 		{
-			Console.WriteLine("WARNING: Failed to load Fox model");
+			Console.WriteLine("ERROR: Failed to upload skinned mesh");
 		}
 	}
 
-	private void LoadFoxTexture(ModelMesh modelMesh)
+	private void LoadFoxTexture()
 	{
-		// Get material index from the first mesh part, or fallback to first material
-		int32 materialIndex = -1;
-		if (modelMesh.Parts != null && modelMesh.Parts.Count > 0)
-			materialIndex = modelMesh.Parts[0].MaterialIndex;
-
-		// Find a texture to use - try material first, then fallback to first texture in model
-		int32 texIndex = -1;
-
-		if (materialIndex >= 0 && materialIndex < mFoxModel.Model.Materials.Count)
+		if (mFoxImportResult.Textures.Count == 0)
 		{
-			let modelMat = mFoxModel.Model.Materials[materialIndex];
-			Console.WriteLine("  Material: {}", modelMat.Name);
-			texIndex = modelMat.BaseColorTextureIndex;
-		}
-		else if (mFoxModel.Model.Materials.Count > 0)
-		{
-			// Fallback: use first material's texture
-			let modelMat = mFoxModel.Model.Materials[0];
-			Console.WriteLine("  Material (fallback): {}", modelMat.Name);
-			texIndex = modelMat.BaseColorTextureIndex;
-		}
-
-		// If still no texture, try first texture in model
-		if (texIndex < 0 && mFoxModel.Model.Textures.Count > 0)
-		{
-			Console.WriteLine("  Using first texture from model (no material reference)");
-			texIndex = 0;
-		}
-
-		if (texIndex < 0 || texIndex >= mFoxModel.Model.Textures.Count)
-		{
-			Console.WriteLine("  No albedo texture found (index: {})", texIndex);
+			Console.WriteLine("  No textures found in import result");
 			return;
 		}
 
-		let modelTex = mFoxModel.Model.Textures[texIndex];
-		if (!modelTex.HasEmbeddedData || modelTex.Width <= 0 || modelTex.Height <= 0)
+		let image = mFoxImportResult.Textures[0].Image;
+		if (image == null)
 		{
-			Console.WriteLine("  Texture has no decoded pixel data");
+			Console.WriteLine("  Texture resource has no image data");
 			return;
 		}
 
-		Console.WriteLine("  Albedo texture: {}x{} ({})", modelTex.Width, modelTex.Height, modelTex.PixelFormat);
+		Console.WriteLine("  Albedo texture: {}x{} ({})", image.Width, image.Height, image.Format);
 
-		// Convert pixel format to RHI TextureFormat
-		TextureFormat format = .RGBA8UnormSrgb; // Default with sRGB
-		uint32 bpp = 4;
-		switch (modelTex.PixelFormat)
-		{
-		case .R8: format = .R8Unorm; bpp = 1;
-		case .RG8: format = .RG8Unorm; bpp = 2;
-		case .RGB8, .BGR8: format = .RGBA8UnormSrgb; bpp = 4; // Will need conversion
-		case .RGBA8, .BGRA8: format = .RGBA8UnormSrgb; bpp = 4;
-		default: format = .RGBA8UnormSrgb; bpp = 4;
-		}
-
-		// Handle RGB8 (3 bytes per pixel) -> RGBA8 (4 bytes per pixel) conversion
-		uint8* pixelData = modelTex.GetData();
-		uint8[] convertedData = null;
-		if (modelTex.PixelFormat == .RGB8 || modelTex.PixelFormat == .BGR8)
-		{
-			// Convert RGB8 to RGBA8
-			let pixelCount = modelTex.Width * modelTex.Height;
-			convertedData = new uint8[pixelCount * 4];
-			for (int i = 0; i < pixelCount; i++)
-			{
-				if (modelTex.PixelFormat == .BGR8)
-				{
-					// BGR -> RGBA
-					convertedData[i * 4 + 0] = pixelData[i * 3 + 2]; // R
-					convertedData[i * 4 + 1] = pixelData[i * 3 + 1]; // G
-					convertedData[i * 4 + 2] = pixelData[i * 3 + 0]; // B
-				}
-				else
-				{
-					// RGB -> RGBA
-					convertedData[i * 4 + 0] = pixelData[i * 3 + 0]; // R
-					convertedData[i * 4 + 1] = pixelData[i * 3 + 1]; // G
-					convertedData[i * 4 + 2] = pixelData[i * 3 + 2]; // B
-				}
-				convertedData[i * 4 + 3] = 255; // A
-			}
-			pixelData = &convertedData[0];
-			bpp = 4;
-		}
-
-		// Create texture data for upload
-		let texSize = (uint64)modelTex.Width * (uint64)modelTex.Height * (uint64)bpp;
-		let texData = TextureData.Create2D(pixelData, texSize, (uint32)modelTex.Width, (uint32)modelTex.Height, format);
-
-		// Upload to GPU
-		if (mRenderSystem.ResourceManager.UploadTexture(texData) case .Ok(let texHandle))
+		if (mRenderSystem.ResourceManager.UploadTexture(TextureData.FromImage(image)) case .Ok(let texHandle))
 		{
 			mFoxTextureHandle = texHandle;
 			Console.WriteLine("  Uploaded albedo texture to GPU");
 
-			// Create material instance with the texture
 			if (let baseMaterial = mRenderSystem.MaterialSystem?.DefaultMaterial)
 			{
 				mFoxMaterial = new MaterialInstance(baseMaterial);
-
-				// Get the texture view and set it on the material
 				if (let texView = mRenderSystem.ResourceManager.GetTextureView(mFoxTextureHandle))
 				{
 					mFoxMaterial.SetTexture("AlbedoMap", texView);
@@ -767,8 +702,6 @@ class RenderSandboxApp : Application
 		{
 			Console.WriteLine("  ERROR: Failed to upload texture to GPU");
 		}
-
-		delete convertedData;
 	}
 
 	private void UpdateCamera()
@@ -1345,9 +1278,7 @@ class RenderSandboxApp : Application
 		if (mFoxTextureHandle.IsValid)
 			mRenderSystem.ResourceManager.ReleaseTexture(mFoxTextureHandle, mRenderSystem.FrameNumber);
 
-		// Dispose loaded model data
-		if (mFoxModelOwned)
-			mFoxModel.Dispose();
+		// Import result and source model are cleaned up by field destructors (~ delete _)
 
 		// Shutdown render system (handles feature cleanup)
 		if (mRenderSystem != null)

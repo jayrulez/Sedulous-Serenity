@@ -9,14 +9,14 @@ using Sedulous.Animation;
 /// Ties together animation playback with render system skinned mesh.
 public class AnimatedMeshComponent
 {
-	/// The skeleton hierarchy for this mesh.
-	public Skeleton Skeleton ~ delete _;
+	/// The skeleton hierarchy for this mesh (owned externally by import resources).
+	public Skeleton Skeleton;
 
 	/// Animation player for this instance.
 	public AnimationPlayer Player ~ delete _;
 
-	/// Available animation clips.
-	public AnimationClip[] Clips ~ DeleteContainerAndItems!(_);
+	/// Available animation clips (array owned, items owned externally by import resources).
+	public AnimationClip[] Clips ~ delete _;
 
 	/// Handle to the skinned mesh proxy in the render world.
 	public SkinnedMeshProxyHandle MeshProxy;
