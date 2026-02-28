@@ -4,7 +4,7 @@ using System;
 using Sedulous.Foundation.Mathematics;
 using Sedulous.RHI;
 using Sedulous.Shell;
-using Sedulous.Framework.Runtime;
+using Sedulous.Engine.Runtime;
 using Sedulous.Render;
 using Sedulous.Geometry;
 using Sedulous.Materials;
@@ -54,7 +54,7 @@ class RenderGeometryApp : Application
 	{
 	}
 
-	protected override void OnInitialize(Sedulous.Framework.Core.Context context)
+	protected override void OnInitialize(Sedulous.Engine.Core.Context context)
 	{
 		// Initialize render system
 		mRenderSystem = new RenderSystem();

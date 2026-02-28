@@ -1,6 +1,6 @@
 using System;
 using Sedulous.Foundation.Mathematics;
-using Sedulous.Framework.Scenes;
+using Sedulous.Engine.Scenes;
 
 namespace FrameworkSandbox;
 

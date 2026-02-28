@@ -1,6 +1,6 @@
 namespace TowerDefense.Data;
 
-using Sedulous.Framework.Scenes;
+using Sedulous.Engine.Scenes;
 using Sedulous.Foundation.Mathematics;
 using TowerDefense.Components;
 

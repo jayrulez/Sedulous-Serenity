@@ -13,7 +13,7 @@ using Sedulous.Models.GLTF;
 using Sedulous.Geometry.Tooling;
 using Sedulous.Resources;
 using Sedulous.Foundation.Logging.Abstractions;
-using Sedulous.Framework.Core;
+using Sedulous.Engine.Core;
 
 /// Imports glTF models from the Kenney Platformer Kit asset pack and builds a ResourceRegistry.
 /// The Framework's RenderSceneModule will automatically resolve ResourceRefs and upload to GPU.

@@ -4,13 +4,13 @@ using System;
 using System.Collections;
 using Sedulous.Audio;
 using Sedulous.Audio.Decoders;
-using Sedulous.Framework.Audio;
+using Sedulous.Engine.Audio;
 using Sedulous.Foundation.Mathematics;
 using TowerDefense.Data;
 
 /// Manages all game audio - sound effects and music.
 /// Generates procedural sounds for game events.
-/// Ported to Sedulous.Framework architecture.
+/// Ported to Sedulous.Engine architecture.
 class GameAudio
 {
 	private AudioSubsystem mAudioSubsystem;

@@ -3,7 +3,7 @@ namespace Platformer.Components;
 using System;
 using Sedulous.Foundation.Mathematics;
 using Platformer.Data;
-using Sedulous.Framework.Scenes;
+using Sedulous.Engine.Scenes;
 
 struct EnemyComponent : IComponent
 {

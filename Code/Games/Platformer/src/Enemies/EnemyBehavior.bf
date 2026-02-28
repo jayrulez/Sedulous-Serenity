@@ -2,8 +2,8 @@ namespace Platformer.Enemies;
 
 using System;
 using Sedulous.Foundation.Mathematics;
-using Sedulous.Framework.Core;
-using Sedulous.Framework.Scenes;
+using Sedulous.Engine.Core;
+using Sedulous.Engine.Scenes;
 using Platformer.Components;
 using Platformer.Data;
 

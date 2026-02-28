@@ -1,0 +1,625 @@
+using System;
+using System.Diagnostics;
+using System.IO;
+using Sedulous.RHI;
+using Sedulous.Shell;
+using Sedulous.Foundation.Mathematics;
+using Sedulous.Engine.Core;
+using Sedulous.Profiler;
+
+namespace Sedulous.Engine.Runtime;
+
+/// Abstract base class for Sedulous applications.
+/// Provides lifecycle methods, window management, and rendering loop.
+abstract class Application
+{
+	// Use centralized FrameConfig from RHI
+	private const int MAX_FRAMES_IN_FLIGHT = FrameConfig.MAX_FRAMES_IN_FLIGHT;
+
+	// Injected dependencies (owned by caller)
+	protected IShell mShell;
+	protected IDevice mDevice;
+	protected IBackend mBackend;
+
+	// Created by Application (owned by Application)
+	protected IWindow mWindow;
+	protected ISurface mSurface;
+	protected ISwapChain mSwapChain;
+	protected ICommandBuffer[MAX_FRAMES_IN_FLIGHT] mCommandBuffers;
+	protected ITexture mDepthTexture;
+	protected ITextureView mDepthTextureView;
+
+	// Settings and state
+	protected ApplicationSettings mSettings;
+	protected bool mIsRunning;
+
+	// Framework context (created and owned by Application)
+	protected Context mContext ~ delete _;
+
+	// Asset directories (discovered at construction time)
+	private String mAssetDirectory = new .() ~ delete _;
+	private String mAssetCacheDirectory = new .() ~ delete _;
+
+	// Timing
+	private Stopwatch mStopwatch = new .() ~ delete _;
+	private float mLastFrameTime;
+
+	// Fixed update timing
+	private float mFixedTimeStep = 1.0f / 60.0f;  // 60 Hz default
+	private float mFixedUpdateAccumulator = 0.0f;
+	private int32 mMaxFixedStepsPerFrame = 8;  // Prevent spiral of death
+
+	// Frame rate limiting
+	private int32 mTargetFrameRate = 0;  // 0 = unlimited
+	private float mTargetFrameTime = 0.0f;  // Cached 1/targetFrameRate
+
+	/// Gets or sets the fixed timestep in seconds.
+	/// Default is 1/60 (60 Hz). Minimum is 0.001 seconds.
+	public float FixedTimeStep
+	{
+		get => mFixedTimeStep;
+		set => mFixedTimeStep = Math.Max(value, 0.001f);
+	}
+
+	/// Gets or sets the maximum fixed update steps per frame.
+	/// Limits CPU usage if framerate drops significantly.
+	public int32 MaxFixedStepsPerFrame
+	{
+		get => mMaxFixedStepsPerFrame;
+		set => mMaxFixedStepsPerFrame = Math.Max(value, 1);
+	}
+
+	/// Gets or sets the target frame rate for frame pacing.
+	/// Set to 0 for unlimited (default). Common values: 30, 60, 120, 144.
+	/// Note: This is independent of VSync which is controlled by PresentMode.
+	public int32 TargetFrameRate
+	{
+		get => mTargetFrameRate;
+		set
+		{
+			mTargetFrameRate = Math.Max(value, 0);
+			mTargetFrameTime = (mTargetFrameRate > 0) ? (1.0f / mTargetFrameRate) : 0.0f;
+		}
+	}
+
+	/// Creates an application with the provided dependencies.
+	/// @param shell The shell for windowing and input (must be initialized).
+	/// @param device The RHI device for GPU operations.
+	/// @param backend The RHI backend (for surface creation).
+	public this(IShell shell, IDevice device, IBackend backend)
+	{
+		mShell = shell;
+		mDevice = device;
+		mBackend = backend;
+		DiscoverAssetDirectories();
+	}
+
+	/// The RHI device for GPU operations.
+	public IDevice Device => mDevice;
+
+	/// The swap chain for presentation.
+	public ISwapChain SwapChain => mSwapChain;
+
+	/// The main application window.
+	public IWindow Window => mWindow;
+
+	/// The shell providing platform services.
+	public IShell Shell => mShell;
+
+	/// Whether the application is currently running.
+	public bool IsRunning => mIsRunning;
+
+	/// The framework context managing all subsystems.
+	public Context Context => mContext;
+
+	/// Application settings.
+	public ApplicationSettings Settings => mSettings;
+
+	/// Returns the discovered assets directory path.
+	/// This is an absolute path to the sssets folder containing the .ngassets marker file.
+	public StringView AssetDirectory => mAssetDirectory;
+
+	/// Returns the discovered assetsCache directory path.
+	/// This is an absolute path to the assetsCache folder for cached/compiled assets.
+	public StringView AssetCacheDirectory => mAssetCacheDirectory;
+
+	/// Returns a path relative to the assets directory.
+	/// Example: GetAssetPath("shaders/mesh.vert.hlsl") returns full path to the shader.
+	public void GetAssetPath(StringView relativePath, String outPath)
+	{
+		outPath.Clear();
+		Path.InternalCombine(outPath, mAssetDirectory, relativePath);
+	}
+
+	/// Returns a path relative to the assetsCache directory.
+	/// Example: GetAssetCachePath("shaders/compiled/mesh.vert.spv") returns full path.
+	public void GetAssetCachePath(StringView relativePath, String outPath)
+	{
+		outPath.Clear();
+		Path.InternalCombine(outPath, mAssetCacheDirectory, relativePath);
+	}
+
+	/// Runs the application with the given settings.
+	/// @param settings Application configuration.
+	/// @returns Exit code (0 for success).
+	public int Run(ApplicationSettings settings)
+	{
+		mSettings = settings;
+
+		if (!Initialize())
+			return -1;
+
+		// Create the framework context
+		mContext = CreateContext();
+
+		// Let derived class configure the context (register subsystems, etc.)
+		OnInitialize(mContext);
+
+		// Start up the context (initializes all subsystems)
+		mContext.Startup();
+
+		// Notify derived class that context is ready
+		OnContextStarted();
+
+		mStopwatch.Start();
+		mIsRunning = true;
+
+		while (mIsRunning && mShell.IsRunning)
+		{
+			SProfiler.BeginFrame();
+
+			float frameStartTime = (float)mStopwatch.Elapsed.TotalSeconds;
+
+			{
+				using (SProfiler.Begin("ProcessEvents"))
+					mShell.ProcessEvents();
+			}
+
+			float currentTime = (float)mStopwatch.Elapsed.TotalSeconds;
+			float deltaTime = currentTime - mLastFrameTime;
+			mLastFrameTime = currentTime;
+
+			{
+				using (SProfiler.Begin("Input"))
+					OnInput();
+			}
+
+			// Fixed update loop - may run multiple times per frame
+			{
+				using (SProfiler.Begin("FixedUpdate"))
+				{
+					mFixedUpdateAccumulator += deltaTime;
+					int32 fixedSteps = 0;
+					while (mFixedUpdateAccumulator >= mFixedTimeStep && fixedSteps < mMaxFixedStepsPerFrame)
+					{
+						mContext.FixedUpdate(mFixedTimeStep);
+						OnFixedUpdate(mFixedTimeStep);
+						mFixedUpdateAccumulator -= mFixedTimeStep;
+						fixedSteps++;
+					}
+					// Clamp accumulator to prevent spiral of death
+					if (mFixedUpdateAccumulator > mFixedTimeStep * 2)
+						mFixedUpdateAccumulator = mFixedTimeStep * 2;
+				}
+			}
+
+			let frameContext = FrameContext()
+			{
+				DeltaTime = deltaTime,
+				TotalTime = currentTime,
+				FrameIndex = (int32)mSwapChain.CurrentFrameIndex,
+				FrameCount = (int32)mSwapChain.FrameCount
+			};
+
+			// Update framework - BeginFrame, Update, PostUpdate
+			{
+				using (SProfiler.Begin("BeginFrame"))
+					mContext.BeginFrame(deltaTime);
+			}
+
+			{
+				using (SProfiler.Begin("Update"))
+				{
+					OnUpdate(frameContext);
+					mContext.Update(deltaTime);
+				}
+			}
+
+			{
+				using (SProfiler.Begin("PostUpdate"))
+					mContext.PostUpdate(deltaTime);
+			}
+
+			{
+				using (SProfiler.Begin("Frame"))
+					Frame(frameContext);
+			}
+
+			{
+				using (SProfiler.Begin("EndFrame"))
+					mContext.EndFrame();
+			}
+
+			SProfiler.EndFrame();
+
+			// Frame rate limiting
+			if (mTargetFrameTime > 0)
+			{
+				float frameEndTime = (float)mStopwatch.Elapsed.TotalSeconds;
+				float frameElapsed = frameEndTime - frameStartTime;
+				float sleepTime = mTargetFrameTime - frameElapsed;
+				if (sleepTime > 0.001f)  // Only sleep if > 1ms remaining
+				{
+					System.Threading.Thread.Sleep((int32)(sleepTime * 1000));
+				}
+			}
+		}
+
+		mDevice.WaitIdle();
+		OnShutdown();
+		mContext.Shutdown();
+		Cleanup();
+
+		return 0;
+	}
+
+	/// Request the application to exit.
+	public void Exit()
+	{
+		mIsRunning = false;
+	}
+
+	// Lifecycle methods - override in user application
+
+	/// Creates the framework context. Override to provide a custom Context subclass.
+	protected virtual Context CreateContext()
+	{
+		return new Context();
+	}
+
+	/// Called once at startup after device and swap chain are ready.
+	/// Use this to register subsystems with the context.
+	/// @param context The framework context (not yet started).
+	protected virtual void OnInitialize(Context context) { }
+
+	/// Called after context.Startup() completes, before the main loop.
+	/// All subsystems are initialized at this point.
+	protected virtual void OnContextStarted() { }
+
+	/// Called once at shutdown before cleanup.
+	protected virtual void OnShutdown() { }
+
+	/// Called when the window is resized.
+	protected virtual void OnResize(int32 width, int32 height) { }
+
+	/// Called each frame for input handling (before Update).
+	protected virtual void OnInput() { }
+
+	/// Called at a fixed timestep for physics and deterministic game logic.
+	/// May be called multiple times per frame (or not at all) depending on framerate.
+	/// Use this for physics simulation, AI updates, or anything requiring consistent timing.
+	/// @param fixedDeltaTime The fixed timestep duration (same as FixedTimeStep property).
+	protected virtual void OnFixedUpdate(float fixedDeltaTime) { }
+
+	/// Called each frame for game/application logic.
+	protected virtual void OnUpdate(FrameContext frame) { }
+
+	/// Called after AcquireNextImage - safe to write per-frame GPU buffers.
+	protected virtual void OnPrepareFrame(FrameContext frame) { }
+
+	/// Called for rendering with full control over the command encoder.
+	/// @returns true if rendering was handled, false to use default render pass.
+	protected virtual bool OnRenderFrame(RenderContext render) { return false; }
+
+	/// Called for rendering in the default render pass (if OnRenderFrame returns false).
+	protected virtual void OnRender(IRenderPassEncoder renderPass, FrameContext frame) { }
+
+	/// Called after the frame has been submitted and presented.
+	protected virtual void OnFrameEnd() { }
+
+	// Internal implementation
+
+	private bool Initialize()
+	{
+		// Create window
+		String title = scope .(mSettings.Title);
+		let windowSettings = WindowSettings()
+		{
+			Title = title,
+			Width = mSettings.Width,
+			Height = mSettings.Height,
+			Resizable = mSettings.Resizable,
+			Bordered = true
+		};
+
+		if (mShell.WindowManager.CreateWindow(windowSettings) not case .Ok(let window))
+			return false;
+		mWindow = window;
+
+		// Subscribe to window events
+		mShell.WindowManager.OnWindowEvent.Subscribe(new => HandleWindowEvent);
+
+		// Create surface from window
+		if (mBackend.CreateSurface(mWindow.NativeHandle) not case .Ok(let surface))
+			return false;
+		mSurface = surface;
+
+		// Create swap chain
+		if (!CreateSwapChain())
+			return false;
+
+		// Create depth buffer if enabled
+		if (mSettings.EnableDepth)
+			CreateDepthBuffer();
+
+		return true;
+	}
+
+	private bool CreateSwapChain()
+	{
+		SwapChainDescriptor desc = .()
+		{
+			Width = (uint32)mWindow.Width,
+			Height = (uint32)mWindow.Height,
+			Format = mSettings.SwapChainFormat,
+			Usage = .RenderTarget,
+			PresentMode = mSettings.PresentMode
+		};
+
+		if (mDevice.CreateSwapChain(mSurface, &desc) not case .Ok(let swapChain))
+			return false;
+
+		mSwapChain = swapChain;
+		return true;
+	}
+
+	private void CreateDepthBuffer()
+	{
+		TextureDescriptor desc = .()
+		{
+			Width = (uint32)mWindow.Width,
+			Height = (uint32)mWindow.Height,
+			Format = mSettings.DepthFormat,
+			Usage = .DepthStencil,
+			Dimension = .Texture2D,
+			MipLevelCount = 1,
+			ArrayLayerCount = 1,
+			SampleCount = 1,
+			Label = "Depth"
+		};
+
+		if (mDevice.CreateTexture(&desc) case .Ok(let texture))
+		{
+			mDepthTexture = texture;
+
+			TextureViewDescriptor viewDesc = .()
+			{
+				Format = mSettings.DepthFormat,
+				Dimension = .Texture2D,
+				BaseMipLevel = 0,
+				MipLevelCount = 1,
+				BaseArrayLayer = 0,
+				ArrayLayerCount = 1,
+				Label = "DepthView"
+			};
+
+			if (mDevice.CreateTextureView(texture, &viewDesc) case .Ok(let view))
+				mDepthTextureView = view;
+		}
+	}
+
+	private void Frame(FrameContext frameContext)
+	{
+		// Skip rendering when window is minimized
+		if (mWindow.State == .Minimized)
+			return;
+
+		// Acquire next image (sync point - waits for fence)
+		using (SProfiler.Begin("AcquireImage"))
+		{
+			if (mSwapChain.AcquireNextImage() case .Err)
+			{
+				HandleResize();
+				return;
+			}
+		}
+
+		//mDevice.WaitIdle(); // AcquireNextImage already waits on per-frame fence; uncomment to debug sync issues
+		OnPrepareFrame(frameContext);
+
+		// Clean up old command buffer
+		let frameIndex = frameContext.FrameIndex;
+		if (mCommandBuffers[frameIndex] != null)
+		{
+			delete mCommandBuffers[frameIndex];
+			mCommandBuffers[frameIndex] = null;
+		}
+
+		// Create encoder
+		let encoder = mDevice.CreateCommandEncoder();
+
+		let renderContext = RenderContext()
+		{
+			Encoder = encoder,
+			SwapChain = mSwapChain,
+			CurrentTextureView = mSwapChain.CurrentTextureView,
+			DepthTextureView = mDepthTextureView,
+			Frame = frameContext,
+			ClearColor = mSettings.ClearColor
+		};
+
+		// Let app render
+		if (!OnRenderFrame(renderContext))
+		{
+			RenderDefaultPass(encoder, renderContext);
+		}
+
+		let commandBuffer = encoder.Finish();
+		mCommandBuffers[frameIndex] = commandBuffer;
+
+		using (SProfiler.Begin("Submit"))
+			mDevice.Queue.Submit(commandBuffer, mSwapChain);
+
+		using (SProfiler.Begin("Present"))
+		{
+			if (mSwapChain.Present() case .Err)
+				HandleResize();
+		}
+
+		delete encoder;
+		OnFrameEnd();
+	}
+
+	private void RenderDefaultPass(ICommandEncoder encoder, RenderContext ctx)
+	{
+		RenderPassColorAttachment[1] colorAttachments = .(.()
+		{
+			View = ctx.CurrentTextureView,
+			ResolveTarget = null,
+			LoadOp = .Clear,
+			StoreOp = .Store,
+			ClearValue = ctx.ClearColor
+		});
+
+		RenderPassDescriptor desc = .(colorAttachments);
+
+		if (mDepthTextureView != null)
+		{
+			desc.DepthStencilAttachment = .()
+			{
+				View = mDepthTextureView,
+				DepthLoadOp = .Clear,
+				DepthStoreOp = .Store,
+				DepthClearValue = 1.0f,
+				StencilLoadOp = .Clear,
+				StencilStoreOp = .Store, // different from SF
+				StencilClearValue = 0
+			};
+		}
+
+		let renderPass = encoder.BeginRenderPass(&desc);
+		renderPass.SetViewport(0, 0, mSwapChain.Width, mSwapChain.Height, 0, 1);
+		renderPass.SetScissorRect(0, 0, mSwapChain.Width, mSwapChain.Height);
+
+		OnRender(renderPass, ctx.Frame);
+
+		renderPass.End();
+
+		delete renderPass;
+	}
+
+	private void HandleWindowEvent(IWindow window, WindowEvent evt)
+	{
+		if (window != mWindow)
+			return;
+
+		switch (evt.Type)
+		{
+		case .Resized:
+			HandleResize();
+		case .CloseRequested:
+			Exit();
+		default:
+		}
+	}
+
+	private void HandleResize()
+	{
+		if (mWindow.Width == 0 || mWindow.Height == 0)
+			return;
+
+		mDevice.WaitIdle();
+
+		// Cleanup depth buffer
+		if (mDepthTextureView != null) { delete mDepthTextureView; mDepthTextureView = null; }
+		if (mDepthTexture != null) { delete mDepthTexture; mDepthTexture = null; }
+
+		// Resize swap chain
+		mSwapChain.Resize((uint32)mWindow.Width, (uint32)mWindow.Height);
+
+		// Recreate depth buffer
+		if (mSettings.EnableDepth)
+			CreateDepthBuffer();
+
+		OnResize(mWindow.Width, mWindow.Height);
+	}
+
+	private void Cleanup()
+	{
+		// Clean up command buffers
+		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			if (mCommandBuffers[i] != null)
+			{
+				delete mCommandBuffers[i];
+				mCommandBuffers[i] = null;
+			}
+		}
+
+		// Clean up depth buffer
+		if (mDepthTextureView != null) delete mDepthTextureView;
+		if (mDepthTexture != null) delete mDepthTexture;
+
+		// Clean up swap chain and surface (owned by Application)
+		if (mSwapChain != null) delete mSwapChain;
+		if (mSurface != null) delete mSurface;
+
+		// Destroy window
+		if (mWindow != null)
+			mShell.WindowManager.DestroyWindow(mWindow);
+
+		// Note: shell, device, backend are NOT deleted - they're owned by caller
+	}
+
+	/// Discovers the assets and asset cache directories.
+	/// Searches from current directory upward for assets folder with .assets marker.
+	private void DiscoverAssetDirectories()
+	{
+		// Start from current working directory
+		let currentDir = Directory.GetCurrentDirectory(.. scope .());
+		String searchDir = scope .(currentDir);
+
+		while (true)
+		{
+			// Check if NGAssets folder exists in this directory
+			let assetsPath = scope String();
+			Path.InternalCombine(assetsPath, searchDir, "Assets");
+
+			if (Directory.Exists(assetsPath))
+			{
+				// Check for .assets marker file
+				let markerPath = scope String();
+				Path.InternalCombine(markerPath, assetsPath, ".assets");
+
+				if (File.Exists(markerPath))
+				{
+					mAssetDirectory.Set(assetsPath);
+
+					// cache is a sibling folder
+					Path.InternalCombine(mAssetCacheDirectory, searchDir, "Assets", "cache");
+
+					// Create cache directory if it doesn't exist
+					if (!Directory.Exists(mAssetCacheDirectory))
+						Directory.CreateDirectory(mAssetCacheDirectory);
+
+					return;
+				}
+			}
+
+			// Get parent directory
+			let parentDir = Path.GetDirectoryPath(searchDir, .. scope .());
+
+			// Check if we've reached the root (parent == current)
+			if (parentDir.IsEmpty || parentDir == searchDir)
+			{
+				// Fall back to current directory with warning
+				Console.WriteLine("WARNING: Could not find Assets directory with .assets marker. Using current directory.");
+				mAssetDirectory.Set(currentDir);
+				mAssetCacheDirectory.Set(currentDir);
+				return;
+			}
+
+			searchDir.Set(parentDir);
+		}
+	}
+}

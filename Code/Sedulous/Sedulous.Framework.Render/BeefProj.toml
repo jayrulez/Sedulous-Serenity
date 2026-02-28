@@ -1,6 +1,0 @@
-FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Framework.Animation" = "*", "Sedulous.Framework.Core" = "*", "Sedulous.Framework.Scenes" = "*", "Sedulous.Foundation" = "*", "Sedulous.Animation.Resources" = "*", "Sedulous.Geometry.Resources" = "*", "Sedulous.Imaging" = "*", "Sedulous.Materials.Resources" = "*", "Sedulous.Foundation.Mathematics" = "*", "Sedulous.Render" = "*", "Sedulous.Resources" = "*", "Sedulous.Textures.Resources" = "*", "Sedulous.Serialization" = "*"}
-
-[Project]
-Name = "Sedulous.Framework.Render"
-TargetType = "BeefLib"

@@ -2,7 +2,7 @@ namespace Platformer.Components;
 
 using System;
 using Platformer.Data;
-using Sedulous.Framework.Scenes;
+using Sedulous.Engine.Scenes;
 
 struct PickupComponent : IComponent
 {

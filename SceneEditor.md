@@ -26,10 +26,10 @@ The editor camera is NOT a scene entity -- it drives the RenderView directly (sa
 - `Code/Tools/ModelViewer/src/TranslateGizmo.bf` - Gizmo system to extract
 - `Code/Tools/ModelViewer/src/ViewportOutputFeature.bf` - Viewport blit feature to extract
 - `Code/Tools/ModelViewer/src/ModelTab.bf` - Per-tab state isolation pattern
-- `Code/Sedulous/Sedulous.Framework.Scenes/src/Scene.bf` - Entity/transform/component APIs
-- `Code/Sedulous/Sedulous.Framework.Scenes/src/SceneSubsystem.bf` - Scene lifecycle management
-- `Code/Sedulous/Sedulous.Framework.Scenes/src/SceneResource.bf` - Scene file I/O (OpenDDL)
-- `Code/Sedulous/Sedulous.Framework.Render/src/RenderSubsystem.bf` - Auto-syncs components to RenderWorld
+- `Code/Engine/Sedulous.Engine.Scenes/src/Scene.bf` - Entity/transform/component APIs
+- `Code/Engine/Sedulous.Engine.Scenes/src/SceneSubsystem.bf` - Scene lifecycle management
+- `Code/Engine/Sedulous.Engine.Scenes/src/SceneResource.bf` - Scene file I/O (OpenDDL)
+- `Code/Engine/Sedulous.Engine.Render/src/RenderSubsystem.bf` - Auto-syncs components to RenderWorld
 - `Code/Sedulous/Sedulous.AppFramework/src/Controls/ViewportControl.bf` - Existing viewport widget (manages render target, resize, image display)
 - `Code/Sedulous/Sedulous.GUI/src/Controls/TreeView.bf` - For hierarchy panel
 - `Code/Sedulous/Sedulous.GUI/src/Controls/PropertyGrid/PropertyGrid.bf` - For inspector panel
@@ -86,7 +86,7 @@ class SceneTab
 ### Checklist
 
 - [x] Create `Code/Tools/SceneEditor/BeefProj.toml`
-  - Deps: `Tools.Common`, `Sedulous.AppFramework`, `Sedulous.RHI`, `Sedulous.RHI.Vulkan`, `Sedulous.Shell.SDL3`, `Sedulous.Foundation.Mathematics`, `Sedulous.Render`, `Sedulous.Materials`, `Sedulous.Materials.Resources`, `Sedulous.Geometry.Resources`, `Sedulous.Textures.Resources`, `Sedulous.Framework.Core`, `Sedulous.Framework.Scenes`, `Sedulous.Framework.Render`, `Sedulous.Framework.Animation`, `Sedulous.Imaging`, `Sedulous.Imaging.SDL`, `Sedulous.Serialization`, `Sedulous.Serialization.OpenDDL`, `Sedulous.OpenDDL`, `Sedulous.Profiler`, `Sedulous.GUI`
+  - Deps: `Tools.Common`, `Sedulous.AppFramework`, `Sedulous.RHI`, `Sedulous.RHI.Vulkan`, `Sedulous.Shell.SDL3`, `Sedulous.Foundation.Mathematics`, `Sedulous.Render`, `Sedulous.Materials`, `Sedulous.Materials.Resources`, `Sedulous.Geometry.Resources`, `Sedulous.Textures.Resources`, `Sedulous.Engine.Core`, `Sedulous.Engine.Scenes`, `Sedulous.Engine.Render`, `Sedulous.Engine.Animation`, `Sedulous.Imaging`, `Sedulous.Imaging.SDL`, `Sedulous.Serialization`, `Sedulous.Serialization.OpenDDL`, `Sedulous.OpenDDL`, `Sedulous.Profiler`, `Sedulous.GUI`
   - StartupObject: `SceneEditor.Program`
 - [x] Create `src/SceneTab.bf` - per-tab state class
 - [x] Create `src/Program.bf` - `SceneEditorApp : Application` with:
@@ -301,10 +301,10 @@ PropertyGrid stays in Sedulous.GUI as a generic control. Engine-specific propert
 
 ### Files
 - **Modified**: `src/InspectorPanel.bf`, `src/SceneEditorApp.bf`, `BeefProj.toml`
-- **Created**: `Sedulous.Framework.Scenes/src/Components/ComponentAttribute.bf`, `ModuleSettingsAttribute.bf`, `PropertyAttribute.bf`
-- **Created**: `Sedulous.Framework.Render/src/RenderModuleSettings.bf`, `Sedulous.Framework.Physics/src/PhysicsModuleSettings.bf`
+- **Created**: `Sedulous.Engine.Scenes/src/Components/ComponentAttribute.bf`, `ModuleSettingsAttribute.bf`, `PropertyAttribute.bf`
+- **Created**: `Sedulous.Engine.Render/src/RenderModuleSettings.bf`, `Sedulous.Engine.Physics/src/PhysicsModuleSettings.bf`
 - **Created**: `src/ColorPropertyItem.bf`, `src/ColorPickerPanel.bf`
-- **Modified**: `Sedulous.Framework.Scenes/src/Scene.bf` (module settings + component auto-discovery)
+- **Modified**: `Sedulous.Engine.Scenes/src/Scene.bf` (module settings + component auto-discovery)
 - **Modified**: `Sedulous.GUI/PropertyGrid.bf` (BeginUpdate/EndUpdate)
 - **Modified**: `Sedulous.Render/SkyFeature.bf` ([Reflect] on SkyMode enum)
 - **Modified**: `assets/Render/Shaders/forward.frag.hlsl` (ambient color fix)

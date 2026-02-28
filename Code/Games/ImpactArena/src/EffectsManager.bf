@@ -4,8 +4,8 @@ using System;
 using System.Collections;
 using Sedulous.Foundation.Mathematics;
 using Sedulous.Render;
-using Sedulous.Framework.Scenes;
-using Sedulous.Framework.Render;
+using Sedulous.Engine.Scenes;
+using Sedulous.Engine.Render;
 
 struct ActiveEffect
 {

@@ -3,9 +3,9 @@ namespace FrameworkNavigation;
 using System;
 using System.Collections;
 using Sedulous.Foundation.Mathematics;
-using Sedulous.Framework.Scenes;
-using Sedulous.Framework.Navigation;
-using Sedulous.Framework.Runtime;
+using Sedulous.Engine.Scenes;
+using Sedulous.Engine.Navigation;
+using Sedulous.Engine.Runtime;
 using Sedulous.Shell.Input;
 using Sedulous.Render;
 

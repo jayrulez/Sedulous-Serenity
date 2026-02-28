@@ -8,8 +8,8 @@ using Sedulous.Geometry.Resources;
 using Sedulous.Resources;
 using Sedulous.Materials;
 using Sedulous.Render;
-using Sedulous.Framework.Scenes;
-using Sedulous.Framework.Render;
+using Sedulous.Engine.Scenes;
+using Sedulous.Engine.Render;
 using Sedulous.Foundation.Core;
 using TowerDefense.Data;
 using TowerDefense.Audio;
@@ -23,7 +23,7 @@ delegate void TowerFiredDelegate(TowerDefinition def, Vector3 position);
 delegate void ProjectileImpactDelegate(Vector3 position, Vector4 color);
 
 /// Factory for creating and managing towers and projectiles.
-/// Ported to Sedulous.Framework architecture.
+/// Ported to Sedulous.Engine architecture.
 class TowerFactory
 {
 	private Scene mScene;

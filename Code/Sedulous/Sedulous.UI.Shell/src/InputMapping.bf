@@ -1,7 +1,7 @@
 namespace Sedulous.UI.Shell;
 
 /// Utility class for mapping Shell input types to UI input types.
-/// Shared between Sedulous.Framework.UI and Sedulous.Engine.UI.
+/// Shared between Sedulous.Engine.UI and Sedulous.Engine.UI.
 static class InputMapping
 {
 	/// Maps Shell.Input.KeyCode to UI.KeyCode.

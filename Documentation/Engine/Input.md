@@ -490,7 +490,7 @@ class Game
 ## Project Structure
 
 ```
-Code/Sedulous/Sedulous.Engine.Input/
+Code/Engine/Sedulous.Engine.Input/
 ├── BeefProj.toml
 └── src/
     ├── InputService.bf           - IContextService, main entry point

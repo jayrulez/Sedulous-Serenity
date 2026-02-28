@@ -2,7 +2,7 @@ namespace FrameworkSerialization;
 
 using System;
 using Sedulous.Serialization;
-using Sedulous.Framework.Scenes;
+using Sedulous.Engine.Scenes;
 
 [Component]
 struct TestComponent : ISerializableComponent

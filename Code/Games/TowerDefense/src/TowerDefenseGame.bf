@@ -12,13 +12,13 @@ using Sedulous.Geometry.Resources;
 using Sedulous.Resources;
 using Sedulous.Materials;
 using Sedulous.Render;
-using Sedulous.Framework.Runtime;
-using Sedulous.Framework.Core;
-using Sedulous.Framework.Scenes;
-using Sedulous.Framework.Render;
-using Sedulous.Framework.Input;
-using Sedulous.Framework.Audio;
-using Sedulous.Framework.UI;
+using Sedulous.Engine.Runtime;
+using Sedulous.Engine.Core;
+using Sedulous.Engine.Scenes;
+using Sedulous.Engine.Render;
+using Sedulous.Engine.Input;
+using Sedulous.Engine.Audio;
+using Sedulous.Engine.UI;
 using Sedulous.Audio;
 using Sedulous.Audio.SDL3;
 using Sedulous.Audio.Decoders;
@@ -37,7 +37,7 @@ using TowerDefense.Audio;
 using TowerDefense.Effects;
 
 /// Tower Defense game main class.
-/// Ported to Sedulous.Framework.* architecture.
+/// Ported to Sedulous.Engine.* architecture.
 class TowerDefenseGame : Application
 {
 	// Render system

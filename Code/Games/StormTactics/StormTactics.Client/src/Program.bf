@@ -6,7 +6,7 @@ using Sedulous.Shell;
 using Sedulous.Shell.SDL3;
 using Sedulous.RHI;
 using Sedulous.RHI.Vulkan;
-using Sedulous.Framework.Runtime;
+using Sedulous.Engine.Runtime;
 
 class Program
 {

@@ -5,7 +5,7 @@ using System.Collections;
 using Sedulous.Foundation.Mathematics;
 using StormTactics.Battle;
 using StormTactics.Core;
-using Sedulous.Framework.Scenes;
+using Sedulous.Engine.Scenes;
 
 enum SequencerState
 {

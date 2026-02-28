@@ -4,8 +4,8 @@ using System;
 using System.Collections;
 using Sedulous.Foundation.Mathematics;
 using Sedulous.GUI;
-using Sedulous.Framework.Scenes;
-using Sedulous.Framework.Render;
+using Sedulous.Engine.Scenes;
+using Sedulous.Engine.Render;
 
 /// Encapsulates the entity hierarchy tree view with toolbar for add/delete operations.
 class HierarchyPanel

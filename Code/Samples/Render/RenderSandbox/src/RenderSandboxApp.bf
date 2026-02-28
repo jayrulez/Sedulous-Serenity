@@ -1,5 +1,5 @@
 using Sedulous.Foundation.Mathematics;
-using Sedulous.Framework.Runtime;
+using Sedulous.Engine.Runtime;
 using Sedulous.RHI;
 using Sedulous.Shell;
 using Sedulous.Render;
@@ -96,7 +96,7 @@ class RenderSandboxApp : Application
 	{
 	}
 
-	protected override void OnInitialize(Sedulous.Framework.Core.Context context)
+	protected override void OnInitialize(Sedulous.Engine.Core.Context context)
 	{
 		Console.WriteLine("=== Sedulous.Render Sandbox ===");
 		Console.WriteLine("Testing render feature infrastructure\n");

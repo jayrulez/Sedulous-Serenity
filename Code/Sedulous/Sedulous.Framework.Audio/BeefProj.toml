@@ -1,6 +1,0 @@
-FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Framework.Core" = "*", "Sedulous.Framework.Scenes" = "*", "Sedulous.Foundation" = "*", "Sedulous.Foundation.Mathematics" = "*", "Sedulous.Audio" = "*", "Sedulous.Serialization" = "*"}
-
-[Project]
-Name = "Sedulous.Framework.Audio"
-TargetType = "BeefLib"

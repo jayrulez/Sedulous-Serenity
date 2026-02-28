@@ -8,8 +8,8 @@ using Sedulous.Geometry.Resources;
 using Sedulous.Resources;
 using Sedulous.Materials;
 using Sedulous.Render;
-using Sedulous.Framework.Scenes;
-using Sedulous.Framework.Render;
+using Sedulous.Engine.Scenes;
+using Sedulous.Engine.Render;
 using Sedulous.Foundation.Core;
 using TowerDefense.Data;
 using TowerDefense.Components;
@@ -21,7 +21,7 @@ delegate void EnemyDeathAudioDelegate(Vector3 position);
 delegate void EnemyKilledFrameworkDelegate(EntityId entity, int32 reward);
 
 /// Factory for creating enemy entities.
-/// Ported to Sedulous.Framework architecture.
+/// Ported to Sedulous.Engine architecture.
 class EnemyFactory
 {
 	private Scene mScene;

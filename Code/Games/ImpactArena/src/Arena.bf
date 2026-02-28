@@ -2,9 +2,9 @@ namespace ImpactArena;
 
 using System;
 using Sedulous.Foundation.Mathematics;
-using Sedulous.Framework.Scenes;
-using Sedulous.Framework.Render;
-using Sedulous.Framework.Physics;
+using Sedulous.Engine.Scenes;
+using Sedulous.Engine.Render;
+using Sedulous.Engine.Physics;
 using Sedulous.Render;
 using Sedulous.Geometry;
 using Sedulous.Geometry.Resources;

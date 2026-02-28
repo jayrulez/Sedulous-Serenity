@@ -1,6 +1,0 @@
-FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Framework.Core" = "*", "Sedulous.Framework.Scenes" = "*", "Sedulous.Framework.Render" = "*", "Sedulous.Foundation" = "*", "Sedulous.Foundation.Mathematics" = "*", "Sedulous.Physics" = "*", "Sedulous.Render" = "*", "Sedulous.Profiler" = "*", "Sedulous.Serialization" = "*"}
-
-[Project]
-Name = "Sedulous.Framework.Physics"
-TargetType = "BeefLib"

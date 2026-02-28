@@ -7,9 +7,9 @@ using Sedulous.Foundation.Mathematics;
 using Sedulous.RHI;
 using Sedulous.GUI;
 using Sedulous.Render;
-using Sedulous.Framework.Core;
-using Sedulous.Framework.Scenes;
-using Sedulous.Framework.Render;
+using Sedulous.Engine.Core;
+using Sedulous.Engine.Scenes;
+using Sedulous.Engine.Render;
 using Tools.Common;
 
 class Program

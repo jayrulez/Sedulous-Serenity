@@ -1,5 +1,0 @@
-FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Framework.Core" = "*", "Sedulous.Framework.Scenes" = "*", "Sedulous.Framework.Render" = "*", "Sedulous.Framework.Physics" = "*", "Sedulous.Foundation.Mathematics" = "*", "Sedulous.Render" = "*", corlib = "*", recastnavigation-Beef = "*", "Sedulous.Serialization" = "*"}
-
-[Project]
-Name = "Sedulous.Framework.Navigation"

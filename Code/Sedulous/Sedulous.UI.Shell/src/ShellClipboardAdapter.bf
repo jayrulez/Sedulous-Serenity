@@ -3,7 +3,7 @@ namespace Sedulous.UI.Shell;
 using System;
 
 /// Adapter that bridges Sedulous.Shell.IClipboard to Sedulous.UI.IClipboard.
-/// Shared between Sedulous.Framework.UI and Sedulous.Engine.UI.
+/// Shared between Sedulous.Engine.UI and Sedulous.Engine.UI.
 public class ShellClipboardAdapter : Sedulous.UI.IClipboard
 {
 	private Sedulous.Shell.IClipboard mShellClipboard;

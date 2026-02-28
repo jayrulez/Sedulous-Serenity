@@ -2,7 +2,7 @@ namespace Platformer.Components;
 
 using System;
 using Sedulous.Foundation.Mathematics;
-using Sedulous.Framework.Scenes;
+using Sedulous.Engine.Scenes;
 
 struct PlayerComponent : IComponent
 {

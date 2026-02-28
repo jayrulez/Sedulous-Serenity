@@ -1,9 +1,9 @@
 using Sedulous.RHI;
 using Sedulous.AppFramework;
-using Sedulous.Framework.Core;
-using Sedulous.Framework.Scenes;
-using Sedulous.Framework.Render;
-using Sedulous.Framework.Animation;
+using Sedulous.Engine.Core;
+using Sedulous.Engine.Scenes;
+using Sedulous.Engine.Render;
+using Sedulous.Engine.Animation;
 using Sedulous.Render;
 using Sedulous.Resources;
 using Sedulous.Geometry.Resources;

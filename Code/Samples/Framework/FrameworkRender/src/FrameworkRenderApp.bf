@@ -1,10 +1,10 @@
 using System;
 using System.Collections;
 using Sedulous.Foundation.Mathematics;
-using Sedulous.Framework.Runtime;
-using Sedulous.Framework.Core;
-using Sedulous.Framework.Scenes;
-using Sedulous.Framework.Render;
+using Sedulous.Engine.Runtime;
+using Sedulous.Engine.Core;
+using Sedulous.Engine.Scenes;
+using Sedulous.Engine.Render;
 using Sedulous.RHI;
 using Sedulous.Shell;
 using Sedulous.Shell.Input;

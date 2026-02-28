@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Render" = "*", "Sedulous.Geometry" = "*", "Sedulous.Imaging" = "*", "Sedulous.Imaging.SDL" = "*", "Sedulous.Imaging.STB" = "*", "Sedulous.Framework.Runtime" = "*"}
+Dependencies = {corlib = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Render" = "*", "Sedulous.Geometry" = "*", "Sedulous.Imaging" = "*", "Sedulous.Imaging.SDL" = "*", "Sedulous.Imaging.STB" = "*", "Sedulous.Engine.Runtime" = "*"}
 
 [Project]
 Name = "RenderSky"

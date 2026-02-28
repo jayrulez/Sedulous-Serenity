@@ -6,7 +6,7 @@ using Sedulous.Foundation.Mathematics;
 using Sedulous.Render;
 using Sedulous.GUI;
 using Sedulous.AppFramework;
-using Sedulous.Framework.Scenes;
+using Sedulous.Engine.Scenes;
 using Tools.Common;
 
 /// Represents a single scene editor tab with its own scene, camera, and UI state.

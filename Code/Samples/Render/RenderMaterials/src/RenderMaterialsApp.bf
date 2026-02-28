@@ -5,7 +5,7 @@ using System.Collections;
 using Sedulous.Foundation.Mathematics;
 using Sedulous.RHI;
 using Sedulous.Shell;
-using Sedulous.Framework.Runtime;
+using Sedulous.Engine.Runtime;
 using Sedulous.Render;
 using Sedulous.Geometry;
 using Sedulous.Geometry.Tooling;
@@ -75,7 +75,7 @@ class RenderMaterialsApp : Application
 
 	public this(IShell shell, IDevice device, IBackend backend) : base(shell, device, backend) { }
 
-	protected override void OnInitialize(Sedulous.Framework.Core.Context context)
+	protected override void OnInitialize(Sedulous.Engine.Core.Context context)
 	{
 		Sedulous.Imaging.SDL.SDLImageLoader.Initialize();
 		Sedulous.Imaging.STB.STBImageLoader.Initialize();

@@ -8,13 +8,13 @@ using Sedulous.Geometry.Resources;
 using Sedulous.Resources;
 using Sedulous.Materials;
 using Sedulous.Render;
-using Sedulous.Framework.Scenes;
-using Sedulous.Framework.Render;
+using Sedulous.Engine.Scenes;
+using Sedulous.Engine.Render;
 using TowerDefense.Data;
 
 /// Builds map entities from a MapDefinition.
 /// Creates tile meshes with appropriate materials for each tile type.
-/// Ported to Sedulous.Framework architecture.
+/// Ported to Sedulous.Engine architecture.
 class MapBuilder
 {
 	private Scene mScene;

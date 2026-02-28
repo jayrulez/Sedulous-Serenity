@@ -3,7 +3,7 @@ namespace ImpactArena;
 using System;
 using Sedulous.Audio;
 using Sedulous.Audio.Decoders;
-using Sedulous.Framework.Audio;
+using Sedulous.Engine.Audio;
 
 class GameAudio
 {
