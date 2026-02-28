@@ -1,7 +1,6 @@
 using System;
 using System.IO;
 using Sedulous.Resources;
-using Sedulous.Geometry;
 using Sedulous.Serialization;
 using Sedulous.Serialization.OpenDDL;
 using Sedulous.OpenDDL;
