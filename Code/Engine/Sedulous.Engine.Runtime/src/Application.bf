@@ -14,7 +14,7 @@ namespace Sedulous.Engine.Runtime;
 abstract class Application
 {
 	// Use centralized FrameConfig from RHI
-	private const int MAX_FRAMES_IN_FLIGHT = FrameConfig.MAX_FRAMES_IN_FLIGHT;
+	protected const int MAX_FRAMES_IN_FLIGHT = FrameConfig.MAX_FRAMES_IN_FLIGHT;
 
 	// Injected dependencies (owned by caller)
 	protected IShell mShell;

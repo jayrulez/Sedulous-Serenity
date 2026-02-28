@@ -35,10 +35,10 @@ class RenderUnlitApp : Application
 	private GPUMeshHandle mCubeMeshHandle;
 	private GPUMeshHandle mPlaneMeshHandle;
 
-	// Fox (shared resources)
-	private Model mFoxModel ~ delete _;
-	private Skeleton mSkeleton ~ delete _;
-	private AnimationClip[] mClips ~ DeleteContainerAndItems!(_);
+	// Fox (shared resources — skeleton/clips owned by import result)
+	private ModelImportResult mFoxImportResult ~ delete _;
+	private Model mFoxSourceModel ~ delete _;
+	private Skeleton mSkeleton; // Non-owning ref into import result
 	private GPUMeshHandle mFoxMeshHandle;
 	private GPUTextureHandle mFoxTextureHandle;
 
@@ -250,240 +250,136 @@ class RenderUnlitApp : Application
 		GltfModels.Initialize();
 
 		let modelPath = scope $"{AssetDirectory}/samples/models/Fox/glTF/Fox.gltf";
-		mFoxModel = new Model();
-		if (ModelLoaderFactory.LoadModel(modelPath, mFoxModel) != .Ok)
+		mFoxSourceModel = new Model();
+		if (ModelLoaderFactory.LoadModel(modelPath, mFoxSourceModel) != .Ok)
 		{
 			Console.WriteLine("Warning: Failed to load Fox model");
-			delete mFoxModel;
-			mFoxModel = null;
+			delete mFoxSourceModel;
+			mFoxSourceModel = null;
 			return;
 		}
 
-		if (mFoxModel.Skins.Count == 0) return;
+		// Import using ModelImporter (handles skeleton, animations, mesh, textures)
+		let importOptions = new ModelImportOptions();
+		importOptions.Flags = .SkinnedMeshes | .Skeletons | .Animations | .Textures;
+		let lastSlash = modelPath.LastIndexOf('/');
+		if (lastSlash >= 0)
+			importOptions.BasePath.Set(StringView(modelPath, 0, lastSlash));
 
-		let skin = mFoxModel.Skins[0];
-		int32 meshIndex = -1;
-		for (let bone in mFoxModel.Bones)
+		let importer = scope ModelImporter(importOptions);
+		mFoxImportResult = importer.Import(mFoxSourceModel);
+
+		if (!mFoxImportResult.Success || mFoxImportResult.SkinnedMeshes.Count == 0 || mFoxImportResult.Skeletons.Count == 0)
 		{
-			if (bone.SkinIndex == 0) { meshIndex = bone.MeshIndex; break; }
+			Console.WriteLine("Warning: Fox model import failed");
+			for (let err in mFoxImportResult.Errors)
+				Console.WriteLine("  {}", err);
+			return;
 		}
 
-		if (meshIndex < 0 || meshIndex >= mFoxModel.Meshes.Count) return;
+		mSkeleton = mFoxImportResult.Skeletons[0].Skeleton;
+		let skinnedMesh = mFoxImportResult.SkinnedMeshes[0].Mesh;
 
-		let modelMesh = mFoxModel.Meshes[meshIndex];
-		if (ModelMeshConverter.ConvertToSkinnedMesh(modelMesh, skin) case .Ok(var convResult))
+		if (mRenderSystem.ResourceManager.UploadMesh(skinnedMesh) case .Ok(let gpuHandle))
 		{
-			defer convResult.Dispose();
-			let skinnedMesh = convResult.Mesh;
-			defer delete skinnedMesh;
+			mFoxMeshHandle = gpuHandle;
+			let boneCount = (uint16)mSkeleton.BoneCount;
 
-			if (mRenderSystem.ResourceManager.UploadMesh(skinnedMesh) case .Ok(let gpuHandle))
+			// Upload texture from import result
+			if (mFoxImportResult.Textures.Count > 0)
+				if (let image = mFoxImportResult.Textures[0].Image)
+					if (mRenderSystem.ResourceManager.UploadTexture(TextureData.FromImage(image)) case .Ok(let texHandle))
+						mFoxTextureHandle = texHandle;
+
+			// Create materials for each fox
+			let baseMat = mRenderSystem.MaterialSystem?.DefaultMaterial;
+			let defaultMat = mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
+
+			// Fox 0 (PBR): textured PBR material
+			MaterialInstance foxPBRMat = null;
+			if (baseMat != null)
 			{
-				mFoxMeshHandle = gpuHandle;
-				let boneCount = (uint16)skin.Joints.Count;
+				foxPBRMat = new MaterialInstance(baseMat);
+				foxPBRMat.SetColor("BaseColor", .(1, 1, 1, 1));
+				foxPBRMat.SetFloat("Metallic", 0.0f);
+				foxPBRMat.SetFloat("Roughness", 0.6f);
+				if (mFoxTextureHandle.IsValid)
+					if (let texView = mRenderSystem.ResourceManager.GetTextureView(mFoxTextureHandle))
+						foxPBRMat.SetTexture("AlbedoMap", texView);
+				mMaterials.Add(foxPBRMat);
+			}
 
-				BuildSkeleton(skin);
-				ExtractAnimations();
-				LoadFoxTexture();
+			// Fox 1 (Unlit): textured unlit material
+			MaterialInstance foxUnlitMat = null;
+			if (mUnlitBaseMaterial != null)
+			{
+				foxUnlitMat = new MaterialInstance(mUnlitBaseMaterial);
+				foxUnlitMat.SetColor("BaseColor", .(1, 1, 1, 1));
+				if (mFoxTextureHandle.IsValid)
+					if (let texView = mRenderSystem.ResourceManager.GetTextureView(mFoxTextureHandle))
+						foxUnlitMat.SetTexture("AlbedoMap", texView);
+				mMaterials.Add(foxUnlitMat);
+			}
 
-				// Create materials for each fox
-				let baseMat = mRenderSystem.MaterialSystem?.DefaultMaterial;
-				let defaultMat = mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
+			// Fox positions matching RendererUnlit
+			float foxSpacing = 8.0f;
+			float foxZ = -4.0f;
+			Vector3[FOX_COUNT] foxPositions = .(
+				.(-foxSpacing, -1.4f, foxZ),  // PBR (left)
+				.(0, -1.4f, foxZ),             // Unlit (center)
+				.(foxSpacing, -1.4f, foxZ)     // Default (right)
+			);
+			float[FOX_COUNT] foxYaws = .(
+				Math.PI_f * 0.25f,   // Angled right
+				Math.PI_f,           // Facing camera
+				-Math.PI_f * 0.25f   // Angled left
+			);
+			MaterialInstance[FOX_COUNT] foxMats = .(
+				foxPBRMat,
+				foxUnlitMat,
+				defaultMat    // No material = default gray PBR
+			);
 
-				// Fox 0 (PBR): textured PBR material
-				MaterialInstance foxPBRMat = null;
-				if (baseMat != null)
+			let clips = mFoxImportResult.Animations;
+
+			for (int f = 0; f < FOX_COUNT; f++)
+			{
+				if (mRenderSystem.ResourceManager.CreateBoneBuffer(boneCount) case .Ok(let boneHandle))
 				{
-					foxPBRMat = new MaterialInstance(baseMat);
-					foxPBRMat.SetColor("BaseColor", .(1, 1, 1, 1));
-					foxPBRMat.SetFloat("Metallic", 0.0f);
-					foxPBRMat.SetFloat("Roughness", 0.6f);
-					if (mFoxTextureHandle.IsValid)
-						if (let texView = mRenderSystem.ResourceManager.GetTextureView(mFoxTextureHandle))
-							foxPBRMat.SetTexture("AlbedoMap", texView);
-					mMaterials.Add(foxPBRMat);
-				}
+					mBoneBufferHandles[f] = boneHandle;
+					mPlayers[f] = new AnimationPlayer(mSkeleton);
 
-				// Fox 1 (Unlit): textured unlit material
-				MaterialInstance foxUnlitMat = null;
-				if (mUnlitBaseMaterial != null)
-				{
-					foxUnlitMat = new MaterialInstance(mUnlitBaseMaterial);
-					foxUnlitMat.SetColor("BaseColor", .(1, 1, 1, 1));
-					if (mFoxTextureHandle.IsValid)
-						if (let texView = mRenderSystem.ResourceManager.GetTextureView(mFoxTextureHandle))
-							foxUnlitMat.SetTexture("AlbedoMap", texView);
-					mMaterials.Add(foxUnlitMat);
-				}
-
-				// Fox positions matching RendererUnlit
-				float foxSpacing = 8.0f;
-				float foxZ = -4.0f;
-				Vector3[FOX_COUNT] foxPositions = .(
-					.(-foxSpacing, -1.4f, foxZ),  // PBR (left)
-					.(0, -1.4f, foxZ),             // Unlit (center)
-					.(foxSpacing, -1.4f, foxZ)     // Default (right)
-				);
-				float[FOX_COUNT] foxYaws = .(
-					Math.PI_f * 0.25f,   // Angled right
-					Math.PI_f,           // Facing camera
-					-Math.PI_f * 0.25f   // Angled left
-				);
-				MaterialInstance[FOX_COUNT] foxMats = .(
-					foxPBRMat,
-					foxUnlitMat,
-					defaultMat    // No material = default gray PBR
-				);
-
-				for (int f = 0; f < FOX_COUNT; f++)
-				{
-					if (mRenderSystem.ResourceManager.CreateBoneBuffer(boneCount) case .Ok(let boneHandle))
+					mFoxProxies[f] = mWorld.CreateSkinnedMesh();
+					if (let proxy = mWorld.GetSkinnedMesh(mFoxProxies[f]))
 					{
-						mBoneBufferHandles[f] = boneHandle;
-						mPlayers[f] = new AnimationPlayer(mSkeleton);
+						proxy.MeshHandle = mFoxMeshHandle;
+						proxy.BoneBufferHandle = boneHandle;
+						proxy.Materials[0] = foxMats[f] ?? defaultMat;
+						proxy.MaterialCount = 1;
+						proxy.SetLocalBounds(skinnedMesh.Bounds);
+						proxy.BoneCount = boneCount;
 
-						mFoxProxies[f] = mWorld.CreateSkinnedMesh();
-						if (let proxy = mWorld.GetSkinnedMesh(mFoxProxies[f]))
-						{
-							proxy.MeshHandle = mFoxMeshHandle;
-							proxy.BoneBufferHandle = boneHandle;
-							proxy.Materials[0] = foxMats[f] ?? defaultMat;
-							proxy.MaterialCount = 1;
-							proxy.SetLocalBounds(skinnedMesh.Bounds);
-							proxy.BoneCount = boneCount;
+						let transform = Matrix.CreateScale(0.04f)
+							* Matrix.CreateRotationY(foxYaws[f])
+							* Matrix.CreateTranslation(foxPositions[f]);
+						proxy.SetTransformImmediate(transform);
+						proxy.Flags = .DefaultOpaque;
+					}
 
-							let transform = Matrix.CreateScale(0.04f)
-								* Matrix.CreateRotationY(foxYaws[f])
-								* Matrix.CreateTranslation(foxPositions[f]);
-							proxy.SetTransformImmediate(transform);
-							proxy.Flags = .DefaultOpaque;
-						}
-
-						// Each fox plays a different animation clip
-						if (mClips != null && mClips.Count > 0)
-						{
-							int clipIndex = Math.Min(f, mClips.Count - 1);
-							mClips[clipIndex].IsLooping = true;
-							mPlayers[f].Play(mClips[clipIndex]);
-						}
+					// Each fox plays a different animation clip
+					if (clips.Count > 0)
+					{
+						int clipIndex = Math.Min(f, clips.Count - 1);
+						let clip = clips[clipIndex].Clip;
+						clip.IsLooping = true;
+						mPlayers[f].Play(clip);
 					}
 				}
-
-				Console.WriteLine("  Fox 1: PBR material (left)");
-				Console.WriteLine("  Fox 2: UNLIT material (center)");
-				Console.WriteLine("  Fox 3: Default gray PBR (right)");
-			}
-		}
-	}
-
-	private void BuildSkeleton(ModelSkin skin)
-	{
-		let jointCount = (int32)skin.Joints.Count;
-		mSkeleton = new Skeleton(jointCount);
-
-		Dictionary<int32, int32> boneToJoint = scope .();
-		for (int32 j = 0; j < jointCount; j++)
-			boneToJoint[skin.Joints[j]] = j;
-
-		for (int32 j = 0; j < jointCount; j++)
-		{
-			let boneIndex = skin.Joints[j];
-			let modelBone = mFoxModel.Bones[boneIndex];
-			let bone = mSkeleton.Bones[j];
-
-			bone.Name.Set(modelBone.Name);
-			bone.Index = j;
-
-			if (modelBone.ParentIndex >= 0 && boneToJoint.TryGetValue(modelBone.ParentIndex, let parentJoint))
-				bone.ParentIndex = parentJoint;
-			else
-				bone.ParentIndex = -1;
-
-			bone.LocalBindPose = Transform(modelBone.Translation, modelBone.Rotation, modelBone.Scale);
-
-			if (j < skin.InverseBindMatrices.Count)
-				bone.InverseBindPose = skin.InverseBindMatrices[j];
-		}
-
-		mSkeleton.BuildNameMap();
-		mSkeleton.FindRootBones();
-		mSkeleton.BuildChildIndices();
-	}
-
-	private void ExtractAnimations()
-	{
-		if (mFoxModel.Animations.Count == 0)
-		{
-			mClips = new AnimationClip[0];
-			return;
-		}
-
-		let skin = mFoxModel.Skins[0];
-		Dictionary<int32, int32> boneToJoint = scope .();
-		for (int32 j = 0; j < (int32)skin.Joints.Count; j++)
-			boneToJoint[skin.Joints[j]] = j;
-
-		mClips = new AnimationClip[mFoxModel.Animations.Count];
-		for (int i = 0; i < mFoxModel.Animations.Count; i++)
-		{
-			let modelAnim = mFoxModel.Animations[i];
-			let clip = new AnimationClip(modelAnim.Name, modelAnim.Duration, false);
-
-			for (let channel in modelAnim.Channels)
-			{
-				int32 jointIndex;
-				if (!boneToJoint.TryGetValue(channel.TargetBone, out jointIndex))
-					continue;
-
-				let interp = ConvertInterpolation(channel.Interpolation);
-
-				switch (channel.Path)
-				{
-				case .Translation:
-					let track = clip.GetOrCreatePositionTrack(jointIndex);
-					track.Interpolation = interp;
-					for (let kf in channel.Keyframes)
-						track.AddKeyframe(kf.Time, Vector3(kf.Value.X, kf.Value.Y, kf.Value.Z));
-				case .Rotation:
-					let track = clip.GetOrCreateRotationTrack(jointIndex);
-					track.Interpolation = interp;
-					for (let kf in channel.Keyframes)
-						track.AddKeyframe(kf.Time, Quaternion(kf.Value.X, kf.Value.Y, kf.Value.Z, kf.Value.W));
-				case .Scale:
-					let track = clip.GetOrCreateScaleTrack(jointIndex);
-					track.Interpolation = interp;
-					for (let kf in channel.Keyframes)
-						track.AddKeyframe(kf.Time, Vector3(kf.Value.X, kf.Value.Y, kf.Value.Z));
-				case .Weights:
-					continue;
-				}
 			}
 
-			clip.SortAllKeyframes();
-			clip.ComputeDuration();
-			mClips[i] = clip;
-		}
-	}
-
-	private static InterpolationMode ConvertInterpolation(AnimationInterpolation interp)
-	{
-		switch (interp)
-		{
-		case .Step: return .Step;
-		case .Linear: return .Linear;
-		case .CubicSpline: return .CubicSpline;
-		}
-	}
-
-	private void LoadFoxTexture()
-	{
-		let texPath = scope $"{AssetDirectory}/samples/models/Fox/glTF/Texture.png";
-		if (ImageLoaderFactory.LoadImage(texPath) case .Ok(var image))
-		{
-			defer delete image;
-			let texData = TextureData.FromImage(image);
-			if (mRenderSystem.ResourceManager.UploadTexture(texData) case .Ok(let texHandle))
-				mFoxTextureHandle = texHandle;
+			Console.WriteLine("  Fox 1: PBR material (left)");
+			Console.WriteLine("  Fox 2: UNLIT material (center)");
+			Console.WriteLine("  Fox 3: Default gray PBR (right)");
 		}
 	}
 

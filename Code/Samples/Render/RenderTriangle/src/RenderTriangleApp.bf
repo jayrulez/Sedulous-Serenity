@@ -59,7 +59,9 @@ class RenderTriangleApp : Application
 	protected override void OnInitialize(Sedulous.Engine.Core.Context context)
 	{
 		// Create render graph
-		mRenderGraph = new RenderGraph(mDevice, .());
+		RenderGraphConfig config = .();
+		config.FrameBufferCount = MAX_FRAMES_IN_FLIGHT;
+		mRenderGraph = new RenderGraph(mDevice, config);
 
 		if (!CreateBuffers())
 		{
