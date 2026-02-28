@@ -7,7 +7,7 @@ TargetType = "BeefLib"
 [Dependencies]
 corlib = "*"
 "StormTactics.Core" = "*"
-"Sedulous.Foundation" = "*"
+"Sedulous.Core" = "*"
 "Sedulous.Net" = "*"
 "Sedulous.Net.HTTP" = "*"
 "Sedulous.Serialization" = "*"

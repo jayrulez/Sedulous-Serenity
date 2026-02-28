@@ -2,7 +2,7 @@ namespace TowerDefense.Systems;
 
 using System;
 using System.Collections;
-using Sedulous.Foundation.Core;
+using Sedulous.Core.Core;
 using TowerDefense.Data;
 
 /// Manages wave spawning and progression.

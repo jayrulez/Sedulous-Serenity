@@ -2,7 +2,7 @@ namespace Sedulous.Engine.Input;
 
 using System;
 using Sedulous.Shell.Input;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 
 /// Combines 4 bindings into a Vector2 (e.g., WASD movement).
 /// PositiveY = forward (W), NegativeY = back (S)

@@ -5,7 +5,7 @@ using System.Collections;
 using Sedulous.Shell;
 using Sedulous.Shell.Input;
 using Sedulous.RHI;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using Sedulous.Geometry;
 using Sedulous.Geometry.Resources;
 using Sedulous.Resources;

@@ -1,6 +1,0 @@
-FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Foundation" = "*", "Sedulous.Foundation.Mathematics" = "*", "Sedulous.Foundation.Logging" = "*", "Sedulous.Imaging" = "*", "Sedulous.Fonts" = "*", "stb_truetype-Beef" = "*"}
-
-[Project]
-Name = "Sedulous.Fonts.TTF"
-TargetType = "BeefLib"

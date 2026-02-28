@@ -2,7 +2,7 @@ namespace Sedulous.Editor.Core;
 
 using System;
 using System.Collections;
-using Sedulous.Foundation.Core;
+using Sedulous.Core.Core;
 
 /// Manages open asset documents.
 class DocumentManager : IDisposable

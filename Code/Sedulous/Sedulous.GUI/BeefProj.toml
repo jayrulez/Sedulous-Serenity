@@ -1,5 +1,0 @@
-FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Foundation.Mathematics" = "*", "Sedulous.Drawing" = "*", "Sedulous.Fonts" = "*", "Sedulous.Foundation" = "*"}
-
-[Project]
-Name = "Sedulous.GUI"

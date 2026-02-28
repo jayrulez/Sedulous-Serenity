@@ -1,7 +1,7 @@
 namespace TowerDefense.Data;
 
 using System;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 
 /// Definition of an enemy type.
 /// Contains stats and visual properties.

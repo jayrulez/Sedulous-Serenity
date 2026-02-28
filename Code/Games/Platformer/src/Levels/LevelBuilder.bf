@@ -2,12 +2,12 @@ namespace Platformer.Levels;
 
 using System;
 using System.Collections;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using Sedulous.Resources;
 using Sedulous.Geometry.Resources;
 using Sedulous.Materials;
 using Sedulous.Render;
-using Sedulous.Foundation.Logging.Abstractions;
+using Sedulous.Core.Logging.Abstractions;
 using Sedulous.Engine.Core;
 using Sedulous.Engine.Scenes;
 using Sedulous.Engine.Render;

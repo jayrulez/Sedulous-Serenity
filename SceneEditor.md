@@ -30,9 +30,9 @@ The editor camera is NOT a scene entity -- it drives the RenderView directly (sa
 - `Code/Engine/Sedulous.Engine.Scenes/src/SceneSubsystem.bf` - Scene lifecycle management
 - `Code/Engine/Sedulous.Engine.Scenes/src/SceneResource.bf` - Scene file I/O (OpenDDL)
 - `Code/Engine/Sedulous.Engine.Render/src/RenderSubsystem.bf` - Auto-syncs components to RenderWorld
-- `Code/Sedulous/Sedulous.AppFramework/src/Controls/ViewportControl.bf` - Existing viewport widget (manages render target, resize, image display)
-- `Code/Sedulous/Sedulous.GUI/src/Controls/TreeView.bf` - For hierarchy panel
-- `Code/Sedulous/Sedulous.GUI/src/Controls/PropertyGrid/PropertyGrid.bf` - For inspector panel
+- `Code/Foundation/Sedulous.AppFramework/src/Controls/ViewportControl.bf` - Existing viewport widget (manages render target, resize, image display)
+- `Code/Foundation/Sedulous.GUI/src/Controls/TreeView.bf` - For hierarchy panel
+- `Code/Foundation/Sedulous.GUI/src/Controls/PropertyGrid/PropertyGrid.bf` - For inspector panel
 
 ---
 
@@ -50,7 +50,7 @@ The editor camera is NOT a scene entity -- it drives the RenderView directly (sa
 
 ### Checklist
 
-- [x] Create `Code/Tools/Tools.Common/BeefProj.toml` (Library, namespace `Tools.Common`, deps: `Sedulous.Foundation.Mathematics`, `Sedulous.Render`, `Sedulous.RHI`)
+- [x] Create `Code/Tools/Tools.Common/BeefProj.toml` (Library, namespace `Tools.Common`, deps: `Sedulous.Core.Mathematics`, `Sedulous.Render`, `Sedulous.RHI`)
 - [x] Create `src/OrbitCamera.bf` - move class, change namespace
 - [x] Create `src/TranslateGizmo.bf` - move class + enum, change namespace
 - [x] Create `src/ViewportOutputFeature.bf` - move class, change namespace
@@ -86,7 +86,7 @@ class SceneTab
 ### Checklist
 
 - [x] Create `Code/Tools/SceneEditor/BeefProj.toml`
-  - Deps: `Tools.Common`, `Sedulous.AppFramework`, `Sedulous.RHI`, `Sedulous.RHI.Vulkan`, `Sedulous.Shell.SDL3`, `Sedulous.Foundation.Mathematics`, `Sedulous.Render`, `Sedulous.Materials`, `Sedulous.Materials.Resources`, `Sedulous.Geometry.Resources`, `Sedulous.Textures.Resources`, `Sedulous.Engine.Core`, `Sedulous.Engine.Scenes`, `Sedulous.Engine.Render`, `Sedulous.Engine.Animation`, `Sedulous.Imaging`, `Sedulous.Imaging.SDL`, `Sedulous.Serialization`, `Sedulous.Serialization.OpenDDL`, `Sedulous.OpenDDL`, `Sedulous.Profiler`, `Sedulous.GUI`
+  - Deps: `Tools.Common`, `Sedulous.AppFramework`, `Sedulous.RHI`, `Sedulous.RHI.Vulkan`, `Sedulous.Shell.SDL3`, `Sedulous.Core.Mathematics`, `Sedulous.Render`, `Sedulous.Materials`, `Sedulous.Materials.Resources`, `Sedulous.Geometry.Resources`, `Sedulous.Textures.Resources`, `Sedulous.Engine.Core`, `Sedulous.Engine.Scenes`, `Sedulous.Engine.Render`, `Sedulous.Engine.Animation`, `Sedulous.Imaging`, `Sedulous.Imaging.SDL`, `Sedulous.Serialization`, `Sedulous.Serialization.OpenDDL`, `Sedulous.OpenDDL`, `Sedulous.Profiler`, `Sedulous.GUI`
   - StartupObject: `SceneEditor.Program`
 - [x] Create `src/SceneTab.bf` - per-tab state class
 - [x] Create `src/Program.bf` - `SceneEditorApp : Application` with:

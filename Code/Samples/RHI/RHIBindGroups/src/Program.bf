@@ -1,7 +1,7 @@
 namespace RHIBindGroups;
 
 using System;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
 using SampleFramework;
 

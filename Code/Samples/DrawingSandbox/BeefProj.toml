@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Foundation.Mathematics" = "*", "Sedulous.Imaging" = "*", "Sedulous.RHI" = "*", "SampleFramework" = "*", "Sedulous.Drawing" = "*", "Sedulous.Drawing.Fonts" = "*", "Sedulous.Drawing.Renderer" = "*", "Sedulous.Fonts" = "*", "Sedulous.Fonts.TTF" = "*", "Sedulous.Shaders" = "*"}
+Dependencies = {corlib = "*", "Sedulous.Core.Mathematics" = "*", "Sedulous.Imaging" = "*", "Sedulous.RHI" = "*", "SampleFramework" = "*", "Sedulous.Drawing" = "*", "Sedulous.Drawing.Fonts" = "*", "Sedulous.Drawing.Renderer" = "*", "Sedulous.Fonts" = "*", "Sedulous.Fonts.TTF" = "*", "Sedulous.Shaders" = "*"}
 
 [Project]
 Name = "DrawingSandbox"

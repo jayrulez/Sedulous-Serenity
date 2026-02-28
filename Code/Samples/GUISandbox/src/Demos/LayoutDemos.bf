@@ -1,6 +1,6 @@
 namespace GUISandbox;
 
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using Sedulous.GUI;
 
 /// Phase 4: Layout Panel Demos

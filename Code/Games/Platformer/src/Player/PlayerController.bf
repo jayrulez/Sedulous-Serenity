@@ -1,8 +1,8 @@
 namespace Platformer.Player;
 
 using System;
-using Sedulous.Foundation.Mathematics;
-using Sedulous.Foundation.Logging.Abstractions;
+using Sedulous.Core.Mathematics;
+using Sedulous.Core.Logging.Abstractions;
 using Sedulous.Engine.Core;
 using Sedulous.Engine.Scenes;
 using Sedulous.Engine.Physics;

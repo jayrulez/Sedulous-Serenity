@@ -260,7 +260,7 @@ ILogger Logger { get; }      // Logging interface
 ## Project Structure
 
 ```
-Code/Sedulous/Sedulous.Jobs/src/
+Code/Foundation/Sedulous.Jobs/src/
 ├── JobSystem.bf           - Central job manager
 ├── JobBase.bf             - Abstract base for all jobs
 ├── Job.bf                 - User-defined job base class

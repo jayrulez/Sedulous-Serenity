@@ -2,7 +2,7 @@ namespace RenderTriangle;
 
 using System;
 using System.IO;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
 using Sedulous.Shaders;
 using Sedulous.Shell;

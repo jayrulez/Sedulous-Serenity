@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Editor.App" = "*", "Sedulous.Editor.Scenes" = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Foundation.Logging" = "*"}
+Dependencies = {corlib = "*", "Sedulous.Editor.App" = "*", "Sedulous.Editor.Scenes" = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Core.Logging" = "*"}
 
 [Project]
 Name = "Sedulous.Editor.Runner"

@@ -3,9 +3,9 @@ namespace StormTactics.Client;
 using System;
 using System.Collections;
 using Sedulous.GUI;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using Sedulous.Drawing;
-using Sedulous.Foundation.Core;
+using Sedulous.Core.Core;
 
 delegate void HexCellClickedDelegate(int32 col, int32 row);
 

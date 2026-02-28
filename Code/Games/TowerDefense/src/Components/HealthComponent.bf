@@ -1,7 +1,7 @@
 namespace TowerDefense.Components;
 
 using System;
-using Sedulous.Foundation.Core;
+using Sedulous.Core.Core;
 using TowerDefense.Data;
 
 /// Simple health tracking class.

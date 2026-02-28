@@ -378,5 +378,5 @@ Sedulous.Engine.UI
 ├── Sedulous.UI.Renderer      - GPU rendering
 ├── Sedulous.Drawing          - 2D drawing primitives
 ├── Sedulous.RHI              - Graphics abstraction
-└── Sedulous.Foundation.Mathematics      - Math types
+└── Sedulous.Core.Mathematics      - Math types
 ```

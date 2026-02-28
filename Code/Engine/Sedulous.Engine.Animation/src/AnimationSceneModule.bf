@@ -5,7 +5,7 @@ using System.Collections;
 using Sedulous.Animation;
 using Sedulous.Animation.Resources;
 using Sedulous.Engine.Scenes;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using Sedulous.Resources;
 using Sedulous.Serialization;
 

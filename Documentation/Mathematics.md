@@ -1,4 +1,4 @@
-# Sedulous.Foundation.Mathematics
+# Sedulous.Core.Mathematics
 
 A comprehensive mathematical library providing vectors, matrices, quaternions, colors, and geometric primitives for 3D graphics and game development.
 
@@ -569,7 +569,7 @@ Vector3 and Vector4 use `[CRepr]` for C-compatible memory layout, enabling direc
 ## Project Structure
 
 ```
-Code/Sedulous/Sedulous.Foundation.Mathematics/src/
+Code/Foundation/Sedulous.Core.Mathematics/src/
 ├── Vector2.bf, Vector3.bf, Vector4.bf
 ├── Point2.bf, Point2F.bf, Point2D.bf
 ├── Size2.bf, Size2F.bf, Size2D.bf

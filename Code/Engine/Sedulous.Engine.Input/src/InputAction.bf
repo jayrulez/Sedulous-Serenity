@@ -3,7 +3,7 @@ namespace Sedulous.Engine.Input;
 using System;
 using System.Collections;
 using Sedulous.Shell.Input;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 
 /// A named action with one or more bindings.
 /// Supports multiple bindings per action (e.g., W key OR Up arrow OR gamepad stick).

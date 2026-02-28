@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Net" = "*", "Sedulous.Foundation.Logging" = "*"}
+Dependencies = {corlib = "*", "Sedulous.Net" = "*", "Sedulous.Core.Logging" = "*"}
 
 [Project]
 Name = "NetEcho"

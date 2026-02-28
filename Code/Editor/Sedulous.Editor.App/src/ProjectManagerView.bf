@@ -3,9 +3,9 @@ namespace Sedulous.Editor.App;
 using System;
 using System.Collections;
 using Sedulous.GUI;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using Sedulous.Editor.Core;
-using Sedulous.Foundation.Core;
+using Sedulous.Core.Core;
 
 /// Initial view for managing projects - shown before a project is opened.
 public class ProjectManagerView : Border

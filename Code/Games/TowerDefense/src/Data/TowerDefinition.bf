@@ -1,7 +1,7 @@
 namespace TowerDefense.Data;
 
 using System;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 
 /// Definition of a tower type.
 /// Contains stats, costs, and visual properties.

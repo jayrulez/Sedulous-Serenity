@@ -3,7 +3,7 @@ namespace Sedulous.Editor.Core;
 using System;
 using System.Collections;
 using System.IO;
-using Sedulous.Foundation.Core;
+using Sedulous.Core.Core;
 
 /// Asset entry in the database.
 class AssetEntry

@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using Sedulous.RHI;
 using Sedulous.Shell;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using Sedulous.Engine.Core;
 using Sedulous.Profiler;
 

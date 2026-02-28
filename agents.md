@@ -24,10 +24,10 @@ Sedulous-Serenity/
 ├── Code/
 │   ├── BeefSpace.toml          # Workspace configuration
 │   ├── Dependencies/           # Third-party bindings
-│   ├── Sedulous/               # Framework libraries
+│   ├── Foundation/               # Framework libraries
 │   └── Samples/                # Example applications
 ├── OpenDDL/                    # OpenDDL spec and reference implementation
-├── ReferenceSedulous/          # Previous framework iteration (for reference)
+├── ReferenceFoundation/          # Previous framework iteration (for reference)
 └── agents.md                   # This file
 ```
 
@@ -50,14 +50,14 @@ Third-party bindings used by the framework:
 
 | Layer | Library | Status | Description |
 |-------|---------|--------|-------------|
-| **Foundation** | Sedulous.Foundation | Complete | Type extensions, Contract assertions, EventAccessor |
-| | Sedulous.Foundation.Collections | Complete | Custom collections (FixedList) |
-| | Sedulous.Foundation.Logging | Complete | Logging abstractions |
-| | Sedulous.Foundation.Mathematics | Complete | Vector, Matrix, Quaternion, BoundingBox, Color |
+| **Foundation** | Sedulous.Core | Complete | Type extensions, Contract assertions, EventAccessor |
+| | Sedulous.Core.Collections | Complete | Custom collections (FixedList) |
+| | Sedulous.Core.Logging | Complete | Logging abstractions |
+| | Sedulous.Core.Mathematics | Complete | Vector, Matrix, Quaternion, BoundingBox, Color |
 | | Sedulous.OpenDDL | Complete | OpenDDL parser and writer |
 | **Serialization** | Sedulous.Serialization | Complete | Abstract serialization framework |
 | | Sedulous.Serialization.OpenDDL | Complete | OpenDDL serializer implementation |
-| | Sedulous.Foundation.Mathematics.Serialization | Complete | Math type serialization extensions |
+| | Sedulous.Core.Mathematics.Serialization | Complete | Math type serialization extensions |
 | **Assets** | Sedulous.Imaging | Complete | Image loading/manipulation |
 | | Sedulous.Geometry | Complete | Mesh creation, VertexBuffer, IndexBuffer, SkinnedMesh |
 | | Sedulous.Models | Complete | Model representation with bones, materials, animations |
@@ -317,7 +317,7 @@ mOnSceneLoaded.[Friend]Invoke(scene);
 
 ```
 Foundation Layer (no dependencies):
-  Sedulous.Foundation, Collections, Logging, Mathematics, OpenDDL
+  Sedulous.Core, Collections, Logging, Mathematics, OpenDDL
       ↓
 Serialization Layer:
   Sedulous.Serialization, Serialization.OpenDDL
@@ -489,7 +489,7 @@ class MySample : RHISampleApp
 
 **Project:** `Sedulous.Engine.Renderer`
 
-**Dependencies:** corlib, Sedulous.Foundation, Sedulous.Foundation.Mathematics, Sedulous.Foundation.Logging, Sedulous.RHI, Sedulous.Resources, Sedulous.Geometry, Sedulous.Imaging
+**Dependencies:** corlib, Sedulous.Core, Sedulous.Core.Mathematics, Sedulous.Core.Logging, Sedulous.RHI, Sedulous.Resources, Sedulous.Geometry, Sedulous.Imaging
 
 **Note:** No dependency on Sedulous.Models. The renderer defines its own mesh/material representations. CPU assets come from Sedulous.Geometry (Mesh) and Sedulous.Imaging (Image).
 

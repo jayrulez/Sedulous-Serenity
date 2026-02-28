@@ -15,7 +15,7 @@ The physics system is organized into three main libraries:
 ```beef
 using Sedulous.Physics;
 using Sedulous.Physics.Jolt;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 
 // Create physics world
 PhysicsWorldDescriptor worldDesc = .Default;
@@ -525,4 +525,4 @@ uint32 activeBodies = world.ActiveBodyCount;
 ## See Also
 
 - [Engine Physics Integration](Engine/Physics.md)
-- [Sedulous.Physics.Jolt implementation](../Code/Sedulous/Sedulous.Physics.Jolt/)
+- [Sedulous.Physics.Jolt implementation](../Code/Foundation/Sedulous.Physics.Jolt/)

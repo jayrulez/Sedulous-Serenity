@@ -386,4 +386,4 @@ Note: Shapes are NOT serialized. They must be set up by application code after d
 ## See Also
 
 - [Low-Level Physics API](../Physics.md)
-- [Sedulous.Physics.Jolt implementation](../../Code/Sedulous/Sedulous.Physics.Jolt/)
+- [Sedulous.Physics.Jolt implementation](../../Code/Foundation/Sedulous.Physics.Jolt/)

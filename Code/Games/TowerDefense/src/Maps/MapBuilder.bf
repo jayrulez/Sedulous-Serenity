@@ -2,7 +2,7 @@ namespace TowerDefense.Maps;
 
 using System;
 using System.Collections;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using Sedulous.Geometry;
 using Sedulous.Geometry.Resources;
 using Sedulous.Resources;

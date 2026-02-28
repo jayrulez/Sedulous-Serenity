@@ -2,7 +2,7 @@ namespace Sedulous.Engine.Render;
 
 using System;
 using Sedulous.Engine.Scenes;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using Sedulous.Resources;
 using Sedulous.Serialization;
 using Sedulous.Textures.Resources;

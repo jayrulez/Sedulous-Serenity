@@ -452,7 +452,7 @@ Required for normal mapping.
 ## Project Structure
 
 ```
-Code/Sedulous/Sedulous.Geometry/src/
+Code/Foundation/Sedulous.Geometry/src/
 ├── AttributeType.bf       - Vertex attribute types
 ├── PrimitiveType.bf       - Rendering topology
 ├── VertexAttribute.bf     - Attribute descriptor
@@ -463,7 +463,7 @@ Code/Sedulous/Sedulous.Geometry/src/
 ├── SkinnedMesh.bf         - Animated mesh
 └── SkinnedVertex.bf       - Skinned vertex format
 
-Code/Sedulous/Sedulous.Geometry.Tooling/src/
+Code/Foundation/Sedulous.Geometry.Tooling/src/
 ├── ModelMeshConverter.bf  - Model to mesh conversion
 ├── ModelImporter.bf       - Full import pipeline
 └── SkeletonConverter.bf   - Skeleton extraction

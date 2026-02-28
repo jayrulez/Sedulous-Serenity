@@ -26,8 +26,8 @@ Code/Games/TowerDefense/PLAN.md
 Code/Games/TowerDefense/PLAN2.md
 Issues.txt
 overhaul.md
-Code/Sedulous/ENGINE_IMPROVEMENT_CHECKLIST.md
-Code/Sedulous/RendererRewrite.md
+Code/Foundation/ENGINE_IMPROVEMENT_CHECKLIST.md
+Code/Foundation/RendererRewrite.md
 claude_session t.txt
 RenderPromp.txt
 Render.md
@@ -38,7 +38,7 @@ Code/Dependencies/joltc-Beef/dist/Release-Win64/joltc.lib
 Code/Dependencies/joltc-Beef/dist/Release-Win64/Jolt.lib
 Code/Dependencies/joltc-Beef/dist/Release-Win64/joltc.dll
 Code/Dependencies/joltc-Beef/dist/Release-Win64/joltc.exp
-Code/Sedulous/Sedulous.Render/RenderPerformance.md
+Code/Foundation/Sedulous.Render/RenderPerformance.md
 Navigation.md
 Code/Games/ImpactArena/GameDesign.md
 Editor.md
@@ -48,7 +48,7 @@ Editor2.md
 UIv2.md
 BeefLanguageReference.md
 UIv2Issues.md
-Code/Sedulous/Sedulous.GUI/GUIGaps.md
+Code/Foundation/Sedulous.GUI/GUIGaps.md
 GUIMultiWindow.md
 BeefBugs/
 Multimesh.md

@@ -5,7 +5,7 @@ using System.Collections;
 using Sedulous.Audio;
 using Sedulous.Audio.Decoders;
 using Sedulous.Engine.Audio;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using TowerDefense.Data;
 
 /// Manages all game audio - sound effects and music.

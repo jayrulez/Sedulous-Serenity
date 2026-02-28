@@ -2,8 +2,8 @@ namespace Platformer.UI;
 
 using System;
 using Sedulous.GUI;
-using Sedulous.Foundation.Mathematics;
-using Sedulous.Foundation.Core;
+using Sedulous.Core.Mathematics;
+using Sedulous.Core.Core;
 using Platformer.Data;
 
 delegate void CharacterSelectedDelegate(CharacterType character);

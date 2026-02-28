@@ -8,7 +8,7 @@ StartupObject = "ResourcesSample.Program"
 [Dependencies]
 corlib = "*"
 "Sedulous.Jobs" = "*"
-"Sedulous.Foundation.Mathematics" = "*"
+"Sedulous.Core.Mathematics" = "*"
 "Sedulous.OpenDDL" = "*"
 "Sedulous.Resources" = "*"
 "Sedulous.Serialization" = "*"

@@ -4,7 +4,7 @@ using System;
 using System.IO;
 using System.Collections;
 using Sedulous.Editor.Core;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using Sedulous.Serialization;
 using Sedulous.Xml;
 

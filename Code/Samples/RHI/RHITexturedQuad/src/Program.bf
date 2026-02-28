@@ -1,7 +1,7 @@
 namespace RHITexturedQuad;
 
 using System;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using Sedulous.Imaging;
 using Sedulous.RHI;
 using SampleFramework;

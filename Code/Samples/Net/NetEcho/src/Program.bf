@@ -3,8 +3,8 @@ namespace NetEcho;
 using System;
 using System.Threading;
 using Sedulous.Net;
-using Sedulous.Foundation.Logging.Abstractions;
-using Sedulous.Foundation.Logging.Debug;
+using Sedulous.Core.Logging.Abstractions;
+using Sedulous.Core.Logging.Debug;
 
 /// TCP echo server + client demo.
 /// Demonstrates TcpListener, TcpClient, non-blocking Accept, SendAll/Recv.

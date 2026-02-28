@@ -6,9 +6,9 @@ using System.IO;
 using Sedulous.AppFramework;
 using Sedulous.Editor.Core;
 using Sedulous.GUI;
-using Sedulous.Foundation.Core;
-using Sedulous.Foundation.Logging.Abstractions;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Core;
+using Sedulous.Core.Logging.Abstractions;
+using Sedulous.Core.Mathematics;
 using Sedulous.GUI;
 
 /// Editor application configuration.

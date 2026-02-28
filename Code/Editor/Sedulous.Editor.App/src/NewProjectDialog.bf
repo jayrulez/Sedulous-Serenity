@@ -2,9 +2,9 @@ namespace Sedulous.Editor.App;
 
 using System;
 using Sedulous.GUI;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using Sedulous.Shell;
-using Sedulous.Foundation.Core;
+using Sedulous.Core.Core;
 
 /// Dialog for creating a new project.
 public class NewProjectDialog : Border

@@ -1,0 +1,7 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.Shell" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.GUI" = "*", "Sedulous.GUI.Shell" = "*", "Sedulous.Drawing.Fonts" = "*", "Sedulous.Drawing.Renderer" = "*", "Sedulous.RHI" = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Drawing" = "*", "Sedulous.Fonts" = "*", "Sedulous.Core.Mathematics" = "*", "Sedulous.Shaders" = "*"}
+
+[Project]
+Name = "Sedulous.AppFramework"
+TargetType = "BeefLib"
+StartupObject = "Sedulous.AppFramework.Program"

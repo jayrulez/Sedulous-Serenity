@@ -1,7 +1,0 @@
-FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Foundation.Mathematics" = "*", "Sedulous.RHI" = "*", "Sedulous.Shaders" = "*"}
-
-[Project]
-Name = "Sedulous.Materials"
-TargetType = "BeefLib"
-StartupObject = "Sedulous.Materials.Program"

@@ -1,7 +1,7 @@
 namespace Platformer.Components;
 
 using System;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using Platformer.Data;
 using Sedulous.Engine.Scenes;
 

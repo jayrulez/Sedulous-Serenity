@@ -1,0 +1,5 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.Core" = "*", "Sedulous.Core.Mathematics" = "*", "Sedulous.Core.Logging" = "*", "Sedulous.RHI" = "*", "Sedulous.Shaders" = "*", "Sedulous.Materials" = "*", "Sedulous.Geometry" = "*", "Sedulous.Animation" = "*", "Sedulous.Profiler" = "*", "Sedulous.DebugFont" = "*", "Sedulous.Imaging" = "*", "Sedulous.Textures" = "*", "Sedulous.RenderGraph" = "*"}
+
+[Project]
+Name = "Sedulous.Render"

@@ -1,6 +1,6 @@
 namespace Sedulous.Engine.Input;
 
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 
 /// Unified value type for action states.
 /// Supports bool (button), float (axis), and Vector2 (2D composite).

@@ -2,7 +2,7 @@ namespace Sedulous.Engine.Scenes;
 
 using System;
 using System.Collections;
-using Sedulous.Foundation.Core;
+using Sedulous.Core.Core;
 
 /// Delegate for scene lifecycle events.
 public delegate void SceneEventDelegate(Scene scene);

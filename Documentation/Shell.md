@@ -647,7 +647,7 @@ rhiDevice.CreateSurface(hwnd, width, height);
 ## Project Structure
 
 ```
-Code/Sedulous/Sedulous.Shell/src/
+Code/Foundation/Sedulous.Shell/src/
 ├── IShell.bf              - Main shell interface
 ├── IWindowManager.bf      - Window management
 ├── IWindow.bf             - Window interface
@@ -670,7 +670,7 @@ Code/Sedulous/Sedulous.Shell/src/
     ├── CursorType.bf      - Cursor type enum
     └── TouchPoint.bf      - Touch point struct
 
-Code/Sedulous/Sedulous.Shell.SDL3/src/
+Code/Foundation/Sedulous.Shell.SDL3/src/
 ├── SDL3Shell.bf           - SDL3 implementation
 ├── SDL3WindowManager.bf
 ├── SDL3Window.bf

@@ -5,8 +5,8 @@ using System.Threading;
 using System.Collections;
 using Sedulous.Net;
 using Sedulous.Net.HTTP;
-using Sedulous.Foundation.Logging.Abstractions;
-using Sedulous.Foundation.Logging.Debug;
+using Sedulous.Core.Logging.Abstractions;
+using Sedulous.Core.Logging.Debug;
 
 /// WebSocket echo demo.
 /// Starts an HTTP server with WebSocket upgrade support, connects a client,

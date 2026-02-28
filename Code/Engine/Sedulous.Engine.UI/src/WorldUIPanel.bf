@@ -9,7 +9,7 @@ using Sedulous.Drawing;
 using Sedulous.RHI;
 using Sedulous.Render;
 using Sedulous.Shaders;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 
 /// A world-space UI panel rendered to a texture and displayed as a sprite in 3D.
 /// Each panel owns its own GUIContext, DrawingRenderer, and render texture.

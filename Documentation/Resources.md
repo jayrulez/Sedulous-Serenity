@@ -386,7 +386,7 @@ class FontResourceManager : ResourceManager<FontResource>
 ## Project Structure
 
 ```
-Code/Sedulous/Sedulous.Resources/src/
+Code/Foundation/Sedulous.Resources/src/
 ├── IResource.bf           - Resource interface
 ├── Resource.bf            - Abstract base class
 ├── ResourceHandle.bf      - RAII handle

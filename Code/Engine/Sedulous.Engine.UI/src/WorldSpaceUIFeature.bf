@@ -6,7 +6,7 @@ using Sedulous.Render;
 using Sedulous.RenderGraph;
 using Sedulous.RHI;
 using Sedulous.Drawing;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using Sedulous.Profiler;
 
 /// Render feature that renders world-space UI panels to their textures.

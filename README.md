@@ -44,9 +44,9 @@ Sedulous-Serenity/
 │   │   ├── SDL3-Beef/          # SDL3 bindings
 │   │   ├── SDL3_mixer-Beef/    # SDL3_mixer bindings
 │   │   └── SDL3_image-Beef/    # SDL3_image bindings
-│   ├── Sedulous/               # Framework libraries
-│   │   ├── Sedulous.Foundation/
-│   │   ├── Sedulous.Foundation.Mathematics/
+│   ├── Foundation/               # Framework libraries
+│   │   ├── Sedulous.Core/
+│   │   ├── Sedulous.Core.Mathematics/
 │   │   ├── Sedulous.RHI/
 │   │   ├── Sedulous.RHI.Vulkan/
 │   │   ├── Sedulous.Engine.Renderer/

@@ -1,7 +1,7 @@
 namespace RHIQueries;
 
 using System;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
 using SampleFramework;
 using Sedulous.Shell.Input;

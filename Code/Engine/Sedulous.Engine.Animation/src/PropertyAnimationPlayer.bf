@@ -2,7 +2,7 @@ namespace Sedulous.Engine.Animation;
 
 using System;
 using Sedulous.Animation;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using Sedulous.Engine.Scenes;
 
 /// Playback state for a property animation.

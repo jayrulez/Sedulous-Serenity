@@ -31,4 +31,4 @@ AudioSample.exe
 
 - Sedulous.Engine.Audio
 - Sedulous.Engine.Audio.SDL3
-- Sedulous.Foundation.Mathematics
+- Sedulous.Core.Mathematics

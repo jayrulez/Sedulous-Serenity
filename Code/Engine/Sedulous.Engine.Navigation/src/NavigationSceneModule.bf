@@ -4,7 +4,7 @@ using System;
 using System.Collections;
 using Sedulous.Engine.Scenes;
 using Sedulous.Engine.Render;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using Sedulous.Render;
 using recastnavigation_Beef;
 

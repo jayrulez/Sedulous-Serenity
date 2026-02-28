@@ -3,9 +3,9 @@ namespace Sedulous.Editor.App;
 using System;
 using System.Collections;
 using Sedulous.GUI;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using Sedulous.Editor.Core;
-using Sedulous.Foundation.Core;
+using Sedulous.Core.Core;
 using Sedulous.Drawing;
 
 /// A tab item for the DocumentTabStrip.

@@ -7,5 +7,5 @@ TargetType = "BeefLib"
 [Dependencies]
 corlib = "*"
 "StormTactics.Core" = "*"
-"Sedulous.Foundation" = "*"
-"Sedulous.Foundation.Mathematics" = "*"
+"Sedulous.Core" = "*"
+"Sedulous.Core.Mathematics" = "*"

@@ -5,7 +5,7 @@ using System.Collections;
 using Sedulous.Audio;
 using Sedulous.Engine.Core;
 using Sedulous.Engine.Scenes;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 
 /// Audio subsystem that manages audio playback and integrates with Sedulous.Audio.
 /// Backend (e.g., SDL3AudioSystem) is injected via constructor.

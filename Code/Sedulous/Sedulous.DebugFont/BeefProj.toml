@@ -1,7 +1,0 @@
-FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Foundation.Mathematics" = "*"}
-
-[Project]
-Name = "Sedulous.DebugFont"
-TargetType = "BeefLib"
-StartupObject = "Sedulous.DebugFont.Program"

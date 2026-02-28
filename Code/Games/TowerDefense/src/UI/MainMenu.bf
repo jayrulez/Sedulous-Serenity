@@ -3,8 +3,8 @@ namespace TowerDefense.UI;
 using System;
 using Sedulous.GUI;
 using Sedulous.Drawing;
-using Sedulous.Foundation.Mathematics;
-using Sedulous.Foundation.Core;
+using Sedulous.Core.Mathematics;
+using Sedulous.Core.Core;
 
 /// Delegate for menu action events.
 delegate void MenuActionDelegate();

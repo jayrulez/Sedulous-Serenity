@@ -2,7 +2,7 @@ namespace FrameworkNavigation;
 
 using System;
 using System.Collections;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using Sedulous.Engine.Runtime;
 using Sedulous.Engine.Core;
 using Sedulous.Engine.Scenes;

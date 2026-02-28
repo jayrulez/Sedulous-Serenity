@@ -2,7 +2,7 @@ namespace TowerDefense.Towers;
 
 using System;
 using System.Collections;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using Sedulous.Geometry;
 using Sedulous.Geometry.Resources;
 using Sedulous.Resources;
@@ -10,7 +10,7 @@ using Sedulous.Materials;
 using Sedulous.Render;
 using Sedulous.Engine.Scenes;
 using Sedulous.Engine.Render;
-using Sedulous.Foundation.Core;
+using Sedulous.Core.Core;
 using TowerDefense.Data;
 using TowerDefense.Audio;
 using TowerDefense.Components;

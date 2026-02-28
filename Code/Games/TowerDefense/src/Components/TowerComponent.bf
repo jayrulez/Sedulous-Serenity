@@ -2,7 +2,7 @@ namespace TowerDefense.Components;
 
 using System;
 using Sedulous.Engine.Scenes;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using TowerDefense.Data;
 
 /// Simple reference class for legacy delegate compatibility.

@@ -3,7 +3,7 @@ namespace Sedulous.Engine.Scenes.Tests;
 using System;
 using System.Collections;
 using Sedulous.Engine.Scenes;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 
 class HierarchyTests
 {

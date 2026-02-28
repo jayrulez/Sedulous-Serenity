@@ -534,7 +534,7 @@ class MySample : RHISampleApp
 ## Project Structure
 
 ```
-Code/Sedulous/Sedulous.RHI/src/
+Code/Foundation/Sedulous.RHI/src/
 ├── IBackend.bf              - Backend interface
 ├── IDevice.bf               - Device interface (resource creation)
 ├── IAdapter.bf              - GPU adapter interface
@@ -569,7 +569,7 @@ Code/Sedulous/Sedulous.RHI/src/
 │   └── ...
 └── ShaderUtils.bf           - Shader loading utilities
 
-Code/Sedulous/Sedulous.RHI.Vulkan/src/
+Code/Foundation/Sedulous.RHI.Vulkan/src/
 └── VulkanBackend.bf         - Vulkan implementation
 
 Code/Samples/SampleFramework/src/

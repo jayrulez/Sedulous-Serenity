@@ -2,7 +2,7 @@ namespace StormTactics.Client;
 
 using System;
 using System.Collections;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using StormTactics.Battle;
 using StormTactics.Core;
 using Sedulous.Engine.Scenes;

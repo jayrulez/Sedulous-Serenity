@@ -3,7 +3,7 @@ using System.Collections;
 using System.IO;
 using Sedulous.Audio;
 using Sedulous.Audio.SDL3;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using SDL3;
 
 namespace AudioSample;

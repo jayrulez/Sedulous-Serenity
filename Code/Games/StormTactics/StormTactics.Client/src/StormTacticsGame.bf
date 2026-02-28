@@ -6,7 +6,7 @@ using System.IO;
 using Sedulous.Shell;
 using Sedulous.Shell.Input;
 using Sedulous.RHI;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using Sedulous.Engine.Runtime;
 using Sedulous.Engine.Core;
 using Sedulous.Engine.Scenes;

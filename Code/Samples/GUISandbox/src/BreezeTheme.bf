@@ -3,7 +3,7 @@ namespace GUISandbox;
 using System;
 using System.IO;
 using System.Collections;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using Sedulous.GUI;
 using Sedulous.Drawing;
 using Sedulous.Imaging;

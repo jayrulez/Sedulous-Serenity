@@ -2,10 +2,10 @@ namespace Platformer.Effects;
 
 using System;
 using System.Collections;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
 using Sedulous.Render;
-using Sedulous.Foundation.Logging.Abstractions;
+using Sedulous.Core.Logging.Abstractions;
 
 /// Manages particle effects for the platformer game.
 /// Creates one-shot burst effects for coin collect, dust, and enemy death.

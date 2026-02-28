@@ -393,7 +393,7 @@ else
 ## Project Structure
 
 ```
-Code/Sedulous/Sedulous.Models/src/
+Code/Foundation/Sedulous.Models/src/
 ├── Model.bf               - Root model container
 ├── ModelMesh.bf           - Mesh geometry
 ├── ModelMeshPart.bf       - Sub-mesh definition
@@ -415,11 +415,11 @@ Code/Sedulous/Sedulous.Models/src/
 ├── TextureSampler.bf      - Sampler settings
 └── TextureEnums.bf        - Texture enums
 
-Code/Sedulous/Sedulous.Models.GLTF/src/
+Code/Foundation/Sedulous.Models.GLTF/src/
 ├── GltfLoader.bf          - GLTF/GLB parser
 └── GltfResult.bf          - Result enum
 
-Code/Sedulous/Sedulous.Geometry.Tooling/src/
+Code/Foundation/Sedulous.Geometry.Tooling/src/
 ├── ModelImporter.bf       - Import pipeline
 ├── ModelImportOptions.bf  - Import configuration
 ├── ModelImportResult.bf   - Import output

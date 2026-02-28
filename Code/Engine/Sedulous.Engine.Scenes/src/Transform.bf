@@ -1,6 +1,6 @@
 namespace Sedulous.Engine.Scenes;
 
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 
 /// Local transform data containing position, rotation, and scale.
 /// This is the user-facing transform struct for getting/setting entity transforms.

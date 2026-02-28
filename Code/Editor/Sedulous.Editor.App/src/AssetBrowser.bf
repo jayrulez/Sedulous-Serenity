@@ -4,9 +4,9 @@ using System;
 using System.Collections;
 using System.IO;
 using Sedulous.GUI;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using Sedulous.Editor.Core;
-using Sedulous.Foundation.Core;
+using Sedulous.Core.Core;
 
 /// View mode for the asset browser.
 public enum AssetBrowserViewMode

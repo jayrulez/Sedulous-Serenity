@@ -3,8 +3,8 @@ namespace Sedulous.Editor.Runner;
 using System;
 using Sedulous.Editor.App;
 using Sedulous.Editor.Scenes;
-using Sedulous.Foundation.Logging.Abstractions;
-using Sedulous.Foundation.Logging.Console;
+using Sedulous.Core.Logging.Abstractions;
+using Sedulous.Core.Logging.Console;
 
 class Program
 {

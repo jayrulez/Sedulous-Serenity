@@ -1,6 +1,0 @@
-FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Foundation.Mathematics" = "*"}
-
-[Project]
-Name = "Sedulous.Physics"
-TargetType = "BeefLib"

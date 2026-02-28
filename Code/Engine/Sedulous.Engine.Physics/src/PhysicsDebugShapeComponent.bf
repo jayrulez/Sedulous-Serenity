@@ -2,7 +2,7 @@ namespace Sedulous.Engine.Physics;
 
 using System;
 using Sedulous.Engine.Scenes;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using Sedulous.Serialization;
 
 /// Shape type for debug drawing.

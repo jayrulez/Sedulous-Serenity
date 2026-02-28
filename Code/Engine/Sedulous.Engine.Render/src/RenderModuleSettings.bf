@@ -1,12 +1,12 @@
 namespace Sedulous.Engine.Render;
 
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using Sedulous.Serialization;
 using Sedulous.Engine.Scenes;
 using Sedulous.Render;
 using System;
 
-using static Sedulous.Foundation.Mathematics.MathSerializerExtensions;
+using static Sedulous.Core.Mathematics.MathSerializerExtensions;
 
 /// Persistent settings for the render scene module.
 /// Auto-discovered by Scene and serialized in .scene files.

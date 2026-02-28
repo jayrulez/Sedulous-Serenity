@@ -1,0 +1,6 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.Core" = "*", "Sedulous.Core.Mathematics" = "*", "Sedulous.Core.Logging" = "*", "Sedulous.Imaging" = "*", "Sedulous.Fonts" = "*", "Sedulous.Drawing" = "*"}
+
+[Project]
+Name = "Sedulous.UI"
+TargetType = "BeefLib"

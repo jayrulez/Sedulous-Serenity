@@ -1,0 +1,1014 @@
+namespace Sedulous.Render;
+
+using System;
+using System.Collections;
+using Sedulous.Core.Mathematics;
+using Sedulous.Materials;
+using Sedulous.RHI;
+
+/// Container for all renderable objects in a scene.
+/// Manages proxy pools for meshes, lights, particles, etc.
+public class RenderWorld : IDisposable
+{
+	// Proxy pools
+	private ProxyPool<MeshProxy> mMeshProxies = new .() ~ delete _;
+	private ProxyPool<SkinnedMeshProxy> mSkinnedMeshProxies = new .() ~ delete _;
+	private ProxyPool<LightProxy> mLightProxies = new .() ~ delete _;
+	private ProxyPool<CameraProxy> mCameraProxies = new .() ~ delete _;
+	private ProxyPool<ParticleEmitterProxy> mParticleProxies = new .() ~ delete _;
+	private ProxyPool<SpriteProxy> mSpriteProxies = new .() ~ delete _;
+	private ProxyPool<TrailEmitterProxy> mTrailProxies = new .() ~ delete _;
+	private ProxyPool<DecalProxy> mDecalProxies = new .() ~ delete _;
+
+	// Main camera handle
+	private CameraProxyHandle mMainCamera = .Invalid;
+
+	// Environment lighting settings
+	private Vector3 mAmbientColor = .(0.03f, 0.03f, 0.03f);
+	private float mAmbientIntensity = 1.0f;
+	private float mExposure = 1.0f;
+	private bool mEnvironmentDirty = true;
+
+	// Deferred deletion queue for GPU-referenced resources
+	struct PendingEmitterDeletion
+	{
+		public CPUParticleEmitter Emitter;
+		public int32 FramesRemaining;
+	}
+	struct PendingTrailDeletion
+	{
+		public TrailEmitter Emitter;
+		public int32 FramesRemaining;
+	}
+	private List<PendingEmitterDeletion> mPendingEmitterDeletions = new .() ~ {
+		for (let pending in _)
+			delete pending.Emitter;
+		delete _;
+	};
+	private List<PendingTrailDeletion> mPendingTrailDeletions = new .() ~ {
+		for (let pending in _)
+			delete pending.Emitter;
+		delete _;
+	};
+
+	// Dirty tracking
+	private bool mMeshesDirty = false;
+	private bool mSkinnedMeshesDirty = false;
+	private bool mLightsDirty = false;
+	private bool mCamerasDirty = false;
+	private bool mParticlesDirty = false;
+	private bool mSpritesDirty = false;
+	private bool mTrailsDirty = false;
+	private bool mDecalsDirty = false;
+
+	/// Gets the mesh proxy pool.
+	public ProxyPool<MeshProxy> MeshProxies => mMeshProxies;
+
+	/// Gets the skinned mesh proxy pool.
+	public ProxyPool<SkinnedMeshProxy> SkinnedMeshProxies => mSkinnedMeshProxies;
+
+	/// Gets the light proxy pool.
+	public ProxyPool<LightProxy> LightProxies => mLightProxies;
+
+	/// Gets the camera proxy pool.
+	public ProxyPool<CameraProxy> CameraProxies => mCameraProxies;
+
+	/// Gets the particle emitter proxy pool.
+	public ProxyPool<ParticleEmitterProxy> ParticleProxies => mParticleProxies;
+
+	/// Gets the sprite proxy pool.
+	public ProxyPool<SpriteProxy> SpriteProxies => mSpriteProxies;
+
+	/// Gets the decal proxy pool.
+	public ProxyPool<DecalProxy> DecalProxies => mDecalProxies;
+
+	/// Gets the main camera handle.
+	public CameraProxyHandle MainCamera => mMainCamera;
+
+	/// Gets the number of active meshes.
+	public int32 MeshCount => mMeshProxies.ActiveCount;
+
+	/// Gets the number of active skinned meshes.
+	public int32 SkinnedMeshCount => mSkinnedMeshProxies.ActiveCount;
+
+	/// Gets the number of active lights.
+	public int32 LightCount => mLightProxies.ActiveCount;
+
+	/// Gets the number of active cameras.
+	public int32 CameraCount => mCameraProxies.ActiveCount;
+
+	/// Gets the number of active particle emitters.
+	public int32 ParticleEmitterCount => mParticleProxies.ActiveCount;
+
+	/// Gets the number of active sprites.
+	public int32 SpriteCount => mSpriteProxies.ActiveCount;
+
+	/// Whether any meshes have changed.
+	public bool MeshesDirty => mMeshesDirty;
+
+	/// Whether any skinned meshes have changed.
+	public bool SkinnedMeshesDirty => mSkinnedMeshesDirty;
+
+	/// Whether any lights have changed.
+	public bool LightsDirty => mLightsDirty;
+
+	/// Whether any cameras have changed.
+	public bool CamerasDirty => mCamerasDirty;
+
+	/// Whether any particles have changed.
+	public bool ParticlesDirty => mParticlesDirty;
+
+	/// Gets the number of active decals.
+	public int32 DecalCount => mDecalProxies.ActiveCount;
+
+	/// Whether any sprites have changed.
+	public bool SpritesDirty => mSpritesDirty;
+
+	/// Whether any decals have changed.
+	public bool DecalsDirty => mDecalsDirty;
+
+	/// Whether environment settings have changed.
+	public bool EnvironmentDirty => mEnvironmentDirty;
+
+	// ========================================================================
+	// Environment Lighting API
+	// ========================================================================
+
+	/// Gets or sets the ambient light color.
+	public Vector3 AmbientColor
+	{
+		get => mAmbientColor;
+		set { mAmbientColor = value; mEnvironmentDirty = true; }
+	}
+
+	/// Gets or sets the ambient light intensity.
+	public float AmbientIntensity
+	{
+		get => mAmbientIntensity;
+		set { mAmbientIntensity = value; mEnvironmentDirty = true; }
+	}
+
+	/// Gets or sets the exposure value for tonemapping.
+	public float Exposure
+	{
+		get => mExposure;
+		set { mExposure = value; mEnvironmentDirty = true; }
+	}
+
+	/// Clears the environment dirty flag.
+	public void ClearEnvironmentDirty() { mEnvironmentDirty = false; }
+
+	// ========================================================================
+	// Mesh API
+	// ========================================================================
+
+	/// Creates a new mesh proxy.
+	public MeshProxyHandle CreateMesh()
+	{
+		let handle = mMeshProxies.Allocate();
+		var proxy = mMeshProxies.Get(handle);
+		proxy.Reset();
+		proxy.IsActive = true;
+		proxy.Generation = handle.Generation;
+		proxy.Flags = .DefaultOpaque;
+		mMeshesDirty = true;
+		return .() { Handle = handle };
+	}
+
+	/// Gets a mesh proxy by handle.
+	public MeshProxy* GetMesh(MeshProxyHandle handle)
+	{
+		return mMeshProxies.Get(handle.Handle);
+	}
+
+	/// Gets a reference to a mesh proxy.
+	public ref MeshProxy GetMeshRef(MeshProxyHandle handle)
+	{
+		return ref mMeshProxies.GetRef(handle.Handle);
+	}
+
+	/// Destroys a mesh proxy.
+	public void DestroyMesh(MeshProxyHandle handle)
+	{
+		if (mMeshProxies.TryGet(handle.Handle, let proxy))
+		{
+			proxy.Reset();
+		}
+		mMeshProxies.Free(handle.Handle);
+		mMeshesDirty = true;
+	}
+
+	/// Sets mesh transform.
+	public void SetMeshTransform(MeshProxyHandle handle, Matrix worldMatrix)
+	{
+		if (let proxy = mMeshProxies.Get(handle.Handle))
+		{
+			proxy.SetTransform(worldMatrix);
+			mMeshesDirty = true;
+		}
+	}
+
+	/// Sets mesh GPU handle and bounds.
+	public void SetMeshData(MeshProxyHandle handle, GPUMeshHandle meshHandle, BoundingBox localBounds)
+	{
+		if (let proxy = mMeshProxies.Get(handle.Handle))
+		{
+			proxy.MeshHandle = meshHandle;
+			proxy.SetLocalBounds(localBounds);
+			mMeshesDirty = true;
+		}
+	}
+
+	/// Sets mesh material for a specific slot.
+	public void SetMeshMaterial(MeshProxyHandle handle, int32 slot, MaterialInstance material)
+	{
+		if (let proxy = mMeshProxies.Get(handle.Handle))
+		{
+			if (slot >= 0 && slot < RenderConfig.MaxMaterialsPerMesh)
+			{
+				proxy.Materials[slot] = material;
+				if (slot >= proxy.MaterialCount)
+					proxy.MaterialCount = slot + 1;
+				mMeshesDirty = true;
+			}
+		}
+	}
+
+	/// Sets mesh material (slot 0 convenience overload).
+	public void SetMeshMaterial(MeshProxyHandle handle, MaterialInstance material)
+	{
+		SetMeshMaterial(handle, 0, material);
+	}
+
+	/// Sets mesh flags.
+	public void SetMeshFlags(MeshProxyHandle handle, MeshFlags flags)
+	{
+		if (let proxy = mMeshProxies.Get(handle.Handle))
+		{
+			proxy.Flags = flags;
+			mMeshesDirty = true;
+		}
+	}
+
+	/// Iterates over all active meshes.
+	public void ForEachMesh(ProxyCallback<MeshProxy> callback)
+	{
+		mMeshProxies.ForEach(callback);
+	}
+
+	// ========================================================================
+	// Skinned Mesh API
+	// ========================================================================
+
+	/// Creates a new skinned mesh proxy.
+	public SkinnedMeshProxyHandle CreateSkinnedMesh()
+	{
+		let handle = mSkinnedMeshProxies.Allocate();
+		var proxy = mSkinnedMeshProxies.Get(handle);
+		proxy.Reset();
+		proxy.IsActive = true;
+		proxy.Generation = handle.Generation;
+		proxy.Flags = .DefaultOpaque;
+		mSkinnedMeshesDirty = true;
+		return .() { Handle = handle };
+	}
+
+	/// Gets a skinned mesh proxy by handle.
+	public SkinnedMeshProxy* GetSkinnedMesh(SkinnedMeshProxyHandle handle)
+	{
+		return mSkinnedMeshProxies.Get(handle.Handle);
+	}
+
+	/// Gets a reference to a skinned mesh proxy.
+	public ref SkinnedMeshProxy GetSkinnedMeshRef(SkinnedMeshProxyHandle handle)
+	{
+		return ref mSkinnedMeshProxies.GetRef(handle.Handle);
+	}
+
+	/// Destroys a skinned mesh proxy.
+	public void DestroySkinnedMesh(SkinnedMeshProxyHandle handle)
+	{
+		if (mSkinnedMeshProxies.TryGet(handle.Handle, let proxy))
+		{
+			proxy.Reset();
+		}
+		mSkinnedMeshProxies.Free(handle.Handle);
+		mSkinnedMeshesDirty = true;
+	}
+
+	/// Sets skinned mesh transform.
+	public void SetSkinnedMeshTransform(SkinnedMeshProxyHandle handle, Matrix worldMatrix)
+	{
+		if (let proxy = GetSkinnedMesh(handle))
+		{
+			proxy.SetTransform(worldMatrix);
+			mSkinnedMeshesDirty = true;
+		}
+	}
+
+	/// Sets skinned mesh GPU handles and bounds.
+	public void SetSkinnedMeshData(SkinnedMeshProxyHandle handle, GPUMeshHandle meshHandle, GPUBoneBufferHandle boneBufferHandle, BoundingBox localBounds, uint16 boneCount)
+	{
+		if (let proxy = GetSkinnedMesh(handle))
+		{
+			proxy.MeshHandle = meshHandle;
+			proxy.BoneBufferHandle = boneBufferHandle;
+			proxy.BoneCount = boneCount;
+			proxy.SetLocalBounds(localBounds);
+			mSkinnedMeshesDirty = true;
+		}
+	}
+
+	/// Sets skinned mesh material for a specific slot.
+	public void SetSkinnedMeshMaterial(SkinnedMeshProxyHandle handle, int32 slot, MaterialInstance material)
+	{
+		if (let proxy = GetSkinnedMesh(handle))
+		{
+			if (slot >= 0 && slot < RenderConfig.MaxMaterialsPerMesh)
+			{
+				proxy.Materials[slot] = material;
+				if (slot >= proxy.MaterialCount)
+					proxy.MaterialCount = slot + 1;
+				mSkinnedMeshesDirty = true;
+			}
+		}
+	}
+
+	/// Sets skinned mesh material (slot 0 convenience overload).
+	public void SetSkinnedMeshMaterial(SkinnedMeshProxyHandle handle, MaterialInstance material)
+	{
+		SetSkinnedMeshMaterial(handle, 0, material);
+	}
+
+	/// Sets skinned mesh flags.
+	public void SetSkinnedMeshFlags(SkinnedMeshProxyHandle handle, MeshFlags flags)
+	{
+		if (let proxy = GetSkinnedMesh(handle))
+		{
+			proxy.Flags = flags;
+			mSkinnedMeshesDirty = true;
+		}
+	}
+
+	/// Marks skinned mesh bones as dirty (need GPU upload).
+	public void MarkSkinnedMeshBonesDirty(SkinnedMeshProxyHandle handle)
+	{
+		if (let proxy = GetSkinnedMesh(handle))
+		{
+			proxy.MarkBonesDirty();
+			mSkinnedMeshesDirty = true;
+		}
+	}
+
+	/// Iterates over all active skinned meshes.
+	public void ForEachSkinnedMesh(ProxyCallback<SkinnedMeshProxy> callback)
+	{
+		mSkinnedMeshProxies.ForEach(callback);
+	}
+
+	// ========================================================================
+	// Light API
+	// ========================================================================
+
+	/// Creates a new light proxy.
+	public LightProxyHandle CreateLight(LightType type = .Point)
+	{
+		let handle = mLightProxies.Allocate();
+		var proxy = mLightProxies.Get(handle);
+		proxy.Reset();
+		proxy.Type = type;
+		proxy.IsActive = true;
+		proxy.IsEnabled = true;
+		proxy.Generation = handle.Generation;
+		mLightsDirty = true;
+		return .() { Handle = handle };
+	}
+
+	/// Creates a directional light.
+	public LightProxyHandle CreateDirectionalLight(Vector3 direction, Vector3 color, float intensity)
+	{
+		let handle = CreateLight(.Directional);
+		if (let proxy = mLightProxies.Get(handle.Handle))
+		{
+			*proxy = LightProxy.CreateDirectional(direction, color, intensity);
+			proxy.IsActive = true;
+			proxy.Generation = handle.Handle.Generation;
+		}
+		return handle;
+	}
+
+	/// Creates a point light.
+	public LightProxyHandle CreatePointLight(Vector3 position, Vector3 color, float intensity, float range)
+	{
+		let handle = CreateLight(.Point);
+		if (let proxy = mLightProxies.Get(handle.Handle))
+		{
+			*proxy = LightProxy.CreatePoint(position, color, intensity, range);
+			proxy.IsActive = true;
+			proxy.Generation = handle.Handle.Generation;
+		}
+		return handle;
+	}
+
+	/// Creates a spot light.
+	public LightProxyHandle CreateSpotLight(Vector3 position, Vector3 direction, Vector3 color, float intensity, float range, float innerAngle, float outerAngle)
+	{
+		let handle = CreateLight(.Spot);
+		if (let proxy = mLightProxies.Get(handle.Handle))
+		{
+			*proxy = LightProxy.CreateSpot(position, direction, color, intensity, range, innerAngle, outerAngle);
+			proxy.IsActive = true;
+			proxy.Generation = handle.Handle.Generation;
+		}
+		return handle;
+	}
+
+	/// Gets a light proxy by handle.
+	public LightProxy* GetLight(LightProxyHandle handle)
+	{
+		return mLightProxies.Get(handle.Handle);
+	}
+
+	/// Gets a reference to a light proxy.
+	public ref LightProxy GetLightRef(LightProxyHandle handle)
+	{
+		return ref mLightProxies.GetRef(handle.Handle);
+	}
+
+	/// Destroys a light proxy.
+	public void DestroyLight(LightProxyHandle handle)
+	{
+		if (mLightProxies.TryGet(handle.Handle, let proxy))
+		{
+			proxy.Reset();
+		}
+		mLightProxies.Free(handle.Handle);
+		mLightsDirty = true;
+	}
+
+	/// Sets light position.
+	public void SetLightPosition(LightProxyHandle handle, Vector3 position)
+	{
+		if (let proxy = mLightProxies.Get(handle.Handle))
+		{
+			proxy.Position = position;
+			mLightsDirty = true;
+		}
+	}
+
+	/// Sets light direction.
+	public void SetLightDirection(LightProxyHandle handle, Vector3 direction)
+	{
+		if (let proxy = mLightProxies.Get(handle.Handle))
+		{
+			proxy.Direction = Vector3.Normalize(direction);
+			mLightsDirty = true;
+		}
+	}
+
+	/// Sets light color and intensity.
+	public void SetLightColor(LightProxyHandle handle, Vector3 color, float intensity)
+	{
+		if (let proxy = mLightProxies.Get(handle.Handle))
+		{
+			proxy.Color = color;
+			proxy.Intensity = intensity;
+			mLightsDirty = true;
+		}
+	}
+
+	/// Enables or disables a light.
+	public void SetLightEnabled(LightProxyHandle handle, bool enabled)
+	{
+		if (let proxy = mLightProxies.Get(handle.Handle))
+		{
+			proxy.IsEnabled = enabled;
+			mLightsDirty = true;
+		}
+	}
+
+	/// Iterates over all active lights.
+	public void ForEachLight(ProxyCallback<LightProxy> callback)
+	{
+		mLightProxies.ForEach(callback);
+	}
+
+	// ========================================================================
+	// Camera API
+	// ========================================================================
+
+	/// Creates a new camera proxy.
+	public CameraProxyHandle CreateCamera()
+	{
+		let handle = mCameraProxies.Allocate();
+		var proxy = mCameraProxies.Get(handle);
+		proxy.Reset();
+		proxy.IsActive = true;
+		proxy.Generation = handle.Generation;
+		mCamerasDirty = true;
+		return .() { Handle = handle };
+	}
+
+	/// Creates a perspective camera.
+	public CameraProxyHandle CreatePerspectiveCamera(Vector3 position, Vector3 target, Vector3 up, float fov, float aspectRatio, float nearPlane, float farPlane)
+	{
+		let handle = CreateCamera();
+		if (let proxy = mCameraProxies.Get(handle.Handle))
+		{
+			*proxy = CameraProxy.CreatePerspective(position, target, up, fov, aspectRatio, nearPlane, farPlane);
+			proxy.IsActive = true;
+			proxy.Generation = handle.Handle.Generation;
+		}
+		return handle;
+	}
+
+	/// Creates an orthographic camera.
+	public CameraProxyHandle CreateOrthographicCamera(Vector3 position, Vector3 target, Vector3 up, float width, float height, float nearPlane, float farPlane)
+	{
+		let handle = CreateCamera();
+		if (let proxy = mCameraProxies.Get(handle.Handle))
+		{
+			*proxy = CameraProxy.CreateOrthographic(position, target, up, width, height, nearPlane, farPlane);
+			proxy.IsActive = true;
+			proxy.Generation = handle.Handle.Generation;
+		}
+		return handle;
+	}
+
+	/// Gets a camera proxy by handle.
+	public CameraProxy* GetCamera(CameraProxyHandle handle)
+	{
+		return mCameraProxies.Get(handle.Handle);
+	}
+
+	/// Gets a reference to a camera proxy.
+	public ref CameraProxy GetCameraRef(CameraProxyHandle handle)
+	{
+		return ref mCameraProxies.GetRef(handle.Handle);
+	}
+
+	/// Destroys a camera proxy.
+	public void DestroyCamera(CameraProxyHandle handle)
+	{
+		// If this was the main camera, clear it
+		if (mMainCamera == handle)
+			mMainCamera = .Invalid;
+
+		if (mCameraProxies.TryGet(handle.Handle, let proxy))
+		{
+			proxy.Reset();
+		}
+		mCameraProxies.Free(handle.Handle);
+		mCamerasDirty = true;
+	}
+
+	/// Sets the main camera.
+	public void SetMainCamera(CameraProxyHandle handle)
+	{
+		mMainCamera = handle;
+		if (let proxy = mCameraProxies.Get(handle.Handle))
+		{
+			proxy.IsMainCamera = true;
+		}
+		mCamerasDirty = true;
+	}
+
+	/// Sets camera position and orientation using look-at.
+	public void SetCameraLookAt(CameraProxyHandle handle, Vector3 position, Vector3 target, Vector3 up)
+	{
+		if (let proxy = mCameraProxies.Get(handle.Handle))
+		{
+			proxy.SetLookAt(position, target, up);
+			mCamerasDirty = true;
+		}
+	}
+
+	/// Sets camera position and direction.
+	public void SetCameraPositionDirection(CameraProxyHandle handle, Vector3 position, Vector3 forward, Vector3 up)
+	{
+		if (let proxy = mCameraProxies.Get(handle.Handle))
+		{
+			proxy.SetPositionDirection(position, forward, up);
+			mCamerasDirty = true;
+		}
+	}
+
+	/// Updates camera matrices. Should be called after changing position/orientation.
+	public void UpdateCameraMatrices(CameraProxyHandle handle, bool flipY = false)
+	{
+		if (let proxy = mCameraProxies.Get(handle.Handle))
+		{
+			proxy.UpdateMatrices(flipY);
+			mCamerasDirty = true;
+		}
+	}
+
+	/// Sets camera TAA jitter for the current frame.
+	public void SetCameraJitter(CameraProxyHandle handle, Vector2 pixelOffset, uint32 viewportWidth, uint32 viewportHeight)
+	{
+		if (let proxy = mCameraProxies.Get(handle.Handle))
+		{
+			proxy.SetJitter(pixelOffset, viewportWidth, viewportHeight);
+			mCamerasDirty = true;
+		}
+	}
+
+	/// Iterates over all active cameras.
+	public void ForEachCamera(ProxyCallback<CameraProxy> callback)
+	{
+		mCameraProxies.ForEach(callback);
+	}
+
+	// ========================================================================
+	// Particle API
+	// ========================================================================
+
+	/// Creates a new particle emitter proxy.
+	/// When backend is CPU, a CPUParticleEmitter is created automatically.
+	public ParticleEmitterProxyHandle CreateParticleEmitter(IDevice device = null, ParticleSimulationBackend backend = .CPU, int32 maxParticles = 500)
+	{
+		let handle = mParticleProxies.Allocate();
+		var proxy = mParticleProxies.Get(handle);
+		*proxy = ParticleEmitterProxy.CreateDefault();
+		proxy.Backend = backend;
+		proxy.MaxParticles = (uint32)maxParticles;
+		if (backend == .CPU && device != null)
+			proxy.CPUEmitter = new CPUParticleEmitter(device, maxParticles);
+		proxy.IsActive = true;
+		proxy.Generation = handle.Generation;
+		mParticlesDirty = true;
+		return .() { Handle = handle };
+	}
+
+	/// Gets a particle emitter proxy by handle.
+	public ParticleEmitterProxy* GetParticleEmitter(ParticleEmitterProxyHandle handle)
+	{
+		return mParticleProxies.Get(handle.Handle);
+	}
+
+	/// Gets a reference to a particle emitter proxy.
+	public ref ParticleEmitterProxy GetParticleEmitterRef(ParticleEmitterProxyHandle handle)
+	{
+		return ref mParticleProxies.GetRef(handle.Handle);
+	}
+
+	/// Destroys a particle emitter proxy.
+	/// CPU emitter buffers are deferred for deletion to avoid destroying
+	/// GPU resources that may still be referenced by in-flight command buffers.
+	public void DestroyParticleEmitter(ParticleEmitterProxyHandle handle)
+	{
+		if (mParticleProxies.TryGet(handle.Handle, let proxy))
+		{
+			if (proxy.CPUEmitter != null)
+			{
+				// Defer deletion until in-flight frames have completed
+				var pending = PendingEmitterDeletion();
+				pending.Emitter = proxy.CPUEmitter;
+				pending.FramesRemaining = RenderConfig.FrameBufferCount + 1;
+				mPendingEmitterDeletions.Add(pending);
+				proxy.CPUEmitter = null;
+			}
+			proxy.Reset();
+		}
+		mParticleProxies.Free(handle.Handle);
+		mParticlesDirty = true;
+	}
+
+	/// Processes deferred deletions. Call once per frame from the render system.
+	public void ProcessDeferredDeletions()
+	{
+		for (int32 i = (int32)mPendingEmitterDeletions.Count - 1; i >= 0; i--)
+		{
+			var pending = ref mPendingEmitterDeletions[i];
+			pending.FramesRemaining--;
+			if (pending.FramesRemaining <= 0)
+			{
+				delete pending.Emitter;
+				mPendingEmitterDeletions.RemoveAt(i);
+			}
+		}
+
+		for (int32 i = (int32)mPendingTrailDeletions.Count - 1; i >= 0; i--)
+		{
+			var pending = ref mPendingTrailDeletions[i];
+			pending.FramesRemaining--;
+			if (pending.FramesRemaining <= 0)
+			{
+				delete pending.Emitter;
+				mPendingTrailDeletions.RemoveAt(i);
+			}
+		}
+	}
+
+	/// Sets particle emitter position.
+	public void SetParticleEmitterPosition(ParticleEmitterProxyHandle handle, Vector3 position)
+	{
+		if (let proxy = mParticleProxies.Get(handle.Handle))
+		{
+			proxy.SetPosition(position);
+			mParticlesDirty = true;
+		}
+	}
+
+	/// Iterates over all active particle emitters.
+	public void ForEachParticleEmitter(ProxyCallback<ParticleEmitterProxy> callback)
+	{
+		mParticleProxies.ForEach(callback);
+	}
+
+	// ========================================================================
+	// Sprite API
+	// ========================================================================
+
+	/// Creates a new sprite proxy.
+	public SpriteProxyHandle CreateSprite()
+	{
+		let handle = mSpriteProxies.Allocate();
+		var proxy = mSpriteProxies.Get(handle);
+		*proxy = SpriteProxy.CreateDefault();
+		proxy.IsActive = true;
+		proxy.Generation = handle.Generation;
+		mSpritesDirty = true;
+		return .() { Handle = handle };
+	}
+
+	/// Gets a sprite proxy by handle.
+	public SpriteProxy* GetSprite(SpriteProxyHandle handle)
+	{
+		return mSpriteProxies.Get(handle.Handle);
+	}
+
+	/// Gets a reference to a sprite proxy.
+	public ref SpriteProxy GetSpriteRef(SpriteProxyHandle handle)
+	{
+		return ref mSpriteProxies.GetRef(handle.Handle);
+	}
+
+	/// Destroys a sprite proxy.
+	public void DestroySprite(SpriteProxyHandle handle)
+	{
+		if (mSpriteProxies.TryGet(handle.Handle, let proxy))
+		{
+			proxy.Reset();
+		}
+		mSpriteProxies.Free(handle.Handle);
+		mSpritesDirty = true;
+	}
+
+	/// Sets sprite position.
+	public void SetSpritePosition(SpriteProxyHandle handle, Vector3 position)
+	{
+		if (let proxy = mSpriteProxies.Get(handle.Handle))
+		{
+			proxy.Position = position;
+			mSpritesDirty = true;
+		}
+	}
+
+	/// Sets sprite size.
+	public void SetSpriteSize(SpriteProxyHandle handle, Vector2 size)
+	{
+		if (let proxy = mSpriteProxies.Get(handle.Handle))
+		{
+			proxy.Size = size;
+			mSpritesDirty = true;
+		}
+	}
+
+	/// Sets sprite color.
+	public void SetSpriteColor(SpriteProxyHandle handle, Color color)
+	{
+		if (let proxy = mSpriteProxies.Get(handle.Handle))
+		{
+			proxy.Color = color;
+			mSpritesDirty = true;
+		}
+	}
+
+	/// Sets sprite texture.
+	public void SetSpriteTexture(SpriteProxyHandle handle, ITextureView texture)
+	{
+		if (let proxy = mSpriteProxies.Get(handle.Handle))
+		{
+			proxy.Texture = texture;
+			mSpritesDirty = true;
+		}
+	}
+
+	/// Sets sprite UV rect for atlas sub-regions.
+	public void SetSpriteUVRect(SpriteProxyHandle handle, Vector4 uvRect)
+	{
+		if (let proxy = mSpriteProxies.Get(handle.Handle))
+		{
+			proxy.UVRect = uvRect;
+			mSpritesDirty = true;
+		}
+	}
+
+	/// Iterates over all active sprites.
+	public void ForEachSprite(ProxyCallback<SpriteProxy> callback)
+	{
+		mSpriteProxies.ForEach(callback);
+	}
+
+	// ========================================================================
+	// Trail API
+	// ========================================================================
+
+	/// Creates a new standalone trail emitter proxy.
+	public TrailEmitterProxyHandle CreateTrailEmitter()
+	{
+		let handle = mTrailProxies.Allocate();
+		var proxy = mTrailProxies.Get(handle);
+		*proxy = TrailEmitterProxy.CreateDefault();
+		proxy.IsActive = true;
+		proxy.Generation = handle.Generation;
+		mTrailsDirty = true;
+		return .() { Handle = handle };
+	}
+
+	/// Gets a trail emitter proxy by handle.
+	public TrailEmitterProxy* GetTrailEmitter(TrailEmitterProxyHandle handle)
+	{
+		return mTrailProxies.Get(handle.Handle);
+	}
+
+	/// Destroys a trail emitter proxy.
+	/// Trail emitter buffers are deferred for deletion to avoid destroying
+	/// GPU resources that may still be referenced by in-flight command buffers.
+	public void DestroyTrailEmitter(TrailEmitterProxyHandle handle)
+	{
+		if (mTrailProxies.TryGet(handle.Handle, let proxy))
+		{
+			if (proxy.Emitter != null)
+			{
+				var pending = PendingTrailDeletion();
+				pending.Emitter = proxy.Emitter;
+				pending.FramesRemaining = RenderConfig.FrameBufferCount + 1;
+				mPendingTrailDeletions.Add(pending);
+				proxy.Emitter = null;
+			}
+			proxy.Reset();
+		}
+		mTrailProxies.Free(handle.Handle);
+		mTrailsDirty = true;
+	}
+
+	/// Iterates over all active trail emitters.
+	public void ForEachTrailEmitter(ProxyCallback<TrailEmitterProxy> callback)
+	{
+		mTrailProxies.ForEach(callback);
+	}
+
+	// ========================================================================
+	// Decal API
+	// ========================================================================
+
+	/// Creates a new decal proxy.
+	public DecalProxyHandle CreateDecal()
+	{
+		let handle = mDecalProxies.Allocate();
+		var proxy = mDecalProxies.Get(handle);
+		*proxy = DecalProxy.CreateDefault();
+		proxy.IsActive = true;
+		proxy.Generation = handle.Generation;
+		mDecalsDirty = true;
+		return .() { Handle = handle };
+	}
+
+	/// Gets a decal proxy by handle.
+	public DecalProxy* GetDecal(DecalProxyHandle handle)
+	{
+		return mDecalProxies.Get(handle.Handle);
+	}
+
+	/// Gets a reference to a decal proxy.
+	public ref DecalProxy GetDecalRef(DecalProxyHandle handle)
+	{
+		return ref mDecalProxies.GetRef(handle.Handle);
+	}
+
+	/// Destroys a decal proxy.
+	public void DestroyDecal(DecalProxyHandle handle)
+	{
+		if (mDecalProxies.TryGet(handle.Handle, let proxy))
+		{
+			proxy.Reset();
+		}
+		mDecalProxies.Free(handle.Handle);
+		mDecalsDirty = true;
+	}
+
+	/// Sets decal transform (position, rotation, scale).
+	public void SetDecalTransform(DecalProxyHandle handle, Vector3 position, Quaternion rotation, Vector3 scale)
+	{
+		if (let proxy = mDecalProxies.Get(handle.Handle))
+		{
+			proxy.Position = position;
+			proxy.Rotation = rotation;
+			proxy.Scale = scale;
+			mDecalsDirty = true;
+		}
+	}
+
+	/// Sets decal albedo texture and sampler.
+	public void SetDecalTexture(DecalProxyHandle handle, ITextureView texture, ISampler sampler = null)
+	{
+		if (let proxy = mDecalProxies.Get(handle.Handle))
+		{
+			proxy.AlbedoTexture = texture;
+			proxy.Sampler = sampler;
+			mDecalsDirty = true;
+		}
+	}
+
+	/// Sets decal blend mode.
+	public void SetDecalBlendMode(DecalProxyHandle handle, DecalBlendMode blendMode)
+	{
+		if (let proxy = mDecalProxies.Get(handle.Handle))
+		{
+			proxy.BlendMode = blendMode;
+			mDecalsDirty = true;
+		}
+	}
+
+	/// Enables or disables a decal.
+	public void SetDecalEnabled(DecalProxyHandle handle, bool enabled)
+	{
+		if (let proxy = mDecalProxies.Get(handle.Handle))
+		{
+			proxy.IsActive = enabled;
+			mDecalsDirty = true;
+		}
+	}
+
+	/// Iterates over all active decals.
+	public void ForEachDecal(ProxyCallback<DecalProxy> callback)
+	{
+		mDecalProxies.ForEach(callback);
+	}
+
+	// ========================================================================
+	// General
+	// ========================================================================
+
+	/// Clears dirty flags after processing.
+	public void ClearDirtyFlags()
+	{
+		mMeshesDirty = false;
+		mSkinnedMeshesDirty = false;
+		mLightsDirty = false;
+		mCamerasDirty = false;
+		mParticlesDirty = false;
+		mSpritesDirty = false;
+		mTrailsDirty = false;
+		mDecalsDirty = false;
+	}
+
+	/// Clears all objects from the world.
+	public void Clear()
+	{
+		// Delete owned CPUParticleEmitter instances before clearing proxies
+		mParticleProxies.ForEach(scope (handle, proxy) =>
+		{
+			if (proxy.CPUEmitter != null)
+			{
+				delete proxy.CPUEmitter;
+				proxy.CPUEmitter = null;
+			}
+		});
+
+		// Delete owned standalone trail emitters before clearing
+		mTrailProxies.ForEach(scope (handle, proxy) =>
+		{
+			if (proxy.Emitter != null)
+			{
+				delete proxy.Emitter;
+				proxy.Emitter = null;
+			}
+		});
+
+		mMeshProxies.Clear();
+		mSkinnedMeshProxies.Clear();
+		mLightProxies.Clear();
+		mCameraProxies.Clear();
+		mParticleProxies.Clear();
+		mSpriteProxies.Clear();
+		mTrailProxies.Clear();
+		mDecalProxies.Clear();
+		mMainCamera = .Invalid;
+		mMeshesDirty = true;
+		mSkinnedMeshesDirty = true;
+		mLightsDirty = true;
+		mCamerasDirty = true;
+		mParticlesDirty = true;
+		mSpritesDirty = true;
+		mTrailsDirty = true;
+		mDecalsDirty = true;
+	}
+
+	public void Dispose()
+	{
+		Clear();
+	}
+}

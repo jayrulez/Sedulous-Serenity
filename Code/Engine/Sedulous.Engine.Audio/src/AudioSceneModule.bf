@@ -4,7 +4,7 @@ using System;
 using System.Collections;
 using Sedulous.Audio;
 using Sedulous.Engine.Scenes;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using Sedulous.Serialization;
 
 /// Scene module that manages audio sources for entities.

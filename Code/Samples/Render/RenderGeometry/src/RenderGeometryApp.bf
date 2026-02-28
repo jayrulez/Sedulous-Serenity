@@ -1,7 +1,7 @@
 namespace RenderGeometry;
 
 using System;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
 using Sedulous.Shell;
 using Sedulous.Engine.Runtime;

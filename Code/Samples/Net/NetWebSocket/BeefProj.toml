@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Net" = "*", "Sedulous.Net.HTTP" = "*", "Sedulous.Foundation.Logging" = "*"}
+Dependencies = {corlib = "*", "Sedulous.Net" = "*", "Sedulous.Net.HTTP" = "*", "Sedulous.Core.Logging" = "*"}
 
 [Project]
 Name = "NetWebSocket"

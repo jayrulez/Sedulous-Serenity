@@ -43,4 +43,4 @@ Original resource:
 - Sedulous.Resources
 - Sedulous.Serialization
 - Sedulous.Serialization.OpenDDL
-- Sedulous.Foundation.Mathematics
+- Sedulous.Core.Mathematics

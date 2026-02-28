@@ -4,7 +4,7 @@ using System;
 using System.Collections;
 using Sedulous.Engine.Core;
 using Sedulous.Engine.Scenes;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 using Sedulous.Physics;
 
 /// Delegate for creating physics worlds. Allows backend injection.

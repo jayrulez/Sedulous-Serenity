@@ -3,7 +3,7 @@ namespace Platformer.UI;
 using System;
 using System.Collections;
 using Sedulous.GUI;
-using Sedulous.Foundation.Mathematics;
+using Sedulous.Core.Mathematics;
 
 /// Platformer game theme - bright, colorful, high-contrast.
 class GameTheme : ITheme

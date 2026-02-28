@@ -2,8 +2,8 @@ namespace Sedulous.Editor.Core;
 
 using System;
 using System.Collections;
-using Sedulous.Foundation.Logging.Abstractions;
-using Sedulous.Foundation.Core;
+using Sedulous.Core.Logging.Abstractions;
+using Sedulous.Core.Core;
 
 /// A log entry stored by the editor logger.
 public class LogEntry
