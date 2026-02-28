@@ -194,8 +194,8 @@ class RenderSkyApp : Application
 			.(100, 150, 220, 255),   // top: blue sky
 			.(200, 210, 220, 255),   // horizon: pale blue-white
 			.(80, 70, 60, 255));     // ground: dark earth
-		mWorld.AmbientIntensity = 0.1f;
-		mWorld.Exposure = 0.1f;
+		mWorld.AmbientIntensity = 0.5f;
+		mWorld.Exposure = 0.5f;
 	}
 
 	private void SetSolidColorSky()
