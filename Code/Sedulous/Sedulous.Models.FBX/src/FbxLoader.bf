@@ -236,8 +236,13 @@ public class FbxLoader : IModelLoader
 				material.RoughnessFactor = 0.8f;
 			}
 
-			// Double-sided
-			material.DoubleSided = mat.features.double_sided.enabled;
+			// Double-sided: FBX format doesn't reliably carry the DoubleSided flag
+			// from Blender. When not explicitly set in the file, default to true
+			// to match the behavior of most GLTF exports and avoid incorrect culling.
+			if (mat.features.double_sided.is_explicit)
+				material.DoubleSided = mat.features.double_sided.enabled;
+			else
+				material.DoubleSided = true;
 
 			// Alpha / opacity
 			if (mat.features.opacity.enabled)
