@@ -1,8 +1,8 @@
-namespace Sedulous.Net.Tests;
+namespace Sedulous.Core.Tests;
 
 using System;
 using System.Collections;
-using Sedulous.Net;
+using Sedulous.Core;
 
 class Base64Tests
 {
@@ -15,7 +15,7 @@ class Base64Tests
 	}
 
 	[Test]
-	public static void Encode_OneChar()
+	public static void Encode_OneByte()
 	{
 		// "f" -> "Zg=="
 		uint8[1] data = .((uint8)'f');
@@ -25,7 +25,7 @@ class Base64Tests
 	}
 
 	[Test]
-	public static void Encode_TwoChars()
+	public static void Encode_TwoBytes()
 	{
 		// "fo" -> "Zm8="
 		uint8[2] data = .((uint8)'f', (uint8)'o');
@@ -35,7 +35,7 @@ class Base64Tests
 	}
 
 	[Test]
-	public static void Encode_ThreeChars()
+	public static void Encode_ThreeBytes()
 	{
 		// "foo" -> "Zm9v"
 		uint8[3] data = .((uint8)'f', (uint8)'o', (uint8)'o');
@@ -72,6 +72,27 @@ class Base64Tests
 	}
 
 	[Test]
+	public static void Decode_TwoPadding()
+	{
+		let decoded = scope List<uint8>();
+		Test.Assert(Base64.Decode("Zm8=", decoded) case .Ok);
+		Test.Assert(decoded.Count == 2);
+		Test.Assert(decoded[0] == (uint8)'f');
+		Test.Assert(decoded[1] == (uint8)'o');
+	}
+
+	[Test]
+	public static void Decode_NoPadding()
+	{
+		let decoded = scope List<uint8>();
+		Test.Assert(Base64.Decode("Zm9v", decoded) case .Ok);
+		Test.Assert(decoded.Count == 3);
+		Test.Assert(decoded[0] == (uint8)'f');
+		Test.Assert(decoded[1] == (uint8)'o');
+		Test.Assert(decoded[2] == (uint8)'o');
+	}
+
+	[Test]
 	public static void Decode_Roundtrip()
 	{
 		let original = "The quick brown fox";
@@ -88,10 +109,25 @@ class Base64Tests
 	}
 
 	[Test]
+	public static void Decode_BinaryRoundtrip()
+	{
+		// Test with binary data including zero bytes
+		uint8[8] data = .(0, 1, 127, 128, 200, 255, 42, 0);
+		let encoded = scope String();
+		Base64.Encode(Span<uint8>(&data, 8), encoded);
+
+		let decoded = scope List<uint8>();
+		Test.Assert(Base64.Decode(encoded, decoded) case .Ok);
+		Test.Assert(decoded.Count == 8);
+		for (int i = 0; i < 8; i++)
+			Test.Assert(decoded[i] == data[i]);
+	}
+
+	[Test]
 	public static void Decode_InvalidLength()
 	{
 		let decoded = scope List<uint8>();
-		Test.Assert(Base64.Decode("abc", decoded) case .Err); // not multiple of 4
+		Test.Assert(Base64.Decode("abc", decoded) case .Err);
 	}
 
 	[Test]
@@ -102,9 +138,9 @@ class Base64Tests
 	}
 
 	[Test]
-	public static void WebSocket_KeyVector()
+	public static void Decode_KnownVector()
 	{
-		// Known WebSocket test: "dGhlIHNhbXBsZSBub25jZQ==" decodes to "the sample nonce"
+		// "dGhlIHNhbXBsZSBub25jZQ==" decodes to "the sample nonce"
 		let decoded = scope List<uint8>();
 		Test.Assert(Base64.Decode("dGhlIHNhbXBsZSBub25jZQ==", decoded) case .Ok);
 		let str = scope String();

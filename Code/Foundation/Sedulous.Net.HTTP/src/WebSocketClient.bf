@@ -2,6 +2,7 @@ namespace Sedulous.Net.HTTP;
 
 using System;
 using System.Collections;
+using Sedulous.Core;
 using Sedulous.Net;
 
 /// WebSocket connection state.

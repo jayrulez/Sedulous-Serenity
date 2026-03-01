@@ -1,8 +1,9 @@
-namespace Sedulous.Net;
+namespace Sedulous.Core;
 
 using System;
 using System.Collections;
 
+/// Base64 encoding and decoding utilities (RFC 4648).
 static class Base64
 {
 	private const char8[64] sEncodeTable = .('A','B','C','D','E','F','G','H','I','J','K','L','M',
@@ -11,6 +12,7 @@ static class Base64
 		'n','o','p','q','r','s','t','u','v','w','x','y','z',
 		'0','1','2','3','4','5','6','7','8','9','+','/');
 
+	/// Encodes binary data to a base64 string.
 	public static void Encode(Span<uint8> data, String outStr)
 	{
 		int i = 0;
@@ -50,20 +52,21 @@ static class Base64
 		}
 	}
 
-	public static Result<void, NetError> Decode(StringView str, List<uint8> outData)
+	/// Decodes a base64 string to binary data.
+	public static Result<void> Decode(StringView str, List<uint8> outData)
 	{
 		if (str.Length == 0)
 			return .Ok;
 
 		if (str.Length % 4 != 0)
-			return .Err(.ParseError);
+			return .Err;
 
 		for (int i = 0; i < str.Length; i += 4)
 		{
 			let c0 = DecodeChar(str[i]);
 			let c1 = DecodeChar(str[i + 1]);
 			if (c0 < 0 || c1 < 0)
-				return .Err(.ParseError);
+				return .Err;
 
 			let isPad2 = str[i + 2] == '=';
 			let isPad3 = str[i + 3] == '=';
@@ -77,7 +80,7 @@ static class Base64
 			{
 				// Last group, two output bytes
 				let c2 = DecodeChar(str[i + 2]);
-				if (c2 < 0) return .Err(.ParseError);
+				if (c2 < 0) return .Err;
 				outData.Add((uint8)(((uint32)c0 << 2) | ((uint32)c1 >> 4)));
 				outData.Add((uint8)((((uint32)c1 & 0xF) << 4) | ((uint32)c2 >> 2)));
 			}
@@ -86,7 +89,7 @@ static class Base64
 				// Full group, three output bytes
 				let c2 = DecodeChar(str[i + 2]);
 				let c3 = DecodeChar(str[i + 3]);
-				if (c2 < 0 || c3 < 0) return .Err(.ParseError);
+				if (c2 < 0 || c3 < 0) return .Err;
 				outData.Add((uint8)(((uint32)c0 << 2) | ((uint32)c1 >> 4)));
 				outData.Add((uint8)((((uint32)c1 & 0xF) << 4) | ((uint32)c2 >> 2)));
 				outData.Add((uint8)((((uint32)c2 & 0x3) << 6) | (uint32)c3));
