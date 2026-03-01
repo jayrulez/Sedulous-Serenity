@@ -2,6 +2,7 @@ namespace Sedulous.Engine.Physics;
 
 using System;
 using Sedulous.Core.Mathematics;
+using Sedulous.Engine.Scenes;
 using Sedulous.Physics;
 using Sedulous.Serialization;
 
@@ -9,15 +10,25 @@ using Sedulous.Serialization;
 /// Only exists during save/load — not stored at runtime.
 struct RigidBodyComponentData
 {
+	[Property]
 	public BodyType BodyType;
+	[Property]
 	public float Mass;
+	[Property]
 	public float LinearDamping;
+	[Property]
 	public float AngularDamping;
+	[Property]
 	public float Friction;
+	[Property]
 	public float Restitution;
+	[Property]
 	public float GravityFactor;
+	[Property]
 	public bool Enabled;
+	[Property]
 	public DebugShapeType ShapeType;
+	[Property]
 	public Vector3 HalfExtents;
 
 	public int32 SerializationVersion => 1;

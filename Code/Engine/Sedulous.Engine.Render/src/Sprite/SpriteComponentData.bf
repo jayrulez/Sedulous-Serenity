@@ -10,11 +10,17 @@ using static Sedulous.Resources.ResourceSerializerExtensions;
 /// Not stored on entities — only used by SpriteComponentSerializer during save/load.
 struct SpriteComponentData : ISerializableComponentData
 {
+	[Property]
 	public Vector2 Size;
+	[Property(.Color)]
 	public Vector4 Color;
+	[Property]
 	public Vector4 UVRect;
+	[Property]
 	public uint32 LayerMask;
+	[Property]
 	public bool Enabled;
+	[Property]
 	public ResourceRef TextureRef;
 
 	public int32 SerializationVersion => 1;

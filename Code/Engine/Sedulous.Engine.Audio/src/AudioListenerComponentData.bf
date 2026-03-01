@@ -1,12 +1,14 @@
 namespace Sedulous.Engine.Audio;
 
 using System;
+using Sedulous.Engine.Scenes;
 using Sedulous.Serialization;
 
 /// Transient serialization data for AudioListenerComponent.
 /// Only exists during save/load — not stored at runtime.
 struct AudioListenerComponentData
 {
+	[Property]
 	public bool Active;
 
 	public int32 SerializationVersion => 1;

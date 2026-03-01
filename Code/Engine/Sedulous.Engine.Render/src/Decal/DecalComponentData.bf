@@ -12,13 +12,21 @@ using static Sedulous.Resources.ResourceSerializerExtensions;
 /// Not stored on entities — only used by DecalComponentSerializer during save/load.
 struct DecalComponentData : ISerializableComponentData
 {
+	[Property]
 	public Vector3 Scale;
+	[Property(.Color)]
 	public Vector4 Color;
+	[Property]
 	public float AngleFadeStart;
+	[Property]
 	public float AngleFadeEnd;
+	[Property]
 	public int32 SortOrder;
+	[Property]
 	public DecalBlendMode BlendMode;
+	[Property]
 	public bool Enabled;
+	[Property]
 	public ResourceRef TextureRef;
 
 	public int32 SerializationVersion => 1;

@@ -1,17 +1,24 @@
 namespace Sedulous.Engine.UI;
 
 using System;
+using Sedulous.Engine.Scenes;
 using Sedulous.Serialization;
 
 /// Transient serialization data for WorldUIComponent.
 /// Only exists during save/load — not stored at runtime.
 struct WorldUIComponentData
 {
+	[Property]
 	public bool Enabled;
+	[Property]
 	public uint32 PixelWidth;
+	[Property]
 	public uint32 PixelHeight;
+	[Property]
 	public float PanelWidth;
+	[Property]
 	public float PanelHeight;
+	[Property]
 	public bool IsInteractive;
 
 	public int32 SerializationVersion => 2;

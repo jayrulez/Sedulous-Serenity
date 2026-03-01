@@ -1,11 +1,15 @@
 namespace Sedulous.Engine.Scenes;
 
+using System.Collections;
 using Sedulous.Core.Mathematics;
 
 /// Base class providing empty implementations for ISceneModule.
 /// Inherit from this class and override only the methods you need.
 abstract class SceneModule : ISceneModule
 {
+	/// Collects data providers for the editor inspector. Override to expose component data.
+	public virtual void GetDataProviders(List<IComponentDataProvider> outProviders) { }
+
 	/// Called when the module is added to a scene.
 	public virtual void OnSceneCreate(Scene scene) { }
 

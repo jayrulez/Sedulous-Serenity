@@ -9,15 +9,25 @@ using Sedulous.Serialization;
 /// Not stored on entities — only used by CameraComponentSerializer during save/load.
 struct CameraComponentData : ISerializableComponentData
 {
+	[Property]
 	public ProjectionType Projection;
+	[Property]
 	public float FieldOfView;
+	[Property]
 	public float AspectRatio;
+	[Property]
 	public float NearPlane;
+	[Property]
 	public float FarPlane;
+	[Property]
 	public float OrthoWidth;
+	[Property]
 	public float OrthoHeight;
+	[Property]
 	public int32 Priority;
+	[Property]
 	public bool Active;
+	[Property]
 	public bool IsMainCamera;
 
 	public int32 SerializationVersion => 2;

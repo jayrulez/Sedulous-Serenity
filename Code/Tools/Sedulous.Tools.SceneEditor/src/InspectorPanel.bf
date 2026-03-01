@@ -449,15 +449,37 @@ class InspectorPanel
 		// Transform properties
 		AddTransformProperties(scene, entity);
 
-		// Component properties via reflection (gameplay components with [Property] fields)
-		for (let compType in sComponentTypes)
+		// Module-managed component properties (via data providers)
+		let providers = scope List<IComponentDataProvider>();
+		scene.GetComponentDataProviders(providers);
+		let providerTypes = scope List<Type>();
+		System.Diagnostics.Debug.WriteLine(scope $"[Inspector] GetComponentDataProviders returned {providers.Count} providers for entity idx={entity.Index}");
+		for (let provider in providers)
 		{
-			if (scene.HasComponent(entity, compType))
-				AddComponentProperties(scene, entity, compType);
+			providerTypes.Add(provider.ComponentType);
+			let provName = provider.GetDisplayName(.. scope .());
+			let hasComp = provider.HasComponent(entity);
+			System.Diagnostics.Debug.WriteLine(scope $"[Inspector]   Provider '{provName}' (comp={provider.ComponentType.GetName(.. scope .())}, data={provider.DataType.GetName(.. scope .())}): HasComponent={hasComp}");
+			if (hasComp)
+			{
+				System.Diagnostics.Debug.WriteLine(scope $"[Inspector]   -> Adding properties for '{provName}'");
+				AddDataProviderProperties(scene, entity, provider);
+			}
 		}
 
-		// Module-managed component properties (accessed via module APIs / proxies)
-		AddModuleManagedProperties(scene, entity);
+		// Gameplay component properties via reflection (skip provider-managed types)
+		System.Diagnostics.Debug.WriteLine(scope $"[Inspector] Checking {sComponentTypes.Count} component types for entity idx={entity.Index}");
+		for (let compType in sComponentTypes)
+		{
+			if (providerTypes.Contains(compType))
+				continue;
+			let has = scene.HasComponent(entity, compType);
+			if (has)
+			{
+				System.Diagnostics.Debug.WriteLine(scope $"[Inspector]   HasComponent=true: {compType.GetName(.. scope .())}");
+				AddComponentProperties(scene, entity, compType);
+			}
+		}
 	}
 
 	private void AddNameProperty(Scene scene, EntityId entity)
@@ -576,7 +598,10 @@ class InspectorPanel
 			}
 			else if (fieldType == typeof(Vector3))
 			{
-				AddReflectedVector3Property(scene, entity, compType, field, category);
+				if (field.GetCustomAttribute<PropertyAttribute>() case .Ok(let propAttr) && propAttr.Editor == .Color)
+					AddReflectedColorProperty(scene, entity, compType, field, category);
+				else
+					AddReflectedVector3Property(scene, entity, compType, field, category);
 			}
 			else if (fieldType == typeof(Vector4))
 			{
@@ -801,6 +826,29 @@ class InspectorPanel
 				if (ptr != null)
 				{
 					*((Vector4*)((uint8*)ptr + offset)) = v;
+					scene.SetComponentRaw(entity, compType, ptr);
+				}
+			});
+		item.SetCategory(category);
+		mPropertyGrid.AddItem(item);
+	}
+
+	private void AddReflectedColorProperty(Scene scene, EntityId entity, Type compType, FieldInfo field, StringView category)
+	{
+		let offset = field.MemberOffset;
+		let item = new ColorPropertyItem(field.Name,
+			new () =>
+			{
+				let ptr = scene.GetComponentRaw(entity, compType);
+				if (ptr == null) return .Zero;
+				return *((Vector3*)((uint8*)ptr + offset));
+			},
+			new (v) =>
+			{
+				let ptr = scene.GetComponentRaw(entity, compType);
+				if (ptr != null)
+				{
+					*((Vector3*)((uint8*)ptr + offset)) = v;
 					scene.SetComponentRaw(entity, compType, ptr);
 				}
 			});
@@ -1188,9 +1236,18 @@ class InspectorPanel
 		if (categoryName == "Transform" || categoryName == "Entity")
 			return false;
 
-		// Module-managed categories
-		if (categoryName == "Light" || categoryName == "Camera" || categoryName == "Audio Source")
-			return true;
+		// Module-managed categories (via data providers)
+		if (mCurrentTab?.Scene != null)
+		{
+			let providers = scope List<IComponentDataProvider>();
+			mCurrentTab.Scene.GetComponentDataProviders(providers);
+			for (let provider in providers)
+			{
+				let displayName = provider.GetDisplayName(.. scope .());
+				if (displayName == categoryName)
+					return true;
+			}
+		}
 
 		// Check that a matching component type exists
 		DiscoverComponentTypes();
@@ -1210,24 +1267,25 @@ class InspectorPanel
 
 		let categoryName = mPropertyGrid.HoveredCategoryName.Value;
 
-		// Map module-managed category names to their component types
-		Type moduleManagedType = null;
-		if (categoryName == "Light")
-			moduleManagedType = typeof(LightComponent);
-		else if (categoryName == "Camera")
-			moduleManagedType = typeof(CameraComponent);
-		else if (categoryName == "Audio Source")
-			moduleManagedType = typeof(AudioSourceComponent);
-
-		if (moduleManagedType != null)
+		// Check data providers for module-managed components
+		if (mCurrentTab?.Scene != null)
 		{
-			let removeItem = menu.AddItem(scope $"Remove {categoryName}");
-			let capturedType = moduleManagedType;
-			removeItem.Click.Subscribe(new (mi) =>
+			let providers = scope List<IComponentDataProvider>();
+			mCurrentTab.Scene.GetComponentDataProviders(providers);
+			for (let provider in providers)
+			{
+				let displayName = provider.GetDisplayName(.. scope .());
+				if (displayName == categoryName)
 				{
-					RemoveComponentFromSelected(capturedType);
-				});
-			return;
+					let removeItem = menu.AddItem(scope $"Remove {categoryName}");
+					let capturedType = provider.ComponentType;
+					removeItem.Click.Subscribe(new (mi) =>
+						{
+							RemoveComponentFromSelected(capturedType);
+						});
+					return;
+				}
+			}
 		}
 
 		DiscoverComponentTypes();
@@ -1264,8 +1322,32 @@ class InspectorPanel
 		mAddComponentMenu = new ContextMenu();
 
 		bool anyAdded = false;
+
+		// Module-managed components (from data providers)
+		let providers = scope List<IComponentDataProvider>();
+		scene.GetComponentDataProviders(providers);
+		let providerTypes = scope List<Type>();
+		for (let provider in providers)
+		{
+			providerTypes.Add(provider.ComponentType);
+			if (!provider.HasComponent(mCurrentEntity))
+			{
+				let displayName = provider.GetDisplayName(.. scope .());
+				let menuItem = mAddComponentMenu.AddItem(displayName);
+				let capturedType = provider.ComponentType;
+				menuItem.Click.Subscribe(new (mi) =>
+					{
+						AddComponentToSelected(capturedType);
+					});
+				anyAdded = true;
+			}
+		}
+
+		// Gameplay components (reflection-discovered, skip provider-managed types)
 		for (let compType in sComponentTypes)
 		{
+			if (providerTypes.Contains(compType))
+				continue;
 			if (!scene.HasComponent(mCurrentEntity, compType))
 			{
 				let displayName = GetComponentDisplayName(compType, .. scope .());
@@ -1294,6 +1376,7 @@ class InspectorPanel
 
 	private void AddComponentToSelected(Type compType)
 	{
+		System.Diagnostics.Debug.WriteLine(scope $"[Inspector] AddComponentToSelected: {compType.GetName(.. scope .())}");
 		if (mCurrentTab == null || !mCurrentEntity.IsValid)
 			return;
 
@@ -1301,32 +1384,28 @@ class InspectorPanel
 		if (scene == null)
 			return;
 
-		// Module-managed types need to be created via module APIs
-		if (compType == typeof(LightComponent))
+		// Try module data providers first (module-managed components)
+		bool created = false;
+		let providers = scope List<IComponentDataProvider>();
+		scene.GetComponentDataProviders(providers);
+		for (let provider in providers)
 		{
-			if (let m = scene.GetModule<RenderSceneModule>())
-				m.CreatePointLight(mCurrentEntity, .(1, 1, 1), 1.0f, 10.0f);
+			if (provider.ComponentType == compType)
+			{
+				created = provider.CreateDefault(mCurrentEntity);
+				System.Diagnostics.Debug.WriteLine(scope $"[Inspector]   Provider CreateDefault for {compType.GetName(.. scope .())}: {created}");
+				break;
+			}
 		}
-		else if (compType == typeof(CameraComponent))
+
+		// Fallback to generic component creation (gameplay components)
+		if (!created)
 		{
-			if (let m = scene.GetModule<RenderSceneModule>())
-				m.CreatePerspectiveCamera(mCurrentEntity, Math.PI_f / 4.0f, 16.0f / 9.0f, 0.1f, 1000.0f);
-		}
-		else if (compType == typeof(AudioSourceComponent))
-		{
-			if (let m = scene.GetModule<AudioSceneModule>())
-				m.CreateSource(mCurrentEntity);
-		}
-		else if (compType == typeof(AudioListenerComponent))
-		{
-			if (let m = scene.GetModule<AudioSceneModule>())
-				m.CreateListener(mCurrentEntity);
-		}
-		else
-		{
+			System.Diagnostics.Debug.WriteLine(scope $"[Inspector]   Fallback: AddDefaultComponent for {compType.GetName(.. scope .())}");
 			scene.AddDefaultComponent(mCurrentEntity, compType);
 		}
 
+		System.Diagnostics.Debug.WriteLine(scope $"[Inspector] AddComponentToSelected done, rebuilding inspector");
 		mCurrentTab.MarkDirty();
 
 		// Force rebuild inspector
@@ -1348,31 +1427,16 @@ class InspectorPanel
 		if (scene == null)
 			return;
 
-		// Module-managed types need cleanup via module APIs
-		if (compType == typeof(LightComponent))
+		// Try module data providers first (module-managed components)
+		let providers = scope List<IComponentDataProvider>();
+		scene.GetComponentDataProviders(providers);
+		for (let provider in providers)
 		{
-			if (let m = scene.GetModule<RenderSceneModule>())
-				m.DestroyLight(mCurrentEntity);
-		}
-		else if (compType == typeof(CameraComponent))
-		{
-			if (let m = scene.GetModule<RenderSceneModule>())
-				m.DestroyCamera(mCurrentEntity);
-		}
-		else if (compType == typeof(MeshComponent))
-		{
-			if (let m = scene.GetModule<RenderSceneModule>())
-				m.DestroyMesh(mCurrentEntity);
-		}
-		else if (compType == typeof(AudioSourceComponent))
-		{
-			if (let m = scene.GetModule<AudioSceneModule>())
-				m.DestroySource(mCurrentEntity);
-		}
-		else if (compType == typeof(AudioListenerComponent))
-		{
-			if (let m = scene.GetModule<AudioSceneModule>())
-				m.DestroyListener(mCurrentEntity);
+			if (provider.ComponentType == compType)
+			{
+				provider.Destroy(mCurrentEntity);
+				break;
+			}
 		}
 
 		scene.RemoveComponent(mCurrentEntity, compType);
@@ -1387,344 +1451,588 @@ class InspectorPanel
 		OnPropertyChanged?.Invoke();
 	}
 
-	// ==================== Module-Managed Properties ====================
+	// ==================== Data Provider Properties ====================
 
-	/// Adds property sections for module-managed components (accessed via module APIs, not reflection).
-	private void AddModuleManagedProperties(Scene scene, EntityId entity)
+	/// Adds property sections for module-managed components using reflection on data provider structs.
+	private void AddDataProviderProperties(Scene scene, EntityId entity, IComponentDataProvider provider)
 	{
-		// Render module properties
-		if (let renderModule = scene.GetModule<RenderSceneModule>())
+		let dataType = provider.DataType;
+		let dataSize = dataType.Size;
+		let category = provider.GetDisplayName(.. scope .());
+
+		System.Diagnostics.Debug.WriteLine(scope $"[Inspector] AddDataProviderProperties: category='{category}', dataType={dataType.GetName(.. scope .())}, dataSize={dataSize}");
+
+		int fieldCount = 0;
+		int propFieldCount = 0;
+		for (let field in dataType.GetFields(.Instance | .Public))
 		{
-			if (let proxy = renderModule.GetLightProxy(entity))
-				AddLightProperties(renderModule, scene, entity, proxy);
+			fieldCount++;
+			if (field.GetCustomAttribute<PropertyAttribute>() case .Err)
+				continue;
 
-			if (let proxy = renderModule.GetCameraProxy(entity))
-				AddCameraProperties(renderModule, scene, entity, proxy);
-		}
+			propFieldCount++;
+			let attr = field.GetCustomAttribute<PropertyAttribute>().Get();
+			let fieldType = field.FieldType;
+			let offset = field.MemberOffset;
 
-		// Audio module properties
-		if (let audioModule = scene.GetModule<AudioSceneModule>())
-		{
-			if (audioModule.HasSource(entity))
-				AddAudioSourceProperties(audioModule, entity);
-		}
-	}
+			System.Diagnostics.Debug.WriteLine(scope $"[Inspector]   Field '{field.Name}' type={fieldType.GetName(.. scope .())} offset={offset}");
 
-	private void AddLightProperties(RenderSceneModule renderModule, Scene scene, EntityId entity, LightProxy* proxy)
-	{
-		let category = "Light";
-
-		// Light type (read-only display)
-		let typeNames = scope StringView[]("Directional", "Point", "Spot", "Area");
-		let lightTypeItem = new EnumPropertyItem("Type", typeNames,
-			new () =>
+			if (fieldType == typeof(float))
 			{
-				if (let p = renderModule.GetLightProxy(entity))
-					return new String(typeNames[(int)p.Type]);
-				return new String("???");
-			},
-			new (name) => { }); // Read-only
-		lightTypeItem.SetCategory(category);
-		mPropertyGrid.AddItem(lightTypeItem);
-
-		// Color
-		let colorItem = new ColorPropertyItem("Color",
-			new () =>
-			{
-				if (let p = renderModule.GetLightProxy(entity))
-					return p.Color;
-				return .Zero;
-			},
-			new (v) =>
-			{
-				if (let p = renderModule.GetLightProxy(entity))
-					p.Color = v;
-			});
-		colorItem.SetCategory(category);
-		mPropertyGrid.AddItem(colorItem);
-
-		// Intensity
-		mPropertyGrid.AddFloatProperty("Intensity", category,
-			new () =>
-			{
-				if (let p = renderModule.GetLightProxy(entity))
-					return new box p.Intensity;
-				return new box 0.0f;
-			},
-			new (obj) =>
-			{
-				if (let f = obj as float?)
-					if (let p = renderModule.GetLightProxy(entity))
-						p.Intensity = f;
-			});
-
-		// Range (point/spot only)
-		if (proxy.Type == .Point || proxy.Type == .Spot)
-		{
-			mPropertyGrid.AddFloatProperty("Range", category,
-				new () =>
-				{
-					if (let p = renderModule.GetLightProxy(entity))
-						return new box p.Range;
-					return new box 0.0f;
-				},
-				new (obj) =>
-				{
-					if (let f = obj as float?)
-						if (let p = renderModule.GetLightProxy(entity))
-							p.Range = f;
-				});
-		}
-
-		// Cone angles (spot only)
-		if (proxy.Type == .Spot)
-		{
-			mPropertyGrid.AddFloatProperty("Inner Cone Angle", category,
-				new () =>
-				{
-					if (let p = renderModule.GetLightProxy(entity))
-						return new box p.InnerConeAngle;
-					return new box 0.0f;
-				},
-				new (obj) =>
-				{
-					if (let f = obj as float?)
-						if (let p = renderModule.GetLightProxy(entity))
-							p.InnerConeAngle = f;
-				});
-
-			mPropertyGrid.AddFloatProperty("Outer Cone Angle", category,
-				new () =>
-				{
-					if (let p = renderModule.GetLightProxy(entity))
-						return new box p.OuterConeAngle;
-					return new box 0.0f;
-				},
-				new (obj) =>
-				{
-					if (let f = obj as float?)
-						if (let p = renderModule.GetLightProxy(entity))
-							p.OuterConeAngle = f;
-				});
-		}
-
-		// CastsShadows
-		mPropertyGrid.AddBoolProperty("Casts Shadows", category,
-			new () =>
-			{
-				if (let p = renderModule.GetLightProxy(entity))
-					return new box p.CastsShadows;
-				return new box false;
-			},
-			new (obj) =>
-			{
-				if (let b = obj as bool?)
-					if (let p = renderModule.GetLightProxy(entity))
-						p.CastsShadows = b;
-			});
-
-		// IsEnabled
-		mPropertyGrid.AddBoolProperty("Enabled", category,
-			new () =>
-			{
-				if (let p = renderModule.GetLightProxy(entity))
-					return new box p.IsEnabled;
-				return new box true;
-			},
-			new (obj) =>
-			{
-				if (let b = obj as bool?)
-					if (let p = renderModule.GetLightProxy(entity))
-						p.IsEnabled = b;
-			});
-	}
-
-	private void AddCameraProperties(RenderSceneModule renderModule, Scene scene, EntityId entity, CameraProxy* proxy)
-	{
-		let category = "Camera";
-
-		// Projection type (read-only)
-		let projNames = scope StringView[]("Perspective", "Orthographic");
-		let projItem = new EnumPropertyItem("Projection", projNames,
-			new () =>
-			{
-				if (let p = renderModule.GetCameraProxy(entity))
-					return new String(projNames[(int)p.Projection]);
-				return new String("???");
-			},
-			new (name) => { }); // Read-only
-		projItem.SetCategory(category);
-		mPropertyGrid.AddItem(projItem);
-
-		// FOV (perspective only)
-		if (proxy.Projection == .Perspective)
-		{
-			mPropertyGrid.AddFloatProperty("Field of View", category,
-				new () =>
-				{
-					if (let p = renderModule.GetCameraProxy(entity))
-						return new box (p.FieldOfView * 180.0f / Math.PI_f);
-					return new box 45.0f;
-				},
-				new (obj) =>
-				{
-					if (let f = obj as float?)
+				mPropertyGrid.AddFloatProperty(field.Name, category,
+					new () =>
 					{
-						if (let p = renderModule.GetCameraProxy(entity))
+						let buf = new uint8[dataSize]*;
+						defer delete buf;
+						Internal.MemSet(buf, 0, dataSize);
+						if (!provider.GetComponentData(entity, buf))
+							return new box 0.0f;
+						return new box *((float*)(buf + offset));
+					},
+					new (obj) =>
+					{
+						if (let f = obj as float?)
 						{
-							p.FieldOfView = f * Math.PI_f / 180.0f;
-							p.UpdateMatrices();
+							let buf = new uint8[dataSize]*;
+							defer delete buf;
+							Internal.MemSet(buf, 0, dataSize);
+							if (provider.GetComponentData(entity, buf))
+							{
+								*((float*)(buf + offset)) = f;
+								provider.SetComponentData(entity, buf);
+							}
 						}
-					}
-				});
+					});
+			}
+			else if (fieldType == typeof(bool))
+			{
+				mPropertyGrid.AddBoolProperty(field.Name, category,
+					new () =>
+					{
+						let buf = new uint8[dataSize]*;
+						defer delete buf;
+						Internal.MemSet(buf, 0, dataSize);
+						if (!provider.GetComponentData(entity, buf))
+							return new box false;
+						return new box *((bool*)(buf + offset));
+					},
+					new (obj) =>
+					{
+						if (let b = obj as bool?)
+						{
+							let buf = new uint8[dataSize]*;
+							defer delete buf;
+							Internal.MemSet(buf, 0, dataSize);
+							if (provider.GetComponentData(entity, buf))
+							{
+								*((bool*)(buf + offset)) = b;
+								provider.SetComponentData(entity, buf);
+							}
+						}
+					});
+			}
+			else if (fieldType == typeof(int32))
+			{
+				mPropertyGrid.AddIntProperty(field.Name, category,
+					new () =>
+					{
+						let buf = new uint8[dataSize]*;
+						defer delete buf;
+						Internal.MemSet(buf, 0, dataSize);
+						if (!provider.GetComponentData(entity, buf))
+							return new box (int)0;
+						return new box (int)*((int32*)(buf + offset));
+					},
+					new (obj) =>
+					{
+						if (let i = obj as int?)
+						{
+							let buf = new uint8[dataSize]*;
+							defer delete buf;
+							Internal.MemSet(buf, 0, dataSize);
+							if (provider.GetComponentData(entity, buf))
+							{
+								*((int32*)(buf + offset)) = (int32)i;
+								provider.SetComponentData(entity, buf);
+							}
+						}
+					});
+			}
+			else if (fieldType == typeof(uint32))
+			{
+				mPropertyGrid.AddIntProperty(field.Name, category,
+					new () =>
+					{
+						let buf = new uint8[dataSize]*;
+						defer delete buf;
+						Internal.MemSet(buf, 0, dataSize);
+						if (!provider.GetComponentData(entity, buf))
+							return new box (int)0;
+						return new box (int)*((uint32*)(buf + offset));
+					},
+					new (obj) =>
+					{
+						if (let i = obj as int?)
+						{
+							let buf = new uint8[dataSize]*;
+							defer delete buf;
+							Internal.MemSet(buf, 0, dataSize);
+							if (provider.GetComponentData(entity, buf))
+							{
+								*((uint32*)(buf + offset)) = (uint32)i;
+								provider.SetComponentData(entity, buf);
+							}
+						}
+					});
+			}
+			else if (fieldType.IsEnum)
+			{
+				let enumType = fieldType;
+				let enumSize = enumType.Size;
+
+				let names = scope List<StringView>();
+				for (var e in Enum.GetEnumerator(enumType))
+					names.Add(e.name);
+
+				let nameSpan = scope StringView[names.Count];
+				for (let i < names.Count)
+					nameSpan[i] = names[i];
+
+				let item = new EnumPropertyItem(field.Name, nameSpan,
+					new () =>
+					{
+						let buf = new uint8[dataSize]*;
+						defer delete buf;
+						Internal.MemSet(buf, 0, dataSize);
+						if (!provider.GetComponentData(entity, buf))
+							return new String("???");
+						int64 rawVal = 0;
+						Internal.MemCpy(&rawVal, buf + offset, enumSize);
+						for (var e in Enum.GetEnumerator(enumType))
+						{
+							if (e.value == rawVal)
+								return new String(e.name);
+						}
+						return new String("???");
+					},
+					new (name) =>
+					{
+						let buf = new uint8[dataSize]*;
+						defer delete buf;
+						Internal.MemSet(buf, 0, dataSize);
+						if (provider.GetComponentData(entity, buf))
+						{
+							for (var e in Enum.GetEnumerator(enumType))
+							{
+								if (StringView(e.name) == name)
+								{
+									var val = e.value;
+									Internal.MemCpy(buf + offset, &val, enumSize);
+									provider.SetComponentData(entity, buf);
+									break;
+								}
+							}
+						}
+					});
+				item.SetCategory(category);
+				mPropertyGrid.AddItem(item);
+			}
+			else if (fieldType == typeof(Vector2))
+			{
+				let item = new Vector2PropertyItem(field.Name,
+					new () =>
+					{
+						let buf = new uint8[dataSize]*;
+						defer delete buf;
+						Internal.MemSet(buf, 0, dataSize);
+						if (!provider.GetComponentData(entity, buf))
+							return .Zero;
+						return *((Vector2*)(buf + offset));
+					},
+					new (v) =>
+					{
+						let buf = new uint8[dataSize]*;
+						defer delete buf;
+						Internal.MemSet(buf, 0, dataSize);
+						if (provider.GetComponentData(entity, buf))
+						{
+							*((Vector2*)(buf + offset)) = v;
+							provider.SetComponentData(entity, buf);
+						}
+					});
+				item.SetCategory(category);
+				mPropertyGrid.AddItem(item);
+			}
+			else if (fieldType == typeof(Vector3) && attr.Editor == .Color)
+			{
+				let item = new ColorPropertyItem(field.Name,
+					new () =>
+					{
+						let buf = new uint8[dataSize]*;
+						defer delete buf;
+						Internal.MemSet(buf, 0, dataSize);
+						if (!provider.GetComponentData(entity, buf))
+							return .Zero;
+						return *((Vector3*)(buf + offset));
+					},
+					new (v) =>
+					{
+						let buf = new uint8[dataSize]*;
+						defer delete buf;
+						Internal.MemSet(buf, 0, dataSize);
+						if (provider.GetComponentData(entity, buf))
+						{
+							*((Vector3*)(buf + offset)) = v;
+							provider.SetComponentData(entity, buf);
+						}
+					});
+				item.SetCategory(category);
+				mPropertyGrid.AddItem(item);
+			}
+			else if (fieldType == typeof(Vector3))
+			{
+				let item = new Vector3PropertyItem(field.Name,
+					new () =>
+					{
+						let buf = new uint8[dataSize]*;
+						defer delete buf;
+						Internal.MemSet(buf, 0, dataSize);
+						if (!provider.GetComponentData(entity, buf))
+							return .Zero;
+						return *((Vector3*)(buf + offset));
+					},
+					new (v) =>
+					{
+						let buf = new uint8[dataSize]*;
+						defer delete buf;
+						Internal.MemSet(buf, 0, dataSize);
+						if (provider.GetComponentData(entity, buf))
+						{
+							*((Vector3*)(buf + offset)) = v;
+							provider.SetComponentData(entity, buf);
+						}
+					});
+				item.SetCategory(category);
+				mPropertyGrid.AddItem(item);
+			}
+			else if (fieldType == typeof(Vector4))
+			{
+				let item = new Vector4PropertyItem(field.Name,
+					new () =>
+					{
+						let buf = new uint8[dataSize]*;
+						defer delete buf;
+						Internal.MemSet(buf, 0, dataSize);
+						if (!provider.GetComponentData(entity, buf))
+							return .Zero;
+						return *((Vector4*)(buf + offset));
+					},
+					new (v) =>
+					{
+						let buf = new uint8[dataSize]*;
+						defer delete buf;
+						Internal.MemSet(buf, 0, dataSize);
+						if (provider.GetComponentData(entity, buf))
+						{
+							*((Vector4*)(buf + offset)) = v;
+							provider.SetComponentData(entity, buf);
+						}
+					});
+				item.SetCategory(category);
+				mPropertyGrid.AddItem(item);
+			}
+			else if (fieldType == typeof(ResourceRef))
+			{
+				AddDataProviderResourceRefProperty(scene, entity, provider, dataSize, field, offset, category);
+			}
+			else if (IsResourceRefArrayType(fieldType))
+			{
+				AddDataProviderResourceRefArrayProperty(scene, entity, provider, dataSize, field, offset, category);
+			}
 		}
-
-		// Near/Far planes
-		mPropertyGrid.AddFloatProperty("Near Plane", category,
-			new () =>
-			{
-				if (let p = renderModule.GetCameraProxy(entity))
-					return new box p.NearPlane;
-				return new box 0.1f;
-			},
-			new (obj) =>
-			{
-				if (let f = obj as float?)
-				{
-					if (let p = renderModule.GetCameraProxy(entity))
-					{
-						p.NearPlane = f;
-						p.UpdateMatrices();
-					}
-				}
-			});
-
-		mPropertyGrid.AddFloatProperty("Far Plane", category,
-			new () =>
-			{
-				if (let p = renderModule.GetCameraProxy(entity))
-					return new box p.FarPlane;
-				return new box 1000.0f;
-			},
-			new (obj) =>
-			{
-				if (let f = obj as float?)
-				{
-					if (let p = renderModule.GetCameraProxy(entity))
-					{
-						p.FarPlane = f;
-						p.UpdateMatrices();
-					}
-				}
-			});
-
-		// IsMainCamera
-		mPropertyGrid.AddBoolProperty("Main Camera", category,
-			new () =>
-			{
-				if (let p = renderModule.GetCameraProxy(entity))
-					return new box p.IsMainCamera;
-				return new box false;
-			},
-			new (obj) =>
-			{
-				if (let b = obj as bool?)
-					if (b)
-						renderModule.SetMainCamera(entity);
-			});
+		System.Diagnostics.Debug.WriteLine(scope $"[Inspector] AddDataProviderProperties done: {fieldCount} total fields, {propFieldCount} with [Property]");
 	}
 
-	private void AddAudioSourceProperties(AudioSceneModule audioModule, EntityId entity)
+	private void AddDataProviderResourceRefProperty(Scene scene, EntityId entity, IComponentDataProvider provider,
+		int dataSize, FieldInfo field, int offset, StringView category)
 	{
-		let category = "Audio Source";
+		let filter = GetResourceFilter(provider.ComponentType, field.Name);
 
-		let data = audioModule.GetSourceData(entity);
-		if (data == null)
+		let item = new ResourceRefPropertyItem(field.Name,
+			// pathGetter
+			new (outPath) =>
+			{
+				let buf = new uint8[dataSize]*;
+				defer delete buf;
+				Internal.MemSet(buf, 0, dataSize);
+				if (!provider.GetComponentData(entity, buf))
+				{
+					outPath.Set("(none)");
+					return;
+				}
+				let resRef = (ResourceRef*)(buf + offset);
+				if (resRef.HasPath)
+					outPath.Set(resRef.Path);
+				else if (resRef.HasId)
+					resRef.Id.ToString(outPath);
+				else
+					outPath.Set("(none)");
+				// Don't dispose resRef — it's a shallow copy (Path borrows module's string)
+			},
+			// onBrowse
+			new () =>
+			{
+				let filters = scope StringView[](filter);
+				let defaultPath = scope String();
+				if (mProjectDirectory != null)
+					defaultPath.Set(mProjectDirectory);
+
+				mDialogs?.ShowOpenFileDialog(new (paths) =>
+					{
+						if (paths.Length == 0 || paths[0].Length == 0)
+							return;
+
+						let selectedPath = scope String(paths[0]);
+						selectedPath.Replace('\\', '/');
+
+						Guid resolvedId = default;
+						if (mRegistries != null)
+						{
+							for (let registry in mRegistries)
+							{
+								if (registry.TryResolveId(selectedPath, out resolvedId))
+									break;
+							}
+						}
+
+						if (resolvedId == default)
+							TryReadResourceId(selectedPath, out resolvedId);
+
+						let buf = new uint8[dataSize]*;
+						Internal.MemSet(buf, 0, dataSize);
+						if (provider.GetComponentData(entity, buf))
+						{
+							let resRefPtr = (ResourceRef*)(buf + offset);
+							// Overwrite shallow-copied Path with temp allocation for SetComponentData
+							let tempPath = new String(selectedPath);
+							resRefPtr.Id = resolvedId;
+							resRefPtr.Path = tempPath;
+							provider.SetComponentData(entity, buf);
+							delete tempPath;
+							resRefPtr.Path = null; // Prevent double-free on buf delete
+						}
+						delete buf;
+
+						if (mCurrentTab != null)
+						{
+							mCurrentTab.MarkDirty();
+							OnPropertyChanged?.Invoke();
+						}
+
+						ForceRebuild();
+					}, filters, defaultPath, false, mWindow);
+			},
+			// onClear
+			new () =>
+			{
+				let buf = new uint8[dataSize]*;
+				defer delete buf;
+				Internal.MemSet(buf, 0, dataSize);
+				if (provider.GetComponentData(entity, buf))
+				{
+					let resRefPtr = (ResourceRef*)(buf + offset);
+					resRefPtr.Id = default;
+					resRefPtr.Path = null; // Shallow — don't dispose
+					provider.SetComponentData(entity, buf);
+				}
+
+				if (mCurrentTab != null)
+				{
+					mCurrentTab.MarkDirty();
+					OnPropertyChanged?.Invoke();
+				}
+			});
+		item.SetCategory(category);
+		mPropertyGrid.AddItem(item);
+	}
+
+	private void AddDataProviderResourceRefArrayProperty(Scene scene, EntityId entity, IComponentDataProvider provider,
+		int dataSize, FieldInfo field, int fieldOffset, StringView category)
+	{
+		let arrayType = field.FieldType;
+
+		int countOffset, refsOffset, refSize, capacity;
+		if (!GetResourceRefArrayLayout(arrayType, out countOffset, out refsOffset, out refSize, out capacity))
 			return;
 
-		// Volume
-		mPropertyGrid.AddFloatProperty("Volume", category,
-			new () =>
-			{
-				let d = audioModule.GetSourceData(entity);
-				if (d == null) return new box 1.0f;
-				return new box d.Volume;
-			},
-			new (obj) =>
-			{
-				if (let f = obj as float?)
-					audioModule.SetVolume(entity, f);
-			});
+		let filter = GetResourceFilter(provider.ComponentType, field.Name);
 
-		// Pitch
-		mPropertyGrid.AddFloatProperty("Pitch", category,
-			new () =>
-			{
-				let d = audioModule.GetSourceData(entity);
-				if (d == null) return new box 1.0f;
-				return new box d.Pitch;
-			},
-			new (obj) =>
-			{
-				if (let f = obj as float?)
-					audioModule.SetPitch(entity, f);
-			});
+		// Read current count via provider
+		int32 count = 0;
+		{
+			let buf = new uint8[dataSize]*;
+			defer delete buf;
+			Internal.MemSet(buf, 0, dataSize);
+			if (provider.GetComponentData(entity, buf))
+				count = *((int32*)(buf + fieldOffset + countOffset));
+		}
 
-		// Spatial
-		mPropertyGrid.AddBoolProperty("Spatial", category,
-			new () =>
-			{
-				let d = audioModule.GetSourceData(entity);
-				if (d == null) return new box true;
-				return new box d.Spatial;
-			},
-			new (obj) =>
-			{
-				if (let b = obj as bool?)
-					audioModule.SetSpatial(entity, b);
-			});
+		// Add a property item for each existing ref
+		for (int32 i = 0; i < count; i++)
+		{
+			let elemOffset = fieldOffset + refsOffset + i * refSize;
+			let elemLabel = scope:: String();
+			elemLabel.AppendF("{}[{}]", field.Name, i);
+			let capturedIndex = i;
 
-		// Loop
-		mPropertyGrid.AddBoolProperty("Loop", category,
-			new () =>
-			{
-				let d = audioModule.GetSourceData(entity);
-				if (d == null) return new box false;
-				return new box d.Loop;
-			},
-			new (obj) =>
-			{
-				if (let b = obj as bool?)
-					audioModule.SetLoop(entity, b);
-			});
+			let item = new ResourceRefPropertyItem(elemLabel,
+				// pathGetter
+				new (outPath) =>
+				{
+					let buf = new uint8[dataSize]*;
+					defer delete buf;
+					Internal.MemSet(buf, 0, dataSize);
+					if (!provider.GetComponentData(entity, buf))
+					{
+						outPath.Set("(none)");
+						return;
+					}
+					let resRef = (ResourceRef*)(buf + elemOffset);
+					if (resRef.HasPath)
+						outPath.Set(resRef.Path);
+					else if (resRef.HasId)
+						resRef.Id.ToString(outPath);
+					else
+						outPath.Set("(none)");
+					// Don't dispose resRef — it's a shallow copy (Path borrows module's string)
+				},
+				// onBrowse
+				new () =>
+				{
+					let filters = scope StringView[](filter);
+					let defaultPath = scope String();
+					if (mProjectDirectory != null)
+						defaultPath.Set(mProjectDirectory);
 
-		// MinDistance
-		mPropertyGrid.AddFloatProperty("Min Distance", category,
-			new () =>
-			{
-				let d = audioModule.GetSourceData(entity);
-				if (d == null) return new box 1.0f;
-				return new box d.MinDistance;
-			},
-			new (obj) =>
-			{
-				if (let f = obj as float?)
-					audioModule.SetMinDistance(entity, f);
-			});
+					mDialogs?.ShowOpenFileDialog(new (paths) =>
+						{
+							if (paths.Length == 0 || paths[0].Length == 0)
+								return;
 
-		// MaxDistance
-		mPropertyGrid.AddFloatProperty("Max Distance", category,
-			new () =>
-			{
-				let d = audioModule.GetSourceData(entity);
-				if (d == null) return new box 100.0f;
-				return new box d.MaxDistance;
-			},
-			new (obj) =>
-			{
-				if (let f = obj as float?)
-					audioModule.SetMaxDistance(entity, f);
-			});
+							let selectedPath = scope String(paths[0]);
+							selectedPath.Replace('\\', '/');
+
+							Guid resolvedId = default;
+							if (mRegistries != null)
+							{
+								for (let registry in mRegistries)
+								{
+									if (registry.TryResolveId(selectedPath, out resolvedId))
+										break;
+								}
+							}
+
+							if (resolvedId == default)
+								TryReadResourceId(selectedPath, out resolvedId);
+
+							let buf = new uint8[dataSize]*;
+							Internal.MemSet(buf, 0, dataSize);
+							if (provider.GetComponentData(entity, buf))
+							{
+								let resRefPtr = (ResourceRef*)(buf + elemOffset);
+								let tempPath = new String(selectedPath);
+								resRefPtr.Id = resolvedId;
+								resRefPtr.Path = tempPath;
+								provider.SetComponentData(entity, buf);
+								delete tempPath;
+								resRefPtr.Path = null; // Prevent double-free on buf delete
+							}
+							delete buf;
+
+							if (mCurrentTab != null)
+							{
+								mCurrentTab.MarkDirty();
+								OnPropertyChanged?.Invoke();
+							}
+
+							ForceRebuild();
+						}, filters, defaultPath, false, mWindow);
+				},
+				// onClear: remove this element from the array (shift down)
+				new () =>
+				{
+					let buf = new uint8[dataSize]*;
+					Internal.MemSet(buf, 0, dataSize);
+					if (provider.GetComponentData(entity, buf))
+					{
+						let aBase = buf + fieldOffset;
+						let currentCount = (int32*)(aBase + countOffset);
+						let refsBase = aBase + refsOffset;
+
+						// Clear this ref's path (shallow — set to null, don't dispose)
+						let refPtr = (ResourceRef*)(refsBase + capturedIndex * refSize);
+						refPtr.Id = default;
+						refPtr.Path = null;
+
+						// Shift remaining elements down
+						for (int32 j = capturedIndex; j < *currentCount - 1; j++)
+						{
+							let dst = (ResourceRef*)(refsBase + j * refSize);
+							let src = (ResourceRef*)(refsBase + (j + 1) * refSize);
+							*dst = *src;
+						}
+
+						// Zero the last slot and decrement count
+						let lastSlot = (ResourceRef*)(refsBase + (*currentCount - 1) * refSize);
+						*lastSlot = .();
+						(*currentCount)--;
+
+						provider.SetComponentData(entity, buf);
+					}
+					delete buf;
+
+					if (mCurrentTab != null)
+					{
+						mCurrentTab.MarkDirty();
+						OnPropertyChanged?.Invoke();
+					}
+
+					ForceRebuild();
+				});
+			item.SetCategory(category);
+			mPropertyGrid.AddItem(item);
+		}
+
+		// Add [+] button to add a new ref slot (if under capacity)
+		if (count < capacity)
+		{
+			let addItem = new ButtonPropertyItem(scope:: String()..AppendF("{} [+]", field.Name),
+				new () =>
+				{
+					let buf = new uint8[dataSize]*;
+					Internal.MemSet(buf, 0, dataSize);
+					if (provider.GetComponentData(entity, buf))
+					{
+						let currentCount = (int32*)(buf + fieldOffset + countOffset);
+						if (*currentCount < (int32)capacity)
+						{
+							(*currentCount)++;
+							provider.SetComponentData(entity, buf);
+						}
+					}
+					delete buf;
+
+					if (mCurrentTab != null)
+					{
+						mCurrentTab.MarkDirty();
+						OnPropertyChanged?.Invoke();
+					}
+
+					ForceRebuild();
+				});
+			addItem.SetCategory(category);
+			mPropertyGrid.AddItem(addItem);
+		}
 	}
 
 	/// Tries to read the resource GUID from a resource file by searching for the _id field.

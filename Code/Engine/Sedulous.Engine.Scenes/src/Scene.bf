@@ -1088,6 +1088,27 @@ public class Scene : IDisposable, ISerializable
 		return false;
 	}
 
+	// ==================== Data Providers ====================
+
+	/// Collects all component data providers from all modules.
+	/// The caller owns the list but not the providers (they're owned by modules).
+	public void GetComponentDataProviders(List<IComponentDataProvider> outProviders)
+	{
+		System.Diagnostics.Debug.WriteLine(scope $"[Scene] GetComponentDataProviders: {mModules.Count} modules");
+		for (let module in mModules)
+		{
+			let countBefore = outProviders.Count;
+			if (let sceneModule = module as SceneModule)
+			{
+				sceneModule.GetDataProviders(outProviders);
+				let added = outProviders.Count - countBefore;
+				if (added > 0)
+					System.Diagnostics.Debug.WriteLine(scope $"[Scene]   Module {sceneModule.GetType().GetName(.. scope .())} added {added} providers");
+			}
+		}
+		System.Diagnostics.Debug.WriteLine(scope $"[Scene] Total providers: {outProviders.Count}");
+	}
+
 	// ==================== Update Lifecycle ====================
 
 	/// Calls FixedUpdate on all modules for deterministic simulation.

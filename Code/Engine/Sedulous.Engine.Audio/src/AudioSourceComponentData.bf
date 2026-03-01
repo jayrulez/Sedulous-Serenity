@@ -1,6 +1,7 @@
 namespace Sedulous.Engine.Audio;
 
 using System;
+using Sedulous.Engine.Scenes;
 using Sedulous.Resources;
 using Sedulous.Serialization;
 using static Sedulous.Resources.ResourceSerializerExtensions;
@@ -9,13 +10,21 @@ using static Sedulous.Resources.ResourceSerializerExtensions;
 /// Only exists during save/load — not stored at runtime.
 struct AudioSourceComponentData
 {
+	[Property]
 	public ResourceRef ClipRef;
+	[Property]
 	public float Volume;
+	[Property]
 	public float Pitch;
+	[Property]
 	public bool Spatial;
+	[Property]
 	public bool Loop;
+	[Property]
 	public bool AutoPlay;
+	[Property]
 	public float MinDistance;
+	[Property]
 	public float MaxDistance;
 
 	public int32 SerializationVersion => 3;

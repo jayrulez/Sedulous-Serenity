@@ -9,15 +9,25 @@ using Sedulous.Serialization;
 /// Not stored on entities — only used by TrailEmitterComponentSerializer during save/load.
 struct TrailEmitterComponentData : ISerializableComponentData
 {
+	[Property]
 	public ParticleBlendMode BlendMode;
+	[Property]
 	public int32 MaxPoints;
+	[Property]
 	public float Lifetime;
+	[Property]
 	public float WidthStart;
+	[Property]
 	public float WidthEnd;
+	[Property]
 	public float MinVertexDistance;
+	[Property(.Color)]
 	public Vector4 Color;
+	[Property]
 	public float SoftParticleDistance;
+	[Property]
 	public uint32 LayerMask;
+	[Property]
 	public bool Enabled;
 
 	public int32 SerializationVersion => 1;

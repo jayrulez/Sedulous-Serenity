@@ -10,7 +10,9 @@ using static Sedulous.Resources.ResourceSerializerExtensions;
 /// Only exists during save/load — all runtime data lives in AnimationSceneModule.
 struct AnimationGraphComponentData : ISerializableComponentData
 {
+	[Property]
 	public ResourceRef SkeletonRef;
+	[Property]
 	public bool Active;
 
 	public int32 SerializationVersion => 1;

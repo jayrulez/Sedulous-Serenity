@@ -3,7 +3,9 @@ namespace Sedulous.Engine.Animation;
 using System;
 using System.Collections;
 using Sedulous.Animation;
+using Sedulous.Animation.Resources;
 using Sedulous.Engine.Scenes;
+using Sedulous.Resources;
 
 /// Property animation instance storage and API.
 extension AnimationSceneModule
@@ -14,6 +16,8 @@ extension AnimationSceneModule
 	{
 		public EntityId Entity;
 		public PropertyAnimationPlayer Player; // Owned by module
+		public ResourceRef ClipRef;
+		public ResourceHandle<PropertyAnimationClipResource> ClipRes;
 		public bool Playing;
 		public float Speed;
 		public bool Active; // Slot in use
@@ -143,6 +147,102 @@ extension AnimationSceneModule
 		return null;
 	}
 
+	/// Creates a property animation instance from a resource reference (deferred loading).
+	/// The clip will be resolved on the next Update frame.
+	public void CreatePropertyAnimationFromRef(EntityId entity, ResourceRef clipRef, bool playing = true, float speed = 1.0f)
+	{
+		if (mScene == null)
+			return;
+
+		// Allocate a slot
+		int32 slotIdx;
+		if (mFreePropertyAnimSlots.Count > 0)
+		{
+			slotIdx = mFreePropertyAnimSlots.PopBack();
+		}
+		else
+		{
+			slotIdx = (int32)mPropertyAnimInstances.Count;
+			mPropertyAnimInstances.Add(.());
+		}
+
+		var instance = ref mPropertyAnimInstances[slotIdx];
+		instance = .();
+		instance.Entity = entity;
+		if (clipRef.IsValid)
+			instance.ClipRef = ResourceRef(clipRef.Id, clipRef.Path);
+		instance.Playing = playing;
+		instance.Speed = speed;
+		instance.Active = true;
+
+		mEntityToPropertyAnim[entity] = slotIdx;
+
+		// Set handle on entity component
+		var comp = mScene.GetComponent<PropertyAnimationComponent>(entity);
+		if (comp == null)
+		{
+			mScene.SetComponent<PropertyAnimationComponent>(entity, .());
+			comp = mScene.GetComponent<PropertyAnimationComponent>(entity);
+		}
+		comp.InternalHandle = slotIdx;
+	}
+
+	/// Resolves deserialized ResourceRef fields to loaded ResourceHandles for property animations.
+	/// When the clip resource is loaded, sets up the PropertyAnimationPlayer.
+	private void ResolvePropertyAnimResourceRefs()
+	{
+		let resourceSystem = mSubsystem.Context?.Resources;
+		if (resourceSystem == null)
+			return;
+
+		for (var instance in ref mPropertyAnimInstances)
+		{
+			if (!instance.Active)
+				continue;
+
+			bool clipChanged = false;
+
+			// Resolve clip ref
+			if (instance.ClipRef.IsValid)
+			{
+				bool needsLoad = !instance.ClipRes.IsValid;
+				if (!needsLoad && instance.ClipRef.HasId && instance.ClipRes.Resource != null && instance.ClipRes.Resource.Id != instance.ClipRef.Id)
+				{
+					instance.ClipRes.Release();
+					needsLoad = true;
+					clipChanged = true;
+				}
+				if (needsLoad)
+				{
+					if (resourceSystem.LoadByRef<PropertyAnimationClipResource>(instance.ClipRef) case .Ok(let handle))
+						instance.ClipRes = handle;
+				}
+			}
+
+			// Set up player when resource is loaded
+			if (instance.ClipRes.IsValid)
+			{
+				if (instance.Player == null || clipChanged)
+				{
+					let clip = instance.ClipRes.Resource?.Clip;
+					if (clip != null && mPropertyBinderRegistry != null)
+					{
+						// Delete old player if exists
+						if (instance.Player != null)
+							delete instance.Player;
+
+						let player = new PropertyAnimationPlayer(mScene, instance.Entity, mPropertyBinderRegistry);
+						instance.Player = player;
+						player.Speed = instance.Speed;
+
+						if (instance.Playing)
+							player.Play(clip);
+					}
+				}
+			}
+		}
+	}
+
 	/// Destroys property animation data for an entity.
 	public void DestroyPropertyAnimation(EntityId entity)
 	{
@@ -152,6 +252,8 @@ extension AnimationSceneModule
 		var instance = ref mPropertyAnimInstances[idx];
 		if (instance.Active)
 		{
+			instance.ClipRes.Release();
+			instance.ClipRef.Dispose();
 			if (instance.Player != null)
 			{
 				delete instance.Player;

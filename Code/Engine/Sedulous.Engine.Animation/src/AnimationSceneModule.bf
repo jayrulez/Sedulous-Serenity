@@ -91,6 +91,8 @@ class AnimationSceneModule : SceneModule
 		for (var instance in ref mPropertyAnimInstances)
 		{
 			if (!instance.Active) continue;
+			instance.ClipRes.Release();
+			instance.ClipRef.Dispose();
 			if (instance.Player != null)
 			{
 				delete instance.Player;
@@ -110,6 +112,7 @@ class AnimationSceneModule : SceneModule
 		// Resolve deserialized resource references
 		ResolveSkeletalAnimResourceRefs();
 		ResolveGraphResourceRefs();
+		ResolvePropertyAnimResourceRefs();
 
 		// Update all skeletal animation players
 		for (var instance in ref mSkeletalAnimInstances)
@@ -139,9 +142,23 @@ class AnimationSceneModule : SceneModule
 		}
 
 		// Update all property animation players
-		for (let instance in ref mPropertyAnimInstances)
+		for (var instance in ref mPropertyAnimInstances)
 		{
-			if (!instance.Active || instance.Player == null || !instance.Playing)
+			if (!instance.Active || instance.Player == null)
+				continue;
+
+			// Sync speed
+			instance.Player.Speed = instance.Speed;
+
+			// Detect Playing toggled on: player exists but isn't currently playing a clip
+			if (instance.Playing && instance.Player.State != PropertyPlaybackState.Playing)
+			{
+				let clip = instance.ClipRes.Resource?.Clip;
+				if (clip != null)
+					instance.Player.Play(clip);
+			}
+
+			if (!instance.Playing)
 				continue;
 
 			instance.Player.Update(deltaTime);

@@ -26,6 +26,7 @@ class PropertyAnimationComponentSerializer : IComponentSerializer
 			if (entityIndexMap.TryGetValue(instance.Entity.Index, let idx))
 			{
 				var data = PropertyAnimationComponentData();
+				data.ClipRef = instance.ClipRef; // shallow
 				data.Playing = instance.Playing;
 				data.Speed = instance.Speed;
 				entries.Add((idx, data));
@@ -51,9 +52,7 @@ class PropertyAnimationComponentSerializer : IComponentSerializer
 
 	public SerializationResult Read(Scene scene, Serializer s, List<EntityId> loadedEntities)
 	{
-		// PropertyAnimationComponent has no resource refs to resolve during deserialization.
-		// The actual animation clips are created programmatically at runtime, not serialized.
-		// We just read the data to maintain format compatibility.
+		let animModule = scene.GetModule<AnimationSceneModule>();
 
 		s.BeginObject(TypeName);
 		int32 count = 0;
@@ -66,6 +65,13 @@ class PropertyAnimationComponentSerializer : IComponentSerializer
 			s.Int32("entity", ref entityIdx);
 			var data = PropertyAnimationComponentData();
 			data.Serialize(s);
+
+			if (entityIdx >= 0 && entityIdx < loadedEntities.Count && animModule != null)
+			{
+				let entity = loadedEntities[entityIdx];
+				animModule.CreatePropertyAnimationFromRef(entity, data.ClipRef, data.Playing, data.Speed);
+			}
+
 			data.Dispose();
 			s.EndObject();
 		}

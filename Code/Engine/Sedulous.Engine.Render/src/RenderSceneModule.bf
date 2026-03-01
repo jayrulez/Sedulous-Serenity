@@ -26,6 +26,19 @@ class RenderSceneModule : SceneModule
 	private RenderWorld mWorld;
 	private Scene mScene;
 
+	// ==================== Data Providers ====================
+	private List<IComponentDataProvider> mDataProviders ~ DeleteContainerAndItems!(_);
+
+	public override void GetDataProviders(List<IComponentDataProvider> outProviders)
+	{
+		if (mDataProviders == null)
+		{
+			mDataProviders = new .();
+			InitDataProviders();
+		}
+		outProviders.AddRange(mDataProviders);
+	}
+
 	// ==================== Shared Caches ====================
 
 	// Cache: resource -> GPU handle (shared across entities using same resource)

@@ -9,16 +9,27 @@ using Sedulous.Serialization;
 /// Not stored on entities — only used by LightComponentSerializer during save/load.
 struct LightComponentData : ISerializableComponentData
 {
+	[Property]
 	public LightType Type;
+	[Property(.Color)]
 	public Vector3 Color;
+	[Property]
 	public float Intensity;
+	[Property]
 	public float Range;
+	[Property]
 	public float InnerConeAngle;
+	[Property]
 	public float OuterConeAngle;
+	[Property]
 	public bool CastsShadows;
+	[Property]
 	public float ShadowBias;
+	[Property]
 	public float ShadowNormalBias;
+	[Property]
 	public uint32 LayerMask;
+	[Property]
 	public bool Enabled;
 
 	public int32 SerializationVersion => 2;

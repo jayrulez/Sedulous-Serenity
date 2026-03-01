@@ -11,61 +11,96 @@ using Sedulous.Serialization;
 struct ParticleEmitterComponentData : ISerializableComponentData
 {
 	// Simulation
+	[Property]
 	public ParticleSimulationBackend Backend;
+	[Property]
 	public ParticleSpace SimulationSpace;
+	[Property]
 	public ParticleBlendMode BlendMode;
+	[Property]
 	public ParticleRenderMode RenderMode;
+	[Property]
 	public uint32 MaxParticles;
 	// Emission
+	[Property]
 	public float SpawnRate;
+	[Property]
 	public float ParticleLifetime;
+	[Property]
 	public int32 BurstCount;
+	[Property]
 	public float BurstInterval;
+	[Property]
 	public int32 BurstCycles;
 	// Size & color
+	[Property]
 	public Vector2 StartSize;
+	[Property]
 	public Vector2 EndSize;
+	[Property(.Color)]
 	public Vector4 StartColor;
+	[Property(.Color)]
 	public Vector4 EndColor;
 	// Motion
+	[Property]
 	public Vector3 InitialVelocity;
+	[Property]
 	public Vector3 VelocityRandomness;
+	[Property]
 	public float GravityMultiplier;
+	[Property]
 	public float Drag;
+	[Property]
 	public float VelocityInheritance;
 	// Rendering
+	[Property]
 	public float SoftParticleDistance;
+	[Property]
 	public float StretchFactor;
+	[Property]
 	public bool SortParticles;
+	[Property]
 	public bool Lit;
 	// Atlas
+	[Property]
 	public int32 AtlasColumns;
+	[Property]
 	public int32 AtlasRows;
+	[Property]
 	public float AtlasFPS;
+	[Property]
 	public bool AtlasLoop;
-	// Curves over lifetime
+	// Curves over lifetime (complex structs — not exposed in inspector)
 	public ParticleCurveVector2 SizeOverLifetime;
 	public ParticleCurveColor ColorOverLifetime;
 	public ParticleCurveFloat SpeedOverLifetime;
 	public ParticleCurveFloat AlphaOverLifetime;
 	public ParticleCurveFloat RotationSpeedOverLifetime;
-	// Force modules
+	// Force modules (complex struct — not exposed in inspector)
 	public ParticleForceModules ForceModules;
 	// LOD
+	[Property]
 	public float LODStartDistance;
+	[Property]
 	public float LODCullDistance;
+	[Property]
 	public float LODMinRateMultiplier;
 	// Lifetime variance
+	[Property]
 	public float LifetimeVarianceMin;
+	[Property]
 	public float LifetimeVarianceMax;
-	// Trail
+	// Trail (complex struct — not exposed in inspector)
 	public TrailSettings Trail;
-	// Emission shape
+	// Emission shape (complex struct — not exposed in inspector)
 	public EmissionShape Shape;
 	// Sub-emitter
+	[Property]
 	public bool SubEmitterOnly;
 	// General
+	[Property]
 	public uint32 LayerMask;
+	[Property]
 	public bool Enabled;
 
 	public int32 SerializationVersion => 2;

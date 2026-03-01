@@ -1,20 +1,30 @@
 namespace Sedulous.Engine.Navigation;
 
 using System;
+using Sedulous.Engine.Scenes;
 using Sedulous.Serialization;
 
 /// Transient serialization data for NavAgentComponent.
 /// Only exists during save/load — not stored at runtime.
 struct NavAgentComponentData
 {
+	[Property]
 	public bool SyncToTransform;
+	[Property]
 	public float Radius;
+	[Property]
 	public float Height;
+	[Property]
 	public float MaxAcceleration;
+	[Property]
 	public float MaxSpeed;
+	[Property]
 	public float CollisionQueryRange;
+	[Property]
 	public float PathOptimizationRange;
+	[Property]
 	public float SeparationWeight;
+	[Property]
 	public uint8 ObstacleAvoidanceType;
 
 	public int32 SerializationVersion => 2;
