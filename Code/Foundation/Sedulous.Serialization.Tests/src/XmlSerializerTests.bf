@@ -772,4 +772,223 @@ class XmlSerializerTests
 		Test.Assert(readList[0].StringValue == "single");
 		Test.Assert(readList[0].BoolValue == true);
 	}
+
+	// ---- CaptureScope / RestoreScope Tests ----
+
+	[Test]
+	public static void TestCaptureScope_CapturesAllFields()
+	{
+		// Write some fields into an object scope
+		let writer = XmlSerializer.CreateWriter();
+		defer delete writer;
+
+		writer.BeginObject("myObj");
+		int32 a = 42;
+		float b = 3.14f;
+		writer.Int32("fieldA", ref a);
+		writer.Float("fieldB", ref b);
+		writer.String("fieldC", scope String("hello"));
+		writer.EndObject();
+
+		let output = scope String();
+		writer.GetOutput(output);
+
+		// Read and capture the scope
+		let doc = scope XmlDocument();
+		Test.Assert(doc.Parse(output) == .Ok);
+
+		let reader = XmlSerializer.CreateReader(doc);
+		defer delete reader;
+
+		reader.BeginObject("myObj");
+		let captured = scope String();
+		Test.Assert(reader.CaptureScope(captured));
+		Test.Assert(!captured.IsEmpty);
+		reader.EndObject();
+
+		// Restore into a new writer
+		let writer2 = XmlSerializer.CreateWriter();
+		defer delete writer2;
+
+		writer2.BeginObject("myObj");
+		Test.Assert(writer2.RestoreScope(captured));
+		writer2.EndObject();
+
+		let output2 = scope String();
+		writer2.GetOutput(output2);
+
+		// Read back and verify values survived the roundtrip
+		let doc2 = scope XmlDocument();
+		Test.Assert(doc2.Parse(output2) == .Ok);
+
+		let reader2 = XmlSerializer.CreateReader(doc2);
+		defer delete reader2;
+
+		reader2.BeginObject("myObj");
+		int32 readA = 0;
+		float readB = 0;
+		let readC = scope String();
+		Test.Assert(reader2.Int32("fieldA", ref readA) == .Ok);
+		Test.Assert(reader2.Float("fieldB", ref readB) == .Ok);
+		Test.Assert(reader2.String("fieldC", readC) == .Ok);
+		reader2.EndObject();
+
+		Test.Assert(readA == 42);
+		Test.Assert(Math.Abs(readB - 3.14f) < 0.001f);
+		Test.Assert(readC == "hello");
+	}
+
+	[Test]
+	public static void TestCaptureScope_ExcludesField()
+	{
+		// Write some fields
+		let writer = XmlSerializer.CreateWriter();
+		defer delete writer;
+
+		writer.BeginObject("myObj");
+		int32 entity = 5;
+		int32 value = 99;
+		writer.Int32("entity", ref entity);
+		writer.Int32("value", ref value);
+		writer.EndObject();
+
+		let output = scope String();
+		writer.GetOutput(output);
+
+		// Capture excluding "entity"
+		let doc = scope XmlDocument();
+		Test.Assert(doc.Parse(output) == .Ok);
+
+		let reader = XmlSerializer.CreateReader(doc);
+		defer delete reader;
+
+		reader.BeginObject("myObj");
+		let captured = scope String();
+		Test.Assert(reader.CaptureScope(captured, "entity"));
+		reader.EndObject();
+
+		// Restore and verify only "value" is present
+		let writer2 = XmlSerializer.CreateWriter();
+		defer delete writer2;
+
+		writer2.BeginObject("myObj");
+		Test.Assert(writer2.RestoreScope(captured));
+		writer2.EndObject();
+
+		let output2 = scope String();
+		writer2.GetOutput(output2);
+
+		let doc2 = scope XmlDocument();
+		Test.Assert(doc2.Parse(output2) == .Ok);
+
+		let reader2 = XmlSerializer.CreateReader(doc2);
+		defer delete reader2;
+
+		reader2.BeginObject("myObj");
+		Test.Assert(!reader2.HasField("entity"));
+		int32 readValue = 0;
+		Test.Assert(reader2.Int32("value", ref readValue) == .Ok);
+		Test.Assert(readValue == 99);
+		reader2.EndObject();
+	}
+
+	[Test]
+	public static void TestCaptureScope_NestedObject()
+	{
+		// Write a scope with a nested object
+		let writer = XmlSerializer.CreateWriter();
+		defer delete writer;
+
+		writer.BeginObject("outer");
+		int32 id = 1;
+		writer.Int32("id", ref id);
+		writer.BeginObject("inner");
+		int32 x = 10;
+		int32 y = 20;
+		writer.Int32("x", ref x);
+		writer.Int32("y", ref y);
+		writer.EndObject();
+		writer.EndObject();
+
+		let output = scope String();
+		writer.GetOutput(output);
+
+		// Capture the outer scope (excluding "id")
+		let doc = scope XmlDocument();
+		Test.Assert(doc.Parse(output) == .Ok);
+
+		let reader = XmlSerializer.CreateReader(doc);
+		defer delete reader;
+
+		reader.BeginObject("outer");
+		let captured = scope String();
+		Test.Assert(reader.CaptureScope(captured, "id"));
+		reader.EndObject();
+
+		// Restore and verify nested object survived
+		let writer2 = XmlSerializer.CreateWriter();
+		defer delete writer2;
+
+		writer2.BeginObject("outer");
+		Test.Assert(writer2.RestoreScope(captured));
+		writer2.EndObject();
+
+		let output2 = scope String();
+		writer2.GetOutput(output2);
+
+		let doc2 = scope XmlDocument();
+		Test.Assert(doc2.Parse(output2) == .Ok);
+
+		let reader2 = XmlSerializer.CreateReader(doc2);
+		defer delete reader2;
+
+		reader2.BeginObject("outer");
+		Test.Assert(!reader2.HasField("id"));
+		reader2.BeginObject("inner");
+		int32 readX = 0;
+		int32 readY = 0;
+		Test.Assert(reader2.Int32("x", ref readX) == .Ok);
+		Test.Assert(reader2.Int32("y", ref readY) == .Ok);
+		Test.Assert(readX == 10);
+		Test.Assert(readY == 20);
+		reader2.EndObject();
+		reader2.EndObject();
+	}
+
+	[Test]
+	public static void TestCaptureScope_EmptyScope()
+	{
+		// Capture an empty scope
+		let writer = XmlSerializer.CreateWriter();
+		defer delete writer;
+
+		writer.BeginObject("empty");
+		writer.EndObject();
+
+		let output = scope String();
+		writer.GetOutput(output);
+
+		let doc = scope XmlDocument();
+		Test.Assert(doc.Parse(output) == .Ok);
+
+		let reader = XmlSerializer.CreateReader(doc);
+		defer delete reader;
+
+		reader.BeginObject("empty");
+		let captured = scope String();
+		Test.Assert(reader.CaptureScope(captured));
+		Test.Assert(captured.IsEmpty);
+		reader.EndObject();
+	}
+
+	[Test]
+	public static void TestRestoreScope_EmptyData()
+	{
+		let writer = XmlSerializer.CreateWriter();
+		defer delete writer;
+
+		writer.BeginObject("obj");
+		Test.Assert(!writer.RestoreScope(""));
+		writer.EndObject();
+	}
 }

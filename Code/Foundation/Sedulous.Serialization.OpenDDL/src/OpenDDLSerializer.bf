@@ -709,4 +709,43 @@ class OpenDDLSerializer : Serializer
 				outNames.Add(new String(child.StructureName));
 		}
 	}
+
+	public override bool CaptureScope(String output, StringView excludeField = default)
+	{
+		if (!IsReading || mCurrentStructure == null)
+			return false;
+
+		for (let child in mCurrentStructure.Children)
+		{
+			if (!excludeField.IsEmpty && child.StructureName == excludeField)
+				continue;
+			child.StructureToOpenDDL(output);
+		}
+		return true;
+	}
+
+	public override bool RestoreScope(StringView data)
+	{
+		if (!IsWriting || data.IsEmpty)
+			return false;
+
+		// Parse the OpenDDL text
+		let doc = scope SerializerDataDescription();
+		if (doc.ProcessText(data) != .Ok)
+			return false;
+
+		// Collect children first (iterating while modifying is unsafe)
+		let children = scope List<Structure>();
+		for (let child in doc.RootStructure.Children)
+			children.Add(child);
+
+		// Reparent parsed structures into the current write scope
+		for (let child in children)
+		{
+			child.RemoveFromParent();
+			mCurrentWriteStructure.AppendChild(child);
+		}
+
+		return true;
+	}
 }

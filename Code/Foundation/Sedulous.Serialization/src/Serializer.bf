@@ -239,6 +239,17 @@ abstract class Serializer
 	/// Caller owns the allocated String objects in outNames.
 	public abstract void GetFieldNames(List<String> outNames);
 
+	/// Captures all children of the current scope as a format-specific text string.
+	/// Used for preserving unknown/unrecognized data during roundtrip serialization.
+	/// excludeField: optionally skip a named child from capture.
+	/// Returns true if capture was successful.
+	public abstract bool CaptureScope(String output, StringView excludeField = default);
+
+	/// Restores previously captured scope data into the current write scope.
+	/// Takes the same format-specific text string produced by CaptureScope.
+	/// Returns true if restore was successful.
+	public abstract bool RestoreScope(StringView data);
+
 	/// Serializes a version number for the current object.
 	/// Should be called at the start of Serialize() for versioned types.
 	public SerializationResult Version(ref int32 version)

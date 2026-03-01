@@ -875,4 +875,59 @@ class XmlSerializer : Serializer
 			}
 		}
 	}
+
+	public override bool CaptureScope(String output, StringView excludeField = default)
+	{
+		if (!IsReading || mCurrentElement == null)
+			return false;
+
+		for (let child in mCurrentElement.Children)
+		{
+			if (let elem = child as XmlElement)
+			{
+				if (!excludeField.IsEmpty && elem.GetAttribute("name") == excludeField)
+					continue;
+				elem.GetOuterXml(output);
+			}
+		}
+		return true;
+	}
+
+	public override bool RestoreScope(StringView data)
+	{
+		if (!IsWriting || data.IsEmpty)
+			return false;
+
+		// Wrap in a root element for parsing
+		let wrappedXml = scope String();
+		wrappedXml.Append("<root>");
+		wrappedXml.Append(data);
+		wrappedXml.Append("</root>");
+
+		let doc = scope XmlDocument();
+		if (doc.Parse(wrappedXml) != .Ok)
+			return false;
+
+		let root = doc.RootElement;
+		if (root == null)
+			return false;
+
+		// Collect children first (iterating while modifying is unsafe)
+		let children = scope List<XmlNode>();
+		var child = root.FirstChild;
+		while (child != null)
+		{
+			children.Add(child);
+			child = child.NextSibling;
+		}
+
+		// Reparent parsed nodes into the current write scope
+		for (let node in children)
+		{
+			node.RemoveFromParent();
+			mCurrentWriteElement.AppendChild(node);
+		}
+
+		return true;
+	}
 }
