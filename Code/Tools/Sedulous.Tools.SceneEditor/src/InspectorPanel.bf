@@ -7,6 +7,7 @@ using Sedulous.Core.Mathematics;
 using Sedulous.GUI;
 using Sedulous.Engine.Scenes;
 using Sedulous.Engine.Render;
+using Sedulous.Engine.Audio;
 using Sedulous.Engine.Physics;
 using Sedulous.Render;
 using Sedulous.Resources;
@@ -448,12 +449,15 @@ class InspectorPanel
 		// Transform properties
 		AddTransformProperties(scene, entity);
 
-		// Component properties via reflection
+		// Component properties via reflection (gameplay components with [Property] fields)
 		for (let compType in sComponentTypes)
 		{
 			if (scene.HasComponent(entity, compType))
 				AddComponentProperties(scene, entity, compType);
 		}
+
+		// Module-managed component properties (accessed via module APIs / proxies)
+		AddModuleManagedProperties(scene, entity);
 	}
 
 	private void AddNameProperty(Scene scene, EntityId entity)
@@ -1184,6 +1188,10 @@ class InspectorPanel
 		if (categoryName == "Transform" || categoryName == "Entity")
 			return false;
 
+		// Module-managed categories
+		if (categoryName == "Light" || categoryName == "Camera" || categoryName == "Audio Source")
+			return true;
+
 		// Check that a matching component type exists
 		DiscoverComponentTypes();
 		for (let compType in sComponentTypes)
@@ -1201,6 +1209,26 @@ class InspectorPanel
 		menu.ClearItems();
 
 		let categoryName = mPropertyGrid.HoveredCategoryName.Value;
+
+		// Map module-managed category names to their component types
+		Type moduleManagedType = null;
+		if (categoryName == "Light")
+			moduleManagedType = typeof(LightComponent);
+		else if (categoryName == "Camera")
+			moduleManagedType = typeof(CameraComponent);
+		else if (categoryName == "Audio Source")
+			moduleManagedType = typeof(AudioSourceComponent);
+
+		if (moduleManagedType != null)
+		{
+			let removeItem = menu.AddItem(scope $"Remove {categoryName}");
+			let capturedType = moduleManagedType;
+			removeItem.Click.Subscribe(new (mi) =>
+				{
+					RemoveComponentFromSelected(capturedType);
+				});
+			return;
+		}
 
 		DiscoverComponentTypes();
 		for (let compType in sComponentTypes)
@@ -1273,7 +1301,32 @@ class InspectorPanel
 		if (scene == null)
 			return;
 
-		scene.AddDefaultComponent(mCurrentEntity, compType);
+		// Module-managed types need to be created via module APIs
+		if (compType == typeof(LightComponent))
+		{
+			if (let m = scene.GetModule<RenderSceneModule>())
+				m.CreatePointLight(mCurrentEntity, .(1, 1, 1), 1.0f, 10.0f);
+		}
+		else if (compType == typeof(CameraComponent))
+		{
+			if (let m = scene.GetModule<RenderSceneModule>())
+				m.CreatePerspectiveCamera(mCurrentEntity, Math.PI_f / 4.0f, 16.0f / 9.0f, 0.1f, 1000.0f);
+		}
+		else if (compType == typeof(AudioSourceComponent))
+		{
+			if (let m = scene.GetModule<AudioSceneModule>())
+				m.CreateSource(mCurrentEntity);
+		}
+		else if (compType == typeof(AudioListenerComponent))
+		{
+			if (let m = scene.GetModule<AudioSceneModule>())
+				m.CreateListener(mCurrentEntity);
+		}
+		else
+		{
+			scene.AddDefaultComponent(mCurrentEntity, compType);
+		}
+
 		mCurrentTab.MarkDirty();
 
 		// Force rebuild inspector
@@ -1295,6 +1348,33 @@ class InspectorPanel
 		if (scene == null)
 			return;
 
+		// Module-managed types need cleanup via module APIs
+		if (compType == typeof(LightComponent))
+		{
+			if (let m = scene.GetModule<RenderSceneModule>())
+				m.DestroyLight(mCurrentEntity);
+		}
+		else if (compType == typeof(CameraComponent))
+		{
+			if (let m = scene.GetModule<RenderSceneModule>())
+				m.DestroyCamera(mCurrentEntity);
+		}
+		else if (compType == typeof(MeshComponent))
+		{
+			if (let m = scene.GetModule<RenderSceneModule>())
+				m.DestroyMesh(mCurrentEntity);
+		}
+		else if (compType == typeof(AudioSourceComponent))
+		{
+			if (let m = scene.GetModule<AudioSceneModule>())
+				m.DestroySource(mCurrentEntity);
+		}
+		else if (compType == typeof(AudioListenerComponent))
+		{
+			if (let m = scene.GetModule<AudioSceneModule>())
+				m.DestroyListener(mCurrentEntity);
+		}
+
 		scene.RemoveComponent(mCurrentEntity, compType);
 		mCurrentTab.MarkDirty();
 
@@ -1305,6 +1385,346 @@ class InspectorPanel
 		mCurrentEntity = entity;
 
 		OnPropertyChanged?.Invoke();
+	}
+
+	// ==================== Module-Managed Properties ====================
+
+	/// Adds property sections for module-managed components (accessed via module APIs, not reflection).
+	private void AddModuleManagedProperties(Scene scene, EntityId entity)
+	{
+		// Render module properties
+		if (let renderModule = scene.GetModule<RenderSceneModule>())
+		{
+			if (let proxy = renderModule.GetLightProxy(entity))
+				AddLightProperties(renderModule, scene, entity, proxy);
+
+			if (let proxy = renderModule.GetCameraProxy(entity))
+				AddCameraProperties(renderModule, scene, entity, proxy);
+		}
+
+		// Audio module properties
+		if (let audioModule = scene.GetModule<AudioSceneModule>())
+		{
+			if (audioModule.HasSource(entity))
+				AddAudioSourceProperties(audioModule, entity);
+		}
+	}
+
+	private void AddLightProperties(RenderSceneModule renderModule, Scene scene, EntityId entity, LightProxy* proxy)
+	{
+		let category = "Light";
+
+		// Light type (read-only display)
+		let typeNames = scope StringView[]("Directional", "Point", "Spot", "Area");
+		let lightTypeItem = new EnumPropertyItem("Type", typeNames,
+			new () =>
+			{
+				if (let p = renderModule.GetLightProxy(entity))
+					return new String(typeNames[(int)p.Type]);
+				return new String("???");
+			},
+			new (name) => { }); // Read-only
+		lightTypeItem.SetCategory(category);
+		mPropertyGrid.AddItem(lightTypeItem);
+
+		// Color
+		let colorItem = new ColorPropertyItem("Color",
+			new () =>
+			{
+				if (let p = renderModule.GetLightProxy(entity))
+					return p.Color;
+				return .Zero;
+			},
+			new (v) =>
+			{
+				if (let p = renderModule.GetLightProxy(entity))
+					p.Color = v;
+			});
+		colorItem.SetCategory(category);
+		mPropertyGrid.AddItem(colorItem);
+
+		// Intensity
+		mPropertyGrid.AddFloatProperty("Intensity", category,
+			new () =>
+			{
+				if (let p = renderModule.GetLightProxy(entity))
+					return new box p.Intensity;
+				return new box 0.0f;
+			},
+			new (obj) =>
+			{
+				if (let f = obj as float?)
+					if (let p = renderModule.GetLightProxy(entity))
+						p.Intensity = f;
+			});
+
+		// Range (point/spot only)
+		if (proxy.Type == .Point || proxy.Type == .Spot)
+		{
+			mPropertyGrid.AddFloatProperty("Range", category,
+				new () =>
+				{
+					if (let p = renderModule.GetLightProxy(entity))
+						return new box p.Range;
+					return new box 0.0f;
+				},
+				new (obj) =>
+				{
+					if (let f = obj as float?)
+						if (let p = renderModule.GetLightProxy(entity))
+							p.Range = f;
+				});
+		}
+
+		// Cone angles (spot only)
+		if (proxy.Type == .Spot)
+		{
+			mPropertyGrid.AddFloatProperty("Inner Cone Angle", category,
+				new () =>
+				{
+					if (let p = renderModule.GetLightProxy(entity))
+						return new box p.InnerConeAngle;
+					return new box 0.0f;
+				},
+				new (obj) =>
+				{
+					if (let f = obj as float?)
+						if (let p = renderModule.GetLightProxy(entity))
+							p.InnerConeAngle = f;
+				});
+
+			mPropertyGrid.AddFloatProperty("Outer Cone Angle", category,
+				new () =>
+				{
+					if (let p = renderModule.GetLightProxy(entity))
+						return new box p.OuterConeAngle;
+					return new box 0.0f;
+				},
+				new (obj) =>
+				{
+					if (let f = obj as float?)
+						if (let p = renderModule.GetLightProxy(entity))
+							p.OuterConeAngle = f;
+				});
+		}
+
+		// CastsShadows
+		mPropertyGrid.AddBoolProperty("Casts Shadows", category,
+			new () =>
+			{
+				if (let p = renderModule.GetLightProxy(entity))
+					return new box p.CastsShadows;
+				return new box false;
+			},
+			new (obj) =>
+			{
+				if (let b = obj as bool?)
+					if (let p = renderModule.GetLightProxy(entity))
+						p.CastsShadows = b;
+			});
+
+		// IsEnabled
+		mPropertyGrid.AddBoolProperty("Enabled", category,
+			new () =>
+			{
+				if (let p = renderModule.GetLightProxy(entity))
+					return new box p.IsEnabled;
+				return new box true;
+			},
+			new (obj) =>
+			{
+				if (let b = obj as bool?)
+					if (let p = renderModule.GetLightProxy(entity))
+						p.IsEnabled = b;
+			});
+	}
+
+	private void AddCameraProperties(RenderSceneModule renderModule, Scene scene, EntityId entity, CameraProxy* proxy)
+	{
+		let category = "Camera";
+
+		// Projection type (read-only)
+		let projNames = scope StringView[]("Perspective", "Orthographic");
+		let projItem = new EnumPropertyItem("Projection", projNames,
+			new () =>
+			{
+				if (let p = renderModule.GetCameraProxy(entity))
+					return new String(projNames[(int)p.Projection]);
+				return new String("???");
+			},
+			new (name) => { }); // Read-only
+		projItem.SetCategory(category);
+		mPropertyGrid.AddItem(projItem);
+
+		// FOV (perspective only)
+		if (proxy.Projection == .Perspective)
+		{
+			mPropertyGrid.AddFloatProperty("Field of View", category,
+				new () =>
+				{
+					if (let p = renderModule.GetCameraProxy(entity))
+						return new box (p.FieldOfView * 180.0f / Math.PI_f);
+					return new box 45.0f;
+				},
+				new (obj) =>
+				{
+					if (let f = obj as float?)
+					{
+						if (let p = renderModule.GetCameraProxy(entity))
+						{
+							p.FieldOfView = f * Math.PI_f / 180.0f;
+							p.UpdateMatrices();
+						}
+					}
+				});
+		}
+
+		// Near/Far planes
+		mPropertyGrid.AddFloatProperty("Near Plane", category,
+			new () =>
+			{
+				if (let p = renderModule.GetCameraProxy(entity))
+					return new box p.NearPlane;
+				return new box 0.1f;
+			},
+			new (obj) =>
+			{
+				if (let f = obj as float?)
+				{
+					if (let p = renderModule.GetCameraProxy(entity))
+					{
+						p.NearPlane = f;
+						p.UpdateMatrices();
+					}
+				}
+			});
+
+		mPropertyGrid.AddFloatProperty("Far Plane", category,
+			new () =>
+			{
+				if (let p = renderModule.GetCameraProxy(entity))
+					return new box p.FarPlane;
+				return new box 1000.0f;
+			},
+			new (obj) =>
+			{
+				if (let f = obj as float?)
+				{
+					if (let p = renderModule.GetCameraProxy(entity))
+					{
+						p.FarPlane = f;
+						p.UpdateMatrices();
+					}
+				}
+			});
+
+		// IsMainCamera
+		mPropertyGrid.AddBoolProperty("Main Camera", category,
+			new () =>
+			{
+				if (let p = renderModule.GetCameraProxy(entity))
+					return new box p.IsMainCamera;
+				return new box false;
+			},
+			new (obj) =>
+			{
+				if (let b = obj as bool?)
+					if (b)
+						renderModule.SetMainCamera(entity);
+			});
+	}
+
+	private void AddAudioSourceProperties(AudioSceneModule audioModule, EntityId entity)
+	{
+		let category = "Audio Source";
+
+		let data = audioModule.GetSourceData(entity);
+		if (data == null)
+			return;
+
+		// Volume
+		mPropertyGrid.AddFloatProperty("Volume", category,
+			new () =>
+			{
+				let d = audioModule.GetSourceData(entity);
+				if (d == null) return new box 1.0f;
+				return new box d.Volume;
+			},
+			new (obj) =>
+			{
+				if (let f = obj as float?)
+					audioModule.SetVolume(entity, f);
+			});
+
+		// Pitch
+		mPropertyGrid.AddFloatProperty("Pitch", category,
+			new () =>
+			{
+				let d = audioModule.GetSourceData(entity);
+				if (d == null) return new box 1.0f;
+				return new box d.Pitch;
+			},
+			new (obj) =>
+			{
+				if (let f = obj as float?)
+					audioModule.SetPitch(entity, f);
+			});
+
+		// Spatial
+		mPropertyGrid.AddBoolProperty("Spatial", category,
+			new () =>
+			{
+				let d = audioModule.GetSourceData(entity);
+				if (d == null) return new box true;
+				return new box d.Spatial;
+			},
+			new (obj) =>
+			{
+				if (let b = obj as bool?)
+					audioModule.SetSpatial(entity, b);
+			});
+
+		// Loop
+		mPropertyGrid.AddBoolProperty("Loop", category,
+			new () =>
+			{
+				let d = audioModule.GetSourceData(entity);
+				if (d == null) return new box false;
+				return new box d.Loop;
+			},
+			new (obj) =>
+			{
+				if (let b = obj as bool?)
+					audioModule.SetLoop(entity, b);
+			});
+
+		// MinDistance
+		mPropertyGrid.AddFloatProperty("Min Distance", category,
+			new () =>
+			{
+				let d = audioModule.GetSourceData(entity);
+				if (d == null) return new box 1.0f;
+				return new box d.MinDistance;
+			},
+			new (obj) =>
+			{
+				if (let f = obj as float?)
+					audioModule.SetMinDistance(entity, f);
+			});
+
+		// MaxDistance
+		mPropertyGrid.AddFloatProperty("Max Distance", category,
+			new () =>
+			{
+				let d = audioModule.GetSourceData(entity);
+				if (d == null) return new box 100.0f;
+				return new box d.MaxDistance;
+			},
+			new (obj) =>
+			{
+				if (let f = obj as float?)
+					audioModule.SetMaxDistance(entity, f);
+			});
 	}
 
 	/// Tries to read the resource GUID from a resource file by searching for the _id field.

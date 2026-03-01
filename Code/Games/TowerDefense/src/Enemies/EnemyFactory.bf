@@ -135,13 +135,8 @@ class EnemyFactory
 		transform.Scale = .(definition.Scale, definition.Scale, definition.Scale);
 		mScene.SetTransform(entity, transform);
 
-		// Add mesh renderer component
-		mScene.SetComponent<MeshRendererComponent>(entity, .Default);
-		var meshComp = mScene.GetComponent<MeshRendererComponent>(entity);
-		meshComp.Mesh = ResourceHandle<StaticMeshResource>(mEnemyMesh);
-		meshComp.MaterialInstances[0] = GetOrCreateMaterial(definition.Color);
-		meshComp.MaterialInstances[0]?.AddRef();
-		meshComp.MaterialRefs.Count = 1;
+		mRenderModule.CreateMesh(entity, mEnemyMesh);
+		mRenderModule.SetMeshMaterial(entity, 0, GetOrCreateMaterial(definition.Color));
 
 		// Create enemy data (replaces component)
 		let enemyData = new EnemyData();

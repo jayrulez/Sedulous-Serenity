@@ -114,13 +114,8 @@ class MapBuilder
 		transform.Scale = .(tileSize * 0.95f, 0.2f, tileSize * 0.95f);  // Slight gap between tiles
 		mScene.SetTransform(entity, transform);
 
-		// Add mesh renderer component
-		mScene.SetComponent<MeshRendererComponent>(entity, .Default);
-		var meshComp = mScene.GetComponent<MeshRendererComponent>(entity);
-		meshComp.Mesh = ResourceHandle<StaticMeshResource>(mTileMesh);
-		meshComp.MaterialInstances[0] = GetMaterialForTileType(tileType);
-		meshComp.MaterialInstances[0]?.AddRef();
-		meshComp.MaterialRefs.Count = 1;
+		mRenderModule.CreateMesh(entity, mTileMesh);
+		mRenderModule.SetMeshMaterial(entity, 0, GetMaterialForTileType(tileType));
 
 		mTileEntities.Add(entity);
 	}

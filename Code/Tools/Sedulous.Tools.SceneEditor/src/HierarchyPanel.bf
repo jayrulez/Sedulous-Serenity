@@ -6,6 +6,7 @@ using Sedulous.Core.Mathematics;
 using Sedulous.GUI;
 using Sedulous.Engine.Scenes;
 using Sedulous.Engine.Render;
+using Sedulous.Engine.Audio;
 
 /// Encapsulates the entity hierarchy tree view with toolbar for add/delete operations.
 class HierarchyPanel
@@ -260,31 +261,27 @@ class HierarchyPanel
 		case .DirectionalLight:
 			scene.SetName(entity, "Directional Light");
 			scene.SetRotation(entity, Quaternion.CreateFromYawPitchRoll(0.5f, -1.0f, 0));
-			var light = LightComponent.Default;
-			light.Type = .Directional;
-			light.Intensity = 2.5f;
-			light.CastsShadows = true;
-			scene.SetComponent<LightComponent>(entity, light);
+			if (let renderModule = scene.GetModule<RenderSceneModule>())
+			{
+				renderModule.CreateDirectionalLight(entity, .(1.0f, 1.0f, 1.0f), 2.5f);
+				if (let proxy = renderModule.GetLightProxy(entity))
+					proxy.CastsShadows = true;
+			}
 
 		case .PointLight:
 			scene.SetName(entity, "Point Light");
-			var light = LightComponent.Default;
-			light.Type = .Point;
-			light.Range = 10.0f;
-			scene.SetComponent<LightComponent>(entity, light);
+			if (let renderModule = scene.GetModule<RenderSceneModule>())
+				renderModule.CreatePointLight(entity, .(1.0f, 1.0f, 1.0f), 1.0f, 10.0f);
 
 		case .SpotLight:
 			scene.SetName(entity, "Spot Light");
-			var light = LightComponent.Default;
-			light.Type = .Spot;
-			light.Range = 15.0f;
-			light.InnerConeAngle = 0.3f;
-			light.OuterConeAngle = 0.5f;
-			scene.SetComponent<LightComponent>(entity, light);
+			if (let renderModule = scene.GetModule<RenderSceneModule>())
+				renderModule.CreateSpotLight(entity, .(1.0f, 1.0f, 1.0f), 1.0f, 15.0f, 0.3f, 0.5f);
 
 		case .Camera:
 			scene.SetName(entity, "Camera");
-			scene.SetComponent<CameraComponent>(entity, CameraComponent.Default);
+			if (let renderModule = scene.GetModule<RenderSceneModule>())
+				renderModule.CreatePerspectiveCamera(entity, Math.PI_f / 4.0f, 16.0f / 9.0f, 0.1f, 1000.0f);
 		}
 
 		if (parent.IsValid)
@@ -394,13 +391,22 @@ class HierarchyPanel
 		if (newParent.IsValid)
 			scene.SetParent(newEntity, newParent);
 
-		// Copy known components
-		CopyComponent<LightComponent>(scene, src, newEntity);
-		CopyComponent<CameraComponent>(scene, src, newEntity);
-		CopyComponent<MeshRendererComponent>(scene, src, newEntity);
-		CopyComponent<SkinnedMeshRendererComponent>(scene, src, newEntity);
-		CopyComponent<SpriteComponent>(scene, src, newEntity);
-		CopyComponent<ParticleEmitterComponent>(scene, src, newEntity);
+		// Duplicate module-managed components via module APIs
+		if (let renderModule = scene.GetModule<RenderSceneModule>())
+		{
+			renderModule.DuplicateLight(src, newEntity);
+			renderModule.DuplicateCamera(src, newEntity);
+			renderModule.DuplicateMesh(src, newEntity);
+			renderModule.DuplicateSkinnedMesh(src, newEntity);
+			renderModule.DuplicateSprite(src, newEntity);
+			renderModule.DuplicateParticleEmitter(src, newEntity);
+		}
+
+		if (let audioModule = scene.GetModule<AudioSceneModule>())
+		{
+			audioModule.DuplicateSource(src, newEntity);
+			audioModule.DuplicateListener(src, newEntity);
+		}
 
 		// Recursively duplicate children
 		let children = scope List<EntityId>();
@@ -409,13 +415,6 @@ class HierarchyPanel
 			DuplicateEntityRecursive(scene, child, newEntity);
 
 		return newEntity;
-	}
-
-	private void CopyComponent<T>(Scene scene, EntityId src, EntityId dst) where T : struct, IComponent
-	{
-		let comp = scene.GetComponent<T>(src);
-		if (comp != null)
-			scene.SetComponent<T>(dst, *comp);
 	}
 
 	// ==================== Rename ====================

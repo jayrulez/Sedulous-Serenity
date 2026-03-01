@@ -83,9 +83,12 @@ public class PhysicsSubsystem : Subsystem, ISceneAware
 
 	protected override void OnShutdown()
 	{
-		// Clean up all physics worlds
+		// Null out module world references before deleting,
+		// so OnSceneDestroy knows the world is gone.
 		for (let (scene, world) in mSceneWorlds)
 		{
+			if (let module = scene.GetModule<PhysicsSceneModule>())
+				module.[Friend]mPhysicsWorld = null;
 			world.Dispose();
 			delete world;
 		}
@@ -121,7 +124,11 @@ public class PhysicsSubsystem : Subsystem, ISceneAware
 
 	public void OnSceneDestroyed(Scene scene)
 	{
-		// Clean up physics world for this scene
+		// Null out the module's world reference before deleting,
+		// so OnSceneDestroy (called later by scene.Dispose) knows the world is gone.
+		if (let module = scene.GetModule<PhysicsSceneModule>())
+			module.[Friend]mPhysicsWorld = null;
+
 		if (mSceneWorlds.TryGetValue(scene, let world))
 		{
 			mSceneWorlds.Remove(scene);

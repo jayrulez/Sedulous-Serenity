@@ -213,13 +213,8 @@ class FrameworkRenderApp : Application
 			transform.Position = .(0, -1.0f, 0);
 			mMainScene.SetTransform(mFloorEntity, transform);
 
-			// Set mesh component - framework handles proxy creation and GPU upload
-			mMainScene.SetComponent<MeshRendererComponent>(mFloorEntity, .Default);
-			var comp = mMainScene.GetComponent<MeshRendererComponent>(mFloorEntity);
-			comp.Mesh = ResourceHandle<StaticMeshResource>(mPlaneResource);
-			comp.MaterialInstances[0] = mFloorMaterial ?? defaultMaterial;
-			comp.MaterialInstances[0]?.AddRef();
-			comp.MaterialRefs.Count = 1;
+			renderModule.CreateMesh(mFloorEntity, mPlaneResource);
+			renderModule.SetMeshMaterial(mFloorEntity, 0, mFloorMaterial ?? defaultMaterial);
 		}
 
 		// Create camera
@@ -308,10 +303,7 @@ class FrameworkRenderApp : Application
 			transform.Position = .(x, y, z);
 			mMainScene.SetTransform(entity, transform);
 
-			// Set mesh component - framework handles proxy creation and GPU upload
-			mMainScene.SetComponent<MeshRendererComponent>(entity, .Default);
-			var comp = mMainScene.GetComponent<MeshRendererComponent>(entity);
-			comp.Mesh = ResourceHandle<StaticMeshResource>(mSphereResource);
+			renderModule.CreateMesh(entity, mSphereResource);
 
 			// Use shared or unique material based on mode
 			if (mUseUniqueMaterials && baseMaterial != null)
@@ -322,15 +314,11 @@ class FrameworkRenderApp : Application
 				let color = HSVtoRGB(hue, 0.8f, 0.9f);
 				uniqueMat.SetColor("BaseColor", .(color.X, color.Y, color.Z, 1.0f));
 				mUniqueMaterials.Add(uniqueMat);
-				comp.MaterialInstances[0] = uniqueMat;
-				comp.MaterialInstances[0]?.AddRef();
-				comp.MaterialRefs.Count = 1;
+				renderModule.SetMeshMaterial(entity, 0, uniqueMat);
 			}
 			else
 			{
-				comp.MaterialInstances[0] = mSharedSphereMaterial ?? defaultMaterial;
-				comp.MaterialInstances[0]?.AddRef();
-				comp.MaterialRefs.Count = 1;
+				renderModule.SetMeshMaterial(entity, 0, mSharedSphereMaterial ?? defaultMaterial);
 			}
 		}
 
@@ -366,11 +354,7 @@ class FrameworkRenderApp : Application
 		for (int32 i = 0; i < mSphereEntities.Count; i++)
 		{
 			let entity = mSphereEntities[i];
-			var comp = mMainScene.GetComponent<MeshRendererComponent>(entity);
-			if (comp == null)
-				continue;
 
-			comp.MaterialInstances[0]?.ReleaseRef();
 			if (mUseUniqueMaterials && baseMaterial != null)
 			{
 				let uniqueMat = new MaterialInstance(baseMaterial);
@@ -378,15 +362,11 @@ class FrameworkRenderApp : Application
 				let color = HSVtoRGB(hue, 0.8f, 0.9f);
 				uniqueMat.SetColor("BaseColor", .(color.X, color.Y, color.Z, 1.0f));
 				mUniqueMaterials.Add(uniqueMat);
-				comp.MaterialInstances[0] = uniqueMat;
-				comp.MaterialInstances[0]?.AddRef();
-				if (comp.MaterialRefs.Count < 1) comp.MaterialRefs.Count = 1;
+				renderModule.SetMeshMaterial(entity, 0, uniqueMat);
 			}
 			else
 			{
-				comp.MaterialInstances[0] = mSharedSphereMaterial ?? defaultMaterial;
-				comp.MaterialInstances[0]?.AddRef();
-				if (comp.MaterialRefs.Count < 1) comp.MaterialRefs.Count = 1;
+				renderModule.SetMeshMaterial(entity, 0, mSharedSphereMaterial ?? defaultMaterial);
 			}
 		}
 

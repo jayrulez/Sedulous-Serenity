@@ -161,13 +161,8 @@ class TowerFactory
 		transform.Scale = .(definition.Scale * 0.8f, definition.Scale, definition.Scale * 0.8f);
 		mScene.SetTransform(entity, transform);
 
-		// Add mesh renderer component
-		mScene.SetComponent<MeshRendererComponent>(entity, .Default);
-		var meshComp = mScene.GetComponent<MeshRendererComponent>(entity);
-		meshComp.Mesh = ResourceHandle<StaticMeshResource>(mTowerMesh);
-		meshComp.MaterialInstances[0] = GetOrCreateMaterial(definition.Color);
-		meshComp.MaterialInstances[0]?.AddRef();
-		meshComp.MaterialRefs.Count = 1;
+		mRenderModule.CreateMesh(entity, mTowerMesh);
+		mRenderModule.SetMeshMaterial(entity, 0, GetOrCreateMaterial(definition.Color));
 
 		// Create tower data (replaces component)
 		let towerData = new TowerData();
@@ -250,13 +245,8 @@ class TowerFactory
 		transform.Scale = .(0.15f, 0.15f, 0.15f);
 		mScene.SetTransform(entity, transform);
 
-		// Add mesh renderer component
-		mScene.SetComponent<MeshRendererComponent>(entity, .Default);
-		var meshComp = mScene.GetComponent<MeshRendererComponent>(entity);
-		meshComp.Mesh = ResourceHandle<StaticMeshResource>(mProjectileMesh);
-		meshComp.MaterialInstances[0] = GetOrCreateMaterial(color);
-		meshComp.MaterialInstances[0]?.AddRef();
-		meshComp.MaterialRefs.Count = 1;
+		mRenderModule.CreateMesh(entity, mProjectileMesh);
+		mRenderModule.SetMeshMaterial(entity, 0, GetOrCreateMaterial(color));
 
 		// Create projectile data (replaces component)
 		let projData = new ProjectileData();

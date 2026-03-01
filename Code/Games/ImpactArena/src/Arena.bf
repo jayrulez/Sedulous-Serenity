@@ -39,12 +39,8 @@ class Arena
 	private void CreateFloor(StaticMeshResource planeResource, MaterialInstance mat)
 	{
 		mFloorEntity = mScene.CreateEntity();
-		mScene.SetComponent<MeshRendererComponent>(mFloorEntity, .Default);
-		var comp = mScene.GetComponent<MeshRendererComponent>(mFloorEntity);
-		comp.Mesh = ResourceHandle<StaticMeshResource>(planeResource);
-		comp.MaterialInstances[0] = mat;
-		comp.MaterialInstances[0]?.AddRef();
-		comp.MaterialRefs.Count = 1;
+		mRenderModule.CreateMesh(mFloorEntity, planeResource);
+		mRenderModule.SetMeshMaterial(mFloorEntity, 0, mat);
 		mPhysicsModule.CreatePlaneBody(mFloorEntity, .(0, 1, 0), 0.0f);
 	}
 
@@ -76,12 +72,8 @@ class Arena
 		transform.Scale = halfExtents * 2.0f;
 		mScene.SetTransform(entity, transform);
 
-		mScene.SetComponent<MeshRendererComponent>(entity, .Default);
-		var comp = mScene.GetComponent<MeshRendererComponent>(entity);
-		comp.Mesh = ResourceHandle<StaticMeshResource>(cubeResource);
-		comp.MaterialInstances[0] = mat;
-		comp.MaterialInstances[0]?.AddRef();
-		comp.MaterialRefs.Count = 1;
+		mRenderModule.CreateMesh(entity, cubeResource);
+		mRenderModule.SetMeshMaterial(entity, 0, mat);
 
 		var descriptor = PhysicsBodyDescriptor();
 		descriptor.BodyType = .Static;

@@ -1,51 +1,18 @@
 namespace Sedulous.Engine.Animation;
 
 using System;
-using Sedulous.Animation;
-using Sedulous.Animation.Resources;
 using Sedulous.Engine.Scenes;
-using Sedulous.Resources;
-using Sedulous.Serialization;
 
-using static Sedulous.Resources.ResourceSerializerExtensions;
-
-/// Component for entities using an animation graph for complex animation blending.
+/// Thin handle component for entities using an animation graph.
+/// All data is owned by AnimationSceneModule — this component just holds
+/// the internal handle into the module's storage.
 [Component]
-struct AnimationGraphComponent : ISerializableComponent
+struct AnimationGraphComponent : IComponent
 {
-	/// The animation graph player for this entity (runtime, not serialized).
-	public AnimationGraphPlayer Player;
+	/// Internal handle into the module's data storage. Do not access directly.
+	public int32 InternalHandle = -1;
 
-	/// The animation graph definition (runtime, not serialized).
-	public AnimationGraph Graph;
-
-	/// The skeleton resource handle (runtime, not serialized).
-	public ResourceHandle<SkeletonResource> SkeletonRes;
-
-	/// Serializable reference to the skeleton resource.
-	public ResourceRef SkeletonRef;
-
-	/// Whether the graph is actively evaluating.
-	public bool Active;
+	public bool IsValid => InternalHandle >= 0;
 
 	public void Dispose() mut { }
-
-	public int32 SerializationVersion => 1;
-
-	public SerializationResult Serialize(Serializer s) mut
-	{
-		var version = SerializationVersion;
-		s.Version(ref version);
-		s.ResourceRef("skeleton", ref SkeletonRef);
-		s.Bool("active", ref Active);
-		return .Ok;
-	}
-
-	public static AnimationGraphComponent Default => .() {
-		Player = null,
-		Graph = null,
-		SkeletonRes = default,
-		SkeletonRef = .(),
-		Active = true
-	};
 }

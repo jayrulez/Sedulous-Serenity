@@ -326,12 +326,13 @@ class NavigationDemo
 			overlay.AddCylinder(center, 0.5f, 1.8f, color, 12);
 
 			// Velocity direction arrow
-			if (let agentComp = mScene.GetComponent<NavAgentComponent>(mAgentEntities[i]))
+			let agentIndex = mNavModule.GetAgentIndex(mAgentEntities[i]);
+			if (agentIndex >= 0)
 			{
-				if (crowd.IsAgentActive(agentComp.AgentIndex))
+				if (crowd.IsAgentActive(agentIndex))
 				{
 					float[3] vel;
-					crowd.GetAgentVelocity(agentComp.AgentIndex, out vel);
+					crowd.GetAgentVelocity(agentIndex, out vel);
 					float speed = Math.Sqrt(vel[0] * vel[0] + vel[2] * vel[2]);
 					if (speed > 0.1f)
 					{
@@ -364,13 +365,14 @@ class NavigationDemo
 		let obstColor = Color(255, 100, 50, 200);
 		for (let entity in mObstacleEntities)
 		{
-			if (let obstacle = mScene.GetComponent<NavObstacleComponent>(entity))
+			float radius, height;
+			if (mNavModule.GetObstacleData(entity, out radius, out height))
 			{
 				let transform = mScene.GetTransform(entity);
 				let pos = transform.Position;
 				overlay.AddCylinder(
-					pos + Vector3(0, obstacle.Height * 0.5f, 0),
-					obstacle.Radius, obstacle.Height, obstColor, 12);
+					pos + Vector3(0, height * 0.5f, 0),
+					radius, height, obstColor, 12);
 			}
 		}
 	}

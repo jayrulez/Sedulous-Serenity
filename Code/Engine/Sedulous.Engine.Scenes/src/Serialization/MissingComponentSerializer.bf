@@ -2,11 +2,12 @@ namespace Sedulous.Engine.Scenes;
 
 using System;
 using System.Collections;
+using Sedulous.Core;
 using Sedulous.Serialization;
 
 /// Serializer for component types that have no registered IComponentSerializer.
-/// During reading, captures entity indices and raw data (stubbed pending base64).
-/// During writing, replays the captured data.
+/// During reading, captures entity indices and raw data via CaptureScope + Base64.
+/// During writing, replays the captured data via Base64 + RestoreScope.
 class MissingComponentSerializer : IComponentSerializer
 {
 	private MissingComponentData mData;
@@ -33,9 +34,24 @@ class MissingComponentSerializer : IComponentSerializer
 			s.BeginObject(scope $"c{i}");
 			var entityIdx = entry.EntityIndex;
 			s.Int32("entity", ref entityIdx);
-			let rawStr = scope String();
-			rawStr.Set(entry.RawData);
-			s.String("_rawData", rawStr);
+
+			if (!entry.RawData.IsEmpty)
+			{
+				// Decode base64 back to format-specific text, then restore the scope
+				let decodedBytes = scope List<uint8>();
+				if (Base64.Decode(entry.RawData, decodedBytes) case .Ok)
+				{
+					let scopeText = scope String((char8*)decodedBytes.Ptr, decodedBytes.Count);
+					if (!s.RestoreScope(scopeText))
+					{
+						// Fallback: write as _rawData string field
+						let rawStr = scope String();
+						rawStr.Set(entry.RawData);
+						s.String("_rawData", rawStr);
+					}
+				}
+			}
+
 			s.EndObject();
 		}
 		s.EndObject();
@@ -54,11 +70,22 @@ class MissingComponentSerializer : IComponentSerializer
 			int32 entityIdx = 0;
 			s.Int32("entity", ref entityIdx);
 
-			let rawStr = scope String();
-			if (s.HasField("_rawData"))
-				s.String("_rawData", rawStr);
+			let rawData = scope String();
 
-			mData.Entries.Add(new MissingEntityEntry(entityIdx, rawStr));
+			// Try to capture the scope's remaining fields (excludes "entity")
+			let scopeText = scope String();
+			if (s.CaptureScope(scopeText, "entity"))
+			{
+				// Base64-encode the captured text for storage
+				Base64.Encode(Span<uint8>((uint8*)scopeText.Ptr, scopeText.Length), rawData);
+			}
+			else if (s.HasField("_rawData"))
+			{
+				// Fallback: read _rawData string directly (legacy format)
+				s.String("_rawData", rawData);
+			}
+
+			mData.Entries.Add(new MissingEntityEntry(entityIdx, rawData));
 			s.EndObject();
 		}
 		s.EndObject();

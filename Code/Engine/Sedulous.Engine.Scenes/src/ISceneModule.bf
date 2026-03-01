@@ -1,5 +1,7 @@
 namespace Sedulous.Engine.Scenes;
 
+using Sedulous.Core.Mathematics;
+
 /// Interface for scene modules that process components.
 /// Modules contain logic and operate on scene-owned data.
 /// They do not own entities, manage transforms, or control entity lifetimes.
@@ -37,4 +39,9 @@ interface ISceneModule
 
 	/// Called when the scene state changes.
 	void OnSceneStateChanged(Scene scene, SceneState oldState, SceneState newState);
+
+	/// Called when an entity's world transform has changed.
+	/// Fires during PostUpdate after world matrices are fully computed (parent chain resolved).
+	/// Modules should filter by their own tracked entities internally.
+	void OnEntityTransformChanged(Scene scene, EntityId entity, in Matrix worldMatrix);
 }

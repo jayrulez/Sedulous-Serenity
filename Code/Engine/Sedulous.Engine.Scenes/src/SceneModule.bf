@@ -1,5 +1,7 @@
 namespace Sedulous.Engine.Scenes;
 
+using Sedulous.Core.Mathematics;
+
 /// Base class providing empty implementations for ISceneModule.
 /// Inherit from this class and override only the methods you need.
 abstract class SceneModule : ISceneModule
@@ -30,4 +32,7 @@ abstract class SceneModule : ISceneModule
 
 	/// Called when the scene state changes.
 	public virtual void OnSceneStateChanged(Scene scene, SceneState oldState, SceneState newState) { }
+
+	/// Called when an entity's world transform has changed.
+	public virtual void OnEntityTransformChanged(Scene scene, EntityId entity, in Matrix worldMatrix) { }
 }

@@ -8,7 +8,7 @@ using System.Reflection;
 /// by tools (e.g., scene editors) via Type enumeration, and their fields can be
 /// inspected and edited at runtime via reflection.
 ///
-/// For types that also implement ISerializableComponent, a static factory method
+/// For types that also implement ISerializableComponentData, a static factory method
 /// (__CreateSerializer) is generated at compile time via IOnTypeInit. Scene uses
 /// this to auto-register component serializers without manual per-type calls.
 [AttributeUsage(.Struct, .ReflectAttribute, ReflectUser = .All, AlwaysIncludeUser = .AssumeInstantiated | .IncludeAllMethods)]
@@ -20,13 +20,13 @@ struct ComponentAttribute : Attribute, IOnTypeInit
 		// Generate storage factory for all component types
 		Compiler.EmitTypeBody(type, """
 			[Reflect]
-			public static IComponentStorage __CreateStorage()
+			public static /*IComponentStorage*/Object __CreateStorage()
 			{
 				return new ComponentStorage<Self>();
 			}
 		""");
 
-		if (type.ImplementsInterface(typeof(ISerializableComponent)))
+		if (type.ImplementsInterface(typeof(ISerializableComponentData)))
 		{
 			Compiler.EmitTypeBody(type, """
 				[Reflect]

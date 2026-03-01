@@ -45,8 +45,14 @@ public class NavigationSubsystem : Subsystem, ISceneAware
 
 	protected override void OnShutdown()
 	{
+		// Null out module world references before deleting,
+		// so OnSceneDestroy knows the world is gone.
 		for (let (scene, world) in mSceneWorlds)
+		{
+			if (let module = scene.GetModule<NavigationSceneModule>())
+				module.[Friend]mNavWorld = null;
 			delete world;
+		}
 		mSceneWorlds.Clear();
 	}
 
@@ -68,6 +74,11 @@ public class NavigationSubsystem : Subsystem, ISceneAware
 
 	public void OnSceneDestroyed(Scene scene)
 	{
+		// Null out the module's world reference before deleting,
+		// so OnSceneDestroy (called later by scene.Dispose) knows the world is gone.
+		if (let module = scene.GetModule<NavigationSceneModule>())
+			module.[Friend]mNavWorld = null;
+
 		if (mSceneWorlds.TryGetValue(scene, let world))
 		{
 			mSceneWorlds.Remove(scene);

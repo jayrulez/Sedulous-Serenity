@@ -9,54 +9,40 @@ using System.Collections;
 namespace Sedulous.Engine.Scenes;
 
 /// Resource wrapper for a Scene, providing file I/O via OpenDDL serialization.
+/// SceneResource is a pure data wrapper — it never owns the Scene.
+/// The caller is responsible for Scene lifetime (typically via SceneSubsystem).
+/// For full component serialization, the Scene should have modules attached
+/// before calling Load or Save.
 class SceneResource : Resource
 {
 	private Scene mScene;
-	private bool mOwnsScene;
 
-	/// The underlying scene.
-	public Scene Scene => mScene;
+	/// Gets or sets the scene to serialize.
+	/// SceneResource does not own the scene — caller manages its lifetime.
+	public Scene Scene
+	{
+		get => mScene;
+		set => mScene = value;
+	}
 
 	public this()
 	{
 		mScene = null;
-		mOwnsScene = false;
 	}
 
-	public this(Scene scene, bool ownsScene = false)
+	public this(Scene scene)
 	{
 		mScene = scene;
-		mOwnsScene = ownsScene;
-	}
-
-	public ~this()
-	{
-		if (mOwnsScene && mScene != null)
-			delete mScene;
 	}
 
 	// ---- Serialization ----
 
 	protected override SerializationResult OnSerialize(Serializer s)
 	{
-		if (s.IsWriting)
-		{
-			if (mScene == null)
-				return .InvalidData;
+		if (mScene == null)
+			return .InvalidData;
 
-			mScene.Serialize(s);
-		}
-		else
-		{
-			// Scene auto-registers all [Component] serializers in its constructor
-			let scene = new Scene();
-			scene.Serialize(s);
-
-			mScene = scene;
-			mOwnsScene = true;
-		}
-
-		return .Ok;
+		return mScene.Serialize(s);
 	}
 
 	/// Save this scene resource to a file.
@@ -76,43 +62,14 @@ class SceneResource : Resource
 		return File.WriteAllText(path, output);
 	}
 
-	/// Load a scene resource from a file.
-	public static Result<SceneResource> LoadFromFile(StringView path)
-	{
-		let text = scope String();
-		if (File.ReadAllText(path, text) case .Err)
-			return .Err;
-
-		let doc = scope SerializerDataDescription();
-		if (doc.ParseText(text) != .Ok)
-			return .Err;
-
-		let reader = OpenDDLSerializer.CreateReader(doc);
-		defer delete reader;
-
-		let resource = new SceneResource();
-		if (resource.Serialize(reader) case .InvalidData)
-		{
-			delete resource;
-			return .Err;
-		}
-
-		return .Ok(resource);
-	}
-
-	/// Takes the scene from this resource, transferring ownership to the caller.
-	/// After this call, Scene returns null and the resource no longer owns it.
-	public Scene TakeScene()
-	{
-		let scene = mScene;
-		mScene = null;
-		mOwnsScene = false;
-		return scene;
-	}
-
-	/// Loads a scene resource from a file (instance method).
+	/// Loads scene data from a file into the current Scene.
+	/// The Scene property must be set before calling this method.
+	/// For full component support, the scene should have modules attached.
 	public Result<void> Load(StringView path)
 	{
+		if (mScene == null)
+			return .Err;
+
 		let text = scope String();
 		if (File.ReadAllText(path, text) case .Err)
 			return .Err;
@@ -128,14 +85,5 @@ class SceneResource : Resource
 			return .Err;
 
 		return .Ok;
-	}
-
-	/// Creates an empty scene resource with the given name.
-	public static SceneResource CreateEmpty(StringView name)
-	{
-		let scene = new Scene(name);
-		let resource = new SceneResource(scene, true);
-		resource.Name.Set(name);
-		return resource;
 	}
 }

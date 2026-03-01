@@ -91,15 +91,11 @@ class BattleUnitView
 		scene.SetTransform(mEntityId, transform);
 
 		// Mesh
-		scene.SetComponent<MeshRendererComponent>(mEntityId, .Default);
-		var comp = scene.GetComponent<MeshRendererComponent>(mEntityId);
-		comp.Mesh = ResourceHandle<StaticMeshResource>(meshResource);
-
-		if (material != null)
+		if (let renderModule = scene.GetModule<RenderSceneModule>())
 		{
-			comp.MaterialInstances[0] = material;
-			comp.MaterialInstances[0].AddRef();
-			comp.MaterialRefs.Count = 1;
+			renderModule.CreateMesh(mEntityId, meshResource);
+			if (material != null)
+				renderModule.SetMeshMaterial(mEntityId, 0, material);
 		}
 	}
 

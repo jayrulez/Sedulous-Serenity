@@ -2,52 +2,17 @@ namespace Sedulous.Engine.UI;
 
 using System;
 using Sedulous.Engine.Scenes;
-using Sedulous.Serialization;
 
-/// Component marking an entity as having a world-space UI panel.
-/// Stores panel dimensions for serialization so panels can be recreated on load.
+/// Thin handle component for entities with world-space UI panels.
+/// All data is owned by UISceneModule — this component just holds
+/// the internal handle into the module's storage.
 [Component]
-struct WorldUIComponent : ISerializableComponent
+struct WorldUIComponent : IComponent
 {
-	/// Whether this UI panel is enabled.
-	public bool Enabled;
-	/// Render texture width in pixels.
-	public uint32 PixelWidth;
-	/// Render texture height in pixels.
-	public uint32 PixelHeight;
-	/// Panel width in world units.
-	public float PanelWidth;
-	/// Panel height in world units.
-	public float PanelHeight;
-	/// Whether this panel receives mouse input.
-	public bool IsInteractive;
+	/// Internal handle into the module's data storage. Do not access directly.
+	public int32 InternalHandle = -1;
+
+	public bool IsValid => InternalHandle >= 0;
 
 	public void Dispose() mut { }
-
-	public int32 SerializationVersion => 2;
-
-	public SerializationResult Serialize(Serializer s) mut
-	{
-		var version = SerializationVersion;
-		s.Version(ref version);
-		s.Bool("enabled", ref Enabled);
-		if (version >= 2)
-		{
-			s.UInt32("pixelWidth", ref PixelWidth);
-			s.UInt32("pixelHeight", ref PixelHeight);
-			s.Float("panelWidth", ref PanelWidth);
-			s.Float("panelHeight", ref PanelHeight);
-			s.Bool("isInteractive", ref IsInteractive);
-		}
-		return .Ok;
-	}
-
-	public static WorldUIComponent Default => .() {
-		Enabled = true,
-		PixelWidth = 512,
-		PixelHeight = 512,
-		PanelWidth = 1.0f,
-		PanelHeight = 1.0f,
-		IsInteractive = true
-	};
 }

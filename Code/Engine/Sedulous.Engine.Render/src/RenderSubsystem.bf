@@ -85,9 +85,13 @@ public class RenderSubsystem : Subsystem, ISceneAware
 
 	protected override void OnShutdown()
 	{
-		// Clean up all render worlds
+		// Clean up all render worlds.
+		// Null out the module's world reference first so that when SceneSubsystem
+		// shuts down later and calls OnSceneDestroy, the module knows the world is gone.
 		for (let (scene, world) in mSceneWorlds)
 		{
+			if (let module = scene.GetModule<RenderSceneModule>())
+				module.[Friend]mWorld = null;
 			world.Dispose();
 			delete world;
 		}
@@ -150,7 +154,11 @@ public class RenderSubsystem : Subsystem, ISceneAware
 
 	public void OnSceneDestroyed(Scene scene)
 	{
-		// Clean up render world for this scene
+		// Null out the module's world reference before deleting,
+		// so OnSceneDestroy (called later by scene.Dispose) knows the world is gone.
+		if (let module = scene.GetModule<RenderSceneModule>())
+			module.[Friend]mWorld = null;
+
 		if (mSceneWorlds.TryGetValue(scene, let world))
 		{
 			mSceneWorlds.Remove(scene);

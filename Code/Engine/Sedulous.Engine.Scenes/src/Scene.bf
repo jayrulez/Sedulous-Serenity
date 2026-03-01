@@ -367,7 +367,7 @@ public class Scene : IDisposable, ISerializable
 
 	private static List<Type> sSerializableComponentTypes ~ delete _;
 
-	/// Discovers all struct types with [Component] that implement ISerializableComponent. Called once.
+	/// Discovers all struct types with [Component] that implement ISerializableComponentData. Called once.
 	private static void DiscoverSerializableComponentTypes()
 	{
 		if (sSerializableComponentTypes != null)
@@ -376,12 +376,12 @@ public class Scene : IDisposable, ISerializable
 		sSerializableComponentTypes = new List<Type>();
 		for (let type in Type.Types)
 		{
-			if (type.IsStruct && type.HasCustomAttribute<ComponentAttribute>() && type.ImplementsInterface(typeof(ISerializableComponent)))
+			if (type.IsStruct && type.HasCustomAttribute<ComponentAttribute>() && type.ImplementsInterface(typeof(ISerializableComponentData)))
 				sSerializableComponentTypes.Add(type);
 		}
 	}
 
-	/// Registers serializers for all discovered [Component] + ISerializableComponent types.
+	/// Registers serializers for all discovered [Component] + ISerializableComponentData types.
 	/// Calls the comptime-generated __CreateSerializer() factory method on each type.
 	private void RegisterDiscoveredSerializers()
 	{
@@ -409,7 +409,7 @@ public class Scene : IDisposable, ISerializable
 	/// Registers a component serializer for type T.
 	/// Call this before serializing/deserializing to enable component roundtripping.
 	/// Duplicate registrations (same type name) are silently ignored.
-	public void RegisterComponentSerializer<T>() where T : struct, ISerializableComponent
+	public void RegisterComponentSerializer<T>() where T : struct, IComponent, ISerializableComponentData
 	{
 		let typeName = scope String();
 		typeof(T).GetName(typeName);
@@ -884,6 +884,11 @@ public class Scene : IDisposable, ISerializable
 			else
 				data.WorldMatrix = data.LocalMatrix;
 			data.WorldDirty = false;
+
+			// Notify modules that this entity's world transform changed
+			let entityId = EntityId(index, mGenerations[(int)index]);
+			for (let module in mModules)
+				module.OnEntityTransformChanged(this, entityId, data.WorldMatrix);
 		}
 
 		// Update children
@@ -1022,6 +1027,9 @@ public class Scene : IDisposable, ISerializable
 						{
 							mComponentStorages[type] = newStorage;
 							storage = newStorage;
+						} else
+						{
+							delete obj;
 						}
 					}
 					break;

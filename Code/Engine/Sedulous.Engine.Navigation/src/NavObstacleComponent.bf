@@ -2,37 +2,17 @@ namespace Sedulous.Engine.Navigation;
 
 using System;
 using Sedulous.Engine.Scenes;
-using Sedulous.Serialization;
 
-/// Component for entities that represent dynamic navigation obstacles.
-/// The ObstacleId references the obstacle in the TileCache owned by NavWorld.
+/// Thin handle component for entities with navigation obstacles.
+/// All data is owned by NavigationSceneModule — this component just holds
+/// the internal handle into the module's storage.
 [Component]
-struct NavObstacleComponent : ISerializableComponent
+struct NavObstacleComponent : IComponent
 {
-	/// ID of this obstacle in the TileCache.
-	public int32 ObstacleId;
-	/// Obstacle cylinder radius.
-	public float Radius;
-	/// Obstacle cylinder height.
-	public float Height;
+	/// Internal handle into the module's data storage. Do not access directly.
+	public int32 InternalHandle = -1;
+
+	public bool IsValid => InternalHandle >= 0;
 
 	public void Dispose() mut { }
-
-	public int32 SerializationVersion => 1;
-
-	public SerializationResult Serialize(Serializer s) mut
-	{
-		var version = SerializationVersion;
-		s.Version(ref version);
-		// ObstacleId is runtime-only (assigned by TileCache), skip it
-		s.Float("radius", ref Radius);
-		s.Float("height", ref Height);
-		return .Ok;
-	}
-
-	public static NavObstacleComponent Default => .() {
-		ObstacleId = -1,
-		Radius = 0,
-		Height = 0
-	};
 }

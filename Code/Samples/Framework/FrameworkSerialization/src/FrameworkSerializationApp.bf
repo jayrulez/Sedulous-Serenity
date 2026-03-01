@@ -187,14 +187,6 @@ class FrameworkSerializationApp : Application
 		mTransparentFeature = new ForwardTransparentFeature();
 		mRenderSystem.RegisterFeature(mTransparentFeature);
 
-		// Particles
-		mParticleFeature = new ParticleFeature();
-		mRenderSystem.RegisterFeature(mParticleFeature);
-
-		// Sprites
-		mSpriteFeature = new SpriteFeature();
-		mRenderSystem.RegisterFeature(mSpriteFeature);
-
 		// Sky (gradient environment map)
 		mSkyFeature = new SkyFeature();
 		if (mRenderSystem.RegisterFeature(mSkyFeature) case .Ok)
@@ -203,6 +195,14 @@ class FrameworkSerializationApp : Application
 			let horizonColor = Color(180, 210, 240, 255);
 			mSkyFeature.CreateGradientSky(topColor, horizonColor, 32);
 		}
+
+		// Particles
+		mParticleFeature = new ParticleFeature();
+		mRenderSystem.RegisterFeature(mParticleFeature);
+
+		// Sprites
+		mSpriteFeature = new SpriteFeature();
+		mRenderSystem.RegisterFeature(mSpriteFeature);
 
 		// Debug render
 		mOverlayFeature = new OverlayRenderFeature();
@@ -555,33 +555,35 @@ class FrameworkSerializationApp : Application
 
 	private void LoadOrCreateScene()
 	{
+		// Create scene via subsystem — modules get attached immediately,
+		// so both module APIs and module serializers are available.
+		mMainScene = mSceneSubsystem.CreateScene("SerializationTest");
+		mSceneSubsystem.SetActiveScene(mMainScene);
+
+		// SceneResource is a non-owning serialization wrapper
+		mSceneResource = new SceneResource(mMainScene);
+
 		String scenePath = scope .();
 		GetScenePath(scenePath);
 
 		if (File.Exists(scenePath))
 		{
-			// Load existing scene resource from file (component serializers auto-registered)
-			mSceneResource = new SceneResource();
+			// Load existing scene — modules are present so all component
+			// serializers can read data and create components via module APIs.
 			switch (mSceneResource.Load(scenePath))
 			{
 			case .Ok:
-				Console.WriteLine($"Loaded scene from file: {mSceneResource.Scene.Name} ({mSceneResource.Scene.EntityCount} entities)");
-				PrintComponentData(mSceneResource.Scene);
-
-				// Transfer ownership to SceneManager and activate
-				mMainScene = mSceneSubsystem.AddScene(mSceneResource.TakeScene());
-				mSceneSubsystem.SetActiveScene(mMainScene);
+				Console.WriteLine($"Loaded scene from file: {mMainScene.Name} ({mMainScene.EntityCount} entities)");
+				PrintComponentData(mMainScene);
 
 			case .Err:
 				Console.WriteLine("ERROR: Failed to load scene from file, creating new one");
-				delete mSceneResource;
-				mSceneResource = null;
-				CreateAndSaveScene();
+				PopulateAndSaveScene();
 			}
 		}
 		else
 		{
-			CreateAndSaveScene();
+			PopulateAndSaveScene();
 		}
 	}
 
@@ -591,11 +593,9 @@ class FrameworkSerializationApp : Application
 		outPath.Append("/scene.oddl");
 	}
 
-	private void CreateAndSaveScene()
+	private void PopulateAndSaveScene()
 	{
-		// Create scene resource with test entities and components
-		mSceneResource = SceneResource.CreateEmpty("SerializationTest");
-		let scene = mSceneResource.Scene;
+		let scene = mMainScene;
 
 		// Root entity at origin with component
 		let root = scene.CreateEntity();
@@ -614,23 +614,35 @@ class FrameworkSerializationApp : Application
 		scene.SetName(otherRoot, "OtherRoot");
 		scene.SetTransform(otherRoot, .(.(- 3, 0, 5)));
 
-		// Directional light
+		// Directional light — modules are attached, so module APIs work
 		let dirLight = scene.CreateEntity();
 		scene.SetName(dirLight, "DirectionalLight");
 		scene.SetTransform(dirLight, .(.(0, 10, 0), Quaternion.CreateFromAxisAngle(.(1, 0, 0), -0.8f)));
-		scene.SetComponent<LightComponent>(dirLight, .() {
-			Type = .Directional, Color = .(1.0f, 0.95f, 0.8f), Intensity = 2.0f,
-			Enabled = true, ShadowBias = 0.005f, ShadowNormalBias = 0.02f, LayerMask = 0xFFFFFFFF
-		});
+		if (let renderModule = scene.GetModule<RenderSceneModule>())
+		{
+			renderModule.CreateDirectionalLight(dirLight, .(1.0f, 0.95f, 0.8f), 2.0f);
+			if (let proxy = renderModule.GetLightProxy(dirLight))
+			{
+				proxy.ShadowBias = 0.005f;
+				proxy.ShadowNormalBias = 0.02f;
+				proxy.LayerMask = 0xFFFFFFFF;
+			}
+		}
 
 		// Point light
 		let pointLight = scene.CreateEntity();
 		scene.SetName(pointLight, "PointLight");
 		scene.SetTransform(pointLight, .(.(3, 2, -1)));
-		scene.SetComponent<LightComponent>(pointLight, .() {
-			Type = .Point, Color = .(1.0f, 0.8f, 0.6f), Intensity = 5.0f, Range = 15.0f,
-			Enabled = true, ShadowBias = 0.005f, ShadowNormalBias = 0.02f, LayerMask = 0xFFFFFFFF
-		});
+		if (let renderModule = scene.GetModule<RenderSceneModule>())
+		{
+			renderModule.CreatePointLight(pointLight, .(1.0f, 0.8f, 0.6f), 5.0f, 15.0f);
+			if (let proxy = renderModule.GetLightProxy(pointLight))
+			{
+				proxy.ShadowBias = 0.005f;
+				proxy.ShadowNormalBias = 0.02f;
+				proxy.LayerMask = 0xFFFFFFFF;
+			}
+		}
 
 		// Model entities - GLTF and FBX imports side by side for comparison
 		CreateSkinnedEntity(scene, "GreenBlob_GLTF", .(- 1, 0, 0),
@@ -675,7 +687,7 @@ class FrameworkSerializationApp : Application
 		CreateFireEmitter(scene);
 		CreateSmokeEmitter(scene);
 
-		// Save to file and register in registry
+		// Save to file
 		String scenePath = scope .();
 		GetScenePath(scenePath);
 		switch (mSceneResource.SaveToFile(scenePath))
@@ -693,10 +705,6 @@ class FrameworkSerializationApp : Application
 		case .Err:
 			Console.WriteLine("ERROR: Failed to save scene to file");
 		}
-
-		// Transfer ownership to SceneManager and activate
-		mMainScene = mSceneSubsystem.AddScene(mSceneResource.TakeScene());
-		mSceneSubsystem.SetActiveScene(mMainScene);
 	}
 
 	private void CreateSkinnedEntity(Scene scene, StringView name, Vector3 position,
@@ -715,28 +723,32 @@ class FrameworkSerializationApp : Application
 		scene.SetName(entity, name);
 		scene.SetTransform(entity, .(position));
 
-		var comp = SkinnedMeshRendererComponent.Default;
-		comp.MeshRef = ResourceRef(skinnedMeshId, skinnedMeshPath);
-		if (materialRefs != null && materialRefs.Count > 0)
+		if (let renderModule = scene.GetModule<RenderSceneModule>())
 		{
-			let count = Math.Min((int32)materialRefs.Count, (int32)RenderConfig.MaxMaterialsPerMesh);
-			comp.MaterialRefs.Count = count;
-			for (int32 i = 0; i < count; i++)
-				comp.MaterialRefs[i] = ResourceRef(materialRefs[i].Id, materialRefs[i].Path);
-		}
-		comp.Enabled = true;
-		scene.SetComponent<SkinnedMeshRendererComponent>(entity, comp);
+			var meshRef = ResourceRef(skinnedMeshId, skinnedMeshPath);
+			renderModule.CreateSkinnedMeshFromRef(entity, meshRef);
+			meshRef.Dispose();
 
-		// Add skeletal animation component with resource refs
+			if (materialRefs != null && materialRefs.Count > 0)
+			{
+				let count = Math.Min((int32)materialRefs.Count, (int32)RenderConfig.MaxMaterialsPerMesh);
+				for (int32 i = 0; i < count; i++)
+					renderModule.SetSkinnedMeshMaterialRef(entity, i, materialRefs[i]);
+			}
+		}
+
+		// Add skeletal animation via module API
 		if (skeletonPath != null && animationRefs != null && animationRefs.Count > 0)
 		{
 			let firstAnim = animationRefs[0];
-			var animComp = SkeletalAnimationComponent.Default;
-			animComp.SkeletonRef = ResourceRef(skeletonId, skeletonPath);
-			animComp.AnimationClipRef = ResourceRef(firstAnim.Id, firstAnim.Path);
-			animComp.Playing = true;
-			animComp.Loop = true;
-			scene.SetComponent<SkeletalAnimationComponent>(entity, animComp);
+			if (let animModule = scene.GetModule<AnimationSceneModule>())
+			{
+				var skeletonRef = ResourceRef(skeletonId, skeletonPath);
+				var animClipRef = ResourceRef(firstAnim.Id, firstAnim.Path);
+				animModule.CreateSkeletalAnimation(entity, skeletonRef, animClipRef, playing: true, loop: true);
+				skeletonRef.Dispose();
+				animClipRef.Dispose();
+			}
 
 			Console.WriteLine($"    SkeletonRef: id={skeletonId}, path={skeletonPath}");
 			Console.WriteLine($"    AnimClipRef: id={firstAnim.Id}, path={firstAnim.Path}");
@@ -766,17 +778,19 @@ class FrameworkSerializationApp : Application
 		scene.SetName(entity, name);
 		scene.SetTransform(entity, .(position));
 
-		var meshComp = MeshRendererComponent.Default;
-		meshComp.MeshRef = ResourceRef(staticMeshId, staticMeshPath);
-		if (materialRefs != null && materialRefs.Count > 0)
+		if (let renderModule = scene.GetModule<RenderSceneModule>())
 		{
-			let count = Math.Min((int32)materialRefs.Count, (int32)RenderConfig.MaxMaterialsPerMesh);
-			meshComp.MaterialRefs.Count = count;
-			for (int32 i = 0; i < count; i++)
-				meshComp.MaterialRefs[i] = ResourceRef(materialRefs[i].Id, materialRefs[i].Path);
+			var meshRef = ResourceRef(staticMeshId, staticMeshPath);
+			renderModule.CreateMeshFromRef(entity, meshRef, true);
+			meshRef.Dispose();
+
+			if (materialRefs != null && materialRefs.Count > 0)
+			{
+				let count = Math.Min((int32)materialRefs.Count, (int32)RenderConfig.MaxMaterialsPerMesh);
+				for (int32 i = 0; i < count; i++)
+					renderModule.SetMeshMaterialRef(entity, i, materialRefs[i]);
+			}
 		}
-		meshComp.Enabled = true;
-		scene.SetComponent<MeshRendererComponent>(entity, meshComp);
 
 		Console.WriteLine($"  Created '{name}' (static) entity with ResourceRefs:");
 		Console.WriteLine($"    MeshRef: id={staticMeshId}, path={staticMeshPath}");
@@ -821,9 +835,11 @@ class FrameworkSerializationApp : Application
 		scene.SetName(entity, "Sprite");
 		scene.SetTransform(entity, .(.(0, 3, 0)));
 
-		var comp = SpriteComponent.Default;
-		comp.Size = .(2, 2);
-		scene.SetComponent<SpriteComponent>(entity, comp);
+		if (let renderModule = scene.GetModule<RenderSceneModule>())
+		{
+			renderModule.CreateSprite(entity);
+			renderModule.SetSpriteSize(entity, .(2, 2));
+		}
 
 		Console.WriteLine("  Created Sprite entity at (0, 3, 0)");
 	}
@@ -839,8 +855,8 @@ class FrameworkSerializationApp : Application
 		if (!mMainScene.IsValid(entity))
 			return;
 
-		if (let comp = mMainScene.GetComponent<SpriteComponent>(entity))
-			comp.Texture = mCheckerboardTexture;
+		if (let renderModule = mMainScene.GetModule<RenderSceneModule>())
+			renderModule.SetSpriteTextureResource(entity, mCheckerboardTexture);
 	}
 
 	// ==================== Particles ====================
@@ -849,52 +865,58 @@ class FrameworkSerializationApp : Application
 	{
 		let entity = scene.CreateEntity();
 		scene.SetName(entity, "Fire");
-		scene.SetTransform(entity, .(.(-3, 0, 0)));
+		scene.SetTransform(entity, .(.(-10, 0, 0)));
 
-		var comp = ParticleEmitterComponent.Default;
-		comp.Backend = .CPU;
-		comp.BlendMode = .Additive;
-		comp.MaxParticles = 500;
-		comp.SpawnRate = 60.0f;
-		comp.ParticleLifetime = 1.0f;
-		comp.StartSize = .(0.3f, 0.3f);
-		comp.EndSize = .(0.05f, 0.05f);
-		comp.StartColor = .(1.0f, 0.6f, 0.1f, 1.0f);  // Orange
-		comp.EndColor = .(1.0f, 0.1f, 0.0f, 0.0f);     // Red, fade out
-		comp.InitialVelocity = .(0, 2.0f, 0);
-		comp.VelocityRandomness = .(0.4f, 0.3f, 0.4f);
-		comp.GravityMultiplier = -0.3f;  // Slight upward push
-		comp.Drag = 1.0f;
-		comp.SortParticles = false;
-		scene.SetComponent<ParticleEmitterComponent>(entity, comp);
+		if (let renderModule = scene.GetModule<RenderSceneModule>())
+		{
+			renderModule.CreateCPUParticleEmitter(entity, 500);
+			if (let proxy = renderModule.GetParticleEmitterProxy(entity))
+			{
+				proxy.BlendMode = .Additive;
+				proxy.SpawnRate = 60.0f;
+				proxy.ParticleLifetime = 1.0f;
+				proxy.StartSize = .(0.3f, 0.3f);
+				proxy.EndSize = .(0.05f, 0.05f);
+				proxy.StartColor = .(1.0f, 0.6f, 0.1f, 1.0f);  // Orange
+				proxy.EndColor = .(1.0f, 0.1f, 0.0f, 0.0f);     // Red, fade out
+				proxy.InitialVelocity = .(0, 2.0f, 0);
+				proxy.VelocityRandomness = .(0.4f, 0.3f, 0.4f);
+				proxy.GravityMultiplier = -0.3f;  // Slight upward push
+				proxy.Drag = 1.0f;
+				proxy.SortParticles = false;
+			}
+		}
 
-		Console.WriteLine("  Created Fire particle emitter at (-3, 0, 0)");
+		Console.WriteLine("  Created Fire particle emitter at (-10, 0, 0)");
 	}
 
 	private void CreateSmokeEmitter(Scene scene)
 	{
 		let entity = scene.CreateEntity();
 		scene.SetName(entity, "Smoke");
-		scene.SetTransform(entity, .(.(-3, 1.0f, 0)));
+		scene.SetTransform(entity, .(.(-10, 1.0f, 0)));
 
-		var comp = ParticleEmitterComponent.Default;
-		comp.Backend = .CPU;
-		comp.BlendMode = .Alpha;
-		comp.MaxParticles = 300;
-		comp.SpawnRate = 15.0f;
-		comp.ParticleLifetime = 3.0f;
-		comp.StartSize = .(0.2f, 0.2f);
-		comp.EndSize = .(1.0f, 1.0f);
-		comp.StartColor = .(0.4f, 0.4f, 0.4f, 0.6f);  // Gray, semi-transparent
-		comp.EndColor = .(0.3f, 0.3f, 0.3f, 0.0f);     // Fade out
-		comp.InitialVelocity = .(0, 0.8f, 0);
-		comp.VelocityRandomness = .(0.3f, 0.2f, 0.3f);
-		comp.GravityMultiplier = -0.1f;  // Slight upward drift
-		comp.Drag = 0.5f;
-		comp.SortParticles = true;
-		scene.SetComponent<ParticleEmitterComponent>(entity, comp);
+		if (let renderModule = scene.GetModule<RenderSceneModule>())
+		{
+			renderModule.CreateCPUParticleEmitter(entity, 300);
+			if (let proxy = renderModule.GetParticleEmitterProxy(entity))
+			{
+				proxy.BlendMode = .Alpha;
+				proxy.SpawnRate = 15.0f;
+				proxy.ParticleLifetime = 3.0f;
+				proxy.StartSize = .(0.2f, 0.2f);
+				proxy.EndSize = .(1.0f, 1.0f);
+				proxy.StartColor = .(0.4f, 0.4f, 0.4f, 0.6f);  // Gray, semi-transparent
+				proxy.EndColor = .(0.3f, 0.3f, 0.3f, 0.0f);     // Fade out
+				proxy.InitialVelocity = .(0, 0.8f, 0);
+				proxy.VelocityRandomness = .(0.3f, 0.2f, 0.3f);
+				proxy.GravityMultiplier = -0.1f;  // Slight upward drift
+				proxy.Drag = 0.5f;
+				proxy.SortParticles = true;
+			}
+		}
 
-		Console.WriteLine("  Created Smoke particle emitter at (-3, 1, 0)");
+		Console.WriteLine("  Created Smoke particle emitter at (-10, 1, 0)");
 	}
 
 	// ==================== Animation Cycling ====================
@@ -958,36 +980,53 @@ class FrameworkSerializationApp : Application
 			let name = scene.GetName(entity);
 			Console.WriteLine($"  {name}: Speed={comp.Speed}, Health={comp.Health}, Active={comp.Active}");
 		}
-		for (let (entity, comp) in scene.Query<LightComponent>())
+		if (let renderModule = scene.GetModule<RenderSceneModule>())
 		{
-			let name = scene.GetName(entity);
-			Console.WriteLine($"  {name}: Light(Type={comp.Type}, Color=({comp.Color.X:.2},{comp.Color.Y:.2},{comp.Color.Z:.2}), Intensity={comp.Intensity}, Range={comp.Range}, Enabled={comp.Enabled})");
+			for (let (entity, comp) in scene.Query<LightComponent>())
+			{
+				let name = scene.GetName(entity);
+				if (let proxy = renderModule.GetLightProxy(entity))
+					Console.WriteLine($"  {name}: Light(Type={proxy.Type}, Color=({proxy.Color.X:.2},{proxy.Color.Y:.2},{proxy.Color.Z:.2}), Intensity={proxy.Intensity}, Range={proxy.Range}, Enabled={proxy.IsEnabled})");
+				else
+					Console.WriteLine($"  {name}: Light(Handle={comp.InternalHandle}, no proxy)");
+			}
+			for (let (entity, comp) in scene.Query<CameraComponent>())
+			{
+				let name = scene.GetName(entity);
+				if (let proxy = renderModule.GetCameraProxy(entity))
+					Console.WriteLine($"  {name}: Camera(Projection={proxy.Projection}, FOV={proxy.FieldOfView:.2}, Near={proxy.NearPlane}, Far={proxy.FarPlane}, Active={proxy.IsActive}, IsMain={proxy.IsMainCamera})");
+				else
+					Console.WriteLine($"  {name}: Camera(Handle={comp.InternalHandle}, no proxy)");
+			}
 		}
-		for (let (entity, comp) in scene.Query<CameraComponent>())
+		if (let renderModule = scene.GetModule<RenderSceneModule>())
 		{
-			let name = scene.GetName(entity);
-			Console.WriteLine($"  {name}: Camera(Projection={comp.Projection}, FOV={comp.FieldOfView:.2}, Near={comp.NearPlane}, Far={comp.FarPlane}, Active={comp.Active}, IsMain={comp.IsMainCamera})");
+			for (var instance in ref renderModule.SkinnedMeshInstances)
+			{
+				if (!instance.Active) continue;
+				let name = scene.GetName(instance.Entity);
+				let meshValid = instance.MeshRef.IsValid;
+				let matValid = instance.MaterialRefs[0].IsValid;
+				Console.WriteLine($"  {name}: SkinnedMesh(MeshRef.valid={meshValid}, MaterialRefs[0].valid={matValid}, Enabled={instance.Enabled}, MaterialCount={instance.MaterialRefs.Count})");
+			}
 		}
-		for (let (entity, comp) in scene.Query<SkinnedMeshRendererComponent>())
+		for (let (entity, comp) in scene.Query<MeshComponent>())
 		{
 			let name = scene.GetName(entity);
-			let meshValid = comp.MeshRef.IsValid;
-			let matValid = comp.MaterialRefs[0].IsValid;
-			Console.WriteLine($"  {name}: SkinnedMesh(MeshRef.valid={meshValid}, MaterialRefs[0].valid={matValid}, Enabled={comp.Enabled}, MaterialCount={comp.MaterialRefs.Count})");
+			if (let renderModule = scene.GetModule<RenderSceneModule>())
+			{
+				let resource = renderModule.GetMeshResource(entity);
+				Console.WriteLine($"  {name}: Mesh(Handle={comp.InternalHandle}, HasResource={resource != null}, IsValid={comp.IsValid})");
+			}
 		}
-		for (let (entity, comp) in scene.Query<MeshRendererComponent>())
+		if (let animModule = scene.GetModule<AnimationSceneModule>())
 		{
-			let name = scene.GetName(entity);
-			let meshValid = comp.MeshRef.IsValid;
-			let matValid = comp.MaterialRefs[0].IsValid;
-			Console.WriteLine($"  {name}: Mesh(MeshRef.valid={meshValid}, MaterialRefs[0].valid={matValid}, Enabled={comp.Enabled}, MaterialCount={comp.MaterialRefs.Count})");
-		}
-		for (let (entity, comp) in scene.Query<SkeletalAnimationComponent>())
-		{
-			let name = scene.GetName(entity);
-			let skelValid = comp.SkeletonRef.IsValid;
-			let clipValid = comp.AnimationClipRef.IsValid;
-			Console.WriteLine($"  {name}: Animation(SkeletonRef.valid={skelValid}, AnimClipRef.valid={clipValid}, Playing={comp.Playing}, Loop={comp.Loop})");
+			for (var instance in ref animModule.SkeletalAnimInstances)
+			{
+				if (!instance.Active) continue;
+				let name = scene.GetName(instance.Entity);
+				Console.WriteLine($"  {name}: Animation(SkeletonRef.valid={instance.SkeletonRef.IsValid}, AnimClipRef.valid={instance.AnimationClipRef.IsValid}, Playing={instance.Playing}, Loop={instance.Loop})");
+			}
 		}
 	}
 

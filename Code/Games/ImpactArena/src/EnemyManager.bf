@@ -103,12 +103,8 @@ class EnemyManager
 		transform.Scale = .(0, 0, 0);
 		mScene.SetTransform(entity, transform);
 
-		mScene.SetComponent<MeshRendererComponent>(entity, .Default);
-		var comp = mScene.GetComponent<MeshRendererComponent>(entity);
-		comp.Mesh = ResourceHandle<StaticMeshResource>(mSphereResource);
-		comp.MaterialInstances[0] = mat;
-		comp.MaterialInstances[0]?.AddRef();
-		comp.MaterialRefs.Count = 1;
+		mRenderModule.CreateMesh(entity, mSphereResource);
+		mRenderModule.SetMeshMaterial(entity, 0, mat);
 
 		var descriptor = PhysicsBodyDescriptor();
 		descriptor.BodyType = .Dynamic;

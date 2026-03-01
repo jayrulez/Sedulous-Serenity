@@ -1,75 +1,72 @@
 namespace Sedulous.Engine.Render;
 
 using System;
-using Sedulous.Engine.Scenes;
 using Sedulous.Core.Mathematics;
+using Sedulous.Engine.Scenes;
 using Sedulous.Render;
 using Sedulous.Serialization;
 
-/// Component for particle emitter entities.
-/// Stores the core particle emitter configuration for serialization and proxy creation.
-[Component]
-struct ParticleEmitterComponent : ISerializableComponent
+/// Transient data struct for ParticleEmitterComponent serialization/deserialization.
+/// Not stored on entities — only used by ParticleEmitterComponentSerializer during save/load.
+struct ParticleEmitterComponentData : ISerializableComponentData
 {
 	// Simulation
-	[Property] public ParticleSimulationBackend Backend;
-	[Property] public ParticleSpace SimulationSpace;
-	[Property] public ParticleBlendMode BlendMode;
-	[Property] public ParticleRenderMode RenderMode;
-	[Property] public uint32 MaxParticles;
+	public ParticleSimulationBackend Backend;
+	public ParticleSpace SimulationSpace;
+	public ParticleBlendMode BlendMode;
+	public ParticleRenderMode RenderMode;
+	public uint32 MaxParticles;
 	// Emission
-	[Property] public float SpawnRate;
-	[Property] public float ParticleLifetime;
-	[Property] public int32 BurstCount;
-	[Property] public float BurstInterval;
-	[Property] public int32 BurstCycles;
+	public float SpawnRate;
+	public float ParticleLifetime;
+	public int32 BurstCount;
+	public float BurstInterval;
+	public int32 BurstCycles;
 	// Size & color
-	[Property] public Vector2 StartSize;
-	[Property] public Vector2 EndSize;
-	[Property] public Vector4 StartColor;
-	[Property] public Vector4 EndColor;
+	public Vector2 StartSize;
+	public Vector2 EndSize;
+	public Vector4 StartColor;
+	public Vector4 EndColor;
 	// Motion
-	[Property] public Vector3 InitialVelocity;
-	[Property] public Vector3 VelocityRandomness;
-	[Property] public float GravityMultiplier;
-	[Property] public float Drag;
-	[Property] public float VelocityInheritance;
+	public Vector3 InitialVelocity;
+	public Vector3 VelocityRandomness;
+	public float GravityMultiplier;
+	public float Drag;
+	public float VelocityInheritance;
 	// Rendering
-	[Property] public float SoftParticleDistance;
-	[Property] public float StretchFactor;
-	[Property] public bool SortParticles;
-	[Property] public bool Lit;
+	public float SoftParticleDistance;
+	public float StretchFactor;
+	public bool SortParticles;
+	public bool Lit;
 	// Atlas
-	[Property] public int32 AtlasColumns;
-	[Property] public int32 AtlasRows;
-	[Property] public float AtlasFPS;
-	[Property] public bool AtlasLoop;
-	// Curves over lifetime (complex types, no [Property] — need custom editors)
+	public int32 AtlasColumns;
+	public int32 AtlasRows;
+	public float AtlasFPS;
+	public bool AtlasLoop;
+	// Curves over lifetime
 	public ParticleCurveVector2 SizeOverLifetime;
 	public ParticleCurveColor ColorOverLifetime;
 	public ParticleCurveFloat SpeedOverLifetime;
 	public ParticleCurveFloat AlphaOverLifetime;
 	public ParticleCurveFloat RotationSpeedOverLifetime;
-	// Force modules (complex struct, no [Property])
+	// Force modules
 	public ParticleForceModules ForceModules;
 	// LOD
-	[Property] public float LODStartDistance;
-	[Property] public float LODCullDistance;
-	[Property] public float LODMinRateMultiplier;
+	public float LODStartDistance;
+	public float LODCullDistance;
+	public float LODMinRateMultiplier;
 	// Lifetime variance
-	[Property] public float LifetimeVarianceMin;
-	[Property] public float LifetimeVarianceMax;
-	// Trail (nested struct, no [Property])
+	public float LifetimeVarianceMin;
+	public float LifetimeVarianceMax;
+	// Trail
 	public TrailSettings Trail;
-	// Emission shape (nested struct, no [Property])
+	// Emission shape
 	public EmissionShape Shape;
 	// Sub-emitter
-	[Property] public bool SubEmitterOnly;
+	public bool SubEmitterOnly;
 	// General
-	[Property] public uint32 LayerMask;
-	[Property] public bool Enabled;
-
-	public void Dispose() mut { }
+	public uint32 LayerMask;
+	public bool Enabled;
 
 	public int32 SerializationVersion => 2;
 
@@ -173,49 +170,5 @@ struct ParticleEmitterComponent : ISerializableComponent
 		s.Int32(keyCountName, ref curve.KeyCount);
 	}
 
-	public static ParticleEmitterComponent Default => .() {
-		Backend = .CPU,
-		SimulationSpace = .World,
-		BlendMode = .Alpha,
-		RenderMode = .Billboard,
-		MaxParticles = 1000,
-		SpawnRate = 10.0f,
-		ParticleLifetime = 2.0f,
-		BurstCount = 0,
-		BurstInterval = 0,
-		BurstCycles = 0,
-		StartSize = .(0.1f, 0.1f),
-		EndSize = .(0.0f, 0.0f),
-		StartColor = .(1, 1, 1, 1),
-		EndColor = .(1, 1, 1, 0),
-		InitialVelocity = .(0, 1, 0),
-		VelocityRandomness = .(0.5f, 0.5f, 0.5f),
-		GravityMultiplier = 0,
-		Drag = 0,
-		VelocityInheritance = 0,
-		SoftParticleDistance = 0,
-		StretchFactor = 0,
-		SortParticles = false,
-		Lit = false,
-		AtlasColumns = 1,
-		AtlasRows = 1,
-		AtlasFPS = 0,
-		AtlasLoop = false,
-		SizeOverLifetime = default,
-		ColorOverLifetime = default,
-		SpeedOverLifetime = default,
-		AlphaOverLifetime = default,
-		RotationSpeedOverLifetime = default,
-		ForceModules = default,
-		LODStartDistance = 0,
-		LODCullDistance = 0,
-		LODMinRateMultiplier = 0,
-		LifetimeVarianceMin = 1.0f,
-		LifetimeVarianceMax = 1.0f,
-		Trail = .Default(),
-		Shape = EmissionShape.Point(),
-		SubEmitterOnly = false,
-		LayerMask = 0xFFFFFFFF,
-		Enabled = true
-	};
+	public void Dispose() mut { }
 }

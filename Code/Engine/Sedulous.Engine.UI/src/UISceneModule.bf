@@ -12,14 +12,29 @@ using Sedulous.GUI;
 using Sedulous.GUI.Shell;
 using Sedulous.Serialization;
 
+/// Deferred panel creation data (from deserialization).
+struct DeferredPanelData
+{
+	public EntityId Entity;
+	public uint32 PixelWidth;
+	public uint32 PixelHeight;
+	public float PanelWidth;
+	public float PanelHeight;
+	public bool IsInteractive;
+}
+
 /// Scene module that manages world-space UI panels for a scene.
 /// Created automatically by UISubsystem for each scene.
 /// Panels are rendered to textures and displayed as sprites in 3D.
+///
+/// All UI panel data is owned by this module.
+/// Components are thin handles.
 class UISceneModule : SceneModule
 {
 	private UISubsystem mSubsystem;
 	private Scene mScene;
 	private List<WorldUIPanel> mPanels = new .() ~ delete _;
+	private List<DeferredPanelData> mDeferredPanels = new .() ~ delete _;
 	private float mTotalTime;
 	private WorldUIPanel mHoveredPanel;
 
@@ -55,16 +70,17 @@ class UISceneModule : SceneModule
 		mPanels.Add(panel);
 		feature.AddPanel(panel);
 
-		// Set component on entity
+		// Set thin handle on entity
 		if (mScene != null)
-			mScene.SetComponent<WorldUIComponent>(entity, .() {
-				Enabled = true,
-				PixelWidth = pixelWidth,
-				PixelHeight = pixelHeight,
-				PanelWidth = worldWidth,
-				PanelHeight = worldHeight,
-				IsInteractive = false
-			});
+		{
+			var comp = mScene.GetComponent<WorldUIComponent>(entity);
+			if (comp == null)
+			{
+				mScene.SetComponent<WorldUIComponent>(entity, .());
+				comp = mScene.GetComponent<WorldUIComponent>(entity);
+			}
+			comp.InternalHandle = (int32)(mPanels.Count - 1);
+		}
 
 		// Set initial position from entity transform
 		if (mScene != null && mScene.IsValid(entity))
@@ -74,6 +90,30 @@ class UISceneModule : SceneModule
 		}
 
 		return panel;
+	}
+
+	/// Creates a panel from serialization data (deferred — created lazily during PostUpdate).
+	public void CreateWorldUIFromData(EntityId entity, WorldUIComponentData data)
+	{
+		if (mScene == null || !data.Enabled || data.PixelWidth == 0 || data.PixelHeight == 0)
+			return;
+
+		mDeferredPanels.Add(.() {
+			Entity = entity,
+			PixelWidth = data.PixelWidth,
+			PixelHeight = data.PixelHeight,
+			PanelWidth = data.PanelWidth,
+			PanelHeight = data.PanelHeight,
+			IsInteractive = data.IsInteractive
+		});
+
+		// Set thin handle on entity (will be updated when panel is actually created)
+		var comp = mScene.GetComponent<WorldUIComponent>(entity);
+		if (comp == null)
+		{
+			mScene.SetComponent<WorldUIComponent>(entity, .());
+			comp = mScene.GetComponent<WorldUIComponent>(entity);
+		}
 	}
 
 	/// Gets the world UI panel attached to an entity, or null if none.
@@ -103,9 +143,12 @@ class UISceneModule : SceneModule
 				world.DestroySprite(panel.SpriteHandle);
 		}
 
-		// Remove component
+		// Reset thin handle
 		if (mScene != null && mScene.IsValid(panel.Entity))
-			mScene.RemoveComponent<WorldUIComponent>(panel.Entity);
+		{
+			if (let comp = mScene.GetComponent<WorldUIComponent>(panel.Entity))
+				comp.InternalHandle = -1;
+		}
 
 		mPanels.Remove(panel);
 		panel.Dispose();
@@ -115,6 +158,9 @@ class UISceneModule : SceneModule
 	public override void OnSceneCreate(Scene scene)
 	{
 		mScene = scene;
+
+		// Register custom serializer
+		scene.RegisterComponentSerializer(new WorldUIComponentSerializer());
 	}
 
 	public override void Update(Scene scene, float deltaTime)
@@ -130,29 +176,30 @@ class UISceneModule : SceneModule
 
 	public override void PostUpdate(Scene scene, float deltaTime)
 	{
-		// Auto-create panels for deserialized WorldUIComponents
-		for (let (entity, uiComp) in scene.Query<WorldUIComponent>())
+		// Process deferred panel creation from deserialization
+		if (mDeferredPanels.Count > 0)
 		{
-			if (!uiComp.Enabled || uiComp.PixelWidth == 0 || uiComp.PixelHeight == 0)
-				continue;
-
-			// Check if panel already exists for this entity
-			bool hasPanel = false;
-			for (let panel in mPanels)
+			for (let deferred in mDeferredPanels)
 			{
-				if (panel.Entity == entity)
+				// Check if panel already exists for this entity
+				bool hasPanel = false;
+				for (let panel in mPanels)
 				{
-					hasPanel = true;
-					break;
+					if (panel.Entity == deferred.Entity)
+					{
+						hasPanel = true;
+						break;
+					}
+				}
+
+				if (!hasPanel)
+				{
+					let panel = CreateWorldUI(deferred.Entity, deferred.PixelWidth, deferred.PixelHeight, deferred.PanelWidth, deferred.PanelHeight);
+					if (panel != null)
+						panel.IsInteractive = deferred.IsInteractive;
 				}
 			}
-
-			if (!hasPanel)
-			{
-				let panel = CreateWorldUI(entity, uiComp.PixelWidth, uiComp.PixelHeight, uiComp.PanelWidth, uiComp.PanelHeight);
-				if (panel != null)
-					panel.IsInteractive = uiComp.IsInteractive;
-			}
+			mDeferredPanels.Clear();
 		}
 
 		let renderModule = scene.GetModule<RenderSceneModule>();
@@ -210,7 +257,6 @@ class UISceneModule : SceneModule
 		if (world == null)
 			return;
 
-		// Get main camera
 		let cameraHandle = world.MainCamera;
 		if (!cameraHandle.IsValid)
 			return;
@@ -218,18 +264,13 @@ class UISceneModule : SceneModule
 		if (camera == null)
 			return;
 
-		// Compute world ray from mouse position
 		let ray = ScreenPointToRay(mouse.X, mouse.Y, camera, viewportWidth, viewportHeight);
 
-		// Billboard axes from camera (matches sprite vertex shader)
 		let camRight = camera.Right;
 		let camUp = camera.Up;
 		let camForward = camera.Forward;
-
-		// Billboard plane normal faces camera
 		let billboardNormal = Vector3(0, 0, 0) - camForward;
 
-		// Find closest interactive panel hit
 		WorldUIPanel closestPanel = null;
 		float closestDist = float.MaxValue;
 		float closestLocalX = 0;
@@ -240,11 +281,9 @@ class UISceneModule : SceneModule
 			if (!panel.IsInteractive)
 				continue;
 
-			// Plane facing camera at the panel's position
 			let panelD = -Vector3.Dot(billboardNormal, panel.WorldPosition);
 			let plane = Plane(billboardNormal, panelD);
 
-			// Ray-plane intersection
 			let hitDist = ray.Intersects(plane);
 			if (hitDist == null || hitDist.Value <= 0)
 				continue;
@@ -252,20 +291,14 @@ class UISceneModule : SceneModule
 			if (hitDist.Value >= closestDist)
 				continue;
 
-			// Compute hit point in world space
 			let hitPoint = ray.Position + ray.Direction * hitDist.Value;
-
-			// Project onto billboard axes (camera right/up)
 			let relative = hitPoint - panel.WorldPosition;
 			let hitX = Vector3.Dot(relative, camRight);
 			let hitY = Vector3.Dot(relative, camUp);
 
-			// Convert from world units to pixel coordinates
-			// Panel center is at (0,0), extends +-half in each axis
 			let pixelX = (hitX / panel.PanelWidth + 0.5f) * (float)panel.PixelWidth;
-			let pixelY = (-hitY / panel.PanelHeight + 0.5f) * (float)panel.PixelHeight; // Flip Y (UI Y goes down)
+			let pixelY = (-hitY / panel.PanelHeight + 0.5f) * (float)panel.PixelHeight;
 
-			// Check bounds
 			if (pixelX < 0 || pixelX >= (float)panel.PixelWidth || pixelY < 0 || pixelY >= (float)panel.PixelHeight)
 				continue;
 
@@ -275,29 +308,23 @@ class UISceneModule : SceneModule
 			closestLocalY = pixelY;
 		}
 
-		// Send mouse-leave to previously hovered panel if we moved away
 		if (mHoveredPanel != null && mHoveredPanel != closestPanel)
 		{
-			// Move mouse outside panel bounds to trigger leave events
 			mHoveredPanel.GUIContext.ProcessMouseMove(-1, -1);
 			mHoveredPanel.MarkDirty();
 		}
 		mHoveredPanel = closestPanel;
 
-		// Route input to closest hit panel
 		if (closestPanel != null)
 		{
 			let mods = keyboard != null ? InputMapping.MapModifiers(keyboard.Modifiers) : Sedulous.GUI.KeyModifiers.None;
 
-			// Mouse movement
 			closestPanel.GUIContext.ProcessMouseMove(closestLocalX, closestLocalY);
 
-			// Mouse buttons
 			RouteWorldMouseButton(closestPanel, mouse, .Left, closestLocalX, closestLocalY, mods);
 			RouteWorldMouseButton(closestPanel, mouse, .Right, closestLocalX, closestLocalY, mods);
 			RouteWorldMouseButton(closestPanel, mouse, .Middle, closestLocalX, closestLocalY, mods);
 
-			// Scroll
 			if (mouse.ScrollX != 0 || mouse.ScrollY != 0)
 				closestPanel.GUIContext.ProcessMouseWheel(closestLocalX, closestLocalY, mouse.ScrollY, mods);
 
@@ -316,31 +343,25 @@ class UISceneModule : SceneModule
 
 	private static Ray ScreenPointToRay(float screenX, float screenY, CameraProxy* camera, uint32 viewportWidth, uint32 viewportHeight)
 	{
-		// Convert screen coords to NDC (-1 to 1)
 		float ndcX = (screenX / (float)viewportWidth) * 2.0f - 1.0f;
-		float ndcY = 1.0f - (screenY / (float)viewportHeight) * 2.0f; // Flip Y
+		float ndcY = 1.0f - (screenY / (float)viewportHeight) * 2.0f;
 
-		// NDC points at near and far planes
 		Vector4 nearPoint = .(ndcX, ndcY, 0.0f, 1.0f);
 		Vector4 farPoint = .(ndcX, ndcY, 1.0f, 1.0f);
 
-		// Compute VP matrix fresh from camera fields (avoids stale matrix issue and Vulkan Y-flip)
 		let viewMatrix = Matrix.CreateLookAt(camera.Position, camera.Position + camera.Forward, camera.Up);
 		let projMatrix = Matrix.CreatePerspectiveFieldOfView(camera.FieldOfView, camera.AspectRatio, camera.NearPlane, camera.FarPlane);
 		let vpMatrix = viewMatrix * projMatrix;
 		let invViewProj = Matrix.Invert(vpMatrix);
 
-		// Unproject to world space
 		var nearWorld = Vector4.Transform(nearPoint, invViewProj);
 		var farWorld = Vector4.Transform(farPoint, invViewProj);
 
-		// Perspective divide
 		if (Math.Abs(nearWorld.W) > 0.0001f)
 			nearWorld /= nearWorld.W;
 		if (Math.Abs(farWorld.W) > 0.0001f)
 			farWorld /= farWorld.W;
 
-		// Create ray
 		let rayPos = Vector3(nearWorld.X, nearWorld.Y, nearWorld.Z);
 		let rayDir = Vector3.Normalize(.(farWorld.X - nearWorld.X, farWorld.Y - nearWorld.Y, farWorld.Z - nearWorld.Z));
 		return .(rayPos, rayDir);
@@ -348,7 +369,6 @@ class UISceneModule : SceneModule
 
 	public override void OnEntityDestroyed(Scene scene, EntityId entity)
 	{
-		// Destroy any panels attached to this entity
 		for (int i = mPanels.Count - 1; i >= 0; i--)
 		{
 			if (mPanels[i].Entity == entity)
@@ -375,9 +395,6 @@ class UISceneModule : SceneModule
 
 	public override void OnSceneDestroy(Scene scene)
 	{
-		// Clean up all panels
-		// Note: RenderWorld is already destroyed by this point,
-		// sprite proxies are cleaned up with the world itself.
 		let feature = mSubsystem.WorldSpaceUIFeature;
 
 		for (let panel in mPanels)
@@ -388,6 +405,7 @@ class UISceneModule : SceneModule
 			delete panel;
 		}
 		mPanels.Clear();
+		mDeferredPanels.Clear();
 		mScene = null;
 	}
 }

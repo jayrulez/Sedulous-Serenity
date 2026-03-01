@@ -2,28 +2,17 @@ namespace Sedulous.Engine.Audio;
 
 using System;
 using Sedulous.Engine.Scenes;
-using Sedulous.Serialization;
 
-/// Component marking an entity as the audio listener (typically the camera).
+/// Thin handle component for entities that serve as the audio listener.
+/// All data is owned by AudioSceneModule — this component just holds
+/// the internal handle into the module's storage.
 [Component]
-struct AudioListenerComponent : ISerializableComponent
+struct AudioListenerComponent : IComponent
 {
-	/// Whether this listener is active.
-	public bool Active;
+	/// Internal handle into the module's data storage. Do not access directly.
+	public int32 InternalHandle = -1;
+
+	public bool IsValid => InternalHandle >= 0;
 
 	public void Dispose() mut { }
-
-	public int32 SerializationVersion => 1;
-
-	public SerializationResult Serialize(Serializer s) mut
-	{
-		var version = SerializationVersion;
-		s.Version(ref version);
-		s.Bool("active", ref Active);
-		return .Ok;
-	}
-
-	public static AudioListenerComponent Default => .() {
-		Active = true
-	};
 }

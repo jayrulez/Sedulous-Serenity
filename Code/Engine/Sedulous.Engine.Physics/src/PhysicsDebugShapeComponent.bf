@@ -1,10 +1,5 @@
 namespace Sedulous.Engine.Physics;
 
-using System;
-using Sedulous.Engine.Scenes;
-using Sedulous.Core.Mathematics;
-using Sedulous.Serialization;
-
 /// Shape type for debug drawing.
 enum DebugShapeType
 {
@@ -13,30 +8,4 @@ enum DebugShapeType
 	Sphere,
 	Capsule,
 	Cylinder
-}
-
-/// Component storing shape info for debug drawing.
-[Component]
-struct PhysicsDebugShapeComponent : ISerializableComponent
-{
-	[Property] public DebugShapeType ShapeType;
-	[Property] public Vector3 HalfExtents;  // Box: half extents, Sphere: (radius, 0, 0), Capsule/Cylinder: (radius, halfHeight, 0)
-
-	public void Dispose() mut { }
-
-	public int32 SerializationVersion => 1;
-
-	public SerializationResult Serialize(Serializer s) mut
-	{
-		var version = SerializationVersion;
-		s.Version(ref version);
-		s.Enum<DebugShapeType>("shapeType", ref ShapeType);
-		s.FixedFloatArray("halfExtents", &HalfExtents.X, 3);
-		return .Ok;
-	}
-
-	public static PhysicsDebugShapeComponent Default => .() {
-		ShapeType = .None,
-		HalfExtents = .Zero
-	};
 }

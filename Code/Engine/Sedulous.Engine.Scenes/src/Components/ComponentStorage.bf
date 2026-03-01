@@ -6,6 +6,7 @@ using System.Collections;
 /// Type-safe storage for components of type T.
 /// Uses sparse storage with entity index as key for efficient lookup.
 /// Tracks generation to detect stale entity references.
+[Reflect(.All)]
 class ComponentStorage<T> : IComponentStorage where T : struct, IComponent
 {
 	/// Maps entity index to component data.

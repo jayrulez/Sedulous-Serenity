@@ -408,39 +408,27 @@ class LevelBuilder
 		List<ResourceRef> animationRefs;
 		if (mAssetLoader.GetSkinnedMeshRef(meshKey, out meshRef, out materialRefs, out skeletonRef, out animationRefs))
 		{
-			var comp = SkinnedMeshRendererComponent.Default;
-			comp.MeshRef = meshRef;
-			comp.Enabled = true;
-
-			if (materialRefs != null && materialRefs.Count > 0)
+			if (let renderModule = mScene.GetModule<RenderSceneModule>())
 			{
-				comp.MaterialRefs.Count = (int32)Math.Min(materialRefs.Count, RenderConfig.MaxMaterialsPerMesh);
-				for (int32 i = 0; i < comp.MaterialRefs.Count; i++)
-					comp.MaterialRefs[i] = ResourceRef(materialRefs[i].Id, materialRefs[i].Path);
+				renderModule.CreateSkinnedMeshFromRef(entity, meshRef);
+				if (materialRefs != null && materialRefs.Count > 0)
+				{
+					let count = (int32)Math.Min(materialRefs.Count, RenderConfig.MaxMaterialsPerMesh);
+					for (int32 i = 0; i < count; i++)
+						renderModule.SetSkinnedMeshMaterialRef(entity, i, materialRefs[i]);
+				}
 			}
 
-			mScene.SetComponent<SkinnedMeshRendererComponent>(entity, comp);
-
-			// Set up skeletal animation - use Idle animation by default
+			// Set up skeletal animation via module API - use Idle animation by default
 			if (skeletonRef.IsValid && animationRefs != null && animationRefs.Count > 0)
 			{
-				var animComp = SkeletalAnimationComponent.Default;
-				animComp.SkeletonRef = skeletonRef;
-
 				// Try to find "Idle" animation, fall back to first
-				var defaultRef = ResourceRef();
-				if (mAssetLoader.GetDefaultAnimationRef(meshKey, out defaultRef))
-				{
-					animComp.AnimationClipRef = defaultRef;
-				}
-				else
-				{
-					animComp.AnimationClipRef = ResourceRef(animationRefs[0].Id, animationRefs[0].Path);
-				}
+				var clipRef = ResourceRef();
+				if (!mAssetLoader.GetDefaultAnimationRef(meshKey, out clipRef))
+					clipRef = ResourceRef(animationRefs[0].Id, animationRefs[0].Path);
 
-				animComp.Playing = true;
-				animComp.Loop = true;
-				mScene.SetComponent<SkeletalAnimationComponent>(entity, animComp);
+				if (let animModule = mScene.GetModule<AnimationSceneModule>())
+					animModule.CreateSkeletalAnimation(entity, skeletonRef, clipRef, playing: true, loop: true);
 			}
 		}
 		else
@@ -457,18 +445,14 @@ class LevelBuilder
 		List<ResourceRef> materialRefs;
 		if (mAssetLoader.GetMeshRef(meshKey, out meshRef, out materialRefs))
 		{
-			var comp = MeshRendererComponent.Default;
-			comp.MeshRef = meshRef;
-			comp.Enabled = true;
+			mRenderModule.CreateMeshFromRef(entity, meshRef, true);
 
 			if (materialRefs != null && materialRefs.Count > 0)
 			{
-				comp.MaterialRefs.Count = (int32)Math.Min(materialRefs.Count, RenderConfig.MaxMaterialsPerMesh);
-				for (int32 i = 0; i < comp.MaterialRefs.Count; i++)
-					comp.MaterialRefs[i] = ResourceRef(materialRefs[i].Id, materialRefs[i].Path);
+				let count = (int32)Math.Min(materialRefs.Count, RenderConfig.MaxMaterialsPerMesh);
+				for (int32 i = 0; i < count; i++)
+					mRenderModule.SetMeshMaterialRef(entity, i, materialRefs[i]);
 			}
-
-			mScene.SetComponent<MeshRendererComponent>(entity, comp);
 		}
 		else
 		{

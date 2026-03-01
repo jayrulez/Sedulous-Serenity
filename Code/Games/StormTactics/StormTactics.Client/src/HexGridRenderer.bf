@@ -80,40 +80,38 @@ class HexGridRenderer
 				transform.Position = .(wx, 0, wz);
 				mScene.SetTransform(entity, transform);
 
-				// Mesh component
-				mScene.SetComponent<MeshRendererComponent>(entity, .Default);
-				var comp = mScene.GetComponent<MeshRendererComponent>(entity);
-				comp.Mesh = ResourceHandle<StaticMeshResource>(mHexMeshResource);
-
-				// Material with team color
-				Color tileColor;
-				if (col < splitCol)
-					tileColor = ATTACKER_TILE_COLOR;
-				else if (col >= grid.Columns - splitCol)
-					tileColor = DEFENDER_TILE_COLOR;
-				else
-					tileColor = NEUTRAL_TILE_COLOR;
-
-				if (baseMaterial != null)
+				// Mesh + material via module API
+				let renderModule = mScene.GetModule<RenderSceneModule>();
+				if (renderModule != null)
 				{
-					let mat = new MaterialInstance(baseMaterial);
-					mat.SetColor("BaseColor", .(
-						(float)tileColor.R / 255.0f,
-						(float)tileColor.G / 255.0f,
-						(float)tileColor.B / 255.0f,
-						1.0f));
-					mat.SetFloat("Roughness", 0.8f);
-					mat.SetFloat("Metallic", 0.0f);
-					mTileMaterials[key] = mat;
-					comp.MaterialInstances[0] = mat;
-					comp.MaterialInstances[0].AddRef();
-					comp.MaterialRefs.Count = 1;
-				}
-				else if (defaultMaterial != null)
-				{
-					comp.MaterialInstances[0] = defaultMaterial;
-					comp.MaterialInstances[0].AddRef();
-					comp.MaterialRefs.Count = 1;
+					renderModule.CreateMesh(entity, mHexMeshResource);
+
+					// Material with team color
+					Color tileColor;
+					if (col < splitCol)
+						tileColor = ATTACKER_TILE_COLOR;
+					else if (col >= grid.Columns - splitCol)
+						tileColor = DEFENDER_TILE_COLOR;
+					else
+						tileColor = NEUTRAL_TILE_COLOR;
+
+					if (baseMaterial != null)
+					{
+						let mat = new MaterialInstance(baseMaterial);
+						mat.SetColor("BaseColor", .(
+							(float)tileColor.R / 255.0f,
+							(float)tileColor.G / 255.0f,
+							(float)tileColor.B / 255.0f,
+							1.0f));
+						mat.SetFloat("Roughness", 0.8f);
+						mat.SetFloat("Metallic", 0.0f);
+						mTileMaterials[key] = mat;
+						renderModule.SetMeshMaterial(entity, 0, mat);
+					}
+					else if (defaultMaterial != null)
+					{
+						renderModule.SetMeshMaterial(entity, 0, defaultMaterial);
+					}
 				}
 			}
 		}

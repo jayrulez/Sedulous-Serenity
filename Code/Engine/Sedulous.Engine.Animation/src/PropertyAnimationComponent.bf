@@ -2,35 +2,17 @@ namespace Sedulous.Engine.Animation;
 
 using System;
 using Sedulous.Engine.Scenes;
-using Sedulous.Serialization;
 
-/// Component for entities with property animation.
+/// Thin handle component for entities with property animation.
+/// All data is owned by AnimationSceneModule — this component just holds
+/// the internal handle into the module's storage.
 [Component]
-struct PropertyAnimationComponent : ISerializableComponent
+struct PropertyAnimationComponent : IComponent
 {
-	/// The property animation player for this entity (runtime, not serialized).
-	public PropertyAnimationPlayer Player;
-	/// Whether the animation is playing.
-	public bool Playing;
-	/// Playback speed multiplier.
-	public float Speed;
+	/// Internal handle into the module's data storage. Do not access directly.
+	public int32 InternalHandle = -1;
+
+	public bool IsValid => InternalHandle >= 0;
 
 	public void Dispose() mut { }
-
-	public int32 SerializationVersion => 1;
-
-	public SerializationResult Serialize(Serializer s) mut
-	{
-		var version = SerializationVersion;
-		s.Version(ref version);
-		s.Bool("playing", ref Playing);
-		s.Float("speed", ref Speed);
-		return .Ok;
-	}
-
-	public static PropertyAnimationComponent Default => .() {
-		Player = null,
-		Playing = false,
-		Speed = 1.0f
-	};
 }

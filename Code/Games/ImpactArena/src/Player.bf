@@ -74,12 +74,8 @@ class Player
 		transform.Position = .(0, Radius, 0);
 		scene.SetTransform(mEntity, transform);
 
-		mScene.SetComponent<MeshRendererComponent>(mEntity, .Default);
-		var comp = mScene.GetComponent<MeshRendererComponent>(mEntity);
-		comp.Mesh = ResourceHandle<StaticMeshResource>(sphereMesh);
-		comp.MaterialInstances[0] = mat;
-		comp.MaterialInstances[0]?.AddRef();
-		comp.MaterialRefs.Count = 1;
+		renderModule.CreateMesh(mEntity, sphereMesh);
+		renderModule.SetMeshMaterial(mEntity, 0, mat);
 
 		// Create physics body constrained to XZ plane
 		var descriptor = PhysicsBodyDescriptor();

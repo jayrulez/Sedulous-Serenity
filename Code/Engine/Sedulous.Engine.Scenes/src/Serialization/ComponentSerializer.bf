@@ -5,8 +5,8 @@ using System.Collections;
 using Sedulous.Serialization;
 
 /// Generic component serializer that handles reading/writing components of type T.
-/// T must be a struct implementing ISerializableComponent.
-class ComponentSerializer<T> : IComponentSerializer where T : struct, ISerializableComponent
+/// T must be a struct that is both a component (IComponent) and serializable (ISerializableComponentData).
+class ComponentSerializer<T> : IComponentSerializer where T : struct, IComponent, ISerializableComponentData
 {
 	private String mTypeName ~ delete _;
 

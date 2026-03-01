@@ -156,12 +156,8 @@ class PowerUpManager
 		case .EMP: mat = mEmpMat;
 		}
 
-		mScene.SetComponent<MeshRendererComponent>(entity, .Default);
-		var comp = mScene.GetComponent<MeshRendererComponent>(entity);
-		comp.Mesh = ResourceHandle<StaticMeshResource>(mSphereResource);
-		comp.MaterialInstances[0] = mat;
-		comp.MaterialInstances[0]?.AddRef();
-		comp.MaterialRefs.Count = 1;
+		mRenderModule.CreateMesh(entity, mSphereResource);
+		mRenderModule.SetMeshMaterial(entity, 0, mat);
 
 		// Ambient glow particles
 		Vector4 glowColor;

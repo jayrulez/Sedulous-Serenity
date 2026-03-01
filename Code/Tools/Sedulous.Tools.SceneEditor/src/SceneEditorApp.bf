@@ -662,11 +662,12 @@ class SceneEditorApp : Application
 		tab.Scene.SetPosition(lightEntity, .(0, 10, 0));
 		tab.Scene.SetRotation(lightEntity, Quaternion.CreateFromYawPitchRoll(0.5f, -1.0f, 0));
 
-		var light = LightComponent.Default;
-		light.Type = .Directional;
-		light.Intensity = 2.5f;
-		light.CastsShadows = true;
-		tab.Scene.SetComponent<LightComponent>(lightEntity, light);
+		if (let renderModule = tab.Scene.GetModule<RenderSceneModule>())
+		{
+			renderModule.CreateDirectionalLight(lightEntity, .(1.0f, 1.0f, 1.0f), 2.5f);
+			if (let proxy = renderModule.GetLightProxy(lightEntity))
+				proxy.CastsShadows = true;
+		}
 
 		// Default environment comes from RenderModuleSettings defaults,
 		// applied by RenderSceneModule.OnSceneCreate during CreateScene above.
@@ -704,26 +705,23 @@ class SceneEditorApp : Application
 			}
 		}
 
-		let resource = new SceneResource();
+		let name = Path.GetFileNameWithoutExtension(path, .. scope .());
 
+		// Create scene via subsystem first — modules get attached,
+		// so all component serializers are available during deserialization.
+		let scene = mSceneSubsystem.CreateScene(name);
+
+		let resource = scope SceneResource(scene);
 		if (resource.Load(path) case .Err)
 		{
 			Console.WriteLine(scope $"ERROR: Failed to load scene from '{path}'");
-			delete resource;
+			mSceneSubsystem.UnloadScene(scene);
 			return;
 		}
 
 		let resourceId = resource.Id;
-		let scene = resource.TakeScene();
-		delete resource;
-
-		// Register scene with SceneSubsystem (fires ISceneAware → RenderSubsystem creates RenderWorld).
-		// Module settings were already populated during deserialization above.
-		// Modules read from settings in OnSceneCreate when they are added here.
-		mSceneSubsystem.AddScene(scene);
 
 		// Create tab
-		let name = Path.GetFileNameWithoutExtension(path, .. scope .());
 		let tab = new SceneTab(name);
 		tab.ResourceId = resourceId;
 		tab.Scene = scene;
@@ -777,17 +775,14 @@ class SceneEditorApp : Application
 	/// Writes the scene to disk and updates tab state.
 	private void SaveSceneToFile(SceneTab tab, StringView path)
 	{
-		let resource = new SceneResource(tab.Scene, false);
+		let resource = scope SceneResource(tab.Scene);
 		resource.Id = tab.ResourceId;
 
 		if (resource.SaveToFile(path) case .Err)
 		{
 			Console.WriteLine(scope $"ERROR: Failed to save scene to '{path}'");
-			delete resource;
 			return;
 		}
-
-		delete resource;
 
 		tab.SetFilePath(path);
 		tab.ClearDirty();
@@ -1585,19 +1580,18 @@ class SceneEditorApp : Application
 
 						// Get mesh local bounds, or default 1x1x1 for non-mesh entities
 						BoundingBox localBounds = .(Vector3(-0.5f, -0.5f, -0.5f), Vector3(0.5f, 0.5f, 0.5f));
-						if (let meshComp = tab.Scene.GetComponent<MeshRendererComponent>(entity))
+						if (let renderModule = tab.Scene.GetModule<RenderSceneModule>())
 						{
-							if (meshComp.Mesh.IsValid)
-								if (let resource = meshComp.Mesh.Resource)
-									if (resource.Mesh != null)
-										localBounds = resource.Mesh.GetBounds();
-						}
-						else if (let skinnedComp = tab.Scene.GetComponent<SkinnedMeshRendererComponent>(entity))
-						{
-							if (skinnedComp.Mesh.IsValid)
-								if (let resource = skinnedComp.Mesh.Resource)
-									if (resource.Mesh != null)
-										localBounds = resource.Mesh.Bounds;
+							if (let resource = renderModule.GetMeshResource(entity))
+							{
+								if (resource.Mesh != null)
+									localBounds = resource.Mesh.GetBounds();
+							}
+							else if (let skinnedResource = renderModule.GetSkinnedMeshResource(entity))
+							{
+								if (skinnedResource.Mesh != null)
+									localBounds = skinnedResource.Mesh.Bounds;
+							}
 						}
 
 						mOverlayFeature.AddTransformedBox(localBounds, worldMatrix, Color(255, 200, 50, 255), .Overlay);

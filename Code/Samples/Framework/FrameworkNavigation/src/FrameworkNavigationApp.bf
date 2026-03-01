@@ -234,12 +234,8 @@ class FrameworkNavigationApp : Application
 		// Floor entity
 		mFloorEntity = mMainScene.CreateEntity();
 		{
-			mMainScene.SetComponent<MeshRendererComponent>(mFloorEntity, .Default);
-			var comp = mMainScene.GetComponent<MeshRendererComponent>(mFloorEntity);
-			comp.Mesh = ResourceHandle<StaticMeshResource>(mPlaneResource);
-			comp.MaterialInstances[0] = mFloorMaterial ?? defaultMaterialInstance;
-			comp.MaterialInstances[0]?.AddRef();
-			comp.MaterialRefs.Count = 1;
+			renderModule.CreateMesh(mFloorEntity, mPlaneResource);
+			renderModule.SetMeshMaterial(mFloorEntity, 0, mFloorMaterial ?? defaultMaterialInstance);
 			if (physicsModule != null)
 				physicsModule.CreatePlaneBody(mFloorEntity, .(0, 1, 0), 0.0f);
 		}
@@ -277,13 +273,9 @@ class FrameworkNavigationApp : Application
 		transform.Scale = halfExtents * 2.0f;
 		mMainScene.SetTransform(entity, transform);
 
-		mMainScene.SetComponent<MeshRendererComponent>(entity, .Default);
-		var comp = mMainScene.GetComponent<MeshRendererComponent>(entity);
-		comp.Mesh = ResourceHandle<StaticMeshResource>(mCubeResource);
+		renderModule.CreateMesh(entity, mCubeResource);
 		let defaultMat = mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
-		comp.MaterialInstances[0] = mWallMaterial ?? defaultMat;
-		comp.MaterialInstances[0]?.AddRef();
-		comp.MaterialRefs.Count = 1;
+		renderModule.SetMeshMaterial(entity, 0, mWallMaterial ?? defaultMat);
 	}
 
 	private void CreateUI()

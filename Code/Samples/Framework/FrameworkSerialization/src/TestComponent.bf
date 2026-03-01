@@ -5,7 +5,7 @@ using Sedulous.Serialization;
 using Sedulous.Engine.Scenes;
 
 [Component]
-struct TestComponent : ISerializableComponent
+struct TestComponent : IComponent, ISerializableComponentData
 {
 	public float Speed;
 	public int32 Health;

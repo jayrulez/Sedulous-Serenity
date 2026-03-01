@@ -8,13 +8,53 @@ using Sedulous.Core.Mathematics;
 using Sedulous.Render;
 using recastnavigation_Beef;
 
+/// Internal data for a navigation agent. All agent state is owned here.
+public struct NavAgentInstanceData
+{
+	public EntityId Entity;
+	public int32 AgentIndex;          // Index in CrowdManager (-1 if not yet created)
+	public bool SyncToTransform;
+	public float Radius;
+	public float Height;
+	public float MaxAcceleration;
+	public float MaxSpeed;
+	public float CollisionQueryRange;
+	public float PathOptimizationRange;
+	public float SeparationWeight;
+	public uint8 ObstacleAvoidanceType;
+	public bool Active;               // Slot in use
+}
+
+/// Internal data for a navigation obstacle.
+public struct NavObstacleInstanceData
+{
+	public EntityId Entity;
+	public int32 ObstacleId;          // ID in TileCache (-1 if not yet created)
+	public float Radius;
+	public float Height;
+	public bool Active;               // Slot in use
+}
+
 /// Scene module that manages navigation agents and obstacles for entities.
 /// Created automatically by NavigationSubsystem for each scene.
+///
+/// All navigation data is owned by this module in internal instance storage.
+/// Components are thin handles into this storage.
 class NavigationSceneModule : SceneModule
 {
 	private NavigationSubsystem mSubsystem;
 	private NavWorld mNavWorld;
 	private Scene mScene;
+
+	// Agent instance storage
+	private List<NavAgentInstanceData> mAgentInstances = new .() ~ delete _;
+	private List<int32> mFreeAgentSlots = new .() ~ delete _;
+	private Dictionary<EntityId, int32> mEntityToAgent = new .() ~ delete _;
+
+	// Obstacle instance storage
+	private List<NavObstacleInstanceData> mObstacleInstances = new .() ~ delete _;
+	private List<int32> mFreeObstacleSlots = new .() ~ delete _;
+	private Dictionary<EntityId, int32> mEntityToObstacle = new .() ~ delete _;
 
 	// Debug drawing
 	private bool mDebugDrawEnabled = false;
@@ -49,6 +89,12 @@ class NavigationSceneModule : SceneModule
 		set => mDebugDrawEnabled = value;
 	}
 
+	/// Provides read access to agent instances for serialization.
+	public List<NavAgentInstanceData> AgentInstances => mAgentInstances;
+
+	/// Provides read access to obstacle instances for serialization.
+	public List<NavObstacleInstanceData> ObstacleInstances => mObstacleInstances;
+
 	// ==================== Agent Management ====================
 
 	/// Adds a navigation agent for an entity.
@@ -62,20 +108,87 @@ class NavigationSceneModule : SceneModule
 		if (agentIndex < 0)
 			return -1;
 
-		mScene.SetComponent<NavAgentComponent>(entity, .() {
-			AgentIndex = agentIndex,
-			SyncToTransform = true,
-			Radius = @params.Radius,
-			Height = @params.Height,
-			MaxAcceleration = @params.MaxAcceleration,
-			MaxSpeed = @params.MaxSpeed,
-			CollisionQueryRange = @params.CollisionQueryRange,
-			PathOptimizationRange = @params.PathOptimizationRange,
-			SeparationWeight = @params.SeparationWeight,
-			ObstacleAvoidanceType = @params.ObstacleAvoidanceType
-		});
+		// Allocate instance slot
+		int32 slotIdx;
+		if (mFreeAgentSlots.Count > 0)
+		{
+			slotIdx = mFreeAgentSlots.PopBack();
+		}
+		else
+		{
+			slotIdx = (int32)mAgentInstances.Count;
+			mAgentInstances.Add(.());
+		}
+
+		var instance = ref mAgentInstances[slotIdx];
+		instance = .();
+		instance.Entity = entity;
+		instance.AgentIndex = agentIndex;
+		instance.SyncToTransform = true;
+		instance.Radius = @params.Radius;
+		instance.Height = @params.Height;
+		instance.MaxAcceleration = @params.MaxAcceleration;
+		instance.MaxSpeed = @params.MaxSpeed;
+		instance.CollisionQueryRange = @params.CollisionQueryRange;
+		instance.PathOptimizationRange = @params.PathOptimizationRange;
+		instance.SeparationWeight = @params.SeparationWeight;
+		instance.ObstacleAvoidanceType = @params.ObstacleAvoidanceType;
+		instance.Active = true;
+		mEntityToAgent[entity] = slotIdx;
+
+		// Set thin handle on entity
+		var comp = mScene.GetComponent<NavAgentComponent>(entity);
+		if (comp == null)
+		{
+			mScene.SetComponent<NavAgentComponent>(entity, .());
+			comp = mScene.GetComponent<NavAgentComponent>(entity);
+		}
+		comp.InternalHandle = slotIdx;
 
 		return agentIndex;
+	}
+
+	/// Creates an agent instance from serialization data (deferred — agent not yet created in CrowdManager).
+	public void CreateAgentFromData(EntityId entity, NavAgentComponentData data)
+	{
+		if (mScene == null)
+			return;
+
+		int32 slotIdx;
+		if (mFreeAgentSlots.Count > 0)
+		{
+			slotIdx = mFreeAgentSlots.PopBack();
+		}
+		else
+		{
+			slotIdx = (int32)mAgentInstances.Count;
+			mAgentInstances.Add(.());
+		}
+
+		var instance = ref mAgentInstances[slotIdx];
+		instance = .();
+		instance.Entity = entity;
+		instance.AgentIndex = -1; // Will be assigned during AutoCreateAgents
+		instance.SyncToTransform = data.SyncToTransform;
+		instance.Radius = data.Radius;
+		instance.Height = data.Height;
+		instance.MaxAcceleration = data.MaxAcceleration;
+		instance.MaxSpeed = data.MaxSpeed;
+		instance.CollisionQueryRange = data.CollisionQueryRange;
+		instance.PathOptimizationRange = data.PathOptimizationRange;
+		instance.SeparationWeight = data.SeparationWeight;
+		instance.ObstacleAvoidanceType = data.ObstacleAvoidanceType;
+		instance.Active = true;
+		mEntityToAgent[entity] = slotIdx;
+
+		// Set thin handle on entity
+		var comp = mScene.GetComponent<NavAgentComponent>(entity);
+		if (comp == null)
+		{
+			mScene.SetComponent<NavAgentComponent>(entity, .());
+			comp = mScene.GetComponent<NavAgentComponent>(entity);
+		}
+		comp.InternalHandle = slotIdx;
 	}
 
 	/// Removes the navigation agent for an entity.
@@ -84,14 +197,32 @@ class NavigationSceneModule : SceneModule
 		if (mScene == null || mNavWorld == null)
 			return;
 
-		if (let agent = mScene.GetComponent<NavAgentComponent>(entity))
+		if (!mEntityToAgent.TryGetValue(entity, let slotIdx))
+			return;
+
+		var instance = ref mAgentInstances[slotIdx];
+		if (instance.Active)
 		{
-			if (agent.AgentIndex >= 0)
-			{
-				mNavWorld.RemoveAgent(agent.AgentIndex);
-				agent.AgentIndex = -1;
-			}
+			if (instance.AgentIndex >= 0)
+				mNavWorld.RemoveAgent(instance.AgentIndex);
+			instance.Active = false;
+			mFreeAgentSlots.Add(slotIdx);
 		}
+		mEntityToAgent.Remove(entity);
+
+		if (let comp = mScene.GetComponent<NavAgentComponent>(entity))
+			comp.InternalHandle = -1;
+	}
+
+	/// Gets the agent index (CrowdManager handle) for an entity.
+	public int32 GetAgentIndex(EntityId entity)
+	{
+		if (!mEntityToAgent.TryGetValue(entity, let slotIdx))
+			return -1;
+		let instance = ref mAgentInstances[slotIdx];
+		if (instance.Active)
+			return instance.AgentIndex;
+		return -1;
 	}
 
 	// ==================== Obstacle Management ====================
@@ -107,13 +238,71 @@ class NavigationSceneModule : SceneModule
 		if (obstacleId < 0)
 			return -1;
 
-		mScene.SetComponent<NavObstacleComponent>(entity, .() {
-			ObstacleId = obstacleId,
-			Radius = radius,
-			Height = height
-		});
+		int32 slotIdx;
+		if (mFreeObstacleSlots.Count > 0)
+		{
+			slotIdx = mFreeObstacleSlots.PopBack();
+		}
+		else
+		{
+			slotIdx = (int32)mObstacleInstances.Count;
+			mObstacleInstances.Add(.());
+		}
+
+		var instance = ref mObstacleInstances[slotIdx];
+		instance = .();
+		instance.Entity = entity;
+		instance.ObstacleId = obstacleId;
+		instance.Radius = radius;
+		instance.Height = height;
+		instance.Active = true;
+		mEntityToObstacle[entity] = slotIdx;
+
+		// Set thin handle on entity
+		var comp = mScene.GetComponent<NavObstacleComponent>(entity);
+		if (comp == null)
+		{
+			mScene.SetComponent<NavObstacleComponent>(entity, .());
+			comp = mScene.GetComponent<NavObstacleComponent>(entity);
+		}
+		comp.InternalHandle = slotIdx;
 
 		return obstacleId;
+	}
+
+	/// Creates an obstacle instance from serialization data (deferred).
+	public void CreateObstacleFromData(EntityId entity, NavObstacleComponentData data)
+	{
+		if (mScene == null)
+			return;
+
+		int32 slotIdx;
+		if (mFreeObstacleSlots.Count > 0)
+		{
+			slotIdx = mFreeObstacleSlots.PopBack();
+		}
+		else
+		{
+			slotIdx = (int32)mObstacleInstances.Count;
+			mObstacleInstances.Add(.());
+		}
+
+		var instance = ref mObstacleInstances[slotIdx];
+		instance = .();
+		instance.Entity = entity;
+		instance.ObstacleId = -1; // Will be created when navmesh is available
+		instance.Radius = data.Radius;
+		instance.Height = data.Height;
+		instance.Active = true;
+		mEntityToObstacle[entity] = slotIdx;
+
+		var comp = mScene.GetComponent<NavObstacleComponent>(entity);
+		if (comp == null)
+		{
+			mScene.SetComponent<NavObstacleComponent>(entity, .());
+			comp = mScene.GetComponent<NavObstacleComponent>(entity);
+		}
+		comp.InternalHandle = slotIdx;
 	}
 
 	/// Removes the dynamic obstacle for an entity.
@@ -122,30 +311,49 @@ class NavigationSceneModule : SceneModule
 		if (mScene == null || mNavWorld == null)
 			return;
 
-		if (let obstacle = mScene.GetComponent<NavObstacleComponent>(entity))
+		if (!mEntityToObstacle.TryGetValue(entity, let slotIdx))
+			return;
+
+		var instance = ref mObstacleInstances[slotIdx];
+		if (instance.Active)
 		{
-			if (obstacle.ObstacleId >= 0)
-			{
-				mNavWorld.RemoveObstacle(obstacle.ObstacleId);
-				obstacle.ObstacleId = -1;
-			}
+			if (instance.ObstacleId >= 0)
+				mNavWorld.RemoveObstacle(instance.ObstacleId);
+			instance.Active = false;
+			mFreeObstacleSlots.Add(slotIdx);
 		}
+		mEntityToObstacle.Remove(entity);
+
+		if (let comp = mScene.GetComponent<NavObstacleComponent>(entity))
+			comp.InternalHandle = -1;
+	}
+
+	/// Gets obstacle dimensions for an entity. Returns false if entity has no obstacle.
+	public bool GetObstacleData(EntityId entity, out float radius, out float height)
+	{
+		radius = 0;
+		height = 0;
+		if (!mEntityToObstacle.TryGetValue(entity, let slotIdx))
+			return false;
+		let instance = ref mObstacleInstances[slotIdx];
+		if (!instance.Active)
+			return false;
+		radius = instance.Radius;
+		height = instance.Height;
+		return true;
 	}
 
 	// ==================== High-Level Operations ====================
 
-	/// Builds a navigation mesh from the provided geometry and applies it to this scene's NavWorld.
-	/// Uses tiled building with TileCache for dynamic obstacle support.
-	/// Returns true if the navmesh was built and set successfully.
+	/// Builds a navigation mesh from the provided geometry.
 	public bool BuildNavMesh(IInputGeometryProvider geometry, in NavMeshBuildConfig config)
 	{
 		if (mNavWorld == null)
 			return false;
 
-		// Use tiled builder for dynamic obstacle support
 		var tiledConfig = config;
 		if (tiledConfig.TileSize <= 0)
-			tiledConfig.TileSize = 48; // Default tile size
+			tiledConfig.TileSize = 48;
 
 		let result = NavMeshBuilder.BuildTiled(geometry, tiledConfig);
 		defer delete result;
@@ -160,17 +368,13 @@ class NavigationSceneModule : SceneModule
 		}
 
 		Console.WriteLine(scope $"NavMesh built: {result.Stats.PolyCount} polys, {result.Stats.TileCount} tiles");
-
-		// Transfer ownership to NavWorld (with TileCache for dynamic obstacles)
 		mNavWorld.SetNavMeshWithTileCache(result.NavMesh, result.TileCache);
 		result.NavMesh = null;
 		result.TileCache = null;
-
 		return true;
 	}
 
-	/// Builds a simple single-tile navigation mesh (no dynamic obstacle support).
-	/// Use BuildNavMesh for dynamic obstacle support.
+	/// Builds a simple single-tile navigation mesh.
 	public bool BuildNavMeshSimple(IInputGeometryProvider geometry, in NavMeshBuildConfig config)
 	{
 		if (mNavWorld == null)
@@ -190,30 +394,27 @@ class NavigationSceneModule : SceneModule
 
 		Console.WriteLine(scope $"NavMesh built: {result.Stats.PolyCount} polys, {result.Stats.VertexCount} verts");
 		mNavWorld.SetNavMesh(result.NavMesh);
-
-		// Transfer ownership to NavWorld
 		result.NavMesh = null;
-
 		return true;
 	}
 
-	/// Sets the move target for an entity's agent to the given world position.
-	/// Returns true if the target was set successfully.
+	/// Sets the move target for an entity's agent.
 	public bool RequestMoveTarget(EntityId entity, float[3] targetPos)
 	{
 		if (mScene == null || mNavWorld == null)
 			return false;
 
-		if (let agent = mScene.GetComponent<NavAgentComponent>(entity))
-		{
-			if (agent.AgentIndex >= 0)
-				return mNavWorld.RequestMoveTarget(agent.AgentIndex, targetPos);
-		}
+		if (!mEntityToAgent.TryGetValue(entity, let slotIdx))
+			return false;
+
+		let instance = ref mAgentInstances[slotIdx];
+		if (instance.Active && instance.AgentIndex >= 0)
+			return mNavWorld.RequestMoveTarget(instance.AgentIndex, targetPos);
+
 		return false;
 	}
 
 	/// Finds a path between two world positions.
-	/// Returns true if a path was found, with waypoints as [x,y,z,...] in outWaypoints.
 	public bool FindPath(float[3] start, float[3] end, List<float> outWaypoints)
 	{
 		if (mNavWorld == null)
@@ -222,7 +423,6 @@ class NavigationSceneModule : SceneModule
 	}
 
 	/// Gets the current position of an entity's crowd agent.
-	/// Returns true if the agent was found and position retrieved.
 	public bool GetAgentPosition(EntityId entity, out float[3] position)
 	{
 		position = default;
@@ -233,16 +433,14 @@ class NavigationSceneModule : SceneModule
 		if (crowd == null)
 			return false;
 
-		if (let agent = mScene.GetComponent<NavAgentComponent>(entity))
+		if (!mEntityToAgent.TryGetValue(entity, let slotIdx))
+			return false;
+
+		let instance = ref mAgentInstances[slotIdx];
+		if (instance.Active && instance.AgentIndex >= 0 && crowd.IsAgentActive(instance.AgentIndex))
 		{
-			if (agent.AgentIndex >= 0)
-			{
-				if (crowd.IsAgentActive(agent.AgentIndex))
-				{
-					crowd.GetAgentPosition(agent.AgentIndex, out position);
-					return true;
-				}
-			}
+			crowd.GetAgentPosition(instance.AgentIndex, out position);
+			return true;
 		}
 		return false;
 	}
@@ -252,10 +450,26 @@ class NavigationSceneModule : SceneModule
 	public override void OnSceneCreate(Scene scene)
 	{
 		mScene = scene;
+
+		// Register custom serializers
+		scene.RegisterComponentSerializer(new NavAgentComponentSerializer());
+		scene.RegisterComponentSerializer(new NavObstacleComponentSerializer());
 	}
 
 	public override void OnSceneDestroy(Scene scene)
 	{
+		// Just clear instance tracking — the NavWorld is destroyed by
+		// NavigationSubsystem.OnSceneDestroyed, so no need to remove
+		// individual agents/obstacles (and the world may already be deleted).
+		mAgentInstances.Clear();
+		mFreeAgentSlots.Clear();
+		mEntityToAgent.Clear();
+
+		mObstacleInstances.Clear();
+		mFreeObstacleSlots.Clear();
+		mEntityToObstacle.Clear();
+
+		mNavWorld = null;
 		mScene = null;
 	}
 
@@ -264,7 +478,6 @@ class NavigationSceneModule : SceneModule
 		if (mNavWorld == null)
 			return;
 
-		// Step crowd simulation and process obstacle updates
 		mNavWorld.Update(fixedDeltaTime);
 	}
 
@@ -273,11 +486,8 @@ class NavigationSceneModule : SceneModule
 		if (mNavWorld == null || mScene == null)
 			return;
 
-		// Auto-create agents for deserialized components
-		AutoCreateAgents(scene);
-
-		// Sync agent positions to entity transforms
-		SyncAgentTransforms(scene);
+		AutoCreateAgents();
+		SyncAgentTransforms();
 	}
 
 	public override void PostUpdate(Scene scene, float deltaTime)
@@ -285,82 +495,104 @@ class NavigationSceneModule : SceneModule
 		if (!mDebugDrawEnabled || mNavWorld == null || mScene == null)
 			return;
 
-		DrawDebug(scene);
+		DrawDebug();
 	}
 
 	public override void OnEntityDestroyed(Scene scene, EntityId entity)
 	{
-		if (mNavWorld == null)
-			return;
-
 		// Clean up agent
-		if (let agent = scene.GetComponent<NavAgentComponent>(entity))
+		if (mEntityToAgent.TryGetValue(entity, let agentSlot))
 		{
-			if (agent.AgentIndex >= 0)
+			var instance = ref mAgentInstances[agentSlot];
+			if (instance.Active)
 			{
-				mNavWorld.RemoveAgent(agent.AgentIndex);
-				agent.AgentIndex = -1;
+				if (instance.AgentIndex >= 0 && mNavWorld != null)
+					mNavWorld.RemoveAgent(instance.AgentIndex);
+				instance.Active = false;
+				mFreeAgentSlots.Add(agentSlot);
 			}
+			mEntityToAgent.Remove(entity);
 		}
 
 		// Clean up obstacle
-		if (let obstacle = scene.GetComponent<NavObstacleComponent>(entity))
+		if (mEntityToObstacle.TryGetValue(entity, let obstacleSlot))
 		{
-			if (obstacle.ObstacleId >= 0)
+			var instance = ref mObstacleInstances[obstacleSlot];
+			if (instance.Active)
 			{
-				mNavWorld.RemoveObstacle(obstacle.ObstacleId);
-				obstacle.ObstacleId = -1;
+				if (instance.ObstacleId >= 0 && mNavWorld != null)
+					mNavWorld.RemoveObstacle(instance.ObstacleId);
+				instance.Active = false;
+				mFreeObstacleSlots.Add(obstacleSlot);
 			}
+			mEntityToObstacle.Remove(entity);
 		}
 	}
 
 	// ==================== Private ====================
 
-	private void AutoCreateAgents(Scene scene)
+	private void AutoCreateAgents()
 	{
 		if (mNavWorld.NavMesh == null || mNavWorld.Crowd == null)
 			return;
 
-		for (let (entity, agent) in scene.Query<NavAgentComponent>())
+		for (var instance in ref mAgentInstances)
 		{
-			if (agent.AgentIndex >= 0)
-				continue; // Already has an agent
+			if (!instance.Active || instance.AgentIndex >= 0)
+				continue; // Already has a crowd agent or inactive
 
-			let transform = scene.GetTransform(entity);
+			let transform = mScene.GetTransform(instance.Entity);
 			float[3] pos = .(transform.Position.X, transform.Position.Y, transform.Position.Z);
-			let @params = agent.ToCrowdAgentParams();
+			let @params = ToCrowdAgentParams(instance);
 			int32 agentIndex = mNavWorld.AddAgent(pos, @params);
 			if (agentIndex >= 0)
-				agent.AgentIndex = agentIndex;
+				instance.AgentIndex = agentIndex;
 		}
 	}
 
-	private void SyncAgentTransforms(Scene scene)
+	private void SyncAgentTransforms()
 	{
 		let crowd = mNavWorld.Crowd;
 		if (crowd == null)
 			return;
 
-		for (let (entity, agent) in scene.Query<NavAgentComponent>())
+		for (let instance in ref mAgentInstances)
 		{
-			if (!agent.SyncToTransform || agent.AgentIndex < 0)
+			if (!instance.Active || !instance.SyncToTransform || instance.AgentIndex < 0)
 				continue;
 
-			if (!crowd.IsAgentActive(agent.AgentIndex))
+			if (!crowd.IsAgentActive(instance.AgentIndex))
 				continue;
 
 			float[3] pos;
-			crowd.GetAgentPosition(agent.AgentIndex, out pos);
+			crowd.GetAgentPosition(instance.AgentIndex, out pos);
 
-			var transform = scene.GetTransform(entity);
+			var transform = mScene.GetTransform(instance.Entity);
 			transform.Position = Vector3(pos[0], pos[1], pos[2]);
-			scene.SetTransform(entity, transform);
+			mScene.SetTransform(instance.Entity, transform);
 		}
 	}
 
-	private void DrawDebug(Scene scene)
+	private static CrowdAgentParams ToCrowdAgentParams(NavAgentInstanceData instance) =>
+		.() {
+			Radius = instance.Radius,
+			Height = instance.Height,
+			MaxAcceleration = instance.MaxAcceleration,
+			MaxSpeed = instance.MaxSpeed,
+			CollisionQueryRange = instance.CollisionQueryRange,
+			PathOptimizationRange = instance.PathOptimizationRange,
+			SeparationWeight = instance.SeparationWeight,
+			ObstacleAvoidanceType = instance.ObstacleAvoidanceType,
+			UpdateFlags = (.)dtCrowdUpdateFlags.DT_CROWD_ANTICIPATE_TURNS |
+						  (.)dtCrowdUpdateFlags.DT_CROWD_OBSTACLE_AVOIDANCE |
+						  (.)dtCrowdUpdateFlags.DT_CROWD_SEPARATION,
+			QueryFilterType = 0,
+			UserData = null
+		};
+
+	private void DrawDebug()
 	{
-		let renderModule = scene.GetModule<RenderSceneModule>();
+		let renderModule = mScene.GetModule<RenderSceneModule>();
 		if (renderModule == null)
 			return;
 
@@ -376,8 +608,6 @@ class NavigationSceneModule : SceneModule
 		if (navMesh == null)
 			return;
 
-		// Use recastnavigation debug draw functions
-		// For now, just draw agent positions as crosses
 		let crowd = mNavWorld.Crowd;
 		if (crowd != null)
 		{
@@ -393,12 +623,10 @@ class NavigationSceneModule : SceneModule
 				let position = Vector3(pos[0], pos[1], pos[2]);
 				let color = Color(0, 255, 0, 255);
 
-				// Draw a cross at agent position
 				overlayFeature.AddLine(position - Vector3(0.3f, 0, 0), position + Vector3(0.3f, 0, 0), color);
 				overlayFeature.AddLine(position - Vector3(0, 0, 0.3f), position + Vector3(0, 0, 0.3f), color);
 				overlayFeature.AddLine(position, position + Vector3(0, 1.0f, 0), color);
 
-				// Draw velocity
 				float[3] vel;
 				crowd.GetAgentVelocity(i, out vel);
 				let velEnd = position + Vector3(vel[0], vel[1], vel[2]) * 0.5f;

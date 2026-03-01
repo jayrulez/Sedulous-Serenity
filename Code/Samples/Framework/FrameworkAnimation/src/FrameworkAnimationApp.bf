@@ -485,13 +485,9 @@ class FrameworkAnimationApp : Application
 		mPlaneResource.AddRef();
 		let floorEntity = mMainScene.CreateEntity();
 		{
-			mMainScene.SetComponent<MeshRendererComponent>(floorEntity, .Default);
-			var comp = mMainScene.GetComponent<MeshRendererComponent>(floorEntity);
-			comp.Mesh = ResourceHandle<StaticMeshResource>(mPlaneResource);
 			let defaultMat = mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
-			comp.MaterialInstances[0] = mFloorMaterial ?? defaultMat;
-			comp.MaterialInstances[0]?.AddRef();
-			comp.MaterialRefs.Count = 1;
+			renderModule.CreateMesh(floorEntity, mPlaneResource);
+			renderModule.SetMeshMaterial(floorEntity, 0, mFloorMaterial ?? defaultMat);
 		}
 
 		// Animated cube
@@ -506,13 +502,9 @@ class FrameworkAnimationApp : Application
 		}
 		mCubeEntity = mMainScene.CreateEntity();
 		{
-			mMainScene.SetComponent<MeshRendererComponent>(mCubeEntity, .Default);
-			var comp = mMainScene.GetComponent<MeshRendererComponent>(mCubeEntity);
-			comp.Mesh = ResourceHandle<StaticMeshResource>(mCubeResource);
 			let defaultMat = mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
-			comp.MaterialInstances[0] = mCubeMaterial ?? defaultMat;
-			comp.MaterialInstances[0]?.AddRef();
-			comp.MaterialRefs.Count = 1;
+			renderModule.CreateMesh(mCubeEntity, mCubeResource);
+			renderModule.SetMeshMaterial(mCubeEntity, 0, mCubeMaterial ?? defaultMat);
 
 			var transform = mMainScene.GetTransform(mCubeEntity);
 			transform.Position = .(5, 1, 0);
@@ -533,8 +525,8 @@ class FrameworkAnimationApp : Application
 			mMainScene.SetTransform(mSunEntity, transform);
 
 			// Enable shadow casting on the sun
-			if (let comp = mMainScene.GetComponent<LightComponent>(mSunEntity))
-				comp.CastsShadows = true;
+			if (let proxy = renderModule.GetLightProxy(mSunEntity))
+				proxy.CastsShadows = true;
 		}
 
 		// Enable shadow rendering
@@ -558,23 +550,29 @@ class FrameworkAnimationApp : Application
 		transform.Position = position;
 		mMainScene.SetTransform(entity, transform);
 
-		// Add skinned mesh component
-		var meshComp = SkinnedMeshRendererComponent.Default;
-		meshComp.MeshRef = ResourceRef(mSkinnedMeshId, mSkinnedMeshPath);
-		meshComp.MaterialRefs.Count = (int32)Math.Min(mMaterialRefs.Count, 8);
-		for (int32 i = 0; i < meshComp.MaterialRefs.Count; i++)
-			meshComp.MaterialRefs[i] = ResourceRef(mMaterialRefs[i].Id, mMaterialRefs[i].Path);
-		mMainScene.SetComponent<SkinnedMeshRendererComponent>(entity, meshComp);
+		// Add skinned mesh via render module
+		if (let renderModule = mMainScene.GetModule<RenderSceneModule>())
+		{
+			var meshRef = ResourceRef(mSkinnedMeshId, mSkinnedMeshPath);
+			renderModule.CreateSkinnedMeshFromRef(entity, meshRef);
+			meshRef.Dispose();
+			let matCount = (int32)Math.Min(mMaterialRefs.Count, 8);
+			for (int32 i = 0; i < matCount; i++)
+				renderModule.SetSkinnedMeshMaterialRef(entity, i, mMaterialRefs[i]);
+		}
 
-		// Add skeletal animation component (needed for skinning resolution)
+		// Add skeletal animation via module API (needed for skinning resolution)
 		if (mSkeletonPath != null && mAnimationRefs.Count > 0)
 		{
-			var animComp = SkeletalAnimationComponent.Default;
-			animComp.SkeletonRef = ResourceRef(mSkeletonId, mSkeletonPath);
-			animComp.AnimationClipRef = ResourceRef(mAnimationRefs[0].Id, mAnimationRefs[0].Path);
-			animComp.Playing = false; // We'll drive animation via graph
-			animComp.Loop = true;
-			mMainScene.SetComponent<SkeletalAnimationComponent>(entity, animComp);
+			if (let animModule = mMainScene.GetModule<AnimationSceneModule>())
+			{
+				var skelRef = ResourceRef(mSkeletonId, mSkeletonPath);
+				var clipRef = ResourceRef(mAnimationRefs[0].Id, mAnimationRefs[0].Path);
+				animModule.CreateSkeletalAnimation(entity, skelRef, clipRef,
+					playing: false, loop: true); // We'll drive animation via graph
+				skelRef.Dispose();
+				clipRef.Dispose();
+			}
 		}
 
 		return entity;

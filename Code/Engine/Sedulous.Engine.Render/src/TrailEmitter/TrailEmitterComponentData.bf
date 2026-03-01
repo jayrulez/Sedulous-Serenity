@@ -1,38 +1,24 @@
 namespace Sedulous.Engine.Render;
 
-using System;
-using Sedulous.Engine.Scenes;
 using Sedulous.Core.Mathematics;
+using Sedulous.Engine.Scenes;
 using Sedulous.Render;
 using Sedulous.Serialization;
 
-/// Component for trail emitter entities.
-/// Stores trail configuration for serialization and proxy creation.
-[Component]
-struct TrailEmitterComponent : ISerializableComponent
+/// Transient data struct for TrailEmitterComponent serialization/deserialization.
+/// Not stored on entities — only used by TrailEmitterComponentSerializer during save/load.
+struct TrailEmitterComponentData : ISerializableComponentData
 {
-	/// Blend mode for trail rendering.
 	public ParticleBlendMode BlendMode;
-	/// Maximum number of trail points.
 	public int32 MaxPoints;
-	/// Trail point lifetime in seconds.
 	public float Lifetime;
-	/// Width at the newest point (head).
 	public float WidthStart;
-	/// Width at the oldest point (tail).
 	public float WidthEnd;
-	/// Minimum distance between consecutive trail points.
 	public float MinVertexDistance;
-	/// Trail color (RGBA).
 	public Vector4 Color;
-	/// Soft particle fade distance (0 = disabled).
 	public float SoftParticleDistance;
-	/// Render layer mask.
 	public uint32 LayerMask;
-	/// Whether this trail emitter is enabled.
 	public bool Enabled;
-
-	public void Dispose() mut { }
 
 	public int32 SerializationVersion => 1;
 
@@ -53,16 +39,5 @@ struct TrailEmitterComponent : ISerializableComponent
 		return .Ok;
 	}
 
-	public static TrailEmitterComponent Default => .() {
-		BlendMode = .Alpha,
-		MaxPoints = 32,
-		Lifetime = 1.0f,
-		WidthStart = 0.1f,
-		WidthEnd = 0.0f,
-		MinVertexDistance = 0.1f,
-		Color = .(1, 1, 1, 1),
-		SoftParticleDistance = 0,
-		LayerMask = 0xFFFFFFFF,
-		Enabled = true
-	};
+	public void Dispose() mut { }
 }
