@@ -2,7 +2,7 @@ namespace Sedulous.Tools.SceneEditor;
 
 using System;
 using System.Collections;
-using Sedulous.AppFramework;
+using Sedulous.Tools.AppFramework;
 using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
 using Sedulous.GUI;

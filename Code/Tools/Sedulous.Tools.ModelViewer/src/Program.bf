@@ -3,7 +3,7 @@ namespace Sedulous.Tools.ModelViewer;
 using System;
 using System.IO;
 using System.Collections;
-using Sedulous.AppFramework;
+using Sedulous.Tools.AppFramework;
 using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
 using Sedulous.Models;

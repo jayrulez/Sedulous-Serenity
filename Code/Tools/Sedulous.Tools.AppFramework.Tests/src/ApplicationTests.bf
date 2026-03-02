@@ -1,4 +1,4 @@
-namespace Sedulous.AppFramework.Tests;
+namespace Sedulous.Tools.AppFramework.Tests;
 
 using System;
 

@@ -10,7 +10,7 @@ using Sedulous.Materials.Resources;
 using Sedulous.Animation;
 using Sedulous.Animation.Resources;
 using Sedulous.GUI;
-using Sedulous.AppFramework;
+using Sedulous.Tools.AppFramework;
 using Sedulous.Tools.Core;
 
 /// Represents a single model tab with its own world, resources, and camera state.

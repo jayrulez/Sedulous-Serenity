@@ -1,4 +1,4 @@
-namespace Sedulous.AppFramework;
+namespace Sedulous.Tools.AppFramework;
 
 using System;
 using System.Collections;

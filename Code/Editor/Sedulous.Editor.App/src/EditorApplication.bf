@@ -3,7 +3,7 @@ namespace Sedulous.Editor.App;
 using System;
 using System.Collections;
 using System.IO;
-using Sedulous.AppFramework;
+using Sedulous.Tools.AppFramework;
 using Sedulous.Editor.Core;
 using Sedulous.GUI;
 using Sedulous.Core.Core;

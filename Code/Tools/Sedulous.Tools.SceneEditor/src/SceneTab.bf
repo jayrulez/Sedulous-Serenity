@@ -5,7 +5,7 @@ using System.Collections;
 using Sedulous.Core.Mathematics;
 using Sedulous.Render;
 using Sedulous.GUI;
-using Sedulous.AppFramework;
+using Sedulous.Tools.AppFramework;
 using Sedulous.Engine.Scenes;
 using Sedulous.Tools.Core;
 
