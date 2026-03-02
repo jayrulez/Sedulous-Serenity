@@ -25,6 +25,7 @@ class RenderSandboxApp : Application
 
 	// Render features (owned by RenderSystem after registration)
 	private DepthPrepassFeature mDepthFeature;
+	private MotionVectorFeature mMotionVectorFeature;
 	private ForwardOpaqueFeature mForwardFeature;
 	private ForwardTransparentFeature mTransparentFeature;
 	private SkyFeature mSkyFeature;
@@ -172,6 +173,8 @@ class RenderSandboxApp : Application
 		Console.WriteLine("  T: cycle tonemap (ACES/Reinhard/Uncharted2)");
 		Console.WriteLine("  B: toggle bloom");
 		Console.WriteLine("  F1: toggle auto-exposure");
+		Console.WriteLine("  F2: cycle AA mode (TAA/FXAA/None)");
+		Console.WriteLine("  F3: toggle sharpen");
 		Console.WriteLine("  M: cycle Fox animation");
 		Console.WriteLine("  ESC: exit");
 		Console.WriteLine("\nOrbital Camera (default):");
@@ -201,6 +204,13 @@ class RenderSandboxApp : Application
 			Console.WriteLine("Warning: Failed to register DepthPrepassFeature");
 		else
 			Console.WriteLine("Registered: DepthPrepassFeature");
+
+		// Motion vectors (depends on depth prepass, needed for TAA)
+		mMotionVectorFeature = new MotionVectorFeature();
+		if (mRenderSystem.RegisterFeature(mMotionVectorFeature) case .Err)
+			Console.WriteLine("Warning: Failed to register MotionVectorFeature");
+		else
+			Console.WriteLine("Registered: MotionVectorFeature");
 
 		// Forward opaque (main scene rendering with PBR and lighting)
 		mForwardFeature = new ForwardOpaqueFeature();
@@ -272,6 +282,18 @@ class RenderSandboxApp : Application
 		let bloomEffect = new BloomEffect(mRenderSystem);
 		stack.RegisterEffect(bloomEffect);
 
+		// TAA effect (priority 300 — anti-aliasing)
+		let taaEffect = new TAAEffect(mRenderSystem);
+		stack.RegisterEffect(taaEffect);
+
+		// FXAA effect (priority 310 — spatial AA alternative)
+		let fxaaEffect = new FXAAEffect(mRenderSystem);
+		stack.RegisterEffect(fxaaEffect);
+
+		// Sharpen effect (priority 320 — post-AA sharpening)
+		let sharpenEffect = new SharpenEffect(mRenderSystem);
+		stack.RegisterEffect(sharpenEffect);
+
 		// Tonemap effect (priority 400 — final adjustment)
 		let tonemapEffect = new TonemapEffect(mRenderSystem);
 		stack.RegisterEffect(tonemapEffect);
@@ -280,7 +302,7 @@ class RenderSandboxApp : Application
 		if (stack.Initialize(mDevice) case .Err)
 			Console.WriteLine("Warning: Failed to initialize PostProcessStack");
 		else
-			Console.WriteLine("Registered: PostProcess effects (VolumetricFog, Bloom, Tonemap)");
+			Console.WriteLine("Registered: PostProcess effects (VolumetricFog, Bloom, TAA, FXAA, Sharpen, Tonemap)");
 	}
 
 	private void CreateMeshes()
@@ -910,6 +932,30 @@ class RenderSandboxApp : Application
 				mWorld.Exposure = 1.0f; // Reset to default
 				Console.WriteLine("Exposure: Manual (1.0)");
 			}
+		}
+
+		// Cycle AA mode (F2)
+		if (keyboard.IsKeyPressed(.F2))
+		{
+			switch (mWorld.AAMode)
+			{
+			case .TAA:
+				mWorld.AAMode = .FXAA;
+				Console.WriteLine("AA Mode: FXAA");
+			case .FXAA:
+				mWorld.AAMode = .None;
+				Console.WriteLine("AA Mode: None");
+			case .None:
+				mWorld.AAMode = .TAA;
+				Console.WriteLine("AA Mode: TAA");
+			}
+		}
+
+		// Toggle sharpen (F3)
+		if (keyboard.IsKeyPressed(.F3))
+		{
+			mWorld.SharpenEnabled = !mWorld.SharpenEnabled;
+			Console.WriteLine("Sharpen: {}", mWorld.SharpenEnabled ? "ON" : "OFF");
 		}
 
 		// Cycle Fox animation

@@ -38,8 +38,6 @@ float2 main(FragmentInput input) : SV_Target
     float2 currentNDC = input.CurrentPos.xy / input.CurrentPos.w;
     float2 prevNDC = input.PrevPos.xy / input.PrevPos.w;
 
-    // TODO: Add jitter offset support (requires extending SceneUniforms or separate cbuffer)
-
     // Motion vector is current - previous
     // Scaled to screen space (0-1 range)
     float2 motion = (currentNDC - prevNDC) * 0.5;

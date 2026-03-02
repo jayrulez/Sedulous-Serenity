@@ -43,6 +43,11 @@ public class RenderWorld : IDisposable
 	private float mAutoExposureMax = 10.0f;
 	private float mAutoExposureSpeed = 1.0f;
 
+	// Anti-aliasing
+	private AAMode mAAMode = .TAA;
+	private bool mSharpenEnabled = true;
+	private float mSharpenIntensity = 0.5f;
+
 	// Deferred deletion queue for GPU-referenced resources
 	struct PendingEmitterDeletion
 	{
@@ -238,6 +243,31 @@ public class RenderWorld : IDisposable
 	{
 		get => mAutoExposureSpeed;
 		set { mAutoExposureSpeed = value; mEnvironmentDirty = true; }
+	}
+
+	// ========================================================================
+	// Anti-Aliasing API
+	// ========================================================================
+
+	/// Gets or sets the anti-aliasing mode.
+	public AAMode AAMode
+	{
+		get => mAAMode;
+		set { mAAMode = value; mEnvironmentDirty = true; }
+	}
+
+	/// Gets or sets whether post-AA sharpening is enabled.
+	public bool SharpenEnabled
+	{
+		get => mSharpenEnabled;
+		set { mSharpenEnabled = value; mEnvironmentDirty = true; }
+	}
+
+	/// Gets or sets the sharpening intensity (0-1).
+	public float SharpenIntensity
+	{
+		get => mSharpenIntensity;
+		set { mSharpenIntensity = value; mEnvironmentDirty = true; }
 	}
 
 	// ========================================================================

@@ -326,6 +326,24 @@ public class RenderSystem : IDisposable
 			if (!mInitialized || mActiveWorld == null)
 				return .Err;
 
+			// Advance TAA jitter and override VP in scene uniforms.
+			// SetCamera() builds VP from raw params without jitter.
+			// We override VP here with the jittered VP from RenderView.
+			if (mActiveWorld.AAMode == .TAA)
+			{
+				view.PostProcess.EnableTAA = true;
+				view.AdvanceTAAJitter();
+				view.UpdateMatrices(mDevice.FlipProjectionRequired);
+				// Override VP with jittered version. ProjectionMatrix/InvProjectionMatrix
+				// stay unjittered (correct for depth reconstruction).
+				mRenderFrameContext.SceneUniforms.ViewProjectionMatrix = view.ViewProjectionMatrix;
+			}
+			else
+			{
+				view.PostProcess.EnableTAA = false;
+				view.TAAJitter.Reset();
+			}
+
 			// Sort features by dependencies if needed
 			if (!mFeaturesSorted)
 			{
@@ -454,6 +472,20 @@ public class RenderSystem : IDisposable
 					SetCamera(view.CameraPosition, view.CameraForward, view.CameraUp,
 						view.FieldOfView, view.AspectRatio, view.NearPlane, view.FarPlane,
 						view.Width, view.Height);
+
+					// TAA jitter override (same as in BuildRenderGraph single-view path)
+					if (mActiveWorld.AAMode == .TAA)
+					{
+						view.PostProcess.EnableTAA = true;
+						view.AdvanceTAAJitter();
+						view.UpdateMatrices(mDevice.FlipProjectionRequired);
+						mRenderFrameContext.SceneUniforms.ViewProjectionMatrix = view.ViewProjectionMatrix;
+					}
+					else
+					{
+						view.PostProcess.EnableTAA = false;
+						view.TAAJitter.Reset();
+					}
 				}
 
 				using (SProfiler.Begin("View.BuildGraph"))

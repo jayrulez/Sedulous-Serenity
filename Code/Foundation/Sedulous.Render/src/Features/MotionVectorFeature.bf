@@ -8,61 +8,38 @@ using Sedulous.Shaders;
 using Sedulous.Materials;
 using Sedulous.RenderGraph;
 
-/// Camera uniforms for motion vector pass (must match motion.vert.hlsl CameraUniforms).
-[CRepr]
-struct MotionCameraUniforms
-{
-	public Matrix ViewMatrix;
-	public Matrix ProjectionMatrix;
-	public Matrix ViewProjectionMatrix;
-	public Matrix PrevViewProjectionMatrix;
-	public Vector3 CameraPosition;
-	public float NearPlane;
-	public Vector3 CameraForward;
-	public float FarPlane;
-	public Vector2 JitterOffset;
-	public Vector2 PrevJitterOffset;
-
-	public const uint32 Size = 304; // 4 matrices (256) + 2 vec3+float (32) + 2 vec2 (16) = 304
-}
-
-/// Per-object uniforms for motion vector pass (must match motion.vert.hlsl ObjectUniforms).
+/// Per-object uniforms for motion vector pass (must match object_uniforms.hlsli).
 [CRepr]
 struct MotionObjectUniforms
 {
 	public Matrix WorldMatrix;
 	public Matrix PrevWorldMatrix;
+	public Matrix NormalMatrix;
 	public uint32 ObjectID;
-	public uint32[3] _Padding;
+	public uint32 MaterialID;
+	public Vector2 _Padding;
 
-	public const uint32 Size = 144; // 2 matrices (128) + 4 uint32 (16) = 144
+	public const uint32 Size = 208; // 3 matrices (192) + 2 uint32 + 2 float (16) = 208
 }
 
 /// Motion vector feature.
 /// Generates per-pixel motion vectors for TAA and motion blur.
+/// Uses the shared scene uniform buffer at Group 0 (matching scene_uniforms.hlsli).
 public class MotionVectorFeature : RenderFeatureBase
 {
 	// Previous frame data
-	private Matrix mPrevViewProjection;
 	private Dictionary<MeshProxyHandle, Matrix> mPrevTransforms = new .() ~ delete _;
 
 	// Pipeline
 	private IRenderPipeline mMotionVectorPipeline ~ delete _;
-	private IBindGroupLayout mCameraBindGroupLayout ~ delete _;
-	private IBindGroupLayout mObjectBindGroupLayout ~ delete _;
+	private IPipelineLayout mPipelineLayout ~ delete _;
+	private IBindGroupLayout mBindGroupLayout ~ delete _;
 
-	// Camera uniform buffer (triple-buffered)
-	private IBuffer[RenderConfig.FrameBufferCount] mCameraUniformBuffers ~ { for (let b in _) delete b; };
-	private IBindGroup[RenderConfig.FrameBufferCount] mCameraBindGroups ~ { for (let b in _) delete b; };
-	private int32 mLastFrameIndex = -1;
+	// Combined bind groups (per-frame * per-view): camera + object in one group
+	private IBindGroup[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mBindGroups ~ { for (let b in _) delete b; };
 
 	// Object uniform buffer (single shared buffer, updated per-draw)
 	private IBuffer mObjectUniformBuffer ~ delete _;
-	private IBindGroup mObjectBindGroup ~ delete _;
-
-	// Jitter offsets for TAA
-	private Vector2 mJitterOffset;
-	private Vector2 mPrevJitterOffset;
 
 	/// Feature name.
 	public override StringView Name => "MotionVectors";
@@ -73,10 +50,29 @@ public class MotionVectorFeature : RenderFeatureBase
 		outDependencies.Add("DepthPrepass");
 	}
 
+	/// Gets the bind group index for the current frame and view.
+	private int32 GetBindGroupIndex(int32 frameIndex)
+	{
+		return frameIndex * RenderConfig.MaxViews + (Renderer.RenderFrameContext?.ActiveViewIndex ?? 0);
+	}
+
 	protected override Result<void> OnInitialize()
 	{
 		// Create bind group layout
 		if (CreateBindGroupLayout() case .Err)
+			return .Err;
+
+		// Create object uniform buffer
+		var objectBufferDesc = BufferDescriptor()
+		{
+			Size = MotionObjectUniforms.Size,
+			Usage = .Uniform,
+			MemoryAccess = .Upload
+		};
+
+		if (Renderer.Device.CreateBuffer(&objectBufferDesc) case .Ok(let buffer))
+			mObjectUniformBuffer = buffer;
+		else
 			return .Err;
 
 		// Create motion vector pipeline
@@ -86,7 +82,40 @@ public class MotionVectorFeature : RenderFeatureBase
 		return .Ok;
 	}
 
-	private IPipelineLayout mPipelineLayout ~ delete _;
+	private Result<void> CreateBindGroupLayout()
+	{
+		// Single bind group with 2 entries matching HLSL register layout:
+		// binding 0 = SceneUniforms (register b0, scene_uniforms.hlsli)
+		// binding 1 = ObjectUniforms (register b1, object_uniforms.hlsli)
+		BindGroupLayoutEntry[2] entries = .(
+			.() // Camera/scene uniforms at b0
+			{
+				Binding = 0,
+				Visibility = .Vertex | .Fragment,
+				Type = .UniformBuffer
+			},
+			.() // Object uniforms at b1
+			{
+				Binding = 1,
+				Visibility = .Vertex,
+				Type = .UniformBuffer
+			}
+		);
+
+		BindGroupLayoutDescriptor desc = .()
+		{
+			Label = "MotionVector BindGroup Layout",
+			Entries = entries
+		};
+
+		switch (Renderer.Device.CreateBindGroupLayout(&desc))
+		{
+		case .Ok(let layout): mBindGroupLayout = layout;
+		case .Err: return .Err;
+		}
+
+		return .Ok;
+	}
 
 	private Result<void> CreateMotionVectorPipeline()
 	{
@@ -101,10 +130,9 @@ public class MotionVectorFeature : RenderFeatureBase
 
 		let (vertShader, fragShader) = shaderResult.Value;
 
-		// Create pipeline layout with two bind group layouts:
-		// Group 0: Camera uniforms (b0 in shader)
-		// Group 1: Object uniforms (b1 in shader)
-		IBindGroupLayout[2] layouts = .(mCameraBindGroupLayout, mObjectBindGroupLayout);
+		// Create pipeline layout with single bind group layout:
+		// Group 0: binding 0 = SceneUniforms (b0), binding 1 = ObjectUniforms (b1)
+		IBindGroupLayout[1] layouts = .(mBindGroupLayout);
 		PipelineLayoutDescriptor layoutDesc = .(layouts);
 		switch (Renderer.Device.CreatePipelineLayout(&layoutDesc))
 		{
@@ -113,7 +141,6 @@ public class MotionVectorFeature : RenderFeatureBase
 		}
 
 		// Vertex layout from material system (uses standard Mesh layout)
-		// Motion vector shader only needs position but uses same vertex buffer format
 		VertexBufferLayout[1] vertexBuffers = .(
 			VertexLayoutHelper.CreateBufferLayout(.Mesh)
 		);
@@ -188,87 +215,6 @@ public class MotionVectorFeature : RenderFeatureBase
 			.SetExecuteCallback(new (encoder) => {
 				ExecuteMotionVectorPass(encoder, world, view);
 			});
-
-		// Store current VP for next frame
-		mPrevViewProjection = view.ViewProjectionMatrix;
-	}
-
-	private Result<void> CreateBindGroupLayout()
-	{
-		// Camera bind group layout (binding 0 - matches b0 in shader)
-		BindGroupLayoutEntry[1] cameraEntries = .(
-			.()
-			{
-				Binding = 0,
-				Visibility = .Vertex | .Fragment,
-				Type = .UniformBuffer
-			}
-		);
-
-		BindGroupLayoutDescriptor cameraDesc = .()
-		{
-			Label = "MotionVector Camera BindGroup Layout",
-			Entries = cameraEntries
-		};
-
-		switch (Renderer.Device.CreateBindGroupLayout(&cameraDesc))
-		{
-		case .Ok(let layout): mCameraBindGroupLayout = layout;
-		case .Err: return .Err;
-		}
-
-		// Object bind group layout (binding 0 - matches b1 in shader, but in separate group)
-		BindGroupLayoutEntry[1] objectEntries = .(
-			.()
-			{
-				Binding = 0,
-				Visibility = .Vertex,
-				Type = .UniformBuffer
-			}
-		);
-
-		BindGroupLayoutDescriptor objectDesc = .()
-		{
-			Label = "MotionVector Object BindGroup Layout",
-			Entries = objectEntries
-		};
-
-		switch (Renderer.Device.CreateBindGroupLayout(&objectDesc))
-		{
-		case .Ok(let layout): mObjectBindGroupLayout = layout;
-		case .Err: return .Err;
-		}
-
-		// Create camera uniform buffers (triple-buffered)
-		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
-		{
-			var bufferDesc = BufferDescriptor()
-			{
-				Size = MotionCameraUniforms.Size,
-				Usage = .Uniform,
-				MemoryAccess = .Upload
-			};
-
-			if (Renderer.Device.CreateBuffer(&bufferDesc) case .Ok(let buffer))
-				mCameraUniformBuffers[i] = buffer;
-			else
-				return .Err;
-		}
-
-		// Create object uniform buffer (single, updated per-draw)
-		var objectBufferDesc = BufferDescriptor()
-		{
-			Size = MotionObjectUniforms.Size,
-			Usage = .Uniform,
-			MemoryAccess = .Upload
-		};
-
-		if (Renderer.Device.CreateBuffer(&objectBufferDesc) case .Ok(let buffer))
-			mObjectUniformBuffer = buffer;
-		else
-			return .Err;
-
-		return .Ok;
 	}
 
 	private void ExecuteMotionVectorPass(IRenderPassEncoder encoder, RenderWorld world, RenderView view)
@@ -283,20 +229,40 @@ public class MotionVectorFeature : RenderFeatureBase
 
 		encoder.SetPipeline(mMotionVectorPipeline);
 
-		// Ensure camera bind group exists and is up to date
-		EnsureCameraBindGroup(view);
-
-		// Ensure object bind group exists
-		EnsureObjectBindGroup();
-
-		// Bind camera uniforms (group 0)
+		// Get frame context for scene uniform buffer
 		let frameContext = Renderer.RenderFrameContext;
 		if (frameContext == null)
 			return;
 
 		let frameIndex = frameContext.FrameIndex;
-		if (mCameraBindGroups[frameIndex] != null)
-			encoder.SetBindGroup(0, mCameraBindGroups[frameIndex], null);
+		let bgIndex = GetBindGroupIndex(frameIndex);
+		let cameraBuffer = frameContext.SceneUniformBuffer;
+		if (cameraBuffer == null)
+			return;
+
+		// Recreate combined bind group each frame (scene uniform buffer changes per frame+view)
+		if (mBindGroups[bgIndex] != null)
+		{
+			delete mBindGroups[bgIndex];
+			mBindGroups[bgIndex] = null;
+		}
+
+		BindGroupEntry[2] bgEntries = .(
+			BindGroupEntry.Buffer(0, cameraBuffer, 0, SceneUniforms.Size),
+			BindGroupEntry.Buffer(1, mObjectUniformBuffer, 0, MotionObjectUniforms.Size)
+		);
+
+		BindGroupDescriptor bgDesc = .()
+		{
+			Label = "MotionVector BindGroup",
+			Layout = mBindGroupLayout,
+			Entries = bgEntries
+		};
+
+		if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bindGroup))
+			mBindGroups[bgIndex] = bindGroup;
+		else
+			return;
 
 		// Get depth prepass for visibility
 		let depthFeature = Renderer.GetFeature<DepthPrepassFeature>();
@@ -324,21 +290,22 @@ public class MotionVectorFeature : RenderFeatureBase
 				// Store current transform for next frame
 				mPrevTransforms[visibleMesh.Handle] = proxy.WorldMatrix;
 
-				// Update object uniform buffer
+				// Update object uniform buffer (matches object_uniforms.hlsli layout)
 				MotionObjectUniforms objectUniforms = .()
 				{
 					WorldMatrix = proxy.WorldMatrix,
 					PrevWorldMatrix = prevTransform,
+					NormalMatrix = .Identity,
 					ObjectID = objectID++,
+					MaterialID = 0,
 					_Padding = default
 				};
 
 				Renderer.Device.Queue.WriteBuffer(mObjectUniformBuffer, 0,
 					Span<uint8>((uint8*)&objectUniforms, MotionObjectUniforms.Size));
 
-				// Bind object uniforms (group 1)
-				if (mObjectBindGroup != null)
-					encoder.SetBindGroup(1, mObjectBindGroup, null);
+				// Bind combined bind group (group 0: camera + object)
+				encoder.SetBindGroup(0, mBindGroups[bgIndex], null);
 
 				if (let mesh = Renderer.ResourceManager.GetMesh(proxy.MeshHandle))
 				{
@@ -363,95 +330,6 @@ public class MotionVectorFeature : RenderFeatureBase
 
 		// Clean up old transforms
 		CleanupPreviousTransforms(world);
-	}
-
-	private void EnsureCameraBindGroup(RenderView view)
-	{
-		let frameContext = Renderer.RenderFrameContext;
-		if (frameContext == null)
-			return;
-
-		let frameIndex = frameContext.FrameIndex;
-
-		// Update camera uniform buffer with current view data
-		MotionCameraUniforms cameraUniforms = .()
-		{
-			ViewMatrix = view.ViewMatrix,
-			ProjectionMatrix = view.ProjectionMatrix,
-			ViewProjectionMatrix = view.ViewProjectionMatrix,
-			PrevViewProjectionMatrix = mPrevViewProjection,
-			CameraPosition = view.CameraPosition,
-			NearPlane = view.NearPlane,
-			CameraForward = view.CameraForward,
-			FarPlane = view.FarPlane,
-			JitterOffset = mJitterOffset,
-			PrevJitterOffset = mPrevJitterOffset
-		};
-
-		Renderer.Device.Queue.WriteBuffer(mCameraUniformBuffers[frameIndex], 0,
-			Span<uint8>((uint8*)&cameraUniforms, MotionCameraUniforms.Size));
-
-		// Create camera bind group if needed (or recreate on frame index change)
-		if (mCameraBindGroups[frameIndex] == null)
-		{
-			BindGroupEntry[1] entries = .(
-				.()
-				{
-					Binding = 0,
-					Buffer = mCameraUniformBuffers[frameIndex],
-					BufferOffset = 0,
-					BufferSize = MotionCameraUniforms.Size
-				}
-			);
-
-			BindGroupDescriptor desc = .()
-			{
-				Label = "MotionVector Camera BindGroup",
-				Layout = mCameraBindGroupLayout,
-				Entries = entries
-			};
-
-			if (Renderer.Device.CreateBindGroup(&desc) case .Ok(let bindGroup))
-				mCameraBindGroups[frameIndex] = bindGroup;
-		}
-
-		mLastFrameIndex = frameIndex;
-	}
-
-	private void EnsureObjectBindGroup()
-	{
-		if (mObjectBindGroup != null)
-			return;
-
-		if (mObjectUniformBuffer == null || mObjectBindGroupLayout == null)
-			return;
-
-		BindGroupEntry[1] entries = .(
-			.()
-			{
-				Binding = 0,
-				Buffer = mObjectUniformBuffer,
-				BufferOffset = 0,
-				BufferSize = MotionObjectUniforms.Size
-			}
-		);
-
-		BindGroupDescriptor desc = .()
-		{
-			Label = "MotionVector Object BindGroup",
-			Layout = mObjectBindGroupLayout,
-			Entries = entries
-		};
-
-		if (Renderer.Device.CreateBindGroup(&desc) case .Ok(let bindGroup))
-			mObjectBindGroup = bindGroup;
-	}
-
-	/// Sets the jitter offset for TAA. Call this before rendering.
-	public void SetJitterOffset(Vector2 jitterOffset)
-	{
-		mPrevJitterOffset = mJitterOffset;
-		mJitterOffset = jitterOffset;
 	}
 
 	private void CleanupPreviousTransforms(RenderWorld world)
