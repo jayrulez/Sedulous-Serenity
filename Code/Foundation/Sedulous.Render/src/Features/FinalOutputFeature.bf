@@ -22,7 +22,7 @@ public class FinalOutputFeature : RenderFeatureBase
 	private struct BlitParams
 	{
 		public float Exposure;
-		public float _Pad0;
+		public int32 Passthrough; // 1 = skip tonemapping (when PostProcess tonemap is active)
 		public float _Pad1;
 		public float _Pad2;
 
@@ -293,10 +293,18 @@ public class FinalOutputFeature : RenderFeatureBase
 		}
 
 		// Upload blit params (exposure) for this frame
+		// When a TonemapEffect is active in PostProcessStack, use passthrough mode
+		// (tonemapping already applied by the effect).
+		bool hasTonemapEffect = Renderer.PostProcessStack?.GetEffect("Tonemap")?.Enabled ?? false;
+
 		let paramsBuffer = mBlitParamsBuffers[frameIndex];
 		if (paramsBuffer != null)
 		{
-			BlitParams blitParams = .() { Exposure = mExposure };
+			BlitParams blitParams = .()
+			{
+				Exposure = hasTonemapEffect ? 1.0f : mExposure,
+				Passthrough = hasTonemapEffect ? 1 : 0
+			};
 			if (let ptr = paramsBuffer.Map())
 			{
 				Internal.MemCpy(ptr, &blitParams, BlitParams.Size);

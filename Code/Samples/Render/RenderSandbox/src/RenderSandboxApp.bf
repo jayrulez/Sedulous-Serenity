@@ -169,6 +169,9 @@ class RenderSandboxApp : Application
 		Console.WriteLine("  K: toggle sky mode (Procedural/Solid Color)");
 		Console.WriteLine("  P: toggle particle systems");
 		Console.WriteLine("  V: toggle volumetric fog");
+		Console.WriteLine("  T: cycle tonemap (ACES/Reinhard/Uncharted2)");
+		Console.WriteLine("  B: toggle bloom");
+		Console.WriteLine("  F1: toggle auto-exposure");
 		Console.WriteLine("  M: cycle Fox animation");
 		Console.WriteLine("  ESC: exit");
 		Console.WriteLine("\nOrbital Camera (default):");
@@ -265,11 +268,19 @@ class RenderSandboxApp : Application
 		let fogEffect = new VolumetricFogEffect(mVolumetricFogFeature);
 		stack.RegisterEffect(fogEffect);
 
+		// Bloom effect (priority 200 — before tonemap)
+		let bloomEffect = new BloomEffect(mRenderSystem);
+		stack.RegisterEffect(bloomEffect);
+
+		// Tonemap effect (priority 400 — final adjustment)
+		let tonemapEffect = new TonemapEffect(mRenderSystem);
+		stack.RegisterEffect(tonemapEffect);
+
 		// Initialize all post-process effects
 		if (stack.Initialize(mDevice) case .Err)
 			Console.WriteLine("Warning: Failed to initialize PostProcessStack");
 		else
-			Console.WriteLine("Registered: VolumetricFogEffect (PostProcess)");
+			Console.WriteLine("Registered: PostProcess effects (VolumetricFog, Bloom, Tonemap)");
 	}
 
 	private void CreateMeshes()
@@ -858,6 +869,47 @@ class RenderSandboxApp : Application
 		{
 			mView.PostProcess.EnableVolumetricFog = !mView.PostProcess.EnableVolumetricFog;
 			Console.WriteLine("Volumetric Fog: {}", mView.PostProcess.EnableVolumetricFog ? "ON" : "OFF");
+		}
+
+		// Cycle tonemap operator (T)
+		if (keyboard.IsKeyPressed(.T))
+		{
+			let current = mWorld.TonemapOperator;
+			switch (current)
+			{
+			case .ACES:
+				mWorld.TonemapOperator = .Reinhard;
+				Console.WriteLine("Tonemap: Reinhard");
+			case .Reinhard:
+				mWorld.TonemapOperator = .Uncharted2;
+				Console.WriteLine("Tonemap: Uncharted2");
+			case .Uncharted2:
+				mWorld.TonemapOperator = .ACES;
+				Console.WriteLine("Tonemap: ACES");
+			}
+		}
+
+		// Toggle bloom (B)
+		if (keyboard.IsKeyPressed(.B))
+		{
+			mWorld.BloomEnabled = !mWorld.BloomEnabled;
+			Console.WriteLine("Bloom: {}", mWorld.BloomEnabled ? "ON" : "OFF");
+		}
+
+		// Toggle auto-exposure (E — only in orbital mode, since E is zoom in flythrough)
+		if (keyboard.IsKeyPressed(.F1))
+		{
+			if (mWorld.ExposureMode == .Manual)
+			{
+				mWorld.ExposureMode = .Auto;
+				Console.WriteLine("Exposure: Auto");
+			}
+			else
+			{
+				mWorld.ExposureMode = .Manual;
+				mWorld.Exposure = 1.0f; // Reset to default
+				Console.WriteLine("Exposure: Manual (1.0)");
+			}
 		}
 
 		// Cycle Fox animation

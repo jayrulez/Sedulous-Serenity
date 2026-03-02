@@ -1,11 +1,13 @@
 // Fullscreen Blit Fragment Shader
-// Simple texture copy with tone mapping
+// Copies scene color to swapchain with optional tone mapping.
+// When Passthrough=1 (PostProcess tonemap active), just copies the already-tonemapped LDR result.
+// When Passthrough=0 (no PostProcess tonemap), applies ACES filmic tonemapping as fallback.
 // NOTE: Output goes to sRGB swapchain - GPU applies gamma automatically
 
 cbuffer BlitParams : register(b0)
 {
     float Exposure;
-    float _Pad0;
+    int Passthrough;  // 1 = skip tonemapping (already done by PostProcess)
     float _Pad1;
     float _Pad2;
 };
@@ -19,7 +21,7 @@ struct FragmentInput
     float2 TexCoord : TEXCOORD0;
 };
 
-// ACES filmic tone mapping curve
+// ACES filmic tone mapping curve (fallback when no PostProcess tonemap)
 float3 ACESFilm(float3 x)
 {
     float a = 2.51;
@@ -32,21 +34,16 @@ float3 ACESFilm(float3 x)
 
 float4 main(FragmentInput input) : SV_Target
 {
-    // Sample source texture (HDR linear)
+    // Sample source texture
     float4 color = SourceTexture.Sample(LinearSampler, input.TexCoord);
 
-    // Apply exposure before tone mapping
-    color.rgb *= Exposure;
-
-    // Simple Reinhard tone mapping (HDR to LDR)
-    // Output remains in linear space - sRGB target applies gamma
-    //color.rgb = color.rgb / (color.rgb + 1.0);
-
-    // ACES alternative (more vibrant):
-     color.rgb = ACESFilm(color.rgb);
-
-    // Pass-through (clamp to LDR range)
-    //color.rgb = saturate(color.rgb);
+    if (Passthrough == 0)
+    {
+        // No PostProcess tonemapping — apply built-in ACES as fallback
+        color.rgb *= Exposure;
+        color.rgb = ACESFilm(color.rgb);
+    }
+    // else: PostProcess tonemap already applied, just pass through
 
     return float4(color.rgb, 1.0);
 }

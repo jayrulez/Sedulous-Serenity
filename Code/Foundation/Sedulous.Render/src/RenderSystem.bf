@@ -58,6 +58,9 @@ public class RenderSystem : IDisposable
 	private PostProcessStack mPostProcessStack ~ delete _;
 	private RGResourceHandle mPostProcessOutput;
 
+	// Auto-exposure (standalone, not part of PostProcessStack)
+	private AutoExposureEffect mAutoExposure ~ delete _;
+
 	// Statistics
 	private RenderStats mStats;
 
@@ -109,6 +112,9 @@ public class RenderSystem : IDisposable
 
 	/// Gets the post-process stack.
 	public PostProcessStack PostProcessStack => mPostProcessStack;
+
+	/// Gets the auto-exposure effect.
+	public AutoExposureEffect AutoExposure => mAutoExposure;
 
 	/// Gets the post-process output handle for the current frame.
 	/// Returns the final output from post-processing, or invalid handle if no effects are enabled.
@@ -179,6 +185,11 @@ public class RenderSystem : IDisposable
 
 		// Initialize post-process stack
 		mPostProcessStack = new PostProcessStack();
+
+		// Initialize auto-exposure
+		mAutoExposure = new AutoExposureEffect(this);
+		if (mAutoExposure.Initialize(device) case .Err)
+			Console.WriteLine("[RenderSystem] Warning: Failed to initialize AutoExposureEffect");
 
 		mInitialized = true;
 		return .Ok;
@@ -338,6 +349,18 @@ public class RenderSystem : IDisposable
 				}
 			}
 
+			// Add auto-exposure compute passes if enabled
+			if (mAutoExposure != null && mActiveWorld.ExposureMode == .Auto)
+			{
+				using (SProfiler.Begin("AutoExposure.AddPasses"))
+				{
+					// Read back previous frame's result first (1 frame latency)
+					mAutoExposure.ReadbackExposure(mActiveWorld);
+					// Add compute passes for this frame
+					mAutoExposure.AddPasses(mRenderGraph, view, mActiveWorld);
+				}
+			}
+
 			// Add post-processing passes if any effects are enabled
 			if (mPostProcessStack != null && mPostProcessStack.HasEnabledEffects)
 			{
@@ -384,7 +407,15 @@ public class RenderSystem : IDisposable
 
 			// Execute the render graph
 			using (SProfiler.Begin("Graph.Execute"))
-				return mRenderGraph.Execute(commandEncoder);
+			{
+				let result = mRenderGraph.Execute(commandEncoder);
+
+				// Queue auto-exposure readback after graph execution
+				if (mAutoExposure != null && mActiveWorld != null && mActiveWorld.ExposureMode == .Auto)
+					mAutoExposure.QueueReadback(commandEncoder);
+
+				return result;
+			}
 		}
 	}
 
@@ -474,6 +505,10 @@ public class RenderSystem : IDisposable
 
 		// Wait for GPU to finish
 		mDevice.WaitIdle();
+
+		// Shutdown auto-exposure
+		if (mAutoExposure != null)
+			mAutoExposure.Shutdown();
 
 		// Shutdown post-process effects (before features since effects may reference features)
 		if (mPostProcessStack != null)

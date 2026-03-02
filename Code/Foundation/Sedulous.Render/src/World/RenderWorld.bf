@@ -29,6 +29,20 @@ public class RenderWorld : IDisposable
 	private float mExposure = 1.0f;
 	private bool mEnvironmentDirty = true;
 
+	// Tonemapping
+	private TonemapOperator mTonemapOperator = .ACES;
+
+	// Bloom
+	private bool mBloomEnabled = true;
+	private float mBloomIntensity = 0.5f;
+	private float mBloomThreshold = 1.0f;
+
+	// Auto-exposure
+	private ExposureMode mExposureMode = .Manual;
+	private float mAutoExposureMin = 0.1f;
+	private float mAutoExposureMax = 10.0f;
+	private float mAutoExposureSpeed = 1.0f;
+
 	// Deferred deletion queue for GPU-referenced resources
 	struct PendingEmitterDeletion
 	{
@@ -157,6 +171,74 @@ public class RenderWorld : IDisposable
 
 	/// Clears the environment dirty flag.
 	public void ClearEnvironmentDirty() { mEnvironmentDirty = false; }
+
+	// ========================================================================
+	// Tonemapping API
+	// ========================================================================
+
+	/// Gets or sets the tonemap operator.
+	public TonemapOperator TonemapOperator
+	{
+		get => mTonemapOperator;
+		set { mTonemapOperator = value; mEnvironmentDirty = true; }
+	}
+
+	// ========================================================================
+	// Bloom API
+	// ========================================================================
+
+	/// Gets or sets whether bloom is enabled.
+	public bool BloomEnabled
+	{
+		get => mBloomEnabled;
+		set { mBloomEnabled = value; mEnvironmentDirty = true; }
+	}
+
+	/// Gets or sets the bloom intensity (0-1+).
+	public float BloomIntensity
+	{
+		get => mBloomIntensity;
+		set { mBloomIntensity = value; mEnvironmentDirty = true; }
+	}
+
+	/// Gets or sets the bloom threshold (HDR brightness to start blooming).
+	public float BloomThreshold
+	{
+		get => mBloomThreshold;
+		set { mBloomThreshold = value; mEnvironmentDirty = true; }
+	}
+
+	// ========================================================================
+	// Auto-Exposure API
+	// ========================================================================
+
+	/// Gets or sets the exposure mode (Manual or Auto).
+	public ExposureMode ExposureMode
+	{
+		get => mExposureMode;
+		set { mExposureMode = value; mEnvironmentDirty = true; }
+	}
+
+	/// Gets or sets the minimum auto-exposure value.
+	public float AutoExposureMin
+	{
+		get => mAutoExposureMin;
+		set { mAutoExposureMin = value; mEnvironmentDirty = true; }
+	}
+
+	/// Gets or sets the maximum auto-exposure value.
+	public float AutoExposureMax
+	{
+		get => mAutoExposureMax;
+		set { mAutoExposureMax = value; mEnvironmentDirty = true; }
+	}
+
+	/// Gets or sets the auto-exposure adaptation speed.
+	public float AutoExposureSpeed
+	{
+		get => mAutoExposureSpeed;
+		set { mAutoExposureSpeed = value; mEnvironmentDirty = true; }
+	}
 
 	// ========================================================================
 	// Mesh API
