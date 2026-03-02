@@ -250,7 +250,7 @@ Bring the battle to life with the Sedulous engine.
 ### Checklist
 
 - [x] **Application setup** (`StormTactics.Client`)
-  - [x] Extend `Application` from Sedulous.Engine.Runtime
+  - [x] Extend `Application` from Sedulous.Runtime.Client
   - [x] Register required subsystems (Scene, Render)
   - [x] Game state machine (Campaign → BattlePrepare → Battle → result → Campaign loop)
   - [ ] Asset loading pipeline (placeholder meshes for now)

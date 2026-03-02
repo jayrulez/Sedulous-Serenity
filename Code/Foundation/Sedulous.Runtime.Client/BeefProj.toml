@@ -1,0 +1,7 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.RHI" = "*", "Sedulous.Shell" = "*", "Sedulous.Profiler" = "*", "Sedulous.Runtime" = "*"}
+
+[Project]
+Name = "Sedulous.Runtime.Client"
+TargetType = "BeefLib"
+StartupObject = "Sedulous.Runtime.Client.Program"

@@ -4,7 +4,7 @@ using System;
 using System.Collections;
 using Sedulous.Core.Mathematics;
 using Sedulous.Core.Logging.Abstractions;
-using Sedulous.Engine.Core;
+using Sedulous.Runtime;
 using Sedulous.Engine.Scenes;
 using Platformer.Components;
 using Platformer.Data;

@@ -4,10 +4,10 @@ using System.IO;
 using Sedulous.RHI;
 using Sedulous.Shell;
 using Sedulous.Core.Mathematics;
-using Sedulous.Engine.Core;
+using Sedulous.Runtime;
 using Sedulous.Profiler;
 
-namespace Sedulous.Engine.Runtime;
+namespace Sedulous.Runtime.Client;
 
 /// Abstract base class for Sedulous applications.
 /// Provides lifecycle methods, window management, and rendering loop.

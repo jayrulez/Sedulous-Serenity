@@ -370,7 +370,7 @@ struct InputValue
 using System;
 using Sedulous.Shell;
 using Sedulous.Shell.SDL3;
-using Sedulous.Engine.Core;
+using Sedulous.Runtime;
 using Sedulous.Engine.Input;
 
 class Game

@@ -4,7 +4,7 @@ using System;
 using System.Collections;
 using Sedulous.Animation;
 using Sedulous.Animation.Resources;
-using Sedulous.Engine.Core;
+using Sedulous.Runtime;
 using Sedulous.Engine.Scenes;
 
 /// Animation subsystem that manages skeletal and property animations.

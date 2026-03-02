@@ -2,7 +2,7 @@ namespace Sedulous.Engine.Scenes;
 
 using System;
 using System.Collections;
-using Sedulous.Engine.Core;
+using Sedulous.Runtime;
 using Sedulous.Profiler;
 
 /// Subsystem that manages scenes and notifies other subsystems of scene lifecycle events.

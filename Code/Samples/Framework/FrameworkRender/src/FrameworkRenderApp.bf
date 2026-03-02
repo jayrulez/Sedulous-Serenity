@@ -1,8 +1,8 @@
 using System;
 using System.Collections;
 using Sedulous.Core.Mathematics;
-using Sedulous.Engine.Runtime;
-using Sedulous.Engine.Core;
+using Sedulous.Runtime.Client;
+using Sedulous.Runtime;
 using Sedulous.Engine.Scenes;
 using Sedulous.Engine.Render;
 using Sedulous.RHI;

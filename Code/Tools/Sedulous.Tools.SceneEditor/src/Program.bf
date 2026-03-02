@@ -7,7 +7,7 @@ using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
 using Sedulous.GUI;
 using Sedulous.Render;
-using Sedulous.Engine.Core;
+using Sedulous.Runtime;
 using Sedulous.Engine.Scenes;
 using Sedulous.Engine.Render;
 using Sedulous.Tools.Core;

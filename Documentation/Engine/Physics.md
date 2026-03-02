@@ -13,7 +13,7 @@ The engine physics integration consists of:
 ## Quick Start
 
 ```beef
-using Sedulous.Engine.Core;
+using Sedulous.Runtime;
 using Sedulous.Engine.Physics;
 using Sedulous.Physics;
 

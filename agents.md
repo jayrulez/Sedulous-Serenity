@@ -75,7 +75,7 @@ Third-party bindings used by the framework:
 | | Sedulous.RHI.Vulkan | Complete | Vulkan backend |
 | | Sedulous.RHI.DX12 | Not Started | DirectX 12 backend |
 | | Sedulous.RHI.HLSLShaderCompiler | Complete | HLSL compilation via DXC |
-| **Integration** | Sedulous.Engine.Runtime | Not Started | Application framework |
+| **Integration** | Sedulous.Runtime.Client | Not Started | Application framework |
 
 ### Renderer Implementation Progress
 
@@ -800,5 +800,5 @@ Priority order for remaining work:
 
 1. **Sedulous.Engine.Renderer** - Complete Phase 6 (Post-Processing) and Phase 7 (Polish & Integration)
 2. **Sedulous.Engine.Input** - Input action mapping, gesture detection
-3. **Sedulous.Engine.Runtime** - Application lifecycle, main loop integration
+3. **Sedulous.Runtime.Client** - Application lifecycle, main loop integration
 4. **Sedulous.RHI.DX12** - DirectX 12 backend (optional, Vulkan backend is complete)

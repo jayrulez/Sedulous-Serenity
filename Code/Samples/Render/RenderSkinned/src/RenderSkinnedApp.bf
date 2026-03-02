@@ -5,7 +5,7 @@ using System.Collections;
 using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
 using Sedulous.Shell;
-using Sedulous.Engine.Runtime;
+using Sedulous.Runtime.Client;
 using Sedulous.Render;
 using Sedulous.Geometry;
 using Sedulous.Geometry.Tooling;
@@ -66,7 +66,7 @@ class RenderSkinnedApp : Application
 	{
 	}
 
-	protected override void OnInitialize(Sedulous.Engine.Core.Context context)
+	protected override void OnInitialize(Sedulous.Runtime.Context context)
 	{
 		Sedulous.Imaging.SDL.SDLImageLoader.Initialize();
 

@@ -2,7 +2,7 @@ namespace Sedulous.Engine.UI;
 
 using System;
 using System.Collections;
-using Sedulous.Engine.Core;
+using Sedulous.Runtime;
 using Sedulous.Engine.Scenes;
 using Sedulous.Engine.Input;
 using Sedulous.GUI;

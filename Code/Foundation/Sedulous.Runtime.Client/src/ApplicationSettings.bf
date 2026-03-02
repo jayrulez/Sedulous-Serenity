@@ -2,7 +2,7 @@ using Sedulous.RHI;
 using Sedulous.Core.Mathematics;
 using System;
 
-namespace Sedulous.Engine.Runtime;
+namespace Sedulous.Runtime.Client;
 
 struct ApplicationSettings
 {

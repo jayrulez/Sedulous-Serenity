@@ -2,7 +2,7 @@ namespace Sedulous.Engine.Input;
 
 using System;
 using System.Collections;
-using Sedulous.Engine.Core;
+using Sedulous.Runtime;
 using Sedulous.Shell.Input;
 
 /// Subsystem that manages input contexts and action processing.

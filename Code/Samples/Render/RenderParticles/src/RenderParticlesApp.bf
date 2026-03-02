@@ -5,7 +5,7 @@ using System.Collections;
 using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
 using Sedulous.Shell;
-using Sedulous.Engine.Runtime;
+using Sedulous.Runtime.Client;
 using Sedulous.Render;
 using Sedulous.Geometry;
 
@@ -51,7 +51,7 @@ class RenderParticlesApp : Application
 	{
 	}
 
-	protected override void OnInitialize(Sedulous.Engine.Core.Context context)
+	protected override void OnInitialize(Sedulous.Runtime.Context context)
 	{
 		mRenderSystem = new RenderSystem();
 		if (mRenderSystem.Initialize(mDevice, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null, .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)

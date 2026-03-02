@@ -3,7 +3,7 @@ namespace Sedulous.Engine.Audio;
 using System;
 using System.Collections;
 using Sedulous.Audio;
-using Sedulous.Engine.Core;
+using Sedulous.Runtime;
 using Sedulous.Engine.Scenes;
 using Sedulous.Core.Mathematics;
 

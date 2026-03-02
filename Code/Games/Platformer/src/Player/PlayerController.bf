@@ -3,7 +3,7 @@ namespace Platformer.Player;
 using System;
 using Sedulous.Core.Mathematics;
 using Sedulous.Core.Logging.Abstractions;
-using Sedulous.Engine.Core;
+using Sedulous.Runtime;
 using Sedulous.Engine.Scenes;
 using Sedulous.Engine.Physics;
 using Sedulous.Engine.Input;

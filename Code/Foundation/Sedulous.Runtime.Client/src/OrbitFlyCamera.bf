@@ -1,4 +1,4 @@
-namespace Sedulous.Engine.Runtime;
+namespace Sedulous.Runtime.Client;
 
 using System;
 using Sedulous.Core.Mathematics;

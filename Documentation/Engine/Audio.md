@@ -33,7 +33,7 @@ The `Sedulous.Engine.Audio` library integrates the low-level audio system with t
 using Sedulous.Audio;
 using Sedulous.Audio.SDL3;
 using Sedulous.Engine.Audio;
-using Sedulous.Engine.Core;
+using Sedulous.Runtime;
 
 // 1. Create and register AudioService
 let audioSystem = new SDL3AudioSystem();
@@ -358,7 +358,7 @@ using Sedulous.Audio;
 using Sedulous.Audio.SDL3;
 using Sedulous.Audio.Decoders;
 using Sedulous.Engine.Audio;
-using Sedulous.Engine.Core;
+using Sedulous.Runtime;
 
 class GameAudioManager
 {

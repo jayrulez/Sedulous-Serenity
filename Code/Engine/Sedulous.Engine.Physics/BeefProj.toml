@@ -3,4 +3,3 @@ Dependencies = {corlib = "*", "Sedulous.Engine.Core" = "*", "Sedulous.Engine.Sce
 
 [Project]
 Name = "Sedulous.Engine.Physics"
-TargetType = "BeefLib"

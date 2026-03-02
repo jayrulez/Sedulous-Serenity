@@ -1,7 +1,7 @@
 using Sedulous.RHI;
 using Sedulous.Core.Mathematics;
 
-namespace Sedulous.Engine.Runtime;
+namespace Sedulous.Runtime.Client;
 
 struct RenderContext
 {

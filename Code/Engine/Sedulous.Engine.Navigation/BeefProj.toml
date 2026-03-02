@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Engine.Core" = "*", "Sedulous.Engine.Scenes" = "*", "Sedulous.Engine.Render" = "*", "Sedulous.Engine.Physics" = "*", "Sedulous.Core.Mathematics" = "*", "Sedulous.Render" = "*", corlib = "*", recastnavigation-Beef = "*", "Sedulous.Serialization" = "*"}
+Dependencies = {corlib = "*", "Sedulous.Engine.Core" = "*", "Sedulous.Engine.Scenes" = "*", "Sedulous.Engine.Render" = "*", "Sedulous.Engine.Physics" = "*", "Sedulous.Core.Mathematics" = "*", "Sedulous.Render" = "*", corlib = "*", recastnavigation-Beef = "*", "Sedulous.Serialization" = "*", "Sedulous.Runtime" = "*"}
 
 [Project]
 Name = "Sedulous.Engine.Navigation"

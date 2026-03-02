@@ -5,7 +5,7 @@ using System.Collections;
 using Sedulous.Core.Mathematics;
 using Sedulous.Engine.Scenes;
 using Sedulous.Engine.Navigation;
-using Sedulous.Engine.Runtime;
+using Sedulous.Runtime.Client;
 using Sedulous.Shell.Input;
 using Sedulous.Render;
 

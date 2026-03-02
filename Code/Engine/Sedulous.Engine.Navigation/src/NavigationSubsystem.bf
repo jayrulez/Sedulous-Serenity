@@ -2,7 +2,7 @@ namespace Sedulous.Engine.Navigation;
 
 using System;
 using System.Collections;
-using Sedulous.Engine.Core;
+using Sedulous.Runtime;
 using Sedulous.Engine.Scenes;
 
 /// Navigation subsystem that manages per-scene navigation worlds.
