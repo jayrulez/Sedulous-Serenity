@@ -1,0 +1,6 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Render" = "*", "Sedulous.Geometry" = "*", "Sedulous.Geometry.Tooling" = "*", "Sedulous.Models.GLTF" = "*", "Sedulous.Imaging" = "*", "Sedulous.Imaging.SDL" = "*", "Sedulous.Runtime.Client" = "*", "Sedulous.GUI" = "*", "Sedulous.GUI.Shell" = "*", "Sedulous.Drawing" = "*", "Sedulous.Drawing.Renderer" = "*", "Sedulous.Drawing.Fonts" = "*", "Sedulous.Fonts" = "*", "Sedulous.Shaders" = "*"}
+
+[Project]
+Name = "RenderScreenEffects"
+StartupObject = "RenderScreenEffects.Program"

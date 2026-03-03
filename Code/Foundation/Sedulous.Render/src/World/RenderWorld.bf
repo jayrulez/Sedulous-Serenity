@@ -46,7 +46,20 @@ public class RenderWorld : IDisposable
 	// Anti-aliasing
 	private AAMode mAAMode = .TAA;
 	private bool mSharpenEnabled = true;
-	private float mSharpenIntensity = 0.5f;
+	private float mSharpenIntensity = 0.75f;
+
+	// SSAO
+	private bool mSSAOEnabled = true;
+	private float mSSAORadius = 0.5f;
+	private float mSSAOIntensity = 1.5f;
+
+	// SSR
+	private bool mSSREnabled = false; // Off by default (expensive)
+	private float mSSRIntensity = 1.0f;
+
+	// Contact Shadows
+	private bool mContactShadowsEnabled = true;
+	private float mContactShadowLength = 0.1f;
 
 	// Deferred deletion queue for GPU-referenced resources
 	struct PendingEmitterDeletion
@@ -268,6 +281,67 @@ public class RenderWorld : IDisposable
 	{
 		get => mSharpenIntensity;
 		set { mSharpenIntensity = value; mEnvironmentDirty = true; }
+	}
+
+	// ========================================================================
+	// SSAO API
+	// ========================================================================
+
+	/// Gets or sets whether SSAO is enabled.
+	public bool SSAOEnabled
+	{
+		get => mSSAOEnabled;
+		set { mSSAOEnabled = value; mEnvironmentDirty = true; }
+	}
+
+	/// Gets or sets the SSAO sampling radius in view space.
+	public float SSAORadius
+	{
+		get => mSSAORadius;
+		set { mSSAORadius = value; mEnvironmentDirty = true; }
+	}
+
+	/// Gets or sets the SSAO intensity.
+	public float SSAOIntensity
+	{
+		get => mSSAOIntensity;
+		set { mSSAOIntensity = value; mEnvironmentDirty = true; }
+	}
+
+	// ========================================================================
+	// SSR API
+	// ========================================================================
+
+	/// Gets or sets whether screen-space reflections are enabled.
+	public bool SSREnabled
+	{
+		get => mSSREnabled;
+		set { mSSREnabled = value; mEnvironmentDirty = true; }
+	}
+
+	/// Gets or sets the SSR intensity (0-1).
+	public float SSRIntensity
+	{
+		get => mSSRIntensity;
+		set { mSSRIntensity = value; mEnvironmentDirty = true; }
+	}
+
+	// ========================================================================
+	// Contact Shadows API
+	// ========================================================================
+
+	/// Gets or sets whether contact shadows are enabled.
+	public bool ContactShadowsEnabled
+	{
+		get => mContactShadowsEnabled;
+		set { mContactShadowsEnabled = value; mEnvironmentDirty = true; }
+	}
+
+	/// Gets or sets the contact shadow ray length in view space.
+	public float ContactShadowLength
+	{
+		get => mContactShadowLength;
+		set { mContactShadowLength = value; mEnvironmentDirty = true; }
 	}
 
 	// ========================================================================
