@@ -45,7 +45,7 @@ public class RenderWorld : IDisposable
 	private float mAutoExposureSpeed = 1.0f;
 
 	// Anti-aliasing
-	private AAMode mAAMode = .TAA;
+	private AAMode mAAMode = .None;
 	private bool mSharpenEnabled = true;
 	private float mSharpenIntensity = 0.75f;
 
