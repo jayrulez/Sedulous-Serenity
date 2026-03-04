@@ -56,6 +56,8 @@ TextureCube PrefilteredMap : register(t9);
 Texture2D BRDFLutTexture : register(t10);
 SamplerState IBLSampler : register(s2);
 
+#include "probe_uniforms.hlsli"
+
 // Material sampler (space1 = descriptor set 1 for materials)
 SamplerState LinearSampler : register(s0, space1);
 
@@ -351,7 +353,20 @@ PSOutput main(FragmentInput input)
         float3 kD_ibl = (1.0 - F_ibl) * (1.0 - metallic);
         float3 diffuseIBL = IrradianceMap.Sample(IBLSampler, N).rgb * albedo.rgb;
         float3 R7 = reflect(-V, N);
-        float3 prefilteredColor = PrefilteredMap.SampleLevel(IBLSampler, R7, roughness * 4.0).rgb;
+
+        // Try reflection probes first, fall back to global IBL
+        float4 probeResult = SampleReflectionProbe(input.WorldPosition, R7, roughness, IBLSampler);
+        float3 prefilteredColor;
+        if (probeResult.w > 0.001)
+        {
+            float3 globalPrefiltered = PrefilteredMap.SampleLevel(IBLSampler, R7, roughness * 4.0).rgb;
+            prefilteredColor = lerp(globalPrefiltered, probeResult.rgb, probeResult.w);
+        }
+        else
+        {
+            prefilteredColor = PrefilteredMap.SampleLevel(IBLSampler, R7, roughness * 4.0).rgb;
+        }
+
         float2 envBRDF = BRDFLutTexture.Sample(IBLSampler, float2(NdotV, roughness)).rg;
         float3 specularIBL = prefilteredColor * (F0 * envBRDF.x + envBRDF.y);
         float3 ambient = (kD_ibl * diffuseIBL + specularIBL + AmbientColor * albedo.rgb) * AmbientIntensity * ao;
@@ -386,7 +401,20 @@ PSOutput main(FragmentInput input)
         float3 kD_ibl = (1.0 - F_ibl) * (1.0 - metallic);
         float3 diffuseIBL = IrradianceMap.Sample(IBLSampler, N).rgb * albedo.rgb;
         float3 R8 = reflect(-V, N);
-        float3 prefilteredColor = PrefilteredMap.SampleLevel(IBLSampler, R8, roughness * 4.0).rgb;
+
+        // Try reflection probes first, fall back to global IBL
+        float4 probeResult8 = SampleReflectionProbe(input.WorldPosition, R8, roughness, IBLSampler);
+        float3 prefilteredColor;
+        if (probeResult8.w > 0.001)
+        {
+            float3 globalPrefiltered = PrefilteredMap.SampleLevel(IBLSampler, R8, roughness * 4.0).rgb;
+            prefilteredColor = lerp(globalPrefiltered, probeResult8.rgb, probeResult8.w);
+        }
+        else
+        {
+            prefilteredColor = PrefilteredMap.SampleLevel(IBLSampler, R8, roughness * 4.0).rgb;
+        }
+
         float2 envBRDF = BRDFLutTexture.Sample(IBLSampler, float2(NdotV, roughness)).rg;
         float3 specularIBL = prefilteredColor * (F0 * envBRDF.x + envBRDF.y);
         float3 ambient = (kD_ibl * diffuseIBL + specularIBL + AmbientColor * albedo.rgb) * AmbientIntensity * ao;

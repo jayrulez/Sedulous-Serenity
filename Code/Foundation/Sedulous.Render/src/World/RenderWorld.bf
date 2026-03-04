@@ -19,6 +19,7 @@ public class RenderWorld : IDisposable
 	private ProxyPool<SpriteProxy> mSpriteProxies = new .() ~ delete _;
 	private ProxyPool<TrailEmitterProxy> mTrailProxies = new .() ~ delete _;
 	private ProxyPool<DecalProxy> mDecalProxies = new .() ~ delete _;
+	private ProxyPool<ReflectionProbeProxy> mReflectionProbeProxies = new .() ~ delete _;
 
 	// Main camera handle
 	private CameraProxyHandle mMainCamera = .Invalid;
@@ -92,6 +93,7 @@ public class RenderWorld : IDisposable
 	private bool mSpritesDirty = false;
 	private bool mTrailsDirty = false;
 	private bool mDecalsDirty = false;
+	private bool mReflectionProbesDirty = false;
 
 	/// Gets the mesh proxy pool.
 	public ProxyPool<MeshProxy> MeshProxies => mMeshProxies;
@@ -113,6 +115,9 @@ public class RenderWorld : IDisposable
 
 	/// Gets the decal proxy pool.
 	public ProxyPool<DecalProxy> DecalProxies => mDecalProxies;
+
+	/// Gets the reflection probe proxy pool.
+	public ProxyPool<ReflectionProbeProxy> ReflectionProbeProxies => mReflectionProbeProxies;
 
 	/// Gets the main camera handle.
 	public CameraProxyHandle MainCamera => mMainCamera;
@@ -158,6 +163,9 @@ public class RenderWorld : IDisposable
 
 	/// Whether any decals have changed.
 	public bool DecalsDirty => mDecalsDirty;
+
+	/// Whether any reflection probes have changed.
+	public bool ReflectionProbesDirty => mReflectionProbesDirty;
 
 	/// Whether environment settings have changed.
 	public bool EnvironmentDirty => mEnvironmentDirty;
@@ -1135,6 +1143,57 @@ public class RenderWorld : IDisposable
 	}
 
 	// ========================================================================
+	// Reflection Probe API
+	// ========================================================================
+
+	/// Creates a new reflection probe proxy.
+	public ReflectionProbeProxyHandle CreateReflectionProbe()
+	{
+		let handle = mReflectionProbeProxies.Allocate();
+		var proxy = mReflectionProbeProxies.Get(handle);
+		*proxy = ReflectionProbeProxy.CreateDefault();
+		proxy.IsActive = true;
+		proxy.Generation = handle.Generation;
+		mReflectionProbesDirty = true;
+		return .() { Handle = handle };
+	}
+
+	/// Gets a reflection probe proxy by handle.
+	public ReflectionProbeProxy* GetReflectionProbe(ReflectionProbeProxyHandle handle)
+	{
+		return mReflectionProbeProxies.Get(handle.Handle);
+	}
+
+	/// Gets a reference to a reflection probe proxy.
+	public ref ReflectionProbeProxy GetReflectionProbeRef(ReflectionProbeProxyHandle handle)
+	{
+		return ref mReflectionProbeProxies.GetRef(handle.Handle);
+	}
+
+	/// Destroys a reflection probe proxy.
+	public void DestroyReflectionProbe(ReflectionProbeProxyHandle handle)
+	{
+		if (mReflectionProbeProxies.TryGet(handle.Handle, let proxy))
+		{
+			proxy.Reset();
+		}
+		mReflectionProbeProxies.Free(handle.Handle);
+		mReflectionProbesDirty = true;
+	}
+
+	/// Marks reflection probes as dirty (need GPU re-upload).
+	public void MarkReflectionProbesDirty()
+	{
+		mReflectionProbesDirty = true;
+	}
+
+	/// Iterates over all active reflection probes.
+	public void ForEachReflectionProbe(ProxyCallback<ReflectionProbeProxy> callback)
+	{
+		mReflectionProbeProxies.ForEach(callback);
+	}
+
+	// ========================================================================
 	// General
 	// ========================================================================
 
@@ -1149,6 +1208,7 @@ public class RenderWorld : IDisposable
 		mSpritesDirty = false;
 		mTrailsDirty = false;
 		mDecalsDirty = false;
+		mReflectionProbesDirty = false;
 	}
 
 	/// Clears all objects from the world.
@@ -1182,6 +1242,7 @@ public class RenderWorld : IDisposable
 		mSpriteProxies.Clear();
 		mTrailProxies.Clear();
 		mDecalProxies.Clear();
+		mReflectionProbeProxies.Clear();
 		mMainCamera = .Invalid;
 		mMeshesDirty = true;
 		mSkinnedMeshesDirty = true;
@@ -1191,6 +1252,7 @@ public class RenderWorld : IDisposable
 		mSpritesDirty = true;
 		mTrailsDirty = true;
 		mDecalsDirty = true;
+		mReflectionProbesDirty = true;
 	}
 
 	public void Dispose()

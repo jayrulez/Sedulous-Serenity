@@ -80,6 +80,10 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 	private ISampler mIBLSampler ~ delete _;
 	private uint32[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mSceneBindGroupIBLGeneration;
 
+	// Reflection probe system
+	private ReflectionProbeSystem mProbeSystem ~ delete _;
+	private uint32[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mSceneBindGroupProbeGeneration;
+
 	/// Feature name.
 	public override StringView Name => "ForwardOpaque";
 
@@ -150,6 +154,11 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 		// Create IBL fallback resources
 		if (CreateIBLFallbackResources() case .Err)
+			return .Err;
+
+		// Initialize reflection probe system
+		mProbeSystem = new ReflectionProbeSystem();
+		if (mProbeSystem.Initialize(Renderer.Device) case .Err)
 			return .Err;
 
 		return .Ok;
@@ -723,6 +732,10 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			// Upload object uniforms (shared across views)
 			using (SProfiler.Begin("PrepareObjectUniforms"))
 				PrepareObjectUniforms(depthFeature, frameIndex);
+
+			// Update reflection probe uniforms (bakes dirty probes + uploads data)
+			if (mProbeSystem != null)
+				mProbeSystem.UpdateProbeUniforms(world, frameIndex);
 		}
 	}
 
@@ -761,6 +774,10 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 				using (SProfiler.Begin("PrepareObjectUniforms"))
 					PrepareObjectUniforms(depthFeature, frameIndex);
+
+				// Update reflection probes
+				if (mProbeSystem != null)
+					mProbeSystem.UpdateProbeUniforms(world, frameIndex);
 			}
 
 			// Shadow passes: only for first view (shadow maps shared across views)
@@ -1134,7 +1151,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		//                           t4=Lights, t5=ClusterLightInfo, t6=LightIndices (read-only StructuredBuffers),
 		//                           t7=ShadowMap, s1=ShadowSampler
 		// Use HLSL register numbers - RHI applies Vulkan shifts based on Type
-		BindGroupLayoutEntry[13] sceneEntries = .(
+		BindGroupLayoutEntry[15] sceneEntries = .(
 			.() { Binding = 0, Visibility = .Vertex | .Fragment, Type = .UniformBuffer }, // b0: Camera
 			.() { Binding = 1, Visibility = .Vertex, Type = .UniformBuffer, HasDynamicOffset = true }, // b1: ObjectUniforms (dynamic offset per-object)
 			.() { Binding = 3, Visibility = .Fragment, Type = .UniformBuffer },           // b3: Lighting uniforms
@@ -1147,7 +1164,9 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			BindGroupLayoutEntry.SampledTexture(8, .Fragment, .TextureCube),               // t8: Irradiance Map
 			BindGroupLayoutEntry.SampledTexture(9, .Fragment, .TextureCube),               // t9: Prefiltered Map
 			BindGroupLayoutEntry.SampledTexture(10, .Fragment, .Texture2D),                // t10: BRDF LUT
-			BindGroupLayoutEntry.Sampler(2, .Fragment)                                     // s2: IBL Sampler
+			BindGroupLayoutEntry.Sampler(2, .Fragment),                                    // s2: IBL Sampler
+			.() { Binding = 6, Visibility = .Fragment, Type = .UniformBuffer },           // b6: ProbeUniforms
+			BindGroupLayoutEntry.SampledTexture(11, .Fragment, .TextureCubeArray)          // t11: ProbeCubemaps
 		);
 
 		BindGroupLayoutDescriptor sceneDesc = .()
@@ -1202,10 +1221,15 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		let skyFeature = Renderer.GetFeature<SkyFeature>();
 		let iblGeneration = skyFeature?.IBLGeneration ?? 0;
 
+		// Check probe state
+		let probeGeneration = mProbeSystem?.Generation ?? 0;
+
 		// Check if bind group exists and state hasn't changed
 		if (mSceneBindGroups[bgIndex] != null)
 		{
-			if (mSceneBindGroupShadowState[bgIndex] == shadowsEnabled && mSceneBindGroupIBLGeneration[bgIndex] == iblGeneration)
+			if (mSceneBindGroupShadowState[bgIndex] == shadowsEnabled &&
+				mSceneBindGroupIBLGeneration[bgIndex] == iblGeneration &&
+				mSceneBindGroupProbeGeneration[bgIndex] == probeGeneration)
 				return;
 
 			delete mSceneBindGroups[bgIndex];
@@ -1231,7 +1255,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 		// Build bind group entries
 		// Note: Some shadow resources may be null - provide fallbacks or skip
-		BindGroupEntry[13] entries = .();
+		BindGroupEntry[15] entries = .();
 
 		// b0: Camera uniforms
 		entries[0] = BindGroupEntry.Buffer(0, cameraBuffer, 0, SceneUniforms.Size);
@@ -1301,6 +1325,13 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		entries[11] = BindGroupEntry.Texture(10, brdfLutView);
 		entries[12] = BindGroupEntry.Sampler(2, iblSampler);
 
+		// Probe resources (b6: ProbeUniforms, t11: ProbeCubemaps)
+		if (mProbeSystem == null || mProbeSystem.GetProbeUniformBuffer(frameIndex) == null || mProbeSystem.GetCubemapArrayView() == null)
+			return;
+
+		entries[13] = BindGroupEntry.Buffer(6, mProbeSystem.GetProbeUniformBuffer(frameIndex), 0, ProbeUniforms.Size);
+		entries[14] = BindGroupEntry.Texture(11, mProbeSystem.GetCubemapArrayView());
+
 		// Create bind group
 		BindGroupDescriptor bgDesc = .()
 		{
@@ -1314,6 +1345,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			mSceneBindGroups[bgIndex] = bg;
 			mSceneBindGroupShadowState[bgIndex] = shadowsEnabled;
 			mSceneBindGroupIBLGeneration[bgIndex] = iblGeneration;
+			mSceneBindGroupProbeGeneration[bgIndex] = probeGeneration;
 		}
 	}
 

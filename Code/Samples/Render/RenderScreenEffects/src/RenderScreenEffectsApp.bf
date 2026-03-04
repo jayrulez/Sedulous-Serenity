@@ -69,6 +69,10 @@ class RenderScreenEffectsApp : Application
 	private LightProxyHandle mSunLight = .Invalid;
 	private List<LightProxyHandle> mPointLights = new .() ~ delete _;
 
+	// Reflection probes
+	private ReflectionProbeProxyHandle mCourtyardProbe = .Invalid;
+	private bool mReflectionProbesEnabled = true;
+
 	// Camera (flythrough mode)
 	private Vector3 mCameraPosition = .(0, 5, 0);
 	private float mYaw = 0.0f;
@@ -110,6 +114,7 @@ class RenderScreenEffectsApp : Application
 	private ComboBox mAAModeCombo;
 	private CheckBox mSharpenCheck;
 	private Slider mSharpenIntensitySlider;
+	private CheckBox mReflectionProbesCheck;
 	private Slider mAmbientSlider;
 	private Slider mSunIntensitySlider;
 	private TextBlock mFpsLabel;
@@ -153,6 +158,7 @@ class RenderScreenEffectsApp : Application
 		LoadSponza();
 		LoadExtraModels();
 		CreateLights();
+		CreateReflectionProbes();
 
 		// Environment settings
 		mWorld.AmbientColor = .(0.03f, 0.03f, 0.04f);
@@ -389,6 +395,13 @@ class RenderScreenEffectsApp : Application
 
 		// === Environment ===
 		AddSectionHeader(content, "Environment");
+
+		mReflectionProbesCheck = AddCheckBox(content, "Reflection Probes", mReflectionProbesEnabled, new (cb, isChecked) => {
+			mReflectionProbesEnabled = isChecked;
+			if (let probe = mWorld.GetReflectionProbe(mCourtyardProbe))
+				probe.IsEnabled = isChecked;
+			mWorld.MarkReflectionProbesDirty();
+		});
 
 		mAmbientSlider = AddSlider(content, "Ambient", 0.0f, 2.0f, mWorld.AmbientIntensity, 0.05f, new (s, val) => {
 			mWorld.AmbientIntensity = val;
@@ -954,6 +967,22 @@ class RenderScreenEffectsApp : Application
 		{
 			let pointLight = mWorld.CreatePointLight(pos, .(1.0f, 0.9f, 0.7f), 1.5f, 15.0f);
 			mPointLights.Add(pointLight);
+		}
+	}
+
+	private void CreateReflectionProbes()
+	{
+		// Courtyard probe — warm indoor tones for Sponza interior
+		mCourtyardProbe = mWorld.CreateReflectionProbe();
+		if (let probe = mWorld.GetReflectionProbe(mCourtyardProbe))
+		{
+			probe.Position = .(0, 3, 0);
+			probe.Radius = 15.0f;
+			probe.IsEnabled = true;
+			probe.ZenithColor = .(0.3f, 0.25f, 0.2f);    // warm ceiling
+			probe.HorizonColor = .(0.4f, 0.35f, 0.3f);   // stone walls
+			probe.GroundColor = .(0.2f, 0.18f, 0.15f);    // dark floor
+			probe.IsDirty = true;
 		}
 	}
 

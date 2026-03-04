@@ -133,3 +133,16 @@ public struct DecalProxyHandle : IHashable
 	public static bool operator ==(Self lhs, Self rhs) => lhs.Handle == rhs.Handle;
 	public static bool operator !=(Self lhs, Self rhs) => lhs.Handle != rhs.Handle;
 }
+
+public struct ReflectionProbeProxyHandle : IHashable
+{
+	public ProxyHandle Handle;
+
+	public static Self Invalid => .() { Handle = .Invalid };
+	public bool IsValid => Handle.IsValid;
+
+	public int GetHashCode() => Handle.GetHashCode();
+
+	public static bool operator ==(Self lhs, Self rhs) => lhs.Handle == rhs.Handle;
+	public static bool operator !=(Self lhs, Self rhs) => lhs.Handle != rhs.Handle;
+}
