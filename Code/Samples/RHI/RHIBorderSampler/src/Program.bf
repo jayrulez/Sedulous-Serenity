@@ -97,7 +97,7 @@ class BorderSamplerSample : RHISampleApp
 			RowsPerImage = SIZE
 		};
 		Extent3D writeSize = .(SIZE, SIZE, 1);
-		Device.Queue.WriteTexture(mTexture, .((uint8*)&pixels, sizeof(uint32) * SIZE * SIZE), &dataLayout, &writeSize);
+		Device.Queue.WriteTextureSync(mTexture, .((uint8*)&pixels, sizeof(uint32) * SIZE * SIZE), &dataLayout, &writeSize);
 
 		Console.WriteLine("Checkerboard texture created");
 		return true;
@@ -161,7 +161,7 @@ class BorderSamplerSample : RHISampleApp
 		if (Device.CreateBuffer(&vertexDesc) not case .Ok(let vb))
 			return false;
 		mVertexBuffer = vb;
-		Device.Queue.WriteBuffer(mVertexBuffer, 0, .((uint8*)&vertices, (int)vertexDesc.Size));
+		Device.Queue.WriteMappedBuffer(mVertexBuffer, 0, .((uint8*)&vertices, (int)vertexDesc.Size));
 
 		// Shaders
 		let shaderResult = ShaderUtils.LoadShaderPair(Device, "shaders/border");

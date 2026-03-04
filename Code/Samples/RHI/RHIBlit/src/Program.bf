@@ -134,7 +134,7 @@ class BlitSample : RHISampleApp
 		if (Device.CreateBuffer(&vertexDesc) not case .Ok(let vb))
 			return false;
 		mPatternVertexBuffer = vb;
-		Device.Queue.WriteBuffer(mPatternVertexBuffer, 0, .((uint8*)&vertices, (int)vertexDesc.Size));
+		Device.Queue.WriteMappedBuffer(mPatternVertexBuffer, 0, .((uint8*)&vertices, (int)vertexDesc.Size));
 
 		// Uniform buffer
 		BufferDescriptor uniformDesc = .()
@@ -255,8 +255,8 @@ class BlitSample : RHISampleApp
 		// Initialize quad positions (these don't change)
 		QuadUniforms leftQuad = .() { QuadRect = .(-0.9f, -0.4f, 0.4f, 0.8f) };
 		QuadUniforms rightQuad = .() { QuadRect = .(0.1f, -0.4f, 0.8f, 0.8f) };
-		Device.Queue.WriteBuffer(mLeftQuadUniformBuffer, 0, .((uint8*)&leftQuad, sizeof(QuadUniforms)));
-		Device.Queue.WriteBuffer(mRightQuadUniformBuffer, 0, .((uint8*)&rightQuad, sizeof(QuadUniforms)));
+		Device.Queue.WriteMappedBuffer(mLeftQuadUniformBuffer, 0, .((uint8*)&leftQuad, sizeof(QuadUniforms)));
+		Device.Queue.WriteMappedBuffer(mRightQuadUniformBuffer, 0, .((uint8*)&rightQuad, sizeof(QuadUniforms)));
 
 		// Sampler
 		SamplerDescriptor samplerDesc = .()
@@ -346,7 +346,7 @@ class BlitSample : RHISampleApp
 		// Update pattern transform
 		float rotation = TotalTime * 2.0f;
 		Matrix transform = Matrix.CreateRotationZ(rotation);
-		Device.Queue.WriteBuffer(mPatternUniformBuffer, 0, .((uint8*)&transform, sizeof(Matrix)));
+		Device.Queue.WriteMappedBuffer(mPatternUniformBuffer, 0, .((uint8*)&transform, sizeof(Matrix)));
 
 		// Render pattern to small texture
 		RenderPassColorAttachment[1] patternAttachments = .(.(mSmallTextureView)

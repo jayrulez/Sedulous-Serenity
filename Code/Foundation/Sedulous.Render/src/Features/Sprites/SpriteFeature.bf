@@ -127,7 +127,7 @@ public class SpriteFeature : RenderFeatureBase
 
 		var layout = TextureDataLayout() { BytesPerRow = TexSize * 4, RowsPerImage = TexSize };
 		var writeSize = Extent3D(TexSize, TexSize, 1);
-		Renderer.Device.Queue.WriteTexture(mDefaultTexture, Span<uint8>(&pixels[0], TexBytes), &layout, &writeSize);
+		Renderer.Device.Queue.WriteTextureSync(mDefaultTexture, Span<uint8>(&pixels[0], TexBytes), &layout, &writeSize);
 
 		TextureViewDescriptor viewDesc = .()
 		{
@@ -330,7 +330,7 @@ public class SpriteFeature : RenderFeatureBase
 			for (let entry in mSortEntries)
 				sortedInstances.Add(mInstances[entry.OriginalIndex]);
 
-			Renderer.Device.Queue.WriteBuffer(
+			Renderer.Device.Queue.WriteMappedBuffer(
 				buffer, 0,
 				Span<uint8>((uint8*)sortedInstances.Ptr, (int)(sortedInstances.Count * SpriteInstance.SizeInBytes))
 			);

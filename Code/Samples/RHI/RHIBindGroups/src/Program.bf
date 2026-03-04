@@ -116,7 +116,7 @@ class BindGroupsSample : RHISampleApp
 		mVertexBuffer = vb;
 
 		Span<uint8> vertexData = .((uint8*)&vertices, (int)vertexDesc.Size);
-		Device.Queue.WriteBuffer(mVertexBuffer, 0, vertexData);
+		Device.Queue.WriteMappedBuffer(mVertexBuffer, 0, vertexData);
 
 		// Index buffer
 		uint16[6] indices = .(0, 1, 2, 0, 2, 3);
@@ -133,7 +133,7 @@ class BindGroupsSample : RHISampleApp
 		mIndexBuffer = ib;
 
 		Span<uint8> indexData = .((uint8*)&indices, (int)indexDesc.Size);
-		Device.Queue.WriteBuffer(mIndexBuffer, 0, indexData);
+		Device.Queue.WriteMappedBuffer(mIndexBuffer, 0, indexData);
 
 		// Global uniform buffer
 		BufferDescriptor globalUniformDesc = .()
@@ -281,7 +281,7 @@ class BindGroupsSample : RHISampleApp
 		// Update global uniforms
 		GlobalUniforms globalUniforms = .() { Time = totalTime };
 		Span<uint8> globalData = .((uint8*)&globalUniforms, sizeof(GlobalUniforms));
-		Device.Queue.WriteBuffer(mGlobalUniformBuffer, 0, globalData);
+		Device.Queue.WriteMappedBuffer(mGlobalUniformBuffer, 0, globalData);
 
 		// Update per-object uniforms
 		int gridSize = (int)Math.Sqrt(OBJECT_COUNT);
@@ -314,7 +314,7 @@ class BindGroupsSample : RHISampleApp
 			// Write to the appropriate offset in the buffer
 			uint64 offset = (uint64)(OBJECT_UNIFORM_SIZE * i);
 			Span<uint8> objectData = .((uint8*)&objectUniforms, sizeof(ObjectUniforms));
-			Device.Queue.WriteBuffer(mObjectUniformBuffer, offset, objectData);
+			Device.Queue.WriteMappedBuffer(mObjectUniformBuffer, offset, objectData);
 		}
 	}
 

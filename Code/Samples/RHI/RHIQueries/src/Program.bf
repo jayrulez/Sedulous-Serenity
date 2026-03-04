@@ -113,7 +113,7 @@ class QueriesSample : RHISampleApp
 		mVertexBuffer = vb;
 
 		Span<uint8> vertexData = .((uint8*)&triangleVertices, (int)vertexDesc.Size);
-		Device.Queue.WriteBuffer(mVertexBuffer, 0, vertexData);
+		Device.Queue.WriteMappedBuffer(mVertexBuffer, 0, vertexData);
 
 		// Occluded quad (partially behind the triangle)
 		Vertex[6] quadVertices = .(
@@ -139,7 +139,7 @@ class QueriesSample : RHISampleApp
 		mOccludedVertexBuffer = ovb;
 
 		Span<uint8> occludedData = .((uint8*)&quadVertices, (int)occludedDesc.Size);
-		Device.Queue.WriteBuffer(mOccludedVertexBuffer, 0, occludedData);
+		Device.Queue.WriteMappedBuffer(mOccludedVertexBuffer, 0, occludedData);
 
 		// Query results buffer for timestamp resolve
 		BufferDescriptor queryBufferDesc = .()

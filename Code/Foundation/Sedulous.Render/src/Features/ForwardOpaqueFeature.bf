@@ -546,7 +546,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			TextureDataLayout layout = .() { BytesPerRow = 8, RowsPerImage = 1 };
 			Extent3D size = .(1, 1, 1);
 			for (uint32 face = 0; face < 6; face++)
-				Renderer.Device.Queue.WriteTexture(mFallbackIrradianceCubemap, Span<uint8>((uint8*)&whitePixel, 8), &layout, &size, 0, face);
+				Renderer.Device.Queue.WriteTextureSync(mFallbackIrradianceCubemap, Span<uint8>((uint8*)&whitePixel, 8), &layout, &size, 0, face);
 
 			TextureViewDescriptor viewDesc = .()
 			{
@@ -578,7 +578,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			TextureDataLayout layout = .() { BytesPerRow = 8, RowsPerImage = 1 };
 			Extent3D size = .(1, 1, 1);
 			for (uint32 face = 0; face < 6; face++)
-				Renderer.Device.Queue.WriteTexture(mFallbackPrefilteredCubemap, Span<uint8>((uint8*)&whitePixel, 8), &layout, &size, 0, face);
+				Renderer.Device.Queue.WriteTextureSync(mFallbackPrefilteredCubemap, Span<uint8>((uint8*)&whitePixel, 8), &layout, &size, 0, face);
 
 			TextureViewDescriptor viewDesc = .()
 			{
@@ -622,7 +622,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			uint16[2] brdfPixel = .(0x3C00, 0x0000); // (1.0, 0.0) in half-float
 			TextureDataLayout layout = .() { BytesPerRow = 4, RowsPerImage = 1 };
 			Extent3D size = .(1, 1, 1);
-			Renderer.Device.Queue.WriteTexture(mFallbackBRDFLut, Span<uint8>((uint8*)&brdfPixel, 4), &layout, &size);
+			Renderer.Device.Queue.WriteTextureSync(mFallbackBRDFLut, Span<uint8>((uint8*)&brdfPixel, 4), &layout, &size);
 
 			TextureViewDescriptor viewDesc = .()
 			{

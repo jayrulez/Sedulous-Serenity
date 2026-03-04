@@ -98,7 +98,7 @@ class BlendingSample : RHISampleApp
 		mVertexBuffer = vb;
 
 		Span<uint8> vertexData = .((uint8*)&vertices, (int)vertexDesc.Size);
-		Device.Queue.WriteBuffer(mVertexBuffer, 0, vertexData);
+		Device.Queue.WriteMappedBuffer(mVertexBuffer, 0, vertexData);
 
 		// Create index buffer
 		BufferDescriptor indexDesc = .()
@@ -113,7 +113,7 @@ class BlendingSample : RHISampleApp
 		mIndexBuffer = ib;
 
 		Span<uint8> indexData = .((uint8*)&indices, (int)indexDesc.Size);
-		Device.Queue.WriteBuffer(mIndexBuffer, 0, indexData);
+		Device.Queue.WriteMappedBuffer(mIndexBuffer, 0, indexData);
 
 		Console.WriteLine("Buffers created");
 		return true;

@@ -373,7 +373,7 @@ class MaterialSystem : IDisposable
 		};
 		var writeSize = Extent3D(1, 1, 1);
 
-		mDevice.Queue.WriteTexture(texture, Span<uint8>(&data[0], 4), &layout, &writeSize);
+		mDevice.Queue.WriteTextureSync(texture, Span<uint8>(&data[0], 4), &layout, &writeSize);
 
 		// Create view
 		var viewDesc = TextureViewDescriptor()
@@ -503,7 +503,7 @@ class MaterialSystem : IDisposable
 		// Create buffer if doesn't exist
 		if (!mUniformBuffers.TryGetValue(instance, out buffer))
 		{
-			BufferDescriptor bufDesc = .(material.UniformDataSize, .Uniform | .CopyDst);
+			BufferDescriptor bufDesc = .() { Size = material.UniformDataSize, Usage = .Uniform, MemoryAccess = .Upload };
 			if (mDevice.CreateBuffer(&bufDesc) case .Ok(let buf))
 			{
 				buffer = buf;
@@ -516,7 +516,7 @@ class MaterialSystem : IDisposable
 		// Upload uniform data
 		let data = instance.UniformData;
 		if (data.Length > 0)
-			mDevice.Queue.WriteBuffer(buffer, 0, data);
+			mDevice.Queue.WriteMappedBuffer(buffer, 0, data);
 
 		return true;
 	}

@@ -192,7 +192,7 @@ public class ParticleFeature : RenderFeatureBase
 
 		var layout = TextureDataLayout() { BytesPerRow = TexSize * 4, RowsPerImage = TexSize };
 		var writeSize = Extent3D(TexSize, TexSize, 1);
-		Renderer.Device.Queue.WriteTexture(mDefaultParticleTexture, Span<uint8>(&pixels[0], TexBytes), &layout, &writeSize);
+		Renderer.Device.Queue.WriteTextureSync(mDefaultParticleTexture, Span<uint8>(&pixels[0], TexBytes), &layout, &writeSize);
 
 		// Create texture view
 		TextureViewDescriptor viewDesc = .()
@@ -975,7 +975,7 @@ public class ParticleFeature : RenderFeatureBase
 				encoder.SetPipeline(pipeline);
 
 				uint32[4] particleParams = .(system.EstimatedAliveCount, 0, 0, 0);
-				Renderer.Device.Queue.WriteBuffer(
+				Renderer.Device.Queue.WriteMappedBuffer(
 					system.ParticleParams, 0,
 					Span<uint8>((uint8*)&particleParams[0], 16)
 				);
@@ -1429,7 +1429,7 @@ public class ParticleFeature : RenderFeatureBase
 		);
 
 		let offset = (uint64)emitterIndex * EmitterParamAlignment;
-		Renderer.Device.Queue.WriteBuffer(
+		Renderer.Device.Queue.WriteMappedBuffer(
 			mEmitterParamsBuffer, offset,
 			Span<uint8>((uint8*)&emitterParams[0], 32)
 		);
@@ -1452,7 +1452,7 @@ public class ParticleFeature : RenderFeatureBase
 		);
 
 		let offset = (uint64)emitterIndex * EmitterParamAlignment;
-		Renderer.Device.Queue.WriteBuffer(
+		Renderer.Device.Queue.WriteMappedBuffer(
 			mEmitterParamsBuffer, offset,
 			Span<uint8>((uint8*)&emitterParams[0], 32)
 		);
@@ -1522,7 +1522,7 @@ public class ParticleFeature : RenderFeatureBase
 			uint32[] deadIndices = scope uint32[proxy.MaxParticles];
 			for (uint32 i = 0; i < proxy.MaxParticles; i++)
 				deadIndices[i] = i;
-			Renderer.Device.Queue.WriteBuffer(
+			Renderer.Device.Queue.WriteMappedBuffer(
 				system.DeadList, 0,
 				Span<uint8>((uint8*)&deadIndices[0], (int)(proxy.MaxParticles * 4))
 			);
@@ -1531,7 +1531,7 @@ public class ParticleFeature : RenderFeatureBase
 		// Initialize counters
 		{
 			uint32[2] counters = .(0, proxy.MaxParticles);
-			Renderer.Device.Queue.WriteBuffer(
+			Renderer.Device.Queue.WriteMappedBuffer(
 				system.Counters, 0,
 				Span<uint8>((uint8*)&counters[0], 8)
 			);
@@ -1649,7 +1649,7 @@ public class ParticleFeature : RenderFeatureBase
 		emitterParams.TotalTime = Renderer.RenderFrameContext.TotalTime;
 		emitterParams.SpawnCount = system.PendingSpawnCount;
 
-		Renderer.Device.Queue.WriteBuffer(
+		Renderer.Device.Queue.WriteMappedBuffer(
 			system.EmitterParams, 0,
 			Span<uint8>((uint8*)&emitterParams, GPUEmitterParams.SizeInBytes)
 		);
@@ -1661,7 +1661,7 @@ public class ParticleFeature : RenderFeatureBase
 			uint32[] deadIndices = scope uint32[system.MaxParticles];
 			for (uint32 i = 0; i < system.MaxParticles; i++)
 				deadIndices[i] = i;
-			Renderer.Device.Queue.WriteBuffer(
+			Renderer.Device.Queue.WriteMappedBuffer(
 				system.DeadList, 0,
 				Span<uint8>((uint8*)&deadIndices[0], (int)(system.MaxParticles * 4))
 			);
@@ -1669,7 +1669,7 @@ public class ParticleFeature : RenderFeatureBase
 
 		{
 			uint32[2] counters = .(0, system.MaxParticles);
-			Renderer.Device.Queue.WriteBuffer(
+			Renderer.Device.Queue.WriteMappedBuffer(
 				system.Counters, 0,
 				Span<uint8>((uint8*)&counters[0], 8)
 			);
@@ -1679,7 +1679,7 @@ public class ParticleFeature : RenderFeatureBase
 			uint32[] aliveIndices = scope uint32[system.MaxParticles];
 			for (uint32 i = 0; i < system.MaxParticles; i++)
 				aliveIndices[i] = 0xFFFFFFFF;
-			Renderer.Device.Queue.WriteBuffer(
+			Renderer.Device.Queue.WriteMappedBuffer(
 				system.AliveList, 0,
 				Span<uint8>((uint8*)&aliveIndices[0], (int)(system.MaxParticles * 4))
 			);

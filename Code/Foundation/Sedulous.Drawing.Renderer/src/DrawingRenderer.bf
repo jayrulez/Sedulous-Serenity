@@ -221,7 +221,7 @@ public class DrawingRenderer : IDisposable
 			RowsPerImage = height
 		};
 		Extent3D writeSize = .(width, height, 1);
-		mDevice.Queue.WriteTexture(gpuTexture, pixelData, &dataLayout, &writeSize);
+		mDevice.Queue.WriteTextureSync(gpuTexture, pixelData, &dataLayout, &writeSize);
 
 		// Create texture view
 		TextureViewDescriptor viewDesc = .() { Format = format };
@@ -365,10 +365,10 @@ public class DrawingRenderer : IDisposable
 			if (mVertices.Count > 0)
 			{
 				let vertexData = Span<uint8>((uint8*)mVertices.Ptr, mVertices.Count * sizeof(DrawingRenderVertex));
-				mDevice.Queue.WriteBuffer(mVertexBuffers[frameIndex], 0, vertexData);
+				mDevice.Queue.WriteMappedBuffer(mVertexBuffers[frameIndex], 0, vertexData);
 
 				let indexData = Span<uint8>((uint8*)mIndices.Ptr, mIndices.Count * sizeof(uint16));
-				mDevice.Queue.WriteBuffer(mIndexBuffers[frameIndex], 0, indexData);
+				mDevice.Queue.WriteMappedBuffer(mIndexBuffers[frameIndex], 0, indexData);
 			}
 
 			// Ensure GPU textures are created and bind groups are ready
@@ -391,7 +391,7 @@ public class DrawingRenderer : IDisposable
 			if (mSpriteInstances.Count > 0 && mInstanceBuffers != null)
 			{
 				let instanceData = Span<uint8>((uint8*)mSpriteInstances.Ptr, mSpriteInstances.Count * sizeof(DrawingSpriteInstance));
-				mDevice.Queue.WriteBuffer(mInstanceBuffers[frameIndex], 0, instanceData);
+				mDevice.Queue.WriteMappedBuffer(mInstanceBuffers[frameIndex], 0, instanceData);
 			}
 
 			// Update instanced bind group
@@ -414,7 +414,7 @@ public class DrawingRenderer : IDisposable
 
 			DrawingUniforms uniforms = .() { Projection = projection };
 			let uniformData = Span<uint8>((uint8*)&uniforms, sizeof(DrawingUniforms));
-			mDevice.Queue.WriteBuffer(mUniformBuffers[frameIndex], 0, uniformData);
+			mDevice.Queue.WriteMappedBuffer(mUniformBuffers[frameIndex], 0, uniformData);
 		}
 	}
 

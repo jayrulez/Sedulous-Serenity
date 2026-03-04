@@ -161,7 +161,7 @@ class NuklearSampleApp : RHISampleApp
 
 		Extent3D writeSize = .(width, height, 1);
 		Span<uint8> data = .((uint8*)imageData, (int)(width * height * 4));
-		Device.Queue.WriteTexture(mFontTexture, data, &dataLayout, &writeSize);
+		Device.Queue.WriteTextureSync(mFontTexture, data, &dataLayout, &writeSize);
 
 		// Create texture view
 		TextureViewDescriptor viewDesc = .();
@@ -513,7 +513,7 @@ class NuklearSampleApp : RHISampleApp
 			Projection = projection
 		};
 		Span<uint8> uniformData = .((uint8*)&uniforms, sizeof(NkUniforms));
-		Device.Queue.WriteBuffer(mUniformBuffer, 0, uniformData);
+		Device.Queue.WriteMappedBuffer(mUniformBuffer, 0, uniformData);
 
 		// Convert Nuklear commands to vertex/index data
 		ConvertDrawCommands();
@@ -546,7 +546,7 @@ class NuklearSampleApp : RHISampleApp
 		{
 			void* vertexData = nk_buffer_memory_const(&mVertexBuffer);
 			Span<uint8> vertSpan = .((uint8*)vertexData, (int)mVertexBuffer.size);
-			Device.Queue.WriteBuffer(mRhiVertexBuffer, 0, vertSpan);
+			Device.Queue.WriteMappedBuffer(mRhiVertexBuffer, 0, vertSpan);
 		}
 
 		// Upload index data to RHI buffer
@@ -554,7 +554,7 @@ class NuklearSampleApp : RHISampleApp
 		{
 			void* indexData = nk_buffer_memory_const(&mIndexBuffer);
 			Span<uint8> idxSpan = .((uint8*)indexData, (int)mIndexBuffer.size);
-			Device.Queue.WriteBuffer(mRhiIndexBuffer, 0, idxSpan);
+			Device.Queue.WriteMappedBuffer(mRhiIndexBuffer, 0, idxSpan);
 		}
 	}
 

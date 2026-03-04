@@ -151,7 +151,7 @@ class MSAASample : RHISampleApp
 		if (Device.CreateBuffer(&vertexDesc) not case .Ok(let vb))
 			return false;
 		mVertexBuffer = vb;
-		Device.Queue.WriteBuffer(mVertexBuffer, 0, .((uint8*)&vertices, (int)vertexDesc.Size));
+		Device.Queue.WriteMappedBuffer(mVertexBuffer, 0, .((uint8*)&vertices, (int)vertexDesc.Size));
 
 		// Uniform buffer
 		BufferDescriptor uniformDesc = .()
@@ -260,7 +260,7 @@ class MSAASample : RHISampleApp
 		if (Device.CreateBuffer(&quadDesc) not case .Ok(let qvb))
 			return false;
 		mQuadVertexBuffer = qvb;
-		Device.Queue.WriteBuffer(mQuadVertexBuffer, 0, .((uint8*)&quadVerts, (int)quadDesc.Size));
+		Device.Queue.WriteMappedBuffer(mQuadVertexBuffer, 0, .((uint8*)&quadVerts, (int)quadDesc.Size));
 
 		// Quad shaders (inline compile)
 		String quadVertSrc = """
@@ -375,7 +375,7 @@ class MSAASample : RHISampleApp
 	{
 		float rotation = TotalTime * 1.0f;
 		Uniforms uniforms = .() { Transform = Matrix.CreateRotationZ(rotation) };
-		Device.Queue.WriteBuffer(mUniformBuffer, 0, .((uint8*)&uniforms, sizeof(Uniforms)));
+		Device.Queue.WriteMappedBuffer(mUniformBuffer, 0, .((uint8*)&uniforms, sizeof(Uniforms)));
 	}
 
 	protected override bool OnRenderFrame(ICommandEncoder encoder, int32 frameIndex)

@@ -94,7 +94,7 @@ class InstancingSample : RHISampleApp
 		mVertexBuffer = vb;
 
 		Span<uint8> vertexData = .((uint8*)&vertices, (int)vertexDesc.Size);
-		Device.Queue.WriteBuffer(mVertexBuffer, 0, vertexData);
+		Device.Queue.WriteMappedBuffer(mVertexBuffer, 0, vertexData);
 
 		// Generate instance data in a grid pattern
 		int index = 0;
@@ -218,7 +218,7 @@ class InstancingSample : RHISampleApp
 
 		// Upload updated instance data
 		Span<uint8> instanceData = .((uint8*)&mInstanceData, sizeof(InstanceData) * INSTANCE_COUNT);
-		Device.Queue.WriteBuffer(mInstanceBuffer, 0, instanceData);
+		Device.Queue.WriteMappedBuffer(mInstanceBuffer, 0, instanceData);
 	}
 
 	protected override void OnRender(IRenderPassEncoder renderPass)

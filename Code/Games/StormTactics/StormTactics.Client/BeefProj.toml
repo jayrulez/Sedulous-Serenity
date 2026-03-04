@@ -4,3 +4,6 @@ Dependencies = {corlib = "*", "StormTactics.Core" = "*", "StormTactics.Battle" =
 [Project]
 Name = "StormTactics.Client"
 StartupObject = "StormTactics.Client.Program"
+
+[Configs.Debug.Win64]
+DebugCommandArguments = "--local"

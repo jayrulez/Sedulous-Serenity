@@ -320,7 +320,7 @@ public class GPUSkinningFeature : RenderFeatureBase
 			BoneCount = proxy.BoneCount,
 			_Padding = default
 		};
-		Renderer.Device.Queue.WriteBuffer(instance.ParamsBuffer, 0,
+		Renderer.Device.Queue.WriteStagedBufferSync(instance.ParamsBuffer, 0,
 			Span<uint8>((uint8*)&skinParams, SkinningParams.Size));
 
 		return instance;

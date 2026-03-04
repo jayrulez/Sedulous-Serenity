@@ -301,7 +301,7 @@ public class MotionVectorFeature : RenderFeatureBase
 					_Padding = default
 				};
 
-				Renderer.Device.Queue.WriteBuffer(mObjectUniformBuffer, 0,
+				Renderer.Device.Queue.WriteMappedBuffer(mObjectUniformBuffer, 0,
 					Span<uint8>((uint8*)&objectUniforms, MotionObjectUniforms.Size));
 
 				// Bind combined bind group (group 0: camera + object)

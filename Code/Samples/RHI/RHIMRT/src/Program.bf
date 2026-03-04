@@ -223,7 +223,7 @@ class MRTSample : RHISampleApp
 		if (Device.CreateBuffer(&vertexDesc) not case .Ok(let vb))
 			return false;
 		mCubeVertexBuffer = vb;
-		Device.Queue.WriteBuffer(mCubeVertexBuffer, 0, .((uint8*)&vertices, (int)vertexDesc.Size));
+		Device.Queue.WriteMappedBuffer(mCubeVertexBuffer, 0, .((uint8*)&vertices, (int)vertexDesc.Size));
 
 		// Create index buffer
 		BufferDescriptor indexDesc = .()
@@ -235,7 +235,7 @@ class MRTSample : RHISampleApp
 		if (Device.CreateBuffer(&indexDesc) not case .Ok(let ib))
 			return false;
 		mCubeIndexBuffer = ib;
-		Device.Queue.WriteBuffer(mCubeIndexBuffer, 0, .((uint8*)&indices, (int)indexDesc.Size));
+		Device.Queue.WriteMappedBuffer(mCubeIndexBuffer, 0, .((uint8*)&indices, (int)indexDesc.Size));
 
 		// Create uniform buffer for G-buffer pass
 		BufferDescriptor uniformDesc = .()
@@ -472,7 +472,7 @@ class MRTSample : RHISampleApp
 			MVP = model * view * projection,
 			Model = model
 		};
-		Device.Queue.WriteBuffer(mGBufferUniformBuffer, 0, .((uint8*)&gbufferUniforms, sizeof(GBufferUniforms)));
+		Device.Queue.WriteMappedBuffer(mGBufferUniformBuffer, 0, .((uint8*)&gbufferUniforms, sizeof(GBufferUniforms)));
 
 		// Update light params
 		LightParams lightParams = .()
@@ -484,7 +484,7 @@ class MRTSample : RHISampleApp
 			AmbientColor = .(0.15f, 0.15f, 0.2f),
 			DisplayMode = (float)mDisplayMode
 		};
-		Device.Queue.WriteBuffer(mLightParamsBuffer, 0, .((uint8*)&lightParams, sizeof(LightParams)));
+		Device.Queue.WriteMappedBuffer(mLightParamsBuffer, 0, .((uint8*)&lightParams, sizeof(LightParams)));
 
 		// Run G-buffer pass before the main render pass
 		RenderGBufferPass();

@@ -342,7 +342,7 @@ public class ShadowAtlas : IDisposable
 		if (mActiveShadowCount > 0)
 		{
 			let uploadSize = mActiveShadowCount * GPUShadowData.Size;
-			mDevice.Queue.WriteBuffer(mShadowDataBuffer, 0, Span<uint8>((uint8*)&mShadowData[0], uploadSize));
+			mDevice.Queue.WriteMappedBuffer(mShadowDataBuffer, 0, Span<uint8>((uint8*)&mShadowData[0], uploadSize));
 		}
 	}
 

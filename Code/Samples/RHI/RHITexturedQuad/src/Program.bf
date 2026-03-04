@@ -92,7 +92,7 @@ class TexturedQuadSample : RHISampleApp
 		mVertexBuffer = vb;
 
 		Span<uint8> vertexData = .((uint8*)&vertices, (int)vertexDesc.Size);
-		Device.Queue.WriteBuffer(mVertexBuffer, 0, vertexData);
+		Device.Queue.WriteMappedBuffer(mVertexBuffer, 0, vertexData);
 
 		// Create index buffer
 		uint16[6] indices = .(
@@ -112,7 +112,7 @@ class TexturedQuadSample : RHISampleApp
 		mIndexBuffer = ib;
 
 		Span<uint8> indexData = .((uint8*)&indices, (int)indexDesc.Size);
-		Device.Queue.WriteBuffer(mIndexBuffer, 0, indexData);
+		Device.Queue.WriteMappedBuffer(mIndexBuffer, 0, indexData);
 
 		// Create uniform buffer
 		BufferDescriptor uniformDesc = .()
@@ -159,7 +159,7 @@ class TexturedQuadSample : RHISampleApp
 		};
 
 		Extent3D writeSize = .(image.Width, image.Height, 1);
-		Device.Queue.WriteTexture(mTexture, image.Data, &dataLayout, &writeSize);
+		Device.Queue.WriteTextureSync(mTexture, image.Data, &dataLayout, &writeSize);
 
 		// Create texture view
 		TextureViewDescriptor viewDesc = .();
@@ -279,7 +279,7 @@ class TexturedQuadSample : RHISampleApp
 		float rotationAngle = totalTime * 0.5f;  // Slower rotation
 		Uniforms uniforms = .() { Transform = Matrix.CreateRotationZ(rotationAngle) };
 		Span<uint8> uniformData = .((uint8*)&uniforms, sizeof(Uniforms));
-		Device.Queue.WriteBuffer(mUniformBuffer, 0, uniformData);
+		Device.Queue.WriteMappedBuffer(mUniformBuffer, 0, uniformData);
 	}
 
 	protected override void OnRender(IRenderPassEncoder renderPass)

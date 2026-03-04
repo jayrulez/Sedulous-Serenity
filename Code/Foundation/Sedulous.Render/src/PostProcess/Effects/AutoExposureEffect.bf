@@ -126,7 +126,7 @@ public class AutoExposureEffect
 
 		// Initialize exposure buffer with 1.0
 		float[2] initExposure = .(1.0f, 1.0f);
-		device.Queue.WriteBuffer(mExposureBuffer, 0, Span<uint8>((uint8*)&initExposure, 8));
+		device.Queue.WriteStagedBufferSync(mExposureBuffer, 0, Span<uint8>((uint8*)&initExposure, 8));
 
 		// Create param buffers
 		BufferDescriptor paramDesc = .();
@@ -259,7 +259,7 @@ public class AutoExposureEffect
 			return;
 
 		// Clear histogram buffer
-		mDevice.Queue.WriteBuffer(mHistogramBuffer, 0, Span<uint8>(&mZeroBuffer, HistogramBufferSize));
+		mDevice.Queue.WriteStagedBufferSync(mHistogramBuffer, 0, Span<uint8>(&mZeroBuffer, HistogramBufferSize));
 
 		// Upload histogram params
 		HistogramParams histParams = .();
@@ -268,7 +268,7 @@ public class AutoExposureEffect
 		histParams.MinLogLuminance = DefaultMinLogLuminance;
 		histParams.LogLuminanceRange = DefaultLogLuminanceRange;
 
-		mDevice.Queue.WriteBuffer(
+		mDevice.Queue.WriteMappedBuffer(
 			mHistogramParamsBuffer, 0,
 			Span<uint8>((uint8*)&histParams, HistogramParams.Size)
 		);
@@ -284,7 +284,7 @@ public class AutoExposureEffect
 		adaptParams.MaxExposure = world.AutoExposureMax;
 		adaptParams.PixelCount = (float)(view.Width * view.Height);
 
-		mDevice.Queue.WriteBuffer(
+		mDevice.Queue.WriteMappedBuffer(
 			mAdaptParamsBuffer, 0,
 			Span<uint8>((uint8*)&adaptParams, AdaptParams.Size)
 		);

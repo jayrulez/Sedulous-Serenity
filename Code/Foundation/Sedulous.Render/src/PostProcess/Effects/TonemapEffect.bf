@@ -200,7 +200,7 @@ public class TonemapEffect : IPostProcessEffect
 		tonemapParams.Exposure = exposure;
 		tonemapParams.Operator = (int32)tonemapOp;
 
-		mDevice.Queue.WriteBuffer(
+		mDevice.Queue.WriteMappedBuffer(
 			mParamsBuffer, 0,
 			Span<uint8>((uint8*)&tonemapParams, TonemapParams.Size)
 		);

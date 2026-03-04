@@ -200,7 +200,7 @@ public class SharpenEffect : IPostProcessEffect
 		sharpenParams.TexelSizeX = 1.0f / (float)view.Width;
 		sharpenParams.TexelSizeY = 1.0f / (float)view.Height;
 
-		mDevice.Queue.WriteBuffer(
+		mDevice.Queue.WriteMappedBuffer(
 			mParamsBuffer, 0,
 			Span<uint8>((uint8*)&sharpenParams, SharpenParams.Size)
 		);

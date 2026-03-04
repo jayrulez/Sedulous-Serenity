@@ -253,7 +253,7 @@ class UISandboxSample : RHISampleApp
 		if (Device.CreateBuffer(&quadDesc) not case .Ok(let qvb))
 			return false;
 		mQuadVertexBuffer = qvb;
-		Device.Queue.WriteBuffer(mQuadVertexBuffer, 0, .((uint8*)&quadVerts, (int)quadDesc.Size));
+		Device.Queue.WriteMappedBuffer(mQuadVertexBuffer, 0, .((uint8*)&quadVerts, (int)quadDesc.Size));
 
 		// Quad shaders
 		String quadVertSrc = """

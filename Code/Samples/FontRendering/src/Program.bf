@@ -178,7 +178,7 @@ class FontRenderingSample : RHISampleApp
 		};
 
 		Extent3D writeSize = .(mFontAtlas.Width, mFontAtlas.Height, 1);
-		Device.Queue.WriteTexture(mFontTexture, mFontAtlas.PixelData, &dataLayout, &writeSize);
+		Device.Queue.WriteTextureSync(mFontTexture, mFontAtlas.PixelData, &dataLayout, &writeSize);
 
 		// Create texture view - must match texture format (R8Unorm)
 		TextureViewDescriptor viewDesc = .()
@@ -417,7 +417,7 @@ class FontRenderingSample : RHISampleApp
 		};
 
 		Span<uint8> uniformData = .((uint8*)&uniforms, sizeof(Uniforms));
-		Device.Queue.WriteBuffer(mUniformBuffer, 0, uniformData);
+		Device.Queue.WriteMappedBuffer(mUniformBuffer, 0, uniformData);
 	}
 
 	private void BuildTextQuads()
@@ -559,10 +559,10 @@ class FontRenderingSample : RHISampleApp
 		if (mVertices.Count > 0)
 		{
 			let vertexData = Span<uint8>((uint8*)mVertices.Ptr, mVertices.Count * sizeof(TextVertex));
-			Device.Queue.WriteBuffer(mVertexBuffer, 0, vertexData);
+			Device.Queue.WriteMappedBuffer(mVertexBuffer, 0, vertexData);
 
 			let indexData = Span<uint8>((uint8*)mIndices.Ptr, mIndices.Count * sizeof(uint16));
-			Device.Queue.WriteBuffer(mIndexBuffer, 0, indexData);
+			Device.Queue.WriteMappedBuffer(mIndexBuffer, 0, indexData);
 		}
 	}
 

@@ -153,7 +153,7 @@ public class HiZOcclusionCuller : IDisposable
 				MipLevel = mip,
 				_Padding = .(0, 0, 0)
 			};
-			mDevice.Queue.WriteBuffer(mBuildParamsBuffer, 0, Span<uint8>((uint8*)&buildParams, sizeof(HiZBuildParams)));
+			mDevice.Queue.WriteMappedBuffer(mBuildParamsBuffer, 0, Span<uint8>((uint8*)&buildParams, sizeof(HiZBuildParams)));
 
 			// Create or update bind group for this mip transition
 			EnsureBuildBindGroup(mip, depthBuffer);
@@ -197,7 +197,7 @@ public class HiZOcclusionCuller : IDisposable
 
 		// Upload bounding boxes to GPU buffer
 		// BoundingBox is 24 bytes (2 Vector3s)
-		mDevice.Queue.WriteBuffer(mBoundsBuffer, 0, Span<uint8>((uint8*)bounds.Ptr, (int)(objectCount * 24)));
+		mDevice.Queue.WriteMappedBuffer(mBoundsBuffer, 0, Span<uint8>((uint8*)bounds.Ptr, (int)(objectCount * 24)));
 
 		// Update cull params
 		HiZCullParams cullParams = .()
@@ -209,7 +209,7 @@ public class HiZOcclusionCuller : IDisposable
 			HiZMipCount = mMipLevels,
 			_Padding = .(0, 0)
 		};
-		mDevice.Queue.WriteBuffer(mCullParamsBuffer, 0, Span<uint8>((uint8*)&cullParams, sizeof(HiZCullParams)));
+		mDevice.Queue.WriteMappedBuffer(mCullParamsBuffer, 0, Span<uint8>((uint8*)&cullParams, sizeof(HiZCullParams)));
 
 		// Create or update bind group
 		EnsureCullBindGroup();

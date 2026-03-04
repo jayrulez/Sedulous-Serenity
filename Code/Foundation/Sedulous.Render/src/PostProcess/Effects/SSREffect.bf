@@ -246,7 +246,7 @@ public class SSREffect : IPostProcessEffect
 		ssrParams.StepSize = 0.1f;
 		ssrParams.Thickness = 0.5f;
 
-		mDevice.Queue.WriteBuffer(
+		mDevice.Queue.WriteMappedBuffer(
 			mParamsBuffer, 0,
 			Span<uint8>((uint8*)&ssrParams, SSRParams.Size)
 		);

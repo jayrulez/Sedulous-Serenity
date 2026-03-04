@@ -33,6 +33,7 @@ public class ForwardTransparentFeature : RenderFeatureBase
 	private IBindGroup[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mSceneBindGroups;
 	private bool[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mSceneBindGroupShadowState; // Track shadow state for runtime toggling
 	private bool[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mSceneBindGroupIBLState;
+	private uint32[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mSceneBindGroupProbeGeneration;
 	private const uint64 ObjectUniformAlignment = 256;
 	private const uint64 AlignedObjectUniformSize = ((ObjectUniforms.Size + ObjectUniformAlignment - 1) / ObjectUniformAlignment) * ObjectUniformAlignment;
 	private static int32 MaxTransparentObjects => RenderConfig.MaxTransparentObjectsPerFrame;
@@ -251,12 +252,18 @@ public class ForwardTransparentFeature : RenderFeatureBase
 		let skyFeature = Renderer.GetFeature<SkyFeature>();
 		let hasRealIBL = skyFeature?.IrradianceMapView != null;
 
+		// Check probe state
+		let probeSystem = opaqueFeature.[Friend]mProbeSystem;
+		let probeGeneration = probeSystem?.Generation ?? 0;
+
 		let bindGroupIndex = GetBindGroupIndex(frameIndex);
 
 		// Check if bind group exists and state hasn't changed
 		if (mSceneBindGroups[bindGroupIndex] != null)
 		{
-			if (mSceneBindGroupShadowState[bindGroupIndex] == shadowsEnabled && mSceneBindGroupIBLState[bindGroupIndex] == hasRealIBL)
+			if (mSceneBindGroupShadowState[bindGroupIndex] == shadowsEnabled &&
+				mSceneBindGroupIBLState[bindGroupIndex] == hasRealIBL &&
+				mSceneBindGroupProbeGeneration[bindGroupIndex] == probeGeneration)
 				return; // State unchanged, keep existing bind group
 
 			// State changed - delete old bind group so we can recreate
@@ -289,7 +296,7 @@ public class ForwardTransparentFeature : RenderFeatureBase
 			return;
 
 		// Build bind group entries (same structure as ForwardOpaqueFeature)
-		BindGroupEntry[13] entries = .();
+		BindGroupEntry[15] entries = .();
 
 		// b0: Camera uniforms
 		entries[0] = BindGroupEntry.Buffer(0, cameraBuffer, 0, SceneUniforms.Size);
@@ -358,6 +365,13 @@ public class ForwardTransparentFeature : RenderFeatureBase
 		entries[11] = BindGroupEntry.Texture(10, brdfLutView);
 		entries[12] = BindGroupEntry.Sampler(2, iblSampler);
 
+		// Probe resources (b6: ProbeUniforms, t11: ProbeCubemaps)
+		if (probeSystem == null || probeSystem.GetProbeUniformBuffer(frameIndex) == null || probeSystem.GetCubemapArrayView() == null)
+			return;
+
+		entries[13] = BindGroupEntry.Buffer(6, probeSystem.GetProbeUniformBuffer(frameIndex), 0, ProbeUniforms.Size);
+		entries[14] = BindGroupEntry.Texture(11, probeSystem.GetCubemapArrayView());
+
 		// Create bind group
 		BindGroupDescriptor bgDesc = .()
 		{
@@ -371,6 +385,7 @@ public class ForwardTransparentFeature : RenderFeatureBase
 			mSceneBindGroups[bindGroupIndex] = bg;
 			mSceneBindGroupShadowState[bindGroupIndex] = shadowsEnabled;
 			mSceneBindGroupIBLState[bindGroupIndex] = hasRealIBL;
+			mSceneBindGroupProbeGeneration[bindGroupIndex] = probeGeneration;
 		}
 	}
 

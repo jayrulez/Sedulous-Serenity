@@ -304,7 +304,7 @@ class ImGuiSampleApp : RHISampleApp
 			};
 			Extent3D writeSize = .(w, h, 1);
 			Span<uint8> data = .((uint8*)pixels, (int)(w * h * 4));
-			Device.Queue.WriteTexture(mFontTexture, data, &dataLayout, &writeSize);
+			Device.Queue.WriteTextureSync(mFontTexture, data, &dataLayout, &writeSize);
 
 			// Create texture view
 			TextureViewDescriptor viewDesc = .();
@@ -372,7 +372,7 @@ class ImGuiSampleApp : RHISampleApp
 					};
 					Extent3D writeSize = .(w, h, 1);
 					Span<uint8> data = .((uint8*)pixels, (int)(w * h * 4));
-					Device.Queue.WriteTexture(mFontTexture, data, &dataLayout, &writeSize);
+					Device.Queue.WriteTextureSync(mFontTexture, data, &dataLayout, &writeSize);
 				}
 			}
 			ImTextureData_SetStatus(tex, .ImTextureStatus_OK);
@@ -554,7 +554,7 @@ class ImGuiSampleApp : RHISampleApp
 
 		ImGuiUniforms uniforms = .() { Projection = projection };
 		Span<uint8> uniformData = .((uint8*)&uniforms, sizeof(ImGuiUniforms));
-		Device.Queue.WriteBuffer(mUniformBuffer, 0, uniformData);
+		Device.Queue.WriteMappedBuffer(mUniformBuffer, 0, uniformData);
 
 		// Upload combined vertex/index data from all draw lists
 		mTotalVtxCount = drawData.TotalVtxCount;
@@ -575,13 +575,13 @@ class ImGuiSampleApp : RHISampleApp
 			if (vtxOffset + (uint64)vtxSize <= MAX_VERTEX_BUFFER)
 			{
 				Span<uint8> vtxSpan = .((uint8*)cmdList.VtxBuffer.Data, vtxSize);
-				Device.Queue.WriteBuffer(mVertexBuffer, vtxOffset, vtxSpan);
+				Device.Queue.WriteMappedBuffer(mVertexBuffer, vtxOffset, vtxSpan);
 			}
 
 			if (idxOffset + (uint64)idxSize <= MAX_INDEX_BUFFER)
 			{
 				Span<uint8> idxSpan = .((uint8*)cmdList.IdxBuffer.Data, idxSize);
-				Device.Queue.WriteBuffer(mIndexBuffer, idxOffset, idxSpan);
+				Device.Queue.WriteMappedBuffer(mIndexBuffer, idxOffset, idxSpan);
 			}
 
 			vtxOffset += (uint64)vtxSize;

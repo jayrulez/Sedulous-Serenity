@@ -93,7 +93,7 @@ class ReadbackSample : RHISampleApp
 		mVertexBuffer = vb;
 
 		Span<uint8> vertexData = .((uint8*)&mOriginalVertices, (int)vertexDesc.Size);
-		Device.Queue.WriteBuffer(mVertexBuffer, 0, vertexData);
+		Device.Queue.WriteMappedBuffer(mVertexBuffer, 0, vertexData);
 
 		Console.WriteLine("Vertex buffer created and initialized");
 		return true;
@@ -171,7 +171,7 @@ class ReadbackSample : RHISampleApp
 		};
 		Extent3D size = .(TEST_TEXTURE_SIZE, TEST_TEXTURE_SIZE, 1);
 		Span<uint8> texData = .(&mOriginalTextureData, mOriginalTextureData.Count);
-		Device.Queue.WriteTexture(mTestTexture, texData, &layout, &size);
+		Device.Queue.WriteTextureSync(mTestTexture, texData, &layout, &size);
 
 		Console.WriteLine("Test texture created ({0}x{0} RGBA)", TEST_TEXTURE_SIZE);
 		return true;
@@ -271,7 +271,7 @@ class ReadbackSample : RHISampleApp
 		Span<uint8> readbackData = .((uint8*)&readbackVertices, (int)bufferSize);
 
 		// Read buffer
-		Device.Queue.ReadBuffer(mVertexBuffer, 0, readbackData);
+		Device.Queue.ReadMappedBuffer(mVertexBuffer, 0, readbackData);
 
 		// Verify data
 		bool allMatch = true;
@@ -322,7 +322,7 @@ class ReadbackSample : RHISampleApp
 		Extent3D size = .(TEST_TEXTURE_SIZE, TEST_TEXTURE_SIZE, 1);
 
 		// Read texture
-		Device.Queue.ReadTexture(mTestTexture, readbackSpan, &layout, &size);
+		Device.Queue.ReadTextureSync(mTestTexture, readbackSpan, &layout, &size);
 
 		// Verify data
 		int mismatches = 0;

@@ -252,7 +252,7 @@ public class ContactShadowEffect : IPostProcessEffect
 		csParams.NearPlane = view.NearPlane;
 		csParams.FarPlane = view.FarPlane;
 
-		mDevice.Queue.WriteBuffer(
+		mDevice.Queue.WriteMappedBuffer(
 			mParamsBuffer, 0,
 			Span<uint8>((uint8*)&csParams, ContactShadowParams.Size)
 		);

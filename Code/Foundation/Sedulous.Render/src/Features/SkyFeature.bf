@@ -442,7 +442,7 @@ public class SkyFeature : RenderFeatureBase
 		{
 		case .Ok(let buf):
 			mFullscreenQuadVB = buf;
-			Renderer.Device.Queue.WriteBuffer(mFullscreenQuadVB, 0, Span<uint8>((uint8*)&vertices[0], sizeof(decltype(vertices))));
+			Renderer.Device.Queue.WriteStagedBufferSync(mFullscreenQuadVB, 0, Span<uint8>((uint8*)&vertices[0], sizeof(decltype(vertices))));
 		case .Err: return .Err;
 		}
 
@@ -504,7 +504,7 @@ public class SkyFeature : RenderFeatureBase
 			RowsPerImage = (uint32)BRDFLutData.Height
 		};
 		var writeSize = Extent3D((uint32)BRDFLutData.Width, (uint32)BRDFLutData.Height, 1);
-		Renderer.Device.Queue.WriteTexture(mBRDFLut, Span<uint8>(&BRDFLutData.Data, BRDFLutData.DataSize), &layout, &writeSize);
+		Renderer.Device.Queue.WriteTextureSync(mBRDFLut, Span<uint8>(&BRDFLutData.Data, BRDFLutData.DataSize), &layout, &writeSize);
 	}
 
 	/// Converts a float to half-precision (IEEE 754 binary16).
@@ -770,7 +770,7 @@ public class SkyFeature : RenderFeatureBase
 		uint32 bytesPerRow = equirectData.BytesPerRow > 0 ? equirectData.BytesPerRow : equirectData.Width * bpp;
 		var equirectLayout = TextureDataLayout() { BytesPerRow = bytesPerRow, RowsPerImage = equirectData.Height };
 		var equirectSize = Extent3D(equirectData.Width, equirectData.Height, 1);
-		device.Queue.WriteTexture(equirectTexture, Span<uint8>(equirectData.Pixels, (int)equirectData.Size), &equirectLayout, &equirectSize);
+		device.Queue.WriteTextureSync(equirectTexture, Span<uint8>(equirectData.Pixels, (int)equirectData.Size), &equirectLayout, &equirectSize);
 
 		TextureViewDescriptor equirectViewDesc = .() { Label = "Equirect View", Dimension = .Texture2D, Format = equirectData.Format };
 		ITextureView equirectView = null;
@@ -904,7 +904,7 @@ public class SkyFeature : RenderFeatureBase
 				delete irrStorageView; delete envStorageView;
 				return .Err;
 			}
-			device.Queue.WriteBuffer(equirectParamsBuf, 0, Span<uint8>((uint8*)&equirectParams, sizeof(EquirectParams)));
+			device.Queue.WriteStagedBufferSync(equirectParamsBuf, 0, Span<uint8>((uint8*)&equirectParams, sizeof(EquirectParams)));
 		}
 
 		// Prefilter params (one per mip)
@@ -926,7 +926,7 @@ public class SkyFeature : RenderFeatureBase
 				delete irrStorageView; delete envStorageView;
 				return .Err;
 			}
-			device.Queue.WriteBuffer(prefParamsBufs[mip], 0, Span<uint8>((uint8*)&prefParams, sizeof(PrefilterParams)));
+			device.Queue.WriteStagedBufferSync(prefParamsBufs[mip], 0, Span<uint8>((uint8*)&prefParams, sizeof(PrefilterParams)));
 		}
 
 		// Irradiance needs a dummy params buffer (bind group layout requires b0)
@@ -944,7 +944,7 @@ public class SkyFeature : RenderFeatureBase
 				delete irrStorageView; delete envStorageView;
 				return .Err;
 			}
-			device.Queue.WriteBuffer(irrParamsBuf, 0, Span<uint8>((uint8*)&irrParams, sizeof(EquirectParams)));
+			device.Queue.WriteStagedBufferSync(irrParamsBuf, 0, Span<uint8>((uint8*)&irrParams, sizeof(EquirectParams)));
 		}
 
 		// --- 5. Create bind groups ---
@@ -1275,7 +1275,7 @@ public class SkyFeature : RenderFeatureBase
 			// Upload face
 			var layout = TextureDataLayout() { BytesPerRow = (uint32)(IrrSize * 8), RowsPerImage = (uint32)IrrSize };
 			var writeSize = Extent3D((uint32)IrrSize, (uint32)IrrSize, 1);
-			Renderer.Device.Queue.WriteTexture(mIrradianceMap, Span<uint8>((uint8*)faceData.Ptr, faceData.Count * 2), &layout, &writeSize, 0, (uint32)face);
+			Renderer.Device.Queue.WriteTextureSync(mIrradianceMap, Span<uint8>((uint8*)faceData.Ptr, faceData.Count * 2), &layout, &writeSize, 0, (uint32)face);
 		}
 
 		// Create cubemap view
@@ -1377,7 +1377,7 @@ public class SkyFeature : RenderFeatureBase
 				// Upload face at this mip level
 				var layout = TextureDataLayout() { BytesPerRow = (uint32)(mipSize * 8), RowsPerImage = (uint32)mipSize };
 				var writeSize = Extent3D((uint32)mipSize, (uint32)mipSize, 1);
-				Renderer.Device.Queue.WriteTexture(mPrefilteredMap, Span<uint8>((uint8*)faceData.Ptr, mipSize * mipSize * 8), &layout, &writeSize, mip, (uint32)face);
+				Renderer.Device.Queue.WriteTextureSync(mPrefilteredMap, Span<uint8>((uint8*)faceData.Ptr, mipSize * mipSize * 8), &layout, &writeSize, mip, (uint32)face);
 			}
 		}
 
@@ -1434,7 +1434,7 @@ public class SkyFeature : RenderFeatureBase
 		Span<uint8> data = .(&blackPixel, 4);
 
 		for (uint32 face = 0; face < 6; face++)
-			Renderer.Device.Queue.WriteTexture(mFallbackCubemap, data, &layout, &size, 0, face);
+			Renderer.Device.Queue.WriteTextureSync(mFallbackCubemap, data, &layout, &size, 0, face);
 
 		// Create cube view
 		TextureViewDescriptor viewDesc = .()
@@ -1554,7 +1554,7 @@ public class SkyFeature : RenderFeatureBase
 
 			// Upload this face
 			Span<uint8> data = .(faceData.Ptr, faceSize);
-			Renderer.Device.Queue.WriteTexture(mEnvironmentMap, data, &layout, &size, 0, (uint32)face);
+			Renderer.Device.Queue.WriteTextureSync(mEnvironmentMap, data, &layout, &size, 0, (uint32)face);
 		}
 
 		// Create cube view

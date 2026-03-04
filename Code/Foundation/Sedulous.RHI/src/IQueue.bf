@@ -19,21 +19,27 @@ interface IQueue
 	/// Submits a single command buffer with swap chain synchronization.
 	void Submit(ICommandBuffer commandBuffer, ISwapChain swapChain);
 
-	/// Writes data to a buffer (convenience method, may be slower than staging).
-	void WriteBuffer(IBuffer buffer, uint64 offset, Span<uint8> data);
+	/// Direct CPU write to a host-visible buffer (Upload/Readback memory).
+	/// Zero GPU synchronization. Asserts if buffer is not mappable.
+	void WriteMappedBuffer(IBuffer buffer, uint64 offset, Span<uint8> data);
 
-	/// Writes data to a texture (convenience method, may be slower than staging).
-	void WriteTexture(ITexture texture, Span<uint8> data, TextureDataLayout* dataLayout, Extent3D* writeSize, uint32 mipLevel = 0, uint32 arrayLayer = 0);
+	/// Staging upload to any buffer. Creates temp staging buffer, GPU copy, vkQueueWaitIdle.
+	/// Use only for initialization or infrequent updates to device-local buffers.
+	void WriteStagedBufferSync(IBuffer buffer, uint64 offset, Span<uint8> data);
 
-	/// Reads data from a buffer back to CPU memory.
-	/// This is a synchronous operation that waits for the GPU to complete.
-	/// For better performance, use a staging buffer with MemoryAccess.Readback and Map/Unmap.
-	void ReadBuffer(IBuffer buffer, uint64 offset, Span<uint8> data);
+	/// Staging upload to a texture. Always synchronous (staging + GPU copy + wait).
+	/// Textures cannot be memory-mapped; this is the only write path.
+	void WriteTextureSync(ITexture texture, Span<uint8> data, TextureDataLayout* dataLayout, Extent3D* writeSize, uint32 mipLevel = 0, uint32 arrayLayer = 0);
 
-	/// Reads data from a texture back to CPU memory.
-	/// This is a synchronous operation that waits for the GPU to complete.
-	/// For better performance, use a staging buffer with MemoryAccess.Readback and Map/Unmap.
-	void ReadTexture(ITexture texture, Span<uint8> data, TextureDataLayout* dataLayout, Extent3D* readSize, uint32 mipLevel = 0, uint32 arrayLayer = 0);
+	/// Direct CPU read from a host-visible buffer (Readback memory).
+	/// Zero GPU synchronization. Asserts if buffer is not mappable.
+	void ReadMappedBuffer(IBuffer buffer, uint64 offset, Span<uint8> data);
+
+	/// Staging read from any buffer. GPU copy to staging + vkQueueWaitIdle.
+	void ReadStagedBufferSync(IBuffer buffer, uint64 offset, Span<uint8> data);
+
+	/// Staging read from a texture. Always synchronous.
+	void ReadTextureSync(ITexture texture, Span<uint8> data, TextureDataLayout* dataLayout, Extent3D* readSize, uint32 mipLevel = 0, uint32 arrayLayer = 0);
 
 	/// Gets the timestamp period in nanoseconds.
 	/// Multiply GPU timestamp values by this to convert to nanoseconds.

@@ -326,7 +326,7 @@ public class CPUParticleEmitter
 		}
 
 		// Upload to GPU
-		mDevice.Queue.WriteBuffer(
+		mDevice.Queue.WriteMappedBuffer(
 			buffer, 0,
 			Span<uint8>((uint8*)&mVertexData[0], mAliveCount * CPUParticleVertex.SizeInBytes)
 		);
@@ -849,7 +849,7 @@ public class CPUParticleEmitter
 
 		if (mTrailVertexCount > 0)
 		{
-			mDevice.Queue.WriteBuffer(
+			mDevice.Queue.WriteMappedBuffer(
 				buffer, 0,
 				Span<uint8>((uint8*)&mTrailVertexData[0], mTrailVertexCount * TrailVertex.SizeInBytes)
 			);

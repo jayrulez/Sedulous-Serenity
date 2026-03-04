@@ -317,7 +317,7 @@ public class BloomEffect : IPostProcessEffect
 			dsParams.TexelSizeY = 1.0f / srcH;
 			dsParams.IsFirstPass = (i == 0) ? 1.0f : 0.0f;
 
-			mDevice.Queue.WriteBuffer(
+			mDevice.Queue.WriteMappedBuffer(
 				mDownsampleParamBuffers[i], 0,
 				Span<uint8>((uint8*)&dsParams, BloomDownsampleParams.Size)
 			);
@@ -426,7 +426,7 @@ public class BloomEffect : IPostProcessEffect
 			usParams.TexelSizeX = bloomTexelW;
 			usParams.TexelSizeY = bloomTexelH;
 
-			mDevice.Queue.WriteBuffer(
+			mDevice.Queue.WriteMappedBuffer(
 				mUpsampleParamBuffers[i], 0,
 				Span<uint8>((uint8*)&usParams, BloomUpsampleParams.Size)
 			);

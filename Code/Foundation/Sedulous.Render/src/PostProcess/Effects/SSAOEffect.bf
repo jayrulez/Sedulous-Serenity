@@ -350,7 +350,7 @@ public class SSAOEffect : IPostProcessEffect
 		ssaoParams.ScreenSizeX = (float)view.Width;
 		ssaoParams.ScreenSizeY = (float)view.Height;
 
-		mDevice.Queue.WriteBuffer(
+		mDevice.Queue.WriteMappedBuffer(
 			mParamsBuffer, 0,
 			Span<uint8>((uint8*)&ssaoParams, SSAOParams.Size)
 		);
@@ -360,7 +360,7 @@ public class SSAOEffect : IPostProcessEffect
 		applyParams.TexelSizeX = 1.0f / (float)view.Width;
 		applyParams.TexelSizeY = 1.0f / (float)view.Height;
 
-		mDevice.Queue.WriteBuffer(
+		mDevice.Queue.WriteMappedBuffer(
 			mApplyParamsBuffer, 0,
 			Span<uint8>((uint8*)&applyParams, SSAOApplyParams.Size)
 		);

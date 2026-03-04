@@ -140,7 +140,7 @@ class ComputeSample : RHISampleApp
 		defer delete staging;
 
 		Span<uint8> particleData = .((uint8*)&particles, (int)particleDesc.Size);
-		Device.Queue.WriteBuffer(staging, 0, particleData);
+		Device.Queue.WriteMappedBuffer(staging, 0, particleData);
 
 		// Copy staging to particle buffer
 		let encoder = Device.CreateCommandEncoder();
@@ -183,7 +183,7 @@ class ComputeSample : RHISampleApp
 		mVertexBuffer = vb;
 
 		Span<uint8> vertexData = .((uint8*)&vertices, (int)vertexDesc.Size);
-		Device.Queue.WriteBuffer(mVertexBuffer, 0, vertexData);
+		Device.Queue.WriteMappedBuffer(mVertexBuffer, 0, vertexData);
 
 		Console.WriteLine("Buffers created");
 		return true;
@@ -352,7 +352,7 @@ class ComputeSample : RHISampleApp
 			Bounds = .(0.95f, 0.95f)
 		};
 		Span<uint8> simData = .((uint8*)&simParams, sizeof(SimParams));
-		Device.Queue.WriteBuffer(mSimParamsBuffer, 0, simData);
+		Device.Queue.WriteMappedBuffer(mSimParamsBuffer, 0, simData);
 
 		// Run compute shader to update particles
 		let encoder = Device.CreateCommandEncoder();

@@ -268,7 +268,7 @@ class RenderDecalsApp : Application
 
 		var layout = TextureDataLayout() { BytesPerRow = Size * 4, RowsPerImage = Size };
 		var writeSize = Extent3D(Size, Size, 1);
-		mDevice.Queue.WriteTexture(mCircleTexture, Span<uint8>(&pixels[0], Bytes), &layout, &writeSize);
+		mDevice.Queue.WriteTextureSync(mCircleTexture, Span<uint8>(&pixels[0], Bytes), &layout, &writeSize);
 
 		TextureViewDescriptor viewDesc = .() { Label = "Circle Decal View", Dimension = .Texture2D };
 		switch (mDevice.CreateTextureView(mCircleTexture, &viewDesc))
@@ -333,7 +333,7 @@ class RenderDecalsApp : Application
 
 		var layout = TextureDataLayout() { BytesPerRow = Size * 4, RowsPerImage = Size };
 		var writeSize = Extent3D(Size, Size, 1);
-		mDevice.Queue.WriteTexture(mCrosshairTexture, Span<uint8>(&pixels[0], Bytes), &layout, &writeSize);
+		mDevice.Queue.WriteTextureSync(mCrosshairTexture, Span<uint8>(&pixels[0], Bytes), &layout, &writeSize);
 
 		TextureViewDescriptor viewDesc = .() { Label = "Crosshair Decal View", Dimension = .Texture2D };
 		switch (mDevice.CreateTextureView(mCrosshairTexture, &viewDesc))
@@ -395,7 +395,7 @@ class RenderDecalsApp : Application
 
 		var layout = TextureDataLayout() { BytesPerRow = Size * 4, RowsPerImage = Size };
 		var writeSize = Extent3D(Size, Size, 1);
-		mDevice.Queue.WriteTexture(mStarTexture, Span<uint8>(&pixels[0], Bytes), &layout, &writeSize);
+		mDevice.Queue.WriteTextureSync(mStarTexture, Span<uint8>(&pixels[0], Bytes), &layout, &writeSize);
 
 		TextureViewDescriptor viewDesc = .() { Label = "Star Decal View", Dimension = .Texture2D };
 		switch (mDevice.CreateTextureView(mStarTexture, &viewDesc))

@@ -113,7 +113,7 @@ class RenderTriangleApp : Application
 		mVertexBuffer = vb;
 
 		Span<uint8> vertexData = .((uint8*)&vertices, (int)vertexDesc.Size);
-		mDevice.Queue.WriteBuffer(mVertexBuffer, 0, vertexData);
+		mDevice.Queue.WriteMappedBuffer(mVertexBuffer, 0, vertexData);
 
 		// Create uniform buffer
 		BufferDescriptor uniformDesc = .()
@@ -284,7 +284,7 @@ class RenderTriangleApp : Application
 		float rotationAngle = mTotalTime * 1.0f;
 		Uniforms uniforms = .() { Transform = Matrix.CreateRotationZ(rotationAngle) };
 		Span<uint8> uniformData = .((uint8*)&uniforms, sizeof(Uniforms));
-		mDevice.Queue.WriteBuffer(mUniformBuffer, 0, uniformData);
+		mDevice.Queue.WriteMappedBuffer(mUniformBuffer, 0, uniformData);
 	}
 
 	protected override bool OnRenderFrame(RenderContext render)

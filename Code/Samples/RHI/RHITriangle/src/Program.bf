@@ -84,7 +84,7 @@ class TriangleSample : RHISampleApp
 		mVertexBuffer = vb;
 
 		Span<uint8> vertexData = .((uint8*)&vertices, (int)vertexDesc.Size);
-		Device.Queue.WriteBuffer(mVertexBuffer, 0, vertexData);
+		Device.Queue.WriteMappedBuffer(mVertexBuffer, 0, vertexData);
 
 		// Create uniform buffer
 		BufferDescriptor uniformDesc = .()
@@ -198,7 +198,7 @@ class TriangleSample : RHISampleApp
 		float rotationAngle = totalTime * 1.0f;  // 1 radian per second
 		Uniforms uniforms = .() { Transform = Matrix.CreateRotationZ(rotationAngle) };
 		Span<uint8> uniformData = .((uint8*)&uniforms, sizeof(Uniforms));
-		Device.Queue.WriteBuffer(mUniformBuffer, 0, uniformData);
+		Device.Queue.WriteMappedBuffer(mUniformBuffer, 0, uniformData);
 	}
 
 	protected override void OnRender(IRenderPassEncoder renderPass)

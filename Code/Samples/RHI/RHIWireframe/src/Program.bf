@@ -112,7 +112,7 @@ class WireframeSample : RHISampleApp
 		mVertexBuffer = vb;
 
 		Span<uint8> vertexData = .((uint8*)&vertices, (int)vertexDesc.Size);
-		Device.Queue.WriteBuffer(mVertexBuffer, 0, vertexData);
+		Device.Queue.WriteMappedBuffer(mVertexBuffer, 0, vertexData);
 
 		// Create index buffer
 		BufferDescriptor indexDesc = .()
@@ -127,7 +127,7 @@ class WireframeSample : RHISampleApp
 		mIndexBuffer = ib;
 
 		Span<uint8> indexData = .((uint8*)&indices, (int)indexDesc.Size);
-		Device.Queue.WriteBuffer(mIndexBuffer, 0, indexData);
+		Device.Queue.WriteMappedBuffer(mIndexBuffer, 0, indexData);
 
 		// Create uniform buffer
 		BufferDescriptor uniformDesc = .()
@@ -261,7 +261,7 @@ class WireframeSample : RHISampleApp
 		// Row-major: MVP = model * view * projection
 		Uniforms uniforms = .() { Transform = model * view * proj };
 		Span<uint8> uniformData = .((uint8*)&uniforms, sizeof(Uniforms));
-		Device.Queue.WriteBuffer(mUniformBuffer, 0, uniformData);
+		Device.Queue.WriteMappedBuffer(mUniformBuffer, 0, uniformData);
 	}
 
 	protected override void OnRender(IRenderPassEncoder renderPass)

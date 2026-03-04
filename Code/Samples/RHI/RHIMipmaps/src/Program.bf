@@ -117,7 +117,7 @@ class MipmapSample : RHISampleApp
 		mVertexBuffer = vb;
 
 		Span<uint8> vertexData = .((uint8*)&vertices, (int)vertexDesc.Size);
-		Device.Queue.WriteBuffer(mVertexBuffer, 0, vertexData);
+		Device.Queue.WriteMappedBuffer(mVertexBuffer, 0, vertexData);
 
 		// Index buffer
 		uint16[6] indices = .(0, 1, 2, 0, 2, 3);
@@ -134,7 +134,7 @@ class MipmapSample : RHISampleApp
 		mIndexBuffer = ib;
 
 		Span<uint8> indexData = .((uint8*)&indices, (int)indexDesc.Size);
-		Device.Queue.WriteBuffer(mIndexBuffer, 0, indexData);
+		Device.Queue.WriteMappedBuffer(mIndexBuffer, 0, indexData);
 
 		// Uniform buffer
 		BufferDescriptor uniformDesc = .()
@@ -196,7 +196,7 @@ class MipmapSample : RHISampleApp
 			};
 
 			Extent3D extent = .(baseSize, baseSize, 1);
-			Device.Queue.WriteTexture(mTexture, image.Data, &dataLayout, &extent, 0, 0);
+			Device.Queue.WriteTextureSync(mTexture, image.Data, &dataLayout, &extent, 0, 0);
 
 			// Generate mipmaps on GPU
 			let encoder = Device.CreateCommandEncoder();
@@ -235,7 +235,7 @@ class MipmapSample : RHISampleApp
 				};
 
 				Extent3D extent = .(mipWidth, mipHeight, 1);
-				Device.Queue.WriteTexture(mTexture, image.Data, &dataLayout, &extent, level, 0);
+				Device.Queue.WriteTextureSync(mTexture, image.Data, &dataLayout, &extent, level, 0);
 
 				mipWidth = Math.Max(mipWidth / 2, 1);
 				mipHeight = Math.Max(mipHeight / 2, 1);
@@ -480,7 +480,7 @@ class MipmapSample : RHISampleApp
 			Padding = default
 		};
 		Span<uint8> uniformData = .((uint8*)&uniforms, sizeof(Uniforms));
-		Device.Queue.WriteBuffer(mUniformBuffer, 0, uniformData);
+		Device.Queue.WriteMappedBuffer(mUniformBuffer, 0, uniformData);
 	}
 
 	protected override void OnRender(IRenderPassEncoder renderPass)

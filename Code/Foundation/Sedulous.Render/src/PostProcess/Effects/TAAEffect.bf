@@ -342,7 +342,7 @@ public class TAAEffect : IPostProcessEffect
 		taaParams.TexelSizeY = 1.0f / (float)view.Height;
 		taaParams.FirstFrame = mFirstFrame ? 1.0f : 0.0f;
 
-		mDevice.Queue.WriteBuffer(
+		mDevice.Queue.WriteMappedBuffer(
 			mParamsBuffer, 0,
 			Span<uint8>((uint8*)&taaParams, TAAParams.Size)
 		);

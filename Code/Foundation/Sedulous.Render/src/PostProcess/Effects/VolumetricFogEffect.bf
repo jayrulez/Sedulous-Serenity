@@ -232,7 +232,7 @@ public class VolumetricFogEffect : IPostProcessEffect
 		fogParams.FroxelDimensionsY = dims.y;
 		fogParams.FroxelDimensionsZ = dims.z;
 
-		mDevice.Queue.WriteBuffer(
+		mDevice.Queue.WriteMappedBuffer(
 			mParamsBuffer, 0,
 			Span<uint8>((uint8*)&fogParams, FogApplyParams.Size)
 		);

@@ -222,7 +222,7 @@ public class TrailEmitter
 
 		if (mVertexCount > 0)
 		{
-			mDevice.Queue.WriteBuffer(
+			mDevice.Queue.WriteMappedBuffer(
 				buffer, 0,
 				Span<uint8>((uint8*)&mVertexData[0], mVertexCount * TrailVertex.SizeInBytes)
 			);

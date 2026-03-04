@@ -169,22 +169,30 @@ class VulkanQueue : IQueue
 		VulkanNative.vkQueueSubmit(mQueue, 1, &submitInfo, vkFence);
 	}
 
-	public void WriteBuffer(IBuffer buffer, uint64 offset, Span<uint8> data)
+	public void WriteMappedBuffer(IBuffer buffer, uint64 offset, Span<uint8> data)
 	{
 		let vkBuffer = buffer as VulkanBuffer;
 		if (vkBuffer == null || !vkBuffer.IsValid || data.Length == 0)
 			return;
 
-		// Try mapping directly (works for host-visible buffers)
 		let ptr = vkBuffer.Map();
 		if (ptr != null)
 		{
 			Internal.MemCpy((uint8*)ptr + offset, data.Ptr, data.Length);
 			vkBuffer.Unmap();
-			return;
 		}
+		else
+		{
+			Runtime.FatalError("WriteMappedBuffer called on non-mappable buffer. Use WriteStagedBufferSync for device-local buffers.");
+		}
+	}
 
-		// For device-local buffers, use staging
+	public void WriteStagedBufferSync(IBuffer buffer, uint64 offset, Span<uint8> data)
+	{
+		let vkBuffer = buffer as VulkanBuffer;
+		if (vkBuffer == null || !vkBuffer.IsValid || data.Length == 0)
+			return;
+
 		BufferDescriptor stagingDesc = .()
 			{
 				Size = (uint64)data.Length,
@@ -244,7 +252,7 @@ class VulkanQueue : IQueue
 		}
 	}
 
-	public void WriteTexture(ITexture texture, Span<uint8> data, TextureDataLayout* dataLayout, Extent3D* writeSize, uint32 mipLevel = 0, uint32 arrayLayer = 0)
+	public void WriteTextureSync(ITexture texture, Span<uint8> data, TextureDataLayout* dataLayout, Extent3D* writeSize, uint32 mipLevel = 0, uint32 arrayLayer = 0)
 	{
 		let vkTexture = texture as VulkanTexture;
 		if (vkTexture == null || data.Length == 0 || dataLayout == null || writeSize == null)
@@ -380,20 +388,29 @@ class VulkanQueue : IQueue
 		return 1.0f; // Default to 1 nanosecond if we can't get it
 	}
 
-	public void ReadBuffer(IBuffer buffer, uint64 offset, Span<uint8> data)
+	public void ReadMappedBuffer(IBuffer buffer, uint64 offset, Span<uint8> data)
 	{
 		let vkBuffer = buffer as VulkanBuffer;
 		if (vkBuffer == null || data.Length == 0)
 			return;
 
-		// Try mapping directly (works for host-visible/readback buffers)
 		let ptr = vkBuffer.Map();
 		if (ptr != null)
 		{
 			Internal.MemCpy(data.Ptr, (uint8*)ptr + offset, data.Length);
 			vkBuffer.Unmap();
-			return;
 		}
+		else
+		{
+			Runtime.FatalError("ReadMappedBuffer called on non-mappable buffer. Use ReadStagedBufferSync for device-local buffers.");
+		}
+	}
+
+	public void ReadStagedBufferSync(IBuffer buffer, uint64 offset, Span<uint8> data)
+	{
+		let vkBuffer = buffer as VulkanBuffer;
+		if (vkBuffer == null || data.Length == 0)
+			return;
 
 		// For device-local buffers, use staging
 		BufferDescriptor stagingDesc = .()
@@ -455,7 +472,7 @@ class VulkanQueue : IQueue
 		}
 	}
 
-	public void ReadTexture(ITexture texture, Span<uint8> data, TextureDataLayout* dataLayout, Extent3D* readSize, uint32 mipLevel = 0, uint32 arrayLayer = 0)
+	public void ReadTextureSync(ITexture texture, Span<uint8> data, TextureDataLayout* dataLayout, Extent3D* readSize, uint32 mipLevel = 0, uint32 arrayLayer = 0)
 	{
 		let vkTexture = texture as VulkanTexture;
 		if (vkTexture == null || data.Length == 0 || dataLayout == null || readSize == null)

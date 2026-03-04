@@ -201,7 +201,7 @@ public class FXAAEffect : IPostProcessEffect
 		fxaaParams.SubpixelQuality = 0.75f;
 		fxaaParams.EdgeThreshold = 0.166f;
 
-		mDevice.Queue.WriteBuffer(
+		mDevice.Queue.WriteMappedBuffer(
 			mParamsBuffer, 0,
 			Span<uint8>((uint8*)&fxaaParams, FXAAParams.Size)
 		);

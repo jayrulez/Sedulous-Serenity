@@ -161,7 +161,7 @@ public class ReflectionProbeSystem
 		var writeSize = Extent3D(1, 1, 1);
 
 		for (uint32 face = 0; face < 6; face++)
-			device.Queue.WriteTexture(mFallbackCubemapArray, Span<uint8>((uint8*)&whitePixel, 8), &layout, &writeSize, 0, face);
+			device.Queue.WriteTextureSync(mFallbackCubemapArray, Span<uint8>((uint8*)&whitePixel, 8), &layout, &writeSize, 0, face);
 
 		var viewDesc = TextureViewDescriptor();
 		viewDesc.Label = "Fallback Probe CubeArray View";
@@ -202,7 +202,7 @@ public class ReflectionProbeSystem
 			var writeSize = Extent3D((uint32)mipSize, (uint32)mipSize, 1);
 
 			for (int32 layer = 0; layer < totalLayers; layer++)
-				device.Queue.WriteTexture(mCubemapArray, Span<uint8>(zeroData.Ptr, dataSize), &layout, &writeSize, mip, (uint32)layer);
+				device.Queue.WriteTextureSync(mCubemapArray, Span<uint8>(zeroData.Ptr, dataSize), &layout, &writeSize, mip, (uint32)layer);
 		}
 	}
 
@@ -298,7 +298,7 @@ public class ReflectionProbeSystem
 				uint32 arrayLayer = (uint32)(layer * 6 + face);
 				var layout = TextureDataLayout() { BytesPerRow = (uint32)(mipSize * 8), RowsPerImage = (uint32)mipSize };
 				var writeSize = Extent3D((uint32)mipSize, (uint32)mipSize, 1);
-				mDevice.Queue.WriteTexture(mCubemapArray, Span<uint8>((uint8*)faceData.Ptr, mipSize * mipSize * 8), &layout, &writeSize, mip, arrayLayer);
+				mDevice.Queue.WriteTextureSync(mCubemapArray, Span<uint8>((uint8*)faceData.Ptr, mipSize * mipSize * 8), &layout, &writeSize, mip, arrayLayer);
 			}
 		}
 

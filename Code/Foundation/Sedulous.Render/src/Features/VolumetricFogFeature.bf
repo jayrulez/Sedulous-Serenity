@@ -387,8 +387,8 @@ public class VolumetricFogFeature : RenderFeatureBase
 		var layout = TextureDataLayout() { BytesPerRow = mFroxelsX * 16, RowsPerImage = mFroxelsY };
 		var writeSize = Extent3D(mFroxelsX, mFroxelsY, mFroxelsZ);
 
-		Renderer.Device.Queue.WriteTexture(mScatteringVolume, Span<uint8>(&zeroData[0], dataSize), &layout, &writeSize);
-		Renderer.Device.Queue.WriteTexture(mIntegratedVolume, Span<uint8>(&zeroData[0], dataSize), &layout, &writeSize);
+		Renderer.Device.Queue.WriteTextureSync(mScatteringVolume, Span<uint8>(&zeroData[0], dataSize), &layout, &writeSize);
+		Renderer.Device.Queue.WriteTextureSync(mIntegratedVolume, Span<uint8>(&zeroData[0], dataSize), &layout, &writeSize);
 
 		return .Ok;
 	}
@@ -429,7 +429,7 @@ public class VolumetricFogFeature : RenderFeatureBase
 
 		var layout = TextureDataLayout() { BytesPerRow = NoiseSize, RowsPerImage = NoiseSize };
 		var writeSize = Extent3D(NoiseSize, NoiseSize, NoiseSize);
-		Renderer.Device.Queue.WriteTexture(mNoiseTexture, Span<uint8>(&noiseData[0], noiseData.Count), &layout, &writeSize);
+		Renderer.Device.Queue.WriteTextureSync(mNoiseTexture, Span<uint8>(&noiseData[0], noiseData.Count), &layout, &writeSize);
 
 		TextureViewDescriptor viewDesc = .()
 		{
@@ -756,7 +756,7 @@ public class VolumetricFogFeature : RenderFeatureBase
 			LightCount = lightCount
 		};
 
-		Renderer.Device.Queue.WriteBuffer(
+		Renderer.Device.Queue.WriteMappedBuffer(
 			mInjectParamsBuffer, 0,
 			Span<uint8>((uint8*)&injectParams, InjectParams.Size)
 		);
@@ -771,7 +771,7 @@ public class VolumetricFogFeature : RenderFeatureBase
 			FroxelBias = .(0, 0)
 		};
 
-		Renderer.Device.Queue.WriteBuffer(
+		Renderer.Device.Queue.WriteMappedBuffer(
 			mInjectFroxelParamsBuffer, 0,
 			Span<uint8>((uint8*)&injectFroxelParams, InjectFroxelParams.Size)
 		);
@@ -786,7 +786,7 @@ public class VolumetricFogFeature : RenderFeatureBase
 			FarPlane = view.FarPlane
 		};
 
-		Renderer.Device.Queue.WriteBuffer(
+		Renderer.Device.Queue.WriteMappedBuffer(
 			mScatterParamsBuffer, 0,
 			Span<uint8>((uint8*)&scatterParams, ScatterParams.Size)
 		);
@@ -805,7 +805,7 @@ public class VolumetricFogFeature : RenderFeatureBase
 			FroxelDimensionsZ = mFroxelsZ
 		};
 
-		Renderer.Device.Queue.WriteBuffer(
+		Renderer.Device.Queue.WriteMappedBuffer(
 			mApplyParamsBuffer, 0,
 			Span<uint8>((uint8*)&applyParams, ApplyParams.Size)
 		);

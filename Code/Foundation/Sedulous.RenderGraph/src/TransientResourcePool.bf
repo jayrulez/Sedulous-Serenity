@@ -197,7 +197,7 @@ public class TransientResourcePool : IDisposable
 		let allocation = AllocateUniform(size);
 		if (allocation.IsValid)
 		{
-			mDevice.Queue.WriteBuffer(allocation.Buffer, allocation.Offset, Span<uint8>((uint8*)data, (int)size));
+			mDevice.Queue.WriteMappedBuffer(allocation.Buffer, allocation.Offset, Span<uint8>((uint8*)data, (int)size));
 		}
 		return allocation;
 	}
@@ -209,7 +209,7 @@ public class TransientResourcePool : IDisposable
 		let allocation = AllocateUniform(size);
 		if (allocation.IsValid)
 		{
-			mDevice.Queue.WriteBuffer(allocation.Buffer, allocation.Offset, Span<uint8>((uint8*)data.Ptr, (int)size));
+			mDevice.Queue.WriteMappedBuffer(allocation.Buffer, allocation.Offset, Span<uint8>((uint8*)data.Ptr, (int)size));
 		}
 		return allocation;
 	}
@@ -221,7 +221,7 @@ public class TransientResourcePool : IDisposable
 		let allocation = AllocateVertex(size);
 		if (allocation.IsValid)
 		{
-			mDevice.Queue.WriteBuffer(allocation.Buffer, allocation.Offset, Span<uint8>((uint8*)vertices.Ptr, (int)size));
+			mDevice.Queue.WriteMappedBuffer(allocation.Buffer, allocation.Offset, Span<uint8>((uint8*)vertices.Ptr, (int)size));
 		}
 		return allocation;
 	}
@@ -233,7 +233,7 @@ public class TransientResourcePool : IDisposable
 		let allocation = AllocateVertex(size, 2);
 		if (allocation.IsValid)
 		{
-			mDevice.Queue.WriteBuffer(allocation.Buffer, allocation.Offset, Span<uint8>((uint8*)indices.Ptr, (int)size));
+			mDevice.Queue.WriteMappedBuffer(allocation.Buffer, allocation.Offset, Span<uint8>((uint8*)indices.Ptr, (int)size));
 		}
 		return allocation;
 	}
@@ -245,7 +245,7 @@ public class TransientResourcePool : IDisposable
 		let allocation = AllocateVertex(size, 4);
 		if (allocation.IsValid)
 		{
-			mDevice.Queue.WriteBuffer(allocation.Buffer, allocation.Offset, Span<uint8>((uint8*)indices.Ptr, (int)size));
+			mDevice.Queue.WriteMappedBuffer(allocation.Buffer, allocation.Offset, Span<uint8>((uint8*)indices.Ptr, (int)size));
 		}
 		return allocation;
 	}

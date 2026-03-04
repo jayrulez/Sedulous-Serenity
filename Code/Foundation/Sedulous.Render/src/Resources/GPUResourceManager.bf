@@ -127,7 +127,7 @@ public class GPUResourceManager : IDisposable
 		if (mDevice.CreateBuffer(&vbDesc) case .Ok(let vb))
 		{
 			gpuMesh.VertexBuffer = vb;
-			mDevice.Queue.WriteBuffer(vb, 0, Span<uint8>(vertices.GetRawData(), (int)vertexDataSize));
+			mDevice.Queue.WriteStagedBufferSync(vb, 0, Span<uint8>(vertices.GetRawData(), (int)vertexDataSize));
 		}
 		else
 		{
@@ -151,7 +151,7 @@ public class GPUResourceManager : IDisposable
 			if (mDevice.CreateBuffer(&ibDesc) case .Ok(let ib))
 			{
 				gpuMesh.IndexBuffer = ib;
-				mDevice.Queue.WriteBuffer(ib, 0, Span<uint8>(indices.GetRawData(), (int)indexDataSize));
+				mDevice.Queue.WriteStagedBufferSync(ib, 0, Span<uint8>(indices.GetRawData(), (int)indexDataSize));
 			}
 			else
 			{
@@ -286,7 +286,7 @@ public class GPUResourceManager : IDisposable
 		if (mDevice.CreateBuffer(&vbDesc) case .Ok(let vb))
 		{
 			gpuMesh.VertexBuffer = vb;
-			mDevice.Queue.WriteBuffer(vb, 0, Span<uint8>(mesh.GetVertexData(), (int)vertexDataSize));
+			mDevice.Queue.WriteStagedBufferSync(vb, 0, Span<uint8>(mesh.GetVertexData(), (int)vertexDataSize));
 		}
 		else
 		{
@@ -310,7 +310,7 @@ public class GPUResourceManager : IDisposable
 			if (mDevice.CreateBuffer(&ibDesc) case .Ok(let ib))
 			{
 				gpuMesh.IndexBuffer = ib;
-				mDevice.Queue.WriteBuffer(ib, 0, Span<uint8>(mesh.GetIndexData(), (int)indexDataSize));
+				mDevice.Queue.WriteStagedBufferSync(ib, 0, Span<uint8>(mesh.GetIndexData(), (int)indexDataSize));
 			}
 			else
 			{
@@ -446,11 +446,11 @@ public class GPUResourceManager : IDisposable
 			let matrixSize = (uint64)(sizeof(Matrix) * actualBoneCount);
 
 			// Upload current frame matrices
-			mDevice.Queue.WriteBuffer(buffer.Buffer, 0, Span<uint8>((uint8*)currentBones, (int)matrixSize));
+			mDevice.Queue.WriteMappedBuffer(buffer.Buffer, 0, Span<uint8>((uint8*)currentBones, (int)matrixSize));
 
 			// Upload previous frame matrices (offset by buffer's bone count, not MaxBones)
 			let prevOffset = (uint64)(sizeof(Matrix) * buffer.BoneCount);
-			mDevice.Queue.WriteBuffer(buffer.Buffer, prevOffset, Span<uint8>((uint8*)prevBones, (int)matrixSize));
+			mDevice.Queue.WriteMappedBuffer(buffer.Buffer, prevOffset, Span<uint8>((uint8*)prevBones, (int)matrixSize));
 		}
 	}
 
@@ -545,7 +545,7 @@ public class GPUResourceManager : IDisposable
 
 			var writeSize = Extent3D(data.Width, data.Height, data.DepthOrArrayLayers);
 
-			mDevice.Queue.WriteTexture(tex, Span<uint8>(data.Pixels, (int)data.Size), &dataLayout, &writeSize, 0, 0);
+			mDevice.Queue.WriteTextureSync(tex, Span<uint8>(data.Pixels, (int)data.Size), &dataLayout, &writeSize, 0, 0);
 
 			// Create default view
 			var viewDesc = TextureViewDescriptor()
