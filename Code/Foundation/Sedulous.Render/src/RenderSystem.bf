@@ -326,6 +326,11 @@ public class RenderSystem : IDisposable
 			if (!mInitialized || mActiveWorld == null)
 				return .Err;
 
+			// Save unjittered VP for next frame's motion vectors BEFORE applying TAA jitter.
+			// PrevViewProjectionMatrix must be unjittered so motion vectors correctly capture
+			// the jitter offset, enabling TAA to converge at pixel centers.
+			mRenderFrameContext.SaveViewProjection();
+
 			// Advance TAA jitter and override VP in scene uniforms.
 			// SetCamera() builds VP from raw params without jitter.
 			// We override VP here with the jittered VP from RenderView.
@@ -416,11 +421,10 @@ public class RenderSystem : IDisposable
 			if (!mInitialized)
 				return .Err;
 
-			// Upload scene uniforms
+			// Upload scene uniforms (VP is already jittered if TAA is active)
 			using (SProfiler.Begin("UploadUniforms"))
 			{
 				mRenderFrameContext.UploadSceneUniforms();
-				mRenderFrameContext.SaveViewProjection();
 			}
 
 			// Execute the render graph
@@ -473,6 +477,9 @@ public class RenderSystem : IDisposable
 						view.FieldOfView, view.AspectRatio, view.NearPlane, view.FarPlane,
 						view.Width, view.Height);
 
+					// Save unjittered VP before applying TAA jitter (same fix as single-view path)
+					mRenderFrameContext.SaveViewProjection();
+
 					// TAA jitter override (same as in BuildRenderGraph single-view path)
 					if (mActiveWorld.AAMode == .TAA)
 					{
@@ -497,7 +504,6 @@ public class RenderSystem : IDisposable
 				using (SProfiler.Begin("View.Execute"))
 				{
 					mRenderFrameContext.UploadSceneUniforms();
-					mRenderFrameContext.SaveViewProjection();
 					mRenderGraph.Execute(encoder);
 				}
 

@@ -49,6 +49,12 @@ class RenderScreenEffectsApp : Application
 	private Model mSponzaModel ~ delete _;
 	private ModelImportResult mImportResult ~ delete _;
 
+	// Extra models (DamagedHelmet, MetalRoughSpheres)
+	private Model mHelmetModel ~ delete _;
+	private ModelImportResult mHelmetImport ~ delete _;
+	private Model mSpheresModel ~ delete _;
+	private ModelImportResult mSpheresImport ~ delete _;
+
 	// GPU resources
 	private List<GPUMeshHandle> mMeshHandles = new .() ~ delete _;
 	private List<GPUTextureHandle> mTextureHandles = new .() ~ delete _;
@@ -145,6 +151,7 @@ class RenderScreenEffectsApp : Application
 		RegisterFeatures();
 		RegisterPostProcessEffects();
 		LoadSponza();
+		LoadExtraModels();
 		CreateLights();
 
 		// Environment settings
@@ -738,6 +745,188 @@ class RenderScreenEffectsApp : Application
 		}
 
 		Console.WriteLine("  Created {} mesh proxies", mMeshProxies.Count);
+	}
+
+	/// Loads extra GLB models (DamagedHelmet, MetalRoughSpheres) to showcase screen-space effects.
+	private void LoadExtraModels()
+	{
+		// DamagedHelmet — metallic surfaces for SSR, crevices for SSAO
+		let helmetPath = @"D:\Dev\Beef\Sedulous-Serenity\support\glTF-Sample-Assets-main\Models\DamagedHelmet\glTF\DamagedHelmet.gltf";
+		let helmetBase = @"D:\Dev\Beef\Sedulous-Serenity\support\glTF-Sample-Assets-main\Models\DamagedHelmet\glTF";
+		mHelmetModel = new Model();
+		mHelmetImport = LoadAndUploadGLTFModel(helmetPath, helmetBase, mHelmetModel, .(0, 3.0f, 0), 1.0f);
+
+		// MetalRoughSpheres — full roughness/metallic gradient grid for SSR validation
+		let spheresPath = @"D:\Dev\Beef\Sedulous-Serenity\support\glTF-Sample-Assets-main\Models\MetalRoughSpheres\glTF\MetalRoughSpheres.gltf";
+		let spheresBase = @"D:\Dev\Beef\Sedulous-Serenity\support\glTF-Sample-Assets-main\Models\MetalRoughSpheres\glTF";
+		mSpheresModel = new Model();
+		mSpheresImport = LoadAndUploadGLTFModel(spheresPath, spheresBase, mSpheresModel, .(5.0f, 1.5f, 0), 0.5f);
+	}
+
+	/// Generic helper to load a glTF model, import, upload, and create proxies with a transform.
+	private ModelImportResult LoadAndUploadGLTFModel(StringView modelPath, StringView basePath, Model model, Vector3 position, float scale)
+	{
+		GltfModels.Initialize(); // Ensure initialized (safe to call multiple times)
+
+		Console.WriteLine("Loading glTF: {}", modelPath);
+		if (ModelLoaderFactory.LoadModel(modelPath, model) != .Ok)
+		{
+			Console.WriteLine("  ERROR: Failed to load model");
+			return null;
+		}
+
+		let importOptions = new ModelImportOptions();
+		importOptions.Flags = .Meshes | .Textures | .Materials;
+		importOptions.BasePath.Set(basePath);
+
+		let importer = scope ModelImporter(importOptions);
+		let importResult = importer.Import(model);
+
+		if (!importResult.Success)
+		{
+			for (let err in importResult.Errors)
+				Console.WriteLine("  Import error: {}", err);
+			return importResult;
+		}
+
+		Console.WriteLine("  Imported: {} meshes, {} textures, {} materials",
+			importResult.StaticMeshes.Count, importResult.Textures.Count,
+			importResult.Materials.Count);
+
+		// Upload textures
+		int texStartIdx = mTextureHandles.Count;
+		for (let texResource in importResult.Textures)
+		{
+			let image = texResource.Image;
+			if (image == null || image.Width == 0 || image.Height == 0)
+			{
+				mTextureHandles.Add(.Invalid);
+				continue;
+			}
+
+			let texData = TextureData.FromImage(image);
+			if (mRenderSystem.ResourceManager.UploadTexture(texData) case .Ok(let texHandle))
+				mTextureHandles.Add(texHandle);
+			else
+				mTextureHandles.Add(.Invalid);
+		}
+
+		// Create materials
+		let fallbackMaterial = mRenderSystem.MaterialSystem?.DefaultMaterial;
+		let materialSystem = mRenderSystem.MaterialSystem;
+		int matStartIdx = mMaterialInstances.Count;
+
+		for (let matResource in importResult.Materials)
+		{
+			let baseMat = (matResource.Material != null && matResource.Material.IsValid)
+				? matResource.Material : fallbackMaterial;
+
+			if (baseMat == null)
+			{
+				mMaterialInstances.Add(null);
+				continue;
+			}
+
+			let matInstance = new MaterialInstance(baseMat);
+
+			// Resolve texture references
+			for (var kv in matResource.TextureRefs)
+			{
+				let slotName = kv.key;
+				let texRef = kv.value;
+
+				if (texRef.Path == null)
+					continue;
+
+				for (int32 texIdx = 0; texIdx < (int32)importResult.Textures.Count; texIdx++)
+				{
+					let texRes = importResult.Textures[texIdx];
+					bool matches = (texRes.Name == texRef.Path) ||
+						(texRes.Name.Length > 0 && texRef.Path.Contains(texRes.Name));
+					if (matches)
+					{
+						let globalIdx = texStartIdx + texIdx;
+						if (globalIdx < mTextureHandles.Count && mTextureHandles[globalIdx].IsValid)
+						{
+							if (let texView = mRenderSystem.ResourceManager.GetTextureView(mTextureHandles[globalIdx]))
+								matInstance.SetTexture(slotName, texView);
+						}
+						break;
+					}
+				}
+			}
+
+			// Apply sampler
+			if (materialSystem != null)
+			{
+				let addressU = SamplerAddressModeToRHI(matResource.WrapU);
+				let addressV = SamplerAddressModeToRHI(matResource.WrapV);
+				let (minFilter, mipmapFilter) = MinFilterToRHI(matResource.MinFilter);
+				let magFilter = MagFilterToRHI(matResource.MagFilter);
+				let sampler = materialSystem.GetOrCreateSampler(addressU, addressV, minFilter, magFilter, mipmapFilter);
+				matInstance.SetSampler("MainSampler", sampler);
+			}
+
+			mMaterialInstances.Add(matInstance);
+		}
+
+		// Create mesh proxies with transform
+		let defaultMaterial = mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
+		var transform = Matrix.CreateScale(scale) * Matrix.CreateTranslation(position);
+
+		for (let meshResource in importResult.StaticMeshes)
+		{
+			let staticMesh = meshResource.Mesh;
+			if (staticMesh == null) continue;
+
+			if (mRenderSystem.ResourceManager.UploadMesh(staticMesh) case .Ok(let meshHandle))
+			{
+				mMeshHandles.Add(meshHandle);
+
+				let proxyHandle = mWorld.CreateMesh();
+				if (let proxy = mWorld.GetMesh(proxyHandle))
+				{
+					proxy.MeshHandle = meshHandle;
+					proxy.SetLocalBounds(staticMesh.GetBounds());
+					proxy.SetTransformImmediate(transform);
+					proxy.Flags = .DefaultOpaque;
+
+					int32 maxMatIdx = 0;
+					for (let submesh in staticMesh.SubMeshes)
+					{
+						let matIdx = submesh.materialIndex;
+						let globalMatIdx = matStartIdx + matIdx;
+						if (matIdx >= 0 && globalMatIdx < (int32)mMaterialInstances.Count)
+						{
+							let matInst = mMaterialInstances[globalMatIdx];
+							if (matInst != null)
+								proxy.Materials[matIdx] = matInst;
+							else
+								proxy.Materials[matIdx] = defaultMaterial;
+						}
+						else
+						{
+							proxy.Materials[matIdx] = defaultMaterial;
+						}
+
+						if (matIdx + 1 > maxMatIdx)
+							maxMatIdx = matIdx + 1;
+					}
+					proxy.MaterialCount = maxMatIdx;
+
+					if (proxy.MaterialCount == 0)
+					{
+						proxy.Materials[0] = defaultMaterial;
+						proxy.MaterialCount = 1;
+					}
+				}
+
+				mMeshProxies.Add(proxyHandle);
+			}
+		}
+
+		Console.WriteLine("  Placed at ({}, {}, {}) scale={}", position.X, position.Y, position.Z, scale);
+		return importResult;
 	}
 
 	private void CreateLights()

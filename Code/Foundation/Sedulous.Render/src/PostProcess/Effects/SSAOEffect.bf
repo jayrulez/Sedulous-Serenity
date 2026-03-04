@@ -136,10 +136,11 @@ public class SSAOEffect : IPostProcessEffect
 		case .Err: return .Err;
 		}
 
-		// Create generate bind group layout: b0=params, t0=depth, s0=point sampler
-		BindGroupLayoutEntry[3] genLayoutEntries = .(
+		// Create generate bind group layout: b0=params, t0=depth, t1=gbuffer, s0=point sampler
+		BindGroupLayoutEntry[4] genLayoutEntries = .(
 			.() { Binding = 0, Visibility = .Fragment, Type = .UniformBuffer },
 			.() { Binding = 0, Visibility = .Fragment, Type = .SampledTexture },
+			.() { Binding = 1, Visibility = .Fragment, Type = .SampledTexture },
 			.() { Binding = 0, Visibility = .Fragment, Type = .Sampler }
 		);
 
@@ -320,6 +321,11 @@ public class SSAOEffect : IPostProcessEffect
 		if (world == null || !world.SSAOEnabled)
 			return;
 
+		// Look up GBuffer for normals (required)
+		let gbufferHandle = graph.GetResource("SceneNormalRoughness");
+		if (!gbufferHandle.IsValid)
+			return;
+
 		// Ensure AO texture exists
 		EnsureAOTexture(view.Width, view.Height);
 		if (mAOTexture == null)
@@ -367,15 +373,18 @@ public class SSAOEffect : IPostProcessEffect
 		RGResourceHandle depthCopy = depthHandle;
 		RGResourceHandle inputCopy = inputHandle;
 		RGResourceHandle aoCopy = aoHandle;
+		RGResourceHandle gbufferCopy = gbufferHandle;
 
-		// Pass 1: SSAO Generation — depth → AO texture
+		// Pass 1: SSAO Generation — depth + GBuffer normals → AO texture
 		graph.AddGraphicsPass("SSAO_Generate")
 			.ReadTexture(depthHandle)
+			.ReadTexture(gbufferHandle)
 			.WriteColor(aoHandle, .DontCare, .Store)
 			.NeverCull()
 			.SetExecuteCallback(new [=] (encoder) => {
 				let depthView = graphRef.GetDepthOnlyTextureView(depthCopy);
-				ExecuteGeneratePass(encoder, view, depthView);
+				let gbufferView = graphRef.GetTextureView(gbufferCopy);
+				ExecuteGeneratePass(encoder, view, depthView, gbufferView);
 			});
 
 		// Pass 2: SSAO Apply — input + AO + depth → output
@@ -393,9 +402,9 @@ public class SSAOEffect : IPostProcessEffect
 			});
 	}
 
-	private void ExecuteGeneratePass(IRenderPassEncoder encoder, RenderView view, ITextureView depthView)
+	private void ExecuteGeneratePass(IRenderPassEncoder encoder, RenderView view, ITextureView depthView, ITextureView gbufferView)
 	{
-		if (depthView == null)
+		if (depthView == null || gbufferView == null)
 			return;
 
 		let frameIndex = FrameIndex;
@@ -407,9 +416,10 @@ public class SSAOEffect : IPostProcessEffect
 			mGenerateBindGroups[frameIndex] = null;
 		}
 
-		BindGroupEntry[3] entries = .(
+		BindGroupEntry[4] entries = .(
 			BindGroupEntry.Buffer(0, mParamsBuffer, 0, (uint64)SSAOParams.Size),
 			BindGroupEntry.Texture(0, depthView),
+			BindGroupEntry.Texture(1, gbufferView),
 			BindGroupEntry.Sampler(0, mPointSampler)
 		);
 

@@ -1,6 +1,9 @@
 // Contact Shadows Fragment Shader
 // Short-range screen-space ray march toward the main directional light.
 // Adds fine shadow detail in crevices and contact points that CSM can't resolve.
+#pragma pack_matrix(row_major)
+
+#include "gbuffer_utils.hlsli"
 
 cbuffer ContactShadowParams : register(b0)
 {
@@ -15,6 +18,7 @@ cbuffer ContactShadowParams : register(b0)
 
 Texture2D SceneColor : register(t0);
 Texture2D DepthTexture : register(t1);
+Texture2D GBufferTexture : register(t2);
 SamplerState PointSampler : register(s0);
 
 struct FragmentInput
@@ -27,39 +31,25 @@ struct FragmentInput
 float3 ReconstructViewPos(float2 uv, float depth)
 {
     float4 ndc = float4(uv * 2.0 - 1.0, depth, 1.0);
-    ndc.y = -ndc.y; // Vulkan Y-flip
-    float4 viewPos = mul(InvProjectionMatrix, ndc);
+    // No Y-flip needed: ProjectionMatrix already has M22 negated on CPU
+    float4 viewPos = mul(ndc, InvProjectionMatrix);
     return viewPos.xyz / viewPos.w;
 }
 
 // Project view-space position to screen UV
 float2 ProjectToUV(float3 viewPos)
 {
-    float4 projected = mul(ProjectionMatrix, float4(viewPos, 1.0));
+    float4 projected = mul(float4(viewPos, 1.0), ProjectionMatrix);
     projected.xy /= projected.w;
-    projected.y = -projected.y; // Vulkan Y-flip
+    // No Y-flip needed: ProjectionMatrix already has M22 negated on CPU
     return projected.xy * 0.5 + 0.5;
 }
 
-// Reconstruct view-space normal from depth derivatives
-float3 ReconstructNormal(float2 uv, float3 viewPos)
+// Read view-space normal from GBuffer (octahedral encoded in RG channels)
+float3 ReadNormalFromGBuffer(float2 uv)
 {
-    float depthL = DepthTexture.Sample(PointSampler, uv + float2(-TexelSize.x, 0)).r;
-    float depthR = DepthTexture.Sample(PointSampler, uv + float2( TexelSize.x, 0)).r;
-    float depthU = DepthTexture.Sample(PointSampler, uv + float2(0, -TexelSize.y)).r;
-    float depthD = DepthTexture.Sample(PointSampler, uv + float2(0,  TexelSize.y)).r;
-
-    float3 posL = ReconstructViewPos(uv + float2(-TexelSize.x, 0), depthL);
-    float3 posR = ReconstructViewPos(uv + float2( TexelSize.x, 0), depthR);
-    float3 posU = ReconstructViewPos(uv + float2(0, -TexelSize.y), depthU);
-    float3 posD = ReconstructViewPos(uv + float2(0,  TexelSize.y), depthD);
-
-    float3 ddx = (abs(posL.z - viewPos.z) < abs(posR.z - viewPos.z))
-        ? (viewPos - posL) : (posR - viewPos);
-    float3 ddy = (abs(posU.z - viewPos.z) < abs(posD.z - viewPos.z))
-        ? (viewPos - posU) : (posD - viewPos);
-
-    return normalize(cross(ddy, ddx));
+    float4 gbuffer = GBufferTexture.Sample(PointSampler, uv);
+    return OctahedralDecode(gbuffer.rg);
 }
 
 static const int NUM_STEPS = 16;
@@ -77,9 +67,9 @@ float4 main(FragmentInput input) : SV_Target
     if (depth >= 1.0)
         return float4(sceneColor, 1.0);
 
-    // Reconstruct view-space position and normal
+    // Reconstruct view-space position, read normal from GBuffer
     float3 viewPos = ReconstructViewPos(uv, depth);
-    float3 normal = ReconstructNormal(uv, viewPos);
+    float3 normal = ReadNormalFromGBuffer(uv);
 
     // Check if surface faces the light — backlit surfaces don't need contact shadows
     float NdotL = dot(normal, normalize(-LightDirViewSpace));
@@ -112,8 +102,8 @@ float4 main(FragmentInput input) : SV_Target
         float3 depthViewPos = ReconstructViewPos(sampleUV, sampleDepth);
 
         // Check if ray is behind the depth buffer (occluded)
-        // Use a tight thickness threshold to avoid false positives
-        float depthDiff = samplePos.z - depthViewPos.z;
+        // Right-handed view space: ray behind surface when ray Z is more negative
+        float depthDiff = depthViewPos.z - samplePos.z;
         float thickness = stepLength * 3.0; // Only detect nearby surfaces
         if (depthDiff > stepLength * 0.5 && depthDiff < thickness)
         {

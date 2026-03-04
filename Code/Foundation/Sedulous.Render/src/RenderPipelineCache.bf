@@ -22,6 +22,9 @@ struct RenderPipelineKey : IHashable, IEquatable<RenderPipelineKey>
 	/// Color target format.
 	public TextureFormat ColorFormat;
 
+	/// Second color target format (Undefined = no second target, for MRT).
+	public TextureFormat ColorFormat2;
+
 	/// Depth buffer format.
 	public TextureFormat DepthFormat;
 
@@ -43,6 +46,7 @@ struct RenderPipelineKey : IHashable, IEquatable<RenderPipelineKey>
 		hash = hash * 31 + RenderStateHash;
 		hash = hash * 31 + VertexLayoutHash;
 		hash = hash * 31 + (int)ColorFormat;
+		hash = hash * 31 + (int)ColorFormat2;
 		hash = hash * 31 + (int)DepthFormat;
 		hash = hash * 31 + (int)SampleCount;
 		hash = hash * 31 + SceneLayoutHash;
@@ -57,6 +61,7 @@ struct RenderPipelineKey : IHashable, IEquatable<RenderPipelineKey>
 			RenderStateHash == other.RenderStateHash &&
 			VertexLayoutHash == other.VertexLayoutHash &&
 			ColorFormat == other.ColorFormat &&
+			ColorFormat2 == other.ColorFormat2 &&
 			DepthFormat == other.DepthFormat &&
 			SampleCount == other.SampleCount &&
 			SceneLayoutHash == other.SceneLayoutHash &&
@@ -125,7 +130,8 @@ class RenderPipelineCache
 		DepthMode? depthModeOverride = null,
 		CompareFunction? depthCompareOverride = null,
 		int16? depthBiasOverride = null,
-		float? depthBiasSlopeScaleOverride = null)
+		float? depthBiasSlopeScaleOverride = null,
+		TextureFormat colorFormat2 = .Undefined)
 	{
 		if (material == null || sceneLayout == null || materialLayout == null)
 			return .Err;
@@ -152,7 +158,7 @@ class RenderPipelineCache
 			config.DepthBiasSlopeScale = depthBiasSlopeScaleOverride.Value;
 
 		// Build cache key
-		let key = BuildKey(config, vertexBuffers, sceneLayout, materialLayout, colorFormat, depthFormat, sampleCount, variantFlags);
+		let key = BuildKey(config, vertexBuffers, sceneLayout, materialLayout, colorFormat, depthFormat, sampleCount, variantFlags, colorFormat2);
 		let hash = key.GetHashCode();
 
 		// Check cache
@@ -165,7 +171,7 @@ class RenderPipelineCache
 			return .Err;
 
 		// Create new pipeline
-		if (CreatePipeline(config, vertexBuffers, pipelineLayout, colorFormat, depthFormat, sampleCount, variantFlags) case .Ok(let pipeline))
+		if (CreatePipeline(config, vertexBuffers, pipelineLayout, colorFormat, depthFormat, sampleCount, variantFlags, colorFormat2) case .Ok(let pipeline))
 		{
 			mPipelineCache[hash] = pipeline;
 			return .Ok(pipeline);
@@ -227,7 +233,8 @@ class RenderPipelineCache
 		TextureFormat colorFormat,
 		TextureFormat depthFormat,
 		uint8 sampleCount,
-		PipelineVariantFlags variantFlags)
+		PipelineVariantFlags variantFlags,
+		TextureFormat colorFormat2 = .Undefined)
 	{
 		RenderPipelineKey key = .();
 
@@ -251,6 +258,7 @@ class RenderPipelineCache
 
 		// Render target context
 		key.ColorFormat = colorFormat;
+		key.ColorFormat2 = colorFormat2;
 		key.DepthFormat = depthFormat;
 		key.SampleCount = sampleCount;
 		key.SceneLayoutHash = (int)(void*)Internal.UnsafeCastToPtr(sceneLayout);
@@ -287,7 +295,8 @@ class RenderPipelineCache
 		TextureFormat colorFormat,
 		TextureFormat depthFormat,
 		uint8 sampleCount,
-		PipelineVariantFlags variantFlags)
+		PipelineVariantFlags variantFlags,
+		TextureFormat colorFormat2 = .Undefined)
 	{
 		// Build shader flags from config and variant
 		var shaderFlags = config.ShaderFlags;
@@ -313,8 +322,9 @@ class RenderPipelineCache
 		let vertShader = shaderPair.vert;
 		let fragShader = shaderPair.frag;
 
-		// Build color target state
-		ColorTargetState[1] colorTargets = default;
+		// Build color target state (supports up to 2 MRT targets)
+		ColorTargetState[2] colorTargets = default;
+		int colorTargetCount = 0;
 		bool hasColorTarget = !config.DepthOnly && config.ColorTargetCount > 0;
 
 		if (hasColorTarget)
@@ -324,6 +334,13 @@ class RenderPipelineCache
 				colorTargets[0] = .(colorFormat, blendState.Value);
 			else
 				colorTargets[0] = .(colorFormat);
+			colorTargetCount = 1;
+
+			if (colorFormat2 != .Undefined)
+			{
+				colorTargets[1] = .(colorFormat2); // GBuffer: no blending
+				colorTargetCount = 2;
+			}
 		}
 
 		// Build depth stencil state
@@ -365,7 +382,7 @@ class RenderPipelineCache
 			Fragment = hasColorTarget ? .()
 			{
 				Shader = .(fragShader.Module, "main"),
-				Targets = colorTargets
+				Targets = Span<ColorTargetState>(&colorTargets[0], colorTargetCount)
 			} : null,
 			Primitive = .()
 			{

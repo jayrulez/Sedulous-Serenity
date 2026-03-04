@@ -223,7 +223,9 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				1,
 				variantFlags,
 				.ReadOnly,
-				.LessEqual) case .Ok(let pipeline))  // LessEqual for forward pass after depth prepass
+				.LessEqual,
+				null, null,
+				.RGBA8Unorm) case .Ok(let pipeline))  // LessEqual for forward pass after depth prepass; RGBA8Unorm GBuffer
 			{
 				return pipeline;
 			}
@@ -247,7 +249,9 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				1,
 				variantFlags,
 				.ReadOnly,
-				.LessEqual) case .Ok(let pipeline))  // LessEqual for forward pass after depth prepass
+				.LessEqual,
+				null, null,
+				.RGBA8Unorm) case .Ok(let pipeline))  // LessEqual for forward pass after depth prepass; RGBA8Unorm GBuffer
 			{
 				return pipeline;
 			}
@@ -740,6 +744,10 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			let colorDesc = TextureResourceDesc(view.Width, view.Height, .RGBA16Float, .RenderTarget | .Sampled);
 			let colorHandle = graph.CreateTexture("SceneColor", colorDesc);
 
+			// Create normal-roughness GBuffer (octahedral normal RG, roughness B, metallic A)
+			let gbufferDesc = TextureResourceDesc(view.Width, view.Height, .RGBA8Unorm, .RenderTarget | .Sampled);
+			let gbufferHandle = graph.CreateTexture("SceneNormalRoughness", gbufferDesc);
+
 			let frameIndex = FrameIndex;
 
 			// Single-view path: do lighting/uniforms here if PrepareFrame wasn't called
@@ -777,6 +785,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			// Add forward opaque pass
 			var passBuilder = graph.AddGraphicsPass("ForwardOpaque")
 				.WriteColor(colorHandle, .Clear, .Store, .(0.0f, 0.0f, 0.0f, 1.0f))
+				.WriteColor(gbufferHandle, .Clear, .Store, .(0.5f, 0.5f, 0.0f, 0.0f)) // Neutral normal (forward-facing), zero roughness/metallic
 				.ReadDepth(depthHandle)
 				.NeverCull();
 

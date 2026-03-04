@@ -111,9 +111,9 @@ float4 main(FragmentInput input) : SV_Target
     float3 sq = (c0*c0 + c1*c1 + c2*c2 + c3*c3 + c4*c4 + c5*c5 + c6*c6 + c7*c7 + c8*c8) / 9.0;
     float3 stddev = sqrt(max(sq - mean * mean, 0.0));
 
-    // Clip history to mean +/- 1.0 stddev (tight clamp for sharper result)
-    float3 neighborMin = mean - stddev * 1.0;
-    float3 neighborMax = mean + stddev * 1.0;
+    // Clip history to mean +/- 1.25 stddev (wider = more stable, less flickering)
+    float3 neighborMin = mean - stddev * 1.25;
+    float3 neighborMax = mean + stddev * 1.25;
 
     float3 historyTM = ReinhardTonemap(historyColor);
     float3 clampedHistory = clamp(historyTM, neighborMin, neighborMax);
@@ -124,10 +124,10 @@ float4 main(FragmentInput input) : SV_Target
 
     clampedHistory = ReinhardInverse(clampedHistory);
 
-    // Blend factor: 0.8 for static (20% current = sharper), reduced for fast motion
+    // Blend factor: 0.95 for static (5% current = stable), reduced for fast motion
     float speed = length(velocity / TexelSize); // pixel-space speed
-    float blendFactor = lerp(0.8, 0.5, saturate(speed / 20.0));
-    blendFactor *= (1.0 - clipRejection * 0.5); // Halve history trust when heavily clipped
+    float blendFactor = lerp(0.95, 0.7, saturate(speed / 20.0));
+    blendFactor *= (1.0 - clipRejection * 0.3); // Mild history rejection when clipped
 
     // Final blend
     float3 result = lerp(currentColor, clampedHistory, blendFactor);

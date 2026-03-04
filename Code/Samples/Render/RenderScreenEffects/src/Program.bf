@@ -54,7 +54,8 @@ class Program
 			Width = 1280,
 			Height = 720,
 			EnableDepth = true,
-			ClearColor = .(0.0f, 0.0f, 0.0f, 1.0f)
+			ClearColor = .(0.0f, 0.0f, 0.0f, 1.0f),
+			PresentMode = .Fifo
 		};
 
 		let app = scope RenderScreenEffectsApp(shell, device, backend);

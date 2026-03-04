@@ -16,6 +16,7 @@ static const float PI = 3.14159265359;
 static const float EPSILON = 0.0001;
 
 #include "scene_uniforms.hlsli"
+#include "gbuffer_utils.hlsli"
 
 #include "light.hlsli"
 #include "lighting_uniforms.hlsli"
@@ -176,10 +177,23 @@ void ResolveLightVector(Light light, float3 worldPos, out float3 L, out float at
     }
 }
 
+// ===================== MRT Output =====================
+
+struct PSOutput
+{
+    float4 Color : SV_Target0;
+    float4 GBuffer : SV_Target1;  // Octahedral view-space normal (RG), roughness (B), metallic (A)
+};
+
+// Neutral GBuffer value: forward-facing normal, zero roughness/metallic
+static const float4 NEUTRAL_GBUFFER = float4(0.5, 0.5, 0.0, 0.0);
+
 // ===================== Main =====================
 
-float4 main(FragmentInput input) : SV_Target
+PSOutput main(FragmentInput input)
 {
+    PSOutput output;
+    output.GBuffer = NEUTRAL_GBUFFER;
     // ===== Material sampling =====
     // Combine texture, material base color, and vertex color
     float4 albedo = AlbedoTexture.Sample(LinearSampler, input.TexCoord) * BaseColor * input.Color;
@@ -191,7 +205,10 @@ float4 main(FragmentInput input) : SV_Target
 
     // ----- Debug 1: Flat albedo (no lighting) -----
     if (DebugMode == 1)
-        return float4(albedo.rgb, albedo.a);
+    {
+        output.Color = float4(albedo.rgb, albedo.a);
+        return output;
+    }
 
     // ===== Normal =====
     float3 N = normalize(input.WorldNormal);
@@ -207,7 +224,13 @@ float4 main(FragmentInput input) : SV_Target
 
     // ----- Debug 2: World normals -----
     if (DebugMode == 2)
-        return float4(N * 0.5 + 0.5, 1.0);
+    {
+        // N is available — write GBuffer with normal (no roughness/metallic yet)
+        float3 viewN = normalize(mul(N, (float3x3)ViewMatrix));
+        output.GBuffer = PackGBuffer(viewN, 0.0, 0.0);
+        output.Color = float4(N * 0.5 + 0.5, 1.0);
+        return output;
+    }
 
     // ===== View direction =====
     float3 V = normalize(CameraPosition - input.WorldPosition);
@@ -215,33 +238,45 @@ float4 main(FragmentInput input) : SV_Target
 
     // ----- Debug 3: View direction (V) -----
     if (DebugMode == 3)
-        return float4(V * 0.5 + 0.5, 1.0);
+    {
+        float3 viewN = normalize(mul(N, (float3x3)ViewMatrix));
+        output.GBuffer = PackGBuffer(viewN, 0.0, 0.0);
+        output.Color = float4(V * 0.5 + 0.5, 1.0);
+        return output;
+    }
 
     // ----- Debug 4: raw NdotV heatmap (green=positive, red=negative) -----
     if (DebugMode == 4)
     {
+        float3 viewN = normalize(mul(N, (float3x3)ViewMatrix));
+        output.GBuffer = PackGBuffer(viewN, 0.0, 0.0);
         float rawNdotV = dot(N, V);
-        if (rawNdotV < -0.3) return float4(1.0, 0.0, 0.0, 1.0);
-        if (rawNdotV < -0.1) return float4(0.7, 0.0, 0.0, 1.0);
-        if (rawNdotV < 0.0)  return float4(0.4, 0.0, 0.0, 1.0);
-        if (rawNdotV < 0.1)  return float4(0.0, 0.4, 0.0, 1.0);
-        if (rawNdotV < 0.3)  return float4(0.0, 0.7, 0.0, 1.0);
-        return float4(0.0, 1.0, 0.0, 1.0);
+        if (rawNdotV < -0.3) output.Color = float4(1.0, 0.0, 0.0, 1.0);
+        else if (rawNdotV < -0.1) output.Color = float4(0.7, 0.0, 0.0, 1.0);
+        else if (rawNdotV < 0.0)  output.Color = float4(0.4, 0.0, 0.0, 1.0);
+        else if (rawNdotV < 0.1)  output.Color = float4(0.0, 0.4, 0.0, 1.0);
+        else if (rawNdotV < 0.3)  output.Color = float4(0.0, 0.7, 0.0, 1.0);
+        else output.Color = float4(0.0, 1.0, 0.0, 1.0);
+        return output;
     }
 
     // ----- Debug 5: Lambertian diffuse (first directional light only) -----
     if (DebugMode == 5)
     {
+        float3 viewN = normalize(mul(N, (float3x3)ViewMatrix));
+        output.GBuffer = PackGBuffer(viewN, 0.0, 0.0);
         for (uint i = 0; i < LightCount; i++)
         {
             if (Lights[i].Type == 0)
             {
                 float3 L = -Lights[i].Direction;
                 float NdotL = max(dot(N, L), 0.0);
-                return float4(albedo.rgb / PI * Lights[i].Color * Lights[i].Intensity * NdotL, 1.0);
+                output.Color = float4(albedo.rgb / PI * Lights[i].Color * Lights[i].Intensity * NdotL, 1.0);
+                return output;
             }
         }
-        return float4(0.0, 0.0, 0.0, 1.0);
+        output.Color = float4(0.0, 0.0, 0.0, 1.0);
+        return output;
     }
 
     // ===== Cluster lookup (needed for stages 4+) =====
@@ -254,6 +289,8 @@ float4 main(FragmentInput input) : SV_Target
     // ----- Debug 6: Lambertian + flat ambient (all clustered lights) -----
     if (DebugMode == 6)
     {
+        float3 viewN = normalize(mul(N, (float3x3)ViewMatrix));
+        output.GBuffer = PackGBuffer(viewN, 0.0, 0.0);
         float3 ambient = AmbientColor * AmbientIntensity * albedo.rgb;
         float3 Lo = float3(0.0, 0.0, 0.0);
         for (uint i = 0; i < lightCount; i++)
@@ -264,7 +301,8 @@ float4 main(FragmentInput input) : SV_Target
             float NdotL = max(dot(N, L), 0.0);
             Lo += albedo.rgb / PI * light.Color * light.Intensity * attenuation * NdotL;
         }
-        return float4(ambient + Lo, 1.0);
+        output.Color = float4(ambient + Lo, 1.0);
+        return output;
     }
 
     // ===== PBR material properties (needed for stages 5+) =====
@@ -274,6 +312,10 @@ float4 main(FragmentInput input) : SV_Target
     float ao = OcclusionTexture.Sample(LinearSampler, input.TexCoord).r * AO;
     float3 emissive = EmissiveTexture.Sample(LinearSampler, input.TexCoord).rgb * EmissiveColor.rgb;
     float3 F0 = lerp(float3(0.04, 0.04, 0.04), albedo.rgb, metallic);
+
+    // Pack GBuffer with view-space normal, roughness, metallic
+    float3 viewN = normalize(mul(N, (float3x3)ViewMatrix));
+    output.GBuffer = PackGBuffer(viewN, roughness, metallic);
 
     // ----- Debug 7: PBR direct lighting (Cook-Torrance, flat ambient, no IBL) -----
     if (DebugMode == 7)
@@ -297,7 +339,8 @@ float4 main(FragmentInput input) : SV_Target
 
             Lo += (kD * albedo.rgb / PI + specular) * radiance * NdotL;
         }
-        return float4(ambient + Lo + emissive, albedo.a);
+        output.Color = float4(ambient + Lo + emissive, albedo.a);
+        return output;
     }
 
     // ----- Debug 8: PBR + IBL (no shadows) -----
@@ -332,7 +375,8 @@ float4 main(FragmentInput input) : SV_Target
 
             Lo += (kD * albedo.rgb / PI + specular) * radiance * NdotL;
         }
-        return float4(ambient + Lo + emissive, albedo.a);
+        output.Color = float4(ambient + Lo + emissive, albedo.a);
+        return output;
     }
 
     // ----- Default (mode 0): Full rendering (PBR + IBL + shadows) -----
@@ -380,6 +424,7 @@ float4 main(FragmentInput input) : SV_Target
         Lo = shadowLit + unshadowedLit;
 #endif
 
-        return float4(ambient + Lo + emissive, albedo.a);
+        output.Color = float4(ambient + Lo + emissive, albedo.a);
+        return output;
     }
 }

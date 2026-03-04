@@ -1,6 +1,9 @@
 // Screen-Space Reflections Fragment Shader
 // Linear ray marching against depth buffer with binary refinement.
-// Without GBuffer roughness data, SSR is limited to glancing-angle reflections.
+// Uses GBuffer for accurate normals and roughness-based reflection fade.
+#pragma pack_matrix(row_major)
+
+#include "gbuffer_utils.hlsli"
 
 cbuffer SSRParams : register(b0)
 {
@@ -19,6 +22,7 @@ cbuffer SSRParams : register(b0)
 
 Texture2D SceneColor : register(t0);
 Texture2D DepthTexture : register(t1);
+Texture2D GBufferTexture : register(t2);
 SamplerState LinearSampler : register(s0);
 SamplerState PointSampler : register(s1);
 
@@ -32,51 +36,18 @@ struct FragmentInput
 float3 ReconstructViewPos(float2 uv, float depth)
 {
     float4 ndc = float4(uv * 2.0 - 1.0, depth, 1.0);
-    ndc.y = -ndc.y; // Vulkan Y-flip
-    float4 viewPos = mul(InvProjectionMatrix, ndc);
+    // No Y-flip needed: ProjectionMatrix already has M22 negated on CPU
+    float4 viewPos = mul(ndc, InvProjectionMatrix);
     return viewPos.xyz / viewPos.w;
 }
 
 // Project view-space position to screen UV and clip-space Z
 float3 ProjectToScreen(float3 viewPos)
 {
-    float4 projected = mul(ProjectionMatrix, float4(viewPos, 1.0));
+    float4 projected = mul(float4(viewPos, 1.0), ProjectionMatrix);
     projected.xyz /= projected.w;
-    projected.y = -projected.y; // Vulkan Y-flip
+    // No Y-flip needed: ProjectionMatrix already has M22 negated on CPU
     return float3(projected.xy * 0.5 + 0.5, projected.z);
-}
-
-// Reconstruct view-space normal from depth derivatives.
-// Returns normal and a quality metric (0 = unreliable, 1 = good).
-float4 ReconstructNormalWithQuality(float2 uv, float3 viewPos)
-{
-    float depthL = DepthTexture.Sample(PointSampler, uv + float2(-TexelSize.x, 0)).r;
-    float depthR = DepthTexture.Sample(PointSampler, uv + float2( TexelSize.x, 0)).r;
-    float depthU = DepthTexture.Sample(PointSampler, uv + float2(0, -TexelSize.y)).r;
-    float depthD = DepthTexture.Sample(PointSampler, uv + float2(0,  TexelSize.y)).r;
-
-    float3 posL = ReconstructViewPos(uv + float2(-TexelSize.x, 0), depthL);
-    float3 posR = ReconstructViewPos(uv + float2( TexelSize.x, 0), depthR);
-    float3 posU = ReconstructViewPos(uv + float2(0, -TexelSize.y), depthU);
-    float3 posD = ReconstructViewPos(uv + float2(0,  TexelSize.y), depthD);
-
-    float3 ddxL = viewPos - posL;
-    float3 ddxR = posR - viewPos;
-    float3 ddyU = viewPos - posU;
-    float3 ddyD = posD - viewPos;
-
-    float3 ddx = (abs(ddxL.z) < abs(ddxR.z)) ? ddxL : ddxR;
-    float3 ddy = (abs(ddyU.z) < abs(ddyD.z)) ? ddyU : ddyD;
-
-    float3 normal = normalize(cross(ddy, ddx));
-
-    // Quality: check consistency between left/right and up/down derivatives.
-    // Large disagreement = depth discontinuity or noisy surface = unreliable normal.
-    float xConsistency = 1.0 - saturate(abs(ddxL.z - ddxR.z) / (abs(viewPos.z) * 0.01 + 0.01));
-    float yConsistency = 1.0 - saturate(abs(ddyU.z - ddyD.z) / (abs(viewPos.z) * 0.01 + 0.01));
-    float quality = xConsistency * yConsistency;
-
-    return float4(normal, quality);
 }
 
 float4 main(FragmentInput input) : SV_Target
@@ -92,15 +63,22 @@ float4 main(FragmentInput input) : SV_Target
     if (depth >= 1.0)
         return float4(sceneColor, 1.0);
 
-    // Reconstruct view-space position and normal with quality
-    float3 viewPos = ReconstructViewPos(uv, depth);
-    float4 normalQ = ReconstructNormalWithQuality(uv, viewPos);
-    float3 normal = normalQ.xyz;
-    float normalQuality = normalQ.w;
+    // Read GBuffer: view-space normal, roughness, metallic
+    float4 gbuffer = GBufferTexture.Sample(PointSampler, uv);
+    float3 normal;
+    float roughness;
+    float metallic;
+    UnpackGBuffer(gbuffer, normal, roughness, metallic);
 
-    // Skip pixels with unreliable normals (depth edges, noisy surfaces)
-    if (normalQuality < 0.5)
+    // Skip rough surfaces (no visible reflections above roughness 0.5)
+    if (roughness > 0.5)
         return float4(sceneColor, 1.0);
+
+    // Roughness fade: smooth surfaces get full reflection, rougher surfaces fade out
+    float roughnessFade = 1.0 - roughness * 2.0;
+
+    // Reconstruct view-space position
+    float3 viewPos = ReconstructViewPos(uv, depth);
 
     // View direction (camera at origin in view space)
     float3 viewDir = normalize(viewPos);
@@ -112,18 +90,15 @@ float4 main(FragmentInput input) : SV_Target
     if (reflectDir.z > 0.0)
         return float4(sceneColor, 1.0);
 
-    // Fresnel: only reflect at glancing angles (no roughness data available)
+    // Fresnel with metallic and roughness modulation
+    // Metals have high base reflectivity (F0 ~0.5-1.0), dielectrics ~0.04
     float NdotV = saturate(dot(-viewDir, normal));
-    float fresnel = 0.04 + (1.0 - 0.04) * pow(1.0 - NdotV, 5.0);
+    float f0 = lerp(0.04, 0.7, metallic);
+    float fresnel = f0 + (1.0 - f0) * pow(1.0 - NdotV, 5.0);
+    fresnel *= roughnessFade;
 
     // Skip pixels where Fresnel contribution is negligible
-    if (fresnel < 0.05)
-        return float4(sceneColor, 1.0);
-
-    // Skip if reflection direction is nearly parallel to the surface
-    // (causes streaking artifacts as the ray slides along the surface)
-    float RdotN = abs(dot(reflectDir, normal));
-    if (RdotN < 0.1)
+    if (fresnel < 0.02)
         return float4(sceneColor, 1.0);
 
     // Start ray with an offset to prevent self-intersection
@@ -170,7 +145,8 @@ float4 main(FragmentInput input) : SV_Target
         float3 rayViewPos = ReconstructViewPos(rayUV, rayDepth);
 
         // Check if ray crossed behind the depth buffer surface
-        float depthDiff = rayPos.z - rayViewPos.z;
+        // View space is right-handed (negative Z into scene), so ray behind surface = more negative Z
+        float depthDiff = rayViewPos.z - rayPos.z;
         if (depthDiff > 0.0 && depthDiff < Thickness)
         {
             // Binary refinement for precise hit
@@ -184,7 +160,7 @@ float4 main(FragmentInput input) : SV_Target
                 float refineDepth = DepthTexture.Sample(PointSampler, refineScreen.xy).r;
                 float3 refineViewPos = ReconstructViewPos(refineScreen.xy, refineDepth);
 
-                float refineDiff = refineMid.z - refineViewPos.z;
+                float refineDiff = refineViewPos.z - refineMid.z;
                 if (refineDiff > 0.0)
                     refineMax = refineMid;
                 else
@@ -215,8 +191,8 @@ float4 main(FragmentInput input) : SV_Target
     float hitDist = length(ReconstructViewPos(hitUV, DepthTexture.Sample(PointSampler, hitUV).r) - viewPos);
     float distFade = 1.0 - saturate(hitDist / MaxDistance);
 
-    // Composite — Fresnel-weighted, quality-weighted, edge-faded, distance-faded
-    float blendFactor = fresnel * Intensity * edgeFade * distFade * normalQuality;
+    // Composite — Fresnel-weighted, roughness-faded, edge-faded, distance-faded
+    float blendFactor = fresnel * Intensity * edgeFade * distFade;
     float3 result = lerp(sceneColor, reflectedColor, saturate(blendFactor));
 
     return float4(result, 1.0);

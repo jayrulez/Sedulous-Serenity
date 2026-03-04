@@ -114,11 +114,12 @@ public class SSREffect : IPostProcessEffect
 		case .Err: return .Err;
 		}
 
-		// Create bind group layout: b0=params, t0=sceneColor, t1=depth, s0=linear, s1=point
-		BindGroupLayoutEntry[5] layoutEntries = .(
+		// Create bind group layout: b0=params, t0=sceneColor, t1=depth, t2=gbuffer, s0=linear, s1=point
+		BindGroupLayoutEntry[6] layoutEntries = .(
 			.() { Binding = 0, Visibility = .Fragment, Type = .UniformBuffer },
 			.() { Binding = 0, Visibility = .Fragment, Type = .SampledTexture },
 			.() { Binding = 1, Visibility = .Fragment, Type = .SampledTexture },
+			.() { Binding = 2, Visibility = .Fragment, Type = .SampledTexture },
 			.() { Binding = 0, Visibility = .Fragment, Type = .Sampler },
 			.() { Binding = 1, Visibility = .Fragment, Type = .Sampler }
 		);
@@ -222,6 +223,11 @@ public class SSREffect : IPostProcessEffect
 		if (world == null || !world.SSREnabled)
 			return;
 
+		// SSR requires GBuffer for normals and roughness — skip if unavailable
+		let gbufferHandle = graph.GetResource("SceneNormalRoughness");
+		if (!gbufferHandle.IsValid)
+			return;
+
 		// Compute inverse projection
 		var invProj = view.ProjectionMatrix;
 		Matrix.Invert(view.ProjectionMatrix, out invProj);
@@ -249,23 +255,26 @@ public class SSREffect : IPostProcessEffect
 		RenderGraph graphRef = graph;
 		RGResourceHandle inputCopy = inputHandle;
 		RGResourceHandle depthCopy = depthHandle;
+		RGResourceHandle gbufferCopy = gbufferHandle;
 
 		graph.AddGraphicsPass("PostProcess_SSR")
 			.ReadTexture(inputHandle)
 			.ReadTexture(depthHandle)
+			.ReadTexture(gbufferHandle)
 			.WriteColor(outputHandle, .DontCare, .Store)
 			.NeverCull()
 			.SetExecuteCallback(new [=] (encoder) => {
 				let inputView = graphRef.GetTextureView(inputCopy);
 				let depthView = graphRef.GetDepthOnlyTextureView(depthCopy);
-				ExecutePass(encoder, view, inputView, depthView);
+				let gbufferView = graphRef.GetTextureView(gbufferCopy);
+				ExecutePass(encoder, view, inputView, depthView, gbufferView);
 			});
 	}
 
 	private void ExecutePass(IRenderPassEncoder encoder, RenderView view,
-		ITextureView inputView, ITextureView depthView)
+		ITextureView inputView, ITextureView depthView, ITextureView gbufferView)
 	{
-		if (inputView == null || depthView == null)
+		if (inputView == null || depthView == null || gbufferView == null)
 			return;
 
 		let frameIndex = FrameIndex;
@@ -277,10 +286,11 @@ public class SSREffect : IPostProcessEffect
 			mBindGroups[frameIndex] = null;
 		}
 
-		BindGroupEntry[5] entries = .(
+		BindGroupEntry[6] entries = .(
 			BindGroupEntry.Buffer(0, mParamsBuffer, 0, (uint64)SSRParams.Size),
 			BindGroupEntry.Texture(0, inputView),
 			BindGroupEntry.Texture(1, depthView),
+			BindGroupEntry.Texture(2, gbufferView),
 			BindGroupEntry.Sampler(0, mLinearSampler),
 			BindGroupEntry.Sampler(1, mPointSampler)
 		);
