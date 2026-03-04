@@ -37,6 +37,9 @@ public struct ReflectionProbeProxy
 	/// Ground color for CPU-baked cubemap.
 	public Color GroundColor;
 
+	/// SH9 irradiance coefficients (pre-convolved). Set by BakeProbe.
+	public Vector4[9] IrradianceSH;
+
 	/// Creates a default reflection probe proxy.
 	public static Self CreateDefault()
 	{

@@ -12,8 +12,9 @@ struct ProbeData
 	public float Radius;
 	public uint32 LayerIndex;
 	public Vector3 _Pad;
+	public Vector4[9] IrradianceSH; // SH9 irradiance (xyz = RGB, w = unused)
 
-	public const uint64 Size = 32; // 3 floats + 1 float + 1 uint + 3 floats = 32 bytes
+	public const uint64 Size = 176; // 32 + 9*16 = 176 bytes
 }
 
 /// Complete probe uniform buffer matching probe_uniforms.hlsli cbuffer.
@@ -229,8 +230,9 @@ public class ReflectionProbeSystem
 	}
 
 	/// Bakes a prefiltered cubemap for a probe at the given array layer.
+	/// Also computes SH9 irradiance coefficients and stores them in outSH.
 	/// Uses CPU gradient sky generation (same algorithm as SkyFeature).
-	public void BakeProbe(int32 layer, Color zenith, Color horizon, Color ground)
+	public void BakeProbe(int32 layer, Color zenith, Color horizon, Color ground, Vector4* outSH)
 	{
 		if (layer < 0 || layer >= MaxProbes || mCubemapArray == null || mDevice == null)
 			return;
@@ -239,6 +241,10 @@ public class ReflectionProbeSystem
 		let topColor = Vector3((float)zenith.R / 255.0f, (float)zenith.G / 255.0f, (float)zenith.B / 255.0f);
 		let horizonColor = Vector3((float)horizon.R / 255.0f, (float)horizon.G / 255.0f, (float)horizon.B / 255.0f);
 		let groundColor = Vector3((float)ground.R / 255.0f, (float)ground.G / 255.0f, (float)ground.B / 255.0f);
+
+		// Project SH9 irradiance from the same gradient sky
+		if (outSH != null)
+			ProjectSH9(topColor, horizonColor, groundColor, outSH);
 
 		// Allocate buffer for largest face (mip 0)
 		int32 maxPixels = CubemapSize * CubemapSize;
@@ -336,7 +342,7 @@ public class ReflectionProbeSystem
 			// Bake if dirty
 			if (proxy.IsDirty)
 			{
-				BakeProbe(proxy.ArrayLayer, proxy.ZenithColor, proxy.HorizonColor, proxy.GroundColor);
+				BakeProbe(proxy.ArrayLayer, proxy.ZenithColor, proxy.HorizonColor, proxy.GroundColor, &proxy.IrradianceSH);
 				proxy.IsDirty = false;
 			}
 
@@ -344,6 +350,7 @@ public class ReflectionProbeSystem
 			uniforms.Probes[probeCount].Position = proxy.Position;
 			uniforms.Probes[probeCount].Radius = proxy.Radius;
 			uniforms.Probes[probeCount].LayerIndex = (uint32)proxy.ArrayLayer;
+			uniforms.Probes[probeCount].IrradianceSH = proxy.IrradianceSH;
 			probeCount++;
 		});
 
@@ -385,6 +392,74 @@ public class ReflectionProbeSystem
 	public void Dispose()
 	{
 		// Resources cleaned up by destructors (~ delete _)
+	}
+
+	/// Projects gradient sky into SH9 irradiance coefficients (pre-convolved with cosine lobe).
+	/// Uses stratified lat/lon sampling over the sphere (~4096 samples).
+	private static void ProjectSH9(Vector3 topColor, Vector3 horizonColor, Vector3 groundColor, Vector4* outSH)
+	{
+		// Zero output
+		for (int32 i = 0; i < 9; i++)
+			outSH[i] = .Zero;
+
+		// Stratified sampling: 64 phi x 64 theta = 4096 directions
+		const int32 NumPhi = 64;
+		const int32 NumTheta = 64;
+		const float dPhi = 2.0f * Math.PI_f / (float)NumPhi;
+		const float dTheta = Math.PI_f / (float)NumTheta;
+
+		for (int32 ti = 0; ti < NumTheta; ti++)
+		{
+			float theta = ((float)ti + 0.5f) * dTheta;
+			float sinTheta = Math.Sin(theta);
+			float cosTheta = Math.Cos(theta);
+
+			for (int32 pi = 0; pi < NumPhi; pi++)
+			{
+				float phi = ((float)pi + 0.5f) * dPhi;
+				float sinPhi = Math.Sin(phi);
+				float cosPhi = Math.Cos(phi);
+
+				// Direction on sphere (Y-up)
+				Vector3 dir = .(sinTheta * cosPhi, cosTheta, sinTheta * sinPhi);
+				Vector3 skyColor = SampleGradientSky(dir, topColor, horizonColor, groundColor);
+
+				// Solid angle weight for lat/lon grid
+				float weight = sinTheta * dTheta * dPhi;
+
+				// SH basis functions (real, orthonormal)
+				float[9] Y = .();
+				Y[0] = 0.282095f;                                           // Y00
+				Y[1] = 0.488603f * dir.Y;                                   // Y1,-1
+				Y[2] = 0.488603f * dir.Z;                                   // Y1,0
+				Y[3] = 0.488603f * dir.X;                                   // Y1,1
+				Y[4] = 1.092548f * dir.X * dir.Y;                           // Y2,-2
+				Y[5] = 1.092548f * dir.Y * dir.Z;                           // Y2,-1
+				Y[6] = 0.315392f * (3.0f * dir.Z * dir.Z - 1.0f);          // Y2,0
+				Y[7] = 1.092548f * dir.X * dir.Z;                           // Y2,1
+				Y[8] = 0.546274f * (dir.X * dir.X - dir.Y * dir.Y);        // Y2,2
+
+				for (int32 i = 0; i < 9; i++)
+				{
+					float basis = Y[i] * weight;
+					outSH[i].X += skyColor.X * basis;
+					outSH[i].Y += skyColor.Y * basis;
+					outSH[i].Z += skyColor.Z * basis;
+				}
+			}
+		}
+
+		// Pre-multiply by cosine convolution coefficients (Al) so shader just evaluates
+		// Band 0 (index 0): * PI
+		outSH[0] = outSH[0] * Math.PI_f;
+		// Band 1 (indices 1-3): * 2*PI/3
+		float a1 = 2.0f * Math.PI_f / 3.0f;
+		for (int32 i = 1; i <= 3; i++)
+			outSH[i] = outSH[i] * a1;
+		// Band 2 (indices 4-8): * PI/4
+		float a2 = Math.PI_f / 4.0f;
+		for (int32 i = 4; i <= 8; i++)
+			outSH[i] = outSH[i] * a2;
 	}
 
 	// ==================== IBL Helper Methods (same as SkyFeature) ====================

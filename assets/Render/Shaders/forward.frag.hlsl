@@ -351,7 +351,20 @@ PSOutput main(FragmentInput input)
         // IBL ambient
         float3 F_ibl = FresnelSchlickRoughness(NdotV, F0, roughness);
         float3 kD_ibl = (1.0 - F_ibl) * (1.0 - metallic);
-        float3 diffuseIBL = IrradianceMap.Sample(IBLSampler, N).rgb * albedo.rgb;
+
+        // Probe-aware diffuse irradiance
+        float4 probeDiffuse7 = SampleProbeDiffuse(input.WorldPosition, N);
+        float3 diffuseIBL;
+        if (probeDiffuse7.w > 0.001)
+        {
+            float3 globalDiffuse = IrradianceMap.Sample(IBLSampler, N).rgb;
+            diffuseIBL = lerp(globalDiffuse, probeDiffuse7.rgb, probeDiffuse7.w) * albedo.rgb;
+        }
+        else
+        {
+            diffuseIBL = IrradianceMap.Sample(IBLSampler, N).rgb * albedo.rgb;
+        }
+
         float3 R7 = reflect(-V, N);
 
         // Try reflection probes first, fall back to global IBL
@@ -399,7 +412,20 @@ PSOutput main(FragmentInput input)
         // IBL ambient
         float3 F_ibl = FresnelSchlickRoughness(NdotV, F0, roughness);
         float3 kD_ibl = (1.0 - F_ibl) * (1.0 - metallic);
-        float3 diffuseIBL = IrradianceMap.Sample(IBLSampler, N).rgb * albedo.rgb;
+
+        // Probe-aware diffuse irradiance
+        float4 probeDiffuse8 = SampleProbeDiffuse(input.WorldPosition, N);
+        float3 diffuseIBL;
+        if (probeDiffuse8.w > 0.001)
+        {
+            float3 globalDiffuse = IrradianceMap.Sample(IBLSampler, N).rgb;
+            diffuseIBL = lerp(globalDiffuse, probeDiffuse8.rgb, probeDiffuse8.w) * albedo.rgb;
+        }
+        else
+        {
+            diffuseIBL = IrradianceMap.Sample(IBLSampler, N).rgb * albedo.rgb;
+        }
+
         float3 R8 = reflect(-V, N);
 
         // Try reflection probes first, fall back to global IBL
