@@ -1,0 +1,6 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Render" = "*", "Sedulous.Geometry" = "*", "Sedulous.Geometry.Tooling" = "*", "Sedulous.Runtime.Client" = "*", "Sedulous.Shaders" = "*"}
+
+[Project]
+Name = "RenderTerrain"
+StartupObject = "RenderTerrain.Program"

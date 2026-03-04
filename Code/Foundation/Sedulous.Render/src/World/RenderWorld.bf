@@ -20,6 +20,7 @@ public class RenderWorld : IDisposable
 	private ProxyPool<TrailEmitterProxy> mTrailProxies = new .() ~ delete _;
 	private ProxyPool<DecalProxy> mDecalProxies = new .() ~ delete _;
 	private ProxyPool<ReflectionProbeProxy> mReflectionProbeProxies = new .() ~ delete _;
+	private ProxyPool<TerrainProxy> mTerrainProxies = new .() ~ delete _;
 
 	// Main camera handle
 	private CameraProxyHandle mMainCamera = .Invalid;
@@ -94,6 +95,7 @@ public class RenderWorld : IDisposable
 	private bool mTrailsDirty = false;
 	private bool mDecalsDirty = false;
 	private bool mReflectionProbesDirty = false;
+	private bool mTerrainsDirty = false;
 
 	/// Gets the mesh proxy pool.
 	public ProxyPool<MeshProxy> MeshProxies => mMeshProxies;
@@ -118,6 +120,9 @@ public class RenderWorld : IDisposable
 
 	/// Gets the reflection probe proxy pool.
 	public ProxyPool<ReflectionProbeProxy> ReflectionProbeProxies => mReflectionProbeProxies;
+
+	/// Gets the terrain proxy pool.
+	public ProxyPool<TerrainProxy> TerrainProxies => mTerrainProxies;
 
 	/// Gets the main camera handle.
 	public CameraProxyHandle MainCamera => mMainCamera;
@@ -166,6 +171,12 @@ public class RenderWorld : IDisposable
 
 	/// Whether any reflection probes have changed.
 	public bool ReflectionProbesDirty => mReflectionProbesDirty;
+
+	/// Whether any terrains have changed.
+	public bool TerrainsDirty => mTerrainsDirty;
+
+	/// Gets the number of active terrains.
+	public int32 TerrainCount => mTerrainProxies.ActiveCount;
 
 	/// Whether environment settings have changed.
 	public bool EnvironmentDirty => mEnvironmentDirty;
@@ -1194,6 +1205,57 @@ public class RenderWorld : IDisposable
 	}
 
 	// ========================================================================
+	// Terrain API
+	// ========================================================================
+
+	/// Creates a new terrain proxy.
+	public TerrainProxyHandle CreateTerrain()
+	{
+		let handle = mTerrainProxies.Allocate();
+		var proxy = mTerrainProxies.Get(handle);
+		*proxy = TerrainProxy.CreateDefault();
+		proxy.IsActive = true;
+		proxy.Generation = handle.Generation;
+		mTerrainsDirty = true;
+		return .() { Handle = handle };
+	}
+
+	/// Gets a terrain proxy by handle.
+	public TerrainProxy* GetTerrain(TerrainProxyHandle handle)
+	{
+		return mTerrainProxies.Get(handle.Handle);
+	}
+
+	/// Gets a reference to a terrain proxy.
+	public ref TerrainProxy GetTerrainRef(TerrainProxyHandle handle)
+	{
+		return ref mTerrainProxies.GetRef(handle.Handle);
+	}
+
+	/// Destroys a terrain proxy.
+	public void DestroyTerrain(TerrainProxyHandle handle)
+	{
+		if (mTerrainProxies.TryGet(handle.Handle, let proxy))
+		{
+			proxy.Reset();
+		}
+		mTerrainProxies.Free(handle.Handle);
+		mTerrainsDirty = true;
+	}
+
+	/// Marks terrains as dirty (need GPU re-upload).
+	public void MarkTerrainsDirty()
+	{
+		mTerrainsDirty = true;
+	}
+
+	/// Iterates over all active terrains.
+	public void ForEachTerrain(ProxyCallback<TerrainProxy> callback)
+	{
+		mTerrainProxies.ForEach(callback);
+	}
+
+	// ========================================================================
 	// General
 	// ========================================================================
 
@@ -1209,6 +1271,7 @@ public class RenderWorld : IDisposable
 		mTrailsDirty = false;
 		mDecalsDirty = false;
 		mReflectionProbesDirty = false;
+		mTerrainsDirty = false;
 	}
 
 	/// Clears all objects from the world.
@@ -1243,6 +1306,7 @@ public class RenderWorld : IDisposable
 		mTrailProxies.Clear();
 		mDecalProxies.Clear();
 		mReflectionProbeProxies.Clear();
+		mTerrainProxies.Clear();
 		mMainCamera = .Invalid;
 		mMeshesDirty = true;
 		mSkinnedMeshesDirty = true;
@@ -1253,6 +1317,7 @@ public class RenderWorld : IDisposable
 		mTrailsDirty = true;
 		mDecalsDirty = true;
 		mReflectionProbesDirty = true;
+		mTerrainsDirty = true;
 	}
 
 	public void Dispose()
