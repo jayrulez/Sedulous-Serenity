@@ -33,6 +33,7 @@ class AudioClipResourceManager : ResourceManager<AudioClipResource>
 		case .Ok(let clip):
 			let resource = new AudioClipResource();
 			resource.Clip = clip;
+			resource.AddRef(); // Manager's ownership ref — released in Unload
 			return .Ok(resource);
 		case .Err:
 			return .Err(.InvalidFormat);
@@ -41,6 +42,33 @@ class AudioClipResourceManager : ResourceManager<AudioClipResource>
 
 	public override void Unload(AudioClipResource resource)
 	{
-		// Resource destructor handles clip cleanup
+		if (resource != null)
+			resource.ReleaseRef();
+	}
+
+	protected override Result<void, ResourceLoadError> ReloadResource(AudioClipResource resource, StringView path)
+	{
+		// Read file into buffer
+		let buffer = scope List<uint8>();
+		let stream = scope FileStream();
+		if (stream.Open(path, .Read, .Read) case .Err)
+			return .Err(.NotFound);
+
+		buffer.Count = (.)stream.Length;
+		if (stream.TryRead(buffer) case .Err)
+			return .Err(.ReadError);
+
+		let data = Span<uint8>(buffer.Ptr, buffer.Count);
+		switch (mAudioSystem.LoadClip(data))
+		{
+		case .Ok(let clip):
+			// Replace clip on existing resource
+			if (resource.Clip != null)
+				delete resource.Clip;
+			resource.Clip = clip;
+			return .Ok;
+		case .Err:
+			return .Err(.InvalidFormat);
+		}
 	}
 }

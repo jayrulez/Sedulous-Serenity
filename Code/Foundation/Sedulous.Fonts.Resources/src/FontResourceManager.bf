@@ -24,10 +24,7 @@ public class FontResourceManager : ResourceManager<FontResource>
 		// Check cache first
 		let cacheKey = scope String(path);
 		if (mCache.TryGetValue(cacheKey, let cached))
-		{
-			cached.AddRef();
 			return .Ok(cached);
-		}
 
 		// Load the font
 		if (FontLoaderFactory.LoadFont(path, options) case .Ok(let font))
@@ -40,8 +37,8 @@ public class FontResourceManager : ResourceManager<FontResource>
 				// Cache it
 				let key = new String(path);
 				mCache[key] = resource;
-				resource.AddRef(); // One ref for cache
-				resource.AddRef(); // One ref for caller
+				resource.AddRef(); // Internal cache ref — released in Unload/ClearCache
+				resource.AddRef(); // Manager's ownership ref — released in Unload
 
 				return .Ok(resource);
 			}
@@ -66,7 +63,7 @@ public class FontResourceManager : ResourceManager<FontResource>
 			if (FontLoaderFactory.CreateAtlas(font, mDefaultOptions) case .Ok(let atlas))
 			{
 				let resource = new FontResource(font, atlas, mDefaultOptions);
-				resource.AddRef();
+				resource.AddRef(); // Manager's ownership ref — released in Unload
 				return .Ok(resource);
 			}
 			delete (Object)font;
@@ -86,22 +83,19 @@ public class FontResourceManager : ResourceManager<FontResource>
 		if (resource == null)
 			return;
 
-		// Remove from cache if ref count will be zero
+		// Remove from internal font cache and release that ref
 		for (let (key, cached) in mCache)
 		{
 			if (cached == resource)
 			{
-				// Release cache's reference
-				if (resource.RefCount <= 2) // caller's ref + cache ref
-				{
-					mCache.Remove(key);
-					delete key;
-				}
+				mCache.Remove(key);
+				delete key;
+				resource.ReleaseRef(); // Release internal cache ref
 				break;
 			}
 		}
 
-		resource.ReleaseRef();
+		resource.ReleaseRef(); // Release manager's ownership ref
 	}
 
 	/// Clear all cached resources
@@ -113,6 +107,23 @@ public class FontResourceManager : ResourceManager<FontResource>
 			delete key;
 		}
 		mCache.Clear();
+	}
+
+	protected override Result<void, ResourceLoadError> ReloadResource(FontResource resource, StringView path)
+	{
+		let options = resource.Options;
+		if (FontLoaderFactory.LoadFont(path, options) case .Ok(let font))
+		{
+			if (FontLoaderFactory.CreateAtlas(font, options) case .Ok(let atlas))
+			{
+				resource.SetFont(font);
+				resource.SetAtlas(atlas);
+				return .Ok;
+			}
+			delete (Object)font;
+			return .Err(.InvalidFormat);
+		}
+		return .Err(.NotFound);
 	}
 
 	/// Get default load options

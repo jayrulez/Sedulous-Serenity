@@ -64,4 +64,16 @@ abstract class ResourceManager<T> : IResourceManager where T : IResource
 		if (resource.Resource != null)
 			Unload((T)resource.Resource);
 	}
+
+	/// Reloads an existing resource from file, updating its data in-place.
+	public Result<void, ResourceLoadError> ReloadFromFile(IResource resource, StringView path)
+	{
+		return ReloadResource((T)resource, path);
+	}
+
+	/// Override to implement in-place reload from file.
+	protected virtual Result<void, ResourceLoadError> ReloadResource(T resource, StringView path)
+	{
+		return .Err(.NotSupported);
+	}
 }

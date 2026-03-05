@@ -17,6 +17,12 @@ class ResourceSystem
 	private readonly ResourceCache mCache = new .() ~ delete _;
 	private readonly List<IResourceRegistry> mRegistries = new .() ~ delete _;
 
+	// Hot-reload
+	private FileWatcher mFileWatcher ~ delete _;
+	private bool mHotReloadEnabled = false;
+	private List<IResourceChangeListener> mListeners = new .() ~ delete _;
+	private List<String> mChangedPaths = new .() ~ { for (let s in _) delete s; delete _; };
+
 	/// Gets the resource cache.
 	public ResourceCache Cache => mCache;
 
@@ -37,19 +43,131 @@ class ResourceSystem
 	/// Shuts down the resource system.
 	public void Shutdown()
 	{
-		for (var resource in mCache.GetResources(.. scope .()))
+		// Snapshot the resources before clearing. GetResources returns struct copies
+		// of handles (no AddRef), so we must unload before Clear() releases the
+		// cache's refs (which may delete the resources).
+		let resources = scope List<ResourceHandle<IResource>>();
+		mCache.GetResources(resources);
+
+		// Deduplicate: same resource may appear under multiple cache keys (path + GUID).
+		// Build unique list before any Unload calls (which may delete resources).
+		let unique = scope List<ResourceHandle<IResource>>();
+		for (var handle in resources)
+		{
+			let res = handle.Resource;
+			if (res == null) continue;
+
+			bool found = false;
+			for (let existing in unique)
+			{
+				if (existing.Resource.Id == res.Id)
+				{
+					found = true;
+					break;
+				}
+			}
+			if (!found)
+				unique.Add(handle);
+		}
+
+		for (var resource in unique)
 		{
 			if (let manager = GetManager(resource.Resource.GetType()))
 			{
 				manager.Unload(ref resource);
 			}
 		}
+
+		// Clear releases the cache's ref on each handle and disposes keys.
 		mCache.Clear();
 	}
 
 	/// Updates the resource system.
 	public void Update()
 	{
+		if (mHotReloadEnabled)
+			PollHotReload();
+	}
+
+	/// Enables hot-reload: watches loaded resource files for changes and reloads automatically.
+	public void EnableHotReload(double pollIntervalSeconds = 1.0)
+	{
+		if (mHotReloadEnabled)
+			return;
+
+		mHotReloadEnabled = true;
+		if (mFileWatcher == null)
+			mFileWatcher = new FileWatcher(pollIntervalSeconds);
+		else
+			mFileWatcher.PollIntervalSeconds = pollIntervalSeconds;
+	}
+
+	/// Disables hot-reload.
+	public void DisableHotReload()
+	{
+		mHotReloadEnabled = false;
+	}
+
+	/// Whether hot-reload is currently enabled.
+	public bool HotReloadEnabled => mHotReloadEnabled;
+
+	/// Adds a listener that is notified when resources are reloaded.
+	public void AddChangeListener(IResourceChangeListener listener)
+	{
+		if (!mListeners.Contains(listener))
+			mListeners.Add(listener);
+	}
+
+	/// Removes a change listener.
+	public void RemoveChangeListener(IResourceChangeListener listener)
+	{
+		mListeners.Remove(listener);
+	}
+
+	/// Polls for file changes and reloads affected resources.
+	private void PollHotReload()
+	{
+		if (mFileWatcher == null)
+			return;
+
+		if (!mFileWatcher.Poll(mChangedPaths))
+			return;
+
+		let entries = scope List<CacheEntry>();
+
+		for (let path in mChangedPaths)
+		{
+			entries.Clear();
+			mCache.GetByPath(path, entries);
+
+			for (let entry in entries)
+			{
+				let manager = GetManager(entry.ResourceType);
+				if (manager == null)
+					continue;
+
+				let resource = entry.Handle.Resource;
+				if (resource == null)
+					continue;
+
+				let result = manager.ReloadFromFile(resource, path);
+				if (result case .Ok)
+				{
+					mLogger?.LogInformation("Hot-reloaded resource '{0}' ({1})", path, entry.ResourceType.GetName(.. scope .()));
+					for (let listener in mListeners)
+						listener.OnResourceReloaded(path, entry.ResourceType, resource);
+				}
+				else if (result case .Err(let err))
+				{
+					if (err != .NotSupported)
+						mLogger?.LogWarning("Failed to hot-reload resource '{0}': {1}", path, err);
+				}
+			}
+		}
+
+		for (let s in mChangedPaths)
+			delete s;
+		mChangedPaths.Clear();
 	}
 
 	/// Registers a resource manager.
@@ -70,11 +188,33 @@ class ResourceSystem
 	/// Unloads all resources managed by this manager before removing it.
 	public void RemoveResourceManager(IResourceManager manager)
 	{
-		// First, unload all resources of this type from the cache
+		// First, unload all resources of this type from the cache.
+		// RemoveByType releases the cache's refs.
 		List<ResourceHandle<IResource>> resourcesToUnload = scope .();
 		mCache.RemoveByType(manager.ResourceType, resourcesToUnload);
 
-		for (var resource in resourcesToUnload)
+		// Deduplicate: same resource may appear under multiple cache keys.
+		// Build unique list before any Unload calls.
+		let unique = scope List<ResourceHandle<IResource>>();
+		for (var handle in resourcesToUnload)
+		{
+			let res = handle.Resource;
+			if (res == null) continue;
+
+			bool found = false;
+			for (let existing in unique)
+			{
+				if (existing.Resource.Id == res.Id)
+				{
+					found = true;
+					break;
+				}
+			}
+			if (!found)
+				unique.Add(handle);
+		}
+
+		for (var resource in unique)
 		{
 			manager.Unload(ref resource);
 		}
@@ -139,6 +279,7 @@ class ResourceSystem
 		if (manager == null)
 			return .Err(.ManagerNotFound);
 
+		resource.AddRef(); // Manager's ownership ref — released in Unload
 		var handle = ResourceHandle<IResource>(resource);
 
 		if (cache)
@@ -149,7 +290,9 @@ class ResourceSystem
 			mCache.Set(key, handle);
 		}
 
-		return ResourceHandle<T>((T)handle.Resource);
+		let result = ResourceHandle<T>((T)handle.Resource);
+		handle.Release();
+		return result;
 	}
 
 	/// Loads a resource synchronously.
@@ -178,7 +321,7 @@ class ResourceSystem
 		if (loadResult case .Err(let error))
 			return .Err(error);
 
-		let handle = loadResult.Value;
+		var handle = loadResult.Value;
 
 		// Cache if requested
 		if (cacheIfLoaded)
@@ -188,7 +331,15 @@ class ResourceSystem
 			mCache.Set(key, handle);
 		}
 
-		return ResourceHandle<T>((T)handle.Resource);
+		// Track for hot-reload
+		mFileWatcher?.Track(path);
+
+		// Build the caller's handle from the raw resource pointer, then release the
+		// intermediate handle so its ref doesn't leak. The caller's handle and the
+		// cache each hold their own ref.
+		let result = ResourceHandle<T>((T)handle.Resource);
+		handle.Release();
+		return result;
 	}
 
 	/// Loads a resource asynchronously.
@@ -208,6 +359,11 @@ class ResourceSystem
 	public void UnloadResource<T>(ref ResourceHandle<IResource> resource) where T : IResource
 	{
 		mCache.Remove(resource);
+
+		// Untrack from hot-reload if no other cache entries use this path
+		// (We don't have the path here, so the FileWatcher will simply fail to find
+		// a matching cache entry on next poll — harmless. Explicit untracking happens
+		// when we know the path.)
 
 		if (resource.Resource?.RefCount > 1)
 		{
@@ -286,7 +442,9 @@ class ResourceSystem
 					resourceRef.Id.ToString(guidStr);
 					var guidKey = ResourceCacheKey(guidStr, typeof(T));
 					defer guidKey.Dispose();
-					mCache.Set(guidKey, ResourceHandle<IResource>(handle.Resource));
+					var guidHandle = ResourceHandle<IResource>(handle.Resource);
+					mCache.Set(guidKey, guidHandle);
+					guidHandle.Release();
 				}
 			}
 			return result;

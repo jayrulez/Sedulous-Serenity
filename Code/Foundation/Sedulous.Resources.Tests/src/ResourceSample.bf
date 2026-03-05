@@ -145,7 +145,7 @@ class ResourceSample
 		Test.Assert(loadResult case .Ok);
 
 		var handle = loadResult.Value;
-		defer handle.Release();
+		defer { manager.Unload(ref handle); handle.Release(); }
 
 		let loaded = (GameConfigResource)handle.Resource;
 		Test.Assert(loaded != null);
@@ -188,11 +188,30 @@ class GameConfigResourceManager : ResourceManager<GameConfigResource>
 			return .Err(.InvalidFormat);
 		}
 
+		resource.AddRef(); // Manager's ownership ref — released in Unload
 		return .Ok(resource);
 	}
 
 	public override void Unload(GameConfigResource resource)
 	{
-		// Nothing special to do - ref counting handles deletion
+		if (resource != null)
+			resource.ReleaseRef();
+	}
+
+	protected override Result<void, ResourceLoadError> ReloadResource(GameConfigResource resource, StringView path)
+	{
+		let content = scope String();
+		if (File.ReadAllText(path, content) case .Err)
+			return .Err(.NotFound);
+
+		let doc = scope DataDescription();
+		if (doc.ParseText(content) != .Ok)
+			return .Err(.InvalidFormat);
+
+		let reader = OpenDDLSerializer.CreateReader(doc);
+		defer delete reader;
+
+		resource.Serialize(reader);
+		return .Ok;
 	}
 }

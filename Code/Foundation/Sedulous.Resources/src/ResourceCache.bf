@@ -51,20 +51,25 @@ class ResourceCache
 		}
 	}
 
-	/// Removes a resource from the cache.
+	/// Removes all cache entries for a resource and releases the cache's refs.
 	public void Remove(ResourceHandle<IResource> handle)
 	{
 		using (mMonitor.Enter())
 		{
+			let keysToRemove = scope List<ResourceCacheKey>();
 			for (var kv in mResources)
 			{
 				if (kv.value.Resource?.Id == handle.Resource?.Id)
-				{
-					var key = kv.key;
-					mResources.Remove(key);
-					key.Dispose();
-					break;
-				}
+					keysToRemove.Add(kv.key);
+			}
+
+			for (let key in keysToRemove)
+			{
+				if (mResources.TryGetValue(key, var h))
+					h.Release();
+				mResources.Remove(key);
+				var k = key;
+				k.Dispose();
 			}
 		}
 	}
@@ -129,6 +134,33 @@ class ResourceCache
 		}
 	}
 
+	/// Finds all cached resources loaded from a given path.
+	public void GetByPath(StringView path, List<CacheEntry> results)
+	{
+		using (mMonitor.Enter())
+		{
+			for (var kv in mResources)
+			{
+				if (kv.key.Path == path)
+					results.Add(.(kv.key.ResourceType, kv.value));
+			}
+		}
+	}
+
+	/// Checks whether any cached resource uses the given path.
+	public bool HasPath(StringView path)
+	{
+		using (mMonitor.Enter())
+		{
+			for (var kv in mResources)
+			{
+				if (kv.key.Path == path)
+					return true;
+			}
+			return false;
+		}
+	}
+
 	/// Removes all resources of a specific type from the cache.
 	/// Returns the removed handles for unloading. Releases the cache's ref on each handle.
 	public void RemoveByType(Type type, List<ResourceHandle<IResource>> removedHandles)
@@ -157,5 +189,18 @@ class ResourceCache
 				keyToDispose.Dispose();
 			}
 		}
+	}
+}
+
+/// Entry returned by ResourceCache.GetByPath.
+struct CacheEntry
+{
+	public Type ResourceType;
+	public ResourceHandle<IResource> Handle;
+
+	public this(Type resourceType, ResourceHandle<IResource> handle)
+	{
+		ResourceType = resourceType;
+		Handle = handle;
 	}
 }

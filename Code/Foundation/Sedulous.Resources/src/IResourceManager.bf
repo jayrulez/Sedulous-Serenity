@@ -17,4 +17,7 @@ interface IResourceManager
 
 	/// Unloads a resource.
 	void Unload(ref ResourceHandle<IResource> resource);
+
+	/// Reloads an existing resource from file, updating its data in-place.
+	Result<void, ResourceLoadError> ReloadFromFile(IResource resource, StringView path);
 }
