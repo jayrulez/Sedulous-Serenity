@@ -21,6 +21,7 @@ public class RenderWorld : IDisposable
 	private ProxyPool<DecalProxy> mDecalProxies = new .() ~ delete _;
 	private ProxyPool<ReflectionProbeProxy> mReflectionProbeProxies = new .() ~ delete _;
 	private ProxyPool<TerrainProxy> mTerrainProxies = new .() ~ delete _;
+	private ProxyPool<WaterProxy> mWaterProxies = new .() ~ delete _;
 
 	// Main camera handle
 	private CameraProxyHandle mMainCamera = .Invalid;
@@ -96,6 +97,7 @@ public class RenderWorld : IDisposable
 	private bool mDecalsDirty = false;
 	private bool mReflectionProbesDirty = false;
 	private bool mTerrainsDirty = false;
+	private bool mWatersDirty = false;
 
 	/// Gets the mesh proxy pool.
 	public ProxyPool<MeshProxy> MeshProxies => mMeshProxies;
@@ -123,6 +125,9 @@ public class RenderWorld : IDisposable
 
 	/// Gets the terrain proxy pool.
 	public ProxyPool<TerrainProxy> TerrainProxies => mTerrainProxies;
+
+	/// Gets the water proxy pool.
+	public ProxyPool<WaterProxy> WaterProxies => mWaterProxies;
 
 	/// Gets the main camera handle.
 	public CameraProxyHandle MainCamera => mMainCamera;
@@ -177,6 +182,12 @@ public class RenderWorld : IDisposable
 
 	/// Gets the number of active terrains.
 	public int32 TerrainCount => mTerrainProxies.ActiveCount;
+
+	/// Whether any waters have changed.
+	public bool WatersDirty => mWatersDirty;
+
+	/// Gets the number of active water planes.
+	public int32 WaterCount => mWaterProxies.ActiveCount;
 
 	/// Whether environment settings have changed.
 	public bool EnvironmentDirty => mEnvironmentDirty;
@@ -1256,6 +1267,57 @@ public class RenderWorld : IDisposable
 	}
 
 	// ========================================================================
+	// Water API
+	// ========================================================================
+
+	/// Creates a new water proxy.
+	public WaterProxyHandle CreateWater()
+	{
+		let handle = mWaterProxies.Allocate();
+		var proxy = mWaterProxies.Get(handle);
+		*proxy = WaterProxy.CreateDefault();
+		proxy.IsActive = true;
+		proxy.Generation = handle.Generation;
+		mWatersDirty = true;
+		return .() { Handle = handle };
+	}
+
+	/// Gets a water proxy by handle.
+	public WaterProxy* GetWater(WaterProxyHandle handle)
+	{
+		return mWaterProxies.Get(handle.Handle);
+	}
+
+	/// Gets a reference to a water proxy.
+	public ref WaterProxy GetWaterRef(WaterProxyHandle handle)
+	{
+		return ref mWaterProxies.GetRef(handle.Handle);
+	}
+
+	/// Destroys a water proxy.
+	public void DestroyWater(WaterProxyHandle handle)
+	{
+		if (mWaterProxies.TryGet(handle.Handle, let proxy))
+		{
+			proxy.Reset();
+		}
+		mWaterProxies.Free(handle.Handle);
+		mWatersDirty = true;
+	}
+
+	/// Marks waters as dirty (need GPU re-upload).
+	public void MarkWatersDirty()
+	{
+		mWatersDirty = true;
+	}
+
+	/// Iterates over all active water planes.
+	public void ForEachWater(ProxyCallback<WaterProxy> callback)
+	{
+		mWaterProxies.ForEach(callback);
+	}
+
+	// ========================================================================
 	// General
 	// ========================================================================
 
@@ -1272,6 +1334,7 @@ public class RenderWorld : IDisposable
 		mDecalsDirty = false;
 		mReflectionProbesDirty = false;
 		mTerrainsDirty = false;
+		mWatersDirty = false;
 	}
 
 	/// Clears all objects from the world.
@@ -1307,6 +1370,7 @@ public class RenderWorld : IDisposable
 		mDecalProxies.Clear();
 		mReflectionProbeProxies.Clear();
 		mTerrainProxies.Clear();
+		mWaterProxies.Clear();
 		mMainCamera = .Invalid;
 		mMeshesDirty = true;
 		mSkinnedMeshesDirty = true;
@@ -1318,6 +1382,7 @@ public class RenderWorld : IDisposable
 		mDecalsDirty = true;
 		mReflectionProbesDirty = true;
 		mTerrainsDirty = true;
+		mWatersDirty = true;
 	}
 
 	public void Dispose()

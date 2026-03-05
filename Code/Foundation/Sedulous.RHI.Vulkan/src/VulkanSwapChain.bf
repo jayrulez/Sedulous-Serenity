@@ -130,11 +130,11 @@ class VulkanSwapChain : ISwapChain
 
 		if (waitResult == .VK_TIMEOUT)
 		{
-			// Fence was never signaled - previous frame likely failed
-			// Don't call WaitIdle here as it can block indefinitely
-			// Just log and continue - the error counter will handle repeated failures
-			Console.WriteLine("[Warning] Frame fence timeout - previous frame may have failed");
-			// Reset all fences to try to recover
+			// Fence was never signaled - previous frame likely failed.
+			// Must wait for all GPU work to complete before resetting fences,
+			// otherwise we'd reset in-use fences and destroy in-use resources.
+			Console.WriteLine("[Warning] Frame fence timeout - previous frame may have failed, calling vkDeviceWaitIdle");
+			VulkanNative.vkDeviceWaitIdle(mDevice.Device);
 			for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 			{
 				var f = mInFlightFences[i];

@@ -58,7 +58,7 @@ public class AutoExposureEffect
 	private IBindGroupLayout mAdaptBindGroupLayout ~ delete _;
 
 	// Persistent GPU buffers
-	private IBuffer mHistogramBuffer ~ delete _;    // 256 x uint32, cleared each frame
+	private IBuffer[RenderConfig.FrameBufferCount] mHistogramBuffers ~ { for (let b in _) delete b; };    // 256 x uint32, per-frame
 	private IBuffer mExposureBuffer ~ delete _;     // 2 x float (current + target), persistent
 	private IBuffer mReadbackBuffer ~ delete _;     // CPU-readable copy of exposure
 
@@ -85,17 +85,20 @@ public class AutoExposureEffect
 	{
 		mDevice = device;
 
-		// Create histogram buffer (storage, GPU-only)
-		BufferDescriptor histBufDesc = .();
-		histBufDesc.Label = "Exposure Histogram";
-		histBufDesc.Size = (uint64)HistogramBufferSize;
-		histBufDesc.Usage = .Storage | .CopyDst;  // CopyDst needed for Queue.WriteBuffer clear
-		histBufDesc.MemoryAccess = .GpuOnly;
-
-		switch (device.CreateBuffer(&histBufDesc))
+		// Create per-frame histogram buffers (Upload for CPU-side clear without GPU sync)
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-		case .Ok(let buf): mHistogramBuffer = buf;
-		case .Err: return .Err;
+			BufferDescriptor histBufDesc = .();
+			histBufDesc.Label = "Exposure Histogram";
+			histBufDesc.Size = (uint64)HistogramBufferSize;
+			histBufDesc.Usage = .Storage;
+			histBufDesc.MemoryAccess = .Upload;
+
+			switch (device.CreateBuffer(&histBufDesc))
+			{
+			case .Ok(let buf): mHistogramBuffers[i] = buf;
+			case .Err: return .Err;
+			}
 		}
 
 		// Create exposure buffer (storage + read-write, GPU-only)
@@ -258,8 +261,10 @@ public class AutoExposureEffect
 		if (!sceneColorHandle.IsValid)
 			return;
 
-		// Clear histogram buffer
-		mDevice.Queue.WriteStagedBufferSync(mHistogramBuffer, 0, Span<uint8>(&mZeroBuffer, HistogramBufferSize));
+		// Clear histogram buffer for current frame (fence-protected, no GPU sync needed)
+		let frameIndex = FrameIndex;
+		let histogramBuffer = mHistogramBuffers[frameIndex];
+		mDevice.Queue.WriteMappedBuffer(histogramBuffer, 0, Span<uint8>(&mZeroBuffer, HistogramBufferSize));
 
 		// Upload histogram params
 		HistogramParams histParams = .();
@@ -290,11 +295,10 @@ public class AutoExposureEffect
 		);
 
 		// Import persistent buffers into render graph
-		let histogramHandle = graph.ImportBuffer("ExposureHistogram", mHistogramBuffer);
+		let histogramHandle = graph.ImportBuffer("ExposureHistogram", histogramBuffer);
 		let exposureHandle = graph.ImportBuffer("ExposureBuffer", mExposureBuffer);
 
 		// Recreate bind groups for current frame (scene color is transient)
-		let frameIndex = FrameIndex;
 		RenderGraph graphRef = graph;
 		RGResourceHandle sceneColorCopy = sceneColorHandle;
 
@@ -363,7 +367,7 @@ public class AutoExposureEffect
 		BindGroupEntry[3] entries = .(
 			BindGroupEntry.Buffer(0, mHistogramParamsBuffer, 0, (uint64)HistogramParams.Size),
 			BindGroupEntry.Texture(0, sceneColorView),
-			BindGroupEntry.Buffer(0, mHistogramBuffer, 0, (uint64)HistogramBufferSize)  // u0
+			BindGroupEntry.Buffer(0, mHistogramBuffers[frameIndex], 0, (uint64)HistogramBufferSize)  // u0
 		);
 
 		BindGroupDescriptor bgDesc = .();
@@ -396,8 +400,8 @@ public class AutoExposureEffect
 
 		BindGroupEntry[3] entries = .(
 			BindGroupEntry.Buffer(0, mAdaptParamsBuffer, 0, (uint64)AdaptParams.Size),
-			BindGroupEntry.Buffer(0, mHistogramBuffer, 0, (uint64)HistogramBufferSize),   // t0 read-only
-			BindGroupEntry.Buffer(0, mExposureBuffer, 0, 8)                                // u0 read-write
+			BindGroupEntry.Buffer(0, mHistogramBuffers[frameIndex], 0, (uint64)HistogramBufferSize),   // t0 read-only
+			BindGroupEntry.Buffer(0, mExposureBuffer, 0, 8)                                             // u0 read-write
 		);
 
 		BindGroupDescriptor bgDesc = .();

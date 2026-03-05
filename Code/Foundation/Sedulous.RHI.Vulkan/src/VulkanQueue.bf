@@ -81,14 +81,12 @@ class VulkanQueue : IQueue
 
 	public void Submit(Span<ICommandBuffer> commandBuffers, ISwapChain swapChain)
 	{
-		if (commandBuffers.Length == 0)
-			return;
-
 		let vkSwapChain = swapChain as VulkanSwapChain;
 		if (vkSwapChain == null)
 		{
 			// Fallback to regular submit if not a Vulkan swap chain
-			Submit(commandBuffers);
+			if (commandBuffers.Length > 0)
+				Submit(commandBuffers);
 			return;
 		}
 
@@ -102,10 +100,10 @@ class VulkanQueue : IQueue
 			}
 		}
 
-		if (vkCommandBuffers.Count == 0)
-			return;
-
-		// Set up synchronization with swap chain semaphores
+		// Always submit even with 0 command buffers to maintain synchronization:
+		// - Consumes the ImageAvailableSemaphore from AcquireNextImage
+		// - Signals RenderFinishedSemaphore for Present
+		// - Signals InFlightFence for next frame's fence wait
 		VkSemaphore[1] waitSemaphores = .(vkSwapChain.ImageAvailableSemaphore);
 		VkSemaphore[1] signalSemaphores = .(vkSwapChain.RenderFinishedSemaphore);
 		VkPipelineStageFlags[1] waitStages = .(.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
@@ -117,7 +115,7 @@ class VulkanQueue : IQueue
 				pWaitSemaphores = &waitSemaphores,
 				pWaitDstStageMask = &waitStages,
 				commandBufferCount = (uint32)vkCommandBuffers.Count,
-				pCommandBuffers = vkCommandBuffers.Ptr,
+				pCommandBuffers = vkCommandBuffers.Count > 0 ? vkCommandBuffers.Ptr : null,
 				signalSemaphoreCount = 1,
 				pSignalSemaphores = &signalSemaphores
 			};
@@ -132,11 +130,10 @@ class VulkanQueue : IQueue
 
 	public void Submit(ICommandBuffer commandBuffer, ISwapChain swapChain)
 	{
+		ICommandBuffer[1] buffers = default;
 		if (commandBuffer != null)
-		{
-			ICommandBuffer[1] buffers = .(commandBuffer);
-			Submit(buffers, swapChain);
-		}
+			buffers = .(commandBuffer);
+		Submit(Span<ICommandBuffer>(&buffers, commandBuffer != null ? 1 : 0), swapChain);
 	}
 
 	/// Submits command buffers and signals a fence when complete.
@@ -242,6 +239,7 @@ class VulkanQueue : IQueue
 						};
 
 					VulkanNative.vkQueueSubmit(mQueue, 1, &submitInfo, default);
+					Console.WriteLine("[GPU Sync] WriteStagedBufferSync - vkQueueWaitIdle");
 					VulkanNative.vkQueueWaitIdle(mQueue);
 
 					mTransientPool.FreeCommandBuffer(cmdBuffer);
@@ -360,6 +358,7 @@ class VulkanQueue : IQueue
 						};
 
 					VulkanNative.vkQueueSubmit(mQueue, 1, &submitInfo, default);
+					Console.WriteLine("[GPU Sync] WriteTextureSync - vkQueueWaitIdle");
 					VulkanNative.vkQueueWaitIdle(mQueue);
 
 					mTransientPool.FreeCommandBuffer(cmdBuffer);
@@ -373,6 +372,7 @@ class VulkanQueue : IQueue
 	/// Waits for the queue to be idle.
 	public void WaitIdle()
 	{
+		Console.WriteLine("[GPU Sync] WaitIdle - vkQueueWaitIdle");
 		VulkanNative.vkQueueWaitIdle(mQueue);
 	}
 
@@ -454,6 +454,7 @@ class VulkanQueue : IQueue
 					};
 
 					VulkanNative.vkQueueSubmit(mQueue, 1, &submitInfo, default);
+					Console.WriteLine("[GPU Sync] ReadStagedBufferSync - vkQueueWaitIdle");
 					VulkanNative.vkQueueWaitIdle(mQueue);
 
 					mTransientPool.FreeCommandBuffer(cmdBuffer);
@@ -572,6 +573,7 @@ class VulkanQueue : IQueue
 					};
 
 					VulkanNative.vkQueueSubmit(mQueue, 1, &submitInfo, default);
+					Console.WriteLine("[GPU Sync] ReadTextureSync - vkQueueWaitIdle");
 					VulkanNative.vkQueueWaitIdle(mQueue);
 
 					mTransientPool.FreeCommandBuffer(cmdBuffer);
