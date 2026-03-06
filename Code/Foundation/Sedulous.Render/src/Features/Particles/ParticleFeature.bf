@@ -15,6 +15,8 @@ public class ParticleFeature : RenderFeatureBase
 	// Compute pipelines (GPU backend)
 	private IComputePipeline mSpawnPipeline ~ delete _;
 	private IComputePipeline mUpdatePipeline ~ delete _;
+	private IComputePipeline mCompactPipeline ~ delete _;
+	private IComputePipeline mCounterResetPipeline ~ delete _;
 
 	// GPU render pipelines (one per blend mode)
 	private IRenderPipeline mGPURenderPipelineAlpha ~ delete _;
@@ -343,6 +345,34 @@ public class ParticleFeature : RenderFeatureBase
 			}
 		}
 
+		// Load compact compute shader
+		let compactResult = Renderer.ShaderSystem.GetShader("particle_compact", .Compute);
+		if (compactResult case .Ok(let compactShader))
+		{
+			ComputePipelineDescriptor compactDesc = .(mComputePipelineLayout, compactShader.Module);
+			compactDesc.Label = "Particle Compact Pipeline";
+
+			switch (Renderer.Device.CreateComputePipeline(&compactDesc))
+			{
+			case .Ok(let pipeline): mCompactPipeline = pipeline;
+			case .Err: // Non-fatal
+			}
+		}
+
+		// Load counter reset compute shader (GPU-side reset avoids CPU/GPU race)
+		let resetResult = Renderer.ShaderSystem.GetShader("particle_counter_reset", .Compute);
+		if (resetResult case .Ok(let resetShader))
+		{
+			ComputePipelineDescriptor resetDesc = .(mComputePipelineLayout, resetShader.Module);
+			resetDesc.Label = "Particle Counter Reset Pipeline";
+
+			switch (Renderer.Device.CreateComputePipeline(&resetDesc))
+			{
+			case .Ok(let pipeline): mCounterResetPipeline = pipeline;
+			case .Err: // Non-fatal
+			}
+		}
+
 		// Create GPU render pipeline layout
 		IBindGroupLayout[1] gpuRenderLayouts = .(mGPURenderBindGroupLayout);
 		PipelineLayoutDescriptor gpuRenderLayoutDesc = .(gpuRenderLayouts);
@@ -603,11 +633,10 @@ public class ParticleFeature : RenderFeatureBase
 					{
 						mActiveCPUEmitters.Add(emitterHandle);
 
-						// Update CPU emitter simulation
-						if (proxy.CPUEmitter != null)
-						{
-							proxy.CPUEmitter.Update(Renderer.RenderFrameContext.DeltaTime, &proxy, view.CameraPosition);
-						}
+						// Lazily create CPU emitter on first use
+						if (proxy.CPUEmitter == null)
+							proxy.CPUEmitter = new CPUParticleEmitter(Renderer.Device, (int32)proxy.MaxParticles);
+						proxy.CPUEmitter.Update(Renderer.RenderFrameContext.DeltaTime, &proxy, view.CameraPosition);
 					}
 				}
 			});
@@ -811,12 +840,13 @@ public class ParticleFeature : RenderFeatureBase
 
 	private Result<void> CreateComputePipelines()
 	{
-		BindGroupLayoutEntry[5] computeEntries = .(
+		BindGroupLayoutEntry[6] computeEntries = .(
 			.() { Binding = 0, Visibility = .Compute, Type = .UniformBuffer },
 			.() { Binding = 0, Visibility = .Compute, Type = .StorageBufferReadWrite },
 			.() { Binding = 1, Visibility = .Compute, Type = .StorageBufferReadWrite },
 			.() { Binding = 2, Visibility = .Compute, Type = .StorageBufferReadWrite },
-			.() { Binding = 3, Visibility = .Compute, Type = .StorageBufferReadWrite }
+			.() { Binding = 3, Visibility = .Compute, Type = .StorageBufferReadWrite },
+			.() { Binding = 4, Visibility = .Compute, Type = .StorageBufferReadWrite }  // AliveListAlt (u4)
 		);
 
 		BindGroupLayoutDescriptor computeLayoutDesc = .()
@@ -896,24 +926,59 @@ public class ParticleFeature : RenderFeatureBase
 			if (!mGPUParticleSystems.TryGetValue(handle, out system))
 				continue;
 
-			if (system.ComputeBindGroup == null)
+			if (system.ComputeBindGroupA == null || system.ComputeBindGroupB == null)
 				continue;
 
+			// Reset Counters[0] on GPU timeline (avoids CPU/GPU race on Upload memory)
+			if (mCounterResetPipeline != null)
+			{
+				encoder.SetPipeline(mCounterResetPipeline);
+				encoder.SetBindGroup(0, system.CompactBindGroup, default);
+				encoder.Dispatch(1, 1, 1);
+				Renderer.Stats.ComputeDispatches++;
+			}
+
+			// Barrier: reset must finish before compact writes via InterlockedAdd
+			encoder.ComputeBarrier();
+
+			// Compact pass: read old alive list, write compacted entries to new alive list
+			if (mCompactPipeline != null)
+			{
+				encoder.SetPipeline(mCompactPipeline);
+				encoder.SetBindGroup(0, system.CompactBindGroup, default);
+				encoder.Dispatch((system.MaxParticles + 63) / 64, 1, 1);
+				Renderer.Stats.ComputeDispatches++;
+			}
+
+			// Barrier: compact must finish before spawn reads Counters[0] and writes alive list
+			encoder.ComputeBarrier();
+
+			// Switch to the spawn/update bind group (new alive list at u1)
+			let spawnUpdateBG = system.SpawnUpdateBindGroup;
+
+			// Spawn pass: append new particles to the compacted alive list
 			if (mSpawnPipeline != null && system.PendingSpawnCount > 0)
 			{
 				encoder.SetPipeline(mSpawnPipeline);
-				encoder.SetBindGroup(0, system.ComputeBindGroup, default);
+				encoder.SetBindGroup(0, spawnUpdateBG, default);
 				encoder.Dispatch((system.PendingSpawnCount + 63) / 64, 1, 1);
 				Renderer.Stats.ComputeDispatches++;
 			}
 
+			// Barrier: spawn must finish before update reads the alive list
+			encoder.ComputeBarrier();
+
+			// Update pass: update physics, mark dead particles
 			if (mUpdatePipeline != null && system.EstimatedAliveCount > 0)
 			{
 				encoder.SetPipeline(mUpdatePipeline);
-				encoder.SetBindGroup(0, system.ComputeBindGroup, default);
+				encoder.SetBindGroup(0, spawnUpdateBG, default);
 				encoder.Dispatch((system.EstimatedAliveCount + 63) / 64, 1, 1);
 				Renderer.Stats.ComputeDispatches++;
 			}
+
+			// Note: swap happens at the start of next frame's UpdateGPUEmitterParams,
+			// so the render pass (which runs after sim) sees the correct alive list.
 		}
 	}
 
@@ -1018,7 +1083,7 @@ public class ParticleFeature : RenderFeatureBase
 			BindGroupEntry.Buffer(0, cameraBuffer, 0, SceneUniforms.Size),
 			BindGroupEntry.Buffer(1, system.ParticleParams, 0, 16),
 			BindGroupEntry.Buffer(0, system.ParticleBuffer, 0, (uint64)(system.MaxParticles * GPUParticle.SizeInBytes)),
-			BindGroupEntry.Buffer(1, system.AliveList, 0, (uint64)(system.MaxParticles * 4)),
+			BindGroupEntry.Buffer(1, system.CurrentAliveList, 0, (uint64)(system.MaxParticles * 4)),
 			BindGroupEntry.Texture(2, mDefaultParticleTextureView),
 			BindGroupEntry.Sampler(0, mDefaultSampler),
 			BindGroupEntry.Texture(3, depthView, .DepthStencilReadOnly),
@@ -1483,12 +1548,22 @@ public class ParticleFeature : RenderFeatureBase
 		{
 			Label = "Particle Indices",
 			Size = (uint64)(proxy.MaxParticles * 4),
-			Usage = .Storage | .CopyDst
+			Usage = .Storage,
+			MemoryAccess = .Upload
 		};
+
+		// Two alive list buffers for ping-pong compaction
+		switch (Renderer.Device.CreateBuffer(&indexBufferDesc))
+		{
+		case .Ok(let buf): system.AliveListA = buf;
+		case .Err:
+			delete system;
+			return null;
+		}
 
 		switch (Renderer.Device.CreateBuffer(&indexBufferDesc))
 		{
-		case .Ok(let buf): system.AliveList = buf;
+		case .Ok(let buf): system.AliveListB = buf;
 		case .Err:
 			delete system;
 			return null;
@@ -1506,7 +1581,8 @@ public class ParticleFeature : RenderFeatureBase
 		{
 			Label = "Particle Counters",
 			Size = 8,
-			Usage = .Storage | .CopyDst
+			Usage = .Storage,
+			MemoryAccess = .Upload
 		};
 
 		switch (Renderer.Device.CreateBuffer(&countersDesc))
@@ -1517,7 +1593,17 @@ public class ParticleFeature : RenderFeatureBase
 			return null;
 		}
 
-		// Initialize dead list
+		// Initialize both alive lists to 0xFFFFFFFF (empty)
+		{
+			uint32[] emptyIndices = scope uint32[proxy.MaxParticles];
+			for (uint32 i = 0; i < proxy.MaxParticles; i++)
+				emptyIndices[i] = 0xFFFFFFFF;
+			let data = Span<uint8>((uint8*)&emptyIndices[0], (int)(proxy.MaxParticles * 4));
+			Renderer.Device.Queue.WriteMappedBuffer(system.AliveListA, 0, data);
+			Renderer.Device.Queue.WriteMappedBuffer(system.AliveListB, 0, data);
+		}
+
+		// Initialize dead list: all particles start dead
 		{
 			uint32[] deadIndices = scope uint32[proxy.MaxParticles];
 			for (uint32 i = 0; i < proxy.MaxParticles; i++)
@@ -1528,7 +1614,7 @@ public class ParticleFeature : RenderFeatureBase
 			);
 		}
 
-		// Initialize counters
+		// Initialize counters: [0] = 0 alive, [1] = MaxParticles dead
 		{
 			uint32[2] counters = .(0, proxy.MaxParticles);
 			Renderer.Device.Queue.WriteMappedBuffer(
@@ -1569,27 +1655,55 @@ public class ParticleFeature : RenderFeatureBase
 			return null;
 		}
 
-		// Create compute bind group
+		// Create two compute bind groups for ping-pong:
+		// BindGroupA: AliveListA at u1, AliveListB at u4
+		// BindGroupB: AliveListB at u1, AliveListA at u4
 		if (mComputeBindGroupLayout != null)
 		{
-			BindGroupEntry[5] computeEntries = .(
+			let bufSize = (uint64)(proxy.MaxParticles * 4);
+			let particleBufSize = (uint64)(proxy.MaxParticles * GPUParticle.SizeInBytes);
+
+			BindGroupEntry[6] entriesA = .(
 				BindGroupEntry.Buffer(0, system.EmitterParams, 0, (uint64)GPUEmitterParams.SizeInBytes),
-				BindGroupEntry.Buffer(0, system.ParticleBuffer, 0, (uint64)(proxy.MaxParticles * GPUParticle.SizeInBytes)),
-				BindGroupEntry.Buffer(1, system.AliveList, 0, (uint64)(proxy.MaxParticles * 4)),
-				BindGroupEntry.Buffer(2, system.DeadList, 0, (uint64)(proxy.MaxParticles * 4)),
-				BindGroupEntry.Buffer(3, system.Counters, 0, 8)
+				BindGroupEntry.Buffer(0, system.ParticleBuffer, 0, particleBufSize),
+				BindGroupEntry.Buffer(1, system.AliveListA, 0, bufSize),
+				BindGroupEntry.Buffer(2, system.DeadList, 0, bufSize),
+				BindGroupEntry.Buffer(3, system.Counters, 0, 8),
+				BindGroupEntry.Buffer(4, system.AliveListB, 0, bufSize)
 			);
 
-			BindGroupDescriptor computeBgDesc = .()
+			BindGroupDescriptor bgDescA = .()
 			{
-				Label = "Particle Compute BindGroup",
+				Label = "Particle Compute BindGroup A",
 				Layout = mComputeBindGroupLayout,
-				Entries = computeEntries
+				Entries = entriesA
 			};
 
-			switch (Renderer.Device.CreateBindGroup(&computeBgDesc))
+			switch (Renderer.Device.CreateBindGroup(&bgDescA))
 			{
-			case .Ok(let bg): system.ComputeBindGroup = bg;
+			case .Ok(let bg): system.ComputeBindGroupA = bg;
+			case .Err:
+			}
+
+			BindGroupEntry[6] entriesB = .(
+				BindGroupEntry.Buffer(0, system.EmitterParams, 0, (uint64)GPUEmitterParams.SizeInBytes),
+				BindGroupEntry.Buffer(0, system.ParticleBuffer, 0, particleBufSize),
+				BindGroupEntry.Buffer(1, system.AliveListB, 0, bufSize),
+				BindGroupEntry.Buffer(2, system.DeadList, 0, bufSize),
+				BindGroupEntry.Buffer(3, system.Counters, 0, 8),
+				BindGroupEntry.Buffer(4, system.AliveListA, 0, bufSize)
+			);
+
+			BindGroupDescriptor bgDescB = .()
+			{
+				Label = "Particle Compute BindGroup B",
+				Layout = mComputeBindGroupLayout,
+				Entries = entriesB
+			};
+
+			switch (Renderer.Device.CreateBindGroup(&bgDescB))
+			{
+			case .Ok(let bg): system.ComputeBindGroupB = bg;
 			case .Err:
 			}
 		}
@@ -1605,21 +1719,16 @@ public class ParticleFeature : RenderFeatureBase
 		let deltaTime = Renderer.RenderFrameContext.DeltaTime;
 		let avgLifetime = proxy.ParticleLifetime;
 
-		system.BlendMode = proxy.BlendMode;
-		system.TimeSinceReset += deltaTime;
+		// Swap alive lists — last frame's sim wrote to the "new" list,
+		// which the render pass then read. Now that list becomes "old" for this frame's compact.
+		system.SwapAliveList();
 
-		let resetInterval = 30.0f;
-		let writeIndexNearCapacity = system.GPUAliveWriteIndex > (system.MaxParticles * 8 / 10);
-		if (system.TimeSinceReset >= resetInterval || writeIndexNearCapacity || system.NeedsReset)
-		{
-			ResetGPUParticleSystem(system, proxy);
-		}
+		system.BlendMode = proxy.BlendMode;
 
 		system.AccumulatedSpawn += proxy.SpawnRate * deltaTime;
 		let spawnedThisFrame = (uint32)system.AccumulatedSpawn;
 		system.AccumulatedSpawn -= (float)spawnedThisFrame;
 		system.PendingSpawnCount = spawnedThisFrame;
-		system.GPUAliveWriteIndex += spawnedThisFrame;
 
 		let deathRate = (float)system.EstimatedAliveCount / Math.Max(avgLifetime, 0.1f);
 		let deadThisFrame = (uint32)(deathRate * deltaTime);
@@ -1632,7 +1741,7 @@ public class ParticleFeature : RenderFeatureBase
 		emitterParams.Position = proxy.Position;
 		emitterParams.SpawnRate = proxy.SpawnRate;
 		emitterParams.Direction = proxy.InitialVelocity;
-		emitterParams.SpawnRadius = 0.5f;
+		emitterParams.SpawnRadius = proxy.Shape.Size.X;
 		emitterParams.Velocity = proxy.InitialVelocity;
 		emitterParams.VelocityRandomness = proxy.VelocityRandomness.X;
 		emitterParams.ColorStart = proxy.StartColor;
@@ -1649,46 +1758,18 @@ public class ParticleFeature : RenderFeatureBase
 		emitterParams.TotalTime = Renderer.RenderFrameContext.TotalTime;
 		emitterParams.SpawnCount = system.PendingSpawnCount;
 
+		// Emission shape parameters
+		emitterParams.ShapeType = (uint32)proxy.Shape.Type;
+		emitterParams.ShapeSizeX = proxy.Shape.Size.X;
+		emitterParams.ShapeSizeY = proxy.Shape.Size.Y;
+		emitterParams.ShapeSizeZ = proxy.Shape.Size.Z;
+		emitterParams.ShapeConeAngle = proxy.Shape.ConeAngle;
+		emitterParams.ShapeArc = proxy.Shape.Arc;
+		emitterParams.ShapeEmitFromSurface = proxy.Shape.EmitFromSurface ? 1u : 0u;
+
 		Renderer.Device.Queue.WriteMappedBuffer(
 			system.EmitterParams, 0,
 			Span<uint8>((uint8*)&emitterParams, GPUEmitterParams.SizeInBytes)
 		);
-	}
-
-	private void ResetGPUParticleSystem(GPUParticleSystem system, ParticleEmitterProxy* proxy)
-	{
-		{
-			uint32[] deadIndices = scope uint32[system.MaxParticles];
-			for (uint32 i = 0; i < system.MaxParticles; i++)
-				deadIndices[i] = i;
-			Renderer.Device.Queue.WriteMappedBuffer(
-				system.DeadList, 0,
-				Span<uint8>((uint8*)&deadIndices[0], (int)(system.MaxParticles * 4))
-			);
-		}
-
-		{
-			uint32[2] counters = .(0, system.MaxParticles);
-			Renderer.Device.Queue.WriteMappedBuffer(
-				system.Counters, 0,
-				Span<uint8>((uint8*)&counters[0], 8)
-			);
-		}
-
-		{
-			uint32[] aliveIndices = scope uint32[system.MaxParticles];
-			for (uint32 i = 0; i < system.MaxParticles; i++)
-				aliveIndices[i] = 0xFFFFFFFF;
-			Renderer.Device.Queue.WriteMappedBuffer(
-				system.AliveList, 0,
-				Span<uint8>((uint8*)&aliveIndices[0], (int)(system.MaxParticles * 4))
-			);
-		}
-
-		system.EstimatedAliveCount = 0;
-		system.AccumulatedSpawn = 0;
-		system.GPUAliveWriteIndex = 0;
-		system.TimeSinceReset = 0;
-		system.NeedsReset = false;
 	}
 }

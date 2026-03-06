@@ -97,17 +97,12 @@ extension RenderSceneModule
 	}
 
 	/// Creates a CPU-simulated particle emitter for an entity.
-	/// The CPUParticleEmitter is created and assigned to the proxy.
 	public ParticleEmitterProxyHandle CreateCPUParticleEmitter(EntityId entity, int32 maxParticles = 1000)
 	{
 		if (mScene == null || mWorld == null)
 			return .Invalid;
 
-		let device = mSubsystem.RenderSystem?.Device;
-		if (device == null)
-			return .Invalid;
-
-		let handle = mWorld.CreateParticleEmitter(device, .CPU, maxParticles);
+		let handle = mWorld.CreateParticleEmitter(.CPU, maxParticles);
 		AllocateParticleEmitterSlot(entity, handle);
 
 		let worldMatrix = mScene.GetWorldMatrix(entity);
@@ -124,16 +119,9 @@ extension RenderSceneModule
 
 		ParticleEmitterProxyHandle handle;
 		if (data.Backend == .CPU)
-		{
-			let device = mSubsystem.RenderSystem?.Device;
-			if (device == null)
-				return;
-			handle = mWorld.CreateParticleEmitter(device, .CPU, (int32)data.MaxParticles);
-		}
+			handle = mWorld.CreateParticleEmitter(.CPU, (int32)data.MaxParticles);
 		else
-		{
-			handle = mWorld.CreateParticleEmitter(backend: .GPU);
-		}
+			handle = mWorld.CreateParticleEmitter(.GPU);
 
 		AllocateParticleEmitterSlot(entity, handle);
 
@@ -181,8 +169,7 @@ extension RenderSceneModule
 			proxy.LifetimeVarianceMin = data.LifetimeVarianceMin;
 			proxy.LifetimeVarianceMax = data.LifetimeVarianceMax;
 			proxy.Trail = data.Trail;
-			if (proxy.CPUEmitter != null)
-				proxy.CPUEmitter.Shape = data.Shape;
+			proxy.Shape = data.Shape;
 			proxy.SubEmitterOnly = data.SubEmitterOnly;
 			proxy.LayerMask = data.LayerMask;
 			proxy.IsEnabled = data.Enabled;

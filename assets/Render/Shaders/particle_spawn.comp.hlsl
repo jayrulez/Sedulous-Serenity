@@ -38,6 +38,16 @@ cbuffer EmitterParams : register(b0)
     float TotalTime;
     uint SpawnCount;
     uint _Padding;
+
+    // Emission shape parameters
+    uint ShapeType;       // 0=Point, 1=Sphere, 2=Hemisphere, 3=Cone, 4=Box, 5=Circle, 6=Edge
+    float ShapeSizeX;
+    float ShapeSizeY;
+    float ShapeSizeZ;
+    float ShapeConeAngle;
+    float ShapeArc;
+    uint ShapeEmitFromSurface;
+    uint _ShapePadding;
 };
 
 // Buffers
@@ -57,18 +67,110 @@ float Hash(uint seed)
     return float(seed) / 4294967295.0;
 }
 
-float3 RandomInSphere(uint seed)
-{
-    float theta = Hash(seed) * 6.28318530718;
-    float phi = acos(2.0 * Hash(seed + 1) - 1.0);
-    float r = pow(Hash(seed + 2), 1.0 / 3.0);
+static const float PI = 3.14159265359;
+static const float TWO_PI = 6.28318530718;
 
+float3 RandomOnUnitSphere(uint seed)
+{
+    float theta = Hash(seed) * TWO_PI;
+    float phi = acos(2.0 * Hash(seed + 1) - 1.0);
     float sinPhi = sin(phi);
-    return float3(
-        r * sinPhi * cos(theta),
-        r * sinPhi * sin(theta),
-        r * cos(phi)
-    );
+    return float3(sinPhi * cos(theta), cos(phi), sinPhi * sin(theta));
+}
+
+float3 RandomOnUnitSphereArc(uint seed, float arc)
+{
+    float theta = Hash(seed) * arc;
+    float phi = acos(2.0 * Hash(seed + 1) - 1.0);
+    float sinPhi = sin(phi);
+    return float3(sinPhi * cos(theta), cos(phi), sinPhi * sin(theta));
+}
+
+// Sample emission shape — mirrors CPU EmissionShape.Sample()
+void SampleShape(uint seed, out float3 position, out float3 direction)
+{
+    float arc = (ShapeArc <= 0.0 || ShapeArc >= TWO_PI) ? TWO_PI : ShapeArc;
+
+    if (ShapeType == 0) // Point
+    {
+        position = float3(0, 0, 0);
+        direction = float3(0, 1, 0);
+    }
+    else if (ShapeType == 1) // Sphere
+    {
+        float3 dir = RandomOnUnitSphereArc(seed + 50, arc);
+        float r = ShapeSizeX;
+        if (!ShapeEmitFromSurface)
+            r *= pow(Hash(seed + 52), 1.0 / 3.0);
+        position = dir * r;
+        direction = normalize(dir);
+    }
+    else if (ShapeType == 2) // Hemisphere
+    {
+        float3 dir = RandomOnUnitSphereArc(seed + 50, arc);
+        dir.y = abs(dir.y);
+        float r = ShapeSizeX;
+        if (!ShapeEmitFromSurface)
+            r *= pow(Hash(seed + 52), 1.0 / 3.0);
+        position = dir * r;
+        direction = normalize(dir);
+    }
+    else if (ShapeType == 3) // Cone
+    {
+        float cosAngle = cos(ShapeConeAngle);
+        float z = cosAngle + (1.0 - cosAngle) * Hash(seed + 50);
+        float phi = Hash(seed + 51) * arc;
+        float sinTheta = sqrt(1.0 - z * z);
+        direction = float3(sinTheta * cos(phi), z, sinTheta * sin(phi));
+        float r = ShapeSizeX;
+        if (!ShapeEmitFromSurface)
+            r *= Hash(seed + 52);
+        position = direction * r;
+    }
+    else if (ShapeType == 4) // Box
+    {
+        if (ShapeEmitFromSurface)
+        {
+            uint face = uint(Hash(seed + 50) * 6.0) % 6;
+            float3 pos = float3(
+                (Hash(seed + 51) * 2.0 - 1.0) * ShapeSizeX,
+                (Hash(seed + 52) * 2.0 - 1.0) * ShapeSizeY,
+                (Hash(seed + 53) * 2.0 - 1.0) * ShapeSizeZ
+            );
+            direction = float3(0, 1, 0);
+            if (face == 0)      { pos.x =  ShapeSizeX; direction = float3( 1, 0, 0); }
+            else if (face == 1) { pos.x = -ShapeSizeX; direction = float3(-1, 0, 0); }
+            else if (face == 2) { pos.y =  ShapeSizeY; direction = float3( 0, 1, 0); }
+            else if (face == 3) { pos.y = -ShapeSizeY; direction = float3( 0,-1, 0); }
+            else if (face == 4) { pos.z =  ShapeSizeZ; direction = float3( 0, 0, 1); }
+            else                { pos.z = -ShapeSizeZ; direction = float3( 0, 0,-1); }
+            position = pos;
+        }
+        else
+        {
+            position = float3(
+                (Hash(seed + 51) * 2.0 - 1.0) * ShapeSizeX,
+                (Hash(seed + 52) * 2.0 - 1.0) * ShapeSizeY,
+                (Hash(seed + 53) * 2.0 - 1.0) * ShapeSizeZ
+            );
+            direction = float3(0, 1, 0);
+        }
+    }
+    else if (ShapeType == 5) // Circle
+    {
+        float angle = Hash(seed + 50) * arc;
+        float r = ShapeSizeX;
+        if (!ShapeEmitFromSurface)
+            r *= sqrt(Hash(seed + 51));
+        position = float3(cos(angle) * r, 0, sin(angle) * r);
+        direction = float3(0, 1, 0);
+    }
+    else // Edge (6)
+    {
+        float t = Hash(seed + 50) * 2.0 - 1.0;
+        position = float3(t * ShapeSizeX, 0, 0);
+        direction = float3(0, 1, 0);
+    }
 }
 
 [numthreads(64, 1, 1)]
@@ -97,13 +199,19 @@ void main(uint3 DTid : SV_DispatchThreadID)
     // Initialize particle
     Particle p;
 
-    // Random position within spawn radius
-    float3 offset = RandomInSphere(seed) * SpawnRadius;
-    p.Position = EmitterPosition + offset;
+    // Sample emission shape for spawn position and direction
+    float3 shapePos;
+    float3 shapeDir;
+    SampleShape(seed, shapePos, shapeDir);
+    p.Position = EmitterPosition + shapePos;
 
-    // Random velocity
-    float3 randomDir = normalize(RandomInSphere(seed + 100));
-    p.Velocity = BaseVelocity + randomDir * VelocityRandomness;
+    // Velocity: use base velocity if present, otherwise use shape direction
+    float baseSpeed = length(BaseVelocity);
+    float3 randomDir = normalize(RandomOnUnitSphere(seed + 100));
+    if (baseSpeed > 0.001)
+        p.Velocity = BaseVelocity + randomDir * VelocityRandomness;
+    else
+        p.Velocity = shapeDir + randomDir * VelocityRandomness;
 
     // Random lifetime
     p.Lifetime = lerp(LifetimeMin, LifetimeMax, Hash(seed + 200));
@@ -114,7 +222,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
     p.Size = SizeStart;
 
     // Random rotation
-    p.Rotation = Hash(seed + 300) * 6.28318530718;
+    p.Rotation = Hash(seed + 300) * TWO_PI;
     p.RotationSpeed = (Hash(seed + 400) - 0.5) * 2.0;
 
     Particles[particleIndex] = p;

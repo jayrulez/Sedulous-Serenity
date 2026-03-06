@@ -38,6 +38,16 @@ cbuffer EmitterParams : register(b0)
     float TotalTime;
     uint SpawnCount;
     uint _Padding;
+
+    // Emission shape parameters (must match spawn shader layout, unused by update)
+    uint ShapeType;
+    float ShapeSizeX;
+    float ShapeSizeY;
+    float ShapeSizeZ;
+    float ShapeConeAngle;
+    float ShapeArc;
+    uint ShapeEmitFromSurface;
+    uint _ShapePadding;
 };
 
 // Buffers (same layout as spawn shader for simplicity)

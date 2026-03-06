@@ -1040,16 +1040,14 @@ public class RenderWorld : IDisposable
 	// ========================================================================
 
 	/// Creates a new particle emitter proxy.
-	/// When backend is CPU, a CPUParticleEmitter is created automatically.
-	public ParticleEmitterProxyHandle CreateParticleEmitter(IDevice device = null, ParticleSimulationBackend backend = .CPU, int32 maxParticles = 500)
+	/// CPUParticleEmitter is created lazily by ParticleFeature on first frame.
+	public ParticleEmitterProxyHandle CreateParticleEmitter(ParticleSimulationBackend backend = .CPU, int32 maxParticles = 500)
 	{
 		let handle = mParticleProxies.Allocate();
 		var proxy = mParticleProxies.Get(handle);
 		*proxy = ParticleEmitterProxy.CreateDefault();
 		proxy.Backend = backend;
 		proxy.MaxParticles = (uint32)maxParticles;
-		if (backend == .CPU && device != null)
-			proxy.CPUEmitter = new CPUParticleEmitter(device, maxParticles);
 		proxy.IsActive = true;
 		proxy.Generation = handle.Generation;
 		mParticlesDirty = true;

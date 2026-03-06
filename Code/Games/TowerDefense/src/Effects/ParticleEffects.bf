@@ -4,7 +4,6 @@ using System;
 using System.Collections;
 using Sedulous.Core.Mathematics;
 using Sedulous.Render;
-using Sedulous.RHI;
 using TowerDefense.Data;
 
 /// Manages particle effects for the game.
@@ -13,17 +12,15 @@ using TowerDefense.Data;
 class ParticleEffects
 {
 	private RenderWorld mRenderWorld;
-	private IDevice mDevice;
 	private int32 mEffectCounter = 0;
 
 	// Pool of active effect handles with timers
 	private List<ParticleEmitterProxyHandle> mActiveHandles = new .() ~ delete _;
 	private List<float> mEffectTimers = new .() ~ delete _;
 
-	public this(RenderWorld renderWorld, IDevice device)
+	public this(RenderWorld renderWorld)
 	{
 		mRenderWorld = renderWorld;
-		mDevice = device;
 	}
 
 	/// Spawns a tower muzzle flash effect at the given position.
@@ -82,18 +79,17 @@ class ParticleEffects
 	{
 		mEffectCounter++;
 
-		// Create the emitter in RenderWorld with CPU backend
 		let maxParticles = Math.Max((int32)emitterConfig.BurstCount * 2, 100);
-		let handle = mRenderWorld.CreateParticleEmitter(mDevice, .CPU, maxParticles);
+		let handle = mRenderWorld.CreateParticleEmitter(.CPU, maxParticles);
 
-		// Apply the configuration to the proxy (CPUEmitter already created by CreateParticleEmitter)
 		if (let proxy = mRenderWorld.GetParticleEmitter(handle))
 		{
-			let cpuEmitter = proxy.CPUEmitter; // Save before overwrite
+			let generation = proxy.Generation;
 			*proxy = emitterConfig;
 			proxy.Backend = .CPU;
 			proxy.MaxParticles = (uint32)maxParticles;
-			proxy.CPUEmitter = cpuEmitter; // Restore
+			proxy.IsActive = true;
+			proxy.Generation = generation;
 		}
 
 		mActiveHandles.Add(handle);

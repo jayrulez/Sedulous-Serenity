@@ -12,26 +12,24 @@ using Sedulous.Core.Logging.Abstractions;
 class ParticleEffects
 {
 	private RenderWorld mWorld;
-	private IDevice mDevice;
 	private ILogger mLogger;
 
 	// Active effect handles with timers
 	private List<ParticleEmitterProxyHandle> mActiveHandles = new .() ~ delete _;
 	private List<float> mEffectTimers = new .() ~ delete _;
 
-	public this(RenderWorld world, IDevice device, ILogger logger)
+	public this(RenderWorld world, ILogger logger)
 	{
 		mWorld = world;
-		mDevice = device;
 		mLogger = logger;
 	}
 
 	/// Spawn coin collect burst at position.
 	public void SpawnCoinCollect(Vector3 position)
 	{
-		if (mWorld == null || mDevice == null)
+		if (mWorld == null)
 		{
-			mLogger?.LogWarning("Cannot spawn coin effect: world or device is null");
+			mLogger?.LogWarning("Cannot spawn coin effect: world is null");
 			return;
 		}
 		var emitter = CreateCoinCollectEmitter(position);
@@ -41,9 +39,9 @@ class ParticleEffects
 	/// Spawn dust puff at position (landing/jumping).
 	public void SpawnDust(Vector3 position)
 	{
-		if (mWorld == null || mDevice == null)
+		if (mWorld == null)
 		{
-			mLogger?.LogWarning("Cannot spawn dust effect: world or device is null");
+			mLogger?.LogWarning("Cannot spawn dust effect: world is null");
 			return;
 		}
 		var emitter = CreateDustEmitter(position);
@@ -53,9 +51,9 @@ class ParticleEffects
 	/// Spawn enemy death effect at position.
 	public void SpawnEnemyDeath(Vector3 position)
 	{
-		if (mWorld == null || mDevice == null)
+		if (mWorld == null)
 		{
-			mLogger?.LogWarning("Cannot spawn enemy death effect: world or device is null");
+			mLogger?.LogWarning("Cannot spawn enemy death effect: world is null");
 			return;
 		}
 		var emitter = CreateEnemyDeathEmitter(position);
@@ -95,15 +93,16 @@ class ParticleEffects
 	private void SpawnEffect(ParticleEmitterProxy emitterConfig, float duration)
 	{
 		let maxParticles = Math.Max((int32)emitterConfig.BurstCount * 2, 60);
-		let handle = mWorld.CreateParticleEmitter(mDevice, .CPU, maxParticles);
+		let handle = mWorld.CreateParticleEmitter(.CPU, maxParticles);
 
 		if (let proxy = mWorld.GetParticleEmitter(handle))
 		{
-			let cpuEmitter = proxy.CPUEmitter;
+			let generation = proxy.Generation;
 			*proxy = emitterConfig;
 			proxy.Backend = .CPU;
 			proxy.MaxParticles = (uint32)maxParticles;
-			proxy.CPUEmitter = cpuEmitter;
+			proxy.IsActive = true;
+			proxy.Generation = generation;
 		}
 		else
 		{

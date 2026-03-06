@@ -132,7 +132,7 @@ public static class ParticlePresets
 		emitter.LifetimeVarianceMax = 1.0f;
 
 		// Use sphere emission to get uniform outward burst
-		emitter.CPUEmitter?.Shape = .Sphere(0.1f, true);
+		emitter.Shape = .Sphere(0.1f, true);
 
 		// Alpha fades smoothly
 		emitter.AlphaOverLifetime = .FadeOut(1.0f, 0.6f);
@@ -187,7 +187,7 @@ public static class ParticlePresets
 		emitter.LifetimeVarianceMax = 1.2f;
 
 		// Emit from a box above the area
-		emitter.CPUEmitter?.Shape = .Box(.(areaSize, 0.1f, areaSize));
+		emitter.Shape = .Box(.(areaSize, 0.1f, areaSize));
 
 		// Gentle wind
 		emitter.ForceModules.WindForce = .(0.3f, 0, 0.1f);
@@ -223,7 +223,7 @@ public static class ParticlePresets
 		emitter.LifetimeVarianceMax = 1.0f;
 
 		// Emit from a flat box above
-		emitter.CPUEmitter?.Shape = .Box(.(areaSize, 0.1f, areaSize));
+		emitter.Shape = .Box(.(areaSize, 0.1f, areaSize));
 
 		return emitter;
 	}
@@ -250,7 +250,7 @@ public static class ParticlePresets
 		emitter.LifetimeVarianceMax = 1.3f;
 
 		// Sphere emission
-		emitter.CPUEmitter?.Shape = .Sphere(0.5f);
+		emitter.Shape = .Sphere(0.5f);
 
 		// Vortex for swirling motion
 		emitter.ForceModules.VortexStrength = 2.0f;

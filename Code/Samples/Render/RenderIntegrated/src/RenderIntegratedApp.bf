@@ -327,7 +327,7 @@ class RenderIntegratedApp : Application
 	private void CreateParticles()
 	{
 		// ==================== FIRE PIT ====================
-		mFireEmitter = mWorld.CreateParticleEmitter(mDevice);
+		mFireEmitter = mWorld.CreateParticleEmitter();
 		if (let e = mWorld.GetParticleEmitter(mFireEmitter))
 		{
 
@@ -356,7 +356,7 @@ class RenderIntegratedApp : Application
 		);
 		for (int i = 0; i < 4; i++)
 		{
-			mTorchEmitters[i] = mWorld.CreateParticleEmitter(mDevice);
+			mTorchEmitters[i] = mWorld.CreateParticleEmitter();
 			if (let e = mWorld.GetParticleEmitter(mTorchEmitters[i]))
 			{
 	
@@ -378,7 +378,7 @@ class RenderIntegratedApp : Application
 		}
 
 		// ==================== SMOKE (with soft particles) ====================
-		mSmokeEmitter = mWorld.CreateParticleEmitter(mDevice);
+		mSmokeEmitter = mWorld.CreateParticleEmitter();
 		if (let e = mWorld.GetParticleEmitter(mSmokeEmitter))
 		{
 
@@ -405,7 +405,7 @@ class RenderIntegratedApp : Application
 		let magicOrbPos = Vector3(12, 2.5f, 0);
 
 		// Layer 1: Core Glow
-		mMagicCoreEmitter = mWorld.CreateParticleEmitter(mDevice);
+		mMagicCoreEmitter = mWorld.CreateParticleEmitter();
 		if (let e = mWorld.GetParticleEmitter(mMagicCoreEmitter))
 		{
 
@@ -425,7 +425,7 @@ class RenderIntegratedApp : Application
 		}
 
 		// Layer 2: Swirling Ring
-		mMagicSwirlEmitter = mWorld.CreateParticleEmitter(mDevice);
+		mMagicSwirlEmitter = mWorld.CreateParticleEmitter();
 		if (let e = mWorld.GetParticleEmitter(mMagicSwirlEmitter))
 		{
 
@@ -451,7 +451,7 @@ class RenderIntegratedApp : Application
 		}
 
 		// Layer 3: Floating Sparkles
-		mMagicSparkleEmitter = mWorld.CreateParticleEmitter(mDevice);
+		mMagicSparkleEmitter = mWorld.CreateParticleEmitter();
 		if (let e = mWorld.GetParticleEmitter(mMagicSparkleEmitter))
 		{
 
@@ -473,7 +473,7 @@ class RenderIntegratedApp : Application
 		}
 
 		// Layer 4: Energy Wisps with Trails
-		mMagicWispEmitter = mWorld.CreateParticleEmitter(mDevice);
+		mMagicWispEmitter = mWorld.CreateParticleEmitter();
 		if (let e = mWorld.GetParticleEmitter(mMagicWispEmitter))
 		{
 
@@ -511,7 +511,7 @@ class RenderIntegratedApp : Application
 		// ==================== HEALING MAGIC ====================
 		{
 			let pos = Vector3(-10, 0.5f, 8);
-			mHealEmitter = mWorld.CreateParticleEmitter(mDevice);
+			mHealEmitter = mWorld.CreateParticleEmitter();
 			if (let e = mWorld.GetParticleEmitter(mHealEmitter))
 			{
 	
@@ -540,7 +540,7 @@ class RenderIntegratedApp : Application
 		// ==================== SPARKS ====================
 		{
 			let pos = Vector3(10, 1.0f, -8);
-			mSparksEmitter = mWorld.CreateParticleEmitter(mDevice);
+			mSparksEmitter = mWorld.CreateParticleEmitter();
 			if (let e = mWorld.GetParticleEmitter(mSparksEmitter))
 			{
 	
@@ -562,7 +562,7 @@ class RenderIntegratedApp : Application
 		}
 
 		// ==================== WATER FOUNTAIN ====================
-		mFountainEmitter = mWorld.CreateParticleEmitter(mDevice);
+		mFountainEmitter = mWorld.CreateParticleEmitter();
 		if (let e = mWorld.GetParticleEmitter(mFountainEmitter))
 		{
 
@@ -582,7 +582,7 @@ class RenderIntegratedApp : Application
 		RegisterEffect(.(-12, 0.5f, -8), .(100, 180, 255, 255), "FOUNTAIN");
 
 		// ==================== SNOW ====================
-		mSnowEmitter = mWorld.CreateParticleEmitter(mDevice);
+		mSnowEmitter = mWorld.CreateParticleEmitter();
 		if (let e = mWorld.GetParticleEmitter(mSnowEmitter))
 		{
 
@@ -607,7 +607,7 @@ class RenderIntegratedApp : Application
 		// ==================== FAIRY DUST / FIREFLIES ====================
 		{
 			let pos = Vector3(-8, 1.5f, 12);
-			mFairyEmitter = mWorld.CreateParticleEmitter(mDevice);
+			mFairyEmitter = mWorld.CreateParticleEmitter();
 			if (let e = mWorld.GetParticleEmitter(mFairyEmitter))
 			{
 	
@@ -636,7 +636,7 @@ class RenderIntegratedApp : Application
 		// ==================== STEAM / MIST (with soft particles) ====================
 		{
 			let pos = Vector3(0, 0.1f, 10);
-			mSteamEmitter = mWorld.CreateParticleEmitter(mDevice);
+			mSteamEmitter = mWorld.CreateParticleEmitter();
 			if (let e = mWorld.GetParticleEmitter(mSteamEmitter))
 			{
 	
@@ -663,7 +663,7 @@ class RenderIntegratedApp : Application
 		// ==================== PER-PARTICLE TRAILS ====================
 		{
 			let pos = Vector3(15, 3, 10);
-			mTrailedSparksEmitter = mWorld.CreateParticleEmitter(mDevice);
+			mTrailedSparksEmitter = mWorld.CreateParticleEmitter();
 			if (let e = mWorld.GetParticleEmitter(mTrailedSparksEmitter))
 			{
 	
@@ -695,7 +695,7 @@ class RenderIntegratedApp : Application
 		// ==================== FORCE FIELD DUST ====================
 		{
 			let pos = Vector3(-3, 1.5f, 3);
-			mForceFieldDustEmitter = mWorld.CreateParticleEmitter(mDevice);
+			mForceFieldDustEmitter = mWorld.CreateParticleEmitter();
 			if (let e = mWorld.GetParticleEmitter(mForceFieldDustEmitter))
 			{
 	
@@ -730,7 +730,7 @@ class RenderIntegratedApp : Application
 			let pos = Vector3(8, 0, -8);
 
 			// Create explosion emitter first (child)
-			mFireworkExplosionEmitter = mWorld.CreateParticleEmitter(mDevice);
+			mFireworkExplosionEmitter = mWorld.CreateParticleEmitter();
 			if (let e = mWorld.GetParticleEmitter(mFireworkExplosionEmitter))
 			{
 	
@@ -752,7 +752,7 @@ class RenderIntegratedApp : Application
 			}
 
 			// Create firework shell emitter (parent)
-			mFireworkEmitter = mWorld.CreateParticleEmitter(mDevice);
+			mFireworkEmitter = mWorld.CreateParticleEmitter();
 			if (let e = mWorld.GetParticleEmitter(mFireworkEmitter))
 			{
 	

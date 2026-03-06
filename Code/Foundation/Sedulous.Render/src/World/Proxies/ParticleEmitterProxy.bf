@@ -229,6 +229,9 @@ public struct ParticleEmitterProxy
 	/// Trail rendering settings.
 	public TrailSettings Trail;
 
+	/// Emission shape for particle spawning (Point, Sphere, Cone, Box, etc.).
+	public EmissionShape Shape;
+
 	/// Whether the emitter is enabled.
 	public bool IsEnabled;
 
@@ -310,6 +313,7 @@ public struct ParticleEmitterProxy
 		emitter.SubEmitterCount = 0;
 		emitter.SubEmitterOnly = false;
 		emitter.Trail = .Default();
+		emitter.Shape = .Point();
 		emitter.IsEnabled = true;
 		emitter.IsEmitting = true;
 		emitter.LayerMask = 0xFFFFFFFF;
@@ -371,6 +375,7 @@ public struct ParticleEmitterProxy
 		SubEmitterCount = 0;
 		SubEmitterOnly = false;
 		Trail = default;
+		Shape = .Point();
 		IsEnabled = false;
 		IsEmitting = false;
 		LayerMask = 0xFFFFFFFF;

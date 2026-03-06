@@ -5,8 +5,9 @@ using System.Collections;
 using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
 
-/// CPU particle emitter - handles simulation, sorting, and vertex buffer upload.
-/// One instance per CPU-mode particle emitter proxy.
+/// CPU particle emitter — owns execution state only (particle pool, vertex buffers, RNG, trail state).
+/// All configuration is read from ParticleEmitterProxy* passed to Update().
+/// One instance per CPU-mode particle emitter proxy, created lazily by ParticleFeature.
 public class CPUParticleEmitter
 {
 	/// Number of buffered vertex buffers for multi-frame rendering.
@@ -32,9 +33,6 @@ public class CPUParticleEmitter
 
 	// RNG for particle spawning
 	private Random mRandom = new .() ~ delete _;
-
-	// Emission shape
-	private EmissionShape mShape = .Point();
 
 	// Double-buffered vertex buffers
 	private IBuffer[FrameBufferCount] mVertexBuffers;
@@ -71,13 +69,6 @@ public class CPUParticleEmitter
 	public IBuffer GetVertexBuffer(uint32 frameIndex)
 	{
 		return mVertexBuffers[frameIndex % FrameBufferCount];
-	}
-
-	/// Gets or sets the emission shape.
-	public EmissionShape Shape
-	{
-		get => mShape;
-		set { mShape = value; }
 	}
 
 	/// Gets the number of particles that died this frame.
@@ -393,7 +384,7 @@ public class CPUParticleEmitter
 			// Sample emission shape
 			Vector3 localPos;
 			Vector3 localDir;
-			mShape.Sample(mRandom, out localPos, out localDir);
+			config.Shape.Sample(mRandom, out localPos, out localDir);
 
 			// Set initial position based on simulation space
 			if (config.SimulationSpace == .Local)

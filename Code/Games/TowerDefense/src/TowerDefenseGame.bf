@@ -513,7 +513,7 @@ class TowerDefenseGame : Application
 		mTowerFactory.InitializeMaterials();
 
 		// Initialize particle effects (uses RenderWorld from RenderSceneModule)
-		mParticleEffects = new ParticleEffects(renderModule.World, mRenderSystem.Device);
+		mParticleEffects = new ParticleEffects(renderModule.World);
 
 		// Subscribe to tower events
 		mTowerFactory.OnTowerFired.Subscribe(new (def, position) => {

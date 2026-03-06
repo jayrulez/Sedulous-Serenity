@@ -31,8 +31,11 @@ class RenderParticlesApp : Application
 
 	// Particle emitters
 	private ParticleEmitterProxyHandle mFountainEmitter;
+	private ParticleEmitterProxyHandle mFountainEmitterGPU;
 	private ParticleEmitterProxyHandle mFireEmitter;
+	private ParticleEmitterProxyHandle mFireEmitterGPU;
 	private ParticleEmitterProxyHandle mSmokeEmitter;
+	private ParticleEmitterProxyHandle mSmokeEmitterGPU;
 
 	// Lights
 	private LightProxyHandle mSunLight = .Invalid;
@@ -133,10 +136,10 @@ class RenderParticlesApp : Application
 	private void CreateEmitters()
 	{
 		// Fountain (center, white/blue, upward)
-		mFountainEmitter = mWorld.CreateParticleEmitter(mDevice);
+		mFountainEmitter = mWorld.CreateParticleEmitter();
 		if (let emitter = mWorld.GetParticleEmitter(mFountainEmitter))
 		{
-			emitter.Position = .(0, 0, 0);
+			emitter.Position = .(-4, 0, 0);
 			emitter.MaxParticles = 1000;
 			emitter.SpawnRate = 100.0f;
 			emitter.ParticleLifetime = 3.0f;
@@ -151,10 +154,10 @@ class RenderParticlesApp : Application
 		}
 
 		// Fire (left, red/orange)
-		mFireEmitter = mWorld.CreateParticleEmitter(mDevice);
+		mFireEmitter = mWorld.CreateParticleEmitter();
 		if (let emitter = mWorld.GetParticleEmitter(mFireEmitter))
 		{
-			emitter.Position = .(-3.0f, 0, 0);
+			emitter.Position = .(-2.0f, 0, 0);
 			emitter.MaxParticles = 500;
 			emitter.SpawnRate = 80.0f;
 			emitter.ParticleLifetime = 1.5f;
@@ -169,10 +172,67 @@ class RenderParticlesApp : Application
 		}
 
 		// Smoke (right, grey, slow rising)
-		mSmokeEmitter = mWorld.CreateParticleEmitter(mDevice);
+		mSmokeEmitter = mWorld.CreateParticleEmitter();
 		if (let emitter = mWorld.GetParticleEmitter(mSmokeEmitter))
 		{
-			emitter.Position = .(3.0f, 0, 0);
+			emitter.Position = .(0.0f, 0, 0);
+			emitter.MaxParticles = 300;
+			emitter.SpawnRate = 30.0f;
+			emitter.ParticleLifetime = 5.0f;
+			emitter.StartSize = .(0.2f, 0.2f);
+			emitter.EndSize = .(1.0f, 1.0f);
+			emitter.StartColor = .(0.5f, 0.5f, 0.5f, 0.6f);
+			emitter.EndColor = .(0.3f, 0.3f, 0.3f, 0.0f);
+			emitter.InitialVelocity = .(0, 1.0f, 0);
+			emitter.VelocityRandomness = .(0.3f, 0.2f, 0.3f);
+			emitter.GravityMultiplier = -0.1f;
+			emitter.Drag = 0.5f;
+			emitter.IsEmitting = true;
+		}
+
+		
+
+		// Fountain (center, white/blue, upward)
+		mFountainEmitterGPU = mWorld.CreateParticleEmitter(.GPU);
+		if (let emitter = mWorld.GetParticleEmitter(mFountainEmitterGPU))
+		{
+			emitter.Position = .(2, 0, 0);
+			emitter.MaxParticles = 1000;
+			emitter.SpawnRate = 100.0f;
+			emitter.ParticleLifetime = 3.0f;
+			emitter.StartSize = .(0.1f, 0.1f);
+			emitter.EndSize = .(0.05f, 0.05f);
+			emitter.StartColor = .(0.8f, 0.9f, 1.0f, 1.0f);
+			emitter.EndColor = .(0.4f, 0.6f, 1.0f, 0.0f);
+			emitter.InitialVelocity = .(0, 5.0f, 0);
+			emitter.VelocityRandomness = .(1.0f, 0.5f, 1.0f);
+			emitter.GravityMultiplier = 1.0f;
+			emitter.IsEmitting = true;
+		}
+
+		// Fire (left, red/orange)
+		mFireEmitterGPU = mWorld.CreateParticleEmitter(.GPU);
+		if (let emitter = mWorld.GetParticleEmitter(mFireEmitterGPU))
+		{
+			emitter.Position = .(4.0f, 0, 0);
+			emitter.MaxParticles = 500;
+			emitter.SpawnRate = 80.0f;
+			emitter.ParticleLifetime = 1.5f;
+			emitter.StartSize = .(0.3f, 0.3f);
+			emitter.EndSize = .(0.6f, 0.6f);
+			emitter.StartColor = .(1.0f, 0.6f, 0.1f, 0.8f);
+			emitter.EndColor = .(0.8f, 0.1f, 0.0f, 0.0f);
+			emitter.InitialVelocity = .(0, 2.0f, 0);
+			emitter.VelocityRandomness = .(0.5f, 0.3f, 0.5f);
+			emitter.GravityMultiplier = -0.2f;
+			emitter.IsEmitting = true;
+		}
+
+		// Smoke (right, grey, slow rising)
+		mSmokeEmitterGPU = mWorld.CreateParticleEmitter(.GPU);
+		if (let emitter = mWorld.GetParticleEmitter(mSmokeEmitterGPU))
+		{
+			emitter.Position = .(6.0f, 0, 0);
 			emitter.MaxParticles = 300;
 			emitter.SpawnRate = 30.0f;
 			emitter.ParticleLifetime = 5.0f;

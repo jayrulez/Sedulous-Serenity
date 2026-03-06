@@ -69,8 +69,7 @@ class ParticleEmitterComponentSerializer : IComponentSerializer
 					data.LifetimeVarianceMin = proxy.LifetimeVarianceMin;
 					data.LifetimeVarianceMax = proxy.LifetimeVarianceMax;
 					data.Trail = proxy.Trail;
-					if (proxy.CPUEmitter != null)
-						data.Shape = proxy.CPUEmitter.Shape;
+					data.Shape = proxy.Shape;
 					data.SubEmitterOnly = proxy.SubEmitterOnly;
 					data.LayerMask = proxy.LayerMask;
 					data.Enabled = proxy.IsEnabled;

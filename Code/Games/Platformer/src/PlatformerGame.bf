@@ -406,7 +406,7 @@ class PlatformerGame : Application
 
 		if (renderModule.World != null)
 		{
-			mParticleEffects = new ParticleEffects(renderModule.World, mDevice, mLogger);
+			mParticleEffects = new ParticleEffects(renderModule.World, mLogger);
 		}
 		else
 		{

@@ -16,6 +16,10 @@ interface IComputePassEncoder
 	/// Dispatches compute work using indirect parameters from a buffer.
 	void DispatchIndirect(IBuffer indirectBuffer, uint64 indirectOffset);
 
+	/// Inserts a full compute-to-compute memory barrier.
+	/// Ensures all prior compute shader writes are visible to subsequent compute dispatches.
+	void ComputeBarrier();
+
 	/// Ends the compute pass.
 	void End();
 }

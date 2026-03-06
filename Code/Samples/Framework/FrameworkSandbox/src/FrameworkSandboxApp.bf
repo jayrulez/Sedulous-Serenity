@@ -594,8 +594,7 @@ class FrameworkSandboxApp : Application
 				proxy.SortParticles = false;
 				proxy.LifetimeVarianceMin = 0.7f;
 				proxy.LifetimeVarianceMax = 1.3f;
-				if (proxy.CPUEmitter != null)
-					proxy.CPUEmitter.Shape = EmissionShape.Cone(0.3f, 0.1f);
+				proxy.Shape = EmissionShape.Cone(0.3f, 0.1f);
 				// Color curve: bright yellow -> orange -> dark red -> transparent
 				proxy.ColorOverLifetime = .();
 				proxy.ColorOverLifetime.AddKey(0.0f, .(1.0f, 0.9f, 0.3f, 1.0f));
@@ -639,8 +638,7 @@ class FrameworkSandboxApp : Application
 				proxy.SoftParticleDistance = 0.5f;
 				proxy.LifetimeVarianceMin = 0.8f;
 				proxy.LifetimeVarianceMax = 1.5f;
-				if (proxy.CPUEmitter != null)
-					proxy.CPUEmitter.Shape = EmissionShape.Cone(0.4f, 0.1f);
+				proxy.Shape = EmissionShape.Cone(0.4f, 0.1f);
 				proxy.SizeOverLifetime = .Linear(.(0.08f, 0.08f), .(0.5f, 0.5f));
 				proxy.AlphaOverLifetime = .FadeOut(1.0f, 0.4f);
 				proxy.ForceModules.TurbulenceStrength = 0.6f;
@@ -680,8 +678,7 @@ class FrameworkSandboxApp : Application
 				proxy.Drag = 0.3f;
 				proxy.LifetimeVarianceMin = 0.4f;
 				proxy.LifetimeVarianceMax = 1.0f;
-				if (proxy.CPUEmitter != null)
-					proxy.CPUEmitter.Shape = EmissionShape.Sphere(0.05f, true);
+				proxy.Shape = EmissionShape.Sphere(0.05f, true);
 				proxy.SpeedOverLifetime = .Linear(1.0f, 0.2f);
 			}
 		}
@@ -708,8 +705,7 @@ class FrameworkSandboxApp : Application
 				proxy.Drag = 0.5f;
 				proxy.LifetimeVarianceMin = 0.8f;
 				proxy.LifetimeVarianceMax = 1.2f;
-				if (proxy.CPUEmitter != null)
-					proxy.CPUEmitter.Shape = EmissionShape.Sphere(0.8f);
+				proxy.Shape = EmissionShape.Sphere(0.8f);
 				proxy.SizeOverLifetime = .();
 				proxy.SizeOverLifetime.AddKey(0.0f, .(0.01f, 0.01f));
 				proxy.SizeOverLifetime.AddKey(0.25f, .(0.07f, 0.07f));
@@ -746,8 +742,7 @@ class FrameworkSandboxApp : Application
 				proxy.VelocityRandomness = .(0.05f, 0.05f, 0.05f);
 				proxy.GravityMultiplier = 0;
 				proxy.Drag = 2.0f;
-				if (proxy.CPUEmitter != null)
-					proxy.CPUEmitter.Shape = EmissionShape.Sphere(0.1f);
+				proxy.Shape = EmissionShape.Sphere(0.1f);
 				proxy.SizeOverLifetime = .();
 				proxy.SizeOverLifetime.AddKey(0.0f, .(0.2f, 0.2f));
 				proxy.SizeOverLifetime.AddKey(0.5f, .(0.35f, 0.35f));
@@ -777,8 +772,7 @@ class FrameworkSandboxApp : Application
 				proxy.VelocityRandomness = .(0.2f, 0.2f, 0.2f);
 				proxy.GravityMultiplier = 0;
 				proxy.Drag = 0.3f;
-				if (proxy.CPUEmitter != null)
-					proxy.CPUEmitter.Shape = EmissionShape.Sphere(1.0f);
+				proxy.Shape = EmissionShape.Sphere(1.0f);
 				proxy.AlphaOverLifetime = .FadeOut(1.0f, 0.7f);
 				proxy.ForceModules.VortexStrength = 4.0f;
 				proxy.ForceModules.VortexAxis = .(0, 1, 0);
@@ -823,8 +817,7 @@ class FrameworkSandboxApp : Application
 				proxy.Drag = 0.5f;
 				proxy.LifetimeVarianceMin = 0.8f;
 				proxy.LifetimeVarianceMax = 1.2f;
-				if (proxy.CPUEmitter != null)
-					proxy.CPUEmitter.Shape = EmissionShape.Sphere(0.2f);
+				proxy.Shape = EmissionShape.Sphere(0.2f);
 				proxy.AlphaOverLifetime = .FadeOut(1.0f, 0.5f);
 				proxy.Trail.Enabled = true;
 				proxy.Trail.MaxPoints = 20;
@@ -866,8 +859,7 @@ class FrameworkSandboxApp : Application
 				proxy.Drag = 0.5f;
 				proxy.LifetimeVarianceMin = 0.5f;
 				proxy.LifetimeVarianceMax = 1.0f;
-				if (proxy.CPUEmitter != null)
-					proxy.CPUEmitter.Shape = EmissionShape.Sphere(0.05f, true);
+				proxy.Shape = EmissionShape.Sphere(0.05f, true);
 				proxy.AlphaOverLifetime = .FadeOut(1.0f, 0.6f);
 				proxy.SpeedOverLifetime = .Linear(1.0f, 0.1f);
 			}
@@ -889,8 +881,7 @@ class FrameworkSandboxApp : Application
 				proxy.InitialVelocity = .(0, 6.0f, 0);
 				proxy.VelocityRandomness = .(0.5f, 1.0f, 0.5f);
 				proxy.GravityMultiplier = 0.5f;
-				if (proxy.CPUEmitter != null)
-					proxy.CPUEmitter.Shape = EmissionShape.Point();
+				proxy.Shape = EmissionShape.Point();
 			}
 		}
 		Console.WriteLine("  Created firework sub-emitter (launcher + burst on death)");
@@ -920,8 +911,7 @@ class FrameworkSandboxApp : Application
 				proxy.SortParticles = true;
 				proxy.LifetimeVarianceMin = 0.7f;
 				proxy.LifetimeVarianceMax = 1.3f;
-				if (proxy.CPUEmitter != null)
-					proxy.CPUEmitter.Shape = EmissionShape.Cone(0.35f, 0.1f);
+				proxy.Shape = EmissionShape.Cone(0.35f, 0.1f);
 				proxy.AlphaOverLifetime = .FadeOut(0.8f, 0.5f);
 				proxy.SizeOverLifetime = .();
 				proxy.SizeOverLifetime.AddKey(0.0f, .(0.2f, 0.2f));
@@ -958,8 +948,7 @@ class FrameworkSandboxApp : Application
 				proxy.SortParticles = false;
 				proxy.LifetimeVarianceMin = 0.6f;
 				proxy.LifetimeVarianceMax = 1.0f;
-				if (proxy.CPUEmitter != null)
-					proxy.CPUEmitter.Shape = EmissionShape.Cone(0.15f, 0.05f);
+				proxy.Shape = EmissionShape.Cone(0.15f, 0.05f);
 				proxy.AlphaOverLifetime = .FadeOut(1.0f, 0.6f);
 			}
 		}
@@ -989,8 +978,7 @@ class FrameworkSandboxApp : Application
 				proxy.SortParticles = false;
 				proxy.LifetimeVarianceMin = 0.7f;
 				proxy.LifetimeVarianceMax = 1.3f;
-				if (proxy.CPUEmitter != null)
-					proxy.CPUEmitter.Shape = EmissionShape.Box(.(10.0f, 0.5f, 10.0f));
+				proxy.Shape = EmissionShape.Box(.(10.0f, 0.5f, 10.0f));
 				proxy.AlphaOverLifetime = .FadeOut(0.7f, 0.8f);
 				proxy.ForceModules.WindForce = .(1.2f, 0.0f, 0.4f);
 				proxy.ForceModules.WindTurbulence = 0.6f;
@@ -1020,8 +1008,7 @@ class FrameworkSandboxApp : Application
 				proxy.SortParticles = false;
 				proxy.LifetimeVarianceMin = 0.6f;
 				proxy.LifetimeVarianceMax = 1.4f;
-				if (proxy.CPUEmitter != null)
-					proxy.CPUEmitter.Shape = EmissionShape.Sphere(2.5f);
+				proxy.Shape = EmissionShape.Sphere(2.5f);
 				proxy.SizeOverLifetime = .();
 				proxy.SizeOverLifetime.AddKey(0.0f, .(0.04f, 0.04f));
 				proxy.SizeOverLifetime.AddKey(0.3f, .(0.1f, 0.1f));
@@ -1061,8 +1048,7 @@ class FrameworkSandboxApp : Application
 				proxy.Drag = 0.2f;
 				proxy.LifetimeVarianceMin = 0.6f;
 				proxy.LifetimeVarianceMax = 1.0f;
-				if (proxy.CPUEmitter != null)
-					proxy.CPUEmitter.Shape = EmissionShape.Sphere(0.3f, true);
+				proxy.Shape = EmissionShape.Sphere(0.3f, true);
 				proxy.AlphaOverLifetime = .FadeOut(1.0f, 0.5f);
 				proxy.Trail.Enabled = true;
 				proxy.Trail.MaxPoints = 15;
@@ -1098,8 +1084,7 @@ class FrameworkSandboxApp : Application
 				proxy.SortParticles = false;
 				proxy.LifetimeVarianceMin = 0.7f;
 				proxy.LifetimeVarianceMax = 1.2f;
-				if (proxy.CPUEmitter != null)
-					proxy.CPUEmitter.Shape = EmissionShape.Sphere(2.0f);
+				proxy.Shape = EmissionShape.Sphere(2.0f);
 				proxy.SizeOverLifetime = .();
 				proxy.SizeOverLifetime.AddKey(0.0f, .(0.02f, 0.02f));
 				proxy.SizeOverLifetime.AddKey(0.2f, .(0.08f, 0.08f));
