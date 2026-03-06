@@ -14,6 +14,9 @@ public struct DrawCommand
 	/// GPU mesh handle for vertex/index data.
 	public GPUMeshHandle GPUMesh;
 
+	/// Cached material instance (avoids proxy lookups during sort/batch).
+	public MaterialInstance Material;
+
 	/// World transform matrix.
 	public Matrix WorldMatrix;
 
@@ -190,6 +193,7 @@ public class DrawBatcher
 				{
 					MeshHandle = visible.Handle,
 					GPUMesh = proxy.MeshHandle,
+					Material = proxy.Materials[0],
 					WorldMatrix = proxy.WorldMatrix,
 					PrevWorldMatrix = proxy.PrevWorldMatrix,
 					NormalMatrix = proxy.NormalMatrix,
@@ -231,6 +235,7 @@ public class DrawBatcher
 				{
 					MeshHandle = visible.Handle,
 					GPUMesh = proxy.MeshHandle,
+					Material = proxy.Materials[0],
 					WorldMatrix = proxy.WorldMatrix,
 					PrevWorldMatrix = proxy.PrevWorldMatrix,
 					NormalMatrix = proxy.NormalMatrix,
@@ -282,9 +287,9 @@ public class DrawBatcher
 		// Commands with same material AND mesh AND LOD can be instanced together
 		mDrawCommands.Sort(scope (a, b) =>
 		{
-			// First sort by material
-			let matA = (int)Internal.UnsafeCastToPtr(GetMaterial(a));
-			let matB = (int)Internal.UnsafeCastToPtr(GetMaterial(b));
+			// First sort by cached material pointer
+			let matA = (int)Internal.UnsafeCastToPtr(a.Material);
+			let matB = (int)Internal.UnsafeCastToPtr(b.Material);
 			if (matA != matB)
 				return matA <=> matB;
 
@@ -318,7 +323,7 @@ public class DrawBatcher
 		for (int32 i = 0; i < mDrawCommands.Count; i++)
 		{
 			let cmd = mDrawCommands[i];
-			let material = GetMaterial(cmd);
+			let material = cmd.Material;
 			let isTransparent = IsMaterialTransparent(material);
 
 			// Check if we need to start a new batch
@@ -404,7 +409,7 @@ public class DrawBatcher
 
 		int32 groupStart = 0;
 		GPUMeshHandle currentMesh = mDrawCommands[0].GPUMesh;
-		MaterialInstance currentMaterial = GetMaterial(mDrawCommands[0]);
+		MaterialInstance currentMaterial = mDrawCommands[0].Material;
 		bool isCurrentTransparent = IsMaterialTransparent(currentMaterial);
 		uint8 currentLODLevel = mDrawCommands[0].LODLevel;
 
@@ -415,7 +420,7 @@ public class DrawBatcher
 			if (!endGroup)
 			{
 				let cmd = mDrawCommands[i];
-				let material = GetMaterial(cmd);
+				let material = cmd.Material;
 				let isTransparent = IsMaterialTransparent(material);
 
 				// Check if this command can be grouped with the previous one
@@ -473,7 +478,7 @@ public class DrawBatcher
 				{
 					groupStart = i;
 					currentMesh = mDrawCommands[i].GPUMesh;
-					currentMaterial = GetMaterial(mDrawCommands[i]);
+					currentMaterial = mDrawCommands[i].Material;
 					isCurrentTransparent = IsMaterialTransparent(currentMaterial);
 					currentLODLevel = mDrawCommands[i].LODLevel;
 				}
@@ -509,17 +514,6 @@ public class DrawBatcher
 			mTransparentBatches.Add(batch);
 		else
 			mOpaqueBatches.Add(batch);
-	}
-
-	private MaterialInstance GetMaterial(DrawCommand cmd)
-	{
-		if (mWorld == null || !cmd.MeshHandle.IsValid)
-			return null;
-
-		if (let proxy = mWorld.GetMesh(cmd.MeshHandle))
-			return proxy.Materials[0];
-
-		return null;
 	}
 
 	private MaterialInstance GetSkinnedMaterial(SkinnedDrawCommand cmd)

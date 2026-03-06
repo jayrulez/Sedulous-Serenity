@@ -78,11 +78,6 @@ public class VisibilityResolver
 	private List<VisibleSkinnedMesh> mVisibleSkinnedMeshes = new .() ~ delete _;
 	private List<VisibleLight> mVisibleLights = new .() ~ delete _;
 
-	// Temporary lists for culling
-	private List<MeshProxyHandle> mTempMeshHandles = new .() ~ delete _;
-	private List<SkinnedMeshProxyHandle> mTempSkinnedHandles = new .() ~ delete _;
-	private List<LightProxyHandle> mTempLightHandles = new .() ~ delete _;
-
 	// LOD settings
 	private float[4] mLODDistances = .(25.0f, 100.0f, 400.0f, 1600.0f);
 	private float mLODBias = 1.0f;
@@ -215,36 +210,33 @@ public class VisibilityResolver
 	private void ResolveStaticMeshes(RenderWorld world, Vector3 cameraPos, SortMode sortMode)
 	{
 		mVisibleMeshes.Clear();
-		mTempMeshHandles.Clear();
 
-		// Frustum cull
-		mCuller.CullMeshes(world, mTempMeshHandles);
-
-		// Build visible mesh list with LOD and sort key
-		for (let handle in mTempMeshHandles)
+		// Single-pass: frustum cull + build visible mesh list with LOD and sort key
+		world.ForEachMesh(scope [&](handle, proxy) =>
 		{
-			if (let proxy = world.GetMesh(handle))
+			if (!proxy.IsActive)
+				return;
+
+			if ((proxy.Flags & .Visible) == 0)
+				return;
+
+			if (!mCuller.IsVisible(proxy.WorldBounds))
+				return;
+
+			let bounds = proxy.WorldBounds;
+			let center = (bounds.Min + bounds.Max) * 0.5f;
+			let distSq = Vector3.DistanceSquared(cameraPos, center);
+			let lodLevel = SelectLOD(distSq);
+			let sortKey = GenerateSortKey(proxy.Materials[0], distSq);
+
+			mVisibleMeshes.Add(.()
 			{
-				// Calculate distance to bounds center
-				let bounds = proxy.WorldBounds;
-				let center = (bounds.Min + bounds.Max) * 0.5f;
-				let distSq = Vector3.DistanceSquared(cameraPos, center);
-
-				// Select LOD
-				let lodLevel = SelectLOD(distSq);
-
-				// Generate sort key (material-based for now, uses slot 0)
-				let sortKey = GenerateSortKey(proxy.Materials[0], distSq);
-
-				mVisibleMeshes.Add(.()
-				{
-					Handle = handle,
-					DistanceSq = distSq,
-					LODLevel = lodLevel,
-					SortKey = sortKey
-				});
-			}
-		}
+				Handle = .() { Handle = handle },
+				DistanceSq = distSq,
+				LODLevel = lodLevel,
+				SortKey = sortKey
+			});
+		});
 
 		// Sort based on mode
 		SortMeshes(sortMode);
@@ -256,31 +248,33 @@ public class VisibilityResolver
 	private void ResolveSkinnedMeshes(RenderWorld world, Vector3 cameraPos, SortMode sortMode)
 	{
 		mVisibleSkinnedMeshes.Clear();
-		mTempSkinnedHandles.Clear();
 
-		// Frustum cull
-		mCuller.CullSkinnedMeshes(world, mTempSkinnedHandles);
-
-		// Build visible mesh list
-		for (let handle in mTempSkinnedHandles)
+		// Single-pass: frustum cull + build visible mesh list
+		world.ForEachSkinnedMesh(scope [&](handle, proxy) =>
 		{
-			if (let proxy = world.GetSkinnedMesh(handle))
-			{
-				let bounds = proxy.WorldBounds;
-				let center = (bounds.Min + bounds.Max) * 0.5f;
-				let distSq = Vector3.DistanceSquared(cameraPos, center);
-				let lodLevel = SelectLOD(distSq);
-				let sortKey = GenerateSortKey(proxy.Materials[0], distSq);
+			if (!proxy.IsActive)
+				return;
 
-				mVisibleSkinnedMeshes.Add(.()
-				{
-					Handle = handle,
-					DistanceSq = distSq,
-					LODLevel = lodLevel,
-					SortKey = sortKey
-				});
-			}
-		}
+			if ((proxy.Flags & .Visible) == 0)
+				return;
+
+			if (!mCuller.IsVisible(proxy.WorldBounds))
+				return;
+
+			let bounds = proxy.WorldBounds;
+			let center = (bounds.Min + bounds.Max) * 0.5f;
+			let distSq = Vector3.DistanceSquared(cameraPos, center);
+			let lodLevel = SelectLOD(distSq);
+			let sortKey = GenerateSortKey(proxy.Materials[0], distSq);
+
+			mVisibleSkinnedMeshes.Add(.()
+			{
+				Handle = .() { Handle = handle },
+				DistanceSq = distSq,
+				LODLevel = lodLevel,
+				SortKey = sortKey
+			});
+		});
 
 		// Sort based on mode
 		SortSkinnedMeshes(sortMode);
@@ -292,28 +286,38 @@ public class VisibilityResolver
 	private void ResolveLights(RenderWorld world, Vector3 cameraPos)
 	{
 		mVisibleLights.Clear();
-		mTempLightHandles.Clear();
 
-		// Frustum cull lights
-		mCuller.CullLights(world, mTempLightHandles);
-
-		// Build visible light list
-		for (let handle in mTempLightHandles)
+		// Single-pass: frustum cull + build visible light list
+		world.ForEachLight(scope [&](handle, proxy) =>
 		{
-			if (let proxy = world.GetLight(handle))
-			{
-				float distSq = 0;
-				if (proxy.Type != .Directional)
-					distSq = Vector3.DistanceSquared(cameraPos, proxy.Position);
+			if (!proxy.IsActive || !proxy.IsEnabled)
+				return;
 
+			// Directional lights always affect the scene
+			if (proxy.Type == .Directional)
+			{
 				mVisibleLights.Add(.()
 				{
-					Handle = handle,
+					Handle = .() { Handle = handle },
+					DistanceSq = 0,
+					CastsShadows = proxy.CastsShadows
+				});
+				return;
+			}
+
+			// For point/spot lights, test their bounding sphere
+			let sphere = BoundingSphere(proxy.Position, proxy.Range);
+			if (mCuller.IsVisible(sphere))
+			{
+				let distSq = Vector3.DistanceSquared(cameraPos, proxy.Position);
+				mVisibleLights.Add(.()
+				{
+					Handle = .() { Handle = handle },
 					DistanceSq = distSq,
 					CastsShadows = proxy.CastsShadows
 				});
 			}
-		}
+		});
 
 		// Sort lights by distance (closest first for priority)
 		mVisibleLights.Sort(scope (a, b) => a.DistanceSq <=> b.DistanceSq);
@@ -324,114 +328,119 @@ public class VisibilityResolver
 
 	private void AccumulateStaticMeshes(RenderWorld world, Vector3 cameraPos)
 	{
-		mTempMeshHandles.Clear();
-		mCuller.CullMeshes(world, mTempMeshHandles);
+		// Build HashSet of already-visible handle indices for O(1) dedup
+		HashSet<uint32> existing = scope .((int32)mVisibleMeshes.Count);
+		for (let vm in mVisibleMeshes)
+			existing.Add(vm.Handle.Handle.Index);
 
-		for (let handle in mTempMeshHandles)
+		// Single-pass: frustum cull + build visible mesh list, skip duplicates
+		world.ForEachMesh(scope [&](handle, proxy) =>
 		{
-			// Skip if already in the list
-			bool found = false;
-			for (let existing in mVisibleMeshes)
-			{
-				if (existing.Handle == handle)
-				{
-					found = true;
-					break;
-				}
-			}
-			if (found)
-				continue;
+			if (!proxy.IsActive)
+				return;
 
-			if (let proxy = world.GetMesh(handle))
-			{
-				let bounds = proxy.WorldBounds;
-				let center = (bounds.Min + bounds.Max) * 0.5f;
-				let distSq = Vector3.DistanceSquared(cameraPos, center);
-				let lodLevel = SelectLOD(distSq);
-				let sortKey = GenerateSortKey(proxy.Materials[0], distSq);
+			if ((proxy.Flags & .Visible) == 0)
+				return;
 
-				mVisibleMeshes.Add(.()
-				{
-					Handle = handle,
-					DistanceSq = distSq,
-					LODLevel = lodLevel,
-					SortKey = sortKey
-				});
-			}
-		}
+			if (existing.Contains(handle.Index))
+				return;
+
+			if (!mCuller.IsVisible(proxy.WorldBounds))
+				return;
+
+			let bounds = proxy.WorldBounds;
+			let center = (bounds.Min + bounds.Max) * 0.5f;
+			let distSq = Vector3.DistanceSquared(cameraPos, center);
+			let lodLevel = SelectLOD(distSq);
+			let sortKey = GenerateSortKey(proxy.Materials[0], distSq);
+
+			existing.Add(handle.Index);
+			mVisibleMeshes.Add(.()
+			{
+				Handle = .() { Handle = handle },
+				DistanceSq = distSq,
+				LODLevel = lodLevel,
+				SortKey = sortKey
+			});
+		});
 	}
 
 	private void AccumulateSkinnedMeshes(RenderWorld world, Vector3 cameraPos)
 	{
-		mTempSkinnedHandles.Clear();
-		mCuller.CullSkinnedMeshes(world, mTempSkinnedHandles);
+		HashSet<uint32> existing = scope .((int32)mVisibleSkinnedMeshes.Count);
+		for (let vm in mVisibleSkinnedMeshes)
+			existing.Add(vm.Handle.Handle.Index);
 
-		for (let handle in mTempSkinnedHandles)
+		world.ForEachSkinnedMesh(scope [&](handle, proxy) =>
 		{
-			bool found = false;
-			for (let existing in mVisibleSkinnedMeshes)
-			{
-				if (existing.Handle == handle)
-				{
-					found = true;
-					break;
-				}
-			}
-			if (found)
-				continue;
+			if (!proxy.IsActive)
+				return;
 
-			if (let proxy = world.GetSkinnedMesh(handle))
-			{
-				let bounds = proxy.WorldBounds;
-				let center = (bounds.Min + bounds.Max) * 0.5f;
-				let distSq = Vector3.DistanceSquared(cameraPos, center);
-				let lodLevel = SelectLOD(distSq);
-				let sortKey = GenerateSortKey(proxy.Materials[0], distSq);
+			if ((proxy.Flags & .Visible) == 0)
+				return;
 
-				mVisibleSkinnedMeshes.Add(.()
-				{
-					Handle = handle,
-					DistanceSq = distSq,
-					LODLevel = lodLevel,
-					SortKey = sortKey
-				});
-			}
-		}
+			if (existing.Contains(handle.Index))
+				return;
+
+			if (!mCuller.IsVisible(proxy.WorldBounds))
+				return;
+
+			let bounds = proxy.WorldBounds;
+			let center = (bounds.Min + bounds.Max) * 0.5f;
+			let distSq = Vector3.DistanceSquared(cameraPos, center);
+			let lodLevel = SelectLOD(distSq);
+			let sortKey = GenerateSortKey(proxy.Materials[0], distSq);
+
+			existing.Add(handle.Index);
+			mVisibleSkinnedMeshes.Add(.()
+			{
+				Handle = .() { Handle = handle },
+				DistanceSq = distSq,
+				LODLevel = lodLevel,
+				SortKey = sortKey
+			});
+		});
 	}
 
 	private void AccumulateLights(RenderWorld world, Vector3 cameraPos)
 	{
-		mTempLightHandles.Clear();
-		mCuller.CullLights(world, mTempLightHandles);
+		HashSet<uint32> existing = scope .((int32)mVisibleLights.Count);
+		for (let vl in mVisibleLights)
+			existing.Add(vl.Handle.Handle.Index);
 
-		for (let handle in mTempLightHandles)
+		world.ForEachLight(scope [&](handle, proxy) =>
 		{
-			bool found = false;
-			for (let existing in mVisibleLights)
-			{
-				if (existing.Handle == handle)
-				{
-					found = true;
-					break;
-				}
-			}
-			if (found)
-				continue;
+			if (!proxy.IsActive || !proxy.IsEnabled)
+				return;
 
-			if (let proxy = world.GetLight(handle))
-			{
-				float distSq = 0;
-				if (proxy.Type != .Directional)
-					distSq = Vector3.DistanceSquared(cameraPos, proxy.Position);
+			if (existing.Contains(handle.Index))
+				return;
 
+			if (proxy.Type == .Directional)
+			{
+				existing.Add(handle.Index);
 				mVisibleLights.Add(.()
 				{
-					Handle = handle,
+					Handle = .() { Handle = handle },
+					DistanceSq = 0,
+					CastsShadows = proxy.CastsShadows
+				});
+				return;
+			}
+
+			let sphere = BoundingSphere(proxy.Position, proxy.Range);
+			if (mCuller.IsVisible(sphere))
+			{
+				let distSq = Vector3.DistanceSquared(cameraPos, proxy.Position);
+				existing.Add(handle.Index);
+				mVisibleLights.Add(.()
+				{
+					Handle = .() { Handle = handle },
 					DistanceSq = distSq,
 					CastsShadows = proxy.CastsShadows
 				});
 			}
-		}
+		});
 	}
 
 	private uint8 SelectLOD(float distanceSq)

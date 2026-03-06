@@ -12,6 +12,7 @@ public class ProxyPool<T> where T : struct
 {
 	private List<T> mProxies = new .() ~ delete _;
 	private List<uint32> mGenerations = new .() ~ delete _;
+	private List<bool> mActive = new .() ~ delete _;
 	private List<int32> mFreeList = new .() ~ delete _;
 	private int32 mActiveCount = 0;
 
@@ -32,6 +33,7 @@ public class ProxyPool<T> where T : struct
 			// Reuse a freed slot
 			index = (uint32)mFreeList.PopBack();
 			generation = mGenerations[(int)index];
+			mActive[(int)index] = true;
 		}
 		else
 		{
@@ -39,6 +41,7 @@ public class ProxyPool<T> where T : struct
 			index = (uint32)mProxies.Count;
 			mProxies.Add(default);
 			mGenerations.Add(1);
+			mActive.Add(true);
 			generation = 1;
 		}
 
@@ -59,6 +62,7 @@ public class ProxyPool<T> where T : struct
 
 		// Increment generation to invalidate existing handles
 		mGenerations[(int)handle.Index]++;
+		mActive[(int)handle.Index] = false;
 		mFreeList.Add((int32)handle.Index);
 		mActiveCount--;
 	}
@@ -99,28 +103,15 @@ public class ProxyPool<T> where T : struct
 	}
 
 	/// Iterates over all active proxies.
-	/// Note: This iterates over all slots, checking validity.
 	public void ForEach(ProxyCallback<T> callback)
 	{
 		for (int32 i = 0; i < mProxies.Count; i++)
 		{
-			let generation = mGenerations[i];
-			// Check if slot is active (not in free list)
-			bool isFree = false;
-			for (let freeIdx in mFreeList)
-			{
-				if (freeIdx == i)
-				{
-					isFree = true;
-					break;
-				}
-			}
+			if (!mActive[i])
+				continue;
 
-			if (!isFree)
-			{
-				let handle = ProxyHandle() { Index = (uint32)i, Generation = generation };
-				callback(handle, ref mProxies[i]);
-			}
+			let handle = ProxyHandle() { Index = (uint32)i, Generation = mGenerations[i] };
+			callback(handle, ref mProxies[i]);
 		}
 	}
 
@@ -129,6 +120,7 @@ public class ProxyPool<T> where T : struct
 	{
 		mProxies.Clear();
 		mGenerations.Clear();
+		mActive.Clear();
 		mFreeList.Clear();
 		mActiveCount = 0;
 	}
