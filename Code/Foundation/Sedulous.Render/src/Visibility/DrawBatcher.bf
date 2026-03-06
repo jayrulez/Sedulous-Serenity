@@ -101,12 +101,15 @@ public struct InstanceGroup
 }
 
 /// Groups visible objects into batches for efficient rendering.
-/// Minimizes state changes by grouping draws by material.
+/// Uses dictionary-based grouping (O(n)) instead of comparison sort (O(n log n)).
 public class DrawBatcher
 {
 	// Draw commands
 	private List<DrawCommand> mDrawCommands = new .() ~ delete _;
 	private List<SkinnedDrawCommand> mSkinnedCommands = new .() ~ delete _;
+
+	// Reorder buffer for scatter-based grouping (reused across frames)
+	private List<DrawCommand> mReorderBuffer = new .() ~ delete _;
 
 	// Batches (non-instanced path)
 	private List<DrawBatch> mOpaqueBatches = new .() ~ delete _;
@@ -122,6 +125,36 @@ public class DrawBatcher
 
 	// Reference to the render world (valid only during Build)
 	private RenderWorld mWorld;
+
+	// Grouping key for dictionary-based auto-instancer
+	private struct GroupKey : IHashable
+	{
+		public int MaterialPtr;
+		public uint32 MeshIndex;
+		public uint8 LODLevel;
+
+		public int GetHashCode()
+		{
+			var hash = MaterialPtr;
+			hash = hash * 397 ^ (int)MeshIndex;
+			hash = hash * 397 ^ (int)LODLevel;
+			return hash;
+		}
+
+		public static bool operator==(Self a, Self b) =>
+			a.MaterialPtr == b.MaterialPtr && a.MeshIndex == b.MeshIndex && a.LODLevel == b.LODLevel;
+	}
+
+	// Per-group metadata for the auto-instancer
+	private struct GroupInfo
+	{
+		public MaterialInstance Material;
+		public GPUMeshHandle GPUMesh;
+		public uint8 LODLevel;
+		public bool IsTransparent;
+		public int32 Count;
+		public int32 StartOffset;
+	}
 
 	/// Gets all static mesh draw commands.
 	public Span<DrawCommand> DrawCommands => mDrawCommands;
@@ -152,7 +185,7 @@ public class DrawBatcher
 	{
 		Clear();
 
-		// Store world reference for material lookups
+		// Store world reference for skinned material lookups
 		mWorld = world;
 
 		// Build static mesh commands
@@ -161,7 +194,7 @@ public class DrawBatcher
 		// Build skinned mesh commands
 		BuildSkinnedMeshCommands(world, visibility);
 
-		// Create batches grouped by material
+		// Create batches and instance groups
 		BuildBatches();
 
 		// Update stats
@@ -268,91 +301,181 @@ public class DrawBatcher
 
 	private void BuildBatches()
 	{
-		// Sort static mesh commands by material and mesh for batching/instancing
-		SortCommandsByMaterial();
-
-		// Build static mesh batches (non-instanced path)
-		BuildStaticBatches();
-
-		// Build instance groups (GPU instancing path)
-		BuildInstanceGroups();
+		// Group static mesh commands by material+mesh+LOD (O(n) dictionary-based)
+		BuildGroupedBatches();
 
 		// Build skinned mesh batches (separate pipeline, no instancing)
 		BuildSkinnedBatches();
 	}
 
-	private void SortCommandsByMaterial()
-	{
-		// Sort by material, mesh, then LOD for optimal batching and instancing
-		// Commands with same material AND mesh AND LOD can be instanced together
-		mDrawCommands.Sort(scope (a, b) =>
-		{
-			// First sort by cached material pointer
-			let matA = (int)Internal.UnsafeCastToPtr(a.Material);
-			let matB = (int)Internal.UnsafeCastToPtr(b.Material);
-			if (matA != matB)
-				return matA <=> matB;
-
-			// Then sort by GPU mesh (enables instancing of identical meshes)
-			let meshA = a.GPUMesh.Index;
-			let meshB = b.GPUMesh.Index;
-			if (meshA != meshB)
-				return meshA <=> meshB;
-
-			// Then sort by LOD level (different LODs draw different submesh ranges)
-			return (int)a.LODLevel <=> (int)b.LODLevel;
-		});
-
-		mSkinnedCommands.Sort(scope (a, b) =>
-		{
-			let matA = (int)Internal.UnsafeCastToPtr(GetSkinnedMaterial(a));
-			let matB = (int)Internal.UnsafeCastToPtr(GetSkinnedMaterial(b));
-			return matA <=> matB;
-		});
-	}
-
-	private void BuildStaticBatches()
+	/// Groups draw commands by (Material, Mesh, LOD) using a dictionary,
+	/// reorders commands so each group is contiguous, then emits both
+	/// DrawBatches (non-instanced fallback) and InstanceGroups (instancing path).
+	/// O(n) total — replaces the previous O(n log n) comparison sort.
+	private void BuildGroupedBatches()
 	{
 		if (mDrawCommands.IsEmpty)
 			return;
 
-		MaterialInstance currentMaterial = null;
-		int32 batchStart = 0;
-		bool isCurrentTransparent = false;
+		// Step 1: Group commands by (Material, Mesh, LOD)
+		Dictionary<GroupKey, int32> keyToGroup = scope .();
+		List<GroupInfo> groupInfos = scope .();
 
 		for (int32 i = 0; i < mDrawCommands.Count; i++)
 		{
 			let cmd = mDrawCommands[i];
-			let material = cmd.Material;
-			let isTransparent = IsMaterialTransparent(material);
-
-			// Check if we need to start a new batch
-			if (material != currentMaterial || isTransparent != isCurrentTransparent)
+			let key = GroupKey()
 			{
-				// Finish previous batch
-				if (i > batchStart)
-				{
-					AddBatch(currentMaterial, batchStart, i - batchStart, isCurrentTransparent, false);
-				}
+				MaterialPtr = (int)Internal.UnsafeCastToPtr(cmd.Material),
+				MeshIndex = cmd.GPUMesh.Index,
+				LODLevel = cmd.LODLevel
+			};
 
-				// Start new batch
-				currentMaterial = material;
-				batchStart = i;
-				isCurrentTransparent = isTransparent;
+			if (keyToGroup.TryGetValue(key, let groupIdx))
+			{
+				var info = groupInfos[groupIdx];
+				info.Count++;
+				groupInfos[groupIdx] = info;
+			}
+			else
+			{
+				keyToGroup[key] = (int32)groupInfos.Count;
+				groupInfos.Add(.()
+				{
+					Material = cmd.Material,
+					GPUMesh = cmd.GPUMesh,
+					LODLevel = cmd.LODLevel,
+					IsTransparent = IsMaterialTransparent(cmd.Material),
+					Count = 1,
+					StartOffset = 0
+				});
 			}
 		}
 
-		// Finish last batch
-		if (mDrawCommands.Count > batchStart)
+		// Step 2: Compute prefix sums — opaque groups first, then transparent
+		int32 offset = 0;
+		for (int32 i = 0; i < groupInfos.Count; i++)
 		{
-			AddBatch(currentMaterial, batchStart, (int32)mDrawCommands.Count - batchStart, isCurrentTransparent, false);
+			if (!groupInfos[i].IsTransparent)
+			{
+				var info = groupInfos[i];
+				info.StartOffset = offset;
+				offset += info.Count;
+				groupInfos[i] = info;
+			}
 		}
+		for (int32 i = 0; i < groupInfos.Count; i++)
+		{
+			if (groupInfos[i].IsTransparent)
+			{
+				var info = groupInfos[i];
+				info.StartOffset = offset;
+				offset += info.Count;
+				groupInfos[i] = info;
+			}
+		}
+
+		// Step 3: Scatter commands into contiguous groups
+		mReorderBuffer.Clear();
+		mReorderBuffer.Reserve(mDrawCommands.Count);
+		for (int i = 0; i < mDrawCommands.Count; i++)
+			mReorderBuffer.Add(.());
+
+		List<int32> writePos = scope .();
+		for (int32 i = 0; i < groupInfos.Count; i++)
+			writePos.Add(groupInfos[i].StartOffset);
+
+		for (int32 i = 0; i < mDrawCommands.Count; i++)
+		{
+			let cmd = mDrawCommands[i];
+			let key = GroupKey()
+			{
+				MaterialPtr = (int)Internal.UnsafeCastToPtr(cmd.Material),
+				MeshIndex = cmd.GPUMesh.Index,
+				LODLevel = cmd.LODLevel
+			};
+			let groupIdx = keyToGroup[key];
+			let pos = writePos[groupIdx];
+			mReorderBuffer[pos] = cmd;
+			writePos[groupIdx] = pos + 1;
+		}
+
+		// Copy reordered commands back
+		Internal.MemCpy(mDrawCommands.Ptr, mReorderBuffer.Ptr, mDrawCommands.Count * sizeof(DrawCommand));
+
+		// Step 4: Emit batches and instance groups
+		int32 opaqueInstanceStart = 0;
+		int32 transparentInstanceStart = 0;
+
+		for (int32 i = 0; i < groupInfos.Count; i++)
+		{
+			let info = groupInfos[i];
+
+			// Create DrawBatch (for non-instanced fallback path)
+			AddBatch(info.Material, info.StartOffset, info.Count, info.IsTransparent, false);
+
+			// Create InstanceGroups (splitting at MaxInstancesPerDraw)
+			int32 remaining = info.Count;
+			int32 groupOffset = 0;
+
+			while (remaining > 0)
+			{
+				int32 batchSize = Math.Min(remaining, RenderConfig.MaxInstancesPerDraw);
+				int32 instanceStart = info.IsTransparent ? transparentInstanceStart : opaqueInstanceStart;
+
+				let group = InstanceGroup()
+				{
+					GPUMesh = info.GPUMesh,
+					Material = info.Material,
+					InstanceStart = instanceStart,
+					InstanceCount = batchSize,
+					CommandStart = info.StartOffset + groupOffset,
+					IsTransparent = info.IsTransparent,
+					LODLevel = info.LODLevel
+				};
+
+				if (info.IsTransparent)
+				{
+					mTransparentInstanceGroups.Add(group);
+					transparentInstanceStart += batchSize;
+				}
+				else
+				{
+					mOpaqueInstanceGroups.Add(group);
+					opaqueInstanceStart += batchSize;
+				}
+
+				groupOffset += batchSize;
+				remaining -= batchSize;
+			}
+		}
+
+		// Offset transparent instance starts by total opaque count
+		for (int32 i = 0; i < mTransparentInstanceGroups.Count; i++)
+		{
+			var group = mTransparentInstanceGroups[i];
+			group.InstanceStart += opaqueInstanceStart;
+			mTransparentInstanceGroups[i] = group;
+		}
+
+		// Update stats
+		mStats.OpaqueInstanceGroupCount = (int32)mOpaqueInstanceGroups.Count;
+		mStats.TransparentInstanceGroupCount = (int32)mTransparentInstanceGroups.Count;
+		mStats.TotalInstanceCount = opaqueInstanceStart + transparentInstanceStart;
 	}
 
 	private void BuildSkinnedBatches()
 	{
 		if (mSkinnedCommands.IsEmpty)
 			return;
+
+		// Sort skinned commands by material (few items, comparison sort is fine)
+		mSkinnedCommands.Sort(scope (a, b) =>
+		{
+			let matA = (int)Internal.UnsafeCastToPtr(GetSkinnedMaterial(a));
+			let matB = (int)Internal.UnsafeCastToPtr(GetSkinnedMaterial(b));
+			return matA <=> matB;
+		});
 
 		MaterialInstance currentMaterial = null;
 		int32 batchStart = 0;
@@ -391,113 +514,6 @@ public class DrawBatcher
 				IsSkinned = true
 			});
 		}
-	}
-
-	private void BuildInstanceGroups()
-	{
-		// Build instance groups from sorted draw commands
-		// Commands are already sorted by material then by mesh
-		// Consecutive commands with same mesh+material form an instance group
-
-		if (mDrawCommands.IsEmpty)
-			return;
-
-		// Track separate instance starts for opaque and transparent
-		// This matches how UploadInstanceData uploads: opaque first, then transparent
-		int32 opaqueInstanceStart = 0;
-		int32 transparentInstanceStart = 0;
-
-		int32 groupStart = 0;
-		GPUMeshHandle currentMesh = mDrawCommands[0].GPUMesh;
-		MaterialInstance currentMaterial = mDrawCommands[0].Material;
-		bool isCurrentTransparent = IsMaterialTransparent(currentMaterial);
-		uint8 currentLODLevel = mDrawCommands[0].LODLevel;
-
-		for (int32 i = 1; i <= mDrawCommands.Count; i++)
-		{
-			bool endGroup = (i == mDrawCommands.Count);
-
-			if (!endGroup)
-			{
-				let cmd = mDrawCommands[i];
-				let material = cmd.Material;
-				let isTransparent = IsMaterialTransparent(material);
-
-				// Check if this command can be grouped with the previous one
-				// Must have same mesh, same material, same transparency mode, and same LOD level
-				endGroup = (cmd.GPUMesh.Index != currentMesh.Index) ||
-				           (material != currentMaterial) ||
-				           (isTransparent != isCurrentTransparent) ||
-				           (cmd.LODLevel != currentLODLevel);
-			}
-
-			if (endGroup)
-			{
-				// Create instance group
-				int32 groupCount = i - groupStart;
-
-				// Limit group size to MaxInstancesPerDraw
-				int32 remaining = groupCount;
-				int32 groupOffset = 0;
-
-				while (remaining > 0)
-				{
-					int32 batchSize = Math.Min(remaining, RenderConfig.MaxInstancesPerDraw);
-
-					// Use the appropriate instance start based on transparency
-					int32 instanceStart = isCurrentTransparent ? transparentInstanceStart : opaqueInstanceStart;
-
-					let group = InstanceGroup()
-					{
-						GPUMesh = currentMesh,
-						Material = currentMaterial,
-						InstanceStart = instanceStart,
-						InstanceCount = batchSize,
-						CommandStart = groupStart + groupOffset,
-						IsTransparent = isCurrentTransparent,
-						LODLevel = currentLODLevel
-					};
-
-					if (isCurrentTransparent)
-					{
-						mTransparentInstanceGroups.Add(group);
-						transparentInstanceStart += batchSize;
-					}
-					else
-					{
-						mOpaqueInstanceGroups.Add(group);
-						opaqueInstanceStart += batchSize;
-					}
-
-					groupOffset += batchSize;
-					remaining -= batchSize;
-				}
-
-				// Start new group
-				if (i < mDrawCommands.Count)
-				{
-					groupStart = i;
-					currentMesh = mDrawCommands[i].GPUMesh;
-					currentMaterial = mDrawCommands[i].Material;
-					isCurrentTransparent = IsMaterialTransparent(currentMaterial);
-					currentLODLevel = mDrawCommands[i].LODLevel;
-				}
-			}
-		}
-
-		// Transparent instances are uploaded AFTER opaque instances in the buffer,
-		// so offset all transparent InstanceStart values by the total opaque count
-		for (int32 i = 0; i < mTransparentInstanceGroups.Count; i++)
-		{
-			var group = mTransparentInstanceGroups[i];
-			group.InstanceStart += opaqueInstanceStart;
-			mTransparentInstanceGroups[i] = group;
-		}
-
-		// Update stats
-		mStats.OpaqueInstanceGroupCount = (int32)mOpaqueInstanceGroups.Count;
-		mStats.TransparentInstanceGroupCount = (int32)mTransparentInstanceGroups.Count;
-		mStats.TotalInstanceCount = opaqueInstanceStart + transparentInstanceStart;
 	}
 
 	private void AddBatch(MaterialInstance material, int32 start, int32 count, bool isTransparent, bool isSkinned)
