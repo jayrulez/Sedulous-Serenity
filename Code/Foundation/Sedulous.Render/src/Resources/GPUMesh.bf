@@ -36,6 +36,18 @@ public struct GPUTextureHandle : IHashable
 	public static bool operator !=(Self lhs, Self rhs) => !(lhs == rhs);
 }
 
+/// LOD level descriptor within a GPU mesh.
+/// Each LOD selects a contiguous range of submeshes.
+/// All LODs share the same vertex/index buffer.
+public struct GPUMeshLOD
+{
+	/// First submesh index for this LOD.
+	public uint32 SubMeshStart;
+
+	/// Number of submeshes in this LOD.
+	public uint32 SubMeshCount;
+}
+
 /// A submesh within a GPU mesh.
 public struct GPUSubMesh
 {
@@ -91,6 +103,12 @@ public class GPUMesh
 	/// Whether this mesh has skinning vertex data.
 	public bool IsSkinned;
 
+	/// LOD level descriptors. Null means single LOD using all submeshes.
+	public GPUMeshLOD[] LODLevels ~ delete _;
+
+	/// Number of LOD levels (0 = single LOD).
+	public uint32 LODCount;
+
 	/// Frees GPU resources.
 	public void Release()
 	{
@@ -109,6 +127,12 @@ public class GPUMesh
 			delete SubMeshes;
 			SubMeshes = null;
 		}
+		if (LODLevels != null)
+		{
+			delete LODLevels;
+			LODLevels = null;
+		}
+		LODCount = 0;
 		IsActive = false;
 	}
 }

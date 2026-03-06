@@ -76,4 +76,7 @@ static class RenderConfig
 
 	/// Transient buffer pool size per frame.
 	public const uint64 TransientBufferPoolSize = 16 * 1024 * 1024; // 16 MB
+
+	/// Maximum number of control points per curve decal.
+	public const int32 MaxCurveDecalPoints = 32;
 }

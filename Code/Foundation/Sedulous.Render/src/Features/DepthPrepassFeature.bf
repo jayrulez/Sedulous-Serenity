@@ -26,6 +26,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 	// Instance buffer manager for GPU instancing
 	private InstanceBufferManager mInstanceBufferManager ~ { if (_ != null) { _.Shutdown(); delete _; } };
 	private bool mInstancingEnabled = false;
+	private bool mWorldInstancingEnabled = true;
 
 	// Constants for per-object uniforms
 	private static int MaxObjectsPerFrame => RenderConfig.MaxOpaqueObjectsPerFrame;
@@ -74,8 +75,8 @@ public class DepthPrepassFeature : RenderFeatureBase
 		set => mEnableInstancing = value;
 	}
 
-	/// Gets whether instancing is currently active (enabled and available).
-	public bool InstancingActive => mEnableInstancing && mInstancingEnabled;
+	/// Gets whether instancing is currently active (enabled, available, and world allows it).
+	public bool InstancingActive => mEnableInstancing && mInstancingEnabled && mWorldInstancingEnabled;
 
 	/// Gets the instance buffer for a frame (for use by other features).
 	public IBuffer GetInstanceBuffer(int32 frameIndex) => mInstanceBufferManager?.GetBuffer(frameIndex);
@@ -284,6 +285,10 @@ public class DepthPrepassFeature : RenderFeatureBase
 	{
 		using (SProfiler.Begin("DepthPrepass.PrepareFrame"))
 		{
+			// Sync world settings
+			mWorldInstancingEnabled = world.InstancingEnabled;
+			mVisibility.SetLODBias(world.LODBias);
+
 			// Union visibility across all views
 			using (SProfiler.Begin("Visibility.Resolve"))
 			{
@@ -329,6 +334,10 @@ public class DepthPrepassFeature : RenderFeatureBase
 			// Single-view path: do visibility/batching here if PrepareFrame wasn't called
 			if (Renderer.RenderFrameContext.ViewCount <= 1)
 			{
+				// Sync world settings
+				mWorldInstancingEnabled = world.InstancingEnabled;
+				mVisibility.SetLODBias(world.LODBias);
+
 				using (SProfiler.Begin("Visibility.Resolve"))
 				{
 					mCuller.SetFrustum(view.ViewProjectionMatrix);
@@ -636,8 +645,18 @@ public class DepthPrepassFeature : RenderFeatureBase
 
 					if (mesh.SubMeshes != null)
 					{
-						for (let sub in mesh.SubMeshes)
+						// Resolve LOD submesh range
+						uint32 subStart = 0;
+						uint32 subCount = (uint32)mesh.SubMeshes.Count;
+						if (mesh.LODLevels != null && group.LODLevel < mesh.LODCount)
 						{
+							subStart = mesh.LODLevels[group.LODLevel].SubMeshStart;
+							subCount = mesh.LODLevels[group.LODLevel].SubMeshCount;
+						}
+
+						for (uint32 si = subStart; si < subStart + subCount && si < (uint32)mesh.SubMeshes.Count; si++)
+						{
+							let sub = mesh.SubMeshes[si];
 							encoder.DrawIndexed(sub.IndexCount, (uint32)group.InstanceCount, sub.IndexStart, sub.BaseVertex, 0);
 							Renderer.Stats.DrawCalls++;
 						}
@@ -696,8 +715,19 @@ public class DepthPrepassFeature : RenderFeatureBase
 					if (mesh.IndexBuffer != null && mesh.SubMeshes != null)
 					{
 						encoder.SetIndexBuffer(mesh.IndexBuffer, mesh.IndexFormat);
-						for (let sub in mesh.SubMeshes)
+
+						// Resolve LOD submesh range
+						uint32 subStart = 0;
+						uint32 subCount = (uint32)mesh.SubMeshes.Count;
+						if (mesh.LODLevels != null && cmd.LODLevel < mesh.LODCount)
 						{
+							subStart = mesh.LODLevels[cmd.LODLevel].SubMeshStart;
+							subCount = mesh.LODLevels[cmd.LODLevel].SubMeshCount;
+						}
+
+						for (uint32 si = subStart; si < subStart + subCount && si < (uint32)mesh.SubMeshes.Count; si++)
+						{
+							let sub = mesh.SubMeshes[si];
 							encoder.DrawIndexed(sub.IndexCount, 1, sub.IndexStart, sub.BaseVertex, 0);
 							Renderer.Stats.DrawCalls++;
 						}

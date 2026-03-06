@@ -23,6 +23,7 @@ public class RenderWorld : IDisposable
 	private ProxyPool<TerrainProxy> mTerrainProxies = new .() ~ delete _;
 	private ProxyPool<WaterProxy> mWaterProxies = new .() ~ delete _;
 	private ProxyPool<GrassProxy> mGrassProxies = new .() ~ delete _;
+	private ProxyPool<CurveDecalProxy> mCurveDecalProxies = new .() ~ delete _;
 
 	// Main camera handle
 	private CameraProxyHandle mMainCamera = .Invalid;
@@ -92,6 +93,10 @@ public class RenderWorld : IDisposable
 	private bool mChromaticAberrationEnabled = false;
 	private float mChromaticAberrationIntensity = 0.005f;
 
+	// LOD & Instancing
+	private float mLODBias = 1.0f;
+	private bool mInstancingEnabled = true;
+
 	// Deferred deletion queue for GPU-referenced resources
 	struct PendingEmitterDeletion
 	{
@@ -127,6 +132,7 @@ public class RenderWorld : IDisposable
 	private bool mTerrainsDirty = false;
 	private bool mWatersDirty = false;
 	private bool mGrassDirty = false;
+	private bool mCurveDecalsDirty = false;
 
 	/// Gets the mesh proxy pool.
 	public ProxyPool<MeshProxy> MeshProxies => mMeshProxies;
@@ -160,6 +166,9 @@ public class RenderWorld : IDisposable
 
 	/// Gets the grass proxy pool.
 	public ProxyPool<GrassProxy> GrassProxies => mGrassProxies;
+
+	/// Gets the curve decal proxy pool.
+	public ProxyPool<CurveDecalProxy> CurveDecalProxies => mCurveDecalProxies;
 
 	/// Gets the main camera handle.
 	public CameraProxyHandle MainCamera => mMainCamera;
@@ -226,6 +235,12 @@ public class RenderWorld : IDisposable
 
 	/// Gets the number of active grass types.
 	public int32 GrassCount => mGrassProxies.ActiveCount;
+
+	/// Whether any curve decals have changed.
+	public bool CurveDecalsDirty => mCurveDecalsDirty;
+
+	/// Gets the number of active curve decals.
+	public int32 CurveDecalCount => mCurveDecalProxies.ActiveCount;
 
 	/// Whether environment settings have changed.
 	public bool EnvironmentDirty => mEnvironmentDirty;
@@ -539,6 +554,24 @@ public class RenderWorld : IDisposable
 	{
 		get => mChromaticAberrationIntensity;
 		set { mChromaticAberrationIntensity = value; mEnvironmentDirty = true; }
+	}
+
+	// ========================================================================
+	// LOD & Instancing API
+	// ========================================================================
+
+	/// Gets or sets the LOD bias. Higher values push LOD transitions farther (higher quality).
+	public float LODBias
+	{
+		get => mLODBias;
+		set { mLODBias = Math.Max(0.01f, value); }
+	}
+
+	/// Gets or sets whether GPU instancing is enabled.
+	public bool InstancingEnabled
+	{
+		get => mInstancingEnabled;
+		set { mInstancingEnabled = value; }
 	}
 
 	// ========================================================================
@@ -1536,6 +1569,57 @@ public class RenderWorld : IDisposable
 	}
 
 	// ========================================================================
+	// Curve Decal API
+	// ========================================================================
+
+	/// Creates a new curve decal proxy.
+	public CurveDecalProxyHandle CreateCurveDecal()
+	{
+		let handle = mCurveDecalProxies.Allocate();
+		var proxy = mCurveDecalProxies.Get(handle);
+		*proxy = CurveDecalProxy.CreateDefault();
+		proxy.IsActive = true;
+		proxy.Generation = handle.Generation;
+		mCurveDecalsDirty = true;
+		return .() { Handle = handle };
+	}
+
+	/// Gets a curve decal proxy by handle.
+	public CurveDecalProxy* GetCurveDecal(CurveDecalProxyHandle handle)
+	{
+		return mCurveDecalProxies.Get(handle.Handle);
+	}
+
+	/// Gets a reference to a curve decal proxy.
+	public ref CurveDecalProxy GetCurveDecalRef(CurveDecalProxyHandle handle)
+	{
+		return ref mCurveDecalProxies.GetRef(handle.Handle);
+	}
+
+	/// Destroys a curve decal proxy.
+	public void DestroyCurveDecal(CurveDecalProxyHandle handle)
+	{
+		if (mCurveDecalProxies.TryGet(handle.Handle, let proxy))
+		{
+			proxy.Reset();
+		}
+		mCurveDecalProxies.Free(handle.Handle);
+		mCurveDecalsDirty = true;
+	}
+
+	/// Marks curve decals as dirty (need mesh rebuild).
+	public void MarkCurveDecalsDirty()
+	{
+		mCurveDecalsDirty = true;
+	}
+
+	/// Iterates over all active curve decal proxies.
+	public void ForEachCurveDecal(ProxyCallback<CurveDecalProxy> callback)
+	{
+		mCurveDecalProxies.ForEach(callback);
+	}
+
+	// ========================================================================
 	// General
 	// ========================================================================
 
@@ -1554,6 +1638,7 @@ public class RenderWorld : IDisposable
 		mTerrainsDirty = false;
 		mWatersDirty = false;
 		mGrassDirty = false;
+		mCurveDecalsDirty = false;
 	}
 
 	/// Clears all objects from the world.
@@ -1591,6 +1676,7 @@ public class RenderWorld : IDisposable
 		mTerrainProxies.Clear();
 		mWaterProxies.Clear();
 		mGrassProxies.Clear();
+		mCurveDecalProxies.Clear();
 		mMainCamera = .Invalid;
 		mMeshesDirty = true;
 		mSkinnedMeshesDirty = true;
@@ -1604,6 +1690,7 @@ public class RenderWorld : IDisposable
 		mTerrainsDirty = true;
 		mWatersDirty = true;
 		mGrassDirty = true;
+		mCurveDecalsDirty = true;
 	}
 
 	public void Dispose()

@@ -167,6 +167,15 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 	// Instancing state (uses instance buffer from DepthPrepassFeature)
 	private bool mInstancingEnabled = false;
 
+	// Shadow instancing
+	private IRenderPipeline mShadowInstancedPipeline ~ delete _;
+	private IPipelineLayout mShadowInstancedPipelineLayout ~ delete _;
+	private IBindGroupLayout mShadowInstancedBindGroupLayout ~ delete _;
+	private IBindGroup[RenderConfig.FrameBufferCount] mShadowInstancedBindGroups;
+	private InstanceBufferManager mShadowInstanceBufferManager ~ { if (_ != null) { _.Shutdown(); delete _; } };
+	private DrawBatcher mShadowBatcher = new .() ~ delete _;
+	private bool mShadowInstancingEnabled = false;
+
 	/// Gets the appropriate pipeline for a material.
 	/// Uses the pipeline cache with caller-provided vertex layouts.
 	/// The vertex layout is determined by the mesh type (instanced vs non-instanced), not the material.
@@ -400,7 +409,146 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		// Create shadow bind group
 		CreateShadowBindGroup();
 
+		// Try to create instanced shadow pipeline
+		CreateShadowInstancedPipeline();
+
 		return .Ok;
+	}
+
+	private void CreateShadowInstancedPipeline()
+	{
+		if (Renderer.ShaderSystem == null)
+			return;
+
+		// Load depth shader with INSTANCED variant
+		let shaderResult = Renderer.ShaderSystem.GetShaderPair("depth", .DepthTest | .DepthWrite | .Instanced);
+		if (shaderResult case .Err)
+			return;
+
+		let (vertShader, fragShader) = shaderResult.Value;
+
+		// Shadow instanced bind group: only cascade VP (dynamic), no per-object transforms
+		BindGroupLayoutEntry[1] entries = .(
+			.() { Binding = 0, Visibility = .Vertex, Type = .UniformBuffer, HasDynamicOffset = true }
+		);
+
+		BindGroupLayoutDescriptor layoutDesc = .()
+		{
+			Label = "Shadow Instanced BindGroup Layout",
+			Entries = entries
+		};
+
+		if (Renderer.Device.CreateBindGroupLayout(&layoutDesc) case .Ok(let bgLayout))
+			mShadowInstancedBindGroupLayout = bgLayout;
+		else
+			return;
+
+		// Pipeline layout
+		IBindGroupLayout[1] layouts = .(mShadowInstancedBindGroupLayout);
+		PipelineLayoutDescriptor plDesc = .(layouts);
+		if (Renderer.Device.CreatePipelineLayout(&plDesc) case .Ok(let plLayout))
+			mShadowInstancedPipelineLayout = plLayout;
+		else
+			return;
+
+		// Vertex layout: mesh + instance data
+		Sedulous.RHI.VertexAttribute[5] meshAttrs = .(
+			.(VertexFormat.Float3, 0, 0),            // Position
+			.(VertexFormat.Float3, 12, 1),           // Normal
+			.(VertexFormat.Float2, 24, 2),           // UV
+			.(VertexFormat.UByte4Normalized, 32, 3), // Color
+			.(VertexFormat.Float3, 36, 4)            // Tangent
+		);
+		Sedulous.RHI.VertexAttribute[4] instanceAttrs = .(
+			.(VertexFormat.Float4, 0, 5),   // WorldRow0
+			.(VertexFormat.Float4, 16, 6),  // WorldRow1
+			.(VertexFormat.Float4, 32, 7),  // WorldRow2
+			.(VertexFormat.Float4, 48, 8)   // WorldRow3
+		);
+		VertexBufferLayout[2] vertexBuffers = .(
+			.(48, meshAttrs, .Vertex),
+			.(64, instanceAttrs, .Instance)
+		);
+
+		// Shadow instanced pipeline - same depth format as shadow map
+		RenderPipelineDescriptor pipelineDesc = .()
+		{
+			Label = "Shadow Instanced Pipeline",
+			Layout = mShadowInstancedPipelineLayout,
+			Vertex = .()
+			{
+				Shader = .(vertShader.Module, "main"),
+				Buffers = vertexBuffers
+			},
+			Fragment = .()
+			{
+				Shader = .(fragShader.Module, "main"),
+				Targets = default
+			},
+			Primitive = .()
+			{
+				Topology = .TriangleList,
+				FrontFace = .CCW,
+				CullMode = .Back
+			},
+			DepthStencil = .()
+			{
+				DepthTestEnabled = true,
+				DepthWriteEnabled = true,
+				DepthCompare = .Less,
+				Format = .Depth32Float,
+				DepthBias = 2,
+				DepthBiasSlopeScale = 3.0f
+			},
+			Multisample = .()
+			{
+				Count = 1,
+				Mask = uint32.MaxValue
+			}
+		};
+
+		if (Renderer.Device.CreateRenderPipeline(&pipelineDesc) case .Ok(let pipeline))
+		{
+			mShadowInstancedPipeline = pipeline;
+
+			// Initialize shadow instance buffer manager
+			mShadowInstanceBufferManager = new InstanceBufferManager();
+			if (mShadowInstanceBufferManager.Initialize(Renderer.Device) case .Ok)
+			{
+				mShadowInstancingEnabled = true;
+				CreateShadowInstancedBindGroups();
+			}
+		}
+	}
+
+	private void CreateShadowInstancedBindGroups()
+	{
+		if (mShadowInstancedBindGroupLayout == null)
+			return;
+
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
+		{
+			if (mShadowInstancedBindGroups[i] != null)
+				continue;
+
+			let shadowUniformBuffer = mShadowUniformBuffers[i];
+			if (shadowUniformBuffer == null)
+				continue;
+
+			BindGroupEntry[1] entries = .(
+				BindGroupEntry.Buffer(0, shadowUniformBuffer, 0, mAlignedSceneUniformSize)
+			);
+
+			BindGroupDescriptor bgDesc = .()
+			{
+				Label = "Shadow Instanced BindGroup",
+				Layout = mShadowInstancedBindGroupLayout,
+				Entries = entries
+			};
+
+			if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bg))
+				mShadowInstancedBindGroups[i] = bg;
+		}
 	}
 
 	private Result<void> CreateDummyShadowMap()
@@ -697,6 +845,12 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				delete mShadowObjectBuffers[i];
 				mShadowObjectBuffers[i] = null;
 			}
+
+			if (mShadowInstancedBindGroups[i] != null)
+			{
+				delete mShadowInstancedBindGroups[i];
+				mShadowInstancedBindGroups[i] = null;
+			}
 		}
 
 		if (mLighting != null)
@@ -976,6 +1130,14 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 		// Upload all shadow uniforms BEFORE adding passes (avoid WriteBuffer during render pass)
 		PrepareShadowUniforms(world, visibility, shadowPasses, frameIndex);
+
+		// Build shadow batcher and upload instance data for instanced shadow rendering
+		if (mShadowInstancingEnabled && world.InstancingEnabled)
+		{
+			mShadowBatcher.BuildShadowCasters(world, visibility);
+			if (mShadowInstanceBufferManager != null && mShadowBatcher.OpaqueInstanceGroups.Length > 0)
+				mShadowInstanceBufferManager.UploadInstanceData(frameIndex, mShadowBatcher);
+		}
 
 		// Import the shadow map array once with a common name for barrier tracking
 		// This handle will be used by the forward pass to trigger automatic barrier
@@ -1437,8 +1599,19 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 					// Per-submesh rendering: each submesh may have a different material
 					encoder.SetIndexBuffer(mesh.IndexBuffer, mesh.IndexFormat);
 
-					for (let sub in mesh.SubMeshes)
+					// Resolve LOD submesh range
+					uint32 subStart = 0;
+					uint32 subCount = (uint32)mesh.SubMeshes.Count;
+					if (mesh.LODLevels != null && group.LODLevel < mesh.LODCount)
 					{
+						subStart = mesh.LODLevels[group.LODLevel].SubMeshStart;
+						subCount = mesh.LODLevels[group.LODLevel].SubMeshCount;
+					}
+
+					for (uint32 si = subStart; si < subStart + subCount && si < (uint32)mesh.SubMeshes.Count; si++)
+					{
+						let sub = mesh.SubMeshes[si];
+
 						// Resolve material for this submesh's material slot
 						let matSlot = (int32)sub.MaterialSlot;
 						MaterialInstance material = null;
@@ -1578,8 +1751,19 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 					{
 						encoder.SetIndexBuffer(mesh.IndexBuffer, mesh.IndexFormat);
 
-						for (let sub in mesh.SubMeshes)
+						// Resolve LOD submesh range
+						uint32 subStart = 0;
+						uint32 subCount = (uint32)mesh.SubMeshes.Count;
+						if (mesh.LODLevels != null && cmd.LODLevel < mesh.LODCount)
 						{
+							subStart = mesh.LODLevels[cmd.LODLevel].SubMeshStart;
+							subCount = mesh.LODLevels[cmd.LODLevel].SubMeshCount;
+						}
+
+						for (uint32 si = subStart; si < subStart + subCount && si < (uint32)mesh.SubMeshes.Count; si++)
+						{
+							let sub = mesh.SubMeshes[si];
+
 							// Resolve material for this submesh's material slot
 							let matSlot = (int32)sub.MaterialSlot;
 							MaterialInstance material = null;
@@ -1849,57 +2033,111 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			(uint32)shadowPass.Viewport.Height
 		);
 
-		// Set shadow pipeline
-		encoder.SetPipeline(mShadowDepthPipeline);
-
 		// Calculate cascade VP offset (for dynamic uniform binding 0)
 		// Uses CascadeIndex from the shadow pass to select the correct VP matrix slot
 		uint32 cascadeVPOffset = (uint32)((int64)cascadeIndex * (int64)mAlignedSceneUniformSize);
 
-		// Render shadow casters (object transforms already uploaded in PrepareShadowUniforms)
-		int32 objectIndex = 0;
-
-		// Static meshes
-		for (let visibleMesh in visibility.VisibleMeshes)
+		// Try instanced path for static meshes
+		bool usedInstanced = false;
+		if (mShadowInstancingEnabled && world.InstancingEnabled &&
+			mShadowInstancedPipeline != null && mShadowInstancedBindGroups[frameIndex] != null &&
+			mShadowBatcher.OpaqueInstanceGroups.Length > 0)
 		{
-			if (objectIndex >= RenderConfig.MaxOpaqueObjectsPerFrame)
-				break;
-
-			if (let proxy = world.GetMesh(visibleMesh.Handle))
+			let instanceBuffer = mShadowInstanceBufferManager?.GetBuffer(frameIndex);
+			if (instanceBuffer != null)
 			{
-				if (!proxy.CastsShadows)
-					continue;
+				encoder.SetPipeline(mShadowInstancedPipeline);
 
-				if (let mesh = Renderer.ResourceManager.GetMesh(proxy.MeshHandle))
+				for (let group in mShadowBatcher.OpaqueInstanceGroups)
 				{
-					// Two dynamic offsets: [0] = cascade VP, [1] = object transforms
-					uint32 objectOffset = (uint32)((int64)objectIndex * (int64)AlignedObjectUniformSize);
-					uint32[2] dynamicOffsets = .(cascadeVPOffset, objectOffset);
-					encoder.SetBindGroup(0, shadowBindGroup, dynamicOffsets);
-
-					// Bind vertex/index buffers and draw
-					encoder.SetVertexBuffer(0, mesh.VertexBuffer, 0);
-					if (mesh.IndexBuffer != null && mesh.SubMeshes != null)
+					if (let mesh = Renderer.ResourceManager.GetMesh(group.GPUMesh))
 					{
+						if (mesh.IndexBuffer == null || mesh.SubMeshes == null)
+							continue;
+
+						// Bind cascade VP (single dynamic offset)
+						uint32[1] dynamicOffsets = .(cascadeVPOffset);
+						encoder.SetBindGroup(0, mShadowInstancedBindGroups[frameIndex], dynamicOffsets);
+
+						encoder.SetVertexBuffer(0, mesh.VertexBuffer, 0);
+						encoder.SetVertexBuffer(1, instanceBuffer, (uint64)group.InstanceStart * 64);
 						encoder.SetIndexBuffer(mesh.IndexBuffer, mesh.IndexFormat);
-						for (let sub in mesh.SubMeshes)
+
+						// Resolve LOD submesh range
+						uint32 subStart = 0;
+						uint32 subCount = (uint32)mesh.SubMeshes.Count;
+						if (mesh.LODLevels != null && group.LODLevel < mesh.LODCount)
 						{
-							encoder.DrawIndexed(sub.IndexCount, 1, sub.IndexStart, sub.BaseVertex, 0);
+							subStart = mesh.LODLevels[group.LODLevel].SubMeshStart;
+							subCount = mesh.LODLevels[group.LODLevel].SubMeshCount;
+						}
+						for (uint32 si = subStart; si < subStart + subCount && si < (uint32)mesh.SubMeshes.Count; si++)
+						{
+							let sub = mesh.SubMeshes[si];
+							encoder.DrawIndexed(sub.IndexCount, (uint32)group.InstanceCount, sub.IndexStart, sub.BaseVertex, 0);
 							Renderer.Stats.ShadowDrawCalls++;
 						}
 					}
-					else if (mesh.IndexBuffer == null)
-					{
-						encoder.Draw(mesh.VertexCount, 1, 0, 0);
-						Renderer.Stats.ShadowDrawCalls++;
-					}
+				}
+				usedInstanced = true;
+			}
+		}
 
-					objectIndex++;
+		// Non-instanced fallback for static meshes
+		if (!usedInstanced)
+		{
+			encoder.SetPipeline(mShadowDepthPipeline);
+
+			int32 objectIndex = 0;
+			for (let visibleMesh in visibility.VisibleMeshes)
+			{
+				if (objectIndex >= RenderConfig.MaxOpaqueObjectsPerFrame)
+					break;
+
+				if (let proxy = world.GetMesh(visibleMesh.Handle))
+				{
+					if (!proxy.CastsShadows)
+						continue;
+
+					if (let mesh = Renderer.ResourceManager.GetMesh(proxy.MeshHandle))
+					{
+						uint32 objectOffset = (uint32)((int64)objectIndex * (int64)AlignedObjectUniformSize);
+						uint32[2] dynamicOffsets = .(cascadeVPOffset, objectOffset);
+						encoder.SetBindGroup(0, shadowBindGroup, dynamicOffsets);
+
+						encoder.SetVertexBuffer(0, mesh.VertexBuffer, 0);
+						if (mesh.IndexBuffer != null && mesh.SubMeshes != null)
+						{
+							encoder.SetIndexBuffer(mesh.IndexBuffer, mesh.IndexFormat);
+
+							// Resolve LOD submesh range
+							uint32 subStart = 0;
+							uint32 subCount = (uint32)mesh.SubMeshes.Count;
+							if (mesh.LODLevels != null && visibleMesh.LODLevel < mesh.LODCount)
+							{
+								subStart = mesh.LODLevels[visibleMesh.LODLevel].SubMeshStart;
+								subCount = mesh.LODLevels[visibleMesh.LODLevel].SubMeshCount;
+							}
+							for (uint32 si = subStart; si < subStart + subCount && si < (uint32)mesh.SubMeshes.Count; si++)
+							{
+								let sub = mesh.SubMeshes[si];
+								encoder.DrawIndexed(sub.IndexCount, 1, sub.IndexStart, sub.BaseVertex, 0);
+								Renderer.Stats.ShadowDrawCalls++;
+							}
+						}
+						else if (mesh.IndexBuffer == null)
+						{
+							encoder.Draw(mesh.VertexCount, 1, 0, 0);
+							Renderer.Stats.ShadowDrawCalls++;
+						}
+
+						objectIndex++;
+					}
 				}
 			}
 		}
 
-		// Skinned meshes - render using post-transform vertex buffers
+		// Skinned meshes - render using post-transform vertex buffers (always non-instanced)
 		RenderSkinnedMeshesShadow(encoder, world, visibility, cascadeVPOffset, frameIndex);
 	}
 
@@ -1945,8 +2183,18 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 					if (mesh.IndexBuffer != null && mesh.SubMeshes != null)
 					{
 						encoder.SetIndexBuffer(mesh.IndexBuffer, mesh.IndexFormat);
-						for (let sub in mesh.SubMeshes)
+
+						// Resolve LOD submesh range
+						uint32 subStart = 0;
+						uint32 subCount = (uint32)mesh.SubMeshes.Count;
+						if (mesh.LODLevels != null && visibleMesh.LODLevel < mesh.LODCount)
 						{
+							subStart = mesh.LODLevels[visibleMesh.LODLevel].SubMeshStart;
+							subCount = mesh.LODLevels[visibleMesh.LODLevel].SubMeshCount;
+						}
+						for (uint32 si = subStart; si < subStart + subCount && si < (uint32)mesh.SubMeshes.Count; si++)
+						{
+							let sub = mesh.SubMeshes[si];
 							encoder.DrawIndexed(sub.IndexCount, 1, sub.IndexStart, sub.BaseVertex, 0);
 							Renderer.Stats.ShadowDrawCalls++;
 						}

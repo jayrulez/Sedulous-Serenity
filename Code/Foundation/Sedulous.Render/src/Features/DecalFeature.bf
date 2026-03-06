@@ -28,6 +28,23 @@ struct DecalUniforms
 	}
 }
 
+/// Uniform data for a curve decal (matches curve_decal shaders).
+[CRepr]
+struct CurveDecalUniforms
+{
+	public Vector4 Color;            // 16 bytes
+	public float ProjectionDepth;    // 4 bytes
+	public float[3] _Pad;           // 12 bytes
+	// Total: 32 bytes
+
+	public const uint32 Size = sizeof(Self);
+
+	private static void AssertSize()
+	{
+		Compiler.Assert(sizeof(Self) == 32);
+	}
+}
+
 /// Screen-space projected decal render feature.
 /// Renders oriented bounding boxes that project textures onto opaque geometry
 /// using the depth buffer.
@@ -67,6 +84,21 @@ public class DecalFeature : RenderFeatureBase
 	// Per-frame active decal list (sorted)
 	private List<DecalSortEntry> mActiveDecals = new .() ~ delete _;
 
+	// Curve decal support
+	private IRenderPipeline mCurvePipelineAlpha ~ delete _;
+	private IRenderPipeline mCurvePipelineAdditive ~ delete _;
+	private IRenderPipeline mCurvePipelineMultiply ~ delete _;
+	private IPipelineLayout mCurvePipelineLayout ~ delete _;
+	private IBindGroupLayout mCurveDecalBindGroupLayout ~ delete _;
+	private CurveDecalMeshBuilder mCurveMeshBuilder = new .() ~ delete _;
+	private IBuffer[RenderConfig.FrameBufferCount] mCurveVertexBuffers ~ { for (let b in _) delete b; };
+	private IBuffer[RenderConfig.FrameBufferCount] mCurveIndexBuffers ~ { for (let b in _) delete b; };
+	private IBuffer[RenderConfig.FrameBufferCount] mCurveUniformBuffers ~ { for (let b in _) delete b; };
+	private const int32 MaxCurveDecals = 64;
+	private const uint64 CurveDecalUniformAlignment = 256;
+	private List<CurveDecalSortEntry> mActiveCurveDecals = new .() ~ delete _;
+	private List<IBindGroup>[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mCurveDecalBindGroups;
+
 	// Per-frame view dimensions
 	private uint32 mViewWidth;
 	private uint32 mViewHeight;
@@ -98,7 +130,13 @@ public class DecalFeature : RenderFeatureBase
 			return .Err;
 
 		for (int i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
+		{
 			mDecalBindGroups[i] = new List<IBindGroup>();
+			mCurveDecalBindGroups[i] = new List<IBindGroup>();
+		}
+
+		// Create curve decal resources
+		CreateCurveDecalResources();
 
 		return .Ok;
 	}
@@ -119,6 +157,14 @@ public class DecalFeature : RenderFeatureBase
 					delete bg;
 				delete mDecalBindGroups[i];
 				mDecalBindGroups[i] = null;
+			}
+
+			if (mCurveDecalBindGroups[i] != null)
+			{
+				for (let bg in mCurveDecalBindGroups[i])
+					delete bg;
+				delete mCurveDecalBindGroups[i];
+				mCurveDecalBindGroups[i] = null;
 			}
 		}
 	}
@@ -422,14 +468,131 @@ public class DecalFeature : RenderFeatureBase
 		return .Ok;
 	}
 
-	public override void AddPasses(RenderGraph graph, RenderView view, RenderWorld world)
+	private void CreateCurveDecalResources()
 	{
-		if (mPipelineAlpha == null && mPipelineAdditive == null && mPipelineMultiply == null)
+		if (Renderer.ShaderSystem == null || mSceneBindGroupLayout == null)
 			return;
 
-		// Collect active decals
-		mActiveDecals.Clear();
+		let shaderResult = Renderer.ShaderSystem.GetShaderPair("curve_decal");
+		if (shaderResult case .Err)
+			return;
 
+		let shaders = shaderResult.Get();
+
+		// Curve decal per-decal bind group layout (same structure as box decal)
+		BindGroupLayoutEntry[3] curveEntries = .(
+			.() { Binding = 0, Visibility = .Vertex | .Fragment, Type = .UniformBuffer, HasDynamicOffset = true },
+			.() { Binding = 0, Visibility = .Fragment, Type = .SampledTexture },
+			.() { Binding = 0, Visibility = .Fragment, Type = .Sampler }
+		);
+
+		BindGroupLayoutDescriptor curveLayoutDesc = .()
+		{
+			Label = "Curve Decal BindGroup Layout",
+			Entries = curveEntries
+		};
+
+		if (Renderer.Device.CreateBindGroupLayout(&curveLayoutDesc) case .Ok(let bgLayout))
+			mCurveDecalBindGroupLayout = bgLayout;
+		else
+			return;
+
+		// Pipeline layout
+		IBindGroupLayout[2] layouts = .(mSceneBindGroupLayout, mCurveDecalBindGroupLayout);
+		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
+		if (Renderer.Device.CreatePipelineLayout(&pipelineLayoutDesc) case .Ok(let plLayout))
+			mCurvePipelineLayout = plLayout;
+		else
+			return;
+
+		// Vertex layout: Position (Float3) + TexCoord (Float2) + Normal (Float3) = 32 bytes
+		VertexBufferLayout[1] vertexBuffers = .(
+			.()
+			{
+				ArrayStride = CurveDecalVertex.Stride,
+				StepMode = .Vertex,
+				Attributes = VertexAttribute[3](
+					.() { Format = .Float3, Offset = 0, ShaderLocation = 0 },   // Position
+					.() { Format = .Float2, Offset = 12, ShaderLocation = 1 },  // TexCoord
+					.() { Format = .Float3, Offset = 20, ShaderLocation = 2 }   // Normal
+				)
+			}
+		);
+
+		DepthStencilState depthState = .()
+		{
+			DepthTestEnabled = true,
+			DepthWriteEnabled = false,
+			DepthCompare = .LessEqual
+		};
+
+		delegate void(BlendState, StringView, ref IRenderPipeline) createPipeline = scope (blendState, label, pipeline) => {
+			ColorTargetState[1] colorTargets = .(
+				.(.RGBA16Float, blendState)
+			);
+
+			RenderPipelineDescriptor renderDesc = .()
+			{
+				Label = scope :: $"Curve Decal Pipeline ({label})",
+				Layout = mCurvePipelineLayout,
+				Vertex = .()
+				{
+					Shader = .(shaders.vert.Module, "main"),
+					Buffers = vertexBuffers
+				},
+				Fragment = .()
+				{
+					Shader = .(shaders.frag.Module, "main"),
+					Targets = colorTargets
+				},
+				Primitive = .()
+				{
+					Topology = .TriangleList,
+					FrontFace = .CCW,
+					CullMode = .None // Double-sided for curve strips
+				},
+				DepthStencil = depthState,
+				Multisample = .()
+				{
+					Count = 1,
+					Mask = uint32.MaxValue
+				}
+			};
+
+			if (Renderer.Device.CreateRenderPipeline(&renderDesc) case .Ok(let createdPipeline))
+				pipeline = createdPipeline;
+		};
+
+		createPipeline(.AlphaBlend, "Alpha", ref mCurvePipelineAlpha);
+		createPipeline(.Additive, "Additive", ref mCurvePipelineAdditive);
+		createPipeline(.Multiply, "Multiply", ref mCurvePipelineMultiply);
+
+		// Uniform buffers for curve decals
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
+		{
+			BufferDescriptor uniformDesc = .()
+			{
+				Label = "Curve Decal Uniforms",
+				Size = CurveDecalUniformAlignment * MaxCurveDecals,
+				Usage = .Uniform,
+				MemoryAccess = .Upload
+			};
+
+			if (Renderer.Device.CreateBuffer(&uniformDesc) case .Ok(let buf))
+				mCurveUniformBuffers[i] = buf;
+		}
+	}
+
+	public override void AddPasses(RenderGraph graph, RenderView view, RenderWorld world)
+	{
+		bool hasBoxDecalPipeline = mPipelineAlpha != null || mPipelineAdditive != null || mPipelineMultiply != null;
+		bool hasCurvePipeline = mCurvePipelineAlpha != null || mCurvePipelineAdditive != null || mCurvePipelineMultiply != null;
+
+		if (!hasBoxDecalPipeline && !hasCurvePipeline)
+			return;
+
+		// Collect active box decals
+		mActiveDecals.Clear();
 		int32 decalIndex = 0;
 		world.ForEachDecal(scope [&] (handle, proxy) =>
 		{
@@ -447,18 +610,50 @@ public class DecalFeature : RenderFeatureBase
 			decalIndex++;
 		});
 
-		if (mActiveDecals.Count == 0)
+		// Collect active curve decals
+		mActiveCurveDecals.Clear();
+		mCurveMeshBuilder.Clear();
+		int32 curveIndex = 0;
+		world.ForEachCurveDecal(scope [&] (handle, proxy) =>
+		{
+			if (!proxy.IsActive || proxy.PointCount < 2 || curveIndex >= MaxCurveDecals)
+				return;
+
+			mCurveMeshBuilder.BuildStrip(&proxy);
+
+			mActiveCurveDecals.Add(.()
+			{
+				Handle = CurveDecalProxyHandle() { Handle = handle },
+				SortOrder = proxy.SortOrder,
+				BlendMode = proxy.BlendMode,
+				Index = curveIndex,
+				MeshRange = (int32)mCurveMeshBuilder.Ranges.Length - 1
+			});
+
+			curveIndex++;
+		});
+
+		if (mActiveDecals.Count == 0 && mActiveCurveDecals.Count == 0)
 			return;
 
 		// Sort by SortOrder, then BlendMode for batching
-		SortDecals();
+		if (mActiveDecals.Count > 0)
+			SortDecals();
 
 		// Invalidate bind groups for this frame (depth texture may have changed)
 		let frameIndex = Renderer.RenderFrameContext?.FrameIndex ?? 0;
 		InvalidateBindGroups(frameIndex);
 
 		// Upload per-decal uniforms to this frame's buffer
-		UploadDecalUniforms(world, frameIndex);
+		if (mActiveDecals.Count > 0)
+			UploadDecalUniforms(world, frameIndex);
+
+		// Upload curve decal uniforms and geometry
+		if (mActiveCurveDecals.Count > 0)
+		{
+			UploadCurveDecalUniforms(world, frameIndex);
+			UploadCurveDecalGeometry(frameIndex);
+		}
 
 		let colorHandle = graph.GetResource("SceneColor");
 		let depthHandle = graph.GetResource("SceneDepth");
@@ -502,6 +697,103 @@ public class DecalFeature : RenderFeatureBase
 			Renderer.Device.Queue.WriteMappedBuffer(
 				buffer, offset,
 				Span<uint8>((uint8*)&uniforms, DecalUniforms.Size)
+			);
+		}
+	}
+
+	private void UploadCurveDecalUniforms(RenderWorld world, int32 frameIndex)
+	{
+		let buffer = mCurveUniformBuffers[frameIndex];
+		if (buffer == null)
+			return;
+
+		for (let entry in mActiveCurveDecals)
+		{
+			let proxy = world.GetCurveDecal(entry.Handle);
+			if (proxy == null)
+				continue;
+
+			CurveDecalUniforms uniforms = .()
+			{
+				Color = proxy.Color,
+				ProjectionDepth = proxy.ProjectionDepth,
+				_Pad = default
+			};
+
+			let offset = (uint64)entry.Index * CurveDecalUniformAlignment;
+			Renderer.Device.Queue.WriteMappedBuffer(
+				buffer, offset,
+				Span<uint8>((uint8*)&uniforms, CurveDecalUniforms.Size)
+			);
+		}
+	}
+
+	private void UploadCurveDecalGeometry(int32 frameIndex)
+	{
+		if (mCurveMeshBuilder.TotalVertexCount == 0)
+			return;
+
+		let vertexDataSize = (uint64)(mCurveMeshBuilder.TotalVertexCount * CurveDecalVertex.Stride);
+		let indexDataSize = (uint64)(mCurveMeshBuilder.TotalIndexCount * sizeof(uint16));
+
+		// Recreate buffers if too small
+		if (mCurveVertexBuffers[frameIndex] == null || mCurveVertexBuffers[frameIndex].Size < vertexDataSize)
+		{
+			if (mCurveVertexBuffers[frameIndex] != null)
+				delete mCurveVertexBuffers[frameIndex];
+
+			BufferDescriptor vbDesc = .()
+			{
+				Label = "Curve Decal VB",
+				Size = vertexDataSize,
+				Usage = .Vertex,
+				MemoryAccess = .Upload
+			};
+
+			if (Renderer.Device.CreateBuffer(&vbDesc) case .Ok(let buf))
+				mCurveVertexBuffers[frameIndex] = buf;
+			else
+				return;
+		}
+
+		if (mCurveIndexBuffers[frameIndex] == null || mCurveIndexBuffers[frameIndex].Size < indexDataSize)
+		{
+			if (mCurveIndexBuffers[frameIndex] != null)
+				delete mCurveIndexBuffers[frameIndex];
+
+			BufferDescriptor ibDesc = .()
+			{
+				Label = "Curve Decal IB",
+				Size = indexDataSize,
+				Usage = .Index,
+				MemoryAccess = .Upload
+			};
+
+			if (Renderer.Device.CreateBuffer(&ibDesc) case .Ok(let buf))
+				mCurveIndexBuffers[frameIndex] = buf;
+			else
+				return;
+		}
+
+		// Upload vertex data
+		let vb = mCurveVertexBuffers[frameIndex];
+		if (vb != null)
+		{
+			let vertices = mCurveMeshBuilder.Vertices;
+			Renderer.Device.Queue.WriteMappedBuffer(
+				vb, 0,
+				Span<uint8>((uint8*)vertices.Ptr, (int)vertexDataSize)
+			);
+		}
+
+		// Upload index data
+		let ib = mCurveIndexBuffers[frameIndex];
+		if (ib != null)
+		{
+			let indices = mCurveMeshBuilder.Indices;
+			Renderer.Device.Queue.WriteMappedBuffer(
+				ib, 0,
+				Span<uint8>((uint8*)indices.Ptr, (int)indexDataSize)
 			);
 		}
 	}
@@ -568,6 +860,93 @@ public class DecalFeature : RenderFeatureBase
 
 			encoder.DrawIndexed(36, 1, 0, 0, 0);
 			Renderer.Stats.DrawCalls++;
+		}
+
+		// Render curve decals
+		if (mActiveCurveDecals.Count > 0 && mCurveVertexBuffers[frameIndex] != null && mCurveIndexBuffers[frameIndex] != null)
+		{
+			encoder.SetVertexBuffer(0, mCurveVertexBuffers[frameIndex], 0);
+			encoder.SetIndexBuffer(mCurveIndexBuffers[frameIndex], .UInt16, 0);
+
+			let curveBindGroupCache = mCurveDecalBindGroups[bindGroupIndex];
+
+			for (let entry in mActiveCurveDecals)
+			{
+				let proxy = Renderer.ActiveWorld?.GetCurveDecal(entry.Handle);
+				if (proxy == null)
+					continue;
+
+				if (entry.MeshRange < 0 || entry.MeshRange >= mCurveMeshBuilder.Ranges.Length)
+					continue;
+
+				let range = mCurveMeshBuilder.Ranges[entry.MeshRange];
+				if (range.IndexCount == 0)
+					continue;
+
+				// Select curve decal pipeline by blend mode
+				IRenderPipeline curvePipeline = null;
+				switch (entry.BlendMode)
+				{
+				case .Alpha: curvePipeline = mCurvePipelineAlpha;
+				case .Additive: curvePipeline = mCurvePipelineAdditive;
+				case .Multiply: curvePipeline = mCurvePipelineMultiply;
+				}
+
+				if (curvePipeline == null)
+					continue;
+
+				encoder.SetPipeline(curvePipeline);
+				encoder.SetBindGroup(0, sceneBindGroup, default);
+
+				let curveBindGroup = CreateCurveDecalBindGroup(proxy, entry.Index, frameIndex);
+				if (curveBindGroup == null)
+					continue;
+				curveBindGroupCache.Add(curveBindGroup);
+
+				uint32[1] dynamicOffsets = .((uint32)((int64)entry.Index * (int64)CurveDecalUniformAlignment));
+				encoder.SetBindGroup(1, curveBindGroup, dynamicOffsets);
+
+				encoder.DrawIndexed((uint32)range.IndexCount, 1, (uint32)range.IndexStart, range.VertexStart, 0);
+				Renderer.Stats.DrawCalls++;
+			}
+		}
+	}
+
+	private IBindGroup CreateCurveDecalBindGroup(CurveDecalProxy* proxy, int32 index, int32 frameIndex)
+	{
+		let buffer = mCurveUniformBuffers[frameIndex];
+		if (mCurveDecalBindGroupLayout == null || buffer == null)
+			return null;
+
+		ITextureView textureView;
+		if (proxy.AlbedoTexture != null)
+			textureView = proxy.AlbedoTexture;
+		else
+			textureView = mDefaultTextureView;
+
+		ISampler sampler;
+		if (proxy.Sampler != null)
+			sampler = proxy.Sampler;
+		else
+			sampler = mLinearClampSampler;
+
+		BindGroupEntry[3] entries = .(
+			BindGroupEntry.Buffer(0, buffer, 0, CurveDecalUniformAlignment),
+			BindGroupEntry.Texture(0, textureView),
+			BindGroupEntry.Sampler(0, sampler)
+		);
+
+		BindGroupDescriptor bgDesc = .()
+		{
+			Label = "Curve Decal BindGroup",
+			Layout = mCurveDecalBindGroupLayout,
+			Entries = entries
+		};
+
+		switch (Renderer.Device.CreateBindGroup(&bgDesc))
+		{
+		case .Ok(let bg): return bg;
+		case .Err: return null;
 		}
 	}
 
@@ -660,6 +1039,13 @@ public class DecalFeature : RenderFeatureBase
 					delete bg;
 				mDecalBindGroups[bindGroupIndex].Clear();
 			}
+
+			if (mCurveDecalBindGroups[bindGroupIndex] != null)
+			{
+				for (let bg in mCurveDecalBindGroups[bindGroupIndex])
+					delete bg;
+				mCurveDecalBindGroups[bindGroupIndex].Clear();
+			}
 		}
 	}
 
@@ -692,5 +1078,14 @@ public class DecalFeature : RenderFeatureBase
 		public int32 SortOrder;
 		public DecalBlendMode BlendMode;
 		public int32 Index;
+	}
+
+	struct CurveDecalSortEntry
+	{
+		public CurveDecalProxyHandle Handle;
+		public int32 SortOrder;
+		public DecalBlendMode BlendMode;
+		public int32 Index;       // Index in active curve decals (for uniforms)
+		public int32 MeshRange;   // Index in mesh builder ranges
 	}
 }

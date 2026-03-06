@@ -92,6 +92,9 @@ public struct InstanceGroup
 
 	/// Whether this is a transparent group.
 	public bool IsTransparent;
+
+	/// LOD level for this group (all instances share the same LOD).
+	public uint8 LODLevel;
 }
 
 /// Groups visible objects into batches for efficient rendering.
@@ -168,6 +171,43 @@ public class DrawBatcher
 		mWorld = null;
 	}
 
+	/// Builds batches from visibility results, including only shadow-casting static meshes.
+	public void BuildShadowCasters(RenderWorld world, VisibilityResolver visibility)
+	{
+		Clear();
+
+		mWorld = world;
+
+		// Build only shadow-casting static mesh commands
+		for (let visible in visibility.VisibleMeshes)
+		{
+			if (let proxy = world.GetMesh(visible.Handle))
+			{
+				if (!proxy.CastsShadows)
+					continue;
+
+				mDrawCommands.Add(.()
+				{
+					MeshHandle = visible.Handle,
+					GPUMesh = proxy.MeshHandle,
+					WorldMatrix = proxy.WorldMatrix,
+					PrevWorldMatrix = proxy.PrevWorldMatrix,
+					NormalMatrix = proxy.NormalMatrix,
+					LODLevel = visible.LODLevel
+				});
+			}
+		}
+
+		// Build batches and instance groups
+		BuildBatches();
+
+		mStats.TotalDrawCalls = (int32)mDrawCommands.Count;
+		mStats.OpaqueBatchCount = (int32)mOpaqueBatches.Count;
+		mStats.TransparentBatchCount = (int32)mTransparentBatches.Count;
+
+		mWorld = null;
+	}
+
 	/// Clears all batches and commands.
 	public void Clear()
 	{
@@ -238,8 +278,8 @@ public class DrawBatcher
 
 	private void SortCommandsByMaterial()
 	{
-		// Sort by material and mesh for optimal batching and instancing
-		// Commands with same material AND mesh can be instanced together
+		// Sort by material, mesh, then LOD for optimal batching and instancing
+		// Commands with same material AND mesh AND LOD can be instanced together
 		mDrawCommands.Sort(scope (a, b) =>
 		{
 			// First sort by material
@@ -251,7 +291,11 @@ public class DrawBatcher
 			// Then sort by GPU mesh (enables instancing of identical meshes)
 			let meshA = a.GPUMesh.Index;
 			let meshB = b.GPUMesh.Index;
-			return meshA <=> meshB;
+			if (meshA != meshB)
+				return meshA <=> meshB;
+
+			// Then sort by LOD level (different LODs draw different submesh ranges)
+			return (int)a.LODLevel <=> (int)b.LODLevel;
 		});
 
 		mSkinnedCommands.Sort(scope (a, b) =>
@@ -362,6 +406,7 @@ public class DrawBatcher
 		GPUMeshHandle currentMesh = mDrawCommands[0].GPUMesh;
 		MaterialInstance currentMaterial = GetMaterial(mDrawCommands[0]);
 		bool isCurrentTransparent = IsMaterialTransparent(currentMaterial);
+		uint8 currentLODLevel = mDrawCommands[0].LODLevel;
 
 		for (int32 i = 1; i <= mDrawCommands.Count; i++)
 		{
@@ -374,10 +419,11 @@ public class DrawBatcher
 				let isTransparent = IsMaterialTransparent(material);
 
 				// Check if this command can be grouped with the previous one
-				// Must have same mesh, same material, and same transparency mode
+				// Must have same mesh, same material, same transparency mode, and same LOD level
 				endGroup = (cmd.GPUMesh.Index != currentMesh.Index) ||
 				           (material != currentMaterial) ||
-				           (isTransparent != isCurrentTransparent);
+				           (isTransparent != isCurrentTransparent) ||
+				           (cmd.LODLevel != currentLODLevel);
 			}
 
 			if (endGroup)
@@ -403,7 +449,8 @@ public class DrawBatcher
 						InstanceStart = instanceStart,
 						InstanceCount = batchSize,
 						CommandStart = groupStart + groupOffset,
-						IsTransparent = isCurrentTransparent
+						IsTransparent = isCurrentTransparent,
+						LODLevel = currentLODLevel
 					};
 
 					if (isCurrentTransparent)
@@ -428,6 +475,7 @@ public class DrawBatcher
 					currentMesh = mDrawCommands[i].GPUMesh;
 					currentMaterial = GetMaterial(mDrawCommands[i]);
 					isCurrentTransparent = IsMaterialTransparent(currentMaterial);
+					currentLODLevel = mDrawCommands[i].LODLevel;
 				}
 			}
 		}

@@ -85,6 +85,7 @@ public class VisibilityResolver
 
 	// LOD settings
 	private float[4] mLODDistances = .(25.0f, 100.0f, 400.0f, 1600.0f);
+	private float mLODBias = 1.0f;
 
 	// Statistics
 	private VisibilityStats mStats;
@@ -114,6 +115,12 @@ public class VisibilityResolver
 		mLODDistances[1] = lod1 * lod1;
 		mLODDistances[2] = lod2 * lod2;
 		mLODDistances[3] = lod3 * lod3;
+	}
+
+	/// Sets the LOD bias. Higher values push LOD transitions farther (higher quality at distance).
+	public void SetLODBias(float bias)
+	{
+		mLODBias = Math.Max(0.01f, bias);
 	}
 
 	/// Resolves visibility for a view against a render world.
@@ -429,13 +436,16 @@ public class VisibilityResolver
 
 	private uint8 SelectLOD(float distanceSq)
 	{
-		if (distanceSq < mLODDistances[0])
+		// Scale distance by inverse LOD bias squared (higher bias = farther transitions = higher quality)
+		let adjustedDist = distanceSq / (mLODBias * mLODBias);
+
+		if (adjustedDist < mLODDistances[0])
 			return 0;
-		if (distanceSq < mLODDistances[1])
+		if (adjustedDist < mLODDistances[1])
 			return 1;
-		if (distanceSq < mLODDistances[2])
+		if (adjustedDist < mLODDistances[2])
 			return 2;
-		if (distanceSq < mLODDistances[3])
+		if (adjustedDist < mLODDistances[3])
 			return 3;
 		return 3; // Max LOD
 	}
