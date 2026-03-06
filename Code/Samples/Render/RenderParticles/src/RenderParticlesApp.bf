@@ -113,7 +113,7 @@ class RenderParticlesApp : Application
 
 	private void CreateFloor()
 	{
-		let planeMesh = StaticMesh.CreatePlane(20.0f, 20.0f, 1, 1);
+		let planeMesh = MeshBuilder.CreatePlane(20.0f, 20.0f, 1, 1);
 		if (mRenderSystem.ResourceManager.UploadMesh(planeMesh) case .Ok(let handle))
 			mFloorMeshHandle = handle;
 		delete planeMesh;

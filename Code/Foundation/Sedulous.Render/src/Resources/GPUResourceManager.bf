@@ -92,9 +92,7 @@ public class GPUResourceManager : IDisposable
 		if (mesh == null || mesh.Vertices == null)
 			return .Err;
 
-		let vertices = mesh.Vertices;
-
-		if (vertices.VertexCount == 0)
+		if (mesh.VertexCount == 0)
 			return .Err;
 
 		// Allocate slot
@@ -117,7 +115,7 @@ public class GPUResourceManager : IDisposable
 		}
 
 		// Create vertex buffer
-		let vertexDataSize = (uint64)(vertices.VertexCount * vertices.VertexSize);
+		let vertexDataSize = (uint64)(mesh.VertexCount * mesh.VertexSize);
 		var vbDesc = BufferDescriptor()
 		{
 			Size = vertexDataSize,
@@ -127,7 +125,7 @@ public class GPUResourceManager : IDisposable
 		if (mDevice.CreateBuffer(&vbDesc) case .Ok(let vb))
 		{
 			gpuMesh.VertexBuffer = vb;
-			mDevice.Queue.WriteStagedBufferSync(vb, 0, Span<uint8>(vertices.GetRawData(), (int)vertexDataSize));
+			mDevice.Queue.WriteStagedBufferSync(vb, 0, Span<uint8>(mesh.GetVertexData(), (int)vertexDataSize));
 		}
 		else
 		{
@@ -166,9 +164,9 @@ public class GPUResourceManager : IDisposable
 		}
 
 		// Set mesh properties
-		gpuMesh.VertexCount = (uint32)vertices.VertexCount;
+		gpuMesh.VertexCount = (uint32)mesh.VertexCount;
 		gpuMesh.IndexCount = hasIndices ? (uint32)indices.IndexCount : 0;
-		gpuMesh.VertexStride = (uint32)vertices.VertexSize;
+		gpuMesh.VertexStride = (uint32)mesh.VertexSize;
 		gpuMesh.IndexFormat = hasIndices && indices.Format == .UInt16 ? .UInt16 : .UInt32;
 		gpuMesh.Bounds = mesh.GetBounds();
 		gpuMesh.RefCount = 1;

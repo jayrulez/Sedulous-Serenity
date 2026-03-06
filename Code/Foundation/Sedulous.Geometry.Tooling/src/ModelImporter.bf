@@ -553,38 +553,31 @@ class ModelImporter
 		int32 totalIndices = 0;
 		for (let m in meshes)
 		{
-			totalVertices += m.Vertices?.VertexCount ?? 0;
+			totalVertices += m.VertexCount;
 			totalIndices += m.Indices?.IndexCount ?? 0;
 		}
 
 		let merged = new StaticMesh();
-		merged.SetupCommonVertexFormat();
-		merged.Vertices.Resize(totalVertices);
-		merged.Indices.Resize(totalIndices);
+		merged.ResizeVertices(totalVertices);
+		merged.ReserveIndices(totalIndices);
 
 		int32 vertexOffset = 0;
 		int32 indexOffset = 0;
 
 		for (let src in meshes)
 		{
-			let srcVertCount = src.Vertices?.VertexCount ?? 0;
+			let srcVertCount = src.VertexCount;
 			let srcIdxCount = src.Indices?.IndexCount ?? 0;
 
 			// Copy vertices
 			for (int32 i = 0; i < srcVertCount; i++)
-			{
-				merged.SetPosition(vertexOffset + i, src.GetPosition(i));
-				merged.SetNormal(vertexOffset + i, src.GetNormal(i));
-				merged.SetUV(vertexOffset + i, src.GetUV(i));
-				merged.SetColor(vertexOffset + i, src.GetColor(i));
-				merged.SetTangent(vertexOffset + i, src.GetTangent(i));
-			}
+				merged.SetVertex(vertexOffset + i, src.GetVertex(i));
 
 			// Copy indices (remapped by vertexOffset)
 			for (int32 i = 0; i < srcIdxCount; i++)
 			{
 				let idx = src.Indices.GetIndex(i);
-				merged.Indices.SetIndex(indexOffset + i, idx + (uint32)vertexOffset);
+				merged.SetIndex(indexOffset + i, idx + (uint32)vertexOffset);
 			}
 
 			// Copy SubMeshes (adjusting startIndex by indexOffset)
@@ -772,34 +765,23 @@ class ModelImporter
 		Matrix.Invert(transform, out normalMatrix);
 		normalMatrix = Matrix.Transpose(normalMatrix);
 
-		for (int32 i = 0; i < mesh.Vertices.VertexCount; i++)
+		for (int32 i = 0; i < mesh.VertexCount; i++)
 		{
-			// Transform position
-			var pos = mesh.GetPosition(i);
-			pos = Vector3.Transform(pos, transform);
-			mesh.SetPosition(i, pos);
-
-			// Transform normal
-			var normal = mesh.GetNormal(i);
-			normal = Vector3.Normalize(Vector3.TransformNormal(normal, normalMatrix));
-			mesh.SetNormal(i, normal);
-
-			// Transform tangent
-			var tangent = mesh.GetTangent(i);
-			tangent = Vector3.Normalize(Vector3.TransformNormal(tangent, normalMatrix));
-			mesh.SetTangent(i, tangent);
+			var v = mesh.Vertices[i];
+			v.Position = Vector3.Transform(v.Position, transform);
+			v.Normal = Vector3.Normalize(Vector3.TransformNormal(v.Normal, normalMatrix));
+			v.Tangent = Vector3.Normalize(Vector3.TransformNormal(v.Tangent, normalMatrix));
+			mesh.Vertices[i] = v;
 		}
 	}
 
 	private void ApplyScale(StaticMesh mesh, float scale)
 	{
-		if (mesh.Vertices == null)
-			return;
-
-		for (int32 i = 0; i < mesh.Vertices.VertexCount; i++)
+		for (int32 i = 0; i < mesh.VertexCount; i++)
 		{
-			var pos = mesh.GetPosition(i);
-			mesh.SetPosition(i, pos * scale);
+			var v = mesh.Vertices[i];
+			v.Position = v.Position * scale;
+			mesh.Vertices[i] = v;
 		}
 	}
 
@@ -816,7 +798,7 @@ class ModelImporter
 	/// Recenters a static mesh so the bounding box center is at the origin.
 	private void RecenterStaticMesh(StaticMesh mesh)
 	{
-		if (mesh.Vertices == null || mesh.Vertices.VertexCount == 0)
+		if (mesh.VertexCount == 0)
 			return;
 
 		let bounds = mesh.GetBounds();
@@ -826,10 +808,11 @@ class ModelImporter
 		if (center.LengthSquared() < 0.0001f)
 			return;
 
-		for (int32 i = 0; i < mesh.Vertices.VertexCount; i++)
+		for (int32 i = 0; i < mesh.VertexCount; i++)
 		{
-			var pos = mesh.GetPosition(i);
-			mesh.SetPosition(i, pos - center);
+			var v = mesh.Vertices[i];
+			v.Position = v.Position - center;
+			mesh.Vertices[i] = v;
 		}
 	}
 

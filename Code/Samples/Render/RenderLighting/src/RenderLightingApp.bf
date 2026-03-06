@@ -108,12 +108,12 @@ class RenderLightingApp : Application
 
 	private void CreateMeshes()
 	{
-		let cubeMesh = StaticMesh.CreateCube(1.0f);
+		let cubeMesh = MeshBuilder.CreateCube(1.0f);
 		if (mRenderSystem.ResourceManager.UploadMesh(cubeMesh) case .Ok(let handle))
 			mCubeMeshHandle = handle;
 		delete cubeMesh;
 
-		let planeMesh = StaticMesh.CreatePlane(40.0f, 40.0f, 1, 1);
+		let planeMesh = MeshBuilder.CreatePlane(40.0f, 40.0f, 1, 1);
 		if (mRenderSystem.ResourceManager.UploadMesh(planeMesh) case .Ok(let handle2))
 			mPlaneMeshHandle = handle2;
 		delete planeMesh;

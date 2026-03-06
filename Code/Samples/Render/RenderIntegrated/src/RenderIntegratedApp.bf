@@ -199,12 +199,12 @@ class RenderIntegratedApp : Application
 
 	private void CreateMeshes()
 	{
-		let cubeMesh = StaticMesh.CreateCube(1.0f);
+		let cubeMesh = MeshBuilder.CreateCube(1.0f);
 		if (mRenderSystem.ResourceManager.UploadMesh(cubeMesh) case .Ok(let h))
 			mCubeMeshHandle = h;
 		delete cubeMesh;
 
-		let planeMesh = StaticMesh.CreatePlane(50.0f, 50.0f, 1, 1);
+		let planeMesh = MeshBuilder.CreatePlane(50.0f, 50.0f, 1, 1);
 		if (mRenderSystem.ResourceManager.UploadMesh(planeMesh) case .Ok(let h2))
 			mFloorMeshHandle = h2;
 		delete planeMesh;

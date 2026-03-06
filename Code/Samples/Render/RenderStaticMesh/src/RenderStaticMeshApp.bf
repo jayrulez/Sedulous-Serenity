@@ -160,7 +160,7 @@ class RenderStaticMeshApp : Application
 			{
 				mMeshHandle = handle;
 				Console.WriteLine("  Uploaded mesh: {} vertices, {} indices",
-					staticMesh.Vertices.VertexCount, staticMesh.Indices.IndexCount);
+					staticMesh.VertexCount, staticMesh.IndexCount);
 			}
 		}
 

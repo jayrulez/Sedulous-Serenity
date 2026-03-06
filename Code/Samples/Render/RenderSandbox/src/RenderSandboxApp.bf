@@ -308,7 +308,7 @@ class RenderSandboxApp : Application
 	private void CreateMeshes()
 	{
 		// Create cube mesh
-		let cubeMesh = StaticMesh.CreateCube(1.0f);
+		let cubeMesh = MeshBuilder.CreateCube(1.0f);
 		if (mRenderSystem.ResourceManager.UploadMesh(cubeMesh) case .Ok(let handle))
 		{
 			mCubeMeshHandle = handle;
@@ -321,7 +321,7 @@ class RenderSandboxApp : Application
 		delete cubeMesh;
 
 		// Create floor plane mesh
-		let planeMesh = StaticMesh.CreatePlane(10.0f, 10.0f, 1, 1);
+		let planeMesh = MeshBuilder.CreatePlane(10.0f, 10.0f, 1, 1);
 		if (mRenderSystem.ResourceManager.UploadMesh(planeMesh) case .Ok(let planeHandle))
 		{
 			mPlaneMeshHandle = planeHandle;

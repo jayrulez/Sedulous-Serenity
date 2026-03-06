@@ -40,7 +40,6 @@ static class ModelMeshConverter
 			return null;
 
 		let mesh = new StaticMesh();
-		mesh.SetupCommonVertexFormat();
 
 		// Find vertex element offsets
 		int32 posOffset = 0, normalOffset = 12, texCoordOffset = 24, colorOffset = 32, tangentOffset = 36;
@@ -62,17 +61,17 @@ static class ModelMeshConverter
 		let srcStride = modelMesh.VertexStride;
 
 		// Allocate and set vertices
-		mesh.Vertices.Resize(modelMesh.VertexCount);
+		mesh.ResizeVertices(modelMesh.VertexCount);
 
 		for (int32 i = 0; i < modelMesh.VertexCount; i++)
 		{
 			uint8* v = srcData + i * srcStride;
 
-			mesh.SetPosition(i, *(Vector3*)(v + posOffset));
-			mesh.SetNormal(i, *(Vector3*)(v + normalOffset));
-			mesh.SetUV(i, *(Vector2*)(v + texCoordOffset));
-			mesh.SetColor(i, *(uint32*)(v + colorOffset));
-			mesh.SetTangent(i, *(Vector3*)(v + tangentOffset));
+			mesh.Vertices[i].Position = *(Vector3*)(v + posOffset);
+			mesh.Vertices[i].Normal = *(Vector3*)(v + normalOffset);
+			mesh.Vertices[i].TexCoord = *(Vector2*)(v + texCoordOffset);
+			mesh.Vertices[i].Color = *(uint32*)(v + colorOffset);
+			mesh.Vertices[i].Tangent = *(Vector3*)(v + tangentOffset);
 		}
 
 		// Copy indices

@@ -60,7 +60,7 @@ class StaticMeshResource : Resource
 			if (mMesh == null)
 				return .InvalidData;
 
-			int32 vertexCount = mMesh.Vertices?.VertexCount ?? 0;
+			int32 vertexCount = mMesh.VertexCount;
 			s.Int32("vertexCount", ref vertexCount);
 
 			if (vertexCount > 0)
@@ -75,19 +75,12 @@ class StaticMeshResource : Resource
 
 				for (int32 i = 0; i < vertexCount; i++)
 				{
-					let pos = mMesh.GetPosition(i);
-					positions.Add(pos.X); positions.Add(pos.Y); positions.Add(pos.Z);
-
-					let n = mMesh.GetNormal(i);
-					normals.Add(n.X); normals.Add(n.Y); normals.Add(n.Z);
-
-					let uv = mMesh.GetUV(i);
-					uvs.Add(uv.X); uvs.Add(uv.Y);
-
-					colors.Add((int32)mMesh.GetColor(i));
-
-					let t = mMesh.GetTangent(i);
-					tangents.Add(t.X); tangents.Add(t.Y); tangents.Add(t.Z);
+					let v = mMesh.Vertices[i];
+					positions.Add(v.Position.X); positions.Add(v.Position.Y); positions.Add(v.Position.Z);
+					normals.Add(v.Normal.X); normals.Add(v.Normal.Y); normals.Add(v.Normal.Z);
+					uvs.Add(v.TexCoord.X); uvs.Add(v.TexCoord.Y);
+					colors.Add((int32)v.Color);
+					tangents.Add(v.Tangent.X); tangents.Add(v.Tangent.Y); tangents.Add(v.Tangent.Z);
 				}
 
 				s.ArrayFloat("positions", positions);
@@ -100,7 +93,7 @@ class StaticMeshResource : Resource
 			}
 
 			// Write indices
-			int32 indexCount = mMesh.Indices?.IndexCount ?? 0;
+			int32 indexCount = mMesh.IndexCount;
 			s.Int32("indexCount", ref indexCount);
 
 			if (indexCount > 0)
@@ -142,14 +135,13 @@ class StaticMeshResource : Resource
 		{
 			// Reading
 			let mesh = new StaticMesh();
-			mesh.SetupCommonVertexFormat();
 
 			int32 vertexCount = 0;
 			s.Int32("vertexCount", ref vertexCount);
 
 			if (vertexCount > 0)
 			{
-				mesh.Vertices.Resize(vertexCount);
+				mesh.ResizeVertices(vertexCount);
 
 				s.BeginObject("vertices");
 
@@ -167,16 +159,18 @@ class StaticMeshResource : Resource
 
 				for (int32 i = 0; i < vertexCount; i++)
 				{
+					var v = StaticMeshVertex();
 					if (i * 3 + 2 < positions.Count)
-						mesh.SetPosition(i, .(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]));
+						v.Position = Vector3(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
 					if (i * 3 + 2 < normals.Count)
-						mesh.SetNormal(i, .(normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]));
+						v.Normal = Vector3(normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]);
 					if (i * 2 + 1 < uvs.Count)
-						mesh.SetUV(i, .(uvs[i * 2], uvs[i * 2 + 1]));
+						v.TexCoord = Vector2(uvs[i * 2], uvs[i * 2 + 1]);
 					if (i < colors.Count)
-						mesh.SetColor(i, (uint32)colors[i]);
+						v.Color = (uint32)colors[i];
 					if (i * 3 + 2 < tangents.Count)
-						mesh.SetTangent(i, .(tangents[i * 3], tangents[i * 3 + 1], tangents[i * 3 + 2]));
+						v.Tangent = Vector3(tangents[i * 3], tangents[i * 3 + 1], tangents[i * 3 + 2]);
+					mesh.SetVertex(i, v);
 				}
 
 				s.EndObject();
@@ -188,11 +182,11 @@ class StaticMeshResource : Resource
 
 			if (indexCount > 0)
 			{
-				mesh.Indices.Resize(indexCount);
+				mesh.ReserveIndices(indexCount);
 				let indices = scope List<int32>();
 				s.ArrayInt32("indices", indices);
 				for (int32 i = 0; i < Math.Min(indexCount, (int32)indices.Count); i++)
-					mesh.Indices.SetIndex(i, (uint32)indices[i]);
+					mesh.SetIndex(i, (uint32)indices[i]);
 			}
 
 			// Read submeshes
@@ -281,28 +275,28 @@ class StaticMeshResource : Resource
 	/// Creates a cube mesh resource.
 	public static StaticMeshResource CreateCube(float size = 1.0f)
 	{
-		let mesh = StaticMesh.CreateCube(size);
+		let mesh = MeshBuilder.CreateCube(size);
 		return new StaticMeshResource(mesh, true);
 	}
 
 	/// Creates a sphere mesh resource.
 	public static StaticMeshResource CreateSphere(float radius = 0.5f, int32 segments = 32, int32 rings = 16)
 	{
-		let mesh = StaticMesh.CreateSphere(radius, segments, rings);
+		let mesh = MeshBuilder.CreateSphere(radius, segments, rings);
 		return new StaticMeshResource(mesh, true);
 	}
 
 	/// Creates a plane mesh resource.
 	public static StaticMeshResource CreatePlane(float width = 1.0f, float height = 1.0f, int32 segmentsX = 1, int32 segmentsZ = 1)
 	{
-		let mesh = StaticMesh.CreatePlane(width, height, segmentsX, segmentsZ);
+		let mesh = MeshBuilder.CreatePlane(width, height, segmentsX, segmentsZ);
 		return new StaticMeshResource(mesh, true);
 	}
 
 	/// Creates a cylinder mesh resource.
 	public static StaticMeshResource CreateCylinder(float radius = 0.5f, float height = 1.0f, int32 segments = 32)
 	{
-		let mesh = StaticMesh.CreateCylinder(radius, height, segments);
+		let mesh = MeshBuilder.CreateCylinder(radius, height, segments);
 		return new StaticMeshResource(mesh, true);
 	}
 }

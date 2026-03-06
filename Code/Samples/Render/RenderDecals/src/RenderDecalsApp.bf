@@ -128,13 +128,13 @@ class RenderDecalsApp : Application
 	private void CreateMeshes()
 	{
 		// Unit cube
-		let cubeMesh = StaticMesh.CreateCube(1.0f);
+		let cubeMesh = MeshBuilder.CreateCube(1.0f);
 		if (mRenderSystem.ResourceManager.UploadMesh(cubeMesh) case .Ok(let handle))
 			mCubeMeshHandle = handle;
 		delete cubeMesh;
 
 		// Floor plane (20x20)
-		let planeMesh = StaticMesh.CreatePlane(20.0f, 20.0f);
+		let planeMesh = MeshBuilder.CreatePlane(20.0f, 20.0f);
 		if (mRenderSystem.ResourceManager.UploadMesh(planeMesh) case .Ok(let planeHandle))
 			mPlaneMeshHandle = planeHandle;
 		delete planeMesh;

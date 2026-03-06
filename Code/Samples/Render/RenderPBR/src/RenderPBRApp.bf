@@ -104,7 +104,7 @@ class RenderPBRApp : Application
 
 	private void CreateScene()
 	{
-		let sphereMesh = StaticMesh.CreateSphere(0.8f, 48, 24);
+		let sphereMesh = MeshBuilder.CreateSphere(0.8f, 48, 24);
 		if (mRenderSystem.ResourceManager.UploadMesh(sphereMesh) case .Ok(let handle))
 			mSphereMeshHandle = handle;
 		delete sphereMesh;

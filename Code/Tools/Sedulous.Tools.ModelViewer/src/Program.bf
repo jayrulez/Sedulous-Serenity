@@ -528,7 +528,7 @@ class ModelViewerApp : Application
 		let resource = importResult.TakeStaticMesh(0);
 		defer delete resource;
 
-		Console.WriteLine(scope $"  SetupStaticMesh: vertices={resource.Mesh.Vertices.VertexCount}, indices={resource.Mesh.Indices.IndexCount}");
+		Console.WriteLine(scope $"  SetupStaticMesh: vertices={resource.Mesh.VertexCount}, indices={resource.Mesh.IndexCount}");
 		Console.WriteLine(scope $"  Mesh bounds: {resource.Mesh.GetBounds().Min} to {resource.Mesh.GetBounds().Max}");
 
 		if (mRenderSystem.ResourceManager.UploadMesh(resource.Mesh) case .Ok(let handle))

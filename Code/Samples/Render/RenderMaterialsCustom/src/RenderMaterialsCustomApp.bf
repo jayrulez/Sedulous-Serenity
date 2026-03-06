@@ -150,15 +150,15 @@ class RenderMaterialsCustomApp : Application
 
 	private void CreateScene()
 	{
-		let sphereMesh = StaticMesh.CreateSphere(0.8f, 32, 16);
+		let sphereMesh = MeshBuilder.CreateSphere(0.8f, 32, 16);
 		if (mRenderSystem.ResourceManager.UploadMesh(sphereMesh) case .Ok(let h)) mSphereMeshHandle = h;
 		delete sphereMesh;
 
-		let cubeMesh = StaticMesh.CreateCube(1.2f);
+		let cubeMesh = MeshBuilder.CreateCube(1.2f);
 		if (mRenderSystem.ResourceManager.UploadMesh(cubeMesh) case .Ok(let h2)) mCubeMeshHandle = h2;
 		delete cubeMesh;
 
-		let planeMesh = StaticMesh.CreatePlane(25.0f, 25.0f, 1, 1);
+		let planeMesh = MeshBuilder.CreatePlane(25.0f, 25.0f, 1, 1);
 		if (mRenderSystem.ResourceManager.UploadMesh(planeMesh) case .Ok(let h3)) mPlaneMeshHandle = h3;
 		delete planeMesh;
 

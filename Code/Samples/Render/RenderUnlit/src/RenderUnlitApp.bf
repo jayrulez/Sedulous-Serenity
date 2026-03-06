@@ -124,11 +124,11 @@ class RenderUnlitApp : Application
 
 	private void CreateScene()
 	{
-		let cubeMesh = StaticMesh.CreateCube(1.0f);
+		let cubeMesh = MeshBuilder.CreateCube(1.0f);
 		if (mRenderSystem.ResourceManager.UploadMesh(cubeMesh) case .Ok(let h)) mCubeMeshHandle = h;
 		delete cubeMesh;
 
-		let planeMesh = StaticMesh.CreatePlane(30.0f, 30.0f, 1, 1);
+		let planeMesh = MeshBuilder.CreatePlane(30.0f, 30.0f, 1, 1);
 		if (mRenderSystem.ResourceManager.UploadMesh(planeMesh) case .Ok(let h2)) mPlaneMeshHandle = h2;
 		delete planeMesh;
 

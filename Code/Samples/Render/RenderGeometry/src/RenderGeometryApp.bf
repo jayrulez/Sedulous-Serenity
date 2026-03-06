@@ -123,7 +123,7 @@ class RenderGeometryApp : Application
 
 	private void CreateMeshes()
 	{
-		let cubeMesh = StaticMesh.CreateCube(1.0f);
+		let cubeMesh = MeshBuilder.CreateCube(1.0f);
 		if (mRenderSystem.ResourceManager.UploadMesh(cubeMesh) case .Ok(let handle))
 			mCubeMeshHandle = handle;
 		else

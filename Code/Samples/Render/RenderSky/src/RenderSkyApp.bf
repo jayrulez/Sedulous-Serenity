@@ -102,11 +102,11 @@ class RenderSkyApp : Application
 
 	private void CreateScene()
 	{
-		let sphereMesh = StaticMesh.CreateSphere(0.5f, 32, 16);
+		let sphereMesh = MeshBuilder.CreateSphere(0.5f, 32, 16);
 		if (mRenderSystem.ResourceManager.UploadMesh(sphereMesh) case .Ok(let h)) mSphereMeshHandle = h;
 		delete sphereMesh;
 
-		let planeMesh = StaticMesh.CreatePlane(20.0f, 20.0f, 1, 1);
+		let planeMesh = MeshBuilder.CreatePlane(20.0f, 20.0f, 1, 1);
 		if (mRenderSystem.ResourceManager.UploadMesh(planeMesh) case .Ok(let h2)) mPlaneMeshHandle = h2;
 		delete planeMesh;
 

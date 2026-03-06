@@ -248,7 +248,7 @@ class HexGridRenderer
 	/// Create a flat hexagonal tile mesh.
 	private static StaticMeshResource CreateHexMeshResource(float radius)
 	{
-		let mesh = new StaticMesh();
+		let mesh = scope MeshBuilder();
 		mesh.SetupCommonVertexFormat();
 
 		// Top face: 7 vertices (center + 6 corners), 6 triangles
@@ -318,6 +318,7 @@ class HexGridRenderer
 		mesh.GenerateTangents();
 		mesh.AddSubMesh(SubMesh(0, 36));
 
-		return new StaticMeshResource(mesh, true);
+		let staticMesh = mesh.Build();
+		return new StaticMeshResource(staticMesh, true);
 	}
 }

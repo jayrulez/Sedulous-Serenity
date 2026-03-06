@@ -127,7 +127,7 @@ class RenderSkinnedApp : Application
 
 	private void CreateFloor()
 	{
-		let planeMesh = StaticMesh.CreatePlane(200.0f, 200.0f, 1, 1);
+		let planeMesh = MeshBuilder.CreatePlane(200.0f, 200.0f, 1, 1);
 		if (mRenderSystem.ResourceManager.UploadMesh(planeMesh) case .Ok(let handle))
 			mFloorMeshHandle = handle;
 		delete planeMesh;

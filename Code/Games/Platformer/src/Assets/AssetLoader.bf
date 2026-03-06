@@ -298,7 +298,7 @@ class AssetLoader
 		Directory.CreateDirectory(modelCacheDir);
 
 		// Create cube mesh resource
-		let mesh = StaticMesh.CreateCube(1.0f);
+		let mesh = MeshBuilder.CreateCube(1.0f);
 		let meshResource = new StaticMeshResource(mesh, true);
 		meshResource.Name.Set("cube");
 

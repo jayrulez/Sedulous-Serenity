@@ -4,12 +4,12 @@ using Sedulous.Core.Mathematics;
 
 namespace Sedulous.Geometry.Tests;
 
-class MeshTests
+class MeshBuilderTests
 {
 	[Test]
 	public static void TestMeshCreation()
 	{
-		let mesh = new StaticMesh();
+		let mesh = new MeshBuilder();
 		defer delete mesh;
 
 		mesh.SetupCommonVertexFormat();
@@ -23,7 +23,7 @@ class MeshTests
 	[Test]
 	public static void TestMeshVertexData()
 	{
-		let mesh = new StaticMesh();
+		let mesh = new MeshBuilder();
 		defer delete mesh;
 
 		mesh.SetupCommonVertexFormat();
@@ -50,58 +50,58 @@ class MeshTests
 	[Test]
 	public static void TestCreateTriangle()
 	{
-		let mesh = StaticMesh.CreateTriangle();
+		let mesh = MeshBuilder.CreateTriangle();
 		defer delete mesh;
 
-		Test.Assert(mesh.Vertices.VertexCount == 3);
-		Test.Assert(mesh.Indices.IndexCount == 3);
+		Test.Assert(mesh.VertexCount == 3);
+		Test.Assert(mesh.IndexCount == 3);
 		Test.Assert(mesh.SubMeshes.Count == 1);
 	}
 
 	[Test]
 	public static void TestCreateQuad()
 	{
-		let mesh = StaticMesh.CreateQuad(2.0f, 2.0f);
+		let mesh = MeshBuilder.CreateQuad(2.0f, 2.0f);
 		defer delete mesh;
 
-		Test.Assert(mesh.Vertices.VertexCount == 4);
-		Test.Assert(mesh.Indices.IndexCount == 6);
+		Test.Assert(mesh.VertexCount == 4);
+		Test.Assert(mesh.IndexCount == 6);
 	}
 
 	[Test]
 	public static void TestCreateCube()
 	{
-		let mesh = StaticMesh.CreateCube(1.0f);
+		let mesh = MeshBuilder.CreateCube(1.0f);
 		defer delete mesh;
 
-		Test.Assert(mesh.Vertices.VertexCount == 24);
-		Test.Assert(mesh.Indices.IndexCount == 36);
+		Test.Assert(mesh.VertexCount == 24);
+		Test.Assert(mesh.IndexCount == 36);
 	}
 
 	[Test]
 	public static void TestCreateSphere()
 	{
-		let mesh = StaticMesh.CreateSphere(0.5f, 16, 8);
+		let mesh = MeshBuilder.CreateSphere(0.5f, 16, 8);
 		defer delete mesh;
 
-		Test.Assert(mesh.Vertices.VertexCount > 0);
-		Test.Assert(mesh.Indices.IndexCount > 0);
+		Test.Assert(mesh.VertexCount > 0);
+		Test.Assert(mesh.IndexCount > 0);
 	}
 
 	[Test]
 	public static void TestCreatePlane()
 	{
-		let mesh = StaticMesh.CreatePlane(10.0f, 10.0f, 2, 2);
+		let mesh = MeshBuilder.CreatePlane(10.0f, 10.0f, 2, 2);
 		defer delete mesh;
 
-		Test.Assert(mesh.Vertices.VertexCount == 9); // (2+1) * (2+1)
-		Test.Assert(mesh.Indices.IndexCount == 24); // 2 * 2 * 6
+		Test.Assert(mesh.VertexCount == 9); // (2+1) * (2+1)
+		Test.Assert(mesh.IndexCount == 24); // 2 * 2 * 6
 	}
 
 	[Test]
-	public static void TestMeshBounds()
+	public static void TestStaticMeshBounds()
 	{
-		let mesh = StaticMesh.CreateCube(2.0f);
+		let mesh = MeshBuilder.CreateCube(2.0f);
 		defer delete mesh;
 
 		let bounds = mesh.GetBounds();
