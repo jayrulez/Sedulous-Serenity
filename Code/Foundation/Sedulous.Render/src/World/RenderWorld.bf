@@ -22,6 +22,7 @@ public class RenderWorld : IDisposable
 	private ProxyPool<ReflectionProbeProxy> mReflectionProbeProxies = new .() ~ delete _;
 	private ProxyPool<TerrainProxy> mTerrainProxies = new .() ~ delete _;
 	private ProxyPool<WaterProxy> mWaterProxies = new .() ~ delete _;
+	private ProxyPool<GrassProxy> mGrassProxies = new .() ~ delete _;
 
 	// Main camera handle
 	private CameraProxyHandle mMainCamera = .Invalid;
@@ -98,6 +99,7 @@ public class RenderWorld : IDisposable
 	private bool mReflectionProbesDirty = false;
 	private bool mTerrainsDirty = false;
 	private bool mWatersDirty = false;
+	private bool mGrassDirty = false;
 
 	/// Gets the mesh proxy pool.
 	public ProxyPool<MeshProxy> MeshProxies => mMeshProxies;
@@ -128,6 +130,9 @@ public class RenderWorld : IDisposable
 
 	/// Gets the water proxy pool.
 	public ProxyPool<WaterProxy> WaterProxies => mWaterProxies;
+
+	/// Gets the grass proxy pool.
+	public ProxyPool<GrassProxy> GrassProxies => mGrassProxies;
 
 	/// Gets the main camera handle.
 	public CameraProxyHandle MainCamera => mMainCamera;
@@ -188,6 +193,12 @@ public class RenderWorld : IDisposable
 
 	/// Gets the number of active water planes.
 	public int32 WaterCount => mWaterProxies.ActiveCount;
+
+	/// Whether any grass has changed.
+	public bool GrassDirty => mGrassDirty;
+
+	/// Gets the number of active grass types.
+	public int32 GrassCount => mGrassProxies.ActiveCount;
 
 	/// Whether environment settings have changed.
 	public bool EnvironmentDirty => mEnvironmentDirty;
@@ -1318,6 +1329,57 @@ public class RenderWorld : IDisposable
 	}
 
 	// ========================================================================
+	// Grass API
+	// ========================================================================
+
+	/// Creates a new grass proxy.
+	public GrassProxyHandle CreateGrass()
+	{
+		let handle = mGrassProxies.Allocate();
+		var proxy = mGrassProxies.Get(handle);
+		*proxy = GrassProxy.CreateDefault();
+		proxy.IsActive = true;
+		proxy.Generation = handle.Generation;
+		mGrassDirty = true;
+		return .() { Handle = handle };
+	}
+
+	/// Gets a grass proxy by handle.
+	public GrassProxy* GetGrass(GrassProxyHandle handle)
+	{
+		return mGrassProxies.Get(handle.Handle);
+	}
+
+	/// Gets a reference to a grass proxy.
+	public ref GrassProxy GetGrassRef(GrassProxyHandle handle)
+	{
+		return ref mGrassProxies.GetRef(handle.Handle);
+	}
+
+	/// Destroys a grass proxy.
+	public void DestroyGrass(GrassProxyHandle handle)
+	{
+		if (mGrassProxies.TryGet(handle.Handle, let proxy))
+		{
+			proxy.Reset();
+		}
+		mGrassProxies.Free(handle.Handle);
+		mGrassDirty = true;
+	}
+
+	/// Marks grass as dirty (need GPU re-upload).
+	public void MarkGrassDirty()
+	{
+		mGrassDirty = true;
+	}
+
+	/// Iterates over all active grass proxies.
+	public void ForEachGrass(ProxyCallback<GrassProxy> callback)
+	{
+		mGrassProxies.ForEach(callback);
+	}
+
+	// ========================================================================
 	// General
 	// ========================================================================
 
@@ -1335,6 +1397,7 @@ public class RenderWorld : IDisposable
 		mReflectionProbesDirty = false;
 		mTerrainsDirty = false;
 		mWatersDirty = false;
+		mGrassDirty = false;
 	}
 
 	/// Clears all objects from the world.
@@ -1371,6 +1434,7 @@ public class RenderWorld : IDisposable
 		mReflectionProbeProxies.Clear();
 		mTerrainProxies.Clear();
 		mWaterProxies.Clear();
+		mGrassProxies.Clear();
 		mMainCamera = .Invalid;
 		mMeshesDirty = true;
 		mSkinnedMeshesDirty = true;
@@ -1383,6 +1447,7 @@ public class RenderWorld : IDisposable
 		mReflectionProbesDirty = true;
 		mTerrainsDirty = true;
 		mWatersDirty = true;
+		mGrassDirty = true;
 	}
 
 	public void Dispose()
