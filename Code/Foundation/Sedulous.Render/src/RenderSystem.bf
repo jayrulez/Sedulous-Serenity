@@ -54,6 +54,9 @@ public class RenderSystem : IDisposable
 	// Render world (scene data)
 	private RenderWorld mActiveWorld;
 
+	// Transfer batch for init-time GPU uploads
+	private ITransferBatch mTransferBatch ~ delete _;
+
 	// Post-processing stack
 	private PostProcessStack mPostProcessStack ~ delete _;
 	private RGResourceHandle mPostProcessOutput;
@@ -115,6 +118,11 @@ public class RenderSystem : IDisposable
 
 	/// Gets the auto-exposure effect.
 	public AutoExposureEffect AutoExposure => mAutoExposure;
+
+	/// Gets the active transfer batch for batched GPU uploads during initialization.
+	/// Non-null between Initialize() and the first BeginFrame(). Features use this
+	/// via UploadTexture/UploadBuffer helpers on RenderFeatureBase.
+	public ITransferBatch TransferBatch => mTransferBatch;
 
 	/// Gets the post-process output handle for the current frame.
 	/// Returns the final output from post-processing, or invalid handle if no effects are enabled.
@@ -191,6 +199,12 @@ public class RenderSystem : IDisposable
 		if (mAutoExposure.Initialize(device) case .Err)
 			Console.WriteLine("[RenderSystem] Warning: Failed to initialize AutoExposureEffect");
 
+		// Create transfer batch for init-time uploads.
+		// Features registered via RegisterFeature() will use this batch via UploadTexture/UploadBuffer.
+		// Auto-flushed on first BeginFrame().
+		if (mDevice.Queue.CreateTransferBatch() case .Ok(let batch))
+			mTransferBatch = batch;
+
 		mInitialized = true;
 		return .Ok;
 	}
@@ -219,6 +233,18 @@ public class RenderSystem : IDisposable
 		mFeaturesSorted = false;
 
 		return .Ok;
+	}
+
+	/// Submits all batched init-time GPU transfers and releases the batch.
+	/// Call once after all features are registered.
+	public void FlushInitTransfers()
+	{
+		if (mTransferBatch != null)
+		{
+			mTransferBatch.Submit();
+			delete mTransferBatch;
+			mTransferBatch = null;
+		}
 	}
 
 	/// Unregisters a render feature.
@@ -285,6 +311,10 @@ public class RenderSystem : IDisposable
 		{
 			if (!mInitialized)
 				return;
+
+			// Auto-flush any pending init-time batched transfers on first frame
+			if (mTransferBatch != null)
+				FlushInitTransfers();
 
 			mFrameNumber++;
 			mStats.Reset();

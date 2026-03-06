@@ -387,8 +387,8 @@ public class VolumetricFogFeature : RenderFeatureBase
 		var layout = TextureDataLayout() { BytesPerRow = mFroxelsX * 16, RowsPerImage = mFroxelsY };
 		var writeSize = Extent3D(mFroxelsX, mFroxelsY, mFroxelsZ);
 
-		Renderer.Device.Queue.WriteTextureSync(mScatteringVolume, Span<uint8>(&zeroData[0], dataSize), &layout, &writeSize);
-		Renderer.Device.Queue.WriteTextureSync(mIntegratedVolume, Span<uint8>(&zeroData[0], dataSize), &layout, &writeSize);
+		UploadTexture(mScatteringVolume, Span<uint8>(&zeroData[0], dataSize), &layout, &writeSize);
+		UploadTexture(mIntegratedVolume, Span<uint8>(&zeroData[0], dataSize), &layout, &writeSize);
 
 		return .Ok;
 	}
@@ -429,7 +429,7 @@ public class VolumetricFogFeature : RenderFeatureBase
 
 		var layout = TextureDataLayout() { BytesPerRow = NoiseSize, RowsPerImage = NoiseSize };
 		var writeSize = Extent3D(NoiseSize, NoiseSize, NoiseSize);
-		Renderer.Device.Queue.WriteTextureSync(mNoiseTexture, Span<uint8>(&noiseData[0], noiseData.Count), &layout, &writeSize);
+		UploadTexture(mNoiseTexture, Span<uint8>(&noiseData[0], noiseData.Count), &layout, &writeSize);
 
 		TextureViewDescriptor viewDesc = .()
 		{

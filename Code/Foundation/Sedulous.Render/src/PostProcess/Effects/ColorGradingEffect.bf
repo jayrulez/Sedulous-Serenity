@@ -191,7 +191,10 @@ public class ColorGradingEffect : IPostProcessEffect
 		// Upload data
 		TextureDataLayout layout = .() { BytesPerRow = atlasWidth * 4, RowsPerImage = atlasHeight };
 		Extent3D size = .(atlasWidth, atlasHeight, 1);
-		device.Queue.WriteTextureSync(mNeutralLUT, Span<uint8>(&data[0], data.Count), &layout, &size, 0, 0);
+		if (mRenderSystem?.TransferBatch != null)
+			mRenderSystem.TransferBatch.WriteTexture(mNeutralLUT, Span<uint8>(&data[0], data.Count), &layout, &size, 0, 0);
+		else
+			device.Queue.WriteTextureSync(mNeutralLUT, Span<uint8>(&data[0], data.Count), &layout, &size, 0, 0);
 
 		// Create view
 		TextureViewDescriptor viewDesc = .();

@@ -1261,7 +1261,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 		};
 		Extent3D extent = .((uint32)DebugFont.TextureWidth, (uint32)DebugFont.TextureHeight, 1);
 		Span<uint8> dataSpan = .(fontData.Ptr, fontData.Count);
-		device.Queue.WriteTextureSync(mFontTexture, dataSpan, &dataLayout, &extent);
+		UploadTexture(mFontTexture, dataSpan, &dataLayout, &extent);
 
 		// Create texture view
 		TextureViewDescriptor viewDesc = .()

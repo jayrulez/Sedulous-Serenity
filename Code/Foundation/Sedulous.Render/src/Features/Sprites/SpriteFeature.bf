@@ -127,7 +127,7 @@ public class SpriteFeature : RenderFeatureBase
 
 		var layout = TextureDataLayout() { BytesPerRow = TexSize * 4, RowsPerImage = TexSize };
 		var writeSize = Extent3D(TexSize, TexSize, 1);
-		Renderer.Device.Queue.WriteTextureSync(mDefaultTexture, Span<uint8>(&pixels[0], TexBytes), &layout, &writeSize);
+		UploadTexture(mDefaultTexture, Span<uint8>(&pixels[0], TexBytes), &layout, &writeSize);
 
 		TextureViewDescriptor viewDesc = .()
 		{

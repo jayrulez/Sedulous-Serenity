@@ -179,7 +179,7 @@ class VulkanCommandEncoder : ICommandEncoder
 		VkBufferImageCopy region = .()
 			{
 				bufferOffset = copyInfo.BufferLayout.Offset,
-				bufferRowLength = copyInfo.BufferLayout.BytesPerRow / GetFormatBytesPerPixel(dstTexture.Format),
+				bufferRowLength = copyInfo.BufferLayout.BytesPerRow / VulkanConversions.GetFormatBytesPerPixel(dstTexture.Format),
 				bufferImageHeight = copyInfo.BufferLayout.RowsPerImage,
 				imageSubresource = .()
 				{
@@ -209,7 +209,7 @@ class VulkanCommandEncoder : ICommandEncoder
 		VkBufferImageCopy region = .()
 			{
 				bufferOffset = copyInfo.BufferLayout.Offset,
-				bufferRowLength = copyInfo.BufferLayout.BytesPerRow / GetFormatBytesPerPixel(srcTexture.Format),
+				bufferRowLength = copyInfo.BufferLayout.BytesPerRow / VulkanConversions.GetFormatBytesPerPixel(srcTexture.Format),
 				bufferImageHeight = copyInfo.BufferLayout.RowsPerImage,
 				imageSubresource = .()
 				{
@@ -1184,22 +1184,4 @@ class VulkanCommandEncoder : ICommandEncoder
 		}
 	}
 
-	private static uint32 GetFormatBytesPerPixel(TextureFormat format)
-	{
-		switch (format)
-		{
-		case .R8Unorm, .R8Snorm, .R8Uint, .R8Sint: return 1;
-		case .R16Uint, .R16Sint, .R16Float, .RG8Unorm, .RG8Snorm, .RG8Uint, .RG8Sint: return 2;
-		case .R32Uint, .R32Sint, .R32Float, .RG16Uint, .RG16Sint, .RG16Float,
-			 .RGBA8Unorm, .RGBA8UnormSrgb, .RGBA8Snorm, .RGBA8Uint, .RGBA8Sint,
-			 .BGRA8Unorm, .BGRA8UnormSrgb, .RGB10A2Unorm, .RG11B10Float: return 4;
-		case .RG32Uint, .RG32Sint, .RG32Float, .RGBA16Uint, .RGBA16Sint, .RGBA16Float: return 8;
-		case .RGBA32Uint, .RGBA32Sint, .RGBA32Float: return 16;
-		case .Depth16Unorm: return 2;
-		case .Depth24Plus, .Depth24PlusStencil8: return 4;
-		case .Depth32Float: return 4;
-		case .Depth32FloatStencil8: return 8;
-		default: return 4;
-		}
-	}
 }

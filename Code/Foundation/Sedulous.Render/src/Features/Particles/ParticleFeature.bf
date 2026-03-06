@@ -194,7 +194,7 @@ public class ParticleFeature : RenderFeatureBase
 
 		var layout = TextureDataLayout() { BytesPerRow = TexSize * 4, RowsPerImage = TexSize };
 		var writeSize = Extent3D(TexSize, TexSize, 1);
-		Renderer.Device.Queue.WriteTextureSync(mDefaultParticleTexture, Span<uint8>(&pixels[0], TexBytes), &layout, &writeSize);
+		UploadTexture(mDefaultParticleTexture, Span<uint8>(&pixels[0], TexBytes), &layout, &writeSize);
 
 		// Create texture view
 		TextureViewDescriptor viewDesc = .()

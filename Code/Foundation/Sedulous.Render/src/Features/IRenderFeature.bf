@@ -2,6 +2,7 @@ namespace Sedulous.Render;
 
 using System;
 using System.Collections;
+using Sedulous.RHI;
 using Sedulous.RenderGraph;
 
 /// Interface for modular render features.
@@ -98,5 +99,27 @@ public abstract class RenderFeatureBase : IRenderFeature
 	/// Override for custom shutdown.
 	protected virtual void OnShutdown()
 	{
+	}
+
+	/// Uploads texture data, using the init-time transfer batch if available,
+	/// otherwise falling back to synchronous upload.
+	protected void UploadTexture(ITexture texture, Span<uint8> data,
+		TextureDataLayout* dataLayout, Extent3D* writeSize,
+		uint32 mipLevel = 0, uint32 arrayLayer = 0)
+	{
+		if (mRenderer?.TransferBatch != null)
+			mRenderer.TransferBatch.WriteTexture(texture, data, dataLayout, writeSize, mipLevel, arrayLayer);
+		else
+			mRenderer.Device.Queue.WriteTextureSync(texture, data, dataLayout, writeSize, mipLevel, arrayLayer);
+	}
+
+	/// Uploads buffer data via staging, using the init-time transfer batch if available,
+	/// otherwise falling back to synchronous upload.
+	protected void UploadBuffer(IBuffer buffer, uint64 offset, Span<uint8> data)
+	{
+		if (mRenderer?.TransferBatch != null)
+			mRenderer.TransferBatch.WriteStagedBuffer(buffer, offset, data);
+		else
+			mRenderer.Device.Queue.WriteStagedBufferSync(buffer, offset, data);
 	}
 }

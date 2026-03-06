@@ -201,7 +201,7 @@ public class DecalFeature : RenderFeatureBase
 
 		var layout = TextureDataLayout() { BytesPerRow = TexSize * 4, RowsPerImage = TexSize };
 		var writeSize = Extent3D(TexSize, TexSize, 1);
-		Renderer.Device.Queue.WriteTextureSync(mDefaultTexture, Span<uint8>(&pixels[0], TexBytes), &layout, &writeSize);
+		UploadTexture(mDefaultTexture, Span<uint8>(&pixels[0], TexBytes), &layout, &writeSize);
 
 		TextureViewDescriptor viewDesc = .()
 		{
@@ -314,7 +314,7 @@ public class DecalFeature : RenderFeatureBase
 		case .Err: return .Err;
 		}
 
-		Renderer.Device.Queue.WriteStagedBufferSync(mCubeVertexBuffer, 0,
+		UploadBuffer(mCubeVertexBuffer, 0,
 			Span<uint8>((uint8*)&vertices[0], vertices.Count * sizeof(float)));
 
 		BufferDescriptor ibDesc = .()
@@ -330,7 +330,7 @@ public class DecalFeature : RenderFeatureBase
 		case .Err: return .Err;
 		}
 
-		Renderer.Device.Queue.WriteStagedBufferSync(mCubeIndexBuffer, 0,
+		UploadBuffer(mCubeIndexBuffer, 0,
 			Span<uint8>((uint8*)&indices[0], indices.Count * sizeof(uint16)));
 
 		return .Ok;

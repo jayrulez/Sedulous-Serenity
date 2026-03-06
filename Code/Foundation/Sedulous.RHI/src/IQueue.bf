@@ -41,6 +41,10 @@ interface IQueue
 	/// Staging read from a texture. Always synchronous.
 	void ReadTextureSync(ITexture texture, Span<uint8> data, TextureDataLayout* dataLayout, Extent3D* readSize, uint32 mipLevel = 0, uint32 arrayLayer = 0);
 
+	/// Creates a transfer batch for batching multiple GPU upload operations.
+	/// All recorded transfers execute in a single submission when Submit() is called.
+	Result<ITransferBatch> CreateTransferBatch();
+
 	/// Gets the timestamp period in nanoseconds.
 	/// Multiply GPU timestamp values by this to convert to nanoseconds.
 	float GetTimestampPeriod();

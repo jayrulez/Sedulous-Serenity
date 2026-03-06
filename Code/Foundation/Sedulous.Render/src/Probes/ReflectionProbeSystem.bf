@@ -59,7 +59,7 @@ public class ReflectionProbeSystem
 	public uint32 Generation => mGeneration;
 
 	/// Initializes the probe system: creates textures, buffers, and fallback resources.
-	public Result<void> Initialize(IDevice device)
+	public Result<void> Initialize(IDevice device, ITransferBatch batch = null)
 	{
 		mDevice = device;
 
@@ -100,10 +100,10 @@ public class ReflectionProbeSystem
 
 		// Initialize all subresources to black so Vulkan transitions them out of UNDEFINED layout.
 		// Without this, unwritten layers cause validation errors when the full array view is bound.
-		InitializeAllSubresources(device);
+		InitializeAllSubresources(device, batch);
 
 		// Create fallback: 1-cube white cubemap array
-		if (CreateFallbackCubemapArray(device) case .Err)
+		if (CreateFallbackCubemapArray(device, batch) case .Err)
 			return .Err;
 
 		// Create per-frame probe uniform buffers
@@ -136,7 +136,7 @@ public class ReflectionProbeSystem
 	}
 
 	/// Creates a 1-cube fallback white cubemap array for when no probes are active.
-	private Result<void> CreateFallbackCubemapArray(IDevice device)
+	private Result<void> CreateFallbackCubemapArray(IDevice device, ITransferBatch batch = null)
 	{
 		var texDesc = TextureDescriptor();
 		texDesc.Label = "Fallback Probe CubeArray";
@@ -162,7 +162,12 @@ public class ReflectionProbeSystem
 		var writeSize = Extent3D(1, 1, 1);
 
 		for (uint32 face = 0; face < 6; face++)
-			device.Queue.WriteTextureSync(mFallbackCubemapArray, Span<uint8>((uint8*)&whitePixel, 8), &layout, &writeSize, 0, face);
+		{
+			if (batch != null)
+				batch.WriteTexture(mFallbackCubemapArray, Span<uint8>((uint8*)&whitePixel, 8), &layout, &writeSize, 0, face);
+			else
+				device.Queue.WriteTextureSync(mFallbackCubemapArray, Span<uint8>((uint8*)&whitePixel, 8), &layout, &writeSize, 0, face);
+		}
 
 		var viewDesc = TextureViewDescriptor();
 		viewDesc.Label = "Fallback Probe CubeArray View";
@@ -184,7 +189,7 @@ public class ReflectionProbeSystem
 
 	/// Writes black pixels to every subresource (all layers, all mips) of the cubemap array.
 	/// This transitions all subresources out of VK_IMAGE_LAYOUT_UNDEFINED.
-	private void InitializeAllSubresources(IDevice device)
+	private void InitializeAllSubresources(IDevice device, ITransferBatch batch = null)
 	{
 		if (mCubemapArray == null) return;
 
@@ -203,7 +208,12 @@ public class ReflectionProbeSystem
 			var writeSize = Extent3D((uint32)mipSize, (uint32)mipSize, 1);
 
 			for (int32 layer = 0; layer < totalLayers; layer++)
-				device.Queue.WriteTextureSync(mCubemapArray, Span<uint8>(zeroData.Ptr, dataSize), &layout, &writeSize, mip, (uint32)layer);
+			{
+				if (batch != null)
+					batch.WriteTexture(mCubemapArray, Span<uint8>(zeroData.Ptr, dataSize), &layout, &writeSize, mip, (uint32)layer);
+				else
+					device.Queue.WriteTextureSync(mCubemapArray, Span<uint8>(zeroData.Ptr, dataSize), &layout, &writeSize, mip, (uint32)layer);
+			}
 		}
 	}
 

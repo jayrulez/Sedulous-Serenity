@@ -2,12 +2,14 @@ namespace RenderParticles;
 
 using System;
 using System.Collections;
+using System.Diagnostics;
 using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
 using Sedulous.Shell;
 using Sedulous.Runtime.Client;
 using Sedulous.Render;
 using Sedulous.Geometry;
+using Sedulous.Profiler;
 
 /// Particle system sample demonstrating GPU particle effects
 /// with configurable emitters via the Sedulous.Render pipeline.
@@ -40,6 +42,9 @@ class RenderParticlesApp : Application
 	// Lights
 	private LightProxyHandle mSunLight = .Invalid;
 
+	// Startup timing
+	private bool mFirstFrame = true;
+
 	// Camera
 	private Vector3 mCameraPosition = .(0, 3, 8);
 	private float mYaw = Math.PI_f;
@@ -56,12 +61,19 @@ class RenderParticlesApp : Application
 
 	protected override void OnInitialize(Sedulous.Runtime.Context context)
 	{
+		let totalSw = scope Stopwatch()..Start();
+		let sw = scope Stopwatch();
+
+		Console.WriteLine("\n=== Startup Timing ===");
+
+		sw.Restart();
 		mRenderSystem = new RenderSystem();
-		if (mRenderSystem.Initialize(mDevice, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null, .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
+		if (mRenderSystem.Initialize(mDevice, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), scope $"{AssetCacheDirectory}/Shaders", .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
 		{
 			Console.WriteLine("ERROR: Failed to initialize RenderSystem");
 			return;
 		}
+		Console.WriteLine($"  RenderSystem.Initialize: {sw.Elapsed.TotalMilliseconds:F2}ms");
 
 		mWorld = mRenderSystem.CreateWorld();
 		mRenderSystem.SetActiveWorld(mWorld);
@@ -73,17 +85,34 @@ class RenderParticlesApp : Application
 		mView.NearPlane = 0.1f;
 		mView.FarPlane = 100.0f;
 
+		sw.Restart();
 		RegisterFeatures();
+		Console.WriteLine($"  RegisterFeatures:        {sw.Elapsed.TotalMilliseconds:F2}ms");
+
+		sw.Restart();
 		CreateFloor();
+		Console.WriteLine($"  CreateFloor:             {sw.Elapsed.TotalMilliseconds:F2}ms");
+
+		sw.Restart();
 		CreateEmitters();
+		Console.WriteLine($"  CreateEmitters:          {sw.Elapsed.TotalMilliseconds:F2}ms");
+
+		sw.Restart();
 		CreateLights();
+		Console.WriteLine($"  CreateLights:            {sw.Elapsed.TotalMilliseconds:F2}ms");
 
 		mWorld.AmbientColor = .(0.03f, 0.03f, 0.05f);
 		mWorld.AmbientIntensity = 0.5f;
 		mWorld.Exposure = 1.0f;
 
+		Console.WriteLine($"  Total init:              {totalSw.Elapsed.TotalMilliseconds:F2}ms");
+		Console.WriteLine("======================\n");
+
+		SProfiler.Initialize();
+
 		Console.WriteLine("Render Particles initialized");
 		Console.WriteLine("  WASD/QE: move, Right-click: look, Tab: capture");
+		Console.WriteLine("  P: print profiler stats");
 		Console.WriteLine("  ESC: exit");
 	}
 
@@ -268,6 +297,9 @@ class RenderParticlesApp : Application
 		if (keyboard.IsKeyPressed(.Escape))
 			Exit();
 
+		if (keyboard.IsKeyPressed(.P))
+			PrintProfilerStats();
+
 		if (keyboard.IsKeyPressed(.Tab))
 		{
 			mMouseCaptured = !mMouseCaptured;
@@ -317,7 +349,17 @@ class RenderParticlesApp : Application
 
 	protected override bool OnRenderFrame(RenderContext render)
 	{
-		mRenderSystem.BeginFrame((float)render.Frame.TotalTime, (float)render.Frame.DeltaTime);
+		if (mFirstFrame)
+		{
+			let sw = scope Stopwatch()..Start();
+			mRenderSystem.BeginFrame((float)render.Frame.TotalTime, (float)render.Frame.DeltaTime);
+			Console.WriteLine($"  First BeginFrame (batch flush): {sw.Elapsed.TotalMilliseconds:F2}ms");
+			mFirstFrame = false;
+		}
+		else
+		{
+			mRenderSystem.BeginFrame((float)render.Frame.TotalTime, (float)render.Frame.DeltaTime);
+		}
 
 		if (mFinalOutputFeature != null)
 			mFinalOutputFeature.SetSwapChain(render.SwapChain);
@@ -334,6 +376,26 @@ class RenderParticlesApp : Application
 
 		mRenderSystem.EndFrame();
 		return true;
+	}
+
+	private void PrintProfilerStats()
+	{
+		let frame = SProfiler.GetCompletedFrame();
+		if (frame == null || frame.SampleCount == 0)
+		{
+			Console.WriteLine("No profiler data available");
+			return;
+		}
+
+		Console.WriteLine($"\n=== Frame {frame.FrameNumber} : {frame.FrameDurationMs:F2}ms ({frame.SampleCount} samples) ===");
+		for (let sample in frame.Samples)
+		{
+			let indent = scope String();
+			for (int i = 0; i < sample.Depth; i++)
+				indent.Append("  ");
+			Console.WriteLine($"  {indent}{sample.Name}: {sample.DurationMs:F3}ms");
+		}
+		Console.WriteLine();
 	}
 
 	protected override void OnShutdown()
