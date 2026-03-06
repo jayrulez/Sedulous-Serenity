@@ -65,6 +65,33 @@ public class RenderWorld : IDisposable
 	private bool mContactShadowsEnabled = true;
 	private float mContactShadowLength = 0.1f;
 
+	// Depth of Field
+	private bool mDOFEnabled = false;
+	private float mDOFFocusDistance = 10.0f;
+	private float mDOFFocusRange = 5.0f;
+	private float mDOFBokehSize = 4.0f;
+
+	// Motion Blur
+	private bool mMotionBlurEnabled = false;
+	private float mMotionBlurIntensity = 1.0f;
+
+	// Film Grain
+	private bool mFilmGrainEnabled = false;
+	private float mFilmGrainIntensity = 0.15f;
+
+	// Color Grading
+	private bool mColorGradingEnabled = false;
+	private ITextureView mColorGradingLUT = null;
+
+	// Vignette
+	private bool mVignetteEnabled = false;
+	private float mVignetteIntensity = 0.4f;
+	private float mVignetteSmoothness = 0.5f;
+
+	// Chromatic Aberration
+	private bool mChromaticAberrationEnabled = false;
+	private float mChromaticAberrationIntensity = 0.005f;
+
 	// Deferred deletion queue for GPU-referenced resources
 	struct PendingEmitterDeletion
 	{
@@ -383,6 +410,135 @@ public class RenderWorld : IDisposable
 	{
 		get => mContactShadowLength;
 		set { mContactShadowLength = value; mEnvironmentDirty = true; }
+	}
+
+	// ========================================================================
+	// Depth of Field API
+	// ========================================================================
+
+	/// Gets or sets whether depth of field is enabled.
+	public bool DOFEnabled
+	{
+		get => mDOFEnabled;
+		set { mDOFEnabled = value; mEnvironmentDirty = true; }
+	}
+
+	/// Gets or sets the DOF focus distance in world units.
+	public float DOFFocusDistance
+	{
+		get => mDOFFocusDistance;
+		set { mDOFFocusDistance = value; mEnvironmentDirty = true; }
+	}
+
+	/// Gets or sets the DOF focus range (transition width).
+	public float DOFFocusRange
+	{
+		get => mDOFFocusRange;
+		set { mDOFFocusRange = value; mEnvironmentDirty = true; }
+	}
+
+	/// Gets or sets the DOF bokeh size (max blur radius in pixels).
+	public float DOFBokehSize
+	{
+		get => mDOFBokehSize;
+		set { mDOFBokehSize = value; mEnvironmentDirty = true; }
+	}
+
+	// ========================================================================
+	// Motion Blur API
+	// ========================================================================
+
+	/// Gets or sets whether motion blur is enabled.
+	public bool MotionBlurEnabled
+	{
+		get => mMotionBlurEnabled;
+		set { mMotionBlurEnabled = value; mEnvironmentDirty = true; }
+	}
+
+	/// Gets or sets the motion blur intensity.
+	public float MotionBlurIntensity
+	{
+		get => mMotionBlurIntensity;
+		set { mMotionBlurIntensity = value; mEnvironmentDirty = true; }
+	}
+
+	// ========================================================================
+	// Film Grain API
+	// ========================================================================
+
+	/// Gets or sets whether film grain is enabled.
+	public bool FilmGrainEnabled
+	{
+		get => mFilmGrainEnabled;
+		set { mFilmGrainEnabled = value; mEnvironmentDirty = true; }
+	}
+
+	/// Gets or sets the film grain intensity.
+	public float FilmGrainIntensity
+	{
+		get => mFilmGrainIntensity;
+		set { mFilmGrainIntensity = value; mEnvironmentDirty = true; }
+	}
+
+	// ========================================================================
+	// Color Grading API
+	// ========================================================================
+
+	/// Gets or sets whether color grading is enabled.
+	public bool ColorGradingEnabled
+	{
+		get => mColorGradingEnabled;
+		set { mColorGradingEnabled = value; mEnvironmentDirty = true; }
+	}
+
+	/// Gets or sets the color grading LUT texture view (non-owning, 1024x32 2D atlas).
+	public ITextureView ColorGradingLUT
+	{
+		get => mColorGradingLUT;
+		set { mColorGradingLUT = value; mEnvironmentDirty = true; }
+	}
+
+	// ========================================================================
+	// Vignette API
+	// ========================================================================
+
+	/// Gets or sets whether vignette is enabled.
+	public bool VignetteEnabled
+	{
+		get => mVignetteEnabled;
+		set { mVignetteEnabled = value; mEnvironmentDirty = true; }
+	}
+
+	/// Gets or sets the vignette intensity (0-1).
+	public float VignetteIntensity
+	{
+		get => mVignetteIntensity;
+		set { mVignetteIntensity = value; mEnvironmentDirty = true; }
+	}
+
+	/// Gets or sets the vignette smoothness (0-1).
+	public float VignetteSmoothness
+	{
+		get => mVignetteSmoothness;
+		set { mVignetteSmoothness = value; mEnvironmentDirty = true; }
+	}
+
+	// ========================================================================
+	// Chromatic Aberration API
+	// ========================================================================
+
+	/// Gets or sets whether chromatic aberration is enabled.
+	public bool ChromaticAberrationEnabled
+	{
+		get => mChromaticAberrationEnabled;
+		set { mChromaticAberrationEnabled = value; mEnvironmentDirty = true; }
+	}
+
+	/// Gets or sets the chromatic aberration intensity.
+	public float ChromaticAberrationIntensity
+	{
+		get => mChromaticAberrationIntensity;
+		set { mChromaticAberrationIntensity = value; mEnvironmentDirty = true; }
 	}
 
 	// ========================================================================
