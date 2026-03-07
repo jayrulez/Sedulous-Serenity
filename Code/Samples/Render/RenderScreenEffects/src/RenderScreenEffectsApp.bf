@@ -18,14 +18,8 @@ using Sedulous.Models.GLTF;
 using Sedulous.Imaging;
 using Sedulous.Textures.Resources;
 using Sedulous.GUI;
-using Sedulous.GUI.Shell;
-using Sedulous.Drawing;
-using Sedulous.Drawing.Renderer;
-using Sedulous.Drawing.Fonts;
+using Sedulous.GUI.Runtime;
 using Sedulous.Fonts;
-using Sedulous.Shaders;
-
-typealias ShellKeyCode = Sedulous.Shell.Input.KeyCode;
 
 /// Screen-space effects sample demonstrating SSAO, SSR, and contact shadows
 /// in the Sponza architectural scene, with a GUI settings panel.
@@ -84,17 +78,10 @@ class RenderScreenEffectsApp : Application
 	private const float LookSpeed = 0.003f;
 
 	// GUI system
-	private GUIContext mGUIContext ~ delete _;
-	private FontService mFontService ~ delete _;
-	private DrawContext mDrawContext ~ delete _;
-	private DrawingRenderer mDrawingRenderer;
-	private ShaderSystem mUIShaderSystem;
-	private GUIInputHelper mInputHelper = new .() ~ delete _;
-	private ShellClipboardAdapter mClipboard ~ delete _;
-	private Sedulous.GUI.CursorType mLastCursor = .Default;
+	private Sedulous.GUI.Runtime.UISubsystem mUISubsystem;
 	private bool mShowGUI = true;
 
-	private DockPanel mRoot ~ delete _;
+	private DockPanel mRoot;
 
 	// Slider callback delegates (captured inside wrapper lambdas, not owned by EventAccessor)
 	private List<delegate void(Slider, float)> mSliderCallbacks = new .() ~ DeleteContainerAndItems!(_);
@@ -191,50 +178,25 @@ class RenderScreenEffectsApp : Application
 
 	private void InitializeGUI()
 	{
-		// Font system
-		mFontService = new FontService();
-		let fontPath = scope $"{AssetDirectory}/framework/fonts/roboto/Roboto-Regular.ttf";
-		FontLoadOptions fontOptions = .ExtendedLatin;
-		fontOptions.PixelHeight = 14;
-		if (mFontService.LoadFont("Roboto", fontPath, fontOptions) case .Err)
-		{
-			Console.WriteLine("Warning: Failed to load font");
-			return;
-		}
+		mUISubsystem = new Sedulous.GUI.Runtime.UISubsystem();
+		mContext.RegisterSubsystem(mUISubsystem);
 
-		// Shader system for DrawingRenderer
-		mUIShaderSystem = new ShaderSystem();
 		let shaderPath = scope $"{AssetDirectory}/Render/shaders";
-		if (mUIShaderSystem.Initialize(mDevice, scope StringView[](shaderPath)) case .Err)
+		if (mUISubsystem.InitializeRendering(mDevice, mSwapChain.Format, (int32)mSwapChain.FrameCount, mShell, mWindow, scope StringView[](shaderPath)) case .Err)
 		{
-			Console.WriteLine("Warning: Failed to init UI shader system");
+			Console.WriteLine("Warning: Failed to initialize UI");
 			return;
 		}
 
-		// Draw context
-		mDrawContext = new DrawContext(mFontService);
-
-		// Drawing renderer
-		mDrawingRenderer = new DrawingRenderer();
-		if (mDrawingRenderer.Initialize(mDevice, mSwapChain.Format, (int32)mSwapChain.FrameCount, mUIShaderSystem) case .Err)
-		{
-			Console.WriteLine("Warning: Failed to init drawing renderer");
-			return;
-		}
-
-		// Clipboard
-		mClipboard = new ShellClipboardAdapter(mShell.Clipboard);
-
-		// GUI context
-		mGUIContext = new GUIContext();
-		mGUIContext.RegisterClipboard(mClipboard);
-		mGUIContext.RegisterService<IFontService>(mFontService);
-		mGUIContext.SetViewportSize((float)mSwapChain.Width, (float)mSwapChain.Height);
+		let fontPath = scope $"{AssetDirectory}/framework/fonts/roboto/Roboto-Regular.ttf";
+		Sedulous.Fonts.FontLoadOptions fontOptions = .ExtendedLatin;
+		fontOptions.PixelHeight = 14;
+		mUISubsystem.LoadFont("Roboto", fontPath, fontOptions);
 	}
 
 	private void BuildSettingsPanel()
 	{
-		if (mGUIContext == null)
+		if (mUISubsystem?.GUIContext == null)
 			return;
 
 		// Root: DockPanel with settings panel docked right, nothing else (3D scene shows through)
@@ -412,7 +374,7 @@ class RenderScreenEffectsApp : Application
 				light.Intensity = val;
 		});
 
-		mGUIContext.RootElement = mRoot;
+		mUISubsystem.GUIContext.RootElement = mRoot;
 	}
 
 	// --- GUI helper methods ---
@@ -1000,8 +962,8 @@ class RenderScreenEffectsApp : Application
 		if (keyboard.IsKeyPressed(.F1))
 		{
 			mShowGUI = !mShowGUI;
-			if (mGUIContext?.RootElement != null)
-				mGUIContext.RootElement.Visibility = mShowGUI ? .Visible : .Collapsed;
+			if (mUISubsystem?.GUIContext?.RootElement != null)
+				mUISubsystem.GUIContext.RootElement.Visibility = mShowGUI ? .Visible : .Collapsed;
 		}
 
 		// Toggle mouse capture
@@ -1012,25 +974,9 @@ class RenderScreenEffectsApp : Application
 			mouse.Visible = !mMouseCaptured;
 		}
 
-		// Route mouse to GUI (GUI is on the right, camera uses right-click which doesn't conflict)
-		if (mGUIContext != null && mShowGUI)
-		{
-			GUIInputHelper.ProcessMouseInput(mouse, keyboard, mGUIContext);
-			mInputHelper.ProcessKeyboardInput(keyboard, mGUIContext, mFrameDelta);
-
-			// Update cursor
-			let guiCursor = mGUIContext.CurrentCursor;
-			if (guiCursor != mLastCursor)
-			{
-				mLastCursor = guiCursor;
-				mouse.Cursor = InputMapping.MapCursor(guiCursor);
-			}
-		}
-
 		// Camera look: right-click drag or mouse-captured mode
 		// Only when not interacting with GUI
-		bool guiWantsMouse = mShowGUI && mGUIContext != null &&
-			mGUIContext.CurrentCursor != .Default;
+		bool guiWantsMouse = mShowGUI && mUISubsystem != null && mUISubsystem.UIConsumedInput;
 
 		if (mMouseCaptured || (mouse.IsButtonDown(.Right) && !guiWantsMouse))
 		{
@@ -1085,10 +1031,6 @@ class RenderScreenEffectsApp : Application
 		mView.Width = mSwapChain.Width;
 		mView.Height = mSwapChain.Height;
 		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
-
-		// Update GUI
-		if (mGUIContext != null)
-			mGUIContext.Update(dt, (double)frame.TotalTime);
 	}
 
 	protected override bool OnRenderFrame(RenderContext render)
@@ -1117,53 +1059,18 @@ class RenderScreenEffectsApp : Application
 		mRenderSystem.EndFrame();
 
 		// --- GUI Overlay ---
-		if (mShowGUI && mGUIContext != null && mDrawingRenderer != null)
-		{
-			let frameIndex = (int32)render.SwapChain.CurrentFrameIndex;
-
-			// Build GUI draw commands
-			mDrawContext.Clear();
-			mGUIContext.Render(mDrawContext);
-
-			// Prepare renderer
-			mDrawingRenderer.UpdateProjection(render.SwapChain.Width, render.SwapChain.Height, frameIndex);
-			mDrawingRenderer.Prepare(mDrawContext.GetBatch(), frameIndex);
-
-			// Render GUI in a second pass on the swap chain (LoadOp = Load to preserve 3D scene)
-			let textureView = render.SwapChain.CurrentTextureView;
-			if (textureView != null)
-			{
-				RenderPassColorAttachment[1] colorAttachments = .(.()
-				{
-					View = textureView,
-					ResolveTarget = null,
-					LoadOp = .Load,
-					StoreOp = .Store,
-					ClearValue = .(0, 0, 0, 0)
-				});
-				RenderPassDescriptor guiPassDesc = .(colorAttachments);
-
-				let guiPass = render.Encoder.BeginRenderPass(&guiPassDesc);
-				if (guiPass != null)
-				{
-					mDrawingRenderer.Render(guiPass, render.SwapChain.Width, render.SwapChain.Height, frameIndex);
-					guiPass.End();
-					delete guiPass;
-				}
-			}
-		}
+		if (mShowGUI)
+			mUISubsystem?.Render(render.Encoder, render.SwapChain.CurrentTextureView,
+				render.SwapChain.Width, render.SwapChain.Height,
+				(int32)render.SwapChain.CurrentFrameIndex);
 
 		return true;
 	}
 
-	protected override void OnResize(int32 width, int32 height)
-	{
-		if (mGUIContext != null)
-			mGUIContext.SetViewportSize((float)width, (float)height);
-	}
-
 	protected override void OnShutdown()
 	{
+		DeleteAndNullify!(mRoot);
+
 		mWorld?.Dispose();
 
 		for (let meshHandle in mMeshHandles)
@@ -1176,21 +1083,6 @@ class RenderScreenEffectsApp : Application
 		{
 			if (texHandle.IsValid)
 				mRenderSystem.ResourceManager.ReleaseTexture(texHandle, mRenderSystem.FrameNumber);
-		}
-
-		// Clean up GUI renderer
-		if (mDrawingRenderer != null)
-		{
-			mDrawingRenderer.Dispose();
-			delete mDrawingRenderer;
-			mDrawingRenderer = null;
-		}
-
-		if (mUIShaderSystem != null)
-		{
-			mUIShaderSystem.Dispose();
-			delete mUIShaderSystem;
-			mUIShaderSystem = null;
 		}
 
 		if (mRenderSystem != null)

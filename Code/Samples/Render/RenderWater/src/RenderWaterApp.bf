@@ -5,12 +5,8 @@ using Sedulous.Shell;
 using Sedulous.Shell.Input;
 using Sedulous.Render;
 using Sedulous.GUI;
-using Sedulous.GUI.Shell;
-using Sedulous.Drawing;
-using Sedulous.Drawing.Renderer;
-using Sedulous.Drawing.Fonts;
+using Sedulous.GUI.Runtime;
 using Sedulous.Fonts;
-using Sedulous.Shaders;
 using System;
 using System.Collections;
 
@@ -81,17 +77,10 @@ class RenderWaterApp : Application
 	private float mDeltaTime = 0.016f;
 
 	// GUI system
-	private GUIContext mGUIContext ~ delete _;
-	private FontService mFontService ~ delete _;
-	private DrawContext mDrawContext ~ delete _;
-	private DrawingRenderer mDrawingRenderer;
-	private ShaderSystem mUIShaderSystem;
-	private GUIInputHelper mInputHelper = new .() ~ delete _;
-	private ShellClipboardAdapter mClipboard ~ delete _;
-	private Sedulous.GUI.CursorType mLastCursor = .Default;
+	private Sedulous.GUI.Runtime.UISubsystem mUISubsystem;
 	private bool mShowGUI = true;
 
-	private DockPanel mRoot ~ delete _;
+	private DockPanel mRoot;
 
 	// Slider callback delegates
 	private List<delegate void(Slider, float)> mSliderCallbacks = new .() ~ DeleteContainerAndItems!(_);
@@ -111,22 +100,9 @@ class RenderWaterApp : Application
 
 	protected override void OnShutdown()
 	{
+		DeleteAndNullify!(mRoot);
+
 		mWorld?.Dispose();
-
-		// Clean up GUI renderer before render system shutdown
-		if (mDrawingRenderer != null)
-		{
-			mDrawingRenderer.Dispose();
-			delete mDrawingRenderer;
-			mDrawingRenderer = null;
-		}
-
-		if (mUIShaderSystem != null)
-		{
-			mUIShaderSystem.Dispose();
-			delete mUIShaderSystem;
-			mUIShaderSystem = null;
-		}
 
 		mRenderSystem?.Shutdown();
 
@@ -209,50 +185,25 @@ class RenderWaterApp : Application
 
 	private void InitializeGUI()
 	{
-		// Font system
-		mFontService = new FontService();
-		let fontPath = scope $"{AssetDirectory}/framework/fonts/roboto/Roboto-Regular.ttf";
-		FontLoadOptions fontOptions = .ExtendedLatin;
-		fontOptions.PixelHeight = 14;
-		if (mFontService.LoadFont("Roboto", fontPath, fontOptions) case .Err)
-		{
-			Console.WriteLine("Warning: Failed to load font");
-			return;
-		}
+		mUISubsystem = new Sedulous.GUI.Runtime.UISubsystem();
+		mContext.RegisterSubsystem(mUISubsystem);
 
-		// Shader system for DrawingRenderer
-		mUIShaderSystem = new ShaderSystem();
 		let shaderPath = scope $"{AssetDirectory}/Render/shaders";
-		if (mUIShaderSystem.Initialize(mDevice, scope StringView[](shaderPath)) case .Err)
+		if (mUISubsystem.InitializeRendering(mDevice, mSwapChain.Format, (int32)mSwapChain.FrameCount, mShell, mWindow, scope StringView[](shaderPath)) case .Err)
 		{
-			Console.WriteLine("Warning: Failed to init UI shader system");
+			Console.WriteLine("Warning: Failed to initialize UI");
 			return;
 		}
 
-		// Draw context
-		mDrawContext = new DrawContext(mFontService);
-
-		// Drawing renderer
-		mDrawingRenderer = new DrawingRenderer();
-		if (mDrawingRenderer.Initialize(mDevice, mSwapChain.Format, (int32)mSwapChain.FrameCount, mUIShaderSystem) case .Err)
-		{
-			Console.WriteLine("Warning: Failed to init drawing renderer");
-			return;
-		}
-
-		// Clipboard
-		mClipboard = new ShellClipboardAdapter(mShell.Clipboard);
-
-		// GUI context
-		mGUIContext = new GUIContext();
-		mGUIContext.RegisterClipboard(mClipboard);
-		mGUIContext.RegisterService<IFontService>(mFontService);
-		mGUIContext.SetViewportSize((float)mSwapChain.Width, (float)mSwapChain.Height);
+		let fontPath = scope $"{AssetDirectory}/framework/fonts/roboto/Roboto-Regular.ttf";
+		Sedulous.Fonts.FontLoadOptions fontOptions = .ExtendedLatin;
+		fontOptions.PixelHeight = 14;
+		mUISubsystem.LoadFont("Roboto", fontPath, fontOptions);
 	}
 
 	private void BuildSettingsPanel()
 	{
-		if (mGUIContext == null)
+		if (mUISubsystem?.GUIContext == null)
 			return;
 
 		mRoot = new DockPanel();
@@ -407,7 +358,7 @@ class RenderWaterApp : Application
 			mWorld.AmbientIntensity = val;
 		});
 
-		mGUIContext.RootElement = mRoot;
+		mUISubsystem.GUIContext.RootElement = mRoot;
 	}
 
 	// --- GUI helper methods ---
@@ -963,7 +914,6 @@ class RenderWaterApp : Application
 	protected override void OnInput()
 	{
 		let keyboard = mShell.InputManager.Keyboard;
-		let mouse = mShell.InputManager.Mouse;
 
 		if (keyboard.IsKeyPressed(.Escape))
 			Exit();
@@ -972,27 +922,12 @@ class RenderWaterApp : Application
 		if (keyboard.IsKeyPressed(.F1))
 		{
 			mShowGUI = !mShowGUI;
-			if (mGUIContext?.RootElement != null)
-				mGUIContext.RootElement.Visibility = mShowGUI ? .Visible : .Collapsed;
-		}
-
-		// Route mouse/keyboard to GUI
-		if (mGUIContext != null && mShowGUI)
-		{
-			GUIInputHelper.ProcessMouseInput(mouse, keyboard, mGUIContext);
-			mInputHelper.ProcessKeyboardInput(keyboard, mGUIContext, mDeltaTime);
-
-			let guiCursor = mGUIContext.CurrentCursor;
-			if (guiCursor != mLastCursor)
-			{
-				mLastCursor = guiCursor;
-				mouse.Cursor = InputMapping.MapCursor(guiCursor);
-			}
+			if (mUISubsystem?.GUIContext?.RootElement != null)
+				mUISubsystem.GUIContext.RootElement.Visibility = mShowGUI ? .Visible : .Collapsed;
 		}
 
 		// Camera controls — only when GUI doesn't want mouse
-		bool guiWantsMouse = mShowGUI && mGUIContext != null &&
-			mGUIContext.CurrentCursor != .Default;
+		bool guiWantsMouse = mShowGUI && mUISubsystem != null && mUISubsystem.UIConsumedInput;
 
 		if (!guiWantsMouse)
 		{
@@ -1045,10 +980,6 @@ class RenderWaterApp : Application
 		}
 
 		UpdateCamera();
-
-		// Update GUI
-		if (mGUIContext != null)
-			mGUIContext.Update(dt, (double)frame.TotalTime);
 	}
 
 	private void UpdateWaterLevel()
@@ -1108,38 +1039,10 @@ class RenderWaterApp : Application
 		mRenderSystem.EndFrame();
 
 		// --- GUI Overlay ---
-		if (mShowGUI && mGUIContext != null && mDrawingRenderer != null)
-		{
-			let frameIndex = (int32)render.SwapChain.CurrentFrameIndex;
-
-			mDrawContext.Clear();
-			mGUIContext.Render(mDrawContext);
-
-			mDrawingRenderer.UpdateProjection(render.SwapChain.Width, render.SwapChain.Height, frameIndex);
-			mDrawingRenderer.Prepare(mDrawContext.GetBatch(), frameIndex);
-
-			let textureView = render.SwapChain.CurrentTextureView;
-			if (textureView != null)
-			{
-				RenderPassColorAttachment[1] colorAttachments = .(.()
-				{
-					View = textureView,
-					ResolveTarget = null,
-					LoadOp = .Load,
-					StoreOp = .Store,
-					ClearValue = .(0, 0, 0, 0)
-				});
-				RenderPassDescriptor guiPassDesc = .(colorAttachments);
-
-				let guiPass = render.Encoder.BeginRenderPass(&guiPassDesc);
-				if (guiPass != null)
-				{
-					mDrawingRenderer.Render(guiPass, render.SwapChain.Width, render.SwapChain.Height, frameIndex);
-					guiPass.End();
-					delete guiPass;
-				}
-			}
-		}
+		if (mShowGUI)
+			mUISubsystem?.Render(render.Encoder, render.SwapChain.CurrentTextureView,
+				render.SwapChain.Width, render.SwapChain.Height,
+				(int32)render.SwapChain.CurrentFrameIndex);
 
 		return true;
 	}
@@ -1151,8 +1054,6 @@ class RenderWaterApp : Application
 			mView.Width = (uint32)width;
 			mView.Height = (uint32)height;
 		}
-		if (mGUIContext != null)
-			mGUIContext.SetViewportSize((float)width, (float)height);
 	}
 
 	/// Convert float to IEEE 754 half-precision.
