@@ -2150,6 +2150,11 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		if (shadowBindGroup == null)
 			return;
 
+		// Skinned meshes always use the non-instanced shadow pipeline.
+		// Must set it explicitly because the instanced path may have left
+		// mShadowInstancedPipeline active (different bind group layout).
+		encoder.SetPipeline(mShadowDepthPipeline);
+
 		int32 objectIndex = mShadowSkinnedMeshStartIndex;
 
 		for (let visibleMesh in visibility.VisibleSkinnedMeshes)
