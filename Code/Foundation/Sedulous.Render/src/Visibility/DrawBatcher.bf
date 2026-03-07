@@ -395,7 +395,7 @@ public class DrawBatcher
 		}
 
 		// Copy reordered commands back
-		Internal.MemCpy(mDrawCommands.Ptr, mReorderBuffer.Ptr, mDrawCommands.Count * sizeof(DrawCommand));
+		Internal.MemCpy(mDrawCommands.Ptr, mReorderBuffer.Ptr, mDrawCommands.Count * strideof(DrawCommand));
 
 		// Step 4: Emit batches and instance groups
 		int32 opaqueInstanceStart = 0;
@@ -456,6 +456,7 @@ public class DrawBatcher
 		mStats.OpaqueInstanceGroupCount = (int32)mOpaqueInstanceGroups.Count;
 		mStats.TransparentInstanceGroupCount = (int32)mTransparentInstanceGroups.Count;
 		mStats.TotalInstanceCount = opaqueInstanceStart + transparentInstanceStart;
+
 	}
 
 	private void BuildSkinnedBatches()
