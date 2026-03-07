@@ -219,7 +219,7 @@ public class ForwardTransparentFeature : RenderFeatureBase
 					{
 						WorldMatrix = proxy.WorldMatrix,
 						PrevWorldMatrix = proxy.PrevWorldMatrix,
-						NormalMatrix = proxy.NormalMatrix,
+
 						ObjectID = (uint32)objectIndex,
 						MaterialID = 0,
 						_Padding = .(0, 0)

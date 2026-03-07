@@ -15,18 +15,16 @@ struct ObjectUniforms
 {
 	public Matrix WorldMatrix;
 	public Matrix PrevWorldMatrix;
-	public Matrix NormalMatrix;
 	public uint32 ObjectID;
 	public uint32 MaterialID;
 	public float[2] _Padding;
 
-	public const uint64 Size = 208; // 3 matrices (192) + 2 uint32 (8) + 2 float (8) = 208
+	public const uint64 Size = 144; // 2 matrices (128) + 2 uint32 (8) + 2 float (8) = 144
 
 	public static Self Identity => .()
 	{
 		WorldMatrix = .Identity,
 		PrevWorldMatrix = .Identity,
-		NormalMatrix = .Identity,
 		ObjectID = 0,
 		MaterialID = 0,
 		_Padding = .(0, 0)
@@ -1006,7 +1004,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 						{
 							WorldMatrix = cmd.WorldMatrix,
 							PrevWorldMatrix = cmd.PrevWorldMatrix,
-							NormalMatrix = cmd.NormalMatrix,
+
 							ObjectID = (uint32)objectIndex,
 							MaterialID = 0,
 							_Padding = .(0, 0)
@@ -1040,7 +1038,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 					{
 						WorldMatrix = cmd.WorldMatrix,
 						PrevWorldMatrix = cmd.PrevWorldMatrix,
-						NormalMatrix = cmd.NormalMatrix,
+
 						ObjectID = (uint32)objectIndex,
 						MaterialID = 0,
 						_Padding = .(0, 0)
@@ -1255,7 +1253,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 					{
 						WorldMatrix = proxy.WorldMatrix,
 						PrevWorldMatrix = proxy.PrevWorldMatrix,
-						NormalMatrix = proxy.NormalMatrix,
+
 						ObjectID = (uint32)objectIndex,
 						MaterialID = 0,
 						_Padding = default
@@ -1288,7 +1286,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 					{
 						WorldMatrix = proxy.WorldMatrix,
 						PrevWorldMatrix = proxy.PrevWorldMatrix,
-						NormalMatrix = proxy.NormalMatrix,
+
 						ObjectID = (uint32)objectIndex,
 						MaterialID = 0,
 						_Padding = default

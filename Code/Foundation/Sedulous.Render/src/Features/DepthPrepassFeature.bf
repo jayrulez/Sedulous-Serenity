@@ -31,7 +31,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 	// Constants for per-object uniforms
 	private static int MaxObjectsPerFrame => RenderConfig.MaxOpaqueObjectsPerFrame;
 	private const uint64 ObjectUniformAlignment = 256;
-	private const uint64 ObjectUniformSize = 208; // 3 matrices (192) + padding
+	private const uint64 ObjectUniformSize = 144; // 2 matrices (128) + 2 uint32 (8) + 2 float (8)
 	private const uint64 AlignedObjectUniformSize = ((ObjectUniformSize + ObjectUniformAlignment - 1) / ObjectUniformAlignment) * ObjectUniformAlignment;
 
 	// Visibility
@@ -524,7 +524,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 						{
 							WorldMatrix = cmd.WorldMatrix,
 							PrevWorldMatrix = cmd.PrevWorldMatrix,
-							NormalMatrix = cmd.NormalMatrix,
+
 							ObjectID = (uint32)objectIndex,
 							MaterialID = 0,
 							_Padding = default
@@ -557,7 +557,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 					{
 						WorldMatrix = cmd.WorldMatrix,
 						PrevWorldMatrix = cmd.PrevWorldMatrix,
-						NormalMatrix = cmd.NormalMatrix,
+
 						ObjectID = (uint32)objectIndex,
 						MaterialID = 0,
 						_Padding = default
@@ -818,7 +818,6 @@ public class DepthPrepassFeature : RenderFeatureBase
 	{
 		public Matrix WorldMatrix;
 		public Matrix PrevWorldMatrix;
-		public Matrix NormalMatrix;
 		public uint32 ObjectID;
 		public uint32 MaterialID;
 		public float[2] _Padding;

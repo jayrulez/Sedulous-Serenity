@@ -52,9 +52,6 @@ public struct MeshProxy
 	/// Previous frame world matrix (for motion vectors).
 	public Matrix PrevWorldMatrix;
 
-	/// Normal matrix (inverse transpose of world matrix, for lighting).
-	public Matrix NormalMatrix;
-
 	/// World-space bounding box.
 	public BoundingBox WorldBounds;
 
@@ -103,13 +100,6 @@ public struct MeshProxy
 		PrevWorldMatrix = WorldMatrix;
 		WorldMatrix = worldMatrix;
 
-		// Compute normal matrix (inverse transpose)
-		Matrix invWorld;
-		if (Matrix.TryInvert(worldMatrix, out invWorld))
-			NormalMatrix = Matrix.Transpose(invWorld);
-		else
-			NormalMatrix = .Identity;
-
 		// Transform local bounds to world space
 		WorldBounds = TransformBounds(LocalBounds, worldMatrix);
 	}
@@ -119,12 +109,6 @@ public struct MeshProxy
 	{
 		WorldMatrix = worldMatrix;
 		PrevWorldMatrix = worldMatrix;
-
-		Matrix invWorld;
-		if (Matrix.TryInvert(worldMatrix, out invWorld))
-			NormalMatrix = Matrix.Transpose(invWorld);
-		else
-			NormalMatrix = .Identity;
 
 		WorldBounds = TransformBounds(LocalBounds, worldMatrix);
 	}
@@ -144,7 +128,6 @@ public struct MeshProxy
 		MaterialCount = 0;
 		WorldMatrix = .Identity;
 		PrevWorldMatrix = .Identity;
-		NormalMatrix = .Identity;
 		WorldBounds = .(Vector3.Zero, Vector3.Zero);
 		LocalBounds = .(Vector3.Zero, Vector3.Zero);
 		Flags = .None;

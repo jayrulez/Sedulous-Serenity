@@ -451,7 +451,6 @@ public class GrassFeature : RenderFeatureBase
 				{
 					WorldMatrix = .Identity,
 					PrevWorldMatrix = .Identity,
-					NormalMatrix = .Identity,
 					ObjectID = 0,
 					MaterialID = 0,
 					_Padding = .(0, 0)

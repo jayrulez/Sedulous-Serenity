@@ -23,9 +23,6 @@ public struct DrawCommand
 	/// Previous frame world matrix (for motion vectors).
 	public Matrix PrevWorldMatrix;
 
-	/// Normal matrix (inverse transpose of world).
-	public Matrix NormalMatrix;
-
 	/// LOD level for this draw.
 	public uint8 LODLevel;
 }
@@ -47,9 +44,6 @@ public struct SkinnedDrawCommand
 
 	/// Previous frame world matrix.
 	public Matrix PrevWorldMatrix;
-
-	/// Normal matrix.
-	public Matrix NormalMatrix;
 
 	/// Number of bones.
 	public uint16 BoneCount;
@@ -229,7 +223,7 @@ public class DrawBatcher
 					Material = proxy.Materials[0],
 					WorldMatrix = proxy.WorldMatrix,
 					PrevWorldMatrix = proxy.PrevWorldMatrix,
-					NormalMatrix = proxy.NormalMatrix,
+	
 					LODLevel = visible.LODLevel
 				});
 			}
@@ -271,7 +265,7 @@ public class DrawBatcher
 					Material = proxy.Materials[0],
 					WorldMatrix = proxy.WorldMatrix,
 					PrevWorldMatrix = proxy.PrevWorldMatrix,
-					NormalMatrix = proxy.NormalMatrix,
+	
 					LODLevel = visible.LODLevel
 				});
 			}
@@ -291,7 +285,7 @@ public class DrawBatcher
 					BoneBuffer = proxy.BoneBufferHandle,
 					WorldMatrix = proxy.WorldMatrix,
 					PrevWorldMatrix = proxy.PrevWorldMatrix,
-					NormalMatrix = proxy.NormalMatrix,
+	
 					BoneCount = proxy.BoneCount,
 					LODLevel = visible.LODLevel
 				});

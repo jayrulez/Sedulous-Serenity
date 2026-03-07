@@ -106,9 +106,10 @@ VertexOutput main(VertexInput input)
 #endif
 #else
     float4 worldPos = mul(float4(localPos, 1.0), WorldMatrix);
-    float3 worldNormal = normalize(mul(float4(localNormal, 0.0), NormalMatrix).xyz);
+    float3x3 normalMatrix = ComputeCofactorMatrix(WorldMatrix);
+    float3 worldNormal = normalize(mul(localNormal, normalMatrix));
 #if defined(NORMAL_MAP)
-    float3 worldTangent = normalize(mul(float4(localTangent, 0.0), NormalMatrix).xyz);
+    float3 worldTangent = normalize(mul(localTangent, normalMatrix));
 #endif
 #endif
 

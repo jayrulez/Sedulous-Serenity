@@ -14,12 +14,11 @@ struct MotionObjectUniforms
 {
 	public Matrix WorldMatrix;
 	public Matrix PrevWorldMatrix;
-	public Matrix NormalMatrix;
 	public uint32 ObjectID;
 	public uint32 MaterialID;
 	public Vector2 _Padding;
 
-	public const uint32 Size = 208; // 3 matrices (192) + 2 uint32 + 2 float (16) = 208
+	public const uint32 Size = 144; // 2 matrices (128) + 2 uint32 + 2 float (16) = 144
 }
 
 /// Motion vector feature.
@@ -295,7 +294,7 @@ public class MotionVectorFeature : RenderFeatureBase
 				{
 					WorldMatrix = proxy.WorldMatrix,
 					PrevWorldMatrix = prevTransform,
-					NormalMatrix = .Identity,
+
 					ObjectID = objectID++,
 					MaterialID = 0,
 					_Padding = default

@@ -52,9 +52,6 @@ public struct SkinnedMeshProxy
 	/// Previous frame world matrix (for motion vectors).
 	public Matrix PrevWorldMatrix;
 
-	/// Normal matrix (inverse transpose of world matrix, for lighting).
-	public Matrix NormalMatrix;
-
 	/// World-space bounding box (should include animation bounds).
 	public BoundingBox WorldBounds;
 
@@ -109,13 +106,6 @@ public struct SkinnedMeshProxy
 		PrevWorldMatrix = WorldMatrix;
 		WorldMatrix = worldMatrix;
 
-		// Compute normal matrix (inverse transpose)
-		Matrix invWorld;
-		if (Matrix.TryInvert(worldMatrix, out invWorld))
-			NormalMatrix = Matrix.Transpose(invWorld);
-		else
-			NormalMatrix = .Identity;
-
 		// Transform animation bounds to world space
 		WorldBounds = TransformBounds(AnimationBounds, worldMatrix);
 	}
@@ -125,12 +115,6 @@ public struct SkinnedMeshProxy
 	{
 		WorldMatrix = worldMatrix;
 		PrevWorldMatrix = worldMatrix;
-
-		Matrix invWorld;
-		if (Matrix.TryInvert(worldMatrix, out invWorld))
-			NormalMatrix = Matrix.Transpose(invWorld);
-		else
-			NormalMatrix = .Identity;
 
 		WorldBounds = TransformBounds(AnimationBounds, worldMatrix);
 	}
@@ -172,7 +156,6 @@ public struct SkinnedMeshProxy
 		MaterialCount = 0;
 		WorldMatrix = .Identity;
 		PrevWorldMatrix = .Identity;
-		NormalMatrix = .Identity;
 		WorldBounds = .(Vector3.Zero, Vector3.Zero);
 		LocalBounds = .(Vector3.Zero, Vector3.Zero);
 		AnimationBounds = .(Vector3.Zero, Vector3.Zero);
