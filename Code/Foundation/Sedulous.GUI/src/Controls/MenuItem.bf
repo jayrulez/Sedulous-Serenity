@@ -218,6 +218,13 @@ public class MenuItem : Control
 		mSubItems.Add(new MenuSeparator());
 	}
 
+	/// Clears all sub-items.
+	public void ClearItems()
+	{
+		DeleteContainerAndItems!(mSubItems);
+		mSubItems = new .();
+	}
+
 	/// Gets a sub-item by index.
 	public UIElement GetSubItem(int index)
 	{
