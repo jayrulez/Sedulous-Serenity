@@ -203,7 +203,10 @@ public class RenderSystem : IDisposable
 		// Features registered via RegisterFeature() will use this batch via UploadTexture/UploadBuffer.
 		// Auto-flushed on first BeginFrame().
 		if (mDevice.Queue.CreateTransferBatch() case .Ok(let batch))
+		{
 			mTransferBatch = batch;
+			mResourceManager.TransferBatch = batch;
+		}
 
 		mInitialized = true;
 		return .Ok;
@@ -241,6 +244,7 @@ public class RenderSystem : IDisposable
 	{
 		if (mTransferBatch != null)
 		{
+			mResourceManager.TransferBatch = null;
 			mTransferBatch.Submit();
 			delete mTransferBatch;
 			mTransferBatch = null;

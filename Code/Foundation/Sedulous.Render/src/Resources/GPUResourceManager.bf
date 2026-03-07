@@ -53,6 +53,10 @@ public class GPUResourceManager : IDisposable
 {
 	private IDevice mDevice;
 
+	/// Optional transfer batch for batching GPU uploads during initialization.
+	/// When set, UploadMesh/UploadTexture use non-blocking batch methods instead of sync.
+	public ITransferBatch TransferBatch;
+
 	// Mesh storage
 	private List<GPUMesh> mMeshes = new .() ~ DeleteContainerAndItems!(_);
 	private List<int32> mFreeMeshSlots = new .() ~ delete _;
@@ -125,7 +129,11 @@ public class GPUResourceManager : IDisposable
 		if (mDevice.CreateBuffer(&vbDesc) case .Ok(let vb))
 		{
 			gpuMesh.VertexBuffer = vb;
-			mDevice.Queue.WriteStagedBufferSync(vb, 0, Span<uint8>(mesh.GetVertexData(), (int)vertexDataSize));
+			let vbData = Span<uint8>(mesh.GetVertexData(), (int)vertexDataSize);
+			if (TransferBatch != null)
+				TransferBatch.WriteStagedBuffer(vb, 0, vbData);
+			else
+				mDevice.Queue.WriteStagedBufferSync(vb, 0, vbData);
 		}
 		else
 		{
@@ -149,7 +157,11 @@ public class GPUResourceManager : IDisposable
 			if (mDevice.CreateBuffer(&ibDesc) case .Ok(let ib))
 			{
 				gpuMesh.IndexBuffer = ib;
-				mDevice.Queue.WriteStagedBufferSync(ib, 0, Span<uint8>(indices.GetRawData(), (int)indexDataSize));
+				let ibData = Span<uint8>(indices.GetRawData(), (int)indexDataSize);
+				if (TransferBatch != null)
+					TransferBatch.WriteStagedBuffer(ib, 0, ibData);
+				else
+					mDevice.Queue.WriteStagedBufferSync(ib, 0, ibData);
 			}
 			else
 			{
@@ -284,7 +296,11 @@ public class GPUResourceManager : IDisposable
 		if (mDevice.CreateBuffer(&vbDesc) case .Ok(let vb))
 		{
 			gpuMesh.VertexBuffer = vb;
-			mDevice.Queue.WriteStagedBufferSync(vb, 0, Span<uint8>(mesh.GetVertexData(), (int)vertexDataSize));
+			let vbData = Span<uint8>(mesh.GetVertexData(), (int)vertexDataSize);
+			if (TransferBatch != null)
+				TransferBatch.WriteStagedBuffer(vb, 0, vbData);
+			else
+				mDevice.Queue.WriteStagedBufferSync(vb, 0, vbData);
 		}
 		else
 		{
@@ -308,7 +324,11 @@ public class GPUResourceManager : IDisposable
 			if (mDevice.CreateBuffer(&ibDesc) case .Ok(let ib))
 			{
 				gpuMesh.IndexBuffer = ib;
-				mDevice.Queue.WriteStagedBufferSync(ib, 0, Span<uint8>(mesh.GetIndexData(), (int)indexDataSize));
+				let ibData = Span<uint8>(mesh.GetIndexData(), (int)indexDataSize);
+				if (TransferBatch != null)
+					TransferBatch.WriteStagedBuffer(ib, 0, ibData);
+				else
+					mDevice.Queue.WriteStagedBufferSync(ib, 0, ibData);
 			}
 			else
 			{
@@ -543,7 +563,11 @@ public class GPUResourceManager : IDisposable
 
 			var writeSize = Extent3D(data.Width, data.Height, data.DepthOrArrayLayers);
 
-			mDevice.Queue.WriteTextureSync(tex, Span<uint8>(data.Pixels, (int)data.Size), &dataLayout, &writeSize, 0, 0);
+			let texData = Span<uint8>(data.Pixels, (int)data.Size);
+			if (TransferBatch != null)
+				TransferBatch.WriteTexture(tex, texData, &dataLayout, &writeSize, 0, 0);
+			else
+				mDevice.Queue.WriteTextureSync(tex, texData, &dataLayout, &writeSize, 0, 0);
 
 			// Create default view
 			var viewDesc = TextureViewDescriptor()
