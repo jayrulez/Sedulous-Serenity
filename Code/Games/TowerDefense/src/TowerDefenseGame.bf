@@ -18,13 +18,11 @@ using Sedulous.Engine.Scenes;
 using Sedulous.Engine.Render;
 using Sedulous.Engine.Input;
 using Sedulous.Engine.Audio;
-using Sedulous.Engine.UI;
+using Sedulous.GUI.Runtime;
 using Sedulous.Audio;
 using Sedulous.Audio.SDL3;
 using Sedulous.Audio.Decoders;
-using Sedulous.Drawing.Fonts;
 using Sedulous.Fonts;
-using Sedulous.Fonts.TTF;
 using Sedulous.GUI;
 using TowerDefense.Data;
 using TowerDefense.Maps;
@@ -55,7 +53,7 @@ class TowerDefenseGame : Application
 	private RenderSubsystem mRenderSubsystem;
 	private InputSubsystem mInputSubsystem;
 	private AudioSubsystem mAudioSubsystem;
-	private UISubsystem mUISubsystem;
+	private Sedulous.GUI.Runtime.UISubsystem mUISubsystem;
 
 	// Scene
 	private Scene mScene;
@@ -70,8 +68,6 @@ class TowerDefenseGame : Application
 	private MaterialInstance mPreviewInvalidMat;
 
 	// UI
-	private FontService mFontService;
-	private GameTheme mGameTheme ~ delete _;
 	private MainMenu mMainMenu;
 	private LevelSelect mLevelSelect ~ delete _;
 	private GameHUD mGameHUD;
@@ -284,36 +280,36 @@ class TowerDefenseGame : Application
 
 	private void InitializeUI()
 	{
-		// Initialize font service
-		mFontService = new FontService();
-		let fontPath = scope String();
-		GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", fontPath);
-
-		// Load font at different sizes
-		int32[6] fontSizes = .(14, 16, 18, 20, 24, 32);
-		for (let size in fontSizes)
-		{
-			FontLoadOptions options = .ExtendedLatin;
-			options.PixelHeight = size;
-			if (mFontService.LoadFont("Roboto", fontPath, options) case .Err)
-			{
-				Console.WriteLine($"Failed to load font at size {size}");
-			}
-		}
-
 		// Create and initialize UI subsystem
-		mUISubsystem = new UISubsystem(mFontService);
+		let shaderPath = scope String();
+		GetAssetPath("Render/Shaders", shaderPath);
+
+		mUISubsystem = new Sedulous.GUI.Runtime.UISubsystem();
 		mContext.RegisterSubsystem(mUISubsystem);
 
-		if (mUISubsystem.InitializeRendering(mDevice, .BGRA8UnormSrgb, FrameConfig.MAX_FRAMES_IN_FLIGHT, mShell, mWindow, mRenderSystem) case .Err)
+		if (mUISubsystem.InitializeRendering(mDevice, .BGRA8UnormSrgb, FrameConfig.MAX_FRAMES_IN_FLIGHT, mShell, mWindow, scope StringView[](shaderPath)) case .Err)
 		{
 			Console.WriteLine("Failed to initialize UI rendering");
 			return;
 		}
 
+		// Load font at different sizes
+		let fontPath = scope String();
+		GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", fontPath);
+
+		int32[6] fontSizes = .(14, 16, 18, 20, 24, 32);
+		for (let size in fontSizes)
+		{
+			FontLoadOptions options = .ExtendedLatin;
+			options.PixelHeight = size;
+			if (mUISubsystem.LoadFont("Roboto", fontPath, options) case .Err)
+			{
+				Console.WriteLine($"Failed to load font at size {size}");
+			}
+		}
+
 		// Use GameTheme for dark UI with light text
-		mGameTheme = new GameTheme();
-		mUISubsystem.GUIContext.RegisterService<ITheme>(mGameTheme);
+		mUISubsystem.Theme = new GameTheme();
 
 		// Create main menu, level select, and game HUD
 		mMainMenu = new MainMenu();
@@ -745,7 +741,7 @@ class TowerDefenseGame : Application
 		// Render UI overlay
 		if (mUISubsystem != null)
 		{
-			mUISubsystem.RenderUI(render.Encoder, render.SwapChain.CurrentTextureView,
+			mUISubsystem.Render(render.Encoder, render.SwapChain.CurrentTextureView,
 				mSwapChain.Width, mSwapChain.Height, render.Frame.FrameIndex);
 		}
 
@@ -1226,9 +1222,6 @@ class TowerDefenseGame : Application
 	protected override void OnShutdown()
 	{
 		Console.WriteLine("Shutting down...");
-
-		// Clean up UI (FontService is owned by UISubsystem)
-		delete mFontService;
 
 		delete mGameHUD;
 		delete mMainMenu;

@@ -110,6 +110,9 @@ class FrameworkSerializationApp : Application
 	// Checkerboard texture for sprite (procedurally generated, not saved to file)
 	private ResourceHandle<TextureResource> mCheckerboardTexture /*~ _.Release()*/;
 
+	// Deferred sky setup (must happen after first BeginFrame flushes the init transfer batch)
+	private bool mNeedsSkySetup = true;
+
 	public this(IShell shell, IDevice device, IBackend backend) : base(shell, device, backend)
 	{
 		mCamera = new .();
@@ -187,14 +190,9 @@ class FrameworkSerializationApp : Application
 		mTransparentFeature = new ForwardTransparentFeature();
 		mRenderSystem.RegisterFeature(mTransparentFeature);
 
-		// Sky (gradient environment map)
+		// Sky (gradient environment map — sky setup deferred to first render frame)
 		mSkyFeature = new SkyFeature();
-		if (mRenderSystem.RegisterFeature(mSkyFeature) case .Ok)
-		{
-			let topColor = Color(70, 130, 200, 255);
-			let horizonColor = Color(180, 210, 240, 255);
-			mSkyFeature.CreateGradientSky(topColor, horizonColor, 32);
-		}
+		mRenderSystem.RegisterFeature(mSkyFeature);
 
 		// Particles
 		mParticleFeature = new ParticleFeature();
@@ -1055,6 +1053,15 @@ class FrameworkSerializationApp : Application
 	{
 		// Begin frame
 		mRenderSystem.BeginFrame((float)render.Frame.TotalTime, (float)render.Frame.DeltaTime);
+
+		// Deferred sky setup — must happen after first BeginFrame flushes the init transfer batch
+		if (mNeedsSkySetup && mSkyFeature != null)
+		{
+			mNeedsSkySetup = false;
+			let topColor = Color(70, 130, 200, 255);
+			let horizonColor = Color(180, 210, 240, 255);
+			mSkyFeature.CreateGradientSky(topColor, horizonColor, 32);
+		}
 
 		// Set swapchain for final output
 		if (mFinalOutputFeature != null)

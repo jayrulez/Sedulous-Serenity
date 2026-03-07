@@ -10,7 +10,6 @@ using Sedulous.Engine.Scenes;
 using Sedulous.Engine.Render;
 using Sedulous.Engine.Animation;
 using Sedulous.Engine.Input;
-using Sedulous.Engine.UI;
 using Sedulous.RHI;
 using Sedulous.Shell;
 using Sedulous.Render;
@@ -33,6 +32,7 @@ using Sedulous.Profiler;
 using Sedulous.Drawing.Fonts;
 using Sedulous.Fonts;
 using Sedulous.GUI;
+using Sedulous.GUI.Runtime;
 
 class FrameworkAnimationApp : Application
 {
@@ -42,11 +42,9 @@ class FrameworkAnimationApp : Application
 	// Framework
 	private SceneSubsystem mSceneSubsystem;
 	private RenderSubsystem mRenderSubsystem;
-	private UISubsystem mUISubsystem;
+	private Sedulous.GUI.Runtime.UISubsystem mUISubsystem;
 	private AnimationSubsystem mAnimSubsystem;
 	private Scene mMainScene;
-
-	private FontService mFontService;
 
 	// Render system
 	private RenderSystem mRenderSystem;
@@ -233,22 +231,25 @@ class FrameworkAnimationApp : Application
 		inputSubsystem.SetInputManager(mShell.InputManager);
 		context.RegisterSubsystem(inputSubsystem);
 
-		mFontService = new FontService();
-		let fontPath = scope String();
-		GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", fontPath);
-		int32[4] fontSizes = .(12, 14, 16, 18);
-		for (let size in fontSizes)
-		{
-			FontLoadOptions options = .ExtendedLatin;
-			options.PixelHeight = size;
-			mFontService.LoadFont("Roboto", fontPath, options);
-		}
-
-		mUISubsystem = new UISubsystem(mFontService);
+		mUISubsystem = new Sedulous.GUI.Runtime.UISubsystem();
 		context.RegisterSubsystem(mUISubsystem);
-		if (mUISubsystem.InitializeRendering(mDevice, .BGRA8UnormSrgb, 2, mShell, mWindow, mRenderSystem) not case .Ok)
+		let shaderPath = scope $"{AssetDirectory}/Render/Shaders";
+		if (mUISubsystem.InitializeRendering(mDevice, .BGRA8UnormSrgb, 2, mShell, mWindow, scope StringView[](shaderPath)) case .Err)
 		{
 			Console.WriteLine("  - UISubsystem (render init failed)");
+		}
+
+		// Load fonts
+		{
+			let fontPath = scope String();
+			GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", fontPath);
+			int32[4] fontSizes = .(12, 14, 16, 18);
+			for (let size in fontSizes)
+			{
+				FontLoadOptions options = .ExtendedLatin;
+				options.PixelHeight = size;
+				mUISubsystem.LoadFont("Roboto", fontPath, options);
+			}
 		}
 	}
 
@@ -1022,7 +1023,7 @@ class FrameworkAnimationApp : Application
 
 	private void CreateUI()
 	{
-		if (mUISubsystem == null || !mUISubsystem.IsInitialized)
+		if (mUISubsystem == null || !mUISubsystem.IsRenderingInitialized)
 			return;
 
 		mUIRoot = new Canvas();
@@ -1365,8 +1366,8 @@ class FrameworkAnimationApp : Application
 			mRenderSystem.Execute(render.Encoder);
 
 		// Render screen-space UI overlay
-		if (mUISubsystem != null && mUISubsystem.IsInitialized)
-			mUISubsystem.RenderUI(render.Encoder, render.CurrentTextureView, mSwapChain.Width, mSwapChain.Height, render.Frame.FrameIndex);
+		if (mUISubsystem != null && mUISubsystem.IsRenderingInitialized)
+			mUISubsystem.Render(render.Encoder, render.CurrentTextureView, mSwapChain.Width, mSwapChain.Height, render.Frame.FrameIndex);
 
 		// End frame
 		mRenderSystem.EndFrame();
@@ -1441,9 +1442,6 @@ class FrameworkAnimationApp : Application
 
 		// Delete UI
 		delete mUIRoot;
-
-		// Delete font service
-		delete mFontService;
 
 		// Delete owned strings and registry
 		delete mSkinnedMeshPath;

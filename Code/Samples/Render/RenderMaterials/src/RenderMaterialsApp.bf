@@ -66,6 +66,9 @@ class RenderMaterialsApp : Application
 	// HDRI sky toggle
 	private bool mHDRIActive = false;
 
+	// Deferred sky setup (must happen after first BeginFrame flushes the init transfer batch)
+	private bool mNeedsSkySetup = true;
+
 	// Camera
 	private Vector3 mCameraPosition = .(0, 2, 10);
 	private float mYaw = Math.PI_f;
@@ -98,12 +101,6 @@ class RenderMaterialsApp : Application
 		CreateScene();
 		CreateLights();
 		LoadFoxModel();
-
-		// Create gradient sky for IBL (Image-Based Lighting)
-		mSkyFeature.CreateGradientSkyWithGround(
-			.(100, 150, 220, 255),   // top: blue sky
-			.(200, 210, 220, 255),   // horizon: pale blue-white
-			.(80, 70, 60, 255));     // ground: dark earth
 
 		mWorld.AmbientColor = .(0.15f, 0.15f, 0.18f);
 		mWorld.AmbientIntensity = 0.5f;
@@ -621,6 +618,17 @@ class RenderMaterialsApp : Application
 	protected override bool OnRenderFrame(RenderContext render)
 	{
 		mRenderSystem.BeginFrame((float)render.Frame.TotalTime, (float)render.Frame.DeltaTime);
+
+		// Deferred sky setup — must happen after first BeginFrame flushes the init transfer batch
+		if (mNeedsSkySetup && mSkyFeature != null)
+		{
+			mNeedsSkySetup = false;
+			mSkyFeature.CreateGradientSkyWithGround(
+				.(100, 150, 220, 255),   // top: blue sky
+				.(200, 210, 220, 255),   // horizon: pale blue-white
+				.(80, 70, 60, 255));     // ground: dark earth
+		}
+
 		if (mFinalOutputFeature != null) mFinalOutputFeature.SetSwapChain(render.SwapChain);
 		mRenderSystem.SetCamera(mCameraPosition, mCameraForward, .(0, 1, 0), mView.FieldOfView, mView.AspectRatio, mView.NearPlane, mView.FarPlane, mView.Width, mView.Height);
 		if (mRenderSystem.BuildRenderGraph(mView) case .Ok) mRenderSystem.Execute(render.Encoder);

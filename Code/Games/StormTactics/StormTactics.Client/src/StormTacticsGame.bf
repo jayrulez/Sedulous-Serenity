@@ -12,13 +12,11 @@ using Sedulous.Runtime;
 using Sedulous.Engine.Scenes;
 using Sedulous.Engine.Render;
 using Sedulous.Engine.Input;
-using Sedulous.Engine.UI;
+using Sedulous.GUI.Runtime;
 using Sedulous.Render;
 using Sedulous.Materials;
 using Sedulous.Profiler;
-using Sedulous.Drawing.Fonts;
 using Sedulous.Fonts;
-using Sedulous.Fonts.TTF;
 using Sedulous.GUI;
 using StormTactics.Battle;
 using StormTactics.Core;
@@ -30,7 +28,7 @@ class StormTacticsGame : Application
 	private SceneSubsystem mSceneSubsystem;
 	private RenderSubsystem mRenderSubsystem;
 	private InputSubsystem mInputSubsystem;
-	private UISubsystem mUISubsystem;
+	private Sedulous.GUI.Runtime.UISubsystem mUISubsystem;
 	private Scene mMainScene;
 
 	// Render system
@@ -45,8 +43,6 @@ class StormTacticsGame : Application
 	private FinalOutputFeature mFinalOutputFeature;
 
 	// UI
-	private FontService mFontService;
-	private GameTheme mGameTheme;
 	private BattleHUD mBattleHUD;
 	private CityHubScreen mCityHubScreen;
 	private RosterScreen mRosterScreen;
@@ -63,6 +59,9 @@ class StormTacticsGame : Application
 	private CrusadeScreen mCrusadeScreen;
 	private ToastNotification mToast;
 	private UnitSelectPopup mUnitSelectPopup;
+
+	// Deferred sky setup (must happen after first BeginFrame flushes the init transfer batch)
+	private bool mNeedsSkySetup = true;
 
 	// Game state
 	private GameState mGameState = .Loading;
@@ -176,12 +175,7 @@ class StormTacticsGame : Application
 		mRenderSystem.RegisterFeature(mForwardFeature);
 
 		mSkyFeature = new SkyFeature();
-		if (mRenderSystem.RegisterFeature(mSkyFeature) case .Ok)
-		{
-			let zenith = Color(60, 100, 160, 255);
-			let horizon = Color(140, 170, 200, 255);
-			mSkyFeature.CreateGradientSky(zenith, horizon, 32);
-		}
+		mRenderSystem.RegisterFeature(mSkyFeature);
 
 		mOverlayFeature = new OverlayRenderFeature();
 		mRenderSystem.RegisterFeature(mOverlayFeature);
@@ -1049,8 +1043,20 @@ class StormTacticsGame : Application
 
 	private void InitializeUI()
 	{
-		// Initialize font service
-		mFontService = new FontService();
+		// Create and initialize UI subsystem
+		let shaderPath = scope String();
+		GetAssetPath("Render/Shaders", shaderPath);
+
+		mUISubsystem = new Sedulous.GUI.Runtime.UISubsystem();
+		mContext.RegisterSubsystem(mUISubsystem);
+
+		if (mUISubsystem.InitializeRendering(mDevice, .BGRA8UnormSrgb, FrameConfig.MAX_FRAMES_IN_FLIGHT, mShell, mWindow, scope StringView[](shaderPath)) case .Err)
+		{
+			Console.WriteLine("Failed to initialize UI rendering");
+			return;
+		}
+
+		// Load font at different sizes
 		let fontPath = scope String();
 		GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", fontPath);
 
@@ -1059,23 +1065,12 @@ class StormTacticsGame : Application
 		{
 			FontLoadOptions options = .ExtendedLatin;
 			options.PixelHeight = size;
-			if (mFontService.LoadFont("Roboto", fontPath, options) case .Err)
+			if (mUISubsystem.LoadFont("Roboto", fontPath, options) case .Err)
 				Console.WriteLine("Failed to load font at size {}", size);
 		}
 
-		// Create and initialize UI subsystem
-		mUISubsystem = new UISubsystem(mFontService);
-		mContext.RegisterSubsystem(mUISubsystem);
-
-		if (mUISubsystem.InitializeRendering(mDevice, .BGRA8UnormSrgb, FrameConfig.MAX_FRAMES_IN_FLIGHT, mShell, mWindow, mRenderSystem) case .Err)
-		{
-			Console.WriteLine("Failed to initialize UI rendering");
-			return;
-		}
-
 		// Use GameTheme for dark UI with gold accents
-		mGameTheme = new GameTheme();
-		mUISubsystem.GUIContext.RegisterService<ITheme>(mGameTheme);
+		mUISubsystem.Theme = new GameTheme();
 
 		// Create battle HUD (root element set later when entering battle/stage select)
 		mBattleHUD = new BattleHUD();
@@ -2315,6 +2310,15 @@ class StormTacticsGame : Application
 	{
 		mRenderSystem.BeginFrame((float)render.Frame.TotalTime, (float)render.Frame.DeltaTime);
 
+		// Deferred sky setup — must happen after first BeginFrame flushes the init transfer batch
+		if (mNeedsSkySetup && mSkyFeature != null)
+		{
+			mNeedsSkySetup = false;
+			let zenith = Color(60, 100, 160, 255);
+			let horizon = Color(140, 170, 200, 255);
+			mSkyFeature.CreateGradientSky(zenith, horizon, 32);
+		}
+
 		if (mFinalOutputFeature != null)
 			mFinalOutputFeature.SetSwapChain(render.SwapChain);
 
@@ -2362,7 +2366,7 @@ class StormTacticsGame : Application
 		// Render UI overlay on top of 3D scene
 		if (mUISubsystem != null)
 		{
-			mUISubsystem.RenderUI(render.Encoder, render.SwapChain.CurrentTextureView,
+			mUISubsystem.Render(render.Encoder, render.SwapChain.CurrentTextureView,
 				mSwapChain.Width, mSwapChain.Height, render.Frame.FrameIndex);
 		}
 
@@ -2410,16 +2414,10 @@ class StormTacticsGame : Application
 		delete mLoginScreen;
 		mLoginScreen = null;
 
-		// 2. Theme + font service — GUIContext doesn't take ownership
-		delete mGameTheme;
-		mGameTheme = null;
-		delete mFontService;
-		mFontService = null;
-
-		// 3. Battle scene + simulation
+		// 2. Battle scene + simulation
 		DestroyBattle();
 
-		// 4. Metagame systems — save before exit
+		// 3. Metagame systems — save before exit
 		DoSave();
 		delete mCrusadeManager;
 		mCrusadeManager = null;
@@ -2450,15 +2448,15 @@ class StormTacticsGame : Application
 		delete mServerSaveManager;
 		mServerSaveManager = null;
 
-		// 5. Config data — standalone
+		// 4. Config data — standalone
 		delete mConfigs;
 		mConfigs = null;
 
-		// 6. Render view — standalone
+		// 5. Render view — standalone
 		delete mRenderView;
 		mRenderView = null;
 
-		// 7. Render system — owns features, must be last
+		// 6. Render system — owns features, must be last
 		if (mRenderSystem != null)
 			mRenderSystem.Shutdown();
 		delete mRenderSystem;

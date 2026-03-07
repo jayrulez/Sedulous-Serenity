@@ -7,7 +7,6 @@ using Sedulous.RHI;
 using Sedulous.Shell;
 using Sedulous.Render;
 using Sedulous.Fonts;
-using Sedulous.Drawing.Fonts;
 using Sedulous.GUI;
 using Sedulous.Physics.Jolt;
 using Sedulous.Core.Logging.Abstractions;
@@ -19,7 +18,7 @@ using Sedulous.Engine.Render;
 using Sedulous.Engine.Animation;
 using Sedulous.Engine.Physics;
 using Sedulous.Engine.Input;
-using Sedulous.Engine.UI;
+using Sedulous.GUI.Runtime;
 
 using Platformer.Data;
 using Platformer.Assets;
@@ -54,7 +53,7 @@ class PlatformerGame : Application
 	private SceneSubsystem mSceneSubsystem;
 	private RenderSubsystem mRenderSubsystem;
 	private InputSubsystem mInputSubsystem;
-	private UISubsystem mUISubsystem;
+	private Sedulous.GUI.Runtime.UISubsystem mUISubsystem;
 
 	// Scene
 	private Scene mScene;
@@ -75,8 +74,6 @@ class PlatformerGame : Application
 	private int32 mUnlockedLevels = 1;
 
 	// UI
-	private FontService mFontService;
-	private Platformer.UI.GameTheme mGameTheme;
 	private MainMenu mMainMenu;
 	private CharacterSelect mCharacterSelect ~ delete _;
 	private LevelSelect mLevelSelect ~ delete _;
@@ -248,7 +245,21 @@ class PlatformerGame : Application
 	private void InitializeUI()
 	{
 		mLogger.LogInformation("Initializing UI...");
-		mFontService = new FontService();
+
+		// Create and initialize UI subsystem
+		let shaderPath = scope String();
+		GetAssetPath("Render/Shaders", shaderPath);
+
+		mUISubsystem = new Sedulous.GUI.Runtime.UISubsystem();
+		mContext.RegisterSubsystem(mUISubsystem);
+
+		if (mUISubsystem.InitializeRendering(mDevice, .BGRA8UnormSrgb, FrameConfig.MAX_FRAMES_IN_FLIGHT, mShell, mWindow, scope StringView[](shaderPath)) case .Err)
+		{
+			mLogger.LogError("Failed to initialize UI rendering! UI will not display.");
+			return;
+		}
+
+		// Load font at different sizes
 		let fontPath = scope String();
 		GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", fontPath);
 		mLogger.LogDebug("Font path: {}", fontPath);
@@ -259,25 +270,15 @@ class PlatformerGame : Application
 		{
 			FontLoadOptions options = .ExtendedLatin;
 			options.PixelHeight = size;
-			if (mFontService.LoadFont("Roboto", fontPath, options) case .Err)
+			if (mUISubsystem.LoadFont("Roboto", fontPath, options) case .Err)
 				mLogger.LogWarning("Failed to load font 'Roboto' at size {}", size);
 			else
 				fontsLoaded++;
 		}
 		mLogger.LogInformation("Loaded {}/{} font sizes", fontsLoaded, fontSizes.Count);
 
-		mUISubsystem = new UISubsystem(mFontService);
-		mContext.RegisterSubsystem(mUISubsystem);
-
-		if (mUISubsystem.InitializeRendering(mDevice, .BGRA8UnormSrgb, FrameConfig.MAX_FRAMES_IN_FLIGHT, mShell, mWindow, mRenderSystem) case .Err)
-		{
-			mLogger.LogError("Failed to initialize UI rendering! UI will not display.");
-			return;
-		}
-
 		// Theme
-		mGameTheme = new Platformer.UI.GameTheme();
-		mUISubsystem.GUIContext.Theme = mGameTheme;
+		mUISubsystem.Theme = new Platformer.UI.GameTheme();
 		mLogger.LogDebug("GameTheme applied");
 
 		// Create UI screens
@@ -688,7 +689,7 @@ class PlatformerGame : Application
 		// Render UI overlay
 		if (mUISubsystem != null)
 		{
-			mUISubsystem.RenderUI(render.Encoder, render.SwapChain.CurrentTextureView,
+			mUISubsystem.Render(render.Encoder, render.SwapChain.CurrentTextureView,
 				mSwapChain.Width, mSwapChain.Height, render.Frame.FrameIndex);
 		}
 
@@ -1254,8 +1255,6 @@ class PlatformerGame : Application
 
 		ReleaseAnimClipHandles();
 
-		mLogger.LogDebug("Deleting FontService...");
-		delete mFontService;
 		mLogger.LogDebug("Deleting UI screens...");
 		delete mGameHUD;
 		delete mMainMenu;

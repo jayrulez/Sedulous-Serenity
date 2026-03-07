@@ -12,6 +12,7 @@ using Sedulous.Engine.Input;
 using Sedulous.Engine.UI;
 using Sedulous.Fonts;
 using Sedulous.GUI;
+using Sedulous.GUI.Runtime;
 using Sedulous.RHI;
 using Sedulous.Shell;
 using Sedulous.Render;
@@ -37,10 +38,9 @@ class FrameworkSandboxApp : Application
 	// Framework core (mContext is now owned by base Application)
 	private SceneSubsystem mSceneSubsystem;
 	private RenderSubsystem mRenderSubsystem;
-	private UISubsystem mUISubsystem;
+	private Sedulous.GUI.Runtime.UISubsystem mScreenUI;
+	private WorldUISubsystem mWorldUI;
 	private Scene mMainScene;
-
-	private FontService mFontService;
 
 	// Render system (needed by RenderSubsystem)
 	private RenderSystem mRenderSystem ~ delete _;
@@ -132,6 +132,9 @@ class FrameworkSandboxApp : Application
 	// Deferred proxy-only setup (sub-emitter linkage requires proxy handles)
 	private bool mNeedsSubEmitterSetup = true;
 
+	// Deferred sky setup (must happen after first BeginFrame flushes the init transfer batch)
+	private bool mNeedsSkySetup = true;
+
 	// Arena size
 	private const float ArenaHalfSize = 25.0f;
 	private const float WallHeight = 2.0f;
@@ -164,8 +167,6 @@ class FrameworkSandboxApp : Application
 
 		// Initialize render system first (before subsystems that depend on it)
 		InitializeRenderSystem();
-
-		InitializeFont();
 
 		// Register subsystems with the context (context is owned by base Application)
 		RegisterSubsystems(context);
@@ -222,28 +223,6 @@ class FrameworkSandboxApp : Application
 		RegisterRenderFeatures();
 	}
 
-	private bool InitializeFont()
-	{
-		Console.WriteLine("Initializing fonts...");
-
-		mFontService = new FontService();
-
-		String fontPath = scope .();
-		GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", fontPath);
-
-		FontLoadOptions options = .ExtendedLatin;
-		options.PixelHeight = 16;
-
-		if (mFontService.LoadFont("Roboto", fontPath, options) case .Err)
-		{
-			Console.WriteLine($"Failed to load font: {fontPath}");
-			return false;
-		}
-
-		Console.WriteLine("Font loaded successfully");
-		return true;
-	}
-
 	private void RegisterRenderFeatures()
 	{
 		// Depth prepass
@@ -276,18 +255,10 @@ class FrameworkSandboxApp : Application
 		if (mRenderSystem.RegisterFeature(mDecalFeature) case .Ok)
 			Console.WriteLine("Registered: DecalFeature");
 
-		// Sky (gradient environment map)
+		// Sky (gradient environment map — sky setup deferred to first render frame)
 		mSkyFeature = new SkyFeature();
 		if (mRenderSystem.RegisterFeature(mSkyFeature) case .Ok)
-		{
-			// Create gradient sky matching RendererIntegrated
-			let topColor = Color(70, 130, 200, 255);
-			let horizonColor = Color(180, 210, 240, 255);
-			if (mSkyFeature.CreateGradientSky(topColor, horizonColor, 32) case .Ok)
-				Console.WriteLine("Registered: SkyFeature (gradient environment map)");
-			else
-				Console.WriteLine("Registered: SkyFeature (fallback)");
-		}
+			Console.WriteLine("Registered: SkyFeature");
 
 		// Debug render (for physics debug draw)
 		mOverlayFeature = new OverlayRenderFeature();
@@ -352,13 +323,28 @@ class FrameworkSandboxApp : Application
 		context.RegisterSubsystem(inputSubsystem);
 		Console.WriteLine("  - InputSubsystem");
 
-		// UI subsystem
-		mUISubsystem = new UISubsystem(mFontService);
-		context.RegisterSubsystem(mUISubsystem);
-		if (mUISubsystem.InitializeRendering(mDevice, .BGRA8UnormSrgb, 2, mShell, mWindow, mRenderSystem) not case .Ok)
+		// Screen-space UI subsystem (GUIContext, DrawingRenderer, FontService, Theme)
+		mScreenUI = new Sedulous.GUI.Runtime.UISubsystem();
+		context.RegisterSubsystem(mScreenUI);
+		let shaderPath = scope $"{AssetDirectory}/Render/Shaders";
+		if (mScreenUI.InitializeRendering(mDevice, .BGRA8UnormSrgb, 2, mShell, mWindow, scope StringView[](shaderPath)) case .Err)
 		{
-			Console.WriteLine("  - UISubsystem (render init failed)");
+			Console.WriteLine("  - Screen UISubsystem (render init failed)");
 		}
+
+		// Load font into screen UI subsystem
+		{
+			String fontPath = scope .();
+			GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", fontPath);
+			FontLoadOptions options = .ExtendedLatin;
+			options.PixelHeight = 16;
+			mScreenUI.LoadFont("Roboto", fontPath, options);
+		}
+
+		// World-space UI subsystem (UISceneModule, WorldSpaceUIFeature)
+		mWorldUI = new WorldUISubsystem();
+		context.RegisterSubsystem(mWorldUI);
+		mWorldUI.InitializeRendering(mDevice, .BGRA8UnormSrgb, 2, mRenderSystem);
 	}
 
 	private void CreateMainScene()
@@ -380,7 +366,7 @@ class FrameworkSandboxApp : Application
 		Console.WriteLine("  - AudioSceneModule (from AudioSubsystem)");
 		Console.WriteLine("  - PhysicsSceneModule (from PhysicsSubsystem)");
 		Console.WriteLine("  - RenderSceneModule (from RenderSubsystem)");
-		Console.WriteLine("  - UISceneModule (from UISubsystem)");
+		Console.WriteLine("  - UISceneModule (from WorldUISubsystem)");
 	}
 
 	private void CreateSceneObjects()
@@ -1303,7 +1289,7 @@ class FrameworkSandboxApp : Application
 
 	private void CreateUI()
 	{
-		if (mUISubsystem == null || !mUISubsystem.IsInitialized)
+		if (mScreenUI == null || !mScreenUI.IsRenderingInitialized)
 			return;
 
 		// Create root canvas for absolute positioning
@@ -1512,7 +1498,7 @@ class FrameworkSandboxApp : Application
 		mUIRoot.AddChild(panel);
 		CanvasProperties.SetLeft(panel, 10);
 		CanvasProperties.SetTop(panel, 150);
-		mUISubsystem.GUIContext.RootElement = mUIRoot;
+		mScreenUI.GUIContext.RootElement = mUIRoot;
 
 		Console.WriteLine("UI overlay created");
 	}
@@ -1761,6 +1747,16 @@ class FrameworkSandboxApp : Application
 		// Begin frame
 		mRenderSystem.BeginFrame((float)render.Frame.TotalTime, (float)render.Frame.DeltaTime);
 
+		// Deferred sky setup — must happen after first BeginFrame flushes the init transfer batch
+		if (mNeedsSkySetup && mSkyFeature != null)
+		{
+			mNeedsSkySetup = false;
+			let topColor = Color(70, 130, 200, 255);
+			let horizonColor = Color(180, 210, 240, 255);
+			if (mSkyFeature.CreateGradientSky(topColor, horizonColor, 32) case .Ok)
+				Console.WriteLine("SkyFeature: gradient sky created");
+		}
+
 		// Set swapchain for final output
 		if (mFinalOutputFeature != null)
 			mFinalOutputFeature.SetSwapChain(render.SwapChain);
@@ -1892,9 +1888,9 @@ class FrameworkSandboxApp : Application
 		}
 
 		// Render UI overlay (after 3D scene, before present)
-		if (mUISubsystem != null && mUISubsystem.IsInitialized)
+		if (mScreenUI != null && mScreenUI.IsRenderingInitialized)
 		{
-			mUISubsystem.RenderUI(render.Encoder, render.CurrentTextureView,
+			mScreenUI.Render(render.Encoder, render.CurrentTextureView,
 				mSwapChain.Width, mSwapChain.Height, render.Frame.FrameIndex);
 		}
 
@@ -1937,12 +1933,6 @@ class FrameworkSandboxApp : Application
 
 		// Context shutdown is handled by base Application after OnShutdown
 
-		if(mFontService != null)
-		{
-			delete mFontService;
-		}
-
-		
 		delete mUIRoot;
 		delete mWorldSpaceUIRoot;
 

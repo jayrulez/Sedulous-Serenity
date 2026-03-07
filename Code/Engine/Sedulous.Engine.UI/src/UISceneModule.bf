@@ -24,14 +24,14 @@ struct DeferredPanelData
 }
 
 /// Scene module that manages world-space UI panels for a scene.
-/// Created automatically by UISubsystem for each scene.
+/// Created automatically by WorldUISubsystem for each scene.
 /// Panels are rendered to textures and displayed as sprites in 3D.
 ///
 /// All UI panel data is owned by this module.
 /// Components are thin handles.
 class UISceneModule : SceneModule
 {
-	private UISubsystem mSubsystem;
+	private WorldUISubsystem mSubsystem;
 	private Scene mScene;
 	private List<WorldUIPanel> mPanels = new .() ~ delete _;
 	private List<DeferredPanelData> mDeferredPanels = new .() ~ delete _;
@@ -39,13 +39,13 @@ class UISceneModule : SceneModule
 	private WorldUIPanel mHoveredPanel;
 
 	/// Creates a UISceneModule linked to the given subsystem.
-	public this(UISubsystem subsystem)
+	public this(WorldUISubsystem subsystem)
 	{
 		mSubsystem = subsystem;
 	}
 
 	/// Gets the UI subsystem.
-	public UISubsystem Subsystem => mSubsystem;
+	public WorldUISubsystem Subsystem => mSubsystem;
 
 	/// Gets the panels managed by this module.
 	public List<WorldUIPanel> Panels => mPanels;
@@ -246,7 +246,7 @@ class UISceneModule : SceneModule
 	// ==================== World Input Raycasting ====================
 
 	/// Processes mouse input for world-space UI panels via raycasting.
-	/// Called by UISubsystem when screen-space UI hasn't consumed input.
+	/// Called by WorldUISubsystem when screen-space UI hasn't consumed input.
 	public void ProcessWorldInput(IMouse mouse, IKeyboard keyboard, uint32 viewportWidth, uint32 viewportHeight)
 	{
 		if (mPanels.Count == 0 || mScene == null)

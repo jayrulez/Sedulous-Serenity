@@ -41,6 +41,9 @@ class RenderSkyApp : Application
 	private enum SkyModeOption { Gradient, SolidColor, Procedural, HDRI }
 	private SkyModeOption mCurrentSkyMode = .Gradient;
 
+	// Deferred sky setup (must happen after first BeginFrame flushes the init transfer batch)
+	private bool mNeedsSkySetup = true;
+
 	// Camera
 	private Vector3 mCameraPosition = .(0, 2, 10);
 	private float mYaw = Math.PI_f;
@@ -74,9 +77,6 @@ class RenderSkyApp : Application
 		CreateLights();
 
 		mWorld.AmbientColor = .(0.15f, 0.15f, 0.18f);
-
-		// Start with gradient sky (also sets exposure/ambient per mode)
-		SetGradientSky();
 
 		Console.WriteLine("Render Sky initialized");
 		Console.WriteLine("  5x5 sphere grid: Metallic (left-right) x Roughness (front-back)");
@@ -315,6 +315,14 @@ class RenderSkyApp : Application
 	protected override bool OnRenderFrame(RenderContext render)
 	{
 		mRenderSystem.BeginFrame((float)render.Frame.TotalTime, (float)render.Frame.DeltaTime);
+
+		// Deferred sky setup — must happen after first BeginFrame flushes the init transfer batch
+		if (mNeedsSkySetup)
+		{
+			mNeedsSkySetup = false;
+			SetGradientSky();
+		}
+
 		if (mFinalOutputFeature != null) mFinalOutputFeature.SetSwapChain(render.SwapChain);
 		mRenderSystem.SetCamera(mCameraPosition, mCameraForward, .(0, 1, 0), mView.FieldOfView, mView.AspectRatio, mView.NearPlane, mView.FarPlane, mView.Width, mView.Height);
 		if (mRenderSystem.BuildRenderGraph(mView) case .Ok) mRenderSystem.Execute(render.Encoder);
