@@ -9,7 +9,6 @@ using Sedulous.GUI;
 using Sedulous.Core.Core;
 using Sedulous.Core.Logging.Abstractions;
 using Sedulous.Core.Mathematics;
-using Sedulous.GUI;
 
 /// Editor application configuration.
 public struct EditorConfig
@@ -50,12 +49,22 @@ public class EditorApplication : Application
 	private bool mShowingProjectManager = true;
 	private ProjectManagerView mProjectManagerView;
 	private NewProjectDialog mNewProjectDialog;
+	private DockPanel mEditorRoot;         // Layout root: Menu + DockManager + StatusBar
 	private DockManager mDockManager;
+	private Menu mMenuBar;
+	private StatusBar mStatusBar;
+	private StatusBarItem mProjectStatusItem;
+	private StatusBarItem mAssetCountStatusItem;
 	private DockablePanel mProjectPanel;
 	private DockablePanel mPropertiesPanel;
 	private DockablePanel mConsolePanel;
+	private DockablePanel mCenterPanel;
 	private AssetBrowser mAssetBrowser;
 	private DocumentTabStrip mDocumentTabs;
+	private ScrollViewer mConsoleScroller;
+	private StackPanel mConsoleLogStack;
+	private MenuItem mRecentProjectsMenuItem;
+	private List<String> mRecentMenuPaths = new .() ~ DeleteContainerAndItems!(_);
 
 	// Pending actions (deferred to avoid modifying UI tree during event processing)
 	private String mPendingProjectName ~ delete _;
@@ -148,6 +157,14 @@ public class EditorApplication : Application
 		// Register built-in asset handlers
 		RegisterBuiltinHandlers();
 
+		// Subscribe to logger for console display
+		if (let editorLogger = mEditorLogger as EditorLogger)
+		{
+			editorLogger.EntryAdded.Subscribe(new (entry) => {
+				AppendLogEntry(entry);
+			});
+		}
+
 		mEditorLogger.LogInformation("Editor initialized successfully");
 		return true;
 	}
@@ -237,16 +254,43 @@ public class EditorApplication : Application
 			mNewProjectDialog = null;
 		}
 
-		if (mDockManager != null)
+		if (mEditorRoot != null)
+		{
+			// Remove DockManager from the root before deleting root,
+			// because DockManager owns the panels and needs explicit cleanup
+			mEditorRoot.RemoveChild(mDockManager, deleteAfterRemove: false);
+			delete mDockManager;
+			mDockManager = null;
+
+			delete mEditorRoot;
+			mEditorRoot = null;
+		}
+		else if (mDockManager != null)
 		{
 			delete mDockManager;
 			mDockManager = null;
 		}
 
-		// Clear panel references (already deleted by dock manager)
+		// Delete panels (DockTabGroup does NOT own panels — creator is responsible)
+		delete mProjectPanel;
 		mProjectPanel = null;
+		delete mPropertiesPanel;
 		mPropertiesPanel = null;
+		delete mConsolePanel;
 		mConsolePanel = null;
+		delete mCenterPanel;
+		mCenterPanel = null;
+
+		// Clear references (owned by deleted parents above)
+		mMenuBar = null;
+		mStatusBar = null;
+		mProjectStatusItem = null;
+		mAssetCountStatusItem = null;
+		mConsoleScroller = null;
+		mConsoleLogStack = null;
+		mRecentProjectsMenuItem = null;
+		mAssetBrowser = null;
+		mDocumentTabs = null;
 
 		// Clean up theme (UIContext doesn't delete services in destructor)
 		if (mGUIContext.GetService<ITheme>() case .Ok(let theme))
@@ -292,11 +336,10 @@ public class EditorApplication : Application
 			case .Y:
 				Redo();
 			case .O:
-				// TODO: Show open project dialog
+				// TODO: Show file open dialog
 				mEditorLogger.LogDebug("Open project shortcut pressed");
 			case .N:
-				// TODO: Show new project dialog
-				mEditorLogger.LogDebug("New project shortcut pressed");
+				ShowNewProjectDialog();
 			default:
 			}
 		}
@@ -316,7 +359,30 @@ public class EditorApplication : Application
 			mAssetBrowser.SetDatabase(mProject.AssetDatabase, mProject.RootPath);
 		}
 
-		mGUIContext.RootElement = mDockManager;
+		// Update status bar
+		if (mProjectStatusItem != null && mProject != null)
+			mProjectStatusItem.Text = mProject.Name;
+
+		if (mAssetCountStatusItem != null && mProject != null)
+		{
+			let count = mProject.AssetDatabase?.AssetCount ?? 0;
+			let text = scope String();
+			text.AppendF("Assets: {}", count);
+			mAssetCountStatusItem.Text = text;
+		}
+
+		// Update window title
+		if (mWindow != null && mProject != null)
+		{
+			let title = scope String();
+			title.AppendF("Sedulous Editor — {}", mProject.Name);
+			mWindow.Title = title;
+		}
+
+		// Rebuild recent projects submenu
+		RebuildRecentProjectsMenu();
+
+		mGUIContext.RootElement = mEditorRoot;
 		mShowingProjectManager = false;
 	}
 
@@ -325,6 +391,16 @@ public class EditorApplication : Application
 	{
 		if (mShowingProjectManager)
 			return;
+
+		// Reset status bar
+		if (mProjectStatusItem != null)
+			mProjectStatusItem.Text = "No project";
+		if (mAssetCountStatusItem != null)
+			mAssetCountStatusItem.Text = "Assets: 0";
+
+		// Reset window title
+		if (mWindow != null)
+			mWindow.Title = "Sedulous Editor";
 
 		// Refresh the project list
 		mProjectManagerView.RefreshProjectList();
@@ -543,10 +619,27 @@ public class EditorApplication : Application
 
 	private void CreateEditorLayout()
 	{
-		// Create dock manager
+		// Root layout: Menu (top) + StatusBar (bottom) + DockManager (fill)
+		mEditorRoot = new DockPanel();
+		mEditorRoot.Width = .Fill;
+		mEditorRoot.Height = .Fill;
+		mEditorRoot.LastChildFill = true;
+
+		// Menu bar
+		mMenuBar = CreateMenuBar();
+		DockPanelProperties.SetDock(mMenuBar, .Top);
+		mEditorRoot.AddChild(mMenuBar);
+
+		// Status bar
+		mStatusBar = CreateStatusBar();
+		DockPanelProperties.SetDock(mStatusBar, .Bottom);
+		mEditorRoot.AddChild(mStatusBar);
+
+		// Dock manager (fills remaining space)
 		mDockManager = new DockManager();
 		mDockManager.Width = .Fill;
 		mDockManager.Height = .Fill;
+		mEditorRoot.AddChild(mDockManager);
 
 		// Create default panels
 		CreateDefaultPanels();
@@ -593,13 +686,138 @@ public class EditorApplication : Application
 		mDocumentTabs.Height = .Fill;
 
 		// Add document tabs as center content (wrapped in a panel)
-		let centerPanel = new DockablePanel("Documents", mDocumentTabs);
-		mDockManager.AddPanel(centerPanel);
+		mCenterPanel = new DockablePanel("Documents", mDocumentTabs);
+		mDockManager.AddPanel(mCenterPanel);
 
 		// Dock panels around the center
 		mDockManager.DockPanel(mProjectPanel, .Left);
 		mDockManager.DockPanel(mPropertiesPanel, .Right);
 		mDockManager.DockPanel(mConsolePanel, .Bottom);
+	}
+
+	private Menu CreateMenuBar()
+	{
+		let menu = new Menu();
+		menu.Padding = .(4, 2, 4, 2);
+
+		// ===== File Menu =====
+		let fileMenu = menu.AddItem("&File");
+
+		let newProjectItem = fileMenu.AddDropdownItem("&New Project...");
+		newProjectItem.ShortcutText = "Ctrl+N";
+		newProjectItem.Click.Subscribe(new (item) => { ShowNewProjectDialog(); });
+
+		let openProjectItem = fileMenu.AddDropdownItem("&Open Project...");
+		openProjectItem.ShortcutText = "Ctrl+O";
+		openProjectItem.Click.Subscribe(new (item) => {
+			mEditorLogger.LogDebug("Open project dialog requested");
+		});
+
+		let saveProjectItem = fileMenu.AddDropdownItem("&Save Project");
+		saveProjectItem.ShortcutText = "Ctrl+S";
+		saveProjectItem.Click.Subscribe(new (item) => { SaveProject(); });
+
+		fileMenu.AddDropdownSeparator();
+
+		// Recent Projects submenu
+		mRecentProjectsMenuItem = fileMenu.AddDropdownItem("Recent Projects");
+		RebuildRecentProjectsMenu();
+
+		fileMenu.AddDropdownSeparator();
+
+		let closeProjectItem = fileMenu.AddDropdownItem("&Close Project");
+		closeProjectItem.Click.Subscribe(new (item) => { CloseProject(); });
+
+		let exitItem = fileMenu.AddDropdownItem("E&xit");
+		exitItem.Click.Subscribe(new (item) => { Exit(); });
+
+		// ===== Edit Menu =====
+		let editMenu = menu.AddItem("&Edit");
+
+		let undoItem = editMenu.AddDropdownItem("&Undo");
+		undoItem.ShortcutText = "Ctrl+Z";
+		undoItem.Click.Subscribe(new (item) => { Undo(); });
+
+		let redoItem = editMenu.AddDropdownItem("&Redo");
+		redoItem.ShortcutText = "Ctrl+Y";
+		redoItem.Click.Subscribe(new (item) => { Redo(); });
+
+		// ===== View Menu =====
+		let viewMenu = menu.AddItem("&View");
+
+		let projectPanelItem = viewMenu.AddDropdownItem("&Project");
+		projectPanelItem.IsCheckable = true;
+		projectPanelItem.IsChecked = true;
+		projectPanelItem.Click.Subscribe(new (item) => {
+			TogglePanel(mProjectPanel, item.IsChecked);
+		});
+
+		let propertiesPanelItem = viewMenu.AddDropdownItem("P&roperties");
+		propertiesPanelItem.IsCheckable = true;
+		propertiesPanelItem.IsChecked = true;
+		propertiesPanelItem.Click.Subscribe(new (item) => {
+			TogglePanel(mPropertiesPanel, item.IsChecked);
+		});
+
+		let consolePanelItem = viewMenu.AddDropdownItem("&Console");
+		consolePanelItem.IsCheckable = true;
+		consolePanelItem.IsChecked = true;
+		consolePanelItem.Click.Subscribe(new (item) => {
+			TogglePanel(mConsolePanel, item.IsChecked);
+		});
+
+		return menu;
+	}
+
+	/// Rebuilds the Recent Projects submenu from RecentProjectsManager.
+	private void RebuildRecentProjectsMenu()
+	{
+		if (mRecentProjectsMenuItem == null)
+			return;
+
+		// Clear existing submenu items and tracked path strings
+		mRecentProjectsMenuItem.ClearItems();
+		for (let s in mRecentMenuPaths)
+			delete s;
+		mRecentMenuPaths.Clear();
+
+		if (mRecentProjects == null || mRecentProjects.Count == 0)
+		{
+			let emptyItem = mRecentProjectsMenuItem.AddItem("(none)");
+			emptyItem.IsEnabled = false;
+			return;
+		}
+
+		for (let project in mRecentProjects.Projects)
+		{
+			let path = new String(project.Path);
+			mRecentMenuPaths.Add(path);
+			let item = mRecentProjectsMenuItem.AddItem(project.Name);
+			item.Click.Subscribe(new (menuItem) => {
+				OpenProject(path).IgnoreError();
+			});
+		}
+	}
+
+	/// Toggles a dockable panel's visibility.
+	private void TogglePanel(DockablePanel panel, bool visible)
+	{
+		if (panel == null || mDockManager == null)
+			return;
+
+		panel.Visibility = visible ? .Visible : .Collapsed;
+	}
+
+	private StatusBar CreateStatusBar()
+	{
+		let statusBar = new StatusBar();
+		statusBar.Padding = .(6, 2, 6, 2);
+
+		mProjectStatusItem = statusBar.AddFixedItem("No project", 250);
+		mAssetCountStatusItem = statusBar.AddFixedItem("Assets: 0", 120);
+		statusBar.AddFlexibleItem("");  // Spacer
+
+		return statusBar;
 	}
 
 	private UIElement CreateProjectBrowserContent()
@@ -657,13 +875,66 @@ public class EditorApplication : Application
 
 	private UIElement CreateConsoleContent()
 	{
-		let panel = new StackPanel();
-		panel.Orientation = .Vertical;
-		panel.Padding = .(8);
+		mConsoleLogStack = new StackPanel();
+		mConsoleLogStack.Orientation = .Vertical;
+		mConsoleLogStack.Spacing = 1;
 
-		let label = new Label("Console output");
-		panel.AddChild(label);
+		mConsoleScroller = new ScrollViewer();
+		mConsoleScroller.HorizontalScrollBarVisibility = .Disabled;
+		mConsoleScroller.VerticalScrollBarVisibility = .Auto;
+		mConsoleScroller.Content = mConsoleLogStack;
 
-		return panel;
+		// Populate with any entries logged before UI was created
+		if (mEditorLogger != null)
+		{
+			if (let editorLogger = mEditorLogger as EditorLogger)
+			{
+				for (let entry in editorLogger.Entries)
+					AppendLogEntry(entry);
+			}
+		}
+
+		return mConsoleScroller;
+	}
+
+	/// Appends a log entry to the console panel.
+	private void AppendLogEntry(LogEntry entry)
+	{
+		if (mConsoleLogStack == null)
+			return;
+
+		// Format: [HH:MM:SS] message
+		let text = scope String();
+		text.AppendF("[{0:D2}:{1:D2}:{2:D2}] {3}",
+			entry.Timestamp.Hour, entry.Timestamp.Minute, entry.Timestamp.Second,
+			entry.Message);
+
+		let tb = new TextBlock(text);
+		tb.Margin = .(4, 1, 4, 1);
+
+		// Color based on log level
+		switch (entry.Level)
+		{
+		case .Error, .Critical:
+			tb.Foreground = Color(255, 80, 80, 255);
+		case .Warning:
+			tb.Foreground = Color(255, 200, 80, 255);
+		case .Debug, .Trace:
+			tb.Foreground = Color(140, 140, 140, 255);
+		default: // Info
+			tb.Foreground = Color(220, 220, 220, 255);
+		}
+
+		mConsoleLogStack.AddChild(tb);
+
+		// Cap visible entries to avoid UI bloat
+		while (mConsoleLogStack.Children.Count > 500)
+		{
+			let oldest = mConsoleLogStack.Children[0];
+			mConsoleLogStack.RemoveChild(oldest);  // default deleteAfterRemove: true
+		}
+
+		// Auto-scroll to bottom
+		mConsoleScroller?.ScrollToBottom();
 	}
 }

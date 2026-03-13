@@ -43,7 +43,7 @@ interface IAssetHandler : IDisposable
 abstract class AssetHandler : IAssetHandler
 {
 	protected List<String> mExtensions = new .() ~ DeleteContainerAndItems!(_);
-	protected IAssetTransformer mTransformer;
+	protected IAssetTransformer mTransformer ~ delete _;
 
 	public abstract StringView AssetType { get; }
 	public abstract StringView DisplayName { get; }
@@ -53,7 +53,10 @@ abstract class AssetHandler : IAssetHandler
 	public virtual void Dispose()
 	{
 		if (mTransformer != null)
+		{
 			delete mTransformer;
+			mTransformer = null;
+		}
 	}
 
 	public void GetExtensions(List<String> outExtensions)
