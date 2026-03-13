@@ -7,7 +7,7 @@ StartupObject = "Dxc_Beef.Program"
 
 [Configs.Debug.Win64]
 LibPaths = ["$(ProjectDir)/dist/lib/dxcompiler.lib"]
-PostBuildCmds = ["CopyToDependents(\"$(ProjectDir)/dist/bin/*.dll\")"]
+PostBuildCmds = ["CopyToDependents(\"$(ProjectDir)/dist/bin/*.dll\")", "CopyToDependents(\"$(ProjectDir)/dist/bin/*.pdb\")"]
 
 [Configs.Release.Win64]
 LibPaths = ["$(ProjectDir)/dist/lib/dxcompiler.lib"]
