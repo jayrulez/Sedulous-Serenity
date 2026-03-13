@@ -11,6 +11,10 @@ struct BufferDescriptor
 	public BufferUsage Usage;
 	/// Memory access pattern hint.
 	public MemoryAccess MemoryAccess;
+	/// Byte stride of each element for structured storage buffers.
+	/// Set to sizeof(T) when binding as StructuredBuffer<T> / RWStructuredBuffer<T>.
+	/// 0 (default) = raw byte-address buffer.
+	public uint32 StructureByteStride;
 	/// Optional label for debugging.
 	public StringView Label;
 
@@ -19,6 +23,7 @@ struct BufferDescriptor
 		Size = 0;
 		Usage = .None;
 		MemoryAccess = .GpuOnly;
+		StructureByteStride = 0;
 		Label = default;
 	}
 
@@ -27,6 +32,7 @@ struct BufferDescriptor
 		Size = size;
 		Usage = usage;
 		MemoryAccess = memoryAccess;
+		StructureByteStride = 0;
 		Label = default;
 	}
 }

@@ -14,6 +14,7 @@ class VulkanBuffer : IBuffer
 	private uint64 mSize;
 	private BufferUsage mUsage;
 	private MemoryAccess mMemoryAccess;
+	private uint32 mStructureByteStride;
 	private void* mMappedPtr;
 	private String mDebugName ~ delete _;
 
@@ -23,6 +24,7 @@ class VulkanBuffer : IBuffer
 		mSize = descriptor.Size;
 		mUsage = descriptor.Usage;
 		mMemoryAccess = descriptor.MemoryAccess;
+		mStructureByteStride = descriptor.StructureByteStride;
 		if (descriptor.Label.Ptr != null && descriptor.Label.Length > 0)
 			mDebugName = new String(descriptor.Label);
 		CreateBuffer(descriptor);
@@ -61,6 +63,7 @@ class VulkanBuffer : IBuffer
 	public StringView DebugName => mDebugName != null ? mDebugName : "";
 	public uint64 Size => mSize;
 	public BufferUsage Usage => mUsage;
+	public uint32 StructureByteStride => mStructureByteStride;
 
 	/// Gets the Vulkan buffer handle.
 	public VkBuffer Buffer => mBuffer;
