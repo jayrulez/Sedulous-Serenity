@@ -227,6 +227,7 @@ class Program
 	public static int Main(String[] args)
 	{
 		let app = scope TriangleSample();
+		app.ParseArgs(args);
 		return app.Run();
 	}
 }

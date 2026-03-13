@@ -610,6 +610,7 @@ class Program
 	public static int Main(String[] args)
 	{
 		let app = scope MRTSample();
+		app.ParseArgs(args);
 		return app.Run();
 	}
 }

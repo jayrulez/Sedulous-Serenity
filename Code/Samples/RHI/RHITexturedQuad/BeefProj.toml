@@ -1,6 +1,9 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Core.Mathematics" = "*", "Sedulous.Imaging" = "*", "Sedulous.RHI" = "*", "SampleFramework" = "*"}
+Dependencies = {corlib = "*", "Sedulous.Core.Mathematics" = "*", "Sedulous.Imaging" = "*", "Sedulous.RHI" = "*", SampleFramework = "*"}
 
 [Project]
 Name = "RHITexturedQuad"
 StartupObject = "RHITexturedQuad.Program"
+
+[Configs.Debug.Win64]
+DebugCommandArguments = "--dx12"

@@ -301,6 +301,7 @@ class Program
 	public static int Main(String[] args)
 	{
 		let app = scope DepthBufferSample();
+		app.ParseArgs(args);
 		return app.Run();
 	}
 }

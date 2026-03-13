@@ -5,24 +5,8 @@ using System.IO;
 using Sedulous.RHI;
 using Sedulous.Shaders;
 
-/// Binding shift configuration for SPIRV compilation.
-/// Default values use VulkanBindingShifts constants for automatic separation.
-struct BindingShifts
-{
-	public uint32 ConstantBuffer = VulkanBindingShifts.SHIFT_B;
-	public uint32 Texture = VulkanBindingShifts.SHIFT_T;
-	public uint32 Sampler = VulkanBindingShifts.SHIFT_S;
-	public uint32 UAV = VulkanBindingShifts.SHIFT_U;
-
-	/// No shifts - each register type starts at binding 0.
-	/// Only use this if you're manually managing bindings.
-	public static Self None => .() { ConstantBuffer = 0, Texture = 0, Sampler = 0, UAV = 0 };
-
-	/// Default Vulkan shifts for automatic separation of resource types.
-	public static Self Vulkan => .();
-}
-
 /// Helper class for shader compilation.
+/// Automatically detects shader target (SPIRV/DXIL) and binding shifts from the device.
 static class ShaderUtils
 {
 	/// Reads a text file into a string.
@@ -39,25 +23,38 @@ static class ShaderUtils
 		return true;
 	}
 
-	/// Compiles an HLSL shader to SPIRV with optional binding shifts.
+	/// Returns the appropriate shader target for the given device.
+	/// DX12 devices use DXIL, Vulkan devices use SPIRV.
+	public static ShaderTarget GetTargetForDevice(IDevice device)
+	{
+		return device.FlipProjectionRequired ? .SPIRV : .DXIL;
+	}
+
+	/// Compiles an HLSL shader from source.
+	/// Target and binding shifts are auto-detected from the device.
 	public static Result<IShaderModule> CompileShader(
 		IDevice device,
 		StringView source,
 		StringView entryPoint,
-		ShaderStage stage,
-		BindingShifts shifts = .())
+		ShaderStage stage)
 	{
+		let target = GetTargetForDevice(device);
+
 		let compiler = scope ShaderCompiler();
 		if (compiler.Initialize() case .Err)
 			return .Err;
 
-		compiler.ConstantBufferShift = shifts.ConstantBuffer;
-		compiler.TextureShift = shifts.Texture;
-		compiler.SamplerShift = shifts.Sampler;
-		compiler.UAVShift = shifts.UAV;
+		if (target == .SPIRV)
+		{
+			compiler.ConstantBufferShift = VulkanBindingShifts.SHIFT_B;
+			compiler.TextureShift = VulkanBindingShifts.SHIFT_T;
+			compiler.SamplerShift = VulkanBindingShifts.SHIFT_S;
+			compiler.UAVShift = VulkanBindingShifts.SHIFT_U;
+		}
+		// DXIL: zero shifts (default) — DX12 uses HLSL registers natively
 
 		let key = ShaderVariantKey("inline", stage, .None);
-		var result = compiler.Compile(source, key, .SPIRV, entryPoint);
+		var result = compiler.Compile(source, key, target, entryPoint);
 		defer result.Dispose();
 
 		if (!result.Success)
@@ -75,12 +72,12 @@ static class ShaderUtils
 	}
 
 	/// Loads and compiles an HLSL shader from a file.
+	/// Target and binding shifts are auto-detected from the device.
 	public static Result<IShaderModule> LoadShader(
 		IDevice device,
 		StringView path,
 		StringView entryPoint,
-		ShaderStage stage,
-		BindingShifts shifts = .())
+		ShaderStage stage)
 	{
 		String source = scope .();
 		if (!ReadTextFile(path, source))
@@ -89,27 +86,26 @@ static class ShaderUtils
 			return .Err;
 		}
 
-		return CompileShader(device, source, entryPoint, stage, shifts);
+		return CompileShader(device, source, entryPoint, stage);
 	}
 
 	/// Loads vertex and fragment shaders from files.
 	/// Uses convention: {basePath}.vert.hlsl and {basePath}.frag.hlsl
+	/// Target and binding shifts are auto-detected from the device.
 	public static Result<(IShaderModule vert, IShaderModule frag)> LoadShaderPair(
 		IDevice device,
-		StringView basePath,
-		BindingShifts vertShifts = .(),
-		BindingShifts fragShifts = .())
+		StringView basePath)
 	{
 		String vertPath = scope $"{basePath}.vert.hlsl";
 		String fragPath = scope $"{basePath}.frag.hlsl";
 
-		let vertResult = LoadShader(device, vertPath, "main", .Vertex, vertShifts);
+		let vertResult = LoadShader(device, vertPath, "main", .Vertex);
 		if (vertResult case .Err)
 			return .Err;
 
 		let vertShader = vertResult.Get();
 
-		let fragResult = LoadShader(device, fragPath, "main", .Fragment, fragShifts);
+		let fragResult = LoadShader(device, fragPath, "main", .Fragment);
 		if (fragResult case .Err)
 		{
 			delete vertShader;

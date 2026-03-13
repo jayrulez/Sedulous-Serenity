@@ -210,6 +210,7 @@ class Program
 	public static int Main(String[] args)
 	{
 		let app = scope BlendingSample();
+		app.ParseArgs(args);
 		return app.Run();
 	}
 }

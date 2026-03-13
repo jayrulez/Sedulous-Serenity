@@ -444,6 +444,7 @@ class Program
 	public static int Main(String[] args)
 	{
 		let app = scope BlitSample();
+		app.ParseArgs(args);
 		return app.Run();
 	}
 }

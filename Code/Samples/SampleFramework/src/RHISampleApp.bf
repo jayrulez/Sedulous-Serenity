@@ -9,11 +9,20 @@ using Sedulous.Shell.SDL3;
 using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
 using Sedulous.RHI.Vulkan;
+using Sedulous.RHI.DX12;
 using Sedulous.Shell.Input;
+
+/// Graphics backend to use.
+enum BackendType
+{
+	Vulkan,
+	DX12
+}
 
 /// Configuration for an RHI sample application.
 struct SampleConfig
 {
+	public BackendType Backend = .Vulkan;
 	public StringView Title = "RHI Sample";
 	public int32 Width = 800;
 	public int32 Height = 600;
@@ -307,6 +316,7 @@ abstract class RHISampleApp
 	public ISwapChain SwapChain => mSwapChain;
 	public IWindow Window => mWindow;
 	public IShell Shell => mShell;
+	public BackendType ActiveBackend => mConfig.Backend;
 	public float DeltaTime => mDeltaTime;
 	public float TotalTime => mTotalTime;
 
@@ -357,6 +367,19 @@ abstract class RHISampleApp
 		Path.InternalCombine(outPath, mAssetDirectory, relativePath);
 	}
 
+	/// Parses command-line arguments for backend selection.
+	/// Use --dx12 for Direct3D 12, --vulkan for Vulkan (default).
+	public void ParseArgs(String[] args)
+	{
+		for (let arg in args)
+		{
+			if (arg == "--dx12")
+				mConfig.Backend = .DX12;
+			else if (arg == "--vulkan")
+				mConfig.Backend = .Vulkan;
+		}
+	}
+
 	//==========================================================================
 	// Private Implementation
 	//==========================================================================
@@ -390,12 +413,19 @@ abstract class RHISampleApp
 		mWindow = window;
 
 		// Create backend
-		mBackend = new VulkanBackend(mConfig.EnableValidation);
+		switch (mConfig.Backend)
+		{
+		case .Vulkan:
+			mBackend = new VulkanBackend(mConfig.EnableValidation);
+		case .DX12:
+			mBackend = new DX12Backend(mConfig.EnableValidation);
+		}
 		if (!mBackend.IsInitialized)
 		{
-			Console.WriteLine("Failed to initialize Vulkan backend");
+			Console.WriteLine(scope $"Failed to initialize {mConfig.Backend} backend");
 			return false;
 		}
+		Console.WriteLine(scope $"Using {mConfig.Backend} backend");
 
 		// Create surface
 		if (mBackend.CreateSurface(mWindow.NativeHandle) not case .Ok(let surface))

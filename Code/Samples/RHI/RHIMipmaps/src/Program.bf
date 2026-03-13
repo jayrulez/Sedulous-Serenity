@@ -514,6 +514,7 @@ class Program
 	public static int Main(String[] args)
 	{
 		let app = scope MipmapSample();
+		app.ParseArgs(args);
 		return app.Run();
 	}
 }

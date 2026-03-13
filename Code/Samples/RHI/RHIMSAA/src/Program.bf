@@ -499,6 +499,7 @@ class Program
 	public static int Main(String[] args)
 	{
 		let app = scope MSAASample();
+		app.ParseArgs(args);
 		return app.Run();
 	}
 }

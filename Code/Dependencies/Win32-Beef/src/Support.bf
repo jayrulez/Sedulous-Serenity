@@ -223,6 +223,9 @@ namespace Win32.Graphics.Direct3D11
 
 namespace Win32.Graphics.Direct3D12
 {
+	/// D3D12_RECT is just RECT in the Win32 API.
+	typealias D3D12_RECT = RECT;
+
 	extension D3D12_DESCRIPTOR_RANGE
 	{
 		public this(D3D12_DESCRIPTOR_RANGE_TYPE rangeType, int32 numDescriptors, int32 baseShaderRegister, int32 registerSpace = 0, int32 offsetInDescriptorsFromTableStart = -1)

@@ -363,6 +363,7 @@ class Program
 	public static int Main(String[] args)
 	{
 		let app = scope BindGroupsSample();
+		app.ParseArgs(args);
 		return app.Run();
 	}
 }

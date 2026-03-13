@@ -120,7 +120,8 @@ class ComputeSample : RHISampleApp
 		{
 			Size = (uint64)(sizeof(Particle) * PARTICLE_COUNT),
 			Usage = .Storage | .Vertex | .CopyDst,  // Used by compute, as vertex input, and receives initial data
-			MemoryAccess = .GpuOnly
+			MemoryAccess = .GpuOnly,
+			StructureByteStride = (uint32)sizeof(Particle)
 		};
 
 		if (Device.CreateBuffer(&particleDesc) not case .Ok(let pb))
@@ -424,6 +425,7 @@ class Program
 	public static int Main(String[] args)
 	{
 		let app = scope ComputeSample();
+		app.ParseArgs(args);
 		return app.Run();
 	}
 }

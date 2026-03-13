@@ -309,6 +309,7 @@ class Program
 	public static int Main(String[] args)
 	{
 		let app = scope BorderSamplerSample();
+		app.ParseArgs(args);
 		return app.Run();
 	}
 }

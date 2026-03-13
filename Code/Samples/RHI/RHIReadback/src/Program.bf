@@ -386,6 +386,7 @@ class Program
 	public static int Main(String[] args)
 	{
 		let app = scope ReadbackSample();
+		app.ParseArgs(args);
 		return app.Run();
 	}
 }
