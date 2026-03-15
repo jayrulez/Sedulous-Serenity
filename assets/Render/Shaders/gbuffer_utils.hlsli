@@ -10,7 +10,7 @@ float2 OctahedralEncode(float3 n)
 {
     n /= (abs(n.x) + abs(n.y) + abs(n.z));
     if (n.z < 0.0)
-        n.xy = (1.0 - abs(n.yx)) * (n.xy >= 0.0 ? 1.0 : -1.0);
+        n.xy = (1.0 - abs(n.yx)) * select(n.xy >= 0., 1., -1.);
     return n.xy * 0.5 + 0.5;
 }
 
@@ -20,7 +20,7 @@ float3 OctahedralDecode(float2 f)
     f = f * 2.0 - 1.0;
     float3 n = float3(f.x, f.y, 1.0 - abs(f.x) - abs(f.y));
     if (n.z < 0.0)
-        n.xy = (1.0 - abs(n.yx)) * (n.xy >= 0.0 ? 1.0 : -1.0);
+        n.xy = (1.0 - abs(n.yx)) * select(n.xy >= 0., 1., -1.);
     return normalize(n);
 }
 
