@@ -17,6 +17,7 @@ using Sedulous.Materials;
 using Sedulous.Materials.Resources;
 using Sedulous.Geometry;
 using Sedulous.Geometry.Tooling;
+using Sedulous.Geometry.Tooling.Resources;
 using Sedulous.Animation;
 using Sedulous.Animation.Resources;
 using Sedulous.Textures;
@@ -497,7 +498,7 @@ class ModelViewerApp : Application
 			// won't match the rendered orientation. Common case: FBX files with Z-up to Y-up
 			// rotation on the mesh node. We compute the mesh node's world transform and apply
 			// it to the bounds so they align with the rendered model.
-			let bindPoseBounds = importResult.SkinnedMeshes[0].Mesh.Bounds;
+			let bindPoseBounds = importResult.SkinnedMeshes[0].Bounds;
 			tab.MeshNodeTransform = ComputeMeshNodeWorldTransform(tab.Model, 0);
 			tab.MeshBounds = TransformBoundingBox(bindPoseBounds, tab.MeshNodeTransform);
 
@@ -505,7 +506,7 @@ class ModelViewerApp : Application
 		}
 		else if (importResult.StaticMeshes.Count > 0)
 		{
-			tab.MeshBounds = importResult.StaticMeshes[0].Mesh.GetBounds();
+			tab.MeshBounds = importResult.StaticMeshes[0].GetBounds();
 			SetupStaticMesh(tab, importResult);
 		}
 
@@ -525,13 +526,12 @@ class ModelViewerApp : Application
 
 	private void SetupStaticMesh(ModelTab tab, ModelImportResult importResult)
 	{
-		let resource = importResult.TakeStaticMesh(0);
-		defer delete resource;
+		let mesh = importResult.StaticMeshes[0];
 
-		Console.WriteLine(scope $"  SetupStaticMesh: vertices={resource.Mesh.VertexCount}, indices={resource.Mesh.IndexCount}");
-		Console.WriteLine(scope $"  Mesh bounds: {resource.Mesh.GetBounds().Min} to {resource.Mesh.GetBounds().Max}");
+		Console.WriteLine(scope $"  SetupStaticMesh: vertices={mesh.VertexCount}, indices={mesh.IndexCount}");
+		Console.WriteLine(scope $"  Mesh bounds: {mesh.GetBounds().Min} to {mesh.GetBounds().Max}");
 
-		if (mRenderSystem.ResourceManager.UploadMesh(resource.Mesh) case .Ok(let handle))
+		if (mRenderSystem.ResourceManager.UploadMesh(mesh) case .Ok(let handle))
 		{
 			tab.MeshHandle = handle;
 			Console.WriteLine(scope $"  Mesh uploaded: handle valid={handle.IsValid}");
@@ -546,7 +546,7 @@ class ModelViewerApp : Application
 				Console.WriteLine(scope $"  Default material: {defaultMat != null}");
 				proxy.Materials[0] = defaultMat;
 				proxy.MaterialCount = 1;
-				proxy.SetLocalBounds(resource.Mesh.GetBounds());
+				proxy.SetLocalBounds(mesh.GetBounds());
 				proxy.SetTransformImmediate(.Identity);
 				proxy.Flags = .DefaultOpaque;
 			}
@@ -561,19 +561,18 @@ class ModelViewerApp : Application
 	{
 		// Build skeleton
 		if (importResult.Skeletons.Count > 0)
-			BuildSkeleton(tab, importResult.Skeletons[0].Skeleton);
+			BuildSkeleton(tab, importResult.Skeletons[0]);
 
 		// Extract animations
 		ExtractAnimationsFromModel(tab);
 
 		// Upload mesh
-		let resource = importResult.TakeSkinnedMesh(0);
-		defer delete resource;
+		let mesh = importResult.SkinnedMeshes[0];
 
-		Console.WriteLine(scope $"  SetupSkinnedMesh: vertices={resource.Mesh.VertexCount}, indices={resource.Mesh.IndexCount}");
-		Console.WriteLine(scope $"  Mesh bounds: {resource.Mesh.Bounds.Min} to {resource.Mesh.Bounds.Max}");
+		Console.WriteLine(scope $"  SetupSkinnedMesh: vertices={mesh.VertexCount}, indices={mesh.IndexCount}");
+		Console.WriteLine(scope $"  Mesh bounds: {mesh.Bounds.Min} to {mesh.Bounds.Max}");
 
-		if (mRenderSystem.ResourceManager.UploadMesh(resource.Mesh) case .Ok(let handle))
+		if (mRenderSystem.ResourceManager.UploadMesh(mesh) case .Ok(let handle))
 		{
 			tab.MeshHandle = handle;
 			Console.WriteLine(scope $"  Mesh uploaded: handle valid={handle.IsValid}");
@@ -602,7 +601,7 @@ class ModelViewerApp : Application
 				Console.WriteLine(scope $"  Default material: {defaultMat != null}");
 				proxy.Materials[0] = defaultMat;
 				proxy.MaterialCount = 1;
-				proxy.SetLocalBounds(resource.Mesh.Bounds);
+				proxy.SetLocalBounds(mesh.Bounds);
 				proxy.BoneCount = boneCount;
 				proxy.SetTransformImmediate(.Identity);
 				proxy.Flags = .DefaultOpaque;
@@ -830,24 +829,24 @@ class ModelViewerApp : Application
 		// Upload all textures from the import result
 		for (int t = 0; t < importResult.Textures.Count; t++)
 		{
-			let texRes = importResult.Textures[t];
-			if (texRes.Image != null)
+			let tex = importResult.Textures[t];
+			if (tex.PixelData != null)
 			{
-				let texData = TextureData.FromImage(texRes.Image);
+				let texData = TextureData.FromImage(tex.PixelData);
 				if (mRenderSystem.ResourceManager.UploadTexture(texData) case .Ok(let handle))
 				{
-					Console.WriteLine($"[ModelViewer]   Texture[{t}] \"{texRes.Name}\": uploaded OK (image {texRes.Image.Width}x{texRes.Image.Height} fmt={texRes.Image.Format})");
+					Console.WriteLine($"[ModelViewer]   Texture[{t}] \"{tex.Name}\": uploaded OK (image {tex.PixelData.Width}x{tex.PixelData.Height} fmt={tex.PixelData.Format})");
 					tab.TextureHandles.Add(handle);
 				}
 				else
 				{
-					Console.WriteLine($"[ModelViewer]   Texture[{t}] \"{texRes.Name}\": UPLOAD FAILED");
+					Console.WriteLine($"[ModelViewer]   Texture[{t}] \"{tex.Name}\": UPLOAD FAILED");
 					tab.TextureHandles.Add(.Invalid); // Keep index alignment
 				}
 			}
 			else
 			{
-				Console.WriteLine($"[ModelViewer]   Texture[{t}] \"{texRes.Name}\": no image data");
+				Console.WriteLine($"[ModelViewer]   Texture[{t}] \"{tex.Name}\": no image data");
 				tab.TextureHandles.Add(.Invalid);
 			}
 		}
@@ -857,21 +856,31 @@ class ModelViewerApp : Application
 		if (materialSystem == null)
 			return;
 
-		// Take ownership of materials from import result (move them to tab)
+		// Convert imported materials to MaterialResources for rendering
+		let textureResources = new List<TextureResource>();
+		for (let tex in importResult.Textures)
+		{
+			let texRes = TextureResourceConverter.Convert(tex);
+			if (texRes != null)
+				textureResources.Add(texRes);
+		}
+		defer { DeleteContainerAndItems!(textureResources); }
+
 		for (int m = 0; m < importResult.Materials.Count; m++)
 		{
-			let matRes = importResult.Materials[m];
-			let material = matRes.Material;
-			if (material == null)
+			let importedMat = importResult.Materials[m];
+			let matRes = MaterialResourceConverter.Convert(importedMat, textureResources);
+			if (matRes == null)
 			{
-				Console.WriteLine($"[ModelViewer]   Material[{m}]: null material, skipping");
+				Console.WriteLine($"[ModelViewer]   Material[{m}]: conversion failed, skipping");
 				tab.MaterialInstances.Add(null);
 				continue;
 			}
 
+			let material = matRes.Material;
 			Console.WriteLine($"[ModelViewer]   Material[{m}] \"{matRes.Name}\": shader=\"{material.ShaderName}\" texRefs={matRes.TextureRefs.Count}");
 
-			// Create instance from the imported material
+			// Create instance from the converted material
 			let instance = new MaterialInstance(material);
 
 			// Resolve texture references
@@ -890,10 +899,10 @@ class ModelViewerApp : Application
 				bool found = false;
 				for (int i = 0; i < importResult.Textures.Count; i++)
 				{
-					let texRes = importResult.Textures[i];
+					let tex = importResult.Textures[i];
 					// Match by name or check if path contains the texture name
-					bool matches = (texRes.Name == texRef.Path) ||
-						(texRes.Name.Length > 0 && texRef.Path.Contains(texRes.Name));
+					bool matches = (tex.Name == texRef.Path) ||
+						(tex.Name.Length > 0 && texRef.Path.Contains(tex.Name));
 					if (matches)
 					{
 						if (i < tab.TextureHandles.Count && tab.TextureHandles[i].IsValid)
@@ -901,13 +910,13 @@ class ModelViewerApp : Application
 							if (let texView = mRenderSystem.ResourceManager.GetTextureView(tab.TextureHandles[i]))
 							{
 								instance.SetTexture(slot, texView);
-								Console.WriteLine($"[ModelViewer]     Slot \"{slot}\": matched texture[{i}] \"{texRes.Name}\" -> BOUND");
+								Console.WriteLine($"[ModelViewer]     Slot \"{slot}\": matched texture[{i}] \"{tex.Name}\" -> BOUND");
 							}
 							else
-								Console.WriteLine($"[ModelViewer]     Slot \"{slot}\": matched texture[{i}] \"{texRes.Name}\" -> NO VIEW");
+								Console.WriteLine($"[ModelViewer]     Slot \"{slot}\": matched texture[{i}] \"{tex.Name}\" -> NO VIEW");
 						}
 						else
-							Console.WriteLine($"[ModelViewer]     Slot \"{slot}\": matched texture[{i}] \"{texRes.Name}\" -> INVALID HANDLE");
+							Console.WriteLine($"[ModelViewer]     Slot \"{slot}\": matched texture[{i}] \"{tex.Name}\" -> INVALID HANDLE");
 						found = true;
 						break;
 					}
@@ -926,12 +935,8 @@ class ModelViewerApp : Application
 			instance.SetSampler("MainSampler", sampler);
 
 			tab.MaterialInstances.Add(instance);
-		}
-
-		// Move MaterialResources from import result to tab (tab takes ownership)
-		for (let matRes in importResult.Materials)
 			tab.MaterialResources.Add(matRes);
-		importResult.Materials.Clear(); // Clear without deleting - tab now owns them
+		}
 
 		// If no materials were imported, create a default one
 		if (tab.MaterialInstances.Count == 0)

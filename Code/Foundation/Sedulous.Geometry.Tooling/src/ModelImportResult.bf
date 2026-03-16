@@ -1,32 +1,32 @@
 using System;
 using System.Collections;
-using Sedulous.Animation.Resources;
-using Sedulous.Geometry.Resources;
-using Sedulous.Textures.Resources;
+using Sedulous.Geometry;
+using Sedulous.Animation;
 
 namespace Sedulous.Geometry.Tooling;
 
-/// Result of importing a model, containing all created resources.
-/// Caller takes ownership of all resources.
-class ModelImportResult : IDisposable
+/// Result of importing a model, containing all extracted data.
+/// Uses direct data types — no resource system dependency.
+/// Caller takes ownership of all data.
+class ModelImportResult
 {
 	/// Imported static meshes.
-	public List<StaticMeshResource> StaticMeshes = new .() ~ DeleteContainerAndItems!(_);
+	public List<StaticMesh> StaticMeshes = new .() ~ DeleteContainerAndItems!(_);
 
 	/// Imported skinned meshes.
-	public List<SkinnedMeshResource> SkinnedMeshes = new .() ~ DeleteContainerAndItems!(_);
+	public List<SkinnedMesh> SkinnedMeshes = new .() ~ DeleteContainerAndItems!(_);
 
 	/// Imported skeletons.
-	public List<SkeletonResource> Skeletons = new .() ~ DeleteContainerAndItems!(_);
+	public List<Skeleton> Skeletons = new .() ~ DeleteContainerAndItems!(_);
 
-	/// Imported textures.
-	public List<TextureResource> Textures = new .() ~ DeleteContainerAndItems!(_);
+	/// Imported textures (pixel data + name).
+	public List<ImportedTexture> Textures = new .() ~ DeleteContainerAndItems!(_);
 
-	/// Imported materials (new Materials system).
-	public List<Sedulous.Materials.Resources.MaterialResource> Materials = new .() ~ DeleteContainerAndItems!(_);
+	/// Imported materials (PBR properties + texture references).
+	public List<ImportedMaterial> Materials = new .() ~ DeleteContainerAndItems!(_);
 
 	/// Imported animation clips.
-	public List<AnimationClipResource> Animations = new .() ~ DeleteContainerAndItems!(_);
+	public List<AnimationClip> Animations = new .() ~ DeleteContainerAndItems!(_);
 
 	/// Errors encountered during import.
 	public List<String> Errors = new .() ~ DeleteContainerAndItems!(_);
@@ -38,14 +38,9 @@ class ModelImportResult : IDisposable
 	public bool Success => Errors.Count == 0;
 
 	/// Total number of resources imported.
-	public int TotalResourceCount =>
+	public int TotalCount =>
 		StaticMeshes.Count + SkinnedMeshes.Count + Skeletons.Count +
 		Textures.Count + Materials.Count + Animations.Count;
-
-	public void Dispose()
-	{
-		// Resources are deleted by the ~ destructor attributes
-	}
 
 	/// Add an error message.
 	public void AddError(StringView message)
@@ -59,48 +54,8 @@ class ModelImportResult : IDisposable
 		Warnings.Add(new String(message));
 	}
 
-	/// Take ownership of a mesh resource (removes from this result).
-	public StaticMeshResource TakeStaticMesh(int index)
-	{
-		if (index < 0 || index >= StaticMeshes.Count)
-			return null;
-		let mesh = StaticMeshes[index];
-		StaticMeshes.RemoveAt(index);
-		return mesh;
-	}
-
-	/// Take ownership of a skinned mesh resource (removes from this result).
-	public SkinnedMeshResource TakeSkinnedMesh(int index)
-	{
-		if (index < 0 || index >= SkinnedMeshes.Count)
-			return null;
-		let mesh = SkinnedMeshes[index];
-		SkinnedMeshes.RemoveAt(index);
-		return mesh;
-	}
-
-	/// Take ownership of a skeleton resource (removes from this result).
-	public SkeletonResource TakeSkeleton(int index)
-	{
-		if (index < 0 || index >= Skeletons.Count)
-			return null;
-		let skeleton = Skeletons[index];
-		Skeletons.RemoveAt(index);
-		return skeleton;
-	}
-
-	/// Take ownership of a texture resource (removes from this result).
-	public TextureResource TakeTexture(int index)
-	{
-		if (index < 0 || index >= Textures.Count)
-			return null;
-		let texture = Textures[index];
-		Textures.RemoveAt(index);
-		return texture;
-	}
-
-	/// Find a mesh by name.
-	public StaticMeshResource FindStaticMesh(StringView name)
+	/// Find a static mesh by name.
+	public StaticMesh FindStaticMesh(StringView name)
 	{
 		for (let mesh in StaticMeshes)
 			if (mesh.Name == name)
@@ -109,7 +64,7 @@ class ModelImportResult : IDisposable
 	}
 
 	/// Find a skinned mesh by name.
-	public SkinnedMeshResource FindSkinnedMesh(StringView name)
+	public SkinnedMesh FindSkinnedMesh(StringView name)
 	{
 		for (let mesh in SkinnedMeshes)
 			if (mesh.Name == name)
@@ -118,7 +73,7 @@ class ModelImportResult : IDisposable
 	}
 
 	/// Find a skeleton by name.
-	public SkeletonResource FindSkeleton(StringView name)
+	public Skeleton FindSkeleton(StringView name)
 	{
 		for (let skeleton in Skeletons)
 			if (skeleton.Name == name)
@@ -127,7 +82,7 @@ class ModelImportResult : IDisposable
 	}
 
 	/// Find a texture by name.
-	public TextureResource FindTexture(StringView name)
+	public ImportedTexture FindTexture(StringView name)
 	{
 		for (let texture in Textures)
 			if (texture.Name == name)
@@ -135,18 +90,17 @@ class ModelImportResult : IDisposable
 		return null;
 	}
 
-	/// Take ownership of an animation resource (removes from this result).
-	public AnimationClipResource TakeAnimation(int index)
+	/// Find a material by name.
+	public ImportedMaterial FindMaterial(StringView name)
 	{
-		if (index < 0 || index >= Animations.Count)
-			return null;
-		let anim = Animations[index];
-		Animations.RemoveAt(index);
-		return anim;
+		for (let mat in Materials)
+			if (mat.Name == name)
+				return mat;
+		return null;
 	}
 
 	/// Find an animation by name.
-	public AnimationClipResource FindAnimation(StringView name)
+	public AnimationClip FindAnimation(StringView name)
 	{
 		for (let anim in Animations)
 			if (anim.Name == name)

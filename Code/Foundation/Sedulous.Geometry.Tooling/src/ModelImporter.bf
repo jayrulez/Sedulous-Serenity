@@ -6,9 +6,6 @@ using Sedulous.Geometry;
 using Sedulous.Models;
 using Sedulous.Imaging;
 using Sedulous.Animation;
-using Sedulous.Animation.Resources;
-using Sedulous.Geometry.Resources;
-using Sedulous.Resources;
 
 namespace Sedulous.Geometry.Tooling;
 
@@ -30,8 +27,8 @@ class ModelImporter
 
 	/// Import resources from a loaded model.
 	/// Order: Preprocess → Skeletons → Textures → Materials → StaticMeshes → SkinnedMeshes → Animations
-	/// Textures are imported before materials so materials can reference them via ResourceRef.
-	/// Skeletons are imported before skinned meshes so meshes can reference them via ResourceRef.
+	/// Textures are imported before materials so materials can reference them by index.
+	/// Skeletons are imported before skinned meshes so meshes can reference them by index.
 	public ModelImportResult Import(Model model)
 	{
 		let result = new ModelImportResult();
@@ -48,19 +45,19 @@ class ModelImporter
 		// 0b. Merge skins that share the same bone hierarchy into one
 		MergeRelatedSkins(model);
 
-		// 1. Skeletons first (needed by skinned meshes for SkeletonRef)
+		// 1. Skeletons first (needed by skinned meshes for SkeletonIndex)
 		if (mOptions.Flags.HasFlag(.Skeletons))
 		{
 			ImportSkeletons(model, result);
 		}
 
-		// 2. Textures (needed by materials for texture ResourceRefs)
+		// 2. Textures (needed by materials for texture index references)
 		if (mOptions.Flags.HasFlag(.Textures))
 		{
 			ImportTextures(model, result);
 		}
 
-		// 3. Materials (can now reference imported textures by GUID)
+		// 3. Materials (can now reference imported textures by index)
 		if (mOptions.Flags.HasFlag(.Materials))
 		{
 			ImportMaterials(model, result);
@@ -72,7 +69,7 @@ class ModelImporter
 			ImportStaticMeshes(model, result);
 		}
 
-		// 5. Skinned meshes (reference skeletons via SkeletonRef, no embedded data)
+		// 5. Skinned meshes (reference skeletons via SkeletonIndex)
 		if (mOptions.Flags.HasFlag(.SkinnedMeshes))
 		{
 			ImportSkinnedMeshes(model, result);
@@ -199,7 +196,7 @@ class ModelImporter
 
 	/// Merges skins that share the same bone hierarchy into the largest skin.
 	/// This ensures meshes skinned to different subsets of the same skeleton
-	/// (e.g., body + weapon) end up in one SkinnedMeshResource with one skeleton.
+	/// (e.g., body + weapon) end up in one SkinnedMesh with one skeleton.
 	private void MergeRelatedSkins(Model model)
 	{
 		if (model.Skins.Count <= 1)
@@ -308,7 +305,7 @@ class ModelImporter
 		{
 			let skin = model.Skins[skinIdx];
 
-	
+
 			// Check if this skin is a duplicate of an earlier one (same joint node indices)
 			int duplicateOf = -1;
 			for (int prevIdx = 0; prevIdx < skinIdx; prevIdx++)
@@ -351,9 +348,7 @@ class ModelImporter
 			let skeletonResultIdx = (int32)result.Skeletons.Count;
 			mSkinToSkeletonIdx.Add(skeletonResultIdx);
 
-			let skeletonRes = new SkeletonResource(skeleton, true);
-
-			// Generate name
+				// Generate name
 			let name = scope String();
 			if (skin.Joints.Count > 0 && skin.Joints[0] >= 0 && skin.Joints[0] < model.Bones.Count)
 			{
@@ -363,9 +358,9 @@ class ModelImporter
 			{
 				name.AppendF("skeleton_{}", skinIdx);
 			}
-			skeletonRes.Name.Set(name);
-	
-			result.Skeletons.Add(skeletonRes);
+			skeleton.Name.Set(name);
+
+			result.Skeletons.Add(skeleton);
 		}
 	}
 
@@ -419,9 +414,8 @@ class ModelImporter
 				delete m;
 		}
 
-		let meshRes = new StaticMeshResource(mergedMesh, true);
-		meshRes.Name.Set(firstName);
-		result.StaticMeshes.Add(meshRes);
+		mergedMesh.Name.Set(firstName);
+		result.StaticMeshes.Add(mergedMesh);
 	}
 
 	private void ImportSkinnedMeshes(Model model, ModelImportResult result)
@@ -524,22 +518,15 @@ class ModelImporter
 			{
 				Skeleton skeleton = null;
 				if (skeletonIdx >= 0 && skeletonIdx < result.Skeletons.Count)
-					skeleton = result.Skeletons[skeletonIdx].Skeleton;
+					skeleton = result.Skeletons[skeletonIdx];
 				RecenterSkinnedMesh(mergedMesh, skeleton);
 			}
 
-			let skinnedMeshRes = new SkinnedMeshResource(mergedMesh, true);
-			skinnedMeshRes.Name.Set(firstName);
+			mergedMesh.Name.Set(firstName);
+			// Store skeleton index so the application can link them
+			mergedMesh.SkeletonIndex = (int32)skeletonIdx;
 
-			// Link to skeleton
-			if (skeletonIdx < result.Skeletons.Count)
-			{
-				let skeletonRes = result.Skeletons[skeletonIdx];
-				skinnedMeshRes.SkeletonRef = ResourceRef(skeletonRes.Id, skeletonRes.Name);
-			}
-
-	
-			result.SkinnedMeshes.Add(skinnedMeshRes);
+			result.SkinnedMeshes.Add(mergedMesh);
 
 			delete nodeToBoneMapping;
 		}
@@ -666,8 +653,8 @@ class ModelImporter
 		{
 			let modelMat = model.Materials[matIdx];
 
-			// Create new MaterialResource (with texture ResourceRefs from imported textures)
-			let mat = MaterialConverter.ConvertToNew(modelMat, model, result.Textures);
+			// Convert to ImportedMaterial (PBR properties + texture references by index)
+			let mat = MaterialConverter.Convert(modelMat, model);
 			if (mat != null)
 				result.Materials.Add(mat);
 			else
@@ -693,8 +680,7 @@ class ModelImporter
 			let clip = AnimationConverter.Convert(modelAnim, nodeToBoneMapping);
 			if (clip != null)
 			{
-				let animRes = new AnimationClipResource(clip, true);
-				result.Animations.Add(animRes);
+				result.Animations.Add(clip);
 			}
 			else
 			{

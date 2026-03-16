@@ -7,6 +7,9 @@ using Sedulous.Core.Mathematics;
 /// Represents a skeletal hierarchy used for animation.
 public class Skeleton
 {
+	/// Optional name (for debugging/import).
+	public String Name = new .() ~ delete _;
+
 	/// All bones in the skeleton, indexed by bone index.
 	public Bone[] Bones ~ DeleteContainerAndItems!(_);
 

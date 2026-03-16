@@ -7,12 +7,15 @@ using Sedulous.OpenDDL;
 using Sedulous.Core.Mathematics;
 using Sedulous.Geometry;
 using Sedulous.Imaging;
+using Sedulous.Animation;
 using Sedulous.Animation.Resources;
 using Sedulous.Geometry.Resources;
 using Sedulous.Textures.Resources;
 using Sedulous.Materials.Resources;
+using Sedulous.Resources;
+using Sedulous.Geometry.Tooling;
 
-namespace Sedulous.Geometry.Tooling;
+namespace Sedulous.Geometry.Tooling.Resources;
 
 /// Resource file type identifiers.
 /// These match the FileType constants in each resource class.
@@ -30,8 +33,7 @@ enum ResourceFileType
 }
 
 /// Serializes and deserializes renderer resources to/from files.
-/// Note: Each resource class now has its own SaveToFile/LoadFromFile methods.
-/// This class provides batch operations and compatibility wrappers.
+/// Converts ModelImportResult (plain data types) to resources, then saves.
 static class ResourceSerializer
 {
 	public const int32 CurrentVersion = 1;
@@ -86,13 +88,13 @@ static class ResourceSerializer
 		return AnimationClipResource.LoadFromFile(path);
 	}
 
-	/// Save a MaterialResource to a file (new Materials system). Delegates to MaterialResource.SaveToFile.
+	/// Save a MaterialResource to a file. Delegates to MaterialResource.SaveToFile.
 	public static Result<void> SaveMaterial(MaterialResource material, StringView path)
 	{
 		return material?.SaveToFile(path) ?? .Err;
 	}
 
-	/// Load a MaterialResource from a file (new Materials system). Delegates to MaterialResource.LoadFromFile.
+	/// Load a MaterialResource from a file. Delegates to MaterialResource.LoadFromFile.
 	public static Result<MaterialResource> LoadMaterial(StringView path)
 	{
 		return MaterialResource.LoadFromFile(path);
@@ -112,8 +114,9 @@ static class ResourceSerializer
 
 	// ===== Batch operations =====
 
-	/// Save all resources from an import result to a directory.
-	public static Result<void> SaveImportResult(ModelImportResult result, StringView outputDir)
+	/// Save all resources from a ResourceImportResult to a directory.
+	/// Use this when you already have a ResourceImportResult (e.g., from ConvertFrom).
+	public static Result<void> SaveImportResult(ResourceImportResult result, StringView outputDir)
 	{
 		// Ensure directory exists
 		if (!Directory.Exists(outputDir))
@@ -122,7 +125,25 @@ static class ResourceSerializer
 				return .Err;
 		}
 
-		// Save meshes
+		// Save textures
+		for (let tex in result.Textures)
+		{
+			let path = scope String();
+			path.AppendF("{}/{}.texture", outputDir, tex.Name);
+			SanitizePath(path);
+			SaveTexture(tex, path);
+		}
+
+		// Save materials
+		for (let mat in result.Materials)
+		{
+			let path = scope String();
+			path.AppendF("{}/{}.material", outputDir, mat.Name);
+			SanitizePath(path);
+			SaveMaterial(mat, path);
+		}
+
+		// Save static meshes
 		for (let mesh in result.StaticMeshes)
 		{
 			let path = scope String();
@@ -131,7 +152,7 @@ static class ResourceSerializer
 			SaveStaticMesh(mesh, path);
 		}
 
-		// Save skinned meshes (as bundles)
+		// Save skinned meshes
 		for (let mesh in result.SkinnedMeshes)
 		{
 			let path = scope String();
@@ -140,31 +161,13 @@ static class ResourceSerializer
 			SaveSkinnedMesh(mesh, path);
 		}
 
-		// Save standalone skeletons
+		// Save skeletons
 		for (let skeleton in result.Skeletons)
 		{
 			let path = scope String();
 			path.AppendF("{}/{}.skeleton", outputDir, skeleton.Name);
 			SanitizePath(path);
 			SaveSkeleton(skeleton, path);
-		}
-
-		// Save new materials
-		for (let material in result.Materials)
-		{
-			let path = scope String();
-			path.AppendF("{}/{}.material", outputDir, material.Name);
-			SanitizePath(path);
-			SaveMaterial(material, path);
-		}
-
-		// Save textures
-		for (let texture in result.Textures)
-		{
-			let path = scope String();
-			path.AppendF("{}/{}.texture", outputDir, texture.Name);
-			SanitizePath(path);
-			SaveTexture(texture, path);
 		}
 
 		// Save animations
@@ -177,6 +180,22 @@ static class ResourceSerializer
 		}
 
 		return .Ok;
+	}
+
+	/// Save all resources from a plain ModelImportResult to a directory.
+	/// Converts plain data → resources, saves to disk, and returns the ResourceImportResult
+	/// (caller takes ownership — needed for registry building with GUIDs).
+	public static Result<ResourceImportResult> SaveImportResult(ModelImportResult result, StringView outputDir)
+	{
+		let resourceResult = ResourceImportResult.ConvertFrom(result);
+
+		if (SaveImportResult(resourceResult, outputDir) case .Err)
+		{
+			delete resourceResult;
+			return .Err;
+		}
+
+		return .Ok(resourceResult);
 	}
 
 	public static void SanitizePath(String path)

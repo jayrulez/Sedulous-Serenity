@@ -13,7 +13,6 @@ using Sedulous.Materials;
 using Sedulous.Models;
 using Sedulous.Models.GLTF;
 using Sedulous.Imaging;
-using Sedulous.Textures.Resources;
 using Sedulous.Animation;
 
 /// Skeletal animation sample demonstrating GLTF skinned mesh loading,
@@ -185,7 +184,7 @@ class RenderSkinnedApp : Application
 			mImportResult.Animations.Count, mImportResult.Textures.Count);
 
 		// Upload skinned mesh
-		let skinnedMesh = mImportResult.SkinnedMeshes[0].Mesh;
+		let skinnedMesh = mImportResult.SkinnedMeshes[0];
 		if (mRenderSystem.ResourceManager.UploadMesh(skinnedMesh) case .Ok(let gpuHandle))
 			mMeshHandle = gpuHandle;
 		else
@@ -197,7 +196,7 @@ class RenderSkinnedApp : Application
 		// Get skeleton and create animation player
 		if (mImportResult.Skeletons.Count > 0)
 		{
-			mSkeleton = mImportResult.Skeletons[0].Skeleton;
+			mSkeleton = mImportResult.Skeletons[0];
 			mPlayer = new AnimationPlayer(mSkeleton);
 
 			let boneCount = (uint16)mSkeleton.BoneCount;
@@ -208,7 +207,7 @@ class RenderSkinnedApp : Application
 		// Upload texture from import result
 		if (mImportResult.Textures.Count > 0)
 		{
-			let image = mImportResult.Textures[0].Image;
+			let image = mImportResult.Textures[0].PixelData;
 			if (image != null && image.Width > 0 && image.Height > 0)
 			{
 				Console.WriteLine("  Texture: {}x{} ({})", image.Width, image.Height, image.Format);
@@ -243,7 +242,7 @@ class RenderSkinnedApp : Application
 		// Play first animation
 		if (mImportResult.Animations.Count > 0 && mPlayer != null)
 		{
-			let clip = mImportResult.Animations[0].Clip;
+			let clip = mImportResult.Animations[0];
 			clip.IsLooping = true;
 			mPlayer.Play(clip);
 			Console.WriteLine("  Playing: {}", clip.Name);
@@ -302,7 +301,7 @@ class RenderSkinnedApp : Application
 			}
 			if (changed)
 			{
-				let clip = mImportResult.Animations[mCurrentClip].Clip;
+				let clip = mImportResult.Animations[mCurrentClip];
 				clip.IsLooping = true;
 				mPlayer.Play(clip);
 				Console.WriteLine("Playing: {} ({})", clip.Name, mCurrentClip);

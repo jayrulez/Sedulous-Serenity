@@ -8,12 +8,10 @@ using Sedulous.Runtime.Client;
 using Sedulous.Render;
 using Sedulous.Geometry;
 using Sedulous.Geometry.Tooling;
-using Sedulous.Geometry.Resources;
 using Sedulous.Materials;
 using Sedulous.Models;
 using Sedulous.Models.GLTF;
 using Sedulous.Imaging;
-using Sedulous.Textures.Resources;
 
 /// Static mesh sample demonstrating GLTF model loading, texture application,
 /// and PBR rendering via the Sedulous.Render pipeline.
@@ -155,7 +153,7 @@ class RenderStaticMeshApp : Application
 		// Upload mesh from import result
 		if (mImportResult.StaticMeshes.Count > 0)
 		{
-			let staticMesh = mImportResult.StaticMeshes[0].Mesh;
+			let staticMesh = mImportResult.StaticMeshes[0];
 			if (mRenderSystem.ResourceManager.UploadMesh(staticMesh) case .Ok(let handle))
 			{
 				mMeshHandle = handle;
@@ -177,7 +175,7 @@ class RenderStaticMeshApp : Application
 			return;
 
 		let texResource = mImportResult.Textures[0];
-		let image = texResource.Image;
+		let image = texResource.PixelData;
 		if (image == null || image.Width == 0 || image.Height == 0)
 			return;
 

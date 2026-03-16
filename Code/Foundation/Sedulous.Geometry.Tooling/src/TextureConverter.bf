@@ -1,18 +1,16 @@
 using System;
+using System.IO;
 using Sedulous.Models;
 using Sedulous.Imaging;
-using System.IO;
-using System.IO;
-using Sedulous.Textures.Resources;
 
 namespace Sedulous.Geometry.Tooling;
 
-/// Converts ModelTexture to TextureResource.
+/// Converts ModelTexture to ImportedTexture.
 static class TextureConverter
 {
-	/// Creates a TextureResource from a ModelTexture.
+	/// Creates an ImportedTexture from a ModelTexture with embedded data.
 	/// Returns null if the texture has no valid data.
-	public static TextureResource Convert(ModelTexture modelTexture)
+	public static ImportedTexture Convert(ModelTexture modelTexture)
 	{
 		if (modelTexture == null)
 			return null;
@@ -33,16 +31,14 @@ static class TextureConverter
 		if (image == null)
 			return null;
 
-		let textureRes = new TextureResource(image, true);
-		SetTextureName(textureRes, modelTexture);
-		textureRes.SetupFor3D();
-
-		return textureRes;
+		let result = new ImportedTexture();
+		result.PixelData = image;
+		SetName(result, modelTexture);
+		return result;
 	}
 
-	/// Creates a TextureResource from a ModelTexture with fallback to file loading.
-	/// Uses the provided ImageLoader for external textures.
-	public static TextureResource Convert(ModelTexture modelTexture, StringView basePath)
+	/// Creates an ImportedTexture with fallback to file loading via ImageLoaderFactory.
+	public static ImportedTexture Convert(ModelTexture modelTexture, StringView basePath)
 	{
 		if (modelTexture == null)
 			return null;
@@ -62,7 +58,7 @@ static class TextureConverter
 		// Fallback to loading from file if we have a URI
 		else if (!modelTexture.Uri.IsEmpty)
 		{
-			let fullPath = scope $"{Directory.GetCurrentDirectory(.. scope .())}/";
+			let fullPath = scope String();
 			if (!basePath.IsEmpty)
 			{
 				fullPath.Append(basePath);
@@ -73,32 +69,29 @@ static class TextureConverter
 			fullPath.Replace('/', Path.DirectorySeparatorChar);
 
 			if (ImageLoaderFactory.LoadImage(fullPath) case .Ok(var loadedImage))
-			{
 				image = loadedImage;
-			}
 		}
 
 		if (image == null)
 			return null;
 
-		let textureRes = new TextureResource(image, true);
-		SetTextureName(textureRes, modelTexture);
-		textureRes.SetupFor3D();
-
-		return textureRes;
+		let result = new ImportedTexture();
+		result.PixelData = image;
+		SetName(result, modelTexture);
+		return result;
 	}
 
 	/// Sets the texture resource name from the model texture, stripping file extensions
 	/// since the saved resource contains raw pixel data, not the original image format.
-	private static void SetTextureName(TextureResource textureRes, ModelTexture modelTexture)
+	private static void SetName(ImportedTexture tex, ModelTexture modelTexture)
 	{
 		let rawName = modelTexture.Name.IsEmpty ? StringView(modelTexture.Uri) : StringView(modelTexture.Name);
 		// Strip file extension (e.g., "Texture.png" → "Texture")
 		let dotIdx = rawName.LastIndexOf('.');
 		if (dotIdx > 0)
-			textureRes.Name.Set(rawName[0..<dotIdx]);
+			tex.Name.Set(rawName[0..<dotIdx]);
 		else
-			textureRes.Name.Set(rawName);
+			tex.Name.Set(rawName);
 	}
 
 	/// Converts TexturePixelFormat to Image.PixelFormat.

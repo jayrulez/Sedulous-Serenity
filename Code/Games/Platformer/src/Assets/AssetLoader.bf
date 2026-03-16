@@ -11,6 +11,7 @@ using Sedulous.Materials.Resources;
 using Sedulous.Models;
 using Sedulous.Models.GLTF;
 using Sedulous.Geometry.Tooling;
+using Sedulous.Geometry.Tooling.Resources;
 using Sedulous.Resources;
 using Sedulous.Core.Logging.Abstractions;
 using Sedulous.Runtime;
@@ -395,66 +396,71 @@ class AssetLoader
 		modelCacheDir.AppendF("{}/{}", cacheBase, key);
 		Directory.CreateDirectory(modelCacheDir);
 
-		if (ResourceSerializer.SaveImportResult(result, modelCacheDir) case .Err)
+		switch (ResourceSerializer.SaveImportResult(result, modelCacheDir))
 		{
+		case .Err:
 			mLogger?.LogError("Failed to cache: {}", key);
 			return;
-		}
-
-		// Register resources and store entry
-		let materialRefs = new List<ResourceRef>();
-
-		for (let texture in result.Textures)
-			RegisterResource(texture, modelCacheDir, "texture");
-
-		for (let material in result.Materials)
+		case .Ok(let resourceResult):
 		{
-			RegisterResource(material, modelCacheDir, "material");
-			let matPath = scope String();
-			matPath.AppendF("{}/{}.material", modelCacheDir, material.Name);
-			ResourceSerializer.SanitizePath(matPath);
-			materialRefs.Add(ResourceRef(material.Id, matPath));
-		}
+			// Register resources and store entry
+			let materialRefs = new List<ResourceRef>();
 
-		Guid meshId = .();
-		String meshPath = null;
+			for (let texture in resourceResult.Textures)
+				RegisterResource(texture, modelCacheDir, "texture");
 
-		for (let mesh in result.StaticMeshes)
-		{
-			RegisterResource(mesh, modelCacheDir, "mesh");
-			if (meshPath == null)
+			for (let material in resourceResult.Materials)
 			{
-				meshPath = new String();
-				meshPath.AppendF("{}/{}.mesh", modelCacheDir, mesh.Name);
-				ResourceSerializer.SanitizePath(meshPath);
-				meshId = mesh.Id;
+				RegisterResource(material, modelCacheDir, "material");
+				let matPath = scope String();
+				matPath.AppendF("{}/{}.material", modelCacheDir, material.Name);
+				ResourceSerializer.SanitizePath(matPath);
+				materialRefs.Add(ResourceRef(material.Id, matPath));
 			}
-		}
 
-		if (meshPath != null)
-		{
-			// Save manifest to preserve resource ordering
-			let manifest = scope String();
-			manifest.AppendF("type=static\nmesh={}\n", result.StaticMeshes[0].Name);
-			for (let mat in result.Materials)
-				manifest.AppendF("material={}\n", mat.Name);
-			WriteManifest(modelCacheDir, manifest);
+			Guid meshId = .();
+			String meshPath = null;
 
-			let storedKey = new String(key);
-			mMeshEntries[storedKey] = .()
+			for (let mesh in resourceResult.StaticMeshes)
 			{
-				MeshId = meshId,
-				MeshPath = meshPath,
-				MaterialRefs = materialRefs
-			};
-			mLogger?.LogDebug("Imported: {} ({} meshes, {} materials)", key, result.StaticMeshes.Count, result.Materials.Count);
+				RegisterResource(mesh, modelCacheDir, "mesh");
+				if (meshPath == null)
+				{
+					meshPath = new String();
+					meshPath.AppendF("{}/{}.mesh", modelCacheDir, mesh.Name);
+					ResourceSerializer.SanitizePath(meshPath);
+					meshId = mesh.Id;
+				}
+			}
+
+			if (meshPath != null)
+			{
+				// Save manifest to preserve resource ordering
+				let manifest = scope String();
+				manifest.AppendF("type=static\nmesh={}\n", result.StaticMeshes[0].Name);
+				for (let mat in result.Materials)
+					manifest.AppendF("material={}\n", mat.Name);
+				WriteManifest(modelCacheDir, manifest);
+
+				let storedKey = new String(key);
+				mMeshEntries[storedKey] = .()
+				{
+					MeshId = meshId,
+					MeshPath = meshPath,
+					MaterialRefs = materialRefs
+				};
+				mLogger?.LogDebug("Imported: {} ({} meshes, {} materials)", key, result.StaticMeshes.Count, result.Materials.Count);
+			}
+			else
+			{
+				for (var r in materialRefs)
+					r.Dispose();
+				delete materialRefs;
+				mLogger?.LogWarning("No static meshes in: {}", key);
+			}
+
+			delete resourceResult;
 		}
-		else
-		{
-			for (var r in materialRefs)
-				r.Dispose();
-			delete materialRefs;
-			mLogger?.LogWarning("No static meshes in: {}", key);
 		}
 	}
 
@@ -497,102 +503,107 @@ class AssetLoader
 		modelCacheDir.AppendF("{}/{}", cacheBase, key);
 		Directory.CreateDirectory(modelCacheDir);
 
-		if (ResourceSerializer.SaveImportResult(result, modelCacheDir) case .Err)
+		switch (ResourceSerializer.SaveImportResult(result, modelCacheDir))
 		{
+		case .Err:
 			mLogger?.LogError("Failed to cache skinned: {}", key);
 			return;
-		}
-
-		let materialRefs = new List<ResourceRef>();
-		let animationRefs = new List<ResourceRef>();
-
-		for (let texture in result.Textures)
-			RegisterResource(texture, modelCacheDir, "texture");
-
-		for (let material in result.Materials)
+		case .Ok(let resourceResult):
 		{
-			RegisterResource(material, modelCacheDir, "material");
-			let matPath = scope String();
-			matPath.AppendF("{}/{}.material", modelCacheDir, material.Name);
-			ResourceSerializer.SanitizePath(matPath);
-			materialRefs.Add(ResourceRef(material.Id, matPath));
-		}
+			let materialRefs = new List<ResourceRef>();
+			let animationRefs = new List<ResourceRef>();
 
-		// Register skeletons
-		Guid skeletonId = .();
-		String skeletonPath = null;
-		for (let skeleton in result.Skeletons)
-		{
-			RegisterResource(skeleton, modelCacheDir, "skeleton");
-			if (skeletonPath == null)
+			for (let texture in resourceResult.Textures)
+				RegisterResource(texture, modelCacheDir, "texture");
+
+			for (let material in resourceResult.Materials)
 			{
-				skeletonPath = new String();
-				skeletonPath.AppendF("{}/{}.skeleton", modelCacheDir, skeleton.Name);
-				ResourceSerializer.SanitizePath(skeletonPath);
-				skeletonId = skeleton.Id;
+				RegisterResource(material, modelCacheDir, "material");
+				let matPath = scope String();
+				matPath.AppendF("{}/{}.material", modelCacheDir, material.Name);
+				ResourceSerializer.SanitizePath(matPath);
+				materialRefs.Add(ResourceRef(material.Id, matPath));
 			}
-		}
 
-		// Register animations
-		for (let animation in result.Animations)
-		{
-			RegisterResource(animation, modelCacheDir, "animation");
-			let animPath = scope String();
-			animPath.AppendF("{}/{}.animation", modelCacheDir, animation.Name);
-			ResourceSerializer.SanitizePath(animPath);
-			animationRefs.Add(ResourceRef(animation.Id, animPath));
-		}
-
-		// Register skinned meshes
-		Guid meshId = .();
-		String meshPath = null;
-		for (let mesh in result.SkinnedMeshes)
-		{
-			RegisterResource(mesh, modelCacheDir, "skinnedmesh");
-			if (meshPath == null)
+			// Register skeletons
+			Guid skeletonId = .();
+			String skeletonPath = null;
+			for (let skeleton in resourceResult.Skeletons)
 			{
-				meshPath = new String();
-				meshPath.AppendF("{}/{}.skinnedmesh", modelCacheDir, mesh.Name);
-				ResourceSerializer.SanitizePath(meshPath);
-				meshId = mesh.Id;
+				RegisterResource(skeleton, modelCacheDir, "skeleton");
+				if (skeletonPath == null)
+				{
+					skeletonPath = new String();
+					skeletonPath.AppendF("{}/{}.skeleton", modelCacheDir, skeleton.Name);
+					ResourceSerializer.SanitizePath(skeletonPath);
+					skeletonId = skeleton.Id;
+				}
 			}
-		}
 
-		if (meshPath != null)
-		{
-			// Save manifest to preserve resource ordering
-			let manifest = scope String();
-			manifest.AppendF("type=skinned\nmesh={}\n", result.SkinnedMeshes[0].Name);
-			if (result.Skeletons.Count > 0)
-				manifest.AppendF("skeleton={}\n", result.Skeletons[0].Name);
-			for (let mat in result.Materials)
-				manifest.AppendF("material={}\n", mat.Name);
-			for (let anim in result.Animations)
-				manifest.AppendF("animation={}\n", anim.Name);
-			WriteManifest(modelCacheDir, manifest);
-
-			let storedKey = new String(key);
-			mSkinnedEntries[storedKey] = .()
+			// Register animations
+			for (let animation in resourceResult.Animations)
 			{
-				MeshId = meshId,
-				MeshPath = meshPath,
-				MaterialRefs = materialRefs,
-				SkeletonId = skeletonId,
-				SkeletonPath = skeletonPath,
-				AnimationRefs = animationRefs
-			};
-			mLogger?.LogDebug("Imported skinned: {} ({} meshes, {} skeletons, {} animations)", key, result.SkinnedMeshes.Count, result.Skeletons.Count, result.Animations.Count);
+				RegisterResource(animation, modelCacheDir, "animation");
+				let animPath = scope String();
+				animPath.AppendF("{}/{}.animation", modelCacheDir, animation.Name);
+				ResourceSerializer.SanitizePath(animPath);
+				animationRefs.Add(ResourceRef(animation.Id, animPath));
+			}
+
+			// Register skinned meshes
+			Guid meshId = .();
+			String meshPath = null;
+			for (let mesh in resourceResult.SkinnedMeshes)
+			{
+				RegisterResource(mesh, modelCacheDir, "skinnedmesh");
+				if (meshPath == null)
+				{
+					meshPath = new String();
+					meshPath.AppendF("{}/{}.skinnedmesh", modelCacheDir, mesh.Name);
+					ResourceSerializer.SanitizePath(meshPath);
+					meshId = mesh.Id;
+				}
+			}
+
+			if (meshPath != null)
+			{
+				// Save manifest to preserve resource ordering (uses plain result names)
+				let manifest = scope String();
+				manifest.AppendF("type=skinned\nmesh={}\n", result.SkinnedMeshes[0].Name);
+				if (result.Skeletons.Count > 0)
+					manifest.AppendF("skeleton={}\n", result.Skeletons[0].Name);
+				for (let mat in result.Materials)
+					manifest.AppendF("material={}\n", mat.Name);
+				for (let anim in result.Animations)
+					manifest.AppendF("animation={}\n", anim.Name);
+				WriteManifest(modelCacheDir, manifest);
+
+				let storedKey = new String(key);
+				mSkinnedEntries[storedKey] = .()
+				{
+					MeshId = meshId,
+					MeshPath = meshPath,
+					MaterialRefs = materialRefs,
+					SkeletonId = skeletonId,
+					SkeletonPath = skeletonPath,
+					AnimationRefs = animationRefs
+				};
+				mLogger?.LogDebug("Imported skinned: {} ({} meshes, {} skeletons, {} animations)", key, result.SkinnedMeshes.Count, result.Skeletons.Count, result.Animations.Count);
+			}
+			else
+			{
+				delete skeletonPath;
+				for (var r in materialRefs)
+					r.Dispose();
+				delete materialRefs;
+				for (var r in animationRefs)
+					r.Dispose();
+				delete animationRefs;
+				mLogger?.LogWarning("No skinned meshes in: {}", key);
+			}
+
+			delete resourceResult;
 		}
-		else
-		{
-			delete skeletonPath;
-			for (var r in materialRefs)
-				r.Dispose();
-			delete materialRefs;
-			for (var r in animationRefs)
-				r.Dispose();
-			delete animationRefs;
-			mLogger?.LogWarning("No skinned meshes in: {}", key);
 		}
 	}
 

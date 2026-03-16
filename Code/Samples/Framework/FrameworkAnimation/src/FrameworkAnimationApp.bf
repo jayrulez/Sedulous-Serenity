@@ -16,6 +16,7 @@ using Sedulous.Render;
 using Sedulous.Geometry;
 using Sedulous.Geometry.Resources;
 using Sedulous.Geometry.Tooling;
+using Sedulous.Geometry.Tooling.Resources;
 using Sedulous.Models;
 using Sedulous.Models.GLTF;
 using Sedulous.Resources;
@@ -309,56 +310,61 @@ class FrameworkAnimationApp : Application
 		Directory.CreateDirectory(cacheDir);
 		Directory.CreateDirectory(modelCacheDir);
 
-		if (ResourceSerializer.SaveImportResult(result, modelCacheDir) case .Err)
+		switch (ResourceSerializer.SaveImportResult(result, modelCacheDir))
 		{
+		case .Err:
 			Console.WriteLine("ERROR: Failed to cache import");
 			return;
-		}
-
-		// Register resources
-		for (let texture in result.Textures)
-			RegisterResource(texture, modelCacheDir, "texture");
-
-		for (let material in result.Materials)
+		case .Ok(let resourceResult):
 		{
-			RegisterResource(material, modelCacheDir, "material");
-			let matPath = scope String();
-			matPath.AppendF("{}/{}.material", modelCacheDir, material.Name);
-			ResourceSerializer.SanitizePath(matPath);
-			mMaterialRefs.Add(ResourceRef(material.Id, matPath));
-		}
+			// Register resources using the resource result (has GUIDs)
+			for (let texture in resourceResult.Textures)
+				RegisterResource(texture, modelCacheDir, "texture");
 
-		for (let skeleton in result.Skeletons)
-		{
-			RegisterResource(skeleton, modelCacheDir, "skeleton");
-			if (mSkeletonPath == null)
+			for (let material in resourceResult.Materials)
 			{
-				mSkeletonPath = new String();
-				mSkeletonPath.AppendF("{}/{}.skeleton", modelCacheDir, skeleton.Name);
-				ResourceSerializer.SanitizePath(mSkeletonPath);
-				mSkeletonId = skeleton.Id;
+				RegisterResource(material, modelCacheDir, "material");
+				let matPath = scope String();
+				matPath.AppendF("{}/{}.material", modelCacheDir, material.Name);
+				ResourceSerializer.SanitizePath(matPath);
+				mMaterialRefs.Add(ResourceRef(material.Id, matPath));
 			}
-		}
 
-		for (let animation in result.Animations)
-		{
-			RegisterResource(animation, modelCacheDir, "animation");
-			let animPath = scope String();
-			animPath.AppendF("{}/{}.animation", modelCacheDir, animation.Name);
-			ResourceSerializer.SanitizePath(animPath);
-			mAnimationRefs.Add(ResourceRef(animation.Id, animPath));
-		}
-
-		for (let mesh in result.SkinnedMeshes)
-		{
-			RegisterResource(mesh, modelCacheDir, "skinnedmesh");
-			if (mSkinnedMeshPath == null)
+			for (let skeleton in resourceResult.Skeletons)
 			{
-				mSkinnedMeshPath = new String();
-				mSkinnedMeshPath.AppendF("{}/{}.skinnedmesh", modelCacheDir, mesh.Name);
-				ResourceSerializer.SanitizePath(mSkinnedMeshPath);
-				mSkinnedMeshId = mesh.Id;
+				RegisterResource(skeleton, modelCacheDir, "skeleton");
+				if (mSkeletonPath == null)
+				{
+					mSkeletonPath = new String();
+					mSkeletonPath.AppendF("{}/{}.skeleton", modelCacheDir, skeleton.Name);
+					ResourceSerializer.SanitizePath(mSkeletonPath);
+					mSkeletonId = skeleton.Id;
+				}
 			}
+
+			for (let animation in resourceResult.Animations)
+			{
+				RegisterResource(animation, modelCacheDir, "animation");
+				let animPath = scope String();
+				animPath.AppendF("{}/{}.animation", modelCacheDir, animation.Name);
+				ResourceSerializer.SanitizePath(animPath);
+				mAnimationRefs.Add(ResourceRef(animation.Id, animPath));
+			}
+
+			for (let mesh in resourceResult.SkinnedMeshes)
+			{
+				RegisterResource(mesh, modelCacheDir, "skinnedmesh");
+				if (mSkinnedMeshPath == null)
+				{
+					mSkinnedMeshPath = new String();
+					mSkinnedMeshPath.AppendF("{}/{}.skinnedmesh", modelCacheDir, mesh.Name);
+					ResourceSerializer.SanitizePath(mSkinnedMeshPath);
+					mSkinnedMeshId = mesh.Id;
+				}
+			}
+
+			delete resourceResult;
+		}
 		}
 
 		// Save registry

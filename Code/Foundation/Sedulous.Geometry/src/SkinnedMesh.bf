@@ -43,6 +43,10 @@ public struct SkinnedVertex
 /// Mesh with skinning data for skeletal animation
 public class SkinnedMesh
 {
+	/// Optional name (for debugging/import).
+	public String Name = new .() ~ delete _;
+	/// Index into the import result's skeleton list (-1 = none).
+	public int32 SkeletonIndex = -1;
 	private List<SkinnedVertex> mVertices ~ delete _;
 	private IndexBuffer mIndices ~ delete _;
 	private List<SubMesh> mSubMeshes ~ delete _;

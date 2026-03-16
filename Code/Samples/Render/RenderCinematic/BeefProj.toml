@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Render" = "*", "Sedulous.Geometry" = "*", "Sedulous.Geometry.Tooling" = "*", "Sedulous.Models.GLTF" = "*", "Sedulous.Imaging" = "*", "Sedulous.Imaging.SDL" = "*", "Sedulous.Runtime.Client" = "*", "Sedulous.GUI" = "*", "Sedulous.GUI.Runtime" = "*", "Sedulous.Fonts" = "*"}
+Dependencies = {corlib = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Render" = "*", "Sedulous.Geometry" = "*", "Sedulous.Geometry.Tooling" = "*", "Sedulous.Geometry.Tooling.Resources" = "*", "Sedulous.Models.GLTF" = "*", "Sedulous.Imaging" = "*", "Sedulous.Imaging.SDL" = "*", "Sedulous.Runtime.Client" = "*", "Sedulous.GUI" = "*", "Sedulous.GUI.Runtime" = "*", "Sedulous.Fonts" = "*"}
 
 [Project]
 Name = "RenderCinematic"

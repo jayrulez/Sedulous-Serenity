@@ -36,6 +36,8 @@ public struct StaticMeshVertex
 /// Mesh
 public class StaticMesh
 {
+	/// Optional name (for debugging/import).
+	public String Name = new .() ~ delete _;
 	private List<StaticMeshVertex> mVertices ~ delete _;
 	private IndexBuffer mIndices ~ delete _;
 	private List<SubMesh> mSubMeshes ~ delete _;

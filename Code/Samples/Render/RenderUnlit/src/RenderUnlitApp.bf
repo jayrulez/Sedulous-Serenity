@@ -277,8 +277,8 @@ class RenderUnlitApp : Application
 			return;
 		}
 
-		mSkeleton = mFoxImportResult.Skeletons[0].Skeleton;
-		let skinnedMesh = mFoxImportResult.SkinnedMeshes[0].Mesh;
+		mSkeleton = mFoxImportResult.Skeletons[0];
+		let skinnedMesh = mFoxImportResult.SkinnedMeshes[0];
 
 		if (mRenderSystem.ResourceManager.UploadMesh(skinnedMesh) case .Ok(let gpuHandle))
 		{
@@ -287,7 +287,7 @@ class RenderUnlitApp : Application
 
 			// Upload texture from import result
 			if (mFoxImportResult.Textures.Count > 0)
-				if (let image = mFoxImportResult.Textures[0].Image)
+				if (let image = mFoxImportResult.Textures[0].PixelData)
 					if (mRenderSystem.ResourceManager.UploadTexture(TextureData.FromImage(image)) case .Ok(let texHandle))
 						mFoxTextureHandle = texHandle;
 
@@ -370,7 +370,7 @@ class RenderUnlitApp : Application
 					if (clips.Count > 0)
 					{
 						int clipIndex = Math.Min(f, clips.Count - 1);
-						let clip = clips[clipIndex].Clip;
+						let clip = clips[clipIndex];
 						clip.IsLooping = true;
 						mPlayers[f].Play(clip);
 					}

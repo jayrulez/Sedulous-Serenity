@@ -17,6 +17,7 @@ using Sedulous.Models;
 using Sedulous.Models.GLTF;
 using Sedulous.Imaging;
 using Sedulous.Textures.Resources;
+using Sedulous.Geometry.Tooling.Resources;
 using Sedulous.GUI;
 using Sedulous.GUI.Runtime;
 using Sedulous.Fonts;
@@ -58,6 +59,7 @@ class RenderScreenEffectsApp : Application
 			mat?.ReleaseRef();
 		delete _;
 	};
+	private List<MaterialResource> mMaterialResources = new .() ~ DeleteContainerAndItems!(_);
 
 	// Lighting
 	private LightProxyHandle mSunLight = .Invalid;
@@ -549,7 +551,7 @@ class RenderScreenEffectsApp : Application
 	{
 		for (let texResource in mImportResult.Textures)
 		{
-			let image = texResource.Image;
+			let image = texResource.PixelData;
 			if (image == null || image.Width == 0 || image.Height == 0)
 			{
 				mTextureHandles.Add(.Invalid);
@@ -571,10 +573,31 @@ class RenderScreenEffectsApp : Application
 		let fallbackMaterial = mRenderSystem.MaterialSystem?.DefaultMaterial;
 		let materialSystem = mRenderSystem.MaterialSystem;
 
-		for (let matResource in mImportResult.Materials)
+		// Create temporary TextureResource list for MaterialResourceConverter
+		let tempTexResources = scope List<TextureResource>();
+		for (let tex in mImportResult.Textures)
 		{
-			// Use the imported material (has correct ShaderFlags: NormalMap, Emissive, etc.)
-			// Fall back to default material if the imported one is invalid
+			let texRes = new TextureResource();
+			texRes.Name.Set(tex.Name);
+			tempTexResources.Add(texRes);
+		}
+		defer { for (let t in tempTexResources) delete t; }
+
+		for (let importedMat in mImportResult.Materials)
+		{
+			// Convert ImportedMaterial to MaterialResource via converter
+			let matResource = MaterialResourceConverter.Convert(importedMat, tempTexResources);
+
+			if (matResource == null)
+			{
+				mMaterialInstances.Add(null);
+				continue;
+			}
+
+			mMaterialResources.Add(matResource);
+
+			// Use the converted material (has correct ShaderFlags: NormalMap, Emissive, etc.)
+			// Fall back to default material if the converted one is invalid
 			let baseMat = (matResource.Material != null && matResource.Material.IsValid)
 				? matResource.Material : fallbackMaterial;
 
@@ -669,9 +692,8 @@ class RenderScreenEffectsApp : Application
 	{
 		let defaultMaterial = mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
 
-		for (let meshResource in mImportResult.StaticMeshes)
+		for (let staticMesh in mImportResult.StaticMeshes)
 		{
-			let staticMesh = meshResource.Mesh;
 			if (staticMesh == null) continue;
 
 			if (mRenderSystem.ResourceManager.UploadMesh(staticMesh) case .Ok(let meshHandle))
@@ -772,7 +794,7 @@ class RenderScreenEffectsApp : Application
 		int texStartIdx = mTextureHandles.Count;
 		for (let texResource in importResult.Textures)
 		{
-			let image = texResource.Image;
+			let image = texResource.PixelData;
 			if (image == null || image.Width == 0 || image.Height == 0)
 			{
 				mTextureHandles.Add(.Invalid);
@@ -791,8 +813,29 @@ class RenderScreenEffectsApp : Application
 		let materialSystem = mRenderSystem.MaterialSystem;
 		int matStartIdx = mMaterialInstances.Count;
 
-		for (let matResource in importResult.Materials)
+		// Create temporary TextureResource list for MaterialResourceConverter
+		let tempTexResources = scope List<TextureResource>();
+		for (let tex in importResult.Textures)
 		{
+			let texRes = new TextureResource();
+			texRes.Name.Set(tex.Name);
+			tempTexResources.Add(texRes);
+		}
+		defer { for (let t in tempTexResources) delete t; }
+
+		for (let importedMat in importResult.Materials)
+		{
+			// Convert ImportedMaterial to MaterialResource via converter
+			let matResource = MaterialResourceConverter.Convert(importedMat, tempTexResources);
+
+			if (matResource == null)
+			{
+				mMaterialInstances.Add(null);
+				continue;
+			}
+
+			mMaterialResources.Add(matResource);
+
 			let baseMat = (matResource.Material != null && matResource.Material.IsValid)
 				? matResource.Material : fallbackMaterial;
 
@@ -849,9 +892,8 @@ class RenderScreenEffectsApp : Application
 		let defaultMaterial = mRenderSystem.MaterialSystem?.DefaultMaterialInstance;
 		var transform = Matrix.CreateScale(scale) * Matrix.CreateTranslation(position);
 
-		for (let meshResource in importResult.StaticMeshes)
+		for (let staticMesh in importResult.StaticMeshes)
 		{
-			let staticMesh = meshResource.Mesh;
 			if (staticMesh == null) continue;
 
 			if (mRenderSystem.ResourceManager.UploadMesh(staticMesh) case .Ok(let meshHandle))

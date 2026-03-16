@@ -575,14 +575,14 @@ class RenderSandboxApp : Application
 			return;
 		}
 
-		let skeleton = mFoxImportResult.Skeletons[0].Skeleton;
-		let skinnedMesh = mFoxImportResult.SkinnedMeshes[0].Mesh;
+		let skeleton = mFoxImportResult.Skeletons[0];
+		let skinnedMesh = mFoxImportResult.SkinnedMeshes[0];
 
 		Console.WriteLine("Loaded Fox model:");
 		Console.WriteLine("  Skeleton: {} bones", skeleton.BoneCount);
 		Console.WriteLine("  Animations: {} clips", mFoxImportResult.Animations.Count);
 		for (int i < mFoxImportResult.Animations.Count)
-			Console.WriteLine("    [{}] {}: {:.2}s", i, mFoxImportResult.Animations[i].Clip.Name, mFoxImportResult.Animations[i].Clip.Duration);
+			Console.WriteLine("    [{}] {}: {:.2}s", i, mFoxImportResult.Animations[i].Name, mFoxImportResult.Animations[i].Duration);
 		Console.WriteLine("  Textures: {} found", mFoxImportResult.Textures.Count);
 		Console.WriteLine("  Mesh: {} vertices", skinnedMesh.VertexCount);
 
@@ -607,7 +607,7 @@ class RenderSandboxApp : Application
 				let clipCount = mFoxImportResult.Animations.Count;
 				mFoxComponent.Clips = new AnimationClip[clipCount];
 				for (int i < clipCount)
-					mFoxComponent.Clips[i] = mFoxImportResult.Animations[i].Clip;
+					mFoxComponent.Clips[i] = mFoxImportResult.Animations[i];
 
 				// Initialize animation player
 				mFoxComponent.InitializePlayer();
@@ -707,7 +707,7 @@ class RenderSandboxApp : Application
 			return;
 		}
 
-		let image = mFoxImportResult.Textures[0].Image;
+		let image = mFoxImportResult.Textures[0].PixelData;
 		if (image == null)
 		{
 			Console.WriteLine("  Texture resource has no image data");

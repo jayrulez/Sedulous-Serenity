@@ -16,6 +16,7 @@ using Sedulous.Resources;
 using Sedulous.Geometry;
 using Sedulous.Geometry.Resources;
 using Sedulous.Geometry.Tooling;
+using Sedulous.Geometry.Tooling.Resources;
 using Sedulous.Models;
 using Sedulous.Models.GLTF;
 using Sedulous.Models.FBX;
@@ -330,7 +331,7 @@ class FrameworkSerializationApp : Application
 		let result = importer.Import(model);
 		defer delete result;
 
-		Console.WriteLine($"  Imported: {result.TotalResourceCount} resources");
+		Console.WriteLine($"  Imported: {result.TotalCount} resources");
 		Console.WriteLine($"    Skeletons: {result.Skeletons.Count}");
 		Console.WriteLine($"    Textures: {result.Textures.Count}");
 		Console.WriteLine($"    NewMaterials: {result.Materials.Count}");
@@ -358,24 +359,28 @@ class FrameworkSerializationApp : Application
 		Directory.CreateDirectory(modelCacheDir);
 
 		Console.WriteLine($"\nSaving resources to: {modelCacheDir}");
-		if (ResourceSerializer.SaveImportResult(result, modelCacheDir) case .Ok)
+		if (ResourceSerializer.SaveImportResult(result, modelCacheDir) case .Ok(let resourceResult))
+		{
 			Console.WriteLine("  Resources saved successfully");
+
+			// Build registry from resource result (has GUIDs)
+			BuildRegistryFromResult(resourceResult, modelCacheDir,
+				ref skinnedMeshPath, ref skinnedMeshId,
+				ref staticMeshPath, ref staticMeshId,
+				materialRefs,
+				ref skeletonPath, ref skeletonId,
+				animationRefs);
+
+			delete resourceResult;
+		}
 		else
 		{
 			Console.WriteLine("  ERROR: Failed to save resources");
 			return;
 		}
-
-		// Build registry from import result
-		BuildRegistryFromResult(result, modelCacheDir,
-			ref skinnedMeshPath, ref skinnedMeshId,
-			ref staticMeshPath, ref staticMeshId,
-			materialRefs,
-			ref skeletonPath, ref skeletonId,
-			animationRefs);
 	}
 
-	private void BuildRegistryFromResult(ModelImportResult result, StringView cacheDir,
+	private void BuildRegistryFromResult(ResourceImportResult result, StringView cacheDir,
 		ref String skinnedMeshPath, ref Guid skinnedMeshId,
 		ref String staticMeshPath, ref Guid staticMeshId,
 		List<ResourceRef> materialRefs,

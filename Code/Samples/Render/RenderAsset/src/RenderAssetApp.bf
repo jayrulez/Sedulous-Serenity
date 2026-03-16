@@ -10,6 +10,7 @@ using Sedulous.Runtime.Client;
 using Sedulous.Render;
 using Sedulous.Geometry;
 using Sedulous.Geometry.Tooling;
+using Sedulous.Geometry.Tooling.Resources;
 using Sedulous.Materials;
 using Sedulous.Models;
 using Sedulous.Models.GLTF;
@@ -232,14 +233,17 @@ class RenderAssetApp : Application
 		if (!Directory.Exists(cacheDir))
 			Directory.CreateDirectory(cacheDir);
 
-		if (ResourceSerializer.SaveImportResult(importResult, cacheDir) case .Ok)
+		if (ResourceSerializer.SaveImportResult(importResult, cacheDir) case .Ok(let resourceResult))
+		{
 			Console.WriteLine($"  Saved to: {cacheDir}");
+			delete resourceResult;
+		}
 		else
 			Console.WriteLine("  Failed to save cache file");
 
 		// Build skeleton from import result
 		if (importResult.Skeletons.Count > 0)
-			BuildSkeleton(importResult.Skeletons[0].Skeleton);
+			BuildSkeleton(importResult.Skeletons[0]);
 
 		// Extract animations from GLTF model
 		ExtractAnimationsFromModel();
@@ -247,12 +251,11 @@ class RenderAssetApp : Application
 		// Load texture from model (no cache dir for GLTF path)
 		LoadTexture("");
 
-		// Take and use the first skinned mesh resource
-		let resource = importResult.TakeSkinnedMesh(0);
-		Console.WriteLine($"  Imported: {resource.Mesh.VertexCount} vertices, {mSkeleton?.BoneCount ?? 0} bones, {mClips?.Count ?? 0} animations");
+		// Use the first skinned mesh
+		let mesh = importResult.SkinnedMeshes[0];
+		Console.WriteLine($"  Imported: {mesh.VertexCount} vertices, {mSkeleton?.BoneCount ?? 0} bones, {mClips?.Count ?? 0} animations");
 
-		UploadAndSetupProxy(resource.Mesh, resource.Mesh.Bounds);
-		delete resource;
+		UploadAndSetupProxy(mesh, mesh.Bounds);
 
 		mLoadedFromCache = false;
 	}
