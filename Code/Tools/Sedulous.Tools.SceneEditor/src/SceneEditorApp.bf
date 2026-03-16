@@ -136,6 +136,7 @@ class SceneEditorApp : Application
 		mView.PostProcess.EnableSSAO = false;
 
 		RegisterFeatures();
+		mRenderSystem.FlushInitTransfers();
 
 		// Initialize Framework Context
 		mContext = new Context();

@@ -117,6 +117,13 @@ class ModelViewerApp : Application
 		mView.PostProcess.EnableSSAO = false;
 
 		RegisterFeatures();
+
+		// Flush init-time transfer batch now — ModelViewer may not call BeginFrame()
+		// until a model is loaded (no viewport exists yet), but features have finished
+		// their init uploads. Without this, the batch stays alive and later runtime
+		// uploads (e.g., HDRI env map) incorrectly batch into it.
+		mRenderSystem.FlushInitTransfers();
+
 		CreateAnimationIcons();
 
 		return true;
