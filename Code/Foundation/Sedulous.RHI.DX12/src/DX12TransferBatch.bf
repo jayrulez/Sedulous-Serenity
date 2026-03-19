@@ -95,7 +95,7 @@ class DX12TransferBatch : ITransferBatch
 		}
 	}
 
-	public void WriteStagedBuffer(IBuffer buffer, uint64 offset, Span<uint8> data)
+	public void WriteBuffer(IBuffer buffer, uint64 offset, Span<uint8> data)
 	{
 		let dx12Buffer = buffer as DX12Buffer;
 		if (dx12Buffer == null || data.Length == 0)

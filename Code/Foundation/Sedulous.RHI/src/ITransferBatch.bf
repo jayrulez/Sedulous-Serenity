@@ -13,7 +13,7 @@ interface ITransferBatch
 		Extent3D* writeSize, uint32 mipLevel = 0, uint32 arrayLayer = 0);
 
 	/// Records a staging upload to a buffer. Does not submit — call Submit() when done.
-	void WriteStagedBuffer(IBuffer buffer, uint64 offset, Span<uint8> data);
+	void WriteBuffer(IBuffer buffer, uint64 offset, Span<uint8> data);
 
 	/// Submits all recorded transfers, waits for completion, and frees staging resources.
 	/// No-op if no transfers were recorded. Batch is reusable after this call.
