@@ -104,14 +104,14 @@ class BindGroupsSample : RHISampleApp
 			.(-0.1f,  0.1f)
 		);
 
-		BufferDescriptor vertexDesc = .()
+		BufferDesc vertexDesc = .()
 		{
 			Size = (uint64)(sizeof(Vertex) * vertices.Count),
 			Usage = .Vertex,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&vertexDesc) not case .Ok(let vb))
+		if (Device.CreateBuffer(vertexDesc) not case .Ok(let vb))
 			return false;
 		mVertexBuffer = vb;
 
@@ -121,14 +121,14 @@ class BindGroupsSample : RHISampleApp
 		// Index buffer
 		uint16[6] indices = .(0, 1, 2, 0, 2, 3);
 
-		BufferDescriptor indexDesc = .()
+		BufferDesc indexDesc = .()
 		{
 			Size = (uint64)(sizeof(uint16) * indices.Count),
 			Usage = .Index,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&indexDesc) not case .Ok(let ib))
+		if (Device.CreateBuffer(indexDesc) not case .Ok(let ib))
 			return false;
 		mIndexBuffer = ib;
 
@@ -136,26 +136,26 @@ class BindGroupsSample : RHISampleApp
 		Device.Queue.WriteMappedBuffer(mIndexBuffer, 0, indexData);
 
 		// Global uniform buffer
-		BufferDescriptor globalUniformDesc = .()
+		BufferDesc globalUniformDesc = .()
 		{
 			Size = (uint64)sizeof(GlobalUniforms),
 			Usage = .Uniform,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&globalUniformDesc) not case .Ok(let gub))
+		if (Device.CreateBuffer(globalUniformDesc) not case .Ok(let gub))
 			return false;
 		mGlobalUniformBuffer = gub;
 
 		// Object uniform buffer - sized for all objects with alignment
-		BufferDescriptor objectUniformDesc = .()
+		BufferDesc objectUniformDesc = .()
 		{
 			Size = (uint64)(OBJECT_UNIFORM_SIZE * OBJECT_COUNT),
 			Usage = .Uniform,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&objectUniformDesc) not case .Ok(let oub))
+		if (Device.CreateBuffer(objectUniformDesc) not case .Ok(let oub))
 			return false;
 		mObjectUniformBuffer = oub;
 
@@ -183,8 +183,8 @@ class BindGroupsSample : RHISampleApp
 		BindGroupLayoutEntry[1] globalLayoutEntries = .(
 			BindGroupLayoutEntry.UniformBuffer(0, .Vertex)
 		);
-		BindGroupLayoutDescriptor globalLayoutDesc = .(globalLayoutEntries);
-		if (Device.CreateBindGroupLayout(&globalLayoutDesc) not case .Ok(let globalLayout))
+		BindGroupLayoutDesc globalLayoutDesc = .(globalLayoutEntries);
+		if (Device.CreateBindGroupLayout(globalLayoutDesc) not case .Ok(let globalLayout))
 			return false;
 		mGlobalBindGroupLayout = globalLayout;
 
@@ -192,8 +192,8 @@ class BindGroupsSample : RHISampleApp
 		BindGroupLayoutEntry[1] objectLayoutEntries = .(
 			BindGroupLayoutEntry.UniformBuffer(0, .Vertex, dynamicOffset: true)
 		);
-		BindGroupLayoutDescriptor objectLayoutDesc = .(objectLayoutEntries);
-		if (Device.CreateBindGroupLayout(&objectLayoutDesc) not case .Ok(let objectLayout))
+		BindGroupLayoutDesc objectLayoutDesc = .(objectLayoutEntries);
+		if (Device.CreateBindGroupLayout(objectLayoutDesc) not case .Ok(let objectLayout))
 			return false;
 		mObjectBindGroupLayout = objectLayout;
 
@@ -201,8 +201,8 @@ class BindGroupsSample : RHISampleApp
 		BindGroupEntry[1] globalEntries = .(
 			BindGroupEntry.Buffer(0, mGlobalUniformBuffer)
 		);
-		BindGroupDescriptor globalBindGroupDesc = .(mGlobalBindGroupLayout, globalEntries);
-		if (Device.CreateBindGroup(&globalBindGroupDesc) not case .Ok(let globalGroup))
+		BindGroupDesc globalBindGroupDesc = .(mGlobalBindGroupLayout, globalEntries);
+		if (Device.CreateBindGroup(globalBindGroupDesc) not case .Ok(let globalGroup))
 			return false;
 		mGlobalBindGroup = globalGroup;
 
@@ -210,8 +210,8 @@ class BindGroupsSample : RHISampleApp
 		BindGroupEntry[1] objectEntries = .(
 			BindGroupEntry.Buffer(0, mObjectUniformBuffer, 0, OBJECT_UNIFORM_SIZE)
 		);
-		BindGroupDescriptor objectBindGroupDesc = .(mObjectBindGroupLayout, objectEntries);
-		if (Device.CreateBindGroup(&objectBindGroupDesc) not case .Ok(let objectGroup))
+		BindGroupDesc objectBindGroupDesc = .(mObjectBindGroupLayout, objectEntries);
+		if (Device.CreateBindGroup(objectBindGroupDesc) not case .Ok(let objectGroup))
 			return false;
 		mObjectBindGroup = objectGroup;
 
@@ -223,8 +223,8 @@ class BindGroupsSample : RHISampleApp
 	{
 		// Pipeline layout with two bind group layouts
 		IBindGroupLayout[2] layouts = .(mGlobalBindGroupLayout, mObjectBindGroupLayout);
-		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
-		if (Device.CreatePipelineLayout(&pipelineLayoutDesc) not case .Ok(let pipelineLayout))
+		PipelineLayoutDesc pipelineLayoutDesc = .(layouts);
+		if (Device.CreatePipelineLayout(pipelineLayoutDesc) not case .Ok(let pipelineLayout))
 			return false;
 		mPipelineLayout = pipelineLayout;
 
@@ -240,7 +240,7 @@ class BindGroupsSample : RHISampleApp
 		ColorTargetState[1] colorTargets = .(.(SwapChain.Format));
 
 		// Pipeline descriptor
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Layout = mPipelineLayout,
 			Vertex = .()
@@ -268,7 +268,7 @@ class BindGroupsSample : RHISampleApp
 			}
 		};
 
-		if (Device.CreateRenderPipeline(&pipelineDesc) not case .Ok(let pipeline))
+		if (Device.CreateRenderPipeline(pipelineDesc) not case .Ok(let pipeline))
 			return false;
 		mPipeline = pipeline;
 

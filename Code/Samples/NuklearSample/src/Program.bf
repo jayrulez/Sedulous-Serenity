@@ -137,14 +137,14 @@ class NuklearSampleApp : RHISampleApp
 	private bool CreateFontTexture(void* imageData, uint32 width, uint32 height)
 	{
 		// Create texture
-		TextureDescriptor texDesc = TextureDescriptor.Texture2D(
+		TextureDesc texDesc = TextureDesc.Texture2D(
 			width,
 			height,
 			.RGBA8Unorm,
 			.Sampled | .CopyDst
 		);
 
-		if (Device.CreateTexture(&texDesc) not case .Ok(let tex))
+		if (Device.CreateTexture(texDesc) not case .Ok(let tex))
 		{
 			Console.WriteLine("Failed to create font texture");
 			return false;
@@ -164,9 +164,9 @@ class NuklearSampleApp : RHISampleApp
 		Device.Queue.WriteTextureSync(mFontTexture, data, &dataLayout, &writeSize);
 
 		// Create texture view
-		TextureViewDescriptor viewDesc = .();
+		TextureViewDesc viewDesc = .();
 
-		if (Device.CreateTextureView(mFontTexture, &viewDesc) not case .Ok(let view))
+		if (Device.CreateTextureView(mFontTexture, viewDesc) not case .Ok(let view))
 		{
 			Console.WriteLine("Failed to create font texture view");
 			return false;
@@ -174,19 +174,19 @@ class NuklearSampleApp : RHISampleApp
 		mFontTextureView = view;
 
 		// Create sampler
-		SamplerDescriptor samplerDesc = .()
+		SamplerDesc samplerDesc = .()
 		{
-			AddressModeU = .ClampToEdge,
-			AddressModeV = .ClampToEdge,
-			AddressModeW = .ClampToEdge,
+			AddressU = .ClampToEdge,
+			AddressV = .ClampToEdge,
+			AddressW = .ClampToEdge,
 			MagFilter = .Linear,
 			MinFilter = .Linear,
 			MipmapFilter = .Linear,
-			LodMinClamp = 0.0f,
-			LodMaxClamp = 1.0f
+			MinLod = 0.0f,
+			MaxLod = 1.0f
 		};
 
-		if (Device.CreateSampler(&samplerDesc) not case .Ok(let sampler))
+		if (Device.CreateSampler(samplerDesc) not case .Ok(let sampler))
 		{
 			Console.WriteLine("Failed to create font sampler");
 			return false;
@@ -200,14 +200,14 @@ class NuklearSampleApp : RHISampleApp
 	private bool CreateBuffers()
 	{
 		// Create vertex buffer
-		BufferDescriptor vertexDesc = .()
+		BufferDesc vertexDesc = .()
 		{
 			Size = MAX_VERTEX_BUFFER,
 			Usage = .Vertex,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&vertexDesc) not case .Ok(let vb))
+		if (Device.CreateBuffer(vertexDesc) not case .Ok(let vb))
 		{
 			Console.WriteLine("Failed to create vertex buffer");
 			return false;
@@ -215,14 +215,14 @@ class NuklearSampleApp : RHISampleApp
 		mRhiVertexBuffer = vb;
 
 		// Create index buffer
-		BufferDescriptor indexDesc = .()
+		BufferDesc indexDesc = .()
 		{
 			Size = MAX_INDEX_BUFFER,
 			Usage = .Index,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&indexDesc) not case .Ok(let ib))
+		if (Device.CreateBuffer(indexDesc) not case .Ok(let ib))
 		{
 			Console.WriteLine("Failed to create index buffer");
 			return false;
@@ -230,14 +230,14 @@ class NuklearSampleApp : RHISampleApp
 		mRhiIndexBuffer = ib;
 
 		// Create uniform buffer
-		BufferDescriptor uniformDesc = .()
+		BufferDesc uniformDesc = .()
 		{
 			Size = (uint64)sizeof(NkUniforms),
 			Usage = .Uniform,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&uniformDesc) not case .Ok(let ub))
+		if (Device.CreateBuffer(uniformDesc) not case .Ok(let ub))
 		{
 			Console.WriteLine("Failed to create uniform buffer");
 			return false;
@@ -268,8 +268,8 @@ class NuklearSampleApp : RHISampleApp
 			BindGroupLayoutEntry.SampledTexture(0, .Fragment),
 			BindGroupLayoutEntry.Sampler(0, .Fragment)
 		);
-		BindGroupLayoutDescriptor bindGroupLayoutDesc = .(layoutEntries);
-		if (Device.CreateBindGroupLayout(&bindGroupLayoutDesc) not case .Ok(let layout))
+		BindGroupLayoutDesc bindGroupLayoutDesc = .(layoutEntries);
+		if (Device.CreateBindGroupLayout(bindGroupLayoutDesc) not case .Ok(let layout))
 		{
 			Console.WriteLine("Failed to create bind group layout");
 			return false;
@@ -282,8 +282,8 @@ class NuklearSampleApp : RHISampleApp
 			BindGroupEntry.Texture(0, mFontTextureView),
 			BindGroupEntry.Sampler(0, mFontSampler)
 		);
-		BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
-		if (Device.CreateBindGroup(&bindGroupDesc) not case .Ok(let group))
+		BindGroupDesc bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
+		if (Device.CreateBindGroup(bindGroupDesc) not case .Ok(let group))
 		{
 			Console.WriteLine("Failed to create bind group");
 			return false;
@@ -292,8 +292,8 @@ class NuklearSampleApp : RHISampleApp
 
 		// Create pipeline layout
 		IBindGroupLayout[1] layouts = .(mBindGroupLayout);
-		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
-		if (Device.CreatePipelineLayout(&pipelineLayoutDesc) not case .Ok(let pipelineLayout))
+		PipelineLayoutDesc pipelineLayoutDesc = .(layouts);
+		if (Device.CreatePipelineLayout(pipelineLayoutDesc) not case .Ok(let pipelineLayout))
 		{
 			Console.WriteLine("Failed to create pipeline layout");
 			return false;
@@ -341,7 +341,7 @@ class NuklearSampleApp : RHISampleApp
 		);
 
 		// Pipeline descriptor
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Layout = mPipelineLayout,
 			Vertex = .()
@@ -369,7 +369,7 @@ class NuklearSampleApp : RHISampleApp
 			}
 		};
 
-		if (Device.CreateRenderPipeline(&pipelineDesc) not case .Ok(let pipeline))
+		if (Device.CreateRenderPipeline(pipelineDesc) not case .Ok(let pipeline))
 		{
 			Console.WriteLine("Failed to create pipeline");
 			return false;
@@ -583,7 +583,7 @@ class NuklearSampleApp : RHISampleApp
 
 				if (clipW > 0 && clipH > 0)
 				{
-					renderPass.SetScissorRect(clipX, clipY, (uint32)clipW, (uint32)clipH);
+					renderPass.SetScissor(clipX, clipY, (uint32)clipW, (uint32)clipH);
 					renderPass.DrawIndexed(cmd.elem_count, 1, indexOffset, 0, 0);
 				}
 			}

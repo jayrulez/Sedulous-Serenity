@@ -79,14 +79,14 @@ class BlitSample : RHISampleApp
 	private bool CreateTextures()
 	{
 		// Small render target
-		TextureDescriptor smallDesc = TextureDescriptor.Texture2D(
+		TextureDesc smallDesc = TextureDesc.Texture2D(
 			SMALL_SIZE, SMALL_SIZE, .RGBA8Unorm, .RenderTarget | .Sampled | .CopySrc
 		);
-		if (Device.CreateTexture(&smallDesc) not case .Ok(let smallTex))
+		if (Device.CreateTexture(smallDesc) not case .Ok(let smallTex))
 			return false;
 		mSmallTexture = smallTex;
 
-		TextureViewDescriptor viewDesc = .()
+		TextureViewDesc viewDesc = .()
 		{
 			Format = .RGBA8Unorm,
 			Dimension = .Texture2D,
@@ -95,19 +95,19 @@ class BlitSample : RHISampleApp
 			BaseArrayLayer = 0,
 			ArrayLayerCount = 1
 		};
-		if (Device.CreateTextureView(mSmallTexture, &viewDesc) not case .Ok(let smallView))
+		if (Device.CreateTextureView(mSmallTexture, viewDesc) not case .Ok(let smallView))
 			return false;
 		mSmallTextureView = smallView;
 
 		// Large destination texture
-		TextureDescriptor largeDesc = TextureDescriptor.Texture2D(
+		TextureDesc largeDesc = TextureDesc.Texture2D(
 			LARGE_SIZE, LARGE_SIZE, .RGBA8Unorm, .Sampled | .CopyDst
 		);
-		if (Device.CreateTexture(&largeDesc) not case .Ok(let largeTex))
+		if (Device.CreateTexture(largeDesc) not case .Ok(let largeTex))
 			return false;
 		mLargeTexture = largeTex;
 
-		if (Device.CreateTextureView(mLargeTexture, &viewDesc) not case .Ok(let largeView))
+		if (Device.CreateTextureView(mLargeTexture, viewDesc) not case .Ok(let largeView))
 			return false;
 		mLargeTextureView = largeView;
 
@@ -124,27 +124,27 @@ class BlitSample : RHISampleApp
 			-0.7f,  0.7f,   0.3f, 0.3f, 1.0f   // Bottom left - Blue
 		);
 
-		BufferDescriptor vertexDesc = .()
+		BufferDesc vertexDesc = .()
 		{
 			Size = (uint64)(sizeof(float) * vertices.Count),
 			Usage = .Vertex,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&vertexDesc) not case .Ok(let vb))
+		if (Device.CreateBuffer(vertexDesc) not case .Ok(let vb))
 			return false;
 		mPatternVertexBuffer = vb;
 		Device.Queue.WriteMappedBuffer(mPatternVertexBuffer, 0, .((uint8*)&vertices, (int)vertexDesc.Size));
 
 		// Uniform buffer
-		BufferDescriptor uniformDesc = .()
+		BufferDesc uniformDesc = .()
 		{
 			Size = 64, // Matrix4x4
 			Usage = .Uniform,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&uniformDesc) not case .Ok(let ub))
+		if (Device.CreateBuffer(uniformDesc) not case .Ok(let ub))
 			return false;
 		mPatternUniformBuffer = ub;
 
@@ -178,8 +178,8 @@ class BlitSample : RHISampleApp
 		BindGroupLayoutEntry[1] layoutEntries = .(
 			BindGroupLayoutEntry.UniformBuffer(0, .Vertex)
 		);
-		BindGroupLayoutDescriptor layoutDesc = .(layoutEntries);
-		if (Device.CreateBindGroupLayout(&layoutDesc) not case .Ok(let layout))
+		BindGroupLayoutDesc layoutDesc = .(layoutEntries);
+		if (Device.CreateBindGroupLayout(layoutDesc) not case .Ok(let layout))
 			return false;
 		mPatternBindGroupLayout = layout;
 
@@ -187,15 +187,15 @@ class BlitSample : RHISampleApp
 		BindGroupEntry[1] bindEntries = .(
 			BindGroupEntry.Buffer(0, mPatternUniformBuffer)
 		);
-		BindGroupDescriptor bindDesc = .(mPatternBindGroupLayout, bindEntries);
-		if (Device.CreateBindGroup(&bindDesc) not case .Ok(let bg))
+		BindGroupDesc bindDesc = .(mPatternBindGroupLayout, bindEntries);
+		if (Device.CreateBindGroup(bindDesc) not case .Ok(let bg))
 			return false;
 		mPatternBindGroup = bg;
 
 		// Pipeline layout
 		IBindGroupLayout[1] layouts = .(mPatternBindGroupLayout);
-		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
-		if (Device.CreatePipelineLayout(&pipelineLayoutDesc) not case .Ok(let pipelineLayout))
+		PipelineLayoutDesc pipelineLayoutDesc = .(layouts);
+		if (Device.CreatePipelineLayout(pipelineLayoutDesc) not case .Ok(let pipelineLayout))
 			return false;
 		mPatternPipelineLayout = pipelineLayout;
 
@@ -209,7 +209,7 @@ class BlitSample : RHISampleApp
 		);
 
 		ColorTargetState[1] colorTargets = .(.(.RGBA8Unorm));
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Layout = mPatternPipelineLayout,
 			Vertex = .()
@@ -226,7 +226,7 @@ class BlitSample : RHISampleApp
 			Multisample = .() { Count = 1, Mask = uint32.MaxValue }
 		};
 
-		if (Device.CreateRenderPipeline(&pipelineDesc) not case .Ok(let pipeline))
+		if (Device.CreateRenderPipeline(pipelineDesc) not case .Ok(let pipeline))
 			return false;
 		mPatternPipeline = pipeline;
 
@@ -237,18 +237,18 @@ class BlitSample : RHISampleApp
 	private bool CreateDisplayResources()
 	{
 		// Uniform buffers for quad positioning (one per quad to avoid write conflicts)
-		BufferDescriptor uniformDesc = .()
+		BufferDesc uniformDesc = .()
 		{
 			Size = (uint64)sizeof(QuadUniforms),
 			Usage = .Uniform,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&uniformDesc) not case .Ok(let leftUb))
+		if (Device.CreateBuffer(uniformDesc) not case .Ok(let leftUb))
 			return false;
 		mLeftQuadUniformBuffer = leftUb;
 
-		if (Device.CreateBuffer(&uniformDesc) not case .Ok(let rightUb))
+		if (Device.CreateBuffer(uniformDesc) not case .Ok(let rightUb))
 			return false;
 		mRightQuadUniformBuffer = rightUb;
 
@@ -259,12 +259,12 @@ class BlitSample : RHISampleApp
 		Device.Queue.WriteMappedBuffer(mRightQuadUniformBuffer, 0, .((uint8*)&rightQuad, sizeof(QuadUniforms)));
 
 		// Sampler
-		SamplerDescriptor samplerDesc = .()
+		SamplerDesc samplerDesc = .()
 		{
 			MinFilter = .Linear,
 			MagFilter = .Linear
 		};
-		if (Device.CreateSampler(&samplerDesc) not case .Ok(let sampler))
+		if (Device.CreateSampler(samplerDesc) not case .Ok(let sampler))
 			return false;
 		mSampler = sampler;
 
@@ -281,8 +281,8 @@ class BlitSample : RHISampleApp
 			BindGroupLayoutEntry.SampledTexture(0, .Fragment), // t0
 			BindGroupLayoutEntry.Sampler(0, .Fragment)         // s0
 		);
-		BindGroupLayoutDescriptor layoutDesc = .(layoutEntries);
-		if (Device.CreateBindGroupLayout(&layoutDesc) not case .Ok(let layout))
+		BindGroupLayoutDesc layoutDesc = .(layoutEntries);
+		if (Device.CreateBindGroupLayout(layoutDesc) not case .Ok(let layout))
 			return false;
 		mBlitBindGroupLayout = layout;
 
@@ -292,8 +292,8 @@ class BlitSample : RHISampleApp
 			BindGroupEntry.Texture(0, mSmallTextureView),
 			BindGroupEntry.Sampler(0, mSampler)
 		);
-		BindGroupDescriptor smallBindDesc = .(mBlitBindGroupLayout, smallEntries);
-		if (Device.CreateBindGroup(&smallBindDesc) not case .Ok(let smallBg))
+		BindGroupDesc smallBindDesc = .(mBlitBindGroupLayout, smallEntries);
+		if (Device.CreateBindGroup(smallBindDesc) not case .Ok(let smallBg))
 			return false;
 		mSmallBindGroup = smallBg;
 
@@ -302,21 +302,21 @@ class BlitSample : RHISampleApp
 			BindGroupEntry.Texture(0, mLargeTextureView),
 			BindGroupEntry.Sampler(0, mSampler)
 		);
-		BindGroupDescriptor largeBindDesc = .(mBlitBindGroupLayout, largeEntries);
-		if (Device.CreateBindGroup(&largeBindDesc) not case .Ok(let largeBg))
+		BindGroupDesc largeBindDesc = .(mBlitBindGroupLayout, largeEntries);
+		if (Device.CreateBindGroup(largeBindDesc) not case .Ok(let largeBg))
 			return false;
 		mLargeBindGroup = largeBg;
 
 		// Pipeline layout
 		IBindGroupLayout[1] layouts = .(mBlitBindGroupLayout);
-		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
-		if (Device.CreatePipelineLayout(&pipelineLayoutDesc) not case .Ok(let pipelineLayout))
+		PipelineLayoutDesc pipelineLayoutDesc = .(layouts);
+		if (Device.CreatePipelineLayout(pipelineLayoutDesc) not case .Ok(let pipelineLayout))
 			return false;
 		mBlitPipelineLayout = pipelineLayout;
 
 		// Pipeline (no vertex buffer, uses SV_VertexID)
 		ColorTargetState[1] colorTargets = .(.(SwapChain.Format));
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Layout = mBlitPipelineLayout,
 			Vertex = .()
@@ -333,7 +333,7 @@ class BlitSample : RHISampleApp
 			Multisample = .() { Count = 1, Mask = uint32.MaxValue }
 		};
 
-		if (Device.CreateRenderPipeline(&pipelineDesc) not case .Ok(let pipeline))
+		if (Device.CreateRenderPipeline(pipelineDesc) not case .Ok(let pipeline))
 			return false;
 		mBlitPipeline = pipeline;
 
@@ -349,19 +349,19 @@ class BlitSample : RHISampleApp
 		Device.Queue.WriteMappedBuffer(mPatternUniformBuffer, 0, .((uint8*)&transform, sizeof(Matrix)));
 
 		// Render pattern to small texture
-		RenderPassColorAttachment[1] patternAttachments = .(.(mSmallTextureView)
+		ColorAttachment[1] patternAttachments = .(.(mSmallTextureView)
 			{
 				LoadOp = .Clear,
 				StoreOp = .Store,
 				ClearValue = .(0.15f, 0.15f, 0.2f, 1.0f)
 			});
-		RenderPassDescriptor patternPassDesc = .(patternAttachments);
+		RenderPassDesc patternPassDesc = .(patternAttachments);
 
 		let patternPass = encoder.BeginRenderPass(&patternPassDesc);
 		if (patternPass != null)
 		{
 			patternPass.SetViewport(0, 0, SMALL_SIZE, SMALL_SIZE, 0, 1);
-			patternPass.SetScissorRect(0, 0, SMALL_SIZE, SMALL_SIZE);
+			patternPass.SetScissor(0, 0, SMALL_SIZE, SMALL_SIZE);
 			patternPass.SetPipeline(mPatternPipeline);
 			patternPass.SetBindGroup(0, mPatternBindGroup);
 			patternPass.SetVertexBuffer(0, mPatternVertexBuffer, 0);
@@ -375,19 +375,19 @@ class BlitSample : RHISampleApp
 
 		// Render both textures to swap chain for comparison
 		let swapTextureView = SwapChain.CurrentTextureView;
-		RenderPassColorAttachment[1] displayAttachments = .(.(swapTextureView)
+		ColorAttachment[1] displayAttachments = .(.(swapTextureView)
 			{
 				LoadOp = .Clear,
 				StoreOp = .Store,
 				ClearValue = .(0.1f, 0.1f, 0.12f, 1.0f)
 			});
-		RenderPassDescriptor displayPassDesc = .(displayAttachments);
+		RenderPassDesc displayPassDesc = .(displayAttachments);
 
 		let displayPass = encoder.BeginRenderPass(&displayPassDesc);
 		if (displayPass != null)
 		{
 			displayPass.SetViewport(0, 0, SwapChain.Width, SwapChain.Height, 0, 1);
-			displayPass.SetScissorRect(0, 0, SwapChain.Width, SwapChain.Height);
+			displayPass.SetScissor(0, 0, SwapChain.Width, SwapChain.Height);
 			displayPass.SetPipeline(mBlitPipeline);
 
 			// Draw small texture on left (original)

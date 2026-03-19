@@ -12,7 +12,7 @@ class VulkanSampler : ISampler
 	private VkSampler mSampler;
 	private String mDebugName ~ delete _;
 
-	public this(VulkanDevice device, SamplerDescriptor* descriptor)
+	public this(VulkanDevice device, SamplerDesc descriptor)
 	{
 		mDevice = device;
 		if (descriptor.Label.Ptr != null && descriptor.Label.Length > 0)
@@ -44,7 +44,7 @@ class VulkanSampler : ISampler
 	/// Gets the Vulkan sampler handle.
 	public VkSampler Sampler => mSampler;
 
-	private void CreateSampler(SamplerDescriptor* descriptor)
+	private void CreateSampler(SamplerDesc descriptor)
 	{
 		VkSamplerCreateInfo samplerInfo = .()
 			{
@@ -52,16 +52,16 @@ class VulkanSampler : ISampler
 				magFilter = VulkanConversions.ToVkFilter(descriptor.MagFilter),
 				minFilter = VulkanConversions.ToVkFilter(descriptor.MinFilter),
 				mipmapMode = VulkanConversions.ToVkSamplerMipmapMode(descriptor.MipmapFilter),
-				addressModeU = VulkanConversions.ToVkSamplerAddressMode(descriptor.AddressModeU),
-				addressModeV = VulkanConversions.ToVkSamplerAddressMode(descriptor.AddressModeV),
-				addressModeW = VulkanConversions.ToVkSamplerAddressMode(descriptor.AddressModeW),
+				addressModeU = VulkanConversions.ToVkSamplerAddressMode(descriptor.AddressU),
+				addressModeV = VulkanConversions.ToVkSamplerAddressMode(descriptor.AddressV),
+				addressModeW = VulkanConversions.ToVkSamplerAddressMode(descriptor.AddressW),
 				mipLodBias = 0.0f,
 				anisotropyEnable = descriptor.MaxAnisotropy > 1 ? VkBool32.True : VkBool32.False,
 				maxAnisotropy = (float)descriptor.MaxAnisotropy,
 				compareEnable = descriptor.Compare != .Always ? VkBool32.True : VkBool32.False,
 				compareOp = VulkanConversions.ToVkCompareOp(descriptor.Compare),
-				minLod = descriptor.LodMinClamp,
-				maxLod = descriptor.LodMaxClamp,
+				minLod = descriptor.MinLod,
+				maxLod = descriptor.MaxLod,
 				borderColor = VulkanConversions.ToVkBorderColor(descriptor.BorderColor),
 				unnormalizedCoordinates = VkBool32.False
 			};

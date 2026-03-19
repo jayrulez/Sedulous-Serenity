@@ -31,7 +31,7 @@ struct VertexAttribute
 struct VertexBufferLayout
 {
 	/// Byte stride between consecutive vertices.
-	public uint64 ArrayStride;
+	public uint64 Stride;
 	/// Whether data advances per vertex or per instance.
 	public VertexStepMode StepMode;
 	/// Vertex attributes in this buffer.
@@ -39,14 +39,14 @@ struct VertexBufferLayout
 
 	public this()
 	{
-		ArrayStride = 0;
+		Stride = 0;
 		StepMode = .Vertex;
 		Attributes = default;
 	}
 
 	public this(uint64 arrayStride, Span<VertexAttribute> attributes, VertexStepMode stepMode = .Vertex)
 	{
-		ArrayStride = arrayStride;
+		Stride = arrayStride;
 		StepMode = stepMode;
 		Attributes = attributes;
 	}

@@ -42,14 +42,14 @@ class TransientBufferRing
 		mSize = size;
 		mAlignment = 256; // Common alignment for uniform buffers
 
-		var desc = BufferDescriptor()
+		var desc = BufferDesc()
 		{
 			Size = size,
 			Usage = usage,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (device.CreateBuffer(&desc) case .Ok(let buffer))
+		if (device.CreateBuffer(desc) case .Ok(let buffer))
 		{
 			mBuffer = buffer;
 			return .Ok;

@@ -62,14 +62,14 @@ public class MotionVectorFeature : RenderFeatureBase
 			return .Err;
 
 		// Create object uniform buffer
-		var objectBufferDesc = BufferDescriptor()
+		var objectBufferDesc = BufferDesc()
 		{
 			Size = MotionObjectUniforms.Size,
 			Usage = .Uniform,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Renderer.Device.CreateBuffer(&objectBufferDesc) case .Ok(let buffer))
+		if (Renderer.Device.CreateBuffer(objectBufferDesc) case .Ok(let buffer))
 			mObjectUniformBuffer = buffer;
 		else
 			return .Err;
@@ -101,13 +101,13 @@ public class MotionVectorFeature : RenderFeatureBase
 			}
 		);
 
-		BindGroupLayoutDescriptor desc = .()
+		BindGroupLayoutDesc desc = .()
 		{
 			Label = "MotionVector BindGroup Layout",
 			Entries = entries
 		};
 
-		switch (Renderer.Device.CreateBindGroupLayout(&desc))
+		switch (Renderer.Device.CreateBindGroupLayout(desc))
 		{
 		case .Ok(let layout): mBindGroupLayout = layout;
 		case .Err: return .Err;
@@ -132,8 +132,8 @@ public class MotionVectorFeature : RenderFeatureBase
 		// Create pipeline layout with single bind group layout:
 		// Group 0: binding 0 = SceneUniforms (b0), binding 1 = ObjectUniforms (b1)
 		IBindGroupLayout[1] layouts = .(mBindGroupLayout);
-		PipelineLayoutDescriptor layoutDesc = .(layouts);
-		switch (Renderer.Device.CreatePipelineLayout(&layoutDesc))
+		PipelineLayoutDesc layoutDesc = .(layouts);
+		switch (Renderer.Device.CreatePipelineLayout(layoutDesc))
 		{
 		case .Ok(let layout): mPipelineLayout = layout;
 		case .Err: return .Err;
@@ -149,7 +149,7 @@ public class MotionVectorFeature : RenderFeatureBase
 			.(.RG16Float)
 		);
 
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Label = "Motion Vector Pipeline",
 			Layout = mPipelineLayout,
@@ -182,7 +182,7 @@ public class MotionVectorFeature : RenderFeatureBase
 			}
 		};
 
-		switch (Renderer.Device.CreateRenderPipeline(&pipelineDesc))
+		switch (Renderer.Device.CreateRenderPipeline(pipelineDesc))
 		{
 		case .Ok(let pipeline): mMotionVectorPipeline = pipeline;
 		case .Err: return .Err;
@@ -220,7 +220,7 @@ public class MotionVectorFeature : RenderFeatureBase
 	{
 		// Set viewport
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0.0f, 1.0f);
-		encoder.SetScissorRect(0, 0, view.Width, view.Height);
+		encoder.SetScissor(0, 0, view.Width, view.Height);
 
 		// Set motion vector pipeline
 		if (mMotionVectorPipeline == null)
@@ -251,14 +251,14 @@ public class MotionVectorFeature : RenderFeatureBase
 			BindGroupEntry.Buffer(1, mObjectUniformBuffer, 0, MotionObjectUniforms.Size)
 		);
 
-		BindGroupDescriptor bgDesc = .()
+		BindGroupDesc bgDesc = .()
 		{
 			Label = "MotionVector BindGroup",
 			Layout = mBindGroupLayout,
 			Entries = bgEntries
 		};
 
-		if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bindGroup))
+		if (Renderer.Device.CreateBindGroup(bgDesc) case .Ok(let bindGroup))
 			mBindGroups[bgIndex] = bindGroup;
 		else
 			return;

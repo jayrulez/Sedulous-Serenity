@@ -48,7 +48,7 @@ public struct RGDepthStencilAttachment
 		DepthLoadOp = depthLoadOp;
 		DepthStoreOp = depthStoreOp;
 		StencilLoadOp = .Clear;
-		StencilStoreOp = .Discard;
+		StencilStoreOp = .DontCare;
 		ClearDepth = 1.0f;
 		ClearStencil = 0;
 		ReadOnly = false;

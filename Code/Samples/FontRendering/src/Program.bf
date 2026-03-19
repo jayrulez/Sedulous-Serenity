@@ -155,14 +155,14 @@ class FontRenderingSample : RHISampleApp
 	private bool CreateFontTexture()
 	{
 		// Create texture from atlas data
-		TextureDescriptor textureDesc = TextureDescriptor.Texture2D(
+		TextureDesc textureDesc = TextureDesc.Texture2D(
 			mFontAtlas.Width,
 			mFontAtlas.Height,
 			.R8Unorm,
 			.Sampled | .CopyDst
 		);
 
-		if (Device.CreateTexture(&textureDesc) not case .Ok(let texture))
+		if (Device.CreateTexture(textureDesc) not case .Ok(let texture))
 		{
 			Console.WriteLine("Failed to create font texture");
 			return false;
@@ -181,11 +181,11 @@ class FontRenderingSample : RHISampleApp
 		Device.Queue.WriteTextureSync(mFontTexture, mFontAtlas.PixelData, &dataLayout, &writeSize);
 
 		// Create texture view - must match texture format (R8Unorm)
-		TextureViewDescriptor viewDesc = .()
+		TextureViewDesc viewDesc = .()
 		{
 			Format = .R8Unorm
 		};
-		if (Device.CreateTextureView(mFontTexture, &viewDesc) not case .Ok(let view))
+		if (Device.CreateTextureView(mFontTexture, viewDesc) not case .Ok(let view))
 		{
 			Console.WriteLine("Failed to create font texture view");
 			return false;
@@ -193,16 +193,16 @@ class FontRenderingSample : RHISampleApp
 		mFontTextureView = view;
 
 		// Create sampler with linear filtering for smooth text
-		SamplerDescriptor samplerDesc = .()
+		SamplerDesc samplerDesc = .()
 		{
-			AddressModeU = .ClampToEdge,
-			AddressModeV = .ClampToEdge,
-			AddressModeW = .ClampToEdge,
+			AddressU = .ClampToEdge,
+			AddressV = .ClampToEdge,
+			AddressW = .ClampToEdge,
 			MagFilter = .Linear,
 			MinFilter = .Linear,
 			MipmapFilter = .Linear
 		};
-		if (Device.CreateSampler(&samplerDesc) not case .Ok(let sampler))
+		if (Device.CreateSampler(samplerDesc) not case .Ok(let sampler))
 		{
 			Console.WriteLine("Failed to create sampler");
 			return false;
@@ -217,14 +217,14 @@ class FontRenderingSample : RHISampleApp
 	{
 		// Vertex buffer (dynamic)
 		uint64 vertexBufferSize = (uint64)(sizeof(TextVertex) * mMaxQuads * 4);
-		BufferDescriptor vertexDesc = .()
+		BufferDesc vertexDesc = .()
 		{
 			Size = vertexBufferSize,
 			Usage = .Vertex,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&vertexDesc) not case .Ok(let vb))
+		if (Device.CreateBuffer(vertexDesc) not case .Ok(let vb))
 		{
 			Console.WriteLine("Failed to create vertex buffer");
 			return false;
@@ -233,14 +233,14 @@ class FontRenderingSample : RHISampleApp
 
 		// Index buffer (dynamic)
 		uint64 indexBufferSize = (uint64)(sizeof(uint16) * mMaxQuads * 6);
-		BufferDescriptor indexDesc = .()
+		BufferDesc indexDesc = .()
 		{
 			Size = indexBufferSize,
 			Usage = .Index,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&indexDesc) not case .Ok(let ib))
+		if (Device.CreateBuffer(indexDesc) not case .Ok(let ib))
 		{
 			Console.WriteLine("Failed to create index buffer");
 			return false;
@@ -248,14 +248,14 @@ class FontRenderingSample : RHISampleApp
 		mIndexBuffer = ib;
 
 		// Uniform buffer
-		BufferDescriptor uniformDesc = .()
+		BufferDesc uniformDesc = .()
 		{
 			Size = (uint64)sizeof(Uniforms),
 			Usage = .Uniform,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&uniformDesc) not case .Ok(let ub))
+		if (Device.CreateBuffer(uniformDesc) not case .Ok(let ub))
 		{
 			Console.WriteLine("Failed to create uniform buffer");
 			return false;
@@ -285,8 +285,8 @@ class FontRenderingSample : RHISampleApp
 			BindGroupLayoutEntry.SampledTexture(0, .Fragment),
 			BindGroupLayoutEntry.Sampler(0, .Fragment)
 		);
-		BindGroupLayoutDescriptor bindGroupLayoutDesc = .(layoutEntries);
-		if (Device.CreateBindGroupLayout(&bindGroupLayoutDesc) not case .Ok(let layout))
+		BindGroupLayoutDesc bindGroupLayoutDesc = .(layoutEntries);
+		if (Device.CreateBindGroupLayout(bindGroupLayoutDesc) not case .Ok(let layout))
 		{
 			Console.WriteLine("Failed to create bind group layout");
 			return false;
@@ -299,8 +299,8 @@ class FontRenderingSample : RHISampleApp
 			BindGroupEntry.Texture(0, mFontTextureView),
 			BindGroupEntry.Sampler(0, mFontSampler)
 		);
-		BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
-		if (Device.CreateBindGroup(&bindGroupDesc) not case .Ok(let group))
+		BindGroupDesc bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
+		if (Device.CreateBindGroup(bindGroupDesc) not case .Ok(let group))
 		{
 			Console.WriteLine("Failed to create bind group");
 			return false;
@@ -309,8 +309,8 @@ class FontRenderingSample : RHISampleApp
 
 		// Create pipeline layout
 		IBindGroupLayout[1] layouts = .(mBindGroupLayout);
-		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
-		if (Device.CreatePipelineLayout(&pipelineLayoutDesc) not case .Ok(let pipelineLayout))
+		PipelineLayoutDesc pipelineLayoutDesc = .(layouts);
+		if (Device.CreatePipelineLayout(pipelineLayoutDesc) not case .Ok(let pipelineLayout))
 		{
 			Console.WriteLine("Failed to create pipeline layout");
 			return false;
@@ -337,7 +337,7 @@ class FontRenderingSample : RHISampleApp
 		ColorTargetState[1] colorTargets = .(.(SwapChain.Format, .AlphaBlend));
 
 		// Pipeline descriptor
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Layout = mPipelineLayout,
 			Vertex = .()
@@ -365,7 +365,7 @@ class FontRenderingSample : RHISampleApp
 			}
 		};
 
-		if (Device.CreateRenderPipeline(&pipelineDesc) not case .Ok(let pipeline))
+		if (Device.CreateRenderPipeline(pipelineDesc) not case .Ok(let pipeline))
 		{
 			Console.WriteLine("Failed to create pipeline");
 			return false;

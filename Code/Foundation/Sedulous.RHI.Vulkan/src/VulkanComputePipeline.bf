@@ -11,7 +11,7 @@ class VulkanComputePipeline : IComputePipeline
 	private VulkanPipelineLayout mLayout;
 	private VkPipeline mPipeline;
 
-	public this(VulkanDevice device, ComputePipelineDescriptor* descriptor)
+	public this(VulkanDevice device, ComputePipelineDesc descriptor)
 	{
 		mDevice = device;
 		mLayout = descriptor.Layout as VulkanPipelineLayout;
@@ -42,7 +42,7 @@ class VulkanComputePipeline : IComputePipeline
 	/// Gets the Vulkan pipeline handle.
 	public VkPipeline Pipeline => mPipeline;
 
-	private void CreatePipeline(ComputePipelineDescriptor* descriptor)
+	private void CreatePipeline(ComputePipelineDesc descriptor)
 	{
 		if (mLayout == null || !mLayout.IsValid)
 			return;

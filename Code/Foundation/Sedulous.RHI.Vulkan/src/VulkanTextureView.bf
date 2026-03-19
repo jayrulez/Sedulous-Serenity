@@ -20,7 +20,7 @@ class VulkanTextureView : ITextureView
 	private uint32 mArrayLayerCount;
 	private String mDebugName ~ delete _;
 
-	public this(VulkanDevice device, VulkanTexture texture, TextureViewDescriptor* descriptor)
+	public this(VulkanDevice device, VulkanTexture texture, TextureViewDesc descriptor)
 	{
 		mDevice = device;
 		mTexture = texture;
@@ -68,7 +68,7 @@ class VulkanTextureView : ITextureView
 	/// Gets the Vulkan image view handle.
 	public VkImageView ImageView => mImageView;
 
-	private void CreateImageView(TextureViewDescriptor* descriptor)
+	private void CreateImageView(TextureViewDesc descriptor)
 	{
 		VkImageViewCreateInfo viewInfo = .()
 			{

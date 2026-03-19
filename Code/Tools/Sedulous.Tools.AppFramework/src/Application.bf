@@ -329,7 +329,7 @@ public abstract class Application
 		mDevice = device;
 
 		// Create swap chain
-		SwapChainDescriptor swapChainDesc = .()
+		SwapChainDesc swapChainDesc = .()
 		{
 			Width = (uint32)mWindow.Width,
 			Height = (uint32)mWindow.Height,
@@ -338,7 +338,7 @@ public abstract class Application
 			PresentMode = mConfig.PresentMode
 		};
 
-		if (mDevice.CreateSwapChain(mSurface, &swapChainDesc) not case .Ok(let swapChain))
+		if (mDevice.CreateSwapChain(mSurface, swapChainDesc) not case .Ok(let swapChain))
 		{
 			Console.WriteLine("Failed to create swap chain");
 			return false;
@@ -632,7 +632,7 @@ public abstract class Application
 		// Default render pass with UI
 		if (!customRendering)
 		{
-			RenderPassColorAttachment[1] colorAttachments = .(.()
+			ColorAttachment[1] colorAttachments = .(.()
 			{
 				View = textureView,
 				ResolveTarget = null,
@@ -640,7 +640,7 @@ public abstract class Application
 				StoreOp = .Store,
 				ClearValue = mConfig.ClearColor
 			});
-			RenderPassDescriptor renderPassDesc = .(colorAttachments);
+			RenderPassDesc renderPassDesc = .(colorAttachments);
 
 			let renderPass = encoder.BeginRenderPass(&renderPassDesc);
 			if (renderPass == null)

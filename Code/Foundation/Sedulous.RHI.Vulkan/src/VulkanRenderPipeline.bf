@@ -15,7 +15,7 @@ class VulkanRenderPipeline : IRenderPipeline
 	private VkRenderPass mRenderPass;
 	private bool mOwnsRenderPass;
 
-	public this(VulkanDevice device, RenderPipelineDescriptor* descriptor, VkRenderPass renderPass = default)
+	public this(VulkanDevice device, RenderPipelineDesc descriptor, VkRenderPass renderPass = default)
 	{
 		mDevice = device;
 		mLayout = descriptor.Layout as VulkanPipelineLayout;
@@ -57,7 +57,7 @@ class VulkanRenderPipeline : IRenderPipeline
 	/// Gets the render pass used by this pipeline.
 	public VkRenderPass RenderPass => mRenderPass;
 
-	private void CreatePipeline(RenderPipelineDescriptor* descriptor)
+	private void CreatePipeline(RenderPipelineDesc descriptor)
 	{
 		if (mLayout == null || !mLayout.IsValid)
 			return;
@@ -120,7 +120,7 @@ class VulkanRenderPipeline : IRenderPipeline
 			bindingDescs.Add(.()
 				{
 					binding = bufferIndex,
-					stride = (uint32)buffer.ArrayStride,
+					stride = (uint32)buffer.Stride,
 					inputRate = VulkanConversions.ToVkVertexInputRate(buffer.StepMode)
 				});
 
@@ -341,7 +341,7 @@ class VulkanRenderPipeline : IRenderPipeline
 		VulkanNative.vkCreateGraphicsPipelines(mDevice.Device, default, 1, &pipelineInfo, null, &mPipeline);
 	}
 
-	private bool CreateRenderPass(RenderPipelineDescriptor* descriptor)
+	private bool CreateRenderPass(RenderPipelineDesc descriptor)
 	{
 		List<VkAttachmentDescription> attachments = scope .();
 		List<VkAttachmentReference> colorRefs = scope .();

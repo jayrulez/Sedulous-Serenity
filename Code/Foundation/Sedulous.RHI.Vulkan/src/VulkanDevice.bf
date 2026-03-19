@@ -82,7 +82,7 @@ class VulkanDevice : IDevice
 
 	// ===== Resource Creation =====
 
-	public Result<IBuffer> CreateBuffer(BufferDescriptor* descriptor)
+	public Result<IBuffer> CreateBuffer(BufferDesc descriptor)
 	{
 		let buffer = new VulkanBuffer(this, descriptor);
 		if (!buffer.IsValid)
@@ -93,7 +93,7 @@ class VulkanDevice : IDevice
 		return .Ok(buffer);
 	}
 
-	public Result<ITexture> CreateTexture(TextureDescriptor* descriptor)
+	public Result<ITexture> CreateTexture(TextureDesc descriptor)
 	{
 		let texture = new VulkanTexture(this, descriptor);
 		if (!texture.IsValid)
@@ -104,7 +104,7 @@ class VulkanDevice : IDevice
 		return .Ok(texture);
 	}
 
-	public Result<ITextureView> CreateTextureView(ITexture texture, TextureViewDescriptor* descriptor)
+	public Result<ITextureView> CreateTextureView(ITexture texture, TextureViewDesc descriptor)
 	{
 		if (let vkTexture = texture as VulkanTexture)
 		{
@@ -119,7 +119,7 @@ class VulkanDevice : IDevice
 		return .Err;
 	}
 
-	public Result<ISampler> CreateSampler(SamplerDescriptor* descriptor)
+	public Result<ISampler> CreateSampler(SamplerDesc descriptor)
 	{
 		let sampler = new VulkanSampler(this, descriptor);
 		if (!sampler.IsValid)
@@ -130,7 +130,7 @@ class VulkanDevice : IDevice
 		return .Ok(sampler);
 	}
 
-	public Result<IShaderModule> CreateShaderModule(ShaderModuleDescriptor* descriptor)
+	public Result<IShaderModule> CreateShaderModule(ShaderModuleDesc descriptor)
 	{
 		let shaderModule = new VulkanShaderModule(this, descriptor);
 		if (!shaderModule.IsValid)
@@ -143,7 +143,7 @@ class VulkanDevice : IDevice
 
 	// ===== Binding =====
 
-	public Result<IBindGroupLayout> CreateBindGroupLayout(BindGroupLayoutDescriptor* descriptor)
+	public Result<IBindGroupLayout> CreateBindGroupLayout(BindGroupLayoutDesc descriptor)
 	{
 		let layout = new VulkanBindGroupLayout(this, descriptor);
 		if (!layout.IsValid)
@@ -154,7 +154,7 @@ class VulkanDevice : IDevice
 		return .Ok(layout);
 	}
 
-	public Result<IBindGroup> CreateBindGroup(BindGroupDescriptor* descriptor)
+	public Result<IBindGroup> CreateBindGroup(BindGroupDesc descriptor)
 	{
 		if (mDescriptorPool == null)
 			return .Err;
@@ -168,7 +168,7 @@ class VulkanDevice : IDevice
 		return .Ok(bindGroup);
 	}
 
-	public Result<IPipelineLayout> CreatePipelineLayout(PipelineLayoutDescriptor* descriptor)
+	public Result<IPipelineLayout> CreatePipelineLayout(PipelineLayoutDesc descriptor)
 	{
 		let layout = new VulkanPipelineLayout(this, descriptor);
 		if (!layout.IsValid)
@@ -181,7 +181,7 @@ class VulkanDevice : IDevice
 
 	// ===== Pipelines =====
 
-	public Result<IRenderPipeline> CreateRenderPipeline(RenderPipelineDescriptor* descriptor)
+	public Result<IRenderPipeline> CreateRenderPipeline(RenderPipelineDesc descriptor)
 	{
 		let pipeline = new VulkanRenderPipeline(this, descriptor);
 		if (!pipeline.IsValid)
@@ -192,7 +192,7 @@ class VulkanDevice : IDevice
 		return .Ok(pipeline);
 	}
 
-	public Result<IComputePipeline> CreateComputePipeline(ComputePipelineDescriptor* descriptor)
+	public Result<IComputePipeline> CreateComputePipeline(ComputePipelineDesc descriptor)
 	{
 		let pipeline = new VulkanComputePipeline(this, descriptor);
 		if (!pipeline.IsValid)
@@ -221,7 +221,7 @@ class VulkanDevice : IDevice
 
 	// ===== Queries =====
 
-	public Result<IQuerySet> CreateQuerySet(QuerySetDescriptor* descriptor)
+	public Result<IQuerySet> CreateQuerySet(QuerySetDesc descriptor)
 	{
 		let querySet = new VulkanQuerySet(this, descriptor);
 		if (!querySet.IsValid)
@@ -234,7 +234,7 @@ class VulkanDevice : IDevice
 
 	// ===== Presentation =====
 
-	public Result<ISwapChain> CreateSwapChain(ISurface surface, SwapChainDescriptor* descriptor)
+	public Result<ISwapChain> CreateSwapChain(ISurface surface, SwapChainDesc descriptor)
 	{
 		if (let vkSurface = surface as VulkanSurface)
 		{

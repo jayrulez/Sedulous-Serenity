@@ -110,15 +110,15 @@ public class CPUParticleEmitter
 		// Create vertex buffers (host-visible for direct CPU writes each frame)
 		for (int i = 0; i < FrameBufferCount; i++)
 		{
-			BufferDescriptor desc = .()
+			BufferDesc desc = .()
 			{
 				Label = "CPU Particle Vertex Buffer",
 				Size = (uint64)(maxParticles * CPUParticleVertex.SizeInBytes),
 				Usage = .Vertex,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
 
-			switch (device.CreateBuffer(&desc))
+			switch (device.CreateBuffer(desc))
 			{
 			case .Ok(let buf): mVertexBuffers[i] = buf;
 			case .Err: // Will be null, checked at render time
@@ -660,15 +660,15 @@ public class CPUParticleEmitter
 		// Create trail vertex buffers (host-visible for direct CPU writes each frame)
 		for (int i = 0; i < FrameBufferCount; i++)
 		{
-			BufferDescriptor desc = .()
+			BufferDesc desc = .()
 			{
 				Label = "CPU Particle Trail Vertex Buffer",
 				Size = (uint64)(mMaxTrailVertices * TrailVertex.SizeInBytes),
 				Usage = .Vertex,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
 
-			switch (mDevice.CreateBuffer(&desc))
+			switch (mDevice.CreateBuffer(desc))
 			{
 			case .Ok(let buf): mTrailVertexBuffers[i] = buf;
 			case .Err: // Will be null, checked at render time

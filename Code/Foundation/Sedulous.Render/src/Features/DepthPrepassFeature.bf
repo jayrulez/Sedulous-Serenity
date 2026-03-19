@@ -142,8 +142,8 @@ public class DepthPrepassFeature : RenderFeatureBase
 
 		// Create pipeline layout from bind group layout
 		IBindGroupLayout[1] layouts = .(mBindGroupLayout);
-		PipelineLayoutDescriptor layoutDesc = .(layouts);
-		switch (Renderer.Device.CreatePipelineLayout(&layoutDesc))
+		PipelineLayoutDesc layoutDesc = .(layouts);
+		switch (Renderer.Device.CreatePipelineLayout(layoutDesc))
 		{
 		case .Ok(let layout): mPipelineLayout = layout;
 		case .Err: return .Err;
@@ -155,7 +155,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 		);
 
 		// Depth pipeline descriptor
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Label = "DepthPrepass Pipeline",
 			Layout = mPipelineLayout,
@@ -183,7 +183,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 			}
 		};
 
-		switch (Renderer.Device.CreateRenderPipeline(&pipelineDesc))
+		switch (Renderer.Device.CreateRenderPipeline(pipelineDesc))
 		{
 		case .Ok(let pipeline): mDepthPipeline = pipeline;
 		case .Err: return .Err;
@@ -227,7 +227,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 		);
 
 		// Instanced depth pipeline descriptor
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Label = "DepthPrepass Instanced Pipeline",
 			Layout = mPipelineLayout,
@@ -255,7 +255,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 			}
 		};
 
-		switch (Renderer.Device.CreateRenderPipeline(&pipelineDesc))
+		switch (Renderer.Device.CreateRenderPipeline(pipelineDesc))
 		{
 		case .Ok(let pipeline): mDepthInstancedPipeline = pipeline;
 		case .Err: return .Err;
@@ -410,13 +410,13 @@ public class DepthPrepassFeature : RenderFeatureBase
 			}
 		);
 
-		BindGroupLayoutDescriptor desc = .()
+		BindGroupLayoutDesc desc = .()
 		{
 			Label = "DepthPrepass BindGroup Layout",
 			Entries = entries
 		};
 
-		switch (Renderer.Device.CreateBindGroupLayout(&desc))
+		switch (Renderer.Device.CreateBindGroupLayout(desc))
 		{
 		case .Ok(let layout): mBindGroupLayout = layout;
 		case .Err: return .Err;
@@ -432,14 +432,14 @@ public class DepthPrepassFeature : RenderFeatureBase
 		let bufferSize = MaxObjectsPerFrame * (int)AlignedObjectUniformSize;
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			BufferDescriptor bufDesc = .()
+			BufferDesc bufDesc = .()
 			{
 				Size = (uint64)bufferSize,
 				Usage = .Uniform,
-				MemoryAccess = .Upload // CPU-mappable
+				MemoryAccess = .CpuToGpu // CPU-mappable
 			};
 
-			switch (Renderer.Device.CreateBuffer(&bufDesc))
+			switch (Renderer.Device.CreateBuffer(bufDesc))
 			{
 			case .Ok(let buffer): mObjectUniformBuffers[i] = buffer;
 			case .Err: return .Err;
@@ -477,14 +477,14 @@ public class DepthPrepassFeature : RenderFeatureBase
 			BindGroupEntry.Buffer(1, objectBuffer, 0, AlignedObjectUniformSize)
 		);
 
-		BindGroupDescriptor bgDesc = .()
+		BindGroupDesc bgDesc = .()
 		{
 			Label = "DepthPrepass BindGroup",
 			Layout = mBindGroupLayout,
 			Entries = entries
 		};
 
-		if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bg))
+		if (Renderer.Device.CreateBindGroup(bgDesc) case .Ok(let bg))
 			mDepthBindGroups[bgIndex] = bg;
 	}
 
@@ -581,7 +581,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 		{
 			// Set viewport — render to per-view SceneDepth texture at (0,0), not swapchain offset
 			encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0.0f, 1.0f);
-			encoder.SetScissorRect(0, 0, view.Width, view.Height);
+			encoder.SetScissor(0, 0, view.Width, view.Height);
 
 			// Track object index for uniform buffer dynamic offsets
 			var objectIndex = (int32)0;

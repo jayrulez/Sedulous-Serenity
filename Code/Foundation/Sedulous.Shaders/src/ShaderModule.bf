@@ -79,13 +79,13 @@ class ShaderModule : IDisposable
 		String label = scope .();
 		Key.ToString(label);
 
-		var desc = ShaderModuleDescriptor()
+		var desc = ShaderModuleDesc()
 		{
 			Code = mBytecode,
 			Label = label
 		};
 
-		switch (targetDevice.CreateShaderModule(&desc))
+		switch (targetDevice.CreateShaderModule(desc))
 		{
 		case .Ok(let module):
 			mRhiModule = module;

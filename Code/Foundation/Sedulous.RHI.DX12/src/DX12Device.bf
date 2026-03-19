@@ -110,7 +110,7 @@ class DX12Device : IDevice
 
 	// ===== Resource Creation =====
 
-	public Result<IBuffer> CreateBuffer(BufferDescriptor* descriptor)
+	public Result<IBuffer> CreateBuffer(BufferDesc descriptor)
 	{
 		let buffer = new DX12Buffer(this, descriptor);
 		if (!buffer.IsValid)
@@ -121,7 +121,7 @@ class DX12Device : IDevice
 		return .Ok(buffer);
 	}
 
-	public Result<ITexture> CreateTexture(TextureDescriptor* descriptor)
+	public Result<ITexture> CreateTexture(TextureDesc descriptor)
 	{
 		let texture = new DX12Texture(this, descriptor);
 		if (!texture.IsValid)
@@ -132,7 +132,7 @@ class DX12Device : IDevice
 		return .Ok(texture);
 	}
 
-	public Result<ITextureView> CreateTextureView(ITexture texture, TextureViewDescriptor* descriptor)
+	public Result<ITextureView> CreateTextureView(ITexture texture, TextureViewDesc descriptor)
 	{
 		if (let dx12Texture = texture as DX12Texture)
 		{
@@ -147,7 +147,7 @@ class DX12Device : IDevice
 		return .Err;
 	}
 
-	public Result<ISampler> CreateSampler(SamplerDescriptor* descriptor)
+	public Result<ISampler> CreateSampler(SamplerDesc descriptor)
 	{
 		let sampler = new DX12Sampler(this, descriptor);
 		if (!sampler.IsValid)
@@ -158,7 +158,7 @@ class DX12Device : IDevice
 		return .Ok(sampler);
 	}
 
-	public Result<IShaderModule> CreateShaderModule(ShaderModuleDescriptor* descriptor)
+	public Result<IShaderModule> CreateShaderModule(ShaderModuleDesc descriptor)
 	{
 		let shaderModule = new DX12ShaderModule(descriptor);
 		if (!shaderModule.IsValid)
@@ -171,13 +171,13 @@ class DX12Device : IDevice
 
 	// ===== Binding =====
 
-	public Result<IBindGroupLayout> CreateBindGroupLayout(BindGroupLayoutDescriptor* descriptor)
+	public Result<IBindGroupLayout> CreateBindGroupLayout(BindGroupLayoutDesc descriptor)
 	{
 		let layout = new DX12BindGroupLayout(descriptor);
 		return .Ok(layout);
 	}
 
-	public Result<IBindGroup> CreateBindGroup(BindGroupDescriptor* descriptor)
+	public Result<IBindGroup> CreateBindGroup(BindGroupDesc descriptor)
 	{
 		let bindGroup = new DX12BindGroup(this, descriptor);
 		if (!bindGroup.IsValid)
@@ -188,7 +188,7 @@ class DX12Device : IDevice
 		return .Ok(bindGroup);
 	}
 
-	public Result<IPipelineLayout> CreatePipelineLayout(PipelineLayoutDescriptor* descriptor)
+	public Result<IPipelineLayout> CreatePipelineLayout(PipelineLayoutDesc descriptor)
 	{
 		let layout = new DX12PipelineLayout(this, descriptor);
 		if (!layout.IsValid)
@@ -201,7 +201,7 @@ class DX12Device : IDevice
 
 	// ===== Pipelines =====
 
-	public Result<IRenderPipeline> CreateRenderPipeline(RenderPipelineDescriptor* descriptor)
+	public Result<IRenderPipeline> CreateRenderPipeline(RenderPipelineDesc descriptor)
 	{
 		let pipeline = new DX12RenderPipeline(this, descriptor);
 		if (!pipeline.IsValid)
@@ -212,7 +212,7 @@ class DX12Device : IDevice
 		return .Ok(pipeline);
 	}
 
-	public Result<IComputePipeline> CreateComputePipeline(ComputePipelineDescriptor* descriptor)
+	public Result<IComputePipeline> CreateComputePipeline(ComputePipelineDesc descriptor)
 	{
 		let pipeline = new DX12ComputePipeline(this, descriptor);
 		if (!pipeline.IsValid)
@@ -238,7 +238,7 @@ class DX12Device : IDevice
 
 	// ===== Queries =====
 
-	public Result<IQuerySet> CreateQuerySet(QuerySetDescriptor* descriptor)
+	public Result<IQuerySet> CreateQuerySet(QuerySetDesc descriptor)
 	{
 		let querySet = new DX12QuerySet(this, descriptor);
 		if (!querySet.IsValid)
@@ -251,7 +251,7 @@ class DX12Device : IDevice
 
 	// ===== Presentation =====
 
-	public Result<ISwapChain> CreateSwapChain(ISurface surface, SwapChainDescriptor* descriptor)
+	public Result<ISwapChain> CreateSwapChain(ISurface surface, SwapChainDesc descriptor)
 	{
 		if (let dx12Surface = surface as DX12Surface)
 		{

@@ -154,15 +154,15 @@ public class WaterFeature : RenderFeatureBase
 		int32 vertexCount = GridVertexCount;
 		uint64 vertexSize = (uint64)(vertexCount * 8); // float2 per vertex
 
-		BufferDescriptor vertDesc = .()
+		BufferDesc vertDesc = .()
 		{
 			Label = "Water Grid Vertices",
 			Size = vertexSize,
 			Usage = .Vertex,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		switch (Renderer.Device.CreateBuffer(&vertDesc))
+		switch (Renderer.Device.CreateBuffer(vertDesc))
 		{
 		case .Ok(let buf): mGridVertexBuffer = buf;
 		case .Err: return .Err;
@@ -184,15 +184,15 @@ public class WaterFeature : RenderFeatureBase
 
 		uint64 indexSize = (uint64)(GridIndexCount * 2); // uint16 indices
 
-		BufferDescriptor idxDesc = .()
+		BufferDesc idxDesc = .()
 		{
 			Label = "Water Grid Indices",
 			Size = indexSize,
 			Usage = .Index,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		switch (Renderer.Device.CreateBuffer(&idxDesc))
+		switch (Renderer.Device.CreateBuffer(idxDesc))
 		{
 		case .Ok(let buf): mGridIndexBuffer = buf;
 		case .Err: return .Err;
@@ -229,15 +229,15 @@ public class WaterFeature : RenderFeatureBase
 	{
 		// Linear wrap sampler (for normal map, foam texture)
 		{
-			SamplerDescriptor desc = .();
+			SamplerDesc desc = .();
 			desc.MinFilter = .Linear;
 			desc.MagFilter = .Linear;
 			desc.MipmapFilter = .Linear;
-			desc.AddressModeU = .Repeat;
-			desc.AddressModeV = .Repeat;
-			desc.AddressModeW = .Repeat;
+			desc.AddressU = .Repeat;
+			desc.AddressV = .Repeat;
+			desc.AddressW = .Repeat;
 
-			switch (Renderer.Device.CreateSampler(&desc))
+			switch (Renderer.Device.CreateSampler(desc))
 			{
 			case .Ok(let s): mWaterSampler = s;
 			case .Err: return .Err;
@@ -246,15 +246,15 @@ public class WaterFeature : RenderFeatureBase
 
 		// Linear clamp sampler (for scene color copy, depth)
 		{
-			SamplerDescriptor desc = .();
+			SamplerDesc desc = .();
 			desc.MinFilter = .Linear;
 			desc.MagFilter = .Linear;
 			desc.MipmapFilter = .Linear;
-			desc.AddressModeU = .ClampToEdge;
-			desc.AddressModeV = .ClampToEdge;
-			desc.AddressModeW = .ClampToEdge;
+			desc.AddressU = .ClampToEdge;
+			desc.AddressV = .ClampToEdge;
+			desc.AddressW = .ClampToEdge;
 
-			switch (Renderer.Device.CreateSampler(&desc))
+			switch (Renderer.Device.CreateSampler(desc))
 			{
 			case .Ok(let s): mSceneSampler = s;
 			case .Err: return .Err;
@@ -263,15 +263,15 @@ public class WaterFeature : RenderFeatureBase
 
 		// Copy pass sampler (linear clamp)
 		{
-			SamplerDescriptor desc = .();
+			SamplerDesc desc = .();
 			desc.MinFilter = .Linear;
 			desc.MagFilter = .Linear;
 			desc.MipmapFilter = .Linear;
-			desc.AddressModeU = .ClampToEdge;
-			desc.AddressModeV = .ClampToEdge;
-			desc.AddressModeW = .ClampToEdge;
+			desc.AddressU = .ClampToEdge;
+			desc.AddressV = .ClampToEdge;
+			desc.AddressW = .ClampToEdge;
 
-			switch (Renderer.Device.CreateSampler(&desc))
+			switch (Renderer.Device.CreateSampler(desc))
 			{
 			case .Ok(let s): mCopySampler = s;
 			case .Err: return .Err;
@@ -289,13 +289,13 @@ public class WaterFeature : RenderFeatureBase
 			.Sampler(0, .Fragment)
 		);
 
-		BindGroupLayoutDescriptor copyLayoutDesc = .()
+		BindGroupLayoutDesc copyLayoutDesc = .()
 		{
 			Label = "Water Copy BindGroup Layout",
 			Entries = copyEntries
 		};
 
-		switch (Renderer.Device.CreateBindGroupLayout(&copyLayoutDesc))
+		switch (Renderer.Device.CreateBindGroupLayout(copyLayoutDesc))
 		{
 		case .Ok(let layout): mCopyBindGroupLayout = layout;
 		case .Err: return .Err;
@@ -303,9 +303,9 @@ public class WaterFeature : RenderFeatureBase
 
 		// Copy pipeline layout
 		IBindGroupLayout[1] copyLayouts = .(mCopyBindGroupLayout);
-		PipelineLayoutDescriptor copyPLDesc = .(copyLayouts);
+		PipelineLayoutDesc copyPLDesc = .(copyLayouts);
 
-		switch (Renderer.Device.CreatePipelineLayout(&copyPLDesc))
+		switch (Renderer.Device.CreatePipelineLayout(copyPLDesc))
 		{
 		case .Ok(let layout): mCopyPipelineLayout = layout;
 		case .Err: return .Err;
@@ -328,7 +328,7 @@ public class WaterFeature : RenderFeatureBase
 
 		ColorTargetState[1] copyColorTargets = .(.(.RGBA16Float));
 
-		RenderPipelineDescriptor copyPipelineDesc = .()
+		RenderPipelineDesc copyPipelineDesc = .()
 		{
 			Label = "Water Copy Pipeline",
 			Layout = mCopyPipelineLayout,
@@ -339,7 +339,7 @@ public class WaterFeature : RenderFeatureBase
 			Multisample = .() { Count = 1, Mask = uint32.MaxValue }
 		};
 
-		switch (Renderer.Device.CreateRenderPipeline(&copyPipelineDesc))
+		switch (Renderer.Device.CreateRenderPipeline(copyPipelineDesc))
 		{
 		case .Ok(let pipeline): mCopyPipeline = pipeline;
 		case .Err: return .Err;
@@ -368,13 +368,13 @@ public class WaterFeature : RenderFeatureBase
 			.Sampler(1, .Fragment)                       // s1 space1: SceneSampler
 		);
 
-		BindGroupLayoutDescriptor layoutDesc = .()
+		BindGroupLayoutDesc layoutDesc = .()
 		{
 			Label = "Water BindGroup Layout",
 			Entries = entries
 		};
 
-		switch (Renderer.Device.CreateBindGroupLayout(&layoutDesc))
+		switch (Renderer.Device.CreateBindGroupLayout(layoutDesc))
 		{
 		case .Ok(let layout): mWaterBindGroupLayout = layout;
 		case .Err: return .Err;
@@ -386,9 +386,9 @@ public class WaterFeature : RenderFeatureBase
 	private Result<void> CreateWaterPipelineLayout()
 	{
 		IBindGroupLayout[2] layouts = .(mSceneBindGroupLayout, mWaterBindGroupLayout);
-		PipelineLayoutDescriptor plDesc = .(layouts);
+		PipelineLayoutDesc plDesc = .(layouts);
 
-		switch (Renderer.Device.CreatePipelineLayout(&plDesc))
+		switch (Renderer.Device.CreatePipelineLayout(plDesc))
 		{
 		case .Ok(let layout): mWaterPipelineLayout = layout;
 		case .Err: return .Err;
@@ -420,7 +420,7 @@ public class WaterFeature : RenderFeatureBase
 			.(.RGBA8Unorm)      // GBuffer
 		);
 
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Label = "Water Pipeline",
 			Layout = mWaterPipelineLayout,
@@ -448,7 +448,7 @@ public class WaterFeature : RenderFeatureBase
 			}
 		};
 
-		switch (Renderer.Device.CreateRenderPipeline(&pipelineDesc))
+		switch (Renderer.Device.CreateRenderPipeline(pipelineDesc))
 		{
 		case .Ok(let pipeline): mWaterPipeline = pipeline;
 		case .Err: return .Err;
@@ -460,7 +460,7 @@ public class WaterFeature : RenderFeatureBase
 		{
 			let (vertNS, fragNS) = pair;
 
-			RenderPipelineDescriptor noShadowDesc = pipelineDesc;
+			RenderPipelineDesc noShadowDesc = pipelineDesc;
 			noShadowDesc.Label = "Water Pipeline (No Shadows)";
 			noShadowDesc.Vertex.Shader = .(vertNS.Module, "main");
 			noShadowDesc.Fragment = .()
@@ -469,7 +469,7 @@ public class WaterFeature : RenderFeatureBase
 				Targets = Span<ColorTargetState>(&colorTargets[0], 2)
 			};
 
-			switch (Renderer.Device.CreateRenderPipeline(&noShadowDesc))
+			switch (Renderer.Device.CreateRenderPipeline(noShadowDesc))
 			{
 			case .Ok(let pipeline): mWaterPipelineNoShadows = pipeline;
 			case .Err:
@@ -483,15 +483,15 @@ public class WaterFeature : RenderFeatureBase
 	{
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			BufferDescriptor uniformDesc = .()
+			BufferDesc uniformDesc = .()
 			{
 				Label = "Water Uniforms",
 				Size = WaterUniforms.Size * MaxWaters,
 				Usage = .Uniform,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
 
-			switch (Renderer.Device.CreateBuffer(&uniformDesc))
+			switch (Renderer.Device.CreateBuffer(uniformDesc))
 			{
 			case .Ok(let buf): mWaterUniformBuffers[i] = buf;
 			case .Err: return .Err;
@@ -505,15 +505,15 @@ public class WaterFeature : RenderFeatureBase
 	{
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			BufferDescriptor desc = .()
+			BufferDesc desc = .()
 			{
 				Label = "Water Object Uniforms",
 				Size = AlignedObjectUniformSize,
 				Usage = .Uniform,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
 
-			switch (Renderer.Device.CreateBuffer(&desc))
+			switch (Renderer.Device.CreateBuffer(desc))
 			{
 			case .Ok(let buf): mObjectUniformBuffers[i] = buf;
 			case .Err: return .Err;
@@ -693,14 +693,14 @@ public class WaterFeature : RenderFeatureBase
 			BindGroupEntry.Sampler(0, mCopySampler)
 		);
 
-		BindGroupDescriptor bgDesc = .()
+		BindGroupDesc bgDesc = .()
 		{
 			Label = "Water Copy BindGroup",
 			Layout = mCopyBindGroupLayout,
 			Entries = entries
 		};
 
-		if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bg))
+		if (Renderer.Device.CreateBindGroup(bgDesc) case .Ok(let bg))
 		{
 			mCopyBindGroups[frameIndex] = bg;
 		}
@@ -710,7 +710,7 @@ public class WaterFeature : RenderFeatureBase
 		}
 
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0.0f, 1.0f);
-		encoder.SetScissorRect(0, 0, view.Width, view.Height);
+		encoder.SetScissor(0, 0, view.Width, view.Height);
 		encoder.SetPipeline(mCopyPipeline);
 		encoder.SetBindGroup(0, mCopyBindGroups[frameIndex], default);
 		encoder.Draw(3, 1, 0, 0); // Fullscreen triangle
@@ -736,7 +736,7 @@ public class WaterFeature : RenderFeatureBase
 			return;
 
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0.0f, 1.0f);
-		encoder.SetScissorRect(0, 0, view.Width, view.Height);
+		encoder.SetScissor(0, 0, view.Width, view.Height);
 		encoder.SetPipeline(pipeline);
 
 		uint32[1] dynamicOffsets = .(0);
@@ -810,14 +810,14 @@ public class WaterFeature : RenderFeatureBase
 		entries[5] = BindGroupEntry.Sampler(0, mWaterSampler);
 		entries[6] = BindGroupEntry.Sampler(1, mSceneSampler);
 
-		BindGroupDescriptor bgDesc = .()
+		BindGroupDesc bgDesc = .()
 		{
 			Label = "Water BindGroup",
 			Layout = mWaterBindGroupLayout,
 			Entries = entries
 		};
 
-		if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bg))
+		if (Renderer.Device.CreateBindGroup(bgDesc) case .Ok(let bg))
 		{
 			if (existing != null)
 			{
@@ -953,14 +953,14 @@ public class WaterFeature : RenderFeatureBase
 		entries[13] = BindGroupEntry.Buffer(6, probeSystem.GetProbeUniformBuffer(frameIndex), 0, ProbeUniforms.Size);
 		entries[14] = BindGroupEntry.Texture(11, probeSystem.GetCubemapArrayView());
 
-		BindGroupDescriptor bgDesc = .()
+		BindGroupDesc bgDesc = .()
 		{
 			Label = "Water Scene BindGroup",
 			Layout = sceneLayout,
 			Entries = entries
 		};
 
-		if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bg))
+		if (Renderer.Device.CreateBindGroup(bgDesc) case .Ok(let bg))
 		{
 			mSceneBindGroups[bindGroupIndex] = bg;
 			mSceneBindGroupShadowState[bindGroupIndex] = shadowsEnabled;

@@ -81,14 +81,14 @@ class ReadbackSample : RHISampleApp
 		);
 
 		// Create vertex buffer with CopySrc so we can read it back
-		BufferDescriptor vertexDesc = .()
+		BufferDesc vertexDesc = .()
 		{
 			Size = (uint64)(sizeof(Vertex) * mOriginalVertices.Count),
 			Usage = .Vertex | .CopySrc,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&vertexDesc) not case .Ok(let vb))
+		if (Device.CreateBuffer(vertexDesc) not case .Ok(let vb))
 			return false;
 		mVertexBuffer = vb;
 
@@ -146,7 +146,7 @@ class ReadbackSample : RHISampleApp
 		}
 
 		// Create texture with CopySrc for readback and CopyDst for initial upload
-		TextureDescriptor texDesc = .()
+		TextureDesc texDesc = .()
 		{
 			Dimension = .Texture2D,
 			Width = TEST_TEXTURE_SIZE,
@@ -158,7 +158,7 @@ class ReadbackSample : RHISampleApp
 			Usage = .Sampled | .CopySrc | .CopyDst
 		};
 
-		if (Device.CreateTexture(&texDesc) not case .Ok(let tex))
+		if (Device.CreateTexture(texDesc) not case .Ok(let tex))
 			return false;
 		mTestTexture = tex;
 
@@ -188,15 +188,15 @@ class ReadbackSample : RHISampleApp
 
 		// Create empty bind group layout (no uniforms needed)
 		BindGroupLayoutEntry[0] layoutEntries = .();
-		BindGroupLayoutDescriptor bindGroupLayoutDesc = .(layoutEntries);
-		if (Device.CreateBindGroupLayout(&bindGroupLayoutDesc) not case .Ok(let layout))
+		BindGroupLayoutDesc bindGroupLayoutDesc = .(layoutEntries);
+		if (Device.CreateBindGroupLayout(bindGroupLayoutDesc) not case .Ok(let layout))
 			return false;
 		mBindGroupLayout = layout;
 
 		// Create pipeline layout
 		IBindGroupLayout[1] layouts = .(mBindGroupLayout);
-		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
-		if (Device.CreatePipelineLayout(&pipelineLayoutDesc) not case .Ok(let pipelineLayout))
+		PipelineLayoutDesc pipelineLayoutDesc = .(layouts);
+		if (Device.CreatePipelineLayout(pipelineLayoutDesc) not case .Ok(let pipelineLayout))
 			return false;
 		mPipelineLayout = pipelineLayout;
 
@@ -213,7 +213,7 @@ class ReadbackSample : RHISampleApp
 		ColorTargetState[1] colorTargets = .(.(SwapChain.Format));
 
 		// Pipeline descriptor
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Layout = mPipelineLayout,
 			Vertex = .()
@@ -241,7 +241,7 @@ class ReadbackSample : RHISampleApp
 			}
 		};
 
-		if (Device.CreateRenderPipeline(&pipelineDesc) not case .Ok(let pipeline))
+		if (Device.CreateRenderPipeline(pipelineDesc) not case .Ok(let pipeline))
 			return false;
 		mPipeline = pipeline;
 

@@ -66,7 +66,7 @@ struct BindGroupEntry
 }
 
 /// Describes a bind group.
-struct BindGroupDescriptor
+struct BindGroupDesc
 {
 	/// The layout this bind group conforms to.
 	public IBindGroupLayout Layout;

@@ -454,7 +454,7 @@ abstract class RHISampleApp
 		mDevice = device;
 
 		// Create swap chain
-		SwapChainDescriptor swapChainDesc = .()
+		SwapChainDesc swapChainDesc = .()
 		{
 			Width = (uint32)mWindow.Width,
 			Height = (uint32)mWindow.Height,
@@ -463,7 +463,7 @@ abstract class RHISampleApp
 			PresentMode = mConfig.PresentMode
 		};
 
-		if (mDevice.CreateSwapChain(mSurface, &swapChainDesc) not case .Ok(let swapChain))
+		if (mDevice.CreateSwapChain(mSurface, swapChainDesc) not case .Ok(let swapChain))
 		{
 			Console.WriteLine("Failed to create swap chain");
 			return false;
@@ -500,20 +500,20 @@ abstract class RHISampleApp
 		if (mConfig.EnableReadableDepth)
 			depthUsage = depthUsage | .Sampled;  // Enable depth sampling for soft particles
 
-		TextureDescriptor depthDesc = TextureDescriptor.Texture2D(
+		TextureDesc depthDesc = TextureDesc.Texture2D(
 			mSwapChain.Width,
 			mSwapChain.Height,
 			mConfig.DepthFormat,
 			depthUsage
 		);
 
-		if (mDevice.CreateTexture(&depthDesc) not case .Ok(let texture))
+		if (mDevice.CreateTexture(depthDesc) not case .Ok(let texture))
 			return false;
 
 		mDepthTexture = texture;
 
 		// Create attachment view for depth testing/writing
-		TextureViewDescriptor viewDesc = .()
+		TextureViewDesc viewDesc = .()
 		{
 			Format = mConfig.DepthFormat,
 			Dimension = .Texture2D,
@@ -522,7 +522,7 @@ abstract class RHISampleApp
 			BaseArrayLayer = 0,
 			ArrayLayerCount = 1
 		};
-		if (mDevice.CreateTextureView(mDepthTexture, &viewDesc) not case .Ok(let view))
+		if (mDevice.CreateTextureView(mDepthTexture, viewDesc) not case .Ok(let view))
 			return false;
 
 		mDepthTextureView = view;
@@ -544,7 +544,7 @@ abstract class RHISampleApp
 	{
 		// Create a sampled view of the depth texture for shader reading.
 		// For depth/stencil formats, we must use DepthOnly aspect for sampled views.
-		TextureViewDescriptor sampledViewDesc = .()
+		TextureViewDesc sampledViewDesc = .()
 		{
 			Format = mConfig.DepthFormat,
 			Dimension = .Texture2D,
@@ -555,7 +555,7 @@ abstract class RHISampleApp
 			Aspect = .DepthOnly  // Required for sampling from depth/stencil textures
 		};
 
-		if (mDevice.CreateTextureView(mDepthTexture, &sampledViewDesc) not case .Ok(let view))
+		if (mDevice.CreateTextureView(mDepthTexture, sampledViewDesc) not case .Ok(let view))
 			return false;
 
 		mReadableDepthTextureView = view;
@@ -633,7 +633,7 @@ abstract class RHISampleApp
 		if (!customRendering)
 		{
 			// Default render pass for simple samples
-			RenderPassColorAttachment[1] colorAttachments = .(.()
+			ColorAttachment[1] colorAttachments = .(.()
 			{
 				View = textureView,
 				ResolveTarget = null,
@@ -642,8 +642,8 @@ abstract class RHISampleApp
 				ClearValue = mConfig.ClearColor
 			});
 
-			RenderPassDescriptor renderPassDesc = .(colorAttachments);
-			RenderPassDepthStencilAttachment depthAttachment = default;
+			RenderPassDesc renderPassDesc = .(colorAttachments);
+			DepthStencilAttachment depthAttachment = default;
 			if (mConfig.EnableDepth && mDepthTextureView != null)
 			{
 				depthAttachment = .()
@@ -653,7 +653,7 @@ abstract class RHISampleApp
 					DepthStoreOp = .Store,
 					DepthClearValue = 1.0f,
 					StencilLoadOp = .Clear,
-					StencilStoreOp = .Discard,
+					StencilStoreOp = .DontCare,
 					StencilClearValue = 0
 				};
 				renderPassDesc.DepthStencilAttachment = depthAttachment;
@@ -668,7 +668,7 @@ abstract class RHISampleApp
 
 			// Set viewport and scissor to full screen
 			renderPass.SetViewport(0, 0, mSwapChain.Width, mSwapChain.Height, 0, 1);
-			renderPass.SetScissorRect(0, 0, mSwapChain.Width, mSwapChain.Height);
+			renderPass.SetScissor(0, 0, mSwapChain.Width, mSwapChain.Height);
 
 			// Let derived class record commands
 			OnRender(renderPass);

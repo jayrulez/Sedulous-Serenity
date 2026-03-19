@@ -6,7 +6,7 @@ enum MemoryAccess
 	/// Resource lives only on GPU. Fastest for GPU access.
 	GpuOnly,
 	/// Resource is optimized for CPU upload to GPU (staging buffer for uploads).
-	Upload,
+	CpuToGpu,
 	/// Resource is optimized for GPU to CPU readback.
-	Readback,
+	GpuToCpu,
 }

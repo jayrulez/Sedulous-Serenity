@@ -61,45 +61,45 @@ public class DOFEffect : IPostProcessEffect
 		mDevice = device;
 
 		// Linear sampler for color
-		SamplerDescriptor linearDesc = .();
+		SamplerDesc linearDesc = .();
 		linearDesc.Label = "DOF Linear Sampler";
-		linearDesc.AddressModeU = .ClampToEdge;
-		linearDesc.AddressModeV = .ClampToEdge;
-		linearDesc.AddressModeW = .ClampToEdge;
+		linearDesc.AddressU = .ClampToEdge;
+		linearDesc.AddressV = .ClampToEdge;
+		linearDesc.AddressW = .ClampToEdge;
 		linearDesc.MinFilter = .Linear;
 		linearDesc.MagFilter = .Linear;
 		linearDesc.MipmapFilter = .Nearest;
 
-		switch (device.CreateSampler(&linearDesc))
+		switch (device.CreateSampler(linearDesc))
 		{
 		case .Ok(let sampler): mLinearSampler = sampler;
 		case .Err: return .Err;
 		}
 
 		// Point sampler for depth (exact texel lookups)
-		SamplerDescriptor pointDesc = .();
+		SamplerDesc pointDesc = .();
 		pointDesc.Label = "DOF Point Sampler";
-		pointDesc.AddressModeU = .ClampToEdge;
-		pointDesc.AddressModeV = .ClampToEdge;
-		pointDesc.AddressModeW = .ClampToEdge;
+		pointDesc.AddressU = .ClampToEdge;
+		pointDesc.AddressV = .ClampToEdge;
+		pointDesc.AddressW = .ClampToEdge;
 		pointDesc.MinFilter = .Nearest;
 		pointDesc.MagFilter = .Nearest;
 		pointDesc.MipmapFilter = .Nearest;
 
-		switch (device.CreateSampler(&pointDesc))
+		switch (device.CreateSampler(pointDesc))
 		{
 		case .Ok(let sampler): mPointSampler = sampler;
 		case .Err: return .Err;
 		}
 
 		// Params buffer
-		BufferDescriptor bufDesc = .();
+		BufferDesc bufDesc = .();
 		bufDesc.Label = "DOF Params";
 		bufDesc.Size = (uint64)DOFParams.Size;
 		bufDesc.Usage = .Uniform;
-		bufDesc.MemoryAccess = .Upload;
+		bufDesc.MemoryAccess = .CpuToGpu;
 
-		switch (device.CreateBuffer(&bufDesc))
+		switch (device.CreateBuffer(bufDesc))
 		{
 		case .Ok(let buf): mParamsBuffer = buf;
 		case .Err: return .Err;
@@ -114,19 +114,19 @@ public class DOFEffect : IPostProcessEffect
 			.() { Binding = 1, Visibility = .Fragment, Type = .Sampler }
 		);
 
-		BindGroupLayoutDescriptor layoutDesc = .();
+		BindGroupLayoutDesc layoutDesc = .();
 		layoutDesc.Label = "DOF BindGroup Layout";
 		layoutDesc.Entries = layoutEntries;
 
-		switch (device.CreateBindGroupLayout(&layoutDesc))
+		switch (device.CreateBindGroupLayout(layoutDesc))
 		{
 		case .Ok(let layout): mBindGroupLayout = layout;
 		case .Err: return .Err;
 		}
 
 		IBindGroupLayout[1] layouts = .(mBindGroupLayout);
-		PipelineLayoutDescriptor plDesc = .(layouts);
-		switch (device.CreatePipelineLayout(&plDesc))
+		PipelineLayoutDesc plDesc = .(layouts);
+		switch (device.CreatePipelineLayout(plDesc))
 		{
 		case .Ok(let layout): mPipelineLayout = layout;
 		case .Err: return .Err;
@@ -151,7 +151,7 @@ public class DOFEffect : IPostProcessEffect
 
 		ColorTargetState[1] colorTargets = .(.(.RGBA16Float));
 
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Label = "DOF Pipeline",
 			Layout = mPipelineLayout,
@@ -175,7 +175,7 @@ public class DOFEffect : IPostProcessEffect
 			Multisample = .() { Count = 1, Mask = uint32.MaxValue }
 		};
 
-		switch (device.CreateRenderPipeline(&pipelineDesc))
+		switch (device.CreateRenderPipeline(pipelineDesc))
 		{
 		case .Ok(let pipeline): mPipeline = pipeline;
 		case .Err: return .Err;
@@ -266,19 +266,19 @@ public class DOFEffect : IPostProcessEffect
 			BindGroupEntry.Sampler(1, mPointSampler)
 		);
 
-		BindGroupDescriptor bgDesc = .();
+		BindGroupDesc bgDesc = .();
 		bgDesc.Label = "DOF BindGroup";
 		bgDesc.Layout = mBindGroupLayout;
 		bgDesc.Entries = entries;
 
-		switch (mDevice.CreateBindGroup(&bgDesc))
+		switch (mDevice.CreateBindGroup(bgDesc))
 		{
 		case .Ok(let bg): mBindGroups[frameIndex] = bg;
 		case .Err: return;
 		}
 
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0, 1);
-		encoder.SetScissorRect(0, 0, view.Width, view.Height);
+		encoder.SetScissor(0, 0, view.Width, view.Height);
 
 		encoder.SetPipeline(mPipeline);
 		encoder.SetBindGroup(0, mBindGroups[frameIndex], default);

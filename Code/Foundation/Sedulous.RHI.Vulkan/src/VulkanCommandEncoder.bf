@@ -75,7 +75,7 @@ class VulkanCommandEncoder : ICommandEncoder
 		}
 	}
 
-	public IRenderPassEncoder BeginRenderPass(RenderPassDescriptor* descriptor)
+	public IRenderPassEncoder BeginRenderPass(RenderPassDesc* descriptor)
 	{
 		if (!mIsRecording || mFinished)
 			return null;
@@ -898,7 +898,7 @@ class VulkanCommandEncoder : ICommandEncoder
 		return cmdBuffer;
 	}
 
-	private bool CreateRenderPass(RenderPassDescriptor* descriptor, out VkRenderPass renderPass)
+	private bool CreateRenderPass(RenderPassDesc* descriptor, out VkRenderPass renderPass)
 	{
 		renderPass = default;
 
@@ -1085,7 +1085,7 @@ class VulkanCommandEncoder : ICommandEncoder
 		return VulkanNative.vkCreateRenderPass(mDevice.Device, &renderPassInfo, null, &renderPass) == .VK_SUCCESS;
 	}
 
-	private bool CreateFramebuffer(RenderPassDescriptor* descriptor, VkRenderPass renderPass, out VkFramebuffer framebuffer, out uint32 width, out uint32 height)
+	private bool CreateFramebuffer(RenderPassDesc* descriptor, VkRenderPass renderPass, out VkFramebuffer framebuffer, out uint32 width, out uint32 height)
 	{
 		framebuffer = default;
 		width = 0;
@@ -1180,7 +1180,7 @@ class VulkanCommandEncoder : ICommandEncoder
 		switch (op)
 		{
 		case .Store: return .VK_ATTACHMENT_STORE_OP_STORE;
-		case .Discard: return .VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		case .DontCare: return .VK_ATTACHMENT_STORE_OP_DONT_CARE;
 		}
 	}
 

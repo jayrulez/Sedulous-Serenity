@@ -226,7 +226,7 @@ class RenderDecalsApp : Application
 		const int32 Size = 64;
 		const int32 Bytes = Size * Size * 4;
 
-		TextureDescriptor texDesc = .()
+		TextureDesc texDesc = .()
 		{
 			Label = "Circle Decal Texture",
 			Width = Size, Height = Size, Depth = 1,
@@ -235,7 +235,7 @@ class RenderDecalsApp : Application
 			Usage = .Sampled | .CopyDst
 		};
 
-		switch (mDevice.CreateTexture(&texDesc))
+		switch (mDevice.CreateTexture(texDesc))
 		{
 		case .Ok(let tex): mCircleTexture = tex;
 		case .Err: return;
@@ -270,8 +270,8 @@ class RenderDecalsApp : Application
 		var writeSize = Extent3D(Size, Size, 1);
 		mDevice.Queue.WriteTextureSync(mCircleTexture, Span<uint8>(&pixels[0], Bytes), &layout, &writeSize);
 
-		TextureViewDescriptor viewDesc = .() { Label = "Circle Decal View", Dimension = .Texture2D };
-		switch (mDevice.CreateTextureView(mCircleTexture, &viewDesc))
+		TextureViewDesc viewDesc = .() { Label = "Circle Decal View", Dimension = .Texture2D };
+		switch (mDevice.CreateTextureView(mCircleTexture, viewDesc))
 		{
 		case .Ok(let view): mCircleTextureView = view;
 		case .Err:
@@ -283,7 +283,7 @@ class RenderDecalsApp : Application
 		const int32 Size = 64;
 		const int32 Bytes = Size * Size * 4;
 
-		TextureDescriptor texDesc = .()
+		TextureDesc texDesc = .()
 		{
 			Label = "Crosshair Decal Texture",
 			Width = Size, Height = Size, Depth = 1,
@@ -292,7 +292,7 @@ class RenderDecalsApp : Application
 			Usage = .Sampled | .CopyDst
 		};
 
-		switch (mDevice.CreateTexture(&texDesc))
+		switch (mDevice.CreateTexture(texDesc))
 		{
 		case .Ok(let tex): mCrosshairTexture = tex;
 		case .Err: return;
@@ -335,8 +335,8 @@ class RenderDecalsApp : Application
 		var writeSize = Extent3D(Size, Size, 1);
 		mDevice.Queue.WriteTextureSync(mCrosshairTexture, Span<uint8>(&pixels[0], Bytes), &layout, &writeSize);
 
-		TextureViewDescriptor viewDesc = .() { Label = "Crosshair Decal View", Dimension = .Texture2D };
-		switch (mDevice.CreateTextureView(mCrosshairTexture, &viewDesc))
+		TextureViewDesc viewDesc = .() { Label = "Crosshair Decal View", Dimension = .Texture2D };
+		switch (mDevice.CreateTextureView(mCrosshairTexture, viewDesc))
 		{
 		case .Ok(let view): mCrosshairTextureView = view;
 		case .Err:
@@ -348,7 +348,7 @@ class RenderDecalsApp : Application
 		const int32 Size = 64;
 		const int32 Bytes = Size * Size * 4;
 
-		TextureDescriptor texDesc = .()
+		TextureDesc texDesc = .()
 		{
 			Label = "Star Decal Texture",
 			Width = Size, Height = Size, Depth = 1,
@@ -357,7 +357,7 @@ class RenderDecalsApp : Application
 			Usage = .Sampled | .CopyDst
 		};
 
-		switch (mDevice.CreateTexture(&texDesc))
+		switch (mDevice.CreateTexture(texDesc))
 		{
 		case .Ok(let tex): mStarTexture = tex;
 		case .Err: return;
@@ -397,8 +397,8 @@ class RenderDecalsApp : Application
 		var writeSize = Extent3D(Size, Size, 1);
 		mDevice.Queue.WriteTextureSync(mStarTexture, Span<uint8>(&pixels[0], Bytes), &layout, &writeSize);
 
-		TextureViewDescriptor viewDesc = .() { Label = "Star Decal View", Dimension = .Texture2D };
-		switch (mDevice.CreateTextureView(mStarTexture, &viewDesc))
+		TextureViewDesc viewDesc = .() { Label = "Star Decal View", Dimension = .Texture2D };
+		switch (mDevice.CreateTextureView(mStarTexture, viewDesc))
 		{
 		case .Ok(let view): mStarTextureView = view;
 		case .Err:

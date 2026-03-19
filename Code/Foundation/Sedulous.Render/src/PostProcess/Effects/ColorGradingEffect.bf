@@ -64,45 +64,45 @@ public class ColorGradingEffect : IPostProcessEffect
 		mDevice = device;
 
 		// Linear sampler for source
-		SamplerDescriptor linearDesc = .();
+		SamplerDesc linearDesc = .();
 		linearDesc.Label = "ColorGrading Linear Sampler";
-		linearDesc.AddressModeU = .ClampToEdge;
-		linearDesc.AddressModeV = .ClampToEdge;
-		linearDesc.AddressModeW = .ClampToEdge;
+		linearDesc.AddressU = .ClampToEdge;
+		linearDesc.AddressV = .ClampToEdge;
+		linearDesc.AddressW = .ClampToEdge;
 		linearDesc.MinFilter = .Linear;
 		linearDesc.MagFilter = .Linear;
 		linearDesc.MipmapFilter = .Nearest;
 
-		switch (device.CreateSampler(&linearDesc))
+		switch (device.CreateSampler(linearDesc))
 		{
 		case .Ok(let sampler): mLinearSampler = sampler;
 		case .Err: return .Err;
 		}
 
 		// LUT sampler (linear clamp for smooth interpolation between LUT entries)
-		SamplerDescriptor lutDesc = .();
+		SamplerDesc lutDesc = .();
 		lutDesc.Label = "ColorGrading LUT Sampler";
-		lutDesc.AddressModeU = .ClampToEdge;
-		lutDesc.AddressModeV = .ClampToEdge;
-		lutDesc.AddressModeW = .ClampToEdge;
+		lutDesc.AddressU = .ClampToEdge;
+		lutDesc.AddressV = .ClampToEdge;
+		lutDesc.AddressW = .ClampToEdge;
 		lutDesc.MinFilter = .Linear;
 		lutDesc.MagFilter = .Linear;
 		lutDesc.MipmapFilter = .Nearest;
 
-		switch (device.CreateSampler(&lutDesc))
+		switch (device.CreateSampler(lutDesc))
 		{
 		case .Ok(let sampler): mLUTSampler = sampler;
 		case .Err: return .Err;
 		}
 
 		// Params buffer
-		BufferDescriptor bufDesc = .();
+		BufferDesc bufDesc = .();
 		bufDesc.Label = "ColorGrading Params";
 		bufDesc.Size = (uint64)ColorGradingParams.Size;
 		bufDesc.Usage = .Uniform;
-		bufDesc.MemoryAccess = .Upload;
+		bufDesc.MemoryAccess = .CpuToGpu;
 
-		switch (device.CreateBuffer(&bufDesc))
+		switch (device.CreateBuffer(bufDesc))
 		{
 		case .Ok(let buf): mParamsBuffer = buf;
 		case .Err: return .Err;
@@ -117,19 +117,19 @@ public class ColorGradingEffect : IPostProcessEffect
 			.() { Binding = 1, Visibility = .Fragment, Type = .Sampler }
 		);
 
-		BindGroupLayoutDescriptor layoutDesc = .();
+		BindGroupLayoutDesc layoutDesc = .();
 		layoutDesc.Label = "ColorGrading BindGroup Layout";
 		layoutDesc.Entries = layoutEntries;
 
-		switch (device.CreateBindGroupLayout(&layoutDesc))
+		switch (device.CreateBindGroupLayout(layoutDesc))
 		{
 		case .Ok(let layout): mBindGroupLayout = layout;
 		case .Err: return .Err;
 		}
 
 		IBindGroupLayout[1] layouts = .(mBindGroupLayout);
-		PipelineLayoutDescriptor plDesc = .(layouts);
-		switch (device.CreatePipelineLayout(&plDesc))
+		PipelineLayoutDesc plDesc = .(layouts);
+		switch (device.CreatePipelineLayout(plDesc))
 		{
 		case .Ok(let layout): mPipelineLayout = layout;
 		case .Err: return .Err;
@@ -172,7 +172,7 @@ public class ColorGradingEffect : IPostProcessEffect
 		}
 
 		// Create texture
-		TextureDescriptor texDesc = .();
+		TextureDesc texDesc = .();
 		texDesc.Width = atlasWidth;
 		texDesc.Height = atlasHeight;
 		texDesc.Depth = 1;
@@ -183,7 +183,7 @@ public class ColorGradingEffect : IPostProcessEffect
 		texDesc.SampleCount = 1;
 		texDesc.Label = "ColorGrading Neutral LUT";
 
-		if (device.CreateTexture(&texDesc) case .Ok(let tex))
+		if (device.CreateTexture(texDesc) case .Ok(let tex))
 			mNeutralLUT = tex;
 		else
 			return;
@@ -197,7 +197,7 @@ public class ColorGradingEffect : IPostProcessEffect
 			device.Queue.WriteTextureSync(mNeutralLUT, Span<uint8>(&data[0], data.Count), &layout, &size, 0, 0);
 
 		// Create view
-		TextureViewDescriptor viewDesc = .();
+		TextureViewDesc viewDesc = .();
 		viewDesc.Format = .RGBA8Unorm;
 		viewDesc.Dimension = .Texture2D;
 		viewDesc.BaseMipLevel = 0;
@@ -206,7 +206,7 @@ public class ColorGradingEffect : IPostProcessEffect
 		viewDesc.ArrayLayerCount = 1;
 		viewDesc.Aspect = .All;
 
-		if (device.CreateTextureView(mNeutralLUT, &viewDesc) case .Ok(let view))
+		if (device.CreateTextureView(mNeutralLUT, viewDesc) case .Ok(let view))
 			mNeutralLUTView = view;
 	}
 
@@ -223,7 +223,7 @@ public class ColorGradingEffect : IPostProcessEffect
 
 		ColorTargetState[1] colorTargets = .(.(.RGBA16Float));
 
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Label = "ColorGrading Pipeline",
 			Layout = mPipelineLayout,
@@ -247,7 +247,7 @@ public class ColorGradingEffect : IPostProcessEffect
 			Multisample = .() { Count = 1, Mask = uint32.MaxValue }
 		};
 
-		switch (device.CreateRenderPipeline(&pipelineDesc))
+		switch (device.CreateRenderPipeline(pipelineDesc))
 		{
 		case .Ok(let pipeline): mPipeline = pipeline;
 		case .Err: return .Err;
@@ -338,19 +338,19 @@ public class ColorGradingEffect : IPostProcessEffect
 			BindGroupEntry.Sampler(1, mLUTSampler)
 		);
 
-		BindGroupDescriptor bgDesc = .();
+		BindGroupDesc bgDesc = .();
 		bgDesc.Label = "ColorGrading BindGroup";
 		bgDesc.Layout = mBindGroupLayout;
 		bgDesc.Entries = entries;
 
-		switch (mDevice.CreateBindGroup(&bgDesc))
+		switch (mDevice.CreateBindGroup(bgDesc))
 		{
 		case .Ok(let bg): mBindGroups[frameIndex] = bg;
 		case .Err: return;
 		}
 
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0, 1);
-		encoder.SetScissorRect(0, 0, view.Width, view.Height);
+		encoder.SetScissor(0, 0, view.Width, view.Height);
 
 		encoder.SetPipeline(mPipeline);
 		encoder.SetBindGroup(0, mBindGroups[frameIndex], default);

@@ -156,9 +156,9 @@ class MaterialSystem : IDisposable
 
 		// Create layout
 		Span<BindGroupLayoutEntry> entriesSpan = .(entries.Ptr, entries.Count);
-		BindGroupLayoutDescriptor layoutDesc = .(entriesSpan);
+		BindGroupLayoutDesc layoutDesc = .(entriesSpan);
 
-		if (mDevice.CreateBindGroupLayout(&layoutDesc) case .Ok(let layout))
+		if (mDevice.CreateBindGroupLayout(layoutDesc) case .Ok(let layout))
 		{
 			mLayoutCache[layoutHash] = layout;
 			return layout;
@@ -271,15 +271,15 @@ class MaterialSystem : IDisposable
 		if (mSamplerCache.TryGetValue(key, let cached))
 			return cached;
 
-		SamplerDescriptor desc = .();
-		desc.AddressModeU = addressU;
-		desc.AddressModeV = addressV;
-		desc.AddressModeW = .Repeat;
+		SamplerDesc desc = .();
+		desc.AddressU = addressU;
+		desc.AddressV = addressV;
+		desc.AddressW = .Repeat;
 		desc.MinFilter = minFilter;
 		desc.MagFilter = magFilter;
 		desc.MipmapFilter = mipmapFilter;
 
-		if (mDevice.CreateSampler(&desc) case .Ok(let sampler))
+		if (mDevice.CreateSampler(desc) case .Ok(let sampler))
 		{
 			mSamplerCache[key] = sampler;
 			return sampler;
@@ -293,15 +293,15 @@ class MaterialSystem : IDisposable
 	private bool CreateDefaultResources()
 	{
 		// Create default sampler (linear, clamp)
-		SamplerDescriptor samplerDesc = .();
-		samplerDesc.AddressModeU = .ClampToEdge;
-		samplerDesc.AddressModeV = .ClampToEdge;
-		samplerDesc.AddressModeW = .ClampToEdge;
+		SamplerDesc samplerDesc = .();
+		samplerDesc.AddressU = .ClampToEdge;
+		samplerDesc.AddressV = .ClampToEdge;
+		samplerDesc.AddressW = .ClampToEdge;
 		samplerDesc.MinFilter = .Linear;
 		samplerDesc.MagFilter = .Linear;
 		samplerDesc.MipmapFilter = .Linear;
 
-		if (mDevice.CreateSampler(&samplerDesc) case .Ok(let sampler))
+		if (mDevice.CreateSampler(samplerDesc) case .Ok(let sampler))
 			mDefaultSampler = sampler;
 		else
 			return false;
@@ -356,10 +356,10 @@ class MaterialSystem : IDisposable
 		view = null;
 
 		// Create texture descriptor
-		var texDesc = TextureDescriptor.Texture2D(1, 1, .RGBA8Unorm, .Sampled | .CopyDst, 1);
+		var texDesc = TextureDesc.Texture2D(1, 1, .RGBA8Unorm, .Sampled | .CopyDst, 1);
 		texDesc.Label = "1x1";
 
-		if (mDevice.CreateTexture(&texDesc) case .Ok(let tex))
+		if (mDevice.CreateTexture(texDesc) case .Ok(let tex))
 			texture = tex;
 		else
 			return false;
@@ -376,7 +376,7 @@ class MaterialSystem : IDisposable
 		mDevice.Queue.WriteTextureSync(texture, Span<uint8>(&data[0], 4), &layout, &writeSize);
 
 		// Create view
-		var viewDesc = TextureViewDescriptor()
+		var viewDesc = TextureViewDesc()
 		{
 			Dimension = .Texture2D,
 			Format = .RGBA8Unorm,
@@ -387,7 +387,7 @@ class MaterialSystem : IDisposable
 			Label = "1x1View"
 		};
 
-		if (mDevice.CreateTextureView(texture, &viewDesc) case .Ok(let v))
+		if (mDevice.CreateTextureView(texture, viewDesc) case .Ok(let v))
 			view = v;
 		else
 			return false;
@@ -399,16 +399,16 @@ class MaterialSystem : IDisposable
 	{
 		// Create 1x1 depth texture for shadow comparison fallback
 		// Use DepthStencil to allow clearing, Sampled to allow sampling
-		var texDesc = TextureDescriptor.Texture2D(1, 1, .Depth32Float, .Sampled | .DepthStencil, 1);
+		var texDesc = TextureDesc.Texture2D(1, 1, .Depth32Float, .Sampled | .DepthStencil, 1);
 		texDesc.Label = "Depth1x1";
 
-		if (mDevice.CreateTexture(&texDesc) case .Ok(let tex))
+		if (mDevice.CreateTexture(texDesc) case .Ok(let tex))
 			mDepthTexture = tex;
 		else
 			return false;
 
 		// Create view with depth aspect
-		var viewDesc = TextureViewDescriptor()
+		var viewDesc = TextureViewDesc()
 		{
 			Dimension = .Texture2D,
 			Format = .Depth32Float,
@@ -420,7 +420,7 @@ class MaterialSystem : IDisposable
 			Label = "Depth1x1View"
 		};
 
-		if (mDevice.CreateTextureView(mDepthTexture, &viewDesc) case .Ok(let v))
+		if (mDevice.CreateTextureView(mDepthTexture, viewDesc) case .Ok(let v))
 			mDepthTextureView = v;
 		else
 			return false;
@@ -438,7 +438,7 @@ class MaterialSystem : IDisposable
 		if (let encoder = mDevice.CreateCommandEncoder())
 		{
 			// Create a render pass that clears depth
-			RenderPassDepthStencilAttachment depthAttachment = .()
+			DepthStencilAttachment depthAttachment = .()
 			{
 				View = mDepthTextureView,
 				DepthLoadOp = .Clear,
@@ -449,7 +449,7 @@ class MaterialSystem : IDisposable
 				StencilClearValue = 0
 			};
 
-			RenderPassDescriptor rpDesc = .()
+			RenderPassDesc rpDesc = .()
 			{
 				DepthStencilAttachment = depthAttachment
 			};
@@ -503,8 +503,8 @@ class MaterialSystem : IDisposable
 		// Create buffer if doesn't exist
 		if (!mUniformBuffers.TryGetValue(instance, out buffer))
 		{
-			BufferDescriptor bufDesc = .() { Size = material.UniformDataSize, Usage = .Uniform, MemoryAccess = .Upload };
-			if (mDevice.CreateBuffer(&bufDesc) case .Ok(let buf))
+			BufferDesc bufDesc = .() { Size = material.UniformDataSize, Usage = .Uniform, MemoryAccess = .CpuToGpu };
+			if (mDevice.CreateBuffer(bufDesc) case .Ok(let buf))
 			{
 				buffer = buf;
 				mUniformBuffers[instance] = buffer;
@@ -589,9 +589,9 @@ class MaterialSystem : IDisposable
 
 		// Create new bind group
 		Span<BindGroupEntry> entriesSpan = .(entries.Ptr, entries.Count);
-		BindGroupDescriptor bgDesc = .(layout, entriesSpan);
+		BindGroupDesc bgDesc = .(layout, entriesSpan);
 
-		if (mDevice.CreateBindGroup(&bgDesc) case .Ok(let bg))
+		if (mDevice.CreateBindGroup(bgDesc) case .Ok(let bg))
 		{
 			mBindGroups[instance] = bg;
 			return true;

@@ -88,13 +88,13 @@ public class AutoExposureEffect
 		// Create per-frame histogram buffers (Upload for CPU-side clear without GPU sync)
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			BufferDescriptor histBufDesc = .();
+			BufferDesc histBufDesc = .();
 			histBufDesc.Label = "Exposure Histogram";
 			histBufDesc.Size = (uint64)HistogramBufferSize;
 			histBufDesc.Usage = .Storage;
-			histBufDesc.MemoryAccess = .Upload;
+			histBufDesc.MemoryAccess = .CpuToGpu;
 
-			switch (device.CreateBuffer(&histBufDesc))
+			switch (device.CreateBuffer(histBufDesc))
 			{
 			case .Ok(let buf): mHistogramBuffers[i] = buf;
 			case .Err: return .Err;
@@ -102,26 +102,26 @@ public class AutoExposureEffect
 		}
 
 		// Create exposure buffer (storage + read-write, GPU-only)
-		BufferDescriptor expBufDesc = .();
+		BufferDesc expBufDesc = .();
 		expBufDesc.Label = "Exposure Buffer";
 		expBufDesc.Size = 8; // 2 floats
 		expBufDesc.Usage = .Storage | .CopySrc | .CopyDst;  // CopyDst for Queue.WriteBuffer init, CopySrc for readback
 		expBufDesc.MemoryAccess = .GpuOnly;
 
-		switch (device.CreateBuffer(&expBufDesc))
+		switch (device.CreateBuffer(expBufDesc))
 		{
 		case .Ok(let buf): mExposureBuffer = buf;
 		case .Err: return .Err;
 		}
 
 		// Create readback buffer
-		BufferDescriptor readbackDesc = .();
+		BufferDesc readbackDesc = .();
 		readbackDesc.Label = "Exposure Readback";
 		readbackDesc.Size = 8;
 		readbackDesc.Usage = .CopyDst;
-		readbackDesc.MemoryAccess = .Readback;
+		readbackDesc.MemoryAccess = .GpuToCpu;
 
-		switch (device.CreateBuffer(&readbackDesc))
+		switch (device.CreateBuffer(readbackDesc))
 		{
 		case .Ok(let buf): mReadbackBuffer = buf;
 		case .Err: return .Err;
@@ -132,13 +132,13 @@ public class AutoExposureEffect
 		device.Queue.WriteStagedBufferSync(mExposureBuffer, 0, Span<uint8>((uint8*)&initExposure, 8));
 
 		// Create param buffers
-		BufferDescriptor paramDesc = .();
+		BufferDesc paramDesc = .();
 		paramDesc.Usage = .Uniform;
-		paramDesc.MemoryAccess = .Upload;
+		paramDesc.MemoryAccess = .CpuToGpu;
 
 		paramDesc.Label = "Histogram Params";
 		paramDesc.Size = (uint64)HistogramParams.Size;
-		switch (device.CreateBuffer(&paramDesc))
+		switch (device.CreateBuffer(paramDesc))
 		{
 		case .Ok(let buf): mHistogramParamsBuffer = buf;
 		case .Err: return .Err;
@@ -146,7 +146,7 @@ public class AutoExposureEffect
 
 		paramDesc.Label = "Adapt Params";
 		paramDesc.Size = (uint64)AdaptParams.Size;
-		switch (device.CreateBuffer(&paramDesc))
+		switch (device.CreateBuffer(paramDesc))
 		{
 		case .Ok(let buf): mAdaptParamsBuffer = buf;
 		case .Err: return .Err;
@@ -160,11 +160,11 @@ public class AutoExposureEffect
 			.() { Binding = 0, Visibility = .Compute, Type = .StorageBufferReadWrite }
 		);
 
-		BindGroupLayoutDescriptor histLayoutDesc = .();
+		BindGroupLayoutDesc histLayoutDesc = .();
 		histLayoutDesc.Label = "Histogram Layout";
 		histLayoutDesc.Entries = histLayoutEntries;
 
-		switch (device.CreateBindGroupLayout(&histLayoutDesc))
+		switch (device.CreateBindGroupLayout(histLayoutDesc))
 		{
 		case .Ok(let layout): mHistogramBindGroupLayout = layout;
 		case .Err: return .Err;
@@ -178,11 +178,11 @@ public class AutoExposureEffect
 			.() { Binding = 0, Visibility = .Compute, Type = .StorageBufferReadWrite }
 		);
 
-		BindGroupLayoutDescriptor adaptLayoutDesc = .();
+		BindGroupLayoutDesc adaptLayoutDesc = .();
 		adaptLayoutDesc.Label = "Adapt Layout";
 		adaptLayoutDesc.Entries = adaptLayoutEntries;
 
-		switch (device.CreateBindGroupLayout(&adaptLayoutDesc))
+		switch (device.CreateBindGroupLayout(adaptLayoutDesc))
 		{
 		case .Ok(let layout): mAdaptBindGroupLayout = layout;
 		case .Err: return .Err;
@@ -190,16 +190,16 @@ public class AutoExposureEffect
 
 		// Create pipeline layouts
 		IBindGroupLayout[1] histLayouts = .(mHistogramBindGroupLayout);
-		PipelineLayoutDescriptor histPLDesc = .(histLayouts);
-		switch (device.CreatePipelineLayout(&histPLDesc))
+		PipelineLayoutDesc histPLDesc = .(histLayouts);
+		switch (device.CreatePipelineLayout(histPLDesc))
 		{
 		case .Ok(let layout): mHistogramPipelineLayout = layout;
 		case .Err: return .Err;
 		}
 
 		IBindGroupLayout[1] adaptLayouts = .(mAdaptBindGroupLayout);
-		PipelineLayoutDescriptor adaptPLDesc = .(adaptLayouts);
-		switch (device.CreatePipelineLayout(&adaptPLDesc))
+		PipelineLayoutDesc adaptPLDesc = .(adaptLayouts);
+		switch (device.CreatePipelineLayout(adaptPLDesc))
 		{
 		case .Ok(let layout): mAdaptPipelineLayout = layout;
 		case .Err: return .Err;
@@ -223,10 +223,10 @@ public class AutoExposureEffect
 		let histShaderResult = shaderSystem.GetShader("exposure_histogram", .Compute);
 		if (histShaderResult case .Ok(let shader))
 		{
-			ComputePipelineDescriptor desc = .(mHistogramPipelineLayout, shader.Module);
+			ComputePipelineDesc desc = .(mHistogramPipelineLayout, shader.Module);
 			desc.Label = "Exposure Histogram Pipeline";
 
-			switch (mDevice.CreateComputePipeline(&desc))
+			switch (mDevice.CreateComputePipeline(desc))
 			{
 			case .Ok(let pipeline): mHistogramPipeline = pipeline;
 			case .Err: // Non-fatal
@@ -237,10 +237,10 @@ public class AutoExposureEffect
 		let adaptShaderResult = shaderSystem.GetShader("exposure_adapt", .Compute);
 		if (adaptShaderResult case .Ok(let adaptShader))
 		{
-			ComputePipelineDescriptor desc = .(mAdaptPipelineLayout, adaptShader.Module);
+			ComputePipelineDesc desc = .(mAdaptPipelineLayout, adaptShader.Module);
 			desc.Label = "Exposure Adapt Pipeline";
 
-			switch (mDevice.CreateComputePipeline(&desc))
+			switch (mDevice.CreateComputePipeline(desc))
 			{
 			case .Ok(let pipeline): mAdaptPipeline = pipeline;
 			case .Err: // Non-fatal
@@ -370,12 +370,12 @@ public class AutoExposureEffect
 			BindGroupEntry.Buffer(0, mHistogramBuffers[frameIndex], 0, (uint64)HistogramBufferSize)  // u0
 		);
 
-		BindGroupDescriptor bgDesc = .();
+		BindGroupDesc bgDesc = .();
 		bgDesc.Label = "Histogram BG";
 		bgDesc.Layout = mHistogramBindGroupLayout;
 		bgDesc.Entries = entries;
 
-		switch (mDevice.CreateBindGroup(&bgDesc))
+		switch (mDevice.CreateBindGroup(bgDesc))
 		{
 		case .Ok(let bg): mHistogramBindGroups[frameIndex] = bg;
 		case .Err: return;
@@ -404,12 +404,12 @@ public class AutoExposureEffect
 			BindGroupEntry.Buffer(0, mExposureBuffer, 0, 8)                                             // u0 read-write
 		);
 
-		BindGroupDescriptor bgDesc = .();
+		BindGroupDesc bgDesc = .();
 		bgDesc.Label = "Adapt BG";
 		bgDesc.Layout = mAdaptBindGroupLayout;
 		bgDesc.Entries = entries;
 
-		switch (mDevice.CreateBindGroup(&bgDesc))
+		switch (mDevice.CreateBindGroup(bgDesc))
 		{
 		case .Ok(let bg): mAdaptBindGroups[frameIndex] = bg;
 		case .Err: return;

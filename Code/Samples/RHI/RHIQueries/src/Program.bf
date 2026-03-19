@@ -101,14 +101,14 @@ class QueriesSample : RHISampleApp
 			.(-0.6f, 0.6f, 0.3f, 0.3f, 1.0f)    // Bottom left - Blue
 		);
 
-		BufferDescriptor vertexDesc = .()
+		BufferDesc vertexDesc = .()
 		{
 			Size = (uint64)(sizeof(Vertex) * triangleVertices.Count),
 			Usage = .Vertex,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&vertexDesc) not case .Ok(let vb))
+		if (Device.CreateBuffer(vertexDesc) not case .Ok(let vb))
 			return false;
 		mVertexBuffer = vb;
 
@@ -127,14 +127,14 @@ class QueriesSample : RHISampleApp
 			.(-0.3f, 0.3f, 1.0f, 1.0f, 0.0f)
 		);
 
-		BufferDescriptor occludedDesc = .()
+		BufferDesc occludedDesc = .()
 		{
 			Size = (uint64)(sizeof(Vertex) * quadVertices.Count),
 			Usage = .Vertex,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&occludedDesc) not case .Ok(let ovb))
+		if (Device.CreateBuffer(occludedDesc) not case .Ok(let ovb))
 			return false;
 		mOccludedVertexBuffer = ovb;
 
@@ -142,14 +142,14 @@ class QueriesSample : RHISampleApp
 		Device.Queue.WriteMappedBuffer(mOccludedVertexBuffer, 0, occludedData);
 
 		// Query results buffer for timestamp resolve
-		BufferDescriptor queryBufferDesc = .()
+		BufferDesc queryBufferDesc = .()
 		{
 			Size = (uint64)(sizeof(uint64) * 4),  // Space for 4 timestamps
 			Usage = .CopyDst,
-			MemoryAccess = .Readback
+			MemoryAccess = .GpuToCpu
 		};
 
-		if (Device.CreateBuffer(&queryBufferDesc) not case .Ok(let qb))
+		if (Device.CreateBuffer(queryBufferDesc) not case .Ok(let qb))
 			return false;
 		mQueryResultBuffer = qb;
 
@@ -160,8 +160,8 @@ class QueriesSample : RHISampleApp
 	private bool CreateQuerySets()
 	{
 		// Create timestamp query set (2 queries: start and end)
-		QuerySetDescriptor timestampDesc = .(.Timestamp, 2, "Timestamp Queries");
-		if (Device.CreateQuerySet(&timestampDesc) not case .Ok(let ts))
+		QuerySetDesc timestampDesc = .(.Timestamp, 2, "Timestamp Queries");
+		if (Device.CreateQuerySet(timestampDesc) not case .Ok(let ts))
 		{
 			Console.WriteLine("Failed to create timestamp query set");
 			return false;
@@ -169,8 +169,8 @@ class QueriesSample : RHISampleApp
 		mTimestampQuerySet = ts;
 
 		// Create occlusion query set (1 query for the occluded object)
-		QuerySetDescriptor occlusionDesc = .(.Occlusion, 1, "Occlusion Query");
-		if (Device.CreateQuerySet(&occlusionDesc) not case .Ok(let os))
+		QuerySetDesc occlusionDesc = .(.Occlusion, 1, "Occlusion Query");
+		if (Device.CreateQuerySet(occlusionDesc) not case .Ok(let os))
 		{
 			Console.WriteLine("Failed to create occlusion query set");
 			return false;
@@ -192,15 +192,15 @@ class QueriesSample : RHISampleApp
 
 		// Create empty bind group layout
 		BindGroupLayoutEntry[0] layoutEntries = .();
-		BindGroupLayoutDescriptor bindGroupLayoutDesc = .(layoutEntries);
-		if (Device.CreateBindGroupLayout(&bindGroupLayoutDesc) not case .Ok(let layout))
+		BindGroupLayoutDesc bindGroupLayoutDesc = .(layoutEntries);
+		if (Device.CreateBindGroupLayout(bindGroupLayoutDesc) not case .Ok(let layout))
 			return false;
 		mBindGroupLayout = layout;
 
 		// Create pipeline layout
 		IBindGroupLayout[1] layouts = .(mBindGroupLayout);
-		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
-		if (Device.CreatePipelineLayout(&pipelineLayoutDesc) not case .Ok(let pipelineLayout))
+		PipelineLayoutDesc pipelineLayoutDesc = .(layouts);
+		if (Device.CreatePipelineLayout(pipelineLayoutDesc) not case .Ok(let pipelineLayout))
 			return false;
 		mPipelineLayout = pipelineLayout;
 
@@ -217,7 +217,7 @@ class QueriesSample : RHISampleApp
 		ColorTargetState[1] colorTargets = .(.(SwapChain.Format));
 
 		// Pipeline descriptor
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Layout = mPipelineLayout,
 			Vertex = .()
@@ -245,7 +245,7 @@ class QueriesSample : RHISampleApp
 			}
 		};
 
-		if (Device.CreateRenderPipeline(&pipelineDesc) not case .Ok(let pipeline))
+		if (Device.CreateRenderPipeline(pipelineDesc) not case .Ok(let pipeline))
 			return false;
 		mPipeline = pipeline;
 
@@ -318,7 +318,7 @@ class QueriesSample : RHISampleApp
 		encoder.WriteTimestamp(mTimestampQuerySet, 0);
 
 		// Begin render pass
-		RenderPassColorAttachment[1] colorAttachments = .(
+		ColorAttachment[1] colorAttachments = .(
 			.()
 			{
 				View = SwapChain.CurrentTextureView,
@@ -328,7 +328,7 @@ class QueriesSample : RHISampleApp
 			}
 		);
 
-		RenderPassDescriptor renderPassDesc = .(colorAttachments);
+		RenderPassDesc renderPassDesc = .(colorAttachments);
 		let renderPass = encoder.BeginRenderPass(&renderPassDesc);
 		if (renderPass != null)
 		{
@@ -336,7 +336,7 @@ class QueriesSample : RHISampleApp
 
 			// Set viewport and scissor
 			renderPass.SetViewport(0, 0, SwapChain.Width, SwapChain.Height, 0, 1);
-			renderPass.SetScissorRect(0, 0, SwapChain.Width, SwapChain.Height);
+			renderPass.SetScissor(0, 0, SwapChain.Width, SwapChain.Height);
 
 			// Draw main triangle first (will occlude the quad)
 			renderPass.SetVertexBuffer(0, mVertexBuffer, 0);

@@ -307,7 +307,7 @@ public class VolumetricFogFeature : RenderFeatureBase
 		}
 
 		// Create depth-only view
-		TextureViewDescriptor viewDesc = .()
+		TextureViewDesc viewDesc = .()
 		{
 			Label = "Depth Only View",
 			Dimension = .Texture2D,
@@ -315,7 +315,7 @@ public class VolumetricFogFeature : RenderFeatureBase
 			Aspect = .DepthOnly
 		};
 
-		switch (Renderer.Device.CreateTextureView(depthTexture, &viewDesc))
+		switch (Renderer.Device.CreateTextureView(depthTexture, viewDesc))
 		{
 		case .Ok(let view):
 			mDepthOnlyViews[frameIndex] = view;
@@ -328,7 +328,7 @@ public class VolumetricFogFeature : RenderFeatureBase
 	private Result<void> CreateFroxelVolumes()
 	{
 		// Use RGBA32Float to match shader's RWTexture3D<float4>
-		var froxelDesc = TextureDescriptor()
+		var froxelDesc = TextureDesc()
 		{
 			Label = "Scattering Volume",
 			Width = mFroxelsX,
@@ -343,20 +343,20 @@ public class VolumetricFogFeature : RenderFeatureBase
 		};
 
 		// Scattering volume
-		switch (Renderer.Device.CreateTexture(&froxelDesc))
+		switch (Renderer.Device.CreateTexture(froxelDesc))
 		{
 		case .Ok(let tex): mScatteringVolume = tex;
 		case .Err: return .Err;
 		}
 
-		TextureViewDescriptor viewDesc = .()
+		TextureViewDesc viewDesc = .()
 		{
 			Label = "Scattering Volume View",
 			Dimension = .Texture3D,
 			Format = .RGBA32Float
 		};
 
-		switch (Renderer.Device.CreateTextureView(mScatteringVolume, &viewDesc))
+		switch (Renderer.Device.CreateTextureView(mScatteringVolume, viewDesc))
 		{
 		case .Ok(let view): mScatteringVolumeView = view;
 		case .Err: return .Err;
@@ -364,14 +364,14 @@ public class VolumetricFogFeature : RenderFeatureBase
 
 		// Integrated volume
 		froxelDesc.Label = "Integrated Volume";
-		switch (Renderer.Device.CreateTexture(&froxelDesc))
+		switch (Renderer.Device.CreateTexture(froxelDesc))
 		{
 		case .Ok(let tex): mIntegratedVolume = tex;
 		case .Err: return .Err;
 		}
 
 		viewDesc.Label = "Integrated Volume View";
-		switch (Renderer.Device.CreateTextureView(mIntegratedVolume, &viewDesc))
+		switch (Renderer.Device.CreateTextureView(mIntegratedVolume, viewDesc))
 		{
 		case .Ok(let view): mIntegratedVolumeView = view;
 		case .Err: return .Err;
@@ -397,7 +397,7 @@ public class VolumetricFogFeature : RenderFeatureBase
 	{
 		// Create a simple 3D noise texture (16x16x16)
 		const uint32 NoiseSize = 16;
-		var noiseDesc = TextureDescriptor()
+		var noiseDesc = TextureDesc()
 		{
 			Label = "Volumetric Noise",
 			Width = NoiseSize,
@@ -411,7 +411,7 @@ public class VolumetricFogFeature : RenderFeatureBase
 			Usage = .Sampled | .CopyDst
 		};
 
-		switch (Renderer.Device.CreateTexture(&noiseDesc))
+		switch (Renderer.Device.CreateTexture(noiseDesc))
 		{
 		case .Ok(let tex): mNoiseTexture = tex;
 		case .Err: return .Err;
@@ -431,14 +431,14 @@ public class VolumetricFogFeature : RenderFeatureBase
 		var writeSize = Extent3D(NoiseSize, NoiseSize, NoiseSize);
 		UploadTexture(mNoiseTexture, Span<uint8>(&noiseData[0], noiseData.Count), &layout, &writeSize);
 
-		TextureViewDescriptor viewDesc = .()
+		TextureViewDesc viewDesc = .()
 		{
 			Label = "Volumetric Noise View",
 			Dimension = .Texture3D,
 			Format = .R8Unorm
 		};
 
-		switch (Renderer.Device.CreateTextureView(mNoiseTexture, &viewDesc))
+		switch (Renderer.Device.CreateTextureView(mNoiseTexture, viewDesc))
 		{
 		case .Ok(let view): mNoiseTextureView = view;
 		case .Err: return .Err;
@@ -450,36 +450,36 @@ public class VolumetricFogFeature : RenderFeatureBase
 	private Result<void> CreateSamplers()
 	{
 		// Linear sampler
-		SamplerDescriptor linearDesc = .()
+		SamplerDesc linearDesc = .()
 		{
 			Label = "Volumetric Linear Sampler",
-			AddressModeU = .ClampToEdge,
-			AddressModeV = .ClampToEdge,
-			AddressModeW = .ClampToEdge,
+			AddressU = .ClampToEdge,
+			AddressV = .ClampToEdge,
+			AddressW = .ClampToEdge,
 			MinFilter = .Linear,
 			MagFilter = .Linear,
 			MipmapFilter = .Linear
 		};
 
-		switch (Renderer.Device.CreateSampler(&linearDesc))
+		switch (Renderer.Device.CreateSampler(linearDesc))
 		{
 		case .Ok(let sampler): mLinearSampler = sampler;
 		case .Err: return .Err;
 		}
 
 		// Point sampler
-		SamplerDescriptor pointDesc = .()
+		SamplerDesc pointDesc = .()
 		{
 			Label = "Volumetric Point Sampler",
-			AddressModeU = .ClampToEdge,
-			AddressModeV = .ClampToEdge,
-			AddressModeW = .ClampToEdge,
+			AddressU = .ClampToEdge,
+			AddressV = .ClampToEdge,
+			AddressW = .ClampToEdge,
 			MinFilter = .Nearest,
 			MagFilter = .Nearest,
 			MipmapFilter = .Nearest
 		};
 
-		switch (Renderer.Device.CreateSampler(&pointDesc))
+		switch (Renderer.Device.CreateSampler(pointDesc))
 		{
 		case .Ok(let sampler): mPointSampler = sampler;
 		case .Err: return .Err;
@@ -491,60 +491,60 @@ public class VolumetricFogFeature : RenderFeatureBase
 	private Result<void> CreateParamBuffers()
 	{
 		// Inject params buffer
-		BufferDescriptor injectDesc = .()
+		BufferDesc injectDesc = .()
 		{
 			Label = "Inject Params",
 			Size = (uint64)InjectParams.Size,
 			Usage = .Uniform,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		switch (Renderer.Device.CreateBuffer(&injectDesc))
+		switch (Renderer.Device.CreateBuffer(injectDesc))
 		{
 		case .Ok(let buf): mInjectParamsBuffer = buf;
 		case .Err: return .Err;
 		}
 
 		// Inject froxel params buffer
-		BufferDescriptor injectFroxelDesc = .()
+		BufferDesc injectFroxelDesc = .()
 		{
 			Label = "Inject Froxel Params",
 			Size = (uint64)InjectFroxelParams.Size,
 			Usage = .Uniform,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		switch (Renderer.Device.CreateBuffer(&injectFroxelDesc))
+		switch (Renderer.Device.CreateBuffer(injectFroxelDesc))
 		{
 		case .Ok(let buf): mInjectFroxelParamsBuffer = buf;
 		case .Err: return .Err;
 		}
 
 		// Scatter params buffer
-		BufferDescriptor scatterDesc = .()
+		BufferDesc scatterDesc = .()
 		{
 			Label = "Scatter Params",
 			Size = (uint64)ScatterParams.Size,
 			Usage = .Uniform,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		switch (Renderer.Device.CreateBuffer(&scatterDesc))
+		switch (Renderer.Device.CreateBuffer(scatterDesc))
 		{
 		case .Ok(let buf): mScatterParamsBuffer = buf;
 		case .Err: return .Err;
 		}
 
 		// Apply params buffer
-		BufferDescriptor applyDesc = .()
+		BufferDesc applyDesc = .()
 		{
 			Label = "Apply Params",
 			Size = (uint64)ApplyParams.Size,
 			Usage = .Uniform,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		switch (Renderer.Device.CreateBuffer(&applyDesc))
+		switch (Renderer.Device.CreateBuffer(applyDesc))
 		{
 		case .Ok(let buf): mApplyParamsBuffer = buf;
 		case .Err: return .Err;
@@ -569,21 +569,21 @@ public class VolumetricFogFeature : RenderFeatureBase
 			.() { Binding = 0, Visibility = .Compute, Type = .Sampler }              // s0: linear sampler
 		);
 
-		BindGroupLayoutDescriptor injectLayoutDesc = .()
+		BindGroupLayoutDesc injectLayoutDesc = .()
 		{
 			Label = "Inject BindGroup Layout",
 			Entries = injectEntries
 		};
 
-		switch (Renderer.Device.CreateBindGroupLayout(&injectLayoutDesc))
+		switch (Renderer.Device.CreateBindGroupLayout(injectLayoutDesc))
 		{
 		case .Ok(let layout): mInjectBindGroupLayout = layout;
 		case .Err: return .Err;
 		}
 
 		IBindGroupLayout[1] injectLayouts = .(mInjectBindGroupLayout);
-		PipelineLayoutDescriptor injectPLDesc = .(injectLayouts);
-		switch (Renderer.Device.CreatePipelineLayout(&injectPLDesc))
+		PipelineLayoutDesc injectPLDesc = .(injectLayouts);
+		switch (Renderer.Device.CreatePipelineLayout(injectPLDesc))
 		{
 		case .Ok(let layout): mInjectPipelineLayout = layout;
 		case .Err: return .Err;
@@ -592,10 +592,10 @@ public class VolumetricFogFeature : RenderFeatureBase
 		let injectResult = Renderer.ShaderSystem.GetShader("volumetric_inject", .Compute);
 		if (injectResult case .Ok(let shader))
 		{
-			ComputePipelineDescriptor desc = .(mInjectPipelineLayout, shader.Module);
+			ComputePipelineDesc desc = .(mInjectPipelineLayout, shader.Module);
 			desc.Label = "Volumetric Inject Pipeline";
 
-			switch (Renderer.Device.CreateComputePipeline(&desc))
+			switch (Renderer.Device.CreateComputePipeline(desc))
 			{
 			case .Ok(let pipeline): mInjectPipeline = pipeline;
 			case .Err: // Non-fatal
@@ -610,21 +610,21 @@ public class VolumetricFogFeature : RenderFeatureBase
 			.() { Binding = 0, Visibility = .Compute, Type = .StorageTextureReadWrite }  // u0: integrated
 		);
 
-		BindGroupLayoutDescriptor scatterLayoutDesc = .()
+		BindGroupLayoutDesc scatterLayoutDesc = .()
 		{
 			Label = "Scatter BindGroup Layout",
 			Entries = scatterEntries
 		};
 
-		switch (Renderer.Device.CreateBindGroupLayout(&scatterLayoutDesc))
+		switch (Renderer.Device.CreateBindGroupLayout(scatterLayoutDesc))
 		{
 		case .Ok(let layout): mScatterBindGroupLayout = layout;
 		case .Err: return .Err;
 		}
 
 		IBindGroupLayout[1] scatterLayouts = .(mScatterBindGroupLayout);
-		PipelineLayoutDescriptor scatterPLDesc = .(scatterLayouts);
-		switch (Renderer.Device.CreatePipelineLayout(&scatterPLDesc))
+		PipelineLayoutDesc scatterPLDesc = .(scatterLayouts);
+		switch (Renderer.Device.CreatePipelineLayout(scatterPLDesc))
 		{
 		case .Ok(let layout): mScatterPipelineLayout = layout;
 		case .Err: return .Err;
@@ -633,10 +633,10 @@ public class VolumetricFogFeature : RenderFeatureBase
 		let scatterResult = Renderer.ShaderSystem.GetShader("volumetric_scatter", .Compute);
 		if (scatterResult case .Ok(let scatterShader))
 		{
-			ComputePipelineDescriptor desc = .(mScatterPipelineLayout, scatterShader.Module);
+			ComputePipelineDesc desc = .(mScatterPipelineLayout, scatterShader.Module);
 			desc.Label = "Volumetric Scatter Pipeline";
 
-			switch (Renderer.Device.CreateComputePipeline(&desc))
+			switch (Renderer.Device.CreateComputePipeline(desc))
 			{
 			case .Ok(let pipeline): mScatterPipeline = pipeline;
 			case .Err: // Non-fatal
@@ -654,21 +654,21 @@ public class VolumetricFogFeature : RenderFeatureBase
 			.() { Binding = 1, Visibility = .Fragment, Type = .Sampler }           // s1: point sampler
 		);
 
-		BindGroupLayoutDescriptor applyLayoutDesc = .()
+		BindGroupLayoutDesc applyLayoutDesc = .()
 		{
 			Label = "Apply BindGroup Layout",
 			Entries = applyEntries
 		};
 
-		switch (Renderer.Device.CreateBindGroupLayout(&applyLayoutDesc))
+		switch (Renderer.Device.CreateBindGroupLayout(applyLayoutDesc))
 		{
 		case .Ok(let layout): mApplyBindGroupLayout = layout;
 		case .Err: return .Err;
 		}
 
 		IBindGroupLayout[1] applyLayouts = .(mApplyBindGroupLayout);
-		PipelineLayoutDescriptor applyPLDesc = .(applyLayouts);
-		switch (Renderer.Device.CreatePipelineLayout(&applyPLDesc))
+		PipelineLayoutDesc applyPLDesc = .(applyLayouts);
+		switch (Renderer.Device.CreatePipelineLayout(applyPLDesc))
 		{
 		case .Ok(let layout): mApplyPipelineLayout = layout;
 		case .Err: return .Err;
@@ -681,7 +681,7 @@ public class VolumetricFogFeature : RenderFeatureBase
 				.(.RGBA16Float)
 			);
 
-			RenderPipelineDescriptor applyDesc = .()
+			RenderPipelineDesc applyDesc = .()
 			{
 				Label = "Volumetric Apply Pipeline",
 				Layout = mApplyPipelineLayout,
@@ -709,7 +709,7 @@ public class VolumetricFogFeature : RenderFeatureBase
 				}
 			};
 
-			switch (Renderer.Device.CreateRenderPipeline(&applyDesc))
+			switch (Renderer.Device.CreateRenderPipeline(applyDesc))
 			{
 			case .Ok(let pipeline): mApplyPipeline = pipeline;
 			case .Err: // Non-fatal
@@ -846,14 +846,14 @@ public class VolumetricFogFeature : RenderFeatureBase
 				BindGroupEntry.Sampler(0, mLinearSampler) // s0: linear sampler
 			);
 
-			BindGroupDescriptor injectBgDesc = .()
+			BindGroupDesc injectBgDesc = .()
 			{
 				Label = "Inject BindGroup",
 				Layout = mInjectBindGroupLayout,
 				Entries = injectEntries
 			};
 
-			switch (Renderer.Device.CreateBindGroup(&injectBgDesc))
+			switch (Renderer.Device.CreateBindGroup(injectBgDesc))
 			{
 			case .Ok(let bg): mInjectBindGroups[frameIndex] = bg;
 			case .Err: // Non-fatal
@@ -871,14 +871,14 @@ public class VolumetricFogFeature : RenderFeatureBase
 				BindGroupEntry.Texture(0, mIntegratedVolumeView)   // u0: integrated (RW)
 			);
 
-			BindGroupDescriptor scatterBgDesc = .()
+			BindGroupDesc scatterBgDesc = .()
 			{
 				Label = "Scatter BindGroup",
 				Layout = mScatterBindGroupLayout,
 				Entries = scatterEntries
 			};
 
-			switch (Renderer.Device.CreateBindGroup(&scatterBgDesc))
+			switch (Renderer.Device.CreateBindGroup(scatterBgDesc))
 			{
 			case .Ok(let bg): mScatterBindGroups[frameIndex] = bg;
 			case .Err: // Non-fatal
@@ -916,14 +916,14 @@ public class VolumetricFogFeature : RenderFeatureBase
 			BindGroupEntry.Sampler(1, mPointSampler)
 		);
 
-		BindGroupDescriptor applyBgDesc = .()
+		BindGroupDesc applyBgDesc = .()
 		{
 			Label = "Apply BindGroup",
 			Layout = mApplyBindGroupLayout,
 			Entries = applyEntries
 		};
 
-		switch (Renderer.Device.CreateBindGroup(&applyBgDesc))
+		switch (Renderer.Device.CreateBindGroup(applyBgDesc))
 		{
 		case .Ok(let bg): mApplyBindGroups[frameIndex] = bg;
 		case .Err: // Non-fatal
@@ -978,7 +978,7 @@ public class VolumetricFogFeature : RenderFeatureBase
 			return;
 
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0.0f, 1.0f);
-		encoder.SetScissorRect(0, 0, view.Width, view.Height);
+		encoder.SetScissor(0, 0, view.Width, view.Height);
 
 		encoder.SetPipeline(mApplyPipeline);
 		encoder.SetBindGroup(0, bindGroup, default);

@@ -157,15 +157,15 @@ public class GrassFeature : RenderFeatureBase
 
 		uint64 vertexSize = (uint64)(BladeVertexCount * BladeVertexStride);
 
-		BufferDescriptor vertDesc = .()
+		BufferDesc vertDesc = .()
 		{
 			Label = "Grass Blade Vertices",
 			Size = vertexSize,
 			Usage = .Vertex,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		switch (Renderer.Device.CreateBuffer(&vertDesc))
+		switch (Renderer.Device.CreateBuffer(vertDesc))
 		{
 		case .Ok(let buf): mBladeVertexBuffer = buf;
 		case .Err: return .Err;
@@ -202,15 +202,15 @@ public class GrassFeature : RenderFeatureBase
 		// Index buffer: 2 quads x 2 triangles x 3 indices = 12
 		uint64 indexSize = (uint64)(BladeIndexCount * 2); // uint16
 
-		BufferDescriptor idxDesc = .()
+		BufferDesc idxDesc = .()
 		{
 			Label = "Grass Blade Indices",
 			Size = indexSize,
 			Usage = .Index,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		switch (Renderer.Device.CreateBuffer(&idxDesc))
+		switch (Renderer.Device.CreateBuffer(idxDesc))
 		{
 		case .Ok(let buf): mBladeIndexBuffer = buf;
 		case .Err: return .Err;
@@ -234,15 +234,15 @@ public class GrassFeature : RenderFeatureBase
 
 	private Result<void> CreateSampler()
 	{
-		SamplerDescriptor desc = .();
+		SamplerDesc desc = .();
 		desc.MinFilter = .Linear;
 		desc.MagFilter = .Linear;
 		desc.MipmapFilter = .Linear;
-		desc.AddressModeU = .ClampToEdge;
-		desc.AddressModeV = .ClampToEdge;
-		desc.AddressModeW = .ClampToEdge;
+		desc.AddressU = .ClampToEdge;
+		desc.AddressV = .ClampToEdge;
+		desc.AddressW = .ClampToEdge;
 
-		switch (Renderer.Device.CreateSampler(&desc))
+		switch (Renderer.Device.CreateSampler(desc))
 		{
 		case .Ok(let s): mGrassSampler = s;
 		case .Err: return .Err;
@@ -263,13 +263,13 @@ public class GrassFeature : RenderFeatureBase
 			.Sampler(0, .Fragment)                     // s0 space1: GrassSampler
 		);
 
-		BindGroupLayoutDescriptor layoutDesc = .()
+		BindGroupLayoutDesc layoutDesc = .()
 		{
 			Label = "Grass BindGroup Layout",
 			Entries = entries
 		};
 
-		switch (Renderer.Device.CreateBindGroupLayout(&layoutDesc))
+		switch (Renderer.Device.CreateBindGroupLayout(layoutDesc))
 		{
 		case .Ok(let layout): mGrassBindGroupLayout = layout;
 		case .Err: return .Err;
@@ -281,9 +281,9 @@ public class GrassFeature : RenderFeatureBase
 	private Result<void> CreateGrassPipelineLayout()
 	{
 		IBindGroupLayout[2] layouts = .(mSceneBindGroupLayout, mGrassBindGroupLayout);
-		PipelineLayoutDescriptor plDesc = .(layouts);
+		PipelineLayoutDesc plDesc = .(layouts);
 
-		switch (Renderer.Device.CreatePipelineLayout(&plDesc))
+		switch (Renderer.Device.CreatePipelineLayout(plDesc))
 		{
 		case .Ok(let layout): mGrassPipelineLayout = layout;
 		case .Err: return .Err;
@@ -324,7 +324,7 @@ public class GrassFeature : RenderFeatureBase
 			.(.RGBA8Unorm)      // GBuffer
 		);
 
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Label = "Grass Pipeline",
 			Layout = mGrassPipelineLayout,
@@ -358,7 +358,7 @@ public class GrassFeature : RenderFeatureBase
 			}
 		};
 
-		switch (Renderer.Device.CreateRenderPipeline(&pipelineDesc))
+		switch (Renderer.Device.CreateRenderPipeline(pipelineDesc))
 		{
 		case .Ok(let pipeline): mGrassPipeline = pipeline;
 		case .Err: return .Err;
@@ -370,7 +370,7 @@ public class GrassFeature : RenderFeatureBase
 		{
 			let (vertNS, fragNS) = pair;
 
-			RenderPipelineDescriptor noShadowDesc = pipelineDesc;
+			RenderPipelineDesc noShadowDesc = pipelineDesc;
 			noShadowDesc.Label = "Grass Pipeline (No Shadows)";
 			noShadowDesc.Vertex.Shader = .(vertNS.Module, "main");
 			noShadowDesc.Fragment = .()
@@ -379,7 +379,7 @@ public class GrassFeature : RenderFeatureBase
 				Targets = Span<ColorTargetState>(&colorTargets[0], 2)
 			};
 
-			switch (Renderer.Device.CreateRenderPipeline(&noShadowDesc))
+			switch (Renderer.Device.CreateRenderPipeline(noShadowDesc))
 			{
 			case .Ok(let pipeline): mGrassPipelineNoShadows = pipeline;
 			case .Err:
@@ -394,30 +394,30 @@ public class GrassFeature : RenderFeatureBase
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
 			// Instance buffer
-			BufferDescriptor instanceDesc = .()
+			BufferDesc instanceDesc = .()
 			{
 				Label = "Grass Instances",
 				Size = (uint64)(MaxTotalInstances * sizeof(GrassInstance)),
 				Usage = .Vertex,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
 
-			switch (Renderer.Device.CreateBuffer(&instanceDesc))
+			switch (Renderer.Device.CreateBuffer(instanceDesc))
 			{
 			case .Ok(let buf): mInstanceBuffers[i] = buf;
 			case .Err: return .Err;
 			}
 
 			// Uniform buffer
-			BufferDescriptor uniformDesc = .()
+			BufferDesc uniformDesc = .()
 			{
 				Label = "Grass Uniforms",
 				Size = GrassUniforms.Size * MaxGrassTypes,
 				Usage = .Uniform,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
 
-			switch (Renderer.Device.CreateBuffer(&uniformDesc))
+			switch (Renderer.Device.CreateBuffer(uniformDesc))
 			{
 			case .Ok(let buf): mGrassUniformBuffers[i] = buf;
 			case .Err: return .Err;
@@ -431,15 +431,15 @@ public class GrassFeature : RenderFeatureBase
 	{
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			BufferDescriptor desc = .()
+			BufferDesc desc = .()
 			{
 				Label = "Grass Object Uniforms",
 				Size = AlignedObjectUniformSize,
 				Usage = .Uniform,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
 
-			switch (Renderer.Device.CreateBuffer(&desc))
+			switch (Renderer.Device.CreateBuffer(desc))
 			{
 			case .Ok(let buf): mObjectUniformBuffers[i] = buf;
 			case .Err: return .Err;
@@ -766,7 +766,7 @@ public class GrassFeature : RenderFeatureBase
 			return;
 
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0.0f, 1.0f);
-		encoder.SetScissorRect(0, 0, view.Width, view.Height);
+		encoder.SetScissor(0, 0, view.Width, view.Height);
 		encoder.SetPipeline(pipeline);
 
 		uint32[1] dynamicOffsets = .(0);
@@ -831,14 +831,14 @@ public class GrassFeature : RenderFeatureBase
 		entries[1] = BindGroupEntry.Texture(0, proxy.AlbedoView);
 		entries[2] = BindGroupEntry.Sampler(0, mGrassSampler);
 
-		BindGroupDescriptor bgDesc = .()
+		BindGroupDesc bgDesc = .()
 		{
 			Label = "Grass BindGroup",
 			Layout = mGrassBindGroupLayout,
 			Entries = entries
 		};
 
-		if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bg))
+		if (Renderer.Device.CreateBindGroup(bgDesc) case .Ok(let bg))
 		{
 			if (existing != null)
 			{
@@ -974,14 +974,14 @@ public class GrassFeature : RenderFeatureBase
 		entries[13] = BindGroupEntry.Buffer(6, probeSystem.GetProbeUniformBuffer(frameIndex), 0, ProbeUniforms.Size);
 		entries[14] = BindGroupEntry.Texture(11, probeSystem.GetCubemapArrayView());
 
-		BindGroupDescriptor bgDesc = .()
+		BindGroupDesc bgDesc = .()
 		{
 			Label = "Grass Scene BindGroup",
 			Layout = sceneLayout,
 			Entries = entries
 		};
 
-		if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bg))
+		if (Renderer.Device.CreateBindGroup(bgDesc) case .Ok(let bg))
 		{
 			mSceneBindGroups[bindGroupIndex] = bg;
 			mSceneBindGroupShadowState[bindGroupIndex] = shadowsEnabled;

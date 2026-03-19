@@ -2,7 +2,7 @@ using System;
 namespace Sedulous.RHI;
 
 /// Describes a texture sampler.
-struct SamplerDescriptor
+struct SamplerDesc
 {
 	/// Minification filter.
 	public FilterMode MinFilter;
@@ -11,15 +11,15 @@ struct SamplerDescriptor
 	/// Mipmap filter.
 	public FilterMode MipmapFilter;
 	/// Address mode for U coordinate.
-	public AddressMode AddressModeU;
+	public AddressMode AddressU;
 	/// Address mode for V coordinate.
-	public AddressMode AddressModeV;
+	public AddressMode AddressV;
 	/// Address mode for W coordinate.
-	public AddressMode AddressModeW;
+	public AddressMode AddressW;
 	/// LOD clamp minimum.
-	public float LodMinClamp;
+	public float MinLod;
 	/// LOD clamp maximum.
-	public float LodMaxClamp;
+	public float MaxLod;
 	/// Comparison function for comparison samplers.
 	public CompareFunction Compare;
 	/// Maximum anisotropy level (1 = no anisotropic filtering).
@@ -34,11 +34,11 @@ struct SamplerDescriptor
 		MinFilter = .Linear;
 		MagFilter = .Linear;
 		MipmapFilter = .Linear;
-		AddressModeU = .ClampToEdge;
-		AddressModeV = .ClampToEdge;
-		AddressModeW = .ClampToEdge;
-		LodMinClamp = 0.0f;
-		LodMaxClamp = 1000.0f;
+		AddressU = .ClampToEdge;
+		AddressV = .ClampToEdge;
+		AddressW = .ClampToEdge;
+		MinLod = 0.0f;
+		MaxLod = 1000.0f;
 		Compare = .Always;
 		MaxAnisotropy = 1;
 		BorderColor = .TransparentBlack;
@@ -49,9 +49,9 @@ struct SamplerDescriptor
 	public static Self LinearRepeat()
 	{
 		Self desc = .();
-		desc.AddressModeU = .Repeat;
-		desc.AddressModeV = .Repeat;
-		desc.AddressModeW = .Repeat;
+		desc.AddressU = .Repeat;
+		desc.AddressV = .Repeat;
+		desc.AddressW = .Repeat;
 		return desc;
 	}
 

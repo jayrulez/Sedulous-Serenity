@@ -103,14 +103,14 @@ class ImGuiSampleApp : RHISampleApp
 	private bool CreateBuffers()
 	{
 		// Create vertex buffer
-		BufferDescriptor vertexDesc = .()
+		BufferDesc vertexDesc = .()
 		{
 			Size = MAX_VERTEX_BUFFER,
 			Usage = .Vertex,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&vertexDesc) not case .Ok(let vb))
+		if (Device.CreateBuffer(vertexDesc) not case .Ok(let vb))
 		{
 			Console.WriteLine("Failed to create vertex buffer");
 			return false;
@@ -118,14 +118,14 @@ class ImGuiSampleApp : RHISampleApp
 		mVertexBuffer = vb;
 
 		// Create index buffer
-		BufferDescriptor indexDesc = .()
+		BufferDesc indexDesc = .()
 		{
 			Size = MAX_INDEX_BUFFER,
 			Usage = .Index,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&indexDesc) not case .Ok(let ib))
+		if (Device.CreateBuffer(indexDesc) not case .Ok(let ib))
 		{
 			Console.WriteLine("Failed to create index buffer");
 			return false;
@@ -133,14 +133,14 @@ class ImGuiSampleApp : RHISampleApp
 		mIndexBuffer = ib;
 
 		// Create uniform buffer
-		BufferDescriptor uniformDesc = .()
+		BufferDesc uniformDesc = .()
 		{
 			Size = (uint64)sizeof(ImGuiUniforms),
 			Usage = .Uniform,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&uniformDesc) not case .Ok(let ub))
+		if (Device.CreateBuffer(uniformDesc) not case .Ok(let ub))
 		{
 			Console.WriteLine("Failed to create uniform buffer");
 			return false;
@@ -170,8 +170,8 @@ class ImGuiSampleApp : RHISampleApp
 			BindGroupLayoutEntry.SampledTexture(0, .Fragment),
 			BindGroupLayoutEntry.Sampler(0, .Fragment)
 		);
-		BindGroupLayoutDescriptor bindGroupLayoutDesc = .(layoutEntries);
-		if (Device.CreateBindGroupLayout(&bindGroupLayoutDesc) not case .Ok(let layout))
+		BindGroupLayoutDesc bindGroupLayoutDesc = .(layoutEntries);
+		if (Device.CreateBindGroupLayout(bindGroupLayoutDesc) not case .Ok(let layout))
 		{
 			Console.WriteLine("Failed to create bind group layout");
 			return false;
@@ -180,8 +180,8 @@ class ImGuiSampleApp : RHISampleApp
 
 		// Create pipeline layout
 		IBindGroupLayout[1] layouts = .(mBindGroupLayout);
-		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
-		if (Device.CreatePipelineLayout(&pipelineLayoutDesc) not case .Ok(let pipelineLayout))
+		PipelineLayoutDesc pipelineLayoutDesc = .(layouts);
+		if (Device.CreatePipelineLayout(pipelineLayoutDesc) not case .Ok(let pipelineLayout))
 		{
 			Console.WriteLine("Failed to create pipeline layout");
 			return false;
@@ -229,7 +229,7 @@ class ImGuiSampleApp : RHISampleApp
 		);
 
 		// Pipeline descriptor
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Layout = mPipelineLayout,
 			Vertex = .()
@@ -257,7 +257,7 @@ class ImGuiSampleApp : RHISampleApp
 			}
 		};
 
-		if (Device.CreateRenderPipeline(&pipelineDesc) not case .Ok(let pipeline))
+		if (Device.CreateRenderPipeline(pipelineDesc) not case .Ok(let pipeline))
 		{
 			Console.WriteLine("Failed to create pipeline");
 			return false;
@@ -287,8 +287,8 @@ class ImGuiSampleApp : RHISampleApp
 			uint32 h = (uint32)tex.Height;
 
 			// Create texture
-			TextureDescriptor texDesc = TextureDescriptor.Texture2D(w, h, .RGBA8Unorm, .Sampled | .CopyDst);
-			if (Device.CreateTexture(&texDesc) not case .Ok(let gpuTex))
+			TextureDesc texDesc = TextureDesc.Texture2D(w, h, .RGBA8Unorm, .Sampled | .CopyDst);
+			if (Device.CreateTexture(texDesc) not case .Ok(let gpuTex))
 			{
 				Console.WriteLine("Failed to create font texture");
 				return false;
@@ -307,8 +307,8 @@ class ImGuiSampleApp : RHISampleApp
 			Device.Queue.WriteTextureSync(mFontTexture, data, &dataLayout, &writeSize);
 
 			// Create texture view
-			TextureViewDescriptor viewDesc = .();
-			if (Device.CreateTextureView(mFontTexture, &viewDesc) not case .Ok(let view))
+			TextureViewDesc viewDesc = .();
+			if (Device.CreateTextureView(mFontTexture, viewDesc) not case .Ok(let view))
 			{
 				Console.WriteLine("Failed to create font texture view");
 				return false;
@@ -316,18 +316,18 @@ class ImGuiSampleApp : RHISampleApp
 			mFontTextureView = view;
 
 			// Create sampler
-			SamplerDescriptor samplerDesc = .()
+			SamplerDesc samplerDesc = .()
 			{
-				AddressModeU = .ClampToEdge,
-				AddressModeV = .ClampToEdge,
-				AddressModeW = .ClampToEdge,
+				AddressU = .ClampToEdge,
+				AddressV = .ClampToEdge,
+				AddressW = .ClampToEdge,
 				MagFilter = .Linear,
 				MinFilter = .Linear,
 				MipmapFilter = .Linear,
-				LodMinClamp = 0.0f,
-				LodMaxClamp = 1.0f
+				MinLod = 0.0f,
+				MaxLod = 1.0f
 			};
-			if (Device.CreateSampler(&samplerDesc) not case .Ok(let sampler))
+			if (Device.CreateSampler(samplerDesc) not case .Ok(let sampler))
 			{
 				Console.WriteLine("Failed to create font sampler");
 				return false;
@@ -340,8 +340,8 @@ class ImGuiSampleApp : RHISampleApp
 				BindGroupEntry.Texture(0, mFontTextureView),
 				BindGroupEntry.Sampler(0, mFontSampler)
 			);
-			BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
-			if (Device.CreateBindGroup(&bindGroupDesc) not case .Ok(let group))
+			BindGroupDesc bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
+			if (Device.CreateBindGroup(bindGroupDesc) not case .Ok(let group))
 			{
 				Console.WriteLine("Failed to create bind group");
 				return false;
@@ -625,7 +625,7 @@ class ImGuiSampleApp : RHISampleApp
 
 				if (clipW > 0 && clipH > 0)
 				{
-					renderPass.SetScissorRect(clipX, clipY, (uint32)clipW, (uint32)clipH);
+					renderPass.SetScissor(clipX, clipY, (uint32)clipW, (uint32)clipH);
 					renderPass.DrawIndexed(cmd.ElemCount, 1,
 						(uint32)(cmd.IdxOffset + (uint32)globalIdxOffset),
 						(int32)(cmd.VtxOffset + (uint32)globalVtxOffset), 0);

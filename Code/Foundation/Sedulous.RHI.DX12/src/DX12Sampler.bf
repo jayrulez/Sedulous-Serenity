@@ -15,7 +15,7 @@ class DX12Sampler : ISampler
 	private bool mValid;
 	private String mDebugName ~ delete _;
 
-	public this(DX12Device device, SamplerDescriptor* descriptor)
+	public this(DX12Device device, SamplerDesc descriptor)
 	{
 		mDevice = device;
 		if (descriptor.Label.Ptr != null && descriptor.Label.Length > 0)
@@ -39,7 +39,7 @@ class DX12Sampler : ISampler
 	public StringView DebugName => mDebugName != null ? mDebugName : "";
 	public D3D12_CPU_DESCRIPTOR_HANDLE CpuHandle => mCpuHandle;
 
-	private void CreateSampler(SamplerDescriptor* descriptor)
+	private void CreateSampler(SamplerDesc descriptor)
 	{
 		D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle;
 		if (!mDevice.SamplerCpuHeap.Allocate(out mCpuHandle, out gpuHandle))
@@ -60,14 +60,14 @@ class DX12Sampler : ISampler
 				samplerDesc.Filter = .D3D12_FILTER_ANISOTROPIC;
 		}
 
-		samplerDesc.AddressU = DX12Conversions.ToDx12AddressMode(descriptor.AddressModeU);
-		samplerDesc.AddressV = DX12Conversions.ToDx12AddressMode(descriptor.AddressModeV);
-		samplerDesc.AddressW = DX12Conversions.ToDx12AddressMode(descriptor.AddressModeW);
+		samplerDesc.AddressU = DX12Conversions.ToDx12AddressMode(descriptor.AddressU);
+		samplerDesc.AddressV = DX12Conversions.ToDx12AddressMode(descriptor.AddressV);
+		samplerDesc.AddressW = DX12Conversions.ToDx12AddressMode(descriptor.AddressW);
 		samplerDesc.MipLODBias = 0.0f;
 		samplerDesc.MaxAnisotropy = Math.Max(1, descriptor.MaxAnisotropy);
 		samplerDesc.ComparisonFunc = DX12Conversions.ToDx12CompareFunc(descriptor.Compare);
-		samplerDesc.MinLOD = descriptor.LodMinClamp;
-		samplerDesc.MaxLOD = descriptor.LodMaxClamp;
+		samplerDesc.MinLOD = descriptor.MinLod;
+		samplerDesc.MaxLOD = descriptor.MaxLod;
 
 		// Border color
 		switch (descriptor.BorderColor)

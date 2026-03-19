@@ -2,7 +2,7 @@ using System;
 namespace Sedulous.RHI;
 
 /// Describes a swap chain.
-struct SwapChainDescriptor
+struct SwapChainDesc
 {
 	/// Width in pixels.
 	public uint32 Width;

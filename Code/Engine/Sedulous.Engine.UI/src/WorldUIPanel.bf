@@ -149,17 +149,17 @@ public class WorldUIPanel
 		mFontService = fontService;
 
 		// Create render texture
-		TextureDescriptor texDesc = TextureDescriptor.Texture2D(
+		TextureDesc texDesc = TextureDesc.Texture2D(
 			pixelWidth, pixelHeight, .RGBA8Unorm,
 			.Sampled | .RenderTarget
 		);
-		if (device.CreateTexture(&texDesc) case .Ok(let tex))
+		if (device.CreateTexture(texDesc) case .Ok(let tex))
 			mTexture = tex;
 
 		if (mTexture != null)
 		{
-			TextureViewDescriptor viewDesc = .() { Format = .RGBA8Unorm };
-			if (device.CreateTextureView(mTexture, &viewDesc) case .Ok(let view))
+			TextureViewDesc viewDesc = .() { Format = .RGBA8Unorm };
+			if (device.CreateTextureView(mTexture, viewDesc) case .Ok(let view))
 				mTextureView = view;
 		}
 	}

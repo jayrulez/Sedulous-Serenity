@@ -97,7 +97,7 @@ class VulkanRenderPassEncoder : IRenderPassEncoder
 		VulkanNative.vkCmdSetViewport(mCommandBuffer, 0, 1, &viewport);
 	}
 
-	public void SetScissorRect(int32 x, int32 y, uint32 width, uint32 height)
+	public void SetScissor(int32 x, int32 y, uint32 width, uint32 height)
 	{
 		if (mEnded)
 			return;

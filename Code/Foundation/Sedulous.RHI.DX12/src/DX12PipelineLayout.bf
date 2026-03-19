@@ -29,7 +29,7 @@ class DX12PipelineLayout : IPipelineLayout
 
 	private uint32 mRootParameterCount;
 
-	public this(DX12Device device, PipelineLayoutDescriptor* descriptor)
+	public this(DX12Device device, PipelineLayoutDesc descriptor)
 	{
 		mDevice = device;
 		for (int i = 0; i < MaxBindGroups; i++)
@@ -75,7 +75,7 @@ class DX12PipelineLayout : IPipelineLayout
 	/// Gets the number of dynamic root parameters for a bind group.
 	public uint32 GetDynamicParamCount(int bindGroupIndex) => mDynamicParamCounts[bindGroupIndex];
 
-	private void CreateRootSignature(PipelineLayoutDescriptor* descriptor)
+	private void CreateRootSignature(PipelineLayoutDesc descriptor)
 	{
 		int layoutCount = descriptor.BindGroupLayouts.Length;
 

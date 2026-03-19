@@ -3,7 +3,7 @@ namespace Sedulous.RHI;
 using System;
 
 /// Describes a pipeline layout.
-struct PipelineLayoutDescriptor
+struct PipelineLayoutDesc
 {
 	/// Bind group layouts used by this pipeline.
 	public Span<IBindGroupLayout> BindGroupLayouts;

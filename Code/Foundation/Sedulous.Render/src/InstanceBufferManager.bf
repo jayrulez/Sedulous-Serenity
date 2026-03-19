@@ -55,15 +55,15 @@ public class InstanceBufferManager
 
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			BufferDescriptor bufDesc = .()
+			BufferDesc bufDesc = .()
 			{
 				Size = bufferSize,
 				Usage = .Vertex,
-				MemoryAccess = .Upload, // CPU-writable for fast updates
+				MemoryAccess = .CpuToGpu, // CPU-writable for fast updates
 				Label = "InstanceBuffer"
 			};
 
-			switch (device.CreateBuffer(&bufDesc))
+			switch (device.CreateBuffer(bufDesc))
 			{
 			case .Ok(let buffer): mInstanceBuffers[i] = buffer;
 			case .Err: return .Err;

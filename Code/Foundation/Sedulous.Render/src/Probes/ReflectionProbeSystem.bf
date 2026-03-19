@@ -64,7 +64,7 @@ public class ReflectionProbeSystem
 		mDevice = device;
 
 		// Create cubemap array texture (6 faces * MaxProbes layers)
-		var texDesc = TextureDescriptor();
+		var texDesc = TextureDesc();
 		texDesc.Label = "Probe Cubemap Array";
 		texDesc.Dimension = .Texture2D;
 		texDesc.Format = .RGBA16Float;
@@ -76,14 +76,14 @@ public class ReflectionProbeSystem
 		texDesc.SampleCount = 1;
 		texDesc.Usage = .Sampled | .CopyDst;
 
-		switch (device.CreateTexture(&texDesc))
+		switch (device.CreateTexture(texDesc))
 		{
 		case .Ok(let tex): mCubemapArray = tex;
 		case .Err: return .Err;
 		}
 
 		// Create TextureCubeArray view over the full array
-		var viewDesc = TextureViewDescriptor();
+		var viewDesc = TextureViewDesc();
 		viewDesc.Label = "Probe Cubemap Array View";
 		viewDesc.Format = .RGBA16Float;
 		viewDesc.Dimension = .TextureCubeArray;
@@ -92,7 +92,7 @@ public class ReflectionProbeSystem
 		viewDesc.BaseArrayLayer = 0;
 		viewDesc.ArrayLayerCount = (uint32)(6 * MaxProbes);
 
-		switch (device.CreateTextureView(mCubemapArray, &viewDesc))
+		switch (device.CreateTextureView(mCubemapArray, viewDesc))
 		{
 		case .Ok(let view): mCubemapArrayView = view;
 		case .Err: return .Err;
@@ -112,13 +112,13 @@ public class ReflectionProbeSystem
 
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			var bufDesc = BufferDescriptor();
+			var bufDesc = BufferDesc();
 			bufDesc.Label = "Probe Uniforms";
 			bufDesc.Size = ProbeUniforms.Size;
 			bufDesc.Usage = .Uniform;
-			bufDesc.MemoryAccess = .Upload;
+			bufDesc.MemoryAccess = .CpuToGpu;
 
-			switch (device.CreateBuffer(&bufDesc))
+			switch (device.CreateBuffer(bufDesc))
 			{
 			case .Ok(let buf): mProbeUniformBuffers[i] = buf;
 			case .Err: return .Err;
@@ -138,7 +138,7 @@ public class ReflectionProbeSystem
 	/// Creates a 1-cube fallback white cubemap array for when no probes are active.
 	private Result<void> CreateFallbackCubemapArray(IDevice device, ITransferBatch batch = null)
 	{
-		var texDesc = TextureDescriptor();
+		var texDesc = TextureDesc();
 		texDesc.Label = "Fallback Probe CubeArray";
 		texDesc.Dimension = .Texture2D;
 		texDesc.Format = .RGBA16Float;
@@ -150,7 +150,7 @@ public class ReflectionProbeSystem
 		texDesc.SampleCount = 1;
 		texDesc.Usage = .Sampled | .CopyDst;
 
-		switch (device.CreateTexture(&texDesc))
+		switch (device.CreateTexture(texDesc))
 		{
 		case .Ok(let tex): mFallbackCubemapArray = tex;
 		case .Err: return .Err;
@@ -169,7 +169,7 @@ public class ReflectionProbeSystem
 				device.Queue.WriteTextureSync(mFallbackCubemapArray, Span<uint8>((uint8*)&whitePixel, 8), &layout, &writeSize, 0, face);
 		}
 
-		var viewDesc = TextureViewDescriptor();
+		var viewDesc = TextureViewDesc();
 		viewDesc.Label = "Fallback Probe CubeArray View";
 		viewDesc.Format = .RGBA16Float;
 		viewDesc.Dimension = .TextureCubeArray;
@@ -178,7 +178,7 @@ public class ReflectionProbeSystem
 		viewDesc.BaseArrayLayer = 0;
 		viewDesc.ArrayLayerCount = 6;
 
-		switch (device.CreateTextureView(mFallbackCubemapArray, &viewDesc))
+		switch (device.CreateTextureView(mFallbackCubemapArray, viewDesc))
 		{
 		case .Ok(let view): mFallbackCubemapArrayView = view;
 		case .Err: return .Err;

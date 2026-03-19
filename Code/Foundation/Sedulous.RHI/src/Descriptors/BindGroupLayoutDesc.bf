@@ -90,7 +90,7 @@ struct BindGroupLayoutEntry
 }
 
 /// Describes a bind group layout.
-struct BindGroupLayoutDescriptor
+struct BindGroupLayoutDesc
 {
 	/// Binding entries in this layout.
 	public Span<BindGroupLayoutEntry> Entries;

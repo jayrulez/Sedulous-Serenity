@@ -62,15 +62,15 @@ public class ForwardTransparentFeature : RenderFeatureBase
 		// Create per-frame object uniform buffers
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			BufferDescriptor desc = .()
+			BufferDesc desc = .()
 			{
 				Label = "Transparent Object Uniforms",
 				Size = AlignedObjectUniformSize * (uint64)MaxTransparentObjects,
 				Usage = .Uniform,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
 
-			switch (Renderer.Device.CreateBuffer(&desc))
+			switch (Renderer.Device.CreateBuffer(desc))
 			{
 			case .Ok(let buf): mObjectUniformBuffers[i] = buf;
 			case .Err: return .Err;
@@ -373,14 +373,14 @@ public class ForwardTransparentFeature : RenderFeatureBase
 		entries[14] = BindGroupEntry.Texture(11, probeSystem.GetCubemapArrayView());
 
 		// Create bind group
-		BindGroupDescriptor bgDesc = .()
+		BindGroupDesc bgDesc = .()
 		{
 			Label = "Transparent Scene BindGroup",
 			Layout = sceneLayout,
 			Entries = entries
 		};
 
-		if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bg))
+		if (Renderer.Device.CreateBindGroup(bgDesc) case .Ok(let bg))
 		{
 			mSceneBindGroups[bindGroupIndex] = bg;
 			mSceneBindGroupShadowState[bindGroupIndex] = shadowsEnabled;
@@ -435,7 +435,7 @@ public class ForwardTransparentFeature : RenderFeatureBase
 	{
 		// Set viewport — render to per-view SceneColor texture at (0,0), not swapchain offset
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0.0f, 1.0f);
-		encoder.SetScissorRect(0, 0, view.Width, view.Height);
+		encoder.SetScissor(0, 0, view.Width, view.Height);
 
 		// Check we have a valid scene bind group for current frame
 		let sceneBindGroup = mSceneBindGroups[GetBindGroupIndex(frameIndex)];

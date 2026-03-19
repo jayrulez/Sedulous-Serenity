@@ -19,7 +19,7 @@ class DX12RenderPipeline : IRenderPipeline
 	private D3D_PRIMITIVE_TOPOLOGY mTopology;
 	private uint32[8] mVertexStrides; // Per-slot vertex strides
 
-	public this(DX12Device device, RenderPipelineDescriptor* descriptor)
+	public this(DX12Device device, RenderPipelineDesc descriptor)
 	{
 		mDevice = device;
 		for (int i = 0; i < 8; i++)
@@ -61,7 +61,7 @@ class DX12RenderPipeline : IRenderPipeline
 		return 0;
 	}
 
-	private void CreatePipeline(RenderPipelineDescriptor* descriptor)
+	private void CreatePipeline(RenderPipelineDesc descriptor)
 	{
 		if (mLayout == null)
 			return;
@@ -222,7 +222,7 @@ class DX12RenderPipeline : IRenderPipeline
 		return 0;
 	}
 
-	private void BuildInputLayout(RenderPipelineDescriptor* descriptor, ref D3D12_GRAPHICS_PIPELINE_STATE_DESC desc)
+	private void BuildInputLayout(RenderPipelineDesc descriptor, ref D3D12_GRAPHICS_PIPELINE_STATE_DESC desc)
 	{
 		let buffers = descriptor.Vertex.Buffers;
 		if (buffers.Length == 0)
@@ -262,7 +262,7 @@ class DX12RenderPipeline : IRenderPipeline
 
 			// Store vertex stride for SetVertexBuffer
 			if (bufIdx < 8)
-				mVertexStrides[bufIdx] = (uint32)buffer.ArrayStride;
+				mVertexStrides[bufIdx] = (uint32)buffer.Stride;
 
 			for (let attrib in buffer.Attributes)
 			{
@@ -315,7 +315,7 @@ class DX12RenderPipeline : IRenderPipeline
 		desc.InputLayout.NumElements = (uint32)elemIdx;
 	}
 
-	private D3D12_RASTERIZER_DESC BuildRasterizerState(RenderPipelineDescriptor* descriptor)
+	private D3D12_RASTERIZER_DESC BuildRasterizerState(RenderPipelineDesc descriptor)
 	{
 		D3D12_RASTERIZER_DESC raster = .();
 		raster.FillMode = DX12Conversions.ToDx12FillMode(descriptor.Primitive.FillMode);
@@ -345,7 +345,7 @@ class DX12RenderPipeline : IRenderPipeline
 		return raster;
 	}
 
-	private D3D12_BLEND_DESC BuildBlendState(RenderPipelineDescriptor* descriptor)
+	private D3D12_BLEND_DESC BuildBlendState(RenderPipelineDesc descriptor)
 	{
 		D3D12_BLEND_DESC blend = .();
 		blend.AlphaToCoverageEnable = descriptor.Multisample.AlphaToCoverageEnabled ? TRUE : FALSE;

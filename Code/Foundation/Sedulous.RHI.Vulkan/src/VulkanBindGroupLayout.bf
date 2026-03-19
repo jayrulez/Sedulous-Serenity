@@ -14,7 +14,7 @@ class VulkanBindGroupLayout : IBindGroupLayout
 	private List<BindGroupLayoutEntry> mEntries = new .() ~ delete _;
 	private uint32 mDynamicOffsetCount;
 
-	public this(VulkanDevice device, BindGroupLayoutDescriptor* descriptor)
+	public this(VulkanDevice device, BindGroupLayoutDesc descriptor)
 	{
 		mDevice = device;
 		mDescriptorSetLayout = default;  // Explicitly initialize before Vulkan call
@@ -52,7 +52,7 @@ class VulkanBindGroupLayout : IBindGroupLayout
 	/// Gets the number of dynamic offsets required for this layout.
 	public uint32 DynamicOffsetCount => mDynamicOffsetCount;
 
-	private void CreateDescriptorSetLayout(BindGroupLayoutDescriptor* descriptor)
+	private void CreateDescriptorSetLayout(BindGroupLayoutDesc descriptor)
 	{
 		if (descriptor.Entries.Length == 0)
 		{

@@ -81,7 +81,7 @@ public class WorldSpaceUIFeature : RenderFeatureBase
 				.NeverCull()
 				.SetExecuteCallback(new /*[capturedPanel, capturedFrameIndex, capturedWidth, capturedHeight]*/ (encoder) => {
 					encoder.SetViewport(0, 0, capturedWidth, capturedHeight, 0, 1);
-					encoder.SetScissorRect(0, 0, capturedWidth, capturedHeight);
+					encoder.SetScissor(0, 0, capturedWidth, capturedHeight);
 					capturedPanel.Renderer.Render(encoder, capturedWidth, capturedHeight, capturedFrameIndex);
 				});
 

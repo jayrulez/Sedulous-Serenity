@@ -108,8 +108,8 @@ public class OverlayRenderFeature : RenderFeatureBase
 		BindGroupLayoutEntry[1] layoutEntries = .(
 			BindGroupLayoutEntry.UniformBuffer(0, .Vertex)
 		);
-		BindGroupLayoutDescriptor layoutDesc = .(layoutEntries);
-		switch (device.CreateBindGroupLayout(&layoutDesc))
+		BindGroupLayoutDesc layoutDesc = .(layoutEntries);
+		switch (device.CreateBindGroupLayout(layoutDesc))
 		{
 		case .Ok(let layout):
 			mBindGroupLayout = layout;
@@ -119,8 +119,8 @@ public class OverlayRenderFeature : RenderFeatureBase
 
 		// Create pipeline layout
 		IBindGroupLayout[1] layouts = .(mBindGroupLayout);
-		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
-		switch (device.CreatePipelineLayout(&pipelineLayoutDesc))
+		PipelineLayoutDesc pipelineLayoutDesc = .(layouts);
+		switch (device.CreatePipelineLayout(pipelineLayoutDesc))
 		{
 		case .Ok(let layout):
 			mPipelineLayout = layout;
@@ -132,8 +132,8 @@ public class OverlayRenderFeature : RenderFeatureBase
 		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
 			// Uniform buffer for view-projection matrix
-			BufferDescriptor uniformDesc = .((uint64)sizeof(Matrix), .Uniform, .Upload);
-			switch (device.CreateBuffer(&uniformDesc))
+			BufferDesc uniformDesc = .((uint64)sizeof(Matrix), .Uniform, .CpuToGpu);
+			switch (device.CreateBuffer(uniformDesc))
 			{
 			case .Ok(let buffer):
 				mUniformBuffers[i] = buffer;
@@ -142,8 +142,8 @@ public class OverlayRenderFeature : RenderFeatureBase
 			}
 
 			// Vertex buffer (large enough for all primitives)
-			BufferDescriptor vertexDesc = .((uint64)(MAX_VERTICES * DebugVertex.SizeInBytes), .Vertex, .Upload);
-			switch (device.CreateBuffer(&vertexDesc))
+			BufferDesc vertexDesc = .((uint64)(MAX_VERTICES * DebugVertex.SizeInBytes), .Vertex, .CpuToGpu);
+			switch (device.CreateBuffer(vertexDesc))
 			{
 			case .Ok(let buffer):
 				mVertexBuffers[i] = buffer;
@@ -155,8 +155,8 @@ public class OverlayRenderFeature : RenderFeatureBase
 			BindGroupEntry[1] entries = .(
 				BindGroupEntry.Buffer(0, mUniformBuffers[i])
 			);
-			BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, entries);
-			switch (device.CreateBindGroup(&bindGroupDesc))
+			BindGroupDesc bindGroupDesc = .(mBindGroupLayout, entries);
+			switch (device.CreateBindGroup(bindGroupDesc))
 			{
 			case .Ok(let group):
 				mBindGroups[i] = group;
@@ -988,7 +988,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 		var vertexBuffer = mVertexBuffers[frameIndex];
 
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0, 1);
-		encoder.SetScissorRect(0, 0, view.Width, view.Height);
+		encoder.SetScissor(0, 0, view.Width, view.Height);
 
 		uint32 vertexOffset = 0;
 
@@ -1139,7 +1139,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 				DepthCompare = .LessEqual
 			};
 
-			RenderPipelineDescriptor desc = .()
+			RenderPipelineDesc desc = .()
 			{
 				Layout = mPipelineLayout,
 				Vertex = .() { Shader = .(vertShader, "main"), Buffers = vertexLayouts },
@@ -1149,7 +1149,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 				Multisample = .() { Count = 1, Mask = uint32.MaxValue }
 			};
 
-			if (device.CreateRenderPipeline(&desc) case .Ok(let pipeline))
+			if (device.CreateRenderPipeline(desc) case .Ok(let pipeline))
 				mLinePipelineDepth = pipeline;
 		}
 
@@ -1163,7 +1163,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 				DepthCompare = .Always
 			};
 
-			RenderPipelineDescriptor desc = .()
+			RenderPipelineDesc desc = .()
 			{
 				Layout = mPipelineLayout,
 				Vertex = .() { Shader = .(vertShader, "main"), Buffers = vertexLayouts },
@@ -1173,7 +1173,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 				Multisample = .() { Count = 1, Mask = uint32.MaxValue }
 			};
 
-			if (device.CreateRenderPipeline(&desc) case .Ok(let pipeline))
+			if (device.CreateRenderPipeline(desc) case .Ok(let pipeline))
 				mLinePipelineOverlay = pipeline;
 		}
 
@@ -1187,7 +1187,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 				DepthCompare = .LessEqual
 			};
 
-			RenderPipelineDescriptor desc = .()
+			RenderPipelineDesc desc = .()
 			{
 				Layout = mPipelineLayout,
 				Vertex = .() { Shader = .(vertShader, "main"), Buffers = vertexLayouts },
@@ -1197,7 +1197,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 				Multisample = .() { Count = 1, Mask = uint32.MaxValue }
 			};
 
-			if (device.CreateRenderPipeline(&desc) case .Ok(let pipeline))
+			if (device.CreateRenderPipeline(desc) case .Ok(let pipeline))
 				mTriPipelineDepth = pipeline;
 		}
 
@@ -1211,7 +1211,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 				DepthCompare = .Always
 			};
 
-			RenderPipelineDescriptor desc = .()
+			RenderPipelineDesc desc = .()
 			{
 				Layout = mPipelineLayout,
 				Vertex = .() { Shader = .(vertShader, "main"), Buffers = vertexLayouts },
@@ -1221,7 +1221,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 				Multisample = .() { Count = 1, Mask = uint32.MaxValue }
 			};
 
-			if (device.CreateRenderPipeline(&desc) case .Ok(let pipeline))
+			if (device.CreateRenderPipeline(desc) case .Ok(let pipeline))
 				mTriPipelineOverlay = pipeline;
 		}
 	}
@@ -1236,7 +1236,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 		uint8[] fontData = DebugFont.GenerateTextureData();
 		defer delete fontData;
 
-		TextureDescriptor texDesc = TextureDescriptor.Texture2D(
+		TextureDesc texDesc = TextureDesc.Texture2D(
 			(uint32)DebugFont.TextureWidth,
 			(uint32)DebugFont.TextureHeight,
 			.R8Unorm,
@@ -1244,7 +1244,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 		);
 		texDesc.Label = "DebugFont";
 
-		switch (device.CreateTexture(&texDesc))
+		switch (device.CreateTexture(texDesc))
 		{
 		case .Ok(let tex):
 			mFontTexture = tex;
@@ -1264,7 +1264,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 		UploadTexture(mFontTexture, dataSpan, &dataLayout, &extent);
 
 		// Create texture view
-		TextureViewDescriptor viewDesc = .()
+		TextureViewDesc viewDesc = .()
 		{
 			Format = .R8Unorm,
 			Dimension = .Texture2D,
@@ -1274,7 +1274,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 			ArrayLayerCount = 1,
 			Label = "DebugFontView"
 		};
-		switch (device.CreateTextureView(mFontTexture, &viewDesc))
+		switch (device.CreateTextureView(mFontTexture, viewDesc))
 		{
 		case .Ok(let view):
 			mFontTextureView = view;
@@ -1283,15 +1283,15 @@ public class OverlayRenderFeature : RenderFeatureBase
 		}
 
 		// Create sampler
-		SamplerDescriptor samplerDesc = .()
+		SamplerDesc samplerDesc = .()
 		{
-			AddressModeU = .ClampToEdge,
-			AddressModeV = .ClampToEdge,
-			AddressModeW = .ClampToEdge,
+			AddressU = .ClampToEdge,
+			AddressV = .ClampToEdge,
+			AddressW = .ClampToEdge,
 			MagFilter = .Linear,
 			MinFilter = .Linear
 		};
-		switch (device.CreateSampler(&samplerDesc))
+		switch (device.CreateSampler(samplerDesc))
 		{
 		case .Ok(let sampler):
 			mFontSampler = sampler;
@@ -1305,8 +1305,8 @@ public class OverlayRenderFeature : RenderFeatureBase
 			BindGroupLayoutEntry.SampledTexture(0, .Fragment),
 			BindGroupLayoutEntry.Sampler(0, .Fragment)
 		);
-		BindGroupLayoutDescriptor textLayoutDesc = .(textLayoutEntries);
-		switch (device.CreateBindGroupLayout(&textLayoutDesc))
+		BindGroupLayoutDesc textLayoutDesc = .(textLayoutEntries);
+		switch (device.CreateBindGroupLayout(textLayoutDesc))
 		{
 		case .Ok(let layout):
 			mTextBindGroupLayout = layout;
@@ -1316,8 +1316,8 @@ public class OverlayRenderFeature : RenderFeatureBase
 
 		// Create text pipeline layout
 		IBindGroupLayout[1] textLayouts = .(mTextBindGroupLayout);
-		PipelineLayoutDescriptor textPipelineLayoutDesc = .(textLayouts);
-		switch (device.CreatePipelineLayout(&textPipelineLayoutDesc))
+		PipelineLayoutDesc textPipelineLayoutDesc = .(textLayouts);
+		switch (device.CreatePipelineLayout(textPipelineLayoutDesc))
 		{
 		case .Ok(let layout):
 			mTextPipelineLayout = layout;
@@ -1328,8 +1328,8 @@ public class OverlayRenderFeature : RenderFeatureBase
 		// Create per-frame text resources
 		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			BufferDescriptor textVertexDesc = .((uint64)(MAX_VERTICES * DebugTextVertex.SizeInBytes), .Vertex, .Upload);
-			switch (device.CreateBuffer(&textVertexDesc))
+			BufferDesc textVertexDesc = .((uint64)(MAX_VERTICES * DebugTextVertex.SizeInBytes), .Vertex, .CpuToGpu);
+			switch (device.CreateBuffer(textVertexDesc))
 			{
 			case .Ok(let buffer):
 				mTextVertexBuffers[i] = buffer;
@@ -1342,8 +1342,8 @@ public class OverlayRenderFeature : RenderFeatureBase
 				BindGroupEntry.Texture(0, mFontTextureView),
 				BindGroupEntry.Sampler(0, mFontSampler)
 			);
-			BindGroupDescriptor textBindGroupDesc = .(mTextBindGroupLayout, textEntries);
-			switch (device.CreateBindGroup(&textBindGroupDesc))
+			BindGroupDesc textBindGroupDesc = .(mTextBindGroupLayout, textEntries);
+			switch (device.CreateBindGroup(textBindGroupDesc))
 			{
 			case .Ok(let group):
 				mTextBindGroups[i] = group;
@@ -1406,7 +1406,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 				DepthCompare = .LessEqual
 			};
 
-			RenderPipelineDescriptor desc = .()
+			RenderPipelineDesc desc = .()
 			{
 				Layout = mTextPipelineLayout,
 				Vertex = .() { Shader = .(vertShader, "main"), Buffers = textVertexLayouts },
@@ -1416,7 +1416,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 				Multisample = .() { Count = 1, Mask = uint32.MaxValue }
 			};
 
-			if (device.CreateRenderPipeline(&desc) case .Ok(let pipeline))
+			if (device.CreateRenderPipeline(desc) case .Ok(let pipeline))
 				mTextPipelineDepth = pipeline;
 		}
 
@@ -1430,7 +1430,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 				DepthCompare = .Always
 			};
 
-			RenderPipelineDescriptor desc = .()
+			RenderPipelineDesc desc = .()
 			{
 				Layout = mTextPipelineLayout,
 				Vertex = .() { Shader = .(vertShader, "main"), Buffers = textVertexLayouts },
@@ -1440,7 +1440,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 				Multisample = .() { Count = 1, Mask = uint32.MaxValue }
 			};
 
-			if (device.CreateRenderPipeline(&desc) case .Ok(let pipeline))
+			if (device.CreateRenderPipeline(desc) case .Ok(let pipeline))
 				mTextPipelineOverlay = pipeline;
 		}
 	}
@@ -1457,8 +1457,8 @@ public class OverlayRenderFeature : RenderFeatureBase
 			BindGroupLayoutEntry.SampledTexture(0, .Fragment),
 			BindGroupLayoutEntry.Sampler(0, .Fragment)
 		);
-		BindGroupLayoutDescriptor text2DLayoutDesc = .(text2DLayoutEntries);
-		switch (device.CreateBindGroupLayout(&text2DLayoutDesc))
+		BindGroupLayoutDesc text2DLayoutDesc = .(text2DLayoutEntries);
+		switch (device.CreateBindGroupLayout(text2DLayoutDesc))
 		{
 		case .Ok(let layout):
 			mText2DBindGroupLayout = layout;
@@ -1468,8 +1468,8 @@ public class OverlayRenderFeature : RenderFeatureBase
 
 		// Create 2D text pipeline layout
 		IBindGroupLayout[1] text2DLayouts = .(mText2DBindGroupLayout);
-		PipelineLayoutDescriptor text2DPipelineLayoutDesc = .(text2DLayouts);
-		switch (device.CreatePipelineLayout(&text2DPipelineLayoutDesc))
+		PipelineLayoutDesc text2DPipelineLayoutDesc = .(text2DLayouts);
+		switch (device.CreatePipelineLayout(text2DPipelineLayoutDesc))
 		{
 		case .Ok(let layout):
 			mText2DPipelineLayout = layout;
@@ -1480,8 +1480,8 @@ public class OverlayRenderFeature : RenderFeatureBase
 		// Create per-frame 2D text resources
 		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			BufferDescriptor screenParamDesc = .((uint64)sizeof(float[4]), .Uniform, .Upload);
-			switch (device.CreateBuffer(&screenParamDesc))
+			BufferDesc screenParamDesc = .((uint64)sizeof(float[4]), .Uniform, .CpuToGpu);
+			switch (device.CreateBuffer(screenParamDesc))
 			{
 			case .Ok(let buffer):
 				mScreenParamBuffers[i] = buffer;
@@ -1489,8 +1489,8 @@ public class OverlayRenderFeature : RenderFeatureBase
 				return .Err;
 			}
 
-			BufferDescriptor text2DVertexDesc = .((uint64)(MAX_VERTICES * DebugText2DVertex.SizeInBytes), .Vertex, .Upload);
-			switch (device.CreateBuffer(&text2DVertexDesc))
+			BufferDesc text2DVertexDesc = .((uint64)(MAX_VERTICES * DebugText2DVertex.SizeInBytes), .Vertex, .CpuToGpu);
+			switch (device.CreateBuffer(text2DVertexDesc))
 			{
 			case .Ok(let buffer):
 				mText2DVertexBuffers[i] = buffer;
@@ -1503,8 +1503,8 @@ public class OverlayRenderFeature : RenderFeatureBase
 				BindGroupEntry.Texture(0, mFontTextureView),
 				BindGroupEntry.Sampler(0, mFontSampler)
 			);
-			BindGroupDescriptor text2DBindGroupDesc = .(mText2DBindGroupLayout, text2DEntries);
-			switch (device.CreateBindGroup(&text2DBindGroupDesc))
+			BindGroupDesc text2DBindGroupDesc = .(mText2DBindGroupLayout, text2DEntries);
+			switch (device.CreateBindGroup(text2DBindGroupDesc))
 			{
 			case .Ok(let group):
 				mText2DBindGroups[i] = group;
@@ -1569,7 +1569,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 			DepthCompare = .Always
 		};
 
-		RenderPipelineDescriptor desc = .()
+		RenderPipelineDesc desc = .()
 		{
 			Layout = mText2DPipelineLayout,
 			Vertex = .() { Shader = .(vertModule, "main"), Buffers = text2DVertexLayouts },
@@ -1579,7 +1579,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 			Multisample = .() { Count = 1, Mask = uint32.MaxValue }
 		};
 
-		if (Renderer.Device.CreateRenderPipeline(&desc) case .Ok(let pipeline))
+		if (Renderer.Device.CreateRenderPipeline(desc) case .Ok(let pipeline))
 			mText2DPipeline = pipeline;
 	}
 }

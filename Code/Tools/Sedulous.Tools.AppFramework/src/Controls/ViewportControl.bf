@@ -184,31 +184,31 @@ public class ViewportControl : Control
 		mImageRef.Resize(width, height);
 
 		// Create color render target
-		TextureDescriptor colorDesc = TextureDescriptor.Texture2D(
+		TextureDesc colorDesc = TextureDesc.Texture2D(
 			width, height, .RGBA8Unorm, .RenderTarget | .Sampled
 		);
-		if (mDevice.CreateTexture(&colorDesc) case .Ok(let colorTex))
+		if (mDevice.CreateTexture(colorDesc) case .Ok(let colorTex))
 			mColorTexture = colorTex;
 		else
 			return;
 
-		TextureViewDescriptor colorViewDesc = .() { Format = .RGBA8Unorm };
-		if (mDevice.CreateTextureView(mColorTexture, &colorViewDesc) case .Ok(let colorView))
+		TextureViewDesc colorViewDesc = .() { Format = .RGBA8Unorm };
+		if (mDevice.CreateTextureView(mColorTexture, colorViewDesc) case .Ok(let colorView))
 			mColorTextureView = colorView;
 		else
 			return;
 
 		// Create depth buffer - use Depth24PlusStencil8 to match RenderSystem defaults
-		TextureDescriptor depthDesc = TextureDescriptor.Texture2D(
+		TextureDesc depthDesc = TextureDesc.Texture2D(
 			width, height, .Depth24PlusStencil8, .DepthStencil
 		);
-		if (mDevice.CreateTexture(&depthDesc) case .Ok(let depthTex))
+		if (mDevice.CreateTexture(depthDesc) case .Ok(let depthTex))
 			mDepthTexture = depthTex;
 		else
 			return;
 
-		TextureViewDescriptor depthViewDesc = .() { Format = .Depth24PlusStencil8 };
-		if (mDevice.CreateTextureView(mDepthTexture, &depthViewDesc) case .Ok(let depthView))
+		TextureViewDesc depthViewDesc = .() { Format = .Depth24PlusStencil8 };
+		if (mDevice.CreateTextureView(mDepthTexture, depthViewDesc) case .Ok(let depthView))
 			mDepthTextureView = depthView;
 
 		// Register with DrawingRenderer for display

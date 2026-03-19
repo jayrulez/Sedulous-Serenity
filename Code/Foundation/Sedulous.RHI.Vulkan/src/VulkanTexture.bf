@@ -25,7 +25,7 @@ class VulkanTexture : ITexture
 	private String mDebugName ~ delete _;
 
 	/// Creates a texture from a descriptor.
-	public this(VulkanDevice device, TextureDescriptor* descriptor)
+	public this(VulkanDevice device, TextureDesc descriptor)
 	{
 		mDevice = device;
 		mDimension = descriptor.Dimension;
@@ -109,7 +109,7 @@ class VulkanTexture : ITexture
 	/// Returns true if this is a swap chain texture that needs PRESENT_SRC_KHR layout.
 	public bool IsSwapChainTexture => mIsSwapChainTexture;
 
-	private void CreateImage(TextureDescriptor* descriptor)
+	private void CreateImage(TextureDesc descriptor)
 	{
 		// Determine image flags
 		VkImageCreateFlags flags = 0;

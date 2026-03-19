@@ -1090,14 +1090,14 @@ class ImpactArenaGame : Application
 			mDrawingRenderer.UpdateProjection(mSwapChain.Width, mSwapChain.Height, frameIndex);
 
 			// Create render pass with Load to preserve 3D scene
-			RenderPassColorAttachment[1] colorAttachments = .(.()
+			ColorAttachment[1] colorAttachments = .(.()
 			{
 				View = render.SwapChain.CurrentTextureView,
 				LoadOp = .Load,
 				StoreOp = .Store
 			});
 
-			RenderPassDescriptor passDesc = .(colorAttachments);
+			RenderPassDesc passDesc = .(colorAttachments);
 			let renderPass = render.Encoder.BeginRenderPass(&passDesc);
 			if (renderPass != null)
 			{

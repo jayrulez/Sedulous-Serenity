@@ -28,7 +28,7 @@ class DX12Texture : ITexture
 	private String mDebugName ~ delete _;
 
 	/// Creates a new texture with the given descriptor.
-	public this(DX12Device device, TextureDescriptor* descriptor)
+	public this(DX12Device device, TextureDesc descriptor)
 	{
 		mDevice = device;
 		mOwnsResource = true;
@@ -115,7 +115,7 @@ class DX12Texture : ITexture
 		return true;
 	}
 
-	private void CreateTexture(TextureDescriptor* descriptor)
+	private void CreateTexture(TextureDesc descriptor)
 	{
 		bool isDepth = DX12Conversions.IsDepthFormat(descriptor.Format);
 		bool needsSrv = (descriptor.Usage & .Sampled) != 0;

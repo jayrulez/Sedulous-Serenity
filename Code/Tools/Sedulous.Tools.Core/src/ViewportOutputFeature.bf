@@ -67,17 +67,17 @@ public class ViewportOutputFeature : RenderFeatureBase
 	protected override Result<void> OnInitialize()
 	{
 		// Create linear sampler for blit
-		SamplerDescriptor samplerDesc = .()
+		SamplerDesc samplerDesc = .()
 		{
-			AddressModeU = .ClampToEdge,
-			AddressModeV = .ClampToEdge,
-			AddressModeW = .ClampToEdge,
+			AddressU = .ClampToEdge,
+			AddressV = .ClampToEdge,
+			AddressW = .ClampToEdge,
 			MinFilter = .Linear,
 			MagFilter = .Linear,
 			MipmapFilter = .Nearest
 		};
 
-		switch (Renderer.Device.CreateSampler(&samplerDesc))
+		switch (Renderer.Device.CreateSampler(samplerDesc))
 		{
 		case .Ok(let sampler): mLinearSampler = sampler;
 		case .Err: return .Err;
@@ -86,15 +86,15 @@ public class ViewportOutputFeature : RenderFeatureBase
 		// Create per-frame uniform buffers for blit params
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			BufferDescriptor bufDesc = .()
+			BufferDesc bufDesc = .()
 			{
 				Label = "ViewportBlit Params",
 				Size = (uint64)BlitParams.Size,
 				Usage = .Uniform,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
 
-			switch (Renderer.Device.CreateBuffer(&bufDesc))
+			switch (Renderer.Device.CreateBuffer(bufDesc))
 			{
 			case .Ok(let buf): mBlitParamsBuffers[i] = buf;
 			case .Err: return .Err;
@@ -128,13 +128,13 @@ public class ViewportOutputFeature : RenderFeatureBase
 			.() { Binding = 0, Visibility = .Fragment, Type = .Sampler }         // s0
 		);
 
-		BindGroupLayoutDescriptor layoutDesc = .()
+		BindGroupLayoutDesc layoutDesc = .()
 		{
 			Label = "ViewportBlit BindGroup Layout",
 			Entries = layoutEntries
 		};
 
-		switch (Renderer.Device.CreateBindGroupLayout(&layoutDesc))
+		switch (Renderer.Device.CreateBindGroupLayout(layoutDesc))
 		{
 		case .Ok(let layout): mBlitBindGroupLayout = layout;
 		case .Err: return .Err;
@@ -142,8 +142,8 @@ public class ViewportOutputFeature : RenderFeatureBase
 
 		// Create pipeline layout
 		IBindGroupLayout[1] bgLayouts = .(mBlitBindGroupLayout);
-		PipelineLayoutDescriptor plDesc = .(bgLayouts);
-		switch (Renderer.Device.CreatePipelineLayout(&plDesc))
+		PipelineLayoutDesc plDesc = .(bgLayouts);
+		switch (Renderer.Device.CreatePipelineLayout(plDesc))
 		{
 		case .Ok(let layout): mBlitPipelineLayout = layout;
 		case .Err: return .Err;
@@ -153,7 +153,7 @@ public class ViewportOutputFeature : RenderFeatureBase
 		ColorTargetState[1] colorTargets = .(.(.RGBA8Unorm));
 
 		// Blit uses fullscreen triangle with SV_VertexID
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Label = "ViewportBlit Pipeline",
 			Layout = mBlitPipelineLayout,
@@ -181,7 +181,7 @@ public class ViewportOutputFeature : RenderFeatureBase
 			}
 		};
 
-		switch (Renderer.Device.CreateRenderPipeline(&pipelineDesc))
+		switch (Renderer.Device.CreateRenderPipeline(pipelineDesc))
 		{
 		case .Ok(let pipeline): mBlitPipeline = pipeline;
 		case .Err: return .Err;
@@ -288,19 +288,19 @@ public class ViewportOutputFeature : RenderFeatureBase
 			BindGroupEntry.Sampler(0, mLinearSampler)
 		);
 
-		BindGroupDescriptor bgDesc = .()
+		BindGroupDesc bgDesc = .()
 		{
 			Label = "ViewportBlit BindGroup",
 			Layout = mBlitBindGroupLayout,
 			Entries = entries
 		};
 
-		if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bg))
+		if (Renderer.Device.CreateBindGroup(bgDesc) case .Ok(let bg))
 			mBlitBindGroups[frameIndex] = bg;
 
 		// Set viewport and scissor
 		encoder.SetViewport(0, 0, (float)vpW, (float)vpH, 0, 1);
-		encoder.SetScissorRect(0, 0, vpW, vpH);
+		encoder.SetScissor(0, 0, vpW, vpH);
 
 		// Draw fullscreen blit
 		if (mBlitBindGroups[frameIndex] != null)

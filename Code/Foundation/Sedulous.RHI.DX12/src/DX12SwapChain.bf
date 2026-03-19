@@ -38,7 +38,7 @@ class DX12SwapChain : ISwapChain
 
 	private uint32 mCurrentBackBufferIndex;
 
-	public this(DX12Device device, DX12Surface surface, SwapChainDescriptor* descriptor)
+	public this(DX12Device device, DX12Surface surface, SwapChainDesc descriptor)
 	{
 		mDevice = device;
 		mSurface = surface;
@@ -273,7 +273,7 @@ class DX12SwapChain : ISwapChain
 			mBackBufferTextures[i] = texture;
 
 			// Create RTV for the back buffer
-			TextureViewDescriptor viewDesc = .();
+			TextureViewDesc viewDesc = .();
 			viewDesc.Format = mFormat;
 			viewDesc.Dimension = .Texture2D;
 			viewDesc.BaseMipLevel = 0;
@@ -281,7 +281,7 @@ class DX12SwapChain : ISwapChain
 			viewDesc.BaseArrayLayer = 0;
 			viewDesc.ArrayLayerCount = 1;
 
-			let view = new DX12TextureView(mDevice, texture, &viewDesc);
+			let view = new DX12TextureView(mDevice, texture, viewDesc);
 			mBackBufferViews[i] = view;
 
 			// Release our reference — the swap chain still holds one

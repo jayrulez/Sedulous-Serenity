@@ -2,7 +2,7 @@ using System;
 namespace Sedulous.RHI;
 
 /// Describes a compute pipeline.
-struct ComputePipelineDescriptor
+struct ComputePipelineDesc
 {
 	/// Pipeline layout (bind group layouts).
 	public IPipelineLayout Layout;

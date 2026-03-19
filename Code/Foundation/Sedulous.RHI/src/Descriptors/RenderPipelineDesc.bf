@@ -54,7 +54,7 @@ struct FragmentState
 }
 
 /// Describes a render pipeline.
-struct RenderPipelineDescriptor
+struct RenderPipelineDesc
 {
 	/// Pipeline layout (bind group layouts).
 	public IPipelineLayout Layout;

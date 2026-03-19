@@ -432,14 +432,14 @@ public class ClusterGrid : IDisposable
 
 		// Cluster AABB buffer: 6 floats per cluster (min xyz, max xyz)
 		// Note: This is only written during resize, not per-frame
-		BufferDescriptor aabbDesc = .()
+		BufferDesc aabbDesc = .()
 		{
 			Label = "Cluster AABBs",
 			Size = totalClusters * 24,
 			Usage = .Storage | .CopyDst
 		};
 
-		switch (mDevice.CreateBuffer(&aabbDesc))
+		switch (mDevice.CreateBuffer(aabbDesc))
 		{
 		case .Ok(let buf): mClusterAABBBuffer = buf;
 		case .Err: return .Err;
@@ -450,15 +450,15 @@ public class ClusterGrid : IDisposable
 		// Create per-frame, per-view buffers for multi-buffering and multi-view
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
 		{
-			BufferDescriptor infoDesc = .()
+			BufferDesc infoDesc = .()
 			{
 				Label = "Cluster Light Info",
 				Size = totalClusters * 8,
 				Usage = .Storage,
-				MemoryAccess = .Upload // CPU-mappable
+				MemoryAccess = .CpuToGpu // CPU-mappable
 			};
 
-			switch (mDevice.CreateBuffer(&infoDesc))
+			switch (mDevice.CreateBuffer(infoDesc))
 			{
 			case .Ok(let buf): mClusterLightInfoBuffers[i] = buf;
 			case .Err: return .Err;
@@ -471,15 +471,15 @@ public class ClusterGrid : IDisposable
 		let maxIndices = mConfig.MaxLightsPerCluster * totalClusters;
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
 		{
-			BufferDescriptor indexDesc = .()
+			BufferDesc indexDesc = .()
 			{
 				Label = "Light Indices",
 				Size = maxIndices * 4,
 				Usage = .Storage,
-				MemoryAccess = .Upload // CPU-mappable
+				MemoryAccess = .CpuToGpu // CPU-mappable
 			};
 
-			switch (mDevice.CreateBuffer(&indexDesc))
+			switch (mDevice.CreateBuffer(indexDesc))
 			{
 			case .Ok(let buf): mLightIndexBuffers[i] = buf;
 			case .Err: return .Err;
@@ -488,15 +488,15 @@ public class ClusterGrid : IDisposable
 
 		// Cluster uniform buffer
 		// Use Upload memory for CPU mapping (written on resize)
-		BufferDescriptor uniformDesc = .()
+		BufferDesc uniformDesc = .()
 		{
 			Label = "Cluster Uniforms",
 			Size = (uint64)ClusterUniforms.Size,
 			Usage = .Uniform,
-			MemoryAccess = .Upload // CPU-mappable
+			MemoryAccess = .CpuToGpu // CPU-mappable
 		};
 
-		switch (mDevice.CreateBuffer(&uniformDesc))
+		switch (mDevice.CreateBuffer(uniformDesc))
 		{
 		case .Ok(let buf): mClusterUniformBuffer = buf;
 		case .Err: return .Err;
@@ -507,15 +507,15 @@ public class ClusterGrid : IDisposable
 
 		// Light index counter buffer (for atomic allocation)
 		// Use Upload memory for CPU mapping (reset every frame in GPU path)
-		BufferDescriptor counterDesc = .()
+		BufferDesc counterDesc = .()
 		{
 			Label = "Light Index Counter",
 			Size = 4, // Single uint32
 			Usage = .Storage,
-			MemoryAccess = .Upload // CPU-mappable
+			MemoryAccess = .CpuToGpu // CPU-mappable
 		};
 
-		switch (mDevice.CreateBuffer(&counterDesc))
+		switch (mDevice.CreateBuffer(counterDesc))
 		{
 		case .Ok(let buf): mLightIndexCounterBuffer = buf;
 		case .Err: return .Err;
@@ -539,13 +539,13 @@ public class ClusterGrid : IDisposable
 			.() { Binding = 0, Visibility = .Compute, Type = .StorageBufferReadWrite }  // u0: ClusterAABBs (RWStructuredBuffer)
 		);
 
-		BindGroupLayoutDescriptor buildLayoutDesc = .()
+		BindGroupLayoutDesc buildLayoutDesc = .()
 		{
 			Label = "Cluster Build BindGroup Layout",
 			Entries = buildEntries
 		};
 
-		switch (mDevice.CreateBindGroupLayout(&buildLayoutDesc))
+		switch (mDevice.CreateBindGroupLayout(buildLayoutDesc))
 		{
 		case .Ok(let layout): mBuildClustersBindGroupLayout = layout;
 		case .Err: return;
@@ -565,13 +565,13 @@ public class ClusterGrid : IDisposable
 			.() { Binding = 2, Visibility = .Compute, Type = .StorageBufferReadWrite }  // u2: GlobalLightIndexCounter
 		);
 
-		BindGroupLayoutDescriptor cullLayoutDesc = .()
+		BindGroupLayoutDesc cullLayoutDesc = .()
 		{
 			Label = "Cluster Cull BindGroup Layout",
 			Entries = cullEntries
 		};
 
-		switch (mDevice.CreateBindGroupLayout(&cullLayoutDesc))
+		switch (mDevice.CreateBindGroupLayout(cullLayoutDesc))
 		{
 		case .Ok(let layout): mCullLightsBindGroupLayout = layout;
 		case .Err: return;
@@ -579,16 +579,16 @@ public class ClusterGrid : IDisposable
 
 		// Create pipeline layouts
 		IBindGroupLayout[1] buildLayouts = .(mBuildClustersBindGroupLayout);
-		PipelineLayoutDescriptor buildPlDesc = .(buildLayouts);
-		switch (mDevice.CreatePipelineLayout(&buildPlDesc))
+		PipelineLayoutDesc buildPlDesc = .(buildLayouts);
+		switch (mDevice.CreatePipelineLayout(buildPlDesc))
 		{
 		case .Ok(let layout): mBuildClustersPipelineLayout = layout;
 		case .Err: return;
 		}
 
 		IBindGroupLayout[1] cullLayouts = .(mCullLightsBindGroupLayout);
-		PipelineLayoutDescriptor cullPlDesc = .(cullLayouts);
-		switch (mDevice.CreatePipelineLayout(&cullPlDesc))
+		PipelineLayoutDesc cullPlDesc = .(cullLayouts);
+		switch (mDevice.CreatePipelineLayout(cullPlDesc))
 		{
 		case .Ok(let layout): mCullLightsPipelineLayout = layout;
 		case .Err: return;
@@ -597,10 +597,10 @@ public class ClusterGrid : IDisposable
 		// Load cluster build shader
 		if (mShaderSystem.GetShader("cluster_build", .Compute) case .Ok(let buildShader))
 		{
-			ComputePipelineDescriptor buildPipelineDesc = .(mBuildClustersPipelineLayout, buildShader.Module);
+			ComputePipelineDesc buildPipelineDesc = .(mBuildClustersPipelineLayout, buildShader.Module);
 			buildPipelineDesc.Label = "Cluster Build Pipeline";
 
-			switch (mDevice.CreateComputePipeline(&buildPipelineDesc))
+			switch (mDevice.CreateComputePipeline(buildPipelineDesc))
 			{
 			case .Ok(let pipeline): mBuildClustersPipeline = pipeline;
 			case .Err:
@@ -610,10 +610,10 @@ public class ClusterGrid : IDisposable
 		// Load cluster cull shader
 		if (mShaderSystem.GetShader("cluster_cull", .Compute) case .Ok(let cullShader))
 		{
-			ComputePipelineDescriptor cullPipelineDesc = .(mCullLightsPipelineLayout, cullShader.Module);
+			ComputePipelineDesc cullPipelineDesc = .(mCullLightsPipelineLayout, cullShader.Module);
 			cullPipelineDesc.Label = "Cluster Cull Pipeline";
 
-			switch (mDevice.CreateComputePipeline(&cullPipelineDesc))
+			switch (mDevice.CreateComputePipeline(cullPipelineDesc))
 			{
 			case .Ok(let pipeline): mCullLightsPipeline = pipeline;
 			case .Err:
@@ -657,10 +657,10 @@ public class ClusterGrid : IDisposable
 					BindGroupEntry.Buffer(2, mLightIndexCounterBuffer, 0, 4)                                // u2: GlobalLightIndexCounter
 				);
 
-				BindGroupDescriptor cullDesc = .(mCullLightsBindGroupLayout, cullEntries);
+				BindGroupDesc cullDesc = .(mCullLightsBindGroupLayout, cullEntries);
 				cullDesc.Label = "Cluster Cull BindGroup";
 
-				switch (mDevice.CreateBindGroup(&cullDesc))
+				switch (mDevice.CreateBindGroup(cullDesc))
 				{
 				case .Ok(let bg): mCullLightsBindGroups[i] = bg;
 				case .Err:

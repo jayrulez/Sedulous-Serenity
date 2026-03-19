@@ -20,7 +20,7 @@ interface IRenderPassEncoder
 	void SetViewport(float x, float y, float width, float height, float minDepth, float maxDepth);
 
 	/// Sets the scissor rectangle.
-	void SetScissorRect(int32 x, int32 y, uint32 width, uint32 height);
+	void SetScissor(int32 x, int32 y, uint32 width, uint32 height);
 
 	/// Sets the blend constant color.
 	void SetBlendConstant(float r, float g, float b, float a);

@@ -69,29 +69,29 @@ public class VolumetricFogEffect : IPostProcessEffect
 		mDevice = device;
 
 		// Create point sampler for scene color/depth
-		SamplerDescriptor pointDesc = .();
+		SamplerDesc pointDesc = .();
 		pointDesc.Label = "Fog Point Sampler";
-		pointDesc.AddressModeU = .ClampToEdge;
-		pointDesc.AddressModeV = .ClampToEdge;
-		pointDesc.AddressModeW = .ClampToEdge;
+		pointDesc.AddressU = .ClampToEdge;
+		pointDesc.AddressV = .ClampToEdge;
+		pointDesc.AddressW = .ClampToEdge;
 		pointDesc.MinFilter = .Nearest;
 		pointDesc.MagFilter = .Nearest;
 		pointDesc.MipmapFilter = .Nearest;
 
-		switch (device.CreateSampler(&pointDesc))
+		switch (device.CreateSampler(pointDesc))
 		{
 		case .Ok(let sampler): mPointSampler = sampler;
 		case .Err: return .Err;
 		}
 
 		// Create params buffer
-		BufferDescriptor bufDesc = .();
+		BufferDesc bufDesc = .();
 		bufDesc.Label = "Fog Apply Params";
 		bufDesc.Size = (uint64)FogApplyParams.Size;
 		bufDesc.Usage = .Uniform;
-		bufDesc.MemoryAccess = .Upload;
+		bufDesc.MemoryAccess = .CpuToGpu;
 
-		switch (device.CreateBuffer(&bufDesc))
+		switch (device.CreateBuffer(bufDesc))
 		{
 		case .Ok(let buf): mParamsBuffer = buf;
 		case .Err: return .Err;
@@ -108,11 +108,11 @@ public class VolumetricFogEffect : IPostProcessEffect
 			.() { Binding = 1, Visibility = .Fragment, Type = .Sampler }
 		);
 
-		BindGroupLayoutDescriptor layoutDesc = .();
+		BindGroupLayoutDesc layoutDesc = .();
 		layoutDesc.Label = "Fog Apply Layout";
 		layoutDesc.Entries = layoutEntries;
 
-		switch (device.CreateBindGroupLayout(&layoutDesc))
+		switch (device.CreateBindGroupLayout(layoutDesc))
 		{
 		case .Ok(let layout): mBindGroupLayout = layout;
 		case .Err: return .Err;
@@ -120,8 +120,8 @@ public class VolumetricFogEffect : IPostProcessEffect
 
 		// Create pipeline layout
 		IBindGroupLayout[1] layouts = .(mBindGroupLayout);
-		PipelineLayoutDescriptor plDesc = .(layouts);
-		switch (device.CreatePipelineLayout(&plDesc))
+		PipelineLayoutDesc plDesc = .(layouts);
+		switch (device.CreatePipelineLayout(plDesc))
 		{
 		case .Ok(let layout): mPipelineLayout = layout;
 		case .Err: return .Err;
@@ -148,7 +148,7 @@ public class VolumetricFogEffect : IPostProcessEffect
 
 		ColorTargetState[1] colorTargets = .(.(.RGBA16Float));
 
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Label = "Fog Apply Pipeline",
 			Layout = mPipelineLayout,
@@ -172,7 +172,7 @@ public class VolumetricFogEffect : IPostProcessEffect
 			Multisample = .() { Count = 1, Mask = uint32.MaxValue }
 		};
 
-		switch (device.CreateRenderPipeline(&pipelineDesc))
+		switch (device.CreateRenderPipeline(pipelineDesc))
 		{
 		case .Ok(let pipeline): mApplyPipeline = pipeline;
 		case .Err: return .Err;
@@ -271,13 +271,13 @@ public class VolumetricFogEffect : IPostProcessEffect
 			mDepthOnlyViews[frameIndex] = null;
 		}
 
-		TextureViewDescriptor viewDesc = .();
+		TextureViewDesc viewDesc = .();
 		viewDesc.Label = "Fog Depth Only View";
 		viewDesc.Dimension = .Texture2D;
 		viewDesc.Format = .Depth24PlusStencil8;
 		viewDesc.Aspect = .DepthOnly;
 
-		switch (mDevice.CreateTextureView(depthTexture, &viewDesc))
+		switch (mDevice.CreateTextureView(depthTexture, viewDesc))
 		{
 		case .Ok(let createdView):
 			mDepthOnlyViews[frameIndex] = createdView;
@@ -317,19 +317,19 @@ public class VolumetricFogEffect : IPostProcessEffect
 			BindGroupEntry.Sampler(1, fogLinearSampler)
 		);
 
-		BindGroupDescriptor bgDesc = .();
+		BindGroupDesc bgDesc = .();
 		bgDesc.Label = "Fog Apply BindGroup";
 		bgDesc.Layout = mBindGroupLayout;
 		bgDesc.Entries = entries;
 
-		switch (mDevice.CreateBindGroup(&bgDesc))
+		switch (mDevice.CreateBindGroup(bgDesc))
 		{
 		case .Ok(let bg): mBindGroups[frameIndex] = bg;
 		case .Err: return;
 		}
 
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0, 1);
-		encoder.SetScissorRect(0, 0, view.Width, view.Height);
+		encoder.SetScissor(0, 0, view.Width, view.Height);
 
 		encoder.SetPipeline(mApplyPipeline);
 		encoder.SetBindGroup(0, mBindGroups[frameIndex], default);

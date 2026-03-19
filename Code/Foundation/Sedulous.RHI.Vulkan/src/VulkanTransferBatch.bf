@@ -44,14 +44,14 @@ class VulkanTransferBatch : ITransferBatch
 			return;
 
 		// Create staging buffer
-		BufferDescriptor stagingDesc = .()
+		BufferDesc stagingDesc = .()
 			{
 				Size = (uint64)data.Length,
 				Usage = .CopySrc,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
 
-		if (mDevice.CreateBuffer(&stagingDesc) case .Ok(let stagingBuffer))
+		if (mDevice.CreateBuffer(stagingDesc) case .Ok(let stagingBuffer))
 		{
 			if (let vkStaging = stagingBuffer as VulkanBuffer)
 			{
@@ -140,14 +140,14 @@ class VulkanTransferBatch : ITransferBatch
 			return;
 
 		// Create staging buffer
-		BufferDescriptor stagingDesc = .()
+		BufferDesc stagingDesc = .()
 			{
 				Size = (uint64)data.Length,
 				Usage = .CopySrc,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
 
-		if (mDevice.CreateBuffer(&stagingDesc) case .Ok(let stagingBuffer))
+		if (mDevice.CreateBuffer(stagingDesc) case .Ok(let stagingBuffer))
 		{
 			if (let vkStaging = stagingBuffer as VulkanBuffer)
 			{

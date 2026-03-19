@@ -485,7 +485,7 @@ class RenderWaterApp : Application
 
 	private void GenerateHeightmap()
 	{
-		TextureDescriptor desc = .()
+		TextureDesc desc = .()
 		{
 			Label = "Terrain Heightmap",
 			Width = HeightmapSize, Height = HeightmapSize, Depth = 1,
@@ -494,7 +494,7 @@ class RenderWaterApp : Application
 			Usage = .Sampled | .CopyDst
 		};
 
-		switch (mDevice.CreateTexture(&desc))
+		switch (mDevice.CreateTexture(desc))
 		{
 		case .Ok(let tex): mHeightmapTexture = tex;
 		case .Err: Console.WriteLine("ERROR: Failed to create heightmap"); return;
@@ -518,14 +518,14 @@ class RenderWaterApp : Application
 		Extent3D size = .((uint32)HeightmapSize, (uint32)HeightmapSize, 1);
 		mDevice.Queue.WriteTextureSync(mHeightmapTexture, Span<uint8>((uint8*)pixels.Ptr, HeightmapSize * HeightmapSize * 2), &layout, &size);
 
-		TextureViewDescriptor viewDesc = .() { Format = .R16Float, Dimension = .Texture2D };
-		if (mDevice.CreateTextureView(mHeightmapTexture, &viewDesc) case .Ok(let view))
+		TextureViewDesc viewDesc = .() { Format = .R16Float, Dimension = .Texture2D };
+		if (mDevice.CreateTextureView(mHeightmapTexture, viewDesc) case .Ok(let view))
 			mHeightmapView = view;
 	}
 
 	private void GenerateTerrainNormalMap()
 	{
-		TextureDescriptor desc = .()
+		TextureDesc desc = .()
 		{
 			Label = "Terrain Normal Map",
 			Width = HeightmapSize, Height = HeightmapSize, Depth = 1,
@@ -534,7 +534,7 @@ class RenderWaterApp : Application
 			Usage = .Sampled | .CopyDst
 		};
 
-		switch (mDevice.CreateTexture(&desc))
+		switch (mDevice.CreateTexture(desc))
 		{
 		case .Ok(let tex): mNormalMapTexture = tex;
 		case .Err: return;
@@ -578,14 +578,14 @@ class RenderWaterApp : Application
 		Extent3D size = .((uint32)HeightmapSize, (uint32)HeightmapSize, 1);
 		mDevice.Queue.WriteTextureSync(mNormalMapTexture, Span<uint8>(pixels.Ptr, HeightmapSize * HeightmapSize * 4), &layout, &size);
 
-		TextureViewDescriptor viewDesc = .() { Format = .RGBA8Unorm, Dimension = .Texture2D };
-		if (mDevice.CreateTextureView(mNormalMapTexture, &viewDesc) case .Ok(let view))
+		TextureViewDesc viewDesc = .() { Format = .RGBA8Unorm, Dimension = .Texture2D };
+		if (mDevice.CreateTextureView(mNormalMapTexture, viewDesc) case .Ok(let view))
 			mNormalMapView = view;
 	}
 
 	private void GenerateSplatmap()
 	{
-		TextureDescriptor desc = .()
+		TextureDesc desc = .()
 		{
 			Label = "Terrain Splatmap",
 			Width = HeightmapSize, Height = HeightmapSize, Depth = 1,
@@ -594,7 +594,7 @@ class RenderWaterApp : Application
 			Usage = .Sampled | .CopyDst
 		};
 
-		switch (mDevice.CreateTexture(&desc))
+		switch (mDevice.CreateTexture(desc))
 		{
 		case .Ok(let tex): mSplatmapTexture = tex;
 		case .Err: return;
@@ -636,8 +636,8 @@ class RenderWaterApp : Application
 		Extent3D size = .((uint32)HeightmapSize, (uint32)HeightmapSize, 1);
 		mDevice.Queue.WriteTextureSync(mSplatmapTexture, Span<uint8>(pixels.Ptr, HeightmapSize * HeightmapSize * 4), &layout, &size);
 
-		TextureViewDescriptor viewDesc = .() { Format = .RGBA8Unorm, Dimension = .Texture2D };
-		if (mDevice.CreateTextureView(mSplatmapTexture, &viewDesc) case .Ok(let view))
+		TextureViewDesc viewDesc = .() { Format = .RGBA8Unorm, Dimension = .Texture2D };
+		if (mDevice.CreateTextureView(mSplatmapTexture, viewDesc) case .Ok(let view))
 			mSplatmapView = view;
 	}
 
@@ -652,7 +652,7 @@ class RenderWaterApp : Application
 
 		for (int32 i = 0; i < 4; i++)
 		{
-			TextureDescriptor desc = .()
+			TextureDesc desc = .()
 			{
 				Label = "Terrain Layer",
 				Width = 4, Height = 4, Depth = 1,
@@ -661,7 +661,7 @@ class RenderWaterApp : Application
 				Usage = .Sampled | .CopyDst
 			};
 
-			switch (mDevice.CreateTexture(&desc))
+			switch (mDevice.CreateTexture(desc))
 			{
 			case .Ok(let tex): mLayerTextures[i] = tex;
 			case .Err: continue;
@@ -680,8 +680,8 @@ class RenderWaterApp : Application
 			Extent3D size = .(4, 4, 1);
 			mDevice.Queue.WriteTextureSync(mLayerTextures[i], Span<uint8>(&pixels[0], 64), &layout, &size);
 
-			TextureViewDescriptor viewDesc = .() { Format = .RGBA8Unorm, Dimension = .Texture2D };
-			if (mDevice.CreateTextureView(mLayerTextures[i], &viewDesc) case .Ok(let view))
+			TextureViewDesc viewDesc = .() { Format = .RGBA8Unorm, Dimension = .Texture2D };
+			if (mDevice.CreateTextureView(mLayerTextures[i], viewDesc) case .Ok(let view))
 				mLayerViews[i] = view;
 		}
 	}
@@ -701,7 +701,7 @@ class RenderWaterApp : Application
 	{
 		// Procedural tileable wave normal + height map (RGBA8Unorm)
 		// RG: normal XY (encoded 0-1), B: normal Z, A: height
-		TextureDescriptor desc = .()
+		TextureDesc desc = .()
 		{
 			Label = "Water Normal Map",
 			Width = WaterNormalMapSize, Height = WaterNormalMapSize, Depth = 1,
@@ -710,7 +710,7 @@ class RenderWaterApp : Application
 			Usage = .Sampled | .CopyDst
 		};
 
-		switch (mDevice.CreateTexture(&desc))
+		switch (mDevice.CreateTexture(desc))
 		{
 		case .Ok(let tex): mWaterNormalTexture = tex;
 		case .Err: Console.WriteLine("ERROR: Failed to create water normal map"); return;
@@ -769,8 +769,8 @@ class RenderWaterApp : Application
 		Extent3D size = .((uint32)WaterNormalMapSize, (uint32)WaterNormalMapSize, 1);
 		mDevice.Queue.WriteTextureSync(mWaterNormalTexture, Span<uint8>(pixels.Ptr, WaterNormalMapSize * WaterNormalMapSize * 4), &layout, &size);
 
-		TextureViewDescriptor viewDesc = .() { Format = .RGBA8Unorm, Dimension = .Texture2D };
-		if (mDevice.CreateTextureView(mWaterNormalTexture, &viewDesc) case .Ok(let view))
+		TextureViewDesc viewDesc = .() { Format = .RGBA8Unorm, Dimension = .Texture2D };
+		if (mDevice.CreateTextureView(mWaterNormalTexture, viewDesc) case .Ok(let view))
 			mWaterNormalView = view;
 	}
 
@@ -779,7 +779,7 @@ class RenderWaterApp : Application
 		// Simple procedural foam texture (R8Unorm)
 		const int32 foamSize = 256;
 
-		TextureDescriptor desc = .()
+		TextureDesc desc = .()
 		{
 			Label = "Foam Texture",
 			Width = foamSize, Height = foamSize, Depth = 1,
@@ -788,7 +788,7 @@ class RenderWaterApp : Application
 			Usage = .Sampled | .CopyDst
 		};
 
-		switch (mDevice.CreateTexture(&desc))
+		switch (mDevice.CreateTexture(desc))
 		{
 		case .Ok(let tex): mFoamTexture = tex;
 		case .Err: return;
@@ -827,8 +827,8 @@ class RenderWaterApp : Application
 		Extent3D size = .((uint32)foamSize, (uint32)foamSize, 1);
 		mDevice.Queue.WriteTextureSync(mFoamTexture, Span<uint8>(pixels.Ptr, foamSize * foamSize * 4), &layout, &size);
 
-		TextureViewDescriptor viewDesc = .() { Format = .RGBA8Unorm, Dimension = .Texture2D };
-		if (mDevice.CreateTextureView(mFoamTexture, &viewDesc) case .Ok(let view))
+		TextureViewDesc viewDesc = .() { Format = .RGBA8Unorm, Dimension = .Texture2D };
+		if (mDevice.CreateTextureView(mFoamTexture, viewDesc) case .Ok(let view))
 			mFoamView = view;
 	}
 

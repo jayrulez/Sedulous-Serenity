@@ -116,7 +116,7 @@ class ComputeSample : RHISampleApp
 		}
 
 		// Create particle storage buffer
-		BufferDescriptor particleDesc = .()
+		BufferDesc particleDesc = .()
 		{
 			Size = (uint64)(sizeof(Particle) * PARTICLE_COUNT),
 			Usage = .Storage | .Vertex | .CopyDst,  // Used by compute, as vertex input, and receives initial data
@@ -124,19 +124,19 @@ class ComputeSample : RHISampleApp
 			StructureByteStride = (uint32)sizeof(Particle)
 		};
 
-		if (Device.CreateBuffer(&particleDesc) not case .Ok(let pb))
+		if (Device.CreateBuffer(particleDesc) not case .Ok(let pb))
 			return false;
 		mParticleBuffer = pb;
 
 		// Upload initial particle data via staging
-		BufferDescriptor stagingDesc = .()
+		BufferDesc stagingDesc = .()
 		{
 			Size = particleDesc.Size,
 			Usage = .CopySrc,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&stagingDesc) not case .Ok(let staging))
+		if (Device.CreateBuffer(stagingDesc) not case .Ok(let staging))
 			return false;
 		defer delete staging;
 
@@ -153,14 +153,14 @@ class ComputeSample : RHISampleApp
 		Device.WaitIdle();
 
 		// Create simulation parameters uniform buffer
-		BufferDescriptor simParamsDesc = .()
+		BufferDesc simParamsDesc = .()
 		{
 			Size = (uint64)sizeof(SimParams),
 			Usage = .Uniform,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&simParamsDesc) not case .Ok(let spb))
+		if (Device.CreateBuffer(simParamsDesc) not case .Ok(let spb))
 			return false;
 		mSimParamsBuffer = spb;
 
@@ -172,14 +172,14 @@ class ComputeSample : RHISampleApp
 			.(-size, size)
 		);
 
-		BufferDescriptor vertexDesc = .()
+		BufferDesc vertexDesc = .()
 		{
 			Size = (uint64)(sizeof(Vertex) * vertices.Count),
 			Usage = .Vertex,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&vertexDesc) not case .Ok(let vb))
+		if (Device.CreateBuffer(vertexDesc) not case .Ok(let vb))
 			return false;
 		mVertexBuffer = vb;
 
@@ -207,8 +207,8 @@ class ComputeSample : RHISampleApp
 			BindGroupLayoutEntry.UniformBuffer(0, .Compute),           // b0 -> Vulkan binding 0
 			BindGroupLayoutEntry.StorageBufferReadWrite(0, .Compute)   // u0 -> Vulkan binding 2000
 		);
-		BindGroupLayoutDescriptor bindGroupLayoutDesc = .(layoutEntries);
-		if (Device.CreateBindGroupLayout(&bindGroupLayoutDesc) not case .Ok(let layout))
+		BindGroupLayoutDesc bindGroupLayoutDesc = .(layoutEntries);
+		if (Device.CreateBindGroupLayout(bindGroupLayoutDesc) not case .Ok(let layout))
 			return false;
 		mComputeBindGroupLayout = layout;
 
@@ -217,21 +217,21 @@ class ComputeSample : RHISampleApp
 			BindGroupEntry.Buffer(0, mSimParamsBuffer),
 			BindGroupEntry.Buffer(0, mParticleBuffer)
 		);
-		BindGroupDescriptor bindGroupDesc = .(mComputeBindGroupLayout, bindGroupEntries);
-		if (Device.CreateBindGroup(&bindGroupDesc) not case .Ok(let group))
+		BindGroupDesc bindGroupDesc = .(mComputeBindGroupLayout, bindGroupEntries);
+		if (Device.CreateBindGroup(bindGroupDesc) not case .Ok(let group))
 			return false;
 		mComputeBindGroup = group;
 
 		// Create pipeline layout
 		IBindGroupLayout[1] layouts = .(mComputeBindGroupLayout);
-		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
-		if (Device.CreatePipelineLayout(&pipelineLayoutDesc) not case .Ok(let pipelineLayout))
+		PipelineLayoutDesc pipelineLayoutDesc = .(layouts);
+		if (Device.CreatePipelineLayout(pipelineLayoutDesc) not case .Ok(let pipelineLayout))
 			return false;
 		mComputePipelineLayout = pipelineLayout;
 
 		// Create compute pipeline
-		ComputePipelineDescriptor pipelineDesc = .(mComputePipelineLayout, mComputeShader, "main");
-		if (Device.CreateComputePipeline(&pipelineDesc) not case .Ok(let pipeline))
+		ComputePipelineDesc pipelineDesc = .(mComputePipelineLayout, mComputeShader, "main");
+		if (Device.CreateComputePipeline(pipelineDesc) not case .Ok(let pipeline))
 			return false;
 		mComputePipeline = pipeline;
 
@@ -260,8 +260,8 @@ class ComputeSample : RHISampleApp
 		BindGroupLayoutEntry[1] layoutEntries = .(
 			BindGroupLayoutEntry.StorageBuffer(0, .Vertex)  // t0 -> Vulkan binding 1000
 		);
-		BindGroupLayoutDescriptor bindGroupLayoutDesc = .(layoutEntries);
-		if (Device.CreateBindGroupLayout(&bindGroupLayoutDesc) not case .Ok(let layout))
+		BindGroupLayoutDesc bindGroupLayoutDesc = .(layoutEntries);
+		if (Device.CreateBindGroupLayout(bindGroupLayoutDesc) not case .Ok(let layout))
 			return false;
 		mRenderBindGroupLayout = layout;
 
@@ -269,15 +269,15 @@ class ComputeSample : RHISampleApp
 		BindGroupEntry[1] bindGroupEntries = .(
 			BindGroupEntry.Buffer(0, mParticleBuffer)
 		);
-		BindGroupDescriptor bindGroupDesc = .(mRenderBindGroupLayout, bindGroupEntries);
-		if (Device.CreateBindGroup(&bindGroupDesc) not case .Ok(let group))
+		BindGroupDesc bindGroupDesc = .(mRenderBindGroupLayout, bindGroupEntries);
+		if (Device.CreateBindGroup(bindGroupDesc) not case .Ok(let group))
 			return false;
 		mRenderBindGroup = group;
 
 		// Create pipeline layout
 		IBindGroupLayout[1] layouts = .(mRenderBindGroupLayout);
-		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
-		if (Device.CreatePipelineLayout(&pipelineLayoutDesc) not case .Ok(let pipelineLayout))
+		PipelineLayoutDesc pipelineLayoutDesc = .(layouts);
+		if (Device.CreatePipelineLayout(pipelineLayoutDesc) not case .Ok(let pipelineLayout))
 			return false;
 		mRenderPipelineLayout = pipelineLayout;
 
@@ -293,7 +293,7 @@ class ComputeSample : RHISampleApp
 		ColorTargetState[1] colorTargets = .(.(SwapChain.Format, .AlphaBlend));
 
 		// Pipeline descriptor
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Layout = mRenderPipelineLayout,
 			Vertex = .()
@@ -321,7 +321,7 @@ class ComputeSample : RHISampleApp
 			}
 		};
 
-		if (Device.CreateRenderPipeline(&pipelineDesc) not case .Ok(let pipeline))
+		if (Device.CreateRenderPipeline(pipelineDesc) not case .Ok(let pipeline))
 			return false;
 		mRenderPipeline = pipeline;
 

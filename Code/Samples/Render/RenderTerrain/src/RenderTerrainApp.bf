@@ -498,7 +498,7 @@ class RenderTerrainApp : Application
 
 	private void GenerateHeightmap()
 	{
-		TextureDescriptor desc = .()
+		TextureDesc desc = .()
 		{
 			Label = "Terrain Heightmap",
 			Width = HeightmapSize, Height = HeightmapSize, Depth = 1,
@@ -507,7 +507,7 @@ class RenderTerrainApp : Application
 			Usage = .Sampled | .CopyDst
 		};
 
-		switch (mDevice.CreateTexture(&desc))
+		switch (mDevice.CreateTexture(desc))
 		{
 		case .Ok(let tex): mHeightmapTexture = tex;
 		case .Err: Console.WriteLine("ERROR: Failed to create heightmap"); return;
@@ -532,14 +532,14 @@ class RenderTerrainApp : Application
 		Extent3D size = .((uint32)HeightmapSize, (uint32)HeightmapSize, 1);
 		mDevice.Queue.WriteTextureSync(mHeightmapTexture, Span<uint8>((uint8*)pixels.Ptr, HeightmapSize * HeightmapSize * 2), &layout, &size);
 
-		TextureViewDescriptor viewDesc = .() { Format = .R16Float, Dimension = .Texture2D };
-		if (mDevice.CreateTextureView(mHeightmapTexture, &viewDesc) case .Ok(let view))
+		TextureViewDesc viewDesc = .() { Format = .R16Float, Dimension = .Texture2D };
+		if (mDevice.CreateTextureView(mHeightmapTexture, viewDesc) case .Ok(let view))
 			mHeightmapView = view;
 	}
 
 	private void GenerateNormalMap()
 	{
-		TextureDescriptor desc = .()
+		TextureDesc desc = .()
 		{
 			Label = "Terrain Normal Map",
 			Width = HeightmapSize, Height = HeightmapSize, Depth = 1,
@@ -548,7 +548,7 @@ class RenderTerrainApp : Application
 			Usage = .Sampled | .CopyDst
 		};
 
-		switch (mDevice.CreateTexture(&desc))
+		switch (mDevice.CreateTexture(desc))
 		{
 		case .Ok(let tex): mNormalMapTexture = tex;
 		case .Err: return;
@@ -597,14 +597,14 @@ class RenderTerrainApp : Application
 		Extent3D size = .((uint32)HeightmapSize, (uint32)HeightmapSize, 1);
 		mDevice.Queue.WriteTextureSync(mNormalMapTexture, Span<uint8>(pixels.Ptr, HeightmapSize * HeightmapSize * 4), &layout, &size);
 
-		TextureViewDescriptor viewDesc = .() { Format = .RGBA8Unorm, Dimension = .Texture2D };
-		if (mDevice.CreateTextureView(mNormalMapTexture, &viewDesc) case .Ok(let view))
+		TextureViewDesc viewDesc = .() { Format = .RGBA8Unorm, Dimension = .Texture2D };
+		if (mDevice.CreateTextureView(mNormalMapTexture, viewDesc) case .Ok(let view))
 			mNormalMapView = view;
 	}
 
 	private void GenerateSplatmap()
 	{
-		TextureDescriptor desc = .()
+		TextureDesc desc = .()
 		{
 			Label = "Terrain Splatmap",
 			Width = HeightmapSize, Height = HeightmapSize, Depth = 1,
@@ -613,7 +613,7 @@ class RenderTerrainApp : Application
 			Usage = .Sampled | .CopyDst
 		};
 
-		switch (mDevice.CreateTexture(&desc))
+		switch (mDevice.CreateTexture(desc))
 		{
 		case .Ok(let tex): mSplatmapTexture = tex;
 		case .Err: return;
@@ -680,8 +680,8 @@ class RenderTerrainApp : Application
 		Extent3D size = .((uint32)HeightmapSize, (uint32)HeightmapSize, 1);
 		mDevice.Queue.WriteTextureSync(mSplatmapTexture, Span<uint8>(pixels.Ptr, HeightmapSize * HeightmapSize * 4), &layout, &size);
 
-		TextureViewDescriptor viewDesc = .() { Format = .RGBA8Unorm, Dimension = .Texture2D };
-		if (mDevice.CreateTextureView(mSplatmapTexture, &viewDesc) case .Ok(let view))
+		TextureViewDesc viewDesc = .() { Format = .RGBA8Unorm, Dimension = .Texture2D };
+		if (mDevice.CreateTextureView(mSplatmapTexture, viewDesc) case .Ok(let view))
 			mSplatmapView = view;
 	}
 
@@ -696,7 +696,7 @@ class RenderTerrainApp : Application
 
 		for (int32 i = 0; i < 4; i++)
 		{
-			TextureDescriptor desc = .()
+			TextureDesc desc = .()
 			{
 				Label = "Terrain Layer",
 				Width = 4, Height = 4, Depth = 1,
@@ -705,7 +705,7 @@ class RenderTerrainApp : Application
 				Usage = .Sampled | .CopyDst
 			};
 
-			switch (mDevice.CreateTexture(&desc))
+			switch (mDevice.CreateTexture(desc))
 			{
 			case .Ok(let tex): mLayerTextures[i] = tex;
 			case .Err: continue;
@@ -724,8 +724,8 @@ class RenderTerrainApp : Application
 			Extent3D size = .(4, 4, 1);
 			mDevice.Queue.WriteTextureSync(mLayerTextures[i], Span<uint8>(&pixels[0], 64), &layout, &size);
 
-			TextureViewDescriptor viewDesc = .() { Format = .RGBA8Unorm, Dimension = .Texture2D };
-			if (mDevice.CreateTextureView(mLayerTextures[i], &viewDesc) case .Ok(let view))
+			TextureViewDesc viewDesc = .() { Format = .RGBA8Unorm, Dimension = .Texture2D };
+			if (mDevice.CreateTextureView(mLayerTextures[i], viewDesc) case .Ok(let view))
 				mLayerViews[i] = view;
 		}
 	}
@@ -821,7 +821,7 @@ class RenderTerrainApp : Application
 		int32 texW = 32;
 		int32 texH = 64;
 
-		TextureDescriptor desc = .()
+		TextureDesc desc = .()
 		{
 			Label = "Grass Blade",
 			Width = (uint32)texW, Height = (uint32)texH, Depth = 1,
@@ -830,7 +830,7 @@ class RenderTerrainApp : Application
 			Usage = .Sampled | .CopyDst
 		};
 
-		switch (mDevice.CreateTexture(&desc))
+		switch (mDevice.CreateTexture(desc))
 		{
 		case .Ok(let tex): mGrassBladeTexture = tex;
 		case .Err: return;
@@ -876,8 +876,8 @@ class RenderTerrainApp : Application
 		Extent3D size = .((uint32)texW, (uint32)texH, 1);
 		mDevice.Queue.WriteTextureSync(mGrassBladeTexture, Span<uint8>(pixels.Ptr, texW * texH * 4), &layout, &size);
 
-		TextureViewDescriptor viewDesc = .() { Format = .RGBA8Unorm, Dimension = .Texture2D };
-		if (mDevice.CreateTextureView(mGrassBladeTexture, &viewDesc) case .Ok(let view))
+		TextureViewDesc viewDesc = .() { Format = .RGBA8Unorm, Dimension = .Texture2D };
+		if (mDevice.CreateTextureView(mGrassBladeTexture, viewDesc) case .Ok(let view))
 			mGrassBladeView = view;
 	}
 

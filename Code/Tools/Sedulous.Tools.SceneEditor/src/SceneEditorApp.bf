@@ -1622,13 +1622,13 @@ class SceneEditorApp : Application
 
 		// Render UI to swap chain
 		let swapTextureView = SwapChain.CurrentTextureView;
-		RenderPassColorAttachment[1] uiAttachments = .(.(swapTextureView)
+		ColorAttachment[1] uiAttachments = .(.(swapTextureView)
 			{
 				LoadOp = .Clear,
 				StoreOp = .Store,
 				ClearValue = mConfig.ClearColor
 			});
-		RenderPassDescriptor uiPassDesc = .(uiAttachments);
+		RenderPassDesc uiPassDesc = .(uiAttachments);
 
 		let uiPass = encoder.BeginRenderPass(&uiPassDesc);
 		if (uiPass != null)

@@ -257,14 +257,14 @@ public class HiZOcclusionCuller : IDisposable
 			BindGroupEntry.Buffer(0, mVisibilityBuffer, 0, mMaxObjects * 4)        // u0: Output visibility (RWStructuredBuffer)
 		);
 
-		BindGroupDescriptor desc = .()
+		BindGroupDesc desc = .()
 		{
 			Label = "HiZ Cull BindGroup",
 			Layout = mCullBindGroupLayout,
 			Entries = entries
 		};
 
-		switch (mDevice.CreateBindGroup(&desc))
+		switch (mDevice.CreateBindGroup(desc))
 		{
 		case .Ok(let bindGroup): mCullBindGroup = bindGroup;
 		case .Err: return;
@@ -450,7 +450,7 @@ public class HiZOcclusionCuller : IDisposable
 	private Result<void> CreateHiZPyramid()
 	{
 		// Create Hi-Z pyramid texture with mip chain
-		TextureDescriptor desc = .()
+		TextureDesc desc = .()
 		{
 			Label = "HiZ Pyramid",
 			Dimension = .Texture2D,
@@ -464,7 +464,7 @@ public class HiZOcclusionCuller : IDisposable
 			Usage = .Sampled | .Storage | .RenderTarget
 		};
 
-		switch (mDevice.CreateTexture(&desc))
+		switch (mDevice.CreateTexture(desc))
 		{
 		case .Ok(let tex):
 			mHiZPyramid = tex;
@@ -476,7 +476,7 @@ public class HiZOcclusionCuller : IDisposable
 		for (uint32 mip = 0; mip < mMipLevels && mip < 16; mip++)
 		{
 			// Sampled view for reading
-			TextureViewDescriptor viewDesc = .()
+			TextureViewDesc viewDesc = .()
 			{
 				Label = "HiZ Mip View",
 				Format = .R32Float,
@@ -488,7 +488,7 @@ public class HiZOcclusionCuller : IDisposable
 				Aspect = .All
 			};
 
-			switch (mDevice.CreateTextureView(mHiZPyramid, &viewDesc))
+			switch (mDevice.CreateTextureView(mHiZPyramid, viewDesc))
 			{
 			case .Ok(let view):
 				mHiZMipViews[mip] = view;
@@ -497,7 +497,7 @@ public class HiZOcclusionCuller : IDisposable
 			}
 
 			// Storage view for compute writes
-			TextureViewDescriptor storageViewDesc = .()
+			TextureViewDesc storageViewDesc = .()
 			{
 				Label = "HiZ Mip Storage View",
 				Format = .R32Float,
@@ -509,7 +509,7 @@ public class HiZOcclusionCuller : IDisposable
 				Aspect = .All
 			};
 
-			switch (mDevice.CreateTextureView(mHiZPyramid, &storageViewDesc))
+			switch (mDevice.CreateTextureView(mHiZPyramid, storageViewDesc))
 			{
 			case .Ok(let view):
 				mHiZMipStorageViews[mip] = view;
@@ -519,18 +519,18 @@ public class HiZOcclusionCuller : IDisposable
 		}
 
 		// Create sampler for Hi-Z reads (point filtering, clamp)
-		SamplerDescriptor samplerDesc = .()
+		SamplerDesc samplerDesc = .()
 		{
 			Label = "HiZ Sampler",
-			AddressModeU = .ClampToEdge,
-			AddressModeV = .ClampToEdge,
-			AddressModeW = .ClampToEdge,
+			AddressU = .ClampToEdge,
+			AddressV = .ClampToEdge,
+			AddressW = .ClampToEdge,
 			MagFilter = .Nearest,
 			MinFilter = .Nearest,
 			MipmapFilter = .Nearest
 		};
 
-		switch (mDevice.CreateSampler(&samplerDesc))
+		switch (mDevice.CreateSampler(samplerDesc))
 		{
 		case .Ok(let sampler):
 			mHiZSampler = sampler;
@@ -547,15 +547,15 @@ public class HiZOcclusionCuller : IDisposable
 		// Each AABB is 6 floats (min xyz, max xyz) = 24 bytes
 		let boundsSize = mMaxObjects * 24;
 
-		BufferDescriptor boundsDesc = .()
+		BufferDesc boundsDesc = .()
 		{
 			Label = "HiZ Cull Bounds",
 			Size = boundsSize,
 			Usage = .Storage,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		switch (mDevice.CreateBuffer(&boundsDesc))
+		switch (mDevice.CreateBuffer(boundsDesc))
 		{
 		case .Ok(let buf):
 			mBoundsBuffer = buf;
@@ -564,14 +564,14 @@ public class HiZOcclusionCuller : IDisposable
 		}
 
 		// Visibility buffer: 1 uint32 per object (visible/occluded)
-		BufferDescriptor visDesc = .()
+		BufferDesc visDesc = .()
 		{
 			Label = "HiZ Visibility",
 			Size = mMaxObjects * 4,
 			Usage = .Storage | .CopySrc
 		};
 
-		switch (mDevice.CreateBuffer(&visDesc))
+		switch (mDevice.CreateBuffer(visDesc))
 		{
 		case .Ok(let buf):
 			mVisibilityBuffer = buf;
@@ -583,14 +583,14 @@ public class HiZOcclusionCuller : IDisposable
 		// DrawIndexedIndirectCommand is 20 bytes (5 uint32s)
 		let indirectSize = mMaxObjects * 20;
 
-		BufferDescriptor indirectDesc = .()
+		BufferDesc indirectDesc = .()
 		{
 			Label = "HiZ Indirect",
 			Size = indirectSize,
 			Usage = .Storage | .Indirect
 		};
 
-		switch (mDevice.CreateBuffer(&indirectDesc))
+		switch (mDevice.CreateBuffer(indirectDesc))
 		{
 		case .Ok(let buf):
 			mIndirectBuffer = buf;
@@ -635,13 +635,13 @@ public class HiZOcclusionCuller : IDisposable
 			.() { Binding = 0, Visibility = .Compute, Type = .UniformBuffer }   // b0: Build params
 		);
 
-		BindGroupLayoutDescriptor buildLayoutDesc = .()
+		BindGroupLayoutDesc buildLayoutDesc = .()
 		{
 			Label = "HiZ Build BindGroup Layout",
 			Entries = buildEntries
 		};
 
-		switch (mDevice.CreateBindGroupLayout(&buildLayoutDesc))
+		switch (mDevice.CreateBindGroupLayout(buildLayoutDesc))
 		{
 		case .Ok(let layout): mBuildHiZBindGroupLayout = layout;
 		case .Err: return .Err;
@@ -649,23 +649,23 @@ public class HiZOcclusionCuller : IDisposable
 
 		// Create pipeline layout
 		IBindGroupLayout[1] layouts = .(mBuildHiZBindGroupLayout);
-		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
+		PipelineLayoutDesc pipelineLayoutDesc = .(layouts);
 
-		switch (mDevice.CreatePipelineLayout(&pipelineLayoutDesc))
+		switch (mDevice.CreatePipelineLayout(pipelineLayoutDesc))
 		{
 		case .Ok(let layout): mBuildHiZLayout = layout;
 		case .Err: return .Err;
 		}
 
 		// Create compute pipeline
-		ComputePipelineDescriptor pipelineDesc = .()
+		ComputePipelineDesc pipelineDesc = .()
 		{
 			Label = "HiZ Build Pipeline",
 			Layout = mBuildHiZLayout,
 			Compute = .(shader.Module, "main")
 		};
 
-		switch (mDevice.CreateComputePipeline(&pipelineDesc))
+		switch (mDevice.CreateComputePipeline(pipelineDesc))
 		{
 		case .Ok(let pipeline): mBuildHiZPipeline = pipeline;
 		case .Err: return .Err;
@@ -701,13 +701,13 @@ public class HiZOcclusionCuller : IDisposable
 			.() { Binding = 0, Visibility = .Compute, Type = .StorageBufferReadWrite }  // u0: Output visibility (RWStructuredBuffer)
 		);
 
-		BindGroupLayoutDescriptor cullLayoutDesc = .()
+		BindGroupLayoutDesc cullLayoutDesc = .()
 		{
 			Label = "HiZ Cull BindGroup Layout",
 			Entries = cullEntries
 		};
 
-		switch (mDevice.CreateBindGroupLayout(&cullLayoutDesc))
+		switch (mDevice.CreateBindGroupLayout(cullLayoutDesc))
 		{
 		case .Ok(let layout): mCullBindGroupLayout = layout;
 		case .Err: return .Err;
@@ -715,38 +715,38 @@ public class HiZOcclusionCuller : IDisposable
 
 		// Create pipeline layout
 		IBindGroupLayout[1] layouts = .(mCullBindGroupLayout);
-		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
+		PipelineLayoutDesc pipelineLayoutDesc = .(layouts);
 
-		switch (mDevice.CreatePipelineLayout(&pipelineLayoutDesc))
+		switch (mDevice.CreatePipelineLayout(pipelineLayoutDesc))
 		{
 		case .Ok(let layout): mCullLayout = layout;
 		case .Err: return .Err;
 		}
 
 		// Create compute pipeline
-		ComputePipelineDescriptor pipelineDesc = .()
+		ComputePipelineDesc pipelineDesc = .()
 		{
 			Label = "HiZ Cull Pipeline",
 			Layout = mCullLayout,
 			Compute = .(shader.Module, "main")
 		};
 
-		switch (mDevice.CreateComputePipeline(&pipelineDesc))
+		switch (mDevice.CreateComputePipeline(pipelineDesc))
 		{
 		case .Ok(let pipeline): mCullPipeline = pipeline;
 		case .Err: return .Err;
 		}
 
 		// Create cull params buffer
-		BufferDescriptor paramsDesc = .()
+		BufferDesc paramsDesc = .()
 		{
 			Label = "HiZ Cull Params",
 			Size = sizeof(HiZCullParams),
 			Usage = .Uniform,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		switch (mDevice.CreateBuffer(&paramsDesc))
+		switch (mDevice.CreateBuffer(paramsDesc))
 		{
 		case .Ok(let buf): mCullParamsBuffer = buf;
 		case .Err: return .Err;
@@ -757,15 +757,15 @@ public class HiZOcclusionCuller : IDisposable
 
 	private Result<void> CreateBuildParamsBuffer()
 	{
-		BufferDescriptor desc = .()
+		BufferDesc desc = .()
 		{
 			Label = "HiZ Build Params",
 			Size = sizeof(HiZBuildParams),
 			Usage = .Uniform,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		switch (mDevice.CreateBuffer(&desc))
+		switch (mDevice.CreateBuffer(desc))
 		{
 		case .Ok(let buf): mBuildParamsBuffer = buf;
 		case .Err: return .Err;
@@ -802,14 +802,14 @@ public class HiZOcclusionCuller : IDisposable
 			BindGroupEntry.Buffer(0, mBuildParamsBuffer, 0, sizeof(HiZBuildParams)) // b0
 		);
 
-		BindGroupDescriptor desc = .()
+		BindGroupDesc desc = .()
 		{
 			Label = "HiZ Build BindGroup",
 			Layout = mBuildHiZBindGroupLayout,
 			Entries = entries
 		};
 
-		switch (mDevice.CreateBindGroup(&desc))
+		switch (mDevice.CreateBindGroup(desc))
 		{
 		case .Ok(let bindGroup): mBuildHiZBindGroups[mipLevel] = bindGroup;
 		case .Err: return;

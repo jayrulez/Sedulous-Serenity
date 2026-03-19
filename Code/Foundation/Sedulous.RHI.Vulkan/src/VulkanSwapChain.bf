@@ -38,7 +38,7 @@ class VulkanSwapChain : ISwapChain
 	// until after vkAcquireNextImageKHR, so we cycle through semaphores
 	private uint32 mAcquireSemaphoreIndex = 0;
 
-	public this(VulkanDevice device, VulkanSurface surface, SwapChainDescriptor* descriptor)
+	public this(VulkanDevice device, VulkanSurface surface, SwapChainDesc descriptor)
 	{
 		mDevice = device;
 		mSurface = surface;
@@ -342,7 +342,7 @@ class VulkanSwapChain : ISwapChain
 			mTextures.Add(texture);
 
 			// Create texture view
-			TextureViewDescriptor viewDesc = .()
+			TextureViewDesc viewDesc = .()
 				{
 					Format = mFormat,
 					Dimension = .Texture2D,
@@ -353,7 +353,7 @@ class VulkanSwapChain : ISwapChain
 					Label = scope $"SwapchainTexture{mImages.IndexOf(image)}"
 				};
 
-			if (mDevice.CreateTextureView(texture, &viewDesc) case .Ok(let view))
+			if (mDevice.CreateTextureView(texture, viewDesc) case .Ok(let view))
 			{
 				if (let vkView = view as VulkanTextureView)
 					mTextureViews.Add(vkView);

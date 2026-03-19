@@ -357,7 +357,7 @@ abstract class Application
 
 	private bool CreateSwapChain()
 	{
-		SwapChainDescriptor desc = .()
+		SwapChainDesc desc = .()
 		{
 			Width = (uint32)mWindow.Width,
 			Height = (uint32)mWindow.Height,
@@ -366,7 +366,7 @@ abstract class Application
 			PresentMode = mSettings.PresentMode
 		};
 
-		if (mDevice.CreateSwapChain(mSurface, &desc) not case .Ok(let swapChain))
+		if (mDevice.CreateSwapChain(mSurface, desc) not case .Ok(let swapChain))
 			return false;
 
 		mSwapChain = swapChain;
@@ -375,7 +375,7 @@ abstract class Application
 
 	private void CreateDepthBuffer()
 	{
-		TextureDescriptor desc = .()
+		TextureDesc desc = .()
 		{
 			Width = (uint32)mWindow.Width,
 			Height = (uint32)mWindow.Height,
@@ -388,11 +388,11 @@ abstract class Application
 			Label = "Depth"
 		};
 
-		if (mDevice.CreateTexture(&desc) case .Ok(let texture))
+		if (mDevice.CreateTexture(desc) case .Ok(let texture))
 		{
 			mDepthTexture = texture;
 
-			TextureViewDescriptor viewDesc = .()
+			TextureViewDesc viewDesc = .()
 			{
 				Format = mSettings.DepthFormat,
 				Dimension = .Texture2D,
@@ -403,7 +403,7 @@ abstract class Application
 				Label = "DepthView"
 			};
 
-			if (mDevice.CreateTextureView(texture, &viewDesc) case .Ok(let view))
+			if (mDevice.CreateTextureView(texture, viewDesc) case .Ok(let view))
 				mDepthTextureView = view;
 		}
 	}
@@ -472,7 +472,7 @@ abstract class Application
 
 	private void RenderDefaultPass(ICommandEncoder encoder, RenderContext ctx)
 	{
-		RenderPassColorAttachment[1] colorAttachments = .(.()
+		ColorAttachment[1] colorAttachments = .(.()
 		{
 			View = ctx.CurrentTextureView,
 			ResolveTarget = null,
@@ -481,7 +481,7 @@ abstract class Application
 			ClearValue = ctx.ClearColor
 		});
 
-		RenderPassDescriptor desc = .(colorAttachments);
+		RenderPassDesc desc = .(colorAttachments);
 
 		if (mDepthTextureView != null)
 		{
@@ -499,7 +499,7 @@ abstract class Application
 
 		let renderPass = encoder.BeginRenderPass(&desc);
 		renderPass.SetViewport(0, 0, mSwapChain.Width, mSwapChain.Height, 0, 1);
-		renderPass.SetScissorRect(0, 0, mSwapChain.Width, mSwapChain.Height);
+		renderPass.SetScissor(0, 0, mSwapChain.Width, mSwapChain.Height);
 
 		OnRender(renderPass, ctx.Frame);
 

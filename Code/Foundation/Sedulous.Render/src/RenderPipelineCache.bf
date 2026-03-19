@@ -212,9 +212,9 @@ class RenderPipelineCache
 
 		// Create new pipeline layout with two bind groups: scene (0) + material (1)
 		IBindGroupLayout[2] layouts = .(sceneLayout, materialLayout);
-		PipelineLayoutDescriptor layoutDesc = .(layouts);
+		PipelineLayoutDesc layoutDesc = .(layouts);
 
-		if (mDevice.CreatePipelineLayout(&layoutDesc) case .Ok(let layout))
+		if (mDevice.CreatePipelineLayout(layoutDesc) case .Ok(let layout))
 		{
 			mLayoutCache[hash] = layout;
 			return layout;
@@ -274,7 +274,7 @@ class RenderPipelineCache
 		int hash = 17;
 		for (let layout in layouts)
 		{
-			hash = hash * 31 + (int)layout.ArrayStride;
+			hash = hash * 31 + (int)layout.Stride;
 			hash = hash * 31 + (int)layout.StepMode;
 			for (let attr in layout.Attributes)
 			{
@@ -370,7 +370,7 @@ class RenderPipelineCache
 			label.Append(" Shadows");
 
 		// Build pipeline descriptor
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Label = label,
 			Layout = layout,
@@ -398,7 +398,7 @@ class RenderPipelineCache
 			}
 		};
 
-		switch (mDevice.CreateRenderPipeline(&pipelineDesc))
+		switch (mDevice.CreateRenderPipeline(pipelineDesc))
 		{
 		case .Ok(let pipeline):
 			return .Ok(pipeline);

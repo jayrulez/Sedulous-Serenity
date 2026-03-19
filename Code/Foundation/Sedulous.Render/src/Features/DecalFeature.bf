@@ -175,7 +175,7 @@ public class DecalFeature : RenderFeatureBase
 		const int32 TexSize = 4;
 		const int32 TexBytes = TexSize * TexSize * 4;
 
-		TextureDescriptor texDesc = .()
+		TextureDesc texDesc = .()
 		{
 			Label = "Default Decal Texture",
 			Width = TexSize,
@@ -189,7 +189,7 @@ public class DecalFeature : RenderFeatureBase
 			Usage = .Sampled | .CopyDst
 		};
 
-		switch (Renderer.Device.CreateTexture(&texDesc))
+		switch (Renderer.Device.CreateTexture(texDesc))
 		{
 		case .Ok(let tex): mDefaultTexture = tex;
 		case .Err: return .Err;
@@ -203,49 +203,49 @@ public class DecalFeature : RenderFeatureBase
 		var writeSize = Extent3D(TexSize, TexSize, 1);
 		UploadTexture(mDefaultTexture, Span<uint8>(&pixels[0], TexBytes), &layout, &writeSize);
 
-		TextureViewDescriptor viewDesc = .()
+		TextureViewDesc viewDesc = .()
 		{
 			Label = "Default Decal Texture View",
 			Dimension = .Texture2D
 		};
 
-		switch (Renderer.Device.CreateTextureView(mDefaultTexture, &viewDesc))
+		switch (Renderer.Device.CreateTextureView(mDefaultTexture, viewDesc))
 		{
 		case .Ok(let view): mDefaultTextureView = view;
 		case .Err: return .Err;
 		}
 
 		// Linear clamp sampler for albedo textures
-		SamplerDescriptor linearSamplerDesc = .()
+		SamplerDesc linearSamplerDesc = .()
 		{
 			Label = "Decal Linear Sampler",
-			AddressModeU = .ClampToEdge,
-			AddressModeV = .ClampToEdge,
-			AddressModeW = .ClampToEdge,
+			AddressU = .ClampToEdge,
+			AddressV = .ClampToEdge,
+			AddressW = .ClampToEdge,
 			MinFilter = .Linear,
 			MagFilter = .Linear,
 			MipmapFilter = .Linear
 		};
 
-		switch (Renderer.Device.CreateSampler(&linearSamplerDesc))
+		switch (Renderer.Device.CreateSampler(linearSamplerDesc))
 		{
 		case .Ok(let sampler): mLinearClampSampler = sampler;
 		case .Err: return .Err;
 		}
 
 		// Point clamp sampler for depth texture
-		SamplerDescriptor depthSamplerDesc = .()
+		SamplerDesc depthSamplerDesc = .()
 		{
 			Label = "Decal Depth Sampler",
-			AddressModeU = .ClampToEdge,
-			AddressModeV = .ClampToEdge,
-			AddressModeW = .ClampToEdge,
+			AddressU = .ClampToEdge,
+			AddressV = .ClampToEdge,
+			AddressW = .ClampToEdge,
 			MinFilter = .Nearest,
 			MagFilter = .Nearest,
 			MipmapFilter = .Nearest
 		};
 
-		switch (Renderer.Device.CreateSampler(&depthSamplerDesc))
+		switch (Renderer.Device.CreateSampler(depthSamplerDesc))
 		{
 		case .Ok(let sampler): mDepthSampler = sampler;
 		case .Err: return .Err;
@@ -254,15 +254,15 @@ public class DecalFeature : RenderFeatureBase
 		// Dynamic uniform buffers for per-decal data (one per frame-in-flight)
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			BufferDescriptor uniformDesc = .()
+			BufferDesc uniformDesc = .()
 			{
 				Label = "Decal Uniforms (Dynamic UBO)",
 				Size = DecalUniformAlignment * MaxDecals,
 				Usage = .Uniform,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
 
-			switch (Renderer.Device.CreateBuffer(&uniformDesc))
+			switch (Renderer.Device.CreateBuffer(uniformDesc))
 			{
 			case .Ok(let buf): mDecalUniformBuffers[i] = buf;
 			case .Err: return .Err;
@@ -301,14 +301,14 @@ public class DecalFeature : RenderFeatureBase
 			3, 7, 6,  3, 6, 2
 		);
 
-		BufferDescriptor vbDesc = .()
+		BufferDesc vbDesc = .()
 		{
 			Label = "Decal Cube VB",
 			Size = (uint64)(vertices.Count * sizeof(float)),
 			Usage = .Vertex | .CopyDst
 		};
 
-		switch (Renderer.Device.CreateBuffer(&vbDesc))
+		switch (Renderer.Device.CreateBuffer(vbDesc))
 		{
 		case .Ok(let buf): mCubeVertexBuffer = buf;
 		case .Err: return .Err;
@@ -317,14 +317,14 @@ public class DecalFeature : RenderFeatureBase
 		UploadBuffer(mCubeVertexBuffer, 0,
 			Span<uint8>((uint8*)&vertices[0], vertices.Count * sizeof(float)));
 
-		BufferDescriptor ibDesc = .()
+		BufferDesc ibDesc = .()
 		{
 			Label = "Decal Cube IB",
 			Size = (uint64)(indices.Count * sizeof(uint16)),
 			Usage = .Index | .CopyDst
 		};
 
-		switch (Renderer.Device.CreateBuffer(&ibDesc))
+		switch (Renderer.Device.CreateBuffer(ibDesc))
 		{
 		case .Ok(let buf): mCubeIndexBuffer = buf;
 		case .Err: return .Err;
@@ -345,13 +345,13 @@ public class DecalFeature : RenderFeatureBase
 			.() { Binding = 0, Visibility = .Fragment, Type = .Sampler }                     // DepthSampler (s0)
 		);
 
-		BindGroupLayoutDescriptor sceneLayoutDesc = .()
+		BindGroupLayoutDesc sceneLayoutDesc = .()
 		{
 			Label = "Decal Scene BindGroup Layout",
 			Entries = sceneEntries
 		};
 
-		switch (Renderer.Device.CreateBindGroupLayout(&sceneLayoutDesc))
+		switch (Renderer.Device.CreateBindGroupLayout(sceneLayoutDesc))
 		{
 		case .Ok(let layout): mSceneBindGroupLayout = layout;
 		case .Err: return .Err;
@@ -364,13 +364,13 @@ public class DecalFeature : RenderFeatureBase
 			.() { Binding = 0, Visibility = .Fragment, Type = .Sampler }          // AlbedoSampler (s0)
 		);
 
-		BindGroupLayoutDescriptor decalLayoutDesc = .()
+		BindGroupLayoutDesc decalLayoutDesc = .()
 		{
 			Label = "Decal Per-Decal BindGroup Layout",
 			Entries = decalEntries
 		};
 
-		switch (Renderer.Device.CreateBindGroupLayout(&decalLayoutDesc))
+		switch (Renderer.Device.CreateBindGroupLayout(decalLayoutDesc))
 		{
 		case .Ok(let layout): mDecalBindGroupLayout = layout;
 		case .Err: return .Err;
@@ -386,8 +386,8 @@ public class DecalFeature : RenderFeatureBase
 
 		// Pipeline layout: 2 bind groups
 		IBindGroupLayout[2] layouts = .(mSceneBindGroupLayout, mDecalBindGroupLayout);
-		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
-		switch (Renderer.Device.CreatePipelineLayout(&pipelineLayoutDesc))
+		PipelineLayoutDesc pipelineLayoutDesc = .(layouts);
+		switch (Renderer.Device.CreatePipelineLayout(pipelineLayoutDesc))
 		{
 		case .Ok(let layout): mPipelineLayout = layout;
 		case .Err: return .Err;
@@ -403,7 +403,7 @@ public class DecalFeature : RenderFeatureBase
 		VertexBufferLayout[1] vertexBuffers = .(
 			.()
 			{
-				ArrayStride = 12, // 3 floats
+				Stride = 12, // 3 floats
 				StepMode = .Vertex,
 				Attributes = VertexAttribute[1](
 					.() { Format = .Float3, Offset = 0, ShaderLocation = 0 }
@@ -426,7 +426,7 @@ public class DecalFeature : RenderFeatureBase
 				.(.RGBA16Float, blendState)
 			);
 
-			RenderPipelineDescriptor renderDesc = .()
+			RenderPipelineDesc renderDesc = .()
 			{
 				Label = scope :: $"Decal Pipeline ({label})",
 				Layout = mPipelineLayout,
@@ -454,7 +454,7 @@ public class DecalFeature : RenderFeatureBase
 				}
 			};
 
-			switch (Renderer.Device.CreateRenderPipeline(&renderDesc))
+			switch (Renderer.Device.CreateRenderPipeline(renderDesc))
 			{
 			case .Ok(let createdPipeline): pipeline = createdPipeline;
 			case .Err: // Non-fatal
@@ -486,21 +486,21 @@ public class DecalFeature : RenderFeatureBase
 			.() { Binding = 0, Visibility = .Fragment, Type = .Sampler }
 		);
 
-		BindGroupLayoutDescriptor curveLayoutDesc = .()
+		BindGroupLayoutDesc curveLayoutDesc = .()
 		{
 			Label = "Curve Decal BindGroup Layout",
 			Entries = curveEntries
 		};
 
-		if (Renderer.Device.CreateBindGroupLayout(&curveLayoutDesc) case .Ok(let bgLayout))
+		if (Renderer.Device.CreateBindGroupLayout(curveLayoutDesc) case .Ok(let bgLayout))
 			mCurveDecalBindGroupLayout = bgLayout;
 		else
 			return;
 
 		// Pipeline layout
 		IBindGroupLayout[2] layouts = .(mSceneBindGroupLayout, mCurveDecalBindGroupLayout);
-		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
-		if (Renderer.Device.CreatePipelineLayout(&pipelineLayoutDesc) case .Ok(let plLayout))
+		PipelineLayoutDesc pipelineLayoutDesc = .(layouts);
+		if (Renderer.Device.CreatePipelineLayout(pipelineLayoutDesc) case .Ok(let plLayout))
 			mCurvePipelineLayout = plLayout;
 		else
 			return;
@@ -509,7 +509,7 @@ public class DecalFeature : RenderFeatureBase
 		VertexBufferLayout[1] vertexBuffers = .(
 			.()
 			{
-				ArrayStride = CurveDecalVertex.Stride,
+				Stride = CurveDecalVertex.Stride,
 				StepMode = .Vertex,
 				Attributes = VertexAttribute[3](
 					.() { Format = .Float3, Offset = 0, ShaderLocation = 0 },   // Position
@@ -531,7 +531,7 @@ public class DecalFeature : RenderFeatureBase
 				.(.RGBA16Float, blendState)
 			);
 
-			RenderPipelineDescriptor renderDesc = .()
+			RenderPipelineDesc renderDesc = .()
 			{
 				Label = scope :: $"Curve Decal Pipeline ({label})",
 				Layout = mCurvePipelineLayout,
@@ -559,7 +559,7 @@ public class DecalFeature : RenderFeatureBase
 				}
 			};
 
-			if (Renderer.Device.CreateRenderPipeline(&renderDesc) case .Ok(let createdPipeline))
+			if (Renderer.Device.CreateRenderPipeline(renderDesc) case .Ok(let createdPipeline))
 				pipeline = createdPipeline;
 		};
 
@@ -570,15 +570,15 @@ public class DecalFeature : RenderFeatureBase
 		// Uniform buffers for curve decals
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			BufferDescriptor uniformDesc = .()
+			BufferDesc uniformDesc = .()
 			{
 				Label = "Curve Decal Uniforms",
 				Size = CurveDecalUniformAlignment * MaxCurveDecals,
 				Usage = .Uniform,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
 
-			if (Renderer.Device.CreateBuffer(&uniformDesc) case .Ok(let buf))
+			if (Renderer.Device.CreateBuffer(uniformDesc) case .Ok(let buf))
 				mCurveUniformBuffers[i] = buf;
 		}
 	}
@@ -742,15 +742,15 @@ public class DecalFeature : RenderFeatureBase
 			if (mCurveVertexBuffers[frameIndex] != null)
 				delete mCurveVertexBuffers[frameIndex];
 
-			BufferDescriptor vbDesc = .()
+			BufferDesc vbDesc = .()
 			{
 				Label = "Curve Decal VB",
 				Size = vertexDataSize,
 				Usage = .Vertex,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
 
-			if (Renderer.Device.CreateBuffer(&vbDesc) case .Ok(let buf))
+			if (Renderer.Device.CreateBuffer(vbDesc) case .Ok(let buf))
 				mCurveVertexBuffers[frameIndex] = buf;
 			else
 				return;
@@ -761,15 +761,15 @@ public class DecalFeature : RenderFeatureBase
 			if (mCurveIndexBuffers[frameIndex] != null)
 				delete mCurveIndexBuffers[frameIndex];
 
-			BufferDescriptor ibDesc = .()
+			BufferDesc ibDesc = .()
 			{
 				Label = "Curve Decal IB",
 				Size = indexDataSize,
 				Usage = .Index,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
 
-			if (Renderer.Device.CreateBuffer(&ibDesc) case .Ok(let buf))
+			if (Renderer.Device.CreateBuffer(ibDesc) case .Ok(let buf))
 				mCurveIndexBuffers[frameIndex] = buf;
 			else
 				return;
@@ -804,7 +804,7 @@ public class DecalFeature : RenderFeatureBase
 			return;
 
 		encoder.SetViewport(0, 0, (float)mViewWidth, (float)mViewHeight, 0.0f, 1.0f);
-		encoder.SetScissorRect(0, 0, mViewWidth, mViewHeight);
+		encoder.SetScissor(0, 0, mViewWidth, mViewHeight);
 
 		// Bind cube geometry
 		encoder.SetVertexBuffer(0, mCubeVertexBuffer, 0);
@@ -936,14 +936,14 @@ public class DecalFeature : RenderFeatureBase
 			BindGroupEntry.Sampler(0, sampler)
 		);
 
-		BindGroupDescriptor bgDesc = .()
+		BindGroupDesc bgDesc = .()
 		{
 			Label = "Curve Decal BindGroup",
 			Layout = mCurveDecalBindGroupLayout,
 			Entries = entries
 		};
 
-		switch (Renderer.Device.CreateBindGroup(&bgDesc))
+		switch (Renderer.Device.CreateBindGroup(bgDesc))
 		{
 		case .Ok(let bg): return bg;
 		case .Err: return null;
@@ -967,14 +967,14 @@ public class DecalFeature : RenderFeatureBase
 			BindGroupEntry.Sampler(0, mDepthSampler)
 		);
 
-		BindGroupDescriptor bgDesc = .()
+		BindGroupDesc bgDesc = .()
 		{
 			Label = "Decal Scene BindGroup",
 			Layout = mSceneBindGroupLayout,
 			Entries = entries
 		};
 
-		switch (Renderer.Device.CreateBindGroup(&bgDesc))
+		switch (Renderer.Device.CreateBindGroup(bgDesc))
 		{
 		case .Ok(let bg):
 			mSceneBindGroups[bindGroupIndex] = bg;
@@ -1008,14 +1008,14 @@ public class DecalFeature : RenderFeatureBase
 			BindGroupEntry.Sampler(0, sampler)
 		);
 
-		BindGroupDescriptor bgDesc = .()
+		BindGroupDesc bgDesc = .()
 		{
 			Label = "Decal Per-Decal BindGroup",
 			Layout = mDecalBindGroupLayout,
 			Entries = entries
 		};
 
-		switch (Renderer.Device.CreateBindGroup(&bgDesc))
+		switch (Renderer.Device.CreateBindGroup(bgDesc))
 		{
 		case .Ok(let bg): return bg;
 		case .Err: return null;

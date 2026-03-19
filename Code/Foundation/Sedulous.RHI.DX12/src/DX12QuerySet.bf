@@ -16,7 +16,7 @@ class DX12QuerySet : IQuerySet
 	private uint32 mCount;
 	private uint32 mResultStride;
 
-	public this(DX12Device device, QuerySetDescriptor* descriptor)
+	public this(DX12Device device, QuerySetDesc descriptor)
 	{
 		mDevice = device;
 		mType = descriptor.Type;
@@ -69,7 +69,7 @@ class DX12QuerySet : IQuerySet
 		return true;
 	}
 
-	private void CreateQueryHeap(QuerySetDescriptor* descriptor)
+	private void CreateQueryHeap(QuerySetDesc descriptor)
 	{
 		D3D12_QUERY_HEAP_DESC heapDesc = .();
 		heapDesc.Count = descriptor.Count;

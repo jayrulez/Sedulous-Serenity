@@ -28,7 +28,7 @@ enum TextureLayout
 interface ICommandEncoder
 {
 	/// Begins a render pass.
-	IRenderPassEncoder BeginRenderPass(RenderPassDescriptor* descriptor);
+	IRenderPassEncoder BeginRenderPass(RenderPassDesc* descriptor);
 
 	/// Begins a compute pass.
 	IComputePassEncoder BeginComputePass(StringView label = default);

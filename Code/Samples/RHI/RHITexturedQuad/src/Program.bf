@@ -80,14 +80,14 @@ class TexturedQuadSample : RHISampleApp
 			.(-0.5f,  0.5f, 0.0f, 0.0f)   // Top-left
 		);
 
-		BufferDescriptor vertexDesc = .()
+		BufferDesc vertexDesc = .()
 		{
 			Size = (uint64)(sizeof(Vertex) * vertices.Count),
 			Usage = .Vertex,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&vertexDesc) not case .Ok(let vb))
+		if (Device.CreateBuffer(vertexDesc) not case .Ok(let vb))
 			return false;
 		mVertexBuffer = vb;
 
@@ -100,14 +100,14 @@ class TexturedQuadSample : RHISampleApp
 			0, 2, 3   // Second triangle
 		);
 
-		BufferDescriptor indexDesc = .()
+		BufferDesc indexDesc = .()
 		{
 			Size = (uint64)(sizeof(uint16) * indices.Count),
 			Usage = .Index,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&indexDesc) not case .Ok(let ib))
+		if (Device.CreateBuffer(indexDesc) not case .Ok(let ib))
 			return false;
 		mIndexBuffer = ib;
 
@@ -115,14 +115,14 @@ class TexturedQuadSample : RHISampleApp
 		Device.Queue.WriteMappedBuffer(mIndexBuffer, 0, indexData);
 
 		// Create uniform buffer
-		BufferDescriptor uniformDesc = .()
+		BufferDesc uniformDesc = .()
 		{
 			Size = (uint64)sizeof(Uniforms),
 			Usage = .Uniform,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&uniformDesc) not case .Ok(let ub))
+		if (Device.CreateBuffer(uniformDesc) not case .Ok(let ub))
 			return false;
 		mUniformBuffer = ub;
 
@@ -139,14 +139,14 @@ class TexturedQuadSample : RHISampleApp
 		Console.WriteLine(scope $"Created checkerboard image: {image.Width}x{image.Height}");
 
 		// Create texture
-		TextureDescriptor textureDesc = TextureDescriptor.Texture2D(
+		TextureDesc textureDesc = TextureDesc.Texture2D(
 			image.Width,
 			image.Height,
 			.RGBA8Unorm,
 			.Sampled | .CopyDst
 		);
 
-		if (Device.CreateTexture(&textureDesc) not case .Ok(let texture))
+		if (Device.CreateTexture(textureDesc) not case .Ok(let texture))
 			return false;
 		mTexture = texture;
 
@@ -162,14 +162,14 @@ class TexturedQuadSample : RHISampleApp
 		Device.Queue.WriteTextureSync(mTexture, image.Data, &dataLayout, &writeSize);
 
 		// Create texture view
-		TextureViewDescriptor viewDesc = .();
-		if (Device.CreateTextureView(mTexture, &viewDesc) not case .Ok(let textureView))
+		TextureViewDesc viewDesc = .();
+		if (Device.CreateTextureView(mTexture, viewDesc) not case .Ok(let textureView))
 			return false;
 		mTextureView = textureView;
 
 		// Create sampler
-		SamplerDescriptor samplerDesc = SamplerDescriptor.LinearRepeat();
-		if (Device.CreateSampler(&samplerDesc) not case .Ok(let sampler))
+		SamplerDesc samplerDesc = SamplerDesc.LinearRepeat();
+		if (Device.CreateSampler(samplerDesc) not case .Ok(let sampler))
 			return false;
 		mSampler = sampler;
 
@@ -195,8 +195,8 @@ class TexturedQuadSample : RHISampleApp
 			BindGroupLayoutEntry.SampledTexture(0, .Fragment), // t0 -> Vulkan binding 1000
 			BindGroupLayoutEntry.Sampler(0, .Fragment)         // s0 -> Vulkan binding 3000
 		);
-		BindGroupLayoutDescriptor bindGroupLayoutDesc = .(layoutEntries);
-		if (Device.CreateBindGroupLayout(&bindGroupLayoutDesc) not case .Ok(let layout))
+		BindGroupLayoutDesc bindGroupLayoutDesc = .(layoutEntries);
+		if (Device.CreateBindGroupLayout(bindGroupLayoutDesc) not case .Ok(let layout))
 			return false;
 		mBindGroupLayout = layout;
 
@@ -206,15 +206,15 @@ class TexturedQuadSample : RHISampleApp
 			BindGroupEntry.Texture(0, mTextureView),
 			BindGroupEntry.Sampler(0, mSampler)
 		);
-		BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
-		if (Device.CreateBindGroup(&bindGroupDesc) not case .Ok(let group))
+		BindGroupDesc bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
+		if (Device.CreateBindGroup(bindGroupDesc) not case .Ok(let group))
 			return false;
 		mBindGroup = group;
 
 		// Create pipeline layout
 		IBindGroupLayout[1] layouts = .(mBindGroupLayout);
-		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
-		if (Device.CreatePipelineLayout(&pipelineLayoutDesc) not case .Ok(let pipelineLayout))
+		PipelineLayoutDesc pipelineLayoutDesc = .(layouts);
+		if (Device.CreatePipelineLayout(pipelineLayoutDesc) not case .Ok(let pipelineLayout))
 			return false;
 		mPipelineLayout = pipelineLayout;
 
@@ -237,7 +237,7 @@ class TexturedQuadSample : RHISampleApp
 		ColorTargetState[1] colorTargets = .(.(SwapChain.Format));
 
 		// Pipeline descriptor
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Layout = mPipelineLayout,
 			Vertex = .()
@@ -265,7 +265,7 @@ class TexturedQuadSample : RHISampleApp
 			}
 		};
 
-		if (Device.CreateRenderPipeline(&pipelineDesc) not case .Ok(let pipeline))
+		if (Device.CreateRenderPipeline(pipelineDesc) not case .Ok(let pipeline))
 			return false;
 		mPipeline = pipeline;
 

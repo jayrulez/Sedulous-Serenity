@@ -14,7 +14,7 @@ class VulkanBindGroup : IBindGroup
 	private VkDescriptorSet mDescriptorSet;
 	private VulkanDescriptorPool mPool;
 
-	public this(VulkanDevice device, VulkanDescriptorPool pool, BindGroupDescriptor* descriptor)
+	public this(VulkanDevice device, VulkanDescriptorPool pool, BindGroupDesc descriptor)
 	{
 		mDevice = device;
 		mPool = pool;
@@ -60,7 +60,7 @@ class VulkanBindGroup : IBindGroup
 		}
 	}
 
-	private void CreateDescriptorSet(BindGroupDescriptor* descriptor)
+	private void CreateDescriptorSet(BindGroupDesc descriptor)
 	{
 		if (mLayout == null || !mLayout.IsValid)
 			return;

@@ -71,12 +71,12 @@ class BorderSamplerSample : RHISampleApp
 			}
 		}
 
-		TextureDescriptor texDesc = TextureDescriptor.Texture2D(SIZE, SIZE, .RGBA8Unorm, .Sampled | .CopyDst);
-		if (Device.CreateTexture(&texDesc) not case .Ok(let tex))
+		TextureDesc texDesc = TextureDesc.Texture2D(SIZE, SIZE, .RGBA8Unorm, .Sampled | .CopyDst);
+		if (Device.CreateTexture(texDesc) not case .Ok(let tex))
 			return false;
 		mTexture = tex;
 
-		TextureViewDescriptor viewDesc = .()
+		TextureViewDesc viewDesc = .()
 		{
 			Format = .RGBA8Unorm,
 			Dimension = .Texture2D,
@@ -85,7 +85,7 @@ class BorderSamplerSample : RHISampleApp
 			BaseArrayLayer = 0,
 			ArrayLayerCount = 1
 		};
-		if (Device.CreateTextureView(mTexture, &viewDesc) not case .Ok(let view))
+		if (Device.CreateTextureView(mTexture, viewDesc) not case .Ok(let view))
 			return false;
 		mTextureView = view;
 
@@ -106,30 +106,30 @@ class BorderSamplerSample : RHISampleApp
 	private bool CreateSamplers()
 	{
 		// Create sampler with TransparentBlack border
-		SamplerDescriptor samplerDesc = .()
+		SamplerDesc samplerDesc = .()
 		{
 			MinFilter = .Nearest,
 			MagFilter = .Nearest,
 			MipmapFilter = .Nearest,
-			AddressModeU = .ClampToBorder,
-			AddressModeV = .ClampToBorder,
-			AddressModeW = .ClampToBorder,
+			AddressU = .ClampToBorder,
+			AddressV = .ClampToBorder,
+			AddressW = .ClampToBorder,
 			BorderColor = .TransparentBlack
 		};
 
-		if (Device.CreateSampler(&samplerDesc) not case .Ok(let sampTrans))
+		if (Device.CreateSampler(samplerDesc) not case .Ok(let sampTrans))
 			return false;
 		mSamplerTransparent = sampTrans;
 
 		// Create sampler with OpaqueBlack border
 		samplerDesc.BorderColor = .OpaqueBlack;
-		if (Device.CreateSampler(&samplerDesc) not case .Ok(let sampBlack))
+		if (Device.CreateSampler(samplerDesc) not case .Ok(let sampBlack))
 			return false;
 		mSamplerBlack = sampBlack;
 
 		// Create sampler with OpaqueWhite border
 		samplerDesc.BorderColor = .OpaqueWhite;
-		if (Device.CreateSampler(&samplerDesc) not case .Ok(let sampWhite))
+		if (Device.CreateSampler(samplerDesc) not case .Ok(let sampWhite))
 			return false;
 		mSamplerWhite = sampWhite;
 
@@ -151,14 +151,14 @@ class BorderSamplerSample : RHISampleApp
 			-0.8f,  0.8f,   -0.5f, -0.5f   // Top-left
 		);
 
-		BufferDescriptor vertexDesc = .()
+		BufferDesc vertexDesc = .()
 		{
 			Size = (uint64)(sizeof(float) * vertices.Count),
 			Usage = .Vertex,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&vertexDesc) not case .Ok(let vb))
+		if (Device.CreateBuffer(vertexDesc) not case .Ok(let vb))
 			return false;
 		mVertexBuffer = vb;
 		Device.Queue.WriteMappedBuffer(mVertexBuffer, 0, .((uint8*)&vertices, (int)vertexDesc.Size));
@@ -175,8 +175,8 @@ class BorderSamplerSample : RHISampleApp
 			BindGroupLayoutEntry.SampledTexture(0, .Fragment), // t0
 			BindGroupLayoutEntry.Sampler(0, .Fragment)         // s0
 		);
-		BindGroupLayoutDescriptor layoutDesc = .(layoutEntries);
-		if (Device.CreateBindGroupLayout(&layoutDesc) not case .Ok(let layout))
+		BindGroupLayoutDesc layoutDesc = .(layoutEntries);
+		if (Device.CreateBindGroupLayout(layoutDesc) not case .Ok(let layout))
 			return false;
 		mBindGroupLayout = layout;
 
@@ -185,8 +185,8 @@ class BorderSamplerSample : RHISampleApp
 			BindGroupEntry.Texture(0, mTextureView),
 			BindGroupEntry.Sampler(0, mSamplerTransparent)
 		);
-		BindGroupDescriptor bindDescTrans = .(mBindGroupLayout, entriesTransparent);
-		if (Device.CreateBindGroup(&bindDescTrans) not case .Ok(let bgTrans))
+		BindGroupDesc bindDescTrans = .(mBindGroupLayout, entriesTransparent);
+		if (Device.CreateBindGroup(bindDescTrans) not case .Ok(let bgTrans))
 			return false;
 		mBindGroupTransparent = bgTrans;
 
@@ -194,8 +194,8 @@ class BorderSamplerSample : RHISampleApp
 			BindGroupEntry.Texture(0, mTextureView),
 			BindGroupEntry.Sampler(0, mSamplerBlack)
 		);
-		BindGroupDescriptor bindDescBlack = .(mBindGroupLayout, entriesBlack);
-		if (Device.CreateBindGroup(&bindDescBlack) not case .Ok(let bgBlack))
+		BindGroupDesc bindDescBlack = .(mBindGroupLayout, entriesBlack);
+		if (Device.CreateBindGroup(bindDescBlack) not case .Ok(let bgBlack))
 			return false;
 		mBindGroupBlack = bgBlack;
 
@@ -203,8 +203,8 @@ class BorderSamplerSample : RHISampleApp
 			BindGroupEntry.Texture(0, mTextureView),
 			BindGroupEntry.Sampler(0, mSamplerWhite)
 		);
-		BindGroupDescriptor bindDescWhite = .(mBindGroupLayout, entriesWhite);
-		if (Device.CreateBindGroup(&bindDescWhite) not case .Ok(let bgWhite))
+		BindGroupDesc bindDescWhite = .(mBindGroupLayout, entriesWhite);
+		if (Device.CreateBindGroup(bindDescWhite) not case .Ok(let bgWhite))
 			return false;
 		mBindGroupWhite = bgWhite;
 
@@ -212,8 +212,8 @@ class BorderSamplerSample : RHISampleApp
 
 		// Pipeline layout
 		IBindGroupLayout[1] layouts = .(mBindGroupLayout);
-		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
-		if (Device.CreatePipelineLayout(&pipelineLayoutDesc) not case .Ok(let pipelineLayout))
+		PipelineLayoutDesc pipelineLayoutDesc = .(layouts);
+		if (Device.CreatePipelineLayout(pipelineLayoutDesc) not case .Ok(let pipelineLayout))
 			return false;
 		mPipelineLayout = pipelineLayout;
 
@@ -232,7 +232,7 @@ class BorderSamplerSample : RHISampleApp
 			Blend = BlendState.AlphaBlend
 		});
 
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Layout = mPipelineLayout,
 			Vertex = .()
@@ -249,7 +249,7 @@ class BorderSamplerSample : RHISampleApp
 			Multisample = .() { Count = 1, Mask = uint32.MaxValue }
 		};
 
-		if (Device.CreateRenderPipeline(&pipelineDesc) not case .Ok(let pipeline))
+		if (Device.CreateRenderPipeline(pipelineDesc) not case .Ok(let pipeline))
 			return false;
 		mPipeline = pipeline;
 

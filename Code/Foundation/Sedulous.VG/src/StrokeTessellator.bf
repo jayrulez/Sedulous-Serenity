@@ -46,53 +46,86 @@ public static class StrokeTessellator
 		let fringeWidth = antiAlias ? 0.75f : 0.0f;
 		let halfWidth = style.Width * 0.5f;
 
-		// Pre-compute normals for each edge
+		// Pre-compute edge directions, normals, and lengths
 		let edgeCount = closed ? n : n - 1;
+		Vector2[] edgeDirs = scope Vector2[edgeCount];
 		Vector2[] edgeNormals = scope Vector2[edgeCount];
+		float[] edgeLens = scope float[edgeCount];
 		for (int i = 0; i < edgeCount; i++)
 		{
 			let p0 = points[i];
 			let p1 = points[(i + 1) % n];
 			var dir = p1 - p0;
 			let len = dir.Length();
+			edgeLens[i] = len;
 			if (len > 0.0001f)
 			{
 				dir = dir / len;
+				edgeDirs[i] = dir;
 				edgeNormals[i] = .(-dir.Y, dir.X);
 			}
 			else
 			{
+				edgeDirs[i] = .(0, 0);
 				edgeNormals[i] = .(0, 1);
 			}
 		}
 
-		// Compute per-vertex averaged normals (unit length, miter-scaled)
-		Vector2[] vertNormals = scope Vector2[n];
+		// Compute per-vertex miter-scaled normals and unit normals (for fringe)
+		Vector2[] vertNormals = scope Vector2[n];   // miter-scaled
+		Vector2[] unitNormals = scope Vector2[n];    // unit length (for fixed-width fringe)
 		for (int i = 0; i < n; i++)
 		{
 			if (closed)
 			{
 				let prevEdge = (i + edgeCount - 1) % edgeCount;
 				let nextEdge = i % edgeCount;
-				vertNormals[i] = ComputeJoinNormal(edgeNormals[prevEdge], edgeNormals[nextEdge], style, halfWidth);
+				let minLen = Math.Min(edgeLens[prevEdge], edgeLens[nextEdge]);
+				ComputeJoinNormal(edgeNormals[prevEdge], edgeNormals[nextEdge], style, halfWidth, minLen,
+					out vertNormals[i], out unitNormals[i]);
 			}
 			else if (i == 0)
 			{
 				vertNormals[i] = edgeNormals[0];
+				unitNormals[i] = edgeNormals[0];
 			}
 			else if (i == n - 1)
 			{
 				vertNormals[i] = edgeNormals[edgeCount - 1];
+				unitNormals[i] = edgeNormals[edgeCount - 1];
 			}
 			else
 			{
-				vertNormals[i] = ComputeJoinNormal(edgeNormals[i - 1], edgeNormals[i], style, halfWidth);
+				let minLen = Math.Min(edgeLens[i - 1], edgeLens[i]);
+				ComputeJoinNormal(edgeNormals[i - 1], edgeNormals[i], style, halfWidth, minLen,
+					out vertNormals[i], out unitNormals[i]);
+			}
+		}
+
+		// Determine which vertices need bevel/round joins
+		bool[] needsJoin = scope bool[n];
+		if (style.Join != .Miter)
+		{
+			for (int i = 0; i < n; i++)
+			{
+				bool isJoinVertex = closed || (i > 0 && i < n - 1);
+				if (!isJoinVertex) continue;
+
+				let prevEdge = closed ? (i + edgeCount - 1) % edgeCount : i - 1;
+				let nextEdge = closed ? i % edgeCount : i;
+				if (prevEdge < 0 || nextEdge >= edgeCount) continue;
+
+				let cross = edgeNormals[prevEdge].X * edgeNormals[nextEdge].Y -
+					edgeNormals[prevEdge].Y * edgeNormals[nextEdge].X;
+				// Only add join geometry at visible corners (not near-parallel edges)
+				needsJoin[i] = Math.Abs(cross) >= 0.001f;
 			}
 		}
 
 		if (antiAlias)
 		{
-			// With AA: create 4 vertex rings — outer fringe, stroke left, stroke right, inner fringe
+			// With AA: create 4 vertex rings
+			// Fringe uses unitNormals (fixed pixel width), body uses vertNormals (miter-scaled)
 			let transColor = Color(color.R, color.G, color.B, 0);
 
 			// Ring 0: outer fringe (left side, coverage=0)
@@ -100,8 +133,9 @@ public static class StrokeTessellator
 			for (int i = 0; i < n; i++)
 			{
 				let p = points[i];
-				let offset = vertNormals[i] * (halfWidth + fringeWidth);
-				vertices.Add(.Solid(p + offset, transColor, 0.0f));
+				let bodyOffset = vertNormals[i] * halfWidth;
+				let fringeOffset = unitNormals[i] * fringeWidth;
+				vertices.Add(.Solid(p + bodyOffset + fringeOffset, transColor, 0.0f));
 			}
 
 			// Ring 1: stroke left edge (coverage=1)
@@ -127,8 +161,9 @@ public static class StrokeTessellator
 			for (int i = 0; i < n; i++)
 			{
 				let p = points[i];
-				let offset = vertNormals[i] * (halfWidth + fringeWidth);
-				vertices.Add(.Solid(p - offset, transColor, 0.0f));
+				let bodyOffset = vertNormals[i] * halfWidth;
+				let fringeOffset = unitNormals[i] * fringeWidth;
+				vertices.Add(.Solid(p - bodyOffset - fringeOffset, transColor, 0.0f));
 			}
 
 			// Connect rings with quad strips
@@ -178,22 +213,15 @@ public static class StrokeTessellator
 			}
 		}
 
-		// Add joins for non-miter modes
-		if (style.Join != .Miter)
+		// Add joins at vertices that need them
+		for (int i = 0; i < n; i++)
 		{
-			for (int i = 0; i < n; i++)
-			{
-				bool isJoin = closed || (i > 0 && i < n - 1);
-				if (!isJoin) continue;
+			if (!needsJoin[i]) continue;
 
-				let prevEdge = closed ? (i + edgeCount - 1) % edgeCount : i - 1;
-				let nextEdge = closed ? i % edgeCount : i;
+			let prevEdge = closed ? (i + edgeCount - 1) % edgeCount : i - 1;
+			let nextEdge = closed ? i % edgeCount : i;
 
-				if (prevEdge < 0 || nextEdge >= edgeCount)
-					continue;
-
-				AddJoin(points[i], edgeNormals[prevEdge], edgeNormals[nextEdge], halfWidth, style.Join, color, vertices, indices);
-			}
+			AddJoin(points[i], edgeNormals[prevEdge], edgeNormals[nextEdge], halfWidth, style.Join, color, vertices, indices);
 		}
 
 		// Add caps for open paths
@@ -222,25 +250,52 @@ public static class StrokeTessellator
 		}
 	}
 
-	private static Vector2 ComputeJoinNormal(Vector2 prevNormal, Vector2 nextNormal, StrokeStyle style, float halfWidth)
+	/// Compute miter-scaled and unit normals for a join vertex.
+	/// minEdgeLen is the shorter of the two adjacent edges (for inner bevel clamping).
+	private static void ComputeJoinNormal(Vector2 prevNormal, Vector2 nextNormal,
+		StrokeStyle style, float halfWidth, float minEdgeLen,
+		out Vector2 miterNormal, out Vector2 unitNormal)
 	{
 		var avg = (prevNormal + nextNormal) * 0.5f;
 		let len = avg.Length();
 		if (len < 0.0001f)
-			return prevNormal;
+		{
+			miterNormal = prevNormal;
+			unitNormal = prevNormal;
+			return;
+		}
 
 		avg = avg / len;
+		unitNormal = avg;
 
 		let dot = prevNormal.X * avg.X + prevNormal.Y * avg.Y;
 		if (dot > 0.0001f)
 		{
-			let miterLen = 1.0f / dot;
+			var miterLen = 1.0f / dot;
+
+			// Clamp to prevent extreme miter spikes
+			miterLen = Math.Min(miterLen, 600.0f);
+
+			// Inner bevel: if miter extends beyond the shorter adjacent edge, clamp
+			if (minEdgeLen > 0.0001f)
+			{
+				let limit = Math.Max(1.01f, minEdgeLen / halfWidth);
+				if (miterLen > limit)
+					miterLen = limit;
+			}
+
 			if (miterLen > style.MiterLimit && style.Join == .Miter)
-				return avg;
-			return avg * miterLen;
+			{
+				miterNormal = avg;
+				return;
+			}
+
+			miterNormal = avg * miterLen;
+			return;
 		}
 
-		return prevNormal;
+		miterNormal = prevNormal;
+		unitNormal = prevNormal;
 	}
 
 	private static void AddJoin(Vector2 point, Vector2 prevNormal, Vector2 nextNormal, float halfWidth,

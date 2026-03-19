@@ -99,29 +99,29 @@ public class SSAOEffect : IPostProcessEffect
 		mDevice = device;
 
 		// Create point sampler
-		SamplerDescriptor samplerDesc = .();
+		SamplerDesc samplerDesc = .();
 		samplerDesc.Label = "SSAO Point Sampler";
-		samplerDesc.AddressModeU = .ClampToEdge;
-		samplerDesc.AddressModeV = .ClampToEdge;
-		samplerDesc.AddressModeW = .ClampToEdge;
+		samplerDesc.AddressU = .ClampToEdge;
+		samplerDesc.AddressV = .ClampToEdge;
+		samplerDesc.AddressW = .ClampToEdge;
 		samplerDesc.MinFilter = .Nearest;
 		samplerDesc.MagFilter = .Nearest;
 		samplerDesc.MipmapFilter = .Nearest;
 
-		switch (device.CreateSampler(&samplerDesc))
+		switch (device.CreateSampler(samplerDesc))
 		{
 		case .Ok(let sampler): mPointSampler = sampler;
 		case .Err: return .Err;
 		}
 
 		// Create params buffers
-		BufferDescriptor bufDesc = .();
+		BufferDesc bufDesc = .();
 		bufDesc.Label = "SSAO Params";
 		bufDesc.Size = (uint64)SSAOParams.Size;
 		bufDesc.Usage = .Uniform;
-		bufDesc.MemoryAccess = .Upload;
+		bufDesc.MemoryAccess = .CpuToGpu;
 
-		switch (device.CreateBuffer(&bufDesc))
+		switch (device.CreateBuffer(bufDesc))
 		{
 		case .Ok(let buf): mParamsBuffer = buf;
 		case .Err: return .Err;
@@ -130,7 +130,7 @@ public class SSAOEffect : IPostProcessEffect
 		bufDesc.Label = "SSAO Apply Params";
 		bufDesc.Size = (uint64)SSAOApplyParams.Size;
 
-		switch (device.CreateBuffer(&bufDesc))
+		switch (device.CreateBuffer(bufDesc))
 		{
 		case .Ok(let buf): mApplyParamsBuffer = buf;
 		case .Err: return .Err;
@@ -144,11 +144,11 @@ public class SSAOEffect : IPostProcessEffect
 			.() { Binding = 0, Visibility = .Fragment, Type = .Sampler }
 		);
 
-		BindGroupLayoutDescriptor genLayoutDesc = .();
+		BindGroupLayoutDesc genLayoutDesc = .();
 		genLayoutDesc.Label = "SSAO Generate BindGroup Layout";
 		genLayoutDesc.Entries = genLayoutEntries;
 
-		switch (device.CreateBindGroupLayout(&genLayoutDesc))
+		switch (device.CreateBindGroupLayout(genLayoutDesc))
 		{
 		case .Ok(let layout): mGenerateBindGroupLayout = layout;
 		case .Err: return .Err;
@@ -163,11 +163,11 @@ public class SSAOEffect : IPostProcessEffect
 			.() { Binding = 0, Visibility = .Fragment, Type = .Sampler }
 		);
 
-		BindGroupLayoutDescriptor applyLayoutDesc = .();
+		BindGroupLayoutDesc applyLayoutDesc = .();
 		applyLayoutDesc.Label = "SSAO Apply BindGroup Layout";
 		applyLayoutDesc.Entries = applyLayoutEntries;
 
-		switch (device.CreateBindGroupLayout(&applyLayoutDesc))
+		switch (device.CreateBindGroupLayout(applyLayoutDesc))
 		{
 		case .Ok(let layout): mApplyBindGroupLayout = layout;
 		case .Err: return .Err;
@@ -175,16 +175,16 @@ public class SSAOEffect : IPostProcessEffect
 
 		// Create pipeline layouts
 		IBindGroupLayout[1] genLayouts = .(mGenerateBindGroupLayout);
-		PipelineLayoutDescriptor genPLDesc = .(genLayouts);
-		switch (device.CreatePipelineLayout(&genPLDesc))
+		PipelineLayoutDesc genPLDesc = .(genLayouts);
+		switch (device.CreatePipelineLayout(genPLDesc))
 		{
 		case .Ok(let layout): mGeneratePipelineLayout = layout;
 		case .Err: return .Err;
 		}
 
 		IBindGroupLayout[1] applyLayouts = .(mApplyBindGroupLayout);
-		PipelineLayoutDescriptor applyPLDesc = .(applyLayouts);
-		switch (device.CreatePipelineLayout(&applyPLDesc))
+		PipelineLayoutDesc applyPLDesc = .(applyLayouts);
+		switch (device.CreatePipelineLayout(applyPLDesc))
 		{
 		case .Ok(let layout): mApplyPipelineLayout = layout;
 		case .Err: return .Err;
@@ -209,7 +209,7 @@ public class SSAOEffect : IPostProcessEffect
 			let (vertShader, fragShader) = shaders;
 			ColorTargetState[1] colorTargets = .(.(.R8Unorm));
 
-			RenderPipelineDescriptor pipelineDesc = .()
+			RenderPipelineDesc pipelineDesc = .()
 			{
 				Label = "SSAO Generate Pipeline",
 				Layout = mGeneratePipelineLayout,
@@ -220,7 +220,7 @@ public class SSAOEffect : IPostProcessEffect
 				Multisample = .() { Count = 1, Mask = uint32.MaxValue }
 			};
 
-			switch (device.CreateRenderPipeline(&pipelineDesc))
+			switch (device.CreateRenderPipeline(pipelineDesc))
 			{
 			case .Ok(let pipeline): mGeneratePipeline = pipeline;
 			case .Err: return .Err;
@@ -234,7 +234,7 @@ public class SSAOEffect : IPostProcessEffect
 			let (vertShader, fragShader) = applyShaders;
 			ColorTargetState[1] colorTargets = .(.(.RGBA16Float));
 
-			RenderPipelineDescriptor pipelineDesc = .()
+			RenderPipelineDesc pipelineDesc = .()
 			{
 				Label = "SSAO Apply Pipeline",
 				Layout = mApplyPipelineLayout,
@@ -245,7 +245,7 @@ public class SSAOEffect : IPostProcessEffect
 				Multisample = .() { Count = 1, Mask = uint32.MaxValue }
 			};
 
-			switch (device.CreateRenderPipeline(&pipelineDesc))
+			switch (device.CreateRenderPipeline(pipelineDesc))
 			{
 			case .Ok(let pipeline): mApplyPipeline = pipeline;
 			case .Err: return .Err;
@@ -266,7 +266,7 @@ public class SSAOEffect : IPostProcessEffect
 		if (mAOTexture != null) { delete mAOTexture; mAOTexture = null; }
 
 		// Create R8Unorm AO texture
-		TextureDescriptor texDesc = .();
+		TextureDesc texDesc = .();
 		texDesc.Width = width;
 		texDesc.Height = height;
 		texDesc.Format = .R8Unorm;
@@ -276,12 +276,12 @@ public class SSAOEffect : IPostProcessEffect
 		texDesc.SampleCount = 1;
 		texDesc.Label = "SSAO AO Texture";
 
-		if (mDevice.CreateTexture(&texDesc) case .Ok(let tex))
+		if (mDevice.CreateTexture(texDesc) case .Ok(let tex))
 			mAOTexture = tex;
 		else
 			return;
 
-		TextureViewDescriptor viewDesc = .();
+		TextureViewDesc viewDesc = .();
 		viewDesc.Format = .R8Unorm;
 		viewDesc.Dimension = .Texture2D;
 		viewDesc.BaseMipLevel = 0;
@@ -290,7 +290,7 @@ public class SSAOEffect : IPostProcessEffect
 		viewDesc.ArrayLayerCount = 1;
 		viewDesc.Aspect = .All;
 
-		if (mDevice.CreateTextureView(mAOTexture, &viewDesc) case .Ok(let view))
+		if (mDevice.CreateTextureView(mAOTexture, viewDesc) case .Ok(let view))
 			mAOTextureView = view;
 
 		mAOWidth = width;
@@ -423,19 +423,19 @@ public class SSAOEffect : IPostProcessEffect
 			BindGroupEntry.Sampler(0, mPointSampler)
 		);
 
-		BindGroupDescriptor bgDesc = .();
+		BindGroupDesc bgDesc = .();
 		bgDesc.Label = "SSAO Generate BindGroup";
 		bgDesc.Layout = mGenerateBindGroupLayout;
 		bgDesc.Entries = entries;
 
-		switch (mDevice.CreateBindGroup(&bgDesc))
+		switch (mDevice.CreateBindGroup(bgDesc))
 		{
 		case .Ok(let bg): mGenerateBindGroups[frameIndex] = bg;
 		case .Err: return;
 		}
 
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0, 1);
-		encoder.SetScissorRect(0, 0, view.Width, view.Height);
+		encoder.SetScissor(0, 0, view.Width, view.Height);
 
 		encoder.SetPipeline(mGeneratePipeline);
 		encoder.SetBindGroup(0, mGenerateBindGroups[frameIndex], default);
@@ -468,19 +468,19 @@ public class SSAOEffect : IPostProcessEffect
 			BindGroupEntry.Sampler(0, mPointSampler)
 		);
 
-		BindGroupDescriptor bgDesc = .();
+		BindGroupDesc bgDesc = .();
 		bgDesc.Label = "SSAO Apply BindGroup";
 		bgDesc.Layout = mApplyBindGroupLayout;
 		bgDesc.Entries = entries;
 
-		switch (mDevice.CreateBindGroup(&bgDesc))
+		switch (mDevice.CreateBindGroup(bgDesc))
 		{
 		case .Ok(let bg): mApplyBindGroups[frameIndex] = bg;
 		case .Err: return;
 		}
 
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0, 1);
-		encoder.SetScissorRect(0, 0, view.Width, view.Height);
+		encoder.SetScissor(0, 0, view.Width, view.Height);
 
 		encoder.SetPipeline(mApplyPipeline);
 		encoder.SetBindGroup(0, mApplyBindGroups[frameIndex], default);

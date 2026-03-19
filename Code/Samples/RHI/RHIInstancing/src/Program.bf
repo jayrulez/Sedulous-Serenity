@@ -82,14 +82,14 @@ class InstancingSample : RHISampleApp
 			.(-size, size)       // Bottom left
 		);
 
-		BufferDescriptor vertexDesc = .()
+		BufferDesc vertexDesc = .()
 		{
 			Size = (uint64)(sizeof(Vertex) * vertices.Count),
 			Usage = .Vertex,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&vertexDesc) not case .Ok(let vb))
+		if (Device.CreateBuffer(vertexDesc) not case .Ok(let vb))
 			return false;
 		mVertexBuffer = vb;
 
@@ -117,14 +117,14 @@ class InstancingSample : RHISampleApp
 		}
 
 		// Create instance buffer
-		BufferDescriptor instanceDesc = .()
+		BufferDesc instanceDesc = .()
 		{
 			Size = (uint64)(sizeof(InstanceData) * INSTANCE_COUNT),
 			Usage = .Vertex,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&instanceDesc) not case .Ok(let ib))
+		if (Device.CreateBuffer(instanceDesc) not case .Ok(let ib))
 			return false;
 		mInstanceBuffer = ib;
 
@@ -143,8 +143,8 @@ class InstancingSample : RHISampleApp
 		Console.WriteLine("Shaders compiled");
 
 		// Create empty pipeline layout
-		PipelineLayoutDescriptor pipelineLayoutDesc = .();
-		if (Device.CreatePipelineLayout(&pipelineLayoutDesc) not case .Ok(let pipelineLayout))
+		PipelineLayoutDesc pipelineLayoutDesc = .();
+		if (Device.CreatePipelineLayout(pipelineLayoutDesc) not case .Ok(let pipelineLayout))
 			return false;
 		mPipelineLayout = pipelineLayout;
 
@@ -170,7 +170,7 @@ class InstancingSample : RHISampleApp
 		ColorTargetState[1] colorTargets = .(.(SwapChain.Format));
 
 		// Pipeline descriptor
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Layout = mPipelineLayout,
 			Vertex = .()
@@ -198,7 +198,7 @@ class InstancingSample : RHISampleApp
 			}
 		};
 
-		if (Device.CreateRenderPipeline(&pipelineDesc) not case .Ok(let pipeline))
+		if (Device.CreateRenderPipeline(pipelineDesc) not case .Ok(let pipeline))
 			return false;
 		mPipeline = pipeline;
 

@@ -13,7 +13,7 @@ class VulkanQuerySet : IQuerySet
 	private QueryType mType;
 	private uint32 mCount;
 
-	public this(VulkanDevice device, QuerySetDescriptor* descriptor)
+	public this(VulkanDevice device, QuerySetDesc descriptor)
 	{
 		mDevice = device;
 		mType = descriptor.Type;
@@ -80,7 +80,7 @@ class VulkanQuerySet : IQuerySet
 		}
 	}
 
-	private void CreateQueryPool(QuerySetDescriptor* descriptor)
+	private void CreateQueryPool(QuerySetDesc descriptor)
 	{
 		VkQueryType vkQueryType;
 		VkQueryPipelineStatisticFlags statisticFlags = default;

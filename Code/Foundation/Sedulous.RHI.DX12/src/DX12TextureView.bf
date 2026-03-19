@@ -31,7 +31,7 @@ class DX12TextureView : ITextureView
 	private bool mHasDsv;
 	private bool mHasUav;
 
-	public this(DX12Device device, DX12Texture texture, TextureViewDescriptor* descriptor)
+	public this(DX12Device device, DX12Texture texture, TextureViewDesc descriptor)
 	{
 		mDevice = device;
 		mTexture = texture;

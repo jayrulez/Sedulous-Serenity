@@ -24,7 +24,7 @@ class DX12BindGroup : IBindGroup
 	private uint64[DX12PipelineLayout.MaxDynamicPerGroup] mDynamicBufferGpuVAs;
 	private uint32 mDynamicCount;
 
-	public this(DX12Device device, BindGroupDescriptor* descriptor)
+	public this(DX12Device device, BindGroupDesc descriptor)
 	{
 		mDevice = device;
 		if (let layout = descriptor.Layout as DX12BindGroupLayout)
@@ -56,7 +56,7 @@ class DX12BindGroup : IBindGroup
 	/// Gets the GPU virtual address for a dynamic offset entry.
 	public uint64 GetDynamicBufferGpuVA(int index) => mDynamicBufferGpuVAs[index];
 
-	private void CreateBindGroup(BindGroupDescriptor* descriptor)
+	private void CreateBindGroup(BindGroupDesc descriptor)
 	{
 		if (mLayout == null)
 			return;

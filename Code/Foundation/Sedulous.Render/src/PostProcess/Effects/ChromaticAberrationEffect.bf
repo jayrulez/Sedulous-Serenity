@@ -55,28 +55,28 @@ public class ChromaticAberrationEffect : IPostProcessEffect
 	{
 		mDevice = device;
 
-		SamplerDescriptor samplerDesc = .();
+		SamplerDesc samplerDesc = .();
 		samplerDesc.Label = "ChromaticAberration Linear Sampler";
-		samplerDesc.AddressModeU = .ClampToEdge;
-		samplerDesc.AddressModeV = .ClampToEdge;
-		samplerDesc.AddressModeW = .ClampToEdge;
+		samplerDesc.AddressU = .ClampToEdge;
+		samplerDesc.AddressV = .ClampToEdge;
+		samplerDesc.AddressW = .ClampToEdge;
 		samplerDesc.MinFilter = .Linear;
 		samplerDesc.MagFilter = .Linear;
 		samplerDesc.MipmapFilter = .Nearest;
 
-		switch (device.CreateSampler(&samplerDesc))
+		switch (device.CreateSampler(samplerDesc))
 		{
 		case .Ok(let sampler): mLinearSampler = sampler;
 		case .Err: return .Err;
 		}
 
-		BufferDescriptor bufDesc = .();
+		BufferDesc bufDesc = .();
 		bufDesc.Label = "ChromaticAberration Params";
 		bufDesc.Size = (uint64)ChromaticAberrationParams.Size;
 		bufDesc.Usage = .Uniform;
-		bufDesc.MemoryAccess = .Upload;
+		bufDesc.MemoryAccess = .CpuToGpu;
 
-		switch (device.CreateBuffer(&bufDesc))
+		switch (device.CreateBuffer(bufDesc))
 		{
 		case .Ok(let buf): mParamsBuffer = buf;
 		case .Err: return .Err;
@@ -88,19 +88,19 @@ public class ChromaticAberrationEffect : IPostProcessEffect
 			.() { Binding = 0, Visibility = .Fragment, Type = .Sampler }
 		);
 
-		BindGroupLayoutDescriptor layoutDesc = .();
+		BindGroupLayoutDesc layoutDesc = .();
 		layoutDesc.Label = "ChromaticAberration BindGroup Layout";
 		layoutDesc.Entries = layoutEntries;
 
-		switch (device.CreateBindGroupLayout(&layoutDesc))
+		switch (device.CreateBindGroupLayout(layoutDesc))
 		{
 		case .Ok(let layout): mBindGroupLayout = layout;
 		case .Err: return .Err;
 		}
 
 		IBindGroupLayout[1] layouts = .(mBindGroupLayout);
-		PipelineLayoutDescriptor plDesc = .(layouts);
-		switch (device.CreatePipelineLayout(&plDesc))
+		PipelineLayoutDesc plDesc = .(layouts);
+		switch (device.CreatePipelineLayout(plDesc))
 		{
 		case .Ok(let layout): mPipelineLayout = layout;
 		case .Err: return .Err;
@@ -125,7 +125,7 @@ public class ChromaticAberrationEffect : IPostProcessEffect
 
 		ColorTargetState[1] colorTargets = .(.(.RGBA16Float));
 
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Label = "ChromaticAberration Pipeline",
 			Layout = mPipelineLayout,
@@ -149,7 +149,7 @@ public class ChromaticAberrationEffect : IPostProcessEffect
 			Multisample = .() { Count = 1, Mask = uint32.MaxValue }
 		};
 
-		switch (device.CreateRenderPipeline(&pipelineDesc))
+		switch (device.CreateRenderPipeline(pipelineDesc))
 		{
 		case .Ok(let pipeline): mPipeline = pipeline;
 		case .Err: return .Err;
@@ -226,19 +226,19 @@ public class ChromaticAberrationEffect : IPostProcessEffect
 			BindGroupEntry.Sampler(0, mLinearSampler)
 		);
 
-		BindGroupDescriptor bgDesc = .();
+		BindGroupDesc bgDesc = .();
 		bgDesc.Label = "ChromaticAberration BindGroup";
 		bgDesc.Layout = mBindGroupLayout;
 		bgDesc.Entries = entries;
 
-		switch (mDevice.CreateBindGroup(&bgDesc))
+		switch (mDevice.CreateBindGroup(bgDesc))
 		{
 		case .Ok(let bg): mBindGroups[frameIndex] = bg;
 		case .Err: return;
 		}
 
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0, 1);
-		encoder.SetScissorRect(0, 0, view.Width, view.Height);
+		encoder.SetScissor(0, 0, view.Width, view.Height);
 
 		encoder.SetPipeline(mPipeline);
 		encoder.SetBindGroup(0, mBindGroups[frameIndex], default);

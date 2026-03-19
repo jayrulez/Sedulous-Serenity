@@ -100,14 +100,14 @@ class WireframeSample : RHISampleApp
 		);
 
 		// Create vertex buffer
-		BufferDescriptor vertexDesc = .()
+		BufferDesc vertexDesc = .()
 		{
 			Size = (uint64)(sizeof(Vertex) * vertices.Count),
 			Usage = .Vertex,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&vertexDesc) not case .Ok(let vb))
+		if (Device.CreateBuffer(vertexDesc) not case .Ok(let vb))
 			return false;
 		mVertexBuffer = vb;
 
@@ -115,14 +115,14 @@ class WireframeSample : RHISampleApp
 		Device.Queue.WriteMappedBuffer(mVertexBuffer, 0, vertexData);
 
 		// Create index buffer
-		BufferDescriptor indexDesc = .()
+		BufferDesc indexDesc = .()
 		{
 			Size = (uint64)(sizeof(uint16) * indices.Count),
 			Usage = .Index,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&indexDesc) not case .Ok(let ib))
+		if (Device.CreateBuffer(indexDesc) not case .Ok(let ib))
 			return false;
 		mIndexBuffer = ib;
 
@@ -130,14 +130,14 @@ class WireframeSample : RHISampleApp
 		Device.Queue.WriteMappedBuffer(mIndexBuffer, 0, indexData);
 
 		// Create uniform buffer
-		BufferDescriptor uniformDesc = .()
+		BufferDesc uniformDesc = .()
 		{
 			Size = (uint64)sizeof(Uniforms),
 			Usage = .Uniform,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&uniformDesc) not case .Ok(let ub))
+		if (Device.CreateBuffer(uniformDesc) not case .Ok(let ub))
 			return false;
 		mUniformBuffer = ub;
 
@@ -157,22 +157,22 @@ class WireframeSample : RHISampleApp
 		BindGroupLayoutEntry[1] layoutEntries = .(
 			BindGroupLayoutEntry.UniformBuffer(0, .Vertex)
 		);
-		BindGroupLayoutDescriptor bindGroupLayoutDesc = .(layoutEntries);
-		if (Device.CreateBindGroupLayout(&bindGroupLayoutDesc) not case .Ok(let layout))
+		BindGroupLayoutDesc bindGroupLayoutDesc = .(layoutEntries);
+		if (Device.CreateBindGroupLayout(bindGroupLayoutDesc) not case .Ok(let layout))
 			return false;
 		mBindGroupLayout = layout;
 
 		BindGroupEntry[1] bindGroupEntries = .(
 			BindGroupEntry.Buffer(0, mUniformBuffer)
 		);
-		BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
-		if (Device.CreateBindGroup(&bindGroupDesc) not case .Ok(let group))
+		BindGroupDesc bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
+		if (Device.CreateBindGroup(bindGroupDesc) not case .Ok(let group))
 			return false;
 		mBindGroup = group;
 
 		IBindGroupLayout[1] layouts = .(mBindGroupLayout);
-		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
-		if (Device.CreatePipelineLayout(&pipelineLayoutDesc) not case .Ok(let pipelineLayout))
+		PipelineLayoutDesc pipelineLayoutDesc = .(layouts);
+		if (Device.CreatePipelineLayout(pipelineLayoutDesc) not case .Ok(let pipelineLayout))
 			return false;
 		mPipelineLayout = pipelineLayout;
 
@@ -193,7 +193,7 @@ class WireframeSample : RHISampleApp
 		ColorTargetState[1] colorTargets = .(.(SwapChain.Format));
 
 		// Create SOLID pipeline
-		RenderPipelineDescriptor solidDesc = .()
+		RenderPipelineDesc solidDesc = .()
 		{
 			Layout = mPipelineLayout,
 			Vertex = .()
@@ -217,16 +217,16 @@ class WireframeSample : RHISampleApp
 			Multisample = .() { Count = 1, Mask = uint32.MaxValue }
 		};
 
-		if (Device.CreateRenderPipeline(&solidDesc) not case .Ok(let solidPipeline))
+		if (Device.CreateRenderPipeline(solidDesc) not case .Ok(let solidPipeline))
 			return false;
 		mSolidPipeline = solidPipeline;
 
 		// Create WIREFRAME pipeline
-		RenderPipelineDescriptor wireframeDesc = solidDesc;
+		RenderPipelineDesc wireframeDesc = solidDesc;
 		wireframeDesc.Primitive.FillMode = .Wireframe;  // Wireframe fill
 		wireframeDesc.Primitive.CullMode = .None;       // No culling in wireframe
 
-		if (Device.CreateRenderPipeline(&wireframeDesc) not case .Ok(let wireframePipeline))
+		if (Device.CreateRenderPipeline(wireframeDesc) not case .Ok(let wireframePipeline))
 			return false;
 		mWireframePipeline = wireframePipeline;
 

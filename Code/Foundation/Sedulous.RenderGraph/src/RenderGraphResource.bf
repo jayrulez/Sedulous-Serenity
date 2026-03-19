@@ -206,7 +206,7 @@ public class RenderGraphResource
 			if (Texture != null)
 				return .Ok; // Already allocated
 
-			var desc = TextureDescriptor()
+			var desc = TextureDesc()
 			{
 				Width = TextureDesc.Width,
 				Height = TextureDesc.Height,
@@ -220,12 +220,12 @@ public class RenderGraphResource
 				Label = "RGAllocated"
 			};
 
-			if (device.CreateTexture(&desc) case .Ok(let tex))
+			if (device.CreateTexture(desc) case .Ok(let tex))
 			{
 				Texture = tex;
 
 				// Create default view
-				var viewDesc = TextureViewDescriptor()
+				var viewDesc = TextureViewDesc()
 				{
 					Format = TextureDesc.Format,
 					Dimension = .Texture2D,
@@ -236,7 +236,7 @@ public class RenderGraphResource
 					Label = "RGAllocatedView"
 				};
 
-				if (device.CreateTextureView(tex, &viewDesc) case .Ok(let view))
+				if (device.CreateTextureView(tex, viewDesc) case .Ok(let view))
 					TextureView = view;
 				else
 					return .Err;
@@ -245,7 +245,7 @@ public class RenderGraphResource
 				if (TextureDesc.Usage.HasFlag(.Sampled) &&
 					(TextureDesc.Format == .Depth24PlusStencil8 || TextureDesc.Format == .Depth32FloatStencil8))
 				{
-					var depthOnlyViewDesc = TextureViewDescriptor()
+					var depthOnlyViewDesc = TextureViewDesc()
 					{
 						Format = TextureDesc.Format,
 						Dimension = .Texture2D,
@@ -257,7 +257,7 @@ public class RenderGraphResource
 						Label = "RGDepthOnlyView"
 					};
 
-					if (device.CreateTextureView(tex, &depthOnlyViewDesc) case .Ok(let depthOnlyView))
+					if (device.CreateTextureView(tex, depthOnlyViewDesc) case .Ok(let depthOnlyView))
 						DepthOnlyView = depthOnlyView;
 					else
 						return .Err;
@@ -271,13 +271,13 @@ public class RenderGraphResource
 			if (Buffer != null)
 				return .Ok;
 
-			var desc = BufferDescriptor()
+			var desc = BufferDesc()
 			{
 				Size = BufferDesc.Size,
 				Usage = BufferDesc.Usage
 			};
 
-			if (device.CreateBuffer(&desc) case .Ok(let buf))
+			if (device.CreateBuffer(desc) case .Ok(let buf))
 				Buffer = buf;
 			else
 				return .Err;

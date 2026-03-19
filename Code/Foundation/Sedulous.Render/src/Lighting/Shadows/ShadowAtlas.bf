@@ -358,7 +358,7 @@ public class ShadowAtlas : IDisposable
 
 	private Result<void> CreateAtlasTexture()
 	{
-		TextureDescriptor desc = .()
+		TextureDesc desc = .()
 		{
 			Label = "Shadow Atlas",
 			Dimension = .Texture2D,
@@ -372,13 +372,13 @@ public class ShadowAtlas : IDisposable
 			Usage = .DepthStencil | .Sampled
 		};
 
-		switch (mDevice.CreateTexture(&desc))
+		switch (mDevice.CreateTexture(desc))
 		{
 		case .Ok(let tex): mAtlasTexture = tex;
 		case .Err: return .Err;
 		}
 
-		TextureViewDescriptor viewDesc = .()
+		TextureViewDesc viewDesc = .()
 		{
 			Label = "Shadow Atlas View",
 			Format = .Depth32Float,
@@ -390,7 +390,7 @@ public class ShadowAtlas : IDisposable
 			Aspect = .DepthOnly
 		};
 
-		switch (mDevice.CreateTextureView(mAtlasTexture, &viewDesc))
+		switch (mDevice.CreateTextureView(mAtlasTexture, viewDesc))
 		{
 		case .Ok(let view): mAtlasView = view;
 		case .Err: return .Err;
@@ -402,7 +402,7 @@ public class ShadowAtlas : IDisposable
 	private Result<void> CreatePointLightCubemaps()
 	{
 		// Create cubemap array for point light shadows
-		TextureDescriptor desc = .()
+		TextureDesc desc = .()
 		{
 			Label = "Point Light Shadow Cubemaps",
 			Dimension = .Texture2D,
@@ -416,13 +416,13 @@ public class ShadowAtlas : IDisposable
 			Usage = .DepthStencil | .Sampled
 		};
 
-		switch (mDevice.CreateTexture(&desc))
+		switch (mDevice.CreateTexture(desc))
 		{
 		case .Ok(let tex): mPointLightCubemapArray = tex;
 		case .Err: return .Err;
 		}
 
-		TextureViewDescriptor viewDesc = .()
+		TextureViewDesc viewDesc = .()
 		{
 			Label = "Point Light Cubemap Array View",
 			Format = .Depth32Float,
@@ -434,7 +434,7 @@ public class ShadowAtlas : IDisposable
 			Aspect = .DepthOnly
 		};
 
-		switch (mDevice.CreateTextureView(mPointLightCubemapArray, &viewDesc))
+		switch (mDevice.CreateTextureView(mPointLightCubemapArray, viewDesc))
 		{
 		case .Ok(let view): mPointLightCubemapArrayView = view;
 		case .Err: return .Err;
@@ -445,19 +445,19 @@ public class ShadowAtlas : IDisposable
 
 	private Result<void> CreateShadowSampler()
 	{
-		SamplerDescriptor desc = .()
+		SamplerDesc desc = .()
 		{
 			Label = "Shadow Atlas Sampler",
-			AddressModeU = .ClampToEdge,
-			AddressModeV = .ClampToEdge,
-			AddressModeW = .ClampToEdge,
+			AddressU = .ClampToEdge,
+			AddressV = .ClampToEdge,
+			AddressW = .ClampToEdge,
 			MagFilter = .Linear,
 			MinFilter = .Linear,
 			MipmapFilter = .Nearest,
 			Compare = .LessEqual
 		};
 
-		switch (mDevice.CreateSampler(&desc))
+		switch (mDevice.CreateSampler(desc))
 		{
 		case .Ok(let sampler): mShadowSampler = sampler;
 		case .Err: return .Err;
@@ -471,15 +471,15 @@ public class ShadowAtlas : IDisposable
 		let maxShadows = mConfig.TotalTiles;
 		mShadowData = new GPUShadowData[maxShadows];
 
-		BufferDescriptor desc = .()
+		BufferDesc desc = .()
 		{
 			Label = "Shadow Data",
 			Size = (uint64)(maxShadows * GPUShadowData.Size),
 			Usage = .Storage,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		switch (mDevice.CreateBuffer(&desc))
+		switch (mDevice.CreateBuffer(desc))
 		{
 		case .Ok(let buf): mShadowDataBuffer = buf;
 		case .Err: return .Err;

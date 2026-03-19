@@ -119,15 +119,15 @@ public class TerrainFeature : RenderFeatureBase
 
 		// Create terrain sampler (linear clamp for heightmap/normalmap/splatmap)
 		{
-			SamplerDescriptor samplerDesc = .();
+			SamplerDesc samplerDesc = .();
 			samplerDesc.MinFilter = .Linear;
 			samplerDesc.MagFilter = .Linear;
 			samplerDesc.MipmapFilter = .Linear;
-			samplerDesc.AddressModeU = .ClampToEdge;
-			samplerDesc.AddressModeV = .ClampToEdge;
-			samplerDesc.AddressModeW = .ClampToEdge;
+			samplerDesc.AddressU = .ClampToEdge;
+			samplerDesc.AddressV = .ClampToEdge;
+			samplerDesc.AddressW = .ClampToEdge;
 
-			switch (Renderer.Device.CreateSampler(&samplerDesc))
+			switch (Renderer.Device.CreateSampler(samplerDesc))
 			{
 			case .Ok(let sampler): mTerrainSampler = sampler;
 			case .Err: return .Err;
@@ -164,15 +164,15 @@ public class TerrainFeature : RenderFeatureBase
 		int32 vertexCount = GridVertexCount;
 		uint64 vertexSize = (uint64)(vertexCount * 8);
 
-		BufferDescriptor vertDesc = .()
+		BufferDesc vertDesc = .()
 		{
 			Label = "Terrain Grid Vertices",
 			Size = vertexSize,
 			Usage = .Vertex,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		switch (Renderer.Device.CreateBuffer(&vertDesc))
+		switch (Renderer.Device.CreateBuffer(vertDesc))
 		{
 		case .Ok(let buf): mGridVertexBuffer = buf;
 		case .Err: return .Err;
@@ -194,15 +194,15 @@ public class TerrainFeature : RenderFeatureBase
 
 		uint64 indexSize = (uint64)(GridIndexCount * 2);
 
-		BufferDescriptor idxDesc = .()
+		BufferDesc idxDesc = .()
 		{
 			Label = "Terrain Grid Indices",
 			Size = indexSize,
 			Usage = .Index,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		switch (Renderer.Device.CreateBuffer(&idxDesc))
+		switch (Renderer.Device.CreateBuffer(idxDesc))
 		{
 		case .Ok(let buf): mGridIndexBuffer = buf;
 		case .Err: return .Err;
@@ -250,13 +250,13 @@ public class TerrainFeature : RenderFeatureBase
 			.Sampler(0, .Vertex | .Fragment)                   // s0 space1: TerrainSampler
 		);
 
-		BindGroupLayoutDescriptor layoutDesc = .()
+		BindGroupLayoutDesc layoutDesc = .()
 		{
 			Label = "Terrain BindGroup Layout",
 			Entries = entries
 		};
 
-		switch (Renderer.Device.CreateBindGroupLayout(&layoutDesc))
+		switch (Renderer.Device.CreateBindGroupLayout(layoutDesc))
 		{
 		case .Ok(let layout): mTerrainBindGroupLayout = layout;
 		case .Err: return .Err;
@@ -268,9 +268,9 @@ public class TerrainFeature : RenderFeatureBase
 	private Result<void> CreatePipelineLayout()
 	{
 		IBindGroupLayout[2] layouts = .(mSceneBindGroupLayout, mTerrainBindGroupLayout);
-		PipelineLayoutDescriptor plDesc = .(layouts);
+		PipelineLayoutDesc plDesc = .(layouts);
 
-		switch (Renderer.Device.CreatePipelineLayout(&plDesc))
+		switch (Renderer.Device.CreatePipelineLayout(plDesc))
 		{
 		case .Ok(let layout): mTerrainPipelineLayout = layout;
 		case .Err: return .Err;
@@ -306,7 +306,7 @@ public class TerrainFeature : RenderFeatureBase
 			.(.RGBA8Unorm)
 		);
 
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Label = "Terrain Pipeline",
 			Layout = mTerrainPipelineLayout,
@@ -340,7 +340,7 @@ public class TerrainFeature : RenderFeatureBase
 			}
 		};
 
-		switch (Renderer.Device.CreateRenderPipeline(&pipelineDesc))
+		switch (Renderer.Device.CreateRenderPipeline(pipelineDesc))
 		{
 		case .Ok(let pipeline): mTerrainPipeline = pipeline;
 		case .Err: return .Err;
@@ -352,7 +352,7 @@ public class TerrainFeature : RenderFeatureBase
 		{
 			let (vertNS, fragNS) = pair;
 
-			RenderPipelineDescriptor noShadowDesc = pipelineDesc;
+			RenderPipelineDesc noShadowDesc = pipelineDesc;
 			noShadowDesc.Label = "Terrain Pipeline (No Shadows)";
 			noShadowDesc.Vertex.Shader = .(vertNS.Module, "main");
 			noShadowDesc.Fragment = .()
@@ -361,7 +361,7 @@ public class TerrainFeature : RenderFeatureBase
 				Targets = Span<ColorTargetState>(&colorTargets[0], 2)
 			};
 
-			switch (Renderer.Device.CreateRenderPipeline(&noShadowDesc))
+			switch (Renderer.Device.CreateRenderPipeline(noShadowDesc))
 			{
 			case .Ok(let pipeline): mTerrainPipelineNoShadows = pipeline;
 			case .Err:
@@ -375,29 +375,29 @@ public class TerrainFeature : RenderFeatureBase
 	{
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			BufferDescriptor instDesc = .()
+			BufferDesc instDesc = .()
 			{
 				Label = "Terrain Instance Buffer",
 				Size = TerrainPatchInstance.Size * MaxTotalPatches,
 				Usage = .Vertex,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
 
-			switch (Renderer.Device.CreateBuffer(&instDesc))
+			switch (Renderer.Device.CreateBuffer(instDesc))
 			{
 			case .Ok(let buf): mInstanceBuffers[i] = buf;
 			case .Err: return .Err;
 			}
 
-			BufferDescriptor uniformDesc = .()
+			BufferDesc uniformDesc = .()
 			{
 				Label = "Terrain Uniforms",
 				Size = TerrainUniforms.Size * MaxTerrains,
 				Usage = .Uniform,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
 
-			switch (Renderer.Device.CreateBuffer(&uniformDesc))
+			switch (Renderer.Device.CreateBuffer(uniformDesc))
 			{
 			case .Ok(let buf): mTerrainUniformBuffers[i] = buf;
 			case .Err: return .Err;
@@ -413,15 +413,15 @@ public class TerrainFeature : RenderFeatureBase
 		// Terrain doesn't use per-object transforms — write identity at offset 0.
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			BufferDescriptor desc = .()
+			BufferDesc desc = .()
 			{
 				Label = "Terrain Object Uniforms",
 				Size = AlignedObjectUniformSize,
 				Usage = .Uniform,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
 
-			switch (Renderer.Device.CreateBuffer(&desc))
+			switch (Renderer.Device.CreateBuffer(desc))
 			{
 			case .Ok(let buf): mObjectUniformBuffers[i] = buf;
 			case .Err: return .Err;
@@ -662,14 +662,14 @@ public class TerrainFeature : RenderFeatureBase
 
 			entries[8] = BindGroupEntry.Sampler(0, mTerrainSampler);
 
-			BindGroupDescriptor bgDesc = .()
+			BindGroupDesc bgDesc = .()
 			{
 				Label = "Terrain BindGroup",
 				Layout = mTerrainBindGroupLayout,
 				Entries = entries
 			};
 
-			if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bg))
+			if (Renderer.Device.CreateBindGroup(bgDesc) case .Ok(let bg))
 			{
 				if (existing != null)
 				{
@@ -804,14 +804,14 @@ public class TerrainFeature : RenderFeatureBase
 		entries[13] = BindGroupEntry.Buffer(6, probeSystem.GetProbeUniformBuffer(frameIndex), 0, ProbeUniforms.Size);
 		entries[14] = BindGroupEntry.Texture(11, probeSystem.GetCubemapArrayView());
 
-		BindGroupDescriptor bgDesc = .()
+		BindGroupDesc bgDesc = .()
 		{
 			Label = "Terrain Scene BindGroup",
 			Layout = sceneLayout,
 			Entries = entries
 		};
 
-		if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bg))
+		if (Renderer.Device.CreateBindGroup(bgDesc) case .Ok(let bg))
 		{
 			mSceneBindGroups[bindGroupIndex] = bg;
 			mSceneBindGroupShadowState[bindGroupIndex] = shadowsEnabled;
@@ -823,7 +823,7 @@ public class TerrainFeature : RenderFeatureBase
 	private void ExecuteTerrainPass(IRenderPassEncoder encoder, RenderWorld world, RenderView view, int32 frameIndex)
 	{
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0.0f, 1.0f);
-		encoder.SetScissorRect(0, 0, view.Width, view.Height);
+		encoder.SetScissor(0, 0, view.Width, view.Height);
 
 		let opaqueFeature = Renderer.GetFeature<ForwardOpaqueFeature>();
 		let shadowsActive = opaqueFeature?.[Friend]mShadowPassesActive ?? false;

@@ -13,7 +13,7 @@ class DX12ComputePipeline : IComputePipeline
 	private ID3D12PipelineState* mPipelineState;
 	private DX12PipelineLayout mLayout;
 
-	public this(DX12Device device, ComputePipelineDescriptor* descriptor)
+	public this(DX12Device device, ComputePipelineDesc descriptor)
 	{
 		mDevice = device;
 		if (let layout = descriptor.Layout as DX12PipelineLayout)
@@ -43,7 +43,7 @@ class DX12ComputePipeline : IComputePipeline
 	public ID3D12RootSignature* RootSignature => mLayout?.RootSignature;
 	public DX12PipelineLayout PipelineLayout => mLayout;
 
-	private void CreatePipeline(ComputePipelineDescriptor* descriptor)
+	private void CreatePipeline(ComputePipelineDesc descriptor)
 	{
 		let shaderModule = descriptor.Compute.Module as DX12ShaderModule;
 		if (shaderModule == null || mLayout == null)

@@ -12,7 +12,7 @@ class VulkanPipelineLayout : IPipelineLayout
 	private VkPipelineLayout mPipelineLayout;
 	private List<VulkanBindGroupLayout> mBindGroupLayouts = new .() ~ delete _;
 
-	public this(VulkanDevice device, PipelineLayoutDescriptor* descriptor)
+	public this(VulkanDevice device, PipelineLayoutDesc descriptor)
 	{
 		mDevice = device;
 		mPipelineLayout = default;  // Explicitly initialize before Vulkan call
@@ -45,7 +45,7 @@ class VulkanPipelineLayout : IPipelineLayout
 	/// Gets the bind group layouts.
 	public Span<VulkanBindGroupLayout> BindGroupLayouts => mBindGroupLayouts;
 
-	private void CreatePipelineLayout(PipelineLayoutDescriptor* descriptor)
+	private void CreatePipelineLayout(PipelineLayoutDesc descriptor)
 	{
 		// Collect descriptor set layouts
 		VkDescriptorSetLayout* setLayouts = null;

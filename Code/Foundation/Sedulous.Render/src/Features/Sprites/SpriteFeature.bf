@@ -101,7 +101,7 @@ public class SpriteFeature : RenderFeatureBase
 		const int32 TexSize = 32;
 		const int32 TexBytes = TexSize * TexSize * 4;
 
-		TextureDescriptor texDesc = .()
+		TextureDesc texDesc = .()
 		{
 			Label = "Default Sprite Texture",
 			Width = TexSize,
@@ -115,7 +115,7 @@ public class SpriteFeature : RenderFeatureBase
 			Usage = .Sampled | .CopyDst
 		};
 
-		switch (Renderer.Device.CreateTexture(&texDesc))
+		switch (Renderer.Device.CreateTexture(texDesc))
 		{
 		case .Ok(let tex): mDefaultTexture = tex;
 		case .Err: return .Err;
@@ -129,31 +129,31 @@ public class SpriteFeature : RenderFeatureBase
 		var writeSize = Extent3D(TexSize, TexSize, 1);
 		UploadTexture(mDefaultTexture, Span<uint8>(&pixels[0], TexBytes), &layout, &writeSize);
 
-		TextureViewDescriptor viewDesc = .()
+		TextureViewDesc viewDesc = .()
 		{
 			Label = "Default Sprite Texture View",
 			Dimension = .Texture2D
 		};
 
-		switch (Renderer.Device.CreateTextureView(mDefaultTexture, &viewDesc))
+		switch (Renderer.Device.CreateTextureView(mDefaultTexture, viewDesc))
 		{
 		case .Ok(let view): mDefaultTextureView = view;
 		case .Err: return .Err;
 		}
 
 		// Create default sampler
-		SamplerDescriptor samplerDesc = .()
+		SamplerDesc samplerDesc = .()
 		{
 			Label = "Sprite Sampler",
-			AddressModeU = .ClampToEdge,
-			AddressModeV = .ClampToEdge,
-			AddressModeW = .ClampToEdge,
+			AddressU = .ClampToEdge,
+			AddressV = .ClampToEdge,
+			AddressW = .ClampToEdge,
 			MinFilter = .Linear,
 			MagFilter = .Linear,
 			MipmapFilter = .Linear
 		};
 
-		switch (Renderer.Device.CreateSampler(&samplerDesc))
+		switch (Renderer.Device.CreateSampler(samplerDesc))
 		{
 		case .Ok(let sampler): mDefaultSampler = sampler;
 		case .Err: return .Err;
@@ -162,15 +162,15 @@ public class SpriteFeature : RenderFeatureBase
 		// Create per-frame instance buffers (host-visible for direct CPU writes each frame)
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			BufferDescriptor bufDesc = .()
+			BufferDesc bufDesc = .()
 			{
 				Label = "Sprite Instance Buffer",
 				Size = (uint64)(MaxSprites * SpriteInstance.SizeInBytes),
 				Usage = .Vertex,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
 
-			switch (Renderer.Device.CreateBuffer(&bufDesc))
+			switch (Renderer.Device.CreateBuffer(bufDesc))
 			{
 			case .Ok(let buf): mInstanceBuffers[i] = buf;
 			case .Err: return .Err;
@@ -192,13 +192,13 @@ public class SpriteFeature : RenderFeatureBase
 			.() { Binding = 0, Visibility = .Fragment, Type = .Sampler }
 		);
 
-		BindGroupLayoutDescriptor layoutDesc = .()
+		BindGroupLayoutDesc layoutDesc = .()
 		{
 			Label = "Sprite BindGroup Layout",
 			Entries = entries
 		};
 
-		switch (Renderer.Device.CreateBindGroupLayout(&layoutDesc))
+		switch (Renderer.Device.CreateBindGroupLayout(layoutDesc))
 		{
 		case .Ok(let layout): mBindGroupLayout = layout;
 		case .Err: return .Err;
@@ -206,8 +206,8 @@ public class SpriteFeature : RenderFeatureBase
 
 		// Pipeline layout
 		IBindGroupLayout[1] layouts = .(mBindGroupLayout);
-		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
-		switch (Renderer.Device.CreatePipelineLayout(&pipelineLayoutDesc))
+		PipelineLayoutDesc pipelineLayoutDesc = .(layouts);
+		switch (Renderer.Device.CreatePipelineLayout(pipelineLayoutDesc))
 		{
 		case .Ok(let layout): mPipelineLayout = layout;
 		case .Err: return .Err;
@@ -224,7 +224,7 @@ public class SpriteFeature : RenderFeatureBase
 			VertexBufferLayout[1] vertexBuffers = .(
 				.()
 				{
-					ArrayStride = (uint64)SpriteInstance.SizeInBytes,
+					Stride = (uint64)SpriteInstance.SizeInBytes,
 					StepMode = .Instance,
 					Attributes = VertexAttribute[4](
 						.() { Format = .Float3,           Offset = 0,  ShaderLocation = 0 },  // Position
@@ -239,7 +239,7 @@ public class SpriteFeature : RenderFeatureBase
 				.(.RGBA16Float, .AlphaBlend)
 			);
 
-			RenderPipelineDescriptor renderDesc = .()
+			RenderPipelineDesc renderDesc = .()
 			{
 				Label = "Sprite Render Pipeline",
 				Layout = mPipelineLayout,
@@ -267,7 +267,7 @@ public class SpriteFeature : RenderFeatureBase
 				}
 			};
 
-			switch (Renderer.Device.CreateRenderPipeline(&renderDesc))
+			switch (Renderer.Device.CreateRenderPipeline(renderDesc))
 			{
 			case .Ok(let pipeline): mRenderPipeline = pipeline;
 			case .Err: // Non-fatal
@@ -363,7 +363,7 @@ public class SpriteFeature : RenderFeatureBase
 
 		// Render to per-view SceneColor texture at (0,0), not swapchain offset
 		encoder.SetViewport(0, 0, (float)mViewWidth, (float)mViewHeight, 0.0f, 1.0f);
-		encoder.SetScissorRect(0, 0, mViewWidth, mViewHeight);
+		encoder.SetScissor(0, 0, mViewWidth, mViewHeight);
 
 		encoder.SetPipeline(mRenderPipeline);
 
@@ -409,14 +409,14 @@ public class SpriteFeature : RenderFeatureBase
 			BindGroupEntry.Sampler(0, mDefaultSampler)
 		);
 
-		BindGroupDescriptor bgDesc = .()
+		BindGroupDesc bgDesc = .()
 		{
 			Label = "Sprite BindGroup",
 			Layout = mBindGroupLayout,
 			Entries = entries
 		};
 
-		switch (Renderer.Device.CreateBindGroup(&bgDesc))
+		switch (Renderer.Device.CreateBindGroup(bgDesc))
 		{
 		case .Ok(let bg):
 			cache.Add(.() { TextureView = textureView, BindGroup = bg });

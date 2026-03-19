@@ -10,7 +10,7 @@ class DX12ShaderModule : IShaderModule
 	private uint8* mBytecode;
 	private uint mSize;
 
-	public this(ShaderModuleDescriptor* descriptor)
+	public this(ShaderModuleDesc descriptor)
 	{
 		if (descriptor.Code.Length > 0)
 		{

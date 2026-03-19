@@ -65,17 +65,17 @@ public class FinalOutputFeature : RenderFeatureBase
 	protected override Result<void> OnInitialize()
 	{
 		// Create linear sampler for blit
-		SamplerDescriptor samplerDesc = .()
+		SamplerDesc samplerDesc = .()
 		{
-			AddressModeU = .ClampToEdge,
-			AddressModeV = .ClampToEdge,
-			AddressModeW = .ClampToEdge,
+			AddressU = .ClampToEdge,
+			AddressV = .ClampToEdge,
+			AddressW = .ClampToEdge,
 			MinFilter = .Linear,
 			MagFilter = .Linear,
 			MipmapFilter = .Nearest
 		};
 
-		switch (Renderer.Device.CreateSampler(&samplerDesc))
+		switch (Renderer.Device.CreateSampler(samplerDesc))
 		{
 		case .Ok(let sampler): mLinearSampler = sampler;
 		case .Err: return .Err;
@@ -84,15 +84,15 @@ public class FinalOutputFeature : RenderFeatureBase
 		// Create per-frame uniform buffers for blit params
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			BufferDescriptor bufDesc = .()
+			BufferDesc bufDesc = .()
 			{
 				Label = "Blit Params",
 				Size = (uint64)BlitParams.Size,
 				Usage = .Uniform,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
 
-			switch (Renderer.Device.CreateBuffer(&bufDesc))
+			switch (Renderer.Device.CreateBuffer(bufDesc))
 			{
 			case .Ok(let buf): mBlitParamsBuffers[i] = buf;
 			case .Err: return .Err;
@@ -126,13 +126,13 @@ public class FinalOutputFeature : RenderFeatureBase
 			.() { Binding = 0, Visibility = .Fragment, Type = .Sampler }         // s0
 		);
 
-		BindGroupLayoutDescriptor layoutDesc = .()
+		BindGroupLayoutDesc layoutDesc = .()
 		{
 			Label = "Blit BindGroup Layout",
 			Entries = layoutEntries
 		};
 
-		switch (Renderer.Device.CreateBindGroupLayout(&layoutDesc))
+		switch (Renderer.Device.CreateBindGroupLayout(layoutDesc))
 		{
 		case .Ok(let layout): mBlitBindGroupLayout = layout;
 		case .Err: return .Err;
@@ -140,8 +140,8 @@ public class FinalOutputFeature : RenderFeatureBase
 
 		// Create pipeline layout
 		IBindGroupLayout[1] bgLayouts = .(mBlitBindGroupLayout);
-		PipelineLayoutDescriptor plDesc = .(bgLayouts);
-		switch (Renderer.Device.CreatePipelineLayout(&plDesc))
+		PipelineLayoutDesc plDesc = .(bgLayouts);
+		switch (Renderer.Device.CreatePipelineLayout(plDesc))
 		{
 		case .Ok(let layout): mBlitPipelineLayout = layout;
 		case .Err: return .Err;
@@ -151,7 +151,7 @@ public class FinalOutputFeature : RenderFeatureBase
 		ColorTargetState[1] colorTargets = .(.(.BGRA8UnormSrgb));
 
 		// Blit uses fullscreen triangle with SV_VertexID
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Label = "Blit Pipeline",
 			Layout = mBlitPipelineLayout,
@@ -179,7 +179,7 @@ public class FinalOutputFeature : RenderFeatureBase
 			}
 		};
 
-		switch (Renderer.Device.CreateRenderPipeline(&pipelineDesc))
+		switch (Renderer.Device.CreateRenderPipeline(pipelineDesc))
 		{
 		case .Ok(let pipeline): mBlitPipeline = pipeline;
 		case .Err: return .Err;
@@ -319,19 +319,19 @@ public class FinalOutputFeature : RenderFeatureBase
 			BindGroupEntry.Sampler(0, mLinearSampler)
 		);
 
-		BindGroupDescriptor bgDesc = .()
+		BindGroupDesc bgDesc = .()
 		{
 			Label = "Blit BindGroup",
 			Layout = mBlitBindGroupLayout,
 			Entries = entries
 		};
 
-		if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bg))
+		if (Renderer.Device.CreateBindGroup(bgDesc) case .Ok(let bg))
 			mBlitBindGroups[bgIndex] = bg;
 
 		// Set viewport and scissor to this view's region
 		encoder.SetViewport((float)vpX, (float)vpY, (float)vpW, (float)vpH, 0, 1);
-		encoder.SetScissorRect((int32)vpX, (int32)vpY, vpW, vpH);
+		encoder.SetScissor((int32)vpX, (int32)vpY, vpW, vpH);
 
 		// Draw fullscreen blit if bind group is ready
 		if (mBlitBindGroups[bgIndex] != null)

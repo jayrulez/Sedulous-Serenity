@@ -120,13 +120,13 @@ public class GPUResourceManager : IDisposable
 
 		// Create vertex buffer
 		let vertexDataSize = (uint64)(mesh.VertexCount * mesh.VertexSize);
-		var vbDesc = BufferDescriptor()
+		var vbDesc = BufferDesc()
 		{
 			Size = vertexDataSize,
 			Usage = .Vertex | .CopyDst
 		};
 
-		if (mDevice.CreateBuffer(&vbDesc) case .Ok(let vb))
+		if (mDevice.CreateBuffer(vbDesc) case .Ok(let vb))
 		{
 			gpuMesh.VertexBuffer = vb;
 			let vbData = Span<uint8>(mesh.GetVertexData(), (int)vertexDataSize);
@@ -148,13 +148,13 @@ public class GPUResourceManager : IDisposable
 		{
 			let indexSize = indices.Format == .UInt16 ? 2 : 4;
 			let indexDataSize = (uint64)(indices.IndexCount * indexSize);
-			var ibDesc = BufferDescriptor()
+			var ibDesc = BufferDesc()
 			{
 				Size = indexDataSize,
 				Usage = .Index | .CopyDst
 			};
 
-			if (mDevice.CreateBuffer(&ibDesc) case .Ok(let ib))
+			if (mDevice.CreateBuffer(ibDesc) case .Ok(let ib))
 			{
 				gpuMesh.IndexBuffer = ib;
 				let ibData = Span<uint8>(indices.GetRawData(), (int)indexDataSize);
@@ -287,13 +287,13 @@ public class GPUResourceManager : IDisposable
 
 		// Create vertex buffer (with Storage for GPU skinning compute shader access)
 		let vertexDataSize = (uint64)(mesh.VertexCount * mesh.VertexSize);
-		var vbDesc = BufferDescriptor()
+		var vbDesc = BufferDesc()
 		{
 			Size = vertexDataSize,
 			Usage = .Vertex | .Storage | .CopyDst
 		};
 
-		if (mDevice.CreateBuffer(&vbDesc) case .Ok(let vb))
+		if (mDevice.CreateBuffer(vbDesc) case .Ok(let vb))
 		{
 			gpuMesh.VertexBuffer = vb;
 			let vbData = Span<uint8>(mesh.GetVertexData(), (int)vertexDataSize);
@@ -315,13 +315,13 @@ public class GPUResourceManager : IDisposable
 		{
 			let indexSize = indices.Format == .UInt16 ? 2 : 4;
 			let indexDataSize = (uint64)(indices.IndexCount * indexSize);
-			var ibDesc = BufferDescriptor()
+			var ibDesc = BufferDesc()
 			{
 				Size = indexDataSize,
 				Usage = .Index | .CopyDst
 			};
 
-			if (mDevice.CreateBuffer(&ibDesc) case .Ok(let ib))
+			if (mDevice.CreateBuffer(ibDesc) case .Ok(let ib))
 			{
 				gpuMesh.IndexBuffer = ib;
 				let ibData = Span<uint8>(mesh.GetIndexData(), (int)indexDataSize);
@@ -417,14 +417,14 @@ public class GPUResourceManager : IDisposable
 		// Size: current + previous frame matrices for each bone
 		let bufferSize = BoneTransforms.GetSizeForBoneCount((int32)boneCount);
 
-		var bufDesc = BufferDescriptor()
+		var bufDesc = BufferDesc()
 		{
 			Size = bufferSize,
 			Usage = .Storage,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (mDevice.CreateBuffer(&bufDesc) case .Ok(let buffer))
+		if (mDevice.CreateBuffer(bufDesc) case .Ok(let buffer))
 		{
 			boneBuffer.Buffer = buffer;
 			boneBuffer.BoneCount = boneCount;
@@ -527,7 +527,7 @@ public class GPUResourceManager : IDisposable
 		}
 
 		// Create texture
-		var texDesc = TextureDescriptor()
+		var texDesc = TextureDesc()
 		{
 			Width = data.Width,
 			Height = data.Height,
@@ -540,7 +540,7 @@ public class GPUResourceManager : IDisposable
 			SampleCount = 1
 		};
 
-		if (mDevice.CreateTexture(&texDesc) case .Ok(let tex))
+		if (mDevice.CreateTexture(texDesc) case .Ok(let tex))
 		{
 			gpuTexture.Texture = tex;
 
@@ -570,7 +570,7 @@ public class GPUResourceManager : IDisposable
 				mDevice.Queue.WriteTextureSync(tex, texData, &dataLayout, &writeSize, 0, 0);
 
 			// Create default view
-			var viewDesc = TextureViewDescriptor()
+			var viewDesc = TextureViewDesc()
 			{
 				Format = data.Format,
 				Dimension = data.DepthOrArrayLayers == 6 ? .TextureCube : .Texture2D,
@@ -580,7 +580,7 @@ public class GPUResourceManager : IDisposable
 				ArrayLayerCount = data.DepthOrArrayLayers
 			};
 
-			if (mDevice.CreateTextureView(tex, &viewDesc) case .Ok(let view))
+			if (mDevice.CreateTextureView(tex, viewDesc) case .Ok(let view))
 				gpuTexture.DefaultView = view;
 			else
 			{
@@ -627,7 +627,7 @@ public class GPUResourceManager : IDisposable
 			generation = 1;
 		}
 
-		var texDesc = TextureDescriptor()
+		var texDesc = TextureDesc()
 		{
 			Width = width,
 			Height = height,
@@ -640,11 +640,11 @@ public class GPUResourceManager : IDisposable
 			SampleCount = 1
 		};
 
-		if (mDevice.CreateTexture(&texDesc) case .Ok(let tex))
+		if (mDevice.CreateTexture(texDesc) case .Ok(let tex))
 		{
 			gpuTexture.Texture = tex;
 
-			var viewDesc = TextureViewDescriptor()
+			var viewDesc = TextureViewDesc()
 			{
 				Format = format,
 				Dimension = .Texture2D,
@@ -654,7 +654,7 @@ public class GPUResourceManager : IDisposable
 				ArrayLayerCount = 1
 			};
 
-			if (mDevice.CreateTextureView(tex, &viewDesc) case .Ok(let view))
+			if (mDevice.CreateTextureView(tex, viewDesc) case .Ok(let view))
 				gpuTexture.DefaultView = view;
 			else
 			{

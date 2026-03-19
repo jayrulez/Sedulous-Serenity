@@ -86,14 +86,14 @@ class BlendingSample : RHISampleApp
 		);
 
 		// Create vertex buffer
-		BufferDescriptor vertexDesc = .()
+		BufferDesc vertexDesc = .()
 		{
 			Size = (uint64)(sizeof(Vertex) * vertices.Count),
 			Usage = .Vertex,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&vertexDesc) not case .Ok(let vb))
+		if (Device.CreateBuffer(vertexDesc) not case .Ok(let vb))
 			return false;
 		mVertexBuffer = vb;
 
@@ -101,14 +101,14 @@ class BlendingSample : RHISampleApp
 		Device.Queue.WriteMappedBuffer(mVertexBuffer, 0, vertexData);
 
 		// Create index buffer
-		BufferDescriptor indexDesc = .()
+		BufferDesc indexDesc = .()
 		{
 			Size = (uint64)(sizeof(uint16) * indices.Count),
 			Usage = .Index,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&indexDesc) not case .Ok(let ib))
+		if (Device.CreateBuffer(indexDesc) not case .Ok(let ib))
 			return false;
 		mIndexBuffer = ib;
 
@@ -130,8 +130,8 @@ class BlendingSample : RHISampleApp
 		Console.WriteLine("Shaders compiled");
 
 		// Create empty pipeline layout (no bindings)
-		PipelineLayoutDescriptor pipelineLayoutDesc = .();
-		if (Device.CreatePipelineLayout(&pipelineLayoutDesc) not case .Ok(let pipelineLayout))
+		PipelineLayoutDesc pipelineLayoutDesc = .();
+		if (Device.CreatePipelineLayout(pipelineLayoutDesc) not case .Ok(let pipelineLayout))
 			return false;
 		mPipelineLayout = pipelineLayout;
 
@@ -149,7 +149,7 @@ class BlendingSample : RHISampleApp
 		ColorTargetState[1] colorTargets = .(.(SwapChain.Format, .AlphaBlend));
 
 		// Pipeline descriptor
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Layout = mPipelineLayout,
 			Vertex = .()
@@ -177,7 +177,7 @@ class BlendingSample : RHISampleApp
 			}
 		};
 
-		if (Device.CreateRenderPipeline(&pipelineDesc) not case .Ok(let pipeline))
+		if (Device.CreateRenderPipeline(pipelineDesc) not case .Ok(let pipeline))
 			return false;
 		mPipeline = pipeline;
 

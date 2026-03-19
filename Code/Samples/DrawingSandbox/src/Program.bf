@@ -336,13 +336,13 @@ class DrawingSandboxSample : RHISampleApp
 	{
 		// Create render pass targeting swap chain
 		let swapTextureView = SwapChain.CurrentTextureView;
-		RenderPassColorAttachment[1] colorAttachments = .(.(swapTextureView)
+		ColorAttachment[1] colorAttachments = .(.(swapTextureView)
 			{
 				LoadOp = .Clear,
 				StoreOp = .Store,
 				ClearValue = .(0.1f, 0.1f, 0.15f, 1.0f)
 			});
-		RenderPassDescriptor passDesc = .(colorAttachments);
+		RenderPassDesc passDesc = .(colorAttachments);
 
 		let renderPass = encoder.BeginRenderPass(&passDesc);
 		if (renderPass != null)

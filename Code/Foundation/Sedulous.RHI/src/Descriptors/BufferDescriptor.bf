@@ -3,7 +3,7 @@ using System;
 namespace Sedulous.RHI;
 
 /// Describes a buffer to be created.
-struct BufferDescriptor
+struct BufferDesc
 {
 	/// Size of the buffer in bytes.
 	public uint64 Size;

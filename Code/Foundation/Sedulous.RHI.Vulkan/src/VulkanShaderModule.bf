@@ -10,7 +10,7 @@ class VulkanShaderModule : IShaderModule
 	private VulkanDevice mDevice;
 	private VkShaderModule mShaderModule;
 
-	public this(VulkanDevice device, ShaderModuleDescriptor* descriptor)
+	public this(VulkanDevice device, ShaderModuleDesc descriptor)
 	{
 		mDevice = device;
 		CreateShaderModule(descriptor);
@@ -38,7 +38,7 @@ class VulkanShaderModule : IShaderModule
 	/// Gets the Vulkan shader module handle.
 	public VkShaderModule ShaderModule => mShaderModule;
 
-	private void CreateShaderModule(ShaderModuleDescriptor* descriptor)
+	private void CreateShaderModule(ShaderModuleDesc descriptor)
 	{
 		if (descriptor.Code.Length == 0)
 			return;

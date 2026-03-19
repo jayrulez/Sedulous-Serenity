@@ -296,13 +296,13 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			.() { Binding = 1, Visibility = .Vertex, Type = .UniformBuffer, HasDynamicOffset = true } // Object transforms
 		);
 
-		BindGroupLayoutDescriptor shadowLayoutDesc = .()
+		BindGroupLayoutDesc shadowLayoutDesc = .()
 		{
 			Label = "Shadow BindGroup Layout",
 			Entries = shadowEntries
 		};
 
-		switch (Renderer.Device.CreateBindGroupLayout(&shadowLayoutDesc))
+		switch (Renderer.Device.CreateBindGroupLayout(shadowLayoutDesc))
 		{
 		case .Ok(let layout): mShadowBindGroupLayout = layout;
 		case .Err: return .Err;
@@ -310,8 +310,8 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 		// Create shadow pipeline layout
 		IBindGroupLayout[1] layouts = .(mShadowBindGroupLayout);
-		PipelineLayoutDescriptor layoutDesc = .(layouts);
-		switch (Renderer.Device.CreatePipelineLayout(&layoutDesc))
+		PipelineLayoutDesc layoutDesc = .(layouts);
+		switch (Renderer.Device.CreatePipelineLayout(layoutDesc))
 		{
 		case .Ok(let layout): mShadowPipelineLayout = layout;
 		case .Err: return .Err;
@@ -323,13 +323,13 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		const uint64 AlignedSceneUniformSize = ((SceneUniforms.Size + 255) / 256) * 256; // 256-byte aligned
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			BufferDescriptor uniformDesc = .()
+			BufferDesc uniformDesc = .()
 			{
 				Size = AlignedSceneUniformSize * 4, // 4 cascades
 				Usage = .Uniform,
-				MemoryAccess = .Upload // CPU-mappable
+				MemoryAccess = .CpuToGpu // CPU-mappable
 			};
-			switch (Renderer.Device.CreateBuffer(&uniformDesc))
+			switch (Renderer.Device.CreateBuffer(uniformDesc))
 			{
 			case .Ok(let buf): mShadowUniformBuffers[i] = buf;
 			case .Err: return .Err;
@@ -343,13 +343,13 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		// Create per-frame shadow object buffers with Upload memory for CPU mapping
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			BufferDescriptor objDesc = .()
+			BufferDesc objDesc = .()
 			{
 				Size = AlignedObjectUniformSize * RenderConfig.MaxOpaqueObjectsPerFrame,
 				Usage = .Uniform,
-				MemoryAccess = .Upload // CPU-mappable
+				MemoryAccess = .CpuToGpu // CPU-mappable
 			};
-			switch (Renderer.Device.CreateBuffer(&objDesc))
+			switch (Renderer.Device.CreateBuffer(objDesc))
 			{
 			case .Ok(let buf): mShadowObjectBuffers[i] = buf;
 			case .Err: return .Err;
@@ -362,7 +362,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		);
 
 		// Shadow depth pipeline - depth only output
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Label = "Shadow Depth Pipeline",
 			Layout = mShadowPipelineLayout,
@@ -398,7 +398,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			}
 		};
 
-		switch (Renderer.Device.CreateRenderPipeline(&pipelineDesc))
+		switch (Renderer.Device.CreateRenderPipeline(pipelineDesc))
 		{
 		case .Ok(let pipeline): mShadowDepthPipeline = pipeline;
 		case .Err: return .Err;
@@ -430,21 +430,21 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			.() { Binding = 0, Visibility = .Vertex, Type = .UniformBuffer, HasDynamicOffset = true }
 		);
 
-		BindGroupLayoutDescriptor layoutDesc = .()
+		BindGroupLayoutDesc layoutDesc = .()
 		{
 			Label = "Shadow Instanced BindGroup Layout",
 			Entries = entries
 		};
 
-		if (Renderer.Device.CreateBindGroupLayout(&layoutDesc) case .Ok(let bgLayout))
+		if (Renderer.Device.CreateBindGroupLayout(layoutDesc) case .Ok(let bgLayout))
 			mShadowInstancedBindGroupLayout = bgLayout;
 		else
 			return;
 
 		// Pipeline layout
 		IBindGroupLayout[1] layouts = .(mShadowInstancedBindGroupLayout);
-		PipelineLayoutDescriptor plDesc = .(layouts);
-		if (Renderer.Device.CreatePipelineLayout(&plDesc) case .Ok(let plLayout))
+		PipelineLayoutDesc plDesc = .(layouts);
+		if (Renderer.Device.CreatePipelineLayout(plDesc) case .Ok(let plLayout))
 			mShadowInstancedPipelineLayout = plLayout;
 		else
 			return;
@@ -469,7 +469,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		);
 
 		// Shadow instanced pipeline - same depth format as shadow map
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Label = "Shadow Instanced Pipeline",
 			Layout = mShadowInstancedPipelineLayout,
@@ -505,7 +505,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			}
 		};
 
-		if (Renderer.Device.CreateRenderPipeline(&pipelineDesc) case .Ok(let pipeline))
+		if (Renderer.Device.CreateRenderPipeline(pipelineDesc) case .Ok(let pipeline))
 		{
 			mShadowInstancedPipeline = pipeline;
 
@@ -537,14 +537,14 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				BindGroupEntry.Buffer(0, shadowUniformBuffer, 0, mAlignedSceneUniformSize)
 			);
 
-			BindGroupDescriptor bgDesc = .()
+			BindGroupDesc bgDesc = .()
 			{
 				Label = "Shadow Instanced BindGroup",
 				Layout = mShadowInstancedBindGroupLayout,
 				Entries = entries
 			};
 
-			if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bg))
+			if (Renderer.Device.CreateBindGroup(bgDesc) case .Ok(let bg))
 				mShadowInstancedBindGroups[i] = bg;
 		}
 	}
@@ -554,7 +554,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		// Create a small 4x4 depth array texture with 4 layers for use when shadows are disabled
 		// This satisfies the shader's expectation of Texture2DArray for ShadowMap
 		// Using 4x4 instead of 1x1 to avoid sampling artifacts with comparison sampler
-		TextureDescriptor texDesc = .()
+		TextureDesc texDesc = .()
 		{
 			Label = "Dummy Shadow Map Array",
 			Dimension = .Texture2D,
@@ -568,14 +568,14 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			Usage = .DepthStencil | .Sampled
 		};
 
-		switch (Renderer.Device.CreateTexture(&texDesc))
+		switch (Renderer.Device.CreateTexture(texDesc))
 		{
 		case .Ok(let tex): mDummyShadowMapArray = tex;
 		case .Err: return .Err;
 		}
 
 		// Create array view for sampling
-		TextureViewDescriptor viewDesc = .()
+		TextureViewDesc viewDesc = .()
 		{
 			Label = "Dummy Shadow Map Array View",
 			Format = .Depth32Float,
@@ -587,7 +587,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			Aspect = .DepthOnly
 		};
 
-		switch (Renderer.Device.CreateTextureView(mDummyShadowMapArray, &viewDesc))
+		switch (Renderer.Device.CreateTextureView(mDummyShadowMapArray, viewDesc))
 		{
 		case .Ok(let view): mDummyShadowMapArrayView = view;
 		case .Err: return .Err;
@@ -616,7 +616,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 		for (uint32 layer = 0; layer < 4; layer++)
 		{
-			TextureViewDescriptor layerViewDesc = .()
+			TextureViewDesc layerViewDesc = .()
 			{
 				Label = "Dummy Shadow Layer View",
 				Format = .Depth32Float,
@@ -628,7 +628,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				Aspect = .DepthOnly
 			};
 
-			if (Renderer.Device.CreateTextureView(mDummyShadowMapArray, &layerViewDesc) case .Ok(let view))
+			if (Renderer.Device.CreateTextureView(mDummyShadowMapArray, layerViewDesc) case .Ok(let view))
 				layerViews[layer] = view;
 		}
 
@@ -644,7 +644,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			if (layerViews[layer] == null)
 				continue;
 
-			RenderPassDescriptor rpDesc = .()
+			RenderPassDesc rpDesc = .()
 			{
 				Label = "Clear Dummy Shadow Layer",
 				DepthStencilAttachment = .()
@@ -681,8 +681,8 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 	{
 		// Create 1x1 fallback irradiance cubemap (white = neutral ambient)
 		{
-			TextureDescriptor texDesc = .Cubemap(1, .RGBA16Float, .Sampled | .CopyDst);
-			switch (Renderer.Device.CreateTexture(&texDesc))
+			TextureDesc texDesc = .Cubemap(1, .RGBA16Float, .Sampled | .CopyDst);
+			switch (Renderer.Device.CreateTexture(texDesc))
 			{
 			case .Ok(let tex): mFallbackIrradianceCubemap = tex;
 			case .Err: return .Err;
@@ -694,7 +694,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			for (uint32 face = 0; face < 6; face++)
 				UploadTexture(mFallbackIrradianceCubemap, Span<uint8>((uint8*)&whitePixel, 8), &layout, &size, 0, face);
 
-			TextureViewDescriptor viewDesc = .()
+			TextureViewDesc viewDesc = .()
 			{
 				Format = .RGBA16Float,
 				Dimension = .TextureCube,
@@ -704,7 +704,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				ArrayLayerCount = 6
 			};
 
-			switch (Renderer.Device.CreateTextureView(mFallbackIrradianceCubemap, &viewDesc))
+			switch (Renderer.Device.CreateTextureView(mFallbackIrradianceCubemap, viewDesc))
 			{
 			case .Ok(let view): mFallbackIrradianceCubemapView = view;
 			case .Err: return .Err;
@@ -713,8 +713,8 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 		// Create 1x1 fallback prefiltered cubemap (white = neutral specular)
 		{
-			TextureDescriptor texDesc = .Cubemap(1, .RGBA16Float, .Sampled | .CopyDst);
-			switch (Renderer.Device.CreateTexture(&texDesc))
+			TextureDesc texDesc = .Cubemap(1, .RGBA16Float, .Sampled | .CopyDst);
+			switch (Renderer.Device.CreateTexture(texDesc))
 			{
 			case .Ok(let tex): mFallbackPrefilteredCubemap = tex;
 			case .Err: return .Err;
@@ -726,7 +726,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			for (uint32 face = 0; face < 6; face++)
 				UploadTexture(mFallbackPrefilteredCubemap, Span<uint8>((uint8*)&whitePixel, 8), &layout, &size, 0, face);
 
-			TextureViewDescriptor viewDesc = .()
+			TextureViewDesc viewDesc = .()
 			{
 				Format = .RGBA16Float,
 				Dimension = .TextureCube,
@@ -736,7 +736,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				ArrayLayerCount = 6
 			};
 
-			switch (Renderer.Device.CreateTextureView(mFallbackPrefilteredCubemap, &viewDesc))
+			switch (Renderer.Device.CreateTextureView(mFallbackPrefilteredCubemap, viewDesc))
 			{
 			case .Ok(let view): mFallbackPrefilteredCubemapView = view;
 			case .Err: return .Err;
@@ -745,7 +745,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 		// Create 1x1 fallback BRDF LUT (identity: scale=1.0, bias=0.0)
 		{
-			TextureDescriptor texDesc = .()
+			TextureDesc texDesc = .()
 			{
 				Label = "Fallback BRDF LUT",
 				Width = 1,
@@ -759,7 +759,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				Usage = .Sampled | .CopyDst
 			};
 
-			switch (Renderer.Device.CreateTexture(&texDesc))
+			switch (Renderer.Device.CreateTexture(texDesc))
 			{
 			case .Ok(let tex): mFallbackBRDFLut = tex;
 			case .Err: return .Err;
@@ -770,13 +770,13 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			Extent3D size = .(1, 1, 1);
 			UploadTexture(mFallbackBRDFLut, Span<uint8>((uint8*)&brdfPixel, 4), &layout, &size);
 
-			TextureViewDescriptor viewDesc = .()
+			TextureViewDesc viewDesc = .()
 			{
 				Format = .RG16Float,
 				Dimension = .Texture2D
 			};
 
-			switch (Renderer.Device.CreateTextureView(mFallbackBRDFLut, &viewDesc))
+			switch (Renderer.Device.CreateTextureView(mFallbackBRDFLut, viewDesc))
 			{
 			case .Ok(let view): mFallbackBRDFLutView = view;
 			case .Err: return .Err;
@@ -785,15 +785,15 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 		// Create IBL sampler (linear min/mag/mip, clamp to edge)
 		{
-			SamplerDescriptor samplerDesc = .();
+			SamplerDesc samplerDesc = .();
 			samplerDesc.MinFilter = .Linear;
 			samplerDesc.MagFilter = .Linear;
 			samplerDesc.MipmapFilter = .Linear;
-			samplerDesc.AddressModeU = .ClampToEdge;
-			samplerDesc.AddressModeV = .ClampToEdge;
-			samplerDesc.AddressModeW = .ClampToEdge;
+			samplerDesc.AddressU = .ClampToEdge;
+			samplerDesc.AddressV = .ClampToEdge;
+			samplerDesc.AddressW = .ClampToEdge;
 
-			switch (Renderer.Device.CreateSampler(&samplerDesc))
+			switch (Renderer.Device.CreateSampler(samplerDesc))
 			{
 			case .Ok(let sampler): mIBLSampler = sampler;
 			case .Err: return .Err;
@@ -1329,13 +1329,13 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			BindGroupLayoutEntry.SampledTexture(11, .Fragment, .TextureCubeArray)          // t11: ProbeCubemaps
 		);
 
-		BindGroupLayoutDescriptor sceneDesc = .()
+		BindGroupLayoutDesc sceneDesc = .()
 		{
 			Label = "Scene BindGroup Layout",
 			Entries = sceneEntries
 		};
 
-		switch (Renderer.Device.CreateBindGroupLayout(&sceneDesc))
+		switch (Renderer.Device.CreateBindGroupLayout(sceneDesc))
 		{
 		case .Ok(let layout): mSceneBindGroupLayout = layout;
 		case .Err: return .Err;
@@ -1353,14 +1353,14 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		// Use Upload memory for CPU mapping (avoids command buffer for writes)
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			var bufferDesc = BufferDescriptor()
+			var bufferDesc = BufferDesc()
 			{
 				Size = AlignedObjectUniformSize * RenderConfig.MaxOpaqueObjectsPerFrame,
 				Usage = .Uniform,
-				MemoryAccess = .Upload // CPU-mappable
+				MemoryAccess = .CpuToGpu // CPU-mappable
 			};
 
-			switch (Renderer.Device.CreateBuffer(&bufferDesc))
+			switch (Renderer.Device.CreateBuffer(bufferDesc))
 			{
 			case .Ok(let buffer): mObjectUniformBuffers[i] = buffer;
 			case .Err: return .Err;
@@ -1493,14 +1493,14 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		entries[14] = BindGroupEntry.Texture(11, mProbeSystem.GetCubemapArrayView());
 
 		// Create bind group
-		BindGroupDescriptor bgDesc = .()
+		BindGroupDesc bgDesc = .()
 		{
 			Label = "Scene BindGroup",
 			Layout = mSceneBindGroupLayout,
 			Entries = entries
 		};
 
-		if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bg))
+		if (Renderer.Device.CreateBindGroup(bgDesc) case .Ok(let bg))
 		{
 			mSceneBindGroups[bgIndex] = bg;
 			mSceneBindGroupShadowState[bgIndex] = shadowsEnabled;
@@ -1515,7 +1515,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		{
 			// Set viewport — render to per-view SceneColor texture at (0,0), not swapchain offset
 			encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0.0f, 1.0f);
-			encoder.SetScissorRect(0, 0, view.Width, view.Height);
+			encoder.SetScissor(0, 0, view.Width, view.Height);
 
 			// Track object index for uniform buffer dynamic offsets
 			var objectIndex = (int32)0;
@@ -2024,7 +2024,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			0.0f, 1.0f
 		);
 
-		encoder.SetScissorRect(
+		encoder.SetScissor(
 			(int32)shadowPass.Viewport.X,
 			(int32)shadowPass.Viewport.Y,
 			(uint32)shadowPass.Viewport.Width,
@@ -2239,14 +2239,14 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				BindGroupEntry.Buffer(1, shadowObjectBuffer, 0, AlignedObjectUniformSize)   // Per-object transforms (dynamic)
 			);
 
-			BindGroupDescriptor bgDesc = .()
+			BindGroupDesc bgDesc = .()
 			{
 				Label = "Shadow BindGroup",
 				Layout = mShadowBindGroupLayout,
 				Entries = entries
 			};
 
-			if (Renderer.Device.CreateBindGroup(&bgDesc) case .Ok(let bg))
+			if (Renderer.Device.CreateBindGroup(bgDesc) case .Ok(let bg))
 				mShadowBindGroups[i] = bg;
 		}
 	}

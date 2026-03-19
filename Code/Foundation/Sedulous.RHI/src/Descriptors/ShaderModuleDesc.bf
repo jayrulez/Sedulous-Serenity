@@ -3,7 +3,7 @@ namespace Sedulous.RHI;
 using System;
 
 /// Describes a shader module to be created.
-struct ShaderModuleDescriptor
+struct ShaderModuleDesc
 {
 	/// Compiled shader bytecode (SPIRV for Vulkan, DXIL for DX12).
 	public Span<uint8> Code;

@@ -186,15 +186,15 @@ public class LightBuffer : IDisposable
 		// Use Upload memory for CPU mapping (avoids command buffer for writes)
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			BufferDescriptor lightDesc = .()
+			BufferDesc lightDesc = .()
 			{
 				Label = "Light Data",
 				Size = (uint64)(MAX_LIGHTS * GPULight.Size),
 				Usage = .Storage,
-				MemoryAccess = .Upload // CPU-mappable
+				MemoryAccess = .CpuToGpu // CPU-mappable
 			};
 
-			switch (mDevice.CreateBuffer(&lightDesc))
+			switch (mDevice.CreateBuffer(lightDesc))
 			{
 			case .Ok(let buf): mLightDataBuffers[i] = buf;
 			case .Err: return .Err;
@@ -205,15 +205,15 @@ public class LightBuffer : IDisposable
 		// Use Upload memory for CPU mapping (avoids command buffer for writes)
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			BufferDescriptor uniformDesc = .()
+			BufferDesc uniformDesc = .()
 			{
 				Label = "Lighting Uniforms",
 				Size = (uint64)LightingUniforms.Size,
 				Usage = .Uniform,
-				MemoryAccess = .Upload // CPU-mappable
+				MemoryAccess = .CpuToGpu // CPU-mappable
 			};
 
-			switch (mDevice.CreateBuffer(&uniformDesc))
+			switch (mDevice.CreateBuffer(uniformDesc))
 			{
 			case .Ok(let buf): mLightingUniformBuffers[i] = buf;
 			case .Err: return .Err;

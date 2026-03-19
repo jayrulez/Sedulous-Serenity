@@ -40,14 +40,14 @@ class DX12TransferBatch : ITransferBatch
 			return;
 
 		// Create staging buffer
-		BufferDescriptor stagingDesc = .()
+		BufferDesc stagingDesc = .()
 			{
 				Size = (uint64)data.Length,
 				Usage = .CopySrc,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
 
-		if (mDevice.CreateBuffer(&stagingDesc) case .Ok(let stagingBuffer))
+		if (mDevice.CreateBuffer(stagingDesc) case .Ok(let stagingBuffer))
 		{
 			if (let dx12Staging = stagingBuffer as DX12Buffer)
 			{
@@ -102,14 +102,14 @@ class DX12TransferBatch : ITransferBatch
 			return;
 
 		// Create staging buffer
-		BufferDescriptor stagingDesc = .()
+		BufferDesc stagingDesc = .()
 			{
 				Size = (uint64)data.Length,
 				Usage = .CopySrc,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
 
-		if (mDevice.CreateBuffer(&stagingDesc) case .Ok(let stagingBuffer))
+		if (mDevice.CreateBuffer(stagingDesc) case .Ok(let stagingBuffer))
 		{
 			if (let dx12Staging = stagingBuffer as DX12Buffer)
 			{

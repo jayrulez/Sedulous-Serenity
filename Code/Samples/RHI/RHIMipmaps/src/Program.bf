@@ -105,14 +105,14 @@ class MipmapSample : RHISampleApp
 			.(-size,  size, 0.0f, 0.0f)
 		);
 
-		BufferDescriptor vertexDesc = .()
+		BufferDesc vertexDesc = .()
 		{
 			Size = (uint64)(sizeof(Vertex) * vertices.Count),
 			Usage = .Vertex,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&vertexDesc) not case .Ok(let vb))
+		if (Device.CreateBuffer(vertexDesc) not case .Ok(let vb))
 			return false;
 		mVertexBuffer = vb;
 
@@ -122,14 +122,14 @@ class MipmapSample : RHISampleApp
 		// Index buffer
 		uint16[6] indices = .(0, 1, 2, 0, 2, 3);
 
-		BufferDescriptor indexDesc = .()
+		BufferDesc indexDesc = .()
 		{
 			Size = (uint64)(sizeof(uint16) * indices.Count),
 			Usage = .Index,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&indexDesc) not case .Ok(let ib))
+		if (Device.CreateBuffer(indexDesc) not case .Ok(let ib))
 			return false;
 		mIndexBuffer = ib;
 
@@ -137,14 +137,14 @@ class MipmapSample : RHISampleApp
 		Device.Queue.WriteMappedBuffer(mIndexBuffer, 0, indexData);
 
 		// Uniform buffer
-		BufferDescriptor uniformDesc = .()
+		BufferDesc uniformDesc = .()
 		{
 			Size = (uint64)sizeof(Uniforms),
 			Usage = .Uniform,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (Device.CreateBuffer(&uniformDesc) not case .Ok(let ub))
+		if (Device.CreateBuffer(uniformDesc) not case .Ok(let ub))
 			return false;
 		mUniformBuffer = ub;
 
@@ -168,7 +168,7 @@ class MipmapSample : RHISampleApp
 			? .Sampled | .CopyDst | .CopySrc
 			: .Sampled | .CopyDst;
 
-		TextureDescriptor textureDesc = TextureDescriptor.Texture2D(
+		TextureDesc textureDesc = TextureDesc.Texture2D(
 			baseSize,
 			baseSize,
 			.RGBA8Unorm,
@@ -176,7 +176,7 @@ class MipmapSample : RHISampleApp
 			mipLevels
 		);
 
-		if (Device.CreateTexture(&textureDesc) not case .Ok(let texture))
+		if (Device.CreateTexture(textureDesc) not case .Ok(let texture))
 			return false;
 		mTexture = texture;
 
@@ -245,7 +245,7 @@ class MipmapSample : RHISampleApp
 		}
 
 		// Create texture view for all mip levels
-		TextureViewDescriptor viewDesc = .()
+		TextureViewDesc viewDesc = .()
 		{
 			Format = .RGBA8Unorm,
 			Dimension = .Texture2D,
@@ -254,24 +254,24 @@ class MipmapSample : RHISampleApp
 			BaseArrayLayer = 0,
 			ArrayLayerCount = 1
 		};
-		if (Device.CreateTextureView(mTexture, &viewDesc) not case .Ok(let view))
+		if (Device.CreateTextureView(mTexture, viewDesc) not case .Ok(let view))
 			return false;
 		mTextureView = view;
 
 		// Create sampler with trilinear filtering (enables smooth mip transitions)
-		SamplerDescriptor samplerDesc = .()
+		SamplerDesc samplerDesc = .()
 		{
 			MinFilter = .Linear,
 			MagFilter = .Linear,
 			MipmapFilter = .Linear,
-			AddressModeU = .Repeat,
-			AddressModeV = .Repeat,
-			AddressModeW = .Repeat,
-			LodMinClamp = 0.0f,
-			LodMaxClamp = 32.0f,
+			AddressU = .Repeat,
+			AddressV = .Repeat,
+			AddressW = .Repeat,
+			MinLod = 0.0f,
+			MaxLod = 32.0f,
 			MaxAnisotropy = 1
 		};
-		if (Device.CreateSampler(&samplerDesc) not case .Ok(let sampler))
+		if (Device.CreateSampler(samplerDesc) not case .Ok(let sampler))
 			return false;
 		mSampler = sampler;
 
@@ -319,8 +319,8 @@ class MipmapSample : RHISampleApp
 			BindGroupEntry.Texture(0, mTextureView),
 			BindGroupEntry.Sampler(0, mSampler)
 		);
-		BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
-		if (Device.CreateBindGroup(&bindGroupDesc) case .Ok(let group))
+		BindGroupDesc bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
+		if (Device.CreateBindGroup(bindGroupDesc) case .Ok(let group))
 			mBindGroup = group;
 	}
 
@@ -341,8 +341,8 @@ class MipmapSample : RHISampleApp
 			BindGroupLayoutEntry.SampledTexture(0, .Fragment),  // t0 -> Vulkan binding 1000
 			BindGroupLayoutEntry.Sampler(0, .Fragment)          // s0 -> Vulkan binding 3000
 		);
-		BindGroupLayoutDescriptor bindGroupLayoutDesc = .(layoutEntries);
-		if (Device.CreateBindGroupLayout(&bindGroupLayoutDesc) not case .Ok(let layout))
+		BindGroupLayoutDesc bindGroupLayoutDesc = .(layoutEntries);
+		if (Device.CreateBindGroupLayout(bindGroupLayoutDesc) not case .Ok(let layout))
 			return false;
 		mBindGroupLayout = layout;
 
@@ -352,15 +352,15 @@ class MipmapSample : RHISampleApp
 			BindGroupEntry.Texture(0, mTextureView),
 			BindGroupEntry.Sampler(0, mSampler)
 		);
-		BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
-		if (Device.CreateBindGroup(&bindGroupDesc) not case .Ok(let group))
+		BindGroupDesc bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
+		if (Device.CreateBindGroup(bindGroupDesc) not case .Ok(let group))
 			return false;
 		mBindGroup = group;
 
 		// Create pipeline layout
 		IBindGroupLayout[1] layouts = .(mBindGroupLayout);
-		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
-		if (Device.CreatePipelineLayout(&pipelineLayoutDesc) not case .Ok(let pipelineLayout))
+		PipelineLayoutDesc pipelineLayoutDesc = .(layouts);
+		if (Device.CreatePipelineLayout(pipelineLayoutDesc) not case .Ok(let pipelineLayout))
 			return false;
 		mPipelineLayout = pipelineLayout;
 
@@ -395,7 +395,7 @@ class MipmapSample : RHISampleApp
 		};
 
 		// Pipeline descriptor
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Layout = mPipelineLayout,
 			Vertex = .()
@@ -423,7 +423,7 @@ class MipmapSample : RHISampleApp
 			}
 		};
 
-		if (Device.CreateRenderPipeline(&pipelineDesc) not case .Ok(let pipeline))
+		if (Device.CreateRenderPipeline(pipelineDesc) not case .Ok(let pipeline))
 			return false;
 		mPipeline = pipeline;
 

@@ -4,7 +4,7 @@ using System;
 
 /// Descriptor for creating a query set.
 [CRepr]
-struct QuerySetDescriptor
+struct QuerySetDesc
 {
 	/// The type of queries in this set.
 	public QueryType Type;

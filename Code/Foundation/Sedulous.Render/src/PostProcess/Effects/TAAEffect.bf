@@ -82,44 +82,44 @@ public class TAAEffect : IPostProcessEffect
 		mDevice = device;
 
 		// Create samplers
-		SamplerDescriptor linearDesc = .();
+		SamplerDesc linearDesc = .();
 		linearDesc.Label = "TAA Linear Sampler";
-		linearDesc.AddressModeU = .ClampToEdge;
-		linearDesc.AddressModeV = .ClampToEdge;
-		linearDesc.AddressModeW = .ClampToEdge;
+		linearDesc.AddressU = .ClampToEdge;
+		linearDesc.AddressV = .ClampToEdge;
+		linearDesc.AddressW = .ClampToEdge;
 		linearDesc.MinFilter = .Linear;
 		linearDesc.MagFilter = .Linear;
 		linearDesc.MipmapFilter = .Nearest;
 
-		switch (device.CreateSampler(&linearDesc))
+		switch (device.CreateSampler(linearDesc))
 		{
 		case .Ok(let sampler): mLinearSampler = sampler;
 		case .Err: return .Err;
 		}
 
-		SamplerDescriptor pointDesc = .();
+		SamplerDesc pointDesc = .();
 		pointDesc.Label = "TAA Point Sampler";
-		pointDesc.AddressModeU = .ClampToEdge;
-		pointDesc.AddressModeV = .ClampToEdge;
-		pointDesc.AddressModeW = .ClampToEdge;
+		pointDesc.AddressU = .ClampToEdge;
+		pointDesc.AddressV = .ClampToEdge;
+		pointDesc.AddressW = .ClampToEdge;
 		pointDesc.MinFilter = .Nearest;
 		pointDesc.MagFilter = .Nearest;
 		pointDesc.MipmapFilter = .Nearest;
 
-		switch (device.CreateSampler(&pointDesc))
+		switch (device.CreateSampler(pointDesc))
 		{
 		case .Ok(let sampler): mPointSampler = sampler;
 		case .Err: return .Err;
 		}
 
 		// Create params buffer
-		BufferDescriptor bufDesc = .();
+		BufferDesc bufDesc = .();
 		bufDesc.Label = "TAA Params";
 		bufDesc.Size = (uint64)TAAParams.Size;
 		bufDesc.Usage = .Uniform;
-		bufDesc.MemoryAccess = .Upload;
+		bufDesc.MemoryAccess = .CpuToGpu;
 
-		switch (device.CreateBuffer(&bufDesc))
+		switch (device.CreateBuffer(bufDesc))
 		{
 		case .Ok(let buf): mParamsBuffer = buf;
 		case .Err: return .Err;
@@ -135,11 +135,11 @@ public class TAAEffect : IPostProcessEffect
 			.() { Binding = 1, Visibility = .Fragment, Type = .Sampler }
 		);
 
-		BindGroupLayoutDescriptor resolveLayoutDesc = .();
+		BindGroupLayoutDesc resolveLayoutDesc = .();
 		resolveLayoutDesc.Label = "TAA Resolve BindGroup Layout";
 		resolveLayoutDesc.Entries = resolveLayoutEntries;
 
-		switch (device.CreateBindGroupLayout(&resolveLayoutDesc))
+		switch (device.CreateBindGroupLayout(resolveLayoutDesc))
 		{
 		case .Ok(let layout): mResolveBindGroupLayout = layout;
 		case .Err: return .Err;
@@ -151,11 +151,11 @@ public class TAAEffect : IPostProcessEffect
 			.() { Binding = 0, Visibility = .Fragment, Type = .Sampler }
 		);
 
-		BindGroupLayoutDescriptor copyLayoutDesc = .();
+		BindGroupLayoutDesc copyLayoutDesc = .();
 		copyLayoutDesc.Label = "TAA Copy BindGroup Layout";
 		copyLayoutDesc.Entries = copyLayoutEntries;
 
-		switch (device.CreateBindGroupLayout(&copyLayoutDesc))
+		switch (device.CreateBindGroupLayout(copyLayoutDesc))
 		{
 		case .Ok(let layout): mCopyBindGroupLayout = layout;
 		case .Err: return .Err;
@@ -163,16 +163,16 @@ public class TAAEffect : IPostProcessEffect
 
 		// Create pipeline layouts
 		IBindGroupLayout[1] resolveLayouts = .(mResolveBindGroupLayout);
-		PipelineLayoutDescriptor resolvePLDesc = .(resolveLayouts);
-		switch (device.CreatePipelineLayout(&resolvePLDesc))
+		PipelineLayoutDesc resolvePLDesc = .(resolveLayouts);
+		switch (device.CreatePipelineLayout(resolvePLDesc))
 		{
 		case .Ok(let layout): mResolvePipelineLayout = layout;
 		case .Err: return .Err;
 		}
 
 		IBindGroupLayout[1] copyLayouts = .(mCopyBindGroupLayout);
-		PipelineLayoutDescriptor copyPLDesc = .(copyLayouts);
-		switch (device.CreatePipelineLayout(&copyPLDesc))
+		PipelineLayoutDesc copyPLDesc = .(copyLayouts);
+		switch (device.CreatePipelineLayout(copyPLDesc))
 		{
 		case .Ok(let layout): mCopyPipelineLayout = layout;
 		case .Err: return .Err;
@@ -197,7 +197,7 @@ public class TAAEffect : IPostProcessEffect
 			let (vertShader, fragShader) = shaders;
 			ColorTargetState[1] colorTargets = .(.(.RGBA16Float));
 
-			RenderPipelineDescriptor pipelineDesc = .()
+			RenderPipelineDesc pipelineDesc = .()
 			{
 				Label = "TAA Resolve Pipeline",
 				Layout = mResolvePipelineLayout,
@@ -208,7 +208,7 @@ public class TAAEffect : IPostProcessEffect
 				Multisample = .() { Count = 1, Mask = uint32.MaxValue }
 			};
 
-			switch (device.CreateRenderPipeline(&pipelineDesc))
+			switch (device.CreateRenderPipeline(pipelineDesc))
 			{
 			case .Ok(let pipeline): mResolvePipeline = pipeline;
 			case .Err: return .Err;
@@ -224,7 +224,7 @@ public class TAAEffect : IPostProcessEffect
 			{
 				ColorTargetState[1] colorTargets = .(.(.RGBA16Float));
 
-				RenderPipelineDescriptor pipelineDesc = .()
+				RenderPipelineDesc pipelineDesc = .()
 				{
 					Label = "TAA History Copy Pipeline",
 					Layout = mCopyPipelineLayout,
@@ -235,7 +235,7 @@ public class TAAEffect : IPostProcessEffect
 					Multisample = .() { Count = 1, Mask = uint32.MaxValue }
 				};
 
-				switch (device.CreateRenderPipeline(&pipelineDesc))
+				switch (device.CreateRenderPipeline(pipelineDesc))
 				{
 				case .Ok(let pipeline): mCopyPipeline = pipeline;
 				case .Err: return .Err;
@@ -259,7 +259,7 @@ public class TAAEffect : IPostProcessEffect
 		if (mHistoryB != null) { delete mHistoryB; mHistoryB = null; }
 
 		// Create new history textures
-		TextureDescriptor texDesc = .();
+		TextureDesc texDesc = .();
 		texDesc.Width = width;
 		texDesc.Height = height;
 		texDesc.Format = .RGBA16Float;
@@ -269,19 +269,19 @@ public class TAAEffect : IPostProcessEffect
 		texDesc.SampleCount = 1;
 
 		texDesc.Label = "TAA History A";
-		if (mDevice.CreateTexture(&texDesc) case .Ok(let texA))
+		if (mDevice.CreateTexture(texDesc) case .Ok(let texA))
 			mHistoryA = texA;
 		else
 			return;
 
 		texDesc.Label = "TAA History B";
-		if (mDevice.CreateTexture(&texDesc) case .Ok(let texB))
+		if (mDevice.CreateTexture(texDesc) case .Ok(let texB))
 			mHistoryB = texB;
 		else
 			return;
 
 		// Create views
-		TextureViewDescriptor viewDesc = .();
+		TextureViewDesc viewDesc = .();
 		viewDesc.Format = .RGBA16Float;
 		viewDesc.Dimension = .Texture2D;
 		viewDesc.BaseMipLevel = 0;
@@ -290,10 +290,10 @@ public class TAAEffect : IPostProcessEffect
 		viewDesc.ArrayLayerCount = 1;
 		viewDesc.Aspect = .All;
 
-		if (mDevice.CreateTextureView(mHistoryA, &viewDesc) case .Ok(let viewA))
+		if (mDevice.CreateTextureView(mHistoryA, viewDesc) case .Ok(let viewA))
 			mHistoryAView = viewA;
 
-		if (mDevice.CreateTextureView(mHistoryB, &viewDesc) case .Ok(let viewB))
+		if (mDevice.CreateTextureView(mHistoryB, viewDesc) case .Ok(let viewB))
 			mHistoryBView = viewB;
 
 		mHistoryWidth = width;
@@ -419,19 +419,19 @@ public class TAAEffect : IPostProcessEffect
 			BindGroupEntry.Sampler(1, mPointSampler)
 		);
 
-		BindGroupDescriptor bgDesc = .();
+		BindGroupDesc bgDesc = .();
 		bgDesc.Label = "TAA Resolve BindGroup";
 		bgDesc.Layout = mResolveBindGroupLayout;
 		bgDesc.Entries = entries;
 
-		switch (mDevice.CreateBindGroup(&bgDesc))
+		switch (mDevice.CreateBindGroup(bgDesc))
 		{
 		case .Ok(let bg): mResolveBindGroups[frameIndex] = bg;
 		case .Err: return;
 		}
 
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0, 1);
-		encoder.SetScissorRect(0, 0, view.Width, view.Height);
+		encoder.SetScissor(0, 0, view.Width, view.Height);
 
 		encoder.SetPipeline(mResolvePipeline);
 		encoder.SetBindGroup(0, mResolveBindGroups[frameIndex], default);
@@ -460,19 +460,19 @@ public class TAAEffect : IPostProcessEffect
 			BindGroupEntry.Sampler(0, mPointSampler)
 		);
 
-		BindGroupDescriptor bgDesc = .();
+		BindGroupDesc bgDesc = .();
 		bgDesc.Label = "TAA Copy BindGroup";
 		bgDesc.Layout = mCopyBindGroupLayout;
 		bgDesc.Entries = entries;
 
-		switch (mDevice.CreateBindGroup(&bgDesc))
+		switch (mDevice.CreateBindGroup(bgDesc))
 		{
 		case .Ok(let bg): mCopyBindGroups[frameIndex] = bg;
 		case .Err: return;
 		}
 
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0, 1);
-		encoder.SetScissorRect(0, 0, view.Width, view.Height);
+		encoder.SetScissor(0, 0, view.Width, view.Height);
 
 		encoder.SetPipeline(mCopyPipeline);
 		encoder.SetBindGroup(0, mCopyBindGroups[frameIndex], default);

@@ -835,7 +835,7 @@ public class RenderGraph : IDisposable
 	private Result<void> ExecuteGraphicsPass(RenderPass pass, ICommandEncoder commandEncoder)
 	{
 		// Build color attachments
-		RenderPassColorAttachment[8] colorAttachments = default;
+		ColorAttachment[8] colorAttachments = default;
 		int colorAttachmentCount = Math.Min(pass.ColorAttachments.Count, 8);
 
 		for (int i = 0; i < colorAttachmentCount; i++)
@@ -854,7 +854,7 @@ public class RenderGraph : IDisposable
 		}
 
 		// Build render pass descriptor
-		var rpDesc = RenderPassDescriptor();
+		var rpDesc = RenderPassDesc();
 		if(!String.IsNullOrEmpty(pass.Name))
 			rpDesc.Label = pass.Name;
 		rpDesc.ColorAttachments = .(&colorAttachments[0], colorAttachmentCount);

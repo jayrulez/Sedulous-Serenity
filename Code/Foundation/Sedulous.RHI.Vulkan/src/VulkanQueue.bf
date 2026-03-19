@@ -190,14 +190,14 @@ class VulkanQueue : IQueue
 		if (vkBuffer == null || !vkBuffer.IsValid || data.Length == 0)
 			return;
 
-		BufferDescriptor stagingDesc = .()
+		BufferDesc stagingDesc = .()
 			{
 				Size = (uint64)data.Length,
 				Usage = .CopySrc,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
 
-		if (mDevice.CreateBuffer(&stagingDesc) case .Ok(let stagingBuffer))
+		if (mDevice.CreateBuffer(stagingDesc) case .Ok(let stagingBuffer))
 		{
 			// Copy data to staging buffer
 			if (let vkStaging = stagingBuffer as VulkanBuffer)
@@ -257,14 +257,14 @@ class VulkanQueue : IQueue
 			return;
 
 		// Create staging buffer
-		BufferDescriptor stagingDesc = .()
+		BufferDesc stagingDesc = .()
 			{
 				Size = (uint64)data.Length,
 				Usage = .CopySrc,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
 
-		if (mDevice.CreateBuffer(&stagingDesc) case .Ok(let stagingBuffer))
+		if (mDevice.CreateBuffer(stagingDesc) case .Ok(let stagingBuffer))
 		{
 			if (let vkStaging = stagingBuffer as VulkanBuffer)
 			{
@@ -418,14 +418,14 @@ class VulkanQueue : IQueue
 			return;
 
 		// For device-local buffers, use staging
-		BufferDescriptor stagingDesc = .()
+		BufferDesc stagingDesc = .()
 		{
 			Size = (uint64)data.Length,
 			Usage = .CopyDst,
-			MemoryAccess = .Readback
+			MemoryAccess = .GpuToCpu
 		};
 
-		if (mDevice.CreateBuffer(&stagingDesc) case .Ok(let stagingBuffer))
+		if (mDevice.CreateBuffer(stagingDesc) case .Ok(let stagingBuffer))
 		{
 			if (let vkStaging = stagingBuffer as VulkanBuffer)
 			{
@@ -485,14 +485,14 @@ class VulkanQueue : IQueue
 			return;
 
 		// Create staging buffer
-		BufferDescriptor stagingDesc = .()
+		BufferDesc stagingDesc = .()
 		{
 			Size = (uint64)data.Length,
 			Usage = .CopyDst,
-			MemoryAccess = .Readback
+			MemoryAccess = .GpuToCpu
 		};
 
-		if (mDevice.CreateBuffer(&stagingDesc) case .Ok(let stagingBuffer))
+		if (mDevice.CreateBuffer(stagingDesc) case .Ok(let stagingBuffer))
 		{
 			if (let vkStaging = stagingBuffer as VulkanBuffer)
 			{

@@ -19,38 +19,38 @@ interface IDevice : IDisposable
 	// ===== Resource Creation =====
 
 	/// Creates a buffer.
-	Result<IBuffer> CreateBuffer(BufferDescriptor* descriptor);
+	Result<IBuffer> CreateBuffer(BufferDesc descriptor);
 
 	/// Creates a texture.
-	Result<ITexture> CreateTexture(TextureDescriptor* descriptor);
+	Result<ITexture> CreateTexture(TextureDesc descriptor);
 
 	/// Creates a texture view.
-	Result<ITextureView> CreateTextureView(ITexture texture, TextureViewDescriptor* descriptor);
+	Result<ITextureView> CreateTextureView(ITexture texture, TextureViewDesc descriptor);
 
 	/// Creates a sampler.
-	Result<ISampler> CreateSampler(SamplerDescriptor* descriptor);
+	Result<ISampler> CreateSampler(SamplerDesc descriptor);
 
 	/// Creates a shader module from compiled bytecode.
-	Result<IShaderModule> CreateShaderModule(ShaderModuleDescriptor* descriptor);
+	Result<IShaderModule> CreateShaderModule(ShaderModuleDesc descriptor);
 
 	// ===== Binding =====
 
 	/// Creates a bind group layout.
-	Result<IBindGroupLayout> CreateBindGroupLayout(BindGroupLayoutDescriptor* descriptor);
+	Result<IBindGroupLayout> CreateBindGroupLayout(BindGroupLayoutDesc descriptor);
 
 	/// Creates a bind group.
-	Result<IBindGroup> CreateBindGroup(BindGroupDescriptor* descriptor);
+	Result<IBindGroup> CreateBindGroup(BindGroupDesc descriptor);
 
 	/// Creates a pipeline layout.
-	Result<IPipelineLayout> CreatePipelineLayout(PipelineLayoutDescriptor* descriptor);
+	Result<IPipelineLayout> CreatePipelineLayout(PipelineLayoutDesc descriptor);
 
 	// ===== Pipelines =====
 
 	/// Creates a render pipeline.
-	Result<IRenderPipeline> CreateRenderPipeline(RenderPipelineDescriptor* descriptor);
+	Result<IRenderPipeline> CreateRenderPipeline(RenderPipelineDesc descriptor);
 
 	/// Creates a compute pipeline.
-	Result<IComputePipeline> CreateComputePipeline(ComputePipelineDescriptor* descriptor);
+	Result<IComputePipeline> CreateComputePipeline(ComputePipelineDesc descriptor);
 
 	// ===== Commands =====
 
@@ -60,12 +60,12 @@ interface IDevice : IDisposable
 	// ===== Queries =====
 
 	/// Creates a query set for GPU timing, occlusion, or pipeline statistics.
-	Result<IQuerySet> CreateQuerySet(QuerySetDescriptor* descriptor);
+	Result<IQuerySet> CreateQuerySet(QuerySetDesc descriptor);
 
 	// ===== Presentation =====
 
 	/// Creates a swap chain for presenting to a surface.
-	Result<ISwapChain> CreateSwapChain(ISurface surface, SwapChainDescriptor* descriptor);
+	Result<ISwapChain> CreateSwapChain(ISurface surface, SwapChainDesc descriptor);
 
 	// ===== Synchronization =====
 

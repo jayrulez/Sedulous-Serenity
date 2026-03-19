@@ -85,16 +85,16 @@ public class BloomEffect : IPostProcessEffect
 		mDevice = device;
 
 		// Create linear sampler
-		SamplerDescriptor samplerDesc = .();
+		SamplerDesc samplerDesc = .();
 		samplerDesc.Label = "Bloom Linear Sampler";
-		samplerDesc.AddressModeU = .ClampToEdge;
-		samplerDesc.AddressModeV = .ClampToEdge;
-		samplerDesc.AddressModeW = .ClampToEdge;
+		samplerDesc.AddressU = .ClampToEdge;
+		samplerDesc.AddressV = .ClampToEdge;
+		samplerDesc.AddressW = .ClampToEdge;
 		samplerDesc.MinFilter = .Linear;
 		samplerDesc.MagFilter = .Linear;
 		samplerDesc.MipmapFilter = .Nearest;
 
-		switch (device.CreateSampler(&samplerDesc))
+		switch (device.CreateSampler(samplerDesc))
 		{
 		case .Ok(let sampler): mLinearSampler = sampler;
 		case .Err: return .Err;
@@ -103,13 +103,13 @@ public class BloomEffect : IPostProcessEffect
 		// Create param buffers for each mip (both down and up)
 		for (int32 i = 0; i < MipCount; i++)
 		{
-			BufferDescriptor bufDesc = .();
+			BufferDesc bufDesc = .();
 			bufDesc.Label = "Bloom Downsample Params";
 			bufDesc.Size = (uint64)BloomDownsampleParams.Size;
 			bufDesc.Usage = .Uniform;
-			bufDesc.MemoryAccess = .Upload;
+			bufDesc.MemoryAccess = .CpuToGpu;
 
-			switch (device.CreateBuffer(&bufDesc))
+			switch (device.CreateBuffer(bufDesc))
 			{
 			case .Ok(let buf): mDownsampleParamBuffers[i] = buf;
 			case .Err: return .Err;
@@ -118,7 +118,7 @@ public class BloomEffect : IPostProcessEffect
 			bufDesc.Label = "Bloom Upsample Params";
 			bufDesc.Size = (uint64)BloomUpsampleParams.Size;
 
-			switch (device.CreateBuffer(&bufDesc))
+			switch (device.CreateBuffer(bufDesc))
 			{
 			case .Ok(let buf): mUpsampleParamBuffers[i] = buf;
 			case .Err: return .Err;
@@ -132,11 +132,11 @@ public class BloomEffect : IPostProcessEffect
 			.() { Binding = 0, Visibility = .Fragment, Type = .Sampler }
 		);
 
-		BindGroupLayoutDescriptor dsLayoutDesc = .();
+		BindGroupLayoutDesc dsLayoutDesc = .();
 		dsLayoutDesc.Label = "Bloom Downsample Layout";
 		dsLayoutDesc.Entries = dsLayoutEntries;
 
-		switch (device.CreateBindGroupLayout(&dsLayoutDesc))
+		switch (device.CreateBindGroupLayout(dsLayoutDesc))
 		{
 		case .Ok(let layout): mDownsampleBindGroupLayout = layout;
 		case .Err: return .Err;
@@ -150,11 +150,11 @@ public class BloomEffect : IPostProcessEffect
 			.() { Binding = 0, Visibility = .Fragment, Type = .Sampler }
 		);
 
-		BindGroupLayoutDescriptor usLayoutDesc = .();
+		BindGroupLayoutDesc usLayoutDesc = .();
 		usLayoutDesc.Label = "Bloom Upsample Layout";
 		usLayoutDesc.Entries = usLayoutEntries;
 
-		switch (device.CreateBindGroupLayout(&usLayoutDesc))
+		switch (device.CreateBindGroupLayout(usLayoutDesc))
 		{
 		case .Ok(let layout): mUpsampleBindGroupLayout = layout;
 		case .Err: return .Err;
@@ -162,16 +162,16 @@ public class BloomEffect : IPostProcessEffect
 
 		// Create pipeline layouts
 		IBindGroupLayout[1] dsLayouts = .(mDownsampleBindGroupLayout);
-		PipelineLayoutDescriptor dsPLDesc = .(dsLayouts);
-		switch (device.CreatePipelineLayout(&dsPLDesc))
+		PipelineLayoutDesc dsPLDesc = .(dsLayouts);
+		switch (device.CreatePipelineLayout(dsPLDesc))
 		{
 		case .Ok(let layout): mDownsamplePipelineLayout = layout;
 		case .Err: return .Err;
 		}
 
 		IBindGroupLayout[1] usLayouts = .(mUpsampleBindGroupLayout);
-		PipelineLayoutDescriptor usPLDesc = .(usLayouts);
-		switch (device.CreatePipelineLayout(&usPLDesc))
+		PipelineLayoutDesc usPLDesc = .(usLayouts);
+		switch (device.CreatePipelineLayout(usPLDesc))
 		{
 		case .Ok(let layout): mUpsamplePipelineLayout = layout;
 		case .Err: return .Err;
@@ -196,7 +196,7 @@ public class BloomEffect : IPostProcessEffect
 			let (vertShader, fragShader) = shaders;
 			ColorTargetState[1] colorTargets = .(.(.RGBA16Float));
 
-			RenderPipelineDescriptor pipelineDesc = .()
+			RenderPipelineDesc pipelineDesc = .()
 			{
 				Label = "Bloom Downsample Pipeline",
 				Layout = mDownsamplePipelineLayout,
@@ -207,7 +207,7 @@ public class BloomEffect : IPostProcessEffect
 				Multisample = .() { Count = 1, Mask = uint32.MaxValue }
 			};
 
-			switch (device.CreateRenderPipeline(&pipelineDesc))
+			switch (device.CreateRenderPipeline(pipelineDesc))
 			{
 			case .Ok(let pipeline): mDownsamplePipeline = pipeline;
 			case .Err: return .Err;
@@ -221,7 +221,7 @@ public class BloomEffect : IPostProcessEffect
 			let (vertShader, fragShader) = usShaders;
 			ColorTargetState[1] colorTargets = .(.(.RGBA16Float));
 
-			RenderPipelineDescriptor pipelineDesc = .()
+			RenderPipelineDesc pipelineDesc = .()
 			{
 				Label = "Bloom Upsample Pipeline",
 				Layout = mUpsamplePipelineLayout,
@@ -232,7 +232,7 @@ public class BloomEffect : IPostProcessEffect
 				Multisample = .() { Count = 1, Mask = uint32.MaxValue }
 			};
 
-			switch (device.CreateRenderPipeline(&pipelineDesc))
+			switch (device.CreateRenderPipeline(pipelineDesc))
 			{
 			case .Ok(let pipeline): mUpsamplePipeline = pipeline;
 			case .Err: return .Err;
@@ -472,19 +472,19 @@ public class BloomEffect : IPostProcessEffect
 			BindGroupEntry.Sampler(0, mLinearSampler)
 		);
 
-		BindGroupDescriptor bgDesc = .();
+		BindGroupDesc bgDesc = .();
 		bgDesc.Label = "Bloom Downsample BG";
 		bgDesc.Layout = mDownsampleBindGroupLayout;
 		bgDesc.Entries = entries;
 
-		switch (mDevice.CreateBindGroup(&bgDesc))
+		switch (mDevice.CreateBindGroup(bgDesc))
 		{
 		case .Ok(let bg): mDownsampleBindGroups[bgIndex] = bg;
 		case .Err: return;
 		}
 
 		encoder.SetViewport(0, 0, (float)width, (float)height, 0, 1);
-		encoder.SetScissorRect(0, 0, width, height);
+		encoder.SetScissor(0, 0, width, height);
 
 		encoder.SetPipeline(mDownsamplePipeline);
 		encoder.SetBindGroup(0, mDownsampleBindGroups[bgIndex], default);
@@ -516,19 +516,19 @@ public class BloomEffect : IPostProcessEffect
 			BindGroupEntry.Sampler(0, mLinearSampler)
 		);
 
-		BindGroupDescriptor bgDesc = .();
+		BindGroupDesc bgDesc = .();
 		bgDesc.Label = "Bloom Upsample BG";
 		bgDesc.Layout = mUpsampleBindGroupLayout;
 		bgDesc.Entries = entries;
 
-		switch (mDevice.CreateBindGroup(&bgDesc))
+		switch (mDevice.CreateBindGroup(bgDesc))
 		{
 		case .Ok(let bg): mUpsampleBindGroups[bgIndex] = bg;
 		case .Err: return;
 		}
 
 		encoder.SetViewport(0, 0, (float)width, (float)height, 0, 1);
-		encoder.SetScissorRect(0, 0, width, height);
+		encoder.SetScissor(0, 0, width, height);
 
 		encoder.SetPipeline(mUpsamplePipeline);
 		encoder.SetBindGroup(0, mUpsampleBindGroups[bgIndex], default);

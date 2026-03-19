@@ -138,7 +138,7 @@ public class ParticleFeature : RenderFeatureBase
 		const int32 TexSize = 64;
 		const int32 TexBytes = TexSize * TexSize * 4;
 
-		TextureDescriptor texDesc = .()
+		TextureDesc texDesc = .()
 		{
 			Label = "Default Particle Texture",
 			Width = TexSize,
@@ -152,7 +152,7 @@ public class ParticleFeature : RenderFeatureBase
 			Usage = .Sampled | .CopyDst
 		};
 
-		switch (Renderer.Device.CreateTexture(&texDesc))
+		switch (Renderer.Device.CreateTexture(texDesc))
 		{
 		case .Ok(let tex): mDefaultParticleTexture = tex;
 		case .Err: return .Err;
@@ -197,46 +197,46 @@ public class ParticleFeature : RenderFeatureBase
 		UploadTexture(mDefaultParticleTexture, Span<uint8>(&pixels[0], TexBytes), &layout, &writeSize);
 
 		// Create texture view
-		TextureViewDescriptor viewDesc = .()
+		TextureViewDesc viewDesc = .()
 		{
 			Label = "Default Particle Texture View",
 			Dimension = .Texture2D
 		};
 
-		switch (Renderer.Device.CreateTextureView(mDefaultParticleTexture, &viewDesc))
+		switch (Renderer.Device.CreateTextureView(mDefaultParticleTexture, viewDesc))
 		{
 		case .Ok(let view): mDefaultParticleTextureView = view;
 		case .Err: return .Err;
 		}
 
 		// Create default sampler (linear, clamp)
-		SamplerDescriptor samplerDesc = .()
+		SamplerDesc samplerDesc = .()
 		{
 			Label = "Particle Sampler",
-			AddressModeU = .ClampToEdge,
-			AddressModeV = .ClampToEdge,
-			AddressModeW = .ClampToEdge,
+			AddressU = .ClampToEdge,
+			AddressV = .ClampToEdge,
+			AddressW = .ClampToEdge,
 			MinFilter = .Linear,
 			MagFilter = .Linear,
 			MipmapFilter = .Linear
 		};
 
-		switch (Renderer.Device.CreateSampler(&samplerDesc))
+		switch (Renderer.Device.CreateSampler(samplerDesc))
 		{
 		case .Ok(let sampler): mDefaultSampler = sampler;
 		case .Err: return .Err;
 		}
 
 		// Create emitter params dynamic uniform buffer (256-byte aligned slots for per-emitter params)
-		BufferDescriptor emitterParamsDesc = .()
+		BufferDesc emitterParamsDesc = .()
 		{
 			Label = "Emitter Params (Dynamic UBO)",
 			Size = EmitterParamAlignment * MaxActiveEmitters,
 			Usage = .Uniform,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		switch (Renderer.Device.CreateBuffer(&emitterParamsDesc))
+		switch (Renderer.Device.CreateBuffer(emitterParamsDesc))
 		{
 		case .Ok(let buf): mEmitterParamsBuffer = buf;
 		case .Err: return .Err;
@@ -244,53 +244,53 @@ public class ParticleFeature : RenderFeatureBase
 
 		// Create fallback lighting buffers (zeroed = 0 lights, no clusters)
 		// Used when ForwardOpaqueFeature lighting isn't available yet
-		BufferDescriptor fallbackLightingDesc = .()
+		BufferDesc fallbackLightingDesc = .()
 		{
 			Label = "Fallback Lighting UBO",
 			Size = (uint64)LightingUniforms.Size,
 			Usage = .Uniform,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
-		switch (Renderer.Device.CreateBuffer(&fallbackLightingDesc))
+		switch (Renderer.Device.CreateBuffer(fallbackLightingDesc))
 		{
 		case .Ok(let buf): mFallbackLightingBuffer = buf;
 		case .Err: return .Err;
 		}
 
-		BufferDescriptor fallbackLightDataDesc = .()
+		BufferDesc fallbackLightDataDesc = .()
 		{
 			Label = "Fallback Light Data",
 			Size = 64,
 			Usage = .Storage,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
-		switch (Renderer.Device.CreateBuffer(&fallbackLightDataDesc))
+		switch (Renderer.Device.CreateBuffer(fallbackLightDataDesc))
 		{
 		case .Ok(let buf): mFallbackLightDataBuffer = buf;
 		case .Err: return .Err;
 		}
 
-		BufferDescriptor fallbackClusterInfoDesc = .()
+		BufferDesc fallbackClusterInfoDesc = .()
 		{
 			Label = "Fallback Cluster Info",
 			Size = 8,
 			Usage = .Storage,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
-		switch (Renderer.Device.CreateBuffer(&fallbackClusterInfoDesc))
+		switch (Renderer.Device.CreateBuffer(fallbackClusterInfoDesc))
 		{
 		case .Ok(let buf): mFallbackClusterInfoBuffer = buf;
 		case .Err: return .Err;
 		}
 
-		BufferDescriptor fallbackLightIndexDesc = .()
+		BufferDesc fallbackLightIndexDesc = .()
 		{
 			Label = "Fallback Light Index",
 			Size = 4,
 			Usage = .Storage,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
-		switch (Renderer.Device.CreateBuffer(&fallbackLightIndexDesc))
+		switch (Renderer.Device.CreateBuffer(fallbackLightIndexDesc))
 		{
 		case .Ok(let buf): mFallbackLightIndexBuffer = buf;
 		case .Err: return .Err;
@@ -310,8 +310,8 @@ public class ParticleFeature : RenderFeatureBase
 
 		// Create compute pipeline layout
 		IBindGroupLayout[1] computeLayouts = .(mComputeBindGroupLayout);
-		PipelineLayoutDescriptor computeLayoutDesc = .(computeLayouts);
-		switch (Renderer.Device.CreatePipelineLayout(&computeLayoutDesc))
+		PipelineLayoutDesc computeLayoutDesc = .(computeLayouts);
+		switch (Renderer.Device.CreatePipelineLayout(computeLayoutDesc))
 		{
 		case .Ok(let layout): mComputePipelineLayout = layout;
 		case .Err: return .Err;
@@ -321,10 +321,10 @@ public class ParticleFeature : RenderFeatureBase
 		let spawnResult = Renderer.ShaderSystem.GetShader("particle_spawn", .Compute);
 		if (spawnResult case .Ok(let spawnShader))
 		{
-			ComputePipelineDescriptor spawnDesc = .(mComputePipelineLayout, spawnShader.Module);
+			ComputePipelineDesc spawnDesc = .(mComputePipelineLayout, spawnShader.Module);
 			spawnDesc.Label = "Particle Spawn Pipeline";
 
-			switch (Renderer.Device.CreateComputePipeline(&spawnDesc))
+			switch (Renderer.Device.CreateComputePipeline(spawnDesc))
 			{
 			case .Ok(let pipeline): mSpawnPipeline = pipeline;
 			case .Err: // Non-fatal
@@ -335,10 +335,10 @@ public class ParticleFeature : RenderFeatureBase
 		let updateResult = Renderer.ShaderSystem.GetShader("particle_update", .Compute);
 		if (updateResult case .Ok(let updateShader))
 		{
-			ComputePipelineDescriptor updateDesc = .(mComputePipelineLayout, updateShader.Module);
+			ComputePipelineDesc updateDesc = .(mComputePipelineLayout, updateShader.Module);
 			updateDesc.Label = "Particle Update Pipeline";
 
-			switch (Renderer.Device.CreateComputePipeline(&updateDesc))
+			switch (Renderer.Device.CreateComputePipeline(updateDesc))
 			{
 			case .Ok(let pipeline): mUpdatePipeline = pipeline;
 			case .Err: // Non-fatal
@@ -349,10 +349,10 @@ public class ParticleFeature : RenderFeatureBase
 		let compactResult = Renderer.ShaderSystem.GetShader("particle_compact", .Compute);
 		if (compactResult case .Ok(let compactShader))
 		{
-			ComputePipelineDescriptor compactDesc = .(mComputePipelineLayout, compactShader.Module);
+			ComputePipelineDesc compactDesc = .(mComputePipelineLayout, compactShader.Module);
 			compactDesc.Label = "Particle Compact Pipeline";
 
-			switch (Renderer.Device.CreateComputePipeline(&compactDesc))
+			switch (Renderer.Device.CreateComputePipeline(compactDesc))
 			{
 			case .Ok(let pipeline): mCompactPipeline = pipeline;
 			case .Err: // Non-fatal
@@ -363,10 +363,10 @@ public class ParticleFeature : RenderFeatureBase
 		let resetResult = Renderer.ShaderSystem.GetShader("particle_counter_reset", .Compute);
 		if (resetResult case .Ok(let resetShader))
 		{
-			ComputePipelineDescriptor resetDesc = .(mComputePipelineLayout, resetShader.Module);
+			ComputePipelineDesc resetDesc = .(mComputePipelineLayout, resetShader.Module);
 			resetDesc.Label = "Particle Counter Reset Pipeline";
 
-			switch (Renderer.Device.CreateComputePipeline(&resetDesc))
+			switch (Renderer.Device.CreateComputePipeline(resetDesc))
 			{
 			case .Ok(let pipeline): mCounterResetPipeline = pipeline;
 			case .Err: // Non-fatal
@@ -375,8 +375,8 @@ public class ParticleFeature : RenderFeatureBase
 
 		// Create GPU render pipeline layout
 		IBindGroupLayout[1] gpuRenderLayouts = .(mGPURenderBindGroupLayout);
-		PipelineLayoutDescriptor gpuRenderLayoutDesc = .(gpuRenderLayouts);
-		switch (Renderer.Device.CreatePipelineLayout(&gpuRenderLayoutDesc))
+		PipelineLayoutDesc gpuRenderLayoutDesc = .(gpuRenderLayouts);
+		switch (Renderer.Device.CreatePipelineLayout(gpuRenderLayoutDesc))
 		{
 		case .Ok(let layout): mGPURenderPipelineLayout = layout;
 		case .Err: return .Err;
@@ -391,7 +391,7 @@ public class ParticleFeature : RenderFeatureBase
 					.(.RGBA16Float, blendMode)
 				);
 
-				RenderPipelineDescriptor renderDesc = .()
+				RenderPipelineDesc renderDesc = .()
 				{
 					Label = scope :: $"Particle GPU Render Pipeline ({label})",
 					Layout = mGPURenderPipelineLayout,
@@ -419,7 +419,7 @@ public class ParticleFeature : RenderFeatureBase
 					}
 				};
 
-				switch (Renderer.Device.CreateRenderPipeline(&renderDesc))
+				switch (Renderer.Device.CreateRenderPipeline(renderDesc))
 				{
 				case .Ok(let createdPipeline): pipeline = createdPipeline;
 				case .Err: // Non-fatal
@@ -436,8 +436,8 @@ public class ParticleFeature : RenderFeatureBase
 		if (mCPURenderBindGroupLayout != null)
 		{
 			IBindGroupLayout[1] cpuRenderLayouts = .(mCPURenderBindGroupLayout);
-			PipelineLayoutDescriptor cpuRenderLayoutDesc = .(cpuRenderLayouts);
-			switch (Renderer.Device.CreatePipelineLayout(&cpuRenderLayoutDesc))
+			PipelineLayoutDesc cpuRenderLayoutDesc = .(cpuRenderLayouts);
+			switch (Renderer.Device.CreatePipelineLayout(cpuRenderLayoutDesc))
 			{
 			case .Ok(let layout): mCPURenderPipelineLayout = layout;
 			case .Err: return .Err;
@@ -451,7 +451,7 @@ public class ParticleFeature : RenderFeatureBase
 				VertexBufferLayout[1] cpuVertexBuffers = .(
 					.()
 					{
-						ArrayStride = (uint64)CPUParticleVertex.SizeInBytes,
+						Stride = (uint64)CPUParticleVertex.SizeInBytes,
 						StepMode = .Instance,
 						Attributes = VertexAttribute[6](
 							.() { Format = .Float3,           Offset = 0,  ShaderLocation = 0 },  // Position
@@ -469,7 +469,7 @@ public class ParticleFeature : RenderFeatureBase
 						.(.RGBA16Float, blendMode)
 					);
 
-					RenderPipelineDescriptor renderDesc = .()
+					RenderPipelineDesc renderDesc = .()
 					{
 						Label = scope :: $"Particle CPU Render Pipeline ({label})",
 						Layout = mCPURenderPipelineLayout,
@@ -497,7 +497,7 @@ public class ParticleFeature : RenderFeatureBase
 						}
 					};
 
-					switch (Renderer.Device.CreateRenderPipeline(&renderDesc))
+					switch (Renderer.Device.CreateRenderPipeline(renderDesc))
 					{
 					case .Ok(let createdPipeline): pipeline = createdPipeline;
 					case .Err: // Non-fatal
@@ -517,7 +517,7 @@ public class ParticleFeature : RenderFeatureBase
 				VertexBufferLayout[1] trailVertexBuffers = .(
 					.()
 					{
-						ArrayStride = (uint64)TrailVertex.SizeInBytes,
+						Stride = (uint64)TrailVertex.SizeInBytes,
 						StepMode = .Vertex,
 						Attributes = VertexAttribute[3](
 							.() { Format = .Float3,           Offset = 0,  ShaderLocation = 0 },  // Position
@@ -532,7 +532,7 @@ public class ParticleFeature : RenderFeatureBase
 						.(.RGBA16Float, blendMode)
 					);
 
-					RenderPipelineDescriptor renderDesc = .()
+					RenderPipelineDesc renderDesc = .()
 					{
 						Label = scope :: $"Particle Trail Pipeline ({label})",
 						Layout = mCPURenderPipelineLayout,
@@ -560,7 +560,7 @@ public class ParticleFeature : RenderFeatureBase
 						}
 					};
 
-					switch (Renderer.Device.CreateRenderPipeline(&renderDesc))
+					switch (Renderer.Device.CreateRenderPipeline(renderDesc))
 					{
 					case .Ok(let createdPipeline): pipeline = createdPipeline;
 					case .Err: // Non-fatal
@@ -849,13 +849,13 @@ public class ParticleFeature : RenderFeatureBase
 			.() { Binding = 4, Visibility = .Compute, Type = .StorageBufferReadWrite }  // AliveListAlt (u4)
 		);
 
-		BindGroupLayoutDescriptor computeLayoutDesc = .()
+		BindGroupLayoutDesc computeLayoutDesc = .()
 		{
 			Label = "Particle Compute BindGroup Layout",
 			Entries = computeEntries
 		};
 
-		switch (Renderer.Device.CreateBindGroupLayout(&computeLayoutDesc))
+		switch (Renderer.Device.CreateBindGroupLayout(computeLayoutDesc))
 		{
 		case .Ok(let layout): mComputeBindGroupLayout = layout;
 		case .Err: return .Err;
@@ -878,13 +878,13 @@ public class ParticleFeature : RenderFeatureBase
 			.() { Binding = 2, Visibility = .Fragment, Type = .UniformBuffer, HasDynamicOffset = true }  // EmitterParams (b2, dynamic)
 		);
 
-		BindGroupLayoutDescriptor gpuRenderLayoutDesc = .()
+		BindGroupLayoutDesc gpuRenderLayoutDesc = .()
 		{
 			Label = "Particle GPU Render BindGroup Layout",
 			Entries = gpuRenderEntries
 		};
 
-		switch (Renderer.Device.CreateBindGroupLayout(&gpuRenderLayoutDesc))
+		switch (Renderer.Device.CreateBindGroupLayout(gpuRenderLayoutDesc))
 		{
 		case .Ok(let layout): mGPURenderBindGroupLayout = layout;
 		case .Err: return .Err;
@@ -903,13 +903,13 @@ public class ParticleFeature : RenderFeatureBase
 			.() { Binding = 6, Visibility = .Fragment, Type = .StorageBuffer }             // LightIndices (t6)
 		);
 
-		BindGroupLayoutDescriptor cpuRenderLayoutDesc = .()
+		BindGroupLayoutDesc cpuRenderLayoutDesc = .()
 		{
 			Label = "Particle CPU Render BindGroup Layout",
 			Entries = cpuRenderEntries
 		};
 
-		switch (Renderer.Device.CreateBindGroupLayout(&cpuRenderLayoutDesc))
+		switch (Renderer.Device.CreateBindGroupLayout(cpuRenderLayoutDesc))
 		{
 		case .Ok(let layout): mCPURenderBindGroupLayout = layout;
 		case .Err: return .Err;
@@ -989,7 +989,7 @@ public class ParticleFeature : RenderFeatureBase
 
 		// Render to per-view SceneColor texture at (0,0), not swapchain offset
 		encoder.SetViewport(0, 0, (float)viewWidth, (float)viewHeight, 0.0f, 1.0f);
-		encoder.SetScissorRect(0, 0, viewWidth, viewHeight);
+		encoder.SetScissor(0, 0, viewWidth, viewHeight);
 
 		// Resolve depth-only texture view for soft particles (depth aspect only for shader sampling)
 		let depthView = Renderer.RenderGraph?.GetDepthOnlyTextureView(mDepthHandle);
@@ -1090,14 +1090,14 @@ public class ParticleFeature : RenderFeatureBase
 			BindGroupEntry.Buffer(2, mEmitterParamsBuffer, 0, EmitterParamAlignment)
 		);
 
-		BindGroupDescriptor renderBgDesc = .()
+		BindGroupDesc renderBgDesc = .()
 		{
 			Label = "Particle GPU Render BindGroup",
 			Layout = mGPURenderBindGroupLayout,
 			Entries = renderEntries
 		};
 
-		switch (Renderer.Device.CreateBindGroup(&renderBgDesc))
+		switch (Renderer.Device.CreateBindGroup(renderBgDesc))
 		{
 		case .Ok(let bg):
 			system.RenderBindGroups[bindGroupIndex] = bg;
@@ -1350,14 +1350,14 @@ public class ParticleFeature : RenderFeatureBase
 			BindGroupEntry.Buffer(6, lightIndexBuffer, 0, lightIndexSize)
 		);
 
-		BindGroupDescriptor bgDesc = .()
+		BindGroupDesc bgDesc = .()
 		{
 			Label = "Standalone Trail Render BindGroup",
 			Layout = mCPURenderBindGroupLayout,
 			Entries = entries
 		};
 
-		switch (Renderer.Device.CreateBindGroup(&bgDesc))
+		switch (Renderer.Device.CreateBindGroup(bgDesc))
 		{
 		case .Ok(let bg): return bg;
 		case .Err: return null;
@@ -1425,14 +1425,14 @@ public class ParticleFeature : RenderFeatureBase
 			BindGroupEntry.Buffer(6, lightIndexBuffer, 0, lightIndexSize)
 		);
 
-		BindGroupDescriptor bgDesc = .()
+		BindGroupDesc bgDesc = .()
 		{
 			Label = "CPU Particle Render BindGroup",
 			Layout = mCPURenderBindGroupLayout,
 			Entries = entries
 		};
 
-		switch (Renderer.Device.CreateBindGroup(&bgDesc))
+		switch (Renderer.Device.CreateBindGroup(bgDesc))
 		{
 		case .Ok(let bg): return bg;
 		case .Err: return null;
@@ -1529,14 +1529,14 @@ public class ParticleFeature : RenderFeatureBase
 		system.MaxParticles = proxy.MaxParticles;
 		system.BlendMode = proxy.BlendMode;
 
-		BufferDescriptor particleBufferDesc = .()
+		BufferDesc particleBufferDesc = .()
 		{
 			Label = "Particles",
 			Size = (uint64)(proxy.MaxParticles * GPUParticle.SizeInBytes),
 			Usage = .Storage
 		};
 
-		switch (Renderer.Device.CreateBuffer(&particleBufferDesc))
+		switch (Renderer.Device.CreateBuffer(particleBufferDesc))
 		{
 		case .Ok(let buf): system.ParticleBuffer = buf;
 		case .Err:
@@ -1544,16 +1544,16 @@ public class ParticleFeature : RenderFeatureBase
 			return null;
 		}
 
-		BufferDescriptor indexBufferDesc = .()
+		BufferDesc indexBufferDesc = .()
 		{
 			Label = "Particle Indices",
 			Size = (uint64)(proxy.MaxParticles * 4),
 			Usage = .Storage,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
 		// Two alive list buffers for ping-pong compaction
-		switch (Renderer.Device.CreateBuffer(&indexBufferDesc))
+		switch (Renderer.Device.CreateBuffer(indexBufferDesc))
 		{
 		case .Ok(let buf): system.AliveListA = buf;
 		case .Err:
@@ -1561,7 +1561,7 @@ public class ParticleFeature : RenderFeatureBase
 			return null;
 		}
 
-		switch (Renderer.Device.CreateBuffer(&indexBufferDesc))
+		switch (Renderer.Device.CreateBuffer(indexBufferDesc))
 		{
 		case .Ok(let buf): system.AliveListB = buf;
 		case .Err:
@@ -1569,7 +1569,7 @@ public class ParticleFeature : RenderFeatureBase
 			return null;
 		}
 
-		switch (Renderer.Device.CreateBuffer(&indexBufferDesc))
+		switch (Renderer.Device.CreateBuffer(indexBufferDesc))
 		{
 		case .Ok(let buf): system.DeadList = buf;
 		case .Err:
@@ -1577,15 +1577,15 @@ public class ParticleFeature : RenderFeatureBase
 			return null;
 		}
 
-		BufferDescriptor countersDesc = .()
+		BufferDesc countersDesc = .()
 		{
 			Label = "Particle Counters",
 			Size = 8,
 			Usage = .Storage,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		switch (Renderer.Device.CreateBuffer(&countersDesc))
+		switch (Renderer.Device.CreateBuffer(countersDesc))
 		{
 		case .Ok(let buf): system.Counters = buf;
 		case .Err:
@@ -1623,15 +1623,15 @@ public class ParticleFeature : RenderFeatureBase
 			);
 		}
 
-		BufferDescriptor paramsDesc = .()
+		BufferDesc paramsDesc = .()
 		{
 			Label = "Emitter Params",
 			Size = (uint64)GPUEmitterParams.SizeInBytes,
 			Usage = .Uniform,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		switch (Renderer.Device.CreateBuffer(&paramsDesc))
+		switch (Renderer.Device.CreateBuffer(paramsDesc))
 		{
 		case .Ok(let buf): system.EmitterParams = buf;
 		case .Err:
@@ -1639,15 +1639,15 @@ public class ParticleFeature : RenderFeatureBase
 			return null;
 		}
 
-		BufferDescriptor particleParamsDesc = .()
+		BufferDesc particleParamsDesc = .()
 		{
 			Label = "Particle Params",
 			Size = 16,
 			Usage = .Uniform,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		switch (Renderer.Device.CreateBuffer(&particleParamsDesc))
+		switch (Renderer.Device.CreateBuffer(particleParamsDesc))
 		{
 		case .Ok(let buf): system.ParticleParams = buf;
 		case .Err:
@@ -1672,14 +1672,14 @@ public class ParticleFeature : RenderFeatureBase
 				BindGroupEntry.Buffer(4, system.AliveListB, 0, bufSize)
 			);
 
-			BindGroupDescriptor bgDescA = .()
+			BindGroupDesc bgDescA = .()
 			{
 				Label = "Particle Compute BindGroup A",
 				Layout = mComputeBindGroupLayout,
 				Entries = entriesA
 			};
 
-			switch (Renderer.Device.CreateBindGroup(&bgDescA))
+			switch (Renderer.Device.CreateBindGroup(bgDescA))
 			{
 			case .Ok(let bg): system.ComputeBindGroupA = bg;
 			case .Err:
@@ -1694,14 +1694,14 @@ public class ParticleFeature : RenderFeatureBase
 				BindGroupEntry.Buffer(4, system.AliveListA, 0, bufSize)
 			);
 
-			BindGroupDescriptor bgDescB = .()
+			BindGroupDesc bgDescB = .()
 			{
 				Label = "Particle Compute BindGroup B",
 				Layout = mComputeBindGroupLayout,
 				Entries = entriesB
 			};
 
-			switch (Renderer.Device.CreateBindGroup(&bgDescB))
+			switch (Renderer.Device.CreateBindGroup(bgDescB))
 			{
 			case .Ok(let bg): system.ComputeBindGroupB = bg;
 			case .Err:

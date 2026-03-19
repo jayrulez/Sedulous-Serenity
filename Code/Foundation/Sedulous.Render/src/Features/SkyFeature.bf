@@ -225,13 +225,13 @@ public class SkyFeature : RenderFeatureBase
 			BindGroupLayoutEntry.Sampler(0, .Fragment) // Cubemap sampler (s0)
 		);
 
-		BindGroupLayoutDescriptor layoutDesc = .()
+		BindGroupLayoutDesc layoutDesc = .()
 		{
 			Label = "Sky BindGroup Layout",
 			Entries = layoutEntries
 		};
 
-		switch (Renderer.Device.CreateBindGroupLayout(&layoutDesc))
+		switch (Renderer.Device.CreateBindGroupLayout(layoutDesc))
 		{
 		case .Ok(let layout): mSkyBindGroupLayout = layout;
 		case .Err: return .Err;
@@ -239,8 +239,8 @@ public class SkyFeature : RenderFeatureBase
 
 		// Create pipeline layout
 		IBindGroupLayout[1] bgLayouts = .(mSkyBindGroupLayout);
-		PipelineLayoutDescriptor plDesc = .(bgLayouts);
-		switch (Renderer.Device.CreatePipelineLayout(&plDesc))
+		PipelineLayoutDesc plDesc = .(bgLayouts);
+		switch (Renderer.Device.CreatePipelineLayout(plDesc))
 		{
 		case .Ok(let layout): mSkyPipelineLayout = layout;
 		case .Err: return .Err;
@@ -250,7 +250,7 @@ public class SkyFeature : RenderFeatureBase
 		ColorTargetState[1] colorTargets = .(.(.RGBA16Float));
 
 		// Sky uses fullscreen triangle with SV_VertexID - no vertex buffers needed
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Label = "Sky Pipeline",
 			Layout = mSkyPipelineLayout,
@@ -278,7 +278,7 @@ public class SkyFeature : RenderFeatureBase
 			}
 		};
 
-		switch (Renderer.Device.CreateRenderPipeline(&pipelineDesc))
+		switch (Renderer.Device.CreateRenderPipeline(pipelineDesc))
 		{
 		case .Ok(let pipeline): mSkyPipeline = pipeline;
 		case .Err: return .Err;
@@ -378,13 +378,13 @@ public class SkyFeature : RenderFeatureBase
 		mEnvironmentMap = envMap;
 
 		// Create view
-		TextureViewDescriptor viewDesc = .()
+		TextureViewDesc viewDesc = .()
 		{
 			Label = "Environment Map View",
 			Dimension = .TextureCube
 		};
 
-		switch (Renderer.Device.CreateTextureView(mEnvironmentMap, &viewDesc))
+		switch (Renderer.Device.CreateTextureView(mEnvironmentMap, viewDesc))
 		{
 		case .Ok(let view): mEnvironmentMapView = view;
 		case .Err: return .Err;
@@ -404,15 +404,15 @@ public class SkyFeature : RenderFeatureBase
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
 			// Use Upload memory for CPU mapping (avoids command buffer for writes)
-			BufferDescriptor desc = .()
+			BufferDesc desc = .()
 			{
 				Label = "Sky Params",
 				Size = (uint64)ProceduralSkyParams.Size,
 				Usage = .Uniform,
-				MemoryAccess = .Upload // CPU-mappable
+				MemoryAccess = .CpuToGpu // CPU-mappable
 			};
 
-			switch (Renderer.Device.CreateBuffer(&desc))
+			switch (Renderer.Device.CreateBuffer(desc))
 			{
 			case .Ok(let buf): mSkyParamsBuffers[i] = buf;
 			case .Err: return .Err;
@@ -431,14 +431,14 @@ public class SkyFeature : RenderFeatureBase
 			-1.0f,  3.0f, 0.0f, 2.0f   // Top-left (oversized)
 		);
 
-		BufferDescriptor desc = .()
+		BufferDesc desc = .()
 		{
 			Label = "Fullscreen Triangle",
 			Size = sizeof(decltype(vertices)),
 			Usage = .Vertex | .CopyDst
 		};
 
-		switch (Renderer.Device.CreateBuffer(&desc))
+		switch (Renderer.Device.CreateBuffer(desc))
 		{
 		case .Ok(let buf):
 			mFullscreenQuadVB = buf;
@@ -452,7 +452,7 @@ public class SkyFeature : RenderFeatureBase
 	private Result<void> CreateBRDFLut()
 	{
 		// Create 2D texture for BRDF integration LUT
-		TextureDescriptor desc = .()
+		TextureDesc desc = .()
 		{
 			Label = "BRDF LUT",
 			Width = (uint32)BRDFLutData.Width,
@@ -466,20 +466,20 @@ public class SkyFeature : RenderFeatureBase
 			Usage = .Sampled | .CopyDst  // Need CopyDst for WriteTexture
 		};
 
-		switch (Renderer.Device.CreateTexture(&desc))
+		switch (Renderer.Device.CreateTexture(desc))
 		{
 		case .Ok(let tex): mBRDFLut = tex;
 		case .Err: return .Err;
 		}
 
-		TextureViewDescriptor viewDesc = .()
+		TextureViewDesc viewDesc = .()
 		{
 			Label = "BRDF LUT View",
 			Dimension = .Texture2D,
 			Format = .RG16Float  // Must match texture format
 		};
 
-		switch (Renderer.Device.CreateTextureView(mBRDFLut, &viewDesc))
+		switch (Renderer.Device.CreateTextureView(mBRDFLut, viewDesc))
 		{
 		case .Ok(let view): mBRDFLutView = view;
 		case .Err: return .Err;
@@ -632,23 +632,23 @@ public class SkyFeature : RenderFeatureBase
 				  StorageTextureFormat = .RGBA32Float, TextureViewDimension = .Texture2DArray }
 		);
 
-		BindGroupLayoutDescriptor equirectLayoutDesc = .() { Label = "Equirect IBL Layout", Entries = equirectLayoutEntries };
-		switch (device.CreateBindGroupLayout(&equirectLayoutDesc))
+		BindGroupLayoutDesc equirectLayoutDesc = .() { Label = "Equirect IBL Layout", Entries = equirectLayoutEntries };
+		switch (device.CreateBindGroupLayout(equirectLayoutDesc))
 		{
 		case .Ok(let layout): mEquirectBindGroupLayout = layout;
 		case .Err: return .Err;
 		}
 
 		IBindGroupLayout[1] equirectBGLayouts = .(mEquirectBindGroupLayout);
-		PipelineLayoutDescriptor equirectPLDesc = .(equirectBGLayouts);
-		switch (device.CreatePipelineLayout(&equirectPLDesc))
+		PipelineLayoutDesc equirectPLDesc = .(equirectBGLayouts);
+		switch (device.CreatePipelineLayout(equirectPLDesc))
 		{
 		case .Ok(let layout): mEquirectPipelineLayout = layout;
 		case .Err: return .Err;
 		}
 
-		ComputePipelineDescriptor equirectPipelineDesc = .(mEquirectPipelineLayout, equirectShader.Module, "main");
-		switch (device.CreateComputePipeline(&equirectPipelineDesc))
+		ComputePipelineDesc equirectPipelineDesc = .(mEquirectPipelineLayout, equirectShader.Module, "main");
+		switch (device.CreateComputePipeline(equirectPipelineDesc))
 		{
 		case .Ok(let pipeline): mEquirectToCubemapPipeline = pipeline;
 		case .Err: return .Err;
@@ -664,16 +664,16 @@ public class SkyFeature : RenderFeatureBase
 				  StorageTextureFormat = .RGBA32Float, TextureViewDimension = .Texture2DArray }
 		);
 
-		BindGroupLayoutDescriptor convolveLayoutDesc = .() { Label = "IBL Convolve Layout", Entries = convolveLayoutEntries };
-		switch (device.CreateBindGroupLayout(&convolveLayoutDesc))
+		BindGroupLayoutDesc convolveLayoutDesc = .() { Label = "IBL Convolve Layout", Entries = convolveLayoutEntries };
+		switch (device.CreateBindGroupLayout(convolveLayoutDesc))
 		{
 		case .Ok(let layout): mIBLConvolveBindGroupLayout = layout;
 		case .Err: return .Err;
 		}
 
 		IBindGroupLayout[1] convolveBGLayouts = .(mIBLConvolveBindGroupLayout);
-		PipelineLayoutDescriptor convolvePLDesc = .(convolveBGLayouts);
-		switch (device.CreatePipelineLayout(&convolvePLDesc))
+		PipelineLayoutDesc convolvePLDesc = .(convolveBGLayouts);
+		switch (device.CreatePipelineLayout(convolvePLDesc))
 		{
 		case .Ok(let layout): mIBLConvolvePipelineLayout = layout;
 		case .Err: return .Err;
@@ -684,8 +684,8 @@ public class SkyFeature : RenderFeatureBase
 		if (irrShaderResult case .Err)
 			return .Err;
 
-		ComputePipelineDescriptor irrPipelineDesc = .(mIBLConvolvePipelineLayout, irrShaderResult.Value.Module, "main");
-		switch (device.CreateComputePipeline(&irrPipelineDesc))
+		ComputePipelineDesc irrPipelineDesc = .(mIBLConvolvePipelineLayout, irrShaderResult.Value.Module, "main");
+		switch (device.CreateComputePipeline(irrPipelineDesc))
 		{
 		case .Ok(let pipeline): mIBLIrradiancePipeline = pipeline;
 		case .Err: return .Err;
@@ -696,8 +696,8 @@ public class SkyFeature : RenderFeatureBase
 		if (prefShaderResult case .Err)
 			return .Err;
 
-		ComputePipelineDescriptor prefPipelineDesc = .(mIBLConvolvePipelineLayout, prefShaderResult.Value.Module, "main");
-		switch (device.CreateComputePipeline(&prefPipelineDesc))
+		ComputePipelineDesc prefPipelineDesc = .(mIBLConvolvePipelineLayout, prefShaderResult.Value.Module, "main");
+		switch (device.CreateComputePipeline(prefPipelineDesc))
 		{
 		case .Ok(let pipeline): mIBLPrefilterPipeline = pipeline;
 		case .Err: return .Err;
@@ -743,7 +743,7 @@ public class SkyFeature : RenderFeatureBase
 		ReleaseEnvironmentAndIBLMaps();
 
 		// --- 1. Upload equirect image to temporary GPU texture ---
-		TextureDescriptor equirectTexDesc = .()
+		TextureDesc equirectTexDesc = .()
 		{
 			Label = "Equirect HDR",
 			Width = equirectData.Width,
@@ -758,7 +758,7 @@ public class SkyFeature : RenderFeatureBase
 		};
 
 		ITexture equirectTexture = null;
-		switch (device.CreateTexture(&equirectTexDesc))
+		switch (device.CreateTexture(equirectTexDesc))
 		{
 		case .Ok(let tex): equirectTexture = tex;
 		case .Err: return .Err;
@@ -772,9 +772,9 @@ public class SkyFeature : RenderFeatureBase
 		var equirectSize = Extent3D(equirectData.Width, equirectData.Height, 1);
 		UploadTexture(equirectTexture, Span<uint8>(equirectData.Pixels, (int)equirectData.Size), &equirectLayout, &equirectSize);
 
-		TextureViewDescriptor equirectViewDesc = .() { Label = "Equirect View", Dimension = .Texture2D, Format = equirectData.Format };
+		TextureViewDesc equirectViewDesc = .() { Label = "Equirect View", Dimension = .Texture2D, Format = equirectData.Format };
 		ITextureView equirectView = null;
-		switch (device.CreateTextureView(equirectTexture, &equirectViewDesc))
+		switch (device.CreateTextureView(equirectTexture, equirectViewDesc))
 		{
 		case .Ok(let view): equirectView = view;
 		case .Err: return .Err;
@@ -788,8 +788,8 @@ public class SkyFeature : RenderFeatureBase
 		const uint32 PrefMips = 5;
 
 		// Environment cubemap
-		TextureDescriptor envCubeDesc = .Cubemap(cubeRes, .RGBA32Float, .Storage | .Sampled);
-		switch (device.CreateTexture(&envCubeDesc))
+		TextureDesc envCubeDesc = .Cubemap(cubeRes, .RGBA32Float, .Storage | .Sampled);
+		switch (device.CreateTexture(envCubeDesc))
 		{
 		case .Ok(let tex): mEnvironmentMap = tex;
 		case .Err: return .Err;
@@ -797,16 +797,16 @@ public class SkyFeature : RenderFeatureBase
 		mOwnsEnvironmentMap = true;
 
 		// Irradiance cubemap
-		TextureDescriptor irrDesc = .Cubemap(IrrSize, .RGBA32Float, .Storage | .Sampled);
-		switch (device.CreateTexture(&irrDesc))
+		TextureDesc irrDesc = .Cubemap(IrrSize, .RGBA32Float, .Storage | .Sampled);
+		switch (device.CreateTexture(irrDesc))
 		{
 		case .Ok(let tex): mIrradianceMap = tex;
 		case .Err: return .Err;
 		}
 
 		// Prefiltered cubemap with mip chain
-		TextureDescriptor prefDesc = .Cubemap(PrefBase, .RGBA32Float, .Storage | .Sampled, PrefMips);
-		switch (device.CreateTexture(&prefDesc))
+		TextureDesc prefDesc = .Cubemap(PrefBase, .RGBA32Float, .Storage | .Sampled, PrefMips);
+		switch (device.CreateTexture(prefDesc))
 		{
 		case .Ok(let tex): mPrefilteredMap = tex;
 		case .Err: return .Err;
@@ -814,7 +814,7 @@ public class SkyFeature : RenderFeatureBase
 
 		// --- 3. Create storage views (Texture2DArray for compute writes) ---
 		// Environment cubemap storage view (all 6 faces, mip 0)
-		TextureViewDescriptor envStorageViewDesc = .()
+		TextureViewDesc envStorageViewDesc = .()
 		{
 			Label = "Env Cubemap Storage",
 			Format = .RGBA32Float,
@@ -823,14 +823,14 @@ public class SkyFeature : RenderFeatureBase
 			BaseArrayLayer = 0, ArrayLayerCount = 6
 		};
 		ITextureView envStorageView = null;
-		switch (device.CreateTextureView(mEnvironmentMap, &envStorageViewDesc))
+		switch (device.CreateTextureView(mEnvironmentMap, envStorageViewDesc))
 		{
 		case .Ok(let view): envStorageView = view;
 		case .Err: return .Err;
 		}
 
 		// Irradiance storage view
-		TextureViewDescriptor irrStorageViewDesc = .()
+		TextureViewDesc irrStorageViewDesc = .()
 		{
 			Label = "Irradiance Storage",
 			Format = .RGBA32Float,
@@ -839,7 +839,7 @@ public class SkyFeature : RenderFeatureBase
 			BaseArrayLayer = 0, ArrayLayerCount = 6
 		};
 		ITextureView irrStorageView = null;
-		switch (device.CreateTextureView(mIrradianceMap, &irrStorageViewDesc))
+		switch (device.CreateTextureView(mIrradianceMap, irrStorageViewDesc))
 		{
 		case .Ok(let view): irrStorageView = view;
 		case .Err: return .Err;
@@ -849,7 +849,7 @@ public class SkyFeature : RenderFeatureBase
 		ITextureView[PrefMips] prefStorageViews = default;
 		for (uint32 mip = 0; mip < PrefMips; mip++)
 		{
-			TextureViewDescriptor prefStorageViewDesc = .()
+			TextureViewDesc prefStorageViewDesc = .()
 			{
 				Label = "Prefilter Storage",
 				Format = .RGBA32Float,
@@ -857,7 +857,7 @@ public class SkyFeature : RenderFeatureBase
 				BaseMipLevel = mip, MipLevelCount = 1,
 				BaseArrayLayer = 0, ArrayLayerCount = 6
 			};
-			switch (device.CreateTextureView(mPrefilteredMap, &prefStorageViewDesc))
+			switch (device.CreateTextureView(mPrefilteredMap, prefStorageViewDesc))
 			{
 			case .Ok(let view): prefStorageViews[mip] = view;
 			case .Err:
@@ -871,7 +871,7 @@ public class SkyFeature : RenderFeatureBase
 		}
 
 		// Create TextureCube sampled view for environment cubemap (needed by irradiance/prefilter shaders)
-		TextureViewDescriptor envCubeViewDesc = .()
+		TextureViewDesc envCubeViewDesc = .()
 		{
 			Label = "Env Cubemap View",
 			Format = .RGBA32Float,
@@ -879,7 +879,7 @@ public class SkyFeature : RenderFeatureBase
 			BaseMipLevel = 0, MipLevelCount = 1,
 			BaseArrayLayer = 0, ArrayLayerCount = 6
 		};
-		switch (device.CreateTextureView(mEnvironmentMap, &envCubeViewDesc))
+		switch (device.CreateTextureView(mEnvironmentMap, envCubeViewDesc))
 		{
 		case .Ok(let view): mEnvironmentMapView = view;
 		case .Err:
@@ -895,8 +895,8 @@ public class SkyFeature : RenderFeatureBase
 		EquirectParams equirectParams = .() { Resolution = cubeRes };
 		IBuffer equirectParamsBuf = null;
 		{
-			BufferDescriptor bufDesc = .() { Label = "Equirect Params", Size = sizeof(EquirectParams), Usage = .Uniform | .CopyDst };
-			switch (device.CreateBuffer(&bufDesc))
+			BufferDesc bufDesc = .() { Label = "Equirect Params", Size = sizeof(EquirectParams), Usage = .Uniform | .CopyDst };
+			switch (device.CreateBuffer(bufDesc))
 			{
 			case .Ok(let buf): equirectParamsBuf = buf;
 			case .Err:
@@ -915,8 +915,8 @@ public class SkyFeature : RenderFeatureBase
 			float roughness = (float)mip / (float)(PrefMips - 1);
 			PrefilterParams prefParams = .() { Resolution = mipSize, Roughness = roughness };
 
-			BufferDescriptor bufDesc = .() { Label = "Prefilter Params", Size = sizeof(PrefilterParams), Usage = .Uniform | .CopyDst };
-			switch (device.CreateBuffer(&bufDesc))
+			BufferDesc bufDesc = .() { Label = "Prefilter Params", Size = sizeof(PrefilterParams), Usage = .Uniform | .CopyDst };
+			switch (device.CreateBuffer(bufDesc))
 			{
 			case .Ok(let buf): prefParamsBufs[mip] = buf;
 			case .Err:
@@ -933,8 +933,8 @@ public class SkyFeature : RenderFeatureBase
 		EquirectParams irrParams = .() { Resolution = IrrSize };
 		IBuffer irrParamsBuf = null;
 		{
-			BufferDescriptor bufDesc = .() { Label = "Irradiance Params", Size = sizeof(EquirectParams), Usage = .Uniform | .CopyDst };
-			switch (device.CreateBuffer(&bufDesc))
+			BufferDesc bufDesc = .() { Label = "Irradiance Params", Size = sizeof(EquirectParams), Usage = .Uniform | .CopyDst };
+			switch (device.CreateBuffer(bufDesc))
 			{
 			case .Ok(let buf): irrParamsBuf = buf;
 			case .Err:
@@ -955,11 +955,11 @@ public class SkyFeature : RenderFeatureBase
 			BindGroupEntry.Sampler(0, mEnvSampler),
 			BindGroupEntry.Texture(0, envStorageView)
 		);
-		BindGroupDescriptor equirectBGDesc = .(mEquirectBindGroupLayout, equirectBGEntries);
+		BindGroupDesc equirectBGDesc = .(mEquirectBindGroupLayout, equirectBGEntries);
 		equirectBGDesc.Label = "Equirect BG";
 
 		IBindGroup equirectBG = null;
-		switch (device.CreateBindGroup(&equirectBGDesc))
+		switch (device.CreateBindGroup(equirectBGDesc))
 		{
 		case .Ok(let bg): equirectBG = bg;
 		case .Err:
@@ -978,11 +978,11 @@ public class SkyFeature : RenderFeatureBase
 			BindGroupEntry.Sampler(0, mEnvSampler),
 			BindGroupEntry.Texture(0, irrStorageView)
 		);
-		BindGroupDescriptor irrBGDesc = .(mIBLConvolveBindGroupLayout, irrBGEntries);
+		BindGroupDesc irrBGDesc = .(mIBLConvolveBindGroupLayout, irrBGEntries);
 		irrBGDesc.Label = "Irradiance BG";
 
 		IBindGroup irrBG = null;
-		switch (device.CreateBindGroup(&irrBGDesc))
+		switch (device.CreateBindGroup(irrBGDesc))
 		{
 		case .Ok(let bg): irrBG = bg;
 		case .Err:
@@ -1005,10 +1005,10 @@ public class SkyFeature : RenderFeatureBase
 				BindGroupEntry.Sampler(0, mEnvSampler),
 				BindGroupEntry.Texture(0, prefStorageViews[mip])
 			);
-			BindGroupDescriptor prefBGDesc = .(mIBLConvolveBindGroupLayout, prefBGEntries);
+			BindGroupDesc prefBGDesc = .(mIBLConvolveBindGroupLayout, prefBGEntries);
 			prefBGDesc.Label = "Prefilter BG";
 
-			switch (device.CreateBindGroup(&prefBGDesc))
+			switch (device.CreateBindGroup(prefBGDesc))
 			{
 			case .Ok(let bg): prefBGs[mip] = bg;
 			case .Err:
@@ -1090,28 +1090,28 @@ public class SkyFeature : RenderFeatureBase
 
 		// --- 7. Create sampled views for IBL ---
 		// Irradiance cubemap view
-		TextureViewDescriptor irrCubeViewDesc = .()
+		TextureViewDesc irrCubeViewDesc = .()
 		{
 			Label = "Irradiance Cubemap View",
 			Format = .RGBA32Float, Dimension = .TextureCube,
 			BaseMipLevel = 0, MipLevelCount = 1,
 			BaseArrayLayer = 0, ArrayLayerCount = 6
 		};
-		switch (device.CreateTextureView(mIrradianceMap, &irrCubeViewDesc))
+		switch (device.CreateTextureView(mIrradianceMap, irrCubeViewDesc))
 		{
 		case .Ok(let view): mIrradianceMapView = view;
 		case .Err: return .Err;
 		}
 
 		// Prefiltered cubemap view (all mips)
-		TextureViewDescriptor prefCubeViewDesc = .()
+		TextureViewDesc prefCubeViewDesc = .()
 		{
 			Label = "Prefiltered Cubemap View",
 			Format = .RGBA32Float, Dimension = .TextureCube,
 			BaseMipLevel = 0, MipLevelCount = PrefMips,
 			BaseArrayLayer = 0, ArrayLayerCount = 6
 		};
-		switch (device.CreateTextureView(mPrefilteredMap, &prefCubeViewDesc))
+		switch (device.CreateTextureView(mPrefilteredMap, prefCubeViewDesc))
 		{
 		case .Ok(let view): mPrefilteredMapView = view;
 		case .Err: return .Err;
@@ -1219,8 +1219,8 @@ public class SkyFeature : RenderFeatureBase
 		if (mIrradianceMap != null) { delete mIrradianceMap; mIrradianceMap = null; }
 
 		// Create cubemap texture
-		TextureDescriptor texDesc = .Cubemap((uint32)IrrSize, .RGBA16Float, .Sampled | .CopyDst);
-		switch (Renderer.Device.CreateTexture(&texDesc))
+		TextureDesc texDesc = .Cubemap((uint32)IrrSize, .RGBA16Float, .Sampled | .CopyDst);
+		switch (Renderer.Device.CreateTexture(texDesc))
 		{
 		case .Ok(let tex): mIrradianceMap = tex;
 		case .Err: return .Err;
@@ -1279,7 +1279,7 @@ public class SkyFeature : RenderFeatureBase
 		}
 
 		// Create cubemap view
-		TextureViewDescriptor viewDesc = .()
+		TextureViewDesc viewDesc = .()
 		{
 			Format = .RGBA16Float,
 			Dimension = .TextureCube,
@@ -1289,7 +1289,7 @@ public class SkyFeature : RenderFeatureBase
 			ArrayLayerCount = 6
 		};
 
-		switch (Renderer.Device.CreateTextureView(mIrradianceMap, &viewDesc))
+		switch (Renderer.Device.CreateTextureView(mIrradianceMap, viewDesc))
 		{
 		case .Ok(let view): mIrradianceMapView = view;
 		case .Err: return .Err;
@@ -1311,8 +1311,8 @@ public class SkyFeature : RenderFeatureBase
 		if (mPrefilteredMap != null) { delete mPrefilteredMap; mPrefilteredMap = null; }
 
 		// Create cubemap with mip chain
-		TextureDescriptor texDesc = .Cubemap((uint32)BaseSize, .RGBA16Float, .Sampled | .CopyDst, MipLevels);
-		switch (Renderer.Device.CreateTexture(&texDesc))
+		TextureDesc texDesc = .Cubemap((uint32)BaseSize, .RGBA16Float, .Sampled | .CopyDst, MipLevels);
+		switch (Renderer.Device.CreateTexture(texDesc))
 		{
 		case .Ok(let tex): mPrefilteredMap = tex;
 		case .Err: return .Err;
@@ -1382,7 +1382,7 @@ public class SkyFeature : RenderFeatureBase
 		}
 
 		// Create cubemap view with all mip levels
-		TextureViewDescriptor viewDesc = .()
+		TextureViewDesc viewDesc = .()
 		{
 			Format = .RGBA16Float,
 			Dimension = .TextureCube,
@@ -1392,7 +1392,7 @@ public class SkyFeature : RenderFeatureBase
 			ArrayLayerCount = 6
 		};
 
-		switch (Renderer.Device.CreateTextureView(mPrefilteredMap, &viewDesc))
+		switch (Renderer.Device.CreateTextureView(mPrefilteredMap, viewDesc))
 		{
 		case .Ok(let view): mPrefilteredMapView = view;
 		case .Err: return .Err;
@@ -1404,24 +1404,24 @@ public class SkyFeature : RenderFeatureBase
 	private Result<void> CreateEnvSamplerAndFallback()
 	{
 		// Create sampler for cubemap sampling
-		SamplerDescriptor samplerDesc = .();
+		SamplerDesc samplerDesc = .();
 		samplerDesc.MinFilter = .Linear;
 		samplerDesc.MagFilter = .Linear;
 		samplerDesc.MipmapFilter = .Linear;
-		samplerDesc.AddressModeU = .ClampToEdge;
-		samplerDesc.AddressModeV = .ClampToEdge;
-		samplerDesc.AddressModeW = .ClampToEdge;
+		samplerDesc.AddressU = .ClampToEdge;
+		samplerDesc.AddressV = .ClampToEdge;
+		samplerDesc.AddressW = .ClampToEdge;
 
-		switch (Renderer.Device.CreateSampler(&samplerDesc))
+		switch (Renderer.Device.CreateSampler(samplerDesc))
 		{
 		case .Ok(let sampler): mEnvSampler = sampler;
 		case .Err: return .Err;
 		}
 
 		// Create a 1x1 black fallback cubemap
-		TextureDescriptor texDesc = .Cubemap(1, .RGBA8Unorm, .Sampled | .CopyDst);
+		TextureDesc texDesc = .Cubemap(1, .RGBA8Unorm, .Sampled | .CopyDst);
 
-		switch (Renderer.Device.CreateTexture(&texDesc))
+		switch (Renderer.Device.CreateTexture(texDesc))
 		{
 		case .Ok(let tex): mFallbackCubemap = tex;
 		case .Err: return .Err;
@@ -1437,7 +1437,7 @@ public class SkyFeature : RenderFeatureBase
 			UploadTexture(mFallbackCubemap, data, &layout, &size, 0, face);
 
 		// Create cube view
-		TextureViewDescriptor viewDesc = .()
+		TextureViewDesc viewDesc = .()
 		{
 			Format = .RGBA8Unorm,
 			Dimension = .TextureCube,
@@ -1447,7 +1447,7 @@ public class SkyFeature : RenderFeatureBase
 			ArrayLayerCount = 6
 		};
 
-		switch (Renderer.Device.CreateTextureView(mFallbackCubemap, &viewDesc))
+		switch (Renderer.Device.CreateTextureView(mFallbackCubemap, viewDesc))
 		{
 		case .Ok(let view): mFallbackCubemapView = view;
 		case .Err: return .Err;
@@ -1485,9 +1485,9 @@ public class SkyFeature : RenderFeatureBase
 		}
 
 		// Create cubemap texture
-		TextureDescriptor texDesc = .Cubemap((uint32)resolution, .RGBA8Unorm, .Sampled | .CopyDst);
+		TextureDesc texDesc = .Cubemap((uint32)resolution, .RGBA8Unorm, .Sampled | .CopyDst);
 
-		switch (Renderer.Device.CreateTexture(&texDesc))
+		switch (Renderer.Device.CreateTexture(texDesc))
 		{
 		case .Ok(let tex): mEnvironmentMap = tex;
 		case .Err: return .Err;
@@ -1558,7 +1558,7 @@ public class SkyFeature : RenderFeatureBase
 		}
 
 		// Create cube view
-		TextureViewDescriptor viewDesc = .()
+		TextureViewDesc viewDesc = .()
 		{
 			Format = .RGBA8Unorm,
 			Dimension = .TextureCube,
@@ -1568,7 +1568,7 @@ public class SkyFeature : RenderFeatureBase
 			ArrayLayerCount = 6
 		};
 
-		switch (Renderer.Device.CreateTextureView(mEnvironmentMap, &viewDesc))
+		switch (Renderer.Device.CreateTextureView(mEnvironmentMap, viewDesc))
 		{
 		case .Ok(let view): mEnvironmentMapView = view;
 		case .Err: return .Err;
@@ -1640,14 +1640,14 @@ public class SkyFeature : RenderFeatureBase
 			BindGroupEntry.Sampler(0, mEnvSampler)
 		);
 
-		BindGroupDescriptor desc = .()
+		BindGroupDesc desc = .()
 		{
 			Label = "Sky BindGroup",
 			Layout = mSkyBindGroupLayout,
 			Entries = entries
 		};
 
-		if (Renderer.Device.CreateBindGroup(&desc) case .Ok(let bg))
+		if (Renderer.Device.CreateBindGroup(desc) case .Ok(let bg))
 			mSkyBindGroups[bindGroupIndex] = bg;
 	}
 
@@ -1689,7 +1689,7 @@ public class SkyFeature : RenderFeatureBase
 
 		// Set viewport — render to per-view SceneColor texture at (0,0), not swapchain offset
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0.0f, 1.0f);
-		encoder.SetScissorRect(0, 0, view.Width, view.Height);
+		encoder.SetScissor(0, 0, view.Width, view.Height);
 
 		// Bind pipeline
 		encoder.SetPipeline(mSkyPipeline);

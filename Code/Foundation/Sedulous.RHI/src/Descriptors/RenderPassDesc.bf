@@ -4,7 +4,7 @@ using System;
 using Sedulous.Core.Mathematics;
 
 /// Describes a color attachment in a render pass.
-struct RenderPassColorAttachment
+struct ColorAttachment
 {
 	/// Texture view to render to.
 	public ITextureView View;
@@ -37,7 +37,7 @@ struct RenderPassColorAttachment
 }
 
 /// Describes a depth/stencil attachment in a render pass.
-struct RenderPassDepthStencilAttachment
+struct DepthStencilAttachment
 {
 	/// Texture view to use for depth/stencil.
 	public ITextureView View;
@@ -86,12 +86,12 @@ struct RenderPassDepthStencilAttachment
 }
 
 /// Describes a render pass.
-struct RenderPassDescriptor
+struct RenderPassDesc
 {
 	/// Color attachments.
-	public Span<RenderPassColorAttachment> ColorAttachments;
+	public Span<ColorAttachment> ColorAttachments;
 	/// Depth/stencil attachment (optional).
-	public RenderPassDepthStencilAttachment? DepthStencilAttachment;
+	public DepthStencilAttachment? DepthStencilAttachment;
 	/// Optional label for debugging.
 	public StringView Label;
 
@@ -102,7 +102,7 @@ struct RenderPassDescriptor
 		Label = default;
 	}
 
-	public this(Span<RenderPassColorAttachment> colorAttachments)
+	public this(Span<ColorAttachment> colorAttachments)
 	{
 		ColorAttachments = colorAttachments;
 		DepthStencilAttachment = null;

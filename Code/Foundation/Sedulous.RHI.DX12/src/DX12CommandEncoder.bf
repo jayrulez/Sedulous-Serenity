@@ -38,7 +38,7 @@ class DX12CommandEncoder : ICommandEncoder
 
 	public bool IsValid => mCommandList != null && mIsRecording;
 
-	public IRenderPassEncoder BeginRenderPass(RenderPassDescriptor* descriptor)
+	public IRenderPassEncoder BeginRenderPass(RenderPassDesc* descriptor)
 	{
 		if (!mIsRecording || mFinished)
 			return null;

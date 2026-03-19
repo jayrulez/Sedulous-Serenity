@@ -1873,13 +1873,13 @@ class ModelViewerApp : Application
 			else
 			{
 				// No active tab - just clear the viewport to a dark color
-				RenderPassColorAttachment[1] clearAttachments = .(.(viewport.ColorTargetView)
+				ColorAttachment[1] clearAttachments = .(.(viewport.ColorTargetView)
 					{
 						LoadOp = .Clear,
 						StoreOp = .Store,
 						ClearValue = .(0.1f, 0.1f, 0.12f, 1.0f)
 					});
-				RenderPassDescriptor clearPassDesc = .(clearAttachments);
+				RenderPassDesc clearPassDesc = .(clearAttachments);
 				clearPassDesc.DepthStencilAttachment = .(viewport.DepthTargetView)
 					{
 						DepthLoadOp = .Clear,
@@ -1901,13 +1901,13 @@ class ModelViewerApp : Application
 
 		// Then render UI (default behavior renders to swap chain)
 		let swapTextureView = SwapChain.CurrentTextureView;
-		RenderPassColorAttachment[1] uiAttachments = .(.(swapTextureView)
+		ColorAttachment[1] uiAttachments = .(.(swapTextureView)
 			{
 				LoadOp = .Clear,
 				StoreOp = .Store,
 				ClearValue = mConfig.ClearColor
 			});
-		RenderPassDescriptor uiPassDesc = .(uiAttachments);
+		RenderPassDesc uiPassDesc = .(uiAttachments);
 
 		let uiPass = encoder.BeginRenderPass(&uiPassDesc);
 		if (uiPass != null)

@@ -158,11 +158,11 @@ public class VGRenderer : IDisposable
 				let endY = (int32)Math.Floor(Math.Min(cmd.ClipRect.Y + cmd.ClipRect.Height, (float)height));
 				let w = (uint32)Math.Max(0, endX - startX);
 				let h = (uint32)Math.Max(0, endY - startY);
-				renderPass.SetScissorRect(startX, startY, w, h);
+				renderPass.SetScissor(startX, startY, w, h);
 			}
 			else
 			{
-				renderPass.SetScissorRect(0, 0, width, height);
+				renderPass.SetScissor(0, 0, width, height);
 			}
 
 			renderPass.DrawIndexed((uint32)cmd.IndexCount, 1, (uint32)cmd.StartIndex, 0, 0);
@@ -191,8 +191,8 @@ public class VGRenderer : IDisposable
 
 	private Result<void> CreateSampler()
 	{
-		SamplerDescriptor samplerDesc = .();
-		if (mDevice.CreateSampler(&samplerDesc) case .Ok(let sampler))
+		SamplerDesc samplerDesc = .();
+		if (mDevice.CreateSampler(samplerDesc) case .Ok(let sampler))
 		{
 			mSampler = sampler;
 			return .Ok;
@@ -203,8 +203,8 @@ public class VGRenderer : IDisposable
 	private Result<void> CreateWhiteTexture()
 	{
 		// 1x1 white pixel texture for solid color rendering
-		TextureDescriptor texDesc = TextureDescriptor.Texture2D(1, 1, .RGBA8Unorm, .Sampled | .CopyDst);
-		if (mDevice.CreateTexture(&texDesc) case .Ok(let tex))
+		TextureDesc texDesc = TextureDesc.Texture2D(1, 1, .RGBA8Unorm, .Sampled | .CopyDst);
+		if (mDevice.CreateTexture(texDesc) case .Ok(let tex))
 			mWhiteTexture = tex;
 		else
 			return .Err;
@@ -214,8 +214,8 @@ public class VGRenderer : IDisposable
 		Extent3D size = .(1, 1, 1);
 		mDevice.Queue.WriteTextureSync(mWhiteTexture, Span<uint8>(&whitePixel[0], 4), &layout, &size);
 
-		TextureViewDescriptor viewDesc = .() { Format = .RGBA8Unorm };
-		if (mDevice.CreateTextureView(mWhiteTexture, &viewDesc) case .Ok(let view))
+		TextureViewDesc viewDesc = .() { Format = .RGBA8Unorm };
+		if (mDevice.CreateTextureView(mWhiteTexture, viewDesc) case .Ok(let view))
 			mWhiteTextureView = view;
 		else
 			return .Err;
@@ -231,15 +231,15 @@ public class VGRenderer : IDisposable
 			BindGroupLayoutEntry.SampledTexture(0, .Fragment),
 			BindGroupLayoutEntry.Sampler(0, .Fragment)
 		);
-		BindGroupLayoutDescriptor bindGroupLayoutDesc = .(layoutEntries);
-		if (mDevice.CreateBindGroupLayout(&bindGroupLayoutDesc) case .Ok(let layout))
+		BindGroupLayoutDesc bindGroupLayoutDesc = .(layoutEntries);
+		if (mDevice.CreateBindGroupLayout(bindGroupLayoutDesc) case .Ok(let layout))
 			mBindGroupLayout = layout;
 		else
 			return .Err;
 
 		IBindGroupLayout[1] layouts = .(mBindGroupLayout);
-		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
-		if (mDevice.CreatePipelineLayout(&pipelineLayoutDesc) case .Ok(let pipelineLayout))
+		PipelineLayoutDesc pipelineLayoutDesc = .(layouts);
+		if (mDevice.CreatePipelineLayout(pipelineLayoutDesc) case .Ok(let pipelineLayout))
 			mPipelineLayout = pipelineLayout;
 		else
 			return .Err;
@@ -262,7 +262,7 @@ public class VGRenderer : IDisposable
 
 		ColorTargetState[1] colorTargets = .(.(mTargetFormat, .AlphaBlend));
 
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Layout = mPipelineLayout,
 			Vertex = .()
@@ -290,7 +290,7 @@ public class VGRenderer : IDisposable
 			}
 		};
 
-		if (mDevice.CreateRenderPipeline(&pipelineDesc) case .Ok(let pipeline))
+		if (mDevice.CreateRenderPipeline(pipelineDesc) case .Ok(let pipeline))
 			mPipeline = pipeline;
 		else
 			return .Err;
@@ -308,37 +308,37 @@ public class VGRenderer : IDisposable
 		for (int32 i = 0; i < mFrameCount; i++)
 		{
 			// Vertex buffer
-			BufferDescriptor vertexDesc = .()
+			BufferDesc vertexDesc = .()
 			{
 				Size = (uint64)(MAX_VERTICES * sizeof(VGRenderVertex)),
 				Usage = .Vertex,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
-			if (mDevice.CreateBuffer(&vertexDesc) case .Ok(let vb))
+			if (mDevice.CreateBuffer(vertexDesc) case .Ok(let vb))
 				mVertexBuffers[i] = vb;
 			else
 				return .Err;
 
 			// Index buffer (uint32)
-			BufferDescriptor indexDesc = .()
+			BufferDesc indexDesc = .()
 			{
 				Size = (uint64)(MAX_INDICES * sizeof(uint32)),
 				Usage = .Index,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
-			if (mDevice.CreateBuffer(&indexDesc) case .Ok(let ib))
+			if (mDevice.CreateBuffer(indexDesc) case .Ok(let ib))
 				mIndexBuffers[i] = ib;
 			else
 				return .Err;
 
 			// Uniform buffer
-			BufferDescriptor uniformDesc = .()
+			BufferDesc uniformDesc = .()
 			{
 				Size = (uint64)sizeof(VGUniforms),
 				Usage = .Uniform,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
-			if (mDevice.CreateBuffer(&uniformDesc) case .Ok(let ub))
+			if (mDevice.CreateBuffer(uniformDesc) case .Ok(let ub))
 				mUniformBuffers[i] = ub;
 			else
 				return .Err;
@@ -349,8 +349,8 @@ public class VGRenderer : IDisposable
 				BindGroupEntry.Texture(0, mWhiteTextureView),
 				BindGroupEntry.Sampler(0, mSampler)
 			);
-			BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
-			if (mDevice.CreateBindGroup(&bindGroupDesc) case .Ok(let group))
+			BindGroupDesc bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
+			if (mDevice.CreateBindGroup(bindGroupDesc) case .Ok(let group))
 				mBindGroups[i] = group;
 			else
 				return .Err;

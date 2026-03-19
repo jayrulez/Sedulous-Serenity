@@ -108,14 +108,14 @@ class DX12Queue : IQueue
 		if (dx12Buffer == null || !dx12Buffer.IsValid || data.Length == 0)
 			return;
 
-		BufferDescriptor stagingDesc = .()
+		BufferDesc stagingDesc = .()
 			{
 				Size = (uint64)data.Length,
 				Usage = .CopySrc,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
 
-		if (mDevice.CreateBuffer(&stagingDesc) case .Ok(let stagingBuffer))
+		if (mDevice.CreateBuffer(stagingDesc) case .Ok(let stagingBuffer))
 		{
 			if (let dx12Staging = stagingBuffer as DX12Buffer)
 			{
@@ -147,14 +147,14 @@ class DX12Queue : IQueue
 			return;
 
 		// Create staging buffer
-		BufferDescriptor stagingDesc = .()
+		BufferDesc stagingDesc = .()
 			{
 				Size = (uint64)data.Length,
 				Usage = .CopySrc,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
 
-		if (mDevice.CreateBuffer(&stagingDesc) case .Ok(let stagingBuffer))
+		if (mDevice.CreateBuffer(stagingDesc) case .Ok(let stagingBuffer))
 		{
 			if (let dx12Staging = stagingBuffer as DX12Buffer)
 			{
@@ -225,14 +225,14 @@ class DX12Queue : IQueue
 		if (dx12Buffer == null || data.Length == 0)
 			return;
 
-		BufferDescriptor stagingDesc = .()
+		BufferDesc stagingDesc = .()
 			{
 				Size = (uint64)data.Length,
 				Usage = .CopyDst,
-				MemoryAccess = .Readback
+				MemoryAccess = .GpuToCpu
 			};
 
-		if (mDevice.CreateBuffer(&stagingDesc) case .Ok(let stagingBuffer))
+		if (mDevice.CreateBuffer(stagingDesc) case .Ok(let stagingBuffer))
 		{
 			if (let dx12Staging = stagingBuffer as DX12Buffer)
 			{
@@ -263,14 +263,14 @@ class DX12Queue : IQueue
 		if (dx12Texture == null || data.Length == 0 || dataLayout == null || readSize == null)
 			return;
 
-		BufferDescriptor stagingDesc = .()
+		BufferDesc stagingDesc = .()
 			{
 				Size = (uint64)data.Length,
 				Usage = .CopyDst,
-				MemoryAccess = .Readback
+				MemoryAccess = .GpuToCpu
 			};
 
-		if (mDevice.CreateBuffer(&stagingDesc) case .Ok(let stagingBuffer))
+		if (mDevice.CreateBuffer(stagingDesc) case .Ok(let stagingBuffer))
 		{
 			if (let dx12Staging = stagingBuffer as DX12Buffer)
 			{

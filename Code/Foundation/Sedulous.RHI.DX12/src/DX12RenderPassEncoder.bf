@@ -124,7 +124,7 @@ class DX12RenderPassEncoder : IRenderPassEncoder
 		mCommandList.RSSetViewports(1, &viewport);
 	}
 
-	public void SetScissorRect(int32 x, int32 y, uint32 width, uint32 height)
+	public void SetScissor(int32 x, int32 y, uint32 width, uint32 height)
 	{
 		D3D12_RECT rect = .();
 		rect.left = x;

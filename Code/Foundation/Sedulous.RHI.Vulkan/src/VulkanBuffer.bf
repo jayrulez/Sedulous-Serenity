@@ -18,7 +18,7 @@ class VulkanBuffer : IBuffer
 	private void* mMappedPtr;
 	private String mDebugName ~ delete _;
 
-	public this(VulkanDevice device, BufferDescriptor* descriptor)
+	public this(VulkanDevice device, BufferDesc descriptor)
 	{
 		mDevice = device;
 		mSize = descriptor.Size;
@@ -99,7 +99,7 @@ class VulkanBuffer : IBuffer
 		}
 	}
 
-	private void CreateBuffer(BufferDescriptor* descriptor)
+	private void CreateBuffer(BufferDesc descriptor)
 	{
 		// Create buffer
 		VkBufferCreateInfo bufferInfo = .()

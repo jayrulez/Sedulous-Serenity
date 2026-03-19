@@ -2,7 +2,7 @@ using System;
 namespace Sedulous.RHI;
 
 /// Describes a texture to be created.
-struct TextureDescriptor
+struct TextureDesc
 {
 	/// Texture dimensionality.
 	public TextureDimension Dimension;

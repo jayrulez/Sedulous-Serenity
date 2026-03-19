@@ -15,7 +15,7 @@ enum TextureAspect
 }
 
 /// Describes a view into a texture.
-struct TextureViewDescriptor
+struct TextureViewDesc
 {
 	/// View dimensionality.
 	public TextureViewDimension Dimension;

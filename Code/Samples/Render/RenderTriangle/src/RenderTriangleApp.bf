@@ -101,14 +101,14 @@ class RenderTriangleApp : Application
 		);
 
 		// Create vertex buffer
-		BufferDescriptor vertexDesc = .()
+		BufferDesc vertexDesc = .()
 		{
 			Size = (uint64)(sizeof(Vertex) * vertices.Count),
 			Usage = .Vertex,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (mDevice.CreateBuffer(&vertexDesc) not case .Ok(let vb))
+		if (mDevice.CreateBuffer(vertexDesc) not case .Ok(let vb))
 			return false;
 		mVertexBuffer = vb;
 
@@ -116,14 +116,14 @@ class RenderTriangleApp : Application
 		mDevice.Queue.WriteMappedBuffer(mVertexBuffer, 0, vertexData);
 
 		// Create uniform buffer
-		BufferDescriptor uniformDesc = .()
+		BufferDesc uniformDesc = .()
 		{
 			Size = (uint64)sizeof(Uniforms),
 			Usage = .Uniform,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
 
-		if (mDevice.CreateBuffer(&uniformDesc) not case .Ok(let ub))
+		if (mDevice.CreateBuffer(uniformDesc) not case .Ok(let ub))
 			return false;
 		mUniformBuffer = ub;
 
@@ -156,8 +156,8 @@ class RenderTriangleApp : Application
 			return false;
 		}
 
-		ShaderModuleDescriptor vertDesc = .(vertResult.Bytecode);
-		if (mDevice.CreateShaderModule(&vertDesc) case .Ok(let vs))
+		ShaderModuleDesc vertDesc = .(vertResult.Bytecode);
+		if (mDevice.CreateShaderModule(vertDesc) case .Ok(let vs))
 			mVertShader = vs;
 		else
 			return false;
@@ -179,8 +179,8 @@ class RenderTriangleApp : Application
 			return false;
 		}
 
-		ShaderModuleDescriptor fragDesc = .(fragResult.Bytecode);
-		if (mDevice.CreateShaderModule(&fragDesc) case .Ok(let fs))
+		ShaderModuleDesc fragDesc = .(fragResult.Bytecode);
+		if (mDevice.CreateShaderModule(fragDesc) case .Ok(let fs))
 			mFragShader = fs;
 		else
 			return false;
@@ -194,8 +194,8 @@ class RenderTriangleApp : Application
 		BindGroupLayoutEntry[1] layoutEntries = .(
 			BindGroupLayoutEntry.UniformBuffer(0, .Vertex)
 		);
-		BindGroupLayoutDescriptor bindGroupLayoutDesc = .(layoutEntries);
-		if (mDevice.CreateBindGroupLayout(&bindGroupLayoutDesc) not case .Ok(let layout))
+		BindGroupLayoutDesc bindGroupLayoutDesc = .(layoutEntries);
+		if (mDevice.CreateBindGroupLayout(bindGroupLayoutDesc) not case .Ok(let layout))
 			return false;
 		mBindGroupLayout = layout;
 
@@ -203,15 +203,15 @@ class RenderTriangleApp : Application
 		BindGroupEntry[1] bindGroupEntries = .(
 			BindGroupEntry.Buffer(0, mUniformBuffer)
 		);
-		BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
-		if (mDevice.CreateBindGroup(&bindGroupDesc) not case .Ok(let group))
+		BindGroupDesc bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
+		if (mDevice.CreateBindGroup(bindGroupDesc) not case .Ok(let group))
 			return false;
 		mBindGroup = group;
 
 		// Create pipeline layout
 		IBindGroupLayout[1] layouts = .(mBindGroupLayout);
-		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
-		if (mDevice.CreatePipelineLayout(&pipelineLayoutDesc) not case .Ok(let pipelineLayout))
+		PipelineLayoutDesc pipelineLayoutDesc = .(layouts);
+		if (mDevice.CreatePipelineLayout(pipelineLayoutDesc) not case .Ok(let pipelineLayout))
 			return false;
 		mPipelineLayout = pipelineLayout;
 
@@ -233,7 +233,7 @@ class RenderTriangleApp : Application
 		ColorTargetState[1] colorTargets = .(.(mSwapChain.Format));
 
 		// Pipeline descriptor
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Layout = mPipelineLayout,
 			Vertex = .()
@@ -261,7 +261,7 @@ class RenderTriangleApp : Application
 			}
 		};
 
-		if (mDevice.CreateRenderPipeline(&pipelineDesc) not case .Ok(let pipeline))
+		if (mDevice.CreateRenderPipeline(pipelineDesc) not case .Ok(let pipeline))
 			return false;
 		mPipeline = pipeline;
 
@@ -314,7 +314,7 @@ class RenderTriangleApp : Application
 			.SetExecuteCallback(new (encoder) =>
 			{
 				encoder.SetViewport(0, 0, width, height, 0, 1);
-				encoder.SetScissorRect(0, 0, width, height);
+				encoder.SetScissor(0, 0, width, height);
 				encoder.SetPipeline(pipeline);
 				encoder.SetBindGroup(0, bindGroup);
 				encoder.SetVertexBuffer(0, vertexBuffer, 0);

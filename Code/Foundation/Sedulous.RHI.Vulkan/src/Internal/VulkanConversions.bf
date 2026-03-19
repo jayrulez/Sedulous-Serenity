@@ -216,9 +216,9 @@ static class VulkanConversions
 		{
 		case .GpuOnly:
 			return .VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-		case .Upload:
+		case .CpuToGpu:
 			return .VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | .VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-		case .Readback:
+		case .GpuToCpu:
 			return .VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | .VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | .VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
 		default:
 			return .VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;

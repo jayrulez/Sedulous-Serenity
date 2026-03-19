@@ -23,7 +23,7 @@ class DX12Buffer : IBuffer
 	private String mDebugName ~ delete _;
 	private D3D12_RESOURCE_STATES mCurrentState;
 
-	public this(DX12Device device, BufferDescriptor* descriptor)
+	public this(DX12Device device, BufferDesc descriptor)
 	{
 		mDevice = device;
 		mSize = descriptor.Size;
@@ -74,7 +74,7 @@ class DX12Buffer : IBuffer
 
 		void* data = null;
 		D3D12_RANGE readRange = .();
-		if (mMemoryAccess == .Upload)
+		if (mMemoryAccess == .CpuToGpu)
 		{
 			// Upload buffers: no need to read
 			readRange.Begin = 0;
@@ -101,7 +101,7 @@ class DX12Buffer : IBuffer
 		if (mMappedPtr != null && mResource != null)
 		{
 			D3D12_RANGE writtenRange = .();
-			if (mMemoryAccess == .Readback)
+			if (mMemoryAccess == .GpuToCpu)
 			{
 				// Readback: nothing was written by CPU
 				writtenRange.Begin = 0;
@@ -137,23 +137,23 @@ class DX12Buffer : IBuffer
 		return true;
 	}
 
-	private void CreateBuffer(BufferDescriptor* descriptor)
+	private void CreateBuffer(BufferDesc descriptor)
 	{
 		// Determine heap type from memory access
 		D3D12_HEAP_TYPE heapType;
 		switch (descriptor.MemoryAccess)
 		{
 		case .GpuOnly:   heapType = .D3D12_HEAP_TYPE_DEFAULT;
-		case .Upload:    heapType = .D3D12_HEAP_TYPE_UPLOAD;
-		case .Readback:  heapType = .D3D12_HEAP_TYPE_READBACK;
+		case .CpuToGpu:    heapType = .D3D12_HEAP_TYPE_UPLOAD;
+		case .GpuToCpu:  heapType = .D3D12_HEAP_TYPE_READBACK;
 		default:         heapType = .D3D12_HEAP_TYPE_DEFAULT;
 		}
 
 		// Determine initial state
 		switch (descriptor.MemoryAccess)
 		{
-		case .Upload:    mCurrentState = .D3D12_RESOURCE_STATE_GENERIC_READ;
-		case .Readback:  mCurrentState = .D3D12_RESOURCE_STATE_COPY_DEST;
+		case .CpuToGpu:    mCurrentState = .D3D12_RESOURCE_STATE_GENERIC_READ;
+		case .GpuToCpu:  mCurrentState = .D3D12_RESOURCE_STATE_COPY_DEST;
 		default:         mCurrentState = .D3D12_RESOURCE_STATE_COMMON;
 		}
 
@@ -200,7 +200,7 @@ class DX12Buffer : IBuffer
 			mGpuVirtualAddress = mResource.GetGPUVirtualAddress();
 
 			// Persistent mapping for Upload/Readback
-			if (descriptor.MemoryAccess == .Upload || descriptor.MemoryAccess == .Readback)
+			if (descriptor.MemoryAccess == .CpuToGpu || descriptor.MemoryAccess == .GpuToCpu)
 			{
 				Map();
 			}

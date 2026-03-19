@@ -52,15 +52,15 @@ public class TrailEmitter
 		// Create GPU vertex buffers (host-visible for direct CPU writes each frame)
 		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			BufferDescriptor desc = .()
+			BufferDesc desc = .()
 			{
 				Label = "Standalone Trail Vertex Buffer",
 				Size = (uint64)(mMaxVertices * TrailVertex.SizeInBytes),
 				Usage = .Vertex,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
 
-			switch (device.CreateBuffer(&desc))
+			switch (device.CreateBuffer(desc))
 			{
 			case .Ok(let buf): mVertexBuffers[i] = buf;
 			case .Err:

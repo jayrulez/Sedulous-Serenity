@@ -203,12 +203,12 @@ public class DrawingRenderer : IDisposable
 		let format = ToRHIFormat(texture.Format);
 
 		// Create GPU texture
-		TextureDescriptor textureDesc = TextureDescriptor.Texture2D(
+		TextureDesc textureDesc = TextureDesc.Texture2D(
 			width, height, format, TextureUsage.Sampled | TextureUsage.CopyDst
 		);
 
 		Sedulous.RHI.ITexture gpuTexture;
-		if (mDevice.CreateTexture(&textureDesc) case .Ok(let tex))
+		if (mDevice.CreateTexture(textureDesc) case .Ok(let tex))
 			gpuTexture = tex;
 		else
 			return null;
@@ -224,9 +224,9 @@ public class DrawingRenderer : IDisposable
 		mDevice.Queue.WriteTextureSync(gpuTexture, pixelData, &dataLayout, &writeSize);
 
 		// Create texture view
-		TextureViewDescriptor viewDesc = .() { Format = format };
+		TextureViewDesc viewDesc = .() { Format = format };
 		ITextureView gpuTextureView;
-		if (mDevice.CreateTextureView(gpuTexture, &viewDesc) case .Ok(let view))
+		if (mDevice.CreateTextureView(gpuTexture, viewDesc) case .Ok(let view))
 			gpuTextureView = view;
 		else
 		{
@@ -463,11 +463,11 @@ public class DrawingRenderer : IDisposable
 					let endY = (int32)Math.Floor(Math.Min(cmd.ClipRect.Y + cmd.ClipRect.Height, (float)height));
 					let w = (uint32)Math.Max(0, endX - startX);
 					let h = (uint32)Math.Max(0, endY - startY);
-					renderPass.SetScissorRect(startX, startY, w, h);
+					renderPass.SetScissor(startX, startY, w, h);
 				}
 				else
 				{
-					renderPass.SetScissorRect(0, 0, width, height);
+					renderPass.SetScissor(0, 0, width, height);
 				}
 
 				renderPass.DrawIndexed((uint32)cmd.IndexCount, 1, (uint32)cmd.StartIndex, 0, 0);
@@ -485,7 +485,7 @@ public class DrawingRenderer : IDisposable
 				return;
 
 			renderPass.SetViewport(0, 0, width, height, 0, 1);
-			renderPass.SetScissorRect(0, 0, width, height);
+			renderPass.SetScissor(0, 0, width, height);
 			renderPass.SetPipeline(useMsaa ? mInstancedMsaaPipeline : mInstancedPipeline);
 			renderPass.SetBindGroup(0, mInstancedBindGroups[frameIndex]);
 			renderPass.SetVertexBuffer(0, mInstanceBuffers[frameIndex], 0);
@@ -531,10 +531,10 @@ public class DrawingRenderer : IDisposable
 
 	private Result<void> CreateSampler()
 	{
-		SamplerDescriptor samplerDesc = .();
+		SamplerDesc samplerDesc = .();
 		// Default values are already ClampToEdge and Linear
 
-		if (mDevice.CreateSampler(&samplerDesc) case .Ok(let sampler))
+		if (mDevice.CreateSampler(samplerDesc) case .Ok(let sampler))
 		{
 			mSampler = sampler;
 			return .Ok;
@@ -550,16 +550,16 @@ public class DrawingRenderer : IDisposable
 			BindGroupLayoutEntry.SampledTexture(0, .Fragment),
 			BindGroupLayoutEntry.Sampler(0, .Fragment)
 		);
-		BindGroupLayoutDescriptor bindGroupLayoutDesc = .(layoutEntries);
-		if (mDevice.CreateBindGroupLayout(&bindGroupLayoutDesc) case .Ok(let layout))
+		BindGroupLayoutDesc bindGroupLayoutDesc = .(layoutEntries);
+		if (mDevice.CreateBindGroupLayout(bindGroupLayoutDesc) case .Ok(let layout))
 			mBindGroupLayout = layout;
 		else
 			return .Err;
 
 		// Pipeline layout
 		IBindGroupLayout[1] layouts = .(mBindGroupLayout);
-		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
-		if (mDevice.CreatePipelineLayout(&pipelineLayoutDesc) case .Ok(let pipelineLayout))
+		PipelineLayoutDesc pipelineLayoutDesc = .(layouts);
+		if (mDevice.CreatePipelineLayout(pipelineLayoutDesc) case .Ok(let pipelineLayout))
 			mPipelineLayout = pipelineLayout;
 		else
 			return .Err;
@@ -594,7 +594,7 @@ public class DrawingRenderer : IDisposable
 
 		ColorTargetState[1] colorTargets = .(.(mTargetFormat, .AlphaBlend));
 
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Layout = mPipelineLayout,
 			Vertex = .()
@@ -623,14 +623,14 @@ public class DrawingRenderer : IDisposable
 		};
 
 		// Create standard pipeline
-		if (mDevice.CreateRenderPipeline(&pipelineDesc) case .Ok(let pipeline))
+		if (mDevice.CreateRenderPipeline(pipelineDesc) case .Ok(let pipeline))
 			mPipeline = pipeline;
 		else
 			return .Err;
 
 		// Create MSAA pipeline variant
 		pipelineDesc.Multisample.Count = mMsaaSampleCount;
-		if (mDevice.CreateRenderPipeline(&pipelineDesc) case .Ok(let msaaPipeline))
+		if (mDevice.CreateRenderPipeline(pipelineDesc) case .Ok(let msaaPipeline))
 			mMsaaPipeline = msaaPipeline;
 		else
 			return .Err;
@@ -660,7 +660,7 @@ public class DrawingRenderer : IDisposable
 
 		ColorTargetState[1] colorTargets = .(.(mTargetFormat, .AlphaBlend));
 
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Layout = mPipelineLayout,
 			Vertex = .()
@@ -689,14 +689,14 @@ public class DrawingRenderer : IDisposable
 		};
 
 		// Create instanced pipeline
-		if (mDevice.CreateRenderPipeline(&pipelineDesc) case .Ok(let pipeline))
+		if (mDevice.CreateRenderPipeline(pipelineDesc) case .Ok(let pipeline))
 			mInstancedPipeline = pipeline;
 		else
 			return .Err;
 
 		// Create instanced MSAA pipeline variant
 		pipelineDesc.Multisample.Count = mMsaaSampleCount;
-		if (mDevice.CreateRenderPipeline(&pipelineDesc) case .Ok(let msaaPipeline))
+		if (mDevice.CreateRenderPipeline(pipelineDesc) case .Ok(let msaaPipeline))
 			mInstancedMsaaPipeline = msaaPipeline;
 		else
 			return .Err;
@@ -715,49 +715,49 @@ public class DrawingRenderer : IDisposable
 		for (int32 i = 0; i < mFrameCount; i++)
 		{
 			// Vertex buffer (host-visible for fast CPU writes)
-			BufferDescriptor vertexDesc = .()
+			BufferDesc vertexDesc = .()
 			{
 				Size = (uint64)(MAX_VERTICES * sizeof(DrawingRenderVertex)),
 				Usage = .Vertex,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
-			if (mDevice.CreateBuffer(&vertexDesc) case .Ok(let vb))
+			if (mDevice.CreateBuffer(vertexDesc) case .Ok(let vb))
 				mVertexBuffers[i] = vb;
 			else
 				return .Err;
 
 			// Index buffer (host-visible for fast CPU writes)
-			BufferDescriptor indexDesc = .()
+			BufferDesc indexDesc = .()
 			{
 				Size = (uint64)(MAX_INDICES * sizeof(uint16)),
 				Usage = .Index,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
-			if (mDevice.CreateBuffer(&indexDesc) case .Ok(let ib))
+			if (mDevice.CreateBuffer(indexDesc) case .Ok(let ib))
 				mIndexBuffers[i] = ib;
 			else
 				return .Err;
 
 			// Uniform buffer (host-visible for fast CPU writes)
-			BufferDescriptor uniformDesc = .()
+			BufferDesc uniformDesc = .()
 			{
 				Size = (uint64)sizeof(DrawingUniforms),
 				Usage = .Uniform,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
-			if (mDevice.CreateBuffer(&uniformDesc) case .Ok(let ub))
+			if (mDevice.CreateBuffer(uniformDesc) case .Ok(let ub))
 				mUniformBuffers[i] = ub;
 			else
 				return .Err;
 
 			// Instance buffer for instanced sprites
-			BufferDescriptor instanceDesc = .()
+			BufferDesc instanceDesc = .()
 			{
 				Size = (uint64)(MAX_SPRITE_INSTANCES * sizeof(DrawingSpriteInstance)),
 				Usage = .Vertex,
-				MemoryAccess = .Upload
+				MemoryAccess = .CpuToGpu
 			};
-			if (mDevice.CreateBuffer(&instanceDesc) case .Ok(let instBuf))
+			if (mDevice.CreateBuffer(instanceDesc) case .Ok(let instBuf))
 				mInstanceBuffers[i] = instBuf;
 			else
 				return .Err;
@@ -790,8 +790,8 @@ public class DrawingRenderer : IDisposable
 			BindGroupEntry.Texture(0, cached.GpuTextureView),
 			BindGroupEntry.Sampler(0, mSampler)
 		);
-		BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
-		if (mDevice.CreateBindGroup(&bindGroupDesc) case .Ok(let group))
+		BindGroupDesc bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
+		if (mDevice.CreateBindGroup(bindGroupDesc) case .Ok(let group))
 			cached.BindGroups[frameIndex] = group;
 	}
 
@@ -837,8 +837,8 @@ public class DrawingRenderer : IDisposable
 			BindGroupEntry.Texture(0, cached.GpuTextureView),
 			BindGroupEntry.Sampler(0, mSampler)
 		);
-		BindGroupDescriptor bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
-		if (mDevice.CreateBindGroup(&bindGroupDesc) case .Ok(let group))
+		BindGroupDesc bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
+		if (mDevice.CreateBindGroup(bindGroupDesc) case .Ok(let group))
 			mInstancedBindGroups[frameIndex] = group;
 	}
 

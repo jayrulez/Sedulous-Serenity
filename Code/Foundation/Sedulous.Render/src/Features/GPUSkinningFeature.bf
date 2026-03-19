@@ -173,13 +173,13 @@ public class GPUSkinningFeature : RenderFeatureBase
 			}
 		);
 
-		BindGroupLayoutDescriptor layoutDesc = .()
+		BindGroupLayoutDesc layoutDesc = .()
 		{
 			Label = "Skinning BindGroup Layout",
 			Entries = entries
 		};
 
-		switch (Renderer.Device.CreateBindGroupLayout(&layoutDesc))
+		switch (Renderer.Device.CreateBindGroupLayout(layoutDesc))
 		{
 		case .Ok(let layout): mSkinningBindGroupLayout = layout;
 		case .Err: return .Err;
@@ -190,8 +190,8 @@ public class GPUSkinningFeature : RenderFeatureBase
 		{
 			// Create pipeline layout
 			IBindGroupLayout[1] layouts = .(mSkinningBindGroupLayout);
-			PipelineLayoutDescriptor plDesc = .(layouts);
-			switch (Renderer.Device.CreatePipelineLayout(&plDesc))
+			PipelineLayoutDesc plDesc = .(layouts);
+			switch (Renderer.Device.CreatePipelineLayout(plDesc))
 			{
 			case .Ok(let layout): mPipelineLayout = layout;
 			case .Err: return .Ok; // Non-fatal
@@ -200,10 +200,10 @@ public class GPUSkinningFeature : RenderFeatureBase
 			let shaderResult = Renderer.ShaderSystem.GetShader("skinning", .Compute);
 			if (shaderResult case .Ok(let shader))
 			{
-				ComputePipelineDescriptor pipelineDesc = .(mPipelineLayout, shader.Module);
+				ComputePipelineDesc pipelineDesc = .(mPipelineLayout, shader.Module);
 				pipelineDesc.Label = "GPU Skinning Pipeline";
 
-				switch (Renderer.Device.CreateComputePipeline(&pipelineDesc))
+				switch (Renderer.Device.CreateComputePipeline(pipelineDesc))
 				{
 				case .Ok(let pipeline): mSkinningPipeline = pipeline;
 				case .Err: // Non-fatal
@@ -272,14 +272,14 @@ public class GPUSkinningFeature : RenderFeatureBase
 		instance.BoneBufferHandle = proxy.BoneBufferHandle;
 
 		// Create skinning params uniform buffer
-		BufferDescriptor paramsBufferDesc = .()
+		BufferDesc paramsBufferDesc = .()
 		{
 			Label = "Skinning Params",
 			Size = SkinningParams.Size,
 			Usage = .Uniform | .CopyDst
 		};
 
-		switch (Renderer.Device.CreateBuffer(&paramsBufferDesc))
+		switch (Renderer.Device.CreateBuffer(paramsBufferDesc))
 		{
 		case .Ok(let buf): instance.ParamsBuffer = buf;
 		case .Err:
@@ -291,14 +291,14 @@ public class GPUSkinningFeature : RenderFeatureBase
 		// Output vertex format (VertexLayoutHelper.Mesh - 48 bytes):
 		// Position (12) + Normal (12) + TexCoord (8) + Color (4) + Tangent (12) = 48 bytes
 		let outputVertexSize = 48;
-		BufferDescriptor skinnedBufferDesc = .()
+		BufferDesc skinnedBufferDesc = .()
 		{
 			Label = "Skinned Vertices",
 			Size = (uint64)(gpuMesh.VertexCount * outputVertexSize),
 			Usage = .Storage | .Vertex | .CopyDst
 		};
 
-		switch (Renderer.Device.CreateBuffer(&skinnedBufferDesc))
+		switch (Renderer.Device.CreateBuffer(skinnedBufferDesc))
 		{
 		case .Ok(let buf): instance.SkinnedVertexBuffer = buf;
 		case .Err:
@@ -341,14 +341,14 @@ public class GPUSkinningFeature : RenderFeatureBase
 			BindGroupEntry.Buffer(0, instance.SkinnedVertexBuffer, 0, 0)               // u0: OutputVertices
 		);
 
-		BindGroupDescriptor desc = .()
+		BindGroupDesc desc = .()
 		{
 			Label = "Skinning BindGroup",
 			Layout = mSkinningBindGroupLayout,
 			Entries = entries
 		};
 
-		if (Renderer.Device.CreateBindGroup(&desc) case .Ok(let bindGroup))
+		if (Renderer.Device.CreateBindGroup(desc) case .Ok(let bindGroup))
 		{
 			instance.BindGroup = bindGroup;
 			return true;

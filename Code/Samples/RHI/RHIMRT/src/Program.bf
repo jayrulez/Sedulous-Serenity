@@ -121,46 +121,46 @@ class MRTSample : RHISampleApp
 		uint32 height = SwapChain.Height;
 
 		// Albedo texture (RGBA8)
-		TextureDescriptor albedoDesc = TextureDescriptor.Texture2D(width, height, .RGBA8Unorm, .RenderTarget | .Sampled);
-		if (Device.CreateTexture(&albedoDesc) not case .Ok(let tex))
+		TextureDesc albedoDesc = TextureDesc.Texture2D(width, height, .RGBA8Unorm, .RenderTarget | .Sampled);
+		if (Device.CreateTexture(albedoDesc) not case .Ok(let tex))
 			return false;
 		mAlbedoTexture = tex;
 
-		TextureViewDescriptor viewDesc = .();
-		if (Device.CreateTextureView(mAlbedoTexture, &viewDesc) not case .Ok(let view))
+		TextureViewDesc viewDesc = .();
+		if (Device.CreateTextureView(mAlbedoTexture, viewDesc) not case .Ok(let view))
 			return false;
 		mAlbedoView = view;
 
 		// Normal texture (RGBA16F for better precision)
-		TextureDescriptor normalDesc = TextureDescriptor.Texture2D(width, height, .RGBA16Float, .RenderTarget | .Sampled);
-		if (Device.CreateTexture(&normalDesc) not case .Ok(let tex2))
+		TextureDesc normalDesc = TextureDesc.Texture2D(width, height, .RGBA16Float, .RenderTarget | .Sampled);
+		if (Device.CreateTexture(normalDesc) not case .Ok(let tex2))
 			return false;
 		mNormalTexture = tex2;
 
-		TextureViewDescriptor normalViewDesc = .() { Format = .RGBA16Float };
-		if (Device.CreateTextureView(mNormalTexture, &normalViewDesc) not case .Ok(let view2))
+		TextureViewDesc normalViewDesc = .() { Format = .RGBA16Float };
+		if (Device.CreateTextureView(mNormalTexture, normalViewDesc) not case .Ok(let view2))
 			return false;
 		mNormalView = view2;
 
 		// Position texture (RGBA32F for world coordinates)
-		TextureDescriptor posDesc = TextureDescriptor.Texture2D(width, height, .RGBA32Float, .RenderTarget | .Sampled);
-		if (Device.CreateTexture(&posDesc) not case .Ok(let tex3))
+		TextureDesc posDesc = TextureDesc.Texture2D(width, height, .RGBA32Float, .RenderTarget | .Sampled);
+		if (Device.CreateTexture(posDesc) not case .Ok(let tex3))
 			return false;
 		mPositionTexture = tex3;
 
-		TextureViewDescriptor posViewDesc = .() { Format = .RGBA32Float };
-		if (Device.CreateTextureView(mPositionTexture, &posViewDesc) not case .Ok(let view3))
+		TextureViewDesc posViewDesc = .() { Format = .RGBA32Float };
+		if (Device.CreateTextureView(mPositionTexture, posViewDesc) not case .Ok(let view3))
 			return false;
 		mPositionView = view3;
 
 		// Depth texture for G-buffer pass
-		TextureDescriptor depthDesc = TextureDescriptor.Texture2D(width, height, .Depth24PlusStencil8, .DepthStencil);
-		if (Device.CreateTexture(&depthDesc) not case .Ok(let tex4))
+		TextureDesc depthDesc = TextureDesc.Texture2D(width, height, .Depth24PlusStencil8, .DepthStencil);
+		if (Device.CreateTexture(depthDesc) not case .Ok(let tex4))
 			return false;
 		mGBufferDepth = tex4;
 
-		TextureViewDescriptor depthViewDesc = .() { Format = .Depth24PlusStencil8 };
-		if (Device.CreateTextureView(mGBufferDepth, &depthViewDesc) not case .Ok(let view4))
+		TextureViewDesc depthViewDesc = .() { Format = .Depth24PlusStencil8 };
+		if (Device.CreateTextureView(mGBufferDepth, depthViewDesc) not case .Ok(let view4))
 			return false;
 		mGBufferDepthView = view4;
 
@@ -214,48 +214,48 @@ class MRTSample : RHISampleApp
 		);
 
 		// Create vertex buffer
-		BufferDescriptor vertexDesc = .()
+		BufferDesc vertexDesc = .()
 		{
 			Size = (uint64)(sizeof(Vertex) * vertices.Count),
 			Usage = .Vertex,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
-		if (Device.CreateBuffer(&vertexDesc) not case .Ok(let vb))
+		if (Device.CreateBuffer(vertexDesc) not case .Ok(let vb))
 			return false;
 		mCubeVertexBuffer = vb;
 		Device.Queue.WriteMappedBuffer(mCubeVertexBuffer, 0, .((uint8*)&vertices, (int)vertexDesc.Size));
 
 		// Create index buffer
-		BufferDescriptor indexDesc = .()
+		BufferDesc indexDesc = .()
 		{
 			Size = (uint64)(sizeof(uint16) * indices.Count),
 			Usage = .Index,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
-		if (Device.CreateBuffer(&indexDesc) not case .Ok(let ib))
+		if (Device.CreateBuffer(indexDesc) not case .Ok(let ib))
 			return false;
 		mCubeIndexBuffer = ib;
 		Device.Queue.WriteMappedBuffer(mCubeIndexBuffer, 0, .((uint8*)&indices, (int)indexDesc.Size));
 
 		// Create uniform buffer for G-buffer pass
-		BufferDescriptor uniformDesc = .()
+		BufferDesc uniformDesc = .()
 		{
 			Size = (uint64)sizeof(GBufferUniforms),
 			Usage = .Uniform,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
-		if (Device.CreateBuffer(&uniformDesc) not case .Ok(let ub))
+		if (Device.CreateBuffer(uniformDesc) not case .Ok(let ub))
 			return false;
 		mGBufferUniformBuffer = ub;
 
 		// Create light params buffer for composite pass
-		BufferDescriptor lightDesc = .()
+		BufferDesc lightDesc = .()
 		{
 			Size = (uint64)sizeof(LightParams),
 			Usage = .Uniform,
-			MemoryAccess = .Upload
+			MemoryAccess = .CpuToGpu
 		};
-		if (Device.CreateBuffer(&lightDesc) not case .Ok(let lb))
+		if (Device.CreateBuffer(lightDesc) not case .Ok(let lb))
 			return false;
 		mLightParamsBuffer = lb;
 
@@ -275,8 +275,8 @@ class MRTSample : RHISampleApp
 		BindGroupLayoutEntry[1] layoutEntries = .(
 			BindGroupLayoutEntry.UniformBuffer(0, .Vertex)
 		);
-		BindGroupLayoutDescriptor bindGroupLayoutDesc = .(layoutEntries);
-		if (Device.CreateBindGroupLayout(&bindGroupLayoutDesc) not case .Ok(let layout))
+		BindGroupLayoutDesc bindGroupLayoutDesc = .(layoutEntries);
+		if (Device.CreateBindGroupLayout(bindGroupLayoutDesc) not case .Ok(let layout))
 			return false;
 		mGBufferBindGroupLayout = layout;
 
@@ -284,15 +284,15 @@ class MRTSample : RHISampleApp
 		BindGroupEntry[1] bindGroupEntries = .(
 			BindGroupEntry.Buffer(0, mGBufferUniformBuffer)
 		);
-		BindGroupDescriptor bindGroupDesc = .(mGBufferBindGroupLayout, bindGroupEntries);
-		if (Device.CreateBindGroup(&bindGroupDesc) not case .Ok(let group))
+		BindGroupDesc bindGroupDesc = .(mGBufferBindGroupLayout, bindGroupEntries);
+		if (Device.CreateBindGroup(bindGroupDesc) not case .Ok(let group))
 			return false;
 		mGBufferBindGroup = group;
 
 		// Pipeline layout
 		IBindGroupLayout[1] layouts = .(mGBufferBindGroupLayout);
-		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
-		if (Device.CreatePipelineLayout(&pipelineLayoutDesc) not case .Ok(let pipelineLayout))
+		PipelineLayoutDesc pipelineLayoutDesc = .(layouts);
+		if (Device.CreatePipelineLayout(pipelineLayoutDesc) not case .Ok(let pipelineLayout))
 			return false;
 		mGBufferPipelineLayout = pipelineLayout;
 
@@ -324,7 +324,7 @@ class MRTSample : RHISampleApp
 		};
 
 		// Pipeline
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Layout = mGBufferPipelineLayout,
 			Vertex = .()
@@ -347,7 +347,7 @@ class MRTSample : RHISampleApp
 			Multisample = .() { Count = 1, Mask = uint32.MaxValue }
 		};
 
-		if (Device.CreateRenderPipeline(&pipelineDesc) not case .Ok(let pipeline))
+		if (Device.CreateRenderPipeline(pipelineDesc) not case .Ok(let pipeline))
 			return false;
 		mGBufferPipeline = pipeline;
 
@@ -365,8 +365,8 @@ class MRTSample : RHISampleApp
 		(mCompositeVertShader, mCompositeFragShader) = shaderResult.Get();
 
 		// Create sampler
-		SamplerDescriptor samplerDesc = SamplerDescriptor.NearestClamp();
-		if (Device.CreateSampler(&samplerDesc) not case .Ok(let sampler))
+		SamplerDesc samplerDesc = SamplerDesc.NearestClamp();
+		if (Device.CreateSampler(samplerDesc) not case .Ok(let sampler))
 			return false;
 		mSampler = sampler;
 
@@ -379,8 +379,8 @@ class MRTSample : RHISampleApp
 			BindGroupLayoutEntry.SampledTexture(2, .Fragment),   // t2 -> Vulkan binding 1002
 			BindGroupLayoutEntry.Sampler(0, .Fragment)           // s0 -> Vulkan binding 3000
 		);
-		BindGroupLayoutDescriptor bindGroupLayoutDesc = .(layoutEntries);
-		if (Device.CreateBindGroupLayout(&bindGroupLayoutDesc) not case .Ok(let layout))
+		BindGroupLayoutDesc bindGroupLayoutDesc = .(layoutEntries);
+		if (Device.CreateBindGroupLayout(bindGroupLayoutDesc) not case .Ok(let layout))
 			return false;
 		mCompositeBindGroupLayout = layout;
 
@@ -392,15 +392,15 @@ class MRTSample : RHISampleApp
 			BindGroupEntry.Texture(2, mPositionView),
 			BindGroupEntry.Sampler(0, mSampler)
 		);
-		BindGroupDescriptor bindGroupDesc = .(mCompositeBindGroupLayout, bindGroupEntries);
-		if (Device.CreateBindGroup(&bindGroupDesc) not case .Ok(let group))
+		BindGroupDesc bindGroupDesc = .(mCompositeBindGroupLayout, bindGroupEntries);
+		if (Device.CreateBindGroup(bindGroupDesc) not case .Ok(let group))
 			return false;
 		mCompositeBindGroup = group;
 
 		// Pipeline layout
 		IBindGroupLayout[1] layouts = .(mCompositeBindGroupLayout);
-		PipelineLayoutDescriptor pipelineLayoutDesc = .(layouts);
-		if (Device.CreatePipelineLayout(&pipelineLayoutDesc) not case .Ok(let pipelineLayout))
+		PipelineLayoutDesc pipelineLayoutDesc = .(layouts);
+		if (Device.CreatePipelineLayout(pipelineLayoutDesc) not case .Ok(let pipelineLayout))
 			return false;
 		mCompositePipelineLayout = pipelineLayout;
 
@@ -408,7 +408,7 @@ class MRTSample : RHISampleApp
 		ColorTargetState[1] colorTargets = .(.(SwapChain.Format));
 
 		// Pipeline
-		RenderPipelineDescriptor pipelineDesc = .()
+		RenderPipelineDesc pipelineDesc = .()
 		{
 			Layout = mCompositePipelineLayout,
 			Vertex = .()
@@ -431,7 +431,7 @@ class MRTSample : RHISampleApp
 			Multisample = .() { Count = 1, Mask = uint32.MaxValue }
 		};
 
-		if (Device.CreateRenderPipeline(&pipelineDesc) not case .Ok(let pipeline))
+		if (Device.CreateRenderPipeline(pipelineDesc) not case .Ok(let pipeline))
 			return false;
 		mCompositePipeline = pipeline;
 
@@ -507,24 +507,24 @@ class MRTSample : RHISampleApp
 		defer delete encoder;
 
 		// G-buffer render pass with 3 color attachments
-		RenderPassColorAttachment[3] colorAttachments = .(
+		ColorAttachment[3] colorAttachments = .(
 			.() { View = mAlbedoView, LoadOp = .Clear, StoreOp = .Store, ClearValue = .(0, 0, 0, 1) },
 			.() { View = mNormalView, LoadOp = .Clear, StoreOp = .Store, ClearValue = .(0.5f, 0.5f, 1, 1) },
 			.() { View = mPositionView, LoadOp = .Clear, StoreOp = .Store, ClearValue = .(0, 0, 0, 1) }
 		);
 
-		RenderPassDepthStencilAttachment depthAttachment = .()
+		DepthStencilAttachment depthAttachment = .()
 		{
 			View = mGBufferDepthView,
 			DepthLoadOp = .Clear,
 			DepthStoreOp = .Store,
 			DepthClearValue = 1.0f,
 			StencilLoadOp = .Clear,
-			StencilStoreOp = .Discard,
+			StencilStoreOp = .DontCare,
 			StencilClearValue = 0
 		};
 
-		RenderPassDescriptor renderPassDesc = .(colorAttachments);
+		RenderPassDesc renderPassDesc = .(colorAttachments);
 		renderPassDesc.DepthStencilAttachment = depthAttachment;
 
 		let renderPass = encoder.BeginRenderPass(&renderPassDesc);
@@ -535,7 +535,7 @@ class MRTSample : RHISampleApp
 		renderPass.SetVertexBuffer(0, mCubeVertexBuffer, 0);
 		renderPass.SetIndexBuffer(mCubeIndexBuffer, .UInt16, 0);
 		renderPass.SetViewport(0, 0, SwapChain.Width, SwapChain.Height, 0, 1);
-		renderPass.SetScissorRect(0, 0, SwapChain.Width, SwapChain.Height);
+		renderPass.SetScissor(0, 0, SwapChain.Width, SwapChain.Height);
 		renderPass.DrawIndexed(36, 1, 0, 0, 0);
 		renderPass.End();
 

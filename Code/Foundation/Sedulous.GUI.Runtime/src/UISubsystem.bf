@@ -219,7 +219,7 @@ public class UISubsystem : Subsystem
 			mDrawingRenderer.Prepare(batch, frameIndex);
 
 			// Create overlay render pass (Load = preserve 3D scene)
-			RenderPassColorAttachment[1] colorAttachments = .(.()
+			ColorAttachment[1] colorAttachments = .(.()
 			{
 				View = targetView,
 				ResolveTarget = null,
@@ -227,7 +227,7 @@ public class UISubsystem : Subsystem
 				StoreOp = .Store,
 				ClearValue = .(0, 0, 0, 1)
 			});
-			RenderPassDescriptor passDesc = .(colorAttachments);
+			RenderPassDesc passDesc = .(colorAttachments);
 
 			let renderPass = encoder.BeginRenderPass(&passDesc);
 			if (renderPass != null)

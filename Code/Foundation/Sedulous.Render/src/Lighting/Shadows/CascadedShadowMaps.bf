@@ -234,7 +234,7 @@ public class CascadedShadowMaps : IDisposable
 	private Result<void> CreateShadowMapArray()
 	{
 		// Create 2D array texture for cascades
-		TextureDescriptor desc = .()
+		TextureDesc desc = .()
 		{
 			Label = "Cascaded Shadow Maps",
 			Dimension = .Texture2D,
@@ -248,14 +248,14 @@ public class CascadedShadowMaps : IDisposable
 			Usage = .DepthStencil | .Sampled
 		};
 
-		switch (mDevice.CreateTexture(&desc))
+		switch (mDevice.CreateTexture(desc))
 		{
 		case .Ok(let tex): mShadowMapArray = tex;
 		case .Err: return .Err;
 		}
 
 		// Create array view for sampling all cascades
-		TextureViewDescriptor arrayViewDesc = .()
+		TextureViewDesc arrayViewDesc = .()
 		{
 			Label = "Shadow Map Array View",
 			Format = .Depth32Float,
@@ -267,7 +267,7 @@ public class CascadedShadowMaps : IDisposable
 			Aspect = .DepthOnly
 		};
 
-		switch (mDevice.CreateTextureView(mShadowMapArray, &arrayViewDesc))
+		switch (mDevice.CreateTextureView(mShadowMapArray, arrayViewDesc))
 		{
 		case .Ok(let view): mShadowMapArrayView = view;
 		case .Err: return .Err;
@@ -276,7 +276,7 @@ public class CascadedShadowMaps : IDisposable
 		// Create individual cascade views for rendering
 		for (uint32 i = 0; i < mConfig.CascadeCount; i++)
 		{
-			TextureViewDescriptor cascadeViewDesc = .()
+			TextureViewDesc cascadeViewDesc = .()
 			{
 				Label = "Shadow Cascade View",
 				Format = .Depth32Float,
@@ -288,7 +288,7 @@ public class CascadedShadowMaps : IDisposable
 				Aspect = .DepthOnly
 			};
 
-			switch (mDevice.CreateTextureView(mShadowMapArray, &cascadeViewDesc))
+			switch (mDevice.CreateTextureView(mShadowMapArray, cascadeViewDesc))
 			{
 			case .Ok(let view): mCascadeViews[i] = view;
 			case .Err: return .Err;
@@ -300,19 +300,19 @@ public class CascadedShadowMaps : IDisposable
 
 	private Result<void> CreateShadowSampler()
 	{
-		SamplerDescriptor desc = .()
+		SamplerDesc desc = .()
 		{
 			Label = "Shadow Comparison Sampler",
-			AddressModeU = .ClampToEdge,
-			AddressModeV = .ClampToEdge,
-			AddressModeW = .ClampToEdge,
+			AddressU = .ClampToEdge,
+			AddressV = .ClampToEdge,
+			AddressW = .ClampToEdge,
 			MagFilter = .Linear,
 			MinFilter = .Linear,
 			MipmapFilter = .Nearest,
 			Compare = .LessEqual
 		};
 
-		switch (mDevice.CreateSampler(&desc))
+		switch (mDevice.CreateSampler(desc))
 		{
 		case .Ok(let sampler): mShadowSampler = sampler;
 		case .Err: return .Err;
@@ -324,15 +324,15 @@ public class CascadedShadowMaps : IDisposable
 	private Result<void> CreateUniformBuffer()
 	{
 		// Use Upload memory for CPU mapping (avoids command buffer for writes)
-		BufferDescriptor desc = .()
+		BufferDesc desc = .()
 		{
 			Label = "Shadow Uniforms",
 			Size = (uint64)ShadowUniforms.Size,
 			Usage = .Uniform,
-			MemoryAccess = .Upload // CPU-mappable
+			MemoryAccess = .CpuToGpu // CPU-mappable
 		};
 
-		switch (mDevice.CreateBuffer(&desc))
+		switch (mDevice.CreateBuffer(desc))
 		{
 		case .Ok(let buf): mShadowUniformBuffer = buf;
 		case .Err: return .Err;

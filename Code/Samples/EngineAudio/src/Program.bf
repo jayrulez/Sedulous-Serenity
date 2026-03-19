@@ -478,7 +478,7 @@ class EngineAudioSample : RHISampleApp
 		mDrawingRenderer.UpdateProjection(SwapChain.Width, SwapChain.Height, frameIndex);
 
 		// Create render pass
-		RenderPassColorAttachment[1] colorAttachments = .(.()
+		ColorAttachment[1] colorAttachments = .(.()
 		{
 			View = SwapChain.CurrentTextureView,
 			LoadOp = .Clear,
@@ -486,7 +486,7 @@ class EngineAudioSample : RHISampleApp
 			ClearValue = mConfig.ClearColor
 		});
 
-		RenderPassDescriptor renderPassDesc = .(colorAttachments);
+		RenderPassDesc renderPassDesc = .(colorAttachments);
 		let renderPass = encoder.BeginRenderPass(&renderPassDesc);
 		if (renderPass == null)
 		{
@@ -496,7 +496,7 @@ class EngineAudioSample : RHISampleApp
 		defer delete renderPass;
 
 		renderPass.SetViewport(0, 0, SwapChain.Width, SwapChain.Height, 0, 1);
-		renderPass.SetScissorRect(0, 0, SwapChain.Width, SwapChain.Height);
+		renderPass.SetScissor(0, 0, SwapChain.Width, SwapChain.Height);
 
 		// Render UI
 		mDrawingRenderer.Render(renderPass, SwapChain.Width, SwapChain.Height, frameIndex);

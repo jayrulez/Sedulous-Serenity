@@ -14,7 +14,7 @@ class DX12BindGroupLayout : IBindGroupLayout
 	private uint32 mDynamicOffsetCount;
 	private uint32 mDynamicCbvSrvUavCount;
 
-	public this(BindGroupLayoutDescriptor* descriptor)
+	public this(BindGroupLayoutDesc descriptor)
 	{
 		for (let entry in descriptor.Entries)
 		{

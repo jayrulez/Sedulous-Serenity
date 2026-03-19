@@ -63,8 +63,8 @@ static class ShaderUtils
 			return .Err;
 		}
 
-		ShaderModuleDescriptor desc = .(result.Bytecode);
-		if (device.CreateShaderModule(&desc) case .Ok(let module))
+		ShaderModuleDesc desc = .(result.Bytecode);
+		if (device.CreateShaderModule(desc) case .Ok(let module))
 			return .Ok(module);
 
 		Console.WriteLine("Failed to create shader module");

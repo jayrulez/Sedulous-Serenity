@@ -132,14 +132,14 @@ class RenderFrameContext : IDisposable
 		// Use Upload memory for CPU mapping (avoids command buffer for writes)
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
 		{
-			var desc = BufferDescriptor()
+			var desc = BufferDesc()
 			{
 				Size = 464, // SceneUniforms size: 7 matrices (448) + 4 floats (16) = 464
 				Usage = .Uniform,
-				MemoryAccess = .Upload // CPU-mappable
+				MemoryAccess = .CpuToGpu // CPU-mappable
 			};
 
-			if (device.CreateBuffer(&desc) case .Ok(let buffer))
+			if (device.CreateBuffer(desc) case .Ok(let buffer))
 				mSceneUniformBuffers[i] = buffer;
 			else
 				return .Err;
