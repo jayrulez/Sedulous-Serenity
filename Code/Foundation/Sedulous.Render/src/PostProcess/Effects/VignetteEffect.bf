@@ -78,7 +78,7 @@ public class VignetteEffect : IPostProcessEffect
 		bufDesc.Label = "Vignette Params";
 		bufDesc.Size = (uint64)VignetteParams.Size;
 		bufDesc.Usage = .Uniform;
-		bufDesc.MemoryAccess = .CpuToGpu;
+		bufDesc.Memory = .CpuToGpu;
 
 		switch (device.CreateBuffer(bufDesc))
 		{

@@ -329,7 +329,7 @@ public class CascadedShadowMaps : IDisposable
 			Label = "Shadow Uniforms",
 			Size = (uint64)ShadowUniforms.Size,
 			Usage = .Uniform,
-			MemoryAccess = .CpuToGpu // CPU-mappable
+			Memory = .CpuToGpu // CPU-mappable
 		};
 
 		switch (mDevice.CreateBuffer(desc))

@@ -92,7 +92,7 @@ public class AutoExposureEffect
 			histBufDesc.Label = "Exposure Histogram";
 			histBufDesc.Size = (uint64)HistogramBufferSize;
 			histBufDesc.Usage = .Storage;
-			histBufDesc.MemoryAccess = .CpuToGpu;
+			histBufDesc.Memory = .CpuToGpu;
 
 			switch (device.CreateBuffer(histBufDesc))
 			{
@@ -106,7 +106,7 @@ public class AutoExposureEffect
 		expBufDesc.Label = "Exposure Buffer";
 		expBufDesc.Size = 8; // 2 floats
 		expBufDesc.Usage = .Storage | .CopySrc | .CopyDst;  // CopyDst for Queue.WriteBuffer init, CopySrc for readback
-		expBufDesc.MemoryAccess = .GpuOnly;
+		expBufDesc.Memory = .GpuOnly;
 
 		switch (device.CreateBuffer(expBufDesc))
 		{
@@ -119,7 +119,7 @@ public class AutoExposureEffect
 		readbackDesc.Label = "Exposure Readback";
 		readbackDesc.Size = 8;
 		readbackDesc.Usage = .CopyDst;
-		readbackDesc.MemoryAccess = .GpuToCpu;
+		readbackDesc.Memory = .GpuToCpu;
 
 		switch (device.CreateBuffer(readbackDesc))
 		{
@@ -134,7 +134,7 @@ public class AutoExposureEffect
 		// Create param buffers
 		BufferDesc paramDesc = .();
 		paramDesc.Usage = .Uniform;
-		paramDesc.MemoryAccess = .CpuToGpu;
+		paramDesc.Memory = .CpuToGpu;
 
 		paramDesc.Label = "Histogram Params";
 		paramDesc.Size = (uint64)HistogramParams.Size;

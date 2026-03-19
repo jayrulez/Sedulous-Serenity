@@ -100,7 +100,7 @@ public class ColorGradingEffect : IPostProcessEffect
 		bufDesc.Label = "ColorGrading Params";
 		bufDesc.Size = (uint64)ColorGradingParams.Size;
 		bufDesc.Usage = .Uniform;
-		bufDesc.MemoryAccess = .CpuToGpu;
+		bufDesc.Memory = .CpuToGpu;
 
 		switch (device.CreateBuffer(bufDesc))
 		{

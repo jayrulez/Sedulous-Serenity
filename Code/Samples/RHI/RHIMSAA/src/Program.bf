@@ -145,7 +145,7 @@ class MSAASample : RHISampleApp
 		{
 			Size = (uint64)(sizeof(Vertex) * vertices.Count),
 			Usage = .Vertex,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (Device.CreateBuffer(vertexDesc) not case .Ok(let vb))
@@ -158,7 +158,7 @@ class MSAASample : RHISampleApp
 		{
 			Size = (uint64)sizeof(Uniforms),
 			Usage = .Uniform,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (Device.CreateBuffer(uniformDesc) not case .Ok(let ub))
@@ -254,7 +254,7 @@ class MSAASample : RHISampleApp
 		{
 			Size = (uint64)(sizeof(float) * quadVerts.Count),
 			Usage = .Vertex,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (Device.CreateBuffer(quadDesc) not case .Ok(let qvb))

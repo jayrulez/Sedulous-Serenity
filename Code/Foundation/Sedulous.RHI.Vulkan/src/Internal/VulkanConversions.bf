@@ -210,7 +210,7 @@ static class VulkanConversions
 	}
 
 	/// Converts RHI MemoryAccess to VkMemoryPropertyFlags.
-	public static VkMemoryPropertyFlags ToVkMemoryProperties(MemoryAccess access)
+	public static VkMemoryPropertyFlags ToVkMemoryProperties(MemoryLocation access)
 	{
 		switch (access)
 		{

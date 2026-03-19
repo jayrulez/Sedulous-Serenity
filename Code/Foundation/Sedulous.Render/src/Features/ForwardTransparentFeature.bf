@@ -67,7 +67,7 @@ public class ForwardTransparentFeature : RenderFeatureBase
 				Label = "Transparent Object Uniforms",
 				Size = AlignedObjectUniformSize * (uint64)MaxTransparentObjects,
 				Usage = .Uniform,
-				MemoryAccess = .CpuToGpu
+				Memory = .CpuToGpu
 			};
 
 			switch (Renderer.Device.CreateBuffer(desc))

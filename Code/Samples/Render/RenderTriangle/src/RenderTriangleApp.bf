@@ -105,7 +105,7 @@ class RenderTriangleApp : Application
 		{
 			Size = (uint64)(sizeof(Vertex) * vertices.Count),
 			Usage = .Vertex,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (mDevice.CreateBuffer(vertexDesc) not case .Ok(let vb))
@@ -120,7 +120,7 @@ class RenderTriangleApp : Application
 		{
 			Size = (uint64)sizeof(Uniforms),
 			Usage = .Uniform,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (mDevice.CreateBuffer(uniformDesc) not case .Ok(let ub))

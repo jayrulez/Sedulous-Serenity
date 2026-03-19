@@ -106,7 +106,7 @@ public class SSREffect : IPostProcessEffect
 		bufDesc.Label = "SSR Params";
 		bufDesc.Size = (uint64)SSRParams.Size;
 		bufDesc.Usage = .Uniform;
-		bufDesc.MemoryAccess = .CpuToGpu;
+		bufDesc.Memory = .CpuToGpu;
 
 		switch (device.CreateBuffer(bufDesc))
 		{

@@ -159,7 +159,7 @@ public class WaterFeature : RenderFeatureBase
 			Label = "Water Grid Vertices",
 			Size = vertexSize,
 			Usage = .Vertex,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		switch (Renderer.Device.CreateBuffer(vertDesc))
@@ -189,7 +189,7 @@ public class WaterFeature : RenderFeatureBase
 			Label = "Water Grid Indices",
 			Size = indexSize,
 			Usage = .Index,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		switch (Renderer.Device.CreateBuffer(idxDesc))
@@ -488,7 +488,7 @@ public class WaterFeature : RenderFeatureBase
 				Label = "Water Uniforms",
 				Size = WaterUniforms.Size * MaxWaters,
 				Usage = .Uniform,
-				MemoryAccess = .CpuToGpu
+				Memory = .CpuToGpu
 			};
 
 			switch (Renderer.Device.CreateBuffer(uniformDesc))
@@ -510,7 +510,7 @@ public class WaterFeature : RenderFeatureBase
 				Label = "Water Object Uniforms",
 				Size = AlignedObjectUniformSize,
 				Usage = .Uniform,
-				MemoryAccess = .CpuToGpu
+				Memory = .CpuToGpu
 			};
 
 			switch (Renderer.Device.CreateBuffer(desc))

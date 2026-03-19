@@ -221,7 +221,7 @@ class FontRenderingSample : RHISampleApp
 		{
 			Size = vertexBufferSize,
 			Usage = .Vertex,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (Device.CreateBuffer(vertexDesc) not case .Ok(let vb))
@@ -237,7 +237,7 @@ class FontRenderingSample : RHISampleApp
 		{
 			Size = indexBufferSize,
 			Usage = .Index,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (Device.CreateBuffer(indexDesc) not case .Ok(let ib))
@@ -252,7 +252,7 @@ class FontRenderingSample : RHISampleApp
 		{
 			Size = (uint64)sizeof(Uniforms),
 			Usage = .Uniform,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (Device.CreateBuffer(uniformDesc) not case .Ok(let ub))

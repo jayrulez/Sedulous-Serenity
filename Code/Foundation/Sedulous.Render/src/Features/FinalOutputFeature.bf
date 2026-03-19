@@ -89,7 +89,7 @@ public class FinalOutputFeature : RenderFeatureBase
 				Label = "Blit Params",
 				Size = (uint64)BlitParams.Size,
 				Usage = .Uniform,
-				MemoryAccess = .CpuToGpu
+				Memory = .CpuToGpu
 			};
 
 			switch (Renderer.Device.CreateBuffer(bufDesc))

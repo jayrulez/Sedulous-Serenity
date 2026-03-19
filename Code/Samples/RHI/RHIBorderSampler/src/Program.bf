@@ -155,7 +155,7 @@ class BorderSamplerSample : RHISampleApp
 		{
 			Size = (uint64)(sizeof(float) * vertices.Count),
 			Usage = .Vertex,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (Device.CreateBuffer(vertexDesc) not case .Ok(let vb))

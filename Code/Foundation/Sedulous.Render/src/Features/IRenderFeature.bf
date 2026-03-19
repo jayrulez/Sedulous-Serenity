@@ -118,7 +118,7 @@ public abstract class RenderFeatureBase : IRenderFeature
 	protected void UploadBuffer(IBuffer buffer, uint64 offset, Span<uint8> data)
 	{
 		if (mRenderer?.TransferBatch != null)
-			mRenderer.TransferBatch.WriteStagedBuffer(buffer, offset, data);
+			mRenderer.TransferBatch.WriteBuffer(buffer, offset, data);
 		else
 			mRenderer.Device.Queue.WriteStagedBufferSync(buffer, offset, data);
 	}

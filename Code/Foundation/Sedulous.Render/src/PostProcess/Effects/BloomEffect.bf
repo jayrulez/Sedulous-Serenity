@@ -107,7 +107,7 @@ public class BloomEffect : IPostProcessEffect
 			bufDesc.Label = "Bloom Downsample Params";
 			bufDesc.Size = (uint64)BloomDownsampleParams.Size;
 			bufDesc.Usage = .Uniform;
-			bufDesc.MemoryAccess = .CpuToGpu;
+			bufDesc.Memory = .CpuToGpu;
 
 			switch (device.CreateBuffer(bufDesc))
 			{

@@ -74,7 +74,7 @@ public class ChromaticAberrationEffect : IPostProcessEffect
 		bufDesc.Label = "ChromaticAberration Params";
 		bufDesc.Size = (uint64)ChromaticAberrationParams.Size;
 		bufDesc.Usage = .Uniform;
-		bufDesc.MemoryAccess = .CpuToGpu;
+		bufDesc.Memory = .CpuToGpu;
 
 		switch (device.CreateBuffer(bufDesc))
 		{

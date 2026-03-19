@@ -247,7 +247,7 @@ class UISandboxSample : RHISampleApp
 		{
 			Size = (uint64)(sizeof(float) * quadVerts.Count),
 			Usage = .Vertex,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (Device.CreateBuffer(quadDesc) not case .Ok(let qvb))

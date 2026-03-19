@@ -455,7 +455,7 @@ public class ClusterGrid : IDisposable
 				Label = "Cluster Light Info",
 				Size = totalClusters * 8,
 				Usage = .Storage,
-				MemoryAccess = .CpuToGpu // CPU-mappable
+				Memory = .CpuToGpu // CPU-mappable
 			};
 
 			switch (mDevice.CreateBuffer(infoDesc))
@@ -476,7 +476,7 @@ public class ClusterGrid : IDisposable
 				Label = "Light Indices",
 				Size = maxIndices * 4,
 				Usage = .Storage,
-				MemoryAccess = .CpuToGpu // CPU-mappable
+				Memory = .CpuToGpu // CPU-mappable
 			};
 
 			switch (mDevice.CreateBuffer(indexDesc))
@@ -493,7 +493,7 @@ public class ClusterGrid : IDisposable
 			Label = "Cluster Uniforms",
 			Size = (uint64)ClusterUniforms.Size,
 			Usage = .Uniform,
-			MemoryAccess = .CpuToGpu // CPU-mappable
+			Memory = .CpuToGpu // CPU-mappable
 		};
 
 		switch (mDevice.CreateBuffer(uniformDesc))
@@ -512,7 +512,7 @@ public class ClusterGrid : IDisposable
 			Label = "Light Index Counter",
 			Size = 4, // Single uint32
 			Usage = .Storage,
-			MemoryAccess = .CpuToGpu // CPU-mappable
+			Memory = .CpuToGpu // CPU-mappable
 		};
 
 		switch (mDevice.CreateBuffer(counterDesc))

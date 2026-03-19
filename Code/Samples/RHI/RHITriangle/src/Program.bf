@@ -76,7 +76,7 @@ class TriangleSample : RHISampleApp
 		{
 			Size = (uint64)(sizeof(Vertex) * vertices.Count),
 			Usage = .Vertex,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (Device.CreateBuffer(vertexDesc) not case .Ok(let vb))
@@ -91,7 +91,7 @@ class TriangleSample : RHISampleApp
 		{
 			Size = (uint64)sizeof(Uniforms),
 			Usage = .Uniform,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (Device.CreateBuffer(uniformDesc) not case .Ok(let ub))

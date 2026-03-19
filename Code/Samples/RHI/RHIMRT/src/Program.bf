@@ -218,7 +218,7 @@ class MRTSample : RHISampleApp
 		{
 			Size = (uint64)(sizeof(Vertex) * vertices.Count),
 			Usage = .Vertex,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 		if (Device.CreateBuffer(vertexDesc) not case .Ok(let vb))
 			return false;
@@ -230,7 +230,7 @@ class MRTSample : RHISampleApp
 		{
 			Size = (uint64)(sizeof(uint16) * indices.Count),
 			Usage = .Index,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 		if (Device.CreateBuffer(indexDesc) not case .Ok(let ib))
 			return false;
@@ -242,7 +242,7 @@ class MRTSample : RHISampleApp
 		{
 			Size = (uint64)sizeof(GBufferUniforms),
 			Usage = .Uniform,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 		if (Device.CreateBuffer(uniformDesc) not case .Ok(let ub))
 			return false;
@@ -253,7 +253,7 @@ class MRTSample : RHISampleApp
 		{
 			Size = (uint64)sizeof(LightParams),
 			Usage = .Uniform,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 		if (Device.CreateBuffer(lightDesc) not case .Ok(let lb))
 			return false;

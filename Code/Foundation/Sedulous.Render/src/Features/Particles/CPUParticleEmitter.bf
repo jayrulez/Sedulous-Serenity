@@ -115,7 +115,7 @@ public class CPUParticleEmitter
 				Label = "CPU Particle Vertex Buffer",
 				Size = (uint64)(maxParticles * CPUParticleVertex.SizeInBytes),
 				Usage = .Vertex,
-				MemoryAccess = .CpuToGpu
+				Memory = .CpuToGpu
 			};
 
 			switch (device.CreateBuffer(desc))
@@ -665,7 +665,7 @@ public class CPUParticleEmitter
 				Label = "CPU Particle Trail Vertex Buffer",
 				Size = (uint64)(mMaxTrailVertices * TrailVertex.SizeInBytes),
 				Usage = .Vertex,
-				MemoryAccess = .CpuToGpu
+				Memory = .CpuToGpu
 			};
 
 			switch (mDevice.CreateBuffer(desc))

@@ -80,7 +80,7 @@ public class SharpenEffect : IPostProcessEffect
 		bufDesc.Label = "Sharpen Params";
 		bufDesc.Size = (uint64)SharpenParams.Size;
 		bufDesc.Usage = .Uniform;
-		bufDesc.MemoryAccess = .CpuToGpu;
+		bufDesc.Memory = .CpuToGpu;
 
 		switch (device.CreateBuffer(bufDesc))
 		{

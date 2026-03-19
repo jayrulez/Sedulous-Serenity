@@ -259,7 +259,7 @@ public class DecalFeature : RenderFeatureBase
 				Label = "Decal Uniforms (Dynamic UBO)",
 				Size = DecalUniformAlignment * MaxDecals,
 				Usage = .Uniform,
-				MemoryAccess = .CpuToGpu
+				Memory = .CpuToGpu
 			};
 
 			switch (Renderer.Device.CreateBuffer(uniformDesc))
@@ -575,7 +575,7 @@ public class DecalFeature : RenderFeatureBase
 				Label = "Curve Decal Uniforms",
 				Size = CurveDecalUniformAlignment * MaxCurveDecals,
 				Usage = .Uniform,
-				MemoryAccess = .CpuToGpu
+				Memory = .CpuToGpu
 			};
 
 			if (Renderer.Device.CreateBuffer(uniformDesc) case .Ok(let buf))
@@ -747,7 +747,7 @@ public class DecalFeature : RenderFeatureBase
 				Label = "Curve Decal VB",
 				Size = vertexDataSize,
 				Usage = .Vertex,
-				MemoryAccess = .CpuToGpu
+				Memory = .CpuToGpu
 			};
 
 			if (Renderer.Device.CreateBuffer(vbDesc) case .Ok(let buf))
@@ -766,7 +766,7 @@ public class DecalFeature : RenderFeatureBase
 				Label = "Curve Decal IB",
 				Size = indexDataSize,
 				Usage = .Index,
-				MemoryAccess = .CpuToGpu
+				Memory = .CpuToGpu
 			};
 
 			if (Renderer.Device.CreateBuffer(ibDesc) case .Ok(let buf))

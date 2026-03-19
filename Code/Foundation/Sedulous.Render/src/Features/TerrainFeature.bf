@@ -169,7 +169,7 @@ public class TerrainFeature : RenderFeatureBase
 			Label = "Terrain Grid Vertices",
 			Size = vertexSize,
 			Usage = .Vertex,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		switch (Renderer.Device.CreateBuffer(vertDesc))
@@ -199,7 +199,7 @@ public class TerrainFeature : RenderFeatureBase
 			Label = "Terrain Grid Indices",
 			Size = indexSize,
 			Usage = .Index,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		switch (Renderer.Device.CreateBuffer(idxDesc))
@@ -380,7 +380,7 @@ public class TerrainFeature : RenderFeatureBase
 				Label = "Terrain Instance Buffer",
 				Size = TerrainPatchInstance.Size * MaxTotalPatches,
 				Usage = .Vertex,
-				MemoryAccess = .CpuToGpu
+				Memory = .CpuToGpu
 			};
 
 			switch (Renderer.Device.CreateBuffer(instDesc))
@@ -394,7 +394,7 @@ public class TerrainFeature : RenderFeatureBase
 				Label = "Terrain Uniforms",
 				Size = TerrainUniforms.Size * MaxTerrains,
 				Usage = .Uniform,
-				MemoryAccess = .CpuToGpu
+				Memory = .CpuToGpu
 			};
 
 			switch (Renderer.Device.CreateBuffer(uniformDesc))
@@ -418,7 +418,7 @@ public class TerrainFeature : RenderFeatureBase
 				Label = "Terrain Object Uniforms",
 				Size = AlignedObjectUniformSize,
 				Usage = .Uniform,
-				MemoryAccess = .CpuToGpu
+				Memory = .CpuToGpu
 			};
 
 			switch (Renderer.Device.CreateBuffer(desc))

@@ -1,7 +1,7 @@
 namespace Sedulous.RHI;
 
 /// Memory access hints for resource allocation.
-enum MemoryAccess
+enum MemoryLocation
 {
 	/// Resource lives only on GPU. Fastest for GPU access.
 	GpuOnly,

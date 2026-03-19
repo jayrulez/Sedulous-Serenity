@@ -194,7 +194,7 @@ class VulkanQueue : IQueue
 			{
 				Size = (uint64)data.Length,
 				Usage = .CopySrc,
-				MemoryAccess = .CpuToGpu
+				Memory = .CpuToGpu
 			};
 
 		if (mDevice.CreateBuffer(stagingDesc) case .Ok(let stagingBuffer))
@@ -261,7 +261,7 @@ class VulkanQueue : IQueue
 			{
 				Size = (uint64)data.Length,
 				Usage = .CopySrc,
-				MemoryAccess = .CpuToGpu
+				Memory = .CpuToGpu
 			};
 
 		if (mDevice.CreateBuffer(stagingDesc) case .Ok(let stagingBuffer))
@@ -422,7 +422,7 @@ class VulkanQueue : IQueue
 		{
 			Size = (uint64)data.Length,
 			Usage = .CopyDst,
-			MemoryAccess = .GpuToCpu
+			Memory = .GpuToCpu
 		};
 
 		if (mDevice.CreateBuffer(stagingDesc) case .Ok(let stagingBuffer))
@@ -489,7 +489,7 @@ class VulkanQueue : IQueue
 		{
 			Size = (uint64)data.Length,
 			Usage = .CopyDst,
-			MemoryAccess = .GpuToCpu
+			Memory = .GpuToCpu
 		};
 
 		if (mDevice.CreateBuffer(stagingDesc) case .Ok(let stagingBuffer))

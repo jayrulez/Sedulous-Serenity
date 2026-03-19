@@ -120,7 +120,7 @@ class ComputeSample : RHISampleApp
 		{
 			Size = (uint64)(sizeof(Particle) * PARTICLE_COUNT),
 			Usage = .Storage | .Vertex | .CopyDst,  // Used by compute, as vertex input, and receives initial data
-			MemoryAccess = .GpuOnly,
+			Memory = .GpuOnly,
 			StructureByteStride = (uint32)sizeof(Particle)
 		};
 
@@ -133,7 +133,7 @@ class ComputeSample : RHISampleApp
 		{
 			Size = particleDesc.Size,
 			Usage = .CopySrc,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (Device.CreateBuffer(stagingDesc) not case .Ok(let staging))
@@ -157,7 +157,7 @@ class ComputeSample : RHISampleApp
 		{
 			Size = (uint64)sizeof(SimParams),
 			Usage = .Uniform,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (Device.CreateBuffer(simParamsDesc) not case .Ok(let spb))
@@ -176,7 +176,7 @@ class ComputeSample : RHISampleApp
 		{
 			Size = (uint64)(sizeof(Vertex) * vertices.Count),
 			Usage = .Vertex,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (Device.CreateBuffer(vertexDesc) not case .Ok(let vb))

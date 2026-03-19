@@ -105,7 +105,7 @@ class QueriesSample : RHISampleApp
 		{
 			Size = (uint64)(sizeof(Vertex) * triangleVertices.Count),
 			Usage = .Vertex,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (Device.CreateBuffer(vertexDesc) not case .Ok(let vb))
@@ -131,7 +131,7 @@ class QueriesSample : RHISampleApp
 		{
 			Size = (uint64)(sizeof(Vertex) * quadVertices.Count),
 			Usage = .Vertex,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (Device.CreateBuffer(occludedDesc) not case .Ok(let ovb))
@@ -146,7 +146,7 @@ class QueriesSample : RHISampleApp
 		{
 			Size = (uint64)(sizeof(uint64) * 4),  // Space for 4 timestamps
 			Usage = .CopyDst,
-			MemoryAccess = .GpuToCpu
+			Memory = .GpuToCpu
 		};
 
 		if (Device.CreateBuffer(queryBufferDesc) not case .Ok(let qb))

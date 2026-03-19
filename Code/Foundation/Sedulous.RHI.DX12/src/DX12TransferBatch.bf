@@ -44,7 +44,7 @@ class DX12TransferBatch : ITransferBatch
 			{
 				Size = (uint64)data.Length,
 				Usage = .CopySrc,
-				MemoryAccess = .CpuToGpu
+				Memory = .CpuToGpu
 			};
 
 		if (mDevice.CreateBuffer(stagingDesc) case .Ok(let stagingBuffer))
@@ -106,7 +106,7 @@ class DX12TransferBatch : ITransferBatch
 			{
 				Size = (uint64)data.Length,
 				Usage = .CopySrc,
-				MemoryAccess = .CpuToGpu
+				Memory = .CpuToGpu
 			};
 
 		if (mDevice.CreateBuffer(stagingDesc) case .Ok(let stagingBuffer))

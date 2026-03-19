@@ -80,7 +80,7 @@ public class FXAAEffect : IPostProcessEffect
 		bufDesc.Label = "FXAA Params";
 		bufDesc.Size = (uint64)FXAAParams.Size;
 		bufDesc.Usage = .Uniform;
-		bufDesc.MemoryAccess = .CpuToGpu;
+		bufDesc.Memory = .CpuToGpu;
 
 		switch (device.CreateBuffer(bufDesc))
 		{

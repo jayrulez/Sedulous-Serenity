@@ -119,7 +119,7 @@ public class SSAOEffect : IPostProcessEffect
 		bufDesc.Label = "SSAO Params";
 		bufDesc.Size = (uint64)SSAOParams.Size;
 		bufDesc.Usage = .Uniform;
-		bufDesc.MemoryAccess = .CpuToGpu;
+		bufDesc.Memory = .CpuToGpu;
 
 		switch (device.CreateBuffer(bufDesc))
 		{

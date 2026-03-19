@@ -117,7 +117,7 @@ public class TAAEffect : IPostProcessEffect
 		bufDesc.Label = "TAA Params";
 		bufDesc.Size = (uint64)TAAParams.Size;
 		bufDesc.Usage = .Uniform;
-		bufDesc.MemoryAccess = .CpuToGpu;
+		bufDesc.Memory = .CpuToGpu;
 
 		switch (device.CreateBuffer(bufDesc))
 		{

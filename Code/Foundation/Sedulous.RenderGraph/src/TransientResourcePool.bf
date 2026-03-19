@@ -46,7 +46,7 @@ class TransientBufferRing
 		{
 			Size = size,
 			Usage = usage,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (device.CreateBuffer(desc) case .Ok(let buffer))

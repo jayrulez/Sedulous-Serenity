@@ -312,7 +312,7 @@ public class VGRenderer : IDisposable
 			{
 				Size = (uint64)(MAX_VERTICES * sizeof(VGRenderVertex)),
 				Usage = .Vertex,
-				MemoryAccess = .CpuToGpu
+				Memory = .CpuToGpu
 			};
 			if (mDevice.CreateBuffer(vertexDesc) case .Ok(let vb))
 				mVertexBuffers[i] = vb;
@@ -324,7 +324,7 @@ public class VGRenderer : IDisposable
 			{
 				Size = (uint64)(MAX_INDICES * sizeof(uint32)),
 				Usage = .Index,
-				MemoryAccess = .CpuToGpu
+				Memory = .CpuToGpu
 			};
 			if (mDevice.CreateBuffer(indexDesc) case .Ok(let ib))
 				mIndexBuffers[i] = ib;
@@ -336,7 +336,7 @@ public class VGRenderer : IDisposable
 			{
 				Size = (uint64)sizeof(VGUniforms),
 				Usage = .Uniform,
-				MemoryAccess = .CpuToGpu
+				Memory = .CpuToGpu
 			};
 			if (mDevice.CreateBuffer(uniformDesc) case .Ok(let ub))
 				mUniformBuffers[i] = ub;

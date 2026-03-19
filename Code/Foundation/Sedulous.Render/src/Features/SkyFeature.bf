@@ -409,7 +409,7 @@ public class SkyFeature : RenderFeatureBase
 				Label = "Sky Params",
 				Size = (uint64)ProceduralSkyParams.Size,
 				Usage = .Uniform,
-				MemoryAccess = .CpuToGpu // CPU-mappable
+				Memory = .CpuToGpu // CPU-mappable
 			};
 
 			switch (Renderer.Device.CreateBuffer(desc))

@@ -57,7 +57,7 @@ public class TrailEmitter
 				Label = "Standalone Trail Vertex Buffer",
 				Size = (uint64)(mMaxVertices * TrailVertex.SizeInBytes),
 				Usage = .Vertex,
-				MemoryAccess = .CpuToGpu
+				Memory = .CpuToGpu
 			};
 
 			switch (device.CreateBuffer(desc))

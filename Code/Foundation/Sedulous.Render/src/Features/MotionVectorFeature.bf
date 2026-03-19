@@ -66,7 +66,7 @@ public class MotionVectorFeature : RenderFeatureBase
 		{
 			Size = MotionObjectUniforms.Size,
 			Usage = .Uniform,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (Renderer.Device.CreateBuffer(objectBufferDesc) case .Ok(let buffer))

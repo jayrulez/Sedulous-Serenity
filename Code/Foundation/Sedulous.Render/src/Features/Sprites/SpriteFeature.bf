@@ -167,7 +167,7 @@ public class SpriteFeature : RenderFeatureBase
 				Label = "Sprite Instance Buffer",
 				Size = (uint64)(MaxSprites * SpriteInstance.SizeInBytes),
 				Usage = .Vertex,
-				MemoryAccess = .CpuToGpu
+				Memory = .CpuToGpu
 			};
 
 			switch (Renderer.Device.CreateBuffer(bufDesc))

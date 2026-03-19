@@ -136,7 +136,7 @@ class RenderFrameContext : IDisposable
 			{
 				Size = 464, // SceneUniforms size: 7 matrices (448) + 4 floats (16) = 464
 				Usage = .Uniform,
-				MemoryAccess = .CpuToGpu // CPU-mappable
+				Memory = .CpuToGpu // CPU-mappable
 			};
 
 			if (device.CreateBuffer(desc) case .Ok(let buffer))

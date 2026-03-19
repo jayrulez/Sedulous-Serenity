@@ -719,7 +719,7 @@ public class DrawingRenderer : IDisposable
 			{
 				Size = (uint64)(MAX_VERTICES * sizeof(DrawingRenderVertex)),
 				Usage = .Vertex,
-				MemoryAccess = .CpuToGpu
+				Memory = .CpuToGpu
 			};
 			if (mDevice.CreateBuffer(vertexDesc) case .Ok(let vb))
 				mVertexBuffers[i] = vb;
@@ -731,7 +731,7 @@ public class DrawingRenderer : IDisposable
 			{
 				Size = (uint64)(MAX_INDICES * sizeof(uint16)),
 				Usage = .Index,
-				MemoryAccess = .CpuToGpu
+				Memory = .CpuToGpu
 			};
 			if (mDevice.CreateBuffer(indexDesc) case .Ok(let ib))
 				mIndexBuffers[i] = ib;
@@ -743,7 +743,7 @@ public class DrawingRenderer : IDisposable
 			{
 				Size = (uint64)sizeof(DrawingUniforms),
 				Usage = .Uniform,
-				MemoryAccess = .CpuToGpu
+				Memory = .CpuToGpu
 			};
 			if (mDevice.CreateBuffer(uniformDesc) case .Ok(let ub))
 				mUniformBuffers[i] = ub;
@@ -755,7 +755,7 @@ public class DrawingRenderer : IDisposable
 			{
 				Size = (uint64)(MAX_SPRITE_INSTANCES * sizeof(DrawingSpriteInstance)),
 				Usage = .Vertex,
-				MemoryAccess = .CpuToGpu
+				Memory = .CpuToGpu
 			};
 			if (mDevice.CreateBuffer(instanceDesc) case .Ok(let instBuf))
 				mInstanceBuffers[i] = instBuf;

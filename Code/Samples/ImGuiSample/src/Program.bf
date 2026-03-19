@@ -107,7 +107,7 @@ class ImGuiSampleApp : RHISampleApp
 		{
 			Size = MAX_VERTEX_BUFFER,
 			Usage = .Vertex,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (Device.CreateBuffer(vertexDesc) not case .Ok(let vb))
@@ -122,7 +122,7 @@ class ImGuiSampleApp : RHISampleApp
 		{
 			Size = MAX_INDEX_BUFFER,
 			Usage = .Index,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (Device.CreateBuffer(indexDesc) not case .Ok(let ib))
@@ -137,7 +137,7 @@ class ImGuiSampleApp : RHISampleApp
 		{
 			Size = (uint64)sizeof(ImGuiUniforms),
 			Usage = .Uniform,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (Device.CreateBuffer(uniformDesc) not case .Ok(let ub))

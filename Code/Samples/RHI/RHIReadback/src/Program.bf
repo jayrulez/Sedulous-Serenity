@@ -85,7 +85,7 @@ class ReadbackSample : RHISampleApp
 		{
 			Size = (uint64)(sizeof(Vertex) * mOriginalVertices.Count),
 			Usage = .Vertex | .CopySrc,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (Device.CreateBuffer(vertexDesc) not case .Ok(let vb))

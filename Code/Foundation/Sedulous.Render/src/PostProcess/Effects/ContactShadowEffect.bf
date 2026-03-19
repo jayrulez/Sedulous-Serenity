@@ -85,7 +85,7 @@ public class ContactShadowEffect : IPostProcessEffect
 		bufDesc.Label = "ContactShadow Params";
 		bufDesc.Size = (uint64)ContactShadowParams.Size;
 		bufDesc.Usage = .Uniform;
-		bufDesc.MemoryAccess = .CpuToGpu;
+		bufDesc.Memory = .CpuToGpu;
 
 		switch (device.CreateBuffer(bufDesc))
 		{

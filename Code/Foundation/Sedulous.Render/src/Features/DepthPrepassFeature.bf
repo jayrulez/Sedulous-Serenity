@@ -436,7 +436,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 			{
 				Size = (uint64)bufferSize,
 				Usage = .Uniform,
-				MemoryAccess = .CpuToGpu // CPU-mappable
+				Memory = .CpuToGpu // CPU-mappable
 			};
 
 			switch (Renderer.Device.CreateBuffer(bufDesc))

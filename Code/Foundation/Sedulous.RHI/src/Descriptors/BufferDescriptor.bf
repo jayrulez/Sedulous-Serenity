@@ -10,7 +10,7 @@ struct BufferDesc
 	/// How the buffer will be used.
 	public BufferUsage Usage;
 	/// Memory access pattern hint.
-	public MemoryAccess MemoryAccess;
+	public MemoryLocation Memory;
 	/// Byte stride of each element for structured storage buffers.
 	/// Set to sizeof(T) when binding as StructuredBuffer<T> / RWStructuredBuffer<T>.
 	/// 0 (default) = raw byte-address buffer.
@@ -22,16 +22,16 @@ struct BufferDesc
 	{
 		Size = 0;
 		Usage = .None;
-		MemoryAccess = .GpuOnly;
+		Memory = .GpuOnly;
 		StructureByteStride = 0;
 		Label = default;
 	}
 
-	public this(uint64 size, BufferUsage usage, MemoryAccess memoryAccess = .GpuOnly)
+	public this(uint64 size, BufferUsage usage, MemoryLocation memoryAccess = .GpuOnly)
 	{
 		Size = size;
 		Usage = usage;
-		MemoryAccess = memoryAccess;
+		Memory = memoryAccess;
 		StructureByteStride = 0;
 		Label = default;
 	}

@@ -86,7 +86,7 @@ class InstancingSample : RHISampleApp
 		{
 			Size = (uint64)(sizeof(Vertex) * vertices.Count),
 			Usage = .Vertex,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (Device.CreateBuffer(vertexDesc) not case .Ok(let vb))
@@ -121,7 +121,7 @@ class InstancingSample : RHISampleApp
 		{
 			Size = (uint64)(sizeof(InstanceData) * INSTANCE_COUNT),
 			Usage = .Vertex,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (Device.CreateBuffer(instanceDesc) not case .Ok(let ib))

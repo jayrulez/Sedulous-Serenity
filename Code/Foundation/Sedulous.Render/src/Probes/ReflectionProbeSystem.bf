@@ -116,7 +116,7 @@ public class ReflectionProbeSystem
 			bufDesc.Label = "Probe Uniforms";
 			bufDesc.Size = ProbeUniforms.Size;
 			bufDesc.Usage = .Uniform;
-			bufDesc.MemoryAccess = .CpuToGpu;
+			bufDesc.Memory = .CpuToGpu;
 
 			switch (device.CreateBuffer(bufDesc))
 			{

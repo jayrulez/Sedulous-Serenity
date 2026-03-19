@@ -81,7 +81,7 @@ public class TonemapEffect : IPostProcessEffect
 		bufDesc.Label = "Tonemap Params";
 		bufDesc.Size = (uint64)TonemapParams.Size;
 		bufDesc.Usage = .Uniform;
-		bufDesc.MemoryAccess = .CpuToGpu;
+		bufDesc.Memory = .CpuToGpu;
 
 		switch (device.CreateBuffer(bufDesc))
 		{

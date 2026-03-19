@@ -13,7 +13,7 @@ class VulkanBuffer : IBuffer
 	private VkDeviceMemory mMemory;
 	private uint64 mSize;
 	private BufferUsage mUsage;
-	private MemoryAccess mMemoryAccess;
+	private MemoryLocation mMemoryAccess;
 	private uint32 mStructureByteStride;
 	private void* mMappedPtr;
 	private String mDebugName ~ delete _;
@@ -23,7 +23,7 @@ class VulkanBuffer : IBuffer
 		mDevice = device;
 		mSize = descriptor.Size;
 		mUsage = descriptor.Usage;
-		mMemoryAccess = descriptor.MemoryAccess;
+		mMemoryAccess = descriptor.Memory;
 		mStructureByteStride = descriptor.StructureByteStride;
 		if (descriptor.Label.Ptr != null && descriptor.Label.Length > 0)
 			mDebugName = new String(descriptor.Label);
@@ -118,7 +118,7 @@ class VulkanBuffer : IBuffer
 		VulkanNative.vkGetBufferMemoryRequirements(mDevice.Device, mBuffer, &memRequirements);
 
 		// Find suitable memory type
-		VkMemoryPropertyFlags requiredProps = VulkanConversions.ToVkMemoryProperties(descriptor.MemoryAccess);
+		VkMemoryPropertyFlags requiredProps = VulkanConversions.ToVkMemoryProperties(descriptor.Memory);
 		uint32 memoryTypeIndex = FindMemoryType(memRequirements.memoryTypeBits, requiredProps);
 
 		if (memoryTypeIndex == uint32.MaxValue)

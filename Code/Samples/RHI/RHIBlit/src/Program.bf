@@ -128,7 +128,7 @@ class BlitSample : RHISampleApp
 		{
 			Size = (uint64)(sizeof(float) * vertices.Count),
 			Usage = .Vertex,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (Device.CreateBuffer(vertexDesc) not case .Ok(let vb))
@@ -141,7 +141,7 @@ class BlitSample : RHISampleApp
 		{
 			Size = 64, // Matrix4x4
 			Usage = .Uniform,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (Device.CreateBuffer(uniformDesc) not case .Ok(let ub))
@@ -241,7 +241,7 @@ class BlitSample : RHISampleApp
 		{
 			Size = (uint64)sizeof(QuadUniforms),
 			Usage = .Uniform,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (Device.CreateBuffer(uniformDesc) not case .Ok(let leftUb))

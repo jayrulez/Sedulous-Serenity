@@ -162,7 +162,7 @@ public class GrassFeature : RenderFeatureBase
 			Label = "Grass Blade Vertices",
 			Size = vertexSize,
 			Usage = .Vertex,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		switch (Renderer.Device.CreateBuffer(vertDesc))
@@ -207,7 +207,7 @@ public class GrassFeature : RenderFeatureBase
 			Label = "Grass Blade Indices",
 			Size = indexSize,
 			Usage = .Index,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		switch (Renderer.Device.CreateBuffer(idxDesc))
@@ -399,7 +399,7 @@ public class GrassFeature : RenderFeatureBase
 				Label = "Grass Instances",
 				Size = (uint64)(MaxTotalInstances * sizeof(GrassInstance)),
 				Usage = .Vertex,
-				MemoryAccess = .CpuToGpu
+				Memory = .CpuToGpu
 			};
 
 			switch (Renderer.Device.CreateBuffer(instanceDesc))
@@ -414,7 +414,7 @@ public class GrassFeature : RenderFeatureBase
 				Label = "Grass Uniforms",
 				Size = GrassUniforms.Size * MaxGrassTypes,
 				Usage = .Uniform,
-				MemoryAccess = .CpuToGpu
+				Memory = .CpuToGpu
 			};
 
 			switch (Renderer.Device.CreateBuffer(uniformDesc))
@@ -436,7 +436,7 @@ public class GrassFeature : RenderFeatureBase
 				Label = "Grass Object Uniforms",
 				Size = AlignedObjectUniformSize,
 				Usage = .Uniform,
-				MemoryAccess = .CpuToGpu
+				Memory = .CpuToGpu
 			};
 
 			switch (Renderer.Device.CreateBuffer(desc))

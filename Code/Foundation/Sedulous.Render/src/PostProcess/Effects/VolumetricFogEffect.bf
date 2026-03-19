@@ -89,7 +89,7 @@ public class VolumetricFogEffect : IPostProcessEffect
 		bufDesc.Label = "Fog Apply Params";
 		bufDesc.Size = (uint64)FogApplyParams.Size;
 		bufDesc.Usage = .Uniform;
-		bufDesc.MemoryAccess = .CpuToGpu;
+		bufDesc.Memory = .CpuToGpu;
 
 		switch (device.CreateBuffer(bufDesc))
 		{

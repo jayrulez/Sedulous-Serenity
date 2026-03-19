@@ -97,7 +97,7 @@ public class DOFEffect : IPostProcessEffect
 		bufDesc.Label = "DOF Params";
 		bufDesc.Size = (uint64)DOFParams.Size;
 		bufDesc.Usage = .Uniform;
-		bufDesc.MemoryAccess = .CpuToGpu;
+		bufDesc.Memory = .CpuToGpu;
 
 		switch (device.CreateBuffer(bufDesc))
 		{

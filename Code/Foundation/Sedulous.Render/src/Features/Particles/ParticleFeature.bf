@@ -233,7 +233,7 @@ public class ParticleFeature : RenderFeatureBase
 			Label = "Emitter Params (Dynamic UBO)",
 			Size = EmitterParamAlignment * MaxActiveEmitters,
 			Usage = .Uniform,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		switch (Renderer.Device.CreateBuffer(emitterParamsDesc))
@@ -249,7 +249,7 @@ public class ParticleFeature : RenderFeatureBase
 			Label = "Fallback Lighting UBO",
 			Size = (uint64)LightingUniforms.Size,
 			Usage = .Uniform,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 		switch (Renderer.Device.CreateBuffer(fallbackLightingDesc))
 		{
@@ -262,7 +262,7 @@ public class ParticleFeature : RenderFeatureBase
 			Label = "Fallback Light Data",
 			Size = 64,
 			Usage = .Storage,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 		switch (Renderer.Device.CreateBuffer(fallbackLightDataDesc))
 		{
@@ -275,7 +275,7 @@ public class ParticleFeature : RenderFeatureBase
 			Label = "Fallback Cluster Info",
 			Size = 8,
 			Usage = .Storage,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 		switch (Renderer.Device.CreateBuffer(fallbackClusterInfoDesc))
 		{
@@ -288,7 +288,7 @@ public class ParticleFeature : RenderFeatureBase
 			Label = "Fallback Light Index",
 			Size = 4,
 			Usage = .Storage,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 		switch (Renderer.Device.CreateBuffer(fallbackLightIndexDesc))
 		{
@@ -1549,7 +1549,7 @@ public class ParticleFeature : RenderFeatureBase
 			Label = "Particle Indices",
 			Size = (uint64)(proxy.MaxParticles * 4),
 			Usage = .Storage,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		// Two alive list buffers for ping-pong compaction
@@ -1582,7 +1582,7 @@ public class ParticleFeature : RenderFeatureBase
 			Label = "Particle Counters",
 			Size = 8,
 			Usage = .Storage,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		switch (Renderer.Device.CreateBuffer(countersDesc))
@@ -1628,7 +1628,7 @@ public class ParticleFeature : RenderFeatureBase
 			Label = "Emitter Params",
 			Size = (uint64)GPUEmitterParams.SizeInBytes,
 			Usage = .Uniform,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		switch (Renderer.Device.CreateBuffer(paramsDesc))
@@ -1644,7 +1644,7 @@ public class ParticleFeature : RenderFeatureBase
 			Label = "Particle Params",
 			Size = 16,
 			Usage = .Uniform,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		switch (Renderer.Device.CreateBuffer(particleParamsDesc))

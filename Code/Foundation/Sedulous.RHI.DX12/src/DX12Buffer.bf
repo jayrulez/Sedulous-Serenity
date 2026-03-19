@@ -16,7 +16,7 @@ class DX12Buffer : IBuffer
 	private ID3D12Resource* mResource;
 	private uint64 mSize;
 	private BufferUsage mUsage;
-	private MemoryAccess mMemoryAccess;
+	private MemoryLocation mMemoryAccess;
 	private uint32 mStructureByteStride;
 	private void* mMappedPtr;
 	private uint64 mGpuVirtualAddress;
@@ -28,7 +28,7 @@ class DX12Buffer : IBuffer
 		mDevice = device;
 		mSize = descriptor.Size;
 		mUsage = descriptor.Usage;
-		mMemoryAccess = descriptor.MemoryAccess;
+		mMemoryAccess = descriptor.Memory;
 		mStructureByteStride = descriptor.StructureByteStride;
 		if (descriptor.Label.Ptr != null && descriptor.Label.Length > 0)
 			mDebugName = new String(descriptor.Label);
@@ -141,7 +141,7 @@ class DX12Buffer : IBuffer
 	{
 		// Determine heap type from memory access
 		D3D12_HEAP_TYPE heapType;
-		switch (descriptor.MemoryAccess)
+		switch (descriptor.Memory)
 		{
 		case .GpuOnly:   heapType = .D3D12_HEAP_TYPE_DEFAULT;
 		case .CpuToGpu:    heapType = .D3D12_HEAP_TYPE_UPLOAD;
@@ -150,7 +150,7 @@ class DX12Buffer : IBuffer
 		}
 
 		// Determine initial state
-		switch (descriptor.MemoryAccess)
+		switch (descriptor.Memory)
 		{
 		case .CpuToGpu:    mCurrentState = .D3D12_RESOURCE_STATE_GENERIC_READ;
 		case .GpuToCpu:  mCurrentState = .D3D12_RESOURCE_STATE_COPY_DEST;
@@ -200,7 +200,7 @@ class DX12Buffer : IBuffer
 			mGpuVirtualAddress = mResource.GetGPUVirtualAddress();
 
 			// Persistent mapping for Upload/Readback
-			if (descriptor.MemoryAccess == .CpuToGpu || descriptor.MemoryAccess == .GpuToCpu)
+			if (descriptor.Memory == .CpuToGpu || descriptor.Memory == .GpuToCpu)
 			{
 				Map();
 			}

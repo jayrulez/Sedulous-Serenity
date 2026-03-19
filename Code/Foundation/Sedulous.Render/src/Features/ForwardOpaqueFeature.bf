@@ -327,7 +327,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			{
 				Size = AlignedSceneUniformSize * 4, // 4 cascades
 				Usage = .Uniform,
-				MemoryAccess = .CpuToGpu // CPU-mappable
+				Memory = .CpuToGpu // CPU-mappable
 			};
 			switch (Renderer.Device.CreateBuffer(uniformDesc))
 			{
@@ -347,7 +347,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			{
 				Size = AlignedObjectUniformSize * RenderConfig.MaxOpaqueObjectsPerFrame,
 				Usage = .Uniform,
-				MemoryAccess = .CpuToGpu // CPU-mappable
+				Memory = .CpuToGpu // CPU-mappable
 			};
 			switch (Renderer.Device.CreateBuffer(objDesc))
 			{
@@ -1357,7 +1357,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			{
 				Size = AlignedObjectUniformSize * RenderConfig.MaxOpaqueObjectsPerFrame,
 				Usage = .Uniform,
-				MemoryAccess = .CpuToGpu // CPU-mappable
+				Memory = .CpuToGpu // CPU-mappable
 			};
 
 			switch (Renderer.Device.CreateBuffer(bufferDesc))

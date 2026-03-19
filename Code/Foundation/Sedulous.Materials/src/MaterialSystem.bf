@@ -503,7 +503,7 @@ class MaterialSystem : IDisposable
 		// Create buffer if doesn't exist
 		if (!mUniformBuffers.TryGetValue(instance, out buffer))
 		{
-			BufferDesc bufDesc = .() { Size = material.UniformDataSize, Usage = .Uniform, MemoryAccess = .CpuToGpu };
+			BufferDesc bufDesc = .() { Size = material.UniformDataSize, Usage = .Uniform, Memory = .CpuToGpu };
 			if (mDevice.CreateBuffer(bufDesc) case .Ok(let buf))
 			{
 				buffer = buf;

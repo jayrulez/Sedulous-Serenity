@@ -191,7 +191,7 @@ public class LightBuffer : IDisposable
 				Label = "Light Data",
 				Size = (uint64)(MAX_LIGHTS * GPULight.Size),
 				Usage = .Storage,
-				MemoryAccess = .CpuToGpu // CPU-mappable
+				Memory = .CpuToGpu // CPU-mappable
 			};
 
 			switch (mDevice.CreateBuffer(lightDesc))
@@ -210,7 +210,7 @@ public class LightBuffer : IDisposable
 				Label = "Lighting Uniforms",
 				Size = (uint64)LightingUniforms.Size,
 				Usage = .Uniform,
-				MemoryAccess = .CpuToGpu // CPU-mappable
+				Memory = .CpuToGpu // CPU-mappable
 			};
 
 			switch (mDevice.CreateBuffer(uniformDesc))

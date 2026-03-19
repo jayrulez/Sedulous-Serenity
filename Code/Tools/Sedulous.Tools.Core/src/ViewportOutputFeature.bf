@@ -91,7 +91,7 @@ public class ViewportOutputFeature : RenderFeatureBase
 				Label = "ViewportBlit Params",
 				Size = (uint64)BlitParams.Size,
 				Usage = .Uniform,
-				MemoryAccess = .CpuToGpu
+				Memory = .CpuToGpu
 			};
 
 			switch (Renderer.Device.CreateBuffer(bufDesc))

@@ -108,7 +108,7 @@ class BindGroupsSample : RHISampleApp
 		{
 			Size = (uint64)(sizeof(Vertex) * vertices.Count),
 			Usage = .Vertex,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (Device.CreateBuffer(vertexDesc) not case .Ok(let vb))
@@ -125,7 +125,7 @@ class BindGroupsSample : RHISampleApp
 		{
 			Size = (uint64)(sizeof(uint16) * indices.Count),
 			Usage = .Index,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (Device.CreateBuffer(indexDesc) not case .Ok(let ib))
@@ -140,7 +140,7 @@ class BindGroupsSample : RHISampleApp
 		{
 			Size = (uint64)sizeof(GlobalUniforms),
 			Usage = .Uniform,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (Device.CreateBuffer(globalUniformDesc) not case .Ok(let gub))
@@ -152,7 +152,7 @@ class BindGroupsSample : RHISampleApp
 		{
 			Size = (uint64)(OBJECT_UNIFORM_SIZE * OBJECT_COUNT),
 			Usage = .Uniform,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (Device.CreateBuffer(objectUniformDesc) not case .Ok(let oub))

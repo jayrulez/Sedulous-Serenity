@@ -59,7 +59,7 @@ public class InstanceBufferManager
 			{
 				Size = bufferSize,
 				Usage = .Vertex,
-				MemoryAccess = .CpuToGpu, // CPU-writable for fast updates
+				Memory = .CpuToGpu, // CPU-writable for fast updates
 				Label = "InstanceBuffer"
 			};
 

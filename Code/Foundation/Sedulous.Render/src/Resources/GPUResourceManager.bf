@@ -131,7 +131,7 @@ public class GPUResourceManager : IDisposable
 			gpuMesh.VertexBuffer = vb;
 			let vbData = Span<uint8>(mesh.GetVertexData(), (int)vertexDataSize);
 			if (TransferBatch != null)
-				TransferBatch.WriteStagedBuffer(vb, 0, vbData);
+				TransferBatch.WriteBuffer(vb, 0, vbData);
 			else
 				mDevice.Queue.WriteStagedBufferSync(vb, 0, vbData);
 		}
@@ -159,7 +159,7 @@ public class GPUResourceManager : IDisposable
 				gpuMesh.IndexBuffer = ib;
 				let ibData = Span<uint8>(indices.GetRawData(), (int)indexDataSize);
 				if (TransferBatch != null)
-					TransferBatch.WriteStagedBuffer(ib, 0, ibData);
+					TransferBatch.WriteBuffer(ib, 0, ibData);
 				else
 					mDevice.Queue.WriteStagedBufferSync(ib, 0, ibData);
 			}
@@ -298,7 +298,7 @@ public class GPUResourceManager : IDisposable
 			gpuMesh.VertexBuffer = vb;
 			let vbData = Span<uint8>(mesh.GetVertexData(), (int)vertexDataSize);
 			if (TransferBatch != null)
-				TransferBatch.WriteStagedBuffer(vb, 0, vbData);
+				TransferBatch.WriteBuffer(vb, 0, vbData);
 			else
 				mDevice.Queue.WriteStagedBufferSync(vb, 0, vbData);
 		}
@@ -326,7 +326,7 @@ public class GPUResourceManager : IDisposable
 				gpuMesh.IndexBuffer = ib;
 				let ibData = Span<uint8>(mesh.GetIndexData(), (int)indexDataSize);
 				if (TransferBatch != null)
-					TransferBatch.WriteStagedBuffer(ib, 0, ibData);
+					TransferBatch.WriteBuffer(ib, 0, ibData);
 				else
 					mDevice.Queue.WriteStagedBufferSync(ib, 0, ibData);
 			}
@@ -421,7 +421,7 @@ public class GPUResourceManager : IDisposable
 		{
 			Size = bufferSize,
 			Usage = .Storage,
-			MemoryAccess = .CpuToGpu
+			Memory = .CpuToGpu
 		};
 
 		if (mDevice.CreateBuffer(bufDesc) case .Ok(let buffer))

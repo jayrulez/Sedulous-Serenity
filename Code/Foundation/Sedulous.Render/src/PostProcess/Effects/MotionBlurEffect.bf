@@ -93,7 +93,7 @@ public class MotionBlurEffect : IPostProcessEffect
 		bufDesc.Label = "MotionBlur Params";
 		bufDesc.Size = (uint64)MotionBlurParams.Size;
 		bufDesc.Usage = .Uniform;
-		bufDesc.MemoryAccess = .CpuToGpu;
+		bufDesc.Memory = .CpuToGpu;
 
 		switch (device.CreateBuffer(bufDesc))
 		{
