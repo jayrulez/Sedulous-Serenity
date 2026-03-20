@@ -848,9 +848,14 @@ enum STBTT_v : int32
 public typealias stbtt_vertex_type = int16; // can't use stbtt_int16 because that's not visible in the header file
 [CRepr] struct stbtt_vertex
 {
-	stbtt_vertex_type x, y, cx, cy, cx1, cy1;
-	c_uchar type;
-	c_uchar padding;
+	public stbtt_vertex_type x;
+	public stbtt_vertex_type y;
+	public stbtt_vertex_type cx;
+	public stbtt_vertex_type cy;
+	public stbtt_vertex_type cx1;
+	public stbtt_vertex_type cy1;
+	public c_uchar type;
+	public c_uchar padding;
 }
 static
 {
