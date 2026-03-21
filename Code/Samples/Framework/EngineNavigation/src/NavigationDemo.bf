@@ -1,4 +1,4 @@
-namespace FrameworkNavigation;
+namespace EngineNavigation;
 
 using System;
 using System.Collections;
@@ -67,7 +67,7 @@ class NavigationDemo
 
 	private void BuildNavMesh()
 	{
-		// Build geometry from scene layout (same walls as FrameworkNavigationApp)
+		// Build geometry from scene layout (same walls as EngineNavigationApp)
 		let vertices = scope List<float>();
 		let triangles = scope List<int32>();
 

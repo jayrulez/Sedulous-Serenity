@@ -1,4 +1,4 @@
-namespace FrameworkAnimation;
+namespace EngineAnimation;
 
 using System;
 using System.IO;
@@ -35,7 +35,7 @@ using Sedulous.Fonts;
 using Sedulous.GUI;
 using Sedulous.GUI.Runtime;
 
-class FrameworkAnimationApp : Application
+class EngineAnimationApp : Application
 {
 	private const StringView MODEL_PATH = "samples/models/kenney_platformer-kit/Models/GLB format/character-oobi.glb";
 	private const StringView CACHE_REL_PATH = "cache/anim_sample";

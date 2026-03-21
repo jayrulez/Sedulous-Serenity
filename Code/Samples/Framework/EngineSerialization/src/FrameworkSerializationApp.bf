@@ -1,4 +1,4 @@
-namespace FrameworkSerialization;
+namespace EngineSerialization;
 
 using System;
 using System.IO;
@@ -27,7 +27,7 @@ using Sedulous.Animation;
 using Sedulous.Animation.Resources;
 using System.Collections;
 
-class FrameworkSerializationApp : Application
+class EngineSerializationApp : Application
 {
 	private const StringView GLTF_MODEL_PATH = "samples/models/UltimateMonsters/Blob/glTF/GreenBlob.gltf";
 	private const StringView GLTF_BASE_PATH = "samples/models/UltimateMonsters/Blob/glTF";
@@ -169,7 +169,7 @@ class FrameworkSerializationApp : Application
 		mRenderView.NearPlane = 0.1f;
 		mRenderView.FarPlane = 100.0f;
 
-		// Register render features (matching FrameworkSandbox)
+		// Register render features (matching EngineSandbox)
 		RegisterRenderFeatures();
 	}
 

@@ -2,7 +2,7 @@ using System;
 using Sedulous.Core.Mathematics;
 using Sedulous.Engine.Scenes;
 
-namespace FrameworkSandbox;
+namespace EngineSandbox;
 
 /// Example component for custom game data - makes entity spin.
 struct SpinComponent : IComponent

@@ -5,7 +5,7 @@ using System.Collections;
 using Sedulous.RHI;
 using Sedulous.Runtime.Client;
 
-namespace FrameworkRender;
+namespace EngineSandbox;
 
 class Program
 {
@@ -54,15 +54,15 @@ class Program
 		// Create and run application
 		let settings = ApplicationSettings()
 		{
-			Title = "Framework Render - Sphere Stress Test",
-			Width = 1366,
-			Height = 768,
+			Title = "Framework Sandbox",
+			Width = 1280,
+			Height = 720,
 			EnableDepth = true,
-			ClearColor = .(0.02f, 0.02f, 0.05f, 1.0f),
-			PresentMode = .Fifo
+			PresentMode = .Mailbox,
+			ClearColor = .(0.1f, 0.1f, 0.15f, 1.0f)
 		};
 
-		let app = scope FrameworkRenderApp(shell, device, backend);
+		let app = scope EngineSandboxApp(shell, device, backend);
 		return app.Run(settings);
 	}
 }

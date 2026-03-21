@@ -30,10 +30,10 @@ using Sedulous.Drawing.Fonts;
 using Sedulous.Imaging;
 using Sedulous.Textures.Resources;
 
-namespace FrameworkSandbox;
+namespace EngineSandbox;
 
 /// Demonstrates the Sedulous Framework with Context, Subsystems, Scenes, and Entities.
-class FrameworkSandboxApp : Application
+class EngineSandboxApp : Application
 {
 	// Framework core (mContext is now owned by base Application)
 	private SceneSubsystem mSceneSubsystem;

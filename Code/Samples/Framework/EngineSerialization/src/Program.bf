@@ -1,4 +1,4 @@
-namespace FrameworkSerialization;
+namespace EngineSerialization;
 
 using System;
 using System.Collections;
@@ -65,7 +65,7 @@ class Program
 			ClearColor = .(0.08f, 0.08f, 0.12f, 1.0f)
 		};
 
-		let app = scope FrameworkSerializationApp(shell, device, backend);
+		let app = scope EngineSerializationApp(shell, device, backend);
 		return app.Run(settings);
 	}
 }

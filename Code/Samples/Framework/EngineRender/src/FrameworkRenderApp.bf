@@ -15,11 +15,11 @@ using Sedulous.Resources;
 using Sedulous.Materials;
 using Sedulous.Profiler;
 
-namespace FrameworkRender;
+namespace EngineRender;
 
 /// Demonstrates render performance with massive object counts.
 /// Tests the rendering pipeline with tens of thousands of spheres.
-class FrameworkRenderApp : Application
+class EngineRenderApp : Application
 {
 	// Framework core
 	private SceneSubsystem mSceneSubsystem;

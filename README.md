@@ -137,11 +137,11 @@ Forward+ clustered renderer with PBR pipeline:
 
 | Sample | Description |
 |--------|-------------|
-| FrameworkRender | Engine rendering pipeline |
-| FrameworkAnimation | Skeletal and property animation |
-| FrameworkNavigation | Navmesh pathfinding |
-| FrameworkSerialization | Scene serialization |
-| FrameworkSandbox | Engine feature sandbox |
+| EngineRender | Engine rendering pipeline |
+| EngineAnimation | Skeletal and property animation |
+| EngineNavigation | Navmesh pathfinding |
+| EngineSerialization | Scene serialization |
+| EngineSandbox | Engine feature sandbox |
 
 ### Networking Samples (3)
 

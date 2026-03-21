@@ -1,4 +1,4 @@
-namespace FrameworkNavigation;
+namespace EngineNavigation;
 
 using System;
 using System.Collections;
@@ -25,7 +25,7 @@ using Sedulous.Physics.Jolt;
 using Sedulous.Profiler;
 using Sedulous.Drawing.Fonts;
 
-class FrameworkNavigationApp : Application
+class EngineNavigationApp : Application
 {
 	private const float ArenaHalfSize = 15.0f;
 

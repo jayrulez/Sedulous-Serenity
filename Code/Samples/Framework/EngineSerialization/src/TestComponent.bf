@@ -1,4 +1,4 @@
-namespace FrameworkSerialization;
+namespace EngineSerialization;
 
 using System;
 using Sedulous.Serialization;

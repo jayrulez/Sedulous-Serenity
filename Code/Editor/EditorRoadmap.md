@@ -33,7 +33,7 @@ A modular, professional game engine editor built on Sedulous.GUI. Asset-first wo
 ### Key Problems
 
 1. **Two separate registry systems** — Editor `AssetDatabase` (tracks files by Guid+path+type) and runtime `ResourceRegistry` (GUID↔path mapping for loading). No integration between them.
-2. **Import doesn't auto-register** — `ResourceSerializer.SaveImportResult()` writes files but doesn't create registry entries. FrameworkSerialization sample manually builds registry entries after import.
+2. **Import doesn't auto-register** — `ResourceSerializer.SaveImportResult()` writes files but doesn't create registry entries. EngineSerialization sample manually builds registry entries after import.
 3. **Re-import breaks references** — `Resource()` constructor generates fresh GUIDs. Re-importing same FBX produces new GUIDs; all scene refs to old GUIDs break.
 4. **No "create asset" flow** — No way to create a blank material/scene/etc from editor. `IAssetHandler.CreateNew()` exists but isn't wired.
 5. **Asset browser is file-tree only** — No thumbnails, no context menu, no create/delete/rename, no type filtering.

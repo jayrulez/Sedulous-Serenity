@@ -1,4 +1,4 @@
-namespace FrameworkNavigation;
+namespace EngineNavigation;
 
 using System;
 using System.Collections;
@@ -65,7 +65,7 @@ class Program
 			ClearColor = .(0.08f, 0.08f, 0.12f, 1.0f)
 		};
 
-		let app = scope FrameworkNavigationApp(shell, device, backend);
+		let app = scope EngineNavigationApp(shell, device, backend);
 		return app.Run(settings);
 	}
 }
