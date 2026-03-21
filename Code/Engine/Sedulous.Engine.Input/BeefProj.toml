@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Engine.Core" = "*", "Sedulous.Core" = "*", "Sedulous.Core.Mathematics" = "*", "Sedulous.Shell" = "*", "Sedulous.Runtime" = "*"}
+Dependencies = {corlib = "*", "Sedulous.Core" = "*", "Sedulous.Core.Mathematics" = "*", "Sedulous.Shell" = "*", "Sedulous.Runtime" = "*"}
 
 [Project]
 Name = "Sedulous.Engine.Input"

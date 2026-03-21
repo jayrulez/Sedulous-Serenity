@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Render" = "*", "Sedulous.Runtime.Client" = "*", "Sedulous.Engine.Core" = "*", "Sedulous.Engine.Scenes" = "*", "Sedulous.Engine.Render" = "*", "Sedulous.Engine.Physics" = "*", "Sedulous.Engine.Input" = "*", "Sedulous.Engine.Navigation" = "*", "Sedulous.GUI.Runtime" = "*", "Sedulous.Physics.Jolt" = "*", "Sedulous.Geometry" = "*", "Sedulous.Profiler" = "*", "Sedulous.Drawing.Fonts" = "*"}
+Dependencies = {corlib = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Render" = "*", "Sedulous.Runtime.Client" = "*", "Sedulous.Engine.Scenes" = "*", "Sedulous.Engine.Render" = "*", "Sedulous.Engine.Physics" = "*", "Sedulous.Engine.Input" = "*", "Sedulous.Engine.Navigation" = "*", "Sedulous.GUI.Runtime" = "*", "Sedulous.Physics.Jolt" = "*", "Sedulous.Geometry" = "*", "Sedulous.Profiler" = "*", "Sedulous.Drawing.Fonts" = "*"}
 
 [Project]
 Name = "EngineNavigation"
