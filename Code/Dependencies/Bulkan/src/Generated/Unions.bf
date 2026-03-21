@@ -122,5 +122,30 @@ public struct VkAccelerationStructureMotionInstanceDataNV
 	public VkAccelerationStructureSRTMotionInstanceNV srtMotionInstance;
 }
 
+[CRepr, Union]
+public struct VkResourceDescriptorDataEXT
+{
+	public VkImageDescriptorInfoEXT* pImage;
+	public VkTexelBufferDescriptorInfoEXT* pTexelBuffer;
+	public VkDeviceAddressRangeEXT* pAddressRange;
+	public VkTensorViewCreateInfoARM* pTensorARM;
+}
+
+[CRepr, Union]
+public struct VkDescriptorMappingSourceDataEXT
+{
+	public VkDescriptorMappingSourceConstantOffsetEXT constantOffset;
+	public VkDescriptorMappingSourcePushIndexEXT pushIndex;
+	public VkDescriptorMappingSourceIndirectIndexEXT indirectIndex;
+	public VkDescriptorMappingSourceIndirectIndexArrayEXT indirectIndexArray;
+	public VkDescriptorMappingSourceHeapDataEXT heapData;
+	public uint32 pushDataOffset;
+	public uint32 pushAddressOffset;
+	public VkDescriptorMappingSourceIndirectAddressEXT indirectAddress;
+	public VkDescriptorMappingSourceShaderRecordIndexEXT shaderRecordIndex;
+	public uint32 shaderRecordDataOffset;
+	public uint32 shaderRecordAddressOffset;
+}
+
 
 
