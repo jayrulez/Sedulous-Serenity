@@ -156,7 +156,7 @@ Forward+ clustered renderer with PBR pipeline:
 | Sample | Description |
 |--------|-------------|
 | AudioSample | Audio playback |
-| EngineAudio | Engine audio subsystem |
+| AudioSandbox | Engine audio subsystem |
 | DrawingSandbox | 2D drawing API |
 | FontRendering | Font rendering |
 | GUISandbox | GUI system |

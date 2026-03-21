@@ -1,22 +1,21 @@
-namespace EngineAudio;
+namespace AudioSandbox;
 
 using System;
 using System.Collections;
 using System.IO;
 using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
-using SampleFramework;
-using Sedulous.Drawing;
+using Sedulous.RHI.Vulkan;
+using Sedulous.Shell;
+using Sedulous.Shell.SDL3;
+using Sedulous.Runtime.Client;
+using Sedulous.Runtime;
 using Sedulous.GUI;
-using Sedulous.Drawing.Fonts;
-using Sedulous.Drawing.Renderer;
-using Sedulous.Shell.Input;
-using Sedulous.GUI.Shell;
+using Sedulous.GUI.Runtime;
+using Sedulous.Fonts;
 using Sedulous.Audio;
 using Sedulous.Audio.SDL3;
 using Sedulous.Audio.Decoders;
-using Sedulous.Fonts;
-using Sedulous.Shaders;
 
 /// Audio track info.
 class AudioTrack
@@ -32,8 +31,8 @@ class AudioTrack
 	}
 }
 
-/// Engine Audio Sample - Audio Player with UI.
-class EngineAudioSample : RHISampleApp
+/// Audio Sandbox - Audio Player with GUI.
+class AudioSandboxApp : Application
 {
 	// Audio system
 	private SDL3AudioSystem mAudioSystem ~ delete _;
@@ -44,24 +43,9 @@ class EngineAudioSample : RHISampleApp
 	private float mVolume = 0.7f;
 	private bool mIsPlaying = false;
 
-	// UI System
-	private GUIContext mUIContext ~ delete _;
-	private ShellClipboardAdapter mClipboard ~ delete _;
-	private FontService mFontService;
-	private DarkTheme mTheme;
-	private TooltipService mTooltipService;
-	private delegate void(StringView) mTextInputDelegate;
-
-	private DockPanel mUIRoot ~ delete _;
-
-	// Drawing
-	private DrawContext mDrawContext ~ delete _;
-
-	// UI Renderer
-	private DrawingRenderer mDrawingRenderer;
-
-	// Shader system
-	private ShaderSystem mShaderSystem;
+	// GUI system (handles rendering, input, fonts internally)
+	private UISubsystem mUISubsystem;
+	private DockPanel mUIRoot;
 
 	// UI Elements (for updating)
 	private TextBlock mNowPlayingLabel;
@@ -69,54 +53,41 @@ class EngineAudioSample : RHISampleApp
 	private StackPanel mTrackList;
 	private Button mPlayPauseButton;
 
-	public this() : base(.()
-		{
-			Title = "Engine Audio Player",
-			Width = 800,
-			Height = 600,
-			ClearColor = .(0.1f, 0.1f, 0.15f, 1.0f)
-		})
+	public this(IShell shell, IDevice device, IBackend backend)
+		: base(shell, device, backend)
 	{
 	}
 
-	protected override bool OnInitialize()
+	protected override void OnInitialize(Context context)
 	{
 		// Initialize audio
 		if (!InitializeAudio())
-			return false;
+			return;
 
-		// Initialize font service
-		if (!InitializeFonts())
-			return false;
+		// Initialize GUI subsystem
+		mUISubsystem = new UISubsystem();
+		context.RegisterSubsystem(mUISubsystem);
 
-		// Initialize shader system
-		mShaderSystem = new ShaderSystem();
 		String shaderPath = scope .();
 		GetAssetPath("Render/shaders", shaderPath);
-		if (mShaderSystem.Initialize(Device, scope StringView[](shaderPath)) case .Err)
+		if (mUISubsystem.InitializeRendering(mDevice, mSwapChain.Format, (int32)mSwapChain.FrameCount, mShell, mWindow, scope StringView[](shaderPath)) case .Err)
 		{
-			Console.WriteLine("Failed to initialize shader system");
-			return false;
+			Console.WriteLine("Failed to initialize UI rendering");
+			return;
 		}
 
-		// Initialize UI Renderer
-		mDrawingRenderer = new DrawingRenderer();
-		if (mDrawingRenderer.Initialize(Device, SwapChain.Format, MAX_FRAMES_IN_FLIGHT, mShaderSystem) case .Err)
-		{
-			Console.WriteLine("Failed to initialize UI renderer");
-			return false;
-		}
+		// Load font
+		String fontPath = scope .();
+		GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", fontPath);
+		FontLoadOptions fontOptions = .ExtendedLatin;
+		fontOptions.PixelHeight = 16;
+		mUISubsystem.LoadFont("Roboto", fontPath, fontOptions);
 
-		mDrawContext = new .(mFontService);
-
-		// Initialize UI
-		if (!InitializeUI())
-			return false;
+		// Build UI
+		BuildUI();
 
 		// Load audio tracks
 		LoadAudioTracks();
-
-		return true;
 	}
 
 	private bool InitializeAudio()
@@ -137,55 +108,11 @@ class EngineAudioSample : RHISampleApp
 		return true;
 	}
 
-	private bool InitializeFonts()
-	{
-		mFontService = new FontService();
-
-		String fontPath = scope .();
-		GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", fontPath);
-
-		FontLoadOptions options = .ExtendedLatin;
-		options.PixelHeight = 16;
-
-		if (mFontService.LoadFont("Roboto", fontPath, options) case .Err)
-		{
-			Console.WriteLine($"Failed to load font: {fontPath}");
-			return false;
-		}
-
-		return true;
-	}
-
-	private bool InitializeUI()
-	{
-		mUIContext = new GUIContext();
-		mUIContext.DebugSettings.ShowLayoutBounds = false;
-
-		mClipboard = new ShellClipboardAdapter(mShell.Clipboard);
-		mUIContext.RegisterClipboard(mClipboard);
-
-		mUIContext.RegisterService<IFontService>(mFontService);
-
-		mTheme = new DarkTheme();
-		mUIContext.RegisterService<ITheme>(mTheme);
-
-		mUIContext.SetViewportSize((float)SwapChain.Width, (float)SwapChain.Height);
-
-		mTextInputDelegate = new => OnTextInput;
-		Shell.InputManager.Keyboard.OnTextInput.Subscribe(mTextInputDelegate);
-
-		BuildUI();
-		return true;
-	}
-
-	private void OnTextInput(StringView text)
-	{
-		for (let c in text.DecodedChars)
-			mUIContext.ProcessTextInput(c);
-	}
-
 	private void BuildUI()
 	{
+		if (mUISubsystem?.GUIContext == null)
+			return;
+
 		mUIRoot = new DockPanel();
 		mUIRoot.Background = Color(25, 25, 35, 255);
 
@@ -276,7 +203,7 @@ class EngineAudioSample : RHISampleApp
 
 		mUIRoot.AddChild(scrollViewer);
 
-		mUIContext.RootElement = mUIRoot;
+		mUISubsystem.GUIContext.RootElement = mUIRoot;
 	}
 
 	private void LoadAudioTracks()
@@ -292,7 +219,6 @@ class EngineAudioSample : RHISampleApp
 			return;
 		}
 
-		// Find all OGG files
 		for (let entry in Directory.EnumerateFiles(audioDir, "*.ogg"))
 		{
 			String fileName = scope .();
@@ -307,7 +233,6 @@ class EngineAudioSample : RHISampleApp
 
 		Console.WriteLine($"Found {mTracks.Count} audio files");
 
-		// Build track list UI
 		for (int i = 0; i < mTracks.Count; i++)
 		{
 			let track = mTracks[i];
@@ -322,6 +247,8 @@ class EngineAudioSample : RHISampleApp
 		}
 	}
 
+	// ==================== Audio Controls ====================
+
 	private void SelectTrack(int index)
 	{
 		if (index < 0 || index >= mTracks.Count)
@@ -332,7 +259,6 @@ class EngineAudioSample : RHISampleApp
 
 		Console.WriteLine($"Selected: {track.Name}");
 
-		// Load clip if not already loaded
 		if (track.Clip == null)
 		{
 			Console.WriteLine($"Decoding: {track.Path}");
@@ -348,10 +274,7 @@ class EngineAudioSample : RHISampleApp
 			}
 		}
 
-		// Update now playing label
 		mNowPlayingLabel.Text = track.Name;
-
-		// Auto-play
 		PlayCurrentTrack();
 	}
 
@@ -364,10 +287,8 @@ class EngineAudioSample : RHISampleApp
 		if (track.Clip == null)
 			return;
 
-		// Stop current playback
 		StopPlayback();
 
-		// Create new source and play
 		mCurrentSource = mAudioSystem.CreateSource();
 		if (mCurrentSource != null)
 		{
@@ -382,7 +303,6 @@ class EngineAudioSample : RHISampleApp
 	{
 		if (mCurrentSource == null)
 		{
-			// Nothing playing, try to play current track
 			if (mCurrentTrackIndex >= 0)
 				PlayCurrentTrack();
 			return;
@@ -411,7 +331,8 @@ class EngineAudioSample : RHISampleApp
 			mCurrentSource = null;
 		}
 		mIsPlaying = false;
-		if (let textBlock = mPlayPauseButton.Content as TextBlock) textBlock.Text = "Play";
+		if (mPlayPauseButton != null)
+			if (let textBlock = mPlayPauseButton.Content as TextBlock) textBlock.Text = "Play";
 	}
 
 	private void AdjustVolume(float delta)
@@ -425,7 +346,9 @@ class EngineAudioSample : RHISampleApp
 		mVolumeLabel.Text = scope:: $"{pct}%";
 	}
 
-	protected override void OnUpdate(float deltaTime, float totalTime)
+	// ==================== Lifecycle ====================
+
+	protected override void OnUpdate(FrameContext frame)
 	{
 		// Update audio system
 		mAudioSystem.Update();
@@ -437,117 +360,54 @@ class EngineAudioSample : RHISampleApp
 			if (let textBlock = mPlayPauseButton.Content as TextBlock) textBlock.Text = "Play";
 		}
 
-		// Process UI input
-		ProcessUIInput();
-
-		// Update UI
-		mUIContext.Update(deltaTime, totalTime);
-	}
-
-	private void ProcessUIInput()
-	{
-		let mouse = Shell.InputManager.Mouse;
-		let kb = Shell.InputManager.Keyboard;
-
-		// Mouse position
-		mUIContext.ProcessMouseMove(mouse.X, mouse.Y);
-
-		// Mouse buttons
-		if (mouse.IsButtonPressed(.Left))
-			mUIContext.ProcessMouseDown(mouse.X, mouse.Y, .Left, .None);
-		if (mouse.IsButtonReleased(.Left))
-			mUIContext.ProcessMouseUp(mouse.X, mouse.Y, .Left, .None);
-
-		// Mouse wheel
-		if (mouse.ScrollY != 0)
-			mUIContext.ProcessMouseWheel(mouse.X, mouse.Y, mouse.ScrollY, .None);
-
-		// Keyboard
-		if (kb.IsKeyPressed(.Space))
+		// Spacebar for play/pause
+		if (mShell.InputManager.Keyboard.IsKeyPressed(.Space))
 			TogglePlayPause();
 	}
 
-	protected override bool OnRenderFrame(ICommandEncoder encoder, int32 frameIndex)
+	protected override bool OnRenderFrame(RenderContext render)
 	{
-		// Update UI and render to draw context
-		mUIContext.Render(mDrawContext);
-
-		// Prepare UI renderer
-		let batch = mDrawContext.GetBatch();
-		mDrawingRenderer.Prepare(batch, frameIndex);
-		mDrawingRenderer.UpdateProjection(SwapChain.Width, SwapChain.Height, frameIndex);
-
-		// Create render pass
-		ColorAttachment[1] colorAttachments = .(.()
+		// Clear the swapchain (establishes proper layout for subsequent UISubsystem render pass)
+		ColorAttachment[1] clearAttachments = .(.()
 		{
-			View = SwapChain.CurrentTextureView,
+			View = render.SwapChain.CurrentTextureView,
 			LoadOp = .Clear,
 			StoreOp = .Store,
-			ClearValue = mConfig.ClearColor
+			ClearValue = render.ClearColor
 		});
-
-		RenderPassDesc renderPassDesc = .(colorAttachments);
-		let renderPass = encoder.BeginRenderPass(&renderPassDesc);
-		if (renderPass == null)
+		RenderPassDesc clearPass = .(clearAttachments);
+		let rp = render.Encoder.BeginRenderPass(&clearPass);
+		if (rp != null)
 		{
-			mDrawContext.Clear();
-			return true;
+			rp.End();
+			delete rp;
 		}
-		defer delete renderPass;
 
-		renderPass.SetViewport(0, 0, SwapChain.Width, SwapChain.Height, 0, 1);
-		renderPass.SetScissor(0, 0, SwapChain.Width, SwapChain.Height);
+		// Now render GUI overlay (uses LoadOp=Load, expects PRESENT_SRC_KHR)
+		mUISubsystem?.Render(render.Encoder, render.SwapChain.CurrentTextureView,
+			render.SwapChain.Width, render.SwapChain.Height,
+			(int32)render.SwapChain.CurrentFrameIndex);
 
-		// Render UI
-		mDrawingRenderer.Render(renderPass, SwapChain.Width, SwapChain.Height, frameIndex);
-
-		renderPass.End();
-		mDrawContext.Clear();
-
-		return true; // We handled rendering
+		return true;
 	}
 
-	protected override void OnResize(uint32 width, uint32 height)
+	protected override void OnResize(int32 width, int32 height)
 	{
-		mUIContext?.SetViewportSize((float)width, (float)height);
+		mUISubsystem?.GUIContext?.SetViewportSize((float)width, (float)height);
 	}
 
-	protected override void OnCleanup()
+	protected override void OnShutdown()
 	{
 		StopPlayback();
+
+		// Delete UI root before context shutdown
+		DeleteAndNullify!(mUIRoot);
 
 		// Clean up tracks (clips are owned by tracks)
 		for (let track in mTracks)
 		{
 			if (track.Clip != null)
 				delete track.Clip;
-		}
-
-		if (mTextInputDelegate != null)
-		{
-			Shell.InputManager.Keyboard.OnTextInput.Unsubscribe(mTextInputDelegate);
-			//delete mTextInputDelegate;
-			//mTextInputDelegate = null;
-		}
-
-		// Dispose and delete UI renderer (must call Dispose to release GPU resources)
-		if (mDrawingRenderer != null)
-		{
-			mDrawingRenderer.Dispose();
-			delete mDrawingRenderer;
-			mDrawingRenderer = null;
-		}
-
-		// Delete UI services (registered with UIContext but we own them)
-		if (mFontService != null) { delete mFontService; mFontService = null; }
-		if (mTheme != null) { delete mTheme; mTheme = null; }
-		if (mTooltipService != null) { delete mTooltipService; mTooltipService = null; }
-
-		// Clean up shader system
-		if (mShaderSystem != null)
-		{
-			mShaderSystem.Dispose();
-			delete mShaderSystem;
 		}
 	}
 }
@@ -556,8 +416,51 @@ class Program
 {
 	public static int Main(String[] args)
 	{
-		let app = scope EngineAudioSample();
-		app.Run();
-		return 0;
+		let shell = new SDL3Shell();
+		defer { shell.Shutdown(); delete shell; }
+
+		if (shell.Initialize() case .Err)
+		{
+			Console.WriteLine("Failed to initialize shell");
+			return -1;
+		}
+
+		let backend = new VulkanBackend(enableValidation: true);
+		defer delete backend;
+
+		if (!backend.IsInitialized)
+		{
+			Console.WriteLine("Failed to initialize Vulkan backend");
+			return -1;
+		}
+
+		List<IAdapter> adapters = scope .();
+		backend.EnumerateAdapters(adapters);
+
+		if (adapters.Count == 0)
+		{
+			Console.WriteLine("No GPU adapters found");
+			return -1;
+		}
+
+		Console.WriteLine("Using adapter: {0}", adapters[0].Info.Name);
+
+		let device = adapters[0].CreateDevice().GetValueOrDefault();
+		if (device == null)
+		{
+			Console.WriteLine("Failed to create device");
+			return -1;
+		}
+		defer delete device;
+
+		let settings = ApplicationSettings()
+		{
+			Title = "Audio Sandbox",
+			Width = 800, Height = 600,
+			EnableDepth = false
+		};
+
+		let app = scope AudioSandboxApp(shell, device, backend);
+		return app.Run(settings);
 	}
 }
