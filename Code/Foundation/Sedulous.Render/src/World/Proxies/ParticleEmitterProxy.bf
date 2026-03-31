@@ -80,9 +80,6 @@ public struct ParticleEmitterProxy
 	/// Render mode.
 	public ParticleRenderMode RenderMode;
 
-	/// CPU emitter simulation state (only used when Backend == CPU).
-	public CPUParticleEmitter CPUEmitter;
-
 	/// Handle to the GPU particle buffer.
 	public IBuffer ParticleBuffer;
 
@@ -274,7 +271,6 @@ public struct ParticleEmitterProxy
 		emitter.SimulationSpace = .World;
 		emitter.BlendMode = .Alpha;
 		emitter.RenderMode = .Billboard;
-		emitter.CPUEmitter = null;
 		emitter.MaxParticles = 1000;
 		emitter.SpawnRate = 100.0f;
 		emitter.ParticleLifetime = 2.0f;
@@ -331,7 +327,6 @@ public struct ParticleEmitterProxy
 		SimulationSpace = .World;
 		BlendMode = .Alpha;
 		RenderMode = .Billboard;
-		CPUEmitter = null;
 		ParticleBuffer = null;
 		IndirectBuffer = null;
 		ParticleTexture = null;

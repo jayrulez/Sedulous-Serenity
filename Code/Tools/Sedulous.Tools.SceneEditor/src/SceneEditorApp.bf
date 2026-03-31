@@ -30,7 +30,6 @@ class SceneEditorApp : Application
 
 	// Render features
 	private DepthPrepassFeature mDepthFeature;
-	private GPUSkinningFeature mSkinningFeature;
 	private ForwardOpaqueFeature mForwardFeature;
 	private SkyFeature mSkyFeature;
 	private OverlayRenderFeature mOverlayFeature;
@@ -121,7 +120,7 @@ class SceneEditorApp : Application
 		// Initialize render system
 		let shaderPaths = scope StringView[](scope $"{AssetDirectory}/Render/Shaders");
 		mRenderSystem = new RenderSystem();
-		if (mRenderSystem.Initialize(Device, shaderPaths, null, .RGBA8Unorm, .Depth24PlusStencil8) case .Err)
+		if (mRenderSystem.Initialize(Device, SwapChain.Width, SwapChain.Height, shaderPaths, null, .RGBA8Unorm, .Depth24PlusStencil8) case .Err)
 		{
 			Console.WriteLine("ERROR: Failed to initialize RenderSystem");
 			return false;
@@ -164,9 +163,6 @@ class SceneEditorApp : Application
 
 	private void RegisterFeatures()
 	{
-		mSkinningFeature = new GPUSkinningFeature();
-		mRenderSystem.RegisterFeature(mSkinningFeature);
-
 		mDepthFeature = new DepthPrepassFeature();
 		mRenderSystem.RegisterFeature(mDepthFeature);
 
@@ -1617,25 +1613,25 @@ class SceneEditorApp : Application
 			}
 
 			// Transition viewport texture for UI sampling
-			encoder.TextureBarrier(viewport.ColorTexture, .ColorAttachment, .ShaderReadOnly);
+			encoder.TransitionTexture(viewport.ColorTexture, .RenderTarget, .ShaderRead);
 		}
 
 		// Render UI to swap chain
 		let swapTextureView = SwapChain.CurrentTextureView;
-		ColorAttachment[1] uiAttachments = .(.(swapTextureView)
+		ColorAttachment[1] uiAttachments = .(.()
 			{
+				View = swapTextureView,
 				LoadOp = .Clear,
 				StoreOp = .Store,
 				ClearValue = mConfig.ClearColor
 			});
-		RenderPassDesc uiPassDesc = .(uiAttachments);
+		RenderPassDesc uiPassDesc = .() { ColorAttachments = .(uiAttachments) };
 
-		let uiPass = encoder.BeginRenderPass(&uiPassDesc);
+		let uiPass = encoder.BeginRenderPass(uiPassDesc);
 		if (uiPass != null)
 		{
 			mDrawingRenderer.Render(uiPass, SwapChain.Width, SwapChain.Height, frameIndex);
 			uiPass.End();
-			delete uiPass;
 		}
 
 		return true;

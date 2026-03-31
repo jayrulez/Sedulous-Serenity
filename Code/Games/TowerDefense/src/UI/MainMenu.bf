@@ -4,7 +4,7 @@ using System;
 using Sedulous.GUI;
 using Sedulous.Drawing;
 using Sedulous.Core.Mathematics;
-using Sedulous.Core.Core;
+using Sedulous.Core;
 
 /// Delegate for menu action events.
 delegate void MenuActionDelegate();

@@ -34,7 +34,6 @@ class ModelViewerApp : Application
 
 	// Render features
 	private DepthPrepassFeature mDepthFeature;
-	private GPUSkinningFeature mSkinningFeature;
 	private ForwardOpaqueFeature mForwardFeature;
 	private SkyFeature mSkyFeature;
 	private OverlayRenderFeature mOverlayFeature;
@@ -102,7 +101,7 @@ class ModelViewerApp : Application
 		// Initialize render system
 		let shaderPaths = scope StringView[](scope $"{AssetDirectory}/Render/Shaders");
 		mRenderSystem = new RenderSystem();
-		if (mRenderSystem.Initialize(Device, shaderPaths, scope $"{AssetDirectory}/cache/Shaders", .RGBA8Unorm, .Depth24PlusStencil8) case .Err)
+		if (mRenderSystem.Initialize(Device, SwapChain.Width, SwapChain.Height, shaderPaths, scope $"{AssetDirectory}/cache/Shaders", .RGBA8Unorm, .Depth24PlusStencil8) case .Err)
 		{
 			Console.WriteLine("ERROR: Failed to initialize RenderSystem");
 			return false;
@@ -373,10 +372,6 @@ class ModelViewerApp : Application
 
 	private void RegisterFeatures()
 	{
-		// GPU skinning for skeletal meshes (must run before depth prepass)
-		mSkinningFeature = new GPUSkinningFeature();
-		mRenderSystem.RegisterFeature(mSkinningFeature);
-
 		mDepthFeature = new DepthPrepassFeature();
 		mRenderSystem.RegisterFeature(mDepthFeature);
 
@@ -1873,48 +1868,49 @@ class ModelViewerApp : Application
 			else
 			{
 				// No active tab - just clear the viewport to a dark color
-				ColorAttachment[1] clearAttachments = .(.(viewport.ColorTargetView)
+				ColorAttachment[1] clearAttachments = .(.()
 					{
+						View = viewport.ColorTargetView,
 						LoadOp = .Clear,
 						StoreOp = .Store,
-						ClearValue = .(0.1f, 0.1f, 0.12f, 1.0f)
+						ClearValue = ClearColor(0.1f, 0.1f, 0.12f, 1.0f)
 					});
-				RenderPassDesc clearPassDesc = .(clearAttachments);
-				clearPassDesc.DepthStencilAttachment = .(viewport.DepthTargetView)
+				RenderPassDesc clearPassDesc = .() { ColorAttachments = .(clearAttachments) };
+				clearPassDesc.DepthStencilAttachment = .()
 					{
+						View = viewport.DepthTargetView,
 						DepthLoadOp = .Clear,
 						DepthStoreOp = .Store,
 						DepthClearValue = 1.0f
 					};
 
-				let clearPass = encoder.BeginRenderPass(&clearPassDesc);
+				let clearPass = encoder.BeginRenderPass(clearPassDesc);
 				if (clearPass != null)
 				{
 					clearPass.End();
-					delete clearPass;
 				}
 			}
 
 			// Transition the viewport texture for UI sampling
-			encoder.TextureBarrier(viewport.ColorTexture, .ColorAttachment, .ShaderReadOnly);
+			encoder.TransitionTexture(viewport.ColorTexture, .RenderTarget, .ShaderRead);
 		}
 
 		// Then render UI (default behavior renders to swap chain)
 		let swapTextureView = SwapChain.CurrentTextureView;
-		ColorAttachment[1] uiAttachments = .(.(swapTextureView)
+		ColorAttachment[1] uiAttachments = .(.()
 			{
+				View = swapTextureView,
 				LoadOp = .Clear,
 				StoreOp = .Store,
 				ClearValue = mConfig.ClearColor
 			});
-		RenderPassDesc uiPassDesc = .(uiAttachments);
+		RenderPassDesc uiPassDesc = .() { ColorAttachments = .(uiAttachments) };
 
-		let uiPass = encoder.BeginRenderPass(&uiPassDesc);
+		let uiPass = encoder.BeginRenderPass(uiPassDesc);
 		if (uiPass != null)
 		{
 			mDrawingRenderer.Render(uiPass, SwapChain.Width, SwapChain.Height, frameIndex);
 			uiPass.End();
-			delete uiPass;
 		}
 
 		return true;

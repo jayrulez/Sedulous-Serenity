@@ -1,10 +1,9 @@
 namespace Sedulous.RHI;
 
-using System;
-
 /// A texture sampler.
-interface ISampler : IDisposable
+/// Destroyed via IDevice.DestroySampler().
+interface ISampler
 {
-	/// Debug name for tracking resource leaks.
-	StringView DebugName { get; }
+	/// The descriptor this sampler was created with.
+	SamplerDesc Desc { get; }
 }

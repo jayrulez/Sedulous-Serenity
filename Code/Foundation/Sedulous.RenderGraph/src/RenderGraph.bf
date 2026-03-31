@@ -1,1180 +1,906 @@
-namespace Sedulous.RenderGraph;
-
 using System;
 using System.Collections;
 using Sedulous.RHI;
-using Sedulous.Profiler;
 
-/// Wrapper for ITexture pointer to enable use as dictionary key.
-/// Implements IHashable based on the pointer address.
-struct TextureKey : IHashable
+namespace Sedulous.RenderGraph;
+
+using static Sedulous.RHI.TextureFormatExt;
+
+/// The render graph orchestrator.
+/// All GPU work is declared as passes with resource accesses.
+/// The graph compiles dependencies, culls unused work, inserts barriers,
+/// and executes everything in a single Execute(encoder) call.
+public class RenderGraph
 {
-	public ITexture Texture;
-
-	public this(ITexture texture)
-	{
-		Texture = texture;
-	}
-
-	public int GetHashCode()
-	{
-		// Hash based on the object's pointer address
-		return (int)(void*)Internal.UnsafeCastToPtr(Texture);
-	}
-
-	public static bool operator ==(Self lhs, Self rhs)
-	{
-		// Compare by reference (same object instance)
-		return lhs.Texture === rhs.Texture;
-	}
-
-	public static bool operator !=(Self lhs, Self rhs)
-	{
-		return !(lhs == rhs);
-	}
-}
-
-/// A deferred texture read declaration: "pass X should read resource Y".
-class DeferredRead
-{
-	public String PassName = new .() ~ delete _;
-	public RGResourceHandle Handle;
-}
-
-/// A pooled transient texture, cached between frames to avoid re-creation.
-class PooledTexture
-{
-	public TextureResourceDesc Desc;
-	public ITexture Texture;
-	public ITextureView TextureView;
-	public ITextureView DepthOnlyView;
-
-	public ~this()
-	{
-		if (DepthOnlyView != null) delete DepthOnlyView;
-		if (TextureView != null) delete TextureView;
-		if (Texture != null) delete Texture;
-	}
-
-	/// Checks if this pooled texture matches the requested descriptor.
-	public bool Matches(TextureResourceDesc desc)
-	{
-		return Desc.Width == desc.Width &&
-			Desc.Height == desc.Height &&
-			Desc.Format == desc.Format &&
-			Desc.Usage == desc.Usage &&
-			Desc.DepthOrArrayLayers == desc.DepthOrArrayLayers &&
-			Desc.MipLevels == desc.MipLevels &&
-			Desc.SampleCount == desc.SampleCount;
-	}
-}
-
-/// Render graph that manages pass dependencies and resource lifetimes.
-public class RenderGraph : IDisposable
-{
-	/// Enable verbose logging for layout tracking and barriers.
-	private const bool DebugLogLayouts = false;
-
 	private IDevice mDevice;
 	private RenderGraphConfig mConfig;
 
-	// Resources - uses slot-based system where removed resources leave null holes
-	private List<RenderGraphResource> mResources = new .() ~ DeleteContainerAndItems!(_);
-	private Dictionary<String, RGResourceHandle> mResourceNames = new .() ~ DeleteDictionaryAndKeys!(_);
-	private List<int32> mFreeSlots = new .() ~ delete _; // Indices of null slots available for reuse
+	// Resources
+	private List<RenderGraphResource> mResources = new .() ~ {
+		for (let r in _) delete r;
+		delete _;
+	};
+	private List<int32> mFreeResourceSlots = new .() ~ delete _;
 
 	// Passes
-	private List<RenderPass> mPasses = new .() ~ DeleteContainerAndItems!(_);
-	private List<PassHandle> mExecutionOrder = new .() ~ delete _;
+	private List<RenderGraphPass> mPasses = new .() ~ {
+		for (let p in _) delete p;
+		delete _;
+	};
 
-	// Frame state
+	// Compiled execution order
+	private List<int32> mExecutionOrder = new .() ~ delete _;
+	private bool mIsCompiled;
+
+	// Barrier solver
+	private BarrierSolver mBarrierSolver = new .() ~ delete _;
+
+	// Transient texture pool
+	private TransientTexturePool mTexturePool ~ delete _;
+
+	// Deferred deletion queues (per frame slot)
+	private List<List<DeferredDeletion>> mDeferredDeletions ~ {
+		for (let list in _) { for (let d in list) d.Execute(mDevice); delete list; }
+		delete _;
+	};
+
+	// Frame tracking
 	private int32 mFrameIndex;
-	private bool mIsBuilding = false;
-	private bool mIsCompiled = false;
+	private uint32 mOutputWidth = 1920;
+	private uint32 mOutputHeight = 1080;
 
-	// Texture layout tracking (by texture pointer, not by resource)
-	// This correctly handles imported resources that share the same underlying texture
-	private Dictionary<TextureKey, ResourceLayoutState> mTextureLayouts = new .() ~ delete _;
+	struct DeferredDeletion
+	{
+		public ITexture Texture;
+		public ITextureView View;
+		public ITextureView View2;
+		public IBuffer Buffer;
 
-	// Resources that need to be transitioned to Present layout at end of frame (e.g., swapchain)
-	private List<RGResourceHandle> mPresentTargets = new .() ~ delete _;
+		public void Execute(IDevice device)
+		{
+			var tex = Texture;
+			var view = View;
+			var view2 = View2;
+			var buf = Buffer;
+			if (view2 != null) device.DestroyTextureView(ref view2);
+			if (view != null) device.DestroyTextureView(ref view);
+			if (tex != null) device.DestroyTexture(ref tex);
+			if (buf != null) device.DestroyBuffer(ref buf);
+		}
+	}
 
-	// Deferred texture reads: (passName, resourceHandle) pairs applied during Compile.
-	// Allows a feature to declare "pass X reads resource Y" before that pass exists.
-	private List<DeferredRead> mDeferredReads = new .() ~ DeleteContainerAndItems!(_);
-
-	// Deferred deletion queues per frame slot (sized by config.FrameBufferCount).
-	// Transient resources are pushed here instead of being deleted immediately,
-	// and flushed the next time the same frame slot is reused (after fence wait).
-	private List<RenderGraphResource>[] mDeferredDeletions ~ { if (_ != null) { for (let l in _) { DeleteContainerAndItems!(l); } delete _; } };
-
-	// Transient texture pool: GPU textures cached between frames to avoid re-creation.
-	private List<PooledTexture> mTexturePool = new .() ~ DeleteContainerAndItems!(_);
-
-	// Statistics
-	public int32 PassCount => (int32)mPasses.Count;
-	public int32 ResourceCount => (int32)mResources.Count;
-	public int32 CulledPassCount { get; private set; }
-
-	public this(IDevice device, RenderGraphConfig config)
+	public this(IDevice device, RenderGraphConfig config = .())
 	{
 		mDevice = device;
 		mConfig = config;
-		mDeferredDeletions = new List<RenderGraphResource>[config.FrameBufferCount];
+
+		if (device != null)
+			mTexturePool = new TransientTexturePool(device);
+
+		mDeferredDeletions = new .();
 		for (int i = 0; i < config.FrameBufferCount; i++)
-			mDeferredDeletions[i] = new List<RenderGraphResource>();
+			mDeferredDeletions.Add(new List<DeferredDeletion>());
 	}
 
-	/// Begins building the render graph for a new frame.
-	/// frameIndex is the current frame buffer slot (0 to FrameBufferCount-1),
-	/// used for deferred resource deletion (safe after fence wait in AcquireNextImage).
+	// === Output dimensions ===
+
+	/// Set output dimensions for SizeMode resolution
+	public void SetOutputSize(uint32 width, uint32 height)
+	{
+		mOutputWidth = width;
+		mOutputHeight = height;
+	}
+
+	public uint32 OutputWidth => mOutputWidth;
+	public uint32 OutputHeight => mOutputHeight;
+
+	// === Frame lifecycle ===
+
+	/// Begin a new frame. Flushes deferred deletions for this frame slot.
 	public void BeginFrame(int32 frameIndex)
 	{
 		mFrameIndex = frameIndex;
+		let slotIndex = frameIndex % (int32)mDeferredDeletions.Count;
 
-		// Flush deferred deletions for this frame slot.
-		// These resources were used in the previous command buffer for this slot,
-		// which has now completed (fence was waited on in AcquireNextImage).
-		FlushDeferredDeletions(frameIndex);
+		// Flush deferred deletions for this slot (GPU has finished with these by now)
+		let deletions = mDeferredDeletions[slotIndex];
+		for (let d in deletions)
+			d.Execute(mDevice);
+		deletions.Clear();
 
-		// Clear previous frame passes
-		for (let pass in mPasses)
-			delete pass;
-		mPasses.Clear();
+		// Clear passes from previous frame
+		ClearPasses();
 
-		// Reset transient resources - defer deletion instead of immediate release
+		// Remove transient and imported resources from previous frame (keep persistent)
 		for (int i = 0; i < mResources.Count; i++)
 		{
-			let resource = mResources[i];
-			if (resource == null)
-				continue; // Already a free slot
+			let res = mResources[i];
+			if (res == null) continue;
 
-			if (resource.IsTransient)
+			if (res.Lifetime != .Persistent)
 			{
-				// Remove texture layout tracking for this resource before deferring
-				if (resource.Type == .Texture && resource.Texture != null)
-				{
-					let key = TextureKey(resource.Texture);
-					mTextureLayouts.Remove(key);
-				}
-
-				// Remove name mapping
-				for (let kv in mResourceNames)
-				{
-					if (kv.value.Index == (uint32)i)
-					{
-						let key = kv.key;
-						mResourceNames.Remove(key);
-						delete key;
-						break;
-					}
-				}
-
-				// Defer deletion until this frame slot's fence is waited on next time
-				mDeferredDeletions[frameIndex].Add(resource);
-				mResources[i] = null; // Leave a hole, don't shift indices
-				mFreeSlots.Add((int32)i); // Track this slot for reuse
+				mFreeResourceSlots.Add((int32)i);
+				delete res;
+				mResources[i] = null;
 			}
 			else
 			{
-				// Reset tracking for imported resources
-				resource.RefCount = 0;
-				resource.FirstWriter = .Invalid;
-				resource.LastReader = .Invalid;
-				// Keep CurrentLayout - imported resources maintain their layout across frames
+				res.ResetTracking();
 			}
 		}
 
-		mExecutionOrder.Clear();
-		mPresentTargets.Clear();
-		for (let dr in mDeferredReads) delete dr;
-		mDeferredReads.Clear();
-		// Note: Do NOT clear mTextureLayouts - texture layout state persists across frames.
-		// This is important for swapchain images which cycle through and retain their
-		// layout state (e.g., Present after being presented, ColorAttachment after rendering).
-		mIsBuilding = true;
 		mIsCompiled = false;
-		CulledPassCount = 0;
 	}
 
-	/// Creates a transient texture resource.
-	public RGResourceHandle CreateTexture(StringView name, TextureResourceDesc desc)
-	{
-		Runtime.Assert(mIsBuilding, "Must call BeginFrame before creating resources");
-
-		let resource = RenderGraphResource.CreateTexture(name, desc);
-		return AddResource(resource, name);
-	}
-
-	/// Creates a transient buffer resource.
-	public RGResourceHandle CreateBuffer(StringView name, BufferResourceDesc desc)
-	{
-		Runtime.Assert(mIsBuilding, "Must call BeginFrame before creating resources");
-
-		let resource = RenderGraphResource.CreateBuffer(name, desc);
-		return AddResource(resource, name);
-	}
-
-	/// Imports an external texture.
-	/// If a resource with the same name already exists, updates its texture/view references.
-	/// This is important for swapchain textures which change each frame.
-	public RGResourceHandle ImportTexture(StringView name, ITexture texture, ITextureView view)
-	{
-		let nameStr = scope String(name);
-		if (mResourceNames.TryGetValue(nameStr, let existing))
-		{
-			// Update the existing resource's texture references
-			// This is critical for swapchain textures which cycle between multiple images
-			if (let resource = GetResourceByHandle(existing))
-			{
-				resource.Texture = texture;
-				resource.TextureView = view;
-			}
-			return existing;
-		}
-
-		let resource = RenderGraphResource.ImportTexture(name, texture, view);
-		return AddResource(resource, name);
-	}
-
-	/// Imports an external buffer.
-	/// If a resource with the same name already exists, updates its buffer reference.
-	public RGResourceHandle ImportBuffer(StringView name, IBuffer buffer)
-	{
-		let nameStr = scope String(name);
-		if (mResourceNames.TryGetValue(nameStr, let existing))
-		{
-			// Update the existing resource's buffer reference
-			if (let resource = GetResourceByHandle(existing))
-			{
-				resource.Buffer = buffer;
-			}
-			return existing;
-		}
-
-		let resource = RenderGraphResource.ImportBuffer(name, buffer);
-		return AddResource(resource, name);
-	}
-
-	/// Marks a texture resource to be transitioned to Present layout at end of frame.
-	/// Use this for swapchain textures that will be presented.
-	public void MarkForPresent(RGResourceHandle handle)
-	{
-		if (handle.IsValid)
-			mPresentTargets.Add(handle);
-	}
-
-	/// Declares that a named pass should read a texture resource.
-	/// Applied during Compile() so the pass does not need to exist yet.
-	/// This inserts a proper layout barrier and dependency edge.
-	public void DeferReadTexture(StringView passName, RGResourceHandle handle)
-	{
-		let entry = new DeferredRead();
-		entry.PassName.Set(passName);
-		entry.Handle = handle;
-		mDeferredReads.Add(entry);
-	}
-
-	/// Gets a resource handle by name.
-	public RGResourceHandle GetResource(StringView name)
-	{
-		let nameStr = scope String(name);
-		if (mResourceNames.TryGetValue(nameStr, let handle))
-			return handle;
-		return .Invalid;
-	}
-
-	/// Gets the texture view for a resource.
-	public ITextureView GetTextureView(RGResourceHandle handle)
-	{
-		if (let resource = GetResourceByHandle(handle))
-			return resource.TextureView;
-		return null;
-	}
-
-	/// Gets the depth-only texture view for a depth/stencil resource (for shader sampling).
-	public ITextureView GetDepthOnlyTextureView(RGResourceHandle handle)
-	{
-		if (let resource = GetResourceByHandle(handle))
-			return resource.DepthOnlyView;
-		return null;
-	}
-
-	/// Gets the texture for a resource.
-	public ITexture GetTexture(RGResourceHandle handle)
-	{
-		if (let resource = GetResourceByHandle(handle))
-			return resource.Texture;
-		return null;
-	}
-
-	/// Gets the buffer for a resource.
-	public IBuffer GetBuffer(RGResourceHandle handle)
-	{
-		if (let resource = GetResourceByHandle(handle))
-			return resource.Buffer;
-		return null;
-	}
-
-	/// Adds a graphics render pass.
-	public PassBuilder AddGraphicsPass(StringView name)
-	{
-		Runtime.Assert(mIsBuilding, "Must call BeginFrame before adding passes");
-
-		let pass = new RenderPass(name, .Graphics);
-		let handle = PassHandle() { Index = (uint32)mPasses.Count };
-		mPasses.Add(pass);
-		return PassBuilder(this, handle);
-	}
-
-	/// Adds a compute pass.
-	public PassBuilder AddComputePass(StringView name)
-	{
-		Runtime.Assert(mIsBuilding, "Must call BeginFrame before adding passes");
-
-		let pass = new RenderPass(name, .Compute);
-		let handle = PassHandle() { Index = (uint32)mPasses.Count };
-		mPasses.Add(pass);
-		return PassBuilder(this, handle);
-	}
-
-	/// Adds a copy/transfer pass.
-	public PassBuilder AddCopyPass(StringView name)
-	{
-		Runtime.Assert(mIsBuilding, "Must call BeginFrame before adding passes");
-
-		let pass = new RenderPass(name, .Copy);
-		let handle = PassHandle() { Index = (uint32)mPasses.Count };
-		mPasses.Add(pass);
-		return PassBuilder(this, handle);
-	}
-
-	/// Compiles the render graph.
+	/// Compile the graph: build dependencies, cull, sort, allocate.
+	/// Can be called without an encoder for testing graph logic.
 	public Result<void> Compile()
 	{
-		Runtime.Assert(mIsBuilding, "Must call BeginFrame before Compile");
+		if (mPasses.Count == 0)
+			return .Ok;
 
-		mIsBuilding = false;
-
-		// Apply deferred reads to their target passes
-		ApplyDeferredReads();
-
-		// Build resource references
 		BuildResourceReferences();
-
-		// Cull unused passes
 		CullPasses();
-
-		// Build pass dependencies (readers depend on latest writer, writers chain in order)
 		BuildDependencies();
-
-		// Topological sort
 		if (TopologicalSort() case .Err)
 			return .Err;
-
-		// Allocate transient resources
-		if (AllocateResources() case .Err)
-			return .Err;
+		AllocateTransientResources();
 
 		mIsCompiled = true;
 		return .Ok;
 	}
 
-	/// Executes all passes in order.
-	public Result<void> Execute(ICommandEncoder commandEncoder)
+	/// Compile and execute all passes into the provided command encoder.
+	public Result<void> Execute(ICommandEncoder encoder)
 	{
-		Runtime.Assert(mIsCompiled, "Must call Compile before Execute");
-
-		for (let passHandle in mExecutionOrder)
+		if (!mIsCompiled)
 		{
-			let pass = mPasses[passHandle.Index];
+			if (Compile() case .Err)
+				return .Err;
+		}
+
+		if (encoder == null)
+			return .Ok; // Compile-only mode (for tests)
+
+		// --- Execute ---
+		mBarrierSolver.Reset(mResources);
+
+		for (let passIdx in mExecutionOrder)
+		{
+			let pass = mPasses[passIdx];
 			if (pass.IsCulled)
 				continue;
 
-			using (SProfiler.Begin(pass.Name))
+			// Runtime conditional skip
+			if (pass.Condition != null && !pass.Condition())
+				continue;
+
+			// Debug label
+			encoder.BeginDebugLabel(pass.Name);
+
+			// Emit barriers
+			mBarrierSolver.EmitBarriers(pass, mResources, encoder);
+
+			// Execute pass
+			switch (pass.Type)
 			{
-				// Insert barriers for resources transitioning to this pass's usage
-				InsertBarriersForPass(pass, commandEncoder);
-
-				// Execute the pass
-				if (ExecutePass(pass, commandEncoder) case .Err)
-					return .Err;
-
-				// Update layout state for resources modified by this pass
-				UpdateLayoutsAfterPass(pass);
+			case .Render:
+				ExecuteRenderPass(pass, encoder);
+			case .Compute:
+				ExecuteComputePass(pass, encoder);
+			case .Copy:
+				ExecuteCopyPass(pass, encoder);
 			}
+
+			// Transition ReadableAfterWrite resources to ShaderRead after the pass
+			mBarrierSolver.EmitReadableAfterWriteBarriers(pass, mResources, encoder);
+
+			encoder.EndDebugLabel();
 		}
 
-		// Transition present targets to Present layout for presentation
-		TransitionPresentTargets(commandEncoder);
+		// Final-state transitions (e.g., Present for swapchain)
+		mBarrierSolver.EmitFinalTransitions(mResources, encoder);
+
+		// Update persistent resource states
+		mBarrierSolver.UpdatePersistentStates(mResources);
+
+		// Return transient resources to pool
+		ReturnTransientResources();
 
 		return .Ok;
 	}
 
-	/// Ensures all marked present targets are in Present layout.
-	///
-	/// The Vulkan render pass already transitions swapchain attachments to Present via
-	/// finalLayout, so this is typically a no-op. Only issues a barrier if the tracked
-	/// layout indicates the transition hasn't happened yet.
-	///
-	/// IMPORTANT: Never use Undefined as the source layout here - that tells the driver
-	/// it can discard the image contents, which some drivers (AMD, Intel) will do.
-	private void TransitionPresentTargets(ICommandEncoder commandEncoder)
-	{
-		for (let handle in mPresentTargets)
-		{
-			if (let resource = GetResourceByHandle(handle))
-			{
-				if (resource.Type == .Texture && resource.Texture != null)
-				{
-					let currentLayout = GetTextureLayout(resource.Texture);
-					if (currentLayout != .Present)
-					{
-						// Only issue barrier if not already in Present layout
-						commandEncoder.TextureBarrier(resource.Texture, ToTextureLayout(currentLayout), .Present);
-						SetTextureLayout(resource.Texture, .Present);
-					}
-				}
-			}
-		}
-	}
-
-	/// Ends the frame.
+	/// End the current frame
 	public void EndFrame()
 	{
 		mIsCompiled = false;
+
+		if (mTexturePool != null)
+			mTexturePool.EndFrame();
 	}
 
-	/// Resets the graph for the next view within the same frame.
-	/// Clears passes and resource tracking but defers transient texture deletion
-	/// until the frame's command buffer has completed (via the deferred deletion queue).
-	public void ResetForNextView()
+	/// Reset for multi-view rendering: clears passes but keeps persistent resource state
+	public void Reset()
 	{
-		// Delete pass objects (callbacks, attachment lists, etc.)
-		for (let pass in mPasses)
-			delete pass;
-		mPasses.Clear();
+		// Defer-delete transient resources before clearing
+		ReturnTransientResources();
+		ClearPasses();
 
-		// Handle transient resources: defer-delete them (GPU textures stay alive
-		// until this frame slot's fence is waited on in the next BeginFrame)
+		// Remove transient and imported resources, keep persistent
 		for (int i = 0; i < mResources.Count; i++)
 		{
-			let resource = mResources[i];
-			if (resource == null)
-				continue;
+			let res = mResources[i];
+			if (res == null) continue;
 
-			if (resource.IsTransient)
+			if (res.Lifetime != .Persistent)
 			{
-				// Remove name mapping
-				for (let kv in mResourceNames)
-				{
-					if (kv.value.Index == (uint32)i)
-					{
-						let key = kv.key;
-						mResourceNames.Remove(key);
-						delete key;
-						break;
-					}
-				}
-
-				// Defer deletion (textures pooled when frame slot reused)
-				mDeferredDeletions[mFrameIndex].Add(resource);
+				mFreeResourceSlots.Add((int32)i);
+				delete res;
 				mResources[i] = null;
-				mFreeSlots.Add((int32)i);
 			}
 			else
 			{
-				// Reset tracking for imported resources (keep layout tracking)
-				resource.RefCount = 0;
-				resource.FirstWriter = .Invalid;
-				resource.LastReader = .Invalid;
+				res.ResetTracking();
 			}
 		}
 
-		mExecutionOrder.Clear();
-		mPresentTargets.Clear();
-		for (let dr in mDeferredReads) delete dr;
-		mDeferredReads.Clear();
-		// Keep mTextureLayouts — layout state persists across views within a frame
-		mIsBuilding = true;
 		mIsCompiled = false;
-		CulledPassCount = 0;
 	}
 
-	// ========================================================================
-	// Internal Methods
-	// ========================================================================
+	// === Resource creation ===
 
-	private RGResourceHandle AddResource(RenderGraphResource resource, StringView name)
+	/// Create a transient texture (per-frame, pooled)
+	public RGHandle CreateTransient(StringView name, RGTextureDesc desc)
 	{
-		int32 index;
+		let res = new RenderGraphResource(name, .Texture, .Transient);
+		var resolvedDesc = desc;
+		resolvedDesc.Resolve(mOutputWidth, mOutputHeight);
+		res.TextureDesc = resolvedDesc;
+		return AddResource(res);
+	}
 
-		// Reuse a free slot if available, otherwise append
-		if (mFreeSlots.Count > 0)
+	/// Create a transient buffer (per-frame)
+	public RGHandle CreateTransientBuffer(StringView name, RGBufferDesc desc)
+	{
+		let res = new RenderGraphResource(name, .Buffer, .Transient);
+		res.BufferDesc = desc;
+		return AddResource(res);
+	}
+
+	/// Register a persistent texture (survives across frames)
+	public RGHandle RegisterPersistent(StringView name, ITexture texture, ITextureView view)
+	{
+		let res = new RenderGraphResource(name, .Texture, .Persistent);
+		res.Texture = texture;
+		res.TextureView = view;
+		let persistent = new PersistentResource(texture, view);
+		res.PersistentData = persistent;
+		return AddResource(res);
+	}
+
+	/// Register a ping-pong persistent texture pair (double-buffered, survives across frames)
+	public RGHandle RegisterPersistentPingPong(StringView name, ITexture tex0, ITexture tex1, ITextureView view0, ITextureView view1)
+	{
+		let res = new RenderGraphResource(name, .Texture, .Persistent);
+		res.Texture = tex0;
+		res.TextureView = view0;
+		let persistent = new PersistentResource(tex0, tex1, view0, view1);
+		res.PersistentData = persistent;
+		return AddResource(res);
+	}
+
+	/// Import an external texture for this frame (not owned by graph)
+	public RGHandle ImportTarget(StringView name, ITexture texture, ITextureView view, ResourceState? finalState = null)
+	{
+		let res = new RenderGraphResource(name, .Texture, .Imported);
+		res.Texture = texture;
+		res.TextureView = view;
+		res.FinalState = finalState;
+		// Imported resources start in their current state
+		res.LastKnownState = texture != null ? texture.InitialState : .Undefined;
+		return AddResource(res);
+	}
+
+	/// Import an external buffer for this frame (not owned by graph)
+	public RGHandle ImportBuffer(StringView name, IBuffer buffer)
+	{
+		let res = new RenderGraphResource(name, .Buffer, .Imported);
+		res.Buffer = buffer;
+		return AddResource(res);
+	}
+
+	/// Marks a resource to be transitioned to ShaderRead after the last pass that writes to it.
+	/// Use for resources that will be sampled through bind groups created outside the graph
+	/// (e.g., render-to-texture that a sprite feature samples without declaring ReadTexture).
+	public void RequireReadableAfterWrite(RGHandle handle)
+	{
+		if (!handle.IsValid || handle.Index >= (uint32)mResources.Count)
+			return;
+		let res = mResources[handle.Index];
+		if (res != null)
+			res.ReadableAfterWrite = true;
+	}
+
+	// === Pass creation ===
+
+	/// Add a render pass (draw commands)
+	public PassHandle AddRenderPass(StringView name, delegate void(ref PassBuilder) setup)
+	{
+		let pass = new RenderGraphPass(name, .Render);
+		var builder = PassBuilder(pass);
+		setup(ref builder);
+		return AddPass(pass);
+	}
+
+	/// Add a compute pass (dispatch commands)
+	public PassHandle AddComputePass(StringView name, delegate void(ref PassBuilder) setup)
+	{
+		let pass = new RenderGraphPass(name, .Compute);
+		var builder = PassBuilder(pass);
+		setup(ref builder);
+		return AddPass(pass);
+	}
+
+	/// Add a copy pass (transfer commands)
+	public PassHandle AddCopyPass(StringView name, delegate void(ref PassBuilder) setup)
+	{
+		let pass = new RenderGraphPass(name, .Copy);
+		var builder = PassBuilder(pass);
+		setup(ref builder);
+		return AddPass(pass);
+	}
+
+	// === Resource access (during execute callbacks) ===
+
+	/// Get the GPU texture for a resource handle
+	public ITexture GetTexture(RGHandle handle)
+	{
+		if (!handle.IsValid || handle.Index >= (uint32)mResources.Count)
+			return null;
+		let res = mResources[handle.Index];
+		if (res == null || res.Generation != handle.Generation)
+			return null;
+		if (res.PersistentData != null)
+			return res.PersistentData.Texture;
+		return res.Texture;
+	}
+
+	/// Get the GPU texture view for a resource handle
+	public ITextureView GetTextureView(RGHandle handle)
+	{
+		if (!handle.IsValid || handle.Index >= (uint32)mResources.Count)
+			return null;
+		let res = mResources[handle.Index];
+		if (res == null || res.Generation != handle.Generation)
+			return null;
+		if (res.PersistentData != null)
+			return res.PersistentData.TextureView;
+		return res.TextureView;
+	}
+
+	/// Get the depth-only texture view for a depth/stencil resource (for shader sampling).
+	public ITextureView GetDepthOnlyTextureView(RGHandle handle)
+	{
+		if (!handle.IsValid || handle.Index >= (uint32)mResources.Count)
+			return null;
+		let res = mResources[handle.Index];
+		if (res == null || res.Generation != handle.Generation)
+			return null;
+		return res.DepthOnlyView;
+	}
+
+	/// Get the GPU buffer for a resource handle
+	public IBuffer GetBuffer(RGHandle handle)
+	{
+		if (!handle.IsValid || handle.Index >= (uint32)mResources.Count)
+			return null;
+		let res = mResources[handle.Index];
+		if (res == null || res.Generation != handle.Generation)
+			return null;
+		return res.Buffer;
+	}
+
+	/// Swap a ping-pong persistent resource
+	public void SwapPingPong(RGHandle handle)
+	{
+		if (!handle.IsValid || handle.Index >= (uint32)mResources.Count)
+			return;
+		let res = mResources[handle.Index];
+		if (res?.PersistentData != null)
 		{
-			index = mFreeSlots.PopBack();
-			mResources[index] = resource;
+			res.PersistentData.Swap();
+			res.Texture = res.PersistentData.Texture;
+			res.TextureView = res.PersistentData.TextureView;
 		}
-		else
+	}
+
+	// === Queries ===
+
+	/// Number of passes added this frame
+	public int PassCount => mPasses.Count;
+
+	/// Number of resources
+	public int ResourceCount
+	{
+		get
 		{
-			index = (int32)mResources.Count;
-			mResources.Add(resource);
+			int count = 0;
+			for (let r in mResources)
+				if (r != null) count++;
+			return count;
 		}
-
-		let handle = RGResourceHandle() { Index = (uint32)index, Generation = resource.Generation };
-
-		let nameKey = new String(name);
-		mResourceNames[nameKey] = handle;
-
-		return handle;
 	}
 
-	private void ApplyDeferredReads()
+	/// Number of passes culled during compilation
+	public int CulledPassCount
 	{
-		for (let deferred in mDeferredReads)
+		get
 		{
-			for (let pass in mPasses)
-			{
-				if (StringView(pass.Name) == StringView(deferred.PassName))
-				{
-					pass.Reads.Add(deferred.Handle);
-					break;
-				}
-			}
+			int count = 0;
+			for (let p in mPasses)
+				if (p.IsCulled) count++;
+			return count;
 		}
 	}
 
-	private RenderPass GetPass(PassHandle handle)
+	/// Get a resource handle by name
+	public RGHandle GetResource(StringView name)
 	{
-		if (!handle.IsValid || handle.Index >= mPasses.Count)
-			return null;
-		return mPasses[handle.Index];
+		for (int i = 0; i < mResources.Count; i++)
+		{
+			let res = mResources[i];
+			if (res != null && res.Name.Equals(name))
+				return RGHandle((uint32)i, res.Generation);
+		}
+		return .Invalid;
 	}
 
-	private RenderGraphResource GetResourceByHandle(RGResourceHandle handle)
+	/// The compiled execution order (valid after Execute)
+	public List<int32> ExecutionOrder => mExecutionOrder;
+
+	/// Access passes (for validation/debug tools)
+	public List<RenderGraphPass> Passes => mPasses;
+
+	/// Access resources (for validation/debug tools)
+	public List<RenderGraphResource> Resources => mResources;
+
+	// === Internal: Resource management ===
+
+	private RGHandle AddResource(RenderGraphResource res)
 	{
-		if (!handle.IsValid || handle.Index >= mResources.Count)
-			return null;
-		let resource = mResources[handle.Index];
-		if (resource == null) // Slot was freed
-			return null;
-		if (resource.Generation != handle.Generation)
-			return null;
-		return resource;
+		if (mFreeResourceSlots.Count > 0)
+		{
+			let idx = mFreeResourceSlots.PopBack();
+			mResources[idx] = res;
+			return RGHandle((uint32)idx, res.Generation);
+		}
+
+		let idx = (uint32)mResources.Count;
+		mResources.Add(res);
+		return RGHandle(idx, res.Generation);
 	}
 
+	private PassHandle AddPass(RenderGraphPass pass)
+	{
+		let idx = (uint32)mPasses.Count;
+		mPasses.Add(pass);
+		return PassHandle(idx);
+	}
+
+	private void ClearPasses()
+	{
+		for (let p in mPasses)
+			delete p;
+		mPasses.Clear();
+		mExecutionOrder.Clear();
+	}
+
+	// === Internal: Compilation pipeline ===
+
+	/// Step 1: Build resource reference tracking
 	private void BuildResourceReferences()
 	{
-		for (int i = 0; i < mPasses.Count; i++)
+		for (int passIdx = 0; passIdx < mPasses.Count; passIdx++)
 		{
-			let pass = mPasses[i];
-			let passHandle = PassHandle() { Index = (uint32)i };
+			let pass = mPasses[passIdx];
+			let passHandle = PassHandle((uint32)passIdx);
 
-			// Track outputs
-			List<RGResourceHandle> outputs = scope .();
-			pass.GetOutputs(outputs);
-			for (let handle in outputs)
+			for (let access in pass.Accesses)
 			{
-				if (let resource = GetResourceByHandle(handle))
+				if (!access.Handle.IsValid || access.Handle.Index >= (uint32)mResources.Count)
+					continue;
+
+				let res = mResources[access.Handle.Index];
+				if (res == null) continue;
+
+				res.RefCount++;
+
+				// Track first/last use pass for aliasing
+				if (res.FirstUsePass < 0 || passIdx < res.FirstUsePass)
+					res.FirstUsePass = (int32)passIdx;
+				if (passIdx > res.LastUsePass)
+					res.LastUsePass = (int32)passIdx;
+
+				if (access.IsWrite)
 				{
-					resource.RefCount++;
-					if (!resource.FirstWriter.IsValid)
-						resource.FirstWriter = passHandle;
+					res.FirstWriter = passHandle;
 				}
-			}
-
-			// Track inputs
-			List<RGResourceHandle> inputs = scope .();
-			pass.GetInputs(inputs);
-			for (let handle in inputs)
-			{
-				if (let resource = GetResourceByHandle(handle))
+				if (access.IsRead)
 				{
-					resource.RefCount++;
-					resource.LastReader = passHandle;
+					res.LastReader = passHandle;
 				}
 			}
 		}
 	}
 
+	/// Step 2: Backward pass culling
 	private void CullPasses()
 	{
-		// Mark all passes as potentially culled
+		// Mark all passes as culled initially
 		for (let pass in mPasses)
-			pass.IsCulled = !pass.NeverCull;
+			pass.IsCulled = true;
 
-		// Work backwards - if a resource is read, mark its writer as needed
+		// Mark NeverCull/HasSideEffects passes as alive
+		for (let pass in mPasses)
+		{
+			if (pass.ShouldSurviveCulling)
+				pass.IsCulled = false;
+		}
+
+		// Mark passes that write to imported resources with finalState as alive
+		for (let pass in mPasses)
+		{
+			if (pass.IsCulled)
+			{
+				let outputs = scope List<RGResourceAccess>();
+				pass.GetOutputs(outputs);
+				for (let output in outputs)
+				{
+					if (output.Handle.IsValid && output.Handle.Index < (uint32)mResources.Count)
+					{
+						let res = mResources[output.Handle.Index];
+						if (res != null && res.FinalState.HasValue)
+						{
+							pass.IsCulled = false;
+							break;
+						}
+					}
+				}
+			}
+		}
+
+		// Backward propagation: if a pass is alive, its input writers are also alive
 		bool changed = true;
 		while (changed)
 		{
 			changed = false;
-
-			for (int i = mPasses.Count - 1; i >= 0; i--)
+			for (let pass in mPasses)
 			{
-				let pass = mPasses[i];
-				if (pass.IsCulled)
-					continue;
+				if (pass.IsCulled) continue;
 
-				List<RGResourceHandle> inputs = scope .();
+				let inputs = scope List<RGResourceAccess>();
 				pass.GetInputs(inputs);
 
-				for (let handle in inputs)
+				for (let input in inputs)
 				{
-					if (let resource = GetResourceByHandle(handle))
+					if (!input.Handle.IsValid || input.Handle.Index >= (uint32)mResources.Count)
+						continue;
+
+					// Find the latest writer of this resource before this pass
+					for (int i = mPasses.Count - 1; i >= 0; i--)
 					{
-						if (resource.FirstWriter.IsValid)
+						let candidatePass = mPasses[i];
+						if (!candidatePass.IsCulled) continue;
+
+						let candidateOutputs = scope List<RGResourceAccess>();
+						candidatePass.GetOutputs(candidateOutputs);
+
+						for (let output in candidateOutputs)
 						{
-							let writerPass = mPasses[resource.FirstWriter.Index];
-							if (writerPass.IsCulled)
+							if (output.Handle == input.Handle)
 							{
-								writerPass.IsCulled = false;
-								changed = true;
+								// Check subresource overlap
+								if (input.Subresource.IsAll || output.Subresource.IsAll ||
+									input.Subresource.Overlaps(output.Subresource))
+								{
+									candidatePass.IsCulled = false;
+									changed = true;
+								}
 							}
 						}
 					}
 				}
 			}
 		}
-
-		// Count culled passes
-		for (let pass in mPasses)
-		{
-			if (pass.IsCulled)
-				CulledPassCount++;
-		}
 	}
 
-	/// Builds pass dependencies by tracking the latest writer per resource.
-	/// Each reader depends on the most recent writer before it.
-	/// Each writer (Load+Store) depends on the previous writer, forming a chain.
-	/// This ensures correct execution order for passes sharing resources.
+	/// Step 3: Build pass dependencies from resource flow
 	private void BuildDependencies()
 	{
-		// Track latest writer per resource (by resource index)
-		PassHandle[] latestWriter = scope PassHandle[mResources.Count];
-		for (int i = 0; i < latestWriter.Count; i++)
-			latestWriter[i] = .Invalid;
-
-		// Iterate passes in insertion order
-		for (int i = 0; i < mPasses.Count; i++)
+		// For each resource, track the last writer pass index
+		// Then add dependency: reader depends on latest writer
+		for (int passIdx = 0; passIdx < mPasses.Count; passIdx++)
 		{
-			let pass = mPasses[i];
-			if (pass.IsCulled)
-				continue;
+			let pass = mPasses[passIdx];
+			if (pass.IsCulled) continue;
 
-			let passHandle = PassHandle() { Index = (uint32)i };
+			// Collect all resource handles this pass reads (from accesses + Load ops)
+			List<RGHandle> readHandles = scope .();
 
-			// For each input, depend on the latest writer before this pass
-			List<RGResourceHandle> inputs = scope .();
-			pass.GetInputs(inputs);
-
-			for (let handle in inputs)
+			// Explicit reads from the access list
+			for (let access in pass.Accesses)
 			{
-				if (!handle.IsValid || handle.Index >= (uint32)mResources.Count)
+				if (!access.IsRead) continue;
+				if (access.Handle.IsValid)
+					readHandles.Add(access.Handle);
+			}
+
+			// Implicit reads from LoadOp.Load on color targets
+			for (let ct in pass.ColorTargets)
+			{
+				if (ct.LoadOp == .Load && ct.Handle.IsValid)
+					readHandles.Add(ct.Handle);
+			}
+
+			// Implicit read from LoadOp.Load on depth target
+			if (pass.DepthTarget.HasValue)
+			{
+				let dt = pass.DepthTarget.Value;
+				if (dt.DepthLoadOp == .Load && dt.Handle.IsValid)
+					readHandles.Add(dt.Handle);
+			}
+
+			// Find dependencies for each read handle
+			for (let readHandle in readHandles)
+			{
+				if (!readHandle.IsValid || readHandle.Index >= (uint32)mResources.Count)
 					continue;
 
-				let writer = latestWriter[handle.Index];
-				if (writer.IsValid && writer.Index != (uint32)i)
+				// Find the latest non-culled writer before this pass
+				for (int j = passIdx - 1; j >= 0; j--)
 				{
-					bool found = false;
-					for (let dep in pass.Dependencies)
+					let writerPass = mPasses[j];
+					if (writerPass.IsCulled) continue;
+
+					bool writes = false;
+					for (let writerAccess in writerPass.Accesses)
 					{
-						if (dep == writer)
+						if (writerAccess.Handle == readHandle && writerAccess.IsWrite)
 						{
-							found = true;
+							writes = true;
 							break;
 						}
 					}
-					if (!found)
-						pass.Dependencies.Add(writer);
+
+					if (writes)
+					{
+						AddDependencyIfNew(pass, PassHandle((uint32)j));
+						break; // Only depend on the latest writer
+					}
 				}
-			}
-
-			// Update latest writer for each output
-			List<RGResourceHandle> outputs = scope .();
-			pass.GetOutputs(outputs);
-
-			for (let handle in outputs)
-			{
-				if (!handle.IsValid || handle.Index >= (uint32)mResources.Count)
-					continue;
-
-				latestWriter[handle.Index] = passHandle;
 			}
 		}
 	}
 
+	/// Adds a dependency to a pass if it doesn't already exist
+	private static void AddDependencyIfNew(RenderGraphPass pass, PassHandle dep)
+	{
+		for (let existing in pass.Dependencies)
+			if (existing == dep) return;
+		pass.Dependencies.Add(dep);
+	}
+
+	/// Step 4: Topological sort using Kahn's algorithm
 	private Result<void> TopologicalSort()
 	{
 		mExecutionOrder.Clear();
 
-		// Kahn's algorithm
-		int32[] inDegree = scope int32[mPasses.Count];
-		for (int i = 0; i < mPasses.Count; i++)
+		let passCount = mPasses.Count;
+		int32[] inDegree = scope int32[passCount];
+		List<List<int32>> adjacency = scope .();
+		defer { for (let list in adjacency) delete list; }
+
+		for (int i = 0; i < passCount; i++)
+			adjacency.Add(new List<int32>());
+
+		// Build adjacency and in-degree
+		for (int i = 0; i < passCount; i++)
 		{
-			if (mPasses[i].IsCulled)
+			let pass = mPasses[i];
+			if (pass.IsCulled) continue;
+
+			for (let dep in pass.Dependencies)
 			{
-				inDegree[i] = -1;
-				continue;
+				if (dep.IsValid && dep.Index < (uint32)passCount)
+				{
+					adjacency[(int)dep.Index].Add((int32)i);
+					inDegree[i]++;
+				}
 			}
-			inDegree[i] = (int32)mPasses[i].Dependencies.Count;
 		}
 
-		List<PassHandle> queue = scope .();
-
-		for (int i = 0; i < mPasses.Count; i++)
+		// Find all nodes with zero in-degree
+		let queue = scope List<int32>();
+		for (int i = 0; i < passCount; i++)
 		{
-			if (inDegree[i] == 0)
-				queue.Add(PassHandle() { Index = (uint32)i });
+			if (!mPasses[i].IsCulled && inDegree[i] == 0)
+				queue.Add((int32)i);
 		}
 
 		while (queue.Count > 0)
 		{
-			let handle = queue.PopFront();
-			mExecutionOrder.Add(handle);
-			mPasses[handle.Index].ExecutionOrder = (int32)(mExecutionOrder.Count - 1);
+			let node = queue[0];
+			queue.RemoveAt(0);
+			mExecutionOrder.Add(node);
+			mPasses[node].ExecutionOrder = (int32)mExecutionOrder.Count - 1;
 
-			for (int i = 0; i < mPasses.Count; i++)
+			for (let neighbor in adjacency[node])
 			{
-				if (inDegree[i] <= 0)
-					continue;
-
-				for (let dep in mPasses[i].Dependencies)
-				{
-					if (dep == handle)
-					{
-						inDegree[i]--;
-						if (inDegree[i] == 0)
-							queue.Add(PassHandle() { Index = (uint32)i });
-						break;
-					}
-				}
+				inDegree[neighbor]--;
+				if (inDegree[neighbor] == 0)
+					queue.Add(neighbor);
 			}
 		}
 
 		// Check for cycles
-		int expectedCount = 0;
-		for (let pass in mPasses)
-		{
-			if (!pass.IsCulled)
-				expectedCount++;
-		}
+		int nonCulledCount = 0;
+		for (let p in mPasses)
+			if (!p.IsCulled) nonCulledCount++;
 
-		if (mExecutionOrder.Count != expectedCount)
-			return .Err;
+		if (mExecutionOrder.Count != nonCulledCount)
+			return .Err; // Cycle detected
 
 		return .Ok;
 	}
 
-	private Result<void> AllocateResources()
+	/// Step 5: Allocate GPU resources for transient textures/buffers
+	private void AllocateTransientResources()
 	{
-		for (let resource in mResources)
+		for (let res in mResources)
 		{
-			if (resource == null) // Skip freed slots
-				continue;
+			if (res == null) continue;
+			if (res.Lifetime != .Transient) continue;
+			if (res.RefCount == 0) continue; // Unused, skip
 
-			if (resource.RefCount > 0 || !resource.IsTransient)
+			if (res.ResourceType == .Texture && mDevice != null)
 			{
-				// Try to acquire from pool for transient textures
-				if (resource.IsTransient && resource.Type == .Texture && resource.Texture == null)
+				let rhiDesc = res.TextureDesc.ToTextureDesc(res.Name);
+
+				// Try pool first
+				if (mTexturePool != null && mTexturePool.TryAcquire(rhiDesc, let tex, let view))
 				{
-					if (TryAcquireFromPool(resource))
-						continue;
+					res.Texture = tex;
+					res.TextureView = view;
+
+					// Recreate depth-only view for depth+stencil textures (not stored in pool)
+					if (res.TextureDesc.Format.IsDepthFormat() && res.TextureDesc.Format.HasStencil())
+					{
+						if (mDevice.CreateTextureView(tex, TextureViewDesc()
+						{
+							Aspect = .DepthOnly,
+							Label = "RGDepthOnlyView"
+						}) case .Ok(let depthOnlyView))
+							res.DepthOnlyView = depthOnlyView;
+					}
 				}
-
-				if (resource.Allocate(mDevice) case .Err)
-					return .Err;
-			}
-		}
-
-		// Discard unmatched pool entries (e.g., from a window resize)
-		for (let pooled in mTexturePool)
-			delete pooled;
-		mTexturePool.Clear();
-
-		return .Ok;
-	}
-
-	/// Tries to find a matching texture in the pool and assign it to the resource.
-	private bool TryAcquireFromPool(RenderGraphResource resource)
-	{
-		for (int i = 0; i < mTexturePool.Count; i++)
-		{
-			let pooled = mTexturePool[i];
-			if (pooled.Matches(resource.TextureDesc))
-			{
-				// Transfer ownership from pool to resource
-				resource.Texture = pooled.Texture;
-				resource.TextureView = pooled.TextureView;
-				resource.DepthOnlyView = pooled.DepthOnlyView;
-
-				// Null out pool entry and remove (don't delete the GPU resources)
-				pooled.Texture = null;
-				pooled.TextureView = null;
-				pooled.DepthOnlyView = null;
-				delete pooled;
-				mTexturePool.RemoveAt(i);
-				return true;
-			}
-		}
-		return false;
-	}
-
-	private Result<void> ExecutePass(RenderPass pass, ICommandEncoder commandEncoder)
-	{
-		if (pass.Type == .Graphics)
-			return ExecuteGraphicsPass(pass, commandEncoder);
-		else if (pass.Type == .Compute)
-			return ExecuteComputePass(pass, commandEncoder);
-		else if (pass.Type == .Copy)
-			return ExecuteCopyPass(pass, commandEncoder);
-
-		return .Ok;
-	}
-
-	private Result<void> ExecuteGraphicsPass(RenderPass pass, ICommandEncoder commandEncoder)
-	{
-		// Build color attachments
-		ColorAttachment[8] colorAttachments = default;
-		int colorAttachmentCount = Math.Min(pass.ColorAttachments.Count, 8);
-
-		for (int i = 0; i < colorAttachmentCount; i++)
-		{
-			let attachment = pass.ColorAttachments[i];
-			if (let resource = GetResourceByHandle(attachment.Handle))
-			{
-				colorAttachments[i] = .()
+				else
 				{
-					View = resource.TextureView,
-					LoadOp = attachment.LoadOp,
-					StoreOp = attachment.StoreOp,
-					ClearValue = attachment.ClearColor
-				};
+					res.AllocateTexture(mDevice);
+				}
+			}
+			else if (res.ResourceType == .Buffer && mDevice != null)
+			{
+				res.AllocateBuffer(mDevice);
 			}
 		}
+	}
 
-		// Build render pass descriptor
+	/// Return transient resources to pool or defer-delete them
+	private void ReturnTransientResources()
+	{
+		let slotIndex = mFrameIndex % (int32)mDeferredDeletions.Count;
+		let deletions = mDeferredDeletions[slotIndex];
+
+		for (let res in mResources)
+		{
+			if (res == null) continue;
+			if (res.Lifetime != .Transient) continue;
+
+			if (res.ResourceType == .Texture && res.Texture != null)
+			{
+				if (mTexturePool != null)
+				{
+					let rhiDesc = res.TextureDesc.ToTextureDesc(res.Name);
+					mTexturePool.ReturnToPool(rhiDesc, res.Texture, res.TextureView);
+					// DepthOnlyView is not pooled — defer deletion (commands may still reference it)
+					if (res.DepthOnlyView != null)
+						deletions.Add(.() { View = res.DepthOnlyView });
+				}
+				else
+				{
+					deletions.Add(.() { Texture = res.Texture, View = res.TextureView, View2 = res.DepthOnlyView });
+				}
+				res.Texture = null;
+				res.TextureView = null;
+				res.DepthOnlyView = null;
+			}
+			else if (res.ResourceType == .Buffer && res.Buffer != null)
+			{
+				deletions.Add(.() { Buffer = res.Buffer });
+				res.Buffer = null;
+			}
+		}
+	}
+
+	// === Internal: Pass execution ===
+
+	private void ExecuteRenderPass(RenderGraphPass pass, ICommandEncoder encoder)
+	{
+		if (pass.ExecuteCallback == null)
+			return;
+
+		// Build RHI render pass descriptor
 		var rpDesc = RenderPassDesc();
-		if(!String.IsNullOrEmpty(pass.Name))
-			rpDesc.Label = pass.Name;
-		rpDesc.ColorAttachments = .(&colorAttachments[0], colorAttachmentCount);
+		rpDesc.Label = pass.Name;
+
+		// Color attachments
+		for (int i = 0; i < pass.ColorTargets.Count; i++)
+		{
+			let ct = pass.ColorTargets[i];
+			let view = GetTextureView(ct.Handle);
+			if (view == null) continue;
+
+			// TODO: if subresource is not All, create a per-layer view
+			rpDesc.ColorAttachments.Add(ColorAttachment()
+			{
+				View = view,
+				LoadOp = ct.LoadOp,
+				StoreOp = ct.StoreOp,
+				ClearValue = ct.ClearValue
+			});
+		}
 
 		// Depth attachment
-		if (pass.DepthStencil.HasValue)
+		if (pass.DepthTarget.HasValue)
 		{
-			let attachment = pass.DepthStencil.Value;
-			if (let resource = GetResourceByHandle(attachment.Handle))
+			let dt = pass.DepthTarget.Value;
+			let view = GetTextureView(dt.Handle);
+			if (view != null)
 			{
-				rpDesc.DepthStencilAttachment = .()
+				rpDesc.DepthStencilAttachment = DepthStencilAttachment()
 				{
-					View = resource.TextureView,
-					DepthLoadOp = attachment.DepthLoadOp,
-					DepthStoreOp = attachment.DepthStoreOp,
-					StencilLoadOp = attachment.StencilLoadOp,
-					StencilStoreOp = attachment.StencilStoreOp,
-					DepthClearValue = attachment.ClearDepth,
-					StencilClearValue = (uint32)attachment.ClearStencil,
-					DepthReadOnly = attachment.ReadOnly,
-					StencilReadOnly = attachment.ReadOnly
+					View = view,
+					DepthLoadOp = dt.DepthLoadOp,
+					DepthStoreOp = dt.DepthStoreOp,
+					DepthClearValue = dt.DepthClearValue,
+					DepthReadOnly = dt.ReadOnly,
+					StencilLoadOp = dt.StencilLoadOp,
+					StencilStoreOp = dt.StencilStoreOp,
+					StencilClearValue = dt.StencilClearValue
 				};
 			}
 		}
 
-		// Begin render pass
-		let encoder = commandEncoder.BeginRenderPass(&rpDesc);
-		if (encoder == null)
-			return .Err;
-		defer delete encoder;
-
-		// Execute callback
-		if (pass.ExecuteCallback != null)
-			pass.ExecuteCallback(encoder);
-
-		// End render pass
-		encoder.End();
-
-		return .Ok;
+		let rp = encoder.BeginRenderPass(rpDesc);
+		pass.ExecuteCallback(rp);
+		rp.End();
 	}
 
-	private Result<void> ExecuteComputePass(RenderPass pass, ICommandEncoder commandEncoder)
+	private void ExecuteComputePass(RenderGraphPass pass, ICommandEncoder encoder)
 	{
-		let encoder = commandEncoder.BeginComputePass(pass.Name);
-		if (encoder == null)
-			return .Err;
-		defer delete encoder;
+		if (pass.ComputeCallback == null)
+			return;
 
-		if (pass.ComputeCallback != null)
-			pass.ComputeCallback(encoder);
-
-		encoder.End();
-
-		return .Ok;
+		let cp = encoder.BeginComputePass(pass.Name);
+		pass.ComputeCallback(cp);
+		cp.End();
 	}
 
-	private Result<void> ExecuteCopyPass(RenderPass pass, ICommandEncoder commandEncoder)
+	private void ExecuteCopyPass(RenderGraphPass pass, ICommandEncoder encoder)
 	{
-		// Copy passes execute directly on the command encoder without beginning a sub-pass
-		if (pass.CopyCallback != null)
-			pass.CopyCallback(commandEncoder);
+		if (pass.CopyCallback == null)
+			return;
 
-		return .Ok;
-	}
-
-	// ========================================================================
-	// Automatic Barrier Insertion
-	// ========================================================================
-
-	/// Gets the current layout for a texture, defaulting to Undefined if not tracked.
-	private ResourceLayoutState GetTextureLayout(ITexture texture)
-	{
-		let key = TextureKey(texture);
-		if (mTextureLayouts.TryGetValue(key, let layout))
-			return layout;
-		return .Undefined;
-	}
-
-	/// Sets the tracked layout for a texture.
-	private void SetTextureLayout(ITexture texture, ResourceLayoutState layout)
-	{
-		let key = TextureKey(texture);
-		mTextureLayouts[key] = layout;
-	}
-
-	/// Inserts barriers for resources that need layout transitions before this pass.
-	///
-	/// IMPORTANT: The Vulkan backend's render pass automatically handles layout transitions
-	/// for color and depth attachments via initialLayout/finalLayout. For swapchain textures:
-	/// - initialLayout = Undefined (with LoadOp.Clear)
-	/// - finalLayout = Present
-	///
-	/// Therefore, we only insert barriers for:
-	/// 1. Shader read textures (need ShaderReadOnly layout)
-	/// 2. Storage/UAV writes (need General layout)
-	///
-	/// Color and depth attachments are handled by the render pass itself.
-	private void InsertBarriersForPass(RenderPass pass, ICommandEncoder commandEncoder)
-	{
-		// Handle shader read textures - need ShaderReadOnly layout
-		// These are textures being sampled in shaders, not render targets
-		for (let handle in pass.Reads)
-		{
-			if (let resource = GetResourceByHandle(handle))
-			{
-				if (resource.Type == .Texture && resource.Texture != null)
-				{
-					let currentLayout = GetTextureLayout(resource.Texture);
-
-					if (DebugLogLayouts)
-						Console.WriteLine("[Barrier] Pass '{}' reading '{}': current={}, need=ShaderReadOnly",
-							pass.Name, resource.Name, currentLayout);
-
-					if (currentLayout != .ShaderReadOnly)
-					{
-						let oldLayout = ToTextureLayout(currentLayout);
-
-						if (DebugLogLayouts)
-							Console.WriteLine("[Barrier]   Issuing barrier: {} -> ShaderReadOnly", oldLayout);
-
-						commandEncoder.TextureBarrier(resource.Texture, oldLayout, .ShaderReadOnly);
-						SetTextureLayout(resource.Texture, .ShaderReadOnly);
-					}
-				}
-			}
-			else
-			{
-				if (DebugLogLayouts)
-					Console.WriteLine("[Barrier] Pass '{}' reading handle {},{}: RESOURCE NOT FOUND",
-						pass.Name, handle.Index, handle.Generation);
-			}
-		}
-
-		// Handle depth attachments - need appropriate depth layout BEFORE render pass starts.
-		// Read-only depth uses DepthStencilReadOnly (allows concurrent shader sampling).
-		// Writable depth uses DepthStencilAttachment.
-		if (pass.DepthStencil.HasValue)
-		{
-			let depthAtt = pass.DepthStencil.Value;
-			if (let resource = GetResourceByHandle(depthAtt.Handle))
-			{
-				if (resource.Type == .Texture && resource.Texture != null)
-				{
-					let currentLayout = GetTextureLayout(resource.Texture);
-					let targetLayout = depthAtt.ReadOnly ? ResourceLayoutState.DepthStencilReadOnly : ResourceLayoutState.DepthStencilAttachment;
-
-					if (currentLayout != targetLayout && currentLayout != .Undefined)
-					{
-						let oldLayout = ToTextureLayout(currentLayout);
-						let newLayout = ToTextureLayout(targetLayout);
-
-						if (DebugLogLayouts)
-							Console.WriteLine("[Barrier]   Issuing depth barrier: {} -> {}", oldLayout, newLayout);
-
-						commandEncoder.TextureBarrier(resource.Texture, oldLayout, newLayout);
-						SetTextureLayout(resource.Texture, targetLayout);
-					}
-				}
-			}
-		}
-
-		// Handle color attachments - need ColorAttachment layout BEFORE render pass starts
-		// Similar to depth attachments, if a color texture was used for shader reading,
-		// we need to transition it back to ColorAttachment before the render pass.
-		for (let attachment in pass.ColorAttachments)
-		{
-			if (let resource = GetResourceByHandle(attachment.Handle))
-			{
-				if (resource.Type == .Texture && resource.Texture != null)
-				{
-					let currentLayout = GetTextureLayout(resource.Texture);
-
-					// If texture is not already in ColorAttachment (or Undefined/Present for swapchain),
-					// we need to transition it explicitly
-					if (currentLayout != .ColorAttachment && currentLayout != .Undefined && currentLayout != .Present)
-					{
-						let oldLayout = ToTextureLayout(currentLayout);
-
-						if (DebugLogLayouts)
-							Console.WriteLine("[Barrier]   Issuing color barrier: {} -> ColorAttachment", oldLayout);
-
-						commandEncoder.TextureBarrier(resource.Texture, oldLayout, .ColorAttachment);
-						SetTextureLayout(resource.Texture, .ColorAttachment);
-					}
-				}
-			}
-		}
-
-		// Handle storage/UAV writes - need General layout
-		for (let handle in pass.Writes)
-		{
-			if (let resource = GetResourceByHandle(handle))
-			{
-				if (resource.Type == .Texture && resource.Texture != null)
-				{
-					let currentLayout = GetTextureLayout(resource.Texture);
-					if (currentLayout != .General)
-					{
-						let oldLayout = ToTextureLayout(currentLayout);
-						commandEncoder.TextureBarrier(resource.Texture, oldLayout, .General);
-						SetTextureLayout(resource.Texture, .General);
-					}
-				}
-			}
-		}
-	}
-
-	/// Updates resource layouts after a pass has executed.
-	/// This is critical for tracking the finalLayout of render pass attachments,
-	/// which Vulkan transitions automatically at the end of the render pass.
-	private void UpdateLayoutsAfterPass(RenderPass pass)
-	{
-		// Update depth attachment layout based on whether it was read-only or writable
-		if (pass.DepthStencil.HasValue)
-		{
-			let depthAtt = pass.DepthStencil.Value;
-			if (let resource = GetResourceByHandle(depthAtt.Handle))
-			{
-				if (resource.Type == .Texture && resource.Texture != null)
-				{
-					let depthLayout = depthAtt.ReadOnly ? ResourceLayoutState.DepthStencilReadOnly : ResourceLayoutState.DepthStencilAttachment;
-					if (DebugLogLayouts)
-						Console.WriteLine("[Layout] Pass '{}' depth '{}': setting to {}",
-							pass.Name, resource.Name, depthLayout);
-					SetTextureLayout(resource.Texture, depthLayout);
-				}
-			}
-		}
-
-		// Update color attachment layouts
-		// Swapchain textures are transitioned to Present by the render pass finalLayout
-		// Non-swapchain textures stay in ColorAttachment
-		for (let attachment in pass.ColorAttachments)
-		{
-			if (let resource = GetResourceByHandle(attachment.Handle))
-			{
-				if (resource.Type == .Texture && resource.Texture != null)
-				{
-					// Check if this is a present target (swapchain)
-					bool isPresentTarget = false;
-					for (let presentHandle in mPresentTargets)
-					{
-						if (presentHandle.Index == attachment.Handle.Index &&
-							presentHandle.Generation == attachment.Handle.Generation)
-						{
-							isPresentTarget = true;
-							break;
-						}
-					}
-
-					if (isPresentTarget)
-					{
-						// Swapchain textures are transitioned to Present by the render pass
-						SetTextureLayout(resource.Texture, .Present);
-					}
-					else
-					{
-						// Non-swapchain color attachments stay in ColorAttachment
-						SetTextureLayout(resource.Texture, .ColorAttachment);
-					}
-				}
-			}
-		}
-	}
-
-	/// Converts ResourceLayoutState to RHI TextureLayout.
-	private static TextureLayout ToTextureLayout(ResourceLayoutState state)
-	{
-		switch (state)
-		{
-		case .Undefined: return .Undefined;
-		case .ColorAttachment: return .ColorAttachment;
-		case .DepthStencilAttachment: return .DepthStencilAttachment;
-		case .DepthStencilReadOnly: return .DepthStencilReadOnly;
-		case .ShaderReadOnly: return .ShaderReadOnly;
-		case .General: return .General;
-		case .Present: return .Present;
-		}
-	}
-
-	/// Flushes deferred deletions for a given frame slot.
-	private void FlushDeferredDeletions(int32 frameIndex)
-	{
-		let list = mDeferredDeletions[frameIndex];
-		for (let resource in list)
-		{
-			// Pool texture resources instead of destroying them
-			if (resource.Type == .Texture && resource.Texture != null)
-			{
-				let pooled = new PooledTexture();
-				pooled.Desc = resource.TextureDesc;
-				pooled.Texture = resource.Texture;
-				pooled.TextureView = resource.TextureView;
-				pooled.DepthOnlyView = resource.DepthOnlyView;
-				mTexturePool.Add(pooled);
-
-				// Null out so destructor doesn't double-free
-				resource.Texture = null;
-				resource.TextureView = null;
-				resource.DepthOnlyView = null;
-			}
-			else
-			{
-				resource.ReleaseTransient();
-			}
-			delete resource;
-		}
-		list.Clear();
-	}
-
-	public void Dispose()
-	{
-		// Flush all deferred deletion queues on shutdown
-		for (int i = 0; i < mConfig.FrameBufferCount; i++)
-		{
-			FlushDeferredDeletions((int32)i);
-			delete mDeferredDeletions[i];
-		}
-		// Prevent destructor from double-deleting
-		delete mDeferredDeletions;
-		mDeferredDeletions = null;
+		pass.CopyCallback(encoder);
 	}
 }

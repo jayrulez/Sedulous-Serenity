@@ -4,7 +4,6 @@ using System;
 using System.Collections;
 using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
-using Sedulous.Shell;
 using Sedulous.Runtime.Client;
 using Sedulous.Render;
 using Sedulous.Geometry;
@@ -15,9 +14,9 @@ using Sedulous.Materials;
 class RenderLightingApp : Application
 {
 	// Render system
-	private RenderSystem mRenderSystem ~ delete _;
-	private RenderWorld mWorld ~ delete _;
-	private RenderView mView ~ delete _;
+	private RenderSystem mRenderSystem;
+	private RenderWorld mWorld;
+	private RenderView mView;
 
 	// Render features
 	private DepthPrepassFeature mDepthFeature;
@@ -48,15 +47,14 @@ class RenderLightingApp : Application
 	private const float FastMoveSpeed = 16.0f;
 	private const float LookSpeed = 0.003f;
 
-	public this(IShell shell, IDevice device, IBackend backend)
-		: base(shell, device, backend)
+	public this() : base()
 	{
 	}
 
 	protected override void OnInitialize(Sedulous.Runtime.Context context)
 	{
 		mRenderSystem = new RenderSystem();
-		if (mRenderSystem.Initialize(mDevice, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null, .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
+		if (mRenderSystem.Initialize(mDevice, mSwapChain.Width, mSwapChain.Height, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null, .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
 		{
 			Console.WriteLine("ERROR: Failed to initialize RenderSystem");
 			return;
@@ -220,7 +218,7 @@ class RenderLightingApp : Application
 
 	private void CreateLights()
 	{
-		// Directional sun light
+		// Dim directional light so point lights are more visible
 		mSunLight = mWorld.CreateDirectionalLight(
 			Vector3.Normalize(.(0.5f, -1.0f, 0.3f)),
 			.(1.0f, 0.98f, 0.95f),
@@ -228,35 +226,33 @@ class RenderLightingApp : Application
 		);
 		if (let light = mWorld.GetLight(mSunLight))
 		{
-			light.CastsShadows = true;
-			light.Intensity = 1.5f;
+			light.CastsShadows = false;
+			light.Intensity = 0.3f; // Low intensity to make point lights visible
 		}
-		if (mForwardFeature?.ShadowRenderer != null)
-			mForwardFeature.ShadowRenderer.EnableShadows = true;
 
-		// 7 colored point lights
+		// Bright colored point lights
 		Vector3 position; Vector3 color;
 
-		position = .(-3, 2, 3); color = .(1.0f, 0.3f, 0.2f);  // Red front-left
-		mPointLights.Add(mWorld.CreatePointLight(position, color, 5.0f, 10.0f));
-
-		position = .(3, 2, 3); color = .(0.2f, 1.0f, 0.3f);   // Green front-right
-		mPointLights.Add(mWorld.CreatePointLight(position, color, 5.0f, 10.0f));
-
-		position = .(-3, 2, -3); color = .(0.2f, 0.3f, 1.0f);  // Blue back-left
-		mPointLights.Add(mWorld.CreatePointLight(position, color, 5.0f, 10.0f));
-
-		position = .(3, 2, -3); color = .(1.0f, 1.0f, 0.2f);   // Yellow back-right
-		mPointLights.Add(mWorld.CreatePointLight(position, color, 5.0f, 10.0f));
-
-		position = .(0, 3, 0); color = .(1.0f, 1.0f, 1.0f);    // White center
+		position = .(-3, 2, 3); color = .(1.0f, 0.0f, 0.0f);   // Pure Red
 		mPointLights.Add(mWorld.CreatePointLight(position, color, 8.0f, 12.0f));
 
-		position = .(-6, 2, 0); color = .(1.0f, 0.2f, 1.0f);   // Magenta left
-		mPointLights.Add(mWorld.CreatePointLight(position, color, 4.0f, 10.0f));
+		position = .(3, 2, 3); color = .(0.0f, 1.0f, 0.0f);    // Pure Green
+		mPointLights.Add(mWorld.CreatePointLight(position, color, 8.0f, 12.0f));
 
-		position = .(6, 2, 0); color = .(0.2f, 1.0f, 1.0f);    // Cyan right
-		mPointLights.Add(mWorld.CreatePointLight(position, color, 4.0f, 10.0f));
+		position = .(-3, 2, -3); color = .(0.0f, 0.0f, 1.0f);  // Pure Blue
+		mPointLights.Add(mWorld.CreatePointLight(position, color, 8.0f, 12.0f));
+
+		position = .(3, 2, -3); color = .(1.0f, 1.0f, 0.0f);   // Yellow
+		mPointLights.Add(mWorld.CreatePointLight(position, color, 8.0f, 12.0f));
+
+		position = .(0, 3, 0); color = .(1.0f, 1.0f, 1.0f);    // White center
+		mPointLights.Add(mWorld.CreatePointLight(position, color, 10.0f, 15.0f));
+
+		position = .(-6, 2, 0); color = .(1.0f, 0.0f, 1.0f);   // Magenta
+		mPointLights.Add(mWorld.CreatePointLight(position, color, 8.0f, 12.0f));
+
+		position = .(6, 2, 0); color = .(0.0f, 1.0f, 1.0f);    // Cyan
+		mPointLights.Add(mWorld.CreatePointLight(position, color, 8.0f, 12.0f));
 	}
 
 	protected override void OnInput()
@@ -314,6 +310,11 @@ class RenderLightingApp : Application
 		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
 	}
 
+	protected override void OnResize(int32 width, int32 height)
+	{
+		mRenderSystem?.SetViewportSize((uint32)width, (uint32)height);
+	}
+
 	protected override bool OnRenderFrame(RenderContext render)
 	{
 		mRenderSystem.BeginFrame((float)render.Frame.TotalTime, (float)render.Frame.DeltaTime);
@@ -337,13 +338,21 @@ class RenderLightingApp : Application
 
 	protected override void OnShutdown()
 	{
-		if (mCubeMeshHandle.IsValid)
-			mRenderSystem.ResourceManager.ReleaseMesh(mCubeMeshHandle, mRenderSystem.FrameNumber);
-		if (mPlaneMeshHandle.IsValid)
-			mRenderSystem.ResourceManager.ReleaseMesh(mPlaneMeshHandle, mRenderSystem.FrameNumber);
+		mWorld?.Dispose();
 
 		if (mRenderSystem != null)
+		{
+			if (mCubeMeshHandle.IsValid)
+				mRenderSystem.ResourceManager.ReleaseMesh(mCubeMeshHandle, mRenderSystem.FrameNumber);
+			if (mPlaneMeshHandle.IsValid)
+				mRenderSystem.ResourceManager.ReleaseMesh(mPlaneMeshHandle, mRenderSystem.FrameNumber);
+
 			mRenderSystem.Shutdown();
+			delete mRenderSystem;
+			mRenderSystem = null;
+		}
+		delete mWorld;
+		delete mView;
 
 		Console.WriteLine("Render Lighting shutting down");
 	}

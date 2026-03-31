@@ -65,7 +65,7 @@ class RenderFrameContext : IDisposable
 
 	/// Per-frame, per-view scene uniform buffers.
 	/// Indexed as [frameIndex * MaxViews + viewIndex].
-	private IBuffer[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mSceneUniformBuffers ~ { for (let b in _) delete b; };
+	private IBuffer[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mSceneUniformBuffers;
 
 	/// Current scene uniform data.
 	private SceneUniforms mSceneUniforms;
@@ -134,6 +134,7 @@ class RenderFrameContext : IDisposable
 		{
 			var desc = BufferDesc()
 			{
+				Label = "Scene Uniforms",
 				Size = 464, // SceneUniforms size: 7 matrices (448) + 4 floats (16) = 464
 				Usage = .Uniform,
 				Memory = .CpuToGpu // CPU-mappable
@@ -277,6 +278,8 @@ class RenderFrameContext : IDisposable
 
 	public void Dispose()
 	{
-		// Buffers cleaned up by destructor
+		if (mDevice == null) return;
+		for (var buf in ref mSceneUniformBuffers)
+			if (buf != null) mDevice.DestroyBuffer(ref buf);
 	}
 }

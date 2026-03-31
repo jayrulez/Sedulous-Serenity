@@ -4,112 +4,136 @@ using System;
 using System.Collections;
 using Bulkan;
 using Sedulous.RHI;
-using Sedulous.RHI.Vulkan.Internal;
 
 /// Vulkan implementation of IBindGroupLayout.
 class VulkanBindGroupLayout : IBindGroupLayout
 {
-	private VulkanDevice mDevice;
-	private VkDescriptorSetLayout mDescriptorSetLayout;
+	private VkDescriptorSetLayout mLayout;
 	private List<BindGroupLayoutEntry> mEntries = new .() ~ delete _;
-	private uint32 mDynamicOffsetCount;
+	private bool mHasBindless;
+	private uint32 mBindlessDescriptorCount;
 
-	public this(VulkanDevice device, BindGroupLayoutDesc descriptor)
+	public this() { }
+
+	public Result<void> Init(VulkanDevice device, BindGroupLayoutDesc desc)
 	{
-		mDevice = device;
-		mDescriptorSetLayout = default;  // Explicitly initialize before Vulkan call
-		// Copy entries for later use when creating bind groups
-		for (let entry in descriptor.Entries)
+		let shifts = device.BindingShifts;
+
+		// Store entries for later use
+		for (let entry in desc.Entries)
 			mEntries.Add(entry);
-		CreateDescriptorSetLayout(descriptor);
-		if (mDescriptorSetLayout != default && descriptor.Label.Ptr != null && descriptor.Label.Length > 0)
-			mDevice.SetDebugName(mDescriptorSetLayout.Handle, .VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, descriptor.Label);
-	}
 
-	public ~this()
-	{
-		Dispose();
-	}
+		VkDescriptorSetLayoutBinding[] bindings = scope VkDescriptorSetLayoutBinding[desc.Entries.Length];
+		VkDescriptorBindingFlags[] bindingFlags = scope VkDescriptorBindingFlags[desc.Entries.Length];
 
-	public void Dispose()
-	{
-		if (mDescriptorSetLayout != default)
+		for (int i = 0; i < desc.Entries.Length; i++)
 		{
-			VulkanNative.vkDestroyDescriptorSetLayout(mDevice.Device, mDescriptorSetLayout, null);
-			mDescriptorSetLayout = default;
-		}
-	}
+			let entry = desc.Entries[i];
 
-	/// Returns true if the layout was created successfully.
-	public bool IsValid => mDescriptorSetLayout != default;
-
-	/// Gets the Vulkan descriptor set layout handle.
-	public VkDescriptorSetLayout DescriptorSetLayout => mDescriptorSetLayout;
-
-	/// Gets the layout entries.
-	public Span<BindGroupLayoutEntry> Entries => mEntries;
-
-	/// Gets the number of dynamic offsets required for this layout.
-	public uint32 DynamicOffsetCount => mDynamicOffsetCount;
-
-	private void CreateDescriptorSetLayout(BindGroupLayoutDesc descriptor)
-	{
-		if (descriptor.Entries.Length == 0)
-		{
-			// Create empty descriptor set layout
-			VkDescriptorSetLayoutCreateInfo layoutInfo = .()
-				{
-					sType = .VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-					bindingCount = 0,
-					pBindings = null
-				};
-
-			let result = VulkanNative.vkCreateDescriptorSetLayout(mDevice.Device, &layoutInfo, null, &mDescriptorSetLayout);
-			if (result != .VK_SUCCESS)
+			bindings[i] = .();
+			bindings[i].binding = shifts.Apply(entry.Type, entry.Binding);
+			bindings[i].descriptorType = ToVkDescriptorType(entry);
+			bindings[i].descriptorCount = entry.Count;
+			if (entry.Count == uint32.MaxValue)
 			{
-				mDescriptorSetLayout = default;
+				// Bindless — use a large but finite count for the layout
+				bindings[i].descriptorCount = 1024 * 16;
+				mHasBindless = true;
+				mBindlessDescriptorCount = bindings[i].descriptorCount;
 			}
-			return;
-		}
+			bindings[i].stageFlags = ToVkShaderStageFlags(entry.Visibility);
+			bindings[i].pImmutableSamplers = null;
 
-		// Convert to Vulkan bindings with automatic shift based on resource type
-		// This matches the shifts applied during shader compilation via DXC's -fvk-*-shift flags
-		VkDescriptorSetLayoutBinding* bindings = scope VkDescriptorSetLayoutBinding[descriptor.Entries.Length]*;
-
-		// Count dynamic offsets for later use when binding
-		mDynamicOffsetCount = 0;
-
-		for (int i = 0; i < descriptor.Entries.Length; i++)
-		{
-			let entry = descriptor.Entries[i];
-			// Apply the binding shift based on resource type to match shader compilation
-			uint32 shiftedBinding = entry.Binding + VulkanBindingShifts.GetShift(entry.Type);
-
-			// Count dynamic offset entries
-			if (entry.HasDynamicOffset)
-				mDynamicOffsetCount++;
-
-			bindings[i] = .()
-				{
-					binding = shiftedBinding,
-					descriptorType = VulkanConversions.ToVkDescriptorType(entry.Type, entry.HasDynamicOffset),
-					descriptorCount = 1,
-					stageFlags = VulkanConversions.ToVkShaderStage(entry.Visibility),
-					pImmutableSamplers = null
-				};
-		}
-
-		VkDescriptorSetLayoutCreateInfo layoutInfo = .()
+			// Set binding flags
+			bindingFlags[i] = .None;
+			if (entry.Count == uint32.MaxValue)
 			{
-				sType = .VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-				bindingCount = (uint32)descriptor.Entries.Length,
-				pBindings = bindings
-			};
+				bindingFlags[i] =
+					.VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
+					.VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |
+					.VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT;
+			}
+		}
 
-		let result = VulkanNative.vkCreateDescriptorSetLayout(mDevice.Device, &layoutInfo, null, &mDescriptorSetLayout);
+		VkDescriptorSetLayoutCreateInfo layoutInfo = .();
+		layoutInfo.bindingCount = (uint32)desc.Entries.Length;
+		layoutInfo.pBindings = bindings.CArray();
+
+		// Bindless flags
+		VkDescriptorSetLayoutBindingFlagsCreateInfo flagsInfo = .();
+		if (mHasBindless)
+		{
+			layoutInfo.flags |= .VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
+
+			flagsInfo.bindingCount = (uint32)desc.Entries.Length;
+			flagsInfo.pBindingFlags = bindingFlags.CArray();
+			layoutInfo.pNext = &flagsInfo;
+		}
+
+		let result = VulkanNative.vkCreateDescriptorSetLayout(device.Handle, &layoutInfo, null, &mLayout);
 		if (result != .VK_SUCCESS)
 		{
-			mDescriptorSetLayout = default;
+			System.Diagnostics.Debug.WriteLine(scope $"VulkanBindGroupLayout: vkCreateDescriptorSetLayout failed ({result})");
+			return .Err;
 		}
+
+		return .Ok;
+	}
+
+	public void Cleanup(VulkanDevice device)
+	{
+		if (mLayout.Handle != 0)
+		{
+			VulkanNative.vkDestroyDescriptorSetLayout(device.Handle, mLayout, null);
+			mLayout = .Null;
+		}
+	}
+
+	public VkDescriptorSetLayout Handle => mLayout;
+	public List<BindGroupLayoutEntry> Entries => mEntries;
+	public bool HasBindless => mHasBindless;
+	public uint32 BindlessDescriptorCount => mBindlessDescriptorCount;
+
+	public static VkDescriptorType ToVkDescriptorType(BindGroupLayoutEntry entry)
+	{
+		switch (entry.Type)
+		{
+		case .UniformBuffer:
+			return entry.HasDynamicOffset ? .VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC : .VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		case .StorageBufferReadOnly, .StorageBufferReadWrite:
+			return entry.HasDynamicOffset ? .VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC : .VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		case .SampledTexture:
+			return .VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+		case .StorageTextureReadOnly, .StorageTextureReadWrite:
+			return .VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+		case .Sampler, .ComparisonSampler:
+			return .VK_DESCRIPTOR_TYPE_SAMPLER;
+		case .BindlessTextures:
+			return .VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+		case .BindlessSamplers:
+			return .VK_DESCRIPTOR_TYPE_SAMPLER;
+		case .BindlessStorageBuffers:
+			return .VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		case .BindlessStorageTextures:
+			return .VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+		case .AccelerationStructure:
+			return .VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+		}
+	}
+
+	public static VkShaderStageFlags ToVkShaderStageFlags(ShaderStage stages)
+	{
+		VkShaderStageFlags flags = .None;
+		if (stages.HasFlag(.Vertex))    flags |= .VK_SHADER_STAGE_VERTEX_BIT;
+		if (stages.HasFlag(.Fragment))  flags |= .VK_SHADER_STAGE_FRAGMENT_BIT;
+		if (stages.HasFlag(.Compute))   flags |= .VK_SHADER_STAGE_COMPUTE_BIT;
+		if (stages.HasFlag(.Mesh))      flags |= .VK_SHADER_STAGE_MESH_BIT_EXT;
+		if (stages.HasFlag(.Task))      flags |= .VK_SHADER_STAGE_TASK_BIT_EXT;
+		if (stages.HasFlag(.RayGen))    flags |= .VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+		if (stages.HasFlag(.ClosestHit))flags |= .VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+		if (stages.HasFlag(.Miss))      flags |= .VK_SHADER_STAGE_MISS_BIT_KHR;
+		if (stages.HasFlag(.AnyHit))    flags |= .VK_SHADER_STAGE_ANY_HIT_BIT_KHR;
+		if (stages.HasFlag(.Intersection)) flags |= .VK_SHADER_STAGE_INTERSECTION_BIT_KHR;
+		return flags;
 	}
 }

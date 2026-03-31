@@ -6,7 +6,9 @@ using System.IO;
 using Sedulous.Core.Mathematics;
 using Sedulous.Imaging;
 using Sedulous.RHI;
-using SampleFramework;
+using Sedulous.Shaders;
+using Sedulous.Runtime.Client;
+using Sedulous.Runtime;
 using Sedulous.Fonts;
 using Sedulous.Fonts.TTF;
 
@@ -35,13 +37,16 @@ struct Uniforms
 }
 
 /// Font rendering sample demonstrating text rendering using font atlases.
-class FontRenderingSample : RHISampleApp
+class FontRenderingSample : Application
 {
 	// Font resources
 	private IFont mFont;
 	private IFontAtlas mFontAtlas;
 	private TrueTypeTextShaper mTextShaper;
 	private List<GlyphPosition> mShapedPositions = new .() ~ delete _;
+
+	// Shader system
+	private ShaderSystem mShaderSystem;
 
 	// GPU resources
 	private IBuffer mVertexBuffer;
@@ -71,34 +76,35 @@ class FontRenderingSample : RHISampleApp
 	private float mFpsTimer = 0;
 	private int mCurrentFps = 0;
 
-	public this() : base(.()
-		{
-			Title = "Font Rendering",
-			Width = 1024,
-			Height = 768,
-			ClearColor = .(0.1f, 0.1f, 0.15f, 1.0f)
-		})
+	public this() : base()
 	{
 	}
 
-	protected override bool OnInitialize()
+	protected override void OnInitialize(Context context)
 	{
+		mShaderSystem = new ShaderSystem();
+		String shaderPath = scope .();
+		GetAssetPath("samples/FontRendering/shaders", shaderPath);
+		if (mShaderSystem.Initialize(Device, scope StringView[](shaderPath)) case .Err)
+		{
+			Console.WriteLine("Failed to initialize shader system");
+			return;
+		}
+
 		if (!InitializeFont())
-			return false;
+			return;
 
 		if (!CreateFontTexture())
-			return false;
+			return;
 
 		if (!CreateBuffers())
-			return false;
+			return;
 
 		if (!CreateBindings())
-			return false;
+			return;
 
 		if (!CreatePipeline())
-			return false;
-
-		return true;
+			return;
 	}
 
 	private bool InitializeFont()
@@ -178,7 +184,7 @@ class FontRenderingSample : RHISampleApp
 		};
 
 		Extent3D writeSize = .(mFontAtlas.Width, mFontAtlas.Height, 1);
-		Device.Queue.WriteTextureSync(mFontTexture, mFontAtlas.PixelData, &dataLayout, &writeSize);
+		TransferHelper.WriteTextureSync(Device.GetQueue(.Graphics), Device, mFontTexture, mFontAtlas.PixelData, dataLayout, writeSize);
 
 		// Create texture view - must match texture format (R8Unorm)
 		TextureViewDesc viewDesc = .()
@@ -269,14 +275,15 @@ class FontRenderingSample : RHISampleApp
 	private bool CreateBindings()
 	{
 		// Load text shaders
-		let shaderResult = ShaderUtils.LoadShaderPair(Device, GetAssetPath("samples/FontRendering/shaders/text", .. scope .()));
+		let shaderResult = mShaderSystem.GetShaderPair("text");
 		if (shaderResult case .Err)
 		{
 			Console.WriteLine("Failed to load text shaders");
 			return false;
 		}
 
-		(mVertShader, mFragShader) = shaderResult.Get();
+		mVertShader = shaderResult.Value.vert.Module;
+		mFragShader = shaderResult.Value.frag.Module;
 		Console.WriteLine("Shaders compiled");
 
 		// Create bind group layout (uniform buffer + texture + sampler)
@@ -295,9 +302,9 @@ class FontRenderingSample : RHISampleApp
 
 		// Create bind group
 		BindGroupEntry[3] bindGroupEntries = .(
-			BindGroupEntry.Buffer(0, mUniformBuffer),
-			BindGroupEntry.Texture(0, mFontTextureView),
-			BindGroupEntry.Sampler(0, mFontSampler)
+			BindGroupEntry.Buffer(mUniformBuffer, 0, 0),
+			BindGroupEntry.Texture(mFontTextureView),
+			BindGroupEntry.Sampler(mFontSampler)
 		);
 		BindGroupDesc bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
 		if (Device.CreateBindGroup(bindGroupDesc) not case .Ok(let group))
@@ -376,13 +383,13 @@ class FontRenderingSample : RHISampleApp
 		return true;
 	}
 
-	protected override void OnUpdate(float deltaTime, float totalTime)
+	protected override void OnUpdate(FrameContext frame)
 	{
-		mAnimationTime = totalTime;
+		mAnimationTime = frame.TotalTime;
 
 		// FPS calculation
 		mFrameCount++;
-		mFpsTimer += deltaTime;
+		mFpsTimer += frame.DeltaTime;
 		if (mFpsTimer >= 1.0f)
 		{
 			mCurrentFps = mFrameCount;
@@ -417,7 +424,7 @@ class FontRenderingSample : RHISampleApp
 		};
 
 		Span<uint8> uniformData = .((uint8*)&uniforms, sizeof(Uniforms));
-		Device.Queue.WriteMappedBuffer(mUniformBuffer, 0, uniformData);
+		TransferHelper.WriteMappedBuffer(mUniformBuffer, 0, uniformData);
 	}
 
 	private void BuildTextQuads()
@@ -559,10 +566,10 @@ class FontRenderingSample : RHISampleApp
 		if (mVertices.Count > 0)
 		{
 			let vertexData = Span<uint8>((uint8*)mVertices.Ptr, mVertices.Count * sizeof(TextVertex));
-			Device.Queue.WriteMappedBuffer(mVertexBuffer, 0, vertexData);
+			TransferHelper.WriteMappedBuffer(mVertexBuffer, 0, vertexData);
 
 			let indexData = Span<uint8>((uint8*)mIndices.Ptr, mIndices.Count * sizeof(uint16));
-			Device.Queue.WriteMappedBuffer(mIndexBuffer, 0, indexData);
+			TransferHelper.WriteMappedBuffer(mIndexBuffer, 0, indexData);
 		}
 	}
 
@@ -802,7 +809,7 @@ class FontRenderingSample : RHISampleApp
 		}
 	}
 
-	protected override void OnRender(IRenderPassEncoder renderPass)
+	protected override void OnRender(IRenderPassEncoder renderPass, FrameContext frame)
 	{
 		if (mIndices.Count == 0)
 			return;
@@ -814,20 +821,25 @@ class FontRenderingSample : RHISampleApp
 		renderPass.DrawIndexed((uint32)mIndices.Count, 1, 0, 0, 0);
 	}
 
-	protected override void OnCleanup()
+	protected override void OnShutdown()
 	{
-		if (mPipeline != null) delete mPipeline;
-		if (mPipelineLayout != null) delete mPipelineLayout;
-		if (mBindGroup != null) delete mBindGroup;
-		if (mBindGroupLayout != null) delete mBindGroupLayout;
-		if (mFragShader != null) delete mFragShader;
-		if (mVertShader != null) delete mVertShader;
-		if (mFontSampler != null) delete mFontSampler;
-		if (mFontTextureView != null) delete mFontTextureView;
-		if (mFontTexture != null) delete mFontTexture;
-		if (mUniformBuffer != null) delete mUniformBuffer;
-		if (mIndexBuffer != null) delete mIndexBuffer;
-		if (mVertexBuffer != null) delete mVertexBuffer;
+		if (mDevice != null)
+		{
+			mDevice.DestroyRenderPipeline(ref mPipeline);
+			mDevice.DestroyPipelineLayout(ref mPipelineLayout);
+			mDevice.DestroyBindGroup(ref mBindGroup);
+			mDevice.DestroyBindGroupLayout(ref mBindGroupLayout);
+			//mDevice.DestroyShaderModule(ref mFragShader);
+			//mDevice.DestroyShaderModule(ref mVertShader);
+			mDevice.DestroySampler(ref mFontSampler);
+			mDevice.DestroyTextureView(ref mFontTextureView);
+			mDevice.DestroyTexture(ref mFontTexture);
+			mDevice.DestroyBuffer(ref mUniformBuffer);
+			mDevice.DestroyBuffer(ref mIndexBuffer);
+			mDevice.DestroyBuffer(ref mVertexBuffer);
+		}
+
+		if (mShaderSystem != null) { mShaderSystem.Dispose(); delete mShaderSystem; }
 
 		// Clean up font resources
 		if (mTextShaper != null) delete mTextShaper;
@@ -843,6 +855,6 @@ class Program
 	public static int Main(String[] args)
 	{
 		let app = scope FontRenderingSample();
-		return app.Run();
+		return app.Run(.() { Title = "Font Rendering", Width = 1024, Height = 768, ClearColor = .(0.1f, 0.1f, 0.15f, 1.0f), EnableDepth = false });
 	}
 }

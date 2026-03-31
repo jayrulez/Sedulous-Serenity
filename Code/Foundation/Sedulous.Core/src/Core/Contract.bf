@@ -1,5 +1,5 @@
 using System;
-namespace Sedulous.Core.Core;
+namespace Sedulous.Core;
 
 /// <summary>
 /// Contains methods for enforcing code contracts and establishing invariants.

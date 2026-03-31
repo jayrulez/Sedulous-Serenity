@@ -4,514 +4,400 @@ using System;
 using System.Collections;
 using Bulkan;
 using Sedulous.RHI;
-using Sedulous.RHI.Vulkan.Internal;
 
 /// Vulkan implementation of ISwapChain.
 class VulkanSwapChain : ISwapChain
 {
 	private VulkanDevice mDevice;
 	private VulkanSurface mSurface;
-	private VkSwapchainKHR mSwapChain;
+	private VkSwapchainKHR mSwapchain;
+
 	private TextureFormat mFormat;
 	private uint32 mWidth;
 	private uint32 mHeight;
+	private uint32 mBufferCount;
 	private PresentMode mPresentMode;
-	private TextureUsage mUsage;
+	private uint32 mCurrentImageIndex;
 
-	private List<VkImage> mImages = new .() ~ delete _;
+	// Per-image resources
 	private List<VulkanTexture> mTextures = new .() ~ DeleteContainerAndItems!(_);
 	private List<VulkanTextureView> mTextureViews = new .() ~ DeleteContainerAndItems!(_);
 
-	private uint32 mCurrentImageIndex = 0;
-	private uint32 mCurrentFrameIndex = 0;
-
-	// Per-frame fences for CPU/GPU synchronization (use centralized FrameConfig)
-	private const int MAX_FRAMES_IN_FLIGHT = Sedulous.RHI.FrameConfig.MAX_FRAMES_IN_FLIGHT;
-	private VkFence[MAX_FRAMES_IN_FLIGHT] mInFlightFences;
-
-	// Per-swapchain-image semaphores (sized dynamically based on image count)
-	// Indexed by image index to ensure each image has its own semaphores
+	// Synchronization: binary semaphores for acquire/present
 	private List<VkSemaphore> mImageAvailableSemaphores = new .() ~ delete _;
 	private List<VkSemaphore> mRenderFinishedSemaphores = new .() ~ delete _;
-
-	// Rolling index for acquire semaphores - we don't know which image we'll get
-	// until after vkAcquireNextImageKHR, so we cycle through semaphores
-	private uint32 mAcquireSemaphoreIndex = 0;
-
-	public this(VulkanDevice device, VulkanSurface surface, SwapChainDesc descriptor)
-	{
-		mDevice = device;
-		mSurface = surface;
-		mWidth = descriptor.Width;
-		mHeight = descriptor.Height;
-		mFormat = descriptor.Format;
-		mPresentMode = descriptor.PresentMode;
-		mUsage = descriptor.Usage;
-
-		CreateSwapChain();
-		CreateSemaphores();
-	}
-
-	public ~this()
-	{
-		Dispose();
-	}
-
-	public void Dispose()
-	{
-		mDevice.WaitIdle();
-
-		CleanupSwapChain();
-		CleanupSyncObjects();
-	}
-
-	private void CleanupSyncObjects()
-	{
-		// Clean up per-image semaphores
-		for (let sem in mImageAvailableSemaphores)
-		{
-			if (sem != default)
-				VulkanNative.vkDestroySemaphore(mDevice.Device, sem, null);
-		}
-		mImageAvailableSemaphores.Clear();
-
-		for (let sem in mRenderFinishedSemaphores)
-		{
-			if (sem != default)
-				VulkanNative.vkDestroySemaphore(mDevice.Device, sem, null);
-		}
-		mRenderFinishedSemaphores.Clear();
-
-		// Clean up per-frame fences
-		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-		{
-			if (mInFlightFences[i] != default)
-			{
-				VulkanNative.vkDestroyFence(mDevice.Device, mInFlightFences[i], null);
-				mInFlightFences[i] = default;
-			}
-		}
-	}
+	private uint32 mFrameIndex;
 
 	public TextureFormat Format => mFormat;
 	public uint32 Width => mWidth;
 	public uint32 Height => mHeight;
-
-	public ITexture CurrentTexture => mTextures.Count > 0 ? mTextures[mCurrentImageIndex] : null;
-	public ITextureView CurrentTextureView => mTextureViews.Count > 0 ? mTextureViews[mCurrentImageIndex] : null;
-
-	/// Gets the Vulkan swapchain handle.
-	public VkSwapchainKHR SwapChain => mSwapChain;
-
-	/// Gets the image available semaphore (the one used for the last acquire).
-	public VkSemaphore ImageAvailableSemaphore => mImageAvailableSemaphores[mAcquireSemaphoreIndex];
-
-	/// Gets the render finished semaphore for the current image.
-	public VkSemaphore RenderFinishedSemaphore => mRenderFinishedSemaphores[mCurrentImageIndex];
-
-	/// Gets the in-flight fence for the current frame.
-	public VkFence InFlightFence => mInFlightFences[mCurrentFrameIndex];
-
-	/// Gets the current image index.
+	public uint32 BufferCount => mBufferCount;
 	public uint32 CurrentImageIndex => mCurrentImageIndex;
 
-	/// Gets the current frame index (for frame-in-flight tracking).
-	public uint32 CurrentFrameIndex => mCurrentFrameIndex;
+	public ITexture CurrentTexture => (mCurrentImageIndex < (uint32)mTextures.Count)
+		? mTextures[(.)mCurrentImageIndex] : null;
 
-	/// Gets the number of frames in flight.
-	public uint32 FrameCount => MAX_FRAMES_IN_FLIGHT;
+	public ITextureView CurrentTextureView => (mCurrentImageIndex < (uint32)mTextureViews.Count)
+		? mTextureViews[(.)mCurrentImageIndex] : null;
 
-	public Result<void> AcquireNextImage()
+	public this() { }
+
+	public Result<void> Init(VulkanDevice device, VulkanSurface surface, SwapChainDesc desc)
 	{
-		// Wait for the current frame's fence to ensure we can reuse its resources
-		// Use a timeout to prevent deadlock if previous frame failed to signal the fence
-		var fence = mInFlightFences[mCurrentFrameIndex];
-		let waitResult = VulkanNative.vkWaitForFences(mDevice.Device, 1, &fence, VkBool32.True, 1000000000); // 1 second timeout in nanoseconds
+		mDevice = device;
+		mSurface = surface;
+		mPresentMode = desc.PresentMode;
 
-		if (waitResult == .VK_TIMEOUT)
+		return CreateSwapChain(desc.Width, desc.Height, desc.Format, desc.BufferCount, .Null);
+	}
+
+	private Result<void> CreateSwapChain(uint32 width, uint32 height, TextureFormat requestedFormat, uint32 requestedBufferCount, VkSwapchainKHR oldSwapchain)
+	{
+		let adapter = mDevice.Adapter;
+		let physDevice = adapter.PhysicalDevice;
+		let surfaceHandle = mSurface.Handle;
+
+		// Query surface capabilities
+		VkSurfaceCapabilitiesKHR caps = default;
+		VulkanNative.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physDevice, surfaceHandle, &caps);
+
+		// Choose extent
+		if (caps.currentExtent.width != uint32.MaxValue)
 		{
-			// Fence was never signaled - previous frame likely failed.
-			// Must wait for all GPU work to complete before resetting fences,
-			// otherwise we'd reset in-use fences and destroy in-use resources.
-			Console.WriteLine("[Warning] Frame fence timeout - previous frame may have failed, calling vkDeviceWaitIdle");
-			VulkanNative.vkDeviceWaitIdle(mDevice.Device);
-			for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-			{
-				var f = mInFlightFences[i];
-				VulkanNative.vkResetFences(mDevice.Device, 1, &f);
-			}
-		}
-		else if (waitResult != .VK_SUCCESS)
-		{
-			return .Err;
+			mWidth = caps.currentExtent.width;
+			mHeight = caps.currentExtent.height;
 		}
 		else
 		{
-			// Only reset if wait succeeded (fence was signaled)
-			VulkanNative.vkResetFences(mDevice.Device, 1, &fence);
+			mWidth = Math.Clamp(width, caps.minImageExtent.width, caps.maxImageExtent.width);
+			mHeight = Math.Clamp(height, caps.minImageExtent.height, caps.maxImageExtent.height);
 		}
 
-		// Use the next acquire semaphore in the ring buffer
-		// We increment BEFORE acquire so the property returns the right semaphore
-		mAcquireSemaphoreIndex = (mAcquireSemaphoreIndex + 1) % (uint32)mImageAvailableSemaphores.Count;
-
-		// Use a timeout for acquire to prevent lockup if swap chain is in bad state
-		var result = VulkanNative.vkAcquireNextImageKHR(
-			mDevice.Device,
-			mSwapChain,
-			1000000000, // 1 second timeout
-			mImageAvailableSemaphores[mAcquireSemaphoreIndex],
-			default,
-			&mCurrentImageIndex
-		);
-
-		if (result == .VK_TIMEOUT)
+		if (mWidth == 0 || mHeight == 0)
 		{
-			Console.WriteLine("[Warning] Swap chain acquire timeout");
+			System.Diagnostics.Debug.WriteLine("VulkanSwapChain: surface extent is zero");
 			return .Err;
 		}
-		else if (result == .VK_ERROR_OUT_OF_DATE_KHR)
+
+		// Choose image count
+		mBufferCount = Math.Max(requestedBufferCount, caps.minImageCount);
+		if (caps.maxImageCount > 0)
+			mBufferCount = Math.Min(mBufferCount, caps.maxImageCount);
+
+		// Choose surface format
+		let vkFormat = ChooseSurfaceFormat(physDevice, surfaceHandle, requestedFormat);
+		mFormat = VulkanConversions.FromVkFormat(vkFormat.format);
+		if (mFormat == .Undefined)
+			mFormat = requestedFormat; // Keep requested if conversion didn't map
+
+		// Choose present mode
+		let presentMode = ChoosePresentMode(physDevice, surfaceHandle, mPresentMode);
+
+		// Determine image usage
+		VkImageUsageFlags usage = .VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		if (caps.supportedUsageFlags.HasFlag(.VK_IMAGE_USAGE_TRANSFER_DST_BIT))
+			usage |= .VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+		if (caps.supportedUsageFlags.HasFlag(.VK_IMAGE_USAGE_TRANSFER_SRC_BIT))
+			usage |= .VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+
+		// Choose composite alpha
+		VkCompositeAlphaFlagsKHR compositeAlpha = .VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+		if (!caps.supportedCompositeAlpha.HasFlag(.VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR))
+			compositeAlpha = .VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
+
+		// Create swapchain
+		VkSwapchainCreateInfoKHR createInfo = .();
+		createInfo.surface = surfaceHandle;
+		createInfo.minImageCount = mBufferCount;
+		createInfo.imageFormat = vkFormat.format;
+		createInfo.imageColorSpace = vkFormat.colorSpace;
+		createInfo.imageExtent.width = mWidth;
+		createInfo.imageExtent.height = mHeight;
+		createInfo.imageArrayLayers = 1;
+		createInfo.imageUsage = usage;
+		createInfo.imageSharingMode = .VK_SHARING_MODE_EXCLUSIVE;
+		createInfo.preTransform = caps.currentTransform;
+		createInfo.compositeAlpha = compositeAlpha;
+		createInfo.presentMode = presentMode;
+		createInfo.clipped = VkBool32.True;
+		createInfo.oldSwapchain = oldSwapchain;
+
+		let result = VulkanNative.vkCreateSwapchainKHR(mDevice.Handle, &createInfo, null, &mSwapchain);
+		if (result != .VK_SUCCESS)
 		{
-			// Swap chain needs to be recreated
+			System.Diagnostics.Debug.WriteLine(scope $"VulkanSwapChain: vkCreateSwapchainKHR failed ({result})");
 			return .Err;
 		}
-		else if (result != .VK_SUCCESS && result != .VK_SUBOPTIMAL_KHR)
+
+		// Destroy old swapchain after creating new one
+		if (oldSwapchain.Handle != 0)
+			VulkanNative.vkDestroySwapchainKHR(mDevice.Handle, oldSwapchain, null);
+
+		// Get images
+		if (RetrieveImages(vkFormat.format) case .Err)
 		{
+			System.Diagnostics.Debug.WriteLine("VulkanSwapChain: failed to retrieve swap chain images");
 			return .Err;
+		}
+
+		// Create synchronization semaphores
+		CreateSyncObjects();
+
+		mFrameIndex = 0;
+		return .Ok;
+	}
+
+	private VkSurfaceFormatKHR ChooseSurfaceFormat(VkPhysicalDevice physDevice, VkSurfaceKHR surface, TextureFormat requested)
+	{
+		uint32 formatCount = 0;
+		VulkanNative.vkGetPhysicalDeviceSurfaceFormatsKHR(physDevice, surface, &formatCount, null);
+		VkSurfaceFormatKHR[] formats = scope VkSurfaceFormatKHR[(.)formatCount];
+		VulkanNative.vkGetPhysicalDeviceSurfaceFormatsKHR(physDevice, surface, &formatCount, formats.CArray());
+
+		let desired = VulkanConversions.ToVkFormat(requested);
+
+		// Try exact match
+		for (let fmt in formats)
+		{
+			if (fmt.format == desired)
+				return fmt;
+		}
+
+		// Try BGRA8 SRGB as fallback
+		for (let fmt in formats)
+		{
+			if (fmt.format == .VK_FORMAT_B8G8R8A8_SRGB &&
+				fmt.colorSpace == .VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+				return fmt;
+		}
+
+		// Try BGRA8 UNORM as fallback
+		for (let fmt in formats)
+		{
+			if (fmt.format == .VK_FORMAT_B8G8R8A8_UNORM)
+				return fmt;
+		}
+
+		// Just return first available
+		return formats[0];
+	}
+
+	private VkPresentModeKHR ChoosePresentMode(VkPhysicalDevice physDevice, VkSurfaceKHR surface, PresentMode requested)
+	{
+		uint32 modeCount = 0;
+		VulkanNative.vkGetPhysicalDeviceSurfacePresentModesKHR(physDevice, surface, &modeCount, null);
+		VkPresentModeKHR[] modes = scope VkPresentModeKHR[(.)modeCount];
+		VulkanNative.vkGetPhysicalDeviceSurfacePresentModesKHR(physDevice, surface, &modeCount, modes.CArray());
+
+		let desired = VulkanConversions.ToVkPresentMode(requested);
+		for (let mode in modes)
+		{
+			if (mode == desired)
+				return mode;
+		}
+
+		// FIFO is guaranteed by spec
+		return .VK_PRESENT_MODE_FIFO_KHR;
+	}
+
+	private Result<void> RetrieveImages(VkFormat format)
+	{
+		// Get swap chain images
+		uint32 imageCount = 0;
+		VulkanNative.vkGetSwapchainImagesKHR(mDevice.Handle, mSwapchain, &imageCount, null);
+		VkImage[] images = scope VkImage[(.)imageCount];
+		VulkanNative.vkGetSwapchainImagesKHR(mDevice.Handle, mSwapchain, &imageCount, images.CArray());
+
+		mBufferCount = imageCount;
+
+		// Wrap each image as VulkanTexture + VulkanTextureView
+		for (uint32 i = 0; i < imageCount; i++)
+		{
+			TextureDesc texDesc = .();
+			texDesc.Dimension = .Texture2D;
+			texDesc.Format = mFormat;
+			texDesc.Width = mWidth;
+			texDesc.Height = mHeight;
+			texDesc.ArrayLayerCount = 1;
+			texDesc.MipLevelCount = 1;
+			texDesc.SampleCount = 1;
+			texDesc.Usage = .RenderTarget;
+
+			let texture = new VulkanTexture();
+			texture.InitFromExisting(images[(.)i], texDesc);
+			mTextures.Add(texture);
+
+			TextureViewDesc viewDesc = .();
+			viewDesc.Format = mFormat;
+			viewDesc.Dimension = .Texture2D;
+			viewDesc.BaseMipLevel = 0;
+			viewDesc.MipLevelCount = 1;
+			viewDesc.BaseArrayLayer = 0;
+			viewDesc.ArrayLayerCount = 1;
+
+			let view = new VulkanTextureView();
+			if (view.Init(mDevice, texture, viewDesc) case .Err)
+			{
+				System.Diagnostics.Debug.WriteLine("VulkanSwapChain: failed to create image view for swap chain image");
+				delete view;
+				return .Err;
+			}
+			mTextureViews.Add(view);
 		}
 
 		return .Ok;
 	}
 
-	public Result<void> Present()
+	private void CreateSyncObjects()
 	{
-		// Use the current image's render finished semaphore
-		VkSemaphore[1] waitSemaphores = .(mRenderFinishedSemaphores[mCurrentImageIndex]);
-		VkSwapchainKHR[1] swapChains = .(mSwapChain);
-		uint32[1] imageIndices = .(mCurrentImageIndex);
+		VkSemaphoreCreateInfo semInfo = .();
 
-		VkPresentInfoKHR presentInfo = .()
-			{
-				sType = .VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-				waitSemaphoreCount = 1,
-				pWaitSemaphores = &waitSemaphores,
-				swapchainCount = 1,
-				pSwapchains = &swapChains,
-				pImageIndices = &imageIndices,
-				pResults = null
-			};
-
-		let vkQueue = mDevice.Queue as VulkanQueue;
-		if (vkQueue == null)
-			return .Err;
-
-		var result = VulkanNative.vkQueuePresentKHR(vkQueue.Queue, &presentInfo);
-
-		// Advance to next frame
-		mCurrentFrameIndex = (mCurrentFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
-
-		if (result == .VK_ERROR_OUT_OF_DATE_KHR || result == .VK_SUBOPTIMAL_KHR)
+		for (uint32 i = 0; i < mBufferCount; i++)
 		{
+			VkSemaphore imgAvail = default;
+			VkSemaphore renderDone = default;
+			VulkanNative.vkCreateSemaphore(mDevice.Handle, &semInfo, null, &imgAvail);
+			VulkanNative.vkCreateSemaphore(mDevice.Handle, &semInfo, null, &renderDone);
+			mImageAvailableSemaphores.Add(imgAvail);
+			mRenderFinishedSemaphores.Add(renderDone);
+		}
+	}
+
+	public Result<void> AcquireNextImage()
+	{
+		// imageAvailable is indexed by frame-in-flight (we don't know the image index yet)
+		let acquireSem = mImageAvailableSemaphores[(.)mFrameIndex];
+		var imageIndex = mCurrentImageIndex;
+
+		let result = VulkanNative.vkAcquireNextImageKHR(
+			mDevice.Handle, mSwapchain, uint64.MaxValue,
+			acquireSem, .Null, &imageIndex);
+
+		mCurrentImageIndex = imageIndex;
+
+		if (result == .VK_ERROR_OUT_OF_DATE_KHR)
+		{
+			System.Diagnostics.Debug.WriteLine("VulkanSwapChain: vkAcquireNextImageKHR returned out of date");
+			return .Err; // Caller should resize
+		}
+
+		if (result != .VK_SUCCESS && result != .VK_SUBOPTIMAL_KHR)
+		{
+			System.Diagnostics.Debug.WriteLine(scope $"VulkanSwapChain: vkAcquireNextImageKHR failed ({result})");
 			return .Err;
 		}
-		else if (result != .VK_SUCCESS)
-		{
-			return .Err;
-		}
+
+		// renderFinished is indexed by acquired image to avoid signaling a semaphore
+		// that's still in use by a previous present of a different image.
+		let presentSem = mRenderFinishedSemaphores[(.)mCurrentImageIndex];
+
+		// Tell the device about the binary semaphores so the next queue submit
+		// waits on imageAvailable and signals renderFinished.
+		mDevice.SetPendingSwapChainSync(acquireSem, presentSem);
 
 		return .Ok;
+	}
+
+	public Result<void> Present(IQueue queue)
+	{
+		if (let vkQueue = queue as VulkanQueue)
+		{
+			var swapchain = mSwapchain;
+			var imageIndex = mCurrentImageIndex;
+			var waitSem = mRenderFinishedSemaphores[(.)mCurrentImageIndex];
+
+			VkPresentInfoKHR presentInfo = .();
+			presentInfo.waitSemaphoreCount = 1;
+			presentInfo.pWaitSemaphores = &waitSem;
+			presentInfo.swapchainCount = 1;
+			presentInfo.pSwapchains = &swapchain;
+			presentInfo.pImageIndices = &imageIndex;
+
+			let result = VulkanNative.vkQueuePresentKHR(vkQueue.Handle, &presentInfo);
+
+			mFrameIndex = (mFrameIndex + 1) % mBufferCount;
+
+			if (result == .VK_ERROR_OUT_OF_DATE_KHR || result == .VK_SUBOPTIMAL_KHR)
+			{
+				System.Diagnostics.Debug.WriteLine(scope $"VulkanSwapChain: vkQueuePresentKHR returned ({result}), resize needed");
+				return .Err; // Caller should resize
+			}
+
+			if (result != .VK_SUCCESS)
+			{
+				System.Diagnostics.Debug.WriteLine(scope $"VulkanSwapChain: vkQueuePresentKHR failed ({result})");
+				return .Err;
+			}
+
+			return .Ok;
+		}
+		System.Diagnostics.Debug.WriteLine("VulkanSwapChain: queue is not a VulkanQueue");
+		return .Err;
 	}
 
 	public Result<void> Resize(uint32 width, uint32 height)
 	{
-		if (width == 0 || height == 0)
-			return .Err;
-
-		mWidth = width;
-		mHeight = height;
-
 		mDevice.WaitIdle();
-		CleanupSwapChain();
 
-		// Clean up semaphores since image count might change
-		for (let sem in mImageAvailableSemaphores)
+		// Clean up old image views and textures
+		CleanupImages();
+
+		// Destroy old sync objects
+		DestroySyncObjects();
+
+		// Recreate with old swapchain for recycling
+		return CreateSwapChain(width, height, mFormat, mBufferCount, mSwapchain);
+	}
+
+	private void CleanupImages()
+	{
+		for (let view in mTextureViews)
 		{
-			if (sem != default)
-				VulkanNative.vkDestroySemaphore(mDevice.Device, sem, null);
+			view.Cleanup(mDevice);
+			delete view;
 		}
+		mTextureViews.Clear();
+
+		for (let tex in mTextures)
+		{
+			// These don't own the VkImage (swap chain images), just delete wrapper
+			tex.Cleanup(mDevice);
+			delete tex;
+		}
+		mTextures.Clear();
+	}
+
+	private void DestroySyncObjects()
+	{
+		for (let sem in mImageAvailableSemaphores)
+			VulkanNative.vkDestroySemaphore(mDevice.Handle, sem, null);
 		mImageAvailableSemaphores.Clear();
 
 		for (let sem in mRenderFinishedSemaphores)
-		{
-			if (sem != default)
-				VulkanNative.vkDestroySemaphore(mDevice.Device, sem, null);
-		}
+			VulkanNative.vkDestroySemaphore(mDevice.Handle, sem, null);
 		mRenderFinishedSemaphores.Clear();
-
-		if (!CreateSwapChain())
-			return .Err;
-
-		// Recreate semaphores for new image count
-		VkSemaphoreCreateInfo semaphoreInfo = .()
-			{
-				sType = .VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
-			};
-
-		let imageCount = mImages.Count;
-		for (int i = 0; i < imageCount; i++)
-		{
-			VkSemaphore imageAvailable = default;
-			VkSemaphore renderFinished = default;
-			VulkanNative.vkCreateSemaphore(mDevice.Device, &semaphoreInfo, null, &imageAvailable);
-			VulkanNative.vkCreateSemaphore(mDevice.Device, &semaphoreInfo, null, &renderFinished);
-			mImageAvailableSemaphores.Add(imageAvailable);
-			mRenderFinishedSemaphores.Add(renderFinished);
-		}
-
-		mAcquireSemaphoreIndex = (uint32)(imageCount - 1);
-		mCurrentFrameIndex = 0;
-
-		return .Ok;
 	}
 
-	private bool CreateSwapChain()
+	/// Gets the binary semaphore signaled when the current image is available.
+	public VkSemaphore CurrentImageAvailableSemaphore =>
+		mImageAvailableSemaphores[(.)mFrameIndex];
+
+	/// Gets the binary semaphore to signal when rendering is complete (for present).
+	/// Indexed by acquired image index to avoid conflicts across frames.
+	public VkSemaphore CurrentRenderFinishedSemaphore =>
+		mRenderFinishedSemaphores[(.)mCurrentImageIndex];
+
+	public void Cleanup(VulkanDevice device)
 	{
-		let vkAdapter = mDevice.Adapter as VulkanAdapter;
-		if (vkAdapter == null)
-			return false;
-		let physicalDevice = vkAdapter.PhysicalDevice;
+		device.WaitIdle();
 
-		// Query surface capabilities
-		VkSurfaceCapabilitiesKHR capabilities = ?;
-		VulkanNative.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, mSurface.Surface, &capabilities);
+		CleanupImages();
+		DestroySyncObjects();
 
-		// Choose surface format
-		VkSurfaceFormatKHR surfaceFormat = ChooseSurfaceFormat();
-
-		// Choose present mode
-		VkPresentModeKHR presentMode = ChoosePresentMode();
-
-		// Choose extent
-		VkExtent2D extent = ChooseExtent(&capabilities);
-		mWidth = extent.width;
-		mHeight = extent.height;
-
-		// Choose image count
-		uint32 imageCount = capabilities.minImageCount + 1;
-		if (capabilities.maxImageCount > 0 && imageCount > capabilities.maxImageCount)
-			imageCount = capabilities.maxImageCount;
-
-		// Create swap chain
-		VkSwapchainCreateInfoKHR createInfo = .()
-			{
-				sType = .VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-				surface = mSurface.Surface,
-				minImageCount = imageCount,
-				imageFormat = surfaceFormat.format,
-				imageColorSpace = surfaceFormat.colorSpace,
-				imageExtent = extent,
-				imageArrayLayers = 1,
-				imageUsage = GetVkImageUsage(),
-				imageSharingMode = .VK_SHARING_MODE_EXCLUSIVE,
-				queueFamilyIndexCount = 0,
-				pQueueFamilyIndices = null,
-				preTransform = capabilities.currentTransform,
-				compositeAlpha = .VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-				presentMode = presentMode,
-				clipped = VkBool32.True,
-				oldSwapchain = default
-			};
-
-		if (VulkanNative.vkCreateSwapchainKHR(mDevice.Device, &createInfo, null, &mSwapChain) != .VK_SUCCESS)
-			return false;
-
-		// Get swap chain images
-		uint32 swapImageCount = 0;
-		VulkanNative.vkGetSwapchainImagesKHR(mDevice.Device, mSwapChain, &swapImageCount, null);
-		mImages.Resize(swapImageCount);
-		VulkanNative.vkGetSwapchainImagesKHR(mDevice.Device, mSwapChain, &swapImageCount, mImages.Ptr);
-
-		// Store format
-		mFormat = VulkanConversions.ToTextureFormat(surfaceFormat.format);
-
-		// Create texture wrappers and views
-		for (let image in mImages)
+		if (mSwapchain.Handle != 0)
 		{
-			// Create texture wrapper (doesn't own the image, is a swap chain texture)
-			let texture = new VulkanTexture(mDevice, image, mFormat, mWidth, mHeight, .RenderTarget, true);
-			mTextures.Add(texture);
-
-			// Create texture view
-			TextureViewDesc viewDesc = .()
-				{
-					Format = mFormat,
-					Dimension = .Texture2D,
-					BaseMipLevel = 0,
-					MipLevelCount = 1,
-					BaseArrayLayer = 0,
-					ArrayLayerCount = 1,
-					Label = scope $"SwapchainTexture{mImages.IndexOf(image)}"
-				};
-
-			if (mDevice.CreateTextureView(texture, viewDesc) case .Ok(let view))
-			{
-				if (let vkView = view as VulkanTextureView)
-					mTextureViews.Add(vkView);
-			}
+			VulkanNative.vkDestroySwapchainKHR(device.Handle, mSwapchain, null);
+			mSwapchain = .Null;
 		}
-
-		return true;
-	}
-
-	private void CleanupSwapChain()
-	{
-		// Clean up texture views first
-		for (let view in mTextureViews)
-			delete view;
-		mTextureViews.Clear();
-
-		// Clean up texture wrappers (don't delete images - they're owned by swap chain)
-		for (let texture in mTextures)
-			delete texture;
-		mTextures.Clear();
-
-		mImages.Clear();
-
-		if (mSwapChain != default)
-		{
-			VulkanNative.vkDestroySwapchainKHR(mDevice.Device, mSwapChain, null);
-			mSwapChain = default;
-		}
-	}
-
-	private void CreateSemaphores()
-	{
-		VkSemaphoreCreateInfo semaphoreInfo = .()
-			{
-				sType = .VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
-			};
-
-		VkFenceCreateInfo fenceInfo = .()
-			{
-				sType = .VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-				flags = .VK_FENCE_CREATE_SIGNALED_BIT  // Start signaled so first wait doesn't block forever
-			};
-
-		// Create per-frame fences
-		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-		{
-			VulkanNative.vkCreateFence(mDevice.Device, &fenceInfo, null, &mInFlightFences[i]);
-		}
-
-		// Create per-image semaphores (one for each swapchain image)
-		let imageCount = mImages.Count;
-		for (int i = 0; i < imageCount; i++)
-		{
-			VkSemaphore imageAvailable = default;
-			VkSemaphore renderFinished = default;
-			VulkanNative.vkCreateSemaphore(mDevice.Device, &semaphoreInfo, null, &imageAvailable);
-			VulkanNative.vkCreateSemaphore(mDevice.Device, &semaphoreInfo, null, &renderFinished);
-			mImageAvailableSemaphores.Add(imageAvailable);
-			mRenderFinishedSemaphores.Add(renderFinished);
-		}
-
-		// Initialize acquire semaphore index to point to last entry so first increment wraps to 0
-		mAcquireSemaphoreIndex = (uint32)(imageCount - 1);
-	}
-
-	private VkSurfaceFormatKHR ChooseSurfaceFormat()
-	{
-		let vkAdapter = mDevice.Adapter as VulkanAdapter;
-		if (vkAdapter == null)
-			return .() { format = .VK_FORMAT_B8G8R8A8_SRGB, colorSpace = .VK_COLOR_SPACE_SRGB_NONLINEAR_KHR };
-		let physicalDevice = vkAdapter.PhysicalDevice;
-
-		uint32 formatCount = 0;
-		VulkanNative.vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, mSurface.Surface, &formatCount, null);
-
-		if (formatCount == 0)
-			return .() { format = .VK_FORMAT_B8G8R8A8_SRGB, colorSpace = .VK_COLOR_SPACE_SRGB_NONLINEAR_KHR };
-
-		List<VkSurfaceFormatKHR> formats = scope .();
-		formats.Resize(formatCount);
-		VulkanNative.vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, mSurface.Surface, &formatCount, formats.Ptr);
-
-		// Try to find preferred format
-		VkFormat preferredFormat = VulkanConversions.ToVkFormat(mFormat);
-
-		for (let format in formats)
-		{
-			if (format.format == preferredFormat)
-				return format;
-		}
-
-		// Fallback to common sRGB format
-		for (let format in formats)
-		{
-			if (format.format == .VK_FORMAT_B8G8R8A8_SRGB && format.colorSpace == .VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
-				return format;
-		}
-
-		// Use first available
-		return formats[0];
-	}
-
-	private VkPresentModeKHR ChoosePresentMode()
-	{
-		let vkAdapter = mDevice.Adapter as VulkanAdapter;
-		if (vkAdapter == null)
-			return .VK_PRESENT_MODE_FIFO_KHR;
-		let physicalDevice = vkAdapter.PhysicalDevice;
-
-		uint32 presentModeCount = 0;
-		VulkanNative.vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, mSurface.Surface, &presentModeCount, null);
-
-		if (presentModeCount == 0)
-			return .VK_PRESENT_MODE_FIFO_KHR;
-
-		List<VkPresentModeKHR> presentModes = scope .();
-		presentModes.Resize(presentModeCount);
-		VulkanNative.vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, mSurface.Surface, &presentModeCount, presentModes.Ptr);
-
-		VkPresentModeKHR preferredMode = VulkanConversions.ToVkPresentMode(mPresentMode);
-
-		for (let mode in presentModes)
-		{
-			if (mode == preferredMode)
-				return mode;
-		}
-
-		// FIFO is guaranteed to be available
-		return .VK_PRESENT_MODE_FIFO_KHR;
-	}
-
-	private VkExtent2D ChooseExtent(VkSurfaceCapabilitiesKHR* capabilities)
-	{
-		if (capabilities.currentExtent.width != uint32.MaxValue)
-			return capabilities.currentExtent;
-
-		VkExtent2D extent = .()
-			{
-				width = Math.Clamp(mWidth, capabilities.minImageExtent.width, capabilities.maxImageExtent.width),
-				height = Math.Clamp(mHeight, capabilities.minImageExtent.height, capabilities.maxImageExtent.height)
-			};
-
-		return extent;
-	}
-
-	private VkImageUsageFlags GetVkImageUsage()
-	{
-		VkImageUsageFlags flags = .VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-
-		if (mUsage.HasFlag(.CopySrc))
-			flags |= .VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-
-		if (mUsage.HasFlag(.CopyDst))
-			flags |= .VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-
-		if (mUsage.HasFlag(.Sampled))
-			flags |= .VK_IMAGE_USAGE_SAMPLED_BIT;
-
-		return flags;
 	}
 }

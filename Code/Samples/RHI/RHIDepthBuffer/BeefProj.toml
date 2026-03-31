@@ -1,9 +1,0 @@
-FileVersion = 1
-Dependencies = {corlib = "*", SampleFramework = "*", "Sedulous.Shell" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Core.Mathematics" = "*", "Sedulous.RHI" = "*", "Sedulous.RHI.Vulkan" = "*"}
-
-[Project]
-Name = "RHIDepthBuffer"
-StartupObject = "RHIDepthBuffer.Program"
-
-[Configs.Debug.Win64]
-DebugCommandArguments = "--dx12"

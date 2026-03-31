@@ -75,6 +75,11 @@ public class Scene : IDisposable, ISerializable
 		RegisterDiscoveredSerializers();
 	}
 
+	public ~this()
+	{
+
+	}
+
 	// ==================== Serialization ====================
 
 	public int32 SerializationVersion => 1;

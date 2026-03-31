@@ -49,25 +49,25 @@ public class SSAOEffect : IPostProcessEffect
 	private IDevice mDevice;
 
 	// AO generation pipeline
-	private IRenderPipeline mGeneratePipeline ~ delete _;
-	private IPipelineLayout mGeneratePipelineLayout ~ delete _;
-	private IBindGroupLayout mGenerateBindGroupLayout ~ delete _;
+	private IRenderPipeline mGeneratePipeline;
+	private IPipelineLayout mGeneratePipelineLayout;
+	private IBindGroupLayout mGenerateBindGroupLayout;
 
 	// AO apply pipeline
-	private IRenderPipeline mApplyPipeline ~ delete _;
-	private IPipelineLayout mApplyPipelineLayout ~ delete _;
-	private IBindGroupLayout mApplyBindGroupLayout ~ delete _;
+	private IRenderPipeline mApplyPipeline;
+	private IPipelineLayout mApplyPipelineLayout;
+	private IBindGroupLayout mApplyBindGroupLayout;
 
 	// Persistent AO texture (recreated on resize)
-	private ITexture mAOTexture ~ delete _;
-	private ITextureView mAOTextureView ~ delete _;
+	private ITexture mAOTexture;
+	private ITextureView mAOTextureView;
 	private uint32 mAOWidth;
 	private uint32 mAOHeight;
 
 	// Buffers and samplers
-	private IBuffer mParamsBuffer ~ delete _;
-	private IBuffer mApplyParamsBuffer ~ delete _;
-	private ISampler mPointSampler ~ delete _;
+	private IBuffer mParamsBuffer;
+	private IBuffer mApplyParamsBuffer;
+	private ISampler mPointSampler;
 
 	// Per-frame bind groups
 	private IBindGroup[RenderConfig.FrameBufferCount] mGenerateBindGroups;
@@ -262,8 +262,8 @@ public class SSAOEffect : IPostProcessEffect
 			return;
 
 		// Release old
-		if (mAOTextureView != null) { delete mAOTextureView; mAOTextureView = null; }
-		if (mAOTexture != null) { delete mAOTexture; mAOTexture = null; }
+		if (mAOTextureView != null) mDevice.DestroyTextureView(ref mAOTextureView);
+		if (mAOTexture != null) mDevice.DestroyTexture(ref mAOTexture);
 
 		// Create R8Unorm AO texture
 		TextureDesc texDesc = .();
@@ -301,17 +301,29 @@ public class SSAOEffect : IPostProcessEffect
 	{
 		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			if (mGenerateBindGroups[i] != null) { delete mGenerateBindGroups[i]; mGenerateBindGroups[i] = null; }
-			if (mApplyBindGroups[i] != null) { delete mApplyBindGroups[i]; mApplyBindGroups[i] = null; }
+			if (mGenerateBindGroups[i] != null) mDevice.DestroyBindGroup(ref mGenerateBindGroups[i]);
+			if (mApplyBindGroups[i] != null) mDevice.DestroyBindGroup(ref mApplyBindGroups[i]);
 		}
+
+		if (mAOTextureView != null) mDevice.DestroyTextureView(ref mAOTextureView);
+		if (mAOTexture != null) mDevice.DestroyTexture(ref mAOTexture);
+		if (mGeneratePipeline != null) mDevice.DestroyRenderPipeline(ref mGeneratePipeline);
+		if (mGeneratePipelineLayout != null) mDevice.DestroyPipelineLayout(ref mGeneratePipelineLayout);
+		if (mGenerateBindGroupLayout != null) mDevice.DestroyBindGroupLayout(ref mGenerateBindGroupLayout);
+		if (mApplyPipeline != null) mDevice.DestroyRenderPipeline(ref mApplyPipeline);
+		if (mApplyPipelineLayout != null) mDevice.DestroyPipelineLayout(ref mApplyPipelineLayout);
+		if (mApplyBindGroupLayout != null) mDevice.DestroyBindGroupLayout(ref mApplyBindGroupLayout);
+		if (mParamsBuffer != null) mDevice.DestroyBuffer(ref mParamsBuffer);
+		if (mApplyParamsBuffer != null) mDevice.DestroyBuffer(ref mApplyParamsBuffer);
+		if (mPointSampler != null) mDevice.DestroySampler(ref mPointSampler);
 	}
 
 	public void AddPasses(
 		RenderGraph graph,
-		RenderView view,
-		RGResourceHandle inputHandle,
-		RGResourceHandle outputHandle,
-		RGResourceHandle depthHandle)
+		ViewContext view,
+		RGHandle inputHandle,
+		RGHandle outputHandle,
+		RGHandle depthHandle)
 	{
 		if (mGeneratePipeline == null || mApplyPipeline == null)
 			return;
@@ -350,7 +362,7 @@ public class SSAOEffect : IPostProcessEffect
 		ssaoParams.ScreenSizeX = (float)view.Width;
 		ssaoParams.ScreenSizeY = (float)view.Height;
 
-		mDevice.Queue.WriteMappedBuffer(
+		TransferHelper.WriteMappedBuffer(
 			mParamsBuffer, 0,
 			Span<uint8>((uint8*)&ssaoParams, SSAOParams.Size)
 		);
@@ -360,49 +372,51 @@ public class SSAOEffect : IPostProcessEffect
 		applyParams.TexelSizeX = 1.0f / (float)view.Width;
 		applyParams.TexelSizeY = 1.0f / (float)view.Height;
 
-		mDevice.Queue.WriteMappedBuffer(
+		TransferHelper.WriteMappedBuffer(
 			mApplyParamsBuffer, 0,
 			Span<uint8>((uint8*)&applyParams, SSAOApplyParams.Size)
 		);
 
 		// Import AO texture into render graph
-		let aoHandle = graph.ImportTexture("SSAO_AO", mAOTexture, mAOTextureView);
+		let aoHandle = graph.ImportTarget("SSAO_AO", mAOTexture, mAOTextureView);
 
 		// Capture for callbacks
 		RenderGraph graphRef = graph;
-		RGResourceHandle depthCopy = depthHandle;
-		RGResourceHandle inputCopy = inputHandle;
-		RGResourceHandle aoCopy = aoHandle;
-		RGResourceHandle gbufferCopy = gbufferHandle;
+		RGHandle depthCopy = depthHandle;
+		RGHandle inputCopy = inputHandle;
+		RGHandle aoCopy = aoHandle;
+		RGHandle gbufferCopy = gbufferHandle;
 
 		// Pass 1: SSAO Generation — depth + GBuffer normals → AO texture
-		graph.AddGraphicsPass("SSAO_Generate")
-			.ReadTexture(depthHandle)
-			.ReadTexture(gbufferHandle)
-			.WriteColor(aoHandle, .DontCare, .Store)
-			.NeverCull()
-			.SetExecuteCallback(new [=] (encoder) => {
-				let depthView = graphRef.GetDepthOnlyTextureView(depthCopy);
-				let gbufferView = graphRef.GetTextureView(gbufferCopy);
-				ExecuteGeneratePass(encoder, view, depthView, gbufferView);
+		graph.AddRenderPass("SSAO_Generate", scope (builder) => {
+				builder.ReadTexture(depthHandle);
+				builder.ReadTexture(gbufferHandle);
+				builder.SetColorTarget(0, aoHandle, .DontCare, .Store);
+				builder.NeverCull();
+				builder.SetExecute(new [=] (encoder) => {
+					let depthView = graphRef.GetDepthOnlyTextureView(depthCopy);
+					let gbufferView = graphRef.GetTextureView(gbufferCopy);
+					ExecuteGeneratePass(encoder, view, depthView, gbufferView);
+				});
 			});
 
 		// Pass 2: SSAO Apply — input + AO + depth → output
-		graph.AddGraphicsPass("SSAO_Apply")
-			.ReadTexture(inputHandle)
-			.ReadTexture(aoHandle)
-			.ReadTexture(depthHandle)
-			.WriteColor(outputHandle, .DontCare, .Store)
-			.NeverCull()
-			.SetExecuteCallback(new [=] (encoder) => {
-				let inView = graphRef.GetTextureView(inputCopy);
-				let aoView = graphRef.GetTextureView(aoCopy);
-				let dView = graphRef.GetDepthOnlyTextureView(depthCopy);
-				ExecuteApplyPass(encoder, view, inView, aoView, dView);
+		graph.AddRenderPass("SSAO_Apply", scope (builder) => {
+				builder.ReadTexture(inputHandle);
+				builder.ReadTexture(aoHandle);
+				builder.ReadTexture(depthHandle);
+				builder.SetColorTarget(0, outputHandle, .DontCare, .Store);
+				builder.NeverCull();
+				builder.SetExecute(new [=] (encoder) => {
+					let inView = graphRef.GetTextureView(inputCopy);
+					let aoView = graphRef.GetTextureView(aoCopy);
+					let dView = graphRef.GetDepthOnlyTextureView(depthCopy);
+					ExecuteApplyPass(encoder, view, inView, aoView, dView);
+				});
 			});
 	}
 
-	private void ExecuteGeneratePass(IRenderPassEncoder encoder, RenderView view, ITextureView depthView, ITextureView gbufferView)
+	private void ExecuteGeneratePass(IRenderPassEncoder encoder, ViewContext view, ITextureView depthView, ITextureView gbufferView)
 	{
 		if (depthView == null || gbufferView == null)
 			return;
@@ -412,15 +426,14 @@ public class SSAOEffect : IPostProcessEffect
 		// Recreate bind group per frame
 		if (mGenerateBindGroups[frameIndex] != null)
 		{
-			delete mGenerateBindGroups[frameIndex];
-			mGenerateBindGroups[frameIndex] = null;
+			mDevice.DestroyBindGroup(ref mGenerateBindGroups[frameIndex]);
 		}
 
 		BindGroupEntry[4] entries = .(
-			BindGroupEntry.Buffer(0, mParamsBuffer, 0, (uint64)SSAOParams.Size),
-			BindGroupEntry.Texture(0, depthView),
-			BindGroupEntry.Texture(1, gbufferView),
-			BindGroupEntry.Sampler(0, mPointSampler)
+			BindGroupEntry.Buffer(/*0,*/mParamsBuffer, 0, (uint64)SSAOParams.Size),
+			BindGroupEntry.Texture(/*0,*/depthView),
+			BindGroupEntry.Texture(/*1,*/gbufferView),
+			BindGroupEntry.Sampler(/*0,*/mPointSampler)
 		);
 
 		BindGroupDesc bgDesc = .();
@@ -445,7 +458,7 @@ public class SSAOEffect : IPostProcessEffect
 			mRenderSystem.Stats.DrawCalls++;
 	}
 
-	private void ExecuteApplyPass(IRenderPassEncoder encoder, RenderView view,
+	private void ExecuteApplyPass(IRenderPassEncoder encoder, ViewContext view,
 		ITextureView inputView, ITextureView aoView, ITextureView depthView)
 	{
 		if (inputView == null || aoView == null || depthView == null)
@@ -456,16 +469,15 @@ public class SSAOEffect : IPostProcessEffect
 		// Recreate bind group per frame
 		if (mApplyBindGroups[frameIndex] != null)
 		{
-			delete mApplyBindGroups[frameIndex];
-			mApplyBindGroups[frameIndex] = null;
+			mDevice.DestroyBindGroup(ref mApplyBindGroups[frameIndex]);
 		}
 
 		BindGroupEntry[5] entries = .(
-			BindGroupEntry.Buffer(0, mApplyParamsBuffer, 0, (uint64)SSAOApplyParams.Size),
-			BindGroupEntry.Texture(0, inputView),
-			BindGroupEntry.Texture(1, aoView),
-			BindGroupEntry.Texture(2, depthView),
-			BindGroupEntry.Sampler(0, mPointSampler)
+			BindGroupEntry.Buffer(/*0,*/mApplyParamsBuffer, 0, (uint64)SSAOApplyParams.Size),
+			BindGroupEntry.Texture(/*0,*/inputView),
+			BindGroupEntry.Texture(/*1,*/aoView),
+			BindGroupEntry.Texture(/*2,*/depthView),
+			BindGroupEntry.Sampler(/*0,*/mPointSampler)
 		);
 
 		BindGroupDesc bgDesc = .();

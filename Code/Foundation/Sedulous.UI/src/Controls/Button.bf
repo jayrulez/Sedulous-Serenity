@@ -1,212 +1,227 @@
+namespace Sedulous.UI;
+
 using System;
 using Sedulous.Drawing;
 using Sedulous.Core.Mathematics;
-using Sedulous.Core.Core;
+using Sedulous.Fonts;
+using Sedulous.Core;
 
-namespace Sedulous.UI;
-
-/// A button control that can be clicked.
-public class Button : ContentControl
+/// Interactive clickable button with text.
+public class Button : View
 {
-	private bool mIsPressed;
-	private bool mIsDefault;
-	private bool mIsCancel;
+	private String mText = new .() ~ delete _;
+	private float mFontSize = 16;
+	private Color mTextColor = default;
 
-	// Click event
-	private EventAccessor<delegate void(Button)> mClickEvent = new .() ~ delete _;
+	private EventAccessor<delegate void(Button)> mOnClick = new .() ~ delete _;
+	private ICommand mCommand;
+	private delegate void() mCanExecuteChangedHandler /*~ delete _*/;
 
-	/// Event fired when the button is clicked.
-	public EventAccessor<delegate void(Button)> Click => mClickEvent;
-
-	/// Whether this is the default button (responds to Enter key).
-	public bool IsDefault
+	public StringView Text
 	{
-		get => mIsDefault;
-		set => mIsDefault = value;
+		get => mText;
+		set
+		{
+			mText.Set(value);
+			InvalidateLayout();
+		}
 	}
 
-	/// Whether this is the cancel button (responds to Escape key).
-	public bool IsCancel
+	public float FontSize
 	{
-		get => mIsCancel;
-		set => mIsCancel = value;
+		get => mFontSize;
+		set
+		{
+			mFontSize = Math.Max(1, value);
+			InvalidateLayout();
+		}
 	}
 
-	/// Whether the button is currently pressed.
-	public bool IsPressed => mIsPressed;
+	public Color TextColor
+	{
+		get => mTextColor;
+		set { mTextColor = value; Invalidate(); }
+	}
+
+	/// Subscribe to click events.
+	public EventAccessor<delegate void(Button)> OnClick => mOnClick;
+
+	/// Optional command executed on click. Button auto-disables when CanExecute returns false.
+	public ICommand Command
+	{
+		get => mCommand;
+		set
+		{
+			if (mCommand != null && mCanExecuteChangedHandler != null)
+				mCommand.OnCanExecuteChanged.Unsubscribe(mCanExecuteChangedHandler, false);
+
+			mCommand = value;
+
+			if (mCommand != null)
+			{
+				if (mCanExecuteChangedHandler == null)
+					mCanExecuteChangedHandler = new () => { UpdateCommandEnabled(); };
+				mCommand.OnCanExecuteChanged.Subscribe(mCanExecuteChangedHandler);
+				UpdateCommandEnabled();
+			}
+		}
+	}
+
+	private void UpdateCommandEnabled()
+	{
+		if (mCommand != null)
+			Enabled = mCommand.CanExecute();
+	}
 
 	public this()
 	{
-		// Buttons are focusable
 		Focusable = true;
-		Cursor = .Pointer;
+		CursorType = .Pointer;
+		Padding = .(12, 8, 12, 8);
 	}
 
 	public this(StringView text) : this()
 	{
-		ContentText = text;
+		mText.Set(text);
 	}
 
-	protected override void OnMouseDownRouted(MouseButtonEventArgs args)
+	public override float GetBaseline()
 	{
-		base.OnMouseDownRouted(args);
+		if (Context == null || Context.FontService == null)
+			return -1;
 
-		if (args.Button == .Left && IsEnabled)
-		{
-			mIsPressed = true;
-			UpdateControlState();
-			Context?.CaptureMouse(this);
-			args.Handled = true;
-		}
+		let font = Context.FontService.GetFont(mFontSize);
+		if (font == null)
+			return -1;
+
+		// Text is centered vertically in content bounds
+		float contentH = Height - Padding.Vertical;
+		float lineH = font.Font.Metrics.LineHeight;
+		float baseline = Padding.Top + (contentH - lineH) * 0.5f + font.Font.Metrics.Ascent;
+		Context.FontService.ReleaseFont(font);
+		return baseline;
 	}
 
-	protected override void OnMouseUpRouted(MouseButtonEventArgs args)
+	protected override void OnMeasure(MeasureSpec widthSpec, MeasureSpec heightSpec)
 	{
-		base.OnMouseUpRouted(args);
+		float desiredW = Padding.Horizontal;
+		float desiredH = Padding.Vertical;
 
-		if (args.Button == .Left && mIsPressed)
+		if (!mText.IsEmpty && Context != null && Context.FontService != null)
 		{
-			Context?.ReleaseMouseCapture();
-			mIsPressed = false;
-			UpdateControlState();
-
-			// Fire click if mouse is still over button
-			// Use bounds check instead of IsMouseOver because IsMouseOver is only true
-			// for the exact hovered element, not for parent elements when clicking on
-			// child content (e.g., text inside a button).
-			if (Bounds.Contains(args.ScreenX, args.ScreenY) && IsEnabled)
+			let font = Context.FontService.GetFont(mFontSize);
+			if (font != null)
 			{
-				OnClick();
+				desiredW += font.Font.MeasureString(mText);
+				desiredH += font.Font.Metrics.LineHeight;
+				Context.FontService.ReleaseFont(font);
 			}
-
-			args.Handled = true;
 		}
-	}
-
-	protected override void OnMouseLeave()
-	{
-		base.OnMouseLeave();
-		// Update visual state when mouse leaves
-		// (don't release press state - allows drag-back to click)
-		UpdateControlState();
-	}
-
-	protected override void OnKeyDownRouted(KeyEventArgs args)
-	{
-		base.OnKeyDownRouted(args);
-
-		// Space or Enter activates button
-		if (IsEnabled && (args.Key == .Space || args.Key == .Return))
+		else
 		{
-			mIsPressed = true;
-			UpdateControlState();
-			args.Handled = true;
+			desiredH += mFontSize; // approximate
 		}
-	}
 
-	protected override void OnKeyUpRouted(KeyEventArgs args)
-	{
-		base.OnKeyUpRouted(args);
-
-		if (mIsPressed && (args.Key == .Space || args.Key == .Return))
+		// Respect background drawable's intrinsic size (like Android)
+		let theme = Context?.Theme;
+		let bgDrawable = theme?.GetDrawable("Button", "background");
+		if (bgDrawable != null)
 		{
-			mIsPressed = false;
-			UpdateControlState();
-			OnClick();
-			args.Handled = true;
+			let intrinsic = bgDrawable.IntrinsicSize;
+			if (intrinsic.Height > 0)
+				desiredH = Math.Max(desiredH, intrinsic.Height);
 		}
+
+		SetMeasuredDimension(
+			widthSpec.Resolve(desiredW, MinWidth, MaxWidth),
+			heightSpec.Resolve(desiredH, MinHeight, MaxHeight)
+		);
 	}
 
-	/// Called when the button is clicked.
-	protected override void OnClick()
+	protected override void OnDraw(DrawContext ctx)
 	{
-		mClickEvent.[Friend]Invoke(this);
-		base.OnClick();
-	}
+		let theme = Context?.Theme;
+		let palette = theme?.Palette ?? Palette.Dark;
 
-	protected override void UpdateControlState()
-	{
-		var state = Sedulous.UI.ControlState.Normal;
+		// Try theme drawable first
+		let bgDrawable = theme?.GetDrawable("Button", "background");
+		if (bgDrawable != null)
+		{
+			bgDrawable.Draw(ctx, .(0, 0, Width, Height), GetControlState());
+		}
+		else
+		{
+			let baseColor = theme?.GetColor("Button", "background") ?? palette.Primary;
+			let cornerRadius = theme?.GetDimension("Button", "cornerRadius") ?? 4;
+			let bg = Palette.ResolveState(baseColor, GetControlState(), palette.Accent);
+			ctx.FillRoundedRect(.(0, 0, Width, Height), cornerRadius, bg);
+		}
 
-		if (!IsEnabled)
-			state = (Sedulous.UI.ControlState)((int)state | (int)Sedulous.UI.ControlState.Disabled);
 		if (IsFocused)
-			state = (Sedulous.UI.ControlState)((int)state | (int)Sedulous.UI.ControlState.Focused);
-		if (IsMouseOverOrDescendant())
-			state = (Sedulous.UI.ControlState)((int)state | (int)Sedulous.UI.ControlState.Hovered);
-		if (mIsPressed)
-			state = (Sedulous.UI.ControlState)((int)state | (int)Sedulous.UI.ControlState.Pressed);
-
-		ControlState = state;
-	}
-
-	/// Checks if the mouse is over this button or any of its descendants.
-	private bool IsMouseOverOrDescendant()
-	{
-		if (IsMouseOver)
-			return true;
-
-		// Check if the currently hovered element is a descendant of this button
-		let hovered = Context?.HoveredElement;
-		if (hovered == null)
-			return false;
-
-		// Walk up the parent chain to see if we're an ancestor
-		var current = hovered;
-		while (current != null)
 		{
-			if (current == this)
-				return true;
-			current = current.Parent;
-		}
-		return false;
-	}
-
-	protected override void OnRender(DrawContext drawContext)
-	{
-		let bounds = Bounds;
-
-		// Get colors based on state
-		var bgColor = Background ?? GetStateColor();
-		let borderColor = BorderBrush ?? Color.Gray;
-
-		// Draw background
-		if (bgColor.HasValue)
-		{
-			drawContext.FillRect(bounds, bgColor.Value);
+			let cornerRadius = theme?.GetDimension("Button", "cornerRadius") ?? 4;
+			DrawFocusIndicator(ctx, .(0, 0, Width, Height), cornerRadius);
 		}
 
-		// Draw border
-		let bt = BorderThickness;
-		if (bt.TotalHorizontal > 0 || bt.TotalVertical > 0)
+		if (!mText.IsEmpty && Context != null && Context.FontService != null)
 		{
-			if (bt.Top > 0)
-				drawContext.FillRect(.(bounds.X, bounds.Y, bounds.Width, bt.Top), borderColor);
-			if (bt.Bottom > 0)
-				drawContext.FillRect(.(bounds.X, bounds.Bottom - bt.Bottom, bounds.Width, bt.Bottom), borderColor);
-			if (bt.Left > 0)
-				drawContext.FillRect(.(bounds.X, bounds.Y + bt.Top, bt.Left, bounds.Height - bt.TotalVertical), borderColor);
-			if (bt.Right > 0)
-				drawContext.FillRect(.(bounds.Right - bt.Right, bounds.Y + bt.Top, bt.Right, bounds.Height - bt.TotalVertical), borderColor);
+			let font = Context.FontService.GetFont(mFontSize);
+			if (font != null)
+			{
+				let atlasTexture = Context.FontService.GetAtlasTexture(font);
+				if (atlasTexture != null)
+				{
+					let baseTextColor = (mTextColor.A > 0) ? mTextColor : (theme?.GetColor("Button", "text") ?? palette.Text);
+				let textColor = Enabled ? baseTextColor : Palette.ComputeDisabled(baseTextColor);
+					ctx.DrawText(mText, font.Font, font.Atlas, atlasTexture, ContentBounds, .Center, .Middle, textColor);
+				}
+				Context.FontService.ReleaseFont(font);
+			}
 		}
-
-		// Render content
-		RenderContent(drawContext);
 	}
 
-	/// Gets a default color based on the current control state.
-	private Color? GetStateColor()
+	public override void OnMouseDown(MouseButtonEventArgs e)
 	{
-		let state = ControlState;
-		let theme = GetTheme();
+		if (!Enabled || e.Button != .Left)
+			return;
 
-		if (((int)state & (int)Sedulous.UI.ControlState.Disabled) != 0)
-			return theme?.GetColor("Disabled") ?? Color(200, 200, 200, 255);
-		if (((int)state & (int)Sedulous.UI.ControlState.Pressed) != 0)
-			return theme?.GetColor("Pressed") ?? Color(180, 180, 180, 255);
-		if (((int)state & (int)Sedulous.UI.ControlState.Hovered) != 0)
-			return theme?.GetColor("Hover") ?? Color(225, 225, 225, 255);
+		e.Handled = true;
+		Context?.FocusManager.SetCapture(this);
+	}
 
-		return theme?.GetColor("BackgroundAlt") ?? Color(240, 240, 240, 255);
+	public override void OnMouseUp(MouseButtonEventArgs e)
+	{
+		if (e.Button != .Left)
+			return;
+
+		Context?.FocusManager.ReleaseCapture();
+
+		if (!Enabled)
+			return;
+
+		// Fire click if mouse is still within bounds
+		if (e.LocalX >= 0 && e.LocalY >= 0 && e.LocalX <= Width && e.LocalY <= Height)
+		{
+			if (mCommand != null && mCommand.CanExecute())
+				mCommand.Execute();
+			mOnClick.[Friend]Invoke(this);
+		}
+
+		e.Handled = true;
+	}
+
+	public override void OnKeyDown(KeyEventArgs e)
+	{
+		if (!Enabled)
+			return;
+
+		// Space or Enter triggers click
+		if (e.Key == .Space || e.Key == .Return)
+		{
+			if (mCommand != null && mCommand.CanExecute())
+				mCommand.Execute();
+			mOnClick.[Friend]Invoke(this);
+			e.Handled = true;
+		}
 	}
 }

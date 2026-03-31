@@ -50,14 +50,18 @@ struct ShaderVariantKey : IHashable, IEquatable<ShaderVariantKey>
 
 		switch (Stage)
 		{
-		case .Vertex:
-			outFilename.Append("vs");
-		case .Fragment:
-			outFilename.Append("fs");
-		case .Compute:
-			outFilename.Append("cs");
-		case .None:
-			outFilename.Append("none");
+		case .Vertex:       outFilename.Append("vs");
+		case .Fragment:     outFilename.Append("fs");
+		case .Compute:      outFilename.Append("cs");
+		case .Mesh:         outFilename.Append("ms");
+		case .Task:         outFilename.Append("as");
+		case .RayGen:       outFilename.Append("rgen");
+		case .ClosestHit:   outFilename.Append("rchit");
+		case .Miss:         outFilename.Append("rmiss");
+		case .AnyHit:       outFilename.Append("rahit");
+		case .Intersection: outFilename.Append("rint");
+		case .None:         outFilename.Append("none");
+		case .AllGraphics, .All: outFilename.Append("all");
 		}
 
 		if (Flags != .None)
@@ -74,14 +78,15 @@ struct ShaderVariantKey : IHashable, IEquatable<ShaderVariantKey>
 	{
 		switch (Stage)
 		{
-		case .Vertex:
-			outProfile.AppendF("vs_{}", shaderModel);
-		case .Fragment:
-			outProfile.AppendF("ps_{}", shaderModel);
-		case .Compute:
-			outProfile.AppendF("cs_{}", shaderModel);
-		case .None:
-			outProfile.Append("lib_6_0");
+		case .Vertex:       outProfile.AppendF("vs_{}", shaderModel);
+		case .Fragment:     outProfile.AppendF("ps_{}", shaderModel);
+		case .Compute:      outProfile.AppendF("cs_{}", shaderModel);
+		case .Mesh:         outProfile.AppendF("ms_{}", shaderModel);
+		case .Task:         outProfile.AppendF("as_{}", shaderModel);
+		case .RayGen, .ClosestHit, .Miss, .AnyHit, .Intersection:
+			outProfile.AppendF("lib_{}", shaderModel);
+		case .None, .AllGraphics, .All:
+			outProfile.AppendF("lib_{}", shaderModel);
 		}
 	}
 

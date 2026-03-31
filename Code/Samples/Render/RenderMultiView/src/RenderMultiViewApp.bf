@@ -4,7 +4,6 @@ using System;
 using System.Collections;
 using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
-using Sedulous.Shell;
 using Sedulous.Runtime.Client;
 using Sedulous.Render;
 using Sedulous.Geometry;
@@ -18,12 +17,12 @@ class RenderMultiViewApp : Application
 	private const int32 GRID_SIZE = 5;
 
 	// Render system
-	private RenderSystem mRenderSystem ~ delete _;
-	private RenderWorld mWorld ~ delete _;
+	private RenderSystem mRenderSystem;
+	private RenderWorld mWorld;
 
 	// Two views for split-screen
-	private RenderView mPlayerView ~ delete _;
-	private RenderView mOrbitView ~ delete _;
+	private RenderView mPlayerView;
+	private RenderView mOrbitView;
 
 	// Render features
 	private DepthPrepassFeature mDepthFeature;
@@ -56,15 +55,15 @@ class RenderMultiViewApp : Application
 	// Split-screen layout
 	private bool mHorizontalSplit = true;
 
-	public this(IShell shell, IDevice device, IBackend backend)
-		: base(shell, device, backend)
+	public this()
+		: base()
 	{
 	}
 
 	protected override void OnInitialize(Sedulous.Runtime.Context context)
 	{
 		mRenderSystem = new RenderSystem();
-		if (mRenderSystem.Initialize(mDevice, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null, .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
+		if (mRenderSystem.Initialize(mDevice, mSwapChain.Width, mSwapChain.Height, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null, .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
 		{
 			Console.WriteLine("ERROR: Failed to initialize RenderSystem");
 			return;
@@ -330,11 +329,27 @@ class RenderMultiViewApp : Application
 		return true;
 	}
 
+	protected override void OnResize(int32 width, int32 height)
+	{
+		mRenderSystem?.SetViewportSize((uint32)width, (uint32)height);
+	}
+
 	protected override void OnShutdown()
 	{
-		if (mCubeMeshHandle.IsValid) mRenderSystem.ResourceManager.ReleaseMesh(mCubeMeshHandle, mRenderSystem.FrameNumber);
-		if (mFloorMeshHandle.IsValid) mRenderSystem.ResourceManager.ReleaseMesh(mFloorMeshHandle, mRenderSystem.FrameNumber);
+		mWorld?.Dispose();
+
+		if (mRenderSystem != null)
+		{
+			if (mCubeMeshHandle.IsValid) mRenderSystem.ResourceManager.ReleaseMesh(mCubeMeshHandle, mRenderSystem.FrameNumber);
+			if (mFloorMeshHandle.IsValid) mRenderSystem.ResourceManager.ReleaseMesh(mFloorMeshHandle, mRenderSystem.FrameNumber);
+		}
+
 		mRenderSystem?.Shutdown();
+		delete mRenderSystem; mRenderSystem = null;
+		delete mWorld;
+		delete mPlayerView;
+		delete mOrbitView;
+
 		Console.WriteLine("Render Multi-View shutting down");
 	}
 }

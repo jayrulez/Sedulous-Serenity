@@ -34,7 +34,7 @@ float4 main(PSInput input) : SV_TARGET
 
     // Reconstruct scene world position from depth
     float2 screenUV = input.Position.xy / ScreenSize;
-    float2 ndc = screenUV * 2.0 - 1.0;
+    float2 ndc = float2(screenUV.x * 2.0 - 1.0, (1.0 - screenUV.y) * 2.0 - 1.0);
 
     float4 viewPos4 = mul(float4(ndc, sceneDepth, 1.0), InvProjectionMatrix);
     float3 viewPos = viewPos4.xyz / viewPos4.w;

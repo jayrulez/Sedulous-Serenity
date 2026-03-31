@@ -4,7 +4,6 @@ using System;
 using System.Collections;
 using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
-using Sedulous.Shell;
 using Sedulous.Runtime.Client;
 using Sedulous.Render;
 using Sedulous.Geometry;
@@ -14,17 +13,17 @@ using Sedulous.Models;
 using Sedulous.Models.GLTF;
 using Sedulous.Animation;
 using Sedulous.Imaging;
+using Sedulous.Textures;
 
 /// Unlit material sample demonstrating unlit vs PBR materials side-by-side
 /// with animated Fox models via the Sedulous.Render pipeline.
 class RenderUnlitApp : Application
 {
-	private RenderSystem mRenderSystem ~ delete _;
-	private RenderWorld mWorld ~ delete _;
-	private RenderView mView ~ delete _;
+	private RenderSystem mRenderSystem;
+	private RenderWorld mWorld;
+	private RenderView mView;
 
 	// Features
-	private GPUSkinningFeature mSkinningFeature;
 	private DepthPrepassFeature mDepthFeature;
 	private ForwardOpaqueFeature mForwardFeature;
 	private SkyFeature mSkyFeature;
@@ -64,14 +63,14 @@ class RenderUnlitApp : Application
 	private Vector3 mCameraForward;
 	private bool mMouseCaptured = false;
 
-	public this(IShell shell, IDevice device, IBackend backend) : base(shell, device, backend) { }
+	public this() : base() { }
 
 	protected override void OnInitialize(Sedulous.Runtime.Context context)
 	{
 		Sedulous.Imaging.SDL.SDLImageLoader.Initialize();
 
 		mRenderSystem = new RenderSystem();
-		if (mRenderSystem.Initialize(mDevice, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null, .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
+		if (mRenderSystem.Initialize(mDevice, mSwapChain.Width, mSwapChain.Height, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null, .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
 		{ Console.WriteLine("ERROR: Failed to initialize RenderSystem"); return; }
 
 		mWorld = mRenderSystem.CreateWorld();
@@ -103,9 +102,6 @@ class RenderUnlitApp : Application
 
 	private void RegisterFeatures()
 	{
-		mSkinningFeature = new GPUSkinningFeature();
-		mRenderSystem.RegisterFeature(mSkinningFeature);
-
 		mDepthFeature = new DepthPrepassFeature();
 		mRenderSystem.RegisterFeature(mDepthFeature);
 
@@ -457,6 +453,11 @@ class RenderUnlitApp : Application
 		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
 	}
 
+	protected override void OnResize(int32 width, int32 height)
+	{
+		mRenderSystem?.SetViewportSize((uint32)width, (uint32)height);
+	}
+
 	private void UpdateDebugDrawing()
 	{
 		if (mOverlayFeature == null) return;
@@ -497,18 +498,26 @@ class RenderUnlitApp : Application
 	{
 		mWorld?.Dispose();
 
-		if (mCubeMeshHandle.IsValid) mRenderSystem.ResourceManager.ReleaseMesh(mCubeMeshHandle, mRenderSystem.FrameNumber);
-		if (mPlaneMeshHandle.IsValid) mRenderSystem.ResourceManager.ReleaseMesh(mPlaneMeshHandle, mRenderSystem.FrameNumber);
-		if (mFoxMeshHandle.IsValid) mRenderSystem.ResourceManager.ReleaseMesh(mFoxMeshHandle, mRenderSystem.FrameNumber);
-		if (mFoxTextureHandle.IsValid) mRenderSystem.ResourceManager.ReleaseTexture(mFoxTextureHandle, mRenderSystem.FrameNumber);
-
-		for (int f = 0; f < FOX_COUNT; f++)
+		if (mRenderSystem != null)
 		{
-			if (mBoneBufferHandles[f].IsValid)
-				mRenderSystem.ResourceManager.ReleaseBoneBuffer(mBoneBufferHandles[f], mRenderSystem.FrameNumber);
-		}
+			if (mCubeMeshHandle.IsValid) mRenderSystem.ResourceManager.ReleaseMesh(mCubeMeshHandle, mRenderSystem.FrameNumber);
+			if (mPlaneMeshHandle.IsValid) mRenderSystem.ResourceManager.ReleaseMesh(mPlaneMeshHandle, mRenderSystem.FrameNumber);
+			if (mFoxMeshHandle.IsValid) mRenderSystem.ResourceManager.ReleaseMesh(mFoxMeshHandle, mRenderSystem.FrameNumber);
+			if (mFoxTextureHandle.IsValid) mRenderSystem.ResourceManager.ReleaseTexture(mFoxTextureHandle, mRenderSystem.FrameNumber);
 
-		mRenderSystem?.Shutdown();
+			for (int f = 0; f < FOX_COUNT; f++)
+			{
+				if (mBoneBufferHandles[f].IsValid)
+					mRenderSystem.ResourceManager.ReleaseBoneBuffer(mBoneBufferHandles[f], mRenderSystem.FrameNumber);
+			}
+
+			mRenderSystem.Shutdown();
+			delete mRenderSystem;
+			mRenderSystem = null;
+		}
+		delete mWorld;
+		delete mView;
+
 		Console.WriteLine("Render Unlit shutting down");
 	}
 }

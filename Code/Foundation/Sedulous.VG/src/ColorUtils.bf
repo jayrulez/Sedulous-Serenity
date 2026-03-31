@@ -11,10 +11,10 @@ public static class ColorUtils
 	{
 		let ct = Math.Clamp(t, 0.0f, 1.0f);
 		return Color(
-			(uint8)(a.R + (int)(b.R - a.R) * ct),
-			(uint8)(a.G + (int)(b.G - a.G) * ct),
-			(uint8)(a.B + (int)(b.B - a.B) * ct),
-			(uint8)(a.A + (int)(b.A - a.A) * ct)
+			(uint8)((float)a.R + ((float)b.R - (float)a.R) * ct),
+			(uint8)((float)a.G + ((float)b.G - (float)a.G) * ct),
+			(uint8)((float)a.B + ((float)b.B - (float)a.B) * ct),
+			(uint8)((float)a.A + ((float)b.A - (float)a.A) * ct)
 		);
 	}
 

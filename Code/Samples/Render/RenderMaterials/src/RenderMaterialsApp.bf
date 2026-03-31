@@ -4,7 +4,6 @@ using System;
 using System.Collections;
 using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
-using Sedulous.Shell;
 using Sedulous.Runtime.Client;
 using Sedulous.Render;
 using Sedulous.Geometry;
@@ -14,18 +13,18 @@ using Sedulous.Models;
 using Sedulous.Models.GLTF;
 using Sedulous.Animation;
 using Sedulous.Imaging;
+using Sedulous.Textures;
 
 /// Materials sample demonstrating a 5x5 PBR sphere grid with varying
 /// metallic (columns) and roughness (rows) via the Sedulous.Render pipeline.
 /// Includes an animated Fox model and interactive light direction control.
 class RenderMaterialsApp : Application
 {
-	private RenderSystem mRenderSystem ~ delete _;
-	private RenderWorld mWorld ~ delete _;
-	private RenderView mView ~ delete _;
+	private RenderSystem mRenderSystem;
+	private RenderWorld mWorld;
+	private RenderView mView;
 
 	// Features
-	private GPUSkinningFeature mSkinningFeature;
 	private DepthPrepassFeature mDepthFeature;
 	private ForwardOpaqueFeature mForwardFeature;
 	private OverlayRenderFeature mOverlayFeature;
@@ -76,7 +75,7 @@ class RenderMaterialsApp : Application
 	private Vector3 mCameraForward;
 	private bool mMouseCaptured = false;
 
-	public this(IShell shell, IDevice device, IBackend backend) : base(shell, device, backend) { }
+	public this() : base() { }
 
 	protected override void OnInitialize(Sedulous.Runtime.Context context)
 	{
@@ -84,7 +83,7 @@ class RenderMaterialsApp : Application
 		Sedulous.Imaging.STB.STBImageLoader.Initialize();
 
 		mRenderSystem = new RenderSystem();
-		if (mRenderSystem.Initialize(mDevice, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null, .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
+		if (mRenderSystem.Initialize(mDevice, mSwapChain.Width, mSwapChain.Height, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null, .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
 		{ Console.WriteLine("ERROR: Failed to initialize RenderSystem"); return; }
 
 		mWorld = mRenderSystem.CreateWorld();
@@ -119,9 +118,6 @@ class RenderMaterialsApp : Application
 
 	private void RegisterFeatures()
 	{
-		mSkinningFeature = new GPUSkinningFeature();
-		mRenderSystem.RegisterFeature(mSkinningFeature);
-
 		mDepthFeature = new DepthPrepassFeature();
 		mRenderSystem.RegisterFeature(mDepthFeature);
 
@@ -582,6 +578,11 @@ class RenderMaterialsApp : Application
 		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
 	}
 
+	protected override void OnResize(int32 width, int32 height)
+	{
+		mRenderSystem?.SetViewportSize((uint32)width, (uint32)height);
+	}
+
 	private void UpdateDebugDrawing(float dt)
 	{
 		if (mOverlayFeature == null) return;
@@ -640,12 +641,21 @@ class RenderMaterialsApp : Application
 	{
 		mWorld?.Dispose();
 
-		if (mSphereMeshHandle.IsValid) mRenderSystem.ResourceManager.ReleaseMesh(mSphereMeshHandle, mRenderSystem.FrameNumber);
-		if (mPlaneMeshHandle.IsValid) mRenderSystem.ResourceManager.ReleaseMesh(mPlaneMeshHandle, mRenderSystem.FrameNumber);
-		if (mFoxMeshHandle.IsValid) mRenderSystem.ResourceManager.ReleaseMesh(mFoxMeshHandle, mRenderSystem.FrameNumber);
-		if (mBoneBufferHandle.IsValid) mRenderSystem.ResourceManager.ReleaseBoneBuffer(mBoneBufferHandle, mRenderSystem.FrameNumber);
-		if (mFoxTextureHandle.IsValid) mRenderSystem.ResourceManager.ReleaseTexture(mFoxTextureHandle, mRenderSystem.FrameNumber);
-		mRenderSystem?.Shutdown();
+		if (mRenderSystem != null)
+		{
+			if (mSphereMeshHandle.IsValid) mRenderSystem.ResourceManager.ReleaseMesh(mSphereMeshHandle, mRenderSystem.FrameNumber);
+			if (mPlaneMeshHandle.IsValid) mRenderSystem.ResourceManager.ReleaseMesh(mPlaneMeshHandle, mRenderSystem.FrameNumber);
+			if (mFoxMeshHandle.IsValid) mRenderSystem.ResourceManager.ReleaseMesh(mFoxMeshHandle, mRenderSystem.FrameNumber);
+			if (mBoneBufferHandle.IsValid) mRenderSystem.ResourceManager.ReleaseBoneBuffer(mBoneBufferHandle, mRenderSystem.FrameNumber);
+			if (mFoxTextureHandle.IsValid) mRenderSystem.ResourceManager.ReleaseTexture(mFoxTextureHandle, mRenderSystem.FrameNumber);
+
+			mRenderSystem.Shutdown();
+			delete mRenderSystem;
+			mRenderSystem = null;
+		}
+		delete mWorld;
+		delete mView;
+
 		Console.WriteLine("Render Materials shutting down");
 	}
 }

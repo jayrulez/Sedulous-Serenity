@@ -7,72 +7,62 @@ using Sedulous.RHI;
 /// Vulkan implementation of IComputePipeline.
 class VulkanComputePipeline : IComputePipeline
 {
-	private VulkanDevice mDevice;
-	private VulkanPipelineLayout mLayout;
 	private VkPipeline mPipeline;
-
-	public this(VulkanDevice device, ComputePipelineDesc descriptor)
-	{
-		mDevice = device;
-		mLayout = descriptor.Layout as VulkanPipelineLayout;
-		CreatePipeline(descriptor);
-		if (mPipeline != default && descriptor.Label.Ptr != null && descriptor.Label.Length > 0)
-			mDevice.SetDebugName(mPipeline.Handle, .VK_OBJECT_TYPE_PIPELINE, descriptor.Label);
-	}
-
-	public ~this()
-	{
-		Dispose();
-	}
-
-	public void Dispose()
-	{
-		if (mPipeline != default)
-		{
-			VulkanNative.vkDestroyPipeline(mDevice.Device, mPipeline, null);
-			mPipeline = default;
-		}
-	}
-
-	/// Returns true if the pipeline was created successfully.
-	public bool IsValid => mPipeline != default;
+	private VulkanPipelineLayout mLayout;
 
 	public IPipelineLayout Layout => mLayout;
 
-	/// Gets the Vulkan pipeline handle.
-	public VkPipeline Pipeline => mPipeline;
+	public this() { }
 
-	private void CreatePipeline(ComputePipelineDesc descriptor)
+	public Result<void> Init(VulkanDevice device, ComputePipelineDesc desc)
 	{
-		if (mLayout == null || !mLayout.IsValid)
-			return;
+		mLayout = desc.Layout as VulkanPipelineLayout;
+		if (mLayout == null)
+		{
+			System.Diagnostics.Debug.WriteLine("VulkanComputePipeline: layout is not a VulkanPipelineLayout");
+			return .Err;
+		}
 
-		if (descriptor.Compute.Module == null)
-			return;
+		let vkModule = desc.Compute.Module as VulkanShaderModule;
+		if (vkModule == null)
+		{
+			System.Diagnostics.Debug.WriteLine("VulkanComputePipeline: compute shader module is not a VulkanShaderModule");
+			return .Err;
+		}
 
-		let vkModule = descriptor.Compute.Module as VulkanShaderModule;
-		if (vkModule == null || !vkModule.IsValid)
-			return;
+		let entryStr = scope String(desc.Compute.EntryPoint);
 
-		String entryPoint = scope .(descriptor.Compute.EntryPoint);
+		VkPipelineShaderStageCreateInfo stage = .();
+		stage.stage = .VK_SHADER_STAGE_COMPUTE_BIT;
+		stage.module = vkModule.Handle;
+		stage.pName = entryStr.CStr();
 
-		VkPipelineShaderStageCreateInfo shaderStage = .()
-			{
-				sType = .VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-				stage = .VK_SHADER_STAGE_COMPUTE_BIT,
-				module = vkModule.ShaderModule,
-				pName = entryPoint.CStr()
-			};
+		VkComputePipelineCreateInfo pipelineInfo = .();
+		pipelineInfo.stage = stage;
+		pipelineInfo.layout = mLayout.Handle;
 
-		VkComputePipelineCreateInfo pipelineInfo = .()
-			{
-				sType = .VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
-				stage = shaderStage,
-				layout = mLayout.PipelineLayout,
-				basePipelineHandle = default,
-				basePipelineIndex = -1
-			};
+		VkPipelineCache cache = .Null;
+		if (let vkCache = desc.Cache as VulkanPipelineCache)
+			cache = vkCache.Handle;
 
-		VulkanNative.vkCreateComputePipelines(mDevice.Device, default, 1, &pipelineInfo, null, &mPipeline);
+		let result = VulkanNative.vkCreateComputePipelines(device.Handle, cache, 1, &pipelineInfo, null, &mPipeline);
+		if (result != .VK_SUCCESS)
+		{
+			System.Diagnostics.Debug.WriteLine(scope $"VulkanComputePipeline: vkCreateComputePipelines failed ({result})");
+			return .Err;
+		}
+
+		return .Ok;
 	}
+
+	public void Cleanup(VulkanDevice device)
+	{
+		if (mPipeline.Handle != 0)
+		{
+			VulkanNative.vkDestroyPipeline(device.Handle, mPipeline, null);
+			mPipeline = .Null;
+		}
+	}
+
+	public VkPipeline Handle => mPipeline;
 }

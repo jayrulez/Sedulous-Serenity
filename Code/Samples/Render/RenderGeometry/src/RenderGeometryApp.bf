@@ -3,7 +3,6 @@ namespace RenderGeometry;
 using System;
 using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
-using Sedulous.Shell;
 using Sedulous.Runtime.Client;
 using Sedulous.Render;
 using Sedulous.Geometry;
@@ -13,10 +12,10 @@ using Sedulous.Materials;
 /// skybox, and PBR lighting via the Sedulous.Render pipeline.
 class RenderGeometryApp : Application
 {
-	// Render system
-	private RenderSystem mRenderSystem ~ delete _;
-	private RenderWorld mWorld ~ delete _;
-	private RenderView mView ~ delete _;
+	// Render system (cleaned up in OnShutdown before device destruction)
+	private RenderSystem mRenderSystem;
+	private RenderWorld mWorld;
+	private RenderView mView;
 
 	// Render features
 	private DepthPrepassFeature mDepthFeature;
@@ -49,8 +48,7 @@ class RenderGeometryApp : Application
 	// Animation
 	private float mCubeRotation = 0;
 
-	public this(IShell shell, IDevice device, IBackend backend)
-		: base(shell, device, backend)
+	public this() : base()
 	{
 	}
 
@@ -58,7 +56,7 @@ class RenderGeometryApp : Application
 	{
 		// Initialize render system
 		mRenderSystem = new RenderSystem();
-		if (mRenderSystem.Initialize(mDevice, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null, .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
+		if (mRenderSystem.Initialize(mDevice, mSwapChain.Width, mSwapChain.Height, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null, .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
 		{
 			Console.WriteLine("ERROR: Failed to initialize RenderSystem");
 			return;
@@ -268,6 +266,11 @@ class RenderGeometryApp : Application
 		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
 	}
 
+	protected override void OnResize(int32 width, int32 height)
+	{
+		mRenderSystem?.SetViewportSize((uint32)width, (uint32)height);
+	}
+
 	protected override bool OnRenderFrame(RenderContext render)
 	{
 		mRenderSystem.BeginFrame((float)render.Frame.TotalTime, (float)render.Frame.DeltaTime);
@@ -296,11 +299,19 @@ class RenderGeometryApp : Application
 
 	protected override void OnShutdown()
 	{
-		if (mCubeMeshHandle.IsValid)
-			mRenderSystem.ResourceManager.ReleaseMesh(mCubeMeshHandle, mRenderSystem.FrameNumber);
+		mWorld?.Dispose();
 
 		if (mRenderSystem != null)
+		{
+			if (mCubeMeshHandle.IsValid)
+				mRenderSystem.ResourceManager.ReleaseMesh(mCubeMeshHandle, mRenderSystem.FrameNumber);
+
 			mRenderSystem.Shutdown();
+			delete mRenderSystem;
+			mRenderSystem = null;
+		}
+		delete mWorld;
+		delete mView;
 
 		Console.WriteLine("Render Geometry shutting down");
 	}

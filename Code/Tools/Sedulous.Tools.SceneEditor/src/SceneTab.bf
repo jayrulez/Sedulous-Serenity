@@ -72,6 +72,10 @@ class SceneTab
 	/// Destroys per-tab UI elements. Scene is managed by SceneSubsystem.
 	public void DestroyUI()
 	{
+		// Dispose viewport GPU resources before deleting UI
+		if (Viewport != null)
+			Viewport.Dispose();
+
 		if (ContentPanel != null)
 		{
 			if (ContentPanel.Context != null)

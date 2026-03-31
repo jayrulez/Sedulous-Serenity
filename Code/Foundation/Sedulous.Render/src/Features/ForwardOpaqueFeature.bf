@@ -35,13 +35,12 @@ struct ObjectUniforms
 /// Renders all opaque geometry with full PBR shading and clustered lighting.
 public class ForwardOpaqueFeature : RenderFeatureBase
 {
-	// Lighting system
-	private LightingSystem mLighting ~ delete _;
-	private ShadowRenderer mShadowRenderer ~ delete _;
-	private bool mShadowPassesActive = false; // Whether shadow passes actually ran this frame
+	// Lighting system (owned by RenderSystem, accessed via Renderer.LightingSystem)
+	// Shadow renderer (owned by RenderSystem, accessed via Renderer.ShadowRenderer)
+	// Shadow passes active flag on Renderer.ShadowRenderer.ShadowPassesActive
 
 	// Bind groups (per-frame, per-view for multi-buffering)
-	private IBindGroupLayout mSceneBindGroupLayout ~ delete _;
+	// Scene bind group layout is shared via Renderer.SharedLayouts.SceneLayout
 	private IBindGroup[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mSceneBindGroups;
 
 	// Object uniform buffers (per-frame for multi-buffering)
@@ -52,62 +51,43 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 	// Pipeline cache is owned by RenderSystem - access via Renderer.PipelineCache
 
 	// Shadow depth rendering (per-frame for multi-buffering)
-	private IRenderPipeline mShadowDepthPipeline ~ delete _;
-	private IPipelineLayout mShadowPipelineLayout ~ delete _;
-	private IBindGroupLayout mShadowBindGroupLayout ~ delete _;
+	private IRenderPipeline mShadowDepthPipeline;
+	private IPipelineLayout mShadowPipelineLayout;
+	private IBindGroupLayout mShadowBindGroupLayout;
 	private IBindGroup[RenderConfig.FrameBufferCount] mShadowBindGroups;
 	private IBuffer[RenderConfig.FrameBufferCount] mShadowUniformBuffers; // Per-cascade SceneUniforms for light matrices
 	private IBuffer[RenderConfig.FrameBufferCount] mShadowObjectBuffers;  // Per-object transforms for shadow pass
 	private SceneUniforms mShadowUniforms; // CPU-side shadow uniforms
 	private uint64 mAlignedSceneUniformSize; // Aligned size for dynamic uniform offset
 
-	// Dummy shadow map array for when shadows are disabled
-	private ITexture mDummyShadowMapArray ~ delete _;
-	private ITextureView mDummyShadowMapArrayView ~ delete _;
-
 	// Track shadow state when bind groups were created (for runtime toggling)
 	private bool[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mSceneBindGroupShadowState;
 
-	// IBL fallback resources (used when SkyFeature has no IBL maps)
-	private ITexture mFallbackIrradianceCubemap ~ delete _;
-	private ITextureView mFallbackIrradianceCubemapView ~ delete _;
-	private ITexture mFallbackPrefilteredCubemap ~ delete _;
-	private ITextureView mFallbackPrefilteredCubemapView ~ delete _;
-	private ITexture mFallbackBRDFLut ~ delete _;
-	private ITextureView mFallbackBRDFLutView ~ delete _;
-	private ISampler mIBLSampler ~ delete _;
+	// Track IBL generation when bind groups were created (for runtime IBL swapping)
 	private uint32[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mSceneBindGroupIBLGeneration;
 
 	// Reflection probe system
-	private ReflectionProbeSystem mProbeSystem ~ delete _;
+	// Reflection probe system (owned by RenderSystem, accessed via Renderer.ProbeSystem)
 	private uint32[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mSceneBindGroupProbeGeneration;
 
 	/// Feature name.
 	public override StringView Name => "ForwardOpaque";
 
-	/// Gets the current frame index for multi-buffering.
-	private int32 FrameIndex => Renderer.RenderFrameContext?.FrameIndex ?? 0;
+	/// Gets the lighting system (owned by RenderSystem).
+	public LightingSystem Lighting => Renderer.LightingSystem;
 
-	/// Gets bind group array index for current frame and active view.
-	private int32 GetBindGroupIndex(int32 frameIndex) => frameIndex * RenderConfig.MaxViews + (Renderer.RenderFrameContext?.ActiveViewIndex ?? 0);
-
-	/// Gets the lighting system.
-	public LightingSystem Lighting => mLighting;
-
-	/// Gets the shadow renderer.
-	public ShadowRenderer ShadowRenderer => mShadowRenderer;
+	/// Gets the shadow renderer (owned by RenderSystem).
+	public ShadowRenderer ShadowRenderer => Renderer.ShadowRenderer;
 
 	/// Invalidates all cached scene bind groups so they are recreated next frame.
 	/// Call before destroying IBL views that scene bind groups may reference.
 	public void InvalidateSceneBindGroups()
 	{
+		let device = Renderer.Device;
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
 		{
 			if (mSceneBindGroups[i] != null)
-			{
-				delete mSceneBindGroups[i];
-				mSceneBindGroups[i] = null;
-			}
+				device.DestroyBindGroup(ref mSceneBindGroups[i]);
 		}
 	}
 
@@ -118,21 +98,13 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		outDependencies.Add("DepthPrepass");
 	}
 
-	protected override Result<void> OnInitialize()
+	protected override Result<void> OnInitialize(InitContext initCtx)
 	{
-		// Initialize lighting system
-		mLighting = new LightingSystem();
-		if (mLighting.Initialize(Renderer.Device, .Default, Renderer.ShaderSystem) case .Err)
-			return .Err;
+		// Lighting system initialized by RenderSystem (accessed via Renderer.LightingSystem)
 
-		// Initialize shadow renderer
-		mShadowRenderer = new ShadowRenderer();
-		if (mShadowRenderer.Initialize(Renderer.Device) case .Err)
-			return .Err;
+		// Shadow renderer initialized by RenderSystem (accessed via Renderer.ShadowRenderer)
 
-		// Create bind group layouts
-		if (CreateBindGroupLayouts() case .Err)
-			return .Err;
+		// Scene bind group layout now shared via Renderer.SharedLayouts
 
 		// Create object uniform buffer
 		if (CreateObjectUniformBuffer() case .Err)
@@ -146,18 +118,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		if (CreateShadowPipeline() case .Err)
 			return .Err;
 
-		// Create dummy shadow map for when shadows are disabled
-		if (CreateDummyShadowMap() case .Err)
-			return .Err;
-
-		// Create IBL fallback resources
-		if (CreateIBLFallbackResources() case .Err)
-			return .Err;
-
-		// Initialize reflection probe system
-		mProbeSystem = new ReflectionProbeSystem();
-		if (mProbeSystem.Initialize(Renderer.Device, Renderer.TransferBatch) case .Err)
-			return .Err;
+		// Reflection probe system initialized by RenderSystem
 
 		return .Ok;
 	}
@@ -166,9 +127,9 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 	private bool mInstancingEnabled = false;
 
 	// Shadow instancing
-	private IRenderPipeline mShadowInstancedPipeline ~ delete _;
-	private IPipelineLayout mShadowInstancedPipelineLayout ~ delete _;
-	private IBindGroupLayout mShadowInstancedBindGroupLayout ~ delete _;
+	private IRenderPipeline mShadowInstancedPipeline;
+	private IPipelineLayout mShadowInstancedPipelineLayout;
+	private IBindGroupLayout mShadowInstancedBindGroupLayout;
 	private IBindGroup[RenderConfig.FrameBufferCount] mShadowInstancedBindGroups;
 	private InstanceBufferManager mShadowInstanceBufferManager ~ { if (_ != null) { _.Shutdown(); delete _; } };
 	private DrawBatcher mShadowBatcher = new .() ~ delete _;
@@ -183,7 +144,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 	{
 		let pipelineCache = Renderer.PipelineCache;
 		let materialSystem = Renderer.MaterialSystem;
-		if (pipelineCache == null || mSceneBindGroupLayout == null || materialSystem == null)
+		if (pipelineCache == null || Renderer.SharedLayouts.SceneLayout == null || materialSystem == null)
 			return null;
 
 		// Get or create the material's bind group layout
@@ -232,10 +193,10 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			if (pipelineCache.GetPipelineForMaterial(
 				material,
 				vertexBuffers,
-				mSceneBindGroupLayout,
+				Renderer.SharedLayouts.SceneLayout,
 				materialLayout,
 				.RGBA16Float,
-				.Depth32Float,
+				Renderer.DepthFormat,
 				1,
 				variantFlags,
 				.ReadOnly,
@@ -258,10 +219,10 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			if (pipelineCache.GetPipelineForMaterial(
 				material,
 				vertexBuffers,
-				mSceneBindGroupLayout,
+				Renderer.SharedLayouts.SceneLayout,
 				materialLayout,
 				.RGBA16Float,
-				.Depth32Float,
+				Renderer.DepthFormat,
 				1,
 				variantFlags,
 				.ReadOnly,
@@ -325,6 +286,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		{
 			BufferDesc uniformDesc = .()
 			{
+				Label = "Shadow Scene Uniforms",
 				Size = AlignedSceneUniformSize * 4, // 4 cascades
 				Usage = .Uniform,
 				Memory = .CpuToGpu // CPU-mappable
@@ -345,6 +307,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		{
 			BufferDesc objDesc = .()
 			{
+				Label = "Shadow Object Uniforms",
 				Size = AlignedObjectUniformSize * RenderConfig.MaxOpaqueObjectsPerFrame,
 				Usage = .Uniform,
 				Memory = .CpuToGpu // CPU-mappable
@@ -534,7 +497,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				continue;
 
 			BindGroupEntry[1] entries = .(
-				BindGroupEntry.Buffer(0, shadowUniformBuffer, 0, mAlignedSceneUniformSize)
+				BindGroupEntry.Buffer(/*0,*/shadowUniformBuffer, 0, mAlignedSceneUniformSize)
 			);
 
 			BindGroupDesc bgDesc = .()
@@ -549,313 +512,50 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		}
 	}
 
-	private Result<void> CreateDummyShadowMap()
-	{
-		// Create a small 4x4 depth array texture with 4 layers for use when shadows are disabled
-		// This satisfies the shader's expectation of Texture2DArray for ShadowMap
-		// Using 4x4 instead of 1x1 to avoid sampling artifacts with comparison sampler
-		TextureDesc texDesc = .()
-		{
-			Label = "Dummy Shadow Map Array",
-			Dimension = .Texture2D,
-			Width = 4,
-			Height = 4,
-			Depth = 1,
-			Format = .Depth32Float,
-			MipLevelCount = 1,
-			ArrayLayerCount = 4, // Match cascade count
-			SampleCount = 1,
-			Usage = .DepthStencil | .Sampled
-		};
-
-		switch (Renderer.Device.CreateTexture(texDesc))
-		{
-		case .Ok(let tex): mDummyShadowMapArray = tex;
-		case .Err: return .Err;
-		}
-
-		// Create array view for sampling
-		TextureViewDesc viewDesc = .()
-		{
-			Label = "Dummy Shadow Map Array View",
-			Format = .Depth32Float,
-			Dimension = .Texture2DArray,
-			BaseMipLevel = 0,
-			MipLevelCount = 1,
-			BaseArrayLayer = 0,
-			ArrayLayerCount = 4,
-			Aspect = .DepthOnly
-		};
-
-		switch (Renderer.Device.CreateTextureView(mDummyShadowMapArray, viewDesc))
-		{
-		case .Ok(let view): mDummyShadowMapArrayView = view;
-		case .Err: return .Err;
-		}
-
-		// Initialize to max depth (1.0 = fully lit, no shadow) via a clear render pass
-		// This transitions the texture out of UNDEFINED layout
-		ClearDummyShadowMap();
-
-		return .Ok;
-	}
-
-	private void ClearDummyShadowMap()
-	{
-		if (mDummyShadowMapArray == null)
-			return;
-
-		// Create temporary views for all layers
-		ITextureView[4] layerViews = .(null, null, null, null);
-		defer
-		{
-			for (let view in layerViews)
-				if (view != null)
-					delete view;
-		}
-
-		for (uint32 layer = 0; layer < 4; layer++)
-		{
-			TextureViewDesc layerViewDesc = .()
-			{
-				Label = "Dummy Shadow Layer View",
-				Format = .Depth32Float,
-				Dimension = .Texture2D,
-				BaseMipLevel = 0,
-				MipLevelCount = 1,
-				BaseArrayLayer = layer,
-				ArrayLayerCount = 1,
-				Aspect = .DepthOnly
-			};
-
-			if (Renderer.Device.CreateTextureView(mDummyShadowMapArray, layerViewDesc) case .Ok(let view))
-				layerViews[layer] = view;
-		}
-
-		// Use a single command encoder to clear all layers and transition
-		let encoder = Renderer.Device.CreateCommandEncoder();
-		if (encoder == null)
-			return;
-		defer delete encoder;
-
-		// Clear each layer with a render pass
-		for (uint32 layer = 0; layer < 4; layer++)
-		{
-			if (layerViews[layer] == null)
-				continue;
-
-			RenderPassDesc rpDesc = .()
-			{
-				Label = "Clear Dummy Shadow Layer",
-				DepthStencilAttachment = .()
-				{
-					View = layerViews[layer],
-					DepthLoadOp = .Clear,
-					DepthStoreOp = .Store,
-					DepthClearValue = 1.0f // Max depth = no shadow
-				}
-			};
-
-			let pass = encoder.BeginRenderPass(&rpDesc);
-			if (pass != null)
-			{
-				pass.End();
-				delete pass;
-			}
-		}
-
-		// Transition whole texture to ShaderReadOnly after all clears
-		encoder.TextureBarrier(mDummyShadowMapArray, .DepthStencilAttachment, .ShaderReadOnly);
-
-		let cmdBuffer = encoder.Finish();
-		if (cmdBuffer != null)
-		{
-			Renderer.Device.Queue.Submit(cmdBuffer);
-			// Wait for GPU to finish before we delete the views
-			Renderer.Device.WaitIdle();
-			delete cmdBuffer;
-		}
-	}
-
-	private Result<void> CreateIBLFallbackResources()
-	{
-		// Create 1x1 fallback irradiance cubemap (white = neutral ambient)
-		{
-			TextureDesc texDesc = .Cubemap(1, .RGBA16Float, .Sampled | .CopyDst);
-			switch (Renderer.Device.CreateTexture(texDesc))
-			{
-			case .Ok(let tex): mFallbackIrradianceCubemap = tex;
-			case .Err: return .Err;
-			}
-
-			uint16[4] whitePixel = .(0x3C00, 0x3C00, 0x3C00, 0x3C00); // 1.0 in half-float
-			TextureDataLayout layout = .() { BytesPerRow = 8, RowsPerImage = 1 };
-			Extent3D size = .(1, 1, 1);
-			for (uint32 face = 0; face < 6; face++)
-				UploadTexture(mFallbackIrradianceCubemap, Span<uint8>((uint8*)&whitePixel, 8), &layout, &size, 0, face);
-
-			TextureViewDesc viewDesc = .()
-			{
-				Format = .RGBA16Float,
-				Dimension = .TextureCube,
-				BaseMipLevel = 0,
-				MipLevelCount = 1,
-				BaseArrayLayer = 0,
-				ArrayLayerCount = 6
-			};
-
-			switch (Renderer.Device.CreateTextureView(mFallbackIrradianceCubemap, viewDesc))
-			{
-			case .Ok(let view): mFallbackIrradianceCubemapView = view;
-			case .Err: return .Err;
-			}
-		}
-
-		// Create 1x1 fallback prefiltered cubemap (white = neutral specular)
-		{
-			TextureDesc texDesc = .Cubemap(1, .RGBA16Float, .Sampled | .CopyDst);
-			switch (Renderer.Device.CreateTexture(texDesc))
-			{
-			case .Ok(let tex): mFallbackPrefilteredCubemap = tex;
-			case .Err: return .Err;
-			}
-
-			uint16[4] whitePixel = .(0x3C00, 0x3C00, 0x3C00, 0x3C00);
-			TextureDataLayout layout = .() { BytesPerRow = 8, RowsPerImage = 1 };
-			Extent3D size = .(1, 1, 1);
-			for (uint32 face = 0; face < 6; face++)
-				UploadTexture(mFallbackPrefilteredCubemap, Span<uint8>((uint8*)&whitePixel, 8), &layout, &size, 0, face);
-
-			TextureViewDesc viewDesc = .()
-			{
-				Format = .RGBA16Float,
-				Dimension = .TextureCube,
-				BaseMipLevel = 0,
-				MipLevelCount = 1,
-				BaseArrayLayer = 0,
-				ArrayLayerCount = 6
-			};
-
-			switch (Renderer.Device.CreateTextureView(mFallbackPrefilteredCubemap, viewDesc))
-			{
-			case .Ok(let view): mFallbackPrefilteredCubemapView = view;
-			case .Err: return .Err;
-			}
-		}
-
-		// Create 1x1 fallback BRDF LUT (identity: scale=1.0, bias=0.0)
-		{
-			TextureDesc texDesc = .()
-			{
-				Label = "Fallback BRDF LUT",
-				Width = 1,
-				Height = 1,
-				Depth = 1,
-				Format = .RG16Float,
-				MipLevelCount = 1,
-				ArrayLayerCount = 1,
-				SampleCount = 1,
-				Dimension = .Texture2D,
-				Usage = .Sampled | .CopyDst
-			};
-
-			switch (Renderer.Device.CreateTexture(texDesc))
-			{
-			case .Ok(let tex): mFallbackBRDFLut = tex;
-			case .Err: return .Err;
-			}
-
-			uint16[2] brdfPixel = .(0x3C00, 0x0000); // (1.0, 0.0) in half-float
-			TextureDataLayout layout = .() { BytesPerRow = 4, RowsPerImage = 1 };
-			Extent3D size = .(1, 1, 1);
-			UploadTexture(mFallbackBRDFLut, Span<uint8>((uint8*)&brdfPixel, 4), &layout, &size);
-
-			TextureViewDesc viewDesc = .()
-			{
-				Format = .RG16Float,
-				Dimension = .Texture2D
-			};
-
-			switch (Renderer.Device.CreateTextureView(mFallbackBRDFLut, viewDesc))
-			{
-			case .Ok(let view): mFallbackBRDFLutView = view;
-			case .Err: return .Err;
-			}
-		}
-
-		// Create IBL sampler (linear min/mag/mip, clamp to edge)
-		{
-			SamplerDesc samplerDesc = .();
-			samplerDesc.MinFilter = .Linear;
-			samplerDesc.MagFilter = .Linear;
-			samplerDesc.MipmapFilter = .Linear;
-			samplerDesc.AddressU = .ClampToEdge;
-			samplerDesc.AddressV = .ClampToEdge;
-			samplerDesc.AddressW = .ClampToEdge;
-
-			switch (Renderer.Device.CreateSampler(samplerDesc))
-			{
-			case .Ok(let sampler): mIBLSampler = sampler;
-			case .Err: return .Err;
-			}
-		}
-
-		return .Ok;
-	}
-
 	protected override void OnShutdown()
 	{
-		// Pipeline cache is cleaned up by destructor (~ delete _)
+		let device = Renderer.Device;
 
 		// Clean up per-frame, per-view bind groups
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
 		{
 			if (mSceneBindGroups[i] != null)
-			{
-				delete mSceneBindGroups[i];
-				mSceneBindGroups[i] = null;
-			}
+				device.DestroyBindGroup(ref mSceneBindGroups[i]);
 		}
 
 		// Clean up per-frame resources (not per-view)
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
 			if (mObjectUniformBuffers[i] != null)
-			{
-				delete mObjectUniformBuffers[i];
-				mObjectUniformBuffers[i] = null;
-			}
+				device.DestroyBuffer(ref mObjectUniformBuffers[i]);
 
 			if (mShadowBindGroups[i] != null)
-			{
-				delete mShadowBindGroups[i];
-				mShadowBindGroups[i] = null;
-			}
+				device.DestroyBindGroup(ref mShadowBindGroups[i]);
 
 			if (mShadowUniformBuffers[i] != null)
-			{
-				delete mShadowUniformBuffers[i];
-				mShadowUniformBuffers[i] = null;
-			}
+				device.DestroyBuffer(ref mShadowUniformBuffers[i]);
 
 			if (mShadowObjectBuffers[i] != null)
-			{
-				delete mShadowObjectBuffers[i];
-				mShadowObjectBuffers[i] = null;
-			}
+				device.DestroyBuffer(ref mShadowObjectBuffers[i]);
 
 			if (mShadowInstancedBindGroups[i] != null)
-			{
-				delete mShadowInstancedBindGroups[i];
-				mShadowInstancedBindGroups[i] = null;
-			}
+				device.DestroyBindGroup(ref mShadowInstancedBindGroups[i]);
 		}
 
-		if (mLighting != null)
-			mLighting.Dispose();
+		// Lighting system disposed by RenderSystem
 
-		if (mShadowRenderer != null)
-			mShadowRenderer.Dispose();
+		// Shadow renderer disposed by RenderSystem
+
+		// Probe system disposed by RenderSystem
+
+		// Destroy RHI resources
+		// Scene bind group layout owned by SharedBindGroupLayouts
+		device.DestroyRenderPipeline(ref mShadowDepthPipeline);
+		device.DestroyPipelineLayout(ref mShadowPipelineLayout);
+		device.DestroyBindGroupLayout(ref mShadowBindGroupLayout);
+		device.DestroyRenderPipeline(ref mShadowInstancedPipeline);
+		device.DestroyPipelineLayout(ref mShadowInstancedPipelineLayout);
+		device.DestroyBindGroupLayout(ref mShadowInstancedBindGroupLayout);
 	}
 
 	/// Prepares shared frame data: lighting, shadows, object uniforms.
@@ -869,16 +569,15 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				return;
 
 			// Update lighting shared data from main view (cluster grid, light data, uniforms)
-			let mainView = views[0];
 			using (SProfiler.Begin("UpdateLighting"))
-				UpdateLighting(world, depthFeature.Visibility, mainView, frameIndex);
+				UpdateLighting(world, Renderer.Visibility, Renderer.ViewContext, frameIndex);
 
 			// Cull lights per-view (each view needs its own cluster assignments
 			// because light positions in view space differ per camera)
 			using (SProfiler.Begin("CullLightsPerView"))
 			{
 				for (int32 i = 0; i < (int32)views.Length; i++)
-					mLighting.ClusterGrid.CullLightsCPU(world, depthFeature.Visibility, views[i].ViewMatrix, frameIndex, i);
+					Lighting.ClusterGrid.CullLightsCPU(world, Renderer.Visibility, views[i].ViewMatrix, frameIndex, i);
 			}
 
 			// Upload object uniforms (shared across views)
@@ -886,12 +585,12 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				PrepareObjectUniforms(depthFeature, frameIndex);
 
 			// Update reflection probe uniforms (bakes dirty probes + uploads data)
-			if (mProbeSystem != null)
-				mProbeSystem.UpdateProbeUniforms(world, frameIndex);
+			if (Renderer.ProbeSystem != null)
+				Renderer.ProbeSystem.UpdateProbeUniforms(world, frameIndex);
 		}
 	}
 
-	public override void AddPasses(RenderGraph graph, RenderView view, RenderWorld world)
+	public override void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world)
 	{
 		using (SProfiler.Begin("ForwardOpaque.AddPasses"))
 		{
@@ -906,64 +605,67 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				return;
 
 			// Create HDR color buffer
-			let colorDesc = TextureResourceDesc(view.Width, view.Height, .RGBA16Float, .RenderTarget | .Sampled);
-			let colorHandle = graph.CreateTexture("SceneColor", colorDesc);
+			let colorDesc = RGTextureDesc(.RGBA16Float, view.Width, view.Height) { Usage = .RenderTarget | .Sampled };
+			let colorHandle = graph.CreateTransient("SceneColor", colorDesc);
 
 			// Create normal-roughness GBuffer (octahedral normal RG, roughness B, metallic A)
-			let gbufferDesc = TextureResourceDesc(view.Width, view.Height, .RGBA8Unorm, .RenderTarget | .Sampled);
-			let gbufferHandle = graph.CreateTexture("SceneNormalRoughness", gbufferDesc);
+			let gbufferDesc = RGTextureDesc(.RGBA8Unorm, view.Width, view.Height) { Usage = .RenderTarget | .Sampled };
+			let gbufferHandle = graph.CreateTransient("SceneNormalRoughness", gbufferDesc);
 
-			let frameIndex = FrameIndex;
+			let frameIndex = view.FrameIndex;
+			let bgIndex = view.GetBindGroupIndex();
 
 			// Single-view path: do lighting/uniforms here if PrepareFrame wasn't called
-			if (Renderer.RenderFrameContext.ViewCount <= 1)
+			if (view.ViewCount <= 1)
 			{
 				using (SProfiler.Begin("UpdateLighting"))
-					UpdateLighting(world, depthFeature.Visibility, view, frameIndex);
+					UpdateLighting(world, Renderer.Visibility, view, frameIndex);
 
 				// Cull lights for this single view
-				mLighting.ClusterGrid.CullLightsCPU(world, depthFeature.Visibility, view.ViewMatrix, frameIndex);
+				Lighting.ClusterGrid.CullLightsCPU(world, Renderer.Visibility, view.ViewMatrix, frameIndex);
 
 				using (SProfiler.Begin("PrepareObjectUniforms"))
 					PrepareObjectUniforms(depthFeature, frameIndex);
 
 				// Update reflection probes
-				if (mProbeSystem != null)
-					mProbeSystem.UpdateProbeUniforms(world, frameIndex);
+				if (Renderer.ProbeSystem != null)
+					Renderer.ProbeSystem.UpdateProbeUniforms(world, frameIndex);
 			}
 
 			// Shadow passes: only for first view (shadow maps shared across views)
-			RGResourceHandle shadowMapHandle = .Invalid;
+			RGHandle shadowMapHandle = .Invalid;
 			if (view.ViewIndex == 0)
 			{
 				using (SProfiler.Begin("AddShadowPasses"))
-					AddShadowPasses(graph, world, depthFeature.Visibility, view, frameIndex, out shadowMapHandle);
+					AddShadowPasses(graph, world, Renderer.Visibility, view, frameIndex, out shadowMapHandle);
 			}
-			else if (mShadowPassesActive)
+			else if (Renderer.ShadowRenderer.ShadowPassesActive)
 			{
 				// Import already-rendered shadow map for barrier tracking
-				let cascadedShadowMap = mShadowRenderer.CascadedShadows?.ShadowMapArray;
-				let cascadedShadowMapView = mShadowRenderer.CascadedShadows?.ShadowMapArrayView;
+				let cascadedShadowMap = ShadowRenderer.CascadedShadows?.ShadowMapArray;
+				let cascadedShadowMapView = ShadowRenderer.CascadedShadows?.ShadowMapArrayView;
 				if (cascadedShadowMap != null && cascadedShadowMapView != null)
-					shadowMapHandle = graph.ImportTexture("ShadowMap", cascadedShadowMap, cascadedShadowMapView);
+					shadowMapHandle = graph.ImportTarget("ShadowMap", cascadedShadowMap, cascadedShadowMapView);
 			}
 
 			// Create/update scene bind group for current frame+view
-			CreateSceneBindGroup(frameIndex);
+			CreateSceneBindGroup(frameIndex, bgIndex);
 
 			// Add forward opaque pass
-			var passBuilder = graph.AddGraphicsPass("ForwardOpaque")
-				.WriteColor(colorHandle, .Clear, .Store, .(0.0f, 0.0f, 0.0f, 1.0f))
-				.WriteColor(gbufferHandle, .Clear, .Store, .(0.5f, 0.5f, 0.0f, 0.0f)) // Neutral normal (forward-facing), zero roughness/metallic
-				.ReadDepth(depthHandle)
-				.NeverCull();
+			let shadowMapRef = shadowMapHandle;
+			graph.AddRenderPass("ForwardOpaque", scope (builder) => {
+				builder.SetColorTarget(0, colorHandle, .Clear, .Store, ClearColor(0.0f, 0.0f, 0.0f, 1.0f));
+				builder.SetColorTarget(1, gbufferHandle, .Clear, .Store, ClearColor(0.5f, 0.5f, 0.0f, 0.0f));
+				builder.ReadDepth(depthHandle);
+				builder.NeverCull();
 
-			// Add shadow map as read dependency if available
-			if (shadowMapHandle.IsValid)
-				passBuilder.ReadTexture(shadowMapHandle);
+				// Add shadow map as read dependency if available
+				if (shadowMapRef.IsValid)
+					builder.ReadTexture(shadowMapRef);
 
-			passBuilder.SetExecuteCallback(new (encoder) => {
-				ExecuteForwardPass(encoder, world, view, depthFeature, frameIndex);
+				builder.SetExecute(new /*[&, =frameIndex, =bgIndex]*/(encoder) => {
+					ExecuteForwardPass(encoder, world, view, depthFeature, frameIndex, bgIndex);
+				});
 			});
 		}
 	}
@@ -972,7 +674,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 	{
 		// Upload object transforms to the uniform buffer BEFORE the render pass
 		// Use Map/Unmap to avoid command buffer creation
-		let skinnedCommands = depthFeature.Batcher.SkinnedCommands;
+		let skinnedCommands = Renderer.Batcher.SkinnedCommands;
 
 		// Use the current frame's buffer
 		let buffer = mObjectUniformBuffers[frameIndex];
@@ -984,10 +686,10 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			int32 objectIndex = 0;
 
 			// Static meshes - SKIP if instancing is active (instance buffer has transforms)
-			if (!depthFeature.InstancingActive)
+			if (!Renderer.GetFeature<DepthPrepassFeature>().InstancingActive)
 			{
-				let commands = depthFeature.Batcher.DrawCommands;
-				for (let batch in depthFeature.Batcher.OpaqueBatches)
+				let commands = Renderer.Batcher.DrawCommands;
+				for (let batch in Renderer.Batcher.OpaqueBatches)
 				{
 					if (batch.CommandCount == 0)
 						continue;
@@ -1021,7 +723,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			}
 
 			// Skinned meshes - always need uniforms (not instanced)
-			for (let batch in depthFeature.Batcher.SkinnedBatches)
+			for (let batch in Renderer.Batcher.SkinnedBatches)
 			{
 				if (batch.CommandCount == 0)
 					continue;
@@ -1057,49 +759,49 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		}
 	}
 
-	private void UpdateLighting(RenderWorld world, VisibilityResolver visibility, RenderView view, int32 frameIndex)
+	private void UpdateLighting(RenderWorld world, VisibilityResolver visibility, ViewContext view, int32 frameIndex)
 	{
 		// Update cluster grid
 		let inverseProj = Matrix.Invert(view.ProjectionMatrix);
-		mLighting.ClusterGrid.Update(view.Width, view.Height, view.NearPlane, view.FarPlane, inverseProj);
+		Lighting.ClusterGrid.Update(view.Width, view.Height, view.NearPlane, view.FarPlane, inverseProj);
 
 		// Calculate cluster scale/bias for shader
-		let config = mLighting.ClusterGrid.Config;
+		let config = Lighting.ClusterGrid.Config;
 		let clusterScaleX = (float)config.ClustersX / (float)view.Width;
 		let clusterScaleY = (float)config.ClustersY / (float)view.Height;
 		let logDepthScale = (float)config.ClustersZ / Math.Log(view.FarPlane / view.NearPlane);
 		let logDepthBias = -(float)config.ClustersZ * Math.Log(view.NearPlane) / Math.Log(view.FarPlane / view.NearPlane);
 
 		// Update light buffer cluster info
-		mLighting.LightBuffer.SetClusterInfo(
+		Lighting.LightBuffer.SetClusterInfo(
 			config.ClustersX, config.ClustersY, config.ClustersZ,
 			.(clusterScaleX, clusterScaleY),
 			.(logDepthScale, logDepthBias)
 		);
 
 		// Apply environment settings from RenderWorld
-		mLighting.LightBuffer.AmbientColor = world.AmbientColor;
-		mLighting.LightBuffer.AmbientIntensity = world.AmbientIntensity;
-		mLighting.LightBuffer.Exposure = world.Exposure;
+		Lighting.LightBuffer.AmbientColor = world.AmbientColor;
+		Lighting.LightBuffer.AmbientIntensity = world.AmbientIntensity;
+		Lighting.LightBuffer.Exposure = world.Exposure;
 
 		// Update light buffer from visibility
-		mLighting.LightBuffer.Update(world, visibility);
-		mLighting.LightBuffer.UploadLightData(frameIndex);
-		mLighting.LightBuffer.UploadUniforms(frameIndex);
+		Lighting.LightBuffer.Update(world, visibility);
+		Lighting.LightBuffer.UploadLightData(frameIndex);
+		Lighting.LightBuffer.UploadUniforms(frameIndex);
 
 		// Note: CullLightsCPU is called separately per-view (in PrepareFrame or AddPasses)
 		// because cluster light assignments depend on each view's camera matrix.
 	}
 
-	private void AddShadowPasses(RenderGraph graph, RenderWorld world, VisibilityResolver visibility, RenderView view, int32 frameIndex, out RGResourceHandle outShadowMapHandle)
+	private void AddShadowPasses(RenderGraph graph, RenderWorld world, VisibilityResolver visibility, ViewContext view, int32 frameIndex, out RGHandle outShadowMapHandle)
 	{
 		outShadowMapHandle = .Invalid;
-		mShadowPassesActive = false;
+		Renderer.ShadowRenderer.ShadowPassesActive = false;
 
-		if (!mShadowRenderer.EnableShadows)
+		if (!ShadowRenderer.EnableShadows)
 			return;
 
-		if (!mShadowRenderer.IsInitialized)
+		if (!ShadowRenderer.IsInitialized)
 			return;
 
 		// Create camera proxy from RenderView for CSM calculations
@@ -1115,16 +817,16 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		);
 
 		// Update shadow renderer
-		mShadowRenderer.Update(world, visibility, &camera);
+		ShadowRenderer.Update(world, visibility, &camera);
 
 		// Get shadow passes
 		List<ShadowPass> shadowPasses = scope .();
-		mShadowRenderer.GetShadowPasses(shadowPasses);
+		ShadowRenderer.GetShadowPasses(shadowPasses);
 
 		if (shadowPasses.Count == 0)
 			return;
 
-		mShadowPassesActive = true;
+		Renderer.ShadowRenderer.ShadowPassesActive = true;
 
 		// Upload all shadow uniforms BEFORE adding passes (avoid WriteBuffer during render pass)
 		PrepareShadowUniforms(world, visibility, shadowPasses, frameIndex);
@@ -1139,11 +841,11 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 		// Import the shadow map array once with a common name for barrier tracking
 		// This handle will be used by the forward pass to trigger automatic barrier
-		let cascadedShadowMap = mShadowRenderer.CascadedShadows?.ShadowMapArray;
-		let cascadedShadowMapView = mShadowRenderer.CascadedShadows?.ShadowMapArrayView;
+		let cascadedShadowMap = ShadowRenderer.CascadedShadows?.ShadowMapArray;
+		let cascadedShadowMapView = ShadowRenderer.CascadedShadows?.ShadowMapArrayView;
 		if (cascadedShadowMap != null && cascadedShadowMapView != null)
 		{
-			outShadowMapHandle = graph.ImportTexture("ShadowMap", cascadedShadowMap, cascadedShadowMapView);
+			outShadowMapHandle = graph.ImportTarget("ShadowMap", cascadedShadowMap, cascadedShadowMapView);
 		}
 
 		// Add each shadow pass
@@ -1168,22 +870,23 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			String passName = scope $"Shadow_{shadowPass.Type}_{shadowPass.CascadeIndex}";
 
 			// Get the actual texture based on pass type
-			ITexture shadowTexture = mShadowRenderer.CascadedShadows?.ShadowMapArray;
+			ITexture shadowTexture = ShadowRenderer.CascadedShadows?.ShadowMapArray;
 
 			if (shadowTexture == null || shadowPass.RenderTarget == null)
 				continue;
 
 			// Import shadow render target with actual texture
-			let shadowTarget = graph.ImportTexture(passName, shadowTexture, shadowPass.RenderTarget);
+			let shadowTarget = graph.ImportTarget(passName, shadowTexture, shadowPass.RenderTarget);
 
 			// Copy shadow pass for closure - use CascadeIndex from the pass itself
 			ShadowPass passCopy = shadowPass;
-			graph.AddGraphicsPass(passName)
-				.WriteDepth(shadowTarget)
-				.NeverCull() // Shadow maps are used externally by forward pass
-				.SetExecuteCallback(new (encoder) => {
+			graph.AddRenderPass(passName, scope (builder) => {
+				builder.SetDepthTarget(shadowTarget, .Clear, .Store);
+				builder.NeverCull();
+				builder.SetExecute(new (encoder) => {
 					ExecuteShadowPass(encoder, world, visibility, passCopy, frameIndex);
 				});
+			});
 		}
 	}
 
@@ -1304,48 +1007,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		}
 	}
 
-	private Result<void> CreateBindGroupLayouts()
-	{
-		// Scene bind group: camera, per-object transforms, lighting, shadows
-		// Shader bindings (space0): b0=Camera, b1=ObjectUniforms, b3=LightingUniforms, b5=ShadowUniforms,
-		//                           t4=Lights, t5=ClusterLightInfo, t6=LightIndices (read-only StructuredBuffers),
-		//                           t7=ShadowMap, s1=ShadowSampler
-		// Use HLSL register numbers - RHI applies Vulkan shifts based on Type
-		BindGroupLayoutEntry[15] sceneEntries = .(
-			.() { Binding = 0, Visibility = .Vertex | .Fragment, Type = .UniformBuffer }, // b0: Camera
-			.() { Binding = 1, Visibility = .Vertex, Type = .UniformBuffer, HasDynamicOffset = true }, // b1: ObjectUniforms (dynamic offset per-object)
-			.() { Binding = 3, Visibility = .Fragment, Type = .UniformBuffer },           // b3: Lighting uniforms
-			.() { Binding = 4, Visibility = .Fragment, Type = .StorageBuffer },           // t4: Lights (StructuredBuffer)
-			.() { Binding = 5, Visibility = .Fragment, Type = .StorageBuffer },           // t5: ClusterLightInfo (StructuredBuffer)
-			.() { Binding = 6, Visibility = .Fragment, Type = .StorageBuffer },           // t6: LightIndices (StructuredBuffer)
-			.() { Binding = 5, Visibility = .Fragment, Type = .UniformBuffer },           // b5: Shadow uniforms
-			.() { Binding = 7, Visibility = .Fragment, Type = .SampledTexture },          // t7: ShadowMap
-			.() { Binding = 1, Visibility = .Fragment, Type = .ComparisonSampler },       // s1: ShadowSampler
-			BindGroupLayoutEntry.SampledTexture(8, .Fragment, .TextureCube),               // t8: Irradiance Map
-			BindGroupLayoutEntry.SampledTexture(9, .Fragment, .TextureCube),               // t9: Prefiltered Map
-			BindGroupLayoutEntry.SampledTexture(10, .Fragment, .Texture2D),                // t10: BRDF LUT
-			BindGroupLayoutEntry.Sampler(2, .Fragment),                                    // s2: IBL Sampler
-			.() { Binding = 6, Visibility = .Fragment, Type = .UniformBuffer },           // b6: ProbeUniforms
-			BindGroupLayoutEntry.SampledTexture(11, .Fragment, .TextureCubeArray)          // t11: ProbeCubemaps
-		);
-
-		BindGroupLayoutDesc sceneDesc = .()
-		{
-			Label = "Scene BindGroup Layout",
-			Entries = sceneEntries
-		};
-
-		switch (Renderer.Device.CreateBindGroupLayout(sceneDesc))
-		{
-		case .Ok(let layout): mSceneBindGroupLayout = layout;
-		case .Err: return .Err;
-		}
-
-		// Material bind group layout is now provided by MaterialSystem
-		// See Renderer.MaterialSystem.DefaultMaterialLayout
-
-		return .Ok;
-	}
+	// Scene bind group layout creation moved to SharedBindGroupLayouts
 
 	private Result<void> CreateObjectUniformBuffer()
 	{
@@ -1355,6 +1017,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		{
 			var bufferDesc = BufferDesc()
 			{
+				Label = "ForwardOpaque Object Uniforms",
 				Size = AlignedObjectUniformSize * RenderConfig.MaxOpaqueObjectsPerFrame,
 				Usage = .Uniform,
 				Memory = .CpuToGpu // CPU-mappable
@@ -1370,19 +1033,18 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		return .Ok;
 	}
 
-	private void CreateSceneBindGroup(int32 frameIndex)
+	private void CreateSceneBindGroup(int32 frameIndex, int32 bgIndex)
 	{
-		let bgIndex = GetBindGroupIndex(frameIndex);
 
 		// Use shadow map only when shadow passes actually ran this frame
-		let shadowsEnabled = mShadowPassesActive;
+		let shadowsEnabled = Renderer.ShadowRenderer.ShadowPassesActive;
 
 		// Check IBL state (generation counter detects view replacements, not just null transitions)
 		let skyFeature = Renderer.GetFeature<SkyFeature>();
 		let iblGeneration = skyFeature?.IBLGeneration ?? 0;
 
 		// Check probe state
-		let probeGeneration = mProbeSystem?.Generation ?? 0;
+		let probeGeneration = Renderer.ProbeSystem?.Generation ?? 0;
 
 		// Check if bind group exists and state hasn't changed
 		if (mSceneBindGroups[bgIndex] != null)
@@ -1392,115 +1054,12 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 				mSceneBindGroupProbeGeneration[bgIndex] == probeGeneration)
 				return;
 
-			delete mSceneBindGroups[bgIndex];
-			mSceneBindGroups[bgIndex] = null;
+			Renderer.Device.DestroyBindGroup(ref mSceneBindGroups[bgIndex]);
 		}
 
-		// Need all resources to be valid - use frame-specific buffers
-		let cameraBuffer = Renderer.RenderFrameContext?.SceneUniformBuffer;
-		let objectBuffer = mObjectUniformBuffers[frameIndex];
-		let lightingBuffer = mLighting?.LightBuffer?.GetUniformBuffer(frameIndex);
-		let lightDataBuffer = mLighting?.LightBuffer?.GetLightDataBuffer(frameIndex);
-		let viewIndex = Renderer.RenderFrameContext?.ActiveViewIndex ?? 0;
-		let clusterInfoBuffer = mLighting?.ClusterGrid?.GetClusterLightInfoBuffer(frameIndex, viewIndex);
-		let lightIndexBuffer = mLighting?.ClusterGrid?.GetLightIndexBuffer(frameIndex, viewIndex);
-
-		// Check required resources
-		if (cameraBuffer == null || objectBuffer == null ||
-			lightingBuffer == null || lightDataBuffer == null ||
-			clusterInfoBuffer == null || lightIndexBuffer == null)
-		{
-			return; // Can't create bind group without all resources
-		}
-
-		// Build bind group entries
-		// Note: Some shadow resources may be null - provide fallbacks or skip
-		BindGroupEntry[15] entries = .();
-
-		// b0: Camera uniforms
-		entries[0] = BindGroupEntry.Buffer(0, cameraBuffer, 0, SceneUniforms.Size);
-
-		// b1: Object uniforms (dynamic offset - bind full buffer, use aligned size per object)
-		entries[1] = BindGroupEntry.Buffer(1, objectBuffer, 0, AlignedObjectUniformSize);
-
-		// b3: Lighting uniforms
-		entries[2] = BindGroupEntry.Buffer(3, lightingBuffer, 0, (uint64)LightingUniforms.Size);
-
-		// t4: Lights storage buffer
-		entries[3] = BindGroupEntry.Buffer(4, lightDataBuffer, 0, (uint64)(mLighting.LightBuffer.MaxLights * GPULight.Size));
-
-		// t5: ClusterLightInfo storage buffer (8 bytes per cluster: 2 uint32)
-		entries[4] = BindGroupEntry.Buffer(5, clusterInfoBuffer, 0, (uint64)(mLighting.ClusterGrid.Config.TotalClusters * 8));
-
-		// t6: LightIndices storage buffer
-		entries[5] = BindGroupEntry.Buffer(6, lightIndexBuffer, 0, (uint64)(mLighting.ClusterGrid.Config.MaxLightsPerCluster * mLighting.ClusterGrid.Config.TotalClusters * 4));
-
-		// Get shadow resources from ShadowRenderer (shadowsEnabled already computed at function start)
-		let shadowData = mShadowRenderer.GetShadowShaderData();
-		let materialSystem = Renderer.MaterialSystem;
-
-		// b5: Shadow uniforms
-		if (shadowsEnabled && shadowData.CascadedShadowUniforms != null)
-			entries[6] = BindGroupEntry.Buffer(5, shadowData.CascadedShadowUniforms, 0, (uint64)ShadowUniforms.Size);
-		else
-			entries[6] = BindGroupEntry.Buffer(5, lightingBuffer, 0, (uint64)LightingUniforms.Size); // Fallback
-
-		// t7: Shadow map texture (cascaded shadow map array)
-		// Only use shadow map if shadows are enabled - otherwise use dummy shadow map array
-		if (shadowsEnabled && shadowData.CascadedShadowMapView != null)
-			entries[7] = BindGroupEntry.Texture(7, shadowData.CascadedShadowMapView);
-		else if (mDummyShadowMapArrayView != null)
-			entries[7] = BindGroupEntry.Texture(7, mDummyShadowMapArrayView); // Dummy 4-layer array
-		else
-			return; // Can't create without texture
-
-		// s1: Shadow sampler (comparison sampler for PCF)
-		// Always use the shadow sampler if available (comparison sampler needed for depth comparison)
-		if (shadowData.CascadedShadowSampler != null)
-			entries[8] = BindGroupEntry.Sampler(1, shadowData.CascadedShadowSampler);
-		else if (materialSystem?.DefaultSampler != null)
-			entries[8] = BindGroupEntry.Sampler(1, materialSystem.DefaultSampler); // Fallback
-		else
-			return; // Can't create without sampler
-
-		// IBL resources (t8: Irradiance, t9: Prefiltered, t10: BRDF LUT, s2: IBL Sampler)
-		ITextureView irradianceView = mFallbackIrradianceCubemapView;
-		ITextureView prefilteredView = mFallbackPrefilteredCubemapView;
-		ITextureView brdfLutView = mFallbackBRDFLutView;
-		ISampler iblSampler = mIBLSampler;
-
-		if (skyFeature != null)
-		{
-			if (skyFeature.IrradianceMapView != null) irradianceView = skyFeature.IrradianceMapView;
-			if (skyFeature.PrefilteredMapView != null) prefilteredView = skyFeature.PrefilteredMapView;
-			if (skyFeature.BRDFLutView != null) brdfLutView = skyFeature.BRDFLutView;
-			if (skyFeature.EnvironmentSampler != null) iblSampler = skyFeature.EnvironmentSampler;
-		}
-
-		if (irradianceView == null || prefilteredView == null || brdfLutView == null || iblSampler == null)
-			return;
-
-		entries[9] = BindGroupEntry.Texture(8, irradianceView);
-		entries[10] = BindGroupEntry.Texture(9, prefilteredView);
-		entries[11] = BindGroupEntry.Texture(10, brdfLutView);
-		entries[12] = BindGroupEntry.Sampler(2, iblSampler);
-
-		// Probe resources (b6: ProbeUniforms, t11: ProbeCubemaps)
-		if (mProbeSystem == null || mProbeSystem.GetProbeUniformBuffer(frameIndex) == null || mProbeSystem.GetCubemapArrayView() == null)
-			return;
-
-		entries[13] = BindGroupEntry.Buffer(6, mProbeSystem.GetProbeUniformBuffer(frameIndex), 0, ProbeUniforms.Size);
-		entries[14] = BindGroupEntry.Texture(11, mProbeSystem.GetCubemapArrayView());
-
-		// Create bind group
-		BindGroupDesc bgDesc = .()
-		{
-			Label = "Scene BindGroup",
-			Layout = mSceneBindGroupLayout,
-			Entries = entries
-		};
-
-		if (Renderer.Device.CreateBindGroup(bgDesc) case .Ok(let bg))
+		// Create via shared helper (uses shared layout, RenderSystem subsystems)
+		let bg = Renderer.SharedLayouts.CreateSceneBindGroup(frameIndex, mObjectUniformBuffers[frameIndex], Renderer.ProbeSystem);
+		if (bg != null)
 		{
 			mSceneBindGroups[bgIndex] = bg;
 			mSceneBindGroupShadowState[bgIndex] = shadowsEnabled;
@@ -1509,7 +1068,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		}
 	}
 
-	private void ExecuteForwardPass(IRenderPassEncoder encoder, RenderWorld world, RenderView view, DepthPrepassFeature depthFeature, int32 frameIndex)
+	private void ExecuteForwardPass(IRenderPassEncoder encoder, RenderWorld world, ViewContext view, DepthPrepassFeature depthFeature, int32 frameIndex, int32 bgIndex)
 	{
 		using (SProfiler.Begin("ForwardOpaque.Execute"))
 		{
@@ -1524,11 +1083,11 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			MaterialInstance currentMaterial = null;
 
 			// Use instanced path if available and has instance groups
-			let batcher = depthFeature.Batcher;
-			if (mInstancingEnabled && depthFeature.InstancingActive && batcher.OpaqueInstanceGroups.Length > 0)
+			let batcher = Renderer.Batcher;
+			if (mInstancingEnabled && Renderer.GetFeature<DepthPrepassFeature>().InstancingActive && batcher.OpaqueInstanceGroups.Length > 0)
 			{
 				using (SProfiler.Begin("InstancedDraw"))
-					ExecuteInstancedForwardPass(encoder, world, depthFeature, frameIndex, ref currentMaterial);
+					ExecuteInstancedForwardPass(encoder, world, depthFeature, frameIndex, bgIndex, ref currentMaterial);
 				// Instanced path doesn't use uniform buffer for static meshes,
 				// skinned uniforms start at index 0 (we skipped static mesh uploads)
 				objectIndex = 0;
@@ -1537,25 +1096,25 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			{
 				// Fall back to non-instanced path
 				using (SProfiler.Begin("NonInstancedDraw"))
-					ExecuteNonInstancedForwardPass(encoder, world, depthFeature, frameIndex, ref objectIndex, ref currentMaterial);
+					ExecuteNonInstancedForwardPass(encoder, world, depthFeature, frameIndex, bgIndex, ref objectIndex, ref currentMaterial);
 			}
 
 			// Render skinned meshes (always non-instanced)
 			using (SProfiler.Begin("SkinnedMeshes"))
-				RenderSkinnedMeshes(encoder, world, view, depthFeature, frameIndex, ref objectIndex, ref currentMaterial);
+				RenderSkinnedMeshes(encoder, world, view, depthFeature, frameIndex, bgIndex, ref objectIndex, ref currentMaterial);
 		}
 	}
 
-	private void ExecuteInstancedForwardPass(IRenderPassEncoder encoder, RenderWorld world, DepthPrepassFeature depthFeature, int32 frameIndex, ref MaterialInstance currentMaterial)
+	private void ExecuteInstancedForwardPass(IRenderPassEncoder encoder, RenderWorld world, DepthPrepassFeature depthFeature, int32 frameIndex, int32 bgIndex, ref MaterialInstance currentMaterial)
 	{
 		// Get shadow state for pipeline selection
-		let shadowsEnabled = mShadowPassesActive;
+		let shadowsEnabled = Renderer.ShadowRenderer.ShadowPassesActive;
 
 		// Track current pipeline to minimize state changes
 		IRenderPipeline currentPipeline = null;
 
 		// Get instance buffer from depth feature
-		let instanceBuffer = depthFeature.GetInstanceBuffer(frameIndex);
+		let instanceBuffer = Renderer.GetFeature<DepthPrepassFeature>().GetInstanceBuffer(frameIndex);
 		if (instanceBuffer == null)
 			return;
 
@@ -1564,11 +1123,11 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		let defaultMaterialInstance = materialSystem?.DefaultMaterialInstance;
 
 		// Get batcher data
-		let batcher = depthFeature.Batcher;
+		let batcher = Renderer.Batcher;
 		let commands = batcher.DrawCommands;
 
 		// Get scene bind group for later binding (after pipeline is set)
-		let sceneBindGroup = mSceneBindGroups[GetBindGroupIndex(frameIndex)];
+		let sceneBindGroup = mSceneBindGroups[bgIndex];
 
 		// Render opaque instance groups
 		for (let group in batcher.OpaqueInstanceGroups)
@@ -1702,10 +1261,10 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		}
 	}
 
-	private void ExecuteNonInstancedForwardPass(IRenderPassEncoder encoder, RenderWorld world, DepthPrepassFeature depthFeature, int32 frameIndex, ref int32 objectIndex, ref MaterialInstance currentMaterial)
+	private void ExecuteNonInstancedForwardPass(IRenderPassEncoder encoder, RenderWorld world, DepthPrepassFeature depthFeature, int32 frameIndex, int32 bgIndex, ref int32 objectIndex, ref MaterialInstance currentMaterial)
 	{
 		// Get shadow state for pipeline selection
-		let shadowsEnabled = mShadowPassesActive;
+		let shadowsEnabled = Renderer.ShadowRenderer.ShadowPassesActive;
 
 		// Track current pipeline to minimize state changes
 		IRenderPipeline currentPipeline = null;
@@ -1715,7 +1274,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		let defaultMaterialInstance = materialSystem?.DefaultMaterialInstance;
 
 		// Get draw commands from batcher (uniforms already uploaded in PrepareObjectUniforms)
-		let batcher = depthFeature.Batcher;
+		let batcher = Renderer.Batcher;
 		let commands = batcher.DrawCommands;
 
 		// Render with dynamic offsets
@@ -1738,7 +1297,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 					proxy = world.GetMesh(cmd.MeshHandle);
 
 				// Bind scene bind group with dynamic offset for this object's transforms
-				let sceneBindGroup = mSceneBindGroups[GetBindGroupIndex(frameIndex)];
+				let sceneBindGroup = mSceneBindGroups[bgIndex];
 
 				// Get mesh data and draw per-submesh
 				if (let mesh = Renderer.ResourceManager.GetMesh(cmd.GPUMesh))
@@ -1852,15 +1411,15 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		}
 	}
 
-	private void RenderSkinnedMeshes(IRenderPassEncoder encoder, RenderWorld world, RenderView view, DepthPrepassFeature depthFeature, int32 frameIndex, ref int32 objectIndex, ref MaterialInstance currentMaterial)
+	private void RenderSkinnedMeshes(IRenderPassEncoder encoder, RenderWorld world, ViewContext view, DepthPrepassFeature depthFeature, int32 frameIndex, int32 bgIndex, ref int32 objectIndex, ref MaterialInstance currentMaterial)
 	{
-		// Get GPU skinning feature to access skinned vertex buffers
-		let skinningFeature = Renderer.GetFeature<GPUSkinningFeature>();
-		if (skinningFeature == null)
+		// Get skinning system to access skinned vertex buffers
+		let skinningSystem = Renderer.SkinningSystem;
+		if (skinningSystem == null)
 			return;
 
 		// Get shadow state for pipeline selection
-		let shadowsEnabled = mShadowPassesActive;
+		let shadowsEnabled = Renderer.ShadowRenderer.ShadowPassesActive;
 
 		// Track current pipeline to minimize state changes
 		IRenderPipeline currentPipeline = null;
@@ -1869,10 +1428,10 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 		let defaultMaterialInstance = materialSystem?.DefaultMaterialInstance;
 
 		// Get skinned mesh commands from batcher
-		let skinnedCommands = depthFeature.Batcher.SkinnedCommands;
+		let skinnedCommands = Renderer.Batcher.SkinnedCommands;
 
 		// Render each skinned mesh batch
-		for (let batch in depthFeature.Batcher.SkinnedBatches)
+		for (let batch in Renderer.Batcher.SkinnedBatches)
 		{
 			if (batch.CommandCount == 0)
 				continue;
@@ -1893,10 +1452,10 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 					continue;
 
 				// Bind scene bind group with dynamic offset
-				let sceneBindGroup = mSceneBindGroups[GetBindGroupIndex(frameIndex)];
+				let sceneBindGroup = mSceneBindGroups[bgIndex];
 
 				// Get the skinned vertex buffer from the skinning feature
-				let skinnedVertexBuffer = skinningFeature.GetSkinnedVertexBuffer(world, cmd.MeshHandle);
+				let skinnedVertexBuffer = skinningSystem.GetSkinnedVertexBuffer(world, cmd.MeshHandle);
 				if (skinnedVertexBuffer != null)
 				{
 					// Bind the skinned vertex buffer (post-transform)
@@ -2141,9 +1700,9 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 
 	private void RenderSkinnedMeshesShadow(IRenderPassEncoder encoder, RenderWorld world, VisibilityResolver visibility, uint32 cascadeVPOffset, int32 frameIndex)
 	{
-		// Get GPU skinning feature to access skinned vertex buffers
-		let skinningFeature = Renderer.GetFeature<GPUSkinningFeature>();
-		if (skinningFeature == null)
+		// Get skinning system to access skinned vertex buffers
+		let skinningSystem = Renderer.SkinningSystem;
+		if (skinningSystem == null)
 			return;
 
 		let shadowBindGroup = mShadowBindGroups[frameIndex];
@@ -2168,7 +1727,7 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 					continue;
 
 				// Get the skinned vertex buffer
-				let skinnedVertexBuffer = skinningFeature.GetSkinnedVertexBuffer(world, visibleMesh.Handle);
+				let skinnedVertexBuffer = skinningSystem.GetSkinnedVertexBuffer(world, visibleMesh.Handle);
 				if (skinnedVertexBuffer == null)
 					continue;
 
@@ -2235,8 +1794,8 @@ public class ForwardOpaqueFeature : RenderFeatureBase
 			// Create bind group entries
 			// For dynamic uniform buffers, size is the per-element size that dynamic offset selects
 			BindGroupEntry[2] entries = .(
-				BindGroupEntry.Buffer(0, shadowUniformBuffer, 0, mAlignedSceneUniformSize), // Per-cascade VP (dynamic)
-				BindGroupEntry.Buffer(1, shadowObjectBuffer, 0, AlignedObjectUniformSize)   // Per-object transforms (dynamic)
+				BindGroupEntry.Buffer(/*0,*/shadowUniformBuffer, 0, mAlignedSceneUniformSize), // Per-cascade VP (dynamic)
+				BindGroupEntry.Buffer(/*1,*/shadowObjectBuffer, 0, AlignedObjectUniformSize)   // Per-object transforms (dynamic)
 			);
 
 			BindGroupDesc bgDesc = .()

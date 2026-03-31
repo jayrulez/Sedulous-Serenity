@@ -23,8 +23,9 @@ public class WorldUIPanel
 	private IFontService mFontService; // shared, not owned
 
 	// GPU render texture
-	private Sedulous.RHI.ITexture mTexture ~ delete _;
-	private ITextureView mTextureView ~ delete _;
+	private IDevice mDevice;
+	private Sedulous.RHI.ITexture mTexture;
+	private ITextureView mTextureView;
 
 	// World display
 	private SpriteProxyHandle mSpriteHandle = .Invalid;
@@ -148,10 +149,13 @@ public class WorldUIPanel
 		mDrawingRenderer.Initialize(device, .RGBA8Unorm, frameCount, shaderSystem);
 		mFontService = fontService;
 
+		mDevice = device;
+
 		// Create render texture
 		TextureDesc texDesc = TextureDesc.Texture2D(
 			pixelWidth, pixelHeight, .RGBA8Unorm,
-			.Sampled | .RenderTarget
+			.Sampled | .RenderTarget,
+			label: "WorldUI"
 		);
 		if (device.CreateTexture(texDesc) case .Ok(let tex))
 			mTexture = tex;
@@ -180,6 +184,12 @@ public class WorldUIPanel
 	/// Dispose GPU resources owned by this panel.
 	public void Dispose()
 	{
+		if (mDevice != null)
+		{
+			mDevice.DestroyTextureView(ref mTextureView);
+			mDevice.DestroyTexture(ref mTexture);
+		}
+
 		if (mDrawingRenderer != null)
 		{
 			mDrawingRenderer.Dispose();

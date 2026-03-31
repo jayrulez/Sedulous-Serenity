@@ -165,6 +165,12 @@ For each glyph, the band texture stores:
 
 Band count per glyph: `min(32, curveCount)` for correct rendering of complex glyphs.
 
+Additional optimizations from the Slug reference:
+- **Epsilon overlap**: bands overlap by 1/1024 em-space to prevent curves at exact boundaries from being missed
+- **Skip parallel lines**: straight horizontal lines excluded from horizontal bands, straight vertical lines excluded from vertical bands — they can't contribute to winding number for parallel rays
+- **Shared band data** (not yet implemented): adjacent bands with identical curve sets can share data; subsets can point into larger band's data
+- **Shared curve texels** (not yet implemented): connected curves share an endpoint (p3 of curve N = p1 of curve N+1), so the second texel of one curve can be the first texel of the next
+
 ### Coordinate System
 
 TTF fonts use Y-up. Screen rendering uses Y-down. The TTF loader negates all Y coordinates during curve extraction so the entire pipeline (texture builder, geometry builder, shader) operates in Y-down consistently.
@@ -181,6 +187,7 @@ TTF fonts use Y-up. Screen rendering uses Y-down. The TTF loader negates all Y c
 - Quad geometry only (no tight bounding polygons)
 - Single font per renderer instance
 - No multi-line layout (caller must position lines manually)
+- No cap height pixel alignment (could ensure crisp glyph tops at common sizes using OS/2 sCapHeight)
 
 ## Potential Uses
 

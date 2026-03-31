@@ -1,0 +1,17 @@
+digraph ResourceLifetimes {
+  rankdir=LR;
+  node [shape=record, fontname="Consolas", style=filled];
+
+  // Timeline
+  timeline [label="<p0> GBuffer|<p1> SSAO|<p2> Lighting|<p3> Tonemap", fillcolor="#e8e8e8"];
+
+  // Resource lifetimes
+  res_1 [label="Albedo (tex)|<p0> ##|<p1> ##|<p2> ##|<p3>   ", fillcolor="#ffffcc"];
+  res_2 [label="Normal (tex)|<p0> ##|<p1> ##|<p2> ##|<p3>   ", fillcolor="#ffffcc"];
+  res_3 [label="Depth (tex)|<p0> ##|<p1> ##|<p2> ##|<p3>   ", fillcolor="#ffffcc"];
+  res_4 [label="SSAO_Data (buf)|<p0>   |<p1> ##|<p2> ##|<p3>   ", fillcolor="#ccffcc"];
+  res_5 [label="HDR (tex)|<p0>   |<p1>   |<p2> ##|<p3> ##", fillcolor="#ffffcc"];
+
+  // Alignment
+  timeline -> res_1 [style=invis];
+}

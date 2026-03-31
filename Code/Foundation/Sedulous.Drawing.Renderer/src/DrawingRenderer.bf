@@ -49,6 +49,7 @@ public struct DrawingSpriteInstance
 public class DrawingRenderer : IDisposable
 {
 	private IDevice mDevice;
+	private IQueue mQueue;
 	private int32 mFrameCount;
 	private TextureFormat mTargetFormat;
 	private ShaderSystem mShaderSystem;  // Borrowed, not owned
@@ -83,7 +84,7 @@ public class DrawingRenderer : IDisposable
 
 	// Texture cache - maps Drawing.ITexture to GPU resources
 	// Using list since ITexture doesn't implement IHashable
-	private List<CachedTexture> mTextureCache = new .() ~ { for (var e in _) { e.Dispose(mFrameCount); delete e; } delete _; };
+	private List<CachedTexture> mTextureCache = new .() ~ { for (var e in _) { e.Dispose(mDevice, mFrameCount); delete e; } delete _; };
 
 	// Textures from current batch (stored for bind group creation)
 	private List<Sedulous.Drawing.IImageData> mBatchTextures = new .() ~ delete _;
@@ -97,19 +98,19 @@ public class DrawingRenderer : IDisposable
 		public IBindGroup[] BindGroups;
 		public bool IsExternal;  // If true, we don't own the GPU resources
 
-		public void Dispose(int32 frameCount)
+		public void Dispose(IDevice device, int32 frameCount)
 		{
 			if (BindGroups != null)
 			{
 				for (int i = 0; i < frameCount; i++)
-					if (BindGroups[i] != null) delete BindGroups[i];
+					if (BindGroups[i] != null) { var bg = BindGroups[i]; device.DestroyBindGroup(ref bg); BindGroups[i] = null; }
 				delete BindGroups;
 			}
-			// Only delete GPU resources if we own them
+			// Only destroy GPU resources if we own them
 			if (!IsExternal)
 			{
-				if (GpuTextureView != null) delete GpuTextureView;
-				if (GpuTexture != null) delete GpuTexture;
+				if (GpuTextureView != null) device.DestroyTextureView(ref GpuTextureView);
+				if (GpuTexture != null) device.DestroyTexture(ref GpuTexture);
 			}
 		}
 	}
@@ -140,6 +141,7 @@ public class DrawingRenderer : IDisposable
 		using (SProfiler.Begin("DrawingRenderer.Initialize"))
 		{
 			mDevice = device;
+			mQueue = device.GetQueue(.Graphics);
 			mTargetFormat = targetFormat;
 			mFrameCount = frameCount;
 			mShaderSystem = shaderSystem;
@@ -204,7 +206,8 @@ public class DrawingRenderer : IDisposable
 
 		// Create GPU texture
 		TextureDesc textureDesc = TextureDesc.Texture2D(
-			width, height, format, TextureUsage.Sampled | TextureUsage.CopyDst
+			width, height, format, TextureUsage.Sampled | TextureUsage.CopyDst,
+			label: "DrawingRenderer cached texture"
 		);
 
 		Sedulous.RHI.ITexture gpuTexture;
@@ -221,7 +224,7 @@ public class DrawingRenderer : IDisposable
 			RowsPerImage = height
 		};
 		Extent3D writeSize = .(width, height, 1);
-		mDevice.Queue.WriteTextureSync(gpuTexture, pixelData, &dataLayout, &writeSize);
+		TransferHelper.WriteTextureSync(mQueue, mDevice, gpuTexture, pixelData, dataLayout, writeSize);
 
 		// Create texture view
 		TextureViewDesc viewDesc = .() { Format = format };
@@ -230,7 +233,7 @@ public class DrawingRenderer : IDisposable
 			gpuTextureView = view;
 		else
 		{
-			delete gpuTexture;
+			mDevice.DestroyTexture(ref gpuTexture);
 			return null;
 		}
 
@@ -260,7 +263,7 @@ public class DrawingRenderer : IDisposable
 	{
 		for (var cached in mTextureCache)
 		{
-			cached.Dispose(mFrameCount);
+			cached.Dispose(mDevice, mFrameCount);
 			delete cached;
 		}
 		mTextureCache.Clear();
@@ -327,7 +330,7 @@ public class DrawingRenderer : IDisposable
 			if (mTextureCache[i].SourceTexture == imageRef)
 			{
 				let cached = mTextureCache[i];
-				cached.Dispose(mFrameCount);
+				cached.Dispose(mDevice, mFrameCount);
 				delete cached;
 				mTextureCache.RemoveAt(i);
 				return;
@@ -365,10 +368,10 @@ public class DrawingRenderer : IDisposable
 			if (mVertices.Count > 0)
 			{
 				let vertexData = Span<uint8>((uint8*)mVertices.Ptr, mVertices.Count * sizeof(DrawingRenderVertex));
-				mDevice.Queue.WriteMappedBuffer(mVertexBuffers[frameIndex], 0, vertexData);
+				TransferHelper.WriteMappedBuffer(mVertexBuffers[frameIndex], 0, vertexData);
 
 				let indexData = Span<uint8>((uint8*)mIndices.Ptr, mIndices.Count * sizeof(uint16));
-				mDevice.Queue.WriteMappedBuffer(mIndexBuffers[frameIndex], 0, indexData);
+				TransferHelper.WriteMappedBuffer(mIndexBuffers[frameIndex], 0, indexData);
 			}
 
 			// Ensure GPU textures are created and bind groups are ready
@@ -391,7 +394,7 @@ public class DrawingRenderer : IDisposable
 			if (mSpriteInstances.Count > 0 && mInstanceBuffers != null)
 			{
 				let instanceData = Span<uint8>((uint8*)mSpriteInstances.Ptr, mSpriteInstances.Count * sizeof(DrawingSpriteInstance));
-				mDevice.Queue.WriteMappedBuffer(mInstanceBuffers[frameIndex], 0, instanceData);
+				TransferHelper.WriteMappedBuffer(mInstanceBuffers[frameIndex], 0, instanceData);
 			}
 
 			// Update instanced bind group
@@ -414,7 +417,7 @@ public class DrawingRenderer : IDisposable
 
 			DrawingUniforms uniforms = .() { Projection = projection };
 			let uniformData = Span<uint8>((uint8*)&uniforms, sizeof(DrawingUniforms));
-			mDevice.Queue.WriteMappedBuffer(mUniformBuffers[frameIndex], 0, uniformData);
+			TransferHelper.WriteMappedBuffer(mUniformBuffers[frameIndex], 0, uniformData);
 		}
 	}
 
@@ -465,8 +468,14 @@ public class DrawingRenderer : IDisposable
 					let h = (uint32)Math.Max(0, endY - startY);
 					renderPass.SetScissor(startX, startY, w, h);
 				}
+				else if (cmd.ClipMode == .Scissor)
+				{
+					// Empty/invalid clip rect — hide everything (match OpenGL glScissor(0,0,0,0))
+					renderPass.SetScissor(0, 0, 0, 0);
+				}
 				else
 				{
+					// No clipping — full viewport
 					renderPass.SetScissor(0, 0, width, height);
 				}
 
@@ -786,9 +795,9 @@ public class DrawingRenderer : IDisposable
 
 		// Create bind group
 		BindGroupEntry[3] bindGroupEntries = .(
-			BindGroupEntry.Buffer(0, mUniformBuffers[frameIndex]),
-			BindGroupEntry.Texture(0, cached.GpuTextureView),
-			BindGroupEntry.Sampler(0, mSampler)
+			BindGroupEntry.Buffer(mUniformBuffers[frameIndex], 0, (uint64)sizeof(DrawingUniforms)),
+			BindGroupEntry.Texture(cached.GpuTextureView),
+			BindGroupEntry.Sampler(mSampler)
 		);
 		BindGroupDesc bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
 		if (mDevice.CreateBindGroup(bindGroupDesc) case .Ok(let group))
@@ -833,9 +842,9 @@ public class DrawingRenderer : IDisposable
 			return;
 
 		BindGroupEntry[3] bindGroupEntries = .(
-			BindGroupEntry.Buffer(0, mUniformBuffers[frameIndex]),
-			BindGroupEntry.Texture(0, cached.GpuTextureView),
-			BindGroupEntry.Sampler(0, mSampler)
+			BindGroupEntry.Buffer(mUniformBuffers[frameIndex], 0, (uint64)sizeof(DrawingUniforms)),
+			BindGroupEntry.Texture(cached.GpuTextureView),
+			BindGroupEntry.Sampler(mSampler)
 		);
 		BindGroupDesc bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
 		if (mDevice.CreateBindGroup(bindGroupDesc) case .Ok(let group))
@@ -848,38 +857,57 @@ public class DrawingRenderer : IDisposable
 		ClearTextureCache();
 
 		// Per-frame resources
-		DisposeBufferArray(ref mInstancedBindGroups);
-		DisposeBufferArray(ref mUniformBuffers);
-		DisposeBufferArray(ref mIndexBuffers);
-		DisposeBufferArray(ref mVertexBuffers);
-		DisposeBufferArray(ref mInstanceBuffers);
+		if (mInstancedBindGroups != null)
+		{
+			for (var bg in ref mInstancedBindGroups)
+				if (bg != null) mDevice.DestroyBindGroup(ref bg);
+			delete mInstancedBindGroups;
+			mInstancedBindGroups = null;
+		}
+		if (mUniformBuffers != null)
+		{
+			for (var buf in ref mUniformBuffers)
+				if (buf != null) mDevice.DestroyBuffer(ref buf);
+			delete mUniformBuffers;
+			mUniformBuffers = null;
+		}
+		if (mIndexBuffers != null)
+		{
+			for (var buf in ref mIndexBuffers)
+				if (buf != null) mDevice.DestroyBuffer(ref buf);
+			delete mIndexBuffers;
+			mIndexBuffers = null;
+		}
+		if (mVertexBuffers != null)
+		{
+			for (var buf in ref mVertexBuffers)
+				if (buf != null) mDevice.DestroyBuffer(ref buf);
+			delete mVertexBuffers;
+			mVertexBuffers = null;
+		}
+		if (mInstanceBuffers != null)
+		{
+			for (var buf in ref mInstanceBuffers)
+				if (buf != null) mDevice.DestroyBuffer(ref buf);
+			delete mInstanceBuffers;
+			mInstanceBuffers = null;
+		}
 
 		// Instanced pipeline resources
-		if (mInstancedMsaaPipeline != null) { delete mInstancedMsaaPipeline; mInstancedMsaaPipeline = null; }
-		if (mInstancedPipeline != null) { delete mInstancedPipeline; mInstancedPipeline = null; }
+		if (mInstancedMsaaPipeline != null) mDevice.DestroyRenderPipeline(ref mInstancedMsaaPipeline);
+		if (mInstancedPipeline != null) mDevice.DestroyRenderPipeline(ref mInstancedPipeline);
 
 		// Standard pipeline resources
-		if (mMsaaPipeline != null) { delete mMsaaPipeline; mMsaaPipeline = null; }
-		if (mPipeline != null) { delete mPipeline; mPipeline = null; }
-		if (mPipelineLayout != null) { delete mPipelineLayout; mPipelineLayout = null; }
-		if (mBindGroupLayout != null) { delete mBindGroupLayout; mBindGroupLayout = null; }
+		if (mMsaaPipeline != null) mDevice.DestroyRenderPipeline(ref mMsaaPipeline);
+		if (mPipeline != null) mDevice.DestroyRenderPipeline(ref mPipeline);
+		if (mPipelineLayout != null) mDevice.DestroyPipelineLayout(ref mPipelineLayout);
+		if (mBindGroupLayout != null) mDevice.DestroyBindGroupLayout(ref mBindGroupLayout);
 
 		// Sampler
-		if (mSampler != null) { delete mSampler; mSampler = null; }
+		if (mSampler != null) mDevice.DestroySampler(ref mSampler);
 
 		// Note: Shader modules are owned by the shader system cache, not by us
 
 		IsInitialized = false;
-	}
-
-	private void DisposeBufferArray<T>(ref T[] buffers) where T : IDisposable, delete
-	{
-		if (buffers != null)
-		{
-			for (let buf in buffers)
-				if (buf != null) delete buf;
-			delete buffers;
-			buffers = null;
-		}
 	}
 }

@@ -132,6 +132,12 @@ public class FontService : IFontService
 
 	public StringView DefaultFontFamily => mDefaultFontFamily;
 
+	/// Change the default font family used when GetFont(pixelHeight) is called.
+	public void SetDefaultFamily(StringView name)
+	{
+		mDefaultFontFamily.Set(name);
+	}
+
 	public CachedFont GetFont(float pixelHeight)
 	{
 		return GetFont(mDefaultFontFamily, pixelHeight);

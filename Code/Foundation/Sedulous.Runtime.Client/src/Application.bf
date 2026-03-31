@@ -1,8 +1,11 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Collections;
 using Sedulous.RHI;
+using Sedulous.RHI.Validation;
 using Sedulous.Shell;
+using Sedulous.Shell.SDL3;
 using Sedulous.Core.Mathematics;
 using Sedulous.Runtime;
 using Sedulous.Profiler;
@@ -11,12 +14,12 @@ namespace Sedulous.Runtime.Client;
 
 /// Abstract base class for Sedulous applications.
 /// Provides lifecycle methods, window management, and rendering loop.
+/// Creates and owns shell, backend, and device internally.
 abstract class Application
 {
-	// Use centralized FrameConfig from RHI
-	protected const int MAX_FRAMES_IN_FLIGHT = FrameConfig.MAX_FRAMES_IN_FLIGHT;
+	protected const int MAX_FRAMES_IN_FLIGHT = 2;
 
-	// Injected dependencies (owned by caller)
+	// Created and owned by Application
 	protected IShell mShell;
 	protected IDevice mDevice;
 	protected IBackend mBackend;
@@ -25,9 +28,17 @@ abstract class Application
 	protected IWindow mWindow;
 	protected ISurface mSurface;
 	protected ISwapChain mSwapChain;
-	protected ICommandBuffer[MAX_FRAMES_IN_FLIGHT] mCommandBuffers;
+	protected IQueue mGraphicsQueue;
+	protected ICommandPool[MAX_FRAMES_IN_FLIGHT] mCommandPools;
+	protected IFence mFrameFence;
+	protected uint64 mNextFenceValue = 1;
+	protected uint64[MAX_FRAMES_IN_FLIGHT] mFrameFenceValues;
 	protected ITexture mDepthTexture;
 	protected ITextureView mDepthTextureView;
+
+	// Secondary windows (multi-window support)
+	protected List<SecondaryWindowContext> mSecondaryWindows = new .() ~ delete _;
+	private List<SecondaryWindowContext> mPendingDestroys = new .() ~ delete _;
 
 	// Settings and state
 	protected ApplicationSettings mSettings;
@@ -82,15 +93,8 @@ abstract class Application
 		}
 	}
 
-	/// Creates an application with the provided dependencies.
-	/// @param shell The shell for windowing and input (must be initialized).
-	/// @param device The RHI device for GPU operations.
-	/// @param backend The RHI backend (for surface creation).
-	public this(IShell shell, IDevice device, IBackend backend)
+	public this()
 	{
-		mShell = shell;
-		mDevice = device;
-		mBackend = backend;
 		DiscoverAssetDirectories();
 	}
 
@@ -207,8 +211,8 @@ abstract class Application
 			{
 				DeltaTime = deltaTime,
 				TotalTime = currentTime,
-				FrameIndex = (int32)mSwapChain.CurrentFrameIndex,
-				FrameCount = (int32)mSwapChain.FrameCount
+				FrameIndex = (int32)mSwapChain.CurrentImageIndex,
+				FrameCount = (int32)mSwapChain.BufferCount
 			};
 
 			// Update framework - BeginFrame, Update, PostUpdate
@@ -317,10 +321,184 @@ abstract class Application
 	/// Called after the frame has been submitted and presented.
 	protected virtual void OnFrameEnd() { }
 
+	/// Called each frame before rendering a secondary window.
+	/// Use this to update per-window DrawingRenderer projections, build draw commands, etc.
+	protected virtual void OnPrepareSecondaryFrame(SecondaryWindowContext ctx, FrameContext frame) { }
+
+	/// Called to render into a secondary window's render pass.
+	protected virtual void OnRenderSecondaryWindow(SecondaryWindowContext ctx, IRenderPassEncoder renderPass, FrameContext frame) { }
+
+	/// Called when a secondary window is resized.
+	protected virtual void OnSecondaryWindowResized(SecondaryWindowContext ctx, int32 width, int32 height) { }
+
+	//==========================================================================
+	// Secondary Window Management
+	//==========================================================================
+
+	/// Creates a secondary OS window with its own surface and swapchain.
+	/// The Device and graphics queue are shared with the main window.
+	/// Returns the context, or .Err on failure.
+	protected Result<SecondaryWindowContext> CreateSecondaryWindow(WindowSettings settings)
+	{
+		if (mShell.WindowManager.CreateWindow(settings) not case .Ok(let window))
+			return .Err;
+
+		if (mBackend.CreateSurface(window.NativeHandle) not case .Ok(var surface))
+		{
+			mShell.WindowManager.DestroyWindow(window);
+			return .Err;
+		}
+
+		SwapChainDesc desc = .()
+		{
+			Width = (uint32)window.Width,
+			Height = (uint32)window.Height,
+			Format = mSettings.SwapChainFormat,
+			PresentMode = mSettings.PresentMode
+		};
+
+		if (mDevice.CreateSwapChain(surface, desc) not case .Ok(let swapChain))
+		{
+			mDevice.DestroySurface(ref surface);
+			mShell.WindowManager.DestroyWindow(window);
+			return .Err;
+		}
+
+		let ctx = new SecondaryWindowContext();
+		ctx.Window = window;
+		ctx.Surface = surface;
+		ctx.SwapChain = swapChain;
+		mSecondaryWindows.Add(ctx);
+		return .Ok(ctx);
+	}
+
+	/// Destroys a secondary window and all its GPU resources.
+	/// Safe to call during frame rendering (deferred until frame end).
+	protected void DestroySecondaryWindow(SecondaryWindowContext ctx)
+	{
+		if (!mSecondaryWindows.Contains(ctx))
+			return;
+
+		// Defer actual destruction to avoid mid-frame issues
+		if (!mPendingDestroys.Contains(ctx))
+			mPendingDestroys.Add(ctx);
+	}
+
+	/// Immediately destroys a secondary window (call only when safe).
+	private void DestroySecondaryWindowImmediate(SecondaryWindowContext ctx)
+	{
+		mSecondaryWindows.Remove(ctx);
+
+		mDevice.WaitIdle();
+
+		var swapChain = ctx.SwapChain;
+		var surface = ctx.Surface;
+		if (swapChain != null) mDevice.DestroySwapChain(ref swapChain);
+		if (surface != null) mDevice.DestroySurface(ref surface);
+
+		if (ctx.Window != null)
+			mShell.WindowManager.DestroyWindow(ctx.Window);
+
+		delete ctx;
+	}
+
+	/// Processes pending secondary window destructions.
+	private void FlushPendingDestroys()
+	{
+		if (mPendingDestroys.Count == 0)
+			return;
+
+		mDevice.WaitIdle();
+
+		for (let ctx in mPendingDestroys)
+			DestroySecondaryWindowImmediate(ctx);
+
+		mPendingDestroys.Clear();
+	}
+
+	/// Renders all secondary windows for this frame.
+	private void RenderSecondaryWindows(FrameContext mainFrame)
+	{
+		for (let ctx in mSecondaryWindows)
+		{
+			if (mPendingDestroys.Contains(ctx))
+				continue;
+
+			if (ctx.Window.State == .Minimized || ctx.Window.Width == 0 || ctx.Window.Height == 0)
+				continue;
+
+			if (ctx.SwapChain.AcquireNextImage() case .Err)
+			{
+				if (ctx.Window.Width > 0 && ctx.Window.Height > 0)
+					ctx.SwapChain.Resize((uint32)ctx.Window.Width, (uint32)ctx.Window.Height);
+				continue;
+			}
+
+			let frameCtx = FrameContext()
+			{
+				DeltaTime = mainFrame.DeltaTime,
+				TotalTime = mainFrame.TotalTime,
+				FrameIndex = mainFrame.FrameIndex,
+				FrameCount = mainFrame.FrameCount
+			};
+
+			OnPrepareSecondaryFrame(ctx, frameCtx);
+
+			let pool = mCommandPools[mainFrame.FrameIndex];
+			var encoder = pool.CreateEncoder().Value;
+
+			ColorAttachment[1] colorAttachments = .(.()
+			{
+				View = ctx.SwapChain.CurrentTextureView,
+				ResolveTarget = null,
+				LoadOp = .Clear,
+				StoreOp = .Store,
+				ClearValue = ClearColor(
+					mSettings.ClearColor.R / 255.0f,
+					mSettings.ClearColor.G / 255.0f,
+					mSettings.ClearColor.B / 255.0f,
+					mSettings.ClearColor.A / 255.0f)
+			});
+
+			RenderPassDesc desc = .() { ColorAttachments = .(colorAttachments) };
+			let renderPass = encoder.BeginRenderPass(desc);
+			renderPass.SetViewport(0, 0, ctx.SwapChain.Width, ctx.SwapChain.Height, 0, 1);
+			renderPass.SetScissor(0, 0, ctx.SwapChain.Width, ctx.SwapChain.Height);
+
+			OnRenderSecondaryWindow(ctx, renderPass, frameCtx);
+
+			renderPass.End();
+			encoder.TransitionTexture(ctx.SwapChain.CurrentTexture, .RenderTarget, .Present);
+
+			let commandBuffer = encoder.Finish();
+			mFrameFenceValues[mainFrame.FrameIndex] = mNextFenceValue++;
+
+			ICommandBuffer[1] bufs = .(commandBuffer);
+			mGraphicsQueue.Submit(bufs, mFrameFence, mFrameFenceValues[mainFrame.FrameIndex]);
+
+			ctx.SwapChain.Present(mGraphicsQueue);
+
+			pool.DestroyEncoder(ref encoder);
+		}
+	}
+
 	// Internal implementation
 
 	private bool Initialize()
 	{
+		// Create shell
+		let shell = new SDL3Shell();
+		if (shell.Initialize() case .Err) { Console.WriteLine("Failed to initialize shell"); delete shell; return false; }
+		mShell = shell;
+
+		// Create backend
+		if (!CreateBackend())
+			return false;
+
+		// Create device
+		if (!CreateDevice())
+			return false;
+
 		// Create window
 		String title = scope .(mSettings.Title);
 		let windowSettings = WindowSettings()
@@ -348,11 +526,75 @@ abstract class Application
 		if (!CreateSwapChain())
 			return false;
 
+		// Get graphics queue and create per-frame command pools + fence
+		mGraphicsQueue = mDevice.GetQueue(.Graphics);
+		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			if (mDevice.CreateCommandPool(.Graphics) case .Ok(let pool))
+				mCommandPools[i] = pool;
+			else
+				return false;
+		}
+		if (mDevice.CreateFence(0) case .Ok(let fence))
+			mFrameFence = fence;
+		else
+			return false;
+
 		// Create depth buffer if enabled
 		if (mSettings.EnableDepth)
 			CreateDepthBuffer();
 
 		return true;
+	}
+
+	private bool CreateBackend()
+	{
+		Result<IBackend> result = .Err;
+		switch (mSettings.Backend)
+		{
+		case .Vulkan:
+			if (Sedulous.RHI.Vulkan.VulkanBackend.Create(mSettings.EnableValidation) case .Ok(let vkBackend))
+				result = mSettings.EnableValidation ? .Ok(new ValidatedBackend(vkBackend)) : .Ok((IBackend)vkBackend);
+		case .DX12:
+			if (Sedulous.RHI.DX12.DX12Backend.Create(mSettings.EnableValidation) case .Ok(let dxBackend))
+				result = mSettings.EnableValidation ? .Ok(new ValidatedBackend(dxBackend)) : .Ok((IBackend)dxBackend);
+		}
+
+		if (result case .Ok(let backend))
+		{
+			mBackend = backend;
+			return true;
+		}
+		Console.WriteLine("ERROR: Failed to create RHI backend");
+		return false;
+	}
+
+	private bool CreateDevice()
+	{
+		// Enumerate from the inner (unwrapped) backend to get raw adapters
+		IBackend innerBackend = mBackend;
+		if (let validated = mBackend as ValidatedBackend)
+			innerBackend = validated.Inner;
+
+		List<IAdapter> adapters = scope .();
+		innerBackend.EnumerateAdapters(adapters);
+		if (adapters.IsEmpty)
+		{
+			Console.WriteLine("ERROR: No GPU adapters found");
+			return false;
+		}
+
+		let adapterInfo = adapters[0].GetInfo();
+		Console.WriteLine("Using adapter: {0}", adapterInfo.Name);
+		delete adapterInfo;
+
+		if (adapters[0].CreateDevice(.()) case .Ok(let rawDevice))
+		{
+			mDevice = mSettings.EnableValidation ? new ValidatedDevice(rawDevice) : rawDevice;
+			return true;
+		}
+		Console.WriteLine("ERROR: Failed to create device");
+		return false;
 	}
 
 	private bool CreateSwapChain()
@@ -362,7 +604,6 @@ abstract class Application
 			Width = (uint32)mWindow.Width,
 			Height = (uint32)mWindow.Height,
 			Format = mSettings.SwapChainFormat,
-			Usage = .RenderTarget,
 			PresentMode = mSettings.PresentMode
 		};
 
@@ -414,7 +655,16 @@ abstract class Application
 		if (mWindow.State == .Minimized)
 			return;
 
-		// Acquire next image (sync point - waits for fence)
+		let frameIndex = frameContext.FrameIndex;
+
+		// Wait for this frame's previous GPU work to complete
+		if (mFrameFenceValues[frameIndex] > 0)
+			mFrameFence.Wait(mFrameFenceValues[frameIndex]);
+
+		// Reset the command pool for this frame (reclaims encoders + command buffers)
+		mCommandPools[frameIndex].Reset();
+
+		// Acquire next image
 		using (SProfiler.Begin("AcquireImage"))
 		{
 			if (mSwapChain.AcquireNextImage() case .Err)
@@ -424,19 +674,11 @@ abstract class Application
 			}
 		}
 
-		//mDevice.WaitIdle(); // AcquireNextImage already waits on per-frame fence; uncomment to debug sync issues
 		OnPrepareFrame(frameContext);
 
-		// Clean up old command buffer
-		let frameIndex = frameContext.FrameIndex;
-		if (mCommandBuffers[frameIndex] != null)
-		{
-			delete mCommandBuffers[frameIndex];
-			mCommandBuffers[frameIndex] = null;
-		}
-
 		// Create encoder
-		let encoder = mDevice.CreateCommandEncoder();
+		let pool = mCommandPools[frameIndex];
+		var encoder = pool.CreateEncoder().Value;
 
 		let renderContext = RenderContext()
 		{
@@ -454,20 +696,34 @@ abstract class Application
 			RenderDefaultPass(encoder, renderContext);
 		}
 
-		let commandBuffer = encoder.Finish();
-		mCommandBuffers[frameIndex] = commandBuffer;
+		// Transition swapchain image to present layout
+		encoder.TransitionTexture(mSwapChain.CurrentTexture, .RenderTarget, .Present);
 
+		let commandBuffer = encoder.Finish();
+
+		// Submit with fence (this overload also handles swapchain semaphores)
+		mFrameFenceValues[frameIndex] = mNextFenceValue++;
 		using (SProfiler.Begin("Submit"))
-			mDevice.Queue.Submit(commandBuffer, mSwapChain);
+		{
+			ICommandBuffer[1] bufs = .(commandBuffer);
+			mGraphicsQueue.Submit(bufs, mFrameFence, mFrameFenceValues[frameIndex]);
+		}
 
 		using (SProfiler.Begin("Present"))
 		{
-			if (mSwapChain.Present() case .Err)
+			if (mSwapChain.Present(mGraphicsQueue) case .Err)
 				HandleResize();
 		}
+		// Render secondary windows
+		if (mSecondaryWindows.Count > 0)
+			RenderSecondaryWindows(frameContext);
 
-		delete encoder;
 		OnFrameEnd();
+
+		// Process deferred secondary window destructions
+		FlushPendingDestroys();
+
+		pool.DestroyEncoder(ref encoder);
 	}
 
 	private void RenderDefaultPass(ICommandEncoder encoder, RenderContext ctx)
@@ -478,10 +734,10 @@ abstract class Application
 			ResolveTarget = null,
 			LoadOp = .Clear,
 			StoreOp = .Store,
-			ClearValue = ctx.ClearColor
+			ClearValue = ClearColor(ctx.ClearColor.R / 255.0f, ctx.ClearColor.G / 255.0f, ctx.ClearColor.B / 255.0f, ctx.ClearColor.A / 255.0f)
 		});
 
-		RenderPassDesc desc = .(colorAttachments);
+		RenderPassDesc desc = .() { ColorAttachments = .(colorAttachments) };
 
 		if (mDepthTextureView != null)
 		{
@@ -497,29 +753,52 @@ abstract class Application
 			};
 		}
 
-		let renderPass = encoder.BeginRenderPass(&desc);
+		let renderPass = encoder.BeginRenderPass(desc);
 		renderPass.SetViewport(0, 0, mSwapChain.Width, mSwapChain.Height, 0, 1);
 		renderPass.SetScissor(0, 0, mSwapChain.Width, mSwapChain.Height);
 
 		OnRender(renderPass, ctx.Frame);
 
 		renderPass.End();
-
-		delete renderPass;
 	}
 
 	private void HandleWindowEvent(IWindow window, WindowEvent evt)
 	{
-		if (window != mWindow)
-			return;
-
-		switch (evt.Type)
+		// Main window
+		if (window == mWindow)
 		{
-		case .Resized:
-			HandleResize();
-		case .CloseRequested:
-			Exit();
-		default:
+			switch (evt.Type)
+			{
+			case .Resized:
+				HandleResize();
+			case .CloseRequested:
+				Exit();
+			default:
+			}
+			return;
+		}
+
+		// Secondary windows
+		for (let ctx in mSecondaryWindows)
+		{
+			if (ctx.Window == window)
+			{
+				switch (evt.Type)
+				{
+				case .Resized:
+					if (ctx.Window.Width > 0 && ctx.Window.Height > 0)
+					{
+						mDevice.WaitIdle();
+						ctx.SwapChain.Resize((uint32)ctx.Window.Width, (uint32)ctx.Window.Height);
+						OnSecondaryWindowResized(ctx, ctx.Window.Width, ctx.Window.Height);
+					}
+				case .CloseRequested:
+					if (ctx.OnCloseRequested != null)
+						ctx.OnCloseRequested(ctx);
+				default:
+				}
+				return;
+			}
 		}
 	}
 
@@ -531,8 +810,8 @@ abstract class Application
 		mDevice.WaitIdle();
 
 		// Cleanup depth buffer
-		if (mDepthTextureView != null) { delete mDepthTextureView; mDepthTextureView = null; }
-		if (mDepthTexture != null) { delete mDepthTexture; mDepthTexture = null; }
+		if (mDepthTextureView != null) mDevice.DestroyTextureView(ref mDepthTextureView);
+		if (mDepthTexture != null) mDevice.DestroyTexture(ref mDepthTexture);
 
 		// Resize swap chain
 		mSwapChain.Resize((uint32)mWindow.Width, (uint32)mWindow.Height);
@@ -546,29 +825,63 @@ abstract class Application
 
 	private void Cleanup()
 	{
-		// Clean up command buffers
-		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-		{
-			if (mCommandBuffers[i] != null)
-			{
-				delete mCommandBuffers[i];
-				mCommandBuffers[i] = null;
-			}
-		}
+		// Destroy all secondary windows
+		while (mSecondaryWindows.Count > 0)
+			DestroySecondaryWindowImmediate(mSecondaryWindows[mSecondaryWindows.Count - 1]);
+		mPendingDestroys.Clear();
 
 		// Clean up depth buffer
-		if (mDepthTextureView != null) delete mDepthTextureView;
-		if (mDepthTexture != null) delete mDepthTexture;
+		if (mDepthTextureView != null) mDevice.DestroyTextureView(ref mDepthTextureView);
+		if (mDepthTexture != null) mDevice.DestroyTexture(ref mDepthTexture);
 
-		// Clean up swap chain and surface (owned by Application)
-		if (mSwapChain != null) delete mSwapChain;
-		if (mSurface != null) delete mSurface;
+		// Clean up per-frame command pools and fence
+		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			if (mCommandPools[i] != null) mDevice.DestroyCommandPool(ref mCommandPools[i]);
+		}
+		if (mFrameFence != null) mDevice.DestroyFence(ref mFrameFence);
+		if (mSwapChain != null) mDevice.DestroySwapChain(ref mSwapChain);
+		if (mSurface != null) mDevice.DestroySurface(ref mSurface);
 
 		// Destroy window
 		if (mWindow != null)
 			mShell.WindowManager.DestroyWindow(mWindow);
 
-		// Note: shell, device, backend are NOT deleted - they're owned by caller
+		// Destroy device (handles ValidatedDevice wrapper)
+		if (mDevice != null)
+		{
+			mDevice.Destroy();
+			if (let validated = mDevice as Sedulous.RHI.Validation.ValidatedDevice)
+			{
+				delete validated.Inner;
+				delete validated;
+			}
+			else
+				delete mDevice;
+			mDevice = null;
+		}
+
+		// Destroy backend (handles ValidatedBackend wrapper)
+		if (mBackend != null)
+		{
+			mBackend.Destroy();
+			if (let validated = mBackend as Sedulous.RHI.Validation.ValidatedBackend)
+			{
+				delete validated.Inner;
+				delete validated;
+			}
+			else
+				delete mBackend;
+			mBackend = null;
+		}
+
+		// Shutdown shell
+		if (mShell != null)
+		{
+			mShell.Shutdown();
+			delete mShell;
+			mShell = null;
+		}
 	}
 
 	/// Discovers the assets and asset cache directories.

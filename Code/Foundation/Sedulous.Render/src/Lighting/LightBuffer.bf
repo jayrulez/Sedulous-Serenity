@@ -341,10 +341,13 @@ public class LightBuffer : IDisposable
 
 	public void Dispose()
 	{
+		if (mDevice == null)
+			return;
+
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			if (mLightDataBuffers[i] != null) { delete mLightDataBuffers[i]; mLightDataBuffers[i] = null; }
-			if (mLightingUniformBuffers[i] != null) { delete mLightingUniformBuffers[i]; mLightingUniformBuffers[i] = null; }
+			mDevice.DestroyBuffer(ref mLightDataBuffers[i]);
+			mDevice.DestroyBuffer(ref mLightingUniformBuffers[i]);
 		}
 	}
 }

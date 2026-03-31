@@ -1,0 +1,7 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.RHI" = "*", "Sedulous.RHI.Validation" = "*", "Sedulous.RHI.DX12" = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.RenderGraph" = "*", "Sedulous.Renderer" = "*", "Sedulous.Shell" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Core" = "*", "Sedulous.Core.Mathematics" = "*", SDL3 = "*", Dxc-Beef = "*", cimgui-Beef = "*"}
+
+[Project]
+Name = "RendererFramework"
+TargetType = "BeefLib"
+StartupObject = "RendererFramework.Program"

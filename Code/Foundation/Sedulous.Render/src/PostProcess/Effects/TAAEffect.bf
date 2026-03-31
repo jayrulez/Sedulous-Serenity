@@ -26,31 +26,31 @@ public class TAAEffect : IPostProcessEffect
 	private IDevice mDevice;
 
 	// TAA resolve pipeline
-	private IRenderPipeline mResolvePipeline ~ delete _;
-	private IPipelineLayout mResolvePipelineLayout ~ delete _;
-	private IBindGroupLayout mResolveBindGroupLayout ~ delete _;
+	private IRenderPipeline mResolvePipeline;
+	private IPipelineLayout mResolvePipelineLayout;
+	private IBindGroupLayout mResolveBindGroupLayout;
 
 	// History copy pipeline
-	private IRenderPipeline mCopyPipeline ~ delete _;
-	private IPipelineLayout mCopyPipelineLayout ~ delete _;
-	private IBindGroupLayout mCopyBindGroupLayout ~ delete _;
+	private IRenderPipeline mCopyPipeline;
+	private IPipelineLayout mCopyPipelineLayout;
+	private IBindGroupLayout mCopyBindGroupLayout;
 
 	// Persistent history buffers (double-buffered)
-	private ITexture mHistoryA ~ delete _;
-	private ITexture mHistoryB ~ delete _;
-	private ITextureView mHistoryAView ~ delete _;
-	private ITextureView mHistoryBView ~ delete _;
+	private ITexture mHistoryA;
+	private ITexture mHistoryB;
+	private ITextureView mHistoryAView;
+	private ITextureView mHistoryBView;
 	private uint32 mHistoryWidth;
 	private uint32 mHistoryHeight;
 	private bool mReadFromA = true; // true = read A (history), write B
 	private bool mFirstFrame = true;
 
 	// Samplers
-	private ISampler mLinearSampler ~ delete _;
-	private ISampler mPointSampler ~ delete _;
+	private ISampler mLinearSampler;
+	private ISampler mPointSampler;
 
 	// Params buffer
-	private IBuffer mParamsBuffer ~ delete _;
+	private IBuffer mParamsBuffer;
 
 	// Per-frame bind groups
 	private IBindGroup[RenderConfig.FrameBufferCount] mResolveBindGroups;
@@ -253,10 +253,10 @@ public class TAAEffect : IPostProcessEffect
 			return;
 
 		// Release old textures
-		if (mHistoryAView != null) { delete mHistoryAView; mHistoryAView = null; }
-		if (mHistoryBView != null) { delete mHistoryBView; mHistoryBView = null; }
-		if (mHistoryA != null) { delete mHistoryA; mHistoryA = null; }
-		if (mHistoryB != null) { delete mHistoryB; mHistoryB = null; }
+		if (mHistoryAView != null) mDevice.DestroyTextureView(ref mHistoryAView);
+		if (mHistoryBView != null) mDevice.DestroyTextureView(ref mHistoryBView);
+		if (mHistoryA != null) mDevice.DestroyTexture(ref mHistoryA);
+		if (mHistoryB != null) mDevice.DestroyTexture(ref mHistoryB);
 
 		// Create new history textures
 		TextureDesc texDesc = .();
@@ -306,17 +306,31 @@ public class TAAEffect : IPostProcessEffect
 	{
 		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			if (mResolveBindGroups[i] != null) { delete mResolveBindGroups[i]; mResolveBindGroups[i] = null; }
-			if (mCopyBindGroups[i] != null) { delete mCopyBindGroups[i]; mCopyBindGroups[i] = null; }
+			if (mResolveBindGroups[i] != null) mDevice.DestroyBindGroup(ref mResolveBindGroups[i]);
+			if (mCopyBindGroups[i] != null) mDevice.DestroyBindGroup(ref mCopyBindGroups[i]);
 		}
+
+		if (mHistoryAView != null) mDevice.DestroyTextureView(ref mHistoryAView);
+		if (mHistoryBView != null) mDevice.DestroyTextureView(ref mHistoryBView);
+		if (mHistoryA != null) mDevice.DestroyTexture(ref mHistoryA);
+		if (mHistoryB != null) mDevice.DestroyTexture(ref mHistoryB);
+		if (mResolvePipeline != null) mDevice.DestroyRenderPipeline(ref mResolvePipeline);
+		if (mResolvePipelineLayout != null) mDevice.DestroyPipelineLayout(ref mResolvePipelineLayout);
+		if (mResolveBindGroupLayout != null) mDevice.DestroyBindGroupLayout(ref mResolveBindGroupLayout);
+		if (mCopyPipeline != null) mDevice.DestroyRenderPipeline(ref mCopyPipeline);
+		if (mCopyPipelineLayout != null) mDevice.DestroyPipelineLayout(ref mCopyPipelineLayout);
+		if (mCopyBindGroupLayout != null) mDevice.DestroyBindGroupLayout(ref mCopyBindGroupLayout);
+		if (mLinearSampler != null) mDevice.DestroySampler(ref mLinearSampler);
+		if (mPointSampler != null) mDevice.DestroySampler(ref mPointSampler);
+		if (mParamsBuffer != null) mDevice.DestroyBuffer(ref mParamsBuffer);
 	}
 
 	public void AddPasses(
 		RenderGraph graph,
-		RenderView view,
-		RGResourceHandle inputHandle,
-		RGResourceHandle outputHandle,
-		RGResourceHandle depthHandle)
+		ViewContext view,
+		RGHandle inputHandle,
+		RGHandle outputHandle,
+		RGHandle depthHandle)
 	{
 		if (mResolvePipeline == null)
 			return;
@@ -342,7 +356,7 @@ public class TAAEffect : IPostProcessEffect
 		taaParams.TexelSizeY = 1.0f / (float)view.Height;
 		taaParams.FirstFrame = mFirstFrame ? 1.0f : 0.0f;
 
-		mDevice.Queue.WriteMappedBuffer(
+		TransferHelper.WriteMappedBuffer(
 			mParamsBuffer, 0,
 			Span<uint8>((uint8*)&taaParams, TAAParams.Size)
 		);
@@ -353,40 +367,42 @@ public class TAAEffect : IPostProcessEffect
 		let writeHistoryTex = mReadFromA ? mHistoryB : mHistoryA;
 		let writeHistoryView = mReadFromA ? mHistoryBView : mHistoryAView;
 
-		let historyReadHandle = graph.ImportTexture("TAAHistoryRead", readHistoryTex, readHistoryView);
-		let historyWriteHandle = graph.ImportTexture("TAAHistoryWrite", writeHistoryTex, writeHistoryView);
+		let historyReadHandle = graph.ImportTarget("TAAHistoryRead", readHistoryTex, readHistoryView);
+		let historyWriteHandle = graph.ImportTarget("TAAHistoryWrite", writeHistoryTex, writeHistoryView);
 
 		// Capture for callbacks
 		RenderGraph graphRef = graph;
-		RGResourceHandle inputCopy = inputHandle;
-		RGResourceHandle motionCopy = motionHandle;
+		RGHandle inputCopy = inputHandle;
+		RGHandle motionCopy = motionHandle;
 		ITextureView historyViewCopy = readHistoryView;
 
 		// Pass 1: TAA resolve — read input + history + motion → write to output
-		graph.AddGraphicsPass("PostProcess_TAAResolve")
-			.ReadTexture(inputHandle)
-			.ReadTexture(historyReadHandle)
-			.ReadTexture(motionHandle)
-			.WriteColor(outputHandle, .DontCare, .Store)
-			.NeverCull()
-			.SetExecuteCallback(new [=] (encoder) => {
-				let inputView = graphRef.GetTextureView(inputCopy);
-				let motionView = graphRef.GetTextureView(motionCopy);
-				ExecuteResolvePass(encoder, view, inputView, historyViewCopy, motionView);
+		graph.AddRenderPass("PostProcess_TAAResolve", scope (builder) => {
+				builder.ReadTexture(inputHandle);
+				builder.ReadTexture(historyReadHandle);
+				builder.ReadTexture(motionHandle);
+				builder.SetColorTarget(0, outputHandle, .DontCare, .Store);
+				builder.NeverCull();
+				builder.SetExecute(new [=] (encoder) => {
+					let inputView = graphRef.GetTextureView(inputCopy);
+					let motionView = graphRef.GetTextureView(motionCopy);
+					ExecuteResolvePass(encoder, view, inputView, historyViewCopy, motionView);
+				});
 			});
 
 		// Pass 2: Copy resolved output to history write buffer
-		RGResourceHandle outputCopy = outputHandle;
+		RGHandle outputCopy = outputHandle;
 
 		if (mCopyPipeline != null)
 		{
-			graph.AddGraphicsPass("TAA_HistoryCopy")
-				.ReadTexture(outputHandle)
-				.WriteColor(historyWriteHandle, .DontCare, .Store)
-				.NeverCull()
-				.SetExecuteCallback(new [=] (encoder) => {
-					let resolvedView = graphRef.GetTextureView(outputCopy);
-					ExecuteCopyPass(encoder, view, resolvedView);
+			graph.AddRenderPass("TAA_HistoryCopy", scope (builder) => {
+					builder.ReadTexture(outputHandle);
+					builder.SetColorTarget(0, historyWriteHandle, .DontCare, .Store);
+					builder.NeverCull();
+					builder.SetExecute(new [=] (encoder) => {
+						let resolvedView = graphRef.GetTextureView(outputCopy);
+						ExecuteCopyPass(encoder, view, resolvedView);
+					});
 				});
 		}
 
@@ -395,7 +411,7 @@ public class TAAEffect : IPostProcessEffect
 		mFirstFrame = false;
 	}
 
-	private void ExecuteResolvePass(IRenderPassEncoder encoder, RenderView view,
+	private void ExecuteResolvePass(IRenderPassEncoder encoder, ViewContext view,
 		ITextureView inputView, ITextureView historyView, ITextureView motionView)
 	{
 		if (inputView == null || historyView == null || motionView == null)
@@ -406,17 +422,16 @@ public class TAAEffect : IPostProcessEffect
 		// Recreate bind group (transient textures change per frame)
 		if (mResolveBindGroups[frameIndex] != null)
 		{
-			delete mResolveBindGroups[frameIndex];
-			mResolveBindGroups[frameIndex] = null;
+			mDevice.DestroyBindGroup(ref mResolveBindGroups[frameIndex]);
 		}
 
 		BindGroupEntry[6] entries = .(
-			BindGroupEntry.Buffer(0, mParamsBuffer, 0, (uint64)TAAParams.Size),
-			BindGroupEntry.Texture(0, inputView),
-			BindGroupEntry.Texture(1, historyView),
-			BindGroupEntry.Texture(2, motionView),
-			BindGroupEntry.Sampler(0, mLinearSampler),
-			BindGroupEntry.Sampler(1, mPointSampler)
+			BindGroupEntry.Buffer(/*0,*/mParamsBuffer, 0, (uint64)TAAParams.Size),
+			BindGroupEntry.Texture(/*0,*/inputView),
+			BindGroupEntry.Texture(/*1,*/historyView),
+			BindGroupEntry.Texture(/*2,*/motionView),
+			BindGroupEntry.Sampler(/*0,*/mLinearSampler),
+			BindGroupEntry.Sampler(/*1,*/mPointSampler)
 		);
 
 		BindGroupDesc bgDesc = .();
@@ -441,7 +456,7 @@ public class TAAEffect : IPostProcessEffect
 			mRenderSystem.Stats.DrawCalls++;
 	}
 
-	private void ExecuteCopyPass(IRenderPassEncoder encoder, RenderView view, ITextureView sourceView)
+	private void ExecuteCopyPass(IRenderPassEncoder encoder, ViewContext view, ITextureView sourceView)
 	{
 		if (sourceView == null)
 			return;
@@ -451,13 +466,12 @@ public class TAAEffect : IPostProcessEffect
 		// Recreate bind group
 		if (mCopyBindGroups[frameIndex] != null)
 		{
-			delete mCopyBindGroups[frameIndex];
-			mCopyBindGroups[frameIndex] = null;
+			mDevice.DestroyBindGroup(ref mCopyBindGroups[frameIndex]);
 		}
 
 		BindGroupEntry[2] entries = .(
-			BindGroupEntry.Texture(0, sourceView),
-			BindGroupEntry.Sampler(0, mPointSampler)
+			BindGroupEntry.Texture(/*0,*/sourceView),
+			BindGroupEntry.Sampler(/*0,*/mPointSampler)
 		);
 
 		BindGroupDesc bgDesc = .();

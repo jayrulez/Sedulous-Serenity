@@ -1,0 +1,6 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.Runtime.Client" = "*", "Sedulous.Renderer" = "*", "Sedulous.Core.Mathematics" = "*", "Sedulous.Shaders" = "*", "Sedulous.RHI" = "*", "Sedulous.Profiler" = "*", "Sedulous.Geometry" = "*", "Sedulous.Geometry.Tooling" = "*"}
+
+[Project]
+Name = "RendererSandbox"
+StartupObject = "RendererSandbox.Program"

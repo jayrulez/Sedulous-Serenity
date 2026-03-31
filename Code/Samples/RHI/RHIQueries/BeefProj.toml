@@ -1,9 +1,0 @@
-FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Core.Mathematics" = "*", "Sedulous.RHI" = "*", SampleFramework = "*"}
-
-[Project]
-Name = "RHIQueries"
-StartupObject = "RHIQueries.Program"
-
-[Configs.Debug.Win64]
-DebugCommandArguments = "--dx12"

@@ -43,8 +43,8 @@ public class GrassFeature : RenderFeatureBase
 	const int32 BladeIndexCount = 12;
 	const int32 BladeVertexStride = 20; // float3 pos + float2 uv
 
-	private IBuffer mBladeVertexBuffer ~ delete _;
-	private IBuffer mBladeIndexBuffer ~ delete _;
+	private IBuffer mBladeVertexBuffer;
+	private IBuffer mBladeIndexBuffer;
 
 	// Per-frame instance buffers
 	private IBuffer[RenderConfig.FrameBufferCount] mInstanceBuffers;
@@ -58,22 +58,18 @@ public class GrassFeature : RenderFeatureBase
 	private const uint64 AlignedObjectUniformSize = ((ObjectUniforms.Size + ObjectUniformAlignment - 1) / ObjectUniformAlignment) * ObjectUniformAlignment;
 
 	// Bind group layouts
-	private IBindGroupLayout mGrassBindGroupLayout ~ delete _;
-	private IBindGroupLayout mSceneBindGroupLayout; // borrowed, don't delete
+	private IBindGroupLayout mGrassBindGroupLayout;
 
 	// Pipelines
-	private IRenderPipeline mGrassPipeline ~ delete _;
-	private IRenderPipeline mGrassPipelineNoShadows ~ delete _;
-	private IPipelineLayout mGrassPipelineLayout ~ delete _;
+	private IRenderPipeline mGrassPipeline;
+	private IRenderPipeline mGrassPipelineNoShadows;
+	private IPipelineLayout mGrassPipelineLayout;
 
 	// Sampler
-	private ISampler mGrassSampler ~ delete _;
+	private ISampler mGrassSampler;
 
 	// Per-grass bind groups (cached)
-	private List<GrassBindGroupEntry> mPerGrassBindGroups = new .() ~ {
-		for (let entry in _) { if (entry.BindGroup != null) delete entry.BindGroup; }
-		delete _;
-	};
+	private List<GrassBindGroupEntry> mPerGrassBindGroups = new .() ~ delete _;
 
 	// Scene bind groups (space0, own copy)
 	private IBindGroup[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mSceneBindGroups;
@@ -103,19 +99,13 @@ public class GrassFeature : RenderFeatureBase
 	/// Feature name.
 	public override StringView Name => "Grass";
 
-	/// Gets the current frame index.
-	private int32 FrameIndex => Renderer.RenderFrameContext?.FrameIndex ?? 0;
-
-	/// Gets the bind group index accounting for active view.
-	private int32 GetBindGroupIndex(int32 frameIndex) => frameIndex * RenderConfig.MaxViews + (Renderer.RenderFrameContext?.ActiveViewIndex ?? 0);
-
 	/// Depends on Terrain (grass renders after terrain, before water).
 	public override void GetDependencies(List<StringView> outDependencies)
 	{
 		outDependencies.Add("Terrain");
 	}
 
-	protected override Result<void> OnInitialize()
+	protected override Result<void> OnInitialize(InitContext initCtx)
 	{
 		if (CreateBladeMesh() case .Err)
 			return .Err;
@@ -126,12 +116,7 @@ public class GrassFeature : RenderFeatureBase
 		if (CreateGrassBindGroupLayout() case .Err)
 			return .Err;
 
-		// Borrow scene bind group layout from ForwardOpaqueFeature
-		if (let opaqueFeature = Renderer.GetFeature<ForwardOpaqueFeature>())
-			mSceneBindGroupLayout = opaqueFeature.[Friend]mSceneBindGroupLayout;
 
-		if (mSceneBindGroupLayout == null)
-			return .Err;
 
 		if (CreateGrassPipelineLayout() case .Err)
 			return .Err;
@@ -280,7 +265,7 @@ public class GrassFeature : RenderFeatureBase
 
 	private Result<void> CreateGrassPipelineLayout()
 	{
-		IBindGroupLayout[2] layouts = .(mSceneBindGroupLayout, mGrassBindGroupLayout);
+		IBindGroupLayout[2] layouts = .(Renderer.SharedLayouts.SceneLayout, mGrassBindGroupLayout);
 		PipelineLayoutDesc plDesc = .(layouts);
 
 		switch (Renderer.Device.CreatePipelineLayout(plDesc))
@@ -465,27 +450,37 @@ public class GrassFeature : RenderFeatureBase
 
 	protected override void OnShutdown()
 	{
+		let device = Renderer.Device;
+
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			if (mInstanceBuffers[i] != null) { delete mInstanceBuffers[i]; mInstanceBuffers[i] = null; }
-			if (mGrassUniformBuffers[i] != null) { delete mGrassUniformBuffers[i]; mGrassUniformBuffers[i] = null; }
-			if (mObjectUniformBuffers[i] != null) { delete mObjectUniformBuffers[i]; mObjectUniformBuffers[i] = null; }
+			device.DestroyBuffer(ref mInstanceBuffers[i]);
+			device.DestroyBuffer(ref mGrassUniformBuffers[i]);
+			device.DestroyBuffer(ref mObjectUniformBuffers[i]);
 		}
 
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
 		{
-			if (mSceneBindGroups[i] != null) { delete mSceneBindGroups[i]; mSceneBindGroups[i] = null; }
+			if (mSceneBindGroups[i] != null) device.DestroyBindGroup(ref mSceneBindGroups[i]);
 		}
 
-		for (let entry in mPerGrassBindGroups)
+		for (var entry in ref mPerGrassBindGroups)
 		{
 			if (entry.BindGroup != null)
-				delete entry.BindGroup;
+				device.DestroyBindGroup(ref entry.BindGroup);
 		}
 		mPerGrassBindGroups.Clear();
+
+		device.DestroyBuffer(ref mBladeVertexBuffer);
+		device.DestroyBuffer(ref mBladeIndexBuffer);
+		device.DestroyBindGroupLayout(ref mGrassBindGroupLayout);
+		device.DestroyRenderPipeline(ref mGrassPipeline);
+		device.DestroyRenderPipeline(ref mGrassPipelineNoShadows);
+		device.DestroyPipelineLayout(ref mGrassPipelineLayout);
+		device.DestroySampler(ref mGrassSampler);
 	}
 
-	public override void AddPasses(RenderGraph graph, RenderView view, RenderWorld world)
+	public override void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world)
 	{
 		if (world.GrassCount == 0)
 			return;
@@ -497,7 +492,8 @@ public class GrassFeature : RenderFeatureBase
 		if (!depthHandle.IsValid || !colorHandle.IsValid || !gbufferHandle.IsValid)
 			return;
 
-		let frameIndex = FrameIndex;
+		let frameIndex = view.FrameIndex;
+		let bindGroupIndex = view.GetBindGroupIndex();
 
 		// Generate instances and upload uniforms
 		PrepareGrassData(world, view, frameIndex);
@@ -506,19 +502,20 @@ public class GrassFeature : RenderFeatureBase
 			return;
 
 		// Create scene bind group
-		CreateSceneBindGroup(frameIndex);
+		CreateSceneBindGroup(frameIndex, bindGroupIndex);
 
-		graph.AddGraphicsPass("Grass")
-			.WriteColor(colorHandle, .Load, .Store)
-			.WriteColor(gbufferHandle, .Load, .Store)
-			.WriteDepth(depthHandle, .Load, .Store)
-			.NeverCull()
-			.SetExecuteCallback(new [=] (encoder) => {
-				ExecuteGrassPass(encoder, world, view, frameIndex);
+		graph.AddRenderPass("Grass", scope (builder) => {
+				builder.SetColorTarget(0, colorHandle, .Load, .Store);
+				builder.SetColorTarget(1, gbufferHandle, .Load, .Store);
+				builder.SetDepthTarget(depthHandle, .Load, .Store);
+				builder.NeverCull();
+				builder.SetExecute(new [=] (encoder) => {
+					ExecuteGrassPass(encoder, world, view, frameIndex, bindGroupIndex);
+				});
 			});
 	}
 
-	private void PrepareGrassData(RenderWorld world, RenderView view, int32 frameIndex)
+	private void PrepareGrassData(RenderWorld world, ViewContext view, int32 frameIndex)
 	{
 		mDrawData.Clear();
 
@@ -751,17 +748,16 @@ public class GrassFeature : RenderFeatureBase
 		return (float)channelValue / 255.0f;
 	}
 
-	private void ExecuteGrassPass(IRenderPassEncoder encoder, RenderWorld world, RenderView view, int32 frameIndex)
+	private void ExecuteGrassPass(IRenderPassEncoder encoder, RenderWorld world, ViewContext view, int32 frameIndex, int32 bindGroupIndex)
 	{
-		let opaqueFeature = Renderer.GetFeature<ForwardOpaqueFeature>();
-		let shadowsActive = opaqueFeature?.[Friend]mShadowPassesActive ?? false;
+		let shadowsActive = Renderer.ShadowRenderer?.ShadowPassesActive ?? false;
 		let pipeline = (shadowsActive && mGrassPipeline != null) ? mGrassPipeline :
 			(mGrassPipelineNoShadows != null) ? mGrassPipelineNoShadows : mGrassPipeline;
 
 		if (pipeline == null)
 			return;
 
-		let sceneBindGroup = mSceneBindGroups[GetBindGroupIndex(frameIndex)];
+		let sceneBindGroup = mSceneBindGroups[bindGroupIndex];
 		if (sceneBindGroup == null)
 			return;
 
@@ -810,12 +806,9 @@ public class GrassFeature : RenderFeatureBase
 			}
 		}
 
-		// Delete old
+		// Destroy old
 		if (existing != null && existing.BindGroup != null)
-		{
-			delete existing.BindGroup;
-			existing.BindGroup = null;
-		}
+			Renderer.Device.DestroyBindGroup(ref existing.BindGroup);
 
 		let proxy = world.GrassProxies.Get(handle);
 		if (proxy == null || proxy.AlbedoView == null)
@@ -827,9 +820,9 @@ public class GrassFeature : RenderFeatureBase
 
 		BindGroupEntry[3] entries = .();
 		uint64 uniformOffset = (uint64)grassIndex * GrassUniforms.Size;
-		entries[0] = BindGroupEntry.Buffer(0, uniformBuffer, uniformOffset, GrassUniforms.Size);
-		entries[1] = BindGroupEntry.Texture(0, proxy.AlbedoView);
-		entries[2] = BindGroupEntry.Sampler(0, mGrassSampler);
+		entries[0] = BindGroupEntry.Buffer(/*0,*/uniformBuffer, uniformOffset, GrassUniforms.Size);
+		entries[1] = BindGroupEntry.Texture(/*0,*/proxy.AlbedoView);
+		entries[2] = BindGroupEntry.Sampler(/*0,*/mGrassSampler);
 
 		BindGroupDesc bgDesc = .()
 		{
@@ -867,21 +860,19 @@ public class GrassFeature : RenderFeatureBase
 		mTextureGeneration++;
 	}
 
-	private void CreateSceneBindGroup(int32 frameIndex)
+	private void CreateSceneBindGroup(int32 frameIndex, int32 bindGroupIndex)
 	{
 		let opaqueFeature = Renderer.GetFeature<ForwardOpaqueFeature>();
 		if (opaqueFeature == null)
 			return;
 
-		let shadowsEnabled = opaqueFeature.[Friend]mShadowPassesActive;
+		let shadowsEnabled = Renderer.ShadowRenderer.ShadowPassesActive;
 
 		let skyFeature = Renderer.GetFeature<SkyFeature>();
 		let hasRealIBL = skyFeature?.IrradianceMapView != null;
 
-		let probeSystem = opaqueFeature.[Friend]mProbeSystem;
+		let probeSystem = Renderer.ProbeSystem;
 		let probeGeneration = probeSystem?.Generation ?? 0;
-
-		let bindGroupIndex = GetBindGroupIndex(frameIndex);
 
 		if (mSceneBindGroups[bindGroupIndex] != null)
 		{
@@ -890,98 +881,12 @@ public class GrassFeature : RenderFeatureBase
 				mSceneBindGroupProbeGeneration[bindGroupIndex] == probeGeneration)
 				return;
 
-			delete mSceneBindGroups[bindGroupIndex];
-			mSceneBindGroups[bindGroupIndex] = null;
+			Renderer.Device.DestroyBindGroup(ref mSceneBindGroups[bindGroupIndex]);
 		}
 
-		let sceneLayout = opaqueFeature.[Friend]mSceneBindGroupLayout;
-		if (sceneLayout == null)
-			return;
-
-		let lighting = opaqueFeature.[Friend]mLighting;
-		if (lighting == null)
-			return;
-
-		let cameraBuffer = Renderer.RenderFrameContext?.SceneUniformBuffer;
-		let objectUniformBuffer = mObjectUniformBuffers[frameIndex];
-		let lightingBuffer = lighting.LightBuffer?.GetUniformBuffer(frameIndex);
-		let lightDataBuffer = lighting.LightBuffer?.GetLightDataBuffer(frameIndex);
-		let viewIndex = Renderer.RenderFrameContext?.ActiveViewIndex ?? 0;
-		let clusterInfoBuffer = lighting.ClusterGrid?.GetClusterLightInfoBuffer(frameIndex, viewIndex);
-		let lightIndexBuffer = lighting.ClusterGrid?.GetLightIndexBuffer(frameIndex, viewIndex);
-
-		if (cameraBuffer == null || objectUniformBuffer == null ||
-			lightingBuffer == null || lightDataBuffer == null ||
-			clusterInfoBuffer == null || lightIndexBuffer == null)
-			return;
-
-		BindGroupEntry[15] entries = .();
-
-		entries[0] = BindGroupEntry.Buffer(0, cameraBuffer, 0, SceneUniforms.Size);
-		entries[1] = BindGroupEntry.Buffer(1, objectUniformBuffer, 0, AlignedObjectUniformSize);
-		entries[2] = BindGroupEntry.Buffer(3, lightingBuffer, 0, (uint64)LightingUniforms.Size);
-		entries[3] = BindGroupEntry.Buffer(4, lightDataBuffer, 0, (uint64)(lighting.LightBuffer.MaxLights * GPULight.Size));
-		entries[4] = BindGroupEntry.Buffer(5, clusterInfoBuffer, 0, (uint64)(lighting.ClusterGrid.Config.TotalClusters * 8));
-		entries[5] = BindGroupEntry.Buffer(6, lightIndexBuffer, 0, (uint64)(lighting.ClusterGrid.Config.MaxLightsPerCluster * lighting.ClusterGrid.Config.TotalClusters * 4));
-
-		let shadowData = opaqueFeature.[Friend]mShadowRenderer?.GetShadowShaderData() ?? .();
-		let materialSystem = Renderer.MaterialSystem;
-
-		if (shadowsEnabled && shadowData.CascadedShadowUniforms != null)
-			entries[6] = BindGroupEntry.Buffer(5, shadowData.CascadedShadowUniforms, 0, (uint64)ShadowUniforms.Size);
-		else
-			entries[6] = BindGroupEntry.Buffer(5, lightingBuffer, 0, (uint64)LightingUniforms.Size);
-
-		let dummyShadowMapView = opaqueFeature.[Friend]mDummyShadowMapArrayView;
-		if (shadowsEnabled && shadowData.CascadedShadowMapView != null)
-			entries[7] = BindGroupEntry.Texture(7, shadowData.CascadedShadowMapView);
-		else if (dummyShadowMapView != null)
-			entries[7] = BindGroupEntry.Texture(7, dummyShadowMapView);
-		else
-			return;
-
-		if (shadowData.CascadedShadowSampler != null)
-			entries[8] = BindGroupEntry.Sampler(1, shadowData.CascadedShadowSampler);
-		else if (materialSystem?.DefaultSampler != null)
-			entries[8] = BindGroupEntry.Sampler(1, materialSystem.DefaultSampler);
-		else
-			return;
-
-		ITextureView irradianceView = opaqueFeature.[Friend]mFallbackIrradianceCubemapView;
-		ITextureView prefilteredView = opaqueFeature.[Friend]mFallbackPrefilteredCubemapView;
-		ITextureView brdfLutView = opaqueFeature.[Friend]mFallbackBRDFLutView;
-		ISampler iblSampler = opaqueFeature.[Friend]mIBLSampler;
-
-		if (skyFeature != null)
-		{
-			if (skyFeature.IrradianceMapView != null) irradianceView = skyFeature.IrradianceMapView;
-			if (skyFeature.PrefilteredMapView != null) prefilteredView = skyFeature.PrefilteredMapView;
-			if (skyFeature.BRDFLutView != null) brdfLutView = skyFeature.BRDFLutView;
-			if (skyFeature.EnvironmentSampler != null) iblSampler = skyFeature.EnvironmentSampler;
-		}
-
-		if (irradianceView == null || prefilteredView == null || brdfLutView == null || iblSampler == null)
-			return;
-
-		entries[9] = BindGroupEntry.Texture(8, irradianceView);
-		entries[10] = BindGroupEntry.Texture(9, prefilteredView);
-		entries[11] = BindGroupEntry.Texture(10, brdfLutView);
-		entries[12] = BindGroupEntry.Sampler(2, iblSampler);
-
-		if (probeSystem == null || probeSystem.GetProbeUniformBuffer(frameIndex) == null || probeSystem.GetCubemapArrayView() == null)
-			return;
-
-		entries[13] = BindGroupEntry.Buffer(6, probeSystem.GetProbeUniformBuffer(frameIndex), 0, ProbeUniforms.Size);
-		entries[14] = BindGroupEntry.Texture(11, probeSystem.GetCubemapArrayView());
-
-		BindGroupDesc bgDesc = .()
-		{
-			Label = "Grass Scene BindGroup",
-			Layout = sceneLayout,
-			Entries = entries
-		};
-
-		if (Renderer.Device.CreateBindGroup(bgDesc) case .Ok(let bg))
+		// Create via shared helper (uses shared layout, RenderSystem subsystems)
+		let bg = Renderer.SharedLayouts.CreateSceneBindGroup(frameIndex, mObjectUniformBuffers[frameIndex], probeSystem);
+		if (bg != null)
 		{
 			mSceneBindGroups[bindGroupIndex] = bg;
 			mSceneBindGroupShadowState[bindGroupIndex] = shadowsEnabled;

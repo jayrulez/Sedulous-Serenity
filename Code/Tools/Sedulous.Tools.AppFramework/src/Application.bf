@@ -34,7 +34,7 @@ public struct ApplicationConfig
 	public bool EnableValidation = true;
 	public TextureFormat SwapChainFormat = .BGRA8UnormSrgb;
 	public PresentMode PresentMode = .Fifo;
-	public Color ClearColor = .(0.15f, 0.15f, 0.2f, 1.0f);
+	public ClearColor ClearColor = .(0.15f, 0.15f, 0.2f, 1.0f);
 }
 
 /// Base class for UI applications.
@@ -51,9 +51,13 @@ public abstract class Application
 
 	private ShellClipboardAdapter mClipboard ~ delete _;
 
-	// Per-frame command buffers (use centralized FrameConfig from RHI)
-	protected const int MAX_FRAMES_IN_FLIGHT = FrameConfig.MAX_FRAMES_IN_FLIGHT;
+	// Per-frame command buffers
+	protected const int MAX_FRAMES_IN_FLIGHT = 2;
 	protected ICommandBuffer[MAX_FRAMES_IN_FLIGHT] mCommandBuffers;
+	protected ICommandPool[MAX_FRAMES_IN_FLIGHT] mCommandPools;
+	protected IFence mFrameFence;
+	protected uint64 mNextFenceValue = 1;
+	protected uint64[MAX_FRAMES_IN_FLIGHT] mFrameFenceValues;
 
 	// UI system
 	protected GUIContext mGUIContext;
@@ -295,12 +299,12 @@ public abstract class Application
 		mWindow = window;
 
 		// Create backend
-		mBackend = new VulkanBackend(mConfig.EnableValidation);
-		if (!mBackend.IsInitialized)
+		if (VulkanBackend.Create(mConfig.EnableValidation) not case .Ok(let backend))
 		{
 			Console.WriteLine("Failed to initialize Vulkan backend");
 			return false;
 		}
+		mBackend = backend;
 
 		// Create surface
 		if (mBackend.CreateSurface(mWindow.NativeHandle) not case .Ok(let surface))
@@ -318,10 +322,12 @@ public abstract class Application
 			Console.WriteLine("No GPU adapters found");
 			return false;
 		}
-		Console.WriteLine(scope $"Using adapter: {adapters[0].Info.Name}");
+		let adapterInfo = adapters[0].GetInfo();
+		Console.WriteLine(scope $"Using adapter: {adapterInfo.Name}");
+		delete adapterInfo;
 
 		// Create device
-		if (adapters[0].CreateDevice() not case .Ok(let device))
+		if (adapters[0].CreateDevice(.()) not case .Ok(let device))
 		{
 			Console.WriteLine("Failed to create device");
 			return false;
@@ -334,7 +340,6 @@ public abstract class Application
 			Width = (uint32)mWindow.Width,
 			Height = (uint32)mWindow.Height,
 			Format = mConfig.SwapChainFormat,
-			Usage = .RenderTarget,
 			PresentMode = mConfig.PresentMode
 		};
 
@@ -453,7 +458,7 @@ public abstract class Application
 	private bool InitializeDrawingRenderer()
 	{
 		mDrawingRenderer = new DrawingRenderer();
-		if (mDrawingRenderer.Initialize(mDevice, mSwapChain.Format, (int32)mSwapChain.FrameCount, mShaderSystem) case .Err)
+		if (mDrawingRenderer.Initialize(mDevice, mSwapChain.Format, (int32)mSwapChain.BufferCount, mShaderSystem) case .Err)
 		{
 			Console.WriteLine("Failed to initialize UI renderer");
 			return false;
@@ -588,20 +593,39 @@ public abstract class Application
 
 	private bool Frame()
 	{
+		// Create per-frame command pools and fence on first use
+		if (mCommandPools[0] == null)
+		{
+			for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+			{
+				if (mDevice.CreateCommandPool(.Graphics) not case .Ok(let pool))
+					return false;
+				mCommandPools[i] = pool;
+			}
+		}
+		if (mFrameFence == null)
+		{
+			if (mDevice.CreateFence(0) not case .Ok(let fence))
+				return false;
+			mFrameFence = fence;
+		}
+
+		// Use frame index based on internal counter (not yet acquired)
+		let frameIndex = (int32)(mNextFenceValue % MAX_FRAMES_IN_FLIGHT);
+
+		// Wait for this frame slot's previous GPU work to complete
+		if (mFrameFenceValues[frameIndex] > 0)
+			mFrameFence.Wait(mFrameFenceValues[frameIndex]);
+
+		// Reset this frame's pool (safe — fence wait guarantees GPU is done)
+		mCommandPools[frameIndex].Reset();
+		mCommandBuffers[frameIndex] = null;
+
 		// Acquire next swap chain image
 		if (mSwapChain.AcquireNextImage() case .Err)
 		{
 			HandleResize();
 			return true;
-		}
-
-		let frameIndex = (int32)mSwapChain.CurrentFrameIndex;
-
-		// Clean up previous command buffer
-		if (mCommandBuffers[frameIndex] != null)
-		{
-			delete mCommandBuffers[frameIndex];
-			mCommandBuffers[frameIndex] = null;
 		}
 
 		// Prepare phase
@@ -621,10 +645,9 @@ public abstract class Application
 			return false;
 
 		// Create command encoder
-		let encoder = mDevice.CreateCommandEncoder();
-		if (encoder == null)
+		let pool = mCommandPools[frameIndex];
+		if (pool.CreateEncoder() not case .Ok(var encoder))
 			return false;
-		defer delete encoder;
 
 		// Let app do custom rendering
 		bool customRendering = OnRender(encoder, frameIndex);
@@ -640,12 +663,11 @@ public abstract class Application
 				StoreOp = .Store,
 				ClearValue = mConfig.ClearColor
 			});
-			RenderPassDesc renderPassDesc = .(colorAttachments);
+			RenderPassDesc renderPassDesc = .() { ColorAttachments = .(colorAttachments) };
 
-			let renderPass = encoder.BeginRenderPass(&renderPassDesc);
+			let renderPass = encoder.BeginRenderPass(renderPassDesc);
 			if (renderPass == null)
 				return false;
-			defer delete renderPass;
 
 			// Render UI
 			mDrawingRenderer.Render(renderPass, mSwapChain.Width, mSwapChain.Height, frameIndex);
@@ -653,17 +675,25 @@ public abstract class Application
 			renderPass.End();
 		}
 
-		// Finish and submit
+		// Transition swapchain image to present layout
+		encoder.TransitionTexture(mSwapChain.CurrentTexture, .RenderTarget, .Present);
+
+		// Finish and submit with fence
 		let commandBuffer = encoder.Finish();
 		if (commandBuffer == null)
 			return false;
 
 		mCommandBuffers[frameIndex] = commandBuffer;
-		mDevice.Queue.Submit(commandBuffer, mSwapChain);
+		let queue = mDevice.GetQueue(.Graphics);
 
-		if (mSwapChain.Present() case .Err)
+		mFrameFenceValues[frameIndex] = mNextFenceValue++;
+		ICommandBuffer[1] bufs = .(commandBuffer);
+		queue.Submit(bufs, mFrameFence, mFrameFenceValues[frameIndex]);
+
+		if (mSwapChain.Present(queue) case .Err)
 			HandleResize();
 
+		pool.DestroyEncoder(ref encoder);
 		return true;
 	}
 
@@ -674,11 +704,7 @@ public abstract class Application
 		// Clean up command buffers
 		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
-			if (mCommandBuffers[i] != null)
-			{
-				delete mCommandBuffers[i];
-				mCommandBuffers[i] = null;
-			}
+			mCommandBuffers[i] = null;
 		}
 
 		// Resize swap chain
@@ -710,11 +736,7 @@ public abstract class Application
 		// Clean up command buffers
 		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
-			if (mCommandBuffers[i] != null)
-			{
-				delete mCommandBuffers[i];
-				mCommandBuffers[i] = null;
-			}
+			mCommandBuffers[i] = null;
 		}
 
 		// UI renderer
@@ -744,14 +766,29 @@ public abstract class Application
 		}
 
 		// RHI resources
+		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			if (mCommandPools[i] != null)
+				mDevice.DestroyCommandPool(ref mCommandPools[i]);
+		}
+		if (mFrameFence != null)
+			mDevice.DestroyFence(ref mFrameFence);
 		if (mSwapChain != null)
-			delete mSwapChain;
-		if (mDevice != null)
-			delete mDevice;
+			mDevice.DestroySwapChain(ref mSwapChain);
 		if (mSurface != null)
-			delete mSurface;
+			mDevice.DestroySurface(ref mSurface);
+		if (mDevice != null)
+		{
+			mDevice.Destroy();
+			delete mDevice;
+			mDevice = null;
+		}
 		if (mBackend != null)
+		{
+			mBackend.Destroy();
 			delete mBackend;
+			mBackend = null;
+		}
 
 		// Shell
 		if (mShell != null)

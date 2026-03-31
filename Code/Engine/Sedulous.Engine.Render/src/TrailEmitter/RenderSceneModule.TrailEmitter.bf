@@ -63,19 +63,14 @@ extension RenderSceneModule
 		if (mScene == null || mWorld == null)
 			return .Invalid;
 
-		let device = mSubsystem.RenderSystem?.Device;
-		if (device == null)
-			return .Invalid;
-
 		let handle = mWorld.CreateTrailEmitter();
 		AllocateTrailEmitterSlot(entity, handle);
 
-		// Configure proxy and create the emitter
+		// Configure proxy (TrailEmitter instance is created lazily by ParticleFeature)
 		if (let proxy = mWorld.GetTrailEmitter(handle))
 		{
 			proxy.MaxPoints = maxPoints;
 			proxy.IsActive = true;
-			proxy.Emitter = new TrailEmitter(device, maxPoints);
 		}
 
 		return handle;
@@ -87,14 +82,10 @@ extension RenderSceneModule
 		if (mScene == null || mWorld == null)
 			return;
 
-		let device = mSubsystem.RenderSystem?.Device;
-		if (device == null)
-			return;
-
 		let handle = mWorld.CreateTrailEmitter();
 		AllocateTrailEmitterSlot(entity, handle);
 
-		// Configure proxy
+		// Configure proxy (TrailEmitter instance is created lazily by ParticleFeature)
 		if (let proxy = mWorld.GetTrailEmitter(handle))
 		{
 			proxy.BlendMode = data.BlendMode;
@@ -108,7 +99,28 @@ extension RenderSceneModule
 			proxy.LayerMask = data.LayerMask;
 			proxy.IsEnabled = data.Enabled;
 			proxy.IsActive = true;
-			proxy.Emitter = new TrailEmitter(device, data.MaxPoints);
+		}
+	}
+
+	/// Adds a trail point for the given entity's trail emitter.
+	public void AddTrailPoint(EntityId entity, Vector3 position, float width, Color color)
+	{
+		if (mEntityToTrailEmitterInstance.TryGetValue(entity, let idx))
+		{
+			let instance = ref mTrailEmitterInstances[idx];
+			if (instance.Active && instance.ProxyHandle.IsValid)
+				mWorld?.AddTrailPoint(instance.ProxyHandle, position, width, color);
+		}
+	}
+
+	/// Adds a trail point with distance filtering for the given entity's trail emitter.
+	public void AddTrailPointFiltered(EntityId entity, Vector3 position, float width, Color color, float minDistance)
+	{
+		if (mEntityToTrailEmitterInstance.TryGetValue(entity, let idx))
+		{
+			let instance = ref mTrailEmitterInstances[idx];
+			if (instance.Active && instance.ProxyHandle.IsValid)
+				mWorld?.AddTrailPointFiltered(instance.ProxyHandle, position, width, color, minDistance);
 		}
 	}
 

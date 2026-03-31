@@ -115,17 +115,25 @@ public class SlugTextureBuilder
 			curveListStart.x += hBands + vBands; // skip past all headers
 			WrapTexelPos(ref curveListStart, kTextureWidth);
 
+			// Epsilon overlap for band boundaries — prevents curves at exact
+			// band edges from being missed (per Slug tips: use 1/1024 em-space).
+			let bandEpsilon = 1.0f / 1024.0f;
+
 			// Horizontal bands
 			for (int16 b = 0; b < hBands; b++)
 			{
-				let bandMinY = bb.min.y + (float)b / (float)hBands * bb.Height;
-				let bandMaxY = bb.min.y + (float)(b + 1) / (float)hBands * bb.Height;
+				let bandMinY = bb.min.y + (float)b / (float)hBands * bb.Height - bandEpsilon;
+				let bandMaxY = bb.min.y + (float)(b + 1) / (float)hBands * bb.Height + bandEpsilon;
 
-				// Find curves intersecting this horizontal band
+				// Find curves intersecting this horizontal band.
+				// Skip straight horizontal lines — they can't contribute to winding
+				// for horizontal rays (parallel to the line).
 				let curvesInBand = scope List<int32>();
 				for (int32 c = 0; c < curveCount; c++)
 				{
 					let curve = ref curves[c];
+					if (IsHorizontalLine(curve))
+						continue;
 					let minY = Math.Min(Math.Min(curve.p1.y, curve.p2.y), curve.p3.y);
 					let maxY = Math.Max(Math.Max(curve.p1.y, curve.p2.y), curve.p3.y);
 					if (maxY >= bandMinY && minY <= bandMaxY)
@@ -163,13 +171,17 @@ public class SlugTextureBuilder
 			// Vertical bands
 			for (int16 b = 0; b < vBands; b++)
 			{
-				let bandMinX = bb.min.x + (float)b / (float)vBands * bb.Width;
-				let bandMaxX = bb.min.x + (float)(b + 1) / (float)vBands * bb.Width;
+				let bandMinX = bb.min.x + (float)b / (float)vBands * bb.Width - bandEpsilon;
+				let bandMaxX = bb.min.x + (float)(b + 1) / (float)vBands * bb.Width + bandEpsilon;
 
+				// Skip straight vertical lines — they can't contribute to winding
+				// for vertical rays (parallel to the line).
 				let curvesInBand = scope List<int32>();
 				for (int32 c = 0; c < curveCount; c++)
 				{
 					let curve = ref curves[c];
+					if (IsVerticalLine(curve))
+						continue;
 					let minX = Math.Min(Math.Min(curve.p1.x, curve.p2.x), curve.p3.x);
 					let maxX = Math.Max(Math.Max(curve.p1.x, curve.p2.x), curve.p3.x);
 					if (maxX >= bandMinX && minX <= bandMaxX)
@@ -293,5 +305,23 @@ public class SlugTextureBuilder
 		}
 
 		return (uint16)(sign | ((uint32)exponent << 10) | (mantissa >> 13));
+	}
+
+	/// Check if a curve is a straight horizontal line (all Y coordinates equal).
+	/// These curves can't contribute to winding for horizontal rays.
+	private static bool IsHorizontalLine(QuadraticBezier2D curve)
+	{
+		let eps = 1e-6f;
+		return Math.Abs(curve.p1.y - curve.p2.y) < eps &&
+			   Math.Abs(curve.p2.y - curve.p3.y) < eps;
+	}
+
+	/// Check if a curve is a straight vertical line (all X coordinates equal).
+	/// These curves can't contribute to winding for vertical rays.
+	private static bool IsVerticalLine(QuadraticBezier2D curve)
+	{
+		let eps = 1e-6f;
+		return Math.Abs(curve.p1.x - curve.p2.x) < eps &&
+			   Math.Abs(curve.p2.x - curve.p3.x) < eps;
 	}
 }

@@ -1,498 +1,201 @@
-using System;
-using System.Collections;
-using Sedulous.Core.Mathematics;
-using Sedulous.Drawing;
-using Sedulous.Core.Core;
-
 namespace Sedulous.UI;
 
-/// A hierarchical view of items that can be expanded and collapsed.
-public class TreeView : Control, IVisualChildProvider
+using System;
+using Sedulous.Core;
+
+/// A tree view that displays hierarchical data with expand/collapse.
+/// Internally uses a ListView with a FlattenedTreeAdapter.
+public class TreeView : ViewGroup
 {
-	private ScrollViewer mScrollViewer ~ delete _;
-	private StackPanel mItemsPanel ~ { }; // Owned by scroll viewer
-	private List<TreeViewItem> mRootItems = new .() ~ DeleteContainerAndItems!(_); // Owns root items (and their children recursively)
-	private List<TreeViewItem> mVisibleItems = new .() ~ delete _; // Flattened visible list (references only)
-	private TreeViewItem mSelectedItem;
-	private float mItemHeight = 22;
+	private ListView mListView; // Owned by ViewGroup (added as child)
+	private FlattenedTreeAdapter mFlatAdapter ~ delete _;
+	private ITreeAdapter mTreeAdapter;
 
-	// Events
-	private EventAccessor<delegate void(TreeView, TreeViewItem)> mSelectionChangedEvent = new .() ~ delete _;
-	private EventAccessor<delegate void(TreeView, TreeViewItem)> mItemDoubleClickEvent = new .() ~ delete _;
-	private EventAccessor<delegate void(TreeView, TreeViewItem)> mItemExpandedEvent = new .() ~ delete _;
-	private EventAccessor<delegate void(TreeView, TreeViewItem)> mItemCollapsedEvent = new .() ~ delete _;
+	private EventAccessor<delegate void(TreeView, int)> mOnItemClick = new .() ~ delete _;
+	private EventAccessor<delegate void(TreeView, int)> mOnNodeToggled = new .() ~ delete _;
 
-	/// The root items in this tree.
-	public List<TreeViewItem> RootItems => mRootItems;
+	/// Subscribe to item click events (flat position).
+	public EventAccessor<delegate void(TreeView, int)> OnItemClick => mOnItemClick;
 
-	/// The currently selected item (null if none).
-	public TreeViewItem SelectedItem
+	/// Subscribe to node expand/collapse events (flat position).
+	public EventAccessor<delegate void(TreeView, int)> OnNodeToggled => mOnNodeToggled;
+
+	/// Access the selection model from the internal ListView.
+	public SelectionModel SelectionModel => mListView?.SelectionModel;
+
+	/// Indent per depth level in pixels.
+	public float IndentPerDepth = 20;
+
+	/// Fixed item height (passed through to ListView).
+	public float FixedItemHeight
 	{
-		get => mSelectedItem;
-		set
-		{
-			if (mSelectedItem != value)
-			{
-				if (mSelectedItem != null)
-					mSelectedItem.IsSelected = false;
-
-				mSelectedItem = value;
-
-				if (mSelectedItem != null)
-					mSelectedItem.IsSelected = true;
-
-				mSelectionChangedEvent.[Friend]Invoke(this, mSelectedItem);
-				InvalidateVisual();
-			}
-		}
+		get => mListView.FixedItemHeight;
+		set { mListView.FixedItemHeight = value; }
 	}
 
-	/// Fixed height for each item.
-	public float ItemHeight
-	{
-		get => mItemHeight;
-		set
-		{
-			if (mItemHeight != value)
-			{
-				mItemHeight = Math.Max(16, value);
-				RebuildVisibleItems();
-				InvalidateMeasure();
-			}
-		}
-	}
-
-	/// Fired when selection changes.
-	public EventAccessor<delegate void(TreeView, TreeViewItem)> SelectionChanged => mSelectionChangedEvent;
-
-	/// Fired when an item is double-clicked.
-	public EventAccessor<delegate void(TreeView, TreeViewItem)> ItemDoubleClick => mItemDoubleClickEvent;
-
-	/// Fired when an item is expanded.
-	public EventAccessor<delegate void(TreeView, TreeViewItem)> ItemExpanded => mItemExpandedEvent;
-
-	/// Fired when an item is collapsed.
-	public EventAccessor<delegate void(TreeView, TreeViewItem)> ItemCollapsed => mItemCollapsedEvent;
+	/// Access the underlying tree adapter.
+	public ITreeAdapter TreeAdapter => mTreeAdapter;
 
 	public this()
 	{
-		Focusable = true;
-		BorderThickness = Thickness(1);
-
-		// Create internal scroll viewer and items panel
-		mScrollViewer = new ScrollViewer();
-		mScrollViewer.HorizontalScrollBarVisibility = .Disabled;
-		mScrollViewer.VerticalScrollBarVisibility = .Auto;
-		mScrollViewer.[Friend]mParent = this;
-
-		mItemsPanel = new StackPanel();
-		mItemsPanel.Orientation = .Vertical;
-		mItemsPanel.Spacing = 0;
-		mScrollViewer.Content = mItemsPanel;
+		mListView = new ListView();
+		AddView(mListView, new LayoutParams(Sedulous.UI.LayoutParams.MatchParent, Sedulous.UI.LayoutParams.MatchParent));
+		mListView.OnItemClick.Subscribe(new => OnListItemClick);
 	}
 
-	/// Adds a root item to the tree.
-	public void AddItem(TreeViewItem item)
+	/// Set the tree adapter. The TreeView does not take ownership.
+	/// Pass null to detach.
+	public void SetAdapter(ITreeAdapter adapter)
 	{
-		item.IndentLevel = 0;
-		mRootItems.Add(item);
-		RebuildVisibleItems();
-	}
+		mTreeAdapter = adapter;
 
-	/// Adds a root item with text.
-	public TreeViewItem AddItem(StringView text)
-	{
-		let item = new TreeViewItem(text);
-		AddItem(item);
-		return item;
-	}
+		mListView.SetAdapter(null); // Detach before deleting old adapter
+		delete mFlatAdapter;
 
-	/// Removes a root item from the tree.
-	public void RemoveItem(TreeViewItem item)
-	{
-		if (mRootItems.Remove(item))
+		if (adapter != null)
 		{
-			// Clear selection if needed
-			if (IsItemOrDescendant(mSelectedItem, item))
-				SelectedItem = null;
-
-			RebuildVisibleItems();
+			mFlatAdapter = new FlattenedTreeAdapter(adapter, IndentPerDepth);
+			ApplyThemeToAdapter();
+			mListView.SetAdapter(mFlatAdapter);
+		}
+		else
+		{
+			mFlatAdapter = null;
 		}
 	}
 
-	/// Clears all items from the tree.
-	public void ClearItems()
+	/// Apply theme icons or text symbols to the flat adapter.
+	private void ApplyThemeToAdapter()
 	{
-		mSelectedItem = null;
-		mVisibleItems.Clear();
+		if (mFlatAdapter == null) return;
 
-		// Detach items from panel (don't delete - they're owned by mRootItems)
-		mItemsPanel.DetachChildren();
-
-		// Delete all root items (and their children recursively via TreeViewItem destructor)
-		for (let item in mRootItems)
-			delete item;
-		mRootItems.Clear();
-
-		InvalidateMeasure();
-	}
-
-	/// Expands all items.
-	public void ExpandAll()
-	{
-		for (let item in mRootItems)
-			ExpandAllRecursive(item);
-		RebuildVisibleItems();
-	}
-
-	/// Collapses all items.
-	public void CollapseAll()
-	{
-		for (let item in mRootItems)
-			CollapseAllRecursive(item);
-		RebuildVisibleItems();
-	}
-
-	/// Expands to and selects the specified item.
-	public void SelectAndScrollTo(TreeViewItem item)
-	{
-		if (item == null)
-			return;
-
-		// Expand all ancestors
-		var parent = item.ParentItem;
-		while (parent != null)
+		let theme = Context?.Theme;
+		if (theme != null)
 		{
-			if (!parent.IsExpanded)
-				parent.IsExpanded = true;
-			parent = parent.ParentItem;
-		}
-
-		// Select and scroll
-		SelectedItem = item;
-		ScrollIntoView(item);
-	}
-
-	/// Scrolls to make the specified item visible.
-	public void ScrollIntoView(TreeViewItem item)
-	{
-		if (item != null)
-		{
-			RebuildVisibleItems(); // Ensure visible items list is current
-			let index = mVisibleItems.IndexOf(item);
-			if (index >= 0)
+			let expandedIcon = theme.GetDrawable("TreeView", "expandedIcon");
+			let collapsedIcon = theme.GetDrawable("TreeView", "collapsedIcon");
+			if (expandedIcon != null && collapsedIcon != null)
 			{
-				let itemTop = index * mItemHeight;
-				let itemBottom = itemTop + mItemHeight;
+				mFlatAdapter.SetIcons(expandedIcon, collapsedIcon);
+				return;
+			}
 
-				let viewTop = mScrollViewer.VerticalOffset;
-				let viewBottom = viewTop + mScrollViewer.ContentBounds.Height;
-
-				if (itemTop < viewTop)
-					mScrollViewer.VerticalOffset = itemTop;
-				else if (itemBottom > viewBottom)
-					mScrollViewer.VerticalOffset = itemBottom - mScrollViewer.ContentBounds.Height;
+			let expanded = theme.GetString("TreeView", "expandedSymbol");
+			let collapsed = theme.GetString("TreeView", "collapsedSymbol");
+			let leaf = theme.GetString("TreeView", "leafPrefix");
+			if (expanded != null && collapsed != null)
+			{
+				mFlatAdapter.SetSymbols(expanded, collapsed, leaf ?? "  ");
+				return;
 			}
 		}
+
+		// No theme or no tree settings: clear icons, use defaults
+		mFlatAdapter.SetIcons(null, null);
 	}
 
-	/// Called when an item's expanded state changes.
-	private void OnItemExpandedChanged(TreeViewItem item)
+	public override void OnThemeChanged()
 	{
-		RebuildVisibleItems();
+		base.OnThemeChanged();
 
-		if (item.IsExpanded)
-			mItemExpandedEvent.[Friend]Invoke(this, item);
-		else
-			mItemCollapsedEvent.[Friend]Invoke(this, item);
-	}
-
-	/// Rebuilds the flattened visible items list.
-	private void RebuildVisibleItems()
-	{
-		// Detach visual children (don't delete - they're owned by mRootItems)
-		mItemsPanel.DetachChildren();
-		mVisibleItems.Clear();
-
-		// Rebuild visible items
-		for (let item in mRootItems)
-			item.EnumerateVisible(mVisibleItems);
-
-		// Add visible items to panel
-		for (let item in mVisibleItems)
+		// Rebuild the flat adapter since icon vs text mode may change the view structure
+		if (mTreeAdapter != null)
 		{
-			item.Height = .Fixed(mItemHeight);
-			mItemsPanel.AddChild(item);
-		}
-
-		InvalidateMeasure();
-	}
-
-	private void ExpandAllRecursive(TreeViewItem item)
-	{
-		if (item.HasChildren)
-		{
-			item.[Friend]mIsExpanded = true; // Bypass event firing
-			for (let child in item.Children)
-				ExpandAllRecursive(child);
+			mListView.SetAdapter(null); // Detach before deleting old adapter
+			delete mFlatAdapter;
+			mFlatAdapter = new FlattenedTreeAdapter(mTreeAdapter, IndentPerDepth);
+			ApplyThemeToAdapter();
+			mListView.SetAdapter(mFlatAdapter);
 		}
 	}
 
-	private void CollapseAllRecursive(TreeViewItem item)
+	private void OnListItemClick(ListView lv, int position)
 	{
-		if (item.HasChildren)
+		if (mTreeAdapter == null) return;
+
+		if (mTreeAdapter.HasChildren(position))
 		{
-			item.[Friend]mIsExpanded = false; // Bypass event firing
-			for (let child in item.Children)
-				CollapseAllRecursive(child);
+			mTreeAdapter.ToggleExpand(position);
+			mOnNodeToggled.[Friend]Invoke(this, position);
 		}
+
+		mOnItemClick.[Friend]Invoke(this, position);
 	}
 
-	private bool IsItemOrDescendant(TreeViewItem candidate, TreeViewItem root)
+	public override void OnKeyDown(KeyEventArgs e)
 	{
-		if (candidate == null)
-			return false;
-		if (candidate == root)
-			return true;
-		for (let child in root.Children)
+		if (mTreeAdapter == null || mListView == null) return;
+
+		let sel = mListView.SelectionModel;
+		if (sel == null || sel.Mode == .None) return;
+
+		int pos = sel.SelectedPosition;
+		if (pos < 0 || pos >= mTreeAdapter.ItemCount) return;
+
+		switch (e.Key)
 		{
-			if (IsItemOrDescendant(candidate, child))
-				return true;
-		}
-		return false;
-	}
-
-	protected override DesiredSize MeasureContent(SizeConstraints constraints)
-	{
-		mScrollViewer.Measure(constraints);
-		return mScrollViewer.DesiredSize;
-	}
-
-	protected override void ArrangeContent(RectangleF contentBounds)
-	{
-		mScrollViewer.Arrange(contentBounds);
-	}
-
-	protected override void OnRender(DrawContext drawContext)
-	{
-		let theme = GetTheme();
-		let bounds = Bounds;
-
-		// Background
-		let bg = Background ?? theme?.GetColor("TreeBackground") ?? theme?.GetColor("Background") ?? Color(37, 37, 38);
-		drawContext.FillRect(bounds, bg);
-
-		// Border
-		let borderColor = IsFocused
-			? (theme?.GetColor("BorderFocused") ?? Color(0, 120, 215))
-			: (BorderBrush ?? theme?.GetColor("Border") ?? Color(60, 60, 60));
-
-		let bt = BorderThickness;
-		if (bt.Top > 0)
-			drawContext.FillRect(.(bounds.X, bounds.Y, bounds.Width, bt.Top), borderColor);
-		if (bt.Bottom > 0)
-			drawContext.FillRect(.(bounds.X, bounds.Bottom - bt.Bottom, bounds.Width, bt.Bottom), borderColor);
-		if (bt.Left > 0)
-			drawContext.FillRect(.(bounds.X, bounds.Y + bt.Top, bt.Left, bounds.Height - bt.TotalVertical), borderColor);
-		if (bt.Right > 0)
-			drawContext.FillRect(.(bounds.Right - bt.Right, bounds.Y + bt.Top, bt.Right, bounds.Height - bt.TotalVertical), borderColor);
-
-		// Render scroll viewer and items
-		RenderContent(drawContext);
-	}
-
-	protected override void OnMouseDownRouted(MouseButtonEventArgs args)
-	{
-		base.OnMouseDownRouted(args);
-
-		if (args.Button == .Left)
-		{
-			// Find which item was clicked
-			let contentY = args.LocalY + mScrollViewer.VerticalOffset;
-			let clickedIndex = (int)(contentY / mItemHeight);
-
-			if (clickedIndex >= 0 && clickedIndex < mVisibleItems.Count)
+		case .Right:
+			if (mTreeAdapter.HasChildren(pos))
 			{
-				let item = mVisibleItems[clickedIndex];
-				let localX = args.LocalX;
-
-				// Check if clicked on expander
-				if (item.HasChildren && item.IsInExpanderArea(localX))
+				if (!mTreeAdapter.IsExpanded(pos))
 				{
-					item.IsExpanded = !item.IsExpanded;
+					// Expand the node
+					mTreeAdapter.ToggleExpand(pos);
+					mOnNodeToggled.[Friend]Invoke(this, pos);
 				}
-				else
+				else if (pos + 1 < mTreeAdapter.ItemCount)
 				{
-					// Select item
-					SelectedItem = item;
-
-					// Handle double-click
-					if (args.ClickCount == 2)
+					// Already expanded: move to first child
+					sel.Select(pos + 1);
+					mListView.ScrollToPosition(pos + 1);
+					mListView.Invalidate();
+				}
+			}
+			e.Handled = true;
+		case .Left:
+			if (mTreeAdapter.HasChildren(pos) && mTreeAdapter.IsExpanded(pos))
+			{
+				// Collapse the node
+				mTreeAdapter.ToggleExpand(pos);
+				mOnNodeToggled.[Friend]Invoke(this, pos);
+			}
+			else
+			{
+				// Move to parent: scan backward for first item with lower depth
+				int depth = mTreeAdapter.GetDepth(pos);
+				if (depth > 0)
+				{
+					for (int i = pos - 1; i >= 0; i--)
 					{
-						// Toggle expansion on double-click if has children
-						if (item.HasChildren)
-							item.IsExpanded = !item.IsExpanded;
-
-						mItemDoubleClickEvent.[Friend]Invoke(this, item);
+						if (mTreeAdapter.GetDepth(i) < depth)
+						{
+							sel.Select(i);
+							mListView.ScrollToPosition(i);
+							mListView.Invalidate();
+							break;
+						}
 					}
 				}
-
-				// Focus the tree
-				Context?.SetFocus(this);
-				args.Handled = true;
 			}
-		}
-	}
-
-
-	protected override void OnKeyDownRouted(KeyEventArgs args)
-	{
-		base.OnKeyDownRouted(args);
-
-		if (mVisibleItems.Count == 0)
-			return;
-
-		var handled = false;
-		let currentIndex = mSelectedItem != null ? mVisibleItems.IndexOf(mSelectedItem) : -1;
-		var newIndex = currentIndex;
-
-		switch (args.Key)
-		{
-		case .Up:
-			newIndex = Math.Max(0, currentIndex - 1);
-			handled = true;
-
-		case .Down:
-			newIndex = Math.Min(mVisibleItems.Count - 1, currentIndex + 1);
-			handled = true;
-
-		case .Home:
-			newIndex = 0;
-			handled = true;
-
-		case .End:
-			newIndex = mVisibleItems.Count - 1;
-			handled = true;
-
-		case .Left:
-			if (mSelectedItem != null)
-			{
-				if (mSelectedItem.IsExpanded && mSelectedItem.HasChildren)
-				{
-					// Collapse
-					mSelectedItem.IsExpanded = false;
-				}
-				else if (mSelectedItem.ParentItem != null)
-				{
-					// Go to parent
-					SelectedItem = mSelectedItem.ParentItem;
-				}
-			}
-			handled = true;
-
-		case .Right:
-			if (mSelectedItem != null)
-			{
-				if (!mSelectedItem.IsExpanded && mSelectedItem.HasChildren)
-				{
-					// Expand
-					mSelectedItem.IsExpanded = true;
-				}
-				else if (mSelectedItem.IsExpanded && mSelectedItem.Children.Count > 0)
-				{
-					// Go to first child
-					SelectedItem = mSelectedItem.Children[0];
-				}
-			}
-			handled = true;
-
-		case .Space, .Return:
-			if (mSelectedItem != null && mSelectedItem.HasChildren)
-			{
-				mSelectedItem.IsExpanded = !mSelectedItem.IsExpanded;
-			}
-			if (args.Key == .Return && mSelectedItem != null)
-			{
-				mItemDoubleClickEvent.[Friend]Invoke(this, mSelectedItem);
-			}
-			handled = true;
-
-		case .PageUp:
-			let visibleCount = (int)(Bounds.Height / mItemHeight);
-			newIndex = Math.Max(0, currentIndex - visibleCount);
-			handled = true;
-
-		case .PageDown:
-			let visibleCount = (int)(Bounds.Height / mItemHeight);
-			newIndex = Math.Min(mVisibleItems.Count - 1, currentIndex + visibleCount);
-			handled = true;
-
+			e.Handled = true;
 		default:
 		}
-
-		if (handled && newIndex != currentIndex && newIndex >= 0 && newIndex < mVisibleItems.Count)
-		{
-			SelectedItem = mVisibleItems[newIndex];
-			ScrollIntoView(mSelectedItem);
-		}
-
-		if (handled)
-			args.Handled = true;
 	}
 
-	protected override void OnGotFocus()
+	protected override void OnMeasure(MeasureSpec widthSpec, MeasureSpec heightSpec)
 	{
-		base.OnGotFocus();
-		InvalidateVisual();
+		float w = widthSpec.Resolve(0, MinWidth, MaxWidth);
+		float h = heightSpec.Resolve(0, MinHeight, MaxHeight);
+
+		if (mListView != null)
+			mListView.Measure(MeasureSpec.MakeExactly(w), MeasureSpec.MakeExactly(h));
+
+		SetMeasuredDimension(w, h);
 	}
 
-	protected override void OnLostFocus()
+	protected override void OnLayout(float width, float height)
 	{
-		base.OnLostFocus();
-		InvalidateVisual();
-	}
-
-	protected override void RenderContent(DrawContext drawContext)
-	{
-		mScrollViewer.Render(drawContext);
-	}
-
-	/// Override HitTest to check scroll viewer.
-	public override UIElement HitTest(float x, float y)
-	{
-		if (Visibility != .Visible)
-			return null;
-
-		if (!Bounds.Contains(x, y))
-			return null;
-
-		// Check scroll viewer
-		let result = mScrollViewer.HitTest(x, y);
-		if (result != null)
-			return result;
-
-		return this;
-	}
-
-	/// Override FindElementById to search scroll viewer.
-	public override UIElement FindElementById(UIElementId id)
-	{
-		if (Id == id)
-			return this;
-
-		let result = mScrollViewer.FindElementById(id);
-		if (result != null)
-			return result;
-
-		return null;
-	}
-
-	// === IVisualChildProvider ===
-
-	/// Visits all visual children of this element.
-	public void VisitVisualChildren(delegate void(UIElement) visitor)
-	{
-		if (mScrollViewer != null)
-			visitor(mScrollViewer);
+		if (mListView != null)
+			mListView.Layout(0, 0, width, height);
 	}
 }

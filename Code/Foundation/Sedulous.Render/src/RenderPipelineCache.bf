@@ -94,8 +94,8 @@ class RenderPipelineCache
 {
 	private IDevice mDevice;
 	private ShaderSystem mShaderSystem;
-	private Dictionary<int, IRenderPipeline> mPipelineCache = new .() ~ DeleteDictionaryAndValues!(_);
-	private Dictionary<int, IPipelineLayout> mLayoutCache = new .() ~ DeleteDictionaryAndValues!(_);
+	private Dictionary<int, IRenderPipeline> mPipelineCache = new .() ~ delete _;
+	private Dictionary<int, IPipelineLayout> mLayoutCache = new .() ~ delete _;
 
 	public this(IDevice device, ShaderSystem shaderSystem)
 	{
@@ -183,12 +183,18 @@ class RenderPipelineCache
 	/// Clears the pipeline cache.
 	public void Clear()
 	{
-		for (let kv in mPipelineCache)
-			delete kv.value;
+		for (var kv in mPipelineCache)
+		{
+			var pipeline = kv.value;
+			mDevice.DestroyRenderPipeline(ref pipeline);
+		}
 		mPipelineCache.Clear();
 
-		for (let kv in mLayoutCache)
-			delete kv.value;
+		for (var kv in mLayoutCache)
+		{
+			var layout = kv.value;
+			mDevice.DestroyPipelineLayout(ref layout);
+		}
 		mLayoutCache.Clear();
 	}
 
@@ -348,6 +354,7 @@ class RenderPipelineCache
 		if (depthFormat != .Undefined && config.DepthMode != .Disabled)
 		{
 			var ds = GetDepthStencilState(config);
+			ds.Format = depthFormat;
 			if (config.DepthBias != 0 || config.DepthBiasSlopeScale != 0)
 			{
 				ds.DepthBias = (int32)config.DepthBias;

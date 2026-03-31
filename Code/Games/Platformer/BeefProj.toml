@@ -1,6 +1,0 @@
-FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Render" = "*", "Sedulous.Runtime.Client" = "*", "Sedulous.Engine.Scenes" = "*", "Sedulous.Engine.Render" = "*", "Sedulous.Engine.Animation" = "*", "Sedulous.Engine.Physics" = "*", "Sedulous.Engine.Audio" = "*", "Sedulous.GUI.Runtime" = "*", "Sedulous.Engine.Input" = "*", "Sedulous.Physics.Jolt" = "*", "Sedulous.Audio.SDL3" = "*", "Sedulous.Audio.Decoders" = "*", "Sedulous.Geometry" = "*", "Sedulous.Geometry.Resources" = "*", "Sedulous.Resources" = "*", "Sedulous.Materials" = "*", "Sedulous.Materials.Resources" = "*", "Sedulous.Models" = "*", "Sedulous.Models.GLTF" = "*", "Sedulous.Geometry.Tooling" = "*", "Sedulous.Geometry.Tooling.Resources" = "*", "Sedulous.Animation" = "*", "Sedulous.Animation.Resources" = "*", "Sedulous.Imaging.SDL" = "*", "Sedulous.Textures.Resources" = "*", "Sedulous.Profiler" = "*", "Sedulous.Fonts" = "*", "Sedulous.Fonts.TTF" = "*", "Sedulous.Drawing" = "*", "Sedulous.Drawing.Fonts" = "*", "Sedulous.GUI" = "*", "Sedulous.Core" = "*", "Sedulous.Core.Mathematics" = "*", "Sedulous.Core.Logging" = "*"}
-
-[Project]
-Name = "Platformer"
-StartupObject = "Platformer.Program"

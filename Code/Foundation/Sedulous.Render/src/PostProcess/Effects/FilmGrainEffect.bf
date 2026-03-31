@@ -24,11 +24,11 @@ public class FilmGrainEffect : IPostProcessEffect
 	private RenderSystem mRenderSystem;
 	private IDevice mDevice;
 
-	private IRenderPipeline mPipeline ~ delete _;
-	private IPipelineLayout mPipelineLayout ~ delete _;
-	private IBindGroupLayout mBindGroupLayout ~ delete _;
-	private IBuffer mParamsBuffer ~ delete _;
-	private ISampler mLinearSampler ~ delete _;
+	private IRenderPipeline mPipeline;
+	private IPipelineLayout mPipelineLayout;
+	private IBindGroupLayout mBindGroupLayout;
+	private IBuffer mParamsBuffer;
+	private ISampler mLinearSampler;
 
 	private IBindGroup[RenderConfig.FrameBufferCount] mBindGroups;
 
@@ -162,20 +162,22 @@ public class FilmGrainEffect : IPostProcessEffect
 	{
 		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			if (mBindGroups[i] != null)
-			{
-				delete mBindGroups[i];
-				mBindGroups[i] = null;
-			}
+			if (mBindGroups[i] != null) mDevice.DestroyBindGroup(ref mBindGroups[i]);
 		}
+
+		if (mPipeline != null) mDevice.DestroyRenderPipeline(ref mPipeline);
+		if (mPipelineLayout != null) mDevice.DestroyPipelineLayout(ref mPipelineLayout);
+		if (mBindGroupLayout != null) mDevice.DestroyBindGroupLayout(ref mBindGroupLayout);
+		if (mParamsBuffer != null) mDevice.DestroyBuffer(ref mParamsBuffer);
+		if (mLinearSampler != null) mDevice.DestroySampler(ref mLinearSampler);
 	}
 
 	public void AddPasses(
 		RenderGraph graph,
-		RenderView view,
-		RGResourceHandle inputHandle,
-		RGResourceHandle outputHandle,
-		RGResourceHandle depthHandle)
+		ViewContext view,
+		RGHandle inputHandle,
+		RGHandle outputHandle,
+		RGHandle depthHandle)
 	{
 		if (mPipeline == null)
 			return;
@@ -190,25 +192,26 @@ public class FilmGrainEffect : IPostProcessEffect
 		grainParams.ScreenSizeX = (float)view.Width;
 		grainParams.ScreenSizeY = (float)view.Height;
 
-		mDevice.Queue.WriteMappedBuffer(
+		TransferHelper.WriteMappedBuffer(
 			mParamsBuffer, 0,
 			Span<uint8>((uint8*)&grainParams, FilmGrainParams.Size)
 		);
 
 		RenderGraph graphRef = graph;
-		RGResourceHandle inputCopy = inputHandle;
+		RGHandle inputCopy = inputHandle;
 
-		graph.AddGraphicsPass("PostProcess_FilmGrain")
-			.ReadTexture(inputHandle)
-			.WriteColor(outputHandle, .DontCare, .Store)
-			.NeverCull()
-			.SetExecuteCallback(new [=] (encoder) => {
-				let inputView = graphRef.GetTextureView(inputCopy);
-				ExecutePass(encoder, view, inputView);
+		graph.AddRenderPass("PostProcess_FilmGrain", scope (builder) => {
+				builder.ReadTexture(inputHandle);
+				builder.SetColorTarget(0, outputHandle, .DontCare, .Store);
+				builder.NeverCull();
+				builder.SetExecute(new [=] (encoder) => {
+					let inputView = graphRef.GetTextureView(inputCopy);
+					ExecutePass(encoder, view, inputView);
+				});
 			});
 	}
 
-	private void ExecutePass(IRenderPassEncoder encoder, RenderView view, ITextureView inputView)
+	private void ExecutePass(IRenderPassEncoder encoder, ViewContext view, ITextureView inputView)
 	{
 		if (inputView == null)
 			return;
@@ -217,14 +220,13 @@ public class FilmGrainEffect : IPostProcessEffect
 
 		if (mBindGroups[frameIndex] != null)
 		{
-			delete mBindGroups[frameIndex];
-			mBindGroups[frameIndex] = null;
+			mDevice.DestroyBindGroup(ref mBindGroups[frameIndex]);
 		}
 
 		BindGroupEntry[3] entries = .(
-			BindGroupEntry.Buffer(0, mParamsBuffer, 0, (uint64)FilmGrainParams.Size),
-			BindGroupEntry.Texture(0, inputView),
-			BindGroupEntry.Sampler(0, mLinearSampler)
+			BindGroupEntry.Buffer(/*0,*/mParamsBuffer, 0, (uint64)FilmGrainParams.Size),
+			BindGroupEntry.Texture(/*0,*/inputView),
+			BindGroupEntry.Sampler(/*0,*/mLinearSampler)
 		);
 
 		BindGroupDesc bgDesc = .();

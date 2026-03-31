@@ -1,35 +1,27 @@
 namespace Sedulous.RHI.Vulkan;
 
-using System;
 using Bulkan;
-using Sedulous.RHI;
 
 /// Vulkan implementation of ISurface.
 class VulkanSurface : ISurface
 {
-	private VkInstance mInstance;
 	private VkSurfaceKHR mSurface;
+	private VkInstance mInstance;
 
-	public this(VkInstance instance, VkSurfaceKHR surface)
+	public this(VkSurfaceKHR surface, VkInstance instance)
 	{
-		mInstance = instance;
 		mSurface = surface;
+		mInstance = instance;
 	}
 
-	public ~this()
-	{
-		Dispose();
-	}
+	public VkSurfaceKHR Handle => mSurface;
 
-	public void Dispose()
+	public void Destroy()
 	{
-		if (mSurface != default && mInstance != default)
+		if (mSurface.Handle != 0)
 		{
 			VulkanNative.vkDestroySurfaceKHR(mInstance, mSurface, null);
-			mSurface = default;
+			mSurface = .Null;
 		}
 	}
-
-	/// Gets the Vulkan surface handle.
-	public VkSurfaceKHR Surface => mSurface;
 }

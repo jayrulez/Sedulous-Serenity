@@ -46,8 +46,8 @@ public class TerrainFeature : RenderFeatureBase
 	const int32 GridVertexCount = (GridResolution + 1) * (GridResolution + 1);
 	const int32 GridIndexCount = GridResolution * GridResolution * 6;
 
-	private IBuffer mGridVertexBuffer ~ delete _;
-	private IBuffer mGridIndexBuffer ~ delete _;
+	private IBuffer mGridVertexBuffer;
+	private IBuffer mGridIndexBuffer;
 
 	// Per-frame instance buffers (all terrain patches packed contiguously)
 	private IBuffer[RenderConfig.FrameBufferCount] mInstanceBuffers;
@@ -56,14 +56,11 @@ public class TerrainFeature : RenderFeatureBase
 	private IBuffer[RenderConfig.FrameBufferCount] mTerrainUniformBuffers;
 
 	// Terrain bind group layout (space1)
-	private IBindGroupLayout mTerrainBindGroupLayout ~ delete _;
+	private IBindGroupLayout mTerrainBindGroupLayout;
 
 	// Per-terrain bind groups (space1) — recreated when textures change
 	// Key: terrain proxy generation, value: bind group
-	private List<TerrainBindGroupEntry> mPerTerrainBindGroups = new .() ~ {
-		for (let entry in _) { if (entry.BindGroup != null) delete entry.BindGroup; }
-		delete _;
-	};
+	private List<TerrainBindGroupEntry> mPerTerrainBindGroups = new .() ~ delete _;
 
 	// Per-frame draw data collected during PrepareTerrainData
 	private List<TerrainDrawData> mDrawData = new .() ~ delete _;
@@ -80,15 +77,14 @@ public class TerrainFeature : RenderFeatureBase
 	private const uint64 AlignedObjectUniformSize = ((ObjectUniforms.Size + ObjectUniformAlignment - 1) / ObjectUniformAlignment) * ObjectUniformAlignment;
 
 	// Pipeline
-	private IRenderPipeline mTerrainPipeline ~ delete _;
-	private IRenderPipeline mTerrainPipelineNoShadows ~ delete _;
-	private IPipelineLayout mTerrainPipelineLayout ~ delete _;
+	private IRenderPipeline mTerrainPipeline;
+	private IRenderPipeline mTerrainPipelineNoShadows;
+	private IPipelineLayout mTerrainPipelineLayout;
 
 	// Scene bind group layout borrowed from ForwardOpaqueFeature (don't delete)
-	private IBindGroupLayout mSceneBindGroupLayout;
 
 	// Sampler for terrain textures
-	private ISampler mTerrainSampler ~ delete _;
+	private ISampler mTerrainSampler;
 
 	// Limits
 	const int32 MaxTotalPatches = 64 * 64;
@@ -100,19 +96,13 @@ public class TerrainFeature : RenderFeatureBase
 	/// Feature name.
 	public override StringView Name => "Terrain";
 
-	/// Gets the current frame index for multi-buffering.
-	private int32 FrameIndex => Renderer.RenderFrameContext?.FrameIndex ?? 0;
-
-	/// Gets the bind group index accounting for the active view.
-	private int32 GetBindGroupIndex(int32 frameIndex) => frameIndex * RenderConfig.MaxViews + (Renderer.RenderFrameContext?.ActiveViewIndex ?? 0);
-
 	/// Depends on ForwardOpaque (terrain renders after opaque meshes).
 	public override void GetDependencies(List<StringView> outDependencies)
 	{
 		outDependencies.Add("ForwardOpaque");
 	}
 
-	protected override Result<void> OnInitialize()
+	protected override Result<void> OnInitialize(InitContext initCtx)
 	{
 		if (CreateGridMesh() case .Err)
 			return .Err;
@@ -137,12 +127,7 @@ public class TerrainFeature : RenderFeatureBase
 		if (CreateTerrainBindGroupLayout() case .Err)
 			return .Err;
 
-		// Borrow scene bind group layout from ForwardOpaqueFeature
-		if (let opaqueFeature = Renderer.GetFeature<ForwardOpaqueFeature>())
-			mSceneBindGroupLayout = opaqueFeature.[Friend]mSceneBindGroupLayout;
 
-		if (mSceneBindGroupLayout == null)
-			return .Err;
 
 		if (CreatePipelineLayout() case .Err)
 			return .Err;
@@ -267,7 +252,7 @@ public class TerrainFeature : RenderFeatureBase
 
 	private Result<void> CreatePipelineLayout()
 	{
-		IBindGroupLayout[2] layouts = .(mSceneBindGroupLayout, mTerrainBindGroupLayout);
+		IBindGroupLayout[2] layouts = .(Renderer.SharedLayouts.SceneLayout, mTerrainBindGroupLayout);
 		PipelineLayoutDesc plDesc = .(layouts);
 
 		switch (Renderer.Device.CreatePipelineLayout(plDesc))
@@ -447,43 +432,38 @@ public class TerrainFeature : RenderFeatureBase
 
 	protected override void OnShutdown()
 	{
+		let device = Renderer.Device;
+
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			if (mInstanceBuffers[i] != null)
-			{
-				delete mInstanceBuffers[i];
-				mInstanceBuffers[i] = null;
-			}
-			if (mTerrainUniformBuffers[i] != null)
-			{
-				delete mTerrainUniformBuffers[i];
-				mTerrainUniformBuffers[i] = null;
-			}
-			if (mObjectUniformBuffers[i] != null)
-			{
-				delete mObjectUniformBuffers[i];
-				mObjectUniformBuffers[i] = null;
-			}
+			device.DestroyBuffer(ref mInstanceBuffers[i]);
+			device.DestroyBuffer(ref mTerrainUniformBuffers[i]);
+			device.DestroyBuffer(ref mObjectUniformBuffers[i]);
 		}
 
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
 		{
 			if (mSceneBindGroups[i] != null)
-			{
-				delete mSceneBindGroups[i];
-				mSceneBindGroups[i] = null;
-			}
+				device.DestroyBindGroup(ref mSceneBindGroups[i]);
 		}
 
-		for (let entry in mPerTerrainBindGroups)
+		for (var entry in ref mPerTerrainBindGroups)
 		{
 			if (entry.BindGroup != null)
-				delete entry.BindGroup;
+				device.DestroyBindGroup(ref entry.BindGroup);
 		}
 		mPerTerrainBindGroups.Clear();
+
+		device.DestroyBuffer(ref mGridVertexBuffer);
+		device.DestroyBuffer(ref mGridIndexBuffer);
+		device.DestroyBindGroupLayout(ref mTerrainBindGroupLayout);
+		device.DestroyRenderPipeline(ref mTerrainPipeline);
+		device.DestroyRenderPipeline(ref mTerrainPipelineNoShadows);
+		device.DestroyPipelineLayout(ref mTerrainPipelineLayout);
+		device.DestroySampler(ref mTerrainSampler);
 	}
 
-	public override void AddPasses(RenderGraph graph, RenderView view, RenderWorld world)
+	public override void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world)
 	{
 		if (world.TerrainCount == 0)
 			return;
@@ -495,7 +475,8 @@ public class TerrainFeature : RenderFeatureBase
 		if (!depthHandle.IsValid || !colorHandle.IsValid || !gbufferHandle.IsValid)
 			return;
 
-		let frameIndex = FrameIndex;
+		let frameIndex = view.FrameIndex;
+		let bindGroupIndex = view.GetBindGroupIndex();
 
 		// Collect draw data for all active terrains
 		PrepareTerrainData(world, frameIndex);
@@ -505,15 +486,16 @@ public class TerrainFeature : RenderFeatureBase
 
 		// Create/update bind groups
 		UpdatePerTerrainBindGroups(world, frameIndex);
-		CreateSceneBindGroup(frameIndex);
+		CreateSceneBindGroup(frameIndex, bindGroupIndex);
 
-		graph.AddGraphicsPass("Terrain")
-			.WriteColor(colorHandle, .Load, .Store)
-			.WriteColor(gbufferHandle, .Load, .Store)
-			.WriteDepth(depthHandle, .Load, .Store)
-			.NeverCull()
-			.SetExecuteCallback(new (encoder) => {
-				ExecuteTerrainPass(encoder, world, view, frameIndex);
+		graph.AddRenderPass("Terrain", scope (builder) => {
+				builder.SetColorTarget(0, colorHandle, .Load, .Store);
+				builder.SetColorTarget(1, gbufferHandle, .Load, .Store);
+				builder.SetDepthTarget(depthHandle, .Load, .Store);
+				builder.NeverCull();
+				builder.SetExecute(new (encoder) => {
+					ExecuteTerrainPass(encoder, world, view, frameIndex, bindGroupIndex);
+				});
 			});
 	}
 
@@ -642,10 +624,10 @@ public class TerrainFeature : RenderFeatureBase
 			// Build bind group entries
 			BindGroupEntry[9] entries = .();
 			uint64 uniformOffset = (uint64)(draw.TerrainIndex) * TerrainUniforms.Size;
-			entries[0] = BindGroupEntry.Buffer(0, uniformBuffer, uniformOffset, TerrainUniforms.Size);
-			entries[1] = BindGroupEntry.Texture(0, terrain.HeightmapView);
-			entries[2] = BindGroupEntry.Texture(1, terrain.NormalMapView);
-			entries[3] = BindGroupEntry.Texture(2, terrain.SplatmapView);
+			entries[0] = BindGroupEntry.Buffer(/*0,*/uniformBuffer, uniformOffset, TerrainUniforms.Size);
+			entries[1] = BindGroupEntry.Texture(/*0,*/terrain.HeightmapView);
+			entries[2] = BindGroupEntry.Texture(/*1,*/terrain.NormalMapView);
+			entries[3] = BindGroupEntry.Texture(/*2,*/terrain.SplatmapView);
 
 			ITextureView fallbackView = terrain.LayerAlbedoViews[0];
 			bool hasAllLayers = true;
@@ -654,13 +636,13 @@ public class TerrainFeature : RenderFeatureBase
 				ITextureView view = terrain.LayerAlbedoViews[i];
 				if (view == null) view = fallbackView;
 				if (view == null) { hasAllLayers = false; break; }
-				entries[4 + i] = BindGroupEntry.Texture(3 + (uint32)i, view);
+				entries[4 + i] = BindGroupEntry.Texture(view);
 			}
 
 			if (!hasAllLayers)
 				continue;
 
-			entries[8] = BindGroupEntry.Sampler(0, mTerrainSampler);
+			entries[8] = BindGroupEntry.Sampler(/*0,*/mTerrainSampler);
 
 			BindGroupDesc bgDesc = .()
 			{
@@ -674,7 +656,7 @@ public class TerrainFeature : RenderFeatureBase
 				if (existing != null)
 				{
 					if (existing.BindGroup != null)
-						delete existing.BindGroup;
+						Renderer.Device.DestroyBindGroup(ref existing.BindGroup);
 					existing.BindGroup = bg;
 					existing.Generation = currentGen;
 				}
@@ -697,21 +679,19 @@ public class TerrainFeature : RenderFeatureBase
 		mTextureGeneration++;
 	}
 
-	private void CreateSceneBindGroup(int32 frameIndex)
+	private void CreateSceneBindGroup(int32 frameIndex, int32 bindGroupIndex)
 	{
 		let opaqueFeature = Renderer.GetFeature<ForwardOpaqueFeature>();
 		if (opaqueFeature == null)
 			return;
 
-		let shadowsEnabled = opaqueFeature.[Friend]mShadowPassesActive;
+		let shadowsEnabled = Renderer.ShadowRenderer.ShadowPassesActive;
 
 		let skyFeature = Renderer.GetFeature<SkyFeature>();
 		let hasRealIBL = skyFeature?.IrradianceMapView != null;
 
-		let probeSystem = opaqueFeature.[Friend]mProbeSystem;
+		let probeSystem = Renderer.ProbeSystem;
 		let probeGeneration = probeSystem?.Generation ?? 0;
-
-		let bindGroupIndex = GetBindGroupIndex(frameIndex);
 
 		if (mSceneBindGroups[bindGroupIndex] != null)
 		{
@@ -720,98 +700,12 @@ public class TerrainFeature : RenderFeatureBase
 				mSceneBindGroupProbeGeneration[bindGroupIndex] == probeGeneration)
 				return;
 
-			delete mSceneBindGroups[bindGroupIndex];
-			mSceneBindGroups[bindGroupIndex] = null;
+			Renderer.Device.DestroyBindGroup(ref mSceneBindGroups[bindGroupIndex]);
 		}
 
-		let sceneLayout = opaqueFeature.[Friend]mSceneBindGroupLayout;
-		if (sceneLayout == null)
-			return;
-
-		let lighting = opaqueFeature.[Friend]mLighting;
-		if (lighting == null)
-			return;
-
-		let cameraBuffer = Renderer.RenderFrameContext?.SceneUniformBuffer;
-		let objectUniformBuffer = mObjectUniformBuffers[frameIndex];
-		let lightingBuffer = lighting.LightBuffer?.GetUniformBuffer(frameIndex);
-		let lightDataBuffer = lighting.LightBuffer?.GetLightDataBuffer(frameIndex);
-		let viewIndex = Renderer.RenderFrameContext?.ActiveViewIndex ?? 0;
-		let clusterInfoBuffer = lighting.ClusterGrid?.GetClusterLightInfoBuffer(frameIndex, viewIndex);
-		let lightIndexBuffer = lighting.ClusterGrid?.GetLightIndexBuffer(frameIndex, viewIndex);
-
-		if (cameraBuffer == null || objectUniformBuffer == null ||
-			lightingBuffer == null || lightDataBuffer == null ||
-			clusterInfoBuffer == null || lightIndexBuffer == null)
-			return;
-
-		BindGroupEntry[15] entries = .();
-
-		entries[0] = BindGroupEntry.Buffer(0, cameraBuffer, 0, SceneUniforms.Size);
-		entries[1] = BindGroupEntry.Buffer(1, objectUniformBuffer, 0, AlignedObjectUniformSize);
-		entries[2] = BindGroupEntry.Buffer(3, lightingBuffer, 0, (uint64)LightingUniforms.Size);
-		entries[3] = BindGroupEntry.Buffer(4, lightDataBuffer, 0, (uint64)(lighting.LightBuffer.MaxLights * GPULight.Size));
-		entries[4] = BindGroupEntry.Buffer(5, clusterInfoBuffer, 0, (uint64)(lighting.ClusterGrid.Config.TotalClusters * 8));
-		entries[5] = BindGroupEntry.Buffer(6, lightIndexBuffer, 0, (uint64)(lighting.ClusterGrid.Config.MaxLightsPerCluster * lighting.ClusterGrid.Config.TotalClusters * 4));
-
-		let shadowData = opaqueFeature.[Friend]mShadowRenderer?.GetShadowShaderData() ?? .();
-		let materialSystem = Renderer.MaterialSystem;
-
-		if (shadowsEnabled && shadowData.CascadedShadowUniforms != null)
-			entries[6] = BindGroupEntry.Buffer(5, shadowData.CascadedShadowUniforms, 0, (uint64)ShadowUniforms.Size);
-		else
-			entries[6] = BindGroupEntry.Buffer(5, lightingBuffer, 0, (uint64)LightingUniforms.Size);
-
-		let dummyShadowMapView = opaqueFeature.[Friend]mDummyShadowMapArrayView;
-		if (shadowsEnabled && shadowData.CascadedShadowMapView != null)
-			entries[7] = BindGroupEntry.Texture(7, shadowData.CascadedShadowMapView);
-		else if (dummyShadowMapView != null)
-			entries[7] = BindGroupEntry.Texture(7, dummyShadowMapView);
-		else
-			return;
-
-		if (shadowData.CascadedShadowSampler != null)
-			entries[8] = BindGroupEntry.Sampler(1, shadowData.CascadedShadowSampler);
-		else if (materialSystem?.DefaultSampler != null)
-			entries[8] = BindGroupEntry.Sampler(1, materialSystem.DefaultSampler);
-		else
-			return;
-
-		ITextureView irradianceView = opaqueFeature.[Friend]mFallbackIrradianceCubemapView;
-		ITextureView prefilteredView = opaqueFeature.[Friend]mFallbackPrefilteredCubemapView;
-		ITextureView brdfLutView = opaqueFeature.[Friend]mFallbackBRDFLutView;
-		ISampler iblSampler = opaqueFeature.[Friend]mIBLSampler;
-
-		if (skyFeature != null)
-		{
-			if (skyFeature.IrradianceMapView != null) irradianceView = skyFeature.IrradianceMapView;
-			if (skyFeature.PrefilteredMapView != null) prefilteredView = skyFeature.PrefilteredMapView;
-			if (skyFeature.BRDFLutView != null) brdfLutView = skyFeature.BRDFLutView;
-			if (skyFeature.EnvironmentSampler != null) iblSampler = skyFeature.EnvironmentSampler;
-		}
-
-		if (irradianceView == null || prefilteredView == null || brdfLutView == null || iblSampler == null)
-			return;
-
-		entries[9] = BindGroupEntry.Texture(8, irradianceView);
-		entries[10] = BindGroupEntry.Texture(9, prefilteredView);
-		entries[11] = BindGroupEntry.Texture(10, brdfLutView);
-		entries[12] = BindGroupEntry.Sampler(2, iblSampler);
-
-		if (probeSystem == null || probeSystem.GetProbeUniformBuffer(frameIndex) == null || probeSystem.GetCubemapArrayView() == null)
-			return;
-
-		entries[13] = BindGroupEntry.Buffer(6, probeSystem.GetProbeUniformBuffer(frameIndex), 0, ProbeUniforms.Size);
-		entries[14] = BindGroupEntry.Texture(11, probeSystem.GetCubemapArrayView());
-
-		BindGroupDesc bgDesc = .()
-		{
-			Label = "Terrain Scene BindGroup",
-			Layout = sceneLayout,
-			Entries = entries
-		};
-
-		if (Renderer.Device.CreateBindGroup(bgDesc) case .Ok(let bg))
+		// Create via shared helper (uses shared layout, RenderSystem subsystems)
+		let bg = Renderer.SharedLayouts.CreateSceneBindGroup(frameIndex, mObjectUniformBuffers[frameIndex], probeSystem);
+		if (bg != null)
 		{
 			mSceneBindGroups[bindGroupIndex] = bg;
 			mSceneBindGroupShadowState[bindGroupIndex] = shadowsEnabled;
@@ -820,20 +714,19 @@ public class TerrainFeature : RenderFeatureBase
 		}
 	}
 
-	private void ExecuteTerrainPass(IRenderPassEncoder encoder, RenderWorld world, RenderView view, int32 frameIndex)
+	private void ExecuteTerrainPass(IRenderPassEncoder encoder, RenderWorld world, ViewContext view, int32 frameIndex, int32 bindGroupIndex)
 	{
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0.0f, 1.0f);
 		encoder.SetScissor(0, 0, view.Width, view.Height);
 
-		let opaqueFeature = Renderer.GetFeature<ForwardOpaqueFeature>();
-		let shadowsActive = opaqueFeature?.[Friend]mShadowPassesActive ?? false;
+		let shadowsActive = Renderer.ShadowRenderer?.ShadowPassesActive ?? false;
 		let pipeline = (shadowsActive && mTerrainPipeline != null) ? mTerrainPipeline :
 			(mTerrainPipelineNoShadows != null) ? mTerrainPipelineNoShadows : mTerrainPipeline;
 
 		if (pipeline == null)
 			return;
 
-		let sceneBindGroup = mSceneBindGroups[GetBindGroupIndex(frameIndex)];
+		let sceneBindGroup = mSceneBindGroups[bindGroupIndex];
 		if (sceneBindGroup == null)
 			return;
 

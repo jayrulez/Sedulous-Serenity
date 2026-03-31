@@ -18,7 +18,8 @@ public interface IRenderFeature
 
 	/// Initializes the feature.
 	/// Called once when the feature is registered with the render system.
-	Result<void> Initialize(RenderSystem renderer);
+	/// Use initCtx for all GPU resource creation and uploads during init.
+	Result<void> Initialize(RenderSystem renderer, InitContext initCtx);
 
 	/// Shuts down the feature.
 	/// Called once when the feature is unregistered.
@@ -29,10 +30,13 @@ public interface IRenderFeature
 	/// Only needed for multi-view rendering; single-view path may skip this.
 	void PrepareFrame(Span<RenderView> views, RenderWorld world, int32 frameIndex);
 
+	/// Called when the renderer viewport is resized.
+	void OnViewportResize(uint32 width, uint32 height);
+
 	/// Adds render passes to the graph for the current frame.
 	/// Called each frame after BeginFrame and before Compile.
 	/// In multi-view mode, called once per view.
-	void AddPasses(RenderGraph graph, RenderView view, RenderWorld world);
+	void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world);
 }
 
 /// Base class for render features with common functionality.
@@ -57,14 +61,14 @@ public abstract class RenderFeatureBase : IRenderFeature
 	}
 
 	/// Initializes the feature.
-	public Result<void> Initialize(RenderSystem renderer)
+	public Result<void> Initialize(RenderSystem renderer, InitContext initCtx)
 	{
 		if (mInitialized)
 			return .Err;
 
 		mRenderer = renderer;
 
-		if (OnInitialize() case .Err)
+		if (OnInitialize(initCtx) case .Err)
 			return .Err;
 
 		mInitialized = true;
@@ -87,11 +91,17 @@ public abstract class RenderFeatureBase : IRenderFeature
 	{
 	}
 
+	/// Default: no resize handling needed.
+	public virtual void OnViewportResize(uint32 width, uint32 height)
+	{
+	}
+
 	/// Called to add passes - must be overridden.
-	public abstract void AddPasses(RenderGraph graph, RenderView view, RenderWorld world);
+	public abstract void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world);
 
 	/// Override for custom initialization.
-	protected virtual Result<void> OnInitialize()
+	/// Use initCtx for GPU resource creation and uploads.
+	protected virtual Result<void> OnInitialize(InitContext initCtx)
 	{
 		return .Ok;
 	}
@@ -101,25 +111,4 @@ public abstract class RenderFeatureBase : IRenderFeature
 	{
 	}
 
-	/// Uploads texture data, using the init-time transfer batch if available,
-	/// otherwise falling back to synchronous upload.
-	protected void UploadTexture(ITexture texture, Span<uint8> data,
-		TextureDataLayout* dataLayout, Extent3D* writeSize,
-		uint32 mipLevel = 0, uint32 arrayLayer = 0)
-	{
-		if (mRenderer?.TransferBatch != null)
-			mRenderer.TransferBatch.WriteTexture(texture, data, dataLayout, writeSize, mipLevel, arrayLayer);
-		else
-			mRenderer.Device.Queue.WriteTextureSync(texture, data, dataLayout, writeSize, mipLevel, arrayLayer);
-	}
-
-	/// Uploads buffer data via staging, using the init-time transfer batch if available,
-	/// otherwise falling back to synchronous upload.
-	protected void UploadBuffer(IBuffer buffer, uint64 offset, Span<uint8> data)
-	{
-		if (mRenderer?.TransferBatch != null)
-			mRenderer.TransferBatch.WriteBuffer(buffer, offset, data);
-		else
-			mRenderer.Device.Queue.WriteStagedBufferSync(buffer, offset, data);
-	}
 }

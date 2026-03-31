@@ -33,9 +33,6 @@ public struct TrailEmitterProxy
 	/// Soft particle distance (0 = disabled).
 	public float SoftParticleDistance;
 
-	/// The standalone trail emitter instance (manages ring buffer and GPU upload).
-	public TrailEmitter Emitter;
-
 	/// Whether the trail is enabled.
 	public bool IsEnabled;
 
@@ -61,7 +58,6 @@ public struct TrailEmitterProxy
 			MinVertexDistance = 0.02f,
 			Color = .(1, 1, 1, 1),
 			SoftParticleDistance = 0.0f,
-			Emitter = null,
 			IsEnabled = true,
 			IsActive = false,
 			LayerMask = 0xFFFFFFFF,
@@ -80,7 +76,6 @@ public struct TrailEmitterProxy
 		MinVertexDistance = 0.02f;
 		Color = .(1, 1, 1, 1);
 		SoftParticleDistance = 0.0f;
-		Emitter = null;
 		IsEnabled = false;
 		IsActive = false;
 		LayerMask = 0xFFFFFFFF;

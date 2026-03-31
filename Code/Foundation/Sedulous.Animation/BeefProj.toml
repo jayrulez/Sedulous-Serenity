@@ -3,4 +3,3 @@ Dependencies = {corlib = "*", "Sedulous.Core" = "*", "Sedulous.Core.Mathematics"
 
 [Project]
 Name = "Sedulous.Animation"
-TargetType = "BeefLib"

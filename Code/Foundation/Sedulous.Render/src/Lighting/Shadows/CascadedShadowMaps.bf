@@ -219,16 +219,13 @@ public class CascadedShadowMaps : IDisposable
 		for (int i = 0; i < 4; i++)
 		{
 			if (mCascadeViews[i] != null)
-			{
-				delete mCascadeViews[i];
-				mCascadeViews[i] = null;
-			}
+				mDevice.DestroyTextureView(ref mCascadeViews[i]);
 		}
 
-		if (mShadowMapArrayView != null) { delete mShadowMapArrayView; mShadowMapArrayView = null; }
-		if (mShadowMapArray != null) { delete mShadowMapArray; mShadowMapArray = null; }
-		if (mShadowSampler != null) { delete mShadowSampler; mShadowSampler = null; }
-		if (mShadowUniformBuffer != null) { delete mShadowUniformBuffer; mShadowUniformBuffer = null; }
+		if (mShadowMapArrayView != null) mDevice.DestroyTextureView(ref mShadowMapArrayView);
+		if (mShadowMapArray != null) mDevice.DestroyTexture(ref mShadowMapArray);
+		if (mShadowSampler != null) mDevice.DestroySampler(ref mShadowSampler);
+		if (mShadowUniformBuffer != null) mDevice.DestroyBuffer(ref mShadowUniformBuffer);
 	}
 
 	private Result<void> CreateShadowMapArray()

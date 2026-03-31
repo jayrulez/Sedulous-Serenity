@@ -5,7 +5,8 @@ using System.Collections;
 using System.IO;
 using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
-using SampleFramework;
+using Sedulous.Runtime.Client;
+using Sedulous.Runtime;
 using Sedulous.Drawing;
 using Sedulous.Fonts;
 using Sedulous.GUI;
@@ -18,7 +19,7 @@ using Sedulous.Imaging;
 
 /// GUI Sandbox sample demonstrating the Sedulous.GUI framework.
 /// Features a professional header with theme/scale switching and demo navigation.
-class GUISandboxApp : RHISampleApp
+class GUISandboxApp : Application
 {
 	// GUI System
 	private GUIContext mGUIContext ~ delete _;
@@ -57,17 +58,11 @@ class GUISandboxApp : RHISampleApp
 	private GUIInputHelper mInputHelper = new .() ~ delete _;
 	private float mFrameDelta = 0;
 
-	public this() : base(.()
-		{
-			Title = "Sedulous.GUI Sandbox",
-			Width = 1280,
-			Height = 720,
-			ClearColor = .(0.1f, 0.1f, 0.15f, 1.0f)
-		})
+	public this() : base()
 	{
 	}
 
-	protected override bool OnInitialize()
+	protected override void OnInitialize(Context context)
 	{
 		// Initialize image loader (must be before any image loading)
 		Sedulous.Imaging.SDL.SDLImageLoader.Initialize();
@@ -84,7 +79,7 @@ class GUISandboxApp : RHISampleApp
 		if (mFontService.LoadFont("Roboto", fontPath, options) case .Err)
 		{
 			Console.WriteLine(scope $"Failed to load font: {fontPath}");
-			return false;
+			return;
 		}
 
 		// Initialize shader system
@@ -94,7 +89,7 @@ class GUISandboxApp : RHISampleApp
 		if (mShaderSystem.Initialize(Device, scope StringView[](shaderPath)) case .Err)
 		{
 			Console.WriteLine("Failed to initialize shader system");
-			return false;
+			return;
 		}
 
 		// Create draw context
@@ -102,10 +97,10 @@ class GUISandboxApp : RHISampleApp
 
 		// Initialize drawing renderer
 		mDrawingRenderer = new DrawingRenderer();
-		if (mDrawingRenderer.Initialize(Device, SwapChain.Format, MAX_FRAMES_IN_FLIGHT, mShaderSystem) case .Err)
+		if (mDrawingRenderer.Initialize(Device, SwapChain.Format, (int32)SwapChain.BufferCount, mShaderSystem) case .Err)
 		{
 			Console.WriteLine("Failed to initialize drawing renderer");
-			return false;
+			return;
 		}
 
 		// Create demo images for Image control demo
@@ -117,7 +112,6 @@ class GUISandboxApp : RHISampleApp
 		Console.WriteLine("Sedulous.GUI Sandbox initialized.");
 		Console.WriteLine("  Use the header controls to switch demos, themes, and scale.");
 		Console.WriteLine("  F2: Toggle debug overlay | ESC: Exit");
-		return true;
 	}
 
 	private void CreateDemoImages()
@@ -160,6 +154,13 @@ class GUISandboxApp : RHISampleApp
 		if (keyboard.IsKeyPressed(.F2))
 			mMainShell.ToggleDebugMode();
 
+		// Handle Escape - let GUI handle it first, then exit
+		if (keyboard.IsKeyPressed(.Escape))
+		{
+			if (!mGUIContext.ProcessKeyDown(.Escape, .None))
+				Exit();
+		}
+
 		// Route mouse and keyboard input to GUI via shared helper
 		GUIInputHelper.ProcessMouseInput(mouse, keyboard, mGUIContext);
 		mInputHelper.ProcessKeyboardInput(keyboard, mGUIContext, mFrameDelta);
@@ -179,21 +180,13 @@ class GUISandboxApp : RHISampleApp
 		}
 	}
 
-	/// Override to handle Escape key - let GUI handle it first
-	protected override bool OnEscapePressed()
+	protected override void OnUpdate(FrameContext frame)
 	{
-		if (mGUIContext.ProcessKeyDown(.Escape, .None))
-			return true;
-		return false;
-	}
-
-	protected override void OnUpdate(float deltaTime, float totalTime)
-	{
-		mFrameDelta = deltaTime;
+		mFrameDelta = frame.DeltaTime;
 
 		// FPS calculation
 		mFrameCount++;
-		mFpsTimer += deltaTime;
+		mFpsTimer += frame.DeltaTime;
 		if (mFpsTimer >= 1.0f)
 		{
 			mCurrentFps = mFrameCount;
@@ -205,16 +198,16 @@ class GUISandboxApp : RHISampleApp
 		}
 
 		// Update GUI
-		mGUIContext.Update(deltaTime, (double)totalTime);
+		mGUIContext.Update(frame.DeltaTime, (double)frame.TotalTime);
 	}
 
-	protected override void OnPrepareFrame(int32 frameIndex)
+	protected override void OnPrepareFrame(FrameContext frame)
 	{
 		BuildDrawCommands();
 
 		// Update renderer
-		mDrawingRenderer.UpdateProjection(SwapChain.Width, SwapChain.Height, frameIndex);
-		mDrawingRenderer.Prepare(mDrawContext.GetBatch(), frameIndex);
+		mDrawingRenderer.UpdateProjection(SwapChain.Width, SwapChain.Height, frame.FrameIndex);
+		mDrawingRenderer.Prepare(mDrawContext.GetBatch(), frame.FrameIndex);
 	}
 
 	private void BuildDrawCommands()
@@ -234,17 +227,17 @@ class GUISandboxApp : RHISampleApp
 		}
 	}
 
-	protected override void OnRender(IRenderPassEncoder renderPass)
+	protected override void OnRender(IRenderPassEncoder renderPass, FrameContext frame)
 	{
-		mDrawingRenderer.Render(renderPass, SwapChain.Width, SwapChain.Height, (int32)SwapChain.CurrentFrameIndex, useMsaa: false);
+		mDrawingRenderer.Render(renderPass, SwapChain.Width, SwapChain.Height, frame.FrameIndex, useMsaa: false);
 	}
 
-	protected override void OnResize(uint32 width, uint32 height)
+	protected override void OnResize(int32 width, int32 height)
 	{
 		mGUIContext?.SetViewportSize((float)width, (float)height);
 	}
 
-	protected override void OnCleanup()
+	protected override void OnShutdown()
 	{
 		// Clean up drawing renderer
 		if (mDrawingRenderer != null)

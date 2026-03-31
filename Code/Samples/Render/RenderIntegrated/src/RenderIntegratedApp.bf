@@ -5,7 +5,6 @@ using System.Collections;
 using System.IO;
 using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
-using Sedulous.Shell;
 using Sedulous.Runtime.Client;
 using Sedulous.Render;
 using Sedulous.Geometry;
@@ -15,6 +14,7 @@ using Sedulous.Models;
 using Sedulous.Models.GLTF;
 using Sedulous.Animation;
 using Sedulous.Imaging;
+using Sedulous.Textures;
 
 /// Full integration demo combining all render features:
 /// - 8x8 cube grid with PBR materials
@@ -29,12 +29,11 @@ class RenderIntegratedApp : Application
 	private const int32 GRID_SIZE = 8;
 
 	// Render system
-	private RenderSystem mRenderSystem ~ delete _;
-	private RenderWorld mWorld ~ delete _;
-	private RenderView mView ~ delete _;
+	private RenderSystem mRenderSystem;
+	private RenderWorld mWorld;
+	private RenderView mView;
 
 	// Render features
-	private GPUSkinningFeature mSkinningFeature;
 	private DepthPrepassFeature mDepthFeature;
 	private ForwardOpaqueFeature mForwardFeature;
 	private ForwardTransparentFeature mTransparentFeature;
@@ -120,8 +119,7 @@ class RenderIntegratedApp : Application
 	private Vector3 mCameraForward;
 	private bool mMouseCaptured = false;
 
-	public this(IShell shell, IDevice device, IBackend backend)
-		: base(shell, device, backend)
+	public this() : base()
 	{
 	}
 
@@ -130,7 +128,7 @@ class RenderIntegratedApp : Application
 		Sedulous.Imaging.SDL.SDLImageLoader.Initialize();
 
 		mRenderSystem = new RenderSystem();
-		if (mRenderSystem.Initialize(mDevice, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null, .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
+		if (mRenderSystem.Initialize(mDevice, mSwapChain.Width, mSwapChain.Height, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null, .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
 		{
 			Console.WriteLine("ERROR: Failed to initialize RenderSystem");
 			return;
@@ -169,9 +167,6 @@ class RenderIntegratedApp : Application
 
 	private void RegisterFeatures()
 	{
-		mSkinningFeature = new GPUSkinningFeature();
-		mRenderSystem.RegisterFeature(mSkinningFeature);
-
 		mDepthFeature = new DepthPrepassFeature();
 		mRenderSystem.RegisterFeature(mDepthFeature);
 
@@ -181,14 +176,14 @@ class RenderIntegratedApp : Application
 		mTransparentFeature = new ForwardTransparentFeature();
 		mRenderSystem.RegisterFeature(mTransparentFeature);
 
+		mSkyFeature = new SkyFeature();
+		mRenderSystem.RegisterFeature(mSkyFeature);
+
 		mParticleFeature = new ParticleFeature();
 		mRenderSystem.RegisterFeature(mParticleFeature);
 
 		mSpriteFeature = new SpriteFeature();
 		mRenderSystem.RegisterFeature(mSpriteFeature);
-
-		mSkyFeature = new SkyFeature();
-		mRenderSystem.RegisterFeature(mSkyFeature);
 
 		mOverlayFeature = new OverlayRenderFeature();
 		mRenderSystem.RegisterFeature(mOverlayFeature);
@@ -833,7 +828,6 @@ class RenderIntegratedApp : Application
 			trail.Color = .(0, 1, 1, 1);
 			trail.BlendMode = .Additive;
 			trail.IsEnabled = true;
-			trail.Emitter = new TrailEmitter(mDevice, 50);
 		}
 		RegisterEffect(.(0, 3, 15), .(0, 255, 255, 255), "ORBIT TRAIL");
 
@@ -849,7 +843,6 @@ class RenderIntegratedApp : Application
 			trail.Color = .(0.7f, 0.4f, 1.0f, 0.8f);
 			trail.BlendMode = .Additive;
 			trail.IsEnabled = true;
-			trail.Emitter = new TrailEmitter(mDevice, 30);
 		}
 		RegisterEffect(.(8, 2, 15), .(180, 100, 255, 255), "SWORD TRAIL");
 	}
@@ -1162,46 +1155,34 @@ class RenderIntegratedApp : Application
 		// Update trail emitter (orbiting motion)
 		if (mTrailHandle.IsValid)
 		{
-			if (let trail = mWorld.GetTrailEmitter(mTrailHandle))
-			{
-				if (trail.Emitter != null)
-				{
-					mTrailAngle += dt * 2.0f;
-					float trailRadius = 3.0f;
-					float height = Math.Sin(mTrailAngle * 0.5f) * 1.5f;
-					let pos = Vector3(
-						Math.Cos(mTrailAngle) * trailRadius,
-						3.0f + height,
-						15.0f + Math.Sin(mTrailAngle) * trailRadius
-					);
+			mTrailAngle += dt * 2.0f;
+			float trailRadius = 3.0f;
+			float height = Math.Sin(mTrailAngle * 0.5f) * 1.5f;
+			let pos = Vector3(
+				Math.Cos(mTrailAngle) * trailRadius,
+				3.0f + height,
+				15.0f + Math.Sin(mTrailAngle) * trailRadius
+			);
 
-					let color = Color(
-						(uint8)(128 + Math.Sin(mTrailAngle * 3) * 127),
-						255,
-						(uint8)(200 + Math.Cos(mTrailAngle * 2) * 55),
-						255
-					);
+			let color = Color(
+				(uint8)(128 + Math.Sin(mTrailAngle * 3) * 127),
+				255,
+				(uint8)(200 + Math.Cos(mTrailAngle * 2) * 55),
+				255
+			);
 
-					trail.Emitter.AddPoint(pos, 0.15f, color);
-				}
-			}
+			mWorld.AddTrailPoint(mTrailHandle, pos, 0.15f, color);
 		}
 
 		// Update sword trail (pendulum swing motion)
 		if (mSwordTrailHandle.IsValid)
 		{
-			if (let trail = mWorld.GetTrailEmitter(mSwordTrailHandle))
-			{
-				if (trail.Emitter != null)
-				{
-					float swingAngle = Math.Sin(totalTime * 3.0f) * 1.5f;
-					float swingX = Math.Sin(swingAngle) * 2.0f;
-					float swingY = 2.0f + Math.Abs(Math.Cos(swingAngle)) * 1.0f;
-					let pos = Vector3(8 + swingX, swingY, 15);
+			float swingAngle = Math.Sin(totalTime * 3.0f) * 1.5f;
+			float swingX = Math.Sin(swingAngle) * 2.0f;
+			float swingY = 2.0f + Math.Abs(Math.Cos(swingAngle)) * 1.0f;
+			let pos = Vector3(8 + swingX, swingY, 15);
 
-					trail.Emitter.AddPoint(pos, 0.8f, .(180, 100, 255, 200));
-				}
-			}
+			mWorld.AddTrailPoint(mSwordTrailHandle, pos, 0.8f, .(180, 100, 255, 200));
 		}
 
 		// Update debug drawing
@@ -1213,6 +1194,11 @@ class RenderIntegratedApp : Application
 		mView.Width = mSwapChain.Width;
 		mView.Height = mSwapChain.Height;
 		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
+	}
+
+	protected override void OnResize(int32 width, int32 height)
+	{
+		mRenderSystem?.SetViewportSize((uint32)width, (uint32)height);
 	}
 
 	private void UpdateDebugDrawing(float totalTime, float dt)
@@ -1317,12 +1303,21 @@ class RenderIntegratedApp : Application
 	{
 		mWorld?.Dispose();
 
-		if (mCubeMeshHandle.IsValid) mRenderSystem.ResourceManager.ReleaseMesh(mCubeMeshHandle, mRenderSystem.FrameNumber);
-		if (mFloorMeshHandle.IsValid) mRenderSystem.ResourceManager.ReleaseMesh(mFloorMeshHandle, mRenderSystem.FrameNumber);
-		if (mFoxMeshHandle.IsValid) mRenderSystem.ResourceManager.ReleaseMesh(mFoxMeshHandle, mRenderSystem.FrameNumber);
-		if (mBoneBufferHandle.IsValid) mRenderSystem.ResourceManager.ReleaseBoneBuffer(mBoneBufferHandle, mRenderSystem.FrameNumber);
-		if (mFoxTextureHandle.IsValid) mRenderSystem.ResourceManager.ReleaseTexture(mFoxTextureHandle, mRenderSystem.FrameNumber);
-		mRenderSystem?.Shutdown();
+		if (mRenderSystem != null)
+		{
+			if (mCubeMeshHandle.IsValid) mRenderSystem.ResourceManager.ReleaseMesh(mCubeMeshHandle, mRenderSystem.FrameNumber);
+			if (mFloorMeshHandle.IsValid) mRenderSystem.ResourceManager.ReleaseMesh(mFloorMeshHandle, mRenderSystem.FrameNumber);
+			if (mFoxMeshHandle.IsValid) mRenderSystem.ResourceManager.ReleaseMesh(mFoxMeshHandle, mRenderSystem.FrameNumber);
+			if (mBoneBufferHandle.IsValid) mRenderSystem.ResourceManager.ReleaseBoneBuffer(mBoneBufferHandle, mRenderSystem.FrameNumber);
+			if (mFoxTextureHandle.IsValid) mRenderSystem.ResourceManager.ReleaseTexture(mFoxTextureHandle, mRenderSystem.FrameNumber);
+
+			mRenderSystem.Shutdown();
+			delete mRenderSystem;
+			mRenderSystem = null;
+		}
+		delete mWorld;
+		delete mView;
+
 		Console.WriteLine("Render Integrated shutting down");
 	}
 }

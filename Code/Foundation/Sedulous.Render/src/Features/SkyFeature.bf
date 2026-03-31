@@ -6,6 +6,17 @@ using Sedulous.RHI;
 using Sedulous.Core.Mathematics;
 using Sedulous.Shaders;
 using Sedulous.RenderGraph;
+using Sedulous.Textures;
+
+/// Context for sky setup operations (IBL generation, environment map loading).
+/// Provides device and transfer batch so internal methods don't manage GPU lifecycle.
+struct SkySetupContext
+{
+	/// Device for creating textures and views.
+	public IDevice Device;
+	/// Transfer batch for uploading texture/buffer data.
+	public ITransferBatch TransferBatch;
+}
 
 /// Sky rendering mode.
 [Reflect]
@@ -100,18 +111,18 @@ public class SkyFeature : RenderFeatureBase
 	private uint32 mIBLGeneration = 0;
 
 	// Cubemap sampler and fallback
-	private ISampler mEnvSampler ~ delete _;
-	private ITexture mFallbackCubemap ~ delete _;
-	private ITextureView mFallbackCubemapView ~ delete _;
+	private ISampler mEnvSampler;
+	private ITexture mFallbackCubemap;
+	private ITextureView mFallbackCubemapView;
 
 	// Sky rendering (per-frame for multi-buffering)
-	private IRenderPipeline mSkyPipeline ~ delete _;
+	private IRenderPipeline mSkyPipeline;
 	private IBuffer[RenderConfig.FrameBufferCount] mSkyParamsBuffers;
-	private IBindGroupLayout mSkyBindGroupLayout ~ delete _;
+	private IBindGroupLayout mSkyBindGroupLayout;
 	private IBindGroup[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mSkyBindGroups;
 
 	// Full-screen quad mesh (kept for potential future use, shader uses SV_VertexID)
-	private IBuffer mFullscreenQuadVB ~ delete _;
+	private IBuffer mFullscreenQuadVB;
 
 	// GPU IBL compute pipelines (lazily created on first HDRI use)
 	private IComputePipeline mEquirectToCubemapPipeline;
@@ -121,12 +132,6 @@ public class SkyFeature : RenderFeatureBase
 	private IBindGroupLayout mIBLConvolveBindGroupLayout;
 	private IPipelineLayout mEquirectPipelineLayout;
 	private IPipelineLayout mIBLConvolvePipelineLayout;
-
-	/// Gets the current frame index for multi-buffering.
-	private int32 FrameIndex => Renderer.RenderFrameContext?.FrameIndex ?? 0;
-
-	/// Gets the bind group index accounting for the active view.
-	private int32 GetBindGroupIndex(int32 frameIndex) => frameIndex * RenderConfig.MaxViews + (Renderer.RenderFrameContext?.ActiveViewIndex ?? 0);
 
 	/// Feature name.
 	public override StringView Name => "Sky";
@@ -173,22 +178,24 @@ public class SkyFeature : RenderFeatureBase
 	/// Gets the IBL generation counter. Incremented whenever IBL views change.
 	public uint32 IBLGeneration => mIBLGeneration;
 
-	protected override Result<void> OnInitialize()
+	protected override Result<void> OnInitialize(InitContext initCtx)
 	{
+		let skyCtx = SkySetupContext() { Device = initCtx.Device, TransferBatch = initCtx.TransferBatch };
+
 		// Create sky params buffer
 		if (CreateSkyParamsBuffer() case .Err)
 			return .Err;
 
 		// Create fullscreen quad
-		if (CreateFullscreenQuad() case .Err)
+		if (CreateFullscreenQuad(skyCtx) case .Err)
 			return .Err;
 
 		// Create BRDF LUT
-		if (CreateBRDFLut() case .Err)
+		if (CreateBRDFLut(skyCtx) case .Err)
 			return .Err;
 
 		// Create env sampler and fallback cubemap
-		if (CreateEnvSamplerAndFallback() case .Err)
+		if (CreateEnvSamplerAndFallback(skyCtx) case .Err)
 			return .Err;
 
 		// Create sky pipeline
@@ -196,12 +203,12 @@ public class SkyFeature : RenderFeatureBase
 			return .Err;
 
 		// Generate IBL maps from default sky parameters
-		GenerateIBLMaps();
+		GenerateIBLMaps(skyCtx);
 
 		return .Ok;
 	}
 
-	private IPipelineLayout mSkyPipelineLayout ~ delete _;
+	private IPipelineLayout mSkyPipelineLayout;
 
 	private Result<void> CreateSkyPipeline()
 	{
@@ -270,7 +277,7 @@ public class SkyFeature : RenderFeatureBase
 				FrontFace = .CCW,
 				CullMode = .None
 			},
-			DepthStencil = .Skybox,
+			DepthStencil = DepthStencilState.DepthReadOnly(Renderer.DepthFormat),
 			Multisample = .()
 			{
 				Count = 1,
@@ -289,48 +296,53 @@ public class SkyFeature : RenderFeatureBase
 
 	protected override void OnShutdown()
 	{
+		let device = Renderer.Device;
+
 		// Clean up per-frame resources
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
 			if (mSkyParamsBuffers[i] != null)
-			{
-				delete mSkyParamsBuffers[i];
-				mSkyParamsBuffers[i] = null;
-			}
+				device.DestroyBuffer(ref mSkyParamsBuffers[i]);
 		}
 
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
 		{
 			if (mSkyBindGroups[i] != null)
-			{
-				delete mSkyBindGroups[i];
-				mSkyBindGroups[i] = null;
-			}
+				device.DestroyBindGroup(ref mSkyBindGroups[i]);
 		}
 
 		if (mOwnsEnvironmentMap)
 		{
-			if (mEnvironmentMapView != null) delete mEnvironmentMapView;
-			if (mEnvironmentMap != null) delete mEnvironmentMap;
+			device.DestroyTextureView(ref mEnvironmentMapView);
+			device.DestroyTexture(ref mEnvironmentMap);
 		}
-		if (mIrradianceMapView != null) delete mIrradianceMapView;
-		if (mIrradianceMap != null) delete mIrradianceMap;
-		if (mPrefilteredMapView != null) delete mPrefilteredMapView;
-		if (mPrefilteredMap != null) delete mPrefilteredMap;
-		if (mBRDFLutView != null) delete mBRDFLutView;
-		if (mBRDFLut != null) delete mBRDFLut;
+		device.DestroyTextureView(ref mIrradianceMapView);
+		device.DestroyTexture(ref mIrradianceMap);
+		device.DestroyTextureView(ref mPrefilteredMapView);
+		device.DestroyTexture(ref mPrefilteredMap);
+		device.DestroyTextureView(ref mBRDFLutView);
+		device.DestroyTexture(ref mBRDFLut);
 
 		// Clean up GPU IBL compute pipelines
-		if (mEquirectToCubemapPipeline != null) delete mEquirectToCubemapPipeline;
-		if (mIBLIrradiancePipeline != null) delete mIBLIrradiancePipeline;
-		if (mIBLPrefilterPipeline != null) delete mIBLPrefilterPipeline;
-		if (mEquirectBindGroupLayout != null) delete mEquirectBindGroupLayout;
-		if (mIBLConvolveBindGroupLayout != null) delete mIBLConvolveBindGroupLayout;
-		if (mEquirectPipelineLayout != null) delete mEquirectPipelineLayout;
-		if (mIBLConvolvePipelineLayout != null) delete mIBLConvolvePipelineLayout;
+		device.DestroyComputePipeline(ref mEquirectToCubemapPipeline);
+		device.DestroyComputePipeline(ref mIBLIrradiancePipeline);
+		device.DestroyComputePipeline(ref mIBLPrefilterPipeline);
+		device.DestroyBindGroupLayout(ref mEquirectBindGroupLayout);
+		device.DestroyBindGroupLayout(ref mIBLConvolveBindGroupLayout);
+		device.DestroyPipelineLayout(ref mEquirectPipelineLayout);
+		device.DestroyPipelineLayout(ref mIBLConvolvePipelineLayout);
+
+		// Destroy remaining RHI resources
+		device.DestroySampler(ref mEnvSampler);
+		device.DestroyTextureView(ref mFallbackCubemapView);
+		device.DestroyTexture(ref mFallbackCubemap);
+		device.DestroyRenderPipeline(ref mSkyPipeline);
+		device.DestroyPipelineLayout(ref mSkyPipelineLayout);
+		device.DestroyBindGroupLayout(ref mSkyBindGroupLayout);
+		device.DestroyBuffer(ref mFullscreenQuadVB);
 	}
 
-	public override void AddPasses(RenderGraph graph, RenderView view, RenderWorld world)
+	public override void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world)
 	{
 		// Get existing resources
 		let colorHandle = graph.GetResource("SceneColor");
@@ -340,20 +352,22 @@ public class SkyFeature : RenderFeatureBase
 			return;
 
 		// Capture frame index for consistent multi-buffering
-		let frameIndex = FrameIndex;
+		let frameIndex = view.FrameIndex;
+		let bgIndex = view.GetBindGroupIndex();
 
 		// Upload sky params
-		UpdateSkyParams(frameIndex);
+		UpdateSkyParams(frameIndex, view);
 
 		// Add sky rendering pass
 		// Note: Must be NeverCull because render graph culling only preserves FirstWriter,
 		// and ForwardOpaque is the first writer of SceneColor
-		graph.AddGraphicsPass("Sky")
-			.WriteColor(colorHandle, .Load, .Store) // Blend sky into existing color
-			.ReadDepth(depthHandle) // Use depth for sky masking
-			.NeverCull() // Don't cull - sky renders in background
-			.SetExecuteCallback(new (encoder) => {
-				ExecuteSkyPass(encoder, view, frameIndex);
+		graph.AddRenderPass("Sky", scope (builder) => {
+				builder.SetColorTarget(0, colorHandle, .Load, .Store); // Blend sky into existing color
+				builder.ReadDepth(depthHandle); // Use depth for sky masking
+				builder.NeverCull(); // Don't cull - sky renders in background
+				builder.SetExecute(new /*[&, =frameIndex, =bgIndex]*/(encoder) => {
+					ExecuteSkyPass(encoder, view, frameIndex, bgIndex);
+				});
 			});
 	}
 
@@ -363,17 +377,19 @@ public class SkyFeature : RenderFeatureBase
 		// Flush GPU and invalidate bind groups before destroying views
 		FlushAndInvalidateBindGroups();
 
+		let device = Renderer.Device;
+
 		// Release old maps
 		if (mOwnsEnvironmentMap)
 		{
-			if (mEnvironmentMapView != null) { delete mEnvironmentMapView; mEnvironmentMapView = null; }
-			if (mEnvironmentMap != null) { delete mEnvironmentMap; mEnvironmentMap = null; }
+			device.DestroyTextureView(ref mEnvironmentMapView);
+			device.DestroyTexture(ref mEnvironmentMap);
 		}
 		mOwnsEnvironmentMap = false;
-		if (mIrradianceMapView != null) { delete mIrradianceMapView; mIrradianceMapView = null; }
-		if (mIrradianceMap != null) { delete mIrradianceMap; mIrradianceMap = null; }
-		if (mPrefilteredMapView != null) { delete mPrefilteredMapView; mPrefilteredMapView = null; }
-		if (mPrefilteredMap != null) { delete mPrefilteredMap; mPrefilteredMap = null; }
+		device.DestroyTextureView(ref mIrradianceMapView);
+		device.DestroyTexture(ref mIrradianceMap);
+		device.DestroyTextureView(ref mPrefilteredMapView);
+		device.DestroyTexture(ref mPrefilteredMap);
 
 		mEnvironmentMap = envMap;
 
@@ -394,7 +410,9 @@ public class SkyFeature : RenderFeatureBase
 		mMode = .EnvironmentMap;
 
 		// Generate IBL maps (skipped for external HDRI — needs GPU convolution)
-		GenerateIBLMaps();
+		WithRuntimeSkySetup(scope (ctx) => {
+			GenerateIBLMaps(ctx);
+		});
 		return .Ok;
 	}
 
@@ -422,7 +440,7 @@ public class SkyFeature : RenderFeatureBase
 		return .Ok;
 	}
 
-	private Result<void> CreateFullscreenQuad()
+	private Result<void> CreateFullscreenQuad(SkySetupContext ctx)
 	{
 		// Full-screen triangle (more efficient than quad)
 		float[12] vertices = .(
@@ -442,14 +460,14 @@ public class SkyFeature : RenderFeatureBase
 		{
 		case .Ok(let buf):
 			mFullscreenQuadVB = buf;
-			UploadBuffer(mFullscreenQuadVB, 0, Span<uint8>((uint8*)&vertices[0], sizeof(decltype(vertices))));
+			ctx.TransferBatch.WriteBuffer(mFullscreenQuadVB, 0, Span<uint8>((uint8*)&vertices[0], sizeof(decltype(vertices))));
 		case .Err: return .Err;
 		}
 
 		return .Ok;
 	}
 
-	private Result<void> CreateBRDFLut()
+	private Result<void> CreateBRDFLut(SkySetupContext ctx)
 	{
 		// Create 2D texture for BRDF integration LUT
 		TextureDesc desc = .()
@@ -486,14 +504,14 @@ public class SkyFeature : RenderFeatureBase
 		}
 
 		// Upload pre-generated BRDF LUT data
-		UploadBRDFLut();
+		UploadBRDFLut(ctx);
 
 		return .Ok;
 	}
 
 	/// Uploads pre-generated BRDF integration LUT from BRDFLutData.
 	/// The data was generated offline using GGX importance sampling with 1024 samples per texel.
-	private void UploadBRDFLut()
+	private void UploadBRDFLut(SkySetupContext ctx)
 	{
 		if (mBRDFLut == null)
 			return;
@@ -504,7 +522,7 @@ public class SkyFeature : RenderFeatureBase
 			RowsPerImage = (uint32)BRDFLutData.Height
 		};
 		var writeSize = Extent3D((uint32)BRDFLutData.Width, (uint32)BRDFLutData.Height, 1);
-		UploadTexture(mBRDFLut, Span<uint8>(&BRDFLutData.Data, BRDFLutData.DataSize), &layout, &writeSize);
+		ctx.TransferBatch.WriteTexture(mBRDFLut, Span<uint8>(&BRDFLutData.Data, BRDFLutData.DataSize), layout, writeSize);
 	}
 
 	/// Converts a float to half-precision (IEEE 754 binary16).
@@ -534,14 +552,32 @@ public class SkyFeature : RenderFeatureBase
 		return (uint16)(sign | ((uint32)exp << 10) | (mantissa >> 13));
 	}
 
+	/// Creates a runtime SkySetupContext with a temporary transfer batch,
+	/// executes the given work, then submits and destroys the batch.
+	private void WithRuntimeSkySetup(delegate void(SkySetupContext ctx) work)
+	{
+		let device = Renderer.Device;
+		let queue = device.GetQueue(.Graphics);
+		if (queue.CreateTransferBatch() case .Ok(var batch))
+		{
+			let ctx = SkySetupContext() { Device = device, TransferBatch = batch };
+			work(ctx);
+			batch.Submit();
+			queue.DestroyTransferBatch(ref batch);
+		}
+	}
+
 	/// Regenerates IBL maps from current sky parameters.
 	/// Call after changing sky mode or sky colors at runtime.
 	public void RegenerateIBL()
 	{
-		GenerateIBLMaps();
+		FlushAndInvalidateBindGroups();
+		WithRuntimeSkySetup(scope (ctx) => {
+			GenerateIBLMaps(ctx);
+		});
 	}
 
-	private void GenerateIBLMaps()
+	private void GenerateIBLMaps(SkySetupContext ctx)
 	{
 		if (mIsExternalEnvMap)
 		{
@@ -552,17 +588,17 @@ public class SkyFeature : RenderFeatureBase
 		switch (mMode)
 		{
 		case .Procedural, .EnvironmentMap:
-			GenerateIBLMapsFromColors(mSkyParams.ZenithColor, mSkyParams.HorizonColor, mSkyParams.GroundColor);
+			GenerateIBLMapsFromColors(ctx, mSkyParams.ZenithColor, mSkyParams.HorizonColor, mSkyParams.GroundColor);
 		case .SolidColor:
-			GenerateIBLMapsFromColors(mSkyParams.SolidColor, mSkyParams.SolidColor, mSkyParams.SolidColor);
+			GenerateIBLMapsFromColors(ctx, mSkyParams.SolidColor, mSkyParams.SolidColor, mSkyParams.SolidColor);
 		}
 	}
 
-	private void GenerateIBLMapsFromColors(Vector3 topColor, Vector3 horizonColor, Vector3 groundColor)
+	private void GenerateIBLMapsFromColors(SkySetupContext ctx, Vector3 topColor, Vector3 horizonColor, Vector3 groundColor)
 	{
-		FlushAndInvalidateBindGroups();
-		GenerateIrradianceMap(topColor, horizonColor, groundColor);
-		GeneratePrefilteredMap(topColor, horizonColor, groundColor);
+		// Caller is responsible for FlushAndInvalidateBindGroups before calling this
+		GenerateIrradianceMap(ctx, topColor, horizonColor, groundColor);
+		GeneratePrefilteredMap(ctx, topColor, horizonColor, groundColor);
 		mIBLGeneration++;
 	}
 
@@ -576,10 +612,7 @@ public class SkyFeature : RenderFeatureBase
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
 		{
 			if (mSkyBindGroups[i] != null)
-			{
-				delete mSkyBindGroups[i];
-				mSkyBindGroups[i] = null;
-			}
+				Renderer.Device.DestroyBindGroup(ref mSkyBindGroups[i]);
 		}
 
 		// Invalidate scene bind groups in ForwardOpaqueFeature (references IBL views)
@@ -593,16 +626,17 @@ public class SkyFeature : RenderFeatureBase
 	/// Releases old environment and IBL maps.
 	private void ReleaseEnvironmentAndIBLMaps()
 	{
+		let device = Renderer.Device;
 		if (mOwnsEnvironmentMap)
 		{
-			if (mEnvironmentMapView != null) { delete mEnvironmentMapView; mEnvironmentMapView = null; }
-			if (mEnvironmentMap != null) { delete mEnvironmentMap; mEnvironmentMap = null; }
+			device.DestroyTextureView(ref mEnvironmentMapView);
+			device.DestroyTexture(ref mEnvironmentMap);
 		}
 		mOwnsEnvironmentMap = false;
-		if (mIrradianceMapView != null) { delete mIrradianceMapView; mIrradianceMapView = null; }
-		if (mIrradianceMap != null) { delete mIrradianceMap; mIrradianceMap = null; }
-		if (mPrefilteredMapView != null) { delete mPrefilteredMapView; mPrefilteredMapView = null; }
-		if (mPrefilteredMap != null) { delete mPrefilteredMap; mPrefilteredMap = null; }
+		device.DestroyTextureView(ref mIrradianceMapView);
+		device.DestroyTexture(ref mIrradianceMap);
+		device.DestroyTextureView(ref mPrefilteredMapView);
+		device.DestroyTexture(ref mPrefilteredMap);
 	}
 
 	/// Lazily creates compute pipelines for GPU IBL generation.
@@ -763,14 +797,14 @@ public class SkyFeature : RenderFeatureBase
 		case .Ok(let tex): equirectTexture = tex;
 		case .Err: return .Err;
 		}
-		defer delete equirectTexture;
+		defer device.DestroyTexture(ref equirectTexture);
 
 		// Upload pixel data
 		uint32 bpp = TextureData.GetBytesPerPixel(equirectData.Format);
 		uint32 bytesPerRow = equirectData.BytesPerRow > 0 ? equirectData.BytesPerRow : equirectData.Width * bpp;
 		var equirectLayout = TextureDataLayout() { BytesPerRow = bytesPerRow, RowsPerImage = equirectData.Height };
 		var equirectSize = Extent3D(equirectData.Width, equirectData.Height, 1);
-		UploadTexture(equirectTexture, Span<uint8>(equirectData.Pixels, (int)equirectData.Size), &equirectLayout, &equirectSize);
+		TransferHelper.WriteTextureSync(Renderer.Device.GetQueue(.Graphics), Renderer.Device, equirectTexture, Span<uint8>(equirectData.Pixels, (int)equirectData.Size), equirectLayout, equirectSize);
 
 		TextureViewDesc equirectViewDesc = .() { Label = "Equirect View", Dimension = .Texture2D, Format = equirectData.Format };
 		ITextureView equirectView = null;
@@ -779,7 +813,7 @@ public class SkyFeature : RenderFeatureBase
 		case .Ok(let view): equirectView = view;
 		case .Err: return .Err;
 		}
-		defer delete equirectView;
+		defer device.DestroyTextureView(ref equirectView);
 
 		// --- 2. Create output cubemaps ---
 		let cubeRes = (uint32)cubemapResolution;
@@ -788,7 +822,7 @@ public class SkyFeature : RenderFeatureBase
 		const uint32 PrefMips = 5;
 
 		// Environment cubemap
-		TextureDesc envCubeDesc = .Cubemap(cubeRes, .RGBA32Float, .Storage | .Sampled);
+		TextureDesc envCubeDesc = .Cubemap(cubeRes, .RGBA32Float, .Storage | .Sampled, label: "Environment Cubemap");
 		switch (device.CreateTexture(envCubeDesc))
 		{
 		case .Ok(let tex): mEnvironmentMap = tex;
@@ -797,7 +831,7 @@ public class SkyFeature : RenderFeatureBase
 		mOwnsEnvironmentMap = true;
 
 		// Irradiance cubemap
-		TextureDesc irrDesc = .Cubemap(IrrSize, .RGBA32Float, .Storage | .Sampled);
+		TextureDesc irrDesc = .Cubemap(IrrSize, .RGBA32Float, .Storage | .Sampled, label: "Irradiance Cubemap");
 		switch (device.CreateTexture(irrDesc))
 		{
 		case .Ok(let tex): mIrradianceMap = tex;
@@ -805,7 +839,7 @@ public class SkyFeature : RenderFeatureBase
 		}
 
 		// Prefiltered cubemap with mip chain
-		TextureDesc prefDesc = .Cubemap(PrefBase, .RGBA32Float, .Storage | .Sampled, PrefMips);
+		TextureDesc prefDesc = .Cubemap(PrefBase, .RGBA32Float, .Storage | .Sampled, PrefMips, label: "Prefiltered Cubemap");
 		switch (device.CreateTexture(prefDesc))
 		{
 		case .Ok(let tex): mPrefilteredMap = tex;
@@ -863,9 +897,9 @@ public class SkyFeature : RenderFeatureBase
 			case .Err:
 				// Clean up already-created views
 				for (uint32 j = 0; j < mip; j++)
-					if (prefStorageViews[j] != null) delete prefStorageViews[j];
-				if (irrStorageView != null) delete irrStorageView;
-				if (envStorageView != null) delete envStorageView;
+					if (prefStorageViews[j] != null) device.DestroyTextureView(ref prefStorageViews[j]);
+				if (irrStorageView != null) device.DestroyTextureView(ref irrStorageView);
+				if (envStorageView != null) device.DestroyTextureView(ref envStorageView);
 				return .Err;
 			}
 		}
@@ -884,9 +918,9 @@ public class SkyFeature : RenderFeatureBase
 		case .Ok(let view): mEnvironmentMapView = view;
 		case .Err:
 			for (uint32 j = 0; j < PrefMips; j++)
-				if (prefStorageViews[j] != null) delete prefStorageViews[j];
-			if (irrStorageView != null) delete irrStorageView;
-			if (envStorageView != null) delete envStorageView;
+				if (prefStorageViews[j] != null) device.DestroyTextureView(ref prefStorageViews[j]);
+			if (irrStorageView != null) device.DestroyTextureView(ref irrStorageView);
+			if (envStorageView != null) device.DestroyTextureView(ref envStorageView);
 			return .Err;
 		}
 
@@ -900,11 +934,11 @@ public class SkyFeature : RenderFeatureBase
 			{
 			case .Ok(let buf): equirectParamsBuf = buf;
 			case .Err:
-				for (uint32 j = 0; j < PrefMips; j++) if (prefStorageViews[j] != null) delete prefStorageViews[j];
-				delete irrStorageView; delete envStorageView;
+				for (uint32 j = 0; j < PrefMips; j++) if (prefStorageViews[j] != null) device.DestroyTextureView(ref prefStorageViews[j]);
+				device.DestroyTextureView(ref irrStorageView); device.DestroyTextureView(ref envStorageView);
 				return .Err;
 			}
-			UploadBuffer(equirectParamsBuf, 0, Span<uint8>((uint8*)&equirectParams, sizeof(EquirectParams)));
+			TransferHelper.WriteStagedBufferSync(Renderer.Device.GetQueue(.Graphics), Renderer.Device, equirectParamsBuf, 0, Span<uint8>((uint8*)&equirectParams, sizeof(EquirectParams)));
 		}
 
 		// Prefilter params (one per mip)
@@ -920,13 +954,13 @@ public class SkyFeature : RenderFeatureBase
 			{
 			case .Ok(let buf): prefParamsBufs[mip] = buf;
 			case .Err:
-				for (uint32 j = 0; j < mip; j++) if (prefParamsBufs[j] != null) delete prefParamsBufs[j];
-				delete equirectParamsBuf;
-				for (uint32 j = 0; j < PrefMips; j++) if (prefStorageViews[j] != null) delete prefStorageViews[j];
-				delete irrStorageView; delete envStorageView;
+				for (uint32 j = 0; j < mip; j++) if (prefParamsBufs[j] != null) device.DestroyBuffer(ref prefParamsBufs[j]);
+				device.DestroyBuffer(ref equirectParamsBuf);
+				for (uint32 j = 0; j < PrefMips; j++) if (prefStorageViews[j] != null) device.DestroyTextureView(ref prefStorageViews[j]);
+				device.DestroyTextureView(ref irrStorageView); device.DestroyTextureView(ref envStorageView);
 				return .Err;
 			}
-			UploadBuffer(prefParamsBufs[mip], 0, Span<uint8>((uint8*)&prefParams, sizeof(PrefilterParams)));
+			TransferHelper.WriteStagedBufferSync(Renderer.Device.GetQueue(.Graphics), Renderer.Device, prefParamsBufs[mip], 0, Span<uint8>((uint8*)&prefParams, sizeof(PrefilterParams)));
 		}
 
 		// Irradiance needs a dummy params buffer (bind group layout requires b0)
@@ -938,22 +972,22 @@ public class SkyFeature : RenderFeatureBase
 			{
 			case .Ok(let buf): irrParamsBuf = buf;
 			case .Err:
-				for (uint32 j = 0; j < PrefMips; j++) if (prefParamsBufs[j] != null) delete prefParamsBufs[j];
-				delete equirectParamsBuf;
-				for (uint32 j = 0; j < PrefMips; j++) if (prefStorageViews[j] != null) delete prefStorageViews[j];
-				delete irrStorageView; delete envStorageView;
+				for (uint32 j = 0; j < PrefMips; j++) if (prefParamsBufs[j] != null) device.DestroyBuffer(ref prefParamsBufs[j]);
+				device.DestroyBuffer(ref equirectParamsBuf);
+				for (uint32 j = 0; j < PrefMips; j++) if (prefStorageViews[j] != null) device.DestroyTextureView(ref prefStorageViews[j]);
+				device.DestroyTextureView(ref irrStorageView); device.DestroyTextureView(ref envStorageView);
 				return .Err;
 			}
-			UploadBuffer(irrParamsBuf, 0, Span<uint8>((uint8*)&irrParams, sizeof(EquirectParams)));
+			TransferHelper.WriteStagedBufferSync(Renderer.Device.GetQueue(.Graphics), Renderer.Device, irrParamsBuf, 0, Span<uint8>((uint8*)&irrParams, sizeof(EquirectParams)));
 		}
 
 		// --- 5. Create bind groups ---
 		// Equirect bind group
 		BindGroupEntry[4] equirectBGEntries = .(
-			BindGroupEntry.Buffer(0, equirectParamsBuf, 0, sizeof(EquirectParams)),
-			BindGroupEntry.Texture(0, equirectView),
-			BindGroupEntry.Sampler(0, mEnvSampler),
-			BindGroupEntry.Texture(0, envStorageView)
+			BindGroupEntry.Buffer(/*0,*/equirectParamsBuf, 0, sizeof(EquirectParams)),
+			BindGroupEntry.Texture(/*0,*/equirectView),
+			BindGroupEntry.Sampler(/*0,*/mEnvSampler),
+			BindGroupEntry.Texture(/*0,*/envStorageView)
 		);
 		BindGroupDesc equirectBGDesc = .(mEquirectBindGroupLayout, equirectBGEntries);
 		equirectBGDesc.Label = "Equirect BG";
@@ -963,20 +997,20 @@ public class SkyFeature : RenderFeatureBase
 		{
 		case .Ok(let bg): equirectBG = bg;
 		case .Err:
-			delete irrParamsBuf;
-			for (uint32 j = 0; j < PrefMips; j++) if (prefParamsBufs[j] != null) delete prefParamsBufs[j];
-			delete equirectParamsBuf;
-			for (uint32 j = 0; j < PrefMips; j++) if (prefStorageViews[j] != null) delete prefStorageViews[j];
-			delete irrStorageView; delete envStorageView;
+			device.DestroyBuffer(ref irrParamsBuf);
+			for (uint32 j = 0; j < PrefMips; j++) if (prefParamsBufs[j] != null) device.DestroyBuffer(ref prefParamsBufs[j]);
+			device.DestroyBuffer(ref equirectParamsBuf);
+			for (uint32 j = 0; j < PrefMips; j++) if (prefStorageViews[j] != null) device.DestroyTextureView(ref prefStorageViews[j]);
+			device.DestroyTextureView(ref irrStorageView); device.DestroyTextureView(ref envStorageView);
 			return .Err;
 		}
 
 		// Irradiance bind group
 		BindGroupEntry[4] irrBGEntries = .(
-			BindGroupEntry.Buffer(0, irrParamsBuf, 0, sizeof(EquirectParams)),
-			BindGroupEntry.Texture(0, mEnvironmentMapView),
-			BindGroupEntry.Sampler(0, mEnvSampler),
-			BindGroupEntry.Texture(0, irrStorageView)
+			BindGroupEntry.Buffer(/*0,*/irrParamsBuf, 0, sizeof(EquirectParams)),
+			BindGroupEntry.Texture(/*0,*/mEnvironmentMapView),
+			BindGroupEntry.Sampler(/*0,*/mEnvSampler),
+			BindGroupEntry.Texture(/*0,*/irrStorageView)
 		);
 		BindGroupDesc irrBGDesc = .(mIBLConvolveBindGroupLayout, irrBGEntries);
 		irrBGDesc.Label = "Irradiance BG";
@@ -986,12 +1020,12 @@ public class SkyFeature : RenderFeatureBase
 		{
 		case .Ok(let bg): irrBG = bg;
 		case .Err:
-			delete equirectBG;
-			delete irrParamsBuf;
-			for (uint32 j = 0; j < PrefMips; j++) if (prefParamsBufs[j] != null) delete prefParamsBufs[j];
-			delete equirectParamsBuf;
-			for (uint32 j = 0; j < PrefMips; j++) if (prefStorageViews[j] != null) delete prefStorageViews[j];
-			delete irrStorageView; delete envStorageView;
+			device.DestroyBindGroup(ref equirectBG);
+			device.DestroyBuffer(ref irrParamsBuf);
+			for (uint32 j = 0; j < PrefMips; j++) if (prefParamsBufs[j] != null) device.DestroyBuffer(ref prefParamsBufs[j]);
+			device.DestroyBuffer(ref equirectParamsBuf);
+			for (uint32 j = 0; j < PrefMips; j++) if (prefStorageViews[j] != null) device.DestroyTextureView(ref prefStorageViews[j]);
+			device.DestroyTextureView(ref irrStorageView); device.DestroyTextureView(ref envStorageView);
 			return .Err;
 		}
 
@@ -1000,10 +1034,10 @@ public class SkyFeature : RenderFeatureBase
 		for (uint32 mip = 0; mip < PrefMips; mip++)
 		{
 			BindGroupEntry[4] prefBGEntries = .(
-				BindGroupEntry.Buffer(0, prefParamsBufs[mip], 0, sizeof(PrefilterParams)),
-				BindGroupEntry.Texture(0, mEnvironmentMapView),
-				BindGroupEntry.Sampler(0, mEnvSampler),
-				BindGroupEntry.Texture(0, prefStorageViews[mip])
+				BindGroupEntry.Buffer(/*0,*/prefParamsBufs[mip], 0, sizeof(PrefilterParams)),
+				BindGroupEntry.Texture(/*0,*/mEnvironmentMapView),
+				BindGroupEntry.Sampler(/*0,*/mEnvSampler),
+				BindGroupEntry.Texture(/*0,*/prefStorageViews[mip])
 			);
 			BindGroupDesc prefBGDesc = .(mIBLConvolveBindGroupLayout, prefBGEntries);
 			prefBGDesc.Label = "Prefilter BG";
@@ -1012,36 +1046,50 @@ public class SkyFeature : RenderFeatureBase
 			{
 			case .Ok(let bg): prefBGs[mip] = bg;
 			case .Err:
-				for (uint32 j = 0; j < mip; j++) if (prefBGs[j] != null) delete prefBGs[j];
-				delete irrBG; delete equirectBG;
-				delete irrParamsBuf;
-				for (uint32 j = 0; j < PrefMips; j++) if (prefParamsBufs[j] != null) delete prefParamsBufs[j];
-				delete equirectParamsBuf;
-				for (uint32 j = 0; j < PrefMips; j++) if (prefStorageViews[j] != null) delete prefStorageViews[j];
-				delete irrStorageView; delete envStorageView;
+				for (uint32 j = 0; j < mip; j++) if (prefBGs[j] != null) device.DestroyBindGroup(ref prefBGs[j]);
+				device.DestroyBindGroup(ref irrBG); device.DestroyBindGroup(ref equirectBG);
+				device.DestroyBuffer(ref irrParamsBuf);
+				for (uint32 j = 0; j < PrefMips; j++) if (prefParamsBufs[j] != null) device.DestroyBuffer(ref prefParamsBufs[j]);
+				device.DestroyBuffer(ref equirectParamsBuf);
+				for (uint32 j = 0; j < PrefMips; j++) if (prefStorageViews[j] != null) device.DestroyTextureView(ref prefStorageViews[j]);
+				device.DestroyTextureView(ref irrStorageView); device.DestroyTextureView(ref envStorageView);
 				return .Err;
 			}
 		}
 
 		// --- 6. Record and submit compute work ---
-		let encoder = device.CreateCommandEncoder();
+		var cmdPool = device.CreateCommandPool(.Graphics);
+		if (cmdPool case .Err)
+		{
+			for (uint32 j = 0; j < PrefMips; j++) if (prefBGs[j] != null) device.DestroyBindGroup(ref prefBGs[j]);
+			device.DestroyBindGroup(ref irrBG); device.DestroyBindGroup(ref equirectBG);
+			device.DestroyBuffer(ref irrParamsBuf);
+			for (uint32 j = 0; j < PrefMips; j++) if (prefParamsBufs[j] != null) device.DestroyBuffer(ref prefParamsBufs[j]);
+			device.DestroyBuffer(ref equirectParamsBuf);
+			for (uint32 j = 0; j < PrefMips; j++) if (prefStorageViews[j] != null) device.DestroyTextureView(ref prefStorageViews[j]);
+			device.DestroyTextureView(ref irrStorageView); device.DestroyTextureView(ref envStorageView);
+			return .Err;
+		}
+		var pool = cmdPool.Value;
+		let encoder = pool.CreateEncoder().Value;
 		if (encoder == null)
 		{
+			device.DestroyCommandPool(ref pool);
 			// Clean up everything
-			for (uint32 j = 0; j < PrefMips; j++) if (prefBGs[j] != null) delete prefBGs[j];
-			delete irrBG; delete equirectBG;
-			delete irrParamsBuf;
-			for (uint32 j = 0; j < PrefMips; j++) if (prefParamsBufs[j] != null) delete prefParamsBufs[j];
-			delete equirectParamsBuf;
-			for (uint32 j = 0; j < PrefMips; j++) if (prefStorageViews[j] != null) delete prefStorageViews[j];
-			delete irrStorageView; delete envStorageView;
+			for (uint32 j = 0; j < PrefMips; j++) if (prefBGs[j] != null) device.DestroyBindGroup(ref prefBGs[j]);
+			device.DestroyBindGroup(ref irrBG); device.DestroyBindGroup(ref equirectBG);
+			device.DestroyBuffer(ref irrParamsBuf);
+			for (uint32 j = 0; j < PrefMips; j++) if (prefParamsBufs[j] != null) device.DestroyBuffer(ref prefParamsBufs[j]);
+			device.DestroyBuffer(ref equirectParamsBuf);
+			for (uint32 j = 0; j < PrefMips; j++) if (prefStorageViews[j] != null) device.DestroyTextureView(ref prefStorageViews[j]);
+			device.DestroyTextureView(ref irrStorageView); device.DestroyTextureView(ref envStorageView);
 			return .Err;
 		}
 
 		// Transition output textures from Undefined → General for storage writes
-		encoder.TextureBarrier(mEnvironmentMap, .Undefined, .General);
-		encoder.TextureBarrier(mIrradianceMap, .Undefined, .General);
-		encoder.TextureBarrier(mPrefilteredMap, .Undefined, .General);
+		encoder.TransitionTexture(mEnvironmentMap, .Undefined, .General);
+		encoder.TransitionTexture(mIrradianceMap, .Undefined, .General);
+		encoder.TransitionTexture(mPrefilteredMap, .Undefined, .General);
 
 		// Pass 1: Equirect → Cubemap
 		{
@@ -1050,11 +1098,11 @@ public class SkyFeature : RenderFeatureBase
 			pass.SetBindGroup(0, equirectBG, default);
 			pass.Dispatch((cubeRes + 7) / 8, (cubeRes + 7) / 8, 6);
 			pass.End();
-			delete pass;
+			// pass owned by encoder, don't delete
 		}
 
 		// Transition env cubemap: General (storage write) → ShaderReadOnly (sampled by irradiance/prefilter)
-		encoder.TextureBarrier(mEnvironmentMap, .General, .ShaderReadOnly);
+		encoder.TransitionTexture(mEnvironmentMap, .General, .ShaderRead);
 
 		// Pass 2: Irradiance convolution
 		{
@@ -1063,7 +1111,7 @@ public class SkyFeature : RenderFeatureBase
 			pass.SetBindGroup(0, irrBG, default);
 			pass.Dispatch(IrrSize / 8, IrrSize / 8, 6);
 			pass.End();
-			delete pass;
+			// pass owned by encoder, don't delete
 		}
 
 		// Passes 3-7: Prefiltered convolution per mip
@@ -1075,18 +1123,19 @@ public class SkyFeature : RenderFeatureBase
 			pass.SetBindGroup(0, prefBGs[mip], default);
 			pass.Dispatch((mipSize + 7) / 8, (mipSize + 7) / 8, 6);
 			pass.End();
-			delete pass;
+			// pass owned by encoder, don't delete
 		}
 
 		// Transition IBL outputs to ShaderReadOnly for rendering
-		encoder.TextureBarrier(mIrradianceMap, .General, .ShaderReadOnly);
-		encoder.TextureBarrier(mPrefilteredMap, .General, .ShaderReadOnly);
+		encoder.TransitionTexture(mIrradianceMap, .General, .ShaderRead);
+		encoder.TransitionTexture(mPrefilteredMap, .General, .ShaderRead);
 
 		let cmdBuf = encoder.Finish();
-		defer delete encoder;
-		device.Queue.Submit(cmdBuf);
+		device.GetQueue(.Graphics).Submit(cmdBuf);
 		device.WaitIdle();
-		delete cmdBuf;
+		var enc = encoder;
+		pool.DestroyEncoder(ref enc);
+		device.DestroyCommandPool(ref pool);
 
 		// --- 7. Create sampled views for IBL ---
 		// Irradiance cubemap view
@@ -1118,15 +1167,15 @@ public class SkyFeature : RenderFeatureBase
 		}
 
 		// --- 8. Clean up temporary resources ---
-		for (uint32 j = 0; j < PrefMips; j++) if (prefBGs[j] != null) delete prefBGs[j];
-		delete irrBG;
-		delete equirectBG;
-		delete irrParamsBuf;
-		for (uint32 j = 0; j < PrefMips; j++) if (prefParamsBufs[j] != null) delete prefParamsBufs[j];
-		delete equirectParamsBuf;
-		for (uint32 j = 0; j < PrefMips; j++) if (prefStorageViews[j] != null) delete prefStorageViews[j];
-		delete irrStorageView;
-		delete envStorageView;
+		for (uint32 j = 0; j < PrefMips; j++) if (prefBGs[j] != null) device.DestroyBindGroup(ref prefBGs[j]);
+		device.DestroyBindGroup(ref irrBG);
+		device.DestroyBindGroup(ref equirectBG);
+		device.DestroyBuffer(ref irrParamsBuf);
+		for (uint32 j = 0; j < PrefMips; j++) if (prefParamsBufs[j] != null) device.DestroyBuffer(ref prefParamsBufs[j]);
+		device.DestroyBuffer(ref equirectParamsBuf);
+		for (uint32 j = 0; j < PrefMips; j++) if (prefStorageViews[j] != null) device.DestroyTextureView(ref prefStorageViews[j]);
+		device.DestroyTextureView(ref irrStorageView);
+		device.DestroyTextureView(ref envStorageView);
 
 		// --- 9. Set state ---
 		mMode = .EnvironmentMap;
@@ -1207,7 +1256,7 @@ public class SkyFeature : RenderFeatureBase
 
 	// ==================== Irradiance Map Generation ====================
 
-	private Result<void> GenerateIrradianceMap(Vector3 topColor, Vector3 horizonColor, Vector3 groundColor)
+	private Result<void> GenerateIrradianceMap(SkySetupContext ctx, Vector3 topColor, Vector3 horizonColor, Vector3 groundColor)
 	{
 		const int32 IrrSize = 32;
 		const int32 NumSamplesAzi = 64;
@@ -1215,11 +1264,11 @@ public class SkyFeature : RenderFeatureBase
 		let totalSamples = NumSamplesAzi * NumSamplesElev;
 
 		// Release old
-		if (mIrradianceMapView != null) { delete mIrradianceMapView; mIrradianceMapView = null; }
-		if (mIrradianceMap != null) { delete mIrradianceMap; mIrradianceMap = null; }
+		Renderer.Device.DestroyTextureView(ref mIrradianceMapView);
+		Renderer.Device.DestroyTexture(ref mIrradianceMap);
 
 		// Create cubemap texture
-		TextureDesc texDesc = .Cubemap((uint32)IrrSize, .RGBA16Float, .Sampled | .CopyDst);
+		TextureDesc texDesc = .Cubemap((uint32)IrrSize, .RGBA16Float, .Sampled | .CopyDst, label: "Procedural Irradiance Cubemap");
 		switch (Renderer.Device.CreateTexture(texDesc))
 		{
 		case .Ok(let tex): mIrradianceMap = tex;
@@ -1275,7 +1324,7 @@ public class SkyFeature : RenderFeatureBase
 			// Upload face
 			var layout = TextureDataLayout() { BytesPerRow = (uint32)(IrrSize * 8), RowsPerImage = (uint32)IrrSize };
 			var writeSize = Extent3D((uint32)IrrSize, (uint32)IrrSize, 1);
-			UploadTexture(mIrradianceMap, Span<uint8>((uint8*)faceData.Ptr, faceData.Count * 2), &layout, &writeSize, 0, (uint32)face);
+			ctx.TransferBatch.WriteTexture(mIrradianceMap, Span<uint8>((uint8*)faceData.Ptr, faceData.Count * 2), layout, writeSize, 0, (uint32)face);
 		}
 
 		// Create cubemap view
@@ -1300,18 +1349,18 @@ public class SkyFeature : RenderFeatureBase
 
 	// ==================== Prefiltered Specular Map Generation ====================
 
-	private Result<void> GeneratePrefilteredMap(Vector3 topColor, Vector3 horizonColor, Vector3 groundColor)
+	private Result<void> GeneratePrefilteredMap(SkySetupContext ctx, Vector3 topColor, Vector3 horizonColor, Vector3 groundColor)
 	{
 		const int32 BaseSize = 128;
 		const uint32 MipLevels = 5;
 		const int32 NumSamples = 128;
 
 		// Release old
-		if (mPrefilteredMapView != null) { delete mPrefilteredMapView; mPrefilteredMapView = null; }
-		if (mPrefilteredMap != null) { delete mPrefilteredMap; mPrefilteredMap = null; }
+		Renderer.Device.DestroyTextureView(ref mPrefilteredMapView);
+		Renderer.Device.DestroyTexture(ref mPrefilteredMap);
 
 		// Create cubemap with mip chain
-		TextureDesc texDesc = .Cubemap((uint32)BaseSize, .RGBA16Float, .Sampled | .CopyDst, MipLevels);
+		TextureDesc texDesc = .Cubemap((uint32)BaseSize, .RGBA16Float, .Sampled | .CopyDst, MipLevels, label: "Procedural Prefiltered Cubemap");
 		switch (Renderer.Device.CreateTexture(texDesc))
 		{
 		case .Ok(let tex): mPrefilteredMap = tex;
@@ -1377,7 +1426,7 @@ public class SkyFeature : RenderFeatureBase
 				// Upload face at this mip level
 				var layout = TextureDataLayout() { BytesPerRow = (uint32)(mipSize * 8), RowsPerImage = (uint32)mipSize };
 				var writeSize = Extent3D((uint32)mipSize, (uint32)mipSize, 1);
-				UploadTexture(mPrefilteredMap, Span<uint8>((uint8*)faceData.Ptr, mipSize * mipSize * 8), &layout, &writeSize, mip, (uint32)face);
+				ctx.TransferBatch.WriteTexture(mPrefilteredMap, Span<uint8>((uint8*)faceData.Ptr, mipSize * mipSize * 8), layout, writeSize, mip, (uint32)face);
 			}
 		}
 
@@ -1401,7 +1450,7 @@ public class SkyFeature : RenderFeatureBase
 		return .Ok;
 	}
 
-	private Result<void> CreateEnvSamplerAndFallback()
+	private Result<void> CreateEnvSamplerAndFallback(SkySetupContext ctx)
 	{
 		// Create sampler for cubemap sampling
 		SamplerDesc samplerDesc = .();
@@ -1419,7 +1468,7 @@ public class SkyFeature : RenderFeatureBase
 		}
 
 		// Create a 1x1 black fallback cubemap
-		TextureDesc texDesc = .Cubemap(1, .RGBA8Unorm, .Sampled | .CopyDst);
+		TextureDesc texDesc = .Cubemap(1, .RGBA8Unorm, .Sampled | .CopyDst, label: "cubemap fallback 1x1 black");
 
 		switch (Renderer.Device.CreateTexture(texDesc))
 		{
@@ -1434,7 +1483,7 @@ public class SkyFeature : RenderFeatureBase
 		Span<uint8> data = .(&blackPixel, 4);
 
 		for (uint32 face = 0; face < 6; face++)
-			UploadTexture(mFallbackCubemap, data, &layout, &size, 0, face);
+			ctx.TransferBatch.WriteTexture(mFallbackCubemap, data, layout, size, 0, face);
 
 		// Create cube view
 		TextureViewDesc viewDesc = .()
@@ -1477,15 +1526,21 @@ public class SkyFeature : RenderFeatureBase
 		// Flush GPU and invalidate bind groups before destroying views
 		FlushAndInvalidateBindGroups();
 
+		// Create transfer batch for all uploads in this operation
+		let queue = Renderer.Device.GetQueue(.Graphics);
+		var batch = queue.CreateTransferBatch().Value;
+		let ctx = SkySetupContext() { Device = Renderer.Device, TransferBatch = batch };
+		defer { batch.Submit(); queue.DestroyTransferBatch(ref batch); }
+
 		// Release old owned environment map
 		if (mOwnsEnvironmentMap)
 		{
-			if (mEnvironmentMapView != null) { delete mEnvironmentMapView; mEnvironmentMapView = null; }
-			if (mEnvironmentMap != null) { delete mEnvironmentMap; mEnvironmentMap = null; }
+			Renderer.Device.DestroyTextureView(ref mEnvironmentMapView);
+			Renderer.Device.DestroyTexture(ref mEnvironmentMap);
 		}
 
 		// Create cubemap texture
-		TextureDesc texDesc = .Cubemap((uint32)resolution, .RGBA8Unorm, .Sampled | .CopyDst);
+		TextureDesc texDesc = .Cubemap((uint32)resolution, .RGBA8Unorm, .Sampled | .CopyDst, label: "Procedural Environment Cubemap");
 
 		switch (Renderer.Device.CreateTexture(texDesc))
 		{
@@ -1554,7 +1609,7 @@ public class SkyFeature : RenderFeatureBase
 
 			// Upload this face
 			Span<uint8> data = .(faceData.Ptr, faceSize);
-			UploadTexture(mEnvironmentMap, data, &layout, &size, 0, (uint32)face);
+			ctx.TransferBatch.WriteTexture(mEnvironmentMap, data, layout, size, 0, (uint32)face);
 		}
 
 		// Create cube view
@@ -1595,24 +1650,20 @@ public class SkyFeature : RenderFeatureBase
 		mIsExternalEnvMap = false;
 
 		// Generate IBL maps from sky colors
-		GenerateIBLMaps();
+		GenerateIBLMaps(ctx);
 
 		return .Ok;
 	}
 
 	/// Ensures the sky bind group exists for the current frame and view.
-	private void EnsureSkyBindGroup(int32 frameIndex)
+	private void EnsureSkyBindGroup(int32 frameIndex, ViewContext view)
 	{
 		let skyParamsBuffer = mSkyParamsBuffers[frameIndex];
 		if (mSkyBindGroupLayout == null || skyParamsBuffer == null)
 			return;
 
-		// Get current frame's camera buffer
-		let frameContext = Renderer.RenderFrameContext;
-		if (frameContext == null)
-			return;
-
-		let cameraBuffer = frameContext.SceneUniformBuffer;
+		// Get current frame's camera buffer from view context
+		let cameraBuffer = view.SceneUniformBuffer;
 		if (cameraBuffer == null)
 			return;
 
@@ -1620,24 +1671,21 @@ public class SkyFeature : RenderFeatureBase
 		if (mEnvSampler == null || mFallbackCubemapView == null)
 			return;
 
-		let bindGroupIndex = GetBindGroupIndex(frameIndex);
+		let bindGroupIndex = view.GetBindGroupIndex();
 
-		// Delete old bind group if exists
+		// Destroy old bind group if exists
 		if (mSkyBindGroups[bindGroupIndex] != null)
-		{
-			delete mSkyBindGroups[bindGroupIndex];
-			mSkyBindGroups[bindGroupIndex] = null;
-		}
+			Renderer.Device.DestroyBindGroup(ref mSkyBindGroups[bindGroupIndex]);
 
 		// Pick active cubemap view (user env map or fallback)
 		let cubemapView = (mEnvironmentMapView != null) ? mEnvironmentMapView : mFallbackCubemapView;
 
 		// Create bind group entries (binding indices match register spaces: b0, b1, t0, s0)
 		BindGroupEntry[4] entries = .(
-			BindGroupEntry.Buffer(0, cameraBuffer, 0, SceneUniforms.Size),
-			BindGroupEntry.Buffer(1, skyParamsBuffer, 0, (uint64)ProceduralSkyParams.Size),
-			BindGroupEntry.Texture(0, cubemapView),
-			BindGroupEntry.Sampler(0, mEnvSampler)
+			BindGroupEntry.Buffer(/*0,*/cameraBuffer, 0, SceneUniforms.Size),
+			BindGroupEntry.Buffer(/*1,*/skyParamsBuffer, 0, (uint64)ProceduralSkyParams.Size),
+			BindGroupEntry.Texture(/*0,*/cubemapView),
+			BindGroupEntry.Sampler(/*0,*/mEnvSampler)
 		);
 
 		BindGroupDesc desc = .()
@@ -1651,10 +1699,10 @@ public class SkyFeature : RenderFeatureBase
 			mSkyBindGroups[bindGroupIndex] = bg;
 	}
 
-	private void UpdateSkyParams(int32 frameIndex)
+	private void UpdateSkyParams(int32 frameIndex, ViewContext view)
 	{
-		// Update time from renderer
-		mSkyParams.Time = Renderer.RenderFrameContext?.TotalTime ?? 0.0f;
+		// Update time from view context
+		mSkyParams.Time = view.TotalTime;
 
 		// Set mode from enum (0 = Procedural, 1 = SolidColor, 2 = EnvironmentMap)
 		switch (mMode)
@@ -1679,10 +1727,10 @@ public class SkyFeature : RenderFeatureBase
 		}
 
 		// Ensure bind group is ready for this frame
-		EnsureSkyBindGroup(frameIndex);
+		EnsureSkyBindGroup(frameIndex, view);
 	}
 
-	private void ExecuteSkyPass(IRenderPassEncoder encoder, RenderView view, int32 frameIndex)
+	private void ExecuteSkyPass(IRenderPassEncoder encoder, ViewContext view, int32 frameIndex, int32 bgIndex)
 	{
 		if (mSkyPipeline == null)
 			return;
@@ -1695,7 +1743,7 @@ public class SkyFeature : RenderFeatureBase
 		encoder.SetPipeline(mSkyPipeline);
 
 		// Bind resources using current frame and view's bind group
-		let skyBindGroup = mSkyBindGroups[GetBindGroupIndex(frameIndex)];
+		let skyBindGroup = mSkyBindGroups[bgIndex];
 		if (skyBindGroup != null)
 			encoder.SetBindGroup(0, skyBindGroup, default);
 

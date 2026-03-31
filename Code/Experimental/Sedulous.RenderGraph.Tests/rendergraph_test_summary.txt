@@ -1,0 +1,26 @@
+=== Render Graph Summary ===
+Total passes:     5
+Scheduled passes: 4
+Culled passes:    1
+Resources:        6
+Sync points:      2
+
+--- Scheduled Passes ---
+  [0] GBuffer (GFX) — barriers: 3 tex, 0 buf, 0 mem
+  [1] SSAO (CMP) — barriers: 2 tex, 1 buf, 0 mem
+  [2] Lighting (GFX) — barriers: 2 tex, 1 buf, 0 mem
+  [3] Tonemap (GFX) — barriers: 1 tex, 0 buf, 0 mem
+
+--- Culled Passes ---
+  DebugView
+
+--- Cross-Queue Sync ---
+  GFX → CMP (fence=1)
+  CMP → GFX (fence=2)
+
+--- Resource Lifetimes ---
+  Albedo (tex) — passes [0..2]
+  Normal (tex) — passes [0..2]
+  Depth (tex) — passes [0..2]
+  SSAO_Data (buf) — passes [1..2]
+  HDR (tex) — passes [2..3]

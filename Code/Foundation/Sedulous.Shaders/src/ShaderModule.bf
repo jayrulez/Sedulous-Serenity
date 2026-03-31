@@ -14,7 +14,7 @@ class ShaderModule : IDisposable
 	private uint8[] mBytecode ~ delete _;
 
 	/// RHI shader module (created on demand).
-	private IShaderModule mRhiModule ~ delete _;
+	private IShaderModule mRhiModule;
 
 	/// Device used to create RHI module.
 	private IDevice mDevice;
@@ -50,6 +50,11 @@ class ShaderModule : IDisposable
 		}
 	}
 
+	public ~this()
+	{
+		ReleaseRhiModule();
+	}
+
 	/// Creates a shader module from compiled bytecode.
 	public this(ShaderVariantKey key, Span<uint8> bytecode, IDevice device = null)
 	{
@@ -79,9 +84,9 @@ class ShaderModule : IDisposable
 		String label = scope .();
 		Key.ToString(label);
 
-		var desc = ShaderModuleDesc()
+		let desc = ShaderModuleDesc()
 		{
-			Code = mBytecode,
+			Code = Span<uint8>((uint8*)mBytecode.Ptr, mBytecode.Count),
 			Label = label
 		};
 
@@ -99,11 +104,8 @@ class ShaderModule : IDisposable
 	/// Releases the RHI module but keeps bytecode.
 	public void ReleaseRhiModule()
 	{
-		if (mRhiModule != null)
-		{
-			delete mRhiModule;
-			mRhiModule = null;
-		}
+		if (mRhiModule != null && mDevice != null)
+			mDevice.DestroyShaderModule(ref mRhiModule);
 	}
 
 	public void Dispose()

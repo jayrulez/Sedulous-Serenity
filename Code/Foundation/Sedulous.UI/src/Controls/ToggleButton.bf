@@ -1,23 +1,22 @@
+namespace Sedulous.UI;
+
 using System;
 using Sedulous.Drawing;
 using Sedulous.Core.Mathematics;
-using Sedulous.Core.Core;
+using Sedulous.Fonts;
+using Sedulous.Core;
 
-namespace Sedulous.UI;
-
-/// A button that toggles between checked and unchecked states.
-public class ToggleButton : Button
+/// Button with on/off state. Uses accent color when checked.
+public class ToggleButton : View
 {
-	private bool? mIsChecked = false;
+	private String mText = new .() ~ delete _;
+	private float mFontSize = 16;
+	private Color mTextColor = default;
+	private bool mIsChecked;
 
-	// Checked changed event
-	private EventAccessor<delegate void(ToggleButton, bool?)> mCheckedChangedEvent = new .() ~ delete _;
+	private EventAccessor<delegate void(ToggleButton, bool)> mOnCheckedChanged = new .() ~ delete _;
 
-	/// Event fired when the checked state changes.
-	public EventAccessor<delegate void(ToggleButton, bool?)> CheckedChanged => mCheckedChangedEvent;
-
-	/// The checked state. Can be true, false, or null (indeterminate).
-	public bool? IsChecked
+	public bool IsChecked
 	{
 		get => mIsChecked;
 		set
@@ -25,196 +24,170 @@ public class ToggleButton : Button
 			if (mIsChecked != value)
 			{
 				mIsChecked = value;
-				OnCheckedChanged();
-				UpdateControlState();
-				InvalidateVisual();
+				Invalidate();
+				mOnCheckedChanged.[Friend]Invoke(this, value);
 			}
 		}
 	}
 
-	/// Whether the toggle button supports three states (true, false, null).
-	public bool IsThreeState { get; set; }
+	public StringView Text
+	{
+		get => mText;
+		set
+		{
+			mText.Set(value);
+			InvalidateLayout();
+		}
+	}
+
+	public float FontSize
+	{
+		get => mFontSize;
+		set
+		{
+			mFontSize = Math.Max(1, value);
+			InvalidateLayout();
+		}
+	}
+
+	public Color TextColor
+	{
+		get => mTextColor;
+		set { mTextColor = value; Invalidate(); }
+	}
+
+	/// Subscribe to checked state change events.
+	public EventAccessor<delegate void(ToggleButton, bool)> OnCheckedChanged => mOnCheckedChanged;
 
 	public this()
 	{
+		Focusable = true;
+		CursorType = .Pointer;
+		Padding = .(12, 8, 12, 8);
 	}
 
-	public this(StringView text) : base(text)
+	public this(StringView text) : this()
 	{
+		mText.Set(text);
 	}
 
-	protected override void OnClick()
+	protected override void OnMeasure(MeasureSpec widthSpec, MeasureSpec heightSpec)
 	{
-		// Toggle the state
-		if (IsThreeState)
+		float desiredW = Padding.Horizontal;
+		float desiredH = Padding.Vertical;
+
+		if (!mText.IsEmpty && Context != null && Context.FontService != null)
 		{
-			// Cycle: false -> true -> null -> false
-			if (mIsChecked == false)
-				IsChecked = true;
-			else if (mIsChecked == true)
-				IsChecked = null;
-			else
-				IsChecked = false;
-		}
-		else
-		{
-			// Simple toggle
-			IsChecked = !(mIsChecked ?? false);
-		}
-
-		base.OnClick();
-	}
-
-	/// Called when the checked state changes.
-	protected virtual void OnCheckedChanged()
-	{
-		mCheckedChangedEvent.[Friend]Invoke(this, mIsChecked);
-	}
-
-	protected override void UpdateControlState()
-	{
-		base.UpdateControlState();
-
-		// Add checked state
-		if (mIsChecked == true)
-		{
-			ControlState = (Sedulous.UI.ControlState)((int)ControlState | (int)Sedulous.UI.ControlState.Checked);
-		}
-	}
-}
-
-/// A checkbox control with a check mark visual.
-public class CheckBox : ToggleButton
-{
-	private const float CheckBoxSize = 16.0f;
-	private const float CheckBoxSpacing = 6.0f;
-
-	public this()
-	{
-	}
-
-	public this(StringView text) : base(text)
-	{
-	}
-
-	protected override DesiredSize MeasureContent(SizeConstraints constraints)
-	{
-		// Checkbox is the check box plus spacing plus content
-		let contentSize = base.MeasureContent(constraints);
-		let totalWidth = CheckBoxSize + CheckBoxSpacing + contentSize.Width;
-		let totalHeight = Math.Max(CheckBoxSize, contentSize.Height);
-		return .(totalWidth, totalHeight);
-	}
-
-	protected override void OnRender(DrawContext drawContext)
-	{
-		let bounds = Bounds;
-		let theme = GetTheme();
-
-		// Draw the check box
-		let boxX = bounds.X + BorderThickness.Left;
-		let boxY = bounds.Y + BorderThickness.Top + (bounds.Height - BorderThickness.TotalVertical - CheckBoxSize) / 2;
-		let boxRect = RectangleF(boxX, boxY, CheckBoxSize, CheckBoxSize);
-
-		// Box background
-		let bgColor = IsEnabled ?
-			(theme?.GetColor("Background") ?? Color.White) :
-			(theme?.GetColor("Disabled") ?? Color(240, 240, 240));
-		drawContext.FillRect(boxRect, bgColor);
-
-		// Box border
-		Color borderColor;
-		if (!IsEnabled)
-			borderColor = theme?.GetColor("ForegroundDisabled") ?? Color(180, 180, 180);
-		else if (IsFocused)
-			borderColor = theme?.GetColor("Primary") ?? Color(0, 120, 215);
-		else
-			borderColor = theme?.GetColor("Border") ?? Color.Gray;
-		drawContext.DrawRect(boxRect, borderColor, 1.0f);
-
-		// Draw check mark if checked
-		if (IsChecked == true)
-		{
-			let checkColor = IsEnabled ?
-				(theme?.GetColor("Primary") ?? Color(0, 120, 215)) :
-				(theme?.GetColor("ForegroundDisabled") ?? Color(150, 150, 150));
-			// Draw a simple checkmark using lines
-			let cx = boxX + CheckBoxSize / 2;
-			let cy = boxY + CheckBoxSize / 2;
-			let size = CheckBoxSize * 0.3f;
-
-			// Checkmark as a filled smaller rect for simplicity
-			// Real implementation would draw actual check path
-			drawContext.FillRect(.(cx - size, cy - size/2, size * 2, size), checkColor);
-		}
-		else if (IsChecked == null)
-		{
-			// Indeterminate state - draw a dash
-			let dashColor = IsEnabled ?
-				(theme?.GetColor("Primary") ?? Color(0, 120, 215)) :
-				(theme?.GetColor("ForegroundDisabled") ?? Color(150, 150, 150));
-			let dashY = boxY + CheckBoxSize / 2 - 1;
-			drawContext.FillRect(.(boxX + 3, dashY, CheckBoxSize - 6, 3), dashColor);
-		}
-
-		// Render content (label) to the right of the checkbox
-		// Content rendering handled by base class but positioned differently
-		RenderContent(drawContext);
-	}
-
-	protected override void ArrangeContent(RectangleF contentBounds)
-	{
-		// Offset content to the right of the checkbox
-		let offsetBounds = RectangleF(
-			contentBounds.X + CheckBoxSize + CheckBoxSpacing,
-			contentBounds.Y,
-			contentBounds.Width - CheckBoxSize - CheckBoxSpacing,
-			contentBounds.Height
-		);
-
-		if (Content != null)
-		{
-			Content.Arrange(offsetBounds);
-		}
-	}
-
-	protected override void RenderContent(DrawContext drawContext)
-	{
-		if (Content != null)
-		{
-			// Content renders itself via the tree
-			return;
-		}
-
-		// Render text content to the right of the checkbox with left alignment
-		if (ContentText.Length > 0)
-		{
-			let theme = GetTheme();
-			let foreground = Foreground ?? theme?.GetColor("Foreground") ?? Color.Black;
-			let contentBounds = ContentBounds;
-
-			// Calculate the text area (offset by checkbox)
-			let textBounds = RectangleF(
-				contentBounds.X + CheckBoxSize + CheckBoxSpacing,
-				contentBounds.Y,
-				contentBounds.Width - CheckBoxSize - CheckBoxSpacing,
-				contentBounds.Height
-			);
-
-			let fontService = GetFontService();
-			let cachedFont = GetCachedFont();
-
-			if (fontService != null && cachedFont != null)
+			let font = Context.FontService.GetFont(mFontSize);
+			if (font != null)
 			{
-				let font = cachedFont.Font;
-				let atlas = cachedFont.Atlas;
-				let atlasTexture = fontService.GetAtlasTexture(cachedFont);
-
-				if (atlas != null && atlasTexture != null)
-				{
-					drawContext.DrawText(ContentText, font, atlas, atlasTexture, textBounds, .Left, .Middle, foreground);
-				}
+				desiredW += font.Font.MeasureString(mText);
+				desiredH += font.Font.Metrics.LineHeight;
+				Context.FontService.ReleaseFont(font);
 			}
+		}
+		else
+		{
+			desiredH += mFontSize;
+		}
+
+		// Respect background drawable's intrinsic size (like Android)
+		let theme = Context?.Theme;
+		let bgDrawable = theme?.GetDrawable("ToggleButton", "background");
+		if (bgDrawable != null)
+		{
+			let intrinsic = bgDrawable.IntrinsicSize;
+			if (intrinsic.Height > 0)
+				desiredH = Math.Max(desiredH, intrinsic.Height);
+		}
+
+		SetMeasuredDimension(
+			widthSpec.Resolve(desiredW, MinWidth, MaxWidth),
+			heightSpec.Resolve(desiredH, MinHeight, MaxHeight)
+		);
+	}
+
+	protected override void OnDraw(DrawContext ctx)
+	{
+		let theme = Context?.Theme;
+		let palette = theme?.Palette ?? Palette.Dark;
+
+		// Try theme drawables first (checked/unchecked variants)
+		let drawableKey = mIsChecked ? "checkedBackground" : "background";
+		let bgDrawable = theme?.GetDrawable("ToggleButton", drawableKey);
+		if (bgDrawable != null)
+		{
+			bgDrawable.Draw(ctx, .(0, 0, Width, Height), GetControlState());
+		}
+		else
+		{
+			let cornerRadius = theme?.GetDimension("ToggleButton", "cornerRadius") ?? 4;
+			Color baseColor;
+			if (mIsChecked)
+				baseColor = theme?.GetColor("ToggleButton", "checkedBackground") ?? palette.Accent;
+			else
+				baseColor = theme?.GetColor("ToggleButton", "background") ?? palette.Primary;
+			let bg = Palette.ResolveState(baseColor, GetControlState(), palette.Accent);
+			ctx.FillRoundedRect(.(0, 0, Width, Height), cornerRadius, bg);
+		}
+
+		if (IsFocused)
+		{
+			let cornerRadius = theme?.GetDimension("ToggleButton", "cornerRadius") ?? 4;
+			DrawFocusIndicator(ctx, .(0, 0, Width, Height), cornerRadius);
+		}
+
+		if (!mText.IsEmpty && Context != null && Context.FontService != null)
+		{
+			let font = Context.FontService.GetFont(mFontSize);
+			if (font != null)
+			{
+				let atlasTexture = Context.FontService.GetAtlasTexture(font);
+				if (atlasTexture != null)
+				{
+					let baseTextColor = (mTextColor.A > 0) ? mTextColor : (theme?.GetColor("ToggleButton", "text") ?? palette.Text);
+				let textColor = Enabled ? baseTextColor : Palette.ComputeDisabled(baseTextColor);
+					ctx.DrawText(mText, font.Font, font.Atlas, atlasTexture, ContentBounds, .Center, .Middle, textColor);
+				}
+				Context.FontService.ReleaseFont(font);
+			}
+		}
+	}
+
+	public override void OnMouseDown(MouseButtonEventArgs e)
+	{
+		if (!Enabled || e.Button != .Left)
+			return;
+
+		e.Handled = true;
+		Context?.FocusManager.SetCapture(this);
+	}
+
+	public override void OnMouseUp(MouseButtonEventArgs e)
+	{
+		if (e.Button != .Left)
+			return;
+
+		Context?.FocusManager.ReleaseCapture();
+
+		if (!Enabled)
+			return;
+
+		if (e.LocalX >= 0 && e.LocalY >= 0 && e.LocalX <= Width && e.LocalY <= Height)
+			IsChecked = !mIsChecked;
+
+		e.Handled = true;
+	}
+
+	public override void OnKeyDown(KeyEventArgs e)
+	{
+		if (!Enabled)
+			return;
+
+		if (e.Key == .Space || e.Key == .Return)
+		{
+			IsChecked = !mIsChecked;
+			e.Handled = true;
 		}
 	}
 }

@@ -4,200 +4,244 @@ using System;
 using System.Collections;
 using Bulkan;
 using Sedulous.RHI;
-using Sedulous.RHI.Vulkan.Internal;
+using static Sedulous.RHI.TextureFormatExt;
 
 /// Vulkan implementation of IBindGroup.
 class VulkanBindGroup : IBindGroup
 {
+	private VkDescriptorSet mDescriptorSet;
+	private VkDescriptorPool mPool;
 	private VulkanDevice mDevice;
 	private VulkanBindGroupLayout mLayout;
-	private VkDescriptorSet mDescriptorSet;
-	private VulkanDescriptorPool mPool;
-
-	public this(VulkanDevice device, VulkanDescriptorPool pool, BindGroupDesc descriptor)
-	{
-		mDevice = device;
-		mPool = pool;
-		mLayout = descriptor.Layout as VulkanBindGroupLayout;
-		CreateDescriptorSet(descriptor);
-		if (mDescriptorSet != default && descriptor.Label.Ptr != null && descriptor.Label.Length > 0)
-			mDevice.SetDebugName(mDescriptorSet.Handle, .VK_OBJECT_TYPE_DESCRIPTOR_SET, descriptor.Label);
-	}
-
-	public ~this()
-	{
-		Dispose();
-	}
-
-	public void Dispose()
-	{
-		if (mDescriptorSet != default && mPool != null)
-		{
-			mPool.FreeDescriptorSet(mDescriptorSet);
-		}
-		mDescriptorSet = default;
-	}
-
-	/// Returns true if the bind group was created successfully.
-	public bool IsValid => mDescriptorSet != default;
 
 	public IBindGroupLayout Layout => mLayout;
 
-	/// Gets the Vulkan descriptor set handle.
-	public VkDescriptorSet DescriptorSet => mDescriptorSet;
+	public this() { }
 
-	/// Checks if a layout entry type is compatible with a bind group entry.
-	private static bool IsCompatibleType(BindingType layoutType, BindGroupEntry entry)
+	public Result<void> Init(VulkanDevice device, VulkanDescriptorPoolManager poolManager, BindGroupDesc desc)
 	{
-		switch (layoutType)
+		mDevice = device;
+		mLayout = desc.Layout as VulkanBindGroupLayout;
+		if (mLayout == null)
 		{
-		case .UniformBuffer, .StorageBuffer, .StorageBufferReadWrite:
-			return entry.Buffer != null;
-		case .SampledTexture, .StorageTexture, .StorageTextureReadWrite:
-			return entry.TextureView != null;
-		case .Sampler, .ComparisonSampler:
-			return entry.Sampler != null;
+			System.Diagnostics.Debug.WriteLine("VulkanBindGroup: layout is not a VulkanBindGroupLayout");
+			return .Err;
 		}
-	}
-
-	private void CreateDescriptorSet(BindGroupDesc descriptor)
-	{
-		if (mLayout == null || !mLayout.IsValid)
-			return;
 
 		// Allocate descriptor set
-		let result = mPool.AllocateDescriptorSet(mLayout.DescriptorSetLayout);
-		if (result case .Err)
-			return;
-		mDescriptorSet = result.Get();
+		VkDescriptorPool allocPool;
+		if (poolManager.Allocate(mLayout.Handle, out allocPool, mLayout.HasBindless, mLayout.BindlessDescriptorCount) case .Ok(let set))
+		{
+			mDescriptorSet = set;
+			mPool = allocPool;
+		}
+		else
+		{
+			System.Diagnostics.Debug.WriteLine("VulkanBindGroup: descriptor set allocation failed");
+			return .Err;
+		}
 
-		// Update descriptor set with resource bindings
-		if (descriptor.Entries.Length == 0)
-			return;
+		// Write descriptor updates
+		WriteDescriptors(device, desc);
+		return .Ok;
+	}
+
+	private void WriteDescriptors(VulkanDevice device, BindGroupDesc desc)
+	{
+		if (desc.Entries.Length == 0) return;
+
+		let shifts = device.BindingShifts;
+
+		List<VkWriteDescriptorSet> writes = scope .();
+		List<VkDescriptorBufferInfo> bufferInfos = scope .();
+		List<VkDescriptorImageInfo> imageInfos = scope .();
+		List<VkWriteDescriptorSetAccelerationStructureKHR> accelWriteInfos = scope .();
+		List<VkAccelerationStructureKHR> accelStructHandles = scope .();
+
+		// Pre-allocate to stabilize pointers
+		bufferInfos.Reserve(desc.Entries.Length);
+		imageInfos.Reserve(desc.Entries.Length);
+		accelWriteInfos.Reserve(desc.Entries.Length);
+		accelStructHandles.Reserve(desc.Entries.Length);
+
+		// Entries are positional: entry[j] provides the resource for the j-th non-bindless layout entry.
+		// Bindless entries are skipped — they are populated via UpdateBindless().
+		int entryIdx = 0;
+		for (int i = 0; i < mLayout.Entries.Count; i++)
+		{
+			let layoutEntry = mLayout.Entries[i];
+
+			// Skip bindless layout entries
+			switch (layoutEntry.Type)
+			{
+			case .BindlessTextures, .BindlessSamplers, .BindlessStorageBuffers, .BindlessStorageTextures:
+				continue;
+			default:
+			}
+
+			if (entryIdx >= desc.Entries.Length) break;
+			let entry = desc.Entries[entryIdx];
+			entryIdx++;
+
+			VkWriteDescriptorSet write = .();
+			write.dstSet = mDescriptorSet;
+			write.dstBinding = shifts.Apply(layoutEntry.Type, layoutEntry.Binding);
+			write.dstArrayElement = 0;
+			write.descriptorCount = 1;
+			write.descriptorType = VulkanBindGroupLayout.ToVkDescriptorType(layoutEntry);
+
+			switch (layoutEntry.Type)
+			{
+			case .UniformBuffer, .StorageBufferReadOnly, .StorageBufferReadWrite:
+				if (let vkBuf = entry.Buffer as VulkanBuffer)
+				{
+					VkDescriptorBufferInfo bufInfo = .();
+					bufInfo.buffer = vkBuf.Handle;
+					bufInfo.offset = entry.BufferOffset;
+					bufInfo.range = (entry.BufferSize > 0) ? entry.BufferSize : VulkanNative.VK_WHOLE_SIZE;
+					bufferInfos.Add(bufInfo);
+					write.pBufferInfo = &bufferInfos.Back;
+				}
+				else continue;
+
+			case .SampledTexture, .StorageTextureReadOnly, .StorageTextureReadWrite:
+				if (let vkView = entry.TextureView as VulkanTextureView)
+				{
+					VkDescriptorImageInfo imgInfo = .();
+					imgInfo.imageView = vkView.Handle;
+					if (layoutEntry.Type == .SampledTexture)
+					{
+						// Use the texture's tracked layout — depth textures in DepthStencilReadOnly
+						// can be sampled with that layout (concurrent depth test + shader read).
+						let vkTex = vkView.Texture as VulkanTexture;
+						VkImageLayout currentLayout = (vkTex != null) ? vkTex.CurrentLayout : .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+						imgInfo.imageLayout = (currentLayout == .VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL)
+							? .VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
+							: .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+					}
+					else
+						imgInfo.imageLayout = .VK_IMAGE_LAYOUT_GENERAL;
+					imageInfos.Add(imgInfo);
+					write.pImageInfo = &imageInfos.Back;
+				}
+				else continue;
+
+			case .Sampler, .ComparisonSampler:
+				if (let vkSampler = entry.Sampler as VulkanSampler)
+				{
+					VkDescriptorImageInfo imgInfo = .();
+					imgInfo.sampler = vkSampler.Handle;
+					imageInfos.Add(imgInfo);
+					write.pImageInfo = &imageInfos.Back;
+				}
+				else continue;
+
+			case .AccelerationStructure:
+				if (let vkAs = entry.AccelStruct as VulkanAccelStruct)
+				{
+					var handle = vkAs.Handle;
+					accelStructHandles.Add(handle);
+					VkWriteDescriptorSetAccelerationStructureKHR accelInfo = .();
+					accelInfo.accelerationStructureCount = 1;
+					accelInfo.pAccelerationStructures = &accelStructHandles.Back;
+					accelWriteInfos.Add(accelInfo);
+					write.pNext = &accelWriteInfos.Back;
+				}
+				else continue;
+
+			default:
+				continue;
+			}
+
+			writes.Add(write);
+		}
+
+		if (writes.Count > 0)
+			VulkanNative.vkUpdateDescriptorSets(device.Handle, (uint32)writes.Count, writes.Ptr, 0, null);
+	}
+
+	public void UpdateBindless(Span<BindlessUpdateEntry> entries)
+	{
+		if (entries.Length == 0) return;
+
+		let shifts = mDevice.BindingShifts;
 
 		List<VkWriteDescriptorSet> writes = scope .();
 		List<VkDescriptorBufferInfo> bufferInfos = scope .();
 		List<VkDescriptorImageInfo> imageInfos = scope .();
 
-		// Pre-allocate to avoid reallocation invalidating pointers
-		bufferInfos.Reserve(descriptor.Entries.Length);
-		imageInfos.Reserve(descriptor.Entries.Length);
+		bufferInfos.Reserve(entries.Length);
+		imageInfos.Reserve(entries.Length);
 
-		// Track which layout entries have been matched to avoid double-matching
-		bool* matchedLayouts = scope bool[mLayout.Entries.Length]*;
-		for (int i = 0; i < mLayout.Entries.Length; i++)
-			matchedLayouts[i] = false;
-
-		for (let entry in descriptor.Entries)
+		for (let entry in entries)
 		{
-			// Find matching layout entry by binding AND resource type
-			// Skip already-matched entries to handle multiple buffers with same binding but different types
-			BindGroupLayoutEntry* layoutEntry = null;
-			int matchedIndex = -1;
-			for (int i = 0; i < mLayout.Entries.Length; i++)
-			{
-				if (matchedLayouts[i])
-					continue;
+			if ((int)entry.LayoutIndex >= mLayout.Entries.Count) continue;
+			let layoutEntry = mLayout.Entries[(int)entry.LayoutIndex];
 
-				var le = ref mLayout.Entries[i];
-				if (le.Binding == entry.Binding && IsCompatibleType(le.Type, entry))
-				{
-					layoutEntry = &le;
-					matchedIndex = i;
-					break;
-				}
-			}
-
-			if (layoutEntry == null)
-				continue;
-
-			matchedLayouts[matchedIndex] = true;
-
-			// Apply the binding shift to match the layout's shifted bindings
-			uint32 shiftedBinding = entry.Binding + VulkanBindingShifts.GetShift(layoutEntry.Type);
-
-			VkWriteDescriptorSet write = .()
-				{
-					sType = .VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-					dstSet = mDescriptorSet,
-					dstBinding = shiftedBinding,
-					dstArrayElement = 0,
-					descriptorCount = 1,
-					descriptorType = VulkanConversions.ToVkDescriptorType(layoutEntry.Type, layoutEntry.HasDynamicOffset)
-				};
+			VkWriteDescriptorSet write = .();
+			write.dstSet = mDescriptorSet;
+			write.dstBinding = shifts.Apply(layoutEntry.Type, layoutEntry.Binding);
+			write.dstArrayElement = entry.ArrayIndex;
+			write.descriptorCount = 1;
+			write.descriptorType = VulkanBindGroupLayout.ToVkDescriptorType(layoutEntry);
 
 			switch (layoutEntry.Type)
 			{
-			case .UniformBuffer, .StorageBuffer, .StorageBufferReadWrite:
-				if (entry.Buffer != null)
+			case .BindlessStorageBuffers:
+				if (let vkBuf = entry.Buffer as VulkanBuffer)
 				{
-					let vkBuffer = entry.Buffer as VulkanBuffer;
-					if (vkBuffer != null)
-					{
-						bufferInfos.Add(.()
-							{
-								buffer = vkBuffer.Buffer,
-								offset = entry.BufferOffset,
-								range = entry.BufferSize > 0 ? entry.BufferSize : vkBuffer.Size - entry.BufferOffset
-							});
-						write.pBufferInfo = &bufferInfos[bufferInfos.Count - 1];
-						writes.Add(write);
-					}
+					VkDescriptorBufferInfo bufInfo = .();
+					bufInfo.buffer = vkBuf.Handle;
+					bufInfo.offset = entry.BufferOffset;
+					bufInfo.range = (entry.BufferSize > 0) ? entry.BufferSize : VulkanNative.VK_WHOLE_SIZE;
+					bufferInfos.Add(bufInfo);
+					write.pBufferInfo = &bufferInfos.Back;
 				}
+				else continue;
 
-			case .SampledTexture, .StorageTexture, .StorageTextureReadWrite:
-				if (entry.TextureView != null)
+			case .BindlessTextures, .BindlessStorageTextures:
+				if (let vkView = entry.TextureView as VulkanTextureView)
 				{
-					let vkView = entry.TextureView as VulkanTextureView;
-					if (vkView != null)
-					{
-						VkImageLayout imgLayout;
-						if (entry.TextureLayoutOverride != .Undefined)
-						{
-							// Explicit layout override (e.g., DepthStencilReadOnly for depth sampling during read-only depth test)
-							imgLayout = VulkanCommandEncoder.ToVkImageLayout(entry.TextureLayoutOverride);
-						}
-						else if (layoutEntry.Type == .SampledTexture)
-							imgLayout = .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-						else
-							imgLayout = .VK_IMAGE_LAYOUT_GENERAL;
-
-						imageInfos.Add(.()
-							{
-								imageView = vkView.ImageView,
-								imageLayout = imgLayout,
-								sampler = default
-							});
-						write.pImageInfo = &imageInfos[imageInfos.Count - 1];
-						writes.Add(write);
-					}
+					VkDescriptorImageInfo imgInfo = .();
+					imgInfo.imageView = vkView.Handle;
+					imgInfo.imageLayout = (layoutEntry.Type == .BindlessTextures)
+						? .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+						: .VK_IMAGE_LAYOUT_GENERAL;
+					imageInfos.Add(imgInfo);
+					write.pImageInfo = &imageInfos.Back;
 				}
+				else continue;
 
-			case .Sampler, .ComparisonSampler:
-				if (entry.Sampler != null)
+			case .BindlessSamplers:
+				if (let vkSampler = entry.Sampler as VulkanSampler)
 				{
-					let vkSampler = entry.Sampler as VulkanSampler;
-					if (vkSampler != null)
-					{
-						imageInfos.Add(.()
-							{
-								imageView = default,
-								imageLayout = .VK_IMAGE_LAYOUT_UNDEFINED,
-								sampler = vkSampler.Sampler
-							});
-						write.pImageInfo = &imageInfos[imageInfos.Count - 1];
-						writes.Add(write);
-					}
+					VkDescriptorImageInfo imgInfo = .();
+					imgInfo.sampler = vkSampler.Handle;
+					imageInfos.Add(imgInfo);
+					write.pImageInfo = &imageInfos.Back;
 				}
+				else continue;
 
 			default:
-				break;
+				continue;
 			}
+
+			writes.Add(write);
 		}
 
 		if (writes.Count > 0)
+			VulkanNative.vkUpdateDescriptorSets(mDevice.Handle, (uint32)writes.Count, writes.Ptr, 0, null);
+	}
+
+	public void Cleanup(VulkanDevice device)
+	{
+		if (mDescriptorSet.Handle != 0 && mPool.Handle != 0)
 		{
-			VulkanNative.vkUpdateDescriptorSets(mDevice.Device, (uint32)writes.Count, writes.Ptr, 0, null);
+			device.DescriptorPoolManager.Free(mPool, mDescriptorSet);
+			mDescriptorSet = .Null;
+			mPool = .Null;
 		}
 	}
+
+	public VkDescriptorSet Handle => mDescriptorSet;
 }

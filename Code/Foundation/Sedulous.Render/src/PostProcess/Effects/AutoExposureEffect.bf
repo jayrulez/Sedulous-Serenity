@@ -46,25 +46,26 @@ public class AutoExposureEffect
 
 	private RenderSystem mRenderSystem;
 	private IDevice mDevice;
+	private IQueue mQueue;
 	private bool mInitialized = false;
 
 	// Compute pipelines
-	private IComputePipeline mHistogramPipeline ~ delete _;
-	private IPipelineLayout mHistogramPipelineLayout ~ delete _;
-	private IBindGroupLayout mHistogramBindGroupLayout ~ delete _;
+	private IComputePipeline mHistogramPipeline;
+	private IPipelineLayout mHistogramPipelineLayout;
+	private IBindGroupLayout mHistogramBindGroupLayout;
 
-	private IComputePipeline mAdaptPipeline ~ delete _;
-	private IPipelineLayout mAdaptPipelineLayout ~ delete _;
-	private IBindGroupLayout mAdaptBindGroupLayout ~ delete _;
+	private IComputePipeline mAdaptPipeline;
+	private IPipelineLayout mAdaptPipelineLayout;
+	private IBindGroupLayout mAdaptBindGroupLayout;
 
 	// Persistent GPU buffers
-	private IBuffer[RenderConfig.FrameBufferCount] mHistogramBuffers ~ { for (let b in _) delete b; };    // 256 x uint32, per-frame
-	private IBuffer mExposureBuffer ~ delete _;     // 2 x float (current + target), persistent
-	private IBuffer mReadbackBuffer ~ delete _;     // CPU-readable copy of exposure
+	private IBuffer[RenderConfig.FrameBufferCount] mHistogramBuffers;    // 256 x uint32, per-frame
+	private IBuffer mExposureBuffer;     // 2 x float (current + target), persistent
+	private IBuffer mReadbackBuffer;     // CPU-readable copy of exposure
 
 	// Param buffers
-	private IBuffer mHistogramParamsBuffer ~ delete _;
-	private IBuffer mAdaptParamsBuffer ~ delete _;
+	private IBuffer mHistogramParamsBuffer;
+	private IBuffer mAdaptParamsBuffer;
 
 	// Per-frame bind groups
 	private IBindGroup[RenderConfig.FrameBufferCount] mHistogramBindGroups;
@@ -84,6 +85,7 @@ public class AutoExposureEffect
 	public Result<void> Initialize(IDevice device)
 	{
 		mDevice = device;
+		mQueue = device.GetQueue(.Graphics);
 
 		// Create per-frame histogram buffers (Upload for CPU-side clear without GPU sync)
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
@@ -129,7 +131,8 @@ public class AutoExposureEffect
 
 		// Initialize exposure buffer with 1.0
 		float[2] initExposure = .(1.0f, 1.0f);
-		device.Queue.WriteStagedBufferSync(mExposureBuffer, 0, Span<uint8>((uint8*)&initExposure, 8));
+		// TODO: need queue ref
+		TransferHelper.WriteStagedBufferSync(mQueue, mDevice, mExposureBuffer, 0, Span<uint8>((uint8*)&initExposure, 8));
 
 		// Create param buffers
 		BufferDesc paramDesc = .();
@@ -174,7 +177,7 @@ public class AutoExposureEffect
 		// b0=params, t0=Histogram (StorageBuffer read-only), u0=ExposureBuffer (StorageBufferReadWrite)
 		BindGroupLayoutEntry[3] adaptLayoutEntries = .(
 			.() { Binding = 0, Visibility = .Compute, Type = .UniformBuffer },
-			.() { Binding = 0, Visibility = .Compute, Type = .StorageBuffer },
+			.() { Binding = 0, Visibility = .Compute, Type = .StorageBufferReadOnly},
 			.() { Binding = 0, Visibility = .Compute, Type = .StorageBufferReadWrite }
 		);
 
@@ -252,7 +255,7 @@ public class AutoExposureEffect
 
 	/// Adds auto-exposure compute passes to the render graph.
 	/// Call this before PostProcessStack.AddPasses() in BuildRenderGraph().
-	public void AddPasses(RenderGraph graph, RenderView view, RenderWorld world)
+	public void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world)
 	{
 		if (!mInitialized || mHistogramPipeline == null || mAdaptPipeline == null)
 			return;
@@ -264,7 +267,7 @@ public class AutoExposureEffect
 		// Clear histogram buffer for current frame (fence-protected, no GPU sync needed)
 		let frameIndex = FrameIndex;
 		let histogramBuffer = mHistogramBuffers[frameIndex];
-		mDevice.Queue.WriteMappedBuffer(histogramBuffer, 0, Span<uint8>(&mZeroBuffer, HistogramBufferSize));
+		TransferHelper.WriteMappedBuffer(histogramBuffer, 0, Span<uint8>(&mZeroBuffer, HistogramBufferSize));
 
 		// Upload histogram params
 		HistogramParams histParams = .();
@@ -273,7 +276,7 @@ public class AutoExposureEffect
 		histParams.MinLogLuminance = DefaultMinLogLuminance;
 		histParams.LogLuminanceRange = DefaultLogLuminanceRange;
 
-		mDevice.Queue.WriteMappedBuffer(
+		TransferHelper.WriteMappedBuffer(
 			mHistogramParamsBuffer, 0,
 			Span<uint8>((uint8*)&histParams, HistogramParams.Size)
 		);
@@ -289,7 +292,7 @@ public class AutoExposureEffect
 		adaptParams.MaxExposure = world.AutoExposureMax;
 		adaptParams.PixelCount = (float)(view.Width * view.Height);
 
-		mDevice.Queue.WriteMappedBuffer(
+		TransferHelper.WriteMappedBuffer(
 			mAdaptParamsBuffer, 0,
 			Span<uint8>((uint8*)&adaptParams, AdaptParams.Size)
 		);
@@ -300,25 +303,27 @@ public class AutoExposureEffect
 
 		// Recreate bind groups for current frame (scene color is transient)
 		RenderGraph graphRef = graph;
-		RGResourceHandle sceneColorCopy = sceneColorHandle;
+		RGHandle sceneColorCopy = sceneColorHandle;
 
 		// Histogram pass
-		graph.AddComputePass("AutoExposure_Histogram")
-			.ReadTexture(sceneColorHandle)
-			.WriteBuffer(histogramHandle)
-			.NeverCull()
-			.SetComputeCallback(new [=] (encoder) => {
-				let sceneView = graphRef.GetTextureView(sceneColorCopy);
-				ExecuteHistogramPass(encoder, sceneView, view.Width, view.Height, frameIndex);
+		graph.AddComputePass("AutoExposure_Histogram", scope (builder) => {
+				builder.ReadTexture(sceneColorHandle);
+				builder.WriteStorage(histogramHandle);
+				builder.NeverCull();
+				builder.SetComputeExecute(new [=] (encoder) => {
+					let sceneView = graphRef.GetTextureView(sceneColorCopy);
+					ExecuteHistogramPass(encoder, sceneView, view.Width, view.Height, frameIndex);
+				});
 			});
 
 		// Adapt pass
-		graph.AddComputePass("AutoExposure_Adapt")
-			.ReadBuffer(histogramHandle)
-			.WriteBuffer(exposureHandle)
-			.NeverCull()
-			.SetComputeCallback(new [=] (encoder) => {
-				ExecuteAdaptPass(encoder, frameIndex);
+		graph.AddComputePass("AutoExposure_Adapt", scope (builder) => {
+				builder.ReadBuffer(histogramHandle);
+				builder.WriteStorage(exposureHandle);
+				builder.NeverCull();
+				builder.SetComputeExecute(new [=] (encoder) => {
+					ExecuteAdaptPass(encoder, frameIndex);
+				});
 			});
 	}
 
@@ -360,14 +365,13 @@ public class AutoExposureEffect
 		// Recreate bind group
 		if (mHistogramBindGroups[frameIndex] != null)
 		{
-			delete mHistogramBindGroups[frameIndex];
-			mHistogramBindGroups[frameIndex] = null;
+			mDevice.DestroyBindGroup(ref mHistogramBindGroups[frameIndex]);
 		}
 
 		BindGroupEntry[3] entries = .(
-			BindGroupEntry.Buffer(0, mHistogramParamsBuffer, 0, (uint64)HistogramParams.Size),
-			BindGroupEntry.Texture(0, sceneColorView),
-			BindGroupEntry.Buffer(0, mHistogramBuffers[frameIndex], 0, (uint64)HistogramBufferSize)  // u0
+			BindGroupEntry.Buffer(/*0,*/mHistogramParamsBuffer, 0, (uint64)HistogramParams.Size),
+			BindGroupEntry.Texture(/*0,*/sceneColorView),
+			BindGroupEntry.Buffer(/*0,*/mHistogramBuffers[frameIndex], 0, (uint64)HistogramBufferSize)  // u0
 		);
 
 		BindGroupDesc bgDesc = .();
@@ -394,14 +398,13 @@ public class AutoExposureEffect
 		// Recreate bind group
 		if (mAdaptBindGroups[frameIndex] != null)
 		{
-			delete mAdaptBindGroups[frameIndex];
-			mAdaptBindGroups[frameIndex] = null;
+			mDevice.DestroyBindGroup(ref mAdaptBindGroups[frameIndex]);
 		}
 
 		BindGroupEntry[3] entries = .(
-			BindGroupEntry.Buffer(0, mAdaptParamsBuffer, 0, (uint64)AdaptParams.Size),
-			BindGroupEntry.Buffer(0, mHistogramBuffers[frameIndex], 0, (uint64)HistogramBufferSize),   // t0 read-only
-			BindGroupEntry.Buffer(0, mExposureBuffer, 0, 8)                                             // u0 read-write
+			BindGroupEntry.Buffer(/*0,*/mAdaptParamsBuffer, 0, (uint64)AdaptParams.Size),
+			BindGroupEntry.Buffer(/*0,*/mHistogramBuffers[frameIndex], 0, (uint64)HistogramBufferSize),   // t0 read-only
+			BindGroupEntry.Buffer(/*0,*/mExposureBuffer, 0, 8)                                             // u0 read-write
 		);
 
 		BindGroupDesc bgDesc = .();
@@ -427,8 +430,20 @@ public class AutoExposureEffect
 	{
 		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			if (mHistogramBindGroups[i] != null) { delete mHistogramBindGroups[i]; mHistogramBindGroups[i] = null; }
-			if (mAdaptBindGroups[i] != null) { delete mAdaptBindGroups[i]; mAdaptBindGroups[i] = null; }
+			if (mHistogramBindGroups[i] != null) mDevice.DestroyBindGroup(ref mHistogramBindGroups[i]);
+			if (mAdaptBindGroups[i] != null) mDevice.DestroyBindGroup(ref mAdaptBindGroups[i]);
+			if (mHistogramBuffers[i] != null) mDevice.DestroyBuffer(ref mHistogramBuffers[i]);
 		}
+
+		if (mHistogramPipeline != null) mDevice.DestroyComputePipeline(ref mHistogramPipeline);
+		if (mHistogramPipelineLayout != null) mDevice.DestroyPipelineLayout(ref mHistogramPipelineLayout);
+		if (mHistogramBindGroupLayout != null) mDevice.DestroyBindGroupLayout(ref mHistogramBindGroupLayout);
+		if (mAdaptPipeline != null) mDevice.DestroyComputePipeline(ref mAdaptPipeline);
+		if (mAdaptPipelineLayout != null) mDevice.DestroyPipelineLayout(ref mAdaptPipelineLayout);
+		if (mAdaptBindGroupLayout != null) mDevice.DestroyBindGroupLayout(ref mAdaptBindGroupLayout);
+		if (mExposureBuffer != null) mDevice.DestroyBuffer(ref mExposureBuffer);
+		if (mReadbackBuffer != null) mDevice.DestroyBuffer(ref mReadbackBuffer);
+		if (mHistogramParamsBuffer != null) mDevice.DestroyBuffer(ref mHistogramParamsBuffer);
+		if (mAdaptParamsBuffer != null) mDevice.DestroyBuffer(ref mAdaptParamsBuffer);
 	}
 }

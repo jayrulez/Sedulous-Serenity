@@ -2,7 +2,6 @@ namespace ImpactArena;
 
 using System;
 using System.Collections;
-using Sedulous.Shell;
 using Sedulous.Shell.Input;
 using Sedulous.RHI;
 using Sedulous.Core.Mathematics;
@@ -151,8 +150,7 @@ class ImpactArenaGame : Application
 	private float mSunPitch = 1.3f;
 	private float mSunIntensity = 4.0f;
 
-	public this(IShell shell, IDevice device, IBackend backend)
-		: base(shell, device, backend)
+	public this() : base()
 	{
 	}
 
@@ -168,7 +166,7 @@ class ImpactArenaGame : Application
 	private void InitializeRenderSystem()
 	{
 		mRenderSystem = new RenderSystem();
-		if (mRenderSystem.Initialize(mDevice, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null,
+		if (mRenderSystem.Initialize(mDevice, mSwapChain.Width, mSwapChain.Height, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null,
 			.BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
 			return;
 
@@ -304,7 +302,7 @@ class ImpactArenaGame : Application
 
 		// Create and initialize the drawing renderer
 		mDrawingRenderer = new DrawingRenderer();
-		if (mDrawingRenderer.Initialize(mDevice, mSwapChain.Format, FrameConfig.MAX_FRAMES_IN_FLIGHT, mRenderSystem.ShaderSystem) case .Err)
+		if (mDrawingRenderer.Initialize(mDevice, mSwapChain.Format, (int32)SwapChain.BufferCount, mRenderSystem.ShaderSystem) case .Err)
 		{
 			Console.WriteLine("Failed to initialize DrawingRenderer");
 		}
@@ -1097,13 +1095,12 @@ class ImpactArenaGame : Application
 				StoreOp = .Store
 			});
 
-			RenderPassDesc passDesc = .(colorAttachments);
-			let renderPass = render.Encoder.BeginRenderPass(&passDesc);
+			RenderPassDesc passDesc = .() { ColorAttachments = .(colorAttachments) };
+			let renderPass = render.Encoder.BeginRenderPass(passDesc);
 			if (renderPass != null)
 			{
 				mDrawingRenderer.Render(renderPass, mSwapChain.Width, mSwapChain.Height, frameIndex);
 				renderPass.End();
-				delete renderPass;
 			}
 		}
 
@@ -1121,24 +1118,28 @@ class ImpactArenaGame : Application
 		delete mDrawContext;
 		delete mFontService;
 
-		mFloorMat?.ReleaseRef();
-		mWallMat?.ReleaseRef();
-		mPlayerMat?.ReleaseRef();
-		mGruntMat?.ReleaseRef();
-		mBruteMat?.ReleaseRef();
-		mDasherMat?.ReleaseRef();
-		mHealthPickupMat?.ReleaseRef();
-		mSpeedPickupMat?.ReleaseRef();
-		mShockPickupMat?.ReleaseRef();
-		mEmpPickupMat?.ReleaseRef();
-
-		if (mBgMusicSource != null)
-			mAudioSubsystem.AudioSystem.DestroySource(mBgMusicSource);
-
 		if (mRenderSystem != null)
-			mRenderSystem.Shutdown();
+		{
+			mFloorMat?.ReleaseRef();
+			mWallMat?.ReleaseRef();
+			mPlayerMat?.ReleaseRef();
+			mGruntMat?.ReleaseRef();
+			mBruteMat?.ReleaseRef();
+			mDasherMat?.ReleaseRef();
+			mHealthPickupMat?.ReleaseRef();
+			mSpeedPickupMat?.ReleaseRef();
+			mShockPickupMat?.ReleaseRef();
+			mEmpPickupMat?.ReleaseRef();
 
-		delete mRenderView;
+			if (mBgMusicSource != null)
+				mAudioSubsystem.AudioSystem.DestroySource(mBgMusicSource);
+
+			mRenderSystem.Shutdown();
+		}
+
 		delete mRenderSystem;
+		mRenderSystem = null;
+		delete mRenderView;
+		// Note: mMainScene is owned by SceneSubsystem — deleted during mContext.Shutdown()
 	}
 }

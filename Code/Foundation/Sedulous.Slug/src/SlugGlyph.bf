@@ -45,9 +45,27 @@ public struct SlugFontMetrics
 	public float LineGap;
 	/// Units per em (typically 1.0 after normalization, or raw from font).
 	public float UnitsPerEm;
+	/// Cap height in em units (height of 'H'). Used for pixel-grid alignment.
+	public float CapHeight;
 
 	/// Default line height: Ascent - Descent + LineGap
 	public float LineHeight => Ascent - Descent + LineGap;
+
+	/// Snap a font size so that cap height aligns to the pixel grid.
+	/// This eliminates subtle vertical blurriness at common text sizes.
+	/// Pass monitor DPI scale if not 1.0 (e.g., 1.25, 1.5, 2.0).
+	public float AlignFontSize(float requestedSize, float dpiScale = 1.0f)
+	{
+		if (CapHeight <= 0)
+			return requestedSize;
+
+		let capHeightPixels = requestedSize * CapHeight * dpiScale;
+		let rounded = Math.Round(capHeightPixels);
+		if (rounded <= 0)
+			return requestedSize;
+
+		return (float)rounded / (CapHeight * dpiScale);
+	}
 }
 
 /// A complete Slug font: metrics + glyph data, ready for texture building and rendering.

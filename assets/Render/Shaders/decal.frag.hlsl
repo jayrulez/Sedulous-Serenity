@@ -36,10 +36,10 @@ float4 main(PSInput input) : SV_TARGET
     if (depth >= 1.0)
         discard;
 
-    // Reconstruct world position from depth using InvProjectionMatrix + InvViewMatrix
-    // from CameraUniforms. No Y-flip needed: InvProjectionMatrix is the inverse of
-    // the already-flipped projection, so it handles Vulkan Y convention automatically.
-    float2 ndc = screenUV * 2.0 - 1.0;
+    // Reconstruct world position from depth using InvProjectionMatrix + InvViewMatrix.
+    // Negative viewport flips Y in rasterization, so screen UV.y=0 is top of image
+    // but NDC.y=-1 is bottom. Flip Y to reconstruct correctly.
+    float2 ndc = float2(screenUV.x * 2.0 - 1.0, (1.0 - screenUV.y) * 2.0 - 1.0);
 
     // NDC -> View space (undo projection including Y-flip)
     float4 viewPos4 = mul(float4(ndc, depth, 1.0), InvProjectionMatrix);

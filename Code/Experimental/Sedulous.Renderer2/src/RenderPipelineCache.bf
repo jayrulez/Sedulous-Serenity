@@ -1,0 +1,488 @@
+namespace Sedulous.Renderer;
+
+using System;
+using System.Collections;
+using Sedulous.RHI;
+using Sedulous.Shaders;
+using Sedulous.Materials;
+using Sedulous.Profiler;
+
+/// Key for pipeline cache lookups.
+/// Combines material properties with vertex layout and render target context.
+struct RenderPipelineKey : IHashable, IEquatable<RenderPipelineKey>
+{
+	/// Hash of shader name and flags.
+	public int ShaderHash;
+
+	/// Hash of render state (blend, cull, depth).
+	public int RenderStateHash;
+
+	/// Hash of vertex buffer layouts.
+	public int VertexLayoutHash;
+
+	/// Color target format.
+	public TextureFormat ColorFormat;
+
+	/// Second color target format (Undefined = no second target, for MRT).
+	public TextureFormat ColorFormat2;
+
+	/// Depth buffer format.
+	public TextureFormat DepthFormat;
+
+	/// MSAA sample count.
+	public uint8 SampleCount;
+
+	/// Scene bind group layout pointer hash.
+	public int SceneLayoutHash;
+
+	/// Material bind group layout pointer hash.
+	public int MaterialLayoutHash;
+
+	/// Additional flags for variants.
+	public uint32 VariantFlags;
+
+	public int GetHashCode()
+	{
+		int hash = ShaderHash;
+		hash = hash * 31 + RenderStateHash;
+		hash = hash * 31 + VertexLayoutHash;
+		hash = hash * 31 + (int)ColorFormat;
+		hash = hash * 31 + (int)ColorFormat2;
+		hash = hash * 31 + (int)DepthFormat;
+		hash = hash * 31 + (int)SampleCount;
+		hash = hash * 31 + SceneLayoutHash;
+		hash = hash * 31 + MaterialLayoutHash;
+		hash = hash * 31 + (int)VariantFlags;
+		return hash;
+	}
+
+	public bool Equals(RenderPipelineKey other)
+	{
+		return ShaderHash == other.ShaderHash &&
+			RenderStateHash == other.RenderStateHash &&
+			VertexLayoutHash == other.VertexLayoutHash &&
+			ColorFormat == other.ColorFormat &&
+			ColorFormat2 == other.ColorFormat2 &&
+			DepthFormat == other.DepthFormat &&
+			SampleCount == other.SampleCount &&
+			SceneLayoutHash == other.SceneLayoutHash &&
+			MaterialLayoutHash == other.MaterialLayoutHash &&
+			VariantFlags == other.VariantFlags;
+	}
+}
+
+/// Variant flags for pipeline creation.
+/// These affect shader selection and pipeline state.
+enum PipelineVariantFlags : uint32
+{
+	None = 0,
+	Instanced = 1 << 0,      // Use instanced shader variant
+	ReceiveShadows = 1 << 1,
+	BackFaceCull = 1 << 2,   // For two-pass transparent rendering
+	FrontFaceCull = 1 << 3,
+}
+
+/// Caches render pipelines by configuration.
+/// Creates pipelines on demand based on material properties and caller-provided vertex layouts.
+///
+/// Vertex layouts are determined by the mesh type being rendered, not the material.
+/// The caller (render feature) knows what mesh format it's rendering and provides
+/// the appropriate vertex buffer layouts.
+///
+/// Pipeline layouts are created dynamically from scene + material bind group layouts,
+/// allowing different shaders to use different material layouts.
+class RenderPipelineCache
+{
+	private IDevice mDevice;
+	private ShaderSystem mShaderSystem;
+	private Dictionary<int, IRenderPipeline> mPipelineCache = new .() ~ delete _;
+	private Dictionary<int, IPipelineLayout> mLayoutCache = new .() ~ delete _;
+
+	public this(IDevice device, ShaderSystem shaderSystem)
+	{
+		using (SProfiler.Begin("Renderer.RenderPipelineCache"))
+		{
+			mDevice = device;
+			mShaderSystem = shaderSystem;
+		}
+	}
+
+	/// Gets or creates a pipeline for a material instance with caller-provided vertex layouts.
+	///
+	/// Parameters:
+	/// - material: The material instance (provides shader name, flags, blend/cull/depth modes)
+	/// - vertexBuffers: Vertex buffer layouts determined by mesh type (provided by caller)
+	/// - sceneLayout: Bind group layout for scene data (set 0)
+	/// - materialLayout: Bind group layout for material data (set 1)
+	/// - colorFormat: Render target color format
+	/// - depthFormat: Render target depth format
+	/// - sampleCount: MSAA sample count
+	/// - variantFlags: Additional pipeline variants (shadows, cull mode overrides)
+	/// - depthModeOverride: Override material's depth mode (e.g., for forward pass with depth prepass)
+	/// - depthCompareOverride: Override material's depth compare (e.g., LessEqual for forward pass after prepass)
+	/// - depthBiasOverride: Override depth bias (e.g., for transparent geometry to avoid z-fighting)
+	/// - depthBiasSlopeScaleOverride: Override depth bias slope scale
+	public Result<IRenderPipeline> GetPipelineForMaterial(
+		MaterialInstance material,
+		Span<VertexBufferLayout> vertexBuffers,
+		IBindGroupLayout sceneLayout,
+		IBindGroupLayout materialLayout,
+		TextureFormat colorFormat,
+		TextureFormat depthFormat,
+		uint8 sampleCount = 1,
+		PipelineVariantFlags variantFlags = .None,
+		DepthMode? depthModeOverride = null,
+		CompareFunction? depthCompareOverride = null,
+		int16? depthBiasOverride = null,
+		float? depthBiasSlopeScaleOverride = null,
+		TextureFormat colorFormat2 = .Undefined)
+	{
+		if (material == null || sceneLayout == null || materialLayout == null)
+			return .Err;
+
+		// Get config from material
+		var config = material.Material?.PipelineConfig ?? PipelineConfig();
+
+		// Override blend mode from instance if set
+		if (material.BlendMode != .Opaque)
+			config.BlendMode = material.BlendMode;
+
+		// Override depth mode if specified (e.g., forward pass uses read-only depth after prepass)
+		if (depthModeOverride.HasValue)
+			config.DepthMode = depthModeOverride.Value;
+
+		// Override depth compare if specified (e.g., LessEqual for forward pass after prepass)
+		if (depthCompareOverride.HasValue)
+			config.DepthCompare = depthCompareOverride.Value;
+
+		// Override depth bias if specified (e.g., for transparent geometry to avoid z-fighting)
+		if (depthBiasOverride.HasValue)
+			config.DepthBias = depthBiasOverride.Value;
+		if (depthBiasSlopeScaleOverride.HasValue)
+			config.DepthBiasSlopeScale = depthBiasSlopeScaleOverride.Value;
+
+		// Build cache key
+		let key = BuildKey(config, vertexBuffers, sceneLayout, materialLayout, colorFormat, depthFormat, sampleCount, variantFlags, colorFormat2);
+		let hash = key.GetHashCode();
+
+		// Check cache
+		if (mPipelineCache.TryGetValue(hash, let cached))
+			return .Ok(cached);
+
+		// Get or create pipeline layout for this scene + material layout combination
+		let pipelineLayout = GetOrCreatePipelineLayout(sceneLayout, materialLayout);
+		if (pipelineLayout == null)
+			return .Err;
+
+		// Create new pipeline
+		if (CreatePipeline(config, vertexBuffers, pipelineLayout, colorFormat, depthFormat, sampleCount, variantFlags, colorFormat2) case .Ok(let pipeline))
+		{
+			mPipelineCache[hash] = pipeline;
+			return .Ok(pipeline);
+		}
+
+		return .Err;
+	}
+
+	/// Clears the pipeline cache.
+	public void Clear()
+	{
+		for (var kv in mPipelineCache)
+		{
+			var pipeline = kv.value;
+			mDevice.DestroyRenderPipeline(ref pipeline);
+		}
+		mPipelineCache.Clear();
+
+		for (var kv in mLayoutCache)
+		{
+			var layout = kv.value;
+			mDevice.DestroyPipelineLayout(ref layout);
+		}
+		mLayoutCache.Clear();
+	}
+
+	/// Gets the number of cached pipelines.
+	public int PipelineCount => mPipelineCache.Count;
+
+	/// Gets the number of cached pipeline layouts.
+	public int LayoutCount => mLayoutCache.Count;
+
+	/// Gets or creates a pipeline layout for the given scene + material layout combination.
+	private IPipelineLayout GetOrCreatePipelineLayout(IBindGroupLayout sceneLayout, IBindGroupLayout materialLayout)
+	{
+		// Compute hash from both layout pointers
+		int hash = 17;
+		hash = hash * 31 + (int)(void*)Internal.UnsafeCastToPtr(sceneLayout);
+		hash = hash * 31 + (int)(void*)Internal.UnsafeCastToPtr(materialLayout);
+
+		// Check cache
+		if (mLayoutCache.TryGetValue(hash, let cached))
+			return cached;
+
+		// Create new pipeline layout with two bind groups: scene (0) + material (1)
+		IBindGroupLayout[2] layouts = .(sceneLayout, materialLayout);
+		PipelineLayoutDesc layoutDesc = .(layouts);
+
+		if (mDevice.CreatePipelineLayout(layoutDesc) case .Ok(let layout))
+		{
+			mLayoutCache[hash] = layout;
+			return layout;
+		}
+
+		return null;
+	}
+
+	// ===== Key Building =====
+
+	private RenderPipelineKey BuildKey(
+		PipelineConfig config,
+		Span<VertexBufferLayout> vertexBuffers,
+		IBindGroupLayout sceneLayout,
+		IBindGroupLayout materialLayout,
+		TextureFormat colorFormat,
+		TextureFormat depthFormat,
+		uint8 sampleCount,
+		PipelineVariantFlags variantFlags,
+		TextureFormat colorFormat2 = .Undefined)
+	{
+		RenderPipelineKey key = .();
+
+		// Shader hash (name + flags)
+		key.ShaderHash = 17;
+		if (!config.ShaderName.IsEmpty)
+			key.ShaderHash = key.ShaderHash * 31 + config.ShaderName.GetHashCode();
+		key.ShaderHash = key.ShaderHash * 31 + (int)config.ShaderFlags;
+
+		// Render state hash (blend, cull, depth, depth bias)
+		key.RenderStateHash = 17;
+		key.RenderStateHash = key.RenderStateHash * 31 + (int)config.BlendMode;
+		key.RenderStateHash = key.RenderStateHash * 31 + (int)config.CullMode;
+		key.RenderStateHash = key.RenderStateHash * 31 + (int)config.DepthMode;
+		key.RenderStateHash = key.RenderStateHash * 31 + (int)config.DepthCompare;
+		key.RenderStateHash = key.RenderStateHash * 31 + (int)config.DepthBias;
+		key.RenderStateHash = key.RenderStateHash * 31 + (int)(config.DepthBiasSlopeScale * 1000); // Scale for precision
+
+		// Vertex layout hash
+		key.VertexLayoutHash = ComputeVertexLayoutHash(vertexBuffers);
+
+		// Render target context
+		key.ColorFormat = colorFormat;
+		key.ColorFormat2 = colorFormat2;
+		key.DepthFormat = depthFormat;
+		key.SampleCount = sampleCount;
+		key.SceneLayoutHash = (int)(void*)Internal.UnsafeCastToPtr(sceneLayout);
+		key.MaterialLayoutHash = (int)(void*)Internal.UnsafeCastToPtr(materialLayout);
+		key.VariantFlags = (uint32)variantFlags;
+
+		return key;
+	}
+
+	/// Computes hash of vertex buffer layouts (like old renderer's VertexLayoutHelper.ComputeHash).
+	private int ComputeVertexLayoutHash(Span<VertexBufferLayout> layouts)
+	{
+		int hash = 17;
+		for (let layout in layouts)
+		{
+			hash = hash * 31 + (int)layout.Stride;
+			hash = hash * 31 + (int)layout.StepMode;
+			for (let attr in layout.Attributes)
+			{
+				hash = hash * 31 + (int)attr.Format;
+				hash = hash * 31 + (int)attr.Offset;
+				hash = hash * 31 + (int)attr.ShaderLocation;
+			}
+		}
+		return hash;
+	}
+
+	// ===== Pipeline Creation =====
+
+	private Result<IRenderPipeline> CreatePipeline(
+		PipelineConfig config,
+		Span<VertexBufferLayout> vertexBuffers,
+		IPipelineLayout layout,
+		TextureFormat colorFormat,
+		TextureFormat depthFormat,
+		uint8 sampleCount,
+		PipelineVariantFlags variantFlags,
+		TextureFormat colorFormat2 = .Undefined)
+	{
+		// Build shader flags from config and variant
+		var shaderFlags = config.ShaderFlags;
+		if (variantFlags.HasFlag(.Instanced))
+			shaderFlags |= .Instanced;
+		if (variantFlags.HasFlag(.ReceiveShadows))
+			shaderFlags |= .ReceiveShadows;
+
+		// Get shader name - fall back to "forward" if not specified
+		StringView shaderName = config.ShaderName;
+		if (shaderName.IsEmpty)
+			shaderName = "forward";
+
+		// Get shaders
+		let shaderResult = mShaderSystem.GetShaderPair(shaderName, shaderFlags);
+		if (shaderResult case .Err)
+		{
+			Console.WriteLine(scope $"[RenderPipelineCache] Failed to get shaders: {shaderName} flags={shaderFlags}");
+			return .Err;
+		}
+
+		let shaderPair = shaderResult.Value;
+		let vertShader = shaderPair.vert;
+		let fragShader = shaderPair.frag;
+
+		// Build color target state (supports up to 2 MRT targets)
+		ColorTargetState[2] colorTargets = default;
+		int colorTargetCount = 0;
+		bool hasColorTarget = !config.DepthOnly && config.ColorTargetCount > 0;
+
+		if (hasColorTarget)
+		{
+			let blendState = GetBlendState(config.BlendMode);
+			if (blendState.HasValue)
+				colorTargets[0] = .(colorFormat, blendState.Value);
+			else
+				colorTargets[0] = .(colorFormat);
+			colorTargetCount = 1;
+
+			if (colorFormat2 != .Undefined)
+			{
+				colorTargets[1] = .(colorFormat2); // GBuffer: no blending
+				colorTargetCount = 2;
+			}
+		}
+
+		// Build depth stencil state
+		DepthStencilState? depthStencil = null;
+		if (depthFormat != .Undefined && config.DepthMode != .Disabled)
+		{
+			var ds = GetDepthStencilState(config);
+			ds.Format = depthFormat;
+			if (config.DepthBias != 0 || config.DepthBiasSlopeScale != 0)
+			{
+				ds.DepthBias = (int32)config.DepthBias;
+				ds.DepthBiasSlopeScale = config.DepthBiasSlopeScale;
+			}
+			depthStencil = ds;
+		}
+
+		// Determine cull mode (can be overridden by variant flags for two-pass rendering)
+		CullMode cullMode = GetCullMode(config.CullMode);
+		if (variantFlags.HasFlag(.BackFaceCull))
+			cullMode = .Back;
+		else if (variantFlags.HasFlag(.FrontFaceCull))
+			cullMode = .Front;
+
+		// Build label
+		let label = scope String();
+		label.AppendF("Pipeline: {} [{}]", shaderName, config.BlendMode);
+		if (variantFlags.HasFlag(.ReceiveShadows))
+			label.Append(" Shadows");
+
+		// Build pipeline descriptor
+		RenderPipelineDesc pipelineDesc = .()
+		{
+			Label = label,
+			Layout = layout,
+			Vertex = .()
+			{
+				Shader = .(vertShader.Module, "main"),
+				Buffers = vertexBuffers
+			},
+			Fragment = hasColorTarget ? .()
+			{
+				Shader = .(fragShader.Module, "main"),
+				Targets = Span<ColorTargetState>(&colorTargets[0], colorTargetCount)
+			} : null,
+			Primitive = .()
+			{
+				Topology = config.Topology,
+				FrontFace = config.FrontFace,
+				CullMode = cullMode
+			},
+			DepthStencil = depthStencil,
+			Multisample = .()
+			{
+				Count = sampleCount,
+				Mask = uint32.MaxValue
+			}
+		};
+
+		switch (mDevice.CreateRenderPipeline(pipelineDesc))
+		{
+		case .Ok(let pipeline):
+			return .Ok(pipeline);
+		case .Err:
+			Console.WriteLine(scope $"[RenderPipelineCache] Failed to create pipeline: {shaderName}");
+			return .Err;
+		}
+	}
+
+	// ===== State Conversion Helpers =====
+
+	/// Converts BlendMode enum to RHI BlendState.
+	public static BlendState? GetBlendState(BlendMode mode)
+	{
+		switch (mode)
+		{
+		case .Opaque:
+			return null; // No blending
+
+		case .AlphaBlend:
+			return .AlphaBlend;
+
+		case .Additive:
+			return .Additive;
+
+		case .Multiply:
+			return .Multiply;
+
+		case .PremultipliedAlpha:
+			return .PremultipliedAlpha;
+		}
+	}
+
+	/// Converts DepthMode enum to RHI DepthStencilState.
+	public static DepthStencilState GetDepthStencilState(PipelineConfig config)
+	{
+		bool depthTest = false;
+		bool depthWrite = false;
+
+		switch (config.DepthMode)
+		{
+		case .Disabled:
+			break;
+
+		case .ReadWrite:
+			depthTest = true;
+			depthWrite = true;
+
+		case .ReadOnly:
+			depthTest = true;
+			depthWrite = false;
+
+		case .WriteOnly:
+			depthTest = false;
+			depthWrite = true;
+		}
+
+		return .()
+		{
+			DepthTestEnabled = depthTest,
+			DepthWriteEnabled = depthWrite,
+			DepthCompare = config.DepthCompare
+		};
+	}
+
+	/// Converts CullModeConfig enum to RHI CullMode.
+	public static CullMode GetCullMode(CullModeConfig mode)
+	{
+		switch (mode)
+		{
+		case .None: return .None;
+		case .Back: return .Back;
+		case .Front: return .Front;
+		}
+	}
+}

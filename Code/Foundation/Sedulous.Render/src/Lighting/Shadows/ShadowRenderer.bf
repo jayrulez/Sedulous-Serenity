@@ -18,6 +18,14 @@ public class ShadowRenderer : IDisposable
 
 	// Current state
 	private LightProxyHandle mMainDirectionalLight = .Invalid;
+	private bool mShadowPassesActive = false;
+
+	/// Whether shadow passes actually ran this frame.
+	public bool ShadowPassesActive
+	{
+		get => mShadowPassesActive;
+		set => mShadowPassesActive = value;
+	}
 
 	/// Gets the cascaded shadow maps.
 	public CascadedShadowMaps CascadedShadows => mCascadedShadows;

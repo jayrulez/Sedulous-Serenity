@@ -1,10 +1,12 @@
 namespace Sedulous.UI.Shell;
 
-/// Utility class for mapping Shell input types to UI input types.
-/// Shared between Sedulous.Engine.UI and Sedulous.Engine.UI.
+using Sedulous.UI;
+using System;
+
+/// Utility class for mapping Shell input types to GUI input types.
 static class InputMapping
 {
-	/// Maps Shell.Input.KeyCode to UI.KeyCode.
+	/// Maps Shell.Input.KeyCode to GUI.KeyCode.
 	public static Sedulous.UI.KeyCode MapKey(Sedulous.Shell.Input.KeyCode shellKey)
 	{
 		switch (shellKey)
@@ -50,43 +52,100 @@ static class InputMapping
 		case .Backspace: return .Backspace;
 		case .Tab: return .Tab;
 		case .Space: return .Space;
-		case .Left: return .Left;
-		case .Right: return .Right;
-		case .Up: return .Up;
-		case .Down: return .Down;
-		case .Home: return .Home;
-		case .End: return .End;
-		case .PageUp: return .PageUp;
-		case .PageDown: return .PageDown;
-		case .Delete: return .Delete;
+		case .Minus: return .Minus;
+		case .Equals: return .Equals;
+		case .LeftBracket: return .LeftBracket;
+		case .RightBracket: return .RightBracket;
+		case .Backslash: return .Backslash;
+		case .Semicolon: return .Semicolon;
+		case .Apostrophe: return .Apostrophe;
+		case .Grave: return .Grave;
+		case .Comma: return .Comma;
+		case .Period: return .Period;
+		case .Slash: return .Slash;
+		case .CapsLock: return .CapsLock;
+		case .F1: return .F1;
+		case .F2: return .F2;
+		case .F3: return .F3;
+		case .F4: return .F4;
+		case .F5: return .F5;
+		case .F6: return .F6;
+		case .F7: return .F7;
+		case .F8: return .F8;
+		case .F9: return .F9;
+		case .F10: return .F10;
+		case .F11: return .F11;
+		case .F12: return .F12;
+		case .PrintScreen: return .PrintScreen;
+		case .ScrollLock: return .ScrollLock;
+		case .Pause: return .Pause;
 		case .Insert: return .Insert;
+		case .Home: return .Home;
+		case .PageUp: return .PageUp;
+		case .Delete: return .Delete;
+		case .End: return .End;
+		case .PageDown: return .PageDown;
+		case .Right: return .Right;
+		case .Left: return .Left;
+		case .Down: return .Down;
+		case .Up: return .Up;
+		case .NumLock: return .NumLock;
+		case .KeypadDivide: return .KeypadDivide;
+		case .KeypadMultiply: return .KeypadMultiply;
+		case .KeypadMinus: return .KeypadMinus;
+		case .KeypadPlus: return .KeypadPlus;
+		case .KeypadEnter: return .KeypadEnter;
+		case .Keypad1: return .Keypad1;
+		case .Keypad2: return .Keypad2;
+		case .Keypad3: return .Keypad3;
+		case .Keypad4: return .Keypad4;
+		case .Keypad5: return .Keypad5;
+		case .Keypad6: return .Keypad6;
+		case .Keypad7: return .Keypad7;
+		case .Keypad8: return .Keypad8;
+		case .Keypad9: return .Keypad9;
+		case .Keypad0: return .Keypad0;
+		case .KeypadPeriod: return .KeypadPeriod;
+		case .Application: return .Application;
+		case .LeftCtrl: return .LeftCtrl;
+		case .LeftShift: return .LeftShift;
+		case .LeftAlt: return .LeftAlt;
+		case .LeftGui: return .LeftSuper;
+		case .RightCtrl: return .RightCtrl;
+		case .RightShift: return .RightShift;
+		case .RightAlt: return .RightAlt;
+		case .RightGui: return .RightSuper;
 		default: return .Unknown;
 		}
 	}
 
-	/// Maps Shell.Input.KeyModifiers to UI.KeyModifiers.
+	/// Maps Shell.Input.KeyModifiers to GUI.KeyModifiers.
 	public static Sedulous.UI.KeyModifiers MapModifiers(Sedulous.Shell.Input.KeyModifiers shellMods)
 	{
 		Sedulous.UI.KeyModifiers result = .None;
-		if (shellMods.HasFlag(.Shift))
+		if (shellMods.HasFlag(.LeftShift) || shellMods.HasFlag(.RightShift))
 			result |= .Shift;
-		if (shellMods.HasFlag(.Ctrl))
+		if (shellMods.HasFlag(.LeftCtrl) || shellMods.HasFlag(.RightCtrl))
 			result |= .Ctrl;
-		if (shellMods.HasFlag(.Alt))
+		if (shellMods.HasFlag(.LeftAlt) || shellMods.HasFlag(.RightAlt))
 			result |= .Alt;
+		if (shellMods.HasFlag(.CapsLock))
+			result |= .CapsLock;
+		if (shellMods.HasFlag(.NumLock))
+			result |= .NumLock;
 		return result;
 	}
 
-	/// Maps Shell.Input.MouseButton to UI.MouseButton.
+	/// Maps Shell.Input.MouseButton to GUI.MouseButton.
 	public static Sedulous.UI.MouseButton MapMouseButton(Sedulous.Shell.Input.MouseButton shellButton)
 	{
 		return (.)shellButton;
 	}
 
-	/// Maps UI.CursorType to Shell.Input.CursorType.
-	public static Sedulous.Shell.Input.CursorType MapCursor(Sedulous.UI.CursorType uiCursor)
+	/// Maps GUI.CursorType to Shell.Input.CursorType.
+	public static Sedulous.Shell.Input.CursorType MapCursor(Sedulous.UI.CursorType guiCursor)
 	{
-		switch (uiCursor)
+		switch (guiCursor)
 		{
 		case .Default:    return .Default;
 		case .Text:       return .Text;
@@ -100,7 +159,28 @@ static class InputMapping
 		case .ResizeNS:   return .ResizeNS;
 		case .ResizeNWSE: return .ResizeNWSE;
 		case .ResizeNESW: return .ResizeNESW;
+		case .ResizeNW:   return .ResizeNW;
+		case .ResizeN:    return .ResizeN;
+		case .ResizeNE:   return .ResizeNE;
+		case .ResizeE:    return .ResizeE;
+		case .ResizeSE:   return .ResizeSE;
+		case .ResizeS:    return .ResizeS;
+		case .ResizeSW:   return .ResizeSW;
+		case .ResizeW:    return .ResizeW;
 		}
+	}
+
+	/// Converts a key-down event to text input if the key is printable.
+	/// Call this alongside ProcessKeyDown to provide text input from key events
+	/// when OS text input events are unavailable.
+	public static void ForwardKeyAsTextInput(Sedulous.Shell.Input.KeyCode shellKey, Sedulous.UI.KeyModifiers mods, Sedulous.UI.UIContext context)
+	{
+		if (mods.HasFlag(.Ctrl) || mods.HasFlag(.Alt))
+			return;
+
+		let c = KeyToChar(shellKey, mods.HasFlag(.Shift));
+		if (c != '\0')
+			context.ProcessTextInput(c);
 	}
 
 	/// Converts a shell key code to a printable character.
@@ -152,6 +232,7 @@ static class InputMapping
 
 		// Punctuation
 		case .Space:        return ' ';
+		case .Tab:          return '\t';
 		case .Minus:        return shift ? '_' : '-';
 		case .Equals:       return shift ? '+' : '=';
 		case .LeftBracket:  return shift ? '{' : '[';

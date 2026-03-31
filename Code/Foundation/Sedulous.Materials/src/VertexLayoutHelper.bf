@@ -10,42 +10,42 @@ public static class VertexLayoutHelper
 
 	/// PositionOnly: Position (float3)
 	public static VertexAttribute[1] PositionOnlyAttributes = .(
-		.(VertexFormat.Float3, 0, 0)   // Position
+		.(VertexFormat.Float32x3, 0, 0)   // Position
 	);
 
 	/// PositionUVColor: Position (float3) + UV (float2) + Color (float4)
 	public static VertexAttribute[3] PositionUVColorAttributes = .(
-		.(VertexFormat.Float3, 0, 0),   // Position
-		.(VertexFormat.Float2, 12, 1),  // UV
-		.(VertexFormat.Float4, 20, 2)   // Color
+		.(VertexFormat.Float32x3, 0, 0),   // Position
+		.(VertexFormat.Float32x2, 12, 1),  // UV
+		.(VertexFormat.Float32x4, 20, 2)   // Color
 	);
 
 	/// MeshNoTangent: Position (float3) + Normal (float3) + UV (float2) - simple format without tangent
 	public static VertexAttribute[3] MeshNoTangentAttributes = .(
-		.(VertexFormat.Float3, 0, 0),   // Position
-		.(VertexFormat.Float3, 12, 1),  // Normal
-		.(VertexFormat.Float2, 24, 2)   // UV
+		.(VertexFormat.Float32x3, 0, 0),   // Position
+		.(VertexFormat.Float32x3, 12, 1),  // Normal
+		.(VertexFormat.Float32x2, 24, 2)   // UV
 	);
 
 	/// Mesh: Position (float3) + Normal (float3) + UV (float2) + Color (ubyte4) + Tangent (float3)
 	/// Matches Sedulous.Geometry.StaticMesh.SetupCommonVertexFormat() - 48 bytes
 	public static VertexAttribute[5] MeshAttributes = .(
-		.(VertexFormat.Float3, 0, 0),   // Position
-		.(VertexFormat.Float3, 12, 1),  // Normal
-		.(VertexFormat.Float2, 24, 2),  // UV
-		.(VertexFormat.UByte4Normalized, 32, 3), // Color
-		.(VertexFormat.Float3, 36, 4)   // Tangent (float3)
+		.(VertexFormat.Float32x3, 0, 0),   // Position
+		.(VertexFormat.Float32x3, 12, 1),  // Normal
+		.(VertexFormat.Float32x2, 24, 2),  // UV
+		.(VertexFormat.Unorm8x4, 32, 3), // Color
+		.(VertexFormat.Float32x3, 36, 4)   // Tangent (float3)
 	);
 
 	/// SkinnedMesh: Mesh attributes + JointIndices (uint4) + JointWeights (float4)
 	public static VertexAttribute[7] SkinnedMeshAttributes = .(
-		.(VertexFormat.Float3, 0, 0),   // Position
-		.(VertexFormat.Float3, 12, 1),  // Normal
-		.(VertexFormat.Float2, 24, 2),  // UV
-		.(VertexFormat.UByte4Normalized, 32, 3), // Color
-		.(VertexFormat.Float3, 36, 4),  // Tangent
-		.(VertexFormat.UInt4, 48, 5),   // Joint Indices
-		.(VertexFormat.Float4, 64, 6)   // Joint Weights
+		.(VertexFormat.Float32x3, 0, 0),   // Position
+		.(VertexFormat.Float32x3, 12, 1),  // Normal
+		.(VertexFormat.Float32x2, 24, 2),  // UV
+		.(VertexFormat.Unorm8x4, 32, 3), // Color
+		.(VertexFormat.Float32x3, 36, 4),  // Tangent
+		.(VertexFormat.Uint32x4, 48, 5),   // Joint Indices
+		.(VertexFormat.Float32x4, 64, 6)   // Joint Weights
 	);
 
 	/// Instance data: 4 x float4 (world matrix rows) - for GPU instancing
@@ -53,10 +53,10 @@ public static class VertexLayoutHelper
 	/// Instance data starts at location 5 (after Position=0, Normal=1, UV=2, Color=3, Tangent=4)
 	/// Use CreateInstanceDataAttributes() to get attributes at a custom starting location if needed.
 	public static VertexAttribute[4] InstanceDataAttributes = .(
-		.(VertexFormat.Float4, 0, 5),   // WorldRow0 (location 5)
-		.(VertexFormat.Float4, 16, 6),  // WorldRow1 (location 6)
-		.(VertexFormat.Float4, 32, 7),  // WorldRow2 (location 7)
-		.(VertexFormat.Float4, 48, 8)   // WorldRow3 (location 8)
+		.(VertexFormat.Float32x4, 0, 5),   // WorldRow0 (location 5)
+		.(VertexFormat.Float32x4, 16, 6),  // WorldRow1 (location 6)
+		.(VertexFormat.Float32x4, 32, 7),  // WorldRow2 (location 7)
+		.(VertexFormat.Float32x4, 48, 8)   // WorldRow3 (location 8)
 	);
 
 	/// Instance data stride (4 x float4 = 64 bytes).
@@ -143,10 +143,10 @@ public static class VertexLayoutHelper
 	public static void CreateInstanceDataAttributes(uint32 startLocation, out VertexAttribute[4] outAttributes)
 	{
 		outAttributes = .(
-			.(VertexFormat.Float4, 0, startLocation),       // WorldRow0
-			.(VertexFormat.Float4, 16, startLocation + 1),  // WorldRow1
-			.(VertexFormat.Float4, 32, startLocation + 2),  // WorldRow2
-			.(VertexFormat.Float4, 48, startLocation + 3)   // WorldRow3
+			.(VertexFormat.Float32x4, 0, startLocation),       // WorldRow0
+			.(VertexFormat.Float32x4, 16, startLocation + 1),  // WorldRow1
+			.(VertexFormat.Float32x4, 32, startLocation + 2),  // WorldRow2
+			.(VertexFormat.Float32x4, 48, startLocation + 3)   // WorldRow3
 		);
 	}
 

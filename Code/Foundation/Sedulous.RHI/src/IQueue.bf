@@ -3,49 +3,44 @@ namespace Sedulous.RHI;
 using System;
 
 /// A command queue for submitting work to the GPU.
+/// Obtained from IDevice.GetQueue().
 interface IQueue
 {
+	/// The type of this queue.
+	QueueType Type { get; }
+
 	/// Submits command buffers for execution.
 	void Submit(Span<ICommandBuffer> commandBuffers);
 
 	/// Submits a single command buffer for execution.
-	void Submit(ICommandBuffer commandBuffer);
+	void Submit(ICommandBuffer commandBuffer)
+	{
+		ICommandBuffer[1] bufs = .(commandBuffer);
+		Submit(bufs);
+	}
 
-	/// Submits command buffers for execution with swap chain synchronization.
-	/// Use this when rendering to a swap chain to ensure proper synchronization
-	/// between image acquisition, rendering, and presentation.
-	void Submit(Span<ICommandBuffer> commandBuffers, ISwapChain swapChain);
+	/// Submits command buffers and signals a fence when work completes.
+	void Submit(Span<ICommandBuffer> commandBuffers, IFence fence, uint64 signalValue);
 
-	/// Submits a single command buffer with swap chain synchronization.
-	void Submit(ICommandBuffer commandBuffer, ISwapChain swapChain);
+	/// Submits with full synchronization:
+	/// waits on fences before executing, signals a fence after completion.
+	void Submit(
+		Span<ICommandBuffer> commandBuffers,
+		Span<IFence> waitFences,
+		Span<uint64> waitValues,
+		IFence signalFence,
+		uint64 signalValue
+	);
 
-	/// Direct CPU write to a host-visible buffer (Upload/Readback memory).
-	/// Zero GPU synchronization. Asserts if buffer is not mappable.
-	void WriteMappedBuffer(IBuffer buffer, uint64 offset, Span<uint8> data);
+	/// Blocks until all submitted work on this queue has completed.
+	void WaitIdle();
 
-	/// Staging upload to any buffer. Creates temp staging buffer, GPU copy, vkQueueWaitIdle.
-	/// Use only for initialization or infrequent updates to device-local buffers.
-	void WriteStagedBufferSync(IBuffer buffer, uint64 offset, Span<uint8> data);
-
-	/// Staging upload to a texture. Always synchronous (staging + GPU copy + wait).
-	/// Textures cannot be memory-mapped; this is the only write path.
-	void WriteTextureSync(ITexture texture, Span<uint8> data, TextureDataLayout* dataLayout, Extent3D* writeSize, uint32 mipLevel = 0, uint32 arrayLayer = 0);
-
-	/// Direct CPU read from a host-visible buffer (Readback memory).
-	/// Zero GPU synchronization. Asserts if buffer is not mappable.
-	void ReadMappedBuffer(IBuffer buffer, uint64 offset, Span<uint8> data);
-
-	/// Staging read from any buffer. GPU copy to staging + vkQueueWaitIdle.
-	void ReadStagedBufferSync(IBuffer buffer, uint64 offset, Span<uint8> data);
-
-	/// Staging read from a texture. Always synchronous.
-	void ReadTextureSync(ITexture texture, Span<uint8> data, TextureDataLayout* dataLayout, Extent3D* readSize, uint32 mipLevel = 0, uint32 arrayLayer = 0);
-
-	/// Creates a transfer batch for batching multiple GPU upload operations.
-	/// All recorded transfers execute in a single submission when Submit() is called.
+	/// Creates a transfer batch for batching multiple upload operations.
 	Result<ITransferBatch> CreateTransferBatch();
 
-	/// Gets the timestamp period in nanoseconds.
-	/// Multiply GPU timestamp values by this to convert to nanoseconds.
-	float GetTimestampPeriod();
+	/// Destroys a transfer batch created from this queue.
+	void DestroyTransferBatch(ref ITransferBatch batch);
+
+	/// Timestamp period in nanoseconds. Multiply raw timestamps by this value.
+	float TimestampPeriod { get; }
 }

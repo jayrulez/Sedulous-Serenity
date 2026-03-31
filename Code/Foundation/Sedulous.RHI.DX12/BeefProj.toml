@@ -4,3 +4,4 @@ Dependencies = {corlib = "*", "Sedulous.RHI" = "*", Win32 = "*"}
 [Project]
 Name = "Sedulous.RHI.DX12"
 TargetType = "BeefLib"
+StartupObject = "Sedulous.RHI.DX12.Program"

@@ -7,102 +7,81 @@ using Sedulous.RHI;
 /// Vulkan implementation of IComputePassEncoder.
 class VulkanComputePassEncoder : IComputePassEncoder
 {
+	private VkCommandBuffer mCmdBuf;
 	private VulkanDevice mDevice;
-	private VkCommandBuffer mCommandBuffer;
 	private VulkanComputePipeline mCurrentPipeline;
-	private bool mEnded;
-	private bool mHasDebugLabel;
 
-	public this(VulkanDevice device, VkCommandBuffer commandBuffer, bool hasDebugLabel = false)
+	public this(VkCommandBuffer cmdBuf, VulkanDevice device)
 	{
+		mCmdBuf = cmdBuf;
 		mDevice = device;
-		mCommandBuffer = commandBuffer;
-		mEnded = false;
-		mHasDebugLabel = hasDebugLabel;
 	}
 
 	public void SetPipeline(IComputePipeline pipeline)
 	{
-		if (mEnded)
-			return;
-
-		if (let vkPipeline = pipeline as VulkanComputePipeline)
-		{
-			mCurrentPipeline = vkPipeline;
-			VulkanNative.vkCmdBindPipeline(mCommandBuffer, .VK_PIPELINE_BIND_POINT_COMPUTE, vkPipeline.Pipeline);
-		}
+		mCurrentPipeline = pipeline as VulkanComputePipeline;
+		if (mCurrentPipeline != null)
+			VulkanNative.vkCmdBindPipeline(mCmdBuf, .VK_PIPELINE_BIND_POINT_COMPUTE, mCurrentPipeline.Handle);
 	}
 
 	public void SetBindGroup(uint32 index, IBindGroup bindGroup, Span<uint32> dynamicOffsets = default)
 	{
-		if (mEnded || mCurrentPipeline == null)
-			return;
-
-		if (let vkBindGroup = bindGroup as VulkanBindGroup)
+		if (let vkBg = bindGroup as VulkanBindGroup)
 		{
-			var descriptorSet = vkBindGroup.DescriptorSet;
-			VulkanNative.vkCmdBindDescriptorSets(
-				mCommandBuffer,
-				.VK_PIPELINE_BIND_POINT_COMPUTE,
-				mCurrentPipeline.[Friend]mLayout.PipelineLayout,
-				index,
-				1,
-				&descriptorSet,
-				(uint32)dynamicOffsets.Length,
-				dynamicOffsets.Ptr
-			);
+			if (mCurrentPipeline == null) return;
+			let layout = (mCurrentPipeline.Layout as VulkanPipelineLayout);
+			if (layout == null) return;
+			var set = vkBg.Handle;
+			VulkanNative.vkCmdBindDescriptorSets(mCmdBuf, .VK_PIPELINE_BIND_POINT_COMPUTE,
+				layout.Handle, index, 1, &set,
+				(uint32)dynamicOffsets.Length, dynamicOffsets.Ptr);
 		}
 	}
 
-	public void Dispatch(uint32 workgroupCountX, uint32 workgroupCountY = 1, uint32 workgroupCountZ = 1)
+	public void SetPushConstants(ShaderStage stages, uint32 offset, uint32 size, void* data)
 	{
-		if (mEnded)
-			return;
-
-		VulkanNative.vkCmdDispatch(mCommandBuffer, workgroupCountX, workgroupCountY, workgroupCountZ);
+		if (mCurrentPipeline == null) return;
+		let layout = (mCurrentPipeline.Layout as VulkanPipelineLayout);
+		if (layout == null) return;
+		VulkanNative.vkCmdPushConstants(mCmdBuf, layout.Handle,
+			VulkanBindGroupLayout.ToVkShaderStageFlags(stages), offset, size, data);
 	}
 
-	public void DispatchIndirect(IBuffer indirectBuffer, uint64 indirectOffset)
+	public void Dispatch(uint32 x, uint32 y = 1, uint32 z = 1)
 	{
-		if (mEnded)
-			return;
+		VulkanNative.vkCmdDispatch(mCmdBuf, x, y, z);
+	}
 
-		if (let vkBuffer = indirectBuffer as VulkanBuffer)
-		{
-			VulkanNative.vkCmdDispatchIndirect(mCommandBuffer, vkBuffer.Buffer, (VkDeviceSize)indirectOffset);
-		}
+	public void DispatchIndirect(IBuffer buffer, uint64 offset)
+	{
+		if (let vkBuf = buffer as VulkanBuffer)
+			VulkanNative.vkCmdDispatchIndirect(mCmdBuf, vkBuf.Handle, offset);
 	}
 
 	public void ComputeBarrier()
 	{
-		if (mEnded)
-			return;
+		VkMemoryBarrier2 barrier = .();
+		barrier.srcStageMask = (uint64)VkPipelineStageFlags2.VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+		barrier.srcAccessMask = (uint64)VkAccessFlags2.VK_ACCESS_2_SHADER_WRITE_BIT;
+		barrier.dstStageMask = (uint64)VkPipelineStageFlags2.VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+		barrier.dstAccessMask = (uint64)VkAccessFlags2.VK_ACCESS_2_SHADER_READ_BIT |
+			(uint64)VkAccessFlags2.VK_ACCESS_2_SHADER_WRITE_BIT;
 
-		VkMemoryBarrier memoryBarrier = .()
-		{
-			sType = .VK_STRUCTURE_TYPE_MEMORY_BARRIER,
-			srcAccessMask = .VK_ACCESS_SHADER_WRITE_BIT,
-			dstAccessMask = .VK_ACCESS_SHADER_READ_BIT | .VK_ACCESS_SHADER_WRITE_BIT
-		};
+		VkDependencyInfo depInfo = .();
+		depInfo.memoryBarrierCount = 1;
+		depInfo.pMemoryBarriers = &barrier;
 
-		VulkanNative.vkCmdPipelineBarrier(
-			mCommandBuffer,
-			.VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-			.VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-			0,
-			1, &memoryBarrier,
-			0, null,
-			0, null
-		);
+		VulkanNative.vkCmdPipelineBarrier2(mCmdBuf, &depInfo);
+	}
+
+	public void WriteTimestamp(IQuerySet querySet, uint32 index)
+	{
+		if (let vkQs = querySet as VulkanQuerySet)
+			VulkanNative.vkCmdWriteTimestamp(mCmdBuf, .VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vkQs.Handle, index);
 	}
 
 	public void End()
 	{
-		if (mEnded)
-			return;
-
-		if (mHasDebugLabel)
-			mDevice.CmdEndLabel(mCommandBuffer);
-		mEnded = true;
+		mCurrentPipeline = null;
 	}
 }

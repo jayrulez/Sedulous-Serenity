@@ -4,12 +4,12 @@ using System;
 using System.Collections;
 using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
-using Sedulous.Shell;
 using Sedulous.Runtime.Client;
 using Sedulous.Render;
 using Sedulous.Geometry;
 using Sedulous.Materials;
 using Sedulous.Imaging;
+using Sedulous.Textures;
 
 /// Sky mode demo: cycles through Gradient, Solid Color, and HDRI sky modes
 /// with a 5x5 PBR sphere grid to visualize IBL reflections.
@@ -51,7 +51,7 @@ class RenderSkyApp : Application
 	private Vector3 mCameraForward;
 	private bool mMouseCaptured = false;
 
-	public this(IShell shell, IDevice device, IBackend backend) : base(shell, device, backend) { }
+	public this() : base() { }
 
 	protected override void OnInitialize(Sedulous.Runtime.Context context)
 	{
@@ -59,7 +59,7 @@ class RenderSkyApp : Application
 		Sedulous.Imaging.STB.STBImageLoader.Initialize();
 
 		mRenderSystem = new RenderSystem();
-		if (mRenderSystem.Initialize(mDevice, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null, .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
+		if (mRenderSystem.Initialize(mDevice, mSwapChain.Width, mSwapChain.Height, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null, .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
 		{ Console.WriteLine("ERROR: Failed to initialize RenderSystem"); return; }
 
 		mWorld = mRenderSystem.CreateWorld();
@@ -312,6 +312,11 @@ class RenderSkyApp : Application
 		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
 	}
 
+	protected override void OnResize(int32 width, int32 height)
+	{
+		mRenderSystem?.SetViewportSize((uint32)width, (uint32)height);
+	}
+
 	protected override bool OnRenderFrame(RenderContext render)
 	{
 		mRenderSystem.BeginFrame((float)render.Frame.TotalTime, (float)render.Frame.DeltaTime);
@@ -334,13 +339,16 @@ class RenderSkyApp : Application
 	{
 		mWorld?.Dispose();
 
-		if (mSphereMeshHandle.IsValid) mRenderSystem.ResourceManager.ReleaseMesh(mSphereMeshHandle, mRenderSystem.FrameNumber);
-		if (mPlaneMeshHandle.IsValid) mRenderSystem.ResourceManager.ReleaseMesh(mPlaneMeshHandle, mRenderSystem.FrameNumber);
-		mRenderSystem?.Shutdown();
+		if (mRenderSystem != null)
+		{
+			if (mSphereMeshHandle.IsValid) mRenderSystem.ResourceManager.ReleaseMesh(mSphereMeshHandle, mRenderSystem.FrameNumber);
+			if (mPlaneMeshHandle.IsValid) mRenderSystem.ResourceManager.ReleaseMesh(mPlaneMeshHandle, mRenderSystem.FrameNumber);
+		}
 
+		mRenderSystem?.Shutdown();
+		delete mRenderSystem; mRenderSystem = null;
 		delete mWorld; mWorld = null;
 		delete mView; mView = null;
-		delete mRenderSystem; mRenderSystem = null;
 
 		Console.WriteLine("Render Sky shutting down");
 	}

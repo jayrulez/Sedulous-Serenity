@@ -48,9 +48,7 @@ float SampleShadowMap(float3 worldPos, float3 N)
     shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;
     shadowCoord.z = saturate(shadowCoord.z);
 
-#if !defined(VULKAN)
     shadowCoord.y = 1.0 - shadowCoord.y;
-#endif
 
     if (any(shadowCoord.xy < 0.0) || any(shadowCoord.xy > 1.0))
         return 1.0;

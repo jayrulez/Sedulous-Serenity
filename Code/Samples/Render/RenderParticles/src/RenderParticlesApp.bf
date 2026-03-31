@@ -5,7 +5,6 @@ using System.Collections;
 using System.Diagnostics;
 using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
-using Sedulous.Shell;
 using Sedulous.Runtime.Client;
 using Sedulous.Render;
 using Sedulous.Geometry;
@@ -15,10 +14,10 @@ using Sedulous.Profiler;
 /// with configurable emitters via the Sedulous.Render pipeline.
 class RenderParticlesApp : Application
 {
-	// Render system
-	private RenderSystem mRenderSystem ~ delete _;
-	private RenderWorld mWorld ~ delete _;
-	private RenderView mView ~ delete _;
+	// Render system (cleaned up in OnShutdown before device destruction)
+	private RenderSystem mRenderSystem;
+	private RenderWorld mWorld;
+	private RenderView mView;
 
 	// Render features
 	private DepthPrepassFeature mDepthFeature;
@@ -54,8 +53,7 @@ class RenderParticlesApp : Application
 	private const float MoveSpeed = 5.0f;
 	private const float LookSpeed = 0.003f;
 
-	public this(IShell shell, IDevice device, IBackend backend)
-		: base(shell, device, backend)
+	public this() : base()
 	{
 	}
 
@@ -68,7 +66,7 @@ class RenderParticlesApp : Application
 
 		sw.Restart();
 		mRenderSystem = new RenderSystem();
-		if (mRenderSystem.Initialize(mDevice, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), scope $"{AssetCacheDirectory}/Shaders", .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
+		if (mRenderSystem.Initialize(mDevice, mSwapChain.Width, mSwapChain.Height, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), scope $"{AssetCacheDirectory}/Shaders", .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
 		{
 			Console.WriteLine("ERROR: Failed to initialize RenderSystem");
 			return;
@@ -347,6 +345,11 @@ class RenderParticlesApp : Application
 		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
 	}
 
+	protected override void OnResize(int32 width, int32 height)
+	{
+		mRenderSystem?.SetViewportSize((uint32)width, (uint32)height);
+	}
+
 	protected override bool OnRenderFrame(RenderContext render)
 	{
 		if (mFirstFrame)
@@ -400,13 +403,20 @@ class RenderParticlesApp : Application
 
 	protected override void OnShutdown()
 	{
+		// Dispose world first — cleans up owned CPUParticleEmitters (which have RHI buffers)
 		mWorld?.Dispose();
 
-		if (mFloorMeshHandle.IsValid)
-			mRenderSystem.ResourceManager.ReleaseMesh(mFloorMeshHandle, mRenderSystem.FrameNumber);
-
 		if (mRenderSystem != null)
+		{
+			if (mFloorMeshHandle.IsValid)
+				mRenderSystem.ResourceManager.ReleaseMesh(mFloorMeshHandle, mRenderSystem.FrameNumber);
+
 			mRenderSystem.Shutdown();
+			delete mRenderSystem;
+			mRenderSystem = null;
+		}
+		delete mWorld;
+		delete mView;
 
 		Console.WriteLine("Render Particles shutting down");
 	}

@@ -51,32 +51,32 @@ struct CurveDecalUniforms
 public class DecalFeature : RenderFeatureBase
 {
 	// Per-blend-mode render pipelines
-	private IRenderPipeline mPipelineAlpha ~ delete _;
-	private IRenderPipeline mPipelineAdditive ~ delete _;
-	private IRenderPipeline mPipelineMultiply ~ delete _;
-	private IPipelineLayout mPipelineLayout ~ delete _;
+	private IRenderPipeline mPipelineAlpha;
+	private IRenderPipeline mPipelineAdditive;
+	private IRenderPipeline mPipelineMultiply;
+	private IPipelineLayout mPipelineLayout;
 
 	// Bind group layouts
-	private IBindGroupLayout mSceneBindGroupLayout ~ delete _;  // Set 0: camera + depth
-	private IBindGroupLayout mDecalBindGroupLayout ~ delete _;  // Set 1: decal uniforms + albedo
+	private IBindGroupLayout mSceneBindGroupLayout;  // Set 0: camera + depth
+	private IBindGroupLayout mDecalBindGroupLayout;  // Set 1: decal uniforms + albedo
 
 	// Unit cube geometry
-	private IBuffer mCubeVertexBuffer ~ delete _;
-	private IBuffer mCubeIndexBuffer ~ delete _;
+	private IBuffer mCubeVertexBuffer;
+	private IBuffer mCubeIndexBuffer;
 
 	// Dynamic uniform buffers for per-decal uniforms (one per frame-in-flight)
 	private const uint64 DecalUniformAlignment = 256;
 	private const int32 MaxDecals = 128;
-	private IBuffer[RenderConfig.FrameBufferCount] mDecalUniformBuffers ~ { for (let b in _) delete b; };
+	private IBuffer[RenderConfig.FrameBufferCount] mDecalUniformBuffers;
 
 	// Default resources
-	private ITexture mDefaultTexture ~ delete _;
-	private ITextureView mDefaultTextureView ~ delete _;
-	private ISampler mLinearClampSampler ~ delete _;
-	private ISampler mDepthSampler ~ delete _;
+	private ITexture mDefaultTexture;
+	private ITextureView mDefaultTextureView;
+	private ISampler mLinearClampSampler;
+	private ISampler mDepthSampler;
 
 	// Per-frame/view bind groups
-	private IBindGroup[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mSceneBindGroups ~ { for (let bg in _) delete bg; };
+	private IBindGroup[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mSceneBindGroups;
 
 	// Per-frame/view per-decal bind groups (cached to avoid destroying while GPU references them)
 	private List<IBindGroup>[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mDecalBindGroups;
@@ -85,15 +85,15 @@ public class DecalFeature : RenderFeatureBase
 	private List<DecalSortEntry> mActiveDecals = new .() ~ delete _;
 
 	// Curve decal support
-	private IRenderPipeline mCurvePipelineAlpha ~ delete _;
-	private IRenderPipeline mCurvePipelineAdditive ~ delete _;
-	private IRenderPipeline mCurvePipelineMultiply ~ delete _;
-	private IPipelineLayout mCurvePipelineLayout ~ delete _;
-	private IBindGroupLayout mCurveDecalBindGroupLayout ~ delete _;
+	private IRenderPipeline mCurvePipelineAlpha;
+	private IRenderPipeline mCurvePipelineAdditive;
+	private IRenderPipeline mCurvePipelineMultiply;
+	private IPipelineLayout mCurvePipelineLayout;
+	private IBindGroupLayout mCurveDecalBindGroupLayout;
 	private CurveDecalMeshBuilder mCurveMeshBuilder = new .() ~ delete _;
-	private IBuffer[RenderConfig.FrameBufferCount] mCurveVertexBuffers ~ { for (let b in _) delete b; };
-	private IBuffer[RenderConfig.FrameBufferCount] mCurveIndexBuffers ~ { for (let b in _) delete b; };
-	private IBuffer[RenderConfig.FrameBufferCount] mCurveUniformBuffers ~ { for (let b in _) delete b; };
+	private IBuffer[RenderConfig.FrameBufferCount] mCurveVertexBuffers;
+	private IBuffer[RenderConfig.FrameBufferCount] mCurveIndexBuffers;
+	private IBuffer[RenderConfig.FrameBufferCount] mCurveUniformBuffers;
 	private const int32 MaxCurveDecals = 64;
 	private const uint64 CurveDecalUniformAlignment = 256;
 	private List<CurveDecalSortEntry> mActiveCurveDecals = new .() ~ delete _;
@@ -102,9 +102,7 @@ public class DecalFeature : RenderFeatureBase
 	// Per-frame view dimensions
 	private uint32 mViewWidth;
 	private uint32 mViewHeight;
-	private RGResourceHandle mDepthHandle;
-
-	private int32 GetBindGroupIndex(int32 frameIndex) => frameIndex * RenderConfig.MaxViews + (Renderer.RenderFrameContext?.ActiveViewIndex ?? 0);
+	private RGHandle mDepthHandle = .Invalid;
 
 	/// Feature name.
 	public override StringView Name => "Decals";
@@ -115,12 +113,12 @@ public class DecalFeature : RenderFeatureBase
 		outDependencies.Add("ForwardOpaque");
 	}
 
-	protected override Result<void> OnInitialize()
+	protected override Result<void> OnInitialize(InitContext initCtx)
 	{
-		if (CreateDefaultResources() case .Err)
+		if (CreateDefaultResources(initCtx.TransferBatch) case .Err)
 			return .Err;
 
-		if (CreateCubeGeometry() case .Err)
+		if (CreateCubeGeometry(initCtx.TransferBatch) case .Err)
 			return .Err;
 
 		if (CreateBindGroupLayouts() case .Err)
@@ -143,33 +141,58 @@ public class DecalFeature : RenderFeatureBase
 
 	protected override void OnShutdown()
 	{
+		let device = Renderer.Device;
+
 		for (int i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
 		{
 			if (mSceneBindGroups[i] != null)
-			{
-				delete mSceneBindGroups[i];
-				mSceneBindGroups[i] = null;
-			}
+				device.DestroyBindGroup(ref mSceneBindGroups[i]);
 
 			if (mDecalBindGroups[i] != null)
 			{
-				for (let bg in mDecalBindGroups[i])
-					delete bg;
+				for (var bg in ref mDecalBindGroups[i])
+					if (bg != null) device.DestroyBindGroup(ref bg);
 				delete mDecalBindGroups[i];
 				mDecalBindGroups[i] = null;
 			}
 
 			if (mCurveDecalBindGroups[i] != null)
 			{
-				for (let bg in mCurveDecalBindGroups[i])
-					delete bg;
+				for (var bg in ref mCurveDecalBindGroups[i])
+					if (bg != null) device.DestroyBindGroup(ref bg);
 				delete mCurveDecalBindGroups[i];
 				mCurveDecalBindGroups[i] = null;
 			}
 		}
+
+		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
+		{
+			device.DestroyBuffer(ref mDecalUniformBuffers[i]);
+			device.DestroyBuffer(ref mCurveVertexBuffers[i]);
+			device.DestroyBuffer(ref mCurveIndexBuffers[i]);
+			device.DestroyBuffer(ref mCurveUniformBuffers[i]);
+		}
+
+		device.DestroyRenderPipeline(ref mPipelineAlpha);
+		device.DestroyRenderPipeline(ref mPipelineAdditive);
+		device.DestroyRenderPipeline(ref mPipelineMultiply);
+		device.DestroyPipelineLayout(ref mPipelineLayout);
+		device.DestroyBindGroupLayout(ref mSceneBindGroupLayout);
+		device.DestroyBindGroupLayout(ref mDecalBindGroupLayout);
+		device.DestroyBuffer(ref mCubeVertexBuffer);
+		device.DestroyBuffer(ref mCubeIndexBuffer);
+		device.DestroyTextureView(ref mDefaultTextureView);
+		device.DestroyTexture(ref mDefaultTexture);
+		device.DestroySampler(ref mLinearClampSampler);
+		device.DestroySampler(ref mDepthSampler);
+		device.DestroyRenderPipeline(ref mCurvePipelineAlpha);
+		device.DestroyRenderPipeline(ref mCurvePipelineAdditive);
+		device.DestroyRenderPipeline(ref mCurvePipelineMultiply);
+		device.DestroyPipelineLayout(ref mCurvePipelineLayout);
+		device.DestroyBindGroupLayout(ref mCurveDecalBindGroupLayout);
 	}
 
-	private Result<void> CreateDefaultResources()
+	private Result<void> CreateDefaultResources(ITransferBatch transferBatch)
 	{
 		// Create default white 4x4 texture
 		const int32 TexSize = 4;
@@ -201,7 +224,7 @@ public class DecalFeature : RenderFeatureBase
 
 		var layout = TextureDataLayout() { BytesPerRow = TexSize * 4, RowsPerImage = TexSize };
 		var writeSize = Extent3D(TexSize, TexSize, 1);
-		UploadTexture(mDefaultTexture, Span<uint8>(&pixels[0], TexBytes), &layout, &writeSize);
+		transferBatch.WriteTexture(mDefaultTexture, Span<uint8>(&pixels[0], TexBytes), layout, writeSize);
 
 		TextureViewDesc viewDesc = .()
 		{
@@ -272,7 +295,7 @@ public class DecalFeature : RenderFeatureBase
 		return .Ok;
 	}
 
-	private Result<void> CreateCubeGeometry()
+	private Result<void> CreateCubeGeometry(ITransferBatch transferBatch)
 	{
 		// Unit cube centered at origin: 8 vertices, 36 indices (12 triangles)
 		float[24] vertices = .(
@@ -314,7 +337,7 @@ public class DecalFeature : RenderFeatureBase
 		case .Err: return .Err;
 		}
 
-		UploadBuffer(mCubeVertexBuffer, 0,
+		transferBatch.WriteBuffer(mCubeVertexBuffer, 0,
 			Span<uint8>((uint8*)&vertices[0], vertices.Count * sizeof(float)));
 
 		BufferDesc ibDesc = .()
@@ -330,7 +353,7 @@ public class DecalFeature : RenderFeatureBase
 		case .Err: return .Err;
 		}
 
-		UploadBuffer(mCubeIndexBuffer, 0,
+		transferBatch.WriteBuffer(mCubeIndexBuffer, 0,
 			Span<uint8>((uint8*)&indices[0], indices.Count * sizeof(uint16)));
 
 		return .Ok;
@@ -415,6 +438,7 @@ public class DecalFeature : RenderFeatureBase
 		// Back faces of the cube that are behind existing geometry pass the depth test
 		DepthStencilState decalDepthState = .()
 		{
+			Format = Renderer.DepthFormat,
 			DepthTestEnabled = true,
 			DepthWriteEnabled = false,
 			DepthCompare = .GreaterEqual
@@ -521,6 +545,7 @@ public class DecalFeature : RenderFeatureBase
 
 		DepthStencilState depthState = .()
 		{
+			Format = Renderer.DepthFormat,
 			DepthTestEnabled = true,
 			DepthWriteEnabled = false,
 			DepthCompare = .LessEqual
@@ -583,7 +608,7 @@ public class DecalFeature : RenderFeatureBase
 		}
 	}
 
-	public override void AddPasses(RenderGraph graph, RenderView view, RenderWorld world)
+	public override void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world)
 	{
 		bool hasBoxDecalPipeline = mPipelineAlpha != null || mPipelineAdditive != null || mPipelineMultiply != null;
 		bool hasCurvePipeline = mCurvePipelineAlpha != null || mCurvePipelineAdditive != null || mCurvePipelineMultiply != null;
@@ -641,7 +666,8 @@ public class DecalFeature : RenderFeatureBase
 			SortDecals();
 
 		// Invalidate bind groups for this frame (depth texture may have changed)
-		let frameIndex = Renderer.RenderFrameContext?.FrameIndex ?? 0;
+		let frameIndex = view.FrameIndex;
+		let bindGroupIndex = view.GetBindGroupIndex();
 		InvalidateBindGroups(frameIndex);
 
 		// Upload per-decal uniforms to this frame's buffer
@@ -665,12 +691,17 @@ public class DecalFeature : RenderFeatureBase
 		mViewWidth = view.Width;
 		mViewHeight = view.Height;
 
-		graph.AddGraphicsPass("DecalRender")
-			.WriteColor(colorHandle, .Load, .Store)
-			.ReadDepth(depthHandle)
-			.NeverCull()
-			.SetExecuteCallback(new [&] (encoder) => {
-				ExecuteRenderPass(encoder);
+		// Capture frame data from view context for lambda use
+		let sceneUniformBuffer = view.SceneUniformBuffer;
+
+		graph.AddRenderPass("DecalRender", scope (builder) => {
+				builder.SetColorTarget(0, colorHandle, .Load, .Store);
+				builder.ReadDepth(depthHandle);
+				builder.ReadTexture(depthHandle); // Also sampled in fragment shader for projection
+				builder.NeverCull();
+				builder.SetExecute(new /*[&, =frameIndex, =bindGroupIndex, =sceneUniformBuffer]*/(encoder) => {
+					ExecuteRenderPass(encoder, frameIndex, bindGroupIndex, sceneUniformBuffer);
+				});
 			});
 	}
 
@@ -694,7 +725,7 @@ public class DecalFeature : RenderFeatureBase
 			uniforms.AngleFadeEnd = proxy.AngleFadeEnd;
 
 			let offset = (uint64)entry.Index * DecalUniformAlignment;
-			Renderer.Device.Queue.WriteMappedBuffer(
+			TransferHelper.WriteMappedBuffer(
 				buffer, offset,
 				Span<uint8>((uint8*)&uniforms, DecalUniforms.Size)
 			);
@@ -721,7 +752,7 @@ public class DecalFeature : RenderFeatureBase
 			};
 
 			let offset = (uint64)entry.Index * CurveDecalUniformAlignment;
-			Renderer.Device.Queue.WriteMappedBuffer(
+			TransferHelper.WriteMappedBuffer(
 				buffer, offset,
 				Span<uint8>((uint8*)&uniforms, CurveDecalUniforms.Size)
 			);
@@ -740,7 +771,7 @@ public class DecalFeature : RenderFeatureBase
 		if (mCurveVertexBuffers[frameIndex] == null || mCurveVertexBuffers[frameIndex].Size < vertexDataSize)
 		{
 			if (mCurveVertexBuffers[frameIndex] != null)
-				delete mCurveVertexBuffers[frameIndex];
+				Renderer.Device.DestroyBuffer(ref mCurveVertexBuffers[frameIndex]);
 
 			BufferDesc vbDesc = .()
 			{
@@ -759,7 +790,7 @@ public class DecalFeature : RenderFeatureBase
 		if (mCurveIndexBuffers[frameIndex] == null || mCurveIndexBuffers[frameIndex].Size < indexDataSize)
 		{
 			if (mCurveIndexBuffers[frameIndex] != null)
-				delete mCurveIndexBuffers[frameIndex];
+				Renderer.Device.DestroyBuffer(ref mCurveIndexBuffers[frameIndex]);
 
 			BufferDesc ibDesc = .()
 			{
@@ -780,7 +811,7 @@ public class DecalFeature : RenderFeatureBase
 		if (vb != null)
 		{
 			let vertices = mCurveMeshBuilder.Vertices;
-			Renderer.Device.Queue.WriteMappedBuffer(
+			TransferHelper.WriteMappedBuffer(
 				vb, 0,
 				Span<uint8>((uint8*)vertices.Ptr, (int)vertexDataSize)
 			);
@@ -791,14 +822,14 @@ public class DecalFeature : RenderFeatureBase
 		if (ib != null)
 		{
 			let indices = mCurveMeshBuilder.Indices;
-			Renderer.Device.Queue.WriteMappedBuffer(
+			TransferHelper.WriteMappedBuffer(
 				ib, 0,
 				Span<uint8>((uint8*)indices.Ptr, (int)indexDataSize)
 			);
 		}
 	}
 
-	private void ExecuteRenderPass(IRenderPassEncoder encoder)
+	private void ExecuteRenderPass(IRenderPassEncoder encoder, int32 frameIndex, int32 bindGroupIndex, IBuffer sceneUniformBuffer)
 	{
 		if (mViewWidth == 0 || mViewHeight == 0)
 			return;
@@ -816,13 +847,11 @@ public class DecalFeature : RenderFeatureBase
 			return;
 
 		// Get or create scene bind group
-		let frameIndex = Renderer.RenderFrameContext?.FrameIndex ?? 0;
-		let sceneBindGroup = GetOrCreateSceneBindGroup(frameIndex, depthView);
+		let sceneBindGroup = GetOrCreateSceneBindGroup(frameIndex, bindGroupIndex, depthView, sceneUniformBuffer);
 		if (sceneBindGroup == null)
 			return;
 
 		// Get decal bind group cache for this frame/view
-		let bindGroupIndex = GetBindGroupIndex(frameIndex);
 		let bindGroupCache = mDecalBindGroups[bindGroupIndex];
 
 		// Render each decal
@@ -931,9 +960,9 @@ public class DecalFeature : RenderFeatureBase
 			sampler = mLinearClampSampler;
 
 		BindGroupEntry[3] entries = .(
-			BindGroupEntry.Buffer(0, buffer, 0, CurveDecalUniformAlignment),
-			BindGroupEntry.Texture(0, textureView),
-			BindGroupEntry.Sampler(0, sampler)
+			BindGroupEntry.Buffer(/*0,*/buffer, 0, CurveDecalUniformAlignment),
+			BindGroupEntry.Texture(/*0,*/textureView),
+			BindGroupEntry.Sampler(/*0,*/sampler)
 		);
 
 		BindGroupDesc bgDesc = .()
@@ -950,21 +979,18 @@ public class DecalFeature : RenderFeatureBase
 		}
 	}
 
-	private IBindGroup GetOrCreateSceneBindGroup(int32 frameIndex, ITextureView depthView)
+	private IBindGroup GetOrCreateSceneBindGroup(int32 frameIndex, int32 bindGroupIndex, ITextureView depthView, IBuffer sceneUniformBuffer)
 	{
-		let bindGroupIndex = GetBindGroupIndex(frameIndex);
-
 		if (mSceneBindGroups[bindGroupIndex] != null)
 			return mSceneBindGroups[bindGroupIndex];
 
-		let cameraBuffer = Renderer.RenderFrameContext?.SceneUniformBuffer;
-		if (cameraBuffer == null || mSceneBindGroupLayout == null || mDepthSampler == null)
+		if (sceneUniformBuffer == null || mSceneBindGroupLayout == null || mDepthSampler == null)
 			return null;
 
 		BindGroupEntry[3] entries = .(
-			BindGroupEntry.Buffer(0, cameraBuffer, 0, SceneUniforms.Size),
-			BindGroupEntry.Texture(0, depthView, .DepthStencilReadOnly),
-			BindGroupEntry.Sampler(0, mDepthSampler)
+			BindGroupEntry.Buffer(/*0,*/sceneUniformBuffer, 0, SceneUniforms.Size),
+			BindGroupEntry.Texture(/*0,*/depthView, .DepthStencilRead),
+			BindGroupEntry.Sampler(/*0,*/mDepthSampler)
 		);
 
 		BindGroupDesc bgDesc = .()
@@ -1003,9 +1029,9 @@ public class DecalFeature : RenderFeatureBase
 			sampler = mLinearClampSampler;
 
 		BindGroupEntry[3] entries = .(
-			BindGroupEntry.Buffer(0, buffer, 0, DecalUniformAlignment),
-			BindGroupEntry.Texture(0, textureView),
-			BindGroupEntry.Sampler(0, sampler)
+			BindGroupEntry.Buffer(/*0,*/buffer, 0, DecalUniformAlignment),
+			BindGroupEntry.Texture(/*0,*/textureView),
+			BindGroupEntry.Sampler(/*0,*/sampler)
 		);
 
 		BindGroupDesc bgDesc = .()
@@ -1024,26 +1050,24 @@ public class DecalFeature : RenderFeatureBase
 
 	private void InvalidateBindGroups(int32 frameIndex)
 	{
+		let device = Renderer.Device;
 		for (int32 viewIdx = 0; viewIdx < RenderConfig.MaxViews; viewIdx++)
 		{
 			let bindGroupIndex = frameIndex * RenderConfig.MaxViews + viewIdx;
 			if (mSceneBindGroups[bindGroupIndex] != null)
-			{
-				delete mSceneBindGroups[bindGroupIndex];
-				mSceneBindGroups[bindGroupIndex] = null;
-			}
+				device.DestroyBindGroup(ref mSceneBindGroups[bindGroupIndex]);
 
 			if (mDecalBindGroups[bindGroupIndex] != null)
 			{
-				for (let bg in mDecalBindGroups[bindGroupIndex])
-					delete bg;
+				for (var bg in ref mDecalBindGroups[bindGroupIndex])
+					if (bg != null) device.DestroyBindGroup(ref bg);
 				mDecalBindGroups[bindGroupIndex].Clear();
 			}
 
 			if (mCurveDecalBindGroups[bindGroupIndex] != null)
 			{
-				for (let bg in mCurveDecalBindGroups[bindGroupIndex])
-					delete bg;
+				for (var bg in ref mCurveDecalBindGroups[bindGroupIndex])
+					if (bg != null) device.DestroyBindGroup(ref bg);
 				mCurveDecalBindGroups[bindGroupIndex].Clear();
 			}
 		}

@@ -26,17 +26,18 @@ public class ColorGradingEffect : IPostProcessEffect
 
 	private RenderSystem mRenderSystem;
 	private IDevice mDevice;
+	private IQueue mQueue;
 
-	private IRenderPipeline mPipeline ~ delete _;
-	private IPipelineLayout mPipelineLayout ~ delete _;
-	private IBindGroupLayout mBindGroupLayout ~ delete _;
-	private IBuffer mParamsBuffer ~ delete _;
-	private ISampler mLinearSampler ~ delete _;
-	private ISampler mLUTSampler ~ delete _;
+	private IRenderPipeline mPipeline;
+	private IPipelineLayout mPipelineLayout;
+	private IBindGroupLayout mBindGroupLayout;
+	private IBuffer mParamsBuffer;
+	private ISampler mLinearSampler;
+	private ISampler mLUTSampler;
 
 	// Neutral identity LUT
-	private ITexture mNeutralLUT ~ delete _;
-	private ITextureView mNeutralLUTView ~ delete _;
+	private ITexture mNeutralLUT;
+	private ITextureView mNeutralLUTView;
 
 	private IBindGroup[RenderConfig.FrameBufferCount] mBindGroups;
 
@@ -62,6 +63,7 @@ public class ColorGradingEffect : IPostProcessEffect
 	public Result<void> Initialize(IDevice device)
 	{
 		mDevice = device;
+		mQueue = device.GetQueue(.Graphics);
 
 		// Linear sampler for source
 		SamplerDesc linearDesc = .();
@@ -191,10 +193,7 @@ public class ColorGradingEffect : IPostProcessEffect
 		// Upload data
 		TextureDataLayout layout = .() { BytesPerRow = atlasWidth * 4, RowsPerImage = atlasHeight };
 		Extent3D size = .(atlasWidth, atlasHeight, 1);
-		if (mRenderSystem?.TransferBatch != null)
-			mRenderSystem.TransferBatch.WriteTexture(mNeutralLUT, Span<uint8>(&data[0], data.Count), &layout, &size, 0, 0);
-		else
-			device.Queue.WriteTextureSync(mNeutralLUT, Span<uint8>(&data[0], data.Count), &layout, &size, 0, 0);
+		TransferHelper.WriteTextureSync(mQueue, mDevice, mNeutralLUT, Span<uint8>(&data[0], data.Count), layout, size, 0, 0);
 
 		// Create view
 		TextureViewDesc viewDesc = .();
@@ -260,20 +259,25 @@ public class ColorGradingEffect : IPostProcessEffect
 	{
 		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			if (mBindGroups[i] != null)
-			{
-				delete mBindGroups[i];
-				mBindGroups[i] = null;
-			}
+			if (mBindGroups[i] != null) mDevice.DestroyBindGroup(ref mBindGroups[i]);
 		}
+
+		if (mNeutralLUTView != null) mDevice.DestroyTextureView(ref mNeutralLUTView);
+		if (mNeutralLUT != null) mDevice.DestroyTexture(ref mNeutralLUT);
+		if (mPipeline != null) mDevice.DestroyRenderPipeline(ref mPipeline);
+		if (mPipelineLayout != null) mDevice.DestroyPipelineLayout(ref mPipelineLayout);
+		if (mBindGroupLayout != null) mDevice.DestroyBindGroupLayout(ref mBindGroupLayout);
+		if (mParamsBuffer != null) mDevice.DestroyBuffer(ref mParamsBuffer);
+		if (mLinearSampler != null) mDevice.DestroySampler(ref mLinearSampler);
+		if (mLUTSampler != null) mDevice.DestroySampler(ref mLUTSampler);
 	}
 
 	public void AddPasses(
 		RenderGraph graph,
-		RenderView view,
-		RGResourceHandle inputHandle,
-		RGResourceHandle outputHandle,
-		RGResourceHandle depthHandle)
+		ViewContext view,
+		RGHandle inputHandle,
+		RGHandle outputHandle,
+		RGHandle depthHandle)
 	{
 		if (mPipeline == null)
 			return;
@@ -297,26 +301,27 @@ public class ColorGradingEffect : IPostProcessEffect
 		cgParams.LUTSize = (float)LUTSize;
 		cgParams.InvLUTSize = 1.0f / (float)LUTSize;
 
-		mDevice.Queue.WriteMappedBuffer(
+		TransferHelper.WriteMappedBuffer(
 			mParamsBuffer, 0,
 			Span<uint8>((uint8*)&cgParams, ColorGradingParams.Size)
 		);
 
 		RenderGraph graphRef = graph;
-		RGResourceHandle inputCopy = inputHandle;
+		RGHandle inputCopy = inputHandle;
 		ITextureView lutViewCopy = lutView;
 
-		graph.AddGraphicsPass("PostProcess_ColorGrading")
-			.ReadTexture(inputHandle)
-			.WriteColor(outputHandle, .DontCare, .Store)
-			.NeverCull()
-			.SetExecuteCallback(new [=] (encoder) => {
-				let inputView = graphRef.GetTextureView(inputCopy);
-				ExecutePass(encoder, view, inputView, lutViewCopy);
+		graph.AddRenderPass("PostProcess_ColorGrading", scope (builder) => {
+				builder.ReadTexture(inputHandle);
+				builder.SetColorTarget(0, outputHandle, .DontCare, .Store);
+				builder.NeverCull();
+				builder.SetExecute(new [=] (encoder) => {
+					let inputView = graphRef.GetTextureView(inputCopy);
+					ExecutePass(encoder, view, inputView, lutViewCopy);
+				});
 			});
 	}
 
-	private void ExecutePass(IRenderPassEncoder encoder, RenderView view,
+	private void ExecutePass(IRenderPassEncoder encoder, ViewContext view,
 		ITextureView inputView, ITextureView lutView)
 	{
 		if (inputView == null || lutView == null)
@@ -326,16 +331,15 @@ public class ColorGradingEffect : IPostProcessEffect
 
 		if (mBindGroups[frameIndex] != null)
 		{
-			delete mBindGroups[frameIndex];
-			mBindGroups[frameIndex] = null;
+			mDevice.DestroyBindGroup(ref mBindGroups[frameIndex]);
 		}
 
 		BindGroupEntry[5] entries = .(
-			BindGroupEntry.Buffer(0, mParamsBuffer, 0, (uint64)ColorGradingParams.Size),
-			BindGroupEntry.Texture(0, inputView),
-			BindGroupEntry.Texture(1, lutView),
-			BindGroupEntry.Sampler(0, mLinearSampler),
-			BindGroupEntry.Sampler(1, mLUTSampler)
+			BindGroupEntry.Buffer(/*0,*/mParamsBuffer, 0, (uint64)ColorGradingParams.Size),
+			BindGroupEntry.Texture(/*0,*/inputView),
+			BindGroupEntry.Texture(/*1,*/lutView),
+			BindGroupEntry.Sampler(/*0,*/mLinearSampler),
+			BindGroupEntry.Sampler(/*1,*/mLUTSampler)
 		);
 
 		BindGroupDesc bgDesc = .();

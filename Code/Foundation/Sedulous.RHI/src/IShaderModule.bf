@@ -1,8 +1,7 @@
 namespace Sedulous.RHI;
 
-using System;
-
-/// A compiled shader module.
-interface IShaderModule : IDisposable
+/// A compiled shader module (SPIR-V or DXIL bytecode).
+/// Destroyed via IDevice.DestroyShaderModule().
+interface IShaderModule
 {
 }

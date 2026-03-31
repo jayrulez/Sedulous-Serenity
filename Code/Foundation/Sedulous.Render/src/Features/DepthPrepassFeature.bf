@@ -16,12 +16,12 @@ using Sedulous.RenderGraph;
 public class DepthPrepassFeature : RenderFeatureBase
 {
 	// Resources
-	private IBindGroupLayout mBindGroupLayout ~ delete _;
+	private IBindGroupLayout mBindGroupLayout;
 	private IBindGroup[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mDepthBindGroups;  // Per-frame, per-view bind groups
 	private IBuffer[RenderConfig.FrameBufferCount] mObjectUniformBuffers; // Per-frame uniform buffers
-	private IRenderPipeline mDepthPipeline ~ delete _;
-	private IRenderPipeline mDepthSkinnedPipeline ~ delete _;
-	private IRenderPipeline mDepthInstancedPipeline ~ delete _;
+	private IRenderPipeline mDepthPipeline;
+	private IRenderPipeline mDepthSkinnedPipeline;
+	private IRenderPipeline mDepthInstancedPipeline;
 
 	// Instance buffer manager for GPU instancing
 	private InstanceBufferManager mInstanceBufferManager ~ { if (_ != null) { _.Shutdown(); delete _; } };
@@ -34,10 +34,8 @@ public class DepthPrepassFeature : RenderFeatureBase
 	private const uint64 ObjectUniformSize = 144; // 2 matrices (128) + 2 uint32 (8) + 2 float (8)
 	private const uint64 AlignedObjectUniformSize = ((ObjectUniformSize + ObjectUniformAlignment - 1) / ObjectUniformAlignment) * ObjectUniformAlignment;
 
-	// Visibility
-	private VisibilityResolver mVisibility = new .() ~ delete _;
-	private FrustumCuller mCuller = new .() ~ delete _;
-	private DrawBatcher mBatcher = new .() ~ delete _;
+	// Visibility and batching now owned by RenderSystem
+	// Access via Renderer.Visibility and Renderer.Batcher
 
 	// Hi-Z resources
 	private HiZOcclusionCuller mHiZCuller ~ delete _;
@@ -49,17 +47,11 @@ public class DepthPrepassFeature : RenderFeatureBase
 	/// Feature name.
 	public override StringView Name => "DepthPrepass";
 
-	/// Gets the current frame index for multi-buffering.
-	private int32 FrameIndex => Renderer.RenderFrameContext?.FrameIndex ?? 0;
-
-	/// Gets bind group array index for current frame and active view.
-	private int32 GetBindGroupIndex(int32 frameIndex) => frameIndex * RenderConfig.MaxViews + (Renderer.RenderFrameContext?.ActiveViewIndex ?? 0);
-
 	/// Gets the Hi-Z culler.
 	public HiZOcclusionCuller HiZCuller => mHiZCuller;
 
-	/// Gets the visibility resolver.
-	public VisibilityResolver Visibility => mVisibility;
+	/// Gets the visibility resolver (owned by RenderSystem).
+	public VisibilityResolver Visibility => Renderer.Visibility;
 
 	/// Gets or sets whether Hi-Z occlusion culling is enabled.
 	public bool EnableHiZ
@@ -81,8 +73,8 @@ public class DepthPrepassFeature : RenderFeatureBase
 	/// Gets the instance buffer for a frame (for use by other features).
 	public IBuffer GetInstanceBuffer(int32 frameIndex) => mInstanceBufferManager?.GetBuffer(frameIndex);
 
-	/// Gets the draw batcher.
-	public DrawBatcher Batcher => mBatcher;
+	/// Gets the draw batcher (owned by RenderSystem).
+	public DrawBatcher Batcher => Renderer.Batcher;
 
 	/// Depends on GPU skinning (skinned vertex buffers must be ready).
 	public override void GetDependencies(List<StringView> outDependencies)
@@ -90,7 +82,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 		outDependencies.Add("GPUSkinning");
 	}
 
-	protected override Result<void> OnInitialize()
+	protected override Result<void> OnInitialize(InitContext initCtx)
 	{
 		// Initialize Hi-Z culler (with default size, will be resized on first use)
 		mHiZCuller = new HiZOcclusionCuller();
@@ -125,7 +117,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 	}
 
 	// Pipeline layout
-	private IPipelineLayout mPipelineLayout ~ delete _;
+	private IPipelineLayout mPipelineLayout;
 
 	private Result<void> CreateDepthPipelines()
 	{
@@ -175,7 +167,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 				FrontFace = .CCW,
 				CullMode = .Back
 			},
-			DepthStencil = .Opaque,
+			DepthStencil = DepthStencilState.DepthDefault(Renderer.DepthFormat),
 			Multisample = .()
 			{
 				Count = 1,
@@ -247,7 +239,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 				FrontFace = .CCW,
 				CullMode = .Back
 			},
-			DepthStencil = .Opaque,
+			DepthStencil = DepthStencilState.DepthDefault(Renderer.DepthFormat),
 			Multisample = .()
 			{
 				Count = 1,
@@ -266,46 +258,34 @@ public class DepthPrepassFeature : RenderFeatureBase
 
 	protected override void OnShutdown()
 	{
+		let device = Renderer.Device;
+
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
 		{
-			if (mDepthBindGroups[i] != null) { delete mDepthBindGroups[i]; mDepthBindGroups[i] = null; }
+			if (mDepthBindGroups[i] != null) { device.DestroyBindGroup(ref mDepthBindGroups[i]); }
 		}
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			if (mObjectUniformBuffers[i] != null) { delete mObjectUniformBuffers[i]; mObjectUniformBuffers[i] = null; }
+			if (mObjectUniformBuffers[i] != null) { device.DestroyBuffer(ref mObjectUniformBuffers[i]); }
 		}
 
 		if (mHiZCuller != null)
 			mHiZCuller.Dispose();
+
+		device.DestroyBindGroupLayout(ref mBindGroupLayout);
+		device.DestroyRenderPipeline(ref mDepthPipeline);
+		device.DestroyRenderPipeline(ref mDepthSkinnedPipeline);
+		device.DestroyRenderPipeline(ref mDepthInstancedPipeline);
+		device.DestroyPipelineLayout(ref mPipelineLayout);
 	}
 
-	/// Prepares shared frame data: union visibility, batching, object uniforms.
-	/// Called once per frame before per-view AddPasses calls.
+	/// Prepares shared frame data: object uniforms, instance data.
+	/// Visibility and batching now handled by RenderSystem before this is called.
 	public override void PrepareFrame(Span<RenderView> views, RenderWorld world, int32 frameIndex)
 	{
 		using (SProfiler.Begin("DepthPrepass.PrepareFrame"))
 		{
-			// Sync world settings
 			mWorldInstancingEnabled = world.InstancingEnabled;
-			mVisibility.SetLODBias(world.LODBias);
-
-			// Union visibility across all views
-			using (SProfiler.Begin("Visibility.Resolve"))
-			{
-				mVisibility.Clear();
-				for (let view in views)
-				{
-					mCuller.SetFrustum(view.ViewProjectionMatrix);
-					mVisibility.ResolveAccumulate(world, view.ViewProjectionMatrix, view.CameraPosition);
-				}
-			}
-
-			// Batch draws by material/state
-			using (SProfiler.Begin("Batcher.Build"))
-			{
-				mBatcher.Clear();
-				mBatcher.Build(world, mVisibility);
-			}
 
 			// Upload object uniforms (shared across views)
 			using (SProfiler.Begin("PrepareUniforms"))
@@ -315,41 +295,27 @@ public class DepthPrepassFeature : RenderFeatureBase
 			if (InstancingActive && mInstanceBufferManager != null)
 			{
 				using (SProfiler.Begin("UploadInstanceData"))
-					mInstanceBufferManager.UploadInstanceData(frameIndex, mBatcher);
+					mInstanceBufferManager.UploadInstanceData(frameIndex, Batcher);
 			}
 		}
 	}
 
-	public override void AddPasses(RenderGraph graph, RenderView view, RenderWorld world)
+	public override void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world)
 	{
 		using (SProfiler.Begin("DepthPrepass.AddPasses"))
 		{
 			// Create/get depth buffer (per-view dimensions)
-			let depthDesc = TextureResourceDesc(view.Width, view.Height, Renderer.DepthFormat, .DepthStencil | .Sampled);
-			let depthHandle = graph.CreateTexture("SceneDepth", depthDesc);
+			let depthDesc = RGTextureDesc(Renderer.DepthFormat, view.Width, view.Height) { Usage = .DepthStencil | .Sampled };
+			let depthHandle = graph.CreateTransient("SceneDepth", depthDesc);
 
-			let frameIndex = FrameIndex;
-			let bgIndex = GetBindGroupIndex(frameIndex);
+			let frameIndex = view.FrameIndex;
+			let bgIndex = view.GetBindGroupIndex();
 
-			// Single-view path: do visibility/batching here if PrepareFrame wasn't called
-			if (Renderer.RenderFrameContext.ViewCount <= 1)
+			// Visibility and batching handled by RenderSystem before AddPasses.
+			// Single-view path: upload object uniforms and instance data here.
+			if (view.ViewCount <= 1)
 			{
-				// Sync world settings
 				mWorldInstancingEnabled = world.InstancingEnabled;
-				mVisibility.SetLODBias(world.LODBias);
-
-				using (SProfiler.Begin("Visibility.Resolve"))
-				{
-					mCuller.SetFrustum(view.ViewProjectionMatrix);
-					mVisibility.Clear();
-					mVisibility.Resolve(world, view.ViewProjectionMatrix, view.CameraPosition);
-				}
-
-				using (SProfiler.Begin("Batcher.Build"))
-				{
-					mBatcher.Clear();
-					mBatcher.Build(world, mVisibility);
-				}
 
 				using (SProfiler.Begin("PrepareUniforms"))
 					PrepareObjectUniforms(frameIndex);
@@ -357,21 +323,22 @@ public class DepthPrepassFeature : RenderFeatureBase
 				if (InstancingActive && mInstanceBufferManager != null)
 				{
 					using (SProfiler.Begin("UploadInstanceData"))
-						mInstanceBufferManager.UploadInstanceData(frameIndex, mBatcher);
+						mInstanceBufferManager.UploadInstanceData(frameIndex, Batcher);
 				}
 			}
 
 			// Create/update bind group for current frame+view if needed
 			if (mDepthBindGroups[bgIndex] == null)
-				CreateDepthBindGroup(frameIndex);
+				CreateDepthBindGroup(frameIndex, view);
 
 			// Add depth prepass
-			graph.AddGraphicsPass("DepthPrepass")
-				.WriteDepth(depthHandle)
-				.NeverCull()
-				.SetExecuteCallback(new (encoder) => {
-					ExecuteDepthPass(encoder, world, view, frameIndex);
+			graph.AddRenderPass("DepthPrepass", scope (builder) => {
+				builder.SetDepthTarget(depthHandle, .Clear, .Store);
+				builder.NeverCull();
+				builder.SetExecute(new /*[&, =frameIndex, =bgIndex]*/(encoder) => {
+					ExecuteDepthPass(encoder, world, view, frameIndex, bgIndex);
 				});
+			});
 
 			// Add Hi-Z generation pass if enabled
 			if (mEnableHiZ && mHiZCuller.IsInitialized && mHiZCuller.GPUBuildAvailable)
@@ -379,14 +346,15 @@ public class DepthPrepassFeature : RenderFeatureBase
 				// Hi-Z needs the depth buffer as input
 				// Capture graph and depth handle for use in callback
 				RenderGraph graphRef = graph;
-				RGResourceHandle depthRef = depthHandle;
+				RGHandle depthRef = depthHandle;
 
-				graph.AddComputePass("HiZGenerate")
-					.ReadTexture(depthHandle)
-					.SetComputeCallback(new [=](encoder) => {
+				graph.AddComputePass("HiZGenerate", scope (builder) => {
+					builder.ReadTexture(depthHandle);
+					builder.SetComputeExecute(new [=](encoder) => {
 						let depthView = graphRef.GetTextureView(depthRef);
 						ExecuteHiZGeneration(encoder, depthView);
 					});
+				});
 			}
 		}
 	}
@@ -434,6 +402,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 		{
 			BufferDesc bufDesc = .()
 			{
+				Label = "DepthPrepass Object Uniforms",
 				Size = (uint64)bufferSize,
 				Usage = .Uniform,
 				Memory = .CpuToGpu // CPU-mappable
@@ -449,32 +418,26 @@ public class DepthPrepassFeature : RenderFeatureBase
 		return .Ok;
 	}
 
-	private void CreateDepthBindGroup(int32 frameIndex)
+	private void CreateDepthBindGroup(int32 frameIndex, ViewContext view)
 	{
-		let bgIndex = GetBindGroupIndex(frameIndex);
+		let bgIndex = view.GetBindGroupIndex();
 
-		// Delete old bind group if exists
+		// Destroy old bind group if exists
 		if (mDepthBindGroups[bgIndex] != null)
 		{
-			delete mDepthBindGroups[bgIndex];
-			mDepthBindGroups[bgIndex] = null;
+			Renderer.Device.DestroyBindGroup(ref mDepthBindGroups[bgIndex]);
 		}
 
-		// Get required buffers
-		let frameContext = Renderer.RenderFrameContext;
-		if (frameContext == null)
-			return;
-
 		// Camera buffer is per-view (SceneUniformBuffer uses active view index)
-		let cameraBuffer = frameContext.SceneUniformBuffer;
+		let cameraBuffer = view.SceneUniformBuffer;
 		let objectBuffer = mObjectUniformBuffers[frameIndex];
 		if (cameraBuffer == null || objectBuffer == null)
 			return;
 
 		// Build bind group entries
 		BindGroupEntry[2] entries = .(
-			BindGroupEntry.Buffer(0, cameraBuffer, 0, SceneUniforms.Size),
-			BindGroupEntry.Buffer(1, objectBuffer, 0, AlignedObjectUniformSize)
+			BindGroupEntry.Buffer(/*0,*/cameraBuffer, 0, SceneUniforms.Size),
+			BindGroupEntry.Buffer(/*1,*/objectBuffer, 0, AlignedObjectUniformSize)
 		);
 
 		BindGroupDesc bgDesc = .()
@@ -492,7 +455,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 	{
 		// Upload object transforms to the uniform buffer BEFORE the render pass
 		// Use Map/Unmap to avoid command buffer creation
-		let skinnedCommands = mBatcher.SkinnedCommands;
+		let skinnedCommands = Batcher.SkinnedCommands;
 
 		// Use the current frame's buffer
 		let buffer = mObjectUniformBuffers[frameIndex];
@@ -506,8 +469,8 @@ public class DepthPrepassFeature : RenderFeatureBase
 			// Static meshes - SKIP if instancing is active (instance buffer has transforms)
 			if (!InstancingActive)
 			{
-				let commands = mBatcher.DrawCommands;
-				for (let batch in mBatcher.OpaqueBatches)
+				let commands = Batcher.DrawCommands;
+				for (let batch in Batcher.OpaqueBatches)
 				{
 					if (batch.CommandCount == 0)
 						continue;
@@ -541,7 +504,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 			}
 
 			// Skinned meshes - always need uniforms (not instanced)
-			for (let batch in mBatcher.SkinnedBatches)
+			for (let batch in Batcher.SkinnedBatches)
 			{
 				if (batch.CommandCount == 0)
 					continue;
@@ -575,7 +538,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 		}
 	}
 
-	private void ExecuteDepthPass(IRenderPassEncoder encoder, RenderWorld world, RenderView view, int32 frameIndex)
+	private void ExecuteDepthPass(IRenderPassEncoder encoder, RenderWorld world, ViewContext view, int32 frameIndex, int32 bgIndex)
 	{
 		using (SProfiler.Begin("DepthPrepass.Execute"))
 		{
@@ -587,10 +550,10 @@ public class DepthPrepassFeature : RenderFeatureBase
 			var objectIndex = (int32)0;
 
 			// Use instanced path if available and has instance groups
-			if (InstancingActive && mDepthInstancedPipeline != null && mBatcher.OpaqueInstanceGroups.Length > 0)
+			if (InstancingActive && mDepthInstancedPipeline != null && Batcher.OpaqueInstanceGroups.Length > 0)
 			{
 				using (SProfiler.Begin("InstancedDraw"))
-					ExecuteInstancedDepthPass(encoder, frameIndex);
+					ExecuteInstancedDepthPass(encoder, frameIndex, bgIndex);
 				// Instanced path doesn't use uniform buffer for static meshes,
 				// skinned uniforms start at index 0 (we skipped static mesh uploads)
 				objectIndex = 0;
@@ -599,16 +562,16 @@ public class DepthPrepassFeature : RenderFeatureBase
 			{
 				// Fall back to non-instanced path
 				using (SProfiler.Begin("NonInstancedDraw"))
-					ExecuteNonInstancedDepthPass(encoder, frameIndex, ref objectIndex);
+					ExecuteNonInstancedDepthPass(encoder, frameIndex, bgIndex, ref objectIndex);
 			}
 
 			// Render skinned meshes (always non-instanced)
 			using (SProfiler.Begin("SkinnedMeshes"))
-				RenderSkinnedMeshesDepth(encoder, world, frameIndex, ref objectIndex);
+				RenderSkinnedMeshesDepth(encoder, world, frameIndex, bgIndex, ref objectIndex);
 		}
 	}
 
-	private void ExecuteInstancedDepthPass(IRenderPassEncoder encoder, int32 frameIndex)
+	private void ExecuteInstancedDepthPass(IRenderPassEncoder encoder, int32 frameIndex, int32 bgIndex)
 	{
 		// Set instanced depth pipeline
 		encoder.SetPipeline(mDepthInstancedPipeline);
@@ -619,7 +582,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 			return;
 
 		// Bind depth bind group for camera uniforms (dynamic offset 0 - object uniforms not used with instancing)
-		let bindGroup = mDepthBindGroups[GetBindGroupIndex(frameIndex)];
+		let bindGroup = mDepthBindGroups[bgIndex];
 		if (bindGroup != null)
 		{
 			uint32[1] dynamicOffsets = .(0);
@@ -627,7 +590,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 		}
 
 		// Render opaque instance groups
-		for (let group in mBatcher.OpaqueInstanceGroups)
+		for (let group in Batcher.OpaqueInstanceGroups)
 		{
 			if (group.InstanceCount == 0)
 				continue;
@@ -673,20 +636,20 @@ public class DepthPrepassFeature : RenderFeatureBase
 		}
 	}
 
-	private void ExecuteNonInstancedDepthPass(IRenderPassEncoder encoder, int32 frameIndex, ref int32 objectIndex)
+	private void ExecuteNonInstancedDepthPass(IRenderPassEncoder encoder, int32 frameIndex, int32 bgIndex, ref int32 objectIndex)
 	{
 		// Set depth pipeline
 		if (mDepthPipeline != null)
 			encoder.SetPipeline(mDepthPipeline);
 
 		// Get draw commands from batcher (uniforms already uploaded in PrepareObjectUniforms)
-		let commands = mBatcher.DrawCommands;
+		let commands = Batcher.DrawCommands;
 
 		// Get current frame+view's bind group
-		let bindGroup = mDepthBindGroups[GetBindGroupIndex(frameIndex)];
+		let bindGroup = mDepthBindGroups[bgIndex];
 
 		// Render opaque batches with dynamic offsets
-		for (let batch in mBatcher.OpaqueBatches)
+		for (let batch in Batcher.OpaqueBatches)
 		{
 			if (batch.CommandCount == 0)
 				continue;
@@ -744,11 +707,11 @@ public class DepthPrepassFeature : RenderFeatureBase
 		}
 	}
 
-	private void RenderSkinnedMeshesDepth(IRenderPassEncoder encoder, RenderWorld world, int32 frameIndex, ref int32 objectIndex)
+	private void RenderSkinnedMeshesDepth(IRenderPassEncoder encoder, RenderWorld world, int32 frameIndex, int32 bgIndex, ref int32 objectIndex)
 	{
-		// Get GPU skinning feature to access skinned vertex buffers
-		let skinningFeature = Renderer.GetFeature<GPUSkinningFeature>();
-		if (skinningFeature == null)
+		// Get skinning system to access skinned vertex buffers
+		let skinningSystem = Renderer.SkinningSystem;
+		if (skinningSystem == null)
 			return;
 
 		// Switch to non-instanced pipeline for skinned meshes
@@ -756,12 +719,12 @@ public class DepthPrepassFeature : RenderFeatureBase
 		if (mDepthPipeline != null)
 			encoder.SetPipeline(mDepthPipeline);
 
-		let skinnedCommands = mBatcher.SkinnedCommands;
+		let skinnedCommands = Batcher.SkinnedCommands;
 
 		// Get current frame+view's bind group
-		let bindGroup = mDepthBindGroups[GetBindGroupIndex(frameIndex)];
+		let bindGroup = mDepthBindGroups[bgIndex];
 
-		for (let batch in mBatcher.SkinnedBatches)
+		for (let batch in Batcher.SkinnedBatches)
 		{
 			if (batch.CommandCount == 0)
 				continue;
@@ -773,8 +736,8 @@ public class DepthPrepassFeature : RenderFeatureBase
 
 				let cmd = skinnedCommands[batch.CommandStart + i];
 
-				// Get the skinned vertex buffer from GPU skinning feature
-				let skinnedVertexBuffer = skinningFeature.GetSkinnedVertexBuffer(world, cmd.MeshHandle);
+				// Get the skinned vertex buffer from skinning system
+				let skinnedVertexBuffer = skinningSystem.GetSkinnedVertexBuffer(world, cmd.MeshHandle);
 				if (skinnedVertexBuffer == null)
 					continue;
 

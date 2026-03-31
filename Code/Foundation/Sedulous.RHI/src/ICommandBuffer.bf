@@ -1,8 +1,8 @@
 namespace Sedulous.RHI;
 
-using System;
-
 /// An immutable, recorded command buffer ready for submission.
-interface ICommandBuffer : IDisposable
+/// Created by calling ICommandEncoder.Finish().
+/// Owned by its command pool — destroyed when the pool is reset or destroyed.
+interface ICommandBuffer
 {
 }

@@ -4,1184 +4,713 @@ using System;
 using System.Collections;
 using Bulkan;
 using Sedulous.RHI;
-using Sedulous.RHI.Vulkan.Internal;
 
-/// Vulkan implementation of ICommandEncoder.
-class VulkanCommandEncoder : ICommandEncoder
+using static Sedulous.RHI.TextureFormatExt;
+
+/// Vulkan implementation of ICommandEncoder and IRayTracingEncoderExt.
+class VulkanCommandEncoder : ICommandEncoder, IRayTracingEncoderExt
 {
+	private VkCommandBuffer mCmdBuf;
 	private VulkanDevice mDevice;
 	private VulkanCommandPool mPool;
-	private VkCommandBuffer mCommandBuffer;
-	private bool mIsRecording;
-	private bool mFinished;
+	private VulkanRenderPassEncoder mRenderPassEncoder;
+	private VulkanComputePassEncoder mComputePassEncoder;
+	private VulkanRayTracingPipeline mCurrentRtPipeline;
 
-	// Track render passes created during encoding for cleanup
-	private List<VkRenderPass> mCreatedRenderPasses = new .() ~ delete _;
-	private List<VkFramebuffer> mCreatedFramebuffers = new .() ~ delete _;
-
-	public this(VulkanDevice device, VulkanCommandPool pool)
+	public this(VkCommandBuffer cmdBuf, VulkanDevice device, VulkanCommandPool pool)
 	{
+		mCmdBuf = cmdBuf;
 		mDevice = device;
 		mPool = pool;
-		mIsRecording = false;
-		mFinished = false;
-
-		// Allocate command buffer
-		if (pool.AllocateCommandBuffer() case .Ok(let cmdBuffer))
-		{
-			mCommandBuffer = cmdBuffer;
-			BeginRecording();
-		}
+		mRenderPassEncoder = new VulkanRenderPassEncoder(cmdBuf, device);
+		mComputePassEncoder = new VulkanComputePassEncoder(cmdBuf, device);
 	}
 
 	public ~this()
 	{
-		Cleanup();
+		delete mRenderPassEncoder;
+		delete mComputePassEncoder;
 	}
 
-	private void Cleanup()
+	public IRenderPassEncoder BeginRenderPass(RenderPassDesc desc)
 	{
-		// Clean up temporary objects
-		for (let fb in mCreatedFramebuffers)
-			VulkanNative.vkDestroyFramebuffer(mDevice.Device, fb, null);
-		mCreatedFramebuffers.Clear();
-
-		for (let rp in mCreatedRenderPasses)
-			VulkanNative.vkDestroyRenderPass(mDevice.Device, rp, null);
-		mCreatedRenderPasses.Clear();
-
-		// Free command buffer if not finished (finished transfers ownership)
-		if (!mFinished && mCommandBuffer != default && mPool != null)
+		// Build color attachments
+		VkRenderingAttachmentInfo[] colorAttachments = scope VkRenderingAttachmentInfo[desc.ColorAttachments.Count];
+		for (int i = 0; i < desc.ColorAttachments.Count; i++)
 		{
-			mPool.FreeCommandBuffer(mCommandBuffer);
-			mCommandBuffer = default;
-		}
-	}
+			let att = desc.ColorAttachments[i];
+			colorAttachments[i] = .();
+			if (let vkView = att.View as VulkanTextureView)
+				colorAttachments[i].imageView = vkView.Handle;
+			colorAttachments[i].imageLayout = .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+			colorAttachments[i].loadOp = VulkanConversions.ToVkLoadOp(att.LoadOp);
+			colorAttachments[i].storeOp = VulkanConversions.ToVkStoreOp(att.StoreOp);
+			colorAttachments[i].clearValue.color = VkClearColorValue() { float32 = .(att.ClearValue.R, att.ClearValue.G, att.ClearValue.B, att.ClearValue.A) };
 
-	/// Returns true if the encoder is valid and recording.
-	public bool IsValid => mCommandBuffer != default && mIsRecording;
-
-	private void BeginRecording()
-	{
-		VkCommandBufferBeginInfo beginInfo = .()
+			if (let resolveView = att.ResolveTarget as VulkanTextureView)
 			{
-				sType = .VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-				flags = .VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
-			};
-
-		if (VulkanNative.vkBeginCommandBuffer(mCommandBuffer, &beginInfo) == .VK_SUCCESS)
-		{
-			mIsRecording = true;
-		}
-	}
-
-	public IRenderPassEncoder BeginRenderPass(RenderPassDesc* descriptor)
-	{
-		if (!mIsRecording || mFinished)
-			return null;
-
-		// Create render pass
-		VkRenderPass renderPass = default;
-		if (!CreateRenderPass(descriptor, out renderPass))
-			return null;
-
-		mCreatedRenderPasses.Add(renderPass);
-
-		// Create framebuffer
-		VkFramebuffer framebuffer = default;
-		uint32 width = 0;
-		uint32 height = 0;
-		if (!CreateFramebuffer(descriptor, renderPass, out framebuffer, out width, out height))
-			return null;
-
-		mCreatedFramebuffers.Add(framebuffer);
-
-		// Build clear values
-		List<VkClearValue> clearValues = scope .();
-		for (let colorAttachment in descriptor.ColorAttachments)
-		{
-			VkClearValue clearValue = .();
-			// Convert uint8 (0-255) to float (0.0-1.0)
-			clearValue.color = .() { float32 = .(
-				colorAttachment.ClearValue.R / 255.0f,
-				colorAttachment.ClearValue.G / 255.0f,
-				colorAttachment.ClearValue.B / 255.0f,
-				colorAttachment.ClearValue.A / 255.0f) };
-			clearValues.Add(clearValue);
+				colorAttachments[i].resolveMode = .VK_RESOLVE_MODE_AVERAGE_BIT;
+				colorAttachments[i].resolveImageView = resolveView.Handle;
+				colorAttachments[i].resolveImageLayout = .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+			}
 		}
 
-		if (descriptor.DepthStencilAttachment.HasValue)
+		// Determine render area from first color attachment
+		VkRect2D renderArea = .();
+		if (desc.ColorAttachments.Count > 0)
 		{
-			let ds = descriptor.DepthStencilAttachment.Value;
-			VkClearValue clearValue = .();
-			clearValue.depthStencil = .() { depth = ds.DepthClearValue, stencil = ds.StencilClearValue };
-			clearValues.Add(clearValue);
-		}
-
-		// Begin render pass
-		VkRenderPassBeginInfo renderPassInfo = .()
+			if (let vkView = desc.ColorAttachments[0].View as VulkanTextureView)
 			{
-				sType = .VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-				renderPass = renderPass,
-				framebuffer = framebuffer,
-				renderArea = .() { offset = .() { x = 0, y = 0 }, extent = .() { width = width, height = height } },
-				clearValueCount = (uint32)clearValues.Count,
-				pClearValues = clearValues.Ptr
-			};
+				renderArea.extent.width = vkView.Width;
+				renderArea.extent.height = vkView.Height;
+			}
+		}
+		else if (desc.DepthStencilAttachment != null)
+		{
+			if (let vkView = desc.DepthStencilAttachment.Value.View as VulkanTextureView)
+			{
+				renderArea.extent.width = vkView.Width;
+				renderArea.extent.height = vkView.Height;
+			}
+		}
 
-		mDevice.CmdBeginLabel(mCommandBuffer, descriptor.Label);
-		VulkanNative.vkCmdBeginRenderPass(mCommandBuffer, &renderPassInfo, .VK_SUBPASS_CONTENTS_INLINE);
+		VkRenderingInfo renderingInfo = .();
+		renderingInfo.renderArea = renderArea;
+		renderingInfo.layerCount = 1;
+		renderingInfo.colorAttachmentCount = (uint32)desc.ColorAttachments.Count;
+		renderingInfo.pColorAttachments = colorAttachments.CArray();
 
-		return new VulkanRenderPassEncoder(mDevice, mCommandBuffer, !descriptor.Label.IsEmpty);
+		// Depth/stencil attachment
+		VkRenderingAttachmentInfo depthAttachment = .();
+		VkRenderingAttachmentInfo stencilAttachment = .();
+		if (desc.DepthStencilAttachment != null)
+		{
+			let ds = desc.DepthStencilAttachment.Value;
+			if (let vkView = ds.View as VulkanTextureView)
+			{
+				depthAttachment.imageView = vkView.Handle;
+				depthAttachment.imageLayout = ds.DepthReadOnly
+					? .VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
+					: .VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+				depthAttachment.loadOp = VulkanConversions.ToVkLoadOp(ds.DepthLoadOp);
+				depthAttachment.storeOp = VulkanConversions.ToVkStoreOp(ds.DepthStoreOp);
+				depthAttachment.clearValue.depthStencil = VkClearDepthStencilValue() { depth = ds.DepthClearValue, stencil = ds.StencilClearValue };
+				renderingInfo.pDepthAttachment = &depthAttachment;
+
+				// Only set stencil attachment if the format actually has a stencil component
+				if (vkView.Format.HasStencil())
+				{
+					stencilAttachment = depthAttachment;
+					stencilAttachment.loadOp = VulkanConversions.ToVkLoadOp(ds.StencilLoadOp);
+					stencilAttachment.storeOp = VulkanConversions.ToVkStoreOp(ds.StencilStoreOp);
+					renderingInfo.pStencilAttachment = &stencilAttachment;
+				}
+			}
+		}
+
+		VulkanNative.vkCmdBeginRendering(mCmdBuf, &renderingInfo);
+		return mRenderPassEncoder;
 	}
 
 	public IComputePassEncoder BeginComputePass(StringView label = default)
 	{
-		if (!mIsRecording || mFinished)
-			return null;
-
-		mDevice.CmdBeginLabel(mCommandBuffer, label);
-		return new VulkanComputePassEncoder(mDevice, mCommandBuffer, !label.IsEmpty);
+		return mComputePassEncoder;
 	}
 
-	public void CopyBufferToBuffer(IBuffer source, uint64 sourceOffset, IBuffer destination, uint64 destinationOffset, uint64 size)
+	public void Barrier(BarrierGroup barriers)
 	{
-		if (!mIsRecording || mFinished)
-			return;
+		List<VkMemoryBarrier2> memBarriers = scope .(barriers.MemoryBarriers.Length);
+		List<VkBufferMemoryBarrier2> bufBarriers = scope .(barriers.BufferBarriers.Length);
+		List<VkImageMemoryBarrier2> imgBarriers = scope .(barriers.TextureBarriers.Length);
 
-		let srcBuffer = source as VulkanBuffer;
-		let dstBuffer = destination as VulkanBuffer;
-
-		if (srcBuffer == null || dstBuffer == null)
-			return;
-
-		VkBufferCopy copyRegion = .()
-			{
-				srcOffset = sourceOffset,
-				dstOffset = destinationOffset,
-				size = size
-			};
-
-		VulkanNative.vkCmdCopyBuffer(mCommandBuffer, srcBuffer.Buffer, dstBuffer.Buffer, 1, &copyRegion);
-	}
-
-	public void CopyBufferToTexture(IBuffer source, ITexture destination, BufferTextureCopyInfo* copyInfo)
-	{
-		if (!mIsRecording || mFinished)
-			return;
-
-		let srcBuffer = source as VulkanBuffer;
-		let dstTexture = destination as VulkanTexture;
-
-		if (srcBuffer == null || dstTexture == null || copyInfo == null)
-			return;
-
-		VkBufferImageCopy region = .()
-			{
-				bufferOffset = copyInfo.BufferLayout.Offset,
-				bufferRowLength = copyInfo.BufferLayout.BytesPerRow / VulkanConversions.GetFormatBytesPerPixel(dstTexture.Format),
-				bufferImageHeight = copyInfo.BufferLayout.RowsPerImage,
-				imageSubresource = .()
-				{
-					aspectMask = VulkanConversions.GetAspectFlags(dstTexture.Format),
-					mipLevel = copyInfo.TextureMipLevel,
-					baseArrayLayer = copyInfo.TextureArrayLayer,
-					layerCount = 1
-				},
-				imageOffset = .() { x = (int32)copyInfo.TextureOrigin.X, y = (int32)copyInfo.TextureOrigin.Y, z = (int32)copyInfo.TextureOrigin.Z },
-				imageExtent = .() { width = copyInfo.CopySize.Width, height = copyInfo.CopySize.Height, depth = copyInfo.CopySize.Depth }
-			};
-
-		VulkanNative.vkCmdCopyBufferToImage(mCommandBuffer, srcBuffer.Buffer, dstTexture.Image, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-	}
-
-	public void CopyTextureToBuffer(ITexture source, IBuffer destination, BufferTextureCopyInfo* copyInfo)
-	{
-		if (!mIsRecording || mFinished)
-			return;
-
-		let srcTexture = source as VulkanTexture;
-		let dstBuffer = destination as VulkanBuffer;
-
-		if (srcTexture == null || dstBuffer == null || copyInfo == null)
-			return;
-
-		VkBufferImageCopy region = .()
-			{
-				bufferOffset = copyInfo.BufferLayout.Offset,
-				bufferRowLength = copyInfo.BufferLayout.BytesPerRow / VulkanConversions.GetFormatBytesPerPixel(srcTexture.Format),
-				bufferImageHeight = copyInfo.BufferLayout.RowsPerImage,
-				imageSubresource = .()
-				{
-					aspectMask = VulkanConversions.GetAspectFlags(srcTexture.Format),
-					mipLevel = copyInfo.TextureMipLevel,
-					baseArrayLayer = copyInfo.TextureArrayLayer,
-					layerCount = 1
-				},
-				imageOffset = .() { x = (int32)copyInfo.TextureOrigin.X, y = (int32)copyInfo.TextureOrigin.Y, z = (int32)copyInfo.TextureOrigin.Z },
-				imageExtent = .() { width = copyInfo.CopySize.Width, height = copyInfo.CopySize.Height, depth = copyInfo.CopySize.Depth }
-			};
-
-		VulkanNative.vkCmdCopyImageToBuffer(mCommandBuffer, srcTexture.Image, .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dstBuffer.Buffer, 1, &region);
-	}
-
-	public void CopyTextureToTexture(ITexture source, ITexture destination, TextureCopyInfo* copyInfo)
-	{
-		if (!mIsRecording || mFinished)
-			return;
-
-		let srcTexture = source as VulkanTexture;
-		let dstTexture = destination as VulkanTexture;
-
-		if (srcTexture == null || dstTexture == null || copyInfo == null)
-			return;
-
-		VkImageCopy region = .()
-			{
-				srcSubresource = .()
-				{
-					aspectMask = VulkanConversions.GetAspectFlags(srcTexture.Format),
-					mipLevel = copyInfo.SrcMipLevel,
-					baseArrayLayer = copyInfo.SrcArrayLayer,
-					layerCount = 1
-				},
-				srcOffset = .() { x = (int32)copyInfo.SrcOrigin.X, y = (int32)copyInfo.SrcOrigin.Y, z = (int32)copyInfo.SrcOrigin.Z },
-				dstSubresource = .()
-				{
-					aspectMask = VulkanConversions.GetAspectFlags(dstTexture.Format),
-					mipLevel = copyInfo.DstMipLevel,
-					baseArrayLayer = copyInfo.DstArrayLayer,
-					layerCount = 1
-				},
-				dstOffset = .() { x = (int32)copyInfo.DstOrigin.X, y = (int32)copyInfo.DstOrigin.Y, z = (int32)copyInfo.DstOrigin.Z },
-				extent = .() { width = copyInfo.CopySize.Width, height = copyInfo.CopySize.Height, depth = copyInfo.CopySize.Depth }
-			};
-
-		VulkanNative.vkCmdCopyImage(mCommandBuffer, srcTexture.Image, .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dstTexture.Image, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-	}
-
-	public void TextureBarrier(ITexture texture, TextureLayout oldLayout, TextureLayout newLayout)
-	{
-		if (!mIsRecording || mFinished)
-			return;
-
-		let vkTexture = texture as VulkanTexture;
-		if (vkTexture == null)
-			return;
-
-		VkImageLayout vkOldLayout = ToVkImageLayout(oldLayout);
-		VkImageLayout vkNewLayout = ToVkImageLayout(newLayout);
-
-		// Determine access masks and pipeline stages based on layouts
-		VkAccessFlags srcAccess = default;
-		VkAccessFlags dstAccess = default;
-		VkPipelineStageFlags srcStage = default;
-		VkPipelineStageFlags dstStage = default;
-
-		// Source layout access
-		switch (oldLayout)
+		// Memory barriers
+		for (let mb in barriers.MemoryBarriers)
 		{
-		case .Undefined:
-			srcAccess = 0;
-			srcStage = .VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-		case .ColorAttachment:
-			srcAccess = .VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-			srcStage = .VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		case .DepthStencilAttachment:
-			// Include both READ and WRITE since depth test reads, and both early and late fragment tests
-			srcAccess = .VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | .VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-			srcStage = .VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | .VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-		case .DepthStencilReadOnly:
-			// Read-only depth test + shader sampling
-			srcAccess = .VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | .VK_ACCESS_SHADER_READ_BIT;
-			srcStage = .VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | .VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT | .VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-		case .ShaderReadOnly:
-			srcAccess = .VK_ACCESS_SHADER_READ_BIT;
-			// Include vertex, fragment, and compute shader stages since textures can be sampled in any
-			srcStage = .VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | .VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | .VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
-		case .TransferSrc:
-			srcAccess = .VK_ACCESS_TRANSFER_READ_BIT;
-			srcStage = .VK_PIPELINE_STAGE_TRANSFER_BIT;
-		case .TransferDst:
-			srcAccess = .VK_ACCESS_TRANSFER_WRITE_BIT;
-			srcStage = .VK_PIPELINE_STAGE_TRANSFER_BIT;
-		case .Present:
-			srcAccess = 0;
-			srcStage = .VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-		case .General:
-			srcAccess = .VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT;
-			srcStage = .VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+			let src = VulkanBarrierHelper.GetStageAccess(mb.OldState);
+			let dst = VulkanBarrierHelper.GetStageAccess(mb.NewState);
+			VkMemoryBarrier2 vkBarrier = .();
+			vkBarrier.srcStageMask = src.StageMask;
+			vkBarrier.srcAccessMask = src.AccessMask;
+			vkBarrier.dstStageMask = dst.StageMask;
+			vkBarrier.dstAccessMask = dst.AccessMask;
+			memBarriers.Add(vkBarrier);
 		}
 
-		// Destination layout access
-		switch (newLayout)
+		// Buffer barriers
+		for (let bb in barriers.BufferBarriers)
 		{
-		case .Undefined:
-			dstAccess = 0;
-			dstStage = .VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-		case .ColorAttachment:
-			dstAccess = .VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | .VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-			dstStage = .VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		case .DepthStencilAttachment:
-			dstAccess = .VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | .VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-			dstStage = .VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | .VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-		case .DepthStencilReadOnly:
-			// Read-only depth test + shader sampling
-			dstAccess = .VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | .VK_ACCESS_SHADER_READ_BIT;
-			dstStage = .VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | .VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT | .VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-		case .ShaderReadOnly:
-			dstAccess = .VK_ACCESS_SHADER_READ_BIT;
-			// Include vertex, fragment, and compute shader stages since textures can be sampled in any
-			dstStage = .VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | .VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | .VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
-		case .TransferSrc:
-			dstAccess = .VK_ACCESS_TRANSFER_READ_BIT;
-			dstStage = .VK_PIPELINE_STAGE_TRANSFER_BIT;
-		case .TransferDst:
-			dstAccess = .VK_ACCESS_TRANSFER_WRITE_BIT;
-			dstStage = .VK_PIPELINE_STAGE_TRANSFER_BIT;
-		case .Present:
-			dstAccess = 0;
-			dstStage = .VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-		case .General:
-			dstAccess = .VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT;
-			dstStage = .VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+			let src = VulkanBarrierHelper.GetStageAccess(bb.OldState);
+			let dst = VulkanBarrierHelper.GetStageAccess(bb.NewState);
+			VkBufferMemoryBarrier2 vkBarrier = .();
+			vkBarrier.srcStageMask = src.StageMask;
+			vkBarrier.srcAccessMask = src.AccessMask;
+			vkBarrier.dstStageMask = dst.StageMask;
+			vkBarrier.dstAccessMask = dst.AccessMask;
+			vkBarrier.srcQueueFamilyIndex = VulkanNative.VK_QUEUE_FAMILY_IGNORED;
+			vkBarrier.dstQueueFamilyIndex = VulkanNative.VK_QUEUE_FAMILY_IGNORED;
+			if (let vkBuf = bb.Buffer as VulkanBuffer)
+				vkBarrier.buffer = vkBuf.Handle;
+			vkBarrier.offset = bb.Offset;
+			vkBarrier.size = (bb.Size == uint64.MaxValue) ? VulkanNative.VK_WHOLE_SIZE : bb.Size;
+			bufBarriers.Add(vkBarrier);
 		}
 
-		VkImageMemoryBarrier barrier = .()
+		// Texture barriers
+		for (let tb in barriers.TextureBarriers)
 		{
-			sType = .VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-			oldLayout = vkOldLayout,
-			newLayout = vkNewLayout,
-			srcQueueFamilyIndex = VulkanNative.VK_QUEUE_FAMILY_IGNORED,
-			dstQueueFamilyIndex = VulkanNative.VK_QUEUE_FAMILY_IGNORED,
-			image = vkTexture.Image,
-			subresourceRange = .()
-			{
-				aspectMask = VulkanConversions.GetAspectFlags(vkTexture.Format),
-				baseMipLevel = 0,
-				levelCount = vkTexture.MipLevelCount,
-				baseArrayLayer = 0,
-				layerCount = vkTexture.ArrayLayerCount  // Transition all array layers
-			},
-			srcAccessMask = srcAccess,
-			dstAccessMask = dstAccess
-		};
+			let src = VulkanBarrierHelper.GetStageAccess(tb.OldState);
+			let dst = VulkanBarrierHelper.GetStageAccess(tb.NewState);
 
-		VulkanNative.vkCmdPipelineBarrier(
-			mCommandBuffer,
-			srcStage,
-			dstStage,
-			0,
-			0, null,
-			0, null,
-			1, &barrier
-		);
+			TextureFormat format = .Undefined;
+			VulkanTexture vkTex = tb.Texture as VulkanTexture;
+			if (vkTex != null)
+				format = vkTex.Desc.Format;
+
+			let newLayout = VulkanBarrierHelper.GetImageLayout(tb.NewState);
+
+			let resolvedOldLayout = (vkTex != null) ? vkTex.CurrentLayout : VulkanBarrierHelper.GetImageLayout(tb.OldState);
+
+			VkImageMemoryBarrier2 vkBarrier = .();
+			// When the actual old layout is UNDEFINED (first use), there is no prior
+			// work to synchronize against — use TOP_OF_PIPE with no access flags.
+			if (resolvedOldLayout == .VK_IMAGE_LAYOUT_UNDEFINED)
+			{
+				vkBarrier.srcStageMask = (uint64)VkPipelineStageFlags2.VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
+				vkBarrier.srcAccessMask = 0;
+			}
+			else
+			{
+				vkBarrier.srcStageMask = src.StageMask;
+				vkBarrier.srcAccessMask = src.AccessMask;
+			}
+			vkBarrier.dstStageMask = dst.StageMask;
+			vkBarrier.dstAccessMask = dst.AccessMask;
+			vkBarrier.oldLayout = resolvedOldLayout;
+			vkBarrier.newLayout = newLayout;
+			vkBarrier.srcQueueFamilyIndex = VulkanNative.VK_QUEUE_FAMILY_IGNORED;
+			vkBarrier.dstQueueFamilyIndex = VulkanNative.VK_QUEUE_FAMILY_IGNORED;
+			if (vkTex != null)
+			{
+				vkBarrier.image = vkTex.Handle;
+				vkTex.CurrentLayout = newLayout;
+			}
+			vkBarrier.subresourceRange.aspectMask = VulkanConversions.GetAspectMask(format);
+			vkBarrier.subresourceRange.baseMipLevel = tb.BaseMipLevel;
+			vkBarrier.subresourceRange.levelCount = (tb.MipLevelCount == uint32.MaxValue) ? VulkanNative.VK_REMAINING_MIP_LEVELS : tb.MipLevelCount;
+			vkBarrier.subresourceRange.baseArrayLayer = tb.BaseArrayLayer;
+			vkBarrier.subresourceRange.layerCount = (tb.ArrayLayerCount == uint32.MaxValue) ? VulkanNative.VK_REMAINING_ARRAY_LAYERS : tb.ArrayLayerCount;
+			imgBarriers.Add(vkBarrier);
+		}
+
+		VkDependencyInfo depInfo = .();
+		depInfo.memoryBarrierCount = (uint32)memBarriers.Count;
+		depInfo.pMemoryBarriers = memBarriers.Ptr;
+		depInfo.bufferMemoryBarrierCount = (uint32)bufBarriers.Count;
+		depInfo.pBufferMemoryBarriers = bufBarriers.Ptr;
+		depInfo.imageMemoryBarrierCount = (uint32)imgBarriers.Count;
+		depInfo.pImageMemoryBarriers = imgBarriers.Ptr;
+
+		VulkanNative.vkCmdPipelineBarrier2(mCmdBuf, &depInfo);
 	}
 
-	public static VkImageLayout ToVkImageLayout(TextureLayout layout)
+	public void CopyBufferToBuffer(IBuffer src, uint64 srcOffset, IBuffer dst, uint64 dstOffset, uint64 size)
 	{
-		switch (layout)
-		{
-		case .Undefined: return .VK_IMAGE_LAYOUT_UNDEFINED;
-		case .General: return .VK_IMAGE_LAYOUT_GENERAL;
-		case .ColorAttachment: return .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		case .DepthStencilAttachment: return .VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-		case .DepthStencilReadOnly: return .VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
-		case .ShaderReadOnly: return .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		case .TransferSrc: return .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-		case .TransferDst: return .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		case .Present: return .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		}
+		let vkSrc = src as VulkanBuffer;
+		let vkDst = dst as VulkanBuffer;
+		if (vkSrc == null || vkDst == null) return;
+
+		VkBufferCopy region = .();
+		region.srcOffset = srcOffset;
+		region.dstOffset = dstOffset;
+		region.size = size;
+		VulkanNative.vkCmdCopyBuffer(mCmdBuf, vkSrc.Handle, vkDst.Handle, 1, &region);
+	}
+
+	public void CopyBufferToTexture(IBuffer src, ITexture dst, BufferTextureCopyRegion region)
+	{
+		let vkSrc = src as VulkanBuffer;
+		let vkDst = dst as VulkanTexture;
+		if (vkSrc == null || vkDst == null) return;
+
+		let bpp = vkDst.Desc.Format.BytesPerPixel();
+
+		VkBufferImageCopy copy = .();
+		copy.bufferOffset = region.BufferOffset;
+		copy.bufferRowLength = (bpp > 0 && region.BytesPerRow > 0) ? region.BytesPerRow / bpp : 0;
+		copy.bufferImageHeight = region.RowsPerImage;
+		copy.imageSubresource.aspectMask = VulkanConversions.GetAspectMask(vkDst.Desc.Format);
+		copy.imageSubresource.mipLevel = region.TextureMipLevel;
+		copy.imageSubresource.baseArrayLayer = region.TextureArrayLayer;
+		copy.imageSubresource.layerCount = 1;
+		copy.imageExtent.width = region.TextureExtent.Width;
+		copy.imageExtent.height = region.TextureExtent.Height;
+		copy.imageExtent.depth = region.TextureExtent.Depth;
+
+		VulkanNative.vkCmdCopyBufferToImage(mCmdBuf, vkSrc.Handle, vkDst.Handle,
+			.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+	}
+
+	public void CopyTextureToBuffer(ITexture src, IBuffer dst, BufferTextureCopyRegion region)
+	{
+		let vkSrc = src as VulkanTexture;
+		let vkDst = dst as VulkanBuffer;
+		if (vkSrc == null || vkDst == null) return;
+
+		let bpp = vkSrc.Desc.Format.BytesPerPixel();
+
+		VkBufferImageCopy copy = .();
+		copy.bufferOffset = region.BufferOffset;
+		copy.bufferRowLength = (bpp > 0 && region.BytesPerRow > 0) ? region.BytesPerRow / bpp : 0;
+		copy.bufferImageHeight = region.RowsPerImage;
+		copy.imageSubresource.aspectMask = VulkanConversions.GetAspectMask(vkSrc.Desc.Format);
+		copy.imageSubresource.mipLevel = region.TextureMipLevel;
+		copy.imageSubresource.baseArrayLayer = region.TextureArrayLayer;
+		copy.imageSubresource.layerCount = 1;
+		copy.imageExtent.width = region.TextureExtent.Width;
+		copy.imageExtent.height = region.TextureExtent.Height;
+		copy.imageExtent.depth = region.TextureExtent.Depth;
+
+		VulkanNative.vkCmdCopyImageToBuffer(mCmdBuf, vkSrc.Handle,
+			.VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, vkDst.Handle, 1, &copy);
+	}
+
+	public void CopyTextureToTexture(ITexture src, ITexture dst, TextureCopyRegion region)
+	{
+		let vkSrc = src as VulkanTexture;
+		let vkDst = dst as VulkanTexture;
+		if (vkSrc == null || vkDst == null) return;
+
+		VkImageCopy copy = .();
+		copy.srcSubresource.aspectMask = VulkanConversions.GetAspectMask(vkSrc.Desc.Format);
+		copy.srcSubresource.mipLevel = region.SrcMipLevel;
+		copy.srcSubresource.baseArrayLayer = region.SrcArrayLayer;
+		copy.srcSubresource.layerCount = 1;
+		copy.dstSubresource.aspectMask = VulkanConversions.GetAspectMask(vkDst.Desc.Format);
+		copy.dstSubresource.mipLevel = region.DstMipLevel;
+		copy.dstSubresource.baseArrayLayer = region.DstArrayLayer;
+		copy.dstSubresource.layerCount = 1;
+		copy.extent.width = region.Extent.Width;
+		copy.extent.height = region.Extent.Height;
+		copy.extent.depth = region.Extent.Depth;
+
+		VulkanNative.vkCmdCopyImage(mCmdBuf, vkSrc.Handle, .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+			vkDst.Handle, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+	}
+
+	public void Blit(ITexture src, ITexture dst)
+	{
+		let vkSrc = src as VulkanTexture;
+		let vkDst = dst as VulkanTexture;
+		if (vkSrc == null || vkDst == null) return;
+
+		VkImageBlit blit = .();
+		blit.srcSubresource.aspectMask = VulkanConversions.GetAspectMask(vkSrc.Desc.Format);
+		blit.srcSubresource.mipLevel = 0;
+		blit.srcSubresource.baseArrayLayer = 0;
+		blit.srcSubresource.layerCount = 1;
+		blit.srcOffsets[0] = VkOffset3D() { x = 0, y = 0, z = 0 };
+		blit.srcOffsets[1] = VkOffset3D() { x = (int32)vkSrc.Desc.Width, y = (int32)vkSrc.Desc.Height, z = 1 };
+
+		blit.dstSubresource.aspectMask = VulkanConversions.GetAspectMask(vkDst.Desc.Format);
+		blit.dstSubresource.mipLevel = 0;
+		blit.dstSubresource.baseArrayLayer = 0;
+		blit.dstSubresource.layerCount = 1;
+		blit.dstOffsets[0] = VkOffset3D() { x = 0, y = 0, z = 0 };
+		blit.dstOffsets[1] = VkOffset3D() { x = (int32)vkDst.Desc.Width, y = (int32)vkDst.Desc.Height, z = 1 };
+
+		VulkanNative.vkCmdBlitImage(mCmdBuf,
+			vkSrc.Handle, .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+			vkDst.Handle, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			1, &blit, .VK_FILTER_LINEAR);
 	}
 
 	public void GenerateMipmaps(ITexture texture)
 	{
-		if (!mIsRecording || mFinished)
-			return;
+		let vkTex = texture as VulkanTexture;
+		if (vkTex == null) return;
 
-		let vkTexture = texture as VulkanTexture;
-		if (vkTexture == null)
-			return;
+		let desc = vkTex.Desc;
+		if (desc.MipLevelCount <= 1) return;
 
-		let mipLevels = vkTexture.MipLevelCount;
-		if (mipLevels <= 1)
-			return; // Nothing to generate
+		int32 mipWidth = (int32)desc.Width;
+		int32 mipHeight = (int32)desc.Height;
+		let aspect = VulkanConversions.GetAspectMask(desc.Format);
+		uint32 layerCount = desc.ArrayLayerCount;
 
-		int32 mipWidth = (int32)vkTexture.Width;
-		int32 mipHeight = (int32)vkTexture.Height;
-		let aspectMask = VulkanConversions.GetAspectFlags(vkTexture.Format);
-
-		// Transition mip level 0 to transfer_src
-		// Use UNDEFINED as old layout to handle any previous state (WriteTexture leaves it in SHADER_READ_ONLY)
-		VkImageMemoryBarrier barrier = .()
+		for (uint32 i = 1; i < desc.MipLevelCount; i++)
 		{
-			sType = .VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-			srcQueueFamilyIndex = VulkanNative.VK_QUEUE_FAMILY_IGNORED,
-			dstQueueFamilyIndex = VulkanNative.VK_QUEUE_FAMILY_IGNORED,
-			image = vkTexture.Image,
-			subresourceRange = .()
-			{
-				aspectMask = aspectMask,
-				baseMipLevel = 0,
-				levelCount = 1,
-				baseArrayLayer = 0,
-				layerCount = 1
-			},
-			oldLayout = .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, // WriteTexture leaves it in this state
-			newLayout = .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-			srcAccessMask = .VK_ACCESS_SHADER_READ_BIT,
-			dstAccessMask = .VK_ACCESS_TRANSFER_READ_BIT
-		};
+			// Transition mip i-1 to TRANSFER_SRC
+			VkImageMemoryBarrier2 srcBarrier = .();
+			srcBarrier.srcStageMask = (uint64)VkPipelineStageFlags2.VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT;
+			srcBarrier.srcAccessMask = (uint64)VkAccessFlags2.VK_ACCESS_2_TRANSFER_WRITE_BIT;
+			srcBarrier.dstStageMask = (uint64)VkPipelineStageFlags2.VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT;
+			srcBarrier.dstAccessMask = (uint64)VkAccessFlags2.VK_ACCESS_2_TRANSFER_READ_BIT;
+			srcBarrier.oldLayout = .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+			srcBarrier.newLayout = .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+			srcBarrier.image = vkTex.Handle;
+			srcBarrier.subresourceRange.aspectMask = aspect;
+			srcBarrier.subresourceRange.baseMipLevel = i - 1;
+			srcBarrier.subresourceRange.levelCount = 1;
+			srcBarrier.subresourceRange.baseArrayLayer = 0;
+			srcBarrier.subresourceRange.layerCount = layerCount;
 
-		VulkanNative.vkCmdPipelineBarrier(
-			mCommandBuffer,
-			.VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-			.VK_PIPELINE_STAGE_TRANSFER_BIT,
-			0,
-			0, null,
-			0, null,
-			1, &barrier
-		);
+			// For the first mip, the caller should have transitioned mip 0 to TRANSFER_DST already
+			if (i == 1)
+				srcBarrier.oldLayout = .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 
-		// Generate each mip level by blitting from the previous level
-		for (uint32 i = 1; i < mipLevels; i++)
-		{
-			// Transition current mip level to transfer dst
-			barrier.subresourceRange.baseMipLevel = i;
-			barrier.oldLayout = .VK_IMAGE_LAYOUT_UNDEFINED;
-			barrier.newLayout = .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-			barrier.srcAccessMask = 0;
-			barrier.dstAccessMask = .VK_ACCESS_TRANSFER_WRITE_BIT;
+			VkDependencyInfo dep = .();
+			dep.imageMemoryBarrierCount = 1;
+			dep.pImageMemoryBarriers = &srcBarrier;
+			VulkanNative.vkCmdPipelineBarrier2(mCmdBuf, &dep);
 
-			VulkanNative.vkCmdPipelineBarrier(
-				mCommandBuffer,
-				.VK_PIPELINE_STAGE_TRANSFER_BIT,
-				.VK_PIPELINE_STAGE_TRANSFER_BIT,
-				0,
-				0, null,
-				0, null,
-				1, &barrier
-			);
+			// Blit from mip i-1 to mip i
+			int32 nextWidth = Math.Max(1, mipWidth / 2);
+			int32 nextHeight = Math.Max(1, mipHeight / 2);
 
-			// Calculate destination dimensions
-			int32 dstWidth = mipWidth > 1 ? mipWidth / 2 : 1;
-			int32 dstHeight = mipHeight > 1 ? mipHeight / 2 : 1;
+			VkImageBlit blit = .();
+			blit.srcSubresource.aspectMask = aspect;
+			blit.srcSubresource.mipLevel = i - 1;
+			blit.srcSubresource.baseArrayLayer = 0;
+			blit.srcSubresource.layerCount = layerCount;
+			blit.srcOffsets[0] = VkOffset3D() { x = 0, y = 0, z = 0 };
+			blit.srcOffsets[1] = VkOffset3D() { x = mipWidth, y = mipHeight, z = 1 };
 
-			// Blit from previous level to current level
-			VkImageBlit blit = .()
-			{
-				srcSubresource = .()
-				{
-					aspectMask = aspectMask,
-					mipLevel = i - 1,
-					baseArrayLayer = 0,
-					layerCount = 1
-				},
-				srcOffsets = .(
-					.() { x = 0, y = 0, z = 0 },
-					.() { x = mipWidth, y = mipHeight, z = 1 }
-				),
-				dstSubresource = .()
-				{
-					aspectMask = aspectMask,
-					mipLevel = i,
-					baseArrayLayer = 0,
-					layerCount = 1
-				},
-				dstOffsets = .(
-					.() { x = 0, y = 0, z = 0 },
-					.() { x = dstWidth, y = dstHeight, z = 1 }
-				)
-			};
+			blit.dstSubresource.aspectMask = aspect;
+			blit.dstSubresource.mipLevel = i;
+			blit.dstSubresource.baseArrayLayer = 0;
+			blit.dstSubresource.layerCount = layerCount;
+			blit.dstOffsets[0] = VkOffset3D() { x = 0, y = 0, z = 0 };
+			blit.dstOffsets[1] = VkOffset3D() { x = nextWidth, y = nextHeight, z = 1 };
 
-			VulkanNative.vkCmdBlitImage(
-				mCommandBuffer,
-				vkTexture.Image, .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-				vkTexture.Image, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-				1, &blit,
-				.VK_FILTER_LINEAR
-			);
+			VulkanNative.vkCmdBlitImage(mCmdBuf,
+				vkTex.Handle, .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+				vkTex.Handle, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+				1, &blit, .VK_FILTER_LINEAR);
 
-			// Transition current mip level to transfer src for the next iteration
-			barrier.oldLayout = .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-			barrier.newLayout = .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-			barrier.srcAccessMask = .VK_ACCESS_TRANSFER_WRITE_BIT;
-			barrier.dstAccessMask = .VK_ACCESS_TRANSFER_READ_BIT;
-
-			VulkanNative.vkCmdPipelineBarrier(
-				mCommandBuffer,
-				.VK_PIPELINE_STAGE_TRANSFER_BIT,
-				.VK_PIPELINE_STAGE_TRANSFER_BIT,
-				0,
-				0, null,
-				0, null,
-				1, &barrier
-			);
-
-			// Update dimensions for next iteration
-			mipWidth = dstWidth;
-			mipHeight = dstHeight;
+			mipWidth = nextWidth;
+			mipHeight = nextHeight;
 		}
 
-		// Transition all mip levels to shader read optimal
-		barrier.subresourceRange.baseMipLevel = 0;
-		barrier.subresourceRange.levelCount = mipLevels;
-		barrier.oldLayout = .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-		barrier.newLayout = .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		barrier.srcAccessMask = .VK_ACCESS_TRANSFER_READ_BIT;
-		barrier.dstAccessMask = .VK_ACCESS_SHADER_READ_BIT;
+		// Transition last mip level from DST to SRC (so all mips are in SRC)
+		VkImageMemoryBarrier2 lastBarrier = .();
+		lastBarrier.srcStageMask = (uint64)VkPipelineStageFlags2.VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT;
+		lastBarrier.srcAccessMask = (uint64)VkAccessFlags2.VK_ACCESS_2_TRANSFER_WRITE_BIT;
+		lastBarrier.dstStageMask = (uint64)VkPipelineStageFlags2.VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT;
+		lastBarrier.dstAccessMask = (uint64)VkAccessFlags2.VK_ACCESS_2_TRANSFER_READ_BIT;
+		lastBarrier.oldLayout = .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		lastBarrier.newLayout = .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		lastBarrier.image = vkTex.Handle;
+		lastBarrier.subresourceRange.aspectMask = aspect;
+		lastBarrier.subresourceRange.baseMipLevel = desc.MipLevelCount - 1;
+		lastBarrier.subresourceRange.levelCount = 1;
+		lastBarrier.subresourceRange.baseArrayLayer = 0;
+		lastBarrier.subresourceRange.layerCount = layerCount;
 
-		VulkanNative.vkCmdPipelineBarrier(
-			mCommandBuffer,
-			.VK_PIPELINE_STAGE_TRANSFER_BIT,
-			.VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-			0,
-			0, null,
-			0, null,
-			1, &barrier
-		);
+		VkDependencyInfo lastDep = .();
+		lastDep.imageMemoryBarrierCount = 1;
+		lastDep.pImageMemoryBarriers = &lastBarrier;
+		VulkanNative.vkCmdPipelineBarrier2(mCmdBuf, &lastDep);
 	}
 
-	public void ResetQuerySet(IQuerySet querySet, uint32 firstQuery, uint32 queryCount)
+	public void ResolveTexture(ITexture src, ITexture dst)
 	{
-		if (!mIsRecording || mFinished)
-			return;
+		let vkSrc = src as VulkanTexture;
+		let vkDst = dst as VulkanTexture;
+		if (vkSrc == null || vkDst == null) return;
 
-		let vkQuerySet = querySet as VulkanQuerySet;
-		if (vkQuerySet == null)
-			return;
+		let aspect = VulkanConversions.GetAspectMask(vkSrc.Desc.Format);
 
-		VulkanNative.vkCmdResetQueryPool(mCommandBuffer, vkQuerySet.QueryPool, firstQuery, queryCount);
+		VkImageResolve region = .();
+		region.srcSubresource.aspectMask = aspect;
+		region.srcSubresource.mipLevel = 0;
+		region.srcSubresource.baseArrayLayer = 0;
+		region.srcSubresource.layerCount = 1;
+		region.dstSubresource.aspectMask = aspect;
+		region.dstSubresource.mipLevel = 0;
+		region.dstSubresource.baseArrayLayer = 0;
+		region.dstSubresource.layerCount = 1;
+		region.extent = VkExtent3D() { width = vkSrc.Desc.Width, height = vkSrc.Desc.Height, depth = 1 };
+
+		VulkanNative.vkCmdResolveImage(mCmdBuf,
+			vkSrc.Handle, .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+			vkDst.Handle, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			1, &region);
 	}
 
-	public void WriteTimestamp(IQuerySet querySet, uint32 queryIndex)
+	public void ResetQuerySet(IQuerySet querySet, uint32 first, uint32 count)
 	{
-		if (!mIsRecording || mFinished)
-			return;
-
-		let vkQuerySet = querySet as VulkanQuerySet;
-		if (vkQuerySet == null || vkQuerySet.Type != .Timestamp)
-			return;
-
-		// Write timestamp at the bottom of the pipeline (after all previous commands complete)
-		VulkanNative.vkCmdWriteTimestamp(mCommandBuffer, .VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, vkQuerySet.QueryPool, queryIndex);
+		if (let vkQs = querySet as VulkanQuerySet)
+			VulkanNative.vkCmdResetQueryPool(mCmdBuf, vkQs.Handle, first, count);
 	}
 
-	public void BeginQuery(IQuerySet querySet, uint32 queryIndex)
+	public void WriteTimestamp(IQuerySet querySet, uint32 index)
 	{
-		if (!mIsRecording || mFinished)
-			return;
-
-		let vkQuerySet = querySet as VulkanQuerySet;
-		if (vkQuerySet == null)
-			return;
-
-		// Timestamp queries use WriteTimestamp, not Begin/End
-		if (vkQuerySet.Type == .Timestamp)
-			return;
-
-		// Note: VK_QUERY_CONTROL_PRECISE_BIT requires the occlusionQueryPrecise device feature
-		// We use default (non-precise) for broader compatibility
-		VulkanNative.vkCmdBeginQuery(mCommandBuffer, vkQuerySet.QueryPool, queryIndex, 0);
+		if (let vkQs = querySet as VulkanQuerySet)
+			VulkanNative.vkCmdWriteTimestamp(mCmdBuf, .VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, vkQs.Handle, index);
 	}
 
-	public void EndQuery(IQuerySet querySet, uint32 queryIndex)
+	public void ResolveQuerySet(IQuerySet querySet, uint32 first, uint32 count, IBuffer dst, uint64 dstOffset)
 	{
-		if (!mIsRecording || mFinished)
-			return;
-
-		let vkQuerySet = querySet as VulkanQuerySet;
-		if (vkQuerySet == null)
-			return;
-
-		// Timestamp queries use WriteTimestamp, not Begin/End
-		if (vkQuerySet.Type == .Timestamp)
-			return;
-
-		VulkanNative.vkCmdEndQuery(mCommandBuffer, vkQuerySet.QueryPool, queryIndex);
-	}
-
-	public void ResolveQuerySet(IQuerySet querySet, uint32 firstQuery, uint32 queryCount, IBuffer destination, uint64 destinationOffset)
-	{
-		if (!mIsRecording || mFinished)
-			return;
-
-		let vkQuerySet = querySet as VulkanQuerySet;
-		let vkBuffer = destination as VulkanBuffer;
-		if (vkQuerySet == null || vkBuffer == null)
-			return;
-
-		VkQueryResultFlags flags = .VK_QUERY_RESULT_64_BIT | .VK_QUERY_RESULT_WAIT_BIT;
-
-		uint64 stride;
-		switch (vkQuerySet.Type)
+		if (let vkQs = querySet as VulkanQuerySet)
 		{
-		case .Timestamp, .Occlusion:
-			stride = sizeof(uint64);
-		case .PipelineStatistics:
-			stride = (uint64)sizeof(PipelineStatistics);
-		}
-
-		VulkanNative.vkCmdCopyQueryPoolResults(
-			mCommandBuffer,
-			vkQuerySet.QueryPool,
-			firstQuery,
-			queryCount,
-			vkBuffer.Buffer,
-			destinationOffset,
-			stride,
-			flags
-		);
-	}
-
-	public void ResolveTexture(ITexture source, ITexture destination)
-	{
-		if (!mIsRecording || mFinished)
-			return;
-
-		let vkSrc = source as VulkanTexture;
-		let vkDst = destination as VulkanTexture;
-		if (vkSrc == null || vkDst == null)
-			return;
-
-		let aspectMask = VulkanConversions.GetAspectFlags(vkSrc.Format);
-
-		// Transition source to TRANSFER_SRC
-		VkImageMemoryBarrier srcBarrier = .()
-		{
-			sType = .VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-			srcQueueFamilyIndex = VulkanNative.VK_QUEUE_FAMILY_IGNORED,
-			dstQueueFamilyIndex = VulkanNative.VK_QUEUE_FAMILY_IGNORED,
-			image = vkSrc.Image,
-			subresourceRange = .()
+			if (let vkBuf = dst as VulkanBuffer)
 			{
-				aspectMask = aspectMask,
-				baseMipLevel = 0,
-				levelCount = 1,
-				baseArrayLayer = 0,
-				layerCount = 1
-			},
-			oldLayout = .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-			newLayout = .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-			srcAccessMask = .VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-			dstAccessMask = .VK_ACCESS_TRANSFER_READ_BIT
-		};
-
-		// Transition destination to TRANSFER_DST
-		VkImageMemoryBarrier dstBarrier = .()
-		{
-			sType = .VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-			srcQueueFamilyIndex = VulkanNative.VK_QUEUE_FAMILY_IGNORED,
-			dstQueueFamilyIndex = VulkanNative.VK_QUEUE_FAMILY_IGNORED,
-			image = vkDst.Image,
-			subresourceRange = .()
-			{
-				aspectMask = aspectMask,
-				baseMipLevel = 0,
-				levelCount = 1,
-				baseArrayLayer = 0,
-				layerCount = 1
-			},
-			oldLayout = .VK_IMAGE_LAYOUT_UNDEFINED,
-			newLayout = .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			srcAccessMask = 0,
-			dstAccessMask = .VK_ACCESS_TRANSFER_WRITE_BIT
-		};
-
-		VkImageMemoryBarrier[2] barriers = .(srcBarrier, dstBarrier);
-		VulkanNative.vkCmdPipelineBarrier(
-			mCommandBuffer,
-			.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-			.VK_PIPELINE_STAGE_TRANSFER_BIT,
-			0,
-			0, null,
-			0, null,
-			2, &barriers
-		);
-
-		// Perform the resolve
-		VkImageResolve region = .()
-		{
-			srcSubresource = .()
-			{
-				aspectMask = aspectMask,
-				mipLevel = 0,
-				baseArrayLayer = 0,
-				layerCount = 1
-			},
-			srcOffset = .() { x = 0, y = 0, z = 0 },
-			dstSubresource = .()
-			{
-				aspectMask = aspectMask,
-				mipLevel = 0,
-				baseArrayLayer = 0,
-				layerCount = 1
-			},
-			dstOffset = .() { x = 0, y = 0, z = 0 },
-			extent = .()
-			{
-				width = Math.Min(vkSrc.Width, vkDst.Width),
-				height = Math.Min(vkSrc.Height, vkDst.Height),
-				depth = 1
+				VulkanNative.vkCmdCopyQueryPoolResults(mCmdBuf, vkQs.Handle, first, count,
+					vkBuf.Handle, dstOffset, 8, // uint64 stride
+					.VK_QUERY_RESULT_64_BIT | .VK_QUERY_RESULT_WAIT_BIT);
 			}
-		};
-
-		VulkanNative.vkCmdResolveImage(
-			mCommandBuffer,
-			vkSrc.Image, .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-			vkDst.Image, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			1, &region
-		);
-
-		// Transition destination to shader read
-		dstBarrier.oldLayout = .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		dstBarrier.newLayout = .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		dstBarrier.srcAccessMask = .VK_ACCESS_TRANSFER_WRITE_BIT;
-		dstBarrier.dstAccessMask = .VK_ACCESS_SHADER_READ_BIT;
-
-		VulkanNative.vkCmdPipelineBarrier(
-			mCommandBuffer,
-			.VK_PIPELINE_STAGE_TRANSFER_BIT,
-			.VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-			0,
-			0, null,
-			0, null,
-			1, &dstBarrier
-		);
+		}
 	}
 
-	public void Blit(ITexture source, ITexture destination)
+	public void BeginDebugLabel(StringView label, float r = 0, float g = 0, float b = 0, float a = 1)
 	{
-		if (!mIsRecording || mFinished)
-			return;
+		char8[256] buf = default;
+		let len = Math.Min(label.Length, 255);
+		Internal.MemCpy(&buf, label.Ptr, len);
+		buf[len] = 0;
+		VkDebugUtilsLabelEXT labelInfo = .();
+		labelInfo.pLabelName = &buf;
+		labelInfo.color = .(r, g, b, a);
+		VulkanNative.vkCmdBeginDebugUtilsLabelEXT(mCmdBuf, &labelInfo);
+	}
 
-		let vkSrc = source as VulkanTexture;
-		let vkDst = destination as VulkanTexture;
-		if (vkSrc == null || vkDst == null)
-			return;
+	public void EndDebugLabel()
+	{
+		VulkanNative.vkCmdEndDebugUtilsLabelEXT(mCmdBuf);
+	}
 
-		let srcAspect = VulkanConversions.GetAspectFlags(vkSrc.Format);
-		let dstAspect = VulkanConversions.GetAspectFlags(vkDst.Format);
+	public void InsertDebugLabel(StringView label, float r = 0, float g = 0, float b = 0, float a = 1)
+	{
+		char8[256] buf = default;
+		let len = Math.Min(label.Length, 255);
+		Internal.MemCpy(&buf, label.Ptr, len);
+		buf[len] = 0;
+		VkDebugUtilsLabelEXT labelInfo = .();
+		labelInfo.pLabelName = &buf;
+		labelInfo.color = .(r, g, b, a);
+		VulkanNative.vkCmdInsertDebugUtilsLabelEXT(mCmdBuf, &labelInfo);
+	}
 
-		// Transition source to TRANSFER_SRC (from COLOR_ATTACHMENT since it's typically a render target)
-		VkImageMemoryBarrier srcBarrier = .()
+	// ===== IRayTracingEncoderExt =====
+
+	public void BuildBottomLevelAccelStruct(
+		IAccelStruct dst, IBuffer scratchBuffer, uint64 scratchOffset,
+		Span<AccelStructGeometryTriangles> triangleGeometries,
+		Span<AccelStructGeometryAABBs> aabbGeometries)
+	{
+		let vkAs = dst as VulkanAccelStruct;
+		let vkScratch = scratchBuffer as VulkanBuffer;
+		if (vkAs == null || vkScratch == null) return;
+
+		let geomCount = triangleGeometries.Length + aabbGeometries.Length;
+		VkAccelerationStructureGeometryKHR[] geometries = scope VkAccelerationStructureGeometryKHR[geomCount];
+		VkAccelerationStructureBuildRangeInfoKHR[] rangeInfos = scope VkAccelerationStructureBuildRangeInfoKHR[geomCount];
+
+		int idx = 0;
+
+		// Triangle geometries
+		for (let triGeom in triangleGeometries)
 		{
-			sType = .VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-			srcQueueFamilyIndex = VulkanNative.VK_QUEUE_FAMILY_IGNORED,
-			dstQueueFamilyIndex = VulkanNative.VK_QUEUE_FAMILY_IGNORED,
-			image = vkSrc.Image,
-			subresourceRange = .()
-			{
-				aspectMask = srcAspect,
-				baseMipLevel = 0,
-				levelCount = 1,
-				baseArrayLayer = 0,
-				layerCount = 1
-			},
-			oldLayout = .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-			newLayout = .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-			srcAccessMask = .VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-			dstAccessMask = .VK_ACCESS_TRANSFER_READ_BIT
-		};
+			let vkVertBuf = triGeom.VertexBuffer as VulkanBuffer;
+			if (vkVertBuf == null) continue;
 
-		// Transition destination to TRANSFER_DST
-		VkImageMemoryBarrier dstBarrier = .()
+			VkAccelerationStructureGeometryTrianglesDataKHR triData = .();
+			triData.vertexFormat = VulkanConversions.ToVkVertexFormat(triGeom.VertexFormat);
+			triData.vertexData.deviceAddress = GetBufferDeviceAddress(vkVertBuf) + triGeom.VertexOffset;
+			triData.vertexStride = triGeom.VertexStride;
+			triData.maxVertex = triGeom.VertexCount - 1;
+
+			if (let vkIdxBuf = triGeom.IndexBuffer as VulkanBuffer)
+			{
+				triData.indexType = VulkanConversions.ToVkIndexType(triGeom.IndexFormat);
+				triData.indexData.deviceAddress = GetBufferDeviceAddress(vkIdxBuf) + triGeom.IndexOffset;
+			}
+			else
+			{
+				triData.indexType = .VK_INDEX_TYPE_NONE_KHR;
+			}
+
+			if (let vkTransBuf = triGeom.TransformBuffer as VulkanBuffer)
+				triData.transformData.deviceAddress = GetBufferDeviceAddress(vkTransBuf) + triGeom.TransformOffset;
+
+			geometries[idx] = .();
+			geometries[idx].geometryType = .VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+			geometries[idx].geometry.triangles = triData;
+			geometries[idx].flags = ToVkGeometryFlags(triGeom.Flags);
+
+			rangeInfos[idx] = .();
+			rangeInfos[idx].primitiveCount = (triGeom.IndexBuffer != null)
+				? triGeom.IndexCount / 3
+				: triGeom.VertexCount / 3;
+			rangeInfos[idx].primitiveOffset = 0;
+			rangeInfos[idx].firstVertex = 0;
+			rangeInfos[idx].transformOffset = 0;
+
+			idx++;
+		}
+
+		// AABB geometries
+		for (let aabbGeom in aabbGeometries)
 		{
-			sType = .VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-			srcQueueFamilyIndex = VulkanNative.VK_QUEUE_FAMILY_IGNORED,
-			dstQueueFamilyIndex = VulkanNative.VK_QUEUE_FAMILY_IGNORED,
-			image = vkDst.Image,
-			subresourceRange = .()
-			{
-				aspectMask = dstAspect,
-				baseMipLevel = 0,
-				levelCount = 1,
-				baseArrayLayer = 0,
-				layerCount = 1
-			},
-			oldLayout = .VK_IMAGE_LAYOUT_UNDEFINED,
-			newLayout = .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			srcAccessMask = 0,
-			dstAccessMask = .VK_ACCESS_TRANSFER_WRITE_BIT
-		};
+			let vkBuf = aabbGeom.AABBBuffer as VulkanBuffer;
+			if (vkBuf == null) continue;
 
-		VkImageMemoryBarrier[2] barriers = .(srcBarrier, dstBarrier);
-		VulkanNative.vkCmdPipelineBarrier(
-			mCommandBuffer,
-			.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-			.VK_PIPELINE_STAGE_TRANSFER_BIT,
-			0,
-			0, null,
-			0, null,
-			2, &barriers
-		);
+			VkAccelerationStructureGeometryAabbsDataKHR aabbData = .();
+			aabbData.data.deviceAddress = GetBufferDeviceAddress(vkBuf) + aabbGeom.Offset;
+			aabbData.stride = aabbGeom.Stride;
 
-		// Perform the blit
-		VkImageBlit blit = .()
+			geometries[idx] = .();
+			geometries[idx].geometryType = .VK_GEOMETRY_TYPE_AABBS_KHR;
+			geometries[idx].geometry.aabbs = aabbData;
+			geometries[idx].flags = ToVkGeometryFlags(aabbGeom.Flags);
+
+			rangeInfos[idx] = .();
+			rangeInfos[idx].primitiveCount = aabbGeom.Count;
+			rangeInfos[idx].primitiveOffset = 0;
+
+			idx++;
+		}
+
+		let actualGeomCount = (uint32)idx;
+
+		VkAccelerationStructureBuildGeometryInfoKHR buildInfo = .();
+		buildInfo.type = .VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+		buildInfo.flags = .VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+		buildInfo.mode = .VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+		buildInfo.dstAccelerationStructure = vkAs.Handle;
+		buildInfo.geometryCount = actualGeomCount;
+		buildInfo.pGeometries = geometries.CArray();
+		buildInfo.scratchData.deviceAddress = GetBufferDeviceAddress(vkScratch) + scratchOffset;
+
+		VkAccelerationStructureBuildRangeInfoKHR* pRangeInfos = rangeInfos.CArray();
+		VulkanNative.vkCmdBuildAccelerationStructuresKHR(mCmdBuf, 1, &buildInfo, &pRangeInfos);
+	}
+
+	public void BuildTopLevelAccelStruct(
+		IAccelStruct dst, IBuffer scratchBuffer, uint64 scratchOffset,
+		IBuffer instanceBuffer, uint64 instanceOffset, uint32 instanceCount)
+	{
+		let vkAs = dst as VulkanAccelStruct;
+		let vkScratch = scratchBuffer as VulkanBuffer;
+		let vkInstBuf = instanceBuffer as VulkanBuffer;
+		if (vkAs == null || vkScratch == null || vkInstBuf == null) return;
+
+		VkAccelerationStructureGeometryInstancesDataKHR instanceData = .();
+		instanceData.arrayOfPointers = VkBool32.False;
+		instanceData.data.deviceAddress = GetBufferDeviceAddress(vkInstBuf) + instanceOffset;
+
+		VkAccelerationStructureGeometryKHR geometry = .();
+		geometry.geometryType = .VK_GEOMETRY_TYPE_INSTANCES_KHR;
+		geometry.geometry.instances = instanceData;
+
+		VkAccelerationStructureBuildGeometryInfoKHR buildInfo = .();
+		buildInfo.type = .VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+		buildInfo.flags = .VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+		buildInfo.mode = .VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+		buildInfo.dstAccelerationStructure = vkAs.Handle;
+		buildInfo.geometryCount = 1;
+		buildInfo.pGeometries = &geometry;
+		buildInfo.scratchData.deviceAddress = GetBufferDeviceAddress(vkScratch) + scratchOffset;
+
+		VkAccelerationStructureBuildRangeInfoKHR rangeInfo = .();
+		rangeInfo.primitiveCount = instanceCount;
+
+		VkAccelerationStructureBuildRangeInfoKHR* pRangeInfo = &rangeInfo;
+		VulkanNative.vkCmdBuildAccelerationStructuresKHR(mCmdBuf, 1, &buildInfo, &pRangeInfo);
+	}
+
+	public void SetRayTracingPipeline(IRayTracingPipeline pipeline)
+	{
+		mCurrentRtPipeline = pipeline as VulkanRayTracingPipeline;
+		if (mCurrentRtPipeline != null)
+			VulkanNative.vkCmdBindPipeline(mCmdBuf, .VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, mCurrentRtPipeline.Handle);
+	}
+
+	void IRayTracingEncoderExt.SetBindGroup(uint32 index, IBindGroup bindGroup, Span<uint32> dynamicOffsets)
+	{
+		if (let vkBg = bindGroup as VulkanBindGroup)
 		{
-			srcSubresource = .()
-			{
-				aspectMask = srcAspect,
-				mipLevel = 0,
-				baseArrayLayer = 0,
-				layerCount = 1
-			},
-			srcOffsets = .(
-				.() { x = 0, y = 0, z = 0 },
-				.() { x = (int32)vkSrc.Width, y = (int32)vkSrc.Height, z = 1 }
-			),
-			dstSubresource = .()
-			{
-				aspectMask = dstAspect,
-				mipLevel = 0,
-				baseArrayLayer = 0,
-				layerCount = 1
-			},
-			dstOffsets = .(
-				.() { x = 0, y = 0, z = 0 },
-				.() { x = (int32)vkDst.Width, y = (int32)vkDst.Height, z = 1 }
-			)
-		};
+			if (mCurrentRtPipeline == null) return;
+			let layout = mCurrentRtPipeline.Layout as VulkanPipelineLayout;
+			if (layout == null) return;
+			var set = vkBg.Handle;
+			VulkanNative.vkCmdBindDescriptorSets(mCmdBuf, .VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
+				layout.Handle, index, 1, &set,
+				(uint32)dynamicOffsets.Length, dynamicOffsets.Ptr);
+		}
+	}
 
-		VulkanNative.vkCmdBlitImage(
-			mCommandBuffer,
-			vkSrc.Image, .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-			vkDst.Image, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			1, &blit,
-			.VK_FILTER_LINEAR
-		);
+	void IRayTracingEncoderExt.SetPushConstants(ShaderStage stages, uint32 offset, uint32 size, void* data)
+	{
+		if (mCurrentRtPipeline == null) return;
+		let layout = mCurrentRtPipeline.Layout as VulkanPipelineLayout;
+		if (layout == null) return;
+		VulkanNative.vkCmdPushConstants(mCmdBuf, layout.Handle,
+			VulkanBindGroupLayout.ToVkShaderStageFlags(stages), offset, size, data);
+	}
 
-		// Transition both textures to shader read so they can be sampled
-		srcBarrier.oldLayout = .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-		srcBarrier.newLayout = .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		srcBarrier.srcAccessMask = .VK_ACCESS_TRANSFER_READ_BIT;
-		srcBarrier.dstAccessMask = .VK_ACCESS_SHADER_READ_BIT;
+	public void TraceRays(
+		IBuffer raygenSBT, uint64 raygenOffset, uint64 raygenStride,
+		IBuffer missSBT, uint64 missOffset, uint64 missStride,
+		IBuffer hitSBT, uint64 hitOffset, uint64 hitStride,
+		uint32 width, uint32 height, uint32 depth = 1)
+	{
+		let vkRaygen = raygenSBT as VulkanBuffer;
+		let vkMiss = missSBT as VulkanBuffer;
+		let vkHit = hitSBT as VulkanBuffer;
+		if (vkRaygen == null) return;
 
-		dstBarrier.oldLayout = .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		dstBarrier.newLayout = .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		dstBarrier.srcAccessMask = .VK_ACCESS_TRANSFER_WRITE_BIT;
-		dstBarrier.dstAccessMask = .VK_ACCESS_SHADER_READ_BIT;
+		VkStridedDeviceAddressRegionKHR raygenRegion = .();
+		raygenRegion.deviceAddress = GetBufferDeviceAddress(vkRaygen) + raygenOffset;
+		raygenRegion.stride = raygenStride;
+		raygenRegion.size = raygenStride; // raygen has exactly 1 entry
 
-		VkImageMemoryBarrier[2] postBarriers = .(srcBarrier, dstBarrier);
-		VulkanNative.vkCmdPipelineBarrier(
-			mCommandBuffer,
-			.VK_PIPELINE_STAGE_TRANSFER_BIT,
-			.VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-			0,
-			0, null,
-			0, null,
-			2, &postBarriers
-		);
+		VkStridedDeviceAddressRegionKHR missRegion = .();
+		if (vkMiss != null)
+		{
+			missRegion.deviceAddress = GetBufferDeviceAddress(vkMiss) + missOffset;
+			missRegion.stride = missStride;
+			missRegion.size = missStride; // Caller should provide proper size
+		}
+
+		VkStridedDeviceAddressRegionKHR hitRegion = .();
+		if (vkHit != null)
+		{
+			hitRegion.deviceAddress = GetBufferDeviceAddress(vkHit) + hitOffset;
+			hitRegion.stride = hitStride;
+			hitRegion.size = hitStride;
+		}
+
+		VkStridedDeviceAddressRegionKHR callableRegion = .(); // Empty — no callable shaders
+
+		VulkanNative.vkCmdTraceRaysKHR(mCmdBuf, &raygenRegion, &missRegion, &hitRegion, &callableRegion,
+			width, height, depth);
+	}
+
+	private uint64 GetBufferDeviceAddress(VulkanBuffer buffer)
+	{
+		VkBufferDeviceAddressInfo info = .();
+		info.buffer = buffer.Handle;
+		return VulkanNative.vkGetBufferDeviceAddress(mDevice.Handle, &info);
+	}
+
+	private static VkGeometryFlagsKHR ToVkGeometryFlags(GeometryFlags flags)
+	{
+		VkGeometryFlagsKHR vkFlags = .None;
+		if (flags.HasFlag(.Opaque))
+			vkFlags |= .VK_GEOMETRY_OPAQUE_BIT_KHR;
+		if (flags.HasFlag(.NoDuplicateAnyHitInvocation))
+			vkFlags |= .VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR;
+		return vkFlags;
 	}
 
 	public ICommandBuffer Finish()
 	{
-		if (!mIsRecording || mFinished)
-			return null;
-
-		if (VulkanNative.vkEndCommandBuffer(mCommandBuffer) != .VK_SUCCESS)
-			return null;
-
-		mIsRecording = false;
-		mFinished = true;
-
-		let cmdBuffer = new VulkanCommandBuffer(mDevice, mPool, mCommandBuffer);
-
-		// Transfer ownership of render passes and framebuffers to the command buffer
-		// They must stay alive until GPU is done executing the command buffer
-		cmdBuffer.TakeOwnership(mCreatedRenderPasses, mCreatedFramebuffers);
-
-		// Clear our lists so we don't double-delete in Cleanup()
-		mCreatedRenderPasses.Clear();
-		mCreatedFramebuffers.Clear();
-
-		return cmdBuffer;
+		VulkanNative.vkEndCommandBuffer(mCmdBuf);
+		let cb = new VulkanCommandBuffer(mCmdBuf);
+		mPool.TrackCommandBuffer(cb);
+		return cb;
 	}
 
-	private bool CreateRenderPass(RenderPassDesc* descriptor, out VkRenderPass renderPass)
-	{
-		renderPass = default;
-
-		List<VkAttachmentDescription> attachments = scope .();
-		List<VkAttachmentReference> colorRefs = scope .();
-		List<VkAttachmentReference> resolveRefs = scope .();
-		VkAttachmentReference depthRef = .();
-		bool hasDepth = false;
-		bool hasResolve = false;
-
-		// Color attachments
-		for (let colorAttachment in descriptor.ColorAttachments)
-		{
-			if (colorAttachment.View == null)
-				continue;
-
-			let vkView = colorAttachment.View as VulkanTextureView;
-			if (vkView == null)
-				continue;
-
-			let vkTexture = vkView.Texture as VulkanTexture;
-			if (vkTexture == null)
-				continue;
-
-			// Get sample count from texture
-			VkSampleCountFlags sampleCount = VulkanConversions.ToVkSampleCount(vkTexture.SampleCount);
-
-			// Determine final layout
-			VkImageLayout finalLayout = .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-			VkAttachmentStoreOp storeOp = ToVkStoreOp(colorAttachment.StoreOp);
-
-			// If we have a resolve target, the MSAA attachment doesn't need to be stored
-			if (colorAttachment.ResolveTarget != null)
-			{
-				storeOp = .VK_ATTACHMENT_STORE_OP_DONT_CARE;
-			}
-			else if (vkTexture.IsSwapChainTexture)
-			{
-				finalLayout = .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-			}
-
-			// Determine initial layout based on LoadOp and texture type
-			// For swap chain textures with LoadOp=Load, we expect the image to be in PRESENT_SRC_KHR
-			// from the previous render pass's final layout
-			VkImageLayout initialLayout = .VK_IMAGE_LAYOUT_UNDEFINED;
-			if (colorAttachment.LoadOp == .Load)
-			{
-				initialLayout = vkTexture.IsSwapChainTexture
-					? .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
-					: .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-			}
-
-			uint32 colorIndex = (uint32)attachments.Count;
-			attachments.Add(.()
-				{
-					format = VulkanConversions.ToVkFormat(vkView.Format),
-					samples = sampleCount,
-					loadOp = ToVkLoadOp(colorAttachment.LoadOp),
-					storeOp = storeOp,
-					stencilLoadOp = .VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-					stencilStoreOp = .VK_ATTACHMENT_STORE_OP_DONT_CARE,
-					initialLayout = initialLayout,
-					finalLayout = finalLayout
-				});
-
-			colorRefs.Add(.()
-				{
-					attachment = colorIndex,
-					layout = .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-				});
-
-			// Handle resolve target
-			if (colorAttachment.ResolveTarget != null)
-			{
-				let resolveView = colorAttachment.ResolveTarget as VulkanTextureView;
-				if (resolveView != null)
-				{
-					let resolveTexture = resolveView.Texture as VulkanTexture;
-					VkImageLayout resolveLayout = .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-					if (resolveTexture != null && resolveTexture.IsSwapChainTexture)
-						resolveLayout = .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-					uint32 resolveIndex = (uint32)attachments.Count;
-					attachments.Add(.()
-						{
-							format = VulkanConversions.ToVkFormat(resolveView.Format),
-							samples = .VK_SAMPLE_COUNT_1_BIT,
-							loadOp = .VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-							storeOp = .VK_ATTACHMENT_STORE_OP_STORE,
-							stencilLoadOp = .VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-							stencilStoreOp = .VK_ATTACHMENT_STORE_OP_DONT_CARE,
-							initialLayout = .VK_IMAGE_LAYOUT_UNDEFINED,
-							finalLayout = resolveLayout
-						});
-
-					resolveRefs.Add(.()
-						{
-							attachment = resolveIndex,
-							layout = .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-						});
-					hasResolve = true;
-				}
-				else
-				{
-					resolveRefs.Add(.() { attachment = VulkanNative.VK_ATTACHMENT_UNUSED, layout = .VK_IMAGE_LAYOUT_UNDEFINED });
-				}
-			}
-			else
-			{
-				resolveRefs.Add(.() { attachment = VulkanNative.VK_ATTACHMENT_UNUSED, layout = .VK_IMAGE_LAYOUT_UNDEFINED });
-			}
-		}
-
-		// Depth attachment
-		if (descriptor.DepthStencilAttachment.HasValue)
-		{
-			let ds = descriptor.DepthStencilAttachment.Value;
-			if (ds.View != null)
-			{
-				let vkView = ds.View as VulkanTextureView;
-				if (vkView != null)
-				{
-					uint32 index = (uint32)attachments.Count;
-					bool hasStencil = VulkanConversions.HasStencilComponent(vkView.Format);
-					let depthLayout = ds.DepthReadOnly ?
-						VkImageLayout.VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL :
-						VkImageLayout.VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-					attachments.Add(.()
-						{
-							format = VulkanConversions.ToVkFormat(vkView.Format),
-							samples = .VK_SAMPLE_COUNT_1_BIT,
-							loadOp = ToVkLoadOp(ds.DepthLoadOp),
-							storeOp = ToVkStoreOp(ds.DepthStoreOp),
-							stencilLoadOp = hasStencil ? ToVkLoadOp(ds.StencilLoadOp) : .VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-							stencilStoreOp = hasStencil ? ToVkStoreOp(ds.StencilStoreOp) : .VK_ATTACHMENT_STORE_OP_DONT_CARE,
-							initialLayout = ds.DepthLoadOp == .Load ? depthLayout : .VK_IMAGE_LAYOUT_UNDEFINED,
-							finalLayout = depthLayout
-						});
-
-					depthRef = .()
-						{
-							attachment = index,
-							layout = depthLayout
-						};
-					hasDepth = true;
-				}
-			}
-		}
-
-		if (attachments.Count == 0)
-			return false;
-
-		VkSubpassDescription subpass = .()
-			{
-				pipelineBindPoint = .VK_PIPELINE_BIND_POINT_GRAPHICS,
-				colorAttachmentCount = (uint32)colorRefs.Count,
-				pColorAttachments = colorRefs.Ptr,
-				pResolveAttachments = hasResolve ? resolveRefs.Ptr : null,
-				pDepthStencilAttachment = hasDepth ? &depthRef : null
-			};
-
-		VkSubpassDependency dependency = .()
-			{
-				srcSubpass = VulkanNative.VK_SUBPASS_EXTERNAL,
-				dstSubpass = 0,
-				srcStageMask = .VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | .VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
-				dstStageMask = .VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | .VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
-				srcAccessMask = 0,
-				dstAccessMask = .VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | .VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
-			};
-
-		VkRenderPassCreateInfo renderPassInfo = .()
-			{
-				sType = .VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-				attachmentCount = (uint32)attachments.Count,
-				pAttachments = attachments.Ptr,
-				subpassCount = 1,
-				pSubpasses = &subpass,
-				dependencyCount = 1,
-				pDependencies = &dependency
-			};
-
-		return VulkanNative.vkCreateRenderPass(mDevice.Device, &renderPassInfo, null, &renderPass) == .VK_SUCCESS;
-	}
-
-	private bool CreateFramebuffer(RenderPassDesc* descriptor, VkRenderPass renderPass, out VkFramebuffer framebuffer, out uint32 width, out uint32 height)
-	{
-		framebuffer = default;
-		width = 0;
-		height = 0;
-
-		List<VkImageView> attachmentViews = scope .();
-		List<VkImageView> resolveViews = scope .();
-
-		// Collect color attachment views and determine dimensions
-		for (let colorAttachment in descriptor.ColorAttachments)
-		{
-			if (colorAttachment.View == null)
-				continue;
-
-			let vkView = colorAttachment.View as VulkanTextureView;
-			if (vkView == null)
-				continue;
-
-			attachmentViews.Add(vkView.ImageView);
-
-			if (let vkTexture = vkView.Texture as VulkanTexture)
-			{
-				width = vkTexture.Width;
-				height = vkTexture.Height;
-			}
-
-			// Collect resolve views (must be added after ALL color attachments in render pass order)
-			if (colorAttachment.ResolveTarget != null)
-			{
-				let resolveView = colorAttachment.ResolveTarget as VulkanTextureView;
-				if (resolveView != null)
-					resolveViews.Add(resolveView.ImageView);
-			}
-		}
-
-		// Add resolve attachment views (after all color attachments, matching render pass order)
-		for (let resolveView in resolveViews)
-			attachmentViews.Add(resolveView);
-
-		// Add depth attachment view
-		if (descriptor.DepthStencilAttachment.HasValue)
-		{
-			let ds = descriptor.DepthStencilAttachment.Value;
-			if (ds.View != null)
-			{
-				let vkView = ds.View as VulkanTextureView;
-				if (vkView != null)
-				{
-					attachmentViews.Add(vkView.ImageView);
-
-					if (width == 0 || height == 0)
-					{
-						if (let vkTexture = vkView.Texture as VulkanTexture)
-						{
-							width = vkTexture.Width;
-							height = vkTexture.Height;
-						}
-					}
-				}
-			}
-		}
-
-		if (attachmentViews.Count == 0 || width == 0 || height == 0)
-			return false;
-
-		VkFramebufferCreateInfo framebufferInfo = .()
-			{
-				sType = .VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-				renderPass = renderPass,
-				attachmentCount = (uint32)attachmentViews.Count,
-				pAttachments = attachmentViews.Ptr,
-				width = width,
-				height = height,
-				layers = 1
-			};
-
-		return VulkanNative.vkCreateFramebuffer(mDevice.Device, &framebufferInfo, null, &framebuffer) == .VK_SUCCESS;
-	}
-
-	private static VkAttachmentLoadOp ToVkLoadOp(LoadOp op)
-	{
-		switch (op)
-		{
-		case .Clear: return .VK_ATTACHMENT_LOAD_OP_CLEAR;
-		case .Load: return .VK_ATTACHMENT_LOAD_OP_LOAD;
-		case .DontCare: return .VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		}
-	}
-
-	private static VkAttachmentStoreOp ToVkStoreOp(StoreOp op)
-	{
-		switch (op)
-		{
-		case .Store: return .VK_ATTACHMENT_STORE_OP_STORE;
-		case .DontCare: return .VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		}
-	}
-
+	public VkCommandBuffer Handle => mCmdBuf;
 }

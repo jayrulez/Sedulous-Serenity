@@ -24,12 +24,12 @@ public class MotionBlurEffect : IPostProcessEffect
 	private RenderSystem mRenderSystem;
 	private IDevice mDevice;
 
-	private IRenderPipeline mPipeline ~ delete _;
-	private IPipelineLayout mPipelineLayout ~ delete _;
-	private IBindGroupLayout mBindGroupLayout ~ delete _;
-	private IBuffer mParamsBuffer ~ delete _;
-	private ISampler mLinearSampler ~ delete _;
-	private ISampler mPointSampler ~ delete _;
+	private IRenderPipeline mPipeline;
+	private IPipelineLayout mPipelineLayout;
+	private IBindGroupLayout mBindGroupLayout;
+	private IBuffer mParamsBuffer;
+	private ISampler mLinearSampler;
+	private ISampler mPointSampler;
 
 	private IBindGroup[RenderConfig.FrameBufferCount] mBindGroups;
 
@@ -184,20 +184,23 @@ public class MotionBlurEffect : IPostProcessEffect
 	{
 		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			if (mBindGroups[i] != null)
-			{
-				delete mBindGroups[i];
-				mBindGroups[i] = null;
-			}
+			if (mBindGroups[i] != null) mDevice.DestroyBindGroup(ref mBindGroups[i]);
 		}
+
+		if (mPipeline != null) mDevice.DestroyRenderPipeline(ref mPipeline);
+		if (mPipelineLayout != null) mDevice.DestroyPipelineLayout(ref mPipelineLayout);
+		if (mBindGroupLayout != null) mDevice.DestroyBindGroupLayout(ref mBindGroupLayout);
+		if (mParamsBuffer != null) mDevice.DestroyBuffer(ref mParamsBuffer);
+		if (mLinearSampler != null) mDevice.DestroySampler(ref mLinearSampler);
+		if (mPointSampler != null) mDevice.DestroySampler(ref mPointSampler);
 	}
 
 	public void AddPasses(
 		RenderGraph graph,
-		RenderView view,
-		RGResourceHandle inputHandle,
-		RGResourceHandle outputHandle,
-		RGResourceHandle depthHandle)
+		ViewContext view,
+		RGHandle inputHandle,
+		RGHandle outputHandle,
+		RGHandle depthHandle)
 	{
 		if (mPipeline == null)
 			return;
@@ -218,28 +221,29 @@ public class MotionBlurEffect : IPostProcessEffect
 		mbParams.TexelSizeX = 1.0f / (float)view.Width;
 		mbParams.TexelSizeY = 1.0f / (float)view.Height;
 
-		mDevice.Queue.WriteMappedBuffer(
+		TransferHelper.WriteMappedBuffer(
 			mParamsBuffer, 0,
 			Span<uint8>((uint8*)&mbParams, MotionBlurParams.Size)
 		);
 
 		RenderGraph graphRef = graph;
-		RGResourceHandle inputCopy = inputHandle;
-		RGResourceHandle motionCopy = motionHandle;
+		RGHandle inputCopy = inputHandle;
+		RGHandle motionCopy = motionHandle;
 
-		graph.AddGraphicsPass("PostProcess_MotionBlur")
-			.ReadTexture(inputHandle)
-			.ReadTexture(motionHandle)
-			.WriteColor(outputHandle, .DontCare, .Store)
-			.NeverCull()
-			.SetExecuteCallback(new [=] (encoder) => {
-				let inputView = graphRef.GetTextureView(inputCopy);
-				let motionView = graphRef.GetTextureView(motionCopy);
-				ExecutePass(encoder, view, inputView, motionView);
+		graph.AddRenderPass("PostProcess_MotionBlur", scope (builder) => {
+				builder.ReadTexture(inputHandle);
+				builder.ReadTexture(motionHandle);
+				builder.SetColorTarget(0, outputHandle, .DontCare, .Store);
+				builder.NeverCull();
+				builder.SetExecute(new [=] (encoder) => {
+					let inputView = graphRef.GetTextureView(inputCopy);
+					let motionView = graphRef.GetTextureView(motionCopy);
+					ExecutePass(encoder, view, inputView, motionView);
+				});
 			});
 	}
 
-	private void ExecutePass(IRenderPassEncoder encoder, RenderView view,
+	private void ExecutePass(IRenderPassEncoder encoder, ViewContext view,
 		ITextureView inputView, ITextureView motionView)
 	{
 		if (inputView == null || motionView == null)
@@ -249,16 +253,15 @@ public class MotionBlurEffect : IPostProcessEffect
 
 		if (mBindGroups[frameIndex] != null)
 		{
-			delete mBindGroups[frameIndex];
-			mBindGroups[frameIndex] = null;
+			mDevice.DestroyBindGroup(ref mBindGroups[frameIndex]);
 		}
 
 		BindGroupEntry[5] entries = .(
-			BindGroupEntry.Buffer(0, mParamsBuffer, 0, (uint64)MotionBlurParams.Size),
-			BindGroupEntry.Texture(0, inputView),
-			BindGroupEntry.Texture(1, motionView),
-			BindGroupEntry.Sampler(0, mLinearSampler),
-			BindGroupEntry.Sampler(1, mPointSampler)
+			BindGroupEntry.Buffer(/*0,*/mParamsBuffer, 0, (uint64)MotionBlurParams.Size),
+			BindGroupEntry.Texture(/*0,*/inputView),
+			BindGroupEntry.Texture(/*1,*/motionView),
+			BindGroupEntry.Sampler(/*0,*/mLinearSampler),
+			BindGroupEntry.Sampler(/*1,*/mPointSampler)
 		);
 
 		BindGroupDesc bgDesc = .();

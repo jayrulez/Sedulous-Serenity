@@ -12,6 +12,7 @@ using Sedulous.Materials;
 using Sedulous.Materials.Resources;
 using Sedulous.Textures.Resources;
 using Sedulous.Imaging;
+using Sedulous.Textures;
 
 /// Scene module that manages render proxies and syncs entity transforms to the render world.
 /// Created automatically by RenderSubsystem for each scene.

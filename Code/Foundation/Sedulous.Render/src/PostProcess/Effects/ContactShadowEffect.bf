@@ -30,11 +30,11 @@ public class ContactShadowEffect : IPostProcessEffect
 	private IDevice mDevice;
 
 	// Pipeline resources
-	private IRenderPipeline mPipeline ~ delete _;
-	private IPipelineLayout mPipelineLayout ~ delete _;
-	private IBindGroupLayout mBindGroupLayout ~ delete _;
-	private IBuffer mParamsBuffer ~ delete _;
-	private ISampler mPointSampler ~ delete _;
+	private IRenderPipeline mPipeline;
+	private IPipelineLayout mPipelineLayout;
+	private IBindGroupLayout mBindGroupLayout;
+	private IBuffer mParamsBuffer;
+	private ISampler mPointSampler;
 
 	// Per-frame bind groups
 	private IBindGroup[RenderConfig.FrameBufferCount] mBindGroups;
@@ -178,12 +178,14 @@ public class ContactShadowEffect : IPostProcessEffect
 	{
 		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			if (mBindGroups[i] != null)
-			{
-				delete mBindGroups[i];
-				mBindGroups[i] = null;
-			}
+			if (mBindGroups[i] != null) mDevice.DestroyBindGroup(ref mBindGroups[i]);
 		}
+
+		if (mPipeline != null) mDevice.DestroyRenderPipeline(ref mPipeline);
+		if (mPipelineLayout != null) mDevice.DestroyPipelineLayout(ref mPipelineLayout);
+		if (mBindGroupLayout != null) mDevice.DestroyBindGroupLayout(ref mBindGroupLayout);
+		if (mParamsBuffer != null) mDevice.DestroyBuffer(ref mParamsBuffer);
+		if (mPointSampler != null) mDevice.DestroySampler(ref mPointSampler);
 	}
 
 	/// Finds the main directional light direction from the active world.
@@ -209,10 +211,10 @@ public class ContactShadowEffect : IPostProcessEffect
 
 	public void AddPasses(
 		RenderGraph graph,
-		RenderView view,
-		RGResourceHandle inputHandle,
-		RGResourceHandle outputHandle,
-		RGResourceHandle depthHandle)
+		ViewContext view,
+		RGHandle inputHandle,
+		RGHandle outputHandle,
+		RGHandle depthHandle)
 	{
 		if (mPipeline == null)
 			return;
@@ -252,32 +254,33 @@ public class ContactShadowEffect : IPostProcessEffect
 		csParams.NearPlane = view.NearPlane;
 		csParams.FarPlane = view.FarPlane;
 
-		mDevice.Queue.WriteMappedBuffer(
+		TransferHelper.WriteMappedBuffer(
 			mParamsBuffer, 0,
 			Span<uint8>((uint8*)&csParams, ContactShadowParams.Size)
 		);
 
 		// Capture for callback
 		RenderGraph graphRef = graph;
-		RGResourceHandle inputCopy = inputHandle;
-		RGResourceHandle depthCopy = depthHandle;
-		RGResourceHandle gbufferCopy = gbufferHandle;
+		RGHandle inputCopy = inputHandle;
+		RGHandle depthCopy = depthHandle;
+		RGHandle gbufferCopy = gbufferHandle;
 
-		graph.AddGraphicsPass("PostProcess_ContactShadows")
-			.ReadTexture(inputHandle)
-			.ReadTexture(depthHandle)
-			.ReadTexture(gbufferHandle)
-			.WriteColor(outputHandle, .DontCare, .Store)
-			.NeverCull()
-			.SetExecuteCallback(new [=] (encoder) => {
-				let inputView = graphRef.GetTextureView(inputCopy);
-				let depthView = graphRef.GetDepthOnlyTextureView(depthCopy);
-				let gbufferView = graphRef.GetTextureView(gbufferCopy);
-				ExecutePass(encoder, view, inputView, depthView, gbufferView);
+		graph.AddRenderPass("PostProcess_ContactShadows", scope (builder) => {
+				builder.ReadTexture(inputHandle);
+				builder.ReadTexture(depthHandle);
+				builder.ReadTexture(gbufferHandle);
+				builder.SetColorTarget(0, outputHandle, .DontCare, .Store);
+				builder.NeverCull();
+				builder.SetExecute(new [=] (encoder) => {
+					let inputView = graphRef.GetTextureView(inputCopy);
+					let depthView = graphRef.GetDepthOnlyTextureView(depthCopy);
+					let gbufferView = graphRef.GetTextureView(gbufferCopy);
+					ExecutePass(encoder, view, inputView, depthView, gbufferView);
+				});
 			});
 	}
 
-	private void ExecutePass(IRenderPassEncoder encoder, RenderView view,
+	private void ExecutePass(IRenderPassEncoder encoder, ViewContext view,
 		ITextureView inputView, ITextureView depthView, ITextureView gbufferView)
 	{
 		if (inputView == null || depthView == null || gbufferView == null)
@@ -288,16 +291,15 @@ public class ContactShadowEffect : IPostProcessEffect
 		// Recreate bind group per frame (input is transient)
 		if (mBindGroups[frameIndex] != null)
 		{
-			delete mBindGroups[frameIndex];
-			mBindGroups[frameIndex] = null;
+			mDevice.DestroyBindGroup(ref mBindGroups[frameIndex]);
 		}
 
 		BindGroupEntry[5] entries = .(
-			BindGroupEntry.Buffer(0, mParamsBuffer, 0, (uint64)ContactShadowParams.Size),
-			BindGroupEntry.Texture(0, inputView),
-			BindGroupEntry.Texture(1, depthView),
-			BindGroupEntry.Texture(2, gbufferView),
-			BindGroupEntry.Sampler(0, mPointSampler)
+			BindGroupEntry.Buffer(/*0,*/mParamsBuffer, 0, (uint64)ContactShadowParams.Size),
+			BindGroupEntry.Texture(/*0,*/inputView),
+			BindGroupEntry.Texture(/*1,*/depthView),
+			BindGroupEntry.Texture(/*2,*/gbufferView),
+			BindGroupEntry.Sampler(/*0,*/mPointSampler)
 		);
 
 		BindGroupDesc bgDesc = .();

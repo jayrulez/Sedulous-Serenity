@@ -1,89 +1,65 @@
 namespace Sedulous.RHI.Vulkan;
 
 using System;
-using System.Collections;
 using Bulkan;
 using Sedulous.RHI;
 
 /// Vulkan implementation of IPipelineLayout.
 class VulkanPipelineLayout : IPipelineLayout
 {
-	private VulkanDevice mDevice;
-	private VkPipelineLayout mPipelineLayout;
-	private List<VulkanBindGroupLayout> mBindGroupLayouts = new .() ~ delete _;
+	private VkPipelineLayout mLayout;
 
-	public this(VulkanDevice device, PipelineLayoutDesc descriptor)
-	{
-		mDevice = device;
-		mPipelineLayout = default;  // Explicitly initialize before Vulkan call
-		CreatePipelineLayout(descriptor);
-		if (mPipelineLayout != default && descriptor.Label.Ptr != null && descriptor.Label.Length > 0)
-			mDevice.SetDebugName(mPipelineLayout.Handle, .VK_OBJECT_TYPE_PIPELINE_LAYOUT, descriptor.Label);
-	}
+	public this() { }
 
-	public ~this()
-	{
-		Dispose();
-	}
-
-	public void Dispose()
-	{
-		if (mPipelineLayout != default)
-		{
-			VulkanNative.vkDestroyPipelineLayout(mDevice.Device, mPipelineLayout, null);
-			mPipelineLayout = default;
-		}
-		mBindGroupLayouts.Clear();
-	}
-
-	/// Returns true if the layout was created successfully.
-	public bool IsValid => mPipelineLayout != default;
-
-	/// Gets the Vulkan pipeline layout handle.
-	public VkPipelineLayout PipelineLayout => mPipelineLayout;
-
-	/// Gets the bind group layouts.
-	public Span<VulkanBindGroupLayout> BindGroupLayouts => mBindGroupLayouts;
-
-	private void CreatePipelineLayout(PipelineLayoutDesc descriptor)
+	public Result<void> Init(VulkanDevice device, PipelineLayoutDesc desc)
 	{
 		// Collect descriptor set layouts
-		VkDescriptorSetLayout* setLayouts = null;
-		int layoutCount = descriptor.BindGroupLayouts.Length;
-
-		if (layoutCount > 0)
+		VkDescriptorSetLayout[] setLayouts = scope VkDescriptorSetLayout[desc.BindGroupLayouts.Length];
+		for (int i = 0; i < desc.BindGroupLayouts.Length; i++)
 		{
-			// Use scope :: to extend allocation lifetime to function scope
-			setLayouts = scope :: VkDescriptorSetLayout[layoutCount]*;
-			for (int i = 0; i < layoutCount; i++)
+			let vkLayout = desc.BindGroupLayouts[i] as VulkanBindGroupLayout;
+			if (vkLayout == null)
 			{
-				if (let vkLayout = descriptor.BindGroupLayouts[i] as VulkanBindGroupLayout)
-				{
-					if (!vkLayout.IsValid)
-						return;
-					setLayouts[i] = vkLayout.DescriptorSetLayout;
-					mBindGroupLayouts.Add(vkLayout);
-				}
-				else
-				{
-					return;
-				}
+				System.Diagnostics.Debug.WriteLine("VulkanPipelineLayout: bind group layout is not a VulkanBindGroupLayout");
+				return .Err;
 			}
+			setLayouts[i] = vkLayout.Handle;
 		}
 
-		VkPipelineLayoutCreateInfo pipelineLayoutInfo = .()
-			{
-				sType = .VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-				setLayoutCount = (uint32)layoutCount,
-				pSetLayouts = setLayouts,
-				pushConstantRangeCount = 0,
-				pPushConstantRanges = null
-			};
+		// Push constant ranges
+		VkPushConstantRange[] pushRanges = scope VkPushConstantRange[desc.PushConstantRanges.Length];
+		for (int i = 0; i < desc.PushConstantRanges.Length; i++)
+		{
+			pushRanges[i] = .();
+			pushRanges[i].stageFlags = VulkanBindGroupLayout.ToVkShaderStageFlags(desc.PushConstantRanges[i].Stages);
+			pushRanges[i].offset = desc.PushConstantRanges[i].Offset;
+			pushRanges[i].size = desc.PushConstantRanges[i].Size;
+		}
 
-		let result = VulkanNative.vkCreatePipelineLayout(mDevice.Device, &pipelineLayoutInfo, null, &mPipelineLayout);
+		VkPipelineLayoutCreateInfo layoutInfo = .();
+		layoutInfo.setLayoutCount = (uint32)desc.BindGroupLayouts.Length;
+		layoutInfo.pSetLayouts = setLayouts.CArray();
+		layoutInfo.pushConstantRangeCount = (uint32)desc.PushConstantRanges.Length;
+		layoutInfo.pPushConstantRanges = pushRanges.CArray();
+
+		let result = VulkanNative.vkCreatePipelineLayout(device.Handle, &layoutInfo, null, &mLayout);
 		if (result != .VK_SUCCESS)
 		{
-			mPipelineLayout = default;
+			System.Diagnostics.Debug.WriteLine(scope $"VulkanPipelineLayout: vkCreatePipelineLayout failed ({result})");
+			return .Err;
+		}
+
+		return .Ok;
+	}
+
+	public void Cleanup(VulkanDevice device)
+	{
+		if (mLayout.Handle != 0)
+		{
+			VulkanNative.vkDestroyPipelineLayout(device.Handle, mLayout, null);
+			mLayout = .Null;
 		}
 	}
+
+	public VkPipelineLayout Handle => mLayout;
 }

@@ -96,23 +96,23 @@ public class ClusterGrid : IDisposable
 	private IBuffer mClusterUniformBuffer;   // Cluster parameters
 
 	// Compute pipelines
-	private IComputePipeline mBuildClustersPipeline ~ delete _;
-	private IComputePipeline mCullLightsPipeline ~ delete _;
+	private IComputePipeline mBuildClustersPipeline;
+	private IComputePipeline mCullLightsPipeline;
 
 	// Bind group layouts
-	private IBindGroupLayout mBuildClustersBindGroupLayout ~ delete _;
-	private IBindGroupLayout mCullLightsBindGroupLayout ~ delete _;
+	private IBindGroupLayout mBuildClustersBindGroupLayout;
+	private IBindGroupLayout mCullLightsBindGroupLayout;
 
 	// Bind groups
-	private IBindGroup mBuildClustersBindGroup ~ delete _;
+	private IBindGroup mBuildClustersBindGroup;
 	private IBindGroup[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mCullLightsBindGroups; // Per-frame, per-view bind groups
 
 	// Pipeline layouts
-	private IPipelineLayout mBuildClustersPipelineLayout ~ delete _;
-	private IPipelineLayout mCullLightsPipelineLayout ~ delete _;
+	private IPipelineLayout mBuildClustersPipelineLayout;
+	private IPipelineLayout mCullLightsPipelineLayout;
 
 	// Counter buffer for atomic allocation
-	private IBuffer mLightIndexCounterBuffer ~ delete _;
+	private IBuffer mLightIndexCounterBuffer;
 
 	// Whether GPU culling is available
 	private bool mGPUCullingAvailable = false;
@@ -394,34 +394,35 @@ public class ClusterGrid : IDisposable
 
 	public void Dispose()
 	{
+		if (mDevice == null)
+			return;
+
 		// Buffers
-		if (mClusterAABBBuffer != null) { delete mClusterAABBBuffer; mClusterAABBBuffer = null; }
+		mDevice.DestroyBuffer(ref mClusterAABBBuffer);
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
 		{
-			if (mClusterLightInfoBuffers[i] != null) { delete mClusterLightInfoBuffers[i]; mClusterLightInfoBuffers[i] = null; }
-			if (mLightIndexBuffers[i] != null) { delete mLightIndexBuffers[i]; mLightIndexBuffers[i] = null; }
+			mDevice.DestroyBuffer(ref mClusterLightInfoBuffers[i]);
+			mDevice.DestroyBuffer(ref mLightIndexBuffers[i]);
 		}
-		if (mClusterUniformBuffer != null) { delete mClusterUniformBuffer; mClusterUniformBuffer = null; }
-		if (mLightIndexCounterBuffer != null) { delete mLightIndexCounterBuffer; mLightIndexCounterBuffer = null; }
+		mDevice.DestroyBuffer(ref mClusterUniformBuffer);
+		mDevice.DestroyBuffer(ref mLightIndexCounterBuffer);
 
 		// Bind groups
-		if (mBuildClustersBindGroup != null) { delete mBuildClustersBindGroup; mBuildClustersBindGroup = null; }
+		mDevice.DestroyBindGroup(ref mBuildClustersBindGroup);
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
-		{
-			if (mCullLightsBindGroups[i] != null) { delete mCullLightsBindGroups[i]; mCullLightsBindGroups[i] = null; }
-		}
+			mDevice.DestroyBindGroup(ref mCullLightsBindGroups[i]);
 
 		// Pipelines
-		if (mBuildClustersPipeline != null) { delete mBuildClustersPipeline; mBuildClustersPipeline = null; }
-		if (mCullLightsPipeline != null) { delete mCullLightsPipeline; mCullLightsPipeline = null; }
+		mDevice.DestroyComputePipeline(ref mBuildClustersPipeline);
+		mDevice.DestroyComputePipeline(ref mCullLightsPipeline);
 
 		// Pipeline layouts
-		if (mBuildClustersPipelineLayout != null) { delete mBuildClustersPipelineLayout; mBuildClustersPipelineLayout = null; }
-		if (mCullLightsPipelineLayout != null) { delete mCullLightsPipelineLayout; mCullLightsPipelineLayout = null; }
+		mDevice.DestroyPipelineLayout(ref mBuildClustersPipelineLayout);
+		mDevice.DestroyPipelineLayout(ref mCullLightsPipelineLayout);
 
 		// Bind group layouts
-		if (mBuildClustersBindGroupLayout != null) { delete mBuildClustersBindGroupLayout; mBuildClustersBindGroupLayout = null; }
-		if (mCullLightsBindGroupLayout != null) { delete mCullLightsBindGroupLayout; mCullLightsBindGroupLayout = null; }
+		mDevice.DestroyBindGroupLayout(ref mBuildClustersBindGroupLayout);
+		mDevice.DestroyBindGroupLayout(ref mCullLightsBindGroupLayout);
 
 		mGPUCullingAvailable = false;
 	}
@@ -558,8 +559,8 @@ public class ClusterGrid : IDisposable
 		BindGroupLayoutEntry[7] cullEntries = .(
 			.() { Binding = 0, Visibility = .Compute, Type = .UniformBuffer },          // b0: ClusterUniforms
 			.() { Binding = 1, Visibility = .Compute, Type = .UniformBuffer },          // b1: LightingUniforms
-			.() { Binding = 0, Visibility = .Compute, Type = .StorageBuffer },          // t0: ClusterAABBs (StructuredBuffer)
-			.() { Binding = 1, Visibility = .Compute, Type = .StorageBuffer },          // t1: Lights (StructuredBuffer)
+			.() { Binding = 0, Visibility = .Compute, Type = .StorageBufferReadOnly },          // t0: ClusterAABBs (StructuredBuffer)
+			.() { Binding = 1, Visibility = .Compute, Type = .StorageBufferReadOnly },          // t1: Lights (StructuredBuffer)
 			.() { Binding = 0, Visibility = .Compute, Type = .StorageBufferReadWrite }, // u0: ClusterLightInfos (RWStructuredBuffer)
 			.() { Binding = 1, Visibility = .Compute, Type = .StorageBufferReadWrite }, // u1: LightIndices (RWStructuredBuffer)
 			.() { Binding = 2, Visibility = .Compute, Type = .StorageBufferReadWrite }  // u2: GlobalLightIndexCounter
@@ -648,13 +649,13 @@ public class ClusterGrid : IDisposable
 				let frameIdx = i / RenderConfig.MaxViews;
 
 				BindGroupEntry[7] cullEntries = .(
-					BindGroupEntry.Buffer(0, mClusterUniformBuffer, 0, (uint64)ClusterUniforms.Size),       // b0: ClusterUniforms
-					BindGroupEntry.Buffer(1, lightBuffer.GetUniformBuffer(frameIdx), 0, (uint64)LightingUniforms.Size),  // b1: LightingUniforms
-					BindGroupEntry.Buffer(0, mClusterAABBBuffer, 0, mConfig.TotalClusters * 24),            // t0: ClusterAABBs (StructuredBuffer)
-					BindGroupEntry.Buffer(1, lightBuffer.GetLightDataBuffer(frameIdx), 0, (uint64)(lightBuffer.MaxLights * GPULight.Size)), // t1: Lights (StructuredBuffer)
-					BindGroupEntry.Buffer(0, mClusterLightInfoBuffers[i], 0, mConfig.TotalClusters * 8),        // u0: ClusterLightInfos (per-view, RWStructuredBuffer)
-					BindGroupEntry.Buffer(1, mLightIndexBuffers[i], 0, mConfig.MaxLightsPerCluster * mConfig.TotalClusters * 4), // u1: LightIndices (per-view, RWStructuredBuffer)
-					BindGroupEntry.Buffer(2, mLightIndexCounterBuffer, 0, 4)                                // u2: GlobalLightIndexCounter
+					BindGroupEntry.Buffer(/*0,*/mClusterUniformBuffer, 0, (uint64)ClusterUniforms.Size),       // b0: ClusterUniforms
+					BindGroupEntry.Buffer(/*1,*/lightBuffer.GetUniformBuffer(frameIdx), 0, (uint64)LightingUniforms.Size),  // b1: LightingUniforms
+					BindGroupEntry.Buffer(/*0,*/mClusterAABBBuffer, 0, mConfig.TotalClusters * 24),            // t0: ClusterAABBs (StructuredBuffer)
+					BindGroupEntry.Buffer(/*1,*/lightBuffer.GetLightDataBuffer(frameIdx), 0, (uint64)(lightBuffer.MaxLights * GPULight.Size)), // t1: Lights (StructuredBuffer)
+					BindGroupEntry.Buffer(/*0,*/mClusterLightInfoBuffers[i], 0, mConfig.TotalClusters * 8),        // u0: ClusterLightInfos (per-view, RWStructuredBuffer)
+					BindGroupEntry.Buffer(/*1,*/mLightIndexBuffers[i], 0, mConfig.MaxLightsPerCluster * mConfig.TotalClusters * 4), // u1: LightIndices (per-view, RWStructuredBuffer)
+					BindGroupEntry.Buffer(/*2,*/mLightIndexCounterBuffer, 0, 4)                                // u2: GlobalLightIndexCounter
 				);
 
 				BindGroupDesc cullDesc = .(mCullLightsBindGroupLayout, cullEntries);

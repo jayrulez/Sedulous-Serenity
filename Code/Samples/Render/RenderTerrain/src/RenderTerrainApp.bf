@@ -1,7 +1,6 @@
 using Sedulous.Core.Mathematics;
 using Sedulous.Runtime.Client;
 using Sedulous.RHI;
-using Sedulous.Shell;
 using Sedulous.Shell.Input;
 using Sedulous.Render;
 using Sedulous.GUI;
@@ -87,8 +86,8 @@ class RenderTerrainApp : Application
 	private int mFrameCount = 0;
 	private float mFpsTimer = 0;
 
-	public this(IShell shell, IDevice device, IBackend backend)
-		: base(shell, device, backend)
+	public this()
+		: base()
 	{
 	}
 
@@ -97,26 +96,33 @@ class RenderTerrainApp : Application
 		DeleteAndNullify!(mRoot);
 
 		mWorld?.Dispose();
-		mRenderSystem?.Shutdown();
 
-		// Delete views before textures
-		delete mGrassBladeView; mGrassBladeView = null;
-		delete mGrassBladeTexture; mGrassBladeTexture = null;
-		delete mHeightmapView; mHeightmapView = null;
-		delete mNormalMapView; mNormalMapView = null;
-		delete mSplatmapView; mSplatmapView = null;
-		for (int32 i = 0; i < 4; i++)
+		// Destroy terrain textures before render system shutdown
+		if (mDevice != null)
 		{
-			if (mLayerViews[i] != null) { delete mLayerViews[i]; mLayerViews[i] = null; }
-			if (mLayerTextures[i] != null) { delete mLayerTextures[i]; mLayerTextures[i] = null; }
+			mDevice.DestroyTextureView(ref mGrassBladeView);
+			mDevice.DestroyTexture(ref mGrassBladeTexture);
+			mDevice.DestroyTextureView(ref mHeightmapView);
+			mDevice.DestroyTextureView(ref mNormalMapView);
+			mDevice.DestroyTextureView(ref mSplatmapView);
+			for (int32 i = 0; i < 4; i++)
+			{
+				mDevice.DestroyTextureView(ref mLayerViews[i]);
+				mDevice.DestroyTexture(ref mLayerTextures[i]);
+			}
+			mDevice.DestroyTexture(ref mHeightmapTexture);
+			mDevice.DestroyTexture(ref mNormalMapTexture);
+			mDevice.DestroyTexture(ref mSplatmapTexture);
 		}
-		delete mHeightmapTexture; mHeightmapTexture = null;
-		delete mNormalMapTexture; mNormalMapTexture = null;
-		delete mSplatmapTexture; mSplatmapTexture = null;
 
-		delete mWorld; mWorld = null;
-		delete mView; mView = null;
-		delete mRenderSystem; mRenderSystem = null;
+		if (mRenderSystem != null)
+		{
+			mRenderSystem.Shutdown();
+			delete mRenderSystem;
+			mRenderSystem = null;
+		}
+		delete mWorld;
+		delete mView;
 
 		Console.WriteLine("Render Terrain shutting down");
 	}
@@ -127,7 +133,7 @@ class RenderTerrainApp : Application
 
 		// Initialize render system
 		mRenderSystem = new RenderSystem();
-		if (mRenderSystem.Initialize(mDevice, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null, .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
+		if (mRenderSystem.Initialize(mDevice, mSwapChain.Width, mSwapChain.Height, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null, .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
 		{
 			Console.WriteLine("ERROR: Failed to initialize RenderSystem");
 			return;
@@ -193,7 +199,7 @@ class RenderTerrainApp : Application
 		mContext.RegisterSubsystem(mUISubsystem);
 
 		let shaderPath = scope $"{AssetDirectory}/Render/shaders";
-		if (mUISubsystem.InitializeRendering(mDevice, mSwapChain.Format, (int32)mSwapChain.FrameCount, mShell, mWindow, scope StringView[](shaderPath)) case .Err)
+		if (mUISubsystem.InitializeRendering(mDevice, mSwapChain.Format, (int32)mSwapChain.BufferCount, mShell, mWindow, scope StringView[](shaderPath)) case .Err)
 		{
 			Console.WriteLine("Warning: Failed to initialize UI");
 			return;
@@ -530,7 +536,7 @@ class RenderTerrainApp : Application
 
 		TextureDataLayout layout = .() { BytesPerRow = (uint32)(HeightmapSize * 2), RowsPerImage = (uint32)HeightmapSize };
 		Extent3D size = .((uint32)HeightmapSize, (uint32)HeightmapSize, 1);
-		mDevice.Queue.WriteTextureSync(mHeightmapTexture, Span<uint8>((uint8*)pixels.Ptr, HeightmapSize * HeightmapSize * 2), &layout, &size);
+		TransferHelper.WriteTextureSync(mDevice.GetQueue(.Graphics), mDevice, mHeightmapTexture, Span<uint8>((uint8*)pixels.Ptr, HeightmapSize * HeightmapSize * 2), layout, size);
 
 		TextureViewDesc viewDesc = .() { Format = .R16Float, Dimension = .Texture2D };
 		if (mDevice.CreateTextureView(mHeightmapTexture, viewDesc) case .Ok(let view))
@@ -595,7 +601,7 @@ class RenderTerrainApp : Application
 
 		TextureDataLayout layout = .() { BytesPerRow = (uint32)(HeightmapSize * 4), RowsPerImage = (uint32)HeightmapSize };
 		Extent3D size = .((uint32)HeightmapSize, (uint32)HeightmapSize, 1);
-		mDevice.Queue.WriteTextureSync(mNormalMapTexture, Span<uint8>(pixels.Ptr, HeightmapSize * HeightmapSize * 4), &layout, &size);
+		TransferHelper.WriteTextureSync(mDevice.GetQueue(.Graphics), mDevice, mNormalMapTexture, Span<uint8>(pixels.Ptr, HeightmapSize * HeightmapSize * 4), layout, size);
 
 		TextureViewDesc viewDesc = .() { Format = .RGBA8Unorm, Dimension = .Texture2D };
 		if (mDevice.CreateTextureView(mNormalMapTexture, viewDesc) case .Ok(let view))
@@ -678,7 +684,7 @@ class RenderTerrainApp : Application
 
 		TextureDataLayout layout = .() { BytesPerRow = (uint32)(HeightmapSize * 4), RowsPerImage = (uint32)HeightmapSize };
 		Extent3D size = .((uint32)HeightmapSize, (uint32)HeightmapSize, 1);
-		mDevice.Queue.WriteTextureSync(mSplatmapTexture, Span<uint8>(pixels.Ptr, HeightmapSize * HeightmapSize * 4), &layout, &size);
+		TransferHelper.WriteTextureSync(mDevice.GetQueue(.Graphics), mDevice, mSplatmapTexture, Span<uint8>(pixels.Ptr, HeightmapSize * HeightmapSize * 4), layout, size);
 
 		TextureViewDesc viewDesc = .() { Format = .RGBA8Unorm, Dimension = .Texture2D };
 		if (mDevice.CreateTextureView(mSplatmapTexture, viewDesc) case .Ok(let view))
@@ -722,7 +728,7 @@ class RenderTerrainApp : Application
 
 			TextureDataLayout layout = .() { BytesPerRow = 16, RowsPerImage = 4 };
 			Extent3D size = .(4, 4, 1);
-			mDevice.Queue.WriteTextureSync(mLayerTextures[i], Span<uint8>(&pixels[0], 64), &layout, &size);
+			TransferHelper.WriteTextureSync(mDevice.GetQueue(.Graphics), mDevice, mLayerTextures[i], Span<uint8>(&pixels[0], 64), layout, size);
 
 			TextureViewDesc viewDesc = .() { Format = .RGBA8Unorm, Dimension = .Texture2D };
 			if (mDevice.CreateTextureView(mLayerTextures[i], viewDesc) case .Ok(let view))
@@ -874,7 +880,7 @@ class RenderTerrainApp : Application
 
 		TextureDataLayout layout = .() { BytesPerRow = (uint32)(texW * 4), RowsPerImage = (uint32)texH };
 		Extent3D size = .((uint32)texW, (uint32)texH, 1);
-		mDevice.Queue.WriteTextureSync(mGrassBladeTexture, Span<uint8>(pixels.Ptr, texW * texH * 4), &layout, &size);
+		TransferHelper.WriteTextureSync(mDevice.GetQueue(.Graphics), mDevice, mGrassBladeTexture, Span<uint8>(pixels.Ptr, texW * texH * 4), layout, size);
 
 		TextureViewDesc viewDesc = .() { Format = .RGBA8Unorm, Dimension = .Texture2D };
 		if (mDevice.CreateTextureView(mGrassBladeTexture, viewDesc) case .Ok(let view))
@@ -1039,7 +1045,7 @@ class RenderTerrainApp : Application
 		if (mShowGUI)
 			mUISubsystem?.Render(render.Encoder, render.SwapChain.CurrentTextureView,
 				render.SwapChain.Width, render.SwapChain.Height,
-				(int32)render.SwapChain.CurrentFrameIndex);
+				(int32)render.SwapChain.CurrentImageIndex);
 
 		return true;
 	}
@@ -1051,6 +1057,7 @@ class RenderTerrainApp : Application
 			mView.Width = (uint32)width;
 			mView.Height = (uint32)height;
 		}
+		mRenderSystem?.SetViewportSize((uint32)width, (uint32)height);
 	}
 
 	/// Convert float to IEEE 754 half-precision.

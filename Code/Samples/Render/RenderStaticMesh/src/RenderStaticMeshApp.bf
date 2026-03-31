@@ -12,15 +12,16 @@ using Sedulous.Materials;
 using Sedulous.Models;
 using Sedulous.Models.GLTF;
 using Sedulous.Imaging;
+using Sedulous.Textures;
 
 /// Static mesh sample demonstrating GLTF model loading, texture application,
 /// and PBR rendering via the Sedulous.Render pipeline.
 class RenderStaticMeshApp : Application
 {
 	// Render system
-	private RenderSystem mRenderSystem ~ delete _;
-	private RenderWorld mWorld ~ delete _;
-	private RenderView mView ~ delete _;
+	private RenderSystem mRenderSystem;
+	private RenderWorld mWorld;
+	private RenderView mView;
 
 	// Render features
 	private DepthPrepassFeature mDepthFeature;
@@ -52,8 +53,7 @@ class RenderStaticMeshApp : Application
 	// Animation
 	private float mModelRotation = 0;
 
-	public this(IShell shell, IDevice device, IBackend backend)
-		: base(shell, device, backend)
+	public this() : base()
 	{
 	}
 
@@ -63,7 +63,7 @@ class RenderStaticMeshApp : Application
 
 		// Initialize render system
 		mRenderSystem = new RenderSystem();
-		if (mRenderSystem.Initialize(mDevice, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null, .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
+		if (mRenderSystem.Initialize(mDevice, mSwapChain.Width, mSwapChain.Height, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null, .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
 		{
 			Console.WriteLine("ERROR: Failed to initialize RenderSystem");
 			return;
@@ -300,6 +300,11 @@ class RenderStaticMeshApp : Application
 		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
 	}
 
+	protected override void OnResize(int32 width, int32 height)
+	{
+		mRenderSystem?.SetViewportSize((uint32)width, (uint32)height);
+	}
+
 	protected override bool OnRenderFrame(RenderContext render)
 	{
 		mRenderSystem.BeginFrame((float)render.Frame.TotalTime, (float)render.Frame.DeltaTime);
@@ -328,13 +333,21 @@ class RenderStaticMeshApp : Application
 
 	protected override void OnShutdown()
 	{
-		if (mMeshHandle.IsValid)
-			mRenderSystem.ResourceManager.ReleaseMesh(mMeshHandle, mRenderSystem.FrameNumber);
-		if (mTextureHandle.IsValid)
-			mRenderSystem.ResourceManager.ReleaseTexture(mTextureHandle, mRenderSystem.FrameNumber);
+		mWorld?.Dispose();
 
 		if (mRenderSystem != null)
+		{
+			if (mMeshHandle.IsValid)
+				mRenderSystem.ResourceManager.ReleaseMesh(mMeshHandle, mRenderSystem.FrameNumber);
+			if (mTextureHandle.IsValid)
+				mRenderSystem.ResourceManager.ReleaseTexture(mTextureHandle, mRenderSystem.FrameNumber);
+
 			mRenderSystem.Shutdown();
+			delete mRenderSystem;
+			mRenderSystem = null;
+		}
+		delete mWorld;
+		delete mView;
 
 		Console.WriteLine("Render Static Mesh shutting down");
 	}

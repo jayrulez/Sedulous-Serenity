@@ -5,6 +5,7 @@ using System.Collections;
 using Sedulous.RHI;
 using Sedulous.Geometry;
 using Sedulous.Core.Mathematics;
+using Sedulous.Textures;
 
 /// Pending deletion entry.
 struct PendingDeletion
@@ -37,13 +38,10 @@ public class GPUBoneBuffer
 	public bool IsActive;
 
 	/// Frees GPU resources.
-	public void Release()
+	public void Release(IDevice device)
 	{
-		if (Buffer != null)
-		{
-			delete Buffer;
-			Buffer = null;
-		}
+		if (device != null)
+			device.DestroyBuffer(ref Buffer);
 		IsActive = false;
 	}
 }
@@ -52,6 +50,7 @@ public class GPUBoneBuffer
 public class GPUResourceManager : IDisposable
 {
 	private IDevice mDevice;
+	private IQueue mQueue;
 
 	/// Optional transfer batch for batching GPU uploads during initialization.
 	/// When set, UploadMesh/UploadTexture use non-blocking batch methods instead of sync.
@@ -79,9 +78,10 @@ public class GPUResourceManager : IDisposable
 	public IDevice Device => mDevice;
 
 	/// Initializes the manager.
-	public Result<void> Initialize(IDevice device)
+	public Result<void> Initialize(IDevice device, IQueue graphicsQueue)
 	{
 		mDevice = device;
+		mQueue = graphicsQueue;
 		return .Ok;
 	}
 
@@ -122,6 +122,7 @@ public class GPUResourceManager : IDisposable
 		let vertexDataSize = (uint64)(mesh.VertexCount * mesh.VertexSize);
 		var vbDesc = BufferDesc()
 		{
+			Label = "Static Mesh Vertices",
 			Size = vertexDataSize,
 			Usage = .Vertex | .CopyDst
 		};
@@ -133,7 +134,7 @@ public class GPUResourceManager : IDisposable
 			if (TransferBatch != null)
 				TransferBatch.WriteBuffer(vb, 0, vbData);
 			else
-				mDevice.Queue.WriteStagedBufferSync(vb, 0, vbData);
+				TransferHelper.WriteStagedBufferSync(mQueue, mDevice,vb, 0, vbData);
 		}
 		else
 		{
@@ -150,6 +151,7 @@ public class GPUResourceManager : IDisposable
 			let indexDataSize = (uint64)(indices.IndexCount * indexSize);
 			var ibDesc = BufferDesc()
 			{
+				Label = "Static Mesh Indices",
 				Size = indexDataSize,
 				Usage = .Index | .CopyDst
 			};
@@ -161,12 +163,11 @@ public class GPUResourceManager : IDisposable
 				if (TransferBatch != null)
 					TransferBatch.WriteBuffer(ib, 0, ibData);
 				else
-					mDevice.Queue.WriteStagedBufferSync(ib, 0, ibData);
+					TransferHelper.WriteStagedBufferSync(mQueue, mDevice,ib, 0, ibData);
 			}
 			else
 			{
-				delete gpuMesh.VertexBuffer;
-				gpuMesh.VertexBuffer = null;
+				mDevice.DestroyBuffer(ref gpuMesh.VertexBuffer);
 				return .Err;
 			}
 		}
@@ -289,6 +290,7 @@ public class GPUResourceManager : IDisposable
 		let vertexDataSize = (uint64)(mesh.VertexCount * mesh.VertexSize);
 		var vbDesc = BufferDesc()
 		{
+			Label = "Skinned Mesh Vertices",
 			Size = vertexDataSize,
 			Usage = .Vertex | .Storage | .CopyDst
 		};
@@ -300,7 +302,7 @@ public class GPUResourceManager : IDisposable
 			if (TransferBatch != null)
 				TransferBatch.WriteBuffer(vb, 0, vbData);
 			else
-				mDevice.Queue.WriteStagedBufferSync(vb, 0, vbData);
+				TransferHelper.WriteStagedBufferSync(mQueue, mDevice,vb, 0, vbData);
 		}
 		else
 		{
@@ -317,6 +319,7 @@ public class GPUResourceManager : IDisposable
 			let indexDataSize = (uint64)(indices.IndexCount * indexSize);
 			var ibDesc = BufferDesc()
 			{
+				Label = "Skinned Mesh Indices",
 				Size = indexDataSize,
 				Usage = .Index | .CopyDst
 			};
@@ -328,12 +331,11 @@ public class GPUResourceManager : IDisposable
 				if (TransferBatch != null)
 					TransferBatch.WriteBuffer(ib, 0, ibData);
 				else
-					mDevice.Queue.WriteStagedBufferSync(ib, 0, ibData);
+					TransferHelper.WriteStagedBufferSync(mQueue, mDevice,ib, 0, ibData);
 			}
 			else
 			{
-				delete gpuMesh.VertexBuffer;
-				gpuMesh.VertexBuffer = null;
+				mDevice.DestroyBuffer(ref gpuMesh.VertexBuffer);
 				return .Err;
 			}
 		}
@@ -419,6 +421,7 @@ public class GPUResourceManager : IDisposable
 
 		var bufDesc = BufferDesc()
 		{
+			Label = "Bone Transforms",
 			Size = bufferSize,
 			Usage = .Storage,
 			Memory = .CpuToGpu
@@ -464,11 +467,11 @@ public class GPUResourceManager : IDisposable
 			let matrixSize = (uint64)(sizeof(Matrix) * actualBoneCount);
 
 			// Upload current frame matrices
-			mDevice.Queue.WriteMappedBuffer(buffer.Buffer, 0, Span<uint8>((uint8*)currentBones, (int)matrixSize));
+			TransferHelper.WriteMappedBuffer(buffer.Buffer, 0, Span<uint8>((uint8*)currentBones, (int)matrixSize));
 
 			// Upload previous frame matrices (offset by buffer's bone count, not MaxBones)
 			let prevOffset = (uint64)(sizeof(Matrix) * buffer.BoneCount);
-			mDevice.Queue.WriteMappedBuffer(buffer.Buffer, prevOffset, Span<uint8>((uint8*)prevBones, (int)matrixSize));
+			TransferHelper.WriteMappedBuffer(buffer.Buffer, prevOffset, Span<uint8>((uint8*)prevBones, (int)matrixSize));
 		}
 	}
 
@@ -529,6 +532,7 @@ public class GPUResourceManager : IDisposable
 		// Create texture
 		var texDesc = TextureDesc()
 		{
+			Label = "Uploaded Texture",
 			Width = data.Width,
 			Height = data.Height,
 			Depth = 1,
@@ -565,9 +569,9 @@ public class GPUResourceManager : IDisposable
 
 			let texData = Span<uint8>(data.Pixels, (int)data.Size);
 			if (TransferBatch != null)
-				TransferBatch.WriteTexture(tex, texData, &dataLayout, &writeSize, 0, 0);
+				TransferBatch.WriteTexture(tex, texData, dataLayout, writeSize, 0, 0);
 			else
-				mDevice.Queue.WriteTextureSync(tex, texData, &dataLayout, &writeSize, 0, 0);
+				TransferHelper.WriteTextureSync(mQueue, mDevice, tex, texData, dataLayout, writeSize, 0, 0);
 
 			// Create default view
 			var viewDesc = TextureViewDesc()
@@ -584,7 +588,8 @@ public class GPUResourceManager : IDisposable
 				gpuTexture.DefaultView = view;
 			else
 			{
-				delete tex;
+				var texRef = tex;
+				mDevice.DestroyTexture(ref texRef);
 				return .Err;
 			}
 		}
@@ -629,6 +634,7 @@ public class GPUResourceManager : IDisposable
 
 		var texDesc = TextureDesc()
 		{
+			Label = "Render Target",
 			Width = width,
 			Height = height,
 			Depth = 1,
@@ -658,7 +664,8 @@ public class GPUResourceManager : IDisposable
 				gpuTexture.DefaultView = view;
 			else
 			{
-				delete tex;
+				var texRef = tex;
+				mDevice.DestroyTexture(ref texRef);
 				return .Err;
 			}
 		}
@@ -741,17 +748,17 @@ public class GPUResourceManager : IDisposable
 				{
 				case .Mesh:
 					let mesh = mMeshes[(int)pending.Index];
-					mesh.Release();
+					mesh.Release(mDevice);
 					mFreeMeshSlots.Add((int32)pending.Index);
 
 				case .Texture:
 					let tex = mTextures[(int)pending.Index];
-					tex.Release();
+					tex.Release(mDevice);
 					mFreeTextureSlots.Add((int32)pending.Index);
 
 				case .BoneBuffer:
 					let buffer = mBoneBuffers[(int)pending.Index];
-					buffer.Release();
+					buffer.Release(mDevice);
 					mFreeBoneBufferSlots.Add((int32)pending.Index);
 				}
 
@@ -764,13 +771,13 @@ public class GPUResourceManager : IDisposable
 	{
 		// Release all resources immediately
 		for (let mesh in mMeshes)
-			mesh.Release();
+			mesh.Release(mDevice);
 
 		for (let tex in mTextures)
-			tex.Release();
+			tex.Release(mDevice);
 
 		for (let buffer in mBoneBuffers)
-			buffer.Release();
+			buffer.Release(mDevice);
 
 		mPendingDeletions.Clear();
 	}

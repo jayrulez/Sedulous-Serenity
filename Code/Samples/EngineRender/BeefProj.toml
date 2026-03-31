@@ -1,0 +1,6 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.Render" = "*", "Sedulous.Runtime.Client" = "*", "Sedulous.Engine.Scenes" = "*", "Sedulous.Engine.Render" = "*", "Sedulous.Geometry" = "*", "Sedulous.Profiler" = "*", corlib = "*"}
+
+[Project]
+Name = "EngineRender"
+StartupObject = "EngineRender.Program"

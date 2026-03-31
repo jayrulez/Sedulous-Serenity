@@ -3,69 +3,65 @@ namespace Sedulous.RHI.Vulkan;
 using System;
 using Bulkan;
 using Sedulous.RHI;
-using Sedulous.RHI.Vulkan.Internal;
 
 /// Vulkan implementation of ISampler.
 class VulkanSampler : ISampler
 {
-	private VulkanDevice mDevice;
 	private VkSampler mSampler;
-	private String mDebugName ~ delete _;
+	private SamplerDesc mDesc;
 
-	public this(VulkanDevice device, SamplerDesc descriptor)
-	{
-		mDevice = device;
-		if (descriptor.Label.Ptr != null && descriptor.Label.Length > 0)
-			mDebugName = new String(descriptor.Label);
-		CreateSampler(descriptor);
-		if (mDebugName != null && mSampler != default)
-			mDevice.SetDebugName(mSampler.Handle, .VK_OBJECT_TYPE_SAMPLER, mDebugName);
-	}
+	public SamplerDesc Desc => mDesc;
 
-	public ~this()
-	{
-		Dispose();
-	}
+	public this() { }
 
-	public void Dispose()
+	public Result<void> Init(VulkanDevice device, SamplerDesc desc)
 	{
-		if (mSampler != default)
+		mDesc = desc;
+		VkSamplerCreateInfo samplerInfo = .();
+		samplerInfo.magFilter = VulkanConversions.ToVkFilter(desc.MagFilter);
+		samplerInfo.minFilter = VulkanConversions.ToVkFilter(desc.MinFilter);
+		samplerInfo.mipmapMode = VulkanConversions.ToVkMipmapMode(desc.MipmapFilter);
+		samplerInfo.addressModeU = VulkanConversions.ToVkAddressMode(desc.AddressU);
+		samplerInfo.addressModeV = VulkanConversions.ToVkAddressMode(desc.AddressV);
+		samplerInfo.addressModeW = VulkanConversions.ToVkAddressMode(desc.AddressW);
+		samplerInfo.mipLodBias = desc.MipLodBias;
+		samplerInfo.anisotropyEnable = (desc.MaxAnisotropy > 1) ? VkBool32.True : VkBool32.False;
+		samplerInfo.maxAnisotropy = (float)desc.MaxAnisotropy;
+		samplerInfo.minLod = desc.MinLod;
+		samplerInfo.maxLod = desc.MaxLod;
+		samplerInfo.borderColor = VulkanConversions.ToVkBorderColor(desc.BorderColor);
+		samplerInfo.unnormalizedCoordinates = VkBool32.False;
+
+		if (desc.Compare != null)
 		{
-			VulkanNative.vkDestroySampler(mDevice.Device, mSampler, null);
-			mSampler = default;
+			samplerInfo.compareEnable = VkBool32.True;
+			samplerInfo.compareOp = VulkanConversions.ToVkCompareOp(desc.Compare.Value);
+		}
+		else
+		{
+			samplerInfo.compareEnable = VkBool32.False;
+			samplerInfo.compareOp = .VK_COMPARE_OP_ALWAYS;
+		}
+
+		let result = VulkanNative.vkCreateSampler(device.Handle, &samplerInfo, null, &mSampler);
+		if (result != .VK_SUCCESS)
+		{
+			System.Diagnostics.Debug.WriteLine(scope $"VulkanSampler: vkCreateSampler failed ({result})");
+			return .Err;
+		}
+
+		return .Ok;
+	}
+
+	public void Cleanup(VulkanDevice device)
+	{
+		if (mSampler.Handle != 0)
+		{
+			VulkanNative.vkDestroySampler(device.Handle, mSampler, null);
+			mSampler = .Null;
 		}
 	}
 
-	/// Returns true if the sampler was created successfully.
-	public bool IsValid => mSampler != default;
-
-	public StringView DebugName => mDebugName != null ? mDebugName : "";
-
-	/// Gets the Vulkan sampler handle.
-	public VkSampler Sampler => mSampler;
-
-	private void CreateSampler(SamplerDesc descriptor)
-	{
-		VkSamplerCreateInfo samplerInfo = .()
-			{
-				sType = .VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-				magFilter = VulkanConversions.ToVkFilter(descriptor.MagFilter),
-				minFilter = VulkanConversions.ToVkFilter(descriptor.MinFilter),
-				mipmapMode = VulkanConversions.ToVkSamplerMipmapMode(descriptor.MipmapFilter),
-				addressModeU = VulkanConversions.ToVkSamplerAddressMode(descriptor.AddressU),
-				addressModeV = VulkanConversions.ToVkSamplerAddressMode(descriptor.AddressV),
-				addressModeW = VulkanConversions.ToVkSamplerAddressMode(descriptor.AddressW),
-				mipLodBias = 0.0f,
-				anisotropyEnable = descriptor.MaxAnisotropy > 1 ? VkBool32.True : VkBool32.False,
-				maxAnisotropy = (float)descriptor.MaxAnisotropy,
-				compareEnable = descriptor.Compare != .Always ? VkBool32.True : VkBool32.False,
-				compareOp = VulkanConversions.ToVkCompareOp(descriptor.Compare),
-				minLod = descriptor.MinLod,
-				maxLod = descriptor.MaxLod,
-				borderColor = VulkanConversions.ToVkBorderColor(descriptor.BorderColor),
-				unnormalizedCoordinates = VkBool32.False
-			};
-
-		VulkanNative.vkCreateSampler(mDevice.Device, &samplerInfo, null, &mSampler);
-	}
+	// --- Internal ---
+	public VkSampler Handle => mSampler;
 }

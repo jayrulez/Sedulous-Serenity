@@ -1,0 +1,46 @@
+digraph RenderGraph {
+  rankdir=LR;
+  node [shape=box, style="filled,rounded", fontname="Consolas"];
+  edge [fontname="Consolas", fontsize=9];
+
+  subgraph cluster_legend {
+    label="Queue Types";
+    style=dashed;
+    fontname="Consolas";
+    legend_gfx [label="Graphics", fillcolor="#a8d8ea"];
+    legend_compute [label="Compute", fillcolor="#ffd3b6"];
+    legend_transfer [label="Transfer", fillcolor="#d5f5e3"];
+    legend_culled [label="Culled", fillcolor="#cccccc"];
+  }
+
+  pass_0 [label="GBuffer\n[GFX]", fillcolor="#a8d8ea", style="filled,rounded"];
+  pass_1 [label="SSAO\n[CMP]", fillcolor="#ffd3b6", style="filled,rounded"];
+  pass_2 [label="Lighting\n[GFX]", fillcolor="#a8d8ea", style="filled,rounded"];
+  pass_3 [label="Tonemap\n[GFX]", fillcolor="#a8d8ea", style="filled,rounded"];
+  pass_4 [label="DebugView\n[GFX]", fillcolor="#cccccc", style="filled,rounded,dashed"];
+
+  res_1 [shape=ellipse, style=filled, fillcolor="#ffffcc", label="Albedo\n(tex)"];
+  res_2 [shape=ellipse, style=filled, fillcolor="#ffffcc", label="Normal\n(tex)"];
+  res_3 [shape=ellipse, style=filled, fillcolor="#ffffcc", label="Depth\n(tex)"];
+  res_4 [shape=ellipse, style=filled, fillcolor="#ffffcc", label="SSAO_Data\n(buf)"];
+  res_5 [shape=ellipse, style=filled, fillcolor="#ffffcc", label="HDR\n(tex)"];
+  res_6 [shape=ellipse, style=filled, fillcolor="#ffffcc", label="Debug\n(tex)"];
+
+  pass_0 -> res_1 [label="RT", color="#cc4444"];
+  pass_0 -> res_2 [label="RT", color="#cc4444"];
+  pass_0 -> res_3 [label="DSW", color="#cc4444"];
+  res_3 -> pass_1 [label="SRV", color="#4444cc"];
+  res_2 -> pass_1 [label="SRV", color="#4444cc"];
+  pass_1 -> res_4 [label="UAV", color="#cc4444"];
+  res_1 -> pass_2 [label="SRV", color="#4444cc"];
+  res_2 -> pass_2 [label="SRV", color="#4444cc"];
+  res_3 -> pass_2 [label="SRV", color="#4444cc"];
+  res_4 -> pass_2 [label="SRV", color="#4444cc"];
+  pass_2 -> res_5 [label="RT", color="#cc4444"];
+  res_5 -> pass_3 [label="SRV", color="#4444cc"];
+  pass_4 -> res_6 [label="RT", color="#cc4444"];
+
+  // Cross-queue synchronization
+  pass_0 -> pass_1 [style=dashed, color="#ff0000", penwidth=2, label="fence=1"];
+  pass_1 -> pass_2 [style=dashed, color="#ff0000", penwidth=2, label="fence=2"];
+}

@@ -5,15 +5,16 @@ using System.IO;
 using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
 using Sedulous.Shaders;
-using SampleFramework;
+using Sedulous.Runtime.Client;
+using Sedulous.Runtime;
 using Sedulous.Slug;
 using Sedulous.Slug.TTF;
 using Sedulous.Slug.Renderer;
 
 /// Slug GPU font rendering sample.
 /// Demonstrates resolution-independent text rendering directly from
-/// quadratic Bézier curves using the Slug algorithm.
-class SlugSampleApp : RHISampleApp
+/// quadratic Bezier curves using the Slug algorithm.
+class SlugSampleApp : Application
 {
 	private SlugFont mFont;
 	private SlugTextRenderer mRenderer;
@@ -24,17 +25,11 @@ class SlugSampleApp : RHISampleApp
 	private float mFpsTimer = 0;
 	private int mCurrentFps = 0;
 
-	public this() : base(.()
-		{
-			Title = "Slug Font Rendering",
-			Width = 1280,
-			Height = 720,
-			ClearColor = .(0.08f, 0.08f, 0.12f, 1.0f)
-		})
+	public this() : base()
 	{
 	}
 
-	protected override bool OnInitialize()
+	protected override void OnInitialize(Context context)
 	{
 		// 1. Load TTF font
 		String fontPath = scope .();
@@ -43,7 +38,7 @@ class SlugSampleApp : RHISampleApp
 		if (!File.Exists(fontPath))
 		{
 			Console.WriteLine(scope $"Font not found: {fontPath}");
-			return false;
+			return;
 		}
 
 		switch (SlugTTFLoader.LoadFromFile(fontPath, 32, 126))
@@ -53,7 +48,7 @@ class SlugSampleApp : RHISampleApp
 			Console.WriteLine(scope $"Font loaded: {mFont.GlyphCount} glyphs");
 		case .Err(let err):
 			Console.WriteLine(scope $"Failed to load font: {err}");
-			return false;
+			return;
 		}
 
 		// 2. Build curve + band textures
@@ -65,41 +60,38 @@ class SlugSampleApp : RHISampleApp
 			Console.WriteLine(scope $"Textures built: curve={textureData.CurveTextureSize.x}x{textureData.CurveTextureSize.y}");
 		case .Err:
 			Console.WriteLine("Failed to build textures");
-			return false;
+			return;
 		}
 		defer { delete textureData.CurveTextureData; delete textureData.BandTextureData; }
 
 		// 3. Initialize shader system
 		mShaderSystem = new ShaderSystem();
-		mShaderSystem.Target = ShaderUtils.GetTargetForDevice(Device);
 
 		String shaderPath = scope .();
 		GetAssetPath("Render/Shaders", shaderPath);
 		if (mShaderSystem.Initialize(Device, scope StringView[](shaderPath)) case .Err)
 		{
 			Console.WriteLine("Failed to initialize shader system");
-			return false;
+			return;
 		}
 
 		// 4. Initialize renderer (loads shaders, uploads textures, creates pipeline)
 		mRenderer = new SlugTextRenderer(Device);
-		switch (mRenderer.Initialize(mFont, textureData, FrameConfig.MAX_FRAMES_IN_FLIGHT, SwapChain.Format, mShaderSystem))
+		switch (mRenderer.Initialize(mFont, textureData, (int32)SwapChain.BufferCount, SwapChain.Format, mShaderSystem))
 		{
 		case .Ok:
 			Console.WriteLine("Slug renderer initialized!");
 		case .Err:
 			Console.WriteLine("Failed to initialize Slug renderer");
-			return false;
+			return;
 		}
-
-		return true;
 	}
 
-	protected override void OnUpdate(float deltaTime, float totalTime)
+	protected override void OnUpdate(FrameContext frame)
 	{
-		mTime = totalTime;
+		mTime = frame.TotalTime;
 		mFrameCount++;
-		mFpsTimer += deltaTime;
+		mFpsTimer += frame.DeltaTime;
 		if (mFpsTimer >= 1.0f)
 		{
 			mCurrentFps = mFrameCount;
@@ -108,7 +100,7 @@ class SlugSampleApp : RHISampleApp
 		}
 	}
 
-	protected override void OnPrepareFrame(int32 frameIndex)
+	protected override void OnPrepareFrame(FrameContext frame)
 	{
 		float w = (float)SwapChain.Width;
 		float h = (float)SwapChain.Height;
@@ -150,16 +142,16 @@ class SlugSampleApp : RHISampleApp
 		mRenderer.DrawText("Press Escape to exit", margin, h - 40, 16.0f, .(150, 150, 170, 255));
 
 		// Upload to per-frame GPU buffers via WriteMappedBuffer (no sync stall)
-		mRenderer.Prepare(frameIndex, SwapChain.Width, SwapChain.Height);
+		mRenderer.Prepare(frame.FrameIndex, SwapChain.Width, SwapChain.Height);
 	}
 
-	protected override void OnRender(IRenderPassEncoder renderPass)
+	protected override void OnRender(IRenderPassEncoder renderPass, FrameContext frame)
 	{
-		let frameIndex = (int32)SwapChain.CurrentFrameIndex;
+		let frameIndex = (int32)SwapChain.CurrentImageIndex;
 		mRenderer.Render(renderPass, frameIndex);
 	}
 
-	protected override void OnCleanup()
+	protected override void OnShutdown()
 	{
 		if (mRenderer != null)
 		{
@@ -188,6 +180,6 @@ class Program
 	public static int Main(String[] args)
 	{
 		let app = scope SlugSampleApp();
-		return app.Run();
+		return app.Run(.() { Title = "Slug Font Rendering", Width = 1280, Height = 720, ClearColor = .(0.08f, 0.08f, 0.12f, 1.0f), EnableDepth = false });
 	}
 }

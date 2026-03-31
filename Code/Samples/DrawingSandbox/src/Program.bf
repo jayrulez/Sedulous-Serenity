@@ -4,15 +4,16 @@ using System;
 using System.Collections;
 using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
-using SampleFramework;
+using Sedulous.Runtime.Client;
 using Sedulous.Drawing;
 using Sedulous.Drawing.Fonts;
 using Sedulous.Drawing.Renderer;
 using Sedulous.Fonts;
 using Sedulous.Shaders;
+using Sedulous.Runtime;
 
 /// Drawing sandbox sample demonstrating Sedulous.Drawing capabilities.
-class DrawingSandboxSample : RHISampleApp
+class DrawingSandboxApp : Application
 {
 	// Font service
 	private FontService mFontService;
@@ -37,20 +38,14 @@ class DrawingSandboxSample : RHISampleApp
 	private float mFpsTimer = 0;
 	private int mCurrentFps = 0;
 
-	public this() : base(.()
-		{
-			Title = "Drawing Sandbox",
-			Width = 1280,
-			Height = 720,
-			ClearColor = .(0.1f, 0.1f, 0.15f, 1.0f)
-		})
+	public this() : base()
 	{
 	}
 
-	protected override bool OnInitialize()
+	protected override void OnInitialize(Context context)
 	{
 		if (!InitializeFont())
-			return false;
+			return;
 
 		// Initialize shader system
 		mShaderSystem = new ShaderSystem();
@@ -59,22 +54,21 @@ class DrawingSandboxSample : RHISampleApp
 		if (mShaderSystem.Initialize(Device, scope StringView[](shaderPath)) case .Err)
 		{
 			Console.WriteLine("Failed to initialize shader system");
-			return false;
+			return;
 		}
 
-		// Create draw context with font service (auto-sets WhitePixelUV)
+		// Create draw context with font service
 		mDrawContext = new DrawContext(mFontService);
 
 		// Create and initialize the drawing renderer
 		mDrawingRenderer = new DrawingRenderer();
-		if (mDrawingRenderer.Initialize(Device, SwapChain.Format, MAX_FRAMES_IN_FLIGHT, mShaderSystem) case .Err)
+		if (mDrawingRenderer.Initialize(Device, SwapChain.Format, (int32)SwapChain.BufferCount, mShaderSystem) case .Err)
 		{
 			Console.WriteLine("Failed to initialize DrawingRenderer");
-			return false;
+			return;
 		}
 
 		Console.WriteLine("DrawingSandbox initialized with DrawingRenderer");
-		return true;
 	}
 
 	private bool InitializeFont()
@@ -84,7 +78,7 @@ class DrawingSandboxSample : RHISampleApp
 		String fontPath = scope .();
 		GetAssetPath("framework/fonts/roboto/Roboto-Regular.ttf", fontPath);
 
-		// Load font with extended Latin for diacritics (Å, Ô, é, etc.)
+		// Load font with extended Latin for diacritics
 		FontLoadOptions options = .ExtendedLatin;
 		options.PixelHeight = (int32)FONT_SIZE;
 
@@ -98,13 +92,13 @@ class DrawingSandboxSample : RHISampleApp
 		return true;
 	}
 
-	protected override void OnUpdate(float deltaTime, float totalTime)
+	protected override void OnUpdate(FrameContext frame)
 	{
-		mAnimationTime = totalTime;
+		mAnimationTime = frame.TotalTime;
 
 		// FPS calculation
 		mFrameCount++;
-		mFpsTimer += deltaTime;
+		mFpsTimer += frame.DeltaTime;
 		if (mFpsTimer >= 1.0f)
 		{
 			mCurrentFps = mFrameCount;
@@ -113,18 +107,20 @@ class DrawingSandboxSample : RHISampleApp
 		}
 	}
 
-	/// Called before render with the current frame index - safe to write per-frame buffers here
-	protected override void OnPrepareFrame(int32 frameIndex)
+	protected override void OnPrepareFrame(FrameContext frame)
 	{
+		if (mDrawingRenderer == null || !mDrawingRenderer.IsInitialized)
+			return;
+
 		// Build drawing commands
 		BuildDrawCommands();
 
 		// Prepare batch data for GPU
 		let batch = mDrawContext.GetBatch();
-		mDrawingRenderer.Prepare(batch, frameIndex);
+		mDrawingRenderer.Prepare(batch, frame.FrameIndex);
 
 		// Update projection matrix
-		mDrawingRenderer.UpdateProjection(SwapChain.Width, SwapChain.Height, frameIndex);
+		mDrawingRenderer.UpdateProjection(SwapChain.Width, SwapChain.Height, frame.FrameIndex);
 	}
 
 	private void BuildDrawCommands()
@@ -140,35 +136,29 @@ class DrawingSandboxSample : RHISampleApp
 		float col1X = margin;
 		float y = margin;
 
-		// Title
 		DrawLabel("BASIC SHAPES", col1X, y, Color.Yellow);
 		y += 30;
 
-		// Rectangle
 		DrawLabel("Rectangle", col1X, y, Color.White);
 		y += 20;
 		mDrawContext.FillRect(.(col1X, y, 100, 60), Color.Red);
 		y += 80;
 
-		// Rounded Rectangle
 		DrawLabel("Rounded Rect", col1X, y, Color.White);
 		y += 20;
 		mDrawContext.FillRoundedRect(.(col1X, y, 100, 60), 15, Color.Green);
 		y += 80;
 
-		// Circle
 		DrawLabel("Circle", col1X, y, Color.White);
 		y += 20;
 		mDrawContext.FillCircle(.(col1X + 50, y + 40), 40, Color.Blue);
 		y += 100;
 
-		// Ellipse
 		DrawLabel("Ellipse", col1X, y, Color.White);
 		y += 20;
 		mDrawContext.FillEllipse(.(col1X + 60, y + 30), 60, 30, Color.Purple);
 		y += 80;
 
-		// Arc (animated)
 		DrawLabel("Arc (animated)", col1X, y, Color.White);
 		y += 20;
 		float arcSweep = (Math.Sin(mAnimationTime * 2) * 0.5f + 0.5f) * Math.PI_f * 1.8f + 0.2f;
@@ -182,26 +172,22 @@ class DrawingSandboxSample : RHISampleApp
 		DrawLabel("STROKES & LINES", col2X, y, Color.Yellow);
 		y += 30;
 
-		// Stroked Rectangle
 		DrawLabel("Stroked Rect", col2X, y, Color.White);
 		y += 20;
 		mDrawContext.DrawRect(.(col2X, y, 100, 60), Color.Cyan, 3.0f);
 		y += 80;
 
-		// Stroked Circle
 		DrawLabel("Stroked Circle", col2X, y, Color.White);
 		y += 20;
 		mDrawContext.DrawCircle(.(col2X + 50, y + 40), 40, Color.Magenta, 3.0f);
 		y += 100;
 
-		// Lines
 		DrawLabel("Lines", col2X, y, Color.White);
 		y += 20;
 		mDrawContext.DrawLine(.(col2X, y), .(col2X + 100, y + 50), Color.Red, 2.0f);
 		mDrawContext.DrawLine(.(col2X + 100, y), .(col2X, y + 50), Color.Green, 2.0f);
 		y += 70;
 
-		// Polyline
 		DrawLabel("Polyline", col2X, y, Color.White);
 		y += 20;
 		Vector2[] polylinePoints = scope .(
@@ -214,7 +200,6 @@ class DrawingSandboxSample : RHISampleApp
 		mDrawContext.DrawPolyline(polylinePoints, Color.Yellow, 3.0f);
 		y += 60;
 
-		// Polygon outline
 		DrawLabel("Polygon Outline", col2X, y, Color.White);
 		y += 20;
 		Vector2[] pentagonPoints = scope .(
@@ -234,7 +219,6 @@ class DrawingSandboxSample : RHISampleApp
 		DrawLabel("ADVANCED FEATURES", col3X, y, Color.Yellow);
 		y += 30;
 
-		// Filled Polygon
 		DrawLabel("Filled Polygon", col3X, y, Color.White);
 		y += 20;
 		Vector2[] trianglePoints = scope .(
@@ -245,21 +229,18 @@ class DrawingSandboxSample : RHISampleApp
 		mDrawContext.FillPolygon(trianglePoints, Color.Coral);
 		y += 90;
 
-		// Linear Gradient
 		DrawLabel("Linear Gradient", col3X, y, Color.White);
 		y += 20;
 		let linearBrush = scope LinearGradientBrush(.(col3X, y), .(col3X + 120, y + 60), Color.Red, Color.Blue);
 		mDrawContext.FillRect(.(col3X, y, 120, 60), linearBrush);
 		y += 80;
 
-		// Radial Gradient
 		DrawLabel("Radial Gradient", col3X, y, Color.White);
 		y += 25;
 		let radialBrush = scope RadialGradientBrush(.(col3X + 50, y + 50), 50, Color.White, Color.DarkBlue);
 		mDrawContext.FillCircle(.(col3X + 50, y + 50), 50, radialBrush);
 		y += 115;
 
-		// Transform demo (rotating squares)
 		DrawLabel("Transforms (rotating)", col3X, y, Color.White);
 		y += 20;
 		float centerX = col3X + 60;
@@ -284,7 +265,6 @@ class DrawingSandboxSample : RHISampleApp
 		mDrawContext.PopState();
 		y += 140;
 
-		// Scale demo
 		DrawLabel("Scale Animation", col3X, y, Color.White);
 		y += 20;
 		float scale = 0.5f + Math.Sin(mAnimationTime * 3) * 0.3f;
@@ -295,18 +275,15 @@ class DrawingSandboxSample : RHISampleApp
 		mDrawContext.PopState();
 		y += 80;
 
-		// Transformed Text demo
 		DrawLabel("Transformed Text", col3X, y, Color.White);
 		y += 25;
 
-		// Rotating text
 		mDrawContext.PushState();
 		mDrawContext.Translate(col3X + 60, y + 20);
 		mDrawContext.Rotate(mAnimationTime * 0.5f);
 		DrawLabel("Spinning!", -30, -10, Color.Cyan);
 		mDrawContext.PopState();
 
-		// Scaled text
 		mDrawContext.PushState();
 		mDrawContext.Translate(col3X + 160, y + 20);
 		let textScale = 0.8f + Math.Sin(mAnimationTime * 2) * 0.4f;
@@ -314,68 +291,53 @@ class DrawingSandboxSample : RHISampleApp
 		DrawLabel("Pulsing", -25, -10, Color.Magenta);
 		mDrawContext.PopState();
 
-		// === Corner test - text at 0,0 to check clipping ===
-		// Using characters that reach full ascent height
 		DrawLabel("Ålign Ôrigin", 0, 0, Color.Red);
-
-		// === FPS Counter (moved down from window chrome) ===
 		DrawLabel(scope $"FPS: {mCurrentFps}", screenWidth - 100, 30, Color.Lime);
-
-		// === Instructions ===
 		DrawLabel("Press Escape to exit", screenWidth / 2 - 80, screenHeight - 30, Color.Gray);
 	}
 
-	/// Draw text at top-left position
 	private void DrawLabel(StringView text, float x, float y, Color color)
 	{
 		mDrawContext.DrawText(text, FONT_SIZE, .(x, y), color);
 	}
 
-	/// Custom render frame - use this instead of OnRender to get proper frame synchronization
-	protected override bool OnRenderFrame(ICommandEncoder encoder, int32 frameIndex)
+	protected override bool OnRenderFrame(RenderContext render)
 	{
-		// Create render pass targeting swap chain
-		let swapTextureView = SwapChain.CurrentTextureView;
-		ColorAttachment[1] colorAttachments = .(.(swapTextureView)
-			{
-				LoadOp = .Clear,
-				StoreOp = .Store,
-				ClearValue = .(0.1f, 0.1f, 0.15f, 1.0f)
-			});
-		RenderPassDesc passDesc = .(colorAttachments);
+		if (mDrawingRenderer == null || !mDrawingRenderer.IsInitialized)
+			return false;
 
-		let renderPass = encoder.BeginRenderPass(&passDesc);
+		// Create render pass targeting swap chain (no depth for 2D drawing)
+		ColorAttachment[1] colorAttachments = .(.()
+		{
+			View = render.CurrentTextureView,
+			LoadOp = .Clear,
+			StoreOp = .Store,
+			ClearValue = ClearColor(0.1f, 0.1f, 0.15f, 1.0f)
+		});
+		RenderPassDesc passDesc = .() { ColorAttachments = .(colorAttachments) };
+
+		let renderPass = render.Encoder.BeginRenderPass(passDesc);
 		if (renderPass != null)
 		{
-			mDrawingRenderer.Render(renderPass, SwapChain.Width, SwapChain.Height, frameIndex);
+			mDrawingRenderer.Render(renderPass, render.SwapChain.Width, render.SwapChain.Height, render.Frame.FrameIndex);
 			renderPass.End();
-			delete renderPass;
+			//delete renderPass;
 		}
 
-		return true; // Skip default render pass
+		return true;
 	}
 
-	protected override void OnRender(IRenderPassEncoder renderPass)
+	protected override void OnShutdown()
 	{
-		// Not used - we use OnRenderFrame for proper frame synchronization
-	}
-
-	protected override void OnCleanup()
-	{
-		// Dispose and clean up drawing renderer
 		if (mDrawingRenderer != null)
 		{
 			mDrawingRenderer.Dispose();
 			delete mDrawingRenderer;
 		}
 
-		// Clean up draw context
 		if (mDrawContext != null) delete mDrawContext;
-
-		// FontService handles font and atlas cleanup
 		if (mFontService != null) delete mFontService;
 
-		// Clean up shader system
 		if (mShaderSystem != null)
 		{
 			mShaderSystem.Dispose();
@@ -388,7 +350,12 @@ class Program
 {
 	public static int Main(String[] args)
 	{
-		let app = scope DrawingSandboxSample();
-		return app.Run();
+		let app = scope DrawingSandboxApp();
+		return app.Run(.()
+		{
+			Title = "Drawing Sandbox",
+			Width = 1280, Height = 720,
+			EnableDepth = false
+		});
 	}
 }

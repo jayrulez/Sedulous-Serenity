@@ -342,18 +342,21 @@ public class ShadowAtlas : IDisposable
 		if (mActiveShadowCount > 0)
 		{
 			let uploadSize = mActiveShadowCount * GPUShadowData.Size;
-			mDevice.Queue.WriteMappedBuffer(mShadowDataBuffer, 0, Span<uint8>((uint8*)&mShadowData[0], uploadSize));
+			TransferHelper.WriteMappedBuffer(mShadowDataBuffer, 0, Span<uint8>((uint8*)&mShadowData[0], uploadSize));
 		}
 	}
 
 	public void Dispose()
 	{
-		if (mAtlasView != null) { delete mAtlasView; mAtlasView = null; }
-		if (mAtlasTexture != null) { delete mAtlasTexture; mAtlasTexture = null; }
-		if (mPointLightCubemapArrayView != null) { delete mPointLightCubemapArrayView; mPointLightCubemapArrayView = null; }
-		if (mPointLightCubemapArray != null) { delete mPointLightCubemapArray; mPointLightCubemapArray = null; }
-		if (mShadowSampler != null) { delete mShadowSampler; mShadowSampler = null; }
-		if (mShadowDataBuffer != null) { delete mShadowDataBuffer; mShadowDataBuffer = null; }
+		if (mDevice == null)
+			return;
+
+		mDevice.DestroyTextureView(ref mAtlasView);
+		mDevice.DestroyTexture(ref mAtlasTexture);
+		mDevice.DestroyTextureView(ref mPointLightCubemapArrayView);
+		mDevice.DestroyTexture(ref mPointLightCubemapArray);
+		mDevice.DestroySampler(ref mShadowSampler);
+		mDevice.DestroyBuffer(ref mShadowDataBuffer);
 	}
 
 	private Result<void> CreateAtlasTexture()

@@ -23,17 +23,17 @@ public class OverlayRenderFeature : RenderFeatureBase
 	private static int32 MAX_VERTICES => RenderConfig.MaxOverlayVertices;
 
 	// Pipelines
-	private IRenderPipeline mLinePipelineDepth ~ delete _;
-	private IRenderPipeline mLinePipelineOverlay ~ delete _;
-	private IRenderPipeline mTriPipelineDepth ~ delete _;
-	private IRenderPipeline mTriPipelineOverlay ~ delete _;
-	private IBindGroupLayout mBindGroupLayout ~ delete _;
-	private IPipelineLayout mPipelineLayout ~ delete _;
+	private IRenderPipeline mLinePipelineDepth;
+	private IRenderPipeline mLinePipelineOverlay;
+	private IRenderPipeline mTriPipelineDepth;
+	private IRenderPipeline mTriPipelineOverlay;
+	private IBindGroupLayout mBindGroupLayout;
+	private IPipelineLayout mPipelineLayout;
 
 	// Per-frame resources
-	private IBuffer[RenderConfig.FrameBufferCount] mVertexBuffers ~ { for (var b in _) delete b; };
-	private IBuffer[RenderConfig.FrameBufferCount] mUniformBuffers ~ { for (var b in _) delete b; };
-	private IBindGroup[RenderConfig.FrameBufferCount] mBindGroups ~ { for (var b in _) delete b; };
+	private IBuffer[RenderConfig.FrameBufferCount] mVertexBuffers;
+	private IBuffer[RenderConfig.FrameBufferCount] mUniformBuffers;
+	private IBindGroup[RenderConfig.FrameBufferCount] mBindGroups;
 
 	// Batching state
 	private List<DebugVertex> mLineVerticesDepth = new .() ~ delete _;
@@ -42,25 +42,25 @@ public class OverlayRenderFeature : RenderFeatureBase
 	private List<DebugVertex> mTriVerticesOverlay = new .() ~ delete _;
 
 	// Text rendering
-	private IRenderPipeline mTextPipelineDepth ~ delete _;
-	private IRenderPipeline mTextPipelineOverlay ~ delete _;
-	private IBindGroupLayout mTextBindGroupLayout ~ delete _;
-	private IPipelineLayout mTextPipelineLayout ~ delete _;
-	private IBuffer[RenderConfig.FrameBufferCount] mTextVertexBuffers ~ { for (var b in _) delete b; };
-	private IBindGroup[RenderConfig.FrameBufferCount] mTextBindGroups ~ { for (var b in _) delete b; };
-	private ITexture mFontTexture ~ delete _;
-	private ITextureView mFontTextureView ~ delete _;
-	private ISampler mFontSampler ~ delete _;
+	private IRenderPipeline mTextPipelineDepth;
+	private IRenderPipeline mTextPipelineOverlay;
+	private IBindGroupLayout mTextBindGroupLayout;
+	private IPipelineLayout mTextPipelineLayout;
+	private IBuffer[RenderConfig.FrameBufferCount] mTextVertexBuffers;
+	private IBindGroup[RenderConfig.FrameBufferCount] mTextBindGroups;
+	private ITexture mFontTexture;
+	private ITextureView mFontTextureView;
+	private ISampler mFontSampler;
 	private List<DebugTextVertex> mTextVerticesDepth = new .() ~ delete _;
 	private List<DebugTextVertex> mTextVerticesOverlay = new .() ~ delete _;
 
 	// 2D screen-space text rendering
-	private IRenderPipeline mText2DPipeline ~ delete _;
-	private IBindGroupLayout mText2DBindGroupLayout ~ delete _;
-	private IPipelineLayout mText2DPipelineLayout ~ delete _;
-	private IBuffer[RenderConfig.FrameBufferCount] mText2DVertexBuffers ~ { for (var b in _) delete b; };
-	private IBuffer[RenderConfig.FrameBufferCount] mScreenParamBuffers ~ { for (var b in _) delete b; };
-	private IBindGroup[RenderConfig.FrameBufferCount] mText2DBindGroups ~ { for (var b in _) delete b; };
+	private IRenderPipeline mText2DPipeline;
+	private IBindGroupLayout mText2DBindGroupLayout;
+	private IPipelineLayout mText2DPipelineLayout;
+	private IBuffer[RenderConfig.FrameBufferCount] mText2DVertexBuffers;
+	private IBuffer[RenderConfig.FrameBufferCount] mScreenParamBuffers;
+	private IBindGroup[RenderConfig.FrameBufferCount] mText2DBindGroups;
 	private List<DebugText2DVertex> mText2DVertices = new .() ~ delete _;
 
 	// Saved counts after PrepareGPU
@@ -82,9 +82,6 @@ public class OverlayRenderFeature : RenderFeatureBase
 	private TextureFormat mColorFormat = .RGBA16Float;
 	private TextureFormat mDepthFormat = .Depth32Float;
 
-	/// Gets the current frame index for multi-buffering.
-	private int32 FrameIndex => Renderer.RenderFrameContext?.FrameIndex ?? 0;
-
 	/// Feature name.
 	public override StringView Name => "DebugRender";
 
@@ -94,7 +91,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 		outDependencies.Add("ForwardOpaque");
 	}
 
-	protected override Result<void> OnInitialize()
+	protected override Result<void> OnInitialize(InitContext initCtx)
 	{
 		let device = Renderer.Device;
 
@@ -132,7 +129,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
 			// Uniform buffer for view-projection matrix
-			BufferDesc uniformDesc = .((uint64)sizeof(Matrix), .Uniform, .CpuToGpu);
+			BufferDesc uniformDesc = .((uint64)sizeof(Matrix), .Uniform, .CpuToGpu) { Label = "Overlay VP Uniform" };
 			switch (device.CreateBuffer(uniformDesc))
 			{
 			case .Ok(let buffer):
@@ -142,7 +139,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 			}
 
 			// Vertex buffer (large enough for all primitives)
-			BufferDesc vertexDesc = .((uint64)(MAX_VERTICES * DebugVertex.SizeInBytes), .Vertex, .CpuToGpu);
+			BufferDesc vertexDesc = .((uint64)(MAX_VERTICES * DebugVertex.SizeInBytes), .Vertex, .CpuToGpu) { Label = "Overlay Vertex Buffer" };
 			switch (device.CreateBuffer(vertexDesc))
 			{
 			case .Ok(let buffer):
@@ -153,7 +150,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 
 			// Bind group
 			BindGroupEntry[1] entries = .(
-				BindGroupEntry.Buffer(0, mUniformBuffers[i])
+				BindGroupEntry.Buffer(/*0,*/mUniformBuffers[i])
 			);
 			BindGroupDesc bindGroupDesc = .(mBindGroupLayout, entries);
 			switch (device.CreateBindGroup(bindGroupDesc))
@@ -166,7 +163,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 		}
 
 		// Initialize text rendering resources
-		if (InitializeTextResources() case .Err)
+		if (InitializeTextResources(initCtx.TransferBatch) case .Err)
 			return .Err;
 
 		// Initialize 2D text resources
@@ -178,7 +175,50 @@ public class OverlayRenderFeature : RenderFeatureBase
 
 	protected override void OnShutdown()
 	{
-		// Resources cleaned up by destructors
+		let device = Renderer.Device;
+
+		// Clean up per-frame resources
+		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
+		{
+			if (mVertexBuffers[i] != null)
+				device.DestroyBuffer(ref mVertexBuffers[i]);
+			if (mUniformBuffers[i] != null)
+				device.DestroyBuffer(ref mUniformBuffers[i]);
+			if (mBindGroups[i] != null)
+				device.DestroyBindGroup(ref mBindGroups[i]);
+			if (mTextVertexBuffers[i] != null)
+				device.DestroyBuffer(ref mTextVertexBuffers[i]);
+			if (mTextBindGroups[i] != null)
+				device.DestroyBindGroup(ref mTextBindGroups[i]);
+			if (mText2DVertexBuffers[i] != null)
+				device.DestroyBuffer(ref mText2DVertexBuffers[i]);
+			if (mScreenParamBuffers[i] != null)
+				device.DestroyBuffer(ref mScreenParamBuffers[i]);
+			if (mText2DBindGroups[i] != null)
+				device.DestroyBindGroup(ref mText2DBindGroups[i]);
+		}
+
+		// Clean up pipelines and layouts
+		device.DestroyRenderPipeline(ref mLinePipelineDepth);
+		device.DestroyRenderPipeline(ref mLinePipelineOverlay);
+		device.DestroyRenderPipeline(ref mTriPipelineDepth);
+		device.DestroyRenderPipeline(ref mTriPipelineOverlay);
+		device.DestroyPipelineLayout(ref mPipelineLayout);
+		device.DestroyBindGroupLayout(ref mBindGroupLayout);
+
+		// Clean up text resources
+		device.DestroyRenderPipeline(ref mTextPipelineDepth);
+		device.DestroyRenderPipeline(ref mTextPipelineOverlay);
+		device.DestroyPipelineLayout(ref mTextPipelineLayout);
+		device.DestroyBindGroupLayout(ref mTextBindGroupLayout);
+		device.DestroyTextureView(ref mFontTextureView);
+		device.DestroyTexture(ref mFontTexture);
+		device.DestroySampler(ref mFontSampler);
+
+		// Clean up 2D text resources
+		device.DestroyRenderPipeline(ref mText2DPipeline);
+		device.DestroyPipelineLayout(ref mText2DPipelineLayout);
+		device.DestroyBindGroupLayout(ref mText2DBindGroupLayout);
 	}
 
 	/// Begins a new frame, clearing previous batches.
@@ -810,7 +850,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 
 	// ==================== Render Graph Integration ====================
 
-	public override void AddPasses(RenderGraph graph, RenderView view, RenderWorld world)
+	public override void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world)
 	{
 		// Get scene color from forward pass
 		let colorHandle = graph.GetResource("SceneColor");
@@ -826,8 +866,11 @@ public class OverlayRenderFeature : RenderFeatureBase
 		SetViewProjection(view.ViewProjectionMatrix);
 		SetScreenSize(view.Width, view.Height);
 
+		// Store frame index for render callback
+		int32 frameIndex = view.FrameIndex;
+
 		// Upload data to GPU (saves counts before clearing)
-		PrepareGPU();
+		PrepareGPU(frameIndex);
 
 		// Clear CPU-side lists now that data is on GPU (ready for next frame's primitives)
 		BeginFrame();
@@ -836,23 +879,20 @@ public class OverlayRenderFeature : RenderFeatureBase
 		if (!HasPrimitivesToRender)
 			return;
 
-		// Store frame index for render callback
-		int32 frameIndex = FrameIndex;
-
 		// Add debug render pass
-		graph.AddGraphicsPass("DebugRender")
-			.WriteColor(colorHandle, .Load, .Store, .(0, 0, 0, 1))
-			.ReadDepth(depthHandle)
-			.NeverCull()
-			.SetExecuteCallback(new (encoder) => {
-				ExecuteDebugPass(encoder, view, frameIndex);
+		graph.AddRenderPass("DebugRender", scope (builder) => {
+				builder.SetColorTarget(0, colorHandle, .Load, .Store, ClearColor(0, 0, 0, 1));
+				builder.ReadDepth(depthHandle);
+				builder.NeverCull();
+				builder.SetExecute(new (encoder) => {
+					ExecuteDebugPass(encoder, view, frameIndex);
+				});
 			});
 	}
 
-	private void PrepareGPU()
+	private void PrepareGPU(int32 frameIndex)
 	{
 		let device = Renderer.Device;
-		int32 frameIndex = FrameIndex;
 
 		// Save counts
 		mLineDepthCount = (int32)mLineVerticesDepth.Count;
@@ -866,7 +906,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 		if (frameIndex < 0 || frameIndex >= RenderConfig.FrameBufferCount)
 			return;
 
-		if (device?.Queue == null || mUniformBuffers[frameIndex] == null)
+		if (device == null || mUniformBuffers[frameIndex] == null)
 			return;
 
 		// Upload view-projection matrix using Map/Unmap
@@ -972,7 +1012,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 		}
 	}
 
-	private void ExecuteDebugPass(IRenderPassEncoder encoder, RenderView view, int32 frameIndex)
+	private void ExecuteDebugPass(IRenderPassEncoder encoder, ViewContext view, int32 frameIndex)
 	{
 		// Ensure pipelines are created
 		if (mLinePipelineDepth == null)
@@ -1228,7 +1268,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 
 	// ==================== Text Resources ====================
 
-	private Result<void> InitializeTextResources()
+	private Result<void> InitializeTextResources(ITransferBatch transferBatch)
 	{
 		let device = Renderer.Device;
 
@@ -1261,7 +1301,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 		};
 		Extent3D extent = .((uint32)DebugFont.TextureWidth, (uint32)DebugFont.TextureHeight, 1);
 		Span<uint8> dataSpan = .(fontData.Ptr, fontData.Count);
-		UploadTexture(mFontTexture, dataSpan, &dataLayout, &extent);
+		transferBatch.WriteTexture(mFontTexture, dataSpan, dataLayout, extent);
 
 		// Create texture view
 		TextureViewDesc viewDesc = .()
@@ -1328,7 +1368,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 		// Create per-frame text resources
 		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			BufferDesc textVertexDesc = .((uint64)(MAX_VERTICES * DebugTextVertex.SizeInBytes), .Vertex, .CpuToGpu);
+			BufferDesc textVertexDesc = .((uint64)(MAX_VERTICES * DebugTextVertex.SizeInBytes), .Vertex, .CpuToGpu) { Label = "Overlay Text Vertex Buffer" };
 			switch (device.CreateBuffer(textVertexDesc))
 			{
 			case .Ok(let buffer):
@@ -1338,9 +1378,9 @@ public class OverlayRenderFeature : RenderFeatureBase
 			}
 
 			BindGroupEntry[3] textEntries = .(
-				BindGroupEntry.Buffer(0, mUniformBuffers[i]),
-				BindGroupEntry.Texture(0, mFontTextureView),
-				BindGroupEntry.Sampler(0, mFontSampler)
+				BindGroupEntry.Buffer(/*0,*/mUniformBuffers[i]),
+				BindGroupEntry.Texture(/*0,*/mFontTextureView),
+				BindGroupEntry.Sampler(/*0,*/mFontSampler)
 			);
 			BindGroupDesc textBindGroupDesc = .(mTextBindGroupLayout, textEntries);
 			switch (device.CreateBindGroup(textBindGroupDesc))
@@ -1480,7 +1520,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 		// Create per-frame 2D text resources
 		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			BufferDesc screenParamDesc = .((uint64)sizeof(float[4]), .Uniform, .CpuToGpu);
+			BufferDesc screenParamDesc = .((uint64)sizeof(float[4]), .Uniform, .CpuToGpu) { Label = "Overlay Screen Params" };
 			switch (device.CreateBuffer(screenParamDesc))
 			{
 			case .Ok(let buffer):
@@ -1489,7 +1529,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 				return .Err;
 			}
 
-			BufferDesc text2DVertexDesc = .((uint64)(MAX_VERTICES * DebugText2DVertex.SizeInBytes), .Vertex, .CpuToGpu);
+			BufferDesc text2DVertexDesc = .((uint64)(MAX_VERTICES * DebugText2DVertex.SizeInBytes), .Vertex, .CpuToGpu) { Label = "Overlay Text2D Vertex Buffer" };
 			switch (device.CreateBuffer(text2DVertexDesc))
 			{
 			case .Ok(let buffer):
@@ -1499,9 +1539,9 @@ public class OverlayRenderFeature : RenderFeatureBase
 			}
 
 			BindGroupEntry[3] text2DEntries = .(
-				BindGroupEntry.Buffer(0, mScreenParamBuffers[i]),
-				BindGroupEntry.Texture(0, mFontTextureView),
-				BindGroupEntry.Sampler(0, mFontSampler)
+				BindGroupEntry.Buffer(/*0,*/mScreenParamBuffers[i]),
+				BindGroupEntry.Texture(/*0,*/mFontTextureView),
+				BindGroupEntry.Sampler(/*0,*/mFontSampler)
 			);
 			BindGroupDesc text2DBindGroupDesc = .(mText2DBindGroupLayout, text2DEntries);
 			switch (device.CreateBindGroup(text2DBindGroupDesc))

@@ -20,6 +20,7 @@ struct VGUniforms
 public class VGRenderer : IDisposable
 {
 	private IDevice mDevice;
+	private IQueue mQueue;
 	private int32 mFrameCount;
 	private TextureFormat mTargetFormat;
 	private ShaderSystem mShaderSystem;
@@ -61,6 +62,7 @@ public class VGRenderer : IDisposable
 		ShaderSystem shaderSystem)
 	{
 		mDevice = device;
+		mQueue = device.GetQueue(.Graphics);
 		mTargetFormat = targetFormat;
 		mFrameCount = frameCount;
 		mShaderSystem = shaderSystem;
@@ -110,10 +112,10 @@ public class VGRenderer : IDisposable
 		if (mVertices.Count > 0)
 		{
 			let vertexData = Span<uint8>((uint8*)mVertices.Ptr, mVertices.Count * sizeof(VGRenderVertex));
-			mDevice.Queue.WriteMappedBuffer(mVertexBuffers[frameIndex], 0, vertexData);
+			TransferHelper.WriteMappedBuffer(mVertexBuffers[frameIndex], 0, vertexData);
 
 			let indexData = Span<uint8>((uint8*)mIndices.Ptr, mIndices.Count * sizeof(uint32));
-			mDevice.Queue.WriteMappedBuffer(mIndexBuffers[frameIndex], 0, indexData);
+			TransferHelper.WriteMappedBuffer(mIndexBuffers[frameIndex], 0, indexData);
 		}
 	}
 
@@ -129,7 +131,7 @@ public class VGRenderer : IDisposable
 
 		VGUniforms uniforms = .() { Projection = projection };
 		let uniformData = Span<uint8>((uint8*)&uniforms, sizeof(VGUniforms));
-		mDevice.Queue.WriteMappedBuffer(mUniformBuffers[frameIndex], 0, uniformData);
+		TransferHelper.WriteMappedBuffer(mUniformBuffers[frameIndex], 0, uniformData);
 	}
 
 	/// Render VG content to the current render pass.
@@ -212,7 +214,7 @@ public class VGRenderer : IDisposable
 		uint8[4] whitePixel = .(255, 255, 255, 255);
 		TextureDataLayout layout = .() { BytesPerRow = 4, RowsPerImage = 1 };
 		Extent3D size = .(1, 1, 1);
-		mDevice.Queue.WriteTextureSync(mWhiteTexture, Span<uint8>(&whitePixel[0], 4), &layout, &size);
+		TransferHelper.WriteTextureSync(mQueue, mDevice, mWhiteTexture, Span<uint8>(&whitePixel[0], 4), layout, size);
 
 		TextureViewDesc viewDesc = .() { Format = .RGBA8Unorm };
 		if (mDevice.CreateTextureView(mWhiteTexture, viewDesc) case .Ok(let view))
@@ -345,9 +347,9 @@ public class VGRenderer : IDisposable
 
 			// Bind group (uses white texture)
 			BindGroupEntry[3] bindGroupEntries = .(
-				BindGroupEntry.Buffer(0, mUniformBuffers[i]),
-				BindGroupEntry.Texture(0, mWhiteTextureView),
-				BindGroupEntry.Sampler(0, mSampler)
+				BindGroupEntry.Buffer(mUniformBuffers[i], 0, (uint64)sizeof(VGUniforms)),
+				BindGroupEntry.Texture(mWhiteTextureView),
+				BindGroupEntry.Sampler(mSampler)
 			);
 			BindGroupDesc bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
 			if (mDevice.CreateBindGroup(bindGroupDesc) case .Ok(let group))
@@ -361,29 +363,42 @@ public class VGRenderer : IDisposable
 
 	public void Dispose()
 	{
-		DisposeArray(ref mBindGroups);
-		DisposeArray(ref mUniformBuffers);
-		DisposeArray(ref mIndexBuffers);
-		DisposeArray(ref mVertexBuffers);
+		if (mBindGroups != null)
+		{
+			for (var bg in ref mBindGroups)
+				if (bg != null) mDevice.DestroyBindGroup(ref bg);
+			delete mBindGroups;
+			mBindGroups = null;
+		}
+		if (mUniformBuffers != null)
+		{
+			for (var buf in ref mUniformBuffers)
+				if (buf != null) mDevice.DestroyBuffer(ref buf);
+			delete mUniformBuffers;
+			mUniformBuffers = null;
+		}
+		if (mIndexBuffers != null)
+		{
+			for (var buf in ref mIndexBuffers)
+				if (buf != null) mDevice.DestroyBuffer(ref buf);
+			delete mIndexBuffers;
+			mIndexBuffers = null;
+		}
+		if (mVertexBuffers != null)
+		{
+			for (var buf in ref mVertexBuffers)
+				if (buf != null) mDevice.DestroyBuffer(ref buf);
+			delete mVertexBuffers;
+			mVertexBuffers = null;
+		}
 
-		if (mPipeline != null) { delete mPipeline; mPipeline = null; }
-		if (mPipelineLayout != null) { delete mPipelineLayout; mPipelineLayout = null; }
-		if (mBindGroupLayout != null) { delete mBindGroupLayout; mBindGroupLayout = null; }
-		if (mWhiteTextureView != null) { delete mWhiteTextureView; mWhiteTextureView = null; }
-		if (mWhiteTexture != null) { delete mWhiteTexture; mWhiteTexture = null; }
-		if (mSampler != null) { delete mSampler; mSampler = null; }
+		if (mPipeline != null) mDevice.DestroyRenderPipeline(ref mPipeline);
+		if (mPipelineLayout != null) mDevice.DestroyPipelineLayout(ref mPipelineLayout);
+		if (mBindGroupLayout != null) mDevice.DestroyBindGroupLayout(ref mBindGroupLayout);
+		if (mWhiteTextureView != null) mDevice.DestroyTextureView(ref mWhiteTextureView);
+		if (mWhiteTexture != null) mDevice.DestroyTexture(ref mWhiteTexture);
+		if (mSampler != null) mDevice.DestroySampler(ref mSampler);
 
 		IsInitialized = false;
-	}
-
-	private void DisposeArray<T>(ref T[] arr) where T : IDisposable, delete
-	{
-		if (arr != null)
-		{
-			for (let item in arr)
-				if (item != null) delete item;
-			delete arr;
-			arr = null;
-		}
 	}
 }

@@ -84,11 +84,11 @@ public class PostProcessStack
 	/// @param sceneColorHandle Handle to the scene color texture (input to first effect).
 	/// @param depthHandle Handle to the scene depth texture.
 	/// @returns Handle to the final post-process result texture.
-	public RGResourceHandle AddPasses(
+	public RGHandle AddPasses(
 		RenderGraph graph,
-		RenderView view,
-		RGResourceHandle sceneColorHandle,
-		RGResourceHandle depthHandle)
+		ViewContext view,
+		RGHandle sceneColorHandle,
+		RGHandle depthHandle)
 	{
 		// Sort effects by priority if needed
 		if (mNeedsSorting)
@@ -110,10 +110,10 @@ public class PostProcessStack
 			return sceneColorHandle;
 
 		// Create ping-pong targets
-		let ppDesc = TextureResourceDesc(view.Width, view.Height, .RGBA16Float, .RenderTarget | .Sampled);
+		let ppDesc = RGTextureDesc(.RGBA16Float, view.Width, view.Height) { Usage = .RenderTarget | .Sampled };
 
-		let targetA = graph.CreateTexture("PostProcessA", ppDesc);
-		let targetB = graph.CreateTexture("PostProcessB", ppDesc);
+		let targetA = graph.CreateTransient("PostProcessA", ppDesc);
+		let targetB = graph.CreateTransient("PostProcessB", ppDesc);
 
 		// Track current input/output
 		var currentInput = sceneColorHandle;

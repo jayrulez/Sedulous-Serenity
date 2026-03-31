@@ -1,321 +1,328 @@
+namespace Sedulous.UI;
+
 using System;
 using Sedulous.Drawing;
 using Sedulous.Core.Mathematics;
-using Sedulous.Core.Core;
+using Sedulous.Core;
 
-namespace Sedulous.UI;
-
-/// A slider control that allows selecting a value from a range.
-public class Slider : Control
+/// Value slider with mouse capture drag.
+public class Slider : View
 {
 	private float mValue = 0;
-	private float mMinimum = 0;
-	private float mMaximum = 100;
-	private float mSmallChange = 1;
-	private float mLargeChange = 10;
+	private float mMin = 0;
+	private float mMax = 1;
+	private float mStep = 0; // 0 = continuous
 	private Orientation mOrientation = .Horizontal;
-	private bool mIsDragging = false;
+	private bool mIsDragging;
 
-	private const float ThumbSize = 16.0f;
-	private const float TrackThickness = 4.0f;
+	private EventAccessor<delegate void(Slider, float)> mOnValueChanged = new .() ~ delete _;
 
-	// Colors
-	private Color? mTrackColor = null;
-	private Color? mThumbColor = null;
-	private Color? mFillColor = null;
+	// Visual constants
+	private const float TrackHeight = 4;
+	private const float ThumbSize = 14;
 
-	// Value changed event
-	private EventAccessor<delegate void(Slider, float)> mValueChangedEvent = new .() ~ delete _;
-
-	/// Event fired when the value changes.
-	public EventAccessor<delegate void(Slider, float)> ValueChanged => mValueChangedEvent;
-
-	/// The current value.
 	public float Value
 	{
 		get => mValue;
 		set
 		{
-			let clamped = Math.Clamp(value, mMinimum, mMaximum);
+			float clamped = Math.Clamp(value, mMin, mMax);
+			if (mStep > 0)
+				clamped = SnapToStep(clamped);
+
 			if (mValue != clamped)
 			{
 				mValue = clamped;
-				OnValueChanged();
-				InvalidateVisual();
+				Invalidate();
+				mOnValueChanged.[Friend]Invoke(this, clamped);
 			}
 		}
 	}
 
-	/// The minimum value.
-	public float Minimum
+	public float Min
 	{
-		get => mMinimum;
+		get => mMin;
 		set
 		{
-			if (mMinimum != value)
-			{
-				mMinimum = value;
-				if (mValue < mMinimum) Value = mMinimum;
-				if (mMaximum < mMinimum) mMaximum = mMinimum;
-				InvalidateVisual();
-			}
+			mMin = value;
+			if (mMax < mMin) mMax = mMin;
+			Value = mValue; // re-clamp
 		}
 	}
 
-	/// The maximum value.
-	public float Maximum
+	public float Max
 	{
-		get => mMaximum;
+		get => mMax;
 		set
 		{
-			if (mMaximum != value)
-			{
-				mMaximum = value;
-				if (mValue > mMaximum) Value = mMaximum;
-				if (mMinimum > mMaximum) mMinimum = mMaximum;
-				InvalidateVisual();
-			}
+			mMax = value;
+			if (mMin > mMax) mMin = mMax;
+			Value = mValue; // re-clamp
 		}
 	}
 
-	/// Small change amount (arrow keys).
-	public float SmallChange
+	public float Step
 	{
-		get => mSmallChange;
-		set => mSmallChange = Math.Max(0, value);
+		get => mStep;
+		set { mStep = Math.Max(0, value); Value = mValue; }
 	}
 
-	/// Large change amount (page up/down).
-	public float LargeChange
-	{
-		get => mLargeChange;
-		set => mLargeChange = Math.Max(0, value);
-	}
-
-	/// The orientation of the slider.
 	public Orientation Orientation
 	{
 		get => mOrientation;
-		set { mOrientation = value; InvalidateMeasure(); }
+		set { mOrientation = value; InvalidateLayout(); }
 	}
 
-	/// The color of the track.
-	public Color? TrackColor
-	{
-		get => mTrackColor;
-		set { mTrackColor = value; InvalidateVisual(); }
-	}
-
-	/// The color of the thumb.
-	public Color? ThumbColor
-	{
-		get => mThumbColor;
-		set { mThumbColor = value; InvalidateVisual(); }
-	}
-
-	/// The color of the filled portion of the track.
-	public Color? FillColor
-	{
-		get => mFillColor;
-		set { mFillColor = value; InvalidateVisual(); }
-	}
-
-	/// Whether the slider is currently being dragged.
-	public bool IsDragging => mIsDragging;
+	/// Subscribe to value change events.
+	public EventAccessor<delegate void(Slider, float)> OnValueChanged => mOnValueChanged;
 
 	public this()
 	{
 		Focusable = true;
-		Cursor = .Pointer;
+		CursorType = .Pointer;
 	}
 
-	protected override DesiredSize MeasureContent(SizeConstraints constraints)
+	protected override void OnMeasure(MeasureSpec widthSpec, MeasureSpec heightSpec)
 	{
-		if (mOrientation == .Horizontal)
-			return .(constraints.MaxWidth != SizeConstraints.Infinity ? constraints.MaxWidth : 100, ThumbSize);
-		else
-			return .(ThumbSize, constraints.MaxHeight != SizeConstraints.Infinity ? constraints.MaxHeight : 100);
-	}
-
-	protected override void RenderContent(DrawContext drawContext)
-	{
-		let bounds = ContentBounds;
-		let theme = GetTheme();
-
-		// Get colors from explicit values or theme
-		let trackColor = mTrackColor ?? theme?.GetColor("Border") ?? Color(200, 200, 200);
-		let fillColor = mFillColor ?? theme?.GetColor("Primary") ?? Color(0, 120, 215);
-		var thumbColor = mThumbColor ?? theme?.GetColor("Primary") ?? Color(0, 120, 215);
-
-		// Modify thumb color based on state
-		if (!IsEnabled)
-			thumbColor = theme?.GetColor("ForegroundDisabled") ?? Color(180, 180, 180);
-		else if (mIsDragging)
-			thumbColor = theme?.GetColor("PrimaryDark") ?? Color(0, 90, 180);
-		else if (IsMouseOver)
-			thumbColor = theme?.GetColor("PrimaryLight") ?? Color(30, 140, 235);
-
-		let ratio = GetRatio();
+		float desiredW, desiredH;
 
 		if (mOrientation == .Horizontal)
 		{
-			// Draw horizontal slider
-			let trackY = bounds.Y + (bounds.Height - TrackThickness) / 2;
-			let thumbX = bounds.X + ThumbSize / 2 + (bounds.Width - ThumbSize) * ratio;
-
-			// Track background
-			let trackRect = RectangleF(bounds.X + ThumbSize / 2, trackY, bounds.Width - ThumbSize, TrackThickness);
-			drawContext.FillRect(trackRect, trackColor);
-
-			// Filled portion
-			let fillRect = RectangleF(bounds.X + ThumbSize / 2, trackY, thumbX - bounds.X - ThumbSize / 2, TrackThickness);
-			if (fillRect.Width > 0)
-				drawContext.FillRect(fillRect, fillColor);
-
-			// Thumb
-			let thumbRect = RectangleF(thumbX - ThumbSize / 2, bounds.Y + (bounds.Height - ThumbSize) / 2, ThumbSize, ThumbSize);
-			drawContext.FillCircle(.(thumbRect.X + ThumbSize / 2, thumbRect.Y + ThumbSize / 2), ThumbSize / 2, thumbColor);
-
-			// Thumb border
-			if (IsFocused)
-				drawContext.DrawCircle(.(thumbRect.X + ThumbSize / 2, thumbRect.Y + ThumbSize / 2), ThumbSize / 2, Color.Black, 1.5f);
+			desiredW = 0; // fill available
+			desiredH = 24;
 		}
 		else
 		{
-			// Draw vertical slider
-			let trackX = bounds.X + (bounds.Width - TrackThickness) / 2;
-			let thumbY = bounds.Bottom - ThumbSize / 2 - (bounds.Height - ThumbSize) * ratio;
-
-			// Track background
-			let trackRect = RectangleF(trackX, bounds.Y + ThumbSize / 2, TrackThickness, bounds.Height - ThumbSize);
-			drawContext.FillRect(trackRect, trackColor);
-
-			// Filled portion
-			let fillRect = RectangleF(trackX, thumbY, TrackThickness, bounds.Bottom - thumbY - ThumbSize / 2);
-			if (fillRect.Height > 0)
-				drawContext.FillRect(fillRect, fillColor);
-
-			// Thumb
-			let thumbRect = RectangleF(bounds.X + (bounds.Width - ThumbSize) / 2, thumbY - ThumbSize / 2, ThumbSize, ThumbSize);
-			drawContext.FillCircle(.(thumbRect.X + ThumbSize / 2, thumbRect.Y + ThumbSize / 2), ThumbSize / 2, thumbColor);
-
-			// Thumb border
-			if (IsFocused)
-				drawContext.DrawCircle(.(thumbRect.X + ThumbSize / 2, thumbRect.Y + ThumbSize / 2), ThumbSize / 2, Color.Black, 1.5f);
+			desiredW = 24;
+			desiredH = 0; // fill available
 		}
+
+		SetMeasuredDimension(
+			widthSpec.Resolve(desiredW, MinWidth, MaxWidth),
+			heightSpec.Resolve(desiredH, MinHeight, MaxHeight)
+		);
 	}
 
-	protected override void OnMouseDownRouted(MouseButtonEventArgs args)
+	protected override void OnDraw(DrawContext ctx)
 	{
-		base.OnMouseDownRouted(args);
+		float ratio = (mMax > mMin) ? (mValue - mMin) / (mMax - mMin) : 0;
 
-		if (args.Button == .Left && IsEnabled)
+		let theme = Context?.Theme;
+		let palette = theme?.Palette ?? Palette.Dark;
+		let trackBg = theme?.GetColor("Slider", "track") ?? .(0.2f, 0.2f, 0.25f, 1.0f);
+		let fillColor = theme?.GetColor("Slider", "fill") ?? palette.Accent;
+		let thumbNormal = theme?.GetColor("Slider", "thumb") ?? .(0.85f, 0.85f, 0.9f, 1.0f);
+		let thumbHoverColor = theme?.GetColor("Slider", "thumbHover") ?? .(0.95f, 0.95f, 1.0f, 1.0f);
+		let focusBorder = GetFocusBorderColor();
+
+		if (mOrientation == .Horizontal)
+			DrawHorizontal(ctx, ratio, trackBg, fillColor, thumbNormal, thumbHoverColor, focusBorder);
+		else
+			DrawVertical(ctx, ratio, trackBg, fillColor, thumbNormal, thumbHoverColor, focusBorder);
+	}
+
+	private void DrawHorizontal(DrawContext ctx, float ratio, Color trackBg, Color fillColor,
+		Color thumbNormal, Color thumbHoverColor, Color focusBorder)
+	{
+		let theme = Context?.Theme;
+		float thumbHalf = ThumbSize * 0.5f;
+		float trackStart = thumbHalf;
+		float trackEnd = Width - thumbHalf;
+		float trackW = trackEnd - trackStart;
+
+		// Track background — use drawable's intrinsic height if available
+		let trackDrawable = theme?.GetDrawable("Slider", "track");
+		float trackH = TrackHeight;
+		if (trackDrawable != null)
 		{
-			mIsDragging = true;
-			Context?.CaptureMouse(this);
-			UpdateValueFromPosition(args.LocalX, args.LocalY);
-			UpdateControlState();
-			args.Handled = true;
+			let intrinsic = trackDrawable.IntrinsicSize;
+			if (intrinsic.Height > 0)
+				trackH = intrinsic.Height;
 		}
-	}
+		float trackY = (Height - trackH) * 0.5f;
 
-	protected override void OnMouseUpRouted(MouseButtonEventArgs args)
-	{
-		base.OnMouseUpRouted(args);
+		if (trackDrawable != null)
+			trackDrawable.Draw(ctx, .(trackStart, trackY, trackW, trackH), GetControlState());
+		else
+			ctx.FillRoundedRect(.(trackStart, trackY, trackW, trackH), trackH * 0.5f, trackBg);
 
-		if (args.Button == .Left && mIsDragging)
+		// Fill
+		float fillW = trackW * ratio;
+		if (fillW > 0)
 		{
-			mIsDragging = false;
-			Context?.ReleaseMouseCapture();
-			UpdateControlState();
-			args.Handled = true;
+			let fillDrawable = theme?.GetDrawable("Slider", "fill");
+			if (fillDrawable != null)
+			{
+				ctx.PushClipRect(.(trackStart, trackY, fillW, trackH));
+				fillDrawable.Draw(ctx, .(trackStart, trackY, trackW, trackH), GetControlState());
+				ctx.PopClip();
+			}
+			else
+				ctx.FillRoundedRect(.(trackStart, trackY, fillW, trackH), trackH * 0.5f, fillColor);
 		}
+
+		// Thumb
+		float thumbX = trackStart + trackW * ratio;
+		float thumbY = Height * 0.5f;
+		let thumbDrawable = theme?.GetDrawable("Slider", "thumb");
+		if (thumbDrawable != null)
+		{
+			let thumbSize = thumbDrawable.IntrinsicSize;
+			let tw = (thumbSize.Width > 0) ? thumbSize.Width : ThumbSize;
+			let th = (thumbSize.Height > 0) ? thumbSize.Height : ThumbSize;
+			thumbDrawable.Draw(ctx, .(thumbX - tw * 0.5f, thumbY - th * 0.5f, tw, th), GetControlState());
+		}
+		else
+		{
+			Color thumbColor = (IsHovered || mIsDragging) ? thumbHoverColor : thumbNormal;
+			ctx.FillCircle(.(thumbX, thumbY), thumbHalf, thumbColor);
+		}
+
+		if (IsFocused && thumbDrawable == null)
+			ctx.DrawCircle(.(thumbX, thumbY), thumbHalf + 2, focusBorder, 2);
 	}
 
-	protected override void OnMouseMoveRouted(MouseEventArgs args)
+	private void DrawVertical(DrawContext ctx, float ratio, Color trackBg, Color fillColor,
+		Color thumbNormal, Color thumbHoverColor, Color focusBorder)
 	{
-		base.OnMouseMoveRouted(args);
+		let theme = Context?.Theme;
+		float thumbHalf = ThumbSize * 0.5f;
+		float trackStart = thumbHalf;
+		float trackEnd = Height - thumbHalf;
+		float trackLen = trackEnd - trackStart;
+
+		// Track background — use drawable's intrinsic width if available
+		let trackDrawable = theme?.GetDrawable("Slider", "track");
+		float trackW = TrackHeight;
+		if (trackDrawable != null)
+		{
+			let intrinsic = trackDrawable.IntrinsicSize;
+			if (intrinsic.Width > 0)
+				trackW = intrinsic.Width;
+		}
+		float trackX = (Width - trackW) * 0.5f;
+
+		if (trackDrawable != null)
+			trackDrawable.Draw(ctx, .(trackX, trackStart, trackW, trackLen), GetControlState());
+		else
+			ctx.FillRoundedRect(.(trackX, trackStart, trackW, trackLen), trackW * 0.5f, trackBg);
+
+		// Fill
+		float fillH = trackLen * ratio;
+		if (fillH > 0)
+		{
+			let fillDrawable = theme?.GetDrawable("Slider", "fill");
+			if (fillDrawable != null)
+			{
+				ctx.PushClipRect(.(trackX, trackEnd - fillH, trackW, fillH));
+				fillDrawable.Draw(ctx, .(trackX, trackStart, trackW, trackLen), GetControlState());
+				ctx.PopClip();
+			}
+			else
+				ctx.FillRoundedRect(.(trackX, trackEnd - fillH, trackW, fillH), trackW * 0.5f, fillColor);
+		}
+
+		// Thumb
+		float thumbX = Width * 0.5f;
+		float thumbY = trackEnd - trackLen * ratio;
+		let thumbDrawable = theme?.GetDrawable("Slider", "thumb");
+		if (thumbDrawable != null)
+		{
+			let thumbSize = thumbDrawable.IntrinsicSize;
+			let tw = (thumbSize.Width > 0) ? thumbSize.Width : ThumbSize;
+			let th = (thumbSize.Height > 0) ? thumbSize.Height : ThumbSize;
+			thumbDrawable.Draw(ctx, .(thumbX - tw * 0.5f, thumbY - th * 0.5f, tw, th), GetControlState());
+		}
+		else
+		{
+			Color thumbColor = (IsHovered || mIsDragging) ? thumbHoverColor : thumbNormal;
+			ctx.FillCircle(.(thumbX, thumbY), thumbHalf, thumbColor);
+		}
+
+		if (IsFocused && thumbDrawable == null)
+			ctx.DrawCircle(.(thumbX, thumbY), thumbHalf + 2, focusBorder, 2);
+	}
+
+	public override void OnMouseDown(MouseButtonEventArgs e)
+	{
+		if (!Enabled || e.Button != .Left)
+			return;
+
+		e.Handled = true;
+		mIsDragging = true;
+		Context?.FocusManager.SetCapture(this);
+		UpdateValueFromMouse(e.LocalX, e.LocalY);
+	}
+
+	public override void OnMouseMove(MouseEventArgs e)
+	{
+		if (mIsDragging)
+			UpdateValueFromMouse(e.LocalX, e.LocalY);
+	}
+
+	public override void OnMouseUp(MouseButtonEventArgs e)
+	{
+		if (e.Button != .Left)
+			return;
 
 		if (mIsDragging)
 		{
-			UpdateValueFromPosition(args.LocalX, args.LocalY);
-			args.Handled = true;
+			mIsDragging = false;
+			Context?.FocusManager.ReleaseCapture();
+			e.Handled = true;
 		}
 	}
 
-	protected override void OnKeyDownRouted(KeyEventArgs args)
+	public override void OnKeyDown(KeyEventArgs e)
 	{
-		base.OnKeyDownRouted(args);
-
-		if (!IsEnabled)
+		if (!Enabled)
 			return;
 
-		var handled = false;
+		float stepAmount = mStep > 0 ? mStep : (mMax - mMin) * 0.05f;
 
-		// Arrow keys
 		if (mOrientation == .Horizontal)
 		{
-			if (args.Key == .Left)
-				{ Value -= mSmallChange; handled = true; }
-			else if (args.Key == .Right)
-				{ Value += mSmallChange; handled = true; }
+			if (e.Key == .Right) { Value = mValue + stepAmount; e.Handled = true; }
+			else if (e.Key == .Left) { Value = mValue - stepAmount; e.Handled = true; }
 		}
 		else
 		{
-			if (args.Key == .Up)
-				{ Value += mSmallChange; handled = true; }
-			else if (args.Key == .Down)
-				{ Value -= mSmallChange; handled = true; }
+			if (e.Key == .Up) { Value = mValue + stepAmount; e.Handled = true; }
+			else if (e.Key == .Down) { Value = mValue - stepAmount; e.Handled = true; }
 		}
 
-		// Page up/down
-		if (args.Key == .PageUp)
-			{ Value += mLargeChange; handled = true; }
-		else if (args.Key == .PageDown)
-			{ Value -= mLargeChange; handled = true; }
-
-		// Home/End
-		if (args.Key == .Home)
-			{ Value = mMinimum; handled = true; }
-		else if (args.Key == .End)
-			{ Value = mMaximum; handled = true; }
-
-		if (handled)
-			args.Handled = true;
+		if (e.Key == .Home) { Value = mMin; e.Handled = true; }
+		else if (e.Key == .End) { Value = mMax; e.Handled = true; }
 	}
 
-	private void UpdateValueFromPosition(float localX, float localY)
+	private void UpdateValueFromMouse(float localX, float localY)
 	{
-		let bounds = ContentBounds;
-		let range = mMaximum - mMinimum;
-
+		float thumbHalf = ThumbSize * 0.5f;
 		float ratio;
+
 		if (mOrientation == .Horizontal)
 		{
-			let trackStart = ThumbSize / 2;
-			let trackLength = bounds.Width - ThumbSize;
-			ratio = Math.Clamp((localX - trackStart) / trackLength, 0, 1);
+			float trackStart = thumbHalf;
+			float trackW = Width - ThumbSize;
+			ratio = (trackW > 0) ? (localX - trackStart) / trackW : 0;
 		}
 		else
 		{
-			let trackStart = ThumbSize / 2;
-			let trackLength = bounds.Height - ThumbSize;
-			// Invert for vertical (bottom = min, top = max)
-			ratio = 1.0f - Math.Clamp((localY - trackStart) / trackLength, 0, 1);
+			float trackStart = thumbHalf;
+			float trackH = Height - ThumbSize;
+			ratio = (trackH > 0) ? 1.0f - (localY - trackStart) / trackH : 0;
 		}
 
-		Value = mMinimum + range * ratio;
+		ratio = Math.Clamp(ratio, 0, 1);
+		Value = mMin + ratio * (mMax - mMin);
 	}
 
-	private float GetRatio()
+	private float SnapToStep(float value)
 	{
-		let range = mMaximum - mMinimum;
-		if (range <= 0) return 0;
-		return (mValue - mMinimum) / range;
-	}
+		if (mStep <= 0)
+			return value;
 
-	protected virtual void OnValueChanged()
-	{
-		mValueChangedEvent.[Friend]Invoke(this, mValue);
+		float snapped = mMin + Math.Round((value - mMin) / mStep) * mStep;
+		return Math.Clamp(snapped, mMin, mMax);
 	}
 }

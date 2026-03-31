@@ -1,12 +1,12 @@
 namespace Sedulous.UI;
 
-/// Specifies the display state of an element.
+/// Controls whether a View is visible and participates in layout.
 public enum Visibility
 {
-	/// The element is visible and participates in layout.
+	/// View is visible and takes up space in layout.
 	Visible,
-	/// The element is not visible but still occupies space in layout.
-	Hidden,
-	/// The element is not visible and does not occupy space in layout.
-	Collapsed
+	/// View is invisible but still takes up space in layout.
+	Invisible,
+	/// View is invisible and takes up no space in layout.
+	Gone
 }

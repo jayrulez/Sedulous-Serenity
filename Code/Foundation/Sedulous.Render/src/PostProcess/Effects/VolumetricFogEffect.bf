@@ -30,11 +30,11 @@ public class VolumetricFogEffect : IPostProcessEffect
 	private IDevice mDevice;
 
 	// Pipeline resources
-	private IRenderPipeline mApplyPipeline ~ delete _;
-	private IPipelineLayout mPipelineLayout ~ delete _;
-	private IBindGroupLayout mBindGroupLayout ~ delete _;
-	private IBuffer mParamsBuffer ~ delete _;
-	private ISampler mPointSampler ~ delete _;
+	private IRenderPipeline mApplyPipeline;
+	private IPipelineLayout mPipelineLayout;
+	private IBindGroupLayout mBindGroupLayout;
+	private IBuffer mParamsBuffer;
+	private ISampler mPointSampler;
 
 	// Per-frame bind groups - indexed by frame to avoid use-after-free with in-flight commands
 	private IBindGroup[RenderConfig.FrameBufferCount] mBindGroups;
@@ -186,25 +186,23 @@ public class VolumetricFogEffect : IPostProcessEffect
 		// Clean up per-frame resources
 		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			if (mBindGroups[i] != null)
-			{
-				delete mBindGroups[i];
-				mBindGroups[i] = null;
-			}
-			if (mDepthOnlyViews[i] != null)
-			{
-				delete mDepthOnlyViews[i];
-				mDepthOnlyViews[i] = null;
-			}
+			if (mBindGroups[i] != null) mDevice.DestroyBindGroup(ref mBindGroups[i]);
+			if (mDepthOnlyViews[i] != null) mDevice.DestroyTextureView(ref mDepthOnlyViews[i]);
 		}
+
+		if (mApplyPipeline != null) mDevice.DestroyRenderPipeline(ref mApplyPipeline);
+		if (mPipelineLayout != null) mDevice.DestroyPipelineLayout(ref mPipelineLayout);
+		if (mBindGroupLayout != null) mDevice.DestroyBindGroupLayout(ref mBindGroupLayout);
+		if (mParamsBuffer != null) mDevice.DestroyBuffer(ref mParamsBuffer);
+		if (mPointSampler != null) mDevice.DestroySampler(ref mPointSampler);
 	}
 
 	public void AddPasses(
 		RenderGraph graph,
-		RenderView view,
-		RGResourceHandle inputHandle,
-		RGResourceHandle outputHandle,
-		RGResourceHandle depthHandle)
+		ViewContext view,
+		RGHandle inputHandle,
+		RGHandle outputHandle,
+		RGHandle depthHandle)
 	{
 		// Check view-level fog toggle
 		if (!view.PostProcess.EnableVolumetricFog)
@@ -232,27 +230,28 @@ public class VolumetricFogEffect : IPostProcessEffect
 		fogParams.FroxelDimensionsY = dims.y;
 		fogParams.FroxelDimensionsZ = dims.z;
 
-		mDevice.Queue.WriteMappedBuffer(
+		TransferHelper.WriteMappedBuffer(
 			mParamsBuffer, 0,
 			Span<uint8>((uint8*)&fogParams, FogApplyParams.Size)
 		);
 
 		// Capture for callback
 		RenderGraph graphRef = graph;
-		RGResourceHandle inputCopy = inputHandle;
-		RGResourceHandle depthCopy = depthHandle;
+		RGHandle inputCopy = inputHandle;
+		RGHandle depthCopy = depthHandle;
 
-		graph.AddGraphicsPass("PostProcess_VolumetricFog")
-			.ReadTexture(inputHandle)
-			.ReadTexture(depthHandle)
-			.ReadTexture(fogVolumeHandle) // Declare fog volume read for proper barrier
-			.WriteColor(outputHandle, .DontCare, .Store)
-			.NeverCull()
-			.SetExecuteCallback(new [=] (encoder) => {
-				let inputView = graphRef.GetTextureView(inputCopy);
-				let depthTexture = graphRef.GetTexture(depthCopy);
-				let depthView = GetOrCreateDepthOnlyView(depthTexture);
-				ExecuteApply(encoder, view, inputView, depthView, fogVolumeView);
+		graph.AddRenderPass("PostProcess_VolumetricFog", scope (builder) => {
+				builder.ReadTexture(inputHandle);
+				builder.ReadTexture(depthHandle);
+				builder.ReadTexture(fogVolumeHandle); // Declare fog volume read for proper barrier
+				builder.SetColorTarget(0, outputHandle, .DontCare, .Store);
+				builder.NeverCull();
+				builder.SetExecute(new [=] (encoder) => {
+					let inputView = graphRef.GetTextureView(inputCopy);
+					let depthTexture = graphRef.GetTexture(depthCopy);
+					let depthView = GetOrCreateDepthOnlyView(depthTexture);
+					ExecuteApply(encoder, view, inputView, depthView, fogVolumeView);
+				});
 			});
 	}
 
@@ -267,8 +266,7 @@ public class VolumetricFogEffect : IPostProcessEffect
 		// Must recreate each frame because depth texture is transient.
 		if (mDepthOnlyViews[frameIndex] != null)
 		{
-			delete mDepthOnlyViews[frameIndex];
-			mDepthOnlyViews[frameIndex] = null;
+			mDevice.DestroyTextureView(ref mDepthOnlyViews[frameIndex]);
 		}
 
 		TextureViewDesc viewDesc = .();
@@ -289,7 +287,7 @@ public class VolumetricFogEffect : IPostProcessEffect
 
 	private void ExecuteApply(
 		IRenderPassEncoder encoder,
-		RenderView view,
+		ViewContext view,
 		ITextureView inputView,
 		ITextureView depthView,
 		ITextureView fogVolumeView)
@@ -304,17 +302,16 @@ public class VolumetricFogEffect : IPostProcessEffect
 		let fogLinearSampler = mFogFeature.LinearSampler;
 		if (mBindGroups[frameIndex] != null)
 		{
-			delete mBindGroups[frameIndex];
-			mBindGroups[frameIndex] = null;
+			mDevice.DestroyBindGroup(ref mBindGroups[frameIndex]);
 		}
 
 		BindGroupEntry[6] entries = .(
-			BindGroupEntry.Buffer(0, mParamsBuffer, 0, (uint64)FogApplyParams.Size),
-			BindGroupEntry.Texture(0, inputView),
-			BindGroupEntry.Texture(1, depthView),
-			BindGroupEntry.Texture(2, fogVolumeView),
-			BindGroupEntry.Sampler(0, mPointSampler),
-			BindGroupEntry.Sampler(1, fogLinearSampler)
+			BindGroupEntry.Buffer(/*0,*/mParamsBuffer, 0, (uint64)FogApplyParams.Size),
+			BindGroupEntry.Texture(/*0,*/inputView),
+			BindGroupEntry.Texture(/*1,*/depthView),
+			BindGroupEntry.Texture(/*2,*/fogVolumeView),
+			BindGroupEntry.Sampler(/*0,*/mPointSampler),
+			BindGroupEntry.Sampler(/*1,*/fogLinearSampler)
 		);
 
 		BindGroupDesc bgDesc = .();

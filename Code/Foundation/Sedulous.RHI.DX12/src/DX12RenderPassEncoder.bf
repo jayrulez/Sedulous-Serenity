@@ -1,202 +1,388 @@
 namespace Sedulous.RHI.DX12;
 
 using System;
-using System.Collections;
 using Win32;
-using Win32.Graphics.Direct3D12;
-using Win32.Graphics.Direct3D;
-using Win32.Graphics.Dxgi.Common;
 using Win32.Foundation;
+using Win32.Graphics.Direct3D12;
+using Win32.Graphics.Dxgi.Common;
 using Sedulous.RHI;
-using Sedulous.RHI.DX12.Internal;
 
-/// DX12 implementation of IRenderPassEncoder.
-class DX12RenderPassEncoder : IRenderPassEncoder
+/// DX12 implementation of IRenderPassEncoder and IMeshShaderPassExt.
+/// Records render pass commands into the parent command encoder's command list.
+class DX12RenderPassEncoder : IRenderPassEncoder, IMeshShaderPassExt
 {
-	private DX12Device mDevice;
-	private ID3D12GraphicsCommandList* mCommandList;
+	private DX12CommandEncoder mEncoder;
+	private RenderPassDesc mDesc;
 	private DX12RenderPipeline mCurrentPipeline;
-	private List<DX12Texture> mColorTextures;
+	private DX12MeshPipeline mCurrentMeshPipeline;
 
-	public this(DX12Device device, ID3D12GraphicsCommandList* commandList, List<DX12Texture> colorTextures)
+	public this(DX12CommandEncoder encoder)
 	{
-		mDevice = device;
-		mCommandList = commandList;
-		// Copy the texture list since the scope-allocated original will be freed
-		mColorTextures = new List<DX12Texture>();
-		for (let tex in colorTextures)
-			mColorTextures.Add(tex);
+		mEncoder = encoder;
 	}
 
-	public ~this()
+	public void Begin(RenderPassDesc desc)
 	{
-		delete mColorTextures;
+		mDesc = desc;
+		mCurrentPipeline = null;
+		mCurrentMeshPipeline = null;
 	}
+
+	// ===== Pipeline & Binding =====
 
 	public void SetPipeline(IRenderPipeline pipeline)
 	{
-		if (let dx12Pipeline = pipeline as DX12RenderPipeline)
-		{
-			mCurrentPipeline = dx12Pipeline;
-			mCommandList.SetPipelineState(dx12Pipeline.PipelineState);
-			mCommandList.SetGraphicsRootSignature(dx12Pipeline.RootSignature);
-			mCommandList.IASetPrimitiveTopology(dx12Pipeline.Topology);
-		}
+		let dxPipeline = pipeline as DX12RenderPipeline;
+		if (dxPipeline == null) return;
+		mCurrentPipeline = dxPipeline;
+
+		let cmdList = mEncoder.CmdList;
+		cmdList.SetPipelineState(dxPipeline.Handle);
+		cmdList.SetGraphicsRootSignature((dxPipeline.Layout as DX12PipelineLayout).Handle);
+		cmdList.IASetPrimitiveTopology(dxPipeline.Topology);
 	}
 
-	public void SetBindGroup(uint32 index, IBindGroup bindGroup, Span<uint32> dynamicOffsets = default)
+	public void SetBindGroup(uint32 index, IBindGroup bindGroup, Span<uint32> dynamicOffsets)
 	{
-		if (let dx12BindGroup = bindGroup as DX12BindGroup)
+		let dxGroup = bindGroup as DX12BindGroup;
+		if (dxGroup == null) return;
+
+		let layout = GetCurrentLayout();
+		if (layout == null) return;
+
+		let cmdList = mEncoder.CmdList;
+		let dxLayout = dxGroup.Layout as DX12BindGroupLayout;
+
+		// Copy-on-bind: copy bind group's descriptors into encoder's staging region,
+		// then bind from the staging offset. This makes bind group destruction safe
+		// during command recording — the GPU only references the staging copy.
+
+		// Bind CBV/SRV/UAV table (staged)
+		if (dxGroup.CbvSrvUavOffset >= 0 && dxLayout != null && dxLayout.CbvSrvUavCount > 0)
 		{
-			if (mCurrentPipeline == null)
-				return;
-
-			let layout = mCurrentPipeline.PipelineLayout;
-			if (layout == null)
-				return;
-
-			// Bind descriptor table for non-dynamic CBV/SRV/UAV entries
-			if (dx12BindGroup.HasCbvSrvUav)
+			let rootIdx = layout.GetCbvSrvUavRootIndex(index);
+			if (rootIdx >= 0)
 			{
-				let rootParam = layout.GetCbvSrvUavRootParam((int)index);
-				if (rootParam >= 0)
-					mCommandList.SetGraphicsRootDescriptorTable((uint32)rootParam, dx12BindGroup.CbvSrvUavGpuHandle);
-			}
-
-			// Bind descriptor table for samplers
-			if (dx12BindGroup.HasSampler)
-			{
-				let rootParam = layout.GetSamplerRootParam((int)index);
-				if (rootParam >= 0)
-					mCommandList.SetGraphicsRootDescriptorTable((uint32)rootParam, dx12BindGroup.SamplerGpuHandle);
-			}
-
-			// Bind dynamic offset entries via root CBV/SRV/UAV
-			uint32 dynamicCount = Math.Min(dx12BindGroup.DynamicCount, layout.GetDynamicParamCount((int)index));
-			for (uint32 i = 0; i < dynamicCount; i++)
-			{
-				let rootParam = layout.GetDynamicRootParam((int)index, (int)i);
-				if (rootParam >= 0)
+				let stagedOffset = mEncoder.SrvStaging.CopyFrom(
+					(uint32)dxGroup.CbvSrvUavOffset, dxLayout.CbvSrvUavCount);
+				if (stagedOffset >= 0)
 				{
-					uint64 gpuVA = dx12BindGroup.GetDynamicBufferGpuVA((int)i);
-					uint64 offset = (i < dynamicOffsets.Length) ? dynamicOffsets[(int)i] : 0;
-					mCommandList.SetGraphicsRootConstantBufferView((uint32)rootParam, gpuVA + offset);
+					let gpuHandle = mEncoder.Device.GpuSrvHeap.GetGpuHandle((uint32)stagedOffset);
+					cmdList.SetGraphicsRootDescriptorTable((uint32)rootIdx, gpuHandle);
 				}
 			}
 		}
-	}
 
-	public void SetVertexBuffer(uint32 slot, IBuffer buffer, uint64 offset = 0)
-	{
-		if (let dx12Buffer = buffer as DX12Buffer)
+		// Bind sampler table (staged)
+		if (dxGroup.SamplerOffset >= 0 && dxLayout != null && dxLayout.SamplerCount > 0)
 		{
-			D3D12_VERTEX_BUFFER_VIEW vbView = .();
-			vbView.BufferLocation = dx12Buffer.GpuVirtualAddress + offset;
-			vbView.SizeInBytes = (uint32)(dx12Buffer.Size - offset);
-			// Stride comes from the pipeline's vertex buffer layout
-			if (mCurrentPipeline != null)
-				vbView.StrideInBytes = mCurrentPipeline.GetVertexStride(slot);
-			mCommandList.IASetVertexBuffers(slot, 1, &vbView);
+			let rootIdx = layout.GetSamplerRootIndex(index);
+			if (rootIdx >= 0)
+			{
+				let stagedOffset = mEncoder.SamplerStaging.CopyFrom(
+					(uint32)dxGroup.SamplerOffset, dxLayout.SamplerCount);
+				if (stagedOffset >= 0)
+				{
+					let gpuHandle = mEncoder.Device.GpuSamplerHeap.GetGpuHandle((uint32)stagedOffset);
+					cmdList.SetGraphicsRootDescriptorTable((uint32)rootIdx, gpuHandle);
+				}
+			}
+		}
+
+		// Bind dynamic offset root descriptors (not staged — uses GPU virtual addresses)
+		int dynOffsetIdx = 0;
+		for (let entry in layout.DynamicRootEntries)
+		{
+			if (entry.GroupIndex != index) continue;
+			if ((int)entry.DynamicIndex >= dxGroup.DynamicGpuAddresses.Count) continue;
+
+			uint64 gpuAddr = dxGroup.DynamicGpuAddresses[(int)entry.DynamicIndex];
+			if (dynOffsetIdx < dynamicOffsets.Length)
+				gpuAddr += (uint64)dynamicOffsets[dynOffsetIdx];
+			dynOffsetIdx++;
+
+			switch (entry.ParamType)
+			{
+			case .D3D12_ROOT_PARAMETER_TYPE_CBV:
+				cmdList.SetGraphicsRootConstantBufferView((uint32)entry.RootParamIndex, gpuAddr);
+			case .D3D12_ROOT_PARAMETER_TYPE_SRV:
+				cmdList.SetGraphicsRootShaderResourceView((uint32)entry.RootParamIndex, gpuAddr);
+			case .D3D12_ROOT_PARAMETER_TYPE_UAV:
+				cmdList.SetGraphicsRootUnorderedAccessView((uint32)entry.RootParamIndex, gpuAddr);
+			default:
+			}
 		}
 	}
 
-	public void SetIndexBuffer(IBuffer buffer, IndexFormat format, uint64 offset = 0)
+	public void SetPushConstants(ShaderStage stages, uint32 offset, uint32 size, void* data)
 	{
-		if (let dx12Buffer = buffer as DX12Buffer)
+		let layout = GetCurrentLayout();
+		if (layout == null || layout.PushConstantRootIndex < 0) return;
+
+		mEncoder.CmdList.SetGraphicsRoot32BitConstants(
+			(uint32)layout.PushConstantRootIndex,
+			size / 4, data, offset / 4);
+	}
+
+	private DX12PipelineLayout GetCurrentLayout()
+	{
+		if (mCurrentPipeline != null)
+			return mCurrentPipeline.Layout as DX12PipelineLayout;
+		if (mCurrentMeshPipeline != null)
+			return mCurrentMeshPipeline.Layout as DX12PipelineLayout;
+		return null;
+	}
+
+	// ===== Vertex & Index Buffers =====
+
+	public void SetVertexBuffer(uint32 slot, IBuffer buffer, uint64 offset)
+	{
+		let dxBuf = buffer as DX12Buffer;
+		if (dxBuf == null) return;
+
+		uint32 stride = (mCurrentPipeline != null) ? mCurrentPipeline.GetVertexStride(slot) : 0;
+
+		D3D12_VERTEX_BUFFER_VIEW view = .()
 		{
-			D3D12_INDEX_BUFFER_VIEW ibView = .();
-			ibView.BufferLocation = dx12Buffer.GpuVirtualAddress + offset;
-			ibView.SizeInBytes = (uint32)(dx12Buffer.Size - offset);
-			ibView.Format = DX12Conversions.ToDxgiFormat(format);
-			mCommandList.IASetIndexBuffer(&ibView);
-		}
+			BufferLocation = dxBuf.Handle.GetGPUVirtualAddress() + offset,
+			SizeInBytes = (uint32)(dxBuf.Size - offset),
+			StrideInBytes = stride
+		};
+
+		mEncoder.CmdList.IASetVertexBuffers(slot, 1, &view);
 	}
 
-	public void SetViewport(float x, float y, float width, float height, float minDepth, float maxDepth)
+	public void SetIndexBuffer(IBuffer buffer, IndexFormat format, uint64 offset)
 	{
-		D3D12_VIEWPORT viewport = .();
-		viewport.TopLeftX = x;
-		viewport.TopLeftY = y;
-		viewport.Width = width;
-		viewport.Height = height;
-		viewport.MinDepth = minDepth;
-		viewport.MaxDepth = maxDepth;
-		mCommandList.RSSetViewports(1, &viewport);
+		let dxBuf = buffer as DX12Buffer;
+		if (dxBuf == null) return;
+
+		D3D12_INDEX_BUFFER_VIEW view = .()
+		{
+			BufferLocation = dxBuf.Handle.GetGPUVirtualAddress() + offset,
+			SizeInBytes = (uint32)(dxBuf.Size - offset),
+			Format = DX12Conversions.ToDxgiIndexFormat(format)
+		};
+
+		mEncoder.CmdList.IASetIndexBuffer(&view);
 	}
 
-	public void SetScissor(int32 x, int32 y, uint32 width, uint32 height)
+	// ===== Dynamic State =====
+
+	public void SetViewport(float x, float y, float w, float h, float minDepth, float maxDepth)
 	{
-		D3D12_RECT rect = .();
-		rect.left = x;
-		rect.top = y;
-		rect.right = x + (int32)width;
-		rect.bottom = y + (int32)height;
-		mCommandList.RSSetScissorRects(1, &rect);
+		D3D12_VIEWPORT viewport = .()
+		{
+			TopLeftX = x,
+			TopLeftY = y,
+			Width = w,
+			Height = h,
+			MinDepth = minDepth,
+			MaxDepth = maxDepth
+		};
+
+		mEncoder.CmdList.RSSetViewports(1, &viewport);
+	}
+
+	public void SetScissor(int32 x, int32 y, uint32 w, uint32 h)
+	{
+		RECT rect = .()
+		{
+			left = x,
+			top = y,
+			right = x + (int32)w,
+			bottom = y + (int32)h
+		};
+
+		mEncoder.CmdList.RSSetScissorRects(1, &rect);
 	}
 
 	public void SetBlendConstant(float r, float g, float b, float a)
 	{
-		float[4] blendFactor;
-		blendFactor[0] = r;
-		blendFactor[1] = g;
-		blendFactor[2] = b;
-		blendFactor[3] = a;
-		mCommandList.OMSetBlendFactor(&blendFactor);
+		float[4] color = .(r, g, b, a);
+		mEncoder.CmdList.OMSetBlendFactor(&color[0]);
 	}
 
 	public void SetStencilReference(uint32 reference)
 	{
-		mCommandList.OMSetStencilRef(reference);
+		mEncoder.CmdList.OMSetStencilRef(reference);
 	}
 
-	public void Draw(uint32 vertexCount, uint32 instanceCount = 1, uint32 firstVertex = 0, uint32 firstInstance = 0)
+	// ===== Draw Commands =====
+
+	public void Draw(uint32 vertexCount, uint32 instanceCount, uint32 firstVertex, uint32 firstInstance)
 	{
-		mCommandList.DrawInstanced(vertexCount, instanceCount, firstVertex, firstInstance);
+		mEncoder.CmdList.DrawInstanced(vertexCount, instanceCount, firstVertex, firstInstance);
 	}
 
-	public void DrawIndexed(uint32 indexCount, uint32 instanceCount = 1, uint32 firstIndex = 0, int32 baseVertex = 0, uint32 firstInstance = 0)
+	public void DrawIndexed(uint32 indexCount, uint32 instanceCount, uint32 firstIndex, int32 baseVertex, uint32 firstInstance)
 	{
-		mCommandList.DrawIndexedInstanced(indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
+		mEncoder.CmdList.DrawIndexedInstanced(indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
 	}
 
-	public void DrawIndirect(IBuffer indirectBuffer, uint64 indirectOffset)
+	public void DrawIndirect(IBuffer buffer, uint64 offset, uint32 drawCount, uint32 stride)
 	{
-		if (let dx12Buffer = indirectBuffer as DX12Buffer)
+		let dxBuf = buffer as DX12Buffer;
+		if (dxBuf == null) return;
+
+		let sig = mEncoder.Device.DrawSignature;
+		if (sig == null) return;
+
+		let actualStride = (stride > 0) ? stride : 16; // sizeof(D3D12_DRAW_ARGUMENTS)
+		for (uint32 i = 0; i < drawCount; i++)
 		{
-			mCommandList.ExecuteIndirect(
-				mDevice.DrawSignature,
-				1,
-				dx12Buffer.Resource,
-				indirectOffset,
-				null, 0);
+			mEncoder.CmdList.ExecuteIndirect(sig, 1, dxBuf.Handle,
+				offset + (uint64)i * actualStride, null, 0);
 		}
 	}
 
-	public void DrawIndexedIndirect(IBuffer indirectBuffer, uint64 indirectOffset)
+	public void DrawIndexedIndirect(IBuffer buffer, uint64 offset, uint32 drawCount, uint32 stride)
 	{
-		if (let dx12Buffer = indirectBuffer as DX12Buffer)
+		let dxBuf = buffer as DX12Buffer;
+		if (dxBuf == null) return;
+
+		let sig = mEncoder.Device.DrawIndexedSignature;
+		if (sig == null) return;
+
+		let actualStride = (stride > 0) ? stride : 20; // sizeof(D3D12_DRAW_INDEXED_ARGUMENTS)
+		for (uint32 i = 0; i < drawCount; i++)
 		{
-			mCommandList.ExecuteIndirect(
-				mDevice.DrawIndexedSignature,
-				1,
-				dx12Buffer.Resource,
-				indirectOffset,
-				null, 0);
+			mEncoder.CmdList.ExecuteIndirect(sig, 1, dxBuf.Handle,
+				offset + (uint64)i * actualStride, null, 0);
 		}
 	}
+
+	// ===== Queries =====
+
+	public void WriteTimestamp(IQuerySet querySet, uint32 index)
+	{
+		if (let qs = querySet as DX12QuerySet)
+			mEncoder.CmdList.EndQuery(qs.Handle, .D3D12_QUERY_TYPE_TIMESTAMP, index);
+	}
+
+	public void BeginOcclusionQuery(IQuerySet querySet, uint32 index)
+	{
+		if (let qs = querySet as DX12QuerySet)
+			mEncoder.CmdList.BeginQuery(qs.Handle, .D3D12_QUERY_TYPE_OCCLUSION, index);
+	}
+
+	public void EndOcclusionQuery(IQuerySet querySet, uint32 index)
+	{
+		if (let qs = querySet as DX12QuerySet)
+			mEncoder.CmdList.EndQuery(qs.Handle, .D3D12_QUERY_TYPE_OCCLUSION, index);
+	}
+
+	// ===== IMeshShaderPassExt =====
+
+	public void SetMeshPipeline(IMeshPipeline pipeline)
+	{
+		let dxPipeline = pipeline as DX12MeshPipeline;
+		if (dxPipeline == null) return;
+		mCurrentMeshPipeline = dxPipeline;
+		mCurrentPipeline = null; // Clear regular pipeline
+
+		let cmdList = mEncoder.CmdList;
+		cmdList.SetPipelineState(dxPipeline.Handle);
+		cmdList.SetGraphicsRootSignature((dxPipeline.Layout as DX12PipelineLayout).Handle);
+	}
+
+	public void DrawMeshTasks(uint32 groupCountX, uint32 groupCountY = 1, uint32 groupCountZ = 1)
+	{
+		// Need ID3D12GraphicsCommandList6 for DispatchMesh
+		ID3D12GraphicsCommandList6* cmdList6 = null;
+		HRESULT hr = mEncoder.CmdList.QueryInterface(ID3D12GraphicsCommandList6.IID, (void**)&cmdList6);
+		if (SUCCEEDED(hr) && cmdList6 != null)
+		{
+			cmdList6.DispatchMesh(groupCountX, groupCountY, groupCountZ);
+			cmdList6.Release();
+		}
+	}
+
+	public void DrawMeshTasksIndirect(IBuffer buffer, uint64 offset, uint32 drawCount = 1, uint32 stride = 0)
+	{
+		let dxBuf = buffer as DX12Buffer;
+		if (dxBuf == null) return;
+
+		let sig = mEncoder.Device.DispatchMeshSignature;
+		if (sig == null) return;
+
+		let actualStride = (stride > 0) ? stride : 12; // sizeof(D3D12_DISPATCH_MESH_ARGUMENTS): 3 x uint32
+		for (uint32 i = 0; i < drawCount; i++)
+		{
+			mEncoder.CmdList.ExecuteIndirect(sig, 1, dxBuf.Handle,
+				offset + (uint64)i * actualStride, null, 0);
+		}
+	}
+
+	public void DrawMeshTasksIndirectCount(IBuffer buffer, uint64 offset,
+		IBuffer countBuffer, uint64 countOffset, uint32 maxDrawCount, uint32 stride)
+	{
+		let dxBuf = buffer as DX12Buffer;
+		let dxCountBuf = countBuffer as DX12Buffer;
+		if (dxBuf == null || dxCountBuf == null) return;
+
+		let sig = mEncoder.Device.DispatchMeshSignature;
+		if (sig == null) return;
+
+		mEncoder.CmdList.ExecuteIndirect(sig, maxDrawCount, dxBuf.Handle,
+			offset, dxCountBuf.Handle, countOffset);
+	}
+
+	// ===== End =====
 
 	public void End()
 	{
-		for (let tex in mColorTextures)
+		// Timestamp at pass end
+		if (mDesc.TimestampQuerySet != null)
 		{
-			// Swap chain back buffers must go to PRESENT state; other targets to shader read
-			let targetState = tex.IsSwapChainTexture
-				? D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_PRESENT
-				: (D3D12_RESOURCE_STATES)(.D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | .D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-
-			D3D12_RESOURCE_BARRIER barrier;
-			if (tex.TransitionTo(targetState, out barrier))
-				mCommandList.ResourceBarrier(1, &barrier);
+			if (let qs = mDesc.TimestampQuerySet as DX12QuerySet)
+				mEncoder.CmdList.EndQuery(qs.Handle, .D3D12_QUERY_TYPE_TIMESTAMP, mDesc.EndTimestampIndex);
 		}
+
+		// MSAA resolve: resolve multisampled color attachments to their resolve targets
+		for (let ca in mDesc.ColorAttachments)
+		{
+			if (ca.ResolveTarget == null) continue;
+
+			let srcView = ca.View as DX12TextureView;
+			let dstView = ca.ResolveTarget as DX12TextureView;
+			if (srcView == null || dstView == null) continue;
+
+			let srcTex = srcView.DX12Texture;
+			let dstTex = dstView.DX12Texture;
+
+			let format = (ca.View as DX12TextureView).Desc.Format;
+			let dxgiFormat = DX12Conversions.ToDxgiFormat(
+				(format == .Undefined) ? srcTex.Desc.Format : format);
+
+			// Transition src to resolve source, dst to resolve dest
+			D3D12_RESOURCE_BARRIER[2] barriers = default;
+			barriers[0].Type = .D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+			barriers[0].Transition.pResource = srcTex.Handle;
+			barriers[0].Transition.StateBefore = .D3D12_RESOURCE_STATE_RENDER_TARGET;
+			barriers[0].Transition.StateAfter = .D3D12_RESOURCE_STATE_RESOLVE_SOURCE;
+			barriers[0].Transition.Subresource = 0xFFFFFFFF;
+
+			barriers[1].Type = .D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+			barriers[1].Transition.pResource = dstTex.Handle;
+			barriers[1].Transition.StateBefore = .D3D12_RESOURCE_STATE_RENDER_TARGET;
+			barriers[1].Transition.StateAfter = .D3D12_RESOURCE_STATE_RESOLVE_DEST;
+			barriers[1].Transition.Subresource = 0xFFFFFFFF;
+
+			mEncoder.CmdList.ResourceBarrier(2, &barriers[0]);
+
+			mEncoder.CmdList.ResolveSubresource(dstTex.Handle, 0, srcTex.Handle, 0, dxgiFormat);
+
+			// Transition back
+			barriers[0].Transition.StateBefore = .D3D12_RESOURCE_STATE_RESOLVE_SOURCE;
+			barriers[0].Transition.StateAfter = .D3D12_RESOURCE_STATE_RENDER_TARGET;
+			barriers[1].Transition.StateBefore = .D3D12_RESOURCE_STATE_RESOLVE_DEST;
+			barriers[1].Transition.StateAfter = .D3D12_RESOURCE_STATE_RENDER_TARGET;
+
+			mEncoder.CmdList.ResourceBarrier(2, &barriers[0]);
+		}
+
+		mCurrentPipeline = null;
+		mCurrentMeshPipeline = null;
 	}
 }

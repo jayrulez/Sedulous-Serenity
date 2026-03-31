@@ -4,22 +4,6 @@ using System;
 using Sedulous.Core.Mathematics;
 using Sedulous.Materials;
 
-/// Handle to a GPU bone buffer.
-public struct GPUBoneBufferHandle : IHashable
-{
-	public uint32 Index;
-	public uint32 Generation;
-
-	public static Self Invalid = .() { Index = uint32.MaxValue, Generation = 0 };
-
-	public bool IsValid => Index != uint32.MaxValue;
-
-	public int GetHashCode() => (int)(Index ^ (Generation << 16));
-
-	public static bool operator ==(Self lhs, Self rhs) => lhs.Index == rhs.Index && lhs.Generation == rhs.Generation;
-	public static bool operator !=(Self lhs, Self rhs) => !(lhs == rhs);
-}
-
 /// Skinning method for GPU skinning.
 public enum SkinningMethod : uint8
 {

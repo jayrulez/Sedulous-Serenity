@@ -4,7 +4,6 @@ using System;
 using System.Collections;
 using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
-using Sedulous.Shell;
 using Sedulous.Shell.Input;
 using Sedulous.Runtime.Client;
 using Sedulous.Render;
@@ -21,22 +20,22 @@ using Sedulous.Geometry.Tooling.Resources;
 using Sedulous.GUI;
 using Sedulous.GUI.Runtime;
 using Sedulous.Fonts;
+using Sedulous.Textures;
 
 /// Screen-space effects sample demonstrating SSAO, SSR, and contact shadows
 /// in the Sponza architectural scene, with a GUI settings panel.
 class RenderScreenEffectsApp : Application
 {
 	// Render system
-	private RenderSystem mRenderSystem ~ delete _;
-	private RenderWorld mWorld ~ delete _;
-	private RenderView mView ~ delete _;
+	private RenderSystem mRenderSystem;
+	private RenderWorld mWorld;
+	private RenderView mView;
 
 	// Render features (owned by RenderSystem after registration)
 	private DepthPrepassFeature mDepthFeature;
 	private MotionVectorFeature mMotionVectorFeature;
 	private ForwardOpaqueFeature mForwardFeature;
 	private SkyFeature mSkyFeature;
-	private GPUSkinningFeature mSkinningFeature;
 	private OverlayRenderFeature mOverlayFeature;
 	private FinalOutputFeature mFinalOutputFeature;
 
@@ -113,8 +112,7 @@ class RenderScreenEffectsApp : Application
 	private int mFrameCount = 0;
 	private float mFpsTimer = 0;
 
-	public this(IShell shell, IDevice device, IBackend backend)
-		: base(shell, device, backend)
+	public this() : base()
 	{
 	}
 
@@ -126,7 +124,7 @@ class RenderScreenEffectsApp : Application
 		Console.WriteLine("SSAO, SSR, Contact Shadows in Sponza\n");
 
 		mRenderSystem = new RenderSystem();
-		if (mRenderSystem.Initialize(mDevice, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null, .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
+		if (mRenderSystem.Initialize(mDevice, mSwapChain.Width, mSwapChain.Height, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null, .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
 		{
 			Console.WriteLine("ERROR: Failed to initialize RenderSystem");
 			return;
@@ -184,7 +182,7 @@ class RenderScreenEffectsApp : Application
 		mContext.RegisterSubsystem(mUISubsystem);
 
 		let shaderPath = scope $"{AssetDirectory}/Render/shaders";
-		if (mUISubsystem.InitializeRendering(mDevice, mSwapChain.Format, (int32)mSwapChain.FrameCount, mShell, mWindow, scope StringView[](shaderPath)) case .Err)
+		if (mUISubsystem.InitializeRendering(mDevice, mSwapChain.Format, (int32)mSwapChain.BufferCount, mShell, mWindow, scope StringView[](shaderPath)) case .Err)
 		{
 			Console.WriteLine("Warning: Failed to initialize UI");
 			return;
@@ -465,9 +463,6 @@ class RenderScreenEffectsApp : Application
 
 	private void RegisterFeatures()
 	{
-		mSkinningFeature = new GPUSkinningFeature();
-		mRenderSystem.RegisterFeature(mSkinningFeature);
-
 		mDepthFeature = new DepthPrepassFeature();
 		mRenderSystem.RegisterFeature(mDepthFeature);
 
@@ -1075,6 +1070,11 @@ class RenderScreenEffectsApp : Application
 		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
 	}
 
+	protected override void OnResize(int32 width, int32 height)
+	{
+		mRenderSystem?.SetViewportSize((uint32)width, (uint32)height);
+	}
+
 	protected override bool OnRenderFrame(RenderContext render)
 	{
 		// --- 3D Scene ---
@@ -1104,7 +1104,7 @@ class RenderScreenEffectsApp : Application
 		if (mShowGUI)
 			mUISubsystem?.Render(render.Encoder, render.SwapChain.CurrentTextureView,
 				render.SwapChain.Width, render.SwapChain.Height,
-				(int32)render.SwapChain.CurrentFrameIndex);
+				(int32)render.SwapChain.CurrentImageIndex);
 
 		return true;
 	}
@@ -1115,20 +1115,26 @@ class RenderScreenEffectsApp : Application
 
 		mWorld?.Dispose();
 
-		for (let meshHandle in mMeshHandles)
-		{
-			if (meshHandle.IsValid)
-				mRenderSystem.ResourceManager.ReleaseMesh(meshHandle, mRenderSystem.FrameNumber);
-		}
-
-		for (let texHandle in mTextureHandles)
-		{
-			if (texHandle.IsValid)
-				mRenderSystem.ResourceManager.ReleaseTexture(texHandle, mRenderSystem.FrameNumber);
-		}
-
 		if (mRenderSystem != null)
+		{
+			for (let meshHandle in mMeshHandles)
+			{
+				if (meshHandle.IsValid)
+					mRenderSystem.ResourceManager.ReleaseMesh(meshHandle, mRenderSystem.FrameNumber);
+			}
+
+			for (let texHandle in mTextureHandles)
+			{
+				if (texHandle.IsValid)
+					mRenderSystem.ResourceManager.ReleaseTexture(texHandle, mRenderSystem.FrameNumber);
+			}
+
 			mRenderSystem.Shutdown();
+		}
+
+		delete mRenderSystem; mRenderSystem = null;
+		delete mWorld;
+		delete mView;
 
 		Console.WriteLine("RenderScreenEffects shutting down");
 	}

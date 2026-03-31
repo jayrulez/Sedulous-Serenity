@@ -131,9 +131,9 @@ public class CPUParticleEmitter
 		for (int i = 0; i < FrameBufferCount; i++)
 		{
 			if (mVertexBuffers[i] != null)
-				delete mVertexBuffers[i];
+				mDevice.DestroyBuffer(ref mVertexBuffers[i]);
 			if (mTrailVertexBuffers[i] != null)
-				delete mTrailVertexBuffers[i];
+				mDevice.DestroyBuffer(ref mTrailVertexBuffers[i]);
 		}
 	}
 
@@ -317,7 +317,7 @@ public class CPUParticleEmitter
 		}
 
 		// Upload to GPU
-		mDevice.Queue.WriteMappedBuffer(
+		TransferHelper.WriteMappedBuffer(
 			buffer, 0,
 			Span<uint8>((uint8*)&mVertexData[0], mAliveCount * CPUParticleVertex.SizeInBytes)
 		);
@@ -840,7 +840,7 @@ public class CPUParticleEmitter
 
 		if (mTrailVertexCount > 0)
 		{
-			mDevice.Queue.WriteMappedBuffer(
+			TransferHelper.WriteMappedBuffer(
 				buffer, 0,
 				Span<uint8>((uint8*)&mTrailVertexData[0], mTrailVertexCount * TrailVertex.SizeInBytes)
 			);

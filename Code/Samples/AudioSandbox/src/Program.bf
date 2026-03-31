@@ -5,9 +5,6 @@ using System.Collections;
 using System.IO;
 using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
-using Sedulous.RHI.Vulkan;
-using Sedulous.Shell;
-using Sedulous.Shell.SDL3;
 using Sedulous.Runtime.Client;
 using Sedulous.Runtime;
 using Sedulous.GUI;
@@ -53,8 +50,7 @@ class AudioSandboxApp : Application
 	private StackPanel mTrackList;
 	private Button mPlayPauseButton;
 
-	public this(IShell shell, IDevice device, IBackend backend)
-		: base(shell, device, backend)
+	public this() : base()
 	{
 	}
 
@@ -70,7 +66,7 @@ class AudioSandboxApp : Application
 
 		String shaderPath = scope .();
 		GetAssetPath("Render/shaders", shaderPath);
-		if (mUISubsystem.InitializeRendering(mDevice, mSwapChain.Format, (int32)mSwapChain.FrameCount, mShell, mWindow, scope StringView[](shaderPath)) case .Err)
+		if (mUISubsystem.InitializeRendering(mDevice, mSwapChain.Format, (int32)mSwapChain.BufferCount, mShell, mWindow, scope StringView[](shaderPath)) case .Err)
 		{
 			Console.WriteLine("Failed to initialize UI rendering");
 			return;
@@ -367,26 +363,23 @@ class AudioSandboxApp : Application
 
 	protected override bool OnRenderFrame(RenderContext render)
 	{
-		// Clear the swapchain (establishes proper layout for subsequent UISubsystem render pass)
+		// Clear the swapchain first (no 3D scene, just GUI)
 		ColorAttachment[1] clearAttachments = .(.()
 		{
-			View = render.SwapChain.CurrentTextureView,
+			View = render.CurrentTextureView,
 			LoadOp = .Clear,
 			StoreOp = .Store,
-			ClearValue = render.ClearColor
+			ClearValue = ClearColor(render.ClearColor.R / 255.0f, render.ClearColor.G / 255.0f, render.ClearColor.B / 255.0f, render.ClearColor.A / 255.0f)
 		});
-		RenderPassDesc clearPass = .(clearAttachments);
-		let rp = render.Encoder.BeginRenderPass(&clearPass);
+		RenderPassDesc clearPass = .() { ColorAttachments = .(clearAttachments) };
+		let rp = render.Encoder.BeginRenderPass(clearPass);
 		if (rp != null)
-		{
 			rp.End();
-			delete rp;
-		}
 
-		// Now render GUI overlay (uses LoadOp=Load, expects PRESENT_SRC_KHR)
-		mUISubsystem?.Render(render.Encoder, render.SwapChain.CurrentTextureView,
+		// Render GUI overlay
+		mUISubsystem?.Render(render.Encoder, render.CurrentTextureView,
 			render.SwapChain.Width, render.SwapChain.Height,
-			(int32)render.SwapChain.CurrentFrameIndex);
+			render.Frame.FrameIndex);
 
 		return true;
 	}
@@ -416,51 +409,12 @@ class Program
 {
 	public static int Main(String[] args)
 	{
-		let shell = new SDL3Shell();
-		defer { shell.Shutdown(); delete shell; }
-
-		if (shell.Initialize() case .Err)
-		{
-			Console.WriteLine("Failed to initialize shell");
-			return -1;
-		}
-
-		let backend = new VulkanBackend(enableValidation: true);
-		defer delete backend;
-
-		if (!backend.IsInitialized)
-		{
-			Console.WriteLine("Failed to initialize Vulkan backend");
-			return -1;
-		}
-
-		List<IAdapter> adapters = scope .();
-		backend.EnumerateAdapters(adapters);
-
-		if (adapters.Count == 0)
-		{
-			Console.WriteLine("No GPU adapters found");
-			return -1;
-		}
-
-		Console.WriteLine("Using adapter: {0}", adapters[0].Info.Name);
-
-		let device = adapters[0].CreateDevice().GetValueOrDefault();
-		if (device == null)
-		{
-			Console.WriteLine("Failed to create device");
-			return -1;
-		}
-		defer delete device;
-
-		let settings = ApplicationSettings()
+		let app = scope AudioSandboxApp();
+		return app.Run(.()
 		{
 			Title = "Audio Sandbox",
 			Width = 800, Height = 600,
 			EnableDepth = false
-		};
-
-		let app = scope AudioSandboxApp(shell, device, backend);
-		return app.Run(settings);
+		});
 	}
 }

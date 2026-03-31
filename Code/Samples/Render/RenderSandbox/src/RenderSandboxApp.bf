@@ -1,7 +1,6 @@
 using Sedulous.Core.Mathematics;
 using Sedulous.Runtime.Client;
 using Sedulous.RHI;
-using Sedulous.Shell;
 using Sedulous.Render;
 using Sedulous.Geometry;
 using Sedulous.Geometry.Tooling;
@@ -12,6 +11,8 @@ using Sedulous.Models.GLTF;
 using Sedulous.Imaging;
 using System;
 using System.Collections;
+using Sedulous.Textures;
+using Sedulous.Profiler;
 
 namespace RenderSandbox;
 
@@ -19,9 +20,9 @@ namespace RenderSandbox;
 class RenderSandboxApp : Application
 {
 	// Render system
-	private RenderSystem mRenderSystem ~ delete _;
-	private RenderWorld mWorld ~ delete _;
-	private RenderView mView ~ delete _;
+	private RenderSystem mRenderSystem;
+	private RenderWorld mWorld;
+	private RenderView mView;
 
 	// Render features (owned by RenderSystem after registration)
 	private DepthPrepassFeature mDepthFeature;
@@ -31,7 +32,6 @@ class RenderSandboxApp : Application
 	private SkyFeature mSkyFeature;
 	private ParticleFeature mParticleFeature;
 	private VolumetricFogFeature mVolumetricFogFeature;
-	private GPUSkinningFeature mSkinningFeature;
 	private OverlayRenderFeature mOverlayFeature;
 	private FinalOutputFeature mFinalOutputFeature;
 
@@ -95,13 +95,26 @@ class RenderSandboxApp : Application
 	private float mStatsTimer = 0;
 	private const float StatsInterval = 2.0f;
 
-	public this(IShell shell, IDevice device, IBackend backend)
-		: base(shell, device, backend)
+	// Profiling
+	private float[60] mFrameTimes;
+	private int32 mFrameTimeIndex;
+	private double mInitTimeMs;
+	private double mInitToFirstFrameMs;
+	private double mFirstFrameRenderMs;
+	private bool mFirstFrameCaptured = false;
+	private System.Diagnostics.Stopwatch mFirstFrameTimer = new .() ~ delete _;
+
+	public this() : base()
 	{
 	}
 
 	protected override void OnInitialize(Sedulous.Runtime.Context context)
 	{
+		SProfiler.Initialize();
+
+		let initTimer = scope System.Diagnostics.Stopwatch();
+		initTimer.Start();
+
 		// Initialize image loader for file-referenced textures
 		Sedulous.Imaging.SDL.SDLImageLoader.Initialize();
 
@@ -110,7 +123,7 @@ class RenderSandboxApp : Application
 
 		// Initialize render system
 		mRenderSystem = new RenderSystem();
-		if (mRenderSystem.Initialize(mDevice, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null, .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
+		if (mRenderSystem.Initialize(mDevice, mSwapChain.Width, mSwapChain.Height, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null, .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
 		{
 			Console.WriteLine("ERROR: Failed to initialize RenderSystem");
 			return;
@@ -155,7 +168,11 @@ class RenderSandboxApp : Application
 		mWorld.AmbientIntensity = 0.5f;
 		mWorld.Exposure = 1.0f;
 
-		Console.WriteLine("\n=== Initialization Complete ===");
+		initTimer.Stop();
+		mInitTimeMs = (double)initTimer.ElapsedMicroseconds / 1000.0;
+		mFirstFrameTimer.Start();
+
+		Console.WriteLine("\n=== Initialization Complete ({0:F1}ms) ===", mInitTimeMs);
 		Console.WriteLine("Objects in world:");
 		Console.WriteLine("  Meshes: {}", mWorld.MeshCount);
 		Console.WriteLine("  Skinned Meshes: {}", mWorld.SkinnedMeshCount);
@@ -191,13 +208,6 @@ class RenderSandboxApp : Application
 
 	private void RegisterFeatures()
 	{
-		// GPU Skinning (runs first to prepare skinned vertex buffers)
-		mSkinningFeature = new GPUSkinningFeature();
-		if (mRenderSystem.RegisterFeature(mSkinningFeature) case .Err)
-			Console.WriteLine("Warning: Failed to register GPUSkinningFeature");
-		else
-			Console.WriteLine("Registered: GPUSkinningFeature");
-
 		// Depth prepass (runs first, generates depth buffer for Hi-Z)
 		mDepthFeature = new DepthPrepassFeature();
 		if (mRenderSystem.RegisterFeature(mDepthFeature) case .Err)
@@ -1038,6 +1048,12 @@ class RenderSandboxApp : Application
 
 	private void PrintStats()
 	{
+		Console.WriteLine("\n=== Init Stats ===");
+		Console.WriteLine("  Total init: {0:F1}ms", mInitTimeMs);
+		Console.WriteLine("  Init -> first frame gap: {0:F1}ms", mInitToFirstFrameMs);
+		Console.WriteLine("  First frame render: {0:F1}ms", mFirstFrameRenderMs);
+		Console.WriteLine("  Total startup: {0:F1}ms", mInitTimeMs + mInitToFirstFrameMs + mFirstFrameRenderMs);
+
 		Console.WriteLine("\n=== Render Stats ===");
 		Console.WriteLine("Frame: {}", mRenderSystem.FrameNumber);
 		Console.WriteLine("Draw Calls: {}", mRenderSystem.Stats.DrawCalls);
@@ -1081,6 +1097,34 @@ class RenderSandboxApp : Application
 					i, group.InstanceCount, group.InstanceStart, group.CommandStart, group.GPUMesh.Index);
 			}
 		}
+
+		// Profiler data
+		let frame = SProfiler.GetCompletedFrame();
+		Console.WriteLine("\n=== Frame Profiling (frame {}) ===", frame.FrameNumber);
+		Console.WriteLine("  Total: {0:F2}ms ({} samples)", frame.FrameDurationMs, frame.SampleCount);
+		if (frame.SampleCount > 0)
+		{
+			Console.WriteLine("\n  Breakdown:");
+			for (let sample in frame.Samples)
+			{
+				let indent = scope String();
+				for (int i = 0; i < sample.Depth; i++)
+					indent.Append("  ");
+				Console.WriteLine("  {0}{1}: {2:F3}ms", indent, sample.Name, sample.DurationMs);
+			}
+		}
+
+		// Average frame time
+		float totalMs = 0;
+		let count = Math.Min(mFrameTimeIndex, 60);
+		for (int i = 0; i < count; i++)
+			totalMs += mFrameTimes[i];
+		if (count > 0)
+		{
+			let avgMs = totalMs / count;
+			Console.WriteLine("\n  Avg frame: {0:F2}ms ({1:F0} FPS)", avgMs, 1000.0f / avgMs);
+		}
+
 		Console.WriteLine("");
 	}
 
@@ -1214,6 +1258,9 @@ class RenderSandboxApp : Application
 
 	protected override void OnUpdate(FrameContext frame)
 	{
+		mFrameTimes[mFrameTimeIndex % 60] = (float)frame.DeltaTime * 1000.0f;
+		mFrameTimeIndex++;
+
 		// Cache delta time for input handling
 		mDeltaTime = (float)frame.DeltaTime;
 
@@ -1308,8 +1355,20 @@ class RenderSandboxApp : Application
 		DrawDebugLights();
 	}
 
+	protected override void OnResize(int32 width, int32 height)
+	{
+		mRenderSystem?.SetViewportSize((uint32)width, (uint32)height);
+	}
+
 	protected override bool OnRenderFrame(RenderContext render)
 	{
+		if (!mFirstFrameCaptured)
+		{
+			mFirstFrameTimer.Stop();
+			mInitToFirstFrameMs = (double)mFirstFrameTimer.ElapsedMicroseconds / 1000.0;
+			mFirstFrameTimer.Restart();
+		}
+
 		// Begin frame
 		mRenderSystem.BeginFrame((float)render.Frame.TotalTime, (float)render.Frame.DeltaTime);
 
@@ -1340,6 +1399,16 @@ class RenderSandboxApp : Application
 		// End frame
 		mRenderSystem.EndFrame();
 
+		if (!mFirstFrameCaptured)
+		{
+			mFirstFrameTimer.Stop();
+			mFirstFrameRenderMs = (double)mFirstFrameTimer.ElapsedMicroseconds / 1000.0;
+			mFirstFrameCaptured = true;
+			Console.WriteLine("  Init -> first frame gap: {0:F1}ms", mInitToFirstFrameMs);
+			Console.WriteLine("  First frame render: {0:F1}ms", mFirstFrameRenderMs);
+			Console.WriteLine("  Total startup: {0:F1}ms", mInitTimeMs + mInitToFirstFrameMs + mFirstFrameRenderMs);
+		}
+
 		return true;
 	}
 
@@ -1353,34 +1422,40 @@ class RenderSandboxApp : Application
 
 		mWorld?.Dispose();
 
-		// Release mesh handles
-		if (mCubeMeshHandle.IsValid)
-			mRenderSystem.ResourceManager.ReleaseMesh(mCubeMeshHandle, mRenderSystem.FrameNumber);
-		if (mPlaneMeshHandle.IsValid)
-			mRenderSystem.ResourceManager.ReleaseMesh(mPlaneMeshHandle, mRenderSystem.FrameNumber);
-
-		// Release fox model resources
-		if (mFoxComponent != null)
-		{
-			if (mFoxComponent.GPUMesh.IsValid)
-				mRenderSystem.ResourceManager.ReleaseMesh(mFoxComponent.GPUMesh, mRenderSystem.FrameNumber);
-			if (mFoxComponent.BoneBuffer.IsValid)
-				mRenderSystem.ResourceManager.ReleaseBoneBuffer(mFoxComponent.BoneBuffer, mRenderSystem.FrameNumber);
-		}
-		// Release unlit fox bone buffer (GPU mesh is shared with first fox)
-		if (mFoxUnlitComponent != null)
-		{
-			if (mFoxUnlitComponent.BoneBuffer.IsValid)
-				mRenderSystem.ResourceManager.ReleaseBoneBuffer(mFoxUnlitComponent.BoneBuffer, mRenderSystem.FrameNumber);
-		}
-		if (mFoxTextureHandle.IsValid)
-			mRenderSystem.ResourceManager.ReleaseTexture(mFoxTextureHandle, mRenderSystem.FrameNumber);
-
-		// Import result and source model are cleaned up by field destructors (~ delete _)
-
-		// Shutdown render system (handles feature cleanup)
 		if (mRenderSystem != null)
+		{
+			// Release mesh handles
+			if (mCubeMeshHandle.IsValid)
+				mRenderSystem.ResourceManager.ReleaseMesh(mCubeMeshHandle, mRenderSystem.FrameNumber);
+			if (mPlaneMeshHandle.IsValid)
+				mRenderSystem.ResourceManager.ReleaseMesh(mPlaneMeshHandle, mRenderSystem.FrameNumber);
+
+			// Release fox model resources
+			if (mFoxComponent != null)
+			{
+				if (mFoxComponent.GPUMesh.IsValid)
+					mRenderSystem.ResourceManager.ReleaseMesh(mFoxComponent.GPUMesh, mRenderSystem.FrameNumber);
+				if (mFoxComponent.BoneBuffer.IsValid)
+					mRenderSystem.ResourceManager.ReleaseBoneBuffer(mFoxComponent.BoneBuffer, mRenderSystem.FrameNumber);
+			}
+			// Release unlit fox bone buffer (GPU mesh is shared with first fox)
+			if (mFoxUnlitComponent != null)
+			{
+				if (mFoxUnlitComponent.BoneBuffer.IsValid)
+					mRenderSystem.ResourceManager.ReleaseBoneBuffer(mFoxUnlitComponent.BoneBuffer, mRenderSystem.FrameNumber);
+			}
+			if (mFoxTextureHandle.IsValid)
+				mRenderSystem.ResourceManager.ReleaseTexture(mFoxTextureHandle, mRenderSystem.FrameNumber);
+
+			// Import result and source model are cleaned up by field destructors (~ delete _)
+
+			// Shutdown render system (handles feature cleanup)
 			mRenderSystem.Shutdown();
+			delete mRenderSystem;
+			mRenderSystem = null;
+		}
+		delete mWorld;
+		delete mView;
 
 		Console.WriteLine("Shutdown complete");
 	}

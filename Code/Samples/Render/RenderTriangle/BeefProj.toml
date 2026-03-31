@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Shaders" = "*", "Sedulous.Core.Mathematics" = "*", "Sedulous.Runtime.Client" = "*", "Sedulous.Render" = "*", "Sedulous.RenderGraph" = "*"}
+Dependencies = {corlib = "*", "Sedulous.Shaders" = "*", "Sedulous.Core.Mathematics" = "*", "Sedulous.Runtime.Client" = "*", "Sedulous.Render" = "*"}
 
 [Project]
 Name = "RenderTriangle"

@@ -10,7 +10,7 @@ using Sedulous.Materials;
 using Sedulous.Render;
 using Sedulous.Engine.Scenes;
 using Sedulous.Engine.Render;
-using Sedulous.Core.Core;
+using Sedulous.Core;
 using TowerDefense.Data;
 using TowerDefense.Components;
 

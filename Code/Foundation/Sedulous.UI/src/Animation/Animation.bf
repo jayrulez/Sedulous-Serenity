@@ -1,374 +1,177 @@
-using System;
-using Sedulous.Core.Core;
-using Sedulous.Core.Mathematics;
-
 namespace Sedulous.UI;
 
-/// Animation playback state.
-public enum AnimationState
-{
-	/// Animation has not started.
-	Stopped,
-	/// Animation is playing.
-	Playing,
-	/// Animation is paused.
-	Paused,
-	/// Animation has completed.
-	Completed
-}
+using System;
+using Sedulous.Core.Mathematics;
+using Sedulous.Core;
 
-/// How the animation behaves when it reaches the end.
-public enum AnimationFillMode
-{
-	/// Value resets to start when animation ends.
-	None,
-	/// Value stays at end value when animation completes.
-	Forward,
-	/// Value is set to start value before animation begins.
-	Backward,
-	/// Combines Forward and Backward.
-	Both
-}
-
-/// How the animation repeats.
-public enum AnimationRepeatBehavior
-{
-	/// Play once and stop.
-	Once,
-	/// Repeat indefinitely.
-	Forever,
-	/// Repeat a specific number of times.
-	Count
-}
-
-/// Base class for all animations.
+/// Abstract base class for all property animations.
+/// Manages elapsed time, easing, delay, repeat, and auto-reverse.
 public abstract class Animation
 {
-	protected float mDuration = 1.0f;
-	protected float mDelay = 0.0f;
-	protected EasingType mEasing = .Linear;
-	protected AnimationFillMode mFillMode = .Forward;
-	protected AnimationRepeatBehavior mRepeatBehavior = .Once;
-	protected int mRepeatCount = 1;
-	protected bool mAutoReverse = false;
+	private float mElapsed = 0;
+	private float mDuration;
+	private float mDelay = 0;
+	private EasingFunction mEasing;
+	private bool mIsRunning = false;
+	private bool mIsComplete = false;
+	private bool mAutoReverse = false;
+	private int mRepeatCount = 0; // 0 = play once, -1 = infinite
+	private int mCurrentRepeat = 0;
+	private View mTarget;
 
-	protected AnimationState mState = .Stopped;
-	protected float mElapsedTime = 0.0f;
-	protected int mCurrentIteration = 0;
-	protected bool mIsReversing = false;
+	private EventAccessor<delegate void(Animation)> mOnComplete = new .() ~ delete _;
 
-	// Completed event
-	private EventAccessor<delegate void(Animation)> mCompletedEvent = new .() ~ delete _;
+	/// Event fired when the animation completes (after all repeats).
+	public EventAccessor<delegate void(Animation)> OnComplete => mOnComplete;
 
-	/// Event fired when the animation completes.
-	public EventAccessor<delegate void(Animation)> Completed => mCompletedEvent;
+	/// The view this animation targets (optional, used by AnimationManager.CancelForView).
+	public View Target
+	{
+		get => mTarget;
+		set { mTarget = value; }
+	}
 
-	/// Duration of one animation cycle in seconds.
+	/// Duration of one cycle in seconds.
 	public float Duration
 	{
 		get => mDuration;
-		set => mDuration = Math.Max(0.001f, value);
+		set { mDuration = Math.Max(value, 0); }
 	}
 
 	/// Delay before animation starts in seconds.
 	public float Delay
 	{
 		get => mDelay;
-		set => mDelay = Math.Max(0, value);
+		set { mDelay = Math.Max(value, 0); }
 	}
 
-	/// The easing function to use.
-	public EasingType Easing
+	/// Easing function applied to the progress. Null = linear.
+	public EasingFunction Easing
 	{
 		get => mEasing;
-		set => mEasing = value;
+		set { mEasing = value; }
 	}
 
-	/// How the animation fills before/after playback.
-	public AnimationFillMode FillMode
-	{
-		get => mFillMode;
-		set => mFillMode = value;
-	}
-
-	/// How the animation repeats.
-	public AnimationRepeatBehavior RepeatBehavior
-	{
-		get => mRepeatBehavior;
-		set => mRepeatBehavior = value;
-	}
-
-	/// Number of times to repeat (when RepeatBehavior is Count).
-	public int RepeatCount
-	{
-		get => mRepeatCount;
-		set => mRepeatCount = Math.Max(1, value);
-	}
-
-	/// Whether to reverse direction on each repeat.
+	/// Whether the animation plays backward on alternate repeats.
 	public bool AutoReverse
 	{
 		get => mAutoReverse;
-		set => mAutoReverse = value;
+		set { mAutoReverse = value; }
 	}
 
-	/// Current animation state.
-	public AnimationState State => mState;
-
-	/// Current progress within one cycle (0 to 1).
-	public float Progress
+	/// Number of times to repeat after the first play. 0 = once, -1 = infinite.
+	public int RepeatCount
 	{
-		get
-		{
-			if (mDuration <= 0) return 1;
-			let cycleTime = mElapsedTime - mDelay;
-			if (cycleTime < 0) return 0;
-			let rawProgress = Math.Clamp(cycleTime / mDuration, 0, 1);
-			return mIsReversing ? 1 - rawProgress : rawProgress;
-		}
+		get => mRepeatCount;
+		set { mRepeatCount = value; }
 	}
 
-	/// Current eased progress value.
-	public float EasedProgress => Sedulous.UI.Easing.Evaluate(mEasing, Progress);
+	/// Whether the animation is currently running.
+	public bool IsRunning => mIsRunning;
 
-	/// Starts or restarts the animation.
+	/// Whether the animation has completed (all repeats finished).
+	public bool IsComplete => mIsComplete;
+
+	/// Current elapsed time within the current cycle.
+	public float Elapsed => mElapsed;
+
+	public this(float duration, EasingFunction easing = null)
+	{
+		mDuration = Math.Max(duration, 0);
+		mEasing = easing;
+	}
+
+	/// Start or resume the animation.
 	public void Start()
 	{
-		mElapsedTime = 0;
-		mCurrentIteration = 0;
-		mIsReversing = false;
-		mState = .Playing;
-		OnStart();
+		if (!mIsComplete)
+			mIsRunning = true;
 	}
 
-	/// Pauses the animation.
-	public void Pause()
-	{
-		if (mState == .Playing)
-			mState = .Paused;
-	}
-
-	/// Resumes a paused animation.
-	public void Resume()
-	{
-		if (mState == .Paused)
-			mState = .Playing;
-	}
-
-	/// Stops the animation.
+	/// Pause the animation without resetting.
 	public void Stop()
 	{
-		mState = .Stopped;
-		mElapsedTime = 0;
-		mCurrentIteration = 0;
-		mIsReversing = false;
-		OnStop();
+		mIsRunning = false;
 	}
 
-	/// Updates the animation by the given delta time.
-	/// Returns true if animation is still active.
-	public bool Update(float deltaTime)
+	/// Reset the animation to its initial state.
+	public virtual void Reset()
 	{
-		if (mState != .Playing)
-			return mState != .Completed && mState != .Stopped;
+		mElapsed = 0;
+		mCurrentRepeat = 0;
+		mIsRunning = false;
+		mIsComplete = false;
+	}
 
-		mElapsedTime += deltaTime;
+	/// Advance the animation by deltaTime. Returns true when fully complete.
+	public virtual bool Update(float deltaTime)
+	{
+		if (!mIsRunning || mIsComplete)
+			return mIsComplete;
+
+		mElapsed += deltaTime;
 
 		// Handle delay
-		if (mElapsedTime < mDelay)
+		if (mDelay > 0 && mElapsed < mDelay)
+			return false;
+
+		float activeTime = mElapsed - mDelay;
+
+		if (mDuration <= 0)
 		{
-			if (mFillMode == .Backward || mFillMode == .Both)
-				ApplyValue(0);
-			return true;
+			// Zero-duration: snap to end
+			Apply(1.0f);
+			FinishCycle();
+			return mIsComplete;
 		}
 
-		let cycleTime = mElapsedTime - mDelay;
-		var cycleProgress = cycleTime / mDuration;
-
-		// Check for cycle completion
-		if (cycleProgress >= 1.0f)
+		if (activeTime >= mDuration)
 		{
-			// Apply final value for this cycle
-			let finalT = mIsReversing ? 0.0f : 1.0f;
-			ApplyValue(Sedulous.UI.Easing.Evaluate(mEasing, finalT));
-
-			// Handle repeat
-			if (mAutoReverse)
-			{
-				if (mIsReversing)
-				{
-					mCurrentIteration++;
-					mIsReversing = false;
-				}
-				else
-				{
-					mIsReversing = true;
-				}
-				mElapsedTime = mDelay;
-			}
-			else
-			{
-				mCurrentIteration++;
-				mElapsedTime = mDelay;
-			}
-
-			// Check if we should continue
-			bool shouldContinue = false;
-			switch (mRepeatBehavior)
-			{
-			case .Forever:
-				shouldContinue = true;
-			case .Once:
-				shouldContinue = false;
-			case .Count:
-				shouldContinue = mCurrentIteration < mRepeatCount;
-			}
-
-			if (!shouldContinue)
-			{
-				mState = .Completed;
-				if (mFillMode == .None || mFillMode == .Backward)
-					ApplyValue(0);
-				OnCompleted();
-				mCompletedEvent.[Friend]Invoke(this);
-				return false;
-			}
-
-			return true;
+			// Cycle complete
+			Apply(1.0f);
+			FinishCycle();
+			return mIsComplete;
 		}
 
-		// Apply current value
-		let progress = mIsReversing ? 1.0f - cycleProgress : cycleProgress;
-		let easedProgress = Sedulous.UI.Easing.Evaluate(mEasing, progress);
-		ApplyValue(easedProgress);
+		// Normal progress
+		float t = activeTime / mDuration;
 
-		return true;
+		// Auto-reverse: play backward on odd repeats
+		if (mAutoReverse && (mCurrentRepeat & 1) != 0)
+			t = 1.0f - t;
+
+		// Apply easing
+		float easedT = (mEasing != null) ? mEasing(t) : t;
+		Apply(easedT);
+
+		return false;
 	}
 
-	/// Called when animation starts.
-	protected virtual void OnStart() { }
+	/// Apply the interpolated value at progress t (0-1, after easing).
+	protected abstract void Apply(float t);
 
-	/// Called when animation stops.
-	protected virtual void OnStop() { }
-
-	/// Called when animation completes.
-	protected virtual void OnCompleted() { }
-
-	/// Applies the animated value at the given progress (0-1, after easing).
-	protected abstract void ApplyValue(float easedProgress);
-}
-
-/// Animation that interpolates a float value.
-public class FloatAnimation : Animation
-{
-	public float From;
-	public float To;
-	public delegate void(float) OnValueChanged ~ delete _;
-
-	public this(float from, float to)
+	/// Mark the animation as complete. For use by subclasses that override Update.
+	protected void MarkComplete()
 	{
-		From = from;
-		To = to;
+		mIsRunning = false;
+		mIsComplete = true;
+		mOnComplete.[Friend]Invoke(this);
 	}
 
-	protected override void ApplyValue(float easedProgress)
+	private void FinishCycle()
 	{
-		let value = From + (To - From) * easedProgress;
-		if (OnValueChanged != null)
-			OnValueChanged(value);
-	}
-}
-
-/// Animation that interpolates a Color value.
-public class ColorAnimation : Animation
-{
-	public Color From;
-	public Color To;
-	public delegate void(Color) OnValueChanged ~ delete _;
-
-	public this(Color from, Color to)
-	{
-		From = from;
-		To = to;
-	}
-
-	protected override void ApplyValue(float easedProgress)
-	{
-		let r = (uint8)(From.R + (int)(To.R - From.R) * easedProgress);
-		let g = (uint8)(From.G + (int)(To.G - From.G) * easedProgress);
-		let b = (uint8)(From.B + (int)(To.B - From.B) * easedProgress);
-		let a = (uint8)(From.A + (int)(To.A - From.A) * easedProgress);
-		if (OnValueChanged != null)
-			OnValueChanged(Color(r, g, b, a));
-	}
-}
-
-/// Animation that interpolates a Thickness value.
-public class ThicknessAnimation : Animation
-{
-	public Thickness From;
-	public Thickness To;
-	public delegate void(Thickness) OnValueChanged ~ delete _;
-
-	public this(Thickness from, Thickness to)
-	{
-		From = from;
-		To = to;
-	}
-
-	protected override void ApplyValue(float easedProgress)
-	{
-		let left = From.Left + (To.Left - From.Left) * easedProgress;
-		let top = From.Top + (To.Top - From.Top) * easedProgress;
-		let right = From.Right + (To.Right - From.Right) * easedProgress;
-		let bottom = From.Bottom + (To.Bottom - From.Bottom) * easedProgress;
-		if (OnValueChanged != null)
-			OnValueChanged(Thickness(left, top, right, bottom));
-	}
-}
-
-/// Animation that interpolates a Vector2 value.
-public class Vector2Animation : Animation
-{
-	public Vector2 From;
-	public Vector2 To;
-	public delegate void(Vector2) OnValueChanged ~ delete _;
-
-	public this(Vector2 from, Vector2 to)
-	{
-		From = from;
-		To = to;
-	}
-
-	protected override void ApplyValue(float easedProgress)
-	{
-		let x = From.X + (To.X - From.X) * easedProgress;
-		let y = From.Y + (To.Y - From.Y) * easedProgress;
-		if (OnValueChanged != null)
-			OnValueChanged(.(x, y));
-	}
-}
-
-/// Animation that interpolates a RectangleF value.
-public class RectangleAnimation : Animation
-{
-	public RectangleF From;
-	public RectangleF To;
-	public delegate void(RectangleF) OnValueChanged ~ delete _;
-
-	public this(RectangleF from, RectangleF to)
-	{
-		From = from;
-		To = to;
-	}
-
-	protected override void ApplyValue(float easedProgress)
-	{
-		let x = From.X + (To.X - From.X) * easedProgress;
-		let y = From.Y + (To.Y - From.Y) * easedProgress;
-		let w = From.Width + (To.Width - From.Width) * easedProgress;
-		let h = From.Height + (To.Height - From.Height) * easedProgress;
-		if (OnValueChanged != null)
-			OnValueChanged(.(x, y, w, h));
+		if (mRepeatCount == -1 || mCurrentRepeat < mRepeatCount)
+		{
+			// Start next repeat
+			mCurrentRepeat++;
+			mElapsed = mDelay; // Reset to start of active time
+		}
+		else
+		{
+			// All repeats done
+			mIsRunning = false;
+			mIsComplete = true;
+			mOnComplete.[Friend]Invoke(this);
+		}
 	}
 }

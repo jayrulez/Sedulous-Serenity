@@ -7,53 +7,34 @@ using Sedulous.RHI;
 /// Vulkan implementation of IShaderModule.
 class VulkanShaderModule : IShaderModule
 {
-	private VulkanDevice mDevice;
-	private VkShaderModule mShaderModule;
+	private VkShaderModule mModule;
 
-	public this(VulkanDevice device, ShaderModuleDesc descriptor)
-	{
-		mDevice = device;
-		CreateShaderModule(descriptor);
-		if (mShaderModule != default && descriptor.Label.Ptr != null && descriptor.Label.Length > 0)
-			mDevice.SetDebugName(mShaderModule.Handle, .VK_OBJECT_TYPE_SHADER_MODULE, descriptor.Label);
-	}
+	public this() { }
 
-	public ~this()
+	public Result<void> Init(VulkanDevice device, ShaderModuleDesc desc)
 	{
-		Dispose();
-	}
+		VkShaderModuleCreateInfo createInfo = .();
+		createInfo.codeSize = (uint)desc.Code.Length;
+		createInfo.pCode = (uint32*)desc.Code.Ptr;
 
-	public void Dispose()
-	{
-		if (mShaderModule != default)
+		let result = VulkanNative.vkCreateShaderModule(device.Handle, &createInfo, null, &mModule);
+		if (result != .VK_SUCCESS)
 		{
-			VulkanNative.vkDestroyShaderModule(mDevice.Device, mShaderModule, null);
-			mShaderModule = default;
+			System.Diagnostics.Debug.WriteLine(scope $"VulkanShaderModule: vkCreateShaderModule failed ({result})");
+			return .Err;
+		}
+
+		return .Ok;
+	}
+
+	public void Cleanup(VulkanDevice device)
+	{
+		if (mModule.Handle != 0)
+		{
+			VulkanNative.vkDestroyShaderModule(device.Handle, mModule, null);
+			mModule = .Null;
 		}
 	}
 
-	/// Returns true if the shader module was created successfully.
-	public bool IsValid => mShaderModule != default;
-
-	/// Gets the Vulkan shader module handle.
-	public VkShaderModule ShaderModule => mShaderModule;
-
-	private void CreateShaderModule(ShaderModuleDesc descriptor)
-	{
-		if (descriptor.Code.Length == 0)
-			return;
-
-		// SPIRV code must be aligned to 4 bytes and size must be multiple of 4
-		if (descriptor.Code.Length % 4 != 0)
-			return;
-
-		VkShaderModuleCreateInfo createInfo = .()
-			{
-				sType = .VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-				codeSize = (uint)descriptor.Code.Length,
-				pCode = (uint32*)descriptor.Code.Ptr
-			};
-
-		VulkanNative.vkCreateShaderModule(mDevice.Device, &createInfo, null, &mShaderModule);
-	}
+	public VkShaderModule Handle => mModule;
 }

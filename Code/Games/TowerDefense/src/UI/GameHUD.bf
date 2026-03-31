@@ -5,7 +5,7 @@ using System.Collections;
 using Sedulous.GUI;
 using Sedulous.Drawing;
 using Sedulous.Core.Mathematics;
-using Sedulous.Core.Core;
+using Sedulous.Core;
 using TowerDefense.Data;
 using TowerDefense.Components;
 using TowerDefense.Towers;

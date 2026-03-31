@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Core.Mathematics" = "*", "Sedulous.RHI" = "*", SampleFramework = "*", "cimgui-Beef" = "*"}
+Dependencies = {corlib = "*", "Sedulous.Core.Mathematics" = "*", "Sedulous.RHI" = "*", "Sedulous.Shaders" = "*", "Sedulous.Runtime.Client" = "*", "cimgui-Beef" = "*"}
 
 [Project]
 Name = "ImGuiSample"

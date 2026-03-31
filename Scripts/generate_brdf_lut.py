@@ -129,6 +129,12 @@ def generate_brdf_lut():
     return interleaved.tobytes()
 
 
+def write_bin_file(data: bytes, output_path: str):
+    """Write the BRDF LUT data as a raw binary file."""
+    with open(output_path, 'wb') as f:
+        f.write(data)
+
+
 def write_bf_file(data: bytes, output_path: str):
     """Write the BRDF LUT data as a Beef source file."""
     with open(output_path, 'w') as f:
@@ -161,11 +167,16 @@ def write_bf_file(data: bytes, output_path: str):
 
 
 if __name__ == "__main__":
-    output_path = sys.argv[1] if len(sys.argv) > 1 else "BRDFLutData.bf"
+    output_path = sys.argv[1] if len(sys.argv) > 1 else "BRDFLut.bin"
 
     print(f"Generating {SIZE}x{SIZE} BRDF LUT ({NUM_SAMPLES} samples/texel)...", file=sys.stderr)
     data = generate_brdf_lut()
     print(f"Generated {len(data)} bytes", file=sys.stderr)
     print(f"Writing to {output_path}...", file=sys.stderr)
-    write_bf_file(data, output_path)
+
+    if output_path.endswith('.bf'):
+        write_bf_file(data, output_path)
+    else:
+        write_bin_file(data, output_path)
+
     print("Done.", file=sys.stderr)

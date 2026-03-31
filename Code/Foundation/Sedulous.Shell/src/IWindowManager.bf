@@ -1,5 +1,5 @@
 using System;
-using Sedulous.Core.Core;
+using Sedulous.Core;
 
 namespace Sedulous.Shell;
 

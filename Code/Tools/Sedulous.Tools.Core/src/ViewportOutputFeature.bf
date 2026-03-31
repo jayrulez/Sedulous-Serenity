@@ -25,10 +25,10 @@ public class ViewportOutputFeature : RenderFeatureBase
 	}
 
 	// Blit pipeline resources
-	private IRenderPipeline mBlitPipeline ~ delete _;
-	private IPipelineLayout mBlitPipelineLayout ~ delete _;
-	private IBindGroupLayout mBlitBindGroupLayout ~ delete _;
-	private ISampler mLinearSampler ~ delete _;
+	private IRenderPipeline mBlitPipeline;
+	private IPipelineLayout mBlitPipelineLayout;
+	private IBindGroupLayout mBlitBindGroupLayout;
+	private ISampler mLinearSampler;
 
 	// Per-frame uniform buffers for blit params
 	private IBuffer[RenderConfig.FrameBufferCount] mBlitParamsBuffers;
@@ -64,7 +64,7 @@ public class ViewportOutputFeature : RenderFeatureBase
 		mHeight = height;
 	}
 
-	protected override Result<void> OnInitialize()
+	protected override Result<void> OnInitialize(InitContext initCtx)
 	{
 		// Create linear sampler for blit
 		SamplerDesc samplerDesc = .()
@@ -192,28 +192,28 @@ public class ViewportOutputFeature : RenderFeatureBase
 
 	protected override void OnShutdown()
 	{
+		let device = Renderer.Device;
 		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
 			if (mBlitParamsBuffers[i] != null)
-			{
-				delete mBlitParamsBuffers[i];
-				mBlitParamsBuffers[i] = null;
-			}
+				device.DestroyBuffer(ref mBlitParamsBuffers[i]);
 			if (mBlitBindGroups[i] != null)
-			{
-				delete mBlitBindGroups[i];
-				mBlitBindGroups[i] = null;
-			}
+				device.DestroyBindGroup(ref mBlitBindGroups[i]);
 		}
+
+		device.DestroyRenderPipeline(ref mBlitPipeline);
+		device.DestroyPipelineLayout(ref mBlitPipelineLayout);
+		device.DestroyBindGroupLayout(ref mBlitBindGroupLayout);
+		device.DestroySampler(ref mLinearSampler);
 	}
 
-	public override void AddPasses(RenderGraph graph, RenderView view, RenderWorld world)
+	public override void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world)
 	{
 		if (mColorTexture == null)
 			return;
 
 		// Import the viewport color texture as output target
-		let viewportHandle = graph.ImportTexture("ViewportColor", mColorTexture, mColorTextureView);
+		let viewportHandle = graph.ImportTarget("ViewportColor", mColorTexture, mColorTextureView);
 
 		// Get scene color (rendered by ForwardOpaque)
 		var sourceHandle = Renderer.PostProcessOutput;
@@ -227,25 +227,27 @@ public class ViewportOutputFeature : RenderFeatureBase
 		{
 			// Capture values for the lambda
 			RenderGraph graphRef = graph;
-			RGResourceHandle colorHandle = sourceHandle;
+			RGHandle colorHandle = sourceHandle;
 			uint32 vpW = mWidth;
 			uint32 vpH = mHeight;
 
-			graph.AddGraphicsPass("ViewportOutput")
-				.ReadTexture(sourceHandle)
-				.WriteColor(viewportHandle, .Clear, .Store, .(0.1f, 0.1f, 0.15f, 1.0f))
-				.NeverCull()
-				.SetExecuteCallback(new [=](encoder) => {
+			graph.AddRenderPass("ViewportOutput", scope (builder) => {
+				builder.ReadTexture(sourceHandle);
+				builder.SetColorTarget(0, viewportHandle, .Clear, .Store, ClearColor(0.1f, 0.1f, 0.15f, 1.0f));
+				builder.NeverCull();
+				builder.SetExecute(new [=](encoder) => {
 					let sceneColorView = graphRef.GetTextureView(colorHandle);
 					ExecuteBlitPass(encoder, sceneColorView, vpW, vpH);
 				});
+			});
 		}
 		else
 		{
 			// Fallback: just clear the viewport
-			graph.AddGraphicsPass("ViewportOutput_Clear")
-				.WriteColor(viewportHandle, .Clear, .Store, .(0.1f, 0.1f, 0.15f, 1.0f))
-				.NeverCull();
+			graph.AddRenderPass("ViewportOutput_Clear", scope (builder) => {
+				builder.SetColorTarget(0, viewportHandle, .Clear, .Store, ClearColor(0.1f, 0.1f, 0.15f, 1.0f));
+				builder.NeverCull();
+			});
 		}
 	}
 
@@ -264,10 +266,7 @@ public class ViewportOutputFeature : RenderFeatureBase
 		let frameIndex = Renderer.RenderFrameContext?.FrameIndex ?? 0;
 
 		if (mBlitBindGroups[frameIndex] != null)
-		{
-			delete mBlitBindGroups[frameIndex];
-			mBlitBindGroups[frameIndex] = null;
-		}
+			Renderer.Device.DestroyBindGroup(ref mBlitBindGroups[frameIndex]);
 
 		// Upload blit params (exposure) for this frame
 		let paramsBuffer = mBlitParamsBuffers[frameIndex];
@@ -283,9 +282,9 @@ public class ViewportOutputFeature : RenderFeatureBase
 
 		// Create new bind group with current scene color
 		BindGroupEntry[3] entries = .(
-			BindGroupEntry.Buffer(0, paramsBuffer, 0, (uint64)BlitParams.Size),
-			BindGroupEntry.Texture(0, sceneColorView),
-			BindGroupEntry.Sampler(0, mLinearSampler)
+			BindGroupEntry.Buffer(/*0,*/ paramsBuffer, 0, (uint64)BlitParams.Size),
+			BindGroupEntry.Texture(/*0,*/ sceneColorView),
+			BindGroupEntry.Sampler(/*0,*/ mLinearSampler)
 		);
 
 		BindGroupDesc bgDesc = .()

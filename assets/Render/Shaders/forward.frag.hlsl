@@ -130,7 +130,9 @@ float3 FresnelSchlickRoughness(float cosTheta, float3 F0, float roughness)
 uint GetClusterIndex(float2 screenPos, float viewZ)
 {
     uint clusterX = uint(screenPos.x * ClusterScale.x);
-    uint clusterY = uint(screenPos.y * ClusterScale.y);
+    // Flip Y: negative viewport makes SV_Position.y=0 at top,
+    // but cluster build maps row 0 to NDC bottom (Y=-1)
+    uint clusterY = uint((ScreenSize.y - screenPos.y) * ClusterScale.y);
     uint clusterZ = uint(max(0.0, log(viewZ) * ClusterBias.x + ClusterBias.y));
 
     clusterX = min(clusterX, ClusterDimensionX - 1);

@@ -56,7 +56,7 @@ class ParticleEffects
 			if (mEffectTimers[i] <= 0)
 			{
 				let handle = mActiveHandles[i];
-				// RenderWorld handles deferred deletion of CPUEmitter
+				// ParticleFeature handles deferred deletion of CPUEmitter
 				mRenderWorld.DestroyParticleEmitter(handle);
 				mActiveHandles.RemoveAt(i);
 				mEffectTimers.RemoveAt(i);

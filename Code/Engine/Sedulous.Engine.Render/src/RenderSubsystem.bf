@@ -144,7 +144,7 @@ public class RenderSubsystem : Subsystem, ISceneAware
 			return;
 
 		// Create render world for this scene
-		let world = new RenderWorld();
+		let world = new RenderWorld(mRenderSystem.Device);
 		mSceneWorlds[scene] = world;
 
 		// Create and add scene module

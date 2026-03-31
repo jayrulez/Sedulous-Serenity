@@ -2,35 +2,114 @@ namespace Sedulous.RHI.DX12;
 
 using System;
 using System.Collections;
+using Win32;
+using Win32.Foundation;
 using Win32.Graphics.Direct3D12;
 using Win32.Graphics.Dxgi;
-using Win32.Foundation;
 using Win32.System.Com;
 using Sedulous.RHI;
-
-using Win32;
 
 /// DX12 implementation of IBackend.
 class DX12Backend : IBackend
 {
-	private IDXGIFactory6* mFactory;
-	private bool mValidationEnabled;
-	private bool mDebugEnabled;
+	private IDXGIFactory4* mFactory;
+	private bool mValidation;
+	private bool mInitialized;
 	private List<DX12Adapter> mAdapters = new .() ~ DeleteContainerAndItems!(_);
 
-	/// Creates a new DX12 backend.
-	public this(bool enableValidation = true)
+	public bool IsInitialized => mInitialized;
+
+	public static Result<DX12Backend> Create(bool enableValidation = false)
 	{
-		mValidationEnabled = enableValidation;
-		Initialize();
+		let backend = new DX12Backend();
+		if (backend.Init(enableValidation) case .Err)
+		{
+			System.Diagnostics.Debug.WriteLine("DX12Backend: Init failed");
+			delete backend;
+			return .Err;
+		}
+		return .Ok(backend);
 	}
 
-	public ~this()
+	private Result<void> Init(bool enableValidation)
 	{
-		Dispose();
+		mValidation = enableValidation;
+
+		// Enable debug layer before device creation
+		if (mValidation)
+		{
+			ID3D12Debug* debugController = null;
+			if (SUCCEEDED(D3D12GetDebugInterface(ID3D12Debug.IID, (void**)&debugController)))
+			{
+				debugController.EnableDebugLayer();
+				debugController.Release();
+			}
+		}
+
+		// Create DXGI factory
+		uint32 factoryFlags = mValidation ? 1 : 0; // DXGI_CREATE_FACTORY_DEBUG = 1
+		HRESULT hr = CreateDXGIFactory2(factoryFlags, IDXGIFactory4.IID, (void**)&mFactory);
+		if (!SUCCEEDED(hr))
+		{
+			System.Diagnostics.Debug.WriteLine(scope $"DX12Backend: CreateDXGIFactory2 failed (0x{hr:X})");
+			return .Err;
+		}
+
+		// Enumerate adapters
+		EnumerateAdaptersInternal();
+
+		mInitialized = true;
+		return .Ok;
 	}
 
-	public void Dispose()
+	private void EnumerateAdaptersInternal()
+	{
+		uint32 i = 0;
+		IDXGIAdapter1* adapter = null;
+		while (SUCCEEDED(mFactory.EnumAdapters1(i, &adapter)))
+		{
+			DXGI_ADAPTER_DESC1 desc = default;
+			adapter.GetDesc1(&desc);
+
+			// Skip software adapters
+			if ((desc.Flags & (uint32)DXGI_ADAPTER_FLAG.DXGI_ADAPTER_FLAG_SOFTWARE) != 0)
+			{
+				adapter.Release();
+				i++;
+				continue;
+			}
+
+			// Check if the adapter supports D3D12 feature level 12.0
+			if (SUCCEEDED(D3D12CreateDevice((IUnknown*)adapter, .D3D_FEATURE_LEVEL_12_0, ID3D12Device.IID, null)))
+			{
+				mAdapters.Add(new DX12Adapter(adapter, mFactory));
+			}
+			else
+			{
+				adapter.Release();
+			}
+
+			i++;
+		}
+	}
+
+	public void EnumerateAdapters(List<IAdapter> adapters)
+	{
+		for (let adapter in mAdapters)
+			adapters.Add(adapter);
+	}
+
+	public Result<ISurface> CreateSurface(void* windowHandle, void* displayHandle = null)
+	{
+		if (windowHandle == null)
+		{
+			System.Diagnostics.Debug.WriteLine("DX12Backend: CreateSurface called with null window handle");
+			return .Err;
+		}
+		return .Ok(new DX12Surface((HWND)windowHandle));
+	}
+
+	public void Destroy()
 	{
 		for (let adapter in mAdapters)
 			delete adapter;
@@ -41,107 +120,10 @@ class DX12Backend : IBackend
 			mFactory.Release();
 			mFactory = null;
 		}
+
+		mInitialized = false;
 	}
 
-	public bool IsInitialized => mFactory != null;
-	public bool DebugEnabled => mDebugEnabled;
-
-	public void EnumerateAdapters(List<IAdapter> adapters)
-	{
-		if (mAdapters.Count == 0)
-			EnumerateGpuAdapters();
-
-		for (let adapter in mAdapters)
-			adapters.Add(adapter);
-	}
-
-	public Result<ISurface> CreateSurface(void* windowHandle, void* displayHandle = null)
-	{
-		if (mFactory == null)
-			return .Err;
-
-		return .Ok(new DX12Surface(windowHandle));
-	}
-
-	public IDXGIFactory6* Factory => mFactory;
-
-	private void Initialize()
-	{
-		// Enable debug layer if requested
-		if (mValidationEnabled)
-		{
-			ID3D12Debug* debugController = null;
-			if (SUCCEEDED(D3D12GetDebugInterface(ID3D12Debug.IID, (void**)&debugController)))
-			{
-				debugController.EnableDebugLayer();
-				debugController.Release();
-				mDebugEnabled = true;
-				Console.WriteLine("[DX12] Debug layer enabled");
-			}
-			else
-			{
-				Console.WriteLine("[DX12] WARNING: Debug layer not available");
-			}
-		}
-
-		// Create DXGI factory
-		uint32 factoryFlags = mDebugEnabled ? 1 : 0; // DXGI_CREATE_FACTORY_DEBUG = 1
-
-		IDXGIFactory6* factory6 = null;
-		HRESULT hr = CreateDXGIFactory2(factoryFlags, IDXGIFactory6.IID, (void**)&factory6);
-		if (SUCCEEDED(hr))
-		{
-			mFactory = factory6;
-		}
-		else
-		{
-			// Fallback to factory4
-			IDXGIFactory4* factory4 = null;
-			hr = CreateDXGIFactory2(factoryFlags, IDXGIFactory4.IID, (void**)&factory4);
-			if (SUCCEEDED(hr))
-			{
-				// QI for factory6
-				hr = factory4.QueryInterface(IDXGIFactory6.IID, (void**)&mFactory);
-				factory4.Release();
-				if (!SUCCEEDED(hr))
-					mFactory = null;
-			}
-		}
-
-		if (mFactory != null)
-			Console.WriteLine("[DX12] DXGI Factory created");
-		else
-			Console.Error.WriteLine("[DX12] ERROR: Failed to create DXGI Factory");
-	}
-
-	private void EnumerateGpuAdapters()
-	{
-		if (mFactory == null)
-			return;
-
-		uint32 adapterIndex = 0;
-		IDXGIAdapter1* adapter = null;
-
-		while (true)
-		{
-			HRESULT hr = mFactory.EnumAdapterByGpuPreference(
-				adapterIndex,
-				.DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE,
-				IDXGIAdapter1.IID,
-				(void**)&adapter);
-
-			if (!SUCCEEDED(hr))
-				break;
-
-			// Check if the adapter supports D3D12
-			hr = D3D12CreateDevice((IUnknown*)adapter, .D3D_FEATURE_LEVEL_12_0, ID3D12Device.IID, null);
-			if (SUCCEEDED(hr))
-			{
-				mAdapters.Add(new DX12Adapter(this, adapter));
-			}
-
-			adapter.Release();
-			adapterIndex++;
-		}
-	}
+	// --- Internal ---
+	public IDXGIFactory4* Factory => mFactory;
 }

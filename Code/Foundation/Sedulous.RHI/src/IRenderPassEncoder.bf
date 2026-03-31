@@ -1,26 +1,38 @@
-using System;
 namespace Sedulous.RHI;
 
-/// Encodes commands within a render pass.
+using System;
+
+/// Encodes drawing commands within a render pass.
+/// Obtained from ICommandEncoder.BeginRenderPass().
+/// Must call End() when finished.
 interface IRenderPassEncoder
 {
-	/// Sets the render pipeline.
+	// ===== Pipeline & Binding =====
+
+	/// Sets the render pipeline for subsequent draw calls.
 	void SetPipeline(IRenderPipeline pipeline);
 
-	/// Sets a bind group at the specified index.
+	/// Binds a bind group at the given index.
 	void SetBindGroup(uint32 index, IBindGroup bindGroup, Span<uint32> dynamicOffsets = default);
 
-	/// Sets a vertex buffer at the specified slot.
+	/// Sets push constant data.
+	void SetPushConstants(ShaderStage stages, uint32 offset, uint32 size, void* data);
+
+	// ===== Vertex & Index Buffers =====
+
+	/// Binds a vertex buffer to a slot.
 	void SetVertexBuffer(uint32 slot, IBuffer buffer, uint64 offset = 0);
 
-	/// Sets the index buffer.
+	/// Binds an index buffer.
 	void SetIndexBuffer(IBuffer buffer, IndexFormat format, uint64 offset = 0);
 
+	// ===== Dynamic State =====
+
 	/// Sets the viewport.
-	void SetViewport(float x, float y, float width, float height, float minDepth, float maxDepth);
+	void SetViewport(float x, float y, float w, float h, float minDepth, float maxDepth);
 
 	/// Sets the scissor rectangle.
-	void SetScissor(int32 x, int32 y, uint32 width, uint32 height);
+	void SetScissor(int32 x, int32 y, uint32 w, uint32 h);
 
 	/// Sets the blend constant color.
 	void SetBlendConstant(float r, float g, float b, float a);
@@ -28,18 +40,35 @@ interface IRenderPassEncoder
 	/// Sets the stencil reference value.
 	void SetStencilReference(uint32 reference);
 
-	/// Draws primitives.
-	void Draw(uint32 vertexCount, uint32 instanceCount = 1, uint32 firstVertex = 0, uint32 firstInstance = 0);
+	// ===== Draw Commands =====
+
+	/// Draws non-indexed primitives.
+	void Draw(uint32 vertexCount, uint32 instanceCount = 1,
+		uint32 firstVertex = 0, uint32 firstInstance = 0);
 
 	/// Draws indexed primitives.
-	void DrawIndexed(uint32 indexCount, uint32 instanceCount = 1, uint32 firstIndex = 0, int32 baseVertex = 0, uint32 firstInstance = 0);
+	void DrawIndexed(uint32 indexCount, uint32 instanceCount = 1,
+		uint32 firstIndex = 0, int32 baseVertex = 0, uint32 firstInstance = 0);
 
-	/// Draws primitives using indirect parameters from a buffer.
-	void DrawIndirect(IBuffer indirectBuffer, uint64 indirectOffset);
+	/// Draws non-indexed primitives with parameters read from a buffer.
+	void DrawIndirect(IBuffer buffer, uint64 offset, uint32 drawCount = 1, uint32 stride = 0);
 
-	/// Draws indexed primitives using indirect parameters from a buffer.
-	void DrawIndexedIndirect(IBuffer indirectBuffer, uint64 indirectOffset);
+	/// Draws indexed primitives with parameters read from a buffer.
+	void DrawIndexedIndirect(IBuffer buffer, uint64 offset, uint32 drawCount = 1, uint32 stride = 0);
 
-	/// Ends the render pass.
+	// ===== Queries =====
+
+	/// Writes a GPU timestamp within the render pass.
+	void WriteTimestamp(IQuerySet querySet, uint32 index);
+
+	/// Begins an occlusion query.
+	void BeginOcclusionQuery(IQuerySet querySet, uint32 index);
+
+	/// Ends an occlusion query.
+	void EndOcclusionQuery(IQuerySet querySet, uint32 index);
+
+	// ===== End =====
+
+	/// Ends the render pass. The encoder must not be used after this call.
 	void End();
 }

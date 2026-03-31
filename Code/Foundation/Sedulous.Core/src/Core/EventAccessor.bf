@@ -1,6 +1,6 @@
 using System;
 using System.Threading;
-namespace Sedulous.Core.Core;
+namespace Sedulous.Core;
 
 class EventAccessor<T> where T : Delegate
 {

@@ -128,7 +128,6 @@ public class LightingSystem : IDisposable
 			mClusterGrid.CullLights(computePass, mLightBuffer, frameIndex);
 
 			computePass.End();
-			delete computePass;
 		}
 	}
 

@@ -30,15 +30,15 @@ public class MotionVectorFeature : RenderFeatureBase
 	private Dictionary<MeshProxyHandle, Matrix> mPrevTransforms = new .() ~ delete _;
 
 	// Pipeline
-	private IRenderPipeline mMotionVectorPipeline ~ delete _;
-	private IPipelineLayout mPipelineLayout ~ delete _;
-	private IBindGroupLayout mBindGroupLayout ~ delete _;
+	private IRenderPipeline mMotionVectorPipeline;
+	private IPipelineLayout mPipelineLayout;
+	private IBindGroupLayout mBindGroupLayout;
 
 	// Combined bind groups (per-frame * per-view): camera + object in one group
-	private IBindGroup[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mBindGroups ~ { for (let b in _) delete b; };
+	private IBindGroup[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mBindGroups;
 
 	// Object uniform buffer (single shared buffer, updated per-draw)
-	private IBuffer mObjectUniformBuffer ~ delete _;
+	private IBuffer mObjectUniformBuffer;
 
 	/// Feature name.
 	public override StringView Name => "MotionVectors";
@@ -49,13 +49,7 @@ public class MotionVectorFeature : RenderFeatureBase
 		outDependencies.Add("DepthPrepass");
 	}
 
-	/// Gets the bind group index for the current frame and view.
-	private int32 GetBindGroupIndex(int32 frameIndex)
-	{
-		return frameIndex * RenderConfig.MaxViews + (Renderer.RenderFrameContext?.ActiveViewIndex ?? 0);
-	}
-
-	protected override Result<void> OnInitialize()
+	protected override Result<void> OnInitialize(InitContext initCtx)
 	{
 		// Create bind group layout
 		if (CreateBindGroupLayout() case .Err)
@@ -64,6 +58,7 @@ public class MotionVectorFeature : RenderFeatureBase
 		// Create object uniform buffer
 		var objectBufferDesc = BufferDesc()
 		{
+			Label = "MotionVector Object Uniforms",
 			Size = MotionObjectUniforms.Size,
 			Usage = .Uniform,
 			Memory = .CpuToGpu
@@ -171,6 +166,7 @@ public class MotionVectorFeature : RenderFeatureBase
 			},
 			DepthStencil = .()
 			{
+				Format = Renderer.DepthFormat,
 				DepthTestEnabled = true,
 				DepthWriteEnabled = false,
 				DepthCompare = .LessEqual
@@ -193,9 +189,19 @@ public class MotionVectorFeature : RenderFeatureBase
 
 	protected override void OnShutdown()
 	{
+		let device = Renderer.Device;
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
+		{
+			if (mBindGroups[i] != null)
+				device.DestroyBindGroup(ref mBindGroups[i]);
+		}
+		device.DestroyBuffer(ref mObjectUniformBuffer);
+		device.DestroyRenderPipeline(ref mMotionVectorPipeline);
+		device.DestroyPipelineLayout(ref mPipelineLayout);
+		device.DestroyBindGroupLayout(ref mBindGroupLayout);
 	}
 
-	public override void AddPasses(RenderGraph graph, RenderView view, RenderWorld world)
+	public override void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world)
 	{
 		// Get existing depth buffer
 		let depthHandle = graph.GetResource("SceneDepth");
@@ -203,20 +209,21 @@ public class MotionVectorFeature : RenderFeatureBase
 			return;
 
 		// Create motion vector buffer (R16G16 for 2D velocity)
-		let motionDesc = TextureResourceDesc(view.Width, view.Height, .RG16Float, .RenderTarget | .Sampled);
+		let motionDesc = RGTextureDesc(.RG16Float, view.Width, view.Height) { Usage = .RenderTarget | .Sampled };
 
-		let motionHandle = graph.CreateTexture("MotionVectors", motionDesc);
+		let motionHandle = graph.CreateTransient("MotionVectors", motionDesc);
 
 		// Add motion vector pass
-		graph.AddGraphicsPass("MotionVectors")
-			.WriteColor(motionHandle, .Clear, .Store, .(0.0f, 0.0f, 0.0f, 0.0f))
-			.ReadDepth(depthHandle)
-			.SetExecuteCallback(new (encoder) => {
-				ExecuteMotionVectorPass(encoder, world, view);
+		graph.AddRenderPass("MotionVectors", scope (builder) => {
+				builder.SetColorTarget(0, motionHandle, .Clear, .Store, ClearColor(0.0f, 0.0f, 0.0f, 0.0f));
+				builder.ReadDepth(depthHandle);
+				builder.SetExecute(new (encoder) => {
+					ExecuteMotionVectorPass(encoder, world, view);
+				});
 			});
 	}
 
-	private void ExecuteMotionVectorPass(IRenderPassEncoder encoder, RenderWorld world, RenderView view)
+	private void ExecuteMotionVectorPass(IRenderPassEncoder encoder, RenderWorld world, ViewContext view)
 	{
 		// Set viewport
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0.0f, 1.0f);
@@ -228,27 +235,19 @@ public class MotionVectorFeature : RenderFeatureBase
 
 		encoder.SetPipeline(mMotionVectorPipeline);
 
-		// Get frame context for scene uniform buffer
-		let frameContext = Renderer.RenderFrameContext;
-		if (frameContext == null)
-			return;
-
-		let frameIndex = frameContext.FrameIndex;
-		let bgIndex = GetBindGroupIndex(frameIndex);
-		let cameraBuffer = frameContext.SceneUniformBuffer;
+		// Get frame data from view context
+		let bgIndex = view.GetBindGroupIndex();
+		let cameraBuffer = view.SceneUniformBuffer;
 		if (cameraBuffer == null)
 			return;
 
 		// Recreate combined bind group each frame (scene uniform buffer changes per frame+view)
 		if (mBindGroups[bgIndex] != null)
-		{
-			delete mBindGroups[bgIndex];
-			mBindGroups[bgIndex] = null;
-		}
+			Renderer.Device.DestroyBindGroup(ref mBindGroups[bgIndex]);
 
 		BindGroupEntry[2] bgEntries = .(
-			BindGroupEntry.Buffer(0, cameraBuffer, 0, SceneUniforms.Size),
-			BindGroupEntry.Buffer(1, mObjectUniformBuffer, 0, MotionObjectUniforms.Size)
+			BindGroupEntry.Buffer(/*0,*/cameraBuffer, 0, SceneUniforms.Size),
+			BindGroupEntry.Buffer(/*1,*/mObjectUniformBuffer, 0, MotionObjectUniforms.Size)
 		);
 
 		BindGroupDesc bgDesc = .()
@@ -270,7 +269,7 @@ public class MotionVectorFeature : RenderFeatureBase
 
 		// Render motion vectors for visible objects
 		uint32 objectID = 0;
-		for (let visibleMesh in depthFeature.Visibility.VisibleMeshes)
+		for (let visibleMesh in Renderer.Visibility.VisibleMeshes)
 		{
 			if (let proxy = world.GetMesh(visibleMesh.Handle))
 			{
@@ -300,7 +299,7 @@ public class MotionVectorFeature : RenderFeatureBase
 					_Padding = default
 				};
 
-				Renderer.Device.Queue.WriteMappedBuffer(mObjectUniformBuffer, 0,
+				TransferHelper.WriteMappedBuffer(mObjectUniformBuffer, 0,
 					Span<uint8>((uint8*)&objectUniforms, MotionObjectUniforms.Size));
 
 				// Bind combined bind group (group 0: camera + object)

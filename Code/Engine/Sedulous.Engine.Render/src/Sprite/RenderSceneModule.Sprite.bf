@@ -9,6 +9,7 @@ using Sedulous.Resources;
 using Sedulous.RHI;
 using Sedulous.Textures.Resources;
 using Sedulous.Imaging;
+using Sedulous.Textures;
 
 /// Sprite instance storage and API.
 extension RenderSceneModule

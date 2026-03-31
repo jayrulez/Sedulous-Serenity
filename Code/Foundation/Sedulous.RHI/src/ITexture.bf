@@ -1,37 +1,14 @@
 namespace Sedulous.RHI;
 
-using System;
-
 /// A GPU texture resource.
-interface ITexture : IDisposable
+/// Destroyed via IDevice.DestroyTexture().
+interface ITexture
 {
-	/// Debug name for tracking resource leaks.
-	StringView DebugName { get; }
+	/// The descriptor this texture was created with.
+	TextureDesc Desc { get; }
 
-	/// Texture dimensionality.
-	TextureDimension Dimension { get; }
-
-	/// Pixel format.
-	TextureFormat Format { get; }
-
-	/// Width in texels.
-	uint32 Width { get; }
-
-	/// Height in texels.
-	uint32 Height { get; }
-
-	/// Depth in texels (for 3D textures).
-	uint32 Depth { get; }
-
-	/// Number of mip levels.
-	uint32 MipLevelCount { get; }
-
-	/// Number of array layers.
-	uint32 ArrayLayerCount { get; }
-
-	/// Number of MSAA samples.
-	uint32 SampleCount { get; }
-
-	/// Usage flags.
-	TextureUsage Usage { get; }
+	/// The resource state this texture was created in.
+	/// Backends set this based on how they allocate the resource
+	/// (e.g., DX12 creates depth textures in DepthStencilWrite).
+	ResourceState InitialState { get; }
 }

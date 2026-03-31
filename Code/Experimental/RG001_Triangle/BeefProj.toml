@@ -1,0 +1,6 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.RHI" = "*", "Sedulous.RHI.Validation" = "*", "Sedulous.RHI.DX12" = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.RenderGraph" = "*", SampleFramework = "*"}
+
+[Project]
+Name = "RG001_Triangle"
+StartupObject = "RG001_Triangle.Program"

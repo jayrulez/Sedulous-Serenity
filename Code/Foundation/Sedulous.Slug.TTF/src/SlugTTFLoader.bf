@@ -54,11 +54,22 @@ public static class SlugTTFLoader
 		stbtt_GetFontVMetrics(&fontInfo, &ascent, &descent, &lineGap);
 		let scale = stbtt_ScaleForMappingEmToPixels(&fontInfo, 1.0f); // Scale to get em units
 
+		// Measure cap height from 'H' glyph bounding box
+		float capHeight = 0;
+		let hGlyph = stbtt_FindGlyphIndex(&fontInfo, (int32)'H');
+		if (hGlyph != 0)
+		{
+			int32 hx0 = 0, hy0 = 0, hx1 = 0, hy1 = 0;
+			stbtt_GetGlyphBox(&fontInfo, hGlyph, &hx0, &hy0, &hx1, &hy1);
+			capHeight = (float)(hy1 - hy0) * scale;
+		}
+
 		font.Metrics = .() {
 			Ascent = (float)ascent * scale,
 			Descent = (float)descent * scale,
 			LineGap = (float)lineGap * scale,
-			UnitsPerEm = 1.0f / scale
+			UnitsPerEm = 1.0f / scale,
+			CapHeight = capHeight
 		};
 
 		// Extract glyphs

@@ -1,8 +1,7 @@
 namespace Sedulous.RHI;
 
-using System;
-
-/// A rendering surface (typically a window).
-interface ISurface : IDisposable
+/// A presentation surface, created from a native window handle.
+/// Destroyed via IDevice.DestroySurface().
+interface ISurface
 {
 }

@@ -2,7 +2,7 @@ using System;
 using System.Collections;
 using SDL3;
 using Sedulous.Shell;
-using Sedulous.Core.Core;
+using Sedulous.Core;
 
 namespace Sedulous.Shell.SDL3;
 

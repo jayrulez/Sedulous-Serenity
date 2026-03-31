@@ -1,7 +1,7 @@
 using System;
 using SDL3;
 using Sedulous.Shell.Input;
-using Sedulous.Core.Core;
+using Sedulous.Core;
 
 namespace Sedulous.Shell.SDL3;
 

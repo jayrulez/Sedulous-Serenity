@@ -3,7 +3,6 @@ namespace Sedulous.RHI.Vulkan;
 using System;
 using System.Collections;
 using Bulkan;
-using Sedulous.RHI;
 
 /// Vulkan implementation of IBackend.
 class VulkanBackend : IBackend
@@ -11,360 +10,200 @@ class VulkanBackend : IBackend
 	private VkInstance mInstance;
 	private VkDebugUtilsMessengerEXT mDebugMessenger;
 	private bool mValidationEnabled;
-	private bool mDebugUtilsEnabled;
+	private bool mInitialized;
 	private List<VulkanAdapter> mAdapters = new .() ~ DeleteContainerAndItems!(_);
 
-	private static char8*[?] sValidationLayers = .("VK_LAYER_KHRONOS_validation");
+	public bool IsInitialized => mInitialized;
 
-	// Debug callback delegate type
-	typealias DebugCallbackDelegate = function VkBool32(
-		VkDebugUtilsMessageSeverityFlagsEXT messageSeverity,
-		VkDebugUtilsMessageTypeFlagsEXT messageType,
-		VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
-		void* pUserData);
-
-	private static DebugCallbackDelegate sDebugCallbackDelegate = => DebugCallback;
-
-	/// Creates a new Vulkan backend.
-	public this(bool enableValidation = true)
+	/// Creates a Vulkan backend.
+	/// enableValidation: Enable Vulkan validation layers (debug only).
+	public static Result<VulkanBackend> Create(bool enableValidation = false)
 	{
-		mValidationEnabled = enableValidation;
-		CreateInstance();
-	}
-
-	public ~this()
-	{
-		Dispose();
-	}
-
-	public void Dispose()
-	{
-		// Clean up adapters
-		for (let adapter in mAdapters)
-			delete adapter;
-		mAdapters.Clear();
-
-		// Destroy debug messenger
-		if (mDebugMessenger != default && mDebugUtilsEnabled)
+		let backend = new VulkanBackend();
+		if (backend.Init(enableValidation) case .Err)
 		{
-			VulkanNative.vkDestroyDebugUtilsMessengerEXT(mInstance, mDebugMessenger, null);
-			mDebugMessenger = default;
-		}
-
-		// Destroy instance
-		if (mInstance != default)
-		{
-			VulkanNative.vkDestroyInstance(mInstance, null);
-			mInstance = default;
-		}
-	}
-
-	/// Returns true if the backend initialized successfully.
-	public bool IsInitialized => mInstance != default;
-
-	/// Returns true if VK_EXT_debug_utils is available.
-	public bool DebugUtilsEnabled => mDebugUtilsEnabled;
-
-	public void EnumerateAdapters(List<IAdapter> adapters)
-	{
-		// Enumerate physical devices if not already done
-		if (mAdapters.Count == 0)
-		{
-			EnumeratePhysicalDevices();
-		}
-
-		for (let adapter in mAdapters)
-		{
-			adapters.Add(adapter);
-		}
-	}
-
-	public Result<ISurface> CreateSurface(void* windowHandle, void* displayHandle = null)
-	{
-		if (mInstance == default)
+			System.Diagnostics.Debug.WriteLine("VulkanBackend: initialization failed");
+			delete backend;
 			return .Err;
-
-#if BF_PLATFORM_WINDOWS
-		VkWin32SurfaceCreateInfoKHR createInfo = .()
-			{
-				sType = .VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
-				hwnd = windowHandle,
-				hinstance = (void*)(int)System.Windows.GetModuleHandleA(null)
-			};
-
-		VkSurfaceKHR surface = default;
-		if (VulkanNative.vkCreateWin32SurfaceKHR(mInstance, &createInfo, null, &surface) != .VK_SUCCESS)
-			return .Err;
-
-		return .Ok(new VulkanSurface(mInstance, surface));
-#elif BF_PLATFORM_LINUX
-		VkXlibSurfaceCreateInfoKHR createInfo = .()
-			{
-				sType = .VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR,
-				dpy = displayHandle,
-				window = (uint)(int)windowHandle
-			};
-
-		VkSurfaceKHR surface = default;
-		if (VulkanNative.vkCreateXlibSurfaceKHR(mInstance, &createInfo, null, &surface) != .VK_SUCCESS)
-			return .Err;
-
-		return .Ok(new VulkanSurface(mInstance, surface));
-#else
-		return .Err;
-#endif
+		}
+		return .Ok(backend);
 	}
 
-	/// Gets the Vulkan instance handle.
-	public VkInstance Instance => mInstance;
+	private this() { }
 
-	private void CreateInstance()
+	private Result<void> Init(bool enableValidation)
 	{
-		// Initialize Vulkan loader
-		VulkanNative.Initialize();
+		// Initialize Bulkan
+		if (VulkanNative.Initialize() case .Err)
+		{
+			System.Diagnostics.Debug.WriteLine("VulkanBackend: Bulkan initialization failed");
+			return .Err;
+		}
+
 		VulkanNative.LoadPreInstanceFunctions();
 
+		mValidationEnabled = enableValidation;
+
 		// Application info
-		VkApplicationInfo appInfo = .()
-			{
-				sType = .VK_STRUCTURE_TYPE_APPLICATION_INFO,
-				pApplicationName = "Sedulous Application",
-				applicationVersion = VK_MAKE_VERSION!(1, 0, 0),
-				pEngineName = "Sedulous Engine",
-				engineVersion = VK_MAKE_VERSION!(1, 0, 0),
-				apiVersion = VK_MAKE_VERSION!(1, 2, 0)
-			};
+		VkApplicationInfo appInfo = .();
+		appInfo.pApplicationName = "Sedulous";
+		appInfo.applicationVersion = VulkanNative.VK_MAKE_API_VERSION(0, 1, 0, 0);
+		appInfo.pEngineName = "Sedulous";
+		appInfo.engineVersion = VulkanNative.VK_MAKE_API_VERSION(0, 1, 0, 0);
+		appInfo.apiVersion = VulkanNative.VK_API_VERSION_1_3;
 
-		// Build required extensions list
+		// Extensions
 		List<char8*> extensions = scope .();
-		extensions.Add("VK_KHR_surface");
+		extensions.Add(VulkanNative.VK_KHR_SURFACE_EXTENSION_NAME);
 #if BF_PLATFORM_WINDOWS
-		extensions.Add("VK_KHR_win32_surface");
+		extensions.Add(VulkanNative.VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
 #endif
-#if BF_PLATFORM_LINUX
-		extensions.Add("VK_KHR_xlib_surface");
-#endif
+		if (enableValidation)
+			extensions.Add("VK_EXT_debug_utils");
 
-		// Check if validation layers are available
-		bool validationAvailable = mValidationEnabled && CheckValidationLayerSupport();
-
-		// Add debug extension only if validation is enabled and the extension is available
-		bool debugUtilsAvailable = false;
-		bool validationFeaturesAvailable = false;
-		if (validationAvailable)
-		{
-			debugUtilsAvailable = CheckExtensionSupport("VK_EXT_debug_utils");
-			if (debugUtilsAvailable)
-			{
-				extensions.Add("VK_EXT_debug_utils");
-			}
-
-			// Check for validation features extension (needed for GPU-assisted validation)
-			validationFeaturesAvailable = CheckExtensionSupport("VK_EXT_validation_features");
-			if (validationFeaturesAvailable)
-			{
-				extensions.Add("VK_EXT_validation_features");
-				Console.WriteLine("[Vulkan] VK_EXT_validation_features extension available");
-			}
-			else
-			{
-				Console.WriteLine("[Vulkan] WARNING: VK_EXT_validation_features extension NOT available");
-			}
-		}
+		// Layers
+		List<char8*> layers = scope .();
+		if (enableValidation)
+			layers.Add("VK_LAYER_KHRONOS_validation");
 
 		// Create instance
 		VkInstanceCreateInfo createInfo = .();
-		createInfo.sType = .VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 		createInfo.pApplicationInfo = &appInfo;
 		createInfo.enabledExtensionCount = (uint32)extensions.Count;
 		createInfo.ppEnabledExtensionNames = extensions.Ptr;
+		createInfo.enabledLayerCount = (uint32)layers.Count;
+		createInfo.ppEnabledLayerNames = layers.Ptr;
 
-		// Enable validation layers
-		if (validationAvailable)
+		let result = VulkanNative.vkCreateInstance(&createInfo, null, &mInstance);
+		if (result != .VK_SUCCESS)
 		{
-			createInfo.enabledLayerCount = (uint32)sValidationLayers.Count;
-			createInfo.ppEnabledLayerNames = &sValidationLayers;
-		}
-		else
-		{
-			createInfo.enabledLayerCount = 0;
-			mValidationEnabled = false;
+			System.Diagnostics.Debug.WriteLine(scope $"VulkanBackend: vkCreateInstance failed ({result})");
+			return .Err;
 		}
 
-		// Enable GPU-assisted validation if the extension is available
-		// This provides more detailed error messages for buffer overflows, descriptor issues, etc.
-		VkValidationFeaturesEXT validationFeatures = .();
-		VkValidationFeatureEnableEXT[3] enabledFeatures = .(
-			.VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT,
-			.VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT,
-			.VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT
-		);
+		// Load instance functions — some optional extension functions may not be
+		// available (e.g. VK_KHR_display, VK_EXT_debug_report). Log failures
+		// but don't treat them as fatal, matching how the legacy RHI handles this.
+		VulkanNative.LoadInstanceFunctions(mInstance, .Agnostic | .Win32, null,
+			scope (func) => { Console.WriteLine("[Vulkan] Could not load instance function: {}", func); }
+		).IgnoreError();
 
-		if (validationFeaturesAvailable)
-		{
-			validationFeatures.sType = .VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT;
-			validationFeatures.pNext = null;
-			validationFeatures.enabledValidationFeatureCount = (uint32)enabledFeatures.Count;
-			validationFeatures.pEnabledValidationFeatures = &enabledFeatures;
-			validationFeatures.disabledValidationFeatureCount = 0;
-			validationFeatures.pDisabledValidationFeatures = null;
+		VulkanNative.LoadPostInstanceFunctions(mInstance);
 
-			createInfo.pNext = &validationFeatures;
-			Console.WriteLine("[Vulkan] GPU-assisted validation ENABLED");
-		}
-
-		if (VulkanNative.vkCreateInstance(&createInfo, null, &mInstance) != .VK_SUCCESS)
-		{
-			mInstance = default;
-			return;
-		}
-
-		// Load instance functions
-		InstanceFunctionFlags flags = .Agnostic;
-#if BF_PLATFORM_WINDOWS
-		flags |= .Win32;
-#endif
-#if BF_PLATFORM_LINUX
-		flags |= .Xlib;
-#endif
-
-		// Add debug utils functions if the extension is enabled
-		List<String> additionalFunctions = null;
-		if (debugUtilsAvailable)
-		{
-			additionalFunctions = scope:: List<String>();
-			additionalFunctions.Add("vkCreateDebugUtilsMessengerEXT");
-			additionalFunctions.Add("vkDestroyDebugUtilsMessengerEXT");
-			additionalFunctions.Add("vkSubmitDebugUtilsMessageEXT");
-			additionalFunctions.Add("vkSetDebugUtilsObjectNameEXT");
-			additionalFunctions.Add("vkCmdBeginDebugUtilsLabelEXT");
-			additionalFunctions.Add("vkCmdEndDebugUtilsLabelEXT");
-		}
-
-		VulkanNative.LoadInstanceFunctions(mInstance, flags, additionalFunctions, scope (func) =>
-			{
-				Console.WriteLine(scope $"Failed to load: {func}");
-				// Failed to load function
-			}).IgnoreError();
-
-		VulkanNative.LoadPostInstanceFunctions();
-
-		// Setup debug messenger only if debug utils extension was loaded
-		mDebugUtilsEnabled = debugUtilsAvailable;
-		if (mValidationEnabled && mDebugUtilsEnabled)
-		{
+		// Setup debug messenger
+		if (enableValidation)
 			SetupDebugMessenger();
-		}
+
+		// Enumerate physical devices
+		EnumeratePhysicalDevices();
+
+		mInitialized = true;
+		return .Ok;
 	}
 
-	private bool CheckValidationLayerSupport()
-	{
-		uint32 layerCount = 0;
-		VulkanNative.vkEnumerateInstanceLayerProperties(&layerCount, null);
-
-		if (layerCount == 0)
-			return false;
-
-		VkLayerProperties* availableLayers = scope VkLayerProperties[(int)layerCount]*;
-		VulkanNative.vkEnumerateInstanceLayerProperties(&layerCount, availableLayers);
-
-		for (let layerName in sValidationLayers)
-		{
-			bool found = false;
-			for (uint32 i = 0; i < layerCount; i++)
-			{
-				if (String.Equals(layerName, &availableLayers[i].layerName))
-				{
-					found = true;
-					break;
-				}
-			}
-			if (!found)
-				return false;
-		}
-
-		return true;
-	}
-
-	private bool CheckExtensionSupport(StringView extensionName)
-	{
-		uint32 extensionCount = 0;
-		VulkanNative.vkEnumerateInstanceExtensionProperties(null, &extensionCount, null);
-
-		if (extensionCount == 0)
-			return false;
-
-		VkExtensionProperties* availableExtensions = scope VkExtensionProperties[(int)extensionCount]*;
-		VulkanNative.vkEnumerateInstanceExtensionProperties(null, &extensionCount, availableExtensions);
-
-		for (uint32 i = 0; i < extensionCount; i++)
-		{
-			if (extensionName == StringView(&availableExtensions[i].extensionName))
-				return true;
-		}
-
-		return false;
-	}
+	private static function VkBool32(
+		VkDebugUtilsMessageSeverityFlagsEXT severity,
+		VkDebugUtilsMessageTypeFlagsEXT types,
+		VkDebugUtilsMessengerCallbackDataEXT* callbackData,
+		void* userData) sDebugCallbackFn = => DebugCallback;
 
 	private void SetupDebugMessenger()
 	{
-		VkDebugUtilsMessengerCreateInfoEXT createInfo = .()
-			{
-				sType = .VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-				messageSeverity = .VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | .VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
-				messageType = .VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | .VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | .VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
-				pfnUserCallback = sDebugCallbackDelegate,
-				pUserData = null
-			};
+		VkDebugUtilsMessengerCreateInfoEXT createInfo = .();
+		createInfo.messageSeverity =
+			.VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+			.VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+		createInfo.messageType =
+			.VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+			.VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+			.VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+		createInfo.pfnUserCallback = (void*)sDebugCallbackFn;
 
 		VulkanNative.vkCreateDebugUtilsMessengerEXT(mInstance, &createInfo, null, &mDebugMessenger);
 	}
 
-	[CallingConvention(.Stdcall)]
 	private static VkBool32 DebugCallback(
-		VkDebugUtilsMessageSeverityFlagsEXT messageSeverity,
-		VkDebugUtilsMessageTypeFlagsEXT messageType,
-		VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
-		void* pUserData)
+		VkDebugUtilsMessageSeverityFlagsEXT severity,
+		VkDebugUtilsMessageTypeFlagsEXT types,
+		VkDebugUtilsMessengerCallbackDataEXT* callbackData,
+		void* userData)
 	{
-		if (pCallbackData != null && pCallbackData.pMessage != null)
-		{
-			StringView message = .(pCallbackData.pMessage);
-			Console.Error.WriteLine(scope $"[Vulkan] {message}");
+		let msg = StringView(callbackData.pMessage);
 
-			if(message.Contains("vkFreeDescriptorSets()")
-				|| message.Contains("can't be called on VkImageView")
-				|| message.Contains("vkCmdPipelineBarrier()")
-				|| message.Contains("vkCmdCopyBuffer()"))
-			{
-				//int x = 1;
-			}
+		if(msg.Contains("VK_FORMAT_D24_UNORM_S8_UINT") || msg.Contains("VK_ERROR_OUT_OF_DEVICE_MEMORY"))
+		{
+
+		}
+
+		if (severity.HasFlag(.VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT))
+		{
+			Console.WriteLine("[Vulkan ERROR] {}", msg);
+			System.Diagnostics.Debug.WriteLine(scope $"[Vulkan ERROR] {msg}");
+		}
+		else if (severity.HasFlag(.VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT))
+		{
+			Console.WriteLine("[Vulkan WARN] {}", msg);
+			System.Diagnostics.Debug.WriteLine(scope $"[Vulkan WARN] {msg}");
 		}
 		return VkBool32.False;
 	}
 
 	private void EnumeratePhysicalDevices()
 	{
-		if (mInstance == default)
-			return;
+		uint32 count = 0;
+		VulkanNative.vkEnumeratePhysicalDevices(mInstance, &count, null);
+		if (count == 0) return;
 
-		uint32 deviceCount = 0;
-		VulkanNative.vkEnumeratePhysicalDevices(mInstance, &deviceCount, null);
+		VkPhysicalDevice[] devices = scope VkPhysicalDevice[count];
+		VulkanNative.vkEnumeratePhysicalDevices(mInstance, &count, devices.CArray());
 
-		if (deviceCount == 0)
-			return;
-
-		VkPhysicalDevice* devices = scope VkPhysicalDevice[(int)deviceCount]*;
-		VulkanNative.vkEnumeratePhysicalDevices(mInstance, &deviceCount, devices);
-
-		for (int i = 0; i < (int)deviceCount; i++)
+		for (let physDevice in devices)
 		{
-			mAdapters.Add(new VulkanAdapter(this, devices[i]));
+			mAdapters.Add(new VulkanAdapter(physDevice, mInstance));
 		}
 	}
 
-	private static mixin VK_MAKE_VERSION(uint32 major, uint32 minor, uint32 patch)
+	public void EnumerateAdapters(List<IAdapter> adapters)
 	{
-		((major << 22) | (minor << 12) | patch)
+		for (let adapter in mAdapters)
+			adapters.Add(adapter);
 	}
+
+	public Result<ISurface> CreateSurface(void* windowHandle, void* displayHandle = null)
+	{
+#if BF_PLATFORM_WINDOWS
+		VkWin32SurfaceCreateInfoKHR createInfo = .();
+		createInfo.hinstance = (void*)(int)Windows.GetModuleHandleA(null);
+		createInfo.hwnd = windowHandle;
+
+		VkSurfaceKHR surface = default;
+		let result = VulkanNative.vkCreateWin32SurfaceKHR(mInstance, &createInfo, null, &surface);
+		if (result != .VK_SUCCESS)
+		{
+			System.Diagnostics.Debug.WriteLine(scope $"VulkanBackend: vkCreateWin32SurfaceKHR failed ({result})");
+			return .Err;
+		}
+
+		return .Ok(new VulkanSurface(surface, mInstance));
+#else
+		System.Diagnostics.Debug.WriteLine("VulkanBackend: surface creation not supported on this platform");
+		return .Err;
+#endif
+	}
+
+	public void Destroy()
+	{
+		if (mDebugMessenger.Handle != 0)
+			VulkanNative.vkDestroyDebugUtilsMessengerEXT(mInstance, mDebugMessenger, null);
+
+		if (mInstance.Handle != 0)
+			VulkanNative.vkDestroyInstance(mInstance, null);
+
+		mInstance = .Null;
+		mDebugMessenger = default;
+		mInitialized = false;
+	}
+
+	public VkInstance Instance => mInstance;
+	public bool ValidationEnabled => mValidationEnabled;
 }

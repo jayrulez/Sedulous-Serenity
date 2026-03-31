@@ -41,8 +41,8 @@ public class WaterFeature : RenderFeatureBase
 	const int32 GridVertexCount = (GridResolution + 1) * (GridResolution + 1);
 	const int32 GridIndexCount = GridResolution * GridResolution * 6;
 
-	private IBuffer mGridVertexBuffer ~ delete _;
-	private IBuffer mGridIndexBuffer ~ delete _;
+	private IBuffer mGridVertexBuffer;
+	private IBuffer mGridIndexBuffer;
 
 	// Per-frame water uniform buffers
 	private IBuffer[RenderConfig.FrameBufferCount] mWaterUniformBuffers;
@@ -53,13 +53,10 @@ public class WaterFeature : RenderFeatureBase
 	private const uint64 AlignedObjectUniformSize = ((ObjectUniforms.Size + ObjectUniformAlignment - 1) / ObjectUniformAlignment) * ObjectUniformAlignment;
 
 	// Water bind group layout (space1)
-	private IBindGroupLayout mWaterBindGroupLayout ~ delete _;
+	private IBindGroupLayout mWaterBindGroupLayout;
 
 	// Per-water bind groups (cached with generation)
-	private List<WaterBindGroupEntry> mPerWaterBindGroups = new .() ~ {
-		for (let entry in _) { if (entry.BindGroup != null) delete entry.BindGroup; }
-		delete _;
-	};
+	private List<WaterBindGroupEntry> mPerWaterBindGroups = new .() ~ delete _;
 
 	// Scene bind groups (space0, own copy)
 	private IBindGroup[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mSceneBindGroups;
@@ -68,23 +65,22 @@ public class WaterFeature : RenderFeatureBase
 	private uint32[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mSceneBindGroupProbeGeneration;
 
 	// Copy pass resources
-	private IBindGroupLayout mCopyBindGroupLayout ~ delete _;
-	private IRenderPipeline mCopyPipeline ~ delete _;
-	private IPipelineLayout mCopyPipelineLayout ~ delete _;
-	private ISampler mCopySampler ~ delete _;
+	private IBindGroupLayout mCopyBindGroupLayout;
+	private IRenderPipeline mCopyPipeline;
+	private IPipelineLayout mCopyPipelineLayout;
+	private ISampler mCopySampler;
 	private IBindGroup[RenderConfig.FrameBufferCount] mCopyBindGroups;
 
 	// Water pipeline
-	private IRenderPipeline mWaterPipeline ~ delete _;
-	private IRenderPipeline mWaterPipelineNoShadows ~ delete _;
-	private IPipelineLayout mWaterPipelineLayout ~ delete _;
+	private IRenderPipeline mWaterPipeline;
+	private IRenderPipeline mWaterPipelineNoShadows;
+	private IPipelineLayout mWaterPipelineLayout;
 
 	// Samplers
-	private ISampler mWaterSampler ~ delete _;   // linear wrap (normal map, foam)
-	private ISampler mSceneSampler ~ delete _;   // linear clamp (refraction, depth)
+	private ISampler mWaterSampler;   // linear wrap (normal map, foam)
+	private ISampler mSceneSampler;   // linear clamp (refraction, depth)
 
 	// Scene bind group layout (borrowed from ForwardOpaqueFeature, don't delete)
-	private IBindGroupLayout mSceneBindGroupLayout;
 
 	// Limits
 	const int32 MaxWaters = 8;
@@ -99,12 +95,6 @@ public class WaterFeature : RenderFeatureBase
 	/// Feature name.
 	public override StringView Name => "Water";
 
-	/// Gets the current frame index for multi-buffering.
-	private int32 FrameIndex => Renderer.RenderFrameContext?.FrameIndex ?? 0;
-
-	/// Gets the bind group index accounting for the active view.
-	private int32 GetBindGroupIndex(int32 frameIndex) => frameIndex * RenderConfig.MaxViews + (Renderer.RenderFrameContext?.ActiveViewIndex ?? 0);
-
 	/// Depends on ForwardOpaque and Terrain (water renders after opaque + terrain, before transparent).
 	/// Terrain dependency is optional — ignored if TerrainFeature is not registered.
 	public override void GetDependencies(List<StringView> outDependencies)
@@ -113,7 +103,7 @@ public class WaterFeature : RenderFeatureBase
 		outDependencies.Add("Terrain");
 	}
 
-	protected override Result<void> OnInitialize()
+	protected override Result<void> OnInitialize(InitContext initCtx)
 	{
 		if (CreateGridMesh() case .Err)
 			return .Err;
@@ -127,12 +117,7 @@ public class WaterFeature : RenderFeatureBase
 		if (CreateWaterBindGroupLayout() case .Err)
 			return .Err;
 
-		// Borrow scene bind group layout from ForwardOpaqueFeature
-		if (let opaqueFeature = Renderer.GetFeature<ForwardOpaqueFeature>())
-			mSceneBindGroupLayout = opaqueFeature.[Friend]mSceneBindGroupLayout;
 
-		if (mSceneBindGroupLayout == null)
-			return .Err;
 
 		if (CreateWaterPipelineLayout() case .Err)
 			return .Err;
@@ -385,7 +370,7 @@ public class WaterFeature : RenderFeatureBase
 
 	private Result<void> CreateWaterPipelineLayout()
 	{
-		IBindGroupLayout[2] layouts = .(mSceneBindGroupLayout, mWaterBindGroupLayout);
+		IBindGroupLayout[2] layouts = .(Renderer.SharedLayouts.SceneLayout, mWaterBindGroupLayout);
 		PipelineLayoutDesc plDesc = .(layouts);
 
 		switch (Renderer.Device.CreatePipelineLayout(plDesc))
@@ -539,43 +524,43 @@ public class WaterFeature : RenderFeatureBase
 
 	protected override void OnShutdown()
 	{
+		let device = Renderer.Device;
+
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			if (mWaterUniformBuffers[i] != null)
-			{
-				delete mWaterUniformBuffers[i];
-				mWaterUniformBuffers[i] = null;
-			}
-			if (mObjectUniformBuffers[i] != null)
-			{
-				delete mObjectUniformBuffers[i];
-				mObjectUniformBuffers[i] = null;
-			}
-			if (mCopyBindGroups[i] != null)
-			{
-				delete mCopyBindGroups[i];
-				mCopyBindGroups[i] = null;
-			}
+			device.DestroyBuffer(ref mWaterUniformBuffers[i]);
+			device.DestroyBuffer(ref mObjectUniformBuffers[i]);
+			device.DestroyBindGroup(ref mCopyBindGroups[i]);
 		}
 
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
 		{
 			if (mSceneBindGroups[i] != null)
-			{
-				delete mSceneBindGroups[i];
-				mSceneBindGroups[i] = null;
-			}
+				device.DestroyBindGroup(ref mSceneBindGroups[i]);
 		}
 
-		for (let entry in mPerWaterBindGroups)
+		for (var entry in ref mPerWaterBindGroups)
 		{
 			if (entry.BindGroup != null)
-				delete entry.BindGroup;
+				device.DestroyBindGroup(ref entry.BindGroup);
 		}
 		mPerWaterBindGroups.Clear();
+
+		device.DestroyBuffer(ref mGridVertexBuffer);
+		device.DestroyBuffer(ref mGridIndexBuffer);
+		device.DestroyBindGroupLayout(ref mWaterBindGroupLayout);
+		device.DestroyBindGroupLayout(ref mCopyBindGroupLayout);
+		device.DestroyRenderPipeline(ref mCopyPipeline);
+		device.DestroyPipelineLayout(ref mCopyPipelineLayout);
+		device.DestroySampler(ref mCopySampler);
+		device.DestroyRenderPipeline(ref mWaterPipeline);
+		device.DestroyRenderPipeline(ref mWaterPipelineNoShadows);
+		device.DestroyPipelineLayout(ref mWaterPipelineLayout);
+		device.DestroySampler(ref mWaterSampler);
+		device.DestroySampler(ref mSceneSampler);
 	}
 
-	public override void AddPasses(RenderGraph graph, RenderView view, RenderWorld world)
+	public override void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world)
 	{
 		if (world.WaterCount == 0)
 			return;
@@ -587,47 +572,50 @@ public class WaterFeature : RenderFeatureBase
 		if (!depthHandle.IsValid || !colorHandle.IsValid || !gbufferHandle.IsValid)
 			return;
 
-		let frameIndex = FrameIndex;
+		let frameIndex = view.FrameIndex;
+		let bindGroupIndex = view.GetBindGroupIndex();
 
 		// Upload water uniform data
 		PrepareWaterData(world, frameIndex);
 
 		// Create scene bind group
-		CreateSceneBindGroup(frameIndex);
+		CreateSceneBindGroup(frameIndex, bindGroupIndex);
 
 		// Create transient copy of SceneColor for refraction sampling
-		let copyDesc = TextureResourceDesc(view.Width, view.Height, .RGBA16Float, .Sampled | .RenderTarget);
-		let copyHandle = graph.CreateTexture("WaterSceneColorCopy", copyDesc);
+		let copyDesc = RGTextureDesc(.RGBA16Float, view.Width, view.Height) { Usage = .Sampled | .RenderTarget };
+		let copyHandle = graph.CreateTransient("WaterSceneColorCopy", copyDesc);
 
 		// Copy pass reference
 		RenderGraph graphRef = graph;
-		RGResourceHandle colorCopy = colorHandle;
-		RGResourceHandle copyCopy = copyHandle;
+		RGHandle colorCopy = colorHandle;
+		RGHandle copyCopy = copyHandle;
 
 		// Pass 1: Copy SceneColor to transient texture
-		graph.AddGraphicsPass("Water_CopyScene")
-			.ReadTexture(colorHandle)
-			.WriteColor(copyHandle, .DontCare, .Store)
-			.NeverCull()
-			.SetExecuteCallback(new [=] (encoder) => {
-				let sceneColorView = graphRef.GetTextureView(colorCopy);
-				ExecuteCopyPass(encoder, view, sceneColorView, frameIndex);
+		graph.AddRenderPass("Water_CopyScene", scope (builder) => {
+				builder.ReadTexture(colorHandle);
+				builder.SetColorTarget(0, copyHandle, .DontCare, .Store);
+				builder.NeverCull();
+				builder.SetExecute(new [=] (encoder) => {
+					let sceneColorView = graphRef.GetTextureView(colorCopy);
+					ExecuteCopyPass(encoder, view, sceneColorView, frameIndex);
+				});
 			});
 
 		// We need the depth view for the water bind group
-		RGResourceHandle depthCopy = depthHandle;
+		RGHandle depthCopy = depthHandle;
 
 		// Pass 2: Render water geometry
-		graph.AddGraphicsPass("Water")
-			.ReadTexture(copyHandle)
-			.ReadTexture(depthHandle)
-			.WriteColor(colorHandle, .Load, .Store)
-			.WriteColor(gbufferHandle, .Load, .Store)
-			.NeverCull()
-			.SetExecuteCallback(new [=] (encoder) => {
-				let sceneColorCopyView = graphRef.GetTextureView(copyCopy);
-				let depthView = graphRef.GetDepthOnlyTextureView(depthCopy);
-				ExecuteWaterPass(encoder, world, view, frameIndex, sceneColorCopyView, depthView);
+		graph.AddRenderPass("Water", scope (builder) => {
+				builder.ReadTexture(copyHandle);
+				builder.ReadTexture(depthHandle);
+				builder.SetColorTarget(0, colorHandle, .Load, .Store);
+				builder.SetColorTarget(1, gbufferHandle, .Load, .Store);
+				builder.NeverCull();
+				builder.SetExecute(new [=] (encoder) => {
+					let sceneColorCopyView = graphRef.GetTextureView(copyCopy);
+					let depthView = graphRef.GetDepthOnlyTextureView(depthCopy);
+					ExecuteWaterPass(encoder, world, view, frameIndex, bindGroupIndex, sceneColorCopyView, depthView);
+				});
 			});
 	}
 
@@ -676,21 +664,18 @@ public class WaterFeature : RenderFeatureBase
 		uniformBuffer.Unmap();
 	}
 
-	private void ExecuteCopyPass(IRenderPassEncoder encoder, RenderView view, ITextureView sceneColorView, int32 frameIndex)
+	private void ExecuteCopyPass(IRenderPassEncoder encoder, ViewContext view, ITextureView sceneColorView, int32 frameIndex)
 	{
 		if (mCopyPipeline == null || sceneColorView == null)
 			return;
 
 		// Recreate copy bind group if needed (SceneColor view may change per frame)
 		if (mCopyBindGroups[frameIndex] != null)
-		{
-			delete mCopyBindGroups[frameIndex];
-			mCopyBindGroups[frameIndex] = null;
-		}
+			Renderer.Device.DestroyBindGroup(ref mCopyBindGroups[frameIndex]);
 
 		BindGroupEntry[2] entries = .(
-			BindGroupEntry.Texture(0, sceneColorView),
-			BindGroupEntry.Sampler(0, mCopySampler)
+			BindGroupEntry.Texture(/*0,*/sceneColorView),
+			BindGroupEntry.Sampler(/*0,*/mCopySampler)
 		);
 
 		BindGroupDesc bgDesc = .()
@@ -717,21 +702,20 @@ public class WaterFeature : RenderFeatureBase
 		Renderer.Stats.DrawCalls++;
 	}
 
-	private void ExecuteWaterPass(IRenderPassEncoder encoder, RenderWorld world, RenderView view, int32 frameIndex,
+	private void ExecuteWaterPass(IRenderPassEncoder encoder, RenderWorld world, ViewContext view, int32 frameIndex, int32 bindGroupIndex,
 		ITextureView sceneColorCopyView, ITextureView depthView)
 	{
 		if (sceneColorCopyView == null || depthView == null)
 			return;
 
-		let opaqueFeature = Renderer.GetFeature<ForwardOpaqueFeature>();
-		let shadowsActive = opaqueFeature?.[Friend]mShadowPassesActive ?? false;
+		let shadowsActive = Renderer.ShadowRenderer?.ShadowPassesActive ?? false;
 		let pipeline = (shadowsActive && mWaterPipeline != null) ? mWaterPipeline :
 			(mWaterPipelineNoShadows != null) ? mWaterPipelineNoShadows : mWaterPipeline;
 
 		if (pipeline == null)
 			return;
 
-		let sceneBindGroup = mSceneBindGroups[GetBindGroupIndex(frameIndex)];
+		let sceneBindGroup = mSceneBindGroups[bindGroupIndex];
 		if (sceneBindGroup == null)
 			return;
 
@@ -786,10 +770,7 @@ public class WaterFeature : RenderFeatureBase
 
 		// Delete old bind group
 		if (existing != null && existing.BindGroup != null)
-		{
-			delete existing.BindGroup;
-			existing.BindGroup = null;
-		}
+			Renderer.Device.DestroyBindGroup(ref existing.BindGroup);
 
 		let uniformBuffer = mWaterUniformBuffers[frameIndex];
 		if (uniformBuffer == null)
@@ -802,13 +783,13 @@ public class WaterFeature : RenderFeatureBase
 
 		BindGroupEntry[7] entries = .();
 		uint64 uniformOffset = (uint64)waterIndex * WaterUniforms.Size;
-		entries[0] = BindGroupEntry.Buffer(0, uniformBuffer, uniformOffset, WaterUniforms.Size);
-		entries[1] = BindGroupEntry.Texture(0, proxy.NormalMapView);
-		entries[2] = BindGroupEntry.Texture(1, foamView);
-		entries[3] = BindGroupEntry.Texture(2, sceneColorCopyView);
-		entries[4] = BindGroupEntry.Texture(3, depthView);
-		entries[5] = BindGroupEntry.Sampler(0, mWaterSampler);
-		entries[6] = BindGroupEntry.Sampler(1, mSceneSampler);
+		entries[0] = BindGroupEntry.Buffer(/*0,*/uniformBuffer, uniformOffset, WaterUniforms.Size);
+		entries[1] = BindGroupEntry.Texture(/*0,*/proxy.NormalMapView);
+		entries[2] = BindGroupEntry.Texture(/*1,*/foamView);
+		entries[3] = BindGroupEntry.Texture(/*2,*/sceneColorCopyView);
+		entries[4] = BindGroupEntry.Texture(/*3,*/depthView);
+		entries[5] = BindGroupEntry.Sampler(/*0,*/mWaterSampler);
+		entries[6] = BindGroupEntry.Sampler(/*1,*/mSceneSampler);
 
 		BindGroupDesc bgDesc = .()
 		{
@@ -846,21 +827,19 @@ public class WaterFeature : RenderFeatureBase
 		mTextureGeneration++;
 	}
 
-	private void CreateSceneBindGroup(int32 frameIndex)
+	private void CreateSceneBindGroup(int32 frameIndex, int32 bindGroupIndex)
 	{
 		let opaqueFeature = Renderer.GetFeature<ForwardOpaqueFeature>();
 		if (opaqueFeature == null)
 			return;
 
-		let shadowsEnabled = opaqueFeature.[Friend]mShadowPassesActive;
+		let shadowsEnabled = Renderer.ShadowRenderer.ShadowPassesActive;
 
 		let skyFeature = Renderer.GetFeature<SkyFeature>();
 		let hasRealIBL = skyFeature?.IrradianceMapView != null;
 
-		let probeSystem = opaqueFeature.[Friend]mProbeSystem;
+		let probeSystem = Renderer.ProbeSystem;
 		let probeGeneration = probeSystem?.Generation ?? 0;
-
-		let bindGroupIndex = GetBindGroupIndex(frameIndex);
 
 		if (mSceneBindGroups[bindGroupIndex] != null)
 		{
@@ -869,98 +848,12 @@ public class WaterFeature : RenderFeatureBase
 				mSceneBindGroupProbeGeneration[bindGroupIndex] == probeGeneration)
 				return;
 
-			delete mSceneBindGroups[bindGroupIndex];
-			mSceneBindGroups[bindGroupIndex] = null;
+			Renderer.Device.DestroyBindGroup(ref mSceneBindGroups[bindGroupIndex]);
 		}
 
-		let sceneLayout = opaqueFeature.[Friend]mSceneBindGroupLayout;
-		if (sceneLayout == null)
-			return;
-
-		let lighting = opaqueFeature.[Friend]mLighting;
-		if (lighting == null)
-			return;
-
-		let cameraBuffer = Renderer.RenderFrameContext?.SceneUniformBuffer;
-		let objectUniformBuffer = mObjectUniformBuffers[frameIndex];
-		let lightingBuffer = lighting.LightBuffer?.GetUniformBuffer(frameIndex);
-		let lightDataBuffer = lighting.LightBuffer?.GetLightDataBuffer(frameIndex);
-		let viewIndex = Renderer.RenderFrameContext?.ActiveViewIndex ?? 0;
-		let clusterInfoBuffer = lighting.ClusterGrid?.GetClusterLightInfoBuffer(frameIndex, viewIndex);
-		let lightIndexBuffer = lighting.ClusterGrid?.GetLightIndexBuffer(frameIndex, viewIndex);
-
-		if (cameraBuffer == null || objectUniformBuffer == null ||
-			lightingBuffer == null || lightDataBuffer == null ||
-			clusterInfoBuffer == null || lightIndexBuffer == null)
-			return;
-
-		BindGroupEntry[15] entries = .();
-
-		entries[0] = BindGroupEntry.Buffer(0, cameraBuffer, 0, SceneUniforms.Size);
-		entries[1] = BindGroupEntry.Buffer(1, objectUniformBuffer, 0, AlignedObjectUniformSize);
-		entries[2] = BindGroupEntry.Buffer(3, lightingBuffer, 0, (uint64)LightingUniforms.Size);
-		entries[3] = BindGroupEntry.Buffer(4, lightDataBuffer, 0, (uint64)(lighting.LightBuffer.MaxLights * GPULight.Size));
-		entries[4] = BindGroupEntry.Buffer(5, clusterInfoBuffer, 0, (uint64)(lighting.ClusterGrid.Config.TotalClusters * 8));
-		entries[5] = BindGroupEntry.Buffer(6, lightIndexBuffer, 0, (uint64)(lighting.ClusterGrid.Config.MaxLightsPerCluster * lighting.ClusterGrid.Config.TotalClusters * 4));
-
-		let shadowData = opaqueFeature.[Friend]mShadowRenderer?.GetShadowShaderData() ?? .();
-		let materialSystem = Renderer.MaterialSystem;
-
-		if (shadowsEnabled && shadowData.CascadedShadowUniforms != null)
-			entries[6] = BindGroupEntry.Buffer(5, shadowData.CascadedShadowUniforms, 0, (uint64)ShadowUniforms.Size);
-		else
-			entries[6] = BindGroupEntry.Buffer(5, lightingBuffer, 0, (uint64)LightingUniforms.Size);
-
-		let dummyShadowMapView = opaqueFeature.[Friend]mDummyShadowMapArrayView;
-		if (shadowsEnabled && shadowData.CascadedShadowMapView != null)
-			entries[7] = BindGroupEntry.Texture(7, shadowData.CascadedShadowMapView);
-		else if (dummyShadowMapView != null)
-			entries[7] = BindGroupEntry.Texture(7, dummyShadowMapView);
-		else
-			return;
-
-		if (shadowData.CascadedShadowSampler != null)
-			entries[8] = BindGroupEntry.Sampler(1, shadowData.CascadedShadowSampler);
-		else if (materialSystem?.DefaultSampler != null)
-			entries[8] = BindGroupEntry.Sampler(1, materialSystem.DefaultSampler);
-		else
-			return;
-
-		ITextureView irradianceView = opaqueFeature.[Friend]mFallbackIrradianceCubemapView;
-		ITextureView prefilteredView = opaqueFeature.[Friend]mFallbackPrefilteredCubemapView;
-		ITextureView brdfLutView = opaqueFeature.[Friend]mFallbackBRDFLutView;
-		ISampler iblSampler = opaqueFeature.[Friend]mIBLSampler;
-
-		if (skyFeature != null)
-		{
-			if (skyFeature.IrradianceMapView != null) irradianceView = skyFeature.IrradianceMapView;
-			if (skyFeature.PrefilteredMapView != null) prefilteredView = skyFeature.PrefilteredMapView;
-			if (skyFeature.BRDFLutView != null) brdfLutView = skyFeature.BRDFLutView;
-			if (skyFeature.EnvironmentSampler != null) iblSampler = skyFeature.EnvironmentSampler;
-		}
-
-		if (irradianceView == null || prefilteredView == null || brdfLutView == null || iblSampler == null)
-			return;
-
-		entries[9] = BindGroupEntry.Texture(8, irradianceView);
-		entries[10] = BindGroupEntry.Texture(9, prefilteredView);
-		entries[11] = BindGroupEntry.Texture(10, brdfLutView);
-		entries[12] = BindGroupEntry.Sampler(2, iblSampler);
-
-		if (probeSystem == null || probeSystem.GetProbeUniformBuffer(frameIndex) == null || probeSystem.GetCubemapArrayView() == null)
-			return;
-
-		entries[13] = BindGroupEntry.Buffer(6, probeSystem.GetProbeUniformBuffer(frameIndex), 0, ProbeUniforms.Size);
-		entries[14] = BindGroupEntry.Texture(11, probeSystem.GetCubemapArrayView());
-
-		BindGroupDesc bgDesc = .()
-		{
-			Label = "Water Scene BindGroup",
-			Layout = sceneLayout,
-			Entries = entries
-		};
-
-		if (Renderer.Device.CreateBindGroup(bgDesc) case .Ok(let bg))
+		// Create via shared helper (uses shared layout, RenderSystem subsystems)
+		let bg = Renderer.SharedLayouts.CreateSceneBindGroup(frameIndex, mObjectUniformBuffers[frameIndex], probeSystem);
+		if (bg != null)
 		{
 			mSceneBindGroups[bindGroupIndex] = bg;
 			mSceneBindGroupShadowState[bindGroupIndex] = shadowsEnabled;

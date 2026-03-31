@@ -3,7 +3,6 @@ namespace StormTactics.Client;
 using System;
 using System.Collections;
 using System.IO;
-using Sedulous.Shell;
 using Sedulous.Shell.Input;
 using Sedulous.RHI;
 using Sedulous.Core.Mathematics;
@@ -127,8 +126,7 @@ class StormTacticsGame : Application
 	// Timing
 	private float mDeltaTime;
 
-	public this(IShell shell, IDevice device, IBackend backend)
-		: base(shell, device, backend)
+	public this() : base()
 	{
 	}
 
@@ -151,7 +149,7 @@ class StormTacticsGame : Application
 	private void InitializeRenderSystem()
 	{
 		mRenderSystem = new RenderSystem();
-		if (mRenderSystem.Initialize(mDevice, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null,
+		if (mRenderSystem.Initialize(mDevice, mSwapChain.Width, mSwapChain.Height, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null,
 			.BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
 		{
 			Console.WriteLine("ERROR: Failed to initialize RenderSystem");
@@ -1050,7 +1048,7 @@ class StormTacticsGame : Application
 		mUISubsystem = new Sedulous.GUI.Runtime.UISubsystem();
 		mContext.RegisterSubsystem(mUISubsystem);
 
-		if (mUISubsystem.InitializeRendering(mDevice, .BGRA8UnormSrgb, FrameConfig.MAX_FRAMES_IN_FLIGHT, mShell, mWindow, scope StringView[](shaderPath)) case .Err)
+		if (mUISubsystem.InitializeRendering(mDevice, .BGRA8UnormSrgb, (int32)SwapChain.BufferCount, mShell, mWindow, scope StringView[](shaderPath)) case .Err)
 		{
 			Console.WriteLine("Failed to initialize UI rendering");
 			return;
@@ -2461,6 +2459,8 @@ class StormTacticsGame : Application
 			mRenderSystem.Shutdown();
 		delete mRenderSystem;
 		mRenderSystem = null;
+
+		// Note: mMainScene is owned by SceneSubsystem — deleted during mContext.Shutdown()
 
 		Console.WriteLine("Storm Tactics shutting down");
 	}

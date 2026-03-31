@@ -227,14 +227,13 @@ public class UISubsystem : Subsystem
 				StoreOp = .Store,
 				ClearValue = .(0, 0, 0, 1)
 			});
-			RenderPassDesc passDesc = .(colorAttachments);
+			RenderPassDesc passDesc = .() { ColorAttachments = .(colorAttachments) };
 
-			let renderPass = encoder.BeginRenderPass(&passDesc);
+			let renderPass = encoder.BeginRenderPass(passDesc);
 			if (renderPass != null)
 			{
 				mDrawingRenderer.Render(renderPass, width, height, frameIndex);
 				renderPass.End();
-				delete renderPass;
 			}
 		}
 	}

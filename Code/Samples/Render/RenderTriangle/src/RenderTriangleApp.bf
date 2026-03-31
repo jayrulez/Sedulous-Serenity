@@ -35,24 +35,23 @@ struct Uniforms
 /// Demonstrates basic render graph usage for automatic resource management.
 class RenderTriangleApp : Application
 {
-	// GPU resources
-	private IBuffer mVertexBuffer ~ delete _;
-	private IBuffer mUniformBuffer ~ delete _;
-	private IShaderModule mVertShader ~ delete _;
-	private IShaderModule mFragShader ~ delete _;
-	private IBindGroupLayout mBindGroupLayout ~ delete _;
-	private IBindGroup mBindGroup ~ delete _;
-	private IPipelineLayout mPipelineLayout ~ delete _;
-	private IRenderPipeline mPipeline ~ delete _;
+	// GPU resources (destroyed in OnShutdown)
+	private IBuffer mVertexBuffer;
+	private IBuffer mUniformBuffer;
+	private IShaderModule mVertShader;
+	private IShaderModule mFragShader;
+	private IBindGroupLayout mBindGroupLayout;
+	private IBindGroup mBindGroup;
+	private IPipelineLayout mPipelineLayout;
+	private IRenderPipeline mPipeline;
 
 	// Render graph
-	private RenderGraph mRenderGraph ~ delete _;
+	private RenderGraph mRenderGraph;
 
 	// Timing
 	private float mTotalTime = 0;
 
-	public this(IShell shell, IDevice device, IBackend backend)
-		: base(shell, device, backend)
+	public this() : base()
 	{
 	}
 
@@ -113,7 +112,7 @@ class RenderTriangleApp : Application
 		mVertexBuffer = vb;
 
 		Span<uint8> vertexData = .((uint8*)&vertices, (int)vertexDesc.Size);
-		mDevice.Queue.WriteMappedBuffer(mVertexBuffer, 0, vertexData);
+		TransferHelper.WriteMappedBuffer(mVertexBuffer, 0, vertexData);
 
 		// Create uniform buffer
 		BufferDesc uniformDesc = .()
@@ -156,7 +155,7 @@ class RenderTriangleApp : Application
 			return false;
 		}
 
-		ShaderModuleDesc vertDesc = .(vertResult.Bytecode);
+		ShaderModuleDesc vertDesc = .() { Code = vertResult.Bytecode };
 		if (mDevice.CreateShaderModule(vertDesc) case .Ok(let vs))
 			mVertShader = vs;
 		else
@@ -179,7 +178,7 @@ class RenderTriangleApp : Application
 			return false;
 		}
 
-		ShaderModuleDesc fragDesc = .(fragResult.Bytecode);
+		ShaderModuleDesc fragDesc = .() { Code = fragResult.Bytecode };
 		if (mDevice.CreateShaderModule(fragDesc) case .Ok(let fs))
 			mFragShader = fs;
 		else
@@ -201,7 +200,7 @@ class RenderTriangleApp : Application
 
 		// Create bind group
 		BindGroupEntry[1] bindGroupEntries = .(
-			BindGroupEntry.Buffer(0, mUniformBuffer)
+			BindGroupEntry.Buffer(mUniformBuffer, 0, 0)
 		);
 		BindGroupDesc bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
 		if (mDevice.CreateBindGroup(bindGroupDesc) not case .Ok(let group))
@@ -284,7 +283,7 @@ class RenderTriangleApp : Application
 		float rotationAngle = mTotalTime * 1.0f;
 		Uniforms uniforms = .() { Transform = Matrix.CreateRotationZ(rotationAngle) };
 		Span<uint8> uniformData = .((uint8*)&uniforms, sizeof(Uniforms));
-		mDevice.Queue.WriteMappedBuffer(mUniformBuffer, 0, uniformData);
+		TransferHelper.WriteMappedBuffer(mUniformBuffer, 0, uniformData);
 	}
 
 	protected override bool OnRenderFrame(RenderContext render)
@@ -293,10 +292,11 @@ class RenderTriangleApp : Application
 		mRenderGraph.BeginFrame(render.Frame.FrameIndex);
 
 		// Import swap chain texture
-		let swapChainHandle = mRenderGraph.ImportTexture(
+		let swapChainHandle = mRenderGraph.ImportTarget(
 			"SwapChain",
 			render.SwapChain.CurrentTexture,
-			render.SwapChain.CurrentTextureView
+			render.SwapChain.CurrentTextureView,
+			finalState: .Present
 		);
 
 		// Capture resources for the lambda
@@ -305,13 +305,12 @@ class RenderTriangleApp : Application
 		let vertexBuffer = mVertexBuffer;
 		let width = render.SwapChain.Width;
 		let height = render.SwapChain.Height;
-		let clearColor = Color(25, 38, 51, 255);
 
 		// Add forward pass through the render graph
-		mRenderGraph.AddGraphicsPass("ForwardPass")
-			.WriteColor(swapChainHandle, .Clear, .Store, clearColor)
-			.NeverCull()
-			.SetExecuteCallback(new (encoder) =>
+		mRenderGraph.AddRenderPass("ForwardPass", scope (builder) => {
+			builder.SetColorTarget(0, swapChainHandle, .Clear, .Store, ClearColor(25.0f/255, 38.0f/255, 51.0f/255, 1));
+			builder.NeverCull();
+			builder.SetExecute(new (encoder) =>
 			{
 				encoder.SetViewport(0, 0, width, height, 0, 1);
 				encoder.SetScissor(0, 0, width, height);
@@ -320,9 +319,9 @@ class RenderTriangleApp : Application
 				encoder.SetVertexBuffer(0, vertexBuffer, 0);
 				encoder.Draw(3, 1, 0, 0);
 			});
+		});
 
-		// Compile and execute
-		mRenderGraph.Compile();
+		// Execute (auto-compiles)
 		mRenderGraph.Execute(render.Encoder);
 
 		// End frame
@@ -333,7 +332,24 @@ class RenderTriangleApp : Application
 
 	protected override void OnShutdown()
 	{
-		mRenderGraph?.Dispose();
+		if (mRenderGraph != null)
+		{
+			delete mRenderGraph;
+			mRenderGraph = null;
+		}
+
+		if (mDevice != null)
+		{
+			mDevice.DestroyRenderPipeline(ref mPipeline);
+			mDevice.DestroyPipelineLayout(ref mPipelineLayout);
+			mDevice.DestroyBindGroup(ref mBindGroup);
+			mDevice.DestroyBindGroupLayout(ref mBindGroupLayout);
+			mDevice.DestroyShaderModule(ref mFragShader);
+			mDevice.DestroyShaderModule(ref mVertShader);
+			mDevice.DestroyBuffer(ref mUniformBuffer);
+			mDevice.DestroyBuffer(ref mVertexBuffer);
+		}
+
 		Console.WriteLine("Render Triangle shutting down");
 	}
 

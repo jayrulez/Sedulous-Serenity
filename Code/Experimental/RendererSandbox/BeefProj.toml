@@ -1,0 +1,6 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "Sedulous.RHI" = "*", "Sedulous.RHI.Validation" = "*", "Sedulous.RHI.DX12" = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.RenderGraph" = "*", "Sedulous.Renderer" = "*", "Sedulous.Geometry" = "*", "Sedulous.Shell" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Core" = "*", "Sedulous.Core.Mathematics" = "*", SDL3 = "*", RendererFramework = "*", "Sedulous.Imaging" = "*", "Sedulous.Imaging.STB" = "*", "stb_image-Beef" = "*", "Sedulous.Models" = "*", "Sedulous.Models.GLTF" = "*", "Sedulous.Geometry.Tooling" = "*", "Sedulous.Animation" = "*"}
+
+[Project]
+Name = "RendererSandbox"
+StartupObject = "RendererSandbox.Program"

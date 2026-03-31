@@ -3,7 +3,9 @@ namespace ImGuiSample;
 using System;
 using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
-using SampleFramework;
+using Sedulous.Shaders;
+using Sedulous.Runtime.Client;
+using Sedulous.Runtime;
 using cimgui_Beef;
 
 /// Uniform buffer for projection matrix
@@ -14,10 +16,10 @@ struct ImGuiUniforms
 }
 
 /// ImGui integration sample demonstrating immediate-mode GUI with RHI rendering.
-class ImGuiSampleApp : RHISampleApp
+class ImGuiSampleApp : Application
 {
 	// ImGui context
-	private ImGuiContext* mContext;
+	private ImGuiContext* mImGuiContext;
 	private ImGuiIO* mIO;
 
 	// RHI resources
@@ -27,6 +29,7 @@ class ImGuiSampleApp : RHISampleApp
 	private ITexture mFontTexture;
 	private ITextureView mFontTextureView;
 	private ISampler mFontSampler;
+	private ShaderSystem mShaderSystem;
 	private IShaderModule mVertShader;
 	private IShaderModule mFragShader;
 	private IBindGroupLayout mBindGroupLayout;
@@ -53,20 +56,27 @@ class ImGuiSampleApp : RHISampleApp
 	private float mPropertyValue = 1.0f;
 	private bool mFirstFrame = true;
 
-	public this() : base(.()
-		{
-			Title = "ImGui Sample",
-			Width = 1024,
-			Height = 768,
-			ClearColor = .(0.1f, 0.18f, 0.24f, 1.0f)
-		})
+	// Cached delta time for input
+	private float mDeltaTime = 1.0f / 60.0f;
+
+	public this() : base()
 	{
 	}
 
-	protected override bool OnInitialize()
+	protected override void OnInitialize(Context context)
 	{
+		// Initialize shader system
+		mShaderSystem = new ShaderSystem();
+		String shaderPath = scope .();
+		GetAssetPath("samples/ImGuiSample/shaders", shaderPath);
+		if (mShaderSystem.Initialize(Device, scope StringView[](shaderPath)) case .Err)
+		{
+			Console.WriteLine("Failed to initialize shader system");
+			return;
+		}
+
 		// Create ImGui context
-		mContext = igCreateContext(null);
+		mImGuiContext = igCreateContext(null);
 		mIO = igGetIO_Nil();
 
 		// Configure IO
@@ -86,18 +96,17 @@ class ImGuiSampleApp : RHISampleApp
 
 		// Create RHI resources (buffers, shaders, pipeline)
 		if (!CreateBuffers())
-			return false;
+			return;
 
 		if (!CreateBindings())
-			return false;
+			return;
 
 		if (!CreatePipeline())
-			return false;
+			return;
 
 		Console.WriteLine("ImGui Sample initialized.");
 		Console.WriteLine("  - Mouse: interact with UI");
 		Console.WriteLine("  - ESC: Exit");
-		return true;
 	}
 
 	private bool CreateBuffers()
@@ -154,14 +163,15 @@ class ImGuiSampleApp : RHISampleApp
 	private bool CreateBindings()
 	{
 		// Load shaders
-		let shaderResult = ShaderUtils.LoadShaderPair(Device, "shaders/imgui");
+		let shaderResult = mShaderSystem.GetShaderPair("imgui");
 		if (shaderResult case .Err)
 		{
 			Console.WriteLine("Failed to load shaders");
 			return false;
 		}
 
-		(mVertShader, mFragShader) = shaderResult.Get();
+		mVertShader = shaderResult.Value.vert.Module;
+		mFragShader = shaderResult.Value.frag.Module;
 		Console.WriteLine("Shaders compiled");
 
 		// Create bind group layout
@@ -279,9 +289,9 @@ class ImGuiSampleApp : RHISampleApp
 
 			// Delete previous texture resources if any
 			if (mFontSampler != null) { delete mFontSampler; mFontSampler = null; }
-			if (mFontTextureView != null) { delete mFontTextureView; mFontTextureView = null; }
-			if (mFontTexture != null) { delete mFontTexture; mFontTexture = null; }
-			if (mBindGroup != null) { delete mBindGroup; mBindGroup = null; }
+			if (mFontTextureView != null) Device.DestroyTextureView(ref mFontTextureView);
+			if (mFontTexture != null) Device.DestroyTexture(ref mFontTexture);
+			if (mBindGroup != null) Device.DestroyBindGroup(ref mBindGroup);
 
 			uint32 w = (uint32)tex.Width;
 			uint32 h = (uint32)tex.Height;
@@ -304,7 +314,7 @@ class ImGuiSampleApp : RHISampleApp
 			};
 			Extent3D writeSize = .(w, h, 1);
 			Span<uint8> data = .((uint8*)pixels, (int)(w * h * 4));
-			Device.Queue.WriteTextureSync(mFontTexture, data, &dataLayout, &writeSize);
+			TransferHelper.WriteTextureSync(Device.GetQueue(.Graphics), Device, mFontTexture, data, dataLayout, writeSize);
 
 			// Create texture view
 			TextureViewDesc viewDesc = .();
@@ -336,9 +346,9 @@ class ImGuiSampleApp : RHISampleApp
 
 			// Create bind group
 			BindGroupEntry[3] bindGroupEntries = .(
-				BindGroupEntry.Buffer(0, mUniformBuffer),
-				BindGroupEntry.Texture(0, mFontTextureView),
-				BindGroupEntry.Sampler(0, mFontSampler)
+				BindGroupEntry.Buffer(mUniformBuffer, 0, 0),
+				BindGroupEntry.Texture(mFontTextureView),
+				BindGroupEntry.Sampler(mFontSampler)
 			);
 			BindGroupDesc bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
 			if (Device.CreateBindGroup(bindGroupDesc) not case .Ok(let group))
@@ -372,7 +382,7 @@ class ImGuiSampleApp : RHISampleApp
 					};
 					Extent3D writeSize = .(w, h, 1);
 					Span<uint8> data = .((uint8*)pixels, (int)(w * h * 4));
-					Device.Queue.WriteTextureSync(mFontTexture, data, &dataLayout, &writeSize);
+					TransferHelper.WriteTextureSync(Device.GetQueue(.Graphics), Device, mFontTexture, data, dataLayout, writeSize);
 				}
 			}
 			ImTextureData_SetStatus(tex, .ImTextureStatus_OK);
@@ -393,7 +403,7 @@ class ImGuiSampleApp : RHISampleApp
 
 		// Update display size
 		mIO.DisplaySize = .() { x = (float)SwapChain.Width, y = (float)SwapChain.Height };
-		mIO.DeltaTime = DeltaTime > 0 ? DeltaTime : 1.0f / 60.0f;
+		mIO.DeltaTime = mDeltaTime > 0 ? mDeltaTime : 1.0f / 60.0f;
 
 		// Mouse
 		ImGuiIO_AddMousePosEvent(mIO, mouse.X, mouse.Y);
@@ -428,8 +438,10 @@ class ImGuiSampleApp : RHISampleApp
 		ImGuiIO_AddKeyEvent(mIO, .ImGuiKey_Z, keyboard.IsKeyDown(.Z));
 	}
 
-	protected override void OnUpdate(float deltaTime, float totalTime)
+	protected override void OnUpdate(FrameContext frame)
 	{
+		mDeltaTime = frame.DeltaTime;
+
 		// Start new ImGui frame
 		igNewFrame();
 
@@ -437,7 +449,7 @@ class ImGuiSampleApp : RHISampleApp
 		BuildUI();
 
 		// Update background clear color from UI
-		mConfig.ClearColor = Color(mBackgroundColor[0], mBackgroundColor[1], mBackgroundColor[2], 1.0f);
+		mSettings.ClearColor = Color(mBackgroundColor[0], mBackgroundColor[1], mBackgroundColor[2], 1.0f);
 	}
 
 	private void BuildUI()
@@ -518,7 +530,7 @@ class ImGuiSampleApp : RHISampleApp
 		mFirstFrame = false;
 	}
 
-	protected override void OnPrepareFrame(int32 frameIndex)
+	protected override void OnPrepareFrame(FrameContext frame)
 	{
 		// End ImGui frame and generate draw data
 		igRender();
@@ -554,7 +566,7 @@ class ImGuiSampleApp : RHISampleApp
 
 		ImGuiUniforms uniforms = .() { Projection = projection };
 		Span<uint8> uniformData = .((uint8*)&uniforms, sizeof(ImGuiUniforms));
-		Device.Queue.WriteMappedBuffer(mUniformBuffer, 0, uniformData);
+		TransferHelper.WriteMappedBuffer(mUniformBuffer, 0, uniformData);
 
 		// Upload combined vertex/index data from all draw lists
 		mTotalVtxCount = drawData.TotalVtxCount;
@@ -575,13 +587,13 @@ class ImGuiSampleApp : RHISampleApp
 			if (vtxOffset + (uint64)vtxSize <= MAX_VERTEX_BUFFER)
 			{
 				Span<uint8> vtxSpan = .((uint8*)cmdList.VtxBuffer.Data, vtxSize);
-				Device.Queue.WriteMappedBuffer(mVertexBuffer, vtxOffset, vtxSpan);
+				TransferHelper.WriteMappedBuffer(mVertexBuffer, vtxOffset, vtxSpan);
 			}
 
 			if (idxOffset + (uint64)idxSize <= MAX_INDEX_BUFFER)
 			{
 				Span<uint8> idxSpan = .((uint8*)cmdList.IdxBuffer.Data, idxSize);
-				Device.Queue.WriteMappedBuffer(mIndexBuffer, idxOffset, idxSpan);
+				TransferHelper.WriteMappedBuffer(mIndexBuffer, idxOffset, idxSpan);
 			}
 
 			vtxOffset += (uint64)vtxSize;
@@ -589,7 +601,7 @@ class ImGuiSampleApp : RHISampleApp
 		}
 	}
 
-	protected override void OnRender(IRenderPassEncoder renderPass)
+	protected override void OnRender(IRenderPassEncoder renderPass, FrameContext frame)
 	{
 		ImDrawData* drawData = igGetDrawData();
 		if (drawData == null || !drawData.Valid || mTotalVtxCount == 0 || mBindGroup == null)
@@ -637,25 +649,30 @@ class ImGuiSampleApp : RHISampleApp
 		}
 	}
 
-	protected override void OnCleanup()
+	protected override void OnShutdown()
 	{
 		// Clean up ImGui
-		if (mContext != null)
-			igDestroyContext(mContext);
+		if (mImGuiContext != null)
+			igDestroyContext(mImGuiContext);
 
 		// Clean up RHI resources
-		if (mPipeline != null) delete mPipeline;
-		if (mPipelineLayout != null) delete mPipelineLayout;
-		if (mBindGroup != null) delete mBindGroup;
-		if (mBindGroupLayout != null) delete mBindGroupLayout;
-		if (mFragShader != null) delete mFragShader;
-		if (mVertShader != null) delete mVertShader;
-		if (mFontSampler != null) delete mFontSampler;
-		if (mFontTextureView != null) delete mFontTextureView;
-		if (mFontTexture != null) delete mFontTexture;
-		if (mUniformBuffer != null) delete mUniformBuffer;
-		if (mIndexBuffer != null) delete mIndexBuffer;
-		if (mVertexBuffer != null) delete mVertexBuffer;
+		if (mDevice != null)
+		{
+			mDevice.DestroyRenderPipeline(ref mPipeline);
+			mDevice.DestroyPipelineLayout(ref mPipelineLayout);
+			mDevice.DestroyBindGroup(ref mBindGroup);
+			mDevice.DestroyBindGroupLayout(ref mBindGroupLayout);
+			//mDevice.DestroyShaderModule(ref mFragShader);
+			//mDevice.DestroyShaderModule(ref mVertShader);
+			mDevice.DestroySampler(ref mFontSampler);
+			mDevice.DestroyTextureView(ref mFontTextureView);
+			mDevice.DestroyTexture(ref mFontTexture);
+			mDevice.DestroyBuffer(ref mUniformBuffer);
+			mDevice.DestroyBuffer(ref mIndexBuffer);
+			mDevice.DestroyBuffer(ref mVertexBuffer);
+		}
+
+		if (mShaderSystem != null) { mShaderSystem.Dispose(); delete mShaderSystem; }
 	}
 }
 
@@ -664,6 +681,6 @@ class Program
 	public static int Main(String[] args)
 	{
 		let app = scope ImGuiSampleApp();
-		return app.Run();
+		return app.Run(.() { Title = "ImGui Sample", Width = 1024, Height = 768, ClearColor = .(0.1f, 0.18f, 0.24f, 1.0f), EnableDepth = false });
 	}
 }

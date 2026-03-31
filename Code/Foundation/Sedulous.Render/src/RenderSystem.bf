@@ -33,17 +33,27 @@ public struct RenderStats
 public class RenderSystem : IDisposable
 {
 	private IDevice mDevice;
+	private IQueue mGraphicsQueue;
 	private bool mInitialized = false;
 	private uint64 mFrameNumber = 0;
 
 	// Core systems
 	private RenderFrameContext mRenderFrameContext ~ delete _;
-	private RenderGraph mRenderGraph ~ delete _;
-	private TransientResourcePool mTransientPool ~ delete _;
+	private RenderGraph mRenderGraph;
+	private SharedResources mSharedResources ~ delete _;
 	private GPUResourceManager mResourceManager ~ delete _;
 	private ShaderSystem mShaderSystem ~ delete _;
 	private MaterialSystem mMaterialSystem ~ delete _;
 	private RenderPipelineCache mPipelineCache ~ delete _;
+	private SkinningSystem mSkinningSystem ~ delete _;
+	private LightingSystem mLightingSystem ~ { _?.Dispose(); delete _; };
+	private SharedBindGroupLayouts mSharedLayouts ~ delete _;
+	private ShadowRenderer mShadowRenderer ~ { _?.Dispose(); delete _; };
+	private ReflectionProbeSystem mProbeSystem ~ { _?.Dispose(); delete _; };
+	private ViewContext mViewContext = new .() ~ delete _;
+	private VisibilityResolver mVisibility = new .() ~ delete _;
+	private FrustumCuller mCuller = new .() ~ delete _;
+	private DrawBatcher mBatcher = new .() ~ delete _;
 
 	// Render features
 	private List<IRenderFeature> mFeatures = new .() ~ delete _;
@@ -55,11 +65,14 @@ public class RenderSystem : IDisposable
 	private RenderWorld mActiveWorld;
 
 	// Transfer batch for init-time GPU uploads
-	private ITransferBatch mTransferBatch ~ delete _;
+	private ITransferBatch mTransferBatch;
+
+	// Init context for feature initialization (valid between Initialize and first BeginFrame)
+	private InitContext mInitContext ~ delete _;
 
 	// Post-processing stack
 	private PostProcessStack mPostProcessStack ~ delete _;
-	private RGResourceHandle mPostProcessOutput;
+	private RGHandle mPostProcessOutput = .Invalid;
 
 	// Auto-exposure (standalone, not part of PostProcessStack)
 	private AutoExposureEffect mAutoExposure ~ delete _;
@@ -70,6 +83,10 @@ public class RenderSystem : IDisposable
 	// Configuration
 	private TextureFormat mColorFormat = .BGRA8UnormSrgb;
 	private TextureFormat mDepthFormat = .Depth24PlusStencil8;
+
+	// Viewport dimensions (set externally, since RenderSystem doesn't own the swapchain)
+	private uint32 mViewportWidth;
+	private uint32 mViewportHeight;
 
 	/// Gets whether the renderer is initialized.
 	public bool IsInitialized => mInitialized;
@@ -83,8 +100,29 @@ public class RenderSystem : IDisposable
 	/// Gets the render graph.
 	public RenderGraph RenderGraph => mRenderGraph;
 
-	/// Gets the transient resource pool.
-	public TransientResourcePool TransientPool => mTransientPool;
+	/// Shared default textures and samplers.
+	public SharedResources SharedResources => mSharedResources;
+
+	/// Lighting system (light buffer, cluster grid, culling).
+	public LightingSystem LightingSystem => mLightingSystem;
+
+	/// Shadow renderer (cascaded shadows, shadow atlas).
+	public ShadowRenderer ShadowRenderer => mShadowRenderer;
+
+	/// Shared bind group layouts and scene bind group creation.
+	public SharedBindGroupLayouts SharedLayouts => mSharedLayouts;
+
+	/// Reflection probe system.
+	public ReflectionProbeSystem ProbeSystem => mProbeSystem;
+
+	/// Per-view context (populated by RenderSystem before features run).
+	public ViewContext ViewContext => mViewContext;
+
+	/// Shared visibility resolver (populated by RenderSystem before features run).
+	public VisibilityResolver Visibility => mVisibility;
+
+	/// Shared draw batcher (populated by RenderSystem before features run).
+	public DrawBatcher Batcher => mBatcher;
 
 	/// Gets the GPU resource manager.
 	public GPUResourceManager ResourceManager => mResourceManager;
@@ -97,6 +135,9 @@ public class RenderSystem : IDisposable
 
 	/// Gets the pipeline cache for dynamic pipeline creation.
 	public RenderPipelineCache PipelineCache => mPipelineCache;
+
+	/// GPU skinning system (infrastructure, not a feature)
+	public SkinningSystem SkinningSystem => mSkinningSystem;
 
 	/// Gets the current frame statistics.
 	public ref RenderStats Stats => ref mStats;
@@ -119,18 +160,35 @@ public class RenderSystem : IDisposable
 	/// Gets the auto-exposure effect.
 	public AutoExposureEffect AutoExposure => mAutoExposure;
 
-	/// Gets the active transfer batch for batched GPU uploads during initialization.
-	/// Non-null between Initialize() and the first BeginFrame(). Features use this
-	/// via UploadTexture/UploadBuffer helpers on RenderFeatureBase.
-	public ITransferBatch TransferBatch => mTransferBatch;
 
 	/// Gets the post-process output handle for the current frame.
 	/// Returns the final output from post-processing, or invalid handle if no effects are enabled.
-	public RGResourceHandle PostProcessOutput => mPostProcessOutput;
+	public RGHandle PostProcessOutput => mPostProcessOutput;
+
+	/// Current viewport width.
+	public uint32 ViewportWidth => mViewportWidth;
+
+	/// Current viewport height.
+	public uint32 ViewportHeight => mViewportHeight;
+
+	/// Sets the viewport size. Notifies all features when dimensions change.
+	public void SetViewportSize(uint32 width, uint32 height)
+	{
+		if (width == mViewportWidth && height == mViewportHeight)
+			return;
+
+		mViewportWidth = width;
+		mViewportHeight = height;
+
+		for (let feature in mSortedFeatures)
+			feature.OnViewportResize(width, height);
+	}
 
 	/// Initializes the render system.
 	public Result<void> Initialize(
 		IDevice device,
+		uint32 viewportWidth,
+		uint32 viewportHeight,
 		Span<StringView> shaderPaths = default,
 		StringView? shaderCachePath = null,
 		TextureFormat colorFormat = .BGRA8UnormSrgb,
@@ -142,73 +200,137 @@ public class RenderSystem : IDisposable
 		if (mInitialized)
 			return .Err;
 
-		mDevice = device;
-		mColorFormat = colorFormat;
-		mDepthFormat = depthFormat;
-
-		// Initialize frame context
-		mRenderFrameContext = new RenderFrameContext();
-		if (mRenderFrameContext.Initialize(device) case .Err)
-			return .Err;
-
-		// Initialize render graph
-		let graphConfig = RenderGraphConfig()
+		using (SProfiler.Begin("Render.Init"))
 		{
-			FrameBufferCount = RenderConfig.FrameBufferCount,
-			TransientBufferPoolSize = RenderConfig.TransientBufferPoolSize
-		};
-		mRenderGraph = new RenderGraph(device, graphConfig);
+			mDevice = device;
+			mGraphicsQueue = device.GetQueue(.Graphics);
+			mColorFormat = colorFormat;
+			mDepthFormat = depthFormat;
+			mViewportWidth = viewportWidth;
+			mViewportHeight = viewportHeight;
 
-		// Initialize transient resource pool
-		mTransientPool = new TransientResourcePool();
-		if (mTransientPool.Initialize(device, graphConfig) case .Err)
-			return .Err;
+			// Initialize frame context
+			using (SProfiler.Begin("FrameContext"))
+			{
+				mRenderFrameContext = new RenderFrameContext();
+				if (mRenderFrameContext.Initialize(device) case .Err)
+					return .Err;
+			}
 
-		// Initialize GPU resource manager
-		mResourceManager = new GPUResourceManager();
-		if (mResourceManager.Initialize(device) case .Err)
-			return .Err;
+			// Initialize render graph
+			let graphConfig = RenderGraphConfig()
+			{
+				FrameBufferCount = RenderConfig.FrameBufferCount
+			};
+			mRenderGraph = new RenderGraph(device, graphConfig);
 
-		// Initialize shader system
-		if (shaderPaths.Length > 0)
-		{
-			mShaderSystem = new ShaderSystem();
-			if (mShaderSystem.Initialize(device, shaderPaths) case .Err)
+			// Initialize GPU resource manager
+			using (SProfiler.Begin("ResourceManager"))
+			{
+				mResourceManager = new GPUResourceManager();
+				if (mResourceManager.Initialize(device, mGraphicsQueue) case .Err)
+					return .Err;
+			}
+
+			// Initialize shader system
+			if (shaderPaths.Length > 0)
+			{
+				using (SProfiler.Begin("ShaderSystem"))
+				{
+					mShaderSystem = new ShaderSystem();
+					if (mShaderSystem.Initialize(device, shaderPaths) case .Err)
+						return .Err;
+
+					if(shaderCachePath != null)
+					{
+						mShaderSystem.SetCachePath(shaderCachePath.Value);
+					}
+				}
+			}
+
+			// Initialize material system
+			using (SProfiler.Begin("MaterialSystem"))
+			{
+				mMaterialSystem = new MaterialSystem();
+				if (mMaterialSystem.Initialize(device, mGraphicsQueue) case .Err)
+					return .Err;
+			}
+
+			// Initialize pipeline cache (requires shader system)
+			if (mShaderSystem != null)
+				mPipelineCache = new RenderPipelineCache(device, mShaderSystem);
+
+			// Initialize lighting system (infrastructure, before features)
+			using (SProfiler.Begin("LightingSystem"))
+			{
+				mLightingSystem = new LightingSystem();
+				if (mLightingSystem.Initialize(device, .Default, mShaderSystem) case .Err)
+					return .Err;
+			}
+
+			// Initialize shadow renderer (infrastructure, before features)
+			using (SProfiler.Begin("ShadowRenderer"))
+			{
+				mShadowRenderer = new ShadowRenderer();
+				if (mShadowRenderer.Initialize(device) case .Err)
+					return .Err;
+			}
+
+			// Initialize shared bind group layouts (after lighting + shadows)
+			mSharedLayouts = new SharedBindGroupLayouts(device, this);
+			if (mSharedLayouts.Initialize() case .Err)
 				return .Err;
 
-			if(shaderCachePath != null)
+			// Initialize skinning system (infrastructure, before features)
+			using (SProfiler.Begin("SkinningSystem"))
 			{
-				mShaderSystem.SetCachePath(shaderCachePath.Value);
+				mSkinningSystem = new SkinningSystem();
+				if (mSkinningSystem.Initialize(this) case .Err)
+					Console.WriteLine("[RenderSystem] Warning: Failed to initialize SkinningSystem");
 			}
+
+			// Initialize post-process stack
+			mPostProcessStack = new PostProcessStack();
+
+			// Initialize auto-exposure
+			using (SProfiler.Begin("AutoExposure"))
+			{
+				mAutoExposure = new AutoExposureEffect(this);
+				if (mAutoExposure.Initialize(device) case .Err)
+					Console.WriteLine("[RenderSystem] Warning: Failed to initialize AutoExposureEffect");
+			}
+
+			// Create transfer batch for init-time uploads.
+			// Features registered via RegisterFeature() will use this batch via UploadTexture/UploadBuffer.
+			// Auto-flushed on first BeginFrame().
+			if (mGraphicsQueue.CreateTransferBatch() case .Ok(let batch))
+			{
+				mTransferBatch = batch;
+				mResourceManager.TransferBatch = batch;
+			}
+
+			// Create shared default textures and samplers (before features, so they can reference them)
+			mSharedResources = new SharedResources(device);
+			if (mSharedResources.Initialize(mTransferBatch) case .Err)
+				return .Err;
+
+			// Initialize reflection probe system
+			mProbeSystem = new ReflectionProbeSystem();
+			if (mProbeSystem.Initialize(device, mTransferBatch) case .Err)
+				return .Err;
+
+			// Create init context for feature initialization
+			mInitContext = new InitContext();
+			mInitContext.Device = device;
+			mInitContext.TransferBatch = mTransferBatch;
+			mInitContext.Resources = mResourceManager;
+			mInitContext.SharedResources = mSharedResources;
+			mInitContext.ShaderSystem = mShaderSystem;
+			mInitContext.MaterialSystem = mMaterialSystem;
+			mInitContext.PipelineCache = mPipelineCache;
+
+			mInitialized = true;
 		}
-
-		// Initialize material system
-		mMaterialSystem = new MaterialSystem();
-		if (mMaterialSystem.Initialize(device) case .Err)
-			return .Err;
-
-		// Initialize pipeline cache (requires shader system)
-		if (mShaderSystem != null)
-			mPipelineCache = new RenderPipelineCache(device, mShaderSystem);
-
-		// Initialize post-process stack
-		mPostProcessStack = new PostProcessStack();
-
-		// Initialize auto-exposure
-		mAutoExposure = new AutoExposureEffect(this);
-		if (mAutoExposure.Initialize(device) case .Err)
-			Console.WriteLine("[RenderSystem] Warning: Failed to initialize AutoExposureEffect");
-
-		// Create transfer batch for init-time uploads.
-		// Features registered via RegisterFeature() will use this batch via UploadTexture/UploadBuffer.
-		// Auto-flushed on first BeginFrame().
-		if (mDevice.Queue.CreateTransferBatch() case .Ok(let batch))
-		{
-			mTransferBatch = batch;
-			mResourceManager.TransferBatch = batch;
-		}
-
-		mInitialized = true;
 		return .Ok;
 	}
 
@@ -225,10 +347,13 @@ public class RenderSystem : IDisposable
 			return .Err; // Already registered
 		}
 
-		if (feature.Initialize(this) case .Err)
+		using (SProfiler.Begin(feature.Name))
 		{
-			delete name;
-			return .Err;
+			if (feature.Initialize(this, mInitContext) case .Err)
+			{
+				delete name;
+				return .Err;
+			}
 		}
 
 		mFeatures.Add(feature);
@@ -244,10 +369,20 @@ public class RenderSystem : IDisposable
 	{
 		if (mTransferBatch != null)
 		{
-			mResourceManager.TransferBatch = null;
-			mTransferBatch.Submit();
-			delete mTransferBatch;
-			mTransferBatch = null;
+			using (SProfiler.Begin("Render.FlushInitTransfers"))
+			{
+				mResourceManager.TransferBatch = null;
+				mTransferBatch.Submit();
+				mGraphicsQueue.DestroyTransferBatch(ref mTransferBatch);
+			}
+		}
+
+		// Init phase is over — clear InitContext
+		if (mInitContext != null)
+		{
+			mInitContext.TransferBatch = null;
+			delete mInitContext;
+			mInitContext = null;
 		}
 	}
 
@@ -305,7 +440,7 @@ public class RenderSystem : IDisposable
 	/// Creates a new render world.
 	public RenderWorld CreateWorld()
 	{
-		return new RenderWorld();
+		return new RenderWorld(mDevice);
 	}
 
 	/// Begins a new frame.
@@ -323,13 +458,12 @@ public class RenderSystem : IDisposable
 			mFrameNumber++;
 			mStats.Reset();
 
-			// Process deferred GPU resource deletions
-			mActiveWorld?.ProcessDeferredDeletions();
+			// Process deferred trail emitter deletions
+			mActiveWorld?.ProcessDeferredTrailDeletions();
 
 			// Begin frame on subsystems
 			mRenderFrameContext.BeginFrame(mFrameNumber, totalTime, deltaTime);
 			mRenderGraph.BeginFrame(mRenderFrameContext.FrameIndex);
-			mTransientPool.BeginFrame(mRenderFrameContext.FrameIndex);
 		}
 	}
 
@@ -390,8 +524,49 @@ public class RenderSystem : IDisposable
 				mFeaturesSorted = true;
 			}
 
+			// Populate ViewContext from the (possibly jitter-updated) RenderView
+			mViewContext.Update(view);
+			mViewContext.FrameIndex = mRenderFrameContext.FrameIndex;
+			mViewContext.ActiveViewIndex = mRenderFrameContext.ActiveViewIndex;
+			mViewContext.ViewCount = mRenderFrameContext.ViewCount;
+			mViewContext.SceneUniformBuffer = mRenderFrameContext.SceneUniformBuffer;
+			mViewContext.PrevViewProjectionMatrix = mRenderFrameContext.SceneUniforms.PrevViewProjectionMatrix;
+			mViewContext.Exposure = mActiveWorld != null ? mActiveWorld.Exposure : 1.0f;
+			mViewContext.DeltaTime = mRenderFrameContext.DeltaTime;
+			mViewContext.TotalTime = mRenderFrameContext.TotalTime;
+
+			// PrepareFrame: per-frame feature lifecycle (deferred deletions, resource registration)
+			using (SProfiler.Begin("Features.PrepareFrame"))
+			{
+				RenderView[1] views = .(view);
+				for (let feature in mSortedFeatures)
+					feature.PrepareFrame(views, mActiveWorld, mRenderFrameContext.FrameIndex);
+			}
+
+			// Resolve visibility and build draw batches (shared across all features)
+			if (mRenderFrameContext.ViewCount <= 1)
+			{
+				using (SProfiler.Begin("Visibility.Resolve"))
+				{
+					mVisibility.SetLODBias(mActiveWorld.LODBias);
+					mCuller.SetFrustum(mViewContext.ViewProjectionMatrix);
+					mVisibility.Clear();
+					mVisibility.Resolve(mActiveWorld, mViewContext.ViewProjectionMatrix, mViewContext.CameraPosition);
+				}
+
+				using (SProfiler.Begin("Batcher.Build"))
+				{
+					mBatcher.Clear();
+					mBatcher.Build(mActiveWorld, mVisibility);
+				}
+			}
+
 			// Reset post-process output
 			mPostProcessOutput = .Invalid;
+
+			// Add skinning compute pass (infrastructure, before features)
+			if (mSkinningSystem != null && mSkinningSystem.IsInitialized)
+				mSkinningSystem.AddPasses(mRenderGraph, mViewContext, mActiveWorld);
 
 			// Let each feature add its passes (except FinalOutput which we handle specially)
 			using (SProfiler.Begin("Features.AddPasses"))
@@ -402,7 +577,8 @@ public class RenderSystem : IDisposable
 					if (feature.Name == "FinalOutput")
 						continue;
 
-					feature.AddPasses(mRenderGraph, view, mActiveWorld);
+					using (SProfiler.Begin(feature.Name))
+						feature.AddPasses(mRenderGraph, mViewContext, mActiveWorld);
 				}
 			}
 
@@ -414,7 +590,7 @@ public class RenderSystem : IDisposable
 					// Read back previous frame's result first (1 frame latency)
 					mAutoExposure.ReadbackExposure(mActiveWorld);
 					// Add compute passes for this frame
-					mAutoExposure.AddPasses(mRenderGraph, view, mActiveWorld);
+					mAutoExposure.AddPasses(mRenderGraph, mViewContext, mActiveWorld);
 				}
 			}
 
@@ -429,7 +605,7 @@ public class RenderSystem : IDisposable
 					if (sceneColorHandle.IsValid && depthHandle.IsValid)
 					{
 						mPostProcessOutput = mPostProcessStack.AddPasses(
-							mRenderGraph, view, sceneColorHandle, depthHandle);
+							mRenderGraph, mViewContext, sceneColorHandle, depthHandle);
 					}
 				}
 			}
@@ -438,7 +614,7 @@ public class RenderSystem : IDisposable
 			let finalOutputFeature = GetFeature("FinalOutput");
 			if (finalOutputFeature != null)
 			{
-				finalOutputFeature.AddPasses(mRenderGraph, view, mActiveWorld);
+				finalOutputFeature.AddPasses(mRenderGraph, mViewContext, mActiveWorld);
 			}
 
 			// Compile the graph
@@ -492,6 +668,35 @@ public class RenderSystem : IDisposable
 
 			let frameIndex = mRenderFrameContext.FrameIndex;
 
+			// Populate ViewContext from main view for PrepareFrame
+			mViewContext.Update(views[0]);
+			mViewContext.FrameIndex = frameIndex;
+			mViewContext.ActiveViewIndex = 0;
+			mViewContext.ViewCount = (int32)views.Length;
+			mViewContext.SceneUniformBuffer = mRenderFrameContext.SceneUniformBuffer;
+			mViewContext.PrevViewProjectionMatrix = mRenderFrameContext.SceneUniforms.PrevViewProjectionMatrix;
+			mViewContext.Exposure = mActiveWorld != null ? mActiveWorld.Exposure : 1.0f;
+			mViewContext.DeltaTime = mRenderFrameContext.DeltaTime;
+			mViewContext.TotalTime = mRenderFrameContext.TotalTime;
+
+			// Resolve union visibility across all views (shared)
+			using (SProfiler.Begin("Visibility.Resolve"))
+			{
+				mVisibility.SetLODBias(mActiveWorld.LODBias);
+				mVisibility.Clear();
+				for (let v in views)
+				{
+					mCuller.SetFrustum(v.ViewProjectionMatrix);
+					mVisibility.ResolveAccumulate(mActiveWorld, v.ViewProjectionMatrix, v.CameraPosition);
+				}
+			}
+
+			using (SProfiler.Begin("Batcher.Build"))
+			{
+				mBatcher.Clear();
+				mBatcher.Build(mActiveWorld, mVisibility);
+			}
+
 			// Phase 1: PrepareFrame (shared data, once)
 			using (SProfiler.Begin("Features.PrepareFrame"))
 			{
@@ -543,7 +748,7 @@ public class RenderSystem : IDisposable
 
 				// Reset graph for next view (if not the last)
 				if (i < (int32)views.Length - 1)
-					mRenderGraph.ResetForNextView();
+					mRenderGraph.Reset();
 			}
 
 			// Reset active view for EndFrame
@@ -562,7 +767,6 @@ public class RenderSystem : IDisposable
 
 			mRenderFrameContext.EndFrame();
 			mRenderGraph.EndFrame();
-			mTransientPool.EndFrame();
 
 			// Process deferred resource deletions
 			mResourceManager.ProcessDeletions(mFrameNumber);
@@ -577,6 +781,10 @@ public class RenderSystem : IDisposable
 
 		// Wait for GPU to finish
 		mDevice.WaitIdle();
+
+		// Flush any pending init-time transfers
+		if (mTransferBatch != null)
+			FlushInitTransfers();
 
 		// Shutdown auto-exposure
 		if (mAutoExposure != null)
@@ -597,17 +805,26 @@ public class RenderSystem : IDisposable
 		mSortedFeatures.Clear();
 
 		// Dispose resources before deletion
-		if (mRenderGraph != null)
-			mRenderGraph.Dispose();
+		if (mRenderFrameContext != null)
+			mRenderFrameContext.Dispose();
 
-		if (mTransientPool != null)
-			mTransientPool.Dispose();
+		if (mRenderGraph != null)
+		{
+			delete mRenderGraph;
+			mRenderGraph = null;
+		}
 
 		if (mResourceManager != null)
 			mResourceManager.Dispose();
 
+		if (mSkinningSystem != null)
+			mSkinningSystem.Shutdown();
+
 		if (mMaterialSystem != null)
 			mMaterialSystem.Dispose();
+
+		if (mPipelineCache != null)
+			mPipelineCache.Clear();
 
 		if (mShaderSystem != null)
 			mShaderSystem.Dispose();

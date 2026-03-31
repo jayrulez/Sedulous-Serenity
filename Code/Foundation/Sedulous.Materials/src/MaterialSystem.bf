@@ -10,43 +10,35 @@ using Sedulous.Core.Mathematics;
 class MaterialSystem : IDisposable
 {
 	private IDevice mDevice;
+	private IQueue mQueue;
 
 	/// Bind group layout cache (keyed by layout hash).
-	private Dictionary<int, IBindGroupLayout> mLayoutCache = new .() ~ {
-		//for (let kv in _)
-		//	delete kv.value;
-		delete _;
-	};
+	private Dictionary<int, IBindGroupLayout> mLayoutCache = new .() ~ delete _;
 
 	/// Material uniform buffers (per material instance).
-	private Dictionary<MaterialInstance, IBuffer> mUniformBuffers = new .() ~ {
-		for (let kv in _)
-			delete kv.value;
-		delete _;
-	};
+	private Dictionary<MaterialInstance, IBuffer> mUniformBuffers = new .() ~ delete _;
 
 	/// Material bind groups (per material instance).
-	private Dictionary<MaterialInstance, IBindGroup> mBindGroups = new .() ~ {
-		for (let kv in _)
-			delete kv.value;
-		delete _;
-	};
+	private Dictionary<MaterialInstance, IBindGroup> mBindGroups = new .() ~ delete _;
 
 	/// Default resources.
-	private ISampler mDefaultSampler ~ delete _;
-	private ITexture mWhiteTexture ~ delete _;
-	private ITexture mNormalTexture ~ delete _;
-	private ITexture mBlackTexture ~ delete _;
-	private ITexture mDepthTexture ~ delete _;
-	private ITextureView mWhiteTextureView ~ delete _;
-	private ITextureView mNormalTextureView ~ delete _;
-	private ITextureView mBlackTextureView ~ delete _;
-	private ITextureView mDepthTextureView ~ delete _;
+	private ISampler mDefaultSampler;
+	private ITexture mWhiteTexture;
+	private ITexture mNormalTexture;
+	private ITexture mBlackTexture;
+	private ITexture mDepthTexture;
+	private ITextureView mWhiteTextureView;
+	private ITextureView mNormalTextureView;
+	private ITextureView mBlackTextureView;
+	private ITextureView mDepthTextureView;
 
 	/// Cached samplers keyed by (AddressModeU, AddressModeV).
 	private Dictionary<int, ISampler> mSamplerCache = new .() ~ {
-		for (let kv in _)
-			delete kv.value;
+		for (var kv in _)
+		{
+			var s = kv.value;
+			mDevice?.DestroySampler(ref s);
+		}
 		delete _;
 	};
 
@@ -85,12 +77,13 @@ class MaterialSystem : IDisposable
 	public IBindGroupLayout DefaultMaterialLayout => mDefaultMaterialLayout;
 
 	/// Initializes the material system.
-	public Result<void> Initialize(IDevice device)
+	public Result<void> Initialize(IDevice device, IQueue graphicsQueue)
 	{
-		if (device == null)
+		if (device == null || graphicsQueue == null)
 			return .Err;
 
 		mDevice = device;
+		mQueue = graphicsQueue;
 
 		if (!CreateDefaultResources())
 			return .Err;
@@ -156,7 +149,7 @@ class MaterialSystem : IDisposable
 
 		// Create layout
 		Span<BindGroupLayoutEntry> entriesSpan = .(entries.Ptr, entries.Count);
-		BindGroupLayoutDesc layoutDesc = .(entriesSpan);
+		BindGroupLayoutDesc layoutDesc = .() { Entries = entriesSpan };
 
 		if (mDevice.CreateBindGroupLayout(layoutDesc) case .Ok(let layout))
 		{
@@ -239,22 +232,45 @@ class MaterialSystem : IDisposable
 	/// Clears all cached resources.
 	public void ClearCache()
 	{
-		for (let kv in mBindGroups)
-			delete kv.value;
+		if (mDevice != null)
+		{
+			for (var kv in mBindGroups)
+			{
+				var bg = kv.value;
+				mDevice.DestroyBindGroup(ref bg);
+			}
+			for (var kv in mUniformBuffers)
+			{
+				var buf = kv.value;
+				mDevice.DestroyBuffer(ref buf);
+			}
+			for (var kv in mLayoutCache)
+			{
+				var layout = kv.value;
+				mDevice.DestroyBindGroupLayout(ref layout);
+			}
+		}
 		mBindGroups.Clear();
-
-		for (let kv in mUniformBuffers)
-			delete kv.value;
 		mUniformBuffers.Clear();
-
-		for (let kv in mLayoutCache)
-			delete kv.value;
 		mLayoutCache.Clear();
 	}
 
 	public void Dispose()
 	{
 		ClearCache();
+
+		if (mDevice != null)
+		{
+			mDevice.DestroyTextureView(ref mWhiteTextureView);
+			mDevice.DestroyTextureView(ref mNormalTextureView);
+			mDevice.DestroyTextureView(ref mBlackTextureView);
+			mDevice.DestroyTextureView(ref mDepthTextureView);
+			mDevice.DestroyTexture(ref mWhiteTexture);
+			mDevice.DestroyTexture(ref mNormalTexture);
+			mDevice.DestroyTexture(ref mBlackTexture);
+			mDevice.DestroyTexture(ref mDepthTexture);
+			mDevice.DestroySampler(ref mDefaultSampler);
+		}
 	}
 
 	/// Gets or creates a sampler with the specified settings.
@@ -277,7 +293,7 @@ class MaterialSystem : IDisposable
 		desc.AddressW = .Repeat;
 		desc.MinFilter = minFilter;
 		desc.MagFilter = magFilter;
-		desc.MipmapFilter = mipmapFilter;
+		desc.MipmapFilter = (mipmapFilter == .Linear) ? .Linear : .Nearest;
 
 		if (mDevice.CreateSampler(desc) case .Ok(let sampler))
 		{
@@ -356,8 +372,7 @@ class MaterialSystem : IDisposable
 		view = null;
 
 		// Create texture descriptor
-		var texDesc = TextureDesc.Texture2D(1, 1, .RGBA8Unorm, .Sampled | .CopyDst, 1);
-		texDesc.Label = "1x1";
+		let texDesc = TextureDesc.Tex2D(.RGBA8Unorm, 1, 1, .Sampled | .CopyDst, label: "1x1");
 
 		if (mDevice.CreateTexture(texDesc) case .Ok(let tex))
 			texture = tex;
@@ -373,7 +388,15 @@ class MaterialSystem : IDisposable
 		};
 		var writeSize = Extent3D(1, 1, 1);
 
-		mDevice.Queue.WriteTextureSync(texture, Span<uint8>(&data[0], 4), &layout, &writeSize);
+		// Upload via transfer batch
+		let batchResult = mQueue.CreateTransferBatch();
+		if (batchResult case .Err) return false;
+		let tb = batchResult.Value;
+		tb.WriteTexture(texture, Span<uint8>(&data[0], 4), layout, writeSize);
+		tb.Submit();
+		mDevice.WaitIdle();
+		var tbRef = tb;
+		mQueue.DestroyTransferBatch(ref tbRef);
 
 		// Create view
 		var viewDesc = TextureViewDesc()
@@ -399,8 +422,7 @@ class MaterialSystem : IDisposable
 	{
 		// Create 1x1 depth texture for shadow comparison fallback
 		// Use DepthStencil to allow clearing, Sampled to allow sampling
-		var texDesc = TextureDesc.Texture2D(1, 1, .Depth32Float, .Sampled | .DepthStencil, 1);
-		texDesc.Label = "Depth1x1";
+		let texDesc = TextureDesc.Tex2D(.Depth32Float, 1, 1, .Sampled | .DepthStencil, label: "Depth1x1");
 
 		if (mDevice.CreateTexture(texDesc) case .Ok(let tex))
 			mDepthTexture = tex;
@@ -434,45 +456,47 @@ class MaterialSystem : IDisposable
 
 	private void ClearDepthTexture()
 	{
-		// Get a command encoder to clear the texture
-		if (let encoder = mDevice.CreateCommandEncoder())
+		// Create command pool + encoder to clear the depth texture
+		let poolResult = mDevice.CreateCommandPool(.Graphics);
+		if (poolResult case .Err) return;
+		var cmdPool = poolResult.Value;
+
+		let encResult = cmdPool.CreateEncoder();
+		if (encResult case .Err) { mDevice.DestroyCommandPool(ref cmdPool); return; }
+		var encoder = encResult.Value;
+
+		// Render pass that clears depth
+		var rpDesc = RenderPassDesc();
+		rpDesc.DepthStencilAttachment = DepthStencilAttachment()
 		{
-			// Create a render pass that clears depth
-			DepthStencilAttachment depthAttachment = .()
-			{
-				View = mDepthTextureView,
-				DepthLoadOp = .Clear,
-				DepthStoreOp = .Store,
-				DepthClearValue = 1.0f,
-				StencilLoadOp = .Clear,
-				StencilStoreOp = .Store,
-				StencilClearValue = 0
-			};
+			View = mDepthTextureView,
+			DepthLoadOp = .Clear,
+			DepthStoreOp = .Store,
+			DepthClearValue = 1.0f,
+			StencilLoadOp = .DontCare,
+			StencilStoreOp = .DontCare
+		};
 
-			RenderPassDesc rpDesc = .()
-			{
-				DepthStencilAttachment = depthAttachment
-			};
+		let rp = encoder.BeginRenderPass(rpDesc);
+		rp.End();
 
-			if (let pass = encoder.BeginRenderPass(&rpDesc))
-			{
-				pass.End();
-				delete pass;
-			}
+		// Transition to ShaderRead for sampling
+		var barrier = TextureBarrier()
+		{
+			Texture = mDepthTexture,
+			OldState = .DepthStencilWrite,
+			NewState = .ShaderRead
+		};
+		encoder.Barrier(BarrierGroup() { TextureBarriers = Span<TextureBarrier>(&barrier, 1) });
 
-			// Transition from DepthStencilAttachment to ShaderReadOnly for sampling
-			encoder.TextureBarrier(mDepthTexture, .DepthStencilAttachment, .ShaderReadOnly);
+		let cmdBuf = encoder.Finish();
+		ICommandBuffer[1] cmdBufs = .(cmdBuf);
+		mQueue.Submit(Span<ICommandBuffer>(&cmdBufs[0], 1));
+		mDevice.WaitIdle();
 
-			// Submit the command buffer
-			if (let cmdBuffer = encoder.Finish())
-			{
-				mDevice.Queue.Submit(cmdBuffer);
-				mDevice.WaitIdle(); // Wait for completion before continuing
-				delete cmdBuffer;
-			}
-
-			delete encoder;
-		}
+		cmdPool.Reset();
+		cmdPool.DestroyEncoder(ref encoder);
+		mDevice.DestroyCommandPool(ref cmdPool);
 	}
 
 	private int ComputeLayoutHash(Material material)
@@ -503,7 +527,7 @@ class MaterialSystem : IDisposable
 		// Create buffer if doesn't exist
 		if (!mUniformBuffers.TryGetValue(instance, out buffer))
 		{
-			BufferDesc bufDesc = .() { Size = material.UniformDataSize, Usage = .Uniform, Memory = .CpuToGpu };
+			let bufDesc = BufferDesc() { Size = (uint64)material.UniformDataSize, Usage = .Uniform, Memory = .CpuToGpu };
 			if (mDevice.CreateBuffer(bufDesc) case .Ok(let buf))
 			{
 				buffer = buf;
@@ -513,10 +537,17 @@ class MaterialSystem : IDisposable
 				return false;
 		}
 
-		// Upload uniform data
+		// Upload uniform data via mapped pointer
 		let data = instance.UniformData;
 		if (data.Length > 0)
-			mDevice.Queue.WriteMappedBuffer(buffer, 0, data);
+		{
+			let ptr = buffer.Map();
+			if (ptr != null)
+			{
+				Internal.MemCpy(ptr, data.Ptr, data.Length);
+				buffer.Unmap();
+			}
+		}
 
 		return true;
 	}
@@ -529,7 +560,7 @@ class MaterialSystem : IDisposable
 		// Add uniform buffer if present
 		if (mUniformBuffers.TryGetValue(instance, let buffer))
 		{
-			entries.Add(.Buffer(0, buffer, 0, material.UniformDataSize));
+			entries.Add(.Buffer(buffer, 0, (uint64)material.UniformDataSize));
 		}
 
 		// Add textures and samplers
@@ -556,7 +587,7 @@ class MaterialSystem : IDisposable
 				}
 
 				if (view != null)
-					entries.Add(.Texture((uint32)textureBinding, view));
+					entries.Add(.Texture(view));
 
 				textureBinding++;
 
@@ -566,7 +597,7 @@ class MaterialSystem : IDisposable
 					sampler = mDefaultSampler;
 
 				if (sampler != null)
-					entries.Add(.Sampler((uint32)samplerBinding, sampler));
+					entries.Add(.Sampler(sampler));
 
 				samplerBinding++;
 
@@ -589,7 +620,7 @@ class MaterialSystem : IDisposable
 
 		// Create new bind group
 		Span<BindGroupEntry> entriesSpan = .(entries.Ptr, entries.Count);
-		BindGroupDesc bgDesc = .(layout, entriesSpan);
+		let bgDesc = BindGroupDesc() { Layout = layout, Entries = entriesSpan };
 
 		if (mDevice.CreateBindGroup(bgDesc) case .Ok(let bg))
 		{

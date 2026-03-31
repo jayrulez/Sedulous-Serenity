@@ -1,93 +1,113 @@
-using System;
 namespace Sedulous.RHI;
 
-/// Texture layout for pipeline barriers.
-enum TextureLayout
-{
-	/// Undefined - contents may be discarded.
-	Undefined,
-	/// General layout - can be used for any operation but not optimal.
-	General,
-	/// Optimal for use as a color attachment in a render pass.
-	ColorAttachment,
-	/// Optimal for use as a depth/stencil attachment (read-write).
-	DepthStencilAttachment,
-	/// Optimal for read-only depth/stencil attachment that is also sampled in shaders.
-	DepthStencilReadOnly,
-	/// Optimal for reading in a shader (sampled image).
-	ShaderReadOnly,
-	/// Optimal for use as transfer source.
-	TransferSrc,
-	/// Optimal for use as transfer destination.
-	TransferDst,
-	/// Optimal for presentation.
-	Present
-}
+using System;
 
-/// Encodes commands to be submitted to the GPU.
+/// Records GPU commands, then finishes into an immutable ICommandBuffer.
+///
+/// Usage:
+/// ```
+/// let encoder = pool.CreateEncoder().Value;
+/// encoder.Barrier(barriers);
+/// let rp = encoder.BeginRenderPass(rpDesc);
+/// rp.SetPipeline(pipeline);
+/// rp.Draw(3);
+/// rp.End();
+/// let cmdBuf = encoder.Finish();
+/// queue.Submit(.(&cmdBuf, 1));
+/// ```
 interface ICommandEncoder
 {
-	/// Begins a render pass.
-	IRenderPassEncoder BeginRenderPass(RenderPassDesc* descriptor);
+	// ===== Render Pass =====
+
+	/// Begins a render pass. Returns an encoder for recording render commands.
+	/// Must call End() on the returned encoder before continuing with this encoder.
+	IRenderPassEncoder BeginRenderPass(RenderPassDesc desc);
+
+	// ===== Compute Pass =====
 
 	/// Begins a compute pass.
+	/// Must call End() on the returned encoder before continuing with this encoder.
 	IComputePassEncoder BeginComputePass(StringView label = default);
 
-	/// Copies data from one buffer to another.
-	void CopyBufferToBuffer(IBuffer source, uint64 sourceOffset, IBuffer destination, uint64 destinationOffset, uint64 size);
+	// ===== Barriers (outside passes) =====
+
+	/// Inserts pipeline barriers for resource state transitions.
+	void Barrier(BarrierGroup barriers);
+
+	/// Convenience: inserts a single texture state transition barrier.
+	void TransitionTexture(ITexture texture, ResourceState oldState, ResourceState newState)
+	{
+		if (oldState == newState) return;
+		var tb = Sedulous.RHI.TextureBarrier() { Texture = texture, OldState = oldState, NewState = newState };
+		Barrier(.() { TextureBarriers = .(&tb, 1) });
+	}
+
+	/// Convenience: inserts a single buffer state transition barrier.
+	void TransitionBuffer(IBuffer buffer, ResourceState oldState, ResourceState newState)
+	{
+		if (oldState == newState) return;
+		var bb = Sedulous.RHI.BufferBarrier() { Buffer = buffer, OldState = oldState, NewState = newState };
+		Barrier(.() { BufferBarriers = .(&bb, 1) });
+	}
+
+	// ===== Copy Operations (outside passes) =====
+
+	/// Copies data between buffers.
+	void CopyBufferToBuffer(IBuffer src, uint64 srcOffset, IBuffer dst, uint64 dstOffset, uint64 size);
 
 	/// Copies data from a buffer to a texture.
-	void CopyBufferToTexture(IBuffer source, ITexture destination, BufferTextureCopyInfo* copyInfo);
+	void CopyBufferToTexture(IBuffer src, ITexture dst, BufferTextureCopyRegion region);
 
 	/// Copies data from a texture to a buffer.
-	void CopyTextureToBuffer(ITexture source, IBuffer destination, BufferTextureCopyInfo* copyInfo);
+	void CopyTextureToBuffer(ITexture src, IBuffer dst, BufferTextureCopyRegion region);
 
-	/// Copies data from one texture to another.
-	void CopyTextureToTexture(ITexture source, ITexture destination, TextureCopyInfo* copyInfo);
+	/// Copies data between textures.
+	void CopyTextureToTexture(ITexture src, ITexture dst, TextureCopyRegion region);
 
-	/// Inserts a texture barrier to transition the texture layout.
-	/// This should be called between passes when a texture's usage changes
-	/// (e.g., from render target to shader input).
-	void TextureBarrier(ITexture texture, TextureLayout oldLayout, TextureLayout newLayout);
+	// ===== Blit & Mipmap Generation (outside passes) =====
 
-	/// Generates mipmaps for a texture by successively downsampling from mip level 0.
-	/// The texture must have been created with CopySrc and CopyDst usage flags,
-	/// and must have more than 1 mip level.
-	/// After this call, all mip levels will contain downsampled versions of level 0.
+	/// Blits (scaled copy with linear filtering) from source to destination texture.
+	/// Both textures must be in the appropriate transfer states (CopySrc / CopyDst).
+	/// Vulkan: uses vkCmdBlitImage. DX12: uses internal fullscreen blit pipeline.
+	void Blit(ITexture src, ITexture dst);
+
+	/// Generates mipmaps for a texture by blitting from mip 0 down to the smallest level.
+	/// The texture must be in CopySrc+CopyDst state and have been created with CopySrc | CopyDst usage.
+	/// Caller is responsible for barriers before and after.
 	void GenerateMipmaps(ITexture texture);
 
-	// ===== Queries =====
+	// ===== MSAA Resolve (outside passes) =====
 
-	/// Resets a range of queries in a query set.
-	/// Must be called before writing new query results.
-	void ResetQuerySet(IQuerySet querySet, uint32 firstQuery, uint32 queryCount);
+	/// Resolves a multisample texture to a single-sample texture.
+	/// Both textures must be in appropriate states (CopySrc / CopyDst).
+	void ResolveTexture(ITexture src, ITexture dst);
 
-	/// Writes a timestamp to the query set at the specified index.
-	/// Only valid for timestamp query sets.
-	void WriteTimestamp(IQuerySet querySet, uint32 queryIndex);
+	// ===== Queries (outside passes) =====
 
-	/// Begins an occlusion or pipeline statistics query.
-	/// Must be paired with EndQuery. Not valid for timestamp queries.
-	void BeginQuery(IQuerySet querySet, uint32 queryIndex);
+	/// Resets a range of queries. Must be called before writing new results.
+	void ResetQuerySet(IQuerySet querySet, uint32 first, uint32 count);
 
-	/// Ends an occlusion or pipeline statistics query.
-	/// Must be paired with BeginQuery. Not valid for timestamp queries.
-	void EndQuery(IQuerySet querySet, uint32 queryIndex);
+	/// Writes a GPU timestamp.
+	void WriteTimestamp(IQuerySet querySet, uint32 index);
 
-	/// Resolves query results to a buffer for readback.
-	/// This copies query results from GPU memory to a buffer that can be mapped.
-	void ResolveQuerySet(IQuerySet querySet, uint32 firstQuery, uint32 queryCount, IBuffer destination, uint64 destinationOffset);
+	/// Copies query results to a buffer for CPU readback.
+	void ResolveQuerySet(IQuerySet querySet, uint32 first, uint32 count,
+		IBuffer dst, uint64 dstOffset);
 
-	/// Resolves a multisampled texture to a non-multisampled texture.
-	/// Both textures must have compatible formats. The source must be multisampled,
-	/// and the destination must be single-sampled.
-	void ResolveTexture(ITexture source, ITexture destination);
+	// ===== Debug Markers =====
 
-	/// Blits (copies with potential format conversion and scaling) from one texture to another.
-	/// Unlike CopyTextureToTexture, this supports format conversion and filtering for scaling.
-	/// Uses linear filtering when the source and destination sizes differ.
-	void Blit(ITexture source, ITexture destination);
+	/// Begins a named debug region (visible in GPU debuggers like RenderDoc).
+	void BeginDebugLabel(StringView label, float r = 0, float g = 0, float b = 0, float a = 1);
 
-	/// Finishes recording and returns an immutable command buffer.
+	/// Ends the current debug region.
+	void EndDebugLabel();
+
+	/// Inserts a single debug marker point.
+	void InsertDebugLabel(StringView label, float r = 0, float g = 0, float b = 0, float a = 1);
+
+	// ===== Finish =====
+
+	/// Finishes recording. Returns an immutable command buffer for submission.
+	/// The encoder must not be used after this call.
 	ICommandBuffer Finish();
 }

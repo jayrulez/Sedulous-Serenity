@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.RHI" = "*", "Sedulous.Shell" = "*", "Sedulous.Profiler" = "*", "Sedulous.Runtime" = "*"}
+Dependencies = {corlib = "*", "Sedulous.RHI" = "*", "Sedulous.RHI.Validation" = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.RHI.DX12" = "*", "Sedulous.Shell" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Profiler" = "*", "Sedulous.Runtime" = "*", "Sedulous.Core.Mathematics" = "*"}
 
 [Project]
 Name = "Sedulous.Runtime.Client"

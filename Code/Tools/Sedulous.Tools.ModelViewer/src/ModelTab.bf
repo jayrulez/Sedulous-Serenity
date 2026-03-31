@@ -182,6 +182,10 @@ class ModelTab
 			World = null;
 		}
 
+		// Dispose viewport GPU resources before deleting UI
+		if (Viewport != null)
+			Viewport.Dispose();
+
 		// Clean up UI elements (ContentPanel owns all child UI as children)
 		// Note: ContentPanel must be removed from its parent before calling Destroy
 		if (ContentPanel != null)

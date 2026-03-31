@@ -1,5 +1,5 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Render" = "*", "Sedulous.Geometry" = "*", "Sedulous.Runtime.Client" = "*"}
+Dependencies = {corlib = "*", "Sedulous.Render" = "*", "Sedulous.Geometry" = "*", "Sedulous.Runtime.Client" = "*"}
 
 [Project]
 Name = "RenderDecals"

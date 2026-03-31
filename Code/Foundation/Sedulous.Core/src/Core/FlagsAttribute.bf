@@ -1,5 +1,5 @@
 using System;
-namespace Sedulous.Core.Core;
+namespace Sedulous.Core;
 
 struct FlagsAttribute : Attribute
 {

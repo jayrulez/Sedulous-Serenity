@@ -90,16 +90,16 @@ public class SlugTextRenderer : IDisposable
 		var uniforms = SlugUniforms.Ortho2D((float)viewportWidth, (float)viewportHeight, mDevice.FlipProjectionRequired);
 
 		let uniformData = Span<uint8>((uint8*)&uniforms, sizeof(SlugUniforms));
-		mDevice.Queue.WriteMappedBuffer(mUniformBuffers[frameIndex], 0, uniformData);
+		TransferHelper.WriteMappedBuffer(mUniformBuffers[frameIndex], 0, uniformData);
 
 		// Upload staged geometry
 		if (mVertices.Count > 0)
 		{
 			let vertexData = Span<uint8>((uint8*)mVertices.Ptr, mVertices.Count * sizeof(Vertex4U));
-			mDevice.Queue.WriteMappedBuffer(mVertexBuffers[frameIndex], 0, vertexData);
+			TransferHelper.WriteMappedBuffer(mVertexBuffers[frameIndex], 0, vertexData);
 
 			let indexData = Span<uint8>((uint8*)mTriangles.Ptr, mTriangles.Count * sizeof(Triangle16));
-			mDevice.Queue.WriteMappedBuffer(mIndexBuffers[frameIndex], 0, indexData);
+			TransferHelper.WriteMappedBuffer(mIndexBuffers[frameIndex], 0, indexData);
 		}
 	}
 
@@ -240,12 +240,12 @@ public class SlugTextRenderer : IDisposable
 		var curveLayout = TextureDataLayout() { BytesPerRow = (uint32)(cs.x * 8) };
 		curveLayout.BytesPerRow = ((curveLayout.BytesPerRow + 255) / 256) * 256;
 		var curveExtent = Extent3D((.)cs.x, (.)cs.y);
-		mDevice.Queue.WriteTextureSync(mCurveTexture, Span<uint8>(textureData.CurveTextureData), &curveLayout, &curveExtent);
+		TransferHelper.WriteTextureSync(mDevice.GetQueue(.Graphics), mDevice, mCurveTexture, Span<uint8>(textureData.CurveTextureData), curveLayout, curveExtent);
 
 		var bandLayout = TextureDataLayout() { BytesPerRow = (uint32)(bs.x * 8) };
 		bandLayout.BytesPerRow = ((bandLayout.BytesPerRow + 255) / 256) * 256;
 		var bandExtent = Extent3D((.)bs.x, (.)bs.y);
-		mDevice.Queue.WriteTextureSync(mBandTexture, Span<uint8>(textureData.BandTextureData), &bandLayout, &bandExtent);
+		TransferHelper.WriteTextureSync(mDevice.GetQueue(.Graphics), mDevice, mBandTexture, Span<uint8>(textureData.BandTextureData), bandLayout, bandExtent);
 
 		return .Ok;
 	}
@@ -308,7 +308,7 @@ public class SlugTextRenderer : IDisposable
 			Layout = mPipelineLayout,
 			Vertex = .() { Shader = .(mVertShader, "main"), Buffers = vtxBufs },
 			Fragment = .() { Shader = .(mFragShader, "main"), Targets = targets },
-			Primitive = .NoCull,
+			Primitive = .() { Topology = .TriangleList, CullMode = .None },
 			DepthStencil = null
 		};
 
@@ -361,9 +361,9 @@ public class SlugTextRenderer : IDisposable
 		for (int32 i = 0; i < mFrameCount; i++)
 		{
 			BindGroupEntry[3] entries = .(
-				.Buffer(0, mUniformBuffers[i]),
-				.Texture(0, mCurveTextureView),
-				.Texture(1, mBandTextureView)
+				.Buffer(mUniformBuffers[i], 0, 0),
+				.Texture(mCurveTextureView),
+				.Texture(mBandTextureView)
 			);
 			switch (mDevice.CreateBindGroup(.(mBindGroupLayout, entries)))
 			{
@@ -381,47 +381,56 @@ public class SlugTextRenderer : IDisposable
 	{
 		mInitialized = false;
 
-		// Per-frame bind groups (reference uniform buffers + textures)
-		DeleteArray(ref mBindGroups);
+		// Per-frame bind groups
+		if (mBindGroups != null)
+		{
+			for (var bg in ref mBindGroups)
+				if (bg != null) mDevice.DestroyBindGroup(ref bg);
+			delete mBindGroups;
+			mBindGroups = null;
+		}
 
 		// Per-frame buffers
-		DeleteArray(ref mVertexBuffers);
-		DeleteArray(ref mIndexBuffers);
-		DeleteArray(ref mUniformBuffers);
+		if (mVertexBuffers != null)
+		{
+			for (var buf in ref mVertexBuffers)
+				if (buf != null) mDevice.DestroyBuffer(ref buf);
+			delete mVertexBuffers;
+			mVertexBuffers = null;
+		}
+		if (mIndexBuffers != null)
+		{
+			for (var buf in ref mIndexBuffers)
+				if (buf != null) mDevice.DestroyBuffer(ref buf);
+			delete mIndexBuffers;
+			mIndexBuffers = null;
+		}
+		if (mUniformBuffers != null)
+		{
+			for (var buf in ref mUniformBuffers)
+				if (buf != null) mDevice.DestroyBuffer(ref buf);
+			delete mUniformBuffers;
+			mUniformBuffers = null;
+		}
 
-		// Pipeline (references layout and shaders)
-		if (mPipeline != null) { delete mPipeline; mPipeline = null; }
-		if (mPipelineLayout != null) { delete mPipelineLayout; mPipelineLayout = null; }
+		// Pipeline
+		if (mPipeline != null) mDevice.DestroyRenderPipeline(ref mPipeline);
+		if (mPipelineLayout != null) mDevice.DestroyPipelineLayout(ref mPipelineLayout);
+		if (mBindGroupLayout != null) mDevice.DestroyBindGroupLayout(ref mBindGroupLayout);
 
-		// Layout
-		if (mBindGroupLayout != null) { delete mBindGroupLayout; mBindGroupLayout = null; }
-
-		// Shaders (only delete if we own them; ShaderSystem cache owns them when loaded via GetShaderPair)
+		// Shaders (only destroy if we own them)
 		if (mOwnsShaders)
 		{
-			if (mVertShader != null) { delete mVertShader; mVertShader = null; }
-			if (mFragShader != null) { delete mFragShader; mFragShader = null; }
+			if (mVertShader != null) mDevice.DestroyShaderModule(ref mVertShader);
+			if (mFragShader != null) mDevice.DestroyShaderModule(ref mFragShader);
 		}
 		mVertShader = null;
 		mFragShader = null;
 
-		// Texture views (reference textures)
-		if (mCurveTextureView != null) { delete mCurveTextureView; mCurveTextureView = null; }
-		if (mBandTextureView != null) { delete mBandTextureView; mBandTextureView = null; }
-
-		// Textures (last — views must be deleted first)
-		if (mCurveTexture != null) { delete mCurveTexture; mCurveTexture = null; }
-		if (mBandTexture != null) { delete mBandTexture; mBandTexture = null; }
-	}
-
-	private static void DeleteArray<T>(ref T[] arr) where T : delete
-	{
-		if (arr != null)
-		{
-			for (let item in arr)
-				if (item != null) delete item;
-			delete arr;
-			arr = null;
-		}
+		// Texture views then textures
+		if (mCurveTextureView != null) mDevice.DestroyTextureView(ref mCurveTextureView);
+		if (mBandTextureView != null) mDevice.DestroyTextureView(ref mBandTextureView);
+		if (mCurveTexture != null) mDevice.DestroyTexture(ref mCurveTexture);
+		if (mBandTexture != null) mDevice.DestroyTexture(ref mBandTexture);
 	}
 }

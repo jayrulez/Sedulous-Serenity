@@ -1,6 +1,6 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Core" = "*", "Sedulous.Core.Mathematics" = "*", "Sedulous.Core.Logging" = "*"}
 
 [Project]
 Name = "Sedulous.RHI"
 TargetType = "BeefLib"
+StartupObject = "Sedulous.RHI.Program"

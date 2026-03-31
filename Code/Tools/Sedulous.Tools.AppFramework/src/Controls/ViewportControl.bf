@@ -47,10 +47,10 @@ public class ViewportControl : Control
 	private ViewportImageRef mImageRef ~ delete _;
 
 	// Render target resources
-	private Sedulous.RHI.ITexture mColorTexture ~ delete _;
-	private ITextureView mColorTextureView ~ delete _;
-	private Sedulous.RHI.ITexture mDepthTexture ~ delete _;
-	private ITextureView mDepthTextureView ~ delete _;
+	private Sedulous.RHI.ITexture mColorTexture;
+	private ITextureView mColorTextureView;
+	private Sedulous.RHI.ITexture mDepthTexture;
+	private ITextureView mDepthTextureView;
 
 	// Current size
 	private uint32 mTextureWidth = 0;
@@ -174,10 +174,10 @@ public class ViewportControl : Control
 		}
 
 		// Clean up existing resources
-		if (mDepthTextureView != null) { delete mDepthTextureView; mDepthTextureView = null; }
-		if (mDepthTexture != null) { delete mDepthTexture; mDepthTexture = null; }
-		if (mColorTextureView != null) { delete mColorTextureView; mColorTextureView = null; }
-		if (mColorTexture != null) { delete mColorTexture; mColorTexture = null; }
+		if (mDepthTextureView != null) mDevice.DestroyTextureView(ref mDepthTextureView);
+		if (mDepthTexture != null) mDevice.DestroyTexture(ref mDepthTexture);
+		if (mColorTextureView != null) mDevice.DestroyTextureView(ref mColorTextureView);
+		if (mColorTexture != null) mDevice.DestroyTexture(ref mColorTexture);
 
 		mTextureWidth = width;
 		mTextureHeight = height;
@@ -244,5 +244,13 @@ public class ViewportControl : Control
 		// Capture focus for keyboard input
 		if (IsFocusable)
 			Context?.FocusManager?.SetFocus(this);
+	}
+
+	public void Dispose()
+	{
+		if (mDepthTextureView != null) mDevice.DestroyTextureView(ref mDepthTextureView);
+		if (mDepthTexture != null) mDevice.DestroyTexture(ref mDepthTexture);
+		if (mColorTextureView != null) mDevice.DestroyTextureView(ref mColorTextureView);
+		if (mColorTexture != null) mDevice.DestroyTexture(ref mColorTexture);
 	}
 }

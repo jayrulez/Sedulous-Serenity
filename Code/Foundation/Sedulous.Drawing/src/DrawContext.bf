@@ -149,13 +149,17 @@ public class DrawContext
 		// Transform clip rect if needed
 		let transformedRect = TransformRect(rect);
 
-		if (mCurrentState.ClipRect.Width > 0 && mCurrentState.ClipRect.Height > 0)
+		if (mCurrentState.ClipMode == .Scissor)
 		{
-			// Intersect with existing clip
+			// Already clipping -> intersect with existing clip (even if empty,
+			// to propagate the "fully clipped" state to child views).
+			if (mCurrentState.ClipRect.Width > 0 && mCurrentState.ClipRect.Height > 0)
 			mCurrentState.ClipRect = RectangleF.Intersect(mCurrentState.ClipRect, transformedRect);
+			// else: existing clip is empty ? keep it empty (everything is clipped)
 		}
 		else
 		{
+			// No active clip -> set this as the initial clip
 			mCurrentState.ClipRect = transformedRect;
 		}
 		mCurrentState.ClipMode = .Scissor;

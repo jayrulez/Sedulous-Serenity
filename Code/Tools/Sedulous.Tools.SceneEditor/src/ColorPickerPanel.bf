@@ -3,7 +3,7 @@ namespace Sedulous.Tools.SceneEditor;
 using System;
 using Sedulous.Core.Mathematics;
 using Sedulous.Drawing;
-using Sedulous.Core.Core;
+using Sedulous.Core;
 using Sedulous.GUI;
 
 /// HSV color picker with a saturation/value square and a hue bar.

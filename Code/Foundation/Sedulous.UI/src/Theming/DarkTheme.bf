@@ -1,89 +1,117 @@
+namespace Sedulous.UI;
+
 using System;
 using Sedulous.Core.Mathematics;
 
-namespace Sedulous.UI;
-
-/// A dark theme for the UI framework.
-public class DarkTheme : Theme
+/// Factory for the default dark theme.
+public static class DarkTheme
 {
-	public this()
+	public static Theme Create()
 	{
-		InitializeColors();
-		InitializeStyles();
-	}
+		let theme = new Theme();
+		theme.Name = new String("Dark");
+		theme.Palette = Palette.Dark;
 
-	private void InitializeColors()
-	{
-		// Primary colors (blue accent)
-		SetColor("Primary", .(0, 120, 215));
-		SetColor("PrimaryLight", .(51, 153, 255));
-		SetColor("PrimaryDark", .(0, 84, 153));
+		let p = theme.Palette;
 
-		// Secondary colors
-		SetColor("Secondary", .(90, 100, 115));
-		SetColor("SecondaryLight", .(120, 130, 145));
-		SetColor("SecondaryDark", .(60, 70, 85));
+		// Button
+		theme.SetColor("Button", "background", p.Primary);
+		theme.SetColor("Button", "text", p.Text);
+		theme.SetDimension("Button", "cornerRadius", 4);
 
-		// Background colors (dark)
-		SetColor("Background", .(30, 30, 30));
-		SetColor("BackgroundAlt", .(45, 45, 45));
-		SetColor("BackgroundDark", .(20, 20, 20));
-		SetColor("Surface", .(45, 45, 50)); // Popup/menu surface
+		// ToggleButton
+		theme.SetColor("ToggleButton", "background", p.Primary);
+		theme.SetColor("ToggleButton", "checkedBackground", p.Accent);
+		theme.SetColor("ToggleButton", "text", p.Text);
+		theme.SetDimension("ToggleButton", "cornerRadius", 4);
 
-		// Foreground colors (light text on dark)
-		SetColor("Foreground", .(240, 240, 240));
-		SetColor("ForegroundSecondary", .(180, 180, 180));
-		SetColor("ForegroundDisabled", .(100, 100, 100));
+		// CheckBox
+		theme.SetColor("CheckBox", "boxBackground", .(0.15f, 0.15f, 0.2f, 1.0f));
+		theme.SetColor("CheckBox", "boxBorder", p.Border);
+		theme.SetColor("CheckBox", "checkColor", p.Accent);
+		theme.SetColor("CheckBox", "text", p.Text);
+		theme.SetDimension("CheckBox", "cornerRadius", 3);
 
-		// Border colors
-		SetColor("Border", .(70, 70, 70));
-		SetColor("BorderLight", .(90, 90, 90));
-		SetColor("BorderDark", .(50, 50, 50));
-		SetColor("BorderFocused", .(0, 120, 215));
+		// RadioButton
+		theme.SetColor("RadioButton", "circleBackground", .(0.15f, 0.15f, 0.2f, 1.0f));
+		theme.SetColor("RadioButton", "circleBorder", p.Border);
+		theme.SetColor("RadioButton", "dotColor", p.Accent);
+		theme.SetColor("RadioButton", "text", p.Text);
 
-		// State colors
-		SetColor("Hover", .(55, 55, 55));
-		SetColor("PrimaryHover", .(60, 80, 120)); // Menu item hover
-		SetColor("Pressed", .(65, 65, 65));
-		SetColor("Selected", .(0, 90, 158));
-		SetColor("Disabled", .(40, 40, 40));
+		// Slider
+		theme.SetColor("Slider", "track", .(0.2f, 0.2f, 0.25f, 1.0f));
+		theme.SetColor("Slider", "fill", p.Accent);
+		theme.SetColor("Slider", "thumb", .(0.85f, 0.85f, 0.9f, 1.0f));
+		theme.SetColor("Slider", "thumbHover", .(0.95f, 0.95f, 1.0f, 1.0f));
 
-		// Accent colors
-		SetColor("Success", .(46, 160, 67));
-		SetColor("Warning", .(255, 185, 0));
-		SetColor("Error", .(248, 81, 73));
-		SetColor("Info", .(88, 166, 255));
+		// ProgressBar
+		theme.SetColor("ProgressBar", "track", .(0.2f, 0.2f, 0.25f, 1.0f));
+		theme.SetColor("ProgressBar", "fill", p.Accent);
+		theme.SetDimension("ProgressBar", "height", 6);
 
-		// Splitter colors
-		SetColor("SplitterBackground", .(60, 60, 60));
-		SetColor("SplitterHover", .(80, 80, 80));
-		SetColor("SplitterDragging", .(0, 120, 215));
+		// Panel
+		theme.SetColor("Panel", "background", p.Surface);
+		theme.SetColor("Panel", "border", p.Border);
 
-		// ListBox colors
-		SetColor("ListItemHover", .(55, 55, 55));
-		SetColor("ListItemSelected", .(0, 90, 158));
+		// Separator
+		theme.SetColor("Separator", "color", p.Border);
 
-		// Tooltip colors
-		SetColor("TooltipBackground", .(60, 60, 65));
-		SetColor("TooltipBorder", .(100, 100, 100));
-		SetColor("TooltipForeground", .(240, 240, 240));
+		// EditText
+		theme.SetColor("EditText", "background", .(0.12f, 0.12f, 0.15f, 1.0f));
+		theme.SetColor("EditText", "border", p.Border);
+		theme.SetColor("EditText", "focusBorder", p.Accent);
+		theme.SetColor("EditText", "selection", .(0.3f, 0.5f, 0.9f, 0.4f));
+		theme.SetColor("EditText", "cursor", p.Text);
+		theme.SetColor("EditText", "hint", .(0.5f, 0.5f, 0.55f, 1.0f));
+		theme.SetColor("EditText", "text", p.Text);
+		theme.SetDimension("EditText", "cornerRadius", 4);
 
-		// Dialog colors
-		SetColor("DialogTitleBar", .(50, 50, 55));
-		SetColor("DialogTitleText", .(240, 240, 240));
+		// ScrollBar
+		theme.SetColor("ScrollBar", "track", .(0.15f, 0.15f, 0.2f, 0.5f));
+		theme.SetColor("ScrollBar", "thumb", .(0.4f, 0.4f, 0.5f, 0.8f));
+		theme.SetColor("ScrollBar", "thumbHover", .(0.5f, 0.5f, 0.6f, 0.9f));
+		theme.SetColor("ScrollBar", "thumbDrag", .(0.55f, 0.55f, 0.7f, 1.0f));
 
-		// Dockable panel colors
-		SetColor("DockPanelHeader", .(50, 50, 55));
-		SetColor("DockZonePreview", .(0, 120, 215, 80));
+		// Focus
+		theme.SetColor("Focus", "borderColor", .(1.0f, 1.0f, 1.0f, 0.7f));
 
-		// TextBox colors
-		SetColor("TextBoxBackground", .(50, 50, 55));
-		SetColor("TextBoxBorder", .(70, 70, 70));
-		SetColor("TextBoxBorderFocused", .(0, 120, 215));
-	}
+		// Dialog
+		theme.SetColor("Dialog", "background", .(0.18f, 0.18f, 0.22f, 1.0f));
+		theme.SetColor("Dialog", "border", p.Border);
+		theme.SetColor("Dialog", "titleText", p.Text);
+		theme.SetDimension("Dialog", "cornerRadius", 8);
 
-	private void InitializeStyles()
-	{
-		// Styles for specific controls can be added here
+		// ContextMenu
+		theme.SetColor("ContextMenu", "background", .(0.18f, 0.18f, 0.22f, 0.97f));
+		theme.SetColor("ContextMenu", "border", p.Border);
+		theme.SetColor("ContextMenu", "hoverBackground", p.Accent);
+		theme.SetColor("ContextMenu", "text", p.Text);
+		theme.SetColor("ContextMenu", "disabledText", .(0.45f, 0.45f, 0.5f, 1.0f));
+		theme.SetColor("ContextMenu", "separator", .(0.35f, 0.35f, 0.4f, 0.6f));
+		theme.SetDimension("ContextMenu", "cornerRadius", 4);
+
+		// PopupWindow
+		theme.SetColor("PopupWindow", "background", .(0.18f, 0.18f, 0.22f, 0.97f));
+		theme.SetColor("PopupWindow", "border", p.Border);
+		theme.SetDimension("PopupWindow", "cornerRadius", 4);
+
+		// Tooltip
+		theme.SetColor("Tooltip", "background", .(0.12f, 0.12f, 0.15f, 0.95f));
+		theme.SetColor("Tooltip", "border", .(0.35f, 0.35f, 0.4f, 0.8f));
+		theme.SetColor("Tooltip", "text", p.Text);
+		theme.SetDimension("Tooltip", "cornerRadius", 3);
+
+		// ModalBackdrop
+		theme.SetColor("ModalBackdrop", "dimColor", .(0.0f, 0.0f, 0.0f, 0.4f));
+
+		// TreeView
+		theme.SetString("TreeView", "expandedSymbol", "- ");
+		theme.SetString("TreeView", "collapsedSymbol", "+ ");
+		theme.SetString("TreeView", "leafPrefix", "  ");
+
+		// Apply registered extensions from external libraries
+		Theme.ApplyRegisteredExtensions(theme);
+
+		return theme;
 	}
 }

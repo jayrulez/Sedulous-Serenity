@@ -39,16 +39,16 @@ public class BloomEffect : IPostProcessEffect
 	private IDevice mDevice;
 
 	// Pipelines
-	private IRenderPipeline mDownsamplePipeline ~ delete _;
-	private IPipelineLayout mDownsamplePipelineLayout ~ delete _;
-	private IBindGroupLayout mDownsampleBindGroupLayout ~ delete _;
+	private IRenderPipeline mDownsamplePipeline;
+	private IPipelineLayout mDownsamplePipelineLayout;
+	private IBindGroupLayout mDownsampleBindGroupLayout;
 
-	private IRenderPipeline mUpsamplePipeline ~ delete _;
-	private IPipelineLayout mUpsamplePipelineLayout ~ delete _;
-	private IBindGroupLayout mUpsampleBindGroupLayout ~ delete _;
+	private IRenderPipeline mUpsamplePipeline;
+	private IPipelineLayout mUpsamplePipelineLayout;
+	private IBindGroupLayout mUpsampleBindGroupLayout;
 
 	// Shared sampler
-	private ISampler mLinearSampler ~ delete _;
+	private ISampler mLinearSampler;
 
 	// Per-pass param buffers (downsample: MipCount, upsample: MipCount)
 	private IBuffer[MipCount] mDownsampleParamBuffers;
@@ -246,23 +246,31 @@ public class BloomEffect : IPostProcessEffect
 	{
 		for (int i = 0; i < MipCount; i++)
 		{
-			if (mDownsampleParamBuffers[i] != null) { delete mDownsampleParamBuffers[i]; mDownsampleParamBuffers[i] = null; }
-			if (mUpsampleParamBuffers[i] != null) { delete mUpsampleParamBuffers[i]; mUpsampleParamBuffers[i] = null; }
+			if (mDownsampleParamBuffers[i] != null) mDevice.DestroyBuffer(ref mDownsampleParamBuffers[i]);
+			if (mUpsampleParamBuffers[i] != null) mDevice.DestroyBuffer(ref mUpsampleParamBuffers[i]);
 		}
 
 		for (int i = 0; i < MipCount * RenderConfig.FrameBufferCount; i++)
 		{
-			if (mDownsampleBindGroups[i] != null) { delete mDownsampleBindGroups[i]; mDownsampleBindGroups[i] = null; }
-			if (mUpsampleBindGroups[i] != null) { delete mUpsampleBindGroups[i]; mUpsampleBindGroups[i] = null; }
+			if (mDownsampleBindGroups[i] != null) mDevice.DestroyBindGroup(ref mDownsampleBindGroups[i]);
+			if (mUpsampleBindGroups[i] != null) mDevice.DestroyBindGroup(ref mUpsampleBindGroups[i]);
 		}
+
+		if (mDownsamplePipeline != null) mDevice.DestroyRenderPipeline(ref mDownsamplePipeline);
+		if (mDownsamplePipelineLayout != null) mDevice.DestroyPipelineLayout(ref mDownsamplePipelineLayout);
+		if (mDownsampleBindGroupLayout != null) mDevice.DestroyBindGroupLayout(ref mDownsampleBindGroupLayout);
+		if (mUpsamplePipeline != null) mDevice.DestroyRenderPipeline(ref mUpsamplePipeline);
+		if (mUpsamplePipelineLayout != null) mDevice.DestroyPipelineLayout(ref mUpsamplePipelineLayout);
+		if (mUpsampleBindGroupLayout != null) mDevice.DestroyBindGroupLayout(ref mUpsampleBindGroupLayout);
+		if (mLinearSampler != null) mDevice.DestroySampler(ref mLinearSampler);
 	}
 
 	public void AddPasses(
 		RenderGraph graph,
-		RenderView view,
-		RGResourceHandle inputHandle,
-		RGResourceHandle outputHandle,
-		RGResourceHandle depthHandle)
+		ViewContext view,
+		RGHandle inputHandle,
+		RGHandle outputHandle,
+		RGHandle depthHandle)
 	{
 		if (mDownsamplePipeline == null || mUpsamplePipeline == null)
 			return;
@@ -292,12 +300,12 @@ public class BloomEffect : IPostProcessEffect
 		}
 
 		// Create transient textures for downsample mip chain
-		RGResourceHandle[MipCount] mipHandles = default;
+		RGHandle[MipCount] mipHandles = default;
 		for (int32 i = 0; i < MipCount; i++)
 		{
-			let desc = TextureResourceDesc(mipWidths[i], mipHeights[i], .RGBA16Float, .RenderTarget | .Sampled);
+			let desc = RGTextureDesc(.RGBA16Float, mipWidths[i], mipHeights[i]) { Usage = .RenderTarget | .Sampled };
 			let name = scope String()..AppendF("BloomMip{}", i);
-			mipHandles[i] = graph.CreateTexture(name, desc);
+			mipHandles[i] = graph.CreateTransient(name, desc);
 		}
 
 		// ---- Downsample chain ----
@@ -317,24 +325,25 @@ public class BloomEffect : IPostProcessEffect
 			dsParams.TexelSizeY = 1.0f / srcH;
 			dsParams.IsFirstPass = (i == 0) ? 1.0f : 0.0f;
 
-			mDevice.Queue.WriteMappedBuffer(
+			TransferHelper.WriteMappedBuffer(
 				mDownsampleParamBuffers[i], 0,
 				Span<uint8>((uint8*)&dsParams, BloomDownsampleParams.Size)
 			);
 
 			RenderGraph graphRef = graph;
-			RGResourceHandle srcCopy = source;
+			RGHandle srcCopy = source;
 			int32 mipIndex = i;
 			uint32 mw = mipWidths[i];
 			uint32 mh = mipHeights[i];
 
-			graph.AddGraphicsPass(scope String()..AppendF("Bloom_Down{}", i))
-				.ReadTexture(source)
-				.WriteColor(target, .DontCare, .Store)
-				.NeverCull()
-				.SetExecuteCallback(new [=] (encoder) => {
-					let srcView = graphRef.GetTextureView(srcCopy);
-					ExecuteDownsamplePass(encoder, srcView, mipIndex, mw, mh);
+			graph.AddRenderPass(scope String()..AppendF("Bloom_Down{}", i), scope (builder) => {
+					builder.ReadTexture(source);
+					builder.SetColorTarget(0, target, .DontCare, .Store);
+					builder.NeverCull();
+					builder.SetExecute(new [=] (encoder) => {
+						let srcView = graphRef.GetTextureView(srcCopy);
+						ExecuteDownsamplePass(encoder, srcView, mipIndex, mw, mh);
+					});
 				});
 
 			srcW = (float)mipWidths[i];
@@ -351,7 +360,7 @@ public class BloomEffect : IPostProcessEffect
 		// Pass i=4: upsample upsample[3]     + blend with input   → outputHandle (at full resolution)
 
 		// Create upsample targets sized to match their output resolution
-		RGResourceHandle[MipCount] upsampleHandles = default;
+		RGHandle[MipCount] upsampleHandles = default;
 		for (int32 i = 0; i < MipCount; i++)
 		{
 			int32 targetLevel = (int32)(MipCount - 2) - i; // 3, 2, 1, 0, -1
@@ -366,9 +375,9 @@ public class BloomEffect : IPostProcessEffect
 				uw = view.Width;
 				uh = view.Height;
 			}
-			let desc = TextureResourceDesc(uw, uh, .RGBA16Float, .RenderTarget | .Sampled);
+			let desc = RGTextureDesc(.RGBA16Float, uw, uh) { Usage = .RenderTarget | .Sampled };
 			let name = scope String()..AppendF("BloomUp{}", i);
-			upsampleHandles[i] = graph.CreateTexture(name, desc);
+			upsampleHandles[i] = graph.CreateTransient(name, desc);
 		}
 
 		for (int32 i = 0; i < MipCount; i++)
@@ -376,7 +385,7 @@ public class BloomEffect : IPostProcessEffect
 			int32 targetLevel = (int32)(MipCount - 2) - i; // 3, 2, 1, 0, -1
 
 			// Bloom source: smallest mip for first pass, previous upsample result for rest
-			RGResourceHandle currentBloom;
+			RGHandle currentBloom;
 			float bloomTexelW, bloomTexelH;
 			if (i == 0)
 			{
@@ -402,9 +411,9 @@ public class BloomEffect : IPostProcessEffect
 			}
 
 			// Blend target: the higher-res mip, or original input for final pass
-			RGResourceHandle blendTarget;
+			RGHandle blendTarget;
 			uint32 targetW, targetH;
-			RGResourceHandle writeTarget;
+			RGHandle writeTarget;
 
 			if (targetLevel >= 0)
 			{
@@ -426,27 +435,28 @@ public class BloomEffect : IPostProcessEffect
 			usParams.TexelSizeX = bloomTexelW;
 			usParams.TexelSizeY = bloomTexelH;
 
-			mDevice.Queue.WriteMappedBuffer(
+			TransferHelper.WriteMappedBuffer(
 				mUpsampleParamBuffers[i], 0,
 				Span<uint8>((uint8*)&usParams, BloomUpsampleParams.Size)
 			);
 
 			RenderGraph graphRef = graph;
-			RGResourceHandle bloomCopy = currentBloom;
-			RGResourceHandle blendCopy = blendTarget;
+			RGHandle bloomCopy = currentBloom;
+			RGHandle blendCopy = blendTarget;
 			int32 passIndex = i;
 			uint32 tw = targetW;
 			uint32 th = targetH;
 
-			graph.AddGraphicsPass(scope String()..AppendF("Bloom_Up{}", i))
-				.ReadTexture(currentBloom)
-				.ReadTexture(blendTarget)
-				.WriteColor(writeTarget, .DontCare, .Store)
-				.NeverCull()
-				.SetExecuteCallback(new [=] (encoder) => {
-					let bloomView = graphRef.GetTextureView(bloomCopy);
-					let blendView = graphRef.GetTextureView(blendCopy);
-					ExecuteUpsamplePass(encoder, bloomView, blendView, passIndex, tw, th);
+			graph.AddRenderPass(scope String()..AppendF("Bloom_Up{}", i), scope (builder) => {
+					builder.ReadTexture(currentBloom);
+					builder.ReadTexture(blendTarget);
+					builder.SetColorTarget(0, writeTarget, .DontCare, .Store);
+					builder.NeverCull();
+					builder.SetExecute(new [=] (encoder) => {
+						let bloomView = graphRef.GetTextureView(bloomCopy);
+						let blendView = graphRef.GetTextureView(blendCopy);
+						ExecuteUpsamplePass(encoder, bloomView, blendView, passIndex, tw, th);
+					});
 				});
 		}
 	}
@@ -462,14 +472,13 @@ public class BloomEffect : IPostProcessEffect
 		// Recreate bind group
 		if (mDownsampleBindGroups[bgIndex] != null)
 		{
-			delete mDownsampleBindGroups[bgIndex];
-			mDownsampleBindGroups[bgIndex] = null;
+			mDevice.DestroyBindGroup(ref mDownsampleBindGroups[bgIndex]);
 		}
 
 		BindGroupEntry[3] entries = .(
-			BindGroupEntry.Buffer(0, mDownsampleParamBuffers[mipIndex], 0, (uint64)BloomDownsampleParams.Size),
-			BindGroupEntry.Texture(0, sourceView),
-			BindGroupEntry.Sampler(0, mLinearSampler)
+			BindGroupEntry.Buffer(/*0,*/mDownsampleParamBuffers[mipIndex], 0, (uint64)BloomDownsampleParams.Size),
+			BindGroupEntry.Texture(/*0,*/sourceView),
+			BindGroupEntry.Sampler(/*0,*/mLinearSampler)
 		);
 
 		BindGroupDesc bgDesc = .();
@@ -505,15 +514,14 @@ public class BloomEffect : IPostProcessEffect
 		// Recreate bind group
 		if (mUpsampleBindGroups[bgIndex] != null)
 		{
-			delete mUpsampleBindGroups[bgIndex];
-			mUpsampleBindGroups[bgIndex] = null;
+			mDevice.DestroyBindGroup(ref mUpsampleBindGroups[bgIndex]);
 		}
 
 		BindGroupEntry[4] entries = .(
-			BindGroupEntry.Buffer(0, mUpsampleParamBuffers[passIndex], 0, (uint64)BloomUpsampleParams.Size),
-			BindGroupEntry.Texture(0, bloomView),
-			BindGroupEntry.Texture(1, blendView),
-			BindGroupEntry.Sampler(0, mLinearSampler)
+			BindGroupEntry.Buffer(/*0,*/mUpsampleParamBuffers[passIndex], 0, (uint64)BloomUpsampleParams.Size),
+			BindGroupEntry.Texture(/*0,*/bloomView),
+			BindGroupEntry.Texture(/*1,*/blendView),
+			BindGroupEntry.Sampler(/*0,*/mLinearSampler)
 		);
 
 		BindGroupDesc bgDesc = .();

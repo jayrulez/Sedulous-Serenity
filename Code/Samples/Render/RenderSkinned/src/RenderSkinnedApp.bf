@@ -4,7 +4,6 @@ using System;
 using System.Collections;
 using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
-using Sedulous.Shell;
 using Sedulous.Runtime.Client;
 using Sedulous.Render;
 using Sedulous.Geometry;
@@ -14,18 +13,18 @@ using Sedulous.Models;
 using Sedulous.Models.GLTF;
 using Sedulous.Imaging;
 using Sedulous.Animation;
+using Sedulous.Textures;
 
 /// Skeletal animation sample demonstrating GLTF skinned mesh loading,
 /// bone animation playback, and animation cycling via the Sedulous.Render pipeline.
 class RenderSkinnedApp : Application
 {
 	// Render system
-	private RenderSystem mRenderSystem ~ delete _;
-	private RenderWorld mWorld ~ delete _;
-	private RenderView mView ~ delete _;
+	private RenderSystem mRenderSystem;
+	private RenderWorld mWorld;
+	private RenderView mView;
 
 	// Render features
-	private GPUSkinningFeature mSkinningFeature;
 	private DepthPrepassFeature mDepthFeature;
 	private ForwardOpaqueFeature mForwardFeature;
 	private SkyFeature mSkyFeature;
@@ -60,17 +59,14 @@ class RenderSkinnedApp : Application
 	private const float MoveSpeed = 50.0f;
 	private const float LookSpeed = 0.003f;
 
-	public this(IShell shell, IDevice device, IBackend backend)
-		: base(shell, device, backend)
-	{
-	}
+	public this() : base() { }
 
 	protected override void OnInitialize(Sedulous.Runtime.Context context)
 	{
 		Sedulous.Imaging.SDL.SDLImageLoader.Initialize();
 
 		mRenderSystem = new RenderSystem();
-		if (mRenderSystem.Initialize(mDevice, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null, .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
+		if (mRenderSystem.Initialize(mDevice, mSwapChain.Width, mSwapChain.Height, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null, .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
 		{
 			Console.WriteLine("ERROR: Failed to initialize RenderSystem");
 			return;
@@ -103,10 +99,6 @@ class RenderSkinnedApp : Application
 
 	private void RegisterFeatures()
 	{
-		mSkinningFeature = new GPUSkinningFeature();
-		if (mRenderSystem.RegisterFeature(mSkinningFeature) case .Err)
-			Console.WriteLine("Warning: Failed to register GPUSkinningFeature");
-
 		mDepthFeature = new DepthPrepassFeature();
 		if (mRenderSystem.RegisterFeature(mDepthFeature) case .Err)
 			Console.WriteLine("Warning: Failed to register DepthPrepassFeature");
@@ -362,6 +354,11 @@ class RenderSkinnedApp : Application
 		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
 	}
 
+	protected override void OnResize(int32 width, int32 height)
+	{
+		mRenderSystem?.SetViewportSize((uint32)width, (uint32)height);
+	}
+
 	protected override bool OnRenderFrame(RenderContext render)
 	{
 		mRenderSystem.BeginFrame((float)render.Frame.TotalTime, (float)render.Frame.DeltaTime);
@@ -385,17 +382,24 @@ class RenderSkinnedApp : Application
 
 	protected override void OnShutdown()
 	{
-		if (mMeshHandle.IsValid)
-			mRenderSystem.ResourceManager.ReleaseMesh(mMeshHandle, mRenderSystem.FrameNumber);
-		if (mBoneBufferHandle.IsValid)
-			mRenderSystem.ResourceManager.ReleaseBoneBuffer(mBoneBufferHandle, mRenderSystem.FrameNumber);
-		if (mTextureHandle.IsValid)
-			mRenderSystem.ResourceManager.ReleaseTexture(mTextureHandle, mRenderSystem.FrameNumber);
-		if (mFloorMeshHandle.IsValid)
-			mRenderSystem.ResourceManager.ReleaseMesh(mFloorMeshHandle, mRenderSystem.FrameNumber);
+		mWorld?.Dispose();
 
 		if (mRenderSystem != null)
-			mRenderSystem.Shutdown();
+		{
+			if (mMeshHandle.IsValid)
+				mRenderSystem.ResourceManager.ReleaseMesh(mMeshHandle, mRenderSystem.FrameNumber);
+			if (mBoneBufferHandle.IsValid)
+				mRenderSystem.ResourceManager.ReleaseBoneBuffer(mBoneBufferHandle, mRenderSystem.FrameNumber);
+			if (mTextureHandle.IsValid)
+				mRenderSystem.ResourceManager.ReleaseTexture(mTextureHandle, mRenderSystem.FrameNumber);
+			if (mFloorMeshHandle.IsValid)
+				mRenderSystem.ResourceManager.ReleaseMesh(mFloorMeshHandle, mRenderSystem.FrameNumber);
+		}
+
+		mRenderSystem?.Shutdown();
+		delete mRenderSystem; mRenderSystem = null;
+		delete mWorld; mWorld = null;
+		delete mView; mView = null;
 
 		Console.WriteLine("Render Skinned shutting down");
 	}

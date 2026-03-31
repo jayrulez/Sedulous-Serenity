@@ -23,7 +23,7 @@ public class TrailEmitter
 	private int32 mVertexCount;
 
 	// Double-buffered GPU vertex buffers
-	private IBuffer[RenderConfig.FrameBufferCount] mVertexBuffers ~ { for (let b in _) delete b; };
+	private IBuffer[RenderConfig.FrameBufferCount] mVertexBuffers ~ { for (var b in ref _) mDevice.DestroyBuffer(ref b); };
 
 	// Timing
 	private float mTotalTime;
@@ -222,7 +222,7 @@ public class TrailEmitter
 
 		if (mVertexCount > 0)
 		{
-			mDevice.Queue.WriteMappedBuffer(
+			TransferHelper.WriteMappedBuffer(
 				buffer, 0,
 				Span<uint8>((uint8*)&mVertexData[0], mVertexCount * TrailVertex.SizeInBytes)
 			);

@@ -10,12 +10,12 @@ VertexOutput main(uint vertexID : SV_VertexID)
 {
     VertexOutput output;
 
-    output.TexCoord = float2((vertexID << 1) & 2, vertexID & 2);
-    output.Position = float4(output.TexCoord * 2.0 - 1.0, 0.0, 1.0);
+    float2 uv = float2((vertexID << 1) & 2, vertexID & 2);
+    output.Position = float4(uv * 2.0 - 1.0, 0.0, 1.0);
+    output.TexCoord = float2(uv.x, 1.0 - uv.y);
 
-    // Flip Y for Vulkan
-    output.Position.y = -output.Position.y;
-    output.TexCoord.y = 1.0 - output.TexCoord.y;
+
+
 
     return output;
 }

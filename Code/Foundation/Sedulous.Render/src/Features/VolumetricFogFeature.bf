@@ -116,47 +116,44 @@ public class VolumetricFogFeature : RenderFeatureBase
 	private uint32 mFroxelsZ = 64;
 
 	// Froxel volume textures
-	private ITexture mScatteringVolume ~ delete _;
-	private ITextureView mScatteringVolumeView ~ delete _;
-	private ITexture mIntegratedVolume ~ delete _;
-	private ITextureView mIntegratedVolumeView ~ delete _;
+	private ITexture mScatteringVolume;
+	private ITextureView mScatteringVolumeView;
+	private ITexture mIntegratedVolume;
+	private ITextureView mIntegratedVolumeView;
 
 	// Noise texture
-	private ITexture mNoiseTexture ~ delete _;
-	private ITextureView mNoiseTextureView ~ delete _;
+	private ITexture mNoiseTexture;
+	private ITextureView mNoiseTextureView;
 
 	// Samplers
-	private ISampler mLinearSampler ~ delete _;
-	private ISampler mPointSampler ~ delete _;
+	private ISampler mLinearSampler;
+	private ISampler mPointSampler;
 
 	// Compute pipelines and layouts
-	private IComputePipeline mInjectPipeline ~ delete _;
-	private IComputePipeline mScatterPipeline ~ delete _;
-	private IPipelineLayout mInjectPipelineLayout ~ delete _;
-	private IPipelineLayout mScatterPipelineLayout ~ delete _;
+	private IComputePipeline mInjectPipeline;
+	private IComputePipeline mScatterPipeline;
+	private IPipelineLayout mInjectPipelineLayout;
+	private IPipelineLayout mScatterPipelineLayout;
 
 	// Apply pipeline and layout
-	private IRenderPipeline mApplyPipeline ~ delete _;
-	private IPipelineLayout mApplyPipelineLayout ~ delete _;
+	private IRenderPipeline mApplyPipeline;
+	private IPipelineLayout mApplyPipelineLayout;
 
 	// Bind group layouts
-	private IBindGroupLayout mInjectBindGroupLayout ~ delete _;
-	private IBindGroupLayout mScatterBindGroupLayout ~ delete _;
-	private IBindGroupLayout mApplyBindGroupLayout ~ delete _;
+	private IBindGroupLayout mInjectBindGroupLayout;
+	private IBindGroupLayout mScatterBindGroupLayout;
+	private IBindGroupLayout mApplyBindGroupLayout;
 
 	// Parameter buffers
-	private IBuffer mInjectParamsBuffer ~ delete _;
-	private IBuffer mInjectFroxelParamsBuffer ~ delete _;
-	private IBuffer mScatterParamsBuffer ~ delete _;
-	private IBuffer mApplyParamsBuffer ~ delete _;
+	private IBuffer mInjectParamsBuffer;
+	private IBuffer mInjectFroxelParamsBuffer;
+	private IBuffer mScatterParamsBuffer;
+	private IBuffer mApplyParamsBuffer;
 
 	// Per-frame bind groups (using arrays to avoid use-after-free with in-flight command buffers)
 	private IBindGroup[RenderConfig.FrameBufferCount] mInjectBindGroups;
 	private IBindGroup[RenderConfig.FrameBufferCount] mScatterBindGroups;
 	private IBindGroup[RenderConfig.FrameBufferCount] mApplyBindGroups;
-
-	/// Gets the current frame index for multi-buffering.
-	private int32 FrameIndex => Renderer.RenderFrameContext?.FrameIndex ?? 0;
 
 	// Depth-only view for sampling (depth/stencil textures need aspect specified)
 	// Per-frame array since depth texture is transient and views are referenced by in-flight command buffers
@@ -166,7 +163,7 @@ public class VolumetricFogFeature : RenderFeatureBase
 	private VolumetricFogSettings mSettings = .Default;
 
 	// Cached view data for callbacks
-	private RenderView mCurrentView;
+	private ViewContext mCurrentView;
 	private RenderWorld mCurrentWorld;
 
 	/// Feature name.
@@ -193,14 +190,14 @@ public class VolumetricFogFeature : RenderFeatureBase
 		outDependencies.Add("ForwardOpaque");
 	}
 
-	protected override Result<void> OnInitialize()
+	protected override Result<void> OnInitialize(InitContext initCtx)
 	{
 		// Create froxel volume textures
-		if (CreateFroxelVolumes() case .Err)
+		if (CreateFroxelVolumes(initCtx.TransferBatch) case .Err)
 			return .Err;
 
 		// Create noise texture
-		if (CreateNoiseTexture() case .Err)
+		if (CreateNoiseTexture(initCtx.TransferBatch) case .Err)
 			return .Err;
 
 		// Create samplers
@@ -220,33 +217,46 @@ public class VolumetricFogFeature : RenderFeatureBase
 
 	protected override void OnShutdown()
 	{
+		let device = Renderer.Device;
+
 		// Clean up per-frame resources
 		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
 			if (mInjectBindGroups[i] != null)
-			{
-				delete mInjectBindGroups[i];
-				mInjectBindGroups[i] = null;
-			}
+				device.DestroyBindGroup(ref mInjectBindGroups[i]);
 			if (mScatterBindGroups[i] != null)
-			{
-				delete mScatterBindGroups[i];
-				mScatterBindGroups[i] = null;
-			}
+				device.DestroyBindGroup(ref mScatterBindGroups[i]);
 			if (mApplyBindGroups[i] != null)
-			{
-				delete mApplyBindGroups[i];
-				mApplyBindGroups[i] = null;
-			}
+				device.DestroyBindGroup(ref mApplyBindGroups[i]);
 			if (mDepthOnlyViews[i] != null)
-			{
-				delete mDepthOnlyViews[i];
-				mDepthOnlyViews[i] = null;
-			}
+				device.DestroyTextureView(ref mDepthOnlyViews[i]);
 		}
+
+		// Clean up field resources
+		device.DestroyTextureView(ref mScatteringVolumeView);
+		device.DestroyTexture(ref mScatteringVolume);
+		device.DestroyTextureView(ref mIntegratedVolumeView);
+		device.DestroyTexture(ref mIntegratedVolume);
+		device.DestroyTextureView(ref mNoiseTextureView);
+		device.DestroyTexture(ref mNoiseTexture);
+		device.DestroySampler(ref mLinearSampler);
+		device.DestroySampler(ref mPointSampler);
+		device.DestroyComputePipeline(ref mInjectPipeline);
+		device.DestroyComputePipeline(ref mScatterPipeline);
+		device.DestroyPipelineLayout(ref mInjectPipelineLayout);
+		device.DestroyPipelineLayout(ref mScatterPipelineLayout);
+		device.DestroyRenderPipeline(ref mApplyPipeline);
+		device.DestroyPipelineLayout(ref mApplyPipelineLayout);
+		device.DestroyBindGroupLayout(ref mInjectBindGroupLayout);
+		device.DestroyBindGroupLayout(ref mScatterBindGroupLayout);
+		device.DestroyBindGroupLayout(ref mApplyBindGroupLayout);
+		device.DestroyBuffer(ref mInjectParamsBuffer);
+		device.DestroyBuffer(ref mInjectFroxelParamsBuffer);
+		device.DestroyBuffer(ref mScatterParamsBuffer);
+		device.DestroyBuffer(ref mApplyParamsBuffer);
 	}
 
-	public override void AddPasses(RenderGraph graph, RenderView view, RenderWorld world)
+	public override void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world)
 	{
 		if (!view.PostProcess.EnableVolumetricFog)
 			return;
@@ -260,51 +270,51 @@ public class VolumetricFogFeature : RenderFeatureBase
 		mCurrentView = view;
 		mCurrentWorld = world;
 
+		// Capture frame index from view context
+		let frameIndex = view.FrameIndex;
+
 		// Update parameters
 		UpdateParams(view, world);
 
 		// Import froxel volumes into render graph for automatic layout management
-		let scatteringHandle = graph.ImportTexture("FogScattering", mScatteringVolume, mScatteringVolumeView);
-		let integratedHandle = graph.ImportTexture("FogIntegrated", mIntegratedVolume, mIntegratedVolumeView);
+		let scatteringHandle = graph.ImportTarget("FogScattering", mScatteringVolume, mScatteringVolumeView);
+		let integratedHandle = graph.ImportTarget("FogIntegrated", mIntegratedVolume, mIntegratedVolumeView);
 
 		// Create bind groups for this frame
-		CreateFrameBindGroups(view, world);
+		CreateFrameBindGroups(view, world, frameIndex);
 
 		// Add inject pass - injects fog density and lighting into scattering volume
-		graph.AddComputePass("VolumetricFog_Inject")
-			.WriteTexture(scatteringHandle)
-			.NeverCull()
-			.SetComputeCallback(new [&] (encoder) => {
-				ExecuteInjectPass(encoder);
+		graph.AddComputePass("VolumetricFog_Inject", scope (builder) => {
+				builder.WriteStorage(scatteringHandle);
+				builder.NeverCull();
+				builder.SetComputeExecute(new /*[&]*/ (encoder) => {
+					ExecuteInjectPass(encoder, frameIndex);
+				});
 			});
 
 		// Add scatter/integrate pass - reads scattering, writes integrated
-		graph.AddComputePass("VolumetricFog_Scatter")
-			.ReadTexture(scatteringHandle) // Read from inject output
-			.WriteTexture(integratedHandle)
-			.NeverCull()
-			.SetComputeCallback(new [&] (encoder) => {
-				ExecuteScatterPass(encoder);
+		graph.AddComputePass("VolumetricFog_Scatter", scope (builder) => {
+				builder.ReadTexture(scatteringHandle); // Read from inject output
+				builder.WriteStorage(integratedHandle);
+				builder.NeverCull();
+				builder.SetComputeExecute(new /*[&]*/ (encoder) => {
+					ExecuteScatterPass(encoder, frameIndex);
+				});
 			});
 
 		// Note: Fog application is done in PostProcessStack via VolumetricFogEffect
 	}
 
 	/// Gets or creates a depth-only view for the given depth texture.
-	private ITextureView GetOrCreateDepthOnlyView(ITexture depthTexture)
+	private ITextureView GetOrCreateDepthOnlyView(ITexture depthTexture, int32 frameIndex)
 	{
 		if (depthTexture == null)
 			return null;
 
-		let frameIndex = FrameIndex;
-
-		// Delete previous view for this frame slot (safe now since that frame's commands have completed).
+		// Destroy previous view for this frame slot (safe now since that frame's commands have completed).
 		// Must recreate each frame because depth texture is transient.
 		if (mDepthOnlyViews[frameIndex] != null)
-		{
-			delete mDepthOnlyViews[frameIndex];
-			mDepthOnlyViews[frameIndex] = null;
-		}
+			Renderer.Device.DestroyTextureView(ref mDepthOnlyViews[frameIndex]);
 
 		// Create depth-only view
 		TextureViewDesc viewDesc = .()
@@ -325,7 +335,7 @@ public class VolumetricFogFeature : RenderFeatureBase
 		}
 	}
 
-	private Result<void> CreateFroxelVolumes()
+	private Result<void> CreateFroxelVolumes(ITransferBatch transferBatch)
 	{
 		// Use RGBA32Float to match shader's RWTexture3D<float4>
 		var froxelDesc = TextureDesc()
@@ -387,13 +397,13 @@ public class VolumetricFogFeature : RenderFeatureBase
 		var layout = TextureDataLayout() { BytesPerRow = mFroxelsX * 16, RowsPerImage = mFroxelsY };
 		var writeSize = Extent3D(mFroxelsX, mFroxelsY, mFroxelsZ);
 
-		UploadTexture(mScatteringVolume, Span<uint8>(&zeroData[0], dataSize), &layout, &writeSize);
-		UploadTexture(mIntegratedVolume, Span<uint8>(&zeroData[0], dataSize), &layout, &writeSize);
+		transferBatch.WriteTexture(mScatteringVolume, Span<uint8>(&zeroData[0], dataSize), layout, writeSize);
+		transferBatch.WriteTexture(mIntegratedVolume, Span<uint8>(&zeroData[0], dataSize), layout, writeSize);
 
 		return .Ok;
 	}
 
-	private Result<void> CreateNoiseTexture()
+	private Result<void> CreateNoiseTexture(ITransferBatch transferBatch)
 	{
 		// Create a simple 3D noise texture (16x16x16)
 		const uint32 NoiseSize = 16;
@@ -429,7 +439,7 @@ public class VolumetricFogFeature : RenderFeatureBase
 
 		var layout = TextureDataLayout() { BytesPerRow = NoiseSize, RowsPerImage = NoiseSize };
 		var writeSize = Extent3D(NoiseSize, NoiseSize, NoiseSize);
-		UploadTexture(mNoiseTexture, Span<uint8>(&noiseData[0], noiseData.Count), &layout, &writeSize);
+		transferBatch.WriteTexture(mNoiseTexture, Span<uint8>(&noiseData[0], noiseData.Count), layout, writeSize);
 
 		TextureViewDesc viewDesc = .()
 		{
@@ -563,7 +573,7 @@ public class VolumetricFogFeature : RenderFeatureBase
 		BindGroupLayoutEntry[6] injectEntries = .(
 			.() { Binding = 0, Visibility = .Compute, Type = .UniformBuffer },       // b0: volumetric params
 			.() { Binding = 1, Visibility = .Compute, Type = .UniformBuffer },       // b1: froxel params
-			.() { Binding = 0, Visibility = .Compute, Type = .StorageBuffer },       // t0: lights structured buffer (read-only)
+			.() { Binding = 0, Visibility = .Compute, Type = .StorageBufferReadOnly },       // t0: lights structured buffer (read-only)
 			.() { Binding = 1, Visibility = .Compute, Type = .SampledTexture },      // t1: noise texture
 			.() { Binding = 0, Visibility = .Compute, Type = .StorageTextureReadWrite }, // u0: scattering volume
 			.() { Binding = 0, Visibility = .Compute, Type = .Sampler }              // s0: linear sampler
@@ -719,7 +729,7 @@ public class VolumetricFogFeature : RenderFeatureBase
 		return .Ok;
 	}
 
-	private void UpdateParams(RenderView view, RenderWorld world)
+	private void UpdateParams(ViewContext view, RenderWorld world)
 	{
 		// Compute inverse view projection matrix
 		Matrix invViewProjection = .Identity;
@@ -729,13 +739,10 @@ public class VolumetricFogFeature : RenderFeatureBase
 		Matrix invProjection = .Identity;
 		Matrix.Invert(view.ProjectionMatrix, out invProjection);
 
-		// Get light count from ForwardOpaqueFeature
+		// Get light count from lighting system
 		uint32 lightCount = 0;
-		if (let forwardFeature = Renderer.GetFeature<ForwardOpaqueFeature>())
-		{
-			if (forwardFeature.Lighting?.LightBuffer != null)
-				lightCount = (uint32)forwardFeature.Lighting.LightBuffer.LightCount;
-		}
+		if (Renderer.LightingSystem?.LightBuffer != null)
+			lightCount = (uint32)Renderer.LightingSystem.LightBuffer.LightCount;
 
 		// Update inject params
 		InjectParams injectParams = .()
@@ -756,7 +763,7 @@ public class VolumetricFogFeature : RenderFeatureBase
 			LightCount = lightCount
 		};
 
-		Renderer.Device.Queue.WriteMappedBuffer(
+		TransferHelper.WriteMappedBuffer(
 			mInjectParamsBuffer, 0,
 			Span<uint8>((uint8*)&injectParams, InjectParams.Size)
 		);
@@ -771,7 +778,7 @@ public class VolumetricFogFeature : RenderFeatureBase
 			FroxelBias = .(0, 0)
 		};
 
-		Renderer.Device.Queue.WriteMappedBuffer(
+		TransferHelper.WriteMappedBuffer(
 			mInjectFroxelParamsBuffer, 0,
 			Span<uint8>((uint8*)&injectFroxelParams, InjectFroxelParams.Size)
 		);
@@ -786,7 +793,7 @@ public class VolumetricFogFeature : RenderFeatureBase
 			FarPlane = view.FarPlane
 		};
 
-		Renderer.Device.Queue.WriteMappedBuffer(
+		TransferHelper.WriteMappedBuffer(
 			mScatterParamsBuffer, 0,
 			Span<uint8>((uint8*)&scatterParams, ScatterParams.Size)
 		);
@@ -805,16 +812,14 @@ public class VolumetricFogFeature : RenderFeatureBase
 			FroxelDimensionsZ = mFroxelsZ
 		};
 
-		Renderer.Device.Queue.WriteMappedBuffer(
+		TransferHelper.WriteMappedBuffer(
 			mApplyParamsBuffer, 0,
 			Span<uint8>((uint8*)&applyParams, ApplyParams.Size)
 		);
 	}
 
-	private void CreateFrameBindGroups(RenderView view, RenderWorld world)
+	private void CreateFrameBindGroups(ViewContext view, RenderWorld world, int32 frameIndex)
 	{
-		let frameIndex = FrameIndex;
-
 		// Only create if bind group doesn't exist yet for this frame slot.
 		// Using per-frame arrays avoids use-after-free with in-flight command buffers.
 		// The bind groups reference frame-specific buffers which are stable handles.
@@ -822,13 +827,10 @@ public class VolumetricFogFeature : RenderFeatureBase
 		// Get light buffer from ForwardOpaqueFeature
 		IBuffer lightBuffer = null;
 		int lightBufferSize = 0;
-		if (let forwardFeature = Renderer.GetFeature<ForwardOpaqueFeature>())
+		if (Renderer.LightingSystem?.LightBuffer != null)
 		{
-			if (forwardFeature.Lighting?.LightBuffer != null)
-			{
-				lightBuffer = forwardFeature.Lighting.LightBuffer.GetLightDataBuffer(FrameIndex);
-				lightBufferSize = Math.Max(forwardFeature.Lighting.LightBuffer.LightCount, 1) * GPULight.Size;
-			}
+			lightBuffer = Renderer.LightingSystem.LightBuffer.GetLightDataBuffer(frameIndex);
+			lightBufferSize = Math.Max(Renderer.LightingSystem.LightBuffer.LightCount, 1) * GPULight.Size;
 		}
 
 		// Create inject bind group if not already created for this frame slot
@@ -838,12 +840,12 @@ public class VolumetricFogFeature : RenderFeatureBase
 			mNoiseTextureView != null && mScatteringVolumeView != null && mLinearSampler != null)
 		{
 			BindGroupEntry[6] injectEntries = .(
-				BindGroupEntry.Buffer(0, mInjectParamsBuffer, 0, (uint64)InjectParams.Size),
-				BindGroupEntry.Buffer(1, mInjectFroxelParamsBuffer, 0, (uint64)InjectFroxelParams.Size),
-				BindGroupEntry.Buffer(0, lightBuffer, 0, (uint64)lightBufferSize), // t0: lights
-				BindGroupEntry.Texture(1, mNoiseTextureView), // t1: noise
-				BindGroupEntry.Texture(0, mScatteringVolumeView), // u0: scattering
-				BindGroupEntry.Sampler(0, mLinearSampler) // s0: linear sampler
+				BindGroupEntry.Buffer(/*0,*/mInjectParamsBuffer, 0, (uint64)InjectParams.Size),
+				BindGroupEntry.Buffer(/*1,*/mInjectFroxelParamsBuffer, 0, (uint64)InjectFroxelParams.Size),
+				BindGroupEntry.Buffer(/*0,*/lightBuffer, 0, (uint64)lightBufferSize), // t0: lights
+				BindGroupEntry.Texture(/*1,*/mNoiseTextureView), // t1: noise
+				BindGroupEntry.Texture(/*0,*/mScatteringVolumeView), // u0: scattering
+				BindGroupEntry.Sampler(/*0,*/mLinearSampler) // s0: linear sampler
 			);
 
 			BindGroupDesc injectBgDesc = .()
@@ -866,9 +868,9 @@ public class VolumetricFogFeature : RenderFeatureBase
 			mScatteringVolumeView != null && mIntegratedVolumeView != null)
 		{
 			BindGroupEntry[3] scatterEntries = .(
-				BindGroupEntry.Buffer(0, mScatterParamsBuffer, 0, (uint64)ScatterParams.Size),
-				BindGroupEntry.Texture(0, mScatteringVolumeView),  // t0: scattering (read-only)
-				BindGroupEntry.Texture(0, mIntegratedVolumeView)   // u0: integrated (RW)
+				BindGroupEntry.Buffer(/*0,*/mScatterParamsBuffer, 0, (uint64)ScatterParams.Size),
+				BindGroupEntry.Texture(/*0,*/mScatteringVolumeView),  // t0: scattering (read-only)
+				BindGroupEntry.Texture(/*0,*/mIntegratedVolumeView)   // u0: integrated (RW)
 			);
 
 			BindGroupDesc scatterBgDesc = .()
@@ -891,16 +893,12 @@ public class VolumetricFogFeature : RenderFeatureBase
 
 	/// Creates the apply bind group with scene textures from the render graph.
 	/// Note: Apply bind group must be recreated each frame because it references transient scene color/depth views.
-	private void CreateApplyBindGroup(ITextureView sceneColorView, ITextureView sceneDepthView)
+	private void CreateApplyBindGroup(ITextureView sceneColorView, ITextureView sceneDepthView, int32 frameIndex)
 	{
-		let frameIndex = FrameIndex;
 
 		// Clean up previous for this frame slot (must recreate because scene views are transient)
 		if (mApplyBindGroups[frameIndex] != null)
-		{
-			delete mApplyBindGroups[frameIndex];
-			mApplyBindGroups[frameIndex] = null;
-		}
+			Renderer.Device.DestroyBindGroup(ref mApplyBindGroups[frameIndex]);
 
 		if (mApplyBindGroupLayout == null || mApplyParamsBuffer == null ||
 			sceneColorView == null || sceneDepthView == null ||
@@ -908,12 +906,12 @@ public class VolumetricFogFeature : RenderFeatureBase
 			return;
 
 		BindGroupEntry[6] applyEntries = .(
-			BindGroupEntry.Buffer(0, mApplyParamsBuffer, 0, (uint64)ApplyParams.Size),
-			BindGroupEntry.Texture(0, sceneColorView),
-			BindGroupEntry.Texture(1, sceneDepthView),
-			BindGroupEntry.Texture(2, mIntegratedVolumeView),
-			BindGroupEntry.Sampler(0, mLinearSampler),
-			BindGroupEntry.Sampler(1, mPointSampler)
+			BindGroupEntry.Buffer(/*0,*/mApplyParamsBuffer, 0, (uint64)ApplyParams.Size),
+			BindGroupEntry.Texture(/*0,*/sceneColorView),
+			BindGroupEntry.Texture(/*1,*/sceneDepthView),
+			BindGroupEntry.Texture(/*2,*/mIntegratedVolumeView),
+			BindGroupEntry.Sampler(/*0,*/mLinearSampler),
+			BindGroupEntry.Sampler(/*1,*/mPointSampler)
 		);
 
 		BindGroupDesc applyBgDesc = .()
@@ -930,9 +928,9 @@ public class VolumetricFogFeature : RenderFeatureBase
 		}
 	}
 
-	private void ExecuteInjectPass(IComputePassEncoder encoder)
+	private void ExecuteInjectPass(IComputePassEncoder encoder, int32 frameIndex)
 	{
-		let bindGroup = mInjectBindGroups[FrameIndex];
+		let bindGroup = mInjectBindGroups[frameIndex];
 		if (mInjectPipeline == null || bindGroup == null)
 			return;
 
@@ -948,9 +946,9 @@ public class VolumetricFogFeature : RenderFeatureBase
 		Renderer.Stats.ComputeDispatches++;
 	}
 
-	private void ExecuteScatterPass(IComputePassEncoder encoder)
+	private void ExecuteScatterPass(IComputePassEncoder encoder, int32 frameIndex)
 	{
-		let bindGroup = mScatterBindGroups[FrameIndex];
+		let bindGroup = mScatterBindGroups[frameIndex];
 		if (mScatterPipeline == null || bindGroup == null)
 			return;
 
@@ -965,15 +963,15 @@ public class VolumetricFogFeature : RenderFeatureBase
 		Renderer.Stats.ComputeDispatches++;
 	}
 
-	private void ExecuteApplyPass(IRenderPassEncoder encoder, RenderView view, ITextureView sceneColorView, ITextureView sceneDepthView)
+	private void ExecuteApplyPass(IRenderPassEncoder encoder, ViewContext view, ITextureView sceneColorView, ITextureView sceneDepthView, int32 frameIndex)
 	{
 		if (mApplyPipeline == null)
 			return;
 
 		// Create bind group with current scene textures
-		CreateApplyBindGroup(sceneColorView, sceneDepthView);
+		CreateApplyBindGroup(sceneColorView, sceneDepthView, frameIndex);
 
-		let bindGroup = mApplyBindGroups[FrameIndex];
+		let bindGroup = mApplyBindGroups[frameIndex];
 		if (bindGroup == null)
 			return;
 

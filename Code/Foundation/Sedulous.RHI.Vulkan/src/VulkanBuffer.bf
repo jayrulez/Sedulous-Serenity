@@ -3,169 +3,122 @@ namespace Sedulous.RHI.Vulkan;
 using System;
 using Bulkan;
 using Sedulous.RHI;
-using Sedulous.RHI.Vulkan.Internal;
 
 /// Vulkan implementation of IBuffer.
 class VulkanBuffer : IBuffer
 {
-	private VulkanDevice mDevice;
 	private VkBuffer mBuffer;
 	private VkDeviceMemory mMemory;
-	private uint64 mSize;
-	private BufferUsage mUsage;
-	private MemoryLocation mMemoryAccess;
-	private uint32 mStructureByteStride;
+	private BufferDesc mDesc;
 	private void* mMappedPtr;
-	private String mDebugName ~ delete _;
 
-	public this(VulkanDevice device, BufferDesc descriptor)
-	{
-		mDevice = device;
-		mSize = descriptor.Size;
-		mUsage = descriptor.Usage;
-		mMemoryAccess = descriptor.Memory;
-		mStructureByteStride = descriptor.StructureByteStride;
-		if (descriptor.Label.Ptr != null && descriptor.Label.Length > 0)
-			mDebugName = new String(descriptor.Label);
-		CreateBuffer(descriptor);
-		if (mDebugName != null && mBuffer != default)
-			mDevice.SetDebugName(mBuffer.Handle, .VK_OBJECT_TYPE_BUFFER, mDebugName);
-	}
+	public BufferDesc Desc => mDesc;
+	public uint64 Size => mDesc.Size;
+	public BufferUsage Usage => mDesc.Usage;
 
-	public ~this()
-	{
-		Dispose();
-	}
+	public this() { }
 
-	public void Dispose()
+	public Result<void> Init(VulkanDevice device, VulkanAdapter adapter, BufferDesc desc)
 	{
-		if (mMappedPtr != null)
+		mDesc = desc;
+
+		// Create buffer
+		VkBufferCreateInfo bufferInfo = .();
+		bufferInfo.size = desc.Size;
+		bufferInfo.usage = VulkanConversions.ToVkBufferUsage(desc.Usage);
+		bufferInfo.sharingMode = .VK_SHARING_MODE_EXCLUSIVE;
+
+		let result = VulkanNative.vkCreateBuffer(device.Handle, &bufferInfo, null, &mBuffer);
+		if (result != .VK_SUCCESS)
 		{
-			Unmap();
+			System.Diagnostics.Debug.WriteLine(scope $"VulkanBuffer: vkCreateBuffer failed ({result})");
+			return .Err;
 		}
 
-		if (mBuffer != default)
+		// Get memory requirements
+		VkMemoryRequirements memReqs = default;
+		VulkanNative.vkGetBufferMemoryRequirements(device.Handle, mBuffer, &memReqs);
+
+		// Find memory type
+		let memFlags = VulkanAdapter.GetMemoryFlags(desc.Memory);
+		int32 memTypeIndex = adapter.FindMemoryType((uint32)memReqs.memoryTypeBits, memFlags);
+
+		// If Auto and device-local fails, try host-visible
+		if (memTypeIndex < 0 && desc.Memory == .Auto)
+			memTypeIndex = adapter.FindMemoryType((uint32)memReqs.memoryTypeBits,
+				.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | .VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+		if (memTypeIndex < 0)
 		{
-			VulkanNative.vkDestroyBuffer(mDevice.Device, mBuffer, null);
-			mBuffer = default;
+			System.Diagnostics.Debug.WriteLine("VulkanBuffer: no suitable memory type found");
+			VulkanNative.vkDestroyBuffer(device.Handle, mBuffer, null);
+			mBuffer = .Null;
+			return .Err;
 		}
 
-		if (mMemory != default)
+		// Allocate memory
+		VkMemoryAllocateFlagsInfo allocFlags = .();
+		bool needsDeviceAddress = desc.Usage.HasFlag(.AccelStructInput) || desc.Usage.HasFlag(.ShaderBindingTable) || desc.Usage.HasFlag(.AccelStructScratch);
+		if (needsDeviceAddress)
+			allocFlags.flags = .VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;
+
+		VkMemoryAllocateInfo allocInfo = .();
+		if (needsDeviceAddress)
+			allocInfo.pNext = &allocFlags;
+		allocInfo.allocationSize = memReqs.size;
+		allocInfo.memoryTypeIndex = (uint32)memTypeIndex;
+
+		let allocResult = VulkanNative.vkAllocateMemory(device.Handle, &allocInfo, null, &mMemory);
+		if (allocResult != .VK_SUCCESS)
 		{
-			VulkanNative.vkFreeMemory(mDevice.Device, mMemory, null);
-			mMemory = default;
+			System.Diagnostics.Debug.WriteLine(scope $"VulkanBuffer: vkAllocateMemory failed ({allocResult})");
+			VulkanNative.vkDestroyBuffer(device.Handle, mBuffer, null);
+			mBuffer = .Null;
+			return .Err;
 		}
+
+		// Bind memory
+		VulkanNative.vkBindBufferMemory(device.Handle, mBuffer, mMemory, 0);
+
+		// Persistently map host-visible buffers
+		if (desc.Memory == .CpuToGpu || desc.Memory == .GpuToCpu)
+		{
+			VulkanNative.vkMapMemory(device.Handle, mMemory, 0, desc.Size, .None, &mMappedPtr);
+		}
+
+		return .Ok;
 	}
-
-	/// Returns true if the buffer was created successfully.
-	public bool IsValid => mBuffer != default && mMemory != default;
-
-	public StringView DebugName => mDebugName != null ? mDebugName : "";
-	public uint64 Size => mSize;
-	public BufferUsage Usage => mUsage;
-	public uint32 StructureByteStride => mStructureByteStride;
-
-	/// Gets the Vulkan buffer handle.
-	public VkBuffer Buffer => mBuffer;
-
-	/// Gets the Vulkan memory handle.
-	public VkDeviceMemory Memory => mMemory;
 
 	public void* Map()
 	{
-		if (mMappedPtr != null)
-			return mMappedPtr;
-
-		// Can only map host-visible memory
-		if (mMemoryAccess == .GpuOnly)
-			return null;
-
-		void* data = null;
-		if (VulkanNative.vkMapMemory(mDevice.Device, mMemory, 0, mSize, 0, &data) == .VK_SUCCESS)
-		{
-			mMappedPtr = data;
-			return data;
-		}
-
-		return null;
+		return mMappedPtr;
 	}
 
 	public void Unmap()
 	{
+		// Persistently mapped — nothing to do
+	}
+
+	public void Cleanup(VulkanDevice device)
+	{
 		if (mMappedPtr != null)
 		{
-			VulkanNative.vkUnmapMemory(mDevice.Device, mMemory);
+			VulkanNative.vkUnmapMemory(device.Handle, mMemory);
 			mMappedPtr = null;
 		}
-	}
-
-	private void CreateBuffer(BufferDesc descriptor)
-	{
-		// Create buffer
-		VkBufferCreateInfo bufferInfo = .()
-			{
-				sType = .VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-				size = descriptor.Size,
-				usage = VulkanConversions.ToVkBufferUsage(descriptor.Usage),
-				sharingMode = .VK_SHARING_MODE_EXCLUSIVE
-			};
-
-		if (VulkanNative.vkCreateBuffer(mDevice.Device, &bufferInfo, null, &mBuffer) != .VK_SUCCESS)
-			return;
-
-		// Get memory requirements
-		VkMemoryRequirements memRequirements = .();
-		VulkanNative.vkGetBufferMemoryRequirements(mDevice.Device, mBuffer, &memRequirements);
-
-		// Find suitable memory type
-		VkMemoryPropertyFlags requiredProps = VulkanConversions.ToVkMemoryProperties(descriptor.Memory);
-		uint32 memoryTypeIndex = FindMemoryType(memRequirements.memoryTypeBits, requiredProps);
-
-		if (memoryTypeIndex == uint32.MaxValue)
+		if (mMemory.Handle != 0)
 		{
-			VulkanNative.vkDestroyBuffer(mDevice.Device, mBuffer, null);
-			mBuffer = default;
-			return;
+			VulkanNative.vkFreeMemory(device.Handle, mMemory, null);
+			mMemory = .Null;
 		}
-
-		// Allocate memory
-		VkMemoryAllocateInfo allocInfo = .()
-			{
-				sType = .VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-				allocationSize = memRequirements.size,
-				memoryTypeIndex = memoryTypeIndex
-			};
-
-		if (VulkanNative.vkAllocateMemory(mDevice.Device, &allocInfo, null, &mMemory) != .VK_SUCCESS)
+		if (mBuffer.Handle != 0)
 		{
-			VulkanNative.vkDestroyBuffer(mDevice.Device, mBuffer, null);
-			mBuffer = default;
-			return;
-		}
-
-		// Bind buffer to memory
-		if (VulkanNative.vkBindBufferMemory(mDevice.Device, mBuffer, mMemory, 0) != .VK_SUCCESS)
-		{
-			VulkanNative.vkFreeMemory(mDevice.Device, mMemory, null);
-			VulkanNative.vkDestroyBuffer(mDevice.Device, mBuffer, null);
-			mBuffer = default;
-			mMemory = default;
+			VulkanNative.vkDestroyBuffer(device.Handle, mBuffer, null);
+			mBuffer = .Null;
 		}
 	}
 
-	private uint32 FindMemoryType(uint32 typeFilter, VkMemoryPropertyFlags properties)
-	{
-		VkPhysicalDeviceMemoryProperties memProperties = .();
-		VulkanNative.vkGetPhysicalDeviceMemoryProperties(mDevice.[Friend]mAdapter.PhysicalDevice, &memProperties);
-
-		for (uint32 i = 0; i < memProperties.memoryTypeCount; i++)
-		{
-			if ((typeFilter & (1 << i)) != 0 && (memProperties.memoryTypes[i].propertyFlags & properties) == properties)
-			{
-				return i;
-			}
-		}
-
-		return uint32.MaxValue;
-	}
+	// --- Internal ---
+	public VkBuffer Handle => mBuffer;
+	public VkDeviceMemory Memory => mMemory;
 }

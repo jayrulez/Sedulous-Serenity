@@ -3,10 +3,11 @@ namespace Sedulous.RHI;
 using System;
 
 /// A GPU buffer resource.
-interface IBuffer : IDisposable
+/// Destroyed via IDevice.DestroyBuffer().
+interface IBuffer
 {
-	/// Debug name for tracking resource leaks.
-	StringView DebugName { get; }
+	/// The descriptor this buffer was created with.
+	BufferDesc Desc { get; }
 
 	/// Size of the buffer in bytes.
 	uint64 Size { get; }
@@ -14,12 +15,9 @@ interface IBuffer : IDisposable
 	/// Usage flags.
 	BufferUsage Usage { get; }
 
-	/// Byte stride of each element for structured storage buffers.
-	/// 0 = raw byte-address buffer.
-	uint32 StructureByteStride { get; }
-
 	/// Maps the buffer for CPU access.
-	/// Returns null if mapping fails or buffer is not mappable.
+	/// Only valid for CpuToGpu or GpuToCpu memory locations.
+	/// Returns null if mapping fails or the buffer is not mappable.
 	void* Map();
 
 	/// Unmaps a previously mapped buffer.

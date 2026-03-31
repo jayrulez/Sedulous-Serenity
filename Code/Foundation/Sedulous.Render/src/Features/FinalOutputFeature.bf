@@ -30,10 +30,10 @@ public class FinalOutputFeature : RenderFeatureBase
 	}
 
 	// Blit pipeline
-	private IRenderPipeline mBlitPipeline ~ delete _;
-	private IPipelineLayout mBlitPipelineLayout ~ delete _;
-	private IBindGroupLayout mBlitBindGroupLayout ~ delete _;
-	private ISampler mLinearSampler ~ delete _;
+	private IRenderPipeline mBlitPipeline;
+	private IPipelineLayout mBlitPipelineLayout;
+	private IBindGroupLayout mBlitBindGroupLayout;
+	private ISampler mLinearSampler;
 
 	// Per-frame uniform buffers for blit params (exposure etc.)
 	private IBuffer[RenderConfig.FrameBufferCount] mBlitParamsBuffers;
@@ -62,7 +62,7 @@ public class FinalOutputFeature : RenderFeatureBase
 		mSwapChain = swapChain;
 	}
 
-	protected override Result<void> OnInitialize()
+	protected override Result<void> OnInitialize(InitContext initCtx)
 	{
 		// Create linear sampler for blit
 		SamplerDesc samplerDesc = .()
@@ -171,7 +171,7 @@ public class FinalOutputFeature : RenderFeatureBase
 				FrontFace = .CCW,
 				CullMode = .None
 			},
-			DepthStencil = .None, // No depth attachment for blit
+			DepthStencil = null, // No depth attachment for blit
 			Multisample = .()
 			{
 				Count = 1,
@@ -190,26 +190,27 @@ public class FinalOutputFeature : RenderFeatureBase
 
 	protected override void OnShutdown()
 	{
+		let device = Renderer.Device;
+
 		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
 			if (mBlitParamsBuffers[i] != null)
-			{
-				delete mBlitParamsBuffers[i];
-				mBlitParamsBuffers[i] = null;
-			}
+				device.DestroyBuffer(ref mBlitParamsBuffers[i]);
 		}
 
 		for (int i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
 		{
 			if (mBlitBindGroups[i] != null)
-			{
-				delete mBlitBindGroups[i];
-				mBlitBindGroups[i] = null;
-			}
+				device.DestroyBindGroup(ref mBlitBindGroups[i]);
 		}
+
+		device.DestroyRenderPipeline(ref mBlitPipeline);
+		device.DestroyPipelineLayout(ref mBlitPipelineLayout);
+		device.DestroyBindGroupLayout(ref mBlitBindGroupLayout);
+		device.DestroySampler(ref mLinearSampler);
 	}
 
-	public override void AddPasses(RenderGraph graph, RenderView view, RenderWorld world)
+	public override void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world)
 	{
 		if (mSwapChain == null)
 			return;
@@ -219,10 +220,13 @@ public class FinalOutputFeature : RenderFeatureBase
 			return;
 
 		// Import swapchain as render target
-		let swapchainHandle = graph.ImportTexture("Swapchain", mSwapChain.CurrentTexture, mSwapChain.CurrentTextureView);
+		let isLastView = view.ActiveViewIndex >= view.ViewCount - 1;
+		let swapchainHandle = isLastView
+			? graph.ImportTarget("Swapchain", mSwapChain.CurrentTexture, mSwapChain.CurrentTextureView, finalState: .Present)
+			: graph.ImportTarget("Swapchain", mSwapChain.CurrentTexture, mSwapChain.CurrentTextureView);
 
 		// First view clears the swapchain, subsequent views load (preserving previous view's output)
-		let isFirstView = (Renderer.RenderFrameContext?.ActiveViewIndex ?? 0) == 0;
+		let isFirstView = view.ActiveViewIndex == 0;
 		LoadOp loadOp = isFirstView ? .Clear : .Load;
 
 		// Check for post-processed output first, then fall back to scene color
@@ -230,8 +234,8 @@ public class FinalOutputFeature : RenderFeatureBase
 		if (!sourceHandle.IsValid)
 			sourceHandle = graph.GetResource("SceneColor");
 
-		// Update exposure from world
-		mExposure = world.Exposure;
+		// Update exposure from view context
+		mExposure = view.Exposure;
 
 		// Capture viewport info for the blit callback
 		uint32 vpX = view.ViewportX;
@@ -239,38 +243,41 @@ public class FinalOutputFeature : RenderFeatureBase
 		uint32 vpW = view.Width;
 		uint32 vpH = view.Height;
 
+		// Capture frame data from view context for lambda use
+		let frameIndex = view.FrameIndex;
+		let bindGroupIndex = view.GetBindGroupIndex();
+
 		if (sourceHandle.IsValid && mBlitPipeline != null)
 		{
 			// Full mode: blit source to swapchain
 			RenderGraph graphRef = graph;
-			RGResourceHandle colorHandle = sourceHandle;
+			RGHandle colorHandle = sourceHandle;
 
-			graph.AddGraphicsPass("FinalOutput")
-				.ReadTexture(sourceHandle)
-				.WriteColor(swapchainHandle, loadOp, .Store, .(0.0f, 0.0f, 0.0f, 1.0f))
-				.NeverCull()
-				.SetExecuteCallback(new [=](encoder) => {
-					let sceneColorView = graphRef.GetTextureView(colorHandle);
-					ExecuteBlitPass(encoder, sceneColorView, vpX, vpY, vpW, vpH);
+			graph.AddRenderPass("FinalOutput", scope (builder) => {
+					builder.ReadTexture(sourceHandle);
+					builder.SetColorTarget(0, swapchainHandle, loadOp, .Store, ClearColor(0.0f, 0.0f, 0.0f, 1.0f));
+					builder.NeverCull();
+					builder.SetExecute(new [=](encoder) => {
+						let sceneColorView = graphRef.GetTextureView(colorHandle);
+						ExecuteBlitPass(encoder, sceneColorView, vpX, vpY, vpW, vpH, frameIndex, bindGroupIndex);
+					});
 				});
 		}
 		else
 		{
 			// Minimal mode: just clear swapchain
-			graph.AddGraphicsPass("FinalOutput_Clear")
-				.WriteColor(swapchainHandle, loadOp, .Store, .(1.0f, 0.0f, 1.0f, 1.0f))
-				.NeverCull();
+			graph.AddRenderPass("FinalOutput_Clear", scope (builder) => {
+					builder.SetColorTarget(0, swapchainHandle, loadOp, .Store, ClearColor(1.0f, 0.0f, 1.0f, 1.0f));
+					builder.NeverCull();
+				});
 		}
 
-		// Mark swapchain for Present layout transition only after the last view renders.
-		// Earlier views leave the swapchain in ColorAttachment so subsequent views can render to it.
-		let isLastView = (Renderer.RenderFrameContext?.ActiveViewIndex ?? 0) >= (Renderer.RenderFrameContext?.ViewCount ?? 1) - 1;
-		if (isLastView)
-			graph.MarkForPresent(swapchainHandle);
+		// Present transition is handled by ImportTarget with finalState: .Present
+		// The import is done above with graph.ImportTarget which handles the final layout transition.
 	}
 
 	/// Executes the blit pass (called by render graph).
-	private void ExecuteBlitPass(IRenderPassEncoder encoder, ITextureView sceneColorView, uint32 vpX, uint32 vpY, uint32 vpW, uint32 vpH)
+	private void ExecuteBlitPass(IRenderPassEncoder encoder, ITextureView sceneColorView, uint32 vpX, uint32 vpY, uint32 vpW, uint32 vpH, int32 frameIndex, int32 bgIndex)
 	{
 		if (mSwapChain == null || mBlitPipeline == null)
 			return;
@@ -281,16 +288,8 @@ public class FinalOutputFeature : RenderFeatureBase
 			return;
 		}
 
-		// Recreate bind group for current frame+view slot.
-		let frameIndex = Renderer.RenderFrameContext?.FrameIndex ?? 0;
-		let viewIndex = Renderer.RenderFrameContext?.ActiveViewIndex ?? 0;
-		let bgIndex = frameIndex * RenderConfig.MaxViews + viewIndex;
-
 		if (mBlitBindGroups[bgIndex] != null)
-		{
-			delete mBlitBindGroups[bgIndex];
-			mBlitBindGroups[bgIndex] = null;
-		}
+			Renderer.Device.DestroyBindGroup(ref mBlitBindGroups[bgIndex]);
 
 		// Upload blit params (exposure) for this frame
 		// When a TonemapEffect is active in PostProcessStack, use passthrough mode
@@ -314,9 +313,9 @@ public class FinalOutputFeature : RenderFeatureBase
 
 		// Create new bind group with current scene color
 		BindGroupEntry[3] entries = .(
-			BindGroupEntry.Buffer(0, paramsBuffer, 0, (uint64)BlitParams.Size),
-			BindGroupEntry.Texture(0, sceneColorView),
-			BindGroupEntry.Sampler(0, mLinearSampler)
+			BindGroupEntry.Buffer(/*0,*/paramsBuffer, 0, (uint64)BlitParams.Size),
+			BindGroupEntry.Texture(/*0,*/sceneColorView),
+			BindGroupEntry.Sampler(/*0,*/mLinearSampler)
 		);
 
 		BindGroupDesc bgDesc = .()

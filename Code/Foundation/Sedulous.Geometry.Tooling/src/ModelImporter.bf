@@ -305,7 +305,7 @@ class ModelImporter
 		{
 			let skin = model.Skins[skinIdx];
 
-
+	
 			// Check if this skin is a duplicate of an earlier one (same joint node indices)
 			int duplicateOf = -1;
 			for (int prevIdx = 0; prevIdx < skinIdx; prevIdx++)

@@ -153,7 +153,7 @@ public class HiZOcclusionCuller : IDisposable
 				MipLevel = mip,
 				_Padding = .(0, 0, 0)
 			};
-			mDevice.Queue.WriteMappedBuffer(mBuildParamsBuffer, 0, Span<uint8>((uint8*)&buildParams, sizeof(HiZBuildParams)));
+			TransferHelper.WriteMappedBuffer(mBuildParamsBuffer, 0, Span<uint8>((uint8*)&buildParams, sizeof(HiZBuildParams)));
 
 			// Create or update bind group for this mip transition
 			EnsureBuildBindGroup(mip, depthBuffer);
@@ -197,7 +197,7 @@ public class HiZOcclusionCuller : IDisposable
 
 		// Upload bounding boxes to GPU buffer
 		// BoundingBox is 24 bytes (2 Vector3s)
-		mDevice.Queue.WriteMappedBuffer(mBoundsBuffer, 0, Span<uint8>((uint8*)bounds.Ptr, (int)(objectCount * 24)));
+		TransferHelper.WriteMappedBuffer(mBoundsBuffer, 0, Span<uint8>((uint8*)bounds.Ptr, (int)(objectCount * 24)));
 
 		// Update cull params
 		HiZCullParams cullParams = .()
@@ -209,7 +209,7 @@ public class HiZOcclusionCuller : IDisposable
 			HiZMipCount = mMipLevels,
 			_Padding = .(0, 0)
 		};
-		mDevice.Queue.WriteMappedBuffer(mCullParamsBuffer, 0, Span<uint8>((uint8*)&cullParams, sizeof(HiZCullParams)));
+		TransferHelper.WriteMappedBuffer(mCullParamsBuffer, 0, Span<uint8>((uint8*)&cullParams, sizeof(HiZCullParams)));
 
 		// Create or update bind group
 		EnsureCullBindGroup();
@@ -237,11 +237,7 @@ public class HiZOcclusionCuller : IDisposable
 			return;
 
 		// Release old bind group
-		if (mCullBindGroup != null)
-		{
-			delete mCullBindGroup;
-			mCullBindGroup = null;
-		}
+		mDevice.DestroyBindGroup(ref mCullBindGroup);
 
 		// Need the first mip view of the Hi-Z pyramid for sampling
 		if (mHiZMipViews[0] == null)
@@ -250,11 +246,11 @@ public class HiZOcclusionCuller : IDisposable
 		// Create bind group entries - use HLSL register numbers
 		// b0=params, t0=bounds, t1=hiZ, s0=sampler, u0=visibility
 		BindGroupEntry[5] entries = .(
-			BindGroupEntry.Buffer(0, mCullParamsBuffer, 0, sizeof(HiZCullParams)), // b0: Cull params
-			BindGroupEntry.Buffer(0, mBoundsBuffer, 0, mMaxObjects * 24),          // t0: Input bounds (StructuredBuffer)
-			BindGroupEntry.Texture(1, mHiZMipViews[0]),                            // t1: Hi-Z pyramid
-			BindGroupEntry.Sampler(0, mHiZSampler),                                // s0: Hi-Z sampler
-			BindGroupEntry.Buffer(0, mVisibilityBuffer, 0, mMaxObjects * 4)        // u0: Output visibility (RWStructuredBuffer)
+			BindGroupEntry.Buffer(/*0,*/mCullParamsBuffer, 0, sizeof(HiZCullParams)), // b0: Cull params
+			BindGroupEntry.Buffer(/*0,*/mBoundsBuffer, 0, mMaxObjects * 24),          // t0: Input bounds (StructuredBuffer)
+			BindGroupEntry.Texture(/*1,*/mHiZMipViews[0]),                            // t1: Hi-Z pyramid
+			BindGroupEntry.Sampler(/*0,*/mHiZSampler),                                // s0: Hi-Z sampler
+			BindGroupEntry.Buffer(/*0,*/mVisibilityBuffer, 0, mMaxObjects * 4)        // u0: Output visibility (RWStructuredBuffer)
 		);
 
 		BindGroupDesc desc = .()
@@ -414,37 +410,22 @@ public class HiZOcclusionCuller : IDisposable
 	private void ReleaseHiZResources()
 	{
 		for (var view in ref mHiZMipViews)
-		{
-			if (view != null)
-			{
-				delete view;
-				view = null;
-			}
-		}
+			mDevice.DestroyTextureView(ref view);
 
-		if (mHiZPyramid != null)
-		{
-			delete mHiZPyramid;
-			mHiZPyramid = null;
-		}
-
-		if (mHiZSampler != null)
-		{
-			delete mHiZSampler;
-			mHiZSampler = null;
-		}
+		mDevice.DestroyTexture(ref mHiZPyramid);
+		mDevice.DestroySampler(ref mHiZSampler);
 	}
 
 	private void ReleaseCullingResources()
 	{
-		if (mBoundsBuffer != null) { delete mBoundsBuffer; mBoundsBuffer = null; }
-		if (mVisibilityBuffer != null) { delete mVisibilityBuffer; mVisibilityBuffer = null; }
-		if (mIndirectBuffer != null) { delete mIndirectBuffer; mIndirectBuffer = null; }
-		if (mCullBindGroup != null) { delete mCullBindGroup; mCullBindGroup = null; }
-		if (mCullParamsBuffer != null) { delete mCullParamsBuffer; mCullParamsBuffer = null; }
-		if (mCullPipeline != null) { delete mCullPipeline; mCullPipeline = null; }
-		if (mCullLayout != null) { delete mCullLayout; mCullLayout = null; }
-		if (mCullBindGroupLayout != null) { delete mCullBindGroupLayout; mCullBindGroupLayout = null; }
+		mDevice.DestroyBuffer(ref mBoundsBuffer);
+		mDevice.DestroyBuffer(ref mVisibilityBuffer);
+		mDevice.DestroyBuffer(ref mIndirectBuffer);
+		mDevice.DestroyBindGroup(ref mCullBindGroup);
+		mDevice.DestroyBuffer(ref mCullParamsBuffer);
+		mDevice.DestroyComputePipeline(ref mCullPipeline);
+		mDevice.DestroyPipelineLayout(ref mCullLayout);
+		mDevice.DestroyBindGroupLayout(ref mCullBindGroupLayout);
 	}
 
 	private Result<void> CreateHiZPyramid()
@@ -630,7 +611,7 @@ public class HiZOcclusionCuller : IDisposable
 		// Use HLSL register numbers - RHI handles Vulkan shifts internally
 		BindGroupLayoutEntry[4] buildEntries = .(
 			.() { Binding = 0, Visibility = .Compute, Type = .SampledTexture }, // t0: Input depth
-			.() { Binding = 0, Visibility = .Compute, Type = .StorageTexture }, // u0: Output Hi-Z
+			.() { Binding = 0, Visibility = .Compute, Type = .StorageTextureReadWrite }, // u0: Output Hi-Z
 			.() { Binding = 0, Visibility = .Compute, Type = .Sampler },        // s0: Depth sampler
 			.() { Binding = 0, Visibility = .Compute, Type = .UniformBuffer }   // b0: Build params
 		);
@@ -695,7 +676,7 @@ public class HiZOcclusionCuller : IDisposable
 		// Use HLSL register numbers - RHI applies Vulkan shifts based on Type
 		BindGroupLayoutEntry[5] cullEntries = .(
 			.() { Binding = 0, Visibility = .Compute, Type = .UniformBuffer },          // b0: Cull params
-			.() { Binding = 0, Visibility = .Compute, Type = .StorageBuffer },          // t0: Input bounds (StructuredBuffer)
+			.() { Binding = 0, Visibility = .Compute, Type = .StorageBufferReadOnly },          // t0: Input bounds (StructuredBuffer)
 			.() { Binding = 1, Visibility = .Compute, Type = .SampledTexture },         // t1: Hi-Z pyramid
 			.() { Binding = 0, Visibility = .Compute, Type = .Sampler },                // s0: Hi-Z sampler
 			.() { Binding = 0, Visibility = .Compute, Type = .StorageBufferReadWrite }  // u0: Output visibility (RWStructuredBuffer)
@@ -787,19 +768,15 @@ public class HiZOcclusionCuller : IDisposable
 			return;
 
 		// Release old bind group if exists
-		if (mBuildHiZBindGroups[mipLevel] != null)
-		{
-			delete mBuildHiZBindGroups[mipLevel];
-			mBuildHiZBindGroups[mipLevel] = null;
-		}
+		mDevice.DestroyBindGroup(ref mBuildHiZBindGroups[mipLevel]);
 
 		// Create bind group entries - use HLSL register numbers
 		// t0=input, u0=output, s0=sampler, b0=params
 		BindGroupEntry[4] entries = .(
-			BindGroupEntry.Texture(0, inputView),     // t0
-			BindGroupEntry.Texture(0, outputView),    // u0 (storage texture uses u register)
-			BindGroupEntry.Sampler(0, mHiZSampler),   // s0
-			BindGroupEntry.Buffer(0, mBuildParamsBuffer, 0, sizeof(HiZBuildParams)) // b0
+			BindGroupEntry.Texture(/*0,*/inputView),     // t0
+			BindGroupEntry.Texture(/*0,*/outputView),    // u0 (storage texture uses u register)
+			BindGroupEntry.Sampler(/*0,*/mHiZSampler),   // s0
+			BindGroupEntry.Buffer(/*0,*/mBuildParamsBuffer, 0, sizeof(HiZBuildParams)) // b0
 		);
 
 		BindGroupDesc desc = .()
@@ -819,27 +796,15 @@ public class HiZOcclusionCuller : IDisposable
 	private void ReleaseBuildResources()
 	{
 		for (var bindGroup in ref mBuildHiZBindGroups)
-		{
-			if (bindGroup != null)
-			{
-				delete bindGroup;
-				bindGroup = null;
-			}
-		}
+			mDevice.DestroyBindGroup(ref bindGroup);
 
 		for (var view in ref mHiZMipStorageViews)
-		{
-			if (view != null)
-			{
-				delete view;
-				view = null;
-			}
-		}
+			mDevice.DestroyTextureView(ref view);
 
-		if (mBuildParamsBuffer != null) { delete mBuildParamsBuffer; mBuildParamsBuffer = null; }
-		if (mBuildHiZPipeline != null) { delete mBuildHiZPipeline; mBuildHiZPipeline = null; }
-		if (mBuildHiZLayout != null) { delete mBuildHiZLayout; mBuildHiZLayout = null; }
-		if (mBuildHiZBindGroupLayout != null) { delete mBuildHiZBindGroupLayout; mBuildHiZBindGroupLayout = null; }
+		mDevice.DestroyBuffer(ref mBuildParamsBuffer);
+		mDevice.DestroyComputePipeline(ref mBuildHiZPipeline);
+		mDevice.DestroyPipelineLayout(ref mBuildHiZLayout);
+		mDevice.DestroyBindGroupLayout(ref mBuildHiZBindGroupLayout);
 	}
 }
 

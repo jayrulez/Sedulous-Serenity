@@ -1,154 +1,172 @@
-namespace Sedulous.RenderGraph;
-
 using System;
 using Sedulous.RHI;
-using Sedulous.Core.Mathematics;
 
-/// Fluent builder for configuring render passes.
+namespace Sedulous.RenderGraph;
+
+/// Fluent builder for configuring a render graph pass.
+/// Passed to the setup callback of AddRenderPass/AddComputePass/AddCopyPass.
 public struct PassBuilder
 {
-	private RenderGraph mGraph;
-	private PassHandle mHandle;
+	private RenderGraphPass mPass;
 
-	public this(RenderGraph graph, PassHandle handle)
+	public this(RenderGraphPass pass)
 	{
-		mGraph = graph;
-		mHandle = handle;
+		mPass = pass;
 	}
 
-	/// Gets the pass handle.
-	public PassHandle Handle => mHandle;
+	// === Texture reads ===
 
-	/// Adds a color attachment to render to.
-	public Self WriteColor(RGResourceHandle target, LoadOp loadOp = .Clear, StoreOp storeOp = .Store, Color clearColor = default) mut
+	/// Declare a texture read (sampled in shader)
+	public Self ReadTexture(RGHandle handle, RGSubresourceRange subresource = default) mut
 	{
-		if (let pass = mGraph.[Friend]GetPass(mHandle))
-		{
-			pass.ColorAttachments.Add(.(target, loadOp, storeOp, clearColor));
-		}
+		mPass.Accesses.Add(.(handle, .ReadTexture, subresource));
 		return this;
 	}
 
-	/// Adds a depth-stencil attachment.
-	public Self WriteDepth(RGResourceHandle target, LoadOp loadOp = .Clear, StoreOp storeOp = .Store, float clearDepth = 1.0f) mut
+	/// Declare a depth/stencil read-only access (sampled in shader)
+	public Self ReadDepth(RGHandle handle, RGSubresourceRange subresource = default) mut
 	{
-		if (let pass = mGraph.[Friend]GetPass(mHandle))
+		mPass.DepthTarget = RGDepthTarget(handle)
 		{
-			var attachment = RGDepthStencilAttachment(target, loadOp, storeOp);
-			attachment.ClearDepth = clearDepth;
-			pass.DepthStencil = attachment;
-		}
+			DepthLoadOp = .Load,
+			DepthStoreOp = .Store,
+			ReadOnly = true,
+			Subresource = subresource
+		};
+		mPass.Accesses.Add(.(handle, .ReadDepthStencil, subresource));
 		return this;
 	}
 
-	/// Adds a depth attachment for reading only.
-	public Self ReadDepth(RGResourceHandle target) mut
+	// === Buffer reads ===
+
+	/// Declare a buffer read (uniform or storage)
+	public Self ReadBuffer(RGHandle handle) mut
 	{
-		if (let pass = mGraph.[Friend]GetPass(mHandle))
-		{
-			var attachment = RGDepthStencilAttachment(target, .Load, .Store);
-			attachment.ReadOnly = true;
-			// Read-only layout cannot use Clear ops - must Load existing content
-			attachment.StencilLoadOp = .Load;
-			attachment.StencilStoreOp = .Store;
-			pass.DepthStencil = attachment;
-		}
+		mPass.Accesses.Add(.(handle, .ReadBuffer));
 		return this;
 	}
 
-	/// Reads a texture resource.
-	public Self ReadTexture(RGResourceHandle texture) mut
+	// === Render targets ===
+
+	/// Set a color target for this render pass
+	public Self SetColorTarget(int32 slot, RGHandle handle, LoadOp loadOp = .Clear, StoreOp storeOp = .Store, ClearColor clearValue = .Black, RGSubresourceRange subresource = default) mut
 	{
-		if (let pass = mGraph.[Friend]GetPass(mHandle))
-		{
-			pass.Reads.Add(texture);
-		}
+		let target = RGColorTarget(handle, loadOp, storeOp, clearValue, subresource);
+
+		// Ensure list is big enough
+		while (mPass.ColorTargets.Count <= slot)
+			mPass.ColorTargets.Add(default);
+		mPass.ColorTargets[slot] = target;
+
+		// Add access record
+		if (storeOp == .Store)
+			mPass.Accesses.Add(.(handle, .WriteColorTarget, subresource));
+
 		return this;
 	}
 
-	/// Reads a buffer resource.
-	public Self ReadBuffer(RGResourceHandle buffer) mut
+	/// Set the depth/stencil target for this render pass
+	public Self SetDepthTarget(RGHandle handle, LoadOp loadOp = .Clear, StoreOp storeOp = .Store, float clearDepth = 1.0f, RGSubresourceRange subresource = default) mut
 	{
-		if (let pass = mGraph.[Friend]GetPass(mHandle))
+		mPass.DepthTarget = RGDepthTarget(handle)
 		{
-			pass.Reads.Add(buffer);
-		}
+			DepthLoadOp = loadOp,
+			DepthStoreOp = storeOp,
+			DepthClearValue = clearDepth,
+			ReadOnly = false,
+			Subresource = subresource
+		};
+
+		if (storeOp == .Store)
+			mPass.Accesses.Add(.(handle, .WriteDepthTarget, subresource));
+
 		return this;
 	}
 
-	/// Writes to a texture resource (UAV/storage).
-	public Self WriteTexture(RGResourceHandle texture) mut
+	// === Storage (UAV) ===
+
+	/// Declare a storage (UAV) write
+	public Self WriteStorage(RGHandle handle, RGSubresourceRange subresource = default) mut
 	{
-		if (let pass = mGraph.[Friend]GetPass(mHandle))
-		{
-			pass.Writes.Add(texture);
-		}
+		mPass.Accesses.Add(.(handle, .WriteStorage, subresource));
 		return this;
 	}
 
-	/// Writes to a buffer resource.
-	public Self WriteBuffer(RGResourceHandle buffer) mut
+	/// Declare a storage (UAV) simultaneous read+write
+	public Self ReadWriteStorage(RGHandle handle, RGSubresourceRange subresource = default) mut
 	{
-		if (let pass = mGraph.[Friend]GetPass(mHandle))
-		{
-			pass.Writes.Add(buffer);
-		}
+		mPass.Accesses.Add(.(handle, .ReadWriteStorage, subresource));
 		return this;
 	}
 
-	/// Adds an explicit dependency on another pass.
-	public Self DependsOn(PassHandle other) mut
+	// === Copy ===
+
+	/// Declare a copy source
+	public Self CopySrc(RGHandle handle) mut
 	{
-		if (let pass = mGraph.[Friend]GetPass(mHandle))
-		{
-			pass.Dependencies.Add(other);
-		}
+		mPass.Accesses.Add(.(handle, .ReadCopySrc));
 		return this;
 	}
 
-	/// Marks this pass as never-cull (e.g., final output).
+	/// Declare a copy destination
+	public Self CopyDst(RGHandle handle) mut
+	{
+		mPass.Accesses.Add(.(handle, .WriteCopyDst));
+		return this;
+	}
+
+	// === Dependencies ===
+
+	/// Add an explicit dependency on another pass
+	public Self DependsOn(PassHandle pass) mut
+	{
+		mPass.Dependencies.Add(pass);
+		return this;
+	}
+
+	// === Flags ===
+
+	/// Mark this pass as never-cullable (e.g., final output)
 	public Self NeverCull() mut
 	{
-		if (let pass = mGraph.[Friend]GetPass(mHandle))
-		{
-			pass.NeverCull = true;
-		}
+		mPass.NeverCull = true;
 		return this;
 	}
 
-	/// Sets the execute callback for graphics passes.
-	public Self SetExecuteCallback(RenderPassExecuteCallback callback) mut
+	/// Mark this pass as having side effects the graph cannot track
+	public Self HasSideEffects() mut
 	{
-		if (let pass = mGraph.[Friend]GetPass(mHandle))
-		{
-			if (pass.ExecuteCallback != null)
-				delete pass.ExecuteCallback;
-			pass.ExecuteCallback = callback;
-		}
+		mPass.HasSideEffects = true;
 		return this;
 	}
 
-	/// Sets the execute callback for compute passes.
-	public Self SetComputeCallback(ComputePassExecuteCallback callback) mut
+	/// Set a runtime condition — pass is skipped if this returns false
+	public Self EnableIf(delegate bool() condition) mut
 	{
-		if (let pass = mGraph.[Friend]GetPass(mHandle))
-		{
-			if (pass.ComputeCallback != null)
-				delete pass.ComputeCallback;
-			pass.ComputeCallback = callback;
-		}
+		mPass.Condition = condition;
 		return this;
 	}
 
-	/// Sets the execute callback for copy/transfer passes.
-	public Self SetCopyCallback(CopyPassExecuteCallback callback) mut
+	// === Execute callbacks ===
+
+	/// Set the render pass execute callback
+	public Self SetExecute(RenderPassExecuteCallback callback) mut
 	{
-		if (let pass = mGraph.[Friend]GetPass(mHandle))
-		{
-			if (pass.CopyCallback != null)
-				delete pass.CopyCallback;
-			pass.CopyCallback = callback;
-		}
+		mPass.ExecuteCallback = callback;
+		return this;
+	}
+
+	/// Set the compute pass execute callback
+	public Self SetComputeExecute(ComputePassExecuteCallback callback) mut
+	{
+		mPass.ComputeCallback = callback;
+		return this;
+	}
+
+	/// Set the copy pass execute callback
+	public Self SetCopyExecute(CopyPassExecuteCallback callback) mut
+	{
+		mPass.CopyCallback = callback;
 		return this;
 	}
 }

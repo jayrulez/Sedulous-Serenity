@@ -1,6 +1,6 @@
 using System;
 using System.Collections;
-using Sedulous.Core.Core;
+using Sedulous.Core;
 
 using internal Sedulous.Core.Mathematics;
 

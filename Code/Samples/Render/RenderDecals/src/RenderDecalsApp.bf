@@ -4,7 +4,6 @@ using System;
 using System.Collections;
 using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
-using Sedulous.Shell;
 using Sedulous.Runtime.Client;
 using Sedulous.Render;
 using Sedulous.Geometry;
@@ -15,9 +14,9 @@ using Sedulous.Materials;
 class RenderDecalsApp : Application
 {
 	// Render system
-	private RenderSystem mRenderSystem ~ delete _;
-	private RenderWorld mWorld ~ delete _;
-	private RenderView mView ~ delete _;
+	private RenderSystem mRenderSystem;
+	private RenderWorld mWorld;
+	private RenderView mView;
 
 	// Render features
 	private DepthPrepassFeature mDepthFeature;
@@ -40,13 +39,13 @@ class RenderDecalsApp : Application
 	private DecalProxyHandle mGlowDecal = .Invalid;
 	private DecalProxyHandle mLargeDecal = .Invalid;
 
-	// Decal textures
-	private ITexture mCircleTexture ~ delete _;
-	private ITextureView mCircleTextureView ~ delete _;
-	private ITexture mCrosshairTexture ~ delete _;
-	private ITextureView mCrosshairTextureView ~ delete _;
-	private ITexture mStarTexture ~ delete _;
-	private ITextureView mStarTextureView ~ delete _;
+	// Decal textures (destroyed in OnShutdown)
+	private ITexture mCircleTexture;
+	private ITextureView mCircleTextureView;
+	private ITexture mCrosshairTexture;
+	private ITextureView mCrosshairTextureView;
+	private ITexture mStarTexture;
+	private ITextureView mStarTextureView;
 
 	// Light
 	private LightProxyHandle mSunLight = .Invalid;
@@ -61,15 +60,14 @@ class RenderDecalsApp : Application
 	private const float FastMoveSpeed = 25.0f;
 	private const float LookSpeed = 0.003f;
 
-	public this(IShell shell, IDevice device, IBackend backend)
-		: base(shell, device, backend)
+	public this() : base()
 	{
 	}
 
 	protected override void OnInitialize(Sedulous.Runtime.Context context)
 	{
 		mRenderSystem = new RenderSystem();
-		if (mRenderSystem.Initialize(mDevice, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null, .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
+		if (mRenderSystem.Initialize(mDevice, mSwapChain.Width, mSwapChain.Height, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null, .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
 		{
 			Console.WriteLine("ERROR: Failed to initialize RenderSystem");
 			return;
@@ -268,7 +266,7 @@ class RenderDecalsApp : Application
 
 		var layout = TextureDataLayout() { BytesPerRow = Size * 4, RowsPerImage = Size };
 		var writeSize = Extent3D(Size, Size, 1);
-		mDevice.Queue.WriteTextureSync(mCircleTexture, Span<uint8>(&pixels[0], Bytes), &layout, &writeSize);
+		TransferHelper.WriteTextureSync(mDevice.GetQueue(.Graphics), mDevice,mCircleTexture, Span<uint8>(&pixels[0], Bytes), layout, writeSize);
 
 		TextureViewDesc viewDesc = .() { Label = "Circle Decal View", Dimension = .Texture2D };
 		switch (mDevice.CreateTextureView(mCircleTexture, viewDesc))
@@ -333,7 +331,7 @@ class RenderDecalsApp : Application
 
 		var layout = TextureDataLayout() { BytesPerRow = Size * 4, RowsPerImage = Size };
 		var writeSize = Extent3D(Size, Size, 1);
-		mDevice.Queue.WriteTextureSync(mCrosshairTexture, Span<uint8>(&pixels[0], Bytes), &layout, &writeSize);
+		TransferHelper.WriteTextureSync(mDevice.GetQueue(.Graphics), mDevice,mCrosshairTexture, Span<uint8>(&pixels[0], Bytes), layout, writeSize);
 
 		TextureViewDesc viewDesc = .() { Label = "Crosshair Decal View", Dimension = .Texture2D };
 		switch (mDevice.CreateTextureView(mCrosshairTexture, viewDesc))
@@ -395,7 +393,7 @@ class RenderDecalsApp : Application
 
 		var layout = TextureDataLayout() { BytesPerRow = Size * 4, RowsPerImage = Size };
 		var writeSize = Extent3D(Size, Size, 1);
-		mDevice.Queue.WriteTextureSync(mStarTexture, Span<uint8>(&pixels[0], Bytes), &layout, &writeSize);
+		TransferHelper.WriteTextureSync(mDevice.GetQueue(.Graphics), mDevice,mStarTexture, Span<uint8>(&pixels[0], Bytes), layout, writeSize);
 
 		TextureViewDesc viewDesc = .() { Label = "Star Decal View", Dimension = .Texture2D };
 		switch (mDevice.CreateTextureView(mStarTexture, viewDesc))
@@ -529,6 +527,11 @@ class RenderDecalsApp : Application
 		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
 	}
 
+	protected override void OnResize(int32 width, int32 height)
+	{
+		mRenderSystem?.SetViewportSize((uint32)width, (uint32)height);
+	}
+
 	protected override bool OnRenderFrame(RenderContext render)
 	{
 		mRenderSystem.BeginFrame((float)render.Frame.TotalTime, (float)render.Frame.DeltaTime);
@@ -552,13 +555,32 @@ class RenderDecalsApp : Application
 
 	protected override void OnShutdown()
 	{
-		if (mCubeMeshHandle.IsValid)
-			mRenderSystem.ResourceManager.ReleaseMesh(mCubeMeshHandle, mRenderSystem.FrameNumber);
-		if (mPlaneMeshHandle.IsValid)
-			mRenderSystem.ResourceManager.ReleaseMesh(mPlaneMeshHandle, mRenderSystem.FrameNumber);
+		mWorld?.Dispose();
+
+		// Destroy decal textures before device shutdown
+		if (mDevice != null)
+		{
+			mDevice.DestroyTextureView(ref mCircleTextureView);
+			mDevice.DestroyTexture(ref mCircleTexture);
+			mDevice.DestroyTextureView(ref mCrosshairTextureView);
+			mDevice.DestroyTexture(ref mCrosshairTexture);
+			mDevice.DestroyTextureView(ref mStarTextureView);
+			mDevice.DestroyTexture(ref mStarTexture);
+		}
 
 		if (mRenderSystem != null)
+		{
+			if (mCubeMeshHandle.IsValid)
+				mRenderSystem.ResourceManager.ReleaseMesh(mCubeMeshHandle, mRenderSystem.FrameNumber);
+			if (mPlaneMeshHandle.IsValid)
+				mRenderSystem.ResourceManager.ReleaseMesh(mPlaneMeshHandle, mRenderSystem.FrameNumber);
+
 			mRenderSystem.Shutdown();
+			delete mRenderSystem;
+			mRenderSystem = null;
+		}
+		delete mWorld;
+		delete mView;
 
 		Console.WriteLine("Render Decals shutting down");
 	}

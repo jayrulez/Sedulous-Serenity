@@ -37,8 +37,8 @@ interface IPostProcessEffect
 	/// @param depthHandle Handle to the scene depth texture (for effects that need it).
 	void AddPasses(
 		RenderGraph graph,
-		RenderView view,
-		RGResourceHandle inputHandle,
-		RGResourceHandle outputHandle,
-		RGResourceHandle depthHandle);
+		ViewContext view,
+		RGHandle inputHandle,
+		RGHandle outputHandle,
+		RGHandle depthHandle);
 }

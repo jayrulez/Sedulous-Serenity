@@ -11,19 +11,19 @@ using Sedulous.RenderGraph;
 public class SpriteFeature : RenderFeatureBase
 {
 	// Render pipeline (alpha blend, depth test, no depth write)
-	private IRenderPipeline mRenderPipeline ~ delete _;
-	private IPipelineLayout mPipelineLayout ~ delete _;
+	private IRenderPipeline mRenderPipeline;
+	private IPipelineLayout mPipelineLayout;
 
 	// Bind group layouts
-	private IBindGroupLayout mBindGroupLayout ~ delete _;
+	private IBindGroupLayout mBindGroupLayout;
 
 	// Per-frame instance buffers
-	private IBuffer[RenderConfig.FrameBufferCount] mInstanceBuffers ~ { for (let b in _) delete b; };
+	private IBuffer[RenderConfig.FrameBufferCount] mInstanceBuffers;
 
 	// Default texture (white circle) and sampler
-	private ITexture mDefaultTexture ~ delete _;
-	private ITextureView mDefaultTextureView ~ delete _;
-	private ISampler mDefaultSampler ~ delete _;
+	private ITexture mDefaultTexture;
+	private ITextureView mDefaultTextureView;
+	private ISampler mDefaultSampler;
 
 	// Per-frame/view bind groups cached per texture
 	private List<TextureBindGroupEntry>[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mBindGroupCache;
@@ -44,9 +44,6 @@ public class SpriteFeature : RenderFeatureBase
 	// Max sprites per frame
 	private const int32 MaxSprites = 8192;
 
-	/// Gets the bind group index accounting for the active view.
-	private int32 GetBindGroupIndex(int32 frameIndex) => frameIndex * RenderConfig.MaxViews + (Renderer.RenderFrameContext?.ActiveViewIndex ?? 0);
-
 	/// Feature name.
 	public override StringView Name => "Sprites";
 
@@ -57,11 +54,11 @@ public class SpriteFeature : RenderFeatureBase
 		outDependencies.Add("Sky");
 	}
 
-	protected override Result<void> OnInitialize()
+	protected override Result<void> OnInitialize(InitContext initCtx)
 	{
 		InitBindGroupCache();
 
-		if (CreateResources() case .Err)
+		if (CreateResources(initCtx.TransferBatch) case .Err)
 			return .Err;
 
 		if (CreatePipeline() case .Err)
@@ -72,7 +69,26 @@ public class SpriteFeature : RenderFeatureBase
 
 	protected override void OnShutdown()
 	{
+		let device = Renderer.Device;
+
 		CleanupBindGroupCache();
+
+		// Clean up per-frame instance buffers
+		for (int i = 0; i < RenderConfig.FrameBufferCount; i++)
+		{
+			if (mInstanceBuffers[i] != null)
+				device.DestroyBuffer(ref mInstanceBuffers[i]);
+		}
+
+		// Clean up pipelines and layouts
+		device.DestroyRenderPipeline(ref mRenderPipeline);
+		device.DestroyPipelineLayout(ref mPipelineLayout);
+		device.DestroyBindGroupLayout(ref mBindGroupLayout);
+
+		// Clean up default resources
+		device.DestroyTextureView(ref mDefaultTextureView);
+		device.DestroyTexture(ref mDefaultTexture);
+		device.DestroySampler(ref mDefaultSampler);
 	}
 
 	private void InitBindGroupCache()
@@ -83,19 +99,23 @@ public class SpriteFeature : RenderFeatureBase
 
 	private void CleanupBindGroupCache()
 	{
+		let device = Renderer.Device;
 		for (int i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
 		{
 			if (mBindGroupCache[i] != null)
 			{
-				for (let entry in mBindGroupCache[i])
-					delete entry.BindGroup;
+				for (var entry in ref mBindGroupCache[i])
+				{
+					if (entry.BindGroup != null)
+						device.DestroyBindGroup(ref entry.BindGroup);
+				}
 				delete mBindGroupCache[i];
 				mBindGroupCache[i] = null;
 			}
 		}
 	}
 
-	private Result<void> CreateResources()
+	private Result<void> CreateResources(ITransferBatch transferBatch)
 	{
 		// Create default white texture (32x32 solid white)
 		const int32 TexSize = 32;
@@ -127,7 +147,7 @@ public class SpriteFeature : RenderFeatureBase
 
 		var layout = TextureDataLayout() { BytesPerRow = TexSize * 4, RowsPerImage = TexSize };
 		var writeSize = Extent3D(TexSize, TexSize, 1);
-		UploadTexture(mDefaultTexture, Span<uint8>(&pixels[0], TexBytes), &layout, &writeSize);
+		transferBatch.WriteTexture(mDefaultTexture, Span<uint8>(&pixels[0], TexBytes), layout, writeSize);
 
 		TextureViewDesc viewDesc = .()
 		{
@@ -224,7 +244,7 @@ public class SpriteFeature : RenderFeatureBase
 			VertexBufferLayout[1] vertexBuffers = .(
 				.()
 				{
-					Stride = (uint64)SpriteInstance.SizeInBytes,
+					Stride = (uint32)SpriteInstance.SizeInBytes,
 					StepMode = .Instance,
 					Attributes = VertexAttribute[4](
 						.() { Format = .Float3,           Offset = 0,  ShaderLocation = 0 },  // Position
@@ -259,7 +279,7 @@ public class SpriteFeature : RenderFeatureBase
 					FrontFace = .CCW,
 					CullMode = .None
 				},
-				DepthStencil = .Transparent,
+				DepthStencil = DepthStencilState.DepthReadOnly(Renderer.DepthFormat),
 				Multisample = .()
 				{
 					Count = 1,
@@ -277,7 +297,7 @@ public class SpriteFeature : RenderFeatureBase
 		return .Ok;
 	}
 
-	public override void AddPasses(RenderGraph graph, RenderView view, RenderWorld world)
+	public override void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world)
 	{
 		if (mRenderPipeline == null)
 			return;
@@ -319,7 +339,7 @@ public class SpriteFeature : RenderFeatureBase
 		BuildBatches();
 
 		// Upload instance data
-		let frameIndex = Renderer.RenderFrameContext.FrameIndex;
+		let frameIndex = view.FrameIndex;
 		let buffer = mInstanceBuffers[frameIndex];
 
 		if (buffer != null)
@@ -330,7 +350,7 @@ public class SpriteFeature : RenderFeatureBase
 			for (let entry in mSortEntries)
 				sortedInstances.Add(mInstances[entry.OriginalIndex]);
 
-			Renderer.Device.Queue.WriteMappedBuffer(
+			TransferHelper.WriteMappedBuffer(
 				buffer, 0,
 				Span<uint8>((uint8*)sortedInstances.Ptr, (int)(sortedInstances.Count * SpriteInstance.SizeInBytes))
 			);
@@ -347,16 +367,20 @@ public class SpriteFeature : RenderFeatureBase
 		mViewportX = view.ViewportX;
 		mViewportY = view.ViewportY;
 
-		graph.AddGraphicsPass("SpriteRender")
-			.WriteColor(colorHandle, .Load, .Store)
-			.ReadDepth(depthHandle)
-			.NeverCull()
-			.SetExecuteCallback(new [&] (encoder) => {
-				ExecuteRenderPass(encoder);
+		let bindGroupIndex = view.GetBindGroupIndex();
+		let sceneUniformBuffer = view.SceneUniformBuffer;
+
+		graph.AddRenderPass("SpriteRender", scope (builder) => {
+				builder.SetColorTarget(0, colorHandle, .Load, .Store);
+				builder.ReadDepth(depthHandle);
+				builder.NeverCull();
+				builder.SetExecute(new (encoder) => {
+					ExecuteRenderPass(encoder, frameIndex, bindGroupIndex, sceneUniformBuffer);
+				});
 			});
 	}
 
-	private void ExecuteRenderPass(IRenderPassEncoder encoder)
+	private void ExecuteRenderPass(IRenderPassEncoder encoder, int32 frameIndex, int32 bindGroupIndex, IBuffer sceneUniformBuffer)
 	{
 		if (mViewWidth == 0 || mViewHeight == 0)
 			return;
@@ -367,8 +391,6 @@ public class SpriteFeature : RenderFeatureBase
 
 		encoder.SetPipeline(mRenderPipeline);
 
-		let frameIndex = Renderer.RenderFrameContext.FrameIndex;
-		let bindGroupIndex = GetBindGroupIndex(frameIndex);
 		let instanceBuffer = mInstanceBuffers[frameIndex];
 		if (instanceBuffer == null)
 			return;
@@ -377,7 +399,7 @@ public class SpriteFeature : RenderFeatureBase
 
 		for (let batch in mBatches)
 		{
-			let bindGroup = GetOrCreateBindGroup(batch.TextureView, bindGroupIndex);
+			let bindGroup = GetOrCreateBindGroup(batch.TextureView, bindGroupIndex, sceneUniformBuffer);
 			if (bindGroup == null)
 				continue;
 
@@ -388,7 +410,7 @@ public class SpriteFeature : RenderFeatureBase
 		}
 	}
 
-	private IBindGroup GetOrCreateBindGroup(ITextureView textureView, int32 bindGroupIndex)
+	private IBindGroup GetOrCreateBindGroup(ITextureView textureView, int32 bindGroupIndex, IBuffer sceneUniformBuffer)
 	{
 		let cache = mBindGroupCache[bindGroupIndex];
 
@@ -399,14 +421,14 @@ public class SpriteFeature : RenderFeatureBase
 				return entry.BindGroup;
 		}
 
-		let cameraBuffer = Renderer.RenderFrameContext?.SceneUniformBuffer;
+		let cameraBuffer = sceneUniformBuffer;
 		if (cameraBuffer == null || mBindGroupLayout == null || mDefaultSampler == null)
 			return null;
 
 		BindGroupEntry[3] entries = .(
-			BindGroupEntry.Buffer(0, cameraBuffer, 0, SceneUniforms.Size),
-			BindGroupEntry.Texture(0, textureView),
-			BindGroupEntry.Sampler(0, mDefaultSampler)
+			BindGroupEntry.Buffer(/*0,*/cameraBuffer, 0, SceneUniforms.Size),
+			BindGroupEntry.Texture(/*0,*/textureView),
+			BindGroupEntry.Sampler(/*0,*/mDefaultSampler)
 		);
 
 		BindGroupDesc bgDesc = .()

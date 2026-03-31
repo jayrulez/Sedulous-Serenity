@@ -1,21 +1,38 @@
-using System;
 namespace Sedulous.RHI;
 
-/// Batches multiple GPU transfer operations into a single command buffer submission.
-/// Created via IQueue.CreateTransferBatch(). Records transfers without submitting,
-/// then Submit() executes all recorded transfers with a single GPU sync point.
-/// Reusable after Submit() — can record more transfers and submit again.
-/// Caller owns the object and must delete it when done.
+using System;
+
+/// Batches multiple staging upload operations into a single GPU submission.
+/// Created from IQueue.CreateTransferBatch().
+///
+/// Usage:
+/// ```
+/// var batch = queue.CreateTransferBatch().Value;
+/// batch.WriteBuffer(vertexBuffer, 0, vertexData);
+/// batch.WriteTexture(texture, pixelData, layout, extent);
+/// batch.Submit();
+/// queue.DestroyTransferBatch(ref batch);
+/// ```
 interface ITransferBatch
 {
-	/// Records a staging upload to a texture. Does not submit — call Submit() when done.
-	void WriteTexture(ITexture texture, Span<uint8> data, TextureDataLayout* dataLayout,
-		Extent3D* writeSize, uint32 mipLevel = 0, uint32 arrayLayer = 0);
+	/// Records a buffer upload. Data is copied to staging memory immediately.
+	void WriteBuffer(IBuffer dst, uint64 dstOffset, Span<uint8> data);
 
-	/// Records a staging upload to a buffer. Does not submit — call Submit() when done.
-	void WriteBuffer(IBuffer buffer, uint64 offset, Span<uint8> data);
+	/// Records a texture upload. Data is copied to staging memory immediately.
+	void WriteTexture(ITexture dst, Span<uint8> data,
+		TextureDataLayout dataLayout, Extent3D extent,
+		uint32 mipLevel = 0, uint32 arrayLayer = 0);
 
-	/// Submits all recorded transfers, waits for completion, and frees staging resources.
-	/// No-op if no transfers were recorded. Batch is reusable after this call.
-	void Submit();
+	/// Submits all recorded transfers synchronously (blocks until GPU completes).
+	Result<void> Submit();
+
+	/// Submits all recorded transfers asynchronously.
+	/// Signals `fence` to `signalValue` when the GPU transfer completes.
+	Result<void> SubmitAsync(IFence fence, uint64 signalValue);
+
+	/// Resets for reuse — clears recorded operations and frees staging memory.
+	void Reset();
+
+	/// Destroys the transfer batch and frees all resources.
+	void Destroy();
 }

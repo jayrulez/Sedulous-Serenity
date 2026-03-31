@@ -34,7 +34,7 @@ public class WorldSpaceUIFeature : RenderFeatureBase
 	/// Number of active panels.
 	public int PanelCount => mPanels.Count;
 
-	public override void AddPasses(RenderGraph graph, RenderView view, RenderWorld world)
+	public override void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world)
 	{
 		using (SProfiler.Begin("WorldUI.AddPasses"))
 		{
@@ -66,8 +66,12 @@ public class WorldSpaceUIFeature : RenderFeatureBase
 			panel.Renderer.UpdateProjection(panel.PixelWidth, panel.PixelHeight, frameIndex);
 			panel.Renderer.Prepare(batch, frameIndex);
 
-			// Import panel's render texture into the graph
-			let handle = graph.ImportTexture(panel.ResourceName, panel.Texture, panel.TextureView);
+			// Import panel's render texture into the graph.
+			let handle = graph.ImportTarget(panel.ResourceName, panel.Texture, panel.TextureView);
+
+			// Mark as readable after write — the barrier solver will transition to ShaderRead
+			// after the UI pass writes to it, so sprites can sample it without declaring ReadTexture.
+			graph.RequireReadableAfterWrite(handle);
 
 			// Capture panel and frame index for the callback
 			let capturedPanel = panel;
@@ -75,19 +79,16 @@ public class WorldSpaceUIFeature : RenderFeatureBase
 			let capturedWidth = panel.PixelWidth;
 			let capturedHeight = panel.PixelHeight;
 
-			// Add a graphics pass that renders UI to this panel's texture
-			graph.AddGraphicsPass(panel.PassName)
-				.WriteColor(handle, .Clear, .Store, .(0, 0, 0, 0))
-				.NeverCull()
-				.SetExecuteCallback(new /*[capturedPanel, capturedFrameIndex, capturedWidth, capturedHeight]*/ (encoder) => {
+			// Add a render pass that renders UI to this panel's texture
+			graph.AddRenderPass(panel.PassName, scope (builder) => {
+				builder.SetColorTarget(0, handle, .Clear, .Store, ClearColor(0, 0, 0, 0));
+				builder.NeverCull();
+				builder.SetExecute(new (encoder) => {
 					encoder.SetViewport(0, 0, capturedWidth, capturedHeight, 0, 1);
 					encoder.SetScissor(0, 0, capturedWidth, capturedHeight);
 					capturedPanel.Renderer.Render(encoder, capturedWidth, capturedHeight, capturedFrameIndex);
 				});
-
-			// Declare that SpriteRender reads this texture so the render graph
-			// inserts a ColorAttachment → ShaderReadOnly barrier before sampling.
-			graph.DeferReadTexture("SpriteRender", handle);
+			});
 
 			panel.IsDirty = false;
 		}

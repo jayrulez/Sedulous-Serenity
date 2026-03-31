@@ -30,9 +30,6 @@ public class WorldUISubsystem : Subsystem, ISceneAware
 	private RenderSystem mRenderSystem;
 	private int32 mFrameCount;
 	private List<UISceneModule> mSceneModules = new .() ~ delete _;
-	private uint32 mViewportWidth;
-	private uint32 mViewportHeight;
-
 	// Resources (shared from UISubsystem or owned)
 	private IDevice mDevice;
 	private IFontService mFontService;
@@ -174,7 +171,12 @@ public class WorldUISubsystem : Subsystem, ISceneAware
 
 	private void RouteWorldPanelInput()
 	{
-		if (mInputSubsystem == null || mViewportWidth == 0 || mViewportHeight == 0)
+		if (mInputSubsystem == null || mRenderSystem == null)
+			return;
+
+		let viewportWidth = mRenderSystem.ViewportWidth;
+		let viewportHeight = mRenderSystem.ViewportHeight;
+		if (viewportWidth == 0 || viewportHeight == 0)
 			return;
 
 		let inputManager = mInputSubsystem.InputManager;
@@ -188,7 +190,7 @@ public class WorldUISubsystem : Subsystem, ISceneAware
 		let keyboard = inputManager.Keyboard;
 
 		for (let module in mSceneModules)
-			module.ProcessWorldInput(mouse, keyboard, mViewportWidth, mViewportHeight);
+			module.ProcessWorldInput(mouse, keyboard, viewportWidth, viewportHeight);
 	}
 
 	private void UpdateCursor()
@@ -215,13 +217,6 @@ public class WorldUISubsystem : Subsystem, ISceneAware
 				return;
 			}
 		}
-	}
-
-	/// Sets the viewport dimensions used for world panel raycasting.
-	public void SetViewportSize(uint32 width, uint32 height)
-	{
-		mViewportWidth = width;
-		mViewportHeight = height;
 	}
 
 	// ==================== ISceneAware ====================

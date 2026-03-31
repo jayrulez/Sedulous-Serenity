@@ -4,75 +4,66 @@ using System;
 using Bulkan;
 using Sedulous.RHI;
 
-/// Vulkan implementation of IFence.
+/// Vulkan implementation of IFence (timeline semaphore).
 class VulkanFence : IFence
 {
-	private VulkanDevice mDevice;
-	private VkFence mFence;
+	private VkSemaphore mSemaphore;
+	private VkDevice mDevice;
 
-	public this(VulkanDevice device, bool signaled = false)
-	{
-		mDevice = device;
-		CreateFence(signaled);
-	}
+	public this() { }
 
-	public ~this()
+	public Result<void> Init(VulkanDevice device, uint64 initialValue)
 	{
-		Dispose();
-	}
+		mDevice = device.Handle;
 
-	public void Dispose()
-	{
-		if (mFence != default)
+		VkSemaphoreTypeCreateInfo typeInfo = .();
+		typeInfo.semaphoreType = .VK_SEMAPHORE_TYPE_TIMELINE;
+		typeInfo.initialValue = initialValue;
+
+		VkSemaphoreCreateInfo createInfo = .();
+		createInfo.pNext = &typeInfo;
+
+		let result = VulkanNative.vkCreateSemaphore(device.Handle, &createInfo, null, &mSemaphore);
+		if (result != .VK_SUCCESS)
 		{
-			VulkanNative.vkDestroyFence(mDevice.Device, mFence, null);
-			mFence = default;
+			System.Diagnostics.Debug.WriteLine(scope $"VulkanFence: vkCreateSemaphore failed ({result})");
+			return .Err;
 		}
+
+		return .Ok;
 	}
 
-	/// Returns true if the fence was created successfully.
-	public bool IsValid => mFence != default;
-
-	/// Gets the Vulkan fence handle.
-	public VkFence Fence => mFence;
-
-	public bool IsSignaled
+	public uint64 CompletedValue
 	{
 		get
 		{
-			if (mFence == default)
-				return false;
-
-			return VulkanNative.vkGetFenceStatus(mDevice.Device, mFence) == .VK_SUCCESS;
+			uint64 value = 0;
+			VulkanNative.vkGetSemaphoreCounterValue(mDevice, mSemaphore, &value);
+			return value;
 		}
 	}
 
-	public bool Wait(uint64 timeoutNanoseconds = uint64.MaxValue)
+	public bool Wait(uint64 value, uint64 timeoutNs = uint64.MaxValue)
 	{
-		if (mFence == default)
-			return false;
+		var value;
+		VkSemaphoreWaitInfo waitInfo = .();
+		waitInfo.semaphoreCount = 1;
+		waitInfo.pSemaphores = &mSemaphore;
+		waitInfo.pValues = &value;
 
-		var fence = mFence;
-		return VulkanNative.vkWaitForFences(mDevice.Device, 1, &fence, VkBool32.True, timeoutNanoseconds) == .VK_SUCCESS;
+		let result = VulkanNative.vkWaitSemaphores(mDevice, &waitInfo, timeoutNs);
+		return result == .VK_SUCCESS;
 	}
 
-	public void Reset()
+	public void Cleanup(VulkanDevice device)
 	{
-		if (mFence == default)
-			return;
-
-		var fence = mFence;
-		VulkanNative.vkResetFences(mDevice.Device, 1, &fence);
+		if (mSemaphore.Handle != 0)
+		{
+			VulkanNative.vkDestroySemaphore(device.Handle, mSemaphore, null);
+			mSemaphore = .Null;
+		}
 	}
 
-	private void CreateFence(bool signaled)
-	{
-		VkFenceCreateInfo fenceInfo = .()
-			{
-				sType = .VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-				flags = signaled ? .VK_FENCE_CREATE_SIGNALED_BIT : 0
-			};
-
-		VulkanNative.vkCreateFence(mDevice.Device, &fenceInfo, null, &mFence);
-	}
+	// --- Internal ---
+	public VkSemaphore Handle => mSemaphore;
 }

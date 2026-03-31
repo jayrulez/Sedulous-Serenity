@@ -1,0 +1,217 @@
+namespace Sedulous.UI;
+
+using System;
+using Sedulous.Drawing;
+using Sedulous.Core.Mathematics;
+using Sedulous.Fonts;
+using Sedulous.Core;
+
+/// Toggle control with check box indicator and text label.
+public class CheckBox : View
+{
+	private String mText = new .() ~ delete _;
+	private float mFontSize = 16;
+	private Color mTextColor = default;
+	private bool mIsChecked;
+
+	private EventAccessor<delegate void(CheckBox, bool)> mOnCheckedChanged = new .() ~ delete _;
+
+	// Visual constants
+	private const float BoxSize = 16;
+	private const float BoxTextSpacing = 8;
+
+	/// Effective indicator size: uses drawable's intrinsic size when available.
+	private float GetIndicatorSize()
+	{
+		let theme = Context?.Theme;
+		if (theme != null)
+		{
+			let drawable = theme.GetDrawable("CheckBox", "unchecked");
+			if (drawable != null)
+			{
+				let sz = drawable.IntrinsicSize;
+				if (sz.Width > 0 && sz.Height > 0)
+					return Math.Max(sz.Width, sz.Height);
+			}
+		}
+		return BoxSize;
+	}
+
+	public bool IsChecked
+	{
+		get => mIsChecked;
+		set
+		{
+			if (mIsChecked != value)
+			{
+				mIsChecked = value;
+				Invalidate();
+				mOnCheckedChanged.[Friend]Invoke(this, value);
+			}
+		}
+	}
+
+	public StringView Text
+	{
+		get => mText;
+		set
+		{
+			mText.Set(value);
+			InvalidateLayout();
+		}
+	}
+
+	public float FontSize
+	{
+		get => mFontSize;
+		set
+		{
+			mFontSize = Math.Max(1, value);
+			InvalidateLayout();
+		}
+	}
+
+	public Color TextColor
+	{
+		get => mTextColor;
+		set { mTextColor = value; Invalidate(); }
+	}
+
+	/// Subscribe to checked state change events.
+	public EventAccessor<delegate void(CheckBox, bool)> OnCheckedChanged => mOnCheckedChanged;
+
+	public this()
+	{
+		Focusable = true;
+		CursorType = .Pointer;
+		Padding = .(4, 4, 4, 4);
+	}
+
+	public this(StringView text) : this()
+	{
+		mText.Set(text);
+	}
+
+	public override float GetBaseline()
+	{
+		if (Context == null || Context.FontService == null)
+			return -1;
+
+		let font = Context.FontService.GetFont(mFontSize);
+		if (font == null)
+			return -1;
+
+		// Text is drawn with .Middle vertical alignment in content bounds
+		float contentH = Height - Padding.Vertical;
+		float lineH = font.Font.Metrics.LineHeight;
+		float baseline = Padding.Top + (contentH - lineH) * 0.5f + font.Font.Metrics.Ascent;
+		Context.FontService.ReleaseFont(font);
+		return baseline;
+	}
+
+	protected override void OnMeasure(MeasureSpec widthSpec, MeasureSpec heightSpec)
+	{
+		float textW = 0;
+		float textH = mFontSize;
+
+		if (!mText.IsEmpty && Context != null && Context.FontService != null)
+		{
+			let font = Context.FontService.GetFont(mFontSize);
+			if (font != null)
+			{
+				textW = font.Font.MeasureString(mText);
+				textH = font.Font.Metrics.LineHeight;
+				Context.FontService.ReleaseFont(font);
+			}
+		}
+
+		float indicatorSize = GetIndicatorSize();
+		float desiredW = Padding.Horizontal + indicatorSize + (mText.IsEmpty ? 0 : BoxTextSpacing + textW);
+		float desiredH = Padding.Vertical + Math.Max(indicatorSize, textH);
+
+		SetMeasuredDimension(
+			widthSpec.Resolve(desiredW, MinWidth, MaxWidth),
+			heightSpec.Resolve(desiredH, MinHeight, MaxHeight)
+		);
+	}
+
+	protected override void OnDraw(DrawContext ctx)
+	{
+		let theme = Context?.Theme;
+		let palette = theme?.Palette ?? Palette.Dark;
+		let content = ContentBounds;
+		float contentH = content.Height;
+		float indicatorSize = GetIndicatorSize();
+
+		float boxY = content.Y + (contentH - indicatorSize) * 0.5f;
+		float boxX = content.X;
+
+		// Try theme drawable first (e.g. Kenney sprite-based indicators)
+		let indicatorKey = mIsChecked ? "checked" : "unchecked";
+		let indicatorDrawable = theme?.GetDrawable("CheckBox", indicatorKey);
+		if (indicatorDrawable != null)
+		{
+			indicatorDrawable.Draw(ctx, .(boxX, boxY, indicatorSize, indicatorSize), GetControlState());
+		}
+		else
+		{
+			let boxBg = theme?.GetColor("CheckBox", "boxBackground") ?? .(0.15f, 0.15f, 0.2f, 1.0f);
+			let boxBorder = theme?.GetColor("CheckBox", "boxBorder") ?? palette.Border;
+			let checkColor = theme?.GetColor("CheckBox", "checkColor") ?? palette.Accent;
+			let cornerRadius = theme?.GetDimension("CheckBox", "cornerRadius") ?? 3;
+
+			ctx.FillRoundedRect(.(boxX, boxY, indicatorSize, indicatorSize), cornerRadius, boxBg);
+
+			Color borderColor = IsHovered && Enabled ? Palette.Lighten(boxBorder, 0.3f) : boxBorder;
+			ctx.DrawBorderRoundedRect(.(boxX, boxY, indicatorSize, indicatorSize), cornerRadius, borderColor, 1.5f);
+
+			if (mIsChecked)
+			{
+				let cc = Enabled ? checkColor : Palette.ComputeDisabled(checkColor);
+				ctx.FillRoundedRect(.(boxX + 3, boxY + 3, indicatorSize - 6, indicatorSize - 6), 2, cc);
+			}
+		}
+
+		if (IsFocused)
+			DrawFocusIndicator(ctx, .(boxX - 2, boxY - 2, indicatorSize + 4, indicatorSize + 4), 4);
+
+		if (!mText.IsEmpty && Context != null && Context.FontService != null)
+		{
+			let font = Context.FontService.GetFont(mFontSize);
+			if (font != null)
+			{
+				let atlasTexture = Context.FontService.GetAtlasTexture(font);
+				if (atlasTexture != null)
+				{
+					let textX = boxX + indicatorSize + BoxTextSpacing;
+					let textBounds = RectangleF(textX, content.Y, content.Width - indicatorSize - BoxTextSpacing, contentH);
+					let baseTextColor = (mTextColor.A > 0) ? mTextColor : (theme?.GetColor("CheckBox", "text") ?? palette.Text);
+				let textColor = Enabled ? baseTextColor : Palette.ComputeDisabled(baseTextColor);
+					ctx.DrawText(mText, font.Font, font.Atlas, atlasTexture, textBounds, .Left, .Middle, textColor);
+				}
+				Context.FontService.ReleaseFont(font);
+			}
+		}
+	}
+
+	public override void OnMouseDown(MouseButtonEventArgs e)
+	{
+		if (!Enabled || e.Button != .Left)
+			return;
+
+		IsChecked = !mIsChecked;
+		e.Handled = true;
+	}
+
+	public override void OnKeyDown(KeyEventArgs e)
+	{
+		if (!Enabled)
+			return;
+
+		if (e.Key == .Space || e.Key == .Return)
+		{
+			IsChecked = !mIsChecked;
+			e.Handled = true;
+		}
+	}
+}

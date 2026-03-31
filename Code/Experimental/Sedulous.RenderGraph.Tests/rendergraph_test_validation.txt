@@ -1,0 +1,6 @@
+Render graph validation: 5 issue(s)
+  [WARN] Pass 'DebugView' was culled (outputs not consumed by any retained pass)
+  [WARN] Pass 'GBuffer' is scheduled but has no execute callback
+  [WARN] Pass 'SSAO' is scheduled but has no execute callback
+  [WARN] Pass 'Lighting' is scheduled but has no execute callback
+  [WARN] Pass 'Tonemap' is scheduled but has no execute callback

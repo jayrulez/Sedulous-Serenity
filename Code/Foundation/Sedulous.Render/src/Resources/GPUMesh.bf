@@ -36,6 +36,22 @@ public struct GPUTextureHandle : IHashable
 	public static bool operator !=(Self lhs, Self rhs) => !(lhs == rhs);
 }
 
+/// Handle to a GPU bone buffer.
+public struct GPUBoneBufferHandle : IHashable
+{
+	public uint32 Index;
+	public uint32 Generation;
+
+	public static Self Invalid = .() { Index = uint32.MaxValue, Generation = 0 };
+
+	public bool IsValid => Index != uint32.MaxValue;
+
+	public int GetHashCode() => (int)(Index ^ (Generation << 16));
+
+	public static bool operator ==(Self lhs, Self rhs) => lhs.Index == rhs.Index && lhs.Generation == rhs.Generation;
+	public static bool operator !=(Self lhs, Self rhs) => !(lhs == rhs);
+}
+
 /// LOD level descriptor within a GPU mesh.
 /// Each LOD selects a contiguous range of submeshes.
 /// All LODs share the same vertex/index buffer.
@@ -110,17 +126,12 @@ public class GPUMesh
 	public uint32 LODCount;
 
 	/// Frees GPU resources.
-	public void Release()
+	public void Release(IDevice device)
 	{
-		if (VertexBuffer != null)
+		if (device != null)
 		{
-			delete VertexBuffer;
-			VertexBuffer = null;
-		}
-		if (IndexBuffer != null)
-		{
-			delete IndexBuffer;
-			IndexBuffer = null;
+			device.DestroyBuffer(ref VertexBuffer);
+			device.DestroyBuffer(ref IndexBuffer);
 		}
 		if (SubMeshes != null)
 		{
@@ -171,17 +182,12 @@ public class GPUTexture
 	public bool IsActive;
 
 	/// Frees GPU resources.
-	public void Release()
+	public void Release(IDevice device)
 	{
-		if (DefaultView != null)
+		if (device != null)
 		{
-			delete DefaultView;
-			DefaultView = null;
-		}
-		if (Texture != null)
-		{
-			delete Texture;
-			Texture = null;
+			device.DestroyTextureView(ref DefaultView);
+			device.DestroyTexture(ref Texture);
 		}
 		IsActive = false;
 	}

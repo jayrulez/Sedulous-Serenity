@@ -3,7 +3,9 @@ namespace NuklearSample;
 using System;
 using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
-using SampleFramework;
+using Sedulous.Shaders;
+using Sedulous.Runtime.Client;
+using Sedulous.Runtime;
 using Nuklear_Beef;
 
 /// Vertex structure matching Nuklear's expected format
@@ -23,7 +25,7 @@ struct NkUniforms
 }
 
 /// Nuklear integration sample demonstrating immediate-mode GUI with RHI rendering.
-class NuklearSampleApp : RHISampleApp
+class NuklearSampleApp : Application
 {
 	// Nuklear context and font
 	private nk_context mNkContext;
@@ -44,6 +46,7 @@ class NuklearSampleApp : RHISampleApp
 	private ITexture mFontTexture;
 	private ITextureView mFontTextureView;
 	private ISampler mFontSampler;
+	private ShaderSystem mShaderSystem;
 	private IShaderModule mVertShader;
 	private IShaderModule mFragShader;
 	private IBindGroupLayout mBindGroupLayout;
@@ -62,18 +65,22 @@ class NuklearSampleApp : RHISampleApp
 	private int32 mComboSelected = 0;
 	private float mPropertyValue = 1.0f;
 
-	public this() : base(.()
-		{
-			Title = "Nuklear Sample",
-			Width = 1024,
-			Height = 768,
-			ClearColor = .(0.1f, 0.18f, 0.24f, 1.0f)
-		})
+	public this() : base()
 	{
 	}
 
-	protected override bool OnInitialize()
+	protected override void OnInitialize(Context context)
 	{
+		// Initialize shader system
+		mShaderSystem = new ShaderSystem();
+		String shaderPath = scope .();
+		GetAssetPath("samples/NuklearSample/shaders", shaderPath);
+		if (mShaderSystem.Initialize(Device, scope StringView[](shaderPath)) case .Err)
+		{
+			Console.WriteLine("Failed to initialize shader system");
+			return;
+		}
+
 		// Initialize Nuklear font atlas
 		nk_font_atlas_init_default(&mFontAtlas);
 		nk_font_atlas_begin(&mFontAtlas);
@@ -88,12 +95,12 @@ class NuklearSampleApp : RHISampleApp
 		if (atlasImage == null || atlasWidth == 0 || atlasHeight == 0)
 		{
 			Console.WriteLine("Failed to bake font atlas");
-			return false;
+			return;
 		}
 
 		// Create font texture
 		if (!CreateFontTexture(atlasImage, (uint32)atlasWidth, (uint32)atlasHeight))
-			return false;
+			return;
 
 		// Complete font atlas initialization
 		nk_handle texHandle = .();
@@ -104,7 +111,7 @@ class NuklearSampleApp : RHISampleApp
 		if (!nk_init_default(&mNkContext, &mDefaultFont.handle))
 		{
 			Console.WriteLine("Failed to initialize Nuklear context");
-			return false;
+			return;
 		}
 
 		// Initialize command and vertex/index buffers
@@ -120,18 +127,17 @@ class NuklearSampleApp : RHISampleApp
 
 		// Create RHI resources
 		if (!CreateBuffers())
-			return false;
+			return;
 
 		if (!CreateBindings())
-			return false;
+			return;
 
 		if (!CreatePipeline())
-			return false;
+			return;
 
 		Console.WriteLine("Nuklear Sample initialized.");
 		Console.WriteLine("  - Mouse: interact with UI");
 		Console.WriteLine("  - ESC: Exit");
-		return true;
 	}
 
 	private bool CreateFontTexture(void* imageData, uint32 width, uint32 height)
@@ -161,7 +167,7 @@ class NuklearSampleApp : RHISampleApp
 
 		Extent3D writeSize = .(width, height, 1);
 		Span<uint8> data = .((uint8*)imageData, (int)(width * height * 4));
-		Device.Queue.WriteTextureSync(mFontTexture, data, &dataLayout, &writeSize);
+		TransferHelper.WriteTextureSync(Device.GetQueue(.Graphics), Device, mFontTexture, data, dataLayout, writeSize);
 
 		// Create texture view
 		TextureViewDesc viewDesc = .();
@@ -251,14 +257,15 @@ class NuklearSampleApp : RHISampleApp
 	private bool CreateBindings()
 	{
 		// Load shaders
-		let shaderResult = ShaderUtils.LoadShaderPair(Device, "shaders/nuklear");
+		let shaderResult = mShaderSystem.GetShaderPair("nuklear");
 		if (shaderResult case .Err)
 		{
 			Console.WriteLine("Failed to load shaders");
 			return false;
 		}
 
-		(mVertShader, mFragShader) = shaderResult.Get();
+		mVertShader = shaderResult.Value.vert.Module;
+		mFragShader = shaderResult.Value.frag.Module;
 		Console.WriteLine("Shaders compiled");
 
 		// Create bind group layout
@@ -278,9 +285,9 @@ class NuklearSampleApp : RHISampleApp
 
 		// Create bind group - use binding 0 for all resource types
 		BindGroupEntry[3] bindGroupEntries = .(
-			BindGroupEntry.Buffer(0, mUniformBuffer),
-			BindGroupEntry.Texture(0, mFontTextureView),
-			BindGroupEntry.Sampler(0, mFontSampler)
+			BindGroupEntry.Buffer(mUniformBuffer, 0, 0),
+			BindGroupEntry.Texture(mFontTextureView),
+			BindGroupEntry.Sampler(mFontSampler)
 		);
 		BindGroupDesc bindGroupDesc = .(mBindGroupLayout, bindGroupEntries);
 		if (Device.CreateBindGroup(bindGroupDesc) not case .Ok(let group))
@@ -424,13 +431,13 @@ class NuklearSampleApp : RHISampleApp
 		nk_input_end(&mNkContext);
 	}
 
-	protected override void OnUpdate(float deltaTime, float totalTime)
+	protected override void OnUpdate(FrameContext frame)
 	{
 		// Build Nuklear UI
 		BuildUI();
 
 		// Update background clear color based on UI
-		mConfig.ClearColor = Color(mBackgroundColor.r, mBackgroundColor.g, mBackgroundColor.b, 1.0f);
+		mSettings.ClearColor = Color(mBackgroundColor.r, mBackgroundColor.g, mBackgroundColor.b, 1.0f);
 	}
 
 	private void BuildUI()
@@ -493,7 +500,7 @@ class NuklearSampleApp : RHISampleApp
 		nk_end(&mNkContext);
 	}
 
-	protected override void OnPrepareFrame(int32 frameIndex)
+	protected override void OnPrepareFrame(FrameContext frame)
 	{
 		// Update projection matrix
 		float width = (float)SwapChain.Width;
@@ -513,7 +520,7 @@ class NuklearSampleApp : RHISampleApp
 			Projection = projection
 		};
 		Span<uint8> uniformData = .((uint8*)&uniforms, sizeof(NkUniforms));
-		Device.Queue.WriteMappedBuffer(mUniformBuffer, 0, uniformData);
+		TransferHelper.WriteMappedBuffer(mUniformBuffer, 0, uniformData);
 
 		// Convert Nuklear commands to vertex/index data
 		ConvertDrawCommands();
@@ -546,7 +553,7 @@ class NuklearSampleApp : RHISampleApp
 		{
 			void* vertexData = nk_buffer_memory_const(&mVertexBuffer);
 			Span<uint8> vertSpan = .((uint8*)vertexData, (int)mVertexBuffer.size);
-			Device.Queue.WriteMappedBuffer(mRhiVertexBuffer, 0, vertSpan);
+			TransferHelper.WriteMappedBuffer(mRhiVertexBuffer, 0, vertSpan);
 		}
 
 		// Upload index data to RHI buffer
@@ -554,11 +561,11 @@ class NuklearSampleApp : RHISampleApp
 		{
 			void* indexData = nk_buffer_memory_const(&mIndexBuffer);
 			Span<uint8> idxSpan = .((uint8*)indexData, (int)mIndexBuffer.size);
-			Device.Queue.WriteMappedBuffer(mRhiIndexBuffer, 0, idxSpan);
+			TransferHelper.WriteMappedBuffer(mRhiIndexBuffer, 0, idxSpan);
 		}
 	}
 
-	protected override void OnRender(IRenderPassEncoder renderPass)
+	protected override void OnRender(IRenderPassEncoder renderPass, FrameContext frame)
 	{
 		if (mVertexBuffer.size == 0 || mIndexBuffer.size == 0)
 			return;
@@ -595,7 +602,7 @@ class NuklearSampleApp : RHISampleApp
 		nk_clear(&mNkContext);
 	}
 
-	protected override void OnCleanup()
+	protected override void OnShutdown()
 	{
 		// Clean up Nuklear
 		nk_buffer_free(&mCommandBuffer);
@@ -605,18 +612,23 @@ class NuklearSampleApp : RHISampleApp
 		nk_free(&mNkContext);
 
 		// Clean up RHI resources
-		if (mPipeline != null) delete mPipeline;
-		if (mPipelineLayout != null) delete mPipelineLayout;
-		if (mBindGroup != null) delete mBindGroup;
-		if (mBindGroupLayout != null) delete mBindGroupLayout;
-		if (mFragShader != null) delete mFragShader;
-		if (mVertShader != null) delete mVertShader;
-		if (mFontSampler != null) delete mFontSampler;
-		if (mFontTextureView != null) delete mFontTextureView;
-		if (mFontTexture != null) delete mFontTexture;
-		if (mUniformBuffer != null) delete mUniformBuffer;
-		if (mRhiIndexBuffer != null) delete mRhiIndexBuffer;
-		if (mRhiVertexBuffer != null) delete mRhiVertexBuffer;
+		if (mDevice != null)
+		{
+			mDevice.DestroyRenderPipeline(ref mPipeline);
+			mDevice.DestroyPipelineLayout(ref mPipelineLayout);
+			mDevice.DestroyBindGroup(ref mBindGroup);
+			mDevice.DestroyBindGroupLayout(ref mBindGroupLayout);
+			//mDevice.DestroyShaderModule(ref mFragShader);
+			//mDevice.DestroyShaderModule(ref mVertShader);
+			mDevice.DestroySampler(ref mFontSampler);
+			mDevice.DestroyTextureView(ref mFontTextureView);
+			mDevice.DestroyTexture(ref mFontTexture);
+			mDevice.DestroyBuffer(ref mUniformBuffer);
+			mDevice.DestroyBuffer(ref mRhiIndexBuffer);
+			mDevice.DestroyBuffer(ref mRhiVertexBuffer);
+		}
+
+		if (mShaderSystem != null) { mShaderSystem.Dispose(); delete mShaderSystem; }
 	}
 }
 
@@ -625,6 +637,6 @@ class Program
 	public static int Main(String[] args)
 	{
 		let app = scope NuklearSampleApp();
-		return app.Run();
+		return app.Run(.() { Title = "Nuklear Sample", Width = 1024, Height = 768, ClearColor = .(0.1f, 0.18f, 0.24f, 1.0f), EnableDepth = false });
 	}
 }

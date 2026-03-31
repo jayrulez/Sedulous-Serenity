@@ -6,24 +6,40 @@ using Sedulous.RHI;
 /// Uses ping-pong alive lists with a compaction pass to avoid append-only overflow.
 public class GPUParticleSystem
 {
-	public IBuffer ParticleBuffer ~ delete _;
-	public IBuffer AliveListA ~ delete _;
-	public IBuffer AliveListB ~ delete _;
-	public IBuffer DeadList ~ delete _;
-	public IBuffer Counters ~ delete _;      // [0] = alive write cursor, [1] = dead count
-	public IBuffer EmitterParams ~ delete _;
-	public IBuffer ParticleParams ~ delete _; // For render shader b1
+	public IBuffer ParticleBuffer;
+	public IBuffer AliveListA;
+	public IBuffer AliveListB;
+	public IBuffer DeadList;
+	public IBuffer Counters;      // [0] = alive write cursor, [1] = dead count
+	public IBuffer EmitterParams;
+	public IBuffer ParticleParams; // For render shader b1
 
 	// Two compute bind groups for ping-pong: A has AliveListA at u1/B at u4, B has the reverse.
-	public IBindGroup ComputeBindGroupA ~ delete _;
-	public IBindGroup ComputeBindGroupB ~ delete _;
+	public IBindGroup ComputeBindGroupA;
+	public IBindGroup ComputeBindGroupB;
 
 	// When true: compact reads A (via BindGroupA), spawn/update use B (via BindGroupB).
 	// When false: compact reads B (via BindGroupB), spawn/update use A (via BindGroupA).
 	public bool UseA = true;
 
 	// Per-frame/view render bind groups (reference per-view camera uniform buffer)
-	public IBindGroup[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] RenderBindGroups ~ { for (let bg in _) delete bg; };
+	public IBindGroup[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] RenderBindGroups;
+
+	/// Destroys all RHI resources via the device.
+	public void Destroy(IDevice device)
+	{
+		for (var bg in ref RenderBindGroups)
+			device.DestroyBindGroup(ref bg);
+		device.DestroyBindGroup(ref ComputeBindGroupA);
+		device.DestroyBindGroup(ref ComputeBindGroupB);
+		device.DestroyBuffer(ref ParticleBuffer);
+		device.DestroyBuffer(ref AliveListA);
+		device.DestroyBuffer(ref AliveListB);
+		device.DestroyBuffer(ref DeadList);
+		device.DestroyBuffer(ref Counters);
+		device.DestroyBuffer(ref EmitterParams);
+		device.DestroyBuffer(ref ParticleParams);
+	}
 
 	public uint32 MaxParticles;
 

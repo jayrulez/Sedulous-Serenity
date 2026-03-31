@@ -3,7 +3,6 @@ namespace TowerDefense;
 using System;
 using System.Collections;
 using System.IO;
-using Sedulous.Shell;
 using Sedulous.Shell.Input;
 using Sedulous.RHI;
 using Sedulous.Core.Mathematics;
@@ -132,8 +131,7 @@ class TowerDefenseGame : Application
 	private Vector2 mMoveInput;
 	private float mDeltaTime;
 
-	public this(IShell shell, IDevice device, IBackend backend)
-		: base(shell, device, backend)
+	public this() : base()
 	{
 	}
 
@@ -153,7 +151,7 @@ class TowerDefenseGame : Application
 	private void InitializeRenderSystem()
 	{
 		mRenderSystem = new RenderSystem();
-		if (mRenderSystem.Initialize(mDevice, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null,
+		if (mRenderSystem.Initialize(mDevice, mSwapChain.Width, mSwapChain.Height, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null,
 			.BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
 		{
 			Console.WriteLine("Failed to initialize RenderSystem");
@@ -287,7 +285,7 @@ class TowerDefenseGame : Application
 		mUISubsystem = new Sedulous.GUI.Runtime.UISubsystem();
 		mContext.RegisterSubsystem(mUISubsystem);
 
-		if (mUISubsystem.InitializeRendering(mDevice, .BGRA8UnormSrgb, FrameConfig.MAX_FRAMES_IN_FLIGHT, mShell, mWindow, scope StringView[](shaderPath)) case .Err)
+		if (mUISubsystem.InitializeRendering(mDevice, .BGRA8UnormSrgb, (int32)SwapChain.BufferCount, mShell, mWindow, scope StringView[](shaderPath)) case .Err)
 		{
 			Console.WriteLine("Failed to initialize UI rendering");
 			return;
@@ -1227,15 +1225,20 @@ class TowerDefenseGame : Application
 		delete mMainMenu;
 		//delete mLevelSelect;
 
-		// Clean up materials
-		mPreviewValidMat?.ReleaseRef();
-		mPreviewInvalidMat?.ReleaseRef();
-
-		// Clean up render system
 		if (mRenderSystem != null)
+		{
+			// Clean up materials
+			mPreviewValidMat?.ReleaseRef();
+			mPreviewInvalidMat?.ReleaseRef();
+
+			// Clean up render system
 			mRenderSystem.Shutdown();
-		delete mRenderView;
+		}
+
 		delete mRenderSystem;
+		mRenderSystem = null;
+		delete mRenderView;
+		// Note: mScene is owned by SceneSubsystem — deleted during mContext.Shutdown()
 
 		Console.WriteLine("Shutdown complete");
 	}

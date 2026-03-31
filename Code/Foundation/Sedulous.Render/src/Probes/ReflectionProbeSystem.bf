@@ -37,15 +37,15 @@ public class ReflectionProbeSystem
 	public const int32 NumSamples = 128;
 
 	// Cubemap array for all probes
-	private ITexture mCubemapArray ~ delete _;
-	private ITextureView mCubemapArrayView ~ delete _;
+	private ITexture mCubemapArray;
+	private ITextureView mCubemapArrayView;
 
 	// Fallback: 1-layer white cubemap array (for when no probes active)
-	private ITexture mFallbackCubemapArray ~ delete _;
-	private ITextureView mFallbackCubemapArrayView ~ delete _;
+	private ITexture mFallbackCubemapArray;
+	private ITextureView mFallbackCubemapArrayView;
 
 	// Probe uniform buffers (per-frame for double-buffering)
-	private IBuffer[RenderConfig.FrameBufferCount] mProbeUniformBuffers ~ { for (let b in _) delete b; };
+	private IBuffer[RenderConfig.FrameBufferCount] mProbeUniformBuffers;
 
 	// Layer allocation pool
 	private bool[MaxProbes] mLayerAllocated;
@@ -164,9 +164,9 @@ public class ReflectionProbeSystem
 		for (uint32 face = 0; face < 6; face++)
 		{
 			if (batch != null)
-				batch.WriteTexture(mFallbackCubemapArray, Span<uint8>((uint8*)&whitePixel, 8), &layout, &writeSize, 0, face);
+				batch.WriteTexture(mFallbackCubemapArray, Span<uint8>((uint8*)&whitePixel, 8), layout, writeSize, 0, face);
 			else
-				device.Queue.WriteTextureSync(mFallbackCubemapArray, Span<uint8>((uint8*)&whitePixel, 8), &layout, &writeSize, 0, face);
+				TransferHelper.WriteTextureSync(device.GetQueue(.Graphics), device,mFallbackCubemapArray, Span<uint8>((uint8*)&whitePixel, 8), layout, writeSize, 0, face);
 		}
 
 		var viewDesc = TextureViewDesc();
@@ -210,9 +210,9 @@ public class ReflectionProbeSystem
 			for (int32 layer = 0; layer < totalLayers; layer++)
 			{
 				if (batch != null)
-					batch.WriteTexture(mCubemapArray, Span<uint8>(zeroData.Ptr, dataSize), &layout, &writeSize, mip, (uint32)layer);
+					batch.WriteTexture(mCubemapArray, Span<uint8>(zeroData.Ptr, dataSize), layout, writeSize, mip, (uint32)layer);
 				else
-					device.Queue.WriteTextureSync(mCubemapArray, Span<uint8>(zeroData.Ptr, dataSize), &layout, &writeSize, mip, (uint32)layer);
+					TransferHelper.WriteTextureSync(device.GetQueue(.Graphics), device,mCubemapArray, Span<uint8>(zeroData.Ptr, dataSize), layout, writeSize, mip, (uint32)layer);
 			}
 		}
 	}
@@ -314,7 +314,7 @@ public class ReflectionProbeSystem
 				uint32 arrayLayer = (uint32)(layer * 6 + face);
 				var layout = TextureDataLayout() { BytesPerRow = (uint32)(mipSize * 8), RowsPerImage = (uint32)mipSize };
 				var writeSize = Extent3D((uint32)mipSize, (uint32)mipSize, 1);
-				mDevice.Queue.WriteTextureSync(mCubemapArray, Span<uint8>((uint8*)faceData.Ptr, mipSize * mipSize * 8), &layout, &writeSize, mip, arrayLayer);
+				TransferHelper.WriteTextureSync(mDevice.GetQueue(.Graphics), mDevice, mCubemapArray, Span<uint8>((uint8*)faceData.Ptr, mipSize * mipSize * 8), layout, writeSize, mip, arrayLayer);
 			}
 		}
 
@@ -401,7 +401,15 @@ public class ReflectionProbeSystem
 	/// Disposes GPU resources.
 	public void Dispose()
 	{
-		// Resources cleaned up by destructors (~ delete _)
+		if (mDevice == null)
+			return;
+
+		mDevice.DestroyTextureView(ref mCubemapArrayView);
+		mDevice.DestroyTexture(ref mCubemapArray);
+		mDevice.DestroyTextureView(ref mFallbackCubemapArrayView);
+		mDevice.DestroyTexture(ref mFallbackCubemapArray);
+		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
+			mDevice.DestroyBuffer(ref mProbeUniformBuffers[i]);
 	}
 
 	/// Projects gradient sky into SH9 irradiance coefficients (pre-convolved with cosine lobe).

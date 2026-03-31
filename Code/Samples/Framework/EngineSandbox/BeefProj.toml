@@ -1,6 +1,0 @@
-FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Render" = "*", "Sedulous.Runtime.Client" = "*", "Sedulous.Engine.Scenes" = "*", "Sedulous.Engine.Render" = "*", "Sedulous.Engine.Animation" = "*", "Sedulous.Engine.Physics" = "*", "Sedulous.Engine.Audio" = "*", "Sedulous.Engine.UI" = "*", "Sedulous.Engine.Input" = "*", "Sedulous.GUI.Runtime" = "*", "Sedulous.Physics.Jolt" = "*", "Sedulous.Audio.SDL3" = "*", "Sedulous.Geometry" = "*", "Sedulous.Profiler" = "*", "Sedulous.Drawing.Fonts" = "*"}
-
-[Project]
-Name = "EngineSandbox"
-StartupObject = "EngineSandbox.Program"

@@ -77,13 +77,10 @@ public class InstanceBufferManager
 	/// Shuts down and releases buffers.
 	public void Shutdown()
 	{
-		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
+		if (mDevice != null)
 		{
-			if (mInstanceBuffers[i] != null)
-			{
-				delete mInstanceBuffers[i];
-				mInstanceBuffers[i] = null;
-			}
+			for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
+				mDevice.DestroyBuffer(ref mInstanceBuffers[i]);
 		}
 		mInitialized = false;
 	}
