@@ -1,5 +1,50 @@
 # Sedulous
 
+## ⚠️ Project Status
+
+This version of Sedulous is **no longer actively developed**.
+
+Development has moved to a new internal branch with a redesigned architecture. This repository remains available for reference, and many improvements from earlier experimental work have already been merged back into it.
+
+---
+
+## Architecture Evolution
+
+To improve Sedulous, I explored a series of experimental forks:
+
+- **Project Atlas** *(first private fork)*  
+  Focused on evolving the existing architecture, particularly the renderer and engine-layer integration with Foundation.  
+  Many successful changes from Atlas were backported into this repository.
+
+- **Project Nova** *(second private fork)*  
+  A clean-slate redesign. This fork removes the renderer and all higher-level systems, rebuilding the engine upward from the Foundation layer with a stronger architectural direction.
+
+Both forks were developed in parallel for some time, but maintaining shared components between them became increasingly complex.
+
+---
+
+## Current Direction
+
+Development is now fully focused on **Project Nova**.
+
+While Nova has not yet reached feature parity with this repository or Project Atlas, it establishes a cleaner and more scalable foundation for the future of Sedulous.
+
+Once Nova reaches a stage where it is capable of building a complete game, it will be made public.
+
+---
+
+## Summary
+
+- This repository: **no longer actively developed**
+- Project Atlas: **experimental evolution (partially merged here)**
+- Project Nova: **future of Sedulous (private, in progress)**
+
+---
+
+If you're exploring Sedulous today, this repo is still useful for understanding the engine’s current capabilities—but it does not reflect the direction of ongoing development.
+
+===========================================================================================================
+
 A modular game engine for the [Beef programming language](https://www.beeflang.org/).
 
 ## Overview
